@@ -19,12 +19,9 @@
 
 */
 
-static char *version = "apricot.c:v0.2 05/12/94\n";
+static const char *version = "apricot.c:v0.2 05/12/94\n";
 
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#endif
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -34,13 +31,13 @@ static char *version = "apricot.c:v0.2 05/12/94\n";
 #include <linux/ioport.h>
 #include <linux/malloc.h>
 #include <linux/interrupt.h>
-#include <asm/bitops.h>
-#include <asm/io.h>
-#include <asm/dma.h>
-
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+
+#include <asm/bitops.h>
+#include <asm/io.h>
+#include <asm/dma.h>
 
 #ifndef HAVE_PORTRESERVE
 #define check_region(addr, size)	0
@@ -186,14 +183,12 @@ char init_setup[] = {
 
 static int i596_open(struct device *dev);
 static int i596_start_xmit(struct sk_buff *skb, struct device *dev);
-static void i596_interrupt(int irq, struct pt_regs *regs);
+static void i596_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static int i596_close(struct device *dev);
 static struct enet_statistics *i596_get_stats(struct device *dev);
 static void i596_add_cmd(struct device *dev, struct i596_cmd *cmd);
 static void print_eth(char *);
-#ifdef HAVE_MULTICAST
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
-#endif
+static void set_multicast_list(struct device *dev);
 
 
 static inline int
@@ -342,7 +337,7 @@ i596_rx(struct device *dev)
 	{
 	    /* a good frame */
 	    int pkt_len = lp->scb.rfd->count & 0x3fff;
-	    struct sk_buff *skb = alloc_skb(pkt_len, GFP_ATOMIC);
+	    struct sk_buff *skb = dev_alloc_skb(pkt_len);
 
 	    frames++;
 
@@ -353,9 +348,8 @@ i596_rx(struct device *dev)
 		break;
 	    }
 
-	    skb->len = pkt_len;
   	    skb->dev = dev;		
-	    memcpy(skb->data, lp->scb.rfd->data, pkt_len);
+	    memcpy(skb_put(skb,pkt_len), lp->scb.rfd->data, pkt_len);
 
 	    skb->protocol=eth_type_trans(skb,dev);
 	    netif_rx(skb);
@@ -543,7 +537,7 @@ i596_open(struct device *dev)
     if (i596_debug > 1)
 	printk("%s: i596_open() irq %d.\n", dev->name, dev->irq);
 
-    if (request_irq(dev->irq, &i596_interrupt, 0, "apricot"))
+    if (request_irq(dev->irq, &i596_interrupt, 0, "apricot", NULL))
 	return -EAGAIN;
 
     irq2dev_map[dev->irq] = dev;
@@ -555,7 +549,7 @@ i596_open(struct device *dev)
 
     if (i < 4)
     {
-        free_irq(dev->irq);
+        free_irq(dev->irq, NULL);
         irq2dev_map[dev->irq] = 0;
         return -EAGAIN;
     }
@@ -563,9 +557,7 @@ i596_open(struct device *dev)
     dev->tbusy = 0;
     dev->interrupt = 0;
     dev->start = 1;
-#ifdef MODULE
     MOD_INC_USE_COUNT;
-#endif
 
     /* Initialize the 82596 memory */
     init_i596_mem(dev);
@@ -715,7 +707,7 @@ int apricot_probe(struct device *dev)
     if(memcmp(eth_addr,"\x00\x00\x49",3)!= 0)
     	return ENODEV;
 
-    request_region(ioaddr, APRICOT_TOTAL_SIZE,"apricot");
+    request_region(ioaddr, APRICOT_TOTAL_SIZE, "apricot");
 
     dev->base_addr = ioaddr;
     ether_setup(dev);
@@ -735,9 +727,7 @@ int apricot_probe(struct device *dev)
     dev->stop = &i596_close;
     dev->hard_start_xmit = &i596_start_xmit;
     dev->get_stats = &i596_get_stats;
-#ifdef HAVE_MULTICAST
     dev->set_multicast_list = &set_multicast_list;
-#endif
 
     dev->mem_start = (int)kmalloc(sizeof(struct i596_private)+ 0x0f, GFP_KERNEL);
     /* align for scp */
@@ -753,7 +743,7 @@ int apricot_probe(struct device *dev)
 }
 
 static void
-i596_interrupt(int irq, struct pt_regs *regs)
+i596_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
     struct device *dev = (struct device *)(irq2dev_map[irq]);
     struct i596_private *lp;
@@ -944,13 +934,10 @@ i596_close(struct device *dev)
 		   dev->name, lp->scb.status, lp->scb.command);
 	    break;
     	}
-    free_irq(dev->irq);
+    free_irq(dev->irq, NULL);
     irq2dev_map[dev->irq] = 0;
     remove_rx_bufs(dev);
-#ifdef MODULE
     MOD_DEC_USE_COUNT;
-#endif
-
 
     return 0;
 }
@@ -963,49 +950,55 @@ i596_get_stats(struct device *dev)
     return &lp->stats;
 }
 
-#ifdef HAVE_MULTICAST
-/* Set or clear the multicast filter for this adaptor.
-   num_addrs == -1	Promiscuous mode, receive all packets
-   num_addrs == 0	Normal mode, clear multicast list
-   num_addrs > 0	Multicast mode, receive normal and MC packets, and do
-   			best-effort filtering.
+/*
+ *	Set or clear the multicast filter for this adaptor.
  */
-static void
-set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+ 
+static void set_multicast_list(struct device *dev)
 {
-    struct i596_private *lp = (struct i596_private *)dev->priv;
-    struct i596_cmd *cmd;
+	struct i596_private *lp = (struct i596_private *)dev->priv;
+	struct i596_cmd *cmd;
 
-    if (i596_debug > 1)
-	printk ("%s: set multicast list %d\n", dev->name, num_addrs);
+	if (i596_debug > 1)
+		printk ("%s: set multicast list %d\n", dev->name, dev->mc_count);
 
-    if (num_addrs > 0) {
-	cmd = (struct i596_cmd *) kmalloc(sizeof(struct i596_cmd)+2+num_addrs*6, GFP_ATOMIC);
-	if (cmd == NULL)
+	if (dev->mc_count > 0) 
 	{
-	    printk ("%s: set_multicast Memory squeeze.\n", dev->name);
-	    return;
+		struct dev_mc_list *dmi;
+		char *cp;
+		cmd = (struct i596_cmd *) kmalloc(sizeof(struct i596_cmd)+2+dev->mc_count*6, GFP_ATOMIC);
+		if (cmd == NULL)
+		{
+			printk ("%s: set_multicast Memory squeeze.\n", dev->name);
+			return;
+		}
+		cmd->command = CmdMulticastList;
+		*((unsigned short *) (cmd + 1)) = dev->mc_count * 6;
+		cp=((char *)(cmd + 1))+2;
+		for(dmi=dev->mc_list;dmi!=NULL;dmi=dmi->next)
+		{
+			memcpy(cp, dmi,6);
+			cp+=6;
+		}
+		print_eth (((char *)(cmd + 1)) + 2);
+		i596_add_cmd(dev, cmd);
 	}
-
-	    cmd->command = CmdMulticastList;
-	    *((unsigned short *) (cmd + 1)) = num_addrs * 6;
-	    memcpy (((char *)(cmd + 1))+2, addrs, num_addrs * 6);
-	    print_eth (((char *)(cmd + 1)) + 2);
-		
-	    i596_add_cmd(dev, cmd);
-    } else
-    {
-	if (lp->set_conf.next != (struct i596_cmd * ) I596_NULL) return;
-	if (num_addrs == 0)
-	    lp->i596_config[8] &= ~0x01;
 	else
-	    lp->i596_config[8] |= 0x01;
+	{
+		if (lp->set_conf.next != (struct i596_cmd * ) I596_NULL) 
+			return;
+		if (dev->mc_count == 0 && !(dev->flags&(IFF_PROMISC|IFF_ALLMULTI)))
+		{
+			if(dev->flags&IFF_ALLMULTI)
+				dev->flags|=IFF_PROMISC;
+			lp->i596_config[8] &= ~0x01;
+		}
+		else
+			lp->i596_config[8] |= 0x01;
 
-	i596_add_cmd(dev, &lp->set_conf);
-    }
-
+		i596_add_cmd(dev, &lp->set_conf);
+	}
 }
-#endif
 
 #ifdef HAVE_DEVLIST
 static unsigned int apricot_portlist[] = {0x300, 0};
@@ -1014,16 +1007,21 @@ struct netdev_entry apricot_drv =
 #endif
 
 #ifdef MODULE
-char kernel_version[] = UTS_RELEASE;
+static char devicename[9] = { 0, };
 static struct device dev_apricot = {
-  "        ", /* device name inserted by /linux/drivers/net/net_init.c */
+  devicename, /* device name inserted by /linux/drivers/net/net_init.c */
   0, 0, 0, 0,
   0x300, 10,
   0, 0, 0, NULL, apricot_probe };
 
+static int io = 0x300;
+static int irq = 10;
+
 int
 init_module(void)
 {
+  dev_apricot.base_addr = io;
+  dev_apricot.irq       = irq;
   if (register_netdev(&dev_apricot) != 0)
     return -EIO;
   return 0;
@@ -1032,14 +1030,12 @@ init_module(void)
 void
 cleanup_module(void)
 {
-  if (MOD_IN_USE)
-    printk("%s: device busy, remove delayed\n", dev_apricot.name);
-  else
-  {
     unregister_netdev(&dev_apricot);
     kfree_s((void *)dev_apricot.mem_start, sizeof(struct i596_private) + 0xf);
     dev_apricot.priv = NULL;
-  }
+
+    /* If we don't do this, we can't re-insmod it later. */
+    release_region(dev_apricot.base_addr, APRICOT_TOTAL_SIZE);
 }
 #endif /* MODULE */
 

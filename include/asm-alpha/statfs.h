@@ -1,27 +1,25 @@
 #ifndef _ALPHA_STATFS_H
 #define _ALPHA_STATFS_H
 
-typedef struct {
-	int	val[2];
-} fsid_t;
+#ifndef __KERNEL_STRICT_NAMES
 
-/*
- * The OSF/1 statfs structure is much larger, but this should
- * match the beginning, at least.
- */
+#include <linux/types.h>
+
+typedef __kernel_fsid_t	fsid_t;
+
+#endif
+
 struct statfs {
-	short	f_type;
-	short	f_flags;
-	int	f_fsize;
-	int	f_bsize;
-	int	f_blocks;
-	int	f_bfree;
-	int	f_bavail;
-	int	f_files;
-	int	f_ffree;
-	fsid_t	f_fsid;
-	/* linux-specific entries start here.. */
-	int	f_namelen;
+	int f_type;
+	int f_bsize;
+	int f_blocks;
+	int f_bfree;
+	int f_bavail;
+	int f_files;
+	int f_ffree;
+	__kernel_fsid_t f_fsid;
+	int f_namelen;
+	int f_spare[6];
 };
 
 #endif

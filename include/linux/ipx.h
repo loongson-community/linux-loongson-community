@@ -6,11 +6,11 @@
 
 struct sockaddr_ipx
 {
-	short sipx_family;
-	short sipx_port;
-	unsigned long  sipx_network;
-	unsigned char sipx_node[IPX_NODE_LEN];
-	unsigned char	sipx_type;
+	sa_family_t	 sipx_family;
+	__u16		 sipx_port;
+	__u32		sipx_network;
+	unsigned char 	sipx_node[IPX_NODE_LEN];
+	__u8		sipx_type;
 	unsigned char	sipx_zero;	/* 16 byte fill */
 };
 
@@ -40,6 +40,7 @@ typedef struct ipx_interface_definition
 #define IPX_FRAME_8022		2
 #define IPX_FRAME_ETHERII	3
 #define IPX_FRAME_8023		4
+#define IPX_FRAME_TR_8022	5
 	unsigned char ipx_special;
 #define IPX_SPECIAL_NONE	0
 #define IPX_PRIMARY		1

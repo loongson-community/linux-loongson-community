@@ -11,10 +11,6 @@
 
 /* bitmap.c contains the code that handles the inode and block bitmaps */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
 #include <linux/sched.h>
 #include <linux/locks.h>
 #include <linux/xia_fs.h>
@@ -231,7 +227,7 @@ void xiafs_free_zone(struct super_block * sb, int d_addr)
     }
     bh = get_hash_table(sb->s_dev, d_addr, XIAFS_ZSIZE(sb));
     if (bh)
-        bh->b_dirt=0;
+        mark_buffer_clean(bh);
     brelse(bh);
     bit=d_addr - sb->u.xiafs_sb.s_firstdatazone + 1;
     bh = get_zmap_zone(sb, bit, NULL);
@@ -239,9 +235,9 @@ void xiafs_free_zone(struct super_block * sb, int d_addr)
 	return;
     offset = bit & (XIAFS_BITS_PER_Z(sb) -1);
     if (!clear_bit(offset, bh->b_data))
-        printk("XIA-FS: dev %04x"
+        printk("XIA-FS: dev %s"
 	       " block bit %u (0x%x) already cleared (%s %d)\n",
-	       sb->s_dev, bit, bit, WHERE_ERR);
+	       kdevname(sb->s_dev), bit, bit, WHERE_ERR);
     mark_buffer_dirty(bh, 1);
     xiafs_unlock_super(sb, sb->u.xiafs_sb.s_zmap_cached);
 }
@@ -273,7 +269,7 @@ int xiafs_new_zone(struct super_block * sb, u_long prev_addr)
 	return 0;
     }
     clear_buf(bh);
-    bh->b_uptodate = 1;
+    mark_buffer_uptodate(bh, 1);
     mark_buffer_dirty(bh, 1);
     brelse(bh);
     return tmp;
@@ -287,8 +283,9 @@ void xiafs_free_inode(struct inode * inode)
 
     if (!inode)
         return;
-    if (!inode->i_dev || inode->i_count!=1 || inode->i_nlink || !inode->i_sb ||
-	inode->i_ino < 3 || inode->i_ino > inode->i_sb->u.xiafs_sb.s_ninodes) {
+    if (!inode->i_dev || inode->i_count!=1
+	|| inode->i_nlink || !inode->i_sb || inode->i_ino < 3
+	|| inode->i_ino > inode->i_sb->u.xiafs_sb.s_ninodes) {
         printk("XIA-FS: bad inode (%s %d)\n", WHERE_ERR);
 	return;
     }
@@ -299,9 +296,9 @@ void xiafs_free_inode(struct inode * inode)
 	return;
     clear_inode(inode);
     if (!clear_bit(ino & (XIAFS_BITS_PER_Z(sb)-1), bh->b_data))
-        printk("XIA-FS: dev %04x"
+        printk("XIA-FS: dev %s"
 	       "inode bit %ld (0x%lx) already cleared (%s %d)\n",
-	       inode->i_dev, ino, ino, WHERE_ERR);
+	       kdevname(inode->i_dev), ino, ino, WHERE_ERR);
     mark_buffer_dirty(bh, 1);
     xiafs_unlock_super(sb, sb->u.xiafs_sb.s_imap_cached);
 }

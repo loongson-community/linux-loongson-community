@@ -16,7 +16,7 @@
  *  in the early extended-partition checks and added DM partitions
  *
  *  IRQ-unmask, drive-id, multiple-mode, support for ">16 heads",
- *  and general streamlining by mlord@bnr.ca (Mark Lord).
+ *  and general streamlining by Mark Lord.
  */
 
 #define DEFAULT_MULT_COUNT  0	/* set to 0 to disable multiple mode at boot */
@@ -39,14 +39,12 @@
 #define REALLY_SLOW_IO
 #include <asm/system.h>
 #include <asm/io.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #define MAJOR_NR HD_MAJOR
-#include "blk.h"
+#include <linux/blk.h>
 
-#define HD_IRQ 14
-
-static int revalidate_hddisk(int, int);
+static int revalidate_hddisk(kdev_t, int);
 
 #define	HD_DELAY	0
 
@@ -128,12 +126,12 @@ void hd_setup(char *str, int *ints)
 	NR_HD = hdind+1;
 }
 
-static void dump_status (char *msg, unsigned int stat)
+static void dump_status (const char *msg, unsigned int stat)
 {
 	unsigned long flags;
 	char devc;
 
-	devc = CURRENT ? 'a' + DEVICE_NR(CURRENT->dev) : '?';
+	devc = CURRENT ? 'a' + DEVICE_NR(CURRENT->rq_dev) : '?';
 	save_flags (flags);
 	sti();
 	printk("hd%c: %s: status=0x%02x { ", devc, msg, stat & 0xff);
@@ -282,7 +280,7 @@ static void fixstring (unsigned char *s, int bytecount)
 
 static void identify_intr(void)
 {
-	unsigned int dev = DEVICE_NR(CURRENT->dev);
+	unsigned int dev = DEVICE_NR(CURRENT->rq_dev);
 	unsigned short stat = inb_p(HD_STATUS);
 	struct hd_driveid *id = hd_ident_info[dev];
 
@@ -335,7 +333,7 @@ static void identify_intr(void)
 
 static void set_multmode_intr(void)
 {
-	unsigned int dev = DEVICE_NR(CURRENT->dev), stat = inb_p(HD_STATUS);
+	unsigned int dev = DEVICE_NR(CURRENT->rq_dev), stat = inb_p(HD_STATUS);
 
 	if (unmask_intr[dev])
 		sti();
@@ -375,9 +373,9 @@ static void reset_controller(void)
 	int	i;
 
 	outb_p(4,HD_CMD);
-	for(i = 0; i < 1000; i++) nop();
+	for(i = 0; i < 1000; i++) barrier();
 	outb_p(hd_info[0].ctl & 0x0f,HD_CMD);
-	for(i = 0; i < 1000; i++) nop();
+	for(i = 0; i < 1000; i++) barrier();
 	if (drive_busy())
 		printk("hd: controller still busy\n");
 	else if ((hd_error = inb(HD_ERROR)) != 1)
@@ -449,7 +447,7 @@ static void bad_rw_intr(void)
 
 	if (!CURRENT)
 		return;
-	dev = DEVICE_NR(CURRENT->dev);
+	dev = DEVICE_NR(CURRENT->rq_dev);
 	if (++CURRENT->errors >= MAX_ERRORS || (hd_error & BBD_ERR)) {
 		end_request(0);
 		special_op[dev] = recalibrate[dev] = 1;
@@ -473,7 +471,7 @@ static inline int wait_DRQ(void)
 
 static void read_intr(void)
 {
-	unsigned int dev = DEVICE_NR(CURRENT->dev);
+	unsigned int dev = DEVICE_NR(CURRENT->rq_dev);
 	int i, retries = 100000, msect = mult_count[dev], nsect;
 
 	if (unmask_intr[dev])
@@ -548,7 +546,7 @@ static inline void multwrite (unsigned int dev)
 static void multwrite_intr(void)
 {
 	int i;
-	unsigned int dev = DEVICE_NR(WCURRENT.dev);
+	unsigned int dev = DEVICE_NR(WCURRENT.rq_dev);
 
 	if (unmask_intr[dev])
 		sti();
@@ -584,7 +582,7 @@ static void write_intr(void)
 	int i;
 	int retries = 100000;
 
-	if (unmask_intr[DEVICE_NR(WCURRENT.dev)])
+	if (unmask_intr[DEVICE_NR(WCURRENT.rq_dev)])
 		sti();
 	do {
 		i = (unsigned) inb_p(HD_STATUS);
@@ -642,7 +640,7 @@ static void hd_times_out(void)
 	disable_irq(HD_IRQ);
 	sti();
 	reset = 1;
-	dev = DEVICE_NR(CURRENT->dev);
+	dev = DEVICE_NR(CURRENT->rq_dev);
 	printk("hd%c: timeout\n", dev+'a');
 	if (++CURRENT->errors >= MAX_ERRORS) {
 #ifdef DEBUG
@@ -697,7 +695,7 @@ static void hd_request(void)
 {
 	unsigned int dev, block, nsect, sec, track, head, cyl;
 
-	if (CURRENT && CURRENT->dev < 0) return;
+	if (CURRENT && CURRENT->rq_status == RQ_INACTIVE) return;
 	if (DEVICE_INTR)
 		return;
 repeat:
@@ -709,16 +707,17 @@ repeat:
 		reset_hd();
 		return;
 	}
-	dev = MINOR(CURRENT->dev);
+	dev = MINOR(CURRENT->rq_dev);
 	block = CURRENT->sector;
 	nsect = CURRENT->nr_sectors;
 	if (dev >= (NR_HD<<6) || block >= hd[dev].nr_sects || ((block+nsect) > hd[dev].nr_sects)) {
 #ifdef DEBUG
 		if (dev >= (NR_HD<<6))
-			printk("hd: bad minor number: device=0x%04x\n", CURRENT->dev);
+			printk("hd: bad minor number: device=%s\n",
+			       kdevname(CURRENT->rq_dev));
 		else
 			printk("hd%c: bad access: block=%d, count=%d\n",
-				(CURRENT->dev>>6)+'a', block, nsect);
+				(MINOR(CURRENT->rq_dev)>>6)+'a', block, nsect);
 #endif
 		end_request(0);
 		goto repeat;
@@ -783,7 +782,7 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 	int dev, err;
 	unsigned long flags;
 
-	if ((!inode) || (!inode->i_rdev))
+	if ((!inode) || !(inode->i_rdev))
 		return -EINVAL;
 	dev = DEVICE_NR(inode->i_rdev);
 	if (dev >= NR_HD)
@@ -794,13 +793,13 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 			err = verify_area(VERIFY_WRITE, loc, sizeof(*loc));
 			if (err)
 				return err;
-			put_fs_byte(bios_info[dev].head,
+			put_user(bios_info[dev].head,
 				(char *) &loc->heads);
-			put_fs_byte(bios_info[dev].sect,
+			put_user(bios_info[dev].sect,
 				(char *) &loc->sectors);
-			put_fs_word(bios_info[dev].cyl,
+			put_user(bios_info[dev].cyl,
 				(short *) &loc->cylinders);
-			put_fs_long(hd[MINOR(inode->i_rdev)].start_sect,
+			put_user(hd[MINOR(inode->i_rdev)].start_sect,
 				(long *) &loc->start);
 			return 0;
 		case BLKRASET:
@@ -813,14 +812,14 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 			err = verify_area(VERIFY_WRITE, (long *) arg, sizeof(long));
 			if (err)
 				return err;
-			put_fs_long(read_ahead[MAJOR(inode->i_rdev)],(long *) arg);
+			put_user(read_ahead[MAJOR(inode->i_rdev)],(long *) arg);
 			return 0;
          	case BLKGETSIZE:   /* Return device size */
 			if (!arg)  return -EINVAL;
 			err = verify_area(VERIFY_WRITE, (long *) arg, sizeof(long));
 			if (err)
 				return err;
-			put_fs_long(hd[MINOR(inode->i_rdev)].nr_sects, (long *) arg);
+			put_user(hd[MINOR(inode->i_rdev)].nr_sects, (long *) arg);
 			return 0;
 		case BLKFLSBUF:
 			if(!suser())  return -EACCES;
@@ -843,7 +842,7 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 			err = verify_area(VERIFY_WRITE, (long *) arg, sizeof(long));
 			if (err)
 				return err;
-			put_fs_long(unmask_intr[dev], (long *) arg);
+			put_user(unmask_intr[dev], (long *) arg);
 			return 0;
 
                 case HDIO_GET_MULTCOUNT:
@@ -851,7 +850,7 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 			err = verify_area(VERIFY_WRITE, (long *) arg, sizeof(long));
 			if (err)
 				return err;
-			put_fs_long(mult_count[dev], (long *) arg);
+			put_user(mult_count[dev], (long *) arg);
 			return 0;
 
 		case HDIO_SET_MULTCOUNT:
@@ -879,7 +878,7 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 			err = verify_area(VERIFY_WRITE, (char *) arg, sizeof(struct hd_driveid));
 			if (err)
 				return err;
-			memcpy_tofs((char *)arg, (char *) hd_ident_info[dev], sizeof(struct hd_driveid));
+			copy_to_user((char *)arg, (char *) hd_ident_info[dev], sizeof(struct hd_driveid));
 			return 0;
 
 		RO_IOCTLS(inode->i_rdev,arg);
@@ -915,7 +914,7 @@ static void hd_release(struct inode * inode, struct file * file)
 
 }
 
-static void hd_geninit(void);
+static void hd_geninit(struct gendisk *);
 
 static struct gendisk hd_gendisk = {
 	MAJOR_NR,	/* Major number */	
@@ -931,7 +930,7 @@ static struct gendisk hd_gendisk = {
 	NULL		/* next */
 };
 	
-static void hd_interrupt(int irq, struct pt_regs *regs)
+static void hd_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	void (*handler)(void) = DEVICE_INTR;
 
@@ -952,14 +951,16 @@ static void hd_interrupt(int irq, struct pt_regs *regs)
  * We enable interrupts in some of the routines after making sure it's
  * safe.
  */
-static void hd_geninit(void)
+static void hd_geninit(struct gendisk *ignored)
 {
-	int drive, i;
-	extern struct drive_info drive_info;
-	unsigned char *BIOS = (unsigned char *) &drive_info;
-	int cmos_disks;
+	int i;
 
-	if (!NR_HD) {	   
+#ifdef __i386__
+	if (!NR_HD) {
+		extern struct drive_info drive_info;
+		unsigned char *BIOS = (unsigned char *) &drive_info;
+		int cmos_disks, drive;
+
 		for (drive=0 ; drive<2 ; drive++) {
 			bios_info[drive].cyl   = hd_info[drive].cyl = *(unsigned short *) BIOS;
 			bios_info[drive].head  = hd_info[drive].head = *(2+BIOS);
@@ -1002,6 +1003,7 @@ static void hd_geninit(void)
 			else
 				NR_HD = 1;
 	}
+#endif /* __i386__ */
 	i = NR_HD;
 	while (i-- > 0) {
 		/*
@@ -1018,7 +1020,7 @@ static void hd_geninit(void)
 		special_op[i] = 1;
 	}
 	if (NR_HD) {
-		if (request_irq(HD_IRQ, hd_interrupt, SA_INTERRUPT, "hd")) {
+		if (request_irq(HD_IRQ, hd_interrupt, SA_INTERRUPT, "hd", NULL)) {
 			printk("hd: unable to get IRQ%d for the harddisk driver\n",HD_IRQ);
 			NR_HD = 0;
 		} else {
@@ -1045,18 +1047,18 @@ static struct file_operations hd_fops = {
 	block_fsync		/* fsync */
 };
 
-unsigned long hd_init(unsigned long mem_start, unsigned long mem_end)
+int hd_init(void)
 {
 	if (register_blkdev(MAJOR_NR,"hd",&hd_fops)) {
 		printk("hd: unable to get major %d for harddisk\n",MAJOR_NR);
-		return mem_start;
+		return -1;
 	}
 	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 	read_ahead[MAJOR_NR] = 8;		/* 8 sector (4kB) read-ahead */
 	hd_gendisk.next = gendisk_head;
 	gendisk_head = &hd_gendisk;
 	timer_table[HD_TIMER].fn = hd_times_out;
-	return mem_start;
+	return 0;
 }
 
 #define DEVICE_BUSY busy[target]
@@ -1075,16 +1077,16 @@ unsigned long hd_init(unsigned long mem_start, unsigned long mem_end)
  * usage == 1 (we need an open channel to use an ioctl :-), so this
  * is our limit.
  */
-static int revalidate_hddisk(int dev, int maxusage)
+static int revalidate_hddisk(kdev_t dev, int maxusage)
 {
-	int target, major;
+	int target;
 	struct gendisk * gdev;
 	int max_p;
 	int start;
 	int i;
 	long flags;
 
-	target =  DEVICE_NR(dev);
+	target = DEVICE_NR(dev);
 	gdev = &GENDISK_STRUCT;
 
 	save_flags(flags);
@@ -1098,14 +1100,15 @@ static int revalidate_hddisk(int dev, int maxusage)
 
 	max_p = gdev->max_p;
 	start = target << gdev->minor_shift;
-	major = MAJOR_NR << 8;
 
 	for (i=max_p - 1; i >=0 ; i--) {
-		sync_dev(major | start | i);
-		invalidate_inodes(major | start | i);
-		invalidate_buffers(major | start | i);
-		gdev->part[start+i].start_sect = 0;
-		gdev->part[start+i].nr_sects = 0;
+		int minor = start + i;
+		kdev_t devi = MKDEV(MAJOR_NR, minor);
+		sync_dev(devi);
+		invalidate_inodes(devi);
+		invalidate_buffers(devi);
+		gdev->part[minor].start_sect = 0;
+		gdev->part[minor].nr_sects = 0;
 	};
 
 #ifdef MAYBE_REINIT

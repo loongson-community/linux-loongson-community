@@ -5,17 +5,18 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995 by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
+ * Modified for further R[236]000 support by Paul M. Antoine, 1996.
  */
-
 #ifndef __ASM_MIPS_MIPSREGS_H
 #define __ASM_MIPS_MIPSREGS_H
+
+#include <linux/linkage.h>
 
 /*
  * The following macros are especially useful for __asm__
  * inline assembler.
  */
-
 #ifndef __STR
 #define __STR(x) #x
 #endif
@@ -24,15 +25,21 @@
 #endif
 
 /*
- * On the R2000/3000 load instructions are not interlocked -
- * we therefore sometimes need to fill load delay slots with a nop
- * which would be useless for ISA >= 2.
+ * Assigned values for the product ID register.  In order to detect a
+ * certain CPU type exactly eventually additional registers may need to
+ * be examined.
  */
-#if !defined (__R4000__)
-#define FILL_LDS nop
-#else
-#define FILL_LDS
-#endif
+#define PRID_R3000A 0x02
+#define PRID_R4000 0x04
+#define PRID_R4400 0x04
+#define PRID_R4300 0x0b
+#define PRID_R4600 0x20
+#define PRID_R4700 0x21
+#define PRID_R4640 0x22
+#define PRID_R4650 0x22
+#define PRID_R5000 0x23
+#define PRID_SONIC 0x24
+#define PRID_R10000 0x09
 
 /*
  * Coprocessor 0 register names
@@ -67,9 +74,22 @@
 #define CP0_ERROREPC $30
 
 /*
+ * R4640/R4650 cp0 register names.  These registers are listed
+ * here only for completeness; without MMU these CPUs are not useable
+ * by Linux.  A future ELKS port might take make Linux run on them
+ * though ...
+ */
+#define CP0_IBASE $0
+#define CP0_IBOUND $1
+#define CP0_DBASE $2
+#define CP0_DBOUND $3
+#define CP0_CALG $17
+#define CP0_IWATCH $18
+#define CP0_DWATCH $19
+
+/*
  * Coprocessor 1 (FPU) register names
  */
-
 #define CP1_REVISION   $0
 #define CP1_STATUS     $31
 
@@ -177,9 +197,14 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 /*
  * Inline code for use of the ll and sc instructions
  *
- * FIXME: This instruction is only available on MIPS ISA >=3.
+ * FIXME: This instruction is only available on MIPS ISA >=2.
  * Since these operations are only being used for atomic operations
  * the easiest workaround for the R[23]00 is to disable interrupts.
+ * This fails for R3000 SMP machines which use that many different
+ * technologies as replacement that it is difficult to create even
+ * just a hook for for all machines to hook into.  The only good
+ * thing is that there is currently no R3000 SMP machine on the
+ * Linux/MIPS target list ...
  */
 #define load_linked(addr)                                       \
 ({                                                              \
@@ -188,7 +213,7 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 	__asm__ __volatile__(                                   \
 	"ll\t%0,(%1)"                                           \
 	: "=r" (__res)                                          \
-	: "r" ((unsigned int) (addr)));                         \
+	: "r" ((unsigned long) (addr)));                        \
                                                                 \
 	__res;                                                  \
 })
@@ -206,10 +231,7 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 })
 
 /*
- * Bitfields in the cp0 status register
- *
- * Refer to the MIPS R4xx0 manuals, chapter 5 for explanation.
- * FIXME: This doesn't cover all R4xx0 processors.
+ * Bitfields in the R4xx0 cp0 status register
  */
 #define ST0_IE			(1   <<  0)
 #define ST0_EXL			(1   <<  1)
@@ -221,6 +243,28 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 #define ST0_UX			(1   <<  5)
 #define ST0_SX			(1   <<  6)
 #define ST0_KX 			(1   <<  7)
+
+/*
+ * Bitfields in the R[23]000 cp0 status register.
+ */
+#define ST0_IEC			(1   <<  0)
+#define ST0_KUC			(1   <<  1)
+#define ST0_IEP			(1   <<  2)
+#define ST0_KUP			(1   <<  3)
+#define ST0_IEO			(1   <<  4)
+#define ST0_KUO			(1   <<  5)
+/* bits 6 & 7 are reserved on R[23]000 */
+
+/*
+ * Bits specific to the R4640/R4650
+ */
+#define ST0_UM			<1   <<  4)
+#define ST0_IL			(1   << 23)
+#define ST0_DL			(1   << 24)
+
+/*
+ * Status register bits available in all MIPS CPUs.
+ */
 #define ST0_IM			(255 <<  8)
 #define ST0_DE			(1   << 16)
 #define ST0_CE			(1   << 17)
@@ -234,6 +278,7 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 #define ST0_CU1			(1   << 29)
 #define ST0_CU2			(1   << 30)
 #define ST0_CU3			(1   << 31)
+#define ST0_XX			(1   << 31)	/* MIPS IV naming */
 
 /*
  * Bitfields and bit numbers in the coprocessor 0 cause register.
@@ -264,5 +309,78 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 #define  CAUSEF_CE		(3   << 28)
 #define  CAUSEB_BD		31
 #define  CAUSEF_BD		(1   << 31)
+
+/*
+ * Bits in the coprozessor 0 config register.
+ */
+#define CONFIG_DB		(1<<4)
+#define CONFIG_IB		(1<<5)
+#define CONFIG_SC		(1<<17)
+
+/*
+ * R10000 performance counter definitions.
+ *
+ * FIXME: The R10000 performance counter opens a nice way to implement CPU
+ *        time accounting with a precission of one cycle.  I don't have
+ *        R10000 silicon but just a manual, so ...
+ */
+
+/*
+ * Events counted by counter #0
+ */
+#define CE0_CYCLES			0
+#define CE0_INSN_ISSUED			1
+#define CE0_LPSC_ISSUED			2
+#define CE0_S_ISSUED			3
+#define CE0_SC_ISSUED			4
+#define CE0_SC_FAILED			5
+#define CE0_BRANCH_DECODED		6
+#define CE0_QW_WB_SECONDARY		7
+#define CE0_CORRECTED_ECC_ERRORS	8
+#define CE0_ICACHE_MISSES		9
+#define CE0_SCACHE_I_MISSES		10
+#define CE0_SCACHE_I_WAY_MISSPREDICTED	11
+#define CE0_EXT_INTERVENTIONS_REQ	12
+#define CE0_EXT_INVALIDATE_REQ		13
+#define CE0_VIRTUAL_COHERENCY_COND	14
+#define CE0_INSN_GRADUATED		15
+
+/*
+ * Events counted by counter #1
+ */
+#define CE1_CYCLES			0
+#define CE1_INSN_GRADUATED		1
+#define CE1_LPSC_GRADUATED		2
+#define CE1_S_GRADUATED			3
+#define CE1_SC_GRADUATED		4
+#define CE1_FP_INSN_GRADUATED		5
+#define CE1_QW_WB_PRIMARY		6
+#define CE1_TLB_REFILL			7
+#define CE1_BRANCH_MISSPREDICTED	8
+#define CE1_DCACHE_MISS			9
+#define CE1_SCACHE_D_MISSES		10
+#define CE1_SCACHE_D_WAY_MISSPREDICTED	11
+#define CE1_EXT_INTERVENTION_HITS	12
+#define CE1_EXT_INVALIDATE_REQ		13
+#define CE1_SP_HINT_TO_CEXCL_SC_BLOCKS	14
+#define CE1_SP_HINT_TO_SHARED_SC_BLOCKS	15
+
+/*
+ * These flags define in which priviledge mode the counters count events
+ */
+#define CEB_USER	8	/* Count events in user mode, EXL = ERL = 0 */
+#define CEB_SUPERVISOR	4	/* Count events in supvervisor mode EXL = ERL = 0 */
+#define CEB_KERNEL	2	/* Count events in kernel mode EXL = ERL = 0 */
+#define CEB_EXL		1	/* Count events with EXL = 1, ERL = 0 */
+
+#ifndef __LANGUAGE_ASSEMBLY__
+/*
+ * Functions to access the performance counter and control registers
+ */
+extern asmlinkage unsigned int read_perf_cntr(unsigned int counter);
+extern asmlinkage void write_perf_cntr(unsigned int counter, unsigned int val);
+extern asmlinkage unsigned int read_perf_cntl(unsigned int counter);
+extern asmlinkage void write_perf_cntl(unsigned int counter, unsigned int val);
+#endif
 
 #endif /* __ASM_MIPS_MIPSREGS_H */

@@ -7,9 +7,14 @@
 #ifndef __ASM_I386_PROCESSOR_H
 #define __ASM_I386_PROCESSOR_H
 
+#include <asm/vm86.h>
+#include <asm/math_emu.h>
+
 /*
  * System setup and hardware bug flags..
+ * [Note we don't test the 386 multiply bug or popad bug]
  */
+
 extern char hard_math;
 extern char x86;		/* lower 4 bits */
 extern char x86_vendor_id[13];
@@ -18,8 +23,9 @@ extern char x86_mask;		/* lower 4 bits */
 extern int  x86_capability;	/* field of flags */
 extern int  fdiv_bug;		
 extern char ignore_irq13;
-extern char wp_works_ok;		/* doesn't work on a 386 */
+extern char wp_works_ok;	/* doesn't work on a 386 */
 extern char hlt_works_ok;	/* problems on some 486Dx4's and old 386's */
+extern int  have_cpuid;		/* We have a CPUID */
 
 /*
  * Bus types (default is ISA, but people can check others with these..)
@@ -27,7 +33,6 @@ extern char hlt_works_ok;	/* problems on some 486Dx4's and old 386's */
  */
 extern int EISA_bus;
 #define MCA_bus 0
-#define MCA_bus__is_a_macro /* for versions in ksyms.c */
 
 /*
  * User space process size: 3GB. This is hardcoded into a few places,
@@ -49,6 +54,7 @@ struct i387_hard_struct {
 	long	foo;
 	long	fos;
 	long	st_space[20];	/* 8*10 bytes for each FP-reg = 80 bytes */
+	long	status;		/* software status information */
 };
 
 struct i387_soft_struct {
@@ -97,7 +103,7 @@ struct thread_struct {
 	unsigned short	trace, bitmap;
 	unsigned long	io_bitmap[IO_BITMAP_SIZE+1];
 	unsigned long	tr;
-	unsigned long	cr2, trap_no, error_code;
+	unsigned long	cr2, trap_no, error_code, segment;
 /* floating point info */
 	union i387_union i387;
 /* virtual 86 mode info */
@@ -106,30 +112,55 @@ struct thread_struct {
 	unsigned long v86flags, v86mask, v86mode;
 };
 
-#define INIT_MMAP { &init_task, 0, 0x40000000, PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC }
+#define INIT_MMAP { &init_mm, 0xC0000000, 0xFFFFF000, PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC }
 
 #define INIT_TSS  { \
 	0,0, \
 	sizeof(init_kernel_stack) + (long) &init_kernel_stack, \
 	KERNEL_DS, 0, \
 	0,0,0,0,0,0, \
-	(long) &swapper_pg_dir, \
+	(long) &swapper_pg_dir - PAGE_OFFSET, \
 	0,0,0,0,0,0,0,0,0,0, \
 	USER_DS,0,USER_DS,0,USER_DS,0,USER_DS,0,USER_DS,0,USER_DS,0, \
 	_LDT(0),0, \
 	0, 0x8000, \
 	{~0, }, /* ioperm */ \
-	_TSS(0), 0, 0,0, \
+	_TSS(0), 0, 0, 0, KERNEL_DS, \
 	{ { 0, }, },  /* 387 state */ \
-	NULL, 0, 0, 0, 0 /* vm86_info */ \
+	NULL, 0, 0, 0, 0 /* vm86_info */, \
 }
 
-static inline void start_thread(struct pt_regs * regs, unsigned long eip, unsigned long esp)
+#define alloc_kernel_stack()    __get_free_page(GFP_KERNEL)
+#define free_kernel_stack(page) free_page((page))
+
+#define start_thread(regs, new_eip, new_esp) do {\
+	unsigned long seg = USER_DS; \
+	__asm__("mov %w0,%%fs ; mov %w0,%%gs":"=r" (seg) :"0" (seg)); \
+	set_fs(seg); \
+	regs->xds = seg; \
+	regs->xes = seg; \
+	regs->xss = seg; \
+	regs->xcs = USER_CS; \
+	regs->eip = new_eip; \
+	regs->esp = new_esp; \
+} while (0)
+
+/*
+ * Return saved PC of a blocked thread.
+ */
+extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 {
-	regs->cs = USER_CS;
-	regs->ds = regs->es = regs->ss = regs->fs = regs->gs = USER_DS;
-	regs->eip = eip;
-	regs->esp = esp;
+	return ((unsigned long *)t->esp)[3];
 }
+
+/*
+ * Return_address is a replacement for __builtin_return_address(count)
+ * which on certain architectures cannot reasonably be implemented in GCC
+ * (MIPS, Alpha) or is unuseable with -fomit-frame-pointer (i386).
+ * Note that __builtin_return_address(x>=1) is forbidden because the GCC
+ * aborts compilation on some CPUs.  It's simply not possible to unwind
+ * some CPU's stackframes.
+ */
+#define return_address() __builtin_return_address(0)
 
 #endif /* __ASM_I386_PROCESSOR_H */

@@ -13,9 +13,12 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *
  *  ext2 directory handling functions
+ *
+ *  Big-endian to little-endian byte-swapping/bitmaps by
+ *        David S. Miller (davem@caip.rutgers.edu), 1995
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include <linux/errno.h>
 #include <linux/fs.h>
@@ -23,8 +26,8 @@
 #include <linux/sched.h>
 #include <linux/stat.h>
 
-static int ext2_dir_read (struct inode * inode, struct file * filp,
-			    char * buf, int count)
+static long ext2_dir_read (struct inode * inode, struct file * filp,
+			    char * buf, unsigned long count)
 {
 	return -EISDIR;
 }
@@ -63,35 +66,38 @@ struct inode_operations ext2_dir_inode_operations = {
 	ext2_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	ext2_truncate,		/* truncate */
 	ext2_permission,	/* permission */
 	NULL			/* smap */
 };
 
-int ext2_check_dir_entry (char * function, struct inode * dir,
+int ext2_check_dir_entry (const char * function, struct inode * dir,
 			  struct ext2_dir_entry * de, struct buffer_head * bh,
 			  unsigned long offset)
 {
-	char * error_msg = NULL;
+	const char * error_msg = NULL;
 
-	if (de->rec_len < EXT2_DIR_REC_LEN(1))
+	if (le16_to_cpu(de->rec_len) < EXT2_DIR_REC_LEN(1))
 		error_msg = "rec_len is smaller than minimal";
-	else if (de->rec_len % 4 != 0)
+	else if (le16_to_cpu(de->rec_len) % 4 != 0)
 		error_msg = "rec_len % 4 != 0";
-	else if (de->rec_len < EXT2_DIR_REC_LEN(de->name_len))
+	else if (le16_to_cpu(de->rec_len) < EXT2_DIR_REC_LEN(le16_to_cpu(de->name_len)))
 		error_msg = "rec_len is too small for name_len";
-	else if (dir && ((char *) de - bh->b_data) + de->rec_len >
+	else if (dir && ((char *) de - bh->b_data) + le16_to_cpu(de->rec_len) >
 		 dir->i_sb->s_blocksize)
 		error_msg = "directory entry across blocks";
-	else if (dir && de->inode > dir->i_sb->u.ext2_sb.s_es->s_inodes_count)
+	else if (dir && le32_to_cpu(de->inode) > le32_to_cpu(dir->i_sb->u.ext2_sb.s_es->s_inodes_count))
 		error_msg = "inode out of bounds";
 
 	if (error_msg != NULL)
-		ext2_error (dir->i_sb, function, "bad directory entry: %s\n"
+		ext2_error (dir->i_sb, function, "bad entry in directory #%lu: %s - "
 			    "offset=%lu, inode=%lu, rec_len=%d, name_len=%d",
-			    error_msg, offset, (unsigned long) de->inode, de->rec_len,
-			    de->name_len);
+			    dir->i_ino, error_msg, offset,
+			    (unsigned long) le32_to_cpu(de->inode),
+			    le16_to_cpu(de->rec_len), le16_to_cpu(de->name_len));
 	return error_msg == NULL ? 1 : 0;
 }
 
@@ -104,7 +110,7 @@ static int ext2_readdir (struct inode * inode, struct file * filp,
 	struct buffer_head * bh, * tmp, * bha[16];
 	struct ext2_dir_entry * de;
 	struct super_block * sb;
-	int err, version;
+	int err;
 
 	if (!inode || !S_ISDIR(inode->i_mode))
 		return -EBADF;
@@ -118,6 +124,9 @@ static int ext2_readdir (struct inode * inode, struct file * filp,
 		blk = (filp->f_pos) >> EXT2_BLOCK_SIZE_BITS(sb);
 		bh = ext2_bread (inode, blk, 0, &err);
 		if (!bh) {
+			ext2_error (sb, "ext2_readdir",
+				    "directory #%lu contains a hole at offset %lu",
+				    inode->i_ino, (unsigned long)filp->f_pos);
 			filp->f_pos += sb->s_blocksize - offset;
 			continue;
 		}
@@ -129,7 +138,7 @@ static int ext2_readdir (struct inode * inode, struct file * filp,
 			for (i = 16 >> (EXT2_BLOCK_SIZE_BITS(sb) - 9), num = 0;
 			     i > 0; i--) {
 				tmp = ext2_getblk (inode, ++blk, 0, &err);
-				if (tmp && !tmp->b_uptodate && !tmp->b_lock)
+				if (tmp && !buffer_uptodate(tmp) && !buffer_locked(tmp))
 					bha[num++] = tmp;
 				else
 					brelse (tmp);
@@ -156,9 +165,9 @@ revalidate:
 				 * least that it is non-zero.  A
 				 * failure will be detected in the
 				 * dirent test below. */
-				if (de->rec_len < EXT2_DIR_REC_LEN(1))
+				if (le16_to_cpu(de->rec_len) < EXT2_DIR_REC_LEN(1))
 					break;
-				i += de->rec_len;
+				i += le16_to_cpu(de->rec_len);
 			}
 			offset = i;
 			filp->f_pos = (filp->f_pos & ~(sb->s_blocksize - 1))
@@ -178,23 +187,26 @@ revalidate:
 				brelse (bh);
 				return stored;
 			}
-			offset += de->rec_len;
-			if (de->inode) {
+			offset += le16_to_cpu(de->rec_len);
+			if (le32_to_cpu(de->inode)) {
 				/* We might block in the next section
 				 * if the data destination is
 				 * currently swapped out.  So, use a
 				 * version stamp to detect whether or
 				 * not the directory has been modified
 				 * during the copy operation. */
+				unsigned long version;
+				dcache_add(inode, de->name, le16_to_cpu(de->name_len),
+					   le32_to_cpu(de->inode));
 				version = inode->i_version;
-				error = filldir(dirent, de->name, de->name_len, filp->f_pos, de->inode);
+				error = filldir(dirent, de->name, le16_to_cpu(de->name_len), filp->f_pos, le32_to_cpu(de->inode));
 				if (error)
 					break;
 				if (version != inode->i_version)
 					goto revalidate;
 				stored ++;
 			}
-			filp->f_pos += de->rec_len;
+			filp->f_pos += le16_to_cpu(de->rec_len);
 		}
 		offset = 0;
 		brelse (bh);

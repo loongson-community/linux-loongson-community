@@ -9,40 +9,17 @@
 
 .S.s:
 	$(CPP) -traditional $< -o $*.s
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
 
-OBJS  = sched.o dma.o fork.o exec_domain.o panic.o printk.o sys.o \
+O_TARGET := kernel.o
+O_OBJS    = sched.o dma.o fork.o exec_domain.o panic.o printk.o sys.o \
 	module.o exit.o signal.o itimer.o info.o time.o softirq.o \
-	resource.o
+	resource.o sysctl.o
 
-SYMTAB_OBJS = ksyms.o
+ifeq ($(CONFIG_MODULES),y)
+OX_OBJS = ksyms.o
+endif
 
-all: kernel.o
-
-include ../versions.mk
-
-kernel.o: $(SYMTAB_OBJS) $(OBJS)
-	$(LD) -r -o kernel.o $(SYMTAB_OBJS) $(OBJS)
-	sync
+include $(TOPDIR)/Rules.make
 
 sched.o: sched.c
 	$(CC) $(CFLAGS) $(PROFILING) -fno-omit-frame-pointer -c $<
-
-dep:
-	$(CPP) -M *.c > .depend
-
-dummy:
-modules:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
-

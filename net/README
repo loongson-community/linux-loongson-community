@@ -1,41 +1,37 @@
-Upgrade Notes from 1.0
-[Alan Cox -  Alan.Cox@linux.org]
 
-Upgrading to 1.2.0 from a 1.0 kernel networking set. If you are using
-a complete 1.2 distribution you can ignore this.
+Maintainers and developers for networking code sections
 
-This doesn't attempt to list the changes. That would be too large. Instead
-just what you need and can change
+Code Section		Bug Report Contact
+-------------------+-------------------------------------------
+802 [other	]	alan@lxorguk.ukuu.org.uk	
+    [token ring	]	needs a maintainer/debugger
+appletalk		alan@lxorguk.ukuu.org.uk and netatalk@umich.edu
+ax25			jsn@cs.nott.ac.uk
+core			alan@lxorguk.ukuu.org.uk
+ethernet		alan@lxorguk.ukuu.org.uk
+ipv4			alan@lxorguk.ukuu.org.uk
+ipx			alan@lxorguk.ukuu.org.uk,greg@caldera.com
+netrom			jsn@cs.nott.ac.uk
+rose			jsn@cs.nott.ac.uk
+unix			alan@lxorguk.ukuu.org.uk
+x25			jsn@cs.nott.ac.uk
 
-arp,ifconfig, etc. Get net-tools-1.1.95 (or 1.2.0 if its out) from
-ftp.linux.org.uk:/pub/Linux/Networking/PROGRAMS/NetTools, and install
-these. You will also acquire a couple of new tools "plipconfig" for tuning
-plip links and "ipfw" for ip firewall management.
 
-bootpd: The original bootpd has a bug that the 1.2 kernel spots. You will
-need to upgrade this to the version in
-ftp.linux.org.uk:/pub/Linux/Networking/PROGRAMS/Upgrades
+	If in doubt contact me <alan@lxorguk.ukuu.org.uk> first.
 
-
-Standard programs that you ought to update are
-
-named 4.7.x	to 4.9.x	Stops named dying occasionally
-pop3d 1.001     to 1.004	Fixes a bug that can lose mail
-
-A complete current networking set for Linux can be obtained by getting
-the NetKit[A,B...] series archives from ftp.funet.fi. Funet also carries
-binaries for Linux mbone applications if you now wish to make use of
-these facilities.
+---------------------------------------------------------------------------
 
 For commercial UK custom Linux networking projects, drivers and development
 (but not free support!) I can be contacted via
 
-	I^2IT Ltd, The Innovation Centre, University Of Wales
+	CymruNET Ltd, The Innovation Centre, University Of Wales
 		Swansea SA2 8PP.  
 	Fax: +44 1792 295811
 	Tel: +44 1792 295213
 
-Please don't send commercial queries to my email address as I have that
+	Email: alan@cymru.net
+
+Please don't send commercial queries to my .ac.uk email address as I have that
 in an academic and _not_ commercial capacity. On the other hand feel
 free to send bug reports, queries and enhancements that way.
 

@@ -22,7 +22,7 @@
 #include <linux/major.h>
 #include <linux/mm.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 
@@ -37,7 +37,7 @@ struct pty_struct {
 
 /*
  * tmp_buf is used as a temporary buffer by pty_write.  We need to
- * lock it in case the memcpy_fromfs blocks while swapping in a page,
+ * lock it in case the copy_from_user blocks while swapping in a page,
  * and some other program tries to do a pty write at the same time.
  * Since the lock will only come under contention when the system is
  * swapping and available memory is low, it makes sense to share one
@@ -48,6 +48,7 @@ static unsigned char *tmp_buf;
 static struct semaphore tmp_buf_sem = MUTEX;
 
 struct tty_driver pty_driver, pty_slave_driver;
+struct tty_driver old_pty_driver, old_pty_slave_driver;
 static int pty_refcount;
 
 static struct tty_struct *pty_table[NR_PTYS];
@@ -77,11 +78,10 @@ static void pty_close(struct tty_struct * tty, struct file * filp)
 		return;
 	wake_up_interruptible(&tty->link->read_wait);
 	wake_up_interruptible(&tty->link->write_wait);
-	if (tty->driver.subtype == PTY_TYPE_MASTER)
+	set_bit(TTY_OTHER_CLOSED, &tty->link->flags);
+	if (tty->driver.subtype == PTY_TYPE_MASTER) {
 		tty_hangup(tty->link);
-	else {
-		start_tty(tty);
-		set_bit(TTY_SLAVE_CLOSED, &tty->link->flags);
+		set_bit(TTY_OTHER_CLOSED, &tty->flags);
 	}
 }
 
@@ -110,7 +110,7 @@ static void pty_unthrottle(struct tty_struct * tty)
 }
 
 static int pty_write(struct tty_struct * tty, int from_user,
-		       unsigned char *buf, int count)
+		       const unsigned char *buf, int count)
 {
 	struct tty_struct *to = tty->link;
 	int	c=0, n, r;
@@ -125,7 +125,7 @@ static int pty_write(struct tty_struct * tty, int from_user,
 			((tty->driver.subtype-1) * PTY_BUF_SIZE);
 		while (count > 0) {
 			n = MIN(count, PTY_BUF_SIZE);
-			memcpy_fromfs(temp_buffer, buf, n);
+			copy_from_user(temp_buffer, buf, n);
 			r = to->ldisc.receive_room(to);
 			if (r <= 0)
 				break;
@@ -181,44 +181,58 @@ static void pty_flush_buffer(struct tty_struct *tty)
 
 int pty_open(struct tty_struct *tty, struct file * filp)
 {
+	int	retval;
 	int	line;
 	struct	pty_struct *pty;
-	
+
+	retval = -ENODEV;
 	if (!tty || !tty->link)
-		return -ENODEV;
+		goto out;
 	line = MINOR(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= NR_PTYS))
-		return -ENODEV;
+		goto out;
 	pty = pty_state + line;
 	tty->driver_data = pty;
 
 	if (!tmp_buf) {
-		tmp_buf = (unsigned char *) get_free_page(GFP_KERNEL);
-		if (!tmp_buf)
-			return -ENOMEM;
+		unsigned long page = __get_free_page(GFP_KERNEL);
+		if (!tmp_buf) {
+			retval = -ENOMEM;
+			if (!page)
+				goto out;
+			tmp_buf = (unsigned char *) page;
+			memset((void *) page, 0, PAGE_SIZE);
+		} else
+			free_page(page);
 	}
+	retval = -EIO;
+	if (test_bit(TTY_OTHER_CLOSED, &tty->flags))
+		goto out;
+	if (tty->link->count != 1)
+		goto out;
 
-	if (tty->driver.subtype == PTY_TYPE_SLAVE)
-		clear_bit(TTY_SLAVE_CLOSED, &tty->link->flags);
+	clear_bit(TTY_OTHER_CLOSED, &tty->link->flags);
 	wake_up_interruptible(&pty->open_wait);
 	set_bit(TTY_THROTTLED, &tty->flags);
-	if (filp->f_flags & O_NDELAY)
-		return 0;
-	while (!tty->link->count && !(current->signal & ~current->blocked))
-		interruptible_sleep_on(&pty->open_wait);
-	if (!tty->link->count)
-		return -ERESTARTSYS;
-	return 0;
+	retval = 0;
+out:
+	return retval;
 }
 
-long pty_init(long kmem_start)
+static void pty_set_termios(struct tty_struct *tty, struct termios *old_termios)
+{
+        tty->termios->c_cflag &= ~(CSIZE | PARENB);
+        tty->termios->c_cflag |= (CS8 | CREAD);
+}
+
+int pty_init(void)
 {
 	memset(&pty_state, 0, sizeof(pty_state));
 	memset(&pty_driver, 0, sizeof(struct tty_driver));
 	pty_driver.magic = TTY_DRIVER_MAGIC;
 	pty_driver.name = "pty";
-	pty_driver.major = TTY_MAJOR;
-	pty_driver.minor_start = 128;
+	pty_driver.major = PTY_MASTER_MAJOR;
+	pty_driver.minor_start = 0;
 	pty_driver.num = NR_PTYS;
 	pty_driver.type = TTY_DRIVER_TYPE_PTY;
 	pty_driver.subtype = PTY_TYPE_MASTER;
@@ -241,11 +255,13 @@ long pty_init(long kmem_start)
 	pty_driver.flush_buffer = pty_flush_buffer;
 	pty_driver.chars_in_buffer = pty_chars_in_buffer;
 	pty_driver.unthrottle = pty_unthrottle;
+	pty_driver.set_termios = pty_set_termios;
 
 	pty_slave_driver = pty_driver;
 	pty_slave_driver.name = "ttyp";
 	pty_slave_driver.subtype = PTY_TYPE_SLAVE;
-	pty_slave_driver.minor_start = 192;
+	pty_slave_driver.major = PTY_SLAVE_MAJOR;
+	pty_slave_driver.minor_start = 0;
 	pty_slave_driver.init_termios = tty_std_termios;
 	pty_slave_driver.init_termios.c_cflag = B38400 | CS8 | CREAD;
 	pty_slave_driver.table = ttyp_table;
@@ -253,12 +269,28 @@ long pty_init(long kmem_start)
 	pty_slave_driver.termios_locked = ttyp_termios_locked;
 	pty_slave_driver.other = &pty_driver;
 
+	old_pty_driver = pty_driver;
+	old_pty_driver.major = TTY_MAJOR;
+	old_pty_driver.minor_start = 128;
+	old_pty_driver.num = (NR_PTYS > 64) ? 64 : NR_PTYS;
+	old_pty_driver.other = &old_pty_slave_driver;
+	
+	old_pty_slave_driver = pty_slave_driver;
+	old_pty_slave_driver.major = TTY_MAJOR;
+	old_pty_slave_driver.minor_start = 192;
+	old_pty_slave_driver.num = (NR_PTYS > 64) ? 64 : NR_PTYS;
+	old_pty_slave_driver.other = &old_pty_driver;
+
 	tmp_buf = 0;
 
 	if (tty_register_driver(&pty_driver))
 		panic("Couldn't register pty driver");
 	if (tty_register_driver(&pty_slave_driver))
 		panic("Couldn't register pty slave driver");
+	if (tty_register_driver(&old_pty_driver))
+		panic("Couldn't register compat pty driver");
+	if (tty_register_driver(&old_pty_slave_driver))
+		panic("Couldn't register compat pty slave driver");
 	
-	return kmem_start;
+	return 0;
 }

@@ -1,4 +1,4 @@
-#
+# $Id: Makefile,v 1.21 1996/04/26 10:45:53 tridge Exp $
 # Makefile for the linux Sparc-specific parts of the memory manager.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -7,26 +7,7 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.s:
-	$(CC) $(CFLAGS) -S $<
+O_TARGET := mm.o
+O_OBJS   := fault.o init.o sun4c.o srmmu.o loadmmu.o generic.o asyncd.o
 
-OBJS	= fault.o vac-flush.o init.o
-
-mm.o: $(OBJS)
-	$(LD) -r -o mm.o $(OBJS)
-
-modules:
-
-dep:
-	$(CPP) -M *.c > .depend
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

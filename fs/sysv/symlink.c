@@ -13,16 +13,12 @@
  *  SystemV/Coherent symlink handling code
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/sysv_fs.h>
 #include <linux/stat.h>
+
+#include <asm/uaccess.h>
 
 static int sysv_readlink(struct inode *, char *, int);
 static int sysv_follow_link(struct inode *, struct inode *, int, int, struct inode **);
@@ -43,6 +39,8 @@ struct inode_operations sysv_symlink_inode_operations = {
 	NULL,			/* rename */
 	sysv_readlink,		/* readlink */
 	sysv_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
@@ -107,7 +105,7 @@ static int sysv_readlink(struct inode * inode, char * buffer, int buflen)
 	i = 0;
 	while (i<buflen && (c = bh_data[i])) {
 		i++;
-		put_fs_byte(c,buffer++);
+		put_user(c,buffer++);
 	}
 	brelse(bh);
 	return i;

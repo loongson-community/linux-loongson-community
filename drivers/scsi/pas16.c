@@ -102,11 +102,16 @@
  *     (255 is the IRQ_NONE constant in NCR5380.h)
  */
  
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <asm/system.h>
 #include <linux/signal.h>
+#include <linux/proc_fs.h>
 #include <linux/sched.h>
 #include <asm/io.h>
-#include "../block/blk.h"
+#include <linux/blk.h>
 #include "scsi.h"
 #include "hosts.h"
 #include "pas16.h"
@@ -115,6 +120,15 @@
 #include "constants.h"
 #include "sd.h"
 
+#include<linux/stat.h>
+
+struct proc_dir_entry proc_scsi_pas16 = {
+    PROC_SCSI_PAS16, 5, "pas16",
+    S_IFDIR | S_IRUGO | S_IXUGO, 2
+};
+static int pas_maxi = 0;
+static int pas_wmaxi = 0;
+ 
 
 int scsi_irq_translate[] =
 	{ 0,  0,  1,  2,  3,  4,  5,  6, 0,  0,  7,  8,  9,  0, 10, 11 };
@@ -138,7 +152,7 @@ static struct override {
     [] = PAS16_OVERRIDE;
 #else
     [4] = {{0,IRQ_AUTO}, {0,IRQ_AUTO}, {0,IRQ_AUTO},
-        {0,IRQ_AUTO}};
+	{0,IRQ_AUTO}};
 #endif
 
 #define NO_OVERRIDES (sizeof(overrides) / sizeof(struct override))
@@ -156,20 +170,35 @@ static struct base {
 
 unsigned short  pas16_offset[ 8 ] =
     {
-        0x1c00,    /* OUTPUT_DATA_REG */
-        0x1c01,    /* INITIATOR_COMMAND_REG */
-        0x1c02,    /* MODE_REG */
-        0x1c03,    /* TARGET_COMMAND_REG */
-        0x3c00,    /* STATUS_REG ro, SELECT_ENABLE_REG wo */
-        0x3c01,    /* BUS_AND_STATUS_REG ro, START_DMA_SEND_REG wo */
-        0x3c02,    /* INPUT_DATA_REGISTER ro, (N/A on PAS16 ?)
-                    * START_DMA_TARGET_RECEIVE_REG wo
-                    */
-        0x3c03,    /* RESET_PARITY_INTERRUPT_REG ro,
-                    * START_DMA_INITIATOR_RECEIVE_REG wo
-                    */
+	0x1c00,    /* OUTPUT_DATA_REG */
+	0x1c01,    /* INITIATOR_COMMAND_REG */
+	0x1c02,    /* MODE_REG */
+	0x1c03,    /* TARGET_COMMAND_REG */
+	0x3c00,    /* STATUS_REG ro, SELECT_ENABLE_REG wo */
+	0x3c01,    /* BUS_AND_STATUS_REG ro, START_DMA_SEND_REG wo */
+	0x3c02,    /* INPUT_DATA_REGISTER ro, (N/A on PAS16 ?)
+		    * START_DMA_TARGET_RECEIVE_REG wo
+		    */
+	0x3c03,    /* RESET_PARITY_INTERRUPT_REG ro,
+		    * START_DMA_INITIATOR_RECEIVE_REG wo
+		    */
     };
-
+/*----------------------------------------------------------------*/
+/* the following will set the monitor border color (useful to find
+ where something crashed or gets stuck at */
+/* 1 = blue
+ 2 = green
+ 3 = cyan
+ 4 = red
+ 5 = magenta
+ 6 = yellow
+ 7 = white
+*/
+#if 1
+#define rtrc(i) {inb(0x3da); outb(0x31, 0x3c0); outb((i), 0x3c0);}
+#else
+#define rtrc(i) {}
+#endif
 
 
 /*
@@ -205,13 +234,13 @@ void	init_board( unsigned short io_port, int irq, int force_irq )
 	unsigned int	tmp;
 	unsigned int	pas_irq_code;
 
-        /* Initialize the SCSI part of the board */
+	/* Initialize the SCSI part of the board */
 
-        outb( 0x30, io_port + P_TIMEOUT_COUNTER_REG );  /* Timeout counter */
-        outb( 0x01, io_port + P_TIMEOUT_STATUS_REG_OFFSET );   /* Reset TC */
-        outb( 0x01, io_port + WAIT_STATE );   /* 1 Wait state */
+	outb( 0x30, io_port + P_TIMEOUT_COUNTER_REG );  /* Timeout counter */
+	outb( 0x01, io_port + P_TIMEOUT_STATUS_REG_OFFSET );   /* Reset TC */
+	outb( 0x01, io_port + WAIT_STATE );   /* 1 Wait state */
 
-        NCR5380_read( RESET_PARITY_INTERRUPT_REG );
+	NCR5380_read( RESET_PARITY_INTERRUPT_REG );
 
 	/* Set the SCSI interrupt pointer without mucking up the sound
 	 * interrupt pointer in the same byte.
@@ -282,7 +311,7 @@ int     pas16_hw_detect( unsigned short  board_num )
 
     /* Mediavision has some new model boards that return ID bits
      * that indicate a SCSI interface, but they're not (LMS).  We'll
-     * put in an additional test to try and weed them out.
+     * put in an additional test to try to weed them out.
      */
 
     outb( 0x01, io_port + WAIT_STATE ); 	/* 1 Wait state */
@@ -311,13 +340,13 @@ void pas16_setup(char *str, int *ints) {
     static int commandline_current = 0;
     int i;
     if (ints[0] != 2) 
-        printk("pas16_setup : usage pas16=io_port,irq\n");
+	printk("pas16_setup : usage pas16=io_port,irq\n");
     else 
-        if (commandline_current < NO_OVERRIDES) {
-            overrides[commandline_current].io_port = (unsigned short) ints[1];
-            overrides[commandline_current].irq = ints[2];
-            for (i = 0; i < NO_BASES; ++i)
-                if (bases[i].io_port == (unsigned short) ints[1]) {
+	if (commandline_current < NO_OVERRIDES) {
+	    overrides[commandline_current].io_port = (unsigned short) ints[1];
+	    overrides[commandline_current].irq = ints[2];
+	    for (i = 0; i < NO_BASES; ++i)
+		if (bases[i].io_port == (unsigned short) ints[1]) {
  		    bases[i].noauto = 1;
 		    break;
 		}
@@ -345,6 +374,9 @@ int pas16_detect(Scsi_Host_Template * tpnt) {
     unsigned short io_port;
     int  count;
 
+    tpnt->proc_dir = &proc_scsi_pas16;
+    tpnt->proc_info = &pas16_proc_info;
+
     for (count = 0; current_override < NO_OVERRIDES; ++current_override) {
 	io_port = 0;
 
@@ -359,12 +391,12 @@ int pas16_detect(Scsi_Host_Template * tpnt) {
 #if (PDEBUG & PDEBUG_INIT)
     printk("scsi-pas16 : probing io_port %04x\n", (unsigned int) bases[current_base].io_port);
 #endif
-	        if ( !bases[current_base].noauto &&
+		if ( !bases[current_base].noauto &&
 		     pas16_hw_detect( current_base ) ){
-		        io_port = bases[current_base].io_port;
+			io_port = bases[current_base].io_port;
 			init_board( io_port, default_irqs[ current_base ], 0 ); 
 #if (PDEBUG & PDEBUG_INIT)
-		        printk("scsi-pas16 : detected board.\n");
+			printk("scsi-pas16 : detected board.\n");
 #endif
 		}
     }
@@ -388,7 +420,7 @@ int pas16_detect(Scsi_Host_Template * tpnt) {
 	    instance->irq = NCR5380_probe_irq(instance, PAS16_IRQS);
 
 	if (instance->irq != IRQ_NONE) 
-	    if (request_irq(instance->irq, pas16_intr, SA_INTERRUPT, "pas16")) {
+	    if (request_irq(instance->irq, pas16_intr, SA_INTERRUPT, "pas16", NULL)) {
 		printk("scsi%d : IRQ%d not free, interrupts disabled\n", 
 		    instance->host_no, instance->irq);
 		instance->irq = IRQ_NONE;
@@ -397,8 +429,8 @@ int pas16_detect(Scsi_Host_Template * tpnt) {
 	if (instance->irq == IRQ_NONE) {
 	    printk("scsi%d : interrupts not enabled. for better interactive performance,\n", instance->host_no);
 	    printk("scsi%d : please jumper the board for a free IRQ.\n", instance->host_no);
-            /* Disable 5380 interrupts, leave drive params the same */
-            outb( 0x4d, io_port + SYS_CONFIG_4 );
+	    /* Disable 5380 interrupts, leave drive params the same */
+	    outb( 0x4d, io_port + SYS_CONFIG_4 );
 	    outb( (inb(io_port + IO_CONFIG_3) & 0x0f), io_port + IO_CONFIG_3 );
 	}
 
@@ -424,7 +456,7 @@ int pas16_detect(Scsi_Host_Template * tpnt) {
 }
 
 /*
- * Function : int pas16_biosparam(Disk *disk, int dev, int *ip)
+ * Function : int pas16_biosparam(Disk *disk, kdev_t dev, int *ip)
  *
  * Purpose : Generates a BIOS / DOS compatible H-C-S mapping for 
  *	the specified device / size.
@@ -443,18 +475,18 @@ int pas16_detect(Scsi_Host_Template * tpnt) {
  * and matching the H_C_S coordinates to what DOS uses.
  */
 
-int pas16_biosparam(Disk * disk, int dev, int * ip)
+int pas16_biosparam(Disk * disk, kdev_t dev, int * ip)
 {
   int size = disk->capacity;
   ip[0] = 64;
   ip[1] = 32;
   ip[2] = size >> 11;		/* I think I have it as /(32*64) */
   if( ip[2] > 1024 ) {		/* yes, >, not >= */
-        ip[0]=255;
-        ip[1]=63;
-        ip[2]=size/(63*255);
-        if( ip[2] > 1023 )	/* yes >1023... */
-                ip[2] = 1023;
+	ip[0]=255;
+	ip[1]=63;
+	ip[2]=size/(63*255);
+	if( ip[2] > 1023 )	/* yes >1023... */
+		ip[2] = 1023;
   }
 
   return 0;
@@ -477,20 +509,24 @@ static inline int NCR5380_pread (struct Scsi_Host *instance, unsigned char *dst,
     int len) {
     register unsigned char  *d = dst;
     register unsigned short reg = (unsigned short) (instance->io_port + 
-        P_DATA_REG_OFFSET);
+	P_DATA_REG_OFFSET);
     register i = len;
+    int ii = 0;
 
-    while ( !(inb(instance->io_port + P_STATUS_REG_OFFSET) & P_ST_RDY) );
+    while ( !(inb(instance->io_port + P_STATUS_REG_OFFSET) & P_ST_RDY) )
+	 ++ii;
 
     insb( reg, d, i );
 
     if ( inb(instance->io_port + P_TIMEOUT_STATUS_REG_OFFSET) & P_TS_TIM) {
-        outb( P_TS_CT, instance->io_port + P_TIMEOUT_STATUS_REG_OFFSET);
+	outb( P_TS_CT, instance->io_port + P_TIMEOUT_STATUS_REG_OFFSET);
 	printk("scsi%d : watchdog timer fired in NCR5380_pread()\n",
 	    instance->host_no);
 	return -1;
-    } else
-	return 0;
+    }
+   if (ii > pas_maxi)
+      pas_maxi = ii;
+    return 0;
 }
 
 /*
@@ -511,18 +547,30 @@ static inline int NCR5380_pwrite (struct Scsi_Host *instance, unsigned char *src
     register unsigned char *s = src;
     register unsigned short reg = (instance->io_port + P_DATA_REG_OFFSET);
     register i = len;
+    int ii = 0;
 
-    while ( !((inb(instance->io_port + P_STATUS_REG_OFFSET)) & P_ST_RDY) );
+    while ( !((inb(instance->io_port + P_STATUS_REG_OFFSET)) & P_ST_RDY) )
+	 ++ii;
  
     outsb( reg, s, i );
 
     if (inb(instance->io_port + P_TIMEOUT_STATUS_REG_OFFSET) & P_TS_TIM) {
-        outb( P_TS_CT, instance->io_port + P_TIMEOUT_STATUS_REG_OFFSET);
+	outb( P_TS_CT, instance->io_port + P_TIMEOUT_STATUS_REG_OFFSET);
 	printk("scsi%d : watchdog timer fired in NCR5380_pwrite()\n",
 	    instance->host_no);
 	return -1;
-    } else 
-	return 0;
+    }
+    if (ii > pas_maxi)
+	 pas_wmaxi = ii;
+    return 0;
 }
 
 #include "NCR5380.c"
+
+#ifdef MODULE
+/* Eventually this will go into an include file, but this will be later */
+Scsi_Host_Template driver_template = MV_PAS16;
+
+#include <linux/module.h>
+#include "scsi_module.c"
+#endif

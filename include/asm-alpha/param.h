@@ -1,8 +1,8 @@
-#ifndef _ASMAXP_PARAM_H
-#define _ASMAXP_PARAM_H
+#ifndef _ASM_ALPHA_PARAM_H
+#define _ASM_ALPHA_PARAM_H
 
 #ifndef HZ
-#define HZ 1024
+# define HZ	1024
 #endif
 
 #define EXEC_PAGESIZE	8192
@@ -17,4 +17,4 @@
 
 #define MAXHOSTNAMELEN	64	/* max length of hostname */
 
-#endif
+#endif /* _ASM_ALPHA_PARAM_H */

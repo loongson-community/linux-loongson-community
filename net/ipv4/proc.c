@@ -22,6 +22,7 @@
  *	Erik Schoenfelder	:	/proc/net/snmp
  *		Alan Cox	:	Handle dead sockets properly.
  *	Gerhard Koerting	:	Show both timers
+ *		Alan Cox	:	Allow inode to be NULL (kernel socket)
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -29,7 +30,6 @@
  *		2 of the License, or (at your option) any later version.
  */
 #include <asm/system.h>
-#include <linux/autoconf.h>
 #include <linux/sched.h>
 #include <linux/socket.h>
 #include <linux/net.h>
@@ -59,6 +59,7 @@ get__netinfo(struct proto *pro, char *buffer, int format, char **start, off_t of
 {
 	struct sock **s_array;
 	struct sock *sp;
+	struct tcp_opt *tp;
 	int i;
 	int timer_active;
 	int timer_active1;
@@ -68,21 +69,37 @@ get__netinfo(struct proto *pro, char *buffer, int format, char **start, off_t of
 	unsigned short destp, srcp;
 	int len=0;
 	off_t pos=0;
-	off_t begin=0;
+	off_t begin;
+	char tmpbuf[129];
   
 	s_array = pro->sock_array;
-	len+=sprintf(buffer, "sl  local_address rem_address   st tx_queue rx_queue tr tm->when uid\n");
+	if (offset < 128) 
+		len += sprintf(buffer, "%-127s\n",
+			       "  sl  local_address rem_address   st tx_queue "
+			       "rx_queue tr tm->when retrnsmt   uid  timeout inode");
+	pos = 128;
 /*
- *	This was very pretty but didn't work when a socket is destroyed at the wrong moment
- *	(eg a syn recv socket getting a reset), or a memory timer destroy. Instead of playing
- *	with timers we just concede defeat and cli().
+ *	This was very pretty but didn't work when a socket is destroyed
+ *	at the wrong moment (eg a syn recv socket getting a reset), or
+ *	a memory timer destroy. Instead of playing with timers we just
+ *	concede defeat and cli().
  */
 	for(i = 0; i < SOCK_ARRAY_SIZE; i++) 
 	{
 	  	cli();
 		sp = s_array[i];
+
 		while(sp != NULL) 
 		{
+			pos += 128;
+			if (pos < offset)
+			{
+				sp = sp->next;
+				continue;
+			}
+
+			tp = &(sp->tp_pinfo.af_tcp);
+
 			dest  = sp->daddr;
 			src   = sp->saddr;
 			destp = sp->dummy_th.dest;
@@ -107,56 +124,58 @@ get__netinfo(struct proto *pro, char *buffer, int format, char **start, off_t of
 			    timer_active=timer_active2;
 			    timer_expires=sp->timer.expires;
 			}
-			len+=sprintf(buffer+len, "%2d: %08lX:%04X %08lX:%04X %02X %08lX:%08lX %02X:%08lX %08X %d %d\n",
+			sprintf(tmpbuf, "%4d: %08lX:%04X %08lX:%04X"
+				" %02X %08X:%08X %02X:%08lX %08X %5d %8d %ld",
 				i, src, srcp, dest, destp, sp->state, 
-				format==0?sp->write_seq-sp->rcv_ack_seq:sp->rmem_alloc, 
-				format==0?sp->acked_seq-sp->copied_seq:sp->wmem_alloc,
-				timer_active, timer_expires, (unsigned) sp->retransmits,
-				sp->socket?SOCK_INODE(sp->socket)->i_uid:0,
-				timer_active?sp->timeout:0);
+				format==0?sp->write_seq-tp->snd_una:sp->wmem_alloc, 
+				format==0?tp->rcv_nxt-sp->copied_seq:sp->rmem_alloc,
+				timer_active, timer_expires-jiffies, (unsigned) sp->retransmits,
+				(sp->socket&&SOCK_INODE(sp->socket))?SOCK_INODE(sp->socket)->i_uid:0,
+				timer_active?sp->timeout:0,
+				sp->socket && SOCK_INODE(sp->socket) ?
+				SOCK_INODE(sp->socket)->i_ino : 0);
+
 			if (timer_active1) add_timer(&sp->retransmit_timer);
 			if (timer_active2) add_timer(&sp->timer);
+			len += sprintf(buffer+len, "%-127s\n", tmpbuf);
 			/*
 			 * All sockets with (port mod SOCK_ARRAY_SIZE) = i
 			 * are kept in sock_array[i], so we must follow the
 			 * 'next' link to get them all.
 			 */
-			sp = sp->next;
-			pos=begin+len;
-			if(pos<offset)
-			{
-				len=0;
-				begin=pos;
-			}
-			if(pos>offset+length)
+			if(len >= length)
 				break;
+			sp = sp->next;
 		}
-		sti();	/* We only turn interrupts back on for a moment, but because the interrupt queues anything built up
-			   before this will clear before we jump back and cli, so it's not as bad as it looks */
-		if(pos>offset+length)
+		sti();	/* We only turn interrupts back on for a moment,
+			   but because the interrupt queues anything built
+			   up before this will clear before we jump back
+			   and cli(), so it's not as bad as it looks */
+		if(len>= length)
 			break;
 	}
-	*start=buffer+(offset-begin);
-	len-=(offset-begin);
+	begin = len - (pos - offset);
+	*start = buffer + begin;
+	len -= begin;
 	if(len>length)
-	  	len=length;
+		len = length;
 	return len;
 } 
 
 
-int tcp_get_info(char *buffer, char **start, off_t offset, int length)
+int tcp_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	return get__netinfo(&tcp_prot, buffer,0, start, offset, length);
 }
 
 
-int udp_get_info(char *buffer, char **start, off_t offset, int length)
+int udp_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	return get__netinfo(&udp_prot, buffer,1, start, offset, length);
 }
 
 
-int raw_get_info(char *buffer, char **start, off_t offset, int length)
+int raw_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	return get__netinfo(&raw_prot, buffer,1, start, offset, length);
 }
@@ -165,7 +184,7 @@ int raw_get_info(char *buffer, char **start, off_t offset, int length)
 /*
  *	Report socket allocation statistics [mea@utu.fi]
  */
-int afinet_get_info(char *buffer, char **start, off_t offset, int length)
+int afinet_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	/* From  net/socket.c  */
 	extern int socket_get_info(char *, char **, off_t, int);
@@ -194,7 +213,7 @@ int afinet_get_info(char *buffer, char **start, off_t offset, int length)
  *	Called from the PROCfs module. This outputs /proc/net/snmp.
  */
  
-int snmp_get_info(char *buffer, char **start, off_t offset, int length)
+int snmp_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	extern struct tcp_mib tcp_statistics;
 	extern struct udp_mib udp_statistics;
@@ -265,4 +284,3 @@ int snmp_get_info(char *buffer, char **start, off_t offset, int length)
 		len = length;
 	return len;
 }
-

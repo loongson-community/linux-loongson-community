@@ -1,7 +1,56 @@
+/*
+ * Linux/MIPS pagetables
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1995, 1996 by Ralf Baechle
+ */
 #ifndef __ASM_MIPS_PGTABLE_H
 #define __ASM_MIPS_PGTABLE_H
 
-#include <asm/cachectl.h>
+#include <asm/addrspace.h>
+#include <asm/mipsconfig.h>
+
+#ifndef __LANGUAGE_ASSEMBLY__
+
+#include <linux/linkage.h>
+#include <asm/cache.h>
+
+extern inline void
+flush_cache_all(void)
+{
+	cacheflush(0, ~0UL, CF_DCACHE|CF_VIRTUAL);
+}
+
+extern inline void
+flush_cache_mm(struct mm_struct *mm)
+{
+	cacheflush(0, ~0UL, CF_BCACHE|CF_VIRTUAL);
+}
+
+extern inline void
+flush_cache_range(struct mm_struct *mm, unsigned long start, unsigned long end)
+{
+	cacheflush(start, end - start, CF_DCACHE|CF_VIRTUAL);
+}
+
+extern inline void
+flush_cache_page(struct vm_area_struct * vma, unsigned long vmaddr)
+{
+	unsigned int flags;
+
+	flags = (vma->vm_flags & VM_EXEC) ? CF_BCACHE|CF_VIRTUAL
+	                                  : CF_DCACHE|CF_VIRTUAL;
+	cacheflush(vmaddr, PAGE_SIZE, flags);
+}
+
+extern inline void
+flush_page_to_ram(unsigned long page)
+{
+	cacheflush(page, PAGE_SIZE, CF_DCACHE|CF_VIRTUAL);
+}
 
 /*
  * The Linux memory management assumes a three-level page table setup. In
@@ -10,8 +59,58 @@
  * i386 mmu expects. The 64 bit version uses a three level setup.
  *
  * This file contains the functions and defines necessary to modify and use
- * the MIPS page table tree.
+ * the MIPS page table tree.  Note the frequent conversion between addresses
+ * in KSEG0 and KSEG1.
+ *
+ * This is required due to the cache aliasing problem of the R4xx0 series.
+ * Sometimes doing uncached accesses also to improve the cache performance
+ * slightly.  The R10000 caching mode "uncached accelerated" will help even
+ * further.
  */
+
+/*
+ * TLB invalidation:
+ *
+ *  - flush_tlb() flushes the current mm struct TLB entries
+ *  - flush_tlb_all() flushes all processes TLB entries
+ *  - flush_tlb_mm(mm) flushes the specified mm context TLB entries
+ *  - flush_tlb_page(mm, vmaddr) flushes a single page
+ *  - flush_tlb_range(mm, start, end) flushes a range of pages
+ *
+ * FIXME: MIPS has full control of all TLB activity in the CPU.  Though
+ *        we just stick with complete flushing of TLBs for now.
+ *        Currently this code only supports only R4000 and newer.  Support
+ *        for R3000 is in the works.  The R6000 uses a 2x8 entry TLB slice
+ *        and the R6000A an 16 entry TLB slice which is quite different
+ *        from the memory management concepts of the other R-series CPUs.
+ *        Only a few machines with this CPU still exist and I don't have one
+ *        so chances for complete R6000 support are relativly low.
+ */
+extern asmlinkage void tlbflush(void);
+extern asmlinkage void tlbflush_page(unsigned long addr);
+#define flush_tlb()	 tlbflush()
+#define flush_tlb_all() flush_tlb()
+
+static inline void flush_tlb_mm(struct mm_struct *mm)
+{
+	if (mm == current->mm)
+		flush_tlb();
+}
+
+static inline void flush_tlb_page(struct vm_area_struct *vma,
+	unsigned long addr)
+{
+	if (vma->vm_mm == current->mm)
+		tlbflush_page(addr);
+}
+
+static inline void flush_tlb_range(struct mm_struct *mm,
+	unsigned long start, unsigned long end)
+{
+	if (mm == current->mm)
+		flush_tlb();
+}
+#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
 
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
 #define PMD_SHIFT	22
@@ -40,16 +139,16 @@
  * physical address by a single 'and' operation and gain 6 additional
  * bits for storing information which isn't present in a normal
  * MIPS page table.
- * Since the Mips has choosen some quite missleading names for the
+ * Since the Mips has chosen some quite misleading names for the
  * valid and dirty bits they're defined here but only their synonyms
  * will be used.
  */
 #define _PAGE_PRESENT               (1<<0)  /* implemented in software */
-#define _PAGE_COW                   (1<<1)  /* implemented in software */
-#define _PAGE_READ                  (1<<2)  /* implemented in software */
-#define _PAGE_WRITE                 (1<<3)  /* implemented in software */
-#define _PAGE_ACCESSED              (1<<4)  /* implemented in software */
-#define _PAGE_MODIFIED              (1<<5)  /* implemented in software */
+#define _PAGE_READ                  (1<<1)  /* implemented in software */
+#define _PAGE_WRITE                 (1<<2)  /* implemented in software */
+#define _PAGE_ACCESSED              (1<<3)  /* implemented in software */
+#define _PAGE_MODIFIED              (1<<4)  /* implemented in software */
+#define _PAGE_UNUSED1               (1<<5)
 #define _PAGE_GLOBAL                (1<<6)
 #define _PAGE_VALID                 (1<<7)
 #define _PAGE_SILENT_READ           (1<<7)  /* synonym                 */
@@ -75,7 +174,7 @@
 #define PAGE_NONE	__pgprot(_PAGE_PRESENT | __READABLE | _CACHE_UNCACHED)
 #define PAGE_SHARED     __pgprot(_PAGE_PRESENT | __READABLE | _PAGE_WRITE | \
 			_PAGE_ACCESSED | _CACHE_CACHABLE_NONCOHERENT)
-#define PAGE_COPY       __pgprot(_PAGE_PRESENT | __READABLE | _PAGE_COW | \
+#define PAGE_COPY       __pgprot(_PAGE_PRESENT | __READABLE | \
 			_CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_READONLY   __pgprot(_PAGE_PRESENT | __READABLE | \
 			_CACHE_CACHABLE_NONCOHERENT)
@@ -107,8 +206,8 @@
 
 #if !defined (__LANGUAGE_ASSEMBLY__)
 
-/* page table for 0-4MB for everybody */
-extern unsigned long pg0[1024];
+/* zero page used for uninitialized stuff */
+extern unsigned long empty_zero_page[1024];
 
 /*
  * BAD_PAGETABLE is used when we need a bogus page-table, while
@@ -124,7 +223,7 @@ extern unsigned long __zero_page(void);
 
 #define BAD_PAGETABLE __bad_pagetable()
 #define BAD_PAGE __bad_page()
-#define ZERO_PAGE __zero_page()
+#define ZERO_PAGE ((unsigned long)empty_zero_page)
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR			(8*sizeof(unsigned long))
@@ -133,9 +232,9 @@ extern unsigned long __zero_page(void);
 #define PTR_MASK			(~(sizeof(void*)-1))
 
 /*
- * sizeof(void*)==1<<SIZEOF_PTR_LOG2
+ * sizeof(void*) == (1 << SIZEOF_PTR_LOG2)
  */
-#if __mips == 3
+#ifdef 0 /* __mips64 */
 #define SIZEOF_PTR_LOG2			3
 #else
 #define SIZEOF_PTR_LOG2			2
@@ -145,16 +244,26 @@ extern unsigned long __zero_page(void);
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
+extern void load_pgd(unsigned long pg_dir);
+
 /* to set the page-dir */
 #define SET_PAGE_DIR(tsk,pgdir) \
 do { \
 	(tsk)->tss.pg_dir = ((unsigned long) (pgdir)) - PT_OFFSET; \
 	if ((tsk) == current) \
-		invalidate(); \
+		load_pgd((tsk)->tss.pg_dir); \
 } while (0)
 
-extern unsigned long high_memory;
 extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
+
+/*
+ * Convert a page address to a page table pointer and vice versa.
+ * Due to the wiered virtual caches in the r-series we might run into
+ * problems with cache aliasing.  We solve this problem by accessing
+ * the pagetables uncached.
+ */
+#define page_to_ptp(x) ((__typeof__(x))(((unsigned long) (x)) + (PT_OFFSET - PAGE_OFFSET)))
+#define ptp_to_page(x) ((__typeof__(x))(((unsigned long) (x)) - (PT_OFFSET - PAGE_OFFSET)))
 
 /*
  * Conversion functions: convert a page and protection to a page entry,
@@ -171,29 +280,32 @@ extern inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
 
 extern inline int pte_none(pte_t pte)		{ return !pte_val(pte); }
 extern inline int pte_present(pte_t pte)	{ return pte_val(pte) & _PAGE_PRESENT; }
-extern inline int pte_inuse(pte_t *ptep)	{ return mem_map[MAP_NR(ptep)] != 1; }
-extern inline void pte_clear(pte_t *ptep)	{ pte_val(*ptep) = 0; }
-extern inline void pte_reuse(pte_t * ptep)
+
+/*
+ * Certain architectures need to do special things when pte's
+ * within a page table are directly modified.  Thus, the following
+ * hook is made available.
+ */
+extern inline void set_pte(pte_t *ptep, pte_t pteval)
 {
-	if (!(mem_map[MAP_NR(ptep)] & MAP_PAGE_RESERVED))
-		mem_map[MAP_NR(ptep)]++;
+	*ptep = pteval;
+}
+
+extern inline void pte_clear(pte_t *ptep)
+{
+	pte_t pte;
+
+	pte_val(pte) = 0;
+	set_pte(ptep, pte);
 }
 
 /*
  * Empty pgd/pmd entries point to the invalid_pte_table.
  */
 extern inline int pmd_none(pmd_t pmd)		{ return (pmd_val(pmd) & PAGE_MASK) == ((unsigned long) invalid_pte_table - PAGE_OFFSET); }
-
-extern inline int pmd_bad(pmd_t pmd)
-{
-	return (pmd_val(pmd) & ~PAGE_MASK) != _PAGE_TABLE ||
-	        pmd_page(pmd) > high_memory ||
-	        pmd_page(pmd) < PAGE_OFFSET;
-}
+extern inline int pmd_bad(pmd_t pmd)		{ return (pmd_val(pmd) & ~PAGE_MASK) != _PAGE_TABLE; }
 extern inline int pmd_present(pmd_t pmd)	{ return pmd_val(pmd) & _PAGE_PRESENT; }
-extern inline int pmd_inuse(pmd_t *pmdp)	{ return 0; }
-extern inline void pmd_clear(pmd_t * pmdp)	{ pmd_val(*pmdp) = ((unsigned long) invalid_pte_table - PAGE_OFFSET); }
-extern inline void pmd_reuse(pmd_t * pmdp)	{ }
+extern inline void pmd_clear(pmd_t * pmdp)	{ pmd_val(*pmdp) = ((unsigned long) invalid_pte_table - PAGE_OFFSET) | _PAGE_TABLE; }
 
 /*
  * The "pgd_xxx()" functions here are trivial for a folded two-level
@@ -203,13 +315,7 @@ extern inline void pmd_reuse(pmd_t * pmdp)	{ }
 extern inline int pgd_none(pgd_t pgd)		{ return 0; }
 extern inline int pgd_bad(pgd_t pgd)		{ return 0; }
 extern inline int pgd_present(pgd_t pgd)	{ return 1; }
-extern inline int pgd_inuse(pgd_t * pgdp)	{ return mem_map[MAP_NR(pgdp)] != 1; }
 extern inline void pgd_clear(pgd_t * pgdp)	{ }
-extern inline void pgd_reuse(pgd_t * pgdp)
-{
-	if (!(mem_map[MAP_NR(pgdp)] & MAP_PAGE_RESERVED))
-		mem_map[MAP_NR(pgdp)]++;
-}
 
 /*
  * The following only work if pte_present() is true.
@@ -220,7 +326,6 @@ extern inline int pte_write(pte_t pte)		{ return pte_val(pte) & _PAGE_WRITE; }
 extern inline int pte_exec(pte_t pte)		{ return pte_val(pte) & _PAGE_READ; }
 extern inline int pte_dirty(pte_t pte)		{ return pte_val(pte) & _PAGE_MODIFIED; }
 extern inline int pte_young(pte_t pte)		{ return pte_val(pte) & _PAGE_ACCESSED; }
-extern inline int pte_cow(pte_t pte)		{ return pte_val(pte) & _PAGE_COW; }
 
 extern inline pte_t pte_wrprotect(pte_t pte)
 {
@@ -237,7 +342,6 @@ extern inline pte_t pte_exprotect(pte_t pte)
 }
 extern inline pte_t pte_mkclean(pte_t pte)	{ pte_val(pte) &= ~(_PAGE_MODIFIED|_PAGE_SILENT_WRITE); return pte; }
 extern inline pte_t pte_mkold(pte_t pte)	{ pte_val(pte) &= ~(_PAGE_ACCESSED|_PAGE_SILENT_READ|_PAGE_SILENT_WRITE); return pte; }
-extern inline pte_t pte_uncow(pte_t pte)	{ pte_val(pte) &= ~_PAGE_COW; return pte; }
 extern inline pte_t pte_mkwrite(pte_t pte)
 {
 	pte_val(pte) |= _PAGE_WRITE;
@@ -277,11 +381,6 @@ extern inline pte_t pte_mkyoung(pte_t pte)
 	}
 	return pte;
 }
-extern inline pte_t pte_mkcow(pte_t pte)
-{
-	pte_val(pte) |= _PAGE_COW;
-	return pte;
-}
 
 /*
  * Conversion functions: convert a page and protection to a page entry,
@@ -290,14 +389,16 @@ extern inline pte_t pte_mkcow(pte_t pte)
 extern inline pte_t mk_pte(unsigned long page, pgprot_t pgprot)
 { pte_t pte; pte_val(pte) = (page - PAGE_OFFSET) | pgprot_val(pgprot); return pte; }
 
+extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
+{ pte_t pte; pte_val(pte) = physpage | pgprot_val(pgprot); return pte; }
+
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 { pte_val(pte) = (pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot); return pte; }
 
 /* to find an entry in a page-table-directory */
-extern inline pgd_t * pgd_offset(struct task_struct * tsk, unsigned long address)
+extern inline pgd_t * pgd_offset(struct mm_struct * mm, unsigned long address)
 {
-	return (pgd_t *) (tsk->tss.pg_dir + PT_OFFSET) +
-	       (address >> PGDIR_SHIFT);
+	return mm->pgd + (address >> PGDIR_SHIFT);
 }
 
 /* Find an entry in the second-level page table.. */
@@ -309,40 +410,40 @@ extern inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
 /* Find an entry in the third-level page table.. */ 
 extern inline pte_t * pte_offset(pmd_t * dir, unsigned long address)
 {
-	return (pte_t *) (pmd_page(*dir) + (PT_OFFSET - PAGE_OFFSET)) +
+	return (pte_t *) (page_to_ptp(pmd_page(*dir))) +
 	       ((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1));
 }
 
 /*
  * Allocate and free page tables. The xxx_kernel() versions are
  * used to allocate a kernel page table - this turns on ASN bits
- * if any, and marks the page tables reserved.
+ * if any.
  */
 extern inline void pte_free_kernel(pte_t * pte)
 {
 	unsigned long page = (unsigned long) pte;
 
-	mem_map[MAP_NR(pte)] = 1;
 	if(!page)
 		return;
-	page -= (PT_OFFSET - PAGE_OFFSET);
-	free_page(page);
+	/*
+	 * Flush complete cache - we don't know the virtual address.
+	 */
+	cacheflush(0, ~0, CF_DCACHE|CF_VIRTUAL);
+	free_page(ptp_to_page(page));
 }
 
 extern inline pte_t * pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 {
 	address = (address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1);
 	if (pmd_none(*pmd)) {
-		unsigned long page = __get_free_page(GFP_KERNEL);
+		unsigned long page = get_free_page(GFP_KERNEL);
 		if (pmd_none(*pmd)) {
 			if (page) {
-				mem_map[MAP_NR(page)] = MAP_PAGE_RESERVED;
-				sys_cacheflush((void *)page, PAGE_SIZE, DCACHE);
+				cacheflush(page, PAGE_SIZE, CF_DCACHE|CF_VIRTUAL);
 				sync_mem();
-				page += (PT_OFFSET - PAGE_OFFSET);
-				memset((void *) page, 0, PAGE_SIZE);
+				page = page_to_ptp(page);
 				pmd_set(pmd, (pte_t *)page);
-				return ((pte_t *)page) + address;
+				return (pte_t *)page + address;
 			}
 			pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
 			return NULL;
@@ -354,7 +455,7 @@ extern inline pte_t * pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 		pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
 		return NULL;
 	}
-	return (pte_t *) (pmd_page(*pmd) + (PT_OFFSET - PAGE_OFFSET)) + address;
+	return (pte_t *) page_to_ptp(pmd_page(*pmd)) + address;
 }
 
 /*
@@ -376,23 +477,25 @@ extern inline void pte_free(pte_t * pte)
 
 	if(!page)
 		return;
-	page -= (PT_OFFSET - PAGE_OFFSET);
-	free_page(page);
+	/*
+	 * Flush complete cache - we don't know the virtual address.
+	 */
+	cacheflush(0, ~0UL, CF_DCACHE|CF_VIRTUAL);
+	free_page(ptp_to_page(page));
 }
 
 extern inline pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
 {
 	address = (address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1);
 	if (pmd_none(*pmd)) {
-		unsigned long page = __get_free_page(GFP_KERNEL);
+		unsigned long page = get_free_page(GFP_KERNEL);
 		if (pmd_none(*pmd)) {
 			if (page) {
-				sys_cacheflush((void *)page, PAGE_SIZE, DCACHE);
+				cacheflush(page, PAGE_SIZE, CF_DCACHE|CF_VIRTUAL);
 				sync_mem();
-				page += (PT_OFFSET - PAGE_OFFSET);
-				memset((void *) page, 0, PAGE_SIZE);
+				page = page_to_ptp(page);
 				pmd_set(pmd, (pte_t *)page);
-				return ((pte_t *)page) + address;
+				return (pte_t *)page + address;
 			}
 			pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
 			return NULL;
@@ -404,7 +507,7 @@ extern inline pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
 		pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
 		return NULL;
 	}
-	return (pte_t *) (pmd_page(*pmd) + (PT_OFFSET - PAGE_OFFSET)) + address;
+	return (pte_t *) page_to_ptp(pmd_page(*pmd)) + address;
 }
 
 /*
@@ -426,59 +529,17 @@ extern inline void pgd_free(pgd_t * pgd)
 
 	if(!page)
 		return;
-	page -= (PT_OFFSET - PAGE_OFFSET);
-	free_page(page);
+	/*
+	 * Flush complete cache - we don't know the virtual address.
+	 */
+	cacheflush(0, ~0UL, CF_DCACHE|CF_VIRTUAL);
+	free_page(ptp_to_page(page));
 }
 
 /*
  * Initialize new page directory with pointers to invalid ptes
  */
-extern inline void pgd_init(unsigned long page)
-{
-	unsigned long dummy1, dummy2;
-
-	page += (PT_OFFSET - PAGE_OFFSET);
-#ifdef __R4000__
-	/*
-	 * Ich will Spass - ich geb Gas ich geb Gas...
-	 */
-	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"dsll32\t$1,%2,0\n\t"
-		"dsrl32\t%2,$1,0\n\t"
-		"or\t%2,$1\n"
-		"1:\tsd\t%2,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,8\n\t"
-		".set\tmips0\n\t"
-		".set\tat\n\t"
-		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2)
-		:"r" (((unsigned long) invalid_pte_table - PAGE_OFFSET) |
-		       _PAGE_TABLE),
-		 "0" (page),
-		 "1" (PAGE_SIZE/(sizeof(pmd_t)*2))
-		:"$1");
-#else
-	__asm__ __volatile__(
-		".set\tnoreorder\n"
-		"1:\tsw\t%2,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,4\n\t"
-		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2)
-		:"r" (((unsigned long) invalid_pte_table - PAGE_OFFSET) |
-		       _PAGE_TABLE),
-		 "0" (page),
-		 "1" (PAGE_SIZE/sizeof(pmd_t)));
-#endif
-}
+extern void (*pgd_init)(unsigned long page);
 
 extern inline pgd_t * pgd_alloc(void)
 {
@@ -486,33 +547,37 @@ extern inline pgd_t * pgd_alloc(void)
 
 	if(!(page = __get_free_page(GFP_KERNEL)))
 		return NULL;
-
-	sys_cacheflush((void *)page, PAGE_SIZE, DCACHE);
-	sync_mem();
 	pgd_init(page);
 
-	return (pgd_t *) (page + (PT_OFFSET - PAGE_OFFSET));
+	return (pgd_t *) page_to_ptp(page);
 }
 
 extern pgd_t swapper_pg_dir[1024];
 
-/*
- * MIPS doesn't need any external MMU info: the kernel page
- * tables contain all the necessary information.
- */
 extern inline void update_mmu_cache(struct vm_area_struct * vma,
 	unsigned long address, pte_t pte)
 {
+	tlbflush_page(address);
+	/*
+	 * FIXME: We should also reload a new entry into the TLB to
+	 * avoid unnecessary exceptions.
+	 */
 }
 
-#if __mips >= 3
+#if 0 /* defined(__mips64) */
 
+/*
+ * For true 64 bit kernel
+ */
 #define SWP_TYPE(entry) (((entry) >> 32) & 0xff)
 #define SWP_OFFSET(entry) ((entry) >> 40)
 #define SWP_ENTRY(type,offset) pte_val(mk_swap_pte((type),(offset)))
 
 #else
 
+/*
+ * Kernel with 32 bit address space
+ */
 #define SWP_TYPE(entry) (((entry) >> 1) & 0x7f)
 #define SWP_OFFSET(entry) ((entry) >> 8)
 #define SWP_ENTRY(type,offset) (((type) << 1) | ((offset) << 8))

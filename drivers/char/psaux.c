@@ -12,30 +12,47 @@
  * Changed to prevent keyboard lockups on AST Power Exec.
  * 28Jul93  Brad Bosch - brad@lachman.com
  *
- * Modified by Johan Myreen (jem@cs.hut.fi) 04Aug93
+ * Modified by Johan Myreen (jem@pandora.pp.fi) 04Aug93
  *   to include support for QuickPort mouse.
  *
  * Changed references to "QuickPort" with "82C710" since "QuickPort"
  * is not what this driver is all about -- QuickPort is just a
  * connector type, and this driver is for the mouse port on the Chips
- * & Technologies 82C710 interface chip. 15Nov93 jem@cs.hut.fi
+ * & Technologies 82C710 interface chip. 15Nov93 jem@pandora.pp.fi
+ *
+ * Added support for SIGIO. 28Jul95 jem@pandora.pp.fi
+ *
+ * Rearranged SIGIO support to use code from tty_io.  9Sept95 ctm@ardi.com
+ *
+ * Modularised 8-Sep-95 Philip Blundell <pjb27@cam.ac.uk>
+ *
+ * Fixed keyboard lockups at open time
+ * 3-Jul-96, 22-Aug-96 Roman Hodek <Roman.Hodek@informatik.uni-erlangen.de>
  */
 
 /* Uncomment the following line if your mouse needs initialization. */
 
 /* #define INITIALIZE_DEVICE */
 
+#include <linux/module.h>
+ 
 #include <linux/sched.h>
 #include <linux/kernel.h>
+#include <linux/interrupt.h>
 #include <linux/fcntl.h>
 #include <linux/errno.h>
 #include <linux/timer.h>
+#include <linux/malloc.h>
+#include <linux/miscdevice.h>
+#include <linux/random.h>
 
 #include <asm/io.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 
 #include <linux/config.h>
+
+#define PSMOUSE_MINOR      1            /* minor device # for this mouse */
 
 /* aux controller ports */
 #define AUX_INPUT_PORT	0x60		/* Aux device output buffer */
@@ -69,7 +86,11 @@
 #define AUX_RESET	0xff		/* reset aux device */
 
 #define MAX_RETRIES	60		/* some aux operations take long time*/
-#define AUX_IRQ		12
+#if defined(__alpha__) && !defined(CONFIG_PCI)
+# define AUX_IRQ	9		/* Jensen is odd indeed */
+#else
+# define AUX_IRQ	12
+#endif
 #define AUX_BUF_SIZE	2048
 
 /* 82C710 definitions */
@@ -77,7 +98,7 @@
 #define QP_DATA         0x310		/* Data Port I/O Address */
 #define QP_STATUS       0x311		/* Status Port I/O Address */
 
-#define QP_DEV_IDLE     0x01	        /* Device Idle */
+#define QP_DEV_IDLE     0x01		/* Device Idle */
 #define QP_RX_FULL      0x02		/* Device Char received */
 #define QP_TX_IDLE      0x04		/* Device XMIT Idle */
 #define QP_RESET        0x08		/* Device Reset */
@@ -95,18 +116,21 @@ struct aux_queue {
 	unsigned long head;
 	unsigned long tail;
 	struct wait_queue *proc_list;
+	struct fasync_struct *fasync;
 	unsigned char buf[AUX_BUF_SIZE];
 };
 
 static struct aux_queue *queue;
 static int aux_ready = 0;
-static int aux_busy = 0;
+static int aux_count = 0;
 static int aux_present = 0;
 static int poll_aux_status(void);
+static int poll_aux_status_nosleep(void);
+static int fasync_aux(struct inode *inode, struct file *filp, int on);
 
 #ifdef CONFIG_82C710_MOUSE
 static int qp_present = 0;
-static int qp_busy = 0;
+static int qp_count = 0;
 static int qp_data = QP_DATA;
 static int qp_status = QP_STATUS;
 
@@ -130,20 +154,16 @@ static void aux_write_dev(int val)
 /*
  * Write to device & handle returned ack
  */
- 
 #if defined INITIALIZE_DEVICE
 static int aux_write_ack(int val)
 {
-        int retries = 0;
+	int retries = 0;
 
-	aux_write_dev(val);		/* write the value to the device */
-	while ((inb(AUX_STATUS) & AUX_OBUF_FULL) != AUX_OBUF_FULL
-	            && retries < MAX_RETRIES) {          /* wait for ack */
-       		current->state = TASK_INTERRUPTIBLE;
-		current->timeout = jiffies + 5;
-		schedule();
-		retries++;
-        }
+	poll_aux_status_nosleep();
+	outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
+	poll_aux_status_nosleep();
+	outb_p(val,AUX_OUTPUT_PORT);
+	poll_aux_status_nosleep();
 
 	if ((inb(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
 	{
@@ -192,18 +212,23 @@ static inline int queue_empty(void)
  * is waiting in the keyboard/aux controller.
  */
 
-static void aux_interrupt(int cpl, struct pt_regs * regs)
+static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 {
 	int head = queue->head;
 	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
 
-	queue->buf[head] = inb(AUX_INPUT_PORT);
+	if ((inb(AUX_STATUS) & AUX_OBUF_FULL) != AUX_OBUF_FULL)
+		return;
+
+	add_mouse_randomness(queue->buf[head] = inb(AUX_INPUT_PORT));
 	if (head != maxhead) {
 		head++;
 		head &= AUX_BUF_SIZE-1;
 	}
 	queue->head = head;
 	aux_ready = 1;
+	if (queue->fasync)
+		kill_fasync(queue->fasync, SIGIO);
 	wake_up_interruptible(&queue->proc_list);
 }
 
@@ -213,18 +238,20 @@ static void aux_interrupt(int cpl, struct pt_regs * regs)
  */
 
 #ifdef CONFIG_82C710_MOUSE
-static void qp_interrupt(int cpl, struct pt_regs * regs)
+static void qp_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 {
 	int head = queue->head;
 	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
 
-	queue->buf[head] = inb(qp_data);
+	add_mouse_randomness(queue->buf[head] = inb(qp_data));
 	if (head != maxhead) {
 		head++;
 		head &= AUX_BUF_SIZE-1;
 	}
 	queue->head = head;
 	aux_ready = 1;
+	if (queue->fasync)
+		kill_fasync(queue->fasync, SIGIO);
 	wake_up_interruptible(&queue->proc_list);
 }
 #endif
@@ -232,13 +259,19 @@ static void qp_interrupt(int cpl, struct pt_regs * regs)
 
 static void release_aux(struct inode * inode, struct file * file)
 {
-	aux_write_dev(AUX_DISABLE_DEV);		/* disable aux device */
+	fasync_aux(inode, file, 0);
+	if (--aux_count)
+		return;
+	/* disable kbd bh to avoid mixing of cmd bytes */
+	disable_bh(KEYBOARD_BH);
 	aux_write_cmd(AUX_INTS_OFF);		/* disable controller ints */
 	poll_aux_status();
 	outb_p(AUX_DISABLE,AUX_COMMAND);      	/* Disable Aux device */
 	poll_aux_status();
-	free_irq(AUX_IRQ);
-	aux_busy = 0;
+	/* reenable kbd bh */
+	enable_bh(KEYBOARD_BH);
+	free_irq(AUX_IRQ, NULL);
+	MOD_DEC_USE_COUNT;
 }
 
 #ifdef CONFIG_82C710_MOUSE
@@ -246,16 +279,29 @@ static void release_qp(struct inode * inode, struct file * file)
 {
 	unsigned char status;
 
+	fasync_aux(inode, file, 0);
+	if (--qp_count)
+		return;
 	if (!poll_qp_status())
-	        printk("Warning: Mouse device busy in release_qp()\n");
+		printk("Warning: Mouse device busy in release_qp()\n");
 	status = inb_p(qp_status);
 	outb_p(status & ~(QP_ENABLE|QP_INTS_ON), qp_status);
 	if (!poll_qp_status())
-	        printk("Warning: Mouse device busy in release_qp()\n");
-	free_irq(QP_IRQ);
-	qp_busy = 0;
+		printk("Warning: Mouse device busy in release_qp()\n");
+	free_irq(QP_IRQ, NULL);
+	MOD_DEC_USE_COUNT;
 }
 #endif
+
+static int fasync_aux(struct inode *inode, struct file *filp, int on)
+{
+	int retval;
+
+	retval = fasync_helper(inode, filp, on, &queue->fasync);
+	if (retval < 0)
+		return retval;
+	return 0;
+}
 
 /*
  * Install interrupt handler.
@@ -265,22 +311,29 @@ static void release_qp(struct inode * inode, struct file * file)
 static int open_aux(struct inode * inode, struct file * file)
 {
 	if (!aux_present)
-		return -EINVAL;
-	if (aux_busy)
-		return -EBUSY;
-	if (!poll_aux_status())
-		return -EBUSY;
-	aux_busy = 1;
-	queue->head = queue->tail = 0;	        /* Flush input queue */
-	if (request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse")) {
-		aux_busy = 0;
+		return -ENODEV;
+	if (aux_count++)
+		return 0;
+	if (!poll_aux_status()) {
+		aux_count--;
 		return -EBUSY;
 	}
+	queue->head = queue->tail = 0;		/* Flush input queue */
+	if (request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)) {
+		aux_count--;
+		return -EBUSY;
+	}
+	MOD_INC_USE_COUNT;
+	/* disable kbd bh to avoid mixing of cmd bytes */
+	disable_bh(KEYBOARD_BH);
 	poll_aux_status();
 	outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
 	aux_write_dev(AUX_ENABLE_DEV);		/* enable aux device */
 	aux_write_cmd(AUX_INTS_ON);		/* enable controller ints */
 	poll_aux_status();
+	/* reenable kbd bh */
+	enable_bh(KEYBOARD_BH);
+
 	aux_ready = 0;
 	return 0;
 }
@@ -288,24 +341,23 @@ static int open_aux(struct inode * inode, struct file * file)
 #ifdef CONFIG_82C710_MOUSE
 /*
  * Install interrupt handler.
- * Enable the device, enable interrupts. Set qp_busy
- * (allow only one opener at a time.)
+ * Enable the device, enable interrupts. 
  */
 
 static int open_qp(struct inode * inode, struct file * file)
 {
-        unsigned char status;
+	unsigned char status;
 
 	if (!qp_present)
 		return -EINVAL;
 
-	if (qp_busy)
-		return -EBUSY;
+	if (qp_count++)
+		return 0;
 
-	if (request_irq(QP_IRQ, qp_interrupt, 0, "PS/2 Mouse"))
+	if (request_irq(QP_IRQ, qp_interrupt, 0, "PS/2 Mouse", NULL)) {
+		qp_count--;
 		return -EBUSY;
-
-	qp_busy = 1;
+	}
 
 	status = inb_p(qp_status);
 	status |= (QP_ENABLE|QP_RESET);
@@ -318,12 +370,16 @@ static int open_qp(struct inode * inode, struct file * file)
 	outb_p(status, qp_status);              /* Enable interrupts */
 
 	while (!poll_qp_status()) {
-	        printk("Error: Mouse device busy in open_qp()\n");
+		printk("Error: Mouse device busy in open_qp()\n");
+		qp_count--;
+		status &= ~(QP_ENABLE|QP_INTS_ON);
+		outb_p(status, qp_status);
+		free_irq(QP_IRQ, NULL);
 		return -EBUSY;
-        }
+	}
 
 	outb_p(AUX_ENABLE_DEV, qp_data);	/* Wake up mouse */
-
+	MOD_INC_USE_COUNT;
 	return 0;
 }
 #endif
@@ -332,20 +388,38 @@ static int open_qp(struct inode * inode, struct file * file)
  * Write to the aux device.
  */
 
-static int write_aux(struct inode * inode, struct file * file, char * buffer, int count)
+static long write_aux(struct inode * inode, struct file * file,
+	const char * buffer, unsigned long count)
 {
-	int i = count;
+	int retval = 0;
 
-	while (i--) {
-		if (!poll_aux_status())
-			return -EIO;
-		outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
-		if (!poll_aux_status())
-			return -EIO;
-		outb_p(get_fs_byte(buffer++),AUX_OUTPUT_PORT);
+	if (count) {
+		int written = 0;
+
+		/* disable kbd bh to avoid mixing of cmd bytes */
+		disable_bh(KEYBOARD_BH);
+
+		do {
+			char c;
+			if (!poll_aux_status())
+				break;
+			outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
+			if (!poll_aux_status())
+				break;
+			get_user(c, buffer++);
+			outb_p(c, AUX_OUTPUT_PORT);
+			written++;
+		} while (--count);
+		/* reenable kbd bh */
+		enable_bh(KEYBOARD_BH);
+		retval = -EIO;
+		if (written) {
+			retval = written;
+			inode->i_mtime = CURRENT_TIME;
+		}
 	}
-	inode->i_mtime = CURRENT_TIME;
-	return count;
+
+	return retval;
 }
 
 
@@ -354,14 +428,17 @@ static int write_aux(struct inode * inode, struct file * file, char * buffer, in
  * Write to the 82C710 mouse device.
  */
 
-static int write_qp(struct inode * inode, struct file * file, char * buffer, int count)
+static long write_qp(struct inode * inode, struct file * file,
+	const char * buffer, unsigned long count)
 {
 	int i = count;
 
 	while (i--) {
+		char c;
 		if (!poll_qp_status())
 			return -EIO;
-		outb_p(get_fs_byte(buffer++), qp_data);
+		get_user(c, buffer++);
+		outb_p(c, qp_data);
 	}
 	inode->i_mtime = CURRENT_TIME;
 	return count;
@@ -373,7 +450,8 @@ static int write_qp(struct inode * inode, struct file * file, char * buffer, int
  * Put bytes from input queue to buffer.
  */
 
-static int read_aux(struct inode * inode, struct file * file, char * buffer, int count)
+static long read_aux(struct inode * inode, struct file * file,
+	char * buffer, unsigned long count)
 {
 	struct wait_queue wait = { current, NULL };
 	int i = count;
@@ -390,11 +468,11 @@ repeat:
 			goto repeat;
 		}
 		current->state = TASK_RUNNING;
-		remove_wait_queue(&queue->proc_list, &wait);			
-	}		
+		remove_wait_queue(&queue->proc_list, &wait);
+	}
 	while (i > 0 && !queue_empty()) {
 		c = get_from_queue();
-		put_fs_byte(c, buffer++);
+		put_user(c, buffer++);
 		i--;
 	}
 	aux_ready = !queue_empty();
@@ -429,6 +507,8 @@ struct file_operations psaux_fops = {
 	NULL,		/* mmap */
 	open_aux,
 	release_aux,
+	NULL,
+	fasync_aux,
 };
 
 
@@ -436,64 +516,93 @@ struct file_operations psaux_fops = {
  * Initialize driver. First check for a 82C710 chip; if found
  * forget about the Aux port and use the *_qp functions.
  */
+static struct miscdevice psaux_mouse = {
+	PSMOUSE_MINOR, "ps2aux", &psaux_fops
+};
 
-unsigned long psaux_init(unsigned long kmem_start)
+int psaux_init(void)
 {
-        int qp_found = 0;
+	int qp_found = 0;
 
 #ifdef CONFIG_82C710_MOUSE
-        if ((qp_found = probe_qp())) {
-	        printk("82C710 type pointing device detected -- driver installed.\n");
+	if ((qp_found = probe_qp())) {
+		printk(KERN_INFO "82C710 type pointing device detected -- driver installed.\n");
 /*		printk("82C710 address = %x (should be 0x310)\n", qp_data); */
 		qp_present = 1;
 		psaux_fops.write = write_qp;
 		psaux_fops.open = open_qp;
 		psaux_fops.release = release_qp;
-		poll_qp_status();
 	} else
 #endif
 	if (aux_device_present == 0xaa) {
-	        printk("PS/2 auxiliary pointing device detected -- driver installed.\n");
-         	aux_present = 1;
+		printk(KERN_INFO "PS/2 auxiliary pointing device detected -- driver installed.\n");
+	 	aux_present = 1;
 		kbd_read_mask = AUX_OBUF_FULL;
-	        poll_aux_status();
 	} else {
-		return kmem_start;              /* No mouse at all */
+		return -EIO;
 	}
-	queue = (struct aux_queue *) kmem_start;
-	kmem_start += sizeof (struct aux_queue);
+	misc_register(&psaux_mouse);
+	queue = (struct aux_queue *) kmalloc(sizeof(*queue), GFP_KERNEL);
+	memset(queue, 0, sizeof(*queue));
 	queue->head = queue->tail = 0;
 	queue->proc_list = NULL;
 	if (!qp_found) {
 #if defined INITIALIZE_DEVICE
-                outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
-	        aux_write_ack(AUX_SET_SAMPLE);
-	        aux_write_ack(100);			/* 100 samples/sec */
-	        aux_write_ack(AUX_SET_RES);
-	        aux_write_ack(3);			/* 8 counts per mm */
-	        aux_write_ack(AUX_SET_SCALE21);		/* 2:1 scaling */
-	        poll_aux_status();
+		outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
+		aux_write_ack(AUX_SET_SAMPLE);
+		aux_write_ack(100);			/* 100 samples/sec */
+		aux_write_ack(AUX_SET_RES);
+		aux_write_ack(3);			/* 8 counts per mm */
+		aux_write_ack(AUX_SET_SCALE21);		/* 2:1 scaling */
+		poll_aux_status_nosleep();
 #endif /* INITIALIZE_DEVICE */
-        	outb_p(AUX_DISABLE,AUX_COMMAND);   /* Disable Aux device */
-	        aux_write_cmd(AUX_INTS_OFF);    /* disable controller ints */
-		poll_aux_status();
+		outb_p(AUX_DISABLE,AUX_COMMAND);   /* Disable Aux device */
+		poll_aux_status_nosleep();
+		outb_p(AUX_CMD_WRITE,AUX_COMMAND);
+		poll_aux_status_nosleep();             /* Disable interrupts */
+		outb_p(AUX_INTS_OFF, AUX_OUTPUT_PORT); /*  on the controller */
 	}
-	return kmem_start;
+	return 0;
 }
+
+#ifdef MODULE
+int init_module(void)
+{
+	return psaux_init(); /*?? Bjorn */
+}
+
+void cleanup_module(void)
+{
+	misc_deregister(&psaux_mouse);
+	kfree(queue);
+}
+#endif
 
 static int poll_aux_status(void)
 {
 	int retries=0;
 
 	while ((inb(AUX_STATUS)&0x03) && retries < MAX_RETRIES) {
- 		if (inb_p(AUX_STATUS) & AUX_OBUF_FULL == AUX_OBUF_FULL)
+ 		if ((inb_p(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
 			inb_p(AUX_INPUT_PORT);
 		current->state = TASK_INTERRUPTIBLE;
-		current->timeout = jiffies + 5;
+		current->timeout = jiffies + (5*HZ + 99) / 100;
 		schedule();
 		retries++;
 	}
 	return !(retries==MAX_RETRIES);
+}
+
+static int poll_aux_status_nosleep(void)
+{
+	int retries = 0;
+
+	while ((inb(AUX_STATUS)&0x03) && retries < 1000000) {
+ 		if ((inb_p(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
+			inb_p(AUX_INPUT_PORT);
+		retries++;
+	}
+	return !(retries == 1000000);
 }
 
 #ifdef CONFIG_82C710_MOUSE
@@ -506,13 +615,13 @@ static int poll_qp_status(void)
 	int retries=0;
 
 	while ((inb(qp_status)&(QP_RX_FULL|QP_TX_IDLE|QP_DEV_IDLE))
-	               != (QP_DEV_IDLE|QP_TX_IDLE)
-	               && retries < MAX_RETRIES) {
+		       != (QP_DEV_IDLE|QP_TX_IDLE)
+		       && retries < MAX_RETRIES) {
 
-	        if (inb_p(qp_status)&(QP_RX_FULL))
-		        inb_p(qp_data);
+		if (inb_p(qp_status)&(QP_RX_FULL))
+			inb_p(qp_data);
 		current->state = TASK_INTERRUPTIBLE;
-		current->timeout = jiffies + 5;
+		current->timeout = jiffies + (5*HZ + 99) / 100;
 		schedule();
 		retries++;
 	}
@@ -525,7 +634,7 @@ static int poll_qp_status(void)
 
 static inline unsigned char read_710(unsigned char index)
 {
-        outb_p(index, 0x390);			/* Write index */
+	outb_p(index, 0x390);			/* Write index */
 	return inb_p(0x391);			/* Read the data */
 }
 
@@ -535,7 +644,7 @@ static inline unsigned char read_710(unsigned char index)
 
 static int probe_qp(void)
 {
-        outb_p(0x55, 0x2fa);			/* Any value except 9, ff or 36 */
+	outb_p(0x55, 0x2fa);			/* Any value except 9, ff or 36 */
 	outb_p(0xaa, 0x3fa);			/* Inverse of 55 */
 	outb_p(0x36, 0x3fa);			/* Address the chip */
 	outb_p(0xe4, 0x3fa);			/* 390/4; 390 = config address */

@@ -11,7 +11,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 /*
  * Traditional linux readdir() handling..
@@ -36,7 +36,7 @@ struct readdir_callback {
 	int count;
 };
 
-static int fillonedir(void * __buf, char * name, int namlen, off_t offset, ino_t ino)
+static int fillonedir(void * __buf, const char * name, int namlen, off_t offset, ino_t ino)
 {
 	struct readdir_callback * buf = (struct readdir_callback *) __buf;
 	struct old_linux_dirent * dirent;
@@ -45,11 +45,11 @@ static int fillonedir(void * __buf, char * name, int namlen, off_t offset, ino_t
 		return -EINVAL;
 	buf->count++;
 	dirent = buf->dirent;
-	put_fs_long(ino, &dirent->d_ino);
-	put_fs_long(offset, &dirent->d_offset);
-	put_fs_word(namlen, &dirent->d_namlen);
-	memcpy_tofs(dirent->d_name, name, namlen);
-	put_fs_byte(0, dirent->d_name + namlen);
+	put_user(ino, &dirent->d_ino);
+	put_user(offset, &dirent->d_offset);
+	put_user(namlen, &dirent->d_namlen);
+	copy_to_user(dirent->d_name, name, namlen);
+	put_user(0, dirent->d_name + namlen);
 	return 0;
 }
 
@@ -86,13 +86,13 @@ struct linux_dirent {
 };
 
 struct getdents_callback {
-	struct linux_dirent * current;
+	struct linux_dirent * current_dir;
 	struct linux_dirent * previous;
 	int count;
 	int error;
 };
 
-static int filldir(void * __buf, char * name, int namlen, off_t offset, ino_t ino)
+static int filldir(void * __buf, const char * name, int namlen, off_t offset, ino_t ino)
 {
 	struct linux_dirent * dirent;
 	struct getdents_callback * buf = (struct getdents_callback *) __buf;
@@ -104,14 +104,14 @@ static int filldir(void * __buf, char * name, int namlen, off_t offset, ino_t in
 	dirent = buf->previous;
 	if (dirent)
 		put_user(offset, &dirent->d_off);
-	dirent = buf->current;
+	dirent = buf->current_dir;
 	buf->previous = dirent;
-	put_fs_long(ino, &dirent->d_ino);
-	put_fs_word(reclen, &dirent->d_reclen);
-	memcpy_tofs(dirent->d_name, name, namlen);
-	put_fs_byte(0, dirent->d_name + namlen);
+	put_user(ino, &dirent->d_ino);
+	put_user(reclen, &dirent->d_reclen);
+	copy_to_user(dirent->d_name, name, namlen);
+	put_user(0, dirent->d_name + namlen);
 	((char *) dirent) += reclen;
-	buf->current = dirent;
+	buf->current_dir = dirent;
 	buf->count -= reclen;
 	return 0;
 }
@@ -130,7 +130,7 @@ asmlinkage int sys_getdents(unsigned int fd, void * dirent, unsigned int count)
 	error = verify_area(VERIFY_WRITE, dirent, count);
 	if (error)
 		return error;
-	buf.current = (struct linux_dirent *) dirent;
+	buf.current_dir = (struct linux_dirent *) dirent;
 	buf.previous = NULL;
 	buf.count = count;
 	buf.error = 0;

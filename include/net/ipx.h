@@ -11,8 +11,9 @@
 #ifndef _NET_INET_IPX_H_
 #define _NET_INET_IPX_H_
 
+#include <linux/netdevice.h>
 #include <linux/skbuff.h>
-#include "datalink.h"
+#include <net/datalink.h>
 #include <linux/ipx.h>
 
 typedef struct
@@ -23,12 +24,13 @@ typedef struct
 } ipx_address;
 
 #define ipx_broadcast_node	"\377\377\377\377\377\377"
+#define ipx_this_node           "\0\0\0\0\0\0"
 
 typedef struct ipx_packet
 {
-	unsigned short	ipx_checksum;
+	unsigned short	ipx_checksum __attribute__ ((packed));
 #define IPX_NO_CHECKSUM	0xFFFF
-	unsigned short  ipx_pktsize;
+	unsigned short  ipx_pktsize __attribute__ ((packed));
 	unsigned char   ipx_tctrl;
 	unsigned char   ipx_type;
 #define IPX_TYPE_UNKNOWN	0x00
@@ -44,7 +46,7 @@ typedef struct ipx_packet
 
 typedef struct sock ipx_socket;
 
-#include "ipxcall.h"
+#include <net/ipxcall.h>
 extern int ipx_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt);
 extern void ipxrtr_device_down(struct device *dev);
 

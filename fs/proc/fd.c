@@ -6,7 +6,7 @@
  *  proc fd directory handling functions
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include <linux/errno.h>
 #include <linux/sched.h>
@@ -45,12 +45,14 @@ struct inode_operations proc_fd_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
 };
 
-static int proc_lookupfd(struct inode * dir,const char * name, int len,
+static int proc_lookupfd(struct inode * dir, const char * name, int len,
 	struct inode ** result)
 {
 	unsigned int ino, pid, fd, c;
@@ -75,7 +77,7 @@ static int proc_lookupfd(struct inode * dir,const char * name, int len,
 			*result = dir;
 			return 0;
 		}
-		if (!(*result = iget(sb,(pid << 16)+PROC_PID_INO))) {
+		if (!(*result = proc_get_inode(sb, (pid << 16)+PROC_PID_INO, &proc_pid))) {
 			iput(dir);
 			return -ENOENT;
 		}
@@ -109,7 +111,7 @@ static int proc_lookupfd(struct inode * dir,const char * name, int len,
 
 	ino = (pid << 16) + (PROC_PID_FD_DIR << 8) + fd;
 
-	if (!(*result = iget(sb,ino)))
+	if (!(*result = proc_get_inode(sb, ino, NULL)))
 		return -ENOENT;
 	return 0;
 }
@@ -150,6 +152,8 @@ static int proc_readfd(struct inode * inode, struct file * filp,
 	}
 
 	for (fd -= 2 ; fd < NR_OPEN; fd++, filp->f_pos++) {
+		if (!p->files)
+			break;
 		if (!p->files->fd[fd] || !p->files->fd[fd]->f_inode)
 			continue;
 
@@ -165,7 +169,7 @@ static int proc_readfd(struct inode * inode, struct file * filp,
 		if (filldir(dirent, buf+j, NUMBUF-j, fd+2, ino) < 0)
 			break;
 
-		/* filldir() migth have slept, so we must re-validate "p" */
+		/* filldir() might have slept, so we must re-validate "p" */
 		if (p != task[task_nr] || p->pid != pid)
 			break;
 	}

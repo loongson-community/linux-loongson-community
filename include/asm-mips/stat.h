@@ -1,9 +1,9 @@
 #ifndef __ASM_MIPS_STAT_H
 #define __ASM_MIPS_STAT_H
 
-#include <asm/types.h>
+#include <linux/types.h>
 
-struct old_stat {
+struct __old_kernel_stat {
 	unsigned int	st_dev;
 	unsigned int	st_ino;
 	unsigned int	st_mode;
@@ -15,13 +15,13 @@ struct old_stat {
 	unsigned int	st_atime, st_res1;
 	unsigned int	st_mtime, st_res2;
 	unsigned int	st_ctime, st_res3;
-	unsigned int	st_blkize;
+	unsigned int	st_blksize;
 	int		st_blocks;
 	unsigned int	st_flags;
 	unsigned int	st_gen;
 };
 
-struct new_stat {
+struct stat {
 	dev_t		st_dev;
 	long		st_pad1[3];		/* Reserved for network id */
 	ino_t		st_ino;

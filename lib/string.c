@@ -12,9 +12,11 @@
  */
  
 #include <linux/types.h>
+#include <linux/string.h>
 
 char * ___strtok = NULL;
 
+#ifndef __HAVE_ARCH_STRCPY
 char * strcpy(char * dest,const char *src)
 {
 	char *tmp = dest;
@@ -23,7 +25,9 @@ char * strcpy(char * dest,const char *src)
 		/* nothing */;
 	return tmp;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRNCPY
 char * strncpy(char * dest,const char *src,size_t count)
 {
 	char *tmp = dest;
@@ -33,7 +37,9 @@ char * strncpy(char * dest,const char *src,size_t count)
 
 	return tmp;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRCAT
 char * strcat(char * dest, const char * src)
 {
 	char *tmp = dest;
@@ -45,7 +51,9 @@ char * strcat(char * dest, const char * src)
 
 	return tmp;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRNCAT
 char * strncat(char *dest, const char *src, size_t count)
 {
 	char *tmp = dest;
@@ -54,14 +62,18 @@ char * strncat(char *dest, const char *src, size_t count)
 		while (*dest)
 			dest++;
 		while ((*dest++ = *src++)) {
-			if (--count == 0)
+			if (--count == 0) {
+				*dest = '\0';
 				break;
+			}
 		}
 	}
 
 	return tmp;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRCMP
 int strcmp(const char * cs,const char * ct)
 {
 	register signed char __res;
@@ -73,7 +85,9 @@ int strcmp(const char * cs,const char * ct)
 
 	return __res;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRNCMP
 int strncmp(const char * cs,const char * ct,size_t count)
 {
 	register signed char __res = 0;
@@ -86,15 +100,31 @@ int strncmp(const char * cs,const char * ct,size_t count)
 
 	return __res;
 }
+#endif
 
-char * strchr(const char * s,char c)
+#ifndef __HAVE_ARCH_STRCHR
+char * strchr(const char * s, int c)
 {
-	for(; *s != c; ++s)
+	for(; *s != (char) c; ++s)
 		if (*s == '\0')
 			return NULL;
 	return (char *) s;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRRCHR
+char * strrchr(const char * s, int c)
+{
+       const char *p = s + strlen(s);
+       do {
+           if (*p == (char)c)
+               return (char *)p;
+       } while (--p >= s);
+       return NULL;
+}
+#endif
+
+#ifndef __HAVE_ARCH_STRLEN
 size_t strlen(const char * s)
 {
 	const char *sc;
@@ -103,7 +133,9 @@ size_t strlen(const char * s)
 		/* nothing */;
 	return sc - s;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRNLEN
 size_t strnlen(const char * s, size_t count)
 {
 	const char *sc;
@@ -112,7 +144,9 @@ size_t strnlen(const char * s, size_t count)
 		/* nothing */;
 	return sc - s;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRSPN
 size_t strspn(const char *s, const char *accept)
 {
 	const char *p;
@@ -131,7 +165,9 @@ size_t strspn(const char *s, const char *accept)
 
 	return count;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRPBRK
 char * strpbrk(const char * cs,const char * ct)
 {
 	const char *sc1,*sc2;
@@ -144,7 +180,9 @@ char * strpbrk(const char * cs,const char * ct)
 	}
 	return NULL;
 }
+#endif
 
+#ifndef __HAVE_ARCH_STRTOK
 char * strtok(char * s,const char * ct)
 {
 	char *sbegin, *send;
@@ -164,17 +202,21 @@ char * strtok(char * s,const char * ct)
 	___strtok = send;
 	return (sbegin);
 }
+#endif
 
-void * memset(void * s,char c,size_t count)
+#ifndef __HAVE_ARCH_MEMSET
+void * memset(void * s, int c, size_t count)
 {
 	char *xs = (char *) s;
 
 	while (count--)
-		*xs++ = c;
+		*xs++ = (char) c;
 
 	return s;
 }
+#endif
 
+#ifndef __HAVE_ARCH_BCOPY
 char * bcopy(const char * src, char * dest, int count)
 {
 	char *tmp = dest;
@@ -184,7 +226,9 @@ char * bcopy(const char * src, char * dest, int count)
 
 	return dest;
 }
+#endif
 
+#ifndef __HAVE_ARCH_MEMCPY
 void * memcpy(void * dest,const void *src,size_t count)
 {
 	char *tmp = (char *) dest, *s = (char *) src;
@@ -194,7 +238,9 @@ void * memcpy(void * dest,const void *src,size_t count)
 
 	return dest;
 }
+#endif
 
+#ifndef __HAVE_ARCH_MEMMOVE
 void * memmove(void * dest,const void *src,size_t count)
 {
 	char *tmp, *s;
@@ -214,7 +260,9 @@ void * memmove(void * dest,const void *src,size_t count)
 
 	return dest;
 }
+#endif
 
+#ifndef __HAVE_ARCH_MEMCMP
 int memcmp(const void * cs,const void * ct,size_t count)
 {
 	const unsigned char *su1, *su2;
@@ -225,23 +273,28 @@ int memcmp(const void * cs,const void * ct,size_t count)
 			break;
 	return res;
 }
+#endif
 
 /*
  * find the first occurrence of byte 'c', or 1 past the area if none
  */
-void * memscan(void * addr, unsigned char c, size_t size)
+#ifndef __HAVE_ARCH_MEMSCAN
+void * memscan(void * addr, int c, size_t size)
 {
 	unsigned char * p = (unsigned char *) addr;
+	unsigned char * e = p + size;
 
-	while (size) {
+	while (p != e) {
 		if (*p == c)
 			return (void *) p;
 		p++;
-		size--;
 	}
-  	return (void *) p;
-}
 
+	return (void *) p;
+}
+#endif
+
+#ifndef __HAVE_ARCH_STRSTR
 char * strstr(const char * s1,const char * s2)
 {
 	int l1, l2;
@@ -258,3 +311,4 @@ char * strstr(const char * s1,const char * s2)
 	}
 	return NULL;
 }
+#endif

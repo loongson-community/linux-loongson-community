@@ -47,7 +47,7 @@ SWAP_DEV = 0
 #define RAMDISK 0
 #endif 
 #ifndef CONFIG_ROOT_RDONLY
-#define CONFIG_ROOT_RDONLY 0
+#define CONFIG_ROOT_RDONLY 1
 #endif
 
 ! ld86 requires an entry symbol. This may as well be the usual one.
@@ -268,8 +268,14 @@ read_it:
 die:	jne die			! es must be at 64kB boundary
 	xor bx,bx		! bx is starting address within segment
 rp_read:
+#ifdef __BIG_KERNEL__
+#define CALL_HIGHLOAD_KLUDGE .word 0x1eff,0x220 ! call far * bootsect_kludge
+				! NOTE: as86 can't assemble this
+	CALL_HIGHLOAD_KLUDGE	! this is within setup.S
+#else
 	mov ax,es
 	sub ax,#SYSSEG
+#endif
 	cmp ax,syssize		! have we loaded all yet?
 	jbe ok1_read
 	ret

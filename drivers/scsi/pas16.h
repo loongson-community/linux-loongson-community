@@ -115,10 +115,12 @@
 
 #ifndef ASM
 int pas16_abort(Scsi_Cmnd *);
-int pas16_biosparam(Disk *, int, int*);
+int pas16_biosparam(Disk *, kdev_t, int*);
 int pas16_detect(Scsi_Host_Template *);
 int pas16_queue_command(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
-int pas16_reset(Scsi_Cmnd *);
+int pas16_reset(Scsi_Cmnd *, unsigned int);
+int pas16_proc_info (char *buffer ,char **start, off_t offset,
+		     int length, int hostno, int inout);
 
 #ifndef NULL
 #define NULL 0
@@ -138,16 +140,18 @@ int pas16_reset(Scsi_Cmnd *);
  * macros when this is being used solely for the host stub.
  */
 
-#ifdef HOSTS_C
+#if defined(HOSTS_C) || defined(MODULE)
 
-#define MV_PAS16 {NULL, NULL, "Pro Audio Spectrum-16 SCSI", 		\
+#define MV_PAS16 {NULL, NULL, NULL, NULL, \
+	"Pro Audio Spectrum-16 SCSI", 		\
 	pas16_detect, NULL, NULL,					\
 	NULL, pas16_queue_command, pas16_abort, pas16_reset, NULL, 	\
 	pas16_biosparam, 						\
 	/* can queue */ CAN_QUEUE, /* id */ 7, SG_ALL,			\
 	/* cmd per lun */ CMD_PER_LUN , 0, 0, DISABLE_CLUSTERING}
 
-#else
+#endif
+#ifndef HOSTS_C
 
 #define NCR5380_implementation_fields \
     volatile unsigned short io_port
@@ -180,6 +184,7 @@ int pas16_reset(Scsi_Cmnd *);
 #define NCR5380_queue_command pas16_queue_command
 #define NCR5380_abort pas16_abort
 #define NCR5380_reset pas16_reset
+#define NCR5380_proc_info pas16_proc_info
 
 /* 15 14 12 10 7 5 3 
    1101 0100 1010 1000 */

@@ -1,6 +1,8 @@
 #ifndef _LINUX_ELF_H
 #define _LINUX_ELF_H
 
+#include <asm/elf.h>
+
 typedef unsigned long	Elf32_Addr;
 typedef unsigned short	Elf32_Half;
 typedef unsigned long	Elf32_Off;
@@ -53,6 +55,25 @@ typedef unsigned long	Elf32_Word;
 #define EM_MIPS_RS4_BE 10
 #define EM_SPARC64     11   /* SPARC v9 (not official) 64-bit */
 #define EM_PARISC      15
+
+#define EM_MIPS		8	/* MIPS R3000 (officially, big-endian only) */
+
+#define EM_MIPS_RS4_BE 10	/* MIPS R4000 big-endian */
+
+#define EM_SPARC64     11	/* SPARC v9 (not official) 64-bit */
+
+#define EM_PARISC      15	/* HPPA */
+
+#define EM_SPARC32PLUS 18	/* Sun's "v8plus" */
+
+#define EM_PPC	       20	/* PowerPC */
+
+/*
+ * This is an interim value that we will use until the committee comes
+ * up with a final number.
+ */
+#define EM_ALPHA	0x9026
+
 
 /* This is the info that is needed to parse the dynamic section of the file */
 #define DT_NULL			0
@@ -115,6 +136,23 @@ typedef unsigned long	Elf32_Word;
 #define ELF32_ST_BIND(x) ((x) >> 4)
 #define ELF32_ST_TYPE(x) (((unsigned int) x) & 0xf)
 
+/* Symbolic values for the entries in the auxiliary table
+   put on the initial stack */
+#define AT_NULL   0	/* end of vector */
+#define AT_IGNORE 1	/* entry should be ignored */
+#define AT_EXECFD 2	/* file descriptor of program */
+#define AT_PHDR   3	/* program headers for program */
+#define AT_PHENT  4	/* size of program header entry */
+#define AT_PHNUM  5	/* number of program headers */
+#define AT_PAGESZ 6	/* system page size */
+#define AT_BASE   7	/* base address of interpreter */
+#define AT_FLAGS  8	/* flags */
+#define AT_ENTRY  9	/* entry point of program */
+#define AT_NOTELF 10	/* program is not ELF */
+#define AT_UID    11	/* real uid */
+#define AT_EUID   12	/* effective uid */
+#define AT_GID    13	/* real gid */
+#define AT_EGID   14	/* effective gid */
 
 
 typedef struct dynamic{
@@ -125,7 +163,13 @@ typedef struct dynamic{
   } d_un;
 } Elf32_Dyn;
 
-extern Elf32_Dyn _DYNAMIC [];
+typedef struct {
+  unsigned long long d_tag;		/* entry tag value */
+  union {
+    unsigned long long d_val;
+    unsigned long long d_ptr;
+  } d_un;
+} Elf64_Dyn;
 
 /* The following are used with relocations */
 #define ELF32_R_SYM(x) ((x) >> 8)
@@ -168,27 +212,52 @@ extern Elf32_Dyn _DYNAMIC [];
 #define R_MIPS_GOT_DISP		19
 #define R_MIPS_GOT_PAGE		20
 #define R_MIPS_GOT_OFST		21
-#define R_MIPS_GOT_HI16		22
-#define R_MIPS_GOT_LO16		23
+/*
+ * The following two relocation types are specified in the the MIPS ABI
+ * conformance guide version 1.2 but not yet in the psABI.
+ */
+#define R_MIPS_GOTHI16		22
+#define R_MIPS_GOTLO16		23
 #define R_MIPS_SUB		24
 #define R_MIPS_INSERT_A		25
 #define R_MIPS_INSERT_B		26
 #define R_MIPS_DELETE		27
 #define R_MIPS_HIGHER		28
 #define R_MIPS_HIGHEST		29
-#define R_MIPS_CALL_HI16	30
-#define R_MIPS_CALL_LO16	31
+/*
+ * The following two relocation types are specified in the the MIPS ABI
+ * conformance guide version 1.2 but not yet in the psABI.
+ */
+#define R_MIPS_CALLHI16		30
+#define R_MIPS_CALLLO16		31
+/*
+ * This range is reserved for vendor specific relocations.
+ */
+#define R_MIPS_LOVENDOR		100
+#define R_MIPS_HIVENDOR		127
+
 
 typedef struct elf32_rel {
   Elf32_Addr	r_offset;
   Elf32_Word	r_info;
 } Elf32_Rel;
 
+typedef struct elf64_rel {
+  unsigned long long r_offset;	/* Location at which to apply the action */
+  unsigned long long r_info;	/* index and type of relocation */
+} Elf64_Rel;
+
 typedef struct elf32_rela{
   Elf32_Addr	r_offset;
   Elf32_Word	r_info;
   Elf32_Sword	r_addend;
 } Elf32_Rela;
+
+typedef struct elf64_rela {
+  unsigned long long r_offset;	/* Location at which to apply the action */
+  unsigned long long r_info;	/* index and type of relocation */
+  unsigned long long r_addend;	/* Constant addend used to compute value */
+} Elf64_Rela;
 
 typedef struct elf32_sym{
   Elf32_Word	st_name;
@@ -199,10 +268,19 @@ typedef struct elf32_sym{
   Elf32_Half	st_shndx;
 } Elf32_Sym;
 
+typedef struct elf64_sym {
+  unsigned int	st_name;		/* Symbol name, index in string tbl */
+  unsigned char	st_info;		/* Type and binding attributes */
+  unsigned char	st_other;		/* No defined meaning, 0 */
+  unsigned short st_shndx;		/* Associated section index */
+  unsigned long long st_value;		/* Value of the symbol */
+  unsigned long long st_size;		/* Associated symbol size */
+} Elf64_Sym;
+
 
 #define EI_NIDENT	16
 
-typedef struct elfhdr{
+typedef struct elf32_hdr{
   unsigned char	e_ident[EI_NIDENT];
   Elf32_Half	e_type;
   Elf32_Half	e_machine;
@@ -219,13 +297,30 @@ typedef struct elfhdr{
   Elf32_Half	e_shstrndx;
 } Elf32_Ehdr;
 
+typedef struct elf64_hdr {
+  unsigned char	e_ident[16];		/* ELF "magic number" */
+  short int e_type;
+  short unsigned int e_machine;
+  int   e_version;
+  unsigned long long e_entry;		/* Entry point virtual address */
+  unsigned long long e_phoff;		/* Program header table file offset */
+  unsigned long long e_shoff;		/* Section header table file offset */
+  int   e_flags;
+  short int e_ehsize;
+  short int e_phentsize;
+  short int e_phnum;
+  short int e_shentsize;
+  short int e_shnum;
+  short int e_shstrndx;
+} Elf64_Ehdr;
+
 /* These constants define the permissions on sections in the program
    header, p_flags. */
 #define PF_R		0x4
 #define PF_W		0x2
 #define PF_X		0x1
 
-typedef struct elf_phdr{
+typedef struct elf32_phdr{
   Elf32_Word	p_type;
   Elf32_Off	p_offset;
   Elf32_Addr	p_vaddr;
@@ -235,6 +330,17 @@ typedef struct elf_phdr{
   Elf32_Word	p_flags;
   Elf32_Word	p_align;
 } Elf32_Phdr;
+
+typedef struct elf64_phdr {
+  int p_type;
+  int p_flags;
+  unsigned long long p_offset;		/* Segment file offset */
+  unsigned long long p_vaddr;		/* Segment virtual address */
+  unsigned long long p_paddr;		/* Segment physical address */
+  unsigned long long p_filesz;		/* Segment size in file */
+  unsigned long long p_memsz;		/* Segment size in memory */
+  unsigned long long p_align;		/* Segment alignment, file & memory */
+} Elf64_Phdr;
 
 /* sh_type */
 #define SHT_NULL		0
@@ -289,6 +395,19 @@ typedef struct {
   Elf32_Word	sh_entsize;
 } Elf32_Shdr;
 
+typedef struct elf64_shdr {
+  unsigned int	sh_name;		/* Section name, index in string tbl */
+  unsigned int	sh_type;		/* Type of section */
+  unsigned long long sh_flags;		/* Miscellaneous section attributes */
+  unsigned long long sh_addr;		/* Section virtual addr at execution */
+  unsigned long long sh_offset;		/* Section file offset */
+  unsigned long long sh_size;		/* Size of section in bytes */
+  unsigned int	sh_link;		/* Index of another section */
+  unsigned int	sh_info;		/* Additional section information */
+  unsigned long long sh_addralign;	/* Section alignment */
+  unsigned long long sh_entsize;	/* Entry size if section holds table */
+} Elf64_Shdr;
+
 #define	EI_MAG0		0		/* e_ident[] indexes */
 #define	EI_MAG1		1
 #define	EI_MAG2		2
@@ -325,12 +444,41 @@ typedef struct {
 #define NT_TASKSTRUCT	4
 
 /* Note header in a PT_NOTE section */
-typedef struct elf_note {
+typedef struct elf32_note {
   Elf32_Word	n_namesz;	/* Name size */
   Elf32_Word	n_descsz;	/* Content size */
   Elf32_Word	n_type;		/* Content type */
 } Elf32_Nhdr;
 
+/* Note header in a PT_NOTE section */
+/*
+ * For now we use the 32 bit version of the structure until we figure
+ * out whether we need anything better.  Note - on the Alpha, "unsigned int"
+ * is only 32 bits.
+ */
+typedef struct elf64_note {
+  unsigned int	n_namesz;	/* Name size */
+  unsigned int	n_descsz;	/* Content size */
+  unsigned int	n_type;		/* Content type */
+} Elf64_Nhdr;
+
 #define ELF_START_MMAP 0x80000000
+
+#if ELF_CLASS == ELFCLASS32
+
+extern Elf32_Dyn _DYNAMIC [];
+#define elfhdr		elf32_hdr
+#define elf_phdr	elf32_phdr
+#define elf_note	elf32_note
+
+#else
+
+extern Elf64_Dyn _DYNAMIC [];
+#define elfhdr		elf64_hdr
+#define elf_phdr	elf64_phdr
+#define elf_note	elf64_note
+
+#endif
+
 
 #endif /* _LINUX_ELF_H */

@@ -15,87 +15,81 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
-#include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
 #include <linux/malloc.h>
-#include <linux/ldt.h>
+#include <linux/smp.h>
 
-#include <asm/segment.h>
 #include <asm/system.h>
+#include <asm/pgtable.h>
+#include <asm/uaccess.h>
 
 int nr_tasks=1;
 int nr_running=1;
-long last_pid=0;
+unsigned long int total_forks=0;	/* Handle normal Linux uptimes. */
+int last_pid=0;
 
-static int find_empty_process(void)
+static inline int find_empty_process(void)
 {
-	int free_task;
-	int i, tasks_free;
-	int this_user_tasks;
+	int i;
 
-repeat:
-	if ((++last_pid) & 0xffff8000)
-		last_pid=1;
-	this_user_tasks = 0;
-	tasks_free = 0;
-	free_task = -EAGAIN;
-	i = NR_TASKS;
-	while (--i > 0) {
-		if (!task[i]) {
-			free_task = i;
-			tasks_free++;
-			continue;
-		}
-		if (task[i]->uid == current->uid)
-			this_user_tasks++;
-		if (task[i]->pid == last_pid || task[i]->pgrp == last_pid ||
-		    task[i]->session == last_pid)
-			goto repeat;
-	}
-	if (tasks_free <= MIN_TASKS_LEFT_FOR_ROOT ||
-	    this_user_tasks > current->rlim[RLIMIT_NPROC].rlim_cur)
+	if (nr_tasks >= NR_TASKS - MIN_TASKS_LEFT_FOR_ROOT) {
 		if (current->uid)
 			return -EAGAIN;
-	return free_task;
-}
+	}
+	if (current->uid) {
+		long max_tasks = current->rlim[RLIMIT_NPROC].rlim_cur;
 
-static struct file * copy_fd(struct file * old_file)
-{
-	struct file * new_file = get_empty_filp();
-	int error;
-
-	if (new_file) {
-		memcpy(new_file,old_file,sizeof(struct file));
-		new_file->f_count = 1;
-		if (new_file->f_inode)
-			new_file->f_inode->i_count++;
-		if (new_file->f_op && new_file->f_op->open) {
-			error = new_file->f_op->open(new_file->f_inode,new_file);
-			if (error) {
-				iput(new_file->f_inode);
-				new_file->f_count = 0;
-				new_file = NULL;
+		max_tasks--;	/* count the new process.. */
+		if (max_tasks < nr_tasks) {
+			struct task_struct *p;
+			for_each_task (p) {
+				if (p->uid == current->uid)
+					if (--max_tasks < 0)
+						return -EAGAIN;
 			}
 		}
 	}
-	return new_file;
+	for (i = 0 ; i < NR_TASKS ; i++) {
+		if (!task[i])
+			return i;
+	}
+	return -EAGAIN;
 }
 
-static int dup_mmap(struct task_struct * tsk)
+static int get_pid(unsigned long flags)
+{
+	struct task_struct *p;
+
+	if (flags & CLONE_PID)
+		return current->pid;
+repeat:
+	if ((++last_pid) & 0xffff8000)
+		last_pid=1;
+	for_each_task (p) {
+		if (p->pid == last_pid ||
+		    p->pgrp == last_pid ||
+		    p->session == last_pid)
+			goto repeat;
+	}
+	return last_pid;
+}
+
+static inline int dup_mmap(struct mm_struct * mm)
 {
 	struct vm_area_struct * mpnt, **p, *tmp;
 
-	tsk->mm->mmap = NULL;
-	p = &tsk->mm->mmap;
+	mm->mmap = NULL;
+	p = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
 		tmp = (struct vm_area_struct *) kmalloc(sizeof(struct vm_area_struct), GFP_KERNEL);
 		if (!tmp) {
-			exit_mmap(tsk);
+			exit_mmap(mm);
 			return -ENOMEM;
 		}
 		*tmp = *mpnt;
-		tmp->vm_task = tsk;
+		tmp->vm_flags &= ~VM_LOCKED;
+		tmp->vm_mm = mm;
 		tmp->vm_next = NULL;
 		if (tmp->vm_inode) {
 			tmp->vm_inode->i_count++;
@@ -104,59 +98,109 @@ static int dup_mmap(struct task_struct * tsk)
 			mpnt->vm_next_share = tmp;
 			tmp->vm_prev_share = mpnt;
 		}
+		if (copy_page_range(mm, current->mm, tmp)) {
+			exit_mmap(mm);
+			return -ENOMEM;
+		}
 		if (tmp->vm_ops && tmp->vm_ops->open)
 			tmp->vm_ops->open(tmp);
 		*p = tmp;
 		p = &tmp->vm_next;
 	}
-	build_mmap_avl(tsk);
+	build_mmap_avl(mm);
 	return 0;
 }
 
-/*
- * SHAREFD not yet implemented..
- */
-static void copy_files(unsigned long clone_flags, struct task_struct * p)
+static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
+{
+	if (!(clone_flags & CLONE_VM)) {
+		struct mm_struct * mm = kmalloc(sizeof(*tsk->mm), GFP_KERNEL);
+		if (!mm)
+			return -1;
+		*mm = *current->mm;
+		mm->count = 1;
+		mm->def_flags = 0;
+		tsk->mm = mm;
+		tsk->min_flt = tsk->maj_flt = 0;
+		tsk->cmin_flt = tsk->cmaj_flt = 0;
+		tsk->nswap = tsk->cnswap = 0;
+		if (new_page_tables(tsk))
+			return -1;
+		if (dup_mmap(mm)) {
+			free_page_tables(mm);
+			return -1;
+		}
+		return 0;
+	}
+	SET_PAGE_DIR(tsk, current->mm->pgd);
+	current->mm->count++;
+	return 0;
+}
+
+static inline int copy_fs(unsigned long clone_flags, struct task_struct * tsk)
+{
+	if (clone_flags & CLONE_FS) {
+		current->fs->count++;
+		return 0;
+	}
+	tsk->fs = kmalloc(sizeof(*tsk->fs), GFP_KERNEL);
+	if (!tsk->fs)
+		return -1;
+	tsk->fs->count = 1;
+	tsk->fs->umask = current->fs->umask;
+	if ((tsk->fs->root = current->fs->root))
+		tsk->fs->root->i_count++;
+	if ((tsk->fs->pwd = current->fs->pwd))
+		tsk->fs->pwd->i_count++;
+	return 0;
+}
+
+static inline int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 {
 	int i;
-	struct file * f;
+	struct files_struct *oldf, *newf;
+	struct file **old_fds, **new_fds;
 
-	if (clone_flags & COPYFD) {
-		for (i=0; i<NR_OPEN;i++)
-			if ((f = p->files->fd[i]) != NULL)
-				p->files->fd[i] = copy_fd(f);
-	} else {
-		for (i=0; i<NR_OPEN;i++)
-			if ((f = p->files->fd[i]) != NULL)
-				f->f_count++;
+	oldf = current->files;
+	if (clone_flags & CLONE_FILES) {
+		oldf->count++;
+		return 0;
 	}
+
+	newf = kmalloc(sizeof(*newf), GFP_KERNEL);
+	tsk->files = newf;
+	if (!newf)
+		return -1;
+			
+	newf->count = 1;
+	newf->close_on_exec = oldf->close_on_exec;
+	newf->open_fds = oldf->open_fds;
+
+	old_fds = oldf->fd;
+	new_fds = newf->fd;
+	for (i = NR_OPEN; i != 0; i--) {
+		struct file * f = *old_fds;
+		old_fds++;
+		*new_fds = f;
+		new_fds++;
+		if (f)
+			f->f_count++;
+	}
+	return 0;
 }
 
-/*
- * CLONEVM not yet correctly implemented: needs to clone the mmap
- * instead of duplicating it..
- */
-static int copy_mm(unsigned long clone_flags, struct task_struct * p)
+static inline int copy_sighand(unsigned long clone_flags, struct task_struct * tsk)
 {
-	if (clone_flags & COPYVM) {
-		p->mm->min_flt = p->mm->maj_flt = 0;
-		p->mm->cmin_flt = p->mm->cmaj_flt = 0;
-		if (copy_page_tables(p))
-			return 1;
-		return dup_mmap(p);
-	} else {
-		if (clone_page_tables(p))
-			return 1;
-		return dup_mmap(p);		/* wrong.. */
+	if (clone_flags & CLONE_SIGHAND) {
+		current->sig->count++;
+		return 0;
 	}
-}
-
-static void copy_fs(unsigned long clone_flags, struct task_struct * p)
-{
-	if (current->fs->pwd)
-		current->fs->pwd->i_count++;
-	if (current->fs->root)
-		current->fs->root->i_count++;
+	tsk->sig = kmalloc(sizeof(*tsk->sig), GFP_KERNEL);
+	if (!tsk->sig)
+		return -1;
+	tsk->sig->count = 1;
+	memcpy(tsk->sig->action, current->sig->action, sizeof(tsk->sig->action));
+	return 0;
 }
 
 /*
@@ -167,17 +211,20 @@ static void copy_fs(unsigned long clone_flags, struct task_struct * p)
 int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 {
 	int nr;
+	int error = -ENOMEM;
 	unsigned long new_stack;
 	struct task_struct *p;
 
-	if(!(p = (struct task_struct*)__get_free_page(GFP_KERNEL)))
+	p = (struct task_struct *) kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
 		goto bad_fork;
-	new_stack = get_free_page(GFP_KERNEL);
+	new_stack = alloc_kernel_stack();
 	if (!new_stack)
-		goto bad_fork_free;
+		goto bad_fork_free_p;
+	error = -EAGAIN;
 	nr = find_empty_process();
 	if (nr < 0)
-		goto bad_fork_free;
+		goto bad_fork_free_stack;
 
 	*p = *current;
 
@@ -187,47 +234,75 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 		(*p->binfmt->use_count)++;
 
 	p->did_exec = 0;
+	p->swappable = 0;
 	p->kernel_stack_page = new_stack;
 	*(unsigned long *) p->kernel_stack_page = STACK_MAGIC;
 	p->state = TASK_UNINTERRUPTIBLE;
-	p->flags &= ~(PF_PTRACED|PF_TRACESYS);
-	p->pid = last_pid;
+	p->flags &= ~(PF_PTRACED|PF_TRACESYS|PF_SUPERPRIV);
+	p->flags |= PF_FORKNOEXEC;
+	p->pid = get_pid(clone_flags);
+	p->next_run = NULL;
+	p->prev_run = NULL;
 	p->p_pptr = p->p_opptr = current;
 	p->p_cptr = NULL;
+	init_waitqueue(&p->wait_chldexit);
 	p->signal = 0;
 	p->it_real_value = p->it_virt_value = p->it_prof_value = 0;
 	p->it_real_incr = p->it_virt_incr = p->it_prof_incr = 0;
-	p->leader = 0;		/* process leadership doesn't inherit */
+	init_timer(&p->real_timer);
+	p->real_timer.data = (unsigned long) p;
+	p->leader = 0;		/* session leadership doesn't inherit */
 	p->tty_old_pgrp = 0;
 	p->utime = p->stime = 0;
 	p->cutime = p->cstime = 0;
+#ifdef __SMP__
+	p->processor = NO_PROC_ID;
+	p->lock_depth = 1;
+#endif
 	p->start_time = jiffies;
-	p->mm->swappable = 0;	/* don't try to swap it out before it's set up */
 	task[nr] = p;
 	SET_LINKS(p);
 	nr_tasks++;
 
+	error = -ENOMEM;
 	/* copy all the process information */
-	copy_thread(nr, clone_flags, usp, p, regs);
-	if (copy_mm(clone_flags, p))
+	if (copy_files(clone_flags, p))
 		goto bad_fork_cleanup;
+	if (copy_fs(clone_flags, p))
+		goto bad_fork_cleanup_files;
+	if (copy_sighand(clone_flags, p))
+		goto bad_fork_cleanup_fs;
+	if (copy_mm(clone_flags, p))
+		goto bad_fork_cleanup_sighand;
+	copy_thread(nr, clone_flags, usp, p, regs);
 	p->semundo = NULL;
-	copy_files(clone_flags, p);
-	copy_fs(clone_flags, p);
 
 	/* ok, now we should be set up.. */
-	p->mm->swappable = 1;
+	p->swappable = 1;
 	p->exit_signal = clone_flags & CSIGNAL;
 	p->counter = current->counter >> 1;
-	p->state = TASK_RUNNING;	/* do this last, just in case */
+	wake_up_process(p);			/* do this last, just in case */
+	++total_forks;
 	return p->pid;
+
+bad_fork_cleanup_sighand:
+	exit_sighand(p);
+bad_fork_cleanup_fs:
+	exit_fs(p);
+bad_fork_cleanup_files:
+	exit_files(p);
 bad_fork_cleanup:
+	if (p->exec_domain && p->exec_domain->use_count)
+		(*p->exec_domain->use_count)--;
+	if (p->binfmt && p->binfmt->use_count)
+		(*p->binfmt->use_count)--;
 	task[nr] = NULL;
 	REMOVE_LINKS(p);
 	nr_tasks--;
-bad_fork_free:
-	free_page(new_stack);
-	free_page((long) p);
+bad_fork_free_stack:
+	free_kernel_stack(new_stack);
+bad_fork_free_p:
+	kfree(p);
 bad_fork:
-	return -EAGAIN;
+	return error;
 }

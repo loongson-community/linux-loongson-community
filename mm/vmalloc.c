@@ -4,36 +4,13 @@
  *  Copyright (C) 1993  Linus Torvalds
  */
 
+#include <linux/malloc.h>
+#include <linux/vmalloc.h>
+
+#include <asm/uaccess.h>
 #include <asm/system.h>
 
-#include <linux/signal.h>
-#include <linux/sched.h>
-#include <linux/head.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/malloc.h>
-#include <linux/mm.h>
-
-#include <asm/segment.h>
-#include <asm/pgtable.h>
-
-struct vm_struct {
-	unsigned long flags;
-	void * addr;
-	unsigned long size;
-	struct vm_struct * next;
-};
-
 static struct vm_struct * vmlist = NULL;
-
-static inline void set_pgdir(unsigned long address, pgd_t entry)
-{
-	struct task_struct * p;
-
-	for_each_task(p)
-		*pgd_offset(p,address) = entry;
-}
 
 static inline void free_area_pte(pmd_t * pmd, unsigned long address, unsigned long size)
 {
@@ -96,13 +73,14 @@ static void free_area_pages(unsigned long address, unsigned long size)
 	pgd_t * dir;
 	unsigned long end = address + size;
 
-	dir = pgd_offset(&init_task, address);
+	dir = pgd_offset(&init_mm, address);
+	flush_cache_all();
 	while (address < end) {
 		free_area_pmd(dir, address, end - address);
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	invalidate();
+	flush_tlb_all();
 }
 
 static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned long size)
@@ -120,7 +98,7 @@ static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned lo
 		page = __get_free_page(GFP_KERNEL);
 		if (!page)
 			return -ENOMEM;
-		*pte = mk_pte(page, PAGE_KERNEL);
+		set_pte(pte, mk_pte(page, PAGE_KERNEL));
 		address += PAGE_SIZE;
 		pte++;
 	}
@@ -152,7 +130,8 @@ static int alloc_area_pages(unsigned long address, unsigned long size)
 	pgd_t * dir;
 	unsigned long end = address + size;
 
-	dir = pgd_offset(&init_task, address);
+	dir = pgd_offset(&init_mm, address);
+	flush_cache_all();
 	while (address < end) {
 		pmd_t *pmd = pmd_alloc_kernel(dir, address);
 		if (!pmd)
@@ -163,8 +142,30 @@ static int alloc_area_pages(unsigned long address, unsigned long size)
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	invalidate();
+	flush_tlb_all();
 	return 0;
+}
+
+struct vm_struct * get_vm_area(unsigned long size)
+{
+	void *addr;
+	struct vm_struct **p, *tmp, *area;
+
+	area = (struct vm_struct *) kmalloc(sizeof(*area), GFP_KERNEL);
+	if (!area)
+		return NULL;
+	addr = (void *) VMALLOC_START;
+	area->size = size + PAGE_SIZE;
+	area->next = NULL;
+	for (p = &vmlist; (tmp = *p) ; p = &tmp->next) {
+		if (size + (unsigned long) addr < (unsigned long) tmp->addr)
+			break;
+		addr = (void *) (tmp->size + (unsigned long) tmp->addr);
+	}
+	area->addr = addr;
+	area->next = *p;
+	*p = area;
+	return area;
 }
 
 void vfree(void * addr)
@@ -191,25 +192,15 @@ void vfree(void * addr)
 void * vmalloc(unsigned long size)
 {
 	void * addr;
-	struct vm_struct **p, *tmp, *area;
+	struct vm_struct *area;
 
 	size = PAGE_ALIGN(size);
-	if (!size || size > high_memory)
+	if (!size || size > (max_mapnr << PAGE_SHIFT))
 		return NULL;
-	area = (struct vm_struct *) kmalloc(sizeof(*area), GFP_KERNEL);
+	area = get_vm_area(size);
 	if (!area)
 		return NULL;
-	addr = (void *) VMALLOC_START;
-	area->size = size + PAGE_SIZE;
-	area->next = NULL;
-	for (p = &vmlist; (tmp = *p) ; p = &tmp->next) {
-		if (size + (unsigned long) addr < (unsigned long) tmp->addr)
-			break;
-		addr = (void *) (tmp->size + (unsigned long) tmp->addr);
-	}
-	area->addr = addr;
-	area->next = *p;
-	*p = area;
+	addr = area->addr;
 	if (alloc_area_pages(VMALLOC_VMADDR(addr), size)) {
 		vfree(addr);
 		return NULL;
@@ -228,7 +219,10 @@ int vread(char *buf, char *addr, int count)
 		while (addr < vaddr) {
 			if (count == 0)
 				goto finished;
-			put_fs_byte('\0', buf++), addr++, count--;
+			put_user('\0', buf);
+			buf++;
+			addr++;
+			count--;
 		}
 		n = tmp->size - PAGE_SIZE;
 		if (addr > vaddr)
@@ -236,7 +230,10 @@ int vread(char *buf, char *addr, int count)
 		while (--n >= 0) {
 			if (count == 0)
 				goto finished;
-			put_fs_byte(*addr++, buf++), count--;
+			put_user(*addr, buf);
+			buf++;
+			addr++;
+			count--;
 		}
 	}
 finished:

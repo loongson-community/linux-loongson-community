@@ -10,7 +10,7 @@
 #define _EXCEPTION_H_
 
 
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 #define	Const_(x)	$##x
 #else
 #define	Const_(x)	x
@@ -39,15 +39,15 @@
 #define PRECISION_LOST_DOWN  Const_(EX_Precision)
 
 
-#ifndef __ASSEMBLER__
+#ifndef __ASSEMBLY__
 
 #ifdef DEBUG
 #define	EXCEPTION(x)	{ printk("exception in %s at line %d\n", \
-	__FILE__, __LINE__); exception(x); }
+	__FILE__, __LINE__); FPU_exception(x); }
 #else
-#define	EXCEPTION(x)	exception(x)
+#define	EXCEPTION(x)	FPU_exception(x)
 #endif
 
-#endif __ASSEMBLER__
+#endif __ASSEMBLY__
 
 #endif _EXCEPTION_H_

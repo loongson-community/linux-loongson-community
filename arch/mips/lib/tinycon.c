@@ -1,5 +1,5 @@
-/* ----------------------------------------------------------------------
- * console.c
+/*
+ * arch/mips/lib/console.c
  *
  * Copyright (C) 1994 by Waldorf Electronic,
  * written by Ralf Baechle and Andreas Busse
@@ -7,10 +7,11 @@
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file COPYING in the main directory of this archive for
  * more details.
- * ---------------------------------------------------------------------- */
-/*
+ *
  * FIXME: This file is hacked to be hardwired for the Deskstation
- *        Only thought as a debugging console output
+ *        Only thought as a debugging console output.  It's as inefficient
+ *        as a piece of code can be but probably a good piece of code to
+ *        implement a preliminary console for a new target.
  */
 
 #include <linux/tty.h>
@@ -23,7 +24,6 @@ static unsigned short cursor_y;
 static volatile unsigned short *vram_addr;
 static int console_needs_init = 1;
 
-extern struct bootinfo boot_info;
 extern struct screen_info screen_info;
 
 /* ----------------------------------------------------------------------
@@ -33,11 +33,13 @@ extern struct screen_info screen_info;
 void init_console(void)
 {
   size_x = 80;
-  size_y = 50;
+  // size_y = 50;
+  size_y = 25;
   cursor_x = 0;
   cursor_y = 0;
 
-  vram_addr = (unsigned short *)0xe10b8000;
+  // vram_addr = (unsigned short *)0xe10b8000;
+  vram_addr = (unsigned short *)0xb00b8000;
   
   console_needs_init = 0;
 }
@@ -61,7 +63,7 @@ set_vram(unsigned short *vram)
 }
 
 void
-set_cursor(unsigned int x, unsigned int y)
+set_crsr(unsigned int x, unsigned int y)
 {
   cursor_x = x;
   cursor_y = y;
@@ -129,5 +131,3 @@ void print_string(const unsigned char *str)
 	break;
       }
 }
-
-/* end of file */

@@ -12,6 +12,10 @@
  *		Alan Cox	:	Added SL_SLIP_LOTS
  *	Dmitry Gorodchanin	:	A lot of changes in the 'struct slip'
  *	Dmitry Gorodchanin	:	Added CSLIP statistics.
+ *	Stanislav Voronyi	:	Make line checking as created by
+ *					Igor Chechik, RELCOM Corp.
+ *	Craig Schlenter		:	Fixed #define bug that caused
+ *					CSLIP telnets to hang in 1.3.61-6
  *
  * Author:	Fred N. van Kempen, <waltje@uwalt.nl.mugnet.org>
  */
@@ -31,11 +35,9 @@
 #endif
 
 /* SLIP configuration. */
-#ifndef SL_SLIP_LOTS
-#define SL_NRUNIT	4		/* number of SLIP channels	*/
-#else
-#define SL_NRUNIT	16
-#endif
+#define SL_NRUNIT	256		/* MAX number of SLIP channels;
+					   This can be overridden with
+					   insmod -oslip_maxdev=nnn	*/
 #define SL_MTU		296		/* 296; I am used to 600- FvK	*/
 
 /* SLIP protocol characters. */
@@ -89,6 +91,8 @@ struct slip {
 #define SLF_INUSE	0		/* Channel in use               */
 #define SLF_ESCAPE	1               /* ESC received                 */
 #define SLF_ERROR	2               /* Parity, etc. error           */
+#define SLF_KEEPTEST	3		/* Keepalive test flag		*/
+#define SLF_OUTWAIT	4		/* is outpacket was flag	*/
 
   unsigned char		mode;		/* SLIP mode			*/
 #define SL_MODE_SLIP	0
@@ -97,7 +101,12 @@ struct slip {
 #define SL_MODE_CSLIP6	(SL_MODE_SLIP6|SL_MODE_CSLIP)
 #define SL_MODE_AX25	4
 #define SL_MODE_ADAPTIVE 8
-#define	SL_MODE_AX25VC	16
+#ifdef CONFIG_SLIP_SMART  
+  unsigned char		outfill;	/* # of sec between outfill packet */
+  unsigned char		keepalive;	/* keepalive seconds		*/
+  struct timer_list	outfill_timer;
+  struct timer_list	keepalive_timer;
+#endif  
 };
 
 

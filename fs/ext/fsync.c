@@ -11,7 +11,7 @@
  *  extfs fsync primitive
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 
 #include <linux/errno.h>
@@ -42,11 +42,11 @@ static int sync_block (struct inode * inode, unsigned long * block, int wait)
 		brelse (bh);
 		return 1;
 	}
-	if (wait && bh->b_req && !bh->b_uptodate) {
+	if (wait && buffer_req(bh) && !buffer_uptodate(bh)) {
 		brelse(bh);
 		return -1;
 	}
-	if (wait || !bh->b_uptodate || !bh->b_dirt)
+	if (wait || !buffer_uptodate(bh) || !buffer_dirty(bh))
 	{
 		brelse(bh);
 		return 0;

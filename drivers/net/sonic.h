@@ -14,24 +14,15 @@
 #ifndef SONIC_H
 #define SONIC_H
 
-#include <linux/etherdevice.h>
-#include <linux/skbuff.h>
-
 /*
  * Macros to access SONIC registers
  */
+#define SONIC_READ(reg) \
+	*((volatile unsigned int *)base_addr+reg)
 
-#define sonic_read_register(reg) \
-	*((volatile unsigned int *)SONIC_BASE_ADDR+reg)
+#define SONIC_WRITE(reg,val) \
+	*((volatile unsigned int *)base_addr+reg) = val
 
-#define sonic_write_register(reg,val) \
-	*((volatile unsigned int *)SONIC_BASE_ADDR+reg) = val
-
-/*
- * Base address of the SONIC controller on JAZZ boards
- */
-
-#define SONIC_BASE_ADDR   0xe0001000
 
 /*
  * SONIC register offsets
@@ -166,7 +157,7 @@
 
 /* default RCR setup */
 
-#define SONIC_RCR_DEFAULT       (SONIC_RCR_ERR | SONIC_RCR_RNT)
+#define SONIC_RCR_DEFAULT       (SONIC_RCR_BRD)
 
 
 /*
@@ -229,131 +220,107 @@
                                 SONIC_INT_MP)
 
 
-#define SONIC_MAX_FRAGMENTS     4
-#define SONIC_MIN_FRAGMENT_SIZE 12
-
-#define SONIC_MIN_PACKET_SIZE   60
-
 #define	SONIC_END_OF_LINKS	0x0001
-
-
-/*
- * The number of receive descriptors and the
- * buffer size we allocate by default
- */
-#define SONIC_MAX_RDS           64
-#define SONIC_RXBUFSIZE         (1024 * 16)
 
 
 /*
  * structure definitions
  */
 
-typedef struct SONIC_RECEIVE_RESOURCE {
+typedef struct {
+  u32 rx_bufadr_l;	/* receive buffer ptr */
+  u32 rx_bufadr_h;
 
-  unsigned int rx_bufadr_l;	/* receive buffer ptr */
-  unsigned int rx_bufadr_h;
-
-  unsigned int rx_bufsize_l;	/* no. of words in the receive buffer */
-  unsigned int rx_bufsize_h;
-
-} SONIC_RECEIVE_RESOURCE;
+  u32 rx_bufsize_l;	/* no. of words in the receive buffer */
+  u32 rx_bufsize_h;
+} sonic_rr_t;
 
 /*
  * Sonic receive descriptor. Receive descriptors are
  * kept in a linked list of these structures.
  */
 
-typedef struct SONIC_RECEIVE_DESCRIPTOR {
-  
-  unsigned short rx_status;	/* status after reception of a packet */
-  unsigned short pad0;
-  unsigned short rx_pktlen;	/* length of the packet incl. CRC */
-  unsigned short pad1;
+typedef struct {
+  u16 rx_status;	/* status after reception of a packet */
+  u16 pad0;
+  u16 rx_pktlen;	/* length of the packet incl. CRC */
+  u16 pad1;
   
   /*
    * Pointers to the location in the receive buffer area (RBA)
    * where the packet resides. A packet is always received into
    * a contiguous piece of memory.
    */
+  u16 rx_pktptr_l;
+  u16 pad2;
+  u16 rx_pktptr_h;
+  u16 pad3;
 
-  unsigned short rx_pktptr_l;
-  unsigned short pad2;
-  unsigned short rx_pktptr_h;
-  unsigned short pad3;
+  u16 rx_seqno;	/* sequence no. */
+  u16 pad4;
 
-  unsigned short rx_seqno;	/* sequence no. */
-  unsigned short pad4;
-
-  unsigned short link;		/* link to next RDD (end if EOL bit set) */
-  unsigned short pad5;
+  u16 link;		/* link to next RDD (end if EOL bit set) */
+  u16 pad5;
 
   /*
    * Owner of this descriptor, 0= driver, 1=sonic
    */
   
-  unsigned short in_use;	
-  unsigned short pad6;
+  u16 in_use;	
+  u16 pad6;
 
   caddr_t rda_next;		/* pointer to next RD */
-
-} SONIC_RECEIVE_DESCRIPTOR;
+} sonic_rd_t;
 
 
 /*
  * Describes a Transmit Descriptor
  */
-typedef struct SONIC_TRANSMIT_DESCRIPTOR {
+typedef struct {
+  u16 tx_status;	/* status after transmission of a packet */
+  u16 pad0;		
+  u16 tx_config;	/* transmit configuration for this packet */
+  u16 pad1;		
+  u16 tx_pktsize;	/* size of the packet to be transmitted */
+  u16 pad2;		
+  u16 tx_frag_count;	/* no. of fragments */
+  u16 pad3;		
 
-  unsigned short tx_status;	/* status after transmission of a packet */
-  unsigned short pad0;		
-  unsigned short tx_config;	/* transmit configuration for this packet */
-  unsigned short pad1;		
-  unsigned short tx_pktsize;	/* size of the packet to be transmitted */
-  unsigned short pad2;		
-  unsigned short tx_frag_count;	/* no. of fragments */
-  unsigned short pad3;		
-
-  unsigned short tx_frag_ptr_l;
-  unsigned short pad4;		
-  unsigned short tx_frag_ptr_h;
-  unsigned short pad5;		
-  unsigned short tx_frag_size;
-  unsigned short pad6;		
+  u16 tx_frag_ptr_l;
+  u16 pad4;		
+  u16 tx_frag_ptr_h;
+  u16 pad5;		
+  u16 tx_frag_size;
+  u16 pad6;		
   
-  unsigned short link;		/* ptr to next descriptor */
-  unsigned short pad7;		
-
-} SONIC_TRANSMIT_DESCRIPTOR;
+  u16 link;		/* ptr to next descriptor */
+  u16 pad7;		
+} sonic_td_t;
 
 
 /*
  * Describes an entry in the CAM Descriptor Area.
  */
 
-typedef struct SONIC_CAM_DESCRIPTOR
-{
-  unsigned short cam_entry_pointer;
-  unsigned short pad;
-  unsigned short cam_frag2;
-  unsigned short pad2;
-  unsigned short cam_frag1;
-  unsigned short pad1;
-  unsigned short cam_frag0;
-  unsigned short pad0;
-
-} SONIC_CAM_DESCRIPTOR;
+typedef struct {
+  u16 cam_entry_pointer;
+  u16 pad;
+  u16 cam_frag2;
+  u16 pad2;
+  u16 cam_frag1;
+  u16 pad1;
+  u16 cam_frag0;
+  u16 pad0;
+} sonic_cd_t;
 
 #define CAM_DESCRIPTORS 16
 
 
-typedef struct SONIC_CAM_DESCRIPTOR_AREA
-{
-  SONIC_CAM_DESCRIPTOR cam_descriptors[CAM_DESCRIPTORS];
-  unsigned short cam_enable;
-  unsigned short pad;
-  
-} SONIC_CAM_DESCRIPTOR_AREA;
+typedef struct {
+  sonic_cd_t cam_desc[CAM_DESCRIPTORS];
+  u16 cam_enable;
+  u16 pad;
+} sonic_cda_t;
 
 
 #endif /* SONIC_H */

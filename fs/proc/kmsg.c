@@ -10,7 +10,7 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 
 extern unsigned long log_size;
@@ -28,7 +28,8 @@ static void kmsg_release(struct inode * inode, struct file * file)
 	(void) sys_syslog(0,NULL,0);
 }
 
-static int kmsg_read(struct inode * inode, struct file * file,char * buf, int count)
+static long kmsg_read(struct inode * inode, struct file * file,
+	char * buf, unsigned long count)
 {
 	return sys_syslog(2,buf,count);
 }
@@ -70,6 +71,8 @@ struct inode_operations proc_kmsg_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */

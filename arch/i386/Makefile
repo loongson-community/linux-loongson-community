@@ -13,39 +13,65 @@
 # Copyright (C) 1994 by Linus Torvalds
 #
 
+AS86    =$(CROSS_COMPILE)as86 -0 -a
+AS386   =$(CROSS_COMPILE)as86 -3
+LD86    =$(CROSS_COMPILE)ld86 -0
+
 #
-# Set these to indicate how to link it..
+# ZIMAGE_OFFSET is the load offset of the compression loader
+# BZIMAGE_OFFSET is the load offset of the high loaded compression loader
 #
-# -zmagic:   
+ZIMAGE_OFFSET=0x1000
+BZIMAGE_OFFSET=0x100000
+
 #
-# ZLINKFLAGS   = -Ttext 0x1000
-# LINKFLAGS    = -Ttext 0x100000
+# IMAGE_OFFSET is the load offset of the _real_ kernel, soon
+# to be offset by another 0xC0000000...
 #
-# -qmagic (we need to remove the 32 byte header for bootup purposes)
-#
-ZLINKFLAGS =-qmagic -Ttext 0xfe0
-LINKFLAGS =-qmagic -Ttext 0xfffe0
+IMAGE_OFFSET=0xC0100000
+
+# This is used for ELF - it needs to migrate or be moved.
+LD_RFLAG = -m elf_i386
+
+LD=$(CROSS_COMPILE)ld -m elf_i386
+CPP=$(CC) -E -D__ELF__
+OBJDUMP=$(CROSS_COMPILE)objdump
+OBJDUMP_FLAGS=-k -q 
+ENCAPS=$(CROSS_COMPILE)encaps
+OBJCOPY=$(CROSS_COMPILE)objcopy -O binary -R .note -R .comment -R .stab -R .stabstr
+ZLDFLAGS=-e startup_32 
+LDFLAGS=-e stext
+ZLINKFLAGS =-Ttext $(ZIMAGE_OFFSET) $(ZLDFLAGS)
+BZLINKFLAGS =-Ttext $(BZIMAGE_OFFSET) $(ZLDFLAGS)
+LINKFLAGS =-Ttext $(IMAGE_OFFSET) $(LDFLAGS)
+
 CFLAGS := $(CFLAGS) -pipe
 
-ifdef CONFIG_M486
-CFLAGS := $(CFLAGS) -m486
-else
-ifdef CONFIG_M586
-CFLAGS := $(CFLAGS) -mpentium
-else
-CFLAGS := $(CFLAGS) -m386
+ifdef CONFIG_M386
+CFLAGS := $(CFLAGS) -m386 -DCPU=386
 endif
+
+ifdef CONFIG_M486
+CFLAGS := $(CFLAGS) -m486 -DCPU=486
+endif
+
+ifdef CONFIG_M586
+CFLAGS := $(CFLAGS) -m486 -malign-loops=2 -malign-jumps=2 -malign-functions=2 -DCPU=586
+endif
+
+ifdef CONFIG_M686
+CFLAGS := $(CFLAGS) -m486 -malign-loops=2 -malign-jumps=2 -malign-functions=2 -DCPU=686
+endif
+
+ifdef SMP
+CFLAGS := $(CFLAGS) -D__SMP__
 endif
 
 HEAD := arch/i386/kernel/head.o
 
-SUBDIRS := $(SUBDIRS) arch/i386/kernel arch/i386/mm
+SUBDIRS := $(SUBDIRS) arch/i386/kernel arch/i386/mm arch/i386/lib
 ARCHIVES := arch/i386/kernel/kernel.o arch/i386/mm/mm.o $(ARCHIVES)
-
-ifdef CONFIG_IBCS
-SUBDIRS := $(SUBDIRS) arch/i386/ibcs
-DRIVERS := $(DRIVERS) arch/i386/ibcs/ibcs.o
-endif
+LIBS := $(TOPDIR)/arch/i386/lib/lib.a $(LIBS) $(TOPDIR)/arch/i386/lib/lib.a
 
 ifdef CONFIG_MATH_EMULATION
 SUBDIRS := $(SUBDIRS) arch/i386/math-emu
@@ -63,19 +89,29 @@ MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 zImage: vmlinux
 	@$(MAKEBOOT) zImage
 
+bzImage: vmlinux
+	@$(MAKEBOOT) bzImage
+
 compressed: zImage
 
 zlilo: vmlinux
-	@$(MAKEBOOT) zlilo
+	@$(MAKEBOOT) BOOTIMAGE=zImage zlilo
+
+bzlilo: vmlinux
+	@$(MAKEBOOT) BOOTIMAGE=bzImage zlilo
 
 zdisk: vmlinux
-	@$(MAKEBOOT) zdisk
+	@$(MAKEBOOT) BOOTIMAGE=zImage zdisk
+
+bzdisk: vmlinux
+	@$(MAKEBOOT) BOOTIMAGE=bzImage zdisk
 
 install: vmlinux
 	@$(MAKEBOOT) install
 
 archclean:
 	@$(MAKEBOOT) clean
+	$(MAKE) -C arch/$(ARCH)/kernel clean
 
 archdep:
 	@$(MAKEBOOT) dep

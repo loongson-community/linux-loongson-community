@@ -1,5 +1,5 @@
 /*
- *	NET/ROM release 002
+ *	NET/ROM release 004
  *
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
@@ -20,10 +20,13 @@
  *
  *	History
  *	NET/ROM 001	Jonathan(G4KLX)	Cloned from ax25_in.c
+ *	NET/ROM 003	Jonathan(G4KLX)	Added NET/ROM fragment reception.
+ *			Darryl(G7LED)	Added missing INFO with NAK case, optimized
+ *					INFOACK handling, removed reconnect on error.
  */
 
 #include <linux/config.h>
-#ifdef CONFIG_NETROM
+#if defined(CONFIG_NETROM) || defined(CONFIG_NETROM_MODULE)
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/socket.h>
@@ -40,12 +43,51 @@
 #include <linux/skbuff.h>
 #include <net/sock.h>
 #include <net/ip.h>			/* For ip_rcv */
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <linux/fcntl.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <net/netrom.h>
+
+static int nr_queue_rx_frame(struct sock *sk, struct sk_buff *skb, int more)
+{
+	struct sk_buff *skbo, *skbn = skb;
+
+	if (more) {
+		sk->protinfo.nr->fraglen += skb->len;
+		skb_queue_tail(&sk->protinfo.nr->frag_queue, skb);
+		return 0;
+	}
+	
+	if (!more && sk->protinfo.nr->fraglen > 0) {	/* End of fragment */
+		sk->protinfo.nr->fraglen += skb->len;
+		skb_queue_tail(&sk->protinfo.nr->frag_queue, skb);
+
+		if ((skbn = alloc_skb(sk->protinfo.nr->fraglen, GFP_ATOMIC)) == NULL)
+			return 1;
+
+		skbn->free = 1;
+		skbn->arp  = 1;
+		skbn->sk   = sk;
+		sk->rmem_alloc += skbn->truesize;
+		skbn->h.raw = skbn->data;
+
+		skbo = skb_dequeue(&sk->protinfo.nr->frag_queue);
+		memcpy(skb_put(skbn, skbo->len), skbo->data, skbo->len);
+		kfree_skb(skbo, FREE_READ);
+
+		while ((skbo = skb_dequeue(&sk->protinfo.nr->frag_queue)) != NULL) {
+			skb_pull(skbo, NR_NETWORK_LEN + NR_TRANSPORT_LEN);
+			memcpy(skb_put(skbn, skbo->len), skbo->data, skbo->len);
+			kfree_skb(skbo, FREE_READ);
+		}
+
+		sk->protinfo.nr->fraglen = 0;		
+	}
+
+	return sock_queue_rcv_skb(sk, skbn);
+}
 
 /*
  * State machine for state 1, Awaiting Connection State.
@@ -58,32 +100,33 @@ static int nr_state1_machine(struct sock *sk, struct sk_buff *skb, int frametype
 
 		case NR_CONNACK:
 			nr_calculate_rtt(sk);
-			sk->window         = skb->data[37];
-			sk->nr->your_index = skb->data[34];
-			sk->nr->your_id    = skb->data[35];
-			sk->nr->t1timer    = 0;
-			sk->nr->t2timer    = 0;
-			sk->nr->t4timer    = 0;
-			sk->nr->vs         = 0;
-			sk->nr->va         = 0;
-			sk->nr->vr         = 0;
-			sk->nr->vl	   = 0;
-			sk->nr->state      = NR_STATE_3;
-			sk->state          = TCP_ESTABLISHED;
-			sk->nr->n2count    = 0;
+			sk->protinfo.nr->your_index = skb->data[17];
+			sk->protinfo.nr->your_id    = skb->data[18];
+			sk->protinfo.nr->t1timer    = 0;
+			sk->protinfo.nr->t2timer    = 0;
+			sk->protinfo.nr->t4timer    = 0;
+			sk->protinfo.nr->vs         = 0;
+			sk->protinfo.nr->va         = 0;
+			sk->protinfo.nr->vr         = 0;
+			sk->protinfo.nr->vl	    = 0;
+			sk->protinfo.nr->state      = NR_STATE_3;
+			sk->protinfo.nr->n2count    = 0;
+			sk->window                  = skb->data[20];
+			sk->state                   = TCP_ESTABLISHED;
 			/* For WAIT_SABM connections we will produce an accept ready socket here */
 			if (!sk->dead)
 				sk->state_change(sk);
 			break;
 
-		case NR_CONNACK + NR_CHOKE_FLAG:
-			nr_clear_tx_queue(sk);
-			sk->nr->state = NR_STATE_0;
-			sk->state     = TCP_CLOSE;
-			sk->err       = ECONNREFUSED;
+		case NR_CONNACK | NR_CHOKE_FLAG:
+			nr_clear_queues(sk);
+			sk->protinfo.nr->state = NR_STATE_0;
+			sk->state              = TCP_CLOSE;
+			sk->err                = ECONNREFUSED;
+			sk->shutdown          |= SEND_SHUTDOWN;
 			if (!sk->dead)
 				sk->state_change(sk);
-			sk->dead      = 1;
+			sk->dead               = 1;
 			break;
 
 		default:
@@ -104,15 +147,15 @@ static int nr_state2_machine(struct sock *sk, struct sk_buff *skb, int frametype
 
 		case NR_DISCREQ:
 			nr_write_internal(sk, NR_DISCACK);
-			break;
 
 		case NR_DISCACK:
-			sk->nr->state = NR_STATE_0;
-			sk->state     = TCP_CLOSE;
-			sk->err       = 0;
+			sk->protinfo.nr->state = NR_STATE_0;
+			sk->state              = TCP_CLOSE;
+			sk->err                = 0;
+			sk->shutdown          |= SEND_SHUTDOWN;
 			if (!sk->dead)
 				sk->state_change(sk);
-			sk->dead      = 1;
+			sk->dead               = 1;
 			break;
 
 		default:
@@ -135,118 +178,105 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 	unsigned short nr, ns;
 	int queued = 0;
 
-	nr = skb->data[35];
-	ns = skb->data[34];
+	nr = skb->data[18];
+	ns = skb->data[17];
 
 	switch (frametype) {
 
 		case NR_CONNREQ:
 			nr_write_internal(sk, NR_CONNACK);
-			sk->nr->condition = 0x00;
-			sk->nr->t1timer   = 0;
-			sk->nr->t2timer   = 0;
-			sk->nr->t4timer   = 0;
-			sk->nr->vs        = 0;
-			sk->nr->va        = 0;
-			sk->nr->vr        = 0;
-			sk->nr->vl	  = 0;
 			break;
 
 		case NR_DISCREQ:
-			nr_clear_tx_queue(sk);
+			nr_clear_queues(sk);
 			nr_write_internal(sk, NR_DISCACK);
-			sk->nr->state = NR_STATE_0;
-			sk->state     = TCP_CLOSE;
-			sk->err       = 0;
+			sk->protinfo.nr->state = NR_STATE_0;
+			sk->state              = TCP_CLOSE;
+			sk->err                = 0;
+			sk->shutdown          |= SEND_SHUTDOWN;
 			if (!sk->dead)
 				sk->state_change(sk);
-			sk->dead      = 1;
+			sk->dead               = 1;
 			break;
 
 		case NR_DISCACK:
-			nr_clear_tx_queue(sk);
-			sk->nr->state = NR_STATE_0;
-			sk->state     = TCP_CLOSE;
-			sk->err       = ECONNRESET;
+			nr_clear_queues(sk);
+			sk->protinfo.nr->state = NR_STATE_0;
+			sk->state              = TCP_CLOSE;
+			sk->err                = ECONNRESET;
+			sk->shutdown          |= SEND_SHUTDOWN;
 			if (!sk->dead)
 				sk->state_change(sk);
-			sk->dead      = 1;
+			sk->dead               = 1;
 			break;
 
 		case NR_INFOACK:
-		case NR_INFOACK + NR_CHOKE_FLAG:
+		case NR_INFOACK | NR_CHOKE_FLAG:
+		case NR_INFOACK | NR_NAK_FLAG:
+		case NR_INFOACK | NR_NAK_FLAG | NR_CHOKE_FLAG:
 			if (frametype & NR_CHOKE_FLAG) {
-				sk->nr->condition |= PEER_RX_BUSY_CONDITION;
-				sk->nr->t4timer = nr_default.busy_delay;
+				sk->protinfo.nr->condition |= PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->t4timer = sk->protinfo.nr->t4;
 			} else {
-				sk->nr->condition &= ~PEER_RX_BUSY_CONDITION;
-				sk->nr->t4timer = 0;
+				sk->protinfo.nr->condition &= ~PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->t4timer = 0;
 			}
 			if (!nr_validate_nr(sk, nr)) {
-				nr_nr_error_recovery(sk);
-				sk->nr->state = NR_STATE_1;
 				break;
 			}
-			if (sk->nr->condition & PEER_RX_BUSY_CONDITION) {
-				nr_frames_acked(sk, nr);
-			} else {
-				nr_check_iframes_acked(sk, nr);
-			}
-			break;
-			
-		case NR_INFOACK + NR_NAK_FLAG:
-		case NR_INFOACK + NR_NAK_FLAG + NR_CHOKE_FLAG:
-			if (frametype & NR_CHOKE_FLAG) {
-				sk->nr->condition |= PEER_RX_BUSY_CONDITION;
-				sk->nr->t4timer = nr_default.busy_delay;
-			} else {
-				sk->nr->condition &= ~PEER_RX_BUSY_CONDITION;
-				sk->nr->t4timer = 0;
-			}
-			if (nr_validate_nr(sk, nr)) {
+			if (frametype & NR_NAK_FLAG) {
 				nr_frames_acked(sk, nr);
 				nr_send_nak_frame(sk);
 			} else {
-				nr_nr_error_recovery(sk);
-				sk->nr->state = NR_STATE_1;
+				if (sk->protinfo.nr->condition & PEER_RX_BUSY_CONDITION) {
+					nr_frames_acked(sk, nr);
+				} else {
+					nr_check_iframes_acked(sk, nr);
+				}
 			}
 			break;
 			
 		case NR_INFO:
-		case NR_INFO + NR_CHOKE_FLAG:
-		case NR_INFO + NR_MORE_FLAG:
-		case NR_INFO + NR_CHOKE_FLAG + NR_MORE_FLAG:
+		case NR_INFO | NR_NAK_FLAG:
+		case NR_INFO | NR_CHOKE_FLAG:
+		case NR_INFO | NR_MORE_FLAG:
+		case NR_INFO | NR_NAK_FLAG | NR_CHOKE_FLAG:
+		case NR_INFO | NR_CHOKE_FLAG | NR_MORE_FLAG:
+		case NR_INFO | NR_NAK_FLAG | NR_MORE_FLAG:
+		case NR_INFO | NR_NAK_FLAG | NR_CHOKE_FLAG | NR_MORE_FLAG:
 			if (frametype & NR_CHOKE_FLAG) {
-				sk->nr->condition |= PEER_RX_BUSY_CONDITION;
-				sk->nr->t4timer = nr_default.busy_delay;
+				sk->protinfo.nr->condition |= PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->t4timer = sk->protinfo.nr->t4;
 			} else {
-				sk->nr->condition &= ~PEER_RX_BUSY_CONDITION;
-				sk->nr->t4timer = 0;
+				sk->protinfo.nr->condition &= ~PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->t4timer = 0;
 			}
-			if (!nr_validate_nr(sk, nr)) {
-				nr_nr_error_recovery(sk);
-				sk->nr->state = NR_STATE_1;
-				break;
-			}
-			if (sk->nr->condition & PEER_RX_BUSY_CONDITION) {
-				nr_frames_acked(sk, nr);
-			} else {
-				nr_check_iframes_acked(sk, nr);
+			if (nr_validate_nr(sk, nr)) {
+				if (frametype & NR_NAK_FLAG) {
+					nr_frames_acked(sk, nr);
+					nr_send_nak_frame(sk);
+				} else {
+					if (sk->protinfo.nr->condition & PEER_RX_BUSY_CONDITION) {
+						nr_frames_acked(sk, nr);
+					} else {
+						nr_check_iframes_acked(sk, nr);
+					}
+				}
 			}
 			queued = 1;
-			skb_queue_head(&sk->nr->reseq_queue, skb);
-			if (sk->nr->condition & OWN_RX_BUSY_CONDITION)
+			skb_queue_head(&sk->protinfo.nr->reseq_queue, skb);
+			if (sk->protinfo.nr->condition & OWN_RX_BUSY_CONDITION)
 				break;
 			skb_queue_head_init(&temp_queue);
 			do {
-				save_vr = sk->nr->vr;
-				while ((skbn = skb_dequeue(&sk->nr->reseq_queue)) != NULL) {
-					ns = skbn->data[34];
-					if (ns == sk->nr->vr) {
-						if (sock_queue_rcv_skb(sk, skbn) == 0) {
-							sk->nr->vr = (sk->nr->vr + 1) % NR_MODULUS;
+				save_vr = sk->protinfo.nr->vr;
+				while ((skbn = skb_dequeue(&sk->protinfo.nr->reseq_queue)) != NULL) {
+					ns = skbn->data[17];
+					if (ns == sk->protinfo.nr->vr) {
+						if (nr_queue_rx_frame(sk, skbn, frametype & NR_MORE_FLAG) == 0) {
+							sk->protinfo.nr->vr = (sk->protinfo.nr->vr + 1) % NR_MODULUS;
 						} else {
-							sk->nr->condition |= OWN_RX_BUSY_CONDITION;
+							sk->protinfo.nr->condition |= OWN_RX_BUSY_CONDITION;
 							skb_queue_tail(&temp_queue, skbn);
 						}
 					} else if (nr_in_rx_window(sk, ns)) {
@@ -257,18 +287,18 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 					}
 				}
 				while ((skbn = skb_dequeue(&temp_queue)) != NULL) {
-					skb_queue_tail(&sk->nr->reseq_queue, skbn);
+					skb_queue_tail(&sk->protinfo.nr->reseq_queue, skbn);
 				}
-			} while (save_vr != sk->nr->vr);
+			} while (save_vr != sk->protinfo.nr->vr);
 			/*
 			 * Window is full, ack it immediately.
 			 */
-			if (((sk->nr->vl + sk->window) % NR_MODULUS) == sk->nr->vr) {
+			if (((sk->protinfo.nr->vl + sk->window) % NR_MODULUS) == sk->protinfo.nr->vr) {
 				nr_enquiry_response(sk);
 			} else {
-				if (!(sk->nr->condition & ACK_PENDING_CONDITION)) {
-					sk->nr->t2timer = sk->nr->t2;
-					sk->nr->condition |= ACK_PENDING_CONDITION;
+				if (!(sk->protinfo.nr->condition & ACK_PENDING_CONDITION)) {
+					sk->protinfo.nr->t2timer = sk->protinfo.nr->t2;
+					sk->protinfo.nr->condition |= ACK_PENDING_CONDITION;
 				}
 			}
 			break;
@@ -284,12 +314,15 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 int nr_process_rx_frame(struct sock *sk, struct sk_buff *skb)
 {
 	int queued = 0, frametype;
+	
+	if (sk->protinfo.nr->state == NR_STATE_0)
+		return 0;
 
 	del_timer(&sk->timer);
 
-	frametype = skb->data[36];
+	frametype = skb->data[19];
 
-	switch (sk->nr->state)
+	switch (sk->protinfo.nr->state)
 	{
 		case NR_STATE_1:
 			queued = nr_state1_machine(sk, skb, frametype);
@@ -300,14 +333,11 @@ int nr_process_rx_frame(struct sock *sk, struct sk_buff *skb)
 		case NR_STATE_3:
 			queued = nr_state3_machine(sk, skb, frametype);
 			break;
-		default:
-			printk("nr_process_rx_frame: frame received - state: %d\n", sk->nr->state);
-			break;
 	}
 
 	nr_set_timer(sk);
 
-	return(queued);
+	return queued;
 }
 
 #endif

@@ -18,6 +18,8 @@
 
 /*
  * Changes by tytso to allow root device specification
+ * High loaded stuff by Hans Lermen & Werner Almesberger, Feb. 1996
+ * Cross compiling fixes by Gertjan van Wingerde, July 1996
  */
 
 #include <stdio.h>	/* fprintf */
@@ -30,13 +32,20 @@
 #include <fcntl.h>
 #include <linux/a.out.h>
 #include <linux/config.h>
+#include <errno.h>
 
 #define MINIX_HEADER 32
 
 #define N_MAGIC_OFFSET 1024
+#ifndef __BFD__
 static int GCC_HEADER = sizeof(struct exec);
+#endif
 
+#ifdef __BIG_KERNEL__
+#define SYS_SIZE 0xffff
+#else
 #define SYS_SIZE DEF_SYSSIZE
+#endif
 
 #define DEFAULT_MAJOR_ROOT 0
 #define DEFAULT_MINOR_ROOT 0
@@ -48,6 +57,7 @@ static int GCC_HEADER = sizeof(struct exec);
 #define STRINGIFY(x) #x
 
 typedef union {
+	int i;
 	long l;
 	short s[2];
 	char b[4];
@@ -64,6 +74,17 @@ long intel_long(long l)
 	return t.l;
 }
 
+int intel_int(int i)
+{
+	conv t;
+
+	t.b[0] = i & 0xff; i >>= 8;
+        t.b[1] = i & 0xff; i >>= 8;
+        t.b[2] = i & 0xff; i >>= 8;
+        t.b[3] = i & 0xff; i >>= 8;
+        return t.i;
+}
+
 short intel_short(short l)
 {
 	conv t;
@@ -73,7 +94,7 @@ short intel_short(short l)
 	return t.s[0];
 }
 
-void die(char * str)
+void die(const char * str)
 {
 	fprintf(stderr,"%s\n",str);
 	exit(1);
@@ -86,10 +107,12 @@ void usage(void)
 
 int main(int argc, char ** argv)
 {
-	int i,c,id, sz;
-	unsigned long sys_size;
+	int i,c,id,sz,tmp_int;
+	unsigned long sys_size, tmp_long;
 	char buf[1024];
+#ifndef __BFD__
 	struct exec *ex = (struct exec *)buf;
+#endif
 	char major_root, minor_root;
 	struct stat sb;
 	unsigned char setup_sectors;
@@ -167,8 +190,27 @@ int main(int argc, char ** argv)
 	if (((long *) buf)[7] != 0)
 		die("Illegal symbol table in 'setup'");
 	for (i=0 ; (c=read(id,buf,sizeof buf))>0 ; i+=c )
+#ifdef __BIG_KERNEL__
+	{
+		if (!i) {
+			/* Working with memcpy because of alignment constraints
+			   on Sparc - Gertjan */
+			memcpy(&tmp_long, &buf[2], sizeof(long));
+			if (tmp_long != intel_long(0x53726448) )
+				die("Wrong magic in loader header of 'setup'");
+			memcpy(&tmp_int, &buf[6], sizeof(int));
+			if (tmp_int < intel_int(0x200))
+				die("Wrong version of loader header of 'setup'");
+			buf[0x11] = 1; /* LOADED_HIGH */
+			tmp_long = intel_long(0x100000);
+			memcpy(&buf[0x14], &tmp_long, sizeof(long));  /* code32_start */
+		}
+#endif
 		if (write(1,buf,c)!=c)
 			die("Write call failed");
+#ifdef __BIG_KERNEL__
+	}
+#endif
 	if (c != 0)
 		die("read-error on 'setup'");
 	close (id);
@@ -190,6 +232,7 @@ int main(int argc, char ** argv)
 	
 	if ((id=open(argv[3],O_RDONLY,0))<0)
 		die("Unable to open 'system'");
+#ifndef __BFD__
 	if (read(id,buf,GCC_HEADER) != GCC_HEADER)
 		die("Unable to read header of 'system'");
 	if (N_MAGIC(*ex) == ZMAGIC) {
@@ -203,6 +246,14 @@ int main(int argc, char ** argv)
 		ex->a_data /1024,
 		ex->a_bss  /1024);
 	sz = N_SYMOFF(*ex) - GCC_HEADER + 4;
+#else
+	if (fstat (id, &sb)) {
+	  perror ("fstat");
+	  die ("Unable to stat 'system'");
+	}
+	sz = sb.st_size;
+	fprintf (stderr, "System is %d kB\n", sz/1024);
+#endif
 	sys_size = (sz + 15) / 16;
 	if (sys_size > SYS_SIZE)
 		die("System is too big");

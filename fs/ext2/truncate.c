@@ -11,6 +11,9 @@
  *  linux/fs/minix/truncate.c
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
+ *
+ *  Big-endian to little-endian byte-swapping/bitmaps by
+ *        David S. Miller (davem@caip.rutgers.edu), 1995
  */
 
 /*
@@ -27,9 +30,21 @@
 #include <linux/locks.h>
 #include <linux/string.h>
 
+#if 0
+
+/*
+ * Secure deletion currently doesn't work. It interacts very badly
+ * with buffers shared with memory mappings, and for that reason
+ * can't be done in the truncate() routines. It should instead be
+ * done separately in "release()" before calling the truncate routines
+ * that will release the actual file blocks.
+ *
+ *		Linus
+ */
 static int ext2_secrm_seed = 152;	/* Random generator base */
 
 #define RANDOM_INT (ext2_secrm_seed = ext2_secrm_seed * 69069l +1)
+#endif
 
 /*
  * Truncate has the most races in the whole filesystem: coding it is
@@ -63,12 +78,8 @@ repeat:
 		tmp = *p;
 		if (!tmp)
 			continue;
-		if (inode->u.ext2_i.i_flags & EXT2_SECRM_FL)
-			bh = getblk (inode->i_dev, tmp,
+		bh = get_hash_table (inode->i_dev, tmp,
 				     inode->i_sb->s_blocksize);
-		else
-			bh = get_hash_table (inode->i_dev, tmp,
-					     inode->i_sb->s_blocksize);
 		if (i < direct_block) {
 			brelse (bh);
 			goto repeat;
@@ -81,25 +92,21 @@ repeat:
 		*p = 0;
 		inode->i_blocks -= blocks;
 		inode->i_dirt = 1;
-		if (inode->u.ext2_i.i_flags & EXT2_SECRM_FL) {
-			memset(bh->b_data, RANDOM_INT, inode->i_sb->s_blocksize);
-			mark_buffer_dirty(bh, 1);
-		}
-		brelse (bh);
+		bforget(bh);
 		if (free_count == 0) {
 			block_to_free = tmp;
 			free_count++;
 		} else if (free_count > 0 && block_to_free == tmp - free_count)
 			free_count++;
 		else {
-			ext2_free_blocks (inode->i_sb, block_to_free, free_count);
+			ext2_free_blocks (inode, block_to_free, free_count);
 			block_to_free = tmp;
 			free_count = 1;
 		}
-/*		ext2_free_blocks (inode->i_sb, tmp, 1); */
+/*		ext2_free_blocks (inode, tmp, 1); */
 	}
 	if (free_count > 0)
-		ext2_free_blocks (inode->i_sb, block_to_free, free_count);
+		ext2_free_blocks (inode, block_to_free, free_count);
 	return retry;
 }
 
@@ -136,50 +143,42 @@ repeat:
 		if (i < indirect_block)
 			goto repeat;
 		ind = i + (u32 *) ind_bh->b_data;
-		tmp = *ind;
+		tmp = le32_to_cpu(*ind);
 		if (!tmp)
 			continue;
-		if (inode->u.ext2_i.i_flags & EXT2_SECRM_FL)
-			bh = getblk (inode->i_dev, tmp,
+		bh = get_hash_table (inode->i_dev, tmp,
 				     inode->i_sb->s_blocksize);
-		else
-			bh = get_hash_table (inode->i_dev, tmp,
-					     inode->i_sb->s_blocksize);
 		if (i < indirect_block) {
 			brelse (bh);
 			goto repeat;
 		}
-		if ((bh && bh->b_count != 1) || tmp != *ind) {
+		if ((bh && bh->b_count != 1) || tmp != le32_to_cpu(*ind)) {
 			retry = 1;
 			brelse (bh);
 			continue;
 		}
-		*ind = 0;
+		*ind = cpu_to_le32(0);
 		mark_buffer_dirty(ind_bh, 1);
-		if (inode->u.ext2_i.i_flags & EXT2_SECRM_FL) {
-			memset(bh->b_data, RANDOM_INT, inode->i_sb->s_blocksize);
-			mark_buffer_dirty(bh, 1);
-		}
-		brelse (bh);
+		bforget(bh);
 		if (free_count == 0) {
 			block_to_free = tmp;
 			free_count++;
 		} else if (free_count > 0 && block_to_free == tmp - free_count)
 			free_count++;
 		else {
-			ext2_free_blocks (inode->i_sb, block_to_free, free_count);
+			ext2_free_blocks (inode, block_to_free, free_count);
 			block_to_free = tmp;
 			free_count = 1;
 		}
-/*		ext2_free_blocks (inode->i_sb, tmp, 1); */
+/*		ext2_free_blocks (inode, tmp, 1); */
 		inode->i_blocks -= blocks;
 		inode->i_dirt = 1;
 	}
 	if (free_count > 0)
-		ext2_free_blocks (inode->i_sb, block_to_free, free_count);
+		ext2_free_blocks (inode, block_to_free, free_count);
 	ind = (u32 *) ind_bh->b_data;
 	for (i = 0; i < addr_per_block; i++)
-		if (*(ind++))
+		if (le32_to_cpu(*(ind++)))
 			break;
 	if (i >= addr_per_block)
 		if (ind_bh->b_count != 1)
@@ -189,9 +188,96 @@ repeat:
 			*p = 0;
 			inode->i_blocks -= blocks;
 			inode->i_dirt = 1;
-			ext2_free_blocks (inode->i_sb, tmp, 1);
+			ext2_free_blocks (inode, tmp, 1);
 		}
-	if (IS_SYNC(inode) && ind_bh->b_dirt) {
+	if (IS_SYNC(inode) && buffer_dirty(ind_bh)) {
+		ll_rw_block (WRITE, 1, &ind_bh);
+		wait_on_buffer (ind_bh);
+	}
+	brelse (ind_bh);
+	return retry;
+}
+
+static int trunc_indirect_swab32 (struct inode * inode, int offset, u32 * p)
+{
+	int i, tmp;
+	struct buffer_head * bh;
+	struct buffer_head * ind_bh;
+	u32 * ind;
+	unsigned long block_to_free = 0;
+	unsigned long free_count = 0;
+	int retry = 0;
+	int addr_per_block = EXT2_ADDR_PER_BLOCK(inode->i_sb);
+	int blocks = inode->i_sb->s_blocksize / 512;
+	int indirect_block = INDIRECT_BLOCK;
+
+	tmp = le32_to_cpu(*p);
+	if (!tmp)
+		return 0;
+	ind_bh = bread (inode->i_dev, tmp, inode->i_sb->s_blocksize);
+	if (tmp != le32_to_cpu(*p)) {
+		brelse (ind_bh);
+		return 1;
+	}
+	if (!ind_bh) {
+		*p = cpu_to_le32(0);
+		return 0;
+	}
+repeat:
+	for (i = indirect_block ; i < addr_per_block ; i++) {
+		if (i < 0)
+			i = 0;
+		if (i < indirect_block)
+			goto repeat;
+		ind = i + (u32 *) ind_bh->b_data;
+		tmp = le32_to_cpu(*ind);
+		if (!tmp)
+			continue;
+		bh = get_hash_table (inode->i_dev, tmp,
+				     inode->i_sb->s_blocksize);
+		if (i < indirect_block) {
+			brelse (bh);
+			goto repeat;
+		}
+		if ((bh && bh->b_count != 1) || tmp != le32_to_cpu(*ind)) {
+			retry = 1;
+			brelse (bh);
+			continue;
+		}
+		*ind = cpu_to_le32(0);
+		mark_buffer_dirty(ind_bh, 1);
+		bforget(bh);
+		if (free_count == 0) {
+			block_to_free = tmp;
+			free_count++;
+		} else if (free_count > 0 && block_to_free == tmp - free_count)
+			free_count++;
+		else {
+			ext2_free_blocks (inode, block_to_free, free_count);
+			block_to_free = tmp;
+			free_count = 1;
+		}
+/*		ext2_free_blocks (inode, tmp, 1); */
+		inode->i_blocks -= blocks;
+		inode->i_dirt = 1;
+	}
+	if (free_count > 0)
+		ext2_free_blocks (inode, block_to_free, free_count);
+	ind = (u32 *) ind_bh->b_data;
+	for (i = 0; i < addr_per_block; i++)
+		if (le32_to_cpu(*(ind++)))
+			break;
+	if (i >= addr_per_block)
+		if (ind_bh->b_count != 1)
+			retry = 1;
+		else {
+			tmp = le32_to_cpu(*p);
+			*p = cpu_to_le32(0);
+			inode->i_blocks -= blocks;
+			inode->i_dirt = 1;
+			ext2_free_blocks (inode, tmp, 1);
+		}
+	if (IS_SYNC(inode) && buffer_dirty(ind_bh)) {
 		ll_rw_block (WRITE, 1, &ind_bh);
 		wait_on_buffer (ind_bh);
 	}
@@ -230,16 +316,16 @@ repeat:
 		if (i < dindirect_block)
 			goto repeat;
 		dind = i + (u32 *) dind_bh->b_data;
-		tmp = *dind;
+		tmp = le32_to_cpu(*dind);
 		if (!tmp)
 			continue;
-		retry |= trunc_indirect (inode, offset + (i * addr_per_block),
-					  dind);
+		retry |= trunc_indirect_swab32 (inode, offset + (i * addr_per_block),
+						dind);
 		mark_buffer_dirty(dind_bh, 1);
 	}
 	dind = (u32 *) dind_bh->b_data;
 	for (i = 0; i < addr_per_block; i++)
-		if (*(dind++))
+		if (le32_to_cpu(*(dind++)))
 			break;
 	if (i >= addr_per_block)
 		if (dind_bh->b_count != 1)
@@ -249,9 +335,68 @@ repeat:
 			*p = 0;
 			inode->i_blocks -= blocks;
 			inode->i_dirt = 1;
-			ext2_free_blocks (inode->i_sb, tmp, 1);
+			ext2_free_blocks (inode, tmp, 1);
 		}
-	if (IS_SYNC(inode) && dind_bh->b_dirt) {
+	if (IS_SYNC(inode) && buffer_dirty(dind_bh)) {
+		ll_rw_block (WRITE, 1, &dind_bh);
+		wait_on_buffer (dind_bh);
+	}
+	brelse (dind_bh);
+	return retry;
+}
+
+static int trunc_dindirect_swab32 (struct inode * inode, int offset,
+				   u32 * p)
+{
+	int i, tmp;
+	struct buffer_head * dind_bh;
+	u32 * dind;
+	int retry = 0;
+	int addr_per_block = EXT2_ADDR_PER_BLOCK(inode->i_sb);
+	int blocks = inode->i_sb->s_blocksize / 512;
+	int dindirect_block = DINDIRECT_BLOCK;
+
+	tmp = le32_to_cpu(*p);
+	if (!tmp)
+		return 0;
+	dind_bh = bread (inode->i_dev, tmp, inode->i_sb->s_blocksize);
+	if (tmp != le32_to_cpu(*p)) {
+		brelse (dind_bh);
+		return 1;
+	}
+	if (!dind_bh) {
+		*p = cpu_to_le32(0);
+		return 0;
+	}
+repeat:
+	for (i = dindirect_block ; i < addr_per_block ; i++) {
+		if (i < 0)
+			i = 0;
+		if (i < dindirect_block)
+			goto repeat;
+		dind = i + (u32 *) dind_bh->b_data;
+		tmp = le32_to_cpu(*dind);
+		if (!tmp)
+			continue;
+		retry |= trunc_indirect_swab32 (inode, offset + (i * addr_per_block),
+						dind);
+		mark_buffer_dirty(dind_bh, 1);
+	}
+	dind = (u32 *) dind_bh->b_data;
+	for (i = 0; i < addr_per_block; i++)
+		if (le32_to_cpu(*(dind++)))
+			break;
+	if (i >= addr_per_block)
+		if (dind_bh->b_count != 1)
+			retry = 1;
+		else {
+			tmp = le32_to_cpu(*p);
+			*p = cpu_to_le32(0);
+			inode->i_blocks -= blocks;
+			inode->i_dirt = 1;
+			ext2_free_blocks (inode, tmp, 1);
+		}
+	if (IS_SYNC(inode) && buffer_dirty(dind_bh)) {
 		ll_rw_block (WRITE, 1, &dind_bh);
 		wait_on_buffer (dind_bh);
 	}
@@ -291,14 +436,14 @@ repeat:
 		if (i < tindirect_block)
 			goto repeat;
 		tind = i + (u32 *) tind_bh->b_data;
-		retry |= trunc_dindirect(inode, EXT2_NDIR_BLOCKS +
-			addr_per_block + (i + 1) * addr_per_block * addr_per_block,
-			tind);
+		retry |= trunc_dindirect_swab32(inode, EXT2_NDIR_BLOCKS +
+			 addr_per_block + (i + 1) * addr_per_block * addr_per_block,
+			 tind);
 		mark_buffer_dirty(tind_bh, 1);
 	}
 	tind = (u32 *) tind_bh->b_data;
 	for (i = 0; i < addr_per_block; i++)
-		if (*(tind++))
+		if (le32_to_cpu(*(tind++)))
 			break;
 	if (i >= addr_per_block)
 		if (tind_bh->b_count != 1)
@@ -308,9 +453,9 @@ repeat:
 			*p = 0;
 			inode->i_blocks -= blocks;
 			inode->i_dirt = 1;
-			ext2_free_blocks (inode->i_sb, tmp, 1);
+			ext2_free_blocks (inode, tmp, 1);
 		}
-	if (IS_SYNC(inode) && tind_bh->b_dirt) {
+	if (IS_SYNC(inode) && buffer_dirty(tind_bh)) {
 		ll_rw_block (WRITE, 1, &tind_bh);
 		wait_on_buffer (tind_bh);
 	}
@@ -332,7 +477,6 @@ void ext2_truncate (struct inode * inode)
 		return;
 	ext2_discard_prealloc(inode);
 	while (1) {
-		down(&inode->i_sem);
 		retry = trunc_direct(inode);
 		retry |= trunc_indirect (inode, EXT2_IND_BLOCK,
 			(u32 *) &inode->u.ext2_i.i_data[EXT2_IND_BLOCK]);
@@ -340,7 +484,6 @@ void ext2_truncate (struct inode * inode)
 			EXT2_ADDR_PER_BLOCK(inode->i_sb),
 			(u32 *) &inode->u.ext2_i.i_data[EXT2_DIND_BLOCK]);
 		retry |= trunc_tindirect (inode);
-		up(&inode->i_sem);
 		if (!retry)
 			break;
 		if (IS_SYNC(inode) && inode->i_dirt)
@@ -354,9 +497,10 @@ void ext2_truncate (struct inode * inode)
 	 * zeroed in case it ever becomes accessible again because of
 	 * subsequent file growth.
 	 */
-	offset = inode->i_size % inode->i_sb->s_blocksize;
+	offset = inode->i_size & (inode->i_sb->s_blocksize - 1);
 	if (offset) {
-		bh = ext2_bread (inode, inode->i_size / inode->i_sb->s_blocksize,
+		bh = ext2_bread (inode,
+				 inode->i_size >> EXT2_BLOCK_SIZE_BITS(inode->i_sb),
 				 0, &err);
 		if (bh) {
 			memset (bh->b_data + offset, 0,

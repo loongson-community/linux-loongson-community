@@ -38,6 +38,8 @@
    ethernet adaptor have the name "eth[0123...]".
    */
 
+extern int tulip_probe(struct device *dev);
+extern int hp100_probe(struct device *dev);
 extern int ultra_probe(struct device *dev);
 extern int wd_probe(struct device *dev);
 extern int el2_probe(struct device *dev);
@@ -46,9 +48,12 @@ extern int hp_probe(struct device *dev);
 extern int hp_plus_probe(struct device *dev);
 extern int znet_probe(struct device *);
 extern int express_probe(struct device *);
+extern int eepro_probe(struct device *);
 extern int el3_probe(struct device *);
 extern int at1500_probe(struct device *);
 extern int at1700_probe(struct device *);
+extern int fmv18x_probe(struct device *);
+extern int eth16i_probe(struct device *);
 extern int depca_probe(struct device *);
 extern int apricot_probe(struct device *);
 extern int ewrk3_probe(struct device *);
@@ -65,23 +70,51 @@ extern int ni52_probe(struct device *);
 extern int ni65_probe(struct device *);
 extern int sonic_probe(struct device *);
 extern int SK_init(struct device *);
+extern int seeq8005_probe(struct device *);
+extern int tc59x_probe(struct device *);
+extern int dgrs_probe(struct device *);
+extern int smc_init( struct device * );
+extern int sparc_lance_probe(struct device *);
+extern int atarilance_probe(struct device *);
+extern int a2065_probe(struct device *);
+extern int ariadne_probe(struct device *);
+extern int hydra_probe(struct device *);
 
 /* Detachable devices ("pocket adaptors") */
 extern int atp_init(struct device *);
 extern int de600_probe(struct device *);
 extern int de620_probe(struct device *);
+extern int acn_net_probe(struct device *);
 
 static int
 ethif_probe(struct device *dev)
 {
-    short base_addr = dev->base_addr;
+    u_long base_addr = dev->base_addr;
 
-    if (base_addr < 0  ||  base_addr == 1)
+    if ((base_addr == 0xffe0)  ||  (base_addr == 1))
 	return 1;		/* ENXIO */
 
     if (1
+#ifdef CONFIG_DGRS
+	&& dgrs_probe(dev)
+#endif
+#if defined(CONFIG_VORTEX)
+	&& tc59x_probe(dev)
+#endif
+#if defined(CONFIG_SEEQ8005)
+	&& seeq8005_probe(dev)
+#endif
+#if defined(CONFIG_DEC_ELCP)
+	&& tulip_probe(dev)
+#endif
+#if defined(CONFIG_HP100)
+	&& hp100_probe(dev)
+#endif	
 #if defined(CONFIG_ULTRA)
 	&& ultra_probe(dev)
+#endif
+#if defined(CONFIG_SMC9194)
+	&& smc_init(dev)
 #endif
 #if defined(CONFIG_WD80x3) || defined(WD80x3)
 	&& wd_probe(dev)
@@ -89,20 +122,32 @@ ethif_probe(struct device *dev)
 #if defined(CONFIG_EL2) || defined(EL2)	/* 3c503 */
 	&& el2_probe(dev)
 #endif
-#if defined(CONFIG_NE2000) || defined(NE2000)
-	&& ne_probe(dev)
-#endif
 #if defined(CONFIG_HPLAN) || defined(HPLAN)
 	&& hp_probe(dev)
 #endif
 #if defined(CONFIG_HPLAN_PLUS)
 	&& hp_plus_probe(dev)
 #endif
+#ifdef CONFIG_AC3200		/* Ansel Communications EISA 3200. */
+	&& ac3200_probe(dev)
+#endif
+#ifdef CONFIG_E2100		/* Cabletron E21xx series. */
+	&& e2100_probe(dev)
+#endif
+#if defined(CONFIG_NE2000) || defined(NE2000)
+	&& ne_probe(dev)
+#endif
 #ifdef CONFIG_AT1500
 	&& at1500_probe(dev)
 #endif
 #ifdef CONFIG_AT1700
 	&& at1700_probe(dev)
+#endif
+#ifdef CONFIG_FMV18X		/* Fujitsu FMV-181/182 */
+	&& fmv18x_probe(dev)
+#endif
+#ifdef CONFIG_ETH16I
+	&& eth16i_probe(dev)	/* ICL EtherTeam 16i/32 */
 #endif
 #ifdef CONFIG_EL3		/* 3c509 */
 	&& el3_probe(dev)
@@ -112,6 +157,9 @@ ethif_probe(struct device *dev)
 #endif
 #ifdef CONFIG_EEXPRESS		/* Intel EtherExpress */
 	&& express_probe(dev)
+#endif
+#ifdef CONFIG_EEXPRESS_PRO	/* Intel EtherExpress Pro/10 */
+	&& eepro_probe(dev)
 #endif
 #ifdef CONFIG_DEPCA		/* DEC DEPCA */
 	&& depca_probe(dev)
@@ -137,12 +185,6 @@ ethif_probe(struct device *dev)
 #ifdef CONFIG_ELPLUS		/* 3c505 */
 	&& elplus_probe(dev)
 #endif
-#ifdef CONFIG_AC3200		/* Ansel Communications EISA 3200. */
-	&& ac3200_probe(dev)
-#endif
-#ifdef CONFIG_E2100		/* Cabletron E21xx series. */
-	&& e2100_probe(dev)
-#endif
 #ifdef CONFIG_DE600		/* D-Link DE-600 adapter */
 	&& de600_probe(dev)
 #endif
@@ -156,28 +198,60 @@ ethif_probe(struct device *dev)
 	&& ni52_probe(dev)
 #endif
 #ifdef CONFIG_NI65
-	&& ni65_probe(dev)
+        && ni65_probe(dev)
+#endif
+#ifdef CONFIG_ATARILANCE	/* Lance-based Atari ethernet boards */
+	&& atarilance_probe(dev)
+#endif
+#ifdef CONFIG_A2065		/* Commodore/Ameristar A2065 Ethernet Board */
+	&& a2065_probe(dev)
+#endif
+#ifdef CONFIG_ARIADNE		/* Village Tronic Ariadne Ethernet Board */
+	&& ariadne_probe(dev)
+#endif
+#ifdef CONFIG_HYDRA		/* Hydra Systems Amiganet Ethernet board */
+	&& hydra_probe(dev)
+#endif
+#ifdef CONFIG_SUNLANCE
+	&& sparc_lance_probe(dev)
 #endif
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	&& sonic_probe(dev)
 #endif	
+#ifdef CONFIG_ACN_MIPS_BOARD
+       && acn_net_probe(dev)
+#endif
 	&& 1 ) {
 	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */
     }
     return 0;
 }
 
+#ifdef CONFIG_SDLA
+    extern int sdla_init(struct device *);
+    static struct device sdla0_dev = { "sdla0", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, sdla_init, };
 
+#   undef NEXT_DEV
+#   define NEXT_DEV	(&sdla0_dev)
+#endif
+
+#ifdef CONFIG_AX25
 #ifdef CONFIG_NETROM
 	extern int nr_init(struct device *);
-	
 	static struct device nr3_dev = { "nr3", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, nr_init, };
 	static struct device nr2_dev = { "nr2", 0, 0, 0, 0, 0, 0, 0, 0, 0, &nr3_dev, nr_init, };
 	static struct device nr1_dev = { "nr1", 0, 0, 0, 0, 0, 0, 0, 0, 0, &nr2_dev, nr_init, };
 	static struct device nr0_dev = { "nr0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &nr1_dev, nr_init, };
-
 #   undef NEXT_DEV
 #   define	NEXT_DEV	(&nr0_dev)
+#endif
+#ifdef CONFIG_ROSE
+	extern int rose_init(struct device *);
+	static struct device rose1_dev = { "rose1", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV,   rose_init, };
+	static struct device rose0_dev = { "rose0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &rose1_dev, rose_init, };
+#   undef NEXT_DEV
+#   define	NEXT_DEV	(&rose0_dev)
+#endif
 #endif
 
 /* Run-time ATtachable (Pocket) devices have a different (not "eth#") name. */
@@ -207,8 +281,16 @@ static struct device atp_dev = {
    which means "don't probe".  These entries exist to only to provide empty
    slots which may be enabled at boot-time. */
 
+static struct device eth7_dev = {
+    "eth7", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, NEXT_DEV, ethif_probe };
+static struct device eth6_dev = {
+    "eth6", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, &eth7_dev, ethif_probe };
+static struct device eth5_dev = {
+    "eth5", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, &eth6_dev, ethif_probe };
+static struct device eth4_dev = {
+    "eth4", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, &eth5_dev, ethif_probe };
 static struct device eth3_dev = {
-    "eth3", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, NEXT_DEV, ethif_probe };
+    "eth3", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, &eth4_dev, ethif_probe };
 static struct device eth2_dev = {
     "eth2", 0,0,0,0,0xffe0 /* I/O base*/, 0,0,0,0, &eth3_dev, ethif_probe };
 static struct device eth1_dev = {
@@ -233,108 +315,39 @@ static struct device eth0_dev = {
 #endif  /* PLIP */
 
 #if defined(SLIP) || defined(CONFIG_SLIP)
-    extern int slip_init(struct device *);
-    
-#ifdef SL_SLIP_LOTS
-
-    static struct device slip15_dev={"sl15",0,0,0,0,15,0,0,0,0,NEXT_DEV,slip_init};
-    static struct device slip14_dev={"sl14",0,0,0,0,14,0,0,0,0,&slip15_dev,slip_init};
-    static struct device slip13_dev={"sl13",0,0,0,0,13,0,0,0,0,&slip14_dev,slip_init};
-    static struct device slip12_dev={"sl12",0,0,0,0,12,0,0,0,0,&slip13_dev,slip_init};
-    static struct device slip11_dev={"sl11",0,0,0,0,11,0,0,0,0,&slip12_dev,slip_init};
-    static struct device slip10_dev={"sl10",0,0,0,0,10,0,0,0,0,&slip11_dev,slip_init};
-    static struct device slip9_dev={"sl9",0,0,0,0,9,0,0,0,0,&slip10_dev,slip_init};
-    static struct device slip8_dev={"sl8",0,0,0,0,8,0,0,0,0,&slip9_dev,slip_init};
-    static struct device slip7_dev={"sl7",0,0,0,0,7,0,0,0,0,&slip8_dev,slip_init};
-    static struct device slip6_dev={"sl6",0,0,0,0,6,0,0,0,0,&slip7_dev,slip_init};
-    static struct device slip5_dev={"sl5",0,0,0,0,5,0,0,0,0,&slip6_dev,slip_init};
-    static struct device slip4_dev={"sl4",0,0,0,0,4,0,0,0,0,&slip5_dev,slip_init};
-#   undef	NEXT_DEV
-#   define	NEXT_DEV	(&slip4_dev)
-#endif	/* SL_SLIP_LOTS */
-    
-    static struct device slip3_dev = {
-	"sl3",			/* Internal SLIP driver, channel 3	*/
-	0x0,			/* recv memory end			*/
-	0x0,			/* recv memory start			*/
-	0x0,			/* memory end				*/
-	0x0,			/* memory start				*/
-	0x3,			/* base I/O address			*/
-	0,			/* IRQ					*/
-	0, 0, 0,		/* flags				*/
-	NEXT_DEV,		/* next device				*/
-	slip_init		/* slip_init should set up the rest	*/
-    };
-    static struct device slip2_dev = {
-	"sl2",			/* Internal SLIP driver, channel 2	*/
-	0x0,			/* recv memory end			*/
-	0x0,			/* recv memory start			*/
-	0x0,			/* memory end				*/
-	0x0,			/* memory start				*/
-	0x2,			/* base I/O address			*/
-	0,			/* IRQ					*/
-	0, 0, 0,		/* flags				*/
-	&slip3_dev,		/* next device				*/
-	slip_init		/* slip_init should set up the rest	*/
-    };
-    static struct device slip1_dev = {
-	"sl1",			/* Internal SLIP driver, channel 1	*/
-	0x0,			/* recv memory end			*/
-	0x0,			/* recv memory start			*/
-	0x0,			/* memory end				*/
-	0x0,			/* memory start				*/
-	0x1,			/* base I/O address			*/
-	0,			/* IRQ					*/
-	0, 0, 0,		/* flags				*/
-	&slip2_dev,		/* next device				*/
-	slip_init		/* slip_init should set up the rest	*/
-    };
-    static struct device slip0_dev = {
-	"sl0",			/* Internal SLIP driver, channel 0	*/
-	0x0,			/* recv memory end			*/
-	0x0,			/* recv memory start			*/
-	0x0,			/* memory end				*/
-	0x0,			/* memory start				*/
-	0x0,			/* base I/O address			*/
-	0,			/* IRQ					*/
-	0, 0, 0,		/* flags				*/
-	&slip1_dev,		/* next device				*/
-	slip_init		/* slip_init should set up the rest	*/
-    };
-#   undef	NEXT_DEV
-#   define	NEXT_DEV	(&slip0_dev)
+	/* To be exact, this node just hooks the initialization
+	   routines to the device structures.			*/
+extern int slip_init_ctrl_dev(struct device *);
+static struct device slip_bootstrap = {
+  "slip_proto", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, slip_init_ctrl_dev, };
+#undef NEXT_DEV
+#define NEXT_DEV (&slip_bootstrap)
 #endif	/* SLIP */
   
+#if defined(CONFIG_MKISS)
+	/* To be exact, this node just hooks the initialization
+	   routines to the device structures.			*/
+extern int mkiss_init_ctrl_dev(struct device *);
+static struct device mkiss_bootstrap = {
+  "mkiss_proto", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, mkiss_init_ctrl_dev, };
+#undef NEXT_DEV
+#define NEXT_DEV (&mkiss_bootstrap)
+#endif	/* MKISS */
+  
+#if defined(CONFIG_STRIP)
+extern int strip_init_ctrl_dev(struct device *);
+static struct device strip_bootstrap = {
+    "strip_proto", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, strip_init_ctrl_dev, };
+#undef NEXT_DEV
+#define NEXT_DEV (&strip_bootstrap)
+#endif   /* STRIP */
+
 #if defined(CONFIG_PPP)
 extern int ppp_init(struct device *);
-#ifdef CONFIG_PPP_LOTS
-
-    static struct device ppp15_dev={"ppp15",0,0,0,0,15,0,0,0,0,NEXT_DEV,ppp_init};
-    static struct device ppp14_dev={"ppp14",0,0,0,0,14,0,0,0,0,&ppp15_dev,ppp_init};
-    static struct device ppp13_dev={"ppp13",0,0,0,0,13,0,0,0,0,&ppp14_dev,ppp_init};
-    static struct device ppp12_dev={"ppp12",0,0,0,0,12,0,0,0,0,&ppp13_dev,ppp_init};
-    static struct device ppp11_dev={"ppp11",0,0,0,0,11,0,0,0,0,&ppp12_dev,ppp_init};
-    static struct device ppp10_dev={"ppp10",0,0,0,0,10,0,0,0,0,&ppp11_dev,ppp_init};
-    static struct device ppp9_dev={"ppp9",0,0,0,0,9,0,0,0,0,&ppp10_dev,ppp_init};
-    static struct device ppp8_dev={"ppp8",0,0,0,0,8,0,0,0,0,&ppp9_dev,ppp_init};
-    static struct device ppp7_dev={"ppp7",0,0,0,0,7,0,0,0,0,&ppp8_dev,ppp_init};
-    static struct device ppp6_dev={"ppp6",0,0,0,0,6,0,0,0,0,&ppp7_dev,ppp_init};
-    static struct device ppp5_dev={"ppp5",0,0,0,0,5,0,0,0,0,&ppp6_dev,ppp_init};
-    static struct device ppp4_dev={"ppp4",0,0,0,0,4,0,0,0,0,&ppp5_dev,ppp_init};
-#   undef	NEXT_DEV
-#   define	NEXT_DEV	(&ppp4_dev)
-#endif	/* CONFIG_PPP_LOTS */
-
-static struct device ppp3_dev = {
-    "ppp3", 0x0, 0x0, 0x0, 0x0, 3, 0, 0, 0, 0, NEXT_DEV,  ppp_init, };
-static struct device ppp2_dev = {
-    "ppp2", 0x0, 0x0, 0x0, 0x0, 2, 0, 0, 0, 0, &ppp3_dev, ppp_init, };
-static struct device ppp1_dev = {
-    "ppp1", 0x0, 0x0, 0x0, 0x0, 1, 0, 0, 0, 0, &ppp2_dev, ppp_init, };
-static struct device ppp0_dev = {
-    "ppp0", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, &ppp1_dev, ppp_init, };
+static struct device ppp_bootstrap = {
+    "ppp_proto", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, ppp_init, };
 #undef NEXT_DEV
-#define NEXT_DEV (&ppp0_dev)
+#define NEXT_DEV (&ppp_bootstrap)
 #endif   /* PPP */
 
 #ifdef CONFIG_DUMMY
@@ -380,7 +393,6 @@ struct device eql_dev = {
 #   define	NEXT_DEV	(&ibmtr_dev1)
 
 
-    extern int tok_probe(struct device *dev);
     static struct device ibmtr_dev0 = {
 	"tr0",			/* IBM Token Ring (Non-DMA) Interface */
 	0x0,			/* recv memory end			*/
@@ -432,6 +444,21 @@ struct device eql_dev = {
 #   define	NEXT_DEV	(&tunnel_dev0)
 
 #endif 
+#endif
+
+#ifdef CONFIG_AP1000
+    extern int apfddi_init(struct device *dev);
+    static struct device fddi_dev = {
+	"fddi", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, apfddi_init };
+#   undef       NEXT_DEV
+#   define      NEXT_DEV        (&fddi_dev)
+
+    extern int bif_init(struct device *dev);
+    static struct device bif_dev = {
+        "bif", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, bif_init };
+#   undef       NEXT_DEV
+#   define      NEXT_DEV        (&bif_dev)
+
 #endif
 	
 extern int loopback_init(struct device *dev);

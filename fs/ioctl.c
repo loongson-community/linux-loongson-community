@@ -4,8 +4,6 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <asm/segment.h>
-
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
@@ -13,6 +11,8 @@
 #include <linux/stat.h>
 #include <linux/termios.h>
 #include <linux/fcntl.h> /* for f_flags values */
+
+#include <asm/uaccess.h>
 
 static int file_ioctl(struct file *filp,unsigned int cmd,unsigned long arg)
 {
@@ -25,40 +25,29 @@ static int file_ioctl(struct file *filp,unsigned int cmd,unsigned long arg)
 				return -EBADF;
 		    	if (filp->f_inode->i_op->bmap == NULL)
 				return -EINVAL;
-			error = verify_area(VERIFY_WRITE,(void *) arg,4);
-			if (error)
+			if ((error = get_user(block, (int *) arg)) != 0)
 				return error;
-			block = get_fs_long((long *) arg);
 			block = filp->f_inode->i_op->bmap(filp->f_inode,block);
-			put_fs_long(block,(long *) arg);
-			return 0;
+			return put_user(block, (int *) arg);
 		case FIGETBSZ:
 			if (filp->f_inode->i_sb == NULL)
 				return -EBADF;
-			error = verify_area(VERIFY_WRITE,(void *) arg,4);
-			if (error)
-				return error;
-			put_fs_long(filp->f_inode->i_sb->s_blocksize,
-			    (long *) arg);
-			return 0;
+			return put_user(filp->f_inode->i_sb->s_blocksize,
+					(int *) arg);
 		case FIONREAD:
-			error = verify_area(VERIFY_WRITE,(void *) arg,sizeof(int));
-			if (error)
-				return error;
-			put_fs_long(filp->f_inode->i_size - filp->f_pos,
-			    (int *) arg);
-			return 0;
+			return put_user(filp->f_inode->i_size - filp->f_pos,
+					(int *) arg);
 	}
 	if (filp->f_op && filp->f_op->ioctl)
-		return filp->f_op->ioctl(filp->f_inode, filp, cmd,arg);
-	return -EINVAL;
+		return filp->f_op->ioctl(filp->f_inode, filp, cmd, arg);
+	return -ENOTTY;
 }
 
 
 asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {	
 	struct file * filp;
-	int on;
+	int on, error;
 
 	if (fd >= NR_OPEN || !(filp = current->files->fd[fd]))
 		return -EBADF;
@@ -72,7 +61,8 @@ asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 			return 0;
 
 		case FIONBIO:
-			on = get_fs_long((unsigned long *) arg);
+			if ((error = get_user(on, (int *)arg)) != 0)
+				return error;
 			if (on)
 				filp->f_flags |= O_NONBLOCK;
 			else
@@ -81,7 +71,8 @@ asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 
 		case FIOASYNC: /* O_SYNC is not yet implemented,
 				  but it's here for completeness. */
-			on = get_fs_long ((unsigned long *) arg);
+			if ((error = get_user(on, (int *)arg)) != 0)
+				return error;
 			if (on)
 				filp->f_flags |= O_SYNC;
 			else
@@ -90,11 +81,11 @@ asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 
 		default:
 			if (filp->f_inode && S_ISREG(filp->f_inode->i_mode))
-				return file_ioctl(filp,cmd,arg);
+				return file_ioctl(filp, cmd, arg);
 
 			if (filp->f_op && filp->f_op->ioctl)
-				return filp->f_op->ioctl(filp->f_inode, filp, cmd,arg);
+				return filp->f_op->ioctl(filp->f_inode, filp, cmd, arg);
 
-			return -EINVAL;
+			return -ENOTTY;
 	}
 }

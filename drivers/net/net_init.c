@@ -15,6 +15,13 @@
 	Modifications/additions by Bjorn Ekwall <bj0rn@blox.se>:
 		ethdev_index[MAX_ETH_CARDS]
 		register_netdev() / unregister_netdev()
+		
+	Modifications by Wolfgang Walter
+		Use dev_close cleanly so we always shut things down tidily.
+		
+	Changed 29/10/95, Alan Cox to pass sockaddr's around for mac addresses.
+	
+	14/06/96 - Paul Gortmaker:	Add generic eth_change_mtu() function. 
 */
 
 #include <linux/config.h>
@@ -28,6 +35,11 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/trdevice.h>
+#include <linux/if_arp.h>
+#include <linux/fddidevice.h>
+#ifdef CONFIG_NET_ALIAS
+#include <linux/net_alias.h>
+#endif
 
 /* The network devices currently exist only in the socket namespace, so these
    entries are unused.  The only ones that make sense are
@@ -50,34 +62,6 @@
 #define MAX_ETH_CARDS 16 /* same as the number if irq's in irq2dev[] */
 static struct device *ethdev_index[MAX_ETH_CARDS];
 
-unsigned long lance_init(unsigned long mem_start, unsigned long mem_end);
-unsigned long pi_init(unsigned long mem_start, unsigned long mem_end);
-unsigned long apricot_init(unsigned long mem_start, unsigned long mem_end);
-unsigned long dec21040_init(unsigned long mem_start, unsigned long mem_end);
-
-/*
-  net_dev_init() is our network device initialization routine.
-  It's called from init/main.c with the start and end of free memory,
-  and returns the new start of free memory.
-  */
-
-unsigned long net_dev_init (unsigned long mem_start, unsigned long mem_end)
-{
-
-	/* Network device initialization for devices that must allocate
-	   low-memory or contiguous DMA buffers.
-	   */
-#if defined(CONFIG_LANCE)
-	mem_start = lance_init(mem_start, mem_end);
-#endif
-#if defined(CONFIG_PI)
-	mem_start = pi_init(mem_start, mem_end);
-#endif	
-#if defined(CONFIG_DEC_ELCP)
-	mem_start = dec21040_init(mem_start, mem_end);
-#endif	
-	return mem_start;
-}
 
 /* Fill in the fields of the device structure with ethernet-generic values.
 
@@ -90,7 +74,7 @@ unsigned long net_dev_init (unsigned long mem_start, unsigned long mem_end)
  */
 
 struct device *
-init_etherdev(struct device *dev, int sizeof_priv, unsigned long *mem_startp)
+init_etherdev(struct device *dev, int sizeof_priv)
 {
 	int new_device = 0;
 	int i;
@@ -110,23 +94,17 @@ init_etherdev(struct device *dev, int sizeof_priv, unsigned long *mem_startp)
 						dev = cur_dev;
 						dev->init = NULL;
 						sizeof_priv = (sizeof_priv + 3) & ~3;
-						if (mem_startp && *mem_startp ) {
-							dev->priv = (void*) *mem_startp;
-							*mem_startp += sizeof_priv;
-						} else
-							dev->priv = kmalloc(sizeof_priv, GFP_KERNEL);
-						memset(dev->priv, 0, sizeof_priv);
+						dev->priv = sizeof_priv
+							  ? kmalloc(sizeof_priv, GFP_KERNEL)
+							  :	NULL;
+						if (dev->priv) memset(dev->priv, 0, sizeof_priv);
 						goto found;
 					}
 			}
 
 		alloc_size &= ~3;		/* Round to dword boundary. */
 
-		if (mem_startp && *mem_startp ) {
-			dev = (struct device *)*mem_startp;
-			*mem_startp += alloc_size;
-		} else
-			dev = (struct device *)kmalloc(alloc_size, GFP_KERNEL);
+		dev = (struct device *)kmalloc(alloc_size, GFP_KERNEL);
 		memset(dev, 0, alloc_size);
 		if (sizeof_priv)
 			dev->priv = (void *) (dev + 1);
@@ -159,6 +137,37 @@ init_etherdev(struct device *dev, int sizeof_priv, unsigned long *mem_startp)
 	return dev;
 }
 
+
+static int eth_mac_addr(struct device *dev, void *p)
+{
+	struct sockaddr *addr=p;
+	if(dev->start)
+		return -EBUSY;
+	memcpy(dev->dev_addr, addr->sa_data,dev->addr_len);
+	return 0;
+}
+
+static int eth_change_mtu(struct device *dev, int new_mtu)
+{
+	if ((new_mtu < 68) || (new_mtu > 1500))
+		return -EINVAL;
+	dev->mtu = new_mtu;
+	return 0;
+}
+
+#ifdef CONFIG_FDDI
+
+static int fddi_change_mtu(struct device *dev, int new_mtu)
+{
+	if ((new_mtu < FDDI_K_SNAP_HLEN) || (new_mtu > FDDI_K_SNAP_DLEN))
+		return(-EINVAL);
+	dev->mtu = new_mtu;
+	return(0);
+}
+
+#endif
+
+
 void ether_setup(struct device *dev)
 {
 	int i;
@@ -180,16 +189,20 @@ void ether_setup(struct device *dev)
 		}
 	}
 
+	dev->change_mtu		= eth_change_mtu;
 	dev->hard_header	= eth_header;
-	dev->rebuild_header = eth_rebuild_header;
+	dev->rebuild_header 	= eth_rebuild_header;
+	dev->set_mac_address 	= eth_mac_addr;
+	dev->header_cache_bind 	= eth_header_cache_bind;
+	dev->header_cache_update= eth_header_cache_update;
 
 	dev->type		= ARPHRD_ETHER;
-	dev->hard_header_len = ETH_HLEN;
+	dev->hard_header_len 	= ETH_HLEN;
 	dev->mtu		= 1500; /* eth_mtu */
-	dev->addr_len	= ETH_ALEN;
-	for (i = 0; i < ETH_ALEN; i++) {
-		dev->broadcast[i]=0xff;
-	}
+	dev->addr_len		= ETH_ALEN;
+	dev->tx_queue_len	= 100;	/* Ethernet wants good queues */	
+	
+	memset(dev->broadcast,0xFF, ETH_ALEN);
 
 	/* New-style flags. */
 	dev->flags		= IFF_BROADCAST|IFF_MULTICAST;
@@ -197,7 +210,7 @@ void ether_setup(struct device *dev)
 	dev->pa_addr	= 0;
 	dev->pa_brdaddr = 0;
 	dev->pa_mask	= 0;
-	dev->pa_alen	= sizeof(unsigned long);
+	dev->pa_alen	= 4;
 }
 
 #ifdef CONFIG_TR
@@ -211,15 +224,15 @@ void tr_setup(struct device *dev)
 		skb_queue_head_init(&dev->buffs[i]);
 
 	dev->hard_header	= tr_header;
-	dev->rebuild_header = tr_rebuild_header;
+	dev->rebuild_header 	= tr_rebuild_header;
 
 	dev->type		= ARPHRD_IEEE802;
-	dev->hard_header_len = TR_HLEN;
+	dev->hard_header_len 	= TR_HLEN;
 	dev->mtu		= 2000; /* bug in fragmenter...*/
-	dev->addr_len	= TR_ALEN;
-	for (i = 0; i < TR_ALEN; i++) {
-		dev->broadcast[i]=0xff;
-	}
+	dev->addr_len		= TR_ALEN;
+	dev->tx_queue_len	= 100;	/* Long queues on tr */
+	
+	memset(dev->broadcast,0xFF, TR_ALEN);
 
 	/* New-style flags. */
 	dev->flags		= IFF_BROADCAST;
@@ -227,8 +240,45 @@ void tr_setup(struct device *dev)
 	dev->pa_addr	= 0;
 	dev->pa_brdaddr = 0;
 	dev->pa_mask	= 0;
-	dev->pa_alen	= sizeof(unsigned long);
+	dev->pa_alen	= 4;
 }
+
+#endif
+
+#ifdef CONFIG_FDDI
+
+void fddi_setup(struct device *dev)
+	{
+	int i;
+
+	/*
+	 * Fill in the fields of the device structure with FDDI-generic values.
+	 * This should be in a common file instead of per-driver.
+	 */
+	for (i=0; i < DEV_NUMBUFFS; i++)
+		skb_queue_head_init(&dev->buffs[i]);
+
+	dev->change_mtu			= fddi_change_mtu;
+	dev->hard_header		= fddi_header;
+	dev->rebuild_header		= fddi_rebuild_header;
+
+	dev->type				= ARPHRD_FDDI;
+	dev->hard_header_len	= FDDI_K_SNAP_HLEN+3;	/* Assume 802.2 SNAP hdr len + 3 pad bytes */
+	dev->mtu				= FDDI_K_SNAP_DLEN;		/* Assume max payload of 802.2 SNAP frame */
+	dev->addr_len			= FDDI_K_ALEN;
+	dev->tx_queue_len		= 100;	/* Long queues on FDDI */
+	
+	memset(dev->broadcast, 0xFF, FDDI_K_ALEN);
+
+	/* New-style flags */
+	dev->flags		= IFF_BROADCAST | IFF_MULTICAST;
+	dev->family		= AF_INET;
+	dev->pa_addr	= 0;
+	dev->pa_brdaddr = 0;
+	dev->pa_mask	= 0;
+	dev->pa_alen	= 4;
+	return;
+	}
 
 #endif
 
@@ -270,11 +320,13 @@ int register_netdev(struct device *dev)
 				}
 		}
 
+		sti();	/* device probes assume interrupts enabled */
 		if (dev->init(dev) != 0) {
 		    if (i < MAX_ETH_CARDS) ethdev_index[i] = NULL;
 			restore_flags(flags);
 			return -EIO;
 		}
+		cli();
 
 		/* Add device to end of chain */
 		if (dev_base) {
@@ -299,43 +351,78 @@ void unregister_netdev(struct device *dev)
 	save_flags(flags);
 	cli();
 
-	printk("unregister_netdev: device ");
-
-	if (dev == NULL) {
+	if (dev == NULL) 
+	{
 		printk("was NULL\n");
 		restore_flags(flags);
 		return;
 	}
 	/* else */
 	if (dev->start)
-		printk("'%s' busy\n", dev->name);
-	else {
-		if (dev_base == dev)
-			dev_base = dev->next;
-		else {
-			while (d && (d->next != dev))
-				d = d->next;
+		printk("ERROR '%s' busy and not MOD_IN_USE.\n", dev->name);
 
-			if (d && (d->next == dev)) {
-				d->next = dev->next;
-				printk("'%s' unlinked\n", dev->name);
-			}
-			else {
-				printk("'%s' not found\n", dev->name);
-				restore_flags(flags);
-				return;
-			}
+	/*
+	 * 	must jump over main_device+aliases
+	 * 	avoid alias devices unregistration so that only
+	 * 	net_alias module manages them
+	 */
+#ifdef CONFIG_NET_ALIAS		
+	if (dev_base == dev)
+		dev_base = net_alias_nextdev(dev);
+	else
+	{
+		while(d && (net_alias_nextdev(d) != dev)) /* skip aliases */
+			d = net_alias_nextdev(d);
+	  
+		if (d && (net_alias_nextdev(d) == dev))
+		{
+			/*
+			 * 	Critical: Bypass by consider devices as blocks (maindev+aliases)
+			 */
+			net_alias_nextdev_set(d, net_alias_nextdev(dev)); 
 		}
-		for (i = 0; i < MAX_ETH_CARDS; ++i) {
-			if (ethdev_index[i] == dev) {
-				ethdev_index[i] = NULL;
-				break;
-			}
+#else
+	if (dev_base == dev)
+		dev_base = dev->next;
+	else 
+	{
+		while (d && (d->next != dev))
+			d = d->next;
+		
+		if (d && (d->next == dev)) 
+		{
+			d->next = dev->next;
+		}
+#endif
+		else 
+		{
+			printk("unregister_netdev: '%s' not found\n", dev->name);
+			restore_flags(flags);
+			return;
 		}
 	}
-	restore_flags(flags);
-}
+	for (i = 0; i < MAX_ETH_CARDS; ++i) 
+	{
+		if (ethdev_index[i] == dev) 
+		{
+			ethdev_index[i] = NULL;
+			break;
+		}
+	}
 
+	restore_flags(flags);
+
+	/*
+	 *	You can i.e use a interfaces in a route though it is not up.
+	 *	We call close_dev (which is changed: it will down a device even if
+	 *	dev->flags==0 (but it will not call dev->stop if IFF_UP
+	 *	is not set).
+	 *	This will call notifier_call_chain(&netdev_chain, NETDEV_DOWN, dev),
+	 *	dev_mc_discard(dev), ....
+	 */
+	 
+	dev_close(dev);
+}
 
 
 /*

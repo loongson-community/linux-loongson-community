@@ -23,10 +23,11 @@
 	The statistics need to be updated correctly.
 */
 
-static char *version =
+static const char *version =
 	"3c507.c:v1.10 9/23/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
-#include <linux/config.h>
+
+#include <linux/module.h>
 
 /*
   Sources:
@@ -58,9 +59,6 @@ static char *version =
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/malloc.h>
-
-extern struct device *init_etherdev(struct device *dev, int sizeof_private,
-									unsigned long *mem_startp);
 
 
 /* use 0 for production, 1 for verification, 2..7 for debug */
@@ -282,7 +280,7 @@ extern int el16_probe(struct device *dev);	/* Called from Space.c */
 static int	el16_probe1(struct device *dev, int ioaddr);
 static int	el16_open(struct device *dev);
 static int	el16_send_packet(struct sk_buff *skb, struct device *dev);
-static void	el16_interrupt(int irq, struct pt_regs *regs);
+static void	el16_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void el16_rx(struct device *dev);
 static int	el16_close(struct device *dev);
 static struct enet_statistics *el16_get_stats(struct device *dev);
@@ -321,7 +319,7 @@ el16_probe(struct device *dev)
 			return 0;
 	}
 
-	return ENODEV;			/* ENODEV would be more accurate. */
+	return ENODEV;
 }
 
 int el16_probe1(struct device *dev, int ioaddr)
@@ -351,7 +349,7 @@ int el16_probe1(struct device *dev, int ioaddr)
 
 	/* Allocate a new 'dev' if needed. */
 	if (dev == NULL)
-		dev = init_etherdev(0, sizeof(struct net_local), 0);
+		dev = init_etherdev(0, sizeof(struct net_local));
 
 	if (net_debug  &&  version_printed++ == 0)
 		printk(version);
@@ -363,14 +361,14 @@ int el16_probe1(struct device *dev, int ioaddr)
 
 	irq = inb(ioaddr + IRQ_CONFIG) & 0x0f;
 
-	irqval = request_irq(irq, &el16_interrupt, 0, "3c507");
+	irqval = request_irq(irq, &el16_interrupt, 0, "3c507", NULL);
 	if (irqval) {
 		printk ("unable to get IRQ %d (irqval=%d).\n", irq, irqval);
 		return EAGAIN;
 	}
 	
 	/* We've committed to using the board, and can start filling in *dev. */
-	request_region(ioaddr, EL16_IO_EXTENT,"3c507");
+	request_region(ioaddr, EL16_IO_EXTENT, "3c507");
 	dev->base_addr = ioaddr;
 
 	outb(0x01, ioaddr + MISC_CTRL);
@@ -413,8 +411,9 @@ int el16_probe1(struct device *dev, int ioaddr)
 		printk(version);
 
 	/* Initialize the device structure. */
+	dev->priv = kmalloc(sizeof(struct net_local), GFP_KERNEL);
 	if (dev->priv == NULL)
-		dev->priv = kmalloc(sizeof(struct net_local), GFP_KERNEL);
+		return -ENOMEM;
 	memset(dev->priv, 0, sizeof(struct net_local));
 
 	dev->open		= el16_open;
@@ -423,6 +422,8 @@ int el16_probe1(struct device *dev, int ioaddr)
 	dev->get_stats	= el16_get_stats;
 
 	ether_setup(dev);	/* Generic ethernet behaviour */
+	
+	dev->flags&=~IFF_MULTICAST;	/* Multicast doesn't work */
 
 	return 0;
 }
@@ -440,6 +441,9 @@ el16_open(struct device *dev)
 	dev->tbusy = 0;
 	dev->interrupt = 0;
 	dev->start = 1;
+
+	MOD_INC_USE_COUNT;
+
 	return 0;
 }
 
@@ -509,7 +513,7 @@ el16_send_packet(struct sk_buff *skb, struct device *dev)
 /*	The typical workload of the driver:
 	Handle the network interface interrupts. */
 static void
-el16_interrupt(int irq, struct pt_regs *regs)
+el16_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
@@ -630,6 +634,8 @@ el16_close(struct device *dev)
 	irq2dev_map[dev->irq] = 0;
 
 	/* Update the statistics here. */
+
+	MOD_DEC_USE_COUNT;
 
 	return 0;
 }
@@ -817,7 +823,7 @@ el16_rx(struct device *dev)
 		ushort pkt_len = data_frame[0];
 
 		if (rfd_cmd != 0 || data_buffer_addr != rx_head + 22
-			|| pkt_len & 0xC000 != 0xC000) {
+			|| (pkt_len & 0xC000) != 0xC000) {
 			printk("%s: Rx frame at %#x corrupted, status %04x cmd %04x"
 				   "next %04x data-buf @%04x %04x.\n", dev->name, rx_head,
 				   frame_status, rfd_cmd, next_rx_frame, data_buffer_addr,
@@ -835,17 +841,18 @@ el16_rx(struct device *dev)
 			struct sk_buff *skb;
 
 			pkt_len &= 0x3fff;
-			skb = alloc_skb(pkt_len, GFP_ATOMIC);
+			skb = dev_alloc_skb(pkt_len+2);
 			if (skb == NULL) {
 				printk("%s: Memory squeeze, dropping packet.\n", dev->name);
 				lp->stats.rx_dropped++;
 				break;
 			}
-			skb->len = pkt_len;
+			
+			skb_reserve(skb,2);
 			skb->dev = dev;
 
 			/* 'skb->data' points to the start of sk_buff data area. */
-			memcpy(skb->data, data_frame + 5, pkt_len);
+			memcpy(skb_put(skb,pkt_len), data_frame + 5, pkt_len);
 		
 			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb);
@@ -867,6 +874,43 @@ el16_rx(struct device *dev)
 	lp->rx_head = rx_head;
 	lp->rx_tail = rx_tail;
 }
+#ifdef MODULE
+static char devicename[9] = { 0, };
+static struct device dev_3c507 = {
+	devicename, /* device name is inserted by linux/drivers/net/net_init.c */
+	0, 0, 0, 0,
+	0, 0,
+	0, 0, 0, NULL, el16_probe
+};
+
+static int io = 0x300;
+static int irq = 0;
+
+int init_module(void)
+{
+	if (io == 0)
+		printk("3c507: You should not use auto-probing with insmod!\n");
+	dev_3c507.base_addr = io;
+	dev_3c507.irq       = irq;
+	if (register_netdev(&dev_3c507) != 0) {
+		printk("3c507: register_netdev() returned non-zero.\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+void
+cleanup_module(void)
+{
+	unregister_netdev(&dev_3c507);
+	kfree(dev_3c507.priv);
+	dev_3c507.priv = NULL;
+
+	/* If we don't do this, we can't re-insmod it later. */
+	free_irq(dev_3c507.irq, NULL);
+	release_region(dev_3c507.base_addr, EL16_IO_EXTENT);
+}
+#endif /* MODULE */
 
 /*
  * Local variables:
@@ -877,4 +921,3 @@ el16_rx(struct device *dev)
  *  c-indent-level: 4
  * End:
  */
-

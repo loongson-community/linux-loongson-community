@@ -14,8 +14,8 @@
  *                      EVERY character on the current page.
  *                      <middelin@polyware.iaf.nl>
  *
- * Danny ter Haar    :	Some minor additions for cpuinfo
- *			<danny@ow.nl>
+ * Danny ter Haar    :	added cpuinfo 
+ *			<dth@cistron.nl>
  *
  * Alessandro Rubini :  profile extension.
  *                      <rubini@ipvvis.unipv.it>
@@ -25,6 +25,9 @@
  *
  * Bruno Haible      :  remove 4K limit for the maps file
  * <haible@ma2s2.mathematik.uni-karlsruhe.de>
+ *
+ * Yves Arrouye      :  remove removal of trailing spaces in get_array.
+ *			<Yves.Arrouye@marin.fdn.fr>
  */
 
 #include <linux/types.h>
@@ -41,8 +44,10 @@
 #include <linux/ioport.h>
 #include <linux/config.h>
 #include <linux/mm.h>
+#include <linux/pagemap.h>
+#include <linux/swap.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 
@@ -54,24 +59,32 @@ int get_malloc(char * buffer);
 #endif
 
 
-static int read_core(struct inode * inode, struct file * file,char * buf, int count)
+static long read_core(struct inode * inode, struct file * file,
+	char * buf, unsigned long count)
 {
-	unsigned long p = file->f_pos;
+	unsigned long p = file->f_pos, memsize;
 	int read;
 	int count1;
 	char * pnt;
 	struct user dump;
+#ifdef __i386__
+#	define FIRST_MAPPED	PAGE_SIZE	/* we don't have page 0 mapped on x86.. */
+#else
+#	define FIRST_MAPPED	0
+#endif
 
 	memset(&dump, 0, sizeof(struct user));
 	dump.magic = CMAGIC;
-	dump.u_dsize = high_memory >> 12;
+	dump.u_dsize = max_mapnr;
+#ifdef __alpha__
+	dump.start_data = PAGE_OFFSET;
+#endif
 
-	if (count < 0)
-		return -EINVAL;
-	if (p >= high_memory + PAGE_SIZE)
+	memsize = (max_mapnr + 1) << PAGE_SHIFT;
+	if (p >= memsize)
 		return 0;
-	if (count > high_memory + PAGE_SIZE - p)
-		count = high_memory + PAGE_SIZE - p;
+	if (count > memsize - p)
+		count = memsize - p;
 	read = 0;
 
 	if (p < sizeof(struct user) && count > 0) {
@@ -79,21 +92,21 @@ static int read_core(struct inode * inode, struct file * file,char * buf, int co
 		if (p + count1 > sizeof(struct user))
 			count1 = sizeof(struct user)-p;
 		pnt = (char *) &dump + p;
-		memcpy_tofs(buf,(void *) pnt, count1);
+		copy_to_user(buf,(void *) pnt, count1);
 		buf += count1;
 		p += count1;
 		count -= count1;
 		read += count1;
 	}
 
-	while (p < 2*PAGE_SIZE && count > 0) {
-		put_fs_byte(0,buf);
+	while (count > 0 && p < PAGE_SIZE + FIRST_MAPPED) {
+		put_user(0,buf);
 		buf++;
 		p++;
 		count--;
 		read++;
 	}
-	memcpy_tofs(buf,(void *) (p - PAGE_SIZE),count);
+	copy_to_user(buf, (void *) (PAGE_OFFSET + p - PAGE_SIZE), count);
 	read += count;
 	file->f_pos += read;
 	return read;
@@ -109,44 +122,40 @@ struct inode_operations proc_kcore_inode_operations = {
 };
 
 
-#ifdef CONFIG_PROFILE
-
-extern unsigned long prof_len;
-extern unsigned long * prof_buffer;
 /*
  * This function accesses profiling information. The returned data is
  * binary: the sampling step and the actual contents of the profile
  * buffer. Use of the program readprofile is recommended in order to
  * get meaningful info out of these data.
  */
-static int read_profile(struct inode *inode, struct file *file, char *buf, int count)
+static long read_profile(struct inode *inode, struct file *file,
+	char *buf, unsigned long count)
 {
-    unsigned long p = file->f_pos;
+	unsigned long p = file->f_pos;
 	int read;
 	char * pnt;
-	unsigned long sample_step = 1 << CONFIG_PROFILE_SHIFT;
+	unsigned int sample_step = 1 << prof_shift;
 
-	if (count < 0)
-	    return -EINVAL;
-	if (p >= (prof_len+1)*sizeof(unsigned long))
-	    return 0;
-	if (count > (prof_len+1)*sizeof(unsigned long) - p)
-	    count = (prof_len+1)*sizeof(unsigned long) - p;
-    read = 0;
+	if (p >= (prof_len+1)*sizeof(unsigned int))
+		return 0;
+	if (count > (prof_len+1)*sizeof(unsigned int) - p)
+		count = (prof_len+1)*sizeof(unsigned int) - p;
+	read = 0;
 
-    while (p < sizeof(unsigned long) && count > 0) {
-        put_fs_byte(*((char *)(&sample_step)+p),buf);
+	while (p < sizeof(unsigned int) && count > 0) {
+		put_user(*((char *)(&sample_step)+p),buf);
 		buf++; p++; count--; read++;
-    }
-    pnt = (char *)prof_buffer + p - sizeof(unsigned long);
-	memcpy_tofs(buf,(void *)pnt,count);
+	}
+	pnt = (char *)prof_buffer + p - sizeof(unsigned int);
+	copy_to_user(buf,(void *)pnt,count);
 	read += count;
 	file->f_pos += read;
 	return read;
 }
 
 /* Writing to /proc/profile resets the counters */
-static int write_profile(struct inode * inode, struct file * file, char * buf, int count)
+static long write_profile(struct inode * inode, struct file * file,
+	const char * buf, unsigned long count)
 {
     int i=prof_len;
 
@@ -165,8 +174,6 @@ struct inode_operations proc_profile_inode_operations = {
 	&proc_profile_operations, 
 };
 
-#endif /* CONFIG_PROFILE */
-
 
 static int get_loadavg(char * buffer)
 {
@@ -175,23 +182,28 @@ static int get_loadavg(char * buffer)
 	a = avenrun[0] + (FIXED_1/200);
 	b = avenrun[1] + (FIXED_1/200);
 	c = avenrun[2] + (FIXED_1/200);
-	return sprintf(buffer,"%d.%02d %d.%02d %d.%02d %d/%d\n",
+	return sprintf(buffer,"%d.%02d %d.%02d %d.%02d %d/%d %d\n",
 		LOAD_INT(a), LOAD_FRAC(a),
 		LOAD_INT(b), LOAD_FRAC(b),
 		LOAD_INT(c), LOAD_FRAC(c),
-		nr_running, nr_tasks);
+		nr_running, nr_tasks, last_pid);
 }
 
 static int get_kstat(char * buffer)
 {
 	int i, len;
 	unsigned sum = 0;
+	extern unsigned long total_forks;
 
-	for (i = 0 ; i < 16 ; i++)
+	for (i = 0 ; i < NR_IRQS ; i++)
 		sum += kstat.interrupts[i];
 	len = sprintf(buffer,
 		"cpu  %u %u %u %lu\n"
 		"disk %u %u %u %u\n"
+		"disk_rio %u %u %u %u\n"
+		"disk_wio %u %u %u %u\n"
+		"disk_rblk %u %u %u %u\n"
+		"disk_wblk %u %u %u %u\n"
 		"page %u %u\n"
 		"swap %u %u\n"
 		"intr %u",
@@ -199,22 +211,30 @@ static int get_kstat(char * buffer)
 		kstat.cpu_nice,
 		kstat.cpu_system,
 		jiffies - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
-		kstat.dk_drive[0],
-		kstat.dk_drive[1],
-		kstat.dk_drive[2],
-		kstat.dk_drive[3],
+		kstat.dk_drive[0], kstat.dk_drive[1],
+		kstat.dk_drive[2], kstat.dk_drive[3],
+		kstat.dk_drive_rio[0], kstat.dk_drive_rio[1],
+		kstat.dk_drive_rio[2], kstat.dk_drive_rio[3],
+		kstat.dk_drive_wio[0], kstat.dk_drive_wio[1],
+		kstat.dk_drive_wio[2], kstat.dk_drive_wio[3],
+		kstat.dk_drive_rblk[0], kstat.dk_drive_rblk[1],
+		kstat.dk_drive_rblk[2], kstat.dk_drive_rblk[3],
+		kstat.dk_drive_wblk[0], kstat.dk_drive_wblk[1],
+		kstat.dk_drive_wblk[2], kstat.dk_drive_wblk[3],
 		kstat.pgpgin,
 		kstat.pgpgout,
 		kstat.pswpin,
 		kstat.pswpout,
 		sum);
-	for (i = 0 ; i < 16 ; i++)
+	for (i = 0 ; i < NR_IRQS ; i++)
 		len += sprintf(buffer + len, " %u", kstat.interrupts[i]);
 	len += sprintf(buffer + len,
 		"\nctxt %u\n"
-		"btime %lu\n",
+		"btime %lu\n"
+		"processes %lu\n",
 		kstat.context_swtch,
-		xtime.tv_sec - jiffies / HZ);
+		xtime.tv_sec - jiffies / HZ,
+		total_forks);
 	return len;
 }
 
@@ -254,14 +274,34 @@ static int get_uptime(char * buffer)
 static int get_meminfo(char * buffer)
 {
 	struct sysinfo i;
+	int len;
 
 	si_meminfo(&i);
 	si_swapinfo(&i);
-	return sprintf(buffer, "        total:   used:    free:   shared:  buffers:\n"
-		"Mem:  %8lu %8lu %8lu %8lu %8lu\n"
+	len = sprintf(buffer, "        total:    used:    free:  shared: buffers:  cached:\n"
+		"Mem:  %8lu %8lu %8lu %8lu %8lu %8lu\n"
 		"Swap: %8lu %8lu %8lu\n",
-		i.totalram, i.totalram-i.freeram, i.freeram, i.sharedram, i.bufferram,
+		i.totalram, i.totalram-i.freeram, i.freeram, i.sharedram, i.bufferram, page_cache_size*PAGE_SIZE,
 		i.totalswap, i.totalswap-i.freeswap, i.freeswap);
+	/*
+	 * Tagged format, for easy grepping and expansion. The above will go away
+	 * eventually, once the tools have been updated.
+	 */
+	return len + sprintf(buffer+len,
+		"MemTotal:  %8lu kB\n"
+		"MemFree:   %8lu kB\n"
+		"MemShared: %8lu kB\n"
+		"Buffers:   %8lu kB\n"
+		"Cached:    %8lu kB\n"
+		"SwapTotal: %8lu kB\n"
+		"SwapFree:  %8lu kB\n",
+		i.totalram >> 10,
+		i.freeram >> 10,
+		i.sharedram >> 10,
+		i.bufferram >> 10,
+		page_cache_size << (PAGE_SHIFT - 10),
+		i.totalswap >> 10,
+		i.freeswap >> 10);
 }
 
 static int get_version(char * buffer)
@@ -270,6 +310,13 @@ static int get_version(char * buffer)
 
 	strcpy(buffer, linux_banner);
 	return strlen(buffer);
+}
+
+static int get_cmdline(char * buffer)
+{
+	extern char saved_command_line[];
+
+	return sprintf(buffer, "%s\n", saved_command_line);
 }
 
 static struct task_struct ** get_task(pid_t pid)
@@ -290,9 +337,9 @@ static unsigned long get_phys_addr(struct task_struct * p, unsigned long ptr)
 	pmd_t *page_middle;
 	pte_t pte;
 
-	if (!p || ptr >= TASK_SIZE)
+	if (!p || !p->mm || ptr >= TASK_SIZE)
 		return 0;
-	page_dir = pgd_offset(p,ptr);
+	page_dir = pgd_offset(p->mm,ptr);
 	if (pgd_none(*page_dir))
 		return 0;
 	if (pgd_bad(*page_dir)) {
@@ -325,7 +372,7 @@ static int get_array(struct task_struct ** p, unsigned long start, unsigned long
 	for (;;) {
 		addr = get_phys_addr(*p, start);
 		if (!addr)
-			goto ready;
+			return result;
 		do {
 			c = *(char *) addr;
 			if (!c)
@@ -333,17 +380,13 @@ static int get_array(struct task_struct ** p, unsigned long start, unsigned long
 			if (size < PAGE_SIZE)
 				buffer[size++] = c;
 			else
-				goto ready;
+				return result;
 			addr++;
 			start++;
 			if (!c && start >= end)
-				goto ready;
+				return result;
 		} while (addr & ~PAGE_MASK);
 	}
-ready:
-	/* remove the trailing blanks, used to fill out argv,envp space */
-	while (result>0 && buffer[result-1]==' ')
-		result--;
 	return result;
 }
 
@@ -351,7 +394,7 @@ static int get_env(int pid, char * buffer)
 {
 	struct task_struct ** p = get_task(pid);
 
-	if (!p || !*p)
+	if (!p || !*p || !(*p)->mm)
 		return 0;
 	return get_array(p, (*p)->mm->env_start, (*p)->mm->env_end, buffer);
 }
@@ -360,115 +403,341 @@ static int get_arg(int pid, char * buffer)
 {
 	struct task_struct ** p = get_task(pid);
 
-	if (!p || !*p)
+	if (!p || !*p || !(*p)->mm)
 		return 0;
 	return get_array(p, (*p)->mm->arg_start, (*p)->mm->arg_end, buffer);
 }
 
+#ifdef __mips__
+extern unsigned long (*get_wchan)(struct task_struct *p);
+#else
 static unsigned long get_wchan(struct task_struct *p)
 {
-#ifdef __i386__
-	unsigned long ebp, eip;
-	unsigned long stack_page;
-	int count = 0;
-
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
-	stack_page = p->kernel_stack_page;
-	if (!stack_page)
-		return 0;
-	ebp = p->tss.ebp;
-	do {
-		if (ebp < stack_page || ebp >= 4092+stack_page)
+#if defined(__i386__)
+	{
+		unsigned long ebp, eip;
+		unsigned long stack_page;
+		int count = 0;
+
+		stack_page = p->kernel_stack_page;
+		if (!stack_page)
 			return 0;
-		eip = *(unsigned long *) (ebp+4);
-		if ((void *)eip != sleep_on &&
-		    (void *)eip != interruptible_sleep_on)
-			return eip;
-		ebp = *(unsigned long *) ebp;
-	} while (count++ < 16);
+		ebp = p->tss.ebp;
+		do {
+			if (ebp < stack_page || ebp >= 4092+stack_page)
+				return 0;
+			eip = *(unsigned long *) (ebp+4);
+			if (eip < (unsigned long) interruptible_sleep_on
+			    || eip >= (unsigned long) add_timer)
+				return eip;
+			ebp = *(unsigned long *) ebp;
+		} while (count++ < 16);
+	}
+#elif defined(__alpha__)
+	/*
+	 * This one depends on the frame size of schedule().  Do a
+	 * "disass schedule" in gdb to find the frame size.  Also, the
+	 * code assumes that sleep_on() follows immediately after
+	 * interruptible_sleep_on() and that add_timer() follows
+	 * immediately after interruptible_sleep().  Ugly, isn't it?
+	 * Maybe adding a wchan field to task_struct would be better,
+	 * after all...
+	 */
+	{
+	    unsigned long schedule_frame;
+	    unsigned long pc;
+
+	    pc = thread_saved_pc(&p->tss);
+	    if (pc >= (unsigned long) interruptible_sleep_on && pc < (unsigned long) add_timer) {
+		schedule_frame = ((unsigned long *)p->tss.ksp)[6];
+		return ((unsigned long *)schedule_frame)[12];
+	    }
+	    return pc;
+	}
 #endif
+
 	return 0;
 }
+#endif
 
-#define	KSTK_EIP(stack)	(((unsigned long *)stack)[1019])
-#define	KSTK_ESP(stack)	(((unsigned long *)stack)[1022])
+#if defined(__i386__)
+# define KSTK_EIP(tsk)	(((unsigned long *)tsk->kernel_stack_page)[1019])
+# define KSTK_ESP(tsk)	(((unsigned long *)tsk->kernel_stack_page)[1022])
+#elif defined(__alpha__)
+  /*
+   * See arch/alpha/kernel/ptrace.c for details.
+   */
+# define PT_REG(reg)		(PAGE_SIZE - sizeof(struct pt_regs)	\
+				 + (long)&((struct pt_regs *)0)->reg)
+# define KSTK_EIP(tsk)	(*(unsigned long *)(tsk->kernel_stack_page + PT_REG(pc)))
+# define KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->tss.usp)
+#elif defined(__sparc__)
+# define PT_REG(reg)            (PAGE_SIZE - sizeof(struct pt_regs)     \
+                                 + (long)&((struct pt_regs *)0)->reg)
+# define KSTK_EIP(tsk)  (*(unsigned long *)(tsk->kernel_stack_page + PT_REG(pc)))
+# define KSTK_ESP(tsk)  (*(unsigned long *)(tsk->kernel_stack_page + PT_REG(u_regs[UREG_FP])))
+#elif defined(__mips__)
+# define PT_REG(reg)		((long)&((struct pt_regs *)0)->reg \
+				 - sizeof(struct pt_regs))
+# define KSTK_EIP(tsk)	(*(unsigned long *)((tsk)->tss.ksp + PT_REG(cp0_epc)))
+# define KSTK_ESP(tsk)	(*(unsigned long *)((tsk)->tss.ksp + PT_REG(regs[29])))
+#endif
+
+/* Gcc optimizes away "strlen(x)" for constant x */
+#define ADDBUF(buffer, string) \
+do { memcpy(buffer, string, strlen(string)); \
+     buffer += strlen(string); } while (0)
+
+static inline char * task_name(struct task_struct *p, char * buf)
+{
+	int i;
+	char * name;
+
+	ADDBUF(buf, "Name:\t");
+	name = p->comm;
+	i = sizeof(p->comm);
+	do {
+		unsigned char c = *name;
+		name++;
+		i--;
+		*buf = c;
+		if (!c)
+			break;
+		if (c == '\\') {
+			buf[1] = c;
+			buf += 2;
+			continue;
+		}
+		if (c == '\n') {
+			buf[0] = '\\';
+			buf[1] = 'n';
+			buf += 2;
+			continue;
+		}
+		buf++;
+	} while (i);
+	*buf = '\n';
+	return buf+1;
+}
+
+static inline char * task_state(struct task_struct *p, char *buffer)
+{
+#define NR_STATES (sizeof(states)/sizeof(const char *))
+	unsigned int n = p->state;
+	static const char * states[] = {
+		"R (running)",
+		"S (sleeping)",
+		"D (disk sleep)",
+		"Z (zombie)",
+		"T (stopped)",
+		"W (paging)",
+		". Huh?"
+	};
+
+	if (n >= NR_STATES)
+		n = NR_STATES-1;
+
+	buffer += sprintf(buffer,
+		"State:\t%s\n"
+		"Pid:\t%d\n"
+		"PPid:\t%d\n"
+		"Uid:\t%d\t%d\t%d\t%d\n"
+		"Gid:\t%d\t%d\t%d\t%d\n",
+		states[n],
+		p->pid, p->p_pptr->pid,
+		p->uid, p->euid, p->suid, p->fsuid,
+		p->gid, p->egid, p->sgid, p->fsgid);
+	return buffer;
+}
+
+static inline char * task_mem(struct task_struct *p, char *buffer)
+{
+	struct mm_struct * mm = p->mm;
+
+	if (mm && mm != &init_mm) {
+		struct vm_area_struct * vma = mm->mmap;
+		unsigned long data = 0, stack = 0;
+		unsigned long exec = 0, lib = 0;
+
+		for (vma = mm->mmap; vma; vma = vma->vm_next) {
+			unsigned long len = (vma->vm_end - vma->vm_start) >> 10;
+			if (!vma->vm_inode) {
+				data += len;
+				if (vma->vm_flags & VM_GROWSDOWN)
+					stack += len;
+				continue;
+			}
+			if (vma->vm_flags & VM_WRITE)
+				continue;
+			if (vma->vm_flags & VM_EXEC) {
+				exec += len;
+				if (vma->vm_flags & VM_EXECUTABLE)
+					continue;
+				lib += len;
+			}
+		}	
+		buffer += sprintf(buffer,
+			"VmSize:\t%8lu kB\n"
+			"VmLck:\t%8lu kB\n"
+			"VmRSS:\t%8lu kB\n"
+			"VmData:\t%8lu kB\n"
+			"VmStk:\t%8lu kB\n"
+			"VmExe:\t%8lu kB\n"
+			"VmLib:\t%8lu kB\n",
+			mm->total_vm << (PAGE_SHIFT-10),
+			mm->locked_vm << (PAGE_SHIFT-10),
+			mm->rss << (PAGE_SHIFT-10),
+			data - stack, stack,
+			exec - lib, lib);
+	}
+	return buffer;
+}
+
+static inline char * task_sig(struct task_struct *p, char *buffer)
+{
+	buffer += sprintf(buffer,
+		"SigPnd:\t%08lx\n"
+		"SigBlk:\t%08lx\n",
+		p->signal, p->blocked);
+	if (p->sig) {
+		struct sigaction * action = p->sig->action;
+		unsigned long sig_ign = 0, sig_caught = 0;
+		unsigned long bit = 1;
+		int i;
+
+		for (i = 0; i < 32; i++) {
+			switch((unsigned long) action->sa_handler) {
+				case 0:
+					break;
+				case 1:
+					sig_ign |= bit;
+					break;
+				default:
+					sig_caught |= bit;
+			}
+			bit <<= 1;
+			action++;
+		}
+
+		buffer += sprintf(buffer,
+			"SigIgn:\t%08lx\n"
+			"SigCgt:\t%08lx\n",
+			sig_ign, sig_caught);
+	}
+	return buffer;
+}
+
+static int get_status(int pid, char * buffer)
+{
+	char * orig = buffer;
+	struct task_struct ** p = get_task(pid), *tsk;
+
+	if (!p || (tsk = *p) == NULL)
+		return 0;
+	buffer = task_name(tsk, buffer);
+	buffer = task_state(tsk, buffer);
+	buffer = task_mem(tsk, buffer);
+	buffer = task_sig(tsk, buffer);
+	return buffer - orig;
+}
 
 static int get_stat(int pid, char * buffer)
 {
-	struct task_struct ** p = get_task(pid);
-	unsigned long sigignore=0, sigcatch=0, bit=1, wchan;
+	struct task_struct ** p = get_task(pid), *tsk;
+	unsigned long sigignore=0, sigcatch=0, wchan;
 	unsigned long vsize, eip, esp;
+	long priority, nice;
 	int i,tty_pgrp;
 	char state;
 
-	if (!p || !*p)
+	if (!p || (tsk = *p) == NULL)
 		return 0;
-	if ((*p)->state < 0 || (*p)->state > 5)
+	if (tsk->state < 0 || tsk->state > 5)
 		state = '.';
 	else
-		state = "RSDZTD"[(*p)->state];
-	eip = esp = 0;
-	vsize = (*p)->kernel_stack_page;
-	if (vsize) {
-		eip = KSTK_EIP(vsize);
-		esp = KSTK_ESP(vsize);
-		vsize = (*p)->mm->brk - (*p)->mm->start_code + PAGE_SIZE-1;
-		if (esp)
-			vsize += TASK_SIZE - esp;
+		state = "RSDZTW"[tsk->state];
+	vsize = eip = esp = 0;
+	if (tsk->mm && tsk->mm != &init_mm) {
+		struct vm_area_struct *vma = tsk->mm->mmap;
+		while (vma) {
+			vsize += vma->vm_end - vma->vm_start;
+			vma = vma->vm_next;
+		}
+		if (tsk->kernel_stack_page) {
+			eip = KSTK_EIP(tsk);
+			esp = KSTK_ESP(tsk);
+		}
 	}
-	wchan = get_wchan(*p);
-	for(i=0; i<32; ++i) {
-		switch((unsigned long) (*p)->sigaction[i].sa_handler) {
-		case 1: sigignore |= bit; break;
-		case 0: break;
-		default: sigcatch |= bit;
-		} bit <<= 1;
+	wchan = get_wchan(tsk);
+	if (tsk->sig) {
+		unsigned long bit = 1;
+		for(i=0; i<32; ++i) {
+			switch((unsigned long) tsk->sig->action[i].sa_handler) {
+				case 0:
+					break;
+				case 1:
+					sigignore |= bit;
+					break;
+				default:
+					sigcatch |= bit;
+			}
+			bit <<= 1;
+		}
 	}
-	if ((*p)->tty)
-		tty_pgrp = (*p)->tty->pgrp;
+	if (tsk->tty)
+		tty_pgrp = tsk->tty->pgrp;
 	else
 		tty_pgrp = -1;
+
+	/* scale priority and nice values from timeslices to -20..20 */
+	/* to make it look like a "normal" unix priority/nice value  */
+	priority = tsk->counter;
+	priority = 20 - (priority * 10 + DEF_PRIORITY / 2) / DEF_PRIORITY;
+	nice = tsk->priority;
+	nice = 20 - (nice * 20 + DEF_PRIORITY / 2) / DEF_PRIORITY;
+
 	return sprintf(buffer,"%d (%s) %c %d %d %d %d %d %lu %lu \
-%lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %ld %lu %lu %lu %lu %lu %lu %lu %lu %lu \
-%lu %lu %lu %lu\n",
+%lu %lu %lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %ld %lu %lu %lu %lu %lu \
+%lu %lu %lu %lu %lu %lu %lu %lu\n",
 		pid,
-		(*p)->comm,
+		tsk->comm,
 		state,
-		(*p)->p_pptr->pid,
-		(*p)->pgrp,
-		(*p)->session,
-	        (*p)->tty ? (*p)->tty->device : 0,
+		tsk->p_pptr->pid,
+		tsk->pgrp,
+		tsk->session,
+	        tsk->tty ? kdev_t_to_nr(tsk->tty->device) : 0,
 		tty_pgrp,
-		(*p)->flags,
-		(*p)->mm->min_flt,
-		(*p)->mm->cmin_flt,
-		(*p)->mm->maj_flt,
-		(*p)->mm->cmaj_flt,
-		(*p)->utime,
-		(*p)->stime,
-		(*p)->cutime,
-		(*p)->cstime,
-		(*p)->counter,  /* this is the kernel priority ---
-				   subtract 30 in your user-level program. */
-		(*p)->priority, /* this is the nice value ---
-				   subtract 15 in your user-level program. */
-		(*p)->timeout,
-		(*p)->it_real_value,
-		(*p)->start_time,
+		tsk->flags,
+		tsk->min_flt,
+		tsk->cmin_flt,
+		tsk->maj_flt,
+		tsk->cmaj_flt,
+		tsk->utime,
+		tsk->stime,
+		tsk->cutime,
+		tsk->cstime,
+		priority,
+		nice,
+		tsk->timeout,
+		tsk->it_real_value,
+		tsk->start_time,
 		vsize,
-		(*p)->mm->rss, /* you might want to shift this left 3 */
-		(*p)->rlim[RLIMIT_RSS].rlim_cur,
-		(*p)->mm->start_code,
-		(*p)->mm->end_code,
-		(*p)->mm->start_stack,
+		tsk->mm ? tsk->mm->rss : 0, /* you might want to shift this left 3 */
+		tsk->rlim ? tsk->rlim[RLIMIT_RSS].rlim_cur : 0,
+		tsk->mm ? tsk->mm->start_code : 0,
+		tsk->mm ? tsk->mm->end_code : 0,
+		tsk->mm ? tsk->mm->start_stack : 0,
 		esp,
 		eip,
-		(*p)->signal,
-		(*p)->blocked,
+		tsk->signal,
+		tsk->blocked,
 		sigignore,
 		sigcatch,
-		wchan);
+		wchan,
+		tsk->nswap,
+		tsk->cnswap);
 }
 		
 static inline void statm_pte_range(pmd_t * pmd, unsigned long address, unsigned long size,
@@ -502,9 +771,9 @@ static inline void statm_pte_range(pmd_t * pmd, unsigned long address, unsigned 
 		++*pages;
 		if (pte_dirty(page))
 			++*dirty;
-		if (pte_page(page) >= high_memory)
+		if (MAP_NR(pte_page(page)) >= max_mapnr)
 			continue;
-		if (mem_map[MAP_NR(pte_page(page))] > 1)
+		if (mem_map[MAP_NR(pte_page(page))].count > 1)
 			++*shared;
 	} while (address < end);
 }
@@ -546,16 +815,16 @@ static void statm_pgd_range(pgd_t * pgd, unsigned long address, unsigned long en
 
 static int get_statm(int pid, char * buffer)
 {
-	struct task_struct ** p = get_task(pid);
+	struct task_struct ** p = get_task(pid), *tsk;
 	int size=0, resident=0, share=0, trs=0, lrs=0, drs=0, dt=0;
 
-	if (!p || !*p)
+	if (!p || (tsk = *p) == NULL)
 		return 0;
-	if ((*p)->state != TASK_ZOMBIE) {
-		struct vm_area_struct * vma = (*p)->mm->mmap;
+	if (tsk->mm && tsk->mm != &init_mm) {
+		struct vm_area_struct * vma = tsk->mm->mmap;
 
 		while (vma) {
-			pgd_t *pgd = pgd_offset(*p, vma->vm_start);
+			pgd_t *pgd = pgd_offset(tsk->mm, vma->vm_start);
 			int pages = 0, shared = 0, dirty = 0, total = 0;
 
 			statm_pgd_range(pgd, vma->vm_start, vma->vm_end, &pages, &shared, &dirty, &total);
@@ -600,10 +869,19 @@ static int get_statm(int pid, char * buffer)
  * f_pos = (number of the vma in the task->mm->mmap list) * MAPS_LINE_LENGTH
  *         + (index into the line)
  */
-#define MAPS_LINE_FORMAT	  "%08lx-%08lx %s %08lx %02x:%02x %lu\n"
-#define MAPS_LINE_MAX	49 /* sum of 8  1  8  1 4 1 8  1  2 1  2 1 10 1 */
+/* for systems with sizeof(void*) == 4: */
+#define MAPS_LINE_FORMAT4	  "%08lx-%08lx %s %08lx %s %lu\n"
+#define MAPS_LINE_MAX4	49 /* sum of 8  1  8  1 4 1 8 1 5 1 10 1 */
 
-static int read_maps (int pid, struct file * file, char * buf, int count)
+/* for systems with sizeof(void*) == 8: */
+#define MAPS_LINE_FORMAT8	  "%016lx-%016lx %s %016lx %s %lu\n"
+#define MAPS_LINE_MAX8	73 /* sum of 16  1  16  1 4 1 16 1 5 1 10 1 */
+
+#define MAPS_LINE_MAX	MAPS_LINE_MAX8
+
+
+static long read_maps (int pid, struct file * file,
+	char * buf, unsigned long count)
 {
 	struct task_struct ** p = get_task(pid);
 	char * destptr;
@@ -615,7 +893,7 @@ static int read_maps (int pid, struct file * file, char * buf, int count)
 	if (!p || !*p)
 		return -EINVAL;
 
-	if (count == 0)
+	if (!(*p)->mm || (*p)->mm == &init_mm || count == 0)
 		return 0;
 
 	/* decode f_pos */
@@ -633,7 +911,7 @@ static int read_maps (int pid, struct file * file, char * buf, int count)
 		char line[MAPS_LINE_MAX+1];
 		char str[5], *cp = str;
 		int flags;
-		dev_t dev;
+		kdev_t dev;
 		unsigned long ino;
 		int len;
 
@@ -653,9 +931,10 @@ static int read_maps (int pid, struct file * file, char * buf, int count)
 			ino = 0;
 		}
 
-		len = sprintf(line, MAPS_LINE_FORMAT,
+		len = sprintf(line,
+			      sizeof(void*) == 4 ? MAPS_LINE_FORMAT4 : MAPS_LINE_FORMAT8,
 			      map->vm_start, map->vm_end, str, map->vm_offset,
-			      MAJOR(dev),MINOR(dev), ino);
+			      kdevname(dev), ino);
 
 		if (column >= len) {
 			column = 0; /* continue with next line at column 0 */
@@ -667,7 +946,7 @@ static int read_maps (int pid, struct file * file, char * buf, int count)
 		i = len-column;
 		if (i > count)
 			i = count;
-		memcpy_tofs(destptr, line+column, i);
+		copy_to_user(destptr, line+column, i);
 		destptr += i; count -= i;
 		column += i;
 		if (column >= len) {
@@ -693,16 +972,26 @@ static int read_maps (int pid, struct file * file, char * buf, int count)
 	return destptr-buf;
 }
 
+#ifdef CONFIG_MODULES
 extern int get_module_list(char *);
+extern int get_ksyms_list(char *, char **, off_t, int);
+#endif
 extern int get_device_list(char *);
 extern int get_filesystem_list(char *);
-extern int get_ksyms_list(char *);
+extern int get_filesystem_info( char * );
 extern int get_irq_list(char *);
 extern int get_dma_list(char *);
 extern int get_cpuinfo(char *);
 extern int get_pci_list(char*);
+extern int get_md_status (char *);
+extern int get_rtc_status (char *);
+extern int get_locks_status (char *);
+#ifdef __SMP_PROF__
+extern int get_smp_prof_list(char *);
+#endif
 
-static int get_root_array(char * page, int type)
+static long get_root_array(char * page, int type, char **start,
+	off_t offset, unsigned long length)
 {
 	switch (type) {
 		case PROC_LOADAVG:
@@ -730,8 +1019,13 @@ static int get_root_array(char * page, int type)
 			return get_malloc(page);
 #endif
 
+#ifdef CONFIG_MODULES
 		case PROC_MODULES:
 			return get_module_list(page);
+
+		case PROC_KSYMS:
+			return get_ksyms_list(page, start, offset, length);
+#endif
 
 		case PROC_STAT:
 			return get_kstat(page);
@@ -745,14 +1039,30 @@ static int get_root_array(char * page, int type)
 		case PROC_FILESYSTEMS:
 			return get_filesystem_list(page);
 
-		case PROC_KSYMS:
-			return get_ksyms_list(page);
-
 		case PROC_DMA:
 			return get_dma_list(page);
 
 		case PROC_IOPORTS:
 			return get_ioport_list(page);
+#ifdef CONFIG_BLK_DEV_MD
+	        case PROC_MD:
+			return get_md_status(page);
+#endif
+#ifdef __SMP_PROF__
+		case PROC_SMP_PROF:
+			return get_smp_prof_list(page);
+#endif
+		case PROC_CMDLINE:
+			return get_cmdline(page);
+
+                case PROC_MTAB:
+                       return get_filesystem_info( page );
+#ifdef CONFIG_RTC
+		case PROC_RTC:
+			return get_rtc_status(page);
+#endif
+		case PROC_LOCKS:
+			return get_locks_status(page);
 	}
 	return -EBADF;
 }
@@ -760,6 +1070,8 @@ static int get_root_array(char * page, int type)
 static int get_process_array(char * page, int pid, int type)
 {
 	switch (type) {
+		case PROC_PID_STATUS:
+			return get_status(pid, page);
 		case PROC_PID_ENVIRON:
 			return get_env(pid, page);
 		case PROC_PID_CMDLINE:
@@ -773,42 +1085,62 @@ static int get_process_array(char * page, int pid, int type)
 }
 
 
-static inline int fill_array(char * page, int pid, int type)
+static inline int fill_array(char * page, int pid, int type, char **start, off_t offset, int length)
 {
 	if (pid)
 		return get_process_array(page, pid, type);
-	return get_root_array(page, type);
+	return get_root_array(page, type, start, offset, length);
 }
 
-static int array_read(struct inode * inode, struct file * file,char * buf, int count)
+#define PROC_BLOCK_SIZE	(3*1024)		/* 4K page size but our output routines use some slack for overruns */
+
+static long array_read(struct inode * inode, struct file * file,
+	char * buf, unsigned long count)
 {
 	unsigned long page;
+	char *start;
 	int length;
 	int end;
 	unsigned int type, pid;
+	struct proc_dir_entry *dp;
 
-	if (count < 0)
-		return -EINVAL;
+	if (count > PROC_BLOCK_SIZE)
+		count = PROC_BLOCK_SIZE;
 	if (!(page = __get_free_page(GFP_KERNEL)))
 		return -ENOMEM;
 	type = inode->i_ino;
 	pid = type >> 16;
 	type &= 0x0000ffff;
-	length = fill_array((char *) page, pid, type);
+	start = NULL;
+	dp = (struct proc_dir_entry *) inode->u.generic_ip;
+	if (dp->get_info)
+		length = dp->get_info((char *)page, &start, file->f_pos,
+				      count, 0);
+	else
+		length = fill_array((char *) page, pid, type,
+				    &start, file->f_pos, count);
 	if (length < 0) {
 		free_page(page);
 		return length;
 	}
-	if (file->f_pos >= length) {
-		free_page(page);
-		return 0;
+	if (start != NULL) {
+		/* We have had block-adjusting processing! */
+		copy_to_user(buf, start, length);
+		file->f_pos += length;
+		count = length;
+	} else {
+		/* Static 4kB (or whatever) block capacity */
+		if (file->f_pos >= length) {
+			free_page(page);
+			return 0;
+		}
+		if (count + file->f_pos > length)
+			count = length - file->f_pos;
+		end = count + file->f_pos;
+		copy_to_user(buf, (char *) page + file->f_pos, count);
+		file->f_pos = end;
 	}
-	if (count + file->f_pos > length)
-		count = length - file->f_pos;
-	end = count + file->f_pos;
-	memcpy_tofs(buf, (char *) page + file->f_pos, count);
 	free_page(page);
-	file->f_pos = end;
 	return count;
 }
 
@@ -838,18 +1170,18 @@ struct inode_operations proc_array_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
 };
 
-static int arraylong_read (struct inode * inode, struct file * file, char * buf, int count)
+static long arraylong_read(struct inode * inode, struct file * file,
+	char * buf, unsigned long count)
 {
 	unsigned int pid = inode->i_ino >> 16;
 	unsigned int type = inode->i_ino & 0x0000ffff;
-
-	if (count < 0)
-		return -EINVAL;
 
 	switch (type) {
 		case PROC_PID_MAPS:
@@ -884,6 +1216,8 @@ struct inode_operations proc_arraylong_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */

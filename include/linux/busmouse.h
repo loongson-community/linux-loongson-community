@@ -2,7 +2,7 @@
 #define _LINUX_BUSMOUSE_H
 
 /*
- * linux/include/linux/mouse.h: header file for Logitech Bus Mouse driver
+ * linux/include/linux/busmouse.h: header file for Logitech Bus Mouse driver
  * by James Banks
  *
  * based on information gleamed from various mouse drivers on the net
@@ -33,11 +33,13 @@
 
 /*--------- LOGITECH BUSMOUSE ITEMS -------------*/
 
+#define	LOGIBM_BASE		0x23c
 #define	MSE_DATA_PORT		0x23c
 #define	MSE_SIGNATURE_PORT	0x23d
 #define	MSE_CONTROL_PORT	0x23e
-#define MSE_INTERRUPT_PORT	0x23e
+#define	MSE_INTERRUPT_PORT	0x23e
 #define	MSE_CONFIG_PORT		0x23f
+#define	LOGIBM_EXTENT		0x4
 
 #define	MSE_ENABLE_INTERRUPTS	0x00
 #define	MSE_DISABLE_INTERRUPTS	0x10
@@ -59,10 +61,12 @@
 
 /*--------- MICROSOFT BUSMOUSE ITEMS -------------*/
 
+#define	MSBM_BASE			0x23d
 #define	MS_MSE_DATA_PORT	        0x23d
 #define	MS_MSE_SIGNATURE_PORT	        0x23e
 #define	MS_MSE_CONTROL_PORT	        0x23c
 #define	MS_MSE_CONFIG_PORT		0x23f
+#define	MSBM_EXTENT			0x3
 
 #define	MS_MSE_ENABLE_INTERRUPTS	0x11
 #define	MS_MSE_DISABLE_INTERRUPTS	0x10
@@ -91,10 +95,10 @@ struct mouse_status {
 	int		ready;
 	int		active;
 	struct wait_queue *wait;
+	struct fasync_struct *fasyncptr;
 };
 
 /* Function Prototypes */
-extern long mouse_init(long);
 
 #endif
 

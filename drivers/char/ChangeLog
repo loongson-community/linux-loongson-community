@@ -1,3 +1,246 @@
+Thu Nov 14 00:06:09 1996  Theodore Ts'o  <tytso@rsts-11.mit.edu>
+
+	* serial.c (autoconfig): Fix autoconfiguration problems;
+		info->flags wasn't getting initialized from the state
+		structure.  Put in more paranoid test for the 16750.
+
+Fri Nov  8 20:19:50 1996  Theodore Ts'o  <tytso@rsts-11.mit.edu>
+
+	* n_tty.c (n_tty_flush_buffer): Only call driver->unthrottle() if
+ 		the tty was previous throttled.
+		(n_tty_set_termios, write_chan): Add changes suggested by
+ 			Simon P. Allen to allow hardware cooking.
+
+	* tty_ioctl.c (set_termios): If we get a signal while waiting for
+		the tty to drain, return -EINTR.
+	
+	* serial.c (change_speed): Add support for CREAD, as required by
+	 	POSIX.
+
+Sat Nov  2 20:43:10 1996  Theodore Ts'o  <tytso@rsts-11.mit.edu>
+
+	* serial.c: Wholesale changes.  Added support for the Startech
+ 		16650 and 16650V2 chips.  (WARNING: the new startech
+ 		16650A may or may not work!)  Added support for the
+ 		TI16750 (not yet tested).  Split async_struct into a
+ 		transient part (async_struct) and a permanent part
+		(serial_state) which contains the configuration
+ 		information for the ports.  Added new driver routines
+ 		wait_until_sent() and send_xchar() to help with POSIX
+ 		compliance.  Added support for radio clocks which waggle
+		the carrier detect line (CONFIG_HARD_PPS).
+	
+	* tty_ioctl.c (tty_wait_until_sent): Added call to new driver
+		function tty->driver.wait_until_sent(), which returns when
+		the tty's device xmit buffers are drained.  Needed for
+		full POSIX compliance.
+
+		(send_prio_char): New function, called by the ioctl's
+		TCIOFF and TCION; uses the new driver call send_xchar(),
+		which will send the XON or XOFF character at high priority
+		(and even if tty output is stopped).
+
+Wed Jun  5 18:52:04 1996  Theodore Ts'o  <tytso@rsts-11.mit.edu>
+
+	* pty.c (pty_close): When closing a pty, make sure packet mode is
+	 	cleared.
+
+Sun May 26 09:33:52 1996  Theodore Ts'o  <tytso@rsts-11.mit.edu>
+
+	* vesa_blank.c (set_vesa_blanking): Add missing verify_area() call.
+
+	* selection.c (set_selection): Add missing verify_area() call.
+
+	* tty_io.c (tty_ioctl): Add missing verify_area() calls.
+
+	* serial.c (rs_ioctl): Add missing verify_area() calls.
+		(rs_init): Allow initialization of serial driver
+		configuration from a module.
+
+	* random.c (extract_entropy): Add missing verify_area call.
+		Don't limit number of characters returned to
+		32,768. Extract entropy is now no longer a inlined
+		function.
+
+		(random_read): Check return value in case extract_entropy
+		returns an error.
+
+		(secure_tcp_sequence_number): New function which returns a
+		secure TCP sequence number.  This is needed to prevent some
+		nasty TCP hijacking attacks.
+	
+		(init_std_data): Initialize using gettimeofday() instead of
+		struct timeval xtime.
+
+		(fast_add_entropy_word, add_entropy_word): Rename the
+		inline function add_entropy_word() to
+		fast_add_entropy_word().  Make add_entropy_word() be the
+		non-inlined function which is used in non-timing critical
+		places, in order to save space.
+
+		(initialize_benchmark, begin_benchmark, end_benchmark): New
+		functions defined when RANDOM_BENCHMARK is defined.  They
+		allow us to benchmark the speed of the
+		add_timer_randomness() call.
+
+		(int_ln, rotate_left): Add two new inline functions with
+		i386 optimized asm instructions.  This speeds up the
+		critical add_entropy_word() and add_timer_randomness()
+		functions, which are called from interrupt handlers.
+
+Tue May  7 22:51:11 1996    <tytso@rsts-11.mit.edu>
+
+	* random.c (add_timer_randomness): Limit the amount randomness
+		that we estimate to 12 bits.  (An arbitrary amount).
+
+		(extract_entropy): To make it harder to analyze the hash
+		function, fold the hash function in half using XOR, and
+		use the folded result as the value to emit to the user.
+		Also, add timer randomness each pass through the
+		exact_entropy call, to increase the amount of unknown
+		values during the extraction process.
+
+		(random_ioctl): Use IOR/IOW definitions to define the
+		ioctl values used by the /dev/random driver.  Allow the
+		old ioctl values to be used for backwards compatibility
+		(for a limited amount of time).
+
+Wed Apr 24 14:02:04 1996  Theodore Ts'o  <tytso@rsts-11.mit.edu>
+
+	* random.c (add_timer_randomness): Use 2nd derivative as well to
+		better estimate entropy.
+
+		(rand_initialize): Explicitly initialize all the pointers
+		to NULL.  (Clearing pointers using memset isn't portable.)
+		Initialize the random pool with OS-dependent data.
+
+		(random_write): Add sanity checking to the arguments to
+		random_write(), so that bad arguments won't cause a kernel
+		SEGV. 
+
+		(random_read): Update the access time of the device inode
+		when you return data to the user.
+
+		(random_ioctl): Wake up the random_wait channel when there
+		are only WAIT_INPUT_BITS available.  Add more paranoia
+		checks to make sure entropy_count doesn't go beyond the
+		bounds of (0, POOLSIZE).  Add a few missing verify_area
+		checks.  Add support for the RNDCLEARPOOL ioctl, which
+		zaps the random pool.
+
+		(add_timer_randomness): Wake up the random_wait
+		channel only when there are WAIT_INPUT_BITS available.
+
+		(random_select): Allow a random refresh daemon process to
+		select on /dev/random for writing; wake up the daemon when
+		there are less than WAIT_OUTPUT_BITS bits of randomness
+		available.
+
+Tue Apr 23 22:56:07 1996    <tytso@rsts-11.mit.edu>
+
+	* tty_io.c (init_dev): Change return code when user attempts to
+		open master pty which is already open from EAGAIN to EIO,
+		to match with BSD expectations.  EIO is more correct
+		anyway, since EAGAIN implies that retrying will be
+		successful --- which it might be.... Eventually!!
+
+	* pty.c (pty_open, pty_close): Fix wait loop so that we don't
+		busy loop while waiting for the master side to open.
+		Fix tty opening/closing logic.  TTY_SLAVE_CLOSED was
+		renamed to TTY_OTHER_CLOSED, so that the name is more
+		descriptive.  Also fixed code so that the tty flag
+		actually works correctly now....
+
+Mon Apr  1 10:22:01 1996    <tytso@rsts-11.mit.edu>
+
+	* serial.c (rs_close): Cleaned up modularization changes.
+		Remove code which forced line discipline back to N_TTY
+		this is done in the tty upper layers, and there's no
+		reason to do it here.  (Making this change also
+		removed the requirement that the serial module access
+		the internal kernel symbol "ldiscs".)
+
+	* tty_io.c (tty_init): Formally register a tty_driver entry for
+		/dev/tty (device 4, 0) and /dev/console (device 5, 0).
+		This guarantees that major device numbers 4 and 5 will be
+		reserved for the tty subsystem (as they have to be because
+		of /dev/tty and /dev/console).  Removed tty_regdev, as
+		this interface is no longer necessary.
+
+Sun Mar 17 20:42:47 GMT 1996 <ah@doc.ic.ac.uk>
+
+	* serial.c : modularisation (changes in linux/fs/device.c allow
+		kerneld to automatically load the serial module).
+
+	* Makefile, Config.in : serial modularisation adds.
+
+	* tty_io.c : tty_init_ctty used by to register "cua" driver just
+		for the /dev/tty device (5,0).  Added tty_regdev.
+	
+	* serial.c (shutdown, rs_ioctl) : when port shuts down wakeup processes
+	  waiting on delta_msr_wait. The TIOCMIWAIT ioctl returns EIO
+	  if no change was done since the time of call.
+
+Sat Mar 16 14:33:13 1996 <aeb@cwi.nl>
+
+	* tty_io.c (disassociate_ctty): If disassociate_ctty is called by
+		exit, do not perform an implicit vhangup on a pty.
+
+Fri Feb  9 14:15:47 1996    <tytso@rsts-11.mit.edu>
+
+	* serial.c (block_til_ready): Fixed another race condition which
+		happens if a hangup happens during the open.
+
+Wed Jan 10 10:08:00 1996    <tytso@rsts-11.mit.edu>
+
+	* serial.c (block_til_ready): Remove race condition which happened
+		if a hangup condition happened during the setup of the
+		UART, before rs_open() called block_til_ready().  This
+		caused the info->count counter to be erroneously
+		decremented.
+
+	* serial.c (startup, rs_open): Remove race condition that could
+		cause a memory leak of one page.  (Fortunately, both race
+		conditions were relatively rare in practice.)
+
+Tue Dec  5 13:21:27 1995    <tytso@rsts-11.mit.edu>
+
+	* serial.c (check_modem_status, rs_ioctl): Support the new
+		ioctl()'s TIOCGICOUNT, TIOCMIWAIT.  These allow an
+		application program to wait on a modem serial register
+		status bit change, and to find out how many changes have
+		taken place for the MSR bits.
+
+		(rs_write): Eliminate a race condition which is introduced
+		if it is necessary to wait for the semaphore.
+
+Sat Nov  4 17:14:45 1995    <tytso@rsts-11.mit.edu>
+
+	* tty_io.c (tty_init): Move registration of TTY_MAJOR and
+		TTY_AUX_MAJOR to the end, so that /proc/devices looks
+		prettier. 
+
+	* pty.c (pty_init): Use new major numbers for PTY master and slave
+		devices.  This allow us to have more than 64 pty's.  We
+		register the old pty devices for backwards compatibility.
+		Note that a system should either be using the old pty
+		devices or the new pty devices --- in general, it should
+		try to use both, since they map into the same pty table.
+		The old pty devices are strictly for backwards compatibility.
+
+Wed Oct 11 12:45:24 1995    <tytso@rsts-11.mit.edu>
+
+	* tty_io.c (disassociate_ctty): If disassociate_ctty is called by
+		exit, perform an implicit vhangup on the tty.
+
+	* pty.c (pty_close): When the master pty is closed, send a hangup
+		to the slave pty.
+		(pty_open): Use the flag TTY_SLAVE_CLOSED to test to see
+		if there are any open slave ptys, instead of using
+		tty->link->count.  The old method got confused if there
+		were processes that had hung-up file descriptors on the
+		slave tty.
+
 Tue May  2 00:53:25 1995    <tytso@rsx-11.mit.edu>
 
 	* tty_io.c (tty_set_ldisc): Wait until the output buffer is

@@ -4,16 +4,20 @@
  * Copyright (C) 1994, 1995 by Waldorf Electronics,
  * written by Ralf Baechle.
  */
-
 #include <linux/kernel.h>
+#include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/string.h>
 
 #include <asm/bootinfo.h>
-#include <asm/cachectl.h>
+#include <asm/cache.h>
+#include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
+#include <asm/page.h>
+#include <asm/pgtable.h>
+#include <asm/uaccess.h>
 
-static void
+void
 dump_tlb(int first, int last)
 {
 	int	i;
@@ -61,21 +65,20 @@ dump_tlb(int first, int last)
 void
 dump_tlb_all(void)
 {
-	dump_tlb(0, boot_info.tlb_entries - 1);
+	dump_tlb(0, mips_tlb_entries - 1);
+}
+
+void
+dump_tlb_wired(void)
+{
+	dump_tlb(0, read_32bit_cp0_register(CP0_WIRED));
 }
 
 void
 dump_tlb_nonwired(void)
 {
-	dump_tlb(read_32bit_cp0_register(CP0_WIRED), boot_info.tlb_entries - 1);
+	dump_tlb(read_32bit_cp0_register(CP0_WIRED), mips_tlb_entries - 1);
 }
-
-#include <linux/kernel.h>
-#include <linux/mm.h>
-
-#include <asm/mipsconfig.h>
-#include <asm/page.h>
-#include <asm/pgtable.h>
 
 void
 dump_list_process(struct task_struct *t, void *address)
@@ -86,15 +89,15 @@ dump_list_process(struct task_struct *t, void *address)
 	unsigned int addr;
 
 	addr = (unsigned int) address;
-	printk("Addr == %08x\n", addr);
 
-	printk("tasks->tss.pg_dir == %08x\n",
-	       (unsigned int) t->tss.pg_dir);
+	printk("Addr              == %08x\n", addr);
+	printk("tasks->tss.pg_dir == %08x\n", (unsigned int) t->tss.pg_dir);
+	printk("tasks->mm.pgd     == %08x\n", (unsigned int) t->mm->pgd);
 
-	page_dir = pgd_offset(t, 0);
+	page_dir = pgd_offset(t->mm, 0);
 	printk("page_dir == %08x\n", (unsigned int) page_dir);
 
-	pgd = pgd_offset(t, addr);
+	pgd = pgd_offset(t->mm, addr);
 	printk("pgd == %08x, ", (unsigned int) pgd);
 
 	pmd = pmd_offset(pgd, addr);
@@ -105,7 +108,6 @@ dump_list_process(struct task_struct *t, void *address)
 
 	page = *pte;
 	printk("page == %08x\n", (unsigned int) pte_val(page));
-
 }
 
 void
@@ -125,8 +127,6 @@ dump_list_current(void *address)
 	printk("%08x\n", *pt);
 }
 
-#include <asm/segment.h>
-
 unsigned int
 vtop(void *address)
 {
@@ -135,8 +135,8 @@ vtop(void *address)
 	pte_t	*pte;
 	unsigned int addr, paddr;
 
-	addr = (unsigned int) address;
-	pgd = pgd_offset(current, addr);
+	addr = (unsigned long) address;
+	pgd = pgd_offset(current->mm, addr);
 	pmd = pmd_offset(pgd, addr);
 	pte = pte_offset(pmd, addr);
 	paddr = (KSEG1 | (unsigned int) pte_val(*pte)) & PAGE_MASK;
@@ -158,4 +158,3 @@ dump16(unsigned long *p)
 		       (unsigned long)p, (unsigned long)*p++);
 	}
 }
-

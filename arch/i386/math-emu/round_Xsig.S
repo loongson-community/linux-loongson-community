@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------+
  |  round_Xsig.S                                                             |
  |                                                                           |
- | Copyright (C) 1992,1993,1994                                              |
+ | Copyright (C) 1992,1993,1994,1995                                         |
  |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ |                       Australia.  E-mail billm@jacobi.maths.monash.edu.au |
  |                                                                           |
  | Normalize and round a 12 byte quantity.                                   |
  | Call from C as:                                                           |
@@ -18,15 +18,11 @@
  +---------------------------------------------------------------------------*/
 	.file	"round_Xsig.S"
 
-#include "fpu_asm.h"
+#include "fpu_emu.h"
 
 
 .text
-
-	.align 2,144
-.globl _round_Xsig
-
-_round_Xsig:
+ENTRY(round_Xsig)
 	pushl	%ebp
 	movl	%esp,%ebp
 	pushl	%ebx		/* Reserve some space */
@@ -86,10 +82,7 @@ L_exit:
 
 
 
-	.align 2,144
-.globl _norm_Xsig
-
-_norm_Xsig:
+ENTRY(norm_Xsig)
 	pushl	%ebp
 	movl	%esp,%ebp
 	pushl	%ebx		/* Reserve some space */

@@ -1,8 +1,8 @@
-#if	defined(CONFIG_WAVELAN)
 #define WAVELAN_ADDR_SIZE	6	/* Size of a MAC address */
 #define SA_ADDR0		0x08	/* First octet of WaveLAN MAC addresses */
 #define SA_ADDR1		0x00	/* Second octet of WaveLAN MAC addresses */
 #define SA_ADDR2		0x0E	/* Third octet of WaveLAN MAC addresses */
+#define SA_ALT_ADDR2		0x6A	/* Alternate third octet of WaveLAN MAC addresses */
 #define WAVELAN_MTU		1500	/* Maximum size of WaveLAN packet */
 
 /*
@@ -251,4 +251,3 @@ struct ha_t
  *
  * For more details, see wavelan.c.
  */
-#endif	/* defined(CONFIG_WAVELAN) */

@@ -59,14 +59,27 @@ static int skip_atoi(const char **s)
 #define SPECIAL	32		/* 0x */
 #define LARGE	64		/* use 'ABCDEF' instead of 'abcdef' */
 
+#ifdef __mips64
+#define do_div(n,base) ({ \
+long long __res; \
+__res = ((unsigned long long) n) % (unsigned long long) base; \
+n = ((unsigned long long) n) / (unsigned long long) base; \
+__res; })
+#else
 #define do_div(n,base) ({ \
 int __res; \
 __res = ((unsigned long) n) % (unsigned) base; \
 n = ((unsigned long) n) / (unsigned) base; \
 __res; })
+#endif
 
+#ifdef __mips64
+static char * number(char * str, long long num, int base, int size, int precision
+	,int type)
+#else
 static char * number(char * str, long num, int base, int size, int precision
 	,int type)
+#endif
 {
 	char c,sign,tmp[66];
 	const char *digits="0123456789abcdefghijklmnopqrstuvwxyz";
@@ -134,10 +147,14 @@ static char * number(char * str, long num, int base, int size, int precision
 int vsprintf(char *buf, const char *fmt, va_list args)
 {
 	int len;
+#ifdef __mips64
+	unsigned long long num;
+#else
 	unsigned long num;
+#endif
 	int i, base;
 	char * str;
-	char *s;
+	const char *s;
 
 	int flags;		/* flags to number() */
 
@@ -244,6 +261,9 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 			if (qualifier == 'l') {
 				long * ip = va_arg(args, long *);
 				*ip = (str - buf);
+			} else if (qualifier == 'L') {
+				long long * ip = va_arg(args, long long *);
+				*ip = (str - buf);
 			} else {
 				int * ip = va_arg(args, int *);
 				*ip = (str - buf);
@@ -283,6 +303,11 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 				num = va_arg(args, short);
 			else
 				num = va_arg(args, unsigned short);
+		else if (qualifier == 'L')
+			if (flags & SIGN)
+				num = va_arg(args, long long);
+			else
+				num = va_arg(args, unsigned long long);
 		else if (flags & SIGN)
 			num = va_arg(args, int);
 		else

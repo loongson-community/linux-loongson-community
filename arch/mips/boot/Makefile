@@ -8,12 +8,6 @@
 # Copyright (C) 1995 by Ralf Baechle
 #
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) $(ASFLAGS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
 .S.s:
 	$(CPP) $(CFLAGS) $< -o $*.s
 .S.o:
@@ -22,11 +16,22 @@
 OBJS  = milo.o a.out.o
 
 #
+# Drop some uninteresting sections in the kernel.
+# This is only relevant for ELF kernels but doesn't hurt a.out
+#
+drop-sections	= .reginfo .mdebug
+strip-flags	= $(addprefix --remove-section=,$(drop-sections))
+
+#
 # Fake compressed boot
 #
-zImage:	$(CONFIGURE) $(TOPDIR)/vmlinux
-	cp $(TOPDIR)/vmlinux $@
-	$(STRIP) --discard-all $@
+zImage:	$(CONFIGURE) mkboot $(TOPDIR)/vmlinux
+	$(OBJCOPY) $(strip-flags) $(TOPDIR)/vmlinux zImage.tmp
+	./mkboot zImage.tmp zImage
+	rm -f zImage.tmp
+
+mkboot: mkboot.c
+	$(HOSTCC) -o $@ $^
 
 zdisk:	zImage
 	mcopy -n zImage a:vmlinux
@@ -35,13 +40,8 @@ dep:
 	$(CPP) -M *.[cS] > .depend
 
 clean:
-	rm -f zImage
+	rm -f zImage zImage.tmp mkboot
 
 dummy:
 
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

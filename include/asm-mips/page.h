@@ -1,3 +1,12 @@
+/*
+ * Definitions for page handling
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
+ */
 #ifndef __ASM_MIPS_PAGE_H
 #define __ASM_MIPS_PAGE_H
 
@@ -8,13 +17,14 @@
 
 #ifdef __KERNEL__
 
-#define CONFIG_STRICT_MM_TYPECHECKS
+#define STRICT_MM_TYPECHECKS
+
+extern void (*clear_page)(unsigned long page);
+extern void (*copy_page)(unsigned long to, unsigned long from);
 
 #ifndef __LANGUAGE_ASSEMBLY__
 
-#include <asm/cachectl.h>
-
-#ifdef CONFIG_STRICT_MM_TYPECHECKS
+#ifdef STRICT_MM_TYPECHECKS
 /*
  * These are used to make use of C type-checking..
  */
@@ -33,7 +43,7 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 #define __pgd(x)	((pgd_t) { (x) } )
 #define __pgprot(x)	((pgprot_t) { (x) } )
 
-#else /* !defined (CONFIG_STRICT_MM_TYPECHECKS) */
+#else /* !defined (STRICT_MM_TYPECHECKS) */
 /*
  * .. while these make it easier on the compiler
  */
@@ -52,18 +62,7 @@ typedef unsigned long pgprot_t;
 #define __pgd(x)	(x)
 #define __pgprot(x)	(x)
 
-#endif /* !defined (CONFIG_STRICT_MM_TYPECHECKS) */
-
-#include <linux/linkage.h>
-
-extern asmlinkage void tlbflush(void);
-#define invalidate()	({sys_cacheflush(0, ~0, BCACHE);tlbflush();})
-
-#if __mips == 3
-typedef unsigned int mem_map_t;
-#else
-typedef unsigned short mem_map_t;
-#endif
+#endif /* !defined (STRICT_MM_TYPECHECKS) */
 
 #endif /* __LANGUAGE_ASSEMBLY__ */
 
@@ -71,31 +70,35 @@ typedef unsigned short mem_map_t;
 #define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
 /* This handles the memory map */
-#if __mips == 3
+#if 0
 /*
+ * Kernel with 64 bit address space.
  * We handle pages at XKPHYS + 0x1800000000000000 (cachable, noncoherent)
  * Pagetables are at  XKPHYS + 0x1000000000000000 (uncached)
  */
 #define PAGE_OFFSET	0x9800000000000000UL
 #define PT_OFFSET	0x9000000000000000UL
 #define MAP_MASK        0x07ffffffffffffffUL
-#define MAP_PAGE_RESERVED (1<<31)
-#else
+#else /* !defined (__mips64) */
 /*
+ * Kernel with 32 bit address space.
  * We handle pages at KSEG0 (cachable, noncoherent)
  * Pagetables are at  KSEG1 (uncached)
  */
-#define PAGE_OFFSET	0x80000000
-#define PT_OFFSET	0xa0000000
-#define MAP_MASK        0x1fffffff
-#define MAP_PAGE_RESERVED (1<<15)
-#endif
+#define PAGE_OFFSET	0x80000000UL
+#define PT_OFFSET	0xa0000000UL
+#define MAP_MASK        0x1fffffffUL
+#endif /* !defined (__mips64) */
+
+/*
+ * __pa breaks when applied to a pagetable pointer on >= R4000.
+ */
+#define __pa(x)			((unsigned long) (x) - PAGE_OFFSET)
+#define __va(x)			((void *)((unsigned long) (x) + PAGE_OFFSET))
 
 #define MAP_NR(addr)	((((unsigned long)(addr)) & MAP_MASK) >> PAGE_SHIFT)
 
 #ifndef __LANGUAGE_ASSEMBLY__
-
-#define copy_page(from,to) __copy_page((unsigned long)from, (unsigned long)to)
 
 extern unsigned long page_colour_mask;
 
@@ -104,21 +107,6 @@ page_colour(unsigned long page)
 {
 	return page & page_colour_mask;
 }
-
-#if 0
-extern inline void __copy_page(unsigned long from, unsigned long to)
-{
-printk("__copy_page(%08lx, %08lx)\n", from, to);
-	sys_cacheflush(0, ~0, DCACHE);
-	sync_mem();
-	from += (PT_OFFSET - PAGE_OFFSET);
-	to += (PT_OFFSET - PAGE_OFFSET);
-	memcpy((void *) to, (void *) from, PAGE_SIZE);
-	sys_cacheflush(0, ~0, ICACHE);
-}
-#else
-extern void __copy_page(unsigned long from, unsigned long to);
-#endif
 
 #endif /* defined (__LANGUAGE_ASSEMBLY__) */
 #endif /* defined (__KERNEL__) */

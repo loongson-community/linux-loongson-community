@@ -7,21 +7,16 @@
 #ifndef _LINUX_MODULE_H
 #define _LINUX_MODULE_H
 
-#ifdef CONFIG_MODVERSIONS
-# ifndef __GENKSYMS__
-#  ifdef MODULE
-#   define _set_ver(sym,vers) sym ## _R ## vers
-#   include <linux/modversions.h>
-#  else /* MODULE */
-#   ifdef EXPORT_SYMTAB
-#    define _set_ver(sym,vers) sym
-#    include <linux/modversions.h>
-#   endif /* EXPORT_SYMTAB */
-#  endif /* MODULE */
-# else /* __GENKSYMS__ */
+#ifdef __GENKSYMS__
 #  define _set_ver(sym,vers) sym
-#  endif /* __GENKSYMS__ */
-#endif /* CONFIG_MODVERSIONS */
+#  undef  MODVERSIONS
+#  define MODVERSIONS
+#else /* ! __GENKSYMS__ */
+# if defined(MODVERSIONS) && !defined(MODULE) && defined(EXPORT_SYMTAB)
+#   define _set_ver(sym,vers) sym
+#   include <linux/modversions.h>
+# endif
+#endif /* __GENKSYMS__ */
 
 /* values of module.state */
 #define MOD_UNINITIALIZED 0
@@ -30,6 +25,10 @@
 
 /* maximum length of module name */
 #define MOD_MAX_NAME 64
+
+/* magic marker for modules inserted from kerneld, to be auto-reaped */
+#define MOD_AUTOCLEAN 0x40000000 /* big enough, but no sign problems... */
+#define MOD_VISITED   0x20000000 /* Thanks Jacques! */
 
 /* maximum length of symbol name */
 #define SYM_MAX_NAME 60
@@ -46,7 +45,7 @@ struct module_ref {
 
 struct internal_symbol {
 	void *addr;
-	char *name;
+	const char *name;
 	};
 
 struct symbol_table { /* received from "insmod" */
@@ -59,44 +58,81 @@ struct symbol_table { /* received from "insmod" */
 /*
  * Note: The string table follows immediately after the symbol table in memory!
  */
+struct _exceptinfo{
+	struct exception_table_entry *start;
+	struct exception_table_entry *stop;
+};
 
 struct module {
 	struct module *next;
 	struct module_ref *ref;	/* the list of modules that refer to me */
 	struct symbol_table *symtab;
-	char *name;
+	const char *name;
 	int size;			/* size of module in pages */
 	void* addr;			/* address of module */
 	int state;
 	void (*cleanup)(void);		/* cleanup routine */
+	struct _exceptinfo exceptinfo;
 };
+
+/*
+	prior to modules-2.1 there were no real way to identify
+	which insmod is talking to us Now a special signature must
+	be written here.
+
+	The new module utilities knows about older kernel and write
+	the init in the signature and the cleanup in the init.
+	This is to make sure newer utilities work with older kernel
+	so it is simple for people to upgrade.
+*/
+#define MODULE_2_1_7_SIG	((void*)0x00000217)
 
 struct mod_routines {
+	void *signature;
 	int (*init)(void);		/* initialization routine */
 	void (*cleanup)(void);		/* cleanup routine */
+	struct _exceptinfo exceptinfo;
 };
-
-/* rename_module_symbol(old_name, new_name)  WOW! */
-extern int rename_module_symbol(char *, char *);
-
-/* insert new symbol table */
-extern int register_symtab(struct symbol_table *);
 
 /*
  * The first word of the module contains the use count.
  */
-#define GET_USE_COUNT(module)	(* (int *) (module)->addr)
+#define GET_USE_COUNT(module)	(* (long *) (module)->addr)
 /*
  * define the count variable, and usage macros.
  */
 
-extern int mod_use_count_;
-#if defined(CONFIG_MODVERSIONS) && defined(MODULE) && !defined(__GENKSYMS__)
+#ifdef MODULE
+
+extern long mod_use_count_;
+#define MOD_INC_USE_COUNT      (mod_use_count_++, mod_use_count_ |= MOD_VISITED)
+#define MOD_DEC_USE_COUNT      (mod_use_count_--, mod_use_count_ |= MOD_VISITED)
+#define MOD_IN_USE	       ((mod_use_count_ & ~(MOD_AUTOCLEAN | MOD_VISITED)) != 0)
+
+#ifndef __NO_VERSION__
+#include <linux/version.h>
+char kernel_version[]=UTS_RELEASE;
+#endif
+
+#if defined(MODVERSIONS) && !defined(__GENKSYMS__)
 int Using_Versions; /* gcc will handle this global (used as a flag) correctly */
 #endif
 
-#define MOD_INC_USE_COUNT      mod_use_count_++
-#define MOD_DEC_USE_COUNT      mod_use_count_--
-#define MOD_IN_USE	       (mod_use_count_ != 0)
+#else
+
+#define MOD_INC_USE_COUNT	do { } while (0)
+#define MOD_DEC_USE_COUNT	do { } while (0)
+#define MOD_IN_USE		1
+extern struct module *module_list;
+
+#endif
+
+/* insert new symbol table */
+extern int register_symtab_from(struct symbol_table *, long *);
+#ifdef MODULE
+#define register_symtab(symtab) register_symtab_from(symtab, &mod_use_count_)
+#else
+#define register_symtab(symtab) register_symtab_from(symtab, 0)
+#endif
 
 #endif

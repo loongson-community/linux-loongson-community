@@ -12,6 +12,25 @@
 
 #include <asm/system.h>
 
+#define NR_IHASH 512
+
+/*
+ * Be VERY careful when you access the inode hash table. There
+ * are some rather scary race conditions you need to take care of:
+ *  - P1 tries to open file "xx", calls "iget()" with the proper
+ *    inode number, but blocks because it's not on the list.
+ *  - P2 deletes file "xx", gets the inode (which P1 has just read,
+ *    but P1 hasn't woken up to the fact yet)
+ *  - P2 iput()'s the inode, which now has i_nlink = 0
+ *  - P1 wakes up and has the inode, but now P2 has made that
+ *    inode invalid (but P1 has no way of knowing that).
+ *
+ * The "updating" counter makes sure that when P1 blocks on the
+ * iget(), P2 can't delete the inode from under it because P2
+ * will wait until P1 has been able to update the inode usage
+ * count so that the inode will stay in use until everybody has
+ * closed it..
+ */
 static struct inode_hash_entry {
 	struct inode * inode;
 	int updating;
@@ -19,28 +38,33 @@ static struct inode_hash_entry {
 
 static struct inode * first_inode;
 static struct wait_queue * inode_wait = NULL;
-static int nr_inodes = 0, nr_free_inodes = 0;
+/* Keep these next two contiguous in memory for sysctl.c */
+int nr_inodes = 0, nr_free_inodes = 0;
+int max_inodes = NR_INODE;
 
-static inline int const hashfn(dev_t dev, unsigned int i)
+static inline int const hashfn(kdev_t dev, unsigned int i)
 {
-	return (dev ^ i) % NR_IHASH;
+	return (HASHDEV(dev) ^ i) % NR_IHASH;
 }
 
-static inline struct inode_hash_entry * const hash(dev_t dev, int i)
+static inline struct inode_hash_entry * const hash(kdev_t dev, int i)
 {
 	return hash_table + hashfn(dev, i);
 }
 
-static void insert_inode_free(struct inode *inode)
+static inline void insert_inode_free(struct inode *inode)
 {
-	inode->i_next = first_inode;
-	inode->i_prev = first_inode->i_prev;
-	inode->i_next->i_prev = inode;
-	inode->i_prev->i_next = inode;
+	struct inode * prev, * next = first_inode;
+
 	first_inode = inode;
+	prev = next->i_prev;
+	inode->i_next = next;
+	inode->i_prev = prev;
+	prev->i_next = inode;
+	next->i_prev = inode;
 }
 
-static void remove_inode_free(struct inode *inode)
+static inline void remove_inode_free(struct inode *inode)
 {
 	if (first_inode == inode)
 		first_inode = first_inode->i_next;
@@ -63,7 +87,7 @@ void insert_inode_hash(struct inode *inode)
 	h->inode = inode;
 }
 
-static void remove_inode_hash(struct inode *inode)
+static inline void remove_inode_hash(struct inode *inode)
 {
 	struct inode_hash_entry *h;
 	h = hash(inode->i_dev, inode->i_ino);
@@ -77,7 +101,7 @@ static void remove_inode_hash(struct inode *inode)
 	inode->i_hash_prev = inode->i_hash_next = NULL;
 }
 
-static void put_last_free(struct inode *inode)
+static inline void put_last_free(struct inode *inode)
 {
 	remove_inode_free(inode);
 	inode->i_prev = first_inode->i_prev;
@@ -86,13 +110,13 @@ static void put_last_free(struct inode *inode)
 	inode->i_next->i_prev = inode;
 }
 
-void grow_inodes(void)
+int grow_inodes(void)
 {
 	struct inode * inode;
 	int i;
 
 	if (!(inode = (struct inode*) get_free_page(GFP_KERNEL)))
-		return;
+		return -ENOMEM;
 
 	i=PAGE_SIZE / sizeof(struct inode);
 	nr_inodes += i;
@@ -103,6 +127,7 @@ void grow_inodes(void)
 
 	for ( ; i ; i-- )
 		insert_inode_free(inode++);
+	return 0;
 }
 
 unsigned long inode_init(unsigned long start, unsigned long end)
@@ -148,7 +173,12 @@ void clear_inode(struct inode * inode)
 {
 	struct wait_queue * wait;
 
+	truncate_inode_pages(inode, 0);
 	wait_on_inode(inode);
+	if (IS_WRITABLE(inode)) {
+		if (inode->i_sb && inode->i_sb->dq_op)
+			inode->i_sb->dq_op->drop(inode);
+	}
 	remove_inode_hash(inode);
 	remove_inode_free(inode);
 	wait = ((volatile struct inode *) inode)->i_wait;
@@ -159,7 +189,7 @@ void clear_inode(struct inode * inode)
 	insert_inode_free(inode);
 }
 
-int fs_may_mount(dev_t dev)
+int fs_may_mount(kdev_t dev)
 {
 	struct inode * inode, * next;
 	int i;
@@ -177,7 +207,7 @@ int fs_may_mount(dev_t dev)
 	return 1;
 }
 
-int fs_may_umount(dev_t dev, struct inode * mount_root)
+int fs_may_umount(kdev_t dev, struct inode * mount_root)
 {
 	struct inode * inode;
 	int i;
@@ -186,14 +216,15 @@ int fs_may_umount(dev_t dev, struct inode * mount_root)
 	for (i=0 ; i < nr_inodes ; i++, inode = inode->i_next) {
 		if (inode->i_dev != dev || !inode->i_count)
 			continue;
-		if (inode == mount_root && inode->i_count == 1)
+		if (inode == mount_root && inode->i_count ==
+		    (inode->i_mount != inode ? 1 : 2))
 			continue;
 		return 0;
 	}
 	return 1;
 }
 
-int fs_may_remount_ro(dev_t dev)
+int fs_may_remount_ro(kdev_t dev)
 {
 	struct file * file;
 	int i;
@@ -225,7 +256,7 @@ static void write_inode(struct inode * inode)
 	unlock_inode(inode);
 }
 
-static void read_inode(struct inode * inode)
+static inline void read_inode(struct inode * inode)
 {
 	lock_inode(inode);
 	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->read_inode)
@@ -236,6 +267,13 @@ static void read_inode(struct inode * inode)
 /* POSIX UID/GID verification for setting inode attributes */
 int inode_change_ok(struct inode *inode, struct iattr *attr)
 {
+	/*
+	 *	If force is set do it anyway.
+	 */
+	 
+	if (attr->ia_valid & ATTR_FORCE)
+		return 0;
+
 	/* Make sure a caller can chown */
 	if ((attr->ia_valid & ATTR_UID) &&
 	    (current->fsuid != inode->i_uid ||
@@ -265,8 +303,6 @@ int inode_change_ok(struct inode *inode, struct iattr *attr)
 	if ((attr->ia_valid & ATTR_MTIME_SET) &&
 	    ((current->fsuid != inode->i_uid) && !fsuser()))
 		return -EPERM;
-
-
 	return 0;
 }
 
@@ -300,13 +336,20 @@ void inode_setattr(struct inode *inode, struct iattr *attr)
  * notify_change is called for inode-changing operations such as
  * chown, chmod, utime, and truncate.  It is guaranteed (unlike
  * write_inode) to be called from the context of the user requesting
- * the change.  It is not called for ordinary access-time updates.
- * NFS uses this to get the authentication correct.  -- jrs
+ * the change.
  */
 
 int notify_change(struct inode * inode, struct iattr *attr)
 {
 	int retval;
+
+	attr->ia_ctime = CURRENT_TIME;
+	if (attr->ia_valid & (ATTR_ATIME | ATTR_MTIME)) {
+		if (!(attr->ia_valid & ATTR_ATIME_SET))
+			attr->ia_atime = attr->ia_ctime;
+		if (!(attr->ia_valid & ATTR_MTIME_SET))
+			attr->ia_mtime = attr->ia_ctime;
+	}
 
 	if (inode->i_sb && inode->i_sb->s_op  &&
 	    inode->i_sb->s_op->notify_change) 
@@ -336,7 +379,7 @@ int bmap(struct inode * inode, int block)
 	return 0;
 }
 
-void invalidate_inodes(dev_t dev)
+void invalidate_inodes(kdev_t dev)
 {
 	struct inode * inode, * next;
 	int i;
@@ -348,14 +391,15 @@ void invalidate_inodes(dev_t dev)
 		if (inode->i_dev != dev)
 			continue;
 		if (inode->i_count || inode->i_dirt || inode->i_lock) {
-			printk("VFS: inode busy on removed device %d/%d\n", MAJOR(dev), MINOR(dev));
+			printk("VFS: inode busy on removed device %s\n",
+			       kdevname(dev));
 			continue;
 		}
 		clear_inode(inode);
 	}
 }
 
-void sync_inodes(dev_t dev)
+void sync_inodes(kdev_t dev)
 {
 	int i;
 	struct inode * inode;
@@ -377,9 +421,9 @@ void iput(struct inode * inode)
 	wait_on_inode(inode);
 	if (!inode->i_count) {
 		printk("VFS: iput: trying to free free inode\n");
-		printk("VFS: device %d/%d, inode %lu, mode=0%07o\n",
-			MAJOR(inode->i_rdev), MINOR(inode->i_rdev),
-					inode->i_ino, inode->i_mode);
+		printk("VFS: device %s, inode %lu, mode=0%07o\n",
+		       kdevname(inode->i_rdev), inode->i_ino,
+		       (unsigned int) inode->i_mode);
 		return;
 	}
 	if (inode->i_pipe)
@@ -389,28 +433,46 @@ repeat:
 		inode->i_count--;
 		return;
 	}
+
 	wake_up(&inode_wait);
 	if (inode->i_pipe) {
 		unsigned long page = (unsigned long) PIPE_BASE(*inode);
 		PIPE_BASE(*inode) = NULL;
 		free_page(page);
 	}
+
 	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->put_inode) {
 		inode->i_sb->s_op->put_inode(inode);
 		if (!inode->i_nlink)
 			return;
 	}
+
 	if (inode->i_dirt) {
 		write_inode(inode);	/* we can sleep - so do again */
 		wait_on_inode(inode);
 		goto repeat;
 	}
+
+	if (IS_WRITABLE(inode)) {
+		if (inode->i_sb && inode->i_sb->dq_op) {
+			/* Here we can sleep also. Let's do it again
+			 * Dmitry Gorodchanin 02/11/96 
+			 */
+			inode->i_lock = 1;
+			inode->i_sb->dq_op->drop(inode);
+			unlock_inode(inode);
+			goto repeat;
+		}
+	}
+	
 	inode->i_count--;
+
 	if (inode->i_mmap) {
-		printk("iput: inode %lu on device %d/%d still has mappings.\n",
-			inode->i_ino, MAJOR(inode->i_dev), MINOR(inode->i_dev));
+		printk("iput: inode %lu on device %s still has mappings.\n",
+			inode->i_ino, kdevname(inode->i_dev));
 		inode->i_mmap = NULL;
 	}
+
 	nr_free_inodes++;
 	return;
 }
@@ -419,57 +481,62 @@ struct inode * get_empty_inode(void)
 {
 	static int ino = 0;
 	struct inode * inode, * best;
+	unsigned long badness;
 	int i;
 
-	if (nr_inodes < NR_INODE && nr_free_inodes < (nr_inodes >> 2))
+	if (nr_inodes < max_inodes && nr_free_inodes < (nr_inodes >> 1))
 		grow_inodes();
 repeat:
 	inode = first_inode;
 	best = NULL;
-	for (i = 0; i<nr_inodes; inode = inode->i_next, i++) {
+	badness = 1000;
+	for (i = nr_inodes/2; i > 0; i--,inode = inode->i_next) {
 		if (!inode->i_count) {
-			if (!best)
+			unsigned long i = 999;
+			if (!(inode->i_lock | inode->i_dirt))
+				i = inode->i_nrpages;
+			if (i < badness) {
 				best = inode;
-			if (!inode->i_dirt && !inode->i_lock) {
-				best = inode;
-				break;
+				if (!i)
+					goto found_good;
+				badness = i;
 			}
 		}
 	}
-	if (!best || best->i_dirt || best->i_lock)
-		if (nr_inodes < NR_INODE) {
-			grow_inodes();
+	if (nr_inodes < max_inodes) {
+		if (grow_inodes() == 0)
 			goto repeat;
-		}
-	inode = best;
-	if (!inode) {
+		best = NULL;
+	}
+	if (!best) {
 		printk("VFS: No free inodes - contact Linus\n");
 		sleep_on(&inode_wait);
 		goto repeat;
 	}
-	if (inode->i_lock) {
-		wait_on_inode(inode);
+	if (best->i_lock) {
+		wait_on_inode(best);
 		goto repeat;
 	}
-	if (inode->i_dirt) {
-		write_inode(inode);
+	if (best->i_dirt) {
+		write_inode(best);
 		goto repeat;
 	}
-	if (inode->i_count)
+	if (best->i_count)
 		goto repeat;
-	clear_inode(inode);
-	inode->i_count = 1;
-	inode->i_nlink = 1;
-	inode->i_version = ++event;
-	inode->i_sem.count = 1;
-	inode->i_ino = ++ino;
-	inode->i_dev = -1;
+found_good:
+	clear_inode(best);
+	best->i_count = 1;
+	best->i_nlink = 1;
+	best->i_version = ++event;
+	best->i_sem.count = 1;
+	best->i_ino = ++ino;
+	best->i_dev = 0;
 	nr_free_inodes--;
 	if (nr_free_inodes < 0) {
 		printk ("VFS: get_empty_inode: bad free inode count.\n");
 		nr_free_inodes = 0;
 	}
-	return inode;
+	return best;
 }
 
 struct inode * get_pipe_inode(void)
@@ -499,7 +566,7 @@ struct inode * get_pipe_inode(void)
 	return inode;
 }
 
-struct inode * __iget(struct super_block * sb, int nr, int crossmntp)
+struct inode *__iget(struct super_block * sb, int nr, int crossmntp)
 {
 	static struct wait_queue * update_wait = NULL;
 	struct inode_hash_entry * h;
@@ -514,6 +581,13 @@ repeat:
 		if (inode->i_dev == sb->s_dev && inode->i_ino == nr)
 			goto found_it;
 	if (!empty) {
+		/*
+		 * If we sleep here before we have found an inode
+		 * we need to make sure nobody does anything bad
+		 * to the inode while we sleep, because otherwise
+		 * we may return an inode that is not valid any
+		 * more when we wake up..
+		 */
 		h->updating++;
 		empty = get_empty_inode();
 		if (!--h->updating)

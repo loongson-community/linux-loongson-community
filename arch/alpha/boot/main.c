@@ -13,8 +13,11 @@
 #include <asm/system.h>
 #include <asm/console.h>
 #include <asm/hwrpb.h>
+#include <asm/pgtable.h>
 
 #include <stdarg.h>
+
+#include "ksize.h"
 
 extern int vsprintf(char *, const char *, va_list);
 extern unsigned long switch_to_osf_pal(unsigned long nr,
@@ -24,13 +27,36 @@ extern unsigned long switch_to_osf_pal(unsigned long nr,
 int printk(const char * fmt, ...)
 {
 	va_list args;
-	int i;
+	int i, j, written, remaining, num_nl;
 	static char buf[1024];
+	char * str;
 
 	va_start(args, fmt);
 	i = vsprintf(buf, fmt, args);
 	va_end(args);
-	puts(buf,i);
+
+	/* expand \n into \r\n: */
+
+	num_nl = 0;
+	for (j = 0; j < i; ++j) {
+	    if (buf[j] == '\n')
+	    	++num_nl;
+	}
+	remaining = i + num_nl;
+	for (j = i - 1; j >= 0; --j) {
+	    buf[j + num_nl] = buf[j];
+	    if (buf[j] == '\n') {
+	    	--num_nl;
+		buf[j + num_nl] = '\r';
+	    }
+	}
+
+	str = buf;
+	do {
+	    written = puts(str, remaining);
+	    remaining -= written;
+	    str += written;
+	} while (remaining > 0);
 	return i;
 }
 
@@ -125,10 +151,8 @@ void pal_init(void)
 	printk("Ok (rev %lx)\n", rev);
 	/* remove the old virtual page-table mapping */
 	L1[1] = 0;
-	invalidate_all();
+	flush_tlb_all();
 }
-
-extern int _end;
 
 static inline long openboot(void)
 {
@@ -149,7 +173,8 @@ static inline long close(long dev)
 static inline long load(long dev, unsigned long addr, unsigned long count)
 {
 	char bootfile[256];
-	long result;
+	extern char _end;
+	long result, boot_size = &_end - (char *) BOOT_ADDR;
 
 	result = dispatch(CCB_GET_ENV, ENV_BOOTED_FILE, bootfile, 255);
 	if (result < 0)
@@ -157,8 +182,9 @@ static inline long load(long dev, unsigned long addr, unsigned long count)
 	result &= 255;
 	bootfile[result] = '\0';
 	if (result)
-		printk("Boot file specification (%s) not implemented\n", bootfile);
-	return dispatch(CCB_READ, dev, count, addr, BOOT_SIZE/512 + 1);
+		printk("Boot file specification (%s) not implemented\n",
+		       bootfile);
+	return dispatch(CCB_READ, dev, count, addr, boot_size/512 + 1);
 }
 
 /*
@@ -195,19 +221,20 @@ void start_kernel(void)
 	}
 	dev &= 0xffffffff;
 	printk("Loading vmlinux ...");
-	i = load(dev, START_ADDR, START_SIZE);
+	i = load(dev, START_ADDR, KERNEL_SIZE);
 	close(dev);
-	if (i != START_SIZE) {
+	if (i != KERNEL_SIZE) {
 		printk("Failed (%lx)\n", i);
 		return;
 	}
 
 	nbytes = dispatch(CCB_GET_ENV, ENV_BOOTED_OSFLAGS,
 			  envval, sizeof(envval));
-	if (nbytes > 0) {
-		envval[nbytes] = '\0';
-		strcpy((char*)ZERO_PGE, envval);
+	if (nbytes < 0) {
+		nbytes = 0;
 	}
+	envval[nbytes] = '\0';
+	strcpy((char*)ZERO_PAGE, envval);
 
 	printk(" Ok\nNow booting the kernel\n");
 	runkernel();

@@ -4,6 +4,7 @@
 #include <linux/major.h>
 #include <linux/sched.h>
 #include <linux/genhd.h>
+#include <linux/tqueue.h>
 
 /*
  * Ok, this is an expanded form so that we can use the same
@@ -12,7 +13,14 @@
  * for read/write completion.
  */
 struct request {
-	int dev;		/* -1 if no request */
+	volatile int rq_status;	/* should split this into a few status bits */
+#define RQ_INACTIVE		(-1)
+#define RQ_ACTIVE		1
+#define RQ_SCSI_BUSY		0xffff
+#define RQ_SCSI_DONE		0xfffe
+#define RQ_SCSI_DISCONNECTING	0xffe0
+
+	kdev_t rq_dev;
 	int cmd;		/* READ or WRITE */
 	int errors;
 	unsigned long sector;
@@ -28,6 +36,8 @@ struct request {
 struct blk_dev_struct {
 	void (*request_fn)(void);
 	struct request * current_request;
+	struct request   plug;
+	struct tq_struct plug_tq;
 };
 
 struct sec_size {
@@ -39,6 +49,10 @@ extern struct sec_size * blk_sec[MAX_BLKDEV];
 extern struct blk_dev_struct blk_dev[MAX_BLKDEV];
 extern struct wait_queue * wait_for_request;
 extern void resetup_one_dev(struct gendisk *dev, int drive);
+extern void unplug_device(void * data);
+
+/* md needs this function to remap requests */
+extern int md_map (int minor, kdev_t *rdev, unsigned long *rsector, unsigned long size);
 
 extern int * blk_size[MAX_BLKDEV];
 

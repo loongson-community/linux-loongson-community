@@ -1,10 +1,17 @@
 /*
  * gus_vol.c - Compute volume for GUS.
- *
- * Greg Lee 1993.
  */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
 #include "sound_config.h"
-#ifndef EXCLUDE_GUS
+#ifdef CONFIG_GUSHW
 #include "gus_linearvol.h"
 
 #define GUS_VOLUME	gus_wave_volume
@@ -74,7 +81,7 @@ gus_adagio_vol (int vel, int mainv, int xpn, int voicev)
     return ((15 << 8) | 255);
 
   /*
-   * Convert to gus's logarithmic form with 4 bit exponent i and 8 bit
+   * Convert to GUS's logarithmic form with 4 bit exponent i and 8 bit
    * mantissa m.
    */
   n = x;
@@ -138,10 +145,10 @@ gus_linear_vol (int vol, int mainvol)
   else if (mainvol >= 127)
     mainvol = 127;
 #else
-  mainvol = 128;
+  mainvol = 127;
 #endif
 
-  return gus_linearvol[(((vol * mainvol) / 128) * mixer_mainvol) / 100];
+  return gus_linearvol[(((vol * mainvol) / 127) * mixer_mainvol) / 100];
 }
 
 #endif

@@ -2,18 +2,25 @@
 # Makefile for alpha-specific library files..
 #
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) -c -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
+OBJS  = __divqu.o __remqu.o __divlu.o __remlu.o memset.o memcpy.o io.o \
+	checksum.o csum_partial_copy.o strlen.o \
+	strcat.o strcpy.o strncat.o strncpy.o stxcpy.o stxncpy.o \
+	strchr.o strrchr.o \
+	copy_user.o clear_user.o strncpy_from_user.o strlen_user.o
 
-OBJS  = __divqu.o __remqu.o __divlu.o __remlu.o memset.o memcpy.o io.o
+ifeq($(CONFIG_IPV6),y)
+  OBJS += csum_ipv6_magic.o
+else
+  ifeq($(CONFIG_IPV6),m)
+    OBJS += csum_ipv6_magic.o
+  endif
+endif
 
 lib.a: $(OBJS)
 	$(AR) rcs lib.a $(OBJS)
-	sync
+
+memset.o: memset.S
+	$(CC) -c -o memset.o memset.S
 
 __divqu.o: divide.S
 	$(CC) -DDIV -c -o __divqu.o divide.S
@@ -29,10 +36,4 @@ __remlu.o: divide.S
 
 dep:
 
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
-
+include $(TOPDIR)/Rules.make

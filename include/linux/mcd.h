@@ -25,7 +25,11 @@
 #define MCD_BASE_ADDR	        0x300
 
 /* *** change this to set the interrupt number */
-#define MCD_INTR_NR		10
+#define MCD_INTR_NR     11
+
+/* *** make the following line uncommented, if you're sure,
+ * *** all configuration is done */
+/* #define I_WAS_HERE */
 
 /* Increase this if you get lots of timeouts */
 #define MCD_STATUS_DELAY	200
@@ -105,3 +109,8 @@ struct mcd_Toc {
 	struct msf	trackTime;
 	struct msf	diskTime;
 };
+
+#ifndef I_WAS_HERE
+#warning You have not edited mcd.h
+#warning Perhaps irq and i/o settings are wrong.
+#endif

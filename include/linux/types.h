@@ -1,73 +1,85 @@
 #ifndef _LINUX_TYPES_H
 #define _LINUX_TYPES_H
 
+#include <linux/posix_types.h>
 #include <asm/types.h>
 
-#ifndef NULL
-#define NULL ((void *) 0)
-#endif
+#ifndef __KERNEL_STRICT_NAMES
+
+typedef __kernel_fd_set		fd_set;
+typedef __kernel_dev_t		dev_t;
+typedef __kernel_ino_t		ino_t;
+typedef __kernel_mode_t		mode_t;
+typedef __kernel_nlink_t	nlink_t;
+typedef __kernel_off_t		off_t;
+typedef __kernel_pid_t		pid_t;
+typedef __kernel_uid_t		uid_t;
+typedef __kernel_gid_t		gid_t;
+typedef __kernel_daddr_t	daddr_t;
+typedef __kernel_key_t		key_t;
 
 #if defined(__GNUC__) && !defined(__STRICT_ANSI__)
-#define _LOFF_T
-typedef long long loff_t;
+typedef __kernel_loff_t		loff_t;
+#endif
+
+/*
+ * The following typedefs are also protected by individual ifdefs for
+ * historical reasons:
+ */
+#ifndef _SIZE_T
+#define _SIZE_T
+typedef __kernel_size_t		size_t;
+#endif
+
+#ifndef _SSIZE_T
+#define _SSIZE_T
+typedef __kernel_ssize_t	ssize_t;
+#endif
+
+#ifndef _PTRDIFF_T
+#define _PTRDIFF_T
+typedef __kernel_ptrdiff_t	ptrdiff_t;
+#endif
+
+#ifndef _TIME_T
+#define _TIME_T
+typedef __kernel_time_t		time_t;
+#endif
+
+#ifndef _CLOCK_T
+#define _CLOCK_T
+typedef __kernel_clock_t	clock_t;
+#endif
+
+#ifndef _CADDR_T
+#define _CADDR_T
+typedef __kernel_caddr_t	caddr_t;
 #endif
 
 /* bsd */
-typedef unsigned char u_char;
-typedef unsigned short u_short;
-typedef unsigned int u_int;
-typedef unsigned long u_long;
+typedef unsigned char		u_char;
+typedef unsigned short		u_short;
+typedef unsigned int		u_int;
+typedef unsigned long		u_long;
 
 /* sysv */
-typedef unsigned char unchar;
-typedef unsigned short ushort;
-typedef unsigned int uint;
-typedef unsigned long ulong;
+typedef unsigned char		unchar;
+typedef unsigned short		ushort;
+typedef unsigned int		uint;
+typedef unsigned long		ulong;
 
-typedef char *caddr_t;
-
-typedef unsigned char cc_t;
-typedef unsigned int speed_t;
-typedef unsigned int tcflag_t;
+#endif /* __KERNEL_STRICT_NAMES */
 
 /*
- * This allows for 256 file descriptors: if NR_OPEN is ever grown beyond that
- * you'll have to change this too. But 256 fd's seem to be enough even for such
- * "real" unices like SunOS, so hopefully this is one limit that doesn't have
- * to be changed.
- *
- * Note that POSIX wants the FD_CLEAR(fd,fdsetp) defines to be in <sys/time.h>
- * (and thus <linux/time.h>) - but this is a more logical place for them. Solved
- * by having dummy defines in <sys/time.h>.
+ * Below are truly Linux-specific types that should never collide with
+ * any application/library that wants linux/types.h.
  */
-
-/*
- * Those macros may have been defined in <gnu/types.h>. But we always
- * use the ones here. 
- */
-#undef __FDSET_LONGS
-#define __FDSET_LONGS 8
-
-typedef struct fd_set {
-	unsigned long fds_bits [__FDSET_LONGS];
-} fd_set;
-
-#undef __NFDBITS
-#define __NFDBITS	(8 * sizeof(unsigned long))
-
-#undef __FD_SETSIZE
-#define __FD_SETSIZE	(__FDSET_LONGS*__NFDBITS)
-
-/*
- * Include machine dependent assembler stuff
- */
-#include <asm/types.h>
 
 struct ustat {
-	daddr_t f_tfree;
-	ino_t f_tinode;
-	char f_fname[6];
-	char f_fpack[6];
+	__kernel_daddr_t	f_tfree;
+	__kernel_ino_t		f_tinode;
+	char			f_fname[6];
+	char			f_fpack[6];
 };
 
-#endif
+#endif /* _LINUX_TYPES_H */

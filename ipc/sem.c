@@ -32,13 +32,14 @@
  */
 
 #include <linux/errno.h>
-#include <asm/segment.h>
 #include <linux/string.h>
 #include <linux/sched.h>
 #include <linux/sem.h>
 #include <linux/ipc.h>
 #include <linux/stat.h>
 #include <linux/malloc.h>
+
+#include <asm/uaccess.h>
 
 extern int ipcperms (struct ipc_perm *ipcp, short semflg);
 static int newary (key_t, int, int);
@@ -103,8 +104,7 @@ found:
 	if (!sma) {
 		semary[id] = (struct semid_ds *) IPC_UNUSED;
 		used_sems -= nsems;
-		if (sem_lock)
-			wake_up (&sem_lock);
+		wake_up (&sem_lock);
 		return -ENOMEM;
 	}
 	memset (sma, 0, size);
@@ -124,12 +124,11 @@ found:
 		max_semid = id;
 	used_semids++;
 	semary[id] = sma;
-	if (sem_lock)
-		wake_up (&sem_lock);
+	wake_up (&sem_lock);
 	return (unsigned int) sma->sem_perm.seq * SEMMNI + id;
 }
 
-int sys_semget (key_t key, int nsems, int semflg)
+asmlinkage int sys_semget (key_t key, int nsems, int semflg)
 {
 	int id;
 	struct semid_ds *sma;
@@ -357,7 +356,7 @@ static void freeary (int id)
 	kfree(sma);
 }
 
-int sys_semctl (int semid, int semnum, int cmd, union semun arg)
+asmlinkage int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 {
 	struct semid_ds *buf = NULL;
 	struct semid_ds tbuf;
@@ -395,7 +394,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 		i = verify_area(VERIFY_WRITE, tmp, sizeof(struct seminfo));
 		if (i)
 			return i;
-		memcpy_tofs (tmp, &seminfo, sizeof(struct seminfo));
+		copy_to_user (tmp, &seminfo, sizeof(struct seminfo));
 		return max_semid;
 	}
 
@@ -416,7 +415,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 		tbuf.sem_otime  = sma->sem_otime;
 		tbuf.sem_ctime  = sma->sem_ctime;
 		tbuf.sem_nsems  = sma->sem_nsems;
-		memcpy_tofs (buf, &tbuf, sizeof(*buf));
+		copy_to_user (buf, &tbuf, sizeof(*buf));
 		return id;
 	}
 
@@ -476,7 +475,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 		array = arg.array;
 		if ((i = verify_area (VERIFY_READ, array, nsems*sizeof(ushort))))
 			return i;
-		memcpy_fromfs (sem_io, array, nsems*sizeof(ushort));
+		copy_from_user (sem_io, array, nsems*sizeof(ushort));
 		for (i = 0; i < nsems; i++)
 			if (sem_io[i] > SEMVMX)
 				return -ERANGE;
@@ -490,7 +489,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 		buf = arg.buf;
 		if ((i = verify_area (VERIFY_READ, buf, sizeof (*buf))))
 			return i;
-		memcpy_fromfs (&tbuf, buf, sizeof (*buf));
+		copy_from_user (&tbuf, buf, sizeof (*buf));
 		break;
 	}
 
@@ -505,7 +504,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 			return -EACCES;
 		for (i = 0; i < sma->sem_nsems; i++)
 			sem_io[i] = sma->sem_base[i].semval;
-		memcpy_tofs (array, sem_io, nsems*sizeof(ushort));
+		copy_to_user (array, sem_io, nsems*sizeof(ushort));
 		break;
 	case SETVAL:
 		if (ipcperms (ipcp, S_IWUGO))
@@ -534,7 +533,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 		tbuf.sem_otime  = sma->sem_otime;
 		tbuf.sem_ctime  = sma->sem_ctime;
 		tbuf.sem_nsems  = sma->sem_nsems;
-		memcpy_tofs (buf, &tbuf, sizeof(*buf));
+		copy_to_user (buf, &tbuf, sizeof(*buf));
 		break;
 	case SETALL:
 		if (ipcperms (ipcp, S_IWUGO))
@@ -554,7 +553,7 @@ int sys_semctl (int semid, int semnum, int cmd, union semun arg)
 	return 0;
 }
 
-int sys_semop (int semid, struct sembuf *tsops, unsigned nsops)
+asmlinkage int sys_semop (int semid, struct sembuf *tsops, unsigned nsops)
 {
 	int i, id, size, error;
 	struct semid_ds *sma;
@@ -570,7 +569,7 @@ int sys_semop (int semid, struct sembuf *tsops, unsigned nsops)
 		return -EFAULT;
 	if ((i = verify_area (VERIFY_READ, tsops, nsops * sizeof(*tsops))))
 		return i;
-	memcpy_fromfs (sops, tsops, nsops * sizeof(*tsops));
+	copy_from_user (sops, tsops, nsops * sizeof(*tsops));
 	id = (unsigned int) semid % SEMMNI;
 	if ((sma = semary[id]) == IPC_UNUSED || sma == IPC_NOID)
 		return -EINVAL;

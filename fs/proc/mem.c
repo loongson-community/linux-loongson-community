@@ -11,7 +11,7 @@
 #include <linux/mm.h>
 
 #include <asm/page.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
 
@@ -23,35 +23,83 @@
  */
 #define mem_write NULL
 
-static int mem_read(struct inode * inode, struct file * file,char * buf, int count)
+static int check_range(struct mm_struct * mm, unsigned long addr, int count)
+{
+	struct vm_area_struct *vma;
+	int retval;
+
+	vma = find_vma(mm, addr);
+	if (!vma)
+		return -EACCES;
+	if (vma->vm_start > addr)
+		return -EACCES;
+	if (!(vma->vm_flags & VM_READ))
+		return -EACCES;
+	while ((retval = vma->vm_end - addr) < count) {
+		struct vm_area_struct *next = vma->vm_next;
+		if (!next)
+			break;
+		if (vma->vm_end != next->vm_start)
+			break;
+		if (!(next->vm_flags & VM_READ))
+			break;
+		vma = next;
+	}
+	if (retval > count)
+		retval = count;
+	return retval;
+}
+
+static struct task_struct * get_task(int pid)
+{
+	struct task_struct * tsk = current;
+
+	if (pid != tsk->pid) {
+		int i;
+		tsk = NULL;
+		for (i = 1 ; i < NR_TASKS ; i++)
+			if (task[i] && task[i]->pid == pid) {
+				tsk = task[i];
+				break;
+			}
+		/*
+		 * allow accesses only under the same circumstances
+		 * that we would allow ptrace to work
+		 */
+		if (tsk) {
+			if (!(tsk->flags & PF_PTRACED)
+			    || tsk->state != TASK_STOPPED
+			    || tsk->p_pptr != current)
+				tsk = NULL;
+		}
+	}
+	return tsk;
+}
+
+static long mem_read(struct inode * inode, struct file * file,
+	char * buf, unsigned long count)
 {
 	pgd_t *page_dir;
 	pmd_t *page_middle;
 	pte_t pte;
 	char * page;
 	struct task_struct * tsk;
-	unsigned long addr, pid;
+	unsigned long addr;
 	char *tmp;
 	int i;
 
-	if (count < 0)
-		return -EINVAL;
-	pid = inode->i_ino;
-	pid >>= 16;
-	tsk = NULL;
-	for (i = 1 ; i < NR_TASKS ; i++)
-		if (task[i] && task[i]->pid == pid) {
-			tsk = task[i];
-			break;
-		}
+	tsk = get_task(inode->i_ino >> 16);
 	if (!tsk)
-		return -EACCES;
+		return -ESRCH;
 	addr = file->f_pos;
+	count = check_range(tsk->mm, addr, count);
+	if (count < 0)
+		return count;
 	tmp = buf;
 	while (count > 0) {
 		if (current->signal & ~current->blocked)
 			break;
-		page_dir = pgd_offset(tsk,addr);
+		page_dir = pgd_offset(tsk->mm,addr);
 		if (pgd_none(*page_dir))
 			break;
 		if (pgd_bad(*page_dir)) {
@@ -74,7 +122,7 @@ static int mem_read(struct inode * inode, struct file * file,char * buf, int cou
 		i = PAGE_SIZE-(addr & ~PAGE_MASK);
 		if (i > count)
 			i = count;
-		memcpy_tofs(tmp, page, i);
+		copy_to_user(tmp, page, i);
 		addr += i;
 		tmp += i;
 		count -= i;
@@ -85,30 +133,22 @@ static int mem_read(struct inode * inode, struct file * file,char * buf, int cou
 
 #ifndef mem_write
 
-static int mem_write(struct inode * inode, struct file * file,char * buf, int count)
+static long mem_write(struct inode * inode, struct file * file,
+	char * buf, unsigned long count)
 {
 	pgd_t *page_dir;
 	pmd_t *page_middle;
 	pte_t pte;
 	char * page;
 	struct task_struct * tsk;
-	unsigned long addr, pid;
+	unsigned long addr;
 	char *tmp;
 	int i;
 
-	if (count < 0)
-		return -EINVAL;
 	addr = file->f_pos;
-	pid = inode->i_ino;
-	pid >>= 16;
-	tsk = NULL;
-	for (i = 1 ; i < NR_TASKS ; i++)
-		if (task[i] && task[i]->pid == pid) {
-			tsk = task[i];
-			break;
-		}
+	tsk = get_task(inode->i_ino >> 16);
 	if (!tsk)
-		return -EACCES;
+		return -ESRCH;
 	tmp = buf;
 	while (count > 0) {
 		if (current->signal & ~current->blocked)
@@ -138,7 +178,7 @@ static int mem_write(struct inode * inode, struct file * file,char * buf, int co
 		i = PAGE_SIZE-(addr & ~PAGE_MASK);
 		if (i > count)
 			i = count;
-		memcpy_fromfs(page, tmp, i);
+		copy_from_user(page, tmp, i);
 		addr += i;
 		tmp += i;
 		count -= i;
@@ -153,7 +193,8 @@ static int mem_write(struct inode * inode, struct file * file,char * buf, int co
 
 #endif
 
-static int mem_lseek(struct inode * inode, struct file * file, off_t offset, int orig)
+static long long mem_lseek(struct inode * inode, struct file * file,
+	long long offset, int orig)
 {
 	switch (orig) {
 		case 0:
@@ -179,19 +220,13 @@ int mem_mmap(struct inode * inode, struct file * file,
 	pte_t *src_table, *dest_table;
 	unsigned long stmp, dtmp;
 	struct vm_area_struct *src_vma = NULL;
-	int i;
 
 	/* Get the source's task information */
 
-	tsk = NULL;
-	for (i = 1 ; i < NR_TASKS ; i++)
-		if (task[i] && task[i]->pid == (inode->i_ino >> 16)) {
-			tsk = task[i];
-			break;
-		}
+	tsk = get_task(inode->i_ino >> 16);
 
 	if (!tsk)
-		return -EACCES;
+		return -ESRCH;
 
 	/* Ensure that we have a valid source area.  (Has to be mmap'ed and
 	 have valid page information.)  We can't map shared memory at the
@@ -206,7 +241,7 @@ int mem_mmap(struct inode * inode, struct file * file,
 		if (!src_vma || (src_vma->vm_flags & VM_SHM))
 			return -EINVAL;
 
-		src_dir = pgd_offset(tsk, stmp);
+		src_dir = pgd_offset(tsk->mm, stmp);
 		if (pgd_none(*src_dir))
 			return -EINVAL;
 		if (pgd_bad(*src_dir)) {
@@ -237,15 +272,17 @@ int mem_mmap(struct inode * inode, struct file * file,
 	stmp    = vma->vm_offset;
 	dtmp    = vma->vm_start;
 
+	flush_cache_range(vma->vm_mm, vma->vm_start, vma->vm_end);
+	flush_cache_range(src_vma->vm_mm, src_vma->vm_start, src_vma->vm_end);
 	while (dtmp < vma->vm_end) {
 		while (src_vma && stmp > src_vma->vm_end)
 			src_vma = src_vma->vm_next;
 
-		src_dir = pgd_offset(tsk, stmp);
+		src_dir = pgd_offset(tsk->mm, stmp);
 		src_middle = pmd_offset(src_dir, stmp);
 		src_table = pte_offset(src_middle, stmp);
 
-		dest_dir = pgd_offset(current, dtmp);
+		dest_dir = pgd_offset(current->mm, dtmp);
 		dest_middle = pmd_alloc(dest_dir, dtmp);
 		if (!dest_middle)
 			return -ENOMEM;
@@ -254,20 +291,21 @@ int mem_mmap(struct inode * inode, struct file * file,
 			return -ENOMEM;
 
 		if (!pte_present(*src_table))
-			do_no_page(src_vma, stmp, 1);
+			do_no_page(tsk, src_vma, stmp, 1);
 
 		if ((vma->vm_flags & VM_WRITE) && !pte_write(*src_table))
-			do_wp_page(src_vma, stmp, 1);
+			do_wp_page(tsk, src_vma, stmp, 1);
 
-		*src_table = pte_mkdirty(*src_table);
-		*dest_table = *src_table;
-		mem_map[MAP_NR(pte_page(*src_table))]++;
+		set_pte(src_table, pte_mkdirty(*src_table));
+		set_pte(dest_table, *src_table);
+		mem_map[MAP_NR(pte_page(*src_table))].count++;
 
 		stmp += PAGE_SIZE;
 		dtmp += PAGE_SIZE;
 	}
 
-	invalidate();
+	flush_tlb_range(vma->vm_mm, vma->vm_start, vma->vm_end);
+	flush_tlb_range(src_vma->vm_mm, src_vma->vm_start, src_vma->vm_end);
 	return 0;
 }
 
@@ -297,6 +335,8 @@ struct inode_operations proc_mem_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */

@@ -14,6 +14,14 @@
  *		Alan Cox	:	Fixed oddments for NET3.014
  *		Alan Cox	:	Rejig for NET3.029 snap #3
  *		Alan Cox	: 	Fixed NET3.029 bugs and sped up
+ *		Larry McVoy	:	Tiny tweak to double performance
+ *		Alan Cox	:	Backed out LMV's tweak - the linux mm
+ *					can't take it...
+ *              Michael Griffith:       Don't bother computing the checksums
+ *                                      on packets received on the loopback
+ *                                      interface.
+ *		Alexey Kuznetsov:	Potential hang under some extreme
+ *					cases removed.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -31,10 +39,9 @@
 #include <linux/errno.h>
 #include <linux/fcntl.h>
 #include <linux/in.h>
-#include <linux/if_ether.h>	/* For the statistics structure. */
 
 #include <asm/system.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 
 #include <linux/inet.h>
@@ -42,28 +49,23 @@
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
+#include <linux/if_ether.h>	/* For the statistics structure. */
+#include <linux/if_arp.h>	/* For ARPHRD_ETHER */
 
+#define LOOPBACK_MTU (PAGE_SIZE*7/8)
 
+/*
+ * The higher levels take care of making this non-reentrant (it's
+ * called with bh's disabled).
+ */
 static int loopback_xmit(struct sk_buff *skb, struct device *dev)
 {
 	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
-	unsigned long flags;
 	int unlock=1;
   
 	if (skb == NULL || dev == NULL) 
 		return(0);
 
-	save_flags(flags);
-	cli();
-	if (dev->tbusy != 0) 
-	{
-		restore_flags(flags);
-		stats->tx_errors++;
-		return(1);
-	}
-	dev->tbusy = 1;
-	restore_flags(flags);
-  
 	/*
 	 *	Optimise so buffers with skb->free=1 are not copied but
 	 *	instead are lobbed from tx queue to rx queue 
@@ -73,9 +75,9 @@ static int loopback_xmit(struct sk_buff *skb, struct device *dev)
 	{
 	  	struct sk_buff *skb2=skb;
 	  	skb=skb_clone(skb, GFP_ATOMIC);		/* Clone the buffer */
+	  	dev_kfree_skb(skb2, FREE_WRITE);
 	  	if(skb==NULL)
-	  		return 1;
-	  	dev_kfree_skb(skb2, FREE_READ);
+	  		return 0;
   		unlock=0;
 	}
 	else if(skb->sk)
@@ -84,25 +86,21 @@ static int loopback_xmit(struct sk_buff *skb, struct device *dev)
 	  	 *	Packet sent but looped back around. Cease to charge
 	  	 *	the socket for the frame.
 	  	 */
-		save_flags(flags);
-	  	cli();
-	  	skb->sk->wmem_alloc-=skb->mem_len;
+		atomic_sub(skb->truesize, &skb->sk->wmem_alloc);
 	  	skb->sk->write_space(skb->sk);
-	  	restore_flags(flags);
 	}
 
 	skb->protocol=eth_type_trans(skb,dev);
 	skb->dev=dev;
-	save_flags(flags);
-	cli();
+#ifndef LOOPBACK_MUST_CHECKSUM
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+#endif
 	netif_rx(skb);
 	if(unlock)
 	  	skb_device_unlock(skb);
-	restore_flags(flags);
   
+	stats->rx_packets++;
 	stats->tx_packets++;
-
-	dev->tbusy = 0;
 
 	return(0);
 }
@@ -123,25 +121,27 @@ int loopback_init(struct device *dev)
 {
 	int i;
 
-	dev->mtu		= 2000;			/* MTU			*/
+	dev->mtu		= LOOPBACK_MTU;
 	dev->tbusy		= 0;
 	dev->hard_start_xmit	= loopback_xmit;
-	dev->open		= NULL;
 	dev->hard_header	= eth_header;
 	dev->hard_header_len	= ETH_HLEN;		/* 14			*/
 	dev->addr_len		= ETH_ALEN;		/* 6			*/
-	dev->type		= ARPHRD_ETHER;		/* 0x0001		*/
+	dev->tx_queue_len	= 50000;		/* No limit on loopback */
+	dev->type		= ARPHRD_LOOPBACK;	/* 0x0001		*/
 	dev->rebuild_header	= eth_rebuild_header;
 	dev->open		= loopback_open;
 	dev->flags		= IFF_LOOPBACK|IFF_BROADCAST;
 	dev->family		= AF_INET;
 #ifdef CONFIG_INET    
 	dev->pa_addr		= in_aton("127.0.0.1");
-	dev->pa_brdaddr	= in_aton("127.255.255.255");
+	dev->pa_brdaddr		= in_aton("127.255.255.255");
 	dev->pa_mask		= in_aton("255.0.0.0");
-	dev->pa_alen		= sizeof(unsigned long);
+	dev->pa_alen		= 4;
 #endif  
 	dev->priv = kmalloc(sizeof(struct enet_statistics), GFP_KERNEL);
+	if (dev->priv == NULL)
+			return -ENOMEM;
 	memset(dev->priv, 0, sizeof(struct enet_statistics));
 	dev->get_stats = get_stats;
 

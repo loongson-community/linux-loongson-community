@@ -33,10 +33,6 @@
 #define NFS_PROC_DEBUG
 #endif
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
 #include <linux/param.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -46,7 +42,9 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/in.h>
-#include <asm/segment.h>
+#include <linux/pagemap.h>
+
+#include <asm/uaccess.h>
 
 #ifdef NFS_PROC_DEBUG
 
@@ -144,26 +142,22 @@ static inline int *xdr_decode_string2(int *p, char **string, unsigned int *len,
 }
 
 
-static inline int *xdr_encode_data(int *p, char *data, int len)
+static inline int *xdr_encode_data(int *p, const char *data, int len)
 {
 	int quadlen = QUADLEN(len);
 	
 	p[quadlen] = 0;
 	*p++ = htonl(len);
-	memcpy_fromfs(p, data, len);
+	copy_from_user(p, data, len);
 	return p + quadlen;
 }
 
-static inline int *xdr_decode_data(int *p, char *data, int *lenp, int maxlen,
-			int fs)
+static inline int *xdr_decode_data(int *p, char *data, int *lenp, int maxlen)
 {
 	unsigned len = *lenp = ntohl(*p++);
 	if (len > maxlen)
 		return NULL;
-	if (fs)
-		memcpy_tofs(data, p, len);
-	else
-		memcpy(data, p, len);
+	memcpy(data, p, len);
 	return p + QUADLEN(len);
 }
 
@@ -377,7 +371,7 @@ retry:
 }
 
 int nfs_proc_read(struct nfs_server *server, struct nfs_fh *fhandle,
-	  int offset, int count, char *data, struct nfs_fattr *fattr, int fs)
+	  int offset, int count, char *data, struct nfs_fattr *fattr)
 {
 	int *p, *p0;
 	int status;
@@ -401,7 +395,7 @@ retry:
 		status = -errno_NFSERR_IO;
 	else if ((status = ntohl(*p++)) == NFS_OK) {
 		p = xdr_decode_fattr(p, fattr);
-		if (!(p = xdr_decode_data(p, data, &len, count, fs))) {
+		if (!(p = xdr_decode_data(p, data, &len, count))) {
 			printk("nfs_proc_read: giant data size\n"); 
 			status = -errno_NFSERR_IO;
 		}
@@ -422,12 +416,90 @@ retry:
 	return status;
 }
 
-int nfs_proc_write(struct nfs_server *server, struct nfs_fh *fhandle,
-		   int offset, int count, char *data, struct nfs_fattr *fattr)
+int
+nfs_proc_read_request(struct rpc_ioreq *req, struct nfs_server *server,
+			struct nfs_fh *fh, unsigned long offset,
+			unsigned long count, __u32 *buf)
+{
+	__u32	*p, *p0;
+	int	len;
+
+	PRINTK("NFS reqst read %ld @ %ld\n", count, offset);
+	if (!(p0 = nfs_rpc_alloc(NFS_SLACK_SPACE)))
+		return -EIO;
+
+	p = nfs_rpc_header(p0, NFSPROC_READ, 0);
+	p = xdr_encode_fhandle(p, fh);
+	*p++ = htonl(offset);
+	*p++ = htonl(count);
+	*p++ = htonl(count); /* traditional, could be any value */
+	req->rq_svec[0].iov_base = p0;
+	req->rq_svec[0].iov_len  = (p - p0) << 2;
+	req->rq_slen = (p - p0) << 2;
+	req->rq_snr = 1;
+
+	len = (6 + 1 + 17 + 1);		/* standard READ reply header */
+	req->rq_rvec[0].iov_base = p0;
+	req->rq_rvec[0].iov_len  = len << 2;
+	req->rq_rvec[1].iov_base = buf;
+	req->rq_rvec[1].iov_len  = count;
+	req->rq_rvec[2].iov_base = p0 + len;		/* spill buffer */
+	req->rq_rvec[2].iov_len  = (NFS_SLACK_SPACE - len) << 2;
+	req->rq_rlen = count + NFS_SLACK_SPACE;
+	req->rq_rnr = 3;
+
+	req->rq_addr = &server->toaddr;
+	req->rq_alen = sizeof(server->toaddr);
+
+	return rpc_transmit(server->rsock, req);
+}
+
+int
+nfs_proc_read_reply(struct rpc_ioreq *req, struct nfs_fattr *fattr)
+{
+	int		status;
+	__u32		*p0, *p;
+	int		count;
+
+	p0 = (__u32 *) req->rq_rvec[0].iov_base;
+
+	if (!(p = nfs_rpc_verify(p0))) {
+		/* Tell the upper layers to retry */
+		status = -EAGAIN;
+		/* status = -errno_NFSERR_IO; */
+	} else if ((status = ntohl(*p++)) == NFS_OK) {
+		p = xdr_decode_fattr(p, fattr);
+		count = ntohl(*p++);
+		if (p != req->rq_rvec[2].iov_base) {
+			/* unexpected RPC reply header size. punt.
+			 * fixme: move iovec contents to align data
+			 * on page boundary and adjust RPC header size
+			 * guess. */
+			status = -errno_NFSERR_IO;
+			PRINTK("NFS reply read odd header size %d\n",
+					(p - p0) << 2);
+		} else {
+			status = count;
+			PRINTK("NFS reply read %d\n", count);
+		}
+	}
+	else {
+		PRINTK("NFS reply read failed = %d\n", status);
+		status = -nfs_stat_to_errno(status);
+	}
+	nfs_rpc_free(p0);
+	return status;
+}
+
+int nfs_proc_write(struct inode * inode, int offset,
+		   int count, const char *data, struct nfs_fattr *fattr)
 {
 	int *p, *p0;
 	int status;
 	int ruid = 0;
+	void * kdata;	/* address of kernel copy */
+	struct nfs_server * server = NFS_SERVER(inode);
+	struct nfs_fh *fhandle = NFS_FH(inode);
 
 	PRINTK("NFS call  write %d @ %d\n", count, offset);
 	if (!(p0 = nfs_rpc_alloc(server->wsize)))
@@ -438,6 +510,7 @@ retry:
 	*p++ = htonl(offset); /* traditional, could be any value */
 	*p++ = htonl(offset);
 	*p++ = htonl(count); /* traditional, could be any value */
+	kdata = (void *) (p+1);	/* start of data in RPC buffer */
 	p = xdr_encode_data(p, data, count);
 	if ((status = nfs_rpc_call(server, p0, p, server->wsize)) < 0) {
 		nfs_rpc_free(p0);
@@ -446,6 +519,7 @@ retry:
 	if (!(p = nfs_rpc_verify(p0)))
 		status = -errno_NFSERR_IO;
 	else if ((status = ntohl(*p++)) == NFS_OK) {
+		update_vm_cache(inode, offset, kdata, count);
 		p = xdr_decode_fattr(p, fattr);
 		PRINTK("NFS reply write\n");
 		/* status = 0; */
@@ -539,12 +613,19 @@ retry:
 
 int nfs_proc_rename(struct nfs_server *server,
 		    struct nfs_fh *old_dir, const char *old_name,
-		    struct nfs_fh *new_dir, const char *new_name)
+		    struct nfs_fh *new_dir, const char *new_name,
+		    int must_be_dir)
 {
 	int *p, *p0;
 	int status;
 	int ruid = 0;
 
+	/*
+	 * Disallow "rename()" with trailing slashes over NFS: getting
+	 * POSIX.1 behaviour is just too unlikely.
+	 */
+	if (must_be_dir)
+		return -EINVAL;
 	PRINTK("NFS call  rename %s -> %s\n", old_name, new_name);
 	if (!(p0 = nfs_rpc_alloc(server->wsize)))
 		return -EIO;
@@ -822,10 +903,11 @@ retry:
  * Here are a few RPC-assist functions.
  */
 
-static int *nfs_rpc_header(int *p, int procedure, int ruid)
+int *rpc_header(int *p, int procedure, int program, int version,
+					int uid, int gid,
+					int ngroup, gid_t *groups)
 {
-	int *p1, *p2;
-	int i;
+	int *p1;
 	static int xid = 0;
 	unsigned char *sys = (unsigned char *) system_utsname.nodename;
 
@@ -836,32 +918,45 @@ static int *nfs_rpc_header(int *p, int procedure, int ruid)
 	*p++ = htonl(++xid);
 	*p++ = htonl(RPC_CALL);
 	*p++ = htonl(RPC_VERSION);
-	*p++ = htonl(NFS_PROGRAM);
-	*p++ = htonl(NFS_VERSION);
+	*p++ = htonl(program);
+	*p++ = htonl(version);
 	*p++ = htonl(procedure);
 	*p++ = htonl(RPC_AUTH_UNIX);
 	p1 = p++;
 	*p++ = htonl(CURRENT_TIME); /* traditional, could be anything */
 	p = xdr_encode_string(p, (char *) sys);
-	*p++ = htonl(ruid ? current->uid : current->fsuid);
-	*p++ = htonl(current->egid);
-	p2 = p++;
-	for (i = 0; i < 16 && i < NGROUPS && current->groups[i] != NOGROUP; i++)
-		*p++ = htonl(current->groups[i]);
-	*p2 = htonl(i);
+	*p++ = htonl(uid);
+	*p++ = htonl(gid);
+	if (ngroup > 16)
+		ngroup = 16;
+	*p++ = htonl(ngroup);
+	while (ngroup) {
+		*p++ = htonl(*groups);
+		groups++;
+		ngroup--;
+	}
 	*p1 = htonl((p - (p1 + 1)) << 2);
 	*p++ = htonl(RPC_AUTH_NULL);
 	*p++ = htonl(0);
 	return p;
 }
 
-static int *nfs_rpc_verify(int *p)
+
+static int *nfs_rpc_header(int *p, int procedure, int ruid)
+{
+	return rpc_header(p, procedure, NFS_PROGRAM, NFS_VERSION,
+			(ruid ? current->uid : current->fsuid),
+			current->egid, current->ngroups, current->groups);
+}
+
+
+int *rpc_verify(int *p)
 {
 	unsigned int n;
 
 	p++;
 	if ((n = ntohl(*p++)) != RPC_REPLY) {
-		printk("nfs_rpc_verify: not an RPC reply: %d\n", n);
+		printk("nfs_rpc_verify: not an RPC reply: %x\n", n);
 		return NULL;
 	}
 	if ((n = ntohl(*p++)) != RPC_MSG_ACCEPTED) {
@@ -886,7 +981,14 @@ static int *nfs_rpc_verify(int *p)
 	}
 	return p;
 }
-	
+
+
+static int *nfs_rpc_verify(int *p)
+{
+	return rpc_verify(p);
+}
+
+
 /*
  * We need to translate between nfs status return values and
  * the local errno values which may not be the same.

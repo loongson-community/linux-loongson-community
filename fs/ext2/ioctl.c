@@ -7,7 +7,7 @@
  * Universite Pierre et Marie Curie (Paris VI)
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include <linux/errno.h>
 #include <linux/fs.h>
@@ -26,19 +26,25 @@ int ext2_ioctl (struct inode * inode, struct file * filp, unsigned int cmd,
 
 	switch (cmd) {
 	case EXT2_IOC_GETFLAGS:
-		if ((err = verify_area (VERIFY_WRITE, (long *) arg, sizeof(long))))
+		err = verify_area(VERIFY_WRITE, (int *) arg, sizeof(int));
+		if (err)
 			return err;
-		put_fs_long (inode->u.ext2_i.i_flags, (long *) arg);
+		put_user(inode->u.ext2_i.i_flags, (int *) arg);
 		return 0;
 	case EXT2_IOC_SETFLAGS:
-		flags = get_fs_long ((long *) arg);
+		err = verify_area(VERIFY_READ, (int *) arg, sizeof(int));
+		if (err)
+			return err;
+		get_user(flags, (int *) arg);
 		/*
-		 * Only the super-user can change the IMMUTABLE flag
+		 * The IMMUTABLE and APPEND_ONLY flags can only be changed by
+		 * the super user when the security level is zero.
 		 */
-		if ((flags & EXT2_IMMUTABLE_FL) ^
-		    (inode->u.ext2_i.i_flags & EXT2_IMMUTABLE_FL)) {
+		if ((flags & (EXT2_APPEND_FL | EXT2_IMMUTABLE_FL)) ^
+		    (inode->u.ext2_i.i_flags &
+		     (EXT2_APPEND_FL | EXT2_IMMUTABLE_FL))) {
 			/* This test looks nicer. Thanks to Pauline Middelink */
-			if (!fsuser())
+			if (!fsuser() || securelevel > 0)
 				return -EPERM;
 		} else
 			if ((current->fsuid != inode->i_uid) && !fsuser())
@@ -58,20 +64,24 @@ int ext2_ioctl (struct inode * inode, struct file * filp, unsigned int cmd,
 		inode->i_dirt = 1;
 		return 0;
 	case EXT2_IOC_GETVERSION:
-		if ((err = verify_area (VERIFY_WRITE, (long *) arg, sizeof(long))))
+		err = verify_area(VERIFY_WRITE, (int *) arg, sizeof(int));
+		if (err)
 			return err;
-		put_fs_long (inode->u.ext2_i.i_version, (long *) arg);
+		put_user(inode->u.ext2_i.i_version, (int *) arg);
 		return 0;
 	case EXT2_IOC_SETVERSION:
 		if ((current->fsuid != inode->i_uid) && !fsuser())
 			return -EPERM;
 		if (IS_RDONLY(inode))
 			return -EROFS;
-		inode->u.ext2_i.i_version = get_fs_long ((long *) arg);
+		err = verify_area(VERIFY_READ, (int *) arg, sizeof(int));
+		if (err)
+			return err;
+		get_user(inode->u.ext2_i.i_version, (int *) arg);
 		inode->i_ctime = CURRENT_TIME;
 		inode->i_dirt = 1;
 		return 0;
 	default:
-		return -EINVAL;
+		return -ENOTTY;
 	}
 }

@@ -55,6 +55,7 @@
 #include <linux/bios32.h>
 #include <linux/pci.h>
 
+#include <asm/page.h>
 #include <asm/segment.h>
 
 #define PCIBIOS_PCI_FUNCTION_ID 	0xb1XX
@@ -164,7 +165,7 @@ extern unsigned long check_pcibios(unsigned long memory_start, unsigned long mem
 	int pack;
 
 	if ((pcibios_entry = bios32_service(PCI_SERVICE))) {
-		pci_indirect.address = pcibios_entry;
+		pci_indirect.address = pcibios_entry | PAGE_OFFSET;
 
 		__asm__("lcall (%%edi)\n\t"
 			"jc 1f\n\t"
@@ -363,7 +364,7 @@ int pcibios_write_config_dword (unsigned char bus,
 	return (int) (ret & 0xff00) >> 8;
 }
 
-char *pcibios_strerror (int error)
+const char *pcibios_strerror (int error)
 {
 	static char buf[80];
 
@@ -382,6 +383,12 @@ char *pcibios_strerror (int error)
 
 		case PCIBIOS_BAD_REGISTER_NUMBER:
 			return "BAD_REGISTER_NUMBER";
+
+                case PCIBIOS_SET_FAILED:          
+			return "SET_FAILED";
+
+                case PCIBIOS_BUFFER_TOO_SMALL:    
+			return "BUFFER_TOO_SMALL";
 
 		default:
 			sprintf (buf, "UNKNOWN RETURN 0x%x", error);
@@ -411,7 +418,9 @@ unsigned long pcibios_init(unsigned long memory_start, unsigned long memory_end)
 	 *
 	 */
 
-	for (check = (union bios32 *) 0xe0000; check <= (union bios32 *) 0xffff0; ++check) {
+	for (check = (union bios32 *) __va(0xe0000);
+	     check <= (union bios32 *) __va(0xffff0);
+	     ++check) {
 		if (check->fields.signature != BIOS32_SIGNATURE)
 			continue;
 		length = check->fields.length * 16;
@@ -432,17 +441,10 @@ unsigned long pcibios_init(unsigned long memory_start, unsigned long memory_end)
 			if (check->fields.entry >= 0x100000) {
 				printk("pcibios_init: entry in high memory, unable to access\n");
 			} else {
-				bios32_indirect.address = bios32_entry = check->fields.entry;
+				bios32_entry = check->fields.entry;
 				printk ("pcibios_init : BIOS32 Service Directory entry at 0x%lx\n", bios32_entry);
+				bios32_indirect.address = bios32_entry + PAGE_OFFSET;
 			}
-		} else {
-			printk ("pcibios_init : multiple entries, mail drew@colorado.edu\n");
-			/*
-			 * Jeremy Fitzhardinge reports at least one PCI BIOS
-			 * with two different service directories, and as both
-			 * worked for him, we'll just mention the fact, and
-			 * not actually disallow it..
-			 */
 		}
 	}
 #ifdef CONFIG_PCI
@@ -452,6 +454,3 @@ unsigned long pcibios_init(unsigned long memory_start, unsigned long memory_end)
 #endif
 	return memory_start;
 }
-
-
-

@@ -7,27 +7,14 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
+O_TARGET := nfs.o
+O_OBJS   := proc.o sock.o rpcsock.o inode.o file.o bio.o \
+	    nfsiod.o dir.o symlink.o
 
-OBJS=	proc.o sock.o inode.o file.o dir.o \
-	symlink.o mmap.o
-
-nfs.o: $(OBJS)
-	$(LD) -r -o nfs.o $(OBJS)
-
-dep:
-	$(CPP) -M *.c > .depend
-
-modules: nfs.o
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
+ifdef CONFIG_ROOT_NFS
+O_OBJS += nfsroot.o
 endif
+
+M_OBJS   := $(O_TARGET)
+
+include $(TOPDIR)/Rules.make

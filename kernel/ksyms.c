@@ -9,14 +9,19 @@
  * by Bjorn Ekwall <bj0rn@blox.se>
  */
 
-#include <linux/autoconf.h>
 #include <linux/module.h>
+#include <linux/config.h>
 #include <linux/kernel.h>
+#include <linux/smp.h>
 #include <linux/fs.h>
 #include <linux/blkdev.h>
+#include <linux/cdrom.h>
+#include <linux/ucdrom.h>
 #include <linux/sched.h>
+#include <linux/kernel_stat.h>
 #include <linux/mm.h>
 #include <linux/malloc.h>
+#include <linux/vmalloc.h>
 #include <linux/ptrace.h>
 #include <linux/sys.h>
 #include <linux/utsname.h>
@@ -32,75 +37,63 @@
 #include <linux/locks.h>
 #include <linux/string.h>
 #include <linux/delay.h>
-#include <linux/config.h>
+#include <linux/sem.h>
+#include <linux/minix_fs.h>
+#include <linux/ext2_fs.h>
+#include <linux/random.h>
+#include <linux/mount.h>
+#include <linux/pagemap.h>
+#include <linux/sysctl.h>
+#include <linux/hdreg.h>
+#include <linux/skbuff.h>
+#include <linux/genhd.h>
+#include <linux/swap.h>
+#include <linux/ctype.h>
 
-#ifdef CONFIG_NET
-#include <linux/net.h>
-#include <linux/netdevice.h>
-#ifdef CONFIG_INET
-#include <linux/ip.h>
-#include <net/protocol.h>
-#include <net/arp.h>
-#include <net/tcp.h>
-#if defined(CONFIG_PPP) || defined(CONFIG_SLIP)
-#include "../drivers/net/slhc.h"
+extern unsigned char aux_device_present, kbd_read_mask;
+#ifdef __i386__
+	extern struct drive_info_struct drive_info;
 #endif
-#endif
-#endif
+
 #ifdef CONFIG_PCI
 #include <linux/bios32.h>
 #include <linux/pci.h>
 #endif
-#if defined(CONFIG_MSDOS_FS) && !defined(CONFIG_UMSDOS_FS)
-#include <linux/msdos_fs.h>
+#if defined(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
+#ifdef CONFIG_KERNELD
+#include <linux/kerneld.h>
+#endif
+#include <asm/irq.h>
+#ifdef __SMP__
+#include <linux/smp.h>
 #endif
 
-#include <asm/irq.h>
-
-extern char *floppy_track_buffer;
-
+extern char *get_options(char *str, int *ints);
 extern void set_device_ro(int dev,int flag);
 extern struct file_operations * get_blkfops(unsigned int);
-  
+extern void blkdev_release(struct inode * inode);
+
 extern void *sys_call_table;
-
-#ifdef CONFIG_FTAPE
-extern char * ftape_big_buffer;
-#endif
-
-#ifdef CONFIG_SCSI
-#include "../drivers/scsi/scsi.h"
-#include "../drivers/scsi/hosts.h"
-#include "../drivers/scsi/constants.h"
-#endif
 
 extern int sys_tz;
 extern int request_dma(unsigned int dmanr, char * deviceID);
 extern void free_dma(unsigned int dmanr);
 
-extern int close_fp(struct file *filp);
-extern void (* iABI_hook)(struct pt_regs * regs);
-
 struct symbol_table symbol_table = {
 #include <linux/symtab_begin.h>
-#ifdef CONFIG_MODVERSIONS
-	{ (void *)1 /* Version version :-) */, "_Using_Versions" },
+#ifdef MODVERSIONS
+	{ (void *)1 /* Version version :-) */,
+		SYMBOL_NAME_STR (Using_Versions) },
 #endif
-	/* stackable module support */
-	X(rename_module_symbol),
-	X(register_symtab),
 
-	/* system info variables */
-	/* These check that they aren't defines (0/1) */
-#ifndef EISA_bus__is_a_macro
-	X(EISA_bus),
+	/* stackable module support */
+	X(register_symtab_from),
+#ifdef CONFIG_KERNELD
+	X(kerneld_send),
 #endif
-#ifndef MCA_bus__is_a_macro
-	X(MCA_bus),
-#endif
-#ifndef wp_works_ok__is_a_macro
-	X(wp_works_ok),
-#endif
+	X(get_options),
 
 #ifdef CONFIG_PCI
 	/* PCI BIOS support */
@@ -117,21 +110,22 @@ struct symbol_table symbol_table = {
 #endif
 
 	/* process memory management */
-	X(verify_area),
 	X(do_mmap),
 	X(do_munmap),
-	X(zeromap_page_range),
-	X(unmap_page_range),
-	X(insert_vm_struct),
-	X(merge_segments),
+	X(exit_mm),
 
 	/* internal kernel memory management */
 	X(__get_free_pages),
 	X(free_pages),
 	X(kmalloc),
-	X(kfree_s),
+	X(kfree),
 	X(vmalloc),
 	X(vfree),
+ 	X(mem_map),
+ 	X(remap_page_range),
+	X(max_mapnr),
+	X(high_memory),
+	X(update_vm_cache),
 
 	/* filesystem internal functions */
 	X(getname),
@@ -141,23 +135,32 @@ struct symbol_table symbol_table = {
 	X(namei),
 	X(lnamei),
 	X(open_namei),
+	X(sys_close),
 	X(close_fp),
 	X(check_disk_change),
 	X(invalidate_buffers),
+	X(invalidate_inodes),
+	X(invalidate_inode_pages),
 	X(fsync_dev),
 	X(permission),
 	X(inode_setattr),
 	X(inode_change_ok),
-	X(generic_mmap),
 	X(set_blocksize),
 	X(getblk),
 	X(bread),
 	X(breada),
-	X(brelse),
+	X(__brelse),
+	X(__bforget),
 	X(ll_rw_block),
 	X(__wait_on_buffer),
+	X(mark_buffer_uptodate),
+	X(unlock_buffer),
 	X(dcache_lookup),
 	X(dcache_add),
+	X(add_blkdev_randomness),
+	X(generic_file_read),
+	X(generic_file_mmap),
+	X(generic_readpage),
 
 	/* device registration */
 	X(register_chrdev),
@@ -168,6 +171,14 @@ struct symbol_table symbol_table = {
 	X(tty_unregister_driver),
 	X(tty_std_termios),
 
+#if defined(CONFIG_BLK_DEV_IDECD) || \
+    defined(CONFIG_BLK_DEV_SR) || \
+    defined(CONFIG_CM206)
+       X(register_cdrom),
+       X(unregister_cdrom),
+       X(cdrom_fops),
+#endif
+ 
 	/* block device driver support */
 	X(block_read),
 	X(block_write),
@@ -182,16 +193,27 @@ struct symbol_table symbol_table = {
 	X(bmap),
 	X(sync_dev),
 	X(get_blkfops),
-	
+	X(blkdev_open),
+	X(blkdev_release),
+	X(gendisk_head),
+	X(resetup_one_dev),
+	X(unplug_device),
+#ifdef __i386__
+	X(drive_info),
+#endif
+
+#ifdef CONFIG_SERIAL	
 	/* Module creation of serial units */
 	X(register_serial),
 	X(unregister_serial),
-
+#endif
 	/* tty routines */
 	X(tty_hangup),
 	X(tty_wait_until_sent),
 	X(tty_check_change),
 	X(tty_hung_up_p),
+	X(do_SAK),
+	X(console_print),
 
 	/* filesystem registration */
 	X(register_filesystem),
@@ -200,27 +222,47 @@ struct symbol_table symbol_table = {
 	/* executable format registration */
 	X(register_binfmt),
 	X(unregister_binfmt),
+	X(search_binary_handler),
+	X(prepare_binprm),
+	X(remove_arg_zero),
 
 	/* execution environment registration */
 	X(lookup_exec_domain),
 	X(register_exec_domain),
 	X(unregister_exec_domain),
 
+	/* sysctl table registration */
+	X(register_sysctl_table),
+	X(unregister_sysctl_table),
+	X(sysctl_string),
+	X(sysctl_intvec),
+	X(proc_dostring),
+	X(proc_dointvec),
+	X(proc_dointvec_minmax),
+
 	/* interrupt handling */
 	X(request_irq),
 	X(free_irq),
 	X(enable_irq),
 	X(disable_irq),
+	X(probe_irq_on),
+	X(probe_irq_off),
 	X(bh_active),
 	X(bh_mask),
+	X(bh_mask_count),
+	X(bh_base),
 	X(add_timer),
 	X(del_timer),
 	X(tq_timer),
 	X(tq_immediate),
 	X(tq_scheduler),
-	X(tq_last),
 	X(timer_active),
 	X(timer_table),
+ 	X(intr_count),
+
+	/* autoirq from  drivers/net/auto_irq.c */
+	X(autoirq_setup),
+	X(autoirq_report),
 
 	/* dma handling */
 	X(request_dma),
@@ -241,11 +283,13 @@ struct symbol_table symbol_table = {
 	X(sleep_on),
 	X(interruptible_sleep_on),
 	X(schedule),
-	X(current),
+	X(current_set),
 	X(jiffies),
 	X(xtime),
+	X(do_gettimeofday),
 	X(loops_per_sec),
 	X(need_resched),
+	X(kstat),
 	X(kill_proc),
 	X(kill_pg),
 	X(kill_sl),
@@ -255,18 +299,20 @@ struct symbol_table symbol_table = {
 	X(printk),
 	X(sprintf),
 	X(vsprintf),
+	X(kdevname),
 	X(simple_strtoul),
 	X(system_utsname),
 	X(sys_call_table),
+	X(hard_reset_now),
+	X(_ctype),
+	X(secure_tcp_sequence_number),
 
 	/* Signal interfaces */
-	X(do_signal),
 	X(send_sig),
 
 	/* Program loader interfaces */
 	X(setup_arg_pages),
 	X(copy_strings),
-	X(create_tables),
 	X(do_execve),
 	X(flush_old_exec),
 	X(open_inode),
@@ -274,77 +320,7 @@ struct symbol_table symbol_table = {
 
 	/* Miscellaneous access points */
 	X(si_meminfo),
-#ifdef CONFIG_NET
-	/* socket layer registration */
-	X(sock_register),
-	X(sock_unregister),
-	/* Internet layer registration */
-#ifdef CONFIG_INET	
-	X(inet_add_protocol),
-	X(inet_del_protocol),
-#if defined(CONFIG_PPP) || defined(CONFIG_SLIP)
-    	/* VJ header compression */
-	X(slhc_init),
-	X(slhc_free),
-	X(slhc_remember),
-	X(slhc_compress),
-	X(slhc_uncompress),
-#endif
-#endif
-	/* Device callback registration */
-	X(register_netdevice_notifier),
-	X(unregister_netdevice_notifier),
-#endif
 
-#ifdef CONFIG_FTAPE
-	/* The next labels are needed for ftape driver.  */
-	X(ftape_big_buffer),
-#endif
-	X(floppy_track_buffer),
-#ifdef CONFIG_INET
-	/* support for loadable net drivers */
-	X(register_netdev),
-	X(unregister_netdev),
-	X(ether_setup),
-	X(alloc_skb),
-	X(kfree_skb),
-	X(dev_kfree_skb),
-	X(netif_rx),
-	X(dev_rint),
-	X(dev_tint),
-	X(irq2dev_map),
-	X(dev_add_pack),
-	X(dev_remove_pack),
-	X(dev_get),
-	X(dev_ioctl),
-	X(dev_queue_xmit),
-	X(dev_base),
-	X(dev_close),
-	X(arp_find),
-	X(n_tty_ioctl),
-	X(tty_register_ldisc),
-	X(kill_fasync),
-#endif
-#ifdef CONFIG_SCSI
-	/* Supports loadable scsi drivers */
-    	/* 
- 	 * in_scan_scsis is a hack, and should go away once the new 
-	 * memory allocation code is in the NCR driver 
-	 */
-    	X(in_scan_scsis),
-	X(scsi_register_module),
-	X(scsi_unregister_module),
-	X(scsi_free),
-	X(scsi_malloc),
-	X(scsi_register),
-	X(scsi_unregister),
-	X(scsicam_bios_param),
-        X(scsi_init_malloc),
-        X(scsi_init_free),
-	X(print_command),
-    	X(print_msg),
-	X(print_status),
-#endif
 	/* Added to make file system as module */
 	X(set_writetime),
 	X(sys_tz),
@@ -352,9 +328,12 @@ struct symbol_table symbol_table = {
 	X(file_fsync),
 	X(clear_inode),
 	X(refile_buffer),
+	X(nr_async_pages),
 	X(___strtok),
 	X(init_fifo),
 	X(super_blocks),
+	X(reuse_list),
+	X(fifo_inode_operations),
 	X(chrdev_inode_operations),
 	X(blkdev_inode_operations),
 	X(read_ahead),
@@ -363,29 +342,23 @@ struct symbol_table symbol_table = {
 	X(insert_inode_hash),
 	X(event),
 	X(__down),
-#if defined(CONFIG_MSDOS_FS) && !defined(CONFIG_UMSDOS_FS)
-	/* support for umsdos fs */
-	X(msdos_bmap),
-	X(msdos_create),
-	X(msdos_file_read),
-	X(msdos_file_write),
-	X(msdos_lookup),
-	X(msdos_mkdir),
-	X(msdos_mmap),
-	X(msdos_put_inode),
-	X(msdos_put_super),
-	X(msdos_read_inode),
-	X(msdos_read_super),
-	X(msdos_readdir),
-	X(msdos_rename),
-	X(msdos_rmdir),
-	X(msdos_smap),
-	X(msdos_statfs),
-	X(msdos_truncate),
-	X(msdos_unlink),
-	X(msdos_unlink_umsdos),
-	X(msdos_write_inode),
+	X(__up),
+	X(securelevel),
+/* all busmice */
+	X(add_mouse_randomness),
+	X(fasync_helper),
+/* psaux mouse */
+	X(aux_device_present),
+	X(kbd_read_mask),
+
+#ifdef CONFIG_BLK_DEV_MD
+	X(disk_name),	/* for md.c */
 #endif
+ 	
+	/* binfmt_aout */
+	X(get_write_access),
+	X(put_write_access),
+
 	/********************************************************
 	 * Do not add anything below this line,
 	 * as the stacked modules depend on this!

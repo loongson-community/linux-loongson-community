@@ -8,9 +8,68 @@
 
 #ifdef __KERNEL__
 
-#define CONFIG_STRICT_MM_TYPECHECKS
+#define STRICT_MM_TYPECHECKS
 
-#ifdef CONFIG_STRICT_MM_TYPECHECKS
+/*
+ * A _lot_ of the kernel time is spent clearing pages, so
+ * do this as fast as we possibly can. Also, doing this
+ * as a separate inline function (rather than memset())
+ * results in clearer kernel profiles as we see _who_ is
+ * doing page clearing or copying.
+ */
+static inline void clear_page(unsigned long page)
+{
+	unsigned long count;
+	__asm__ __volatile__(
+		".align 4\n"
+		"1:\n\t"
+		"stq $31,0(%1)\n\t"
+		"stq $31,8(%1)\n\t"
+		"stq $31,16(%1)\n\t"
+		"stq $31,24(%1)\n\t"
+		"subq %0,1,%0\n\t"
+		"stq $31,32(%1)\n\t"
+		"stq $31,40(%1)\n\t"
+		"stq $31,48(%1)\n\t"
+		"stq $31,56(%1)\n\t"
+		"addq $1,64,$1\n\t"
+		"bne %0,1b"
+		:"=r" (count),"=r" (page)
+		:"0" (PAGE_SIZE/64), "1" (page));
+}
+
+static inline void copy_page(unsigned long to, unsigned long from)
+{
+	unsigned long count;
+	__asm__ __volatile__(
+		".align 4\n"
+		"1:\n\t"
+		"ldq $0,0(%1)\n\t"
+		"ldq $1,8(%1)\n\t"
+		"ldq $2,16(%1)\n\t"
+		"ldq $3,24(%1)\n\t"
+		"ldq $4,32(%1)\n\t"
+		"ldq $5,40(%1)\n\t"
+		"ldq $6,48(%1)\n\t"
+		"ldq $7,56(%1)\n\t"
+		"subq %0,1,%0\n\t"
+		"addq %1,64,%1\n\t"
+		"stq $0,0(%2)\n\t"
+		"stq $1,8(%2)\n\t"
+		"stq $2,16(%2)\n\t"
+		"stq $3,24(%2)\n\t"
+		"stq $4,32(%2)\n\t"
+		"stq $5,40(%2)\n\t"
+		"stq $6,48(%2)\n\t"
+		"stq $7,56(%2)\n\t"
+		"addq %2,64,%2\n\t"
+		"bne %0,1b"
+		:"=r" (count), "=r" (from), "=r" (to)
+		:"0" (PAGE_SIZE/64), "1" (from), "2" (to)
+		:"$0","$1","$2","$3","$4","$5","$6","$7");
+}
+
+#ifdef STRICT_MM_TYPECHECKS
 /*
  * These are used to make use of C type-checking..
  */
@@ -48,28 +107,15 @@ typedef unsigned long pgprot_t;
 
 #endif
 
-#define invalidate_all() \
-__asm__ __volatile__( \
-	"lda $16,-2($31)\n\t" \
-	".long 51" \
-	: : :"$1", "$16", "$17", "$22","$23","$24","$25")
-
-#define invalidate() \
-__asm__ __volatile__( \
-	"lda $16,-1($31)\n\t" \
-	".long 51" \
-	: : :"$1", "$16", "$17", "$22","$23","$24","$25")
-
 #define copy_page(from,to) memcpy((void *) to, (void *) from, PAGE_SIZE)
 
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr)		(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
-#define PAGE_OFFSET		0xFFFFFC0000000000
-#define MAP_NR(addr)		((((unsigned long) (addr)) - PAGE_OFFSET) >> PAGE_SHIFT)
-#define MAP_PAGE_RESERVED	(1<<31)
-
-typedef unsigned int mem_map_t;
+#define PAGE_OFFSET		0xFFFFFC0000000000UL
+#define __pa(x)			((unsigned long) (x) - PAGE_OFFSET)
+#define __va(x)			((void *)((unsigned long) (x) + PAGE_OFFSET))
+#define MAP_NR(addr)		(__pa(addr) >> PAGE_SHIFT)
 
 #endif /* __KERNEL__ */
 

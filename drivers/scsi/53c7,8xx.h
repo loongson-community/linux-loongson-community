@@ -6,10 +6,10 @@
  *	Hannover, Germany
  *	hm@ix.de	
  *
- * Copyright 1993, Drew Eckhardt
+ * Copyright 1993, 1994, 1995 Drew Eckhardt
  *      Visionary Computing 
  *      (Unix and Linux consulting and custom programming)
- *      drew@Colorado.EDU
+ *      drew@PoohSticks.ORG
  *	+1 (303) 786-7975
  *
  * TolerANT and SCSI SCRIPTS are registered trademarks of NCR Corporation.
@@ -38,7 +38,14 @@
 
 #ifndef NCR53c7x0_H
 #define NCR53c7x0_H
-
+#if !defined(LINUX_1_2) && !defined(LINUX_1_3)
+#include <linux/version.h>
+#if LINUX_VERSION_CODE > 65536 + 3 * 256
+#define LINUX_1_3
+#else
+#define LINUX_1_2
+#endif
+#endif
 
 /* 
  * Prevent name space pollution in hosts.c, and only provide the 
@@ -47,28 +54,80 @@
  */
 
 #if defined(HOSTS_C) || defined(MODULE)
-#include <linux/scsicam.h>
+#include <scsi/scsicam.h>
+
 extern int NCR53c7xx_abort(Scsi_Cmnd *);
 extern int NCR53c7xx_detect(Scsi_Host_Template *tpnt);
 extern int NCR53c7xx_queue_command(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
-extern int NCR53c7xx_reset(Scsi_Cmnd *);
+extern int NCR53c7xx_reset(Scsi_Cmnd *, unsigned int);
 #ifdef MODULE
 extern int NCR53c7xx_release(struct Scsi_Host *);
 #else
 #define NCR53c7xx_release NULL
 #endif
 
-#define NCR53c7xx {NULL, NULL, "NCR53c{7,8}xx (rel 4)", NCR53c7xx_detect, 	\
-    	NULL, /* info */ NULL, /* command, deprecated */ NULL, 		\
+#ifdef LINUX_1_2
+#define NCR53c7xx {NULL, NULL, "NCR53c{7,8}xx (rel 17)", NCR53c7xx_detect,\
+	NULL, /* info */ NULL, /* command, deprecated */ NULL, 		\
 	NCR53c7xx_queue_command, NCR53c7xx_abort, NCR53c7xx_reset,	\
-        NULL /* slave attach */, scsicam_bios_param, /* can queue */ 1, \
-	/* id */ 7, 127 /* old SG_ALL */, /* cmd per lun */ 1 , 	\
-        /* present */ 0, /* unchecked isa dma */ 0, DISABLE_CLUSTERING} 
+	NULL /* slave attach */, scsicam_bios_param, /* can queue */ 24, \
+	/* id */ 7, 127 /* old SG_ALL */, /* cmd per lun */ 3, 		\
+	/* present */ 0, /* unchecked isa dma */ 0, DISABLE_CLUSTERING} 
+#else
+#define NCR53c7xx {NULL, NULL, NULL, NULL, \
+        "NCR53c{7,8}xx (rel 17)", NCR53c7xx_detect,\
+        NULL, /* info */ NULL, /* command, deprecated */ NULL,		\
+	NCR53c7xx_queue_command, NCR53c7xx_abort, NCR53c7xx_reset,	\
+	NULL /* slave attach */, scsicam_bios_param, /* can queue */ 24, \
+	/* id */ 7, 127 /* old SG_ALL */, /* cmd per lun */ 3, 		\
+	/* present */ 0, /* unchecked isa dma */ 0, DISABLE_CLUSTERING} 
+#endif
+
 #endif /* defined(HOSTS_C) || defined(MODULE) */ 
 
 #ifndef HOSTS_C
-/* Register addresses, ordered numerically */
+#ifdef LINUX_1_2
+/*
+ * Change virtual addresses to physical addresses and vv.
+ * These are trivial on the 1:1 Linux/i386 mapping (but if we ever
+ * make the kernel segment mapped at 0, we need to do translation
+ * on the i386 as well)
+ */
+extern inline unsigned long virt_to_phys(volatile void * address)
+{       
+	return (unsigned long) address;
+}       
 
+extern inline void * phys_to_virt(unsigned long address)
+{
+	return (void *) address;      
+}
+
+/*
+ * IO bus memory addresses are also 1:1 with the physical address
+ */
+#define virt_to_bus virt_to_phys
+#define bus_to_virt phys_to_virt
+
+/*
+ * readX/writeX() are used to access memory mapped devices. On some
+ * architectures the memory mapped IO stuff needs to be accessed
+ * differently. On the x86 architecture, we just read/write the
+ * memory location directly.
+ */
+#define readb(addr) (*(volatile unsigned char *) (addr))
+#define readw(addr) (*(volatile unsigned short *) (addr))
+#define readl(addr) (*(volatile unsigned int *) (addr))
+
+#define writeb(b,addr) ((*(volatile unsigned char *) (addr)) = (b))
+#define writew(b,addr) ((*(volatile unsigned short *) (addr)) = (b))
+#define writel(b,addr) ((*(volatile unsigned int *) (addr)) = (b))
+
+#define mb()
+
+#endif /* def LINUX_1_2 */
+
+/* Register addresses, ordered numerically */
 
 /* SCSI control 0 rw, default = 0xc0 */ 
 #define SCNTL0_REG 		0x00	
@@ -92,7 +151,7 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define SCNTL1_DHP_800		0x20	/* Disable halt on parity error or ATN
 					   target mode only */
 #define SCNTL1_CON		0x10	/* Connected */
-#define SCNTL1_RST		0x08	/*  SCSI RST/ */
+#define SCNTL1_RST		0x08	/* SCSI RST/ */
 #define SCNTL1_AESP		0x04	/* Force bad parity */
 #define SCNTL1_SND_700		0x02	/* Start SCSI send */
 #define SCNTL1_IARB_800		0x02	/* Immediate Arbitration, start
@@ -177,15 +236,16 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define SXFER_TP1		0x20
 #define SXFER_TP0		0x10	/* lsb */
 #define SXFER_TP_MASK		0x70
-#define SXFER_TP_SHIFT		4
+/* FIXME : SXFER_TP_SHIFT == 5 is right for '8xx chips */
+#define SXFER_TP_SHIFT		5
 #define SXFER_TP_4		0x00	/* Divisors */
-#define SXFER_TP_5		0x10
-#define SXFER_TP_6		0x20
-#define SXFER_TP_7		0x30
-#define SXFER_TP_8		0x40
-#define SXFER_TP_9		0x50
-#define SXFER_TP_10		0x60
-#define SXFER_TP_11		0x70
+#define SXFER_TP_5		0x10<<1
+#define SXFER_TP_6		0x20<<1
+#define SXFER_TP_7		0x30<<1
+#define SXFER_TP_8		0x40<<1
+#define SXFER_TP_9		0x50<<1
+#define SXFER_TP_10		0x60<<1
+#define SXFER_TP_11		0x70<<1
 
 #define SXFER_MO3		0x08	/* Max offset msb */
 #define SXFER_MO2		0x04
@@ -313,6 +373,7 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define DSTAT_800_IID		0x01	/* Same thing, different name */
 
 
+/* NCR53c800 moves this stuff into SIST0 */
 #define SSTAT0_REG		0x0d	/* SCSI status 0 ro */
 #define SIST0_REG_800		0x42	
 #define SSTAT0_MA		0x80	/* ini : phase mismatch,
@@ -327,6 +388,8 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define SSTAT0_UDC		0x04	/* Unexpected disconnect */
 #define SSTAT0_RST		0x02	/* SCSI RST/ received */
 #define SSTAT0_PAR		0x01	/* Parity error */
+
+/* And uses SSTAT0 for what was SSTAT1 */
 
 #define SSTAT1_REG		0x0e	/* SCSI status 1 ro */
 #define SSTAT1_ILF		0x80	/* SIDL full */
@@ -344,6 +407,7 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define SSTAT2_FF1		0x20	
 #define SSTAT2_FF0		0x10
 #define SSTAT2_FF_MASK		0xf0
+#define SSTAT2_FF_SHIFT		4
 
 /* 
  * Latched signals, latched on the leading edge of REQ/ for initiators,
@@ -353,6 +417,13 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define SSTAT2_MSG		0x04	/* MSG */
 #define SSTAT2_CD		0x02	/* C/D */
 #define SSTAT2_IO		0x01	/* I/O */
+#define SSTAT2_PHASE_CMDOUT	SSTAT2_CD
+#define SSTAT2_PHASE_DATAIN	SSTAT2_IO
+#define SSTAT2_PHASE_DATAOUT	0
+#define SSTAT2_PHASE_MSGIN	(SSTAT2_CD|SSTAT2_IO|SSTAT2_MSG)
+#define SSTAT2_PHASE_MSGOUT	(SSTAT2_CD|SSTAT2_MSG)
+#define SSTAT2_PHASE_STATIN	(SSTAT2_CD|SSTAT2_IO)
+#define SSTAT2_PHASE_MASK	(SSTAT2_CD|SSTAT2_IO|SSTAT2_MSG)
 
 
 /* NCR53c700-66 only */
@@ -365,9 +436,9 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 /* 0x80 - 0x04 are reserved */
 #define CTEST0_700_RTRG		0x02	/* Real target mode */
 #define CTEST0_700_DDIR		0x01	/* Data direction, 1 = 
-	                                 * SCSI bus to host, 0  =
-	                                 * host to SCSI.
-	                                 */
+					 * SCSI bus to host, 0  =
+					 * host to SCSI.
+					 */
 
 #define CTEST1_REG_700		0x15	/* Chip test 1 ro */
 #define CTEST1_REG_800		0x19	/* Chip test 1 ro */
@@ -524,7 +595,7 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define CTEST7_EVP		0x04	/* 1 = host bus even parity, 0 = odd */
 #define CTEST7_10_TT1		0x02	/* Transfer type */
 #define CTEST7_00_DC		0x02	/* Set to drive DC low during instruction 
-                                           fetch */
+					   fetch */
 #define CTEST7_DIFF		0x01	/* Differential mode */
 
 #define CTEST7_SAVE ( CTEST7_EVP | CTEST7_DIFF )
@@ -600,8 +671,8 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 					 * speeds.
 					 */
 #define CTEST8_0066_DAS		0x02	/* Disable automatic target/initiator
-			                 * switching.
-			                 */
+					 * switching.
+					 */
 #define CTEST8_0066_LDE		0x01	/* Last disconnect enable.
 					 * The status of pending 
 					 * disconnect is maintained by
@@ -713,7 +784,7 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define DCMD_RWRI_OP_ADDC	0x07
 
 #define DCMD_TYPE_MMI		0xc0	/* Indicates a Memory Move instruction 
-					   (three longs) */
+					   (three words) */
 
 
 #define DNAD_REG		0x28	/* through 0x2b DMA next address for 
@@ -846,7 +917,8 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define STIME1_REG_800		0x49
 #define STIME1_800_GEN_MASK	0x0f	/* General purpose timer */
 
-#define RESPID_REG_800		0x4a	/* Response ID, bit fielded */
+#define RESPID_REG_800		0x4a	/* Response ID, bit fielded.  8
+					   bits on narrow chips, 16 on WIDE */
 
 #define STEST0_REG_800		0x4c	
 #define STEST0_800_SLT		0x08	/* Selection response logic test */
@@ -874,10 +946,6 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define STEST3_800_CSF		0x02	/* Clear SCSI FIFO */
 #define STEST3_800_STW		0x01	/* SCSI FIFO test write */
 
-
-
-
-
 #define OPTION_PARITY 		0x1	/* Enable parity checking */
 #define OPTION_TAGGED_QUEUE	0x2	/* Enable SCSI-II tagged queuing */
 #define OPTION_700		0x8	/* Always run NCR53c700 scripts */
@@ -898,14 +966,12 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define OPTION_MEMORY_MAPPED	0x800	/* NCR registers have valid 
 					   memory mapping */
 #define OPTION_IO_MAPPED	0x1000  /* NCR registers have valid
-					   I/O mapping */
-#define OPTION_DEBUG_PROBE_ONLY	0x2000	/* Probe only, don't even init */
-#define OPTION_DEBUG_TESTS_ONLY	0x4000	/* Probe, init, run selected tests */
-
+					     I/O mapping */
+#define OPTION_DEBUG_PROBE_ONLY	0x2000  /* Probe only, don't even init */
+#define OPTION_DEBUG_TESTS_ONLY	0x4000  /* Probe, init, run selected tests */
 #define OPTION_DEBUG_TEST0	0x08000 /* Run test 0 */
 #define OPTION_DEBUG_TEST1	0x10000 /* Run test 1 */
 #define OPTION_DEBUG_TEST2	0x20000 /* Run test 2 */
-
 #define OPTION_DEBUG_DUMP	0x40000 /* Dump commands */
 #define OPTION_DEBUG_TARGET_LIMIT 0x80000 /* Only talk to target+luns specified */
 #define OPTION_DEBUG_NCOMMANDS_LIMIT 0x100000 /* Limit the number of commands */
@@ -913,17 +979,37 @@ extern int NCR53c7xx_release(struct Scsi_Host *);
 #define OPTION_DEBUG_FIXUP 0x400000 /* print fixup values */
 #define OPTION_DEBUG_DSA 0x800000
 #define OPTION_DEBUG_CORRUPTION	0x1000000	/* Detect script corruption */
-
+#define OPTION_DEBUG_SDTR       0x2000000	/* Debug SDTR problem */
+#define OPTION_DEBUG_MISMATCH 	0x4000000 	/* Debug phase mismatches */
+#define OPTION_DISCONNECT	0x8000000	/* Allow disconnect */
+#define OPTION_DEBUG_DISCONNECT 0x10000000	
+#define OPTION_ALWAYS_SYNCHRONOUS 0x20000000	/* Negotiate sync. transfers
+						   on power up */
+#define OPTION_DEBUG_QUEUES	0x80000000	
+#define OPTION_DEBUG_ALLOCATION 0x100000000LL
+#define OPTION_DEBUG_SYNCHRONOUS 0x200000000LL	/* Sanity check SXFER and 
+						   SCNTL3 registers */
+#define OPTION_NO_ASYNC	0x400000000LL		/* Don't automagically send
+						   SDTR for async transfers when
+						   we haven't been told to do
+						   a synchronous transfer. */
+#define OPTION_NO_PRINT_RACE 0x800000000LL	/* Don't print message when
+						   the reselect/WAIT DISCONNECT
+						   race condition hits */
 #if !defined(PERM_OPTIONS)
 #define PERM_OPTIONS 0
 #endif
 				
 struct NCR53c7x0_synchronous {
-    unsigned long select_indirect;	/* Value used for indirect selection */
-    unsigned long script[6];		/* Size ?? Script used when target is 
+    u32 select_indirect;		/* Value used for indirect selection */
+    u32 script[8];			/* Size ?? Script used when target is 
 						reselected */
-    unsigned renegotiate:1;		/* Force renegotiation on next   
-					   select */
+    unsigned char synchronous_want[5];	/* Per target desired SDTR */
+/* 
+ * Set_synchronous programs these, select_indirect and current settings after
+ * int_debug_should show a match.
+ */
+    unsigned char sxfer_sanity, scntl3_sanity;
 };
 
 #define CMD_FLAG_SDTR 		1	/* Initiating synchronous 
@@ -931,15 +1017,70 @@ struct NCR53c7x0_synchronous {
 #define CMD_FLAG_WDTR		2	/* Initiating wide transfer
 					   negotiation */
 #define CMD_FLAG_DID_SDTR	4	/* did SDTR */
+#define CMD_FLAG_DID_WDTR	8	/* did WDTR */
 
 struct NCR53c7x0_table_indirect {
-    unsigned long count;
+    u32 count;
     void *address;
 };
 
+enum ncr_event { 
+    EVENT_NONE = 0,
+/* 
+ * Order is IMPORTANT, since these must correspond to the event interrupts
+ * in 53c7,8xx.scr 
+ */
+
+    EVENT_ISSUE_QUEUE = 0x5000000,	/* Command was added to issue queue */
+    EVENT_START_QUEUE,			/* Command moved to start queue */
+    EVENT_SELECT,			/* Command completed selection */
+    EVENT_DISCONNECT,			/* Command disconnected */
+    EVENT_RESELECT,			/* Command reselected */
+    EVENT_COMPLETE,		        /* Command completed */
+    EVENT_IDLE,
+    EVENT_SELECT_FAILED,
+    EVENT_BEFORE_SELECT,
+    EVENT_RESELECT_FAILED
+};
+
+struct NCR53c7x0_event {
+    enum ncr_event event;	/* What type of event */
+    unsigned char target;
+    unsigned char lun;
+    struct timeval time;	
+    u32 *dsa;			/* What's in the DSA register now (virt) */
+/* 
+ * A few things from that SCSI pid so we know what happened after 
+ * the Scsi_Cmnd structure in question may have disappeared.
+ */
+    unsigned long pid;		/* The SCSI PID which caused this 
+				   event */
+    unsigned char cmnd[12];
+};
+
+/*
+ * Things in the NCR53c7x0_cmd structure are split into two parts :
+ *
+ * 1.  A fixed portion, for things which are not accessed directly by static NCR
+ *	code (ie, are referenced only by the Linux side of the driver,
+ *	or only by dynamically generated code).  
+ *
+ * 2.  The DSA portion, for things which are accessed directly by static NCR
+ *	code.
+ *
+ * This is a little ugly, but it 
+ * 1.  Avoids conflicts between the NCR code's picture of the structure, and 
+ * 	Linux code's idea of what it looks like.
+ *
+ * 2.  Minimizes the pain in the Linux side of the code needed 
+ * 	to calculate real dsa locations for things, etc.
+ * 
+ */
+
 struct NCR53c7x0_cmd {
-    void *real;				/* Real, unaligned address */
-    void (* free)(void *);		/* Command to deallocate; NULL
+    void *real;				/* Real, unaligned address for
+					   free function */
+    void (* free)(void *, int);		/* Command to deallocate; NULL
 					   for structures allocated with
 					   scsi_register, etc. */
     Scsi_Cmnd *cmd;			/* Associated Scsi_Cmnd 
@@ -950,7 +1091,15 @@ struct NCR53c7x0_cmd {
     int size;				/* scsi_malloc'd size of this 
 					   structure */
 
-    int flags;
+    int flags;				/* CMD_* flags */
+
+/*
+ * SDTR and WIDE messages are an either/or affair
+ * in this message, since we will go into message out and send
+ * _the whole mess_ without dropping out of message out to 
+ * let the target go into message in after sending the first 
+ * message.
+ */
 
     unsigned char select[11];		/* Select message, includes
 					   IDENTIFY
@@ -959,32 +1108,61 @@ struct NCR53c7x0_cmd {
 					 */
 
 
-    volatile struct NCR53c7x0_cmd *next, *prev;	
-                                        /* Linux maintained lists.  Note that
-					   hostdata->free is a singly linked
-					   list; the rest are doubly linked */
+    volatile struct NCR53c7x0_cmd *next; /* Linux maintained lists (free,
+					    running, eventually finished */
     					 
 
-
-    unsigned long *data_transfer_start;	/* Start of data transfer routines */
-    unsigned long *data_transfer_end;	/* Address after end of data transfer o
+    u32 *data_transfer_start;		/* Start of data transfer routines */
+    u32 *data_transfer_end;		/* Address after end of data transfer o
     	    	    	    	    	   routines */
+/* 
+ * The following three fields were moved from the DSA proper to here
+ * since only dynamically generated NCR code refers to them, meaning
+ * we don't need dsa_* absolutes, and it is simpler to let the 
+ * host code refer to them directly.
+ */
 
-    unsigned long residual[8];		/* Residual data transfer
-					   shadow of data_transfer code.
+/* 
+ * HARD CODED : residual and saved_residual need to agree with the sizes
+ * used in NCR53c7,8xx.scr.  
+ * 
+ * FIXME: we want to consider the case where we have odd-length 
+ *	scatter/gather buffers and a WIDE transfer, in which case 
+ *	we'll need to use the CHAIN MOVE instruction.  Ick.
+ */
+    u32 residual[6];			/* Residual data transfer which
+					   allows pointer code to work
+					   right.
 
-					   Has instruction with modified
-					   DBC field followed by jump to 
-					   CALL routine following command.
+    	    	    	    	    	    [0-1] : Conditional call to 
+    	    	    	    	    	    	appropriate other transfer 
+    	    	    	    	    	    	routine.
+    	    	    	    	    	    [2-3] : Residual block transfer
+    	    	    	    	    	    	instruction.
+    	    	    	    	    	    [4-5] : Jump to instruction
+    	    	    	    	    	    	after splice.
 					 */
-	     
-    unsigned long dsa[0];		/* Variable length (depending
+    u32 saved_residual[6]; 		/* Copy of old residual, so we 
+					   can get another partial 
+					   transfer and still recover 
+    	    	    	    	    	 */
+    	    	
+    u32 saved_data_pointer;		/* Saved data pointer */
+
+    u32 dsa_next_addr;		        /* _Address_ of dsa_next field  
+					   in this dsa for RISCy 
+					   style constant. */
+
+    u32 dsa_addr;			/* Address of dsa; RISCy style
+					   constant */
+
+    u32 dsa[0];				/* Variable length (depending
 					   on host type, number of scatter /
 					   gather buffers, etc).  */
 };
 
 struct NCR53c7x0_break {
-    unsigned long *address, old_instruction[2];
+    u32 *address, old_instruction[2];
     struct NCR53c7x0_break *next;
     unsigned char old_size;		/* Size of old instruction */
 };
@@ -1003,10 +1181,10 @@ struct NCR53c7x0_break {
  * Indicates that the NCR was being aborted.
  */
 #define STATE_ABORTING	3
-/* 
- * Indicates that the NCR was successfully aborted. */
+/* Indicates that the NCR was successfully aborted. */
 #define STATE_ABORTED 4
-    
+/* Indicates that the NCR has been disabled due to a fatal error */
+#define STATE_DISABLED 5
 
 /* 
  * Where knowledge of SCSI SCRIPT(tm) specified values are needed 
@@ -1025,22 +1203,15 @@ struct NCR53c7x0_break {
 struct NCR53c7x0_hostdata {
     int size;				/* Size of entire Scsi_Host
 					   structure */
-    struct Scsi_Host *next;		/* next of this type */
     int board;				/* set to board type, useful if 
 					   we have host specific things,
 					   ie, a general purpose I/O 
 					   bit is being used to enable
 					   termination, etc. */
 
-    int chip;				/* set to chip type */
-	/*
-  	 * NCR53c700 = 700
-	 * NCR53c700-66 = 70066
-	 * NCR53c710 = 710
-	 * NCR53c720 = 720 
-         * NCR53c810 = 810
-	 */
-
+    int chip;				/* set to chip type; 700-66 is
+					   700-66, rest are last three
+					   digits of part number */
     /*
      * PCI bus, device, function, only for NCR53c8x0 chips.
      * pci_valid indicates that the PCI configuration information
@@ -1050,7 +1221,7 @@ struct NCR53c7x0_hostdata {
     unsigned char pci_bus, pci_device_fn;
     unsigned pci_valid:1;
 
-    unsigned long *dsp;			/* dsp to restart with after
+    u32 *dsp;				/* dsp to restart with after
 					   all stacked interrupts are
 					   handled. */
 
@@ -1088,62 +1259,68 @@ struct NCR53c7x0_hostdata {
 
     int (* dstat_sir_intr)(struct Scsi_Host *host, struct NCR53c7x0_cmd *cmd);
 
-    long dsa_size; /* Size of DSA structure */
+    int dsa_len; /* Size of DSA structure */
 
     /*
      * Location of DSA fields for the SCSI SCRIPT corresponding to this 
      * chip.  
      */
 
-    long dsa_start;			
-    long dsa_end;			
-    long dsa_next;
-    long dsa_prev;
-    long dsa_cmnd;
-    long dsa_select;
-    long dsa_msgout;
-    long dsa_cmdout;
-    long dsa_dataout;
-    long dsa_datain;
-    long dsa_msgin;
-    long dsa_msgout_other;
-    long dsa_write_sync;
-    long dsa_write_resume;
-    long dsa_jump_resume;
-    long dsa_check_reselect;
-    long dsa_status;
+    s32 dsa_start;			
+    s32 dsa_end;			
+    s32 dsa_next;
+    s32 dsa_prev;
+    s32 dsa_cmnd;
+    s32 dsa_select;
+    s32 dsa_msgout;
+    s32 dsa_cmdout;
+    s32 dsa_dataout;
+    s32 dsa_datain;
+    s32 dsa_msgin;
+    s32 dsa_msgout_other;
+    s32 dsa_write_sync;
+    s32 dsa_write_resume;
+    s32 dsa_check_reselect;
+    s32 dsa_status;
+    s32 dsa_saved_pointer;
+    s32 dsa_jump_dest;
 
     /* 
      * Important entry points that generic fixup code needs
      * to know about, fixed up.
      */
 
-    long E_accept_message;
-    long E_dsa_code_template;
-    long E_dsa_code_template_end;
-    long E_command_complete;		
-    long E_msg_in;
-    long E_initiator_abort;
-    long E_other_transfer;
-    long E_target_abort;
-    long E_schedule;			
-    long E_debug_break;	
-    long E_reject_message;
-    long E_respond_message;
-    long E_select;
-    long E_select_msgout;
-    long E_test_0;
-    long E_test_1;
-    long E_test_2;
-    long E_test_3;
-    long E_dsa_zero;
-    long E_dsa_jump_resume;
+    s32 E_accept_message;
+    s32 E_command_complete;		
+    s32 E_data_transfer;
+    s32 E_dsa_code_template;
+    s32 E_dsa_code_template_end;
+    s32 E_end_data_transfer;
+    s32 E_msg_in;
+    s32 E_initiator_abort;
+    s32 E_other_transfer;
+    s32 E_other_in;
+    s32 E_other_out;
+    s32 E_target_abort;
+    s32 E_debug_break;	
+    s32 E_reject_message;
+    s32 E_respond_message;
+    s32 E_select;
+    s32 E_select_msgout;
+    s32 E_test_0;
+    s32 E_test_1;
+    s32 E_test_2;
+    s32 E_test_3;
+    s32 E_dsa_zero;
+    s32 E_cmdout_cmdout;
+    s32 E_wait_reselect;
+    s32 E_dsa_code_begin;
 
-    int options;			/* Bitfielded set of options enabled */
-    long test_completed;		/* Test completed */
+    long long options;			/* Bitfielded set of options enabled */
+    volatile u32 test_completed;	/* Test completed */
     int test_running;			/* Test currently running */
-    int test_source;
-    volatile int test_dest;
+    s32 test_source;
+    volatile s32 test_dest;
 
     volatile int state;			/* state of driver, only used for 
 					   OPTION_700 */
@@ -1164,6 +1341,7 @@ struct NCR53c7x0_hostdata {
 					 */
 
     volatile int intrs;			/* Number of interrupts */
+    volatile int resets;		/* Number of SCSI resets */
     unsigned char saved_dmode;	
     unsigned char saved_ctest4;
     unsigned char saved_ctest7;
@@ -1191,33 +1369,31 @@ struct NCR53c7x0_hostdata {
 					   information for if 
 					   OPTION_DEBUG_DUMP is set */ 
 
-    unsigned char debug_lun_limit[8];	/* If OPTION_DEBUG_TARGET_LIMIT
+    unsigned char debug_lun_limit[16];	/* If OPTION_DEBUG_TARGET_LIMIT
 					   set, puke if commands are sent
 					   to other target/lun combinations */
 
     int debug_count_limit;		/* Number of commands to execute
-				           before puking to limit debugging 
+					   before puking to limit debugging 
 					   output */
 				    
 
     volatile unsigned idle:1;			/* set to 1 if idle */
 
     /* 
-     * Table of synchronous transfer parameters set on a per-target
+     * Table of synchronous+wide transfer parameters set on a per-target
      * basis.
-     * 
-     * XXX - do we need to increase this to 16 for the WIDE-SCSI
-     * flavors of the board?
      */
     
-    volatile struct NCR53c7x0_synchronous sync[8];
+    volatile struct NCR53c7x0_synchronous sync[16];
 
-    volatile struct NCR53c7x0_cmd *issue_queue;
+    volatile Scsi_Cmnd *issue_queue;
 						/* waiting to be issued by
 						   Linux driver */
     volatile struct NCR53c7x0_cmd *running_list;	
 						/* commands running, maintained
 						   by Linux driver */
+
     volatile struct NCR53c7x0_cmd *current;	/* currently connected 
 						   nexus, ONLY valid for
 						   NCR53c700/NCR53c700-66
@@ -1234,10 +1410,11 @@ struct NCR53c7x0_hostdata {
 						   */
     volatile int num_cmds;			/* Number of commands 
 						   allocated */
-    volatile unsigned char cmd_allocated[8];	/* Have we allocated commands
+    volatile int extra_allocate;
+    volatile unsigned char cmd_allocated[16];	/* Have we allocated commands
 						   for this target yet?  If not,
 						   do so ASAP */
-    volatile unsigned char busy[8][8];     	/* number of commands 
+    volatile unsigned char busy[16][8];     	/* number of commands 
 						   executing on each target
     	    	    	    	    	    	 */
     /* 
@@ -1250,33 +1427,58 @@ struct NCR53c7x0_hostdata {
 						
 
     /* Shared variables between SCRIPT and host driver */
-    volatile unsigned char *issue_dsa_head;	
-						/* commands waiting to be 
-						   issued, insertions are 
-						   done by Linux driver,
-						   deletions are done by
-						   NCR */
-    volatile unsigned char *issue_dsa_tail;
+    volatile u32 *schedule;			/* Array of JUMPs to dsa_begin
+						   routines of various DSAs.  
+						   When not in use, replace
+						   with jump to next slot */
+
+
     volatile unsigned char msg_buf[16];		/* buffer for messages
 						   other than the command
 						   complete message */
-    volatile unsigned char *reconnect_dsa_head;	
-						/* disconnected commands,
-						   maintained by NCR */
+
+    /* Per-target default synchronous and WIDE messages */
+    volatile unsigned char synchronous_want[16][5];
+    volatile unsigned char wide_want[16][4];
+
+    /* Bit fielded set of targets we want to speak synchronously with */ 
+    volatile u16 initiate_sdtr;	
+    /* Bit fielded set of targets we want to speak wide with */
+    volatile u16 initiate_wdtr;
+    /* Bit fielded list of targets we've talked to. */
+    volatile u16 talked_to;
+
+    /* Array of bit-fielded lun lists that we need to request_sense */
+    volatile unsigned char request_sense[16];
+
+    u32 addr_reconnect_dsa_head;		/* RISCy style constant,
+						   address of following */
+    volatile u32 reconnect_dsa_head;	
     /* Data identifying nexus we are trying to match during reselection */
     volatile unsigned char reselected_identify; /* IDENTIFY message */
     volatile unsigned char reselected_tag;	/* second byte of queue tag 
 						   message or 0 */
     /* These were static variables before we moved them */
 
-    long NCR53c7xx_zero;
-    long NCR53c7xx_sink;
+    s32 NCR53c7xx_zero;
+    s32 NCR53c7xx_sink;
+    u32 NOP_insn;
     char NCR53c7xx_msg_reject;
     char NCR53c7xx_msg_abort;
     char NCR53c7xx_msg_nop;
 
-    int script_count;				/* Size of script in longs */
-    unsigned long script[0];			/* Relocated SCSI script */
+    volatile int event_size, event_index;
+    volatile struct NCR53c7x0_event *events;
+
+    /* If we need to generate code to kill off the currently connected 
+       command, this is where we do it. Should have a BMI instruction
+       to source or sink the current data, followed by a JUMP
+       to abort_connected */
+
+    u32 *abort_script;
+
+    int script_count;				/* Size of script in words */
+    u32 script[0];				/* Relocated SCSI script */
 
 };
 
@@ -1293,79 +1495,90 @@ struct NCR53c7x0_hostdata {
 
 #define NCR53c7x0_local_declare()					\
     volatile unsigned char *NCR53c7x0_address_memory;			\
-    unsigned short NCR53c7x0_address_io;				\
+    unsigned int NCR53c7x0_address_io;					\
     int NCR53c7x0_memory_mapped
 
 #define NCR53c7x0_local_setup(host)					\
     NCR53c7x0_address_memory = (void *) (host)->base;			\
-    NCR53c7x0_address_io = (unsigned short) (host)->io_port;		\
+    NCR53c7x0_address_io = (unsigned int) (host)->io_port;		\
     NCR53c7x0_memory_mapped = ((struct NCR53c7x0_hostdata *) 		\
 	host->hostdata)-> options & OPTION_MEMORY_MAPPED 
 
 #define NCR53c7x0_read8(address) 					\
     (NCR53c7x0_memory_mapped ? 						\
-	*( (NCR53c7x0_address_memory) + (address))  : 			\
+	(unsigned int)readb(NCR53c7x0_address_memory + (address)) :	\
 	inb(NCR53c7x0_address_io + (address)))
 
 #define NCR53c7x0_read16(address) 					\
     (NCR53c7x0_memory_mapped ? 						\
-	*((unsigned short *) (NCR53c7x0_address_memory) + (address))  :	\
+	(unsigned int)readw(NCR53c7x0_address_memory + (address)) :	\
 	inw(NCR53c7x0_address_io + (address)))
 
 #define NCR53c7x0_read32(address) 					\
     (NCR53c7x0_memory_mapped ? 						\
-	*((unsigned long *) (NCR53c7x0_address_memory) + (address))  : 	\
+	(unsigned int) readl(NCR53c7x0_address_memory + (address)) : 	\
 	inl(NCR53c7x0_address_io + (address)))
 
 #define NCR53c7x0_write8(address,value) 				\
     (NCR53c7x0_memory_mapped ? 						\
-	*((unsigned char *) (NCR53c7x0_address_memory) + (address)) =	\
-	  (value) :							\
+     ({writeb((value), NCR53c7x0_address_memory + (address)); mb();}) :	\
 	outb((value), NCR53c7x0_address_io + (address)))
 
 #define NCR53c7x0_write16(address,value) 				\
     (NCR53c7x0_memory_mapped ? 						\
-	*((unsigned short *) (NCR53c7x0_address_memory) + (address)) =	\
-	  (value) : 							\
+     ({writew((value), NCR53c7x0_address_memory + (address)); mb();}) :	\
 	outw((value), NCR53c7x0_address_io + (address)))
 
 #define NCR53c7x0_write32(address,value) 				\
     (NCR53c7x0_memory_mapped ? 						\
-	*((unsigned long *) (NCR53c7x0_address_memory) + (address)) =  	\
-	  (value) : 							\
+     ({writel((value), NCR53c7x0_address_memory + (address)); mb();}) :	\
 	outl((value), NCR53c7x0_address_io + (address)))
 
+/* Patch arbitrary 32 bit words in the script */
 #define patch_abs_32(script, offset, symbol, value)			\
     	for (i = 0; i < (sizeof (A_##symbol##_used) / sizeof 		\
-    	    (unsigned long)); ++i) {					\
+    	    (u32)); ++i) {					\
 	    (script)[A_##symbol##_used[i] - (offset)] += (value);	\
 	    if (hostdata->options & OPTION_DEBUG_FIXUP) 		\
-	      printk("scsi%d : %s reference %d at 0x%lx in %s is now 0x%lx\n",\
+	      printk("scsi%d : %s reference %d at 0x%x in %s is now 0x%x\n",\
 		host->host_no, #symbol, i, A_##symbol##_used[i] - 	\
-		(offset), #script, (script)[A_##symbol##_used[i] - 	\
+		(int)(offset), #script, (script)[A_##symbol##_used[i] -	\
 		(offset)]);						\
     	}
 
-#define patch_abs_rwri_data(script, offset, symbol, value)	        \
+/* Patch read/write instruction immediate field */
+#define patch_abs_rwri_data(script, offset, symbol, value)		\
     	for (i = 0; i < (sizeof (A_##symbol##_used) / sizeof 		\
-    	    (unsigned long)); ++i)					\
+    	    (u32)); ++i)					\
     	    (script)[A_##symbol##_used[i] - (offset)] =			\
 	    	((script)[A_##symbol##_used[i] - (offset)] & 		\
 	    	~DBC_RWRI_IMMEDIATE_MASK) | 				\
     	    	(((value) << DBC_RWRI_IMMEDIATE_SHIFT) &		\
 		 DBC_RWRI_IMMEDIATE_MASK)
 
+/* Patch transfer control instruction data field */
+#define patch_abs_tci_data(script, offset, symbol, value)	        \
+    	for (i = 0; i < (sizeof (A_##symbol##_used) / sizeof 		\
+    	    (u32)); ++i)					\
+    	    (script)[A_##symbol##_used[i] - (offset)] =			\
+	    	((script)[A_##symbol##_used[i] - (offset)] & 		\
+	    	~DBC_TCI_DATA_MASK) | 					\
+    	    	(((value) << DBC_TCI_DATA_SHIFT) &			\
+		 DBC_TCI_DATA_MASK)
+
+/* Patch field in dsa structure (assignment should be +=?) */
 #define patch_dsa_32(dsa, symbol, word, value)				\
 	{								\
-	(dsa)[(hostdata->##symbol - hostdata->dsa_start) / sizeof(long)	\
-		+ (word)] = (unsigned long) (value);			\
+	(dsa)[(hostdata->##symbol - hostdata->dsa_start) / sizeof(u32)	\
+	    + (word)] = (value);					\
 	if (hostdata->options & OPTION_DEBUG_DSA)			\
-	    printk("scsi : dsa %s symbol %s(%ld) word %d now 0x%lx\n",	\
-		#dsa, #symbol, (long) hostdata->##symbol, 		\
-		(int) (word), (long) (value));					\
+	    printk("scsi : dsa %s symbol %s(%d) word %d now 0x%x\n",	\
+		#dsa, #symbol, hostdata->##symbol, 			\
+		(word), (u32) (value));					\
 	}
-    
 
+/* Paranoid people could use panic() here. */
+#define FATAL(host) shutdown((host));
 
 #endif /* NCR53c7x0_C */
 #endif /* NCR53c7x0_H */

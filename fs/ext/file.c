@@ -12,7 +12,7 @@
  *  ext regular file handling primitives
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 
 #include <linux/sched.h>
@@ -22,6 +22,7 @@
 #include <linux/fcntl.h>
 #include <linux/stat.h>
 #include <linux/locks.h>
+#include <linux/pagemap.h>
 
 #define	NBUF	32
 
@@ -31,8 +32,8 @@
 #include <linux/fs.h>
 #include <linux/ext_fs.h>
 
-static int ext_file_read(struct inode *, struct file *, char *, int);
-static int ext_file_write(struct inode *, struct file *, char *, int);
+static long ext_file_read(struct inode *, struct file *, char *, unsigned long);
+static long ext_file_write(struct inode *, struct file *, const char *, unsigned long);
 
 /*
  * We have mostly NULL's here: the current defaults are ok for
@@ -45,7 +46,7 @@ static struct file_operations ext_file_operations = {
 	NULL,			/* readdir - bad */
 	NULL,			/* select - default */
 	NULL,			/* ioctl - default */
-	generic_mmap,  		/* mmap */
+	generic_file_mmap,	/* mmap */
 	NULL,			/* no special open is needed */
 	NULL,			/* release */
 	ext_sync_file			/* fsync */
@@ -64,12 +65,15 @@ struct inode_operations ext_file_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	generic_readpage,	/* readpage */
+	NULL,			/* writepage */
 	ext_bmap,		/* bmap */
 	ext_truncate,		/* truncate */
 	NULL			/* permission */
 };
 
-static int ext_file_read(struct inode * inode, struct file * filp, char * buf, int count)
+static long ext_file_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
 	int read,left,chars;
 	int block, blocks, offset;
@@ -110,9 +114,9 @@ static int ext_file_read(struct inode * inode, struct file * filp, char * buf, i
 			blocks = size - block;
 	}
 
-	/* We do this in a two stage process.  We first try and request
+	/* We do this in a two stage process.  We first try to request
 	   as many blocks as we can, then we wait for the first one to
-	   complete, and then we try and wrap up as many as are actually
+	   complete, and then we try to wrap up as many as are actually
 	   done.  This routine is rather generic, in that it can be used
 	   in a filesystem by substituting the appropriate function in
 	   for getblk.
@@ -126,7 +130,7 @@ static int ext_file_read(struct inode * inode, struct file * filp, char * buf, i
 		while (blocks) {
 			--blocks;
 			*bhb = ext_getblk(inode, block++, 0);
-			if (*bhb && !(*bhb)->b_uptodate) {
+			if (*bhb && !buffer_uptodate(*bhb)) {
 				uptodate = 0;
 				bhreq[bhrequest++] = *bhb;
 			}
@@ -149,7 +153,7 @@ static int ext_file_read(struct inode * inode, struct file * filp, char * buf, i
 		do { /* Finish off all I/O that has actually completed */
 			if (*bhe) {
 				wait_on_buffer(*bhe);
-				if (!(*bhe)->b_uptodate) {	/* read error? */
+				if (!buffer_uptodate(*bhe)) {	/* read error? */
 				        brelse(*bhe);
 					if (++bhe == &buflist[NBUF])
 					  bhe = buflist;
@@ -165,17 +169,17 @@ static int ext_file_read(struct inode * inode, struct file * filp, char * buf, i
 			left -= chars;
 			read += chars;
 			if (*bhe) {
-				memcpy_tofs(buf,offset+(*bhe)->b_data,chars);
+				copy_to_user(buf,offset+(*bhe)->b_data,chars);
 				brelse(*bhe);
 				buf += chars;
 			} else {
 				while (chars-->0)
-					put_fs_byte(0,buf++);
+					put_user(0,buf++);
 			}
 			offset = 0;
 			if (++bhe == &buflist[NBUF])
 				bhe = buflist;
-		} while (left > 0 && bhe != bhb && (!*bhe || !(*bhe)->b_lock));
+		} while (left > 0 && bhe != bhb && (!*bhe || !buffer_locked(*bhe)));
 	} while (left > 0);
 
 /* Release the read-ahead blocks */
@@ -194,7 +198,8 @@ static int ext_file_read(struct inode * inode, struct file * filp, char * buf, i
 	return read;
 }
 
-static int ext_file_write(struct inode * inode, struct file * filp, char * buf, int count)
+static long ext_file_write(struct inode * inode, struct file * filp,
+	const char * buf, unsigned long count)
 {
 	off_t pos;
 	int written,c;
@@ -228,10 +233,10 @@ static int ext_file_write(struct inode * inode, struct file * filp, char * buf, 
 		c = BLOCK_SIZE - (pos % BLOCK_SIZE);
 		if (c > count-written)
 			c = count-written;
-		if (c != BLOCK_SIZE && !bh->b_uptodate) {
+		if (c != BLOCK_SIZE && !buffer_uptodate(bh)) {
 			ll_rw_block(READ, 1, &bh);
 			wait_on_buffer(bh);
-			if (!bh->b_uptodate) {
+			if (!buffer_uptodate(bh)) {
 				brelse(bh);
 				if (!written)
 					written = -EIO;
@@ -239,15 +244,16 @@ static int ext_file_write(struct inode * inode, struct file * filp, char * buf, 
 			}
 		}
 		p = (pos % BLOCK_SIZE) + bh->b_data;
+		copy_from_user(p,buf,c);
+		update_vm_cache(inode, pos, p, c);
 		pos += c;
 		if (pos > inode->i_size) {
 			inode->i_size = pos;
 			inode->i_dirt = 1;
 		}
 		written += c;
-		memcpy_fromfs(p,buf,c);
 		buf += c;
-		bh->b_uptodate = 1;
+		mark_buffer_uptodate(bh, 1);
 		mark_buffer_dirty(bh, 0);
 		brelse(bh);
 	}

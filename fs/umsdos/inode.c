@@ -6,20 +6,14 @@
  *
  */
 
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#else
-#define MOD_INC_USE_COUNT
-#define MOD_DEC_USE_COUNT
-#endif
 
 #include <linux/fs.h>
 #include <linux/msdos_fs.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <linux/string.h>
 #include <linux/stat.h>
 #include <linux/umsdos_fs.h>
@@ -50,7 +44,7 @@ void UMSDOS_put_inode(struct inode *inode)
 	if (inode != NULL && inode == pseudo_root){
 		printk ("Umsdos: Oops releasing pseudo_root. Notify jacques@solucorp.qc.ca\n");
 	}
-	msdos_put_inode(inode);
+	fat_put_inode(inode);
 }
 
 
@@ -63,7 +57,7 @@ void UMSDOS_put_super(struct super_block *sb)
 
 void UMSDOS_statfs(struct super_block *sb,struct statfs *buf, int bufsiz)
 {
-	msdos_statfs(sb,buf,bufsiz);
+	fat_statfs(sb,buf,bufsiz);
 }
 
 
@@ -233,7 +227,7 @@ void UMSDOS_read_inode(struct inode *inode)
 	if (S_ISDIR(inode->i_mode)
 		&& (inode->u.umsdos_i.u.dir_info.creating != 0
 			|| inode->u.umsdos_i.u.dir_info.looking != 0
-			|| inode->u.umsdos_i.u.dir_info.p != NULL)){
+			|| waitqueue_active(&inode->u.umsdos_i.u.dir_info.p))){
 		Printk (("read inode %d %d %p\n"
 			,inode->u.umsdos_i.u.dir_info.creating
 			,inode->u.umsdos_i.u.dir_info.looking
@@ -263,7 +257,7 @@ void UMSDOS_write_inode(struct inode *inode)
 	struct iattr newattrs;
 
 	PRINTK (("UMSDOS_write_inode emd %d\n",inode->u.umsdos_i.i_emd_owner));
-	msdos_write_inode(inode);
+	fat_write_inode(inode);
 	newattrs.ia_mtime = inode->i_mtime;
 	newattrs.ia_atime = inode->i_atime;
 	newattrs.ia_ctime = inode->i_ctime;
@@ -410,6 +404,7 @@ struct super_block *UMSDOS_read_super(
 	printk ("UMSDOS Beta 0.6 (compatibility level %d.%d, fast msdos)\n"
 		,UMSDOS_VERSION,UMSDOS_RELEASE);
 	if (sb != NULL){
+		MSDOS_SB(sb)->options.dotsOK = 0;  /* disable hidden==dotfile */
 		sb->s_op = &umsdos_sops;
 		PRINTK (("umsdos_read_super %p\n",sb->s_mounted));
 		umsdos_setup_dir_inode (sb->s_mounted);
@@ -499,18 +494,24 @@ struct super_block *UMSDOS_read_super(
 }
 
 
-#ifdef MODULE
-
-char kernel_version[] = UTS_RELEASE;
 
 static struct file_system_type umsdos_fs_type = {
 	UMSDOS_read_super, "umsdos", 1, NULL
 };
 
+int init_umsdos_fs(void)
+{
+	return register_filesystem(&umsdos_fs_type);
+}
+
+#ifdef MODULE
 int init_module(void)
 {
-	register_filesystem(&umsdos_fs_type);
-	return 0;
+	int status;
+
+	if ((status = init_umsdos_fs()) == 0)
+		register_symtab(0);
+	return status;
 }
 
 void cleanup_module(void)

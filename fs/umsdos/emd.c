@@ -5,65 +5,48 @@
  *
  *  Extended MS-DOS directory handling functions
  */
-#ifdef MODULE
-#include <linux/module.h>
-#endif
 
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/kernel.h>
-#include <asm/segment.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/msdos_fs.h>
 #include <linux/umsdos_fs.h>
 
+#include <asm/uaccess.h>
+
 #define PRINTK(x)
 #define Printk(x) printk x
 
-int umsdos_readdir_kmem(
-	struct inode *inode,
-	struct file *filp,
-	struct dirent *dirent,
-	int count)
-{
-	int ret;
-	int old_fs = get_fs();
-	set_fs (KERNEL_DS);
-	ret = msdos_readdir(inode,filp,dirent,count);
-	set_fs (old_fs);
-	return ret;
-}
 /*
 	Read a file into kernel space memory
 */
-int umsdos_file_read_kmem(
-	struct inode *inode,
+long umsdos_file_read_kmem (struct inode *inode,
 	struct file *filp,
 	char *buf,
-	int count)
+	unsigned long count)
 {
 	int ret;
 	int old_fs = get_fs();	
 	set_fs (KERNEL_DS);
-	ret = msdos_file_read(inode,filp,buf,count);
+	ret = fat_file_read(inode,filp,buf,count);
 	set_fs (old_fs);
 	return ret;
 }
 /*
 	Write to a file from kernel space
 */
-int umsdos_file_write_kmem(
-	struct inode *inode,
+long umsdos_file_write_kmem (struct inode *inode,
 	struct file *filp,
-	char *buf,
-	int count)
+	const char *buf,
+	unsigned long count)
 {
 	int ret;
 	int old_fs = get_fs();
 	set_fs (KERNEL_DS);
-	ret = msdos_file_write(inode,filp,buf,count);
+	ret = fat_file_write(inode,filp,buf,count);
 	set_fs (old_fs);
 	return ret;
 }
@@ -75,11 +58,10 @@ int umsdos_file_write_kmem(
 
 	Return 0 if ok, a negative error code if not.
 */
-int umsdos_emd_dir_write (
-	struct inode *emd_dir,
+long umsdos_emd_dir_write (struct inode *emd_dir,
 	struct file *filp,
 	char *buf,	/* buffer in kernel memory, not in user space */
-	int count)
+	unsigned long count)
 {
 	int written;
 	filp->f_flags = 0;
@@ -91,18 +73,18 @@ int umsdos_emd_dir_write (
 	The block of data is NOT in user space.
 	Return 0 if ok, -EIO if any error.
 */
-int umsdos_emd_dir_read (
-	struct inode *emd_dir,
+long umsdos_emd_dir_read (struct inode *emd_dir,
 	struct file *filp,
 	char *buf,	/* buffer in kernel memory, not in user space */
-	int count)
+	unsigned long count)
 {
-	int ret = 0;
+	long int ret = 0;
 	int sizeread;
 	filp->f_flags = 0;
 	sizeread = umsdos_file_read_kmem (emd_dir,filp,buf,count);
 	if (sizeread != count){
-		printk ("UMSDOS: problem with EMD file. Can't read\n");
+		printk ("UMSDOS: problem with EMD file. Can't read pos = %Ld (%d != %ld)\n"
+			,filp->f_pos,sizeread,count);
 		ret = -EIO;
 	}
 	return ret;

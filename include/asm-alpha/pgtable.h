@@ -9,6 +9,131 @@
  * in <asm/page.h> (currently 8192).
  */
 
+#include <asm/system.h>
+#include <asm/mmu_context.h>
+
+/* Caches aren't brain-dead on the alpha. */
+#define flush_cache_all()			do { } while (0)
+#define flush_cache_mm(mm)			do { } while (0)
+#define flush_cache_range(mm, start, end)	do { } while (0)
+#define flush_cache_page(vma, vmaddr)		do { } while (0)
+#define flush_page_to_ram(page)			do { } while (0)
+
+/*
+ * Force a context reload. This is needed when we
+ * change the page table pointer or when we update
+ * the ASN of the current process.
+ */
+static inline void reload_context(struct task_struct *task)
+{
+	__asm__ __volatile__(
+		"bis %0,%0,$16\n\t"
+		"call_pal %1"
+		: /* no outputs */
+		: "r" (&task->tss), "i" (PAL_swpctx)
+		: "$0", "$1", "$16", "$22", "$23", "$24", "$25");
+}
+
+/*
+ * Use a few helper functions to hide the ugly broken ASN
+ * numbers on early alpha's (ev4 and ev45)
+ */
+#ifdef BROKEN_ASN
+
+#define flush_tlb_current(x) tbiap()
+#define flush_tlb_other(x) do { } while (0)
+
+#else
+
+extern void get_new_asn_and_reload(struct task_struct *, struct mm_struct *);
+
+#define flush_tlb_current(mm) get_new_asn_and_reload(current, mm)
+#define flush_tlb_other(mm) do { (mm)->context = 0; } while (0)
+
+#endif
+
+/*
+ * Flush just one page in the current TLB set.
+ * We need to be very careful about the icache here, there
+ * is no way to invalidate a specific icache page..
+ */
+static inline void flush_tlb_current_page(struct mm_struct * mm,
+	struct vm_area_struct *vma,
+	unsigned long addr)
+{
+#ifdef BROKEN_ASN
+	tbi(2 + ((vma->vm_flags & VM_EXEC) != 0), addr);
+#else
+	if (vma->vm_flags & VM_EXEC)
+		flush_tlb_current(mm);
+	else
+		tbi(2, addr);
+#endif
+}
+
+/*
+ * Flush current user mapping.
+ */
+static inline void flush_tlb(void)
+{
+	flush_tlb_current(current->mm);
+}
+
+/*
+ * Flush everything (kernel mapping may also have
+ * changed due to vmalloc/vfree)
+ */
+static inline void flush_tlb_all(void)
+{
+	tbia();
+}
+
+/*
+ * Flush a specified user mapping
+ */
+static inline void flush_tlb_mm(struct mm_struct *mm)
+{
+	if (mm != current->mm)
+		flush_tlb_other(mm);
+	else
+		flush_tlb_current(mm);
+}
+
+/*
+ * Page-granular tlb flush.
+ *
+ * do a tbisd (type = 2) normally, and a tbis (type = 3)
+ * if it is an executable mapping.  We want to avoid the
+ * itlb flush, because that potentially also does a
+ * icache flush.
+ */
+static inline void flush_tlb_page(struct vm_area_struct *vma,
+	unsigned long addr)
+{
+	struct mm_struct * mm = vma->vm_mm;
+
+	if (mm != current->mm)
+		flush_tlb_other(mm);
+	else
+		flush_tlb_current_page(mm, vma, addr);
+}
+
+/*
+ * Flush a specified range of user mapping: on the
+ * alpha we flush the whole user tlb
+ */
+static inline void flush_tlb_range(struct mm_struct *mm,
+	unsigned long start, unsigned long end)
+{
+	flush_tlb_mm(mm);
+}
+
+/* Certain architectures need to do special things when pte's
+ * within a page table are directly modified.  Thus, the following
+ * hook is made available.
+ */
+#define set_pte(pteptr, pteval) ((*(pteptr)) = (pteval))
+
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
 #define PMD_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT-3))
 #define PMD_SIZE	(1UL << PMD_SHIFT)
@@ -49,7 +174,6 @@
 #define _PAGE_UWE	0x2000	/* used to do the dirty bit in software */
 
 /* .. and these are ours ... */
-#define _PAGE_COW	0x10000
 #define _PAGE_DIRTY	0x20000
 #define _PAGE_ACCESSED	0x40000
 
@@ -78,13 +202,13 @@
  */
 #define PAGE_NONE	__pgprot(_PAGE_VALID | __ACCESS_BITS | _PAGE_FOR | _PAGE_FOW | _PAGE_FOE)
 #define PAGE_SHARED	__pgprot(_PAGE_VALID | __ACCESS_BITS)
-#define PAGE_COPY	__pgprot(_PAGE_VALID | __ACCESS_BITS | _PAGE_FOW | _PAGE_COW)
+#define PAGE_COPY	__pgprot(_PAGE_VALID | __ACCESS_BITS | _PAGE_FOW)
 #define PAGE_READONLY	__pgprot(_PAGE_VALID | __ACCESS_BITS | _PAGE_FOW)
 #define PAGE_KERNEL	__pgprot(_PAGE_VALID | _PAGE_ASM | _PAGE_KRE | _PAGE_KWE)
 
 #define _PAGE_NORMAL(x) __pgprot(_PAGE_VALID | __ACCESS_BITS | (x))
 
-#define _PAGE_P(x) _PAGE_NORMAL((x) | (((x) & _PAGE_FOW)?0:(_PAGE_FOW | _PAGE_COW)))
+#define _PAGE_P(x) _PAGE_NORMAL((x) | (((x) & _PAGE_FOW)?0:_PAGE_FOW))
 #define _PAGE_S(x) _PAGE_NORMAL(x)
 
 /*
@@ -125,9 +249,9 @@ extern pmd_t * __bad_pagetable(void);
 
 extern unsigned long __zero_page(void);
 
-#define BAD_PAGETABLE __bad_pagetable()
-#define BAD_PAGE __bad_page()
-#define ZERO_PAGE __zero_page()
+#define BAD_PAGETABLE	__bad_pagetable()
+#define BAD_PAGE	__bad_page()
+#define ZERO_PAGE	0xfffffc000030A000
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR			(8*sizeof(unsigned long))
@@ -142,14 +266,15 @@ extern unsigned long __zero_page(void);
 #define PAGE_PTR(address)		\
   ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
-extern unsigned long high_memory;
-
 /*
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
 extern inline pte_t mk_pte(unsigned long page, pgprot_t pgprot)
 { pte_t pte; pte_val(pte) = ((page-PAGE_OFFSET) << (32-PAGE_SHIFT)) | pgprot_val(pgprot); return pte; }
+
+extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
+{ pte_t pte; pte_val(pte) = (physpage << (32-PAGE_SHIFT)) | pgprot_val(pgprot); return pte; }
 
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 { pte_val(pte) = (pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot); return pte; }
@@ -171,35 +296,17 @@ extern inline unsigned long pgd_page(pgd_t pgd)
 
 extern inline int pte_none(pte_t pte)		{ return !pte_val(pte); }
 extern inline int pte_present(pte_t pte)	{ return pte_val(pte) & _PAGE_VALID; }
-extern inline int pte_inuse(pte_t *ptep)	{ return mem_map[MAP_NR(ptep)] != 1; }
 extern inline void pte_clear(pte_t *ptep)	{ pte_val(*ptep) = 0; }
-extern inline void pte_reuse(pte_t * ptep)
-{
-	if (!(mem_map[MAP_NR(ptep)] & MAP_PAGE_RESERVED))
-		mem_map[MAP_NR(ptep)]++;
-}
 
 extern inline int pmd_none(pmd_t pmd)		{ return !pmd_val(pmd); }
-extern inline int pmd_bad(pmd_t pmd)		{ return (pmd_val(pmd) & ~_PFN_MASK) != _PAGE_TABLE || pmd_page(pmd) > high_memory; }
+extern inline int pmd_bad(pmd_t pmd)		{ return (pmd_val(pmd) & ~_PFN_MASK) != _PAGE_TABLE; }
 extern inline int pmd_present(pmd_t pmd)	{ return pmd_val(pmd) & _PAGE_VALID; }
-extern inline int pmd_inuse(pmd_t *pmdp)	{ return mem_map[MAP_NR(pmdp)] != 1; }
 extern inline void pmd_clear(pmd_t * pmdp)	{ pmd_val(*pmdp) = 0; }
-extern inline void pmd_reuse(pmd_t * pmdp)
-{
-	if (!(mem_map[MAP_NR(pmdp)] & MAP_PAGE_RESERVED))
-		mem_map[MAP_NR(pmdp)]++;
-}
 
 extern inline int pgd_none(pgd_t pgd)		{ return !pgd_val(pgd); }
-extern inline int pgd_bad(pgd_t pgd)		{ return (pgd_val(pgd) & ~_PFN_MASK) != _PAGE_TABLE || pgd_page(pgd) > high_memory; }
+extern inline int pgd_bad(pgd_t pgd)		{ return (pgd_val(pgd) & ~_PFN_MASK) != _PAGE_TABLE; }
 extern inline int pgd_present(pgd_t pgd)	{ return pgd_val(pgd) & _PAGE_VALID; }
-extern inline int pgd_inuse(pgd_t *pgdp)	{ return mem_map[MAP_NR(pgdp)] != 1; }
 extern inline void pgd_clear(pgd_t * pgdp)	{ pgd_val(*pgdp) = 0; }
-extern inline void pgd_reuse(pgd_t * pgdp)
-{
-	if (!(mem_map[MAP_NR(pgdp)] & MAP_PAGE_RESERVED))
-		mem_map[MAP_NR(pgdp)]++;
-}
 
 /*
  * The following only work if pte_present() is true.
@@ -210,20 +317,17 @@ extern inline int pte_write(pte_t pte)		{ return !(pte_val(pte) & _PAGE_FOW); }
 extern inline int pte_exec(pte_t pte)		{ return !(pte_val(pte) & _PAGE_FOE); }
 extern inline int pte_dirty(pte_t pte)		{ return pte_val(pte) & _PAGE_DIRTY; }
 extern inline int pte_young(pte_t pte)		{ return pte_val(pte) & _PAGE_ACCESSED; }
-extern inline int pte_cow(pte_t pte)		{ return pte_val(pte) & _PAGE_COW; }
 
 extern inline pte_t pte_wrprotect(pte_t pte)	{ pte_val(pte) |= _PAGE_FOW; return pte; }
 extern inline pte_t pte_rdprotect(pte_t pte)	{ pte_val(pte) |= _PAGE_FOR; return pte; }
 extern inline pte_t pte_exprotect(pte_t pte)	{ pte_val(pte) |= _PAGE_FOE; return pte; }
 extern inline pte_t pte_mkclean(pte_t pte)	{ pte_val(pte) &= ~(__DIRTY_BITS); return pte; }
 extern inline pte_t pte_mkold(pte_t pte)	{ pte_val(pte) &= ~(__ACCESS_BITS); return pte; }
-extern inline pte_t pte_uncow(pte_t pte)	{ pte_val(pte) &= ~_PAGE_COW; return pte; }
 extern inline pte_t pte_mkwrite(pte_t pte)	{ pte_val(pte) &= ~_PAGE_FOW; return pte; }
 extern inline pte_t pte_mkread(pte_t pte)	{ pte_val(pte) &= ~_PAGE_FOR; return pte; }
 extern inline pte_t pte_mkexec(pte_t pte)	{ pte_val(pte) &= ~_PAGE_FOE; return pte; }
 extern inline pte_t pte_mkdirty(pte_t pte)	{ pte_val(pte) |= __DIRTY_BITS; return pte; }
 extern inline pte_t pte_mkyoung(pte_t pte)	{ pte_val(pte) |= __ACCESS_BITS; return pte; }
-extern inline pte_t pte_mkcow(pte_t pte)	{ pte_val(pte) |= _PAGE_COW; return pte; }
 
 /* 
  * To set the page-dir. Note the self-mapping in the last entry
@@ -238,21 +342,15 @@ extern inline void SET_PAGE_DIR(struct task_struct * tsk, pgd_t * pgdir)
 	pgd_val(pgdir[PTRS_PER_PGD]) = pte_val(mk_pte((unsigned long) pgdir, PAGE_KERNEL));
 	tsk->tss.ptbr = ((unsigned long) pgdir - PAGE_OFFSET) >> PAGE_SHIFT;
 	if (tsk == current)
-		__asm__ __volatile__(
-			"bis %0,%0,$16\n\t"
-			"call_pal %1"
-			: /* no outputs */
-			: "r" (&tsk->tss), "i" (PAL_swpctx)
-			: "$0", "$1", "$16", "$22", "$23", "$24", "$25");
+		reload_context(tsk);
 }
 
 #define PAGE_DIR_OFFSET(tsk,address) pgd_offset((tsk),(address))
 
 /* to find an entry in a page-table-directory. */
-extern inline pgd_t * pgd_offset(struct task_struct * tsk, unsigned long address)
+extern inline pgd_t * pgd_offset(struct mm_struct * mm, unsigned long address)
 {
-	return (pgd_t *) ((tsk->tss.ptbr << PAGE_SHIFT) + PAGE_OFFSET) +
-		((address >> PGDIR_SHIFT) & (PTRS_PER_PAGE - 1));
+	return mm->pgd + ((address >> PGDIR_SHIFT) & (PTRS_PER_PAGE - 1));
 }
 
 /* Find an entry in the second-level page table.. */
@@ -270,11 +368,10 @@ extern inline pte_t * pte_offset(pmd_t * dir, unsigned long address)
 /*      
  * Allocate and free page tables. The xxx_kernel() versions are
  * used to allocate a kernel page table - this turns on ASN bits
- * if any, and marks the page tables reserved.
+ * if any.
  */
 extern inline void pte_free_kernel(pte_t * pte)
 {
-	mem_map[MAP_NR(pte)] = 1;
 	free_page((unsigned long) pte);
 }
 
@@ -286,7 +383,6 @@ extern inline pte_t * pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 		if (pmd_none(*pmd)) {
 			if (page) {
 				pmd_set(pmd, page);
-				mem_map[MAP_NR(page)] = MAP_PAGE_RESERVED;
 				return page + address;
 			}
 			pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
@@ -304,7 +400,6 @@ extern inline pte_t * pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 
 extern inline void pmd_free_kernel(pmd_t * pmd)
 {
-	mem_map[MAP_NR(pmd)] = 1;
 	free_page((unsigned long) pmd);
 }
 
@@ -316,7 +411,6 @@ extern inline pmd_t * pmd_alloc_kernel(pgd_t *pgd, unsigned long address)
 		if (pgd_none(*pgd)) {
 			if (page) {
 				pgd_set(pgd, page);
-				mem_map[MAP_NR(page)] = MAP_PAGE_RESERVED;
 				return page + address;
 			}
 			pgd_set(pgd, BAD_PAGETABLE);

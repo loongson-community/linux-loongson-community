@@ -7,46 +7,54 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.S.s:
-	$(CPP) -traditional $< -o $*.s
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) $(ASFLAGS) -c -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-
-SUBDIRS	= block char net #streams
+SUB_DIRS     := block char net #streams
+MOD_SUB_DIRS := $(SUB_DIRS)
+ALL_SUB_DIRS := $(SUB_DIRS) pci sbus scsi sound cdrom isdn
 
 ifdef CONFIG_PCI
-SUBDIRS := $(SUBDIRS) pci
+SUB_DIRS += pci
 endif
 
-ifdef CONFIG_SCSI
-SUBDIRS := $(SUBDIRS) scsi
+ifdef CONFIG_SBUS
+SUB_DIRS += sbus
 endif
 
-ifdef CONFIG_SOUND
-SUBDIRS := $(SUBDIRS) sound
+# If CONFIG_SCSI is set, the core of scsi support will be added to the kernel,
+# but some of the low-level things may also be modules.
+ifeq ($(CONFIG_SCSI),y)
+SUB_DIRS += scsi
+MOD_SUB_DIRS += scsi
+else
+  ifeq ($(CONFIG_SCSI),m)
+  MOD_SUB_DIRS += scsi
+  endif
 endif
 
-all: driversubdirs
-
-driversubdirs: dummy
-	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
-
-modules: dummy
-	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i modules; done
-
-dep:
-	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i dep; done
-
-dummy:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
+ifeq ($(CONFIG_SOUND),y)
+SUB_DIRS += sound
+else
+  ifeq ($(CONFIG_SOUND),m)
+  MOD_SUB_DIRS += sound
+  endif
 endif
 
+ifneq ($(CONFIG_CD_NO_IDESCSI)$(CONFIG_BLK_DEV_IDECD)$(CONFIG_BLK_DEV_SR),)
+SUB_DIRS += cdrom
+MOD_SUB_DIRS += cdrom
+endif
+
+ifeq ($(CONFIG_ISDN),y)
+SUB_DIRS += isdn
+MOD_SUB_DIRS += isdn
+else
+  ifeq ($(CONFIG_ISDN),m)
+  MOD_SUB_DIRS += isdn
+  endif
+endif
+
+ifeq ($(CONFIG_AP1000),y)
+SUB_DIRS += ap1000
+ALL_SUB_DIRS += ap1000
+endif
+
+include $(TOPDIR)/Rules.make

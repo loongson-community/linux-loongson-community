@@ -1,8 +1,20 @@
-VERSION = 1
-PATCHLEVEL = 3
-SUBLEVEL = 0
+VERSION = 2
+PATCHLEVEL = 1
+SUBLEVEL = 14
 
 ARCH = mips
+
+#
+# For SMP kernels, set this. We don't want to have this in the config file
+# because it makes re-config very ugly and too many fundamental files depend
+# on "CONFIG_SMP"
+#
+# NOTE! SMP is experimental. See the file Documentation/SMP.txt
+#
+# SMP = 1
+#
+# SMP profiling options
+# SMP_PROF = 1
 
 .EXPORT_ALL_VARIABLES:
 
@@ -11,15 +23,25 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else echo sh; fi ; fi)
 TOPDIR	:= $(shell if [ "$$PWD" != "" ]; then echo $$PWD; else pwd; fi)
 
-AS	=as
-LD	=ld
-HOSTCC	=gcc -I$(TOPDIR)/include
-CC	=gcc -D__KERNEL__ -I$(TOPDIR)/include
+HPATH   	= $(TOPDIR)/include
+FINDHPATH	= $(HPATH)/asm $(HPATH)/linux $(HPATH)/scsi $(HPATH)/net
+
+HOSTCC  	=gcc
+HOSTCFLAGS	=-O2 -fomit-frame-pointer
+
+CROSS_COMPILE 	=
+
+AS	=$(CROSS_COMPILE)as
+LD	=$(CROSS_COMPILE)ld
+CC	=$(CROSS_COMPILE)gcc -D__KERNEL__ -I$(HPATH)
+CPP	=$(CC) -E $(CFLAGS)
+AR	=$(CROSS_COMPILE)ar
+NM	=$(CROSS_COMPILE)nm
+STRIP	=$(CROSS_COMPILE)strip
+RANLIB	=$(CROSS_COMPILE)ranlib
+OBJCOPY	=$(CROSS_COMPILE)objcopy
+OBJDUMP	=$(CROSS_COMPILE)objdump
 MAKE	=make
-CPP	=$(CC) -E
-AR	=ar
-NM	=nm
-STRIP	=strip
 
 all:	do-it-all
 
@@ -45,9 +67,6 @@ endif
 # ROOT_DEV specifies the default root-device when making the image.
 # This can be either FLOPPY, CURRENT, /dev/xxxx or empty, in which case
 # the default of FLOPPY is used by 'build'.
-#
-# NOTE: This does NOT work with Linux/MIPS yet. You need to hardcode
-# ROOT_DEV in arch/mips/kernel/setup.c ! 
 #
 
 ROOT_DEV = CURRENT
@@ -77,6 +96,16 @@ ifdef CONFIG_CPP
 CFLAGS := $(CFLAGS) -x c++
 endif
 
+ifdef SMP
+CFLAGS += -D__SMP__
+AFLAGS += -D__SMP__
+
+ifdef SMP_PROF
+CFLAGS += -D__SMP_PROF__
+AFLAGS += -D__SMP_PROF__
+endif
+endif
+
 #
 # if you want the ram-disk device, define this to be the
 # size in blocks.
@@ -87,19 +116,28 @@ endif
 # Include the make variables (CC, etc...)
 #
 
-ARCHIVES	=kernel/kernel.o mm/mm.o fs/fs.o net/net.o ipc/ipc.o
+ARCHIVES	=kernel/kernel.o mm/mm.o fs/fs.o ipc/ipc.o net/network.a
 FILESYSTEMS	=fs/filesystems.a
 DRIVERS		=drivers/block/block.a \
-		 drivers/char/char.a \
-		 drivers/net/net.a
+		 drivers/char/char.a
 LIBS		=$(TOPDIR)/lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc lib
 
-ifdef CONFIG_SCSI
+ifeq ($(CONFIG_ISDN),y)
+DRIVERS := $(DRIVERS) drivers/isdn/isdn.a
+endif
+
+DRIVERS := $(DRIVERS) drivers/net/net.a
+
+ifeq ($(CONFIG_SCSI),y)
 DRIVERS := $(DRIVERS) drivers/scsi/scsi.a
 endif
 
-ifdef CONFIG_SOUND
+ifneq ($(CONFIG_CD_NO_IDESCSI)$(CONFIG_BLK_DEV_IDECD)$(CONFIG_BLK_DEV_SR),)
+DRIVERS := $(DRIVERS) drivers/cdrom/cdrom.a
+endif
+
+ifeq ($(CONFIG_SOUND),y)
 DRIVERS := $(DRIVERS) drivers/sound/sound.a
 endif
 
@@ -107,21 +145,30 @@ ifdef CONFIG_PCI
 DRIVERS := $(DRIVERS) drivers/pci/pci.a
 endif
 
+ifdef CONFIG_SBUS
+DRIVERS := $(DRIVERS) drivers/sbus/sbus.a
+endif
+
 include arch/$(ARCH)/Makefile
 
-.c.s:
-	$(CC) $(CFLAGS) -S -o $*.s $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c -o $*.o $<
+ifdef SMP
+
 .S.s:
-	$(CC) -D__ASSEMBLY__ -traditional -E -o $*.o $<
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -E -o $*.s $<
+.S.o:
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -c -o $*.o $<
+
+else
+
+.S.s:
+	$(CC) -D__ASSEMBLY__ -traditional -E -o $*.s $<
 .S.o:
 	$(CC) -D__ASSEMBLY__ -traditional -c -o $*.o $<
 
+endif
+
 Version: dummy
-	rm -f include/linux/version.h
+	@rm -f include/linux/compile.h
 
 boot: vmlinux
 	@$(MAKE) -C arch/$(ARCH)/boot
@@ -139,42 +186,57 @@ symlinks:
 	( cd include ; ln -sf asm-$(ARCH) asm)
 
 oldconfig: symlinks
-	$(CONFIG_SHELL) Configure -d arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) scripts/Configure -d arch/$(ARCH)/config.in
+
+xconfig: symlinks
+	$(MAKE) -C scripts kconfig.tk
+	wish -f scripts/kconfig.tk
+
+menuconfig: include/linux/version.h symlinks 
+	$(MAKE) -C scripts/lxdialog all
+	$(CONFIG_SHELL) scripts/Menuconfig arch/$(ARCH)/config.in
 
 config: symlinks
-	$(CONFIG_SHELL) Configure arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) scripts/Configure arch/$(ARCH)/config.in
 
 linuxsubdirs: dummy
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
 
 $(TOPDIR)/include/linux/version.h: include/linux/version.h
+$(TOPDIR)/include/linux/compile.h: include/linux/compile.h
 
 newversion:
 	@if [ ! -f .version ]; then \
 		echo 1 > .version; \
 	else \
-		expr `cat .version` + 1 > .version; \
+		expr 0`cat .version` + 1 > .version; \
 	fi
 
-include/linux/version.h: $(CONFIGURATION) Makefile newversion
-	@echo \#define UTS_RELEASE \"$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)\" > include/linux/version.h
+include/linux/compile.h: $(CONFIGURATION) include/linux/version.h newversion
 	@if [ -f .name ]; then \
 	   echo \#define UTS_VERSION \"\#`cat .version`-`cat .name` `date`\"; \
 	 else \
 	   echo \#define UTS_VERSION \"\#`cat .version` `date`\";  \
-	 fi >> include/linux/version.h 
-	@echo \#define LINUX_COMPILE_TIME \"`date +%T`\" >> include/linux/version.h
-	@echo \#define LINUX_COMPILE_BY \"`whoami`\" >> include/linux/version.h
-	@echo \#define LINUX_COMPILE_HOST \"`hostname`\" >> include/linux/version.h
+	 fi >> .ver
+	@echo \#define LINUX_COMPILE_TIME \"`date +%T`\" >> .ver
+	@echo \#define LINUX_COMPILE_BY \"`whoami`\" >> .ver
+	@echo \#define LINUX_COMPILE_HOST \"`hostname`\" >> .ver
 	@if [ -x /bin/dnsdomainname ]; then \
 	   echo \#define LINUX_COMPILE_DOMAIN \"`dnsdomainname`\"; \
-	 else \
+	 elif [ -x /bin/domainname ]; then \
 	   echo \#define LINUX_COMPILE_DOMAIN \"`domainname`\"; \
-	 fi >> include/linux/version.h
-	@echo \#define LINUX_COMPILER \"`$(CC) -v 2>&1 | tail -1`\" >> include/linux/version.h
-	@echo \#define LINUX_VERSION_CODE `expr $(VERSION) \\* 65536 + $(PATCHLEVEL) \\* 256 + $(SUBLEVEL)` >> include/linux/version.h
+	 else \
+	   echo \#define LINUX_COMPILE_DOMAIN ; \
+	 fi >> .ver
+	@echo \#define LINUX_COMPILER \"`$(CC) -v 2>&1 | tail -1`\" >> .ver
+	@mv -f .ver $@
 
-init/version.o: init/version.c include/linux/version.h
+include/linux/version.h: ./Makefile
+	@echo \#define UTS_RELEASE \"$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)\" > .ver
+	@echo \#define LINUX_VERSION_CODE `expr $(VERSION) \\* 65536 + $(PATCHLEVEL) \\* 256 + $(SUBLEVEL)` >> .ver
+	@mv -f .ver $@
+
+init/version.o: init/version.c include/linux/compile.h
 	$(CC) $(CFLAGS) -DUTS_MACHINE='"$(ARCH)"' -c -o init/version.o init/version.c
 
 init/main.o: init/main.c
@@ -201,13 +263,18 @@ drivers: dummy
 net: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=net
 
+MODFLAGS = -DMODULE
+ifdef CONFIG_MODULES
 ifdef CONFIG_MODVERSIONS
-MODV = -DCONFIG_MODVERSIONS
+MODFLAGS += -DMODVERSIONS -include $(HPATH)/linux/modversions.h
 endif
 
 modules: include/linux/version.h
-	@set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i CFLAGS="$(CFLAGS) -DMODULE $(MODV)" modules; done
-	
+	@set -e; \
+	for i in $(SUBDIRS); \
+	do $(MAKE) -C $$i CFLAGS="$(CFLAGS) $(MODFLAGS)" MAKING_MODULES=1 modules; \
+	done
+
 modules_install:
 	@( \
 	MODLIB=/lib/modules/$(VERSION).$(PATCHLEVEL).$(SUBLEVEL); \
@@ -218,9 +285,13 @@ modules_install:
 		echo Installing modules under $$MODLIB/$$2; \
 	}; \
 	\
-	if [ -f NET_MODULES  ]; then inst_mod NET_MODULES  net;  fi; \
-	if [ -f SCSI_MODULES ]; then inst_mod SCSI_MODULES scsi; fi; \
-	if [ -f FS_MODULES   ]; then inst_mod FS_MODULES   fs;   fi; \
+	if [ -f BLOCK_MODULES ]; then inst_mod BLOCK_MODULES block; fi; \
+	if [ -f NET_MODULES   ]; then inst_mod NET_MODULES   net;   fi; \
+	if [ -f IPV4_MODULES  ]; then inst_mod IPV4_MODULES  ipv4;  fi; \
+	if [ -f IPV6_MODULES  ]; then inst_mod IPV6_MODULES  ipv6;  fi; \
+	if [ -f SCSI_MODULES  ]; then inst_mod SCSI_MODULES  scsi;  fi; \
+	if [ -f FS_MODULES    ]; then inst_mod FS_MODULES    fs;    fi; \
+	if [ -f CDROM_MODULES ]; then inst_mod CDROM_MODULES cdrom; fi; \
 	\
 	ls *.o > .allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 .allmods - > .misc; \
@@ -228,43 +299,68 @@ modules_install:
 	rm -f .misc .allmods; \
 	)
 
+# modules disabled....
+
+else
+modules modules_install: dummy
+	@echo
+	@echo "The present kernel configuration has modules disabled."
+	@echo "Type 'make config' and enable loadable module support."
+	@echo "Then build a kernel with module support enabled."
+	@echo
+	@exit 1
+endif
+
 clean:	archclean
-	rm -f kernel/ksyms.lst
-	rm -f core `find . -name '*.[oas]' -print`
+	rm -f kernel/ksyms.lst include/linux/compile.h
+	rm -f core `find . -name '*.[oas]' ! -regex '.*lxdialog/.*' -print`
 	rm -f core `find . -type f -name 'core' -print`
 	rm -f vmlinux System.map
 	rm -f .tmp* drivers/sound/configure
-	rm -fr modules/*
+	rm -f modules/*
+	rm -f submenu*
 
 mrproper: clean
 	rm -f include/linux/autoconf.h include/linux/version.h
-	rm -f drivers/sound/local.h
+	rm -f drivers/sound/local.h drivers/sound/.defines
+	rm -f drivers/scsi/aic7xxx_asm drivers/scsi/aic7xxx_seq.h
+	rm -f drivers/char/uni_hash.tbl drivers/char/conmakehash
 	rm -f .version .config* config.in config.old
+	rm -f scripts/tkparse scripts/kconfig.tk scripts/kconfig.tmp
+	rm -f scripts/lxdialog/*.o scripts/lxdialog/lxdialog
+	rm -f .menuconfig .menuconfig.log
 	rm -f include/asm
 	rm -f .depend `find . -name .depend -print`
-ifdef CONFIG_MODVERSIONS
+	rm -f .hdepend scripts/mkdep
 	rm -f $(TOPDIR)/include/linux/modversions.h
 	rm -f $(TOPDIR)/include/linux/modules/*
-endif
+
 
 distclean: mrproper
+	rm -f core `find . \( -name '*.orig' -o -name '*.rej' -o -name '*~' \
+                -o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
+                -o -name '.*.rej' -o -name '.SUMS' -o -size 0 \) -print` TAGS
 
 backup: mrproper
-	cd .. && tar cf - linux | gzip -9 > backup.gz
+	cd .. && tar cf - linux/ | gzip -9 > backup.gz
 	sync
 
-depend dep: archdep
-	touch include/linux/version.h
-	for i in init/*.c;do echo -n "init/";$(CPP) -M $$i;done > .tmpdepend
-	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i dep; done
-	rm -f include/linux/version.h
+sums:
+	find . -type f -print | sort | xargs sum > .SUMS
+
+dep-files: scripts/mkdep archdep include/linux/version.h
+	scripts/mkdep init/*.c > .tmpdepend
+	scripts/mkdep `find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print` > .hdepend
+	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
 	mv .tmpdepend .depend
+
+MODVERFILE :=
+
 ifdef CONFIG_MODVERSIONS
-	@echo updating $(TOPDIR)/include/linux/modversions.h
-	@(cd $(TOPDIR)/include/linux/modules; for f in *.ver;\
-	do echo "#include <linux/modules/$${f}>"; done) \
-	> $(TOPDIR)/include/linux/modversions.h
+MODVERFILE := $(TOPDIR)/include/linux/modversions.h
 endif
+
+depend dep: dep-files $(MODVERFILE)
 
 ifdef CONFIGURATION
 ..$(CONFIGURATION):
@@ -277,10 +373,20 @@ ifdef CONFIGURATION
 	@echo
 	exit 1
 
-dummy: ..$(CONFIGURATION)
+#dummy: ..$(CONFIGURATION)
+dummy:
 
 else
 
 dummy:
 
 endif
+
+include Rules.make
+
+#
+# This generates dependencies for the .h files.
+#
+
+scripts/mkdep: scripts/mkdep.c
+	$(HOSTCC) $(HOSTCFLAGS) -o scripts/mkdep scripts/mkdep.c

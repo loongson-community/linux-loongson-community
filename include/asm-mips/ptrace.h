@@ -5,8 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995 by Waldorf GMBH
- * written by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
  *
  * Machine dependent structs and defines to help the user use
  * the ptrace system call.
@@ -14,101 +13,72 @@
 #ifndef __ASM_MIPS_PTRACE_H
 #define __ASM_MIPS_PTRACE_H
 
-/*
- * This defines/structures correspond to the register layout on stack -
- * if the order here is changed, it needs to be updated in
- * include/asm-mips/stackframe.h
- */
-#define IN_REG1       5
-#define IN_REG2       6
-#define IN_REG3       7
-#define IN_REG4       8
-#define IN_REG5       9
-#define IN_REG6       10
-#define IN_REG7       11
-#define IN_REG8       12
-#define IN_REG9       13
-#define IN_REG10      14
-#define IN_REG11      15
-#define IN_REG12      16
-#define IN_REG13      17
-#define IN_REG14      18
-#define IN_REG15      19
-#define IN_REG16      20
-#define IN_REG17      21
-#define IN_REG18      22
-#define IN_REG19      23
-#define IN_REG20      24
-#define IN_REG21      25
-#define IN_REG22      26
-#define IN_REG23      27
-#define IN_REG24      28
-#define IN_REG25      29
-/*
- * k0/k1 unsaved
- */
-#define IN_REG28      30
-#define IN_REG29      31
-#define IN_REG30      32
-#define IN_REG31      33
+#include <asm/sgidefs.h>
+#include <asm/register.h>
 
 /*
- * Saved special registers
+ * General purpose registers.
  */
-#define IN_LO         34
-#define IN_HI         35
+#define GPR_BASE        0
+#define NGP_REGS        32
 
 /*
- * saved cp0 registers
+ * Floating point registers.
  */
-#define IN_CP0_STATUS 36
-#define IN_CP0_EPC    37
-#define IN_CP0_CAUSE  38
+#define FPR_BASE        (GPR_BASE + NGP_REGS)
+#define NFP_REGS        32
 
 /*
- * Some goodies
+ * Signal handlers
  */
-#define IN_INTERRUPT  39
-#define IN_ORIG_REG2  40
+#define SIG_BASE        (FPR_BASE + NFP_REGS)
+#define NSIG_HNDLRS     32
+
+/*
+ * Special registers.
+ */
+#define SPEC_BASE       (SIG_BASE + NSIG_HNDLRS)
+#define NSPEC_REGS      7
+#define PC              SPEC_BASE
+#define CAUSE           (PC       + 1)
+#define BADVADDR        (CAUSE    + 1)
+#define MMHI            (BADVADDR + 1)
+#define MMLO            (MMHI     + 1)
+#define FPC_CSR         (MMLO     + 1)
+#define FPC_EIR         (FPC_CSR  + 1)
+#define NPTRC_REGS      (FPC_EIR  + 1)
 
 /*
  * This struct defines the way the registers are stored on the stack during a
- * system call/exception. As usual the registers k0/k1 aren't being saved.
+ * system call/exception. As usual the registers zero/k0/k1 aren't being saved.
  */
 struct pt_regs {
 	/*
 	 * Pad bytes for argument save space on the stack
 	 * 20/40 Bytes for 32/64 bit code
 	 */
-	unsigned long pad0[5];
+	__register_t pad0[6];	/* extra word for alignment */
 
 	/*
-	 * saved main processor registers
+	 * Saved main processor registers
 	 */
-	long	        reg1,  reg2,  reg3,  reg4,  reg5,  reg6,  reg7;
-	long	 reg8,  reg9, reg10, reg11, reg12, reg13, reg14, reg15;
-	long	reg16, reg17, reg18, reg19, reg20, reg21, reg22, reg23;
-	long	reg24, reg25,               reg28, reg29, reg30, reg31;
+	__register_t	regs[32];
 
 	/*
-	 * Saved special registers
+	 * Other saved registers
 	 */
-	long	lo;
-	long	hi;
+	__register_t	lo;
+	__register_t	hi;
+	__register_t	orig_reg2;
+	__register_t	orig_reg7;
 
 	/*
 	 * saved cp0 registers
 	 */
-	unsigned long cp0_status;
-	unsigned long cp0_epc;
-	unsigned long cp0_cause;
-
-	/*
-	 * Some goodies...
-	 */
-	unsigned long interrupt;
-	long orig_reg2;
-	long pad1;
+	__register_t	cp0_epc;
+	__register_t	cp0_badvaddr;
+	unsigned int	cp0_status;
+	unsigned int	cp0_cause;
 };
 
 #ifdef __KERNEL__
@@ -116,16 +86,15 @@ struct pt_regs {
 /*
  * Does the process account for user or for system time?
  */
-#if defined (__R4000__)
-
-#define user_mode(regs) ((regs)->cp0_status & 0x10)
-
-#else /* !defined (__R4000__) */
-
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
 #define user_mode(regs) (!((regs)->cp0_status & 0x8))
+#endif
+#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4) || \
+    (_MIPS_ISA == _MIPS_ISA_MIPS5)
+#define user_mode(regs) ((regs)->cp0_status & 0x10)
+#endif
 
-#endif /* !defined (__R4000__) */
-
+#define instruction_pointer(regs) ((regs)->cp0_epc)
 extern void show_regs(struct pt_regs *);
 #endif
 

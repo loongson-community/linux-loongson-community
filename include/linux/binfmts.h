@@ -6,7 +6,7 @@
 /*
  * MAX_ARG_PAGES defines the number of pages allocated for arguments
  * and envelope for the new program. 32 should suffice, this gives
- * a maximum env+arg of 128kB !
+ * a maximum env+arg of 128kB w/4KB pages!
  */
 #define MAX_ARG_PAGES 32
 
@@ -18,10 +18,13 @@ struct linux_binprm{
 	unsigned long page[MAX_ARG_PAGES];
 	unsigned long p;
 	int sh_bang;
+	int java;		/* Java binary, prevent recursive invocation */
 	struct inode * inode;
 	int e_uid, e_gid;
 	int argc, envc;
-	char * filename;	   /* Name of binary */
+	char * filename;	/* Name of binary */
+	unsigned long loader, exec;
+	int dont_iput;		/* binfmt handler has put inode */
 };
 
 /*
@@ -30,7 +33,7 @@ struct linux_binprm{
  */
 struct linux_binfmt {
 	struct linux_binfmt * next;
-	int *use_count;
+	long *use_count;
 	int (*load_binary)(struct linux_binprm *, struct  pt_regs * regs);
 	int (*load_shlib)(int fd);
 	int (*core_dump)(long signr, struct pt_regs * regs);
@@ -40,13 +43,20 @@ extern int register_binfmt(struct linux_binfmt *);
 extern int unregister_binfmt(struct linux_binfmt *);
 
 extern int read_exec(struct inode *inode, unsigned long offset,
-	char * addr, unsigned long count);
+	char * addr, unsigned long count, int to_kmem);
 
 extern int open_inode(struct inode * inode, int mode);
 
+extern int init_elf_binfmt(void);
+extern int init_aout_binfmt(void);
+extern int init_script_binfmt(void);
+extern int init_java_binfmt(void);
+
+extern int prepare_binprm(struct linux_binprm *);
+extern void remove_arg_zero(struct linux_binprm *);
+extern int search_binary_handler(struct linux_binprm *,struct pt_regs *);
 extern void flush_old_exec(struct linux_binprm * bprm);
-extern unsigned long setup_arg_pages(unsigned long text_size,unsigned long * page);
-extern unsigned long * create_tables(char * p,int argc,int envc,int ibcs);
+extern unsigned long setup_arg_pages(unsigned long p, struct linux_binprm * bprm);
 extern unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
 		unsigned long p, int from_kmem);
 

@@ -1,4 +1,4 @@
-/* $Id: plip.c,v 1.12 1995/02/11 10:26:05 gniibe Exp $ */
+/* $Id: plip.c,v 1.16 1996-04-06 15:36:57+09 gniibe Exp $ */
 /* PLIP: A parallel port "network" driver for Linux. */
 /* This driver is for parallel port with 5-bit cable (LapLink (R) cable). */
 /*
@@ -11,6 +11,22 @@
  *
  *		Modularization and ifreq/ifmap support by Alan Cox.
  *		Rewritten by Niibe Yutaka.
+ *
+ * Fixes:
+ *		9-Sep-95 Philip Blundell <pjb27@cam.ac.uk>
+ *		  - only claim 3 bytes of I/O space for port at 0x3bc
+ *		  - treat NULL return from register_netdev() as success in
+ *		    init_module()
+ *		  - added message if driver loaded as a module but no
+ *		    interfaces present.
+ *		  - release claimed I/O ports if malloc() fails during init.
+ *		
+ *		Niibe Yutaka
+ *		  - Module initialization.  You can specify I/O addr and IRQ:
+ *			# insmod plip.o io=0x3bc irq=7
+ *		  - MTU fix.
+ *		  - Make sure other end is OK, before sending a packet.
+ *		  - Fix immediate timer problem.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -32,7 +48,11 @@
  *     So, this PLIP can't communicate the PLIP of Linux v1.0.
  */
 
-static char *version = "NET3 PLIP version 2.0 gniibe@mri.co.jp\n";
+/*
+ *     To use with DOS box, please do (Turn on ARP switch):
+ *	# ifconfig plip[0-2] arp
+ */
+static const char *version = "NET3 PLIP version 2.2 gniibe@mri.co.jp\n";
 
 /*
   Sources:
@@ -66,13 +86,7 @@ static char *version = "NET3 PLIP version 2.0 gniibe@mri.co.jp\n";
     extra grounds are 18,19,20,21,22,23,24
 */
 
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#else
-#define MOD_INC_USE_COUNT
-#define MOD_DEC_USE_COUNT
-#endif
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -126,7 +140,7 @@ static void plip_kick_bh(struct device *dev);
 static void plip_bh(struct device *dev);
 
 /* Interrupt handler */
-static void plip_interrupt(int irq, struct pt_regs *regs);
+static void plip_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
 /* Functions for DEV methods */
 static int plip_rebuild_header(void *buff, struct device *dev,
@@ -166,10 +180,10 @@ struct plip_local {
 	enum plip_nibble_state nibble;
 	union {
 		struct {
-#if defined(LITTLE_ENDIAN)
+#if defined(__LITTLE_ENDIAN)
 			unsigned char lsb;
 			unsigned char msb;
-#elif defined(BIG_ENDIAN)
+#elif defined(__BIG_ENDIAN)
 			unsigned char msb;
 			unsigned char lsb;
 #else
@@ -205,9 +219,10 @@ int
 plip_init(struct device *dev)
 {
 	struct net_local *nl;
+	int iosize = (PAR_DATA(dev) == 0x3bc) ? 3 : 8;
 
 	/* Check region before the probe */
-	if (check_region(PAR_DATA(dev), 3) < 0)
+	if (check_region(PAR_DATA(dev), iosize) < 0)
 		return -ENODEV;
 
 	/* Check that there is something at base_addr. */
@@ -244,7 +259,7 @@ plip_init(struct device *dev)
 			       " Please set IRQ by ifconfig.\n", irq);
 	}
 
-	request_region(PAR_DATA(dev), 3, dev->name);
+	request_region(PAR_DATA(dev), iosize, dev->name);
 
 	/* Fill in the generic fields of the device structure. */
 	ether_setup(dev);
@@ -256,12 +271,16 @@ plip_init(struct device *dev)
 	dev->get_stats 		= plip_get_stats;
 	dev->set_config		= plip_config;
 	dev->do_ioctl		= plip_ioctl;
+	dev->tx_queue_len	= 10;
 	dev->flags	        = IFF_POINTOPOINT|IFF_NOARP;
 
 	/* Set the private structure */
 	dev->priv = kmalloc(sizeof (struct net_local), GFP_KERNEL);
-	if (dev->priv == NULL)
-		return EAGAIN;
+	if (dev->priv == NULL) {
+		printk(KERN_ERR "%s: out of memory\n", dev->name);
+		release_region(PAR_DATA(dev), iosize);
+		return -ENOMEM;
+	}
 	memset(dev->priv, 0, sizeof(struct net_local));
 	nl = (struct net_local *) dev->priv;
 
@@ -273,12 +292,12 @@ plip_init(struct device *dev)
 	nl->nibble	= PLIP_NIBBLE_WAIT;
 
 	/* Initialize task queue structures */
-	nl->immediate.next = &tq_last;
+	nl->immediate.next = NULL;
 	nl->immediate.sync = 0;
 	nl->immediate.routine = (void *)(void *)plip_bh;
 	nl->immediate.data = dev;
 
-	nl->deferred.next = &tq_last;
+	nl->deferred.next = NULL;
 	nl->deferred.sync = 0;
 	nl->deferred.routine = (void *)(void *)plip_kick_bh;
 	nl->deferred.data = dev;
@@ -467,10 +486,10 @@ plip_receive(unsigned short nibble_timeout, unsigned short status_addr,
 		outb(0x00, --status_addr); /* send ACK */
 		status_addr++;
 		*ns_p = PLIP_NB_BEGIN;
-		return OK;
-
 	case PLIP_NB_2:
+		break;
 	}
+	return OK;
 }
 
 /* PLIP_RECEIVE_PACKET --- receive a packet */
@@ -517,17 +536,18 @@ plip_receive_packet(struct device *dev, struct net_local *nl,
 		if (plip_receive(nibble_timeout, status_addr,
 				 &rcv->nibble, &rcv->length.b.msb))
 			return TIMEOUT;
-		if (rcv->length.h > dev->mtu || rcv->length.h < 8) {
+		if (rcv->length.h > dev->mtu + dev->hard_header_len
+		    || rcv->length.h < 8) {
 			printk("%s: bogus packet size %d.\n", dev->name, rcv->length.h);
 			return ERROR;
 		}
 		/* Malloc up new buffer. */
-		rcv->skb = alloc_skb(rcv->length.h, GFP_ATOMIC);
+		rcv->skb = dev_alloc_skb(rcv->length.h);
 		if (rcv->skb == NULL) {
 			printk("%s: Memory squeeze.\n", dev->name);
 			return ERROR;
 		}
-		rcv->skb->len = rcv->length.h;
+		skb_put(rcv->skb,rcv->length.h);
 		rcv->skb->dev = dev;
 		rcv->state = PLIP_PK_DATA;
 		rcv->byte = 0;
@@ -573,6 +593,7 @@ plip_receive_packet(struct device *dev, struct net_local *nl,
 			nl->connection = PLIP_CN_SEND;
 			sti();
 			queue_task(&nl->immediate, &tq_immediate);
+			mark_bh(IMMEDIATE_BH);
 			outb(PAR_INTR_ON, PAR_CONTROL(dev));
 			enable_irq(dev->irq);
 			return OK;
@@ -632,6 +653,7 @@ plip_send(unsigned short nibble_timeout, unsigned short data_addr,
 		*ns_p = PLIP_NB_BEGIN;
 		return OK;
 	}
+	return OK;
 }
 
 /* PLIP_SEND_PACKET --- send a packet */
@@ -654,6 +676,9 @@ plip_send_packet(struct device *dev, struct net_local *nl,
 
 	switch (snd->state) {
 	case PLIP_PK_TRIGGER:
+		if ((inb(PAR_STATUS(dev)) & 0xf8) != 0x80)
+			return TIMEOUT;
+
 		/* Trigger remote rx interrupt. */
 		outb(0x08, data_addr);
 		cx = nl->trigger;
@@ -778,7 +803,7 @@ plip_error(struct device *dev, struct net_local *nl,
 
 /* Handle the parallel port interrupts. */
 static void
-plip_interrupt(int irq, struct pt_regs * regs)
+plip_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct device *dev = (struct device *) irq2dev_map[irq];
 	struct net_local *nl = (struct net_local *)dev->priv;
@@ -848,9 +873,9 @@ plip_rebuild_header(void *buff, struct device *dev, unsigned long dst,
 		return 0;
 	}
 
-	for (i=0; i < ETH_ALEN - sizeof(unsigned long); i++)
+	for (i=0; i < ETH_ALEN - sizeof(u32); i++)
 		eth->h_dest[i] = 0xfc;
-	memcpy(&(eth->h_dest[i]), &dst, sizeof(unsigned long));
+	*(u32 *)(eth->h_dest+i) = dst;
 	return 0;
 }
 
@@ -876,7 +901,7 @@ plip_tx_packet(struct sk_buff *skb, struct device *dev)
 		return 1;
 	}
 
-	if (skb->len > dev->mtu) {
+	if (skb->len > dev->mtu + dev->hard_header_len) {
 		printk("%s: packet too big, %d.\n", dev->name, (int)skb->len);
 		dev->tbusy = 0;
 		return 0;
@@ -918,7 +943,7 @@ plip_open(struct device *dev)
 		return -EAGAIN;
 	}
 	cli();
-	if (request_irq(dev->irq , plip_interrupt, 0, dev->name) != 0) {
+	if (request_irq(dev->irq , plip_interrupt, 0, dev->name, NULL) != 0) {
 		sti();
 		printk("%s: couldn't get IRQ %d.\n", dev->name, dev->irq);
 		return -EAGAIN;
@@ -939,9 +964,9 @@ plip_open(struct device *dev)
 	nl->is_deferred = 0;
 
 	/* Fill in the MAC-level header. */
-	for (i=0; i < ETH_ALEN - sizeof(unsigned long); i++)
+	for (i=0; i < ETH_ALEN - sizeof(u32); i++)
 		dev->dev_addr[i] = 0xfc;
-	memcpy(&(dev->dev_addr[i]), &dev->pa_addr, sizeof(unsigned long));
+	*(u32 *)(dev->dev_addr+i) = dev->pa_addr;
 
 	dev->interrupt = 0;
 	dev->start = 1;
@@ -961,7 +986,7 @@ plip_close(struct device *dev)
 	dev->tbusy = 1;
 	dev->start = 0;
 	cli();
-	free_irq(dev->irq);
+	free_irq(dev->irq, NULL);
 	irq2dev_map[dev->irq] = NULL;
 	nl->is_deferred = 0;
 	nl->connection = PLIP_CN_NONE;
@@ -1032,74 +1057,90 @@ plip_ioctl(struct device *dev, struct ifreq *rq, int cmd)
 }
 
 #ifdef MODULE
-char kernel_version[] = UTS_RELEASE;
+static int io[] = {0, 0, 0};
+static int irq[] = {0, 0, 0};
 
-static struct device dev_plip0 = 
-{
-	"plip0" /*"plip"*/,
-	0, 0, 0, 0,		/* memory */
-	0x3BC, 5,		/* base, irq */
-	0, 0, 0, NULL, plip_init 
-};
-
-static struct device dev_plip1 = 
-{
-	"plip1" /*"plip"*/,
-	0, 0, 0, 0,		/* memory */
-	0x378, 7,		/* base, irq */
-	0, 0, 0, NULL, plip_init 
-};
-
-static struct device dev_plip2 = 
-{
-	"plip2" /*"plip"*/,
-	0, 0, 0, 0,		/* memory */
-	0x278, 2,		/* base, irq */
-	0, 0, 0, NULL, plip_init 
+static struct device dev_plip[] = {
+	{
+		"plip0",
+		0, 0, 0, 0,		/* memory */
+		0x3BC, 5,		/* base, irq */
+		0, 0, 0, NULL, plip_init 
+	},
+	{
+		"plip1",
+		0, 0, 0, 0,		/* memory */
+		0x378, 7,		/* base, irq */
+		0, 0, 0, NULL, plip_init 
+	},
+	{
+		"plip2",
+		0, 0, 0, 0,		/* memory */
+		0x278, 2,		/* base, irq */
+		0, 0, 0, NULL, plip_init 
+	}
 };
 
 int
 init_module(void)
 {
+	int no_parameters=1;
 	int devices=0;
+	int i;
 
-	if (register_netdev(&dev_plip0) != 0)
-		devices++;
-	if (register_netdev(&dev_plip1) != 0)
-		devices++;
-	if (register_netdev(&dev_plip2) != 0)
-		devices++;
-	if (devices == 0)
+	/* When user feeds parameters, use them */
+	for (i=0; i < 3; i++) {
+		int specified=0;
+
+		if (io[i] != 0) {
+			dev_plip[i].base_addr = io[i];
+			specified++;
+		}
+		if (irq[i] != 0) {
+			dev_plip[i].irq = irq[i];
+			specified++;
+		}
+		if (specified) {
+			if (register_netdev(&dev_plip[i]) != 0) {
+				printk(KERN_INFO "plip%d: Not found\n", i);
+				return -EIO;
+			}
+			no_parameters = 0;
+		}
+	}
+	if (!no_parameters)
+		return 0;
+
+	/* No parameters.  Default action is probing all interfaces. */
+	for (i=0; i < 3; i++) { 
+		if (register_netdev(&dev_plip[i]) == 0)
+			devices++;
+	}
+	if (devices == 0) {
+		printk(KERN_INFO "plip: no interfaces found\n");
 		return -EIO;
+	}
 	return 0;
 }
 
 void
 cleanup_module(void)
 {
-	if (dev_plip0.priv) {
-		unregister_netdev(&dev_plip0);
-		release_region(PAR_DATA(&dev_plip0), 3);
-		kfree_s(dev_plip0.priv, sizeof(struct net_local));
-		dev_plip0.priv = NULL;
-	}
-	if (dev_plip1.priv) {
-		unregister_netdev(&dev_plip1);
-		release_region(PAR_DATA(&dev_plip1), 3);
-		kfree_s(dev_plip1.priv, sizeof(struct net_local));
-		dev_plip1.priv = NULL;
-	}
-	if (dev_plip2.priv) {
-		unregister_netdev(&dev_plip2);
-		release_region(PAR_DATA(&dev_plip2), 3);
-		kfree_s(dev_plip2.priv, sizeof(struct net_local));
-		dev_plip2.priv = NULL;
+	int i;
+
+	for (i=0; i < 3; i++) {
+		if (dev_plip[i].priv) {
+			unregister_netdev(&dev_plip[i]);
+			release_region(PAR_DATA(&dev_plip[i]), (PAR_DATA(&dev_plip[i]) == 0x3bc)? 3 : 8);
+			kfree_s(dev_plip[i].priv, sizeof(struct net_local));
+			dev_plip[i].priv = NULL;
+		}
 	}
 }
 #endif /* MODULE */
 
 /*
  * Local variables:
- * compile-command: "gcc -DMODULE -DCONFIG_MODVERSIONS -D__KERNEL__ -Wall -Wstrict-prototypes -O2 -g -fomit-frame-pointer -pipe -m486 -c plip.c"
+ * compile-command: "gcc -DMODULE -DMODVERSIONS -D__KERNEL__ -Wall -Wstrict-prototypes -O2 -g -fomit-frame-pointer -pipe -m486 -c plip.c"
  * End:
  */

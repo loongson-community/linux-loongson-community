@@ -18,12 +18,13 @@
 #ifndef _LINUX_IN_H
 #define _LINUX_IN_H
 
+#include <linux/types.h>
 
 /* Standard well-defined IP protocols.  */
 enum {
   IPPROTO_IP = 0,		/* Dummy protocol for TCP		*/
   IPPROTO_ICMP = 1,		/* Internet Control Message Protocol	*/
-  IPPROTO_IGMP = 2,		/* Internet Gateway Management Protocol */
+  IPPROTO_IGMP = 2,		/* Internet Group Management Protocol	*/
   IPPROTO_IPIP = 4,		/* IPIP tunnels (older KA9Q tunnels use 94) */
   IPPROTO_TCP = 6,		/* Transmission Control Protocol	*/
   IPPROTO_EGP = 8,		/* Exterior Gateway Protocol		*/
@@ -31,14 +32,17 @@ enum {
   IPPROTO_UDP = 17,		/* User Datagram Protocol		*/
   IPPROTO_IDP = 22,		/* XNS IDP protocol			*/
 
-  IPPROTO_RAW = 255,		/* Raw IP packets			*/
+  IPPROTO_IPV6	 = 41,		/* IPv6-in-IPv4 tunnelling		*/
+  IPPROTO_ICMPV6 = 58,		/* ICMPv6				*/
+
+  IPPROTO_RAW	 = 255,		/* Raw IP packets			*/
   IPPROTO_MAX
 };
 
 
 /* Internet address. */
 struct in_addr {
-	unsigned long int	s_addr;
+	__u32	s_addr;
 };
 
 /* Request struct for multicast socket ops */
@@ -53,7 +57,7 @@ struct ip_mreq
 /* Structure describing an Internet (IP) socket address. */
 #define __SOCK_SIZE__	16		/* sizeof(struct sockaddr)	*/
 struct sockaddr_in {
-  short int		sin_family;	/* Address family		*/
+  sa_family_t		sin_family;	/* Address family		*/
   unsigned short int	sin_port;	/* Port number			*/
   struct in_addr	sin_addr;	/* Internet address		*/
 
@@ -100,21 +104,29 @@ struct sockaddr_in {
 #define	INADDR_BROADCAST	((unsigned long int) 0xffffffff)
 
 /* Address indicating an error return. */
-#define	INADDR_NONE		0xffffffff
+#define	INADDR_NONE		((unsigned long int) 0xffffffff)
 
 /* Network number for local host loopback. */
 #define	IN_LOOPBACKNET		127
 
 /* Address to loopback in software to local host.  */
 #define	INADDR_LOOPBACK		0x7f000001	/* 127.0.0.1   */
+#define	IN_LOOPBACK(a)		((((long int) (a)) & 0xff000000) == 0x7f000000)
 
 /* Defines for Multicast INADDR */
 #define INADDR_UNSPEC_GROUP   	0xe0000000      /* 224.0.0.0   */
 #define INADDR_ALLHOSTS_GROUP 	0xe0000001      /* 224.0.0.1   */
 #define INADDR_MAX_LOCAL_GROUP  0xe00000ff      /* 224.0.0.255 */
 
-/* <asm/byteorder.h> contains the htonl type stuff.. */
 
+/* <asm/byteorder.h> contains the htonl type stuff.. */
 #include <asm/byteorder.h> 
+
+#ifdef __KERNEL__
+/* Some random defines to make it easier in the kernel.. */
+#define LOOPBACK(x)	(((x) & htonl(0xff000000)) == htonl(0x7f000000))
+#define MULTICAST(x)	(((x) & htonl(0xf0000000)) == htonl(0xe0000000))
+
+#endif
 
 #endif	/* _LINUX_IN_H */

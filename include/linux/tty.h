@@ -5,6 +5,16 @@
  * 'tty.h' defines some structures used by tty_io.c and some defines.
  */
 
+/*
+ * These constants are also useful for user-level apps (e.g., VC
+ * resizing).
+ */
+#define MIN_NR_CONSOLES	1	/* must be at least 1 */
+#define MAX_NR_CONSOLES	63	/* serial lines start at 64 */
+#define MAX_NR_USER_CONSOLES 63	/* must be root to allocate above this */
+		/* Note: the ioctl VT_GETSTATE does not work for
+		   consoles 16 and higher (since it returns a short) */
+
 #ifdef __KERNEL__
 #include <linux/fs.h>
 #include <linux/termios.h>
@@ -21,12 +31,7 @@
  * (Note: the *_driver.minor_start values 1, 64, 128, 192 are
  * hardcoded at present.)
  */
-#define MIN_NR_CONSOLES	1	/* must be at least 1 */
-#define MAX_NR_CONSOLES	63	/* serial lines start at 64 */
-#define MAX_NR_USER_CONSOLES 63	/* must be root to allocate above this */
-		/* Note: the ioctl VT_GETSTATE does not work for
-		   consoles 16 and higher (since it returns a short) */
-#define NR_PTYS		64
+#define NR_PTYS		256
 #define NR_LDISCS	16
 
 /*
@@ -40,30 +45,38 @@ struct screen_info {
 	unsigned short orig_video_page;
 	unsigned char  orig_video_mode;
 	unsigned char  orig_video_cols;
-	unsigned short orig_video_ega_ax;
+	unsigned short unused2;
 	unsigned short orig_video_ega_bx;
-	unsigned short orig_video_ega_cx;
+	unsigned short unused3;
 	unsigned char  orig_video_lines;
+	unsigned char  orig_video_isVGA;
+	unsigned short orig_video_points;
 };
 
 extern struct screen_info screen_info;
 
 #define ORIG_X			(screen_info.orig_x)
 #define ORIG_Y			(screen_info.orig_y)
-#define ORIG_VIDEO_PAGE		(screen_info.orig_video_page)
 #define ORIG_VIDEO_MODE		(screen_info.orig_video_mode)
 #define ORIG_VIDEO_COLS 	(screen_info.orig_video_cols)
-#define ORIG_VIDEO_EGA_AX	(screen_info.orig_video_ega_ax)
 #define ORIG_VIDEO_EGA_BX	(screen_info.orig_video_ega_bx)
-#define ORIG_VIDEO_EGA_CX	(screen_info.orig_video_ega_cx)
 #define ORIG_VIDEO_LINES	(screen_info.orig_video_lines)
+#define ORIG_VIDEO_ISVGA	(screen_info.orig_video_isVGA)
+#define ORIG_VIDEO_POINTS       (screen_info.orig_video_points)
 
 #define VIDEO_TYPE_MDA		0x10	/* Monochrome Text Display	*/
 #define VIDEO_TYPE_CGA		0x11	/* CGA Display 			*/
 #define VIDEO_TYPE_EGAM		0x20	/* EGA/VGA in Monochrome Mode	*/
+#define VIDEO_TYPE_EGAC		0x21	/* EGA in Color Mode		*/
+#define VIDEO_TYPE_VGAC		0x22	/* VGA+ in Color Mode		*/
 #define VIDEO_TYPE_EGAC		0x21	/* EGA/VGA in Color Mode	*/
 #define VIDEO_TYPE_PICA_S3	0x30	/* ACER PICA-61 local S3 video	*/
-#define VIDEO_TYPE_MIPS_G364    0x31    /* MIPS Magnum 4000 G364 video  */
+#define VIDEO_TYPE_MIPS_G364	0x31    /* MIPS Magnum 4000 G364 video  */
+#define VIDEO_TYPE_SNI_RM	0x31    /* SNI RM200 PCI video          */
+
+#define VIDEO_TYPE_TGAC		0x40	/* DEC TGA */
+
+#define VIDEO_TYPE_SUN          0x50    /* Sun frame buffer. */
 
 /*
  * This character is the same as _POSIX_VDISABLE: it cannot be used as
@@ -200,7 +213,7 @@ struct tty_struct {
 	struct termios *termios, *termios_locked;
 	int pgrp;
 	int session;
-	dev_t	device;
+	kdev_t	device;
 	unsigned long flags;
 	int count;
 	struct winsize winsize;
@@ -252,12 +265,14 @@ struct tty_struct {
  */
 #define TTY_THROTTLED 0
 #define TTY_IO_ERROR 1
-#define TTY_SLAVE_CLOSED 2
+#define TTY_OTHER_CLOSED 2
 #define TTY_EXCLUSIVE 3
 #define TTY_DEBUG 4
 #define TTY_DO_WRITE_WAKEUP 5
 #define TTY_PUSH 6
 #define TTY_CLOSING 7
+#define TTY_HW_COOK_OUT 14
+#define TTY_HW_COOK_IN 15
 
 #define TTY_WRITE_FLUSH(tty) tty_write_flush((tty))
 
@@ -266,28 +281,25 @@ extern void tty_write_flush(struct tty_struct *);
 extern struct termios tty_std_termios;
 extern struct tty_struct * redirect;
 extern struct tty_ldisc ldiscs[];
-extern int fg_console;
+extern int fg_console, last_console, want_console;
+
+extern int kmsg_redirect;
 extern struct wait_queue * keypress_wait;
 
-/*	intr=^C		quit=^|		erase=del	kill=^U
-	eof=^D		vtime=\0	vmin=\1		sxtc=\0
-	start=^Q	stop=^S		susp=^Z		eol=\0
-	reprint=^R	discard=^U	werase=^W	lnext=^V
-	eol2=\0
-*/
-#define INIT_C_CC "\003\034\177\025\004\0\1\0\021\023\032\0\022\017\027\026\0"
+extern unsigned long con_init(unsigned long);
 
-extern long rs_init(long);
-extern long lp_init(long);
-extern long con_init(long);
-extern long pty_init(long);
-extern long tty_init(long);
-extern long vcs_init(long);
-#ifdef CONFIG_CYCLADES
-extern long cy_init(long);
-#endif
+extern int rs_init(void);
+extern int lp_init(void);
+extern int pty_init(void);
+extern int tty_init(void);
+extern int pcxe_init(void);
+extern int vcs_init(void);
+extern int cy_init(void);
+extern int stl_init(void);
+extern int stli_init(void);
+extern int riscom8_init(void);
 
-extern int tty_paranoia_check(struct tty_struct *tty, dev_t device,
+extern int tty_paranoia_check(struct tty_struct *tty, kdev_t device,
 			      const char *routine);
 extern char *_tty_name(struct tty_struct *tty, char *buf);
 extern char *tty_name(struct tty_struct *tty);
@@ -300,6 +312,7 @@ extern int tty_register_driver(struct tty_driver *driver);
 extern int tty_unregister_driver(struct tty_driver *driver);
 extern int tty_read_raw_data(struct tty_struct *tty, unsigned char *bufp,
 			     int buflen);
+extern void tty_write_message(struct tty_struct *tty, char *msg);
 
 extern int is_orphaned_pgrp(int pgrp);
 extern int is_ignored(int sig);
@@ -325,11 +338,13 @@ extern int  rs_open(struct tty_struct * tty, struct file * filp);
 /* pty.c */
 
 extern int  pty_open(struct tty_struct * tty, struct file * filp);
+extern int pcxe_open(struct tty_struct *tty, struct file *filp);
 
 /* console.c */
 
 extern int con_open(struct tty_struct * tty, struct file * filp);
 extern void update_screen(int new_console);
+extern void console_print(const char *);
 
 /* vt.c */
 

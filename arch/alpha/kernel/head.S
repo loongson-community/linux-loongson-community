@@ -9,16 +9,17 @@
 
 #define __ASSEMBLY__
 #include <asm/system.h>
-#include <linux/fd.h>
 
-#define halt .long PAL_halt
+#define halt call_pal PAL_halt
 
 .globl swapper_pg_dir
+.globl _stext
 swapper_pg_dir=SWAPPER_PGD
 
 	.set noreorder
 	.globl	__start
 	.ent	__start
+_stext:
 __start:
 	br	$27,1f
 1:	ldgp	$29,0($27)
@@ -31,48 +32,48 @@ __start:
 	.globl	wrent
 	.ent	wrent
 wrent:
-	.long PAL_wrent
-	ret ($26)
+	call_pal PAL_wrent
+	ret	($26)
 	.end wrent
 
 	.align 3
 	.globl	wrkgp
 	.ent	wrkgp
 wrkgp:
-	.long PAL_wrkgp
-	ret ($26)
+	call_pal PAL_wrkgp
+	ret	($26)
 	.end wrkgp
 
 	.align 3
 	.globl	wrusp
 	.ent	wrusp
 wrusp:
-	.long PAL_wrusp
-	ret ($26)
+	call_pal PAL_wrusp
+	ret	($26)
 	.end wrusp
 
 	.align 3
 	.globl	rdusp
 	.ent	rdusp
 rdusp:
-	.long PAL_rdusp
-	ret ($26)
+	call_pal PAL_rdusp
+	ret	($26)
 	.end rdusp
 
 	.align 3
 	.globl	tbi
 	.ent	tbi
 tbi:
-	.long PAL_tbi
-	ret ($26)
+	call_pal PAL_tbi
+	ret	($26)
 	.end tbi
 
 	.align 3
 	.globl	imb
 	.ent	imb
 imb:
-	.long PAL_imb
-	ret ($26)
+	call_pal PAL_imb
+	ret	($26)
 	.end imb
 
 	.align 3
@@ -80,7 +81,7 @@ imb:
 	.ent	rdmces
 rdmces:
 	call_pal PAL_rdmces
-	ret ($26)
+	ret	($26)
 	.end rdmces
 
 	.align 3
@@ -88,10 +89,39 @@ rdmces:
 	.ent	wrmces
 wrmces:
 	call_pal PAL_wrmces
-	ret ($26)
+	ret	($26)
 	.end wrmces
 
-.align 9
-.globl floppy_track_buffer
-floppy_track_buffer:
-	.space 512*2*MAX_BUFFER_SECTORS,1
+	#
+	# The following two functions don't need trapb/excb instructions
+	# around the mf_fpcr/mt_fpcr instructions because (a) the kernel
+	# never generates arithmetic faults and (b) call_pal instructions
+	# are implied trap barriers.
+	#
+	.align 3
+	.globl	rdfpcr
+	.ent	rdfpcr
+rdfpcr:
+	lda	$30,-0x10($30)
+	stt	$f0,0($30)
+	mf_fpcr	$f0
+	stt	$f0,8($30)
+	ldt	$f0,0($30)
+	ldq	$0,8($30)
+	lda	$30,0x10($30)
+	ret	($26)
+	.end	rdfpcr
+
+	.align 3
+	.globl	wrfpcr
+	.ent	wrfpcr
+wrfpcr:
+	lda	$30,-0x10($30)
+	stt	$f0,0($30)
+	stq	$16,8($30)
+	ldt	$f0,8($30)
+	mt_fpcr	$f0
+	ldt	$f0,0($30)
+	lda	$30,0x10($30)
+	ret	($26)
+	.end	wrfpcr

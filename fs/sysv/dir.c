@@ -13,18 +13,16 @@
  *  SystemV/Coherent directory handling functions
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/sysv_fs.h>
 #include <linux/stat.h>
+#include <linux/string.h>
 
-static int sysv_dir_read(struct inode * inode, struct file * filp, char * buf, int count)
+#include <asm/uaccess.h>
+
+static long sysv_dir_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
 	return -EISDIR;
 }
@@ -60,6 +58,8 @@ struct inode_operations sysv_dir_inode_operations = {
 	sysv_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	sysv_truncate,		/* truncate */
 	NULL			/* permission */
@@ -95,8 +95,10 @@ static int sysv_readdir(struct inode * inode, struct file * filp,
 				memcpy(&sde, de, sizeof(struct sysv_dir_entry));
 
 				if (sde.inode > inode->i_sb->sv_ninodes)
-					printk("sysv_readdir: Bad inode number on dev 0x%04x, ino %ld, offset 0x%04lx: %d is out of range\n",
-						inode->i_dev, inode->i_ino, (off_t) filp->f_pos, sde.inode);
+					printk("sysv_readdir: Bad inode number on dev "
+					       "%s, ino %ld, offset 0x%04lx: %d is out of range\n",
+					       kdevname(inode->i_dev),
+					       inode->i_ino, (off_t) filp->f_pos, sde.inode);
 
 				i = strnlen(sde.name, SYSV_NAMELEN);
 				if (filldir(dirent, sde.name, i, filp->f_pos, sde.inode) < 0) {

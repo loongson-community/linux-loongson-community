@@ -20,13 +20,7 @@
  *  the superblock.
  */
 
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#else
-#define MOD_INC_USE_COUNT
-#define MOD_DEC_USE_COUNT
-#endif
 
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -36,7 +30,7 @@
 #include <linux/string.h>
 #include <linux/locks.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 void sysv_put_inode(struct inode *inode)
 {
@@ -347,7 +341,7 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 {
 	struct buffer_head *bh;
 	const char *found;
-	int dev = sb->s_dev;
+	kdev_t dev = sb->s_dev;
 
 	if (1024 != sizeof (struct xenix_super_block))
 		panic("Xenix FS: bad super-block size");
@@ -397,10 +391,11 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 				brelse(bh);
 			}
 	}
-	sb->s_dev=0;
+	sb->s_dev = 0;
 	unlock_super(sb);
 	if (!silent)
-		printk("VFS: unable to read Xenix/SystemV/Coherent superblock on device %d/%d\n",MAJOR(dev),MINOR(dev));
+		printk("VFS: unable to read Xenix/SystemV/Coherent superblock on device "
+		       "%s\n", kdevname(dev));
 	failed:
 	MOD_DEC_USE_COUNT;
 	return NULL;
@@ -477,7 +472,8 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 	}
 	sb->sv_ninodes = (sb->sv_firstdatazone - sb->sv_firstinodezone) << sb->sv_inodes_per_block_bits;
 	if (!silent)
-		printk("VFS: Found a %s FS (block size = %d) on device %d/%d\n",found,sb->sv_block_size,MAJOR(dev),MINOR(dev));
+		printk("VFS: Found a %s FS (block size = %d) on device %s\n",
+		       found, sb->sv_block_size, kdevname(dev));
 	sb->s_magic = SYSV_MAGIC_BASE + sb->sv_type;
 	/* The buffer code now supports block size 512 as well as 1024. */
 	sb->s_blocksize = sb->sv_block_size;
@@ -502,7 +498,7 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 void sysv_write_super (struct super_block *sb)
 {
 	lock_super(sb);
-	if (sb->sv_bh1->b_dirt || sb->sv_bh2->b_dirt) {
+	if (buffer_dirty(sb->sv_bh1) || buffer_dirty(sb->sv_bh2)) {
 		/* If we are going to write out the super block,
 		   then attach current time stamp.
 		   But if the filesystem was marked clean, keep it clean. */
@@ -540,15 +536,16 @@ void sysv_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 {
 	struct statfs tmp;
 
-	tmp.f_type = sb->s_magic;
-	tmp.f_bsize = sb->sv_block_size;
-	tmp.f_blocks = sb->sv_ndatazones;
-	tmp.f_bfree = sysv_count_free_blocks(sb);
-	tmp.f_bavail = tmp.f_bfree;
-	tmp.f_files = sb->sv_ninodes;
-	tmp.f_ffree = sysv_count_free_inodes(sb);
+	tmp.f_type = sb->s_magic;			/* type of filesystem */
+	tmp.f_bsize = sb->sv_block_size;		/* block size */
+	tmp.f_blocks = sb->sv_ndatazones;		/* total data blocks in file system */
+	tmp.f_bfree = sysv_count_free_blocks(sb);	/* free blocks in fs */
+	tmp.f_bavail = tmp.f_bfree;			/* free blocks available to non-superuser */
+	tmp.f_files = sb->sv_ninodes;			/* total file nodes in file system */
+	tmp.f_ffree = sysv_count_free_inodes(sb);	/* free file nodes in fs */
 	tmp.f_namelen = SYSV_NAMELEN;
-	memcpy_tofs(buf, &tmp, bufsiz);
+	/* Don't know what value to put in tmp.f_fsid */ /* file system id */
+	copy_to_user(buf, &tmp, bufsiz);
 }
 
 
@@ -682,10 +679,10 @@ static struct buffer_head * block_getblk(struct inode * inode,
 
 	if (!bh)
 		return NULL;
-	if (!bh->b_uptodate) {
+	if (!buffer_uptodate(bh)) {
 		ll_rw_block(READ, 1, &bh);
 		wait_on_buffer(bh);
-		if (!bh->b_uptodate) {
+		if (!buffer_uptodate(bh)) {
 			brelse(bh);
 			return NULL;
 		}
@@ -764,11 +761,11 @@ struct buffer_head * sysv_file_bread(struct inode * inode, int block, int create
 	struct buffer_head * bh;
 
 	bh = sysv_getblk(inode,block,create);
-	if (!bh || bh->b_uptodate)
+	if (!bh || buffer_uptodate(bh))
 		return bh;
 	ll_rw_block(READ, 1, &bh);
 	wait_on_buffer(bh);
-	if (bh->b_uptodate)
+	if (buffer_uptodate(bh))
 		return bh;
 	brelse(bh);
 	return NULL;
@@ -811,14 +808,16 @@ void sysv_read_inode(struct inode * inode)
 	inode->i_op = NULL;
 	inode->i_mode = 0;
 	if (!ino || ino > sb->sv_ninodes) {
-		printk("Bad inode number on dev 0x%04x: %d is out of range\n",
-			inode->i_dev, ino);
+		printk("Bad inode number on dev %s"
+		       ": %d is out of range\n",
+		       kdevname(inode->i_dev), ino);
 		return;
 	}
 	block = sb->sv_firstinodezone + ((ino-1) >> sb->sv_inodes_per_block_bits);
 	if (!(bh = sv_bread(sb,inode->i_dev,block))) {
-		printk("Major problem: unable to read inode from dev 0x%04x\n",
-			inode->i_dev);
+		printk("Major problem: unable to read inode from dev "
+		       "%s\n",
+		       kdevname(inode->i_dev));
 		return;
 	}
 	raw_inode = (struct sysv_inode *) bh->b_data + ((ino-1) & sb->sv_inodes_per_block_1);
@@ -843,7 +842,7 @@ void sysv_read_inode(struct inode * inode)
 	}
 	inode->i_blocks = inode->i_blksize = 0;
 	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
-		inode->i_rdev = raw_inode->i_a.i_rdev;
+		inode->i_rdev = to_kdev_t(raw_inode->i_a.i_rdev);
 	else
 	if (sb->sv_convert)
 		for (block = 0; block < 10+1+1+1; block++)
@@ -896,8 +895,9 @@ static struct buffer_head * sysv_update_inode(struct inode * inode)
 
 	ino = inode->i_ino;
 	if (!ino || ino > sb->sv_ninodes) {
-		printk("Bad inode number on dev 0x%04x: %d is out of range\n",
-			inode->i_dev, ino);
+		printk("Bad inode number on dev %s"
+		       ": %d is out of range\n",
+		       kdevname(inode->i_dev), ino);
 		inode->i_dirt = 0;
 		return 0;
 	}
@@ -927,7 +927,7 @@ static struct buffer_head * sysv_update_inode(struct inode * inode)
 		raw_inode->i_ctime = inode->i_ctime;
 	}
 	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
-		raw_inode->i_a.i_rdev = inode->i_rdev; /* write 2 or 3 bytes ?? */
+		raw_inode->i_a.i_rdev = kdev_t_to_nr(inode->i_rdev); /* write 2 or 3 bytes ?? */
 	else
 	if (sb->sv_convert)
 		for (block = 0; block < 10+1+1+1; block++)
@@ -953,13 +953,14 @@ int sysv_sync_inode(struct inode * inode)
         struct buffer_head *bh;
 
         bh = sysv_update_inode(inode);
-        if (bh && bh->b_dirt) {
+        if (bh && buffer_dirty(bh)) {
                 ll_rw_block(WRITE, 1, &bh);
                 wait_on_buffer(bh);
-                if (bh->b_req && !bh->b_uptodate)
+                if (buffer_req(bh) && !buffer_uptodate(bh))
                 {
-                        printk ("IO error syncing sysv inode [%04x:%08lx]\n",
-                                inode->i_dev, inode->i_ino);
+                        printk ("IO error syncing sysv inode ["
+				"%s:%08lx]\n",
+                                kdevname(inode->i_dev), inode->i_ino);
                         err = -1;
                 }
         }
@@ -969,11 +970,7 @@ int sysv_sync_inode(struct inode * inode)
         return err;
 }
 
-#ifdef MODULE
-
 /* Every kernel module contains stuff like this. */
-
-char kernel_version[] = UTS_RELEASE;
 
 static struct file_system_type sysv_fs_type[3] = {
 	{sysv_read_super, "xenix", 1, NULL},
@@ -981,14 +978,26 @@ static struct file_system_type sysv_fs_type[3] = {
 	{sysv_read_super, "coherent", 1, NULL}
 };
 
-int init_module(void)
+int init_sysv_fs(void)
 {
 	int i;
+	int ouch;
 
-	for (i = 0; i < 3; i++)
-		register_filesystem(&sysv_fs_type[i]);
+	for (i = 0; i < 3; i++) {
+		if ((ouch = register_filesystem(&sysv_fs_type[i])) != 0)
+			return ouch;
+	}
+        return ouch;
+}
 
-	return 0;
+#ifdef MODULE
+int init_module(void)
+{
+	int status;
+
+	if ((status = init_sysv_fs()) == 0)
+		register_symtab(0);
+	return status;
 }
 
 void cleanup_module(void)
@@ -996,6 +1005,7 @@ void cleanup_module(void)
 	int i;
 
 	for (i = 0; i < 3; i++)
+		/* No error message if this breaks... that's OK... */
 		unregister_filesystem(&sysv_fs_type[i]);
 }
 

@@ -20,8 +20,9 @@
 #include <linux/major.h>
 #include <linux/errno.h>
 #include <linux/tty.h>
-#include <linux/fs.h>
-#include <asm/segment.h>
+#include <linux/sched.h>
+#include <linux/mm.h>
+#include <asm/uaccess.h>
 #include "vt_kern.h"
 #include "selection.h"
 
@@ -36,8 +37,8 @@ vcs_size(struct inode *inode)
 	return size;
 }
 
-static int
-vcs_lseek(struct inode *inode, struct file *file, off_t offset, int orig)
+static long long
+vcs_lseek(struct inode *inode, struct file *file, long long offset, int orig)
 {
 	int size = vcs_size(inode);
 
@@ -59,8 +60,8 @@ vcs_lseek(struct inode *inode, struct file *file, off_t offset, int orig)
 	return file->f_pos;
 }
 
-static int
-vcs_read(struct inode *inode, struct file *file, char *buf, int count)
+static long
+vcs_read(struct inode *inode, struct file *file, char *buf, unsigned long count)
 {
 	unsigned long p = file->f_pos;
 	unsigned int cons = MINOR(inode->i_rdev);
@@ -81,7 +82,7 @@ vcs_read(struct inode *inode, struct file *file, char *buf, int count)
 		return -ENXIO;
 
 	size = vcs_size(inode);
-	if (count < 0 || p > size)
+	if (p > size)
 		return -EINVAL;
 	if (count > size - p)
 		count = size - p;
@@ -90,7 +91,7 @@ vcs_read(struct inode *inode, struct file *file, char *buf, int count)
 	if (!attr) {
 		org = screen_pos(cons, p, viewed);
 		while (count-- > 0)
-			put_fs_byte(scr_readw(org++) & 0xff, buf++);
+			put_user(scr_readw(org++) & 0xff, buf++);
 	} else {
 		if (p < HEADER_SIZE) {
 			char header[HEADER_SIZE];
@@ -98,32 +99,32 @@ vcs_read(struct inode *inode, struct file *file, char *buf, int count)
 			header[1] = (char) video_num_columns;
 			getconsxy(cons, header+2);
 			while (p < HEADER_SIZE && count-- > 0)
-			    put_fs_byte(header[p++], buf++);
+			    put_user(header[p++], buf++);
 		}
 		p -= HEADER_SIZE;
 		org = screen_pos(cons, p/2, viewed);
 		if ((p & 1) && count-- > 0)
-			put_fs_byte(scr_readw(org++) >> 8, buf++);
+			put_user(scr_readw(org++) >> 8, buf++);
 		while (count > 1) {
-			put_fs_word(scr_readw(org++), buf);
+			put_user(scr_readw(org++), (unsigned short *) buf);
 			buf += 2;
 			count -= 2;
 		}
 		if (count > 0)
-			put_fs_byte(scr_readw(org) & 0xff, buf++);
+			put_user(scr_readw(org) & 0xff, buf++);
 	}
 	read = buf - buf0;
 	file->f_pos += read;
 	return read;
 }
 
-static int
-vcs_write(struct inode *inode, struct file *file, char *buf, int count)
+static long
+vcs_write(struct inode *inode, struct file *file, const char *buf, unsigned long count)
 {
 	unsigned long p = file->f_pos;
 	unsigned int cons = MINOR(inode->i_rdev);
 	int viewed, attr, size, written;
-	char *buf0;
+	const char *buf0;
 	unsigned short *org;
 
 	attr = (cons & 128);
@@ -139,7 +140,7 @@ vcs_write(struct inode *inode, struct file *file, char *buf, int count)
 		return -ENXIO;
 
 	size = vcs_size(inode);
-	if (count < 0 || p > size)
+	if (p > size)
 		return -EINVAL;
 	if (count > size - p)
 		count = size - p;
@@ -148,8 +149,9 @@ vcs_write(struct inode *inode, struct file *file, char *buf, int count)
 	if (!attr) {
 		org = screen_pos(cons, p, viewed);
 		while (count-- > 0) {
-			scr_writew((scr_readw(org) & 0xff00) |
-				get_fs_byte(buf++), org);
+			unsigned char c;
+			get_user(c, (const unsigned char*)buf++);
+			scr_writew((scr_readw(org) & 0xff00) | c, org);
 			org++;
 		}
 	} else {
@@ -157,25 +159,31 @@ vcs_write(struct inode *inode, struct file *file, char *buf, int count)
 			char header[HEADER_SIZE];
 			getconsxy(cons, header+2);
 			while (p < HEADER_SIZE && count-- > 0)
-				header[p++] = get_fs_byte(buf++);
+				get_user(header[p++], buf++);
 			if (!viewed)
 				putconsxy(cons, header+2);
 		}
 		p -= HEADER_SIZE;
 		org = screen_pos(cons, p/2, viewed);
 		if ((p & 1) && count-- > 0) {
-			scr_writew((get_fs_byte(buf++) << 8) |
+			char c;
+			get_user(c,buf++);
+			scr_writew((c << 8) |
 				   (scr_readw(org) & 0xff), org);
 			org++;
 		}
 		while (count > 1) {
-			scr_writew(get_fs_word(buf), org++);
+			unsigned short w;
+			get_user(w, (const unsigned short *) buf);
+			scr_writew(w, org++);
 			buf += 2;
 			count -= 2;
 		}
-		if (count > 0)
-			scr_writew((scr_readw(org) & 0xff00) |
-				   get_fs_byte(buf++), org);
+		if (count > 0) {
+			unsigned char c;
+			get_user(c, (const unsigned char*)buf++);
+			scr_writew((scr_readw(org) & 0xff00) | c, org);
+		}
 	}
 	written = buf - buf0;
 	file->f_pos += written;
@@ -204,9 +212,12 @@ static struct file_operations vcs_fops = {
 	NULL		/* fsync */
 };
 
-long vcs_init(long kmem_start)
+int vcs_init(void)
 {
-	if (register_chrdev(VCS_MAJOR, "vcs", &vcs_fops))
+	int error;
+
+	error = register_chrdev(VCS_MAJOR, "vcs", &vcs_fops);
+	if (error)
 		printk("unable to get major %d for vcs device", VCS_MAJOR);
-	return kmem_start;
+	return error;
 }

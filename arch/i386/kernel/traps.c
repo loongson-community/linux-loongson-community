@@ -10,6 +10,7 @@
  * to mainly kill the offending process (probably by giving it a signal,
  * but possibly by killing it outright if necessary).
  */
+#include <linux/config.h>
 #include <linux/head.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -21,12 +22,12 @@
 #include <linux/mm.h>
 
 #include <asm/system.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 
 asmlinkage int system_call(void);
 asmlinkage void lcall7(void);
-struct desc_struct default_ldt;
+struct desc_struct default_ldt = { 0, 0 };
 
 static inline void console_verbose(void)
 {
@@ -39,9 +40,7 @@ asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
 { \
 	tsk->tss.error_code = error_code; \
 	tsk->tss.trap_no = trapnr; \
-	if (signr == SIGTRAP && current->flags & PF_PTRACED) \
-		current->blocked &= ~(1 << (SIGTRAP-1)); \
-	send_sig(signr, tsk, 1); \
+	force_sig(signr, tsk); \
 	die_if_kernel(str,regs,error_code); \
 }
 
@@ -82,6 +81,7 @@ asmlinkage void page_fault(void);
 asmlinkage void coprocessor_error(void);
 asmlinkage void reserved(void);
 asmlinkage void alignment_check(void);
+asmlinkage void spurious_interrupt_bug(void);
 
 int kstack_depth_to_print = 24;
 
@@ -93,31 +93,32 @@ int kstack_depth_to_print = 24;
 #define VMALLOC_OFFSET (8*1024*1024)
 #define MODULE_RANGE (8*1024*1024)
 
-/*static*/ void die_if_kernel(char * str, struct pt_regs * regs, long err)
+/*static*/ void die_if_kernel(const char * str, struct pt_regs * regs, long err)
 {
 	int i;
 	unsigned long esp;
 	unsigned short ss;
 	unsigned long *stack, addr, module_start, module_end;
-	extern char start_kernel, etext;
+	extern char start_kernel, _etext;
 
 	esp = (unsigned long) &regs->esp;
 	ss = KERNEL_DS;
-	if ((regs->eflags & VM_MASK) || (3 & regs->cs) == 3)
+	if ((regs->eflags & VM_MASK) || (3 & regs->xcs) == 3)
 		return;
-	if (regs->cs & 3) {
+	if (regs->xcs & 3) {
 		esp = regs->esp;
-		ss = regs->ss;
+		ss = regs->xss & 0xffff;
 	}
 	console_verbose();
 	printk("%s: %04lx\n", str, err & 0xffff);
-	printk("EIP:    %04x:%08lx\nEFLAGS: %08lx\n", 0xffff & regs->cs,regs->eip,regs->eflags);
+	printk("CPU:    %d\n", smp_processor_id());
+	printk("EIP:    %04x:[<%08lx>]\nEFLAGS: %08lx\n", 0xffff & regs->xcs,regs->eip,regs->eflags);
 	printk("eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
 		regs->eax, regs->ebx, regs->ecx, regs->edx);
 	printk("esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
 		regs->esi, regs->edi, regs->ebp, esp);
-	printk("ds: %04x   es: %04x   fs: %04x   gs: %04x   ss: %04x\n",
-		regs->ds, regs->es, regs->fs, regs->gs, ss);
+	printk("ds: %04x   es: %04x   ss: %04x\n",
+		regs->xds & 0xffff, regs->xes & 0xffff, ss);
 	store_TR(i);
 	if (STACK_MAGIC != *(unsigned long *)current->kernel_stack_page)
 		printk("Corrupted stack page\n");
@@ -134,7 +135,8 @@ int kstack_depth_to_print = 24;
 	printk("\nCall Trace: ");
 	stack = (unsigned long *) esp;
 	i = 1;
-	module_start = ((high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
+	module_start = PAGE_OFFSET + (max_mapnr << PAGE_SHIFT);
+	module_start = ((module_start + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
 	module_end = module_start + MODULE_RANGE;
 	while (((long) stack & 4095) != 0) {
 		addr = get_seg_long(ss, stack++);
@@ -147,17 +149,17 @@ int kstack_depth_to_print = 24;
 		 * out the call path that was taken.
 		 */
 		if (((addr >= (unsigned long) &start_kernel) &&
-		     (addr <= (unsigned long) &etext)) ||
+		     (addr <= (unsigned long) &_etext)) ||
 		    ((addr >= module_start) && (addr <= module_end))) {
 			if (i && ((i % 8) == 0))
 				printk("\n       ");
-			printk("%08lx ", addr);
+			printk("[<%08lx>] ", addr);
 			i++;
 		}
 	}
 	printk("\nCode: ");
 	for(i=0;i<20;i++)
-		printk("%02x ",0xff & get_seg_byte(regs->cs,(i+(char *)regs->eip)));
+		printk("%02x ",0xff & get_seg_byte(regs->xcs & 0xffff,(i+(char *)regs->eip)));
 	printk("\n");
 	do_exit(SIGSEGV);
 }
@@ -173,8 +175,8 @@ DO_ERROR( 9, SIGFPE,  "coprocessor segment overrun", coprocessor_segment_overrun
 DO_ERROR(10, SIGSEGV, "invalid TSS", invalid_TSS, current)
 DO_ERROR(11, SIGBUS,  "segment not present", segment_not_present, current)
 DO_ERROR(12, SIGBUS,  "stack segment", stack_segment, current)
-DO_ERROR(15, SIGSEGV, "reserved", reserved, current)
 DO_ERROR(17, SIGSEGV, "alignment check", alignment_check, current)
+DO_ERROR(18, SIGSEGV, "reserved", reserved, current)
 
 asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 {
@@ -185,16 +187,20 @@ asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 	die_if_kernel("general protection",regs,error_code);
 	current->tss.error_code = error_code;
 	current->tss.trap_no = 13;
-	send_sig(SIGSEGV, current, 1);	
+	force_sig(SIGSEGV, current);	
 }
 
 asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
 {
+#ifdef CONFIG_SMP_NMI_INVAL
+	smp_flush_tlb_rcv();
+#else
 #ifndef CONFIG_IGNORE_NMI
 	printk("Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
 	printk("You probably have a hardware problem with your RAM chips or a\n");
 	printk("power saving mode enabled.\n");
 #endif	
+#endif
 }
 
 asmlinkage void do_debug(struct pt_regs * regs, long error_code)
@@ -203,12 +209,10 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 		handle_vm86_debug((struct vm86_regs *) regs, error_code);
 		return;
 	}
-	if (current->flags & PF_PTRACED)
-		current->blocked &= ~(1 << (SIGTRAP-1));
-	send_sig(SIGTRAP, current, 1);
+	force_sig(SIGTRAP, current);
 	current->tss.trap_no = 1;
 	current->tss.error_code = error_code;
-	if ((regs->cs & 3) == 0) {
+	if ((regs->xcs & 3) == 0) {
 		/* If this is a kernel mode trap, then reset db7 and allow us to continue */
 		__asm__("movl %0,%%db7"
 			: /* no output */
@@ -219,46 +223,47 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 }
 
 /*
- * Allow the process which triggered the interrupt to recover the error
- * condition.
- *  - the status word is saved in the cs selector.
- *  - the tag word is saved in the operand selector.
- *  - the status word is then cleared and the tags all set to Empty.
- *
- * This will give sufficient information for complete recovery provided that
- * the affected process knows or can deduce the code and data segments
- * which were in force when the exception condition arose.
- *
  * Note that we play around with the 'TS' bit to hopefully get
  * the correct behaviour even in the presence of the asynchronous
  * IRQ13 behaviour
  */
 void math_error(void)
 {
-	struct i387_hard_struct * env;
+	struct task_struct * task;
 
 	clts();
-	if (!last_task_used_math) {
+#ifdef __SMP__
+	task = current;
+#else
+	task = last_task_used_math;
+	last_task_used_math = NULL;
+	if (!task) {
 		__asm__("fnclex");
 		return;
 	}
-	env = &last_task_used_math->tss.i387.hard;
-	send_sig(SIGFPE, last_task_used_math, 1);
-	last_task_used_math->tss.trap_no = 16;
-	last_task_used_math->tss.error_code = 0;
-	__asm__ __volatile__("fnsave %0":"=m" (*env));
-	last_task_used_math = NULL;
+#endif
+	/*
+	 *	Save the info for the exception handler
+	 */
+	__asm__ __volatile__("fnsave %0":"=m" (task->tss.i387.hard));
+	task->flags&=~PF_USEDFPU;
 	stts();
-	env->fcs = (env->swd & 0x0000ffff) | (env->fcs & 0xffff0000);
-	env->fos = env->twd;
-	env->swd &= 0xffff3800;
-	env->twd = 0xffffffff;
+
+	force_sig(SIGFPE, task);
+	task->tss.trap_no = 16;
+	task->tss.error_code = 0;
 }
 
 asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
 {
 	ignore_irq13 = 1;
 	math_error();
+}
+
+asmlinkage void do_spurious_interrupt_bug(struct pt_regs * regs,
+					  long error_code)
+{
+	printk("Ignoring P6 Local APIC Spurious Interrupt Bug...\n");
 }
 
 /*
@@ -270,23 +275,37 @@ asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
  */
 asmlinkage void math_state_restore(void)
 {
-	__asm__ __volatile__("clts");
+	__asm__ __volatile__("clts");		/* Allow maths ops (or we recurse) */
+
+/*
+ *	SMP is actually simpler than uniprocessor for once. Because
+ *	we can't pull the delayed FPU switching trick Linus does
+ *	we simply have to do the restore each context switch and
+ *	set the flag. switch_to() will always save the state in
+ *	case we swap processors. We also don't use the coprocessor
+ *	timer - IRQ 13 mode isn't used with SMP machines (thank god).
+ */
+#ifndef __SMP__
 	if (last_task_used_math == current)
 		return;
-	timer_table[COPRO_TIMER].expires = jiffies+50;
-	timer_active |= 1<<COPRO_TIMER;	
 	if (last_task_used_math)
 		__asm__("fnsave %0":"=m" (last_task_used_math->tss.i387));
 	else
 		__asm__("fnclex");
 	last_task_used_math = current;
-	if (current->used_math) {
+#endif
+
+	if(current->used_math)
 		__asm__("frstor %0": :"m" (current->tss.i387));
-	} else {
+	else
+	{
+		/*
+		 *	Our first FPU usage, clean the chip.
+		 */
 		__asm__("fninit");
-		current->used_math=1;
+		current->used_math = 1;
 	}
-	timer_active &= ~(1<<COPRO_TIMER);
+	current->flags|=PF_USEDFPU;		/* So we fnsave on switch_to() */
 }
 
 #ifndef CONFIG_MATH_EMULATION
@@ -295,7 +314,7 @@ asmlinkage void math_emulate(long arg)
 {
   printk("math-emulation not enabled and no coprocessor found.\n");
   printk("killing %s.\n",current->comm);
-  send_sig(SIGFPE,current,1);
+  force_sig(SIGFPE,current);
   schedule();
 }
 
@@ -305,8 +324,16 @@ void trap_init(void)
 {
 	int i;
 	struct desc_struct * p;
-
-	if (strncmp((char*)0x0FFFD9, "EISA", 4) == 0)
+	static int smptrap=0;
+	
+	if(smptrap)
+	{
+		__asm__("pushfl ; andl $0xffffbfff,(%esp) ; popfl");
+		load_ldt(0);
+		return;
+	}
+	smptrap++;
+	if (readl(0x0FFFD9) == 'E' + ('I'<<8) + ('S'<<16) + ('A'<<24))
 		EISA_bus = 1;
 	set_call_gate(&default_ldt,lcall7);
 	set_trap_gate(0,&divide_error);
@@ -324,7 +351,7 @@ void trap_init(void)
 	set_trap_gate(12,&stack_segment);
 	set_trap_gate(13,&general_protection);
 	set_trap_gate(14,&page_fault);
-	set_trap_gate(15,&reserved);
+	set_trap_gate(15,&spurious_interrupt_bug);
 	set_trap_gate(16,&coprocessor_error);
 	set_trap_gate(17,&alignment_check);
 	for (i=18;i<48;i++)

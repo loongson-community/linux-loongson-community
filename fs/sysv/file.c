@@ -13,12 +13,6 @@
  *  SystemV/Coherent regular file handling primitives
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/sysv_fs.h>
@@ -27,6 +21,9 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/pagemap.h>
+
+#include <asm/uaccess.h>
 
 #define	NBUF	32
 
@@ -36,7 +33,7 @@
 #include <linux/fs.h>
 #include <linux/sysv_fs.h>
 
-static int sysv_file_write(struct inode *, struct file *, char *, int);
+static long sysv_file_write(struct inode *, struct file *, const char *, unsigned long);
 
 /*
  * We have mostly NULL's here: the current defaults are ok for
@@ -49,7 +46,7 @@ static struct file_operations sysv_file_operations = {
 	NULL,			/* readdir - bad */
 	NULL,			/* select - default */
 	NULL,			/* ioctl - default */
-	generic_mmap,		/* mmap */
+	generic_file_mmap,	/* mmap */
 	NULL,			/* no special open is needed */
 	NULL,			/* release */
 	sysv_sync_file		/* fsync */
@@ -68,12 +65,15 @@ struct inode_operations sysv_file_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	generic_readpage,	/* readpage */
+	NULL,			/* writepage */
 	sysv_bmap,		/* bmap */
 	sysv_truncate,		/* truncate */
 	NULL			/* permission */
 };
 
-int sysv_file_read(struct inode * inode, struct file * filp, char * buf, int count)
+long sysv_file_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
 	struct super_block * sb = inode->i_sb;
 	int read,left,chars;
@@ -115,9 +115,9 @@ int sysv_file_read(struct inode * inode, struct file * filp, char * buf, int cou
 			blocks = size - block;
 	}
 
-	/* We do this in a two stage process.  We first try and request
+	/* We do this in a two stage process.  We first try to request
 	   as many blocks as we can, then we wait for the first one to
-	   complete, and then we try and wrap up as many as are actually
+	   complete, and then we try to wrap up as many as are actually
 	   done.  This routine is rather generic, in that it can be used
 	   in a filesystem by substituting the appropriate function in
 	   for getblk.
@@ -132,7 +132,7 @@ int sysv_file_read(struct inode * inode, struct file * filp, char * buf, int cou
 		while (blocks) {
 			--blocks;
 			*bhb = sysv_getblk(inode, block++, 0);
-			if (*bhb && !(*bhb)->b_uptodate) {
+			if (*bhb && !buffer_uptodate(*bhb)) {
 				uptodate = 0;
 				bhreq[bhrequest++] = *bhb;
 			}
@@ -155,7 +155,7 @@ int sysv_file_read(struct inode * inode, struct file * filp, char * buf, int cou
 		do { /* Finish off all I/O that has actually completed */
 			if (*bhe) {
 				wait_on_buffer(*bhe);
-				if (!(*bhe)->b_uptodate) {	/* read error? */
+				if (!buffer_uptodate(*bhe)) {	/* read error? */
 					brelse(*bhe);
 					if (++bhe == &buflist[NBUF])
 						bhe = buflist;
@@ -171,17 +171,17 @@ int sysv_file_read(struct inode * inode, struct file * filp, char * buf, int cou
 			left -= chars;
 			read += chars;
 			if (*bhe) {
-				memcpy_tofs(buf,offset+(*bhe)->b_data,chars);
+				copy_to_user(buf,offset+(*bhe)->b_data,chars);
 				brelse(*bhe);
 				buf += chars;
 			} else {
 				while (chars-- > 0)
-					put_fs_byte(0,buf++);
+					put_user(0,buf++);
 			}
 			offset = 0;
 			if (++bhe == &buflist[NBUF])
 				bhe = buflist;
-		} while (left > 0 && bhe != bhb && (!*bhe || !(*bhe)->b_lock));
+		} while (left > 0 && bhe != bhb && (!*bhe || !buffer_locked(*bhe)));
 	} while (left > 0);
 
 /* Release the read-ahead blocks */
@@ -200,7 +200,8 @@ int sysv_file_read(struct inode * inode, struct file * filp, char * buf, int cou
 	return read;
 }
 
-static int sysv_file_write(struct inode * inode, struct file * filp, char * buf, int count)
+static long sysv_file_write(struct inode * inode, struct file * filp,
+	const char * buf, unsigned long count)
 {
 	struct super_block * sb = inode->i_sb;
 	off_t pos;
@@ -238,27 +239,28 @@ static int sysv_file_write(struct inode * inode, struct file * filp, char * buf,
 		c = sb->sv_block_size - (pos & sb->sv_block_size_1);
 		if (c > count-written)
 			c = count-written;
-		if (c != sb->sv_block_size && !bh->b_uptodate) {
+		if (c != sb->sv_block_size && !buffer_uptodate(bh)) {
 			ll_rw_block(READ, 1, &bh);
 			wait_on_buffer(bh);
-			if (!bh->b_uptodate) {
+			if (!buffer_uptodate(bh)) {
 				brelse(bh);
 				if (!written)
 					written = -EIO;
 				break;
 			}
 		}
-		/* now either c==sb->sv_block_size or bh->b_uptodate */
+		/* now either c==sb->sv_block_size or buffer_uptodate(bh) */
 		p = (pos & sb->sv_block_size_1) + bh->b_data;
+		copy_from_user(p, buf, c);
+		update_vm_cache(inode, pos, p, c);
 		pos += c;
 		if (pos > inode->i_size) {
 			inode->i_size = pos;
 			inode->i_dirt = 1;
 		}
 		written += c;
-		memcpy_fromfs(p,buf,c);
 		buf += c;
-		bh->b_uptodate = 1;
+		mark_buffer_uptodate(bh, 1);
 		mark_buffer_dirty(bh, 0);
 		brelse(bh);
 	}

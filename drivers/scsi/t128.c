@@ -109,7 +109,8 @@
 #include <asm/system.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
-#include "../block/blk.h"
+#include <asm/io.h>
+#include <linux/blk.h>
 #include "scsi.h"
 #include "hosts.h"
 #include "t128.h"
@@ -117,7 +118,12 @@
 #include "NCR5380.h"
 #include "constants.h"
 #include "sd.h"
+#include<linux/stat.h>
 
+struct proc_dir_entry proc_scsi_t128 = {
+    PROC_SCSI_T128, 4, "t128",
+    S_IFDIR | S_IRUGO | S_IXUGO, 2
+};
 
 
 static struct override {
@@ -197,6 +203,9 @@ int t128_detect(Scsi_Host_Template * tpnt) {
     unsigned char *base;
     int sig, count;
 
+    tpnt->proc_dir = &proc_scsi_t128;
+    tpnt->proc_info = &t128_proc_info;
+
     for (count = 0; current_override < NO_OVERRIDES; ++current_override) {
 	base = NULL;
 
@@ -237,7 +246,7 @@ int t128_detect(Scsi_Host_Template * tpnt) {
 	    instance->irq = NCR5380_probe_irq(instance, T128_IRQS);
 
 	if (instance->irq != IRQ_NONE) 
-	    if (request_irq(instance->irq, t128_intr, SA_INTERRUPT, "t128")) {
+	    if (request_irq(instance->irq, t128_intr, SA_INTERRUPT, "t128", NULL)) {
 		printk("scsi%d : IRQ%d not free, interrupts disabled\n", 
 		    instance->host_no, instance->irq);
 		instance->irq = IRQ_NONE;
@@ -270,7 +279,7 @@ int t128_detect(Scsi_Host_Template * tpnt) {
 }
 
 /*
- * Function : int t128_biosparam(Disk * disk, int dev, int *ip)
+ * Function : int t128_biosparam(Disk * disk, kdev_t dev, int *ip)
  *
  * Purpose : Generates a BIOS / DOS compatible H-C-S mapping for 
  *	the specified device / size.
@@ -289,7 +298,7 @@ int t128_detect(Scsi_Host_Template * tpnt) {
  * and matching the H_C_S coordinates to what DOS uses.
  */
 
-int t128_biosparam(Disk * disk, int dev, int * ip)
+int t128_biosparam(Disk * disk, kdev_t dev, int * ip)
 {
   int size = disk->capacity;
   ip[0] = 64;
@@ -386,3 +395,10 @@ static inline int NCR5380_pwrite (struct Scsi_Host *instance, unsigned char *src
 }
 
 #include "NCR5380.c"
+
+#ifdef MODULE
+/* Eventually this will go into an include file, but this will be later */
+Scsi_Host_Template driver_template = TRANTOR_T128;
+
+#include "scsi_module.c"
+#endif

@@ -31,11 +31,25 @@
  *		Alan Cox	:	bind() shouldn't abort existing but dead
  *					sockets. Stops FTP netin:.. I hope.
  *		Alan Cox	:	bind() works correctly for RAW sockets. Note
- *					that FreeBSD at least is broken in this respect
+ *					that FreeBSD at least was broken in this respect
  *					so be careful with compatibility tests...
  *		Alan Cox	:	routing cache support
  *		Alan Cox	:	memzero the socket structure for compactness.
  *		Matt Day	:	nonblock connect error handler
+ *		Alan Cox	:	Allow large numbers of pending sockets
+ *					(eg for big web sites), but only if
+ *					specifically application requested.
+ *		Alan Cox	:	New buffering throughout IP. Used dumbly.
+ *		Alan Cox	:	New buffering now used smartly.
+ *		Alan Cox	:	BSD rather than common sense interpretation of
+ *					listen.
+ *		Germano Caronni	:	Assorted small races.
+ *		Alan Cox	:	sendmsg/recvmsg basic support.
+ *		Alan Cox	:	Only sendmsg/recvmsg now supported.
+ *		Alan Cox	:	Locked down bind (see security list).
+ *		Alan Cox	:	Loosened bind a little.
+ *		Mike McLagan	:	ADD/DEL DLCI Ioctls
+ *	Willy Konynenberg	:	Transparent proxying support.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -58,8 +72,10 @@
 #include <linux/fcntl.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <linux/proc_fs.h>
+#include <linux/stat.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 
 #include <linux/inet.h>
@@ -76,11 +92,42 @@
 #include <net/raw.h>
 #include <net/icmp.h>
 #include <linux/ip_fw.h>
+#ifdef CONFIG_IP_MASQUERADE
+#include <net/ip_masq.h>
+#endif
+#ifdef CONFIG_IP_ALIAS
+#include <net/ip_alias.h>
+#endif
+#ifdef CONFIG_BRIDGE
+#include <net/br.h>
+#endif
+#ifdef CONFIG_KERNELD
+#include <linux/kerneld.h>
+#endif
 
 #define min(a,b)	((a)<(b)?(a):(b))
 
 extern struct proto packet_prot;
+extern int raw_get_info(char *, char **, off_t, int, int);
+extern int snmp_get_info(char *, char **, off_t, int, int);
+extern int afinet_get_info(char *, char **, off_t, int, int);
+extern int tcp_get_info(char *, char **, off_t, int, int);
+extern int udp_get_info(char *, char **, off_t, int, int);
 
+
+struct sock * tcp_sock_array[SOCK_ARRAY_SIZE];
+struct sock * udp_sock_array[SOCK_ARRAY_SIZE];
+struct sock * raw_sock_array[SOCK_ARRAY_SIZE];
+
+#ifdef CONFIG_DLCI
+extern int dlci_ioctl(unsigned int, void*);
+#endif
+
+#ifdef CONFIG_DLCI_MODULE
+int (*dlci_ioctl_hook)(unsigned int, void *) = NULL;
+#endif
+
+int (*rarp_ioctl_hook)(unsigned int,void*) = NULL;
 
 /*
  *	See if a socket number is in use.
@@ -119,13 +166,16 @@ unsigned short get_new_socknum(struct proto *prot, unsigned short base)
 	struct sock *sk;
 
 	if (base == 0) 
-		base = PROT_SOCK+1+(start % 1024);
+		base = PROT_SOCK+1+(start & 1023);
 	if (base <= PROT_SOCK) 
 	{
-		base += PROT_SOCK+(start % 1024);
+		base += PROT_SOCK+(start & 1023);
 	}
 
-	/* Now look through the entire array and try to find an empty ptr. */
+	/*
+	 *	Now look through the entire array and try to find an empty ptr. 
+	 */
+	 
 	for(i=0; i < SOCK_ARRAY_SIZE; i++) 
 	{
 		j = 0;
@@ -137,7 +187,7 @@ unsigned short get_new_socknum(struct proto *prot, unsigned short base)
 		}
 		if (j == 0) 
 		{
-			start =(i+1+start )%1024;
+			start =(i+1+start )&1023;
 			return(i+base+1);
 		}
 		if (j < size) 
@@ -160,10 +210,9 @@ unsigned short get_new_socknum(struct proto *prot, unsigned short base)
  *	Add a socket into the socket tables by number.
  */
 
-void put_sock(unsigned short num, struct sock *sk)
+void inet_put_sock(unsigned short num, struct sock *sk)
 {
-	struct sock *sk1;
-	struct sock *sk2;
+	struct sock **skp, *tmp;
 	int mask;
 	unsigned long flags;
 	
@@ -174,7 +223,10 @@ void put_sock(unsigned short num, struct sock *sk)
 	sk->next = NULL;
 	num = num &(SOCK_ARRAY_SIZE -1);
 
-	/* We can't have an interrupt re-enter here. */
+	/* 
+	 *	We can't have an interrupt re-enter here. 
+	 */
+	 
 	save_flags(flags);
 	cli();
 
@@ -188,40 +240,30 @@ void put_sock(unsigned short num, struct sock *sk)
 		restore_flags(flags);
 		return;
 	}
+	
 	restore_flags(flags);
 	for(mask = 0xff000000; mask != 0xffffffff; mask = (mask >> 8) | mask) 
 	{
-		if ((mask & sk->saddr) &&
-		    (mask & sk->saddr) != (mask & 0xffffffff)) 
+		if ((mask & sk->rcv_saddr) &&
+		    (mask & sk->rcv_saddr) != (mask & 0xffffffff)) 
 		{
 			mask = mask << 8;
 			break;
 		}
 	}
-	cli();
-	sk1 = sk->prot->sock_array[num];
-	for(sk2 = sk1; sk2 != NULL; sk2=sk2->next) 
-	{
-		if (!(sk2->saddr & mask)) 
-		{
-			if (sk2 == sk1) 
-			{
-				sk->next = sk->prot->sock_array[num];
-				sk->prot->sock_array[num] = sk;
-				sti();
-				return;
-			}
-			sk->next = sk2;
-			sk1->next= sk;
-			sti();
-			return;
-		}
-		sk1 = sk2;
-	}
 
-	/* Goes at the end. */
-	sk->next = NULL;
-	sk1->next = sk;
+	/*
+	 * add the socket to the sock_array[]..
+	 */
+	skp = sk->prot->sock_array + num;
+	cli();
+	while ((tmp = *skp) != NULL) {
+		if (!(tmp->rcv_saddr & mask))
+			break;
+		skp = &tmp->next;
+	}
+	sk->next = tmp;
+	*skp = sk;
 	sti();
 }
 
@@ -229,9 +271,9 @@ void put_sock(unsigned short num, struct sock *sk)
  *	Remove a socket from the socket tables.
  */
 
-static void remove_sock(struct sock *sk1)
+void inet_remove_sock(struct sock *sk1)
 {
-	struct sock *sk2;
+	struct sock **p;
 	unsigned long flags;
 
 	if (sk1->type==SOCK_PACKET)
@@ -246,26 +288,18 @@ static void remove_sock(struct sock *sk1)
 	/* We can't have this changing out from under us. */
 	save_flags(flags);
 	cli();
-	sk2 = sk1->prot->sock_array[sk1->num &(SOCK_ARRAY_SIZE -1)];
-	if (sk2 == sk1) 
+	
+	p=&(sk1->prot->sock_array[sk1->num & (SOCK_ARRAY_SIZE -1)]);
+	
+	while(*p!=NULL)
 	{
-		sk1->prot->inuse -= 1;
-		sk1->prot->sock_array[sk1->num &(SOCK_ARRAY_SIZE -1)] = sk1->next;
-		restore_flags(flags);
-		return;
-	}
-
-	while(sk2 && sk2->next != sk1) 
-	{
-		sk2 = sk2->next;
-	}
-
-	if (sk2) 
-	{
-		sk1->prot->inuse -= 1;
-		sk2->next = sk1->next;
-		restore_flags(flags);
-		return;
+		if(*p==sk1)
+		{
+			sk1->prot->inuse--;
+			*p=sk1->next;
+			break;
+		}
+		p=&((*p)->next);
 	}
 	restore_flags(flags);
 }
@@ -278,89 +312,55 @@ void destroy_sock(struct sock *sk)
 {
 	struct sk_buff *skb;
 
-  	sk->inuse = 1;			/* just to be safe. */
+	lock_sock(sk);			/* just to be safe. */
 
-  	/* In case it's sleeping somewhere. */
-  	if (!sk->dead) 
-  		sk->write_space(sk);
-
-  	remove_sock(sk);
   
-  	/* Now we can no longer get new packets. */
-  	delete_timer(sk);
-  	/* Nor send them */
-	del_timer(&sk->retransmit_timer);
-	
-	while ((skb = tcp_dequeue_partial(sk)) != NULL) {
-		IS_SKB(skb);
-		kfree_skb(skb, FREE_WRITE);
-	}
+  	/*
+  	 *	Now we can no longer get new packets or once the
+  	 *	timers are killed, send them.
+  	 */
+  	 
+  	net_delete_timer(sk);
 
-	/* Cleanup up the write buffer. */
-  	while((skb = skb_dequeue(&sk->write_queue)) != NULL) {
-		IS_SKB(skb);
-		kfree_skb(skb, FREE_WRITE);
-  	}
+	if (sk->prot->destroy)
+		sk->prot->destroy(sk);
   	
   	/*
-  	 *	Don't discard received data until the user side kills its
-  	 *	half of the socket.
+  	 *	Clean up the read buffer.
   	 */
 
-	if (sk->dead) 
+	while((skb=skb_dequeue(&sk->receive_queue))!=NULL) 
 	{
-  		while((skb=skb_dequeue(&sk->receive_queue))!=NULL) 
-  		{
 		/*
 		 * This will take care of closing sockets that were
 		 * listening and didn't accept everything.
 		 */
-			if (skb->sk != NULL && skb->sk != sk) 
-			{
-				IS_SKB(skb);
-				skb->sk->dead = 1;
-				skb->sk->prot->close(skb->sk, 0);
-			}
+		if (skb->sk != NULL && skb->sk != sk) 
+		{
 			IS_SKB(skb);
-			kfree_skb(skb, FREE_READ);
+			skb->sk->prot->close(skb->sk, 0);
 		}
-	}	
-
-	/* Now we need to clean up the send head. */
-	cli();
-	for(skb = sk->send_head; skb != NULL; )
-	{
-		struct sk_buff *skb2;
-
-		/*
-		 * We need to remove skb from the transmit queue,
-		 * or maybe the arp queue.
-		 */
-		if (skb->next  && skb->prev) {
-/*			printk("destroy_sock: unlinked skb\n");*/
-			IS_SKB(skb);
-			skb_unlink(skb);
-		}
-		skb->dev = NULL;
-		skb2 = skb->link3;
-		kfree_skb(skb, FREE_WRITE);
-		skb = skb2;
-	}
-	sk->send_head = NULL;
-	sti();
-
-  	/* And now the backlog. */
-  	while((skb=skb_dequeue(&sk->back_log))!=NULL) 
-  	{
-		/* this should never happen. */
-/*		printk("cleaning back_log\n");*/
+		IS_SKB(skb);
 		kfree_skb(skb, FREE_READ);
 	}
 
-	/* Now if it has a half accepted/ closed socket. */
+  	/*
+  	 *	Now the backlog. 
+  	 */
+  	 
+  	while((skb=skb_dequeue(&sk->back_log))!=NULL) 
+  	{
+		/* this should [almost] never happen. */
+		skb->sk = NULL;
+		kfree_skb(skb, FREE_READ);
+	}
+
+	/*
+	 *	Now if it has a half accepted/ closed socket. 
+	 */
+	 
 	if (sk->pair) 
 	{
-		sk->pair->dead = 1;
 		sk->pair->prot->close(sk->pair, 0);
 		sk->pair = NULL;
   	}
@@ -371,18 +371,37 @@ void destroy_sock(struct sock *sk)
 	 * everything is gone.
 	 */
 
-	  if (sk->dead && sk->rmem_alloc == 0 && sk->wmem_alloc == 0) 
-	  {
-		kfree_s((void *)sk,sizeof(*sk));
-	  } 
-	  else 
-	  {
+	if (sk->rmem_alloc == 0 && sk->wmem_alloc == 0) 
+	{
+	    	inet_remove_sock(sk);
+
+		if(sk->opt)
+			kfree(sk->opt);
+		ip_rt_put(sk->ip_route_cache);
+		/*
+		 *	This one is pure paranoia. I'll take it out
+		 *	later once I know the bug is buried.
+		 */
+		tcp_cache_zap();
+		sk_free(sk);
+	} 
+	else 
+	{
 		/* this should never happen. */
 		/* actually it can if an ack has just been sent. */
+		/* 
+		 * It's more normal than that...
+		 * It can happen because a skb is still in the device queues
+		 * [PR]
+		 */
+		  
+		printk("Socket destroy delayed (r=%d w=%d)\n",
+ 			sk->rmem_alloc, sk->wmem_alloc);
+
 		sk->destroy = 1;
 		sk->ack_backlog = 0;
-		sk->inuse = 0;
-		reset_timer(sk, TIME_DESTROY, SOCK_DESTROY_TIME);
+		release_sock(sk);
+		net_reset_timer(sk, TIME_DESTROY, SOCK_DESTROY_TIME);
   	}
 }
 
@@ -392,7 +411,7 @@ void destroy_sock(struct sock *sk)
  *	the work.
  */
  
-static int inet_fcntl(struct socket *sock, unsigned int cmd, unsigned long arg)
+int inet_fcntl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	struct sock *sk;
 
@@ -421,7 +440,7 @@ static int inet_fcntl(struct socket *sock, unsigned int cmd, unsigned long arg)
  *	Set socket options on an inet socket.
  */
  
-static int inet_setsockopt(struct socket *sock, int level, int optname,
+int inet_setsockopt(struct socket *sock, int level, int optname,
 		    char *optval, int optlen)
 {
   	struct sock *sk = (struct sock *) sock->data;  
@@ -435,9 +454,13 @@ static int inet_setsockopt(struct socket *sock, int level, int optname,
 
 /*
  *	Get a socket option on an AF_INET socket.
+ *
+ *	FIX: POSIX 1003.1g is very ambiguous here. It states that
+ *	asynchronous errors should be reported by getsockopt. We assume
+ *	this means if you specify SO_ERROR (otherwise whats the point of it).
  */
 
-static int inet_getsockopt(struct socket *sock, int level, int optname,
+int inet_getsockopt(struct socket *sock, int level, int optname,
 		    char *optval, int *optlen)
 {
   	struct sock *sk = (struct sock *) sock->data;  	
@@ -463,7 +486,7 @@ static int inet_autobind(struct sock *sk)
 			return(-EAGAIN);
 		udp_cache_zap();
 		tcp_cache_zap();
-		put_sock(sk->num, sk);
+		inet_put_sock(sk->num, sk);
 		sk->dummy_th.source = ntohs(sk->num);
 	}
 	return 0;
@@ -473,7 +496,7 @@ static int inet_autobind(struct sock *sk)
  *	Move a socket into listening state.
  */
  
-static int inet_listen(struct socket *sock, int backlog)
+int inet_listen(struct socket *sock, int backlog)
 {
 	struct sock *sk = (struct sock *) sock->data;
 
@@ -485,9 +508,12 @@ static int inet_listen(struct socket *sock, int backlog)
 	 * note that the backlog is "unsigned char", so truncate it
 	 * somewhere. We might as well truncate it to what everybody
 	 * else does..
+	 * Now truncate to 128 not 5. 
 	 */
-	if (backlog > 5)
-		backlog = 5;
+	if ((unsigned) backlog == 0)	/* BSDism */
+		backlog = 1;
+	if ((unsigned) backlog > SOMAXCONN)
+		backlog = SOMAXCONN;
 	sk->max_ack_backlog = backlog;
 	if (sk->state != TCP_LISTEN)
 	{
@@ -519,7 +545,7 @@ static void def_callback2(struct sock *sk,int len)
 
 static void def_callback3(struct sock *sk)
 {
-	if(!sk->dead)
+	if(!sk->dead && sk->wmem_alloc*2 <= sk->sndbuf)
 	{
 		wake_up_interruptible(sk->sleep);
 		sock_wake_async(sk->socket, 2);
@@ -539,19 +565,20 @@ static int inet_create(struct socket *sock, int protocol)
 	struct proto *prot;
 	int err;
 
-	sk = (struct sock *) kmalloc(sizeof(*sk), GFP_KERNEL);
+	sk = sk_alloc(GFP_KERNEL);
 	if (sk == NULL) 
 		return(-ENOBUFS);
 	memset(sk,0,sizeof(*sk));	/* Efficient way to set most fields to zero */
-/*	sk->num = 0;
- *	sk->reuse = 0;*/
+	/*
+	 *	Note for tcp that also wiped the dummy_th block for us.
+	 */
 	switch(sock->type) 
 	{
 		case SOCK_STREAM:
 		case SOCK_SEQPACKET:
 			if (protocol && protocol != IPPROTO_TCP) 
 			{
-				kfree_s((void *)sk, sizeof(*sk));
+				sk_free(sk);
 				return(-EPROTONOSUPPORT);
 			}
 			protocol = IPPROTO_TCP;
@@ -562,7 +589,7 @@ static int inet_create(struct socket *sock, int protocol)
 		case SOCK_DGRAM:
 			if (protocol && protocol != IPPROTO_UDP) 
 			{
-				kfree_s((void *)sk, sizeof(*sk));
+				sk_free(sk);
 				return(-EPROTONOSUPPORT);
 			}
 			protocol = IPPROTO_UDP;
@@ -573,12 +600,12 @@ static int inet_create(struct socket *sock, int protocol)
 		case SOCK_RAW:
 			if (!suser()) 
 			{
-				kfree_s((void *)sk, sizeof(*sk));
+				sk_free(sk);
 				return(-EPERM);
 			}
 			if (!protocol) 
 			{
-				kfree_s((void *)sk, sizeof(*sk));
+				sk_free(sk);
 				return(-EPROTONOSUPPORT);
 			}
 			prot = &raw_prot;
@@ -589,12 +616,12 @@ static int inet_create(struct socket *sock, int protocol)
 		case SOCK_PACKET:
 			if (!suser()) 
 			{
-				kfree_s((void *)sk, sizeof(*sk));
+				sk_free(sk);
 				return(-EPERM);
 			}
 			if (!protocol) 
 			{
-				kfree_s((void *)sk, sizeof(*sk));
+				sk_free(sk);
 				return(-EPROTONOSUPPORT);
 			}
 			prot = &packet_prot;
@@ -603,117 +630,55 @@ static int inet_create(struct socket *sock, int protocol)
 			break;
 
 		default:
-			kfree_s((void *)sk, sizeof(*sk));
+			sk_free(sk);
 			return(-ESOCKTNOSUPPORT);
 	}
 	sk->socket = sock;
 #ifdef CONFIG_TCP_NAGLE_OFF
 	sk->nonagle = 1;
-#else    
-/*	sk->nonagle = 0;*/
 #endif  
+	sk->family = AF_INET;
 	sk->type = sock->type;
 	sk->protocol = protocol;
+	sk->allocation = GFP_KERNEL;
 	sk->sndbuf = SK_WMEM_MAX;
 	sk->rcvbuf = SK_RMEM_MAX;
-	sk->rto = TCP_TIMEOUT_INIT;		/*TCP_WRITE_TIME*/
-	sk->cong_window = 1; /* start with only sending one packet at a time. */
 	sk->priority = 1;
-	sk->state = TCP_CLOSE;
-#ifdef WHAT_WE_DO_THE_MEMZERO_INSTEAD_OF	
-	sk->stamp.tv_sec=0;
-	sk->wmem_alloc = 0;
-	sk->rmem_alloc = 0;
-	sk->pair = NULL;
-	sk->opt = NULL;
-	sk->write_seq = 0;
-	sk->acked_seq = 0;
-	sk->copied_seq = 0;
-	sk->fin_seq = 0;
-	sk->urg_seq = 0;
-	sk->urg_data = 0;
-	sk->proc = 0;
-	sk->rtt = 0;				/*TCP_WRITE_TIME << 3;*/
-	sk->mdev = 0;
-	sk->backoff = 0;
-	sk->packets_out = 0;
-	sk->cong_count = 0;
-	sk->ssthresh = 0;
-	sk->max_window = 0;
-	sk->urginline = 0;
-	sk->intr = 0;
-	sk->linger = 0;
-	sk->destroy = 0;
-	sk->shutdown = 0;
-	sk->keepopen = 0;
-	sk->zapped = 0;
-	sk->done = 0;
-	sk->ack_backlog = 0;
-	sk->window = 0;
-	sk->bytes_rcv = 0;
-	sk->dead = 0;
-	sk->ack_timed = 0;
-	sk->partial = NULL;
-	sk->user_mss = 0;
-	sk->debug = 0;
-	/* how many packets we should send before forcing an ack. 
-	   if this is set to zero it is the same as sk->delay_acks = 0 */
-	sk->max_ack_backlog = 0;
-	sk->inuse = 0;
-	sk->delay_acks = 0;
-	sk->daddr = 0;
-	sk->saddr = 0 /* ip_my_addr() */;
-	sk->err = 0;
-	sk->next = NULL;
-	sk->pair = NULL;
-	sk->send_tail = NULL;
-	sk->send_head = NULL;
-	sk->timeout = 0;
-	sk->broadcast = 0;
-	sk->localroute = 0;
-	sk->blog = 0;
-	sk->dummy_th.res1=0;
-	sk->dummy_th.res2=0;
-	sk->dummy_th.urg_ptr = 0;
-	sk->dummy_th.fin = 0;
-	sk->dummy_th.syn = 0;
-	sk->dummy_th.rst = 0;
-	sk->dummy_th.psh = 0;
-	sk->dummy_th.ack = 0;
-	sk->dummy_th.urg = 0;
-	sk->dummy_th.dest = 0;
-	sk->ip_tos=0;
-	sk->ip_route_cache=NULL;
-	sk->ip_hcache_ver= 0;
-	sk->ip_option_len=0;
-	sk->ip_option_flen=0;
-	sk->ip_opt_next_hop=0;
-	sk->ip_opt_ptr[0]=NULL;
-	sk->ip_opt_ptr[1]=NULL;
-#endif	
 
-	/* this is how many unacked bytes we will accept for this socket.  */
-	sk->max_unacked = 2048; /* needs to be at most 2 full packets. */
+	sk->prot = prot;
+	sk->backlog_rcv = prot->backlog_rcv;
+
+	sk->sleep = sock->wait;
+	sock->data =(void *) sk;
+
+	sk->state = TCP_CLOSE;
 
 	skb_queue_head_init(&sk->write_queue);
 	skb_queue_head_init(&sk->receive_queue);
-	sk->mtu = 576;
-	sk->prot = prot;
-	sk->sleep = sock->wait;
-	init_timer(&sk->timer);
-	init_timer(&sk->retransmit_timer);
+	skb_queue_head_init(&sk->back_log);
+
+
 	sk->timer.data = (unsigned long)sk;
 	sk->timer.function = &net_timer;
-	skb_queue_head_init(&sk->back_log);
+
 	sock->data =(void *) sk;
-	sk->dummy_th.doff = sizeof(sk->dummy_th)/4;
-	sk->ip_ttl=64;
+	sk->ip_ttl=ip_statistics.IpDefaultTTL;
+
+	if(sk->type==SOCK_RAW && protocol==IPPROTO_RAW)
+		sk->ip_hdrincl=1;
+	else
+		sk->ip_hdrincl=0;
+
 #ifdef CONFIG_IP_MULTICAST
 	sk->ip_mc_loop=1;
 	sk->ip_mc_ttl=1;
 	*sk->ip_mc_name=0;
 	sk->ip_mc_list=NULL;
 #endif
+	/*
+	 *	Speed up by setting some standard state for the dummy_th
+	 *	if TCP uses it (maybe move to tcp_init later)
+	 */
   	
 	sk->state_change = def_callback1;
 	sk->data_ready = def_callback2;
@@ -728,7 +693,7 @@ static int inet_create(struct socket *sock, int protocol)
 	 * creation time automatically
 	 * shares.
 	 */
-		put_sock(sk->num, sk);
+		inet_put_sock(sk->num, sk);
 		sk->dummy_th.source = ntohs(sk->num);
 	}
 
@@ -755,29 +720,16 @@ static int inet_dup(struct socket *newsock, struct socket *oldsock)
 }
 
 /*
- * Return 1 if we still have things to send in our buffers.
- */
-static inline int closing(struct sock * sk)
-{
-	switch (sk->state) {
-		case TCP_FIN_WAIT1:
-		case TCP_CLOSING:
-		case TCP_LAST_ACK:
-			return 1;
-	}
-	return 0;
-}
-
-
-/*
  *	The peer socket should always be NULL (or else). When we call this
  *	function we are destroying the object and from then on nobody
  *	should refer to it.
  */
  
-static int inet_release(struct socket *sock, struct socket *peer)
+int inet_release(struct socket *sock, struct socket *peer)
 {
+	unsigned long timeout;
 	struct sock *sk = (struct sock *) sock->data;
+
 	if (sk == NULL) 
 		return(0);
 
@@ -797,42 +749,19 @@ static int inet_release(struct socket *sock, struct socket *peer)
 	 * If the close is due to the process exiting, we never
 	 * linger..
 	 */
-
-	if (sk->linger == 0 || (current->flags & PF_EXITING))
-	{
-		sk->prot->close(sk,0);
-		sk->dead = 1;
-	} 
-	else 
-	{
-		sk->prot->close(sk, 0);
-		cli();
-		if (sk->lingertime)
-			current->timeout = jiffies + HZ*sk->lingertime;
-		while(closing(sk) && current->timeout>0) 
-		{
-			interruptible_sleep_on(sk->sleep);
-			if (current->signal & ~current->blocked) 
-			{
-				break;
-#if 0
-				/* not working now - closes can't be restarted */
-				sti();
-				current->timeout=0;
-				return(-ERESTARTSYS);
-#endif
-			}
-		}
-		current->timeout=0;
-		sti();
-		sk->dead = 1;
+	timeout = 0;
+	if (sk->linger) {
+		timeout = ~0UL;
+		if (!sk->lingertime)
+			timeout = jiffies + HZ*sk->lingertime;
 	}
-	sk->inuse = 1;
+	if (current->flags & PF_EXITING)
+		timeout = 0;
 
-	/* This will destroy it. */
 	sock->data = NULL;
-	release_sock(sk);
 	sk->socket = NULL;
+
+	sk->prot->close(sk, timeout);
 	return(0);
 }
 
@@ -845,9 +774,16 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr,
 	unsigned short snum = 0 /* Stoopid compiler.. this IS ok */;
 	int chk_addr_ret;
 
+	/*
+	 *	If the socket has its own bind function then use it.
+	 */
+	 
+	if(sk->prot->bind)
+		return sk->prot->bind(sk,uaddr, addr_len);
+		
 	/* check this error. */
 	if (sk->state != TCP_CLOSE)
-		return(-EIO);
+		return(-EINVAL);
 	if(addr_len<sizeof(struct sockaddr_in))
 		return -EINVAL;
 		
@@ -873,12 +809,41 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr,
 	}
 	
 	chk_addr_ret = ip_chk_addr(addr->sin_addr.s_addr);
-	if (addr->sin_addr.s_addr != 0 && chk_addr_ret != IS_MYADDR && chk_addr_ret != IS_MULTICAST)
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	/*
+	 * Superuser may bind to any address to allow transparent proxying.
+	 */
+	if (addr->sin_addr.s_addr != 0 && chk_addr_ret != IS_MYADDR && chk_addr_ret != IS_MULTICAST && chk_addr_ret != IS_BROADCAST && !suser())
+#else
+	if (addr->sin_addr.s_addr != 0 && chk_addr_ret != IS_MYADDR && chk_addr_ret != IS_MULTICAST && chk_addr_ret != IS_BROADCAST)
+#endif
 		return(-EADDRNOTAVAIL);	/* Source address MUST be ours! */
-	  	
+
+#ifndef CONFIG_IP_TRANSPARENT_PROXY
+	/*
+	 * Am I just thick or is this test really always true after the one
+	 * above?  Just taking the test out appears to be the easiest way to
+	 * make binds to remote addresses for transparent proxying work.
+	 */
 	if (chk_addr_ret || addr->sin_addr.s_addr == 0)
-		sk->saddr = addr->sin_addr.s_addr;
-	
+	{
+#endif
+		/*
+		 *      We keep a pair of addresses. rcv_saddr is the one
+		 *      used by get_sock_*(), and saddr is used for transmit.
+		 *
+		 *      In the BSD API these are the same except where it
+		 *      would be illegal to use them (multicast/broadcast) in
+		 *      which case the sending device address is used.
+		 */
+		sk->rcv_saddr = addr->sin_addr.s_addr;
+		if(chk_addr_ret==IS_MULTICAST||chk_addr_ret==IS_BROADCAST)
+			sk->saddr = 0;  /* Use device */
+		else
+			sk->saddr = addr->sin_addr.s_addr;
+#ifndef CONFIG_IP_TRANSPARENT_PROXY
+	}
+#endif
 	if(sock->type != SOCK_RAW)
 	{
 		/* Make sure we are allowed to bind here. */
@@ -886,20 +851,50 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr,
 		for(sk2 = sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)];
 					sk2 != NULL; sk2 = sk2->next) 
 		{
-		/* should be below! */
+			/*
+			 *	Hash collision or real match ?
+			 */
+			 
 			if (sk2->num != snum) 
 				continue;
+				
+			/*
+			 *	Either bind on the port is wildcard means
+			 *	they will overlap and thus be in error
+			 */			
+			 
+			if (!sk2->rcv_saddr || !sk->rcv_saddr)
+			{
+				/*
+				 *	Allow only if both are setting reuse.
+				 */
+				if(sk2->reuse && sk->reuse && sk2->state!=TCP_LISTEN)
+					continue;
+				sti();
+				return(-EADDRINUSE);
+			}
+
+			/*
+			 *	Two binds match ?
+			 */
+
+			if (sk2->rcv_saddr != sk->rcv_saddr) 
+				continue;
+			/*
+			 *	Reusable port ?
+			 */
+
 			if (!sk->reuse)
 			{
 				sti();
 				return(-EADDRINUSE);
 			}
 			
-			if (sk2->num != snum) 
-				continue;		/* more than one */
-			if (sk2->saddr != sk->saddr) 
-				continue;	/* socket per slot ! -FB */
-			if (!sk2->reuse || sk2->state==TCP_LISTEN) 
+			/*
+			 *	Reuse ?
+			 */
+			 
+			if (!sk2->reuse || sk2->state==TCP_LISTEN)
 			{
 				sti();
 				return(-EADDRINUSE);
@@ -907,34 +902,19 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr,
 		}
 		sti();
 
-		remove_sock(sk);
+		inet_remove_sock(sk);
 		if(sock->type==SOCK_DGRAM)
 			udp_cache_zap();
 		if(sock->type==SOCK_STREAM)
 			tcp_cache_zap();
-		put_sock(snum, sk);
+		inet_put_sock(snum, sk);
 		sk->dummy_th.source = ntohs(sk->num);
 		sk->daddr = 0;
 		sk->dummy_th.dest = 0;
 	}
+	ip_rt_put(sk->ip_route_cache);
 	sk->ip_route_cache=NULL;
 	return(0);
-}
-
-/*
- *	Handle sk->err properly. The cli/sti matter.
- */
- 
-static int inet_error(struct sock *sk)
-{
-	unsigned long flags;
-	int err;
-	save_flags(flags);
-	cli();	
-	err=sk->err;
-	sk->err=0;
-	restore_flags(flags);
-	return -err;
 }
 
 /*
@@ -942,8 +922,8 @@ static int inet_error(struct sock *sk)
  *	TCP 'magic' in here.
  */
  
-static int inet_connect(struct socket *sock, struct sockaddr * uaddr,
-		  int addr_len, int flags)
+int inet_connect(struct socket *sock, struct sockaddr * uaddr,
+		 int addr_len, int flags)
 {
 	struct sock *sk=(struct sock *)sock->data;
 	int err;
@@ -959,11 +939,7 @@ static int inet_connect(struct socket *sock, struct sockaddr * uaddr,
 	if (sock->state == SS_CONNECTING && sk->protocol == IPPROTO_TCP && (flags & O_NONBLOCK))
 	{
 		if(sk->err!=0)
-		{
-			err=sk->err;
-			sk->err=0;
-			return -err;
-		}
+			return sock_error(sk);
 		return -EALREADY;	/* Connecting is currently in progress */
   	}
 	if (sock->state != SS_CONNECTING) 
@@ -973,7 +949,7 @@ static int inet_connect(struct socket *sock, struct sockaddr * uaddr,
 			return(-EAGAIN);
 		if (sk->prot->connect == NULL) 
 			return(-EOPNOTSUPP);
-		err = sk->prot->connect(sk, (struct sockaddr_in *)uaddr, addr_len);
+		err = sk->prot->connect(sk, uaddr, addr_len);
 		if (err < 0) 
 			return(err);
   		sock->state = SS_CONNECTING;
@@ -982,11 +958,7 @@ static int inet_connect(struct socket *sock, struct sockaddr * uaddr,
 	if (sk->state > TCP_FIN_WAIT2 && sock->state==SS_CONNECTING)
 	{
 		sock->state=SS_UNCONNECTED;
-		cli();
-		err=sk->err;
-		sk->err=0;
-		sti();
-		return -err;
+		return sock_error(sk);
 	}
 
 	if (sk->state != TCP_ESTABLISHED &&(flags & O_NONBLOCK)) 
@@ -1005,11 +977,9 @@ static int inet_connect(struct socket *sock, struct sockaddr * uaddr,
 		   icmp error packets wanting to close a tcp or udp socket. */
 		if(sk->err && sk->protocol == IPPROTO_TCP)
 		{
-			sti();
 			sock->state = SS_UNCONNECTED;
-			err = -sk->err;
-			sk->err=0;
-			return err; /* set by tcp_err() */
+			sti();
+			return sock_error(sk); /* set by tcp_err() */
 		}
 	}
 	sti();
@@ -1018,9 +988,7 @@ static int inet_connect(struct socket *sock, struct sockaddr * uaddr,
 	if (sk->state != TCP_ESTABLISHED && sk->err) 
 	{
 		sock->state = SS_UNCONNECTED;
-		err=sk->err;
-		sk->err=0;
-		return(-err);
+		return sock_error(sk);
 	}
 	return(0);
 }
@@ -1036,7 +1004,7 @@ static int inet_socketpair(struct socket *sock1, struct socket *sock2)
  *	Accept a pending connection. The TCP layer now gives BSD semantics.
  */
 
-static int inet_accept(struct socket *sock, struct socket *newsock, int flags)
+int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 {
 	struct sock *sk1, *sk2;
 	int err;
@@ -1044,22 +1012,25 @@ static int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 	sk1 = (struct sock *) sock->data;
 
 	/*
-	 * We've been passed an extra socket.
-	 * We need to free it up because the tcp module creates
-	 * its own when it accepts one.
+	 *	We've been passed an extra socket.
+	 *	We need to free it up because the tcp module creates
+	 *	its own when it accepts one.
 	 */
+	 
 	if (newsock->data)
 	{
 	  	struct sock *sk=(struct sock *)newsock->data;
 	  	newsock->data=NULL;
-	  	sk->dead = 1;
 	  	destroy_sock(sk);
 	}
   
 	if (sk1->prot->accept == NULL) 
 		return(-EOPNOTSUPP);
 
-	/* Restore the state if we have been interrupted, and then returned. */
+	/*
+	 *	Restore the state if we have been interrupted, and then returned. 
+	 */
+	 
 	if (sk1->pair != NULL ) 
 	{
 		sk2 = sk1->pair;
@@ -1070,9 +1041,7 @@ static int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 		sk2 = sk1->prot->accept(sk1,flags);
 		if (sk2 == NULL) 
 		{
-			err=sk1->err;
-			sk1->err=0;
-			return(-err);
+			return sock_error(sk1);
 		}
 	}
 	newsock->data = (void *)sk2;
@@ -1100,12 +1069,16 @@ static int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 
 	if (sk2->state != TCP_ESTABLISHED && sk2->err > 0) 
 	{
-		err = -sk2->err;
-		sk2->err=0;
-		sk2->dead=1;	/* ANK */
+		err = sock_error(sk2);
 		destroy_sock(sk2);
 		newsock->data = NULL;
-		return(err);
+		return err;
+	}
+	if (sk2->state == TCP_CLOSE)
+	{
+		destroy_sock(sk2);
+		newsock->data=NULL;
+		return -ECONNABORTED;
 	}
 	newsock->state = SS_CONNECTED;
 	return(0);
@@ -1133,59 +1106,39 @@ static int inet_getname(struct socket *sock, struct sockaddr *uaddr,
 	} 
 	else 
 	{
+		__u32 addr = sk->rcv_saddr;
+		if (!addr) {
+			addr = sk->saddr;
+			if (!addr)
+				addr = ip_my_addr();
+		}
 		sin->sin_port = sk->dummy_th.source;
-		if (sk->saddr == 0) 
-			sin->sin_addr.s_addr = ip_my_addr();
-		else 
-			sin->sin_addr.s_addr = sk->saddr;
+		sin->sin_addr.s_addr = addr;
 	}
 	*uaddr_len = sizeof(*sin);
 	return(0);
 }
 
 
-/*
- *	The assorted BSD I/O operations
- */
 
-static int inet_recvfrom(struct socket *sock, void *ubuf, int size, int noblock, 
-		   unsigned flags, struct sockaddr *sin, int *addr_len )
+int inet_recvmsg(struct socket *sock, struct msghdr *ubuf, int size, 
+		 int noblock, int flags, int *addr_len)
 {
 	struct sock *sk = (struct sock *) sock->data;
 	
-	if (sk->prot->recvfrom == NULL) 
+	if (sk->prot->recvmsg == NULL) 
 		return(-EOPNOTSUPP);
 	if(sk->err)
-		return inet_error(sk);
+		return sock_error(sk);
 	/* We may need to bind the socket. */
 	if(inet_autobind(sk)!=0)
 		return(-EAGAIN);
-	return(sk->prot->recvfrom(sk, (unsigned char *) ubuf, size, noblock, flags,
-			     (struct sockaddr_in*)sin, addr_len));
+	return(sk->prot->recvmsg(sk, ubuf, size, noblock, flags,addr_len));
 }
 
 
-static int inet_recv(struct socket *sock, void *ubuf, int size, int noblock,
-	  unsigned flags)
-{
-	/* BSD explicitly states these are the same - so we do it this way to be sure */
-	return inet_recvfrom(sock,ubuf,size,noblock,flags,NULL,NULL);
-}
-
-static int inet_read(struct socket *sock, char *ubuf, int size, int noblock)
-{
-	struct sock *sk = (struct sock *) sock->data;
-	
-	if(sk->err)
-		return inet_error(sk);
-	/* We may need to bind the socket. */
-	if(inet_autobind(sk))
-		return(-EAGAIN);	
-	return(sk->prot->read(sk, (unsigned char *) ubuf, size, noblock, 0));
-}
-
-static int inet_send(struct socket *sock, void *ubuf, int size, int noblock, 
-	       unsigned flags)
+int inet_sendmsg(struct socket *sock, struct msghdr *msg, int size, 
+		 int noblock, int flags)
 {
 	struct sock *sk = (struct sock *) sock->data;
 	if (sk->shutdown & SEND_SHUTDOWN) 
@@ -1193,41 +1146,19 @@ static int inet_send(struct socket *sock, void *ubuf, int size, int noblock,
 		send_sig(SIGPIPE, current, 1);
 		return(-EPIPE);
 	}
-	if(sk->err)
-		return inet_error(sk);
-	/* We may need to bind the socket. */
-	if(inet_autobind(sk)!=0)
-		return(-EAGAIN);
-	return(sk->prot->write(sk, (unsigned char *) ubuf, size, noblock, flags));
-}
-
-static int inet_write(struct socket *sock, char *ubuf, int size, int noblock)
-{
-	return inet_send(sock,ubuf,size,noblock,0);
-}
-
-static int inet_sendto(struct socket *sock, void *ubuf, int size, int noblock, 
-	    unsigned flags, struct sockaddr *sin, int addr_len)
-{
-	struct sock *sk = (struct sock *) sock->data;
-	if (sk->shutdown & SEND_SHUTDOWN) 
-	{
-		send_sig(SIGPIPE, current, 1);
-		return(-EPIPE);
-	}
-	if (sk->prot->sendto == NULL) 
+	if (sk->prot->sendmsg == NULL) 
 		return(-EOPNOTSUPP);
 	if(sk->err)
-		return inet_error(sk);
+		return sock_error(sk);
 	/* We may need to bind the socket. */
 	if(inet_autobind(sk)!=0)
 		return -EAGAIN;
-	return(sk->prot->sendto(sk, (unsigned char *) ubuf, size, noblock, flags, 
-			   (struct sockaddr_in *)sin, addr_len));
+	return(sk->prot->sendmsg(sk, msg, size, noblock, flags));
+			   
 }
 
 
-static int inet_shutdown(struct socket *sock, int how)
+int inet_shutdown(struct socket *sock, int how)
 {
 	struct sock *sk=(struct sock*)sock->data;
 
@@ -1242,7 +1173,7 @@ static int inet_shutdown(struct socket *sock, int how)
 		return(-EINVAL);
 	if (sock->state == SS_CONNECTING && sk->state == TCP_ESTABLISHED)
 		sock->state = SS_CONNECTED;
-	if (!tcp_connected(sk->state)) 
+	if (!sk || !tcp_connected(sk->state)) 
 		return(-ENOTCONN);
 	sk->shutdown |= how;
 	if (sk->prot->shutdown)
@@ -1251,7 +1182,7 @@ static int inet_shutdown(struct socket *sock, int how)
 }
 
 
-static int inet_select(struct socket *sock, int sel_type, select_table *wait )
+int inet_select(struct socket *sock, int sel_type, select_table *wait )
 {
 	struct sock *sk=(struct sock *) sock->data;
 	if (sk->prot->select == NULL) 
@@ -1275,44 +1206,51 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	struct sock *sk=(struct sock *)sock->data;
 	int err;
+	int pid;
 
 	switch(cmd) 
 	{
 		case FIOSETOWN:
 		case SIOCSPGRP:
-			err=verify_area(VERIFY_READ,(int *)arg,sizeof(long));
-			if(err)
-				return err;
-			sk->proc = get_fs_long((int *) arg);
+			err = get_user(pid, (int *) arg);
+			if (err)
+				return err; 
+			/* see inet_fcntl */
+			if (current->pid != pid && current->pgrp != -pid && !suser())
+				return -EPERM;
+			sk->proc = pid;
 			return(0);
 		case FIOGETOWN:
 		case SIOCGPGRP:
-			err=verify_area(VERIFY_WRITE,(void *) arg, sizeof(long));
-			if(err)
-				return err;
-			put_fs_long(sk->proc,(int *)arg);
-			return(0);			
+			return put_user(sk->proc, (int *)arg);
 		case SIOCGSTAMP:
 			if(sk->stamp.tv_sec==0)
 				return -ENOENT;
-			err=verify_area(VERIFY_WRITE,(void *)arg,sizeof(struct timeval));
-			if(err)
-				return err;
-			memcpy_tofs((void *)arg,&sk->stamp,sizeof(struct timeval));
-			return 0;
+			err = copy_to_user((void *)arg,&sk->stamp,sizeof(struct timeval));
+			if (err)
+			{
+				err = -EFAULT;
+			}
+			return err;
 		case SIOCADDRT:
 		case SIOCDELRT:
 			return(ip_rt_ioctl(cmd,(void *) arg));
 		case SIOCDARP:
 		case SIOCGARP:
 		case SIOCSARP:
+		case OLD_SIOCDARP:
+		case OLD_SIOCGARP:
+		case OLD_SIOCSARP:
 			return(arp_ioctl(cmd,(void *) arg));
-#ifdef CONFIG_INET_RARP			
 		case SIOCDRARP:
 		case SIOCGRARP:
 		case SIOCSRARP:
-			return(rarp_ioctl(cmd,(void *) arg));
+#ifdef CONFIG_KERNELD
+			if (rarp_ioctl_hook == NULL)
+				request_module("rarp");
 #endif
+			if (rarp_ioctl_hook != NULL)
+				return(rarp_ioctl_hook(cmd,(void *) arg));
 		case SIOCGIFCONF:
 		case SIOCGIFFLAGS:
 		case SIOCSIFFLAGS:
@@ -1335,13 +1273,37 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		case SIOCSIFLINK:
 		case SIOCGIFHWADDR:
 		case SIOCSIFHWADDR:
-		case OLD_SIOCGIFHWADDR:
 		case SIOCSIFMAP:
 		case SIOCGIFMAP:
 		case SIOCSIFSLAVE:
 		case SIOCGIFSLAVE:
 			return(dev_ioctl(cmd,(void *) arg));
 
+		case SIOCGIFBR:
+		case SIOCSIFBR:
+#ifdef CONFIG_BRIDGE		
+			return(br_ioctl(cmd,(void *) arg));
+#else
+			return -ENOPKG;
+#endif						
+		case SIOCADDDLCI:
+		case SIOCDELDLCI:
+#ifdef CONFIG_DLCI
+			return(dlci_ioctl(cmd, (void *) arg));
+#endif
+
+#ifdef CONFIG_DLCI_MODULE
+
+#ifdef CONFIG_KERNELD
+			if (dlci_ioctl_hook == NULL)
+				request_module("dlci");
+#endif
+
+			if (dlci_ioctl_hook)
+				return((*dlci_ioctl_hook)(cmd, (void *) arg));
+#endif
+			return -ENOPKG;
+			
 		default:
 			if ((cmd >= SIOCDEVPRIVATE) &&
 			   (cmd <= (SIOCDEVPRIVATE + 15)))
@@ -1355,6 +1317,36 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	return(0);
 }
 
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+/*
+ * Some routines for the for loop in get_sock which sometimes needs to walk
+ * two linked lists in sequence.  Could use macros as well.
+ * Does anyone know a nicer way to code this?
+ */
+static __inline__ struct sock *secondlist(unsigned short hpnum, struct sock *s,
+				int *pfirstpass, struct proto *prot)
+{
+	if (hpnum && s == NULL && (*pfirstpass)-- )
+		return prot->sock_array[hpnum & (SOCK_ARRAY_SIZE - 1)];
+	else
+		return s;
+}
+static __inline__ struct sock *get_sock_loop_init(unsigned short hnum,
+			unsigned short hpnum, struct sock *s,
+			int *pfirstpass, struct proto *prot)
+{
+	s = prot->sock_array[hnum & (SOCK_ARRAY_SIZE - 1)];
+	return secondlist(hpnum, s, pfirstpass, prot);
+}
+static __inline__ struct sock *get_sock_loop_next(unsigned short hnum,
+			unsigned short hpnum, struct sock *s,
+			int *pfirstpass, struct proto *prot)
+{
+	s = s->next;
+	return secondlist(hpnum, s, pfirstpass, prot);
+}
+#endif
+
 /*
  * This routine must find a socket given a TCP or UDP header.
  * Everything is assumed to be in net order.
@@ -1365,15 +1357,23 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
  */
 
 struct sock *get_sock(struct proto *prot, unsigned short num,
-				unsigned long raddr,
-				unsigned short rnum, unsigned long laddr)
+		      unsigned long raddr, unsigned short rnum, 
+		      unsigned long laddr, unsigned long paddr,
+		      unsigned short pnum)
 {
-	struct sock *s;
+	struct sock *s = 0;
 	struct sock *result = NULL;
 	int badness = -1;
 	unsigned short hnum;
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	unsigned short hpnum;
+	int firstpass = 1;
+#endif 
 
 	hnum = ntohs(num);
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	hpnum = ntohs(pnum);
+#endif 
 
 	/*
 	 * SOCK_ARRAY_SIZE must be a power of two.  This will work better
@@ -1384,19 +1384,43 @@ struct sock *get_sock(struct proto *prot, unsigned short num,
 	 * socket number when we choose an arbitrary one.
 	 */
 
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	for(s = get_sock_loop_init(hnum, hpnum, s, &firstpass, prot);
+		s != NULL;
+		s = get_sock_loop_next(hnum, hpnum, s, &firstpass, prot))
+#else
 	for(s = prot->sock_array[hnum & (SOCK_ARRAY_SIZE - 1)];
 			s != NULL; s = s->next) 
+#endif
 	{
 		int score = 0;
 
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+		/* accept the addressed port or the redirect (proxy) port */
+		if (s->num != hnum && (hpnum == 0 || s->num != hpnum))
+#else
 		if (s->num != hnum) 
+#endif
 			continue;
 
 		if(s->dead && (s->state == TCP_CLOSE))
 			continue;
 		/* local address matches? */
-		if (s->saddr) {
-			if (s->saddr != laddr)
+		if (s->rcv_saddr) {
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+			/*
+			 * If this is redirected traffic, it must either
+			 * match on the redirected port/ip-address or on
+			 * the actual destination, not on a mixture.
+			 * There must be a simpler way to express this...
+			 */
+			if (hpnum
+			    ? ((s->num != hpnum || s->rcv_saddr != paddr)
+			      && (s->num != hnum || s->rcv_saddr != laddr))
+			    : (s->rcv_saddr != laddr))
+#else
+			if (s->rcv_saddr != laddr)
+#endif
 				continue;
 			score++;
 		}
@@ -1413,11 +1437,23 @@ struct sock *get_sock(struct proto *prot, unsigned short num,
 			score++;
 		}
 		/* perfect match? */
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+		if (score == 3 && s->num == hnum)
+#else
 		if (score == 3)
+#endif
 			return s;
 		/* no, check if this is the best so far.. */
 		if (score <= badness)
 			continue;
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+		/* don't accept near matches on the actual destination
+		 * port with IN_ADDR_ANY for redirected traffic, but do
+		 * allow explicit remote address listens.  (disputable)
+		 */
+		if (hpnum && s->num != hpnum && !s->rcv_saddr)
+			continue;
+#endif
 		result = s;
 		badness = score;
   	}
@@ -1445,7 +1481,7 @@ struct sock *get_sock_raw(struct sock *sk,
 			continue;
 		if(s->daddr && s->daddr!=raddr)
 			continue;
- 		if(s->saddr  && s->saddr!=laddr)
+ 		if(s->rcv_saddr && s->rcv_saddr != laddr)
 			continue;
 		return(s);
   	}
@@ -1488,7 +1524,7 @@ struct sock *get_sock_mcast(struct sock *sk,
 			continue;
 		if (s->dummy_th.dest != rnum && s->dummy_th.dest != 0) 
 			continue;
- 		if(s->saddr  && s->saddr!=laddr)
+ 		if(s->rcv_saddr  && s->rcv_saddr != laddr)
 			continue;
 		return(s);
   	}
@@ -1497,7 +1533,7 @@ struct sock *get_sock_mcast(struct sock *sk,
 
 #endif
 
-static struct proto_ops inet_proto_ops = {
+struct proto_ops inet_proto_ops = {
 	AF_INET,
 
 	inet_create,
@@ -1508,22 +1544,71 @@ static struct proto_ops inet_proto_ops = {
 	inet_socketpair,
 	inet_accept,
 	inet_getname, 
-	inet_read,
-	inet_write,
 	inet_select,
 	inet_ioctl,
 	inet_listen,
-	inet_send,
-	inet_recv,
-	inet_sendto,
-	inet_recvfrom,
 	inet_shutdown,
 	inet_setsockopt,
 	inet_getsockopt,
 	inet_fcntl,
+	inet_sendmsg,
+	inet_recvmsg
 };
 
 extern unsigned long seq_offset;
+
+#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_INET_RARP
+static struct proc_dir_entry proc_net_rarp = {
+	PROC_NET_RARP, 4, "rarp",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	rarp_get_info
+};
+#endif		/* RARP */
+static struct proc_dir_entry proc_net_raw = {
+	PROC_NET_RAW, 3, "raw",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	raw_get_info
+};
+static struct proc_dir_entry proc_net_snmp = {
+	PROC_NET_SNMP, 4, "snmp",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	snmp_get_info
+};
+static struct proc_dir_entry proc_net_sockstat = {
+	PROC_NET_SOCKSTAT, 8, "sockstat",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	afinet_get_info
+};
+static struct proc_dir_entry proc_net_tcp = {
+	PROC_NET_TCP, 3, "tcp",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	tcp_get_info
+};
+static struct proc_dir_entry proc_net_udp = {
+	PROC_NET_UDP, 3, "udp",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	udp_get_info
+};
+static struct proc_dir_entry proc_net_route = {
+	PROC_NET_ROUTE, 5, "route",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	rt_get_info
+};
+static struct proc_dir_entry proc_net_rtcache = {
+	PROC_NET_RTCACHE, 8, "rt_cache",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	rt_cache_get_info
+};
+#endif		/* CONFIG_PROC_FS */
 
 /*
  *	Called by socket.c on kernel startup.  
@@ -1535,7 +1620,7 @@ void inet_proto_init(struct net_proto *pro)
 	int i;
 
 
-	printk("Swansea University Computer Society TCP/IP for NET3.029 (Snapshot #6)\n");
+	printk("Swansea University Computer Society TCP/IP for NET3.037\n");
 
 	/*
 	 *	Tell SOCKET that we are alive... 
@@ -1551,16 +1636,20 @@ void inet_proto_init(struct net_proto *pro)
 	 
 	for(i = 0; i < SOCK_ARRAY_SIZE; i++) 
 	{
-		tcp_prot.sock_array[i] = NULL;
-		udp_prot.sock_array[i] = NULL;
-		raw_prot.sock_array[i] = NULL;
+		tcp_sock_array[i] = NULL;
+		udp_sock_array[i] = NULL;
+		raw_sock_array[i] = NULL;
   	}
+
 	tcp_prot.inuse = 0;
 	tcp_prot.highestinuse = 0;
+	tcp_prot.sock_array = tcp_sock_array;
 	udp_prot.inuse = 0;
 	udp_prot.highestinuse = 0;
+	udp_prot.sock_array = udp_sock_array;
 	raw_prot.inuse = 0;
 	raw_prot.highestinuse = 0;
+	raw_prot.sock_array = raw_sock_array;
 
 	printk("IP Protocols: ");
 	for(p = inet_protocol_base; p != NULL;) 
@@ -1571,13 +1660,62 @@ void inet_proto_init(struct net_proto *pro)
 		p = tmp;
 	}
 
+
 	/*
 	 *	Set the ARP module up
 	 */
 	arp_init();
+
   	/*
   	 *	Set the IP module up
   	 */
 	ip_init();
-}
 
+	/*
+	 *	Set the ICMP layer up
+	 */
+	icmp_init(&inet_proto_ops);
+	/*
+	 *	Set the firewalling up
+	 */
+#if defined(CONFIG_IP_ACCT)||defined(CONFIG_IP_FIREWALL)|| \
+    defined(CONFIG_IP_MASQUERADE)
+	ip_fw_init();
+#endif
+	/*
+	 *	Initialise the multicast router
+	 */
+#if defined(CONFIG_IP_MROUTE)
+	ip_mr_init();
+#endif
+
+	/*
+	 *  Initialise AF_INET alias type (register net_alias_type)
+	 */
+
+#if defined(CONFIG_IP_ALIAS)
+	ip_alias_init();
+#endif
+
+#ifdef CONFIG_INET_RARP
+	rarp_ioctl_hook = rarp_ioctl;
+#endif
+	/*
+	 *	Create all the /proc entries.
+	 */
+
+#ifdef CONFIG_PROC_FS
+
+#ifdef CONFIG_INET_RARP
+	proc_net_register(&proc_net_rarp);
+#endif		/* RARP */
+
+	proc_net_register(&proc_net_raw);
+	proc_net_register(&proc_net_snmp);
+	proc_net_register(&proc_net_sockstat);
+	proc_net_register(&proc_net_tcp);
+	proc_net_register(&proc_net_udp);
+	proc_net_register(&proc_net_route);
+	proc_net_register(&proc_net_rtcache);
+#endif		/* CONFIG_PROC_FS */
+}

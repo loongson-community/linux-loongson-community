@@ -30,18 +30,21 @@
  *	18(%esp) - %eax
  *	1C(%esp) - %ds
  *	20(%esp) - %es
- *      24(%esp) - %fs
- *	28(%esp) - %gs
- *	2C(%esp) - orig_eax
- *	30(%esp) - %eip
- *	34(%esp) - %cs
- *	38(%esp) - %eflags
- *	3C(%esp) - %oldesp
- *	40(%esp) - %oldss
+ *	24(%esp) - orig_eax
+ *	28(%esp) - %eip
+ *	2C(%esp) - %cs
+ *	30(%esp) - %eflags
+ *	34(%esp) - %oldesp
+ *	38(%esp) - %oldss
+ *
+ * "current" is in register %ebx during any slow entries.
  */
 
 #include <linux/sys.h>
+#include <linux/linkage.h>
 #include <asm/segment.h>
+#define ASSEMBLY
+#include <asm/smp.h>
 
 EBX		= 0x00
 ECX		= 0x04
@@ -52,14 +55,12 @@ EBP		= 0x14
 EAX		= 0x18
 DS		= 0x1C
 ES		= 0x20
-FS		= 0x24
-GS		= 0x28
-ORIG_EAX	= 0x2C
-EIP		= 0x30
-CS		= 0x34
-EFLAGS		= 0x38
-OLDESP		= 0x3C
-OLDSS		= 0x40
+ORIG_EAX	= 0x24
+EIP		= 0x28
+CS		= 0x2C
+EFLAGS		= 0x30
+OLDESP		= 0x34
+OLDSS		= 0x38
 
 CF_MASK		= 0x00000001
 IF_MASK		= 0x00000200
@@ -75,26 +76,14 @@ priority	=  8
 signal		= 12
 blocked		= 16
 flags		= 20
-errno		= 24
 dbgreg6		= 52
 dbgreg7		= 56
 exec_domain	= 60
 
 ENOSYS = 38
 
-.globl _system_call,_lcall7
-.globl _device_not_available, _coprocessor_error
-.globl _divide_error,_debug,_nmi,_int3,_overflow,_bounds,_invalid_op
-.globl _double_fault,_coprocessor_segment_overrun
-.globl _invalid_TSS,_segment_not_present,_stack_segment
-.globl _general_protection,_reserved
-.globl _alignment_check,_page_fault
-.globl ret_from_sys_call, _sys_call_table
-
 #define SAVE_ALL \
 	cld; \
-	push %gs; \
-	push %fs; \
 	push %es; \
 	push %ds; \
 	pushl %eax; \
@@ -106,17 +95,101 @@ ENOSYS = 38
 	pushl %ebx; \
 	movl $(KERNEL_DS),%edx; \
 	mov %dx,%ds; \
-	mov %dx,%es; \
-	movl $(USER_DS),%edx; \
-	mov %dx,%fs;
+	mov %dx,%es;
+
+#ifdef	__SMP__
+
+#define GET_PROCESSOR_ID \
+	movl SYMBOL_NAME(apic_reg), %edx; \
+	movl 32(%edx), %eax;\
+	movl %eax,SYMBOL_NAME(apic_retval); \
+	shrl $24,%eax; \
+	andb $0x0F,%al;
+
+/*
+ *	Get the processor ID multiplied by 4
+ */
+
+#define GET_PROCESSOR_OFFSET(x) \
+	movl SYMBOL_NAME(apic_reg), x ; \
+	movl 32( x ), x ; \
+	shrl $22, x ; \
+	andl $0x3C, x ;
+
+/* macro LEAVE_KERNEL decrements kernel_counter and resets kernel_flag and
+   saves processor variables if zero */
+#define	LEAVE_KERNEL \
+	pushfl; \
+	cli; \
+	GET_PROCESSOR_ID \
+	btrl $ SMP_FROM_SYSCALL,SYMBOL_NAME(smp_proc_in_lock)(,%eax,4); \
+	decl SYMBOL_NAME(syscall_count); \
+	decl SYMBOL_NAME(kernel_counter); \
+	jnz 1f;	\
+	movb $(NO_PROC_ID), SYMBOL_NAME(active_kernel_processor); \
+	lock; \
+	btrl $0, SYMBOL_NAME(kernel_flag); \
+1:	popfl;
+
+/* macro ENTER_KERNEL waits for entering the kernel, increments
+   kernel_counter, and reloads the processor variables if necessary
+   uses : %eax, %edx (pushed and popped) 
+
+   Note: We go to great pains to minimise the number of locked operations.
+   We want to spin without locking, and lock when we attempt an update.
+   The pentium has a MESI cache so the spin without lock will exit when
+   another CPU write invalidates our cache, and the lock is avoided when
+   possible so we don't play ping-pong games with the cache line.
+
+*/
+
+#ifndef __SMP_PROF__
+
+#define SMP_PROF_A
+#define SMP_PROF_B 
+
+#else
+
+#define SMP_PROF_A movl $0,SYMBOL_NAME(smp_spins_syscall_cur)(,%eax,4);
+#define SMP_PROF_B incl SYMBOL_NAME(smp_spins_syscall)(,%eax,4); \
+        incl SYMBOL_NAME(smp_spins_syscall_cur)(,%eax,4);
+#endif
+
+#define	ENTER_KERNEL \
+	pushl %eax; \
+	pushl %edx; \
+	pushfl; \
+	cli; \
+	GET_PROCESSOR_ID \
+	btsl $ SMP_FROM_SYSCALL,SYMBOL_NAME(smp_proc_in_lock)(,%eax,4); \
+	SMP_PROF_A \
+1:	lock; \
+	btsl $0, SYMBOL_NAME(kernel_flag); \
+	jnc 3f; \
+	cmpb SYMBOL_NAME(active_kernel_processor), %al; \
+	je 4f; \
+2:	SMP_PROF_B \
+	btl %al, SYMBOL_NAME(smp_invalidate_needed); \
+	jnc 5f; \
+	lock; \
+	btrl %al, SYMBOL_NAME(smp_invalidate_needed); \
+	jnc 5f; \
+	movl %cr3,%edx; \
+	movl %edx,%cr3; \
+5:	btl $0, SYMBOL_NAME(kernel_flag); \
+	jc 2b; \
+	jmp 1b; \
+3:	movb %al, SYMBOL_NAME(active_kernel_processor); \
+4:	incl SYMBOL_NAME(kernel_counter); \
+	incl SYMBOL_NAME(syscall_count); \
+	popfl; \
+	popl %edx; \
+	popl %eax;
+
 
 #define RESTORE_ALL \
-	cmpw $(KERNEL_CS),CS(%esp); \
-	je 1f;   \
-	movl _current,%eax; \
-	movl dbgreg7(%eax),%ebx; \
-	movl %ebx,%db7;	\
-1:	popl %ebx; \
+	LEAVE_KERNEL \
+	popl %ebx; \
 	popl %ecx; \
 	popl %edx; \
 	popl %esi; \
@@ -125,16 +198,41 @@ ENOSYS = 38
 	popl %eax; \
 	pop %ds; \
 	pop %es; \
-	pop %fs; \
-	pop %gs; \
 	addl $4,%esp; \
 	iret
 
-.align 4
-_lcall7:
+#define GET_CURRENT \
+	GET_PROCESSOR_OFFSET(%ebx) \
+	movl SYMBOL_NAME(current_set)(%ebx),%ebx
+
+#else
+
+#define GET_CURRENT \
+	movl SYMBOL_NAME(current_set),%ebx
+
+#define RESTORE_ALL \
+	popl %ebx; \
+	popl %ecx; \
+	popl %edx; \
+	popl %esi; \
+	popl %edi; \
+	popl %ebp; \
+	popl %eax; \
+	pop %ds; \
+	pop %es; \
+	addl $4,%esp; \
+	iret
+#endif
+
+
+ENTRY(lcall7)
 	pushfl			# We get a different stack layout with call gates,
 	pushl %eax		# which has to be cleaned up later..
 	SAVE_ALL
+	GET_CURRENT
+#ifdef __SMP__
+	ENTER_KERNEL
+#endif
 	movl EIP(%esp),%eax	# due to call gates, this is eflags, not eip..
 	movl CS(%esp),%edx	# this is eip..
 	movl EFLAGS(%esp),%ecx	# and this is cs..
@@ -142,7 +240,12 @@ _lcall7:
 	movl %edx,EIP(%esp)	# Now we move them to their "normal" places
 	movl %ecx,CS(%esp)	#
 	movl %esp,%eax
-	movl _current,%edx
+#ifdef __SMP__
+	GET_PROCESSOR_OFFSET(%edx)	# Processor offset into edx
+	movl SYMBOL_NAME(current_set)(,%edx),%edx
+#else
+	movl SYMBOL_NAME(current_set),%edx
+#endif
 	pushl %eax
 	movl exec_domain(%edx),%edx	# Get the execution domain
 	movl 4(%edx),%edx	# Get the lcall7 handler for the domain
@@ -150,398 +253,378 @@ _lcall7:
 	popl %eax
 	jmp ret_from_sys_call
 
-.align 4
+	ALIGN
 handle_bottom_half:
-	pushfl
-	incl _intr_count
-	sti
-	call _do_bottom_half
-	popfl
-	decl _intr_count
+	incl SYMBOL_NAME(intr_count)
+	call SYMBOL_NAME(do_bottom_half)
+	decl SYMBOL_NAME(intr_count)
 	jmp 9f
-.align 4
+	ALIGN
 reschedule:
 	pushl $ret_from_sys_call
-	jmp _schedule
-.align 4
-_system_call:
+	jmp SYMBOL_NAME(schedule)    # test
+
+ENTRY(system_call)
 	pushl %eax			# save orig_eax
 	SAVE_ALL
-	movl $-ENOSYS,EAX(%esp)
+	GET_CURRENT
+#ifdef __SMP__
+	ENTER_KERNEL
+#endif
 	cmpl $(NR_syscalls),%eax
-	jae ret_from_sys_call
-	movl _sys_call_table(,%eax,4),%eax
-	testl %eax,%eax
-	je ret_from_sys_call
-	movl _current,%ebx
-	andl $~CF_MASK,EFLAGS(%esp)	# clear carry - assume no errors
-	movl $0,errno(%ebx)
-	movl %db6,%edx
-	movl %edx,dbgreg6(%ebx)  # save current hardware debugging status
+	jae badsys
 	testb $0x20,flags(%ebx)		# PF_TRACESYS
-	jne 1f
-	call *%eax
+	jne tracesys
+	call SYMBOL_NAME(sys_call_table)(,%eax,4)
 	movl %eax,EAX(%esp)		# save the return value
-	movl errno(%ebx),%edx
-	negl %edx
-	je ret_from_sys_call
-	movl %edx,EAX(%esp)
-	orl $(CF_MASK),EFLAGS(%esp)	# set carry to indicate error
-	jmp ret_from_sys_call
-.align 4
-1:	call _syscall_trace
-	movl ORIG_EAX(%esp),%eax
-	call _sys_call_table(,%eax,4)
-	movl %eax,EAX(%esp)		# save the return value
-	movl _current,%eax
-	movl errno(%eax),%edx
-	negl %edx
-	je 1f
-	movl %edx,EAX(%esp)
-	orl $(CF_MASK),EFLAGS(%esp)	# set carry to indicate error
-1:	call _syscall_trace
-
-	.align 4,0x90
+	ALIGN
+	.globl ret_from_sys_call
 ret_from_sys_call:
-	cmpl $0,_intr_count
-	jne 2f
-9:	movl _bh_mask,%eax
-	andl _bh_active,%eax
-	jne handle_bottom_half
-	movl EFLAGS(%esp),%eax		# check VM86 flag: CS/SS are
-	testl $(VM_MASK),%eax		# different then
+	cmpl $0,SYMBOL_NAME(intr_count)
 	jne 1f
-	cmpw $(KERNEL_CS),CS(%esp)	# was old code segment supervisor ?
-	je 2f
-1:	sti
-	orl $(IF_MASK),%eax		# these just try to make sure
-	andl $~NT_MASK,%eax		# the program doesn't do anything
-	movl %eax,EFLAGS(%esp)		# stupid
-	cmpl $0,_need_resched
+9:	movl SYMBOL_NAME(bh_mask),%eax
+	andl SYMBOL_NAME(bh_active),%eax
+	jne handle_bottom_half
+	movl EFLAGS(%esp),%eax		# mix EFLAGS and CS
+	movb CS(%esp),%al
+	testl $(VM_MASK | 3),%eax	# return to VM86 mode or non-supervisor?
+	je 1f
+	cmpl $0,SYMBOL_NAME(need_resched)
 	jne reschedule
-	movl _current,%eax
-	cmpl _task,%eax			# task[0] cannot have signals
-	je 2f
-	cmpl $0,state(%eax)		# state
-	jne reschedule
-	cmpl $0,counter(%eax)		# counter
-	je reschedule
-	movl blocked(%eax),%ecx
-	movl %ecx,%ebx			# save blocked in %ebx for signal handling
-	notl %ecx
-	andl signal(%eax),%ecx
+	movl blocked(%ebx),%eax
+	movl %eax,%esi			# save blocked in %esi for signal handling
+	notl %eax
+	andl signal(%ebx),%eax
 	jne signal_return
-2:	RESTORE_ALL
-.align 4
+1:	RESTORE_ALL
+	ALIGN
 signal_return:
-	movl %esp,%ecx
-	pushl %ecx
-	testl $(VM_MASK),EFLAGS(%ecx)
+	testl $(VM_MASK),EFLAGS(%esp)
+	pushl %esp
 	jne v86_signal_return
-	pushl %ebx
-	call _do_signal
-	popl %ebx
-	popl %ebx
+	pushl %esi
+	call SYMBOL_NAME(do_signal)
+	addl $8,%esp
 	RESTORE_ALL
-.align 4
+	ALIGN
 v86_signal_return:
-	call _save_v86_state
+	call SYMBOL_NAME(save_v86_state)
 	movl %eax,%esp
 	pushl %eax
-	pushl %ebx
-	call _do_signal
-	popl %ebx
-	popl %ebx
+	pushl %esi
+	call SYMBOL_NAME(do_signal)
+	addl $8,%esp
 	RESTORE_ALL
+	ALIGN
+tracesys:
+	movl $-ENOSYS,EAX(%esp)
+	call SYMBOL_NAME(syscall_trace)
+	movl ORIG_EAX(%esp),%eax
+	call SYMBOL_NAME(sys_call_table)(,%eax,4)
+	movl %eax,EAX(%esp)		# save the return value
+	call SYMBOL_NAME(syscall_trace)
+	jmp ret_from_sys_call
+badsys:
+	movl $-ENOSYS,EAX(%esp)
+	jmp ret_from_sys_call
 
-.align 4
-_divide_error:
+
+ENTRY(divide_error)
 	pushl $0		# no error code
-	pushl $_do_divide_error
-.align 4,0x90
+	pushl $ SYMBOL_NAME(do_divide_error)
+	ALIGN
 error_code:
-	push %fs
-	push %es
 	push %ds
 	pushl %eax
+	xorl %eax,%eax
 	pushl %ebp
 	pushl %edi
 	pushl %esi
 	pushl %edx
+	decl %eax			# eax = -1
 	pushl %ecx
 	pushl %ebx
-	movl $0,%eax
-	movl %eax,%db7			# disable hardware debugging...
+	xorl %ecx,%ecx			# zero ecx
 	cld
-	movl $-1, %eax
+	mov %es,%cx			# get the lower order bits of es
 	xchgl %eax, ORIG_EAX(%esp)	# orig_eax (get the error code. )
-	xorl %ebx,%ebx			# zero ebx
-	mov %gs,%bx			# get the lower order bits of gs
-	xchgl %ebx, GS(%esp)		# get the address and save gs.
+	movl %esp,%edx
+	xchgl %ecx, ES(%esp)		# get the address and save es.
 	pushl %eax			# push the error code
-	lea 4(%esp),%edx
 	pushl %edx
 	movl $(KERNEL_DS),%edx
 	mov %dx,%ds
 	mov %dx,%es
-	movl $(USER_DS),%edx
-	mov %dx,%fs
-	pushl %eax
-	movl _current,%eax
-	movl %db6,%edx
-	movl %edx,dbgreg6(%eax)  # save current hardware debugging status
-	popl %eax
-	call *%ebx
+	GET_CURRENT
+#ifdef __SMP__
+	ENTER_KERNEL
+#endif
+	call *%ecx
 	addl $8,%esp
 	jmp ret_from_sys_call
 
-.align 4
-_coprocessor_error:
+ENTRY(coprocessor_error)
 	pushl $0
-	pushl $_do_coprocessor_error
+	pushl $ SYMBOL_NAME(do_coprocessor_error)
 	jmp error_code
 
-.align 4
-_device_not_available:
+ENTRY(device_not_available)
 	pushl $-1		# mark this as an int
 	SAVE_ALL
+	GET_CURRENT
+#ifdef __SMP__
+	ENTER_KERNEL
+#endif
 	pushl $ret_from_sys_call
 	movl %cr0,%eax
 	testl $0x4,%eax			# EM (math emulation bit)
-	je _math_state_restore
+	je SYMBOL_NAME(math_state_restore)
 	pushl $0		# temporary storage for ORIG_EIP
-	call _math_emulate
+	call  SYMBOL_NAME(math_emulate)
 	addl $4,%esp
 	ret
 
-.align 4
-_debug:
+ENTRY(debug)
 	pushl $0
-	pushl $_do_debug
+	pushl $ SYMBOL_NAME(do_debug)
 	jmp error_code
 
-.align 4
-_nmi:
+ENTRY(nmi)
 	pushl $0
-	pushl $_do_nmi
+	pushl $ SYMBOL_NAME(do_nmi)
 	jmp error_code
 
-.align 4
-_int3:
+ENTRY(int3)
 	pushl $0
-	pushl $_do_int3
+	pushl $ SYMBOL_NAME(do_int3)
 	jmp error_code
 
-.align 4
-_overflow:
+ENTRY(overflow)
 	pushl $0
-	pushl $_do_overflow
+	pushl $ SYMBOL_NAME(do_overflow)
 	jmp error_code
 
-.align 4
-_bounds:
+ENTRY(bounds)
 	pushl $0
-	pushl $_do_bounds
+	pushl $ SYMBOL_NAME(do_bounds)
 	jmp error_code
 
-.align 4
-_invalid_op:
+ENTRY(invalid_op)
 	pushl $0
-	pushl $_do_invalid_op
+	pushl $ SYMBOL_NAME(do_invalid_op)
 	jmp error_code
 
-.align 4
-_coprocessor_segment_overrun:
+ENTRY(coprocessor_segment_overrun)
 	pushl $0
-	pushl $_do_coprocessor_segment_overrun
+	pushl $ SYMBOL_NAME(do_coprocessor_segment_overrun)
 	jmp error_code
 
-.align 4
-_reserved:
+ENTRY(reserved)
 	pushl $0
-	pushl $_do_reserved
+	pushl $ SYMBOL_NAME(do_reserved)
 	jmp error_code
 
-.align 4
-_double_fault:
-	pushl $_do_double_fault
+ENTRY(double_fault)
+	pushl $ SYMBOL_NAME(do_double_fault)
 	jmp error_code
 
-.align 4
-_invalid_TSS:
-	pushl $_do_invalid_TSS
+ENTRY(invalid_TSS)
+	pushl $ SYMBOL_NAME(do_invalid_TSS)
 	jmp error_code
 
-.align 4
-_segment_not_present:
-	pushl $_do_segment_not_present
+ENTRY(segment_not_present)
+	pushl $ SYMBOL_NAME(do_segment_not_present)
 	jmp error_code
 
-.align 4
-_stack_segment:
-	pushl $_do_stack_segment
+ENTRY(stack_segment)
+	pushl $ SYMBOL_NAME(do_stack_segment)
 	jmp error_code
 
-.align 4
-_general_protection:
-	pushl $_do_general_protection
+ENTRY(general_protection)
+	pushl $ SYMBOL_NAME(do_general_protection)
 	jmp error_code
 
-.align 4
-_alignment_check:
-	pushl $_do_alignment_check
+ENTRY(alignment_check)
+	pushl $ SYMBOL_NAME(do_alignment_check)
 	jmp error_code
 
-.align 4
-_page_fault:
-	pushl $_do_page_fault
+ENTRY(page_fault)
+	pushl $ SYMBOL_NAME(do_page_fault)
+	jmp error_code
+
+ENTRY(spurious_interrupt_bug)
+	pushl $0
+	pushl $ SYMBOL_NAME(do_spurious_interrupt_bug)
 	jmp error_code
 
 .data
-.align 4
-_sys_call_table:
-	.long _sys_setup		/* 0 */
-	.long _sys_exit
-	.long _sys_fork
-	.long _sys_read
-	.long _sys_write
-	.long _sys_open			/* 5 */
-	.long _sys_close
-	.long _sys_waitpid
-	.long _sys_creat
-	.long _sys_link
-	.long _sys_unlink		/* 10 */
-	.long _sys_execve
-	.long _sys_chdir
-	.long _sys_time
-	.long _sys_mknod
-	.long _sys_chmod		/* 15 */
-	.long _sys_chown
-	.long _sys_break
-	.long _sys_stat
-	.long _sys_lseek
-	.long _sys_getpid		/* 20 */
-	.long _sys_mount
-	.long _sys_umount
-	.long _sys_setuid
-	.long _sys_getuid
-	.long _sys_stime		/* 25 */
-	.long _sys_ptrace
-	.long _sys_alarm
-	.long _sys_fstat
-	.long _sys_pause
-	.long _sys_utime		/* 30 */
-	.long _sys_stty
-	.long _sys_gtty
-	.long _sys_access
-	.long _sys_nice
-	.long _sys_ftime		/* 35 */
-	.long _sys_sync
-	.long _sys_kill
-	.long _sys_rename
-	.long _sys_mkdir
-	.long _sys_rmdir		/* 40 */
-	.long _sys_dup
-	.long _sys_pipe
-	.long _sys_times
-	.long _sys_prof
-	.long _sys_brk			/* 45 */
-	.long _sys_setgid
-	.long _sys_getgid
-	.long _sys_signal
-	.long _sys_geteuid
-	.long _sys_getegid		/* 50 */
-	.long _sys_acct
-	.long _sys_phys
-	.long _sys_lock
-	.long _sys_ioctl
-	.long _sys_fcntl		/* 55 */
-	.long _sys_mpx
-	.long _sys_setpgid
-	.long _sys_ulimit
-	.long _sys_olduname
-	.long _sys_umask		/* 60 */
-	.long _sys_chroot
-	.long _sys_ustat
-	.long _sys_dup2
-	.long _sys_getppid
-	.long _sys_getpgrp		/* 65 */
-	.long _sys_setsid
-	.long _sys_sigaction
-	.long _sys_sgetmask
-	.long _sys_ssetmask
-	.long _sys_setreuid		/* 70 */
-	.long _sys_setregid
-	.long _sys_sigsuspend
-	.long _sys_sigpending
-	.long _sys_sethostname
-	.long _sys_setrlimit		/* 75 */
-	.long _sys_getrlimit
-	.long _sys_getrusage
-	.long _sys_gettimeofday
-	.long _sys_settimeofday
-	.long _sys_getgroups		/* 80 */
-	.long _sys_setgroups
-	.long _old_select
-	.long _sys_symlink
-	.long _sys_lstat
-	.long _sys_readlink		/* 85 */
-	.long _sys_uselib
-	.long _sys_swapon
-	.long _sys_reboot
-	.long _old_readdir
-	.long _sys_mmap			/* 90 */
-	.long _sys_munmap
-	.long _sys_truncate
-	.long _sys_ftruncate
-	.long _sys_fchmod
-	.long _sys_fchown		/* 95 */
-	.long _sys_getpriority
-	.long _sys_setpriority
-	.long _sys_profil
-	.long _sys_statfs
-	.long _sys_fstatfs		/* 100 */
-	.long _sys_ioperm
-	.long _sys_socketcall
-	.long _sys_syslog
-	.long _sys_setitimer
-	.long _sys_getitimer		/* 105 */
-	.long _sys_newstat
-	.long _sys_newlstat
-	.long _sys_newfstat
-	.long _sys_uname
-	.long _sys_iopl			/* 110 */
-	.long _sys_vhangup
-	.long _sys_idle
-	.long _sys_vm86
-	.long _sys_wait4
-	.long _sys_swapoff		/* 115 */
-	.long _sys_sysinfo
-	.long _sys_ipc
-	.long _sys_fsync
-	.long _sys_sigreturn
-	.long _sys_clone		/* 120 */
-	.long _sys_setdomainname
-	.long _sys_newuname
-	.long _sys_modify_ldt
-	.long _sys_adjtimex
-	.long _sys_mprotect		/* 125 */
-	.long _sys_sigprocmask
-	.long _sys_create_module
-	.long _sys_init_module
-	.long _sys_delete_module
-	.long _sys_get_kernel_syms	/* 130 */
-	.long _sys_quotactl
-	.long _sys_getpgid
-	.long _sys_fchdir
-	.long _sys_bdflush
-	.long _sys_sysfs		/* 135 */
-	.long _sys_personality
-	.long 0				/* for afs_syscall */
-	.long _sys_setfsuid
-	.long _sys_setfsgid
-	.long _sys_llseek		/* 140 */
-	.long _sys_getdents
-	.long _sys_select
-	.long _sys_flock
-	.space (NR_syscalls-140)*4
+ENTRY(sys_call_table)
+	.long SYMBOL_NAME(sys_setup)		/* 0 */
+	.long SYMBOL_NAME(sys_exit)
+	.long SYMBOL_NAME(sys_fork)
+	.long SYMBOL_NAME(sys_read)
+	.long SYMBOL_NAME(sys_write)
+	.long SYMBOL_NAME(sys_open)		/* 5 */
+	.long SYMBOL_NAME(sys_close)
+	.long SYMBOL_NAME(sys_waitpid)
+	.long SYMBOL_NAME(sys_creat)
+	.long SYMBOL_NAME(sys_link)
+	.long SYMBOL_NAME(sys_unlink)		/* 10 */
+	.long SYMBOL_NAME(sys_execve)
+	.long SYMBOL_NAME(sys_chdir)
+	.long SYMBOL_NAME(sys_time)
+	.long SYMBOL_NAME(sys_mknod)
+	.long SYMBOL_NAME(sys_chmod)		/* 15 */
+	.long SYMBOL_NAME(sys_chown)
+	.long SYMBOL_NAME(sys_break)
+	.long SYMBOL_NAME(sys_stat)
+	.long SYMBOL_NAME(sys_lseek)
+	.long SYMBOL_NAME(sys_getpid)		/* 20 */
+	.long SYMBOL_NAME(sys_mount)
+	.long SYMBOL_NAME(sys_umount)
+	.long SYMBOL_NAME(sys_setuid)
+	.long SYMBOL_NAME(sys_getuid)
+	.long SYMBOL_NAME(sys_stime)		/* 25 */
+	.long SYMBOL_NAME(sys_ptrace)
+	.long SYMBOL_NAME(sys_alarm)
+	.long SYMBOL_NAME(sys_fstat)
+	.long SYMBOL_NAME(sys_pause)
+	.long SYMBOL_NAME(sys_utime)		/* 30 */
+	.long SYMBOL_NAME(sys_stty)
+	.long SYMBOL_NAME(sys_gtty)
+	.long SYMBOL_NAME(sys_access)
+	.long SYMBOL_NAME(sys_nice)
+	.long SYMBOL_NAME(sys_ftime)		/* 35 */
+	.long SYMBOL_NAME(sys_sync)
+	.long SYMBOL_NAME(sys_kill)
+	.long SYMBOL_NAME(sys_rename)
+	.long SYMBOL_NAME(sys_mkdir)
+	.long SYMBOL_NAME(sys_rmdir)		/* 40 */
+	.long SYMBOL_NAME(sys_dup)
+	.long SYMBOL_NAME(sys_pipe)
+	.long SYMBOL_NAME(sys_times)
+	.long SYMBOL_NAME(sys_prof)
+	.long SYMBOL_NAME(sys_brk)		/* 45 */
+	.long SYMBOL_NAME(sys_setgid)
+	.long SYMBOL_NAME(sys_getgid)
+	.long SYMBOL_NAME(sys_signal)
+	.long SYMBOL_NAME(sys_geteuid)
+	.long SYMBOL_NAME(sys_getegid)		/* 50 */
+	.long SYMBOL_NAME(sys_acct)
+	.long SYMBOL_NAME(sys_phys)
+	.long SYMBOL_NAME(sys_lock)
+	.long SYMBOL_NAME(sys_ioctl)
+	.long SYMBOL_NAME(sys_fcntl)		/* 55 */
+	.long SYMBOL_NAME(sys_mpx)
+	.long SYMBOL_NAME(sys_setpgid)
+	.long SYMBOL_NAME(sys_ulimit)
+	.long SYMBOL_NAME(sys_olduname)
+	.long SYMBOL_NAME(sys_umask)		/* 60 */
+	.long SYMBOL_NAME(sys_chroot)
+	.long SYMBOL_NAME(sys_ustat)
+	.long SYMBOL_NAME(sys_dup2)
+	.long SYMBOL_NAME(sys_getppid)
+	.long SYMBOL_NAME(sys_getpgrp)		/* 65 */
+	.long SYMBOL_NAME(sys_setsid)
+	.long SYMBOL_NAME(sys_sigaction)
+	.long SYMBOL_NAME(sys_sgetmask)
+	.long SYMBOL_NAME(sys_ssetmask)
+	.long SYMBOL_NAME(sys_setreuid)		/* 70 */
+	.long SYMBOL_NAME(sys_setregid)
+	.long SYMBOL_NAME(sys_sigsuspend)
+	.long SYMBOL_NAME(sys_sigpending)
+	.long SYMBOL_NAME(sys_sethostname)
+	.long SYMBOL_NAME(sys_setrlimit)	/* 75 */
+	.long SYMBOL_NAME(sys_getrlimit)
+	.long SYMBOL_NAME(sys_getrusage)
+	.long SYMBOL_NAME(sys_gettimeofday)
+	.long SYMBOL_NAME(sys_settimeofday)
+	.long SYMBOL_NAME(sys_getgroups)	/* 80 */
+	.long SYMBOL_NAME(sys_setgroups)
+	.long SYMBOL_NAME(old_select)
+	.long SYMBOL_NAME(sys_symlink)
+	.long SYMBOL_NAME(sys_lstat)
+	.long SYMBOL_NAME(sys_readlink)		/* 85 */
+	.long SYMBOL_NAME(sys_uselib)
+	.long SYMBOL_NAME(sys_swapon)
+	.long SYMBOL_NAME(sys_reboot)
+	.long SYMBOL_NAME(old_readdir)
+	.long SYMBOL_NAME(old_mmap)		/* 90 */
+	.long SYMBOL_NAME(sys_munmap)
+	.long SYMBOL_NAME(sys_truncate)
+	.long SYMBOL_NAME(sys_ftruncate)
+	.long SYMBOL_NAME(sys_fchmod)
+	.long SYMBOL_NAME(sys_fchown)		/* 95 */
+	.long SYMBOL_NAME(sys_getpriority)
+	.long SYMBOL_NAME(sys_setpriority)
+	.long SYMBOL_NAME(sys_profil)
+	.long SYMBOL_NAME(sys_statfs)
+	.long SYMBOL_NAME(sys_fstatfs)		/* 100 */
+	.long SYMBOL_NAME(sys_ioperm)
+	.long SYMBOL_NAME(sys_socketcall)
+	.long SYMBOL_NAME(sys_syslog)
+	.long SYMBOL_NAME(sys_setitimer)
+	.long SYMBOL_NAME(sys_getitimer)	/* 105 */
+	.long SYMBOL_NAME(sys_newstat)
+	.long SYMBOL_NAME(sys_newlstat)
+	.long SYMBOL_NAME(sys_newfstat)
+	.long SYMBOL_NAME(sys_uname)
+	.long SYMBOL_NAME(sys_iopl)		/* 110 */
+	.long SYMBOL_NAME(sys_vhangup)
+	.long SYMBOL_NAME(sys_idle)
+	.long SYMBOL_NAME(sys_vm86)
+	.long SYMBOL_NAME(sys_wait4)
+	.long SYMBOL_NAME(sys_swapoff)		/* 115 */
+	.long SYMBOL_NAME(sys_sysinfo)
+	.long SYMBOL_NAME(sys_ipc)
+	.long SYMBOL_NAME(sys_fsync)
+	.long SYMBOL_NAME(sys_sigreturn)
+	.long SYMBOL_NAME(sys_clone)		/* 120 */
+	.long SYMBOL_NAME(sys_setdomainname)
+	.long SYMBOL_NAME(sys_newuname)
+	.long SYMBOL_NAME(sys_modify_ldt)
+	.long SYMBOL_NAME(sys_adjtimex)
+	.long SYMBOL_NAME(sys_mprotect)		/* 125 */
+	.long SYMBOL_NAME(sys_sigprocmask)
+	.long SYMBOL_NAME(sys_create_module)
+	.long SYMBOL_NAME(sys_init_module)
+	.long SYMBOL_NAME(sys_delete_module)
+	.long SYMBOL_NAME(sys_get_kernel_syms)	/* 130 */
+	.long SYMBOL_NAME(sys_quotactl)
+	.long SYMBOL_NAME(sys_getpgid)
+	.long SYMBOL_NAME(sys_fchdir)
+	.long SYMBOL_NAME(sys_bdflush)
+	.long SYMBOL_NAME(sys_sysfs)		/* 135 */
+	.long SYMBOL_NAME(sys_personality)
+	.long SYMBOL_NAME(sys_ni_syscall)	/* for afs_syscall */
+	.long SYMBOL_NAME(sys_setfsuid)
+	.long SYMBOL_NAME(sys_setfsgid)
+	.long SYMBOL_NAME(sys_llseek)		/* 140 */
+	.long SYMBOL_NAME(sys_getdents)
+	.long SYMBOL_NAME(sys_select)
+	.long SYMBOL_NAME(sys_flock)
+	.long SYMBOL_NAME(sys_msync)
+	.long SYMBOL_NAME(sys_readv)		/* 145 */
+	.long SYMBOL_NAME(sys_writev)
+	.long SYMBOL_NAME(sys_getsid)
+	.long SYMBOL_NAME(sys_fdatasync)
+	.long SYMBOL_NAME(sys_sysctl)
+	.long SYMBOL_NAME(sys_mlock)		/* 150 */
+	.long SYMBOL_NAME(sys_munlock)
+	.long SYMBOL_NAME(sys_mlockall)
+	.long SYMBOL_NAME(sys_munlockall)
+	.long SYMBOL_NAME(sys_sched_setparam)
+	.long SYMBOL_NAME(sys_sched_getparam)   /* 155 */
+	.long SYMBOL_NAME(sys_sched_setscheduler)
+	.long SYMBOL_NAME(sys_sched_getscheduler)
+	.long SYMBOL_NAME(sys_sched_yield)
+	.long SYMBOL_NAME(sys_sched_get_priority_max)
+	.long SYMBOL_NAME(sys_sched_get_priority_min)  /* 160 */
+	.long SYMBOL_NAME(sys_sched_rr_get_interval)
+	.long SYMBOL_NAME(sys_nanosleep)
+	.long SYMBOL_NAME(sys_mremap)
+	.long SYMBOL_NAME(sys_setresuid)
+	.long SYMBOL_NAME(sys_getresuid)
+	.rept NR_syscalls-165
+		.long SYMBOL_NAME(sys_ni_syscall)
+	.endr

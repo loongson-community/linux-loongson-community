@@ -50,13 +50,27 @@ typedef unsigned long sigset_t;		/* at least 32 bits */
  * the changes in signal handling. LBT 010493.
  * SA_INTERRUPT is a no-op, but left due to historical reasons. Use the
  * SA_RESTART flag to get restarting signals (which were the default long ago)
+ * SA_SHIRQ flag is for shared interrupt support on PCI and EISA.
  */
 #define SA_NOCLDSTOP	1
+#define SA_SHIRQ	0x04000000
 #define SA_STACK	0x08000000
 #define SA_RESTART	0x10000000
 #define SA_INTERRUPT	0x20000000
 #define SA_NOMASK	0x40000000
 #define SA_ONESHOT	0x80000000
+
+#ifdef __KERNEL__
+/*
+ * These values of sa_flags are used only by the kernel as part of the
+ * irq handling routines.
+ *
+ * SA_INTERRUPT is also used by the irq handling routines.
+ */
+#define SA_PROBE SA_ONESHOT
+#define SA_SAMPLE_RANDOM SA_RESTART
+#endif
+
 
 #define SIG_BLOCK          0	/* for blocking signals */
 #define SIG_UNBLOCK        1	/* for unblocking signals */
@@ -77,32 +91,7 @@ struct sigaction {
 };
 
 #ifdef __KERNEL__
-
-struct sigcontext_struct {
-	unsigned short gs, __gsh;
-	unsigned short fs, __fsh;
-	unsigned short es, __esh;
-	unsigned short ds, __dsh;
-	unsigned long edi;
-	unsigned long esi;
-	unsigned long ebp;
-	unsigned long esp;
-	unsigned long ebx;
-	unsigned long edx;
-	unsigned long ecx;
-	unsigned long eax;
-	unsigned long trapno;
-	unsigned long err;
-	unsigned long eip;
-	unsigned short cs, __csh;
-	unsigned long eflags;
-	unsigned long esp_at_signal;
-	unsigned short ss, __ssh;
-	unsigned long i387;
-	unsigned long oldmask;
-	unsigned long cr2;
-};
-
+#include <asm/sigcontext.h>
 #endif
 
 #endif

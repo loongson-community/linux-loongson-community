@@ -7,301 +7,657 @@
 # are difficult for users to deal with.
 include CONFIG
 
-# Build MODULES by appending to this string for every driver below
-MODULES :=
+L_TARGET := net.a
+L_OBJS   := auto_irq.o
+M_OBJS   :=
+MOD_LIST_NAME := NET_MODULES
 
-NETDRV_OBJS := Space.o auto_irq.o net_init.o loopback.o
+# Need these to keep track of whether the 8390 and SLHC modules should
+# really go in the kernel or a module.
+CONFIG_8390_BUILTIN :=
+CONFIG_8390_MODULE  :=
+CONFIG_SLHC_BUILTIN :=
+CONFIG_SLHC_MODULE  :=
+CONFIG_HDLCDRV_BUILTIN :=
+CONFIG_HDLCDRV_MODULE  :=
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-
-
-# The point of the makefile...
-all: net.a
-
-Space.o: Space.c ../../include/linux/autoconf.h
-	$(CC) $(CFLAGS) $(OPTS) -c $<
-
-net_init.o: ../../include/linux/autoconf.h
-
-ifdef CONFIG_IBMTR
-NETDRV_OBJS := $(NETDRV_OBJS) ibmtr.o
-endif
-
-ifdef CONFIG_SK_G16
-NETDRV_OBJS := $(NETDRV_OBJS) sk_g16.o
-endif
-
-ifdef CONFIG_NET_IPIP
-NETDRV_OBJS := $(NETDRV_OBJS) tunnel.o
-endif
-
-ifdef CONFIG_WD80x3
-NETDRV_OBJS := $(NETDRV_OBJS) wd.o
-CONFIG_8390 = CONFIG_8390
-endif
-wd.o:	wd.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WD_OPTS) -c $<
-
-ifdef CONFIG_EL2
-NETDRV_OBJS := $(NETDRV_OBJS) 3c503.o
-CONFIG_8390 = CONFIG_8390
-endif
-3c503.o:	3c503.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(EL2_OPTS) -c $<
-
-ifdef CONFIG_NE2000
-NETDRV_OBJS := $(NETDRV_OBJS) ne.o
-CONFIG_8390 = CONFIG_8390
-endif
-ne.o:	ne.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(NE_OPTS) -c $<
-
-ifdef CONFIG_HPLAN
-NETDRV_OBJS := $(NETDRV_OBJS) hp.o
-CONFIG_8390 = CONFIG_8390
-endif
-hp.o:	hp.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(HP_OPTS) -c $<
-
-ifdef CONFIG_HPLAN_PLUS
-NETDRV_OBJS := $(NETDRV_OBJS) hp-plus.o
-CONFIG_8390 = CONFIG_8390
-endif
-
-ifdef CONFIG_ULTRA
-NETDRV_OBJS := $(NETDRV_OBJS) smc-ultra.o
-CONFIG_8390 = CONFIG_8390
-endif
-
-ifdef CONFIG_E2100
-NETDRV_OBJS := $(NETDRV_OBJS) e2100.o
-CONFIG_8390 = CONFIG_8390
-endif
-
-ifdef CONFIG_PLIP
-NETDRV_OBJS := $(NETDRV_OBJS) plip.o
+ifeq ($(CONFIG_ISDN),y)
+  ifeq ($(CONFIG_ISDN_PPP),y)
+    CONFIG_SLHC_BUILTIN = y
+  endif
 else
-MODULES := $(MODULES) plip.o
+  ifeq ($(CONFIG_ISDN),m)
+    ifeq ($(CONFIG_ISDN_PPP),y)
+      CONFIG_SLHC_MODULE = y
+    endif
+  endif
 endif
-plip.o:	plip.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLIP_OPTS) -c $<
+
+ifeq ($(CONFIG_NET),y)
+L_OBJS += Space.o net_init.o loopback.o
+endif
+
+ifeq ($(CONFIG_SEEQ8005),y)
+L_OBJS += seeq8005.o
+endif
+
+ifeq ($(CONFIG_IBMTR),y)
+L_OBJS += ibmtr.o
+else
+  ifeq ($(CONFIG_IBMTR),m)
+  M_OBJS += ibmtr.o
+  endif
+endif
+
+ifeq ($(CONFIG_SK_G16),y)
+L_OBJS += sk_g16.o
+endif
+
+ifeq ($(CONFIG_NET_IPIP),y)
+L_OBJS += new_tunnel.o
+else
+  ifeq ($(CONFIG_NET_IPIP),m)
+  M_OBJS += new_tunnel.o
+  endif
+endif
+
+ifeq ($(CONFIG_HP100),y)
+L_OBJS += hp100.o
+else
+  ifeq ($(CONFIG_HP100),m)
+  M_OBJS += hp100.o
+  endif
+endif
+
+ifeq ($(CONFIG_WIC),y)
+L_OBJS += wic.o
+else
+  ifeq ($(CONFIG_WIC),m)
+  M_OBJS += wic.o
+  endif
+endif
+
+ifeq ($(CONFIG_SMC9194),y)
+L_OBJS += smc9194.o
+else
+  ifeq ($(CONFIG_SMC9194),m)
+  M_OBJS += smc9194.o
+  endif
+endif
+
+
+ifeq ($(CONFIG_WD80x3),y)
+L_OBJS += wd.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_WD80x3),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += wd.o
+  endif
+endif
+
+ifeq ($(CONFIG_EL2),y)
+L_OBJS += 3c503.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_EL2),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += 3c503.o
+  endif
+endif
+
+ifeq ($(CONFIG_NE2000),y)
+L_OBJS += ne.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_NE2000),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += ne.o
+  endif
+endif
+
+ifeq ($(CONFIG_HPLAN),y)
+L_OBJS += hp.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_HPLAN),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += hp.o
+  endif
+endif
+
+ifeq ($(CONFIG_HPLAN_PLUS),y)
+L_OBJS += hp-plus.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_HPLAN_PLUS),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += hp-plus.o
+  endif
+endif
+
+ifeq ($(CONFIG_ULTRA),y)
+L_OBJS += smc-ultra.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ULTRA),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += smc-ultra.o
+  endif
+endif
+
+ifeq ($(CONFIG_E2100),y)
+L_OBJS += e2100.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_E2100),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += e2100.o
+  endif
+endif
+
+ifeq ($(CONFIG_PLIP),y)
+L_OBJS += plip.o
+else
+  ifeq ($(CONFIG_PLIP),m)
+  M_OBJS += plip.o
+  endif
+endif
+
+ifeq ($(CONFIG_PPP),y)
+LX_OBJS += ppp.o
+CONFIG_SLHC_BUILTIN = y
+else
+  ifeq ($(CONFIG_PPP),m)
+  CONFIG_SLHC_MODULE = y
+  MX_OBJS += ppp.o
+  endif
+endif
 
 ifdef CONFIG_PPP
-NETDRV_OBJS := $(NETDRV_OBJS) ppp.o
-CONFIG_SLHC = CONFIG_SLHC
+  M_OBJS += bsd_comp.o
+endif
+
+ifeq ($(CONFIG_SLIP),y)
+L_OBJS += slip.o
+  ifeq ($(CONFIG_SLIP_COMPRESSED),y)
+  CONFIG_SLHC_BUILTIN = y
+  endif
 else
-MODULES := $(MODULES) ppp.o
+  ifeq ($(CONFIG_SLIP),m)
+    ifeq ($(CONFIG_SLIP_COMPRESSED),y)
+    CONFIG_SLHC_MODULE = y
+  endif
+  M_OBJS += slip.o
+  endif
 endif
 
-ifdef CONFIG_SLIP
-NETDRV_OBJS := $(NETDRV_OBJS) slip.o
-CONFIG_SLHC = CONFIG_SLHC
+ifeq ($(CONFIG_STRIP),y)
+L_OBJS += strip.o
 else
-MODULES := $(MODULES) slip.o
-endif
-slip.o:	slip.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
-
-ifdef CONFIG_DE650
-NETDRV_OBJS := $(NETDRV_OBJS) de650.o
-CONFIG_8390 = CONFIG_8390
+  ifeq ($(CONFIG_STRIP),m)
+  M_OBJS += strip.o
+  endif
 endif
 
-ifdef CONFIG_3C589
-NETDRV_OBJS := $(NETDRV_OBJS) 3c589.o
+ifeq ($(CONFIG_DE650),y)
+ETDRV_OBJS := $(L_OBJS) de650.o
+CONFIG_8390_BUILTIN = y
 endif
 
-ifdef CONFIG_DUMMY
-NETDRV_OBJS := $(NETDRV_OBJS) dummy.o
+ifeq ($(CONFIG_3C589),y)
+L_OBJS += 3c589.o
+endif
+
+ifeq ($(CONFIG_DUMMY),y)
+L_OBJS += dummy.o
 else
-MODULES := $(MODULES) dummy.o
+  ifeq ($(CONFIG_DUMMY),m)
+  M_OBJS += dummy.o
+  endif
 endif
-dummy.o: dummy.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
 
-ifdef CONFIG_DE600
-NETDRV_OBJS := $(NETDRV_OBJS) de600.o
+ifeq ($(CONFIG_DE600),y)
+L_OBJS += de600.o
 else
-MODULES := $(MODULES) de600.o
+  ifeq ($(CONFIG_DE600),m)
+  M_OBJS += de600.o
+  endif
 endif
-de600.o: de600.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE600_OPTS) -c $<
-	
-ifdef CONFIG_DE620
-NETDRV_OBJS := $(NETDRV_OBJS) de620.o
+
+ifeq ($(CONFIG_DE620),y)
+L_OBJS += de620.o
 else
-MODULES := $(MODULES) de620.o
-endif
-de620.o: de620.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE620_OPTS) -c $<
-	
-ifdef CONFIG_AT1500
-NETDRV_OBJS := $(NETDRV_OBJS) lance.o
+  ifeq ($(CONFIG_DE620),m)
+  M_OBJS += de620.o
+  endif
 endif
 
-ifdef CONFIG_LANCE
-NETDRV_OBJS := $(NETDRV_OBJS) lance.o
-endif
-
-ifdef CONFIG_AT1700
-NETDRV_OBJS := $(NETDRV_OBJS) at1700.o
-endif
-
-ifdef CONFIG_EL1
-NETDRV_OBJS := $(NETDRV_OBJS) 3c501.o
+ifeq ($(CONFIG_DE620),y)
+L_OBJS += de620.o
 else
-MODULES := $(MODULES) 3c501.o
+  ifeq ($(CONFIG_DE620),m)
+  M_OBJS += de620.o
+  endif
 endif
 
-ifdef CONFIG_EL16
-NETDRV_OBJS := $(NETDRV_OBJS) 3c507.o
+ifeq ($(CONFIG_AT1500),y)
+L_OBJS += lance.o
 endif
 
-ifdef CONFIG_EL3
-NETDRV_OBJS := $(NETDRV_OBJS) 3c509.o
+ifeq ($(CONFIG_DEFXX),y)
+L_OBJS += defxx.o
+endif
+
+ifeq ($(CONFIG_LANCE),y)
+L_OBJS += lance.o
+  ifeq ($(CONFIG_LANCE32),y)
+  L_OBJS += lance32.o
+  endif
+endif
+
+ifeq ($(CONFIG_SUNLANCE),y)
+L_OBJS += sunlance.o
+endif
+
+ifeq ($(CONFIG_AT1700),y)
+L_OBJS += at1700.o
 else
-MODULES := $(MODULES) 3c509.o
+  ifeq ($(CONFIG_AT1700),m)
+  M_OBJS += at1700.o
+  endif
 endif
 
-ifdef CONFIG_EEXPRESS
-NETDRV_OBJS := $(NETDRV_OBJS) eexpress.o
+ifeq ($(CONFIG_FMV18X),y)
+L_OBJS += fmv18x.o
 else
-MODULES := $(MODULES) eexpress.o
+  ifeq ($(CONFIG_FMV18X),m)
+  M_OBJS += fmv18x.o
+  endif
 endif
 
-ifdef CONFIG_WAVELAN
-NETDRV_OBJS := $(NETDRV_OBJS) wavelan.o
+ifeq ($(CONFIG_EL1),y)
+L_OBJS += 3c501.o
 else
-MODULES := $(MODULES) wavelan.o
+  ifeq ($(CONFIG_EL1),m)
+  M_OBJS += 3c501.o
+  endif
 endif
 
-ifdef CONFIG_ZNET
-NETDRV_OBJS := $(NETDRV_OBJS) znet.o
-endif
-
-ifdef CONFIG_DEPCA
-NETDRV_OBJS := $(NETDRV_OBJS) depca.o
+ifeq ($(CONFIG_EL16),y)
+L_OBJS += 3c507.o
 else
-MODULES := $(MODULES) depca.o
+  ifeq ($(CONFIG_EL16),m)
+  M_OBJS += 3c507.o
+  endif
 endif
-depca.o: depca.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCA_OPTS) -c $<
 
-ifdef CONFIG_EWRK3
-NETDRV_OBJS := $(NETDRV_OBJS) ewrk3.o
+ifeq ($(CONFIG_EL3),y)
+L_OBJS += 3c509.o
 else
-MODULES := $(MODULES) ewrk3.o
-endif
-ewrk3.o: ewrk3.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(EWRK3_OPTS) -c $<
-
-ifdef CONFIG_ATP
-NETDRV_OBJS := $(NETDRV_OBJS) atp.o
+  ifeq ($(CONFIG_EL3),m)
+  M_OBJS += 3c509.o
+  endif
 endif
 
-ifdef CONFIG_DE4X5
-NETDRV_OBJS := $(NETDRV_OBJS) de4x5.o
+ifeq ($(CONFIG_VORTEX),y)
+L_OBJS += 3c59x.o
 else
-MODULES := $(MODULES) de4x5.o
-endif
-de4x5.o: de4x5.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE4x5_OPTS) -c $<
-
-ifdef CONFIG_NI52
-NETDRV_OBJS := $(NETDRV_OBJS) ni52.o
+  ifeq ($(CONFIG_VORTEX),m)
+  M_OBJS += 3c59x.o
+  endif
 endif
 
-ifdef CONFIG_NI65
-NETDRV_OBJS := $(NETDRV_OBJS) ni65.o
-endif
-
-ifdef CONFIG_ELPLUS
-NETDRV_OBJS := $(NETDRV_OBJS) 3c505.o
-endif
-3c505.o: 3c505.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ELP_OPTS) -c $<
-
-ifdef CONFIG_AC3200
-NETDRV_OBJS := $(NETDRV_OBJS) ac3200.o
-CONFIG_8390 = CONFIG_8390
-endif
-
-ifdef CONFIG_APRICOT
-NETDRV_OBJS := $(NETDRV_OBJS) apricot.o
+ifeq ($(CONFIG_EEXPRESS),y)
+L_OBJS += eexpress.o
 else
-MODULES := $(MODULES) apricot.o
+  ifeq ($(CONFIG_EEXPRESS),m)
+  M_OBJS += eexpress.o
+  endif
 endif
 
-ifdef CONFIG_DEC_ELCP
-NETDRV_OBJS := $(NETDRV_OBJS) tulip.o
-endif
-
-ifdef CONFIG_ARCNET
-NETDRV_OBJS := $(NETDRV_OBJS) arcnet.o
+ifeq ($(CONFIG_EEXPRESS_PRO),y)
+L_OBJS += eepro.o
 else
-MODULES := $(MODULES) arcnet.o
+  ifeq ($(CONFIG_EEXPRESS_PRO),m)
+  M_OBJS += eepro.o
+  endif
 endif
 
-ifdef CONFIG_PI
-NETDRV_OBJS := $(NETDRV_OBJS) pi2.o
-CONFIG_PI = CONFIG_PI
-endif
-pi2.o:  pi2.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(PI_OPTS) -c $<
-
-ifdef CONFIG_SLHC
-NETDRV_OBJS := $(NETDRV_OBJS) slhc.o
+ifeq ($(CONFIG_WAVELAN),y)
+L_OBJS += wavelan.o
 else
-MODULES := slhc.o $(MODULES)
+  ifeq ($(CONFIG_WAVELAN),m)
+  M_OBJS += wavelan.o
+  endif
 endif
 
-ifdef CONFIG_8390
-NETDRV_OBJS := $(NETDRV_OBJS) 8390.o
+ifeq ($(CONFIG_ZNET),y)
+L_OBJS += znet.o
+endif
+
+ifeq ($(CONFIG_DEPCA),y)
+L_OBJS += depca.o
 else
-MODULES := 8390.o $(MODULES)
+  ifeq ($(CONFIG_DEPCA),m)
+  M_OBJS += depca.o
+  endif
 endif
 
-ifdef CONFIG_EQUALIZER
-NETDRV_OBJS := $(NETDRV_OBJS) eql.o
+ifeq ($(CONFIG_EWRK3),y)
+L_OBJS += ewrk3.o
+else
+  ifeq ($(CONFIG_EWRK3),m)
+  M_OBJS += ewrk3.o
+  endif
+endif
+
+ifeq ($(CONFIG_ATP),y)
+L_OBJS += atp.o
+endif
+
+ifeq ($(CONFIG_DE4X5),y)
+L_OBJS += de4x5.o
+else
+  ifeq ($(CONFIG_DE4X5),m)
+  M_OBJS += de4x5.o
+  endif
+endif
+
+ifeq ($(CONFIG_NI52),y)
+L_OBJS += ni52.o
+else
+  ifeq ($(CONFIG_NI52),m)
+  M_OBJS += ni52.o
+  endif
+endif
+
+ifeq ($(CONFIG_NI65),y)
+L_OBJS += ni65.o
+else
+  ifeq ($(CONFIG_NI65),m)
+  M_OBJS += ni65.o
+  endif
+endif
+
+ifeq ($(CONFIG_ELPLUS),y)
+L_OBJS += 3c505.o
+else
+  ifeq ($(CONFIG_ELPLUS),m)
+  M_OBJS += 3c505.o
+  endif
+endif
+
+ifeq ($(CONFIG_AC3200),y)
+L_OBJS += ac3200.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_AC3200),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += ac3200.o
+  endif
+endif
+
+ifeq ($(CONFIG_APRICOT),y)
+L_OBJS += apricot.o
+else
+  ifeq ($(CONFIG_APRICOT),m)
+  M_OBJS += apricot.o
+  endif
+endif
+
+ifeq ($(CONFIG_DEC_ELCP),y)
+L_OBJS += tulip.o
+else
+  ifeq ($(CONFIG_DEC_ELCP),m)
+  M_OBJS += tulip.o
+  endif
+endif
+
+ifeq ($(CONFIG_ARCNET),y)
+L_OBJS += arcnet.o
+else
+  ifeq ($(CONFIG_ARCNET),m)
+  M_OBJS += arcnet.o
+  endif
+endif
+
+ifeq ($(CONFIG_ETH16I),y)
+L_OBJS += eth16i.o
+else
+  ifeq ($(CONFIG_ETH16I),m)
+  M_OBJS += eth16i.o
+  endif
+endif
+
+ifeq ($(CONFIG_SCC),y)
+L_OBJS += scc.o
+else
+  ifeq ($(CONFIG_SCC),m)
+  M_OBJS += scc.o
+  endif
+endif
+
+ifeq ($(CONFIG_MKISS),y)
+L_OBJS += mkiss.o
+else
+  ifeq ($(CONFIG_MKISS),m)
+  M_OBJS += mkiss.o
+  endif
+endif
+
+ifeq ($(CONFIG_PI),y)
+L_OBJS += pi2.o
+else
+  ifeq ($(CONFIG_PI),m)
+  M_OBJS += pi2.o
+  endif
+endif
+
+ifeq ($(CONFIG_PT),y)
+L_OBJS += pt.o
+else
+  ifeq ($(CONFIG_PT),m)
+  M_OBJS += pt.o
+  endif
+endif
+
+ifeq ($(CONFIG_BPQETHER),y)
+L_OBJS += bpqether.o
+else
+  ifeq ($(CONFIG_BPQETHER),m)
+  M_OBJS += bpqether.o
+  endif
+endif
+
+# If anything built-in uses slhc, then build it into the kernel also.
+# If not, but a module uses it, build as a module.
+ifdef CONFIG_SLHC_BUILTIN
+LX_OBJS += slhc.o
+else
+  ifdef CONFIG_SLHC_MODULE
+  MX_OBJS += slhc.o
+  endif
+endif
+
+
+# If anything built-in uses the 8390, then build it into the kernel also.
+# If not, but a module uses it, build as a module.
+ifdef CONFIG_8390_BUILTIN
+L_OBJS += 8390.o
+else
+  ifdef CONFIG_8390_MODULE
+  M_OBJS += 8390.o
+  endif
+endif
+
+
+ifeq ($(CONFIG_EQUALIZER),y)
+L_OBJS += eql.o
+else
+  ifeq ($(CONFIG_EQUALIZER),m)
+  M_OBJS += eql.o
+  endif
 endif
 
 ifdef CONFIG_MIPS_JAZZ_SONIC
-NETDRV_OBJS := $(NETDRV_OBJS) sonic.o
+L_OBJS += sonic.o
 else
-MODULES := sonic.o $(MODULES)
+M_OBJS += sonic.o
 endif
 
-net.a: $(NETDRV_OBJS)
-	rm -f net.a
-	$(AR) rcs net.a $(NETDRV_OBJS)
+ifeq ($(CONFIG_ATARILANCE),y)
+L_OBJS += atarilance.o
+else
+  ifeq ($(CONFIG_ATARILANCE),m)
+  M_OBJS += atarilance.o
+  endif
+endif
+
+ifeq ($(CONFIG_A2065),y)
+L_OBJS += a2065.o
+else
+  ifeq ($(CONFIG_A2065),m)
+  M_OBJS += a2065.o
+  endif
+endif
+
+ifeq ($(CONFIG_HYDRA),y)
+L_OBJS += hydra.o
+else
+  ifeq ($(CONFIG_HYDRA),m)
+  M_OBJS += hydra.o
+  endif
+endif
+
+ifeq ($(CONFIG_SDLA),y)
+L_OBJS += sdla.o
+else
+  ifeq ($(CONFIG_SDLA),m)
+  M_OBJS += sdla.o
+  endif
+endif
+
+ifeq ($(CONFIG_DLCI),y)
+L_OBJS += dlci.o 
+else
+  ifeq ($(CONFIG_DLCI),m)
+  M_OBJS += dlci.o
+  endif
+endif
+
+ifeq ($(CONFIG_ARIADNE),y)
+L_OBJS += ariadne.o
+else
+  ifeq ($(CONFIG_ARIADNE),m)
+  M_OBJS += ariadne.o
+  endif
+endif
+
+ifeq ($(CONFIG_DGRS),y)
+L_OBJS += dgrs.o
+else
+  ifeq ($(CONFIG_DGRS),m)
+  M_OBJS += dgrs.o
+  endif
+endif
+
+ifeq ($(CONFIG_BAYCOM),y)
+L_OBJS += baycom.o
+CONFIG_HDLCDRV_BUILTIN = y
+else
+  ifeq ($(CONFIG_BAYCOM),m)
+  CONFIG_HDLCDRV_MODULE = y
+  M_OBJS += baycom.o
+  endif
+endif
+
+ifeq ($(CONFIG_SOUNDMODEM),y)
+L_OBJS += soundmodem.o
+CONFIG_HDLCDRV_BUILTIN = y
+else
+  ifeq ($(CONFIG_SOUNDMODEM),m)
+  CONFIG_HDLCDRV_MODULE = y
+  M_OBJS += soundmodem.o
+  endif
+endif
+
+# If anything built-in uses the hdlcdrv, then build it into the kernel also.
+# If not, but a module uses it, build as a module.
+ifdef CONFIG_HDLCDRV_BUILTIN
+LX_OBJS += hdlcdrv.o
+else
+  ifdef CONFIG_HDLCDRV_MODULE
+  MX_OBJS += hdlcdrv.o
+  endif
+endif
+
+
+include $(TOPDIR)/Rules.make
 
 clean:
 	rm -f core *.o *.a *.s
 
-dep:
-	$(CPP) -M $(NETDRV_OBJS:.o=.c) > .depend
-ifdef MODULES
-	$(CPP) -M -DMODULE $(MODULES:.o=.c) >> .depend
-endif
+wd.o:	wd.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WD_OPTS) -c $<
 
-tar:
+3c503.o:	3c503.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(EL2_OPTS) -c $<
 
-ifdef MODULES
+pi2.o:  pi2.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PI_OPTS) -c $<
 
-modules: $(MODULES)
-	echo $(MODULES) > ../../modules/NET_MODULES
-	cd ../../modules; \
-		for i in $(MODULES); do ln -sf ../drivers/net/$$i .; done
+3c505.o: 3c505.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ELP_OPTS) -c $<
 
-else
+de4x5.o: de4x5.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE4X5_OPTS) -c $<
 
-modules:
+ewrk3.o: ewrk3.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(EWRK3_OPTS) -c $<
 
-endif
+depca.o: depca.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCA_OPTS) -c $<
 
-# include a dependency file if one exists
+Space.o: Space.c ../../include/linux/autoconf.h CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(OPTS) -c $<
 
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+net_init.o: ../../include/linux/autoconf.h
+
+ne.o:	ne.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(NE_OPTS) -c $<
+
+hp.o:	hp.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(HP_OPTS) -c $<
+
+plip.o:	plip.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLIP_OPTS) -c $<
+
+slip.o:	slip.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+
+strip.o: strip.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+
+dummy.o: dummy.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+
+de600.o: de600.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE600_OPTS) -c $<
+
+de620.o: de620.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE620_OPTS) -c $<
+
+lance.o: lance.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LANCE_OPTS) -c $<
+
+8390.o: 8390.c 8390.h CONFIG
+
+sdla.o: sdla.c CONFIG 
+
+dlci.o: dlci.c CONFIG
+
+dgrs.o: dgrs.c dgrs.h CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+tulip.o: tulip.c CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(TULIP_OPTS) -c $<

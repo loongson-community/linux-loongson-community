@@ -1,5 +1,5 @@
 #
-# Makefile for the linux MS-DOS-filesystem routines.
+# Makefile for the linux msdos-filesystem routines.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
 # removes any old dependencies. DON'T put your own dependencies here
@@ -7,27 +7,9 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
+O_TARGET := msdos.o
+O_OBJS   := namei.o
+OX_OBJS  := msdosfs_syms.o
+M_OBJS   := $(O_TARGET)
 
-OBJS=	buffer.o namei.o inode.o file.o dir.o misc.o fat.o mmap.o
-
-msdos.o: $(OBJS)
-	$(LD) -r -o msdos.o $(OBJS)
-
-modules: msdos.o
-	ln -sf ../fs/msdos/msdos.o $(TOPDIR)/modules
-
-dep:
-	$(CPP) -M *.c > .depend
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

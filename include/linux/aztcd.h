@@ -1,4 +1,5 @@
-/* $Id: aztcd.h,v 1.0 1995/03/25 08:27:19 root Exp $
+/* $Id: aztcd.h,v 2.50 1996/05/17 16:15:43 root Exp root $
+ *
  * Definitions for a AztechCD268 CD-ROM interface
  *	Copyright (C) 1994, 1995  Werner Zimmermann
  *
@@ -22,14 +23,41 @@
  *		October 1994 Email: zimmerma@rz.fht-esslingen.de
  */
 
-/* *** change this to set the I/O port address */
+/* *** change this to set the I/O port address of your CD-ROM drive*/
 #define AZT_BASE_ADDR		0x320
 
-/* Comment this out to prevent tray from locking */
+/* Uncomment this, if your CDROM is connected to a Soundwave32-soundcard
+   and configure AZT_BASE_ADDR and AZT_SW32_BASE_ADDR */
+/*#define AZT_SW32 1
+*/
+
+#ifdef AZT_SW32 
+#define AZT_SW32_BASE_ADDR      0x220  /*I/O port base address of your soundcard*/
+#endif
+
+/* Set this to 1, if you want your tray to be locked, set to 0 to prevent tray 
+   from locking */
 #define AZT_ALLOW_TRAY_LOCK	1
 
-/* use incompatible ioctls for reading in raw and cooked mode */
-#define AZT_PRIVATE_IOCTLS
+/*Set this to 1 to allow auto-eject when unmounting a disk, set to 0, if you 
+  don't want the auto-eject feature*/
+#define AZT_AUTO_EJECT          0
+
+/*Set this to 1, if you want to use incompatible ioctls for reading in raw and
+  cooked mode */
+#define AZT_PRIVATE_IOCTLS      1
+
+/*Set this to 1, if you want multisession support by the ISO fs. Even if you set 
+  this value to '0' you can use multisession CDs. In that case the drive's firm-
+  ware will do the appropriate redirection automatically. The CD will then look
+  like a single session CD (but nevertheless all data may be read). Please read 
+  chapter '5.1 Multisession support' in README.aztcd for details. Normally it's 
+  uncritical to leave this setting untouched */
+#define AZT_MULTISESSION        1
+
+/*---------------------------------------------------------------------------*/
+/*-----nothing to be configured for normal applications below this line------*/
+
 
 /* Increase this if you get lots of timeouts; if you get kernel panic, replace
    STEN_LOW_WAIT by STEN_LOW in the source code */
@@ -45,12 +73,18 @@
 #define DATA_PORT		azt_port
 #define STATUS_PORT		azt_port+1
 #define MODE_PORT		azt_port+2
+#ifdef  AZT_SW32                
+ #define AZT_SW32_INIT          (unsigned int) (0xFF00 & (AZT_BASE_ADDR*16))
+ #define AZT_SW32_CONFIG_REG    AZT_SW32_BASE_ADDR+0x16  /*Soundwave32 Config. Register*/
+ #define AZT_SW32_ID_REG        AZT_SW32_BASE_ADDR+0x04  /*Soundwave32 ID Version Register*/
+#endif
 
 /* status bits */
-#define AST_CMD_CHECK		0x80		/* command error */
-#define AST_DSK_CHG		0x20		/* disk removed or changed */
-#define AST_NOT_READY		0x02		/* no disk in the drive */
-#define AST_DOOR_OPEN		0x40		/* door is open */
+#define AST_CMD_CHECK		0x80		/* 1 = command error */
+#define AST_DOOR_OPEN		0x40		/* 1 = door is open */
+#define AST_NOT_READY		0x20		/* 1 = no disk in the drive */
+#define AST_DSK_CHG		0x02		/* 1 = disk removed or changed */
+#define AST_MODE                0x01            /* 0=MODE1, 1=MODE2 */
 #define AST_MODE_BITS		0x1C		/* Mode Bits */
 #define AST_INITIAL		0x0C		/* initial, only valid ... */
 #define AST_BUSY		0x04		/* now playing, only valid
@@ -68,7 +102,8 @@
 /* commands */
 #define ACMD_SOFT_RESET		0x10		/* reset drive */
 #define ACMD_PLAY_READ		0x20		/* read data track in cooked mode */
-#define ACMD_DATA_READ_RAW      0x21		/* reading in raw mode*/
+#define ACMD_PLAY_READ_RAW      0x21		/* reading in raw mode*/
+#define ACMD_SEEK               0x30            /* seek msf address*/
 #define ACMD_SEEK_TO_LEADIN     0x31		/* seek to leadin track*/
 #define ACMD_GET_ERROR		0x40		/* get error code */
 #define ACMD_GET_STATUS		0x41		/* get status */
@@ -82,14 +117,7 @@
 #define ACMD_PLAY_AUDIO		0x90		/* play audio track */
 #define ACMD_SET_VOLUME		0x93		/* set audio level */
 #define ACMD_GET_VERSION	0xA0		/* get firmware version */
-#define ACMD_SET_MODE		0xA1		/* set drive mode */
-
-#define SET_TIMER(func, jifs) \
-        delay_timer.expires = jifs; \
-        delay_timer.function = (void *) func; \
-        add_timer(&delay_timer);
-
-#define CLEAR_TIMER             del_timer(&delay_timer)
+#define ACMD_SET_DISK_TYPE	0xA1		/* set disk data mode */
 
 #define MAX_TRACKS		104
 
@@ -106,9 +134,15 @@ struct azt_Play_msf {
 
 struct azt_DiskInfo {
 	unsigned char	first;
+        unsigned char   next;
 	unsigned char	last;
 	struct msf	diskLength;
 	struct msf	firstTrack;
+        unsigned char   multi;
+        struct msf      nextSession;
+        struct msf      lastSession;
+        unsigned char   xa;
+        unsigned char   audio;
 };
 
 struct azt_Toc {

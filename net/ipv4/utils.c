@@ -21,7 +21,7 @@
  *		2 of the License, or (at your option) any later version.
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -62,7 +62,7 @@ char *in_ntoa(unsigned long in)
  *	Convert an ASCII string to binary IP. 
  */
  
-unsigned long in_aton(char *str)
+unsigned long in_aton(const char *str)
 {
 	unsigned long l;
 	unsigned int val;

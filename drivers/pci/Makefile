@@ -9,32 +9,7 @@
 # parent makefile.
 #
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) -c -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
+L_OBJS   := pci.o
+L_TARGET := pci.a
 
-OBJS := pci.o
-SRCS := pci.c
-
-all: pci.a
-
-pci.a: $(OBJS)
-	rm -f pci.a
-	$(AR) rcs pci.a $(OBJS)
-	sync
-
-dep:
-	$(CPP) -M $(SRCS) > .depend
-
-modules:
-dummy:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

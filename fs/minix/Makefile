@@ -7,27 +7,8 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
+O_TARGET := minix.o
+O_OBJS   := bitmap.o truncate.o namei.o inode.o file.o dir.o symlink.o fsync.o
+M_OBJS   := $(O_TARGET)
 
-OBJS=	bitmap.o truncate.o namei.o inode.o \
-	file.o dir.o symlink.o fsync.o
-
-minix.o: $(OBJS)
-	$(LD) -r -o minix.o $(OBJS)
-
-dep:
-	$(CPP) -M *.c > .depend
-
-modules: minix.o
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

@@ -7,26 +7,9 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-
-OBJS	= init.o fault.o
+OBJS	= init.o fault.o extable.o
 
 mm.o: $(OBJS)
 	$(LD) -r -o mm.o $(OBJS)
 
-modules:
-
-dep:
-	$(CPP) -M *.c > .depend
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

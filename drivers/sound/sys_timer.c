@@ -2,38 +2,22 @@
  * sound/sys_timer.c
  *
  * The default timer for the Level 2 sequencer interface
- * Uses the (100HZ) timer of kernel.
- *
- * Copyright by Hannu Savolainen 1993
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
+ * Uses the (1/HZ sec) timer of kernel.
  */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
 
 #define SEQUENCER_C
 #include "sound_config.h"
 
-#ifdef CONFIGURE_SOUNDCARD
-
-#ifndef EXCLUDE_SEQUENCER
+#ifdef CONFIG_SEQUENCER
 
 static volatile int opened = 0, tmr_running = 0;
 static volatile time_t tmr_offs, tmr_ctr;
@@ -45,23 +29,19 @@ static unsigned long prev_event_time;
 
 static void     poll_def_tmr (unsigned long dummy);
 
-DEFINE_TIMER (def_tmr, poll_def_tmr);
+
+static struct timer_list def_tmr =
+{NULL, NULL, 0, 0, poll_def_tmr};
 
 static unsigned long
 tmr2ticks (int tmr_value)
 {
   /*
- *    Convert system timer ticks (HZ) to MIDI ticks
- */
+   *    Convert system timer ticks (HZ) to MIDI ticks
+   *    (divide # of MIDI ticks/minute by # of system ticks/minute).
+   */
 
-  unsigned long   tmp;
-  unsigned long   scale;
-
-  tmp = (tmr_value * 1000) / HZ;/* Convert to msecs */
-
-  scale = (60 * 1000) / (curr_tempo * curr_timebase);	/* msecs per MIDI tick */
-
-  return (tmp + (scale / 2)) / scale;
+  return ((tmr_value * curr_tempo * curr_timebase) + (30 * 100)) / (60 * HZ);
 }
 
 static void
@@ -70,7 +50,11 @@ poll_def_tmr (unsigned long dummy)
 
   if (opened)
     {
-      ACTIVATE_TIMER (def_tmr, poll_def_tmr, 1);
+
+      {
+	def_tmr.expires = (1) + jiffies;
+	add_timer (&def_tmr);
+      };
 
       if (tmr_running)
 	{
@@ -79,8 +63,8 @@ poll_def_tmr (unsigned long dummy)
 
 	  if (curr_ticks >= next_event_time)
 	    {
-	      next_event_time = 0xffffffff;
-	      sequencer_timer ();
+	      next_event_time = (unsigned long) -1;
+	      sequencer_timer (0);
 	    }
 	}
     }
@@ -91,28 +75,34 @@ tmr_reset (void)
 {
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   tmr_offs = 0;
   ticks_offs = 0;
   tmr_ctr = 0;
-  next_event_time = 0xffffffff;
+  next_event_time = (unsigned long) -1;
   prev_event_time = 0;
   curr_ticks = 0;
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static int
 def_tmr_open (int dev, int mode)
 {
   if (opened)
-    return RET_ERROR (EBUSY);
+    return -EBUSY;
 
   tmr_reset ();
   curr_tempo = 60;
-  curr_timebase = HZ;
+  curr_timebase = 100;
   opened = 1;
 
-  ACTIVATE_TIMER (def_tmr, poll_def_tmr, 1);
+  ;
+
+  {
+    def_tmr.expires = (1) + jiffies;
+    add_timer (&def_tmr);
+  };
 
   return 0;
 }
@@ -121,6 +111,7 @@ static void
 def_tmr_close (int dev)
 {
   opened = tmr_running = 0;
+  del_timer (&def_tmr);;
 }
 
 static int
@@ -166,8 +157,8 @@ def_tmr_event (int dev, unsigned char *event)
 	{
 	  if (parm < 8)
 	    parm = 8;
-	  if (parm > 250)
-	    parm = 250;
+	  if (parm > 360)
+	    parm = 360;
 	  tmr_offs = tmr_ctr;
 	  ticks_offs += tmr2ticks (tmr_ctr);
 	  tmr_ctr = 0;
@@ -196,12 +187,12 @@ def_tmr_get_time (int dev)
 
 static int
 def_tmr_ioctl (int dev,
-	       unsigned int cmd, unsigned int arg)
+	       unsigned int cmd, caddr_t arg)
 {
   switch (cmd)
     {
     case SNDCTL_TMR_SOURCE:
-      return IOCTL_OUT (arg, TMR_INTERNAL);
+      return ioctl_out (arg, TMR_INTERNAL);
       break;
 
     case SNDCTL_TMR_START:
@@ -222,7 +213,9 @@ def_tmr_ioctl (int dev,
 
     case SNDCTL_TMR_TIMEBASE:
       {
-	int             val = IOCTL_IN (arg);
+	int             val;
+
+	get_user (val, (int *) arg);
 
 	if (val)
 	  {
@@ -233,13 +226,15 @@ def_tmr_ioctl (int dev,
 	    curr_timebase = val;
 	  }
 
-	return IOCTL_OUT (arg, curr_timebase);
+	return ioctl_out (arg, curr_timebase);
       }
       break;
 
     case SNDCTL_TMR_TEMPO:
       {
-	int             val = IOCTL_IN (arg);
+	int             val;
+
+	get_user (val, (int *) arg);
 
 	if (val)
 	  {
@@ -253,15 +248,24 @@ def_tmr_ioctl (int dev,
 	    curr_tempo = val;
 	  }
 
-	return IOCTL_OUT (arg, curr_tempo);
+	return ioctl_out (arg, curr_tempo);
       }
       break;
 
     case SNDCTL_SEQ_CTRLRATE:
-      if (IOCTL_IN (arg) != 0)	/* Can't change */
-	return RET_ERROR (EINVAL);
+      {
+	int             val;
 
-      return IOCTL_OUT (arg, ((curr_tempo * curr_timebase) + 30) / 60);
+	get_user (val, (int *) arg);
+	if (val != 0)		/* Can't change */
+	  return -EINVAL;
+
+	return ioctl_out (arg, ((curr_tempo * curr_timebase) + 30) / 60);
+      }
+      break;
+
+    case SNDCTL_SEQ_GETTIME:
+      return ioctl_out (arg, curr_ticks);
       break;
 
     case SNDCTL_TMR_METRONOME:
@@ -271,7 +275,7 @@ def_tmr_ioctl (int dev,
     default:;
     }
 
-  return RET_ERROR (EINVAL);
+  return -EINVAL;
 }
 
 static void
@@ -289,7 +293,7 @@ def_tmr_arm (int dev, long time)
 
 struct sound_timer_operations default_sound_timer =
 {
-  {"System Timer", 0},
+  {"System clock", 0},
   0,				/* Priority */
   0,				/* Local device link */
   def_tmr_open,
@@ -300,5 +304,4 @@ struct sound_timer_operations default_sound_timer =
   def_tmr_arm
 };
 
-#endif
 #endif

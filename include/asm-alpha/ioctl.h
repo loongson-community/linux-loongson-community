@@ -36,11 +36,12 @@
 #define _IOC_READ	2U
 #define _IOC_WRITE	4U
 
-#define _IOC(dir,type,nr,size) \
-	(((dir)  << _IOC_DIRSHIFT) | \
-	 ((type) << _IOC_TYPESHIFT) | \
-	 ((nr)   << _IOC_NRSHIFT) | \
-	 ((size) << _IOC_SIZESHIFT))
+#define _IOC(dir,type,nr,size)			\
+	((unsigned int)				\
+	 (((dir)  << _IOC_DIRSHIFT) |		\
+	  ((type) << _IOC_TYPESHIFT) |		\
+	  ((nr)   << _IOC_NRSHIFT) |		\
+	  ((size) << _IOC_SIZESHIFT)))
 
 /* used to create numbers */
 #define _IO(type,nr)		_IOC(_IOC_NONE,(type),(nr),0)
@@ -54,4 +55,12 @@
 #define _IOC_NR(nr)		(((nr) >> _IOC_NRSHIFT) & _IOC_NRMASK)
 #define _IOC_SIZE(nr)		(((nr) >> _IOC_SIZESHIFT) & _IOC_SIZEMASK)
 
-#endif
+/* ...and for the drivers/sound files... */
+
+#define IOC_IN		(_IOC_WRITE << _IOC_DIRSHIFT)
+#define IOC_OUT		(_IOC_READ << _IOC_DIRSHIFT)
+#define IOC_INOUT	((_IOC_WRITE|_IOC_READ) << _IOC_DIRSHIFT)
+#define IOCSIZE_MASK	(_IOC_SIZEMASK << _IOC_SIZESHIFT)
+#define IOCSIZE_SHIFT	(_IOC_SIZESHIFT)
+
+#endif /* _ALPHA_IOCTL_H */

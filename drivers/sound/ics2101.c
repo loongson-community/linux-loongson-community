@@ -2,33 +2,19 @@
  * sound/ics2101.c
  *
  * Driver for the ICS2101 mixer of GUS v3.7.
- *
- * Copyright by Hannu Savolainen 1994
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
  */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
 
 #include "sound_config.h"
-#if defined(CONFIGURE_SOUNDCARD) && !defined(EXCLUDE_GUS)
+#if defined(CONFIG_GUSHW)
 
 #include <linux/ultrasound.h>
 #include "gus_hw.h"
@@ -37,6 +23,7 @@
 			 SOUND_MASK_SYNTH| \
   			 SOUND_MASK_CD | SOUND_MASK_VOLUME)
 
+extern int     *gus_osp;
 extern int      gus_base;
 static int      volumes[ICS_MIXDEVS];
 static int      left_fix[ICS_MIXDEVS] =
@@ -47,12 +34,11 @@ static int      right_fix[ICS_MIXDEVS] =
 static int
 scale_vol (int vol)
 {
-#if 1
   /*
- *	Experimental volume scaling by Risto Kankkunen.
- *	This should give smoother volume response than just
- *	a plain multiplication.
- */
+     *  Experimental volume scaling by Risto Kankkunen.
+     *  This should give smoother volume response than just
+     *  a plain multiplication.
+   */
   int             e;
 
   if (vol < 0)
@@ -72,9 +58,6 @@ scale_vol (int vol)
       e += 7;
     }
   return ((e << 4) + vol);
-#else
-  return ((vol * 127) + 50) / 100;
-#endif
 }
 
 static void
@@ -100,12 +83,13 @@ write_mix (int dev, int chn, int vol)
       attn_addr |= 0x03;
     }
 
-  DISABLE_INTR (flags);
-  OUTB (ctrl_addr, u_MixSelect);
-  OUTB (selector[dev], u_MixData);
-  OUTB (attn_addr, u_MixSelect);
-  OUTB ((unsigned char) vol, u_MixData);
-  RESTORE_INTR (flags);
+  save_flags (flags);
+  cli ();
+  outb ((ctrl_addr), u_MixSelect);
+  outb ((selector[dev]), u_MixData);
+  outb ((attn_addr), u_MixSelect);
+  outb (((unsigned char) vol), u_MixData);
+  restore_flags (flags);
 }
 
 static int
@@ -132,40 +116,46 @@ set_volumes (int dev, int vol)
 }
 
 static int
-ics2101_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
+ics2101_mixer_ioctl (int dev, unsigned int cmd, caddr_t arg)
 {
   if (((cmd >> 8) & 0xff) == 'M')
     {
-      if (cmd & IOC_IN)
-	switch (cmd & 0xff)
-	  {
-	  case SOUND_MIXER_RECSRC:
-	    return gus_default_mixer_ioctl (dev, cmd, arg);
-	    break;
+      if (_IOC_DIR (cmd) & _IOC_WRITE)
+	{
+	  int             val;
 
-	  case SOUND_MIXER_MIC:
-	    return IOCTL_OUT (arg, set_volumes (DEV_MIC, IOCTL_IN (arg)));
-	    break;
+	  get_user (val, (int *) arg);
 
-	  case SOUND_MIXER_CD:
-	    return IOCTL_OUT (arg, set_volumes (DEV_CD, IOCTL_IN (arg)));
-	    break;
+	  switch (cmd & 0xff)
+	    {
+	    case SOUND_MIXER_RECSRC:
+	      return gus_default_mixer_ioctl (dev, cmd, arg);
+	      break;
 
-	  case SOUND_MIXER_LINE:
-	    return IOCTL_OUT (arg, set_volumes (DEV_LINE, IOCTL_IN (arg)));
-	    break;
+	    case SOUND_MIXER_MIC:
+	      return ioctl_out (arg, set_volumes (DEV_MIC, val));
+	      break;
 
-	  case SOUND_MIXER_SYNTH:
-	    return IOCTL_OUT (arg, set_volumes (DEV_GF1, IOCTL_IN (arg)));
-	    break;
+	    case SOUND_MIXER_CD:
+	      return ioctl_out (arg, set_volumes (DEV_CD, val));
+	      break;
 
-	  case SOUND_MIXER_VOLUME:
-	    return IOCTL_OUT (arg, set_volumes (DEV_VOL, IOCTL_IN (arg)));
-	    break;
+	    case SOUND_MIXER_LINE:
+	      return ioctl_out (arg, set_volumes (DEV_LINE, val));
+	      break;
 
-	  default:
-	    return RET_ERROR (EINVAL);
-	  }
+	    case SOUND_MIXER_SYNTH:
+	      return ioctl_out (arg, set_volumes (DEV_GF1, val));
+	      break;
+
+	    case SOUND_MIXER_VOLUME:
+	      return ioctl_out (arg, set_volumes (DEV_VOL, val));
+	      break;
+
+	    default:
+	      return -EINVAL;
+	    }
+	}
       else
 	switch (cmd & 0xff)	/*
 				 * Return parameters
@@ -177,58 +167,58 @@ ics2101_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
 	    break;
 
 	  case SOUND_MIXER_DEVMASK:
-	    return IOCTL_OUT (arg, MIX_DEVS);
+	    return ioctl_out (arg, MIX_DEVS);
 	    break;
 
 	  case SOUND_MIXER_STEREODEVS:
-	    return IOCTL_OUT (arg, SOUND_MASK_LINE | SOUND_MASK_CD |
-			      SOUND_MASK_SYNTH | SOUND_MASK_VOLUME |
-			      SOUND_MASK_MIC);
+	    return ioctl_out (arg, SOUND_MASK_LINE | SOUND_MASK_CD | SOUND_MASK_SYNTH | SOUND_MASK_VOLUME | SOUND_MASK_MIC);
 	    break;
 
 	  case SOUND_MIXER_RECMASK:
-	    return IOCTL_OUT (arg, SOUND_MASK_MIC | SOUND_MASK_LINE);
+	    return ioctl_out (arg, SOUND_MASK_MIC | SOUND_MASK_LINE);
 	    break;
 
 	  case SOUND_MIXER_CAPS:
-	    return IOCTL_OUT (arg, 0);
+	    return ioctl_out (arg, 0);
 	    break;
 
 	  case SOUND_MIXER_MIC:
-	    return IOCTL_OUT (arg, volumes[DEV_MIC]);
+	    return ioctl_out (arg, volumes[DEV_MIC]);
 	    break;
 
 	  case SOUND_MIXER_LINE:
-	    return IOCTL_OUT (arg, volumes[DEV_LINE]);
+	    return ioctl_out (arg, volumes[DEV_LINE]);
 	    break;
 
 	  case SOUND_MIXER_CD:
-	    return IOCTL_OUT (arg, volumes[DEV_CD]);
+	    return ioctl_out (arg, volumes[DEV_CD]);
 	    break;
 
 	  case SOUND_MIXER_VOLUME:
-	    return IOCTL_OUT (arg, volumes[DEV_VOL]);
+	    return ioctl_out (arg, volumes[DEV_VOL]);
 	    break;
 
 	  case SOUND_MIXER_SYNTH:
-	    return IOCTL_OUT (arg, volumes[DEV_GF1]);
+	    return ioctl_out (arg, volumes[DEV_GF1]);
 	    break;
 
 	  default:
-	    return RET_ERROR (EINVAL);
+	    return -EINVAL;
 	  }
     }
 
-  return RET_ERROR (EINVAL);
+  return -EINVAL;
 }
 
 static struct mixer_operations ics2101_mixer_operations =
 {
+  "ICS2101",
+  "ICS2101 Multimedia Mixer",
   ics2101_mixer_ioctl
 };
 
-long
-ics2101_mixer_init (long mem_start)
+void
+ics2101_mixer_init (void)
 {
   int             i;
 
@@ -237,11 +227,11 @@ ics2101_mixer_init (long mem_start)
       mixer_devs[num_mixers++] = &ics2101_mixer_operations;
 
       /*
- * Some GUS v3.7 cards had some channels flipped. Disable
- * the flipping feature if the model id is other than 5.
- */
+         * Some GUS v3.7 cards had some channels flipped. Disable
+         * the flipping feature if the model id is other than 5.
+       */
 
-      if (INB (u_MixSelect) != 5)
+      if (inb (u_MixSelect) != 5)
 	{
 	  for (i = 0; i < ICS_MIXDEVS; i++)
 	    left_fix[i] = 1;
@@ -257,7 +247,6 @@ ics2101_mixer_init (long mem_start)
       set_volumes (DEV_UNUSED, 0x0000);
     }
 
-  return mem_start;
 }
 
 #endif

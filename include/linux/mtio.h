@@ -1,5 +1,4 @@
-/* $Id: /usr/src/linux-1.1.64/include/linux/mtio.h at Tue Jan 10 21:02:51 1995 by root@kai.home$
- *
+/* 
  * linux/mtio.h header file for Linux. Written by H. Bergman
  */
 
@@ -43,7 +42,6 @@ struct	mtop {
 #define MTRAS2	15	/* run self test 2 (destructive) */
 #define MTRAS3  16	/* reserved for self test 3 */
 
-
 #define MTSETBLK 20	/* set block length (SCSI) */
 #define MTSETDENSITY 21	/* set tape density (SCSI) */
 #define MTSEEK	22	/* seek to block (Tandberg, etc.) */
@@ -53,6 +51,14 @@ struct	mtop {
 #define MTFSS	25	/* space forward over setmarks */
 #define MTBSS	26	/* space backward over setmarks */
 #define MTWSM	27	/* write setmarks */
+
+#define MTLOCK  28	/* lock the drive door */
+#define MTUNLOCK 29	/* unlock the drive door */
+#define MTLOAD  30	/* execute the SCSI load command */
+#define MTUNLOAD 31	/* execute the SCSI unload command */
+#define MTCOMPRESSION 32/* control compression with SCSI mode page 15 */
+#define MTSETPART 33	/* Change the active tape partition */
+#define MTMKPART  34	/* Format the tape with one or two partitions */
 
 /* structure for MTIOCGET - mag tape get status command */
 
@@ -68,8 +74,8 @@ struct	mtget {
 	long	mt_gstat;	/* generic (device independent) status */
 	long	mt_erreg;	/* error register */
 	/* The next two fields are not always used */
-	daddr_t	mt_fileno;	/* number of current file on tape */
-	daddr_t	mt_blkno;	/* current block number */
+	__kernel_daddr_t mt_fileno;	/* number of current file on tape */
+	__kernel_daddr_t mt_blkno;	/* current block number */
 };
 
 
@@ -97,23 +103,11 @@ struct	mtget {
 #define MT_ISSCSI1		0x71	/* Generic ANSI SCSI-1 tape unit */
 #define MT_ISSCSI2		0x72	/* Generic ANSI SCSI-2 tape unit */
 
-/* QIC-40/QIC-80 ftape supported drives.
- * 20bit vendor ID + 0x800000
+/* QIC-40/80/3010/3020 ftape supported drives.
+ * 20bit vendor ID + 0x800000 (see vendors.h in ftape distribution)
  */
-#define MT_ISFTAPE_UNKNOWN	0x800000
-#define MT_ISCMSDJ10_DJ20	0x800047
-#define MT_ISCMSDJ10_DJ20_NEW	0x8011c4
-#define MT_ISARCHIVE_5580I	0x800005
-#define MT_ISARCHIVE_XL9250I	0x80014a
-#define MT_ISARCHIVE_31250Q	0x800146
-#define MT_ISINSIGHT_80		0x810005
-#define MT_ISCONNER_C250MQT	0x80014c
-#define MT_ISWANGTEK_2040F	0x8001c1
-#define MT_ISWANGTEK_2080F	0x8001c8
-#define MT_ISIOMEGA_250		0x808880
-#define MT_ISSUMMIT_SE150	0x800180
-#define MT_ISSUMMIT_SE250	0x800181
-#define MT_ISESCOM_IDTBU120E	0x800140
+#define MT_ISFTAPE_UNKNOWN	0x800000 /* obsolete */
+#define MT_ISFTAPE_FLAG	0x800000
 
 struct mt_tape_info {
 	long t_type;		/* device type id (mt_type) */
@@ -137,20 +131,6 @@ struct mt_tape_info {
 	{MT_ISEVEREX_FT40A,	"Everex FT40A, QIC-40"}, \
 	{MT_ISSCSI1,		"Generic SCSI-1 tape"}, \
 	{MT_ISSCSI2,		"Generic SCSI-2 tape"}, \
-	{MT_ISFTAPE_UNKNOWN,	"Unknown floppy interface tape drive"},\
-	{MT_ISCMSDJ10_DJ20,	"Colorado DJ-10/DJ-20"},\
-	{MT_ISCMSDJ10_DJ20_NEW,	"Colorado DJ-10/DJ-20 (new)"},\
-	{MT_ISARCHIVE_5580I,	"Archive 5580i"},\
-	{MT_ISARCHIVE_XL9250I,	"Archive XL9250i [Conner/Escom]"},\
-	{MT_ISARCHIVE_31250Q,	"Escom/Archive 31250Q"},\
-	{MT_ISINSIGHT_80,	"Insight 80 Mb"},\
-	{MT_ISCONNER_C250MQT,	"Conner C250MQT"},\
-	{MT_ISWANGTEK_2040F,	"Wangtek 3040F"},\
-	{MT_ISWANGTEK_2080F,	"Wangtek 3080F"},\
-	{MT_ISIOMEGA_250,	"Iomega 250"},\
-	{MT_ISSUMMIT_SE150,	"Summit SE 150"},\
-	{MT_ISSUMMIT_SE250,	"Summit SE 250/Mountain FS8000"},\
-	{MT_ISESCOM_IDTBU120E,	"Identity IDTBU120E, Escom?"},\
 	{0, NULL} \
 }
 
@@ -159,6 +139,35 @@ struct mt_tape_info {
 
 struct	mtpos {
 	long 	mt_blkno;	/* current block number */
+};
+
+
+/* structure for MTIOCGETCONFIG/MTIOCSETCONFIG primarily intended
+ * as an interim solution for QIC-02 until DDI is fully implemented.
+ */
+struct mtconfiginfo {
+	long	mt_type;	/* drive type */
+	long	ifc_type;	/* interface card type */
+	unsigned short	irqnr;	/* IRQ number to use */
+	unsigned short	dmanr;	/* DMA channel to use */
+	unsigned short	port;	/* IO port base address */
+
+	unsigned long	debug;	/* debugging flags */
+
+	unsigned	have_dens:1;
+	unsigned	have_bsf:1;
+	unsigned	have_fsr:1;
+	unsigned	have_bsr:1;
+	unsigned	have_eod:1;
+	unsigned	have_seek:1;
+	unsigned	have_tell:1;
+	unsigned	have_ras1:1;
+	unsigned	have_ras2:1;
+	unsigned	have_ras3:1;
+	unsigned	have_qfa:1;
+
+	unsigned	pad1:5;
+	char		reserved[10];
 };
 
 
@@ -172,7 +181,6 @@ struct	mtpos {
  */
 #define	MTIOCGETCONFIG	_IOR('m', 4, struct mtconfiginfo) /* get tape config */
 #define	MTIOCSETCONFIG	_IOW('m', 5, struct mtconfiginfo) /* set tape config */
-
 
 /* Generic Mag Tape (device independent) status macros for examining
  * mt_gstat -- HP-UX compatible.
@@ -198,12 +206,9 @@ struct	mtpos {
 #define GMT_IM_REP_EN(x)        ((x) & 0x00010000)  /* immediate report mode */
 /* 16 generic status bits unused */
 
-/* DDS drives have 'setmarks', sort of like filemarks but used to group
- * files, rather than blocks. Not used. Not supported.
- * I think DDS drives are DAT drives.
- */
 
 /* SCSI-tape specific definitions */
+/* Bitfield shifts in the status  */
 #define MT_ST_BLKSIZE_SHIFT	0
 #define MT_ST_BLKSIZE_MASK	0xffffff
 #define MT_ST_DENSITY_SHIFT	24
@@ -212,14 +217,32 @@ struct	mtpos {
 #define MT_ST_SOFTERR_SHIFT	0
 #define MT_ST_SOFTERR_MASK	0xffff
 
+/* Bitfields for the MTSETDRVBUFFER ioctl */
 #define MT_ST_OPTIONS		0xf0000000
 #define MT_ST_BOOLEANS		0x10000000
+#define MT_ST_SETBOOLEANS	0x30000000
+#define MT_ST_CLEARBOOLEANS	0x40000000
 #define MT_ST_WRITE_THRESHOLD	0x20000000
+#define MT_ST_DEF_BLKSIZE	0x50000000
+#define MT_ST_DEF_OPTIONS	0x60000000
+
 #define MT_ST_BUFFER_WRITES	0x1
 #define MT_ST_ASYNC_WRITES	0x2
 #define MT_ST_READ_AHEAD	0x4
 #define MT_ST_DEBUGGING		0x8
 #define MT_ST_TWO_FM		0x10
 #define MT_ST_FAST_MTEOM	0x20
+#define MT_ST_AUTO_LOCK		0x40
+#define MT_ST_DEF_WRITES	0x80
+#define MT_ST_CAN_BSR		0x100
+#define MT_ST_NO_BLKLIMS	0x200
+#define MT_ST_CAN_PARTITIONS    0x400
+#define MT_ST_SCSI2LOGICAL      0x800
+
+/* The mode parameters to be controlled. Parameter chosen with bits 20-28 */
+#define MT_ST_CLEAR_DEFAULT	0xfffff
+#define MT_ST_DEF_DENSITY	(MT_ST_DEF_OPTIONS | 0x100000)
+#define MT_ST_DEF_COMPRESSION	(MT_ST_DEF_OPTIONS | 0x200000)
+#define MT_ST_DEF_DRVBUFFER	(MT_ST_DEF_OPTIONS | 0x300000)
 
 #endif /* _LINUX_MTIO_H */

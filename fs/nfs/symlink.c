@@ -8,12 +8,6 @@
  *  nfs symlink handling code
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/nfs_fs.h>
@@ -21,6 +15,8 @@
 #include <linux/mm.h>
 #include <linux/malloc.h>
 #include <linux/string.h>
+
+#include <asm/uaccess.h>
 
 static int nfs_readlink(struct inode *, char *, int);
 static int nfs_follow_link(struct inode *, struct inode *, int, int,
@@ -42,6 +38,8 @@ struct inode_operations nfs_symlink_inode_operations = {
 	NULL,			/* rename */
 	nfs_readlink,		/* readlink */
 	nfs_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
@@ -111,8 +109,8 @@ static int nfs_readlink(struct inode *inode, char *buffer, int buflen)
 		&res, &len, buflen);
 	iput(inode);
 	if (! error) {
-		memcpy_tofs(buffer, res, len);
-		put_fs_byte('\0', buffer + len);
+		copy_to_user(buffer, res, len);
+		put_user('\0', buffer + len);
 		error = len;
 	}
 	kfree(mem);

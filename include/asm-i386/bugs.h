@@ -11,6 +11,8 @@
  *	void check_bugs(void);
  */
 
+#include <linux/config.h>
+
 #define CONFIG_BUGi386
 
 static void no_halt(char *s, int *ints)
@@ -108,8 +110,24 @@ static void check_hlt(void)
 	printk("Ok.\n");
 }
 
+static void check_tlb(void)
+{
+#ifndef CONFIG_M386
+	/*
+	 * The 386 chips don't support TLB finegrained invalidation.
+	 * They will fault when they hit an invlpg instruction.
+	 */
+	if (x86 == 3) {
+		printk("CPU is a 386 and this kernel was compiled for 486 or better.\n");
+		printk("Giving up.\n");
+		for (;;) ;
+	}
+#endif
+}
+
 static void check_bugs(void)
 {
+	check_tlb();
 	check_fpu();
 	check_hlt();
 	system_utsname.machine[1] = '0' + x86;

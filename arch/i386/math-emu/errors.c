@@ -3,9 +3,9 @@
  |                                                                           |
  |  The error handling functions for wm-FPU-emu                              |
  |                                                                           |
- | Copyright (C) 1992,1993,1994                                              |
- |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ | Copyright (C) 1992,1993,1994,1996                                         |
+ |                  W. Metzenthen, 22 Parker St, Ormond, Vic 3163, Australia |
+ |                  E-mail   billm@jacobi.maths.monash.edu.au                |
  |                                                                           |
  |                                                                           |
  +---------------------------------------------------------------------------*/
@@ -19,7 +19,7 @@
 
 #include <linux/signal.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include "fpu_system.h"
 #include "exception.h"
@@ -46,13 +46,13 @@ void Un_impl(void)
     {
       while ( 1 )
 	{
-	  byte1 = get_fs_byte((unsigned char *) address);
+	  get_user(byte1, (unsigned char *) address);
 	  if ( (byte1 & 0xf8) == 0xd8 ) break;
 	  printk("[%02x]", byte1);
 	  address++;
 	}
       printk("%02x ", byte1);
-      FPU_modrm = get_fs_byte(1 + (unsigned char *) address);
+      get_user(FPU_modrm, 1 + (unsigned char *) address);
       
       if (FPU_modrm >= 0300)
 	printk("%02x (%02x+%d)\n", FPU_modrm, FPU_modrm & 0xf8, FPU_modrm & 7);
@@ -82,10 +82,10 @@ void FPU_illegal(void)
 
 
 
-void emu_printall()
+void emu_printall(void)
 {
   int i;
-  static char *tag_desc[] = { "Valid", "Zero", "ERROR", "ERROR",
+  static const char *tag_desc[] = { "Valid", "Zero", "ERROR", "ERROR",
                               "DeNorm", "Inf", "NaN", "Empty" };
   unsigned char byte1, FPU_modrm;
   unsigned long address = FPU_ORIG_EIP;
@@ -98,7 +98,7 @@ void emu_printall()
 #define MAX_PRINTED_BYTES 20
       for ( i = 0; i < MAX_PRINTED_BYTES; i++ )
 	{
-	  byte1 = get_fs_byte((unsigned char *) address);
+	  get_user(byte1, (unsigned char *) address);
 	  if ( (byte1 & 0xf8) == 0xd8 )
 	    {
 	      printk(" %02x", byte1);
@@ -111,7 +111,7 @@ void emu_printall()
 	printk(" [more..]\n");
       else
 	{
-	  FPU_modrm = get_fs_byte(1 + (unsigned char *) address);
+	  get_user(FPU_modrm, 1 + (unsigned char *) address);
 	  
 	  if (FPU_modrm >= 0300)
 	    printk(" %02x (%02x+%d)\n", FPU_modrm, FPU_modrm & 0xf8, FPU_modrm & 7);
@@ -166,7 +166,8 @@ printk(" CW: ic=%d rc=%ld%ld pc=%ld%ld iem=%d     ef=%d%d%d%d%d%d\n",
   for ( i = 0; i < 8; i++ )
     {
       FPU_REG *r = &st(i);
-      switch (r->tag)
+      char tagi = r->tag;
+      switch (tagi)
 	{
 	case TW_Empty:
 	  continue;
@@ -190,29 +191,20 @@ printk(" CW: ic=%d rc=%ld%ld pc=%ld%ld iem=%d     ef=%d%d%d%d%d%d\n",
 		 r->exp - EXP_BIAS + 1);
 	  break;
 	default:
-	  printk("Whoops! Error in errors.c      ");
+	  printk("Whoops! Error in errors.c: tag%d is %d ", i, tagi);
+	  continue;
 	  break;
 	}
-      printk("%s\n", tag_desc[(int) (unsigned) r->tag]);
+      printk("%s\n", tag_desc[(int) (unsigned) tagi]);
     }
 
-#ifdef OBSOLETE
-  printk("[data] %c .%04lx %04lx %04lx %04lx e%+-6ld ",
-	 FPU_loaded_data.sign ? '-' : '+',
-	 (long)(FPU_loaded_data.sigh >> 16),
-	 (long)(FPU_loaded_data.sigh & 0xFFFF),
-	 (long)(FPU_loaded_data.sigl >> 16),
-	 (long)(FPU_loaded_data.sigl & 0xFFFF),
-	 FPU_loaded_data.exp - EXP_BIAS + 1);
-  printk("%s\n", tag_desc[(int) (unsigned) FPU_loaded_data.tag]);
-#endif OBSOLETE
   RE_ENTRANT_CHECK_ON;
 
 }
 
 static struct {
   int type;
-  char *name;
+  const char *name;
 } exception_names[] = {
   { EX_StackOver, "stack overflow" },
   { EX_StackUnder, "stack underflow" },
@@ -300,7 +292,7 @@ static struct {
 	      0x242  in div_Xsig.S
  */
 
-void exception(int n)
+void FPU_exception(int n)
 {
   int i, int_type;
 
@@ -365,12 +357,8 @@ void exception(int n)
       /*
        * The 80486 generates an interrupt on the next non-control FPU
        * instruction. So we need some means of flagging it.
-       * We use the ES (Error Summary) bit for this, assuming that
-       * this is the way a real FPU does it (until I can check it out),
-       * if not, then some method such as the following kludge might
-       * be needed.
+       * We use the ES (Error Summary) bit for this.
        */
-/*      regs[0].tag |= TW_FPU_Interrupt; */
     }
   RE_ENTRANT_CHECK_ON;
 
@@ -494,7 +482,7 @@ int set_precision_flag(int flags)
     }
   else
     {
-      exception(flags);
+      EXCEPTION(flags);
       return 1;
     }
 }
@@ -506,7 +494,7 @@ asmlinkage void set_precision_flag_up(void)
   if ( control_word & CW_Precision )
     partial_status |= (SW_Precision | SW_C1);   /* The masked response */
   else
-    exception(EX_Precision | SW_C1);
+    EXCEPTION(EX_Precision | SW_C1);
 
 }
 
@@ -520,7 +508,7 @@ asmlinkage void set_precision_flag_down(void)
       partial_status |= SW_Precision;
     }
   else
-    exception(EX_Precision);
+    EXCEPTION(EX_Precision);
 }
 
 
@@ -533,7 +521,7 @@ asmlinkage int denormal_operand(void)
     }
   else
     {
-      exception(EX_Denormal);
+      EXCEPTION(EX_Denormal);
       return 1;
     }
 }
@@ -568,7 +556,7 @@ asmlinkage int arith_overflow(FPU_REG *dest)
       return !(control_word & CW_Precision);
     }
 
-  return !(control_word & CW_Overflow);
+  return 0;
 
 }
 
@@ -599,7 +587,7 @@ asmlinkage int arith_underflow(FPU_REG *dest)
       return !(control_word & CW_Precision);
     }
 
-  return !(control_word & CW_Underflow);
+  return 0;
 
 }
 

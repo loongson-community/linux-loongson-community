@@ -1,5 +1,5 @@
-#ifndef _I386_FCNTL_H
-#define _I386_FCNTL_H
+#ifndef __ASM_MIPS_FCNTL_H
+#define __ASM_MIPS_FCNTL_H
 
 /* open/fcntl - O_SYNC is only implemented on blocks devices and on files
    located on an ext2 file system */
@@ -49,19 +49,14 @@
 				   blocking */
 #define LOCK_UN		8	/* remove lock */
 
-#ifdef __KERNEL__
-#define F_POSIX		1
-#define F_FLOCK		2
-#endif /* __KERNEL__ */
-
 typedef struct flock {
 	short l_type;
 	short l_whence;
-	off_t l_start;
-	off_t l_len;
+	__kernel_off_t l_start;
+	__kernel_off_t l_len;
 	long  l_sysid;			/* XXXXXXXXXXXXXXXXXXXXXXXXX */
-	pid_t l_pid;
+	__kernel_pid_t l_pid;
 	long  pad[4];			/* ZZZZZZZZZZZZZZZZZZZZZZZZZZ */
 } flock_t;
 
-#endif
+#endif /* __ASM_MIPS_FCNTL_H */

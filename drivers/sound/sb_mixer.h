@@ -2,29 +2,16 @@
  * sound/sb_mixer.h
  * 
  * Definitions for the SB Pro and SB16 mixers
- * 
- * Copyright by Hannu Savolainen 1993
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
  *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+
+/*
  * Modified:
  *	Hunyue Yau	Jan 6 1994
  *	Added defines for the Sound Galaxy NX Pro mixer.
@@ -50,9 +37,14 @@
 #define SB16_RECORDING_DEVICES		(SOUND_MASK_SYNTH | SOUND_MASK_LINE | SOUND_MASK_MIC | \
 					 SOUND_MASK_CD)
 
+#define ES688_RECORDING_DEVICES SBPRO_RECORDING_DEVICES
+#define ES688_MIXER_DEVICES (SBPRO_MIXER_DEVICES|SOUND_MASK_LINE2|SOUND_MASK_SPEAKER)
+
 #define SB16_MIXER_DEVICES		(SOUND_MASK_SYNTH | SOUND_MASK_PCM | SOUND_MASK_SPEAKER | SOUND_MASK_LINE | SOUND_MASK_MIC | \
-					 SOUND_MASK_CD | SOUND_MASK_RECLEV | \
-					 SOUND_MASK_VOLUME | SOUND_MASK_BASS | SOUND_MASK_TREBLE)
+					 SOUND_MASK_CD | \
+					 SOUND_MASK_IGAIN | SOUND_MASK_OGAIN | \
+					 SOUND_MASK_VOLUME | SOUND_MASK_BASS | SOUND_MASK_TREBLE | \
+					SOUND_MASK_IMIX)
 
 /*
  * Mixer registers
@@ -102,16 +94,6 @@
 #define LEFT_CHN	0
 #define RIGHT_CHN	1
 
-struct mixer_def {
-	unsigned int regno: 8;
-	unsigned int bitoffs:4;
-	unsigned int nbits:4;
-};
-
-
-typedef struct mixer_def mixer_tab[32][2];
-typedef struct mixer_def mixer_ent;
-
 #define MIX_ENT(name, reg_l, bit_l, len_l, reg_r, bit_r, len_r)	\
 	{{reg_l, bit_l, len_l}, {reg_r, bit_r, len_r}}
 
@@ -130,6 +112,25 @@ MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0)
 };
+mixer_tab es688_mix = {
+MIX_ENT(SOUND_MIXER_VOLUME,	0x32, 7, 4, 0x32, 3, 4),
+MIX_ENT(SOUND_MIXER_BASS,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_TREBLE,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_SYNTH,	0x36, 7, 4, 0x36, 3, 4),
+MIX_ENT(SOUND_MIXER_PCM,	0x14, 7, 4, 0x14, 3, 4),
+MIX_ENT(SOUND_MIXER_SPEAKER,	0x3c, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE,	0x3e, 7, 4, 0x3e, 3, 4),
+MIX_ENT(SOUND_MIXER_MIC,	0x1a, 7, 4, 0x1a, 3, 4),
+MIX_ENT(SOUND_MIXER_CD,		0x38, 7, 4, 0x38, 3, 4),
+MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_IGAIN,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_OGAIN,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE1,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE2,	0x3a, 7, 4, 0x3a, 3, 4),
+MIX_ENT(SOUND_MIXER_LINE3,	0x00, 0, 0, 0x00, 0, 0)
+};
 
 #ifdef	__SGNXPRO__
 mixer_tab sgnxpro_mix = {
@@ -144,7 +145,9 @@ MIX_ENT(SOUND_MIXER_MIC,	0x0a, 2, 3, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_CD,		0x28, 7, 4, 0x28, 3, 4),
 MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
-MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0)
+MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_IGAIN,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_OGAIN,	0x00, 0, 0, 0x00, 0, 0)
 };
 #endif
 
@@ -158,25 +161,61 @@ MIX_ENT(SOUND_MIXER_SPEAKER,	0x3b, 7, 2, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_LINE,	0x38, 7, 5, 0x39, 7, 5),
 MIX_ENT(SOUND_MIXER_MIC,	0x3a, 7, 5, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_CD,		0x36, 7, 5, 0x37, 7, 5),
-MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_IMIX,	0x3c, 0, 1, 0x00, 0, 0),
 MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
-MIX_ENT(SOUND_MIXER_RECLEV,	0x3f, 7, 2, 0x40, 7, 2)
+MIX_ENT(SOUND_MIXER_RECLEV,	0x3f, 7, 2, 0x40, 7, 2), /* Obsolete. Use IGAIN */
+MIX_ENT(SOUND_MIXER_IGAIN,	0x3f, 7, 2, 0x40, 7, 2),
+MIX_ENT(SOUND_MIXER_OGAIN,	0x41, 7, 2, 0x42, 7, 2)
 };
 
-static unsigned short levels[SOUND_MIXER_NRDEVICES] =
+#ifdef SM_GAMES       /* Master volume is lower and PCM & FM volumes
+			     higher than with SB Pro. This improves the
+			     sound quality */
+
+static int default_levels[32] =
 {
-  0x5a5a,			/* Master Volume */
-  0x3232,			/* Bass */
-  0x3232,			/* Treble */
-  0x4b4b,			/* FM */
-  0x4b4b,			/* PCM */
+  0x2020,			/* Master Volume */
+  0x4b4b,			/* Bass */
+  0x4b4b,			/* Treble */
+  0x6464,			/* FM */
+  0x6464,			/* PCM */
   0x4b4b,			/* PC Speaker */
   0x4b4b,			/* Ext Line */
   0x0000,			/* Mic */
   0x4b4b,			/* CD */
   0x4b4b,			/* Recording monitor */
   0x4b4b,			/* SB PCM */
-  0x4b4b};			/* Recording level */
+  0x4b4b,			/* Recording level */
+  0x4b4b,			/* Input gain */
+  0x4b4b,			/* Output gain */
+  0x4040,			/* Line1 */
+  0x4040,			/* Line2 */
+  0x1515			/* Line3 */
+};
+
+#else  /* If the user selected just plain SB Pro */
+
+static int default_levels[32] =
+{
+  0x5a5a,			/* Master Volume */
+  0x4b4b,			/* Bass */
+  0x4b4b,			/* Treble */
+  0x4b4b,			/* FM */
+  0x4b4b,			/* PCM */
+  0x4b4b,			/* PC Speaker */
+  0x4b4b,			/* Ext Line */
+  0x1010,			/* Mic */
+  0x4b4b,			/* CD */
+  0x0000,			/* Recording monitor */
+  0x4b4b,			/* SB PCM */
+  0x4b4b,			/* Recording level */
+  0x4b4b,			/* Input gain */
+  0x4b4b,			/* Output gain */
+  0x4040,			/* Line1 */
+  0x4040,			/* Line2 */
+  0x1515			/* Line3 */
+};
+#endif /* SM_GAMES */
 
 static unsigned char sb16_recmasks_L[SOUND_MIXER_NRDEVICES] =
 {
@@ -191,7 +230,9 @@ static unsigned char sb16_recmasks_L[SOUND_MIXER_NRDEVICES] =
 	0x04,	/* SOUND_MIXER_CD	*/
 	0x00,	/* SOUND_MIXER_IMIX	*/
 	0x00,	/* SOUND_MIXER_ALTPCM	*/
-	0x00	/* SOUND_MIXER_RECLEV	*/
+	0x00,	/* SOUND_MIXER_RECLEV	*/
+	0x00,	/* SOUND_MIXER_IGAIN	*/
+	0x00	/* SOUND_MIXER_OGAIN	*/
 };
 
 static unsigned char sb16_recmasks_R[SOUND_MIXER_NRDEVICES] =
@@ -207,15 +248,38 @@ static unsigned char sb16_recmasks_R[SOUND_MIXER_NRDEVICES] =
 	0x02,	/* SOUND_MIXER_CD	*/
 	0x00,	/* SOUND_MIXER_IMIX	*/
 	0x00,	/* SOUND_MIXER_ALTPCM	*/
-	0x00	/* SOUND_MIXER_RECLEV	*/
+	0x00,	/* SOUND_MIXER_RECLEV	*/
+	0x00,	/* SOUND_MIXER_IGAIN	*/
+	0x00	/* SOUND_MIXER_OGAIN	*/
+};
+
+static char     smw_mix_regs[] =	/* Left mixer registers */
+{
+  0x0b,				/* SOUND_MIXER_VOLUME */
+  0x0d,				/* SOUND_MIXER_BASS */
+  0x0d,				/* SOUND_MIXER_TREBLE */
+  0x05,				/* SOUND_MIXER_SYNTH */
+  0x09,				/* SOUND_MIXER_PCM */
+  0x00,				/* SOUND_MIXER_SPEAKER */
+  0x03,				/* SOUND_MIXER_LINE */
+  0x01,				/* SOUND_MIXER_MIC */
+  0x07,				/* SOUND_MIXER_CD */
+  0x00,				/* SOUND_MIXER_IMIX */
+  0x00,				/* SOUND_MIXER_ALTPCM */
+  0x00,				/* SOUND_MIXER_RECLEV */
+  0x00,				/* SOUND_MIXER_IGAIN */
+  0x00,				/* SOUND_MIXER_OGAIN */
+  0x00,				/* SOUND_MIXER_LINE1 */
+  0x00,				/* SOUND_MIXER_LINE2 */
+  0x00				/* SOUND_MIXER_LINE3 */
 };
 
 /*
  *	Recording sources (SB Pro)
  */
 
-#define SRC_MIC         1	/* Select Microphone recording source */
-#define SRC_CD          3	/* Select CD recording source */
-#define SRC_LINE        7	/* Use Line-in for recording source */
+#define SRC__MIC         1	/* Select Microphone recording source */
+#define SRC__CD          3	/* Select CD recording source */
+#define SRC__LINE        7	/* Use Line-in for recording source */
 
 #endif

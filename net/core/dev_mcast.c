@@ -11,6 +11,8 @@
  *	Fixes:
  *		Alan Cox	:	Update the device on a real delete
  *					rather than any time but...
+ *		Alan Cox	:	IFF_ALLMULTI support.
+ *		Alan Cox	: 	New format set_multicast_list() calls.
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -18,7 +20,7 @@
  *	2 of the License, or (at your option) any later version.
  */
  
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <linux/types.h>
@@ -59,9 +61,6 @@
  
 void dev_mc_upload(struct device *dev)
 {
-	struct dev_mc_list *dmi;
-	char *data, *tmp;
-
 	/* Don't do anything till we up the interface
 	   [dev_open will call this function so the list will
 	    stay sane] */
@@ -69,36 +68,14 @@ void dev_mc_upload(struct device *dev)
 	if(!(dev->flags&IFF_UP))
 		return;
 		
-		
-	/* Devices with no set multicast don't get set */
+	/*
+	 *	Devices with no set multicast don't get set 
+	 */
+	 
 	if(dev->set_multicast_list==NULL)
 		return;
-	/* Promiscuous is promiscuous - so no filter needed */
-	if(dev->flags&IFF_PROMISC)
-	{
-		dev->set_multicast_list(dev, -1, NULL);
-		return;
-	}
-	
-	if(dev->mc_count==0)
-	{
-		dev->set_multicast_list(dev,0,NULL);
-		return;
-	}
-	
-	data=kmalloc(dev->mc_count*dev->addr_len, GFP_KERNEL);
-	if(data==NULL)
-	{
-		printk("Unable to get memory to set multicast list on %s\n",dev->name);
-		return;
-	}
-	for(tmp = data, dmi=dev->mc_list;dmi!=NULL;dmi=dmi->next)
-	{
-		memcpy(tmp,dmi->dmi_addr, dmi->dmi_addrlen);
-		tmp+=dev->addr_len;
-	}
-	dev->set_multicast_list(dev,dev->mc_count,data);
-	kfree(data);
+		
+	dev->set_multicast_list(dev);
 }
   
 /*
@@ -166,4 +143,3 @@ void dev_mc_discard(struct device *dev)
 	}
 	dev->mc_count=0;
 }
-

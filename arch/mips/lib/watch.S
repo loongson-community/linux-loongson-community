@@ -1,15 +1,16 @@
 /*
  * Kernel debug stuff to use the Watch registers.
- * Usefull to find stack overflows etc.
+ * Usefull to find stack overflows, dangeling pointers etc.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995 Ralf Baechle
+ * Copyright (C) 1995, 1996 by Ralf Baechle
  */
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
+#include <asm/regdef.h>
 
 		.set	noreorder
 /*
@@ -19,30 +20,48 @@
  *                     bit #0 to trap on store references
  * Results  : none
  */
-		LEAF(watch_set)
+		LEAF(__watch_set)
 		li	t0,0x80000000
 		subu	a0,t0
 		ori	a0,7
 		xori	a0,7
 		or	a0,a1
 		mtc0	a0,CP0_WATCHLO
+		sw	a0,watch_savelo
 		jr	ra
 		mtc0	zero,CP0_WATCHHI
-		END(watch_set)
-
-/*
- * The stuff below are just some kernel debugging gadgets. It will
- * go away.
- */
+		END(__watch_set)
 
 /*
  * Parameter: none
  * Results  : none
  */
-		LEAF(watch_clear)
+		LEAF(__watch_clear)
 		jr	ra
 		mtc0	zero,CP0_WATCHLO
-		END(watch_clear)
+		END(__watch_clear)
+
+/*
+ * Parameter: none
+ * Results  : none
+ */
+		LEAF(__watch_reenable)
+		lw	t0,watch_savelo
+		jr	ra
+		mtc0	t0,CP0_WATCHLO
+		END(__watch_reenable)
+
+/*
+ * Saved value of the c0_watchlo register for watch_reenable()
+ */
+		.data
+watch_savelo:	.word	0
+		.text
+
+/*
+ * The stuff below are just some kernel debugging gadgets. It is only here
+ * because it had to be somewhere and will go away.
+ */
 
 /*
  * Parameter: none
@@ -75,28 +94,28 @@
  * Parameter: none
  * Results  : none
  */
-		NESTED(print_sp, 24, sp)
-		.mask	0x80000000,16
-		subu	sp,24
-		sw	ra,16(sp)
-		move	a1,sp
+		NESTED(print_sp, ((5*SZREG)+ALSZ)&ALMASK, sp)
+		.mask	0x80000000,4*SZREG
+		PTR_SUBU	sp,((5*SZREG)+ALSZ)&ALMASK
+		REG_S		ra,4*SZREG(sp)
+		move		a1,sp
 		PRINT("$sp == %08lx\n")
-		lw	ra,16(sp)
-		jr	ra
-		addiu	sp,24
+		REG_L		ra,4*SZREG(sp)
+		jr		ra
+		PTR_ADDU	sp,((5*SZREG)+ALSZ)&ALMASK
 		END(print_sp)
 
 /*
  * Parameter: none
  * Results  : none
  */
-		NESTED(print_st, 24, sp)
-		.mask	0x80000000,16
-		subu	sp,24
-		sw	ra,16(sp)
-		mfc0	a1,CP0_STATUS
+		NESTED(print_st, ((5*SZREG)+ALSZ)&ALMASK, sp)
+		.mask	0x80000000,4*SZREG
+		PTR_SUBU	sp,((5*SZREG)+ALSZ)&ALMASK
+		REG_S		ra,4*SZREG(sp)
+		mfc0		a1,CP0_STATUS
 		PRINT("cp0_status == %08lx\n")
-		lw	ra,16(sp)
-		jr	ra
-		addiu	sp,24
+		REG_L		ra,4*SZREG(sp)
+		jr		ra
+		PTR_ADDU	sp,((5*SZREG)+ALSZ)&ALMASK
 		END(print_st)

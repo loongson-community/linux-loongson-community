@@ -4,8 +4,9 @@
  |                                                                           |
  | 64 bit right shift functions                                              |
  |                                                                           |
- | Copyright (C) 1992    W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ | Copyright (C) 1992,1995                                                   |
+ |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
+ |                       Australia.  E-mail billm@jacobi.maths.monash.edu.au |
  |                                                                           |
  | Call from C as:                                                           |
  |   unsigned shrx(void *arg1, unsigned arg2)                                |
@@ -14,11 +15,9 @@
  |                                                                           |
  +---------------------------------------------------------------------------*/
 
-#include "fpu_asm.h"
+#include "fpu_emu.h"
 
 .text
-	.align 2,144
-
 /*---------------------------------------------------------------------------+
  |   unsigned shrx(void *arg1, unsigned arg2)                                |
  |                                                                           |
@@ -33,9 +32,7 @@
  |   Results returned in the 64 bit arg and eax.                             |
  +---------------------------------------------------------------------------*/
 
-	.globl	_shrx
-
-_shrx:
+ENTRY(shrx)
 	push	%ebp
 	movl	%esp,%ebp
 	pushl	%esi
@@ -113,8 +110,7 @@ L_more_than_95:
  |   part which has been shifted out of the arg.                             |
  |   Results returned in the 64 bit arg and eax.                             |
  +---------------------------------------------------------------------------*/
-	.globl	_shrxs
-_shrxs:
+ENTRY(shrxs)
 	push	%ebp
 	movl	%esp,%ebp
 	pushl	%esi

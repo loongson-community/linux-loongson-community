@@ -14,17 +14,21 @@
 	by glee@ardnassak.math.clemson.edu.
   */
 
-static char *version =
+static const char *version =
 	"ac3200.c:v1.01 7/1/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
+
+#include <linux/module.h>
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/string.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+
 #include <asm/system.h>
 #include <asm/io.h>
 
-#include <linux/netdevice.h>
 #include "8390.h"
 
 /* Offsets from the base address. */
@@ -40,11 +44,20 @@ static char *version =
 #define  AC_ENABLE		 0x01
 #define AC_CONFIG		0xC90	/* The configuration port. */
 
+#define AC_IO_EXTENT 0x10		/* IS THIS REALLY TRUE ??? */
+                                /* Actually accessed is:
+								 * AC_NIC_BASE (0-15)
+								 * AC_SA_PROM (0-5)
+								 * AC_ID_PORT (0-3)
+								 * AC_RESET_PORT
+								 * AC_CONFIG
+								 */
+
 /* Decoding of the configuration register. */
 static unsigned char config2irqmap[8] = {15, 12, 11, 10, 9, 7, 5, 3};
 static int addrmap[8] =
 {0xFF0000, 0xFE0000, 0xFD0000, 0xFFF0000, 0xFFE0000, 0xFFC0000,  0xD0000, 0 };
-static char *port_name[4] = { "10baseT", "invalid", "AUI", "10base2"};
+static const char *port_name[4] = { "10baseT", "invalid", "AUI", "10base2"};
 
 #define config2irq(configval)	config2irqmap[((configval) >> 3) & 7]
 #define config2mem(configval)	addrmap[(configval) & 7]
@@ -59,10 +72,13 @@ static int ac_probe1(int ioaddr, struct device *dev);
 
 static int ac_open(struct device *dev);
 static void ac_reset_8390(struct device *dev);
-static int ac_block_input(struct device *dev, int count,
-						  char *buf, int ring_offset);
+static void ac_block_input(struct device *dev, int count,
+					struct sk_buff *skb, int ring_offset);
 static void ac_block_output(struct device *dev, const int count,
 							const unsigned char *buf, const int start_page);
+static void ac_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr,
+					int ring_page);
+
 static int ac_close_card(struct device *dev);
 
 
@@ -81,13 +97,16 @@ int ac3200_probe(struct device *dev)
 	else if (ioaddr > 0)		/* Don't probe at all. */
 		return ENXIO;
 
-	/* If you have a pre-pl15 machine you should delete this line. */
+	/* If you have a pre 0.99pl15 machine you should delete this line. */
 	if ( ! EISA_bus)
 		return ENXIO;
 
-	for (ioaddr = 0x1000; ioaddr < 0x9000; ioaddr += 0x1000)
+	for (ioaddr = 0x1000; ioaddr < 0x9000; ioaddr += 0x1000) {
+		if (check_region(ioaddr, AC_IO_EXTENT))
+			continue;
 		if (ac_probe1(ioaddr, dev) == 0)
 			return 0;
+	}
 
 	return ENODEV;
 }
@@ -118,9 +137,16 @@ static int ac_probe1(int ioaddr, struct device *dev)
 	for (i = 0; i < 4; i++)
 		if (inl(ioaddr + AC_ID_PORT) != AC_EISA_ID) {
 			printk("EISA ID mismatch, %8x vs %8x.\n",
-				   inl(ioaddr + AC_EISA_ID), AC_EISA_ID); 
+				   inl(ioaddr + AC_ID_PORT), AC_EISA_ID); 
 			return ENODEV;
 		}
+
+
+	/* We should have a "dev" from Space.c or the static module table. */
+	if (dev == NULL) {
+		printk("ac3200.c: Passed a NULL device.\n");
+		dev = init_etherdev(0, 0);
+	}
 
 	for(i = 0; i < ETHER_ADDR_LEN; i++)
 		dev->dev_addr[i] = inb(ioaddr + AC_SA_PROM + i);
@@ -132,16 +158,25 @@ static int ac_probe1(int ioaddr, struct device *dev)
 		   inb(ioaddr + AC_ID_PORT + 2), inb(ioaddr + AC_ID_PORT + 3));
 #endif
 
-	/* Assign and snarf the interrupt now. */
+	/* Assign and allocate the interrupt now. */
 	if (dev->irq == 0)
 		dev->irq = config2irq(inb(ioaddr + AC_CONFIG));
 	else if (dev->irq == 2)
 		dev->irq = 9;
 
-	if (request_irq(dev->irq, ei_interrupt, 0, "ac3200")) {
+	if (request_irq(dev->irq, ei_interrupt, 0, "ac3200", NULL)) {
 		printk (" unable to get IRQ %d.\n", dev->irq);
-		return 0;
+		return EAGAIN;
 	}
+
+	/* Allocate dev->priv and fill in 8390 specific dev fields. */
+	if (ethdev_init(dev)) {
+		printk (" unable to allocate memory for dev->priv.\n");
+		free_irq(dev->irq, NULL);
+		return -ENOMEM;
+	}
+
+	request_region(ioaddr, AC_IO_EXTENT, "ac3200");
 
 	dev->base_addr = ioaddr;
 
@@ -162,8 +197,6 @@ static int ac_probe1(int ioaddr, struct device *dev)
 	dev->mem_end = dev->rmem_end = dev->mem_start
 		+ (AC_STOP_PG - AC_START_PG)*256;
 
-	ethdev_init(dev);
-
 	ei_status.name = "AC3200";
 	ei_status.tx_start_page = AC_START_PG;
 	ei_status.rx_start_page = AC_START_PG + TX_PAGES;
@@ -180,6 +213,7 @@ static int ac_probe1(int ioaddr, struct device *dev)
 	ei_status.reset_8390 = &ac_reset_8390;
 	ei_status.block_input = &ac_block_input;
 	ei_status.block_output = &ac_block_output;
+	ei_status.get_8390_hdr = &ac_get_8390_hdr;
 
 	dev->open = &ac_open;
 	dev->stop = &ac_close_card;
@@ -193,11 +227,15 @@ static int ac_open(struct device *dev)
 	/* Someday we may enable the IRQ and shared memory here. */
 	int ioaddr = dev->base_addr;
 
-	if (request_irq(dev->irq, ei_interrupt, 0, "ac3200"))
+	if (request_irq(dev->irq, ei_interrupt, 0, "ac3200", NULL))
 		return -EAGAIN;
 #endif
 
-	return ei_open(dev);
+	ei_open(dev);
+
+	MOD_INC_USE_COUNT;
+
+	return 0;
 }
 
 static void ac_reset_8390(struct device *dev)
@@ -214,33 +252,43 @@ static void ac_reset_8390(struct device *dev)
 	return;
 }
 
+/* Grab the 8390 specific header. Similar to the block_input routine, but
+   we don't need to be concerned with ring wrap as the header will be at
+   the start of a page, so we optimize accordingly. */
+
+static void
+ac_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr, int ring_page)
+{
+	unsigned long hdr_start = dev->mem_start + ((ring_page - AC_START_PG)<<8);
+	memcpy_fromio(hdr, hdr_start, sizeof(struct e8390_pkt_hdr));
+}
+
 /*  Block input and output are easy on shared memory ethercards, the only
 	complication is when the ring buffer wraps. */
 
-static int ac_block_input(struct device *dev, int count, char *buf,
+static void ac_block_input(struct device *dev, int count, struct sk_buff *skb,
 						  int ring_offset)
 {
-	long xfer_start = dev->mem_start + ring_offset - (AC_START_PG<<8);
+	unsigned long xfer_start = dev->mem_start + ring_offset - (AC_START_PG<<8);
 
 	if (xfer_start + count > dev->rmem_end) {
 		/* We must wrap the input move. */
 		int semi_count = dev->rmem_end - xfer_start;
-		memcpy(buf, (char*)xfer_start, semi_count);
+		memcpy_fromio(skb->data, xfer_start, semi_count);
 		count -= semi_count;
-		memcpy(buf + semi_count, (char *)dev->rmem_start, count);
-		return dev->rmem_start + count;
+		memcpy_fromio(skb->data + semi_count, dev->rmem_start, count);
+	} else {
+		/* Packet is in one chunk -- we can copy + cksum. */
+		eth_io_copy_and_sum(skb, xfer_start, count, 0);
 	}
-	memcpy(buf, (char*)xfer_start, count);
-
-	return ring_offset + count;
 }
 
 static void ac_block_output(struct device *dev, int count,
 							const unsigned char *buf, int start_page)
 {
-	long shmem = dev->mem_start + ((start_page - AC_START_PG)<<8);
+	unsigned long shmem = dev->mem_start + ((start_page - AC_START_PG)<<8);
 
-	memcpy((unsigned char *)shmem, buf, count);
+	memcpy_toio(shmem, buf, count);
 }
 
 static int ac_close_card(struct device *dev)
@@ -254,15 +302,78 @@ static int ac_close_card(struct device *dev)
 #ifdef notyet
 	/* We should someday disable shared memory and interrupts. */
 	outb(0x00, ioaddr + 6);	/* Disable interrupts. */
-	free_irq(dev->irq);
+	free_irq(dev->irq, NULL);
 	irq2dev_map[dev->irq] = 0;
 #endif
 
-	NS8390_init(dev, 0);
+	ei_close(dev);
+
+	MOD_DEC_USE_COUNT;
 
 	return 0;
 }
 
+#ifdef MODULE
+#define MAX_AC32_CARDS	4	/* Max number of AC32 cards per module */
+#define NAMELEN		8	/* # of chars for storing dev->name */
+static char namelist[NAMELEN * MAX_AC32_CARDS] = { 0, };
+static struct device dev_ac32[MAX_AC32_CARDS] = {
+	{
+		NULL,		/* assign a chunk of namelist[] below */
+		0, 0, 0, 0,
+		0, 0,
+		0, 0, 0, NULL, NULL
+	},
+};
+
+static int io[MAX_AC32_CARDS] = { 0, };
+static int irq[MAX_AC32_CARDS]  = { 0, };
+static int mem[MAX_AC32_CARDS] = { 0, };
+
+int
+init_module(void)
+{
+	int this_dev, found = 0;
+
+	for (this_dev = 0; this_dev < MAX_AC32_CARDS; this_dev++) {
+		struct device *dev = &dev_ac32[this_dev];
+		dev->name = namelist+(NAMELEN*this_dev);
+		dev->irq = irq[this_dev];
+		dev->base_addr = io[this_dev];
+		dev->mem_start = mem[this_dev];		/* Currently ignored by driver */
+		dev->init = ac3200_probe;
+		/* Default is to only install one card. */
+		if (io[this_dev] == 0 && this_dev != 0) break;
+		if (register_netdev(dev) != 0) {
+			printk(KERN_WARNING "ac3200.c: No ac3200 card found (i/o = 0x%x).\n", io[this_dev]);
+			if (found != 0) return 0;	/* Got at least one. */
+			return -ENXIO;
+		}
+		found++;
+	}
+
+	return 0;
+}
+
+void
+cleanup_module(void)
+{
+	int this_dev;
+
+	for (this_dev = 0; this_dev < MAX_AC32_CARDS; this_dev++) {
+		struct device *dev = &dev_ac32[this_dev];
+		if (dev->priv != NULL) {
+			kfree(dev->priv);
+			dev->priv = NULL;
+			/* Someday free_irq + irq2dev may be in ac_close_card() */
+			free_irq(dev->irq, NULL);
+			irq2dev_map[dev->irq] = NULL;
+			release_region(dev->base_addr, AC_IO_EXTENT);
+			unregister_netdev(dev);
+		}
+	}
+}
+#endif /* MODULE */
 
 /*
  * Local variables:

@@ -17,21 +17,22 @@ extern __inline__ unsigned long set_bit(unsigned long nr, void * addr)
 {
 	unsigned long oldbit;
 	unsigned long temp;
+	unsigned int * m = ((unsigned int *) addr) + (nr >> 5);
 
 	__asm__ __volatile__(
 		"\n1:\t"
-		"ldq_l %0,%1\n\t"
+		"ldl_l %0,%1\n\t"
 		"and %0,%3,%2\n\t"
 		"bne %2,2f\n\t"
 		"xor %0,%3,%0\n\t"
-		"stq_c %0,%1\n\t"
+		"stl_c %0,%1\n\t"
 		"beq %0,1b\n"
 		"2:"
 		:"=&r" (temp),
-		 "=m" (((unsigned long *) addr)[nr >> 6]),
+		 "=m" (*m),
 		 "=&r" (oldbit)
-		:"r" (1UL << (nr & 63)),
-		 "m" (((unsigned long *) addr)[nr >> 6]));
+		:"Ir" (1UL << (nr & 31)),
+		 "m" (*m));
 	return oldbit != 0;
 }
 
@@ -39,21 +40,22 @@ extern __inline__ unsigned long clear_bit(unsigned long nr, void * addr)
 {
 	unsigned long oldbit;
 	unsigned long temp;
+	unsigned int * m = ((unsigned int *) addr) + (nr >> 5);
 
 	__asm__ __volatile__(
 		"\n1:\t"
-		"ldq_l %0,%1\n\t"
+		"ldl_l %0,%1\n\t"
 		"and %0,%3,%2\n\t"
 		"beq %2,2f\n\t"
 		"xor %0,%3,%0\n\t"
-		"stq_c %0,%1\n\t"
+		"stl_c %0,%1\n\t"
 		"beq %0,1b\n"
 		"2:"
 		:"=&r" (temp),
-		 "=m" (((unsigned long *) addr)[nr >> 6]),
+		 "=m" (*m),
 		 "=&r" (oldbit)
-		:"r" (1UL << (nr & 63)),
-		 "m" (((unsigned long *) addr)[nr >> 6]));
+		:"Ir" (1UL << (nr & 31)),
+		 "m" (*m));
 	return oldbit != 0;
 }
 
@@ -61,54 +63,57 @@ extern __inline__ unsigned long change_bit(unsigned long nr, void * addr)
 {
 	unsigned long oldbit;
 	unsigned long temp;
+	unsigned int * m = ((unsigned int *) addr) + (nr >> 5);
 
 	__asm__ __volatile__(
 		"\n1:\t"
-		"ldq_l %0,%1\n\t"
+		"ldl_l %0,%1\n\t"
 		"and %0,%3,%2\n\t"
 		"xor %0,%3,%0\n\t"
-		"stq_c %0,%1\n\t"
+		"stl_c %0,%1\n\t"
 		"beq %0,1b\n"
 		:"=&r" (temp),
-		 "=m" (((unsigned long *) addr)[nr >> 6]),
+		 "=m" (*m),
 		 "=&r" (oldbit)
-		:"r" (1UL << (nr & 63)),
-		 "m" (((unsigned long *) addr)[nr >> 6]));
+		:"Ir" (1UL << (nr & 31)),
+		 "m" (*m));
 	return oldbit != 0;
 }
 
-extern __inline__ unsigned long test_bit(int nr, void * addr)
+extern __inline__ unsigned long test_bit(int nr, const void * addr)
 {
-	return 1UL & (((unsigned long *) addr)[nr >> 6] >> (nr & 63));
+	return 1UL & (((const int *) addr)[nr >> 5] >> (nr & 31));
 }
 
 /*
  * ffz = Find First Zero in word. Undefined if no zero exists,
  * so code should check against ~0UL first..
  *
- * This uses the cmpbge insn to check which byte contains the zero.
- * I don't know if that's actually a good idea, but it's fun and the
- * resulting LBS tests should be natural on the alpha.. Besides, I'm
- * just teaching myself the asm of the alpha anyway.
+ * Do a binary search on the bits.  Due to the nature of large
+ * constants on the alpha, it is worthwhile to split the search.
  */
+extern inline unsigned long ffz_b(unsigned long x)
+{
+	unsigned long sum = 0;
+
+	x = ~x & -~x;		/* set first 0 bit, clear others */
+	if (x & 0xF0) sum += 4;
+	if (x & 0xCC) sum += 2;
+	if (x & 0xAA) sum += 1;
+
+	return sum;
+}
+
 extern inline unsigned long ffz(unsigned long word)
 {
-	unsigned long result = 0;
-	unsigned long tmp;
+	unsigned long bits, qofs, bofs;
 
-	__asm__("cmpbge %1,%0,%0"
-		:"=r" (tmp)
-		:"r" (word), "0" (~0UL));
-	while (tmp & 1) {
-		word >>= 8;
-		tmp >>= 1;
-		result += 8;
-	}
-	while (word & 1) {
-		result++;
-		word >>= 1;
-	}
-	return result;
+	__asm__("cmpbge %1,%2,%0" : "=r"(bits) : "r"(word), "r"(~0UL));
+	qofs = ffz_b(bits);
+	__asm__("extbl %1,%2,%0" : "=r"(bits) : "r"(word), "r"(qofs));
+	bofs = ffz_b(bits);
+
+	return qofs*8 + bofs;
 }
 
 /*
@@ -154,5 +159,15 @@ found_middle:
  */
 #define find_first_zero_bit(addr, size) \
 	find_next_zero_bit((addr), (size), 0)
+
+#ifdef __KERNEL__
+
+#define ext2_set_bit                 set_bit
+#define ext2_clear_bit               clear_bit
+#define ext2_test_bit                test_bit
+#define ext2_find_first_zero_bit     find_first_zero_bit
+#define ext2_find_next_zero_bit      find_next_zero_bit
+
+#endif /* __KERNEL__ */
 
 #endif /* _ALPHA_BITOPS_H */

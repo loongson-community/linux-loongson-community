@@ -28,10 +28,10 @@
 	response to inb()s from other device probes!
 */
 
-static char *version =
+static const char *version =
 	"at1700.c:v1.12 1/18/95  Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
-#include <linux/config.h>
+#include <linux/module.h>
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -52,8 +52,6 @@ static char *version =
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-extern struct device *init_etherdev(struct device *dev, int sizeof_private,
-									unsigned long *mem_startp);
 
 /* This unusual address order is used to verify the CONFIG register. */
 static int at1700_probe_list[] =
@@ -119,11 +117,11 @@ static int at1700_probe1(struct device *dev, short ioaddr);
 static int read_eeprom(int ioaddr, int location);
 static int net_open(struct device *dev);
 static int	net_send_packet(struct sk_buff *skb, struct device *dev);
-static void net_interrupt(int irq, struct pt_regs *regs);
+static void net_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void net_rx(struct device *dev);
 static int net_close(struct device *dev);
 static struct enet_statistics *net_get_stats(struct device *dev);
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
+static void set_multicast_list(struct device *dev);
 
 
 /* Check for a network adaptor of this type, and return '0' iff one exists.
@@ -133,7 +131,7 @@ static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
    (detachable devices only).
    */
 #ifdef HAVE_DEVLIST
-/* Support for a alternate probe manager, which will eliminate the
+/* Support for an alternate probe manager, which will eliminate the
    boilerplate below. */
 struct netdev_entry at1700_drv =
 {"at1700", at1700_probe1, AT1700_IO_EXTENT, at1700_probe_list};
@@ -184,7 +182,7 @@ int at1700_probe1(struct device *dev, short ioaddr)
 #endif
 	if (at1700_probe_list[inb(ioaddr + IOCONFIG) & 0x07] != ioaddr
 		|| read_eeprom(ioaddr, 4) != 0x0000
-		|| read_eeprom(ioaddr, 5) & 0xff00 != 0xF400)
+		|| (read_eeprom(ioaddr, 5) & 0xff00) != 0xF400)
 		return -ENODEV;
 
 	/* Reset the internal state machines. */
@@ -194,7 +192,7 @@ int at1700_probe1(struct device *dev, short ioaddr)
 				 | (read_eeprom(ioaddr, 0)>>14)];
 
 	/* Snarf the interrupt vector now. */
-	if (request_irq(irq, &net_interrupt, 0, "at1700")) {
+	if (request_irq(irq, &net_interrupt, 0, "at1700", NULL)) {
 		printk ("AT1700 found at %#3x, but it's unusable due to a conflict on"
 				"IRQ %d.\n", ioaddr, irq);
 		return EAGAIN;
@@ -202,7 +200,7 @@ int at1700_probe1(struct device *dev, short ioaddr)
 
 	/* Allocate a new 'dev' if needed. */
 	if (dev == NULL)
-		dev = init_etherdev(0, sizeof(struct net_local), 0);
+		dev = init_etherdev(0, sizeof(struct net_local));
 
 	/* Grab the region so that we can find another board if the IRQ request
 	   fails. */
@@ -228,7 +226,7 @@ int at1700_probe1(struct device *dev, short ioaddr)
 	   0x1800 == use coax interface
 	   */
 	{
-		char *porttype[] = {"auto-sense", "10baseT", "auto-sense", "10base2"};
+		const char *porttype[] = {"auto-sense", "10baseT", "auto-sense", "10base2"};
 		ushort setup_value = read_eeprom(ioaddr, 12);
 
 		dev->if_port = setup_value >> 8;
@@ -260,8 +258,9 @@ int at1700_probe1(struct device *dev, short ioaddr)
 		printk(version);
 
 	/* Initialize the device structure. */
+	dev->priv = kmalloc(sizeof(struct net_local), GFP_KERNEL);
 	if (dev->priv == NULL)
-		dev->priv = kmalloc(sizeof(struct net_local), GFP_KERNEL);
+		return -ENOMEM;
 	memset(dev->priv, 0, sizeof(struct net_local));
 
 	dev->open		= net_open;
@@ -356,6 +355,8 @@ static int net_open(struct device *dev)
 	dev->interrupt = 0;
 	dev->start = 1;
 
+	MOD_INC_USE_COUNT;
+
 	return 0;
 }
 
@@ -439,7 +440,7 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 /* The typical workload of the driver:
    Handle the network interface interrupts. */
 static void
-net_interrupt(int irq, struct pt_regs *regs)
+net_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
@@ -527,7 +528,7 @@ net_rx(struct device *dev)
 				lp->stats.rx_errors++;
 				break;
 			}
-			skb = alloc_skb(pkt_len+1, GFP_ATOMIC);
+			skb = dev_alloc_skb(pkt_len+3);
 			if (skb == NULL) {
 				printk("%s: Memory squeeze, dropping packet (len %d).\n",
 					   dev->name, pkt_len);
@@ -537,10 +538,10 @@ net_rx(struct device *dev)
 				lp->stats.rx_dropped++;
 				break;
 			}
-			skb->len = pkt_len;
 			skb->dev = dev;
+			skb_reserve(skb,2);
 
-			insw(ioaddr + DATAPORT, skb->data, (pkt_len + 1) >> 1);
+			insw(ioaddr + DATAPORT, skb_put(skb,pkt_len), (pkt_len + 1) >> 1);
 			skb->protocol=eth_type_trans(skb, dev);
 			netif_rx(skb);
 			lp->stats.rx_packets++;
@@ -571,7 +572,6 @@ net_rx(struct device *dev)
 /* The inverse routine to net_open(). */
 static int net_close(struct device *dev)
 {
-	struct net_local *lp = (struct net_local *)dev->priv;
 	int ioaddr = dev->base_addr;
 
 	dev->tbusy = 1;
@@ -584,6 +584,8 @@ static int net_close(struct device *dev)
 
 	/* Power-down the chip.  Green, green, green! */
 	outb(0x00, ioaddr + CONFIG_1);
+
+	MOD_DEC_USE_COUNT;
 
 	return 0;
 }
@@ -609,14 +611,60 @@ net_get_stats(struct device *dev)
 			best-effort filtering.
  */
 static void
-set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+set_multicast_list(struct device *dev)
 {
 	short ioaddr = dev->base_addr;
-	if (num_addrs) {
+	if (dev->mc_count || dev->flags&(IFF_PROMISC|IFF_ALLMULTI)) 
+	{
+		/*
+		 *	We must make the kernel realise we had to move
+		 *	into promisc mode or we start all out war on
+		 *	the cable. - AC
+		 */
+		dev->flags|=IFF_PROMISC;		
+	
 		outb(3, ioaddr + RX_MODE);	/* Enable promiscuous mode */
-	} else
+	} 
+	else
 		outb(2, ioaddr + RX_MODE);	/* Disable promiscuous, use normal mode */
 }
+#ifdef MODULE
+static char devicename[9] = { 0, };
+static struct device dev_at1700 = {
+	devicename, /* device name is inserted by linux/drivers/net/net_init.c */
+	0, 0, 0, 0,
+	0, 0,
+	0, 0, 0, NULL, at1700_probe };
+
+static int io = 0x260;
+static int irq = 0;
+
+int init_module(void)
+{
+	if (io == 0)
+		printk("at1700: You should not use auto-probing with insmod!\n");
+	dev_at1700.base_addr = io;
+	dev_at1700.irq       = irq;
+	if (register_netdev(&dev_at1700) != 0) {
+		printk("at1700: register_netdev() returned non-zero.\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+void
+cleanup_module(void)
+{
+	unregister_netdev(&dev_at1700);
+	kfree(dev_at1700.priv);
+	dev_at1700.priv = NULL;
+
+	/* If we don't do this, we can't re-insmod it later. */
+	free_irq(dev_at1700.irq, NULL);
+	irq2dev_map[dev_at1700.irq] = NULL;
+	release_region(dev_at1700.base_addr, AT1700_IO_EXTENT);
+}
+#endif /* MODULE */
 
 /*
  * Local variables:

@@ -1,16 +1,16 @@
 #ifndef _LINUX_HDREG_H
 #define _LINUX_HDREG_H
 
-#include <linux/config.h>
-
 /*
  * This file contains some defines for the AT-hd-controller.
- * Various sources. Check out some definitions (see comments with
- * a ques).
+ * Various sources.  
  */
 
+#define HD_IRQ 14		/* the standard disk interrupt */
+
+/* ide.c has its own port definitions in "ide.h" */
+
 /* Hd controller regs. Ref: IBM AT Bios-listing */
-/* For a second IDE interface, xor all addresses with 0x80 */
 #define HD_DATA		0x1f0	/* _CTL when writing */
 #define HD_ERROR	0x1f1	/* see err-bits */
 #define HD_NSECTOR	0x1f2	/* nr of sectors to read/write */
@@ -25,6 +25,8 @@
 
 #define HD_CMD		0x3f6	/* used for resets */
 #define HD_ALTSTATUS	0x3f6	/* same as HD_STATUS but doesn't clear irq */
+
+/* remainder is shared between hd.c, ide.c, ide-cd.c, and the hdparm utility */
 
 /* Bits of HD_STATUS */
 #define ERR_STAT	0x01
@@ -45,16 +47,25 @@
 #define WIN_INIT		0x60
 #define WIN_SEEK 		0x70
 #define WIN_DIAGNOSE		0x90
-#define WIN_SPECIFY		0x91
+#define WIN_SPECIFY		0x91	/* set drive geometry translation */
 #define WIN_SETIDLE1		0xE3
 #define WIN_SETIDLE2		0x97
 
-#define WIN_PIDENTIFY		0xA1	/* identify ATA-PI device	*/
-#define WIN_MULTREAD		0xC4	/* read multiple sectors	*/
-#define WIN_MULTWRITE		0xC5	/* write multiple sectors	*/
-#define WIN_SETMULT		0xC6	/* enable read multiple		*/
+#define WIN_DOORLOCK		0xde	/* lock door on removable drives */
+#define WIN_DOORUNLOCK		0xdf	/* unlock door on removable drives */
+
+#define WIN_MULTREAD		0xC4	/* read sectors using multiple mode */
+#define WIN_MULTWRITE		0xC5	/* write sectors using multiple mode */
+#define WIN_SETMULT		0xC6	/* enable/disable multiple mode */
 #define WIN_IDENTIFY		0xEC	/* ask drive to identify itself	*/
-#define WIN_SETFEATURES		0xEF	/* set special drive features   */
+#define WIN_SETFEATURES		0xEF	/* set special drive features */
+#define WIN_READDMA		0xc8	/* read sectors using DMA transfers */
+#define WIN_WRITEDMA		0xca	/* write sectors using DMA transfers */
+
+/* Additional drive command codes used by ATAPI devices. */
+#define WIN_PIDENTIFY		0xA1	/* identify ATAPI device	*/
+#define WIN_SRST		0x08	/* ATAPI soft reset command */
+#define WIN_PACKETCMD		0xa0	/* Send a packet command. */
 
 /* Bits for HD_ERROR */
 #define MARK_ERR	0x01	/* Bad address mark */
@@ -71,21 +82,26 @@ struct hd_geometry {
       unsigned long start;
 };
 
-/* hd/ide ctl's that pass (arg) ptrs to user space are numbered 0x30n/0x31n */
-#define HDIO_GETGEO		0x301	/* get device geometry */
-#define HDIO_REQ		HDIO_GETGEO	/* obsolete, use HDIO_GETGEO */
-#define HDIO_GET_UNMASKINTR	0x302	/* get current unmask setting */
-#define HDIO_GET_MULTCOUNT	0x304	/* get current IDE blockmode setting */
-#define HDIO_GET_IDENTITY 	0x307	/* get IDE identification info */
-#define HDIO_GET_KEEPSETTINGS 	0x308	/* get keep-settings-on-reset flag */
-#define HDIO_GET_CHIPSET	0x309	/* get current interface type setting */
-#define HDIO_DRIVE_CMD		0x31f	/* execute a special drive command */
+/* hd/ide ctl's that pass (arg) ptrs to user space are numbered 0x030n/0x031n */
+#define HDIO_GETGEO		0x0301	/* get device geometry */
+#define HDIO_GET_UNMASKINTR	0x0302	/* get current unmask setting */
+#define HDIO_GET_MULTCOUNT	0x0304	/* get current IDE blockmode setting */
+#define HDIO_GET_IDENTITY 	0x0307	/* get IDE identification info */
+#define HDIO_GET_KEEPSETTINGS 	0x0308	/* get keep-settings-on-reset flag */
+#define HDIO_GET_32BIT 		0x0309	/* get current io_32bit setting */
+#define HDIO_GET_NOWERR		0x030a	/* get ignore-write-error flag */
+#define HDIO_GET_DMA		0x030b	/* get use-dma flag */
+#define HDIO_DRIVE_CMD		0x031f	/* execute a special drive command */
 
-/* hd/ide ctl's that pass (arg) non-ptr values are numbered 0x32n/0x33n */
-#define HDIO_SET_MULTCOUNT	0x321	/* set IDE blockmode */
-#define HDIO_SET_UNMASKINTR	0x322	/* permit other irqs during I/O */
-#define HDIO_SET_KEEPSETTINGS	0x323	/* keep ioctl settings on reset */
-#define HDIO_SET_CHIPSET	0x324	/* optimise driver for interface type */
+/* hd/ide ctl's that pass (arg) non-ptr values are numbered 0x032n/0x033n */
+#define HDIO_SET_MULTCOUNT	0x0321	/* change IDE blockmode */
+#define HDIO_SET_UNMASKINTR	0x0322	/* permit other irqs during I/O */
+#define HDIO_SET_KEEPSETTINGS	0x0323	/* keep ioctl settings on reset */
+#define HDIO_SET_32BIT		0x0324	/* change io_32bit flags */
+#define HDIO_SET_NOWERR		0x0325	/* change ignore-write-error flag */
+#define HDIO_SET_DMA		0x0326	/* change use-dma flag */
+#define HDIO_SET_PIO_MODE	0x0327	/* reconfig interface to new speed */
+#define HDIO_SCAN_HWIF		0x0328	/* register and (re)scan interface */
 
 /* structure returned by HDIO_GET_IDENTITY, as per ANSI ATA2 rev.2f spec */
 struct hd_driveid {
@@ -138,18 +154,25 @@ struct hd_driveid {
 	/* unsigned short reservedyy[96];*/	/* reserved (words 160-255) */
 };
 
+#ifdef __KERNEL__
 /*
  * These routines are used for kernel command line parameters from main.c:
  */
+#include <linux/config.h>
+
 #ifdef CONFIG_BLK_DEV_HD
 void hd_setup(char *, int *);
 #endif	/* CONFIG_BLK_DEV_HD */
+
 #ifdef CONFIG_BLK_DEV_IDE
-void ide_setup(char *, int *);
-void hda_setup(char *, int *);
-void hdb_setup(char *, int *);
-void hdc_setup(char *, int *);
-void hdd_setup(char *, int *);
+void ide_setup(char *);
 #endif	/* CONFIG_BLK_DEV_IDE */
+
+#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
+int ide_register(int io_port, int ctl_port, int irq);
+void ide_unregister(unsigned int);
+#endif /* CONFIG_BLK_DEV_IDE || CONFIG_BLK_DEV_IDE_MODULE */
+
+#endif  /* __KERNEL__ */
 
 #endif	/* _LINUX_HDREG_H */

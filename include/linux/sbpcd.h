@@ -5,22 +5,28 @@
 /*
  * Attention! This file contains user-serviceable parts!
  * I recommend to make use of it...
+ * If you feel helpless, look into linux/Documentation/cdrom/sbpcd
+ * (good idea anyway, at least before mailing me).
  *
  * The definitions for the first controller can get overridden by
  * the kernel command line ("lilo boot option").
  * Examples:
- *                                 sbpcd=0x230,SoundBlaster
- *                             or
  *                                 sbpcd=0x300,LaserMate
  *                             or
- *                                 sbpcd=0x330,SPEA
+ *                                 sbpcd=0x230,SoundBlaster
+ *                             or
+ *                                 sbpcd=0x338,SoundScape
+ *                             or
+ *                                 sbpcd=0x2C0,Teac16bit
  *
  * If sbpcd gets used as a module, you can load it with
- *     insmod /usr/src/linux/modules/sbpcd.o sbpcd=0x230,1
+ *     insmod sbpcd.o sbpcd=0x300,0
  * or
- *     insmod /usr/src/linux/modules/sbpcd.o sbpcd=0x300,0
+ *     insmod sbpcd.o sbpcd=0x230,1
  * or
- *     insmod /usr/src/linux/modules/sbpcd.o sbpcd=0x330,2
+ *     insmod sbpcd.o sbpcd=0x338,2
+ * or
+ *     insmod sbpcd.o sbpcd=0x2C0,3
  * respective to override the configured address and type.
  */
 
@@ -28,35 +34,36 @@
  * define your CDROM port base address as CDROM_PORT
  * and specify the type of your interface card as SBPRO.
  *
- * Read linux/drivers/block/README.sbpcd if you are in doubt about the
- * type of your interface card (you should do that anyway).
- *
  * address:
  * ========
  * SBPRO type addresses typically are 0x0230 (=0x220+0x10), 0x0250, ...
  * LASERMATE type (CI-101P, WDH-7001C) addresses typically are 0x0300, ...
- * SPEA addresses are from the LASERMATE type and range.
+ * SOUNDSCAPE addresses are from the LASERMATE type and range. You have to
+ * specify the REAL address here, not the configuration port address. Look
+ * at the CDROM driver's invoking line within your DOS CONFIG.SYS, or let
+ * sbpcd auto-probe, if you are not firm with the address.
  * There are some soundcards on the market with 0x0630, 0x0650, ...; their
  * type is not obvious (both types are possible).
  *
  * example: if your SBPRO audio address is 0x220, specify 0x230 and SBPRO 1.
  *          if your soundcard has its CDROM port above 0x300, specify
  *          that address and try SBPRO 0 first.
+ *          if your SoundScape configuration port is at 0x330, specify
+ *          0x338 and SBPRO 2.
  *
  * interface type:
  * ===============
  * set SBPRO to 1 for "true" SoundBlaster card
  * set SBPRO to 0 for "compatible" soundcards and
  *                for "poor" (no sound) interface cards.
- * set SBPRO to 2 for the SPEA Media FX card
+ * set SBPRO to 2 for Ensonic SoundScape or SPEA Media FX cards
+ * set SBPRO to 3 for Teac 16bit interface cards
  *
  * Almost all "compatible" sound boards need to set SBPRO to 0.
  * If SBPRO is set wrong, the drives will get found - but any
  * data access will give errors (audio access will work).
- * The "OmniCD" no-sound interface card from CreativeLabs needs SBPRO 1.
- *
- * mail to emoenke@gwdg.de if you have a "compatible" sound card which
- * in fact needs to set SBPRO to 1 (not any known at time).
+ * The "OmniCD" no-sound interface card from CreativeLabs and most Teac
+ * interface cards need SBPRO 1.
  *
  * sound base:
  * ===========
@@ -80,7 +87,7 @@
 #define SOUND_BASE 0x000 /* <-----------<< sound address of this card or 0   */
 #endif
 #if !(SBPCD_ISSUE-3)     /* ===================== third interface board: === */
-#define CDROM_PORT 0x634 /* <-----------<< port address                      */
+#define CDROM_PORT 0x630 /* <-----------<< port address                      */
 #define SBPRO      1     /* <-----------<< interface type                    */
 #define MAX_DRIVES 4     /* set to 1 if the card does not use "drive select" */
 #define SOUND_BASE 0x240 /* <-----------<< sound address of this card or 0   */
@@ -96,38 +103,85 @@
  * some more or less user dependent definitions - service them!
  */
 
-/* Set this to 0 after you have configured your interface definitions right. */
+/* Set this to 0 once you have configured your interface definitions right. */
 #define DISTRIBUTION 1
+
+/*
+ * Time to wait after giving a message.
+ * This gets important if you enable non-standard DBG_xxx flags.
+ * You will see what happens if you omit the pause or make it
+ * too short. Be warned!
+ */
+#define KLOGD_PAUSE 1
+
+/* tray control: eject tray if no disk is in */
+#if DISTRIBUTION
+#define JUKEBOX 0
+#else
+#define JUKEBOX 1
+#endif DISTRIBUTION
+
+/* tray control: eject tray after last use */
+#if DISTRIBUTION
+#define EJECT 0
+#else
+#define EJECT 1
+#endif DISTRIBUTION
 
 /* max. number of audio frames to read with one     */
 /* request (allocates n* 2352 bytes kernel memory!) */
 /* may be freely adjusted, f.e. 75 (= 1 sec.), at   */
 /* runtime by use of the CDROMAUDIOBUFSIZ ioctl.    */
-#define READ_AUDIO 0 
+#define READ_AUDIO 0
 
-/* tray control: eject tray if no disk is in (0 or 1) */
-#define JUKEBOX 1
-
-/* tray control: eject tray after last use (0 or 1) */
-#define EJECT 1
+/* Optimizations for the Teac CD-55A drive read performance.
+ * SBP_TEAC_SPEED can be changed here, or one can set the 
+ * variable "teac" when loading as a module.
+ * Valid settings are:
+ *   0 - very slow - the recommended "DISTRIBUTION 1" setup.
+ *   1 - 2x performance with little overhead. No busy waiting.
+ *   2 - 4x performance with 5ms overhead per read. Busy wait.
+ *
+ * Setting SBP_TEAC_SPEED or the variable 'teac' to anything
+ * other than 0 may cause problems. If you run into them, first
+ * change SBP_TEAC_SPEED back to 0 and see if your drive responds
+ * normally. If yes, you are "allowed" to report your case - to help
+ * me with the driver, not to solve your hassle. Don´t mail if you
+ * simply are stuck into your own "tuning" experiments, you know?
+ */
+#define SBP_TEAC_SPEED 1
 
 /*==========================================================================*/
 /*==========================================================================*/
 /*
- * nothing to change below here if you are not experimenting
+ * nothing to change below here if you are not fully aware what you're doing
  */
 #ifndef _LINUX_SBPCD_H
 
 #define _LINUX_SBPCD_H
 /*==========================================================================*/
 /*==========================================================================*/
+/*
+ * driver's own read_ahead, data mode
+ */
+#define SBP_BUFFER_FRAMES 8 
+
 #define LONG_TIMING 0 /* test against timeouts with "gold" CDs on CR-521 */
 #undef  FUTURE
+#undef SAFE_MIXED
 
 #define TEST_UPC 0
 #define SPEA_TEST 0
 #define TEST_STI 0
+#define OLD_BUSY 0
 #undef PATH_CHECK
+#ifndef SOUND_BASE
+#define SOUND_BASE 0
+#endif
+#if DISTRIBUTION
+#undef SBP_TEAC_SPEED
+#define SBP_TEAC_SPEED 0
+#endif
 /*==========================================================================*/
 /*
  * DDI interface definitions
@@ -139,8 +193,6 @@
 /*
  * "private" IOCTL functions
  */
-#define CDROMRESET		0x5380 /* hard-rest the drive */
-#define CDROMVOLREAD		0x5381 /* let the drive tell its volume settings */
 #define CDROMAUDIOBUFSIZ	0x5382 /* set the audio buffer size */
 
 /*==========================================================================*/
@@ -174,9 +226,9 @@
 #define DBG_AUD	25	/* READ AUDIO debugging */
 #define DBG_SEQ	26	/* Sequoia interface configuration trace */
 #define DBG_LCS	27	/* Longshine LCS-7260 debugging trace */
-#define DBG_CD2	28	/* MKE CD200 debugging trace */
+#define DBG_CD2	28	/* MKE/Funai CD200 debugging trace */
 #define DBG_TEA	29	/* TEAC CD-55A debugging trace */
-#define DBG_TE2	30	/* TEAC CD-55A 2nd debugging level */
+#define DBG_ECS	30	/* ECS-AT (Vertos 100) debugging trace */
 #define DBG_000	31	/* unnecessary information */
 
 /*==========================================================================*/
@@ -233,7 +285,7 @@
  * LCS-7260 special status result bits:
  */
 #define p_lcs_door_locked	0x02
-#define p_lcs_door_closed	0x01
+#define p_lcs_door_closed	0x01 /* probably disk_in */
 
 /*
  * CR-52x special status result bits:
@@ -262,6 +314,14 @@
 #define pL_busy		0x04
 #define pL_door_locked	0x02
 #define pL_door_closed	0x01
+
+#define pV_door_closed	0x40
+#define pV_spinning	0x20
+#define pV_check	0x10
+#define pV_success	0x08
+#define pV_busy		0x04
+#define pV_door_locked	0x02
+#define pV_disk_ok	0x01
 
 #define p1_door_closed	0x80
 #define p1_disk_in	0x40
@@ -306,9 +366,9 @@
 #define RESULT_READY	((inb(CDi_status)&s_not_result_ready)==0)
 
 /*
- * drive types (firmware versions):
+ * drive families and types (firmware versions):
  */
-#define drv_fam0	0x08		/* CR-52x family */
+#define drv_fam0	0x0100		/* CR-52x family */
 #define drv_199		(drv_fam0+0x01)	/* <200 */
 #define drv_200		(drv_fam0+0x02)	/* <201 */
 #define drv_201		(drv_fam0+0x03)	/* <210 */
@@ -316,25 +376,35 @@
 #define drv_211		(drv_fam0+0x05)	/* <300 */
 #define drv_300		(drv_fam0+0x06)	/* >=300 */
 
-#define drv_famL	0x10		/* Longshine family */
+#define drv_fam1	0x0200		/* CR-56x family */
+#define drv_099		(drv_fam1+0x01)	/* <100 */
+#define drv_100		(drv_fam1+0x02)	/* >=100, only 1.02 and 5.00 known */
+
+#define drv_fam2	0x0400		/* CD200 family */
+
+#define drv_famT	0x0800		/* TEAC CD-55A */
+
+#define drv_famL	0x1000		/* Longshine family */
 #define drv_260		(drv_famL+0x01)	/* LCS-7260 */
 #define drv_e1		(drv_famL+0x01)	/* LCS-7260, firmware "A E1" */
 #define drv_f4		(drv_famL+0x02)	/* LCS-7260, firmware "A4F4" */
 
-#define drv_fam1	0x20		/* CR-56x family */
-#define drv_099		(drv_fam1+0x01)	/* <100 */
-#define drv_100		(drv_fam1+0x02)	/* >=100, only 5.00 known here */
-
-#define drv_famT	0x40		/* TEAC CD-55A */
-#define drv_fam2	0x80		/* CD200 family */
+#define drv_famV	0x2000		/* ECS-AT (vertos-100) family */
+#define drv_at		(drv_famV+0x01)	/* ECS-AT, firmware "1.00" */
 
 #define fam0_drive	(D_S[d].drv_type&drv_fam0)
 #define famL_drive	(D_S[d].drv_type&drv_famL)
+#define famV_drive	(D_S[d].drv_type&drv_famV)
 #define fam1_drive	(D_S[d].drv_type&drv_fam1)
 #define fam2_drive	(D_S[d].drv_type&drv_fam2)
 #define famT_drive	(D_S[d].drv_type&drv_famT)
 #define fam0L_drive	(D_S[d].drv_type&(drv_fam0|drv_famL))
+#define fam0V_drive	(D_S[d].drv_type&(drv_fam0|drv_famV))
+#define famLV_drive	(D_S[d].drv_type&(drv_famL|drv_famV))
+#define fam0LV_drive	(D_S[d].drv_type&(drv_fam0|drv_famL|drv_famV))
 #define fam1L_drive	(D_S[d].drv_type&(drv_fam1|drv_famL))
+#define fam1V_drive	(D_S[d].drv_type&(drv_fam1|drv_famV))
+#define fam1LV_drive	(D_S[d].drv_type&(drv_fam1|drv_famL|drv_famV))
 #define fam01_drive	(D_S[d].drv_type&(drv_fam0|drv_fam1))
 #define fam12_drive	(D_S[d].drv_type&(drv_fam1|drv_fam2))
 #define fam2T_drive	(D_S[d].drv_type&(drv_fam2|drv_famT))
@@ -378,14 +448,12 @@
 #define audx13 0x0d /* Audio play operation successfully completed  */
 #define audx14 0x0e /* Audio play operation stopped due to error    */
 #define audx15 0x0f /* No current audio status to return            */
-
 /* audio status (bcd) */
 #define aud_11 0x11 /* Audio play operation in progress             */
 #define aud_12 0x12 /* Audio play operation paused                  */
 #define aud_13 0x13 /* Audio play operation successfully completed  */
 #define aud_14 0x14 /* Audio play operation stopped due to error    */
 #define aud_15 0x15 /* No current audio status to return            */
-
 
 /*
  * highest allowed drive number (MINOR+1)
@@ -404,13 +472,15 @@
 
 /*==========================================================================*/
 
+#define MIXER_addr SOUND_BASE+4 /* sound card's address register */
+#define MIXER_data SOUND_BASE+5 /* sound card's data register */
 #define MIXER_CD_Volume	0x28	/* internal SB Pro register address */
 
 /*==========================================================================*/
-/*
- * Creative Labs Programmers did this:
- */
-#define MAX_TRACKS	120	/* why more than 99? */
+
+#define MAX_TRACKS	99
+
+#define ERR_DISKCHANGE 615
 
 /*==========================================================================*/
 /*
@@ -589,6 +659,7 @@ Read XA Parameter:
  * CD200:       CMD2_
  * LCS-7260:    CMDL_
  * TEAC CD-55A: CMDT_
+ * ECS-AT:      CMDV_
  */
 #define CMD1_RESET	0x0a
 #define CMD2_RESET	0x01
@@ -598,14 +669,17 @@ Read XA Parameter:
 #define CMD2_LOCK_CTL	0x1e
 #define CMDT_LOCK_CTL	CMD2_LOCK_CTL
 #define CMDL_LOCK_CTL	0x0e
+#define CMDV_LOCK_CTL	CMDL_LOCK_CTL
 
 #define CMD1_TRAY_CTL	0x07
 #define CMD2_TRAY_CTL	0x1b
 #define CMDT_TRAY_CTL	CMD2_TRAY_CTL
 #define CMDL_TRAY_CTL	0x0d
+#define CMDV_TRAY_CTL	CMDL_TRAY_CTL
 
 #define CMD1_MULTISESS	0x8d
 #define CMDL_MULTISESS	0x8c
+#define CMDV_MULTISESS	CMDL_MULTISESS
 
 #define CMD1_SUBCHANINF	0x11
 #define CMD2_SUBCHANINF	0x??
@@ -623,22 +697,27 @@ Read XA Parameter:
 #define CMD2_PATH_CHECK	0x???
 #define CMDT_PATH_CHECK	0x???
 #define CMDL_PATH_CHECK	CMD0_PATH_CHECK
+#define CMDV_PATH_CHECK	CMD0_PATH_CHECK
 
 #define CMD0_SEEK	0x01
 #define CMD1_SEEK	CMD0_SEEK
 #define CMD2_SEEK	0x2b
 #define CMDT_SEEK	CMD2_SEEK
 #define CMDL_SEEK	CMD0_SEEK
+#define CMDV_SEEK	CMD0_SEEK
 
 #define CMD0_READ	0x02
 #define CMD1_READ	0x10
 #define CMD2_READ	0x28
 #define CMDT_READ	CMD2_READ
 #define CMDL_READ	CMD0_READ
+#define CMDV_READ	CMD0_READ
 
 #define CMD0_READ_XA	0x03
 #define CMD2_READ_XA	0xd4
+#define CMD2_READ_XA2	0xd5
 #define CMDL_READ_XA	CMD0_READ_XA /* really ?? */
+#define CMDV_READ_XA	CMD0_READ_XA
 
 #define CMD0_READ_HEAD	0x04
 
@@ -646,11 +725,13 @@ Read XA Parameter:
 #define CMD1_SPINUP	0x02
 #define CMD2_SPINUP	CMD2_TRAY_CTL
 #define CMDL_SPINUP	CMD0_SPINUP
+#define CMDV_SPINUP	CMD0_SPINUP
 
 #define CMD0_SPINDOWN	0x06 /* really??? */
 #define CMD1_SPINDOWN	0x06
 #define CMD2_SPINDOWN	CMD2_TRAY_CTL
 #define CMDL_SPINDOWN	0x0d
+#define CMDV_SPINDOWN	CMD0_SPINDOWN
 
 #define CMD0_DIAG	0x07
 
@@ -658,6 +739,7 @@ Read XA Parameter:
 #define CMD1_READ_UPC	0x88
 #define CMD2_READ_UPC	0x???
 #define CMDL_READ_UPC	CMD0_READ_UPC
+#define CMDV_READ_UPC	0x8f
 
 #define CMD0_READ_ISRC	0x09
 
@@ -665,6 +747,7 @@ Read XA Parameter:
 #define CMD1_PLAY	0x???
 #define CMD2_PLAY	0x???
 #define CMDL_PLAY	CMD0_PLAY
+#define CMDV_PLAY	CMD0_PLAY
 
 #define CMD0_PLAY_MSF	0x0b
 #define CMD1_PLAY_MSF	0x0e
@@ -680,18 +763,22 @@ Read XA Parameter:
 #define CMD2_STATUS	0x00
 #define CMDT_STATUS	CMD2_STATUS
 #define CMDL_STATUS	CMD0_STATUS
+#define CMDV_STATUS	CMD0_STATUS
+#define CMD2_SEEK_LEADIN 0x00
 
 #define CMD0_READ_ERR	0x82
 #define CMD1_READ_ERR	CMD0_READ_ERR
 #define CMD2_READ_ERR	0x03
 #define CMDT_READ_ERR	CMD2_READ_ERR /* get audio status */
 #define CMDL_READ_ERR	CMD0_READ_ERR
+#define CMDV_READ_ERR	CMD0_READ_ERR
 
 #define CMD0_READ_VER	0x83
 #define CMD1_READ_VER	CMD0_READ_VER
 #define CMD2_READ_VER	0x12
 #define CMDT_READ_VER	CMD2_READ_VER /* really ?? */
 #define CMDL_READ_VER	CMD0_READ_VER
+#define CMDV_READ_VER	CMD0_READ_VER
 
 #define CMD0_SETMODE	0x84
 #define CMD1_SETMODE	0x09
@@ -719,6 +806,7 @@ Read XA Parameter:
 #define CMD2_READSUBQ	0x42
 #define CMDT_READSUBQ	CMD2_READSUBQ
 #define CMDL_READSUBQ	CMD0_READSUBQ
+#define CMDV_READSUBQ	CMD0_READSUBQ
 
 #define CMD0_DISKCODE	0x8a
 
@@ -727,22 +815,26 @@ Read XA Parameter:
 #define CMD2_DISKINFO	0x43
 #define CMDT_DISKINFO	CMD2_DISKINFO
 #define CMDL_DISKINFO	CMD0_DISKINFO
+#define CMDV_DISKINFO	CMD0_DISKINFO
 
 #define CMD0_READTOC	0x8c
 #define CMD1_READTOC	CMD0_READTOC
 #define CMD2_READTOC	0x???
 #define CMDL_READTOC	CMD0_READTOC
+#define CMDV_READTOC	CMD0_READTOC
 
 #define CMD0_PAU_RES	0x8d
 #define CMD1_PAU_RES	0x0d
 #define CMD2_PAU_RES	0x4b
 #define CMDT_PAUSE	CMD2_PAU_RES
 #define CMDL_PAU_RES	CMD0_PAU_RES
+#define CMDV_PAUSE	CMD0_PAU_RES
 
 #define CMD0_PACKET	0x8e
 #define CMD1_PACKET	CMD0_PACKET
 #define CMD2_PACKET	0x???
 #define CMDL_PACKET	CMD0_PACKET
+#define CMDV_PACKET	0x???
 
 /*==========================================================================*/
 /*==========================================================================*/

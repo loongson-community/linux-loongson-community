@@ -2,37 +2,23 @@
  * sound/sequencer.c
  *
  * The sequencer personality manager.
- *
- * Copyright by Hannu Savolainen 1993
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
  */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
 
 #define SEQUENCER_C
 #include "sound_config.h"
 
-#ifdef CONFIGURE_SOUNDCARD
+#ifdef CONFIG_SEQUENCER
 
-#ifndef EXCLUDE_SEQUENCER
+#include "midi_ctrl.h"
 
 static int      sequencer_ok = 0;
 static struct sound_timer_operations *tmr;
@@ -56,8 +42,12 @@ static int      max_synthdev = 0;
 #define SEQ_2	2
 static int      seq_mode = SEQ_1;
 
-DEFINE_WAIT_QUEUE (seq_sleeper, seq_sleep_flag);
-DEFINE_WAIT_QUEUE (midi_sleeper, midi_sleep_flag);
+static struct wait_queue *seq_sleeper = NULL;
+static volatile struct snd_wait seq_sleep_flag =
+{0};
+static struct wait_queue *midi_sleeper = NULL;
+static volatile struct snd_wait midi_sleep_flag =
+{0};
 
 static int      midi_opened[MAX_MIDI_DEV] =
 {0};
@@ -78,24 +68,22 @@ static unsigned char *iqueue = NULL;
 static volatile int qhead = 0, qtail = 0, qlen = 0;
 static volatile int iqhead = 0, iqtail = 0, iqlen = 0;
 static volatile int seq_playing = 0;
-static int      sequencer_busy = 0;
-static int      output_treshold;
+static volatile int sequencer_busy = 0;
+static int      output_threshold;
 static int      pre_event_timeout;
 static unsigned synth_open_mask;
 
-static int      seq_queue (unsigned char *note);
+static int      seq_queue (unsigned char *note, char nonblock);
 static void     seq_startplay (void);
 static int      seq_sync (void);
 static void     seq_reset (void);
-static int      pmgr_present[MAX_SYNTH_DEV] =
-{0};
 
 #if MAX_SYNTH_DEV > 15
 #error Too many synthesizer devices enabled.
 #endif
 
 int
-sequencer_read (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
+sequencer_read (int dev, struct fileinfo *file, char *buf, int count)
 {
   int             c = count, p = 0;
   int             ev_len;
@@ -105,19 +93,38 @@ sequencer_read (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
 
   ev_len = seq_mode == SEQ_1 ? 4 : 8;
 
-  if (dev)			/*
-				 * Patch manager device
-				 */
-    return pmgr_read (dev - 1, file, buf, count);
-
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   if (!iqlen)
     {
-      DO_SLEEP (midi_sleeper, midi_sleep_flag, pre_event_timeout);
+      if ((file->flags & (O_NONBLOCK) ?
+	   1 : 0))
+	{
+	  restore_flags (flags);
+	  return -EAGAIN;
+	}
+
+
+      {
+	unsigned long   tlimit;
+
+	if (pre_event_timeout)
+	  current->timeout = tlimit = jiffies + (pre_event_timeout);
+	else
+	  tlimit = (unsigned long) -1;
+	midi_sleep_flag.opts = WK_SLEEP;
+	interruptible_sleep_on (&midi_sleeper);
+	if (!(midi_sleep_flag.opts & WK_WAKEUP))
+	  {
+	    if (jiffies >= tlimit)
+	      midi_sleep_flag.opts |= WK_TIMEOUT;
+	  }
+	midi_sleep_flag.opts &= ~WK_SLEEP;
+      };
 
       if (!iqlen)
 	{
-	  RESTORE_INTR (flags);
+	  restore_flags (flags);
 	  return 0;
 	}
     }
@@ -125,14 +132,18 @@ sequencer_read (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
   while (iqlen && c >= ev_len)
     {
 
-      COPY_TO_USER (buf, p, &iqueue[iqhead * IEV_SZ], ev_len);
+      {
+	char           *fixit = (char *) &iqueue[iqhead * IEV_SZ];
+
+	copy_to_user (&(buf)[p], fixit, ev_len);
+      };
       p += ev_len;
       c -= ev_len;
 
       iqhead = (iqhead + 1) % SEQ_MAX_QUEUE;
       iqlen--;
     }
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
   return count - c;
 }
@@ -146,13 +157,13 @@ sequencer_midi_output (int dev)
 }
 
 void
-seq_copy_to_input (unsigned char *event, int len)
+seq_copy_to_input (unsigned char *event_rec, int len)
 {
   unsigned long   flags;
 
   /*
- * Verify that the len is valid for the current mode.
- */
+     * Verify that the len is valid for the current mode.
+   */
 
   if (len != 4 && len != 8)
     return;
@@ -162,28 +173,32 @@ seq_copy_to_input (unsigned char *event, int len)
   if (iqlen >= (SEQ_MAX_QUEUE - 1))
     return;			/* Overflow */
 
-  DISABLE_INTR (flags);
-  memcpy (&iqueue[iqtail * IEV_SZ], event, len);
+  save_flags (flags);
+  cli ();
+  memcpy (&iqueue[iqtail * IEV_SZ], event_rec, len);
   iqlen++;
   iqtail = (iqtail + 1) % SEQ_MAX_QUEUE;
 
-  if (SOMEONE_WAITING (midi_sleeper, midi_sleep_flag))
+  if ((midi_sleep_flag.opts & WK_SLEEP))
     {
-      WAKE_UP (midi_sleeper, midi_sleep_flag);
+      {
+	midi_sleep_flag.opts = WK_WAKEUP;
+	wake_up (&midi_sleeper);
+      };
     }
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static void
 sequencer_midi_input (int dev, unsigned char data)
 {
   unsigned int    tstamp;
-  unsigned char   event[4];
+  unsigned char   event_rec[4];
 
   if (data == 0xfe)		/* Ignore active sensing */
     return;
 
-  tstamp = GET_TIME () - seq_time;
+  tstamp = jiffies - seq_time;
   if (tstamp != prev_input_time)
     {
       tstamp = (tstamp << 8) | SEQ_WAIT;
@@ -192,23 +207,23 @@ sequencer_midi_input (int dev, unsigned char data)
       prev_input_time = tstamp;
     }
 
-  event[0] = SEQ_MIDIPUTC;
-  event[1] = data;
-  event[2] = dev;
-  event[3] = 0;
+  event_rec[0] = SEQ_MIDIPUTC;
+  event_rec[1] = data;
+  event_rec[2] = dev;
+  event_rec[3] = 0;
 
-  seq_copy_to_input (event, 4);
+  seq_copy_to_input (event_rec, 4);
 }
 
 void
-seq_input_event (unsigned char *event, int len)
+seq_input_event (unsigned char *event_rec, int len)
 {
   unsigned long   this_time;
 
   if (seq_mode == SEQ_2)
     this_time = tmr->get_time (tmr_no);
   else
-    this_time = GET_TIME () - seq_time;
+    this_time = jiffies - seq_time;
 
   if (this_time != prev_input_time)
     {
@@ -218,19 +233,19 @@ seq_input_event (unsigned char *event, int len)
       tmp_event[1] = TMR_WAIT_ABS;
       tmp_event[2] = 0;
       tmp_event[3] = 0;
-      *(unsigned long *) &tmp_event[4] = this_time;
+      *(unsigned int *) &tmp_event[4] = this_time;
 
       seq_copy_to_input (tmp_event, 8);
       prev_input_time = this_time;
     }
 
-  seq_copy_to_input (event, len);
+  seq_copy_to_input (event_rec, len);
 }
 
 int
-sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
+sequencer_write (int dev, struct fileinfo *file, const char *buf, int count)
 {
-  unsigned char   event[EV_SZ], ev_code;
+  unsigned char   event_rec[EV_SZ], ev_code;
   int             p = 0, c, ev_size;
   int             err;
   int             mode = file->mode & O_ACCMODE;
@@ -240,32 +255,27 @@ sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
   DEB (printk ("sequencer_write(dev=%d, count=%d)\n", dev, count));
 
   if (mode == OPEN_READ)
-    return RET_ERROR (EIO);
-
-  if (dev)			/*
-				 * Patch manager device
-				 */
-    return pmgr_write (dev - 1, file, buf, count);
+    return -EIO;
 
   c = count;
 
   while (c >= 4)
     {
-      COPY_FROM_USER (event, buf, p, 4);
-      ev_code = event[0];
+      copy_from_user ((char *) event_rec, &(buf)[p], 4);
+      ev_code = event_rec[0];
 
       if (ev_code == SEQ_FULLSIZE)
 	{
 	  int             err;
 
-	  dev = *(unsigned short *) &event[2];
+	  dev = *(unsigned short *) &event_rec[2];
 	  if (dev < 0 || dev >= max_synthdev)
-	    return RET_ERROR (ENXIO);
+	    return -ENXIO;
 
 	  if (!(synth_open_mask & (1 << dev)))
-	    return RET_ERROR (ENXIO);
+	    return -ENXIO;
 
-	  err = synth_devs[dev]->load_patch (dev, *(short *) &event[0], buf, p + 4, c, 0);
+	  err = synth_devs[dev]->load_patch (dev, *(short *) &event_rec[0], buf, p + 4, c, 0);
 	  if (err < 0)
 	    return err;
 
@@ -277,7 +287,7 @@ sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
 	  if (seq_mode == SEQ_2 && ev_code == SEQ_EXTENDED)
 	    {
 	      printk ("Sequencer: Invalid level 2 event %x\n", ev_code);
-	      return RET_ERROR (EINVAL);
+	      return -EINVAL;
 	    }
 
 	  ev_size = 8;
@@ -289,7 +299,7 @@ sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
 	      return count - c;
 	    }
 
-	  COPY_FROM_USER (&event[4], buf, p + 4, 4);
+	  copy_from_user ((char *) &event_rec[4], &(buf)[p + 4], 4);
 
 	}
       else
@@ -297,23 +307,23 @@ sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
 	  if (seq_mode == SEQ_2)
 	    {
 	      printk ("Sequencer: 4 byte event in level 2 mode\n");
-	      return RET_ERROR (EINVAL);
+	      return -EINVAL;
 	    }
 	  ev_size = 4;
 	}
 
-      if (event[0] == SEQ_MIDIPUTC)
+      if (event_rec[0] == SEQ_MIDIPUTC)
 	{
 
-	  if (!midi_opened[event[2]])
+	  if (!midi_opened[event_rec[2]])
 	    {
 	      int             mode;
-	      int             dev = event[2];
+	      int             dev = event_rec[2];
 
 	      if (dev >= max_mididev)
 		{
 		  printk ("Sequencer Error: Nonexistent MIDI device %d\n", dev);
-		  return RET_ERROR (ENXIO);
+		  return -ENXIO;
 		}
 
 	      mode = file->mode & O_ACCMODE;
@@ -331,12 +341,19 @@ sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
 
 	}
 
-      if (!seq_queue (event))
+      if (!seq_queue (event_rec, (file->flags & (O_NONBLOCK) ?
+				  1 : 0)))
 	{
+	  int             processed = count - c;
 
 	  if (!seq_playing)
 	    seq_startplay ();
-	  return count - c;
+
+	  if (!processed && (file->flags & (O_NONBLOCK) ?
+			     1 : 0))
+	    return -EAGAIN;
+	  else
+	    return processed;
 	}
 
       p += ev_size;
@@ -346,11 +363,13 @@ sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
   if (!seq_playing)
     seq_startplay ();
 
-  return count;
+  return count;			/* This will "eat" chunks shorter than 4 bytes (if written
+				   * alone) Should we really do that ?
+				 */
 }
 
 static int
-seq_queue (unsigned char *note)
+seq_queue (unsigned char *note, char nonblock)
 {
 
   /*
@@ -363,19 +382,23 @@ seq_queue (unsigned char *note)
 				 * Give chance to drain the queue
 				 */
 
-  if (qlen >= SEQ_MAX_QUEUE && !SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))
+  if (!nonblock && qlen >= SEQ_MAX_QUEUE && !(seq_sleep_flag.opts & WK_SLEEP))
     {
       /*
        * Sleep until there is enough space on the queue
        */
-      DO_SLEEP (seq_sleeper, seq_sleep_flag, 0);
+
+      seq_sleep_flag.opts = WK_SLEEP;
+      interruptible_sleep_on (&seq_sleeper);
+      seq_sleep_flag.opts &= ~WK_SLEEP;;
     }
 
   if (qlen >= SEQ_MAX_QUEUE)
-    return 0;			/*
+    {
+      return 0;			/*
 				 * To be sure
 				 */
-
+    }
   memcpy (&queue[qtail * EV_SZ], note, EV_SZ);
 
   qtail = (qtail + 1) % SEQ_MAX_QUEUE;
@@ -390,10 +413,10 @@ extended_event (unsigned char *q)
   int             dev = q[2];
 
   if (dev < 0 || dev >= max_synthdev)
-    return RET_ERROR (ENXIO);
+    return -ENXIO;
 
   if (!(synth_open_mask & (1 << dev)))
-    return RET_ERROR (ENXIO);
+    return -ENXIO;
 
   switch (q[1])
     {
@@ -421,7 +444,7 @@ extended_event (unsigned char *q)
       break;
 
     case SEQ_CONTROLLER:
-      synth_devs[dev]->controller (dev, q[3], q[4], *(short *) &q[5]);
+      synth_devs[dev]->controller (dev, q[3], q[4], (short) (q[5] | (q[6] << 8)));
       break;
 
     case SEQ_VOLMODE:
@@ -430,7 +453,7 @@ extended_event (unsigned char *q)
       break;
 
     default:
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   return 0;
@@ -462,17 +485,19 @@ alloc_voice (int dev, int chn, int note)
   voice = synth_devs[dev]->alloc_voice (dev, chn, note,
 					&synth_devs[dev]->alloc);
   synth_devs[dev]->alloc.map[voice] = key;
+  synth_devs[dev]->alloc.alloc_times[voice] =
+    synth_devs[dev]->alloc.timestamp++;
   return voice;
 }
 
 static void
-seq_chn_voice_event (unsigned char *event)
+seq_chn_voice_event (unsigned char *event_rec)
 {
-  unsigned char   dev = event[1];
-  unsigned char   cmd = event[2];
-  unsigned char   chn = event[3];
-  unsigned char   note = event[4];
-  unsigned char   parm = event[5];
+  unsigned char   dev = event_rec[1];
+  unsigned char   cmd = event_rec[2];
+  unsigned char   chn = event_rec[3];
+  unsigned char   note = event_rec[4];
+  unsigned char   parm = event_rec[5];
   int             voice = -1;
 
   if ((int) dev > max_synthdev)
@@ -485,33 +510,48 @@ seq_chn_voice_event (unsigned char *event)
   if (seq_mode == SEQ_2)
     {
       if (synth_devs[dev]->alloc_voice)
-        voice = find_voice (dev, chn, note);
+	voice = find_voice (dev, chn, note);
 
       if (cmd == MIDI_NOTEON && parm == 0)
-        {
-          cmd = MIDI_NOTEOFF;
-          parm = 64;
-        }
+	{
+	  cmd = MIDI_NOTEOFF;
+	  parm = 64;
+	}
     }
 
   switch (cmd)
     {
     case MIDI_NOTEON:
-      if (note > 127 && note != 255)
+      if (note > 127 && note != 255)	/* Not a seq2 feature */
 	return;
 
       if (voice == -1 && seq_mode == SEQ_2 && synth_devs[dev]->alloc_voice)
-	{
+	{			/* Internal synthesizer (FM, GUS, etc) */
 	  voice = alloc_voice (dev, chn, note);
 	}
 
       if (voice == -1)
 	voice = chn;
 
+      if (seq_mode == SEQ_2 && (int) dev < num_synths)
+	{
+	  /*
+	     * The MIDI channel 10 is a percussive channel. Use the note
+	     * number to select the proper patch (128 to 255) to play.
+	   */
+
+	  if (chn == 9)
+	    {
+	      synth_devs[dev]->set_instr (dev, voice, 128 + note);
+	      synth_devs[dev]->chn_info[chn].pgm_num = 128 + note;
+	      note = 60;	/* Middle C */
+
+	    }
+	}
+
       if (seq_mode == SEQ_2)
 	{
-	  synth_devs[dev]->set_instr (dev, voice,
-				    synth_devs[dev]->chn_info[chn].pgm_num);
+	  synth_devs[dev]->setup_voice (dev, voice, chn);
 	}
 
       synth_devs[dev]->start_note (dev, voice, note, parm);
@@ -524,7 +564,9 @@ seq_chn_voice_event (unsigned char *event)
       break;
 
     case MIDI_KEY_PRESSURE:
-      /* To be implemented */
+      if (voice == -1)
+	voice = chn;
+      synth_devs[dev]->aftertouch (dev, voice, parm);
       break;
 
     default:;
@@ -532,15 +574,15 @@ seq_chn_voice_event (unsigned char *event)
 }
 
 static void
-seq_chn_common_event (unsigned char *event)
+seq_chn_common_event (unsigned char *event_rec)
 {
-  unsigned char   dev = event[1];
-  unsigned char   cmd = event[2];
-  unsigned char   chn = event[3];
-  unsigned char   p1 = event[4];
+  unsigned char   dev = event_rec[1];
+  unsigned char   cmd = event_rec[2];
+  unsigned char   chn = event_rec[3];
+  unsigned char   p1 = event_rec[4];
 
-  /* unsigned char   p2 = event[5]; */
-  unsigned short  w14 = *(short *) &event[6];
+  /* unsigned char   p2 = event_rec[5]; */
+  unsigned short  w14 = *(short *) &event_rec[6];
 
   if ((int) dev > max_synthdev)
     return;
@@ -555,33 +597,29 @@ seq_chn_common_event (unsigned char *event)
       if (seq_mode == SEQ_2)
 	{
 	  synth_devs[dev]->chn_info[chn].pgm_num = p1;
+	  if ((int) dev >= num_synths)
+	    synth_devs[dev]->set_instr (dev, chn, p1);
 	}
       else
 	synth_devs[dev]->set_instr (dev, chn, p1);
+
       break;
 
     case MIDI_CTL_CHANGE:
-      if (p1 == CTRL_MAIN_VOLUME)
-	{
-	  w14 = (unsigned short) (((int) w14 * 16383) / 100);
-	  p1 = CTL_MAIN_VOLUME;
-	}
-      if (p1 == CTRL_EXPRESSION)
-	{
-	  w14 *= 128;
-	  p1 = CTL_EXPRESSION;
-	}
-
       if (seq_mode == SEQ_2)
 	{
 	  if (chn > 15 || p1 > 127)
 	    break;
 
-	  synth_devs[dev]->chn_info[chn].controllers[p1] = w14 & 0xff;
+	  synth_devs[dev]->chn_info[chn].controllers[p1] = w14 & 0x7f;
 
-	  if (dev < num_synths)
+	  if (p1 < 32)		/* Setting MSB should clear LSB to 0 */
+	    synth_devs[dev]->chn_info[chn].controllers[p1 + 32] = 0;
+
+	  if ((int) dev < num_synths)
 	    {
-	      int             val = w14 & 0xff;
+	      int             val = w14 & 0x7f;
+	      int             i, key;
 
 	      if (p1 < 64)	/* Combine MSB and LSB */
 		{
@@ -591,20 +629,42 @@ seq_chn_common_event (unsigned char *event)
 		       chn_info[chn].controllers[p1 | 32] & 0x7f);
 		  p1 &= ~32;
 		}
-	      else
-		val = synth_devs[dev]->chn_info[chn].controllers[p1];
 
-	      synth_devs[dev]->controller (dev, chn, p1, val);
+	      /* Handle all playing notes on this channel */
+
+	      key = ((int) chn << 8);
+
+	      for (i = 0; i < synth_devs[dev]->alloc.max_voice; i++)
+		if ((synth_devs[dev]->alloc.map[i] & 0xff00) == key)
+		  synth_devs[dev]->controller (dev, i, p1, val);
 	    }
 	  else
 	    synth_devs[dev]->controller (dev, chn, p1, w14);
 	}
-      else
+      else			/* Mode 1 */
 	synth_devs[dev]->controller (dev, chn, p1, w14);
       break;
 
     case MIDI_PITCH_BEND:
-      synth_devs[dev]->bender (dev, chn, w14);
+      if (seq_mode == SEQ_2)
+	{
+	  synth_devs[dev]->chn_info[chn].bender_value = w14;
+
+	  if ((int) dev < num_synths)
+	    {			/* Handle all playing notes on this channel */
+	      int             i, key;
+
+	      key = (chn << 8);
+
+	      for (i = 0; i < synth_devs[dev]->alloc.max_voice; i++)
+		if ((synth_devs[dev]->alloc.map[i] & 0xff00) == key)
+		  synth_devs[dev]->bender (dev, i, w14);
+	    }
+	  else
+	    synth_devs[dev]->bender (dev, chn, w14);
+	}
+      else			/* MODE 1 */
+	synth_devs[dev]->bender (dev, chn, w14);
       break;
 
     default:;
@@ -612,27 +672,31 @@ seq_chn_common_event (unsigned char *event)
 }
 
 static int
-seq_timing_event (unsigned char *event)
+seq_timing_event (unsigned char *event_rec)
 {
-  unsigned char   cmd = event[1];
-  unsigned int    parm = *(int *) &event[4];
+  unsigned char   cmd = event_rec[1];
+  unsigned int    parm = *(int *) &event_rec[4];
 
   if (seq_mode == SEQ_2)
     {
       int             ret;
 
-      if ((ret = tmr->event (tmr_no, event)) == TIMER_ARMED)
+      if ((ret = tmr->event (tmr_no, event_rec)) == TIMER_ARMED)
 	{
-	  if ((SEQ_MAX_QUEUE - qlen) >= output_treshold)
+	  if ((SEQ_MAX_QUEUE - qlen) >= output_threshold)
 	    {
 	      unsigned long   flags;
 
-	      DISABLE_INTR (flags);
-	      if (SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))
+	      save_flags (flags);
+	      cli ();
+	      if ((seq_sleep_flag.opts & WK_SLEEP))
 		{
-		  WAKE_UP (seq_sleeper, seq_sleep_flag);
+		  {
+		    seq_sleep_flag.opts = WK_WAKEUP;
+		    wake_up (&seq_sleeper);
+		  };
 		}
-	      RESTORE_INTR (flags);
+	      restore_flags (flags);
 	    }
 	}
       return ret;
@@ -644,31 +708,35 @@ seq_timing_event (unsigned char *event)
       parm += prev_event_time;
 
       /*
- * NOTE!  No break here. Execution of TMR_WAIT_REL continues in the
- * next case (TMR_WAIT_ABS)
- */
+         * NOTE!  No break here. Execution of TMR_WAIT_REL continues in the
+         * next case (TMR_WAIT_ABS)
+       */
 
     case TMR_WAIT_ABS:
       if (parm > 0)
 	{
 	  long            time;
 
-	  seq_playing = 1;
 	  time = parm;
 	  prev_event_time = time;
 
+	  seq_playing = 1;
 	  request_sound_timer (time);
 
-	  if ((SEQ_MAX_QUEUE - qlen) >= output_treshold)
+	  if ((SEQ_MAX_QUEUE - qlen) >= output_threshold)
 	    {
 	      unsigned long   flags;
 
-	      DISABLE_INTR (flags);
-	      if (SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))
+	      save_flags (flags);
+	      cli ();
+	      if ((seq_sleep_flag.opts & WK_SLEEP))
 		{
-		  WAKE_UP (seq_sleeper, seq_sleep_flag);
+		  {
+		    seq_sleep_flag.opts = WK_WAKEUP;
+		    wake_up (&seq_sleeper);
+		  };
 		}
-	      RESTORE_INTR (flags);
+	      restore_flags (flags);
 	    }
 
 	  return TIMER_ARMED;
@@ -676,7 +744,7 @@ seq_timing_event (unsigned char *event)
       break;
 
     case TMR_START:
-      seq_time = GET_TIME ();
+      seq_time = jiffies;
       prev_input_time = 0;
       prev_event_time = 0;
       break;
@@ -692,7 +760,7 @@ seq_timing_event (unsigned char *event)
 
     case TMR_ECHO:
       if (seq_mode == SEQ_2)
-	seq_copy_to_input (event, 8);
+	seq_copy_to_input (event_rec, 8);
       else
 	{
 	  parm = (parm << 8 | SEQ_ECHO);
@@ -707,182 +775,249 @@ seq_timing_event (unsigned char *event)
 }
 
 static void
-seq_local_event (unsigned char *event)
+seq_local_event (unsigned char *event_rec)
 {
-  /* unsigned char   cmd = event[1]; */
+  unsigned char   cmd = event_rec[1];
+  unsigned int    parm = *((unsigned int *) &event_rec[4]);
 
-  printk ("seq_local_event() called. WHY????????\n");
+  switch (cmd)
+    {
+    case LOCL_STARTAUDIO:
+#ifdef CONFIG_AUDIO
+      DMAbuf_start_devices (parm);
+#endif
+      break;
+
+    default:;
+    }
+}
+
+static void
+seq_sysex_message (unsigned char *event_rec)
+{
+  int             dev = event_rec[1];
+  int             i, l = 0;
+  unsigned char  *buf = &event_rec[2];
+
+  if ((int) dev > max_synthdev)
+    return;
+  if (!(synth_open_mask & (1 << dev)))
+    return;
+  if (!synth_devs[dev])
+    return;
+  if (!synth_devs[dev]->send_sysex)
+    return;
+
+  l = 0;
+  for (i = 0; i < 6 && buf[i] != 0xff; i++)
+    l = i + 1;
+
+  if (l > 0)
+    synth_devs[dev]->send_sysex (dev, buf, l);
+}
+
+static int
+play_event (unsigned char *q)
+{
+  /*
+     * NOTE! This routine returns
+     *   0 = normal event played.
+     *   1 = Timer armed. Suspend playback until timer callback.
+     *   2 = MIDI output buffer full. Restore queue and suspend until timer
+   */
+  unsigned int   *delay;
+
+  switch (q[0])
+    {
+    case SEQ_NOTEOFF:
+      if (synth_open_mask & (1 << 0))
+	if (synth_devs[0])
+	  synth_devs[0]->kill_note (0, q[1], 255, q[3]);
+      break;
+
+    case SEQ_NOTEON:
+      if (q[4] < 128 || q[4] == 255)
+	if (synth_open_mask & (1 << 0))
+	  if (synth_devs[0])
+	    synth_devs[0]->start_note (0, q[1], q[2], q[3]);
+      break;
+
+    case SEQ_WAIT:
+      delay = (unsigned int *) q;	/*
+					 * Bytes 1 to 3 are containing the *
+					 * delay in 'ticks'
+					 */
+      *delay = (*delay >> 8) & 0xffffff;
+
+      if (*delay > 0)
+	{
+	  long            time;
+
+	  seq_playing = 1;
+	  time = *delay;
+	  prev_event_time = time;
+
+	  request_sound_timer (time);
+
+	  if ((SEQ_MAX_QUEUE - qlen) >= output_threshold)
+	    {
+	      unsigned long   flags;
+
+	      save_flags (flags);
+	      cli ();
+	      if ((seq_sleep_flag.opts & WK_SLEEP))
+		{
+		  {
+		    seq_sleep_flag.opts = WK_WAKEUP;
+		    wake_up (&seq_sleeper);
+		  };
+		}
+	      restore_flags (flags);
+	    }
+	  /*
+	     * The timer is now active and will reinvoke this function
+	     * after the timer expires. Return to the caller now.
+	   */
+	  return 1;
+	}
+      break;
+
+    case SEQ_PGMCHANGE:
+      if (synth_open_mask & (1 << 0))
+	if (synth_devs[0])
+	  synth_devs[0]->set_instr (0, q[1], q[2]);
+      break;
+
+    case SEQ_SYNCTIMER:	/*
+				   * Reset timer
+				 */
+      seq_time = jiffies;
+      prev_input_time = 0;
+      prev_event_time = 0;
+      break;
+
+    case SEQ_MIDIPUTC:		/*
+				 * Put a midi character
+				 */
+      if (midi_opened[q[2]])
+	{
+	  int             dev;
+
+	  dev = q[2];
+
+	  if (dev < 0 || dev >= num_midis)
+	    break;
+
+	  if (!midi_devs[dev]->outputc (dev, q[1]))
+	    {
+	      /*
+	         * Output FIFO is full. Wait one timer cycle and try again.
+	       */
+
+	      seq_playing = 1;
+	      request_sound_timer (-1);
+	      return 2;
+	    }
+	  else
+	    midi_written[dev] = 1;
+	}
+      break;
+
+    case SEQ_ECHO:
+      seq_copy_to_input (q, 4);	/*
+				 * Echo back to the process
+				 */
+      break;
+
+    case SEQ_PRIVATE:
+      if ((int) q[1] < max_synthdev)
+	synth_devs[q[1]]->hw_control (q[1], q);
+      break;
+
+    case SEQ_EXTENDED:
+      extended_event (q);
+      break;
+
+    case EV_CHN_VOICE:
+      seq_chn_voice_event (q);
+      break;
+
+    case EV_CHN_COMMON:
+      seq_chn_common_event (q);
+      break;
+
+    case EV_TIMING:
+      if (seq_timing_event (q) == TIMER_ARMED)
+	{
+	  return 1;
+	}
+      break;
+
+    case EV_SEQ_LOCAL:
+      seq_local_event (q);
+      break;
+
+    case EV_SYSEX:
+      seq_sysex_message (q);
+      break;
+
+    default:;
+    }
+
+  return 0;
 }
 
 static void
 seq_startplay (void)
 {
-  int             this_one;
-  unsigned long  *delay;
-  unsigned char  *q;
+  unsigned long   flags;
+  int             this_one, action;
 
   while (qlen > 0)
     {
 
-      seq_playing = 1;
-
+      save_flags (flags);
+      cli ();
       qhead = ((this_one = qhead) + 1) % SEQ_MAX_QUEUE;
       qlen--;
+      restore_flags (flags);
 
-      q = &queue[this_one * EV_SZ];
+      seq_playing = 1;
 
-      switch (q[0])
-	{
-	case SEQ_NOTEOFF:
-	  if (synth_open_mask & (1 << 0))
-	    if (synth_devs[0])
-	      synth_devs[0]->kill_note (0, q[1], 255, q[3]);
-	  break;
-
-	case SEQ_NOTEON:
-	  if (q[4] < 128 || q[4] == 255)
-	    if (synth_open_mask & (1 << 0))
-	      if (synth_devs[0])
-		synth_devs[0]->start_note (0, q[1], q[2], q[3]);
-	  break;
-
-	case SEQ_WAIT:
-	  delay = (unsigned long *) q;	/*
-					 * Bytes 1 to 3 are containing the *
-					 * delay in GET_TIME()
-					 */
-	  *delay = (*delay >> 8) & 0xffffff;
-
-	  if (*delay > 0)
+      if ((action = play_event (&queue[this_one * EV_SZ])))
+	{			/* Suspend playback. Next timer routine invokes this routine again */
+	  if (action == 2)
 	    {
-	      long            time;
-
-	      seq_playing = 1;
-	      time = *delay;
-	      prev_event_time = time;
-
-	      request_sound_timer (time);
-
-	      if ((SEQ_MAX_QUEUE - qlen) >= output_treshold)
-		{
-		  unsigned long   flags;
-
-		  DISABLE_INTR (flags);
-		  if (SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))
-		    {
-		      WAKE_UP (seq_sleeper, seq_sleep_flag);
-		    }
-		  RESTORE_INTR (flags);
-		}
-	      /*
- * The timer is now active and will reinvoke this function
- * after the timer expires. Return to the caller now.
- */
-	      return;
+	      qlen++;
+	      qhead = this_one;
 	    }
-	  break;
-
-	case SEQ_PGMCHANGE:
-	  if (synth_open_mask & (1 << 0))
-	    if (synth_devs[0])
-	      synth_devs[0]->set_instr (0, q[1], q[2]);
-	  break;
-
-	case SEQ_SYNCTIMER:	/*
-				 * Reset timer
-				 */
-	  seq_time = GET_TIME ();
-	  prev_input_time = 0;
-	  prev_event_time = 0;
-	  break;
-
-	case SEQ_MIDIPUTC:	/*
-				 * Put a midi character
-				 */
-	  if (midi_opened[q[2]])
-	    {
-	      int             dev;
-
-	      dev = q[2];
-
-	      if (!midi_devs[dev]->putc (dev, q[1]))
-		{
-		  /*
-		   * Output FIFO is full. Wait one timer cycle and try again.
-		   */
-
-		  qlen++;
-		  qhead = this_one;	/*
-					 * Restore queue
-					 */
-		  seq_playing = 1;
-		  request_sound_timer (-1);
-		  return;
-		}
-	      else
-		midi_written[dev] = 1;
-	    }
-	  break;
-
-	case SEQ_ECHO:
-	  seq_copy_to_input (q, 4);	/*
-					   * Echo back to the process
-					 */
-	  break;
-
-	case SEQ_PRIVATE:
-	  if ((int) q[1] < max_synthdev)
-	    synth_devs[q[1]]->hw_control (q[1], q);
-	  break;
-
-	case SEQ_EXTENDED:
-	  extended_event (q);
-	  break;
-
-	case EV_CHN_VOICE:
-	  seq_chn_voice_event (q);
-	  break;
-
-	case EV_CHN_COMMON:
-	  seq_chn_common_event (q);
-	  break;
-
-	case EV_TIMING:
-	  if (seq_timing_event (q) == TIMER_ARMED)
-	    {
-	      return;
-	    }
-	  break;
-
-	case EV_SEQ_LOCAL:
-	  seq_local_event (q);
-	  break;
-
-	default:;
+	  return;
 	}
 
     }
 
   seq_playing = 0;
 
-  if ((SEQ_MAX_QUEUE - qlen) >= output_treshold)
+  if ((SEQ_MAX_QUEUE - qlen) >= output_threshold)
     {
       unsigned long   flags;
 
-      DISABLE_INTR (flags);
-      if (SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))
+      save_flags (flags);
+      cli ();
+      if ((seq_sleep_flag.opts & WK_SLEEP))
 	{
-	  WAKE_UP (seq_sleeper, seq_sleep_flag);
+	  {
+	    seq_sleep_flag.opts = WK_WAKEUP;
+	    wake_up (&seq_sleeper);
+	  };
 	}
-      RESTORE_INTR (flags);
+      restore_flags (flags);
     }
-
 }
 
 static void
 reset_controllers (int dev, unsigned char *controller, int update_dev)
 {
-#include "midi_ctrl.h"
 
   int             i;
 
@@ -914,6 +1049,7 @@ setup_mode2 (void)
 	  reset_controllers (dev,
 			     synth_devs[dev]->chn_info[chn].controllers,
 			     0);
+	  synth_devs[dev]->chn_info[chn].bender_value = (1 << 7);	/* Neutral */
 	}
     }
 
@@ -926,6 +1062,7 @@ sequencer_open (int dev, struct fileinfo *file)
 {
   int             retval, mode, i;
   int             level, tmp;
+  unsigned long   flags;
 
   level = ((dev & 0x0f) == SND_DEV_SEQ2) ? 2 : 1;
 
@@ -937,35 +1074,23 @@ sequencer_open (int dev, struct fileinfo *file)
   if (!sequencer_ok)
     {
       printk ("Soundcard: Sequencer not initialized\n");
-      return RET_ERROR (ENXIO);
+      return -ENXIO;
     }
 
-  if (dev)			/*
-				 * Patch manager device
-				 */
+  if (dev)			/* Patch manager device (obsolete) */
     {
-      int             err;
-
-      dev--;
-
-      if (dev >= MAX_SYNTH_DEV)
-	return RET_ERROR (ENXIO);
-      if (pmgr_present[dev])
-	return RET_ERROR (EBUSY);
-      if ((err = pmgr_open (dev)) < 0)
-	return err;		/*
-				 * Failed
-				 */
-
-      pmgr_present[dev] = 1;
-      return err;
+      return -ENXIO;
     }
 
+  save_flags (flags);
+  cli ();
   if (sequencer_busy)
     {
-      printk ("Sequencer busy\n");
-      return RET_ERROR (EBUSY);
+      restore_flags (flags);
+      return -EBUSY;
     }
+  sequencer_busy = 1;
+  restore_flags (flags);
 
   max_mididev = num_midis;
   max_synthdev = num_synths;
@@ -998,24 +1123,25 @@ sequencer_open (int dev, struct fileinfo *file)
 
   if (level == 2)
     {
-      printk ("Using timer #%d\n", tmr_no);
       if (tmr == NULL)
 	{
 	  printk ("sequencer: No timer for level 2\n");
-	  return RET_ERROR (ENXIO);
+	  sequencer_busy = 0;
+	  return -ENXIO;
 	}
       setup_mode2 ();
     }
 
-  if (seq_mode == SEQ_1 && (mode == OPEN_READ || mode == OPEN_READWRITE))
+  if (seq_mode == SEQ_1 && mode == OPEN_READ)
     if (!max_mididev)
       {
 	printk ("Sequencer: No Midi devices. Input not possible\n");
-	return RET_ERROR (ENXIO);
+	sequencer_busy = 0;
+	return -ENXIO;
       }
 
   if (!max_synthdev && !max_mididev)
-    return RET_ERROR (ENXIO);
+    return -ENXIO;
 
   synth_open_mask = 0;
 
@@ -1035,7 +1161,7 @@ sequencer_open (int dev, struct fileinfo *file)
       {
 	printk ("Sequencer: Warning! Cannot open synth device #%d (%d)\n", i, tmp);
 	if (synth_devs[i]->midi_dev)
-	  printk ("(Maps to midi dev #%d\n", synth_devs[i]->midi_dev);
+	  printk ("(Maps to MIDI dev #%d)\n", synth_devs[i]->midi_dev);
       }
     else
       {
@@ -1046,7 +1172,7 @@ sequencer_open (int dev, struct fileinfo *file)
 	  midi_opened[synth_devs[i]->midi_dev] = 1;
       }
 
-  seq_time = GET_TIME ();
+  seq_time = jiffies;
   prev_input_time = 0;
   prev_event_time = 0;
 
@@ -1068,14 +1194,9 @@ sequencer_open (int dev, struct fileinfo *file)
       tmr->open (tmr_no, seq_mode);
     }
 
-  sequencer_busy = 1;
-  RESET_WAIT_QUEUE (seq_sleeper, seq_sleep_flag);
-  RESET_WAIT_QUEUE (midi_sleeper, midi_sleep_flag);
-  output_treshold = SEQ_MAX_QUEUE / 2;
-
-  for (i = 0; i < num_synths; i++)
-    if (pmgr_present[i])
-      pmgr_inform (i, PM_E_OPENED, 0, 0, 0, 0);
+  seq_sleep_flag.opts = WK_NONE;
+  midi_sleep_flag.opts = WK_NONE;
+  output_threshold = SEQ_MAX_QUEUE / 2;
 
   return 0;
 }
@@ -1091,7 +1212,7 @@ seq_drain_midi_queues (void)
 
   n = 1;
 
-  while (!PROCESS_ABORTING (midi_sleeper, midi_sleep_flag) && n)
+  while (!(current->signal & ~current->blocked) && n)
     {
       n = 0;
 
@@ -1106,7 +1227,23 @@ seq_drain_midi_queues (void)
        */
       if (n)
 	{
-	  DO_SLEEP (seq_sleeper, seq_sleep_flag, HZ / 10);
+
+	  {
+	    unsigned long   tlimit;
+
+	    if (HZ / 10)
+	      current->timeout = tlimit = jiffies + (HZ / 10);
+	    else
+	      tlimit = (unsigned long) -1;
+	    seq_sleep_flag.opts = WK_SLEEP;
+	    interruptible_sleep_on (&seq_sleeper);
+	    if (!(seq_sleep_flag.opts & WK_WAKEUP))
+	      {
+		if (jiffies >= tlimit)
+		  seq_sleep_flag.opts |= WK_TIMEOUT;
+	      }
+	    seq_sleep_flag.opts &= ~WK_SLEEP;
+	  };
 	}
     }
 }
@@ -1121,22 +1258,13 @@ sequencer_release (int dev, struct fileinfo *file)
 
   DEB (printk ("sequencer_release(dev=%d)\n", dev));
 
-  if (dev)			/*
-				 * Patch manager device
-				 */
-    {
-      dev--;
-      pmgr_release (dev);
-      pmgr_present[dev] = 0;
-      return;
-    }
-
   /*
-   * * Wait until the queue is empty
+   * * Wait until the queue is empty (if we don't have nonblock)
    */
 
-  if (mode != OPEN_READ)
-    while (!PROCESS_ABORTING (seq_sleeper, seq_sleep_flag) && qlen)
+  if (mode != OPEN_READ && !(file->flags & (O_NONBLOCK) ?
+			     1 : 0))
+    while (!(current->signal & ~current->blocked) && qlen > 0)
       {
 	seq_sync ();
       }
@@ -1152,24 +1280,24 @@ sequencer_release (int dev, struct fileinfo *file)
 				 */
 
   for (i = 0; i < max_synthdev; i++)
-    if (synth_open_mask & (1 << i))	/*
+    {
+      if (synth_open_mask & (1 << i))	/*
 					 * Actually opened
 					 */
-      if (synth_devs[i])
-	{
-	  synth_devs[i]->close (i);
+	if (synth_devs[i])
+	  {
+	    synth_devs[i]->close (i);
 
-	  if (synth_devs[i]->midi_dev)
-	    midi_opened[synth_devs[i]->midi_dev] = 0;
-	}
-
-  for (i = 0; i < num_synths; i++)
-    if (pmgr_present[i])
-      pmgr_inform (i, PM_E_CLOSED, 0, 0, 0, 0);
+	    if (synth_devs[i]->midi_dev)
+	      midi_opened[synth_devs[i]->midi_dev] = 0;
+	  }
+    }
 
   for (i = 0; i < max_mididev; i++)
-    if (midi_opened[i])
-      midi_devs[i]->close (i);
+    {
+      if (midi_opened[i])
+	midi_devs[i]->close (i);
+    }
 
   if (seq_mode == SEQ_2)
     tmr->close (tmr_no);
@@ -1180,16 +1308,34 @@ sequencer_release (int dev, struct fileinfo *file)
 static int
 seq_sync (void)
 {
-  if (qlen && !seq_playing && !PROCESS_ABORTING (seq_sleeper, seq_sleep_flag))
+  unsigned long   flags;
+
+  if (qlen && !seq_playing && !(current->signal & ~current->blocked))
     seq_startplay ();
 
-  if (qlen && !SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))	/*
-								 * Queue not
-								 * empty
-								 */
+  save_flags (flags);
+  cli ();
+  if (qlen > 0)
     {
-      DO_SLEEP (seq_sleeper, seq_sleep_flag, 0);
+
+      {
+	unsigned long   tlimit;
+
+	if (HZ)
+	  current->timeout = tlimit = jiffies + (HZ);
+	else
+	  tlimit = (unsigned long) -1;
+	seq_sleep_flag.opts = WK_SLEEP;
+	interruptible_sleep_on (&seq_sleeper);
+	if (!(seq_sleep_flag.opts & WK_WAKEUP))
+	  {
+	    if (jiffies >= tlimit)
+	      seq_sleep_flag.opts |= WK_TIMEOUT;
+	  }
+	seq_sleep_flag.opts &= ~WK_SLEEP;
+      };
     }
+  restore_flags (flags);
 
   return qlen;
 }
@@ -1202,26 +1348,40 @@ midi_outc (int dev, unsigned char data)
    */
 
   int             n;
+  unsigned long   flags;
 
   /*
    * This routine sends one byte to the Midi channel.
-   */
-  /*
-   * If the output Fifo is full, it waits until there
-   */
-  /*
+   * If the output FIFO is full, it waits until there
    * is space in the queue
    */
 
-  n = 300;			/*
-				 * Timeout in jiffies
-				 */
+  n = 3 * HZ;			/* Timeout */
 
-  while (n && !midi_devs[dev]->putc (dev, data))
+  save_flags (flags);
+  cli ();
+  while (n && !midi_devs[dev]->outputc (dev, data))
     {
-      DO_SLEEP (seq_sleeper, seq_sleep_flag, 4);
+
+      {
+	unsigned long   tlimit;
+
+	if (4)
+	  current->timeout = tlimit = jiffies + (4);
+	else
+	  tlimit = (unsigned long) -1;
+	seq_sleep_flag.opts = WK_SLEEP;
+	interruptible_sleep_on (&seq_sleeper);
+	if (!(seq_sleep_flag.opts & WK_WAKEUP))
+	  {
+	    if (jiffies >= tlimit)
+	      seq_sleep_flag.opts |= WK_TIMEOUT;
+	  }
+	seq_sleep_flag.opts &= ~WK_SLEEP;
+      };
       n--;
     }
+  restore_flags (flags);
 }
 
 static void
@@ -1232,11 +1392,11 @@ seq_reset (void)
    */
 
   int             i;
-
   int             chn;
+  unsigned long   flags;
 
   sound_stop_timer ();
-  seq_time = GET_TIME ();
+  seq_time = jiffies;
   prev_input_time = 0;
   prev_event_time = 0;
 
@@ -1250,13 +1410,20 @@ seq_reset (void)
 
   if (seq_mode == SEQ_2)
     {
-      for (i = 0; i < max_synthdev; i++)
-	if (synth_open_mask & (1 << i))
-	  if (synth_devs[i])
-	    for (chn = 0; chn < 16; chn++)
-	      synth_devs[i]->controller (i, chn, 0xfe, 0);	/* All notes off */
+
+      for (chn = 0; chn < 16; chn++)
+	for (i = 0; i < max_synthdev; i++)
+	  if (synth_open_mask & (1 << i))
+	    if (synth_devs[i])
+	      {
+		synth_devs[i]->controller (i, chn, 123, 0);	/* All notes off */
+		synth_devs[i]->controller (i, chn, 121, 0);	/* Reset all ctl */
+		synth_devs[i]->bender (i, chn, 1 << 13);	/* Bender off */
+	      }
+
     }
   else
+    /* seq_mode == SEQ_1 */
     {
       for (i = 0; i < max_mididev; i++)
 	if (midi_written[i])	/*
@@ -1264,25 +1431,18 @@ seq_reset (void)
 				 */
 	  {
 	    /*
- *    Sending just a ACTIVE SENSING message should be enough to stop all
- *      playing notes. Since there are devices not recognizing the
- *      active sensing, we have to send some all notes off messages also.
- */
+	       *      Sending just a ACTIVE SENSING message should be enough to stop all
+	       *      playing notes. Since there are devices not recognizing the
+	       *      active sensing, we have to send some all notes off messages also.
+	     */
 	    midi_outc (i, 0xfe);
 
 	    for (chn = 0; chn < 16; chn++)
 	      {
 		midi_outc (i,
-			   (unsigned char) (0xb0 + (chn & 0xff)));	/*
-								 * Channel
-								 * msg
-								 */
-		midi_outc (i, 0x7b);	/*
-					 * All notes off
-					 */
-		midi_outc (i, 0);	/*
-				 * Dummy parameter
-				 */
+			   (unsigned char) (0xb0 + (chn & 0x0f)));	/* control change */
+		midi_outc (i, 0x7b);	/* All notes off */
+		midi_outc (i, 0);	/* Dummy parameter */
 	      }
 
 	    midi_devs[i]->close (i);
@@ -1294,8 +1454,17 @@ seq_reset (void)
 
   seq_playing = 0;
 
-  if (SOMEONE_WAITING (seq_sleeper, seq_sleep_flag))
-    printk ("Sequencer Warning: Unexpected sleeping process\n");
+  save_flags (flags);
+  cli ();
+  if ((seq_sleep_flag.opts & WK_SLEEP))
+    {
+      /*      printk ("Sequencer Warning: Unexpected sleeping process - Waking up\n"); */
+      {
+	seq_sleep_flag.opts = WK_WAKEUP;
+	wake_up (&seq_sleeper);
+      };
+    }
+  restore_flags (flags);
 
 }
 
@@ -1303,29 +1472,29 @@ static void
 seq_panic (void)
 {
   /*
- * This routine is called by the application in case the user
- * wants to reset the system to the default state.
- */
+     * This routine is called by the application in case the user
+     * wants to reset the system to the default state.
+   */
 
   seq_reset ();
 
   /*
- * Since some of the devices don't recognize the active sensing and
- * all notes off messages, we have to shut all notes manually.
- *
- *      TO BE IMPLEMENTED LATER
- */
+     * Since some of the devices don't recognize the active sensing and
+     * all notes off messages, we have to shut all notes manually.
+     *
+     *      TO BE IMPLEMENTED LATER
+   */
 
   /*
- * Also return the controllers to their default states
- */
+     * Also return the controllers to their default states
+   */
 }
 
 int
 sequencer_ioctl (int dev, struct fileinfo *file,
-		 unsigned int cmd, unsigned int arg)
+		 unsigned int cmd, caddr_t arg)
 {
-  int             midi_dev, orig_dev;
+  int             midi_dev, orig_dev, val;
   int             mode = file->mode & O_ACCMODE;
 
   orig_dev = dev = dev >> 4;
@@ -1339,29 +1508,25 @@ sequencer_ioctl (int dev, struct fileinfo *file,
     case SNDCTL_TMR_CONTINUE:
     case SNDCTL_TMR_METRONOME:
     case SNDCTL_TMR_SOURCE:
-      if (dev)			/* Patch manager */
-	return RET_ERROR (EIO);
 
       if (seq_mode != SEQ_2)
-	return RET_ERROR (EINVAL);
+	return -EINVAL;
       return tmr->ioctl (tmr_no, cmd, arg);
       break;
 
     case SNDCTL_TMR_SELECT:
-      if (dev)			/* Patch manager */
-	return RET_ERROR (EIO);
 
       if (seq_mode != SEQ_2)
-	return RET_ERROR (EINVAL);
-      pending_timer = IOCTL_IN (arg);
+	return -EINVAL;
+      get_user (pending_timer, (int *) arg);
 
       if (pending_timer < 0 || pending_timer >= num_sound_timers)
 	{
 	  pending_timer = -1;
-	  return RET_ERROR (EINVAL);
+	  return -EINVAL;
 	}
 
-      return IOCTL_OUT (arg, pending_timer);
+      return ioctl_out (arg, pending_timer);
       break;
 
     case SNDCTL_SEQ_PANIC:
@@ -1369,40 +1534,27 @@ sequencer_ioctl (int dev, struct fileinfo *file,
       break;
 
     case SNDCTL_SEQ_SYNC:
-      if (dev)			/*
-				 * Patch manager
-				 */
-	return RET_ERROR (EIO);
 
       if (mode == OPEN_READ)
 	return 0;
-      while (qlen && !PROCESS_ABORTING (seq_sleeper, seq_sleep_flag))
+      while (qlen > 0 && !(current->signal & ~current->blocked))
 	seq_sync ();
       if (qlen)
-	return RET_ERROR (EINTR);
+	return -EINTR;
       else
 	return 0;
       break;
 
     case SNDCTL_SEQ_RESET:
-      if (dev)			/*
-				 * Patch manager
-				 */
-	return RET_ERROR (EIO);
 
       seq_reset ();
       return 0;
       break;
 
     case SNDCTL_SEQ_TESTMIDI:
-      if (dev)			/*
-				 * Patch manager
-				 */
-	return RET_ERROR (EIO);
-
-      midi_dev = IOCTL_IN (arg);
-      if (midi_dev >= max_mididev)
-	return RET_ERROR (ENXIO);
+      get_user (midi_dev, (int *) arg);
+      if (midi_dev < 0 || midi_dev >= max_mididev)
+	return -ENXIO;
 
       if (!midi_opened[midi_dev])
 	{
@@ -1421,84 +1573,94 @@ sequencer_ioctl (int dev, struct fileinfo *file,
       break;
 
     case SNDCTL_SEQ_GETINCOUNT:
-      if (dev)			/*
-				 * Patch manager
-				 */
-	return RET_ERROR (EIO);
-
       if (mode == OPEN_WRITE)
 	return 0;
-      return IOCTL_OUT (arg, iqlen);
+      return ioctl_out (arg, iqlen);
       break;
 
     case SNDCTL_SEQ_GETOUTCOUNT:
 
       if (mode == OPEN_READ)
 	return 0;
-      return IOCTL_OUT (arg, SEQ_MAX_QUEUE - qlen);
+      return ioctl_out (arg, SEQ_MAX_QUEUE - qlen);
+      break;
+
+    case SNDCTL_SEQ_GETTIME:
+      if (seq_mode == SEQ_2)
+	return tmr->ioctl (tmr_no, cmd, arg);
+
+      return ioctl_out (arg, jiffies - seq_time);
       break;
 
     case SNDCTL_SEQ_CTRLRATE:
-      if (dev)			/* Patch manager */
-	return RET_ERROR (EIO);
-
       /*
        * If *arg == 0, just return the current rate
        */
       if (seq_mode == SEQ_2)
 	return tmr->ioctl (tmr_no, cmd, arg);
 
-      if (IOCTL_IN (arg) != 0)
-	return RET_ERROR (EINVAL);
+      get_user (val, (int *) arg);
+      if (val != 0)
+	return -EINVAL;
 
-      return IOCTL_OUT (arg, HZ);
+      return ioctl_out (arg, HZ);
       break;
 
     case SNDCTL_SEQ_RESETSAMPLES:
-      dev = IOCTL_IN (arg);
-      if (dev < 0 || dev >= num_synths)
-	return RET_ERROR (ENXIO);
+      {
+	int             err;
 
-      if (!(synth_open_mask & (1 << dev)) && !orig_dev)
-	return RET_ERROR (EBUSY);
+	get_user (dev, (int *) arg);
+	if (dev < 0 || dev >= num_synths)
+	  {
+	    return -ENXIO;
+	  }
 
-      if (!orig_dev && pmgr_present[dev])
-	pmgr_inform (dev, PM_E_PATCH_RESET, 0, 0, 0, 0);
+	if (!(synth_open_mask & (1 << dev)) && !orig_dev)
+	  {
+	    return -EBUSY;
+	  }
 
-      return synth_devs[dev]->ioctl (dev, cmd, arg);
+	err = synth_devs[dev]->ioctl (dev, cmd, arg);
+	return err;
+      }
       break;
 
     case SNDCTL_SEQ_NRSYNTHS:
-      return IOCTL_OUT (arg, max_synthdev);
+      return ioctl_out (arg, max_synthdev);
       break;
 
     case SNDCTL_SEQ_NRMIDIS:
-      return IOCTL_OUT (arg, max_mididev);
+      return ioctl_out (arg, max_mididev);
       break;
 
     case SNDCTL_SYNTH_MEMAVL:
       {
-	int             dev = IOCTL_IN (arg);
+	int             dev;
+
+	get_user (dev, (int *) arg);
 
 	if (dev < 0 || dev >= num_synths)
-	  return RET_ERROR (ENXIO);
+	  return -ENXIO;
 
 	if (!(synth_open_mask & (1 << dev)) && !orig_dev)
-	  return RET_ERROR (EBUSY);
+	  return -EBUSY;
 
-	return IOCTL_OUT (arg, synth_devs[dev]->ioctl (dev, cmd, arg));
+	return ioctl_out (arg, synth_devs[dev]->ioctl (dev, cmd, arg));
       }
       break;
 
     case SNDCTL_FM_4OP_ENABLE:
       {
-	int             dev = IOCTL_IN (arg);
+	int             dev;
+
+	get_user (dev, (int *) arg);
 
 	if (dev < 0 || dev >= num_synths)
-	  return RET_ERROR (ENXIO);
+	  return -ENXIO;
 
 	if (!(synth_open_mask & (1 << dev)))
-	  return RET_ERROR (ENXIO);
+	  return -ENXIO;
 
 	synth_devs[dev]->ioctl (dev, cmd, arg);
 	return 0;
@@ -1510,16 +1672,32 @@ sequencer_ioctl (int dev, struct fileinfo *file,
 	struct synth_info inf;
 	int             dev;
 
-	IOCTL_FROM_USER ((char *) &inf, (char *) arg, 0, sizeof (inf));
+	copy_from_user ((char *) &inf, &((char *) arg)[0], sizeof (inf));
 	dev = inf.device;
 
 	if (dev < 0 || dev >= max_synthdev)
-	  return RET_ERROR (ENXIO);
+	  return -ENXIO;
 
 	if (!(synth_open_mask & (1 << dev)) && !orig_dev)
-	  return RET_ERROR (EBUSY);
+	  return -EBUSY;
 
 	return synth_devs[dev]->ioctl (dev, cmd, arg);
+      }
+      break;
+
+    case SNDCTL_SEQ_OUTOFBAND:
+      {
+	struct seq_event_rec event_rec;
+	unsigned long   flags;
+
+	copy_from_user ((char *) &event_rec, &((char *) arg)[0], sizeof (event_rec));
+
+	save_flags (flags);
+	cli ();
+	play_event (event_rec.arr);
+	restore_flags (flags);
+
+	return 0;
       }
       break;
 
@@ -1527,138 +1705,69 @@ sequencer_ioctl (int dev, struct fileinfo *file,
       {
 	struct midi_info inf;
 	int             dev;
+	char           *pp;
 
-	IOCTL_FROM_USER ((char *) &inf, (char *) arg, 0, sizeof (inf));
+	copy_from_user ((char *) &inf, &((char *) arg)[0], sizeof (inf));
 	dev = inf.device;
 
 	if (dev < 0 || dev >= max_mididev)
-	  return RET_ERROR (ENXIO);
+	  return -ENXIO;
 
-	IOCTL_TO_USER ((char *) arg, 0, (char *) &(midi_devs[dev]->info), sizeof (inf));
+	pp = (char *) &midi_devs[dev]->info;
+	{
+	  char           *fixit = pp;
+
+	  copy_to_user (&((char *) arg)[0], fixit, sizeof (inf));
+	};
 	return 0;
       }
       break;
 
-    case SNDCTL_PMGR_IFACE:
+    case SNDCTL_SEQ_THRESHOLD:
       {
-	struct patmgr_info *inf;
-	int             dev, err;
+	int             tmp;
 
-	inf = (struct patmgr_info *) KERNEL_MALLOC (sizeof (*inf));
-
-	IOCTL_FROM_USER ((char *) inf, (char *) arg, 0, sizeof (*inf));
-	dev = inf->device;
-
-	if (dev < 0 || dev >= num_synths)
-	  {
-	    KERNEL_FREE (inf);
-	    return RET_ERROR (ENXIO);
-	  }
-
-	if (!synth_devs[dev]->pmgr_interface)
-	  {
-	    KERNEL_FREE (inf);
-	    return RET_ERROR (ENXIO);
-	  }
-
-	if ((err = synth_devs[dev]->pmgr_interface (dev, inf)) == -1)
-	  {
-	    KERNEL_FREE (inf);
-	    return err;
-	  }
-
-	IOCTL_TO_USER ((char *) arg, 0, (char *) inf, sizeof (*inf));
-	KERNEL_FREE (inf);
-	return 0;
-      }
-      break;
-
-    case SNDCTL_PMGR_ACCESS:
-      {
-	struct patmgr_info *inf;
-	int             dev, err;
-
-	inf = (struct patmgr_info *) KERNEL_MALLOC (sizeof (*inf));
-
-	IOCTL_FROM_USER ((char *) inf, (char *) arg, 0, sizeof (*inf));
-	dev = inf->device;
-
-	if (dev < 0 || dev >= num_synths)
-	  {
-	    KERNEL_FREE (inf);
-	    return RET_ERROR (ENXIO);
-	  }
-
-	if (!pmgr_present[dev])
-	  {
-	    KERNEL_FREE (inf);
-	    return RET_ERROR (ESRCH);
-	  }
-
-	if ((err = pmgr_access (dev, inf)) < 0)
-	  {
-	    KERNEL_FREE (inf);
-	    return err;
-	  }
-
-	IOCTL_TO_USER ((char *) arg, 0, (char *) inf, sizeof (*inf));
-	KERNEL_FREE (inf);
-	return 0;
-      }
-      break;
-
-    case SNDCTL_SEQ_TRESHOLD:
-      {
-	int             tmp = IOCTL_IN (arg);
-
-	if (dev)		/*
-				 * Patch manager
-				 */
-	  return RET_ERROR (EIO);
+	get_user (tmp, (int *) arg);
 
 	if (tmp < 1)
 	  tmp = 1;
 	if (tmp >= SEQ_MAX_QUEUE)
 	  tmp = SEQ_MAX_QUEUE - 1;
-	output_treshold = tmp;
+	output_threshold = tmp;
 	return 0;
       }
       break;
 
     case SNDCTL_MIDI_PRETIME:
       {
-	int             val = IOCTL_IN (arg);
+	int             val;
+
+	get_user (val, (int *) arg);
 
 	if (val < 0)
 	  val = 0;
 
 	val = (HZ * val) / 10;
 	pre_event_timeout = val;
-	return IOCTL_OUT (arg, val);
+	return ioctl_out (arg, val);
       }
       break;
 
     default:
-      if (dev)			/*
-				 * Patch manager
-				 */
-	return RET_ERROR (EIO);
-
       if (mode == OPEN_READ)
-	return RET_ERROR (EIO);
+	return -EIO;
 
       if (!synth_devs[0])
-	return RET_ERROR (ENXIO);
+	return -ENXIO;
       if (!(synth_open_mask & (1 << 0)))
-	return RET_ERROR (ENXIO);
+	return -ENXIO;
       return synth_devs[0]->ioctl (0, cmd, arg);
       break;
     }
 
-  return RET_ERROR (EINVAL);
+  return -EINVAL;
 }
 
-#ifdef ALLOW_SELECT
 int
 sequencer_select (int dev, struct fileinfo *file, int sel_type, select_table * wait)
 {
@@ -1669,26 +1778,32 @@ sequencer_select (int dev, struct fileinfo *file, int sel_type, select_table * w
   switch (sel_type)
     {
     case SEL_IN:
+      save_flags (flags);
+      cli ();
       if (!iqlen)
 	{
-	  DISABLE_INTR (flags);
-	  midi_sleep_flag.mode = WK_SLEEP;
+
+	  midi_sleep_flag.opts = WK_SLEEP;
 	  select_wait (&midi_sleeper, wait);
-	  RESTORE_INTR (flags);
+	  restore_flags (flags);
 	  return 0;
 	}
+      restore_flags (flags);
       return 1;
       break;
 
     case SEL_OUT:
-      if (qlen >= SEQ_MAX_QUEUE)
+      save_flags (flags);
+      cli ();
+      if ((SEQ_MAX_QUEUE - qlen) < output_threshold)
 	{
-	  DISABLE_INTR (flags);
-	  seq_sleep_flag.mode = WK_SLEEP;
+
+	  seq_sleep_flag.opts = WK_SLEEP;
 	  select_wait (&seq_sleeper, wait);
-	  RESTORE_INTR (flags);
+	  restore_flags (flags);
 	  return 0;
 	}
+      restore_flags (flags);
       return 1;
       break;
 
@@ -1699,10 +1814,9 @@ sequencer_select (int dev, struct fileinfo *file, int sel_type, select_table * w
   return 0;
 }
 
-#endif
 
 void
-sequencer_timer (void)
+sequencer_timer (unsigned long dummy)
 {
   seq_startplay ();
 }
@@ -1756,7 +1870,7 @@ compute_finetune (unsigned long base_freq, int bend, int range)
     return base_freq;
 
   if (range >= 8192)
-    range = 8191;
+    range = 8192;
 
   bend = bend * range / 8192;
   if (!bend)
@@ -1786,78 +1900,37 @@ compute_finetune (unsigned long base_freq, int bend, int range)
     / 10000;
 
   if (negative)
-    return (base_freq * 10000) / amount;	/*
-						 * Bend down
-						 */
+    return (base_freq * 10000) / amount;	/* Bend down */
   else
-    return (base_freq * amount) / 10000;	/*
-						 * Bend up
-						 */
+    return (base_freq * amount) / 10000;	/* Bend up */
 }
 
-
-long
-sequencer_init (long mem_start)
-{
-
-  sequencer_ok = 1;
-  PERMANENT_MALLOC (unsigned char *, queue, SEQ_MAX_QUEUE * EV_SZ, mem_start);
-  PERMANENT_MALLOC (unsigned char *, iqueue, SEQ_MAX_QUEUE * IEV_SZ, mem_start);
-
-  return mem_start;
-}
-
-#else
-/*
- * Stub version
- */
-int
-sequencer_read (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
-{
-  return RET_ERROR (EIO);
-}
-
-int
-sequencer_write (int dev, struct fileinfo *file, snd_rw_buf * buf, int count)
-{
-  return RET_ERROR (EIO);
-}
-
-int
-sequencer_open (int dev, struct fileinfo *file)
-{
-  return RET_ERROR (ENXIO);
-}
 
 void
-sequencer_release (int dev, struct fileinfo *file)
+sequencer_init (void)
 {
-}
-int
-sequencer_ioctl (int dev, struct fileinfo *file,
-		 unsigned int cmd, unsigned int arg)
-{
-  return RET_ERROR (EIO);
-}
 
-int
-sequencer_lseek (int dev, struct fileinfo *file, off_t offset, int orig)
-{
-  return RET_ERROR (EIO);
-}
 
-long
-sequencer_init (long mem_start)
-{
-  return mem_start;
-}
+  queue = (unsigned char *) (sound_mem_blocks[sound_nblocks] = vmalloc (SEQ_MAX_QUEUE * EV_SZ));
+  if (sound_nblocks < 1024)
+    sound_nblocks++;;
+  if (queue == NULL)
+    {
+      printk ("Sound: Can't allocate memory for sequencer output queue\n");
+      return;
+    }
 
-int
-sequencer_select (int dev, struct fileinfo *file, int sel_type, select_table * wait)
-{
-  return RET_ERROR (EIO);
-}
 
-#endif
+  iqueue = (unsigned char *) (sound_mem_blocks[sound_nblocks] = vmalloc (SEQ_MAX_QUEUE * IEV_SZ));
+  if (sound_nblocks < 1024)
+    sound_nblocks++;;
+  if (queue == NULL)
+    {
+      printk ("Sound: Can't allocate memory for sequencer input queue\n");
+      return;
+    }
+
+  sequencer_ok = 1;
+}
 
 #endif

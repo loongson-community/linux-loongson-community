@@ -1,4 +1,5 @@
-/* include/asm-sparc/processor.h
+/* $Id: processor.h,v 1.48 1996/10/27 08:55:36 davem Exp $
+ * include/asm-sparc/processor.h
  *
  * Copyright (C) 1994 David S. Miller (davem@caip.rutgers.edu)
  */
@@ -6,151 +7,159 @@
 #ifndef __ASM_SPARC_PROCESSOR_H
 #define __ASM_SPARC_PROCESSOR_H
 
+#include <linux/a.out.h>
+
+#include <asm/psr.h>
+#include <asm/ptrace.h>
+#include <asm/head.h>
+#include <asm/signal.h>
+#include <asm/segment.h>
+
 /*
  * Bus types
  */
-#define EISA_bus 1
+#define EISA_bus 0
 #define EISA_bus__is_a_macro /* for versions in ksyms.c */
 #define MCA_bus 0
 #define MCA_bus__is_a_macro /* for versions in ksyms.c */
 
 /*
- * Write Protection works right in supervisor mode on the Sparc
+ * The sparc has no problems with write protection
  */
-
 #define wp_works_ok 1
 #define wp_works_ok__is_a_macro /* for versions in ksyms.c */
 
-/*
- * User space process size: 3GB. This is hardcoded into a few places,
- * so don't change it unless you know what you are doing.
- *
- * "this is gonna have to change to 1gig for the sparc" - David S. Miller
- */
-#define TASK_SIZE	(0xC0000000UL)
+/* Whee, this is STACK_TOP and the lowest kernel address too... */
+#define TASK_SIZE	(page_offset)
 
-/*
- * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.
- */
-#define IO_BITMAP_SIZE	32
-
-/* The first five entries here MUST be the first four. This allows me to
- * do %lo(offset) loads and stores in entry.S. See TRAP_WIN_CLEAN to see
- * why.
- */
-
-struct thread_struct {
-	unsigned long uwindows;       /* how many user windows are in the set */
-	unsigned long wim;            /* user's window invalid mask */
-	unsigned long w_saved;        /* how many windows saved in reg_window[] */
-	unsigned long ksp;          /* kernel stack pointer */
-	unsigned long usp;          /* user's sp, throw reg windows here */
-	unsigned long psr;          /* save for condition codes */
-	unsigned long reg_window[16*24];
-	unsigned long cr3;          /* why changed from ptbr? */
-	unsigned int pcc;
-	unsigned int asn;
-	unsigned long unique;
-	unsigned long flags;
-	unsigned long res1, res2;
-	unsigned long pc;           /* program counter */
-	unsigned long npc;          /* next program counter */
-
-/* 8 local registers + 8 in registers * 24 register windows.
- * Most sparcs I know of only have 8 windows implemented,
- * we determine how many at boot time and store that value
- * in nwindows.
- */
-	unsigned long globl_regs[8];  /* global regs need to be saved too */
-	unsigned long yreg;
-	unsigned long float_regs[64]; /* V8 and below have 32, V9 has 64 */
+/* Ok this is hot.  Sparc exception save area. */
+struct exception_struct {
+	unsigned long count;   /* Exception count */
+	unsigned long pc;      /* Callers PC for copy/clear user */
+	unsigned long expc;    /* Where to jump when exception signaled */
+	unsigned long address; /* Saved user base address for transfer */
 };
 
-#define INIT_MMAP { &init_task, 0x0, 0x40000000, \
-		      PAGE_SHARED , VM_READ | VM_WRITE | VM_EXEC }
+/* The Sparc processor specific thread struct. */
+struct thread_struct {
+	unsigned long uwinmask __attribute__ ((aligned (8)));
+	struct pt_regs *kregs;
+
+	/* For signal handling */
+	unsigned long sig_address __attribute__ ((aligned (8)));
+	unsigned long sig_desc;
+
+	/* Context switch saved kernel state. */
+	unsigned long ksp __attribute__ ((aligned (8)));
+	unsigned long kpc;
+	unsigned long kpsr;
+	unsigned long kwim;
+
+	/* Special child fork kpsr/kwim values. */
+	unsigned long fork_kpsr __attribute__ ((aligned (8)));
+	unsigned long fork_kwim;
+
+	/* A place to store user windows and stack pointers
+	 * when the stack needs inspection.
+	 */
+#define NSWINS 8
+	struct reg_window reg_window[NSWINS] __attribute__ ((aligned (8)));
+	unsigned long rwbuf_stkptrs[NSWINS] __attribute__ ((aligned (8)));
+	unsigned long w_saved;
+
+	/* Floating point regs */
+	unsigned long   float_regs[64] __attribute__ ((aligned (8)));
+	unsigned long   fsr;
+	unsigned long   fpqdepth;
+	struct fpq {
+		unsigned long *insn_addr;
+		unsigned long insn;
+	} fpqueue[16];
+	struct sigstack sstk_info;
+	unsigned long flags;
+	struct exception_struct ex __attribute__ ((aligned (8)));
+	int current_ds;
+	struct exec core_exec;     /* just what it says. */
+};
+
+#define SPARC_FLAG_KTHREAD      0x1    /* task is a kernel thread */
+#define SPARC_FLAG_UNALIGNED    0x2    /* is allowed to do unaligned accesses */
+
+#define INIT_MMAP { &init_mm, (0), (0), \
+		    __pgprot(0x0) , VM_READ | VM_WRITE | VM_EXEC }
 
 #define INIT_TSS  { \
-	0, 0, 0, 0, 0, 0, \
-        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }, \
-	0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        { 0, 0, 0, 0, 0, 0, 0, 0, }, \
-        0, \
-        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }, \
+/* uwinmask, kregs, sig_address, sig_desc, ksp, kpc, kpsr, kwim */ \
+   0,        0,     0,           0,        0,   0,   0,    0, \
+/* fork_kpsr, fork_kwim */ \
+   0,         0, \
+/* reg_window */  \
+{ { { 0, }, { 0, } }, }, \
+/* rwbuf_stkptrs */  \
+{ 0, 0, 0, 0, 0, 0, 0, 0, }, \
+/* w_saved */ \
+   0, \
+/* FPU regs */   { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }, \
+/* FPU status, FPU qdepth, FPU queue */ \
+   0,          0,  { { 0, 0, }, }, \
+/* sstk_info */ \
+{ 0, 0, }, \
+/* flags,              ex,       current_ds, */ \
+   SPARC_FLAG_KTHREAD, { 0, }, USER_DS, \
+/* core_exec */ \
+{ 0, }, \
 }
 
-/* The thread_frame is what needs to be set up in certain circumstances
- * upon entry to a trap. It is also loaded sometimes during a window
- * spill if things don't go right (bad user stack pointer). In reality
- * it is not per-process per se, it just sits in the kernel stack while
- * the current process is in a handler then it is basically forgotten
- * about.
- */
+/* Return saved PC of a blocked thread. */
+extern __inline__ unsigned long thread_saved_pc(struct thread_struct *t)
+{
+	return t->kpc;
+}
 
-struct thread_frame {
-  unsigned int thr_psr;
-  unsigned int thr_pc;
-  unsigned int thr_npc;
-  unsigned int thr_y;
-  unsigned int thr_globals[8];
-  unsigned int thr_outs[8];
-};
+/* Do necessary setup to start up a newly executed thread. */
+extern __inline__ void start_thread(struct pt_regs * regs, unsigned long pc,
+				    unsigned long sp)
+{
+	register unsigned long zero asm("g1");
+
+	regs->psr = (regs->psr & (PSR_CWP)) | PSR_S;
+	regs->pc = ((pc & (~3)) - 4);
+	regs->npc = regs->pc + 4;
+	regs->y = 0;
+	zero = 0;
+	__asm__ __volatile__("std\t%%g0, [%0 + %3 + 0x00]\n\t"
+			     "std\t%%g0, [%0 + %3 + 0x08]\n\t"
+			     "std\t%%g0, [%0 + %3 + 0x10]\n\t"
+			     "std\t%%g0, [%0 + %3 + 0x18]\n\t"
+			     "std\t%%g0, [%0 + %3 + 0x20]\n\t"
+			     "std\t%%g0, [%0 + %3 + 0x28]\n\t"
+			     "std\t%%g0, [%0 + %3 + 0x30]\n\t"
+			     "st\t%1, [%0 + %3 + 0x38]\n\t"
+			     "st\t%%g0, [%0 + %3 + 0x3c]"
+			     : : "r" (regs), "r" (sp - REGWIN_SZ), "r" (zero),
+			     "i" ((const unsigned long)(&((struct pt_regs *)0)->u_regs[0])));
+}
+
+#define release_thread(tsk)		do { } while(0)
+
+#ifdef __KERNEL__
+extern unsigned long (*alloc_kernel_stack)(struct task_struct *tsk);
+extern void (*free_kernel_stack)(unsigned long stack);
+extern struct task_struct *(*alloc_task_struct)(void);
+extern void (*free_task_struct)(struct task_struct *tsk);
+#endif
 
 /*
- * These are the "cli()" and "sti()" for software interrupts
- * They work by increasing/decreasing the "intr_count" value, 
- * and as such can be nested arbitrarily.
+ * Return_address is a replacement for __builtin_return_address(count)
+ * which on certain architectures cannot reasonably be implemented in GCC
+ * (MIPS, Alpha) or is unuseable with -fomit-frame-pointer (i386).
+ * Note that __builtin_return_address(x>=1) is forbidden because the GCC
+ * aborts compilation on some CPUs.  It's simply not possible to unwind
+ * some CPU's stackframes.
  */
-extern inline void start_bh_atomic(void)
-{
-	unsigned long dummy, psr;
-	__asm__ __volatile__("rd %%psr, %2\n\t"
-			     "wr %2, 0x20, %%psr\n\t"  /* disable traps */
-			     "ld %1,%0\n\t"
-			     "add %0,1,%0\n\t"
-			     "st %0,%1\n\t"
-			     "wr %2, 0x0, %%psr\n\t"   /* enable traps */
-			     : "=r" (dummy), "=m" (intr_count)
-			     : "0" (0), "r" (psr=0));
-}
-
-extern inline void end_bh_atomic(void)
-{
-	unsigned long dummy, psr;
-	__asm__ __volatile__("rd %%psr, %2\n\t"
-			     "wr %2, 0x20, %%psr\n\t"
-			     "ld %1,%0\n\t"
-			     "sub %0,1,%0\n\t"
-			     "st %0,%1\n\t"
-			     "wr %2, 0x0, %%psr\n\t"
-			     : "=r" (dummy), "=m" (intr_count)
-			     : "0" (0), "r" (psr=0));
-}
+#define return_address() __builtin_return_address(0)
 
 #endif /* __ASM_SPARC_PROCESSOR_H */
-

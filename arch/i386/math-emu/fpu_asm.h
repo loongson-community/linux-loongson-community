@@ -1,17 +1,18 @@
 /*---------------------------------------------------------------------------+
  |  fpu_asm.h                                                                |
  |                                                                           |
- | Copyright (C) 1992    W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ | Copyright (C) 1992,1995                                                   |
+ |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
+ |                       Australia.  E-mail billm@jacobi.maths.monash.edu.au |
  |                                                                           |
  +---------------------------------------------------------------------------*/
 
 #ifndef _FPU_ASM_H_
 #define _FPU_ASM_H_
 
-#include "fpu_emu.h"
+#include <linux/linkage.h>
 
-#define	EXCEPTION	_exception
+#define	EXCEPTION	SYMBOL_NAME(FPU_exception)
 
 
 #define PARAM1	8(%ebp)

@@ -1,5 +1,5 @@
 /*
- *	AX.25 release 029
+ *	AX.25 release 033
  *
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
@@ -22,10 +22,17 @@
  *	AX.25 028a	Jonathan(G4KLX)	New state machine based on SDL diagrams.
  *	AX.25 029	Alan(GW4PTS)	Switched to KA9Q constant names.
  *			Jonathan(G4KLX)	Only poll when window is full.
+ *	AX.25 030	Jonathan(G4KLX)	Added fragmentation to ax25_output.
+ *					Added support for extended AX.25.
+ *	AX.25 031	Joerg(DL1BKE)	Added DAMA support
+ *			Joerg(DL1BKE)	Modified fragmenter to fragment vanilla 
+ *					AX.25 I-Frames. Added PACLEN parameter.
+ *			Joerg(DL1BKE)	Fixed a problem with buffer allocation
+ *					for fragments.
  */
 
 #include <linux/config.h>
-#ifdef CONFIG_AX25
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/socket.h>
@@ -41,20 +48,108 @@
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <linux/fcntl.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 
-int ax25_output(ax25_cb *ax25, struct sk_buff *skb)
+/*
+ * All outgoing AX.25 I frames pass via this routine. Therefore this is
+ * where the fragmentation of frames takes place.
+ */
+void ax25_output(ax25_cb *ax25, struct sk_buff *skb)
 {
-	skb_queue_tail(&ax25->write_queue, skb);	/* Throw it on the queue */
+	struct sk_buff *skbn;
+	unsigned char *p;
+	int frontlen, mtu, len, fragno, ka9qfrag, first = 1;
+	long flags;
+	
+	/*
+	 * dl1bke 960301: We use the new PACLEN parameter as MTU of the AX.25 layer.
+	 *                This will (hopefully) allow user programs to write() data
+	 *                w/o having to think of the maximal amount of data we can
+	 *		  send with one call. It's called PACLEN to (1) avoid confusion
+	 *		  with (IP) MTU and (2) TAPR calls this PACLEN, too ;-)
+	 */
 
-	if (ax25->state == AX25_STATE_3 || ax25->state == AX25_STATE_4)
-		ax25_kick(ax25);
+	mtu = ax25->paclen;
+	
+	if ((skb->len - 1) > mtu) {
+		if (*skb->data == AX25_P_TEXT) {
+			skb_pull(skb, 1); /* skip PID */
+			ka9qfrag = 0;
+		} else {
+			mtu -= 2;	/* Allow for fragment control info */
+			ka9qfrag = 1;
+		}
+		
+		fragno = skb->len / mtu;
+		if (skb->len % mtu == 0) fragno--;
 
-	return 0;
+		frontlen = skb_headroom(skb);	/* Address space + CTRL */
+
+		while (skb->len > 0) {
+			save_flags(flags); 
+			cli();
+			/* 
+			 * do _not_ use sock_alloc_send_skb, our socket may have
+			 * sk->shutdown set...
+			 */
+			if ((skbn = alloc_skb(mtu + 2 + frontlen, GFP_ATOMIC)) == NULL) {
+				restore_flags(flags);
+				printk(KERN_DEBUG "ax25_output: alloc_skb returned NULL\n");
+				if (skb_device_locked(skb))
+					skb_device_unlock(skb);
+				return;
+			}
+
+			skbn->sk   = skb->sk;
+			
+			if (skbn->sk)
+				atomic_add(skbn->truesize, &skbn->sk->wmem_alloc);
+			
+			restore_flags(flags);
+			
+			skbn->free = 1;
+			skbn->arp  = 1;
+
+			len = (mtu > skb->len) ? skb->len : mtu;
+			
+			if (ka9qfrag == 1) {
+				skb_reserve(skbn, frontlen + 2);
+
+				memcpy(skb_put(skbn, len), skb->data, len);
+				p = skb_push(skbn, 2);
+
+				*p++ = AX25_P_SEGMENT;
+
+				*p = fragno--;
+				if (first) {
+					*p |= SEG_FIRST;
+					first = 0;
+				}
+			} else {
+				skb_reserve(skbn, frontlen + 1);
+				memcpy(skb_put(skbn, len), skb->data, len);
+				p = skb_push(skbn, 1);
+				*p = AX25_P_TEXT;
+			}
+
+			skb_pull(skb, len);
+			skb_queue_tail(&ax25->write_queue, skbn); /* Throw it on the queue */
+		}
+		
+		skb->free = 1;
+		kfree_skb(skb, FREE_WRITE);
+	} else {
+		skb_queue_tail(&ax25->write_queue, skb);	  /* Throw it on the queue */
+	}
+
+	if (ax25->state == AX25_STATE_3 || ax25->state == AX25_STATE_4) {
+		if (!ax25->dama_slave)		/* bke 960114: we aren't allowed to transmit */
+			ax25_kick(ax25);	/* in DAMA mode unless we received a Poll */
+	}
 }
 
 /* 
@@ -67,13 +162,22 @@ static void ax25_send_iframe(ax25_cb *ax25, struct sk_buff *skb, int poll_bit)
 
 	if (skb == NULL)
 		return;
-	
-	frame = skb->h.raw;	/* KISS + header */
 
-	*frame = I;
-	*frame |= poll_bit;
-	*frame |= (ax25->vr << 5);
-	*frame |= (ax25->vs << 1);
+	if (ax25->modulus == MODULUS) {
+		frame = skb_push(skb, 1);
+
+		*frame = I;
+		*frame |= (poll_bit) ? PF : 0;
+		*frame |= (ax25->vr << 5);
+		*frame |= (ax25->vs << 1);
+	} else {
+		frame = skb_push(skb, 2);
+
+		frame[0] = I;
+		frame[0] |= (ax25->vs << 1);
+		frame[1] = (poll_bit) ? EPF : 0;
+		frame[1] |= (ax25->vr << 1);
+	}
 
 	ax25_transmit_buffer(ax25, skb, C_COMMAND);	
 }
@@ -87,7 +191,7 @@ void ax25_kick(ax25_cb *ax25)
 	del_timer(&ax25->timer);
 
 	start = (skb_peek(&ax25->ack_queue) == NULL) ? ax25->va : ax25->vs;
-	end   = (ax25->va + ax25->window) % MODULUS;
+	end   = (ax25->va + ax25->window) % ax25->modulus;
 
 	if (!(ax25->condition & PEER_RX_BUSY_CONDITION) &&
 	    start != end                                   &&
@@ -100,18 +204,19 @@ void ax25_kick(ax25_cb *ax25)
 		 * the window is full. Send a poll on the final I frame if
 		 * the window is filled.
 		 */
-		do {
-			/*
-			 * Dequeue the frame and copy it.
-			 */
-			skb  = skb_dequeue(&ax25->write_queue);
 
+		/*
+		 * Dequeue the frame and copy it.
+		 */
+		skb  = skb_dequeue(&ax25->write_queue);
+
+		do {
 			if ((skbn = skb_clone(skb, GFP_ATOMIC)) == NULL) {
 				skb_queue_head(&ax25->write_queue, skb);
-				return;
+				break;
 			}
 
-			next = (ax25->vs + 1) % MODULUS;
+			next = (ax25->vs + 1) % ax25->modulus;
 #ifdef notdef
 			last = (next == end) || skb_peek(&ax25->write_queue) == NULL;
 #else
@@ -119,8 +224,10 @@ void ax25_kick(ax25_cb *ax25)
 #endif
 			/*
 			 * Transmit the frame copy.
+			 * bke 960114: do not set the Poll bit on the last frame
+			 * in DAMA mode.
 			 */
-			ax25_send_iframe(ax25, skbn, (last) ? PF : 0);
+			ax25_send_iframe(ax25, skbn, (last && !ax25->dama_slave) ? POLLON : POLLOFF);
 
 			ax25->vs = next;
 
@@ -131,7 +238,7 @@ void ax25_kick(ax25_cb *ax25)
 #ifdef notdef
 		} while (!last);
 #else
-		} while (!last && skb_peek(&ax25->write_queue) != NULL);
+		} while (!last && (skb = skb_dequeue(&ax25->write_queue)) != NULL);
 #endif
 		ax25->condition &= ~ACK_PENDING_CONDITION;
 
@@ -146,25 +253,33 @@ void ax25_kick(ax25_cb *ax25)
 
 void ax25_transmit_buffer(ax25_cb *ax25, struct sk_buff *skb, int type)
 {
-	unsigned char *ptr = skb->data;
+	unsigned char *ptr;
 
 	if (ax25->device == NULL) {
 		if (ax25->sk != NULL) {
-			ax25->sk->state = TCP_CLOSE;
-			ax25->sk->err   = ENETUNREACH;
+			ax25->sk->state     = TCP_CLOSE;
+			ax25->sk->err       = ENETUNREACH;
+			ax25->sk->shutdown |= SEND_SHUTDOWN;
 			if (!ax25->sk->dead)
 				ax25->sk->state_change(ax25->sk);
-			ax25->sk->dead  = 1;
+			ax25->sk->dead      = 1;
 		}
 		return;
 	}
 
-	*ptr++ = 0;	/* KISS data */
-	ptr   += build_ax25_addr(ptr, &ax25->source_addr, &ax25->dest_addr, ax25->digipeat, type);
+	if (skb_headroom(skb) < size_ax25_addr(ax25->digipeat)) {
+		printk(KERN_CRIT "ax25_transmit_buffer: not enough room for digi-peaters\n");
+		skb->free = 1;
+		kfree_skb(skb, FREE_WRITE);
+		return;
+	}
+
+	ptr = skb_push(skb, size_ax25_addr(ax25->digipeat));
+	build_ax25_addr(ptr, &ax25->source_addr, &ax25->dest_addr, ax25->digipeat, type, ax25->modulus);
 
 	skb->arp = 1;
 
-	dev_queue_xmit(skb, ax25->device, SOPRI_NORMAL);
+	ax25_queue_xmit(skb, ax25->device, SOPRI_NORMAL);
 }
 
 /*
@@ -182,8 +297,12 @@ void ax25_establish_data_link(ax25_cb *ax25)
 	ax25->condition = 0x00;
 	ax25->n2count   = 0;
 
-	ax25_send_control(ax25, SABM | PF, C_COMMAND);
-
+	if (ax25->modulus == MODULUS) {
+		ax25_send_control(ax25, SABM, POLLON, C_COMMAND);
+	} else {
+		ax25_send_control(ax25, SABME, POLLON, C_COMMAND);
+	}
+	
 	ax25->t3timer = 0;
 	ax25->t2timer = 0;
 	ax25->t1timer = ax25->t1 = ax25_calculate_t1(ax25);
@@ -192,9 +311,9 @@ void ax25_establish_data_link(ax25_cb *ax25)
 void ax25_transmit_enquiry(ax25_cb *ax25)
 {
 	if (ax25->condition & OWN_RX_BUSY_CONDITION)
-		ax25_send_control(ax25, RNR | PF, C_COMMAND);
+		ax25_send_control(ax25, RNR, POLLON, C_COMMAND);
 	else
-		ax25_send_control(ax25, RR | PF, C_COMMAND);
+		ax25_send_control(ax25, RR, POLLON, C_COMMAND);
 
 	ax25->condition &= ~ACK_PENDING_CONDITION;
 
@@ -204,9 +323,19 @@ void ax25_transmit_enquiry(ax25_cb *ax25)
 void ax25_enquiry_response(ax25_cb *ax25)
 {
 	if (ax25->condition & OWN_RX_BUSY_CONDITION)
-		ax25_send_control(ax25, RNR | PF, C_RESPONSE);
+		ax25_send_control(ax25, RNR, POLLON, C_RESPONSE);
 	else
-		ax25_send_control(ax25, RR | PF, C_RESPONSE);
+		ax25_send_control(ax25, RR, POLLON, C_RESPONSE);
+
+	ax25->condition &= ~ACK_PENDING_CONDITION;
+}
+
+void ax25_timeout_response(ax25_cb *ax25)
+{
+	if (ax25->condition & OWN_RX_BUSY_CONDITION)
+		ax25_send_control(ax25, RNR, POLLOFF, C_RESPONSE);
+	else
+		ax25_send_control(ax25, RR, POLLOFF, C_RESPONSE);
 
 	ax25->condition &= ~ACK_PENDING_CONDITION;
 }
@@ -226,10 +355,100 @@ void ax25_check_iframes_acked(ax25_cb *ax25, unsigned short nr)
 	}
 }
 
+/*
+ *	dl1bke 960114: shouldn't ax25/dama_check_need_response reside as
+ *                static inline void ...() in ax25.h, should it? ;-)
+ */
 void ax25_check_need_response(ax25_cb *ax25, int type, int pf)
 {
-	if (type == C_COMMAND && pf)
+	if (!ax25->dama_slave && type == C_COMMAND && pf)
 		ax25_enquiry_response(ax25);
+}
+
+/*
+ *	dl1bke 960114: transmit I frames on DAMA poll
+ */
+void dama_enquiry_response(ax25_cb *ax25)
+{
+	ax25_cb *ax25o;
+	
+	if (!(ax25->condition & PEER_RX_BUSY_CONDITION)) {
+		ax25_requeue_frames(ax25);
+		ax25_kick(ax25);
+	}
+
+	if (ax25->state == AX25_STATE_1 || ax25->state == AX25_STATE_2 ||
+	    skb_peek(&ax25->ack_queue) != NULL) {
+		ax25_t1_timeout(ax25);
+	} else {
+		ax25->n2count = 0;
+	}
+	
+	ax25->t3timer = ax25->t3;
+	
+
+	/* The FLEXNET DAMA master implementation refuses to send us ANY */
+	/* I frame for this connection if we send a REJ here, probably   */
+	/* due to its frame collector scheme? A simple RR or  RNR will   */
+	/* invoke the retransmission, and in fact REJs are superfluous   */
+	/* in DAMA mode anyway...					 */
+	
+#if 0
+	if (ax25->condition & REJECT_CONDITION)
+		ax25_send_control(ax25, REJ, POLLOFF, C_RESPONSE);
+	else
+#endif	
+		ax25_enquiry_response(ax25);
+		
+	/* Note that above response to the poll could be sent behind the  */
+	/* transmissions of the other channels as well... This version    */	
+	/* gives better performance on FLEXNET nodes. (Why, Gunter?)	  */
+
+	for (ax25o = ax25_list; ax25o != NULL; ax25o = ax25o->next) {
+		if (ax25o == ax25)
+			continue;
+
+		if (ax25o->device != ax25->device)
+			continue;
+
+		if (ax25o->state == AX25_STATE_1 || ax25o->state == AX25_STATE_2) {
+			ax25_t1_timeout(ax25o);
+			continue;
+		}
+
+		if (!ax25o->dama_slave)
+			continue;
+			
+		if ( !(ax25o->condition & PEER_RX_BUSY_CONDITION) && 
+		     (ax25o->state == AX25_STATE_3 || 
+		     (ax25o->state == AX25_STATE_4 && ax25o->t1timer == 0))) {
+			ax25_requeue_frames(ax25o);
+			ax25_kick(ax25o);
+		}
+		
+		if (ax25o->state == AX25_STATE_1 || ax25o->state == AX25_STATE_2 ||
+		    skb_peek(&ax25o->ack_queue) != NULL) {
+			ax25_t1_timeout(ax25o);
+		}
+
+		ax25o->t3timer = ax25o->t3;
+	}
+}
+
+void dama_check_need_response(ax25_cb *ax25, int type, int pf)
+{
+	if (ax25->dama_slave && type == C_COMMAND && pf)
+		dama_enquiry_response(ax25);
+}
+
+void dama_establish_data_link(ax25_cb *ax25)
+{
+	ax25->condition = 0x00;
+	ax25->n2count   = 0;
+
+	ax25->t3timer = ax25->t3;
+	ax25->t2timer = 0;
+	ax25->t1timer = ax25->t1 = ax25_calculate_t1(ax25);
 }
 
 #endif

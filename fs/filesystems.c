@@ -20,8 +20,14 @@
 #include <linux/iso_fs.h>
 #include <linux/sysv_fs.h>
 #include <linux/hpfs_fs.h>
+#include <linux/smb_fs.h>
+#include <linux/ncp_fs.h>
+#include <linux/affs_fs.h>
+#include <linux/ufs_fs.h>
+#include <linux/major.h>
 
 extern void device_setup(void);
+extern void binfmt_setup(void);
 
 /* This may be used only once, enforced by 'static int callable' */
 asmlinkage int sys_setup(void)
@@ -34,64 +40,74 @@ asmlinkage int sys_setup(void)
 
 	device_setup();
 
-#ifdef CONFIG_MINIX_FS
-	register_filesystem(&(struct file_system_type)
-		{minix_read_super, "minix", 1, NULL});
-#endif
+	binfmt_setup();
 
 #ifdef CONFIG_EXT_FS
-	register_filesystem(&(struct file_system_type)
-		{ext_read_super, "ext", 1, NULL});
+	init_ext_fs();
 #endif
 
 #ifdef CONFIG_EXT2_FS
-	register_filesystem(&(struct file_system_type)
-		{ext2_read_super, "ext2", 1, NULL});
+	init_ext2_fs();
 #endif
 
 #ifdef CONFIG_XIA_FS
-	register_filesystem(&(struct file_system_type)
-		{xiafs_read_super, "xiafs", 1, NULL});
+	init_xiafs_fs();
 #endif
+
+#ifdef CONFIG_MINIX_FS
+	init_minix_fs();
+#endif
+
 #ifdef CONFIG_UMSDOS_FS
-	register_filesystem(&(struct file_system_type)
-	{UMSDOS_read_super,	"umsdos",	1, NULL});
+	init_umsdos_fs();
+#endif
+
+#ifdef CONFIG_FAT_FS
+	init_fat_fs();
 #endif
 
 #ifdef CONFIG_MSDOS_FS
-	register_filesystem(&(struct file_system_type)
-		{msdos_read_super, "msdos", 1, NULL});
+	init_msdos_fs();
+#endif
+
+#ifdef CONFIG_VFAT_FS
+	init_vfat_fs();
 #endif
 
 #ifdef CONFIG_PROC_FS
-	register_filesystem(&(struct file_system_type)
-		{proc_read_super, "proc", 0, NULL});
+	init_proc_fs();
 #endif
 
 #ifdef CONFIG_NFS_FS
-	register_filesystem(&(struct file_system_type)
-		{nfs_read_super, "nfs", 0, NULL});
+	init_nfs_fs();
+#endif
+
+#ifdef CONFIG_SMB_FS
+	init_smb_fs();
+#endif
+
+#ifdef CONFIG_NCP_FS
+	init_ncp_fs();
 #endif
 
 #ifdef CONFIG_ISO9660_FS
-	register_filesystem(&(struct file_system_type)
-		{isofs_read_super, "iso9660", 1, NULL});
+	init_iso9660_fs();
 #endif
 
 #ifdef CONFIG_SYSV_FS
-	register_filesystem(&(struct file_system_type)
-		{sysv_read_super, "xenix", 1, NULL});
-
-	register_filesystem(&(struct file_system_type)
-		{sysv_read_super, "sysv", 1, NULL});
-
-	register_filesystem(&(struct file_system_type)
-		{sysv_read_super, "coherent", 1, NULL});
+	init_sysv_fs();
 #endif
 
 #ifdef CONFIG_HPFS_FS
-	register_filesystem(&(struct file_system_type)
-		{hpfs_read_super, "hpfs", 1, NULL});
+	init_hpfs_fs();
+#endif
+
+#ifdef CONFIG_AFFS_FS
+	init_affs_fs();
+#endif
+
+#ifdef CONFIG_UFS_FS
+	init_ufs_fs();
 #endif
 
 	mount_root();

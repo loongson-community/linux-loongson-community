@@ -9,9 +9,9 @@
 #include <linux/sys.h>
 
 #include <asm/asm.h>
-#include <asm/segment.h>
 #include <asm/mipsregs.h>
 #include <asm/mipsconfig.h>
+#include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/gdb-stub.h>
 

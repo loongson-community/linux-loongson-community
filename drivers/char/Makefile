@@ -9,111 +9,211 @@
 # parent makes..
 #
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) $(ASFLAGS) -c -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
+SUB_DIRS     := 
+MOD_SUB_DIRS := $(SUB_DIRS)
+ALL_SUB_DIRS := $(SUB_DIRS) ftape
 
-OBJS  = tty_io.o n_tty.o console.o keyboard.o serial.o \
-	tty_ioctl.o pty.o vt.o mem.o vc_screen.o \
-	defkeymap.o consolemap.o vesa_blank.o selection.o
+#
+# This file contains the font map for the default (hardware) font
+#
+FONTMAPFILE = cp437.uni
 
-SRCS  = tty_io.c n_tty.c console.c keyboard.c serial.c \
-	tty_ioctl.c pty.c vt.c mem.c vc_screen.c \
-	defkeymap.c consolemap.c vesa_blank.c selection.c
+L_TARGET := char.a
+M_OBJS   :=
+L_OBJS   := tty_io.o n_tty.o console.o \
+	tty_ioctl.o pty.o vt.o mem.o vc_screen.o random.o \
+	consolemap.o selection.o
 
-
-ifdef CONFIG_MIPS_MAGNUM_4000
-OBJS := $(OBJS) fnt8x16.o
-SRCS := $(SRCS) fnt8x16.c
-endif
-
-ifdef CONFIG_CYCLADES
-OBJS := $(OBJS) cyclades.o
-SRCS := $(SRCS) cyclades.c
-endif
-
-ifdef CONFIG_ATIXL_BUSMOUSE
-M = y
-OBJS := $(OBJS) atixlmouse.o
-SRCS := $(SRCS) atixlmouse.c
-endif
-
-ifdef CONFIG_BUSMOUSE
-M = y
-OBJS := $(OBJS) busmouse.o
-SRCS := $(SRCS) busmouse.c
-endif
-
-ifdef CONFIG_PRINTER
-OBJS := $(OBJS) lp.o
-SRCS := $(SRCS) lp.c
+ifeq ($(CONFIG_SERIAL),y)
+  ifndef CONFIG_SUN_SERIAL
+  LX_OBJS += serial.o
+  endif
 else
-MODULES := $(MODULES) lp.o
+  ifeq ($(CONFIG_SERIAL),m)
+  MX_OBJS += serial.o
+  endif
 endif
 
-ifdef CONFIG_MS_BUSMOUSE
+ifndef CONFIG_SUN_KEYBOARD
+L_OBJS += keyboard.o defkeymap.o
+endif
+
+ifeq ($(CONFIG_DIGI),y)
+L_OBJS += pcxx.o
+else
+  ifeq ($(CONFIG_DIGI),m)
+  M_OBJS += pcxx.o
+  endif
+endif
+
+ifeq ($(CONFIG_CYCLADES),y)
+L_OBJS += cyclades.o
+else
+  ifeq ($(CONFIG_CYCLADES),m)
+  M_OBJS += cyclades.o
+  endif
+endif
+
+ifeq ($(CONFIG_STALLION),y)
+L_OBJS += stallion.o
+else
+  ifeq ($(CONFIG_STALLION),m)
+  M_OBJS += stallion.o
+  endif
+endif
+
+ifeq ($(CONFIG_ISTALLION),y)
+L_OBJS += istallion.o
+else
+  ifeq ($(CONFIG_ISTALLION),m)
+  M_OBJS += istallion.o
+  endif
+endif
+
+ifeq ($(CONFIG_RISCOM8),y)
+L_OBJS += riscom8.o
+else
+  ifeq ($(CONFIG_RISCOM8),m)
+  M_OBJS += riscom8.o
+  endif
+endif
+
+ifeq ($(CONFIG_ATIXL_BUSMOUSE),y)
 M = y
-OBJS := $(OBJS) msbusmouse.o
-SRCS := $(SRCS) msbusmouse.c
+L_OBJS += atixlmouse.o
+else
+  ifeq ($(CONFIG_ATIXL_BUSMOUSE),m)
+  M_OBJS += atixlmouse.o
+  MM = m
+  endif
 endif
 
-ifdef CONFIG_82C710_MOUSE
-CONFIG_PSMOUSE = CONFIG_PSMOUSE
-endif
-
-ifdef CONFIG_PSMOUSE
+ifeq ($(CONFIG_BUSMOUSE),y)
 M = y
-OBJS := $(OBJS) psaux.o
-SRCS := $(SRCS) psaux.c
+L_OBJS += busmouse.o
+else
+  ifeq ($(CONFIG_BUSMOUSE),m)
+  M_OBJS += busmouse.o
+  MM = m
+  endif
+endif
+
+ifeq ($(CONFIG_PRINTER),y)
+L_OBJS += lp.o
+else
+  ifeq ($(CONFIG_PRINTER),m)
+  M_OBJS += lp.o
+  endif
+endif
+
+ifeq ($(CONFIG_MS_BUSMOUSE),y)
+M = y
+L_OBJS += msbusmouse.o
+else
+  ifeq ($(CONFIG_MS_BUSMOUSE),m)
+  M_OBJS += msbusmouse.o
+  MM = m
+  endif
+endif
+
+ifeq ($(CONFIG_PSMOUSE),y)
+M = y
+L_OBJS += psaux.o
+else
+  ifeq ($(CONFIG_PSMOUSE),m)
+  M_OBJS += psaux.o
+  MM = m
+  endif
+endif
+
+ifeq ($(CONFIG_UMISC),y)
+# To support third-party modules, misc.c must reside in the kernel
+M = y
+endif
+
+ifeq ($(CONFIG_SOFT_WATCHDOG),y)
+M = y
+L_OBJS += softdog.o
+else
+  ifeq ($(CONFIG_SOFT_WATCHDOG),m)
+  M_OBJS += softdog.o
+  MM = m
+  endif   
+endif
+
+ifeq ($(CONFIG_PCWATCHDOG),y)
+M = y
+L_OBJS += pcwd.o
+else
+  ifeq ($(CONFIG_PCWATCHDOG),m)
+  M_OBJS += pcwd.o
+  MM = m
+  endif
+endif
+
+ifdef CONFIG_SUN_MOUSE
+M = y
+endif
+
+ifeq ($(CONFIG_WDT),y)
+M = y
+L_OBJS += wdt.o
+else
+  ifeq ($(CONFIG_WDT),m)
+    M_OBJS += wdt.o
+    MM = m
+  endif
+endif
+
+ifeq ($(CONFIG_RTC),y)
+M = y
+L_OBJS += rtc.o
 endif
 
 ifdef CONFIG_QIC02_TAPE
-OBJS := $(OBJS) tpqic02.o 
-SRCS := $(SRCS) tpqic02.c
+L_OBJS += tpqic02.o 
+endif
+
+ifeq ($(CONFIG_FTAPE),y)
+SUB_DIRS += ftape
+L_OBJS += ftape/ftape.o
+else
+  ifeq ($(CONFIG_FTAPE),m)
+  MOD_SUB_DIRS += ftape
+  endif
+endif
+
+ifdef CONFIG_APM
+LX_OBJS += apm_bios.o
+M = y
 endif
 
 ifdef M
-OBJS := $(OBJS) mouse.o
-SRCS := $(SRCS) mouse.c
+LX_OBJS += misc.o
+else
+  ifdef MM
+  MX_OBJS += misc.o
+  endif
 endif
   
-ifdef CONFIG_SCC
-OBJS := $(OBJS) scc.o
-SRCS := $(SRCS) scc.c
-endif
- 
-
-all: char.a
-
-char.a: $(OBJS)
-	$(AR) rcs char.a $(OBJS)
-	sync	
-
-ifdef MODULES
-
-modules: $(MODULES)
-	(cd ../../modules;for i in $(MODULES); do ln -sf ../drivers/char/$$i .; done)
-
+ifdef CONFIG_TGA_CONSOLE
+L_OBJS += tga.o
 else
-
-modules:
-
+ ifndef CONFIG_SUN_CONSOLE
+  ifndef CONFIG_VIDEO_G364
+  L_OBJS += vga.o vesa_blank.o
+  endif
+ endif
 endif
 
-dep:
-	$(CPP) -M $(SRCS) > .depend
-ifdef MODULES
-	$(CPP) -M -DMODULE $(MODULES:.o=.c) >> .depend
-endif
+include $(TOPDIR)/Rules.make
 
-dummy:
+fastdep: uni_hash.tbl
 
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+consolemap.o:
+
+conmakehash: conmakehash.c
+	$(HOSTCC) -o conmakehash conmakehash.c
+
+uni_hash.tbl: $(FONTMAPFILE) conmakehash
+	./conmakehash $(FONTMAPFILE) > uni_hash.tbl

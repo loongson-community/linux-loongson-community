@@ -4,9 +4,9 @@
  |                                                                           |
  | Core multiplication routine                                               |
  |                                                                           |
- | Copyright (C) 1992,1993                                                   |
+ | Copyright (C) 1992,1993,1995                                              |
  |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ |                       Australia.  E-mail billm@jacobi.maths.monash.edu.au |
  |                                                                           |
  |                                                                           |
  +---------------------------------------------------------------------------*/
@@ -22,7 +22,7 @@
  +---------------------------------------------------------------------------*/
 
 #include "exception.h"
-#include "fpu_asm.h"
+#include "fpu_emu.h"
 #include "control_w.h"
 
 
@@ -44,10 +44,7 @@ FPU_accum_1:
 
 
 .text
-	.align 2,144
-
-.globl _reg_u_mul
-_reg_u_mul:
+ENTRY(reg_u_mul)
 	pushl	%ebp
 	movl	%esp,%ebp
 #ifndef NON_REENTRANT_FPU
@@ -73,7 +70,7 @@ _reg_u_mul:
 	cmpl	EXP_UNDER,%eax
 	jg	xOp1_not_denorm
 
-	call	_denormal_operand
+	call	SYMBOL_NAME(denormal_operand)
 	orl	%eax,%eax
 	jnz	fpu_Arith_exit
 
@@ -82,7 +79,7 @@ xOp1_not_denorm:
 	cmpl	EXP_UNDER,%eax
 	jg	xOp2_not_denorm
 
-	call	_denormal_operand
+	call	SYMBOL_NAME(denormal_operand)
 	orl	%eax,%eax
 	jnz	fpu_Arith_exit
 

@@ -5,6 +5,9 @@
  *
  *		PACKET - implements raw packet sockets.
  *
+ *		Doesn't belong in IP but it's currently too hooked into ip
+ *		to separate.
+ *
  * Version:	@(#)packet.c	1.0.6	05/25/93
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
@@ -28,6 +31,9 @@
  *					dubious gcc output. Can you read
  *					compiler: it said _VOLATILE_
  *	Richard Kooijman	:	Timestamp fixes.
+ *		Alan Cox	:	New buffers. Use sk->mac.raw.
+ *		Alan Cox	:	sendmsg/recvmsg support.
+ *		Alan Cox	:	Protocol setting support
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -44,6 +50,7 @@
 #include <linux/in.h>
 #include <linux/inet.h>
 #include <linux/netdevice.h>
+#include <linux/if_packet.h>
 #include <net/ip.h>
 #include <net/protocol.h>
 #include <linux/skbuff.h>
@@ -51,18 +58,7 @@
 #include <linux/errno.h>
 #include <linux/timer.h>
 #include <asm/system.h>
-#include <asm/segment.h>
-
-/*
- *	We really ought to have a single public _inline_ min function!
- */
-
-static unsigned long min(unsigned long a, unsigned long b)
-{
-	if (a < b) 
-		return(a);
-	return(b);
-}
+#include <asm/uaccess.h>
 
 
 /*
@@ -72,7 +68,6 @@ static unsigned long min(unsigned long a, unsigned long b)
 int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_type *pt)
 {
 	struct sock *sk;
-	unsigned long flags;
 	
 	/*
 	 *	When we registered the protocol we saved the socket in the data
@@ -80,50 +75,31 @@ int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_type *pt)
 	 */
 
 	sk = (struct sock *) pt->data;	
+	
+	/*
+	 *	Yank back the headers [hope the device set this
+	 *	right or kerboom...]
+	 */
+	 
+	skb_push(skb,skb->data-skb->mac.raw);
 
 	/*
-	 *	The SOCK_PACKET socket receives _all_ frames, and as such 
-	 *	therefore needs to put the header back onto the buffer.
-	 *	(it was removed by inet_bh()).
+	 *	The SOCK_PACKET socket receives _all_ frames.
 	 */
 	 
 	skb->dev = dev;
-	skb->len += dev->hard_header_len;
 
 	/*
 	 *	Charge the memory to the socket. This is done specifically
 	 *	to prevent sockets using all the memory up.
 	 */
 	 
-	if (sk->rmem_alloc & 0xFF000000) {
-		printk("packet_rcv: sk->rmem_alloc = %ld\n", sk->rmem_alloc);
-		sk->rmem_alloc = 0;
-	}
-
-	if (sk->rmem_alloc + skb->mem_len >= sk->rcvbuf) 
+	if(sock_queue_rcv_skb(sk,skb)<0)
 	{
-/*	        printk("packet_rcv: drop, %d+%d>%d\n", sk->rmem_alloc, skb->mem_len, sk->rcvbuf); */
 		skb->sk = NULL;
 		kfree_skb(skb, FREE_READ);
-		return(0);
+		return 0;
 	}
-
-	save_flags(flags);
-	cli();
-
-	skb->sk = sk;
-	sk->rmem_alloc += skb->mem_len;	
-
-	/*
-	 *	Queue the packet up, and wake anyone waiting for it.
-	 */
-
-	skb_queue_tail(&sk->receive_queue,skb);
-	if(!sk->dead)
-		sk->data_ready(sk,skb->len);
-		
-	restore_flags(flags);
-
 	/*
 	 *	Processing complete.
 	 */
@@ -137,14 +113,15 @@ int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_type *pt)
  *	protocol layers and you must therefore supply it with a complete frame
  */
  
-static int packet_sendto(struct sock *sk, unsigned char *from, int len,
-	      int noblock, unsigned flags, struct sockaddr_in *usin,
-	      int addr_len)
+static int packet_sendmsg(struct sock *sk, struct msghdr *msg, int len,
+	      int noblock, int flags)
 {
 	struct sk_buff *skb;
 	struct device *dev;
-	struct sockaddr *saddr=(struct sockaddr *)usin;
-
+	struct sockaddr_pkt *saddr=(struct sockaddr_pkt *)msg->msg_name;
+	unsigned short proto=0;
+	int err;
+	
 	/*
 	 *	Check the flags. 
 	 */
@@ -156,23 +133,25 @@ static int packet_sendto(struct sock *sk, unsigned char *from, int len,
 	 *	Get and verify the address. 
 	 */
 	 
-	if (usin) 
+	if (saddr) 
 	{
-		if (addr_len < sizeof(*saddr)) 
+		if (msg->msg_namelen < sizeof(struct sockaddr)) 
 			return(-EINVAL);
+		if (msg->msg_namelen==sizeof(struct sockaddr_pkt))
+			proto=saddr->spkt_protocol;
 	} 
 	else
-		return(-EINVAL);	/* SOCK_PACKET must be sent giving an address */
+		return(-ENOTCONN);	/* SOCK_PACKET must be sent giving an address */
 	
 	/*
 	 *	Find the device first to size check it 
 	 */
 
-	saddr->sa_data[13] = 0;
-	dev = dev_get(saddr->sa_data);
+	saddr->spkt_device[13] = 0;
+	dev = dev_get(saddr->spkt_device);
 	if (dev == NULL) 
 	{
-		return(-ENXIO);
+		return(-ENODEV);
   	}
 	
 	/*
@@ -183,11 +162,12 @@ static int packet_sendto(struct sock *sk, unsigned char *from, int len,
 	if(len>dev->mtu+dev->hard_header_len)
   		return -EMSGSIZE;
 
-	skb = sk->prot->wmalloc(sk, len, 0, GFP_KERNEL);
+	skb = sock_wmalloc(sk, len, 0, GFP_KERNEL);
 
 	/*
 	 *	If the write buffer is full, then tough. At this level the user gets to
-	 *	deal with the problem - do your own algorithmic backoffs.
+	 *	deal with the problem - do your own algorithmic backoffs. That's far
+	 *	more flexible.
 	 */
 	 
 	if (skb == NULL) 
@@ -201,30 +181,34 @@ static int packet_sendto(struct sock *sk, unsigned char *from, int len,
 	 
 	skb->sk = sk;
 	skb->free = 1;
-	memcpy_fromfs(skb->data, from, len);
-	skb->len = len;
-	skb->arp = 1;		/* No ARP needs doing on this (complete) frame */
+	err = memcpy_fromiovec(skb_put(skb,len), msg->msg_iov, len);
+	skb->arp = 1;	/* No ARP needs doing on this (complete) frame */
+	skb->protocol = proto;
 
 	/*
 	 *	Now send it
 	 */
 
-	if (dev->flags & IFF_UP) 
-		dev_queue_xmit(skb, dev, sk->priority);
+	if (err)
+	{
+		err = -EFAULT;
+	}
 	else
+	{
+		if (!(dev->flags & IFF_UP))
+		{
+			err = -ENODEV;
+		}
+	}
+	
+	if (err) 
+	{
 		kfree_skb(skb, FREE_WRITE);
+		return err;
+	}
+		
+	dev_queue_xmit(skb, dev, sk->priority);
 	return(len);
-}
-
-/*
- *	A write to a SOCK_PACKET can't actually do anything useful and will
- *	always fail but we include it for completeness and future expansion.
- */
-
-static int packet_write(struct sock *sk, unsigned char *buff, 
-	     int len, int noblock,  unsigned flags)
-{
-	return(packet_sendto(sk, buff, len, noblock, flags, NULL, 0));
 }
 
 /*
@@ -234,43 +218,180 @@ static int packet_write(struct sock *sk, unsigned char *buff,
  *	file side of the object.
  */
 
-static void packet_close(struct sock *sk, int timeout)
+static void packet_close(struct sock *sk, unsigned long timeout)
 {
-	sk->inuse = 1;
+	/*
+	 *	Stop more data and kill the socket off.
+	 */
+
+	lock_sock(sk);
 	sk->state = TCP_CLOSE;
-	dev_remove_pack((struct packet_type *)sk->pair);
-	kfree_s((void *)sk->pair, sizeof(struct packet_type));
-	sk->pair = NULL;
+
+	/*
+	 *	Unhook the notifier
+	 */
+
+	unregister_netdevice_notifier(&sk->protinfo.af_packet.notifier);
+
+	if(sk->protinfo.af_packet.prot_hook)
+	{
+		/*
+		 *	Remove the protocol hook
+		 */
+		 
+		dev_remove_pack((struct packet_type *)sk->protinfo.af_packet.prot_hook);
+
+		/*
+		 *	Dispose of litter carefully.
+		 */
+	 
+		kfree_s((void *)sk->protinfo.af_packet.prot_hook, sizeof(struct packet_type));
+		sk->protinfo.af_packet.prot_hook = NULL;
+	}
+	
 	release_sock(sk);
+	destroy_sock(sk);
 }
 
 /*
- *	Create a packet of type SOCK_PACKET. We do one slightly irregular
- *	thing here that wants tidying up. We borrow the 'pair' pointer in
- *	the socket object so we can find the packet_type entry in the
- *	device list. The reverse is easy as we use the data field of the
- *	packet type to point to our socket.
+ *	Attach a packet hook to a device.
  */
 
-static int packet_init(struct sock *sk)
+int packet_attach(struct sock *sk, struct device *dev)
 {
-	struct packet_type *p;
-
-	p = (struct packet_type *) kmalloc(sizeof(*p), GFP_KERNEL);
+	struct packet_type *p = (struct packet_type *) kmalloc(sizeof(*p), GFP_KERNEL);
 	if (p == NULL) 
 		return(-ENOMEM);
 
 	p->func = packet_rcv;
 	p->type = sk->num;
 	p->data = (void *)sk;
-	p->dev = NULL;
+	p->dev = dev;
 	dev_add_pack(p);
    
 	/*
 	 *	We need to remember this somewhere. 
 	 */
    
-	sk->pair = (struct sock *)p;
+	sk->protinfo.af_packet.prot_hook = p;
+	sk->protinfo.af_packet.bound_dev = dev;
+	return 0;	
+}
+ 
+/*
+ *	Bind a packet socket to a device
+ */
+
+static int packet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len)
+{
+	char name[15];
+	struct device *dev;
+	
+	/*
+	 *	Check legality
+	 */
+	 
+	if(addr_len!=sizeof(struct sockaddr))
+		return -EINVAL;
+	strncpy(name,uaddr->sa_data,14);
+	name[14]=0;
+	
+	/*
+	 *	Lock the device chain while we sanity check
+	 *	the bind request.
+	 */
+	 
+	dev_lock_list();
+	dev=dev_get(name);
+	if(dev==NULL)
+	{
+		dev_unlock_list();
+		return -ENODEV;
+	}
+	
+	if(!(dev->flags&IFF_UP))
+	{
+		dev_unlock_list();
+		return -ENETDOWN;
+	}
+	
+	/*
+	 *	Perform the request.
+	 */
+	 
+	memcpy(sk->protinfo.af_packet.device_name,name,15);
+	
+	/*
+	 *	Rewrite an existing hook if present.
+	 */
+	 
+	if(sk->protinfo.af_packet.prot_hook)
+	{
+		dev_remove_pack(sk->protinfo.af_packet.prot_hook);
+		sk->protinfo.af_packet.prot_hook->dev=dev;
+		sk->protinfo.af_packet.bound_dev=dev;
+		dev_add_pack(sk->protinfo.af_packet.prot_hook);
+	}
+	else
+	{
+		int err=packet_attach(sk, dev);
+		if(err)
+		{
+			dev_unlock_list();
+			return err;
+		}
+	}
+	/*
+	 *	Now the notifier is set up right this lot is safe.
+	 */
+	dev_unlock_list();
+	return 0;
+}
+
+/*
+ *	This hook is called when a device goes up or down so that
+ *	SOCK_PACKET sockets can come unbound properly.
+ */
+
+static int packet_unbind(struct notifier_block *this, unsigned long msg, void *data)
+{
+	struct inet_packet_opt *ipo=(struct inet_packet_opt *)this;
+	if(msg==NETDEV_DOWN && data==ipo->bound_dev)
+	{
+		/*
+		 *	Our device has gone down.
+		 */
+		ipo->bound_dev=NULL;
+		dev_remove_pack(ipo->prot_hook);
+		kfree(ipo->prot_hook);
+		ipo->prot_hook=NULL;
+	}
+	return NOTIFY_DONE;
+}
+
+
+/*
+ *	Create a packet of type SOCK_PACKET. 
+ */
+
+static int packet_init(struct sock *sk)
+{
+	/*
+	 *	Attach a protocol block
+	 */
+	 
+	int err=packet_attach(sk, NULL);
+	if(err)
+		return err;
+		
+	/*
+	 *	Set up the per socket notifier.
+	 */
+	 
+	sk->protinfo.af_packet.notifier.notifier_call=packet_unbind;
+	sk->protinfo.af_packet.notifier.priority=0;
+
+	register_netdevice_notifier(&sk->protinfo.af_packet.notifier);
 
 	return(0);
 }
@@ -281,20 +402,20 @@ static int packet_init(struct sock *sk)
  *	If necessary we block.
  */
  
-int packet_recvfrom(struct sock *sk, unsigned char *to, int len,
-	        int noblock, unsigned flags, struct sockaddr_in *sin,
-	        int *addr_len)
+int packet_recvmsg(struct sock *sk, struct msghdr *msg, int len,
+	        int noblock, int flags,int *addr_len)
 {
 	int copied=0;
 	struct sk_buff *skb;
-	struct sockaddr *saddr;
+	struct sockaddr_pkt *saddr=(struct sockaddr_pkt *)msg->msg_name;
 	int err;
-	int truesize;
 
-	saddr = (struct sockaddr *)sin;
-
-	if (sk->shutdown & RCV_SHUTDOWN) 
-		return(0);
+	/*
+	 *	If there is no protocol hook then the device is down.
+	 */
+	 
+	if(sk->protinfo.af_packet.prot_hook==NULL)
+		return -ENETDOWN;
 		
 	/*
 	 *	If the address length field is there to be filled in, we fill
@@ -326,10 +447,20 @@ int packet_recvfrom(struct sock *sk, unsigned char *to, int len,
 	 *	user program they can ask the device for its MTU anyway.
 	 */
 	 
-	truesize = skb->len;
-	copied = min(len, truesize);
+	copied = skb->len;
+	if(copied>len)
+	{
+		copied=len;
+		msg->msg_flags|=MSG_TRUNC;
+	}
+	
+	/* We can't use skb_copy_datagram here */
+	err = memcpy_toiovec(msg->msg_iov, skb->data, copied);
+	if (err)
+	{
+		return -EFAULT;
+	}
 
-	memcpy_tofs(to, skb->data, copied);	/* We can't use skb_copy_datagram here */
 	sk->stamp=skb->stamp;
 
 	/*
@@ -338,8 +469,9 @@ int packet_recvfrom(struct sock *sk, unsigned char *to, int len,
 	 
 	if (saddr) 
 	{
-		saddr->sa_family = skb->dev->type;
-		memcpy(saddr->sa_data,skb->dev->name, 14);
+		saddr->spkt_family = skb->dev->type;
+		strncpy(saddr->spkt_device,skb->dev->name, 15);
+		saddr->spkt_protocol = skb->protocol;
 	}
 	
 	/*
@@ -347,28 +479,10 @@ int packet_recvfrom(struct sock *sk, unsigned char *to, int len,
 	 *	races and re-entrancy issues from us.
 	 */
 
-	skb_free_datagram(skb);
+	skb_free_datagram(sk, skb);
 
-	/*
-	 *	We are done.
-	 */
-	 
-	release_sock(sk);
-	return(truesize);
+	return(copied);
 }
-
-
-/*
- *	A packet read can succeed and is just the same as a recvfrom but without the
- *	addresses being recorded.
- */
-
-int packet_read(struct sock *sk, unsigned char *buff,
-	    int len, int noblock, unsigned flags)
-{
-	return(packet_recvfrom(sk, buff, len, noblock, flags, NULL, NULL));
-}
-
 
 /*
  *	This structure declares to the lower layer socket subsystem currently
@@ -378,33 +492,27 @@ int packet_read(struct sock *sk, unsigned char *buff,
  
 struct proto packet_prot = 
 {
-	sock_wmalloc,
-	sock_rmalloc,
-	sock_wfree,
-	sock_rfree,
-	sock_rspace,
-	sock_wspace,
 	packet_close,
-	packet_read,
-	packet_write,
-	packet_sendto,
-	packet_recvfrom,
-	ip_build_header,	/* Not actually used */
 	NULL,
-	NULL,
-	ip_queue_xmit,		/* These two are not actually used */
+	NULL,			/* accept */
 	NULL,
 	NULL,
 	NULL,
-	NULL, 
 	datagram_select,
-	NULL,
+	NULL,			/* No ioctl */
 	packet_init,
+	NULL,
 	NULL,
 	NULL,			/* No set/get socket options */
 	NULL,
+	packet_sendmsg,		/* Sendmsg */
+	packet_recvmsg,		/* Recvmsg */
+	packet_bind,		/* Bind */
+	NULL,			/* Backlog_rcv */
 	128,
 	0,
 	"PACKET",
 	0, 0
 };
+
+	

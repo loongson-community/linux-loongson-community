@@ -4,11 +4,9 @@
 extern __inline__ void __delay(int loops)
 {
 	__asm__ __volatile__ (
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		"1:\tbne\t$0,%0,1b\n\t"
-		"subu\t%0,%0,1\n\t"
-		".set\tat\n\t"
+		".set\tnoreorder\n"
+		"1:\tbnez\t%0,1b\n\t"
+		"subu\t%0,1\n\t"
 		".set\treorder"
 		:"=r" (loops)
 		:"0" (loops));
@@ -36,7 +34,7 @@ extern __inline__ void udelay(unsigned long usecs)
 
 /*
  * The different variants for 32/64 bit are pure paranoia. The typical
- * range of numbers that apprears for MIPS machines avoids overflows.
+ * range of numbers that appears for MIPS machines avoids overflows.
  */
 extern __inline__ unsigned long muldiv(unsigned long a, unsigned long b, unsigned long c)
 {

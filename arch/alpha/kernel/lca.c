@@ -11,6 +11,7 @@
 #include <linux/bios32.h>
 #include <linux/pci.h>
 
+#include <asm/ptrace.h>
 #include <asm/system.h>
 #include <asm/io.h>
 
@@ -18,9 +19,32 @@
  * BIOS32-style PCI interface:
  */
 
-#ifdef CONFIG_PCI
+#ifdef CONFIG_ALPHA_LCA
 
 #define vulp	volatile unsigned long *
+
+/*
+ * Machine check reasons.  Defined according to PALcode sources
+ * (osf.h and platform.h).
+ */
+#define MCHK_K_TPERR		0x0080
+#define MCHK_K_TCPERR		0x0082
+#define MCHK_K_HERR		0x0084
+#define MCHK_K_ECC_C		0x0086
+#define MCHK_K_ECC_NC		0x0088
+#define MCHK_K_UNKNOWN		0x008A
+#define MCHK_K_CACKSOFT		0x008C
+#define MCHK_K_BUGCHECK		0x008E
+#define MCHK_K_OS_BUGCHECK	0x0090
+#define MCHK_K_DCPERR		0x0092
+#define MCHK_K_ICPERR		0x0094
+
+/*
+ * Platform-specific machine-check reasons:
+ */
+#define MCHK_K_SIO_SERR		0x204	/* all platforms so far */
+#define MCHK_K_SIO_IOCHK	0x206	/* all platforms so far */
+#define MCHK_K_DCSR		0x208	/* all but Noname */
 
 /*
  * Given a bus, device, and function number, compute resulting
@@ -76,7 +100,7 @@ static int mk_conf_addr(unsigned char bus, unsigned char device_fn,
 
 		if (device > 12) {
 			return -1;
-		} /* if */
+		}
 
 		*((volatile unsigned long*) LCA_IOC_CONF) = 0;
 		addr = (1 << (11 + device)) | (func << 8) | where;
@@ -84,19 +108,19 @@ static int mk_conf_addr(unsigned char bus, unsigned char device_fn,
 		/* type 1 configuration cycle: */
 		*((volatile unsigned long*) LCA_IOC_CONF) = 1;
 		addr = (bus << 16) | (device_fn << 8) | where;
-	} /* if */
+	}
 	*pci_addr = addr;
-
 	return 0;
 }
 
 
 static unsigned int conf_read(unsigned long addr)
 {
-	unsigned long old_ipl, code, stat0;
+	unsigned long flags, code, stat0;
 	unsigned int value;
 
-	old_ipl = swpipl(7);	/* avoid getting hit by machine check */
+	save_flags(flags);
+	cli();
 
 	/* reset status register to avoid loosing errors: */
 	stat0 = *((volatile unsigned long*)LCA_IOC_STAT0);
@@ -123,17 +147,17 @@ static unsigned int conf_read(unsigned long addr)
 
 		value = 0xffffffff;
 	}
-	swpipl(old_ipl);
-
+	restore_flags(flags);
 	return value;
 }
 
 
 static void conf_write(unsigned long addr, unsigned int value)
 {
-	unsigned long old_ipl, code, stat0;
+	unsigned long flags, code, stat0;
 
-	old_ipl = swpipl(7);	/* avoid getting hit by machine check */
+	save_flags(flags);	/* avoid getting hit by machine check */
+	cli();
 
 	/* reset status register to avoid loosing errors: */
 	stat0 = *((volatile unsigned long*)LCA_IOC_STAT0);
@@ -158,7 +182,7 @@ static void conf_write(unsigned long addr, unsigned int value)
 		mb();
 		wrmces(0x7);			/* reset machine check */
 	}
-	swpipl(old_ipl);
+	restore_flags(flags);
 }
 
 
@@ -172,12 +196,9 @@ int pcibios_read_config_byte (unsigned char bus, unsigned char device_fn,
 
 	if (mk_conf_addr(bus, device_fn, where, &pci_addr) < 0) {
 		return PCIBIOS_SUCCESSFUL;
-	} /* if */
-
+	}
 	addr |= (pci_addr << 5) + 0x00;
-
 	*value = conf_read(addr) >> ((where & 3) * 8);
-
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -192,14 +213,11 @@ int pcibios_read_config_word (unsigned char bus, unsigned char device_fn,
 
 	if (where & 0x1) {
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-	} /* if */
-
+	}
 	if (mk_conf_addr(bus, device_fn, where, &pci_addr)) {
 		return PCIBIOS_SUCCESSFUL;
-	} /* if */
-
+	}
 	addr |= (pci_addr << 5) + 0x08;
-
 	*value = conf_read(addr) >> ((where & 3) * 8);
 	return PCIBIOS_SUCCESSFUL;
 }
@@ -212,19 +230,14 @@ int pcibios_read_config_dword (unsigned char bus, unsigned char device_fn,
 	unsigned long pci_addr;
 
 	*value = 0xffffffff;
-
 	if (where & 0x3) {
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-	} /* if */
-
+	}
 	if (mk_conf_addr(bus, device_fn, where, &pci_addr)) {
 		return PCIBIOS_SUCCESSFUL;
-	} /* if */
-
+	}
 	addr |= (pci_addr << 5) + 0x18;
-
 	*value = conf_read(addr);
-
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -237,12 +250,9 @@ int pcibios_write_config_byte (unsigned char bus, unsigned char device_fn,
 
 	if (mk_conf_addr(bus, device_fn, where, &pci_addr) < 0) {
 		return PCIBIOS_SUCCESSFUL;
-	} /* if */
-
+	}
 	addr |= (pci_addr << 5) + 0x00;
-
 	conf_write(addr, value << ((where & 3) * 8));
-
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -255,12 +265,9 @@ int pcibios_write_config_word (unsigned char bus, unsigned char device_fn,
 
 	if (mk_conf_addr(bus, device_fn, where, &pci_addr) < 0) {
 		return PCIBIOS_SUCCESSFUL;
-	} /* if */
-
+	}
 	addr |= (pci_addr << 5) + 0x08;
-
 	conf_write(addr, value << ((where & 3) * 8));
-
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -273,12 +280,9 @@ int pcibios_write_config_dword (unsigned char bus, unsigned char device_fn,
 
 	if (mk_conf_addr(bus, device_fn, where, &pci_addr) < 0) {
 		return PCIBIOS_SUCCESSFUL;
-	} /* if */
-
+	}
 	addr |= (pci_addr << 5) + 0x18;
-
 	conf_write(addr, value << ((where & 3) * 8));
-
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -296,9 +300,171 @@ unsigned long lca_init(unsigned long mem_start, unsigned long mem_end)
 	*(vulp)LCA_IOC_W_MASK0 = LCA_DMA_WIN_SIZE - 1;
 	*(vulp)LCA_IOC_T_BASE0 = 0;
 
+	/*
+	 * Disable PCI parity for now.  The NCR53c810 chip has
+	 * troubles meeting the PCI spec which results in
+	 * data parity errors.
+	 */
+	*(vulp)LCA_IOC_PAR_DIS = 1UL<<5;
 	return mem_start;
 }
 
-#endif /* CONFIG_PCI */
 
-			/*** end of lca.c ***/
+
+
+/*
+ * Constants used during machine-check handling.  I suppose these
+ * could be moved into lca.h but I don't see much reason why anybody
+ * else would want to use them.
+ */
+#define ESR_EAV		(1UL<< 0)	/* error address valid */
+#define ESR_CEE		(1UL<< 1)	/* correctable error */
+#define ESR_UEE		(1UL<< 2)	/* uncorrectable error */
+#define ESR_WRE		(1UL<< 3)	/* write-error */
+#define ESR_SOR		(1UL<< 4)	/* error source */
+#define ESR_CTE		(1UL<< 7)	/* cache-tag error */
+#define ESR_MSE		(1UL<< 9)	/* multiple soft errors */
+#define ESR_MHE		(1UL<<10)	/* multiple hard errors */
+#define ESR_NXM		(1UL<<12)	/* non-existent memory */
+
+#define IOC_ERR		(  1<<4)	/* ioc logs an error */
+#define IOC_CMD_SHIFT	0
+#define IOC_CMD		(0xf<<IOC_CMD_SHIFT)
+#define IOC_CODE_SHIFT	8
+#define IOC_CODE	(0xf<<IOC_CODE_SHIFT)
+#define IOC_LOST	(  1<<5)
+#define IOC_P_NBR	((__u32) ~((1<<13) - 1))
+
+
+void mem_error (unsigned long esr, unsigned long ear)
+{
+    printk("    %s %s error to %s occurred at address %x\n",
+	   (esr & ESR_CEE) ? "Correctable" : ((esr & ESR_UEE) ? "Uncorrectable" : "A"),
+	   (esr & ESR_WRE) ? "write" : "read",
+	   (esr & ESR_SOR) ? "memory" : "b-cache",
+	   (unsigned) (ear & 0x1ffffff8));
+    if (esr & ESR_CTE) {
+	printk("    A b-cache tag parity error was detected.\n");
+    }
+    if (esr & ESR_MSE) {
+	printk("    Several other correctable errors occurred.\n");
+    }
+    if (esr & ESR_MHE) {
+	printk("    Several other uncorrectable errors occurred.\n");
+    }
+    if (esr & ESR_NXM) {
+	printk("    Attempted to access non-existent memory.\n");
+    }
+}
+
+
+void ioc_error (__u32 stat0, __u32 stat1)
+{
+    const char *pci_cmd[] = {
+	"Interrupt Acknowledge", "Special", "I/O Read", "I/O Write",
+	"Rsvd 1", "Rsvd 2", "Memory Read", "Memory Write", "Rsvd3", "Rsvd4",
+	"Configuration Read", "Configuration Write", "Memory Read Multiple",
+	"Dual Address", "Memory Read Line", "Memory Write and Invalidate"
+    };
+    const char *err_name[] = {
+	"exceeded retry limit", "no device", "bad data parity", "target abort",
+	"bad address parity", "page table read error", "invalid page", "data error"
+    };
+    unsigned code = (stat0 & IOC_CODE) >> IOC_CODE_SHIFT;
+    unsigned cmd  = (stat0 & IOC_CMD)  >> IOC_CMD_SHIFT;
+
+    printk("    %s initiated PCI %s cycle to address %x failed due to %s.\n",
+	   code > 3 ? "PCI" : "CPU", pci_cmd[cmd], stat1, err_name[code]);
+    if (code == 5 || code == 6) {
+	printk("    (Error occurred at PCI memory address %x.)\n", (stat0 & ~IOC_P_NBR));
+    }
+    if (stat0 & IOC_LOST) {
+	printk("    Other PCI errors occurred simultaneously.\n");
+    }
+}
+
+
+void lca_machine_check (unsigned long vector, unsigned long la, struct pt_regs *regs)
+{
+	unsigned long * ptr;
+	const char * reason;
+	union el_lca el;
+	char buf[128];
+	long i;
+
+	printk(KERN_CRIT "lca: machine check (la=0x%lx,pc=0x%lx)\n",
+	       la, regs->pc);
+	el.c = (struct el_common *) la;
+	/*
+	 * The first quadword after the common header always seems to
+	 * be the machine check reason---don't know why this isn't
+	 * part of the common header instead.  In the case of a long
+	 * logout frame, the upper 32 bits is the machine check
+	 * revision level, which we ignore for now.
+	 */
+	switch (el.c->code & 0xffffffff) {
+	      case MCHK_K_TPERR:	reason = "tag parity error"; break;
+	      case MCHK_K_TCPERR:	reason = "tag control parity error"; break;
+	      case MCHK_K_HERR:		reason = "access to non-existent memory"; break;
+	      case MCHK_K_ECC_C:	reason = "correctable ECC error"; break;
+	      case MCHK_K_ECC_NC:	reason = "non-correctable ECC error"; break;
+	      case MCHK_K_CACKSOFT:	reason = "MCHK_K_CACKSOFT"; break; /* what's this? */
+	      case MCHK_K_BUGCHECK:	reason = "illegal exception in PAL mode"; break;
+	      case MCHK_K_OS_BUGCHECK:	reason = "callsys in kernel mode"; break;
+	      case MCHK_K_DCPERR:	reason = "d-cache parity error"; break;
+	      case MCHK_K_ICPERR:	reason = "i-cache parity error"; break;
+	      case MCHK_K_SIO_SERR:	reason = "SIO SERR occurred on on PCI bus"; break;
+	      case MCHK_K_SIO_IOCHK:	reason = "SIO IOCHK occurred on ISA bus"; break;
+	      case MCHK_K_DCSR:		reason = "MCHK_K_DCSR"; break;
+	      case MCHK_K_UNKNOWN:
+	      default:
+		sprintf(buf, "reason for machine-check unknown (0x%lx)",
+			el.c->code & 0xffffffff);
+		reason = buf;
+		break;
+	}
+
+	wrmces(rdmces());	/* reset machine check pending flag */
+
+	switch (el.c->size) {
+	      case sizeof(struct el_lca_mcheck_short):
+		printk(KERN_CRIT
+		       "  Reason: %s (short frame%s, dc_stat=%lx):\n",
+		       reason, el.c->retry ? ", retryable" : "", el.s->dc_stat);
+		if (el.s->esr & ESR_EAV) {
+		    mem_error(el.s->esr, el.s->ear);
+		}
+		if (el.s->ioc_stat0 & IOC_ERR) {
+		    ioc_error(el.s->ioc_stat0, el.s->ioc_stat1);
+		}
+		break;
+
+	      case sizeof(struct el_lca_mcheck_long):
+		printk(KERN_CRIT "  Reason: %s (long frame%s):\n",
+		       reason, el.c->retry ? ", retryable" : "");
+		printk(KERN_CRIT
+		       "    reason: %lx  exc_addr: %lx  dc_stat: %lx\n", 
+		       el.l->pt[0], el.l->exc_addr, el.l->dc_stat);
+		printk(KERN_CRIT "    car: %lx\n", el.l->car);
+		if (el.l->esr & ESR_EAV) {
+		    mem_error(el.l->esr, el.l->ear);
+		}
+		if (el.l->ioc_stat0 & IOC_ERR) {
+		    ioc_error(el.l->ioc_stat0, el.l->ioc_stat1);
+		}
+		break;
+
+	      default:
+		printk(KERN_CRIT "  Unknown errorlog size %d\n", el.c->size);
+	}
+
+	/* dump the the logout area to give all info: */
+
+	ptr = (unsigned long *) la;
+	for (i = 0; i < el.c->size / sizeof(long); i += 2) {
+	    printk(KERN_CRIT " +%8lx %016lx %016lx\n",
+		   i*sizeof(long), ptr[i], ptr[i+1]);
+	}
+}
+
+#endif /* CONFIG_ALPHA_LCA */

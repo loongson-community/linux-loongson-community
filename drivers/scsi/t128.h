@@ -92,10 +92,12 @@
 
 #ifndef ASM
 int t128_abort(Scsi_Cmnd *);
-int t128_biosparam(Disk *, int, int*);
+int t128_biosparam(Disk *, kdev_t, int*);
 int t128_detect(Scsi_Host_Template *);
 int t128_queue_command(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
-int t128_reset(Scsi_Cmnd *);
+int t128_reset(Scsi_Cmnd *, unsigned int reset_flags);
+int t128_proc_info (char *buffer, char **start, off_t offset,
+		   int length, int hostno, int inout);
 
 #ifndef NULL
 #define NULL 0
@@ -115,16 +117,19 @@ int t128_reset(Scsi_Cmnd *);
  * macros when this is being used solely for the host stub.
  */
 
-#ifdef HOSTS_C
+#if defined(HOSTS_C) || defined(MODULE)
 
-#define TRANTOR_T128 {NULL, NULL, "Trantor T128/T128F/T228", t128_detect, NULL,  \
+#define TRANTOR_T128 {NULL, NULL, NULL, NULL, \
+	"Trantor T128/T128F/T228", t128_detect, NULL,  \
 	NULL,							\
 	NULL, t128_queue_command, t128_abort, t128_reset, NULL, 	\
 	t128_biosparam, 						\
 	/* can queue */ CAN_QUEUE, /* id */ 7, SG_ALL,			\
 	/* cmd per lun */ CMD_PER_LUN , 0, 0, DISABLE_CLUSTERING}
 
-#else
+#endif
+
+#ifndef HOSTS_C
 
 #define NCR5380_implementation_fields \
     volatile unsigned char *base
@@ -156,6 +161,7 @@ int t128_reset(Scsi_Cmnd *);
 #define NCR5380_queue_command t128_queue_command
 #define NCR5380_abort t128_abort
 #define NCR5380_reset t128_reset
+#define NCR5380_proc_info t128_proc_info
 
 /* 15 14 12 10 7 5 3 
    1101 0100 1010 1000 */

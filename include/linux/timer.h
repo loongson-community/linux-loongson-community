@@ -14,6 +14,8 @@
  * BEEP_TIMER		console beep timer
  *
  * RS_TIMER		timer for the RS-232 ports
+ *
+ * SWAP_TIMER		timer for the background pageout daemon
  * 
  * HD_TIMER		harddisk timer
  *
@@ -31,11 +33,14 @@
  *
  * MCD_TIMER		Mitsumi CD-ROM Timer
  *
+ * GSCD_TIMER		Goldstar CD-ROM Timer
+ *
  */
 
 #define BLANK_TIMER	0
 #define BEEP_TIMER	1
 #define RS_TIMER	2
+#define SWAP_TIMER	3
 
 #define HD_TIMER	16
 #define FLOPPY_TIMER	17
@@ -48,6 +53,9 @@
 #define MCD_TIMER	23
 
 #define HD_TIMER2	24
+#define GSCD_TIMER	25
+
+#define DIGI_TIMER	29
 
 struct timer_struct {
 	unsigned long expires;
@@ -80,6 +88,8 @@ struct timer_list {
 
 extern void add_timer(struct timer_list * timer);
 extern int  del_timer(struct timer_list * timer);
+
+extern void it_real_fn(unsigned long);
 
 extern inline void init_timer(struct timer_list * timer)
 {

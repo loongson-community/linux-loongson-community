@@ -32,12 +32,12 @@ typedef asmlinkage void (*lcall7_func)(struct pt_regs *);
  * offset of the handler is hard coded in kernel/sys_call.S.
  */
 struct exec_domain {
-	char *name;
+	const char *name;
 	lcall7_func handler;
 	unsigned char pers_low, pers_high;
 	unsigned long * signal_map;
 	unsigned long * signal_invmap;
-	int *use_count;
+	long *use_count;
 	struct exec_domain *next;
 };
 
@@ -46,6 +46,6 @@ extern struct exec_domain default_exec_domain;
 extern struct exec_domain *lookup_exec_domain(unsigned long personality);
 extern int register_exec_domain(struct exec_domain *it);
 extern int unregister_exec_domain(struct exec_domain *it);
-extern asmlinkage int sys_personality(unsigned long personality);
+asmlinkage int sys_personality(unsigned long personality);
 
 #endif /* _PERSONALITY_H */

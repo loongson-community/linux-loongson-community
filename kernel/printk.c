@@ -13,22 +13,29 @@
 
 #include <stdarg.h>
 
-#include <asm/segment.h>
 #include <asm/system.h>
 
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/tty.h>
+#include <linux/tty_driver.h>
 
-#define LOG_BUF_LEN	4096
+#include <asm/uaccess.h>
+
+#define LOG_BUF_LEN	8192
 
 static char buf[1024];
 
 extern void console_print(const char *);
 
-#define DEFAULT_MESSAGE_LOGLEVEL 7 /* KERN_DEBUG */
-#define DEFAULT_CONSOLE_LOGLEVEL 7 /* anything more serious than KERN_DEBUG */
+/* printk's without a loglevel use this.. */
+#define DEFAULT_MESSAGE_LOGLEVEL 4 /* KERN_WARNING */
+
+/* We show everything that is MORE important than this.. */
+#define MINIMUM_CONSOLE_LOGLEVEL 1 /* Minimum loglevel we let people use */
+#define DEFAULT_CONSOLE_LOGLEVEL 7 /* anything MORE serious than KERN_DEBUG */
 
 unsigned long log_size = 0;
 struct wait_queue * log_wait = NULL;
@@ -89,7 +96,7 @@ asmlinkage int sys_syslog(int type, char * buf, int len)
 				log_size--;
 				log_start &= LOG_BUF_LEN-1;
 				sti();
-				put_fs_byte(c,buf);
+				put_user(c,buf);
 				buf++;
 				i++;
 				cli();
@@ -115,7 +122,7 @@ asmlinkage int sys_syslog(int type, char * buf, int len)
 			j = log_start + log_size - count;
 			for (i = 0; i < count; i++) {
 				c = *((char *) log_buf+(j++ & (LOG_BUF_LEN-1)));
-				put_fs_byte(c, buf++);
+				put_user(c, buf++);
 			}
 			if (do_clear)
 				logged_chars = 0;
@@ -124,7 +131,7 @@ asmlinkage int sys_syslog(int type, char * buf, int len)
 			logged_chars = 0;
 			return 0;
 		case 6:		/* Disable logging to console */
-			console_loglevel = 1; /* only panic messages shown */
+			console_loglevel = MINIMUM_CONSOLE_LOGLEVEL;
 			return 0;
 		case 7:		/* Enable logging to console */
 			console_loglevel = DEFAULT_CONSOLE_LOGLEVEL;
@@ -132,6 +139,8 @@ asmlinkage int sys_syslog(int type, char * buf, int len)
 		case 8:
 			if (len < 1 || len > 8)
 				return -EINVAL;
+			if (len < MINIMUM_CONSOLE_LOGLEVEL)
+				len = MINIMUM_CONSOLE_LOGLEVEL;
 			console_loglevel = len;
 			return 0;
 	}
@@ -164,7 +173,7 @@ asmlinkage int printk(const char *fmt, ...)
 			) {
 				p -= 3;
 				p[0] = '<';
-				p[1] = DEFAULT_MESSAGE_LOGLEVEL - 1 + '0';
+				p[1] = DEFAULT_MESSAGE_LOGLEVEL + '0';
 				p[2] = '>';
 			} else
 				msg += 3;
@@ -229,4 +238,17 @@ void register_console(void (*proc)(const char *))
 			msg_level = -1;
 		j = 0;
 	}
+}
+
+/*
+ * Write a message to a certain tty, not just the console. This is used for
+ * messages that need to be redirected to a specific tty.
+ * We don't put it into the syslog queue right now maybe in the future if
+ * really needed.
+ */
+void tty_write_message(struct tty_struct *tty, char *msg)
+{
+	if (tty && tty->driver.write)
+		tty->driver.write(tty, 0, msg, strlen(msg));
+	return;
 }

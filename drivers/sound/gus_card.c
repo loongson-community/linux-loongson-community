@@ -2,101 +2,75 @@
  * sound/gus_card.c
  *
  * Detection routine for the Gravis Ultrasound.
- *
- * Copyright by Hannu Savolainen 1993
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
  */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
 
 #include "sound_config.h"
 
-#if defined(CONFIGURE_SOUNDCARD) && !defined(EXCLUDE_GUS)
+#if defined(CONFIG_GUSHW)
 
 #include "gus_hw.h"
 
-void            gusintr (int, struct pt_regs * regs);
+void            gusintr (int irq, void *dev_id, struct pt_regs *dummy);
 
 int             gus_base, gus_irq, gus_dma;
 extern int      gus_wave_volume;
 extern int      gus_pcm_volume;
 extern int      have_gus_max;
+int             gus_pnp_flag = 0;
 
-long
-attach_gus_card (long mem_start, struct address_info *hw_config)
+void
+attach_gus_card (struct address_info *hw_config)
 {
-  int             io_addr;
+  snd_set_irq_handler (hw_config->irq, gusintr, "Gravis Ultrasound", hw_config->osp);
 
-  snd_set_irq_handler (hw_config->irq, gusintr);
+  gus_wave_init (hw_config);
 
-  if (gus_wave_detect (hw_config->io_base))	/*
-						 * Try first the default
-						 */
-    {
-      mem_start = gus_wave_init (mem_start, hw_config->irq, hw_config->dma);
-#ifndef EXCLUDE_MIDI
-      mem_start = gus_midi_init (mem_start);
+  request_region (hw_config->io_base, 16, "GUS");
+  request_region (hw_config->io_base + 0x100, 12, "GUS");	/* 0x10c-> is MAX */
+
+  if (sound_alloc_dma (hw_config->dma, "GUS"))
+    printk ("gus_card.c: Can't allocate DMA channel\n");
+  if (hw_config->dma2 != -1 && hw_config->dma2 != hw_config->dma)
+    if (sound_alloc_dma (hw_config->dma2, "GUS(2)"))
+      printk ("gus_card.c: Can't allocate DMA channel2\n");
+#ifdef CONFIG_MIDI
+  gus_midi_init ();
 #endif
-#ifndef EXCLUDE_SEQUENCER
-      sound_timer_init (hw_config->io_base + 8);
-#endif
-      return mem_start;
-    }
-
-#ifndef EXCLUDE_GUS_IODETECT
-
-  /*
-   * Look at the possible base addresses (0x2X0, X=1, 2, 3, 4, 5, 6)
-   */
-
-  for (io_addr = 0x210; io_addr <= 0x260; io_addr += 0x10)
-    if (io_addr != hw_config->io_base)	/*
-					 * Already tested
-					 */
-      if (gus_wave_detect (io_addr))
-	{
-	  printk (" WARNING! GUS found at %x, config was %x ", io_addr, hw_config->io_base);
-	  mem_start = gus_wave_init (mem_start, hw_config->irq, hw_config->dma);
-#ifndef EXCLUDE_MIDI
-	  mem_start = gus_midi_init (mem_start);
-#endif
-#ifndef EXCLUDE_SEQUENCER
-	  sound_timer_init (io_addr + 8);
-#endif
-	  return mem_start;
-	}
-
-#endif
-
-  return mem_start;		/*
-				 * Not detected
-				 */
 }
 
 int
 probe_gus (struct address_info *hw_config)
 {
+  int             irq;
   int             io_addr;
 
-  if (gus_wave_detect (hw_config->io_base))
+  if (hw_config->card_subtype == 1)
+    gus_pnp_flag = 1;
+
+  irq = hw_config->irq;
+
+  if (hw_config->card_subtype == 0)	/* GUS/MAX/ACE */
+    if (irq != 3 && irq != 5 && irq != 7 && irq != 9 &&
+	irq != 11 && irq != 12 && irq != 15)
+      {
+	printk ("GUS: Unsupported IRQ %d\n", irq);
+	return 0;
+      }
+
+  if (check_region (hw_config->io_base, 16))
+    printk ("GUS: I/O range conflict (1)\n");
+  else if (check_region (hw_config->io_base + 0x100, 16))
+    printk ("GUS: I/O range conflict (2)\n");
+  else if (gus_wave_detect (hw_config->io_base))
     return 1;
 
 #ifndef EXCLUDE_GUS_IODETECT
@@ -109,8 +83,13 @@ probe_gus (struct address_info *hw_config)
     if (io_addr != hw_config->io_base)	/*
 					 * Already tested
 					 */
-      if (gus_wave_detect (io_addr))
-	return 1;
+      if (!check_region (io_addr, 16))
+	if (!check_region (io_addr + 0x100, 16))
+	  if (gus_wave_detect (io_addr))
+	    {
+	      hw_config->io_base = io_addr;
+	      return 1;
+	    }
 
 #endif
 
@@ -118,22 +97,38 @@ probe_gus (struct address_info *hw_config)
 }
 
 void
-gusintr (int irq, struct pt_regs * regs)
+unload_gus (struct address_info *hw_config)
+{
+  DDB (printk ("unload_gus(%x)\n", hw_config->io_base));
+
+  gus_wave_unload ();
+
+  release_region (hw_config->io_base, 16);
+  release_region (hw_config->io_base + 0x100, 12);	/* 0x10c-> is MAX */
+  snd_release_irq (hw_config->irq);
+
+  sound_free_dma (hw_config->dma);
+
+  if (hw_config->dma2 != -1 && hw_config->dma2 != hw_config->dma)
+    sound_free_dma (hw_config->dma2);
+}
+
+void
+gusintr (int irq, void *dev_id, struct pt_regs *dummy)
 {
   unsigned char   src;
+  extern int      gus_timer_enabled;
 
-#ifdef linux
   sti ();
-#endif
 
-#ifndef EXCLUDE_GUSMAX
+#ifdef CONFIG_GUSMAX
   if (have_gus_max)
-    ad1848_interrupt (irq, regs);
+    ad1848_interrupt (irq, NULL, NULL);
 #endif
 
   while (1)
     {
-      if (!(src = INB (u_IrqStatus)))
+      if (!(src = inb (u_IrqStatus)))
 	return;
 
       if (src & DMA_TC_IRQ)
@@ -143,15 +138,22 @@ gusintr (int irq, struct pt_regs * regs)
 
       if (src & (MIDI_TX_IRQ | MIDI_RX_IRQ))
 	{
-#ifndef EXCLUDE_MIDI
+#ifdef CONFIG_MIDI
 	  gus_midi_interrupt (0);
 #endif
 	}
 
       if (src & (GF1_TIMER1_IRQ | GF1_TIMER2_IRQ))
 	{
-#ifndef EXCLUDE_SEQUENCER
-	  sound_timer_interrupt ();
+#ifdef CONFIG_SEQUENCER
+	  if (gus_timer_enabled)
+	    {
+	      sound_timer_interrupt ();
+	    }
+
+	  gus_write8 (0x45, 0);	/* Ack IRQ */
+	  gus_timer_command (4, 0x80);	/* Reset IRQ flags */
+
 #else
 	  gus_write8 (0x45, 0);	/* Stop timers */
 #endif
@@ -169,25 +171,36 @@ gusintr (int irq, struct pt_regs * regs)
 /*
  * Some extra code for the 16 bit sampling option
  */
-#if defined(CONFIGURE_SOUNDCARD) && !defined(EXCLUDE_GUS16)
+#if defined(CONFIG_GUS16)
 
 int
 probe_gus_db16 (struct address_info *hw_config)
 {
-  return ad1848_detect (hw_config->io_base);
+  return ad1848_detect (hw_config->io_base, NULL, hw_config->osp);
 }
 
-long
-attach_gus_db16 (long mem_start, struct address_info *hw_config)
+void
+attach_gus_db16 (struct address_info *hw_config)
 {
+#ifdef CONFIG_GUSHW
   gus_pcm_volume = 100;
   gus_wave_volume = 90;
+#endif
 
   ad1848_init ("GUS 16 bit sampling", hw_config->io_base,
 	       hw_config->irq,
 	       hw_config->dma,
-	       hw_config->dma);
-  return mem_start;
+	       hw_config->dma, 0,
+	       hw_config->osp);
 }
 
+void
+unload_gus_db16 (struct address_info *hw_config)
+{
+
+  ad1848_unload (hw_config->io_base,
+		 hw_config->irq,
+		 hw_config->dma,
+		 hw_config->dma, 0);
+}
 #endif

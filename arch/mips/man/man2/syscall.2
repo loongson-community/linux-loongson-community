@@ -1,0 +1,61 @@
+.\" Copyright (c) 1995 by Ralf Baechle (ralf@waldorf-gmbh.de)
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License as
+.\" published by the Free Software Foundation; either version 2 of
+.\" the License, or (at your option) any later version.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139,
+.\" USA.
+.\"
+.TH SYSCALL 2 "28 November 95" "Linux" "System calls"
+.SH NAME
+syscall \- indirect syscall
+.SH SYNOPSIS
+.nf
+.B #include <sys/syscall.h>
+.sp
+.BI "int syscall(unsigned int " syscallnr ", ...);"
+.fi
+.SH DESCRIPTION
+.B syscall
+does an indirect syscall.  The parameter
+.B syscallnr
+is the number of the syscall.  The other optional parameters are the
+ones of the attempted syscall.
+.B syscallnr
+may no be SYS_syscall.
+.PP
+.SH "RETURN VALUE"
+.B syscall
+returns a return value as if the syscall indicated by
+.B syscall
+would have been called directly. If errors are detected, errno will indicate
+the error.
+.SH ERRORS
+.TP
+.B ENOSYS
+syscallnr has no legal value or the syscall indicated by syscallnr is not
+supported by the system.
+.PP
+For other values of errno see the documentation of the syscall indicated by
+syscallnr.
+.SH BUGS
+Syscall(2) hasn't yet been tested.
+.SH NOTE
+This system call is only available on MIPS based systems.  The other Linux
+systems implement syscall(2) as library function in libc.
+.SH "SEE ALSO"
+Manpage of the syscall indicated by syscallnr.

@@ -2,6 +2,19 @@
 #define _I386_STRING_H_
 
 /*
+ * On a 486 or Pentium, we are better off not using the
+ * byte string operations. But on a 386 or a PPro the
+ * byte string ops are faster than doing it by hand
+ * (MUCH faster on a Pentium).
+ *
+ * Also, the byte strings actually work correctly. Forget
+ * the i486 routines for now as they may be broken..
+ */
+#if FIXED_486_STRING && (CPU == 486 || CPU == 586)
+#include <asm/string-486.h>
+#else
+
+/*
  * This string-include defines all string functions as inline
  * functions. Use gcc. It also assumes ds=es=data space, this should be
  * normal. Most of the string-functions are rather heavily hand-optimized,
@@ -12,7 +25,8 @@
  *
  *		Copyright (C) 1991, 1992 Linus Torvalds
  */
- 
+
+#define __HAVE_ARCH_STRCPY
 extern inline char * strcpy(char * dest,const char *src)
 {
 __asm__ __volatile__(
@@ -26,6 +40,7 @@ __asm__ __volatile__(
 return dest;
 }
 
+#define __HAVE_ARCH_STRNCPY
 extern inline char * strncpy(char * dest,const char *src,size_t count)
 {
 __asm__ __volatile__(
@@ -44,6 +59,7 @@ __asm__ __volatile__(
 return dest;
 }
 
+#define __HAVE_ARCH_STRCAT
 extern inline char * strcat(char * dest,const char * src)
 {
 __asm__ __volatile__(
@@ -60,6 +76,7 @@ __asm__ __volatile__(
 return dest;
 }
 
+#define __HAVE_ARCH_STRNCAT
 extern inline char * strncat(char * dest,const char * src,size_t count)
 {
 __asm__ __volatile__(
@@ -82,6 +99,7 @@ __asm__ __volatile__(
 return dest;
 }
 
+#define __HAVE_ARCH_STRCMP
 extern inline int strcmp(const char * cs,const char * ct)
 {
 register int __res;
@@ -101,6 +119,7 @@ __asm__ __volatile__(
 return __res;
 }
 
+#define __HAVE_ARCH_STRNCMP
 extern inline int strncmp(const char * cs,const char * ct,size_t count)
 {
 register int __res;
@@ -122,6 +141,7 @@ __asm__ __volatile__(
 return __res;
 }
 
+#define __HAVE_ARCH_STRCHR
 extern inline char * strchr(const char * s, int c)
 {
 register char * __res;
@@ -140,6 +160,7 @@ __asm__ __volatile__(
 return __res;
 }
 
+#define __HAVE_ARCH_STRRCHR
 extern inline char * strrchr(const char * s, int c)
 {
 register char * __res;
@@ -156,6 +177,7 @@ __asm__ __volatile__(
 return __res;
 }
 
+#define __HAVE_ARCH_STRSPN
 extern inline size_t strspn(const char * cs, const char * ct)
 {
 register char * __res;
@@ -181,6 +203,7 @@ __asm__ __volatile__(
 return __res-cs;
 }
 
+#define __HAVE_ARCH_STRCSPN
 extern inline size_t strcspn(const char * cs, const char * ct)
 {
 register char * __res;
@@ -206,6 +229,7 @@ __asm__ __volatile__(
 return __res-cs;
 }
 
+#define __HAVE_ARCH_STRPBRK
 extern inline char * strpbrk(const char * cs,const char * ct)
 {
 register char * __res;
@@ -234,6 +258,7 @@ __asm__ __volatile__(
 return __res;
 }
 
+#define __HAVE_ARCH_STRSTR
 extern inline char * strstr(const char * cs,const char * ct)
 {
 register char * __res;
@@ -262,6 +287,7 @@ __asm__ __volatile__(
 return __res;
 }
 
+#define __HAVE_ARCH_STRLEN
 extern inline size_t strlen(const char * s)
 {
 register int __res;
@@ -275,8 +301,7 @@ __asm__ __volatile__(
 return __res;
 }
 
-extern char * ___strtok;
-
+#define __HAVE_ARCH_STRTOK
 extern inline char * strtok(char * s,const char * ct)
 {
 register char * __res;
@@ -342,15 +367,15 @@ extern inline void * __memcpy(void * to, const void * from, size_t n)
 __asm__ __volatile__(
 	"cld\n\t"
 	"rep ; movsl\n\t"
-	"testb $2,%%dl\n\t"
+	"testb $2,%b1\n\t"
 	"je 1f\n\t"
 	"movsw\n"
-	"1:\ttestb $1,%%dl\n\t"
+	"1:\ttestb $1,%b1\n\t"
 	"je 2f\n\t"
 	"movsb\n"
 	"2:"
 	: /* no output */
-	:"c" (n/4), "d" (n),"D" ((long) to),"S" ((long) from)
+	:"c" (n/4), "q" (n),"D" ((long) to),"S" ((long) from)
 	: "cx","di","si","memory");
 return (to);
 }
@@ -365,17 +390,39 @@ extern inline void * __constant_memcpy(void * to, const void * from, size_t n)
 		case 0:
 			return to;
 		case 1:
-			*(unsigned char *)to = *(unsigned char *)from;
+			*(unsigned char *)to = *(const unsigned char *)from;
 			return to;
 		case 2:
-			*(unsigned short *)to = *(unsigned short *)from;
+			*(unsigned short *)to = *(const unsigned short *)from;
 			return to;
 		case 3:
-			*(unsigned short *)to = *(unsigned short *)from;
-			*(2+(unsigned char *)to) = *(2+(unsigned char *)from);
+			*(unsigned short *)to = *(const unsigned short *)from;
+			*(2+(unsigned char *)to) = *(2+(const unsigned char *)from);
 			return to;
 		case 4:
-			*(unsigned long *)to = *(unsigned long *)from;
+			*(unsigned long *)to = *(const unsigned long *)from;
+			return to;
+		case 8:
+			*(unsigned long *)to = *(const unsigned long *)from;
+			*(1+(unsigned long *)to) = *(1+(const unsigned long *)from);
+			return to;
+		case 12:
+			*(unsigned long *)to = *(const unsigned long *)from;
+			*(1+(unsigned long *)to) = *(1+(const unsigned long *)from);
+			*(2+(unsigned long *)to) = *(2+(const unsigned long *)from);
+			return to;
+		case 16:
+			*(unsigned long *)to = *(const unsigned long *)from;
+			*(1+(unsigned long *)to) = *(1+(const unsigned long *)from);
+			*(2+(unsigned long *)to) = *(2+(const unsigned long *)from);
+			*(3+(unsigned long *)to) = *(3+(const unsigned long *)from);
+			return to;
+		case 20:
+			*(unsigned long *)to = *(const unsigned long *)from;
+			*(1+(unsigned long *)to) = *(1+(const unsigned long *)from);
+			*(2+(unsigned long *)to) = *(2+(const unsigned long *)from);
+			*(3+(unsigned long *)to) = *(3+(const unsigned long *)from);
+			*(4+(unsigned long *)to) = *(4+(const unsigned long *)from);
 			return to;
 	}
 #define COMMON(x) \
@@ -395,11 +442,13 @@ __asm__("cld\n\t" \
 #undef COMMON
 }
 
+#define __HAVE_ARCH_MEMCPY
 #define memcpy(t, f, n) \
 (__builtin_constant_p(n) ? \
  __constant_memcpy((t),(f),(n)) : \
  __memcpy((t),(f),(n)))
 
+#define __HAVE_ARCH_MEMMOVE
 extern inline void * memmove(void * dest,const void * src, size_t n)
 {
 if (dest<src)
@@ -424,22 +473,9 @@ __asm__ __volatile__(
 return dest;
 }
 
-extern inline int memcmp(const void * cs,const void * ct,size_t count)
-{
-register int __res;
-__asm__ __volatile__(
-	"cld\n\t"
-	"repe\n\t"
-	"cmpsb\n\t"
-	"je 1f\n\t"
-	"sbbl %%eax,%%eax\n\t"
-	"orb $1,%%al\n"
-	"1:"
-	:"=a" (__res):"0" (0),"S" (cs),"D" (ct),"c" (count)
-	:"si","di","cx");
-return __res;
-}
+#define memcmp __builtin_memcmp
 
+#define __HAVE_ARCH_MEMCHR
 extern inline void * memchr(const void * cs,int c,size_t count)
 {
 register void * __res;
@@ -482,19 +518,38 @@ extern inline void * __constant_c_memset(void * s, unsigned long c, size_t count
 __asm__ __volatile__(
 	"cld\n\t"
 	"rep ; stosl\n\t"
-	"testb $2,%%dl\n\t"
+	"testb $2,%b1\n\t"
 	"je 1f\n\t"
 	"stosw\n"
-	"1:\ttestb $1,%%dl\n\t"
+	"1:\ttestb $1,%b1\n\t"
 	"je 2f\n\t"
 	"stosb\n"
 	"2:"
 	: /* no output */
-	:"a" (c), "d" (count), "c" (count/4), "D" ((long) s)
+	:"a" (c), "q" (count), "c" (count/4), "D" ((long) s)
 	:"cx","di","memory");
 return (s);	
 }
 
+/* Added by Gertjan van Wingerde to make minix and sysv module work */
+#define __HAVE_ARCH_STRNLEN
+extern inline size_t strnlen(const char * s, size_t count)
+{
+register int __res;
+__asm__ __volatile__(
+	"movl %1,%0\n\t"
+	"jmp 2f\n"
+	"1:\tcmpb $0,(%0)\n\t"
+	"je 3f\n\t"
+	"incl %0\n"
+	"2:\tdecl %2\n\t"
+	"cmpl $-1,%2\n\t"
+	"jne 1b\n"
+	"3:\tsubl %1,%0"
+	:"=a" (__res):"c" (s),"d" (count));
+return __res;
+}
+/* end of additional stuff */
 
 /*
  * This looks horribly ugly, but the compiler can optimize it totally,
@@ -546,6 +601,7 @@ __asm__("cld\n\t" \
  __constant_count_memset((s),(c),(count)) : \
  __memset_generic((s),(c),(count)))
 
+#define __HAVE_ARCH_MEMSET
 #define memset(s, c, count) \
 (__builtin_constant_p(c) ? \
  __constant_c_x_memset((s),(0x01010101UL*(unsigned char)c),(count)) : \
@@ -554,6 +610,7 @@ __asm__("cld\n\t" \
 /*
  * find the first occurrence of byte 'c', or 1 past the area if none
  */
+#define __HAVE_ARCH_MEMSCAN
 extern inline void * memscan(void * addr, int c, size_t size)
 {
 	if (!size)
@@ -568,4 +625,5 @@ extern inline void * memscan(void * addr, int c, size_t size)
 	return addr;
 }
 
+#endif
 #endif

@@ -42,6 +42,8 @@
  *                      Modularization.
  *	- Jan 1995	Bjorn Ekwall
  *			Use ip_fast_csum from ip.h
+ *	- July 1995	Christos A. Polyzols 
+ *			Spotted bug in tcp option checking
  *
  *
  *	This module is a difficult issue. It's clearly inet code but it's also clearly
@@ -51,10 +53,7 @@
 #include <linux/config.h>
 #ifdef CONFIG_INET
 /* Entire module is for IP only */
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#endif
 
 #include <linux/types.h>
 #include <linux/sched.h>
@@ -76,10 +75,11 @@
 #include <linux/errno.h>
 #include <linux/timer.h>
 #include <asm/system.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <linux/mm.h>
 #include <net/checksum.h>
-#include "slhc.h"
+#include <net/slhc_vj.h>
+#include <asm/unaligned.h>
 
 int last_retran;
 
@@ -87,6 +87,7 @@ static unsigned char *encode(unsigned char *cp, unsigned short n);
 static long decode(unsigned char **cpp);
 static unsigned char * put16(unsigned char *cp, unsigned short x);
 static unsigned short pull16(unsigned char **cpp);
+static void export_slhc_syms(void);
 
 /* Initialize compression data structure
  *	slots must be in range 0 to 255 (zero meaning no compression)
@@ -106,29 +107,27 @@ slhc_init(int rslots, int tslots)
 	memset(comp, 0, sizeof(struct slcompress));
 
 	if ( rslots > 0  &&  rslots < 256 ) {
-		comp->rstate =
-		  (struct cstate *)kmalloc(rslots * sizeof(struct cstate),
-					   GFP_KERNEL);
+		size_t rsize = rslots * sizeof(struct cstate);
+		comp->rstate = (struct cstate *) kmalloc(rsize, GFP_KERNEL);
 		if (! comp->rstate)
 		{
 			kfree((unsigned char *)comp);
 			return NULL;
 		}
-		memset(comp->rstate, 0, rslots * sizeof(struct cstate));
+		memset(comp->rstate, 0, rsize);
 		comp->rslot_limit = rslots - 1;
 	}
 
 	if ( tslots > 0  &&  tslots < 256 ) {
-		comp->tstate =
-		  (struct cstate *)kmalloc(tslots * sizeof(struct cstate),
-					   GFP_KERNEL);
+		size_t tsize = tslots * sizeof(struct cstate);
+		comp->tstate = (struct cstate *) kmalloc(tsize, GFP_KERNEL);
 		if (! comp->tstate)
 		{
 			kfree((unsigned char *)comp->rstate);
 			kfree((unsigned char *)comp);
 			return NULL;
 		}
-		memset(comp->tstate, 0, rslots * sizeof(struct cstate));
+		memset(comp->tstate, 0, tsize);
 		comp->tslot_limit = tslots - 1;
 	}
 
@@ -152,9 +151,7 @@ slhc_init(int rslots, int tslots)
 		ts[0].next = &(ts[comp->tslot_limit]);
 		ts[0].cs_this = 0;
 	}
-#ifdef MODULE
 	MOD_INC_USE_COUNT;
-#endif
 	return comp;
 }
 
@@ -172,9 +169,7 @@ slhc_free(struct slcompress *comp)
 	if ( comp->tstate != NULLSLSTATE )
 		kfree( comp->tstate );
 
-#ifdef MODULE
 	MOD_DEC_USE_COUNT;
-#endif
 	kfree( comp );
 }
 
@@ -355,7 +350,7 @@ found:
 	 || ip->ttl != cs->cs_ip.ttl
 	 || th->doff != cs->cs_tcp.doff
 	 || (ip->ihl > 5 && memcmp(ip+1,cs->cs_ipopt,((ip->ihl)-5)*4) != 0)
-	 || (th->doff > 5 && memcmp(th+1,cs->cs_tcpopt,((th->doff)-5)*4 != 0))){
+	 || (th->doff > 5 && memcmp(th+1,cs->cs_tcpopt,((th->doff)-5)*4) != 0)){
 		goto uncompressed;
 	}
 
@@ -615,11 +610,12 @@ slhc_uncompress(struct slcompress *comp, unsigned char *icp, int isize)
 	cp += 20;
 
 	if (ip->ihl > 5) {
-	  memcpy(cp, cs->cs_ipopt, ((ip->ihl) - 5) * 4);
-	  cp += ((ip->ihl) - 5) * 4;
+	  memcpy(cp, cs->cs_ipopt, (ip->ihl - 5) * 4);
+	  cp += (ip->ihl - 5) * 4;
 	}
 
-	((struct iphdr *)icp)->check = ip_fast_csum(icp, ((struct iphdr*)icp)->ihl);
+	put_unaligned(ip_fast_csum(icp, ip->ihl),
+		      &((struct iphdr *)icp)->check);
 
 	memcpy(cp, thp, 20);
 	cp += 20;
@@ -640,9 +636,7 @@ int
 slhc_remember(struct slcompress *comp, unsigned char *icp, int isize)
 {
 	register struct cstate *cs;
-	short ip_len;
-	struct iphdr *ip;
-	struct tcphdr *thp;
+	unsigned ihl;
 
 	unsigned char index;
 
@@ -651,23 +645,21 @@ slhc_remember(struct slcompress *comp, unsigned char *icp, int isize)
 		comp->sls_i_runt++;
 		return slhc_toss( comp );
 	}
-	/* Sneak a peek at the IP header's IHL field to find its length */
-	ip_len = (icp[0] & 0xf) << 2;
-	if(ip_len < 20){
+	/* Peek at the IP header's IHL field to find its length */
+	ihl = icp[0] & 0xf;
+	if(ihl < 20 / 4){
 		/* The IP header length field is too small */
 		comp->sls_i_runt++;
 		return slhc_toss( comp );
 	}
 	index = icp[9];
 	icp[9] = IPPROTO_TCP;
-	ip = (struct iphdr *) icp;
 
-	if (ip_fast_csum(icp, ip->ihl)) {
+	if (ip_fast_csum(icp, ihl)) {
 		/* Bad IP header checksum; discard */
 		comp->sls_i_badcheck++;
 		return slhc_toss( comp );
 	}
-	thp = (struct tcphdr *)(((unsigned char *)ip) + ip->ihl*4);
 	if(index > comp->rslot_limit) {
 		comp->sls_i_error++;
 		return slhc_toss(comp);
@@ -676,13 +668,13 @@ slhc_remember(struct slcompress *comp, unsigned char *icp, int isize)
 	/* Update local state */
 	cs = &comp->rstate[comp->recv_current = index];
 	comp->flags &=~ SLF_TOSS;
-	memcpy(&cs->cs_ip,ip,20);
-	memcpy(&cs->cs_tcp,thp,20);
-	if (ip->ihl > 5)
-	  memcpy(cs->cs_ipopt, ip+1, ((ip->ihl) - 5) * 4);
-	if (thp->doff > 5)
-	  memcpy(cs->cs_tcpopt, thp+1, ((thp->doff) - 5) * 4);
-	cs->cs_hsize = ip->ihl*2 + thp->doff*2;
+	memcpy(&cs->cs_ip,icp,20);
+	memcpy(&cs->cs_tcp,icp + ihl*4,20);
+	if (ihl > 5)
+	  memcpy(cs->cs_ipopt, icp + sizeof(struct iphdr), (ihl - 5) * 4);
+	if (cs->cs_tcp.doff > 5)
+	  memcpy(cs->cs_tcpopt, icp + ihl*4 + sizeof(struct tcphdr), (cs->cs_tcp.doff - 5) * 4);
+	cs->cs_hsize = ihl*2 + cs->cs_tcp.doff*2;
 	/* Put headers back on packet
 	 * Neither header checksum is recalculated
 	 */
@@ -728,21 +720,42 @@ void slhc_o_status(struct slcompress *comp)
 	}
 }
 
+static struct symbol_table slhc_syms = {
+/* Should this be surrounded with "#ifdef CONFIG_MODULES" ? */
+#include <linux/symtab_begin.h>
+        /* VJ header compression */
+        X(slhc_init),
+        X(slhc_free),
+        X(slhc_remember),
+        X(slhc_compress),
+        X(slhc_uncompress),
+        X(slhc_toss),
+#include <linux/symtab_end.h>
+};
+
+static void export_slhc_syms(void)
+{
+	register_symtab(&slhc_syms);
+}
+
 #ifdef MODULE
-char kernel_version[] = UTS_RELEASE;
 
 int init_module(void)
 {
-	printk("CSLIP: code copyright 1989 Regents of the University of California\n");
+	printk(KERN_INFO "CSLIP: code copyright 1989 Regents of the University of California\n");
+	export_slhc_syms();
 	return 0;
 }
 
 void cleanup_module(void)
 {
-	if (MOD_IN_USE)  {
-		printk("CSLIP: module in use, remove delayed");
-	}
 	return;
 }
-#endif /* MODULE */
+#else /* MODULE */
+
+void slhc_install(void)
+{
+	export_slhc_syms();
+}
+#endif
 #endif /* CONFIG_INET */

@@ -1,5 +1,5 @@
-#ifndef __ALPHA_LCA__H
-#define __ALPHA_LCA__H
+#ifndef __ALPHA_LCA__H__
+#define __ALPHA_LCA__H__
 
 /*
  * Low Cost Alpha (LCA) definitions (these apply to 21066 and 21068,
@@ -52,22 +52,10 @@
  * ugh).
  */
 
+#include <asm/system.h>
+
 #define LCA_DMA_WIN_BASE	(1024*1024*1024)
 #define LCA_DMA_WIN_SIZE	(1024*1024*1024)
-
-/*
- * Translate physical memory address as seen on (PCI) bus into
- * a kernel virtual address and vv.
- */
-extern inline unsigned long virt_to_bus(void * address)
-{
-	return virt_to_phys(address) + LCA_DMA_WIN_BASE;
-}
-
-extern inline void * bus_to_virt(unsigned long address)
-{
-	return phys_to_virt(address - LCA_DMA_WIN_BASE);
-}
 
 /*
  * Memory Controller registers:
@@ -141,6 +129,30 @@ extern inline void * bus_to_virt(unsigned long address)
 #define LCA_IOC_STAT0_P_NBR_MASK	0x7ffff
 
 #define HAE_ADDRESS	LCA_IOC_HAE
+
+#ifdef __KERNEL__
+
+/*
+ * Translate physical memory address as seen on (PCI) bus into
+ * a kernel virtual address and vv.
+ */
+extern inline unsigned long virt_to_bus(void * address)
+{
+	return virt_to_phys(address) + LCA_DMA_WIN_BASE;
+}
+
+extern inline void * bus_to_virt(unsigned long address)
+{
+	/*
+	 * This check is a sanity check but also ensures that bus
+	 * address 0 maps to virtual address 0 which is useful to
+	 * detect null "pointers" (the NCR driver is much simpler if
+	 * NULL pointers are preserved).
+	 */
+	if (address < LCA_DMA_WIN_BASE)
+		return 0;
+	return phys_to_virt(address - LCA_DMA_WIN_BASE);
+}
 
 /*
  * I/O functions:
@@ -245,6 +257,7 @@ extern inline unsigned long __readl(unsigned long addr)
 extern inline void __writeb(unsigned char b, unsigned long addr)
 {
 	unsigned long msb;
+	unsigned int w;
 
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
@@ -253,12 +266,14 @@ extern inline void __writeb(unsigned char b, unsigned long addr)
 			set_hae(msb);
 		}
 	}
-	*(vuip) ((addr << 5) + LCA_SPARSE_MEM + 0x00) = b * 0x01010101;
+	asm ("insbl %2,%1,%0" : "r="(w) : "ri"(addr & 0x3), "r"(b));
+	*(vuip) ((addr << 5) + LCA_SPARSE_MEM + 0x00) = w;
 }
 
 extern inline void __writew(unsigned short b, unsigned long addr)
 {
 	unsigned long msb;
+	unsigned int w;
 
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
@@ -267,7 +282,8 @@ extern inline void __writew(unsigned short b, unsigned long addr)
 			set_hae(msb);
 		}
 	}
-	*(vuip) ((addr << 5) + LCA_SPARSE_MEM + 0x08) = b * 0x00010001;
+	asm ("inswl %2,%1,%0" : "r="(w) : "ri"(addr & 0x3), "r"(b));
+	*(vuip) ((addr << 5) + LCA_SPARSE_MEM + 0x08) = w;
 }
 
 extern inline void __writel(unsigned int b, unsigned long addr)
@@ -279,34 +295,63 @@ extern inline void __writel(unsigned int b, unsigned long addr)
  * Most of the above have so much overhead that it probably doesn't
  * make sense to have them inlined (better icache behavior).
  */
-extern unsigned int inb(unsigned long addr);
-extern unsigned int inw(unsigned long addr);
-extern unsigned int inl(unsigned long addr);
-
-extern void outb(unsigned char b, unsigned long addr);
-extern void outw(unsigned short b, unsigned long addr);
-extern void outl(unsigned int b, unsigned long addr);
-
-extern unsigned long readb(unsigned long addr);
-extern unsigned long readw(unsigned long addr);
-
-extern void writeb(unsigned short b, unsigned long addr);
-extern void writew(unsigned short b, unsigned long addr);
 
 #define inb(port) \
-(__builtin_constant_p((port))?__inb(port):(inb)(port))
+(__builtin_constant_p((port))?__inb(port):_inb(port))
 
 #define outb(x, port) \
-(__builtin_constant_p((port))?__outb((x),(port)):(outb)((x),(port)))
+(__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
 
-#define inb_p inb
-#define outb_p outb
-
-#define readl(addr)	__readl(addr)
-#define writel(b,addr)	__writel(b,addr)
+#define readl(a)	__readl((unsigned long)(a))
+#define writel(v,a)	__writel((v),(unsigned long)(a))
 
 #undef vuip
 
 extern unsigned long lca_init (unsigned long mem_start, unsigned long mem_end);
 
-#endif
+#endif /* __KERNEL__ */
+
+/*
+ * Data structure for handling LCA machine checks.  Correctable errors
+ * result in a short logout frame, uncorrectable ones in a long one.
+ */
+struct el_lca_mcheck_short {
+	struct el_common	h;		/* common logout header */
+	unsigned long		esr;		/* error-status register */
+	unsigned long		ear;		/* error-address register */
+	unsigned long		dc_stat;	/* dcache status register */
+	unsigned long		ioc_stat0;	/* I/O controller status register 0 */
+	unsigned long		ioc_stat1;	/* I/O controller status register 1 */
+};
+
+struct el_lca_mcheck_long {
+	struct el_common	h;		/* common logout header */
+	unsigned long		pt[31];		/* PAL temps */
+	unsigned long		exc_addr;	/* exception address */
+	unsigned long		pad1[3];
+	unsigned long		pal_base;	/* PALcode base address */
+	unsigned long		hier;		/* hw interrupt enable */
+	unsigned long		hirr;		/* hw interrupt request */
+	unsigned long		mm_csr;		/* MMU control & status */
+	unsigned long		dc_stat;	/* data cache status */
+	unsigned long		dc_addr;	/* data cache addr register */
+	unsigned long		abox_ctl;	/* address box control register */
+	unsigned long		esr;		/* error status register */
+	unsigned long		ear;		/* error address register */
+	unsigned long		car;		/* cache control register */
+	unsigned long		ioc_stat0;	/* I/O controller status register 0 */
+	unsigned long		ioc_stat1;	/* I/O controller status register 1 */
+	unsigned long		va;		/* virtual address register */
+};
+
+union el_lca {
+	struct el_common *		c;
+	struct el_lca_mcheck_long *	l;
+	struct el_lca_mcheck_short *	s;
+};
+
+#define RTC_PORT(x)	(0x70 + (x))
+#define RTC_ADDR(x)	(0x80 | (x))
+#define RTC_ALWAYS_BCD	0
+
+#endif /* __ALPHA_LCA__H__ */

@@ -7,19 +7,16 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
 .S.s:
 	$(CPP) -D__ASSEMBLY__ -traditional $< -o $*.s
 .S.o:
 	$(CC) -D__ASSEMBLY__ -traditional -c $< -o $*.o
 
-OBJS  = entry.o traps.o process.o osf_sys.o irq.o signal.o setup.o \
-	lca.o bios32.o
+all: kernel.o head.o
+
+O_TARGET := kernel.o
+O_OBJS   := entry.o traps.o process.o osf_sys.o irq.o signal.o setup.o \
+	    bios32.o ptrace.o time.o apecs.o lca.o cia.o ksyms.o
 
 all: kernel.o head.o
 
@@ -28,20 +25,4 @@ head.o: head.s
 head.s: head.S $(TOPDIR)/include/asm-alpha/system.h
 	$(CPP) -traditional -o $*.s $<
 
-kernel.o: $(OBJS)
-	$(LD) -r -o kernel.o $(OBJS)
-	sync
-
-dep:
-	$(CPP) -M *.c > .depend
-
-dummy:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
-
-
+include $(TOPDIR)/Rules.make

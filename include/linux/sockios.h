@@ -18,15 +18,7 @@
 #ifndef _LINUX_SOCKIOS_H
 #define _LINUX_SOCKIOS_H
 
-/* This section will go away soon! */
-
-/* Socket-level I/O control calls. */
-#define FIOSETOWN 	0x8901
-#define SIOCSPGRP	0x8902
-#define FIOGETOWN	0x8903
-#define SIOCGPGRP	0x8904
-#define SIOCATMARK	0x8905
-#define SIOCGSTAMP	0x8906		/* Get stamp */
+#include <asm/sockios.h>
 
 /* Routing table calls. */
 #define SIOCADDRT	0x890B		/* add routing table entry	*/
@@ -52,26 +44,26 @@
 #define SIOCSIFMEM	0x8920		/* set memory address (BSD)	*/
 #define SIOCGIFMTU	0x8921		/* get MTU size			*/
 #define SIOCSIFMTU	0x8922		/* set MTU size			*/
-#define	OLD_SIOCGIFHWADDR	0x8923		/* get hardware address		*/
 #define	SIOCSIFHWADDR	0x8924		/* set hardware address (NI)	*/
 #define SIOCGIFENCAP	0x8925		/* get/set slip encapsulation   */
 #define SIOCSIFENCAP	0x8926		
 #define SIOCGIFHWADDR	0x8927		/* Get hardware address		*/
 #define SIOCGIFSLAVE	0x8929		/* Driver slaving support	*/
 #define SIOCSIFSLAVE	0x8930
-/* begin multicast support change */
-#define SIOCADDMULTI  0x8931
-#define SIOCDELMULTI  0x8932
-/* end multicast support change */
+#define SIOCADDMULTI	0x8931		/* Multicast address lists	*/
+#define SIOCDELMULTI	0x8932
+#define SIOGIFINDEX	0x8933		/* name -> if_index mapping	*/
 
-/* Routing table calls (oldrtent - don't use) */
-#define SIOCADDRTOLD	0x8940		/* add routing table entry	*/
-#define SIOCDELRTOLD	0x8941		/* delete routing table entry	*/
+#define SIOCGIFBR	0x8940		/* Bridging support		*/
+#define SIOCSIFBR	0x8941		/* Set bridging options 	*/
 
 /* ARP cache control calls. */
-#define SIOCDARP	0x8950		/* delete ARP table entry	*/
-#define SIOCGARP	0x8951		/* get ARP table entry		*/
-#define SIOCSARP	0x8952		/* set ARP table entry		*/
+#define OLD_SIOCDARP	0x8950		/* old delete ARP table entry	*/
+#define OLD_SIOCGARP	0x8951		/* old get ARP table entry	*/
+#define OLD_SIOCSARP	0x8952		/* old set ARP table entry	*/
+#define SIOCDARP	0x8953		/* delete ARP table entry	*/
+#define SIOCGARP	0x8954		/* get ARP table entry		*/
+#define SIOCSARP	0x8955		/* set ARP table entry		*/
 
 /* RARP cache control calls. */
 #define SIOCDRARP	0x8960		/* delete RARP table entry	*/
@@ -82,6 +74,11 @@
 
 #define SIOCGIFMAP	0x8970		/* Get device parameters	*/
 #define SIOCSIFMAP	0x8971		/* Set device parameters	*/
+
+/* DLCI configuration calls */
+
+#define SIOCADDDLCI	0x8980		/* Create new DLCI device	*/
+#define SIOCDELDLCI	0x8981		/* Delete DLCI device		*/
 
 /* Device private ioctl calls */
 

@@ -44,7 +44,7 @@
 #define ST0_DS		0x03		/* drive select mask */
 #define ST0_HA		0x04		/* Head (Address) */
 #define ST0_NR		0x08		/* Not Ready */
-#define ST0_ECE		0x10		/* Equipment chech error */
+#define ST0_ECE		0x10		/* Equipment check error */
 #define ST0_SE		0x20		/* Seek end */
 #define ST0_INTR	0xC0		/* Interrupt code mask */
 
@@ -92,18 +92,52 @@
 #define FD_RSEEK_OUT		0x8f	/* seek out (i.e. to lower tracks) */
 #define FD_RSEEK_IN		0xcf	/* seek in (i.e. to higher tracks) */
 
+/* the following commands are new in the 82078. They are not used in the
+ * floppy driver, except the first three. These commands may be useful for apps
+ * which use the FDRAWCMD interface. For doc, get the 82078 spec sheets at
+ * http://www-techdoc.intel.com/docs/periph/fd_contr/datasheets/ */
+
+#define FD_PARTID		0x18	/* part id ("extended" version cmd) */
+#define FD_SAVE			0x2e	/* save fdc regs for later restore */
+#define FD_DRIVESPEC		0x8e	/* drive specification: Access to the
+					 * 2 Mbps data transfer rate for tape
+					 * drives */
+
+#define FD_RESTORE		0x4e    /* later restore */
+#define FD_POWERDOWN		0x27	/* configure FDC's powersave features */
+#define FD_FORMAT_N_WRITE	0xef    /* format and write in one go. */
+#define FD_OPTION		0x33	/* ISO format (which is a clean way to
+					 * pack more sectors on a track) */
+
 /* DMA commands */
 #define DMA_READ	0x46
 #define DMA_WRITE	0x4A
 
 /* FDC version return types */
 #define FDC_NONE	0x00
-#define FDC_UNKNOWN	0x10
+#define FDC_UNKNOWN	0x10	/* DO NOT USE THIS TYPE EXCEPT IF IDENTIFICATION
+				   FAILS EARLY */
 #define FDC_8272A	0x20	/* Intel 8272a, NEC 765 */
 #define FDC_765ED	0x30	/* Non-Intel 1MB-compatible FDC, can't detect */
 #define FDC_82072	0x40	/* Intel 82072; 8272a + FIFO + DUMPREGS */
-#define FDC_82077_ORIG	0x50	/* Original version of 82077AA, sans LOCK */
+#define FDC_82072A	0x45	/* 82072A (on Sparcs) */
+#define FDC_82077_ORIG	0x51	/* Original version of 82077AA, sans LOCK */
 #define FDC_82077	0x52	/* 82077AA-1 */
+#define FDC_82078_UNKN	0x5f	/* Unknown 82078 variant */
+#define FDC_82078	0x60	/* 44pin 82078 or 64pin 82078SL */
+#define FDC_82078_1	0x61	/* 82078-1 (2Mbps fdc) */
+#define FDC_S82078B	0x62	/* S82078B (first seen on Adaptec AVA-2825 VLB
+				 * SCSI/EIDE/Floppy controller) */
+#define FDC_87306	0x63	/* National Semiconductor PC 87306 */
+
+/*
+ * Beware: the fdc type list is roughly sorted by increasing features.
+ * Presence of features is tested by comparing the FDC version id with the
+ * "oldest" version that has the needed feature.
+ * If during FDC detection, an obscure test fails late in the sequence, don't
+ * assign FDC_UNKNOWN. Else the FDC will be treated as a dumb 8272a, or worse.
+ * This is especially true if the tests are unneeded.
+ */
 
 #define FD_RESET_DELAY 20
 #endif

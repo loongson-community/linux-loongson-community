@@ -7,18 +7,13 @@
  * Delay routines, using a pre-computed "loops_per_second" value.
  */
 
-extern __inline__ void __delay(int loops)
+extern __inline__ void __delay(unsigned long loops)
 {
-	__asm__("\n\tmovel %0,d0\n1:\tsubql #1,d0\n\tbpls 1b\n"
-		: /* no outputs */
-		: "g" (loops)
-		: "d0");
+	__asm__ __volatile__ ("1: subql #1,%0; jcc 1b"
+		: "=d" (loops) : "0" (loops));
 }
 
 /*
- * division by multiplication: you don't have to worry about
- * loss of precision.
- *
  * Use only for very small delays ( < 1 msec).  Should probably use a
  * lookup table, really, as the multiplications take much too long with
  * short delays.  This is a "reasonable" implementation, though (and the
@@ -27,14 +22,23 @@ extern __inline__ void __delay(int loops)
  */
 extern __inline__ void udelay(unsigned long usecs)
 {
-	asm ("mulul %1,d0,%0\n\t"
-	     "divul  %2,d0,%0"
-	     : "=d" (usecs)
-	     : "d" (usecs),
-	       "i" (1000000),
-	       "0" (loops_per_sec)
-	     : "d0");
+	unsigned long tmp;
+
+	usecs *= 4295;		/* 2**32 / 1000000 */
+	__asm__ ("mulul %2,%0:%1"
+		: "=d" (usecs), "=d" (tmp)
+		: "d" (usecs), "1" (loops_per_sec));
 	__delay(usecs);
+}
+
+extern __inline__ unsigned long muldiv(unsigned long a, unsigned long b, unsigned long c)
+{
+	unsigned long tmp;
+
+	__asm__ ("mulul %2,%0:%1; divul %3,%0:%1"
+		: "=d" (tmp), "=d" (a)
+		: "d" (b), "d" (c), "1" (a));
+	return a;
 }
 
 #endif /* defined(_M68K_DELAY_H) */

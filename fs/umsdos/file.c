@@ -7,13 +7,6 @@
  *  Extended MS-DOS regular file handling primitives
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-#include <asm/system.h>
-
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/msdos_fs.h>
@@ -23,20 +16,22 @@
 #include <linux/msdos_fs.h>
 #include <linux/umsdos_fs.h>
 
+#include <asm/uaccess.h>
+#include <asm/system.h>
 
 #define PRINTK(x)
 #define Printk(x)	printk x
 /*
 	Read a file into user space memory
 */
-static int UMSDOS_file_read(
+static long UMSDOS_file_read(
 	struct inode *inode,
 	struct file *filp,
 	char *buf,
-    int count)
+	unsigned long count)
 {
 	/* We have to set the access time because msdos don't care */
-	int ret = msdos_file_read(inode,filp,buf,count);
+	int ret = fat_file_read(inode,filp,buf,count);
 	if (!IS_RDONLY(inode)){
 		inode->i_atime = CURRENT_TIME;
 		inode->i_dirt = 1;
@@ -46,13 +41,13 @@ static int UMSDOS_file_read(
 /*
 	Write a file from user space memory
 */
-static int UMSDOS_file_write(
+static long UMSDOS_file_write(
 	struct inode *inode,
 	struct file *filp,
-	char *buf,
-    int count)
+	const char *buf,
+	unsigned long count)
 {
-	return msdos_file_write(inode,filp,buf,count);
+	return fat_file_write(inode,filp,buf,count);
 }
 /*
 	Truncate a file to 0 length.
@@ -60,7 +55,7 @@ static int UMSDOS_file_write(
 static void UMSDOS_truncate(struct inode *inode)
 {
 	PRINTK (("UMSDOS_truncate\n"));
-	msdos_truncate (inode);
+	fat_truncate (inode);
 	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 	inode->i_dirt = 1;
 }
@@ -73,7 +68,7 @@ struct file_operations umsdos_file_operations = {
 	NULL,				/* readdir - bad */
 	NULL,				/* select - default */
 	NULL,				/* ioctl - default */
-	generic_mmap,			/* mmap */
+	generic_file_mmap,		/* mmap */
 	NULL,				/* no special open is needed */
 	NULL,				/* release */
 	file_fsync			/* fsync */
@@ -92,10 +87,12 @@ struct inode_operations umsdos_file_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	msdos_bmap,		/* bmap */
+	generic_readpage,	/* readpage */
+	NULL,			/* writepage */
+	fat_bmap,		/* bmap */
 	UMSDOS_truncate,/* truncate */
 	NULL,			/* permission */
-	msdos_smap		/* smap */
+	fat_smap		/* smap */
 };
 /* For other with larger and unaligned file system */
 struct file_operations umsdos_file_operations_no_bmap = {
@@ -105,7 +102,7 @@ struct file_operations umsdos_file_operations_no_bmap = {
 	NULL,				/* readdir - bad */
 	NULL,				/* select - default */
 	NULL,				/* ioctl - default */
-	msdos_mmap,			/* mmap */
+	fat_mmap,			/* mmap */
 	NULL,				/* no special open is needed */
 	NULL,				/* release */
 	file_fsync			/* fsync */
@@ -124,6 +121,8 @@ struct inode_operations umsdos_file_inode_operations_no_bmap = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	UMSDOS_truncate,/* truncate */
 	NULL,			/* permission */

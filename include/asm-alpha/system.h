@@ -1,6 +1,8 @@
 #ifndef __ALPHA_SYSTEM_H
 #define __ALPHA_SYSTEM_H
 
+#include <asm/pal.h>	/* for backwards compatibility... */
+
 /*
  * System defines.. Note that this is included both from .c and .S
  * files, so it does only defines, not any C code.
@@ -15,6 +17,7 @@
  */
 #define BOOT_PCB	0x20000000
 #define BOOT_ADDR	0x20000000
+/* Remove when official MILO sources have ELF support: */
 #define BOOT_SIZE	(16*1024)
 
 #define KERNEL_START	0xfffffc0000300000
@@ -25,69 +28,41 @@
 #define ZERO_PGE	0xfffffc000030A000
 
 #define START_ADDR	0xfffffc0000310000
+/* Remove when official MILO sources have ELF support: */
 #define START_SIZE	(2*1024*1024)
 
-/*
- * Common PAL-code
- */
-#define PAL_halt	  0
-#define PAL_cflush	  1
-#define PAL_draina	  2
-#define PAL_cobratt	  9
-#define PAL_bpt		128
-#define PAL_bugchk	129
-#define PAL_chmk	131
-#define PAL_callsys	131
-#define PAL_imb		134
-#define PAL_rduniq	158
-#define PAL_wruniq	159
-#define PAL_gentrap	170
-#define PAL_nphalt	190
-
-/*
- * VMS specific PAL-code
- */
-#define PAL_swppal	10
-#define PAL_mfpr_vptb	41
-
-/*
- * OSF specific PAL-code
- */
-#define PAL_rdmces	16
-#define PAL_wrmces	17
-#define PAL_wrfen	43
-#define PAL_wrvptptr	45
-#define PAL_jtopal	46
-#define PAL_swpctx	48
-#define PAL_wrval	49
-#define PAL_rdval	50
-#define PAL_tbi		51
-#define PAL_wrent	52
-#define PAL_swpipl	53
-#define PAL_rdps	54
-#define PAL_wrkgp	55
-#define PAL_wrusp	56
-#define PAL_wrperfmon	57
-#define PAL_rdusp	58
-#define PAL_whami	60
-#define PAL_rtsys	61
-#define PAL_rti		63
-
 #ifndef __ASSEMBLY__
+
+/*
+ * This is the logout header that should be common to all platforms
+ * (assuming they are running OSF/1 PALcode, I guess).
+ */
+struct el_common {
+	unsigned int	size;		/* size in bytes of logout area */
+	int		sbz1	: 31;	/* should be zero */
+	char		retry	:  1;	/* retry flag */
+	unsigned int	proc_offset;	/* processor-specific offset */
+	unsigned int	sys_offset;	/* system-specific offset */
+	unsigned long	code;		/* machine check code */
+};
 
 extern void wrent(void *, unsigned long);
 extern void wrkgp(unsigned long);
 extern void wrusp(unsigned long);
 extern unsigned long rdusp(void);
+extern unsigned long rdmces (void);
+extern void wrmces (unsigned long);
 
-#define halt() __asm__ __volatile__(".long 0");
+#define halt() __asm__ __volatile__ ("call_pal %0" : : "i" (PAL_halt) : "memory")
+
+#define switch_to(prev,next) do { \
+	current_set[0] = next; \
+	alpha_switch_to((unsigned long) &(next)->tss - 0xfffffc0000000000); \
+} while (0)
 
 extern void alpha_switch_to(unsigned long pctxp);
 
-#define switch_to(p) do { \
-	current = p; \
-	alpha_switch_to((unsigned long) &(p)->tss - 0xfffffc0000000000); \
-} while (0)
+extern void imb(void);
 
 #define mb() \
 __asm__ __volatile__("mb": : :"memory")
@@ -109,7 +84,7 @@ __asm__ __volatile__( \
 	"bis %0,%0,$16\n\t" \
 	"call_pal 53" \
 	: : "r" (__new_ipl) \
-	: "$0", "$1", "$16", "$22", "$23", "$24", "$25")
+	: "$0", "$1", "$16", "$22", "$23", "$24", "$25", "memory")
 
 #define swpipl(__new_ipl) \
 ({ unsigned long __old_ipl; \
@@ -119,7 +94,7 @@ __asm__ __volatile__( \
 	"bis $0,$0,%0" \
 	: "=r" (__old_ipl) \
 	: "r" (__new_ipl) \
-	: "$0", "$1", "$16", "$22", "$23", "$24", "$25"); \
+	: "$0", "$1", "$16", "$22", "$23", "$24", "$25", "memory"); \
 __old_ipl; })
 
 #define cli()			setipl(7)
@@ -127,40 +102,80 @@ __old_ipl; })
 #define save_flags(flags)	do { flags = getipl(); } while (0)
 #define restore_flags(flags)	setipl(flags)
 
-extern inline unsigned long xchg_u32(int * m, unsigned long val)
-{
-	unsigned long dummy, dummy2;
+/*
+ * TB routines..
+ */
+extern void tbi(long type, ...);
 
+#define tbisi(x)	tbi(1,(x))
+#define tbisd(x)	tbi(2,(x))
+#define tbis(x)		tbi(3,(x))
+#define tbiap()		tbi(-1)
+#define tbia()		tbi(-2)
+
+/*
+ * Give prototypes to shut up gcc.
+ */
+extern __inline__ unsigned long xchg_u32 (volatile int * m, unsigned long val);
+extern __inline__ unsigned long xchg_u64 (volatile long * m, unsigned long val);
+
+extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
+{
+	unsigned long dummy;
 	__asm__ __volatile__(
 		"\n1:\t"
-		"ldl_l %0,%1\n\t"
-		"bis %2,%2,%3\n\t"
-		"stl_c %3,%1\n\t"
-		"beq %3,1b\n"
-		: "=r" (val), "=m" (*m), "=r" (dummy), "=r" (dummy2)
-		: "1" (*m), "2" (val));
+		"ldl_l %0,%2\n\t"
+		"bis %3,%3,%1\n\t"
+		"stl_c %1,%2\n\t"
+		"beq %1,1b\n"
+		: "=&r" (val), "=&r" (dummy), "=m" (*m)
+		: "r" (val), "m" (*m));
 	return val;
 }
 
-extern inline unsigned long xchg_u64(long * m, unsigned long val)
+extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
 {
-	unsigned long dummy, dummy2;
-
+	unsigned long dummy;
 	__asm__ __volatile__(
 		"\n1:\t"
-		"ldq_l %0,%1\n\t"
-		"bis %2,%2,%3\n\t"
-		"stq_c %3,%1\n\t"
-		"beq %3,1b\n"
-		: "=r" (val), "=m" (*m), "=r" (dummy), "=r" (dummy2)
-		: "1" (*m), "2" (val));
+		"ldq_l %0,%2\n\t"
+		"bis %3,%3,%1\n\t"
+		"stq_c %1,%2\n\t"
+		"beq %1,1b\n"
+		: "=&r" (val), "=&r" (dummy), "=m" (*m)
+		: "r" (val), "m" (*m));
 	return val;
 }
 
-extern inline void * xchg_ptr(void *m, void *val)
+#define xchg(ptr,x) ((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
+#define tas(ptr) (xchg((ptr),1))
+
+/*
+ * This function doesn't exist, so you'll get a linker error
+ * if something tries to do an invalid xchg().
+ *
+ * This only works if the compiler isn't horribly bad at optimizing.
+ * gcc-2.5.8 reportedly can't handle this, but as that doesn't work
+ * too well on the alpha anyway..
+ */
+extern void __xchg_called_with_bad_pointer(void);
+
+static __inline__ unsigned long __xchg(unsigned long x, volatile void * ptr, int size)
 {
-	return (void *) xchg_u64((long *) m, (unsigned long) val);
+	switch (size) {
+		case 4:
+			return xchg_u32(ptr, x);
+		case 8:
+			return xchg_u64(ptr, x);
+	}
+	__xchg_called_with_bad_pointer();
+	return x;
 }
+
+/*
+ * Reset the machine.
+ */
+extern void hard_reset_now(void);
 
 #endif /* __ASSEMBLY__ */
 

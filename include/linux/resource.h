@@ -1,6 +1,8 @@
 #ifndef _LINUX_RESOURCE_H
 #define _LINUX_RESOURCE_H
 
+#include <linux/time.h>
+
 /*
  * Resource control/accounting header file for linux
  */
@@ -42,8 +44,8 @@ struct rlimit {
 	long	rlim_max;
 };
 
-#define	PRIO_MIN	(-99)
-#define	PRIO_MAX	14
+#define	PRIO_MIN	(-20)
+#define	PRIO_MAX	20
 
 #define	PRIO_PROCESS	0
 #define	PRIO_PGRP	1

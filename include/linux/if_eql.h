@@ -2,7 +2,7 @@
  * Equalizer Load-balancer for serial network interfaces.
  *
  * (c) Copyright 1995 Simon "Guru Aleph-Null" Janes
- * NCM: Network and Communications Mangement, Inc.
+ * NCM: Network and Communications Management, Inc.
  *
  *
  *	This software may be used and distributed according to the terms
@@ -18,6 +18,8 @@
 
 #ifndef _LINUX_IF_EQL_H
 #define _LINUX_IF_EQL_H
+
+#include <linux/timer.h>
 
 #define EQL_DEFAULT_SLAVE_PRIORITY 28800
 #define EQL_DEFAULT_MAX_SLAVES     4

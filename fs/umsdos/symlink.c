@@ -6,12 +6,6 @@
  *
  *  Extended MS-DOS regular file handling primitives
  */
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-#include <asm/system.h>
 
 #include <linux/sched.h>
 #include <linux/fs.h>
@@ -22,8 +16,12 @@
 #include <linux/umsdos_fs.h>
 #include <linux/malloc.h>
 
+#include <asm/uaccess.h>
+#include <asm/system.h>
+
 #define PRINTK(x)
 #define Printk(x)	printk x
+
 /*
 	Read the data associate with the symlink.
 	Return length read in buffer or  a negative error code.
@@ -31,7 +29,7 @@
 static int umsdos_readlink_x (
 	struct inode *inode,
 	char *buffer,
-	int (*msdos_read)(struct inode *, struct file *, char *, int),
+	long (*msdos_read)(struct inode *, struct file *, char *, unsigned long),
 	int bufsiz)
 {
 	int ret = inode->i_size;
@@ -105,7 +103,7 @@ static int UMSDOS_readlink(struct inode * inode, char * buffer, int buflen)
 {
 	int ret = -EINVAL;
 	if (S_ISLNK(inode->i_mode)) {
-		ret = umsdos_readlink_x (inode,buffer,msdos_file_read,buflen);
+		ret = umsdos_readlink_x (inode,buffer,fat_file_read,buflen);
 	}
 	PRINTK (("readlink %d %x bufsiz %d\n",ret,inode->i_mode,buflen));
 	iput(inode);
@@ -139,6 +137,8 @@ struct inode_operations umsdos_symlink_inode_operations = {
 	NULL,			/* rename */
 	UMSDOS_readlink,	/* readlink */
 	UMSDOS_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */

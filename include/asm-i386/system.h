@@ -5,11 +5,12 @@
 
 /*
  * Entry into gdt where to find first TSS. GDT layout:
- *   0 - nul
- *   1 - kernel code segment
- *   2 - kernel data segment
- *   3 - user code segment
- *   4 - user data segment
+ *   0 - null
+ *   1 - not used
+ *   2 - kernel code segment
+ *   3 - kernel data segment
+ *   4 - user code segment
+ *   5 - user data segment
  * ...
  *   8 - TSS #0
  *   9 - LDT #0
@@ -31,11 +32,11 @@ __asm__("str %%ax\n\t" \
 
 /* This special macro can be used to load a debugging register */
 
-#define loaddebug(register) \
+#define loaddebug(tsk,register) \
 		__asm__("movl %0,%%edx\n\t" \
 			"movl %%edx,%%db" #register "\n\t" \
 			: /* no output */ \
-			:"m" (current->debugreg[register]) \
+			:"m" (tsk->debugreg[register]) \
 			:"dx");
 
 
@@ -47,28 +48,80 @@ __asm__("str %%ax\n\t" \
  *
  * It also reloads the debug regs if necessary..
  */
-#define switch_to(tsk) do { \
-__asm__("cli\n\t" \
-	"xchgl %%ecx,_current\n\t" \
+
+ 
+#ifdef __SMP__
+	/*
+	 *	Keep the lock depth straight. If we switch on an interrupt from
+	 *	kernel->user task we need to lose a depth, and if we switch the
+	 *	other way we need to gain a depth. Same layer switches come out
+	 *	the same.
+	 *
+	 *	We spot a switch in user mode because the kernel counter is the
+	 *	same as the interrupt counter depth. (We never switch during the
+	 *	message/invalidate IPI).
+	 *
+	 *	We fsave/fwait so that an exception goes off at the right time
+	 *	(as a call from the fsave or fwait in effect) rather than to
+	 *	the wrong process.
+	 */
+
+#define switch_to(prev,next) do { \
+	cli();\
+	if(prev->flags&PF_USEDFPU) \
+	{ \
+		__asm__ __volatile__("fnsave %0":"=m" (prev->tss.i387.hard)); \
+		__asm__ __volatile__("fwait"); \
+		prev->flags&=~PF_USEDFPU;	 \
+	} \
+	prev->lock_depth=syscall_count; \
+	kernel_counter+=next->lock_depth-prev->lock_depth; \
+	syscall_count=next->lock_depth; \
+__asm__("pushl %%edx\n\t" \
+	"movl "SYMBOL_NAME_STR(apic_reg)",%%edx\n\t" \
+	"movl 0x20(%%edx), %%edx\n\t" \
+	"shrl $22,%%edx\n\t" \
+	"and  $0x3C,%%edx\n\t" \
+	"movl %%ecx,"SYMBOL_NAME_STR(current_set)"(,%%edx)\n\t" \
+	"popl %%edx\n\t" \
 	"ljmp %0\n\t" \
 	"sti\n\t" \
-	"cmpl %%ecx,_last_task_used_math\n\t" \
+	: /* no output */ \
+	:"m" (*(((char *)&next->tss.tr)-4)), \
+	 "c" (next)); \
+	/* Now maybe reload the debug registers */ \
+	if(prev->debugreg[7]){ \
+		loaddebug(prev,0); \
+		loaddebug(prev,1); \
+		loaddebug(prev,2); \
+		loaddebug(prev,3); \
+		loaddebug(prev,6); \
+		loaddebug(prev,7); \
+	} \
+} while (0)
+
+#else
+#define switch_to(prev,next) do { \
+__asm__("movl %2,"SYMBOL_NAME_STR(current_set)"\n\t" \
+	"ljmp %0\n\t" \
+	"cmpl %1,"SYMBOL_NAME_STR(last_task_used_math)"\n\t" \
 	"jne 1f\n\t" \
 	"clts\n" \
 	"1:" \
-	: /* no output */ \
-	:"m" (*(((char *)&tsk->tss.tr)-4)), \
-	 "c" (tsk) \
-	:"cx"); \
+	: /* no outputs */ \
+	:"m" (*(((char *)&next->tss.tr)-4)), \
+	 "r" (prev), "r" (next)); \
 	/* Now maybe reload the debug registers */ \
-	if(current->debugreg[7]){ \
-		loaddebug(0); \
-		loaddebug(1); \
-		loaddebug(2); \
-		loaddebug(3); \
-		loaddebug(6); \
+	if(prev->debugreg[7]){ \
+		loaddebug(prev,0); \
+		loaddebug(prev,1); \
+		loaddebug(prev,2); \
+		loaddebug(prev,3); \
+		loaddebug(prev,6); \
+		loaddebug(prev,7); \
 	} \
 } while (0)
+#endif
 
 #define _set_base(addr,base) \
 __asm__("movw %%dx,%0\n\t" \
@@ -138,32 +191,35 @@ __asm__ __volatile__ ( \
 	:"ax")
 
 
-extern inline unsigned long xchg_u8(char * m, unsigned long val)
-{
-	__asm__("xchgb %b0,%1":"=q" (val),"=m" (*m):"0" (val):"memory");
-	return val;
-}
+#define xchg(ptr,x) ((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
+#define tas(ptr) (xchg((ptr),1))
 
-extern inline unsigned long xchg_u16(short * m, unsigned long val)
-{
-	__asm__("xchgw %w0,%1":"=r" (val),"=m" (*m):"0" (val):"memory");
-	return val;
-}
+struct __xchg_dummy { unsigned long a[100]; };
+#define __xg(x) ((struct __xchg_dummy *)(x))
 
-extern inline unsigned long xchg_u32(int * m, unsigned long val)
+static inline unsigned long __xchg(unsigned long x, void * ptr, int size)
 {
-	__asm__("xchgl %0,%1":"=r" (val),"=m" (*m):"0" (val):"memory");
-	return val;
-}
-
-extern inline int tas(char * m)
-{
-	return xchg_u8(m,1);
-}
-
-extern inline void * xchg_ptr(void * m, void * val)
-{
-	return (void *) xchg_u32(m, (unsigned long) val);
+	switch (size) {
+		case 1:
+			__asm__("xchgb %b0,%1"
+				:"=q" (x)
+				:"m" (*__xg(ptr)), "0" (x)
+				:"memory");
+			break;
+		case 2:
+			__asm__("xchgw %w0,%1"
+				:"=r" (x)
+				:"m" (*__xg(ptr)), "0" (x)
+				:"memory");
+			break;
+		case 4:
+			__asm__("xchgl %0,%1"
+				:"=r" (x)
+				:"m" (*__xg(ptr)), "0" (x)
+				:"memory");
+			break;
+	}
+	return x;
 }
 
 #define mb()  __asm__ __volatile__ (""   : : :"memory")
@@ -171,10 +227,10 @@ extern inline void * xchg_ptr(void * m, void * val)
 #define cli() __asm__ __volatile__ ("cli": : :"memory")
 
 #define save_flags(x) \
-__asm__ __volatile__("pushfl ; popl %0":"=r" (x): /* no input */ :"memory")
+__asm__ __volatile__("pushfl ; popl %0":"=g" (x): /* no input */ :"memory")
 
 #define restore_flags(x) \
-__asm__ __volatile__("pushl %0 ; popfl": /* no output */ :"r" (x):"memory")
+__asm__ __volatile__("pushl %0 ; popfl": /* no output */ :"g" (x):"memory")
 
 #define iret() __asm__ __volatile__ ("iret": : :"memory")
 
@@ -221,7 +277,7 @@ __asm__ __volatile__ ("movw $" #limit ",%1\n\t" \
 	"movb %%ah,%6\n\t" \
 	"rorl $16,%%eax" \
 	: /* no output */ \
-	:"a" (addr+0xc0000000), "m" (*(n)), "m" (*(n+2)), "m" (*(n+4)), \
+	:"a" (addr), "m" (*(n)), "m" (*(n+2)), "m" (*(n+4)), \
 	 "m" (*(n+5)), "m" (*(n+6)), "m" (*(n+7)) \
 	)
 
@@ -241,5 +297,10 @@ extern struct desc_struct default_ldt;
 #define HAVE_DISABLE_HLT
 void disable_hlt(void);
 void enable_hlt(void);
+
+/*
+ * Reset the machine.
+ */
+extern void hard_reset_now(void);
 
 #endif

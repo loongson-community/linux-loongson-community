@@ -9,11 +9,6 @@
  *  This software may be redistributed per Linux Copyright.
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
@@ -21,9 +16,11 @@
 #include <linux/xia_fs.h>
 #include <linux/stat.h>
 
+#include <asm/uaccess.h>
+
 #include "xiafs_mac.h"
 
-static int xiafs_dir_read(struct inode *, struct file *, char *, int);
+static long xiafs_dir_read(struct inode *, struct file *, char *, unsigned long);
 static int xiafs_readdir(struct inode *, struct file *, void *, filldir_t);
 
 static struct file_operations xiafs_dir_operations = {
@@ -55,13 +52,15 @@ struct inode_operations xiafs_dir_inode_operations = {
     xiafs_rename,			/* rename */
     NULL,			/* readlink */
     NULL,			/* follow_link */
+    NULL,			/* readpage */
+    NULL,			/* writepage */
     NULL,			/* bmap */
     xiafs_truncate,		/* truncate */
     NULL			/* permission */
 };
 
-static int xiafs_dir_read(struct inode * inode, 
-			struct file * filp, char * buf, int count)
+static long xiafs_dir_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
   return -EISDIR;
 }

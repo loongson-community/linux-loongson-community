@@ -12,7 +12,7 @@
  *  ext symlink handling code
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include <linux/errno.h>
 #include <linux/sched.h>
@@ -39,6 +39,8 @@ struct inode_operations ext_symlink_inode_operations = {
 	NULL,			/* rename */
 	ext_readlink,		/* readlink */
 	ext_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
@@ -101,7 +103,7 @@ static int ext_readlink(struct inode * inode, char * buffer, int buflen)
 	i = 0;
 	while (i<buflen && (c = bh->b_data[i])) {
 		i++;
-		put_fs_byte(c,buffer++);
+		put_user(c,buffer++);
 	}
 	brelse(bh);
 	return i;

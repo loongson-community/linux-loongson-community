@@ -1,39 +1,27 @@
 /*
- *  arch/mips/kernel/traps.c
+ * arch/mips/kernel/traps.c
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
- */
-
-/*
- * 'traps.c' handles hardware traps and faults after we have saved some
- * state in 'asm.s'. Currently mostly a debugging-aid, will be extended
- * to mainly kill the offending process (probably by giving it a signal,
- * but possibly by killing it outright if necessary).
  *
- * FIXME: This is the place for a fpu emulator.
+ * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996 by Paul M. Antoine
  */
-#include <linux/head.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/signal.h>
-#include <linux/string.h>
-#include <linux/types.h>
-#include <linux/errno.h>
-#include <linux/ptrace.h>
-#include <linux/config.h>
-#include <linux/timer.h>
 #include <linux/mm.h>
 
+#include <asm/branch.h>
+#include <asm/cache.h>
+#include <asm/jazz.h>
 #include <asm/vector.h>
-#include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/system.h>
-#include <asm/segment.h>
 #include <asm/io.h>
-#include <asm/mipsregs.h>
 #include <asm/bootinfo.h>
+#include <asm/sgidefs.h>
+#include <asm/uaccess.h>
+#include <asm/watch.h>
+
+#undef CONF_DEBUG_EXCEPTIONS
 
 static inline void console_verbose(void)
 {
@@ -63,20 +51,15 @@ extern asmlinkage void handle_ri(void);
 extern asmlinkage void handle_cpu(void);
 extern asmlinkage void handle_ov(void);
 extern asmlinkage void handle_tr(void);
-extern asmlinkage void handle_vcei(void);
 extern asmlinkage void handle_fpe(void);
-extern asmlinkage void handle_vced(void);
 extern asmlinkage void handle_watch(void);
-extern asmlinkage void handle_reserved(void);
 
-static char *cpu_names[] = CPU_NAMES;
+char *cpu_names[] = CPU_NAMES;
 
-/*
- * Fix address errors.  This is slow, so try not to use it.  This is
- * disabled by default, anyway.
- */
-int fix_ade_enabled = 0;
-unsigned long page_colour_mask;
+unsigned int watch_available = 0;
+
+void (*ibe_board_handler)(struct pt_regs *regs);
+void (*dbe_board_handler)(struct pt_regs *regs);
 
 int kstack_depth_to_print = 24;
 
@@ -86,6 +69,10 @@ int kstack_depth_to_print = 24;
  */
 #define MODULE_RANGE (8*1024*1024)
 
+/*
+ * This routine abuses get_user()/put_user() to reference pointers
+ * with at least a bit of error checking ...
+ */
 void die_if_kernel(char * str, struct pt_regs * regs, long err)
 {
 	int	i;
@@ -93,21 +80,28 @@ void die_if_kernel(char * str, struct pt_regs * regs, long err)
 	u32	*sp, *pc, addr, module_start, module_end;
 	extern	char start_kernel, _etext;
 
-	if ((regs->cp0_status & (ST0_ERL|ST0_EXL)) == 0)
+	/*
+	 * Just return if in user mode.
+	 */
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
+	if (!((regs)->cp0_status & 0x4))
 		return;
+#endif
+#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
+	if (!(regs->cp0_status & 0x18))
+		return;
+#endif
 
-	sp = (u32 *)regs->reg29;
-	pc = (u32 *)regs->cp0_epc;
+	/*
+	 * Yes, these double casts are required ...
+	 */
+	sp = (u32 *)(unsigned long)regs->regs[29];
+	pc = (u32 *)(unsigned long)regs->cp0_epc;
 
 	console_verbose();
 	printk("%s: %08lx\n", str, err );
 
 	show_regs(regs);
-
-	/*
-	 * Some goodies...
-	 */
-	printk("Int  : %ld\n", regs->interrupt);
 
 	/*
 	 * Dump the stack
@@ -119,20 +113,30 @@ void die_if_kernel(char * str, struct pt_regs * regs, long err)
 	for(i=0;i<5;i++)
 		printk("%08x ", *sp++);
 	stack = (int *) sp;
+
 	for(i=0; i < kstack_depth_to_print; i++) {
+		unsigned int stackdata;
+
 		if (((u32) stack & (PAGE_SIZE -1)) == 0)
 			break;
 		if (i && ((i % 8) == 0))
 			printk("\n       ");
-		printk("%08lx ", get_user_long(stack++));
+		if (get_user(stackdata, stack++) < 0) {
+			printk("(Bad stack address)");
+			break;
+		}
+		printk("%08x ", stackdata);
 	}
 	printk("\nCall Trace: ");
 	stack = (int *)sp;
 	i = 1;
 	module_start = VMALLOC_START;
 	module_end = module_start + MODULE_RANGE;
-	while (((u32)stack & (PAGE_SIZE -1)) != 0) {
-		addr = get_user_long(stack++);
+	while (((unsigned long)stack & (PAGE_SIZE -1)) != 0) {
+		if (get_user(addr, stack++) < 0) {
+			printk("(Bad address)\n");
+			break;
+		}
 		/*
 		 * If the address is either in the text segment of the
 		 * kernel, or in the region which contains vmalloc'ed
@@ -152,123 +156,128 @@ void die_if_kernel(char * str, struct pt_regs * regs, long err)
 	}
 
 	printk("\nCode : ");
-	for(i=0;i<5;i++)
-		printk("%08x ", *pc++);
-	printk("\n");
+	if ((KSEGX(pc) == KSEG0 || KSEGX(pc) == KSEG1) &&
+	    (((unsigned long) pc & 3) == 0))
+	{
+		for(i=0;i<5;i++)
+			printk("%08x ", *pc++);
+		printk("\n");
+	}
+	else
+		printk("(Bad address in epc)\n");
 	do_exit(SIGSEGV);
 }
 
-static void
-fix_ade(struct pt_regs *regs, int write)
+static void default_be_board_handler(struct pt_regs *regs)
 {
-	printk("Received address error (ade%c)\n", write ? 's' : 'l');
-	panic("Fixing address errors not implemented yet");
+	/*
+	 * Assume it would be too dangerous to continue ...
+	 */
+	force_sig(SIGBUS, current);
 }
 
-void do_adel(struct pt_regs *regs)
-{
-	unsigned long	pc = regs->cp0_epc;
-	int	i;
-
-	if(fix_ade_enabled)
-	{
-		fix_ade(regs, 0);
-		return;
-	}
-#if 0
-	for(i=0; i<NR_TASKS;i++)
-		if(task[i] && task[i]->pid >= 2)
-		{
-			printk("Process %d\n", task[i]->pid);
-			dump_list_process(task[i], pc);
-		}
-#endif
-	show_regs(regs);
-while(1);
-	dump_tlb_nonwired();
-	send_sig(SIGSEGV, current, 1);
-}
-
-void do_ades(struct pt_regs *regs)
-{
-	unsigned long	pc = regs->cp0_epc;
-	int	i;
-
-	if(fix_ade_enabled)
-	{
-		fix_ade(regs, 1);
-		return;
-	}
-while(1);
-	for(i=0; i<NR_TASKS;i++)
-		if(task[i] && task[i]->pid >= 2)
-		{
-			printk("Process %d\n", task[i]->pid);
-			dump_list_process(task[i], pc);
-		}
-	show_regs(regs);
-	dump_tlb_nonwired();
-	send_sig(SIGSEGV, current, 1);
-}
-
-/*
- * The ibe/dbe exceptions are signaled by onboard hardware and should get
- * a board specific handlers to get maximum available information. Bus
- * errors are always symptom of hardware malfunction or a kernel error.
- *
- * FIXME: Linux/68k sends a SIGSEGV for a buserror which seems to be wrong.
- * This is certainly wrong. Actually, all hardware errors (ades,adel,ibe,dbe)
- * are bus errors and therefor should send a SIGBUS! (Andy)
- */
 void do_ibe(struct pt_regs *regs)
 {
-while(1);
-	send_sig(SIGBUS, current, 1);
+	ibe_board_handler(regs);
 }
 
 void do_dbe(struct pt_regs *regs)
 {
-while(1);
-	send_sig(SIGBUS, current, 1);
+	dbe_board_handler(regs);
 }
 
 void do_ov(struct pt_regs *regs)
 {
-while(1);
-	send_sig(SIGFPE, current, 1);
+#ifdef CONF_DEBUG_EXCEPTIONS
+	show_regs(regs);
+#endif
+	if (compute_return_epc(regs))
+		return;
+	force_sig(SIGFPE, current);
 }
 
-void do_fpe(struct pt_regs *regs)
+void do_fpe(struct pt_regs *regs, unsigned int fcr31)
 {
-while(1);
-	send_sig(SIGFPE, current, 1);
+#ifdef CONF_DEBUG_EXCEPTIONS
+	show_regs(regs);
+#endif
+	if (compute_return_epc(regs))
+		return;
+	force_sig(SIGFPE, current);
+}
+
+static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
+{
+	unsigned int *addr;
+
+	addr = (unsigned int *) (unsigned long) regs->cp0_epc;
+	if (regs->cp0_cause & CAUSEF_BD)
+		addr += 4;
+
+	if (get_user(*opcode, addr)) {
+		force_sig(SIGSEGV, current);
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+static __inline__ void
+do_bp_and_tr(struct pt_regs *regs, char *exc, unsigned int trapcode)
+{
+	/*
+	 * (A quick test says that IRIX 5.3 sends SIGTRAP for all break
+	 * insns, even for break codes that indicate arithmetic failures.
+	 * Wiered ...)
+	 */
+	force_sig(SIGTRAP, current);
+#ifdef CONF_DEBUG_EXCEPTIONS
+	show_regs(regs);
+#endif
+	if (compute_return_epc(regs))
+		return;
 }
 
 void do_bp(struct pt_regs *regs)
 {
-while(1);
-	send_sig(SIGILL, current, 1);
+	unsigned int opcode, bcode;
+
+	/*
+	 * There is the ancient bug in the MIPS assemblers that the break
+	 * code starts left to bit 16 instead to bit 6 in the opcode.
+	 * Gas is bug-compatible ...
+	 */
+	if (get_insn_opcode(regs, &opcode))
+		return;
+	bcode = ((opcode >> 16) & ((1 << 20) - 1));
+
+	do_bp_and_tr(regs, "bp", bcode);
 }
 
 void do_tr(struct pt_regs *regs)
 {
-while(1);
-	send_sig(SIGILL, current, 1);
+	unsigned int opcode, bcode;
+
+	if (get_insn_opcode(regs, &opcode))
+		return;
+	bcode = ((opcode >> 6) & ((1 << 20) - 1));
+
+	do_bp_and_tr(regs, "tr", bcode);
 }
 
+/*
+ * TODO: add emulation of higher ISAs' instruction.  In particular
+ * interest in MUL, MAD MADU has been expressed such that R4640/R4650
+ * code can be run on other MIPS CPUs.
+ */
 void do_ri(struct pt_regs *regs)
 {
-	int	i;
-
-	for(i=0; i<NR_TASKS;i++)
-		if(task[i] && task[i]->pid >= 2)
-		{
-			printk("Process %d\n", task[i]->pid);
-			dump_list_process(task[i], 0x7ffff000);
-		}
+#ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
-while(1);
-	send_sig(SIGILL, current, 1);
+#endif
+	if (compute_return_epc(regs))
+		return;
+	force_sig(SIGILL, current);
 }
 
 void do_cpu(struct pt_regs *regs)
@@ -276,53 +285,40 @@ void do_cpu(struct pt_regs *regs)
 	unsigned int cpid;
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
-	switch(cpid)
-	{
-	case 1:
+	if (cpid == 1) {
 		regs->cp0_status |= ST0_CU1;
-		break;
-	case 3:
-		/*
-		 * This is a guess how to handle MIPS IV -
-		 * I don't have a manual.
-		 */
-		if((boot_info.cputype == CPU_R8000) ||
-		   (boot_info.cputype == CPU_R10000))
-		{
-			regs->cp0_status |= ST0_CU3;
-			break;
-		}
-	case 0:
-		/*
-		 * CPU for cp0 can only happen in user mode
-		 */
-	case 2:
-		send_sig(SIGILL, current, 1);
-		break;
+		return;
 	}
+
+	force_sig(SIGILL, current);
 }
 
 void do_vcei(struct pt_regs *regs)
 {
 	/*
-	 * Only possible on R4[04]00[SM]C. No handler because
-	 * I don't have such a cpu.
+	 * Only possible on R4[04]00[SM]C. No handler because I don't have
+	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
-	panic("Caught VCEI exception - can't handle yet\n");
+	panic("Caught VCEI exception - should not happen");
 }
 
 void do_vced(struct pt_regs *regs)
 {
 	/*
-	 * Only possible on R4[04]00[SM]C. No handler because
-	 * I don't have such a cpu.
+	 * Only possible on R4[04]00[SM]C. No handler because I don't have
+	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
-	panic("Caught VCED exception - can't handle yet\n");
+	panic("Caught VCE exception - should not happen");
 }
 
 void do_watch(struct pt_regs *regs)
 {
-	panic("Caught WATCH exception - can't handle yet\n");
+	/*
+	 * We use the watch exception where available to detect stack
+	 * overflows.
+	 */
+	show_regs(regs);
+	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
 
 void do_reserved(struct pt_regs *regs)
@@ -332,46 +328,56 @@ void do_reserved(struct pt_regs *regs)
 	 * Most probably caused by a new unknown cpu type or
 	 * after another deadly hard/software error.
 	 */
-	panic("Caught reserved exception - can't handle.\n");
+	panic("Caught reserved exception - should not happen.");
 }
 
-void trap_init(void)
+static void watch_init(unsigned long cputype)
 {
-	unsigned long	i;
-
-	if(boot_info.machtype == MACH_MIPS_MAGNUM_4000)
-		EISA_bus = 1;
-
-	/*
-	 * Setup default vectors
-	 */
-	for (i=0;i<=31;i++)
-		set_except_vector(i, handle_reserved);
-
-	/*
-	 * Handling the following exceptions depends mostly of the cpu type
-	 */
-	switch(boot_info.cputype) {
+	switch(cputype) {
+	case CPU_R10000:
 	case CPU_R4000MC:
 	case CPU_R4400MC:
 	case CPU_R4000SC:
 	case CPU_R4400SC:
-		/*
-		 * Handlers not implemented yet.  If should every be used
-		 * it's a bug in the Linux/MIPS kernel, anyway.
-		 */
-		set_except_vector(14, handle_vcei);
-		set_except_vector(31, handle_vced);
 	case CPU_R4000PC:
 	case CPU_R4400PC:
 	case CPU_R4200:
      /* case CPU_R4300: */
-		/*
-		 * Use watch exception to trap on access to address zero
-		 */
 		set_except_vector(23, handle_watch);
-		watch_set(KSEG0, 3);
-	case CPU_R4600:
+		watch_available = 1;
+		break;
+	}
+}
+
+void trap_init(void)
+{
+	/*
+	 * Only some CPUs have the watch exception.
+	 */
+	watch_init(mips_cputype);
+
+	/*
+	 * Handling the following exceptions depends mostly of the cpu type
+	 */
+	switch(mips_cputype) {
+	case CPU_R10000:
+		/*
+		 * The R10000 is in most aspects similar to the R4400.  It
+		 * should get some special optimizations.
+		 */
+		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
+		set_cp0_status(ST0_XX, ST0_XX);
+		/*
+		 * The R10k might even work for Linux/MIPS - but we're paranoid
+		 * and refuse to run until this is tested on real silicon
+		 */
+		panic("CPU too expensive - making holiday in the ANDES!");
+		break;
+
+	case CPU_R4000MC: case CPU_R4400MC: case CPU_R4000SC:
+	case CPU_R4400SC: case CPU_R4000PC: case CPU_R4400PC:
+	case CPU_R4200: /*case CPU_R4300:   case CPU_R4640: */
+	case CPU_R4600: case CPU_R4700:
 		set_except_vector(1, handle_mod);
 		set_except_vector(2, handle_tlbl);
 		set_except_vector(3, handle_tlbs);
@@ -392,47 +398,64 @@ void trap_init(void)
 		set_except_vector(12, handle_ov);
 		set_except_vector(13, handle_tr);
 		set_except_vector(15, handle_fpe);
+		break;
+
+	case CPU_R6000: case CPU_R6000A:
+#if 0
+		/* The R6000 is the only R-series CPU that features a machine
+		 * check exception (similar to the R4000 cache error) and
+		 * unaligned ldc1/sdc1 exception.  The handlers have not been
+		 * written yet.  Well, anyway there is no R6000 machine on the
+		 * current list of targets for Linux/MIPS.
+		 */
+		set_except_vector(14, handle_mc);
+		set_except_vector(15, handle_ndc);
+#endif
+	case CPU_R2000: case CPU_R3000: case CPU_R3000A: case CPU_R3041:
+	case CPU_R3051: case CPU_R3052: case CPU_R3081: case CPU_R3081E:
+		/*
+		 * Clear BEV, we are ready to handle exceptions using
+		 * the in-RAM dispatchers. This will not be useful on all
+		 * machines, but it can't hurt (the worst that can happen is
+		 * that BEV is already 0).
+		 */
+		set_cp0_status(ST0_BEV,0);
 
 		/*
-		 * Compute mask for page_colour().  This is based on the
-		 * size of the data cache.  Does the size of the icache
-		 * need to be accounted for?
+		 * Actually don't know about these, but let's guess - PMA
 		 */
-		i = read_32bit_cp0_register(CP0_CONFIG);
-		i = (i >> 26) & 7;
-		page_colour_mask = 1 << (12 + i);
-		break;
-	case CPU_R2000:
-	case CPU_R3000:
-	case CPU_R3000A:
-	case CPU_R3041:
-	case CPU_R3051:
-	case CPU_R3052:
-	case CPU_R3081:
-	case CPU_R3081E:
-	case CPU_R6000:
-	case CPU_R6000A:
-	case CPU_R8000:
-		printk("Detected unsupported CPU type %s.\n",
-			cpu_names[boot_info.cputype]);
-		panic("Can't handle CPU\n");
+		set_except_vector(1, handle_mod);
+		set_except_vector(2, handle_tlbl);
+		set_except_vector(3, handle_tlbs);
+		set_except_vector(4, handle_adel);
+		set_except_vector(5, handle_ades);
+		/*
+		 * The Data Bus Error/ Instruction Bus Errors are signaled
+		 * by external hardware.  Therefore these two expection have
+		 * board specific handlers.
+		 */
+		set_except_vector(6, handle_ibe);
+		set_except_vector(7, handle_dbe);
+		ibe_board_handler = default_be_board_handler;
+		dbe_board_handler = default_be_board_handler;
+
+		set_except_vector(8, handle_sys);
+		set_except_vector(9, handle_bp);
+		set_except_vector(10, handle_ri);
+		set_except_vector(11, handle_cpu);
+		set_except_vector(12, handle_ov);
+		set_except_vector(13, handle_tr);
+		set_except_vector(15, handle_fpe);
 		break;
 
-	/*
-	 * The R10000 is in most aspects similar to the R4400.  It however
-	 * should get some special optimizations.
-	 */
-	case CPU_R10000:
-		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		panic("CPU too expensive - making holiday in the ANDES!");
+	case CPU_R8000: case CPU_R5000:
+		printk("Detected unsupported CPU type %s.\n",
+			cpu_names[mips_cputype]);
+		panic("Can't handle CPU");
 		break;
+
 	case CPU_UNKNOWN:
 	default:
-		panic("Unknown CPU type");
+		panic("Unsupported CPU type");
 	}
-
-	/*
-	 * The interrupt handler depends most of the board type.
-	 */
-	set_except_vector(0, feature->handle_int);
 }

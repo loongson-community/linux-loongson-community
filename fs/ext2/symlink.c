@@ -15,12 +15,13 @@
  *  ext2 symlink handling code
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/ext2_fs.h>
 #include <linux/sched.h>
+#include <linux/mm.h>
 #include <linux/stat.h>
 
 static int ext2_readlink (struct inode *, char *, int);
@@ -43,6 +44,8 @@ struct inode_operations ext2_symlink_inode_operations = {
 	NULL,			/* rename */
 	ext2_readlink,		/* readlink */
 	ext2_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL,			/* permission */
@@ -84,6 +87,10 @@ static int ext2_follow_link(struct inode * dir, struct inode * inode,
 		link = bh->b_data;
 	} else
 		link = (char *) inode->u.ext2_i.i_data;
+	if (!IS_RDONLY(inode)) {
+		inode->i_atime = CURRENT_TIME;
+		inode->i_dirt = 1;
+	}
 	current->link_count++;
 	error = open_namei (link, flag, mode, res_inode, dir);
 	current->link_count--;
@@ -119,7 +126,11 @@ static int ext2_readlink (struct inode * inode, char * buffer, int buflen)
 	i = 0;
 	while (i < buflen && (c = link[i])) {
 		i++;
-		put_fs_byte (c, buffer++);
+		put_user (c, buffer++);
+	}
+	if (!IS_RDONLY(inode)) {
+		inode->i_atime = CURRENT_TIME;
+		inode->i_dirt = 1;
 	}
 	iput (inode);
 	if (bh)

@@ -6,6 +6,8 @@
  * Copyright 1993, 1994, 1995 Drew Eckhardt, Frederic Potter,
  *	David Mosberger-Tang
  */
+#include <linux/config.h>
+#include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/bios32.h>
@@ -18,7 +20,7 @@ struct pci_bus pci_root;
 struct pci_dev *pci_devices = 0;
 
 
-/* 
+/*
  * The bridge_id field is an offset of an item into the array
  * BRIDGE_MAPPING_TYPE. 0xff indicates that the device is not a PCI
  * bridge, or that we don't know for the moment how to configure it.
@@ -33,99 +35,228 @@ struct pci_dev *pci_devices = 0;
 #define BRIDGE(vid,did,name,bridge) \
   {PCI_VENDOR_ID_##vid, PCI_DEVICE_ID_##did, (name), (bridge)}
 
+/*
+ * Sorted in ascending order by vendor and device.
+ * Use binary search for lookup. If you add a device make sure
+ * it is sequential by both vendor and device id.
+ */
 struct pci_dev_info dev_info[] = {
+	DEVICE( COMPAQ,		COMPAQ_1280,	"QVision 1280/p"),
+	DEVICE( COMPAQ,		COMPAQ_THUNDER,	"ThunderLAN"),
 	DEVICE( NCR,		NCR_53C810,	"53c810"),
-	DEVICE( NCR,		NCR_53C815,	"53c815"),
 	DEVICE( NCR,		NCR_53C820,	"53c820"),
 	DEVICE( NCR,		NCR_53C825,	"53c825"),
-	DEVICE( ADAPTEC,	ADAPTEC_2940,	"2940"),
-	DEVICE( ADAPTEC,	ADAPTEC_294x,	"294x"),
-	DEVICE( DPT,		DPT,		"SmartCache/Raid"),
-	DEVICE( S3,		S3_864_1,	"Vision 864-P"),
-	DEVICE( S3,		S3_864_2,	"Vision 864-P"),
-	DEVICE( S3,		S3_868,	"Vision 868"),
-	DEVICE( S3,		S3_928,		"Vision 928-P"),
-	DEVICE( S3,		S3_964_1,	"Vision 964-P"),
-	DEVICE( S3,		S3_964_2,	"Vision 964-P"),
-	DEVICE( S3,		S3_811,		"Trio32/Trio64"),
-	DEVICE( S3,		S3_968,		"Vision 968"),
-	DEVICE( OPTI,		OPTI_82C822,	"82C822"),
-	DEVICE( OPTI,		OPTI_82C621,	"82C621"),
-	DEVICE( OPTI,		OPTI_82C557,	"82C557"),
-	DEVICE( OPTI,		OPTI_82C558,	"82C558"),
-	BRIDGE( UMC,		UMC_UM8881F,	"UM8881F",		0x02),
-	BRIDGE( UMC,		UMC_UM8891A,	"UM8891A", 		0x01),
-	DEVICE( UMC,		UMC_UM8886F,	"UM8886F"),
-	DEVICE( UMC,		UMC_UM8673F,	"UM8673F"),
-	DEVICE( DEC,		DEC_TULIP,	"DC21040"),
-	DEVICE( DEC,		DEC_TULIP_FAST,	"DC21040"),
-	DEVICE( DEC,		DEC_FDDI,	"DEFPA"),
-	DEVICE( DEC,		DEC_BRD,	"DC21050"),
-	DEVICE( MATROX,		MATROX_MGA_2,	"Atlas PX2085"),
-	DEVICE( MATROX,		MATROX_MGA_IMP,	"MGA Impression"),
-	DEVICE( INTEL,		INTEL_82378,	"82378IB"),
-	BRIDGE( INTEL,		INTEL_82424,	"82424ZX Saturn",	0x00),
-	DEVICE( INTEL,		INTEL_82375,	"82375EB"),
-	BRIDGE( INTEL,		INTEL_82434,	"82434LX Mercury/Neptune", 0x00),
-	DEVICE( INTEL,		INTEL_82430,	"82430ZX Aries"),
-	DEVICE( SMC,		SMC_37C665,	"FDC 37C665"),
-	DEVICE( ATI,		ATI_M32,	"Mach 32"),
-	DEVICE( ATI,		ATI_M64,	"Mach 64"),
-	DEVICE( WEITEK,		WEITEK_P9000,	"P9000"),
-	DEVICE( WEITEK,		WEITEK_P9100,	"P9100"),
-	DEVICE( CIRRUS,		CIRRUS_5430,	"GD 5430"),
-	DEVICE( CIRRUS,		CIRRUS_5434_4,	"GD 5434"),
-	DEVICE( CIRRUS,		CIRRUS_5434_8,	"GD 5434"),
-	DEVICE( CIRRUS,		CIRRUS_6729,	"CL 6729"),
-	DEVICE( BUSLOGIC,	BUSLOGIC_946C,	"946C"),
-	DEVICE( BUSLOGIC,	BUSLOGIC_946C_2,"946C"),
-	DEVICE( N9,		N9_I128,	"Imagine 128"),
-	DEVICE( AI,		AI_M1435,	"M1435"),
-	DEVICE( AL,		AL_M1445,	"M1445"),
-	DEVICE( AL,		AL_M1449,	"M1449"),
-	DEVICE( AL,		AL_M1451,	"M1451"),
+	DEVICE( NCR,		NCR_53C815,	"53c815"),
+	DEVICE( ATI,		ATI_68800,      "68800AX"),
+	DEVICE( ATI,		ATI_215CT222,   "215CT222"),
+	DEVICE( ATI,		ATI_210888CX,   "210888CX"),
+	DEVICE( ATI,		ATI_210888GX,   "210888GX"),
+	DEVICE( VLSI,		VLSI_82C592,	"82C592-FC1"),
+	DEVICE( VLSI,		VLSI_82C593,	"82C593-FC1"),
+	DEVICE( VLSI,		VLSI_82C594,	"82C594-AFC2"),
+	DEVICE( VLSI,		VLSI_82C597,	"82C597-AFC2"),
+	DEVICE( ADL,		ADL_2301,	"2301"),
+	DEVICE( NS,		NS_87410,	"87410"),
 	DEVICE( TSENG,		TSENG_W32P_2,	"ET4000W32P"),
 	DEVICE( TSENG,		TSENG_W32P_b,	"ET4000W32P rev B"),
 	DEVICE( TSENG,		TSENG_W32P_c,	"ET4000W32P rev C"),
 	DEVICE( TSENG,		TSENG_W32P_d,	"ET4000W32P rev D"),
-	DEVICE( CMD,		CMD_640,	"640A"),
-	DEVICE( VISION,		VISION_QD8500,	"QD-8500"),
-	DEVICE( VISION,		VISION_QD8580,	"QD-8580"),
+	DEVICE( WEITEK,		WEITEK_P9000,	"P9000"),
+	DEVICE( WEITEK,		WEITEK_P9100,	"P9100"),
+	BRIDGE( DEC,		DEC_BRD,	"DC21050", 		0x00),
+	DEVICE( DEC,		DEC_TULIP,	"DC21040"),
+	DEVICE( DEC,		DEC_TGA,	"DC21030"),
+	DEVICE( DEC,		DEC_TULIP_FAST,	"DC21140"),
+	DEVICE( DEC,		DEC_FDDI,	"DEFPA"),
+	DEVICE( DEC,		DEC_TULIP_PLUS,	"DC21041"),
+	DEVICE( DEC,		DEC_21052,	"DC21052"),
+	DEVICE( DEC,		DEC_21152,	"DC21152"),
+	DEVICE( CIRRUS,		CIRRUS_5430,	"GD 5430"),
+	DEVICE( CIRRUS,		CIRRUS_5434_4,	"GD 5434"),
+	DEVICE( CIRRUS,		CIRRUS_5434_8,	"GD 5434"),
+	DEVICE( CIRRUS,		CIRRUS_5436,	"GD 5436"),
+	DEVICE( CIRRUS,		CIRRUS_6729,	"CL 6729"),
+	DEVICE( CIRRUS,		CIRRUS_7542,	"CL 7542"),
+	DEVICE( CIRRUS,		CIRRUS_7543,	"CL 7543"),
+	DEVICE( IBM,		IBM_82G2675,	"82G2675"),
+	DEVICE( WD,		WD_7197,	"WD 7197"),
 	DEVICE( AMD,		AMD_LANCE,	"79C970"),
 	DEVICE( AMD,		AMD_SCSI,	"53C974"),
-	DEVICE( VLSI,		VLSI_82C593,	"82C593-FC1"),
-	DEVICE( VLSI,		VLSI_82C592,	"82C592-FC1"),
-	DEVICE( ADL,		ADL_2301,	"2301"),
-	DEVICE( SYMPHONY,	SYMPHONY_101,	"82C101"),
 	DEVICE( TRIDENT,	TRIDENT_9420,	"TG 9420"),
 	DEVICE( TRIDENT,	TRIDENT_9440,	"TG 9440"),
-	DEVICE( CONTAQ,		CONTAQ_82C599,	"82C599"),
-	DEVICE( NS,		NS_87410,	"87410"),
-	DEVICE( VIA,		VIA_82C505,	"VT 82C505"),
-	DEVICE( VIA,		VIA_82C576,	"VT 82C576 3V"),
-	DEVICE( VIA,		VIA_82C561,	"VT 82C561"),
-	DEVICE( SI,		SI_496,		"85C496"),
-	DEVICE( SI,		SI_501,		"85C501"),
-	DEVICE( SI,		SI_503,		"85C503"),
-	DEVICE( SI,		SI_601,		"85C601"),
-	DEVICE( LEADTEK,	LEADTEK_805,	"S3 805"),
-	DEVICE( IMS,		IMS_8849,	"8849"),
-	DEVICE( ZEINET,		ZEINET_1221,	"1221"),
-	DEVICE( EF,		EF_ATM,		"155P-MF1"),
-	DEVICE( HER,		HER_STING,	"Stingray"),
-	DEVICE( HER,		HER_STING,	"Stingray"),
-  	DEVICE( ATRONICS,	ATRONICS_2015,	"IDE-2015PL"),
+	DEVICE( TRIDENT,	TRIDENT_9660,	"TG 9660"),
+	DEVICE( AI,		AI_M1435,	"M1435"),
+	DEVICE( MATROX,		MATROX_MGA_2,	"Atlas PX2085"),
+	DEVICE( MATROX,		MATROX_MIL     ,"Millennium"),
+	DEVICE( MATROX,		MATROX_MGA_IMP,	"MGA Impression"),
 	DEVICE( CT,		CT_65545,	"65545"),
+	DEVICE( CT,		CT_65548,	"65548"),
+	DEVICE( MIRO,		MIRO_36050,	"ZR36050"),
 	DEVICE( FD,		FD_36C70,	"TMC-18C30"),
+	DEVICE( SI,		SI_6201,	"6201"),
+	DEVICE( SI,		SI_6202,	"6202"),
+	DEVICE( SI,		SI_503,		"85C503"),
+	DEVICE( SI,		SI_6205,	"6205"),
+	DEVICE( SI,		SI_501,		"85C501"),
+	DEVICE( SI,		SI_496,		"85C496"),
+	DEVICE( SI,		SI_601,		"85C601"),
+	DEVICE( SI,		SI_5511,		"85C5511"),
+	DEVICE( SI,		SI_5513,		"85C5513"),
+	DEVICE( HP,		HP_J2585A,	"J2585A"),
+	DEVICE( PCTECH,		PCTECH_RZ1000,  "RZ1000 (buggy)"),
+	DEVICE( PCTECH,		PCTECH_RZ1001,  "RZ1001 (buggy?)"),
+	DEVICE( DPT,		DPT,		"SmartCache/Raid"),
+	DEVICE( OPTI,		OPTI_92C178,	"92C178"),
+	DEVICE( OPTI,		OPTI_82C557,	"82C557"),
+	DEVICE( OPTI,		OPTI_82C558,	"82C558"),
+	DEVICE( OPTI,		OPTI_82C621,	"82C621"),
+	DEVICE( OPTI,		OPTI_82C822,	"82C822"),
+	DEVICE( SGS,		SGS_2000,	"STG 2000X"),
+	DEVICE( SGS,		SGS_1764,	"STG 1764X"),
+	DEVICE( BUSLOGIC,	BUSLOGIC_MULTIMASTER_NC, "MultiMaster NC"),
+	DEVICE( BUSLOGIC,	BUSLOGIC_MULTIMASTER,    "MultiMaster"),
+	DEVICE( BUSLOGIC,	BUSLOGIC_FLASHPOINT,     "FlashPoint"),
+	DEVICE( OAK,		OAK_OTI107,	"OTI107"),
+	DEVICE( PROMISE,	PROMISE_5300,	"DC5030"),
+	DEVICE( N9,		N9_I128,	"Imagine 128"),
+	DEVICE( N9,		N9_I128_2,	"Imagine 128v2"),
+	DEVICE( UMC,		UMC_UM8673F,	"UM8673F"),
+	BRIDGE( UMC,		UMC_UM8891A,	"UM8891A", 		0x01),
+	DEVICE( UMC,		UMC_UM8886BF,	"UM8886BF"),
+	DEVICE( UMC,		UMC_UM8886A,	"UM8886A"),
+	BRIDGE( UMC,		UMC_UM8881F,	"UM8881F",		0x02),
+	DEVICE( UMC,		UMC_UM8886F,	"UM8886F"),
+	DEVICE( UMC,		UMC_UM9017F,	"UM9017F"),
+	DEVICE( UMC,		UMC_UM8886N,	"UM8886N"),
+	DEVICE( UMC,		UMC_UM8891N,	"UM8891N"),
+	DEVICE( X,		X_AGX016,	"ITT AGX016"),
+	DEVICE( NEXGEN,		NEXGEN_82C501,	"82C501"),
+	DEVICE( QLOGIC,		QLOGIC_ISP1020,	"ISP1020"),
+	DEVICE( QLOGIC,		QLOGIC_ISP1022,	"ISP1022"),
+	DEVICE( LEADTEK,	LEADTEK_805,	"S3 805"),
+	DEVICE( CONTAQ,		CONTAQ_82C599,	"82C599"),
+	DEVICE( CMD,		CMD_640,	"640 (buggy)"),
+	DEVICE( CMD,		CMD_646,	"646"),
+	DEVICE( VISION,		VISION_QD8500,	"QD-8500"),
+	DEVICE( VISION,		VISION_QD8580,	"QD-8580"),
+	DEVICE( SIERRA,		SIERRA_STB,	"STB Horizon 64"),
+	DEVICE( ACC,		ACC_2056,	"2056"),
 	DEVICE( WINBOND,	WINBOND_83769,	"W83769F"),
+	DEVICE( WINBOND,	WINBOND_82C105,	"SL82C105"),
 	DEVICE( 3COM,		3COM_3C590,	"3C590 10bT"),
 	DEVICE( 3COM,		3COM_3C595TX,	"3C595 100bTX"),
 	DEVICE( 3COM,		3COM_3C595T4,	"3C595 100bT4"),
 	DEVICE( 3COM,		3COM_3C595MII,	"3C595 100b-MII"),
-	DEVICE( PROMISE,	PROMISE_5300,	"DC5030"),
-	DEVICE( QLOGIC,		QLOGIC_ISP1020,	"ISP1020"),
-	DEVICE( QLOGIC,		QLOGIC_ISP1022,	"ISP1022"),
-	DEVICE( X,		X_AGX016,	"ITT AGX016")
+	DEVICE( AL,		AL_M1445,	"M1445"),
+	DEVICE( AL,		AL_M1449,	"M1449"),
+	DEVICE( AL,		AL_M1451,	"M1451"),
+	DEVICE( AL,		AL_M1461,	"M1461"),
+	DEVICE( AL,		AL_M1489,	"M1489"),
+	DEVICE( AL,		AL_M1511,	"M1511"),
+	DEVICE( AL,		AL_M1513,	"M1513"),
+	DEVICE( AL,		AL_M4803,	"M4803"),
+	DEVICE( ASP,		ASP_ABP940,	"ABP940"),
+	DEVICE( CERN,		CERN_SPSB_PMC,	"STAR/RD24 SCI-PCI (PMC)"),
+	DEVICE( CERN,		CERN_SPSB_PCI,	"STAR/RD24 SCI-PCI (PMC)"),
+	DEVICE( IMS,		IMS_8849,	"8849"),
+	DEVICE( TEKRAM2,	TEKRAM2_690c,	"DC690c"),
+	DEVICE( AMCC,		AMCC_MYRINET,	"Myrinet PCI (M2-PCI-32)"),
+	DEVICE( INTERG,		INTERG_1680,	"IGA-1680"),
+	DEVICE( REALTEK,	REALTEK_8029,	"8029"),
+	DEVICE( INIT,		INIT_320P,	"320 P"),
+	DEVICE( VIA,		VIA_82C505,	"VT 82C505"),
+	DEVICE( VIA,		VIA_82C561,	"VT 82C561"),
+	DEVICE( VIA,		VIA_82C576,	"VT 82C576 3V"),
+	DEVICE( VIA,		VIA_82C416,	"VT 82C416MV"),
+	DEVICE( VORTEX,		VORTEX_GDT60x0,	"GDT 60x0"),
+	DEVICE( VORTEX,		VORTEX_GDT6000B,"GDT 6000b"),
+	DEVICE( VORTEX,		VORTEX_GDT6x10,	"GDT 6110/6510"),
+	DEVICE( VORTEX,		VORTEX_GDT6x20,	"GDT 6120/6520"),
+	DEVICE( VORTEX,		VORTEX_GDT6530,	"GDT 6530"),
+	DEVICE( VORTEX,		VORTEX_GDT6550,	"GDT 6550"),
+	DEVICE( VORTEX,		VORTEX_GDT6x17,	"GDT 6117/6517"),
+	DEVICE( VORTEX,		VORTEX_GDT6x27,	"GDT 6127/6527"),
+	DEVICE( VORTEX,		VORTEX_GDT6537,	"GDT 6537"),
+	DEVICE( VORTEX,		VORTEX_GDT6557,	"GDT 6557"),
+	DEVICE( VORTEX,		VORTEX_GDT6x15,	"GDT 6115/6515"),
+	DEVICE( VORTEX,		VORTEX_GDT6x25,	"GDT 6125/6525"),
+	DEVICE( VORTEX,		VORTEX_GDT6535,	"GDT 6535"),
+	DEVICE( VORTEX,		VORTEX_GDT6555,	"GDT 6555"),
+	DEVICE( EF,		EF_ATM_FPGA,		"155P-MF1 (FPGA)"),
+	DEVICE( EF,		EF_ATM_ASIC,	"155P-MF1 (ASIC)"),
+	DEVICE( IMAGINGTECH,	IMAGINGTECH_ICPCI, "MVC IC-PCI"),
+	DEVICE( FORE,		FORE_PCA200PC, "PCA-200PC"),
+	DEVICE( FORE,		FORE_PCA200E,	 "PCA-200E"),
+	DEVICE( PLX,		PLX_9060,	"PCI9060 i960 bridge"),
+	DEVICE( ALLIANCE,	ALLIANCE_PROMOTIO, "Promotion-6410"),
+	DEVICE( ALLIANCE,	ALLIANCE_PROVIDEO, "Provideo"),
+	DEVICE( VMIC,		VMIC_VME,	"VMIVME-7587"),
+ 	DEVICE( DIGI,		DIGI_RIGHTSWITCH, "Digi RightSwitch SE-6"),
+	DEVICE( MUTECH,		MUTECH_MV1000,	"MV-1000"),
+	DEVICE( ZEITNET,	ZEITNET_1221,	"1221"),
+	DEVICE( ZEITNET,	ZEITNET_1225,	"1225"),
+	DEVICE( SPECIALIX,	SPECIALIX_XIO,	"XIO/SIO host"),
+	DEVICE( SPECIALIX,	SPECIALIX_RIO,	"RIO host"),
+	DEVICE( RP,             RP8OCTA,        "RocketPort 8 Oct"),
+	DEVICE( RP,             RP8INTF,        "RocketPort 8 Intf"),
+	DEVICE( RP,             RP16INTF,       "RocketPort 16 Intf"),
+	DEVICE( RP,             RP32INTF,       "RocketPort 32 Intf"),
+	DEVICE( CYCLADES,	CYCLOM_Y_Lo,	"Cyclom-Y below 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_Y_Hi,	"Cyclom-Y above 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_Z_Lo,	"Cyclom-Z below 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_Z_Hi,	"Cyclom-Z above 1Mbyte"),
+	DEVICE( SYMPHONY,	SYMPHONY_101,	"82C101"),
+	DEVICE( TEKRAM,		TEKRAM_DC290,	"DC-290"),
+	DEVICE( 3DLABS,		3DLABS_300SX,	"GLINT 300SX"),
+	DEVICE( AVANCE,		AVANCE_2302,	"ALG-2302"),
+	DEVICE( S3,		S3_ViRGE,	"ViRGE"),
+	DEVICE( S3,		S3_TRIO,	"Trio32/Trio64"),
+	DEVICE( S3,		S3_AURORA64VP,	"Aurora64V+"),
+	DEVICE( S3,		S3_TRIO64UVP,	"Trio64UV+"),
+	DEVICE( S3,		S3_ViRGE_VX,	"ViRGE/VX"),
+	DEVICE( S3,		S3_868,	"Vision 868"),
+	DEVICE( S3,		S3_928,		"Vision 928-P"),
+	DEVICE( S3,		S3_864_1,	"Vision 864-P"),
+	DEVICE( S3,		S3_864_2,	"Vision 864-P"),
+	DEVICE( S3,		S3_964_1,	"Vision 964-P"),
+	DEVICE( S3,		S3_964_2,	"Vision 964-P"),
+	DEVICE( S3,		S3_968,		"Vision 968"),
+	DEVICE( INTEL,		INTEL_82375,	"82375EB"),
+	BRIDGE( INTEL,		INTEL_82424,	"82424ZX Saturn",	0x00),
+	DEVICE( INTEL,		INTEL_82378,	"82378IB"),
+	DEVICE( INTEL,		INTEL_82430,	"82430ZX Aries"),
+	BRIDGE( INTEL,		INTEL_82434,	"82434LX Mercury/Neptune", 0x00),
+	DEVICE( INTEL,		INTEL_7116,	"SAA7116"),
+	DEVICE( INTEL,		INTEL_82596,	"82596"),
+	DEVICE( INTEL,		INTEL_82865,	"82865"),
+	DEVICE( INTEL,		INTEL_82557,	"82557"),
+	DEVICE( INTEL,		INTEL_82437,	"82437"),
+	DEVICE( INTEL,		INTEL_82371_0,	"82371 Triton PIIX"),
+	DEVICE( INTEL,		INTEL_82371_1,	"82371 Triton PIIX"),
+	DEVICE( INTEL,		INTEL_82441,	"82441FX Natoma"),
+	DEVICE( INTEL,		INTEL_82439,	"82439HX Triton II"),
+	DEVICE(	INTEL,		INTEL_82371SB_0,"82371SB Natoma/Triton II PIIX3"),
+	DEVICE(	INTEL,		INTEL_82371SB_1,"82371SB Natoma/Triton II PIIX3"),
+	DEVICE( INTEL,		INTEL_82371SB_2,"82371SB Natoma/Triton II PIIX3"),
+	DEVICE( INTEL,		INTEL_82437VX,	"82437VX Triton II"),
+	DEVICE( INTEL,		INTEL_P6,	"Orion P6"),
+	DEVICE( ADAPTEC,	ADAPTEC_7850,	"AIC-7850"),
+	DEVICE( ADAPTEC,	ADAPTEC_7855,	"AIC-7855"),
+	DEVICE( ADAPTEC,	ADAPTEC_7860,	"AIC-7860"),
+	DEVICE( ADAPTEC,	ADAPTEC_7861,	"AIC-7861"),
+	DEVICE( ADAPTEC,	ADAPTEC_7870,	"AIC-7870"),
+	DEVICE( ADAPTEC,	ADAPTEC_7871,	"AIC-7871"),
+	DEVICE( ADAPTEC,	ADAPTEC_7872,	"AIC-7872"),
+	DEVICE( ADAPTEC,	ADAPTEC_7873,	"AIC-7873"),
+	DEVICE( ADAPTEC,	ADAPTEC_7874,	"AIC-7874"),
+	DEVICE( ADAPTEC,	ADAPTEC_7880,	"AIC-7880U"),
+	DEVICE( ADAPTEC,	ADAPTEC_7881,	"AIC-7881U"),
+	DEVICE( ADAPTEC,	ADAPTEC_7882,	"AIC-7882U"),
+	DEVICE( ADAPTEC,	ADAPTEC_7883,	"AIC-7883U"),
+	DEVICE( ADAPTEC,	ADAPTEC_7884,	"AIC-7884U"),
+  	DEVICE( ATRONICS,	ATRONICS_2015,	"IDE-2015PL"),
+	DEVICE( HER,		HER_STING,	"Stingray"),
+	DEVICE( HER,		HER_STINGARK,	"Stingray ARK 2000PV")
 };
 
 
@@ -147,11 +278,11 @@ struct pci_dev_info dev_info[] = {
  * optimizations...
  */
 struct optimization_type {
-	char	*type;
-	char	*off;
-	char	*on;
+	const char	*type;
+	const char	*off;
+	const char	*on;
 } bridge_optimization[] = {
-	{"Cache L2",			"write trough",	"write back"},
+	{"Cache L2",			"write through",	"write back"},
 	{"CPU-PCI posted write",	"off",		"on"},
 	{"CPU-Memory posted write",	"off",		"on"},
 	{"PCI-Memory posted write",	"off",		"on"},
@@ -205,38 +336,41 @@ struct bridge_mapping_type {
 
 
 /*
- * If performance ever becomes important, device_info[] could be
- * sorted by key and this could be replaced by a binary search.
+ * device_info[] is sorted so we can use binary search
  */
 struct pci_dev_info *pci_lookup_dev(unsigned int vendor, unsigned int dev)
 {
-	int i;
+	int min = 0,
+	    max = sizeof(dev_info)/sizeof(dev_info[0]) - 1;
 
-	for (i = 0; i < sizeof(dev_info)/sizeof(dev_info[0]); ++i) {
-		if (dev_info[i].vendor == vendor &&
-		    dev_info[i].device == dev)
-		{
-			return &dev_info[i];
-		}
+	for ( ; ; )
+	{
+	    int i = (min + max) >> 1;
+	    long order;
+
+	    order = dev_info[i].vendor - (long) vendor;
+	    if (!order)
+		order = dev_info[i].device - (long) dev;
+	
+	    if (order < 0)
+	    {
+		    min = i + 1;
+		    if ( min > max )
+		       return 0;
+		    continue;
+	    }
+
+	    if (order > 0)
+	    {
+		    max = i - 1;
+		    if ( min > max )
+		       return 0;
+		    continue;
+	    }
+
+	    return & dev_info[ i ];
 	}
-	return 0;
 }
-
-
-char *pci_strbioserr (int error)
-{
-	switch (error) {
-	      case PCIBIOS_SUCCESSFUL:		return "SUCCESSFUL";
-	      case PCIBIOS_FUNC_NOT_SUPPORTED:	return "FUNC_NOT_SUPPORTED";
-	      case PCIBIOS_BAD_VENDOR_ID:	return "SUCCESSFUL";
-	      case PCIBIOS_DEVICE_NOT_FOUND:	return "DEVICE_NOT_FOUND";
-	      case PCIBIOS_BAD_REGISTER_NUMBER:	return "BAD_REGISTER_NUMBER";
-	      case PCIBIOS_SET_FAILED:		return "SET_FAILED";
-	      case PCIBIOS_BUFFER_TOO_SMALL:	return "BUFFER_TOO_SMALL";
-	      default:				return "Unknown error status";
-	}
-}
-
 
 const char *pci_strclass (unsigned int class)
 {
@@ -245,14 +379,16 @@ const char *pci_strclass (unsigned int class)
 	      case PCI_CLASS_NOT_DEFINED_VGA:		return "VGA compatible device";
 
 	      case PCI_CLASS_STORAGE_SCSI:		return "SCSI storage controller";
-	      case PCI_CLASS_STORAGE_IDE:		return "IDE controller";
+	      case PCI_CLASS_STORAGE_IDE:		return "IDE interface";
 	      case PCI_CLASS_STORAGE_FLOPPY:		return "Floppy disk controller";
 	      case PCI_CLASS_STORAGE_IPI:		return "IPI bus controller";
+	      case PCI_CLASS_STORAGE_RAID:		return "RAID bus controller";
 	      case PCI_CLASS_STORAGE_OTHER:		return "Unknown mass storage controller";
 
 	      case PCI_CLASS_NETWORK_ETHERNET:		return "Ethernet controller";
 	      case PCI_CLASS_NETWORK_TOKEN_RING:	return "Token ring network controller";
 	      case PCI_CLASS_NETWORK_FDDI:		return "FDDI network controller";
+	      case PCI_CLASS_NETWORK_ATM:		return "ATM network controller";
 	      case PCI_CLASS_NETWORK_OTHER:		return "Network controller";
 
 	      case PCI_CLASS_DISPLAY_VGA:		return "VGA compatible controller";
@@ -273,7 +409,40 @@ const char *pci_strclass (unsigned int class)
 	      case PCI_CLASS_BRIDGE_MC:			return "MicroChannel bridge";
 	      case PCI_CLASS_BRIDGE_PCI:		return "PCI bridge";
 	      case PCI_CLASS_BRIDGE_PCMCIA:		return "PCMCIA bridge";
+	      case PCI_CLASS_BRIDGE_NUBUS:		return "NuBus bridge";
+	      case PCI_CLASS_BRIDGE_CARDBUS:		return "CardBus bridge";
 	      case PCI_CLASS_BRIDGE_OTHER:		return "Bridge";
+
+	      case PCI_CLASS_COMMUNICATION_SERIAL:	return "Serial controller";
+	      case PCI_CLASS_COMMUNICATION_PARALLEL:	return "Parallel controller";
+	      case PCI_CLASS_COMMUNICATION_OTHER:	return "Communication controller";
+
+	      case PCI_CLASS_SYSTEM_PIC:		return "PIC";
+	      case PCI_CLASS_SYSTEM_DMA:		return "DMA controller";
+	      case PCI_CLASS_SYSTEM_TIMER:		return "Timer";
+	      case PCI_CLASS_SYSTEM_RTC:		return "RTC";
+	      case PCI_CLASS_SYSTEM_OTHER:		return "System peripheral";
+
+	      case PCI_CLASS_INPUT_KEYBOARD:		return "Keyboard controller";
+	      case PCI_CLASS_INPUT_PEN:			return "Digitizer Pen";
+	      case PCI_CLASS_INPUT_MOUSE:		return "Mouse controller";
+	      case PCI_CLASS_INPUT_OTHER:		return "Input device controller";
+
+	      case PCI_CLASS_DOCKING_GENERIC:		return "Generic Docking Station";
+	      case PCI_CLASS_DOCKING_OTHER:		return "Docking Station";
+
+	      case PCI_CLASS_PROCESSOR_386:		return "386";
+	      case PCI_CLASS_PROCESSOR_486:		return "486";
+	      case PCI_CLASS_PROCESSOR_PENTIUM:		return "Pentium";
+	      case PCI_CLASS_PROCESSOR_ALPHA:		return "Alpha";
+	      case PCI_CLASS_PROCESSOR_POWERPC:		return "Power PC";
+	      case PCI_CLASS_PROCESSOR_CO:		return "Co-processor";
+
+	      case PCI_CLASS_SERIAL_FIREWIRE:		return "FireWire (IEEE 1394)";
+	      case PCI_CLASS_SERIAL_ACCESS:		return "ACCESS Bus";
+	      case PCI_CLASS_SERIAL_SSA:		return "SSA";
+	      case PCI_CLASS_SERIAL_USB:		return "USB Controller";
+	      case PCI_CLASS_SERIAL_FIBER:		return "Fiber Channel";
 
 	      default:					return "Unknown class";
 	}
@@ -283,53 +452,87 @@ const char *pci_strclass (unsigned int class)
 const char *pci_strvendor(unsigned int vendor)
 {
 	switch (vendor) {
+	      case PCI_VENDOR_ID_COMPAQ:	return "Compaq";
 	      case PCI_VENDOR_ID_NCR:		return "NCR";
-	      case PCI_VENDOR_ID_ADAPTEC:	return "Adaptec";
-	      case PCI_VENDOR_ID_DPT:		return "DPT";
-	      case PCI_VENDOR_ID_S3:		return "S3 Inc.";
-	      case PCI_VENDOR_ID_OPTI:		return "OPTI";
-	      case PCI_VENDOR_ID_UMC:		return "UMC";
-	      case PCI_VENDOR_ID_DEC:		return "DEC";
-	      case PCI_VENDOR_ID_MATROX:	return "Matrox";
-	      case PCI_VENDOR_ID_INTEL:		return "Intel";
-	      case PCI_VENDOR_ID_SMC:		return "SMC";
 	      case PCI_VENDOR_ID_ATI:		return "ATI";
-	      case PCI_VENDOR_ID_WEITEK:	return "Weitek";
-	      case PCI_VENDOR_ID_CIRRUS:	return "Cirrus Logic";
-	      case PCI_VENDOR_ID_BUSLOGIC:	return "Bus Logic";
-	      case PCI_VENDOR_ID_N9:		return "Number Nine";
-	      case PCI_VENDOR_ID_AI:		return "Acer Incorporated";
-	      case PCI_VENDOR_ID_AL:		return "Acer Labs";
-	      case PCI_VENDOR_ID_TSENG:		return "Tseng'Lab";
-	      case PCI_VENDOR_ID_CMD:		return "CMD";
-	      case PCI_VENDOR_ID_VISION:	return "Vision";
-	      case PCI_VENDOR_ID_AMD:		return "AMD";
 	      case PCI_VENDOR_ID_VLSI:		return "VLSI";
 	      case PCI_VENDOR_ID_ADL:		return "Advance Logic";
-	      case PCI_VENDOR_ID_SYMPHONY:	return "Symphony";
-	      case PCI_VENDOR_ID_TRIDENT:	return "Trident";
-	      case PCI_VENDOR_ID_CONTAQ:	return "Contaq";
 	      case PCI_VENDOR_ID_NS:		return "NS";
-	      case PCI_VENDOR_ID_VIA:		return "VIA Technologies";
-	      case PCI_VENDOR_ID_SI:		return "Silicon Integrated Systems";
-	      case PCI_VENDOR_ID_LEADTEK:	return "Leadtek Research";
-	      case PCI_VENDOR_ID_IMS:		return "IMS";
-	      case PCI_VENDOR_ID_ZEINET:	return "ZeiNet";
-	      case PCI_VENDOR_ID_EF:		return "Efficient Networks";
-	      case PCI_VENDOR_ID_HER:		return "Hercules";
-	      case PCI_VENDOR_ID_ATRONICS:	return "Atronics";
+	      case PCI_VENDOR_ID_TSENG:		return "Tseng'Lab";
+	      case PCI_VENDOR_ID_WEITEK:	return "Weitek";
+	      case PCI_VENDOR_ID_DEC:		return "DEC";
+	      case PCI_VENDOR_ID_CIRRUS:	return "Cirrus Logic";
+	      case PCI_VENDOR_ID_IBM:		return "IBM";
+	      case PCI_VENDOR_ID_WD:		return "Western Digital";
+	      case PCI_VENDOR_ID_AMD:		return "AMD";
+	      case PCI_VENDOR_ID_TRIDENT:	return "Trident";
+	      case PCI_VENDOR_ID_AI:		return "Acer Incorporated";
+	      case PCI_VENDOR_ID_MATROX:	return "Matrox";
 	      case PCI_VENDOR_ID_CT:		return "Chips & Technologies";
+	      case PCI_VENDOR_ID_MIRO:		return "Miro";
 	      case PCI_VENDOR_ID_FD:		return "Future Domain";
+	      case PCI_VENDOR_ID_SI:		return "Silicon Integrated Systems";
+	      case PCI_VENDOR_ID_HP:		return "Hewlett Packard";
+	      case PCI_VENDOR_ID_PCTECH:	return "PCTECH";
+	      case PCI_VENDOR_ID_DPT:		return "DPT";
+	      case PCI_VENDOR_ID_OPTI:		return "OPTI";
+	      case PCI_VENDOR_ID_SGS:		return "SGS Thomson";
+	      case PCI_VENDOR_ID_BUSLOGIC:	return "BusLogic";
+	      case PCI_VENDOR_ID_OAK: 		return "OAK";
+	      case PCI_VENDOR_ID_PROMISE:	return "Promise Technology";
+	      case PCI_VENDOR_ID_N9:		return "Number Nine";
+	      case PCI_VENDOR_ID_UMC:		return "UMC";
+	      case PCI_VENDOR_ID_X:		return "X TECHNOLOGY";
+	      case PCI_VENDOR_ID_NEXGEN:	return "Nexgen";
+	      case PCI_VENDOR_ID_QLOGIC:	return "Q Logic";
+	      case PCI_VENDOR_ID_LEADTEK:	return "Leadtek Research";
+	      case PCI_VENDOR_ID_CONTAQ:	return "Contaq";
+	      case PCI_VENDOR_ID_FOREX:		return "Forex";
+	      case PCI_VENDOR_ID_OLICOM:	return "Olicom";
+	      case PCI_VENDOR_ID_CMD:		return "CMD";
+	      case PCI_VENDOR_ID_VISION:	return "Vision";
+	      case PCI_VENDOR_ID_SIERRA:	return "Sierra";
+	      case PCI_VENDOR_ID_ACC:		return "ACC MICROELECTRONICS";
 	      case PCI_VENDOR_ID_WINBOND:	return "Winbond";
 	      case PCI_VENDOR_ID_3COM:		return "3Com";
-	      case PCI_VENDOR_ID_PROMISE:	return "Promise Technology";
-	      case PCI_VENDOR_ID_QLOGIC:	return "Q Logic";
+	      case PCI_VENDOR_ID_AL:		return "Acer Labs";
+	      case PCI_VENDOR_ID_ASP:		return "Advanced System Products";
+	      case PCI_VENDOR_ID_CERN:		return "CERN";
+	      case PCI_VENDOR_ID_IMS:		return "IMS";
+	      case PCI_VENDOR_ID_TEKRAM2:	return "Tekram";
+	      case PCI_VENDOR_ID_AMCC:		return "AMCC";
+	      case PCI_VENDOR_ID_INTERG:	return "Intergraphics";
+	      case PCI_VENDOR_ID_REALTEK:	return "Realtek";
+	      case PCI_VENDOR_ID_INIT:		return "Initio Corp";
+	      case PCI_VENDOR_ID_VIA:		return "VIA Technologies";
+	      case PCI_VENDOR_ID_VORTEX:	return "VORTEX";
+	      case PCI_VENDOR_ID_EF:		return "Efficient Networks";
+	      case PCI_VENDOR_ID_FORE:		return "Fore Systems";
+	      case PCI_VENDOR_ID_IMAGINGTECH:	return "Imaging Technology";
+	      case PCI_VENDOR_ID_PLX:		return "PLX";
+	      case PCI_VENDOR_ID_ALLIANCE:	return "Alliance";
+	      case PCI_VENDOR_ID_VMIC:		return "VMIC";
+	      case PCI_VENDOR_ID_MUTECH:	return "Mutech";
+	      case PCI_VENDOR_ID_TOSHIBA:	return "Toshiba";
+	      case PCI_VENDOR_ID_ZEITNET:	return "ZeitNet";
+	      case PCI_VENDOR_ID_SPECIALIX:	return "Specialix";
+	      case PCI_VENDOR_ID_RP:		return "Comtrol";
+	      case PCI_VENDOR_ID_CYCLADES:	return "Cyclades";
+	      case PCI_VENDOR_ID_SYMPHONY:	return "Symphony";
+	      case PCI_VENDOR_ID_TEKRAM:	return "Tekram";
+	      case PCI_VENDOR_ID_3DLABS:	return "3Dlabs";
+	      case PCI_VENDOR_ID_AVANCE:	return "Avance";
+	      case PCI_VENDOR_ID_S3:		return "S3 Inc.";
+	      case PCI_VENDOR_ID_INTEL:		return "Intel";
+	      case PCI_VENDOR_ID_ADAPTEC:	return "Adaptec";
+	      case PCI_VENDOR_ID_ATRONICS:	return "Atronics";
+	      case PCI_VENDOR_ID_HER:		return "Hercules";
 	      default:				return "Unknown vendor";
 	}
 }
 
 
-const char *pci_strdev(unsigned int vendor, unsigned int device) 
+const char *pci_strdev(unsigned int vendor, unsigned int device)
 {
 	struct pci_dev_info *info;
 
@@ -472,7 +675,7 @@ static int sprint_dev_config(struct pci_dev *dev, char *buf, int size)
 		}
 		len += sprintf(buf + len, "Master Capable.  ");
 		if (latency)
-		  len += sprintf(buf + len, "Latency=%d.  ", latency); 
+		  len += sprintf(buf + len, "Latency=%d.  ", latency);
 		else
 		  len += sprintf(buf + len, "No bursts.  ");
 		if (min_gnt)
@@ -616,13 +819,14 @@ static unsigned int scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 		dev->device = (l >> 16) & 0xffff;
 
 		/*
-		 * Check to see if we now about this device and report
+		 * Check to see if we know about this device and report
 		 * a message at boot time.  This is the only way to
 		 * learn about new hardware...
 		 */
 		info = pci_lookup_dev(dev->vendor, dev->device);
 		if (!info) {
-			printk("Warning : Unknown PCI device.  Please read include/linux/pci.h \n");
+			printk("Warning : Unknown PCI device (%x:%x).  Please read include/linux/pci.h \n",
+				dev->vendor, dev->device);
 		} else {
 			/* Some BIOS' are lazy. Let's do their job: */
 			if (info->bridge_type != 0xff) {
@@ -660,6 +864,7 @@ static unsigned int scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 
 		if (dev->class >> 8 == PCI_CLASS_BRIDGE_PCI) {
 			unsigned int buses;
+			unsigned short cr;
 
 			/*
 			 * Insert it into the tree of buses.
@@ -681,6 +886,8 @@ static unsigned int scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			 * Clear all status bits and turn off memory,
 			 * I/O and master enables.
 			 */
+			pcibios_read_config_word(bus->number, devfn,
+						  PCI_COMMAND, &cr);
 			pcibios_write_config_word(bus->number, devfn,
 						  PCI_COMMAND, 0x0000);
 			pcibios_write_config_word(bus->number, devfn,
@@ -709,6 +916,8 @@ static unsigned int scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			  | ((unsigned int)(child->subordinate) << 16);
 			pcibios_write_config_dword(bus->number, devfn, 0x18,
 						   buses);
+			pcibios_write_config_word(bus->number, devfn,
+						  PCI_COMMAND, cr);
 		}
 	}
 	/*
@@ -741,10 +950,10 @@ unsigned long pci_init (unsigned long mem_start, unsigned long mem_end)
 
 #ifdef DEBUG
 	{
-		int len = get_pci_list(mem_start);
+		int len = get_pci_list((char*)mem_start);
 		if (len) {
-			((char*)mem_start)[len] = '\0';
-			printk("%s\n", mem_start);
+			((char *) mem_start)[len] = '\0';
+			printk("%s\n", (char *) mem_start);
 		}
 	}
 #endif

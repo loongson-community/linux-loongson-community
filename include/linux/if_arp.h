@@ -11,7 +11,8 @@
  *		Portions taken from the KA9Q/NOS (v2.00m PA0GRI) source.
  *		Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
- *		Florian La Roche.
+ *		Florian La Roche,
+ *		Jonathan Layes <layes@loran.com>
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -21,6 +22,8 @@
 #ifndef _LINUX_IF_ARP_H
 #define _LINUX_IF_ARP_H
 
+#include <linux/netdevice.h>
+
 /* ARP protocol HARDWARE identifiers. */
 #define ARPHRD_NETROM	0		/* from KA9Q: NET/ROM pseudo	*/
 #define ARPHRD_ETHER 	1		/* Ethernet 10Mbps		*/
@@ -28,9 +31,12 @@
 #define	ARPHRD_AX25	3		/* AX.25 Level 2		*/
 #define	ARPHRD_PRONET	4		/* PROnet token ring		*/
 #define	ARPHRD_CHAOS	5		/* Chaosnet			*/
-#define	ARPHRD_IEEE802	6		/* IEEE 802.2 Ethernet- huh?	*/
+#define	ARPHRD_IEEE802	6		/* IEEE 802.2 Ethernet/TR/TB	*/
 #define	ARPHRD_ARCNET	7		/* ARCnet			*/
 #define	ARPHRD_APPLETLK	8		/* APPLEtalk			*/
+#define ARPHRD_DLCI	15		/* Frame Relay DLCI		*/
+#define ARPHRD_METRICOM	23		/* Metricom STRIP (new IANA id)	*/
+
 /* Dummy types for non ARP hardware */
 #define ARPHRD_SLIP	256
 #define ARPHRD_CSLIP	257
@@ -38,8 +44,18 @@
 #define ARPHRD_CSLIP6	259
 #define ARPHRD_RSRVD	260		/* Notional KISS type 		*/
 #define ARPHRD_ADAPT	264
+#define ARPHRD_ROSE	270
+#define ARPHRD_X25	271		/* CCITT X.25			*/
 #define ARPHRD_PPP	512
+
 #define ARPHRD_TUNNEL	768		/* IPIP tunnel			*/
+#define ARPHRD_TUNNEL6	769		/* IPIP6 tunnel			*/
+#define ARPHRD_FRAD	770		/* Frame Relay Access Device	*/
+#define ARPHRD_SKIP	771		/* SKIP vif			*/
+#define ARPHRD_LOOPBACK	772		/* Loopback device		*/
+#define ARPHRD_LOCALTLK 773		/* Localtalk device		*/
+#define ARPHRD_FDDI	774		/* FDDI interfaces		*/
+#define ARPHRD_SIT	776		/* sit0 device - IPv6-in-IPv4	*/
 
 /* ARP protocol opcodes. */
 #define	ARPOP_REQUEST	1		/* ARP request			*/
@@ -50,6 +66,14 @@
 
 /* ARP ioctl request. */
 struct arpreq {
+  struct sockaddr	arp_pa;		/* protocol address		*/
+  struct sockaddr	arp_ha;		/* hardware address		*/
+  int			arp_flags;	/* flags			*/
+  struct sockaddr       arp_netmask;    /* netmask (only for proxy arps) */
+  char			arp_dev[16];
+};
+
+struct arpreq_old {
   struct sockaddr	arp_pa;		/* protocol address		*/
   struct sockaddr	arp_ha;		/* hardware address		*/
   int			arp_flags;	/* flags			*/
@@ -86,6 +110,22 @@ struct arphdr
 	unsigned char		ar_tip[4];		/* target IP address		*/
 #endif
 
+};
+
+/* Support for the user space arp daemon, arpd */
+
+#define ARPD_UPDATE	0x01
+#define ARPD_LOOKUP	0x02
+#define ARPD_FLUSH	0x03
+
+struct arpd_request
+{
+	unsigned short	req;			/* request type */
+	__u32		ip;			/* ip address of entry */
+	unsigned long	dev;			/* Device entry is tied to */
+	unsigned long	stamp;
+	unsigned long	updated;
+	unsigned char	ha[MAX_ADDR_LEN];	/* Hardware address */
 };
 
 #endif	/* _LINUX_IF_ARP_H */

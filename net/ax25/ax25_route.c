@@ -1,5 +1,5 @@
 /*
- *	AX.25 release 029
+ *	AX.25 release 033
  *
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
@@ -17,17 +17,32 @@
  *
  *	History
  *	AX.25 020	Jonathan(G4KLX)	First go.
- *	AX.25 022	Jonathan(G4KLX)	Added the actual meat to this - we now have a nice mheard list.
+ *	AX.25 022	Jonathan(G4KLX)	Added the actual meat to this - we now have a nice heard list.
  *	AX.25 025	Alan(GW4PTS)	First cut at autobinding by route scan.
  *	AX.25 028b	Jonathan(G4KLX)	Extracted AX25 control block from the
  *					sock structure. Device removal now
  *					removes the heard structure.
  *	AX.25 029	Steven(GW7RRM)	Added /proc information for uid/callsign mapping.
  *			Jonathan(G4KLX)	Handling of IP mode in the routing list and /proc entry.
+ *	AX.25 030	Jonathan(G4KLX)	Added digi-peaters to routing table, and
+ *					ioctls to manipulate them. Added port
+ *					configuration.
+ *	AX.25 031	Jonathan(G4KLX)	Added concept of default route.
+ *			Joerg(DL1BKE)	ax25_rt_build_path() find digipeater list and device by 
+ *					destination call. Needed for IP routing via digipeater
+ *			Jonathan(G4KLX)	Added routing for IP datagram packets.
+ *			Joerg(DL1BKE)	Changed routing for IP datagram and VC to use a default
+ *					route if available. Does not overwrite default routes
+ *					on route-table overflow anymore.
+ *			Joerg(DL1BKE)	Fixed AX.25 routing of IP datagram and VC, new ioctl()
+ *					"SIOCAX25OPTRT" to set IP mode and a 'permanent' flag
+ *					on routes.
+ *	AX.25 033	Jonathan(G4KLX)	Remove auto-router.
+ *			Joerg(DL1BKE)	Moved BPQ Ethernet driver to seperate device.
  */
  
 #include <linux/config.h>
-#ifdef CONFIG_AX25
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/socket.h>
@@ -41,74 +56,46 @@
 #include <net/ax25.h>
 #include <linux/inet.h>
 #include <linux/netdevice.h>
+#include <linux/if_arp.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <linux/fcntl.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 
-#define	AX25_ROUTE_MAX	40
-
 static struct ax25_route {
 	struct ax25_route *next;
 	ax25_address callsign;
 	struct device *dev;
-	struct timeval stamp;
-	int n;
+	ax25_digi *digipeat;
 	char ip_mode;
 } *ax25_route = NULL;
 
-void ax25_rt_rx_frame(ax25_address *src, struct device *dev)
+struct ax25_dev ax25_device[AX25_MAX_DEVICES] = {
+	{"", NULL}, {"", NULL}, {"", NULL}, {"", NULL}, {"", NULL},
+	{"", NULL}, {"", NULL}, {"", NULL}, {"", NULL}, {"", NULL},
+	{"", NULL}, {"", NULL}, {"", NULL}, {"", NULL}, {"", NULL},
+	{"", NULL}, {"", NULL}, {"", NULL}, {"", NULL}, {"", NULL}
+};
+
+static struct ax25_route *ax25_find_route(ax25_address *, struct device *);
+
+/*
+ * small macro to drop non-digipeated digipeaters and reverse path
+ */
+static inline void ax25_route_invert(ax25_digi *in, ax25_digi *out)
 {
-	unsigned long flags;
-	extern struct timeval xtime;
-	struct ax25_route *ax25_rt;
-	struct ax25_route *oldest;
-	int count;
+	int k;
 
-	count  = 0;
-	oldest = NULL;
+	for (k = 0; k < in->ndigi; k++)
+		if (!in->repeated[k])
+			break;
 
-	for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
-		if (count == 0 || ax25_rt->stamp.tv_sec < oldest->stamp.tv_sec)
-			oldest = ax25_rt;
-		
-		if (ax25cmp(&ax25_rt->callsign, src) == 0 && ax25_rt->dev == dev) {
-			ax25_rt->stamp = xtime;
-			ax25_rt->n++;
-			return;			
-		}
+	in->ndigi = k;
 
-		count++;
-	}
-
-	if (count > AX25_ROUTE_MAX) {
-		oldest->callsign = *src;
-		oldest->dev      = dev;
-		oldest->stamp    = xtime;
-		oldest->n        = 1;
-		oldest->ip_mode  = ' ';
-		return;
-	}
-
-	if ((ax25_rt = (struct ax25_route *)kmalloc(sizeof(struct ax25_route), GFP_ATOMIC)) == NULL)
-		return;		/* No space */
-
-	ax25_rt->callsign = *src;
-	ax25_rt->dev      = dev;
-	ax25_rt->stamp    = xtime;
-	ax25_rt->n        = 1;
-	ax25_rt->ip_mode  = ' ';
-
-	save_flags(flags);
-	cli();
-
-	ax25_rt->next = ax25_route;
-	ax25_route    = ax25_rt;
-
-	restore_flags(flags);
+	ax25_digi_invert(in, out);
 }
 
 void ax25_rt_device_down(struct device *dev)
@@ -122,11 +109,15 @@ void ax25_rt_device_down(struct device *dev)
 		if (s->dev == dev) {
 			if (ax25_route == s) {
 				ax25_route = s->next;
+				if (s->digipeat != NULL)
+					kfree_s((void *)s->digipeat, sizeof(ax25_digi));
 				kfree_s((void *)s, (sizeof *s));
 			} else {
 				for (t = ax25_route; t != NULL; t = t->next) {
 					if (t->next == s) {
 						t->next = s->next;
+						if (s->digipeat != NULL)
+							kfree_s((void *)s->digipeat, sizeof(ax25_digi));
 						kfree_s((void *)s, sizeof(*s));
 						break;
 					}
@@ -136,37 +127,172 @@ void ax25_rt_device_down(struct device *dev)
 	}
 }
 
-int ax25_rt_get_info(char *buffer, char **start, off_t offset, int length)
+int ax25_rt_ioctl(unsigned int cmd, void *arg)
+{
+	unsigned long flags;
+	struct ax25_route *s, *t, *ax25_rt;
+	struct ax25_routes_struct route;
+	struct ax25_route_opt_struct rt_option;
+	struct device *dev;
+	int i, err;
+
+	switch (cmd) {
+		case SIOCADDRT:
+			if ((err = verify_area(VERIFY_READ, arg, sizeof(route))) != 0)
+				return err;		
+			copy_from_user(&route, arg, sizeof(route));
+			if ((dev = ax25rtr_get_dev(&route.port_addr)) == NULL)
+				return -EINVAL;
+			if (route.digi_count > AX25_MAX_DIGIS)
+				return -EINVAL;
+			for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
+				if (ax25cmp(&ax25_rt->callsign, &route.dest_addr) == 0 && ax25_rt->dev == dev) {
+					if (ax25_rt->digipeat != NULL) {
+						kfree_s(ax25_rt->digipeat, sizeof(ax25_digi));
+						ax25_rt->digipeat = NULL;
+					}
+					if (route.digi_count != 0) {
+						if ((ax25_rt->digipeat = kmalloc(sizeof(ax25_digi), GFP_ATOMIC)) == NULL)
+							return -ENOMEM;
+						ax25_rt->digipeat->lastrepeat = 0;
+						ax25_rt->digipeat->ndigi      = route.digi_count;
+						for (i = 0; i < route.digi_count; i++) {
+							ax25_rt->digipeat->repeated[i] = 0;
+							ax25_rt->digipeat->calls[i]    = route.digi_addr[i];
+						}
+					}
+					return 0;
+				}
+			}
+			if ((ax25_rt = (struct ax25_route *)kmalloc(sizeof(struct ax25_route), GFP_ATOMIC)) == NULL)
+				return -ENOMEM;
+			ax25_rt->callsign     = route.dest_addr;
+			ax25_rt->dev          = dev;
+			ax25_rt->digipeat     = NULL;
+			ax25_rt->ip_mode      = ' ';
+			if (route.digi_count != 0) {
+				if ((ax25_rt->digipeat = kmalloc(sizeof(ax25_digi), GFP_ATOMIC)) == NULL) {
+					kfree_s(ax25_rt, sizeof(struct ax25_route));
+					return -ENOMEM;
+				}
+				ax25_rt->digipeat->lastrepeat = 0;
+				ax25_rt->digipeat->ndigi      = route.digi_count;
+				for (i = 0; i < route.digi_count; i++) {
+					ax25_rt->digipeat->repeated[i] = 0;
+					ax25_rt->digipeat->calls[i]    = route.digi_addr[i];
+				}
+			}
+			save_flags(flags);
+			cli();
+			ax25_rt->next = ax25_route;
+			ax25_route    = ax25_rt;
+			restore_flags(flags);
+			break;
+
+		case SIOCDELRT:
+			if ((err = verify_area(VERIFY_READ, arg, sizeof(route))) != 0)
+				return err;
+			copy_from_user(&route, arg, sizeof(route));
+			if ((dev = ax25rtr_get_dev(&route.port_addr)) == NULL)
+				return -EINVAL;
+			ax25_rt = ax25_route;
+			while (ax25_rt != NULL) {
+				s       = ax25_rt;
+				ax25_rt = ax25_rt->next;
+				if (s->dev == dev && ax25cmp(&route.dest_addr, &s->callsign) == 0) {
+					if (ax25_route == s) {
+						ax25_route = s->next;
+						if (s->digipeat != NULL)
+							kfree_s((void *)s->digipeat, sizeof(ax25_digi));
+						kfree_s((void *)s, (sizeof *s));
+					} else {
+						for (t = ax25_route; t != NULL; t = t->next) {
+							if (t->next == s) {
+								t->next = s->next;
+								if (s->digipeat != NULL)
+									kfree_s((void *)s->digipeat, sizeof(ax25_digi));
+								kfree_s((void *)s, sizeof(*s));
+								break;
+							}
+						}				
+					}
+				}
+			}
+			break;
+
+		case SIOCAX25OPTRT:
+			if ((err = verify_area(VERIFY_READ, arg, sizeof(rt_option))) != 0)
+				return err;
+			copy_from_user(&rt_option, arg, sizeof(rt_option));
+			if ((dev = ax25rtr_get_dev(&rt_option.port_addr)) == NULL)
+				return -EINVAL;
+			for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
+				if (ax25_rt->dev == dev && ax25cmp(&rt_option.dest_addr, &ax25_rt->callsign) == 0) {
+					switch (rt_option.cmd) {
+						case AX25_SET_RT_IPMODE:
+							switch (rt_option.arg) {
+								case ' ':
+								case 'D':
+								case 'V':
+									ax25_rt->ip_mode = rt_option.arg;
+									break;
+								default:
+									return -EINVAL;
+							}
+							break;
+						default:
+							return -EINVAL;
+					}
+				}
+			}
+			break;
+
+		default:
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
+int ax25_rt_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	struct ax25_route *ax25_rt;
 	int len     = 0;
 	off_t pos   = 0;
 	off_t begin = 0;
+	char *callsign;
+	int i;
   
 	cli();
 
-	len += sprintf(buffer, "callsign  dev count      time mode\n");
+	len += sprintf(buffer, "callsign  dev  mode digipeaters\n");
 
 	for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
-		len += sprintf(buffer + len, "%-9s %-3s %5d %9ld",
-			ax2asc(&ax25_rt->callsign),
-			ax25_rt->dev ? ax25_rt->dev->name : "???",
-			ax25_rt->n,
-			ax25_rt->stamp.tv_sec);
+		if (ax25cmp(&ax25_rt->callsign, &null_ax25_address) == 0)
+			callsign = "default";
+		else
+			callsign = ax2asc(&ax25_rt->callsign);
+		len += sprintf(buffer + len, "%-9s %-4s",
+			callsign,
+			ax25_rt->dev ? ax25_rt->dev->name : "???");
 
 		switch (ax25_rt->ip_mode) {
 			case 'V':
-			case 'v':
-				len += sprintf(buffer + len, "   vc\n");
+				len += sprintf(buffer + len, "   vc");
 				break;
 			case 'D':
-			case 'd':
-				len += sprintf(buffer + len, "   dg\n");
+				len += sprintf(buffer + len, "   dg");
 				break;
 			default:
-				len += sprintf(buffer + len, "\n");
+				len += sprintf(buffer + len, "    *");
 				break;
 		}
+		
+		if (ax25_rt->digipeat != NULL)
+			for (i = 0; i < ax25_rt->digipeat->ndigi; i++)
+				len += sprintf(buffer + len, " %s", ax2asc(&ax25_rt->digipeat->calls[i]));
+		
+		len += sprintf(buffer + len, "\n");
 				
 		pos = begin + len;
 
@@ -189,7 +315,7 @@ int ax25_rt_get_info(char *buffer, char **start, off_t offset, int length)
 	return len;
 } 
 
-int ax25_cs_get_info(char *buffer, char **start, off_t offset, int length)
+int ax25_cs_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	ax25_uid_assoc *pt;
 	int len     = 0;
@@ -225,50 +351,145 @@ int ax25_cs_get_info(char *buffer, char **start, off_t offset, int length)
 }
 
 /*
- *	Find what interface to use.
+ *	Find AX.25 route
+ */
+static struct ax25_route *ax25_find_route(ax25_address *addr, struct device *dev)
+{
+	struct ax25_route *ax25_spe_rt = NULL;
+	struct ax25_route *ax25_def_rt = NULL;
+	struct ax25_route *ax25_rt;
+	
+	/*
+	 *	Bind to the physical interface we heard them on, or the default
+	 *	route if none is found;
+	 */
+	for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
+		if (dev == NULL) {
+			if (ax25cmp(&ax25_rt->callsign, addr) == 0 && ax25_rt->dev != NULL)
+				ax25_spe_rt = ax25_rt;
+			if (ax25cmp(&ax25_rt->callsign, &null_ax25_address) == 0 && ax25_rt->dev != NULL)
+				ax25_def_rt = ax25_rt;
+		} else {
+			if (ax25cmp(&ax25_rt->callsign, addr) == 0 && ax25_rt->dev == dev)
+				ax25_spe_rt = ax25_rt;
+			if (ax25cmp(&ax25_rt->callsign, &null_ax25_address) == 0 && ax25_rt->dev == dev)
+				ax25_def_rt = ax25_rt;
+		}
+	}
+
+	if (ax25_spe_rt != NULL)
+		return ax25_spe_rt;
+		
+	return ax25_def_rt;
+}
+
+/*
+ *	Adjust path: If you specify a default route and want to connect
+ *      a target on the digipeater path but w/o having a special route
+ *	set before, the path has to be truncated from your target on.
+ */
+static inline void ax25_adjust_path(ax25_address *addr, ax25_digi *digipeat)
+{
+	int k;
+	
+	for (k = 0; k < digipeat->ndigi; k++) {
+		if (ax25cmp(addr, &digipeat->calls[k]) == 0)
+			break;
+	}
+	
+	digipeat->ndigi = k;
+}
+ 
+
+/*
+ *	Find which interface to use.
  */
 int ax25_rt_autobind(ax25_cb *ax25, ax25_address *addr)
 {
 	struct ax25_route *ax25_rt;
 	ax25_address *call;
-	
-	for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
-		if (ax25cmp(&ax25_rt->callsign, addr) == 0) {
-			/*
-			 *	Bind to the physical interface we heard them on.
-			 */
-			if ((ax25->device = ax25_rt->dev) == NULL)
-				continue;
-			if ((call = ax25_findbyuid(current->euid)) == NULL) {
-				if (ax25_uid_policy && !suser())
-					return -EPERM;
-				call = (ax25_address *)ax25->device->dev_addr;
-			}
-			memcpy(&ax25->source_addr, call, sizeof(ax25_address));
-			if (ax25->sk != NULL)
-				ax25->sk->zapped = 0;
 
-			return 0;			
-		}
+	if ((ax25_rt = ax25_find_route(addr, NULL)) == NULL)
+		return -EHOSTUNREACH;
+		
+	ax25->device = ax25_rt->dev;
+
+	if ((call = ax25_findbyuid(current->euid)) == NULL) {
+		if (ax25_uid_policy && !suser())
+			return -EPERM;
+		call = (ax25_address *)ax25->device->dev_addr;
 	}
 
-	return -EINVAL;
+	ax25->source_addr = *call;
+
+	if (ax25_rt->digipeat != NULL) {
+		if ((ax25->digipeat = kmalloc(sizeof(ax25_digi), GFP_ATOMIC)) == NULL)
+			return -ENOMEM;
+		*ax25->digipeat = *ax25_rt->digipeat;
+		ax25_adjust_path(addr, ax25->digipeat);
+	}
+
+	if (ax25->sk != NULL)
+		ax25->sk->zapped = 0;
+
+	return 0;
 }
 
 /*
- *	Register the mode of an incoming IP frame. It is assumed that an entry
- *	already exists in the routing table.
+ *	dl1bke 960117: build digipeater path
+ *	dl1bke 960301: use the default route if it exists
  */
-void ax25_ip_mode_set(ax25_address *callsign, struct device *dev, char ip_mode)
+void ax25_rt_build_path(ax25_cb *ax25, ax25_address *addr, struct device *dev)
 {
 	struct ax25_route *ax25_rt;
+	
+	if ((ax25_rt = ax25_find_route(addr, dev)) == NULL)
+		return;
+	
+	if (ax25_rt->digipeat == NULL)
+		return;
 
-	for (ax25_rt = ax25_route; ax25_rt != NULL; ax25_rt = ax25_rt->next) {
-		if (ax25cmp(&ax25_rt->callsign, callsign) == 0 && ax25_rt->dev == dev) {
-			ax25_rt->ip_mode = ip_mode;
-			return;
-		}
+	if ((ax25->digipeat = kmalloc(sizeof(ax25_digi), GFP_ATOMIC)) == NULL)
+		return;
+
+	ax25->device    = ax25_rt->dev;
+	*ax25->digipeat = *ax25_rt->digipeat;
+	ax25_adjust_path(addr, ax25->digipeat);
+}
+
+void ax25_dg_build_path(struct sk_buff *skb, ax25_address *addr, struct device *dev)
+{
+	struct ax25_route *ax25_rt;
+	ax25_digi digipeat;
+	ax25_address src, dest;
+	unsigned char *bp;
+	int len;
+
+	skb_pull(skb, 1);	/* skip KISS command */
+
+	if ((ax25_rt = ax25_find_route(addr, dev)) == NULL)
+		return;
+
+	if (ax25_rt->digipeat == NULL)
+		return;
+		
+	digipeat = *ax25_rt->digipeat;
+	
+	ax25_adjust_path(addr, &digipeat);
+
+	len = ax25_rt->digipeat->ndigi * AX25_ADDR_LEN;
+		
+	if (skb_headroom(skb) < len) {
+		printk(KERN_CRIT "ax25_dg_build_path: not enough headroom for digis in skb\n");
+		return;
 	}
+	
+	memcpy(&dest, skb->data    , AX25_ADDR_LEN);
+	memcpy(&src,  skb->data + 7, AX25_ADDR_LEN);
+
+	bp = skb_push(skb, len);
+
+	build_ax25_addr(bp, &src, &dest, ax25_rt->digipeat, C_COMMAND, MODULUS);
 }
 
 /*
@@ -285,4 +506,102 @@ char ax25_ip_mode_get(ax25_address *callsign, struct device *dev)
 	return ' ';
 }
 
+/*
+ *	Wow, a bit of data hiding. Is this C++ or what ?
+ */
+int ax25_dev_get_value(struct device *dev, int valueno)
+{
+	int i;
+
+	for (i = 0; i < AX25_MAX_DEVICES; i++)
+		if (ax25_device[i].dev != NULL && ax25_device[i].dev == dev)
+			return ax25_device[i].values[valueno];
+	
+	printk(KERN_WARNING "ax25_dev_get_value called with invalid device\n");
+
+	return 0;
+}
+
+/*
+ *	This is called when an interface is brought up. These are
+ *	reasonable defaults.
+ */
+void ax25_dev_device_up(struct device *dev)
+{
+	struct ax25_dev *ax25_dev = NULL;
+	int i;
+	
+	for (i = 0; i < AX25_MAX_DEVICES; i++) {
+		if (ax25_device[i].dev == NULL) {
+			ax25_dev = ax25_device + i;
+			break;
+		}
+	}
+
+	if (ax25_dev == NULL) {
+		printk(KERN_ERR "ax25_dev_device_up cannot find free AX.25 device\n");
+		return;
+	}
+
+	ax25_unregister_sysctl();
+
+	sprintf(ax25_dev->name, "%s.parms", dev->name);
+
+	ax25_dev->dev = dev;
+
+	ax25_dev->values[AX25_VALUES_IPDEFMODE] = AX25_DEF_IPDEFMODE;
+	ax25_dev->values[AX25_VALUES_AXDEFMODE] = AX25_DEF_AXDEFMODE;
+	ax25_dev->values[AX25_VALUES_TEXT]      = AX25_DEF_TEXT;
+	ax25_dev->values[AX25_VALUES_BACKOFF]   = AX25_DEF_BACKOFF;
+	ax25_dev->values[AX25_VALUES_CONMODE]   = AX25_DEF_CONMODE;
+	ax25_dev->values[AX25_VALUES_WINDOW]    = AX25_DEF_WINDOW;
+	ax25_dev->values[AX25_VALUES_EWINDOW]   = AX25_DEF_EWINDOW;
+	ax25_dev->values[AX25_VALUES_T1]        = AX25_DEF_T1;
+	ax25_dev->values[AX25_VALUES_T2]        = AX25_DEF_T2;
+	ax25_dev->values[AX25_VALUES_T3]        = AX25_DEF_T3;
+	ax25_dev->values[AX25_VALUES_IDLE]	= AX25_DEF_IDLE;
+	ax25_dev->values[AX25_VALUES_N2]        = AX25_DEF_N2;
+	ax25_dev->values[AX25_VALUES_DIGI]      = AX25_DEF_DIGI;
+	ax25_dev->values[AX25_VALUES_PACLEN]	= AX25_DEF_PACLEN;
+	ax25_dev->values[AX25_VALUES_MAXQUEUE]	= AX25_DEF_MAXQUEUE;
+
+	ax25_register_sysctl();
+}
+
+void ax25_dev_device_down(struct device *dev)
+{
+	int i;
+
+	ax25_unregister_sysctl();
+
+	for (i = 0; i < AX25_MAX_DEVICES; i++)
+		if (ax25_device[i].dev != NULL && ax25_device[i].dev == dev)
+			ax25_device[i].dev = NULL;
+
+	ax25_register_sysctl();
+}
+      
+#ifdef MODULE
+
+/*
+ *    Free all memory associated with routing and device structures.
+ */
+void ax25_rt_free(void)
+{
+	struct ax25_route *s, *ax25_rt = ax25_route;
+  
+	while (ax25_rt != NULL) {
+		s       = ax25_rt;
+		ax25_rt = ax25_rt->next;
+
+		if (s->digipeat != NULL)
+			kfree_s(s->digipeat, sizeof(ax25_digi));
+
+		kfree_s(s, sizeof(struct ax25_route));
+	}
+}
+
 #endif
+
+#endif
+            

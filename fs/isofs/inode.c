@@ -1,18 +1,14 @@
 /*
  *  linux/fs/isofs/inode.c
  * 
- *  (C) 1992, 1993, 1994  Eric Youngdale Modified for ISO9660 filesystem.
- *
  *  (C) 1991  Linus Torvalds - minix filesystem
+ *      1992, 1993, 1994  Eric Youngdale Modified for ISO9660 filesystem.
+ *      1994  Eberhard Moenkeberg - multi session handling.
+ *      1995  Mark Dobie - allow mounting of some weird VideoCDs and PhotoCDs.
+ *
  */
 
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#else
-#define MOD_INC_USE_COUNT
-#define MOD_DEC_USE_COUNT
-#endif
 
 #include <linux/stat.h>
 #include <linux/sched.h>
@@ -27,7 +23,13 @@
 #include <linux/cdrom.h>
 
 #include <asm/system.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
+
+/*
+ * We have no support for "multi volume" CDs, but more and more disks carry
+ * wrong information within the volume descriptors.
+ */
+#define IGNORE_WRONG_MULTI_VOLUME_SPECS
 
 #ifdef LEAK_CHECK
 static int check_malloc = 0;
@@ -64,6 +66,7 @@ struct iso9660_options{
   char rock;
   char cruft;
   char unhide;
+  unsigned char check;
   unsigned char conversion;
   unsigned int blocksize;
   mode_t mode;
@@ -79,6 +82,7 @@ static int parse_options(char *options, struct iso9660_options * popt)
 	popt->rock = 'y';
 	popt->cruft = 'n';
 	popt->unhide = 'n';
+	popt->check = 's';		/* default: strict */
 	popt->conversion = 'b';		/* default: no conversion */
 	popt->blocksize = 1024;
 	popt->mode = S_IRUGO;
@@ -89,15 +93,15 @@ static int parse_options(char *options, struct iso9660_options * popt)
 	        if (strncmp(this_char,"norock",6) == 0) {
 		  popt->rock = 'n';
 		  continue;
-		};
+		}
 	        if (strncmp(this_char,"unhide",6) == 0) {
 		  popt->unhide = 'y';
 		  continue;
-		};
+		}
 	        if (strncmp(this_char,"cruft",5) == 0) {
 		  popt->cruft = 'y';
 		  continue;
-		};
+		}
 		if ((value = strchr(this_char,'=')) != NULL)
 			*value++ = 0;
 		if (!strcmp(this_char,"map") && value) {
@@ -105,6 +109,13 @@ static int parse_options(char *options, struct iso9660_options * popt)
 				popt->map = *value;
 			else if (!strcmp(value,"off")) popt->map = 'o';
 			else if (!strcmp(value,"normal")) popt->map = 'n';
+			else return 0;
+		}
+		else if (!strcmp(this_char,"check") && value) {
+			if (value[0] && !value[1] && strchr("rs",*value))
+				popt->check = *value;
+			else if (!strcmp(value,"relaxed")) popt->check = 'r';
+			else if (!strcmp(value,"strict")) popt->check = 's';
 			else return 0;
 		}
 		else if (!strcmp(this_char,"conv") && value) {
@@ -128,11 +139,13 @@ static int parse_options(char *options, struct iso9660_options * popt)
 		    if(*vpnt <  '0' || *vpnt > '9') break;
 		    ivalue = ivalue * 10 + (*vpnt - '0');
 		    vpnt++;
-		  };
+		  }
 		  if (*vpnt) return 0;
 		  switch(*this_char) {
 		  case 'b':
-		    if (ivalue != 1024 && ivalue != 2048) return 0;
+		    if (   ivalue != 512 
+			&& ivalue != 1024 
+			&& ivalue != 2048) return 0;
 		    popt->blocksize = ivalue;
 		    break;
 		  case 'u':
@@ -146,13 +159,30 @@ static int parse_options(char *options, struct iso9660_options * popt)
 		    break;
 		  }
 		}
-		else return 0;
+		else return 1;
 	}
 	return 1;
 }
 
+/*
+ * look if the driver can tell the multi session redirection value
+ *
+ * don't change this if you don't know what you do, please!
+ * Multisession is legal only with XA disks.
+ * A non-XA disk with more than one volume descriptor may do it right, but
+ * usually is written in a nowhere standardized "multi-partition" manner.
+ * Multisession uses absolute addressing (solely the first frame of the whole
+ * track is #0), multi-partition uses relative addressing (each first frame of
+ * each track is #0), and a track is not a session.
+ *
+ * A broken CDwriter software or drive firmware does not set new standards,
+ * at least not if conflicting with the existing ones.
+ * 
+ * emoenke@gwdg.de
+ */
+#define WE_OBEY_THE_WRITTEN_STANDARDS 1
 
-static unsigned int isofs_get_last_session(int dev)
+static unsigned int isofs_get_last_session(kdev_t dev)
 {
   struct cdrom_multisession ms_info;
   unsigned int vol_desc_start;
@@ -160,10 +190,6 @@ static unsigned int isofs_get_last_session(int dev)
   extern struct file_operations * get_blkfops(unsigned int);
   int i;
 
-  /*
-   * look if the driver can tell the multi session redirection value
-   * <emoenke@gwdg.de>
-   */
   vol_desc_start=0;
   if (get_blkfops(MAJOR(dev))->ioctl!=NULL)
     {
@@ -183,7 +209,11 @@ static unsigned int isofs_get_last_session(int dev)
 	  printk("isofs.inode: vol_desc_start = %d\n", ms_info.addr.lba);
 	}
 #endif 0
-      if ((i==0)&&(ms_info.xa_flag)) vol_desc_start=ms_info.addr.lba;
+      if (i==0)
+#if WE_OBEY_THE_WRITTEN_STANDARDS
+        if (ms_info.xa_flag) /* necessary for a valid ms_info.addr */
+#endif WE_OBEY_THE_WRITTEN_STANDARDS
+          vol_desc_start=ms_info.addr.lba;
     }
   return vol_desc_start;
 }
@@ -195,8 +225,9 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	int iso_blknum;
 	unsigned int blocksize_bits;
 	int high_sierra;
-	int dev=s->s_dev;
+	kdev_t dev = s->s_dev;
 	unsigned int vol_desc_start;
+	int orig_zonesize;
 
 	struct iso_volume_descriptor *vdp;
 	struct hs_volume_descriptor *hdp;
@@ -219,6 +250,7 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 #if 0
 	printk("map = %c\n", opt.map);
 	printk("rock = %c\n", opt.rock);
+	printk("check = %c\n", opt.check);
 	printk("cruft = %c\n", opt.cruft);
 	printk("unhide = %c\n", opt.unhide);
 	printk("conversion = %c\n", opt.conversion);
@@ -233,8 +265,8 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	  while (i != 1){
 	    blocksize_bits++;
 	    i >>=1;
-	  };
-	};
+	  }
+	}
 	set_blocksize(dev, opt.blocksize);
 
 	lock_super(s);
@@ -243,14 +275,15 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 
 	vol_desc_start = isofs_get_last_session(dev);
 	
-	for (iso_blknum = vol_desc_start+16; iso_blknum < vol_desc_start+100; iso_blknum++) {
-#if 0
-	        printk("isofs.inode: iso_blknum=%d\n", iso_blknum);
-#endif 0
-		if (!(bh = bread(dev, iso_blknum << (ISOFS_BLOCK_BITS-blocksize_bits), opt.blocksize))) {
-			s->s_dev=0;
-			printk("isofs_read_super: bread failed, dev 0x%x iso_blknum %d\n",
-			       dev, iso_blknum);
+	for (iso_blknum = vol_desc_start+16;
+             iso_blknum < vol_desc_start+100; iso_blknum++) {
+                int b = iso_blknum << (ISOFS_BLOCK_BITS-blocksize_bits);
+
+		if (!(bh = bread(dev,b,opt.blocksize))) {
+			s->s_dev = 0;
+			printk("isofs_read_super: bread failed, dev "
+			       "%s iso_blknum %d block %d\n",
+			       kdevname(dev), iso_blknum, b);
 			unlock_super(s);
 			MOD_DEC_USE_COUNT;
 			return NULL;
@@ -271,7 +304,7 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 		        opt.rock = 'n';
 		        h_pri = (struct hs_primary_descriptor *)vdp;
 			break;
-		};
+		}
 		
 		if (strncmp (vdp->id, ISO_STANDARD_ID, sizeof vdp->id) == 0) {
 		  if (isonum_711 (vdp->type) != ISO_VD_PRIMARY)
@@ -281,7 +314,7 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 		
 		        pri = (struct iso_primary_descriptor *)vdp;
 			break;
-	        };
+	        }
 
 		brelse(bh);
 	      }
@@ -292,24 +325,27 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 		unlock_super(s);
 		MOD_DEC_USE_COUNT;
 		return NULL;
-	};
-	
+	}
 	
 	if(high_sierra){
 	  rootp = (struct iso_directory_record *) h_pri->root_directory_record;
+#ifndef IGNORE_WRONG_MULTI_VOLUME_SPECS
 	  if (isonum_723 (h_pri->volume_set_size) != 1) {
-	    printk("Multi-volume disks not (yet) supported.\n");
+	    printk("Multi-volume disks not supported.\n");
 	    goto out;
-	  };
+	  }
+#endif IGNORE_WRONG_MULTI_VOLUME_SPECS
 	  s->u.isofs_sb.s_nzones = isonum_733 (h_pri->volume_space_size);
 	  s->u.isofs_sb.s_log_zone_size = isonum_723 (h_pri->logical_block_size);
 	  s->u.isofs_sb.s_max_size = isonum_733(h_pri->volume_space_size);
 	} else {
 	  rootp = (struct iso_directory_record *) pri->root_directory_record;
+#ifndef IGNORE_WRONG_MULTI_VOLUME_SPECS
 	  if (isonum_723 (pri->volume_set_size) != 1) {
-	    printk("Multi-volume disks not (yet) supported.\n");
+	    printk("Multi-volume disks not supported.\n");
 	    goto out;
-	  };
+	  }
+#endif IGNORE_WRONG_MULTI_VOLUME_SPECS
 	  s->u.isofs_sb.s_nzones = isonum_733 (pri->volume_space_size);
 	  s->u.isofs_sb.s_log_zone_size = isonum_723 (pri->logical_block_size);
 	  s->u.isofs_sb.s_max_size = isonum_733(pri->volume_space_size);
@@ -319,6 +355,7 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	
 	/* RDE: convert log zone size to bit shift */
 
+	orig_zonesize = s -> u.isofs_sb.s_log_zone_size;
 	switch (s -> u.isofs_sb.s_log_zone_size)
 	  { case  512: s -> u.isofs_sb.s_log_zone_size =  9; break;
 	    case 1024: s -> u.isofs_sb.s_log_zone_size = 10; break;
@@ -331,7 +368,8 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 
 	/* RDE: data zone now byte offset! */
 
-	s->u.isofs_sb.s_firstdatazone = (isonum_733( rootp->extent) 
+	s->u.isofs_sb.s_firstdatazone = ((isonum_733 (rootp->extent) + 
+					   isonum_711 (rootp->ext_attr_length))
 					 << s -> u.isofs_sb.s_log_zone_size);
 	s->s_magic = ISOFS_SUPER_MAGIC;
 	
@@ -344,20 +382,42 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	
 	brelse(bh);
 	
-	printk("Max size:%ld   Log zone size:%ld\n",
+	printk(KERN_DEBUG "Max size:%ld   Log zone size:%ld\n",
 	       s->u.isofs_sb.s_max_size, 
 	       1UL << s->u.isofs_sb.s_log_zone_size);
-	printk("First datazone:%ld   Root inode number %d\n",
+	printk(KERN_DEBUG "First datazone:%ld   Root inode number %d\n",
 	       s->u.isofs_sb.s_firstdatazone >> s -> u.isofs_sb.s_log_zone_size,
-	       isonum_733 (rootp->extent) << s -> u.isofs_sb.s_log_zone_size);
-	if(high_sierra) printk("Disc in High Sierra format.\n");
+	       (isonum_733(rootp->extent) + isonum_711(rootp->ext_attr_length))
+			<< s -> u.isofs_sb.s_log_zone_size);
+	if(high_sierra) printk(KERN_DEBUG "Disc in High Sierra format.\n");
 	unlock_super(s);
 	/* set up enough so that it can read an inode */
 	
+	/*
+	 * Force the blocksize to 512 for 512 byte sectors.  The file
+	 * read primitives really get it wrong in a bad way if we don't
+	 * do this.
+	 */
+	if( orig_zonesize < opt.blocksize )
+	  {
+	    opt.blocksize = orig_zonesize;
+	    blocksize_bits = 0;
+	    {
+	      int i = opt.blocksize;
+	      while (i != 1){
+		blocksize_bits++;
+		i >>=1;
+	      }
+	    }
+	    set_blocksize(dev, opt.blocksize);
+	    printk(KERN_DEBUG "Forcing new log zone size:%d\n", opt.blocksize);
+	  }
+
 	s->s_dev = dev;
 	s->s_op = &isofs_sops;
 	s->u.isofs_sb.s_mapping = opt.map;
 	s->u.isofs_sb.s_rock = (opt.rock == 'y' ? 1 : 0);
+	s->u.isofs_sb.s_name_check = opt.check;
 	s->u.isofs_sb.s_conversion = opt.conversion;
 	s->u.isofs_sb.s_cruft = opt.cruft;
 	s->u.isofs_sb.s_unhide = opt.unhide;
@@ -370,11 +430,13 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	s->u.isofs_sb.s_mode = opt.mode & 0777;
 	s->s_blocksize = opt.blocksize;
 	s->s_blocksize_bits = blocksize_bits;
-	s->s_mounted = iget(s, isonum_733 (rootp->extent) << s -> u.isofs_sb.s_log_zone_size);
+	s->s_mounted = iget(s, (isonum_733(rootp->extent) + 
+			    isonum_711(rootp->ext_attr_length))
+				<< s -> u.isofs_sb.s_log_zone_size);
 	unlock_super(s);
 
 	if (!(s->s_mounted)) {
-		s->s_dev=0;
+		s->s_dev = 0;
 		printk("get root inode failed\n");
 		MOD_DEC_USE_COUNT;
 		return NULL;
@@ -396,14 +458,15 @@ void isofs_statfs (struct super_block *sb, struct statfs *buf, int bufsiz)
 	struct statfs tmp;
 
 	tmp.f_type = ISOFS_SUPER_MAGIC;
-	tmp.f_bsize = 1 << ISOFS_BLOCK_BITS;
-	tmp.f_blocks = sb->u.isofs_sb.s_nzones;
+	tmp.f_bsize = sb->s_blocksize;
+	tmp.f_blocks = (sb->u.isofs_sb.s_nzones
+                  << (sb->u.isofs_sb.s_log_zone_size - sb->s_blocksize_bits));
 	tmp.f_bfree = 0;
 	tmp.f_bavail = 0;
 	tmp.f_files = sb->u.isofs_sb.s_ninodes;
 	tmp.f_ffree = 0;
 	tmp.f_namelen = NAME_MAX;
-	memcpy_tofs(buf, &tmp, bufsiz);
+	copy_to_user(buf, &tmp, bufsiz);
 }
 
 int isofs_bmap(struct inode * inode,int block)
@@ -416,6 +479,17 @@ int isofs_bmap(struct inode * inode,int block)
 	return (inode->u.isofs_i.i_first_extent >> ISOFS_BUFFER_BITS(inode)) + block;
 }
 
+
+static void test_and_set_uid(uid_t *p, uid_t value)
+{
+	if(value) {
+		*p = value;
+#if 0
+		printk("Resetting to %d\n", value);
+#endif
+	}
+}
+
 void isofs_read_inode(struct inode * inode)
 {
 	unsigned long bufsize = ISOFS_BUFFER_SIZE(inode);
@@ -425,6 +499,7 @@ void isofs_read_inode(struct inode * inode)
 	void *cpnt = NULL;
 	int high_sierra;
 	int block;
+	int volume_seq_no ;
 	int i;
 
 	block = inode->i_ino >> ISOFS_BUFFER_BITS(inode);
@@ -485,8 +560,8 @@ void isofs_read_inode(struct inode * inode)
 	inode->i_size = isonum_733 (raw_inode->size);
 
 	/* There are defective discs out there - we do this to protect
-	   ourselves.  A cdrom will never contain more than 700Mb */
-	if((inode->i_size < 0 || inode->i_size > 700000000) &&
+	   ourselves.  A cdrom will never contain more than 800Mb */
+	if((inode->i_size < 0 || inode->i_size > 800000000) &&
 	    inode->i_sb->u.isofs_sb.s_cruft == 'n') {
 	  printk("Warning: defective cdrom.  Enabling \"cruft\" mount option.\n");
 	  inode->i_sb->u.isofs_sb.s_cruft = 'y';
@@ -553,8 +628,11 @@ void isofs_read_inode(struct inode * inode)
 /* Now test for possible Rock Ridge extensions which will override some of
    these numbers in the inode structure. */
 
-	if (!high_sierra)
+	if (!high_sierra) {
 	  parse_rock_ridge_inode(raw_inode, inode);
+	  /* hmm..if we want uid or gid set, override the rock ridge setting */
+	 test_and_set_uid(&inode->i_uid, inode->i_sb->u.isofs_sb.s_uid);
+	}
 	
 #ifdef DEBUG
 	printk("Inode: %x extent: %x\n",inode->i_ino, inode->u.isofs_i.i_first_extent);
@@ -563,18 +641,28 @@ void isofs_read_inode(struct inode * inode)
 	
 	inode->i_op = NULL;
 
-	/* A volume number of 0 is nonsense.  Disable checking if we see
-	   this */
+	/* get the volume sequence number */
+	volume_seq_no = isonum_723 (raw_inode->volume_sequence_number) ;
+
+	/* 
+	 * Disable checking if we see any volume number other than 0 or 1.
+	 * We could use the cruft option, but that has multiple purposes, one
+	 * of which is limiting the file size to 16Mb.  Thus we silently allow
+	 * volume numbers of 0 to go through without complaining.
+	 */
 	if (inode->i_sb->u.isofs_sb.s_cruft == 'n' && 
-	    isonum_723 (raw_inode->volume_sequence_number) == 0) {
-	  printk("Warning: defective cdrom.  Enabling \"cruft\" mount option.\n");
+	    (volume_seq_no != 0) && (volume_seq_no != 1)) {
+	  printk("Warning: defective cdrom (volume sequence number). Enabling \"cruft\" mount option.\n");
 	  inode->i_sb->u.isofs_sb.s_cruft = 'y';
 	}
 
+#ifndef IGNORE_WRONG_MULTI_VOLUME_SPECS
 	if (inode->i_sb->u.isofs_sb.s_cruft != 'y' && 
-	    isonum_723 (raw_inode->volume_sequence_number) != 1) {
+	    (volume_seq_no != 0) && (volume_seq_no != 1)) {
 		printk("Multi volume CD somehow got mounted.\n");
-	} else {
+	} else
+#endif IGNORE_WRONG_MULTI_VOLUME_SPECS
+	{
 	  if (S_ISREG(inode->i_mode))
 	    inode->i_op = &isofs_file_inode_operations;
 	  else if (S_ISDIR(inode->i_mode))
@@ -639,7 +727,7 @@ int isofs_lookup_grandparent(struct inode * parent, int extent)
 	struct iso_directory_record * de;
 	
 	offset = 0;
-	block = extent << (ISOFS_BLOCK_BITS - bufbits);
+	block = extent << (ISOFS_ZONE_BITS(parent) - bufbits);
 	if (!(bh = bread(parent->i_dev, block, bufsize)))  return -1;
 	
 	while (1 == 1) {
@@ -647,6 +735,7 @@ int isofs_lookup_grandparent(struct inode * parent, int extent)
 		if (*((unsigned char *) de) == 0) 
 		{
 			brelse(bh);
+			printk("Directory .. not found\n");
 			return -1;
 		}
 		
@@ -676,9 +765,11 @@ int isofs_lookup_grandparent(struct inode * parent, int extent)
 	result = -1;
 
 	offset = 0;
-	block = parent_dir << (ISOFS_BLOCK_BITS - bufbits);
+	block = parent_dir << (ISOFS_ZONE_BITS(parent) - bufbits);
 	if (!block || !(bh = bread(parent->i_dev,block, bufsize)))
+	{
 		return -1;
+	}
 	
 	for(;;)
 	{
@@ -696,11 +787,19 @@ int isofs_lookup_grandparent(struct inode * parent, int extent)
 			block++;
 			directory_size -= bufsize;
 			if(directory_size < 0) return -1;
-			if((block & 1) && (ISOFS_BLOCK_BITS - bufbits))
-			  return -1;
+			if((block & 1) && (ISOFS_ZONE_BITS(parent) - bufbits) == 1)
+			{
+				return -1;
+			}
+			if((block & 3) && (ISOFS_ZONE_BITS(parent) - bufbits) == 2)
+			{
+				return -1;
+			}
 			if (!block
 			    || !(bh = bread(parent->i_dev,block, bufsize)))
+			{
 				return -1;
+			}
 			continue;
 		}
 		
@@ -722,12 +821,16 @@ int isofs_lookup_grandparent(struct inode * parent, int extent)
 			brelse(bh);
 			offset -= bufsize;
  			directory_size -= bufsize;
-			if(directory_size < 0) return -1;
+			if(directory_size < 0) 
+			{
+				printk("Directory size < 0\n");
+				return -1;
+			}
 			block++;
 			if(!(bh = bread(parent->i_dev,block,bufsize))) {
  			        kfree(cpnt);
 				return -1;
-			};
+			}
  			memcpy((char *)cpnt+frag1, bh->b_data, offset);
 		}
 		
@@ -787,18 +890,23 @@ void leak_check_brelse(struct buffer_head * bh){
 
 #endif
 
-#ifdef MODULE
-
-char kernel_version[] = UTS_RELEASE;
-
 static struct file_system_type iso9660_fs_type = {
 	isofs_read_super, "iso9660", 1, NULL
 };
 
+int init_iso9660_fs(void)
+{
+        return register_filesystem(&iso9660_fs_type);
+}
+
+#ifdef MODULE
 int init_module(void)
 {
-	register_filesystem(&iso9660_fs_type);
-	return 0;
+	int status;
+
+	if ((status = init_iso9660_fs()) == 0)
+		register_symtab(0);
+	return status;
 }
 
 void cleanup_module(void)

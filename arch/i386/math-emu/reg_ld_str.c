@@ -3,9 +3,9 @@
  |                                                                           |
  | All of the functions which transfer data between user memory and FPU_REGs.|
  |                                                                           |
- | Copyright (C) 1992,1993,1994                                              |
- |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ | Copyright (C) 1992,1993,1994,1996                                         |
+ |                  W. Metzenthen, 22 Parker St, Ormond, Vic 3163, Australia |
+ |                  E-mail   billm@jacobi.maths.monash.edu.au                |
  |                                                                           |
  |                                                                           |
  +---------------------------------------------------------------------------*/
@@ -17,7 +17,7 @@
  |    other processes using the emulator while swapping is in progress.      |
  +---------------------------------------------------------------------------*/
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include "fpu_system.h"
 #include "exception.h"
@@ -48,9 +48,9 @@ int reg_load_extended(long double *s, FPU_REG *loaded_data)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_READ, s, 10);
-  sigl = get_fs_long((unsigned long *) s);
-  sigh = get_fs_long(1 + (unsigned long *) s);
-  exp = get_fs_word(4 + (unsigned short *) s);
+  get_user(sigl, (unsigned long *) s);
+  get_user(sigh, 1 + (unsigned long *) s);
+  get_user(exp, 4 + (unsigned short *) s);
   RE_ENTRANT_CHECK_ON;
 
   loaded_data->tag = TW_Valid;   /* Default */
@@ -144,8 +144,8 @@ int reg_load_double(double *dfloat, FPU_REG *loaded_data)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_READ, dfloat, 8);
-  m64 = get_fs_long(1 + (unsigned long *) dfloat);
-  l64 = get_fs_long((unsigned long *) dfloat);
+  get_user(m64, 1 + (unsigned long *) dfloat);
+  get_user(l64, (unsigned long *) dfloat);
   RE_ENTRANT_CHECK_ON;
 
   if (m64 & 0x80000000)
@@ -221,7 +221,7 @@ int reg_load_single(float *single, FPU_REG *loaded_data)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_READ, single, 4);
-  m32 = get_fs_long((unsigned long *) single);
+  get_user(m32, (unsigned long *) single);
   RE_ENTRANT_CHECK_ON;
 
   if (m32 & 0x80000000)
@@ -289,8 +289,7 @@ void reg_load_int64(long long *_s, FPU_REG *loaded_data)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_READ, _s, 8);
-  ((unsigned long *)&s)[0] = get_fs_long((unsigned long *) _s);
-  ((unsigned long *)&s)[1] = get_fs_long(1 + (unsigned long *) _s);
+  copy_from_user(&s,_s,8);
   RE_ENTRANT_CHECK_ON;
 
   if (s == 0)
@@ -320,7 +319,7 @@ void reg_load_int32(long *_s, FPU_REG *loaded_data)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_READ, _s, 4);
-  s = (long)get_fs_long((unsigned long *) _s);
+  get_user(s, _s);
   RE_ENTRANT_CHECK_ON;
 
   if (s == 0)
@@ -351,7 +350,7 @@ void reg_load_int16(short *_s, FPU_REG *loaded_data)
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_READ, _s, 2);
   /* Cast as short to get the sign extended. */
-  s = (short)get_fs_word((unsigned short *) _s);
+  get_user(s, _s);
   RE_ENTRANT_CHECK_ON;
 
   if (s == 0)
@@ -389,7 +388,7 @@ void reg_load_bcd(char *s, FPU_REG *loaded_data)
     {
       l *= 10;
       RE_ENTRANT_CHECK_OFF;
-      bcd = (unsigned char)get_fs_byte((unsigned char *) s+pos);
+      get_user(bcd, (unsigned char *) s+pos);
       RE_ENTRANT_CHECK_ON;
       l += bcd >> 4;
       l *= 10;
@@ -397,9 +396,11 @@ void reg_load_bcd(char *s, FPU_REG *loaded_data)
     }
  
   RE_ENTRANT_CHECK_OFF;
-  loaded_data->sign =
-    ((unsigned char)get_fs_byte((unsigned char *) s+9)) & 0x80 ?
-      SIGN_NEG : SIGN_POS;
+  {
+    unsigned char sign;
+    get_user(sign, (unsigned char *) s+9);
+    loaded_data->sign = (sign & 0x80) ? SIGN_NEG : SIGN_POS;
+  }
   RE_ENTRANT_CHECK_ON;
 
   if (l == 0)
@@ -445,9 +446,9 @@ int reg_store_extended(long double *d, FPU_REG *st0_ptr)
       /* Put out the QNaN indefinite */
       RE_ENTRANT_CHECK_OFF;
       FPU_verify_area(VERIFY_WRITE,d,10);
-      put_fs_long(0, (unsigned long *) d);
-      put_fs_long(0xc0000000, 1 + (unsigned long *) d);
-      put_fs_word(0xffff, 4 + (short *) d);
+      put_user(0, (unsigned long *) d);
+      put_user(0xc0000000, 1 + (unsigned long *) d);
+      put_user(0xffff, 4 + (short *) d);
       RE_ENTRANT_CHECK_ON;
       return 1;
     }
@@ -466,6 +467,7 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 
   if (st0_tag == TW_Valid)
     {
+      int precision_loss;
       int exp;
       FPU_REG tmp;
 
@@ -474,8 +476,6 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 
       if ( exp < DOUBLE_Emin )     /* It may be a denormal */
 	{
-	  int precision_loss;
-
 	  /* A denormal will always underflow. */
 #ifndef PECULIAR_486
 	  /* An 80486 is supposed to be able to generate
@@ -518,6 +518,7 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 	{
 	  if ( tmp.sigl & 0x000007ff )
 	    {
+	      precision_loss = 1;
 	      switch (control_word & CW_RC)
 		{
 		case RC_RND:
@@ -541,8 +542,6 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 	  
 	      if ( increment )
 		{
-		  set_precision_flag_up();
-
 		  if ( tmp.sigl >= 0xfffff800 )
 		    {
 		      /* the sigl part overflows */
@@ -566,9 +565,9 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 		      tmp.sigl += 0x00000800;
 		    }
 		}
-	      else
-		set_precision_flag_down();
 	    }
+	  else
+	    precision_loss = 0;
 	  
 	  l[0] = (tmp.sigl >> 11) | (tmp.sigh << 21);
 	  l[1] = ((tmp.sigh >> 11) & 0xfffff);
@@ -590,6 +589,13 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 	    }
 	  else
 	    {
+	      if ( precision_loss )
+		{
+		  if ( increment )
+		    set_precision_flag_up();
+		  else
+		    set_precision_flag_down();
+		}
 	      /* Add the exponent */
 	      l[1] |= (((exp+DOUBLE_Ebias) & 0x7ff) << 20);
 	    }
@@ -631,8 +637,8 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 	  /* Put out the QNaN indefinite */
 	  RE_ENTRANT_CHECK_OFF;
 	  FPU_verify_area(VERIFY_WRITE,(void *)dfloat,8);
-	  put_fs_long(0, (unsigned long *) dfloat);
-	  put_fs_long(0xfff80000, 1 + (unsigned long *) dfloat);
+	  put_user(0, (unsigned long *) dfloat);
+	  put_user(0xfff80000, 1 + (unsigned long *) dfloat);
 	  RE_ENTRANT_CHECK_ON;
 	  return 1;
 	}
@@ -644,8 +650,8 @@ int reg_store_double(double *dfloat, FPU_REG *st0_ptr)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_WRITE,(void *)dfloat,8);
-  put_fs_long(l[0], (unsigned long *)dfloat);
-  put_fs_long(l[1], 1 + (unsigned long *)dfloat);
+  put_user(l[0], (unsigned long *)dfloat);
+  put_user(l[1], 1 + (unsigned long *)dfloat);
   RE_ENTRANT_CHECK_ON;
 
   return 1;
@@ -661,6 +667,7 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 
   if (st0_tag == TW_Valid)
     {
+      int precision_loss;
       int exp;
       FPU_REG tmp;
 
@@ -669,8 +676,6 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 
       if ( exp < SINGLE_Emin )
 	{
-	  int precision_loss;
-
 	  /* A denormal will always underflow. */
 #ifndef PECULIAR_486
 	  /* An 80486 is supposed to be able to generate
@@ -715,6 +720,7 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 	      unsigned long sigh = tmp.sigh;
 	      unsigned long sigl = tmp.sigl;
 	      
+	      precision_loss = 1;
 	      switch (control_word & CW_RC)
 		{
 		case RC_RND:
@@ -740,8 +746,6 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 	  
 	      if (increment)
 		{
-		  set_precision_flag_up();
-
 		  if ( sigh >= 0xffffff00 )
 		    {
 		      /* The sigh part overflows */
@@ -758,10 +762,11 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 		}
 	      else
 		{
-		  set_precision_flag_down();
 		  tmp.sigh &= 0xffffff00;  /* Finish the truncation */
 		}
 	    }
+	  else
+	    precision_loss = 0;
 
 	  templ = (tmp.sigh >> 8) & 0x007fffff;
 
@@ -780,7 +785,17 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 	      templ = 0x7f800000;
 	    }
 	  else
-	    templ |= ((exp+SINGLE_Ebias) & 0xff) << 23;
+	    {
+	      if ( precision_loss )
+		{
+		  if ( increment )
+		    set_precision_flag_up();
+		  else
+		    set_precision_flag_down();
+		}
+	      /* Add the exponent */
+	      templ |= ((exp+SINGLE_Ebias) & 0xff) << 23;
+	    }
 	}
     }
   else if (st0_tag == TW_Zero)
@@ -815,7 +830,7 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 	  /* Put out the QNaN indefinite */
 	  RE_ENTRANT_CHECK_OFF;
 	  FPU_verify_area(VERIFY_WRITE,(void *)single,4);
-	  put_fs_long(0xffc00000, (unsigned long *) single);
+	  put_user(0xffc00000, (unsigned long *) single);
 	  RE_ENTRANT_CHECK_ON;
 	  return 1;
 	}
@@ -834,7 +849,7 @@ int reg_store_single(float *single, FPU_REG *st0_ptr)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_WRITE,(void *)single,4);
-  put_fs_long(templ,(unsigned long *) single);
+  put_user(templ,(unsigned long *) single);
   RE_ENTRANT_CHECK_ON;
 
   return 1;
@@ -892,8 +907,7 @@ int reg_store_int64(long long *d, FPU_REG *st0_ptr)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_WRITE,(void *)d,8);
-  put_fs_long(((long *)&tll)[0],(unsigned long *) d);
-  put_fs_long(((long *)&tll)[1],1 + (unsigned long *) d);
+  copy_to_user(d, &tll, 8);
   RE_ENTRANT_CHECK_ON;
 
   return 1;
@@ -947,7 +961,7 @@ int reg_store_int32(long *d, FPU_REG *st0_ptr)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_WRITE,d,4);
-  put_fs_long(t.sigl, (unsigned long *) d);
+  put_user(t.sigl, (unsigned long *) d);
   RE_ENTRANT_CHECK_ON;
 
   return 1;
@@ -1001,7 +1015,7 @@ int reg_store_int16(short *d, FPU_REG *st0_ptr)
 
   RE_ENTRANT_CHECK_OFF;
   FPU_verify_area(VERIFY_WRITE,d,2);
-  put_fs_word((short)t.sigl,(short *) d);
+  put_user((short)t.sigl,(short *) d);
   RE_ENTRANT_CHECK_ON;
 
   return 1;
@@ -1042,10 +1056,10 @@ int reg_store_bcd(char *d, FPU_REG *st0_ptr)
 	  RE_ENTRANT_CHECK_OFF;
 	  FPU_verify_area(VERIFY_WRITE,d,10);
 	  for ( i = 0; i < 7; i++)
-	    put_fs_byte(0, (unsigned char *) d+i); /* These bytes "undefined" */
-	  put_fs_byte(0xc0, (unsigned char *) d+7); /* This byte "undefined" */
-	  put_fs_byte(0xff, (unsigned char *) d+8);
-	  put_fs_byte(0xff, (unsigned char *) d+9);
+	    put_user(0, (unsigned char *) d+i); /* These bytes "undefined" */
+	  put_user(0xc0, (unsigned char *) d+7); /* This byte "undefined" */
+	  put_user(0xff, (unsigned char *) d+8);
+	  put_user(0xff, (unsigned char *) d+9);
 	  RE_ENTRANT_CHECK_ON;
 	  return 1;
 	}
@@ -1066,11 +1080,11 @@ int reg_store_bcd(char *d, FPU_REG *st0_ptr)
       b = div_small(&ll, 10);
       b |= (div_small(&ll, 10)) << 4;
       RE_ENTRANT_CHECK_OFF;
-      put_fs_byte(b,(unsigned char *) d+i);
+      put_user(b,(unsigned char *) d+i);
       RE_ENTRANT_CHECK_ON;
     }
   RE_ENTRANT_CHECK_OFF;
-  put_fs_byte(sign,(unsigned char *) d+9);
+  put_user(sign,(unsigned char *) d+9);
   RE_ENTRANT_CHECK_ON;
 
   return 1;
@@ -1158,13 +1172,13 @@ char *fldenv(fpu_addr_modes addr_modes, char *s)
     {
       RE_ENTRANT_CHECK_OFF;
       FPU_verify_area(VERIFY_READ, s, 0x0e);
-      control_word = get_fs_word((unsigned short *) s);
-      partial_status = get_fs_word((unsigned short *) (s+2));
-      tag_word = get_fs_word((unsigned short *) (s+4));
-      instruction_address.offset = get_fs_word((unsigned short *) (s+6));
-      instruction_address.selector = get_fs_word((unsigned short *) (s+8));
-      operand_address.offset = get_fs_word((unsigned short *) (s+0x0a));
-      operand_address.selector = get_fs_word((unsigned short *) (s+0x0c));
+      get_user(control_word, (unsigned short *) s);
+      get_user(partial_status, (unsigned short *) (s+2));
+      get_user(tag_word, (unsigned short *) (s+4));
+      get_user(instruction_address.offset, (unsigned short *) (s+6));
+      get_user(instruction_address.selector, (unsigned short *) (s+8));
+      get_user(operand_address.offset, (unsigned short *) (s+0x0a));
+      get_user(operand_address.selector, (unsigned short *) (s+0x0c));
       RE_ENTRANT_CHECK_ON;
       s += 0x0e;
       if ( addr_modes.default_mode == VM86 )
@@ -1178,14 +1192,14 @@ char *fldenv(fpu_addr_modes addr_modes, char *s)
     {
       RE_ENTRANT_CHECK_OFF;
       FPU_verify_area(VERIFY_READ, s, 0x1c);
-      control_word = get_fs_word((unsigned short *) s);
-      partial_status = get_fs_word((unsigned short *) (s+4));
-      tag_word = get_fs_word((unsigned short *) (s+8));
-      instruction_address.offset = get_fs_long((unsigned long *) (s+0x0c));
-      instruction_address.selector = get_fs_word((unsigned short *) (s+0x10));
-      instruction_address.opcode = get_fs_word((unsigned short *) (s+0x12));
-      operand_address.offset = get_fs_long((unsigned long *) (s+0x14));
-      operand_address.selector = get_fs_long((unsigned long *) (s+0x18));
+      get_user(control_word, (unsigned short *) s);
+      get_user(partial_status, (unsigned short *) (s+4));
+      get_user(tag_word, (unsigned short *) (s+8));
+      get_user(instruction_address.offset, (unsigned long *) (s+0x0c));
+      get_user(instruction_address.selector, (unsigned short *) (s+0x10));
+      get_user(instruction_address.opcode, (unsigned short *) (s+0x12));
+      get_user(operand_address.offset, (unsigned long *) (s+0x14));
+      get_user(operand_address.selector, (unsigned long *) (s+0x18));
       RE_ENTRANT_CHECK_ON;
       s += 0x1c;
     }
@@ -1296,25 +1310,25 @@ char *fstenv(fpu_addr_modes addr_modes, char *d)
       RE_ENTRANT_CHECK_OFF;
       FPU_verify_area(VERIFY_WRITE,d,14);
 #ifdef PECULIAR_486
-      put_fs_long(control_word & ~0xe080, (unsigned short *) d);
+      put_user(control_word & ~0xe080, (unsigned long *) d);
 #else
-      put_fs_word(control_word, (unsigned short *) d);
+      put_user(control_word, (unsigned short *) d);
 #endif PECULIAR_486
-      put_fs_word(status_word(), (unsigned short *) (d+2));
-      put_fs_word(tag_word(), (unsigned short *) (d+4));
-      put_fs_word(instruction_address.offset, (unsigned short *) (d+6));
-      put_fs_word(operand_address.offset, (unsigned short *) (d+0x0a));
+      put_user(status_word(), (unsigned short *) (d+2));
+      put_user(tag_word(), (unsigned short *) (d+4));
+      put_user(instruction_address.offset, (unsigned short *) (d+6));
+      put_user(operand_address.offset, (unsigned short *) (d+0x0a));
       if ( addr_modes.default_mode == VM86 )
 	{
-	  put_fs_word((instruction_address.offset & 0xf0000) >> 4,
+	  put_user((instruction_address.offset & 0xf0000) >> 4,
 		      (unsigned short *) (d+8));
-	  put_fs_word((operand_address.offset & 0xf0000) >> 4,
+	  put_user((operand_address.offset & 0xf0000) >> 4,
 		      (unsigned short *) (d+0x0c));
 	}
       else
 	{
-	  put_fs_word(instruction_address.selector, (unsigned short *) (d+8));
-	  put_fs_word(operand_address.selector, (unsigned short *) (d+0x0c));
+	  put_user(instruction_address.selector, (unsigned short *) (d+8));
+	  put_user(operand_address.selector, (unsigned short *) (d+0x0c));
 	}
       RE_ENTRANT_CHECK_ON;
       d += 0x0e;
@@ -1325,24 +1339,24 @@ char *fstenv(fpu_addr_modes addr_modes, char *d)
       FPU_verify_area(VERIFY_WRITE,d,28);
 #ifdef PECULIAR_486
       /* An 80486 sets all the reserved bits to 1. */
-      put_fs_long(0xffff0040 | (control_word & ~0xe080), (unsigned long *) d);
-      put_fs_long(0xffff0000 | status_word(), (unsigned long *) (d+4));
-      put_fs_long(0xffff0000 | tag_word(), (unsigned long *) (d+8));
+      put_user(0xffff0040 | (control_word & ~0xe080), (unsigned long *) d);
+      put_user(0xffff0000 | status_word(), (unsigned long *) (d+4));
+      put_user(0xffff0000 | tag_word(), (unsigned long *) (d+8));
 #else
-      put_fs_word(control_word, (unsigned short *) d);
-      put_fs_word(status_word(), (unsigned short *) (d+4));
-      put_fs_word(tag_word(), (unsigned short *) (d+8));
+      put_user(control_word, (unsigned short *) d);
+      put_user(status_word(), (unsigned short *) (d+4));
+      put_user(tag_word(), (unsigned short *) (d+8));
 #endif PECULIAR_486
-      put_fs_long(instruction_address.offset, (unsigned long *) (d+0x0c));
-      put_fs_word(instruction_address.selector, (unsigned short *) (d+0x10));
-      put_fs_word(instruction_address.opcode, (unsigned short *) (d+0x12));
-      put_fs_long(operand_address.offset, (unsigned long *) (d+0x14));
+      put_user(instruction_address.offset, (unsigned long *) (d+0x0c));
+      put_user(instruction_address.selector, (unsigned short *) (d+0x10));
+      put_user(instruction_address.opcode, (unsigned short *) (d+0x12));
+      put_user(operand_address.offset, (unsigned long *) (d+0x14));
 #ifdef PECULIAR_486
       /* An 80486 sets all the reserved bits to 1. */
-      put_fs_word(operand_address.selector, (unsigned short *) (d+0x18));
-      put_fs_word(0xffff, (unsigned short *) (d+0x1a));
+      put_user(operand_address.selector, (unsigned short *) (d+0x18));
+      put_user(0xffff, (unsigned short *) (d+0x1a));
 #else
-      put_fs_long(operand_address.selector, (unsigned long *) (d+0x18));
+      put_user(operand_address.selector, (unsigned long *) (d+0x18));
 #endif PECULIAR_486
       RE_ENTRANT_CHECK_ON;
       d += 0x1c;
@@ -1411,8 +1425,8 @@ static void write_to_extended(FPU_REG *rp, char *d)
     {
       /* just copy the reg */
       RE_ENTRANT_CHECK_OFF;
-      put_fs_long(rp->sigl, (unsigned long *) d);
-      put_fs_long(rp->sigh, (unsigned long *) (d + 4));
+      put_user(rp->sigl, (unsigned long *) d);
+      put_user(rp->sigh, (unsigned long *) (d + 4));
       RE_ENTRANT_CHECK_ON;
     }
   else
@@ -1427,12 +1441,12 @@ static void write_to_extended(FPU_REG *rp, char *d)
       round_to_int(&tmp);
       e = 0;
       RE_ENTRANT_CHECK_OFF;
-      put_fs_long(tmp.sigl, (unsigned long *) d);
-      put_fs_long(tmp.sigh, (unsigned long *) (d + 4));
+      put_user(tmp.sigl, (unsigned long *) d);
+      put_user(tmp.sigh, (unsigned long *) (d + 4));
       RE_ENTRANT_CHECK_ON;
     }
   e |= rp->sign == SIGN_POS ? 0 : 0x8000;
   RE_ENTRANT_CHECK_OFF;
-  put_fs_word(e, (unsigned short *) (d + 8));
+  put_user(e, (unsigned short *) (d + 8));
   RE_ENTRANT_CHECK_ON;
 }

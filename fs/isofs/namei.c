@@ -6,17 +6,13 @@
  *  (C) 1991  Linus Torvalds - minix filesystem
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
 #include <linux/sched.h>
 #include <linux/iso_fs.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/stat.h>
 #include <linux/fcntl.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <linux/malloc.h>
 
 #include <linux/errno.h>
@@ -28,7 +24,7 @@
  *
  * NOTE! unlike strncmp, isofs_match returns 1 for success, 0 for failure.
  */
-static int isofs_match(int len,const char * name, char * compare, int dlen)
+static int isofs_match(int len,const char * name, const char * compare, int dlen)
 {
 	if (!compare)
 		return 0;
@@ -178,8 +174,18 @@ static struct buffer_head * isofs_find_entry(struct inode * dir,
 		      dlen--;
 		  }
 		}
-		match = isofs_match(namelen,name,dpnt,dlen);
-		if (cpnt) {
+		/*
+		 * Skip hidden or associated files unless unhide is set 
+		 */
+		match = 0;
+		if(   !(de->flags[-dir->i_sb->u.isofs_sb.s_high_sierra] & 5)
+		   || dir->i_sb->u.isofs_sb.s_unhide == 'y' )
+		{
+			match = isofs_match(namelen,name,dpnt,dlen);
+		}
+
+		if (cpnt)
+		{
 			kfree(cpnt);
 			cpnt = NULL;
 		}
@@ -193,7 +199,9 @@ static struct buffer_head * isofs_find_entry(struct inode * dir,
 					   find_rock_ridge_relocation(de,dir));
 				if(inode_number == -1){
 					/* Should never happen */
-					printk("Backlink not properly set.\n");
+					printk("Backlink not properly set %x %lx.\n",
+					       isonum_733(de->extent),
+					       dir->i_ino);
 					goto out;
 				}
 			}
@@ -232,14 +240,33 @@ int isofs_lookup(struct inode * dir,const char * name, int len,
 	if (dcache_lookup(dir, name, len, &ino)) ino_back = dir->i_ino;
 
 	if (!ino) {
-	  if (!(bh = isofs_find_entry(dir,name,len, &ino, &ino_back))) {
-	    iput(dir);
-	    return -ENOENT;
-	  }
-	  if (ino_back == dir->i_ino)
-		dcache_add(dir, name, len, ino);
-	  brelse(bh);
-	};
+		char *lcname;
+
+		/* If mounted with check=relaxed (and most likely norock),
+		   then first convert this name to lower case. */
+		if (dir->i_sb->u.isofs_sb.s_name_check == 'r'
+		    && (lcname = kmalloc(len, GFP_KERNEL)) != NULL) {
+			int i;
+			char c;
+
+			for (i=0; i<len; i++) {
+				c = name[i];
+				if (c >= 'A' && c <= 'Z') c |= 0x20;
+				lcname[i] = c;
+			}
+			bh = isofs_find_entry(dir,lcname,len, &ino, &ino_back);
+			kfree(lcname);
+		} else
+			bh = isofs_find_entry(dir,name,len, &ino, &ino_back);
+
+		if (!bh) {
+			iput(dir);
+	  		return -ENOENT;
+		}
+		if (ino_back == dir->i_ino)
+			dcache_add(dir, name, len, ino);
+		brelse(bh);
+	}
 
 	if (!(*result = iget(dir->i_sb,ino))) {
 		iput(dir);

@@ -9,110 +9,176 @@
 # parent makefile.
 #
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) $(ASFLAGS) -c -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-
 #
-# Note : at this point, these files are compiled on all systems. 
+# Note : at this point, these files are compiled on all systems.
 # In the future, some of these should be built conditionally.
 #
 
-OBJS := ll_rw_blk.o ramdisk.o genhd.o 
-SRCS := ll_rw_blk.c ramdisk.c genhd.c 
-BLOCK_MODULE_OBJS =
 
-ifdef CONFIG_BLK_DEV_FD
-OBJS := $(OBJS) floppy.o
-SRCS := $(SRCS) floppy.c
-endif
+L_TARGET := block.a
+L_OBJS   := ll_rw_blk.o genhd.o
+M_OBJS   :=
+MOD_LIST_NAME := BLOCK_MODULES
+LX_OBJS :=
+MX_OBJS :=
 
-ifdef CONFIG_CDU31A
-OBJS := $(OBJS) cdu31a.o
-SRCS := $(SRCS) cdu31a.c
-endif
-
-ifdef CONFIG_MCD
-OBJS := $(OBJS) mcd.o
-SRCS := $(SRCS) mcd.c
-endif
-
-ifdef CONFIG_AZTCD
-OBJS := $(OBJS) aztcd.o
-SRCS := $(SRCS) aztcd.c
+ifeq ($(CONFIG_BLK_DEV_FD),y)
+L_OBJS += floppy.o
 else
-BLOCK_MODULE_OBJS := $(BLOCK_MODULE_OBJS) aztcd.o
+  ifeq ($(CONFIG_BLK_DEV_FD),m)
+  M_OBJS += floppy.o
+  endif
 endif
 
-ifdef CONFIG_SBPCD
-OBJS := $(OBJS) sbpcd.o
-SRCS := $(SRCS) sbpcd.c
+ifeq ($(CONFIG_BLK_DEV_RAM),y)
+L_OBJS += rd.o
 else
-BLOCK_MODULE_OBJS := $(BLOCK_MODULE_OBJS) sbpcd.o
-endif #CONFIG_SBPCD
-
-ifdef CONFIG_SBPCD2
-OBJS := $(OBJS) sbpcd2.o
-SRCS := $(SRCS) sbpcd2.c
-endif #CONFIG_SBPCD2
-
-ifdef CONFIG_SBPCD3
-OBJS := $(OBJS) sbpcd3.o
-SRCS := $(SRCS) sbpcd3.c
-endif #CONFIG_SBPCD3
-
-ifdef CONFIG_SBPCD4
-OBJS := $(OBJS) sbpcd4.o
-SRCS := $(SRCS) sbpcd4.c
-endif #CONFIG_SBPCD4
-
-ifdef CONFIG_BLK_DEV_HD
-OBJS := $(OBJS) hd.o
-SRCS := $(SRCS) hd.c
+  ifeq ($(CONFIG_BLK_DEV_RAM),m)
+  M_OBJS += rd.o
+  endif
 endif
 
-ifdef CONFIG_BLK_DEV_IDE
-OBJS := ide.o $(OBJS)
-SRCS := ide.c $(SRCS)
-endif
-
-ifdef CONFIG_BLK_DEV_XD
-OBJS := $(OBJS) xd.o
-SRCS := $(SRCS) xd.c
-endif
-
-ifdef CONFIG_CDU535
-OBJS := $(OBJS) sonycd535.o
-SRCS := $(SRCS) sonycd535.c
+ifeq ($(CONFIG_BLK_DEV_LOOP),y)
+L_OBJS += loop.o
 else
-BLOCK_MODULE_OBJS := $(BLOCK_MODULE_OBJS) sonycd535.o
+  ifeq ($(CONFIG_BLK_DEV_LOOP),m)
+  M_OBJS += loop.o
+  endif
 endif
 
-all: block.a
-
-block.a: $(OBJS)
-	rm -f block.a
-	$(AR) rcs block.a $(OBJS)
-	sync
-
-dep:
-	$(CPP) -M $(SRCS) > .depend
-ifdef BLOCK_MODULE_OBJS
-	$(CPP) -M -DMODULE $(BLOCK_MODULE_OBJS:.o=.c) >> .depend
+ifeq ($(CONFIG_BLK_DEV_HD),y)
+L_OBJS += hd.o
 endif
 
-modules: $(BLOCK_MODULE_OBJS)
-	echo $(BLOCK_MODULE_OBJS) > ../../modules/BLOCK_MODULES
-	(cd ../../modules;for i in $(BLOCK_MODULE_OBJS); do ln -sf ../drivers/block/$$i .; done)
+ifeq ($(CONFIG_BLK_DEV_IDE),y)
+LX_OBJS += ide.o
+L_OBJS += ide-probe.o
+else
+  ifeq ($(CONFIG_BLK_DEV_IDE),m)
+  MX_OBJS += ide.o
+  M_OBJS += ide-probe.o
+  endif
+endif
 
-dummy:
+ifeq ($(CONFIG_BLK_DEV_RZ1000),y)
+L_OBJS += rz1000.o
+endif
 
+ifeq ($(CONFIG_BLK_DEV_CMD640),y)
+L_OBJS += cmd640.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_TRITON),y)
+L_OBJS += triton.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_DTC2278),y)
+L_OBJS += dtc2278.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_HT6560B),y)
+L_OBJS += ht6560b.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_QD6580),y)
+L_OBJS += qd6580.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_UMC8672),y)
+L_OBJS += umc8672.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_ALI14XX),y)
+L_OBJS += ali14xx.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_PROMISE),y)
+L_OBJS += promise.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_OPTI621),y)
+L_OBJS += opti621.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_IDEDISK),y)
+L_OBJS += ide-disk.o
+else
+  ifeq ($(CONFIG_BLK_DEV_IDEDISK),m)
+  M_OBJS += ide-disk.o
+  endif
+endif
+
+ifeq ($(CONFIG_BLK_DEV_IDECD),y)
+L_OBJS += ide-cd.o
+else
+  ifeq ($(CONFIG_BLK_DEV_IDECD),m)
+  M_OBJS += ide-cd.o
+  endif
+endif
+
+ifeq ($(CONFIG_BLK_DEV_IDETAPE),y)
+L_OBJS += ide-tape.o
+else
+  ifeq ($(CONFIG_BLK_DEV_IDETAPE),m)
+  M_OBJS += ide-tape.o
+  endif
+endif
+
+ifeq ($(CONFIG_BLK_DEV_IDEFLOPPY),y)
+L_OBJS += ide-floppy.o
+else
+  ifeq ($(CONFIG_BLK_DEV_IDEFLOPPY),m)
+  M_OBJS += ide-floppy.o
+  endif
+endif
+
+ifeq ($(CONFIG_BLK_DEV_XD),y)
+L_OBJS += xd.o
+else
+  ifeq ($(CONFIG_BLK_DEV_XD),m)
+  M_OBJS += xd.o
+  endif
+endif
+
+ifeq ($(CONFIG_BLK_DEV_MD),y)
+LX_OBJS += md.o
+
+ifeq ($(CONFIG_MD_LINEAR),y)
+L_OBJS += linear.o
+else
+  ifeq ($(CONFIG_MD_LINEAR),m)
+  M_OBJS += linear.o
+  endif
+endif
+
+ifeq ($(CONFIG_MD_STRIPED),y)
+L_OBJS += raid0.o
+else
+  ifeq ($(CONFIG_MD_STRIPED),m)
+  M_OBJS += raid0.o
+  endif
+endif
+
+#ifeq ($(CONFIG_MD_RAID1),y)
+#L_OBJS += raid1.o
+#else
+#  ifeq ($(CONFIG_MD_SUPPORT_RAID1),y)
+#    ifeq ($(CONFIG_MD_RAID1),m)
+#    M_OBJS += raid1.o
+#    endif
+#  endif
+#endif
 #
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
+#ifeq ($(CONFIG_MD_RAID5),y)
+#L_OBJS += raid5.o
+#else
+#  ifeq ($(CONFIG_MD_SUPPORT_RAID5),y)
+#    ifeq ($(CONFIG_MD_RAID5),m)
+#    M_OBJS += raid5.o
+#    endif
+#  endif
+#endif
+
 endif
+
+include $(TOPDIR)/Rules.make

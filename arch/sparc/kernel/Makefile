@@ -1,4 +1,4 @@
-#
+# $Id: Makefile,v 1.34 1996/09/21 04:07:31 davem Exp $
 # Makefile for the linux kernel.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -7,41 +7,59 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
+ifdef SMP
+
+.S.s:
+	$(CPP) -D__ASSEMBLY__ $(AFLAGS) -ansi $< -o $*.s
+
+.S.o:
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c $< -o $*.o
+
+
+else
+
 .S.s:
 	$(CPP) -D__ASSEMBLY__ -ansi $< -o $*.s
+
 .S.o:
 	$(CC) -D__ASSEMBLY__ -ansi -c $< -o $*.o
 
-OBJS  = entry.o traps.o irq.o process.o promops.o signal.o ioport.o setup.o \
-	idprom.o probe.o
+
+endif
 
 all: kernel.o head.o
 
-head.o: head.s
+O_TARGET := kernel.o
+IRQ_OBJS := irq.o sun4m_irq.o sun4c_irq.o
+O_OBJS   := entry.o wof.o wuf.o etrap.o rtrap.o traps.o ${IRQ_OBJS} \
+	    process.o signal.o ioport.o setup.o idprom.o \
+	    sys_sparc.o sunos_asm.o sparc-stub.o systbls.o sys_sunos.o  \
+	    sunos_ioctl.o time.o windows.o cpu.o devices.o \
+	    sclow.o solaris.o tadpole.o tick14.o ptrace.o sys_solaris.o \
+	    unaligned.o
 
-head.s: head.S $(TOPDIR)/include/asm-sparc/head.h
-	$(CPP) -D__ASSEMBLY__ -ansi -o $*.s $<
+OX_OBJS  := sparc_ksyms.o
 
-kernel.o: $(OBJS)
-	$(LD) -r -o kernel.o $(OBJS)
-	sync
-
-dep:
-	$(CPP) -M *.c > .depend
-
-dummy:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
+ifdef SMP
+O_OBJS += trampoline.o smp.o rirq.o
 endif
 
+ifdef CONFIG_SUN_AUXIO
+O_OBJS += auxio.o
+endif
 
+all: kernel.o head.o
+
+ifdef SMP
+
+head.o: head.S
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c $*.S -o $*.o
+
+else
+
+head.o: head.S
+	$(CC) -D__ASSEMBLY__ -ansi -c $*.S -o $*.o
+
+endif
+
+include $(TOPDIR)/Rules.make

@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#define DEBUG_PROC_TREE
+#undef DEBUG_PROC_TREE
 
 #include <linux/wait.h>
 #include <linux/errno.h>
@@ -15,56 +15,85 @@
 #include <linux/mm.h>
 #include <linux/tty.h>
 #include <linux/malloc.h>
+#include <linux/interrupt.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
+#include <asm/pgtable.h>
+
 extern void sem_exit (void);
+extern void acct_process (long exitcode);
+extern void kerneld_exit(void);
 
 int getrusage(struct task_struct *, int, struct rusage *);
 
-static int generate(unsigned long sig, struct task_struct * p)
+static inline void generate(unsigned long sig, struct task_struct * p)
 {
 	unsigned long mask = 1 << (sig-1);
-	struct sigaction * sa = sig + p->sigaction - 1;
+	struct sigaction * sa = sig + p->sig->action - 1;
 
-	/* always generate signals for traced processes ??? */
-	if (p->flags & PF_PTRACED) {
-		p->signal |= mask;
-		return 1;
+	/*
+	 * Optimize away the signal, if it's a signal that can
+	 * be handled immediately (ie non-blocked and untraced)
+	 * and that is ignored (either explicitly or by default)
+	 */
+	if (!(mask & p->blocked) && !(p->flags & PF_PTRACED)) {
+		/* don't bother with ignored signals (but SIGCHLD is special) */
+		if (sa->sa_handler == SIG_IGN && sig != SIGCHLD)
+			return;
+		/* some signals are ignored by default.. (but SIGCONT already did its deed) */
+		if ((sa->sa_handler == SIG_DFL) &&
+		    (sig == SIGCONT || sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG))
+			return;
 	}
-	/* don't bother with ignored signals (but SIGCHLD is special) */
-	if (sa->sa_handler == SIG_IGN && sig != SIGCHLD)
-		return 0;
-	/* some signals are ignored by default.. (but SIGCONT already did its deed) */
-	if ((sa->sa_handler == SIG_DFL) &&
-	    (sig == SIGCONT || sig == SIGCHLD || sig == SIGWINCH))
-		return 0;
 	p->signal |= mask;
-	return 1;
+	if (p->state == TASK_INTERRUPTIBLE && (p->signal & ~p->blocked))
+		wake_up_process(p);
 }
+
+/*
+ * Force a signal that the process can't ignore: if necessary
+ * we unblock the signal and change any SIG_IGN to SIG_DFL.
+ */
+void force_sig(unsigned long sig, struct task_struct * p)
+{
+	sig--;
+	if (p->sig) {
+		unsigned long mask = 1UL << sig;
+		struct sigaction *sa = p->sig->action + sig;
+		p->signal |= mask;
+		p->blocked &= ~mask;
+		if (sa->sa_handler == SIG_IGN)
+			sa->sa_handler = SIG_DFL;
+		if (p->state == TASK_INTERRUPTIBLE)
+			wake_up_process(p);
+	}
+}
+		
 
 int send_sig(unsigned long sig,struct task_struct * p,int priv)
 {
 	if (!p || sig > 32)
 		return -EINVAL;
 	if (!priv && ((sig != SIGCONT) || (current->session != p->session)) &&
-	    (current->euid != p->euid) && (current->euid != p->uid) && !suser())
+	    (current->euid ^ p->suid) && (current->euid ^ p->uid) &&
+	    (current->uid ^ p->suid) && (current->uid ^ p->uid) &&
+	    !suser())
 		return -EPERM;
 	if (!sig)
 		return 0;
 	/*
 	 * Forget it if the process is already zombie'd.
 	 */
-	if (p->state == TASK_ZOMBIE)
+	if (!p->sig)
 		return 0;
 	if ((sig == SIGKILL) || (sig == SIGCONT)) {
 		if (p->state == TASK_STOPPED)
-			p->state = TASK_RUNNING;
+			wake_up_process(p);
 		p->exit_code = 0;
 		p->signal &= ~( (1<<(SIGSTOP-1)) | (1<<(SIGTSTP-1)) |
 				(1<<(SIGTTIN-1)) | (1<<(SIGTTOU-1)) );
 	}
-	/* Depends on order SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU */
-	if ((sig >= SIGSTOP) && (sig <= SIGTTOU)) 
+	if (sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU)
 		p->signal &= ~(1<<(SIGCONT-1));
 	/* Actually generate the signal */
 	generate(sig,p);
@@ -73,7 +102,7 @@ int send_sig(unsigned long sig,struct task_struct * p,int priv)
 
 void notify_parent(struct task_struct * tsk)
 {
-	if (tsk->p_pptr == task[1])
+	if (tsk->p_pptr == task[smp_num_cpus])		/* Init */
 		tsk->exit_signal = SIGCHLD;
 	send_sig(tsk->exit_signal, tsk->p_pptr, 1);
 	wake_up_interruptible(&tsk->p_pptr->wait_chldexit);
@@ -94,10 +123,14 @@ void release(struct task_struct * p)
 			nr_tasks--;
 			task[i] = NULL;
 			REMOVE_LINKS(p);
+			release_thread(p);
 			if (STACK_MAGIC != *(unsigned long *)p->kernel_stack_page)
 				printk(KERN_ALERT "release: %s kernel stack corruption. Aiee\n", p->comm);
-			free_page(p->kernel_stack_page);
-			free_page((long) p);
+			free_kernel_stack(p->kernel_stack_page);
+			current->cmin_flt += p->min_flt + p->cmin_flt;
+			current->cmaj_flt += p->maj_flt + p->cmaj_flt;
+			current->cnswap += p->nswap + p->cnswap;
+			kfree(p);
 			return;
 		}
 	panic("trying to release non-existent task");
@@ -313,12 +346,12 @@ asmlinkage int sys_kill(int pid,int sig)
  * 
  * "I ask you, have you ever known what it is to be an orphan?"
  */
-int is_orphaned_pgrp(int pgrp)
+static int will_become_orphaned_pgrp(int pgrp, struct task_struct * ignored_task)
 {
 	struct task_struct *p;
 
 	for_each_task(p) {
-		if ((p->pgrp != pgrp) || 
+		if ((p == ignored_task) || (p->pgrp != pgrp) || 
 		    (p->state == TASK_ZOMBIE) ||
 		    (p->p_pptr->pid == 1))
 			continue;
@@ -329,7 +362,12 @@ int is_orphaned_pgrp(int pgrp)
 	return(1);	/* (sighing) "Often!" */
 }
 
-static int has_stopped_jobs(int pgrp)
+int is_orphaned_pgrp(int pgrp)
+{
+	return will_become_orphaned_pgrp(pgrp, 0);
+}
+
+static inline int has_stopped_jobs(int pgrp)
 {
 	struct task_struct * p;
 
@@ -342,65 +380,140 @@ static int has_stopped_jobs(int pgrp)
 	return(0);
 }
 
-static void forget_original_parent(struct task_struct * father)
+static inline void forget_original_parent(struct task_struct * father)
 {
 	struct task_struct * p;
 
 	for_each_task(p) {
 		if (p->p_opptr == father)
-			if (task[1])
-				p->p_opptr = task[1];
+			if (task[smp_num_cpus])	/* init */
+				p->p_opptr = task[smp_num_cpus];
 			else
 				p->p_opptr = task[0];
 	}
 }
 
-static void exit_files(void)
+static inline void close_files(struct files_struct * files)
 {
-	int i;
+	int i, j;
 
-	for (i=0 ; i<NR_OPEN ; i++)
-		if (current->files->fd[i])
-			sys_close(i);
-}
-
-static void exit_fs(void)
-{
-	iput(current->fs->pwd);
-	current->fs->pwd = NULL;
-	iput(current->fs->root);
-	current->fs->root = NULL;
-}
-
-NORET_TYPE void do_exit(long code)
-{
-	struct task_struct *p;
-
-	if (intr_count) {
-		printk("Aiee, killing interrupt handler\n");
-		intr_count = 0;
+	j = 0;
+	for (;;) {
+		unsigned long set = files->open_fds.fds_bits[j];
+		i = j * __NFDBITS;
+		j++;
+		if (i >= NR_OPEN)
+			break;
+		while (set) {
+			if (set & 1)
+				close_fp(files->fd[i]);
+			i++;
+			set >>= 1;
+		}
 	}
-fake_volatile:
-	current->flags |= PF_EXITING;
-	sem_exit();
-	exit_mmap(current);
-	free_page_tables(current);
-	exit_files();
-	exit_fs();
-	exit_thread();
+}
+
+static inline void __exit_files(struct task_struct *tsk)
+{
+	struct files_struct * files = tsk->files;
+
+	if (files) {
+		tsk->files = NULL;
+		if (!--files->count) {
+			close_files(files);
+			kfree(files);
+		}
+	}
+}
+
+void exit_files(struct task_struct *tsk)
+{
+  __exit_files(tsk);
+}
+
+static inline void __exit_fs(struct task_struct *tsk)
+{
+	struct fs_struct * fs = tsk->fs;
+
+	if (fs) {
+		tsk->fs = NULL;
+		if (!--fs->count) {
+			iput(fs->root);
+			iput(fs->pwd);
+			kfree(fs);
+		}
+	}
+}
+
+void exit_fs(struct task_struct *tsk)
+{
+  __exit_fs(tsk);
+}
+
+static inline void __exit_sighand(struct task_struct *tsk)
+{
+	struct signal_struct * sig = tsk->sig;
+
+	if (sig) {
+		tsk->sig = NULL;
+		if (!--sig->count) {
+			kfree(sig);
+		}
+	}
+}
+
+void exit_sighand(struct task_struct *tsk)
+{
+	__exit_sighand(tsk);
+}
+
+static inline void __exit_mm(struct task_struct * tsk)
+{
+	struct mm_struct * mm = tsk->mm;
+
+	/* Set us up to use the kernel mm state */
+	if (mm != &init_mm) {
+		flush_cache_mm(mm);
+		flush_tlb_mm(mm);
+		tsk->mm = &init_mm;
+		tsk->swappable = 0;
+		SET_PAGE_DIR(tsk, swapper_pg_dir);
+
+		/* free the old state - not used any more */
+		if (!--mm->count) {
+			exit_mmap(mm);
+			free_page_tables(mm);
+			kfree(mm);
+		}
+	}
+}
+
+void exit_mm(struct task_struct *tsk)
+{
+	__exit_mm(tsk);
+}
+
+/* 
+ * Send signals to all our closest relatives so that they know
+ * to properly mourn us..
+ */
+static void exit_notify(void)
+{
+	struct task_struct * p;
+
 	forget_original_parent(current);
 	/* 
 	 * Check to see if any process groups have become orphaned
 	 * as a result of our exiting, and if they have any stopped
-	 * jobs, send them a SIGUP and then a SIGCONT.  (POSIX 3.2.2.2)
+	 * jobs, send them a SIGHUP and then a SIGCONT.  (POSIX 3.2.2.2)
 	 *
 	 * Case i: Our father is in a different pgrp than we are
 	 * and we were the only connection outside, so our pgrp
 	 * is about to become orphaned.
- 	 */
+	 */
 	if ((current->p_pptr->pgrp != current->pgrp) &&
 	    (current->p_pptr->session == current->session) &&
-	    is_orphaned_pgrp(current->pgrp) &&
+	    will_become_orphaned_pgrp(current->pgrp, current) &&
 	    has_stopped_jobs(current->pgrp)) {
 		kill_pg(current->pgrp,SIGHUP,1);
 		kill_pg(current->pgrp,SIGCONT,1);
@@ -420,8 +533,8 @@ fake_volatile:
 		current->p_cptr = p->p_osptr;
 		p->p_ysptr = NULL;
 		p->flags &= ~(PF_PTRACED|PF_TRACESYS);
-		if (task[1] && task[1] != current)
-			p->p_pptr = task[1];
+		if (task[smp_num_cpus] && task[smp_num_cpus] != current) /* init */
+			p->p_pptr = task[smp_num_cpus];
 		else
 			p->p_pptr = task[0];
 		p->p_osptr = p->p_pptr->p_cptr;
@@ -445,11 +558,28 @@ fake_volatile:
 	}
 	if (current->leader)
 		disassociate_ctty(1);
-	if (last_task_used_math == current)
-		last_task_used_math = NULL;
+}
+
+NORET_TYPE void do_exit(long code)
+{
+	if (intr_count) {
+		printk("Aiee, killing interrupt handler\n");
+		intr_count = 0;
+	}
+fake_volatile:
+	acct_process(code);
+	current->flags |= PF_EXITING;
+	del_timer(&current->real_timer);
+	sem_exit();
+	kerneld_exit();
+	__exit_mm(current);
+	__exit_files(current);
+	__exit_fs(current);
+	__exit_sighand(current);
+	exit_thread();
 	current->state = TASK_ZOMBIE;
 	current->exit_code = code;
-	current->mm->rss = 0;
+	exit_notify();
 #ifdef DEBUG_PROC_TREE
 	audit_ptree();
 #endif
@@ -486,10 +616,18 @@ asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct
 	struct task_struct *p;
 
 	if (stat_addr) {
-		flag = verify_area(VERIFY_WRITE, stat_addr, 4);
+		flag = verify_area(VERIFY_WRITE, stat_addr, sizeof(*stat_addr));
 		if (flag)
 			return flag;
 	}
+	if (ru) {
+		flag = verify_area(VERIFY_WRITE, ru, sizeof(*ru));
+		if (flag)
+			return flag;
+	}
+	if (options & ~(WNOHANG|WUNTRACED|__WCLONE))
+	    return -EINVAL;
+
 	add_wait_queue(&current->wait_chldexit,&wait);
 repeat:
 	flag=0;
@@ -514,24 +652,22 @@ repeat:
 					continue;
 				if (!(options & WUNTRACED) && !(p->flags & PF_PTRACED))
 					continue;
-				if (stat_addr)
-					put_fs_long((p->exit_code << 8) | 0x7f,
-						stat_addr);
-				p->exit_code = 0;
 				if (ru != NULL)
 					getrusage(p, RUSAGE_BOTH, ru);
+				if (stat_addr)
+					put_user((p->exit_code << 8) | 0x7f,
+						stat_addr);
+				p->exit_code = 0;
 				retval = p->pid;
 				goto end_wait4;
 			case TASK_ZOMBIE:
 				current->cutime += p->utime + p->cutime;
 				current->cstime += p->stime + p->cstime;
-				current->mm->cmin_flt += p->mm->min_flt + p->mm->cmin_flt;
-				current->mm->cmaj_flt += p->mm->maj_flt + p->mm->cmaj_flt;
 				if (ru != NULL)
 					getrusage(p, RUSAGE_BOTH, ru);
-				flag = p->pid;
 				if (stat_addr)
-					put_fs_long(p->exit_code, stat_addr);
+					put_user(p->exit_code, stat_addr);
+				retval = p->pid;
 				if (p->p_opptr != p->p_pptr) {
 					REMOVE_LINKS(p);
 					p->p_pptr = p->p_opptr;
@@ -542,7 +678,6 @@ repeat:
 #ifdef DEBUG_PROC_TREE
 				audit_ptree();
 #endif
-				retval = flag;
 				goto end_wait4;
 			default:
 				continue;
@@ -552,12 +687,11 @@ repeat:
 		retval = 0;
 		if (options & WNOHANG)
 			goto end_wait4;
-		current->state=TASK_INTERRUPTIBLE;
-		schedule();
-		current->signal &= ~(1<<(SIGCHLD-1));
 		retval = -ERESTARTSYS;
 		if (current->signal & ~current->blocked)
 			goto end_wait4;
+		current->state=TASK_INTERRUPTIBLE;
+		schedule();
 		goto repeat;
 	}
 	retval = -ECHILD;
@@ -566,6 +700,8 @@ end_wait4:
 	return retval;
 }
 
+#ifndef __alpha__
+
 /*
  * sys_waitpid() remains for compatibility. waitpid() should be
  * implemented by calling sys_wait4() from libc.a.
@@ -573,4 +709,15 @@ end_wait4:
 asmlinkage int sys_waitpid(pid_t pid,unsigned int * stat_addr, int options)
 {
 	return sys_wait4(pid, stat_addr, options, NULL);
+}
+
+#endif
+
+/*
+ * sys_wait() has been added for compatibility. wait() should be
+ * implemented by calling sys_wait4() from libc.a.
+ */
+asmlinkage int sys_wait(unsigned int * stat_addr)
+{
+	return sys_wait4(-1, stat_addr, 0, NULL);
 }

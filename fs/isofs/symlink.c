@@ -9,18 +9,14 @@
  *  extensions to iso9660
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/iso_fs.h>
 #include <linux/stat.h>
 #include <linux/malloc.h>
+
+#include <asm/uaccess.h>
 
 static int isofs_readlink(struct inode *, char *, int);
 static int isofs_follow_link(struct inode *, struct inode *, int, int, struct inode **);
@@ -41,6 +37,8 @@ struct inode_operations isofs_symlink_inode_operations = {
 	NULL,			/* rename */
 	isofs_readlink,		/* readlink */
 	isofs_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
@@ -103,7 +101,7 @@ static int isofs_readlink(struct inode * inode, char * buffer, int buflen)
 
 	while (i<buflen && (c = pnt[i])) {
 		i++;
-		put_fs_byte(c,buffer++);
+		put_user(c,buffer++);
 	}
 	kfree(pnt);
 	return i;

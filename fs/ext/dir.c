@@ -12,7 +12,7 @@
  *  ext directory handling functions
  */
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include <linux/errno.h>
 #include <linux/kernel.h>
@@ -20,7 +20,8 @@
 #include <linux/ext_fs.h>
 #include <linux/stat.h>
 
-static int ext_dir_read(struct inode * inode, struct file * filp, char * buf, int count)
+static long ext_dir_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
 	return -EISDIR;
 }
@@ -56,6 +57,8 @@ struct inode_operations ext_dir_inode_operations = {
 	ext_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	ext_truncate,		/* truncate */
 	NULL			/* permission */
@@ -95,8 +98,10 @@ static int ext_readdir(struct inode * inode, struct file * filp,
 			    de->rec_len < de->name_len + 8 ||
 			    (de->rec_len + (off_t) filp->f_pos - 1) / 1024 > ((off_t) filp->f_pos / 1024)) {
 				printk ("ext_readdir: bad dir entry, skipping\n");
-				printk ("dev=%d, dir=%ld, offset=%ld, rec_len=%d, name_len=%d\n",
-					inode->i_dev, inode->i_ino, offset, de->rec_len, de->name_len);
+				printk ("dev=%s, dir=%ld, "
+				    "offset=%ld, rec_len=%d, name_len=%d\n",
+				    kdevname(inode->i_dev), inode->i_ino,
+				    offset, de->rec_len, de->name_len);
 				filp->f_pos += 1024-offset;
 				if (filp->f_pos > inode->i_size)
 					filp->f_pos = inode->i_size;

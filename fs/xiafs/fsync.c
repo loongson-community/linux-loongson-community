@@ -8,13 +8,6 @@
  *  xiafs fsync primitive
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
-#include <asm/segment.h>
-#include <asm/system.h>
-
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/stat.h>
@@ -23,6 +16,9 @@
 
 #include <linux/fs.h>
 #include <linux/xia_fs.h>
+
+#include <asm/uaccess.h>
+#include <asm/system.h>
 
 #include "xiafs_mac.h"
 
@@ -45,11 +41,11 @@ static int sync_block (struct inode * inode, unsigned long * block, int wait)
 		brelse (bh);
 		return 1;
 	}
-	if (wait && bh->b_req && !bh->b_uptodate) {
+	if (wait && buffer_req(bh) && !buffer_uptodate(bh)) {
 		brelse(bh);
 		return -1;
 	}
-	if (wait || !bh->b_uptodate || !bh->b_dirt)
+	if (wait || !buffer_uptodate(bh) || !buffer_dirty(bh))
 	{
 		brelse(bh);
 		return 0;

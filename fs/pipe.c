@@ -4,8 +4,6 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <asm/segment.h>
-
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -14,6 +12,13 @@
 #include <linux/termios.h>
 #include <linux/mm.h>
 
+#include <asm/uaccess.h>
+
+/*
+ * Define this if you want SunOS compatibility wrt braindead
+ * select behaviour on FIFO's.
+ */
+#undef FIFO_SUNOS_BRAINDAMAGE
 
 /* We don't use the head/tail construction any more. Now we use the start/len*/
 /* construction providing full use of PIPE_BUF (multiple of PAGE_SIZE) */
@@ -22,7 +27,8 @@
 /* in case of paging and multiple read/write on the same pipe. (FGC)         */
 
 
-static int pipe_read(struct inode * inode, struct file * filp, char * buf, int count)
+static long pipe_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
 	int chars = 0, size = 0, read = 0;
         char *pipebuf;
@@ -57,19 +63,22 @@ static int pipe_read(struct inode * inode, struct file * filp, char * buf, int c
 		PIPE_START(*inode) &= (PIPE_BUF-1);
 		PIPE_LEN(*inode) -= chars;
 		count -= chars;
-		memcpy_tofs(buf, pipebuf, chars );
+		copy_to_user(buf, pipebuf, chars );
 		buf += chars;
 	}
 	PIPE_LOCK(*inode)--;
 	wake_up_interruptible(&PIPE_WAIT(*inode));
-	if (read)
+	if (read) {
+	        inode->i_atime = CURRENT_TIME;
 		return read;
+	}
 	if (PIPE_WRITERS(*inode))
 		return -EAGAIN;
 	return 0;
 }
 	
-static int pipe_write(struct inode * inode, struct file * filp, char * buf, int count)
+static long pipe_write(struct inode * inode, struct file * filp,
+	const char * buf, unsigned long count)
 {
 	int chars = 0, free = 0, written = 0;
 	char *pipebuf;
@@ -106,22 +115,31 @@ static int pipe_write(struct inode * inode, struct file * filp, char * buf, int 
 			written += chars;
 			PIPE_LEN(*inode) += chars;
 			count -= chars;
-			memcpy_fromfs(pipebuf, buf, chars );
+			copy_from_user(pipebuf, buf, chars );
 			buf += chars;
 		}
 		PIPE_LOCK(*inode)--;
 		wake_up_interruptible(&PIPE_WAIT(*inode));
 		free = 1;
 	}
+	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 	return written;
 }
 
-static int pipe_lseek(struct inode * inode, struct file * file, off_t offset, int orig)
+static long long pipe_lseek(struct inode * inode, struct file * file,
+	long long offset, int orig)
 {
 	return -ESPIPE;
 }
 
-static int bad_pipe_rw(struct inode * inode, struct file * filp, char * buf, int count)
+static long bad_pipe_r(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
+{
+	return -EBADF;
+}
+
+static long bad_pipe_w(struct inode * inode, struct file * filp,
+	const char * buf, unsigned long count)
 {
 	return -EBADF;
 }
@@ -135,7 +153,7 @@ static int pipe_ioctl(struct inode *pino, struct file * filp,
 		case FIONREAD:
 			error = verify_area(VERIFY_WRITE, (void *) arg, sizeof(int));
 			if (!error)
-				put_fs_long(PIPE_SIZE(*pino),(int *) arg);
+				put_user(PIPE_SIZE(*pino),(int *) arg);
 			return error;
 		default:
 			return -EINVAL;
@@ -151,7 +169,7 @@ static int pipe_select(struct inode * inode, struct file * filp, int sel_type, s
 			select_wait(&PIPE_WAIT(*inode), wait);
 			return 0;
 		case SEL_OUT:
-			if (!PIPE_FULL(*inode) || !PIPE_READERS(*inode))
+			if (PIPE_EMPTY(*inode) || !PIPE_READERS(*inode))
 				return 1;
 			select_wait(&PIPE_WAIT(*inode), wait);
 			return 0;
@@ -164,6 +182,7 @@ static int pipe_select(struct inode * inode, struct file * filp, int sel_type, s
 	return 0;
 }
 
+#ifdef FIFO_SUNOS_BRAINDAMAGE
 /*
  * Arggh. Why does SunOS have to have different select() behaviour
  * for pipes and fifos? Hate-Hate-Hate. See difference in SEL_IN..
@@ -189,24 +208,22 @@ static int fifo_select(struct inode * inode, struct file * filp, int sel_type, s
 	}
 	return 0;
 }
+#else
+
+#define fifo_select pipe_select
+
+#endif /* FIFO_SUNOS_BRAINDAMAGE */
 
 /*
  * The 'connect_xxx()' functions are needed for named pipes when
  * the open() code hasn't guaranteed a connection (O_NONBLOCK),
  * and we need to act differently until we do get a writer..
  */
-static int connect_read(struct inode * inode, struct file * filp, char * buf, int count)
+static long connect_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
-	while (!PIPE_SIZE(*inode)) {
-		if (PIPE_WRITERS(*inode))
-			break;
-		if (filp->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-		wake_up_interruptible(& PIPE_WAIT(*inode));
-		if (current->signal & ~current->blocked)
-			return -ERESTARTSYS;
-		interruptible_sleep_on(& PIPE_WAIT(*inode));
-	}
+	if (PIPE_EMPTY(*inode) && !PIPE_WRITERS(*inode))
+		return 0;
 	filp->f_op = &read_fifo_fops;
 	return pipe_read(inode,filp,buf,count);
 }
@@ -218,6 +235,9 @@ static int connect_select(struct inode * inode, struct file * filp, int sel_type
 			if (!PIPE_EMPTY(*inode)) {
 				filp->f_op = &read_fifo_fops;
 				return 1;
+			}
+			if (PIPE_WRITERS(*inode)) {
+				filp->f_op = &read_fifo_fops;
 			}
 			select_wait(&PIPE_WAIT(*inode), wait);
 			return 0;
@@ -235,10 +255,6 @@ static int connect_select(struct inode * inode, struct file * filp, int sel_type
 	return 0;
 }
 
-/*
- * Ok, these three routines NOW keep track of readers/writers,
- * Linus previously did it with inode->i_count checking.
- */
 static void pipe_read_release(struct inode * inode, struct file * filp)
 {
 	PIPE_READERS(*inode)--;
@@ -253,9 +269,32 @@ static void pipe_write_release(struct inode * inode, struct file * filp)
 
 static void pipe_rdwr_release(struct inode * inode, struct file * filp)
 {
-	PIPE_READERS(*inode)--;
-	PIPE_WRITERS(*inode)--;
+	if (filp->f_mode & FMODE_READ)
+		PIPE_READERS(*inode)--;
+	if (filp->f_mode & FMODE_WRITE)
+		PIPE_WRITERS(*inode)--;
 	wake_up_interruptible(&PIPE_WAIT(*inode));
+}
+
+static int pipe_read_open(struct inode * inode, struct file * filp)
+{
+	PIPE_READERS(*inode)++;
+	return 0;
+}
+
+static int pipe_write_open(struct inode * inode, struct file * filp)
+{
+	PIPE_WRITERS(*inode)++;
+	return 0;
+}
+
+static int pipe_rdwr_open(struct inode * inode, struct file * filp)
+{
+	if (filp->f_mode & FMODE_READ)
+		PIPE_READERS(*inode)++;
+	if (filp->f_mode & FMODE_WRITE)
+		PIPE_WRITERS(*inode)++;
+	return 0;
 }
 
 /*
@@ -265,12 +304,12 @@ static void pipe_rdwr_release(struct inode * inode, struct file * filp)
 struct file_operations connecting_fifo_fops = {
 	pipe_lseek,
 	connect_read,
-	bad_pipe_rw,
+	bad_pipe_w,
 	NULL,		/* no readdir */
 	connect_select,
 	pipe_ioctl,
 	NULL,		/* no mmap on pipes.. surprise */
-	NULL,		/* no special open code */
+	pipe_read_open,
 	pipe_read_release,
 	NULL
 };
@@ -278,25 +317,25 @@ struct file_operations connecting_fifo_fops = {
 struct file_operations read_fifo_fops = {
 	pipe_lseek,
 	pipe_read,
-	bad_pipe_rw,
+	bad_pipe_w,
 	NULL,		/* no readdir */
 	fifo_select,
 	pipe_ioctl,
 	NULL,		/* no mmap on pipes.. surprise */
-	NULL,		/* no special open code */
+	pipe_read_open,
 	pipe_read_release,
 	NULL
 };
 
 struct file_operations write_fifo_fops = {
 	pipe_lseek,
-	bad_pipe_rw,
+	bad_pipe_r,
 	pipe_write,
 	NULL,		/* no readdir */
 	fifo_select,
 	pipe_ioctl,
 	NULL,		/* mmap */
-	NULL,		/* no special open code */
+	pipe_write_open,
 	pipe_write_release,
 	NULL
 };
@@ -309,7 +348,7 @@ struct file_operations rdwr_fifo_fops = {
 	fifo_select,
 	pipe_ioctl,
 	NULL,		/* mmap */
-	NULL,		/* no special open code */
+	pipe_rdwr_open,
 	pipe_rdwr_release,
 	NULL
 };
@@ -317,25 +356,25 @@ struct file_operations rdwr_fifo_fops = {
 struct file_operations read_pipe_fops = {
 	pipe_lseek,
 	pipe_read,
-	bad_pipe_rw,
+	bad_pipe_w,
 	NULL,		/* no readdir */
 	pipe_select,
 	pipe_ioctl,
 	NULL,		/* no mmap on pipes.. surprise */
-	NULL,		/* no special open code */
+	pipe_read_open,
 	pipe_read_release,
 	NULL
 };
 
 struct file_operations write_pipe_fops = {
 	pipe_lseek,
-	bad_pipe_rw,
+	bad_pipe_r,
 	pipe_write,
 	NULL,		/* no readdir */
 	pipe_select,
 	pipe_ioctl,
 	NULL,		/* mmap */
-	NULL,		/* no special open code */
+	pipe_write_open,
 	pipe_write_release,
 	NULL
 };
@@ -348,7 +387,7 @@ struct file_operations rdwr_pipe_fops = {
 	pipe_select,
 	pipe_ioctl,
 	NULL,		/* mmap */
-	NULL,		/* no special open code */
+	pipe_rdwr_open,
 	pipe_rdwr_release,
 	NULL
 };
@@ -366,6 +405,8 @@ struct inode_operations pipe_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
@@ -374,43 +415,58 @@ struct inode_operations pipe_inode_operations = {
 int do_pipe(int *fd)
 {
 	struct inode * inode;
-	struct file *f[2];
+	struct file *f1, *f2;
+	int error;
 	int i,j;
+
+	error = ENFILE;
+	f1 = get_empty_filp();
+	if (!f1)
+		goto no_files;
+
+	f2 = get_empty_filp();
+	if (!f2)
+		goto close_f1;
 
 	inode = get_pipe_inode();
 	if (!inode)
-		return -ENFILE;
+		goto close_f12;
 
-	for(j=0 ; j<2 ; j++)
-		if (!(f[j] = get_empty_filp()))
-			break;
-	if (j < 2) {
-		iput(inode);
-		if (j)
-			f[0]->f_count--;
-		return -ENFILE;
-	}
-	j=0;
-	for(i=0;j<2 && i<NR_OPEN && i<current->rlim[RLIMIT_NOFILE].rlim_cur;i++)
-		if (!current->files->fd[i]) {
-			current->files->fd[ fd[j]=i ] = f[j];
-			j++;
-		}
-	if (j<2) {
-		iput(inode);
-		f[0]->f_count--;
-		f[1]->f_count--;
-		if (j)
-			current->files->fd[fd[0]] = NULL;
-		return -EMFILE;
-	}
-	f[0]->f_inode = f[1]->f_inode = inode;
-	f[0]->f_pos = f[1]->f_pos = 0;
-	f[0]->f_flags = O_RDONLY;
-	f[0]->f_op = &read_pipe_fops;
-	f[0]->f_mode = 1;		/* read */
-	f[1]->f_flags = O_WRONLY;
-	f[1]->f_op = &write_pipe_fops;
-	f[1]->f_mode = 2;		/* write */
+	error = get_unused_fd();
+	if (error < 0)
+		goto close_f12_inode;
+	i = error;
+
+	error = get_unused_fd();
+	if (error < 0)
+		goto close_f12_inode_i;
+	j = error;
+
+	f1->f_inode = f2->f_inode = inode;
+	/* read file */
+	f1->f_pos = f2->f_pos = 0;
+	f1->f_flags = O_RDONLY;
+	f1->f_op = &read_pipe_fops;
+	f1->f_mode = 1;
+	/* write file */
+	f2->f_flags = O_WRONLY;
+	f2->f_op = &write_pipe_fops;
+	f2->f_mode = 2;
+	current->files->fd[i] = f1;
+	current->files->fd[j] = f2;
+	fd[0] = i;
+	fd[1] = j;
 	return 0;
+
+close_f12_inode_i:
+	put_unused_fd(i);
+close_f12_inode:
+	inode->i_count--;
+	iput(inode);
+close_f12:
+	f2->f_count--;
+close_f1:
+	f1->f_count--;
+no_files:
+	return error;	
 }

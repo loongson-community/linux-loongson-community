@@ -19,10 +19,6 @@
  *  This file contains code for allocating/freeing inodes.
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -84,7 +80,8 @@ void sysv_free_inode(struct inode * inode)
 		return;
 	}
 	if (!(bh = sv_bread(sb, inode->i_dev, sb->sv_firstinodezone + ((ino-1) >> sb->sv_inodes_per_block_bits)))) {
-		printk("sysv_free_inode: unable to read inode block on device %d/%d\n",MAJOR(inode->i_dev),MINOR(inode->i_dev));
+		printk("sysv_free_inode: unable to read inode block on device "
+		       "%s\n", kdevname(inode->i_dev));
 		clear_inode(inode);
 		return;
 	}

@@ -97,7 +97,6 @@ struct ifreq
 	union
 	{
 		char	ifrn_name[IFNAMSIZ];		/* if name, e.g. "en0" */
-		char	ifrn_hwaddr[IFHWADDRLEN];	/* Obsolete */
 	} ifr_ifrn;
 	
 	union {
@@ -107,7 +106,7 @@ struct ifreq
 		struct	sockaddr ifru_netmask;
 		struct  sockaddr ifru_hwaddr;
 		short	ifru_flags;
-		int	ifru_metric;
+		int	ifru_ivalue;
 		int	ifru_mtu;
 		struct  ifmap ifru_map;
 		char	ifru_slave[IFNAMSIZ];	/* Just fits the size */
@@ -116,18 +115,18 @@ struct ifreq
 };
 
 #define ifr_name	ifr_ifrn.ifrn_name	/* interface name 	*/
-#define old_ifr_hwaddr	ifr_ifrn.ifrn_hwaddr	/* interface hardware   */
 #define ifr_hwaddr	ifr_ifru.ifru_hwaddr	/* MAC address 		*/
 #define	ifr_addr	ifr_ifru.ifru_addr	/* address		*/
 #define	ifr_dstaddr	ifr_ifru.ifru_dstaddr	/* other end of p-p lnk	*/
 #define	ifr_broadaddr	ifr_ifru.ifru_broadaddr	/* broadcast address	*/
 #define	ifr_netmask	ifr_ifru.ifru_netmask	/* interface net mask	*/
 #define	ifr_flags	ifr_ifru.ifru_flags	/* flags		*/
-#define	ifr_metric	ifr_ifru.ifru_metric	/* metric		*/
+#define	ifr_metric	ifr_ifru.ifru_ivalue	/* metric		*/
 #define	ifr_mtu		ifr_ifru.ifru_mtu	/* mtu			*/
 #define ifr_map		ifr_ifru.ifru_map	/* device map		*/
 #define ifr_slave	ifr_ifru.ifru_slave	/* slave device		*/
 #define	ifr_data	ifr_ifru.ifru_data	/* for use by interface	*/
+#define ifr_ifindex	ifr_ifru.ifru_ivalue	/* interface index	*/
 
 /*
  * Structure used in SIOCGIFCONF request.
@@ -147,10 +146,5 @@ struct ifconf
 };
 #define	ifc_buf	ifc_ifcu.ifcu_buf		/* buffer address	*/
 #define	ifc_req	ifc_ifcu.ifcu_req		/* array of structures	*/
-
-
-/* BSD UNIX expects to find these here, so here we go: */
-#include <linux/if_arp.h>
-#include <linux/route.h>
 
 #endif /* _LINUX_IF_H */

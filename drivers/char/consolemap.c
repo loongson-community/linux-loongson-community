@@ -11,106 +11,188 @@
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <linux/malloc.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include "consolemap.h"
 
-static unsigned char * translations[] = {
-/* 8-bit Latin-1 mapped to the PC character set: '\0' means non-printable */
-(unsigned char *)
-	"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	"\0\0\0\0\0\0\0\0\0\0\376\0\0\0\0\0"
-	" !\"#$%&'()*+,-./0123456789:;<=>?"
-	"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
-	"`abcdefghijklmnopqrstuvwxyz{|}~\0"
-	"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	"\377\255\233\234\376\235\174\025\376\376\246\256\252\055\376\376"
-	"\370\361\375\376\376\346\024\371\376\376\247\257\254\253\376\250"
-	"\376\376\376\376\216\217\222\200\376\220\376\376\376\376\376\376"
-	"\376\245\376\376\376\376\231\376\350\376\376\376\232\376\376\341"
-	"\205\240\203\376\204\206\221\207\212\202\210\211\215\241\214\213"
-	"\376\244\225\242\223\376\224\366\355\227\243\226\201\376\376\230",
-/* vt100 graphics */
-(unsigned char *)
-	"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	"\0\0\0\0\0\0\0\0\0\0\376\0\0\0\0\0"
-	" !\"#$%&'()*+,-./0123456789:;<=>?"
-	"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^ "
-	"\004\261\007\007\007\007\370\361\007\007\331\277\332\300\305\304"
-	"\304\304\137\137\303\264\301\302\263\363\362\343\330\234\007\0"
-	"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	"\377\255\233\234\376\235\174\025\376\376\246\256\252\055\376\376"
-	"\370\361\375\376\376\346\024\371\376\376\247\257\254\253\376\250"
-	"\376\376\376\376\216\217\222\200\376\220\376\376\376\376\376\376"
-	"\376\245\376\376\376\376\231\376\376\376\376\376\232\376\376\341"
-	"\205\240\203\376\204\206\221\207\212\202\210\211\215\241\214\213"
-	"\376\244\225\242\223\376\224\366\376\227\243\226\201\376\376\230",
-/* IBM graphics: minimal translations (BS, CR, LF, LL, SO, SI and ESC) */
-(unsigned char *)
-	"\000\001\002\003\004\005\006\007\000\011\000\013\000\000\000\000"
-	"\020\021\022\023\024\025\026\027\030\031\032\000\034\035\036\037"
-	"\040\041\042\043\044\045\046\047\050\051\052\053\054\055\056\057"
-	"\060\061\062\063\064\065\066\067\070\071\072\073\074\075\076\077"
-	"\100\101\102\103\104\105\106\107\110\111\112\113\114\115\116\117"
-	"\120\121\122\123\124\125\126\127\130\131\132\133\134\135\136\137"
-	"\140\141\142\143\144\145\146\147\150\151\152\153\154\155\156\157"
-	"\160\161\162\163\164\165\166\167\170\171\172\173\174\175\176\177"
-	"\200\201\202\203\204\205\206\207\210\211\212\213\214\215\216\217"
-	"\220\221\222\223\224\225\226\227\230\231\232\233\234\235\236\237"
-	"\240\241\242\243\244\245\246\247\250\251\252\253\254\255\256\257"
-	"\260\261\262\263\264\265\266\267\270\271\272\273\274\275\276\277"
-	"\300\301\302\303\304\305\306\307\310\311\312\313\314\315\316\317"
-	"\320\321\322\323\324\325\326\327\330\331\332\333\334\335\336\337"
-	"\340\341\342\343\344\345\346\347\350\351\352\353\354\355\356\357"
-	"\360\361\362\363\364\365\366\367\370\371\372\373\374\375\376\377",
- /* USER: customizable mappings, initialized as the previous one (IBM) */
-(unsigned char *)
-	"\000\001\002\003\004\005\006\007\010\011\000\013\000\000\016\017"
-	"\020\021\022\023\024\025\026\027\030\031\032\000\034\035\036\037"
-	"\040\041\042\043\044\045\046\047\050\051\052\053\054\055\056\057"
-	"\060\061\062\063\064\065\066\067\070\071\072\073\074\075\076\077"
-	"\100\101\102\103\104\105\106\107\110\111\112\113\114\115\116\117"
-	"\120\121\122\123\124\125\126\127\130\131\132\133\134\135\136\137"
-	"\140\141\142\143\144\145\146\147\150\151\152\153\154\155\156\157"
-	"\160\161\162\163\164\165\166\167\170\171\172\173\174\175\176\177"
-	"\200\201\202\203\204\205\206\207\210\211\212\213\214\215\216\217"
-	"\220\221\222\223\224\225\226\227\230\231\232\233\234\235\236\237"
-	"\240\241\242\243\244\245\246\247\250\251\252\253\254\255\256\257"
-	"\260\261\262\263\264\265\266\267\270\271\272\273\274\275\276\277"
-	"\300\301\302\303\304\305\306\307\310\311\312\313\314\315\316\317"
-	"\320\321\322\323\324\325\326\327\330\331\332\333\334\335\336\337"
-	"\340\341\342\343\344\345\346\347\350\351\352\353\354\355\356\357"
-	"\360\361\362\363\364\365\366\367\370\371\372\373\374\375\376\377"
+static unsigned short translations[][256] = {
+  /* 8-bit Latin-1 mapped to Unicode -- trivial mapping */
+  {
+    0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007,
+    0x0008, 0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x000e, 0x000f,
+    0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015, 0x0016, 0x0017,
+    0x0018, 0x0019, 0x001a, 0x001b, 0x001c, 0x001d, 0x001e, 0x001f,
+    0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
+    0x0028, 0x0029, 0x002a, 0x002b, 0x002c, 0x002d, 0x002e, 0x002f,
+    0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+    0x0038, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
+    0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
+    0x0048, 0x0049, 0x004a, 0x004b, 0x004c, 0x004d, 0x004e, 0x004f,
+    0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+    0x0058, 0x0059, 0x005a, 0x005b, 0x005c, 0x005d, 0x005e, 0x005f,
+    0x0060, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066, 0x0067,
+    0x0068, 0x0069, 0x006a, 0x006b, 0x006c, 0x006d, 0x006e, 0x006f,
+    0x0070, 0x0071, 0x0072, 0x0073, 0x0074, 0x0075, 0x0076, 0x0077,
+    0x0078, 0x0079, 0x007a, 0x007b, 0x007c, 0x007d, 0x007e, 0x007f,
+    0x0080, 0x0081, 0x0082, 0x0083, 0x0084, 0x0085, 0x0086, 0x0087,
+    0x0088, 0x0089, 0x008a, 0x008b, 0x008c, 0x008d, 0x008e, 0x008f,
+    0x0090, 0x0091, 0x0092, 0x0093, 0x0094, 0x0095, 0x0096, 0x0097,
+    0x0098, 0x0099, 0x009a, 0x009b, 0x009c, 0x009d, 0x009e, 0x009f,
+    0x00a0, 0x00a1, 0x00a2, 0x00a3, 0x00a4, 0x00a5, 0x00a6, 0x00a7,
+    0x00a8, 0x00a9, 0x00aa, 0x00ab, 0x00ac, 0x00ad, 0x00ae, 0x00af,
+    0x00b0, 0x00b1, 0x00b2, 0x00b3, 0x00b4, 0x00b5, 0x00b6, 0x00b7,
+    0x00b8, 0x00b9, 0x00ba, 0x00bb, 0x00bc, 0x00bd, 0x00be, 0x00bf,
+    0x00c0, 0x00c1, 0x00c2, 0x00c3, 0x00c4, 0x00c5, 0x00c6, 0x00c7,
+    0x00c8, 0x00c9, 0x00ca, 0x00cb, 0x00cc, 0x00cd, 0x00ce, 0x00cf,
+    0x00d0, 0x00d1, 0x00d2, 0x00d3, 0x00d4, 0x00d5, 0x00d6, 0x00d7,
+    0x00d8, 0x00d9, 0x00da, 0x00db, 0x00dc, 0x00dd, 0x00de, 0x00df,
+    0x00e0, 0x00e1, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e6, 0x00e7,
+    0x00e8, 0x00e9, 0x00ea, 0x00eb, 0x00ec, 0x00ed, 0x00ee, 0x00ef,
+    0x00f0, 0x00f1, 0x00f2, 0x00f3, 0x00f4, 0x00f5, 0x00f6, 0x00f7,
+    0x00f8, 0x00f9, 0x00fa, 0x00fb, 0x00fc, 0x00fd, 0x00fe, 0x00ff
+  }, 
+  /* VT100 graphics mapped to Unicode */
+  {
+    0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007,
+    0x0008, 0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x000e, 0x000f,
+    0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015, 0x0016, 0x0017,
+    0x0018, 0x0019, 0x001a, 0x001b, 0x001c, 0x001d, 0x001e, 0x001f,
+    0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
+    0x0028, 0x0029, 0x002a, 0x2192, 0x2190, 0x2191, 0x2193, 0x002f,
+    0x2588, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+    0x0038, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
+    0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
+    0x0048, 0x0049, 0x004a, 0x004b, 0x004c, 0x004d, 0x004e, 0x004f,
+    0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+    0x0058, 0x0059, 0x005a, 0x005b, 0x005c, 0x005d, 0x005e, 0x00a0,
+    0x25c6, 0x2592, 0x2409, 0x240c, 0x240d, 0x240a, 0x00b0, 0x00b1,
+    0x2591, 0x240b, 0x2518, 0x2510, 0x250c, 0x2514, 0x253c, 0xf800,
+    0xf801, 0x2500, 0xf803, 0xf804, 0x251c, 0x2524, 0x2534, 0x252c,
+    0x2502, 0x2264, 0x2265, 0x03c0, 0x2260, 0x00a3, 0x00b7, 0x007f,
+    0x0080, 0x0081, 0x0082, 0x0083, 0x0084, 0x0085, 0x0086, 0x0087,
+    0x0088, 0x0089, 0x008a, 0x008b, 0x008c, 0x008d, 0x008e, 0x008f,
+    0x0090, 0x0091, 0x0092, 0x0093, 0x0094, 0x0095, 0x0096, 0x0097,
+    0x0098, 0x0099, 0x009a, 0x009b, 0x009c, 0x009d, 0x009e, 0x009f,
+    0x00a0, 0x00a1, 0x00a2, 0x00a3, 0x00a4, 0x00a5, 0x00a6, 0x00a7,
+    0x00a8, 0x00a9, 0x00aa, 0x00ab, 0x00ac, 0x00ad, 0x00ae, 0x00af,
+    0x00b0, 0x00b1, 0x00b2, 0x00b3, 0x00b4, 0x00b5, 0x00b6, 0x00b7,
+    0x00b8, 0x00b9, 0x00ba, 0x00bb, 0x00bc, 0x00bd, 0x00be, 0x00bf,
+    0x00c0, 0x00c1, 0x00c2, 0x00c3, 0x00c4, 0x00c5, 0x00c6, 0x00c7,
+    0x00c8, 0x00c9, 0x00ca, 0x00cb, 0x00cc, 0x00cd, 0x00ce, 0x00cf,
+    0x00d0, 0x00d1, 0x00d2, 0x00d3, 0x00d4, 0x00d5, 0x00d6, 0x00d7,
+    0x00d8, 0x00d9, 0x00da, 0x00db, 0x00dc, 0x00dd, 0x00de, 0x00df,
+    0x00e0, 0x00e1, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e6, 0x00e7,
+    0x00e8, 0x00e9, 0x00ea, 0x00eb, 0x00ec, 0x00ed, 0x00ee, 0x00ef,
+    0x00f0, 0x00f1, 0x00f2, 0x00f3, 0x00f4, 0x00f5, 0x00f6, 0x00f7,
+    0x00f8, 0x00f9, 0x00fa, 0x00fb, 0x00fc, 0x00fd, 0x00fe, 0x00ff
+  },
+  /* IBM Codepage 437 mapped to Unicode */
+  {
+    0x0000, 0x263a, 0x263b, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022, 
+    0x25d8, 0x25cb, 0x25d9, 0x2642, 0x2640, 0x266a, 0x266b, 0x263c,
+    0x25b6, 0x25c0, 0x2195, 0x203c, 0x00b6, 0x00a7, 0x25ac, 0x21a8,
+    0x2191, 0x2193, 0x2192, 0x2190, 0x221f, 0x2194, 0x25b2, 0x25bc,
+    0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
+    0x0028, 0x0029, 0x002a, 0x002b, 0x002c, 0x002d, 0x002e, 0x002f,
+    0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+    0x0038, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
+    0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
+    0x0048, 0x0049, 0x004a, 0x004b, 0x004c, 0x004d, 0x004e, 0x004f,
+    0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+    0x0058, 0x0059, 0x005a, 0x005b, 0x005c, 0x005d, 0x005e, 0x005f,
+    0x0060, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066, 0x0067,
+    0x0068, 0x0069, 0x006a, 0x006b, 0x006c, 0x006d, 0x006e, 0x006f,
+    0x0070, 0x0071, 0x0072, 0x0073, 0x0074, 0x0075, 0x0076, 0x0077,
+    0x0078, 0x0079, 0x007a, 0x007b, 0x007c, 0x007d, 0x007e, 0x2302,
+    0x00c7, 0x00fc, 0x00e9, 0x00e2, 0x00e4, 0x00e0, 0x00e5, 0x00e7,
+    0x00ea, 0x00eb, 0x00e8, 0x00ef, 0x00ee, 0x00ec, 0x00c4, 0x00c5,
+    0x00c9, 0x00e6, 0x00c6, 0x00f4, 0x00f6, 0x00f2, 0x00fb, 0x00f9,
+    0x00ff, 0x00d6, 0x00dc, 0x00a2, 0x00a3, 0x00a5, 0x20a7, 0x0192,
+    0x00e1, 0x00ed, 0x00f3, 0x00fa, 0x00f1, 0x00d1, 0x00aa, 0x00ba,
+    0x00bf, 0x2310, 0x00ac, 0x00bd, 0x00bc, 0x00a1, 0x00ab, 0x00bb,
+    0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x2561, 0x2562, 0x2556,
+    0x2555, 0x2563, 0x2551, 0x2557, 0x255d, 0x255c, 0x255b, 0x2510,
+    0x2514, 0x2534, 0x252c, 0x251c, 0x2500, 0x253c, 0x255e, 0x255f,
+    0x255a, 0x2554, 0x2569, 0x2566, 0x2560, 0x2550, 0x256c, 0x2567,
+    0x2568, 0x2564, 0x2565, 0x2559, 0x2558, 0x2552, 0x2553, 0x256b,
+    0x256a, 0x2518, 0x250c, 0x2588, 0x2584, 0x258c, 0x2590, 0x2580,
+    0x03b1, 0x00df, 0x0393, 0x03c0, 0x03a3, 0x03c3, 0x00b5, 0x03c4,
+    0x03a6, 0x0398, 0x03a9, 0x03b4, 0x221e, 0x03c6, 0x03b5, 0x2229,
+    0x2261, 0x00b1, 0x2265, 0x2264, 0x2320, 0x2321, 0x00f7, 0x2248,
+    0x00b0, 0x2219, 0x00b7, 0x221a, 0x207f, 0x00b2, 0x25a0, 0x00a0
+  }, 
+  /* User mapping -- default to codes for direct font mapping */
+  {
+    0xf000, 0xf001, 0xf002, 0xf003, 0xf004, 0xf005, 0xf006, 0xf007,
+    0xf008, 0xf009, 0xf00a, 0xf00b, 0xf00c, 0xf00d, 0xf00e, 0xf00f,
+    0xf010, 0xf011, 0xf012, 0xf013, 0xf014, 0xf015, 0xf016, 0xf017,
+    0xf018, 0xf019, 0xf01a, 0xf01b, 0xf01c, 0xf01d, 0xf01e, 0xf01f,
+    0xf020, 0xf021, 0xf022, 0xf023, 0xf024, 0xf025, 0xf026, 0xf027,
+    0xf028, 0xf029, 0xf02a, 0xf02b, 0xf02c, 0xf02d, 0xf02e, 0xf02f,
+    0xf030, 0xf031, 0xf032, 0xf033, 0xf034, 0xf035, 0xf036, 0xf037,
+    0xf038, 0xf039, 0xf03a, 0xf03b, 0xf03c, 0xf03d, 0xf03e, 0xf03f,
+    0xf040, 0xf041, 0xf042, 0xf043, 0xf044, 0xf045, 0xf046, 0xf047,
+    0xf048, 0xf049, 0xf04a, 0xf04b, 0xf04c, 0xf04d, 0xf04e, 0xf04f,
+    0xf050, 0xf051, 0xf052, 0xf053, 0xf054, 0xf055, 0xf056, 0xf057,
+    0xf058, 0xf059, 0xf05a, 0xf05b, 0xf05c, 0xf05d, 0xf05e, 0xf05f,
+    0xf060, 0xf061, 0xf062, 0xf063, 0xf064, 0xf065, 0xf066, 0xf067,
+    0xf068, 0xf069, 0xf06a, 0xf06b, 0xf06c, 0xf06d, 0xf06e, 0xf06f,
+    0xf070, 0xf071, 0xf072, 0xf073, 0xf074, 0xf075, 0xf076, 0xf077,
+    0xf078, 0xf079, 0xf07a, 0xf07b, 0xf07c, 0xf07d, 0xf07e, 0xf07f,
+    0xf080, 0xf081, 0xf082, 0xf083, 0xf084, 0xf085, 0xf086, 0xf087,
+    0xf088, 0xf089, 0xf08a, 0xf08b, 0xf08c, 0xf08d, 0xf08e, 0xf08f,
+    0xf090, 0xf091, 0xf092, 0xf093, 0xf094, 0xf095, 0xf096, 0xf097,
+    0xf098, 0xf099, 0xf09a, 0xf09b, 0xf09c, 0xf09d, 0xf09e, 0xf09f,
+    0xf0a0, 0xf0a1, 0xf0a2, 0xf0a3, 0xf0a4, 0xf0a5, 0xf0a6, 0xf0a7,
+    0xf0a8, 0xf0a9, 0xf0aa, 0xf0ab, 0xf0ac, 0xf0ad, 0xf0ae, 0xf0af,
+    0xf0b0, 0xf0b1, 0xf0b2, 0xf0b3, 0xf0b4, 0xf0b5, 0xf0b6, 0xf0b7,
+    0xf0b8, 0xf0b9, 0xf0ba, 0xf0bb, 0xf0bc, 0xf0bd, 0xf0be, 0xf0bf,
+    0xf0c0, 0xf0c1, 0xf0c2, 0xf0c3, 0xf0c4, 0xf0c5, 0xf0c6, 0xf0c7,
+    0xf0c8, 0xf0c9, 0xf0ca, 0xf0cb, 0xf0cc, 0xf0cd, 0xf0ce, 0xf0cf,
+    0xf0d0, 0xf0d1, 0xf0d2, 0xf0d3, 0xf0d4, 0xf0d5, 0xf0d6, 0xf0d7,
+    0xf0d8, 0xf0d9, 0xf0da, 0xf0db, 0xf0dc, 0xf0dd, 0xf0de, 0xf0df,
+    0xf0e0, 0xf0e1, 0xf0e2, 0xf0e3, 0xf0e4, 0xf0e5, 0xf0e6, 0xf0e7,
+    0xf0e8, 0xf0e9, 0xf0ea, 0xf0eb, 0xf0ec, 0xf0ed, 0xf0ee, 0xf0ef,
+    0xf0f0, 0xf0f1, 0xf0f2, 0xf0f3, 0xf0f4, 0xf0f5, 0xf0f6, 0xf0f7,
+    0xf0f8, 0xf0f9, 0xf0fa, 0xf0fb, 0xf0fc, 0xf0fd, 0xf0fe, 0xf0ff
+  }
 };
 
-/* the above mappings are not invertible - this is just a best effort */
+/* The standard kernel character-to-font mappings are not invertible
+   -- this is just a best effort. */
+
+#define MAX_GLYPH 512		/* Max possible glyph value */
+
 static unsigned char * inv_translate = NULL;
-static unsigned char inv_norm_transl[E_TABSZ];
+static unsigned char inv_norm_transl[MAX_GLYPH];
 static unsigned char * inverse_translations[4] = { NULL, NULL, NULL, NULL };
 
 static void set_inverse_transl(int i)
 {
-	int j;
-	unsigned char *p = translations[i];
+	int j, glyph;
+	unsigned short *p = translations[i];
 	unsigned char *q = inverse_translations[i];
 
 	if (!q) {
 		/* slightly messy to avoid calling kmalloc too early */
-		q = inverse_translations[i] = ((i == NORM_MAP)
+		q = inverse_translations[i] = ((i == LAT1_MAP)
 			? inv_norm_transl
-			: (unsigned char *) kmalloc(E_TABSZ, GFP_KERNEL));
+			: (unsigned char *) kmalloc(MAX_GLYPH, GFP_KERNEL));
 		if (!q)
 			return;
 	}
-	for (j=0; j<E_TABSZ; j++)
+	for (j=0; j<MAX_GLYPH; j++)
 		q[j] = 0;
-	for (j=0; j<E_TABSZ; j++)
-		if (q[p[j]] < 32)	/* prefer '-' above SHY etc. */
-			q[p[j]] = j;
+
+	for (j=0; j<E_TABSZ; j++) {
+		glyph = conv_uni_to_pc(p[j]);
+		if (glyph >= 0 && glyph < MAX_GLYPH && q[glyph] < 32) {
+			/* prefer '-' above SHY etc. */
+		  	q[glyph] = j;
+		}
+	}
 }
 
-unsigned char *set_translate(int m)
+unsigned short *set_translate(int m)
 {
 	if (!inverse_translations[m])
 		set_inverse_transl(m);
@@ -120,45 +202,97 @@ unsigned char *set_translate(int m)
 
 /*
  * Inverse translation is impossible for several reasons:
- * 1. The translation maps are not 1-1
+ * 1. The font<->character maps are not 1-1.
  * 2. The text may have been written while a different translation map
- *    was active
+ *    was active, or using Unicode.
  * Still, it is now possible to a certain extent to cut and paste non-ASCII.
  */
-unsigned char inverse_translate(unsigned char c) {
-	return ((inv_translate && inv_translate[c]) ? inv_translate[c] : c);
+unsigned char inverse_translate(int glyph) {
+	if ( glyph < 0 || glyph >= MAX_GLYPH )
+		return 0;
+	else
+		return ((inv_translate && inv_translate[glyph])
+			? inv_translate[glyph]
+			: (unsigned char)(glyph & 0xff));
 }
 
 /*
  * Load customizable translation table
  * arg points to a 256 byte translation table.
+ *
+ * The "old" variants are for translation directly to font (using the
+ * 0xf000-0xf0ff "transparent" Unicodes) whereas the "new" variants set
+ * Unicodes explicitly.
  */
-int con_set_trans(char * arg)
+int con_set_trans_old(unsigned char * arg)
 {
 	int i;
-	unsigned char *p = translations[USER_MAP];
+	unsigned short *p = translations[USER_MAP];
 
 	i = verify_area(VERIFY_READ, (void *)arg, E_TABSZ);
 	if (i)
 		return i;
 
-	for (i=0; i<E_TABSZ ; i++)
-		p[i] = get_fs_byte(arg+i);
-	p[012] = p[014] = p[015] = p[033] = 0;
+	for (i=0; i<E_TABSZ ; i++) {
+		unsigned char uc;
+		get_user(uc, arg+i);
+		p[i] = UNI_DIRECT_BASE | uc;
+	}
+
 	set_inverse_transl(USER_MAP);
 	return 0;
 }
 
-int con_get_trans(char * arg)
+int con_get_trans_old(unsigned char * arg)
 {
-	int i;
-	unsigned char *p = translations[USER_MAP];
+	int i, ch;
+	unsigned short *p = translations[USER_MAP];
 
 	i = verify_area(VERIFY_WRITE, (void *)arg, E_TABSZ);
 	if (i)
 		return i;
 
-	for (i=0; i<E_TABSZ ; i++) put_fs_byte(p[i],arg+i);
+	for (i=0; i<E_TABSZ ; i++)
+	  {
+	    ch = conv_uni_to_pc(p[i]);
+	    put_user((ch & ~0xff) ? 0 : ch, arg+i);
+	  }
+	return 0;
+}
+
+int con_set_trans_new(ushort * arg)
+{
+	int i;
+	unsigned short *p = translations[USER_MAP];
+
+	i = verify_area(VERIFY_READ, (void *)arg,
+			E_TABSZ*sizeof(unsigned short));
+	if (i)
+		return i;
+
+	for (i=0; i<E_TABSZ ; i++) {
+		unsigned short us;
+		get_user(us, arg+i);
+		p[i] = us;
+	}
+
+	set_inverse_transl(USER_MAP);
+	return 0;
+}
+
+int con_get_trans_new(ushort * arg)
+{
+	int i;
+	unsigned short *p = translations[USER_MAP];
+
+	i = verify_area(VERIFY_WRITE, (void *)arg,
+			E_TABSZ*sizeof(unsigned short));
+	if (i)
+		return i;
+
+	for (i=0; i<E_TABSZ ; i++)
+	  put_user(p[i], arg+i);
+	
 	return 0;
 }
 
@@ -166,121 +300,191 @@ int con_get_trans(char * arg)
  * Unicode -> current font conversion 
  *
  * A font has at most 512 chars, usually 256.
- * But one font position may represent several Unicode chars
- * (and moreover, hashtables work best when they are not too full),
- * so pick HASHSIZE somewhat larger than 512.
- * Since there are likely to be long consecutive stretches
- * (like U+0000 to U+00FF), HASHSTEP should not be too small.
- * Searches longer than MAXHASHLEVEL steps are refused, unless
- * requested explicitly.
- *
- * Note: no conversion tables are compiled in, so the user
- * must supply an explicit mapping herself. See kbd-0.90 (or an
- * earlier kernel version) for the default Unicode-to-PC mapping.
- * Usually, the mapping will be loaded simultaneously with the font.
+ * But one font position may represent several Unicode chars.
+ * A hashtable is somewhat of a pain to deal with, so use a
+ * "paged table" instead.  Simulation has shown the memory cost of
+ * this 3-level paged table scheme to be comparable to a hash table.
  */
 
-#define HASHSIZE   641
-#define HASHSTEP   189		/* yields hashlevel = 3 initially */
-#define MAXHASHLEVEL 6
-static struct unipair hashtable[HASHSIZE];
+#include "uni_hash.tbl"		/* Include hash tables & parameters */
 
-int hashtable_contents_valid = 0; 	/* cleared by setfont */
+int hashtable_contents_valid = 0; /* Use ASCII-only mode for bootup*/
 
-static unsigned int hashsize;
-static unsigned int hashstep;
-static unsigned int hashlevel;
-static unsigned int maxhashlevel;
+static u16 **uni_pagedir[32] =
+{
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
 
+static int
+con_insert_unipair(u_short unicode, u_short fontpos)
+{
+  int i, n;
+  u16 **p1, *p2;
+
+  if ( !(p1 = uni_pagedir[n = unicode >> 11]) )
+    {
+      p1 = uni_pagedir[n] = kmalloc(32*sizeof(u16 *), GFP_KERNEL);
+      if ( !p1 )
+	return -ENOMEM;
+
+      for ( i = 0 ; i < 32 ; i++ )
+	p1[i] = NULL;
+    }
+
+  if ( !(p2 = p1[n = (unicode >> 6) & 0x1f]) )
+    {
+      p2 = p1[n] = kmalloc(64*sizeof(u16), GFP_KERNEL);
+      if ( !p2 )
+	return -ENOMEM;
+
+      for ( i = 0 ; i < 64 ; i++ )
+	p2[i] = 0xffff;		/* No glyph for this character (yet) */
+    }
+
+  p2[unicode & 0x3f] = fontpos;
+  
+  return 0;
+}
+  
+/* ui is a leftover from using a hashtable, but might be used again */
 void
-con_clear_unimap(struct unimapinit *ui) {
-	int i;
+con_clear_unimap(struct unimapinit *ui)
+{
+  int i, j;
+  u16 **p1;
+  
+  for ( i = 0 ; i < 32 ; i++ )
+    {
+      if ( (p1 = uni_pagedir[i]) != NULL )
+	{
+	  for ( j = 0 ; j < 32 ; j++ )
+	    {
+	      if ( p1[j] )
+		kfree(p1[j]);
+	    }
+	  kfree(p1);
+	}
+      uni_pagedir[i] = NULL;
+    }
 
-	/* read advisory values for hash algorithm */
-	hashsize = ui->advised_hashsize;
-	if (hashsize < 256 || hashsize > HASHSIZE)
-	  hashsize = HASHSIZE;
-	hashstep = (ui->advised_hashstep % hashsize);
-	if (hashstep < 64)
-	  hashstep = HASHSTEP;
-	maxhashlevel = ui->advised_hashlevel;
-	if (!maxhashlevel)
-	  maxhashlevel = MAXHASHLEVEL;
-	if (maxhashlevel > hashsize)
-	  maxhashlevel = hashsize;
-
-	/* initialize */
-	hashlevel = 0;
-	for (i=0; i<hashsize; i++)
-	  hashtable[i].unicode = 0xffff;
-	hashtable_contents_valid = 1;
+  hashtable_contents_valid = 1;
 }
 
 int
-con_set_unimap(ushort ct, struct unipair *list){
-	int i, lct;
-	ushort u, hu;
-	struct unimapinit hashdefaults = { 0, 0, 0 };
+con_set_unimap(ushort ct, struct unipair *list)
+{
+  int err = 0, err1, i;
 
-	if (!hashtable_contents_valid)
-	  con_clear_unimap(&hashdefaults);
-	while(ct) {
-	    u = get_fs_word(&list->unicode);
-	    i = u % hashsize;
-	    lct = 1;
-	    while ((hu = hashtable[i].unicode) != 0xffff && hu != u) {
-		if (lct++ >=  maxhashlevel)
-		  return -ENOMEM;
-		i += hashstep;
-		if (i >= hashsize)
-		  i -= hashsize;
-	    }
-	    if (lct > hashlevel)
-	      hashlevel = lct;
-	    hashtable[i].unicode = u;
-	    hashtable[i].fontpos = get_fs_word(&list->fontpos);
-	    list++;
-	    ct--;
-	}
-	return 0;
+  while( ct-- )
+    {
+      unsigned short unicode, fontpos;
+      get_user(unicode, &list->unicode);
+      get_user(fontpos, &list->fontpos);
+      if ( (err1 = con_insert_unipair(unicode,fontpos)) != 0 )
+	err = err1;
+      list++;
+    }
+
+  for ( i = 0 ; i <= 3 ; i++ )
+    set_inverse_transl(i); /* Update all inverse translations */
+  
+  return err;
+}
+
+/* Loads the unimap for the hardware font, as defined in uni_hash.tbl.
+   The representation used was the most compact I could come up
+   with.  This routine is executed at sys_setup time, and when the
+   PIO_FONTRESET ioctl is called. */
+
+void
+con_set_default_unimap(void)
+{
+  int i, j;
+  u16 *p;
+
+  /* The default font is always 256 characters */
+
+  con_clear_unimap(NULL);
+
+  p = dfont_unitable;
+  for ( i = 0 ; i < 256 ; i++ )
+    for ( j = dfont_unicount[i] ; j ; j-- )
+      con_insert_unipair(*(p++), i);
+
+  for ( i = 0 ; i <= 3 ; i++ )
+    set_inverse_transl(i);	/* Update all inverse translations */
 }
 
 int
 con_get_unimap(ushort ct, ushort *uct, struct unipair *list){
-	int i, ect;
+	int i, j, k, ect;
+	u16 **p1, *p2;
 
 	ect = 0;
 	if (hashtable_contents_valid)
-	  for (i = 0; i<hashsize; i++)
-	    if (hashtable[i].unicode != 0xffff) {
-		if (ect++ < ct) {
-		    put_fs_word(hashtable[i].unicode, &list->unicode);
-		    put_fs_word(hashtable[i].fontpos, &list->fontpos);
-		    list++;
-		}
-	    }
-	put_fs_word(ect, uct);
+	  {
+	    for ( i = 0 ; i < 32 ; i++ )
+	      if ( (p1 = uni_pagedir[i]) != NULL )
+		for ( j = 0 ; j < 32 ; j++ )
+		  if ( (p2 = *(p1++)) != NULL )
+		    for ( k = 0 ; k < 64 ; k++ )
+		      {
+			if ( *p2 < MAX_GLYPH && ect++ < ct )
+			  {
+			    put_user((u_short)((i<<11)+(j<<6)+k),
+				     &list->unicode);
+			    put_user((u_short) *p2, &list->fontpos);
+			    list++;
+			  }
+			p2++;
+		      }
+	  }
+	put_user(ect, uct);
 	return ((ect <= ct) ? 0 : -ENOMEM);
 }
 
 int
-conv_uni_to_pc(unsigned long ucs) {
-      int i, h;
+conv_uni_to_pc(long ucs) 
+{
+  int h;
+  u16 **p1, *p2;
+  
+  /* Only 16-bit codes supported at this time */
+  if (ucs > 0xffff)
+    ucs = 0xfffd;		/* U+FFFD: REPLACEMENT CHARACTER */
+  else if (ucs < 0x20 || ucs >= 0xfffe)
+    return -1;		/* Not a printable character */
+  else if (ucs == 0xfeff || (ucs >= 0x200a && ucs <= 0x200f))
+    return -2;			/* Zero-width space */
+  /*
+   * UNI_DIRECT_BASE indicates the start of the region in the User Zone
+   * which always has a 1:1 mapping to the currently loaded font.  The
+   * UNI_DIRECT_MASK indicates the bit span of the region.
+   */
+  else if ( (ucs & ~UNI_DIRECT_MASK) == UNI_DIRECT_BASE )
+    return ucs & UNI_DIRECT_MASK;
+  
+  if (!hashtable_contents_valid)
+    return -3;
+  
+  if ( (p1 = uni_pagedir[ucs >> 11]) &&
+      (p2 = p1[(ucs >> 6) & 0x1f]) &&
+      (h = p2[ucs & 0x3f]) < MAX_GLYPH )
+    return h;
 
-      if (!hashtable_contents_valid || ucs < 0x20)
-	return -3;
-      if (ucs == 0xffff || ucs == 0xfffe)
-	return -1;
-      if (ucs == 0xfeff || (ucs >= 0x200a && ucs <= 0x200f))
-	return -2;
-      
-      h = ucs % hashsize;
-      for (i = 0; i < hashlevel; i++) {
-	  if (hashtable[h].unicode == ucs)
-	    return hashtable[h].fontpos;
-	  if ((h += hashstep) >= hashsize)
-	    h -= hashsize;
-      }
+  return -4;		/* not found */
+}
 
-      return -4;		/* not found */
+/*
+ * This is called at sys_setup time, after memory and the console are
+ * initialized.  It must be possible to call kmalloc(..., GFP_KERNEL)
+ * from this function, hence the call from sys_setup.
+ */
+void
+console_map_init(void)
+{
+  con_set_default_unimap();
 }

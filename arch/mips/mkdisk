@@ -1,5 +1,0 @@
-#!/bin/sh
-cp vmlinux vmlinux.tmp
-mipsel-linux-strip -g -x vmlinux.tmp
-mwrite -n vmlinux.tmp a:vmlinux
-rm -f vmlinux.tmp

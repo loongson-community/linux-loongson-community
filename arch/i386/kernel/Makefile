@@ -7,42 +7,61 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.S.s:
-	$(CPP) -D__ASSEMBLY__ -traditional $< -o $*.s
+#.S.s:
+#	$(CPP) -D__ASSEMBLY__ -traditional $< -o $*.s
+
+ifdef SMP
+.S.o:
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -c $< -o $*.o
+else
 .S.o:
 	$(CC) -D__ASSEMBLY__ -traditional -c $< -o $*.o
-
-OBJS  = process.o signal.o entry.o traps.o irq.o vm86.o bios32.o ptrace.o ioport.o ldt.o setup.o
+endif
 
 all: kernel.o head.o
 
-head.o: head.s
+O_TARGET := kernel.o
+O_OBJS   := process.o signal.o entry.o traps.o irq.o vm86.o bios32.o \
+            ptrace.o ioport.o ldt.o setup.o time.o sys_i386.o ksyms.o
 
-head.s: head.S $(TOPDIR)/include/linux/tasks.h
-	$(CPP) -traditional -o $*.s $<
+ifdef SMP
 
-kernel.o: $(OBJS)
-	$(LD) -r -o kernel.o $(OBJS)
-	sync
+O_OBJS += smp.o
 
-dep:
-	$(CPP) -M *.c > .depend
+head.o: head.S $(TOPDIR)/include/linux/tasks.h
+	$(CC) -D__ASSEMBLY__ -D__SMP__ -traditional -c $*.S -o $*.o
 
-modules:
+else
 
-dummy:
+head.o: head.S $(TOPDIR)/include/linux/tasks.h
+	$(CC) -D__ASSEMBLY__ -traditional -c $*.S -o $*.o
 
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
 endif
 
+hexify:
+	$(HOSTCC) hexify.c -o hexify
 
+smp.c: trampoline.hex
+
+trampoline.hex: trampoline hexify
+	(dd if=trampoline bs=1 skip=32 | ./hexify >trampoline.hex )
+
+trampoline: trampoline.o trampoline32.o
+	$(LD86) -s -o $@ trampoline.o trampoline32.o
+
+trampoline.o: trampoline.s
+	$(AS86) -o $@ $<
+
+trampoline32.o: trampoline32.s
+	$(AS386) -o $@ $<
+
+trampoline.s: trampoline.S $(CONFIGURE) $(TOPDIR)/include/linux/config.h Makefile
+	$(CPP) -D__SMP__ -traditional $< -o $@
+
+trampoline32.s: trampoline32.S $(CONFIGURE) $(TOPDIR)/include/linux/config.h Makefile
+	$(CPP) -D__SMP__ -traditional $< -o $@
+
+clean:
+	rm -f trampoline hexify
+
+include $(TOPDIR)/Rules.make

@@ -10,6 +10,9 @@
 #include <stdarg.h>
 #include <linux/linkage.h>
 
+/* Optimization barrier */
+#define barrier() __asm__("": : :"memory")
+
 #define INT_MAX		((int)(~0U>>1))
 #define UINT_MAX	(~0U)
 #define LONG_MAX	((long)(~0UL>>1))
@@ -26,15 +29,9 @@
 #define	KERN_INFO	"<6>"	/* informational			*/
 #define	KERN_DEBUG	"<7>"	/* debug-level messages			*/
 
-#if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 5)
-# define NORET_TYPE    __volatile__
-# define ATTRIB_NORET  /**/
-# define NORET_AND     /**/
-#else
 # define NORET_TYPE    /**/
 # define ATTRIB_NORET  __attribute__((noreturn))
 # define NORET_AND     noreturn,
-#endif
 
 extern void math_error(void);
 NORET_TYPE void panic(const char * fmt, ...)
@@ -54,17 +51,21 @@ extern int kill_sl(int sess, int sig, int priv);
 asmlinkage int printk(const char * fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 
+#if DEBUG
+#define pr_debug(fmt,arg...) \
+	printk(KERN_DEBUG fmt,##arg)
+#else
+#define pr_debug(fmt,arg...) \
+	do { } while (0)
+#endif
+
+#define pr_info(fmt,arg...) \
+	printk(KERN_INFO fmt,##arg)
+
 /*
- * This is defined as a macro, but at some point this might become a
- * real subroutine that sets a flag if it returns true (to do
- * BSD-style accounting where the process is flagged if it uses root
- * privs).  The implication of this is that you should do normal
- * permissions checks first, and check suser() last.
- *
  * "suser()" checks against the effective user id, while "fsuser()"
  * is used for file permission checking and checks against the fsuid..
  */
-#define suser() (current->euid == 0)
 #define fsuser() (current->fsuid == 0)
 
 #endif /* __KERNEL__ */

@@ -1,5 +1,5 @@
 #
-# linux/arch/i386/boot/compressed/Makefile
+# linux/arch/mips/boot/compressed/Makefile
 #
 # create a compressed vmlinux image from the original vmlinux
 #
@@ -11,12 +11,6 @@ OBJECTS = $(HEAD) inflate.o unzip.o misc.o
 
 CFLAGS = -O2 -DSTDC_HEADERS
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) $(ASFLAGS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
 .S.s:
 	$(CPP) $(CFLAGS) $< -o $*.s
 .S.o:

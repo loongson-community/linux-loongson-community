@@ -1,4 +1,4 @@
-static char *version =
+static const char *version =
 	"de600.c: $Revision: 1.40 $,  Bjorn Ekwall (bj0rn@blox.se)\n";
 /*
  *	de600.c
@@ -90,10 +90,7 @@ static char *version =
 #endif
 unsigned int de600_debug = DE600_DEBUG;
 
-#ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
-#endif
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -250,7 +247,7 @@ static struct netstats *get_stats(struct device *dev);
 static int	de600_start_xmit(struct sk_buff *skb, struct device *dev);
 
 /* Dispatch from interrupts. */
-static void	de600_interrupt(int irq, struct pt_regs *regs);
+static void	de600_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static int	de600_tx_intr(struct device *dev, int irq_status);
 static void	de600_rx_intr(struct device *dev);
 
@@ -339,15 +336,13 @@ de600_read_byte(unsigned char type, struct device *dev) { /* dev used by macros 
 static int
 de600_open(struct device *dev)
 {
-	if (request_irq(DE600_IRQ, de600_interrupt, 0, "de600")) {
+	if (request_irq(DE600_IRQ, de600_interrupt, 0, "de600", NULL)) {
 		printk ("%s: unable to get IRQ %d\n", dev->name, DE600_IRQ);
 		return 1;
 	}
 	irq2dev_map[DE600_IRQ] = dev;
 
-#ifdef MODULE
 	MOD_INC_USE_COUNT;
-#endif
 	dev->start = 1;
 	if (adapter_init(dev)) {
 		return 1;
@@ -370,12 +365,10 @@ de600_close(struct device *dev)
 	select_prn();
 
 	if (dev->start) {
-		free_irq(DE600_IRQ);
+		free_irq(DE600_IRQ, NULL);
 		irq2dev_map[DE600_IRQ] = NULL;
 		dev->start = 0;
-#ifdef MODULE
 		MOD_DEC_USE_COUNT;
-#endif
 	}
 	return 0;
 }
@@ -495,7 +488,7 @@ de600_start_xmit(struct sk_buff *skb, struct device *dev)
  * Handle the network interface interrupts.
  */
 static void
-de600_interrupt(int irq, struct pt_regs * regs)
+de600_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct device	*dev = irq2dev_map[irq];
 	byte		irq_status;
@@ -609,7 +602,7 @@ de600_rx_intr(struct device *dev)
 		return;
 	}
 
-	skb = alloc_skb(size, GFP_ATOMIC);
+	skb = dev_alloc_skb(size+2);
 	sti();
 	if (skb == NULL) {
 		printk("%s: Couldn't allocate a sk_buff of size %d.\n",
@@ -618,9 +611,11 @@ de600_rx_intr(struct device *dev)
 	}
 	/* else */
 
-	skb->lock = 0;
+	skb->dev = dev;
+	skb_reserve(skb,2);	/* Align */
+	
 	/* 'skb->data' points to the start of sk_buff data area. */
-	buffer = skb->data;
+	buffer = skb_put(skb,size);
 
 	/* copy the packet into the buffer */
 	de600_setup_address(read_from, RW_ADDR);
@@ -630,10 +625,10 @@ de600_rx_intr(struct device *dev)
 	((struct netstats *)(dev->priv))->rx_packets++; /* count all receives */
 
 	skb->protocol=eth_type_trans(skb,dev);
-	if (dev_rint((unsigned char *)skb, size, IN_SKBUFF, dev))
-		printk("%s: receive buffers full.\n", dev->name);
+	
+	netif_rx(skb);
 	/*
-	 * If any worth-while packets have been received, dev_rint()
+	 * If any worth-while packets have been received, netif_rx()
 	 * has done a mark_bh(INET_BH) for us and will work on them
 	 * when we get to the bottom-half routine.
 	 */
@@ -713,6 +708,8 @@ de600_probe(struct device *dev)
 
 	ether_setup(dev);
 	
+	dev->flags&=~IFF_MULTICAST;
+	
 	select_prn();
 	return 0;
 }
@@ -750,6 +747,7 @@ adapter_init(struct device *dev)
 #endif /* SHUTDOWN_WHEN_LOST */
 		was_down = 1;
 		dev->tbusy = 1;		/* Transmit busy...  */
+		restore_flags(flags);
 		return 1; /* failed */
 	}
 #endif /* CHECK_LOST_DE600 */
@@ -827,7 +825,6 @@ de600_rspace(struct sock *sk)
 #endif
 
 #ifdef MODULE
-char kernel_version[] = UTS_RELEASE;
 static char nullname[8];
 static struct device de600_dev = {
 	nullname, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, de600_probe };
@@ -847,3 +844,10 @@ cleanup_module(void)
 	release_region(DE600_IO, 3);
 }
 #endif /* MODULE */
+/*
+ * Local variables:
+ *  kernel-compile-command: "gcc -D__KERNEL__ -Ilinux/include -I../../net/inet -Wall -Wstrict-prototypes -O2 -m486 -c de600.c"
+ *  module-compile-command: "gcc -D__KERNEL__ -DMODULE -Ilinux/include -I../../net/inet -Wall -Wstrict-prototypes -O2 -m486 -c de600.c"
+ *  compile-command: "gcc -D__KERNEL__ -DMODULE -Ilinux/include -I../../net/inet -Wall -Wstrict-prototypes -O2 -m486 -c de600.c"
+ * End:
+ */

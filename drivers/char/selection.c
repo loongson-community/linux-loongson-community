@@ -15,8 +15,9 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/malloc.h>
+#include <linux/types.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include "vt_kern.h"
 #include "consolemap.h"
@@ -37,7 +38,7 @@ static int sel_end;
 static int sel_buffer_lth = 0;
 static char *sel_buffer = NULL;
 
-#define sel_pos(n)	inverse_translate(screen_word(sel_cons, n, 1) & 0xff)
+#define sel_pos(n)   inverse_translate(scrw2glyph(screen_word(sel_cons, n, 1)))
 
 /* clear_selection, highlight and highlight_pointer can be called
    from interrupt (via scrollback/front) */
@@ -69,7 +70,7 @@ clear_selection(void) {
  * User settable table: what characters are to be considered alphabetic?
  * 256 bits
  */
-static unsigned long inwordLut[8]={
+static u32 inwordLut[8]={
   0x00000000, /* control chars     */
   0x03FF0000, /* digits            */
   0x87FFFFFE, /* uppercase and '_' */
@@ -90,7 +91,7 @@ int sel_loadlut(const unsigned long arg)
 	int i = verify_area(VERIFY_READ, (char *) arg, 36);
 	if (i)
 		return i;
-	memcpy_fromfs(inwordLut, (unsigned long *)(arg+4), 32);
+	copy_from_user(inwordLut, (u32 *)(arg+4), 32);
 	return 0;
 }
 
@@ -109,8 +110,8 @@ static inline unsigned short limit(const unsigned short v, const unsigned short 
 	return v;
 }
 
-/* set the current selection. Invoked by ioctl(). */
-int set_selection(const unsigned long arg, struct tty_struct *tty)
+/* set the current selection. Invoked by ioctl() or by kernel code. */
+int set_selection(const unsigned long arg, struct tty_struct *tty, int user)
 {
 	int sel_mode, new_sel_start, new_sel_end, spc;
 	char *bp, *obp;
@@ -121,12 +122,24 @@ int set_selection(const unsigned long arg, struct tty_struct *tty)
 	{ unsigned short *args, xs, ys, xe, ye;
 
 	  args = (unsigned short *)(arg + 1);
-	  xs = get_fs_word(args++) - 1;
-	  ys = get_fs_word(args++) - 1;
-	  xe = get_fs_word(args++) - 1;
-	  ye = get_fs_word(args++) - 1;
-	  sel_mode = get_fs_word(args);
-
+	  if (user) {
+	  	  int err;
+		  err = verify_area(VERIFY_READ, args, sizeof(short) * 5);
+		  if (err)
+		  	return err;
+		  get_user(xs, args++);
+		  get_user(ys, args++);
+		  get_user(xe, args++);
+		  get_user(ye, args++);
+		  get_user(sel_mode, args);
+	  } else {
+		  xs = *(args++); /* set selection from kernel */
+		  ys = *(args++);
+		  xe = *(args++);
+		  ye = *(args++);
+		  sel_mode = *args;
+	  }
+	  xs--; ys--; xe--; ye--;
 	  xs = limit(xs, video_num_columns - 1);
 	  ys = limit(ys, video_num_lines - 1);
 	  xe = limit(xe, video_num_columns - 1);
@@ -277,9 +290,9 @@ int paste_selection(struct tty_struct *tty)
 	if (!bp || !c)
 		return 0;
 	do_unblank_screen();
-	current->state = TASK_INTERRUPTIBLE;
 	add_wait_queue(&vt->paste_wait, &wait);
-	while (c) {
+	do {
+		current->state = TASK_INTERRUPTIBLE;
 		if (test_bit(TTY_THROTTLED, &tty->flags)) {
 			schedule();
 			continue;
@@ -288,7 +301,8 @@ int paste_selection(struct tty_struct *tty)
 		tty->ldisc.receive_buf(tty, bp, 0, l);
 		c -= l;
 		bp += l;
-	}
+	} while (c);
+	remove_wait_queue(&vt->paste_wait, &wait);
 	current->state = TASK_RUNNING;
 	return 0;
 }

@@ -7,49 +7,28 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-
-
-OBJS	:= p8023.o
+O_TARGET := 802.o
+O_OBJS	  = p8023.o sysctl_net_802.o
 
 ifdef CONFIG_TR
+O_OBJS += tr.o
+endif
 
-OBJS	:= $(OBJS) tr.o
-
+ifdef CONFIG_FDDI
+O_OBJS += fddi.o
 endif
 
 ifdef CONFIG_IPX
-
-OBJS	:= $(OBJS) p8022.o psnap.o
-
+OX_OBJS += p8022.o psnap.o p8022tr.o
 endif
 
 ifdef CONFIG_ATALK
 ifndef CONFIG_IPX
-
-OBJS	:= $(OBJS) p8022.o psnap.o
-
+OX_OBJS += p8022.o psnap.o p8022tr.o
 endif
 endif
 
-802.o:		$(OBJS)
-		$(LD) -r -o 802.o $(OBJS)
-
-
-dep:
-		$(CPP) -M *.c > .depend
+include $(TOPDIR)/Rules.make
 
 tar:
 		tar -cvf /dev/f1 .
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif

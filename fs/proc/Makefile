@@ -7,24 +7,9 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
+O_TARGET := proc.o
+O_OBJS   := inode.o root.o base.o mem.o link.o fd.o array.o kmsg.o net.o scsi.o
+OX_OBJS  := procfs_syms.o
+M_OBJS   := $(O_TARGET)
 
-OBJS=	inode.o root.o base.o mem.o link.o fd.o array.o kmsg.o net.o
-
-proc.o: $(OBJS)
-	$(LD) -r -o proc.o $(OBJS)
-
-dep:
-	$(CPP) -M *.c > .depend
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

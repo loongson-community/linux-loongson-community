@@ -46,6 +46,10 @@
 #define ICMP_HOST_ANO		10
 #define ICMP_NET_UNR_TOS	11
 #define ICMP_HOST_UNR_TOS	12
+#define ICMP_PKT_FILTERED	13	/* Packet filtered */
+#define ICMP_PREC_VIOLATION	14	/* Precedence violation */
+#define ICMP_PREC_CUTOFF	15	/* Precedence cut off */
+#define NR_ICMP_UNREACH	15	  /* instead of hardcoding immediate value */
 
 /* Codes for REDIRECT. */
 #define ICMP_REDIR_NET		0	/* Redirect Net			*/
@@ -59,15 +63,15 @@
 
 
 struct icmphdr {
-  unsigned char		type;
-  unsigned char		code;
-  unsigned short	checksum;
+  __u8		type;
+  __u8		code;
+  __u16		checksum;
   union {
 	struct {
-		unsigned short	id;
-		unsigned short	sequence;
+		__u16	id;
+		__u16	sequence;
 	} echo;
-	unsigned long gateway;
+	__u32	gateway;
   } un;
 };
 

@@ -1,45 +1,39 @@
-VoxWare v2.90 release notes
---------------------------
-
-
-		This version includes some hidden features which
-		are described in the file experimental.txt
-		Some of these features are not enabled by default. Look at
-		experimental.txt for more info.
-
-		I just decided to release this version with some
-		incompletely implemented features disabled since
-		there are some new features required by a popular 
-		application. In addition there is also support
-		for the GUS MAX and the 16 bit sampling option of GUS.
-
-		The MSS/WSS support works now. At least with SG NX Pro 16.
-
-********* IMPORTANT *****************************************
-Linux 1.0 or later is required to by this driver version.
-
-Don't distribute binaries which use /dev/sequencer and are
-compiled with the soundcard.h of this version. They will
-not work with version 2.x of the driver.
-*************************************************************
-
-
-You will need the snd-util-2.5.tar.gz and snd-data-0.1.tar.Z
-packages to use this driver. They should be in the same
-ftp site or BBS from where you got this driver. For
-example at nic.funet.fi:pub/OS/Linux/*.
-
-If you are looking for the installation instructions, please
-look at linux/Readme.
-
-Compatibility with the earlier versions
+OSS Lite version 3.7-beta release notes
 ---------------------------------------
 
-This version is backward compatible with the version 2.X. All programs
-compiled with sys/soundcard.h of v2.X should work without problems.
-PROGRAMS COMPILED WITH THE sys/soundcard.h OF THIS VERSION WILL NOT
-WORK WITH v2.X DRIVER. BE CAREFUL WHEN DISTRIBUTING BINARIES COMPILED 
-FOR THIS VERSION.
+Most up to date information about this driver is available from 
+http://www.4front-tech.com/ossfree or http://personal.eunet.fi/pp/voxware
+(European mirror).
+
+
+
+Please read the SOUND-HOWTO (available from sunsite.unc.edu and other Linux FTP 
+sites). It gives instructions about using sound with Linux. It's bit out of
+date but still very useful. Information about bug fixes and such things
+is available from the web page (see below).
+
+New Programmer's Guide is currently under work (June/July 96). Please
+check http://www.4front-tech.com/pguide for more info.
+
+   ====================================================
+-  THIS VERSION ____REQUIRES____ Linux 2.1.5 OR LATER.
+   ====================================================
+
+Packages "snd-util-3.7.tar.gz" and "snd-data-0.1.tar.Z"
+contain useful utilities to be used with this driver.
+See http://www.4front-tech.com/ossfree/getting.html for
+download instructions.
+
+If you are looking for the installation instructions, please
+look at Readme.linux.
+
+Supported soundcards
+--------------------
+
+See Readme.cards.
+
+Please check http://www.4front-tech.com/ossfree if you don't find
+your soundcard there.
 
 Contributors
 ------------
@@ -51,36 +45,131 @@ contributors. (I could have forgotten some names.)
 	Craig Metz	1/2 of the PAS16 Mixer and PCM support
 	Rob Hooft	Volume computation algorithm for the FM synth.
 	Mika Liljeberg	uLaw encoding and decoding routines
+	Jeff Tranter	Linux SOUND HOWTO document
 	Greg Lee	Volume computation algorithm for the GUS and
 			lot's of valuable suggestions.
 	Andy Warner	ISC port
-	Jim Lowe	FreeBSD port
-	Anders Baekgaard 	Bughunting and valuable suggestions.
-	Joerg Schubert	SB16 DSP support.
+	Jim Lowe,
+	Amancio Hasty Jr	FreeBSD/NetBSD port
+	Anders Baekgaard 	Bug hunting and valuable suggestions.
+	Joerg Schubert	SB16 DSP support (initial version).
 	Andrew Robinson Improvements to the GUS driver
-	Megens SA	MIDI recording for SB and SB Pro.
-	Mikael Nordqvist  Linear volume support for GUS.
-	Mikael Nordqvist  	Linear volume support for GUS.
+	Megens SA	MIDI recording for SB and SB Pro (initial version).
+	Mikael Nordqvist  Linear volume support for GUS and
+			  nonblocking /dev/sequencer.
 	Ian Hartas		SVR4.2 port
 	Markus Aroharju	and
 	Risto Kankkunen		Major contributions to the mixer support
 				of GUS v3.7.
 	Hunyue Yau	Mixer support for SG NX Pro.
-	Marc Hoffman	PSS support.
+	Marc Hoffman	PSS support (initial version).
+	Rainer Vranken	Initialization for Jazz16 (initial version).
+	Peter Trattler	Initial version of loadable module support for Linux.
+	JRA Gibson	16 bit mode for Jazz16 (initial version)
+	Davor Jadrijevic MAD16 support (initial version)
+	Gregor Hoffleit	Mozart support (initial version)
+	Riccardo Facchetti Audio Excel DSP 16 (aedsp16) support
+	James Hightower Spotting a tiny but important bug in CS423x support.
+	Denis Sablic	OPTi 82C924 spesific enhancements (non PnP mode)
+	Tim MacKenzie	Full duplex support for OPTi 82C930.
+	
+	Please look at lowlevel/README for more contributors.
 
-Regards,
+There are probably many other names missing. If you have sent me some
+patches and your name is not in the above list, please inform me.
+
+Sponsors etc.
+-------------
+
+The following companies have greatly helped development of this driver 
+in form of a free copy of their product:
+
+Novell, Inc.		UnixWare personal edition + SDK
+The Santa Cruz Operation, Inc. 	A SCO OpenServer + SDK
+Ensoniq Corp,		a SoundScape card and extensive amount of assistance
+MediaTrix Peripherals Inc, a AudioTrix Pro card + SDK
+Acer, Inc.		a pair of AcerMagic S23 cards.
+
+In addition the following companies have provided me sufficient amount
+of technical information at least some of their products (free or $$$):
+
+Advanced Gravis Computer Technology Ltd.
+Media Vision Inc.
+Analog Devices Inc.
+Logitech Inc.
+Aztech Labs Inc.
+Crystal Semiconductor Corporation,
+Integrated Circuit Systems Inc.
+OAK Technology
+OPTi
+Turtle Beach
+miro
+Ad Lib Inc. ($$)
+Music Quest Inc. ($$)
+Creative Labs ($$$)
+
+If you have some problems
+=========================
+
+Read the sound HOWTO (sunsite.unc.edu:/pub/Linux/docs/...?).
+Also look at the home page (http://www.4front-tech.com/ossfree). It may
+contain info about some recent bug fixes.
+
+It's likely that you have some problems when trying to use the sound driver
+first time. Soundcards don't have standard configuration so there are no
+good default configuration to use. Please try to use same I/O, DMA and IRQ
+values for the soundcard than with DOS.
+
+If you get an error message when trying to use the driver, please look
+at /var/adm/messages for more verbose error message.
+
+
+In general the easiest way to diagnose problems is to do "cat /dev/sndstat".
+
+If you get an error message, there are some problems with the driver setup:
+
+	- "No such file or directory" tells that the device files for
+	the sound driver are missing. Use the script at the end of
+	linux/drivers/sound/Readme.linux to create them.
+
+	- "No such device" tells that the sound driver is not in the kernel.
+	You have to reconfigure and recompile the kernel to have the sound
+	driver. Compiling the driver doesn't help alone. You have to boot
+	with the newly compiled one before the driver becomes active.
+	The Linux-HOWTO should help in this step.
+
+The following errors are likely with /dev/dsp and /dev/audio.
+
+	- "No such device or address". This error message should not happen
+	with /dev/sndstat but it's possible with the other sound devices.
+	This error indicates that there are no suitable hardware for the
+	device file or the sound driver has been compiled without support for
+	this particular device. For example /dev/audio and /dev/dsp will not
+	work if "digitized voice support" was not enabled during "make config".
+	
+	- "Device or resource busy". Probably the IRQ (or DMA) channel 
+	required by the soundcard is in use by some other device/driver.
+
+	- "I/O error". Almost certainly (99%) it's an IRQ or DMA conflict.
+	Look at the kernel messages in /var/adm/notice for more info.
+
+	- "Invalid argument". The application is calling ioctl()
+	with impossible parameters. Check that the application is
+	for sound driver version 2.X or later.
+
+In general the printout of of /dev/sndstat should tell what is the problem.
+It's possible that there are bugs in the sound driver but 99% of the problems
+reported to me are caused by somehow incorrect setup during "make config".
+
+Best regards,
+
+Hannu
 
 Hannu Savolainen
-hannu@voxware.pp.fi
+hannu@voxware.pp.fi, hannu@4front-tech.com	
+(Please check http://www.4front-tech.com/ossfree before mailing me).
 
 Snail mail:	Hannu Savolainen
 		Hiekkalaiturintie 3 A 8
 		00980 Helsinki
 		Finland
-FAX:		+358 0 341 6272 (answers if I have my machine (mgetty) on).
-
-NOTE!	I probably don't answer to Snail mail or FAX messages. Sending answer
-	to each of them is simply too expensive and time consuming. However I
-	try to reply every email message I get (within a week). If you don't
-	get response, please check how your address is written in the message
-	header. I can't answer if I don't have a valid reply address.

@@ -1,7 +1,10 @@
-
-	*********************************************************
-	* IF YOU HAVE ANY PROBLEMS WITH THE SOUND DRIVER,	*
-	* PLEASE READ THE SOUND-HOWTO. IT'S AVAILABLE FROM YOUR	*
-	* NEAREST LINUX FTP SITE AND CONTAINS ANSWER TO YOUR	*
-	* PROBLEM.						*
-	*********************************************************
+*********************************************************
+* Readme.cards (this directory) contains some card	*
+* specific instructions.				*
+* See http://www.4front-tech.com/ossfree for most up    *
+* to date info.                                         *
+* (European mirror http://personal.eunet.fi/pp/voxware) *
+*							*
+* DON'T USE PROGRAMS FROM snd-util PACKAGE EARLIER THAN *
+* snd-util-3.5 WITH THIS SOUND DRIVER VERSION.          *
+*********************************************************

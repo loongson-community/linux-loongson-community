@@ -1,4 +1,4 @@
-#
+# $Id: Makefile,v 1.20 1996/04/16 08:02:50 davem Exp $
 # sparc/Makefile
 #
 # Makefile for the architecture dependent flags and dependencies on the
@@ -7,27 +7,36 @@
 # Copyright (C) 1994 David S. Miller (davem@caip.rutgers.edu)
 #
 
-
 # If the solaris /bin/sh wasn't so broken, I wouldn't need the following
 # line...
 SHELL  =/bin/bash
 
 #
-# How to link, we send the linker the address at which the text section
-# is to start. The prom loads us at 0x0-kernel_size. There is also an
-# alias of this address space at 0xf8000000-(0xf8000000+kernel_size) but
-# I ignore it and eliminate those mappings during vm initialization and
-# just leave the low mapping.
-#
-LINKFLAGS = -N -Ttext 0x00004000
+# Uncomment the first CFLAGS if you are doing kgdb source level
+# debugging of the kernel to get the proper debugging information.
+
+#CFLAGS := $(CFLAGS) -g -pipe
 CFLAGS := $(CFLAGS) -pipe
+
+LINKFLAGS = -N -Ttext 0xf0004000
 
 HEAD := arch/sparc/kernel/head.o
 
-SUBDIRS := $(SUBDIRS) arch/sparc/kernel arch/sparc/lib arch/sparc/mm
+SUBDIRS := $(SUBDIRS) arch/sparc/kernel arch/sparc/lib arch/sparc/mm \
+	arch/sparc/prom
+
 ARCHIVES := arch/sparc/kernel/kernel.o arch/sparc/mm/mm.o $(ARCHIVES)
-LIBS := $(TOPDIR)/lib/lib.a $(LIBS) $(TOPDIR)/arch/sparc/lib/lib.a
+
+LIBS := $(TOPDIR)/lib/lib.a $(LIBS) $(TOPDIR)/arch/sparc/prom/promlib.a \
+	$(TOPDIR)/arch/sparc/lib/lib.a
+
+ifdef CONFIG_AP1000
+SUBDIRS := $(SUBDIRS) arch/sparc/ap1000
+ARCHIVES := $(TOPDIR)/arch/sparc/ap1000/ap1000lib.o $(ARCHIVES) 
+DRIVERS := $(DRIVERS) drivers/ap1000/ap1000.a
+endif
 
 archclean:
+	rm -f $(TOPDIR)/arch/sparc/boot/boot
 
 archdep:

@@ -11,14 +11,30 @@
 
 #include <asm/param.h>	/* for HZ */
 
-extern unsigned long intr_count;
 extern unsigned long event;
 
 #include <linux/binfmts.h>
 #include <linux/personality.h>
 #include <linux/tasks.h>
 #include <linux/kernel.h>
+
 #include <asm/system.h>
+#include <asm/semaphore.h>
+#include <asm/page.h>
+
+#include <linux/smp.h>
+#include <linux/tty.h>
+#include <linux/sem.h>
+
+/*
+ * cloning flags:
+ */
+#define CSIGNAL		0x000000ff	/* signal mask to be sent at exit */
+#define CLONE_VM	0x00000100	/* set if VM shared between processes */
+#define CLONE_FS	0x00000200	/* set if fs info shared between processes */
+#define CLONE_FILES	0x00000400	/* set if open files shared between processes */
+#define CLONE_SIGHAND	0x00000800	/* set if signal handlers shared */
+#define CLONE_PID	0x00001000	/* set if pid shared */
 
 /*
  * These are the constant used to fake the fixed-point load-average
@@ -48,6 +64,7 @@ extern unsigned long avenrun[];		/* Load averages */
 #define CT_TO_USECS(x)	(((x) % HZ) * 1000000/HZ)
 
 extern int nr_running, nr_tasks;
+extern int last_pid;
 
 #define FIRST_TASK task[0]
 #define LAST_TASK task[NR_TASKS-1]
@@ -58,9 +75,8 @@ extern int nr_running, nr_tasks;
 #include <linux/time.h>
 #include <linux/param.h>
 #include <linux/resource.h>
-#include <linux/vm86.h>
-#include <linux/math_emu.h>
 #include <linux/ptrace.h>
+#include <linux/timer.h>
 
 #include <asm/processor.h>
 
@@ -71,13 +87,22 @@ extern int nr_running, nr_tasks;
 #define TASK_STOPPED		4
 #define TASK_SWAPPING		5
 
+/*
+ * Scheduling policies
+ */
+#define SCHED_OTHER		0
+#define SCHED_FIFO		1
+#define SCHED_RR		2
+
+struct sched_param {
+	int sched_priority;
+};
+
 #ifndef NULL
 #define NULL ((void *) 0)
 #endif
 
 #ifdef __KERNEL__
-
-#define barrier() __asm__("": : :"memory")
 
 extern void sched_init(void);
 extern void show_state(void);
@@ -85,16 +110,17 @@ extern void trap_init(void);
 
 asmlinkage void schedule(void);
 
-#endif /* __KERNEL__ */
-
+/* Open file table structure */
 struct files_struct {
 	int count;
 	fd_set close_on_exec;
+	fd_set open_fds;
 	struct file * fd[NR_OPEN];
 };
 
 #define INIT_FILES { \
-	0, \
+	1, \
+	{ { 0, } }, \
 	{ { 0, } }, \
 	{ NULL, } \
 }
@@ -106,37 +132,44 @@ struct fs_struct {
 };
 
 #define INIT_FS { \
-	0, \
+	1, \
 	0022, \
 	NULL, NULL \
 }
 
 struct mm_struct {
 	int count;
-	unsigned long start_code, end_code, end_data;
+	pgd_t * pgd;
+	unsigned long context;
+	unsigned long start_code, end_code, start_data, end_data;
 	unsigned long start_brk, brk, start_stack, start_mmap;
 	unsigned long arg_start, arg_end, env_start, env_end;
-	unsigned long rss;
-	unsigned long min_flt, maj_flt, cmin_flt, cmaj_flt;
-	int swappable:1;
-	unsigned long swap_address;
-	unsigned long old_maj_flt;	/* old value of maj_flt */
-	unsigned long dec_flt;		/* page fault count of the last time */
-	unsigned long swap_cnt;		/* number of pages to swap on next pass */
+	unsigned long rss, total_vm, locked_vm;
+	unsigned long def_flags;
 	struct vm_area_struct * mmap;
 	struct vm_area_struct * mmap_avl;
+	struct semaphore mmap_sem;
 };
 
 #define INIT_MM { \
+		1, \
+		swapper_pg_dir, \
 		0, \
+		0, 0, 0, 0, \
+		0, 0, 0, 0, \
+		0, 0, 0, 0, \
 		0, 0, 0, \
-		0, 0, 0, 0, \
-		0, 0, 0, 0, \
 		0, \
-/* ?_flt */	0, 0, 0, 0, \
-		0, \
-/* swap */	0, 0, 0, 0, \
-		&init_mmap, &init_mmap }
+		&init_mmap, &init_mmap, MUTEX }
+
+struct signal_struct {
+	int count;
+	struct sigaction action[32];
+};
+
+#define INIT_SIGNALS { \
+		1, \
+		{ {0,}, } }
 
 struct task_struct {
 /* these are hardcoded - don't touch */
@@ -147,21 +180,28 @@ struct task_struct {
 	unsigned long blocked;	/* bitmap of masked signals */
 	unsigned long flags;	/* per process flags, defined below */
 	int errno;
-	int debugreg[8];  /* Hardware debugging registers */
+	long debugreg[8];  /* Hardware debugging registers */
 	struct exec_domain *exec_domain;
 /* various fields */
 	struct linux_binfmt *binfmt;
 	struct task_struct *next_task, *prev_task;
 	struct task_struct *next_run,  *prev_run;
-	struct sigaction sigaction[32];
 	unsigned long saved_kernel_stack;
 	unsigned long kernel_stack_page;
 	int exit_code, exit_signal;
+	/* ??? */
 	unsigned long personality;
 	int dumpable:1;
 	int did_exec:1;
-	int pid,pgrp,tty_old_pgrp,session,leader;
-	int	groups[NGROUPS];
+	/* shouldn't this be pid_t? */
+	int pid;
+	int pgrp;
+	int tty_old_pgrp;
+	int session;
+	/* boolean value for session group leader */
+	int leader;
+	int ngroups;
+	gid_t groups[NGROUPS];
 	/* 
 	 * pointers to (original) parent process, youngest child, younger sibling,
 	 * older sibling, respectively.  (p->father can be replaced with 
@@ -171,11 +211,20 @@ struct task_struct {
 	struct wait_queue *wait_chldexit;	/* for wait4() */
 	unsigned short uid,euid,suid,fsuid;
 	unsigned short gid,egid,sgid,fsgid;
-	unsigned long timeout;
+	unsigned long timeout, policy, rt_priority;
 	unsigned long it_real_value, it_prof_value, it_virt_value;
 	unsigned long it_real_incr, it_prof_incr, it_virt_incr;
+	struct timer_list real_timer;
 	long utime, stime, cutime, cstime, start_time;
-	struct rlimit rlim[RLIM_NLIMITS]; 
+/* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
+	unsigned long min_flt, maj_flt, nswap, cmin_flt, cmaj_flt, cnswap;
+	int swappable:1;
+	unsigned long swap_address;
+	unsigned long old_maj_flt;	/* old value of maj_flt */
+	unsigned long dec_flt;		/* page fault count of the last time */
+	unsigned long swap_cnt;		/* number of pages to swap on next pass */
+/* limits */
+	struct rlimit rlim[RLIM_NLIMITS];
 	unsigned short used_math;
 	char comm[16];
 /* file system info */
@@ -189,11 +238,18 @@ struct task_struct {
 /* tss for this task */
 	struct thread_struct tss;
 /* filesystem information */
-	struct fs_struct fs[1];
+	struct fs_struct *fs;
 /* open file information */
-	struct files_struct files[1];
+	struct files_struct *files;
 /* memory management info */
-	struct mm_struct mm[1];
+	struct mm_struct *mm;
+/* signal handlers */
+	struct signal_struct *sig;
+#ifdef __SMP__
+	int processor;
+	int last_processor;
+	int lock_depth;		/* Lock depth. We can context switch in and out of holding a syscall kernel lock... */	
+#endif	
 };
 
 /*
@@ -203,61 +259,85 @@ struct task_struct {
 					/* Not implemented yet, only for 486*/
 #define PF_PTRACED	0x00000010	/* set if ptrace (0) has been called. */
 #define PF_TRACESYS	0x00000020	/* tracing system calls */
+#define PF_FORKNOEXEC	0x00000040	/* forked but didn't exec */
+#define PF_SUPERPRIV	0x00000100	/* used super-user privileges */
+#define PF_DUMPCORE	0x00000200	/* dumped core */
+#define PF_SIGNALED	0x00000400	/* killed by a signal */
 
-#define PF_STARTING	0x00000100	/* being created */
-#define PF_EXITING	0x00000200	/* getting shut down */
+#define PF_STARTING	0x00000002	/* being created */
+#define PF_EXITING	0x00000004	/* getting shut down */
+
+#define PF_USEDFPU	0x00100000	/* Process used the FPU this quantum (SMP only) */
+#define PF_DTRACE	0x00200000	/* delayed trace (used on m68k) */
 
 /*
- * cloning flags:
+ * Limit the stack by to some sane default: root can always
+ * increase this limit if needed..  8MB seems reasonable.
  */
-#define CSIGNAL		0x000000ff	/* signal mask to be sent at exit */
-#define COPYVM		0x00000100	/* set if VM copy desired (like normal fork()) */
-#define COPYFD		0x00000200	/* set if fd's should be copied, not shared (NI) */
+#define _STK_LIM	(8*1024*1024)
+
+#define DEF_PRIORITY	(20*HZ/100)	/* 200 ms time slices */
 
 /*
  *  INIT_TASK is used to set up the first task table, touch at
  * your own risk!. Base=0, limit=0x1fffff (=2MB)
  */
 #define INIT_TASK \
-/* state etc */	{ 0,15,15,0,0,0,0, \
+/* state etc */	{ 0,DEF_PRIORITY,DEF_PRIORITY,0,0,0,0, \
 /* debugregs */ { 0, },            \
 /* exec domain */&default_exec_domain, \
 /* binfmt */	NULL, \
 /* schedlink */	&init_task,&init_task, &init_task, &init_task, \
-/* signals */	{{ 0, },}, \
 /* stack */	0,(unsigned long) &init_kernel_stack, \
 /* ec,brk... */	0,0,0,0,0, \
 /* pid etc.. */	0,0,0,0,0, \
-/* suppl grps*/ {NOGROUP,}, \
+/* suppl grps*/ 0, {0,}, \
 /* proc links*/ &init_task,&init_task,NULL,NULL,NULL,NULL, \
 /* uid etc */	0,0,0,0,0,0,0,0, \
-/* timeout */	0,0,0,0,0,0,0,0,0,0,0,0, \
-/* rlimits */   { {LONG_MAX, LONG_MAX}, {LONG_MAX, LONG_MAX},  \
-		  {LONG_MAX, LONG_MAX}, {LONG_MAX, LONG_MAX},  \
-		  {       0, LONG_MAX}, {LONG_MAX, LONG_MAX}, \
-		  {MAX_TASKS_PER_USER, MAX_TASKS_PER_USER}, {NR_OPEN, NR_OPEN}}, \
+/* timeout */	0,SCHED_OTHER,0,0,0,0,0,0,0, \
+/* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
+/* utime */	0,0,0,0,0, \
+/* flt */	0,0,0,0,0,0, \
+/* swp */	0,0,0,0,0, \
+/* rlimits */   INIT_RLIMITS, \
 /* math */	0, \
 /* comm */	"swapper", \
 /* fs info */	0,NULL, \
 /* ipc */	NULL, NULL, \
 /* ldt */	NULL, \
 /* tss */	INIT_TSS, \
-/* fs */	{ INIT_FS }, \
-/* files */	{ INIT_FILES }, \
-/* mm */	{ INIT_MM } \
+/* fs */	&init_fs, \
+/* files */	&init_files, \
+/* mm */	&init_mm, \
+/* signals */	&init_signals, \
 }
 
-#ifdef __KERNEL__
-
+extern struct   mm_struct init_mm;
 extern struct task_struct init_task;
 extern struct task_struct *task[NR_TASKS];
 extern struct task_struct *last_task_used_math;
-extern struct task_struct *current;
+extern struct task_struct *current_set[NR_CPUS];
+/*
+ *	On a single processor system this comes out as current_set[0] when cpp
+ *	has finished with it, which gcc will optimise away.
+ *      Ralf:  It won't.  On MIPS something like
+ *              la      reg,current_set
+ *              lw      reg,(reg)
+ *      will be generated which is one cycle to much.  FIXME somewhen laaater.
+ */
+#define current (current_set[smp_processor_id()])	/* Current on this processor */
 extern unsigned long volatile jiffies;
 extern unsigned long itimer_ticks;
 extern unsigned long itimer_next;
 extern struct timeval xtime;
 extern int need_resched;
+extern void do_timer(struct pt_regs *);
+
+extern unsigned int * prof_buffer;
+extern unsigned long prof_len;
+extern unsigned long prof_shift;
+
+extern int securelevel;	/* system security level */
 
 #define CURRENT_TIME (xtime.tv_sec)
 
@@ -265,89 +345,110 @@ extern void sleep_on(struct wait_queue ** p);
 extern void interruptible_sleep_on(struct wait_queue ** p);
 extern void wake_up(struct wait_queue ** p);
 extern void wake_up_interruptible(struct wait_queue ** p);
+extern void wake_up_process(struct task_struct * tsk);
 
 extern void notify_parent(struct task_struct * tsk);
+extern void force_sig(unsigned long sig,struct task_struct * p);
 extern int send_sig(unsigned long sig,struct task_struct * p,int priv);
 extern int in_group_p(gid_t grp);
 
-extern int request_irq(unsigned int irq,void (*handler)(int, struct pt_regs *),
-	unsigned long flags, const char *device);
-extern void free_irq(unsigned int irq);
+extern int request_irq(unsigned int irq,
+		       void (*handler)(int, void *, struct pt_regs *),
+		       unsigned long flags, 
+		       const char *device,
+		       void *dev_id);
+extern void free_irq(unsigned int irq, void *dev_id);
+
+/*
+ * This has now become a routine instead of a macro, it sets a flag if
+ * it returns true (to do BSD-style accounting where the process is flagged
+ * if it uses root privs). The implication of this is that you should do
+ * normal permissions checks first, and check suser() last.
+ */
+extern inline int suser(void)
+{
+	if (current->euid == 0) {
+		current->flags |= PF_SUPERPRIV;
+		return 1;
+	}
+	return 0;
+}
 
 extern void copy_thread(int, unsigned long, unsigned long, struct task_struct *, struct pt_regs *);
 extern void flush_thread(void);
 extern void exit_thread(void);
 
+extern void exit_mm(struct task_struct *);
+extern void exit_fs(struct task_struct *);
+extern void exit_files(struct task_struct *);
+extern void exit_sighand(struct task_struct *);
+extern void release_thread(struct task_struct *);
+
 extern int do_execve(char *, char **, char **, struct pt_regs *);
 extern int do_fork(unsigned long, unsigned long, struct pt_regs *);
-asmlinkage int do_signal(unsigned long, struct pt_regs *);
 
+
+/* See if we have a valid user level fd.
+ * If it makes sense, return the file structure it references.
+ * Otherwise return NULL.
+ */
+extern inline struct file *file_from_fd(const unsigned int fd)
+{
+
+	if (fd >= NR_OPEN)
+		return NULL;
+	/* either valid or null */
+	return current->files->fd[fd];
+}
+	
 /*
  * The wait-queues are circular lists, and you have to be *very* sure
  * to keep them correct. Use only these two functions to add/remove
  * entries in the queues.
  */
+extern inline void __add_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
+{
+	struct wait_queue *head = *p;
+	struct wait_queue *next = WAIT_QUEUE_HEAD(p);
+
+	if (head)
+		next = head;
+	*p = wait;
+	wait->next = next;
+}
+
 extern inline void add_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
 {
 	unsigned long flags;
 
-#ifdef DEBUG
-	if (wait->next) {
-		unsigned long pc;
-		__asm__ __volatile__("call 1f\n"
-			"1:\tpopl %0":"=r" (pc));
-		printk("add_wait_queue (%08x): wait->next = %08x\n",pc,(unsigned long) wait->next);
-	}
-#endif
 	save_flags(flags);
 	cli();
-	if (!*p) {
-		wait->next = wait;
-		*p = wait;
-	} else {
-		wait->next = (*p)->next;
-		(*p)->next = wait;
-	}
+	__add_wait_queue(p, wait);
 	restore_flags(flags);
+}
+
+extern inline void __remove_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
+{
+	struct wait_queue * next = wait->next;
+	struct wait_queue * head = next;
+
+	for (;;) {
+		struct wait_queue * nextlist = head->next;
+		if (nextlist == wait)
+			break;
+		head = nextlist;
+	}
+	head->next = next;
 }
 
 extern inline void remove_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
 {
 	unsigned long flags;
-	struct wait_queue * tmp;
-#ifdef DEBUG
-	unsigned long ok = 0;
-#endif
 
 	save_flags(flags);
 	cli();
-	if ((*p == wait) &&
-#ifdef DEBUG
-	    (ok = 1) &&
-#endif
-	    ((*p = wait->next) == wait)) {
-		*p = NULL;
-	} else {
-		tmp = wait;
-		while (tmp->next != wait) {
-			tmp = tmp->next;
-#ifdef DEBUG
-			if (tmp == *p)
-				ok = 1;
-#endif
-		}
-		tmp->next = wait->next;
-	}
-	wait->next = NULL;
+	__remove_wait_queue(p, wait);
 	restore_flags(flags);
-#ifdef DEBUG
-	if (!ok) {
-		printk("removed wait_queue not on list.\n");
-		printk("list = %08x, queue = %08x\n",(unsigned long) p, (unsigned long) wait);
-		__asm__("call 1f\n1:\tpopl %0":"=r" (ok));
-		printk("eip = %08x\n",ok);
-	}
-#endif
 }
 
 extern inline void select_wait(struct wait_queue ** wait_address, select_table * p)
@@ -365,24 +466,6 @@ extern inline void select_wait(struct wait_queue ** wait_address, select_table *
 	add_wait_queue(wait_address,&entry->wait);
 	p->nr++;
 }
-
-extern void __down(struct semaphore * sem);
-
-/*
- * These are not yet interrupt-safe
- */
-extern inline void down(struct semaphore * sem)
-{
-	if (sem->count <= 0)
-		__down(sem);
-	sem->count--;
-}
-
-extern inline void up(struct semaphore * sem)
-{
-	sem->count++;
-	wake_up(&sem->wait);
-}	
 
 #define REMOVE_LINKS(p) do { unsigned long flags; \
 	save_flags(flags) ; cli(); \

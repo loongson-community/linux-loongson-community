@@ -22,9 +22,6 @@
 #include <linux/wait.h>
 #include <linux/socket.h>
 
-
-#define NSOCKETS	2000		/* Dynamic, this is MAX LIMIT	*/
-#define NSOCKETS_UNIX	128		/* unix domain static limit	*/
 #define NPROTO		16		/* should be enough for now..	*/
 
 
@@ -43,6 +40,8 @@
 #define SYS_SHUTDOWN	13		/* sys_shutdown(2)		*/
 #define SYS_SETSOCKOPT	14		/* sys_setsockopt(2)		*/
 #define SYS_GETSOCKOPT	15		/* sys_getsockopt(2)		*/
+#define SYS_SENDMSG	16		/* sys_sendmsg(2)		*/
+#define SYS_RECVMSG	17		/* sys_recvmsg(2)		*/
 
 
 typedef enum {
@@ -81,6 +80,7 @@ struct socket {
   struct wait_queue	**wait;		/* ptr to place to wait on	*/
   struct inode		*inode;
   struct fasync_struct  *fasync_list;	/* Asynchronous wake up list	*/
+  struct file		*file;		/* File back pointer for gc	*/
 };
 
 #define SOCK_INODE(S)	((S)->inode)
@@ -100,23 +100,11 @@ struct proto_ops {
 			 int flags);
   int	(*getname)	(struct socket *sock, struct sockaddr *uaddr,
 			 int *usockaddr_len, int peer);
-  int	(*read)		(struct socket *sock, char *ubuf, int size,
-			 int nonblock);
-  int	(*write)	(struct socket *sock, char *ubuf, int size,
-			 int nonblock);
   int	(*select)	(struct socket *sock, int sel_type,
 			 select_table *wait);
   int	(*ioctl)	(struct socket *sock, unsigned int cmd,
 			 unsigned long arg);
   int	(*listen)	(struct socket *sock, int len);
-  int	(*send)		(struct socket *sock, void *buff, int len, int nonblock,
-			 unsigned flags);
-  int	(*recv)		(struct socket *sock, void *buff, int len, int nonblock,
-			 unsigned flags);
-  int	(*sendto)	(struct socket *sock, void *buff, int len, int nonblock,
-			 unsigned flags, struct sockaddr *, int addr_len);
-  int	(*recvfrom)	(struct socket *sock, void *buff, int len, int nonblock,
-			 unsigned flags, struct sockaddr *, int *addr_len);
   int	(*shutdown)	(struct socket *sock, int flags);
   int	(*setsockopt)	(struct socket *sock, int level, int optname,
 			 char *optval, int optlen);
@@ -124,14 +112,15 @@ struct proto_ops {
 			 char *optval, int *optlen);
   int	(*fcntl)	(struct socket *sock, unsigned int cmd,
 			 unsigned long arg);	
+  int   (*sendmsg)	(struct socket *sock, struct msghdr *m, int total_len, int nonblock, int flags);
+  int   (*recvmsg)	(struct socket *sock, struct msghdr *m, int total_len, int nonblock, int flags, int *addr_len);
 };
 
 struct net_proto {
-	char *name;		/* Protocol name */
+	const char *name;		/* Protocol name */
 	void (*init_func)(struct net_proto *);	/* Bootstrap */
 };
 
-extern int	sock_awaitconn(struct socket *mysock, struct socket *servsock, int flags);
 extern int	sock_wake_async(struct socket *sock, int how);
 extern int	sock_register(int family, struct proto_ops *ops);
 extern int	sock_unregister(int family);

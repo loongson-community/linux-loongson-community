@@ -40,7 +40,7 @@
 
 struct dma_chan {
 	int  lock;
-	char *device_id;
+	const char *device_id;
 };
 
 static struct dma_chan dma_chan_busy[MAX_DMA_CHANNELS] = {
@@ -69,12 +69,12 @@ int get_dma_list(char *buf)
 } /* get_dma_list */
 
 
-int request_dma(unsigned int dmanr, char * device_id)
+int request_dma(unsigned int dmanr, const char * device_id)
 {
 	if (dmanr >= MAX_DMA_CHANNELS)
 		return -EINVAL;
 
-	if (xchg_u32(&dma_chan_busy[dmanr].lock, 1) != 0)
+	if (xchg(&dma_chan_busy[dmanr].lock, 1) != 0)
 		return -EBUSY;
 
 	dma_chan_busy[dmanr].device_id = device_id;
@@ -91,7 +91,7 @@ void free_dma(unsigned int dmanr)
 		return;
 	}
 
-	if (xchg_u32(&dma_chan_busy[dmanr].lock, 0) == 0) {
+	if (xchg(&dma_chan_busy[dmanr].lock, 0) == 0) {
 		printk("Trying to free free DMA%d\n", dmanr);
 		return;
 	}	

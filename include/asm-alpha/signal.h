@@ -43,6 +43,8 @@ typedef unsigned long sigset_t;		/* at least 32 bits */
 #define SIGUSR2		31
 
 #define SIGPOLL	SIGIO
+#define SIGPWR	SIGINFO
+#define SIGIOT	SIGABRT
 
 /*
  * sa_flags values: SA_STACK is not currently supported, but will allow the
@@ -51,6 +53,7 @@ typedef unsigned long sigset_t;		/* at least 32 bits */
  * the changes in signal handling. LBT 010493.
  * SA_INTERRUPT is a no-op, but left due to historical reasons. Use the
  * SA_RESTART flag to get restarting signals (which were the default long ago)
+ * SA_SHIRQ flag is for shared interrupt support on PCI and EISA.
  */
 #define SA_NOCLDSTOP	0x00000004
 
@@ -59,6 +62,19 @@ typedef unsigned long sigset_t;		/* at least 32 bits */
 #define SA_INTERRUPT	0x20000000
 #define SA_NOMASK	0x00000008
 #define SA_ONESHOT	0x00000010
+#define SA_SHIRQ	0x00000020
+
+#ifdef __KERNEL__
+/*
+ * These values of sa_flags are used only by the kernel as part of the
+ * irq handling routines.
+ *
+ * SA_INTERRUPT is also used by the irq handling routines.
+ */
+#define SA_PROBE SA_ONESHOT
+#define SA_SAMPLE_RANDOM SA_RESTART
+#endif
+
 
 #define SIG_BLOCK          1	/* for blocking signals */
 #define SIG_UNBLOCK        2	/* for unblocking signals */
@@ -78,37 +94,7 @@ struct sigaction {
 };
 
 #ifdef __KERNEL__
-
-struct sigcontext_struct {
-	/*
-	 * what should we have here? I'd probably better use the same
-	 * stack layout as OSF/1, just in case we ever want to try
-	 * running their binaries.. 
-	 *
-	 * This is the basic layout, but I don't know if we'll ever
-	 * actually fill in all the values..
-	 */
-	 long		sc_onstack;
-	 long		sc_mask;
-	 long		sc_pc;
-	 long		sc_ps;
-	 long		sc_regs[32];
-	 long		sc_ownedfp;
-	 long		sc_fpregs[32];
-	 unsigned long	sc_fpcr;
-	 unsigned long	sc_fp_control;
-	 unsigned long	sc_reserved1, sc_reserved2;
-	 unsigned long	sc_ssize;
-	 char *		sc_sbase;
-	 unsigned long	sc_traparg_a0;
-	 unsigned long	sc_traparg_a1;
-	 unsigned long	sc_traparg_a2;
-	 unsigned long	sc_fp_trap_pc;
-	 unsigned long	sc_fp_trigger_sum;
-	 unsigned long	sc_fp_trigger_inst;
-	 unsigned long	sc_retcode[2];
-};
-
+#include <asm/sigcontext.h>
 #endif
 
 #endif

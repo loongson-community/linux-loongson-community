@@ -1,7 +1,6 @@
+
 /*
  * linux/drivers/char/keyboard.c
- *
- * Keyboard driver for Linux v0.99 using Latin-1.
  *
  * Written for linux by Johan Myreen as a translation from
  * the assembly version by Linus (with diacriticals added)
@@ -13,12 +12,14 @@
  * Diacriticals redone & other small changes, aeb@cwi.nl, June 1993
  * Added decr/incr_console, dynamic keymaps, Unicode support,
  * dynamic function/string keys, led setting,  Sept 1994
- * 
+ * `Sticky' modifier keys, 951006.
+ * 11-11-96: SAK should now work in the raw mode (Martin Mares)
  */
 
-#define KEYBOARD_IRQ 1
+#define DISABLE_KBD_DURING_INTERRUPTS 0
 
-#include <linux/autoconf.h>
+#include <linux/kbdcntrlr.h>
+#include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/tty.h>
@@ -28,13 +29,18 @@
 #include <linux/signal.h>
 #include <linux/string.h>
 #include <linux/ioport.h>
+#include <linux/random.h>
 
 #include <asm/bitops.h>
-#ifdef __mips__
-#include <asm/bootinfo.h>
-#include <asm/jazz.h>
-#endif
 
+/*
+ * Declare functions used in machine dependand parts of the kbd driver.
+ */
+static inline void kb_wait(void);
+static int send_data(unsigned char data);
+
+#include <asm/keyboard.h>
+ 
 #include "kbd_kern.h"
 #include "diacr.h"
 #include "vt_kern.h"
@@ -61,117 +67,13 @@
 #define KBD_DEFLOCK 0
 #endif
 
-/*
- * The default IO slowdown is doing 'inb()'s from 0x61, which should be
- * safe. But as that is the keyboard controller chip address, we do our
- * slowdowns here by doing short jumps: the keyboard controller should
- * be able to keep up
- */
-#define REALLY_SLOW_IO
-#define SLOW_IO_BY_JUMPING
-#include <asm/io.h>
 #include <asm/system.h>
 
 extern void poke_blanked_console(void);
 extern void ctrl_alt_del(void);
 extern void reset_vc(unsigned int new_console);
-extern void change_console(unsigned int new_console);
 extern void scrollback(int);
 extern void scrollfront(int);
-extern int vc_cons_allocated(unsigned int);
-
-#ifdef __i386__
-#define fake_keyboard_interrupt() __asm__ __volatile__("int $0x21")
-#define kbd_inb_p(port) inb_p(port)
-#define kbd_inb(port) inb(port)
-#define kbd_outb_p(data,port) outb_p(data,port)
-#define kbd_outb(data,port) outb(data,port)
-
-#elif defined (CONFIG_MIPS_JAZZ)
-
-static volatile keyboard_hardware *kh = (void *) JAZZ_KEYBOARD_ADDRESS;
-
-extern __inline__ void
-fake_keyboard_interrupt(void)
-{
-printk("fake_keyboard_interrupt()\n");
-__asm__ __volatile__(
-	".set\tnoat\n\t"
-	"mfc0\t$1,$13\n\t"
-	"ori\t$1,0x0100\n\t"
-	"mtc0\t$1,$13\n\t"
-	".set\tat"
-	:::"$1");
-}
-
-#if 1
-extern __inline__ int
-kbd_inb_p(unsigned short port)
-{
-	int result;
-
-	if(port == 0x60)
-		result = kh->data;
-	else if(port == 0x64)
-		result = kh->command;
-	else printk("Eeeeks - bad port in kbd_inb_p()\n");
-	inb(0x80);
-
-	return result;
-}
-
-extern __inline__ int
-kbd_inb(unsigned short port)
-{
-	int result;
-
-	if(port == 0x60)
-		result = kh->data;
-	else if(port == 0x64)
-		result = kh->command;
-	else printk("Eeeeks - bad port in kbd_inb()\n");
-
-	return result;
-}
-
-extern __inline__ void
-kbd_outb_p(unsigned char data, unsigned short port)
-{
-	if(port == 0x60)
-		kh->data = data;
-	else if(port == 0x64)
-		kh->command = data;
-	else printk("Eeeeks - bad port in kbd_outb_p()\n");
-	inb(0x80);
-}
-
-extern __inline__ void
-kbd_outb(unsigned char data, unsigned short port)
-{
-	if(port == 0x60)
-		kh->data = data;
-	else if(port == 0x64)
-		kh->command = data;
-	else printk("Eeeeks - bad port in kbd_outb()\n");
-}
-#else /* !1 */
-
-#define kbd_inb_p(port) inb_p(port)
-#define kbd_inb(port) inb(port)
-#define kbd_outb_p(data,port) outb_p(data,port)
-#define kbd_outb(data,port) outb(data,port)
-
-#endif /* !1 */
-
-#else /* defined (__alpha__) || defined (CONFIG_DESKSTATION_TYNE) */
-
-#define fake_keyboard_interrupt() do ; while (0)
-#define kbd_inb_p(port) inb_p(port)
-#define kbd_inb(port) inb(port)
-#define kbd_outb_p(data,port) outb_p(data,port)
-#define kbd_outb(data,port) outb(data,port)
-
-#endif
 
 unsigned char kbd_read_mask = 0x01;	/* modified by psaux.c */
 
@@ -187,8 +89,6 @@ static unsigned char k_down[NR_SHIFT] = {0, };
 #define BITS_PER_LONG (8*sizeof(unsigned long))
 static unsigned long key_down[256/BITS_PER_LONG] = { 0, };
 
-extern int last_console;
-static int want_console = -1;
 static int dead_key_next = 0;
 /* 
  * In order to retrieve the shift_state (for the mouse server), either
@@ -216,13 +116,17 @@ typedef void (k_handfn)(unsigned char value, char up_flag);
 
 static k_handfn
 	do_self, do_fn, do_spec, do_pad, do_dead, do_cons, do_cur, do_shift,
-	do_meta, do_ascii, do_lock, do_lowercase, do_ignore;
+	do_meta, do_ascii, do_lock, do_lowercase, do_slock, do_ignore;
 
 static k_hand key_handler[16] = {
 	do_self, do_fn, do_spec, do_pad, do_dead, do_cons, do_cur, do_shift,
-	do_meta, do_ascii, do_lock, do_lowercase,
-	do_ignore, do_ignore, do_ignore, do_ignore
+	do_meta, do_ascii, do_lock, do_lowercase, do_slock,
+	do_ignore, do_ignore, do_ignore
 };
+
+/* Key types processed even in raw modes */
+
+#define TYPES_ALLOWED_IN_RAW_MODE ((1 << KT_SPEC) | (1 << KT_SHIFT))
 
 typedef void (*void_fnp)(void);
 typedef void (void_fn)(void);
@@ -239,11 +143,14 @@ static void_fnp spec_fn_table[] = {
 	decr_console,	incr_console,	spawn_console,	bare_num
 };
 
+#define SPECIALS_ALLOWED_IN_RAW_MODE (1 << KVAL(K_SAK))
+
 /* maximum values each key_handler can handle */
 const int max_vals[] = {
 	255, SIZE(func_table) - 1, SIZE(spec_fn_table) - 1, NR_PAD - 1,
 	NR_DEAD - 1, 255, 3, NR_SHIFT - 1,
-	255, NR_ASCII - 1, NR_LOCK - 1, 255
+	255, NR_ASCII - 1, NR_LOCK - 1, 255,
+	NR_LOCK - 1
 };
 
 const int NR_TYPES = SIZE(max_vals);
@@ -261,7 +168,7 @@ static inline void kb_wait(void)
 	for (i=0; i<0x100000; i++)
 		if ((kbd_inb_p(0x64) & 0x02) == 0)
 			return;
-	printk("Keyboard timed out\n");
+	printk(KERN_WARNING "Keyboard timed out\n");
 }
 
 static inline void send_cmd(unsigned char c)
@@ -425,44 +332,49 @@ int getkeycode(unsigned int scancode)
 	    e0_keys[scancode - 128];
 }
 
-static void keyboard_interrupt(int irq, struct pt_regs *regs)
+#if DISABLE_KBD_DURING_INTERRUPTS
+#define disable_keyboard()	do { send_cmd(0xAD); kb_wait(); } while (0)
+#define enable_keyboard()	send_cmd(0xAE)
+#else
+#define disable_keyboard()	/* nothing */
+#define enable_keyboard()	/* nothing */
+#endif
+
+static void handle_scancode(unsigned char scancode)
 {
-	unsigned char scancode, keycode;
+	unsigned char keycode;
 	static unsigned int prev_scancode = 0;   /* remember E0, E1 */
 	char up_flag;				 /* 0 or 0200 */
 	char raw_mode;
 
-	pt_regs = regs;
-	send_cmd(0xAD);		/* disable keyboard */
-	kb_wait();
-	if ((kbd_inb_p(0x64) & kbd_read_mask) != 0x01)
-		goto end_kbd_intr;
-	scancode = kbd_inb(0x60);
-	mark_bh(KEYBOARD_BH);
 	if (reply_expected) {
 	  /* 0xfa, 0xfe only mean "acknowledge", "resend" for most keyboards */
 	  /* but they are the key-up scancodes for PF6, PF10 on a FOCUS 9000 */
 		reply_expected = 0;
 		if (scancode == 0xfa) {
 			acknowledge = 1;
-			goto end_kbd_intr;
+			return;
 		} else if (scancode == 0xfe) {
 			resend = 1;
-			goto end_kbd_intr;
+			return;
 		}
 		/* strange ... */
 		reply_expected = 1;
 #if 0
-		printk("keyboard reply expected - got %02x\n", scancode);
+		printk(KERN_DEBUG "keyboard reply expected - got %02x\n",
+		       scancode);
 #endif
 	}
 	if (scancode == 0) {
 #ifdef KBD_REPORT_ERR
-		printk("keyboard buffer overflow\n");
+		printk(KERN_INFO "keyboard buffer overflow\n");
 #endif
 		prev_scancode = 0;
-		goto end_kbd_intr;
+		return;
 	}
+	do_poke_blanked_console = 1;
+	mark_bh(CONSOLE_BH);
+	add_keyboard_randomness(scancode);
 
 	tty = ttytab[fg_console];
  	kbd = kbd_table + fg_console;
@@ -479,16 +391,16 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 #ifndef KBD_IS_FOCUS_9000
 #ifdef KBD_REPORT_ERR
 		if (!raw_mode)
-		  printk("keyboard error\n");
+		  printk(KERN_DEBUG "keyboard error\n");
 #endif
 #endif
 		prev_scancode = 0;
-		goto end_kbd_intr;
+		return;
 	}
 
 	if (scancode == 0xe0 || scancode == 0xe1) {
 		prev_scancode = scancode;
-		goto end_kbd_intr;
+		return;
  	}
 
  	/*
@@ -505,17 +417,17 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 	  if (prev_scancode != 0xe0) {
 	      if (prev_scancode == 0xe1 && scancode == 0x1d) {
 		  prev_scancode = 0x100;
-		  goto end_kbd_intr;
+		  return;
 	      } else if (prev_scancode == 0x100 && scancode == 0x45) {
 		  keycode = E1_PAUSE;
 		  prev_scancode = 0;
 	      } else {
 #ifdef KBD_REPORT_UNKN
 		  if (!raw_mode)
-		    printk("keyboard: unknown e1 escape sequence\n");
+		    printk(KERN_INFO "keyboard: unknown e1 escape sequence\n");
 #endif
 		  prev_scancode = 0;
-		  goto end_kbd_intr;
+		  return;
 	      }
 	  } else {
 	      prev_scancode = 0;
@@ -533,16 +445,17 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 	       *  So, we should also ignore the latter. - aeb@cwi.nl
 	       */
 	      if (scancode == 0x2a || scancode == 0x36)
-		goto end_kbd_intr;
+		return;
 
 	      if (e0_keys[scancode])
 		keycode = e0_keys[scancode];
 	      else {
 #ifdef KBD_REPORT_UNKN
 		  if (!raw_mode)
-		    printk("keyboard: unknown scancode e0 %02x\n", scancode);
+		    printk(KERN_INFO "keyboard: unknown scancode e0 %02x\n",
+			   scancode);
 #endif
-		  goto end_kbd_intr;
+		  return;
 	      }
 	  }
 	} else if (scancode >= SC_LIM) {
@@ -561,11 +474,11 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 	  if (!keycode) {
 	      if (!raw_mode) {
 #ifdef KBD_REPORT_UNKN
-		  printk("keyboard: unrecognized scancode (%02x) - ignored\n"
-			 , scancode);
+		  printk(KERN_INFO "keyboard: unrecognized scancode (%02x)"
+			 " - ignored\n", scancode);
 #endif
 	      }
-	      goto end_kbd_intr;
+	      return;
 	  }
  	} else
 	  keycode = scancode;
@@ -590,13 +503,10 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 	} else
  		rep = set_bit(keycode, key_down);
 
-	if (raw_mode)
-		goto end_kbd_intr;
-
 	if (kbd->kbdmode == VC_MEDIUMRAW) {
 		/* soon keycodes will require more than one byte */
  		put_queue(keycode + up_flag);
-		goto end_kbd_intr;
+		raw_mode = 1;	/* Most key classes will be ignored */
  	}
 
  	/*
@@ -619,7 +529,7 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 		u_char type;
 
 		/* the XOR below used to be an OR */
-		int shift_final = shift_state ^ kbd->lockstate;
+		int shift_final = shift_state ^ kbd->lockstate ^ kbd->slockstate;
 		ushort *key_map = key_maps[shift_final];
 
 		if (key_map != NULL) {
@@ -628,6 +538,8 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 
 			if (type >= 0xf0) {
 			    type -= 0xf0;
+			    if (raw_mode && ! (TYPES_ALLOWED_IN_RAW_MODE & (1 << type)))
+				return;
 			    if (type == KT_LETTER) {
 				type = KT_LATIN;
 				if (vc_kbd_led(kbd, VC_CAPSLOCK)) {
@@ -637,9 +549,11 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 				}
 			    }
 			    (*key_handler[type])(keysym & 0xff, up_flag);
+			    if (type != KT_SLOCK)
+			      kbd->slockstate = 0;
 			} else {
 			    /* maybe only if (kbd->kbdmode == VC_UNICODE) ? */
-			    if (!up_flag)
+			    if (!up_flag && !raw_mode)
 			      to_utf8(keysym);
 			}
 		} else {
@@ -655,9 +569,32 @@ static void keyboard_interrupt(int irq, struct pt_regs *regs)
 #endif
 		}
 	}
+}
 
-end_kbd_intr:
-	send_cmd(0xAE);         /* enable keyboard */
+static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+{
+	unsigned char status;
+
+	pt_regs = regs;
+	disable_keyboard();
+
+	status = kbd_inb_p(0x64);
+	do {
+		unsigned char scancode;
+
+		/* mouse data? */
+		if (status & kbd_read_mask & 0x20)
+			break;
+
+		scancode = kbd_inb(0x60);
+		if (status & 0x01)
+			handle_scancode(scancode);
+
+		status = kbd_inb(0x64);
+	} while (status & 0x01);
+
+	mark_bh(KEYBOARD_BH);
+	enable_keyboard();
 }
 
 static void put_queue(int ch)
@@ -757,7 +694,7 @@ static void bare_num(void)
 static void lastcons(void)
 {
 	/* switch to the last used console, ChN */
-	want_console = last_console;
+	set_console(last_console);
 }
 
 static void decr_console(void)
@@ -770,7 +707,7 @@ static void decr_console(void)
 		if (vc_cons_allocated(i))
 			break;
 	}
-	want_console = i;
+	set_console(i);
 }
 
 static void incr_console(void)
@@ -783,7 +720,7 @@ static void incr_console(void)
 		if (vc_cons_allocated(i))
 			break;
 	}
-	want_console = i;
+	set_console(i);
 }
 
 static void send_intr(void)
@@ -825,18 +762,14 @@ static void spawn_console(void)
 
 static void SAK(void)
 {
-	do_SAK(tty);
-#if 0
 	/*
-	 * Need to fix SAK handling to fix up RAW/MEDIUM_RAW and
-	 * vt_cons modes before we can enable RAW/MEDIUM_RAW SAK
-	 * handling.
-	 * 
-	 * We should do this some day --- the whole point of a secure
-	 * attention key is that it should be guaranteed to always
-	 * work.
+	 * SAK should also work in all raw modes and reset
+	 * them properly.
 	 */
+
+	do_SAK(tty);
 	reset_vc(fg_console);
+#if 0
 	do_unblank_screen();	/* not in interrupt routine? */
 #endif
 }
@@ -856,12 +789,15 @@ static void do_spec(unsigned char value, char up_flag)
 		return;
 	if (value >= SIZE(spec_fn_table))
 		return;
+	if ((kbd->kbdmode == VC_RAW || kbd->kbdmode == VC_MEDIUMRAW) &&
+	    !(SPECIALS_ALLOWED_IN_RAW_MODE & (1 << value)))
+		return;
 	spec_fn_table[value]();
 }
 
 static void do_lowercase(unsigned char value, char up_flag)
 {
-	printk("keyboard.c: do_lowercase was called - impossible\n");
+	printk(KERN_ERR "keyboard.c: do_lowercase was called - impossible\n");
 }
 
 static void do_self(unsigned char value, char up_flag)
@@ -886,8 +822,9 @@ static void do_self(unsigned char value, char up_flag)
 #define A_CFLEX  '^'
 #define A_TILDE  '~'
 #define A_DIAER  '"'
-static unsigned char ret_diacr[] =
-	{A_GRAVE, A_ACUTE, A_CFLEX, A_TILDE, A_DIAER };
+#define A_CEDIL  ','
+static unsigned char ret_diacr[NR_DEAD] =
+	{A_GRAVE, A_ACUTE, A_CFLEX, A_TILDE, A_DIAER, A_CEDIL };
 
 /* If a dead key pressed twice, output a character corresponding to it,	*/
 /* otherwise just remember the dead key.				*/
@@ -932,7 +869,7 @@ static void do_cons(unsigned char value, char up_flag)
 {
 	if (up_flag)
 		return;
-	want_console = value;
+	set_console(value);
 }
 
 static void do_fn(unsigned char value, char up_flag)
@@ -943,13 +880,13 @@ static void do_fn(unsigned char value, char up_flag)
 		if (func_table[value])
 			puts_queue(func_table[value]);
 	} else
-		printk("do_fn called with value=%d\n", value);
+		printk(KERN_ERR "do_fn called with value=%d\n", value);
 }
 
 static void do_pad(unsigned char value, char up_flag)
 {
-	static char *pad_chars = "0123456789+-*/\015,.?";
-	static char *app_map = "pqrstuvwxylSRQMnn?";
+	static const char *pad_chars = "0123456789+-*/\015,.?";
+	static const char *app_map = "pqrstuvwxylSRQMnn?";
 
 	if (up_flag)
 		return;		/* no action, if this is a key release */
@@ -1005,7 +942,7 @@ static void do_pad(unsigned char value, char up_flag)
 
 static void do_cur(unsigned char value, char up_flag)
 {
-	static char *cur_chars = "BDCA";
+	static const char *cur_chars = "BDCA";
 	if (up_flag)
 		return;
 
@@ -1117,9 +1054,16 @@ static void do_lock(unsigned char value, char up_flag)
 	chg_vc_kbd_lock(kbd, value);
 }
 
+static void do_slock(unsigned char value, char up_flag)
+{
+	if (up_flag || rep)
+		return;
+	chg_vc_kbd_slock(kbd, value);
+}
+
 /*
  * send_data sends a character to the keyboard and waits
- * for a acknowledge, possibly retrying if asked to. Returns
+ * for an acknowledge, possibly retrying if asked to. Returns
  * the success status.
  */
 static int send_data(unsigned char data)
@@ -1229,7 +1173,7 @@ static inline unsigned char getleds(void){
  * used, but this allows for easy and efficient race-condition
  * prevention later on.
  */
-static void kbd_bh(void * unused)
+static void kbd_bh(void)
 {
 	unsigned char leds = getleds();
 
@@ -1238,23 +1182,9 @@ static void kbd_bh(void * unused)
 		if (!send_data(0xed) || !send_data(leds))
 			send_data(0xf4);	/* re-enable kbd if any errors */
 	}
-	if (want_console >= 0) {
-		if (want_console != fg_console) {
-			change_console(want_console);
-			/* we only changed when the console had already
-			   been allocated - a new console is not created
-			   in an interrupt routine */
-		}
-		want_console = -1;
-	}
-	poke_blanked_console();
-	cli();
-	if ((kbd_inb_p(0x64) & kbd_read_mask) == 0x01)
-		fake_keyboard_interrupt();
-	sti();
 }
 
-unsigned long kbd_init(unsigned long kmem_start)
+int kbd_init(void)
 {
 	int i;
 	struct kbd_struct kbd0;
@@ -1263,6 +1193,7 @@ unsigned long kbd_init(unsigned long kmem_start)
 	kbd0.ledflagstate = kbd0.default_ledflagstate = KBD_DEFLEDS;
 	kbd0.ledmode = LED_SHOW_FLAGS;
 	kbd0.lockstate = KBD_DEFLOCK;
+	kbd0.slockstate = 0;
 	kbd0.modeflags = KBD_DEFMODE;
 	kbd0.kbdmode = VC_XLATE;
  
@@ -1271,39 +1202,9 @@ unsigned long kbd_init(unsigned long kmem_start)
 
 	ttytab = console_driver.table;
 
-	bh_base[KEYBOARD_BH].routine = kbd_bh;
-	request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, "keyboard");
-	request_region(0x60,1,"kbd");
-	request_region(0x64,1,"kbd");
-#ifdef __alpha__
-	/* enable keyboard interrupts, PC/AT mode */
-	kb_wait();
-	kbd_outb(0x60,0x64);	/* write PS/2 Mode Register */
-	kb_wait();
-	kbd_outb(0x65,0x60);	/* KCC | DMS | SYS | EKI */
-	kb_wait();
-	if (!send_data(0xf0) || !send_data(0x02))
-		printk("Scanmode 2 change failed\n");
-#elif defined (__mips__)
-	/*
-	 * No special setup required for Deskstation Tyne
-	 */
-	if (boot_info.machtype == MACH_ACER_PICA_61 ||
-	    boot_info.machtype == MACH_MIPS_MAGNUM_4000) {
-		*((volatile u16 *)JAZZ_IO_IRQ_ENABLE) |= JAZZ_IE_KEYBOARD;
-		set_cp0_cause(IE_SW0, 0);
-		set_cp0_status(IE_SW0|IE_IRQ1, IE_SW0|IE_IRQ1);
-		/* enable keyboard interrupts, PC/AT mode */
-		kb_wait();
-		kbd_outb(0x60,0x64);	/* write PS/2 Mode Register */
-		kb_wait();
-		kbd_outb(0x41,0x60);	/* KCC | EKI */
-		kb_wait();
-		if (!send_data(0xf0) || !send_data(0x02))
-			printk("Scanmode 2 change failed\n");
-	}
-#endif
+	request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, "keyboard", NULL);
+	keyboard_setup();
+	init_bh(KEYBOARD_BH, kbd_bh);
 	mark_bh(KEYBOARD_BH);
-	enable_bh(KEYBOARD_BH);
-	return kmem_start;
+	return 0;
 }

@@ -4,6 +4,8 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
+#include <linux/config.h>
+
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/kernel.h>
@@ -13,13 +15,14 @@
 #include <linux/ptrace.h>
 #include <linux/unistd.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #define _S(nr) (1<<((nr)-1))
 
 #define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
 
 asmlinkage int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options);
+asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs);
 
 /*
  * atomically swap in the new signal mask, and wait for a signal.
@@ -40,28 +43,67 @@ asmlinkage int sys_sigsuspend(int restart, unsigned long oldmask, unsigned long 
 	}
 }
 
+static inline void restore_i387_hard(struct _fpstate *buf)
+{
+#ifdef __SMP__
+	if (current->flags & PF_USEDFPU) {
+		stts();
+	}
+#else
+	if (current == last_task_used_math) {
+		last_task_used_math = NULL;
+		stts();
+	}
+#endif
+	current->used_math = 1;
+	current->flags &= ~PF_USEDFPU;
+	copy_from_user(&current->tss.i387.hard, buf, sizeof(*buf));
+}
+
+static void restore_i387(struct _fpstate *buf)
+{
+#ifndef CONFIG_MATH_EMULATION
+	restore_i387_hard(buf);
+#else
+	if (hard_math) {
+		restore_i387_hard(buf);
+		return;
+	}
+	restore_i387_soft(buf);
+#endif	
+}
+	
+
 /*
  * This sets regs->esp even though we don't actually use sigstacks yet..
  */
 asmlinkage int sys_sigreturn(unsigned long __unused)
 {
-#define COPY(x) regs->x = context.x
-#define COPY_SEG(x) \
-if ((context.x & 0xfffc) && (context.x & 3) != 3) goto badframe; COPY(x);
-#define COPY_SEG_STRICT(x) \
-if (!(context.x & 0xfffc) || (context.x & 3) != 3) goto badframe; COPY(x);
-	struct sigcontext_struct context;
+#define COPY(x) regs->x = context->x
+#define COPY_SEG(seg) \
+{ unsigned int tmp = context->seg; \
+if ((tmp & 0xfffc) && (tmp & 3) != 3) goto badframe; \
+regs->x##seg = tmp; }
+#define COPY_SEG_STRICT(seg) \
+{ unsigned int tmp = context->seg; \
+if ((tmp & 0xfffc) && (tmp & 3) != 3) goto badframe; \
+regs->x##seg = tmp; }
+#define GET_SEG(seg) \
+{ unsigned int tmp = context->seg; \
+if ((tmp & 0xfffc) && (tmp & 3) != 3) goto badframe; \
+__asm__("mov %w0,%%" #seg: :"r" (tmp)); }
+	struct sigcontext * context;
 	struct pt_regs * regs;
 
 	regs = (struct pt_regs *) &__unused;
-	if (verify_area(VERIFY_READ, (void *) regs->esp, sizeof(context)))
+	context = (struct sigcontext *) regs->esp;
+	if (verify_area(VERIFY_READ, context, sizeof(*context)))
 		goto badframe;
-	memcpy_fromfs(&context,(void *) regs->esp, sizeof(context));
-	current->blocked = context.oldmask & _BLOCKABLE;
+	current->blocked = context->oldmask & _BLOCKABLE;
 	COPY_SEG(ds);
 	COPY_SEG(es);
-	COPY_SEG(fs);
-	COPY_SEG(gs);
+	GET_SEG(fs);
+	GET_SEG(gs);
 	COPY_SEG_STRICT(ss);
 	COPY_SEG_STRICT(cs);
 	COPY(eip);
@@ -70,66 +112,164 @@ if (!(context.x & 0xfffc) || (context.x & 3) != 3) goto badframe; COPY(x);
 	COPY(esp); COPY(ebp);
 	COPY(edi); COPY(esi);
 	regs->eflags &= ~0x40DD5;
-	regs->eflags |= context.eflags & 0x40DD5;
+	regs->eflags |= context->eflags & 0x40DD5;
 	regs->orig_eax = -1;		/* disable syscall checks */
-	return context.eax;
+	if (context->fpstate) {
+		struct _fpstate * buf = context->fpstate;
+		if (verify_area(VERIFY_READ, buf, sizeof(*buf)))
+			goto badframe;
+		restore_i387(buf);
+	}
+	return context->eax;
 badframe:
 	do_exit(SIGSEGV);
+}
+
+static inline struct _fpstate * save_i387_hard(struct _fpstate * buf)
+{
+#ifdef __SMP__
+	if (current->flags & PF_USEDFPU) {
+		__asm__ __volatile__("fnsave %0":"=m" (current->tss.i387.hard));
+		stts();
+		current->flags &= ~PF_USEDFPU;
+	}
+#else
+	if (current == last_task_used_math) {
+		__asm__ __volatile__("fnsave %0":"=m" (current->tss.i387.hard));
+		last_task_used_math = NULL;
+		__asm__ __volatile__("fwait");	/* not needed on 486+ */
+		stts();
+	}
+#endif
+	current->tss.i387.hard.status = current->tss.i387.hard.swd;
+	copy_to_user(buf, &current->tss.i387.hard, sizeof(*buf));
+	current->used_math = 0;
+	return buf;
+}
+
+static struct _fpstate * save_i387(struct _fpstate * buf)
+{
+	if (!current->used_math)
+		return NULL;
+
+#ifndef CONFIG_MATH_EMULATION
+	return save_i387_hard(buf);
+#else
+	if (hard_math)
+		return save_i387_hard(buf);
+	return save_i387_soft(buf);
+#endif
 }
 
 /*
  * Set up a signal frame... Make the stack look the way iBCS2 expects
  * it to look.
  */
-void setup_frame(struct sigaction * sa, unsigned long ** fp, unsigned long eip,
-	struct pt_regs * regs, int signr, unsigned long oldmask)
+static void setup_frame(struct sigaction * sa,
+	struct pt_regs * regs, int signr,
+	unsigned long oldmask)
 {
 	unsigned long * frame;
 
+	frame = (unsigned long *) regs->esp;
+	if ((regs->xss & 0xffff) != USER_DS && sa->sa_restorer)
+		frame = (unsigned long *) sa->sa_restorer;
+	frame -= 64;
+	if (verify_area(VERIFY_WRITE,frame,64*4))
+		do_exit(SIGSEGV);
+
+/* set up the "normal" stack seen by the signal handler (iBCS2) */
 #define __CODE ((unsigned long)(frame+24))
 #define CODE(x) ((unsigned long *) ((x)+__CODE))
-	frame = *fp;
-	if (regs->ss != USER_DS)
-		frame = (unsigned long *) sa->sa_restorer;
-	frame -= 32;
-	if (verify_area(VERIFY_WRITE,frame,32*4))
+	if (put_user(__CODE,frame))
 		do_exit(SIGSEGV);
-/* set up the "normal" stack seen by the signal handler (iBCS2) */
-	put_fs_long(__CODE,frame);
 	if (current->exec_domain && current->exec_domain->signal_invmap)
-		put_fs_long(current->exec_domain->signal_invmap[signr], frame+1);
+		put_user(current->exec_domain->signal_invmap[signr], frame+1);
 	else
-		put_fs_long(signr, frame+1);
-	put_fs_long(regs->gs, frame+2);
-	put_fs_long(regs->fs, frame+3);
-	put_fs_long(regs->es, frame+4);
-	put_fs_long(regs->ds, frame+5);
-	put_fs_long(regs->edi, frame+6);
-	put_fs_long(regs->esi, frame+7);
-	put_fs_long(regs->ebp, frame+8);
-	put_fs_long((long)*fp, frame+9);
-	put_fs_long(regs->ebx, frame+10);
-	put_fs_long(regs->edx, frame+11);
-	put_fs_long(regs->ecx, frame+12);
-	put_fs_long(regs->eax, frame+13);
-	put_fs_long(current->tss.trap_no, frame+14);
-	put_fs_long(current->tss.error_code, frame+15);
-	put_fs_long(eip, frame+16);
-	put_fs_long(regs->cs, frame+17);
-	put_fs_long(regs->eflags, frame+18);
-	put_fs_long(regs->esp, frame+19);
-	put_fs_long(regs->ss, frame+20);
-	put_fs_long(0,frame+21);		/* 387 state pointer - not implemented*/
+		put_user(signr, frame+1);
+	{
+		unsigned int tmp = 0;
+#define PUT_SEG(seg, mem) \
+__asm__("mov %%" #seg",%w0":"=r" (tmp):"0" (tmp)); put_user(tmp,mem);
+		PUT_SEG(gs, frame+2);
+		PUT_SEG(fs, frame+3);
+	}
+	put_user(regs->xes, frame+4);
+	put_user(regs->xds, frame+5);
+	put_user(regs->edi, frame+6);
+	put_user(regs->esi, frame+7);
+	put_user(regs->ebp, frame+8);
+	put_user(regs->esp, frame+9);
+	put_user(regs->ebx, frame+10);
+	put_user(regs->edx, frame+11);
+	put_user(regs->ecx, frame+12);
+	put_user(regs->eax, frame+13);
+	put_user(current->tss.trap_no, frame+14);
+	put_user(current->tss.error_code, frame+15);
+	put_user(regs->eip, frame+16);
+	put_user(regs->xcs, frame+17);
+	put_user(regs->eflags, frame+18);
+	put_user(regs->esp, frame+19);
+	put_user(regs->xss, frame+20);
+	put_user((unsigned long) save_i387((struct _fpstate *)(frame+32)),frame+21);
 /* non-iBCS2 extensions.. */
-	put_fs_long(oldmask, frame+22);
-	put_fs_long(current->tss.cr2, frame+23);
+	put_user(oldmask, frame+22);
+	put_user(current->tss.cr2, frame+23);
 /* set up the return code... */
-	put_fs_long(0x0000b858, CODE(0));	/* popl %eax ; movl $,%eax */
-	put_fs_long(0x80cd0000, CODE(4));	/* int $0x80 */
-	put_fs_long(__NR_sigreturn, CODE(2));
-	*fp = frame;
+	put_user(0x0000b858, CODE(0));	/* popl %eax ; movl $,%eax */
+	put_user(0x80cd0000, CODE(4));	/* int $0x80 */
+	put_user(__NR_sigreturn, CODE(2));
 #undef __CODE
 #undef CODE
+
+	/* Set up registers for signal handler */
+	regs->esp = (unsigned long) frame;
+	regs->eip = (unsigned long) sa->sa_handler;
+	{
+		unsigned long seg = USER_DS;
+		__asm__("mov %w0,%%fs ; mov %w0,%%gs":"=r" (seg) :"0" (seg));
+		set_fs(seg);
+		regs->xds = seg;
+		regs->xes = seg;
+		regs->xss = seg;
+		regs->xcs = USER_CS;
+	}
+	regs->eflags &= ~TF_MASK;
+}
+
+/*
+ * OK, we're invoking a handler
+ */	
+static void handle_signal(unsigned long signr, struct sigaction *sa,
+	unsigned long oldmask, struct pt_regs * regs)
+{
+	/* are we from a system call? */
+	if (regs->orig_eax >= 0) {
+		/* If so, check system call restarting.. */
+		switch (regs->eax) {
+			case -ERESTARTNOHAND:
+				regs->eax = -EINTR;
+				break;
+
+			case -ERESTARTSYS:
+				if (!(sa->sa_flags & SA_RESTART)) {
+					regs->eax = -EINTR;
+					break;
+				}
+			/* fallthrough */
+			case -ERESTARTNOINTR:
+				regs->eax = regs->orig_eax;
+				regs->eip -= 2;
+		}
+	}
+
+	/* set up the stack frame */
+	setup_frame(sa, regs, signr, oldmask);
+
+	if (sa->sa_flags & SA_ONESHOT)
+		sa->sa_handler = NULL;
+	if (!(sa->sa_flags & SA_NOMASK))
+		current->blocked |= (sa->sa_mask | _S(signr)) & _BLOCKABLE;
 }
 
 /*
@@ -144,18 +284,21 @@ void setup_frame(struct sigaction * sa, unsigned long ** fp, unsigned long eip,
 asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 {
 	unsigned long mask = ~current->blocked;
-	unsigned long handler_signal = 0;
-	unsigned long *frame = NULL;
-	unsigned long eip = 0;
 	unsigned long signr;
 	struct sigaction * sa;
 
 	while ((signr = current->signal & mask)) {
+		/*
+		 *	This stops gcc flipping out. Otherwise the assembler
+		 *	including volatiles for the inline function to get
+		 *	current combined with this gets it confused.
+		 */
+		struct task_struct *t=current;
 		__asm__("bsf %3,%1\n\t"
 			"btrl %1,%0"
-			:"=m" (current->signal),"=r" (signr)
-			:"0" (current->signal), "1" (signr));
-		sa = current->sigaction + signr;
+			:"=m" (t->signal),"=r" (signr)
+			:"0" (t->signal), "1" (signr));
+		sa = current->sig->action + signr;
 		signr++;
 		if ((current->flags & PF_PTRACED) && signr != SIGKILL) {
 			current->exit_code = signr;
@@ -171,7 +314,7 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				current->signal |= _S(signr);
 				continue;
 			}
-			sa = current->sigaction + signr - 1;
+			sa = current->sig->action + signr - 1;
 		}
 		if (sa->sa_handler == SIG_IGN) {
 			if (signr != SIGCHLD)
@@ -188,12 +331,15 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			case SIGCONT: case SIGCHLD: case SIGWINCH:
 				continue;
 
-			case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
+			case SIGTSTP: case SIGTTIN: case SIGTTOU:
+				if (is_orphaned_pgrp(current->pgrp))
+					continue;
+			case SIGSTOP:
 				if (current->flags & PF_PTRACED)
 					continue;
 				current->state = TASK_STOPPED;
 				current->exit_code = signr;
-				if (!(current->p_pptr->sigaction[SIGCHLD-1].sa_flags & 
+				if (!(current->p_pptr->sig->action[SIGCHLD-1].sa_flags & 
 						SA_NOCLDSTOP))
 					notify_parent(current);
 				schedule();
@@ -208,53 +354,23 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				/* fall through */
 			default:
 				current->signal |= _S(signr & 0x7f);
+				current->flags |= PF_SIGNALED;
 				do_exit(signr);
 			}
 		}
-		/*
-		 * OK, we're invoking a handler
-		 */
-		if (regs->orig_eax >= 0) {
-			if (regs->eax == -ERESTARTNOHAND ||
-			   (regs->eax == -ERESTARTSYS && !(sa->sa_flags & SA_RESTART)))
-				regs->eax = -EINTR;
+		handle_signal(signr, sa, oldmask, regs);
+		return 1;
+	}
+
+	/* Did we come from a system call? */
+	if (regs->orig_eax >= 0) {
+		/* Restart the system call - no handlers present */
+		if (regs->eax == -ERESTARTNOHAND ||
+		    regs->eax == -ERESTARTSYS ||
+		    regs->eax == -ERESTARTNOINTR) {
+			regs->eax = regs->orig_eax;
+			regs->eip -= 2;
 		}
-		handler_signal |= 1 << (signr-1);
-		mask &= ~sa->sa_mask;
 	}
-	if (regs->orig_eax >= 0 &&
-	    (regs->eax == -ERESTARTNOHAND ||
-	     regs->eax == -ERESTARTSYS ||
-	     regs->eax == -ERESTARTNOINTR)) {
-		regs->eax = regs->orig_eax;
-		regs->eip -= 2;
-	}
-	if (!handler_signal)		/* no handler will be called - return 0 */
-		return 0;
-	eip = regs->eip;
-	frame = (unsigned long *) regs->esp;
-	signr = 1;
-	sa = current->sigaction;
-	for (mask = 1 ; mask ; sa++,signr++,mask += mask) {
-		if (mask > handler_signal)
-			break;
-		if (!(mask & handler_signal))
-			continue;
-		setup_frame(sa,&frame,eip,regs,signr,oldmask);
-		eip = (unsigned long) sa->sa_handler;
-		if (sa->sa_flags & SA_ONESHOT)
-			sa->sa_handler = NULL;
-/* force a supervisor-mode page-in of the signal handler to reduce races */
-		__asm__("testb $0,%%fs:%0": :"m" (*(char *) eip));
-		regs->cs = USER_CS; regs->ss = USER_DS;
-		regs->ds = USER_DS; regs->es = USER_DS;
-		regs->gs = USER_DS; regs->fs = USER_DS;
-		current->blocked |= sa->sa_mask;
-		oldmask |= sa->sa_mask;
-	}
-	regs->esp = (unsigned long) frame;
-	regs->eip = eip;		/* "return" to the first handler */
-	regs->eflags &= ~TF_MASK;
-	current->tss.trap_no = current->tss.error_code = 0;
-	return 1;
+	return 0;
 }

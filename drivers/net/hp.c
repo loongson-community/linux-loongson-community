@@ -18,21 +18,23 @@
 	  The Crynwr packet driver.
 */
 
-static char *version =
+static const char *version =
 	"hp.c:v1.10 9/23/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
+
+
+#include <linux/module.h>
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+
 #include <asm/system.h>
 #include <asm/io.h>
 
-#include <linux/netdevice.h>
 #include "8390.h"
-
-extern struct device *init_etherdev(struct device *dev, int sizeof_private,
-									unsigned long *mem_startp);
 
 /* A zero-terminated list of I/O addresses to be probed. */
 static unsigned int hppclan_portlist[] =
@@ -55,11 +57,16 @@ static unsigned int hppclan_portlist[] =
 int hp_probe(struct device *dev);
 int hp_probe1(struct device *dev, int ioaddr);
 
+static int hp_open(struct device *dev);
+static int hp_close(struct device *dev);
 static void hp_reset_8390(struct device *dev);
-static int hp_block_input(struct device *dev, int count,
-						  char *buf, int ring_offset);
+static void hp_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr,
+					int ring_page);
+static void hp_block_input(struct device *dev, int count,
+					struct sk_buff *skb , int ring_offset);
 static void hp_block_output(struct device *dev, int count,
 							const unsigned char *buf, const start_page);
+
 static void hp_init_card(struct device *dev);
 
 /* The map from IRQ number to HP_CONFIGURE register setting. */
@@ -100,7 +107,8 @@ int hp_probe(struct device *dev)
 int hp_probe1(struct device *dev, int ioaddr)
 {
 	int i, board_id, wordmode;
-	char *name;
+	const char *name;
+	static unsigned version_printed = 0;
 
 	/* Check for the HP physical address, 08 00 09 xx xx xx. */
 	/* This really isn't good enough: we may pick up HP LANCE boards
@@ -121,12 +129,15 @@ int hp_probe1(struct device *dev, int ioaddr)
 		wordmode = 0;
 	}
 
-	if (dev == NULL)
-		dev = init_etherdev(0, sizeof(struct ei_device), 0);
+	/* We should have a "dev" from Space.c or the static module table. */
+	if (dev == NULL) {
+		printk("hp.c: Passed a NULL device.\n");
+		dev = init_etherdev(0, 0);
+	}
 
-	/* Grab the region so we can find another board if something fails. */
-	request_region(ioaddr, HP_IO_EXTENT,"hp");
-
+	if (ei_debug  &&  version_printed++ == 0)
+		printk(version);
+ 
 	printk("%s: %s (ID %02x) at %#3x,", dev->name, name, board_id, ioaddr);
 
 	for(i = 0; i < ETHER_ADDR_LEN; i++)
@@ -139,13 +150,13 @@ int hp_probe1(struct device *dev, int ioaddr)
 		int *irqp = wordmode ? irq_16list : irq_8list;
 		do {
 			int irq = *irqp;
-			if (request_irq (irq, NULL, 0, "bogus") != -EBUSY) {
+			if (request_irq (irq, NULL, 0, "bogus", NULL) != -EBUSY) {
 				autoirq_setup(0);
 				/* Twinkle the interrupt, and check if it's seen. */
 				outb_p(irqmap[irq] | HP_RUN, ioaddr + HP_CONFIGURE);
 				outb_p( 0x00 | HP_RUN, ioaddr + HP_CONFIGURE);
 				if (irq == autoirq_report(0)		 /* It's a good IRQ line! */
-					&& request_irq (irq, &ei_interrupt, 0, "hp") == 0) {
+					&& request_irq (irq, &ei_interrupt, 0, "hp", NULL) == 0) {
 					printk(" selecting IRQ %d.\n", irq);
 					dev->irq = *irqp;
 					break;
@@ -159,19 +170,26 @@ int hp_probe1(struct device *dev, int ioaddr)
 	} else {
 		if (dev->irq == 2)
 			dev->irq = 9;
-		if (request_irq(dev->irq, ei_interrupt, 0, "hp")) {
+		if (request_irq(dev->irq, ei_interrupt, 0, "hp", NULL)) {
 			printk (" unable to get IRQ %d.\n", dev->irq);
 			return EBUSY;
 		}
 	}
 
-	if (ei_debug > 1)
-		printk(version);
+	/* Allocate dev->priv and fill in 8390 specific dev fields. */
+	if (ethdev_init(dev)) {
+		printk (" unable to get memory for dev->priv.\n");
+		free_irq(dev->irq, NULL);
+		return -ENOMEM;
+	}
+
+	/* Grab the region so we can find another board if something fails. */
+	request_region(ioaddr, HP_IO_EXTENT,"hp");
 
 	/* Set the base address to point to the NIC, not the "real" base! */
 	dev->base_addr = ioaddr + NIC_OFFSET;
-
-	ethdev_init(dev);
+	dev->open = &hp_open;
+	dev->stop = &hp_close;
 
 	ei_status.name = name;
 	ei_status.word16 = wordmode;
@@ -180,10 +198,27 @@ int hp_probe1(struct device *dev, int ioaddr)
 	ei_status.stop_page = wordmode ? HP_16BSTOP_PG : HP_8BSTOP_PG;
 
 	ei_status.reset_8390 = &hp_reset_8390;
+	ei_status.get_8390_hdr = &hp_get_8390_hdr;
 	ei_status.block_input = &hp_block_input;
 	ei_status.block_output = &hp_block_output;
 	hp_init_card(dev);
 
+	return 0;
+}
+
+static int
+hp_open(struct device *dev)
+{
+	ei_open(dev);
+	MOD_INC_USE_COUNT;
+	return 0;
+}
+
+static int
+hp_close(struct device *dev)
+{
+	ei_close(dev);
+	MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -210,17 +245,40 @@ hp_reset_8390(struct device *dev)
 	return;
 }
 
-/* Block input and output, similar to the Crynwr packet driver.	 If you
+static void
+hp_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr, int ring_page)
+{
+	int nic_base = dev->base_addr;
+	int saved_config = inb_p(nic_base - NIC_OFFSET + HP_CONFIGURE);
+
+	outb_p(saved_config | HP_DATAON, nic_base - NIC_OFFSET + HP_CONFIGURE);
+	outb_p(E8390_NODMA+E8390_PAGE0+E8390_START, nic_base);
+	outb_p(sizeof(struct e8390_pkt_hdr), nic_base + EN0_RCNTLO);
+	outb_p(0, nic_base + EN0_RCNTHI);
+	outb_p(0, nic_base + EN0_RSARLO);	/* On page boundary */
+	outb_p(ring_page, nic_base + EN0_RSARHI);
+	outb_p(E8390_RREAD+E8390_START, nic_base);
+
+	if (ei_status.word16) 
+	  insw(nic_base - NIC_OFFSET + HP_DATAPORT, hdr, sizeof(struct e8390_pkt_hdr)>>1);
+	else 
+	  insb(nic_base - NIC_OFFSET + HP_DATAPORT, hdr, sizeof(struct e8390_pkt_hdr));
+
+	outb_p(saved_config & (~HP_DATAON), nic_base - NIC_OFFSET + HP_CONFIGURE);
+}
+	
+/* Block input and output, similar to the Crynwr packet driver. If you are
    porting to a new ethercard look at the packet driver source for hints.
    The HP LAN doesn't use shared memory -- we put the packet
    out through the "remote DMA" dataport. */
 
-static int
-hp_block_input(struct device *dev, int count, char *buf, int ring_offset)
+static void
+hp_block_input(struct device *dev, int count, struct sk_buff *skb, int ring_offset)
 {
 	int nic_base = dev->base_addr;
 	int saved_config = inb_p(nic_base - NIC_OFFSET + HP_CONFIGURE);
 	int xfer_count = count;
+	char *buf = skb->data;
 
 	outb_p(saved_config | HP_DATAON, nic_base - NIC_OFFSET + HP_CONFIGURE);
 	outb_p(E8390_NODMA+E8390_PAGE0+E8390_START, nic_base);
@@ -247,7 +305,6 @@ hp_block_input(struct device *dev, int count, char *buf, int ring_offset)
 			   dev->name, ring_offset + xfer_count, addr);
 	}
 	outb_p(saved_config & (~HP_DATAON), nic_base - NIC_OFFSET + HP_CONFIGURE);
-	return ring_offset + count;
 }
 
 static void
@@ -266,14 +323,15 @@ hp_block_output(struct device *dev, int count,
 	/* We should already be in page 0, but to be safe... */
 	outb_p(E8390_PAGE0+E8390_START+E8390_NODMA, nic_base);
 
-#ifdef ei8390_bug
+#ifdef NE8390_RW_BUGFIX
 	/* Handle the read-before-write bug the same way as the
 	   Crynwr packet driver -- the NatSemi method doesn't work. */
 	outb_p(0x42, nic_base + EN0_RCNTLO);
 	outb_p(0,	nic_base + EN0_RCNTHI);
 	outb_p(0xff, nic_base + EN0_RSARLO);
 	outb_p(0x00, nic_base + EN0_RSARHI);
-	outb_p(E8390_RREAD+E8390_START, EN_CMD);
+#define NE_CMD	 	0x00
+	outb_p(E8390_RREAD+E8390_START, nic_base + NE_CMD);
 	/* Make certain that the dummy read has occurred. */
 	inb_p(0x61);
 	inb_p(0x61);
@@ -318,6 +376,69 @@ hp_init_card(struct device *dev)
 	return;
 }
 
+#ifdef MODULE
+#define MAX_HP_CARDS	4	/* Max number of HP cards per module */
+#define NAMELEN		8	/* # of chars for storing dev->name */
+static char namelist[NAMELEN * MAX_HP_CARDS] = { 0, };
+static struct device dev_hp[MAX_HP_CARDS] = {
+	{
+		NULL,		/* assign a chunk of namelist[] below */
+		0, 0, 0, 0,
+		0, 0,
+		0, 0, 0, NULL, NULL
+	},
+};
+
+static int io[MAX_HP_CARDS] = { 0, };
+static int irq[MAX_HP_CARDS]  = { 0, };
+
+/* This is set up so that only a single autoprobe takes place per call.
+ISA device autoprobes on a running machine are not recommended. */
+int
+init_module(void)
+{
+	int this_dev, found = 0;
+
+	for (this_dev = 0; this_dev < MAX_HP_CARDS; this_dev++) {
+		struct device *dev = &dev_hp[this_dev];
+		dev->name = namelist+(NAMELEN*this_dev);
+		dev->irq = irq[this_dev];
+		dev->base_addr = io[this_dev];
+		dev->init = hp_probe;
+		if (io[this_dev] == 0)  {
+			if (this_dev != 0) break; /* only autoprobe 1st one */
+			printk(KERN_NOTICE "hp.c: Presently autoprobing (not recommended) for a single card.\n");
+		}
+		if (register_netdev(dev) != 0) {
+			printk(KERN_WARNING "hp.c: No HP card found (i/o = 0x%x).\n", io[this_dev]);
+			if (found != 0) return 0;	/* Got at least one. */
+			return -ENXIO;
+		}
+		found++;
+	}
+
+	return 0;
+}
+
+void
+cleanup_module(void)
+{
+	int this_dev;
+
+	for (this_dev = 0; this_dev < MAX_HP_CARDS; this_dev++) {
+		struct device *dev = &dev_hp[this_dev];
+		if (dev->priv != NULL) {
+			int ioaddr = dev->base_addr - NIC_OFFSET;
+			kfree(dev->priv);
+			dev->priv = NULL;
+			free_irq(dev->irq, NULL);
+			irq2dev_map[dev->irq] = NULL;
+			release_region(ioaddr, HP_IO_EXTENT);
+			unregister_netdev(dev);
+		}
+	}
+}
+#endif /* MODULE */
 
 /*
  * Local variables:

@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------+
  |  reg_norm.S                                                               |
  |                                                                           |
- | Copyright (C) 1992,1993,1994                                              |
+ | Copyright (C) 1992,1993,1994,1995                                         |
  |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ |                       Australia.  E-mail billm@jacobi.maths.monash.edu.au |
  |                                                                           |
  | Normalize the value in a FPU_REG.                                         |
  |                                                                           |
@@ -14,15 +14,11 @@
  |                                                                           |
  +---------------------------------------------------------------------------*/
 
-#include "fpu_asm.h"
+#include "fpu_emu.h"
 
 
 .text
-
-	.align 2,144
-.globl _normalize
-
-_normalize:
+ENTRY(normalize)
 	pushl	%ebp
 	movl	%esp,%ebp
 	pushl	%ebx
@@ -34,7 +30,7 @@ _normalize:
 	je	L_ok
 
 	pushl	$0x220
-	call	_exception
+	call	SYMBOL_NAME(FPU_exception)
 	addl	$4,%esp
 
 L_ok:
@@ -86,23 +82,20 @@ L_zero:
 
 L_underflow:
 	push	%ebx
-	call	_arith_underflow
+	call	SYMBOL_NAME(arith_underflow)
 	pop	%ebx
 	jmp	L_exit
 
 L_overflow:
 	push	%ebx
-	call	_arith_overflow
+	call	SYMBOL_NAME(arith_overflow)
 	pop	%ebx
 	jmp	L_exit
 
 
 
 /* Normalise without reporting underflow or overflow */
-	.align 2,144
-.globl _normalize_nuo
-
-_normalize_nuo:
+ENTRY(normalize_nuo)
 	pushl	%ebp
 	movl	%esp,%ebp
 	pushl	%ebx
@@ -114,7 +107,7 @@ _normalize_nuo:
 	je	L_ok_nuo
 
 	pushl	$0x221
-	call	_exception
+	call	SYMBOL_NAME(FPU_exception)
 	addl	$4,%esp
 
 L_ok_nuo:

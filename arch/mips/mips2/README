@@ -1,0 +1,3 @@
+This directory contains the R6000 specific part.  I (Ralf) tried to support
+this CPU as good as possible without a machine and without detailed
+documentation.  So don't look to close on this part ...

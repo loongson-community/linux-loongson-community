@@ -34,7 +34,7 @@
 #include <linux/string.h>
 #include <linux/malloc.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 
@@ -76,8 +76,9 @@ void n_tty_flush_buffer(struct tty_struct * tty)
 	if (!tty->link)
 		return;
 
-	if (tty->driver.unthrottle)
-		(tty->driver.unthrottle)(tty);
+	if (tty->driver.unthrottle &&
+	    clear_bit(TTY_THROTTLED, &tty->flags))
+		tty->driver.unthrottle(tty);
 	if (tty->link->packet) {
 		tty->ctrl_status |= TIOCPKT_FLUSHREAD;
 		wake_up_interruptible(&tty->link->read_wait);
@@ -201,7 +202,7 @@ static void eraser(unsigned char c, struct tty_struct *tty)
 			tty->read_head = tty->canon_head;
 			return;
 		}
-		if (!L_ECHOK(tty) || !L_ECHOKE(tty)) {
+		if (!L_ECHOK(tty) || !L_ECHOKE(tty) || !L_ECHOE(tty)) {
 			tty->read_cnt -= ((tty->read_head - tty->canon_head) &
 					  (N_TTY_BUF_SIZE - 1));
 			tty->read_head = tty->canon_head;
@@ -236,7 +237,7 @@ static void eraser(unsigned char c, struct tty_struct *tty)
 					tty->erasing = 1;
 				}
 				echo_char(c, tty);
-			} else if (!L_ECHOE(tty)) {
+			} else if (kill_type == ERASE && !L_ECHOE(tty)) {
 				echo_char(ERASE_CHAR(tty), tty);
 			} else if (c == '\t') {
 				unsigned int col = tty->canon_column;
@@ -255,24 +256,31 @@ static void eraser(unsigned char c, struct tty_struct *tty)
 					tail = (tail+1) & (N_TTY_BUF_SIZE-1);
 				}
 
+				/* should never happen */
+				if (tty->column > 0x80000000)
+					tty->column = 0; 
+
 				/* Now backup to that column. */
 				while (tty->column > col) {
 					/* Can't use opost here. */
 					put_char('\b', tty);
-					tty->column--;
+					if (tty->column > 0)
+						tty->column--;
 				}
 			} else {
 				if (iscntrl(c) && L_ECHOCTL(tty)) {
 					put_char('\b', tty);
 					put_char(' ', tty);
 					put_char('\b', tty);
-					tty->column--;
+					if (tty->column > 0)
+						tty->column--;
 				}
 				if (!iscntrl(c) || L_ECHOCTL(tty)) {
 					put_char('\b', tty);
 					put_char(' ', tty);
 					put_char('\b', tty);
-					tty->column--;
+					if (tty->column > 0)
+						tty->column--;
 				}
 			}
 		}
@@ -283,11 +291,11 @@ static void eraser(unsigned char c, struct tty_struct *tty)
 		finish_erasing(tty);
 }
 
-static void isig(int sig, struct tty_struct *tty)
+static inline void isig(int sig, struct tty_struct *tty, int flush)
 {
 	if (tty->pgrp > 0)
 		kill_pg(tty->pgrp, sig, 1);
-	if (!L_NOFLSH(tty)) {
+	if (flush || !L_NOFLSH(tty)) {
 		n_tty_flush_buffer(tty);
 		if (tty->driver.flush_buffer)
 			tty->driver.flush_buffer(tty);
@@ -299,7 +307,7 @@ static inline void n_tty_receive_break(struct tty_struct *tty)
 	if (I_IGNBRK(tty))
 		return;
 	if (I_BRKINT(tty)) {
-		isig(SIGINT, tty);
+		isig(SIGINT, tty, 1);
 		return;
 	}
 	if (I_PARMRK(tty)) {
@@ -333,8 +341,10 @@ static inline void n_tty_receive_parity_error(struct tty_struct *tty,
 		put_tty_queue('\377', tty);
 		put_tty_queue('\0', tty);
 		put_tty_queue(c, tty);
-	} else
+	} else	if (I_INPCK(tty))
 		put_tty_queue('\0', tty);
+	else
+		put_tty_queue(c, tty);
 	wake_up_interruptible(&tty->read_wait);
 }
 
@@ -408,17 +418,17 @@ static inline void n_tty_receive_char(struct tty_struct *tty, unsigned char c)
 		}
 	}
 	if (L_ISIG(tty)) {
-		if (c == INTR_CHAR(tty)) {
-			isig(SIGINT, tty);
-			return;
-		}
-		if (c == QUIT_CHAR(tty)) {
-			isig(SIGQUIT, tty);
-			return;
-		}
+		int signal;
+		signal = SIGINT;
+		if (c == INTR_CHAR(tty))
+			goto send_signal;
+		signal = SIGQUIT;
+		if (c == QUIT_CHAR(tty))
+			goto send_signal;
+		signal = SIGTSTP;
 		if (c == SUSP_CHAR(tty)) {
-			if (!is_orphaned_pgrp(tty->pgrp))
-				isig(SIGTSTP, tty);
+send_signal:
+			isig(signal, tty, 0);
 			return;
 		}
 	}
@@ -525,10 +535,10 @@ static inline void n_tty_receive_char(struct tty_struct *tty, unsigned char c)
 	put_tty_queue(c, tty);
 }	
 
-static void n_tty_receive_buf(struct tty_struct *tty, unsigned char *cp,
+static void n_tty_receive_buf(struct tty_struct *tty, const unsigned char *cp,
 			      char *fp, int count)
 {
-	unsigned char *p;
+	const unsigned char *p;
 	char *f, flags = 0;
 	int	i;
 
@@ -611,7 +621,7 @@ static int n_tty_receive_room(struct tty_struct *tty)
 int is_ignored(int sig)
 {
 	return ((current->blocked & (1<<(sig-1))) ||
-	        (current->sigaction[sig-1].sa_handler == SIG_IGN));
+	        (current->sig->action[sig-1].sa_handler == SIG_IGN));
 }
 
 static void n_tty_set_termios(struct tty_struct *tty, struct termios * old)
@@ -620,6 +630,11 @@ static void n_tty_set_termios(struct tty_struct *tty, struct termios * old)
 		return;
 	
 	tty->icanon = (L_ICANON(tty) != 0);
+	if (tty->flags & (1<<TTY_HW_COOK_IN)) {
+		tty->raw = 1;
+		tty->real_raw = 1;
+		return;
+	}
 	if (I_ISTRIP(tty) || I_IUCLC(tty) || I_IGNCR(tty) ||
 	    I_ICRNL(tty) || I_INLCR(tty) || L_ICANON(tty) ||
 	    I_IXON(tty) || L_ISIG(tty) || L_ECHO(tty) ||
@@ -696,6 +711,8 @@ static int n_tty_open(struct tty_struct *tty)
 	}
 	memset(tty->read_buf, 0, N_TTY_BUF_SIZE);
 	tty->read_head = tty->read_tail = tty->read_cnt = 0;
+	tty->canon_head = tty->canon_data = tty->erasing = 0;
+	tty->column = 0;
 	memset(tty->read_flags, 0, sizeof(tty->read_flags));
 	n_tty_set_termios(tty, 0);
 	tty->minimum_to_wake = 1;
@@ -732,7 +749,7 @@ static inline void copy_from_read_buf(struct tty_struct *tty,
 	n = MIN(*nr, MIN(tty->read_cnt, N_TTY_BUF_SIZE - tty->read_tail));
 	if (!n)
 		return;
-	memcpy_tofs(*b, &tty->read_buf[tty->read_tail], n);
+	copy_to_user(*b, &tty->read_buf[tty->read_tail], n);
 	tty->read_tail = (tty->read_tail + n) & (N_TTY_BUF_SIZE-1);
 	tty->read_cnt -= n;
 	*b += n;
@@ -784,7 +801,7 @@ do_it_again:
 		  	current->timeout = (unsigned long) -1;
 			if (time)
 				tty->minimum_to_wake = 1;
-			else if (!tty->read_wait ||
+			else if (!waitqueue_active(&tty->read_wait) ||
 				 (tty->minimum_to_wake > minimum))
 				tty->minimum_to_wake = minimum;
 		} else {
@@ -798,12 +815,14 @@ do_it_again:
 	}
 
 	add_wait_queue(&tty->read_wait, &wait);
+
+	disable_bh(TQUEUE_BH);
 	while (1) {
 		/* First test for status change. */
 		if (tty->packet && tty->link->ctrl_status) {
 			if (b != buf)
 				break;
-			put_fs_byte(tty->link->ctrl_status, b++);
+			put_user(tty->link->ctrl_status, b++);
 			tty->link->ctrl_status = 0;
 			break;
 		}
@@ -817,7 +836,7 @@ do_it_again:
 			tty->minimum_to_wake = (minimum - (b - buf));
 		
 		if (!input_available_p(tty, 0)) {
-			if (tty->flags & (1 << TTY_SLAVE_CLOSED)) {
+			if (tty->flags & (1 << TTY_OTHER_CLOSED)) {
 				retval = -EIO;
 				break;
 			}
@@ -833,14 +852,16 @@ do_it_again:
 				retval = -ERESTARTSYS;
 				break;
 			}
+			enable_bh(TQUEUE_BH);
 			schedule();
+			disable_bh(TQUEUE_BH);
 			continue;
 		}
 		current->state = TASK_RUNNING;
 
 		/* Deal with packet mode. */
 		if (tty->packet && b == buf) {
-			put_fs_byte(TIOCPKT_DATA, b++);
+			put_user(TIOCPKT_DATA, b++);
 			nr--;
 		}
 
@@ -848,9 +869,7 @@ do_it_again:
 			while (1) {
 				int eol;
 
-				disable_bh(TQUEUE_BH);
 				if (!tty->read_cnt) {
-					enable_bh(TQUEUE_BH);
 					break;
 				}
 				eol = clear_bit(tty->read_tail,
@@ -859,9 +878,8 @@ do_it_again:
 				tty->read_tail = ((tty->read_tail+1) &
 						  (N_TTY_BUF_SIZE-1));
 				tty->read_cnt--;
-				enable_bh(TQUEUE_BH);
 				if (!eol) {
-					put_fs_byte(c, b++);
+					put_user(c, b++);
 					if (--nr)
 						continue;
 					break;
@@ -870,16 +888,14 @@ do_it_again:
 					tty->canon_data = 0;
 				}
 				if (c != __DISABLED_CHAR) {
-					put_fs_byte(c, b++);
+					put_user(c, b++);
 					nr--;
 				}
 				break;
 			}
 		} else {
-			disable_bh(TQUEUE_BH);
 			copy_from_read_buf(tty, &b, &nr);
 			copy_from_read_buf(tty, &b, &nr);
-			enable_bh(TQUEUE_BH);
 		}
 
 		/* If there is enough space in the read buffer now, let the
@@ -894,9 +910,10 @@ do_it_again:
 		if (time)
 			current->timeout = time + jiffies;
 	}
+	enable_bh(TQUEUE_BH);
 	remove_wait_queue(&tty->read_wait, &wait);
 
-	if (!tty->read_wait)
+	if (!waitqueue_active(&tty->read_wait))
 		tty->minimum_to_wake = minimum;
 
 	current->state = TASK_RUNNING;
@@ -908,15 +925,15 @@ do_it_again:
                 goto do_it_again;
 	if (!size && !retval)
 	        clear_bit(TTY_PUSH, &tty->flags);
-        return (size ? size : retval);
+	return (size ? size : retval);
 }
 
 static int write_chan(struct tty_struct * tty, struct file * file,
-		      unsigned char * buf, unsigned int nr)
+		      const unsigned char * buf, unsigned int nr)
 {
 	struct wait_queue wait = { current, NULL };
 	int c;
-	unsigned char *b = buf;
+	const unsigned char *b = buf;
 	int retval = 0;
 
 	/* Job control check -- must be done at start (POSIX.1 7.1.1.4). */
@@ -937,9 +954,9 @@ static int write_chan(struct tty_struct * tty, struct file * file,
 			retval = -EIO;
 			break;
 		}
-		if (O_OPOST(tty)) {
+		if (O_OPOST(tty) && !(tty->flags & (1<<TTY_HW_COOK_OUT))) {
 			while (nr > 0) {
-				c = get_fs_byte(b);
+				get_user(c, b);
 				if (opost(c, tty) < 0)
 					break;
 				b++; nr--;
@@ -976,11 +993,11 @@ static int normal_select(struct tty_struct * tty, struct inode * inode,
 		case SEL_EX:
 			if (tty->packet && tty->link->ctrl_status)
 				return 1;
-			if (tty->flags & (1 << TTY_SLAVE_CLOSED))
+			if (tty->flags & (1 << TTY_OTHER_CLOSED))
 				return 1;
 			if (tty_hung_up_p(file))
 				return 1;
-			if (!tty->read_wait) {
+			if (!waitqueue_active(&tty->read_wait)) {
 				if (MIN_CHAR(tty) && !TIME_CHAR(tty))
 					tty->minimum_to_wake = MIN_CHAR(tty);
 				else

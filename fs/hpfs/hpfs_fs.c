@@ -12,6 +12,8 @@
  *   linux/fs/isofs  Copyright (C) 1991  Eric Youngdale
  */
 
+#include <linux/module.h>
+
 #include <linux/fs.h>
 #include <linux/hpfs_fs.h>
 #include <linux/errno.h>
@@ -22,7 +24,7 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <asm/bitops.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include "hpfs.h"
 #include "hpfs_caps.h"
@@ -142,7 +144,7 @@ static const struct super_operations hpfs_sops =
 
 /* file ops */
 
-static int hpfs_file_read(struct inode *, struct file *, char *, int);
+static long hpfs_file_read(struct inode *, struct file *, char *, unsigned long);
 static secno hpfs_bmap(struct inode *, unsigned);
 
 static const struct file_operations hpfs_file_ops =
@@ -153,7 +155,7 @@ static const struct file_operations hpfs_file_ops =
 	NULL,				/* readdir - bad */
 	NULL,				/* select - default */
 	NULL,				/* ioctl - default */
-	generic_mmap,			/* mmap */
+	generic_file_mmap,		/* mmap */
 	NULL,				/* no special open is needed */
 	NULL,				/* release */
 	file_fsync,			/* fsync */
@@ -173,6 +175,8 @@ static const struct inode_operations hpfs_file_iops =
 	NULL,				/* rename */
 	NULL,				/* readlink */
 	NULL,				/* follow_link */
+	generic_readpage,		/* readpage */
+	NULL,				/* writepage */
 	(int (*)(struct inode *, int))
 	&hpfs_bmap,			/* bmap */
 	NULL,				/* truncate */
@@ -181,8 +185,8 @@ static const struct inode_operations hpfs_file_iops =
 
 /* directory ops */
 
-static int hpfs_dir_read(struct inode *inode, struct file *filp,
-			 char *buf, int count);
+static long hpfs_dir_read(struct inode *inode, struct file *filp,
+			  char *buf, unsigned long count);
 static int hpfs_readdir(struct inode *inode, struct file *filp,
 			void *dirent, filldir_t filldir);
 static int hpfs_lookup(struct inode *, const char *, int, struct inode **);
@@ -215,6 +219,8 @@ static const struct inode_operations hpfs_dir_iops =
 	NULL,				/* rename */
 	NULL,				/* readlink */
 	NULL,				/* follow_link */
+	NULL,				/* readpage */
+	NULL,				/* writepage */
 	NULL,				/* bmap */
 	NULL,				/* truncate */
 	NULL,				/* permission */
@@ -230,14 +236,14 @@ struct quad_buffer_head {
 /* forwards */
 
 static int parse_opts(char *opts, uid_t *uid, gid_t *gid, umode_t *umask,
-		      int *lowercase, int *conv);
+		      int *lowercase, int *conv, int *nocheck);
 static int check_warn(int not_ok,
 		      const char *p1, const char *p2, const char *p3);
 static int zerop(void *addr, unsigned len);
 static void count_dnodes(struct inode *inode, dnode_secno dno,
 			 unsigned *n_dnodes, unsigned *n_subdirs);
 static unsigned count_bitmap(struct super_block *s);
-static unsigned count_one_bitmap(dev_t dev, secno secno);
+static unsigned count_one_bitmap(kdev_t dev, secno secno);
 static secno bplus_lookup(struct inode *inode, struct bplus_header *b,
 			  secno file_secno, struct buffer_head **bhp);
 static struct hpfs_dirent *map_dirent(struct inode *inode, dnode_secno dno,
@@ -246,21 +252,21 @@ static struct hpfs_dirent *map_dirent(struct inode *inode, dnode_secno dno,
 static struct hpfs_dirent *map_pos_dirent(struct inode *inode, loff_t *posp,
 					  struct quad_buffer_head *qbh);
 static dnode_secno dir_subdno(struct inode *inode, unsigned pos);
-static struct hpfs_dirent *map_nth_dirent(dev_t dev, dnode_secno dno,
+static struct hpfs_dirent *map_nth_dirent(kdev_t dev, dnode_secno dno,
 					  int n,
 					  struct quad_buffer_head *qbh);
 static unsigned choose_conv(unsigned char *p, unsigned len);
 static unsigned convcpy_tofs(unsigned char *out, unsigned char *in,
 			     unsigned len);
-static dnode_secno fnode_dno(dev_t dev, ino_t ino);
-static struct fnode *map_fnode(dev_t dev, ino_t ino,
+static dnode_secno fnode_dno(kdev_t dev, ino_t ino);
+static struct fnode *map_fnode(kdev_t dev, ino_t ino,
 			       struct buffer_head **bhp);
-static struct anode *map_anode(dev_t dev, unsigned secno,
+static struct anode *map_anode(kdev_t dev, unsigned secno,
 			       struct buffer_head **bhp);
-static struct dnode *map_dnode(dev_t dev, unsigned secno,
+static struct dnode *map_dnode(kdev_t dev, unsigned secno,
 			       struct quad_buffer_head *qbh);
-static void *map_sector(dev_t dev, unsigned secno, struct buffer_head **bhp);
-static void *map_4sectors(dev_t dev, unsigned secno,
+static void *map_sector(kdev_t dev, unsigned secno, struct buffer_head **bhp);
+static void *map_4sectors(kdev_t dev, unsigned secno,
 			  struct quad_buffer_head *qbh);
 static void brelse4(struct quad_buffer_head *qbh);
 
@@ -315,7 +321,7 @@ static inline int ino_is_dir(ino_t ino)
 static inline time_t local_to_gmt(time_t t)
 {
 	extern struct timezone sys_tz;
-	return t + sys_tz.tz_minuteswest * 60;
+	return t + sys_tz.tz_minuteswest * 60 - (sys_tz.tz_dsttime ? 3600 : 0);
 }
 
 /* super block ops */
@@ -335,21 +341,26 @@ struct super_block *hpfs_read_super(struct super_block *s,
 	struct buffer_head *bh0, *bh1, *bh2;
 	struct quad_buffer_head qbh;
 	dnode_secno root_dno;
-	dev_t dev;
+	kdev_t dev;
 	uid_t uid;
 	gid_t gid;
 	umode_t umask;
 	int lowercase;
 	int conv;
 	int dubious;
+	int nocheck;
+
+	MOD_INC_USE_COUNT;
 
 	/*
 	 * Get the mount options
 	 */
 
-	if (!parse_opts(options, &uid, &gid, &umask, &lowercase, &conv)) {
+	if (!parse_opts(options, &uid, &gid, &umask, &lowercase, &conv,
+				 &nocheck)) {
 		printk("HPFS: syntax error in mount options.  Not mounted.\n");
 		s->s_dev = 0;
+		MOD_DEC_USE_COUNT;
 		return 0;
 	}
 
@@ -409,7 +420,7 @@ struct super_block *hpfs_read_super(struct super_block *s,
 	 * so don't
 	 */
 
-	if (dubious)
+	if (dubious && !nocheck)
 		goto bail2;
 
 	dubious |= check_warn((spareblock->n_dnode_spares !=
@@ -481,6 +492,7 @@ struct super_block *hpfs_read_super(struct super_block *s,
 	if (!s->s_mounted) {
 		printk("HPFS: hpfs_read_super: inode get failed\n");
 		s->s_dev = 0;
+		MOD_DEC_USE_COUNT;
 		return 0;
 	}
 
@@ -495,6 +507,7 @@ struct super_block *hpfs_read_super(struct super_block *s,
 		printk("HPFS: "
 		       "hpfs_read_super: root dir isn't in the root dir\n");
 		s->s_dev = 0;
+		MOD_DEC_USE_COUNT;
 		return 0;
 	}
 
@@ -514,6 +527,7 @@ struct super_block *hpfs_read_super(struct super_block *s,
  bail:
 	s->s_dev = 0;
 	unlock_super(s);
+	MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -536,7 +550,7 @@ static int zerop(void *addr, unsigned len)
  */
 
 static int parse_opts(char *opts, uid_t *uid, gid_t *gid, umode_t *umask,
-		      int *lowercase, int *conv)
+		      int *lowercase, int *conv, int *nocheck)
 {
 	char *p, *rhs;
 
@@ -545,6 +559,7 @@ static int parse_opts(char *opts, uid_t *uid, gid_t *gid, umode_t *umask,
 	*umask = current->fs->umask;
 	*lowercase = 1;
 	*conv = CONV_BINARY;
+        *nocheck = 0;
 
 	if (!opts)
 		return 1;
@@ -591,8 +606,10 @@ static int parse_opts(char *opts, uid_t *uid, gid_t *gid, umode_t *umask,
 			else
 				return 0;
 		}
+		else if (!strcmp(p,"nocheck")) 
+			*nocheck=1;
 		else
-			return 0;
+			return 1;
 	}
 
 	return 1;
@@ -715,6 +732,7 @@ static void hpfs_put_super(struct super_block *s)
 	lock_super(s);
 	s->s_dev = 0;
 	unlock_super(s);
+	MOD_DEC_USE_COUNT;
 }
 
 /*
@@ -746,7 +764,7 @@ static void hpfs_statfs(struct super_block *s, struct statfs *buf, int bufsiz)
 	tmp.f_files = s->s_hpfs_dirband_size;
 	tmp.f_ffree = s->s_hpfs_n_free_dnodes;
 	tmp.f_namelen = 254;
-	memcpy_tofs(buf, &tmp, bufsiz);
+	copy_to_user(buf, &tmp, bufsiz);
 }
 
 /*
@@ -835,7 +853,7 @@ static unsigned count_bitmap(struct super_block *s)
  * Read in one bit map, count the bits, return the count.
  */
 
-static unsigned count_one_bitmap(dev_t dev, secno secno)
+static unsigned count_one_bitmap(kdev_t dev, secno secno)
 {
 	struct quad_buffer_head qbh;
 	char *bits;
@@ -860,8 +878,8 @@ static unsigned count_one_bitmap(dev_t dev, secno secno)
  * read.  Read the bytes, put them in buf, return the count.
  */
 
-static int hpfs_file_read(struct inode *inode, struct file *filp,
-			  char *buf, int count)
+static long hpfs_file_read(struct inode *inode, struct file *filp,
+			  char *buf, unsigned long count)
 {
 	unsigned q, r, n, n0;
 	struct buffer_head *bh;
@@ -912,7 +930,7 @@ static int hpfs_file_read(struct inode *inode, struct file *filp,
 			 * regular copy, output length is same as input
 			 * length
 			 */
-			memcpy_tofs(buf, block + r, n);
+			copy_to_user(buf, block + r, n);
 			n0 = n;
 		}
 		else {
@@ -981,7 +999,7 @@ static unsigned convcpy_tofs(unsigned char *out, unsigned char *in,
 		unsigned c = *in++;
 		if (c == '\r' && (len == 0 || *in == '\n'));
 		else
-			put_fs_byte(c, out++);
+			put_user(c, out++);
 	}
 
 	return out - start;
@@ -1293,7 +1311,7 @@ static struct hpfs_dirent *map_dirent(struct inode *inode, dnode_secno dno,
 	/*
 	 * name not found.
 	 */
-
+	brelse4(qbh);
 	return 0;
 }
 
@@ -1539,7 +1557,7 @@ static dnode_secno dir_subdno(struct inode *inode, unsigned pos)
  * Return the dir entry at index n in dnode dno, or 0 if there isn't one
  */
 
-static struct hpfs_dirent *map_nth_dirent(dev_t dev, dnode_secno dno,
+static struct hpfs_dirent *map_nth_dirent(kdev_t dev, dnode_secno dno,
 					  int n,
 					  struct quad_buffer_head *qbh)
 {
@@ -1561,15 +1579,15 @@ static struct hpfs_dirent *map_nth_dirent(dev_t dev, dnode_secno dno,
 	return 0;
 }
 
-static int hpfs_dir_read(struct inode *inode, struct file *filp,
-			 char *buf, int count)
+static long hpfs_dir_read(struct inode *inode, struct file *filp,
+			  char *buf, unsigned long count)
 {
 	return -EISDIR;
 }
 
 /* Return the dnode pointer in a directory fnode */
 
-static dnode_secno fnode_dno(dev_t dev, ino_t ino)
+static dnode_secno fnode_dno(kdev_t dev, ino_t ino)
 {
 	struct buffer_head *bh;
 	struct fnode *fnode;
@@ -1586,7 +1604,7 @@ static dnode_secno fnode_dno(dev_t dev, ino_t ino)
 
 /* Map an fnode into a buffer and return pointers to it and to the buffer. */
 
-static struct fnode *map_fnode(dev_t dev, ino_t ino, struct buffer_head **bhp)
+static struct fnode *map_fnode(kdev_t dev, ino_t ino, struct buffer_head **bhp)
 {
 	struct fnode *fnode;
 
@@ -1607,7 +1625,7 @@ static struct fnode *map_fnode(dev_t dev, ino_t ino, struct buffer_head **bhp)
 
 /* Map an anode into a buffer and return pointers to it and to the buffer. */
 
-static struct anode *map_anode(dev_t dev, unsigned secno,
+static struct anode *map_anode(kdev_t dev, unsigned secno,
 			       struct buffer_head **bhp)
 {
 	struct anode *anode;
@@ -1629,7 +1647,7 @@ static struct anode *map_anode(dev_t dev, unsigned secno,
 
 /* Map a dnode into a buffer and return pointers to it and to the buffer. */
 
-static struct dnode *map_dnode(dev_t dev, unsigned secno,
+static struct dnode *map_dnode(kdev_t dev, unsigned secno,
 			       struct quad_buffer_head *qbh)
 {
 	struct dnode *dnode;
@@ -1651,7 +1669,7 @@ static struct dnode *map_dnode(dev_t dev, unsigned secno,
 
 /* Map a sector into a buffer and return pointers to it and to the buffer. */
 
-static void *map_sector(dev_t dev, unsigned secno, struct buffer_head **bhp)
+static void *map_sector(kdev_t dev, unsigned secno, struct buffer_head **bhp)
 {
 	struct buffer_head *bh;
 
@@ -1665,7 +1683,7 @@ static void *map_sector(dev_t dev, unsigned secno, struct buffer_head **bhp)
 
 /* Map 4 sectors into a 4buffer and return pointers to it and to the buffer. */
 
-static void *map_4sectors(dev_t dev, unsigned secno,
+static void *map_4sectors(kdev_t dev, unsigned secno,
 			  struct quad_buffer_head *qbh)
 {
 	struct buffer_head *bh;
@@ -1725,3 +1743,30 @@ static void brelse4(struct quad_buffer_head *qbh)
 	brelse(qbh->bh[0]);
 	kfree_s(qbh->data, 2048);
 }
+
+static struct file_system_type hpfs_fs_type = {
+        hpfs_read_super, "hpfs", 1, NULL
+};
+
+int init_hpfs_fs(void)
+{
+        return register_filesystem(&hpfs_fs_type);
+}
+
+#ifdef MODULE
+int init_module(void)
+{
+	int status;
+
+	if ((status = init_hpfs_fs()) == 0)
+		register_symtab(0);
+	return status;
+}
+
+void cleanup_module(void)
+{
+        unregister_filesystem(&hpfs_fs_type);
+}
+
+#endif
+

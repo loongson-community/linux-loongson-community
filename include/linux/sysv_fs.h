@@ -316,8 +316,6 @@ struct sysv_dir_entry {
 #define SYSV_DIRSIZE	sizeof(struct sysv_dir_entry)	/* size of every directory entry */
 
 
-#ifdef __KERNEL__
-
 /* Operations */
 /* ========== */
 
@@ -335,23 +333,25 @@ struct sysv_dir_entry {
 #define SYSV2_SUPER_MAGIC	(SYSV_MAGIC_BASE+FSTYPE_SYSV2)
 #define COH_SUPER_MAGIC		(SYSV_MAGIC_BASE+FSTYPE_COH)
 
+#ifdef __KERNEL__
+
 /* sv_get_hash_table(sb,dev,block) is equivalent to  get_hash_table(dev,block,block_size)  */
 static inline struct buffer_head *
-sv_get_hash_table (struct super_block *sb, int dev, unsigned int block)
+sv_get_hash_table (struct super_block *sb, kdev_t dev, unsigned int block)
 {
 	return get_hash_table (dev, block + sb->sv_block_base, sb->sv_block_size);
 }
 
 /* sv_getblk(sb,dev,block) is equivalent to  getblk(dev,block,block_size)  */
 static inline struct buffer_head *
-sv_getblk (struct super_block *sb, int dev, unsigned int block)
+sv_getblk (struct super_block *sb, kdev_t dev, unsigned int block)
 {
 	return getblk (dev, block + sb->sv_block_base, sb->sv_block_size);
 }
 
 /* sv_bread(sb,dev,block) is equivalent to  bread(dev,block,block_size)  */
 static inline struct buffer_head *
-sv_bread (struct super_block *sb, int dev, unsigned int block)
+sv_bread (struct super_block *sb, kdev_t dev, unsigned int block)
 {
 	return bread (dev, block + sb->sv_block_base, sb->sv_block_size);
 }
@@ -362,7 +362,7 @@ sv_bread (struct super_block *sb, int dev, unsigned int block)
  */
 
 extern int sysv_lookup(struct inode * dir,const char * name, int len,
-	struct inode ** result);
+	               struct inode ** result);
 extern int sysv_create(struct inode * dir,const char * name, int len, int mode,
 	struct inode ** result);
 extern int sysv_mkdir(struct inode * dir, const char * name, int len, int mode);
@@ -373,7 +373,7 @@ extern int sysv_symlink(struct inode * inode, const char * name, int len,
 extern int sysv_link(struct inode * oldinode, struct inode * dir, const char * name, int len);
 extern int sysv_mknod(struct inode * dir, const char * name, int len, int mode, int rdev);
 extern int sysv_rename(struct inode * old_dir, const char * old_name, int old_len,
-	struct inode * new_dir, const char * new_name, int new_len);
+	struct inode * new_dir, const char * new_name, int new_len, int must_be_dir);
 extern struct inode * sysv_new_inode(const struct inode * dir);
 extern void sysv_free_inode(struct inode * inode);
 extern unsigned long sysv_count_free_inodes(struct super_block *sb);
@@ -385,11 +385,12 @@ extern int sysv_bmap(struct inode *,int);
 
 extern struct buffer_head * sysv_getblk(struct inode *, unsigned int, int);
 extern struct buffer_head * sysv_file_bread(struct inode *, int, int);
-extern int sysv_file_read(struct inode *, struct file *, char *, int);
+extern long sysv_file_read(struct inode *, struct file *, char *, unsigned long);
 
 extern void sysv_truncate(struct inode *);
 extern void sysv_put_super(struct super_block *);
 extern struct super_block *sysv_read_super(struct super_block *,void *,int);
+extern int init_sysv_fs(void);
 extern void sysv_write_super(struct super_block *);
 extern void sysv_read_inode(struct inode *);
 extern int sysv_notify_change(struct inode *, struct iattr *);

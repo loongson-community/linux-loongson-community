@@ -1,72 +1,73 @@
 /*
  * sound/uart6850.c
+ */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
  *
- * Copyright by Hannu Savolainen 1993
- *
- * Mon Nov 22 22:38:35 MET 1993 marco@driq.home.usn.nl:
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
+/* Mon Nov 22 22:38:35 MET 1993 marco@driq.home.usn.nl:
  *      added 6850 support, used with COVOX SoundMaster II and custom cards.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
  */
 
+#include <linux/config.h>
 #include "sound_config.h"
 
-#ifdef CONFIGURE_SOUNDCARD
+#if defined(CONFIG_UART6850) && defined(CONFIG_MIDI)
 
-#if !defined(EXCLUDE_UART6850) && !defined(EXCLUDE_MIDI)
+static int      uart6850_base = 0x330;
 
-#define	DATAPORT   (uart6850_base)	/*
-					   * * * Midi6850 Data I/O Port on IBM
-					   *  */
-#define	COMDPORT   (uart6850_base+1)	/*
-					   * * * Midi6850 Command Port on IBM   */
-#define	STATPORT   (uart6850_base+1)	/*
-					   * * * Midi6850 Status Port on IBM   */
+static int     *uart6850_osp;
 
-#define uart6850_status()		INB(STATPORT)
-#define input_avail()		((uart6850_status()&INPUT_AVAIL))
-#define output_ready()		((uart6850_status()&OUTPUT_READY))
-#define uart6850_cmd(cmd)	OUTB(cmd, COMDPORT)
-#define uart6850_read()		INB(DATAPORT)
-#define uart6850_write(byte)	OUTB(byte, DATAPORT)
+#define	DATAPORT   (uart6850_base)
+#define	COMDPORT   (uart6850_base+1)
+#define	STATPORT   (uart6850_base+1)
 
-#define	OUTPUT_READY	0x02	/*
-				   * * * Mask for Data Read Ready Bit   */
-#define	INPUT_AVAIL	0x01	/*
-				   * * * Mask for Data Send Ready Bit   */
+static int 
+uart6850_status (void)
+{
+  return inb (STATPORT);
+}
+#define input_avail()		(uart6850_status()&INPUT_AVAIL)
+#define output_ready()		(uart6850_status()&OUTPUT_READY)
+static void 
+uart6850_cmd (unsigned char cmd)
+{
+  outb ((cmd), COMDPORT);
+}
+static int 
+uart6850_read (void)
+{
+  return inb (DATAPORT);
+}
+static void 
+uart6850_write (unsigned char byte)
+{
+  outb ((byte), DATAPORT);
+}
 
-#define	UART_RESET	0x95	/*
-				   * * * 6850 Total Reset Command   */
-#define	UART_MODE_ON	0x03	/*
-				   * * * 6850 Send/Receive UART Mode   */
+#define	OUTPUT_READY	0x02	/* Mask for data ready Bit */
+#define	INPUT_AVAIL	0x01	/* Mask for Data Send Ready Bit */
+
+#define	UART_RESET	0x95
+#define	UART_MODE_ON	0x03
 
 static int      uart6850_opened = 0;
-static int      uart6850_base = 0x330;
 static int      uart6850_irq;
 static int      uart6850_detected = 0;
 static int      my_dev;
 
 static int      reset_uart6850 (void);
 static void     (*midi_input_intr) (int dev, unsigned char data);
+static void     poll_uart6850 (unsigned long dummy);
+
+
+static struct timer_list uart6850_timer =
+{NULL, NULL, 0, 0, poll_uart6850};
 
 static void
 uart6850_input_loop (void)
@@ -93,9 +94,8 @@ uart6850_input_loop (void)
 }
 
 void
-m6850intr (int unit, struct pt_regs * regs)
+m6850intr (int irq, void *dev_id, struct pt_regs *dummy)
 {
-  printk ("M");
   if (input_avail ())
     uart6850_input_loop ();
 }
@@ -110,23 +110,24 @@ poll_uart6850 (unsigned long dummy)
 {
   unsigned long   flags;
 
-  DEFINE_TIMER (uart6850_timer, poll_uart6850);
-
   if (!(uart6850_opened & OPEN_READ))
-    return;			/*
-				 * No longer required
-				 */
+    return;			/* Device has been closed */
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
   if (input_avail ())
     uart6850_input_loop ();
 
-  ACTIVATE_TIMER (uart6850_timer, poll_uart6850, 1);	/*
-							 * Come back later
-							 */
 
-  RESTORE_INTR (flags);
+  {
+    uart6850_timer.expires = (1) + jiffies;
+    add_timer (&uart6850_timer);
+  };				/*
+				   * Come back later
+				 */
+
+  restore_flags (flags);
 }
 
 static int
@@ -138,9 +139,10 @@ uart6850_open (int dev, int mode,
   if (uart6850_opened)
     {
       printk ("Midi6850: Midi busy\n");
-      return RET_ERROR (EBUSY);
+      return -EBUSY;
     }
 
+  ;
   uart6850_cmd (UART_RESET);
 
   uart6850_input_loop ();
@@ -159,6 +161,7 @@ uart6850_close (int dev)
 {
   uart6850_cmd (UART_MODE_ON);
 
+  del_timer (&uart6850_timer);;
   uart6850_opened = 0;
 }
 
@@ -172,12 +175,13 @@ uart6850_out (int dev, unsigned char midi_byte)
    * Test for input since pending input seems to block the output.
    */
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
   if (input_avail ())
     uart6850_input_loop ();
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
   /*
    * Sometimes it takes about 13000 loops before the output becomes ready
@@ -217,9 +221,9 @@ uart6850_end_read (int dev)
 }
 
 static int
-uart6850_ioctl (int dev, unsigned cmd, unsigned arg)
+uart6850_ioctl (int dev, unsigned cmd, caddr_t arg)
 {
-  return RET_ERROR (EINVAL);
+  return -EINVAL;
 }
 
 static void
@@ -243,6 +247,7 @@ static struct midi_operations uart6850_operations =
 {
   {"6850 UART", 0, 0, SNDCARD_UART6850},
   &std_midi_synth,
+  {0},
   uart6850_open,
   uart6850_close,
   uart6850_ioctl,
@@ -255,8 +260,8 @@ static struct midi_operations uart6850_operations =
 };
 
 
-long
-attach_uart6850 (long mem_start, struct address_info *hw_config)
+void
+attach_uart6850 (struct address_info *hw_config)
 {
   int             ok, timeout;
   unsigned long   flags;
@@ -264,16 +269,18 @@ attach_uart6850 (long mem_start, struct address_info *hw_config)
   if (num_midis >= MAX_MIDI_DEV)
     {
       printk ("Sound: Too many midi devices detected\n");
-      return mem_start;
+      return;
     }
 
   uart6850_base = hw_config->io_base;
+  uart6850_osp = hw_config->osp;
   uart6850_irq = hw_config->irq;
 
   if (!uart6850_detected)
-    return RET_ERROR (EIO);
+    return;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
   for (timeout = 30000; timeout < 0 && !output_ready (); timeout--);	/*
 									 * Wait
@@ -282,13 +289,12 @@ attach_uart6850 (long mem_start, struct address_info *hw_config)
 
   ok = 1;
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
-  printk (" <6850 Midi Interface>");
+  conf_printf ("6850 Midi Interface", hw_config);
 
   std_midi_synth.midi_dev = my_dev = num_midis;
   midi_devs[num_midis++] = &uart6850_operations;
-  return mem_start;
 }
 
 static int
@@ -306,10 +312,11 @@ probe_uart6850 (struct address_info *hw_config)
 {
   int             ok = 0;
 
+  uart6850_osp = hw_config->osp;
   uart6850_base = hw_config->io_base;
   uart6850_irq = hw_config->irq;
 
-  if (snd_set_irq_handler (uart6850_irq, m6850intr) < 0)
+  if (snd_set_irq_handler (uart6850_irq, m6850intr, "MIDI6850", uart6850_osp) < 0)
     return 0;
 
   ok = reset_uart6850 ();
@@ -318,6 +325,10 @@ probe_uart6850 (struct address_info *hw_config)
   return ok;
 }
 
-#endif
+void
+unload_uart6850 (struct address_info *hw_config)
+{
+  snd_release_irq (hw_config->irq);
+}
 
 #endif

@@ -7,27 +7,8 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
+O_TARGET := isofs.o
+O_OBJS   := namei.o inode.o file.o dir.o util.o rock.o symlink.o
+M_OBJS   := $(O_TARGET)
 
-OBJS=	namei.o inode.o file.o dir.o util.o rock.o symlink.o
-
-isofs.o: $(OBJS)
-	$(LD) -r -o isofs.o $(OBJS)
-
-modules: isofs.o
-	ln -sf ../fs/isofs/isofs.o $(TOPDIR)/modules
-
-dep:
-	$(CPP) -M *.c > .depend
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

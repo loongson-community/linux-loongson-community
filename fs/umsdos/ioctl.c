@@ -5,12 +5,10 @@
  *
  *  Extended MS-DOS ioctl directory handling functions
  */
-#ifdef MODULE
-#include <linux/module.h>
-#endif
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <linux/errno.h>
+#include <linux/mm.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
@@ -19,6 +17,37 @@
 
 #define PRINTK(x)
 #define Printk(x) printk x
+
+struct UMSDOS_DIR_ONCE {
+	struct dirent *ent;
+	int count;
+};
+
+/*
+	Record a single entry the first call.
+	Return -EINVAL the next one.
+*/
+static int umsdos_ioctl_fill(
+	void * buf,
+	const char * name,
+	int name_len,
+	off_t offset,
+	ino_t ino)
+{
+	int ret = -EINVAL;
+	struct UMSDOS_DIR_ONCE *d = (struct UMSDOS_DIR_ONCE *)buf;
+	if (d->count == 0){
+		copy_to_user (d->ent->d_name,name,name_len);
+		put_user ('\0',d->ent->d_name+name_len);
+		put_user (name_len,&d->ent->d_reclen);
+		put_user (ino,&d->ent->d_ino);
+		put_user (offset,&d->ent->d_off);
+		d->count = 1;
+		ret = 0;
+	}
+	return ret;
+}
+
 
 /*
 	Perform special function on a directory
@@ -30,11 +59,19 @@ int UMSDOS_ioctl_dir (
 	unsigned long data)
 {
 	int ret = -EPERM;
+	int err;
 	/* #Specification: ioctl / acces
 		Only root (effective id) is allowed to do IOCTL on directory
 		in UMSDOS. EPERM is returned for other user.
 	*/
-	if (current->euid == 0
+	/*
+		Well, not all cases require write access, but it simplifies
+		the code, and let's face it, there is only one client (umssync)
+		for all this.
+	*/
+	if ((err = verify_area(VERIFY_WRITE,(void*)data,sizeof(struct umsdos_ioctl))) < 0) {
+		ret = err;
+	}else if (current->euid == 0
 		|| cmd == UMSDOS_GETVERSION){
 		struct umsdos_ioctl *idata = (struct umsdos_ioctl *)data;
 		ret = -EINVAL;
@@ -69,8 +106,8 @@ int UMSDOS_ioctl_dir (
 
 				Return always 0.
 			*/
-			put_fs_byte (UMSDOS_VERSION,&idata->version);
-			put_fs_byte (UMSDOS_RELEASE,&idata->release);
+			put_user(UMSDOS_VERSION,&idata->version);
+			put_user(UMSDOS_RELEASE,&idata->release);
 			ret = 0;
 		}else if (cmd == UMSDOS_READDIR_DOS){
 			/* #Specification: ioctl / UMSDOS_READDIR_DOS
@@ -80,7 +117,11 @@ int UMSDOS_ioctl_dir (
 
 				Return > 0 if success.
 			*/
-			ret = msdos_readdir(dir,filp,&idata->dos_dirent,1);
+			struct UMSDOS_DIR_ONCE bufk;
+			bufk.count = 0;
+			bufk.ent = &idata->dos_dirent;
+			fat_readdir(dir,filp,&bufk,umsdos_ioctl_fill);
+			ret = bufk.count == 1 ? 1 : 0;
 		}else if (cmd == UMSDOS_READDIR_EMD){
 			/* #Specification: ioctl / UMSDOS_READDIR_EMD
 				One entry is read from the EMD at the current
@@ -111,9 +152,9 @@ int UMSDOS_ioctl_dir (
 							umsdos_parse (entry.name,entry.name_len,&info);
 							info.f_pos = f_pos;
 							umsdos_manglename(&info);
-							memcpy_tofs(&idata->umsdos_dirent,&entry
+							copy_to_user(&idata->umsdos_dirent,&entry
 								,sizeof(entry));
-							memcpy_tofs(&idata->dos_dirent.d_name
+							copy_to_user(&idata->dos_dirent.d_name
 								,info.fake.fname,info.fake.len+1);
 							break;
 						}
@@ -146,7 +187,7 @@ int UMSDOS_ioctl_dir (
 				: &umsdos_rdir_inode_operations;
 		}else{
 			struct umsdos_ioctl data;
-			memcpy_fromfs (&data,idata,sizeof(data));
+			copy_from_user (&data,idata,sizeof(data));
 			if (cmd == UMSDOS_CREAT_EMD){
 				/* #Specification: ioctl / UMSDOS_CREAT_EMD
 					The umsdos_dirent field of the struct umsdos_ioctl is used
@@ -178,7 +219,7 @@ int UMSDOS_ioctl_dir (
 				ret = msdos_rename (dir
 					,data.dos_dirent.d_name,data.dos_dirent.d_reclen
 					,dir
-					,data.umsdos_dirent.name,data.umsdos_dirent.name_len);
+					,data.umsdos_dirent.name,data.umsdos_dirent.name_len,0);
 			}else if (cmd == UMSDOS_UNLINK_EMD){
 				/* #Specification: ioctl / UMSDOS_UNLINK_EMD
 					The umsdos_dirent field of the struct umsdos_ioctl is used
@@ -240,7 +281,7 @@ int UMSDOS_ioctl_dir (
 					data.stat.st_atime = inode->i_atime;
 					data.stat.st_ctime = inode->i_ctime;
 					data.stat.st_mtime = inode->i_mtime;
-					memcpy_tofs (&idata->stat,&data.stat,sizeof(data.stat));
+					copy_to_user (&idata->stat,&data.stat,sizeof(data.stat));
 					iput (inode);
 				}
 			}else if (cmd == UMSDOS_DOS_SETUP){
@@ -263,9 +304,9 @@ int UMSDOS_ioctl_dir (
 					umsdos_dirent.uid and gid sets the owner and group.
 					umsdos_dirent.mode set the permissions flags.
 				*/
-				dir->i_sb->u.msdos_sb.fs_uid = data.umsdos_dirent.uid;
-				dir->i_sb->u.msdos_sb.fs_gid = data.umsdos_dirent.gid;
-				dir->i_sb->u.msdos_sb.fs_umask = data.umsdos_dirent.mode;
+				dir->i_sb->u.msdos_sb.options.fs_uid = data.umsdos_dirent.uid;
+				dir->i_sb->u.msdos_sb.options.fs_gid = data.umsdos_dirent.gid;
+				dir->i_sb->u.msdos_sb.options.fs_umask = data.umsdos_dirent.mode;
 				ret = 0;
 			}
 		}

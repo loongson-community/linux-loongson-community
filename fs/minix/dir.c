@@ -6,19 +6,16 @@
  *  minix directory handling functions
  */
 
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/minix_fs.h>
 #include <linux/stat.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
-static int minix_dir_read(struct inode * inode, struct file * filp, char * buf, int count)
+static long minix_dir_read(struct inode * inode, struct file * filp,
+	char * buf, unsigned long count)
 {
 	return -EISDIR;
 }
@@ -54,6 +51,8 @@ struct inode_operations minix_dir_inode_operations = {
 	minix_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	minix_truncate,		/* truncate */
 	NULL			/* permission */

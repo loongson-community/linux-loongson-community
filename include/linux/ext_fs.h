@@ -63,7 +63,7 @@ struct ext_dir_entry {
 extern int ext_open(struct inode * inode, struct file * filp);
 extern void ext_release(struct inode * inode, struct file * filp);
 extern int ext_lookup(struct inode * dir,const char * name, int len,
-	struct inode ** result);
+                      struct inode ** result);
 extern int ext_create(struct inode * dir,const char * name, int len, int mode,
 	struct inode ** result);
 extern int ext_mkdir(struct inode * dir, const char * name, int len, int mode);
@@ -74,7 +74,7 @@ extern int ext_symlink(struct inode * inode, const char * name, int len,
 extern int ext_link(struct inode * oldinode, struct inode * dir, const char * name, int len);
 extern int ext_mknod(struct inode * dir, const char * name, int len, int mode, int rdev);
 extern int ext_rename(struct inode * old_dir, const char * old_name, int old_len,
-	struct inode * new_dir, const char * new_name, int new_len);
+	struct inode * new_dir, const char * new_name, int new_len, int must_be_dir);
 extern struct inode * ext_new_inode(const struct inode * dir);
 extern void ext_free_inode(struct inode * inode);
 extern unsigned long ext_count_free_inodes(struct super_block *sb);
@@ -91,6 +91,7 @@ extern void ext_truncate(struct inode *);
 extern void ext_put_super(struct super_block *);
 extern void ext_write_super(struct super_block *);
 extern struct super_block *ext_read_super(struct super_block *,void *,int);
+extern int init_ext_fs(void);
 extern void ext_read_inode(struct inode *);
 extern void ext_write_inode(struct inode *);
 extern void ext_put_inode(struct inode *);

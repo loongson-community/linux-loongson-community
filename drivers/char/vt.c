@@ -5,6 +5,7 @@
  *
  *  Dynamic diacritical handling - aeb@cwi.nl - Dec 1993
  *  Dynamic keymap and string allocation - aeb@cwi.nl - May 1994
+ *  Restrict VT switching via ioctl() - grif@cs.ucr.edu - Dec 1995
  */
 
 #include <linux/types.h>
@@ -17,17 +18,19 @@
 #include <linux/vt.h>
 #include <linux/string.h>
 #include <linux/malloc.h>
+#include <linux/major.h>
+#include <linux/fs.h>
 
 #include <asm/io.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 
 #include "kbd_kern.h"
 #include "vt_kern.h"
 #include "diacr.h"
 #include "selection.h"
 
+extern char vt_dont_switch;
 extern struct tty_driver console_driver;
-extern int sel_cons;
 
 #define VT_IS_IN_USE(i)	(console_driver.table[i] && console_driver.table[i]->count)
 #define VT_BUSY(i)	(VT_IS_IN_USE(i) || i == fg_console || i == sel_cons)
@@ -47,29 +50,42 @@ extern int sel_cons;
 
 struct vt_struct *vt_cons[MAX_NR_CONSOLES];
 
+#ifndef __alpha__
 asmlinkage int sys_ioperm(unsigned long from, unsigned long num, int on);
+#endif
 
 extern int getkeycode(unsigned int scancode);
 extern int setkeycode(unsigned int scancode, unsigned int keycode);
 extern void compute_shiftstate(void);
-extern void change_console(unsigned int new_console);
 extern void complete_change_console(unsigned int new_console);
 extern int vt_waitactive(void);
 extern void do_blank_screen(int nopowersave);
-extern void do_unblank_screen(void);
 
 extern unsigned int keymap_count;
 
 /*
- * routines to load custom translation table and EGA/VGA font from console.c
+ * routines to load custom translation table, EGA/VGA font and
+ * VGA colour palette from console.c
  */
-extern int con_set_trans(char * table);
-extern int con_get_trans(char * table);
+extern int con_set_trans_old(unsigned char * table);
+extern int con_get_trans_old(unsigned char * table);
+extern int con_set_trans_new(unsigned short * table);
+extern int con_get_trans_new(unsigned short * table);
 extern void con_clear_unimap(struct unimapinit *ui);
 extern int con_set_unimap(ushort ct, struct unipair *list);
 extern int con_get_unimap(ushort ct, ushort *uct, struct unipair *list);
-extern int con_set_font(char * fontmap);
+extern void con_set_default_unimap(void);
+extern int con_set_font(char * fontmap, int ch512);
 extern int con_get_font(char * fontmap);
+extern int con_set_cmap(unsigned char *cmap);
+extern int con_get_cmap(unsigned char *cmap);
+extern void reset_palette(int currcons);
+extern int con_adjust_height(unsigned long fontheight);
+
+extern int video_mode_512ch;
+extern unsigned long video_font_height;
+extern unsigned long default_font_height;
+extern unsigned long video_scan_lines;
 
 /*
  * these are the valid i/o ports we're allowed to change. they map all the
@@ -78,6 +94,43 @@ extern int con_get_font(char * fontmap);
 #define GPFIRST 0x3b4
 #define GPLAST 0x3df
 #define GPNUM (GPLAST - GPFIRST + 1)
+
+/*
+ * This function is called when the size of the physical screen has been
+ * changed.  If either the row or col argument is nonzero, set the appropriate
+ * entry in each winsize structure for all the virtual consoles, then
+ * send SIGWINCH to all processes with a virtual console as controlling
+ * tty.
+ */
+
+static int
+kd_size_changed(int row, int col)
+{
+  struct task_struct *p;
+  int i;
+
+  if ( !row && !col ) return 0;
+
+  for ( i = 0 ; i < MAX_NR_CONSOLES ; i++ )
+    {
+      if ( console_driver.table[i] )
+	{
+	  if ( row ) console_driver.table[i]->winsize.ws_row = row;
+	  if ( col ) console_driver.table[i]->winsize.ws_col = col;
+	}
+    }
+
+  for_each_task(p)
+    {
+      if ( p->tty && MAJOR(p->tty->device) == TTY_MAJOR &&
+	   MINOR(p->tty->device) <= MAX_NR_CONSOLES && MINOR(p->tty->device) )
+	{
+	  send_sig(SIGWINCH, p, 1);
+	}
+    }
+
+  return 0;
+}
 
 /*
  * Generates sound of some count for some number of clock ticks
@@ -103,10 +156,16 @@ kd_nosound(unsigned long ignored)
 }
 
 void
-kd_mksound(unsigned int count, unsigned int ticks)
+_kd_mksound(unsigned int hz, unsigned int ticks)
 {
-	static struct timer_list sound_timer = { NULL, NULL, 0, 0, kd_nosound };
+	static struct timer_list sound_timer = { NULL, NULL, 0, 0,
+						 kd_nosound };
 
+	unsigned int count = 0;
+
+	if (hz > 20 && hz < 32767)
+		count = 1193180 / hz;
+	
 	cli();
 	del_timer(&sound_timer);
 	if (count) {
@@ -119,7 +178,7 @@ kd_mksound(unsigned int count, unsigned int ticks)
 		outb((count >> 8) & 0xff, 0x42);
 
 		if (ticks) {
-			sound_timer.expires = ticks;
+			sound_timer.expires = jiffies+ticks;
 			add_timer(&sound_timer);
 		}
 	} else
@@ -128,6 +187,8 @@ kd_mksound(unsigned int count, unsigned int ticks)
 	return;
 }
 
+void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_mksound;
+	
 /*
  * We handle the console-specific ioctl's here.  We allow the
  * capability to modify any console, not just the fg_console. 
@@ -159,22 +220,25 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	case KIOCSOUND:
 		if (!perm)
 			return -EPERM;
-		kd_mksound((unsigned int)arg, 0);
+		if (arg)
+			arg = 1193180 / arg;
+		kd_mksound(arg, 0);
 		return 0;
 
 	case KDMKTONE:
 		if (!perm)
 			return -EPERM;
 	{
-		unsigned int ticks = HZ * ((arg >> 16) & 0xffff) / 1000;
-
+		unsigned int ticks, count;
+		
 		/*
 		 * Generate the tone for the appropriate number of ticks.
 		 * If the time is zero, turn off sound ourselves.
 		 */
-		kd_mksound(arg & 0xffff, ticks);
-		if (ticks == 0)
-			kd_nosound(0);
+		ticks = HZ * ((arg >> 16) & 0xffff) / 1000;
+		if ((arg & 0xffff) == 0 ) arg |= 1; /* jp: huh? */
+		count = ticks ? (1193180 / (arg & 0xffff)) : 0;
+		kd_mksound(count, ticks);
 		return 0;
 	}
 
@@ -184,9 +248,14 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		 */
 		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(unsigned char));
 		if (!i)
-			put_fs_byte(KB_101, (char *) arg);
+			put_user(KB_101, (char *) arg);
 		return i;
 
+#ifndef __alpha__
+		/*
+		 * These cannot be implemented on any machine that implements
+		 * ioperm() in user level (such as Alpha PCs).
+		 */
 	case KDADDIO:
 	case KDDELIO:
 		/*
@@ -201,6 +270,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	case KDDISABIO:
 		return sys_ioperm(GPFIRST, GPNUM,
 				  (cmd == KDENABIO)) ? -ENXIO : 0;
+#endif
 
 	case KDSETMODE:
 		/*
@@ -236,9 +306,9 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return 0;
 
 	case KDGETMODE:
-		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(unsigned long));
+		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(int));
 		if (!i)
-			put_fs_long(vt_cons[console]->vc_mode, (unsigned long *) arg);
+			put_user(vt_cons[console]->vc_mode, (int *) arg);
 		return i;
 
 	case KDMAPDISP:
@@ -275,13 +345,13 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return 0;
 
 	case KDGKBMODE:
-		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(unsigned long));
+		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(int));
 		if (!i) {
 			ucval = ((kbd->kbdmode == VC_RAW) ? K_RAW :
 				 (kbd->kbdmode == VC_MEDIUMRAW) ? K_MEDIUMRAW :
 				 (kbd->kbdmode == VC_UNICODE) ? K_UNICODE :
 				 K_XLATE);
-			put_fs_long(ucval, (unsigned long *) arg);
+			put_user(ucval, (int *) arg);
 		}
 		return i;
 
@@ -301,11 +371,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return 0;
 
 	case KDGKBMETA:
-		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(unsigned long));
+		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(int));
 		if (!i) {
 			ucval = (vc_kbd_mode(kbd, VC_META) ? K_ESCPREFIX :
 				 K_METABIT);
-			put_fs_long(ucval, (unsigned long *) arg);
+			put_user(ucval, (int *) arg);
 		}
 		return i;
 
@@ -318,11 +388,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *)a, sizeof(struct kbkeycode));
 		if (i)
 			return i;
-		sc = get_fs_long((int *) &a->scancode);
+		get_user(sc, &a->scancode);
 		kc = getkeycode(sc);
 		if (kc < 0)
 			return kc;
-		put_fs_long(kc, (int *) &a->keycode);
+		put_user(kc, &a->keycode);
 		return 0;
 	}
 
@@ -336,8 +406,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_READ, (void *)a, sizeof(struct kbkeycode));
 		if (i)
 			return i;
-		sc = get_fs_long((int *) &a->scancode);
-		kc = get_fs_long((int *) &a->keycode);
+		get_user(sc, &a->scancode);
+		get_user(kc, &a->keycode);
 		return setkeycode(sc, kc);
 	}
 
@@ -350,9 +420,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *)a, sizeof(struct kbentry));
 		if (i)
 			return i;
-		if ((i = get_fs_byte((char *) &a->kb_index)) >= NR_KEYS)
+		get_user(i, &a->kb_index);
+		if (i >= NR_KEYS)
 			return -EINVAL;
-		if ((s = get_fs_byte((char *) &a->kb_table)) >= MAX_NR_KEYMAPS)
+		get_user(s, &a->kb_table);
+		if (s >= MAX_NR_KEYMAPS)
 			return -EINVAL;
 		key_map = key_maps[s];
 		if (key_map) {
@@ -361,7 +433,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 			val = K_HOLE;
 		} else
 		    val = (i ? K_HOLE : K_NOSUCHMAP);
-		put_fs_word(val, (short *) &a->kb_value);
+		put_user(val, &a->kb_value);
 		return 0;
 	}
 
@@ -374,14 +446,16 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 
 		if (!perm)
 			return -EPERM;
-		i = verify_area(VERIFY_READ, (void *)a, sizeof(struct kbentry));
+		i = verify_area(VERIFY_READ, (const void *)a, sizeof(struct kbentry));
 		if (i)
 			return i;
-		if ((i = get_fs_byte((char *) &a->kb_index)) >= NR_KEYS)
+		get_user(i, &a->kb_index);
+		if (i >= NR_KEYS)
 			return -EINVAL;
-		if ((s = get_fs_byte((char *) &a->kb_table)) >= MAX_NR_KEYMAPS)
+		get_user(s, &a->kb_table);
+		if (s >= MAX_NR_KEYMAPS)
 			return -EINVAL;
-		v = get_fs_word(&a->kb_value);
+		get_user(v, &a->kb_value);
 		if (!i && v == K_NOSUCHMAP) {
 			/* disallocate map */
 			key_map = key_maps[s];
@@ -447,7 +521,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *)a, sizeof(struct kbsentry));
 		if (i)
 			return i;
-		if ((i = get_fs_byte(&a->kb_func)) >= MAX_NR_FUNC || i < 0)
+		get_user(i, &a->kb_func);
+		if (i >= MAX_NR_FUNC || i < 0)
 			return -EINVAL;
 		sz = sizeof(a->kb_string) - 1; /* sz should have been
 						  a struct member */
@@ -455,8 +530,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		p = func_table[i];
 		if(p)
 			for ( ; *p && sz; p++, sz--)
-				put_fs_byte(*p, q++);
-		put_fs_byte(0, q);
+				put_user(*p, q++);
+		put_user('\0', q);
 		return ((p && *p) ? -EOVERFLOW : 0);
 	}
 
@@ -474,7 +549,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_READ, (void *)a, sizeof(struct kbsentry));
 		if (i)
 			return i;
-		if ((i = get_fs_byte(&a->kb_func)) >= MAX_NR_FUNC)
+		get_user(i, &a->kb_func);
+		if (i >= MAX_NR_FUNC)
 			return -EINVAL;
 		q = func_table[i];
 
@@ -488,8 +564,13 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		delta = (q ? -strlen(q) : 1);
 		sz = sizeof(a->kb_string); 	/* sz should have been
 						   a struct member */
-		for (p = a->kb_string; get_fs_byte(p) && sz; p++,sz--)
+		for (p = a->kb_string; sz; p++,sz--) {
+			unsigned char uc;
+			get_user(uc, p);
+			if (!uc)
+				break;
 			delta++;
+		}
 		if (!sz)
 			return -EOVERFLOW;
 		if (delta <= funcbufleft) { 	/* it fits in current buf */
@@ -530,9 +611,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		    funcbufleft = funcbufleft - delta + sz - funcbufsize;
 		    funcbufsize = sz;
 		}
-		for (p = a->kb_string, q = func_table[i]; ; p++, q++)
-			if (!(*q = get_fs_byte(p)))
+		for (p = a->kb_string, q = func_table[i]; ; p++, q++) {
+			get_user(*q, p);
+			if (!*q)
 				break;
+		}
 		return 0;
 	}
 
@@ -543,8 +626,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *) a, sizeof(struct kbdiacrs));
 		if (i)
 			return i;
-		put_fs_long(accent_table_size, &a->kb_cnt);
-		memcpy_tofs(a->kbdiacr, accent_table,
+		put_user(accent_table_size, &a->kb_cnt);
+		copy_to_user(a->kbdiacr, accent_table,
 			    accent_table_size*sizeof(struct kbdiacr));
 		return 0;
 	}
@@ -559,11 +642,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_READ, (void *) a, sizeof(struct kbdiacrs));
 		if (i)
 			return i;
-		ct = get_fs_long(&a->kb_cnt);
+		get_user(ct,&a->kb_cnt);
 		if (ct >= MAX_DIACR)
 			return -EINVAL;
 		accent_table_size = ct;
-		memcpy_fromfs(accent_table, a->kbdiacr, ct*sizeof(struct kbdiacr));
+		copy_from_user(accent_table, a->kbdiacr, ct*sizeof(struct kbdiacr));
 		return 0;
 	}
 
@@ -573,8 +656,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(unsigned char));
 		if (i)
 			return i;
-		put_fs_byte(kbd->ledflagstate |
-			    (kbd->default_ledflagstate << 4), (char *) arg);
+		put_user(kbd->ledflagstate |
+			 (kbd->default_ledflagstate << 4), (char *) arg);
 		return 0;
 
 	case KDSKBLED:
@@ -593,7 +676,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(unsigned char));
 		if (i)
 			return i;
-		put_fs_byte(getledstate(), (char *) arg);
+		put_user(getledstate(), (char *) arg);
 		return 0;
 
 	case KDSETLED:
@@ -631,20 +714,21 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 
 		if (!perm)
 			return -EPERM;
-		i = verify_area(VERIFY_WRITE, (void *)vtmode, sizeof(struct vt_mode));
+		i = verify_area(VERIFY_READ, (void *)vtmode, sizeof(struct vt_mode));
 		if (i)
 			return i;
-		mode = get_fs_byte(&vtmode->mode);
+		get_user(mode, &vtmode->mode);
 		if (mode != VT_AUTO && mode != VT_PROCESS)
 			return -EINVAL;
 		vt_cons[console]->vt_mode.mode = mode;
-		vt_cons[console]->vt_mode.waitv = get_fs_byte(&vtmode->waitv);
-		vt_cons[console]->vt_mode.relsig = get_fs_word(&vtmode->relsig);
-		vt_cons[console]->vt_mode.acqsig = get_fs_word(&vtmode->acqsig);
+		get_user(vt_cons[console]->vt_mode.waitv, &vtmode->waitv);
+		get_user(vt_cons[console]->vt_mode.relsig, &vtmode->relsig);
+		get_user(vt_cons[console]->vt_mode.acqsig, &vtmode->acqsig);
 		/* the frsig is ignored, so we set it to 0 */
 		vt_cons[console]->vt_mode.frsig = 0;
 		vt_cons[console]->vt_pid = current->pid;
-		vt_cons[console]->vt_newvt = 0;
+		/* no switch is required -- saw@shade.msu.ru */
+		vt_cons[console]->vt_newvt = -1; 
 		return 0;
 	}
 
@@ -655,11 +739,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *)arg, sizeof(struct vt_mode));
 		if (i)
 			return i;
-		put_fs_byte(vt_cons[console]->vt_mode.mode, &vtmode->mode);
-		put_fs_byte(vt_cons[console]->vt_mode.waitv, &vtmode->waitv);
-		put_fs_word(vt_cons[console]->vt_mode.relsig, &vtmode->relsig);
-		put_fs_word(vt_cons[console]->vt_mode.acqsig, &vtmode->acqsig);
-		put_fs_word(vt_cons[console]->vt_mode.frsig, &vtmode->frsig);
+		put_user(vt_cons[console]->vt_mode.mode, &vtmode->mode);
+		put_user(vt_cons[console]->vt_mode.waitv, &vtmode->waitv);
+		put_user(vt_cons[console]->vt_mode.relsig, &vtmode->relsig);
+		put_user(vt_cons[console]->vt_mode.acqsig, &vtmode->acqsig);
+		put_user(vt_cons[console]->vt_mode.frsig, &vtmode->frsig);
 		return 0;
 	}
 
@@ -676,12 +760,12 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE,(void *)vtstat, sizeof(struct vt_stat));
 		if (i)
 			return i;
-		put_fs_word(fg_console + 1, &vtstat->v_active);
+		put_user(fg_console + 1, &vtstat->v_active);
 		state = 1;	/* /dev/tty0 is always open */
 		for (i = 0, mask = 2; i < MAX_NR_CONSOLES && mask; ++i, mask <<= 1)
 			if (VT_IS_IN_USE(i))
 				state |= mask;
-		put_fs_word(state, &vtstat->v_state);
+		put_user(state, &vtstat->v_state);
 		return 0;
 	}
 
@@ -689,14 +773,13 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	 * Returns the first available (non-opened) console.
 	 */
 	case VT_OPENQRY:
-		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(long));
+		i = verify_area(VERIFY_WRITE, (void *) arg, sizeof(int));
 		if (i)
 			return i;
 		for (i = 0; i < MAX_NR_CONSOLES; ++i)
 			if (! VT_IS_IN_USE(i))
 				break;
-		put_fs_long(i < MAX_NR_CONSOLES ? (i+1) : -1,
-			    (unsigned long *)arg);
+		put_user(i < MAX_NR_CONSOLES ? (i+1) : -1, (int *) arg);
 		return 0;
 
 	/*
@@ -713,7 +796,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = vc_allocate(arg);
 		if (i)
 			return i;
-		change_console(arg);
+		set_console(arg);
 		return 0;
 
 	/*
@@ -771,7 +854,14 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 				i = vc_allocate(newvt);
 				if (i)
 					return i;
+				/*
+				 * When we actually do the console switch,
+				 * make sure we are atomic with respect to
+				 * other console switches..
+				 */
+				start_bh_atomic();
 				complete_change_console(newvt);
+				end_bh_atomic();
 			}
 		}
 
@@ -819,32 +909,181 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_READ, (void *)vtsizes, sizeof(struct vt_sizes));
 		if (i)
 			return i;
-		ll = get_fs_word(&vtsizes->v_rows);
-		cc = get_fs_word(&vtsizes->v_cols);
-		return vc_resize(ll, cc);
+		get_user(ll, &vtsizes->v_rows);
+		get_user(cc, &vtsizes->v_cols);
+		i = vc_resize(ll, cc);
+		return i ? i : 	kd_size_changed(ll, cc);
 	}
+
+	case VT_RESIZEX:
+	{
+		struct vt_consize *vtconsize = (struct vt_consize *) arg;
+		ushort ll,cc,vlin,clin,vcol,ccol;
+		if (!perm)
+			return -EPERM;
+		i = verify_area(VERIFY_READ, (void *)vtconsize, sizeof(struct vt_consize));
+		if (i)
+			return i;
+		get_user(ll, &vtconsize->v_rows);
+		get_user(cc, &vtconsize->v_cols);
+		get_user(vlin, &vtconsize->v_vlin);
+		get_user(clin, &vtconsize->v_clin);
+		get_user(vcol, &vtconsize->v_vcol);
+		get_user(ccol, &vtconsize->v_ccol);
+		vlin = vlin ? vlin : video_scan_lines;
+		if ( clin )
+		  {
+		    if ( ll )
+		      {
+			if ( ll != vlin/clin )
+			  return EINVAL; /* Parameters don't add up */
+		      }
+		    else 
+		      ll = vlin/clin;
+		  }
+		if ( vcol && ccol )
+		  {
+		    if ( cc )
+		      {
+			if ( cc != vcol/ccol )
+			  return EINVAL;
+		      }
+		    else
+		      cc = vcol/ccol;
+		  }
+
+		if ( clin > 32 )
+		  return EINVAL;
+		    
+		if ( vlin )
+		  video_scan_lines = vlin;
+		if ( clin )
+		  video_font_height = clin;
+		
+		i = vc_resize(ll, cc);
+		if (i)
+			return i;
+
+		kd_size_changed(ll, cc);
+		return 0;
+  	}
 
 	case PIO_FONT:
 		if (!perm)
 			return -EPERM;
 		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
 			return -EINVAL;
-		return con_set_font((char *)arg);
+		return con_set_font((char *)arg, 0);
 		/* con_set_font() defined in console.c */
 
 	case GIO_FONT:
-		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
+		if (vt_cons[fg_console]->vc_mode != KD_TEXT ||
+		    video_mode_512ch)
 			return -EINVAL;
 		return con_get_font((char *)arg);
 		/* con_get_font() defined in console.c */
 
+	case PIO_CMAP:
+                if (!perm)
+			return -EPERM;
+                return con_set_cmap((char *)arg);
+                /* con_set_cmap() defined in console.c */
+
+	case GIO_CMAP:
+                return con_get_cmap((char *)arg);
+                /* con_get_cmap() defined in console.c */
+
+	case PIO_FONTX:
+	{
+	        struct consolefontdesc cfdarg;
+
+		if (!perm)
+			return -EPERM;
+		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
+			return -EINVAL;
+		i = verify_area(VERIFY_READ, (void *)arg,
+				sizeof(struct consolefontdesc));
+		if (i) return i;
+		copy_from_user(&cfdarg, (void *)arg,
+			      sizeof(struct consolefontdesc)); 
+		
+		if ( cfdarg.charcount == 256 ||
+		     cfdarg.charcount == 512 ) {
+			i = con_set_font(cfdarg.chardata,
+				cfdarg.charcount == 512);
+			if (i)
+				return i;
+			i = con_adjust_height(cfdarg.charheight);
+			return (i <= 0) ? i : kd_size_changed(i, 0);
+		} else
+			return -EINVAL;
+	}
+
+	case PIO_FONTRESET:
+	{
+		if (!perm)
+			return -EPERM;
+		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
+			return -EINVAL;
+
+#ifdef BROKEN_GRAPHICS_PROGRAMS
+		/* With BROKEN_GRAPHICS_PROGRAMS defined, the default
+		   font is not saved. */
+		return -ENOSYS;
+#else
+
+		i = con_set_font(NULL, 0);	/* Set font to default */
+		if (i) return i;
+
+		i = con_adjust_height(default_font_height);
+		if ( i > 0 ) kd_size_changed(i, 0);
+		con_set_default_unimap();
+
+		return 0;
+#endif
+	}
+
+	case GIO_FONTX:
+	{
+	        struct consolefontdesc cfdarg;
+		int nchar;
+
+		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
+			return -EINVAL;
+		i = verify_area(VERIFY_WRITE, (void *)arg,
+			sizeof(struct consolefontdesc));
+		if (i) return i;	
+		copy_from_user(&cfdarg, (void *) arg,
+			      sizeof(struct consolefontdesc)); 
+		i = cfdarg.charcount;
+		cfdarg.charcount = nchar = video_mode_512ch ? 512 : 256;
+		cfdarg.charheight = video_font_height;
+		copy_to_user((void *) arg, &cfdarg,
+			    sizeof(struct consolefontdesc)); 
+		if ( cfdarg.chardata )
+		{
+			if ( i < nchar )
+				return -ENOMEM;
+			return con_get_font(cfdarg.chardata);
+		} else
+			return 0;
+	}
+
 	case PIO_SCRNMAP:
 		if (!perm)
 			return -EPERM;
-		return con_set_trans((char *)arg);
+		return con_set_trans_old((unsigned char *)arg);
 
 	case GIO_SCRNMAP:
-		return con_get_trans((char *)arg);
+		return con_get_trans_old((unsigned char *)arg);
+
+	case PIO_UNISCRNMAP:
+		if (!perm)
+			return -EPERM;
+		return con_set_trans_new((unsigned short *)arg);
+
+	case GIO_UNISCRNMAP:
+		return con_get_trans_new((unsigned short *)arg);
 
 	case PIO_UNIMAPCLR:
 	      { struct unimapinit ui;
@@ -853,7 +1092,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_READ, (void *)arg, sizeof(struct unimapinit));
 		if (i)
 		  return i;
-		memcpy_fromfs(&ui, (void *)arg, sizeof(struct unimapinit));
+		copy_from_user(&ui, (void *)arg, sizeof(struct unimapinit));
 		con_clear_unimap(&ui);
 		return 0;
 	      }
@@ -868,8 +1107,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_READ, (void *)arg, sizeof(struct unimapdesc));
 		if (i == 0) {
 		    ud = (struct unimapdesc *) arg;
-		    ct = get_fs_word(&ud->entry_ct);
-		    list = (struct unipair *) get_fs_long(&ud->entries);
+		    get_user(ct, &ud->entry_ct);
+		    get_user(list, &ud->entries);
 		    i = verify_area(VERIFY_READ, (void *) list,
 				    ct*sizeof(struct unipair));
 		}
@@ -886,8 +1125,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		i = verify_area(VERIFY_WRITE, (void *)arg, sizeof(struct unimapdesc));
 		if (i == 0) {
 		    ud = (struct unimapdesc *) arg;
-		    ct = get_fs_word(&ud->entry_ct);
-		    list = (struct unipair *) get_fs_long(&ud->entries);
+		    get_user(ct, &ud->entry_ct);
+		    get_user(list, &ud->entries);
 		    if (ct)
 		      i = verify_area(VERIFY_WRITE, (void *) list,
 				      ct*sizeof(struct unipair));
@@ -896,7 +1135,16 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		  return i;
 		return con_get_unimap(ct, &(ud->entry_ct), list);
 	      }
- 
+	case VT_LOCKSWITCH:
+		if (!suser())
+		   return -EPERM;
+		vt_dont_switch = 1;
+		return 0;
+	case VT_UNLOCKSWITCH:
+		if (!suser())
+		   return -EPERM;
+		vt_dont_switch = 0;
+		return 0;
 	default:
 		return -ENOIOCTLCMD;
 	}

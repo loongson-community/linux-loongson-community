@@ -10,10 +10,20 @@
  * For more information, please consult the SCSI-CAM draft.
  */
 
+/*
+ * Don't import our own symbols, as this would severely mess up our
+ * symbol tables.
+ */
+#define _SCSI_SYMS_VER_
+#define __NO_VERSION__
+#include <linux/module.h>
+
 #include <linux/fs.h>
 #include <linux/genhd.h>
 #include <linux/kernel.h>
-#include "../block/blk.h"
+#include <linux/blk.h>
+#include <asm/segment.h>
+#include <asm/unaligned.h>
 #include "scsi.h"
 #include "hosts.h"
 #include "sd.h"
@@ -35,36 +45,43 @@ static int setsize(unsigned long capacity,unsigned int *cyls,unsigned int *hds,
  */
 
 int scsicam_bios_param (Disk *disk, /* SCSI disk */
-	int dev,		/* Device major, minor */
+	kdev_t dev,		/* Device major, minor */
     	int *ip			/* Heads, sectors, cylinders in that order */) {
+
     struct buffer_head *bh;
     int ret_code;
     int size = disk->capacity;
 
-    if (!(bh = bread(dev & ~0xf,0,1024)))
+    if (!(bh = bread(MKDEV(MAJOR(dev), MINOR(dev)&~0xf), 0, 1024)))
 	return -1;
 
-#ifdef DEBUG
-	printk ("scsicam_bios_param : trying existing mapping\n");
-#endif
+    /* try to infer mapping from partition table */
     ret_code = partsize (bh, (unsigned long) size, (unsigned int *) ip + 2, 
 	(unsigned int *) ip + 0, (unsigned int *) ip + 1);
     brelse (bh);
 
     if (ret_code == -1) {
-#ifdef DEBUG
-	printk ("scsicam_bios_param : trying optimal mapping\n");
-#endif
+	/* pick some standard mapping with at most 1024 cylinders,
+	   and at most 62 sectors per track - this works up to
+	   7905 MB */
 	ret_code = setsize ((unsigned long) size, (unsigned int *) ip + 2, 
     	    (unsigned int *) ip + 0, (unsigned int *) ip + 1);
     }
 
-    return ret_code;
+    /* if something went wrong, then apparently we have to return
+       a geometry with more than 1024 cylinders */
+    if (ret_code || ip[0] > 255 || ip[1] > 63) {
+	 ip[0] = 64;
+	 ip[1] = 32;
+	 ip[2] = size / (ip[0] * ip[1]);
+    }
+
+    return 0;
 }
 
 /*
  * Function : static int partsize(struct buffer_head *bh, unsigned long 
- *	capacity,unsigned int *cyls, unsigned int *hds, unsigned int secs);
+ *     capacity,unsigned int *cyls, unsigned int *hds, unsigned int *secs);
  *
  * Purpose : to determine the BIOS mapping used to create the partition
  *	table, storing the results in *cyls, *hds, and *secs 
@@ -77,8 +94,8 @@ static int partsize(struct buffer_head *bh, unsigned long capacity,
     unsigned int  *cyls, unsigned int *hds, unsigned int *secs) {
     struct partition *p, *largest = NULL;
     int i, largest_cyl;
-    int cyl, end_head, end_cyl, end_sector;
-    unsigned int logical_end, physical_end;
+    int cyl, ext_cyl, end_head, end_cyl, end_sector;
+    unsigned int logical_end, physical_end, ext_physical_end;
     
 
     if (*(unsigned short *) (bh->b_data+510) == 0xAA55) {
@@ -102,6 +119,7 @@ static int partsize(struct buffer_head *bh, unsigned long capacity,
     	end_cyl = largest->end_cyl + ((largest->end_sector & 0xc0) << 2);
     	end_head = largest->end_head;
     	end_sector = largest->end_sector & 0x3f;
+
 #ifdef DEBUG
 	printk ("scsicam_bios_param : end at h = %d, c = %d, s = %d\n",
 	    end_head, end_cyl, end_sector);
@@ -111,14 +129,28 @@ static int partsize(struct buffer_head *bh, unsigned long capacity,
     	    end_head * end_sector + end_sector;
 
 	/* This is the actual _sector_ number at the end */
-	logical_end = largest->start_sect + largest->nr_sects;
+	logical_end = get_unaligned(&largest->start_sect) +
+	              get_unaligned(&largest->nr_sects);
 
-    	if (logical_end == physical_end) {
+	/* This is for >1023 cylinders */
+        ext_cyl= (logical_end-(end_head * end_sector + end_sector))
+                                        /(end_head + 1) / end_sector;
+	ext_physical_end = ext_cyl * (end_head + 1) * end_sector +
+            end_head * end_sector + end_sector;
+
+#ifdef DEBUG
+	printk("scsicam_bios_param : logical_end=%d physical_end=%d ext_physical_end=%d ext_cyl=%d\n"
+			,logical_end,physical_end,ext_physical_end,ext_cyl);
+#endif
+
+    	if ((logical_end == physical_end) ||
+	    (end_cyl==1023 && ext_physical_end==logical_end)) {
     	    *secs = end_sector;
     	    *hds = end_head + 1;
     	    *cyls = capacity / ((end_head + 1) * end_sector);
     	    return 0;
     	}
+	
 #ifdef DEBUG
 	printk ("scsicam_bios_param : logical (%u) != physical (%u)\n",
 	    logical_end, physical_end);
@@ -129,7 +161,7 @@ static int partsize(struct buffer_head *bh, unsigned long capacity,
 
 /*
  * Function : static int setsize(unsigned long capacity,unsigned int *cyls,
- *	unsigned int *hds, unsigned int secs);
+ *	unsigned int *hds, unsigned int *secs);
  *
  * Purpose : to determine a near-optimal int 0x13 mapping for a
  *	SCSI disk in terms of lost space of size capacity, storing

@@ -1,6 +1,6 @@
 /* znet.c: An Zenith Z-Note ethernet driver for linux. */
 
-static char *version = "znet.c:v1.02 9/23/94 becker@cesdis.gsfc.nasa.gov\n";
+static const char *version = "znet.c:v1.02 9/23/94 becker@cesdis.gsfc.nasa.gov\n";
 
 /*
 	Written by Donald Becker.
@@ -182,11 +182,11 @@ struct netidblk {
 int znet_probe(struct device *dev);
 static int	znet_open(struct device *dev);
 static int	znet_send_packet(struct sk_buff *skb, struct device *dev);
-static void	znet_interrupt(int irq, struct pt_regs *regs);
+static void	znet_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void	znet_rx(struct device *dev);
 static int	znet_close(struct device *dev);
 static struct enet_statistics *net_get_stats(struct device *dev);
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
+static void set_multicast_list(struct device *dev);
 static void hardware_init(struct device *dev);
 static void update_stop_hit(short ioaddr, unsigned short rx_stop_offset);
 
@@ -219,7 +219,7 @@ int znet_probe(struct device *dev)
 	dev->base_addr = netinfo->iobase1;
 	dev->irq = netinfo->irq1;
 
-	printk(KERN_INFO "%s: ZNET at %#3x,", dev->name, dev->base_addr);
+	printk(KERN_INFO "%s: ZNET at %#3lx,", dev->name, dev->base_addr);
 
 	/* The station address is in the "netidblk" at 0x0f0000. */
 	for (i = 0; i < 6; i++)
@@ -246,7 +246,7 @@ int znet_probe(struct device *dev)
 	zn.tx_dma = netinfo->dma2;
 
 	/* These should never fail.  You can't add devices to a sealed box! */
-	if (request_irq(dev->irq, &znet_interrupt, 0, "ZNet")
+	if (request_irq(dev->irq, &znet_interrupt, 0, "ZNet", NULL)
 		|| request_dma(zn.rx_dma,"ZNet rx")
 		|| request_dma(zn.tx_dma,"ZNet tx")) {
 		printk(KERN_WARNING "%s: Not opened -- resource busy?!?\n", dev->name);
@@ -319,7 +319,7 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 	int ioaddr = dev->base_addr;
 
 	if (znet_debug > 4)
-		printk(KERN_DEBUG "%s: ZNet_send_packet(%d).\n", dev->name, dev->tbusy);
+		printk(KERN_DEBUG "%s: ZNet_send_packet(%ld).\n", dev->name, dev->tbusy);
 
 	/* Transmitter timeout, likely just recovery after suspending the machine. */
 	if (dev->tbusy) {
@@ -358,7 +358,7 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 		printk(KERN_WARNING "%s: Transmitter access conflict.\n", dev->name);
 	else {
 		short length = ETH_ZLEN < skb->len ? skb->len : ETH_ZLEN;
-		unsigned char *buf = (void *)(skb+1);
+		unsigned char *buf = (void *)skb->data;
 		ushort *tx_link = zn.tx_cur - 1;
 		ushort rnd_len = (length + 1)>>1;
 
@@ -402,7 +402,7 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 }
 
 /* The ZNET interrupt handler. */
-static void	znet_interrupt(int irq, struct pt_regs * regs)
+static void	znet_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct device *dev = irq2dev_map[irq];
 	int ioaddr;
@@ -448,7 +448,7 @@ static void	znet_interrupt(int irq, struct pt_regs * regs)
 				if (!(tx_status & 0x0040)) lp->stats.tx_heartbeat_errors++;
 				if (tx_status & 0x0020)  lp->stats.tx_aborted_errors++;
 				/* ...and the catch-all. */
-				if (tx_status | 0x0760 != 0x0760)
+				if ((tx_status | 0x0760) != 0x0760)
 				  lp->stats.tx_errors++;
 			}
 			dev->tbusy = 0;
@@ -548,25 +548,24 @@ static void znet_rx(struct device *dev)
 			/* Malloc up new buffer. */
 			struct sk_buff *skb;
 
-			skb = alloc_skb(pkt_len, GFP_ATOMIC);
+			skb = dev_alloc_skb(pkt_len);
 			if (skb == NULL) {
 				if (znet_debug)
 				  printk(KERN_WARNING "%s: Memory squeeze, dropping packet.\n", dev->name);
 				lp->stats.rx_dropped++;
 				break;
 			}
-			skb->len = pkt_len;
 			skb->dev = dev;
 
 			if (&zn.rx_cur[(pkt_len+1)>>1] > zn.rx_end) {
 				int semi_cnt = (zn.rx_end - zn.rx_cur)<<1;
-				memcpy((unsigned char *) (skb + 1), zn.rx_cur, semi_cnt);
-				memcpy((unsigned char *) (skb + 1) + semi_cnt, zn.rx_start,
+				memcpy(skb_put(skb,semi_cnt), zn.rx_cur, semi_cnt);
+				memcpy(skb_put(skb,pkt_len-semi_cnt), zn.rx_start,
 					   pkt_len - semi_cnt);
 			} else {
-				memcpy((unsigned char *) (skb + 1), zn.rx_cur, pkt_len);
+				memcpy(skb_put(skb,pkt_len), zn.rx_cur, pkt_len);
 				if (znet_debug > 6) {
-					unsigned int *packet = (unsigned int *) (skb + 1);
+					unsigned int *packet = (unsigned int *) skb->data;
 					printk(KERN_DEBUG "Packet data is %08x %08x %08x %08x.\n", packet[0],
 						   packet[1], packet[2], packet[3]);
 				}
@@ -604,7 +603,7 @@ static int znet_close(struct device *dev)
 	disable_dma(zn.rx_dma);
 	disable_dma(zn.tx_dma);
 
-	free_irq(dev->irq);
+	free_irq(dev->irq, NULL);
 
 	if (znet_debug > 1)
 		printk(KERN_DEBUG "%s: Shutting down ethercard.\n", dev->name);
@@ -624,12 +623,7 @@ static struct enet_statistics *net_get_stats(struct device *dev)
 		return &lp->stats;
 }
 
-#ifdef HAVE_MULTICAST
 /* Set or clear the multicast filter for this adaptor.
-   num_addrs == -1	Promiscuous mode, receive all packets
-   num_addrs == 0	Normal mode, clear multicast list
-   num_addrs > 0	Multicast mode, receive normal and MC packets, and do
-			best-effort filtering.
    As a side effect this routine must also initialize the device parameters.
    This is taken advantage of in open().
 
@@ -637,15 +631,15 @@ static struct enet_statistics *net_get_stats(struct device *dev)
    mode change persistent, but must be changed if this code is moved to
    a multiple adaptor environment.
  */
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+static void set_multicast_list(struct device *dev)
 {
 	short ioaddr = dev->base_addr;
 
-	if (num_addrs < 0) {
+	if (dev->flags&IFF_PROMISC) {
 		/* Enable promiscuous mode */
 		i593_init[7] &= ~3;		i593_init[7] |= 1;
 		i593_init[13] &= ~8;	i593_init[13] |= 8;
-	} else if (num_addrs > 0) {
+	} else if (dev->mc_list || (dev->flags&IFF_ALLMULTI)) {
 		/* Enable accept-all-multicast mode */
 		i593_init[7] &= ~3;		i593_init[7] |= 0;
 		i593_init[13] &= ~8;	i593_init[13] |= 8;
@@ -667,7 +661,6 @@ static void set_multicast_list(struct device *dev, int num_addrs, void *addrs)
 	}
 #endif
 }
-#endif
 
 void show_dma(void)
 {

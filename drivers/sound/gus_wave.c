@@ -2,39 +2,31 @@
  * sound/gus_wave.c
  *
  * Driver for the Gravis UltraSound wave table synth.
- *
- * Copyright by Hannu Savolainen 1993, 1994
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer. 2.
- * Redistributions in binary form must reproduce the above copyright notice,
- * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
  */
+/*
+ * Copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.
+ */
+#include <linux/config.h>
+
+
+#define GUSPNP_AUTODETECT
 
 #include "sound_config.h"
 #include <linux/ultrasound.h>
 #include "gus_hw.h"
 
-#if defined(CONFIGURE_SOUNDCARD) && !defined(EXCLUDE_GUS)
+#if defined(CONFIG_GUSHW)
 
-#define MAX_SAMPLE	128
+#define GUS_BANK_SIZE (256*1024)
+
+#define MAX_SAMPLE	150
 #define MAX_PATCH	256
+
+#define NOT_SAMPLE	0xffff
 
 struct voice_info
   {
@@ -76,20 +68,28 @@ static struct voice_alloc_info *voice_alloc;
 
 extern int      gus_base;
 extern int      gus_irq, gus_dma;
+extern int      gus_pnp_flag;
+static int      gus_dma2 = -1;
+static int      dual_dma_mode = 0;
 static long     gus_mem_size = 0;
 static long     free_mem_ptr = 0;
 static int      gus_busy = 0;
+static int      gus_no_dma = 0;
 static int      nr_voices = 0;
 static int      gus_devnum = 0;
 static int      volume_base, volume_scale, volume_method;
 static int      gus_recmask = SOUND_MASK_MIC;
 static int      recording_active = 0;
+static int      only_read_access = 0;
+static int      only_8_bits = 0;
 
 int             gus_wave_volume = 60;
 int             gus_pcm_volume = 80;
 int             have_gus_max = 0;
 static int      gus_line_vol = 100, gus_mic_vol = 0;
 static unsigned char mix_image = 0x00;
+
+int             gus_timer_enabled = 0;
 
 /*
  * Current version of this driver doesn't allow synth and PCM functions
@@ -101,11 +101,13 @@ static int      active_device = 0;
 #define GUS_DEV_PCM_DONE	2	/* PCM device, transfer done */
 #define GUS_DEV_PCM_CONTINUE	3	/* PCM device, transfer done ch. 1/2 */
 
-static int      gus_sampling_speed;
-static int      gus_sampling_channels;
-static int      gus_sampling_bits;
+static int      gus_audio_speed;
+static int      gus_audio_channels;
+static int      gus_audio_bits;
 
-DEFINE_WAIT_QUEUE (dram_sleeper, dram_sleep_flag);
+static struct wait_queue *dram_sleeper = NULL;
+static volatile struct snd_wait dram_sleep_flag =
+{0};
 
 /*
  * Variables and buffers for PCM output
@@ -124,10 +126,13 @@ static unsigned long pcm_current_buf;
 static int      pcm_current_count;
 static int      pcm_current_intrflag;
 
+extern int     *gus_osp;
+
 struct voice_info voices[32];
 
 static int      freq_div_table[] =
 {
+  44100,
   44100,			/* 14 */
   41160,			/* 15 */
   38587,			/* 16 */
@@ -153,6 +158,7 @@ static struct patch_info *samples;
 static long     sample_ptrs[MAX_SAMPLE + 1];
 static int      sample_map[32];
 static int      free_sample;
+static int      mixer_type = 0;
 
 
 static int      patch_table[MAX_PATCH];
@@ -168,6 +174,7 @@ extern unsigned short gus_linear_vol (int vol, int mainvol);
 static void     compute_volume (int voice, int volume);
 static void     do_volume_irq (int voice);
 static void     set_input_volumes (void);
+static void     gus_tmr_install (int io_base);
 
 #define	INSTANT_RAMP		-1	/* Instant change. No ramping */
 #define FAST_RAMP		0	/* Fastest possible ramp */
@@ -191,7 +198,7 @@ reset_sample_memory (void)
   free_sample = 0;
 
   for (i = 0; i < MAX_PATCH; i++)
-    patch_table[i] = -1;
+    patch_table[i] = NOT_SAMPLE;
 }
 
 void
@@ -200,7 +207,7 @@ gus_delay (void)
   int             i;
 
   for (i = 0; i < 7; i++)
-    INB (u_DRAMIO);
+    inb (u_DRAMIO);
 }
 
 static void
@@ -208,15 +215,16 @@ gus_poke (long addr, unsigned char data)
 {				/* Writes a byte to the DRAM */
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
-  OUTB (0x43, u_Command);
-  OUTB (addr & 0xff, u_DataLo);
-  OUTB ((addr >> 8) & 0xff, u_DataHi);
+  save_flags (flags);
+  cli ();
+  outb ((0x43), u_Command);
+  outb ((addr & 0xff), u_DataLo);
+  outb (((addr >> 8) & 0xff), u_DataHi);
 
-  OUTB (0x44, u_Command);
-  OUTB ((addr >> 16) & 0xff, u_DataHi);
-  OUTB (data, u_DRAMIO);
-  RESTORE_INTR (flags);
+  outb ((0x44), u_Command);
+  outb (((addr >> 16) & 0xff), u_DataHi);
+  outb ((data), u_DRAMIO);
+  restore_flags (flags);
 }
 
 static unsigned char
@@ -225,15 +233,16 @@ gus_peek (long addr)
   unsigned long   flags;
   unsigned char   tmp;
 
-  DISABLE_INTR (flags);
-  OUTB (0x43, u_Command);
-  OUTB (addr & 0xff, u_DataLo);
-  OUTB ((addr >> 8) & 0xff, u_DataHi);
+  save_flags (flags);
+  cli ();
+  outb ((0x43), u_Command);
+  outb ((addr & 0xff), u_DataLo);
+  outb (((addr >> 8) & 0xff), u_DataHi);
 
-  OUTB (0x44, u_Command);
-  OUTB ((addr >> 16) & 0xff, u_DataHi);
-  tmp = INB (u_DRAMIO);
-  RESTORE_INTR (flags);
+  outb ((0x44), u_Command);
+  outb (((addr >> 16) & 0xff), u_DataHi);
+  tmp = inb (u_DRAMIO);
+  restore_flags (flags);
 
   return tmp;
 }
@@ -243,12 +252,13 @@ gus_write8 (int reg, unsigned int data)
 {				/* Writes to an indirect register (8 bit) */
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
-  OUTB (reg, u_Command);
-  OUTB ((unsigned char) (data & 0xff), u_DataHi);
+  outb ((reg), u_Command);
+  outb (((unsigned char) (data & 0xff)), u_DataHi);
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 unsigned char
@@ -257,10 +267,11 @@ gus_read8 (int reg)
   unsigned long   flags;
   unsigned char   val;
 
-  DISABLE_INTR (flags);
-  OUTB (reg | 0x80, u_Command);
-  val = INB (u_DataHi);
-  RESTORE_INTR (flags);
+  save_flags (flags);
+  cli ();
+  outb ((reg | 0x80), u_Command);
+  val = inb (u_DataHi);
+  restore_flags (flags);
 
   return val;
 }
@@ -271,10 +282,11 @@ gus_look8 (int reg)
   unsigned long   flags;
   unsigned char   val;
 
-  DISABLE_INTR (flags);
-  OUTB (reg, u_Command);
-  val = INB (u_DataHi);
-  RESTORE_INTR (flags);
+  save_flags (flags);
+  cli ();
+  outb ((reg), u_Command);
+  val = inb (u_DataHi);
+  restore_flags (flags);
 
   return val;
 }
@@ -284,14 +296,15 @@ gus_write16 (int reg, unsigned int data)
 {				/* Writes to an indirect register (16 bit) */
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
-  OUTB (reg, u_Command);
+  outb ((reg), u_Command);
 
-  OUTB ((unsigned char) (data & 0xff), u_DataLo);
-  OUTB ((unsigned char) ((data >> 8) & 0xff), u_DataHi);
+  outb (((unsigned char) (data & 0xff)), u_DataLo);
+  outb (((unsigned char) ((data >> 8) & 0xff)), u_DataHi);
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 unsigned short
@@ -300,25 +313,46 @@ gus_read16 (int reg)
   unsigned long   flags;
   unsigned char   hi, lo;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
-  OUTB (reg | 0x80, u_Command);
+  outb ((reg | 0x80), u_Command);
 
-  lo = INB (u_DataLo);
-  hi = INB (u_DataHi);
+  lo = inb (u_DataLo);
+  hi = inb (u_DataHi);
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
+
+  return ((hi << 8) & 0xff00) | lo;
+}
+
+unsigned short
+gus_look16 (int reg)
+{				/* Reads from an indirect register (16 bit). No additional offset. */
+  unsigned long   flags;
+  unsigned char   hi, lo;
+
+  save_flags (flags);
+  cli ();
+
+  outb ((reg), u_Command);
+
+  lo = inb (u_DataLo);
+  hi = inb (u_DataHi);
+
+  restore_flags (flags);
 
   return ((hi << 8) & 0xff00) | lo;
 }
 
 void
-gus_write_addr (int reg, unsigned long address, int is16bit)
+gus_write_addr (int reg, unsigned long address, int frac, int is16bit)
 {				/* Writes an 24 bit memory address */
   unsigned long   hold_address;
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   if (is16bit)
     {
       /*
@@ -332,12 +366,14 @@ gus_write_addr (int reg, unsigned long address, int is16bit)
     }
 
   gus_write16 (reg, (unsigned short) ((address >> 7) & 0xffff));
-  gus_write16 (reg + 1, (unsigned short) ((address << 9) & 0xffff));
+  gus_write16 (reg + 1, (unsigned short) ((address << 9) & 0xffff)
+	       + (frac << 5));
   /* Could writing twice fix problems with GUS_VOICE_POS() ? Lets try... */
   gus_delay ();
   gus_write16 (reg, (unsigned short) ((address >> 7) & 0xffff));
-  gus_write16 (reg + 1, (unsigned short) ((address << 9) & 0xffff));
-  RESTORE_INTR (flags);
+  gus_write16 (reg + 1, (unsigned short) ((address << 9) & 0xffff)
+	       + (frac << 5));
+  restore_flags (flags);
 }
 
 static void
@@ -346,7 +382,7 @@ gus_select_voice (int voice)
   if (voice < 0 || voice > 31)
     return;
 
-  OUTB (voice, u_Voice);
+  outb ((voice), u_Voice);
 }
 
 static void
@@ -462,7 +498,7 @@ gus_set_voice_pos (int voice, long position)
       if (voices[voice].volume_irq_mode == VMODE_START_NOTE)
 	voices[voice].offset_pending = position;
       else
-	gus_write_addr (0x0a, sample_ptrs[sample_no] + position,
+	gus_write_addr (0x0a, sample_ptrs[sample_no] + position, 0,
 			samples[sample_no].mode & WAVE_16_BITS);
 }
 
@@ -471,14 +507,17 @@ gus_voice_init (int voice)
 {
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
   gus_voice_volume (0);
-  gus_write_addr (0x0a, 0, 0);	/* Set current position to 0 */
+  gus_voice_off ();
+  gus_write_addr (0x0a, 0, 0, 0);	/* Set current position to 0 */
   gus_write8 (0x00, 0x03);	/* Voice off */
   gus_write8 (0x0d, 0x03);	/* Ramping off */
   voice_alloc->map[voice] = 0;
-  RESTORE_INTR (flags);
+  voice_alloc->alloc_times[voice] = 0;
+  restore_flags (flags);
 
 }
 
@@ -513,10 +552,11 @@ step_envelope (int voice)
 
   if (voices[voice].mode & WAVE_SUSTAIN_ON && voices[voice].env_phase == 2)
     {
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_rampoff ();
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       return;
       /*
        * Sustain phase begins. Continue envelope after receiving note off.
@@ -535,7 +575,8 @@ step_envelope (int voice)
   vol = voices[voice].initial_volume * voices[voice].env_offset[phase] / 255;
   rate = voices[voice].env_rate[phase];
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
 
   gus_voice_volume (prev_vol);
@@ -547,7 +588,7 @@ step_envelope (int voice)
 
   if (((vol - prev_vol) / 64) == 0)	/* No significant volume change */
     {
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       step_envelope (voice);	/* Continue the envelope on the next step */
       return;
     }
@@ -567,7 +608,7 @@ step_envelope (int voice)
       gus_rampon (0x60);	/* Decreasing volume, with IRQ */
     }
   voices[voice].current_volume = vol;
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static void
@@ -593,7 +634,7 @@ start_release (int voice, long int flags)
 
   voices[voice].mode &= ~WAVE_SUSTAIN_ON;
   gus_rampoff ();
-  RESTORE_INTR (flags);
+  restore_flags (flags);
   step_envelope (voice);
 }
 
@@ -603,14 +644,15 @@ gus_voice_fade (int voice)
   int             instr_no = sample_map[voice], is16bits;
   long int        flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
 
   if (instr_no < 0 || instr_no > MAX_SAMPLE)
     {
       gus_write8 (0x00, 0x03);	/* Hard stop */
       voice_alloc->map[voice] = 0;
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       return;
     }
 
@@ -637,7 +679,7 @@ gus_voice_fade (int voice)
   gus_ramp_rate (2, 4);
   gus_rampon (0x40 | 0x20);	/* Down, once, with IRQ */
   voices[voice].volume_irq_mode = VMODE_HALT;
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static void
@@ -655,14 +697,6 @@ gus_reset (void)
       gus_voice_init (i);	/* Turn voice off */
       gus_voice_init2 (i);
     }
-
-  INB (u_Status);		/* Touch the status register */
-
-  gus_look8 (0x41);		/* Clear any pending DMA IRQs */
-  gus_look8 (0x49);		/* Clear any pending sample IRQs */
-
-  gus_read8 (0x0f);		/* Clear pending IRQs */
-
 }
 
 static void
@@ -672,12 +706,13 @@ gus_initialize (void)
   unsigned char   dma_image, irq_image, tmp;
 
   static unsigned char gus_irq_map[16] =
-  {0, 0, 1, 3, 0, 2, 0, 4, 0, 0, 0, 5, 6, 0, 0, 7};
+  {0, 0, 0, 3, 0, 2, 0, 4, 0, 1, 0, 5, 6, 0, 0, 7};
 
   static unsigned char gus_dma_map[8] =
   {0, 1, 0, 2, 0, 3, 4, 5};
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_write8 (0x4c, 0);		/* Reset GF1 */
   gus_delay ();
   gus_delay ();
@@ -696,7 +731,7 @@ gus_initialize (void)
 
   gus_select_max_voices (24);
 
-  INB (u_Status);		/* Touch the status register */
+  inb (u_Status);		/* Touch the status register */
 
   gus_look8 (0x41);		/* Clear any pending DMA IRQs */
   gus_look8 (0x49);		/* Clear any pending sample IRQs */
@@ -714,14 +749,14 @@ gus_initialize (void)
    * Set up for Digital ASIC
    */
 
-  OUTB (0x05, gus_base + 0x0f);
+  outb ((0x05), gus_base + 0x0f);
 
-  mix_image |= 0x02;		/* Disable line out */
-  OUTB (mix_image, u_Mixer);
+  mix_image |= 0x02;		/* Disable line out (for a moment) */
+  outb ((mix_image), u_Mixer);
 
-  OUTB (0x00, u_IRQDMAControl);
+  outb ((0x00), u_IRQDMAControl);
 
-  OUTB (0x00, gus_base + 0x0f);
+  outb ((0x00), gus_base + 0x0f);
 
   /*
    * Now set up the DMA and IRQ interface
@@ -735,16 +770,40 @@ gus_initialize (void)
 
   irq_image = 0;
   tmp = gus_irq_map[gus_irq];
-  if (!tmp)
+  if (!gus_pnp_flag && !tmp)
     printk ("Warning! GUS IRQ not selected\n");
   irq_image |= tmp;
   irq_image |= 0x40;		/* Combine IRQ1 (GF1) and IRQ2 (Midi) */
 
-  dma_image = 0x40;		/* Combine DMA1 (DRAM) and IRQ2 (ADC) */
-  tmp = gus_dma_map[gus_dma];
-  if (!tmp)
-    printk ("Warning! GUS DMA not selected\n");
-  dma_image |= tmp;
+  dual_dma_mode = 1;
+  if (gus_dma2 == gus_dma || gus_dma2 == -1)
+    {
+      dual_dma_mode = 0;
+      dma_image = 0x40;		/* Combine DMA1 (DRAM) and IRQ2 (ADC) */
+
+      tmp = gus_dma_map[gus_dma];
+      if (!tmp)
+	printk ("Warning! GUS DMA not selected\n");
+
+      dma_image |= tmp;
+    }
+  else
+    /* Setup dual DMA channel mode for GUS MAX */
+    {
+      dma_image = gus_dma_map[gus_dma];
+      if (!dma_image)
+	printk ("Warning! GUS DMA not selected\n");
+
+      tmp = gus_dma_map[gus_dma2] << 3;
+      if (!tmp)
+	{
+	  printk ("Warning! Invalid GUS MAX DMA\n");
+	  tmp = 0x40;		/* Combine DMA channels */
+	  dual_dma_mode = 0;
+	}
+
+      dma_image |= tmp;
+    }
 
   /*
    * For some reason the IRQ and DMA addresses must be written twice
@@ -754,42 +813,225 @@ gus_initialize (void)
    * Doing it first time
    */
 
-  OUTB (mix_image, u_Mixer);	/* Select DMA control */
-  OUTB (dma_image | 0x80, u_IRQDMAControl);	/* Set DMA address */
+  outb ((mix_image), u_Mixer);	/* Select DMA control */
+  outb ((dma_image | 0x80), u_IRQDMAControl);	/* Set DMA address */
 
-  OUTB (mix_image | 0x40, u_Mixer);	/* Select IRQ control */
-  OUTB (irq_image, u_IRQDMAControl);	/* Set IRQ address */
+  outb ((mix_image | 0x40), u_Mixer);	/* Select IRQ control */
+  outb ((irq_image), u_IRQDMAControl);	/* Set IRQ address */
 
   /*
    * Doing it second time
    */
 
-  OUTB (mix_image, u_Mixer);	/* Select DMA control */
-  OUTB (dma_image, u_IRQDMAControl);	/* Set DMA address */
+  outb ((mix_image), u_Mixer);	/* Select DMA control */
+  outb ((dma_image), u_IRQDMAControl);	/* Set DMA address */
 
-  OUTB (mix_image | 0x40, u_Mixer);	/* Select IRQ control */
-  OUTB (irq_image, u_IRQDMAControl);	/* Set IRQ address */
+  outb ((mix_image | 0x40), u_Mixer);	/* Select IRQ control */
+  outb ((irq_image), u_IRQDMAControl);	/* Set IRQ address */
 
   gus_select_voice (0);		/* This disables writes to IRQ/DMA reg */
 
   mix_image &= ~0x02;		/* Enable line out */
   mix_image |= 0x08;		/* Enable IRQ */
-  OUTB (mix_image, u_Mixer);	/*
-				 * Turn mixer channels on
-				 * Note! Mic in is left off.
+  outb ((mix_image), u_Mixer);	/*
+				   * Turn mixer channels on
+				   * Note! Mic in is left off.
 				 */
 
   gus_select_voice (0);		/* This disables writes to IRQ/DMA reg */
 
-  gusintr (0,NULL);		/* Serve pending interrupts */
-  RESTORE_INTR (flags);
+  gusintr (gus_irq, NULL, NULL);	/* Serve pending interrupts */
+
+  inb (u_Status);		/* Touch the status register */
+
+  gus_look8 (0x41);		/* Clear any pending DMA IRQs */
+  gus_look8 (0x49);		/* Clear any pending sample IRQs */
+
+  gus_read8 (0x0f);		/* Clear pending IRQs */
+
+  restore_flags (flags);
+}
+
+
+static void
+pnp_mem_init (void)
+{
+#include "iwmem.h"
+#define CHUNK_SIZE (256*1024)
+#define BANK_SIZE (4*1024*1024)
+#define CHUNKS_PER_BANK (BANK_SIZE/CHUNK_SIZE)
+
+  int             bank, chunk, addr, total = 0;
+  int             bank_sizes[4];
+  int             i, j, bits = -1, nbanks = 0;
+
+/*
+ * This routine determines what kind of RAM is installed in each of the four
+ * SIMM banks and configures the DRAM address decode logic accordingly.
+ */
+
+/*
+ *    Place the chip into enhanced mode
+ */
+  gus_write8 (0x19, gus_read8 (0x19) | 0x01);
+  gus_write8 (0x53, gus_look8 (0x53) & ~0x02);	/* Select DRAM I/O access */
+
+/*
+ * Set memory configuration to 4 DRAM banks of 4M in each (16M total).
+ */
+
+  gus_write16 (0x52, (gus_look16 (0x52) & 0xfff0) | 0x000c);
+
+/*
+ * Perform the DRAM size detection for each bank individually.
+ */
+  for (bank = 0; bank < 4; bank++)
+    {
+      int             size = 0;
+
+      addr = bank * BANK_SIZE;
+
+      /* Clean check points of each chunk */
+      for (chunk = 0; chunk < CHUNKS_PER_BANK; chunk++)
+	{
+	  gus_poke (addr + chunk * CHUNK_SIZE + 0L, 0x00);
+	  gus_poke (addr + chunk * CHUNK_SIZE + 1L, 0x00);
+	}
+
+      /* Write a value to each chunk point and verify the result */
+      for (chunk = 0; chunk < CHUNKS_PER_BANK; chunk++)
+	{
+	  gus_poke (addr + chunk * CHUNK_SIZE + 0L, 0x55);
+	  gus_poke (addr + chunk * CHUNK_SIZE + 1L, 0xAA);
+
+	  if (gus_peek (addr + chunk * CHUNK_SIZE + 0L) == 0x55 &&
+	      gus_peek (addr + chunk * CHUNK_SIZE + 1L) == 0xAA)
+	    {			/* OK. There is RAM. Now check for possible shadows */
+	      int             ok = 1, chunk2;
+
+	      for (chunk2 = 0; ok && chunk2 < chunk; chunk2++)
+		if (gus_peek (addr + chunk2 * CHUNK_SIZE + 0L) ||
+		    gus_peek (addr + chunk2 * CHUNK_SIZE + 1L))
+		  ok = 0;	/* Addressing wraps */
+
+	      if (ok)
+		size = (chunk + 1) * CHUNK_SIZE;
+	    }
+	  gus_poke (addr + chunk * CHUNK_SIZE + 0L, 0x00);
+	  gus_poke (addr + chunk * CHUNK_SIZE + 1L, 0x00);
+	}
+
+      bank_sizes[bank] = size;
+      if (size)
+	nbanks = bank + 1;
+      DDB (printk ("Interwave: Bank %d, size=%dk\n", bank, size / 1024));
+    }
+
+  if (nbanks == 0)		/* No RAM - Give up */
+    {
+      printk ("Sound: An Interwave audio chip detected but no DRAM\n");
+      printk ("Sound: Unable to work with this card.\n");
+      gus_write8 (0x19, gus_read8 (0x19) & ~0x01);
+      gus_mem_size = 0;
+      return;
+    }
+/*
+ * Now we know how much DRAM there is in each bank. The next step is
+ * to find a DRAM size encoding (0 to 12) which is best for the combination
+ * we have.
+ *
+ * First try if any of the possible alternatives matches exactly the amount
+ * of memory we have.
+ */
+
+  for (i = 0; bits == -1 && i < 13; i++)
+    {
+      bits = i;
+
+      for (j = 0; bits != -1 && j < 4; j++)
+	if (mem_decode[i][j] != bank_sizes[j])
+	  bits = -1;		/* No hit */
+    }
+
+/*
+ * If necessary, try to find a combination where other than the last
+ * bank matches our configuration and the last bank is left oversized.
+ * In this way we don't leave holes in the middle of memory.
+ */
+  if (bits == -1)		/* No luck yet */
+    for (i = 0; bits == -1 && i < 13; i++)
+      {
+	bits = i;
+
+	for (j = 0; bits != -1 && j < nbanks - 1; j++)
+	  if (mem_decode[i][j] != bank_sizes[j])
+	    bits = -1;		/* No hit */
+	if (mem_decode[i][nbanks - 1] < bank_sizes[nbanks - 1])
+	  bits = -1;		/* The last bank is too small */
+      }
+
+/*
+ * The last resort is to search for a combination where the last bank is
+ * smaller than the actual SIMM. This leaves some memory in the last bank
+ * unused but doesn't leave holes in the DRAM address space.
+ */
+  if (bits == -1)		/* No luck yet */
+    {
+      for (i = 0; bits == -1 && i < 13; i++)
+	{
+	  bits = i;
+
+	  for (j = 0; bits != -1 && j < nbanks - 1; j++)
+	    if (mem_decode[i][j] != bank_sizes[j])
+	      bits = -1;	/* No hit */
+	}
+
+      if (bits != -1)
+	{
+	  printk ("Interwave: Can't use all installed RAM.\n");
+	  printk ("Interwave: Try reordering SIMMS.\n");
+	}
+    }
+
+  if (bits == -1)
+    {
+      printk ("Interwave: Can't find working DRAM encoding.\n");
+      printk ("Interwave: Defaulting to 256k. Try reordering SIMMS.\n");
+      bits = 0;
+    }
+
+  DDB (printk ("Interwave: Selecting DRAM addressing mode %d\n", bits));
+
+  for (bank = 0; bank < 4; bank++)
+    {
+      DDB (printk ("  Bank %d, mem=%dk (limit %dk)\n",
+		   bank, bank_sizes[bank] / 1024,
+		   mem_decode[bits][bank] / 1024));
+
+      if (bank_sizes[bank] > mem_decode[bits][bank])
+	total += mem_decode[bits][bank];
+      else
+	total += bank_sizes[bank];
+    }
+
+  DDB (printk ("Total %dk of DRAM (enhanced mode)\n", total / 1024));
+/*
+ *    Set the memory addressing mode.
+ */
+  gus_write16 (0x52, (gus_look16 (0x52) & 0xfff0) | bits);
+
+/*
+ *    Return the chip back to GUS compatible mode.
+ */
+  gus_write8 (0x19, gus_read8 (0x19) & ~0x01);
 }
 
 int
 gus_wave_detect (int baseaddr)
 {
-  unsigned long   i;
+  unsigned long   i, max_mem = 1024L;
   unsigned long   loc;
+  unsigned char   val;
 
   gus_base = baseaddr;
 
@@ -801,6 +1043,27 @@ gus_wave_detect (int baseaddr)
   gus_delay ();
   gus_delay ();
 
+#ifdef GUSPNP_AUTODETECT
+  val = gus_look8 (0x5b);	/* Version number register */
+  gus_write8 (0x5b, ~val);	/* Invert all bits */
+
+  if ((gus_look8 (0x5b) & 0xf0) == (val & 0xf0))	/* No change */
+    if ((gus_look8 (0x5b) & 0x0f) == ((~val) & 0x0f))	/* Change */
+      {
+	DDB (printk ("Interwave chip version %d detected\n", (val & 0xf0) >> 4));
+	gus_pnp_flag = 1;
+      }
+    else
+      {
+	DDB (printk ("Not an Interwave chip (%x)\n", gus_look8 (0x5b)));
+	gus_pnp_flag = 0;
+      }
+  gus_write8 (0x5b, val);	/* Restore all bits */
+#endif
+
+  if (gus_pnp_flag)
+    pnp_mem_init ();
+
   /* See if there is first block there.... */
   gus_poke (0L, 0xaa);
   if (gus_peek (0L) != 0xaa)
@@ -808,7 +1071,7 @@ gus_wave_detect (int baseaddr)
 
   /* Now zero it out so that I can check for mirroring .. */
   gus_poke (0L, 0x00);
-  for (i = 1L; i < 1024L; i++)
+  for (i = 1L; i < max_mem; i++)
     {
       int             n, failed;
 
@@ -837,14 +1100,18 @@ gus_wave_detect (int baseaddr)
 
 static int
 guswave_ioctl (int dev,
-	       unsigned int cmd, unsigned int arg)
+	       unsigned int cmd, caddr_t arg)
 {
 
   switch (cmd)
     {
     case SNDCTL_SYNTH_INFO:
       gus_info.nr_voices = nr_voices;
-      IOCTL_TO_USER ((char *) arg, 0, &gus_info, sizeof (gus_info));
+      {
+	char           *fixit = (char *) &gus_info;
+
+	copy_to_user (&((char *) arg)[0], fixit, sizeof (gus_info));
+      };
       return 0;
       break;
 
@@ -858,10 +1125,10 @@ guswave_ioctl (int dev,
       break;
 
     case SNDCTL_SYNTH_MEMAVL:
-      return gus_mem_size - free_mem_ptr - 32;
+      return (gus_mem_size == 0) ? 0 : gus_mem_size - free_mem_ptr - 32;
 
     default:
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 }
 
@@ -871,10 +1138,10 @@ guswave_set_instr (int dev, int voice, int instr_no)
   int             sample_no;
 
   if (instr_no < 0 || instr_no > MAX_PATCH)
-    return RET_ERROR (EINVAL);
+    instr_no = 0;		/* Default to acoustic piano */
 
   if (voice < 0 || voice > 31)
-    return RET_ERROR (EINVAL);
+    return -EINVAL;
 
   if (voices[voice].volume_irq_mode == VMODE_START_NOTE)
     {
@@ -885,17 +1152,17 @@ guswave_set_instr (int dev, int voice, int instr_no)
   sample_no = patch_table[instr_no];
   patch_map[voice] = -1;
 
-  if (sample_no < 0)
+  if (sample_no == NOT_SAMPLE)
     {
       printk ("GUS: Undefined patch %d for voice %d\n", instr_no, voice);
-      return RET_ERROR (EINVAL);/* Patch not defined */
+      return -EINVAL;		/* Patch not defined */
     }
 
   if (sample_ptrs[sample_no] == -1)	/* Sample not loaded */
     {
       printk ("GUS: Sample #%d not loaded for patch %d (voice %d)\n",
 	      sample_no, instr_no, voice);
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   sample_map[voice] = sample_no;
@@ -908,62 +1175,27 @@ guswave_kill_note (int dev, int voice, int note, int velocity)
 {
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
-  voice_alloc->map[voice] = 0xffff;
+  save_flags (flags);
+  cli ();
+  /* voice_alloc->map[voice] = 0xffff; */
   if (voices[voice].volume_irq_mode == VMODE_START_NOTE)
     {
       voices[voice].kill_pending = 1;
-      RESTORE_INTR (flags);
+      restore_flags (flags);
     }
   else
     {
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       gus_voice_fade (voice);
     }
 
+  restore_flags (flags);
   return 0;
 }
 
 static void
 guswave_aftertouch (int dev, int voice, int pressure)
 {
-  short           lo_limit, hi_limit;
-  unsigned long   flags;
-
-  return;			/* Procedure currently disabled */
-
-  if (voice < 0 || voice > 31)
-    return;
-
-  if (voices[voice].mode & WAVE_ENVELOPES && voices[voice].env_phase != 2)
-    return;			/* Don't mix with envelopes */
-
-  if (pressure < 32)
-    {
-      DISABLE_INTR (flags);
-      gus_select_voice (voice);
-      gus_rampoff ();
-      compute_and_set_volume (voice, 255, 0);	/* Back to original volume */
-      RESTORE_INTR (flags);
-      return;
-    }
-
-  hi_limit = voices[voice].current_volume;
-  lo_limit = hi_limit * 99 / 100;
-  if (lo_limit < 65)
-    lo_limit = 65;
-
-  DISABLE_INTR (flags);
-  gus_select_voice (voice);
-  if (hi_limit > (4095 - 65))
-    {
-      hi_limit = 4095 - 65;
-      gus_voice_volume (hi_limit);
-    }
-  gus_ramp_range (lo_limit, hi_limit);
-  gus_ramp_rate (3, 8);
-  gus_rampon (0x58);		/* Bidirectional, dow, loop */
-  RESTORE_INTR (flags);
 }
 
 static void
@@ -1012,27 +1244,28 @@ compute_volume (int voice, int volume)
 static void
 compute_and_set_volume (int voice, int volume, int ramp_time)
 {
-  int             current, target, rate;
+  int             curr, target, rate;
   unsigned long   flags;
 
   compute_volume (voice, volume);
   voices[voice].current_volume = voices[voice].initial_volume;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   /*
- * CAUTION! Interrupts disabled. Enable them before returning
- */
+     * CAUTION! Interrupts disabled. Enable them before returning
+   */
 
   gus_select_voice (voice);
 
-  current = gus_read16 (0x09) >> 4;
+  curr = gus_read16 (0x09) >> 4;
   target = voices[voice].initial_volume;
 
   if (ramp_time == INSTANT_RAMP)
     {
       gus_rampoff ();
       gus_voice_volume (target);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       return;
     }
 
@@ -1042,19 +1275,19 @@ compute_and_set_volume (int voice, int volume, int ramp_time)
     rate = 16;
   gus_ramp_rate (0, rate);
 
-  if ((target - current) / 64 == 0)	/* Close enough to target. */
+  if ((target - curr) / 64 == 0)	/* Close enough to target. */
     {
       gus_rampoff ();
       gus_voice_volume (target);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       return;
     }
 
-  if (target > current)
+  if (target > curr)
     {
       if (target > (4095 - 65))
 	target = 4095 - 65;
-      gus_ramp_range (current, target);
+      gus_ramp_range (curr, target);
       gus_rampon (0x00);	/* Ramp up, once, no IRQ */
     }
   else
@@ -1062,10 +1295,10 @@ compute_and_set_volume (int voice, int volume, int ramp_time)
       if (target < 65)
 	target = 65;
 
-      gus_ramp_range (target, current);
+      gus_ramp_range (target, curr);
       gus_rampon (0x40);	/* Ramp down, once, no irq */
     }
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static void
@@ -1074,10 +1307,11 @@ dynamic_volume_change (int voice)
   unsigned char   status;
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
   status = gus_read8 (0x00);	/* Get voice status */
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
   if (status & 0x03)
     return;			/* Voice was not running */
@@ -1092,10 +1326,11 @@ dynamic_volume_change (int voice)
    * Voice is running and has envelopes.
    */
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
   status = gus_read8 (0x0d);	/* Ramping status */
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
   if (status & 0x03)		/* Sustain phase? */
     {
@@ -1130,10 +1365,11 @@ guswave_controller (int dev, int voice, int ctrl_num, int value)
 				   voices[voice].bender_range);
 	  voices[voice].current_freq = freq;
 
-	  DISABLE_INTR (flags);
+	  save_flags (flags);
+	  cli ();
 	  gus_select_voice (voice);
 	  gus_voice_freq (freq);
-	  RESTORE_INTR (flags);
+	  restore_flags (flags);
 	}
       break;
 
@@ -1180,7 +1416,7 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
   if (voice < 0 || voice > 31)
     {
       printk ("GUS: Invalid voice\n");
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   if (note_num == 255)
@@ -1198,12 +1434,12 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
 
   if ((patch = patch_map[voice]) == -1)
     {
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
-  if ((samplep = patch_table[patch]) == -1)
+  if ((samplep = patch_table[patch]) == NOT_SAMPLE)
     {
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   note_freq = note_to_freq (note_num);
@@ -1216,7 +1452,7 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
 
   best_sample = samplep;
   best_delta = 1000000;
-  while (samplep >= 0 && sample == -1)
+  while (samplep != 0 && samplep != NOT_SAMPLE && sample == -1)
     {
       delta_freq = note_freq - samples[samplep].base_note;
       if (delta_freq < 0)
@@ -1230,9 +1466,7 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
 	  note_freq <= samples[samplep].high_note)
 	sample = samplep;
       else
-	samplep = samples[samplep].key;	/*
-						 * Follow link
-						 */
+	samplep = samples[samplep].key;		/* Link to next sample */
     }
   if (sample == -1)
     sample = best_sample;
@@ -1286,8 +1520,8 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
   if (samples[sample].mode & WAVE_16_BITS)
     {
       mode |= 0x04;		/* 16 bits */
-      if ((sample_ptrs[sample] >> 18) !=
-	  ((sample_ptrs[sample] + samples[sample].len) >> 18))
+      if ((sample_ptrs[sample] / GUS_BANK_SIZE) !=
+	  ((sample_ptrs[sample] + samples[sample].len) / GUS_BANK_SIZE))
 	printk ("GUS: Sample address error\n");
     }
 
@@ -1295,12 +1529,13 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
    *    CAUTION!        Interrupts disabled. Don't return before enabling
    *************************************************************************/
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
   gus_voice_off ();
   gus_rampoff ();
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
   if (voices[voice].mode & WAVE_ENVELOPES)
     {
@@ -1308,17 +1543,20 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
       init_envelope (voice);
     }
   else
-    compute_and_set_volume (voice, volume, 0);
+    {
+      compute_and_set_volume (voice, volume, 0);
+    }
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
 
   if (samples[sample].mode & WAVE_LOOP_BACK)
     gus_write_addr (0x0a, sample_ptrs[sample] + samples[sample].len -
-		    voices[voice].offset_pending, is16bits);	/* start=end */
+		    voices[voice].offset_pending, 0, is16bits);		/* start=end */
   else
     gus_write_addr (0x0a, sample_ptrs[sample] + voices[voice].offset_pending,
-		    is16bits);	/* Sample start=begin */
+		    0, is16bits);	/* Sample start=begin */
 
   if (samples[sample].mode & WAVE_LOOPING)
     {
@@ -1331,14 +1569,17 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
 	{
 	  gus_write_addr (0x0a,
 			  sample_ptrs[sample] + samples[sample].loop_end -
-			  voices[voice].offset_pending, is16bits);
+			  voices[voice].offset_pending,
+			  (samples[sample].fractions >> 4) & 0x0f, is16bits);
 	  mode |= 0x40;
 	}
 
       gus_write_addr (0x02, sample_ptrs[sample] + samples[sample].loop_start,
-		      is16bits);/* Loop start location */
+		      samples[sample].fractions & 0x0f,
+		      is16bits);	/* Loop start location */
       gus_write_addr (0x04, sample_ptrs[sample] + samples[sample].loop_end,
-		      is16bits);/* Loop end location */
+		      (samples[sample].fractions >> 4) & 0x0f,
+		      is16bits);	/* Loop end location */
     }
   else
     {
@@ -1346,14 +1587,15 @@ guswave_start_note2 (int dev, int voice, int note_num, int volume)
       voices[voice].loop_irq_mode = LMODE_FINISH;	/* Ramp down at the end */
       voices[voice].loop_irq_parm = 1;
       gus_write_addr (0x02, sample_ptrs[sample],
-		      is16bits);/* Loop start location */
+		      0, is16bits);	/* Loop start location */
       gus_write_addr (0x04, sample_ptrs[sample] + samples[sample].len - 1,
-		      is16bits);/* Loop end location */
+		      (samples[sample].fractions >> 4) & 0x0f,
+		      is16bits);	/* Loop end location */
     }
   gus_voice_freq (freq);
   gus_voice_balance (pan);
   gus_voice_on (mode);
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 
   return 0;
 }
@@ -1371,14 +1613,16 @@ guswave_start_note (int dev, int voice, int note_num, int volume)
   int             mode;
   int             ret_val = 0;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   if (note_num == 255)
     {
       if (voices[voice].volume_irq_mode == VMODE_START_NOTE)
-	voices[voice].volume_pending = volume;
+	{
+	  voices[voice].volume_pending = volume;
+	}
       else
 	{
-	  RESTORE_INTR (flags);
 	  ret_val = guswave_start_note2 (dev, voice, note_num, volume);
 	}
     }
@@ -1387,7 +1631,7 @@ guswave_start_note (int dev, int voice, int note_num, int volume)
       gus_select_voice (voice);
       mode = gus_read8 (0x00);
       if (mode & 0x20)
-	gus_write8 (0x00, mode & 0xdf);	/* No interrupt! */
+	gus_write8 (0x00, mode & 0xdf);		/* No interrupt! */
 
       voices[voice].offset_pending = 0;
       voices[voice].kill_pending = 0;
@@ -1396,14 +1640,16 @@ guswave_start_note (int dev, int voice, int note_num, int volume)
 
       if (voices[voice].sample_pending >= 0)
 	{
-	  RESTORE_INTR (flags);
+	  restore_flags (flags);	/* Run temporarily with interrupts enabled */
 	  guswave_set_instr (voices[voice].dev_pending, voice,
 			     voices[voice].sample_pending);
 	  voices[voice].sample_pending = -1;
-	  DISABLE_INTR (flags);
+	  save_flags (flags);
+	  cli ();
+	  gus_select_voice (voice);	/* Reselect the voice (just to be sure) */
 	}
 
-      if ((mode & 0x01) || (int) ((gus_read16 (0x09) >> 4) < 2065))
+      if ((mode & 0x01) || (int) ((gus_read16 (0x09) >> 4) < (unsigned) 2065))
 	{
 	  ret_val = guswave_start_note2 (dev, voice, note_num, volume);
 	}
@@ -1416,11 +1662,11 @@ guswave_start_note (int dev, int voice, int note_num, int volume)
 
 	  gus_rampoff ();
 	  gus_ramp_range (2000, 4065);
-	  gus_ramp_rate (0, 63);/* Fastest possible rate */
+	  gus_ramp_rate (0, 63);	/* Fastest possible rate */
 	  gus_rampon (0x20 | 0x40);	/* Ramp down, once, irq */
-	  RESTORE_INTR (flags);
 	}
     }
+  restore_flags (flags);
   return ret_val;
 }
 
@@ -1442,18 +1688,26 @@ guswave_open (int dev, int mode)
   int             err;
 
   if (gus_busy)
-    return RET_ERROR (EBUSY);
+    return -EBUSY;
 
-  gus_initialize ();
+  voice_alloc->timestamp = 0;
 
   if ((err = DMAbuf_open_dma (gus_devnum)) < 0)
-    return err;
+    {
+      /* printk ("GUS: Loading samples without DMA\n"); */
+      gus_no_dma = 1;		/* Upload samples using PIO */
+    }
+  else
+    gus_no_dma = 0;
 
-  RESET_WAIT_QUEUE (dram_sleeper, dram_sleep_flag);
+  dram_sleep_flag.opts = WK_NONE;
   gus_busy = 1;
   active_device = GUS_DEV_WAVE;
 
+  gusintr (gus_irq, NULL, NULL);	/* Serve pending interrupts */
+  gus_initialize ();
   gus_reset ();
+  gusintr (gus_irq, NULL, NULL);	/* Serve pending interrupts */
 
   return 0;
 }
@@ -1465,31 +1719,32 @@ guswave_close (int dev)
   active_device = 0;
   gus_reset ();
 
-  DMAbuf_close_dma (gus_devnum);
+  if (!gus_no_dma)
+    DMAbuf_close_dma (gus_devnum);
 }
 
 static int
-guswave_load_patch (int dev, int format, snd_rw_buf * addr,
+guswave_load_patch (int dev, int format, const char *addr,
 		    int offs, int count, int pmgr_flag)
 {
   struct patch_info patch;
   int             instr;
   long            sizeof_patch;
 
-  unsigned long   blk_size, blk_end, left, src_offs, target;
+  unsigned long   blk_sz, blk_end, left, src_offs, target;
 
-  sizeof_patch = (long) &patch.data[0] - (long) &patch;	/* Header size */
+  sizeof_patch = (long) &patch.data[0] - (long) &patch;		/* Header size */
 
   if (format != GUS_PATCH)
     {
       printk ("GUS Error: Invalid patch format (key) 0x%x\n", format);
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   if (count < sizeof_patch)
     {
       printk ("GUS Error: Patch header too short\n");
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   count -= sizeof_patch;
@@ -1497,7 +1752,7 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
   if (free_sample >= MAX_SAMPLE)
     {
       printk ("GUS: Sample table full\n");
-      return RET_ERROR (ENOSPC);
+      return -ENOSPC;
     }
 
   /*
@@ -1505,14 +1760,20 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
    * been transferred already.
    */
 
-  COPY_FROM_USER (&((char *) &patch)[offs], addr, offs, sizeof_patch - offs);
+  copy_from_user (&((char *) &patch)[offs], &(addr)[offs], sizeof_patch - offs);
+
+  if (patch.mode & WAVE_ROM)
+    return -EINVAL;
+  if (gus_mem_size == 0)
+
+    return -ENOSPC;
 
   instr = patch.instr_no;
 
   if (instr < 0 || instr > MAX_PATCH)
     {
       printk ("GUS: Invalid patch number %d\n", instr);
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   if (count < patch.len)
@@ -1525,7 +1786,7 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
   if (patch.len <= 0 || patch.len > gus_mem_size)
     {
       printk ("GUS: Invalid sample length %d\n", (int) patch.len);
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   if (patch.mode & WAVE_LOOPING)
@@ -1533,19 +1794,17 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
       if (patch.loop_start < 0 || patch.loop_start >= patch.len)
 	{
 	  printk ("GUS: Invalid loop start\n");
-	  return RET_ERROR (EINVAL);
+	  return -EINVAL;
 	}
 
       if (patch.loop_end < patch.loop_start || patch.loop_end > patch.len)
 	{
 	  printk ("GUS: Invalid loop end\n");
-	  return RET_ERROR (EINVAL);
+	  return -EINVAL;
 	}
     }
 
   free_mem_ptr = (free_mem_ptr + 31) & ~31;	/* 32 byte alignment */
-
-#define GUS_BANK_SIZE (256*1024)
 
   if (patch.mode & WAVE_16_BITS)
     {
@@ -1555,24 +1814,24 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
       if (patch.len >= GUS_BANK_SIZE)
 	{
 	  printk ("GUS: Sample (16 bit) too long %d\n", (int) patch.len);
-	  return RET_ERROR (ENOSPC);
+	  return -ENOSPC;
 	}
 
       if ((free_mem_ptr / GUS_BANK_SIZE) !=
 	  ((free_mem_ptr + patch.len) / GUS_BANK_SIZE))
 	{
-	  unsigned long   tmp_mem =	/* Aling to 256K */
+	  unsigned long   tmp_mem =	/* Align to 256K */
 	  ((free_mem_ptr / GUS_BANK_SIZE) + 1) * GUS_BANK_SIZE;
 
 	  if ((tmp_mem + patch.len) > gus_mem_size)
-	    return RET_ERROR (ENOSPC);
+	    return -ENOSPC;
 
 	  free_mem_ptr = tmp_mem;	/* This leaves unusable memory */
 	}
     }
 
   if ((free_mem_ptr + patch.len) > gus_mem_size)
-    return RET_ERROR (ENOSPC);
+    return -ENOSPC;
 
   sample_ptrs[free_sample] = free_mem_ptr;
 
@@ -1582,6 +1841,11 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
 
   if (patch.mode & WAVE_ENVELOPES)
     patch.mode &= ~WAVE_TREMOLO;
+
+  if (!(patch.mode & WAVE_FRACTIONS))
+    {
+      patch.fractions = 0;
+    }
 
   memcpy ((char *) &samples[free_sample], &patch, sizeof_patch);
 
@@ -1602,133 +1866,153 @@ guswave_load_patch (int dev, int format, snd_rw_buf * addr,
 
   while (left)			/* Not completely transferred yet */
     {
-      blk_size = audio_devs[gus_devnum]->buffsize;
-      if (blk_size > left)
-	blk_size = left;
+      blk_sz = audio_devs[gus_devnum]->dmap_out->bytes_in_use;
+      if (blk_sz > left)
+	blk_sz = left;
 
       /*
-       * DMA cannot cross 256k bank boundaries. Check for that.
+       * DMA cannot cross bank (256k) boundaries. Check for that.
        */
-      blk_end = target + blk_size;
+      blk_end = target + blk_sz;
 
-      if ((target >> 18) != (blk_end >> 18))
+      if ((target / GUS_BANK_SIZE) != (blk_end / GUS_BANK_SIZE))
 	{			/* Split the block */
 
-	  blk_end &= ~(256 * 1024 - 1);
-	  blk_size = blk_end - target;
+	  blk_end &= ~(GUS_BANK_SIZE - 1);
+	  blk_sz = blk_end - target;
 	}
 
-#if defined(GUS_NO_DMA) || defined(GUS_PATCH_NO_DMA)
-      /*
-       * For some reason the DMA is not possible. We have to use PIO.
-       */
-      {
-	long            i;
-	unsigned char   data;
+      if (gus_no_dma)
+	{
+	  /*
+	   * For some reason the DMA is not possible. We have to use PIO.
+	   */
+	  long            i;
+	  unsigned char   data;
 
-	for (i = 0; i < blk_size; i++)
+	  for (i = 0; i < blk_sz; i++)
+	    {
+	      get_user (data, (unsigned char *) &((addr)[sizeof_patch + i]));
+	      if (patch.mode & WAVE_UNSIGNED)
+
+		if (!(patch.mode & WAVE_16_BITS) || (i & 0x01))
+		  data ^= 0x80;	/* Convert to signed */
+	      gus_poke (target + i, data);
+	    }
+	}
+      else
+	{
+	  unsigned long   address, hold_address;
+	  unsigned char   dma_command;
+	  unsigned long   flags;
+
+	  if (audio_devs[gus_devnum]->dmap_out->raw_buf == NULL)
+	    {
+	      printk ("GUS: DMA buffer == NULL\n");
+	      return -ENOSPC;
+	    }
+
+	  /*
+	   * OK, move now. First in and then out.
+	   */
+
+	  copy_from_user (audio_devs[gus_devnum]->dmap_out->raw_buf, &(addr)[sizeof_patch + src_offs], blk_sz);
+
+	  save_flags (flags);
+	  cli ();
+/******** INTERRUPTS DISABLED NOW ********/
+	  gus_write8 (0x41, 0);	/* Disable GF1 DMA */
+	  DMAbuf_start_dma (gus_devnum,
+			    audio_devs[gus_devnum]->dmap_out->raw_buf_phys,
+			    blk_sz, DMA_MODE_WRITE);
+
+	  /*
+	   * Set the DRAM address for the wave data
+	   */
+
+	  address = target;
+
+	  if (audio_devs[gus_devnum]->dmachan1 > 3)
+	    {
+	      hold_address = address;
+	      address = address >> 1;
+	      address &= 0x0001ffffL;
+	      address |= (hold_address & 0x000c0000L);
+	    }
+
+	  gus_write16 (0x42, (address >> 4) & 0xffff);	/* DRAM DMA address */
+
+	  /*
+	   * Start the DMA transfer
+	   */
+
+	  dma_command = 0x21;	/* IRQ enable, DMA start */
+	  if (patch.mode & WAVE_UNSIGNED)
+	    dma_command |= 0x80;	/* Invert MSB */
+	  if (patch.mode & WAVE_16_BITS)
+	    dma_command |= 0x40;	/* 16 bit _DATA_ */
+	  if (audio_devs[gus_devnum]->dmachan1 > 3)
+	    dma_command |= 0x04;	/* 16 bit DMA _channel_ */
+
+	  gus_write8 (0x41, dma_command);	/* Lets go luteet (=bugs) */
+
+	  /*
+	   * Sleep here until the DRAM DMA done interrupt is served
+	   */
+	  active_device = GUS_DEV_WAVE;
+
+
 	  {
-	    GET_BYTE_FROM_USER (data, addr, sizeof_patch + i);
-	    if (patch.mode & WAVE_UNSIGNED)
+	    unsigned long   tlimit;
 
-	      if (!(patch.mode & WAVE_16_BITS) || (i & 0x01))
-		data ^= 0x80;	/* Convert to signed */
-	    gus_poke (target + i, data);
-	  }
-      }
-#else /* GUS_NO_DMA */
-      {
-	unsigned long   address, hold_address;
-	unsigned char   dma_command;
-	unsigned long   flags;
-
-	/*
-	 * OK, move now. First in and then out.
-	 */
-
-	COPY_FROM_USER (audio_devs[gus_devnum]->dmap->raw_buf[0],
-			addr, sizeof_patch + src_offs,
-			blk_size);
-
-	DISABLE_INTR (flags);	/******** INTERRUPTS DISABLED NOW ********/
-	gus_write8 (0x41, 0);	/* Disable GF1 DMA */
-	DMAbuf_start_dma (gus_devnum,
-			  audio_devs[gus_devnum]->dmap->raw_buf_phys[0],
-			  blk_size, DMA_MODE_WRITE);
-
-	/*
-	 * Set the DRAM address for the wave data
-	 */
-
-	address = target;
-
-	if (audio_devs[gus_devnum]->dmachan > 3)
-	  {
-	    hold_address = address;
-	    address = address >> 1;
-	    address &= 0x0001ffffL;
-	    address |= (hold_address & 0x000c0000L);
-	  }
-
-	gus_write16 (0x42, (address >> 4) & 0xffff);	/* DRAM DMA address */
-
-	/*
-	 * Start the DMA transfer
-	 */
-
-	dma_command = 0x21;	/* IRQ enable, DMA start */
-	if (patch.mode & WAVE_UNSIGNED)
-	  dma_command |= 0x80;	/* Invert MSB */
-	if (patch.mode & WAVE_16_BITS)
-	  dma_command |= 0x40;	/* 16 bit _DATA_ */
-	if (audio_devs[gus_devnum]->dmachan > 3)
-	  dma_command |= 0x04;	/* 16 bit DMA _channel_ */
-
-	gus_write8 (0x41, dma_command);	/* Lets bo luteet (=bugs) */
-
-	/*
-	 * Sleep here until the DRAM DMA done interrupt is served
-	 */
-	active_device = GUS_DEV_WAVE;
-
-	DO_SLEEP (dram_sleeper, dram_sleep_flag, HZ);
-	if (TIMED_OUT (dram_sleeper, dram_sleep_flag))
-	  printk ("GUS: DMA Transfer timed out\n");
-	RESTORE_INTR (flags);
-      }
-#endif /* GUS_NO_DMA */
+	    if (HZ)
+	      current->timeout = tlimit = jiffies + (HZ);
+	    else
+	      tlimit = (unsigned long) -1;
+	    dram_sleep_flag.opts = WK_SLEEP;
+	    interruptible_sleep_on (&dram_sleeper);
+	    if (!(dram_sleep_flag.opts & WK_WAKEUP))
+	      {
+		if (jiffies >= tlimit)
+		  dram_sleep_flag.opts |= WK_TIMEOUT;
+	      }
+	    dram_sleep_flag.opts &= ~WK_SLEEP;
+	  };
+	  if ((dram_sleep_flag.opts & WK_TIMEOUT))
+	    printk ("GUS: DMA Transfer timed out\n");
+	  restore_flags (flags);
+	}
 
       /*
        * Now the next part
        */
 
-      left -= blk_size;
-      src_offs += blk_size;
-      target += blk_size;
+      left -= blk_sz;
+      src_offs += blk_sz;
+      target += blk_sz;
 
       gus_write8 (0x41, 0);	/* Stop DMA */
     }
 
   free_mem_ptr += patch.len;
 
-  if (!pmgr_flag)
-    pmgr_inform (dev, PM_E_PATCH_LOADED, instr, free_sample, 0, 0);
   free_sample++;
   return 0;
 }
 
 static void
-guswave_hw_control (int dev, unsigned char *event)
+guswave_hw_control (int dev, unsigned char *event_rec)
 {
   int             voice, cmd;
   unsigned short  p1, p2;
-  unsigned long   plong, flags;
+  unsigned int    plong;
+  unsigned        flags;
 
-  cmd = event[2];
-  voice = event[3];
-  p1 = *(unsigned short *) &event[4];
-  p2 = *(unsigned short *) &event[6];
-  plong = *(unsigned long *) &event[4];
+  cmd = event_rec[2];
+  voice = event_rec[3];
+  p1 = *(unsigned short *) &event_rec[4];
+  p2 = *(unsigned short *) &event_rec[6];
+  plong = *(unsigned int *) &event_rec[4];
 
   if ((voices[voice].volume_irq_mode == VMODE_START_NOTE) &&
       (cmd != _GUS_VOICESAMPLE) && (cmd != _GUS_VOICE_POS))
@@ -1738,10 +2022,11 @@ guswave_hw_control (int dev, unsigned char *event)
     {
 
     case _GUS_NUMVOICES:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_select_max_voices (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICESAMPLE:
@@ -1749,18 +2034,20 @@ guswave_hw_control (int dev, unsigned char *event)
       break;
 
     case _GUS_VOICEON:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       p1 &= ~0x20;		/* Don't allow interrupts */
       gus_voice_on (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICEOFF:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_voice_off ();
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICEFADE:
@@ -1768,32 +2055,36 @@ guswave_hw_control (int dev, unsigned char *event)
       break;
 
     case _GUS_VOICEMODE:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       p1 &= ~0x20;		/* Don't allow interrupts */
       gus_voice_mode (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICEBALA:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_voice_balance (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICEFREQ:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_voice_freq (plong);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICEVOL:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_voice_volume (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOICEVOL2:	/* Just update the software voice level */
@@ -1804,48 +2095,53 @@ guswave_hw_control (int dev, unsigned char *event)
     case _GUS_RAMPRANGE:
       if (voices[voice].mode & WAVE_ENVELOPES)
 	break;			/* NO-NO */
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_ramp_range (p1, p2);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_RAMPRATE:
       if (voices[voice].mode & WAVE_ENVELOPES)
 	break;			/* NJET-NJET */
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_ramp_rate (p1, p2);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_RAMPMODE:
       if (voices[voice].mode & WAVE_ENVELOPES)
 	break;			/* NO-NO */
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       p1 &= ~0x20;		/* Don't allow interrupts */
       gus_ramp_mode (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_RAMPON:
       if (voices[voice].mode & WAVE_ENVELOPES)
 	break;			/* EI-EI */
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       p1 &= ~0x20;		/* Don't allow interrupts */
       gus_rampon (p1);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_RAMPOFF:
       if (voices[voice].mode & WAVE_ENVELOPES)
 	break;			/* NEJ-NEJ */
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_rampoff ();
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     case _GUS_VOLUME_SCALE:
@@ -1854,10 +2150,11 @@ guswave_hw_control (int dev, unsigned char *event)
       break;
 
     case _GUS_VOICE_POS:
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (voice);
       gus_set_voice_pos (voice, plong);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       break;
 
     default:;
@@ -1865,120 +2162,146 @@ guswave_hw_control (int dev, unsigned char *event)
 }
 
 static int
-gus_sampling_set_speed (int speed)
+gus_audio_set_speed (int speed)
 {
+
   if (speed <= 0)
-    return gus_sampling_speed;
+    speed = gus_audio_speed;
+
+  if (speed < 4000)
+    speed = 4000;
 
   if (speed > 44100)
     speed = 44100;
 
-  gus_sampling_speed = speed;
+  gus_audio_speed = speed;
+
+  if (only_read_access)
+    {
+      /* Compute nearest valid recording speed  and return it */
+
+      /* speed = (9878400 / (gus_audio_speed + 2)) / 16; */
+      speed = (((9878400 + gus_audio_speed / 2) / (gus_audio_speed + 2)) + 8) / 16;
+      speed = (9878400 / (speed * 16)) - 2;
+    }
   return speed;
 }
 
 static int
-gus_sampling_set_channels (int channels)
+gus_audio_set_channels (int channels)
 {
   if (!channels)
-    return gus_sampling_channels;
+    return gus_audio_channels;
   if (channels > 2)
     channels = 2;
   if (channels < 1)
     channels = 1;
-  gus_sampling_channels = channels;
+  gus_audio_channels = channels;
   return channels;
 }
 
 static int
-gus_sampling_set_bits (int bits)
+gus_audio_set_bits (int bits)
 {
   if (!bits)
-    return gus_sampling_bits;
+    return gus_audio_bits;
 
   if (bits != 8 && bits != 16)
     bits = 8;
 
-  gus_sampling_bits = bits;
+  if (only_8_bits)
+    bits = 8;
+
+  gus_audio_bits = bits;
   return bits;
 }
 
 static int
-gus_sampling_ioctl (int dev, unsigned int cmd, unsigned int arg, int local)
+gus_audio_ioctl (int dev, unsigned int cmd, caddr_t arg, int local)
 {
+  int             val;
+
   switch (cmd)
     {
     case SOUND_PCM_WRITE_RATE:
       if (local)
-	return gus_sampling_set_speed (arg);
-      return IOCTL_OUT (arg, gus_sampling_set_speed (IOCTL_IN (arg)));
+	return gus_audio_set_speed ((int) arg);
+      get_user (val, (int *) arg);
+      return ioctl_out (arg, gus_audio_set_speed (val));
       break;
 
     case SOUND_PCM_READ_RATE:
       if (local)
-	return gus_sampling_speed;
-      return IOCTL_OUT (arg, gus_sampling_speed);
+	return gus_audio_speed;
+      return ioctl_out (arg, gus_audio_speed);
       break;
 
     case SNDCTL_DSP_STEREO:
       if (local)
-	return gus_sampling_set_channels (arg + 1) - 1;
-      return IOCTL_OUT (arg, gus_sampling_set_channels (IOCTL_IN (arg) + 1) - 1);
+	return gus_audio_set_channels ((int) arg + 1) - 1;
+      get_user (val, (int *) arg);
+      return ioctl_out (arg, gus_audio_set_channels (val + 1) - 1);
       break;
 
     case SOUND_PCM_WRITE_CHANNELS:
       if (local)
-	return gus_sampling_set_channels (arg);
-      return IOCTL_OUT (arg, gus_sampling_set_channels (IOCTL_IN (arg)));
+	return gus_audio_set_channels ((int) arg);
+      get_user (val, (int *) arg);
+      return ioctl_out (arg, gus_audio_set_channels (val));
       break;
 
     case SOUND_PCM_READ_CHANNELS:
       if (local)
-	return gus_sampling_channels;
-      return IOCTL_OUT (arg, gus_sampling_channels);
+	return gus_audio_channels;
+      return ioctl_out (arg, gus_audio_channels);
       break;
 
     case SNDCTL_DSP_SETFMT:
       if (local)
-	return gus_sampling_set_bits (arg);
-      return IOCTL_OUT (arg, gus_sampling_set_bits (IOCTL_IN (arg)));
+	return gus_audio_set_bits ((int) arg);
+      get_user (val, (int *) arg);
+      return ioctl_out (arg, gus_audio_set_bits (val));
       break;
 
     case SOUND_PCM_READ_BITS:
       if (local)
-	return gus_sampling_bits;
-      return IOCTL_OUT (arg, gus_sampling_bits);
+	return gus_audio_bits;
+      return ioctl_out (arg, gus_audio_bits);
 
     case SOUND_PCM_WRITE_FILTER:	/* NOT POSSIBLE */
-      return IOCTL_OUT (arg, RET_ERROR (EINVAL));
+      return ioctl_out (arg, -EINVAL);
       break;
 
     case SOUND_PCM_READ_FILTER:
-      return IOCTL_OUT (arg, RET_ERROR (EINVAL));
+      return ioctl_out (arg, -EINVAL);
       break;
 
-    default:
-      return RET_ERROR (EINVAL);
     }
-  return RET_ERROR (EINVAL);
+  return -EINVAL;
 }
 
 static void
-gus_sampling_reset (int dev)
+gus_audio_reset (int dev)
 {
+  if (recording_active)
+    {
+      gus_write8 (0x49, 0x00);	/* Halt recording */
+      set_input_volumes ();
+    }
 }
 
+
 static int
-gus_sampling_open (int dev, int mode)
+gus_audio_open (int dev, int mode)
 {
-#ifdef GUS_NO_DMA
-  printk ("GUS: DMA mode not enabled. Device not supported\n");
-  return RET_ERROR (ENXIO);
-#endif
-
   if (gus_busy)
-    return RET_ERROR (EBUSY);
+    return -EBUSY;
 
+  if (gus_pnp_flag && mode & OPEN_READ)
+    {
+      printk ("Sound: This audio device doesn't have recording capability\n");
+      return -EIO;
+    }
   gus_initialize ();
 
   gus_busy = 1;
@@ -1996,12 +2319,18 @@ gus_sampling_open (int dev, int mode)
       recording_active = 1;
       set_input_volumes ();
     }
+  only_read_access = !(mode & OPEN_WRITE);
+  only_8_bits = mode & OPEN_READ;
+  if (only_8_bits)
+    audio_devs[dev]->format_mask = AFMT_U8;
+  else
+    audio_devs[dev]->format_mask = AFMT_U8 | AFMT_S16_LE;
 
   return 0;
 }
 
 static void
-gus_sampling_close (int dev)
+gus_audio_close (int dev)
 {
   gus_reset ();
   gus_busy = 0;
@@ -2009,34 +2338,38 @@ gus_sampling_close (int dev)
   active_device = 0;
 
   if (recording_active)
-    set_input_volumes ();
+    {
+      gus_write8 (0x49, 0x00);	/* Halt recording */
+      set_input_volumes ();
+    }
 
   recording_active = 0;
 }
 
 static void
-gus_sampling_update_volume (void)
+gus_audio_update_volume (void)
 {
   unsigned long   flags;
   int             voice;
 
-  DISABLE_INTR (flags);
   if (pcm_active && pcm_opened)
-    for (voice = 0; voice < gus_sampling_channels; voice++)
+    for (voice = 0; voice < gus_audio_channels; voice++)
       {
+	save_flags (flags);
+	cli ();
 	gus_select_voice (voice);
 	gus_rampoff ();
 	gus_voice_volume (1530 + (25 * gus_pcm_volume));
 	gus_ramp_range (65, 1530 + (25 * gus_pcm_volume));
+	restore_flags (flags);
       }
-  RESTORE_INTR (flags);
 }
 
 static void
 play_next_pcm_block (void)
 {
   unsigned long   flags;
-  int             speed = gus_sampling_speed;
+  int             speed = gus_audio_speed;
   int             this_one, is16bits, chn;
   unsigned long   dram_loc;
   unsigned char   mode[2], ramp_mode[2];
@@ -2046,7 +2379,7 @@ play_next_pcm_block (void)
 
   this_one = pcm_head;
 
-  for (chn = 0; chn < gus_sampling_channels; chn++)
+  for (chn = 0; chn < gus_audio_channels; chn++)
     {
       mode[chn] = 0x00;
       ramp_mode[chn] = 0x03;	/* Ramping and rollover off */
@@ -2057,7 +2390,7 @@ play_next_pcm_block (void)
 	  voices[chn].loop_irq_mode = LMODE_PCM;
 	}
 
-      if (gus_sampling_bits != 8)
+      if (gus_audio_bits != 8)
 	{
 	  is16bits = 1;
 	  mode[chn] |= 0x04;	/* 16 bit data */
@@ -2071,7 +2404,7 @@ play_next_pcm_block (void)
       if (this_one == (pcm_nblk - 1))	/* Last fragment of the DRAM buffer */
 	{
 	  mode[chn] |= 0x08;	/* Enable loop */
-	  ramp_mode[chn] = 0x03;/* Disable rollover bit */
+	  ramp_mode[chn] = 0x03;	/* Disable rollover bit */
 	}
       else
 	{
@@ -2079,11 +2412,12 @@ play_next_pcm_block (void)
 	    ramp_mode[chn] = 0x04;	/* Enable rollover bit */
 	}
 
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (chn);
       gus_voice_freq (speed);
 
-      if (gus_sampling_channels == 1)
+      if (gus_audio_channels == 1)
 	gus_voice_balance (7);	/* mono */
       else if (chn == 0)
 	gus_voice_balance (0);	/* left */
@@ -2104,17 +2438,17 @@ play_next_pcm_block (void)
 	  gus_voice_volume (1530 + (25 * gus_pcm_volume));
 	  gus_ramp_range (65, 1530 + (25 * gus_pcm_volume));
 
-	  gus_write_addr (0x0a, dram_loc, is16bits);	/* Starting position */
-	  gus_write_addr (0x02, chn * pcm_banksize, is16bits);	/* Loop start */
+	  gus_write_addr (0x0a, dram_loc, 0, is16bits);		/* Starting position */
+	  gus_write_addr (0x02, chn * pcm_banksize, 0, is16bits);	/* Loop start */
 
 	  if (chn != 0)
-	    gus_write_addr (0x04, pcm_banksize + (pcm_bsize * pcm_nblk),
-			    is16bits);	/* Loop end location */
+	    gus_write_addr (0x04, pcm_banksize + (pcm_bsize * pcm_nblk) - 1,
+			    0, is16bits);	/* Loop end location */
 	}
 
       if (chn == 0)
-	gus_write_addr (0x04, dram_loc + pcm_datasize[this_one],
-			is16bits);	/* Loop end location */
+	gus_write_addr (0x04, dram_loc + pcm_datasize[this_one] - 1,
+			0, is16bits);	/* Loop end location */
       else
 	mode[chn] |= 0x08;	/* Enable looping */
 
@@ -2126,28 +2460,29 @@ play_next_pcm_block (void)
 	  if (chn == 0)
 	    {
 	      mode[chn] &= ~0x08;	/* Disable looping */
-	      mode[chn] |= 0x20;/* Enable IRQ at the end */
+	      mode[chn] |= 0x20;	/* Enable IRQ at the end */
 	      voices[0].loop_irq_mode = LMODE_PCM_STOP;
 	      ramp_mode[chn] = 0x03;	/* No rollover bit */
 	    }
 	  else
 	    {
 	      gus_write_addr (0x04, dram_loc + pcm_datasize[this_one],
-			      is16bits);	/* Loop end location */
+			      0, is16bits);	/* Loop end location */
 	      mode[chn] &= ~0x08;	/* Disable looping */
 	    }
 	}
 
-      RESTORE_INTR (flags);
+      restore_flags (flags);
     }
 
-  for (chn = 0; chn < gus_sampling_channels; chn++)
+  for (chn = 0; chn < gus_audio_channels; chn++)
     {
-      DISABLE_INTR (flags);
+      save_flags (flags);
+      cli ();
       gus_select_voice (chn);
       gus_write8 (0x0d, ramp_mode[chn]);
       gus_voice_on (mode[chn]);
-      RESTORE_INTR (flags);
+      restore_flags (flags);
     }
 
   pcm_active = 1;
@@ -2171,9 +2506,10 @@ gus_transfer_output_block (int dev, unsigned long buf,
   unsigned char   dma_command;
   unsigned long   address, hold_address;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
-  count = total_count / gus_sampling_channels;
+  count = total_count / gus_audio_channels;
 
   if (chn == 0)
     {
@@ -2194,7 +2530,7 @@ gus_transfer_output_block (int dev, unsigned long buf,
   address = this_one * pcm_bsize;
   address += chn * pcm_banksize;
 
-  if (audio_devs[dev]->dmachan > 3)
+  if (audio_devs[dev]->dmachan1 > 3)
     {
       hold_address = address;
       address = address >> 1;
@@ -2206,17 +2542,17 @@ gus_transfer_output_block (int dev, unsigned long buf,
 
   dma_command = 0x21;		/* IRQ enable, DMA start */
 
-  if (gus_sampling_bits != 8)
+  if (gus_audio_bits != 8)
     dma_command |= 0x40;	/* 16 bit _DATA_ */
   else
     dma_command |= 0x80;	/* Invert MSB */
 
-  if (audio_devs[dev]->dmachan > 3)
+  if (audio_devs[dev]->dmachan1 > 3)
     dma_command |= 0x04;	/* 16 bit DMA channel */
 
-  gus_write8 (0x41, dma_command);	/* Kickstart */
+  gus_write8 (0x41, dma_command);	/* Kick start */
 
-  if (chn == (gus_sampling_channels - 1))	/* Last channel */
+  if (chn == (gus_audio_channels - 1))	/* Last channel */
     {
       /*
        * Last (right or mono) channel data
@@ -2231,18 +2567,18 @@ gus_transfer_output_block (int dev, unsigned long buf,
   else
     {
       /*
-	 * Left channel data. The right channel
-	 * is transferred after DMA interrupt
-	 */
+         * Left channel data. The right channel
+         * is transferred after DMA interrupt
+       */
       active_device = GUS_DEV_PCM_CONTINUE;
     }
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static void
-gus_sampling_output_block (int dev, unsigned long buf, int total_count,
-			   int intrflag, int restart_dma)
+gus_audio_output_block (int dev, unsigned long buf, int total_count,
+			int intrflag, int restart_dma)
 {
   pcm_current_buf = buf;
   pcm_current_count = total_count;
@@ -2252,61 +2588,62 @@ gus_sampling_output_block (int dev, unsigned long buf, int total_count,
 }
 
 static void
-gus_sampling_start_input (int dev, unsigned long buf, int count,
-			  int intrflag, int restart_dma)
+gus_audio_start_input (int dev, unsigned long buf, int count,
+		       int intrflag, int restart_dma)
 {
   unsigned long   flags;
   unsigned char   mode;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
   DMAbuf_start_dma (dev, buf, count, DMA_MODE_READ);
 
   mode = 0xa0;			/* DMA IRQ enabled, invert MSB */
 
-  if (audio_devs[dev]->dmachan > 3)
+  if (audio_devs[dev]->dmachan2 > 3)
     mode |= 0x04;		/* 16 bit DMA channel */
-  if (gus_sampling_channels > 1)
+  if (gus_audio_channels > 1)
     mode |= 0x02;		/* Stereo */
   mode |= 0x01;			/* DMA enable */
 
   gus_write8 (0x49, mode);
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static int
-gus_sampling_prepare_for_input (int dev, int bsize, int bcount)
+gus_audio_prepare_for_input (int dev, int bsize, int bcount)
 {
   unsigned int    rate;
 
-  rate = (9878400 / (gus_sampling_speed + 2)) / 16;
+  rate = (((9878400 + gus_audio_speed / 2) / (gus_audio_speed + 2)) + 8) / 16;
 
   gus_write8 (0x48, rate & 0xff);	/* Set sampling rate */
 
-  if (gus_sampling_bits != 8)
+  if (gus_audio_bits != 8)
     {
       printk ("GUS Error: 16 bit recording not supported\n");
-      return RET_ERROR (EINVAL);
+      return -EINVAL;
     }
 
   return 0;
 }
 
 static int
-gus_sampling_prepare_for_output (int dev, int bsize, int bcount)
+gus_audio_prepare_for_output (int dev, int bsize, int bcount)
 {
   int             i;
 
   long            mem_ptr, mem_size;
 
   mem_ptr = 0;
-  mem_size = gus_mem_size / gus_sampling_channels;
+  mem_size = gus_mem_size / gus_audio_channels;
 
   if (mem_size > (256 * 1024))
     mem_size = 256 * 1024;
 
-  pcm_bsize = bsize / gus_sampling_channels;
+  pcm_bsize = bsize / gus_audio_channels;
   pcm_head = pcm_tail = pcm_qlen = 0;
 
   pcm_nblk = MAX_PCM_BUFFERS;
@@ -2318,7 +2655,7 @@ gus_sampling_prepare_for_output (int dev, int bsize, int bcount)
 
   pcm_banksize = pcm_nblk * pcm_bsize;
 
-  if (gus_sampling_bits != 8 && pcm_banksize == (256 * 1024))
+  if (gus_audio_bits != 8 && pcm_banksize == (256 * 1024))
     pcm_nblk--;
 
   return 0;
@@ -2332,13 +2669,13 @@ gus_local_qlen (int dev)
 
 static void
 gus_copy_from_user (int dev, char *localbuf, int localoffs,
-		    snd_rw_buf * userbuf, int useroffs, int len)
+		    const char *userbuf, int useroffs, int len)
 {
-  if (gus_sampling_channels == 1)
+  if (gus_audio_channels == 1)
     {
-      COPY_FROM_USER (&localbuf[localoffs], userbuf, useroffs, len);
+      copy_from_user (&localbuf[localoffs], &(userbuf)[useroffs], len);
     }
-  else if (gus_sampling_bits == 8)
+  else if (gus_audio_bits == 8)
     {
       int             in_left = useroffs;
       int             in_right = useroffs + 1;
@@ -2347,58 +2684,80 @@ gus_copy_from_user (int dev, char *localbuf, int localoffs,
 
       len /= 2;
       localoffs /= 2;
-      out_left = &localbuf[localoffs];
+      out_left = localbuf + localoffs;
       out_right = out_left + pcm_bsize;
 
       for (i = 0; i < len; i++)
 	{
-	  GET_BYTE_FROM_USER (*out_left++, userbuf, in_left);
+	  get_user (*out_left++, (unsigned char *) &((userbuf)[in_left]));
 	  in_left += 2;
-	  GET_BYTE_FROM_USER (*out_right++, userbuf, in_right);
+	  get_user (*out_right++, (unsigned char *) &((userbuf)[in_right]));
 	  in_right += 2;
 	}
     }
   else
     {
       int             in_left = useroffs;
-      int             in_right = useroffs + 1;
+      int             in_right = useroffs + 2;
       short          *out_left, *out_right;
       int             i;
 
       len /= 4;
       localoffs /= 4;
 
-      out_left = (short *) &localbuf[localoffs];
+      out_left = ((short *) localbuf) + localoffs;
       out_right = out_left + (pcm_bsize / 2);
 
       for (i = 0; i < len; i++)
 	{
-	  GET_SHORT_FROM_USER (*out_left++, (short *) userbuf, in_left);
-	  in_left += 2;
-	  GET_SHORT_FROM_USER (*out_right++, (short *) userbuf, in_right);
-	  in_right += 2;
+	  get_user (*out_left++, (unsigned short *) &((userbuf)[in_left]));
+	  in_left += 4;
+	  get_user (*out_right++, (unsigned short *) &((userbuf)[in_right]));
+	  in_right += 4;
 	}
     }
 }
 
-static struct audio_operations gus_sampling_operations =
+static struct audio_driver gus_audio_driver =
+{
+  gus_audio_open,
+  gus_audio_close,
+  gus_audio_output_block,
+  gus_audio_start_input,
+  gus_audio_ioctl,
+  gus_audio_prepare_for_input,
+  gus_audio_prepare_for_output,
+  gus_audio_reset,
+  gus_audio_reset,
+  gus_local_qlen,
+  gus_copy_from_user
+};
+
+static struct audio_operations gus_audio_operations =
 {
   "Gravis UltraSound",
   NEEDS_RESTART,
   AFMT_U8 | AFMT_S16_LE,
   NULL,
-  gus_sampling_open,
-  gus_sampling_close,
-  gus_sampling_output_block,
-  gus_sampling_start_input,
-  gus_sampling_ioctl,
-  gus_sampling_prepare_for_input,
-  gus_sampling_prepare_for_output,
-  gus_sampling_reset,
-  gus_sampling_reset,
-  gus_local_qlen,
-  gus_copy_from_user
+  &gus_audio_driver
 };
+
+static void
+guswave_setup_voice (int dev, int voice, int chn)
+{
+  struct channel_info *info =
+  &synth_devs[dev]->chn_info[chn];
+
+  guswave_set_instr (dev, voice, info->pgm_num);
+
+  voices[voice].expression_vol =
+    info->controllers[CTL_EXPRESSION];	/* Just MSB */
+  voices[voice].main_vol =
+    (info->controllers[CTL_MAIN_VOLUME] * 100) / (unsigned) 128;
+  voices[voice].panning =
+    (info->controllers[CTL_PAN] * 2) - 128;
+  voices[voice].bender = info->bender_value;
+}
 
 static void
 guswave_bender (int dev, int voice, int value)
@@ -2407,208 +2766,26 @@ guswave_bender (int dev, int voice, int value)
   unsigned long   flags;
 
   voices[voice].bender = value - 8192;
-  freq = compute_finetune (voices[voice].orig_freq, value,
+  freq = compute_finetune (voices[voice].orig_freq, value - 8192,
 			   voices[voice].bender_range);
   voices[voice].current_freq = freq;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
   gus_voice_freq (freq);
-  RESTORE_INTR (flags);
-}
-
-static int
-guswave_patchmgr (int dev, struct patmgr_info *rec)
-{
-  int             i, n;
-
-  switch (rec->command)
-    {
-    case PM_GET_DEVTYPE:
-      rec->parm1 = PMTYPE_WAVE;
-      return 0;
-      break;
-
-    case PM_GET_NRPGM:
-      rec->parm1 = MAX_PATCH;
-      return 0;
-      break;
-
-    case PM_GET_PGMMAP:
-      rec->parm1 = MAX_PATCH;
-
-      for (i = 0; i < MAX_PATCH; i++)
-	{
-	  int             ptr = patch_table[i];
-
-	  rec->data.data8[i] = 0;
-
-	  while (ptr >= 0 && ptr < free_sample)
-	    {
-	      rec->data.data8[i]++;
-	      ptr = samples[ptr].key;	/* Follow link */
-	    }
-	}
-      return 0;
-      break;
-
-    case PM_GET_PGM_PATCHES:
-      {
-	int             ptr = patch_table[rec->parm1];
-
-	n = 0;
-
-	while (ptr >= 0 && ptr < free_sample)
-	  {
-	    rec->data.data32[n++] = ptr;
-	    ptr = samples[ptr].key;	/* Follow link */
-	  }
-      }
-      rec->parm1 = n;
-      return 0;
-      break;
-
-    case PM_GET_PATCH:
-      {
-	int             ptr = rec->parm1;
-	struct patch_info *pat;
-
-	if (ptr < 0 || ptr >= free_sample)
-	  return RET_ERROR (EINVAL);
-
-	memcpy (rec->data.data8, (char *) &samples[ptr],
-		sizeof (struct patch_info));
-
-	pat = (struct patch_info *) rec->data.data8;
-
-	pat->key = GUS_PATCH;	/* Restore patch type */
-	rec->parm1 = sample_ptrs[ptr];	/* DRAM location */
-	rec->parm2 = sizeof (struct patch_info);
-      }
-      return 0;
-      break;
-
-    case PM_SET_PATCH:
-      {
-	int             ptr = rec->parm1;
-	struct patch_info *pat;
-
-	if (ptr < 0 || ptr >= free_sample)
-	  return RET_ERROR (EINVAL);
-
-	pat = (struct patch_info *) rec->data.data8;
-
-	if (pat->len > samples[ptr].len)	/* Cannot expand sample */
-	  return RET_ERROR (EINVAL);
-
-	pat->key = samples[ptr].key;	/* Ensure the link is correct */
-
-	memcpy ((char *) &samples[ptr], rec->data.data8,
-		sizeof (struct patch_info));
-
-	pat->key = GUS_PATCH;
-      }
-      return 0;
-      break;
-
-    case PM_READ_PATCH:	/* Returns a block of wave data from the DRAM */
-      {
-	int             sample = rec->parm1;
-	int             n;
-	long            offs = rec->parm2;
-	int             l = rec->parm3;
-
-	if (sample < 0 || sample >= free_sample)
-	  return RET_ERROR (EINVAL);
-
-	if (offs < 0 || offs >= samples[sample].len)
-	  return RET_ERROR (EINVAL);	/* Invalid offset */
-
-	n = samples[sample].len - offs;	/* Num of bytes left */
-
-	if (l > n)
-	  l = n;
-
-	if (l > sizeof (rec->data.data8))
-	  l = sizeof (rec->data.data8);
-
-	if (l <= 0)
-	  return RET_ERROR (EINVAL);	/*
-					 * Was there a bug?
-					 */
-
-	offs += sample_ptrs[sample];	/*
-					 * Begin offset + offset to DRAM
-					 */
-
-	for (n = 0; n < l; n++)
-	  rec->data.data8[n] = gus_peek (offs++);
-	rec->parm1 = n;		/*
-				 * Nr of bytes copied
-				 */
-      }
-      return 0;
-      break;
-
-    case PM_WRITE_PATCH:	/*
-				 * Writes a block of wave data to the DRAM
-				 */
-      {
-	int             sample = rec->parm1;
-	int             n;
-	long            offs = rec->parm2;
-	int             l = rec->parm3;
-
-	if (sample < 0 || sample >= free_sample)
-	  return RET_ERROR (EINVAL);
-
-	if (offs < 0 || offs >= samples[sample].len)
-	  return RET_ERROR (EINVAL);	/*
-					 * Invalid offset
-					 */
-
-	n = samples[sample].len - offs;	/*
-						 * Nr of bytes left
-						 */
-
-	if (l > n)
-	  l = n;
-
-	if (l > sizeof (rec->data.data8))
-	  l = sizeof (rec->data.data8);
-
-	if (l <= 0)
-	  return RET_ERROR (EINVAL);	/*
-					 * Was there a bug?
-					 */
-
-	offs += sample_ptrs[sample];	/*
-					 * Begin offset + offset to DRAM
-					 */
-
-	for (n = 0; n < l; n++)
-	  gus_poke (offs++, rec->data.data8[n]);
-	rec->parm1 = n;		/*
-				 * Nr of bytes copied
-				 */
-      }
-      return 0;
-      break;
-
-    default:
-      return RET_ERROR (EINVAL);
-    }
+  restore_flags (flags);
 }
 
 static int
 guswave_alloc (int dev, int chn, int note, struct voice_alloc_info *alloc)
 {
-  int             i, p;
+  int             i, p, best = -1, best_time = 0x7fffffff;
 
   p = alloc->ptr;
   /*
- * First look for a completely stopped voice
- */
+     * First look for a completely stopped voice
+   */
 
   for (i = 0; i < alloc->max_voice; i++)
     {
@@ -2617,12 +2794,17 @@ guswave_alloc (int dev, int chn, int note, struct voice_alloc_info *alloc)
 	  alloc->ptr = p;
 	  return p;
 	}
+      if (alloc->alloc_times[p] < best_time)
+	{
+	  best = p;
+	  best_time = alloc->alloc_times[p];
+	}
       p = (p + 1) % alloc->max_voice;
     }
 
   /*
- * Then look for a releasing voice
- */
+     * Then look for a releasing voice
+   */
 
   for (i = 0; i < alloc->max_voice; i++)
     {
@@ -2633,7 +2815,9 @@ guswave_alloc (int dev, int chn, int note, struct voice_alloc_info *alloc)
 	}
       p = (p + 1) % alloc->max_voice;
     }
-  printk ("GUS: Out of free voices\n");
+
+  if (best >= 0)
+    p = best;
 
   alloc->ptr = p;
   return p;
@@ -2658,9 +2842,9 @@ static struct synth_operations guswave_operations =
   guswave_controller,
   guswave_panning,
   guswave_volume_method,
-  guswave_patchmgr,
   guswave_bender,
-  guswave_alloc
+  guswave_alloc,
+  guswave_setup_voice
 };
 
 static void
@@ -2669,13 +2853,17 @@ set_input_volumes (void)
   unsigned long   flags;
   unsigned char   mask = 0xff & ~0x06;	/* Just line out enabled */
 
-  DISABLE_INTR (flags);
+  if (have_gus_max)		/* Don't disturb GUS MAX */
+    return;
+
+  save_flags (flags);
+  cli ();
 
   /*
- *    Enable channels having vol > 10%
- *      Note! bit 0x01 means line in DISABLED while 0x04 means
- *            mic in ENABLED.
- */
+   *    Enable channels having vol > 10%
+   *      Note! bit 0x01 means the line in DISABLED while 0x04 means
+   *            the mic in ENABLED.
+   */
   if (gus_line_vol > 10)
     mask &= ~0x01;
   if (gus_mic_vol > 10)
@@ -2684,8 +2872,8 @@ set_input_volumes (void)
   if (recording_active)
     {
       /*
- *    Disable channel, if not selected for recording
- */
+       *    Disable channel, if not selected for recording
+       */
       if (!(gus_recmask & SOUND_MASK_LINE))
 	mask |= 0x01;
       if (!(gus_recmask & SOUND_MASK_MIC))
@@ -2694,32 +2882,36 @@ set_input_volumes (void)
 
   mix_image &= ~0x07;
   mix_image |= mask & 0x07;
-  OUTB (mix_image, u_Mixer);
+  outb ((mix_image), u_Mixer);
 
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 int
-gus_default_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
+gus_default_mixer_ioctl (int dev, unsigned int cmd, caddr_t arg)
 {
 #define MIX_DEVS	(SOUND_MASK_MIC|SOUND_MASK_LINE| \
 			 SOUND_MASK_SYNTH|SOUND_MASK_PCM)
   if (((cmd >> 8) & 0xff) == 'M')
     {
-      if (cmd & IOC_IN)
+      if (_IOC_DIR (cmd) & _IOC_WRITE)
 	switch (cmd & 0xff)
 	  {
 	  case SOUND_MIXER_RECSRC:
-	    gus_recmask = IOCTL_IN (arg) & MIX_DEVS;
+	    get_user (gus_recmask, (int *) arg);
+	    gus_recmask &= MIX_DEVS;
 	    if (!(gus_recmask & (SOUND_MASK_MIC | SOUND_MASK_LINE)))
 	      gus_recmask = SOUND_MASK_MIC;
 	    /* Note! Input volumes are updated during next open for recording */
-	    return IOCTL_OUT (arg, gus_recmask);
+	    return ioctl_out (arg, gus_recmask);
 	    break;
 
 	  case SOUND_MIXER_MIC:
 	    {
-	      int             vol = IOCTL_IN (arg) & 0xff;
+	      int             vol;
+
+	      get_user (vol, (int *) arg);
+	      vol &= 0xff;
 
 	      if (vol < 0)
 		vol = 0;
@@ -2727,13 +2919,16 @@ gus_default_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
 		vol = 100;
 	      gus_mic_vol = vol;
 	      set_input_volumes ();
-	      return IOCTL_OUT (arg, vol | (vol << 8));
+	      return ioctl_out (arg, vol | (vol << 8));
 	    }
 	    break;
 
 	  case SOUND_MIXER_LINE:
 	    {
-	      int             vol = IOCTL_IN (arg) & 0xff;
+	      int             vol;
+
+	      get_user (vol, (int *) arg);
+	      vol &= 0xff;
 
 	      if (vol < 0)
 		vol = 0;
@@ -2741,25 +2936,27 @@ gus_default_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
 		vol = 100;
 	      gus_line_vol = vol;
 	      set_input_volumes ();
-	      return IOCTL_OUT (arg, vol | (vol << 8));
+	      return ioctl_out (arg, vol | (vol << 8));
 	    }
 	    break;
 
 	  case SOUND_MIXER_PCM:
-	    gus_pcm_volume = IOCTL_IN (arg) & 0xff;
+	    get_user (gus_pcm_volume, (int *) arg);
+	    gus_pcm_volume &= 0xff;
 	    if (gus_pcm_volume < 0)
 	      gus_pcm_volume = 0;
 	    if (gus_pcm_volume > 100)
 	      gus_pcm_volume = 100;
-	    gus_sampling_update_volume ();
-	    return IOCTL_OUT (arg, gus_pcm_volume | (gus_pcm_volume << 8));
+	    gus_audio_update_volume ();
+	    return ioctl_out (arg, gus_pcm_volume | (gus_pcm_volume << 8));
 	    break;
 
 	  case SOUND_MIXER_SYNTH:
 	    {
 	      int             voice;
 
-	      gus_wave_volume = IOCTL_IN (arg) & 0xff;
+	      get_user (gus_wave_volume, (int *) arg);
+	      gus_wave_volume &= 0xff;
 
 	      if (gus_wave_volume < 0)
 		gus_wave_volume = 0;
@@ -2770,12 +2967,12 @@ gus_default_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
 		for (voice = 0; voice < nr_voices; voice++)
 		  dynamic_volume_change (voice);	/* Apply the new vol */
 
-	      return IOCTL_OUT (arg, gus_wave_volume | (gus_wave_volume << 8));
+	      return ioctl_out (arg, gus_wave_volume | (gus_wave_volume << 8));
 	    }
 	    break;
 
 	  default:
-	    return RET_ERROR (EINVAL);
+	    return -EINVAL;
 	  }
       else
 	switch (cmd & 0xff)	/*
@@ -2784,56 +2981,58 @@ gus_default_mixer_ioctl (int dev, unsigned int cmd, unsigned int arg)
 	  {
 
 	  case SOUND_MIXER_RECSRC:
-	    return IOCTL_OUT (arg, gus_recmask);
+	    return ioctl_out (arg, gus_recmask);
 	    break;
 
 	  case SOUND_MIXER_DEVMASK:
-	    return IOCTL_OUT (arg, MIX_DEVS);
+	    return ioctl_out (arg, MIX_DEVS);
 	    break;
 
 	  case SOUND_MIXER_STEREODEVS:
-	    return IOCTL_OUT (arg, 0);
+	    return ioctl_out (arg, 0);
 	    break;
 
 	  case SOUND_MIXER_RECMASK:
-	    return IOCTL_OUT (arg, SOUND_MASK_MIC | SOUND_MASK_LINE);
+	    return ioctl_out (arg, SOUND_MASK_MIC | SOUND_MASK_LINE);
 	    break;
 
 	  case SOUND_MIXER_CAPS:
-	    return IOCTL_OUT (arg, 0);
+	    return ioctl_out (arg, 0);
 	    break;
 
 	  case SOUND_MIXER_MIC:
-	    return IOCTL_OUT (arg, gus_mic_vol | (gus_mic_vol << 8));
+	    return ioctl_out (arg, gus_mic_vol | (gus_mic_vol << 8));
 	    break;
 
 	  case SOUND_MIXER_LINE:
-	    return IOCTL_OUT (arg, gus_line_vol | (gus_line_vol << 8));
+	    return ioctl_out (arg, gus_line_vol | (gus_line_vol << 8));
 	    break;
 
 	  case SOUND_MIXER_PCM:
-	    return IOCTL_OUT (arg, gus_pcm_volume | (gus_pcm_volume << 8));
+	    return ioctl_out (arg, gus_pcm_volume | (gus_pcm_volume << 8));
 	    break;
 
 	  case SOUND_MIXER_SYNTH:
-	    return IOCTL_OUT (arg, gus_wave_volume | (gus_wave_volume << 8));
+	    return ioctl_out (arg, gus_wave_volume | (gus_wave_volume << 8));
 	    break;
 
 	  default:
-	    return RET_ERROR (EINVAL);
+	    return -EINVAL;
 	  }
     }
   else
-    return RET_ERROR (EINVAL);
+    return -EINVAL;
 }
 
 static struct mixer_operations gus_mixer_operations =
 {
+  "GUS",
+  "Gravis Ultrasound",
   gus_default_mixer_ioctl
 };
 
-static long
-gus_default_mixer_init (long mem_start)
+static void
+gus_default_mixer_init (void)
 {
   if (num_mixers < MAX_MIXER_DEV)	/*
 					 * Don't install if there is another
@@ -2841,46 +3040,83 @@ gus_default_mixer_init (long mem_start)
 					 */
     mixer_devs[num_mixers++] = &gus_mixer_operations;
 
-  return mem_start;
+  if (have_gus_max)
+    {
+/*
+ *  Enable all mixer channels on the GF1 side. Otherwise recording will
+ *  not be possible using GUS MAX.
+ */
+      mix_image &= ~0x07;
+      mix_image |= 0x04;	/* All channels enabled */
+      outb ((mix_image), u_Mixer);
+    }
 }
 
-long
-gus_wave_init (long mem_start, int irq, int dma)
+void
+gus_wave_init (struct address_info *hw_config)
 {
   unsigned long   flags;
   unsigned char   val;
   char           *model_num = "2.4";
+  char            tmp[64], tmp2[64];
   int             gus_type = 0x24;	/* 2.4 */
-  int             mixer_type = 0;
+
+  int             irq = hw_config->irq, dma = hw_config->dma, dma2 = hw_config->dma2;
+
+  if (!gus_pnp_flag)
+    if (irq < 0 || irq > 15)
+      {
+	printk ("ERROR! Invalid IRQ#%d. GUS Disabled", irq);
+	return;
+      }
+
+  if (dma < 0 || dma > 7 || dma == 4)
+    {
+      printk ("ERROR! Invalid DMA#%d. GUS Disabled", dma);
+      return;
+    }
+
+  gus_irq = irq;
+  gus_dma = dma;
+  gus_dma2 = dma2;
+
+  if (gus_dma2 == -1)
+    gus_dma2 = dma;
 
   /*
- * Try to identify the GUS model.
- *
- *	Versions < 3.6 don't have the digital ASIC. Try to probe it first.
- */
+     * Try to identify the GUS model.
+     *
+     *  Versions < 3.6 don't have the digital ASIC. Try to probe it first.
+   */
 
-  DISABLE_INTR (flags);
-  OUTB (0x20, gus_base + 0x0f);
-  val = INB (gus_base + 0x0f);
-  RESTORE_INTR (flags);
+  save_flags (flags);
+  cli ();
+  outb ((0x20), gus_base + 0x0f);
+  val = inb (gus_base + 0x0f);
+  restore_flags (flags);
 
-  if (val != 0xff && (val & 0x06))	/* Should be 0x02?? */
+  if (gus_pnp_flag || (val != 0xff && (val & 0x06)))	/* Should be 0x02?? */
     {
-      /*
-	 * It has the digital ASIC so the card is at least v3.4.
-	 * Next try to detect the true model.
-	 */
+      int             ad_flags = 0;
 
-      val = INB (u_MixSelect);
+      if (gus_pnp_flag)
+	ad_flags = 0x12345678;	/* Interwave "magic" */
+      /*
+         * It has the digital ASIC so the card is at least v3.4.
+         * Next try to detect the true model.
+       */
+
+      if (gus_pnp_flag)		/* Hack hack hack */
+	val = 10;
+      else
+	val = inb (u_MixSelect);
 
       /*
          * Value 255 means pre-3.7 which don't have mixer.
          * Values 5 thru 9 mean v3.7 which has a ICS2101 mixer.
          * 10 and above is GUS MAX which has the CS4231 codec/mixer.
          *
-         * Sorry. No GUS max support yet but it should be available
-	 * soon after the SDK for GUS MAX is available.
-	 */
+       */
 
       if (val == 255 || val < 5)
 	{
@@ -2892,70 +3128,103 @@ gus_wave_init (long mem_start, int irq, int dma)
 	  model_num = "3.7";
 	  gus_type = 0x37;
 	  mixer_type = ICS2101;
+	  request_region (u_MixSelect, 1, "GUS mixer");
 	}
       else
 	{
 	  model_num = "MAX";
 	  gus_type = 0x40;
 	  mixer_type = CS4231;
-#ifndef EXCLUDE_GUSMAX
+#ifdef CONFIG_GUSMAX
 	  {
 	    unsigned char   max_config = 0x40;	/* Codec enable */
 
-	    if (dma > 3)
-	      max_config |= 0x30;	/* 16 bit playback and capture DMAs */
+	    if (gus_dma2 == -1)
+	      gus_dma2 = gus_dma;
+
+	    if (gus_dma > 3)
+	      max_config |= 0x10;	/* 16 bit capture DMA */
+
+	    if (gus_dma2 > 3)
+	      max_config |= 0x20;	/* 16 bit playback DMA */
 
 	    max_config |= (gus_base >> 4) & 0x0f;	/* Extract the X from 2X0 */
 
-	    OUTB (max_config, gus_base + 0x106);	/* UltraMax control */
+	    outb ((max_config), gus_base + 0x106);	/* UltraMax control */
 	  }
 
-	  if (ad1848_detect (gus_base + 0x10c))
+	  if (ad1848_detect (gus_base + 0x10c, &ad_flags, hw_config->osp))
 	    {
+	      char           *name = "GUS MAX";
+	      int             old_num_mixers = num_mixers;
+
+	      if (gus_pnp_flag)
+		name = "GUS PnP";
+
 	      gus_mic_vol = gus_line_vol = gus_pcm_volume = 100;
 	      gus_wave_volume = 90;
 	      have_gus_max = 1;
-	      ad1848_init ("GUS MAX", gus_base + 0x10c,
+	      if (hw_config->name)
+		name = hw_config->name;
+
+	      ad1848_init (name, gus_base + 0x10c,
 			   -irq,
-			   dma,
-			   dma);
+			   gus_dma2,	/* Playback DMA */
+			   gus_dma,	/* Capture DMA */
+			   1,	/* Share DMA channels with GF1 */
+			   hw_config->osp);
+
+	      if (num_mixers > old_num_mixers)
+		{		/* GUS has it's own mixer map */
+		  AD1848_REROUTE (SOUND_MIXER_LINE1, SOUND_MIXER_SYNTH);
+		  AD1848_REROUTE (SOUND_MIXER_LINE2, SOUND_MIXER_CD);
+		  AD1848_REROUTE (SOUND_MIXER_LINE3, SOUND_MIXER_LINE);
+		}
 	    }
 	  else
 	    printk ("[Where's the CS4231?]");
+#else
+	  printk ("\n\n\nGUS MAX support was not compiled in!!!\n\n\n\n");
 #endif
 	}
     }
   else
     {
       /*
-	 * ASIC not detected so the card must be 2.2 or 2.4.
-	 * There could still be the 16-bit/mixer daughter card.
-	 * It has the same codec/mixer than MAX.
-	 * At this time there is no support for it but it will appear soon.
-	 */
+         * ASIC not detected so the card must be 2.2 or 2.4.
+         * There could still be the 16-bit/mixer daughter card.
+       */
     }
 
-
-  printk (" <Gravis UltraSound %s (%dk)>", model_num, (int) gus_mem_size / 1024);
-
-#ifndef SCO
-  sprintf (gus_info.name, "Gravis UltraSound %s (%dk)", model_num, (int) gus_mem_size / 1024);
-#endif
-
-  if (irq < 0 || irq > 15)
+  if (hw_config->name)
     {
-      printk ("ERROR! Invalid IRQ#%d. GUS Disabled", irq);
-      return mem_start;
-    }
 
-  if (dma < 0 || dma > 7)
+      strncpy (tmp, hw_config->name, 45);
+      tmp[45] = 0;
+      sprintf (tmp2, "%s (%dk)", tmp, (int) gus_mem_size / 1024);
+      tmp2[sizeof (tmp2) - 1] = 0;
+    }
+  else if (gus_pnp_flag)
     {
-      printk ("ERROR! Invalid DMA#%d. GUS Disabled", dma);
-      return mem_start;
+      sprintf (tmp2, "Gravis UltraSound PnP (%dk)",
+	       (int) gus_mem_size / 1024);
+    }
+  else
+    sprintf (tmp2, "Gravis UltraSound %s (%dk)", model_num, (int) gus_mem_size / 1024);
+
+
+  samples = (struct patch_info *) (sound_mem_blocks[sound_nblocks] = vmalloc ((MAX_SAMPLE + 1) * sizeof (*samples)));
+  if (sound_nblocks < 1024)
+    sound_nblocks++;;
+  if (samples == NULL)
+    {
+      printk ("GUS Error: Cant allocate memory for instrument tables\n");
+      return;
     }
 
-  gus_irq = irq;
-  gus_dma = dma;
+  conf_printf (tmp2, hw_config);
+  tmp2[sizeof (gus_info.name) - 1] = 0;
+  strncpy (gus_info.name, tmp2, strlen (tmp2));
 
   if (num_synths >= MAX_SYNTH_DEV)
     printk ("GUS Error: Too many synthesizers\n");
@@ -2963,43 +3232,70 @@ gus_wave_init (long mem_start, int irq, int dma)
     {
       voice_alloc = &guswave_operations.alloc;
       synth_devs[num_synths++] = &guswave_operations;
+#ifdef CONFIG_SEQUENCER
+      gus_tmr_install (gus_base + 8);
+#endif
     }
-
-  PERMANENT_MALLOC (struct patch_info *, samples,
-	                   (MAX_SAMPLE + 1) * sizeof (*samples), mem_start);
 
   reset_sample_memory ();
 
   gus_initialize ();
 
-  if (num_audiodevs < MAX_AUDIO_DEV)
-    {
-      audio_devs[gus_devnum = num_audiodevs++] = &gus_sampling_operations;
-      audio_devs[gus_devnum]->dmachan = dma;
-      audio_devs[gus_devnum]->buffcount = 1;
-      audio_devs[gus_devnum]->buffsize = DSP_BUFFSIZE;
-    }
-  else
-    printk ("GUS: Too many PCM devices available\n");
+  if (gus_mem_size > 0)
+    if (num_audiodevs < MAX_AUDIO_DEV)
+      {
+	audio_devs[gus_devnum = num_audiodevs++] = &gus_audio_operations;
+	audio_devs[gus_devnum]->dmachan1 = dma;
+	audio_devs[gus_devnum]->dmachan2 = dma2;
+	audio_devs[gus_devnum]->buffsize = DSP_BUFFSIZE;
+	audio_devs[gus_devnum]->min_fragment = 9;
+	audio_devs[gus_devnum]->mixer_dev = num_mixers;		/* Next mixer# */
+	audio_devs[gus_devnum]->flags |= DMA_HARDSTOP;
+	if (dma2 != dma && dma2 != -1)
+	  audio_devs[gus_devnum]->flags |= DMA_DUPLEX;
+      }
+    else
+      printk ("GUS: Too many audio devices available\n");
 
   /*
- *  Mixer dependent initialization.
- */
+     *  Mixer dependent initialization.
+   */
 
   switch (mixer_type)
     {
     case ICS2101:
       gus_mic_vol = gus_line_vol = gus_pcm_volume = 100;
       gus_wave_volume = 90;
-      return ics2101_mixer_init (mem_start);
+      request_region (u_MixSelect, 1, "GUS mixer");
+      ics2101_mixer_init ();
+      return;
 
     case CS4231:
       /* Initialized elsewhere (ad1848.c) */
     default:
-      return gus_default_mixer_init (mem_start);
+      gus_default_mixer_init ();
+      return;
     }
+}
 
-  return mem_start;
+void
+gus_wave_unload (void)
+{
+#ifdef CONFIG_GUSMAX
+  if (have_gus_max)
+    {
+      ad1848_unload (gus_base + 0x10c,
+		     -gus_irq,
+		     gus_dma2,	/* Playback DMA */
+		     gus_dma,	/* Capture DMA */
+		     1);	/* Share DMA channels with GF1 */
+    }
+#endif
+
+  if (mixer_type == ICS2101)
+    {
+      release_region (u_MixSelect, 1);
+    }
 }
 
 static void
@@ -3009,7 +3305,8 @@ do_loop_irq (int voice)
   int             mode, parm;
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
   gus_select_voice (voice);
 
   tmp = gus_read8 (0x00);
@@ -3017,6 +3314,9 @@ do_loop_irq (int voice)
 				 * Disable wave IRQ for this_one voice
 				 */
   gus_write8 (0x00, tmp);
+
+  if (tmp & 0x03)		/* Voice stopped */
+    voice_alloc->map[voice] = 0;
 
   mode = voices[voice].loop_irq_mode;
   voices[voice].loop_irq_mode = 0;
@@ -3029,9 +3329,9 @@ do_loop_irq (int voice)
 				 * Final loop finished, shoot volume down
 				 */
 
-      if ((int) (gus_read16 (0x09) >> 4) < 100)	/*
-						 * Get current volume
-						 */
+      if ((int) (gus_read16 (0x09) >> 4) < 100)		/*
+							 * Get current volume
+							 */
 	{
 	  gus_voice_off ();
 	  gus_rampoff ();
@@ -3056,21 +3356,25 @@ do_loop_irq (int voice)
 
 	pcm_qlen--;
 	pcm_head = (pcm_head + 1) % pcm_nblk;
-	if (pcm_qlen)
+	if (pcm_qlen && pcm_active)
 	  {
 	    play_next_pcm_block ();
 	  }
 	else
 	  {			/* Underrun. Just stop the voice */
+	    gus_select_voice (0);	/* Left channel */
+	    gus_voice_off ();
+	    gus_rampoff ();
+	    gus_select_voice (1);	/* Right channel */
 	    gus_voice_off ();
 	    gus_rampoff ();
 	    pcm_active = 0;
 	  }
 
-/*
- * If the queue was full before this interrupt, the DMA transfer was
- * suspended. Let it continue now.
- */
+	/*
+	   * If the queue was full before this interrupt, the DMA transfer was
+	   * suspended. Let it continue now.
+	 */
 	if (dma_active)
 	  {
 	    if (pcm_qlen == 0)
@@ -3087,7 +3391,7 @@ do_loop_irq (int voice)
 
     default:;
     }
-  RESTORE_INTR (flags);
+  restore_flags (flags);
 }
 
 static void
@@ -3097,7 +3401,8 @@ do_volume_irq (int voice)
   int             mode, parm;
   unsigned long   flags;
 
-  DISABLE_INTR (flags);
+  save_flags (flags);
+  cli ();
 
   gus_select_voice (voice);
 
@@ -3116,18 +3421,18 @@ do_volume_irq (int voice)
     case VMODE_HALT:		/*
 				 * Decay phase finished
 				 */
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       gus_voice_init (voice);
       break;
 
     case VMODE_ENVELOPE:
       gus_rampoff ();
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       step_envelope (voice);
       break;
 
     case VMODE_START_NOTE:
-      RESTORE_INTR (flags);
+      restore_flags (flags);
       guswave_start_note2 (voices[voice].dev_pending, voice,
 		  voices[voice].note_pending, voices[voice].volume_pending);
       if (voices[voice].kill_pending)
@@ -3173,9 +3478,9 @@ gus_voice_irq (void)
 				 * Wave IRQ pending
 				 */
 	if (!(wave_ignore & voice_bit) && (int) voice < nr_voices)	/*
-								 * Not done
-								 * yet
-								 */
+									   * Not done
+									   * yet
+									 */
 	  {
 	    wave_ignore |= voice_bit;
 	    do_loop_irq (voice);
@@ -3185,9 +3490,9 @@ gus_voice_irq (void)
 				 * Volume IRQ pending
 				 */
 	if (!(volume_ignore & voice_bit) && (int) voice < nr_voices)	/*
-								 * Not done
-								 * yet
-								 */
+									   * Not done
+									   * yet
+									 */
 	  {
 	    volume_ignore |= voice_bit;
 	    do_volume_irq (voice);
@@ -3205,8 +3510,11 @@ guswave_dma_irq (void)
     switch (active_device)
       {
       case GUS_DEV_WAVE:
-	if (SOMEONE_WAITING (dram_sleeper, dram_sleep_flag))
-	  WAKE_UP (dram_sleeper, dram_sleep_flag);
+	if ((dram_sleep_flag.opts & WK_SLEEP))
+	  {
+	    dram_sleep_flag.opts = WK_WAKEUP;
+	    wake_up (&dram_sleeper);
+	  };
 	break;
 
       case GUS_DEV_PCM_CONTINUE:	/* Left channel data transferred */
@@ -3223,7 +3531,8 @@ guswave_dma_irq (void)
 	    if (pcm_qlen == 0)
 	      flag = 1;		/* Underrun */
 	    dma_active = 0;
-	    DMAbuf_outputintr (gus_devnum, flag);
+	    if (gus_busy)
+	      DMAbuf_outputintr (gus_devnum, flag);
 	  }
 	break;
 
@@ -3241,5 +3550,116 @@ guswave_dma_irq (void)
     }
 
 }
+
+#ifdef CONFIG_SEQUENCER
+/*
+ * Timer stuff
+ */
+
+static volatile int select_addr, data_addr;
+static volatile int curr_timer = 0;
+
+void
+gus_timer_command (unsigned int addr, unsigned int val)
+{
+  int             i;
+
+  outb (((unsigned char) (addr & 0xff)), select_addr);
+
+  for (i = 0; i < 2; i++)
+    inb (select_addr);
+
+  outb (((unsigned char) (val & 0xff)), data_addr);
+
+  for (i = 0; i < 2; i++)
+    inb (select_addr);
+}
+
+static void
+arm_timer (int timer, unsigned int interval)
+{
+
+  curr_timer = timer;
+
+  if (timer == 1)
+    {
+      gus_write8 (0x46, 256 - interval);	/* Set counter for timer 1 */
+      gus_write8 (0x45, 0x04);	/* Enable timer 1 IRQ */
+      gus_timer_command (0x04, 0x01);	/* Start timer 1 */
+    }
+  else
+    {
+      gus_write8 (0x47, 256 - interval);	/* Set counter for timer 2 */
+      gus_write8 (0x45, 0x08);	/* Enable timer 2 IRQ */
+      gus_timer_command (0x04, 0x02);	/* Start timer 2 */
+    }
+
+  gus_timer_enabled = 1;
+}
+
+static unsigned int
+gus_tmr_start (int dev, unsigned int usecs_per_tick)
+{
+  int             timer_no, resolution;
+  int             divisor;
+
+  if (usecs_per_tick > (256 * 80))
+    {
+      timer_no = 2;
+      resolution = 320;		/* usec */
+    }
+  else
+    {
+      timer_no = 1;
+      resolution = 80;		/* usec */
+    }
+
+  divisor = (usecs_per_tick + (resolution / 2)) / resolution;
+
+  arm_timer (timer_no, divisor);
+
+  return divisor * resolution;
+}
+
+static void
+gus_tmr_disable (int dev)
+{
+  gus_write8 (0x45, 0);		/* Disable both timers */
+  gus_timer_enabled = 0;
+}
+
+static void
+gus_tmr_restart (int dev)
+{
+  if (curr_timer == 1)
+    gus_write8 (0x45, 0x04);	/* Start timer 1 again */
+  else
+    gus_write8 (0x45, 0x08);	/* Start timer 2 again */
+  gus_timer_enabled = 1;
+}
+
+static struct sound_lowlev_timer gus_tmr =
+{
+  0,
+  gus_tmr_start,
+  gus_tmr_disable,
+  gus_tmr_restart
+};
+
+static void
+gus_tmr_install (int io_base)
+{
+  struct sound_lowlev_timer *tmr;
+
+  select_addr = io_base;
+  data_addr = io_base + 1;
+
+  tmr = &gus_tmr;
+
+#ifdef THIS_GETS_FIXED
+  sound_timer_init (&gus_tmr, "GUS");
+#endif
+}
+#endif
 
 #endif

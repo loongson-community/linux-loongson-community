@@ -5,7 +5,7 @@
  * and John Boyd, Nov. 1992.
  *
  * NOTE: all this is true *only* for ISA/EISA expansions on Mips boards
- * and can only be used for expansion cards. Onboard DMA controller, such
+ * and can only be used for expansion cards. Onboard DMA controllers, such
  * as the R4030 on Jazz boards behave totally different!
  */
 
@@ -73,11 +73,13 @@
 
 #define MAX_DMA_CHANNELS	8
 
-/* The maximum address that we can perform a DMA transfer to on this platform */
-#define MAX_DMA_ADDRESS      0x1000000
-
-/* The maximum address that we can perform a DMA transfer to on this platform */
-#define MAX_DMA_ADDRESS		0x1000000
+/*
+ * The maximum address in KSEG0 that we can perform a DMA transfer to on this
+ * platform.  This describes only the PC style part of the DMA logic like on
+ * Deskstations or Acer PICA but not the much more versatile DMA logic used
+ * for the local devices on Acer PICA or Magnums.
+ */
+#define MAX_DMA_ADDRESS		(PAGE_OFFSET + 0x01000000)
 
 /* 8237 DMA controllers */
 #define IO_DMA1_BASE	0x00	/* 8 bit slave DMA, channels 0..3 */
@@ -271,8 +273,7 @@ static __inline__ int get_dma_residue(unsigned int dmanr)
 
 
 /* These are in kernel/dma.c: */
-extern int request_dma(unsigned int dmanr, char * device_id);	/* reserve a DMA channel */
+extern int request_dma(unsigned int dmanr, const char * device_id);	/* reserve a DMA channel */
 extern void free_dma(unsigned int dmanr);	/* release it again */
-
 
 #endif /* __ASM_MIPS_DMA_H */

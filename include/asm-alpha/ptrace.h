@@ -59,11 +59,12 @@ struct switch_stack {
 	unsigned long r14;
 	unsigned long r15;
 	unsigned long r26;
-	unsigned long fp[32];
+	unsigned long fp[32];	/* fp[31] is fpcr */
 };
 
 #ifdef __KERNEL__
 #define user_mode(regs) ((regs)->ps & 8)
+#define instruction_pointer(regs) ((regs)->pc)
 extern void show_regs(struct pt_regs *);
 #endif
 

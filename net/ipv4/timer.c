@@ -50,7 +50,7 @@
 #include <net/sock.h>
 #include <net/arp.h>
 
-void delete_timer (struct sock *t)
+void net_delete_timer (struct sock *t)
 {
 	unsigned long flags;
 
@@ -63,16 +63,16 @@ void delete_timer (struct sock *t)
 	restore_flags (flags);
 }
 
-void reset_timer (struct sock *t, int timeout, unsigned long len)
+void net_reset_timer (struct sock *t, int timeout, unsigned long len)
 {
-	delete_timer (t);
+	net_delete_timer (t);
 	t->timeout = timeout;
 #if 1
   /* FIXME: ??? */
 	if ((int) len < 0)	/* prevent close to infinite timers. THEY _DO_ */
 		len = 3;	/* happen (negative values ?) - don't ask me why ! -FB */
 #endif
-	t->timer.expires = len;
+	t->timer.expires = jiffies+len;
 	add_timer (&t->timer);
 }
 
@@ -92,17 +92,13 @@ void net_timer (unsigned long data)
 	 * only process if socket is not in use
 	 */
 
-	cli();
-	if (sk->inuse || in_bh) 
+	if (sk->users)
 	{
-		sk->timer.expires = 10;
+		sk->timer.expires = jiffies+HZ;
 		add_timer(&sk->timer);
 		sti();
 		return;
 	}
-
-	sk->inuse = 1;
-	sti();
 
 	/* Always see if we need to send an ack. */
 
@@ -118,10 +114,15 @@ void net_timer (unsigned long data)
 	switch (why) 
 	{
 		case TIME_DONE:
-			if (! sk->dead || sk->state != TCP_CLOSE) 
+			/* If the socket hasn't been closed off, re-try a bit later */
+			if (!sk->dead) {
+				net_reset_timer(sk, TIME_DONE, TCP_DONE_TIME);
+				break;
+			}
+
+			if (sk->state != TCP_CLOSE) 
 			{
-				printk ("non dead socket in time_done\n");
-				release_sock (sk);
+				printk ("non CLOSE socket in time_done\n");
 				break;
 			}
 			destroy_sock (sk);
@@ -132,31 +133,22 @@ void net_timer (unsigned long data)
 		 *	We've waited for a while for all the memory associated with
 		 *	the socket to be freed.
 		 */
-			if(sk->wmem_alloc!=0 || sk->rmem_alloc!=0)
-			{
-				sk->wmem_alloc++;	/* So it DOESN'T go away */
-				destroy_sock (sk);
-				sk->wmem_alloc--;	/* Might now have hit 0 - fall through and do it again if so */
-				sk->inuse = 0;	/* This will be ok, the destroy won't totally work */
-			}
-			if(sk->wmem_alloc==0 && sk->rmem_alloc==0)
-				destroy_sock(sk);	/* Socket gone, DON'T update sk->inuse! */
-				break;
+
+			destroy_sock(sk);
+			break;
+
 		case TIME_CLOSE:
 			/* We've waited long enough, close the socket. */
 			sk->state = TCP_CLOSE;
-			delete_timer (sk);
-			/* Kill the ARP entry in case the hardware has changed. */
-			arp_destroy (sk->daddr, 0);
+			net_delete_timer (sk);
 			if (!sk->dead)
 				sk->state_change(sk);
 			sk->shutdown = SHUTDOWN_MASK;
-			reset_timer (sk, TIME_DESTROY, TCP_DONE_TIME);
-			release_sock (sk);
+			net_reset_timer (sk, TIME_DONE, TCP_DONE_TIME);
 			break;
+
 		default:
 			printk ("net_timer: timer expired - reason %d is unknown\n", why);
-			release_sock (sk);
 			break;
 	}
 }

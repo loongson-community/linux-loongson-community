@@ -8,9 +8,12 @@
 
 #ifdef __KERNEL__
 
-#define CONFIG_STRICT_MM_TYPECHECKS
+#define STRICT_MM_TYPECHECKS
 
-#ifdef CONFIG_STRICT_MM_TYPECHECKS
+#define clear_page(page)	memset((void *)(page), 0, PAGE_SIZE)
+#define copy_page(to,from)	memcpy((void *)(to), (void *)(from), PAGE_SIZE)
+
+#ifdef STRICT_MM_TYPECHECKS
 /*
  * These are used to make use of C type-checking..
  */
@@ -50,20 +53,28 @@ typedef unsigned long pgprot_t;
 
 #endif
 
-#define invalidate() \
-__asm__ __volatile__("movl %%cr3,%%eax\n\tmovl %%eax,%%cr3": : :"ax")
-
-#define copy_page(from,to) memcpy((void *) to, (void *) from, PAGE_SIZE)
+/*
+ * We special-case the C-O-W ZERO_PAGE, because it's such
+ * a common occurrence (no need to read the page to know
+ * that it's zero - better for the cache and memory subsystem).
+ */
+extern inline inline void copy_page(unsigned long from, unsigned long to)
+{
+	if (from == ZERO_PAGE) {
+		memset((void *) to, 0, PAGE_SIZE);
+		return;
+	}
+	memcpy((void *) to, (void *) from, PAGE_SIZE);
+}
 
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
 /* This handles the memory map.. */
-#define PAGE_OFFSET		0
-#define MAP_NR(addr)		(((unsigned long)(addr)) >> PAGE_SHIFT)
-#define MAP_PAGE_RESERVED	(1<<15)
-
-typedef unsigned short mem_map_t;
+#define PAGE_OFFSET		0xC0000000
+#define __pa(x)			((unsigned long)(x)-PAGE_OFFSET)
+#define __va(x)			((void *)((unsigned long)(x)+PAGE_OFFSET))
+#define MAP_NR(addr)		(__pa(addr) >> PAGE_SHIFT)
 
 #endif /* __KERNEL__ */
 

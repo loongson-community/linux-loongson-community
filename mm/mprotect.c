@@ -13,7 +13,7 @@
 #include <linux/string.h>
 #include <linux/malloc.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/pgtable.h>
 
@@ -38,7 +38,7 @@ static inline void change_pte_range(pmd_t * pmd, unsigned long address,
 	do {
 		pte_t entry = *pte;
 		if (pte_present(entry))
-			*pte = pte_modify(entry, newprot);
+			set_pte(pte, pte_modify(entry, newprot));
 		address += PAGE_SIZE;
 		pte++;
 	} while (address < end);
@@ -72,14 +72,16 @@ static inline void change_pmd_range(pgd_t * pgd, unsigned long address,
 static void change_protection(unsigned long start, unsigned long end, pgprot_t newprot)
 {
 	pgd_t *dir;
+	unsigned long beg = start;
 
-	dir = pgd_offset(current, start);
+	dir = pgd_offset(current->mm, start);
+	flush_cache_range(current->mm, beg, end);
 	while (start < end) {
 		change_pmd_range(dir, start, end - start, newprot);
 		start = (start + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	invalidate();
+	flush_tlb_range(current->mm, beg, end);
 	return;
 }
 
@@ -110,7 +112,7 @@ static inline int mprotect_fixup_start(struct vm_area_struct * vma,
 		n->vm_inode->i_count++;
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
-	insert_vm_struct(current, n);
+	insert_vm_struct(current->mm, n);
 	return 0;
 }
 
@@ -133,7 +135,7 @@ static inline int mprotect_fixup_end(struct vm_area_struct * vma,
 		n->vm_inode->i_count++;
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
-	insert_vm_struct(current, n);
+	insert_vm_struct(current->mm, n);
 	return 0;
 }
 
@@ -167,8 +169,8 @@ static inline int mprotect_fixup_middle(struct vm_area_struct * vma,
 		vma->vm_ops->open(left);
 		vma->vm_ops->open(right);
 	}
-	insert_vm_struct(current, left);
-	insert_vm_struct(current, right);
+	insert_vm_struct(current->mm, left);
+	insert_vm_struct(current->mm, right);
 	return 0;
 }
 
@@ -214,7 +216,7 @@ asmlinkage int sys_mprotect(unsigned long start, size_t len, unsigned long prot)
 		return -EINVAL;
 	if (end == start)
 		return 0;
-	vma = find_vma(current, start);
+	vma = find_vma(current->mm, start);
 	if (!vma || vma->vm_start > start)
 		return -EFAULT;
 
@@ -246,6 +248,6 @@ asmlinkage int sys_mprotect(unsigned long start, size_t len, unsigned long prot)
 			break;
 		}
 	}
-	merge_segments(current, start, end);
+	merge_segments(current->mm, start, end);
 	return error;
 }

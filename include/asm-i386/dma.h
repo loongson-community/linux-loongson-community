@@ -70,7 +70,7 @@
 #define MAX_DMA_CHANNELS	8
 
 /* The maximum address that we can perform a DMA transfer to on this platform */
-#define MAX_DMA_ADDRESS      0x1000000
+#define MAX_DMA_ADDRESS      (PAGE_OFFSET+0x1000000)
 
 /* 8237 DMA controllers */
 #define IO_DMA1_BASE	0x00	/* 8 bit slave DMA, channels 0..3 */
@@ -264,8 +264,7 @@ static __inline__ int get_dma_residue(unsigned int dmanr)
 
 
 /* These are in kernel/dma.c: */
-extern int request_dma(unsigned int dmanr, char * device_id);	/* reserve a DMA channel */
+extern int request_dma(unsigned int dmanr, const char * device_id);	/* reserve a DMA channel */
 extern void free_dma(unsigned int dmanr);	/* release it again */
-
 
 #endif /* _ASM_DMA_H */

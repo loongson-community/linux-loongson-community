@@ -1,15 +1,29 @@
 
-	Linux kernel release 1.2.xx
+	Linux kernel release 2.1.xx
 
-These are the release notes for linux version 1.2.  Read them carefully,
+These are the release notes for linux version 2.1.  Read them carefully,
 as they tell you what this is all about, explain how to install the
 kernel, and what to do if something goes wrong. 
 
+Linux version 2.1 is a DEVELOPMENT kernel, and not intended for general
+public use.  Different releases may have various and sometimes severe
+bugs.  It is *strongly* recommended that you back up the previous kernel
+before installing any new 2.1.xx release.
+
+If you need to use a proven and stable Linux kernel, please use 1.0.9,
+1.2.13, or 2.0.xx.  All features which will be in the 2.1.xx releases will
+be contained in 2.2.xx when the code base has stabilized again.
+
+If you decide to use 2.1, it is recommended that you join the kernel mailing
+list.  To do this, e-mail majordomo@vger.rutgers.edu, and put in the body
+of the message "subscribe linux-kernel" or "subscribe linux-kernel-digest"
+for a daily digest of the mailing list (it is a high-traffic list.)
+
 WHAT IS LINUX?
 
-  Linux is a Unix clone for 386/486-based PCs written from scratch by
-  Linus Torvalds with assistance from a loosely-knit team of hackers
-  across the Net.  It aims towards POSIX compliance. 
+  Linux is a Unix clone written from scratch by Linus Torvalds with
+  assistance from a loosely-knit team of hackers across the Net.
+  It aims towards POSIX compliance. 
 
   It has all the features you would expect in a modern fully-fledged
   Unix, including true multitasking, virtual memory, shared libraries,
@@ -19,29 +33,38 @@ WHAT IS LINUX?
   It is distributed under the GNU General Public License - see the
   accompanying COPYING file for more details. 
 
+ON WHAT HARDWARE DOES IT RUN?
+
+  Linux was first developed for 386/486-based PCs.  These days it also
+  runs on DEC Alphas, SUN Sparcs, M68000 machines (like Atari and Amiga),
+  MIPS and PowerPC.
+
 DOCUMENTATION:
 
- - there is a lot of documentation available both in electronic form on
+ - There is a lot of documentation available both in electronic form on
    the internet and in books, both Linux-specific and pertaining to
    general UNIX questions.  I'd recommend looking into the documentation
    subdirectories on any Linux ftp site for the LDP (Linux Documentation
    Project) books.  This README is not meant to be documentation on the
    system: there are much better sources available.
 
+ - There are various readme's in the kernel Documentation/ subdirectory:
+   these typically contain kernel-specific installation notes for some 
+   drivers for example. See ./Documentation/00-INDEX for a list of what
+   is contained in each file.
+
 INSTALLING the kernel:
 
  - If you install the full sources, do a
 
 		cd /usr/src
-		gzip -cd linux-1.2.XX.tar.gz | tar xfv -
+		gzip -cd linux-2.1.XX.tar.gz | tar xfv -
 
    to get it all put in place. Replace "XX" with the version number of the
    latest kernel.
 
- - Installing by patching is not worth the effort because the full set of
-   patches is bigger than a new kernel distribution. Instead, get the
-   latest full source archive and install as above. Then, get all newer
-   patch files, and do
+ - You can also upgrade between 2.1.xx releases by patching.  To install
+   by patching, get all the newer patch files and do
 
 		cd /usr/src
 		gzip -cd patchXX.gz | patch -p0
@@ -52,16 +75,28 @@ INSTALLING the kernel:
    failed patches (xxx# or xxx.rej). If there are, either you or me has
    made a mistake.
 
- - make sure your /usr/include/linux and /usr/include/asm directories
-   are just symlinks to the kernel sources:
+   Alternatively, the script patch-kernel can be used to automate this
+   process.  It determines the current kernel version and applies any
+   patches found.
+
+		cd /usr/src
+		linux/scripts/patch-kernel
+
+   The default directory for the kernel source is /usr/src/linux, but
+   can be specified as the first argument.  Patches are applied from
+   the current directory, but an alternative directory can be specified
+   as the second argument.
+
+ - Make sure your /usr/include/asm, /usr/include/linux, and /usr/include/scsi
+   directories are just symlinks to the kernel sources:
 
 		cd /usr/include
-		rm -rf linux
-		rm -rf asm
-		ln -s /usr/src/linux/include/linux linux
+		rm -rf asm linux scsi
 		ln -s /usr/src/linux/include/asm-i386 asm
+		ln -s /usr/src/linux/include/linux linux
+		ln -s /usr/src/linux/include/scsi scsi
 
- - make sure you have no stale .o files and dependencies lying around:
+ - Make sure you have no stale .o files and dependencies lying around:
 
 		cd /usr/src/linux
 		make mrproper
@@ -70,18 +105,21 @@ INSTALLING the kernel:
 
 CONFIGURING the kernel:
 
- - do a "make config" to configure the basic kernel.  "make config"
+ - Do a "make config" to configure the basic kernel.  "make config"
    needs bash to work: it will search for bash in $BASH, /bin/bash and
    /bin/sh (in that order), so hopefully one of those is correct. 
 
+ - Alternate configuration commands are:
+	"make menuconfig"  Text based color menus, radiolists & dialogs.
+	"make xconfig"     X windows based configuration tool.
+   
 	NOTES on "make config":
 	- having unnecessary drivers will make the kernel bigger, and can
 	  under some circumstances lead to problems: probing for a
 	  nonexistent controller card may confuse your other controllers
-	- compiling the kernel with "-m486" for a number of 486-specific
-	  will result in a kernel that still works on a 386: it may be
-	  slightly larger and possibly slower by an insignificant amount,
-	  but it should not hurt performance. 
+	- compiling the kernel with "Processor type" set higher than 386
+	  will result in a kernel that does NOT work on a 386.  The
+	  kernel will detect this on bootup, and give up.
 	- A kernel with math-emulation compiled in will still use the
 	  coprocessor if one is present: the math emulation will just
 	  never get used in that case.  The kernel will be slightly larger,
@@ -101,19 +139,33 @@ CONFIGURING the kernel:
 
 COMPILING the kernel:
 
- - make sure you have gcc-2.5.8 or newer available.  It seems older gcc
-   versions can have problems compiling newer versions of linux.  If you
-   upgrade your compiler, remember to get the new binutils package too
-   (for as/ld/nm and company). Do not use gcc-2.6.0; it has a few serious
-   bugs.
+ - Make sure you have gcc-2.7.0 or newer available.  It seems older gcc
+   versions can have problems compiling newer versions of linux.  This
+   is mainly because the older compilers can only generate "a.out"-format
+   executables.  As of Linux 2.1.0, the kernel must be compiled as an
+   "ELF" binary.  If you upgrade your compiler, remember to get the new
+   binutils package too (for as/ld/nm and company).
 
- - do a "make zImage" to create a compressed kernel image.  If you want
+   Please note that you can still run a.out user programs with this
+   kernel.
+
+ - Do a "make zImage" to create a compressed kernel image.  If you want
    to make a bootdisk (without root filesystem or lilo), insert a floppy
    in your A: drive, and do a "make zdisk".  It is also possible to do
    "make zlilo" if you have lilo installed to suit the kernel makefiles,
    but you may want to check your particular lilo setup first. 
 
- - keep a backup kernel handy in case something goes wrong. 
+ - If your kernel is too large for "make zImage", use "make bzImage"
+   instead.
+
+ - If you configured any of the parts of the kernel as `modules', you
+   will have to do "make modules" followed by "make modules_install".
+   Read Documentation/modules.txt for more information.  For example,
+   an explanation of how to use the modules is included there.
+
+ - Keep a backup kernel handy in case something goes wrong.  This is 
+   especially true for the development releases, since each new release
+   contains new code which has not been debugged. 
 
  - In order to boot your new kernel, you'll need to copy the kernel
    image (found in /usr/src/linux/arch/i386/boot/zImage after compilation)
@@ -121,7 +173,10 @@ COMPILING the kernel:
 
    For some, this is on a floppy disk, in which case you can "cp
    /usr/src/linux/arch/i386/boot/zImage /dev/fd0" to make a bootable
-   floppy. 
+   floppy.  Please note that you can not boot a kernel by
+   directly dumping it to a 720k double-density 3.5" floppy.  In this
+   case, it is highly recommended that you install LILO on your
+   double-density boot floppy or switch to high-density floppies.
 
    If you boot Linux from the hard drive, chances are you use LILO which
    uses the kernel image as specified in the file /etc/lilo.conf.  The
@@ -144,11 +199,14 @@ COMPILING the kernel:
    alternatively the LILO boot options when appropriate).  No need to
    recompile the kernel to change these parameters. 
 
- - reboot with the new kernel and enjoy. 
+ - Reboot with the new kernel and enjoy. 
 
 IF SOMETHING GOES WRONG:
 
- - if you have problems that seem to be due to kernel bugs, please mail
+ - If you have problems that seem to be due to kernel bugs, please check
+   the file MAINTAINERS to see if there is a particular person associated
+   with the part of the kernel that you are having trouble with. If there
+   isn't anyone listed there, then the second best thing is to mail
    them to me (Linus.Torvalds@Helsinki.FI), and possibly to any other
    relevant mailing-list or to the newsgroup.  The mailing-lists are
    useful especially for SCSI and NETworking problems, as I can't test
@@ -159,7 +217,7 @@ IF SOMETHING GOES WRONG:
    sense).  If the problem is new, tell me so, and if the problem is
    old, please try to tell me when you first noticed it.
 
- - if the bug results in a message like
+ - If the bug results in a message like
 
 	unable to handle kernel paging request at address C0000010
 	Oops: 0002
@@ -175,9 +233,14 @@ IF SOMETHING GOES WRONG:
    incomprehensible to you, but it does contain information that may
    help debugging the problem.  The text above the dump is also
    important: it tells something about why the kernel dumped code (in
-   the above example it's due to a bad kernel pointer)
+   the above example it's due to a bad kernel pointer). More information
+   on making sense of the dump is in Documentation/oops-tracing.txt
 
- - in debugging dumps like the above, it helps enormously if you can
+ - You can use the "ksymoops" program to make sense of the dump.  Find
+   the C++ sources under the scripts/ directory to avoid having to do
+   the dump lookup by hand:
+
+ - In debugging dumps like the above, it helps enormously if you can
    look up what the EIP value means.  The hex value as such doesn't help
    me or anybody else very much: it will depend on your particular
    kernel setup.  What you should do is take the hex value from the EIP
@@ -208,7 +271,7 @@ IF SOMETHING GOES WRONG:
    kernel image or similar), telling me as much about your setup as
    possible will help. 
 
- - alternately, you can use gdb on a running kernel. (read-only; i.e. you
+ - Alternately, you can use gdb on a running kernel. (read-only; i.e. you
    cannot change values or set break points.) To do this, first compile the
    kernel with -g; edit arch/i386/Makefile appropriately, then do a "make
    clean". You'll also need to enable CONFIG_PROC_FS (via "make config").

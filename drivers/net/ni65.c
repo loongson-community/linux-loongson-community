@@ -1,33 +1,63 @@
 /*
- * ni6510 (am7990 'lance' chip) driver for Linux-net-3 by MH
- * Alphacode v0.33 (94/08/22) for 1.1.47 (or later)
+ * ni6510 (am7990 'lance' chip) driver for Linux-net-3
+ * BETAcode v0.71 (96/09/29) for 2.0.0 (or later)
+ * copyrights (c) 1994,1995,1996 by M.Hipp
+ * 
+ * This driver can handle the old ni6510 board and the newer ni6510 
+ * EtherBlaster. (probably it also works with every full NE2100 
+ * compatible card)
  *
- * ----------------------------------------------------------
- * WARNING: DOESN'T WORK ON MACHINES WITH MORE THAN 16MB !!!!
- * ----------------------------------------------------------
- *
- * copyright (c) 1994 M.Hipp
+ * To compile as module, type:
+ *     gcc -O2 -fomit-frame-pointer -m486 -D__KERNEL__ -DMODULE -c ni65.c
+ * driver probes: io: 0x360,0x300,0x320,0x340 / dma: 3,5,6,7
  *
  * This is an extension to the Linux operating system, and is covered by the
  * same Gnu Public License that covers the Linux-kernel.
  *
  * comments/bugs/suggestions can be sent to:
- *    Michael Hipp
- *    email: mhipp@student.uni-tuebingen.de
+ *   Michael Hipp
+ *   email: Michael.Hipp@student.uni-tuebingen.de
  *
  * sources:
- *  some things are from the 'ni6510-packet-driver for dos by Russ Nelson'
- *  and from the original drivers by D.Becker
- */
-
-/*
- * Aug.22: changes in xmit_intr (ack more than one xmitted-packet), ni65_send_packet (p->lock) (MH)
+ *   some things are from the 'ni6510-packet-driver for dos by Russ Nelson'
+ *   and from the original drivers by D.Becker
  *
- * July.16: fixed bugs in recv_skb and skb-alloc stuff  (MH)
+ * known problems:
+ *   - on some PCI boards (including my own) the card/board/ISA-bridge has
+ *     problems with bus master DMA. This results in lotsa overruns.
+ *     It may help to '#define RCV_PARANOIA_CHECK' or try to #undef
+ *     the XMT and RCV_VIA_SKB option .. this reduces driver performance.
+ *     Or just play with your BIOS options to optimize ISA-DMA access.
+ *     Maybe you also wanna play with the LOW_PERFORAMCE and MID_PERFORMANCE
+ *     defines -> please report me your experience then
+ *   - Harald reported for ASUS SP3G mainboards, that you should use
+ *     the 'optimal settings' from the user's manual on page 3-12!
+ *
+ * credits:
+ *   thanx to Jason Sullivan for sending me a ni6510 card!
+ *   lot of debug runs with ASUS SP3G Boards (Intel Saturn) by Harald Koenig
+ *
+ * simple performance test: (486DX-33/Ni6510-EB receives from 486DX4-100/Ni6510-EB)
+ *    average: FTP -> 8384421 bytes received in 8.5 seconds
+ *           (no RCV_VIA_SKB,no XMT_VIA_SKB,PARANOIA_CHECK,4 XMIT BUFS, 8 RCV_BUFFS)
+ *    peak: FTP -> 8384421 bytes received in 7.5 seconds 
+ *           (RCV_VIA_SKB,XMT_VIA_SKB,no PARANOIA_CHECK,1(!) XMIT BUF, 16 RCV BUFFS)
  */
 
 /*
- * known BUGS: 16MB limit
+ * 96.Sept.29: virt_to_bus stuff added for new memory modell
+ * 96.April.29: Added Harald Koenig's Patches (MH)
+ * 96.April.13: enhanced error handling .. more tests (MH)
+ * 96.April.5/6: a lot of performance tests. Got it stable now (hopefully) (MH)
+ * 96.April.1: (no joke ;) .. added EtherBlaster and Module support (MH)
+ * 96.Feb.19: fixed a few bugs .. cleanups .. tested for 1.3.66 (MH)
+ *            hopefully no more 16MB limit
+ *
+ * 95.Nov.18: multicast tweaked (AC).
+ *
+ * 94.Aug.22: changes in xmit_intr (ack more than one xmitted-packet), ni65_send_packet (p->lock) (MH)
+ *
+ * 94.July.16: fixed bugs in recv_skb and skb-alloc stuff  (MH)
  */
 
 #include <linux/kernel.h>
@@ -38,6 +68,7 @@
 #include <linux/ioport.h>
 #include <linux/malloc.h>
 #include <linux/interrupt.h>
+#include <linux/delay.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/dma.h>
@@ -46,207 +77,399 @@
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 
+#include <linux/version.h>
+#include <linux/module.h>
+
 #include "ni65.h"
 
-/************************************
- * skeleton-stuff
- */
-
-#ifndef HAVE_PORTRESERVE
-#define check_region(ioaddr, size)              0
-#define request_region(ioaddr, size,name)       do ; while (0)
-#endif
-
-#ifndef NET_DEBUG
-#define NET_DEBUG 2
-#endif
 /*
-static unsigned int net_debug = NET_DEBUG;
-*/
+ * the current setting allows an acceptable performance
+ * for 'RCV_PARANOIA_CHECK' read the 'known problems' part in 
+ * the header of this file
+ * 'invert' the defines for max. performance. This may cause DMA problems
+ * on some boards (e.g on my ASUS SP3G)
+ */
+#undef XMT_VIA_SKB
+#undef RCV_VIA_SKB
+#define RCV_PARANOIA_CHECK
 
-#define NI65_TOTAL_SIZE    16
+#define MID_PERFORMANCE
 
-#define SA_ADDR0 0x02
-#define SA_ADDR1 0x07
-#define SA_ADDR2 0x01
-#define CARD_ID0 0x00
-#define CARD_ID1 0x55
+#if   defined( LOW_PERFORMANCE )
+ static int isa0=7,isa1=7,csr80=0x0c10;
+#elif defined( MID_PERFORMANCE )
+ static int isa0=5,isa1=5,csr80=0x2810;
+#else	/* high performance */
+ static int isa0=4,isa1=4,csr80=0x0017;
+#endif
 
-/*****************************************/
+/*
+ * a few card/vendor specific defines
+ */
+#define NI65_ID0    0x00
+#define NI65_ID1    0x55
+#define NI65_EB_ID0 0x52
+#define NI65_EB_ID1 0x44
+#define NE2100_ID0  0x57
+#define NE2100_ID1  0x57
 
-#define PORT dev->base_addr
+#define PORT p->cmdr_addr
 
+/*
+ * buffer configuration
+ */
+#if 1
+#define RMDNUM 16
+#define RMDNUMMASK 0x80000000 
+#else
 #define RMDNUM 8
-#define RMDNUMMASK 0x6000 /* log2(RMDNUM)<<13 */
+#define RMDNUMMASK 0x60000000 /* log2(RMDNUM)<<29 */
+#endif
+
+#if 0
+#define TMDNUM 1
+#define TMDNUMMASK 0x00000000
+#else
 #define TMDNUM 4
-#define TMDNUMMASK 0x4000 /* log2(TMDNUM)<<13 */
+#define TMDNUMMASK 0x40000000 /* log2(TMDNUM)<<29 */
+#endif
 
-#define R_BUF_SIZE 1518
-#define T_BUF_SIZE 1518
+/* slightly oversized */
+#define R_BUF_SIZE 1544
+#define T_BUF_SIZE 1544
 
-#define MEMSIZE 8+RMDNUM*8+TMDNUM*8
-
+/*
+ * lance register defines
+ */
 #define L_DATAREG 0x00
 #define L_ADDRREG 0x02
-
 #define L_RESET   0x04
 #define L_CONFIG  0x05
-#define L_EBASE   0x08
+#define L_BUSIF   0x06
 
 /* 
- * to access the am7990-regs, you have to write
+ * to access the lance/am7990-regs, you have to write
  * reg-number into L_ADDRREG, then you can access it using L_DATAREG
  */
-#define CSR0 0x00
-#define CSR1 0x01
-#define CSR2 0x02
-#define CSR3 0x03
+#define CSR0  0x00
+#define CSR1  0x01
+#define CSR2  0x02
+#define CSR3  0x03
 
-/* if you #define NO_STATIC the driver is faster but you will have (more) problems with >16MB memory */
-#undef NO_STATIC
+#define INIT_RING_BEFORE_START	0x1
+#define FULL_RESET_ON_ERROR	0x2
 
+#if 0
 #define writereg(val,reg) {outw(reg,PORT+L_ADDRREG);inw(PORT+L_ADDRREG); \
                            outw(val,PORT+L_DATAREG);inw(PORT+L_DATAREG);}
 #define readreg(reg) (outw(reg,PORT+L_ADDRREG),inw(PORT+L_ADDRREG),\
                        inw(PORT+L_DATAREG))
+#if 0
 #define writedatareg(val) {outw(val,PORT+L_DATAREG);inw(PORT+L_DATAREG);}
+#else
+#define writedatareg(val) {  writereg(val,CSR0); }
+#endif
+#else
+#define writereg(val,reg) {outw(reg,PORT+L_ADDRREG);outw(val,PORT+L_DATAREG);}
+#define readreg(reg) (outw(reg,PORT+L_ADDRREG),inw(PORT+L_DATAREG))
+#define writedatareg(val) { writereg(val,CSR0); }
+#endif
 
-static int   ni65_probe1(struct device *dev,int);
-static void  ni65_interrupt(int irq, struct pt_regs *regs);
-  static void recv_intr(struct device *dev);
-  static void xmit_intr(struct device *dev);
-static int   ni65_open(struct device *dev);
-   static int am7990_reinit(struct device *dev);
-static int   ni65_send_packet(struct sk_buff *skb, struct device *dev);
-static int   ni65_close(struct device *dev);
-static struct enet_statistics *ni65_get_stats(struct device *);
+static unsigned char ni_vendor[] = { 0x02,0x07,0x01 };
 
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
-
-extern void *irq2dev_map[16];
+static struct card {
+	unsigned char id0,id1;
+	short id_offset;
+	short total_size;
+	short cmd_offset;
+	short addr_offset;
+	unsigned char *vendor_id;
+	char *cardname;
+	unsigned char config;
+} cards[] = {
+	{ NI65_ID0,NI65_ID1,0x0e,0x10,0x0,0x8,ni_vendor,"ni6510", 0x1 } ,
+	{ NI65_EB_ID0,NI65_EB_ID1,0x0e,0x18,0x10,0x0,ni_vendor,"ni6510 EtherBlaster", 0x2 } ,
+	{ NE2100_ID0,NE2100_ID1,0x0e,0x18,0x10,0x0,NULL,"generic NE2100", 0x0 }
+};
+#define NUM_CARDS 3
 
 struct priv 
 {
+  struct rmd rmdhead[RMDNUM];
+  struct tmd tmdhead[TMDNUM];
   struct init_block ib; 
-  void *memptr;
-  struct rmd *rmdhead;
-  struct tmd *tmdhead;
   int rmdnum;
   int tmdnum,tmdlast;
+#ifdef RCV_VIA_SKB
   struct sk_buff *recv_skb[RMDNUM];
-  void *tmdbufs[TMDNUM];
+#else
+  void *recvbounce[RMDNUM];
+#endif
+#ifdef XMT_VIA_SKB
+  struct sk_buff *tmd_skb[TMDNUM];
+#endif
+  void *tmdbounce[TMDNUM];
+  int tmdbouncenum;
   int lock,xmit_queued;
   struct enet_statistics stats;
+  void *self;
+  int cmdr_addr;
+  int cardno;
+  int features;
 }; 
 
-int irqtab[] = { 9,12,15,5 }; /* irq config-translate */
-int dmatab[] = { 0,3,5,6 };   /* dma config-translate */
+static int  ni65_probe1(struct device *dev,int);
+static void ni65_interrupt(int irq, void * dev_id, struct pt_regs *regs);
+static void ni65_recv_intr(struct device *dev,int);
+static void ni65_xmit_intr(struct device *dev,int);
+static int  ni65_open(struct device *dev);
+static int  ni65_lance_reinit(struct device *dev);
+static void ni65_init_lance(struct priv *p,unsigned char*,int,int);
+static int  ni65_send_packet(struct sk_buff *skb, struct device *dev);
+static int  ni65_close(struct device *dev);
+static int  ni65_alloc_buffer(struct device *dev);
+static void ni65_free_buffer(struct priv *p);
+static struct enet_statistics *ni65_get_stats(struct device *);
+static void set_multicast_list(struct device *dev);
+
+static int irqtab[] = { 9,12,15,5 }; /* irq config-translate */
+static int dmatab[] = { 0,3,5,6,7 }; /* dma config-translate and autodetect */
+
+static int debuglevel = 1;
 
 /*
- * open (most done by init) 
+ * set 'performance' registers .. we must STOP lance for that
  */
+static void ni65_set_performance(struct priv *p)
+{
+  writereg(CSR0_STOP | CSR0_CLRALL,CSR0); /* STOP */
 
+  if( !(cards[p->cardno].config & 0x02) )
+    return;
+ 
+  outw(80,PORT+L_ADDRREG);
+  if(inw(PORT+L_ADDRREG) != 80)
+    return;
+ 
+  writereg( (csr80 & 0x3fff) ,80); /* FIFO watermarks */
+  outw(0,PORT+L_ADDRREG);
+  outw((short)isa0,PORT+L_BUSIF); /* write ISA 0: DMA_R : isa0 * 50ns */
+  outw(1,PORT+L_ADDRREG);
+  outw((short)isa1,PORT+L_BUSIF); /* write ISA 1: DMA_W : isa1 * 50ns  */
+
+  outw(CSR0,PORT+L_ADDRREG);	/* switch back to CSR0 */
+}
+
+/*
+ * open interface (up)
+ */
 static int ni65_open(struct device *dev)
 {
-  if(am7990_reinit(dev))
+  struct priv *p = (struct priv *) dev->priv;
+  int irqval = request_irq(dev->irq, &ni65_interrupt,0,
+                        cards[p->cardno].cardname,NULL);
+  if (irqval) {
+    printk ("%s: unable to get IRQ %d (irqval=%d).\n", 
+              dev->name,dev->irq, irqval);
+    return -EAGAIN;
+  }
+  irq2dev_map[dev->irq] = dev;
+
+  if(ni65_lance_reinit(dev))
   {
     dev->tbusy     = 0;
     dev->interrupt = 0;
     dev->start     = 1;
+    MOD_INC_USE_COUNT;
     return 0;
   }
   else
   {
+    irq2dev_map[dev->irq] = NULL;
+    free_irq(dev->irq,NULL);
     dev->start = 0;
     return -EAGAIN;
   }
 }
 
+/*
+ * close interface (down)
+ */
 static int ni65_close(struct device *dev)
 {
-  outw(0,PORT+L_RESET); /* that's the hard way */
+  struct priv *p = (struct priv *) dev->priv;
+
+  outw(inw(PORT+L_RESET),PORT+L_RESET); /* that's the hard way */
+
+#ifdef XMT_VIA_SKB
+  {
+    int i;
+    for(i=0;i<TMDNUM;i++)
+    {
+      if(p->tmd_skb[i]) {
+        dev_kfree_skb(p->tmd_skb[i],FREE_WRITE);
+        p->tmd_skb[i] = NULL;
+      }
+    }
+  }
+#endif
+  irq2dev_map[dev->irq] = NULL;
+  free_irq(dev->irq,NULL);
   dev->tbusy = 1;
   dev->start = 0;
+  MOD_DEC_USE_COUNT;
   return 0; 
 }
 
 /* 
  * Probe The Card (not the lance-chip) 
- * and set hardaddress
  */ 
-
+#ifdef MODULE
+static
+#endif
 int ni65_probe(struct device *dev)
 {
-  int *port, ports[] = {0x300,0x320,0x340,0x360, 0};
-  int base_addr = dev->base_addr;
+  int *port;
+  static int ports[] = {0x360,0x300,0x320,0x340, 0};
 
-  if (base_addr > 0x1ff)          /* Check a single specified location. */
-     return ni65_probe1(dev, base_addr);
-  else if (base_addr > 0)         /* Don't probe at all. */
-     return ENXIO;
+  if (dev->base_addr > 0x1ff)          /* Check a single specified location. */
+     return ni65_probe1(dev, dev->base_addr);
+  else if (dev->base_addr > 0)         /* Don't probe at all. */
+     return -ENXIO;
 
   for (port = ports; *port; port++) 
   {
-    int ioaddr = *port;
-    if (check_region(ioaddr, NI65_TOTAL_SIZE))
-       continue;
-    if( !(inb(ioaddr+L_EBASE+6) == CARD_ID0) || 
-        !(inb(ioaddr+L_EBASE+7) == CARD_ID1) )
-       continue;
-    dev->base_addr = ioaddr;
-    if (ni65_probe1(dev, ioaddr) == 0)
+    if (ni65_probe1(dev, *port) == 0)
        return 0;
   }
 
-  dev->base_addr = base_addr;
-  return ENODEV;
+  return -ENODEV;
 }
 
-
+/*
+ * this is the real card probe .. 
+ */
 static int ni65_probe1(struct device *dev,int ioaddr)
 {
-  int i;
-  unsigned char station_addr[6];
+  int i,j;
   struct priv *p; 
 
-  for(i=0;i<6;i++)
-    station_addr[i] = dev->dev_addr[i] = inb(PORT+L_EBASE+i);
+  for(i=0;i<NUM_CARDS;i++) {
+    if(check_region(ioaddr, cards[i].total_size))
+      continue;
+    if(cards[i].id_offset >= 0) {
+      if(inb(ioaddr+cards[i].id_offset+0) != cards[i].id0 ||
+         inb(ioaddr+cards[i].id_offset+1) != cards[i].id1) {
+         continue;
+      }
+    }
+    if(cards[i].vendor_id) {
+      for(j=0;j<3;j++)
+        if(inb(ioaddr+cards[i].addr_offset+j) != cards[i].vendor_id[j])
+          continue;
+    }
+    break;
+  }
+  if(i == NUM_CARDS)
+    return -ENODEV;
 
-  if(station_addr[0] != SA_ADDR0 || station_addr[1] != SA_ADDR1)
-  {
-    printk("%s: wrong Hardaddress \n",dev->name);
-    return ENODEV;
+  for(j=0;j<6;j++)
+    dev->dev_addr[j] = inb(ioaddr+cards[i].addr_offset+j);
+
+  if( (j=ni65_alloc_buffer(dev)) < 0)
+    return j;
+  p = (struct priv *) dev->priv;
+  p->cmdr_addr = ioaddr + cards[i].cmd_offset;
+  p->cardno = i;
+
+  printk("%s: %s found at %#3x, ", dev->name, cards[p->cardno].cardname , ioaddr);
+
+  outw(inw(PORT+L_RESET),PORT+L_RESET); /* first: reset the card */
+  if( (j=readreg(CSR0)) != 0x4) {
+     printk(KERN_ERR "can't RESET card: %04x\n",j);
+     ni65_free_buffer(p);
+     return -EAGAIN;
   }
 
-  if(dev->irq == 0) 
-    dev->irq = irqtab[(inw(PORT+L_CONFIG)>>2)&3];
-  if(dev->dma == 0)  
-    dev->dma = dmatab[inw(PORT+L_CONFIG)&3];
+  outw(88,PORT+L_ADDRREG);
+  if(inw(PORT+L_ADDRREG) == 88) {
+    unsigned long v;
+    v = inw(PORT+L_DATAREG);
+    v <<= 16;
+    outw(89,PORT+L_ADDRREG);
+    v |= inw(PORT+L_DATAREG);
+    printk("Version %#08lx, ",v);
+    p->features = INIT_RING_BEFORE_START;
+  }
+  else {
+    printk("ancient LANCE, ");
+    p->features = 0x0;
+  }
 
-  printk("%s: %s found at %#3x, IRQ %d DMA %d.\n", dev->name,
-           "network card", dev->base_addr, dev->irq,dev->dma);
-
-  {        
-    int irqval = request_irq(dev->irq, &ni65_interrupt,0,"ni65");
-    if (irqval) {
-      printk ("%s: unable to get IRQ %d (irqval=%d).\n", 
-                dev->name,dev->irq, irqval);
-      return EAGAIN;
+  if(test_bit(0,&cards[i].config)) {
+    dev->irq = irqtab[(inw(ioaddr+L_CONFIG)>>2)&3];
+    dev->dma = dmatab[inw(ioaddr+L_CONFIG)&3];
+    printk("IRQ %d (from card), DMA %d (from card).\n",dev->irq,dev->dma);
+  }
+  else {
+    if(dev->dma == 0) {
+		/* 'stuck test' from lance.c */
+      int dma_channels = ((inb(DMA1_STAT_REG) >> 4) & 0x0f) | (inb(DMA2_STAT_REG) & 0xf0);
+      for(i=1;i<5;i++) {
+        int dma = dmatab[i];
+        if(test_bit(dma,&dma_channels) || request_dma(dma,"ni6510"))
+          continue;
+        disable_dma(dma);
+        set_dma_mode(dma,DMA_MODE_CASCADE);
+        enable_dma(dma);
+        ni65_init_lance(p,dev->dev_addr,0,0); /* trigger memory access */
+        disable_dma(dma);
+        free_dma(dma);
+        if(readreg(CSR0) & CSR0_IDON)
+          break;
+      }
+      if(i == 5) {
+        printk("Can't detect DMA channel!\n");
+        ni65_free_buffer(p);
+        return -EAGAIN;
+      }
+      dev->dma = dmatab[i];
+      printk("DMA %d (autodetected), ",dev->dma);
     }
-    if(request_dma(dev->dma, "ni65") != 0)
+    else
+      printk("DMA %d (assigned), ",dev->dma);
+
+    if(dev->irq < 2)
     {
-      printk("%s: Can't request dma-channel %d\n",dev->name,(int) dev->dma);
-      free_irq(dev->irq);
-      return EAGAIN;
+      ni65_init_lance(p,dev->dev_addr,0,0);
+      autoirq_setup(0);
+      writereg(CSR0_INIT|CSR0_INEA,CSR0); /* trigger interrupt */
+
+      if(!(dev->irq = autoirq_report(2)))
+      {
+        printk("Failed to detect IRQ line!\n");
+        ni65_free_buffer(p);
+        return -EAGAIN;
+      }
+      printk("IRQ %d (autodetected).\n",dev->irq);
     }
+    else
+      printk("IRQ %d (assigned).\n",dev->irq);
   }
-  irq2dev_map[dev->irq] = dev;
 
-  /* Grab the region so we can find another board if autoIRQ fails. */
-        request_region(ioaddr,NI65_TOTAL_SIZE,"ni65");
+  if(request_dma(dev->dma, cards[p->cardno].cardname ) != 0)
+  {
+    printk("%s: Can't request dma-channel %d\n",dev->name,(int) dev->dma);
+    ni65_free_buffer(p);
+    return -EAGAIN;
+  }
 
-  p = dev->priv = (void *) kmalloc(sizeof(struct priv),GFP_KERNEL);
-  memset((char *) dev->priv,0,sizeof(struct priv));
+  /* 
+   * Grab the region so we can find another board. 
+   */
+  request_region(ioaddr,cards[p->cardno].total_size,cards[p->cardno].cardname);
+
+  dev->base_addr = ioaddr;
 
   dev->open               = ni65_open;
   dev->stop               = ni65_close;
@@ -260,55 +483,242 @@ static int ni65_probe1(struct device *dev,int ioaddr)
   dev->tbusy          = 0;
   dev->start          = 0;
 
-  if( (p->memptr = kmalloc(MEMSIZE,GFP_KERNEL)) == NULL) {
-    printk("%s: Can't alloc TMD/RMD-buffer.\n",dev->name);
-    return EAGAIN;
-  }
-  if( (unsigned long) (p->memptr + MEMSIZE) & 0xff000000) {
-    printk("%s: Can't alloc TMD/RMD buffer in lower 16MB!\n",dev->name);
-    return EAGAIN;
-  }
-  p->tmdhead = (struct tmd *) ((( (unsigned long)p->memptr ) + 8) & 0xfffffff8);
-  p->rmdhead = (struct rmd *) (p->tmdhead + TMDNUM);   
+  return 0; /* everything is OK */
+}
 
-#ifndef NO_STATIC
-   for(i=0;i<TMDNUM;i++)
-   {
-     if( (p->tmdbufs[i] = kmalloc(T_BUF_SIZE,GFP_ATOMIC)) == NULL) {
-       printk("%s: Can't alloc Xmit-Mem.\n",dev->name);
-       return EAGAIN;
-     }
-     if( (unsigned long) (p->tmdbufs[i]+T_BUF_SIZE) & 0xff000000) {
-       printk("%s: Can't alloc Xmit-Mem in lower 16MB!\n",dev->name);
-       return EAGAIN;
-     }
-   }
+/*
+ * set lance register and trigger init 
+ */
+static void ni65_init_lance(struct priv *p,unsigned char *daddr,int filter,int mode) 
+{
+  int i;
+  u32 pib;
+
+  writereg(CSR0_CLRALL|CSR0_STOP,CSR0);
+
+  for(i=0;i<6;i++)
+    p->ib.eaddr[i] = daddr[i];
+
+  for(i=0;i<8;i++)
+    p->ib.filter[i] = filter;
+  p->ib.mode = mode;
+
+  p->ib.trp = (u32) virt_to_bus(p->tmdhead) | TMDNUMMASK;
+  p->ib.rrp = (u32) virt_to_bus(p->rmdhead) | RMDNUMMASK;
+  writereg(0,CSR3);  /* busmaster/no word-swap */
+  pib = (u32) virt_to_bus(&p->ib);
+  writereg(pib & 0xffff,CSR1);
+  writereg(pib >> 16,CSR2);
+
+  writereg(CSR0_INIT,CSR0); /* this changes L_ADDRREG to CSR0 */
+
+  for(i=0;i<32;i++)
+  {
+    udelay(4000);
+    if(inw(PORT+L_DATAREG) & (CSR0_IDON | CSR0_MERR) )
+      break; /* init ok ? */
+  }
+}
+
+/*
+ * allocate memory area and check the 16MB border
+ */
+static void *ni65_alloc_mem(struct device *dev,char *what,int size,int type)
+{
+  struct sk_buff *skb=NULL;
+  unsigned char *ptr;
+  void *ret;
+
+  if(type) {
+    ret = skb = alloc_skb(2+16+size,GFP_KERNEL|GFP_DMA);
+    if(!skb) {
+      printk("%s: unable to allocate %s memory.\n",dev->name,what);
+      return NULL;
+    }
+    skb->dev = dev;
+    skb_reserve(skb,2+16);
+    skb_put(skb,R_BUF_SIZE);   /* grab the whole space .. (not necessary) */
+    ptr = skb->data;
+  }
+  else {
+    ret = ptr = kmalloc(T_BUF_SIZE,GFP_KERNEL | GFP_DMA);
+    if(!ret) {
+      printk("%s: unable to allocate %s memory.\n",dev->name,what);
+      return NULL;
+    }
+  }
+  if( (u32) virt_to_bus(ptr+size) > 0x1000000) {
+    printk("%s: unable to allocate %s memory in lower 16MB!\n",dev->name,what);
+    if(type)
+      kfree_skb(skb,FREE_WRITE);
+    else
+      kfree(ptr);
+    return NULL;
+  }
+  return ret;
+}
+
+/*
+ * allocate all memory structures .. send/recv buffers etc ...
+ */
+static int ni65_alloc_buffer(struct device *dev)
+{
+  unsigned char *ptr;
+  struct priv *p;
+  int i;
+ 
+  /* 
+   * we need 8-aligned memory ..
+   */
+  ptr = ni65_alloc_mem(dev,"BUFFER",sizeof(struct priv)+8,0);
+  if(!ptr)
+    return -ENOMEM;
+
+  p = dev->priv = (struct priv *) (((unsigned long) ptr + 7) & ~0x7);
+  memset((char *) dev->priv,0,sizeof(struct priv));
+  p->self = ptr;
+
+  for(i=0;i<TMDNUM;i++)
+  {
+#ifdef XMT_VIA_SKB
+    p->tmd_skb[i] = NULL;
 #endif
+    p->tmdbounce[i] = ni65_alloc_mem(dev,"XMIT",T_BUF_SIZE,0);
+    if(!p->tmdbounce[i]) {
+      ni65_free_buffer(p);
+      return -ENOMEM;
+    }
+  }
 
-   for(i=0;i<RMDNUM;i++)
-   {
-     if( (p->recv_skb[i] = (struct sk_buff *) alloc_skb(R_BUF_SIZE,GFP_ATOMIC)) == NULL) {
-       printk("%s: unable to alloc recv-mem\n",dev->name);
-       return EAGAIN;
-     }
-     if( (unsigned long) (p->recv_skb[i]->data + R_BUF_SIZE) & 0xff000000) {
-       printk("%s: unable to alloc receive-memory in lower 16MB!\n",dev->name);
-       return EAGAIN;
-     }
-   }
+  for(i=0;i<RMDNUM;i++)
+  {
+#ifdef RCV_VIA_SKB
+    p->recv_skb[i] = ni65_alloc_mem(dev,"RECV",R_BUF_SIZE,1);
+    if(!p->recv_skb[i]) {
+      ni65_free_buffer(p);
+      return -ENOMEM;
+    }
+#else
+    p->recvbounce[i] = ni65_alloc_mem(dev,"RECV",R_BUF_SIZE,0);
+    if(!p->recvbounce[i]) {
+      ni65_free_buffer(p);
+      return -ENOMEM;
+    }
+#endif
+  }
 
-  return 0; /* we've found everything */
+  return 0; /* everything is OK */
+}
+
+/*
+ * free buffers and private struct 
+ */
+static void ni65_free_buffer(struct priv *p)
+{
+  int i;
+
+  if(!p)
+    return;
+
+  for(i=0;i<TMDNUM;i++) {
+    if(p->tmdbounce[i])
+      kfree(p->tmdbounce[i]);
+#ifdef XMT_VIA_SKB
+    if(p->tmd_skb[i])
+      dev_kfree_skb(p->tmd_skb[i],FREE_WRITE);
+#endif
+  }
+
+  for(i=0;i<RMDNUM;i++)
+  {
+#ifdef RCV_VIA_SKB
+    if(p->recv_skb[i])
+      dev_kfree_skb(p->recv_skb[i],FREE_WRITE);
+#else
+    if(p->recvbounce[i])
+      kfree(p->recvbounce[i]);
+#endif
+  }
+  if(p->self)
+    kfree(p->self);
+}
+
+
+/*
+ * stop and (re)start lance .. e.g after an error
+ */
+static void ni65_stop_start(struct device *dev,struct priv *p)
+{
+  int csr0 = CSR0_INEA;
+
+  writedatareg(CSR0_STOP);
+
+  if(debuglevel > 1)
+    printk("ni65_stop_start\n");
+
+  if(p->features & INIT_RING_BEFORE_START) {
+    int i;
+#ifdef XMT_VIA_SKB
+    struct sk_buff *skb_save[TMDNUM];
+#endif
+    unsigned long buffer[TMDNUM];
+    short blen[TMDNUM];
+
+    if(p->xmit_queued) {
+      while(1) {
+        if((p->tmdhead[p->tmdlast].u.s.status & XMIT_OWN))
+          break;
+        p->tmdlast = (p->tmdlast + 1) & (TMDNUM-1);
+        if(p->tmdlast == p->tmdnum)
+          break;
+      }
+    }
+    
+    for(i=0;i<TMDNUM;i++) {
+      struct tmd *tmdp = p->tmdhead + i;
+#ifdef XMT_VIA_SKB
+      skb_save[i] = p->tmd_skb[i];
+#endif
+      buffer[i] = (u32) bus_to_virt(tmdp->u.buffer);
+      blen[i] = tmdp->blen;
+      tmdp->u.s.status = 0x0;
+    }
+
+    for(i=0;i<RMDNUM;i++) {
+      struct rmd *rmdp = p->rmdhead + i;
+      rmdp->u.s.status = RCV_OWN;
+    }
+    p->tmdnum = p->xmit_queued = 0;
+    writedatareg(CSR0_STRT | csr0);
+
+    for(i=0;i<TMDNUM;i++) {
+      int num = (i + p->tmdlast) & (TMDNUM-1);
+      p->tmdhead[i].u.buffer = (u32) virt_to_bus((char *)buffer[num]); /* status is part of buffer field */
+      p->tmdhead[i].blen = blen[num];
+      if(p->tmdhead[i].u.s.status & XMIT_OWN) {
+         p->tmdnum = (p->tmdnum + 1) & (TMDNUM-1);
+         p->xmit_queued = 1;
+	 writedatareg(CSR0_TDMD | CSR0_INEA | csr0);
+      }
+#ifdef XMT_VIA_SKB
+      p->tmd_skb[i] = skb_save[num];
+#endif
+    }
+    p->rmdnum = p->tmdlast = 0;
+    if(!p->lock)
+      dev->tbusy = (p->tmdnum || !p->xmit_queued) ? 0 : 1;
+    dev->trans_start = jiffies;
+  } 
+  else
+    writedatareg(CSR0_STRT | csr0);
 }
 
 /* 
  * init lance (write init-values .. init-buffers) (open-helper)
  */
-
-static int am7990_reinit(struct device *dev)
+static int ni65_lance_reinit(struct device *dev)
 {
-   int i,j;
-   struct tmd *tmdp;
-   struct rmd *rmdp;
+   int i;
    struct priv *p = (struct priv *) dev->priv;
 
    p->lock = 0;
@@ -318,120 +728,179 @@ static int am7990_reinit(struct device *dev)
    set_dma_mode(dev->dma,DMA_MODE_CASCADE);
    enable_dma(dev->dma); 
 
-   outw(0,PORT+L_RESET); /* first: reset the card */
-   if(inw(PORT+L_DATAREG) != 0x4)
+   outw(inw(PORT+L_RESET),PORT+L_RESET); /* first: reset the card */
+   if( (i=readreg(CSR0) ) != 0x4)
    {
-     printk("%s: can't RESET ni6510 card: %04x\n",dev->name,(int) inw(PORT+L_DATAREG));
+     printk(KERN_ERR "%s: can't RESET %s card: %04x\n",dev->name,
+              cards[p->cardno].cardname,(int) i);
      disable_dma(dev->dma);
-     free_dma(dev->dma);
-     free_irq(dev->irq);
      return 0;
    }
 
-   /* here: memset all buffs to zero */
-
-   memset(p->memptr,0,MEMSIZE);
-
-   p->tmdnum = 0; p->tmdlast = 0;
+   p->rmdnum = p->tmdnum = p->tmdlast = p->tmdbouncenum = 0;
    for(i=0;i<TMDNUM;i++)
    {
-     tmdp = p->tmdhead + i;
-#ifndef NO_STATIC
-     tmdp->u.buffer = (unsigned long) p->tmdbufs[i];     
+     struct tmd *tmdp = p->tmdhead + i;
+#ifdef XMT_VIA_SKB
+     if(p->tmd_skb[i]) {
+       dev_kfree_skb(p->tmd_skb[i],FREE_WRITE);
+       p->tmd_skb[i] = NULL;
+     }
 #endif
+     tmdp->u.buffer = 0x0;
      tmdp->u.s.status = XMIT_START | XMIT_END;
+     tmdp->blen = tmdp->status2 = 0;
    }
 
-   p->rmdnum = 0;
    for(i=0;i<RMDNUM;i++)
    {
-     rmdp = p->rmdhead + i;
-     rmdp->u.buffer = (unsigned long) p->recv_skb[i]->data;
-     rmdp->u.s.status = RCV_OWN;
-     rmdp->blen = -R_BUF_SIZE;
+     struct rmd *rmdp = p->rmdhead + i;
+#ifdef RCV_VIA_SKB
+     rmdp->u.buffer = (u32) virt_to_bus(p->recv_skb[i]->data);
+#else
+     rmdp->u.buffer = (u32) virt_to_bus(p->recvbounce[i]);
+#endif
+     rmdp->blen = -(R_BUF_SIZE-8);
      rmdp->mlen = 0;
+     rmdp->u.s.status = RCV_OWN;
    }
    
-   for(i=0;i<6;i++)
-   {
-     p->ib.eaddr[i] = dev->dev_addr[i];
-   }
-   p->ib.mode = 0;
-   for(i=0;i<8;i++) 
-     p->ib.filter[i] = 0;
-   p->ib.trplow = (unsigned short) (( (unsigned long) p->tmdhead ) & 0xffff);
-   p->ib.trphigh = (unsigned short) ((( (unsigned long) p->tmdhead )>>16) & 0x00ff) | TMDNUMMASK; 
-   p->ib.rrplow = (unsigned short) (( (unsigned long) p->rmdhead ) & 0xffff);
-   p->ib.rrphigh = (unsigned short) ((( (unsigned long) p->rmdhead )>>16) & 0x00ff) | RMDNUMMASK;
-
-   writereg(0,CSR3);  /* busmaster/no word-swap */
-   writereg((unsigned short) (((unsigned long) &(p->ib)) & 0xffff),CSR1);
-   writereg((unsigned short) (((unsigned long) &(p->ib))>>16),CSR2);
-   
-   writereg(CSR0_INIT,CSR0); /* this changes L_ADDRREG to CSR0 */
+   if(dev->flags & IFF_PROMISC)
+     ni65_init_lance(p,dev->dev_addr,0x00,M_PROM);
+   else if(dev->mc_count || dev->flags & IFF_ALLMULTI)
+     ni65_init_lance(p,dev->dev_addr,0xff,0x0);
+   else 
+     ni65_init_lance(p,dev->dev_addr,0x00,0x00);
 
   /*
-   * NOW, WE NEVER WILL CHANGE THE L_ADDRREG, CSR0 IS ALWAYS SELECTED 
+   * ni65_set_lance_mem() sets L_ADDRREG to CSR0
+   * NOW, WE WILL NEVER CHANGE THE L_ADDRREG, CSR0 IS ALWAYS SELECTED 
    */
 
-    for(i=0;i<5;i++)
-    {
-      for(j=0;j<2000000;j++); /* wait a while */
-      if(inw(PORT+L_DATAREG) & CSR0_IDON) break; /* init ok ? */
-    }
-    if(i == 5) 
-    {
-      printk("%s: can't init am7990, status: %04x\n",dev->name,(int) inw(PORT+L_DATAREG));
-      disable_dma(dev->dma);
-      free_dma(dev->dma);
-      free_irq(dev->irq);
-      return 0; /* false */
-    } 
-
-    writedatareg(CSR0_CLRALL | CSR0_INEA | CSR0_STRT); /* start lance , enable interrupts */
-
-    return 1; /* OK */
+   if(inw(PORT+L_DATAREG) & CSR0_IDON)  {
+     ni65_set_performance(p);
+           /* init OK: start lance , enable interrupts */
+     writedatareg(CSR0_CLRALL | CSR0_INEA | CSR0_STRT);
+     return 1; /* ->OK */
+   }
+   printk(KERN_ERR "%s: can't init lance, status: %04x\n",dev->name,(int) inw(PORT+L_DATAREG));
+   disable_dma(dev->dma);
+   return 0; /* ->Error */
 }
  
 /* 
  * interrupt handler  
  */
-
-static void ni65_interrupt(int irq, struct pt_regs * regs)
+static void ni65_interrupt(int irq, void * dev_id, struct pt_regs * regs)
 {
   int csr0;
   struct device *dev = (struct device *) irq2dev_map[irq];
+  struct priv *p;
+  int bcnt = 32;
 
   if (dev == NULL) {
-    printk ("net_interrupt(): irq %d for unknown device.\n", irq);
+    printk (KERN_ERR "ni65_interrupt(): irq %d for unknown device.\n", irq);
     return;
   }
 
-  csr0 = inw(PORT+L_DATAREG);
-  writedatareg(csr0 & CSR0_CLRALL); /* ack interrupts, disable int. */
+  if(set_bit(0,(int *) &dev->interrupt)) {
+    printk("ni65: oops .. interrupt while proceeding interrupt\n");
+    return;
+  }
+  p = (struct priv *) dev->priv;
 
-  dev->interrupt = 1;
+  while(--bcnt) {
+    csr0 = inw(PORT+L_DATAREG);
 
-  if(csr0 & CSR0_ERR)
-  {
-     struct priv *p = (struct priv *) dev->priv;
+#if 0
+    writedatareg( (csr0 & CSR0_CLRALL) ); /* ack interrupts, disable int. */
+#else
+    writedatareg( (csr0 & CSR0_CLRALL) | CSR0_INEA ); /* ack interrupts, interrupts enabled */
+#endif
 
-     if(csr0 & CSR0_BABL)
-       p->stats.tx_errors++;
-     if(csr0 & CSR0_MISS)
-       p->stats.rx_errors++;
+    if(!(csr0 & (CSR0_ERR | CSR0_RINT | CSR0_TINT)))
+      break;
+
+    if(csr0 & CSR0_RINT) /* RECV-int? */
+      ni65_recv_intr(dev,csr0);
+    if(csr0 & CSR0_TINT) /* XMIT-int? */
+      ni65_xmit_intr(dev,csr0);
+
+    if(csr0 & CSR0_ERR)
+    {
+      struct priv *p = (struct priv *) dev->priv;
+      if(debuglevel > 1)
+        printk("%s: general error: %04x.\n",dev->name,csr0);
+      if(csr0 & CSR0_BABL)
+        p->stats.tx_errors++;
+      if(csr0 & CSR0_MISS) {
+        int i;
+        for(i=0;i<RMDNUM;i++)
+          printk("%02x ",p->rmdhead[i].u.s.status);
+        printk("\n");
+        p->stats.rx_errors++;
+      }
+      if(csr0 & CSR0_MERR) {
+        if(debuglevel > 1)
+          printk("%s: Ooops .. memory error: %04x.\n",dev->name,csr0);
+        ni65_stop_start(dev,p);
+      }
+    }
   }
 
-  if(csr0 & CSR0_RINT) /* RECV-int? */
-  { 
-    recv_intr(dev);
-  }
-  if(csr0 & CSR0_TINT) /* XMIT-int? */
-  {  
-    xmit_intr(dev);
+#ifdef RCV_PARANOIA_CHECK
+{
+ int j;
+ for(j=0;j<RMDNUM;j++)
+ {
+  struct priv *p = (struct priv *) dev->priv;
+  int i,k,num1,num2;
+  for(i=RMDNUM-1;i>0;i--) {
+     num2 = (p->rmdnum + i) & (RMDNUM-1);
+     if(!(p->rmdhead[num2].u.s.status & RCV_OWN))
+        break;
   }
 
-  writedatareg(CSR0_INEA);  /* reenable inter. */
+  if(i) {
+    for(k=0;k<RMDNUM;k++) {
+      num1 = (p->rmdnum + k) & (RMDNUM-1);
+      if(!(p->rmdhead[num1].u.s.status & RCV_OWN))
+        break;
+    }
+    if(!k)
+      break;
+
+    if(debuglevel > 0)
+    {
+      char buf[256],*buf1;
+      int k;
+      buf1 = buf;
+      for(k=0;k<RMDNUM;k++) {
+        sprintf(buf1,"%02x ",(p->rmdhead[k].u.s.status)); /* & RCV_OWN) ); */
+        buf1 += 3;
+      }
+      *buf1 = 0;
+      printk(KERN_ERR "%s: Ooops, receive ring corrupted %2d %2d | %s\n",dev->name,p->rmdnum,i,buf);
+    }
+
+    p->rmdnum = num1;
+    ni65_recv_intr(dev,csr0);
+    if((p->rmdhead[num2].u.s.status & RCV_OWN))
+      break;	/* ok, we are 'in sync' again */
+  }
+  else
+    break;
+ }
+}
+#endif
+
+  if( (csr0 & (CSR0_RXON | CSR0_TXON)) != (CSR0_RXON | CSR0_TXON) ) {
+    printk("%s: RX or TX was offline -> restart\n",dev->name);
+    ni65_stop_start(dev,p);
+  }
+  else
+    writedatareg(CSR0_INEA);
+
   dev->interrupt = 0;
 
   return;
@@ -441,50 +910,62 @@ static void ni65_interrupt(int irq, struct pt_regs * regs)
  * We have received an Xmit-Interrupt ..
  * send a new packet if necessary
  */
-
-static void xmit_intr(struct device *dev)
+static void ni65_xmit_intr(struct device *dev,int csr0)
 {
-  int tmdstat;
-  struct tmd *tmdp;
   struct priv *p = (struct priv *) dev->priv;
-
-#ifdef NO_STATIC
-  struct sk_buff *skb;
-#endif
 
   while(p->xmit_queued)
   {
-    tmdp = p->tmdhead + p->tmdlast;
-    tmdstat = tmdp->u.s.status;
+    struct tmd *tmdp = p->tmdhead + p->tmdlast;
+    int tmdstat = tmdp->u.s.status;
+
     if(tmdstat & XMIT_OWN)
       break;
-#ifdef NO_STATIC
-    skb = (struct sk_buff *) p->tmdbufs[p->tmdlast];
-    dev_kfree_skb(skb,FREE_WRITE); 
-#endif
 
     if(tmdstat & XMIT_ERR)
     {
-      printk("%s: xmit-error: %04x %04x\n",dev->name,(int) tmdstat,(int) tmdp->status2);
-      if(tmdp->status2 & XMIT_TDRMASK) 
-        printk("%s: tdr-problems (e.g. no resistor)\n",dev->name);
-
+#if 0
+      if(tmdp->status2 & XMIT_TDRMASK && debuglevel > 3)
+        printk(KERN_ERR "%s: tdr-problems (e.g. no resistor)\n",dev->name);
+#endif
      /* checking some errors */
-      if(tmdp->status2 & XMIT_RTRY) 
+      if(tmdp->status2 & XMIT_RTRY)
         p->stats.tx_aborted_errors++;
-      if(tmdp->status2 & XMIT_LCAR) 
+      if(tmdp->status2 & XMIT_LCAR)
         p->stats.tx_carrier_errors++;
-      p->stats.tx_errors++;
+      if(tmdp->status2 & (XMIT_BUFF | XMIT_UFLO )) {
+		/* this stops the xmitter */
+        p->stats.tx_fifo_errors++;
+        if(debuglevel > 0)
+          printk(KERN_ERR "%s: Xmit FIFO/BUFF error\n",dev->name);
+        if(p->features & INIT_RING_BEFORE_START) {
+          tmdp->u.s.status = XMIT_OWN | XMIT_START | XMIT_END;	/* test: resend this frame */
+          ni65_stop_start(dev,p);
+          break;	/* no more Xmit processing .. */
+        }
+        else
+         ni65_stop_start(dev,p);
+      }
+      if(debuglevel > 2)
+        printk(KERN_ERR "%s: xmit-error: %04x %02x-%04x\n",dev->name,csr0,(int) tmdstat,(int) tmdp->status2);
+      if(!(csr0 & CSR0_BABL)) /* don't count errors twice */
+        p->stats.tx_errors++;
       tmdp->status2 = 0;
     }
     else
       p->stats.tx_packets++;
 
+#ifdef XMT_VIA_SKB
+    if(p->tmd_skb[p->tmdlast]) {
+       dev_kfree_skb(p->tmd_skb[p->tmdlast],FREE_WRITE);
+       p->tmd_skb[p->tmdlast] = NULL;
+    }
+#endif
+
     p->tmdlast = (p->tmdlast + 1) & (TMDNUM-1);
     if(p->tmdlast == p->tmdnum)
       p->xmit_queued = 0;
   }
-
   dev->tbusy = 0;
   mark_bh(NET_BH);
 }
@@ -492,68 +973,90 @@ static void xmit_intr(struct device *dev)
 /*
  * We have received a packet
  */
-
-static void recv_intr(struct device *dev)
+static void ni65_recv_intr(struct device *dev,int csr0)
 {
   struct rmd *rmdp; 
   int rmdstat,len;
-  struct sk_buff *skb,*skb1;
+  int cnt=0;
   struct priv *p = (struct priv *) dev->priv;
 
   rmdp = p->rmdhead + p->rmdnum;
   while(!( (rmdstat = rmdp->u.s.status) & RCV_OWN))
   {
-    if( (rmdstat & (RCV_START | RCV_END)) != (RCV_START | RCV_END) ) /* is packet start & end? */ 
+    cnt++;
+    if( (rmdstat & (RCV_START | RCV_END | RCV_ERR)) != (RCV_START | RCV_END) ) /* error or oversized? */ 
     {
-      if(rmdstat & RCV_START)
-      {
-        p->stats.rx_errors++;
-        p->stats.rx_length_errors++;
-        printk("%s: packet too long\n",dev->name);
+      if(!(rmdstat & RCV_ERR)) {
+        if(rmdstat & RCV_START)
+        {
+          p->stats.rx_length_errors++;
+          printk(KERN_ERR "%s: recv, packet too long: %d\n",dev->name,rmdp->mlen & 0x0fff);
+        }
       }
-      rmdp->u.s.status = RCV_OWN; /* change owner */
+      else {
+        if(debuglevel > 2)
+          printk(KERN_ERR "%s: receive-error: %04x, lance-status: %04x/%04x\n",
+                  dev->name,(int) rmdstat,csr0,(int) inw(PORT+L_DATAREG) );
+        if(rmdstat & RCV_FRAM)
+          p->stats.rx_frame_errors++;
+        if(rmdstat & RCV_OFLO)
+          p->stats.rx_over_errors++;
+        if(rmdstat & RCV_CRC) 
+          p->stats.rx_crc_errors++;
+        if(rmdstat & RCV_BUF_ERR)
+          p->stats.rx_fifo_errors++;
+      }
+      if(!(csr0 & CSR0_MISS)) /* don't count errors twice */
+        p->stats.rx_errors++;
     }
-    else if(rmdstat & RCV_ERR)
+    else if( (len = (rmdp->mlen & 0x0fff) - 4) >= 60)
     {
-      printk("%s: receive-error: %04x\n",dev->name,(int) rmdstat );
-      p->stats.rx_errors++;
-      if(rmdstat & RCV_FRAM) p->stats.rx_frame_errors++;
-      if(rmdstat & RCV_OFLO) p->stats.rx_over_errors++;
-      if(rmdstat & RCV_CRC)  p->stats.rx_crc_errors++;
-      rmdp->u.s.status = RCV_OWN;
-      printk("%s: lance-status: %04x\n",dev->name,(int) inw(PORT+L_DATAREG));
-    }
-    else
-    {
-      len = (rmdp->mlen & 0x0fff) - 4; /* -4: ignore FCS */
-      skb = alloc_skb(R_BUF_SIZE,GFP_ATOMIC);
-      if(skb != NULL)
+#ifdef RCV_VIA_SKB
+      struct sk_buff *skb = alloc_skb(R_BUF_SIZE+2+16,GFP_ATOMIC);
+      if (skb)
+        skb_reserve(skb,16);
+#else
+      struct sk_buff *skb = dev_alloc_skb(len+2);
+#endif
+      if(skb)
       {
-        if( (unsigned long) (skb->data + R_BUF_SIZE) & 0xff000000) {
-          memcpy(skb->data,p->recv_skb[p->rmdnum]->data,len);
-	  skb1 = skb;
+        skb_reserve(skb,2);
+	skb->dev = dev;
+#ifdef RCV_VIA_SKB
+        if( (unsigned long) (skb->data + R_BUF_SIZE) > 0x1000000) {
+          skb_put(skb,len);
+          eth_copy_and_sum(skb, (unsigned char *)(p->recv_skb[p->rmdnum]->data),len,0);
         }
         else {
-          skb1 = p->recv_skb[p->rmdnum];
+          struct sk_buff *skb1 = p->recv_skb[p->rmdnum];
+          skb_put(skb,R_BUF_SIZE);
           p->recv_skb[p->rmdnum] = skb;
-          rmdp->u.buffer = (unsigned long) (skb->data);
+          rmdp->u.buffer = (u32) virt_to_bus(skb->data);
+          skb = skb1;
+          skb_trim(skb,len);
         }
-        rmdp->u.s.status = RCV_OWN;
-        rmdp->mlen = 0;   /* not necc ???? */
-        skb1->len = len;
-        skb1->dev = dev;
+#else
+        skb_put(skb,len);
+        eth_copy_and_sum(skb, (unsigned char *) p->recvbounce[p->rmdnum],len,0);
+#endif
         p->stats.rx_packets++;
-        skb1->protocol=eth_type_trans(skb1,dev);
-        netif_rx(skb1);
+        skb->protocol=eth_type_trans(skb,dev);
+        netif_rx(skb);
       }
       else
       {
-        rmdp->u.s.status = RCV_OWN;
-        printk("%s: can't alloc new sk_buff\n",dev->name);
+        printk(KERN_ERR "%s: can't alloc new sk_buff\n",dev->name);
         p->stats.rx_dropped++;
       }
     }
-    p->rmdnum++; p->rmdnum &= RMDNUM-1;
+    else {
+      printk(KERN_INFO "%s: received runt packet\n",dev->name);
+      p->stats.rx_errors++;
+    }
+    rmdp->blen = -(R_BUF_SIZE-8);
+    rmdp->mlen = 0;
+    rmdp->u.s.status = RCV_OWN; /* change owner */
+    p->rmdnum = (p->rmdnum + 1) & (RMDNUM-1);
     rmdp = p->rmdhead + p->rmdnum;
   }
 }
@@ -561,26 +1064,29 @@ static void recv_intr(struct device *dev)
 /*
  * kick xmitter ..
  */
-
 static int ni65_send_packet(struct sk_buff *skb, struct device *dev)
 {
   struct priv *p = (struct priv *) dev->priv;
-  struct tmd *tmdp;
 
   if(dev->tbusy)
   {
     int tickssofar = jiffies - dev->trans_start;
-    if (tickssofar < 25)
+    if (tickssofar < 50)
       return 1;
 
-    printk("%s: xmitter timed out, try to restart!\n",dev->name);
-    am7990_reinit(dev);
+    printk(KERN_ERR "%s: xmitter timed out, try to restart!\n",dev->name);
+{
+  int i;
+  for(i=0;i<TMDNUM;i++)
+    printk("%02x ",p->tmdhead[i].u.s.status);
+  printk("\n");
+}
+    ni65_lance_reinit(dev);
     dev->tbusy=0;
     dev->trans_start = jiffies;
   }
 
-  if(skb == NULL)
-  {
+  if(skb == NULL) {
     dev_tint(dev);
     return 0;
   }
@@ -588,44 +1094,59 @@ static int ni65_send_packet(struct sk_buff *skb, struct device *dev)
   if (skb->len <= 0)
     return 0;
 
-  if (set_bit(0, (void*)&dev->tbusy) != 0)
-  {
-     printk("%s: Transmitter access conflict.\n", dev->name);
+  if (set_bit(0, (void*)&dev->tbusy) != 0) {
+     printk(KERN_ERR "%s: Transmitter access conflict.\n", dev->name);
      return 1;
   }
-  if(set_bit(0,(void*) &p->lock) != 0)
-  {
-    printk("%s: Queue was locked!\n",dev->name);
-    return 1;
+  if (set_bit(0, (void*)&p->lock)) {
+	printk(KERN_ERR "%s: Queue was locked.\n", dev->name);
+	return 1;
   }
 
   {
     short len = ETH_ZLEN < skb->len ? skb->len : ETH_ZLEN;
+    struct tmd *tmdp;
+    long flags;
 
-    tmdp = p->tmdhead + p->tmdnum;
+#ifdef XMT_VIA_SKB
+    if( (unsigned long) (skb->data + skb->len) > 0x1000000) {
+#endif
 
-#ifdef NO_STATIC
-    tmdp->u.buffer = (unsigned long) (skb->data);
-    p->tmdbufs[p->tmdnum] = skb;
-#else
-    memcpy((char *) (tmdp->u.buffer & 0x00ffffff),(char *)skb->data,skb->len);
-    dev_kfree_skb (skb, FREE_WRITE);
+      memcpy((char *) p->tmdbounce[p->tmdbouncenum] ,(char *)skb->data,
+               (skb->len > T_BUF_SIZE) ? T_BUF_SIZE : skb->len);
+      dev_kfree_skb (skb, FREE_WRITE);
+
+      save_flags(flags);
+      cli();
+
+      tmdp = p->tmdhead + p->tmdnum;
+      tmdp->u.buffer = (u32) virt_to_bus(p->tmdbounce[p->tmdbouncenum]);
+      p->tmdbouncenum = (p->tmdbouncenum + 1) & (TMDNUM - 1);
+
+#ifdef XMT_VIA_SKB
+    }
+    else {
+      save_flags(flags);
+      cli();
+ 
+      tmdp = p->tmdhead + p->tmdnum;
+      tmdp->u.buffer = (u32) virt_to_bus(skb->data);
+      p->tmd_skb[p->tmdnum] = skb;
+    }
 #endif
     tmdp->blen = -len;
+
     tmdp->u.s.status = XMIT_OWN | XMIT_START | XMIT_END;
-
-    cli();
-    p->xmit_queued = 1;
     writedatareg(CSR0_TDMD | CSR0_INEA); /* enable xmit & interrupt */
-    p->tmdnum++; p->tmdnum &= TMDNUM-1;
- 
-    if( !((p->tmdhead + p->tmdnum)->u.s.status & XMIT_OWN) ) 
-      dev->tbusy = 0;
-    p->lock = 0;
-    sti();
 
+    p->xmit_queued = 1;
+    p->tmdnum = (p->tmdnum + 1) & (TMDNUM-1);
+
+    dev->tbusy = (p->tmdnum == p->tmdlast) ? 1 : 0;
+    p->lock = 0;
     dev->trans_start = jiffies;
 
+    restore_flags(flags);
   }
 
   return 0;
@@ -633,14 +1154,75 @@ static int ni65_send_packet(struct sk_buff *skb, struct device *dev)
 
 static struct enet_statistics *ni65_get_stats(struct device *dev)
 {
+
+#if 0
+ int i;
+ struct priv *p = (struct priv *) dev->priv;
+ for(i=0;i<RMDNUM;i++) {
+   struct rmd *rmdp = p->rmdhead + ((p->rmdnum + i) & (RMDNUM-1));
+   printk("%02x ",rmdp->u.s.status);
+ }
+ printk("\n");
+#endif
+
   return &((struct priv *) dev->priv)->stats;
 }
 
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+static void set_multicast_list(struct device *dev)
 {
+	if(!ni65_lance_reinit(dev))
+		printk(KERN_ERR "%s: Can't switch card into MC mode!\n",dev->name);
+	dev->tbusy = 0;
 }
+
+#ifdef MODULE
+static struct device dev_ni65 = {
+  "        ",  /* "ni6510": device name inserted by net_init.c */
+  0, 0, 0, 0,
+  0x360, 9,   /* I/O address, IRQ */
+  0, 0, 0, NULL, ni65_probe };
+
+/* set: io,irq,dma or set it when calling insmod */
+static int irq=0;
+static int io=0;
+static int dma=0;
+
+int init_module(void)
+{
+#if 0
+  if(io <= 0x0 || irq < 2) {
+    printk("ni65: Autoprobing not allowed for modules.\n");
+    printk("ni65: Set symbols 'io' 'irq' and 'dma'\n");
+    return -ENODEV;
+  }
+#endif
+  dev_ni65.irq = irq;
+  dev_ni65.dma = dma;
+  dev_ni65.base_addr = io;
+  if (register_netdev(&dev_ni65) != 0)
+    return -EIO;
+  return 0;
+}
+
+void cleanup_module(void)
+{
+  struct priv *p;
+  p = (struct priv *) dev_ni65.priv;
+  if(!p) {
+    printk("Ooops .. no privat struct\n");
+    return;
+  }
+  disable_dma(dev_ni65.dma);
+  free_dma(dev_ni65.dma);
+  release_region(dev_ni65.base_addr,cards[p->cardno].total_size);
+  ni65_free_buffer(p);
+  dev_ni65.priv = NULL;
+  unregister_netdev(&dev_ni65);
+}
+#endif /* MODULE */
 
 /*
  * END of ni65.c 
  */
+
 

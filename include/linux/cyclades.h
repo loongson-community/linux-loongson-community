@@ -1,19 +1,54 @@
-struct cyclades_card {
-    int base_addr;
-    int irq;
-    int num_chips; /* implies card type, 0 if card is absent */
-    int first_line; /* line number of first channel of first chip on card */
-};
+/*
+ * linux/include/linux/cyclades.h
+ *
+ * This file is maintained by Marcio Saito <marcio@cyclades.com> and
+ * Randolph Bentson <bentson@grieg.seaslug.org>.
+ *
+ * This file contains the general definitions for the cyclades.c driver
+ *$Log: cyclades.h,v $
+ * Revision 1.5  1995/11/13  21:13:31  bentson
+ * changes suggested by Michael Chastain <mec@duracef.shout.net>
+ * to support use of this file in non-kernel applications
+ *
+ *
+ */
 
-struct cyclades_chip {
-  int filler;
-};
+#ifndef _LINUX_CYCLADES_H
+#define _LINUX_CYCLADES_H
 
 struct cyclades_monitor {
         unsigned long           int_count;
         unsigned long           char_count;
         unsigned long           char_max;
         unsigned long           char_last;
+};
+
+#define CYCLADES_MAGIC  0x4359
+
+#define CYGETMON                0x435901
+#define CYGETTHRESH             0x435902
+#define CYSETTHRESH             0x435903
+#define CYGETDEFTHRESH          0x435904
+#define CYSETDEFTHRESH          0x435905
+#define CYGETTIMEOUT            0x435906
+#define CYSETTIMEOUT            0x435907
+#define CYGETDEFTIMEOUT         0x435908
+#define CYSETDEFTIMEOUT         0x435909
+
+#ifdef __KERNEL__
+
+/* Per card data structure */
+
+struct cyclades_card {
+    int base_addr;
+    int irq;
+    int num_chips;	/* 0 if card is absent */
+    int first_line;	/* minor number of first channel on card */
+    int bus_index;	/* address shift - 0 for ISA, 1 for PCI */
+};
+
+struct cyclades_chip {
+  int filler;
 };
 
 /*
@@ -62,18 +97,6 @@ struct cyclades_port {
         struct cyclades_monitor mon;
 };
 
-#define CYCLADES_MAGIC  0x4359
-
-#define CYGETMON                0x435901
-#define CYGETTHRESH             0x435902
-#define CYSETTHRESH             0x435903
-#define CYGETDEFTHRESH          0x435904
-#define CYSETDEFTHRESH          0x435905
-#define CYGETTIMEOUT            0x435906
-#define CYSETTIMEOUT            0x435907
-#define CYGETDEFTIMEOUT         0x435908
-#define CYSETDEFTIMEOUT         0x435909
-
 /*
  * Events are used to schedule things to happen at timer-interrupt
  * time, instead of at cy interrupt time.
@@ -93,6 +116,7 @@ struct cyclades_port {
 #define CyRegSize  0x0400
 #define Cy_HwReset 0x1400
 #define Cy_ClrIntr 0x1800
+#define Cy_EpldRev 0x1e00
 
 /* Global Registers */
 
@@ -255,3 +279,6 @@ struct cyclades_port {
 #define CyMAX_CHAR_FIFO	12
 
 /***************************************************************************/
+
+#endif /* __KERNEL__ */
+#endif /* _LINUX_CYCLADES_H */

@@ -5,17 +5,12 @@
  *
  *  (C) 1991  Linus Torvalds - minix filesystem
  *
+ *  Steve Beynon		       : Missing last directory entries fixed
+ *  (stephen@askone.demon.co.uk)      : 21st June 1996
+ * 
  *  isofs directory handling functions
  */
-
-#ifdef MODULE
-#include <linux/module.h>
-#endif
-
 #include <linux/errno.h>
-
-#include <asm/segment.h>
-
 #include <linux/fs.h>
 #include <linux/iso_fs.h>
 #include <linux/kernel.h>
@@ -25,6 +20,8 @@
 #include <linux/malloc.h>
 #include <linux/sched.h>
 #include <linux/locks.h>
+
+#include <asm/uaccess.h>
 
 static int isofs_readdir(struct inode *, struct file *, void *, filldir_t);
 
@@ -58,6 +55,8 @@ struct inode_operations isofs_dir_inode_operations =
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	isofs_bmap,		/* bmap */
 	NULL,			/* truncate */
 	NULL			/* permission */
@@ -136,11 +135,32 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp,
 #ifdef DEBUG
 		printk("Block, offset, f_pos: %x %x %x\n",
 		       block, offset, filp->f_pos);
+	        printk("inode->i_size = %x\n",inode->i_size);
 #endif
+		/* Next directory_record on next CDROM sector */
+		if (offset >= bufsize) {
+#ifdef DEBUG
+		        printk("offset >= bufsize\n");
+#endif
+			brelse(bh);
+			offset = 0;
+			block = isofs_bmap(inode, (filp->f_pos) >> bufbits);
+			if (!block)
+				return 0;
+			bh = breada(inode->i_dev, block, bufsize, filp->f_pos, inode->i_size);
+			if (!bh)
+				return 0;
+			continue;
+		}
+
 		de = (struct iso_directory_record *) (bh->b_data + offset);
 		inode_number = (block << bufbits) + (offset & (bufsize - 1));
 
 		de_len = *(unsigned char *) de;
+#ifdef DEBUG
+		printk("de_len = %ld\n", de_len);
+#endif
+	    
 
 		/* If the length byte is zero, we should move on to the next
 		   CDROM sector.  If we are at the end of the directory, we
@@ -165,15 +185,31 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp,
 		   If not, put the two halves together in "tmpde" */
 		next_offset = offset + de_len;
 		if (next_offset > bufsize) {
+#ifdef DEBUG
+		        printk("next_offset (%x) > bufsize (%x)\n",next_offset,bufsize);
+#endif
 			next_offset &= (bufsize - 1);
-			memcpy(tmpde, de, bufsize - offset);
+		        memcpy(tmpde, de, bufsize - offset);
 			brelse(bh);
 			block = isofs_bmap(inode, (filp->f_pos + de_len) >> bufbits);
 			if (!block)
+		        {
 				return 0;
-			bh = breada(inode->i_dev, block, bufsize, filp->f_pos+de_len, inode->i_size);
+			}
+		  
+			bh = breada(inode->i_dev, block, bufsize, 
+				    filp->f_pos, 
+				    inode->i_size);
 			if (!bh)
+		        {
+#ifdef DEBUG
+                 		printk("!bh block=%ld, bufsize=%ld\n",block,bufsize); 
+ 				printk("filp->f_pos = %ld\n",filp->f_pos);
+				printk("inode->i_size = %ld\n", inode->i_size);
+#endif
 				return 0;
+			}
+		  
 			memcpy(bufsize - offset + (char *) tmpde, bh->b_data, next_offset);
 			de = tmpde;
 		}
@@ -218,6 +254,7 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp,
 			/* rrflag == 1 means that we have a new name (kmalloced) */
 			if (rrflag == 1) {
 				rrflag = filldir(dirent, name, len, filp->f_pos, inode_number);
+				dcache_add(inode, name, len, inode_number);
 				kfree(name); /* this was allocated in get_r_r_filename.. */
 				if (rrflag < 0)
 					break;
@@ -230,6 +267,7 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp,
 			len = isofs_name_translate(name, len, tmpname);
 			if (filldir(dirent, tmpname, len, filp->f_pos, inode_number) < 0)
 				break;
+			dcache_add(inode, tmpname, len, inode_number);
 			filp->f_pos += de_len;
 			continue;
 		}
@@ -237,6 +275,7 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp,
 		if (filldir(dirent, name, len, filp->f_pos, inode_number) < 0)
 			break;
 
+		dcache_add(inode, name, len, inode_number);
 		filp->f_pos += de_len;
 		continue;
 	}

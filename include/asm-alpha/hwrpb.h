@@ -13,28 +13,33 @@
 #define LCA4_CPU                4       /* LCA4 (21066/21068)   */
 #define EV5_CPU                 5       /* EV5 (21164)          */
 #define EV45_CPU                6       /* EV4.5 (21064/xxx)    */
+#define EV56_CPU		7	/* EV5.6 (21164)	*/
+#define EV6_CPU			8	/* EV6 (21164)		*/
 
 /*
  * DEC system types for Alpha systems.  Found in HWRPB.
  * These values are architected.
  */
 
-#define ST_ADU                  1       /* Alpha ADU systype    */
-#define ST_DEC_4000             2       /* Cobra systype        */
-#define ST_DEC_7000             3       /* Ruby systype         */
-#define ST_DEC_3000_500         4       /* Flamingo systype     */
-#define ST_DEC_2000_300         6       /* Jensen systype       */
-#define ST_DEC_3000_300         7       /* Pelican systype      */
-#define ST_DEC_2100_A500        9       /* Sable systype        */
-#define ST_DEC_AXPVME_64       10       /* AXPvme system type   */
-#define ST_DEC_AXPPCI_33       11       /* NoName system type   */
-#define ST_DEC_TLASER          12       /* Turbolaser systype	*/
-#define ST_DEC_2100_A50        13       /* Avanti systype       */
-#define ST_DEC_MUSTANG         14       /* Mustang systype      */
-#define ST_DEC_ALCOR           15       /* Alcor systype	*/
-#define ST_DEC_1000            17       /* Mikasa systype       */
-#define ST_DEC_EB66            19       /* EB66 systype		*/
-#define ST_DEC_EB64P           20       /* EB64+ systype        */
+#define ST_ADU			  1	/* Alpha ADU systype	*/
+#define ST_DEC_4000		  2	/* Cobra systype	*/
+#define ST_DEC_7000		  3	/* Ruby systype		*/
+#define ST_DEC_3000_500		  4	/* Flamingo systype	*/
+#define ST_DEC_2000_300		  6	/* Jensen systype	*/
+#define ST_DEC_3000_300		  7	/* Pelican systype	*/
+#define ST_DEC_2100_A500	  9	/* Sable systype	*/
+#define ST_DEC_AXPVME_64	 10	/* AXPvme system type	*/
+#define ST_DEC_AXPPCI_33	 11	/* NoName system type	*/
+#define ST_DEC_TLASER		 12	/* Turbolaser systype	*/
+#define ST_DEC_2100_A50		 13	/* Avanti systype	*/
+#define ST_DEC_MUSTANG		 14	/* Mustang systype	*/
+#define ST_DEC_ALCOR		 15	/* Alcor (EV5) systype	*/
+#define ST_DEC_1000		 17	/* Mikasa systype	*/
+#define ST_DEC_EB66		 19	/* EB66 systype		*/
+#define ST_DEC_EB64P		 20	/* EB64+ systype	*/
+#define ST_DEC_EB66P		-19	/* EB66 systype		*/
+#define ST_DEC_EBPC64		-20	/* Cabriolet (AlphaPC64) systype */
+#define ST_DEC_EB164		 26	/* EB164 systype	*/
 
 struct pcb_struct {
 	unsigned long ksp;

@@ -19,7 +19,7 @@
  *
 -*/
 
-static char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
+static const char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
 
 /*
  * The Schneider & Koch (SK) G16 Network device driver is based
@@ -63,7 +63,6 @@ static char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
 #include <linux/ioport.h>
 #include <linux/interrupt.h>
 #include <linux/malloc.h>
-#include <linux/ioport.h>
 #include <linux/string.h> 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -113,7 +112,7 @@ static char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
 
 /* 
  * In POS3 are bits A14-A19 of the address bus. These bits can be set
- * to choose the RAM address. Thats why we only can choose the RAM address
+ * to choose the RAM address. That's why we only can choose the RAM address
  * in 16KB steps.
  */
 
@@ -391,7 +390,7 @@ static char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
  *
  * PROM: The PROM obtains the ETHERNET-MAC-Address. It is realised as a
  *       8-Bit PROM, this means only the 16 even addresses are used of the
- *       32 Byte Address region. Access to a odd address results in invalid
+ *       32 Byte Address region. Access to an odd address results in invalid
  *       data.
  * 
  * LANCE I/O Reg: The I/O Reg is build of 4 single Registers, Low-Byte Write,
@@ -465,7 +464,7 @@ struct priv
 
 /* IRQ map used to reserve a IRQ (see SK_open()) */
 
-extern void *irq2dev_map[16]; 
+/* extern void *irq2dev_map[16]; */ /* Declared in <linux/ioport.h> */
 
 /* static variables */
 
@@ -487,7 +486,7 @@ static int   SK_probe(struct device *dev, short ioaddr);
 
 static int   SK_open(struct device *dev);
 static int   SK_send_packet(struct sk_buff *skb, struct device *dev);
-static void  SK_interrupt(int irq, struct pt_regs * regs);
+static void  SK_interrupt(int irq, void *dev_id, struct pt_regs * regs);
 static void  SK_rxintr(struct device *dev);
 static void  SK_txintr(struct device *dev);
 static int   SK_close(struct device *dev);
@@ -496,9 +495,7 @@ static struct enet_statistics *SK_get_stats(struct device *dev);
 
 unsigned int SK_rom_addr(void);
 
-#ifdef HAVE_MULTICAST
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
-#endif
+static void set_multicast_list(struct device *dev);
 
 /*
  * LANCE Functions
@@ -788,6 +785,8 @@ int SK_probe(struct device *dev, short ioaddr)
 
     /* Allocate memory for private structure */
     p = dev->priv = (void *) kmalloc(sizeof(struct priv), GFP_KERNEL);
+    if (p == NULL)
+	   return -ENOMEM;
     memset((char *) dev->priv, 0, sizeof(struct priv)); /* clear memory */
 
     /* Assign our Device Driver functions */
@@ -796,15 +795,14 @@ int SK_probe(struct device *dev, short ioaddr)
     dev->stop                   = &SK_close;
     dev->hard_start_xmit        = &SK_send_packet;
     dev->get_stats              = &SK_get_stats;
-
-#ifdef HAVE_MULTICAST
     dev->set_multicast_list     = &set_multicast_list;
-#endif
 
 
     /* Set the generic fields of the device structure */
 
     ether_setup(dev);
+    
+    dev->flags &= ~IFF_MULTICAST;
 
     /* Initialize private structure */
 
@@ -887,7 +885,7 @@ static int SK_open(struct device *dev)
 
 	do
 	{
-	  irqval = request_irq(irqtab[i], &SK_interrupt, 0, "sk_g16");
+	  irqval = request_irq(irqtab[i], &SK_interrupt, 0, "sk_g16", NULL);
 	  i++;
 	} while (irqval && irqtab[i]);
 
@@ -904,7 +902,7 @@ static int SK_open(struct device *dev)
     }
     else if (dev->irq == 2) /* IRQ2 is always IRQ9 */
     {
-	if (request_irq(9, &SK_interrupt, 0, "sk_g16"))
+	if (request_irq(9, &SK_interrupt, 0, "sk_g16", NULL))
 	{
 	    printk("%s: unable to get IRQ 9\n", dev->name);
 	    return -EAGAIN;
@@ -925,7 +923,7 @@ static int SK_open(struct device *dev)
 
 	/* check if IRQ free and valid. Then install Interrupt handler */
 
-	if (request_irq(dev->irq, &SK_interrupt, 0, "sk_g16"))
+	if (request_irq(dev->irq, &SK_interrupt, 0, "sk_g16", NULL))
 	{
 	    printk("%s: unable to get selected IRQ\n", dev->name);
 	    return -EAGAIN;
@@ -1300,7 +1298,7 @@ static int SK_send_packet(struct sk_buff *skb, struct device *dev)
  * Description    : SK_G16 interrupt handler which checks for LANCE
  *                  Errors, handles transmit and receive interrupts
  *
- * Parameters     : I : int irq, struct pt_regs * regs -
+ * Parameters     : I : int irq, void *dev_id, struct pt_regs * regs -
  * Return Value   : None
  * Errors         : None
  * Globals        : None
@@ -1309,7 +1307,7 @@ static int SK_send_packet(struct sk_buff *skb, struct device *dev)
  *     YY/MM/DD  uid  Description
 -*/
 
-static void SK_interrupt(int irq, struct pt_regs * regs)
+static void SK_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
     int csr0;
     struct device *dev = (struct device *) irq2dev_map[irq];
@@ -1443,7 +1441,7 @@ static void SK_txintr(struct device *dev)
         /* 
          * Here I have a problem.
          * I only know that there must be one or up to 15 collisions.
-         * Thats why TX_MORE is set, because after 16 attempts TX_RTRY
+         * That's why TX_MORE is set, because after 16 attempts TX_RTRY
          * will be set which means couldn't send packet aborted transfer.
          *
          * First I did not have this in but then I thought at minimum
@@ -1529,14 +1527,14 @@ static void SK_rxintr(struct device *dev)
 	 * not to be concerned (see Data sheet)
 	 */
 
-	if (rmdstat & (RX_STP | RX_ENP) != (RX_STP | RX_ENP))
+	if ((rmdstat & (RX_STP | RX_ENP)) != (RX_STP | RX_ENP))
 	{
 	    /* Start of a frame > 1518 Bytes ? */
 
 	    if (rmdstat & RX_STP) 
 	    {
 		p->stats.rx_errors++;        /* bad packet received */
-		p->stats.rx_length_errors++; /* packet to long */
+		p->stats.rx_length_errors++; /* packet too long */
 
 		printk("%s: packet too long\n", dev->name);
 	    }
@@ -1570,7 +1568,7 @@ static void SK_rxintr(struct device *dev)
 	    int len = (rmdp->mlen & 0x0fff);  /* extract message length from receive buffer */
 	    struct sk_buff *skb;
 
-	    skb = alloc_skb(len, GFP_ATOMIC); /* allocate socket buffer */ 
+	    skb = dev_alloc_skb(len+2); /* allocate socket buffer */ 
 
 	    if (skb == NULL)                /* Could not get mem ? */
 	    {
@@ -1590,8 +1588,8 @@ static void SK_rxintr(struct device *dev)
 	    
 	    /* Prepare sk_buff to queue for upper layers */
 
-            skb->len = len;
 	    skb->dev = dev;
+	    skb_reserve(skb,2);		/* Align IP header on 16 byte boundary */
 	    
 	    /* 
              * Copy data out of our receive descriptor into sk_buff.
@@ -1600,7 +1598,7 @@ static void SK_rxintr(struct device *dev)
 	     * ignore status fields) 
 	     */
 
-	    memcpy(skb->data, (unsigned char *) (rmdp->u.buffer & 0x00ffffff),
+	    memcpy(skb_put(skb,len), (unsigned char *) (rmdp->u.buffer & 0x00ffffff),
 		   len);
 
 
@@ -1666,7 +1664,7 @@ static int SK_close(struct device *dev)
 
     SK_write_reg(CSR0, CSR0_STOP); /* STOP the LANCE */
 
-    free_irq(dev->irq);            /* Free IRQ */
+    free_irq(dev->irq, NULL);      /* Free IRQ */
     irq2dev_map[dev->irq] = 0;     /* Mark IRQ as unused */
 
     return 0; /* always succeed */
@@ -1702,7 +1700,6 @@ static struct enet_statistics *SK_get_stats(struct device *dev)
 
 } /* End of SK_get_stats() */
 
-#ifdef HAVE_MULTICAST
 
 /*-
  * Function       : set_multicast_list
@@ -1720,32 +1717,27 @@ static struct enet_statistics *SK_get_stats(struct device *dev)
  *                  that all information on the net is not encrypted.
  *
  * Parameters     : I : struct device *dev - SK_G16 device Structure
- *                  I : int num_addrs      - explanation further down
- *                  I : void *addrs        - 
  * Return Value   : None
  * Errors         : None
  * Globals        : None
  * Update History :
  *     YY/MM/DD  uid  Description
+ *     95/10/18  ACox  New multicast calling scheme
 -*/
 
 
 /* Set or clear the multicast filter for SK_G16.
- *
- * num_addrs == -1      Promiscuous mode, receive all packets
- * num_addrs == 0       Normal mode, clear multicast list
- * num_addrs > 0        Multicast mode, receive normal and MC packets
  */
 
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+static void set_multicast_list(struct device *dev)
 {
 
-    if (num_addrs == -1)
+    if (dev->flags&IFF_PROMISC)
     {
 	/* Reinitialize LANCE with MODE_PROM set */
 	SK_lance_init(dev, MODE_PROM);
     }
-    else if (num_addrs == 0)
+    else if (dev->mc_count==0 && !(dev->flags&IFF_ALLMULTI))
     {
 	/* Reinitialize LANCE without MODE_PROM */
 	SK_lance_init(dev, MODE_NORMAL);
@@ -1753,12 +1745,12 @@ static void set_multicast_list(struct device *dev, int num_addrs, void *addrs)
     else
     {
 	/* Multicast with logical address filter on */
+	/* Reinitialize LANCE without MODE_PROM */
+	SK_lance_init(dev, MODE_NORMAL);
 	
 	/* Not implemented yet. */
     }
 } /* End of set_multicast_list() */
-
-#endif     
 
 
 
@@ -2045,10 +2037,10 @@ void SK_print_dev(struct device *dev, char *text)
     else
     {
 	printk("## %s: Device Structure. %s\n", SK_NAME, text);
-	printk("## Device Name: %s Base Address: %#06x IRQ: %d\n", 
+	printk("## Device Name: %s Base Address: %#06lx IRQ: %d\n", 
                dev->name, dev->base_addr, dev->irq);
 	       
-	printk("##   FLAGS: start: %d tbusy: %d int: %d\n", 
+	printk("##   FLAGS: start: %d tbusy: %ld int: %d\n", 
                dev->start, dev->tbusy, dev->interrupt);
 
 	printk("## next device: %#08x init function: %#08x\n", 

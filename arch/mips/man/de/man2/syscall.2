@@ -1,0 +1,60 @@
+.\" Copyright (c) 1995 by Ralf Baechle (ralf@waldorf-gmbh.de)
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License as
+.\" published by the Free Software Foundation; either version 2 of
+.\" the License, or (at your option) any later version.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139,
+.\" USA.
+.\"
+.TH SYSCALL 2 "28 November 95" "Linux" "Systemaufrufe"
+.SH NAME
+syscall \- Indirekter Systemaufruf
+.SH SYNOPSIS
+.nf
+.B #include <sys/syscall.h>
+.sp
+.BI "int syscall(unsigned int " syscallnr ", ...);"
+.fi
+.SH DESCRIPTION
+.B syscall
+ruft den durch
+.B syscallnr
+bezeichneten Systemaufruf indirekt auf.  Die weiteren optionalen
+Parameter werden an den indirekt aufgerufenen Systemaufruf uebergeben.
+.B syscallnr
+darf nicht SYS_syscall sein.
+.PP
+.SH "R\(:UCKGABEWERT"
+.B syscall
+gibt den R\(:uckgabewert des indirekt aufgerufenen Systemaufrufs zurueck, als
+ob dieser direkt aufgerufen worden w\(:are.  Beim Auftreten von Fehlern,
+werden diese durch errno angezeigt.
+.SH FEHLER
+.TP
+.B ENOSYS
+syscallnr ist au\(sserhalb des erlaubten Wertebereiches oder der durch
+syscallnr bezeichnete Systemaufruf wird durch das System nicht unterst\(:utzt.
+.PP
+Wegen weiterer m\(:oglicher Werte von errno siehe auch die Dokumentation des
+Systemaufrufs syscallnr.
+.SH BUGS
+Syscall(2) ist ungetestet.
+.SH NOTE
+Dieser Systemaufruf ist nur auf MIPS basierten Systemen verf\(:ugbar.  Die
+anderen Linuxsysteme implementieren syscall(2) als Funktion in libc.
+.SH "SIEHE AUCH"
+Dokumentation des Systemaufrufs syscallnr.

@@ -28,7 +28,7 @@
  */
 #define PECULIAR_486
 
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 #include "fpu_asm.h"
 #define	Const(x)	$##x
 #else
@@ -55,9 +55,11 @@
 #define TW_Empty	Const(7)	/* empty */
 
 
-#ifndef __ASSEMBLER__
+#ifndef __ASSEMBLY__
 
-#include <linux/math_emu.h>
+#include <asm/sigcontext.h>	/* for struct _fpstate */
+#include <asm/math_emu.h>
+
 #include <linux/linkage.h>
 
 /*
@@ -95,9 +97,9 @@ extern char emulating;
 
 struct address {
   unsigned int offset;
-  unsigned int selector:16;
-  unsigned int opcode:11;
-  unsigned int empty:5;
+  unsigned short selector;
+  unsigned short opcode:11,
+		 empty:5;
 };
 typedef void (*FUNC)(void);
 typedef struct fpu_reg FPU_REG;
@@ -133,9 +135,9 @@ extern unsigned char const data_sizes_16[32];
 
 
 #define reg_move(x, y) { \
-		 *(short *)&((y)->sign) = *(short *)&((x)->sign); \
-		 *(long *)&((y)->exp) = *(long *)&((x)->exp); \
-		 *(long long *)&((y)->sigl) = *(long long *)&((x)->sigl); }
+		 *(short *)&((y)->sign) = *(const short *)&((x)->sign); \
+		 *(long *)&((y)->exp) = *(const long *)&((x)->exp); \
+		 *(long long *)&((y)->sigl) = *(const long long *)&((x)->sigl); }
 
 #define significand(x) ( ((unsigned long long *)&((x)->sigl))[0] )
 
@@ -166,6 +168,6 @@ asmlinkage void round_reg(FPU_REG *arg, unsigned int extent,
 #include "fpu_proto.h"
 #endif
 
-#endif __ASSEMBLER__
+#endif __ASSEMBLY__
 
 #endif _FPU_EMU_H_

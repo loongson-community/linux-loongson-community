@@ -9,11 +9,11 @@
  * PCI System Design Guide
  *
  * PCI Special Interest Group
- * M/S HF3-15A
- * 5200 N.E. Elam Young Parkway
- * Hillsboro, Oregon 97124-6497
- * +1 (503) 696-2000 
- * +1 (800) 433-5177
+ * P.O. Box 14070
+ * Portland, OR 97214
+ * U. S. A.
+ * Phone: 800-433-5177 / +1-503-797-4207
+ * Fax: +1-503-234-6762 
  * 
  * Manuals are $25 each or $50 for all three, plus $7 shipping 
  * within the United States, $35 abroad.
@@ -24,7 +24,7 @@
 
 /*
  * Error values that may be returned by the PCI bios.  Use
- * pci_strbioserr() to convert to a printable string.
+ * pcibios_strerror() to convert to a printable string.
  */
 #define PCIBIOS_SUCCESSFUL		0x00
 #define PCIBIOS_FUNC_NOT_SUPPORTED	0x81
@@ -56,5 +56,6 @@ extern int pcibios_write_config_word (unsigned char bus, unsigned char dev_fn,
 				      unsigned char where, unsigned short val);
 extern pcibios_write_config_dword (unsigned char bus, unsigned char dev_fn,
 				   unsigned char where, unsigned int val);
-extern char *pcibios_strerror (int error);
+extern const char *pcibios_strerror (int error);
+
 #endif /* BIOS32_H */

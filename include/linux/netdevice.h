@@ -24,14 +24,30 @@
 #ifndef _LINUX_NETDEVICE_H
 #define _LINUX_NETDEVICE_H
 
+#include <linux/config.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
-#include <linux/skbuff.h>
 
 /* for future expansion when we will have different priorities. */
 #define DEV_NUMBUFFS	3
 #define MAX_ADDR_LEN	7
-#define MAX_HEADER	38
+
+#if !defined(CONFIG_AX25) && !defined(CONFIG_AX25_MODULE) && !defined(CONFIG_TR)
+#define LL_MAX_HEADER	32
+#else
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
+#define LL_MAX_HEADER	96
+#else
+#define LL_MAX_HEADER	48
+#endif
+#endif
+
+#if !defined(CONFIG_NET_IPIP) && \
+    !defined(CONFIG_IPV6) && !defined(CONFIG_IPV6_MODULE)
+#define MAX_HEADER LL_MAX_HEADER
+#else
+#define MAX_HEADER (LL_MAX_HEADER + 48)
+#endif
 
 #define IS_MYADDR	1		/* address is (one of) our own	*/
 #define IS_LOOPBACK	2		/* address is for LOOPBACK	*/
@@ -39,8 +55,12 @@
 #define IS_INVBCAST	4		/* Wrong netmask bcast not for us (unused)*/
 #define IS_MULTICAST	5		/* Multicast IP address */
 
+#ifdef __KERNEL__
+
+#include <linux/skbuff.h>
+
 /*
- *	We tag these structures with multicasts.
+ *	We tag multicasts with these structures.
  */
  
 struct dev_mc_list
@@ -49,6 +69,19 @@ struct dev_mc_list
 	char dmi_addr[MAX_ADDR_LEN];
 	unsigned short dmi_addrlen;
 	unsigned short dmi_users;
+};
+
+struct hh_cache
+{
+	struct hh_cache *hh_next;
+	void		*hh_arp;	/* Opaque pointer, used by
+					 * any address resolution module,
+					 * not only ARP.
+					 */
+	int		hh_refcnt;	/* number of users */
+	unsigned short  hh_type;	/* protocol identifier, f.e ETH_P_IP */
+	char		hh_uptodate;	/* hh_data is valid */
+	char		hh_data[16];    /* cached hardware header */
 };
 
 /*
@@ -70,15 +103,15 @@ struct device
   /* I/O specific fields - FIXME: Merge these and struct ifmap into one */
   unsigned long		  rmem_end;		/* shmem "recv" end	*/
   unsigned long		  rmem_start;		/* shmem "recv" start	*/
-  unsigned long		  mem_end;		/* sahared mem end	*/
+  unsigned long		  mem_end;		/* shared mem end	*/
   unsigned long		  mem_start;		/* shared mem start	*/
   unsigned long		  base_addr;		/* device I/O address	*/
   unsigned char		  irq;			/* device IRQ number	*/
 
   /* Low-level status flags. */
-  volatile unsigned int   tbusy;		/* transmitter busy	*/
   volatile unsigned char  start,		/* start an operation	*/
                           interrupt;		/* interrupt arrived	*/
+  unsigned long		  tbusy;		/* transmitter busy must be long for bitops */
 
   struct device		  *next;
 
@@ -112,9 +145,16 @@ struct device
 
   /* Interface address info. */
   unsigned char		  broadcast[MAX_ADDR_LEN];	/* hw bcast add	*/
+  unsigned char		  pad;				/* make dev_addr aligned to 8 bytes */
   unsigned char		  dev_addr[MAX_ADDR_LEN];	/* hw address	*/
   unsigned char		  addr_len;	/* hardware address length	*/
+#if 0
+  __u32			  pa_addr_arr[4];
+  __u16			  pa_prefix_len;
+#define pa_addr		  pa_addr_arr[3];
+#else
   unsigned long		  pa_addr;	/* protocol address		*/
+#endif
   unsigned long		  pa_brdaddr;	/* protocol broadcast addr	*/
   unsigned long		  pa_dstaddr;	/* protocol P-P other side addr	*/
   unsigned long		  pa_mask;	/* protocol netmask		*/
@@ -124,13 +164,15 @@ struct device
   int			 mc_count;	/* Number of installed mcasts	*/
   
   struct ip_mc_list	 *ip_mc_list;	/* IP multicast filter chain    */
+  __u32			tx_queue_len;	/* Max frames per queue allowed */
     
   /* For load balancing driver pair support */
   
   unsigned long		   pkt_queue;	/* Packets queued */
   struct device		  *slave;	/* Slave device */
+  struct net_alias_info		*alias_info;	/* main dev alias info */
+  struct net_alias		*my_alias;	/* alias devs */
   
-
   /* Pointer to the interface buffers. */
   struct sk_buff_head	  buffs[DEV_NUMBUFFS];
 
@@ -139,25 +181,27 @@ struct device
   int			  (*stop)(struct device *dev);
   int			  (*hard_start_xmit) (struct sk_buff *skb,
 					      struct device *dev);
-  int			  (*hard_header) (unsigned char *buff,
+  int			  (*hard_header) (struct sk_buff *skb,
 					  struct device *dev,
 					  unsigned short type,
 					  void *daddr,
 					  void *saddr,
-					  unsigned len,
-					  struct sk_buff *skb);
+					  unsigned len);
   int			  (*rebuild_header)(void *eth, struct device *dev,
 				unsigned long raddr, struct sk_buff *skb);
 #define HAVE_MULTICAST			 
-  void			  (*set_multicast_list)(struct device *dev,
-  					 int num_addrs, void *addrs);
+  void			  (*set_multicast_list)(struct device *dev);
 #define HAVE_SET_MAC_ADDR  		 
   int			  (*set_mac_address)(struct device *dev, void *addr);
 #define HAVE_PRIVATE_IOCTL
   int			  (*do_ioctl)(struct device *dev, struct ifreq *ifr, int cmd);
 #define HAVE_SET_CONFIG
   int			  (*set_config)(struct device *dev, struct ifmap *map);
-  int			  (*header_cache)(struct device *dev, struct sock *sk, unsigned long saddr, unsigned long daddr);  
+#define HAVE_HEADER_CACHE
+  void			  (*header_cache_bind)(struct hh_cache **hhp, struct device *dev, unsigned short htype, __u32 daddr);
+  void			  (*header_cache_update)(struct hh_cache *hh, struct device *dev, unsigned char *  haddr);
+#define HAVE_CHANGE_MTU
+  int			  (*change_mtu)(struct device *dev, int new_mtu);            
 };
 
 
@@ -171,14 +215,13 @@ struct packet_type {
 };
 
 
-#ifdef __KERNEL__
-
+#include <linux/interrupt.h>
 #include <linux/notifier.h>
 
 /* Used by dev_rint */
 #define IN_SKBUFF	1
 
-extern volatile int in_bh;
+extern volatile unsigned long in_bh;
 
 extern struct device	loopback_dev;
 extern struct device	*dev_base;
@@ -187,34 +230,72 @@ extern struct packet_type *ptype_base[16];
 
 extern int		ip_addr_match(unsigned long addr1, unsigned long addr2);
 extern int		ip_chk_addr(unsigned long addr);
-extern struct device	*ip_dev_check(unsigned long daddr);
+extern struct device	*ip_dev_bynet(unsigned long daddr, unsigned long mask);
 extern unsigned long	ip_my_addr(void);
 extern unsigned long	ip_get_mask(unsigned long addr);
+extern struct device 	*ip_dev_find(unsigned long addr);
+extern struct device    *dev_getbytype(unsigned short type);
 
 extern void		dev_add_pack(struct packet_type *pt);
 extern void		dev_remove_pack(struct packet_type *pt);
-extern struct device	*dev_get(char *name);
+extern struct device	*dev_get(const char *name);
 extern int		dev_open(struct device *dev);
 extern int		dev_close(struct device *dev);
 extern void		dev_queue_xmit(struct sk_buff *skb, struct device *dev,
 				       int pri);
+				      
 #define HAVE_NETIF_RX 1
 extern void		netif_rx(struct sk_buff *skb);
-/* The old interface to netif_rx(). */
-extern int		dev_rint(unsigned char *buff, long len, int flags,
-				 struct device * dev);
-extern void		dev_transmit(void);
-extern int		in_net_bh(void);
-extern void		net_bh(void *tmp);
+extern void		net_bh(void);
 extern void		dev_tint(struct device *dev);
-extern int		dev_get_info(char *buffer, char **start, off_t offset, int length);
+extern int		dev_get_info(char *buffer, char **start, off_t offset, int length, int dummy);
 extern int		dev_ioctl(unsigned int cmd, void *);
 
 extern void		dev_init(void);
 
+/* Locking protection for page faults during outputs to devices unloaded during the fault */
+
+extern int		dev_lockct;
+
+/*
+ *	These two don't currently need to be interrupt-safe
+ *	but they may do soon. Do it properly anyway.
+ */
+
+extern __inline__ void  dev_lock_list(void)
+{
+	unsigned long flags;
+	save_flags(flags);
+	cli();
+	dev_lockct++;
+	restore_flags(flags);
+}
+
+extern __inline__ void  dev_unlock_list(void)
+{
+	unsigned long flags;
+	save_flags(flags);
+	cli();
+	dev_lockct--;
+	restore_flags(flags);
+}
+
+/*
+ *	This almost never occurs, isn't in performance critical paths
+ *	and we can thus be relaxed about it
+ */
+ 
+extern __inline__ void dev_lock_wait(void)
+{
+	while(dev_lockct)
+		schedule();
+}
+
+
 /* These functions live elsewhere (drivers/net/net_init.c, but related) */
 
 extern void		ether_setup(struct device *dev);
+extern void		fddi_setup(struct device *dev);
 extern void		tr_setup(struct device *dev);
 extern int		ether_config(struct device *dev, struct ifmap *map);
 /* Support for loadable net-drivers */

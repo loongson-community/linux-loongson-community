@@ -68,10 +68,10 @@
 #include <linux/signal.h>
 #include <linux/kernel.h>
 
+#include <asm/addrspace.h>
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
-#include <asm/segment.h>
-#include <asm/cachectl.h>
+#include <asm/cache.h>
 #include <asm/system.h>
 #include <asm/gdb-stub.h>
 
@@ -407,7 +407,7 @@ static int hexToInt(char **ptr, int *intValue)
 }
 
 /*
- * This function does all command procesing for interfacing to gdb.  It
+ * This function does all command processing for interfacing to gdb.  It
  * returns 1 if you should skip the instruction at the trap address, 0
  * otherwise.
  */
@@ -605,7 +605,7 @@ void handle_exception (struct gdb_regs *regs)
 			 * NB: We flush both caches, just to be sure...
 			 */
 
-			sys_cacheflush((void *)KSEG0,KSEG1-KSEG0,BCACHE);
+			cacheflush((void *)KSEG0, KSEG1-KSEG0, CF_BCACHE|CF_ALL);
 			return;
 			/* NOTREACHED */
 			break;

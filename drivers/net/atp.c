@@ -18,7 +18,7 @@
 	The timer-based reset code was written by Bill Carlson, wwc@super.org.
 */
 
-static char *version =
+static const char *version =
 	"atp.c:v1.01 1/18/95 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
 /*
@@ -135,12 +135,12 @@ static void hardware_init(struct device *dev);
 static void write_packet(short ioaddr, int length, unsigned char *packet, int mode);
 static void trigger_send(short ioaddr, int length);
 static int	net_send_packet(struct sk_buff *skb, struct device *dev);
-static void net_interrupt(int irq, struct pt_regs *regs);
+static void net_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void net_rx(struct device *dev);
 static void read_block(short ioaddr, int length, unsigned char *buffer, int data_mode);
 static int net_close(struct device *dev);
 static struct enet_statistics *net_get_stats(struct device *dev);
-static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
+static void set_multicast_list(struct device *dev);
 
 
 /* Check for a network adapter of this type, and return '0' iff one exists.
@@ -213,7 +213,7 @@ static int atp_probe1(struct device *dev, short ioaddr)
 	/* Read the station address PROM.  */
 	get_node_ID(dev);
 
-	printk("%s: Pocket adapter found at %#3x, IRQ %d, SAPROM "
+	printk("%s: Pocket adapter found at %#3lx, IRQ %d, SAPROM "
 		   "%02X:%02X:%02X:%02X:%02X:%02X.\n", dev->name, dev->base_addr,
 		   dev->irq, dev->dev_addr[0], dev->dev_addr[1], dev->dev_addr[2],
 		   dev->dev_addr[3], dev->dev_addr[4], dev->dev_addr[5]);
@@ -227,6 +227,8 @@ static int atp_probe1(struct device *dev, short ioaddr)
 	/* Initialize the device structure. */
 	ether_setup(dev);
 	dev->priv = kmalloc(sizeof(struct net_local), GFP_KERNEL);
+	if (dev->priv == NULL)
+		return -ENOMEM;
 	memset(dev->priv, 0, sizeof(struct net_local));
 
 
@@ -248,7 +250,7 @@ static int atp_probe1(struct device *dev, short ioaddr)
 
 #ifdef TIMED_CHECKER
 	del_timer(&atp_timer);
-	atp_timer.expires = TIMED_CHECKER;
+	atp_timer.expires = jiffies + TIMED_CHECKER;
 	atp_timed_dev = dev;
 	add_timer(&atp_timer);
 #endif
@@ -326,7 +328,7 @@ static int net_open(struct device *dev)
 	   port or interrupt may be shared. */
 	if (irq2dev_map[dev->irq] != 0
 		|| (irq2dev_map[dev->irq] = dev) == 0
-		|| request_irq(dev->irq, &net_interrupt, 0, "ATP")) {
+		|| request_irq(dev->irq, &net_interrupt, 0, "ATP", NULL)) {
 		return -EAGAIN;
 	}
 
@@ -482,7 +484,7 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 /* The typical workload of the driver:
    Handle the network interface interrupts. */
 static void
-net_interrupt(int irq, struct pt_regs * regs)
+net_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
@@ -585,7 +587,7 @@ net_interrupt(int irq, struct pt_regs * regs)
 			write_reg_byte(ioaddr, PAR0 + i, dev->dev_addr[i]);
 #ifdef TIMED_CHECKER
 		del_timer(&atp_timer);
-		atp_timer.expires = TIMED_CHECKER;
+		atp_timer.expires = jiffies + TIMED_CHECKER;
 		add_timer(&atp_timer);
 #endif
 	}
@@ -635,7 +637,7 @@ static void atp_timed_checker(unsigned long ignored)
 #endif
 	}
   del_timer(&atp_timer);
-  atp_timer.expires = TIMED_CHECKER;
+  atp_timer.expires = jiffies + TIMED_CHECKER;
   add_timer(&atp_timer);
 }
 #endif
@@ -670,16 +672,15 @@ static void net_rx(struct device *dev)
 		int pkt_len = (rx_head.rx_count & 0x7ff) - 4; 		/* The "-4" is omits the FCS (CRC). */
 		struct sk_buff *skb;
 		
-		skb = alloc_skb(pkt_len, GFP_ATOMIC);
+		skb = dev_alloc_skb(pkt_len);
 		if (skb == NULL) {
 			printk("%s: Memory squeeze, dropping packet.\n", dev->name);
 			lp->stats.rx_dropped++;
 			goto done;
 		}
-		skb->len = pkt_len;
 		skb->dev = dev;
 		
-		read_block(ioaddr, pkt_len, skb->data, dev->if_port);
+		read_block(ioaddr, pkt_len, skb_put(skb,pkt_len), dev->if_port);
 
 		if (net_debug > 6) {
 			unsigned char *data = skb->data;
@@ -735,7 +736,7 @@ net_close(struct device *dev)
 
 	/* Free the IRQ line. */
 	outb(0x00, ioaddr + PAR_CONTROL);
-	free_irq(dev->irq);
+	free_irq(dev->irq, NULL);
 	irq2dev_map[dev->irq] = 0;
 
 	/* Leave the hardware in a reset state. */
@@ -753,17 +754,25 @@ net_get_stats(struct device *dev)
 	return &lp->stats;
 }
 
-/* Set or clear the multicast filter for this adapter.
-   num_addrs == -1	Promiscuous mode, receive all packets
-   num_addrs == 0	Normal mode, clear multicast list
-   num_addrs > 0	Multicast mode, receive normal and MC packets, and do
-			best-effort filtering.
+/*
+ *	Set or clear the multicast filter for this adapter.
  */
-static void
-set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+ 
+static void set_multicast_list(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	short ioaddr = dev->base_addr;
+	int num_addrs=dev->mc_list;
+	
+	if(dev->flags&(IFF_ALLMULTI|IFF_PROMISC))
+		num_addrs=1;
+	/*
+	 *	We must make the kernel realise we had to move
+	 *	into promisc mode or we start all out war on
+	 *	the cable. - AC
+	 */
+	if(num_addrs)
+		dev->flags|=IFF_PROMISC;		
 	lp->addr_mode = num_addrs ? CMR2h_PROMISC : CMR2h_Normal;
 	write_reg_high(ioaddr, CMR2, lp->addr_mode);
 }

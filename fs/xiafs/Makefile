@@ -7,28 +7,8 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
+O_TARGET := xiafs.o
+O_OBJS   := bitmap.o truncate.o namei.o inode.o file.o dir.o symlink.o fsync.o
+M_OBJS   := $(O_TARGET)
 
-OBJS=	bitmap.o truncate.o namei.o inode.o \
-	file.o dir.o symlink.o fsync.o
-
-xiafs.o: $(OBJS)
-	$(LD) -r -o xiafs.o $(OBJS)
-
-modules: xiafs.o
-	ln -sf ../fs/xiafs/xiafs.o $(TOPDIR)/modules
-
-dep:
-	$(CPP) -M *.c > .depend
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

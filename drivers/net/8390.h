@@ -9,12 +9,28 @@
 
 #include <linux/if_ether.h>
 #include <linux/ioport.h>
+#include <linux/skbuff.h>
 
 #define TX_2X_PAGES 12
 #define TX_1X_PAGES 6
-#define TX_PAGES (ei_status.pingpong ? TX_2X_PAGES : TX_1X_PAGES)
+
+/* Should always use two Tx slots to get back-to-back transmits. */
+#define EI_PINGPONG
+
+#ifdef EI_PINGPONG
+#define TX_PAGES TX_2X_PAGES
+#else
+#define TX_PAGES TX_1X_PAGES
+#endif
 
 #define ETHER_ADDR_LEN 6
+
+/* The 8390 specific per-packet-header format. */
+struct e8390_pkt_hdr {
+  unsigned char status; /* status */
+  unsigned char next;   /* pointer to next packet. */
+  unsigned short count; /* header + packet length in bytes */
+};
 
 /* From 8390.c */
 extern int ei_debug;
@@ -24,12 +40,13 @@ extern int ethif_init(struct device *dev);
 extern int ethdev_init(struct device *dev);
 extern void NS8390_init(struct device *dev, int startp);
 extern int ei_open(struct device *dev);
-extern void ei_interrupt(int irq, struct pt_regs *regs);
+extern int ei_close(struct device *dev);
+extern void ei_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
 #ifndef HAVE_AUTOIRQ
 /* From auto_irq.c */
 extern struct device *irq2dev_map[16];
-extern void autoirq_setup(int waittime);
+extern int autoirq_setup(int waittime);
 extern int autoirq_report(int waittime);
 #endif
 
@@ -37,20 +54,20 @@ extern int autoirq_report(int waittime);
    things in there should be here!) */
 /* You have one of these per-board */
 struct ei_device {
-  char *name;
+  const char *name;
   void (*reset_8390)(struct device *);
+  void (*get_8390_hdr)(struct device *, struct e8390_pkt_hdr *, int);
   void (*block_output)(struct device *, int, const unsigned char *, int);
-  int  (*block_input)(struct device *, int, char *, int);
+  void (*block_input)(struct device *, int, struct sk_buff *, int);
   unsigned open:1;
   unsigned word16:1;  /* We have the 16-bit (vs 8-bit) version of the card. */
   unsigned txing:1;		/* Transmit Active */
   unsigned irqlock:1;		/* 8390's intrs disabled when '1'. */
-  unsigned pingpong:1;		/* Using the ping-pong driver */
+  unsigned dmaing:1;		/* Remote DMA Active */
   unsigned char tx_start_page, rx_start_page, stop_page;
   unsigned char current_page;	/* Read pointer in buffer  */
   unsigned char interface_num;	/* Net port (AUI, 10bT.) to use. */
   unsigned char txqueue;	/* Tx Packet buffer queue length. */
-  unsigned char dmaing;		/* Remote DMA (Tx/Rx/Active) */
   short tx1, tx2;		/* Packet lengths for ping-pong tx. */
   short lasttx;			/* Alpha version consistency check. */
   unsigned char reg0;		/* Register '0' in a WD8013 */
@@ -63,8 +80,8 @@ struct ei_device {
 /* The maximum number of 8390 interrupt service routines called per IRQ. */
 #define MAX_SERVICE 12
 
-/* The maximum number of jiffies waited before assuming a Tx failed. */
-#define TX_TIMEOUT 20 
+/* The maximum time waited (in jiffies) before assuming a Tx failed. (20ms) */
+#define TX_TIMEOUT (20*HZ/100)
 
 #define ei_status (*(struct ei_device *)(dev->priv))
 
@@ -155,10 +172,4 @@ struct ei_device {
 #define ENTSR_CDH 0x40	/* The collision detect "heartbeat" signal was lost. */
 #define ENTSR_OWC 0x80  /* There was an out-of-window collision. */
 
-/* The per-packet-header format. */
-struct e8390_pkt_hdr {
-  unsigned char status; /* status */
-  unsigned char next;   /* pointer to next packet. */
-  unsigned short count; /* header + packet length in bytes */
-};
 #endif /* _8390_h */

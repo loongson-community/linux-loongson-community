@@ -65,7 +65,14 @@
 #define	ENOANO		53	/* No anode */
 #define	EBADRQC		54	/* Invalid request code */
 #define	EBADSLT		55	/* Invalid slot */
+#if 0
 #define	EDEADLOCK	56	/* File locking deadlock error */
+#else
+/*
+ * This needs to be fixed - DEADLOCK should be 45.
+ */
+#define EDEADLOCK	EDEADLK	/* File locking deadlock error */
+#endif
 #define	EBFONT		59	/* Bad font file format */
 #define	ENOSTR		60	/* Device not a stream */
 #define	ENODATA		61	/* No data available */
@@ -137,6 +144,16 @@
 #define	EINPROGRESS	150	/* Operation now in progress */
 #define	ESTALE		151	/* Stale NFS file handle */
 #define ECANCELED	158	/* AIO operation canceled */
+
+/*
+ * IRIX 5 error number start from 1000.
+ * Stupid enough; ECANCELED gets redefined with a different value ...
+#define ECANCELED       1000
+ */
+
+/*
+ * IRIX 4 compatibility error numbers.
+ */
 #define	EDQUOT		1133	/* Quota exceeded */
 #define ENFSREMOTE	1134	/* ??? */
 

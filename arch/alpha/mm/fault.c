@@ -4,7 +4,6 @@
  *  Copyright (C) 1995  Linus Torvalds
  */
 
-#include <linux/config.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/head.h>
@@ -17,14 +16,26 @@
 #include <linux/mm.h>
 
 #include <asm/system.h>
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/pgtable.h>
+#include <asm/mmu_context.h>
+
+unsigned long asn_cache = ASN_FIRST_VERSION;
+
+#ifndef BROKEN_ASN
+/*
+ * Select a new ASN and reload the context. This is
+ * not inlined as this expands to a pretty large
+ * function.
+ */
+void get_new_asn_and_reload(struct task_struct *tsk, struct mm_struct *mm)
+{
+	get_new_mmu_context(tsk, mm, asn_cache);
+	reload_context(tsk);
+}
+#endif
 
 extern void die_if_kernel(char *,struct pt_regs *,long);
-extern void tbi(unsigned long type, unsigned long arg);
-#define tbisi(x) tbi(1,(x))
-#define tbisd(x) tbi(2,(x))
-#define tbis(x)  tbi(3,(x))
 
 /*
  * This routine handles page faults.  It determines the address,
@@ -41,24 +52,35 @@ extern void tbi(unsigned long type, unsigned long arg);
  *	-1 = instruction fetch
  *	0 = load
  *	1 = store
+ *
+ * Registers $9 through $15 are saved in a block just prior to `regs' and
+ * are saved and restored around the call to allow exception code to
+ * modify them.
  */
-asmlinkage void do_page_fault(unsigned long address, unsigned long mmcsr, long cause,
-	unsigned long a3, unsigned long a4, unsigned long a5,
-	struct pt_regs regs)
+
+/* Macro for exception fixup code to access integer registers.  */
+#define dpf_reg(r) \
+	(((unsigned long *)regs)[(r) <= 8 ? (r) : (r) <= 15 ? (r)-16 : \
+				 (r) <= 18 ? (r)+8 : (r)-10])
+
+asmlinkage void do_page_fault(unsigned long address, unsigned long mmcsr,
+			      long cause, struct pt_regs *regs)
 {
 	struct vm_area_struct * vma;
+	struct task_struct *tsk = current;
+	struct mm_struct *mm = tsk->mm;
+	unsigned fixup;
 
-	vma = find_vma(current, address);
+	down(&mm->mmap_sem);
+	vma = find_vma(mm, address);
 	if (!vma)
 		goto bad_area;
 	if (vma->vm_start <= address)
 		goto good_area;
 	if (!(vma->vm_flags & VM_GROWSDOWN))
 		goto bad_area;
-	if (vma->vm_end - address > current->rlim[RLIMIT_STACK].rlim_cur)
+	if (expand_stack(vma, address))
 		goto bad_area;
-	vma->vm_offset -= vma->vm_start - (address & PAGE_MASK);
-	vma->vm_start = (address & PAGE_MASK);
 /*
  * Ok, we have a good vm_area for this memory access, so
  * we can handle it..
@@ -75,8 +97,8 @@ good_area:
 		if (!(vma->vm_flags & VM_WRITE))
 			goto bad_area;
 	}
-	tbis(address);
 	handle_mm_fault(vma, address, cause > 0);
+	up(&mm->mmap_sem);
 	return;
 
 /*
@@ -84,17 +106,31 @@ good_area:
  * Fix it, but check if it's kernel or user first..
  */
 bad_area:
-	if (user_mode(&regs)) {
-		printk("memory violation at pc=%08lx (%08lx)\n", regs.pc, address);
-		die_if_kernel("oops", &regs, cause);
-		send_sig(SIGSEGV, current, 1);
+	up(&mm->mmap_sem);
+
+	/* Are we prepared to handle this fault as an exception?  */
+	if ((fixup = search_exception_table(regs->pc)) != 0) {
+		unsigned long newpc;
+		newpc = fixup_exception(dpf_reg, fixup, regs->pc);
+		printk("Taking exception at %lx (%lx)\n", regs->pc, newpc);
+		regs->pc = newpc;
+		return;
+	}
+
+	if (user_mode(regs)) {
+		printk("%s: memory violation at pc=%08lx ra=%08lx "
+		       "(bad address = %08lx)\n",
+			tsk->comm, regs->pc, regs->r26, address);
+		die_if_kernel("oops", regs, cause);
+		force_sig(SIGSEGV, tsk);
 		return;
 	}
 /*
  * Oops. The kernel tried to access some bad page. We'll have to
  * terminate things with extreme prejudice.
  */
-	printk(KERN_ALERT "Unable to handle kernel paging request at virtual address %08lx\n",address);
-	die_if_kernel("Oops", &regs, cause);
+	printk(KERN_ALERT "Unable to handle kernel paging request at "
+	       "virtual address %016lx\n", address);
+	die_if_kernel("Oops", regs, cause);
 	do_exit(SIGKILL);
 }

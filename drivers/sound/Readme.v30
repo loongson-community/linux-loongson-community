@@ -1,23 +1,9 @@
-VoxWare v3.0
-------------
+Sound driver version v3.0 (and later)
+-------------------------------------
 
-This is a PROTOTYPE of the VoxWare v3.0 to be released late 94.
-
-All features of v2.5 should work as earlier. There could be some
+All features of v2.90-2 should work as earlier. There could be some
 omissions but they are unintentional. I started this version thread
 after v2.3 so all features implemented before it are there.
-
-Even this is a prototype, there should not be any fatal bugs. The
-prototype just means that I don't have implemented all features
-completely. Mainly in the /dev/sequencer2 driver.
-For example recording from /dev/sequencer2 won't work
-with other cards than a full features MPU-401 or clones. As well the
-way how the MIDI controllers are handled will change.
-
-IMPORTANT!!!!!!!!!!!!!!!!!
-
-Don't distribute any binaries compiled with the soundcard.h of this version. 
-They will not work together with older drivers.
 
 New features
 ============
@@ -25,7 +11,7 @@ New features
 There are now two new device interfaces. The /dev/midi## is a raw
 tty like interface to MIDI ports. There is a device file for each MIDI
 port on your system. They are named (/dev/midi00 to /dev/midiNN).
-The second addition is the /dev/sequencer2 which is higher level interface 
+The second addition is the /dev/music which is higher level interface 
 than the old /dev/sequencer. It's intended for writing device independent
 applications like sequencers.
 
@@ -102,8 +88,8 @@ details.
 
 
 
-/dev/sequencer2 (if you find a better name, please let me know).
----------------
+/dev/music (/dev/sequencer2)
+----------------------------
 
 This device file works much like the /dev/sequencer which has been present
 since the beginning. The main differences are the following:
@@ -130,7 +116,7 @@ return sum of internal synthesizers (GUS, OPL3) and MIDI ports in the systems.
 
 - The new interface is used much like the ordinary /dev/sequencer. The
 event format is new so you have to use the API macros defined in the 
-sys/soundcard.h. The interface will probably change before the final 3.0
+sys/soundcard.h. The interface is will probably change before the final 3.0
 release but using the API macros should ensure compatibility in source level.
 The new event format is not recognized by version 2.X so don't try to 
 distribute binaries compiled with soundcard.h of v3.X.

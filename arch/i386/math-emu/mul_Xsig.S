@@ -3,9 +3,9 @@
  |                                                                           |
  | Multiply a 12 byte fixed point number by another fixed point number.      |
  |                                                                           |
- | Copyright (C) 1992,1994                                                   |
+ | Copyright (C) 1992,1994,1995                                              |
  |                       W. Metzenthen, 22 Parker St, Ormond, Vic 3163,      |
- |                       Australia.  E-mail   billm@vaxc.cc.monash.edu.au    |
+ |                       Australia.  E-mail billm@jacobi.maths.monash.edu.au |
  |                                                                           |
  | Call from C as:                                                           |
  |   void mul32_Xsig(Xsig *x, unsigned b)                                    |
@@ -21,12 +21,10 @@
 	.file	"mul_Xsig.S"
 
 
-#include "fpu_asm.h"
+#include "fpu_emu.h"
 
 .text
-	.align 2,144
-.globl _mul32_Xsig
-_mul32_Xsig:
+ENTRY(mul32_Xsig)
 	pushl %ebp
 	movl %esp,%ebp
 	subl $16,%esp
@@ -66,9 +64,7 @@ _mul32_Xsig:
 	ret
 
 
-	.align 2,144
-.globl _mul64_Xsig
-_mul64_Xsig:
+ENTRY(mul64_Xsig)
 	pushl %ebp
 	movl %esp,%ebp
 	subl $16,%esp
@@ -121,9 +117,7 @@ _mul64_Xsig:
 
 
 
-	.align 2,144
-.globl _mul_Xsig_Xsig
-_mul_Xsig_Xsig:
+ENTRY(mul_Xsig_Xsig)
 	pushl %ebp
 	movl %esp,%ebp
 	subl $16,%esp

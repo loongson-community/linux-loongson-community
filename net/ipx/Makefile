@@ -7,29 +7,11 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.s:
-	$(CC) $(CFLAGS) -S $<
+O_TARGET := ipx.o
+O_OBJS   := af_ipx.o sysctl_net_ipx.o
+M_OBJS   := $(O_TARGET)
 
-
-OBJS	:= af_ipx.o
-
-
-ipx.o:		$(OBJS)
-		$(LD) -r -o ipx.o $(OBJS)
-
-dep:
-		$(CPP) -M *.c > .depend
+include $(TOPDIR)/Rules.make
 
 tar:
 		tar -cvf /dev/f1 .
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif

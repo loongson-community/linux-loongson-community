@@ -7,48 +7,107 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-SUBDIRS     := 802 ax25 core ethernet ipv4 ipx unix appletalk netrom
+MOD_SUB_DIRS := ipv4
+ALL_SUB_DIRS := 802 ax25 bridge core ethernet ipv4 ipv6 ipx unix appletalk \
+		netrom rose #decnet
+SUB_DIRS     := core ethernet unix
+MOD_LIST_NAME := NET_MISC_MODULES
 
-SUBOBJS     := $(foreach f,$(SUBDIRS),$f/$f.o)
+ifeq ($(CONFIG_NET),y)
+SUB_DIRS += 802
+endif
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.s:
-	$(CC) $(CFLAGS) -S $<
+ifeq ($(CONFIG_INET),y)
+SUB_DIRS += ipv4
+endif
 
-OBJS	=  socket.o protocols.o
-
-all:		net.o
-
-net.o:		$(OBJS) network.a
-ifeq ($(ARCH),mips)
-		$(LD) -u eth_setup -r -o net.o $(OBJS) network.a
+ifeq ($(CONFIG_IPV6),y)
+SUB_DIRS += ipv6
 else
-		$(LD) -u _eth_setup -r -o net.o $(OBJS) network.a
+  ifeq ($(CONFIG_IPV6),m)
+  MOD_SUB_DIRS += ipv6
+  endif
 endif
 
-network.a:	subdirs
-		rm -f $@
-		$(AR) rc $@ $(SUBOBJS)
-		$(RANLIB) $@
-
-subdirs:	dummy
-		set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
-
-dep:
-		$(CPP) -M *.c > .depend
-		set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i dep; done
-
-modules:
-
-dummy:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
+ifeq ($(CONFIG_BRIDGE),y)
+SUB_DIRS += bridge
 endif
 
+ifeq ($(CONFIG_IPX),y)
+SUB_DIRS += ipx
+else
+  ifeq ($(CONFIG_IPX),m)
+  MOD_SUB_DIRS += ipx
+  endif
+endif
+
+ifeq ($(CONFIG_ATALK),y)
+SUB_DIRS += appletalk
+else
+  ifeq ($(CONFIG_ATALK),m)
+  MOD_SUB_DIRS += appletalk
+  endif
+endif
+
+ifeq ($(CONFIG_NETROM),y)
+SUB_DIRS += netrom
+else
+  ifeq ($(CONFIG_NETROM),m)
+  MOD_SUB_DIRS += netrom
+  endif
+endif
+
+ifeq ($(CONFIG_ROSE),y)
+SUB_DIRS += rose
+else
+  ifeq ($(CONFIG_ROSE),m)
+  MOD_SUB_DIRS += rose
+  endif
+endif
+
+ifeq ($(CONFIG_AX25),y)
+SUB_DIRS += ax25
+else
+  ifeq ($(CONFIG_AX25),m)
+  MOD_SUB_DIRS += ax25
+  endif
+endif
+
+L_TARGET     := network.a
+L_OBJS	     := socket.o protocols.o sysctl_net.o $(join $(SUB_DIRS),$(SUB_DIRS:%=/%.o))
+ifeq ($(CONFIG_NET),y)
+ifeq ($(CONFIG_MODULES),y)
+LX_OBJS = netsyms.o
+endif
+endif
+
+M_OBJS	     :=
+
+CONFIG_NETLINK_BUILTIN :=
+CONFIG_NETLINK_MODULE :=
+
+ifeq ($(CONFIG_NETLINK), y)
+  CONFIG_NETLINK_BUILTIN = y
+endif
+
+ifeq ($(CONFIG_IPV6), y)
+  CONFIG_NETLINK_BUILTIN = y
+endif
+
+ifeq ($(CONFIG_NETLINK), m)
+  CONFIG_NETLINK_MODULE = y
+endif
+
+ifeq ($(CONFIG_IPV6), m)
+  CONFIG_NETLINK_MODULE = y
+endif
+
+ifdef CONFIG_NETLINK_BUILTIN
+L_OBJS += netlink.o
+else
+  ifdef CONFIG_NETLINK_MODULE
+    M_OBJS += netlink.o
+  endif
+endif
+
+include $(TOPDIR)/Rules.make

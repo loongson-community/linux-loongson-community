@@ -7,29 +7,11 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.s.o:
-	$(AS) -o $*.o $<
-.c.s:
-	$(CC) $(CFLAGS) -S $<
+O_TARGET := appletalk.o
+O_OBJS	 := aarp.o ddp.o sysctl_net_atalk.o
+M_OBJS   := $(O_TARGET)
 
-
-OBJS	:= aarp.o ddp.o
-
-
-appletalk.o:	$(OBJS)
-		$(LD) -r -o appletalk.o $(OBJS)
-
-dep:
-		$(CPP) -M *.c > .depend
+include $(TOPDIR)/Rules.make
 
 tar:
 		tar -cvf /dev/f1 .
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
