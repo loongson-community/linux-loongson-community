@@ -223,7 +223,6 @@ static void per_hub_init(cnodeid_t cnode)
 
 void prom_init_secondary(void)
 {
-	extern void install_cpu_nmi_handler(int slice);
 	static int is_slave = 0;
 	int cpu = smp_processor_id();
 	cnodeid_t cnode = get_compact_nodeid();
