@@ -1,9 +1,6 @@
 #ifndef _LINUX_KDEV_T_H
 #define _LINUX_KDEV_T_H
 #ifdef __KERNEL__
-
-#include <linux/types.h>
-
 #define MINORBITS	20
 #define MINORMASK	((1U << MINORBITS) - 1)
 
