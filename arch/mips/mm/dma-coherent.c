@@ -16,7 +16,7 @@
 #include <asm/cache.h>
 #include <asm/io.h>
 
-static void *__dma_alloc(struct device *dev, size_t size,
+void *dma_alloc_noncoherent(struct device *dev, size_t size,
 	dma_addr_t * dma_handle, int gfp)
 {
 	void *ret;
@@ -35,19 +35,15 @@ static void *__dma_alloc(struct device *dev, size_t size,
 	return ret;
 }
 
+EXPORT_SYMBOL(dma_alloc_noncoherent);
+
 void *dma_alloc_coherent(struct device *dev, size_t size,
 	dma_addr_t * dma_handle, int gfp)
-	__attribute__((alias("__dma_alloc")));
+	__attribute__((alias("dma_alloc_noncoherent")));
 
 EXPORT_SYMBOL(dma_alloc_coherent);
 
-void *dma_alloc_noncoherent(struct device *dev, size_t size,
-	dma_addr_t * dma_handle, int gfp)
-	__attribute__((alias("__dma_alloc")));
-
-EXPORT_SYMBOL(dma_alloc_noncoherent);
-
-static void __dma_free(struct device *dev, size_t size, void *vaddr,
+void dma_free_noncoherent(struct device *dev, size_t size, void *vaddr,
 	dma_addr_t dma_handle)
 {
 	unsigned long addr = (unsigned long) vaddr;
@@ -55,15 +51,12 @@ static void __dma_free(struct device *dev, size_t size, void *vaddr,
 	free_pages(addr, get_order(size));
 }
 
+EXPORT_SYMBOL(dma_free_noncoherent);
+
 void dma_free_coherent(struct device *dev, size_t size, void *vaddr,
-	dma_addr_t dma_handle) __attribute__((alias("__dma_free")));
+	dma_addr_t dma_handle) __attribute__((alias("dma_free_noncoherent")));
 
 EXPORT_SYMBOL(dma_free_coherent);
-
-void dma_free_noncoherent(struct device *dev, size_t size, void *vaddr,
-	dma_addr_t dma_handle) __attribute__((alias("__dma_free")));
-
-EXPORT_SYMBOL(dma_free_noncoherent);
 
 dma_addr_t dma_map_single(struct device *dev, void *ptr, size_t size,
 	enum dma_data_direction direction)
