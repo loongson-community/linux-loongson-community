@@ -11,7 +11,7 @@
 #define __ASM_MIPS_BITOPS_H
 
 #include <linux/types.h>
-#include <linux/byteorder/swab.h>		/* sigh ... */
+#include <asm/byteorder.h>		/* sigh ... */
 
 #ifdef __KERNEL__
 
@@ -143,6 +143,8 @@ extern __inline__ int test_and_change_bit(int nr, void *addr)
 }
 
 #else /* MIPS I */
+
+#include <asm/mipsregs.h>
 
 extern __inline__ void set_bit(int nr, void * addr)
 {

@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.11 1999/01/03 17:50:51 ralf Exp $
+/* $Id: process.c,v 1.12 1999/06/17 13:25:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -28,6 +28,7 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>
+#include <asm/isadep.h>
 
 struct task_struct *last_task_used_math = NULL;
 
@@ -39,7 +40,7 @@ asmlinkage void ret_from_sys_call(void);
 void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 {
 	/* New thread looses kernel privileges. */
-	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;
+	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|KU_MASK)) | KU_USER;
 	regs->cp0_epc = pc;
 	regs->regs[29] = sp;
 	current->tss.current_ds = USER_DS;
@@ -74,12 +75,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 {
 	struct pt_regs * childregs;
 	long childksp;
+	extern void (*save_fp)(struct sigcontext *);
 
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 
 	if (last_task_used_math == current) {
 		set_cp0_status(ST0_CU1, ST0_CU1);
-		r4xx0_save_fp(p);
+		save_fp(p);
 	}
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
@@ -111,7 +113,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	 * switching for most programs since they don't use the fpu.
 	 */
 	p->tss.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
-                            ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU);
+                            ~(ST0_CU3|ST0_CU2|ST0_CU1|KU_MASK);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
 	p->mm->context = 0;
 

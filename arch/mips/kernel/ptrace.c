@@ -1,4 +1,4 @@
-/* $Id: ptrace.c,v 1.12 1999/06/13 16:30:32 ralf Exp $
+/* $Id: ptrace.c,v 1.13 1999/06/17 13:25:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -242,6 +242,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	struct task_struct *child;
 	unsigned int flags;
 	int res;
+	extern void (*save_fp)(struct sigcontext *);
 
 	lock_kernel();
 #if 0
@@ -351,7 +352,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 				if (last_task_used_math == child) {
 					enable_cp1();
-					r4xx0_save_fp(child);
+					save_fp(child);
 					disable_cp1();
 					last_task_used_math = NULL;
 				}
@@ -413,7 +414,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			if (child->used_math) {
 				if (last_task_used_math == child) {
 					enable_cp1();
-					r4xx0_save_fp(child);
+					save_fp(child);
 					disable_cp1();
 					last_task_used_math = NULL;
 				}

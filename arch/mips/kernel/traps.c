@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.20 1999/06/13 16:30:34 ralf Exp $
+/* $Id: traps.c,v 1.21 1999/06/23 22:15:57 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -60,6 +60,15 @@ extern asmlinkage void handle_fpe(void);
 extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_reserved(void);
 
+extern asmlinkage void r4xx0_lazy_fpu_switch(struct task_struct *);
+extern asmlinkage void r4xx0_init_fpu(void);
+extern asmlinkage void r4xx0_save_fp(struct sigcontext *);
+extern asmlinkage void r2300_lazy_fpu_switch(struct task_struct *);
+extern asmlinkage void r2300_init_fpu(void);
+extern asmlinkage void r2300_save_fp(struct sigcontext *);
+
+extern asmlinkage void simfp(unsigned int);
+
 static char *cpu_names[] = CPU_NAMES;
 
 char watch_available = 0;
@@ -69,6 +78,10 @@ char vce_available = 0;
 void (*ibe_board_handler)(struct pt_regs *regs);
 void (*dbe_board_handler)(struct pt_regs *regs);
 
+static void (*lazy_fpu_switch)(struct task_struct *);
+static void (*init_fpu)(void);
+void (*save_fp)(struct sigcontext *);
+
 int kstack_depth_to_print = 24;
 
 /*
@@ -76,6 +89,23 @@ int kstack_depth_to_print = 24;
  * MODULE_RANGE is a guess of how much space is likely to be vmalloced.
  */
 #define MODULE_RANGE (8*1024*1024)
+
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+/*
+ * This stuff is needed for the userland ll-sc emulation for R2300
+ */
+void simulate_ll(struct pt_regs *regs, unsigned int opcode);
+void simulate_sc(struct pt_regs *regs, unsigned int opcode);
+
+#define OPCODE 0xfc000000
+#define BASE   0x03e00000
+#define RT     0x001f0000
+#define OFFSET 0x0000ffff
+#define LL     0xc0000000
+#define SC     0xd0000000
+
+#define DEBUG_LLSC
+#endif
 
 /*
  * This routine abuses get_user()/put_user() to reference pointers
@@ -201,8 +231,10 @@ static void default_be_board_handler(struct pt_regs *regs)
 	/*
 	 * Assume it would be too dangerous to continue ...
 	 */
-	force_sig(SIGBUS, current);
+/* XXX */
+printk("Got Bus Error at %08x\n", (unsigned int)regs->cp0_epc);
 show_regs(regs); while(1);
+	force_sig(SIGBUS, current);
 }
 
 void do_ibe(struct pt_regs *regs)
@@ -345,6 +377,110 @@ void do_tr(struct pt_regs *regs)
 	force_sig(SIGTRAP, current);
 }
 
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+
+/*
+ * userland emulation for R2300 CPUs
+ * needed for the multithreading part of glibc
+ */
+void do_ri(struct pt_regs *regs)
+{
+	unsigned int opcode;
+
+	lock_kernel();
+	if (!get_insn_opcode(regs, &opcode)) {
+		if ((opcode & OPCODE) == LL)
+			simulate_ll(regs, opcode);
+		if ((opcode & OPCODE) == SC)
+			simulate_sc(regs, opcode);
+	} else {
+	printk("[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
+	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
+	}
+	unlock_kernel();
+	if (compute_return_epc(regs))
+		return;
+	force_sig(SIGILL, current);
+}
+
+/*
+ * the ll_bit will be cleared by r2300_switch.S
+ */
+unsigned long ll_bit, *lladdr;
+ 
+void simulate_ll(struct pt_regs *regp, unsigned int opcode)
+{
+	unsigned long *addr, *vaddr;
+	long offset;
+ 
+	/*
+	 * analyse the ll instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	if (offset & 0x00008000)
+		offset = -(offset & 0x00007fff);
+	else
+		offset = (offset & 0x00007fff);
+
+	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
+
+#ifdef DEBUG_LLSC
+	printk("ll: vaddr = 0x%08x, reg = %d\n", (unsigned int)vaddr, (opcode & RT) >> 16);
+#endif
+
+	/*
+	 * TODO: compute physical address from vaddr
+	 */
+	panic("ll: emulation not yet finished!");
+
+	lladdr = addr;
+	ll_bit = 1;
+	regp->regs[(opcode & RT) >> 16] = *addr;
+}
+ 
+void simulate_sc(struct pt_regs *regp, unsigned int opcode)
+{
+	unsigned long *addr, *vaddr, reg;
+	long offset;
+
+	/*
+	 * analyse the sc instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	if (offset & 0x00008000)
+		offset = -(offset & 0x00007fff);
+	else
+		offset = (offset & 0x00007fff);
+
+	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
+	reg = (opcode & RT) >> 16;
+
+#ifdef DEBUG_LLSC
+	printk("sc: vaddr = 0x%08x, reg = %d\n", (unsigned int)vaddr, (unsigned int)reg);
+#endif
+
+	/*
+	 * TODO: compute physical address from vaddr
+	 */
+	panic("sc: emulation not yet finished!");
+
+	lladdr = addr;
+
+	if (ll_bit == 0) {
+		regp->regs[reg] = 0;
+		return;
+	}
+
+	*addr = regp->regs[reg];
+	regp->regs[reg] = 1;
+}
+
+#else /* MIPS 2 or higher */
+
 void do_ri(struct pt_regs *regs)
 {
 	lock_kernel();
@@ -355,6 +491,8 @@ void do_ri(struct pt_regs *regs)
 		return;
 	force_sig(SIGILL, current);
 }
+
+#endif
 
 void do_cpu(struct pt_regs *regs)
 {
@@ -369,10 +507,10 @@ void do_cpu(struct pt_regs *regs)
 		return;
 
 	if (current->used_math) {		/* Using the FPU again.  */
-		r4xx0_lazy_fpu_switch(last_task_used_math);
+		lazy_fpu_switch(last_task_used_math);
 	} else {				/* First time FPU user.  */
 
-		r4xx0_init_fpu();
+		init_fpu();
 		current->used_math = 1;
 	}
 	last_task_used_math = current;
@@ -548,6 +686,9 @@ __initfunc(void trap_init(void))
 
 		save_fp_context = r4k_save_fp_context;
 		restore_fp_context = r4k_restore_fp_context;
+		lazy_fpu_switch = r4xx0_lazy_fpu_switch;
+		init_fpu = r4xx0_init_fpu;
+		save_fp = r4xx0_save_fp;
 		resume = r4xx0_resume;
 		set_except_vector(1, r4k_handle_mod);
 		set_except_vector(2, r4k_handle_tlbl);
@@ -592,8 +733,12 @@ __initfunc(void trap_init(void))
 	case CPU_R3000:
 	case CPU_R3000A:
 		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
+		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
 		save_fp_context = r2300_save_fp_context;
 		restore_fp_context = r2300_restore_fp_context;
+		lazy_fpu_switch = r2300_lazy_fpu_switch;
+		init_fpu = r2300_init_fpu;
+		save_fp = r2300_save_fp;
 		resume = r2300_resume;
 		set_except_vector(1, r2300_handle_mod);
 		set_except_vector(2, r2300_handle_tlbl);

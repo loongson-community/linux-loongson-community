@@ -7,7 +7,7 @@
  * Copyright (C) 1998 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  *
- * $Id: r2300.c,v 1.5 1998/04/05 11:23:55 ralf Exp $
+ * $Id: r2300.c,v 1.8 1999/04/11 17:13:56 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -19,13 +19,9 @@
 #include <asm/mmu_context.h>
 #include <asm/system.h>
 #include <asm/sgialib.h>
-#include <asm/mipsregs.h>
+#include <asm/isadep.h>
 #include <asm/io.h>
-/*
- * Temporarily disabled
- *
 #include <asm/wbflush.h>
- */
 
 /*
  * According to the paper written by D. Miller about Linux cache & TLB
@@ -374,10 +370,7 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 	register unsigned long i, flags;
 	register volatile unsigned char *p = (volatile unsigned char*) start;
 
-/*
- * Temporarily disabled
 	wbflush();
-	 */
 
 	/*
 	 * Invalidate dcache
@@ -680,7 +673,7 @@ printk("r2300_add_wired_entry");
 
 static int r2300_user_mode(struct pt_regs *regs)
 {
-	return !(regs->cp0_status & ST0_KUP);
+	return !(regs->cp0_status & KU_USER);
 }
 
 __initfunc(void ld_mmu_r2300(void))

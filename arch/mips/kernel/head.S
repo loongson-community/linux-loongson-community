@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.10 1998/10/14 23:40:44 ralf Exp $
+/* $Id: head.S,v 1.11 1998/10/18 13:27:12 tsbogend Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -11,7 +11,7 @@
  * Copyright (C) 1995, 1996, 1997, 1998 Ralf Baechle
  * Copyright (C) 1996 Paul M. Antoine
  * Modified for DECStation and hence R3000 support by Paul M. Antoine
- * Further modifications by David S. Miller
+ * Further modifications by David S. Miller and Harald Koerfgen
  *
  * Head.S contains the MIPS exception handler and startup code.
  */
@@ -258,6 +258,7 @@
 
 	/* TLB refill, EXL == 0, R[23]00 version */
 	LEAF(except_vec0_r2300)
+	.set	noat
 	.set	mips1
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
@@ -267,18 +268,13 @@
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
 	lw	k1, (k1)
-	srl	k0, k0, 1
 	and	k0, k0, 0xffc
 	addu	k1, k1, k0
 	lw	k0, (k1)
-	srl	k0, k0, 12
+	nop
 	mtc0	k0, CP0_ENTRYLO0
 	mfc0	k1, CP0_EPC
 	tlbwr
-	nop
-	nop
-	nop
-	nop
 	jr	k1
 	rfe
 	END(except_vec0_r2300)
@@ -371,6 +367,7 @@ handle_vcei:
 	/* General exception vector. */
 	NESTED(except_vec3_generic, 0, sp)
 	.set	noat
+	.set	mips0
 	mfc0	k1, CP0_CAUSE
 	la	k0, exception_handlers
 	andi	k1, k1, 0x7c
@@ -408,6 +405,14 @@ NESTED(kernel_entry, 16, sp)
 
 probe_done:
 
+	/*
+	 * Stack for kernel and init, current variable
+	 */
+	la	$28, init_task_union
+	addiu	t0, $28, KERNEL_STACK_SIZE-32
+	sw	t0, kernelsp
+	subu	sp, t0, 4*SZREG
+
 	/* The firmware/bootloader passes argc/argp/envp
 	 * to us as arguments.  But clear bss first because
 	 * the romvec and other important info is stored there
@@ -440,14 +445,6 @@ probe_done:
 	 */
 	jal	loadmmu
 	 nop
-
-	/*
-	 * Stack for kernel and init, current variable
-	 */
-	la	$28, init_task_union
-	addiu	t0, $28, KERNEL_STACK_SIZE-32
-	sw	t0, kernelsp
-	subu	sp, t0, 4*SZREG
 
 	/* Disable coprocessors */
 	mfc0	t0, CP0_STATUS

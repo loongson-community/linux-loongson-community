@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.6 1999/06/17 13:30:38 ralf Exp $
+/* $Id: semaphore.h,v 1.7 1999/06/22 22:12:59 tsbogend Exp $
  *
  * SMP- and interrupt-safe semaphores..
  *
@@ -92,6 +92,18 @@ extern inline int down_interruptible(struct semaphore * sem)
 	return ret;
 }
 
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+
+extern inline int down_trylock(struct semaphore * sem)
+{
+	int ret = 0;
+	if (atomic_dec_return(&sem->count) < 0)
+		ret = __down_trylock(sem);
+	return ret;
+}
+
+#else
+
 /*
  * down_trylock returns 0 on success, 1 if we failed to get the lock.
  *
@@ -161,6 +173,8 @@ extern inline int down_trylock(struct semaphore * sem)
 
 	return ret;
 }
+
+#endif
 
 /*
  * Note! This is subtle. We jump to wake people up only if

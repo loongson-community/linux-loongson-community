@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.11 1999/06/17 13:30:39 ralf Exp $
+/* $Id: system.h,v 1.8 1999/02/15 02:22:13 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -17,14 +17,14 @@ extern __inline__ void
 __sti(void)
 {
 	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
+		".set\tpush\n\t"
+		".set\treorder\n\t"
 		".set\tnoat\n\t"
 		"mfc0\t$1,$12\n\t"
 		"ori\t$1,0x1f\n\t"
 		"xori\t$1,0x1e\n\t"
 		"mtc0\t$1,$12\n\t"
-		".set\tat\n\t"
-		".set\treorder"
+		".set\tpop\n\t"
 		: /* no outputs */
 		: /* no inputs */
 		: "$1", "memory");
@@ -41,17 +41,18 @@ extern __inline__ void
 __cli(void)
 {
 	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
+		".set\tpush\n\t"
+		".set\treorder\n\t"
 		".set\tnoat\n\t"
 		"mfc0\t$1,$12\n\t"
 		"ori\t$1,1\n\t"
 		"xori\t$1,1\n\t"
+		".set\tnoreorder\n\t"
 		"mtc0\t$1,$12\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
-		".set\tat\n\t"
-		".set\treorder"
+		".set\tpop\n\t"
 		: /* no outputs */
 		: /* no inputs */
 		: "$1", "memory");
@@ -59,26 +60,28 @@ __cli(void)
 
 #define __save_flags(x)                  \
 __asm__ __volatile__(                    \
-	".set\tnoreorder\n\t"            \
+	".set\tpush\n\t"		 \
+	".set\treorder\n\t"              \
 	"mfc0\t%0,$12\n\t"               \
-	".set\treorder"                  \
+	".set\tpop\n\t"                      \
 	: "=r" (x)                       \
 	: /* no inputs */                \
 	: "memory")
 
 #define __save_and_cli(x)                \
 __asm__ __volatile__(                    \
-	".set\tnoreorder\n\t"            \
+	".set\tpush\n\t"		 \
+	".set\treorder\n\t"              \
 	".set\tnoat\n\t"                 \
 	"mfc0\t%0,$12\n\t"               \
 	"ori\t$1,%0,1\n\t"               \
 	"xori\t$1,1\n\t"                 \
+	".set\tnoreorder\n\t"		 \
 	"mtc0\t$1,$12\n\t"               \
 	"nop\n\t"                        \
 	"nop\n\t"                        \
 	"nop\n\t"                        \
-	".set\tat\n\t"                   \
-	".set\treorder"                  \
+	".set\tpop\n\t"                  \
 	: "=r" (x)                       \
 	: /* no inputs */                \
 	: "$1", "memory")
@@ -87,19 +90,21 @@ extern void __inline__
 __restore_flags(int flags)
 {
 	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
+		".set\tpush\n\t"
+		".set\treorder\n\t"
 		"mfc0\t$8,$12\n\t"
 		"li\t$9,0xff00\n\t"
 		"and\t$8,$9\n\t"
 		"nor\t$9,$0,$9\n\t"
 		"and\t%0,$9\n\t"
 		"or\t%0,$8\n\t"
+		".set\tnoreorder\n\t"
 		"mtc0\t%0,$12\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
-		".set\treorder"
-		: /* no output */
+		".set\tpop\n\t"
+		:
 		: "r" (flags)
 		: "$8", "$9", "memory");
 }
@@ -171,6 +176,8 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 		: "=r" (val), "=r" (m), "=r" (dummy)
 		: "1" (m), "2" (val)
 		: "memory");
+
+	return val;
 #else
 	unsigned long flags, retval;
 
@@ -179,9 +186,9 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 	retval = *m;
 	*m = val;
 	restore_flags(flags);
+	return retval;
 
 #endif /* Processor-dependent optimization */
-	return val;
 }
 
 /*

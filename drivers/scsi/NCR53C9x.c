@@ -9,6 +9,9 @@
  *
  * Set up to use GETREG/SETREG (preprocessor macros in NCR53c9x.h) by
  * Tymm Twillman (tymm@coe.missouri.edu)
+ *
+ * Support for IOASIC DECstations by
+ * Harald Koerfgen (harald@unix-ag.org)
  */
 
 /* TODO:
@@ -50,6 +53,13 @@
 #define SYMBIOS_HACK
 #else
 #undef SYMBIOS_HACK
+#endif
+
+#ifdef CONFIG_DECSTATION
+/* IOASIC DECstations only! */
+#include <asm/wbflush.h>
+#else
+#define wbflush()
 #endif
 
 #include <asm/system.h>
@@ -302,6 +312,7 @@ extern inline void esp_cmd(struct NCR_ESP *esp, struct ESP_regs *eregs,
 	esp->espcmdent = (esp->espcmdent + 1) & 31;
 #endif
 	SETREG(eregs->esp_cmnd, cmd);
+	wbflush();
 }
 
 /* How we use the various Linux SCSI data structures for operation.
@@ -442,6 +453,7 @@ static inline void esp_reset_esp(struct NCR_ESP *esp, struct ESP_regs *eregs)
 	SETREG(eregs->esp_timeo, esp->neg_defp);
 	esp->max_period = (esp->max_period + 3)>>2;
 	esp->min_period = (esp->min_period + 3)>>2;
+	wbflush();
 
 	SETREG(eregs->esp_cfg1, esp->config1);
 	switch(esp->erev) {
@@ -492,6 +504,7 @@ static inline void esp_reset_esp(struct NCR_ESP *esp, struct ESP_regs *eregs)
 		panic("esp: what could it be... I wonder...");
 		break;
 	};
+	wbflush();
 
 	/* Eat any bitrot in the chip */
 	trash = GETREG(eregs->esp_intrpt);
@@ -515,6 +528,7 @@ inline void esp_bootup_reset(struct NCR_ESP *esp, struct ESP_regs *eregs)
 	esp_cmd(esp, eregs, ESP_CMD_RS);
 	udelay(400);
 	SETREG(eregs->esp_cfg1, esp->config1);
+	wbflush();
 
 	/* Eat any bitrot in the chip and we are done... */
 	trash = GETREG(eregs->esp_intrpt);
@@ -655,6 +669,7 @@ void esp_initialize(struct NCR_ESP *esp)
 	esp->config1 = (ESP_CONFIG1_PENABLE | (esp->scsi_id & 7));
 	esp->config2 = (ESP_CONFIG2_SCSI2ENAB | ESP_CONFIG2_REGPARITY);
 	SETREG(eregs->esp_cfg2, esp->config2);
+	wbflush();
 #ifndef SYMBIOS_HACK
 	if((GETREG(eregs->esp_cfg2) & ~(ESP_CONFIG2_MAGIC)) !=
 	   (ESP_CONFIG2_SCSI2ENAB | ESP_CONFIG2_REGPARITY)) {
@@ -667,6 +682,7 @@ void esp_initialize(struct NCR_ESP *esp)
 		SETREG(eregs->esp_cfg3, 0);
 		esp->config3[0] = 5;
 		SETREG(eregs->esp_cfg3, esp->config3[0]);
+		wbflush();
 #ifndef SYMBIOS_HACK
 		if(GETREG(eregs->esp_cfg3) != 5) {
 			printk("NCR53C90A(esp100a) detected\n");
@@ -695,6 +711,7 @@ void esp_initialize(struct NCR_ESP *esp)
 				esp->config2 = 0;
 				SETREG(eregs->esp_cfg2, esp->config2);
 			}
+			wbflush();
 		}
 #endif
 	}				
@@ -1676,6 +1693,7 @@ static inline void esp_setcount(struct ESP_regs *eregs, int cnt, int hme)
 		SETREG(eregs->fas_rlo, 0);
 		SETREG(eregs->fas_rhi, 0);
 	}
+	wbflush();
 }
 
 static inline int esp_getcount(struct ESP_regs *eregs)
@@ -1831,6 +1849,7 @@ static inline void esp_connect(struct NCR_ESP *esp, struct ESP_regs *eregs,
 		SETREG(eregs->esp_busid, (sp->target & 0xf) |
 			(ESP_BUSID_RESELID | ESP_BUSID_CTR32BIT));
 	esp->current_SC = sp;
+	wbflush();
 }
 
 /* This will place the current working command back into the issue queue
@@ -2951,6 +2970,7 @@ static inline int check_multibyte_msg(struct NCR_ESP *esp,
 			}
 			SETREG(eregs->esp_soff, SDptr->sync_min_period);
 			SETREG(eregs->esp_stp, SDptr->sync_max_offset);
+			wbflush();
 
 			ESPSDTR(("soff=%2x stp=%2x cfg3=%2x\n",
 				SDptr->sync_max_offset,
@@ -2975,6 +2995,7 @@ static inline int check_multibyte_msg(struct NCR_ESP *esp,
 				esp->config3[SCptr->target] &= ~bit;
 				SETREG(eregs->esp_cfg3,
 				 esp->config3[SCptr->target]);
+				wbflush();
 			}
 		}
 
@@ -3025,6 +3046,7 @@ static inline int check_multibyte_msg(struct NCR_ESP *esp,
 				esp->config3[SCptr->target] &= ~(ESP_CONFIG3_EWIDE);
 			}
 			SETREG(eregs->esp_cfg3, esp->config3[SCptr->target]);
+			wbflush();
 
 			/* Regardless, next try for sync transfers. */
 			build_sync_nego_msg(esp, esp->sync_defp, 15);

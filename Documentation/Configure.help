@@ -1233,7 +1233,18 @@ CONFIG_BAGET_MIPS
 Support for DECstations
 CONFIG_DECSTATION
   This enables support for DEC's MIPS based workstations.  For details
-  see the Linux/MIPS FAQ on http://www.linux.sgi.com.
+  see the Linux/MIPS FAQ on http://www.linux.sgi.com or the 
+  DECstation porting pages on http://decstation.unix-ag.org.
+
+  If you have one of the following DECstation Models you definitely
+  want to choose R4xx0 for the CPU Type:
+
+	DECstation 5000/50
+	DECstation 5000/150
+	DECstation 5000/260
+	DECsystem 5900/260
+
+  otherwise choose R3000.
 
 IDE card support
 CONFIG_BLK_DEV_IDE_CARDS
@@ -1281,16 +1292,16 @@ CONFIG_JAZZ_ESP
 
 CPU type
 CONFIG_CPU_R3000
-  Give the type of your machine's MIPS CPU. For this question, it
-  suffices to give a unique prefix of the option you want to choose.
-  In case of doubt select the R3000 CPU. The kernel will then run on
-  other MIPS machines but with slightly reduced performance.
+  Please make shure to pick the right CPU type. Linux/MIPS is not
+  designed to be generic, i.e. Kernels compiled for R3000 CPUs will
+  *not* work on R4000 Machines and vice versa.
+  However, since most the supported Machines have an R4000 (or similar)
+  CPU R4xx0 might be a safe bet.
+  If the resulting Kernel does not work try to recompile with R3000.
 
 Compile the kernel into the ECOFF object format
 CONFIG_ECOFF_KERNEL
-  Some machines require a kernel in the ECOFF format. You will have to
-  say Y here for example if you want to use a Mips Magnum 3000 or a
-  DECstation.
+  Oops. How di I get here?
 
 Generate little endian code
 CONFIG_CPU_LITTLE_ENDIAN

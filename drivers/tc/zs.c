@@ -42,6 +42,7 @@
 #include <asm/segment.h>
 #include <asm/bitops.h>
 #include <asm/uaccess.h>
+#include <asm/wbflush.h>
 #include <asm/dec/interrupts.h>
 #include <asm/dec/machtype.h>
 #include <asm/dec/tc.h>
@@ -195,7 +196,7 @@ static inline unsigned char read_zsreg(struct dec_zschannel *channel,
 
 	if (reg != 0) {
 		*channel->control = reg & 0xf;
-		RECOVERY_DELAY;
+		wbflush(); RECOVERY_DELAY;
 	}
 	retval = *channel->control;
 	RECOVERY_DELAY;
@@ -207,10 +208,10 @@ static inline void write_zsreg(struct dec_zschannel *channel,
 {
 	if (reg != 0) {
 		*channel->control = reg & 0xf;
-		RECOVERY_DELAY;
+		wbflush(); RECOVERY_DELAY;
 	}
 	*channel->control = value;
-	RECOVERY_DELAY;
+	wbflush(); RECOVERY_DELAY;
 	return;
 }
 
@@ -227,7 +228,7 @@ static inline void write_zsdata(struct dec_zschannel *channel,
 				unsigned char value)
 {
 	*channel->data = value;
-	RECOVERY_DELAY;
+	wbflush(); RECOVERY_DELAY;
 	return;
 }
 
@@ -1829,7 +1830,7 @@ zs_console_putchar(struct dec_serial *info, char ch)
 	while (!(*(info->zs_channel->control) & Tx_BUF_EMP) && --loops)
 		RECOVERY_DELAY;
 	*(info->zs_channel->data) = ch;
-	RECOVERY_DELAY;
+	wbflush(); RECOVERY_DELAY;
 
 	restore_flags(flags);
 }

@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.19 1999/06/13 16:35:53 ralf Exp $
+/* $Id: pgtable.h,v 1.20 1999/07/22 01:58:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -110,6 +110,20 @@ extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 #define _PAGE_WRITE                 (1<<2)  /* implemented in software */
 #define _PAGE_ACCESSED              (1<<3)  /* implemented in software */
 #define _PAGE_MODIFIED              (1<<4)  /* implemented in software */
+
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+
+#define _PAGE_GLOBAL                (1<<8)
+#define _PAGE_VALID                 (1<<9)
+#define _PAGE_SILENT_READ           (1<<9)  /* synonym                 */
+#define _PAGE_DIRTY                 (1<<10) /* The MIPS dirty bit      */
+#define _PAGE_SILENT_WRITE          (1<<10)
+#define _CACHE_UNCACHED             (1<<11) /* R4[0246]00              */
+#define _CACHE_MASK                 (1<<11)
+#define _CACHE_CACHABLE_NONCOHERENT 0
+
+#else
+ 
 #define _PAGE_R4KBUG                (1<<5)  /* workaround for r4k bug  */
 #define _PAGE_GLOBAL                (1<<6)
 #define _PAGE_VALID                 (1<<7)
@@ -125,6 +139,8 @@ extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 #define _CACHE_CACHABLE_CUW         (6<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_ACCELERATED (7<<9)  /* R10000 only             */
 #define _CACHE_MASK                 (7<<9)
+
+#endif
 
 #define __READABLE	(_PAGE_READ | _PAGE_SILENT_READ | _PAGE_ACCESSED)
 #define __WRITEABLE	(_PAGE_WRITE | _PAGE_SILENT_WRITE | _PAGE_MODIFIED)
@@ -356,7 +372,7 @@ extern inline pte_t mk_pte(unsigned long page, pgprot_t pgprot)
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
-	return __pte(physpage | pgprot_val(pgprot));
+	return __pte(((physpage & PAGE_MASK) - PAGE_OFFSET) | pgprot_val(pgprot));
 }
 
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
@@ -595,33 +611,37 @@ extern void (*update_mmu_cache)(struct vm_area_struct *vma,
 extern inline void tlb_probe(void)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"tlbp\n\t"
-		".set reorder");
+		".set pop");
 }
 
 extern inline void tlb_read(void)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"tlbr\n\t"
-		".set reorder");
+		".set pop");
 }
 
 extern inline void tlb_write_indexed(void)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"tlbwi\n\t"
-		".set reorder");
+		".set pop");
 }
 
 extern inline void tlb_write_random(void)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"tlbwr\n\t"
-		".set reorder");
+		".set pop");
 }
 
 /* Dealing with various CP0 mmu/cache related registers. */
@@ -632,11 +652,10 @@ extern inline unsigned long get_pagemask(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $5\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 	return val;
 }
@@ -644,11 +663,10 @@ extern inline unsigned long get_pagemask(void)
 extern inline void set_pagemask(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $5\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -658,11 +676,10 @@ extern inline unsigned long get_entrylo0(void)
 	unsigned long val;
 
 	__asm__ __volatile__(	
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $2\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 	return val;
 }
@@ -670,11 +687,10 @@ extern inline unsigned long get_entrylo0(void)
 extern inline void set_entrylo0(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $2\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -683,11 +699,10 @@ extern inline unsigned long get_entrylo1(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $3\n\t"
-		".set mips0\n\t"
-		".set reorder" : "=r" (val));
+		".set pop" : "=r" (val));
 
 	return val;
 }
@@ -695,11 +710,10 @@ extern inline unsigned long get_entrylo1(void)
 extern inline void set_entrylo1(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $3\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -709,11 +723,10 @@ extern inline unsigned long get_entryhi(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $10\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 
 	return val;
@@ -722,11 +735,10 @@ extern inline unsigned long get_entryhi(void)
 extern inline void set_entryhi(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $10\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -736,11 +748,10 @@ extern inline unsigned long get_index(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $0\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 	return val;
 }
@@ -748,11 +759,10 @@ extern inline unsigned long get_index(void)
 extern inline void set_index(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mtc0 %0, $0\n\t"
-		".set mips0\n\t"
+		".set push\n\t"
 		".set reorder\n\t"
+		"mtc0 %0, $0\n\t"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -762,11 +772,10 @@ extern inline unsigned long get_wired(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mfc0 %0, $6\n\t"
-		".set mips0\n\t"
+		".set push\n\t"
 		".set reorder\n\t"
+		"mfc0 %0, $6\n\t"
+		".set pop"
 		: "=r" (val));
 	return val;
 }
@@ -774,11 +783,10 @@ extern inline unsigned long get_wired(void)
 extern inline void set_wired(unsigned long val)
 {
 	__asm__ __volatile__(
-		"\n\t.set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $6\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -788,11 +796,10 @@ extern inline unsigned long get_taglo(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $28\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 	return val;
 }
@@ -800,11 +807,10 @@ extern inline unsigned long get_taglo(void)
 extern inline void set_taglo(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $28\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -813,11 +819,10 @@ extern inline unsigned long get_taghi(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $29\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 	return val;
 }
@@ -825,11 +830,10 @@ extern inline unsigned long get_taghi(void)
 extern inline void set_taghi(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $29\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 
@@ -839,11 +843,10 @@ extern inline unsigned long get_context(void)
 	unsigned long val;
 
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mfc0 %0, $4\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: "=r" (val));
 
 	return val;
@@ -852,11 +855,10 @@ extern inline unsigned long get_context(void)
 extern inline void set_context(unsigned long val)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
+		".set push\n\t"
+		".set reorder\n\t"
 		"mtc0 %0, $4\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set pop"
 		: : "r" (val));
 }
 

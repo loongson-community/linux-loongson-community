@@ -1,4 +1,4 @@
-/* $Id: softirq.h,v 1.5 1999/02/15 02:22:12 ralf Exp $
+/* $Id: softirq.h,v 1.6 1999/06/17 13:30:38 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -28,6 +28,12 @@ extern unsigned int local_bh_count[NR_CPUS];
 
 #define get_active_bhs()	(bh_mask & bh_active)
 
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+
+#define clear_active_bhs(x)     atomic_clear_mask((x),&bh_active)
+
+#else
+
 static inline void clear_active_bhs(unsigned long x)
 {
 	unsigned long temp;
@@ -41,7 +47,10 @@ static inline void clear_active_bhs(unsigned long x)
 		 "=m" (bh_active)
 		:"Ir" (~x),
 		 "m" (bh_active));
+
 }
+
+#endif
 
 extern inline void init_bh(int nr, void (*routine)(void))
 {

@@ -17,6 +17,66 @@ static inline void wake_one_more(struct semaphore * sem)
 	atomic_inc(&sem->waking);
 }
 
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+
+/*
+ * It doesn't make sense, IMHO, to endlessly turn interrupts off and on again.
+ * Do it once and that's it. ll/sc *has* it's advantages. HK
+ */
+#define read(a) ((a)->counter)
+#define inc(a) (((a)->counter)++)
+#define dec(a) (((a)->counter)--)
+
+static inline int waking_non_zero(struct semaphore *sem)
+{
+	unsigned long flags;
+	int ret = 0;
+
+	save_and_cli(flags);
+	if (read(&sem->waking) > 0) {
+		dec(&sem->waking);
+		ret = 1;
+	}
+	restore_flags(flags);
+	return ret;
+}
+
+static inline int waking_non_zero_interruptible(struct semaphore *sem,
+						struct task_struct *tsk)
+{
+	int ret = 0;
+	unsigned long flags;
+
+	save_and_cli(flags);
+	if (read(&sem->waking) > 0) {
+		dec(&sem->waking);
+		ret = 1;
+	} else if (signal_pending(tsk)) {
+		inc(&sem->count);
+		ret = -EINTR;
+	}
+	restore_flags(flags);
+	return ret;
+}
+
+static inline int waking_non_zero_trylock(struct semaphore *sem)
+{
+        int ret = 1;
+	unsigned long flags;
+
+	save_and_cli(flags);
+	if (read(&sem->waking) <= 0)
+		inc(&sem->count);
+	else {
+		dec(&sem->waking);
+		ret = 0;
+	}
+	restore_flags(flags);
+	return ret;
+}
+
+#else
+
 static inline int
 waking_non_zero(struct semaphore *sem)
 {
@@ -149,5 +209,7 @@ static inline int waking_non_zero_trylock(struct semaphore *sem)
 
 	return ret;
 }
+
+#endif
 
 #endif /* __ASM_MIPS_SEMAPHORE_HELPER_H */
