@@ -60,7 +60,10 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 #endif
 
 extern void ip32_time_init(void);
-extern void ip32_reboot_setup(void);
+extern void ip32_be_init(void);                                                
+extern void __init ip32_timer_setup (struct irqaction *irq);                   
+extern void __init crime_init (void);                                          
+
 
 void __init ip32_setup(void)
 {
