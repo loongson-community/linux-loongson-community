@@ -18,9 +18,12 @@ $(TARGET): offset.h
 offset.h: offset.s
 	sed -n '/^@@@/s///p' $^ >$@
 
-offset.s: offset.c $(TOPDIR)/.config
+offset.s: offset.c $(TOPDIR)/include/linux/autoconf.h
 
 clean:
+	rm -f offset.[hs] $(TARGET).new
+	
+mrproper:	
 	rm -f offset.[hs] $(TARGET).new
 	rm -f $(TARGET)
 
