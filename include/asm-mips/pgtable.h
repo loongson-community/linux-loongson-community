@@ -118,6 +118,17 @@ static inline void pte_clear(pte_t *ptep)
 #define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while(0)
 #define set_pgd(pgdptr, pgdval) do { *(pgdptr) = (pgdval); } while(0)
 
+#define PGD_T_LOG2	ffz(~sizeof(pgd_t))
+#define PMD_T_LOG2	ffz(~sizeof(pmd_t))
+#define PTE_T_LOG2	ffz(~sizeof(pte_t))
+
+#define PTRS_PER_PGD	((PAGE_SIZE << PGD_ORDER) / sizeof(pgd_t))
+#ifdef CONFIG_MIPS64
+#define PTRS_PER_PMD	1
+#else
+#define PTRS_PER_PMD	((PAGE_SIZE << PMD_ORDER) / sizeof(pmd_t))
+#endif
+#define PTRS_PER_PTE	((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
 
 #define PTE_FILE_MAX_BITS	27
 

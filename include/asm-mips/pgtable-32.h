@@ -60,16 +60,10 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
  * we don't really have any PMD directory physically.
  */
 #ifdef CONFIG_64BIT_PHYS_ADDR
-#define PTRS_PER_PTE	512
-#define PTRS_PER_PMD	1
-#define PTRS_PER_PGD	2048
 #define PGD_ORDER	1
 #define PMD_ORDER	0
 #define PTE_ORDER	0
 #else
-#define PTRS_PER_PTE	1024
-#define PTRS_PER_PMD	1
-#define PTRS_PER_PGD	1024
 #define PGD_ORDER	0
 #define PMD_ORDER	0
 #define PTE_ORDER	0
