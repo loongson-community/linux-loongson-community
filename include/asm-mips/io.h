@@ -247,36 +247,49 @@ do {									\
 	SLOW_DOWN_IO;							\
 } while(0)
 
-#define inb(port) ({__ioswab8(*(volatile u8 *)(mips_io_port_base + (port)));})
-#define inw(port) ({__ioswab16(*(volatile u16 *)(mips_io_port_base + (port)));})
-#define inl(port) ({__ioswab32(*(volatile u32 *)(mips_io_port_base + (port)));})
+static inline unsigned char inb(unsigned long port)
+{
+	return __ioswab8(*(volatile u8 *)(mips_io_port_base + port));
+}
 
-#define inb_p(port)							\
-({									\
-	u8 __val;							\
-									\
-	__val = *(volatile u8 *)(mips_io_port_base + (port));		\
-	SLOW_DOWN_IO;							\
-	__ioswab8(__val);						\
-})
+static inline unsigned short inw(unsigned long port)
+{
+	return __ioswab16(*(volatile u16 *)(mips_io_port_base + port));
+}
 
-#define inw_p(port)							\
-({									\
-	u16 __val;							\
-									\
-	__val = *(volatile u16 *)(mips_io_port_base + (port));		\
-	SLOW_DOWN_IO;							\
-	__ioswab16(__val);						\
-})
+static inline unsigned int inl(unsigned long port)
+{
+	return __ioswab32(*(volatile u32 *)(mips_io_port_base + port));
+}
 
-#define inl_p(port)							\
-({									\
-	u32 __val;							\
-									\
-	__val = *(volatile u32 *)(mips_io_port_base + (port));		\
-	SLOW_DOWN_IO;							\
-	__ioswab32(__val);						\
-})
+static inline unsigned char inb_p(unsigned long port)
+{
+	u8 __val;
+
+	__val = *(volatile u8 *)(mips_io_port_base + port);
+	SLOW_DOWN_IO;
+
+	return __ioswab8(__val);
+}
+
+static inline unsigned short inw_p(unsigned long port)
+{
+	u16 __val;
+
+	__val = *(volatile u16 *)(mips_io_port_base + port);
+	SLOW_DOWN_IO;
+
+	return __ioswab16(__val);
+}
+
+static inline unsigned int inl_p(unsigned long port)
+{
+	u32 __val;
+
+	__val = *(volatile u32 *)(mips_io_port_base + port);
+	SLOW_DOWN_IO;
+	return __ioswab32(__val);
+}
 
 static inline void outsb(unsigned long port, void *addr, unsigned int count)
 {
