@@ -67,14 +67,14 @@ static inline unsigned int _raw_spin_trylock(spinlock_t *lock)
 
 	__asm__ __volatile__(
 	".set\tnoreorder\t\t\t# spin_trylock\n\t"
-	"1:\tll\t%0, %1\n\t"
-	"or\t%2, %0, %3\n\t"
+	"1:\tll\t%0, %3\n\t"
+	"ori\t%2, %0, 1\n\t"
 	"sc\t%2, %1\n\t"
 	"beqz\t%2, 1b\n\t"
-	" and\t%2, %0, %3\n\t"
+	" andi\t%2, %0, 1\n\t"
 	".set\treorder"
 	: "=&r" (temp), "=m" (lock->lock), "=&r" (res)
-	: "r" (1), "m" (lock->lock)
+	: "m" (lock->lock)
 	: "memory");
 
 	return res == 0;
