@@ -3,11 +3,8 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: setup.c,v 1.4 1997/07/23 17:59:23 ralf Exp $
+ * $Id: setup.c,v 1.3 1997/07/24 01:55:45 ralf Exp $
  */
-#ifndef __GOGOGO__
-#error "... about to fuckup your Indy?"
-#endif
 #include <linux/kernel.h>
 #include <linux/sched.h>
 

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: system.c,v 1.2 1997/06/28 22:47:45 ralf Exp $
+ * $Id: system.c,v 1.2 1997/07/01 08:51:04 ralf Exp $
  */
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -12,10 +12,6 @@
 #include <asm/sgi.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
-
-#ifndef __GOGOGO__
-#error "... You're fearless, aren't you?"
-#endif
 
 enum sgi_mach sgimach;
 
