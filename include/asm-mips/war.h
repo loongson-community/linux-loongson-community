@@ -168,7 +168,7 @@
 #define MIPS4K_ICACHE_REFILL_WAR	0
 #endif
 #ifndef MIPS_CACHE_SYNC_WAR
-#deifne MIPS_CACHE_SYNC_WAR		0
+#define MIPS_CACHE_SYNC_WAR		0
 #endif
 
 #endif /* _ASM_WAR_H */
