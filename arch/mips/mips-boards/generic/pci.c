@@ -63,9 +63,23 @@ mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 	if (access_type == PCI_ACCESS_WRITE) {
-		GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+	        if (bus == 0 && dev_fn == 0) {
+		        /* 
+			 * Galileo is acting differently than other devices. 
+			 */
+		        GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+		} else {
+		        GT_PCI_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+		}
 	} else {
-		GT_READ(GT_PCI0_CFGDATA_OFS, *data);
+	        if (bus == 0 && dev_fn == 0) {
+		        /* 
+			 * Galileo is acting differently than other devices. 
+			 */
+		        GT_READ(GT_PCI0_CFGDATA_OFS, *data);
+		} else {
+		        GT_PCI_READ(GT_PCI0_CFGDATA_OFS, *data);
+		}
 	}
 
 	/* Check for master or target abort */
@@ -223,7 +237,7 @@ void __init pcibios_init(void)
 	GT_WRITE( GT_PCI0_CFGDATA_OFS, PHYSADDR(MIPS_GT_BASE)); 
 
 #ifdef CONFIG_MIPS_MALTA
-	for (pdev = pci_devices; pdev; pdev=pdev->next) {
+	pci_for_each_dev(pdev) {
 		if ((pdev->vendor == PCI_VENDOR_ID_INTEL)
 		    && (pdev->device == PCI_DEVICE_ID_INTEL_82371AB)
 		    && (PCI_SLOT(pdev->devfn) == 0x0a)) {
