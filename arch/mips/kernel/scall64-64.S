@@ -398,7 +398,7 @@ sys_call_table:
 	PTR	sys_lremovexattr		/* 5190 */
 	PTR	sys_fremovexattr
 	PTR	sys_tkill
-	PTR	sys_time
+	PTR	sys_ni_syscall
 	PTR	sys_futex
 	PTR	sys_sched_setaffinity		/* 5195 */
 	PTR	sys_sched_getaffinity
