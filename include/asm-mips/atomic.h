@@ -92,10 +92,10 @@ extern __inline__ void atomic_add(int i, atomic_t * v)
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0, %1\t\t\t# atomic_add\n\t"
-		"addu\t%0, %2\n\t"
-		"sc\t%0, %1\n\t"
-		"beqz\t%0, 1b"
+		"1:   ll      %0, %1      # atomic_add\n"
+		"     addu    %0, %2                  \n"
+		"     sc      %0, %1                  \n"
+		"     beqz    %0, 1b                  \n"
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 }
@@ -105,10 +105,10 @@ extern __inline__ void atomic_sub(int i, atomic_t * v)
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0, %1\t\t\t# atomic_sub\n\t"
-		"subu\t%0, %2\n\t"
-		"sc\t%0, %1\n\t"
-		"beqz\t%0, 1b"
+		"1:   ll      %0, %1      # atomic_sub\n"
+		"     subu    %0, %2                  \n"
+		"     sc      %0, %1                  \n"
+		"     beqz    %0, 1b                  \n"
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 }
@@ -121,13 +121,14 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 	unsigned long temp, result;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t\t# atomic_add_return\n"
-		"1:\tll\t%1,%2\n\t"
-		"addu\t%0,%1,%3\n\t"
-		"sc\t%0,%2\n\t"
-		"beqz\t%0,1b\n\t"
-		"addu\t%0,%1,%3\n\t"
-		".set\treorder"
+		".set push               # atomic_add_return\n"
+		".set noreorder                             \n"
+		"1:   ll      %1, %2                        \n"
+		"     addu    %0, %1, %3                    \n"
+		"     sc      %0, %2                        \n"
+		"     beqz    %0, 1b                        \n"
+		"     addu    %0, %1, %3                    \n"
+		".set pop                                   \n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter)
 		: "memory");
@@ -140,13 +141,14 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 	unsigned long temp, result;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t\t# atomic_sub_return\n"
-		"1:\tll\t%1,%2\n\t"
-		"subu\t%0,%1,%3\n\t"
-		"sc\t%0,%2\n\t"
-		"beqz\t%0,1b\n\t"
-		"subu\t%0,%1,%3\n\t"
-		".set\treorder"
+		".set push                                   \n"
+		".set noreorder           # atomic_sub_return\n"
+		"1:   ll    %1, %2                           \n"
+		"     subu  %0, %1, %3                       \n"
+		"     sc    %0, %2                           \n"
+		"     beqz  %0, 1b                           \n"
+		"     subu  %0, %1, %3                       \n"
+		".set pop                                    \r"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter)
 		: "memory");

@@ -20,6 +20,8 @@
 #define KSEG2                   0xc0000000
 #define KSEG3                   0xe0000000
 
+#define K0BASE  KSEG0
+
 /*
  * Returns the kernel segment base of a given address
  */

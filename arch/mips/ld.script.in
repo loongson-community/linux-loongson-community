@@ -91,6 +91,7 @@ SECTIONS
      can access them all, and initialized data all before uninitialized, so
      we can shorten the on-disk segment size.  */
   .sdata     : { *(.sdata) }
+  . = ALIGN(4);
   _edata  =  .;
   PROVIDE (edata = .);
 

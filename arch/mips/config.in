@@ -200,6 +200,7 @@ choice 'CPU type' \
 	 RM7000 CONFIG_CPU_RM7000 \
 	 R52xx CONFIG_CPU_NEVADA \
 	 R10000 CONFIG_CPU_R10000 \
+	 SB1    CONFIG_CPU_SB1    \
 	 MIPS32 CONFIG_CPU_MIPS32" R4x00
 
 bool 'Override CPU Options' CONFIG_CPU_ADVANCED
@@ -341,53 +342,36 @@ if [ "$CONFIG_NET" = "y" ]; then
 
    bool 'Network device support' CONFIG_NETDEVICES
    if [ "$CONFIG_NETDEVICES" = "y" ]; then
-
-      if [ "$CONFIG_SGI_IP22" != "y" -a \
-      	   "$CONFIG_DECSTATION" != "y" -a \
-	   "$CONFIG_BAGET_MIPS" != "y" ]; then
-
-	 source drivers/net/Config.in
-
-	 if [ "$CONFIG_ATM" = "y" ]; then
-	    source drivers/atm/Config.in
-	 fi
-      else
-	 tristate 'Dummy net driver support' CONFIG_DUMMY
-	 tristate 'SLIP (serial line) support' CONFIG_SLIP
-	 if [ "$CONFIG_SLIP" != "n" ]; then
-	    bool ' CSLIP compressed headers' CONFIG_SLIP_COMPRESSED
-	    bool ' Keepalive and linefill' CONFIG_SLIP_SMART
-	 fi
-	 tristate 'PPP (point-to-point) support' CONFIG_PPP
-	 if [ ! "$CONFIG_PPP" = "n" ]; then
-	    comment 'CCP compressors for PPP are only built as modules.'
-	 fi
+      source drivers/net/Config.in
+      if [ "$CONFIG_ATM" = "y" ]; then
+         source drivers/atm/Config.in
       fi
    fi
    endmenu
 fi
 
-if [ "$CONFIG_ISA" = "y" -o "$CONFIG_PCI" = "y" ]; then
-   mainmenu_option next_comment
-   comment 'ISDN subsystem'
+source net/ax25/Config.in
 
-   if [ "$CONFIG_NET" != "n" ]; then
-      tristate 'ISDN support' CONFIG_ISDN
-      if [ "$CONFIG_ISDN" != "n" ]; then
-	 source drivers/isdn/Config.in
-      fi
+source net/irda/Config.in
+
+mainmenu_option next_comment
+comment 'ISDN subsystem'
+if [ "$CONFIG_NET" != "n" ]; then
+   tristate 'ISDN support' CONFIG_ISDN
+   if [ "$CONFIG_ISDN" != "n" ]; then
+      source drivers/isdn/Config.in
    fi
-   endmenu
-
-   mainmenu_option next_comment
-   comment 'Old CD-ROM drivers (not SCSI, not IDE)'
-
-   bool 'Support non-SCSI/IDE/ATAPI drives' CONFIG_CD_NO_IDESCSI
-   if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
-      source drivers/cdrom/Config.in
-   fi
-   endmenu
 fi
+endmenu
+
+mainmenu_option next_comment
+comment 'Old CD-ROM drivers (not SCSI, not IDE)'
+
+bool 'Support non-SCSI/IDE/ATAPI CDROM drives' CONFIG_CD_NO_IDESCSI
+if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
+   source drivers/cdrom/Config.in
+fi
+endmenu
 
 if [ "$CONFIG_DECSTATION" != "y" -a \
      "$CONFIG_SGI_IP22" != "y" ]; then

@@ -28,10 +28,11 @@
 #define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards                     */
 #define MACH_GROUP_PHILLIPS    14
 #define MACH_GROUP_GLOBESPAN   15 /* Globespan PVR Referrence Board           */
+#define MACH_GROUP_SIBYTE      16 /* Sibyte Eval Boards                       */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
 	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \
-	"ITE", "Phillips", "Globepspan" }
+	"ITE", "Phillips", "Globepspan", "SiByte" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -168,6 +169,13 @@
 #define GROUP_PHILIPS_NAMES { "Nino" , "Velo" }
 
 /*
+ * Valid machtype for group SIBYTE
+ */
+#define MACH_SWARM              0
+
+#define GROUP_SIBYTE_NAMES {"SWARM" }
+
+/*
  * Valid cputype values
  */
 #define CPU_UNKNOWN		0
@@ -204,14 +212,15 @@
 #define CPU_5KC                 31
 #define CPU_R4310               32
 #define CPU_R3912               33
-#define CPU_LAST		33
+#define CPU_SB1                 34
+#define CPU_LAST		34
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
         "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
-        "MIPS 5Kc", "R4310", "R3912" }
+        "MIPS 5Kc", "R4310", "R3912", "SiByte SB1" }
 
 #define COMMAND_LINE_SIZE	256
 

@@ -78,6 +78,9 @@ endif
 ifdef CONFIG_CPU_RM7000
 GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap
 endif
+ifdef CONFIG_CPU_SB1
+GCCFLAGS        += -mcpu=sb1 -mips2 -Wa,--trap
+endif
 
 ifdef CONFIG_MIPS_FPU_EMULATOR
 CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
@@ -88,6 +91,7 @@ GCCFLAGS	+= -pipe
 
 CFLAGS		:= -I $(TOPDIR)/include/asm/gcc $(CFLAGS) $(GCCFLAGS)
 AFLAGS		+= $(GCCFLAGS)
+ASFLAGS		+= $(GCCFLAGS)
 
 #
 # Board-dependent options and extra files

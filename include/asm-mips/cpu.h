@@ -8,11 +8,32 @@
 #define _ASM_CPU_H
 
 #include <asm/cache.h>
+/* Assigned Company values for bits 23:16 of the PRId Register  
+   (CP0 register 15, select 0).  As of the MIPS32 and MIPS64 specs from 
+   MTI, the PRId register is defined in this (backwards compatible)
+   way:
+
+  +----------------+----------------+----------------+----------------+
+  | Company Options| Company ID     | Processor ID   | Revision       |
+  +----------------+----------------+----------------+----------------+
+   31            24 23            16 15             8 7
+
+   I don't have docs for all the previous processors, but my impression is
+   that bits 16-23 have been 0 for all MIPS processors before the MIPS32/64
+   spec.  
+*/
+
+#define PRID_COMP_LEGACY       0x000000
+#define PRID_COMP_MIPS         0x010000
+/* 
+ * Don't know who should be here...QED and Sandcraft, maybe?
+ */
+#define PRID_COMP_SIBYTE       0x040000
 
 /*
  * Assigned values for the product ID register.  In order to detect a
  * certain CPU type exactly eventually additional registers may need to
- * be examined.
+ * be examined.  These are valid when 23:16 == PRID_COMP_LEGACY
  */
 #define PRID_IMP_R2000		0x0100
 #define PRID_IMP_R3000		0x0200		/* Same as R2000A  */
@@ -39,6 +60,17 @@
 
 
 #define PRID_IMP_UNKNOWN	0xff00
+
+/*
+ * These are the PRID's for when 23:16 == PRID_COMP_SIBYTE
+ */
+
+#define PRID_IMP_SB1            0x0100
+
+/*
+ * Definitions for 7:0 on legacy processors
+ */
+
 
 #define PRID_REV_R4400		0x0040
 #define PRID_REV_R3000A		0x0030

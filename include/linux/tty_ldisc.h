@@ -35,7 +35,7 @@
  *		   unsigned char * buf, size_t nr);
  *
  * 	This function is called when the user requests to read from
- * 	the tty.  The line discpline will return whatever characters
+ * 	the tty.  The line discipline will return whatever characters
  * 	it has buffered up for the user.  If this function is not
  * 	defined, the user will receive an EIO error.
  * 

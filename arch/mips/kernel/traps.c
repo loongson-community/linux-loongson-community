@@ -791,7 +791,7 @@ void __init trap_init(void)
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
-
+	flush_icache_range(KSEG0 + 0x80, KSEG0 + 0x200);
 	/*
 	 * Setup default vectors
 	 */
@@ -885,10 +885,21 @@ void __init trap_init(void)
 		 */
 		panic("CPU too expensive - making holiday in the ANDES!");
 		break;
+	case CPU_SB1:
+		/* XXX - This should be folded in to the "cleaner" handling, above */
+		memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
+		save_fp_context = _save_fp_context;
+		restore_fp_context = _restore_fp_context;
+		/* Enable timer interrupt and scd mapped interrupt in status register */
+		clear_cp0_status(0xf000);
+		set_cp0_status(0xc00);
+		break;
 	case CPU_R6000:
 	case CPU_R6000A:
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
+		
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and

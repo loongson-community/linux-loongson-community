@@ -130,13 +130,25 @@ extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define _CACHE_CACHABLE_NONCOHERENT 0
 
 #else
- 
 #define _PAGE_R4KBUG                (1<<5)  /* workaround for r4k bug  */
 #define _PAGE_GLOBAL                (1<<6)
 #define _PAGE_VALID                 (1<<7)
 #define _PAGE_SILENT_READ           (1<<7)  /* synonym                 */
 #define _PAGE_DIRTY                 (1<<8)  /* The MIPS dirty bit      */
 #define _PAGE_SILENT_WRITE          (1<<8)
+#define _CACHE_MASK                 (7<<9)
+
+#if defined(CONFIG_CPU_SB1)
+
+/* No penalty for being coherent on the SB1, so just
+   use it for "noncoherent" spaces, too.  Shouldn't hurt. */
+
+#define _CACHE_UNCACHED             (2<<9)  
+#define _CACHE_CACHABLE_COW         (5<<9)  
+#define _CACHE_CACHABLE_NONCOHERENT (5<<9)  
+
+#else
+
 #define _CACHE_CACHABLE_NO_WA       (0<<9)  /* R4600 only              */
 #define _CACHE_CACHABLE_WA          (1<<9)  /* R4600 only              */
 #define _CACHE_UNCACHED             (2<<9)  /* R4[0246]00              */
@@ -145,8 +157,8 @@ extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define _CACHE_CACHABLE_COW         (5<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_CUW         (6<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_ACCELERATED (7<<9)  /* R10000 only             */
-#define _CACHE_MASK                 (7<<9)
 
+#endif
 #endif
 
 #define __READABLE	(_PAGE_READ | _PAGE_SILENT_READ | _PAGE_ACCESSED)
@@ -157,7 +169,11 @@ extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 #ifdef CONFIG_MIPS_UNCACHED
 #define PAGE_CACHABLE_DEFAULT	_CACHE_UNCACHED
 #else
+#ifdef CONFIG_CPU_SB1
+#define PAGE_CACHABLE_DEFAULT	_CACHE_CACHABLE_COW
+#else
 #define PAGE_CACHABLE_DEFAULT	_CACHE_CACHABLE_NONCOHERENT
+#endif
 #endif
 
 #define PAGE_NONE	__pgprot(_PAGE_PRESENT | _CACHE_CACHABLE_NONCOHERENT)

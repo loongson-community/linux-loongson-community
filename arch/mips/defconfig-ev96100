@@ -59,6 +59,7 @@ CONFIG_MODULES=y
 CONFIG_CPU_RM7000=y
 # CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R10000 is not set
+# CONFIG_CPU_SB1 is not set
 # CONFIG_CPU_MIPS32 is not set
 CONFIG_CPU_ADVANCED=y
 CONFIG_CPU_HAS_LLSC=y
@@ -274,6 +275,16 @@ CONFIG_TULIP=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
+
+#
+# Amateur Radio support
+#
+# CONFIG_HAMRADIO is not set
+
+#
+# IrDA (infrared) support
+#
+# CONFIG_IRDA is not set
 
 #
 # ISDN subsystem

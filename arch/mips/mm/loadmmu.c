@@ -45,6 +45,7 @@ extern void ld_mmu_r6000(void);
 extern void ld_mmu_rm7k(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
+extern void ld_mmu_sb1(void);
 extern void ld_mmu_mips32(void);
 
 void __init loadmmu(void)
@@ -85,14 +86,19 @@ void __init loadmmu(void)
 		ld_mmu_r2300();
 		break;
 #endif
-
+		
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 		printk("Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
 		break;
 #endif
-
+#ifdef CONFIG_CPU_SB1
+	case CPU_SB1:
+		printk("Loading SB1 MMU routines.\n");
+		ld_mmu_sb1();
+		break;
+#endif
 	default:
 		panic("Yeee, unsupported mmu/cache architecture.");
 	}
