@@ -41,6 +41,7 @@ export-objs			+= old-irq.o
 obj-$(CONFIG_NEW_IRQ)		+= irq.o
 obj-$(CONFIG_ROTTEN_IRQ)	+= old-irq.o
 obj-$(CONFIG_I8259)		+= i8259.o
+obj-$(CONFIG_IRQ_CPU)		+= irq_cpu.o
 
 # transition from old time.c to new time.c
 # some boards uses old-time.c, some use time.c, and some use their own ones
