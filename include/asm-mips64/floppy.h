@@ -11,8 +11,6 @@
 #define _ASM_FLOPPY_H
 
 #include <asm/bootinfo.h>
-#include <asm/jazz.h>
-#include <asm/jazzdma.h>
 
 struct fd_ops {
 	unsigned char (*fd_inb)(unsigned int port);
