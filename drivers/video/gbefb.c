@@ -189,8 +189,6 @@ struct fb_var_screeninfo *default_var = &default_var_CRT;
 
 static int flat_panel_enabled = 0;
 
-static struct gbefb_par par_current;
-
 static void gbe_reset(void)
 {
 	/* Turn on dotclock PLL */
@@ -1112,9 +1110,10 @@ static int __init gbefb_probe(struct device *dev)
 {
 	int i, ret = 0;
 	struct fb_info *info;
+	struct gbefb_par *par;
 	struct platform_device *p_dev = to_platform_device(dev);
 
-	info = framebuffer_alloc(sizeof(struct fb_info), &p_dev->dev);
+	info = framebuffer_alloc(sizeof(struct gbefb_par), &p_dev->dev);
 	if (!info)
 		return -ENOMEM;
 
@@ -1181,14 +1180,14 @@ static int __init gbefb_probe(struct device *dev)
 	/* reset GBE */
 	gbe_reset();
 
+	par = info->par;
 	/* turn on default video mode */
-	if (fb_find_mode(&par_current.var, info, mode_option, NULL, 0,
+	if (fb_find_mode(&par->var, info, mode_option, NULL, 0,
 			 default_mode, 8) == 0)
-		par_current.var = *default_var;
-	info->var = par_current.var;
-	gbefb_check_var(&par_current.var, info);
+		par->var = *default_var;
+	info->var = par->var;
+	gbefb_check_var(&par->var, info);
 	gbefb_encode_fix(&info->fix, &info->var);
-	info->par = &par_current;
 
 	if (register_framebuffer(info) < 0) {
 		printk(KERN_ERR "gbefb: couldn't register framebuffer\n");
@@ -1255,11 +1254,6 @@ static struct platform_device gbefb_device = {
 	.name = "gbefb",
 };
 
-void __exit gbefb_exit(void)
-{
-	 driver_unregister(&gbefb_driver);
-}
-
 int __init gbefb_init(void)
 {
 	int ret = driver_register(&gbefb_driver);
@@ -1271,10 +1265,12 @@ int __init gbefb_init(void)
 	return ret;
 }
 
-module_init(gbefb_init);
+void __exit gbefb_exit(void)
+{
+	 driver_unregister(&gbefb_driver);
+}
 
-#ifdef MODULE
+module_init(gbefb_init);
 module_exit(gbefb_exit);
-#endif
 
 MODULE_LICENSE("GPL");
