@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc2
-# Sun Nov 21 14:12:08 2004
+# Fri Nov 26 00:00:39 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -13,7 +13,7 @@ CONFIG_MIPS32=y
 #
 # CONFIG_EXPERIMENTAL is not set
 CONFIG_CLEAN_COMPILE=y
-CONFIG_BROKEN_ON_SMP=y
+CONFIG_LOCK_KERNEL=y
 
 #
 # General setup
@@ -51,6 +51,7 @@ CONFIG_MODULE_UNLOAD=y
 CONFIG_OBSOLETE_MODPARM=y
 # CONFIG_MODULE_SRCVERSION_ALL is not set
 CONFIG_KMOD=y
+CONFIG_STOP_MACHINE=y
 
 #
 # Machine selection
@@ -119,7 +120,8 @@ CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_LLDSCD=y
 CONFIG_CPU_HAS_SYNC=y
 CONFIG_HIGHMEM=y
-# CONFIG_SMP is not set
+CONFIG_SMP=y
+CONFIG_NR_CPUS=2
 # CONFIG_PREEMPT is not set
 
 #
@@ -551,7 +553,6 @@ CONFIG_CMDLINE=""
 # CONFIG_DEBUG_STACK_USAGE is not set
 # CONFIG_KGDB is not set
 # CONFIG_RUNTIME_DEBUG is not set
-# CONFIG_MIPS_UNCACHED is not set
 
 #
 # Security options
