@@ -4,7 +4,8 @@
  * for more details.
  *
  * Copyright (C) 1995  Linus Torvalds
- * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000  Ralf Baechle
+ * Copyright (C) 1995  Waldorf Electronics
+ * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001  Ralf Baechle
  * Copyright (C) 1996  Stoned Elipot
  * Copyright (C) 2000  Maciej W. Rozycki
  */
@@ -120,6 +121,44 @@ extern void prom_init(int, char **, char **, int *);
 
 static struct resource code_resource = { "Kernel code" };
 static struct resource data_resource = { "Kernel data" };
+
+static inline void check_wait(void)
+{
+	printk("Checking for 'wait' instruction... ");
+	switch(mips_cpu.cputype) {
+	case CPU_R3081:
+	case CPU_R3081E:
+		cpu_wait = r3081_wait;
+		printk(" available.\n");
+		break;
+	case CPU_TX3927:
+	case CPU_TX39XX:
+		cpu_wait = r39xx_wait;
+		printk(" available.\n");
+		break;
+	case CPU_R4200: 
+/*	case CPU_R4300: */
+	case CPU_R4600: 
+	case CPU_R4640: 
+	case CPU_R4650: 
+	case CPU_R4700: 
+	case CPU_R5000: 
+	case CPU_NEVADA:
+	case CPU_RM7000:
+	case CPU_TX49XX:
+		cpu_wait = r4k_wait;
+		printk(" available.\n");
+		break;
+	default:
+		printk(" unavailable.\n");
+		break;
+	}
+}
+
+static void __init check_bugs(void)
+{
+	check_wait();
+}
 
 /*
  * Probe whether cpu has config register by trying to play with
