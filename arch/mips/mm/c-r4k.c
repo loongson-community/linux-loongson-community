@@ -1197,6 +1197,12 @@ static void __init probe_icache(unsigned long config)
 {
         switch (mips_cpu.cputype) {
         case CPU_VR41XX:
+        case CPU_VR4111:
+        case CPU_VR4121:
+        case CPU_VR4122:
+        case CPU_VR4131:
+        case CPU_VR4181:
+        case CPU_VR4181A:
                 icache_size = 1 << (10 + ((config >> 9) & 7));
                 break;
         default:
@@ -1213,6 +1219,12 @@ static void __init probe_dcache(unsigned long config)
 {
         switch (mips_cpu.cputype) {
         case CPU_VR41XX:
+        case CPU_VR4111:
+        case CPU_VR4121:
+        case CPU_VR4122:
+        case CPU_VR4131:
+        case CPU_VR4181:
+        case CPU_VR4181A:
                 dcache_size = 1 << (10 + ((config >> 6) & 7));
                 break;
         default:

@@ -11,7 +11,7 @@
 
 #include <linux/config.h>
 
-#define NR_IRQS 64		/* Largest number of ints of all machines.  */
+#define NR_IRQS 128		/* Largest number of ints of all machines.  */
 
 #define TIMER_IRQ 0
 

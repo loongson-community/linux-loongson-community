@@ -96,10 +96,10 @@
 /*
  * Valid machtype for group NEC DDB
  */
-#define MACH_NEC_DDB5074	 0	/* NEC DDB Vrc-5074 */
-#define MACH_NEC_DDB5476         1      /* NEC DDB Vrc-5476 */
-#define MACH_NEC_DDB5477         2      /* NEC DDB Vrc-5477 */
-#define MACH_NEC_ROCKHOPPER      3      /* Rockhopper base board */
+#define MACH_NEC_DDB5074	0	/* NEC DDB Vrc-5074 */
+#define MACH_NEC_DDB5476	1	/* NEC DDB Vrc-5476 */
+#define MACH_NEC_DDB5477	2	/* NEC DDB Vrc-5477 */
+#define MACH_NEC_ROCKHOPPER	3	/* Rockhopper base board */
 
 /*
  * Valid machtype for group BAGET
@@ -131,7 +131,7 @@
 /*
  * Valid machtype for group Globespan
  */
-#define MACH_IVR       0                  /* IVR eval board */
+#define MACH_IVR		0	/* IVR eval board */
 
 /*
  * Valid machtype for group PHILIPS
@@ -150,7 +150,7 @@
 #define MACH_PALLAS		0
 #define MACH_TOPAS		1
 #define MACH_JMR		2
-#define MACH_TOSHIBA_JMR3927    3      /* JMR-TX3927 CPU/IO board */
+#define MACH_TOSHIBA_JMR3927	3	/* JMR-TX3927 CPU/IO board */
 
 /*
  * Valid machtype for group Alchemy
@@ -162,7 +162,9 @@
 /*
  * Valid machtype for group NEC_VR41XX
  */
-#define MACH_NEC_OSPREY                0       /* Osprey eval board */
+#define MACH_NEC_OSPREY		0	/* Osprey eval board */
+#define MACH_NEC_EAGLE		1	/* NEC Eagle/Hawk board */
+#define MACH_ZAO_CAPCELLA	2	/* ZAO Networks Capcella */
 
 #define CL_SIZE			(256)
 

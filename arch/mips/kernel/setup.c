@@ -283,7 +283,35 @@ static inline void cpu_probe(void)
 			mips_cpu.tlbsize = 48;
 			break;
                 case PRID_IMP_VR41XX:
-                        mips_cpu.cputype = CPU_VR41XX;
+			switch (mips_cpu.processor_id & 0xf0) {
+#ifndef CONFIG_VR4181
+			case PRID_REV_VR4111:
+				mips_cpu.cputype = CPU_VR4111;
+				break;
+#else
+			case PRID_REV_VR4181:
+				mips_cpu.cputype = CPU_VR4181;
+				break;
+#endif
+			case PRID_REV_VR4121:
+				mips_cpu.cputype = CPU_VR4121;
+				break;
+			case PRID_REV_VR4122:
+				if ((mips_cpu.processor_id & 0xf) < 0x3)
+					mips_cpu.cputype = CPU_VR4122;
+				else
+					mips_cpu.cputype = CPU_VR4181A;
+				break;
+			case PRID_REV_VR4131:
+				mips_cpu.cputype = CPU_VR4131;
+				mips_cpu.icache.ways = 2;
+				mips_cpu.dcache.ways = 2;
+				break;
+			default:
+				printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
+				mips_cpu.cputype = CPU_VR41XX;
+				break;
+			}
                         mips_cpu.isa_level = MIPS_CPU_ISA_III;
                         mips_cpu.options = R4K_OPTS;
                         mips_cpu.tlbsize = 32;
@@ -693,6 +721,8 @@ void __init setup_arch(char **cmdline_p)
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
 	void nec_osprey_setup(void);
+	void nec_eagle_setup(void);
+	void zao_capcella_setup(void);
 	void jmr3927_setup(void);
  	void it8172_setup(void);
 	void swarm_setup(void);
@@ -784,9 +814,25 @@ void __init setup_arch(char **cmdline_p)
                ddb_setup();
                break;
 #endif
-#ifdef CONFIG_NEC_OSPREY
+#ifdef CONFIG_CPU_VR41XX
 	case MACH_GROUP_NEC_VR41XX:
-		nec_osprey_setup();
+		switch (mips_machtype) {
+#ifdef CONFIG_NEC_OSPREY
+		case MACH_NEC_OSPREY:
+			nec_osprey_setup();
+			break;
+#endif
+#ifdef CONFIG_NEC_EAGLE
+		case MACH_NEC_EAGLE:
+			nec_eagle_setup();
+			break;
+#endif
+#ifdef CONFIG_ZAO_CAPCELLA
+		case MACH_ZAO_CAPCELLA:
+			zao_capcella_setup();
+			break;
+#endif
+		}
 		break;
 #endif
 #ifdef CONFIG_MIPS_EV96100

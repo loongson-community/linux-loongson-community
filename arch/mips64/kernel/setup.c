@@ -238,7 +238,9 @@ static inline void cpu_probe(void)
 		case PRID_IMP_R2000:
 			mips_cpu.cputype = CPU_R2000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
-			mips_cpu.options = MIPS_CPU_TLB;
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
+			if (cpu_has_fpu())
+				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 64;
 			break;
 		case PRID_IMP_R3000:
@@ -250,7 +252,9 @@ static inline void cpu_probe(void)
 			else
 				mips_cpu.cputype = CPU_R3000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
-			mips_cpu.options = MIPS_CPU_TLB;
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
+			if (cpu_has_fpu())
+				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 64;
 			break;
 		case PRID_IMP_R4000:
@@ -265,7 +269,35 @@ static inline void cpu_probe(void)
 			mips_cpu.tlbsize = 48;
 			break;
                 case PRID_IMP_VR41XX:
-                        mips_cpu.cputype = CPU_VR41XX;
+			switch (mips_cpu.processor_id & 0xf0) {
+#ifndef CONFIG_VR4181
+			case PRID_REV_VR4111:
+				mips_cpu.cputype = CPU_VR4111;
+				break;
+#else
+			case PRID_REV_VR4181:
+				mips_cpu.cputype = CPU_VR4181;
+				break;
+#endif
+			case PRID_REV_VR4121:
+				mips_cpu.cputype = CPU_VR4121;
+				break;
+			case PRID_REV_VR4122:
+				if ((mips_cpu.processor_id & 0xf) < 0x3)
+					mips_cpu.cputype = CPU_VR4122;
+				else
+					mips_cpu.cputype = CPU_VR4181A;
+				break;
+			case PRID_REV_VR4131:
+				mips_cpu.cputype = CPU_VR4131;
+				mips_cpu.icache.ways = 2;
+				mips_cpu.dcache.ways = 2;
+				break;
+			default:
+				printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
+				mips_cpu.cputype = CPU_VR41XX;
+				break;
+			}
                         mips_cpu.isa_level = MIPS_CPU_ISA_III;
                         mips_cpu.options = R4K_OPTS;
                         mips_cpu.tlbsize = 32;
@@ -273,7 +305,8 @@ static inline void cpu_probe(void)
 		case PRID_IMP_R4300:
 			mips_cpu.cputype = CPU_R4300;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+					   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 32;
 			break;
 		case PRID_IMP_R4600:
@@ -442,6 +475,7 @@ static inline void cpu_probe(void)
 		case PRID_IMP_20KC:
 			mips_cpu.cputype = CPU_20KC;
 			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
+			break;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;

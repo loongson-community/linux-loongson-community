@@ -45,6 +45,7 @@ dep_bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074 $CONFIG_EX
 bool 'Support for NEC DDB Vrc-5476' CONFIG_DDB5476
 bool 'Support for NEC DDB Vrc-5477' CONFIG_DDB5477
 bool 'Support for NEC Osprey board' CONFIG_NEC_OSPREY
+bool 'Support for NEC Eagle/Hawk board' CONFIG_NEC_EAGLE
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
 dep_bool 'Support for Philips Nino (EXPERIMENTAL)' CONFIG_NINO $CONFIG_EXPERIMENTAL
 if [ "$CONFIG_NINO" = "y" ]; then
@@ -70,6 +71,7 @@ if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
 fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927
+bool 'Support for ZAO Networks Capcella' CONFIG_ZAO_CAPCELLA
 
 bool 'High Memory Support' CONFIG_HIGHMEM
 bool 'Preemptible Kernel' CONFIG_PREEMPT
@@ -248,6 +250,20 @@ if [ "$CONFIG_NEC_OSPREY" = "y" ]; then
    define_bool CONFIG_DUMMY_KEYB y
    define_bool CONFIG_SCSI n
 fi
+if [ "$CONFIG_NEC_EAGLE" = "y" ]; then
+   define_bool CONFIG_CPU_VR41XX y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_IRQ_CPU y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_VR41XX_TIME_C y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_ISA n
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_NEW_PCI y
+   define_bool CONFIG_PCI_AUTO y
+   define_bool CONFIG_DUMMY_KEYB y
+   define_bool CONFIG_SCSI n
+fi
 if [ "$CONFIG_NINO" = "y" ]; then
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y
@@ -284,6 +300,21 @@ if [ "$CONFIG_TOSHIBA_JMR3927" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_SWAP_IO_SPACE y
    define_bool CONFIG_PC_KEYB y
+fi
+if [ "$CONFIG_ZAO_CAPCELLA" = "y" ]; then
+   define_bool CONFIG_CPU_VR41XX y
+   define_bool CONFIG_CPU_LITTLE_ENDIAN y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_IRQ_CPU y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_VR41XX_TIME_C y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_ISA n
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_NEW_PCI y
+   define_bool CONFIG_PCI_AUTO y
+   define_bool CONFIG_DUMMY_KEYB y
+   define_bool CONFIG_SCSI n
 fi
 
 if [ "$CONFIG_MIPS_AU1000" != "y" ]; then
