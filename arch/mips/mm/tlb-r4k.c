@@ -238,7 +238,8 @@ void __update_tlb(struct vm_area_struct * vma, unsigned long address, pte_t pte)
 #ifdef DEBUG_TLB
 	if ((pid != cpu_context(cpu, vma->vm_mm) & ASID_MASK) ||
 	    (cpu_context(vma->vm_mm) == 0)) {
-		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
+		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d "
+		       "tlbpid=%d\n",
 		       (int) (cpu_context(cpu, vma->vm_mm) & ASID_MASK), pid);
 	}
 #endif
