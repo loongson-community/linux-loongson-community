@@ -71,9 +71,6 @@ MODFLAGS	+= -msb1-pass1-workarounds
 endif
 endif
 
-AFLAGS		+= $(GCCFLAGS)
-CFLAGS		+= $(GCCFLAGS)
-
 
 #
 # We unconditionally build the math emulator
@@ -163,7 +160,7 @@ endif
 # convert to ECOFF using elf2ecoff.
 #
 ifdef CONFIG_BOOT_ELF32
-CFLAGS += -Wa,-32
+GCCFLAGS += -Wa,-32
 LINKFLAGS += -T arch/mips64/ld.script.elf32
 endif
 #
@@ -171,12 +168,17 @@ endif
 # ELF files from 32-bit files by conversion.
 #
 ifdef CONFIG_BOOT_ELF64
-CFLAGS += -Wa,-32
+GCCFLAGS += -Wa,-32
 LINKFLAGS += -T arch/mips64/ld.script.elf32
 #AS += -64
 #LD += -m elf64bmip
 #LINKFLAGS += -T arch/mips64/ld.script.elf64
 endif
+
+
+AFLAGS		+= $(GCCFLAGS)
+CFLAGS		+= $(GCCFLAGS)
+
 
 LINKFLAGS += -Ttext $(LOADADDR)
 
