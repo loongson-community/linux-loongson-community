@@ -1,4 +1,8 @@
 /*
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
  * identify.c: identify machine by looking up system identifier
  *
  * Copyright (C) 1998 Thomas Bogendoerfer
@@ -13,7 +17,6 @@
 #include <linux/types.h>
 #include <linux/string.h>
 
-#include <asm/sgi/sgi.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 
@@ -30,6 +33,21 @@ static struct smatch mach_table[] = {
 		"SGI Indy",
 		MACH_GROUP_SGI,
 		MACH_SGI_INDY,
+		PROM_FLAG_ARCS
+	}, {	"SGI-IP27",
+		"SGI Origin",
+		MACH_GROUP_SGI,
+		MACH_SGI_IP27,
+		PROM_FLAG_ARCS
+	}, {	"SGI-IP28",
+		"SGI IP28",
+		MACH_GROUP_SGI,
+		MACH_SGI_IP28,
+		PROM_FLAG_ARCS
+	}, {	"SGI-IP32",
+		"SGI IP32",
+		MACH_GROUP_SGI,
+		MACH_SGI_IP32,
 		PROM_FLAG_ARCS
 	}, {	"Microsoft-Jazz",
 		"Jazz MIPS_Magnum_4000",
@@ -51,7 +69,7 @@ static struct smatch mach_table[] = {
 
 int prom_flags;
 
-static struct smatch *__init string_to_mach(const char *s)
+static struct smatch * __init string_to_mach(const char *s)
 {
 	int i;
 
@@ -77,15 +95,16 @@ void __init prom_identify_arch(void)
 	const char *iname;
 
 	/*
-	 * The root component tells us what machine architecture we
-	 * have here.
+	 * The root component tells us what machine architecture we have here.
 	 */
 	p = ArcGetChild(PROM_NULL_COMPONENT);
 	if (p == NULL) {
 #ifdef CONFIG_SGI_IP27
-	/* IP27 PROM bisbehaves, seems to not implement ARC
-	   GetChild().  So we just assume it's an IP27.  */
+		/* IP27 PROM misbehaves, seems to not implement ARC
+		   GetChild().  So we just assume it's an IP27.  */
 		iname = "SGI-IP27";
+#else
+		iname = "Unknown";
 #endif
 	} else
 		iname = (char *) (long) p->iname;

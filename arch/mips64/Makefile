@@ -121,8 +121,8 @@ endif
 #
 ifdef CONFIG_SGI_IP22
 CORE_FILES	+= arch/mips/sgi-ip22/ip22-kern.o
-LIBS		+= arch/mips64/arc/arclib.a 
-SUBDIRS		+= arch/mips/sgi-ip22 arch/mips64/arc
+LIBS		+= arch/mips/arc/arclib.a 
+SUBDIRS		+= arch/mips/sgi-ip22 arch/mips/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
 # 0x88004000 for production kernels.  Note that the value must be
@@ -136,8 +136,8 @@ endif
 #
 ifdef CONFIG_SGI_IP27
 CORE_FILES	+= arch/mips/sgi-ip27/ip27.o
-LIBS		+= arch/mips64/arc/arclib.a
-SUBDIRS		+= arch/mips/sgi-ip27 arch/mips64/arc
+LIBS		+= arch/mips/arc/arclib.a
+SUBDIRS		+= arch/mips/sgi-ip27 arch/mips/arc
 #
 # Set LOADADDR to >= 0xc000000000300000 if you want to leave space for
 # symmon, 0xc00000000001c000 for production kernels.  Note that the value
@@ -156,8 +156,8 @@ endif
 #
 ifdef CONFIG_SGI_IP32
 CORE_FILES	+= arch/mips/sgi-ip32/ip32-kern.a
-LIBS		+= arch/mips64/arc/arclib.a
-SUBDIRS		+= arch/mips/sgi-ip32 arch/mips64/arc
+LIBS		+= arch/mips/arc/arclib.a
+SUBDIRS		+= arch/mips/sgi-ip32 arch/mips/arc
 #
 # Set LOADADDR to >= 0x????????? if you want to leave space for symmon,
 # 0x80002000 for production kernels.  Note that the value must be

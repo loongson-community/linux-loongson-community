@@ -1,4 +1,8 @@
 /*
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
  * cmdline.c: Kernel command line creation using ARCS argc/argv.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -46,13 +50,13 @@ static char * __init move_firmware_args(char* cp)
 		for(i = 0; i < NENTS(used_arc); i++) {
 			int len = strlen(used_arc[i][0]);
 
-			if(!strncmp(prom_argv[actr], used_arc[i][0], len)) {
+			if (!strncmp(prom_argv(actr), used_arc[i][0], len)) {
 			/* Ok, we want it. First append the replacement... */
 				strcat(cp, used_arc[i][1]);
 				cp += strlen(used_arc[i][1]);
 				/* ... and now the argument */
-				s = strstr(prom_argv[actr], "=");
-				if(s) {
+				s = strstr(prom_argv(actr), "=");
+				if (s) {
 					s++;
 					strcpy(cp, s);
 					cp += strlen(s);
@@ -86,12 +90,12 @@ void __init prom_init_cmdline(void)
 		for (i = 0; i < NENTS(ignored); i++) {
 			int len = strlen(ignored[i]);
 
-			if(!strncmp(prom_argv[actr], ignored[i], len))
+			if (!strncmp(prom_argv(actr), ignored[i], len))
 				goto pic_cont;
 		}
 		/* Ok, we want it. */
-		strcpy(cp, prom_argv[actr]);
-		cp += strlen(prom_argv[actr]);
+		strcpy(cp, prom_argv(actr));
+		cp += strlen(prom_argv(actr));
 		*cp++ = ' ';
 
 	pic_cont:
