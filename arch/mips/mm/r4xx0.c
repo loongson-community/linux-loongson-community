@@ -1967,16 +1967,17 @@ r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page)
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	blast_icache16_page(address);
+	blast_icache16_page((unsigned long)page_address(page));
 }
 
 static void
 r4k_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page)
 {
+	int address;
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	address = KSEG0 + (address & PAGE_MASK & (dcache_size - 1));
+	address = KSEG0 + ((unsigned long)page_address(page) & PAGE_MASK & (dcache_size - 1));
 	blast_icache32_page_indexed(address);
 }
 
