@@ -316,7 +316,7 @@ static void lk201_kbd_rx_char(unsigned char ch, unsigned char stat)
 	static int prev_scancode;
 	unsigned char c = scancodeRemap[ch];
 
-	if (stat && stat != 4) {
+	if (stat && stat != TTY_OVERRUN) {
 		printk(KERN_ERR "lk201: keyboard receive error: 0x%02x\n",
 		       stat);
 		return;
