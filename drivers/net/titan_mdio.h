@@ -5,8 +5,10 @@
 #define _TITAN_MDIO_H
 
 #include <linux/netdevice.h>
-#include <linux/workqueue.h>
+#include <linux/tqueue.h>
+#include <linux/delay.h>
 #include "titan_ge.h"
+
 
 #define	TITAN_GE_MDIO_ERROR	(-9000)
 #define	TITAN_GE_MDIO_GOOD	0
@@ -20,7 +22,7 @@
 
 
 /* GMII specific registers */
-#define	TITAN_GE_MARVEL_PHY_ID		0x0141
+#define	TITAN_GE_MARVEL_PHY_ID		0x00
 #define	TITAN_PHY_AUTONEG_ADV		0x04
 #define	TITAN_PHY_LP_ABILITY		0x05
 #define	TITAN_GE_MDIO_MII_CTRL		0x09

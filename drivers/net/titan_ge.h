@@ -1,23 +1,35 @@
 #ifndef _TITAN_GE_H_
 #define _TITAN_GE_H_
 
+#include <linux/config.h>
+#include <linux/version.h>
+#include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
+#include <linux/config.h>
 #include <linux/spinlock.h>
+#include <asm/addrspace.h> /* For KSEG1ADDR() */
 
 /*
  * These functions should be later moved to a more generic location since there
- * will be others accessing it also 
+ * will be others accessing it also
  */
-#define TITAN_GE_BASE	0xfe000000UL
-#define TITAN_GE_SIZE	0x10000UL
 
-extern unsigned long titan_ge_base;
+/* 
+ * This is the way it works: LKB5 Base is at 0x0128. TITAN_BASE is defined in
+ * include/asm/titan_dep.h. TITAN_GE_BASE is the value in the TITAN_GE_LKB5 
+ * register.
+ */
+
+#ifdef CONFIG_MIPS64
+#define	TITAN_GE_BASE	0xfffffffffe000000
+#else
+#define	TITAN_GE_BASE	0xfe000000
+#endif
 
 #define	TITAN_GE_WRITE(offset, data) \
-		*(volatile u32 *)(titan_ge_base + (offset)) = data
+		*(volatile u32 *)(TITAN_GE_BASE + offset) = data	
 
-#define TITAN_GE_READ(offset) *(volatile u32 *)(titan_ge_base + offset)
+#define TITAN_GE_READ(offset) *(volatile u32 *)(TITAN_GE_BASE + offset)
 
 #ifndef msec_delay
 #define msec_delay(x)   do { if(in_interrupt()) { \
@@ -27,6 +39,29 @@ extern unsigned long titan_ge_base;
                                 set_current_state(TASK_UNINTERRUPTIBLE); \
                                 schedule_timeout((x * HZ)/1000); \
                         } } while(0)
+#endif
+
+#define TITAN_GE_PORT_0
+
+#define	TITAN_GE_SRAM_BASE_VIRTUAL	0xf4000000
+#define	TITAN_GE_SRAM_BASE_PHYSICAL	0xf4000000
+
+#ifdef CONFIG_NET_FASTROUTE
+
+#include <linux/if_arp.h>
+#include <net/ip.h>
+
+static int titan_accept_fastpath(struct net_device *dev, struct dst_entry *dst)
+{
+	struct net_device *odev = dst->dev;
+
+	if (dst->ops->protocol != __constant_htons(ETH_P_IP))
+		return -1;
+	if (odev->type != ARPHRD_ETHER || odev->accept_fastpath == NULL)
+		return -1;
+
+	return 0;
+}
 #endif
 
 
@@ -81,28 +116,60 @@ extern unsigned long titan_ge_base;
 #define	TITAN_GE_SPEED_100	0x2
 #define	TITAN_GE_SPEED_10	0x3
 
+/* Debugging info only */
+#undef TITAN_DEBUG
+
+/* Support for Rx side NAPI */
+#define TITAN_RX_NAPI
+
+#ifdef CONFIG_MIPS64
+#define	TITAN_GE_IE_MASK	0xfffffffffb001b64
+#define	TITAN_GE_IE_STATUS	0xfffffffffb001b60
+#else
+#define	TITAN_GE_IE_MASK	0xfb001b64
+#define	TITAN_GE_IE_STATUS	0xfb001b60
+#endif
+
+/* Support for Jumbo Frames */
+#undef TITAN_GE_JUMBO_FRAMES
+
+/* Rx buffer size */
+#ifdef TITAN_GE_JUMBO_FRAMES
+#define	TITAN_GE_JUMBO_BUFSIZE	9080
+#else
+#define	TITAN_GE_STD_BUFSIZE	1580
+#endif
+
 /* Default Tx Queue Size */
-#define	TITAN_GE_TX_QUEUE	100
+#define	TITAN_GE_TX_QUEUE	128
 
 /* Default Rx Queue Size */
-#define	TITAN_GE_RX_QUEUE	80
+#define	TITAN_GE_RX_QUEUE	64
 
-/* Tx and Rx Interrupt Coalescing */
-#define	TITAN_GE_RX_COAL	200
-#define	TITAN_GE_TX_COAL	200
+/* 
+ * Tx and Rx Interrupt Coalescing parameter. These values are 
+ * for 1 Ghz processor. Rx coalescing can be taken care of
+ * by NAPI. NAPI is adaptive and hence useful. Tx coalescing
+ * is not adaptive. Hence, these values need to be adjusted
+ * based on load, CPU speed etc.
+ */
+#define	TITAN_GE_RX_COAL	150
+#define	TITAN_GE_TX_COAL	300
 
 #if defined(__BIG_ENDIAN)
 
 /* Define the Rx descriptor */
 typedef struct _eth_rx_desc {
-        u32     cmd_sts;	/* Command and Status info */
-        u32     buffer_addr;	/* Buffer address inclusive of checksum */
+        u32     reserved;	/* Unused 		*/
+        u32     buffer_addr;	/* CPU buffer address 	*/
+	u32	cmd_sts;	/* Command and Status	*/
+	u32	buffer;		/* XDMA buffer address	*/
 } titan_ge_rx_desc;
 
 /* Define the Tx descriptor */
 typedef struct _eth_tx_desc {
         u16     cmd_sts;	/* Command, Status and Buffer count */
-	u16	buffer_len;	/* Length of the buffer */
+	u16	buffer_len;	/* Length of the buffer	*/
         u32     buffer_addr;	/* Physical address of the buffer */
 } titan_ge_tx_desc;
 
@@ -126,7 +193,7 @@ typedef struct _eth_tx_desc {
 
 /* Packet Structure */
 typedef struct _pkt_info {
-        unsigned short          len;
+        unsigned int           len;
         unsigned int            cmd_sts;
         unsigned int            buffer;
         struct sk_buff          *skb;
@@ -140,8 +207,7 @@ typedef struct _pkt_info {
 typedef struct _eth_port_ctrl {
 	unsigned int		port_num;
 	u8			port_mac_addr[6];
-	void*   		port_private;
-	
+
 	/* Rx descriptor pointers */
 	int 			rx_curr_desc_q, rx_used_desc_q;
 
@@ -158,47 +224,38 @@ typedef struct _eth_port_ctrl {
 	unsigned int                    tx_desc_area_size;
 	struct sk_buff*                 tx_skb[TITAN_GE_TX_QUEUE];
 
-	struct work_struct		tx_timeout_task;
+	/* Timeout task */
+	struct tq_struct		tx_timeout_task;
 
 	/* DMA structures and handles */
 	dma_addr_t			tx_dma;
 	dma_addr_t			rx_dma;
 	dma_addr_t			tx_dma_array[TITAN_GE_TX_QUEUE];
 
-	/* Flow Control */
-	unsigned int			fc;
-
-	/* Speed */
-	unsigned int			speed;
-	
-	/* Duplex */
-	unsigned int			duplex;
-} titan_ge_port_info;
-
-/* Titan Gbe data structure */
-struct titan_ge {
-	/* Port number */
-	unsigned int			port_num;
-	/* Device stats */
-	struct net_device_stats		stats;
 	/* Device lock */
 	spinlock_t			lock;
-	/* Tx ring size */
-	unsigned int			tx_ring_size;
-	/* Rx ring size */
-	unsigned int			rx_ring_size;
-	/* Number of SKBs on the Tx ring */
+
 	unsigned int			tx_ring_skbs;
-	/* Number of SKBs on the Rx ring */
+	unsigned int			rx_ring_size;
+	unsigned int			tx_ring_size;
 	unsigned int			rx_ring_skbs;
-	/* Rx interrupt coalescing */
+
+	struct net_device_stats		stats;
+
+	/* Tx and Rx coalescing */
 	unsigned long			rx_int_coal;
-	/* Tx interrupt coalescing */
 	unsigned long			tx_int_coal;
-};
+
+	/* Threshold for replenishing the Rx and Tx rings */
+	unsigned int			tx_threshold;
+	unsigned int			rx_threshold;
+
+	/* NAPI work limit */
+	unsigned int			rx_work_limit;
+} titan_ge_port_info;
 
 /* Titan specific constants */
-#define	TITAN_ETH_PORT_IRQ		6
+#define	TITAN_ETH_PORT_IRQ		4
 
 /* Max Rx buffer */
 #define	TITAN_GE_MAX_RX_BUFFER		65536
@@ -219,10 +276,9 @@ struct titan_ge {
 #define TITAN_GE_RX_PERR		TITAN_BIT19	/* packet error */
 #define TITAN_GE_RX_TRUNC		TITAN_BIT20	/* packet size greater than 32 buffers */
 
-
 /* Tx Descriptor Command */
-#define	TITAN_GE_TX_BUFFER_OWNED	TITAN_BIT20	/* buffer ownership */	
-#define	TITAN_GE_TX_ENABLE_INTERRUPT	TITAN_BIT31	/* Interrupt Enable */
+#define	TITAN_GE_TX_BUFFER_OWNED	TITAN_BIT5	/* buffer ownership */	
+#define	TITAN_GE_TX_ENABLE_INTERRUPT	TITAN_BIT15	/* Interrupt Enable */
 
 /* Return Status */
 #define	TITAN_OK	0x1	/* Good Status */
@@ -316,6 +372,8 @@ struct titan_ge {
 #define TITAN_GE_SDQPF_RXFIFO_INTR 0x482C  /* SDQPF RxFifo Interrupt Status */
 #define TITAN_GE_SDQPF_TXFIFO_CTL  0x4928  /* SDQPF TxFifo Control and Interrupt Enb*/
 #define TITAN_GE_SDQPF_TXFIFO_INTR 0x492C  /* SDQPF TxFifo Interrupt Status */
+#define	TITAN_GE_SDQPF_RXFIFO_0	   0x4840  /* SDQPF RxFIFO Enable */
+#define	TITAN_GE_SDQPF_TXFIFO_0	   0x4940  /* SDQPF TxFIFO Enable */
 #define TITAN_GE_XDMA_CONFIG       0x5000  /* XDMA Global Configuration */
 #define TITAN_GE_XDMA_INTR_SUMMARY 0x5010  /* XDMA Interrupt Summary */
 #define TITAN_GE_XDMA_BUFADDRPRE   0x5018  /* XDMA Buffer Address Prefix */
@@ -352,6 +410,7 @@ struct titan_ge {
 #define	TITAN_GE_INT_COALESCING		     0x5030 /* Interrupt Coalescing */
 #define	TITAN_GE_CHANNEL0_CONFIG	     0x5040 /* Channel 0 XDMA config */
 #define	TITAN_GE_CHANNEL0_INTERRUPT	     0x504c /* Channel 0 Interrupt Status */
+#define	TITAN_GE_GDI_INTERRUPT_ENABLE        0x5050 /* IE for the GDI Errors */
 #define	TITAN_GE_CHANNEL0_PACKET	     0x5060 /* Channel 0 Packet count */
 #define	TITAN_GE_CHANNEL0_BYTE		     0x5064 /* Channel 0 Byte count */
 #define	TITAN_GE_CHANNEL0_TX_DESC	     0x5054 /* Channel 0 Tx first desc */
@@ -370,4 +429,8 @@ struct titan_ge {
 #define TITAN_GE_AFX_ADDRS_FILTER_CTRL_1     0x1124  /* AFX Address Filter Ctrl 1 */
 #define TITAN_GE_AFX_ADDRS_FILTER_CTRL_2     0x1128  /* AFX Address Filter Ctrl 2 */
 
+/* Traffic Groomer block */
+#define        TITAN_GE_TRTG_CONFIG	     0x1000  /* TRTG Config */
+
 #endif 				/* _TITAN_GE_H_ */
+

@@ -25,6 +25,8 @@
 
 #include	"titan_mdio.h"
 
+#define MDIO_DEBUG
+
 /*
  * Local constants
  */
@@ -32,31 +34,31 @@
 #define MAX_PHY_DEV         31
 #define MAX_PHY_REG         31
 #define WRITEADDRS_OPCODE   0x0
-#define	READ_OPCODE	    0x10
+#define	READ_OPCODE	    0x2
 #define WRITE_OPCODE        0x1
 #define MAX_MDIO_POLL       100
 
 /* 
  * Titan MDIO and SCMB registers
  */
-#define TITAN_GE_SCMB_CONTROL                0x0180  /* SCMB Control */
-#define TITAN_GE_SCMB_CLKA	             0x0184  /* SCMB Clock A */
-#define TITAN_GE_MDIO_COMMAND                0x0190  /* MDIO Command */
-#define TITAN_GE_MDIO_DEVICE_PORT_ADDRESS    0x0194  /* MDIO Device and Port addrs */
-#define TITAN_GE_MDIO_DATA                   0x0198  /* MDIO Data */
-#define TITAN_GE_MDIO_INTERRUPTS             0x019C  /* MDIO Interrupts */
+#define TITAN_GE_SCMB_CONTROL                0x01c0  /* SCMB Control */
+#define TITAN_GE_SCMB_CLKA	             0x01c4  /* SCMB Clock A */
+#define TITAN_GE_MDIO_COMMAND                0x01d0  /* MDIO Command */
+#define TITAN_GE_MDIO_DEVICE_PORT_ADDRESS    0x01d4  /* MDIO Device and Port addrs */
+#define TITAN_GE_MDIO_DATA                   0x01d8  /* MDIO Data */
+#define TITAN_GE_MDIO_INTERRUPTS             0x01dC  /* MDIO Interrupts */
 
 /*
  * Function to poll the MDIO 
  */
-static int titan_ge_mdio_poll(void)
+static int titan_ge_mdio_poll()
 {
-	int i, val;
+	int	i, val;
 
 	for (i = 0; i < MAX_MDIO_POLL; i++) {
 		val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_COMMAND);
 
-		if (val & 0x8000)
+		if (!(val & 0x8000))
 			return TITAN_GE_MDIO_GOOD;
 	}
 
@@ -122,21 +124,31 @@ int titan_ge_mdio_inaddrs(int dev_addr, int reg_addr)
  *
  * See the spec for the Titan MAC. We operate in the Direct Mode. 
  */
+
+#define MAX_RETRIES	2
+
 int titan_ge_mdio_read(int dev_addr, int reg_addr, unsigned int *pdata)
 {
 	volatile unsigned long	val;
+	int retries = 0;
 
 	/* Setup the PHY device */
+
+again:
 	val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_DEVICE_PORT_ADDRESS);
 	val = ( (val & ~(0x1f00)) | ( (dev_addr << 8) & 0x1f00));
 	val = ( (val & ~(0x001f)) | ( reg_addr & 0x001f));
-	val |= 0x4000; 
+	val |= 0x4000;
 	TITAN_GE_MDIO_WRITE(TITAN_GE_MDIO_DEVICE_PORT_ADDRESS, val);
+	
+	udelay(30);
 
 	/* Issue the read command */
 	val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_COMMAND);
 	val = ( (val & ~(0x0300)) | ( (READ_OPCODE << 8) & 0x0300));
 	TITAN_GE_MDIO_WRITE(TITAN_GE_MDIO_COMMAND, val);
+
+	udelay(30);
 
 	if (titan_ge_mdio_poll() != TITAN_GE_MDIO_GOOD)
 		return TITAN_GE_MDIO_ERROR;
@@ -144,8 +156,16 @@ int titan_ge_mdio_read(int dev_addr, int reg_addr, unsigned int *pdata)
 	*pdata = (unsigned int)TITAN_GE_MDIO_READ(TITAN_GE_MDIO_DATA);
 	val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_INTERRUPTS);
 
-	if (val & 0x2)
-		return TITAN_GE_MDIO_ERROR;
+	udelay(30);
+
+	if (val & 0x2) {
+		if (retries == MAX_RETRIES)
+			return TITAN_GE_MDIO_ERROR;
+		else {
+			retries++;
+			goto again;
+		}
+	}
 
 	return TITAN_GE_MDIO_GOOD;
 }
@@ -168,15 +188,22 @@ int titan_ge_mdio_write(int dev_addr, int reg_addr, unsigned int data)
         val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_DEVICE_PORT_ADDRESS);
         val = ( (val & ~(0x1f00)) | ( (dev_addr << 8) & 0x1f00));
         val = ( (val & ~(0x001f)) | ( reg_addr & 0x001f));
+	val |= 0x4000;
         TITAN_GE_MDIO_WRITE(TITAN_GE_MDIO_DEVICE_PORT_ADDRESS, val);
+
+	udelay(30);
 
 	/* Setup the data to write */
 	TITAN_GE_MDIO_WRITE(TITAN_GE_MDIO_DATA, data);
+
+	udelay(30);
 
 	/* Issue the write command */
 	val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_COMMAND);
 	val = ( (val & ~(0x0300)) | ( (WRITE_OPCODE << 8) & 0x0300));
 	TITAN_GE_MDIO_WRITE(TITAN_GE_MDIO_COMMAND, val);
+
+	udelay(30);
 
 	if (titan_ge_mdio_poll() != TITAN_GE_MDIO_GOOD) 
                 return TITAN_GE_MDIO_ERROR;
@@ -184,7 +211,7 @@ int titan_ge_mdio_write(int dev_addr, int reg_addr, unsigned int data)
 	val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_INTERRUPTS);	
 	if (val & 0x2)
 		return TITAN_GE_MDIO_ERROR;
-	
+
 	return TITAN_GE_MDIO_GOOD;
 }
 
