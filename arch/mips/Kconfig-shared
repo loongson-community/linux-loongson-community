@@ -1405,39 +1405,6 @@ source "drivers/char/Kconfig"
 
 #source drivers/misc/Config.in
 
-menu "DECStation Character devices"
-	depends on DECSTATION
-
-config DEC_SERIAL
-	tristate "Standard/generic (dumb) serial support"
-
-config DZ
-	bool "DZ11 Serial Support"
-	depends on DEC_SERIAL=y
-	help
-	  DZ11-family serial controllers for VAXstations, including the
-	  DC7085, M7814, and M7819.
-
-config ZS
-	bool "Z85C30 Serial Support"
-	depends on DEC_SERIAL=y && TC
-	help
-	  Documentation on the Zilog 85C350 serial communications controller
-	  is downloadable at <http://www.zilog.com/pdfs/serial/z85c30.pdf>.
-
-config DEC_SERIAL_CONSOLE
-	bool "Support for console on serial port"
-	depends on DEC_SERIAL=y
-
-config DTOP_MOUSE
-	bool "MAXINE Access.Bus mouse (VSXXX-BB/GB) support"
-	depends on ACCESSBUS
-
-config RTC
-	tristate "Enhanced Real Time Clock Support"
-
-endmenu
-
 
 menu "SGI Character devices"
 	depends on SGI_IP22

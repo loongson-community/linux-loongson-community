@@ -1410,7 +1410,7 @@ int __init dz_init(void)
 	}
 
 	/* reset the chip */
-#ifndef CONFIG_SERIAL_CONSOLE
+#ifndef CONFIG_SERIAL_DEC_CONSOLE
 	dz_out(info, DZ_CSR, DZ_CLR);
 	while ((tmp = dz_in(info, DZ_CSR)) & DZ_CLR);
 	iob();
@@ -1432,7 +1432,7 @@ int __init dz_init(void)
 	return 0;
 }
 
-#ifdef CONFIG_SERIAL_CONSOLE
+#ifdef CONFIG_SERIAL_DEC_CONSOLE
 static void dz_console_put_char(unsigned char ch)
 {
 	unsigned long flags;
@@ -1586,6 +1586,6 @@ void __init dz_serial_console_init(void)
 	register_console(&dz_sercons);
 }
 
-#endif /* CONFIG_SERIAL_CONSOLE */
+#endif /* CONFIG_SERIAL_DEC_CONSOLE */
 
 MODULE_LICENSE("GPL");

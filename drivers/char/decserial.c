@@ -28,7 +28,7 @@ extern int zs_init(void);
 extern int dz_init(void);
 #endif
 
-#ifdef CONFIG_SERIAL_CONSOLE
+#ifdef CONFIG_SERIAL_DEC_CONSOLE
 
 #ifdef CONFIG_ZS
 extern void zs_serial_console_init(void);
@@ -43,7 +43,7 @@ extern void dz_serial_console_init(void);
 /* rs_init - starts up the serial interface -
    handle normal case of starting up the serial interface */
 
-#ifdef CONFIG_SERIAL
+#ifdef CONFIG_SERIAL_DEC
 
 int __init rs_init(void)
 {
@@ -70,12 +70,12 @@ __initcall(rs_init);
 
 #endif
 
-#ifdef CONFIG_SERIAL_CONSOLE
+#ifdef CONFIG_SERIAL_DEC_CONSOLE
 
-/* serial_console_init handles the special case of starting
+/* dec_serial_console_init handles the special case of starting
  *   up the console on the serial port
  */
-void __init serial_console_init(void)
+void __init dec_serial_console_init(void)
 {
 #if defined(CONFIG_ZS) && defined(CONFIG_DZ)
     if (IOASIC)

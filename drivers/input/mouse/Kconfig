@@ -119,3 +119,6 @@ config MOUSE_RISCPC
 	  The module will be called rpcmouse.o. If you want to compile it as a
 	  module, say M here and read <file.:Documentation/modules.txt>.
 
+config MOUSE_DTOP
+	bool "MAXINE Access.Bus mouse (VSXXX-BB/GB) support"
+	depends on INPUT && INPUT_MOUSE && ACCESSBUS

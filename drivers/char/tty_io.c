@@ -156,6 +156,7 @@ extern void tub3270_init(void);
 extern void uart_console_init(void);
 extern void sgi_serial_console_init(void);
 extern void sci_console_init(void);
+extern void dec_serial_console_init(void);
 extern void tx3912_console_init(void);
 extern void tx3912_rs_init(void);
 extern void txx927_console_init(void);
@@ -2211,6 +2212,9 @@ void __init console_init(void)
 #if defined(CONFIG_SH_SCI)
 	sci_console_init();
 #endif
+#endif
+#ifdef CONFIG_SERIAL_DEC_CONSOLE
+	dec_serial_console_init();
 #endif
 #ifdef CONFIG_TN3270_CONSOLE
 	tub3270_con_init();
