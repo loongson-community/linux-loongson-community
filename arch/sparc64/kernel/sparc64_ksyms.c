@@ -1,4 +1,4 @@
-/* $Id: sparc64_ksyms.c,v 1.58 1999/05/08 03:00:31 davem Exp $
+/* $Id: sparc64_ksyms.c,v 1.60 1999/07/03 22:11:12 davem Exp $
  * arch/sparc64/kernel/sparc64_ksyms.c: Sparc64 specific ksyms support.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -45,7 +45,6 @@
 #include <asm/ebus.h>
 #endif
 #include <asm/a.out.h>
-#include <asm/svr4.h>
 
 struct poll {
 	int fd;
@@ -118,6 +117,12 @@ __attribute__((section("__ksymtab"))) =				\
 
 /* used by various drivers */
 #ifdef __SMP__
+/* Out of line rw-locking implementation. */
+EXPORT_SYMBOL_PRIVATE(read_lock);
+EXPORT_SYMBOL_PRIVATE(read_unlock);
+EXPORT_SYMBOL_PRIVATE(write_lock);
+EXPORT_SYMBOL_PRIVATE(write_unlock);
+
 /* Kernel wide locking */
 EXPORT_SYMBOL(kernel_flag);
 
@@ -157,6 +162,10 @@ EXPORT_SYMBOL(_do_write_unlock);
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(local_bh_count);
 #endif
+
+/* Atomic counter implementation. */
+EXPORT_SYMBOL_PRIVATE(atomic_add);
+EXPORT_SYMBOL_PRIVATE(atomic_sub);
 
 EXPORT_SYMBOL(ivector_table);
 EXPORT_SYMBOL(enable_irq);

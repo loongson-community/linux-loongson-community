@@ -38,26 +38,26 @@ static unsigned char sgi_volume;
 static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
 static int shuting_down, has_paniced;
 
-static void sgi_machine_restart(char *command) __attribute__((noreturn));
-static void sgi_machine_halt(void) __attribute__((noreturn));
-static void sgi_machine_power_off(void) __attribute__((noreturn));
+static void ip22_machine_restart(char *command) __attribute__((noreturn));
+static void ip22_machine_halt(void) __attribute__((noreturn));
+static void ip22_machine_power_off(void) __attribute__((noreturn));
 
 /* XXX How to pass the reboot command to the firmware??? */
-static void sgi_machine_restart(char *command)
+static void ip22_machine_restart(char *command)
 {
 	if (shuting_down)
-		sgi_machine_power_off();
-	prom_reboot();
+		ip22_machine_power_off();
+	ArcReboot();
 }
 
-static void sgi_machine_halt(void)
+static void ip22_machine_halt(void)
 {
 	if (shuting_down)
-		sgi_machine_power_off();
-	prom_imode();
+		ip22_machine_power_off();
+	ArcEnterInteractiveMode();
 }
 
-static void sgi_machine_power_off(void)
+static void ip22_machine_power_off(void)
 {
 	struct indy_clock *clock = (struct indy_clock *)INDY_CLOCK_REGS;
 
@@ -79,7 +79,7 @@ static void sgi_machine_power_off(void)
 
 static void power_timeout(unsigned long data)
 {
-	sgi_machine_power_off();
+	ip22_machine_power_off();
 }
 
 static void blink_timeout(unsigned long data)
@@ -106,7 +106,7 @@ static void debounce(unsigned long data)
 	}
 
 	if (has_paniced)
-		prom_reboot();
+		ArcReboot();
 
 	enable_irq(9);
 }
@@ -118,7 +118,7 @@ static inline void power_button(void)
 
 	if (shuting_down || kill_proc(1, SIGINT, 1)) {
 		/* No init process or button pressed twice.  */
-		sgi_machine_power_off();
+		ip22_machine_power_off();
 	}
 
 	shuting_down = 1;
@@ -131,7 +131,7 @@ static inline void power_button(void)
 	add_timer(&power_timer);
 }
 
-void inline sgi_volume_set(unsigned char volume)
+void inline ip22_volume_set(unsigned char volume)
 {
 	sgi_volume = volume;
 
@@ -139,7 +139,7 @@ void inline sgi_volume_set(unsigned char volume)
 	hpc3c0->pbus_extregs[2][1] = sgi_volume;
 }
 
-void inline sgi_volume_get(unsigned char *volume)
+void inline ip22_volume_get(unsigned char *volume)
 {
 	*volume = sgi_volume;
 }
@@ -235,9 +235,9 @@ void ip22_reboot_setup(void)
 		return;
 	setup_done = 1;
 
-	_machine_restart = sgi_machine_restart;
-	_machine_halt = sgi_machine_halt;
-	_machine_power_off = sgi_machine_power_off;
+	_machine_restart = ip22_machine_restart;
+	_machine_halt = ip22_machine_halt;
+	_machine_power_off = ip22_machine_power_off;
 
 	request_irq(9, panel_int, 0, "Front Panel", NULL);
 	init_timer(&blink_timer);

@@ -119,7 +119,11 @@ int open_dentry(struct dentry * dentry, int mode)
 {
 	struct inode * inode = dentry->d_inode;
 	struct file * f;
+	struct list_head * l = NULL;
 	int fd, error;
+
+	if (inode->i_sb)
+		l = &inode->i_sb->s_files;
 
 	error = -EINVAL;
 	if (!inode->i_op || !inode->i_op->default_file_ops)
@@ -141,6 +145,7 @@ int open_dentry(struct dentry * dentry, int mode)
 			if (error)
 				goto out_filp;
 		}
+		file_move(f, l);
 		fd_install(fd, f);
 		dget(dentry);
 	}
@@ -465,8 +470,7 @@ static inline void flush_old_files(struct files_struct * files)
 		i = j * __NFDBITS;
 		if (i >= files->max_fds)
 			break;
-		set = files->close_on_exec.fds_bits[j];
-		files->close_on_exec.fds_bits[j] = 0;
+		set = xchg(&files->close_on_exec.fds_bits[j], 0);
 		j++;
 		for ( ; set ; i++,set >>= 1) {
 			if (set & 1)
@@ -559,7 +563,7 @@ int prepare_binprm(struct linux_binprm *bprm)
 	if ((retval = permission(inode, MAY_EXEC)) != 0)
 		return retval;
 	/* better not execute files which are being written to */
-	if (inode->i_writecount > 0)
+	if (atomic_read(&inode->i_writecount) > 0)
 		return -ETXTBSY;
 
 	bprm->e_uid = current->euid;

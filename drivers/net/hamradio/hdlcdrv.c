@@ -43,7 +43,6 @@
 #include <linux/config.h>
 #include <linux/version.h>
 #include <linux/module.h>
-#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/net.h>
 #include <linux/in.h>
@@ -936,7 +935,7 @@ MODULE_DESCRIPTION("Packet Radio network interface HDLC encoder/decoder");
 
 /* --------------------------------------------------------------------- */
 
-__initfunc(int init_module(void))
+int __init init_module(void)
 {
 	printk(KERN_INFO "hdlcdrv: (C) 1996 Thomas Sailer HB9JNX/AE4WA\n");
 	printk(KERN_INFO "hdlcdrv: version 0.6 compiled " __TIME__ " " __DATE__ "\n");

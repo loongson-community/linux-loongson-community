@@ -49,6 +49,7 @@ static char lc2msk_to_irqnr[256];
 static char lc3msk_to_irqnr[256];
 
 extern asmlinkage void indyIRQ(void);
+int (*irq_cannonicalize)(int irq);
 
 #ifdef CONFIG_REMOTE_DEBUG
 extern void rs_kgdb_hook(int);
@@ -416,19 +417,6 @@ void free_irq(unsigned int irq, void *dev_id)
 	printk("Trying to free free IRQ%d\n",irq);
 }
 
-int (*irq_cannonicalize)(int irq);
-
-static int indy_irq_cannonicalize(int irq)
-{
-	return irq;	/* Sane hardware, sane code ... */
-}
-
-void __init init_IRQ(void)
-{
-	irq_cannonicalize = indy_irq_cannonicalize;
-	irq_setup();
-}
-
 void indy_local0_irqdispatch(struct pt_regs *regs)
 {
 	struct irqaction *action;
@@ -502,7 +490,7 @@ int probe_irq_off (unsigned long irqs)
 	return 0;
 }
 
-void __init sgint_init(void)
+static inline void sgint_init(void)
 {
 	int i;
 #ifdef CONFIG_REMOTE_DEBUG
@@ -605,4 +593,15 @@ void __init sgint_init(void)
 		}
 	}
 #endif
+}
+
+static int indy_irq_cannonicalize(int irq)
+{
+	return irq;	/* Sane hardware, sane code ... */
+}
+
+void __init init_IRQ(void)
+{
+	irq_cannonicalize = indy_irq_cannonicalize;
+	sgint_init();
 }

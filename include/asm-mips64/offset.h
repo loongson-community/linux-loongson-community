@@ -84,19 +84,16 @@
 #define MM_CONTEXT    88
 
 /* Linux sigcontext offsets. */
-#define SC_REGMASK    0
-#define SC_STATUS     4
-#define SC_PC         8
-#define SC_REGS       16
-#define SC_FPREGS     272
-#define SC_OWNEDFP    528
-#define SC_FPC_CSR    532
-#define SC_FPC_EIR    536
-#define SC_SSFLAGS    540
-#define SC_MDHI       544
-#define SC_MDLO       552
-#define SC_CAUSE      560
-#define SC_BADVADDR   564
-#define SC_SIGSET     568
+#define SC_REGS       0
+#define SC_FPREGS     256
+#define SC_MDHI       512
+#define SC_MDLO       520
+#define SC_PC         528
+#define SC_STATUS     536
+#define SC_OWNEDFP    540
+#define SC_FPC_CSR    544
+#define SC_FPC_EIR    548
+#define SC_CAUSE      552
+#define SC_BADVADDR   556
 
 #endif /* !(_MIPS_OFFSET_H) */

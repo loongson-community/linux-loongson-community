@@ -309,6 +309,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( NEOMAGIC,	NEOMAGIC_MAGICGRAPH_128V, "MagicGraph 128V"),
 	DEVICE( NEOMAGIC,	NEOMAGIC_MAGICGRAPH_128ZV, "MagicGraph 128ZV"),
 	DEVICE( NEOMAGIC,	NEOMAGIC_MAGICGRAPH_NM2160, "MagicGraph NM2160"),
+	DEVICE( NEOMAGIC,	NEOMAGIC_MAGICGRAPH_128ZVPLUS, "MagicGraph 128ZV+"),
 	DEVICE( ASP,		ASP_ABP940,	"ABP940"),
 	DEVICE( ASP,		ASP_ABP940U,	"ABP940U"),
 	DEVICE( ASP,		ASP_ABP940UW,	"ABP940UW"),
@@ -466,6 +467,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( SATSAGEM,	SATSAGEM_PCR2101,"PCR2101 DVB receiver"),
 	DEVICE( SATSAGEM,	SATSAGEM_TELSATTURBO,"Telsat Turbo DVB"),
 	DEVICE( HUGHES,		HUGHES_DIRECPC,	"DirecPC"),
+	DEVICE( ENSONIQ,	ENSONIQ_ES1371, "ES1371"),
 	DEVICE( ENSONIQ,	ENSONIQ_AUDIOPCI,"AudioPCI"),
 	DEVICE( ALTEON,		ALTEON_ACENIC,  "AceNIC"),
 	DEVICE( PICTUREL,	PICTUREL_PCIVST,"PCIVST"),
@@ -543,6 +545,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE(	KTI,		KTI_ET32P2,	"ET32P2"),
 	DEVICE( ADAPTEC,	ADAPTEC_7810,	"AIC-7810 RAID"),
 	DEVICE( ADAPTEC,	ADAPTEC_7821,	"AIC-7860"),
+	DEVICE( ADAPTEC,	ADAPTEC_38602,  "AIC-7860"),
 	DEVICE( ADAPTEC,	ADAPTEC_7850,	"AIC-7850"),
 	DEVICE( ADAPTEC,	ADAPTEC_7855,	"AIC-7855"),
 	DEVICE( ADAPTEC,	ADAPTEC_5800,	"AIC-5800"),
@@ -1030,7 +1033,7 @@ static struct proc_dir_entry proc_old_pci = {
 	0, &proc_array_inode_operations
 };
 
-__initfunc(void proc_old_pci_init(void))
+void __init proc_old_pci_init(void)
 {
 	proc_register(&proc_root, &proc_old_pci);
 }

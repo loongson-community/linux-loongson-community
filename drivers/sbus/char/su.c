@@ -1,4 +1,4 @@
-/* $Id: su.c,v 1.21 1999/06/11 10:23:42 davem Exp $
+/* $Id: su.c,v 1.22 1999/07/03 08:57:43 davem Exp $
  * su.c: Small serial driver for keyboard/mouse interface on sparc32/PCI
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -1836,7 +1836,6 @@ su_wait_until_sent(struct tty_struct *tty, int timeout)
 		printk("lsr = %d (jiff=%lu)...", lsr, jiffies);
 #endif
 		current->state = TASK_INTERRUPTIBLE;
-		current->counter = 0;	/* make us low-priority */
 		schedule_timeout(char_time);
 		if (signal_pending(current))
 			break;
@@ -2215,7 +2214,7 @@ done:
  */
 __initfunc(static __inline__ void show_su_version(void))
 {
-	char *revision = "$Revision: 1.21 $";
+	char *revision = "$Revision: 1.22 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');

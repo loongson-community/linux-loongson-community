@@ -7,7 +7,6 @@
  */
 
 #include <linux/sched.h>
-#include <linux/minix_fs.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/fcntl.h>
@@ -25,7 +24,6 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 #include <linux/fs.h>
-#include <linux/minix_fs.h>
 
 /*
  * Write to a file (through the page cache).

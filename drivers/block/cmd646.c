@@ -1,4 +1,4 @@
-/* $Id: cmd646.c,v 1.13 1999/05/27 04:49:38 davem Exp $
+/* $Id: cmd646.c,v 1.14 1999/07/03 08:56:09 davem Exp $
  * cmd646.c: Enable interrupts at initialization time on Ultra/PCI machines.
  *           Note, this driver is not used at all on other systems because
  *           there the "BIOS" has done all of the following already.
@@ -94,6 +94,9 @@ static __inline__ int wait_for_ready(ide_drive_t *drive)
 
 static void cmd646_do_setfeature(ide_drive_t *drive, byte command)
 {
+#if 0
+	(void) ide_config_drive_speed(drive, command);
+#else
 	unsigned long flags;
 	byte old_select;
 
@@ -116,6 +119,7 @@ static void cmd646_do_setfeature(ide_drive_t *drive, byte command)
 out:
 	OUT_BYTE(old_select, IDE_SELECT_REG);
 	restore_flags(flags);
+#endif
 }
 
 static void cmd646_dma2_enable(ide_drive_t *drive, unsigned long dma_base)
@@ -236,7 +240,7 @@ static int cmd646_1_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 	return cmd646_dmaproc(func, drive);
 }
 
-__initfunc(void ide_init_cmd646 (ide_hwif_t *hwif))
+void __init ide_init_cmd646 (ide_hwif_t *hwif)
 {
 	struct pci_dev *dev = hwif->pci_dev;
 	unsigned char mrdmode;

@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.14 1999/02/15 02:16:50 ralf Exp $
+/* $Id: irq.c,v 1.15 1999/02/25 21:50:49 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -356,7 +356,7 @@ static int i8259_irq_cannonicalize(int irq)
 	return ((irq == 2) ? 9 : irq);
 }
 
-__initfunc(static void i8259_init(void))
+static void __init i8259_init(void)
 {
 	/* Init master interrupt controller */
 	outb(0x11, 0x20); /* Start init sequence */
@@ -376,7 +376,7 @@ __initfunc(static void i8259_init(void))
 	outb(cached_21, 0x21);
 }
 
-__initfunc(void init_IRQ(void))
+void __init init_IRQ(void)
 {
 	irq_cannonicalize = i8259_irq_cannonicalize;
 	/* i8259_init(); */

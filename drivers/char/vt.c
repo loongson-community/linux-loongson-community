@@ -61,7 +61,7 @@ struct vt_struct *vt_cons[MAX_NR_CONSOLES];
  */
 unsigned char keyboard_type = KB_101;
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(__mips__)
 asmlinkage int sys_ioperm(unsigned long from, unsigned long num, int on);
 #endif
 
@@ -470,7 +470,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		ucval = keyboard_type;
 		goto setchar;
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(__mips__)
 		/*
 		 * These cannot be implemented on any machine that implements
 		 * ioperm() in user level (such as Alpha PCs).

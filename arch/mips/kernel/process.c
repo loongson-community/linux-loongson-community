@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.12 1999/06/17 13:25:46 ralf Exp $
+/* $Id: process.c,v 1.14 1999/08/09 19:43:14 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -34,18 +34,6 @@ struct task_struct *last_task_used_math = NULL;
 
 asmlinkage void ret_from_sys_call(void);
 
-/*
- * Do necessary setup to start up a newly executed thread.
- */
-void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
-{
-	/* New thread looses kernel privileges. */
-	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|KU_MASK)) | KU_USER;
-	regs->cp0_epc = pc;
-	regs->regs[29] = sp;
-	current->tss.current_ds = USER_DS;
-}
-
 void exit_thread(void)
 {
 	/* Forget lazy fpu state */
@@ -64,10 +52,6 @@ void flush_thread(void)
 		__asm__ __volatile__("cfc1\t$0,$31");
 		last_task_used_math = NULL;
 	}
-}
-
-void release_thread(struct task_struct *dead_task)
-{
 }
 
 int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,

@@ -530,7 +530,7 @@ CONFIG_BLK_DEV_IDEPCI
   People with SCSI-only systems should say N here; if unsure say Y.
 
 Generic PCI bus-master DMA support
-CONFIG_BLK_DEV_IDEDMA
+CONFIG_BLK_DEV_IDEDMA_PCI
   If your PCI system uses IDE drive(s) (as opposed to SCSI, say) and
   is capable of bus-master DMA operation (most Pentium PCI systems),
   you will want to say Y here to reduce CPU overhead. You can then use
@@ -545,6 +545,26 @@ CONFIG_BLK_DEV_IDEDMA
   file Documentation/ide.txt for more information. 
 
   It is safe to say Y to this question.
+
+Good-Bad DMA Model-Firmware (EXPERIMENTAL)
+IDEDMA_NEW_DRIVE_LISTINGS
+  This test compares both the model and firmware revision for buggy drives
+  that claim to (U)DMA capable.  This is a blanket on/off test with no speed
+  limit options.  Straight GNU GCC 2.7.3/2.8.X compilers are known to be safe;
+  whereas, many versions of EGCS have a problem and miscompile.
+
+  If in doubt, say N.
+
+Generic ATA-66 support (DANGEROUS)
+CONFIG_IDEDMA_ULTRA_66
+  This allows for your Generic IDE control to attempt support for
+  using ATA-66 or UDMA-66 transfer modes 3/4.  If you are not sure what you
+  are attempting, "DO NOT" even think about this option, unless your
+  mainboard's chipset is verified.  Do not complain to anyone if you
+  do not know what you are doing and are just playing around.
+  This option has no known success cases to date.
+
+  Say N, or beware.........
 
 Winbond SL82c105 support
 CONFIG_BLK_DEV_SL82C105
@@ -562,13 +582,16 @@ CONFIG_BLK_DEV_OFFBOARD
   improve the usability of some boot managers such as LILO when
   booting from a drive on an off-board controller.
 
+  Requires that all onboard ide controllers be disabled or calling
+  "pci=reverse" to invert the device scan order.
+
   Note that, if you say Y here, the order of the hd* devices will be
   rearranged which may require modification of fstab and other files.
 
   If in doubt, say N.
 
 Use DMA by default when available
-CONFIG_IDEDMA_AUTO
+CONFIG_IDEDMA_PCI_AUTO
   Prior to kernel version 2.1.112, Linux used to automatically use
   DMA for IDE drives and chipsets which support it. Due to concerns
   about a couple of cases where buggy hardware may have caused damage,
@@ -664,7 +687,7 @@ CONFIG_BLK_DEV_CY82C693
   This driver adds detection and support for the CY82C693 chipset
   used on Digital's PC-Alpha 164SX boards.
 
-  This requires CONFIG_IDEDMA_AUTO to be enabled.
+  This requires CONFIG_IDEDMA_PCI_AUTO to be enabled.
 
   Please read the comments at the top of drivers/block/cy82c693.c
 
@@ -679,7 +702,7 @@ CONFIG_BLK_DEV_VIA82C586
   (while running a "cat") provided you enabled "proc" support and
   set DISPLAY_APOLLO_TIMINGS in via82c586.c
 
-  This requires CONFIG_IDEDMA_AUTO to be enabled.
+  This requires CONFIG_IDEDMA_PCI_AUTO to be enabled.
 
   If unsure, say N.
 
@@ -693,14 +716,15 @@ CONFIG_BLK_DEV_ALI15X3
   onboard chipsets.  It also tests for Simplex mode and enables
   normal dual channel support.
 
-  This requires CONFIG_IDEDMA_AUTO to be enabled.
+  This requires CONFIG_IDEDMA_PCI_AUTO to be enabled.
 
   Please read the comments at the top of drivers/block/alim15x3.c
 
   If unsure, say N.
 
-PROMISE PDC20246 support (EXPERIMENTAL)
-CONFIG_BLK_DEV_PDC20246
+PROMISE PDC20246/PDC20262 support
+CONFIG_BLK_DEV_PDC202XX
+  Promise Ultra33 or PDC20246.
   This driver adds up to 4 more eide devices sharing a single interrupt.
   This add-on card is a bootable PCI UDMA controller.
   Since multiple cards can be installed and there are BIOS ROM problems
@@ -708,26 +732,37 @@ CONFIG_BLK_DEV_PDC20246
   do not match.  Should you be unable to make new BIOS chips with a burner,
   the driver attempts to dynamic tuning of the chipset at boot-time
   for max-speed.  Ultra33 BIOS 1.25 or new required for more than one card.
+  This card may require "PDC202XX Special UDMA Feature (EXPERIMENTAL)".
 
-  This requires CONFIG_IDEDMA_AUTO to be enabled.
-
-  Please read the comments at the top of drivers/block/pdc202xx.c
-
-  If unsure, say N.
-
-PROMISE PDC20262 support (EXPERIMENTAL)
-CONFIG_BLK_DEV_PDC20262
+  Promise Ultra66 or PDC20262.
   This driver adds up to 4 more eide devices sharing a single interrupt.
   This add-on card is a bootable PCI UDMA ATA-66 controller.
   The driver attempts to dynamic tuning of the chipset at boot-time
   for max-speed.  Note tested limits are UDMA-2.
   Ultra66 BIOS 1.11 or newer required.
 
-  This requires CONFIG_IDEDMA_AUTO to be enabled.
+  This requires CONFIG_IDEDMA_PCI_AUTO to be enabled.
 
   Please read the comments at the top of drivers/block/pdc202xx.c
 
   If unsure, say N.
+
+Special UDMA Feature (EXPERIMENTAL)
+PDC202XX_FORCE_BURST_BIT
+  For PDC20246 and PDC20262 Ultra DMA chipsets.
+  Designed originally for PDC20246/Ultra33 that has BIOS setup failures
+  when using 3 or more cards.
+
+  Please read the comments at the top of drivers/block/pdc202xx.c
+
+  If unsure, say N.
+
+Special Mode Feature (DANGEROUS)
+PDC202XX_FORCE_MASTER_MODE
+  For PDC20246 and PDC20262 Ultra DMA chipsets.
+  This is reserved for possible Hardware RAID 0,1 for the FastTrak Series.
+
+  Say N. 
 
 AEC6210 chipset support
 CONFIG_BLK_DEV_AEC6210
@@ -735,11 +770,11 @@ CONFIG_BLK_DEV_AEC6210
   This add-on card is a bootable PCI UDMA controller.  In order to get this
   card to initialize correctly in some cases, you should include this driver.
 
-  This prefers CONFIG_IDEDMA_AUTO to be enabled, regardless.
+  This prefers CONFIG_IDEDMA_PCI_AUTO to be enabled, regardless.
 
   Please read the comments at the top of drivers/block/aec6210.c
 
-Intel PIIXn chipsets support (EXPERIMENTAL)
+Intel PIIXn chipsets support
 CONFIG_BLK_DEV_PIIX
   This driver adds PIO mode setting and tuning for all PIIX IDE
   controllers by Intel.  Since the BIOS can sometimes improperly tune
@@ -750,15 +785,31 @@ CONFIG_BLK_DEV_PIIX
 
   If unsure, say N.
 
-HPT343 chipset support (EXPERIMENTAL)
-CONFIG_BLK_DEV_HPT343
-  This driver adds up to 4 more EIDE devices sharing a single
-  interrupt. The HPT343 chipset in its current form is a non-bootable
-  PCI UDMA controller. This driver requires dynamic tuning of the
-  chipset during the ide-probe at boot. It is reported to support DVD
-  II drives, by the manufacturer.
+PIIXn Tuning support (EXPERIMENTAL)
+CONFIG_BLK_DEV_PIIX_TUNING
+  This driver extension adds DMA mode setting and tuning for all PIIX IDE
+  controllers by Intel.  Since the BIOS can sometimes improperly setup
+  the device/adapter combination and speed limits, It has become a necessity
+  to back/forward speed devices as needed.
 
-  This requires CONFIG_IDEDMA_AUTO to be enabled.
+  Case 430HX/440FX PIIX3 need speed limits to reduce UDMA to DMA mode 2
+  if the BIOS can to perform this task at INIT.
+
+  If unsure, say N.
+
+HPT34X chipset support
+CONFIG_BLK_DEV_HPT34X
+  This driver adds up to 4 more EIDE devices sharing a single
+  interrupt. The HPT343 chipset in its current form is a non-bootable or
+  HPT345/HPT363 chipset is bootable (needs BIOS FIX) PCI UDMA controllers.
+  This driver requires dynamic tuning of the chipset during the ide-probe
+  at boot. It is reported to support DVD II drives, by the manufacturer.
+
+  Please read the comments at the top of drivers/block/hpt343.c
+
+HPT34X DMA support (DANGEROUS)
+CONFIG_BLK_DEV_HPT34X_DMA
+  This requires CONFIG_IDEDMA_PCI_AUTO to be enabled.
 
   Please read the comments at the top of drivers/block/hpt343.c
 
@@ -821,17 +872,17 @@ CONFIG_BLK_DEV_IDEDOUBLER
   Say Y if you have an IDE doubler.  The driver is enabled at kernel
   runtime using the "ide=doubler" kernel boot parameter.
 
- Support for PowerMac IDE devices (must also enable IDE)
- CONFIG_BLK_DEV_IDE_PMAC
-   No help for CONFIG_BLK_DEV_IDE_PMAC
+Support for PowerMac IDE devices (must also enable IDE)
+CONFIG_BLK_DEV_IDE_PMAC
+  No help for CONFIG_BLK_DEV_IDE_PMAC
 
- PowerMac IDE DMA support
- CONFIG_BLK_DEV_IDEDMA_PMAC
-   No help for CONFIG_BLK_DEV_IDEDMA_PMAC
+PowerMac IDE DMA support
+CONFIG_BLK_DEV_IDEDMA_PMAC
+  No help for CONFIG_BLK_DEV_IDEDMA_PMAC
 
- Use DMA by default
- CONFIG_PMAC_IDEDMA_AUTO
-   No help for CONFIG_PMAC_IDEDMA_AUTO
+Use DMA by default
+CONFIG_IDEDMA_PMAC_AUTO
+  No help for CONFIG_IDEDMA_PMAC_AUTO
 
 Macintosh Quadra/Powerbook IDE interface support
 CONFIG_BLK_DEV_MAC_IDE
@@ -843,9 +894,21 @@ CONFIG_BLK_DEV_MAC_IDE
   (hard disks, CD-ROM drives, etc.) that are connected to the builtin
   IDE interface.
 
- RapIDE interface support
- CONFIG_BLK_DEV_IDE_RAPIDE
-   No help for CONFIG_BLK_DEV_IDE_RAPIDE
+ICS IDE interface support
+CONFIG_BLK_DEV_IDE_ICSIDE
+  No help for CONFIG_BLK_DEV_IDE_ICSIDE
+
+ICS DMA support
+CONFIG_BLK_DEV_IDEDMA_ICS
+  No help for CONFIG_BLK_DEV_IDEDMA_ICS
+
+Use ICS DMA by default
+CONFIG_IDEDMA_ICS_AUTO
+  No help for CONFIG_IDEDMA_ICS_AUTO
+
+RapIDE interface support
+CONFIG_BLK_DEV_IDE_RAPIDE
+  No help for CONFIG_BLK_DEV_IDE_RAPIDE
 
 XT hard disk support
 CONFIG_BLK_DEV_XD
@@ -1676,6 +1739,45 @@ SGI Visual Workstation framebuffer support
 CONFIG_FB_SGIVW
   SGI Visual Workstation support for framebuffer graphics.
 
+I2O support
+CONFIG_I2O
+  The Intelligent Input/Output (I2O) architecture allows
+  hardware drivers to be split into two parts: an operating system
+  specific module called the OSM and an hardware specific module
+  called the HDM. The OSM can talk to a whole range of HDM's, and
+  ideally the HDM's are not OS dependent. This allows for the same
+  driver to be used under different operating systems if the relevant
+  OSM is in place. If you say Y here, you will get a choice of OSM's
+  with the following questions.
+
+  This support is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.
+
+  If unsure, say N.
+
+I2O PCI support
+CONFIG_I2O_PCI
+  Build in support for PCI bus I2O interface adapters. Currently this
+  is the only variety supported.
+
+I2O Block OSM
+CONFIG_I2O_BLOCK
+  Include support for the I2O Block OSM. The Block OSM presents disk and
+  other structured block devices to the operating system.
+
+I2O LAN OSM
+CONFIG_I2O_LAN
+  Include support for the LAN OSM. You will also need to include support
+  for token ring or fddi if you wish to use token ring or FDDI I2O cards
+  with this driver.
+
+I2O SCSI OSM
+CONFIG_I2O_SCSI
+  Allow direct scsi access to scsi devices on a SCSI or FibreChannel I2O 
+  controller. You can use both the SCSI and Block OSM together if you wish.
+
 System V IPC
 CONFIG_SYSVIPC
   Inter Process Communication is a suite of library functions and
@@ -2042,6 +2144,11 @@ CONFIG_FB_VESA
   You will get a boot time penguin logo at no additional cost. Please
   read Documentation/fb/vesafb.txt. If unsure, say Y.
 
+VGA 16-color graphics console
+CONFIG_FB_VGA16
+  This is the frame buffer device driver for VGA 16 color graphic
+  cards. Say Y if you have such a card.
+
 Backward compatibility mode for Xpmac
 CONFIG_FB_COMPAT_XPMAC
   If you use the Xpmac X server (common with mklinux), you'll need to
@@ -2283,12 +2390,12 @@ CONFIG_PARPORT
   whenever you want), say M here and read Documentation/modules.txt.
   The module will be called parport.o. If you have more than one
   parallel port and want to specify which port and IRQ to be used by
-  this driver at module load time, read
-  Documentation/networking/net-modules.txt.
+  this driver at module load time, take a look at
+  Documentation/networking/parport.txt.
 
   If unsure, say Y.
 
-PC-style hardware 
+PC-style hardware
 CONFIG_PARPORT_PC
   You should say Y here if you have a PC-style parallel port. All IBM
   PC compatible computers and some Alphas have PC-style parallel
@@ -2301,28 +2408,36 @@ CONFIG_PARPORT_PC
   
   If unsure, say Y.
 
+Use FIFO/DMA if available
+CONFIG_PARPORT_PC_FIFO
+  Many parallel port chipsets provide hardware that can speed up
+  printing. Say Y here if you want to take advantage of that.
+
+  As well as actually having a FIFO, or DMA capability, the kernel
+  will need to know which IRQ the parallel port has. By default,
+  parallel port interrupts will not be used, and so neither will the
+  FIFO. See Documentation/parport.txt to find out how to specify
+  which IRQ/DMA to use.
+
 Support foreign hardware
 CONFIG_PARPORT_OTHER
   Say Y here if you want to be able to load driver modules to support
   other non-standard types of parallel ports. This causes a
   performance loss, so most people say N.
 
-Sun Ultra/AX-style hardware 
+Sun Ultra/AX-style hardware
 CONFIG_PARPORT_AX
   Say Y here if you need support for the parallel port hardware on Sun
   Ultra/AX machines. This code is also available as a module (say M),
   called parport_ax.o. If in doubt, saying N is the safe plan.
 
-Plug and Play support
-CONFIG_PNP
-  Plug and Play support allows the kernel to automatically configure
-  some peripheral devices. Say Y to enable PnP.
-
-Auto-probe for parallel devices
-CONFIG_PNP_PARPORT
-  Some IEEE-1284 conforming parallel-port devices can identify
-  themselves when requested. Say Y to enable this feature, or M to
-  compile it as a module (parport_probe.o). If in doubt, say N.
+IEEE1284 transfer modes
+CONFIG_PARPORT_1284
+  If you have a printer that supports status readback or device ID, or
+  want to use a device that uses enhanced parallel port transfer modes
+  such as EPP and ECP, say Y here to enable advanced IEEE 1284
+  transfer modes. Also say Y if you want device ID information to
+  appear in /proc/sys/dev/parport/*/autoprobe*. It is safe to say N.
 
 Enable loadable module support
 CONFIG_MODULES
@@ -5225,6 +5340,17 @@ CONFIG_WAVELAN
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
+Aironet Arlan 655 & IC2200 DS support
+CONFIG_ARLAN
+  Aironet makes Arlan. www.aironet.com. Uses www.Telxon.com chip, which is
+  used on several similar cards. Driver is tested on 655 and IC2200 series. 
+  Look for http://www.ylenurme.ee/~elmer/655/ for latest information. 
+  Driver is build as two modules, arlan and arlan-proc. The later is /proc
+  interface and not needed most of time.
+  On some computers the card ends up in non-valid state after some time.
+  Use a ping-reset script to clear it.
+   
+
 LAPB over Ethernet driver
 CONFIG_LAPBETHER
   This is a driver for a pseudo device (typically called /dev/lapb0)
@@ -5350,6 +5476,15 @@ CONFIG_ETHERTAP
   The module will be called ethertap.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt. If you don't
   know what to use this for, you don't need it.
+
+Sealevel Systems 4021 support
+CONFIG_SEALEVEL_4021
+  This is a driver for the Sealevel Systems ACB 56 serial I/O adapter.
+  
+  This driver can only be compiled as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  If you want to do that, say M here. The module will be called
+  sealevel.o.
 
 Frame Relay (DLCI) support
 CONFIG_DLCI
@@ -5757,6 +5892,40 @@ CONFIG_WANPIPE_PPP
   you say N, the PPP support will not be included in the driver (saves
   about 16 KB of kernel memory).
 
+Cyclom 2X(tm) multiprotocol cards
+CONFIG_CYCLADES_SYNC
+  Cyclom 2X from Cyclades Corporation (http://www.cyclades.com and
+  http://www.cyclades.com.br; to browse the WWW, you need to have
+  access to a machine on the Internet that has a program like lynx or
+  netscape) is an intelligent multiprotocol WAN adapter with data
+  transfer rates up to 512 Kbps). These cards support the X.25 and SNA
+  related protocols. If you have one or more of these cards, say Y to
+  this option. The next questions will ask you about the protocols you
+  want the driver to support (for now only X.25 is supported).
+
+  While no documentation is available at this time please grab the
+  wanconfig tarball in http://www.conectiva.com.br/~acme/cycsyn-devel
+  (with minor changes to make it compile with the current wanrouter
+  include files; efforts are being made to use the original package
+  available at ftp://ftp.sangoma.com).
+
+  Feel free to contact me or the cycsyn-devel mailing list at
+  acme@conectiva.com.br and cycsyn-devel@bazar.conectiva.com.br for
+  aditional details, I hope to have documentation available as soon
+  as possible.
+
+  The driver will be compiled as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called cyclomx.o. For general information about
+  modules read Documentation/modules.txt.
+
+Cyclom 2X X.25 support
+CONFIG_CYCLOMX_X25
+  Say Y to this option if you are planning to connect a Cyclom 2X card
+  to an X.25 network. 
+  If you say N, the X.25 support will not be included in the driver
+  (saves about 11 KB of kernel memory).
+
 Ethernet (10 or 100Mbit)
 CONFIG_NET_ETHERNET
   Ethernet (also called IEEE 802.3 or ISO 8802-2) is the most common
@@ -5970,7 +6139,7 @@ CONFIG_YELLOWFIN
   say M here and read Documentation/modules.txt. This is recommended.
   The module will be called yellowfin.o.
 
-Alteon AceNIC / 3Com 3C985 Gigabit Ethernet support.
+Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support
 CONFIG_ACENIC
   Say Y here if you have an Alteon AceNIC or 3Com 3C985 PCI Gigabit
   Ethernet adapter. The driver allows for using the Jumbo Frame
@@ -6727,6 +6896,25 @@ CONFIG_IBMTR
   inserted in and removed from the running kernel whenever you want).
   The module will be called ibmtr.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+IBM Olympic chipset PCI adapter support
+CONFIG_IBMOL
+  This is support for all non-Lanstreamer IBM PCI Token Ring Cards. 
+  Specifically this is all IBM PCI, PCI Wake On Lan, PCI II, PCI II
+  Wake On Lan, and PCI 100/16/4 adapters.
+
+  If you have such an adapter, say Y and read the Token-Ring mini-HOWTO,
+  available via FTP (user:anonymous) from
+  ftp://metalab.unc/edu/pub/Linux/docs/HOWTO.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will will be called olympic.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
+  Also read the linux/Documentation/networking/olympic.txt or check the 
+  Linux Token Ring Project site for the latest information at
+  http://www.linuxtr.net
 
 SysKonnect adapter support
 CONFIG_SKTR
@@ -8381,6 +8569,16 @@ CONFIG_CYCLADES
 
   If you haven't heard about it, it's safe to say N.
 
+Cyclades-Z interrupt mode operation (EXPERIMENTAL)
+CONFIG_CYZ_INTR
+  The Cyclades-Z family of multiport cards allows 2 (two) driver
+  op modes: polling and interrupt. In polling mode, the driver will
+  check the status of the Cyclades-Z ports every certain amount of
+  time (which is called polling cycle and is configurable). In
+  interrupt mode, it will use an interrupt line (IRQ) in order to check
+  the status of the Cyclades-Z ports. The default op mode is polling.
+  If unsure, say N.
+
 Stallion multiport serial support 
 CONFIG_STALDRV
   Stallion cards give you many serial ports. You would need something
@@ -8505,7 +8703,8 @@ CONFIG_PRINTER
   corresponding drivers into the kernel. If you want to compile this
   driver as a module however ( = code which can be inserted in and
   removed from the running kernel whenever you want), say M here and
-  read Documentation/modules.txt. The module will be called lp.o. 
+  read Documentation/modules.txt and Documentation/parport.txt. The
+  module will be called lp.o. 
 
   If you have several parallel ports, you can specify which ports to
   use with the "lp" kernel command line option. (Try "man bootparam"
@@ -8519,11 +8718,18 @@ CONFIG_PRINTER
   If you have more than 3 printers, you need to increase the LP_NO
   variable in lp.c.
 
-Support IEEE1284 status readback
-CONFIG_PRINTER_READBACK
-  If your printer conforms to IEEE 1284, it may be able to provide a
-  status indication when you read from it (for example, with `cat
-  /dev/lp1'). To use this feature, say Y here.
+Support for console on line printer
+CONFIG_LP_CONSOLE
+  If you want kernel messages to be printed out as they occur, you
+  can have a console on the printer. This option adds support for
+  doing that; to actually get it to happen you need to pass the
+  option "console=lp" to the kernel at boot time.
+
+  Note that kernel messages can get lost if the printer is out of
+  paper (or off, or unplugged, or too busy..), but this behaviour
+  can be changed. See drivers/char/lp.c (do this at your own risk).
+
+  If unsure, say N.
 
 Mouse Support (not serial mice)
 CONFIG_MOUSE
@@ -9462,7 +9668,7 @@ CONFIG_SOUND
   after the PnP configuration is finished. To do this, say M here and
   read Documentation/modules.txt as well as
   Documentation/sound/README.modules; the module will be called
-  sound.o.
+  soundcore.o.
 
   I'm told that even without a sound card, you can make your computer
   say more than an occasional beep, by programming the PC speaker.
@@ -11008,6 +11214,11 @@ CONFIG_RADIO_RTRACK2
   Choose Y here if you have this FM radio card, and then fill in the 
   port address below.
 
+  If you have GemTeks combined (PnP) sound- and radio card you must use
+  this driver as a module and setup the card with isapnptools. You must
+  also pass the module a suitable io parameter, 0x248 has been reported
+  to be used by these cards.
+
   In order to control your radio card, you will need to use programs
   that are compatible with the Video for Linux API. Information on 
   this API and pointers to "v4l" programs may be found on the WWW at
@@ -11184,6 +11395,40 @@ CONFIG_RADIO_GEMTEK_PORT
   Enter either 0x20c, 0x30c, 0x24c or 0x34c here. The card default is
   0x34c, if you haven't changed the jumper setting on the card.
 
+PlanB Video-In for PowerMacs
+CONFIG_VIDEO_PLANB
+  PlanB is the V4L driver for the PowerMac 7x00/8x00 series video
+  input hardware. If you want to experiment with this, say Y.
+  Otherwise, or if you don't understand a word, say N.
+  See http://www.cpu.lu/~mlan/planb.html for more info.
+
+  Saying M will compile this driver as a module (planb.o).
+
+TerraTec ActiveRadio
+CONFIG_RADIO_TERRATEC
+  Choose Y here if you have this FM radio card, and then fill in the
+  port address below. (TODO)
+
+  Note: This driver is in its early stages. Right now volume and frequency
+  control and muting works at least for me, but unfortunately i have not
+  found anybody who wants to use this card with linux. So if it is this
+  what YOU are trying to do right now, PLEASE DROP ME A NOTE!!
+  Rolf Offermanns (rolf@offermanns.de)
+  
+  In order to control your radio card, you will need to use programs
+  that are compatible with the Video for Linux API. Information on
+  this API and pointers to "v4l" programs may be found on the WWW at
+  http://roadrunner.swansea.uk.linux.org/v4l.shtml; to browse the WWW,
+  you need to have access to a machine on the Internet that has a
+  program like lynx or netscape.
+
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called radio-terratec.o.
+  
+
 BT848 Video For Linux
 CONFIG_VIDEO_BT848
   Support for BT848 based frame grabber/overlay boards. This includes
@@ -11230,6 +11475,14 @@ CONFIG_VIDEO_PMS
   from the running kernel whenever you want). If you want to compile
   it as a module, say M here and read Documentation/modules.txt.
 
+Compaq SMART2 support
+CONFIG_BLK_CPQ_DA
+   This is the driver for Compaq Smart Array controllers.  
+   Everyone using these boards should say Y here.  
+   See "linux/Documentation/cpqarray.txt" for the current list of 
+   boards supported by this driver, and for further information 
+   on the use of this driver. 
+ 
 #
 # ARM options
 #
@@ -11528,6 +11781,21 @@ CONFIG_IRTTY_SIR
 
   If unsure, say Y.
 
+IrPORT IrDA Device Driver
+CONFIG_IRPORT_SIR
+  Say Y here if you want to build support for the IrPORT IrDA device
+  driver. If you want to compile it as a module, say M here and
+  read Documentation/modules.txt. IrPORT can be used instead of
+  IrTTY and sometimes this can be better. One example is if your
+  IrDA port does not have echo-canceling, which will work OK with
+  IrPORT since this driver is working in half-duplex mode only. You
+  don't need to use irattach with IrPORT, but you just insert it 
+  the same way as FIR drivers (insmod irport io=0x3e8 irq=11).
+  Notice that IrPORT is a SIR device driver which means that speed
+  is limited to 115200 bps.
+
+  If unsure, say Y.
+
 Winbond W83977AF IrDA Device Driver
 CONFIG_WINBOND_FIR
   Say Y here if you want to build IrDA support for the Winbond
@@ -11550,6 +11818,13 @@ CONFIG_SHARP_FIR
   chipset. If you want to compile it as a module, say M here and
   read Documentation/modules.txt. This chipset is used by the Toshiba
   Tecra laptops.
+
+Toshiba Type-O IR Port Device Driver
+CONFIG_TOSHIBA_FIR
+  Say Y here if you want to build support for the Toshiba Type-O IR
+  chipset. If you want to compile it as a module, say M here and
+  read Documentation/modules.txt. This chipset is used by the Toshiba
+  Libretto 100CT, and many more laptops.
 
 ESI JetEye PC Dongle
 CONFIG_ESI_DONGLE
@@ -11587,6 +11862,15 @@ CONFIG_GIRBIL_DONGLE
   normal 9-pin serial port connector, and can currently only be used
   by IrTTY. To activate support for Greenwich dongles you will have to
   insert "irattach -d girbil" in the /etc/irda/drivers script.
+
+Parallax Litelink dongle
+CONFIG_LITELINK_DONGLE
+  Say Y here if you want to build support for the Parallax Litelink
+  dongle. If you want to compile it as a module, say M here and read
+  Documentation/modules.txt. The Parallax dongle attaches to the
+  normal 9-pin serial port connector, and can currently only be used
+  by IrTTY. To activate support for Parallax dongles you will have to
+  insert "irattach -d litelink" in the /etc/irda/drivers script.
 
 VME (Motorola and BVM) support
 CONFIG_VME
@@ -11723,6 +12007,16 @@ USB Abstract Control Model support (Preliminary)
 CONFIG_USB_ACM
   This driver allows for devices which support the Abstract Control Model,
   including many USB-based modems, ISDN adapters, and network adapters.
+
+Support for user-space parallel port device drivers
+CONFIG_PPDEV
+  Saying Y to this adds support for /dev/parport device nodes.
+  NB. You have to make them before you can use them:
+    mknod /dev/parport00 c 99 0
+    mknod /dev/parport01 c 99 1
+    mknod /dev/parport10 c 99 16
+    mknod /dev/parport11 c 99 17
+    etc..
 
 #
 # A couple of things I keep forgetting:

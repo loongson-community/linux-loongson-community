@@ -105,10 +105,10 @@ static void __init
 traverse(pcomponent *p, int op)
 {
 	dump_component(p);
-	if(prom_getchild(p))
-		traverse(prom_getchild(p), 1);
-	if(prom_getsibling(p) && op)
-		traverse(prom_getsibling(p), 1);
+	if(ArcGetChild(p))
+		traverse(ArcGetChild(p), 1);
+	if(ArcGetPeer(p) && op)
+		traverse(ArcGetPeer(p), 1);
 }
 
 void __init
@@ -116,12 +116,12 @@ prom_testtree(void)
 {
 	pcomponent *p;
 
-	p = prom_getchild(PROM_NULL_COMPONENT);
+	p = ArcGetChild(PROM_NULL_COMPONENT);
 	dump_component(p);
-	p = prom_getchild(p);
+	p = ArcGetChild(p);
 	while(p) {
 		dump_component(p);
-		p = prom_getsibling(p);
+		p = ArcGetPeer(p);
 	}
 	prom_printf("press a key\n");
 	prom_getchar();

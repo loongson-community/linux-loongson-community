@@ -381,8 +381,7 @@ static struct vm_operations_struct shm_vm_ops = {
 	NULL,			/* advise */
 	shm_nopage,		/* nopage */
 	NULL,			/* wppage */
-	shm_swapout,		/* swapout */
-	NULL			/* swapin */
+	shm_swapout		/* swapout */
 };
 
 /* Insert shmd into the list shp->attaches */
@@ -548,6 +547,7 @@ static void shm_open (struct vm_area_struct *shmd)
 	unsigned int id;
 	struct shmid_kernel *shp;
 
+	lock_kernel();
 	id = SWP_OFFSET(shmd->vm_pte) & SHM_ID_MASK;
 	shp = shm_segs[id];
 	if (shp == IPC_UNUSED) {
@@ -558,6 +558,7 @@ static void shm_open (struct vm_area_struct *shmd)
 	shp->u.shm_nattch++;
 	shp->u.shm_atime = CURRENT_TIME;
 	shp->u.shm_lpid = current->pid;
+	unlock_kernel();
 }
 
 /*
@@ -571,6 +572,7 @@ static void shm_close (struct vm_area_struct *shmd)
 	struct shmid_kernel *shp;
 	int id;
 
+	lock_kernel();
 	/* remove from the list of attaches of the shm segment */
 	id = SWP_OFFSET(shmd->vm_pte) & SHM_ID_MASK;
 	shp = shm_segs[id];
@@ -579,6 +581,7 @@ static void shm_close (struct vm_area_struct *shmd)
 	shp->u.shm_dtime = CURRENT_TIME;
 	if (--shp->u.shm_nattch <= 0 && shp->u.shm_perm.mode & SHM_DEST)
 		killseg (id);
+	unlock_kernel();
 }
 
 /*

@@ -25,7 +25,6 @@
 #include <linux/signal.h>
 #include <linux/uio.h>
 #include <linux/utsname.h>
-#include <linux/fs.h>
 #include <linux/major.h>
 #include <linux/stat.h>
 #include <linux/malloc.h>
@@ -712,7 +711,7 @@ sunos_nfs_get_server_fd (int fd, struct sockaddr_in *addr)
 	struct inode  *inode;
 	struct file   *file;
 
-	file = current->files->fd [fd];
+	file = fcheck(fd);
 	if(!file)
 		return 0;
 

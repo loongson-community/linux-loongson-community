@@ -1,19 +1,17 @@
-/*
+/* $Id: r4k_misc.S,v 1.6 1999/08/18 23:37:44 ralf Exp $
+ *
  * r4k_misc.S: Misc. exception handling code for r4k.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
  *
  * Multi-cpu abstraction and reworking:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: r4k_misc.S,v 1.5 1999/08/09 19:43:15 harald Exp $
  */
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/offset.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
-#include <asm/current.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>

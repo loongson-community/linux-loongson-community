@@ -3412,6 +3412,7 @@ inline void esp_handle(struct NCR_ESP *esp)
 	struct ESP_regs *eregs;
 	Scsi_Cmnd *SCptr;
 	int what_next = do_intr_end;
+	unsigned long flags;
 #ifdef CONFIG_SCSI_SUNESP
 	struct sparc_dma_registers *dregs = 
 	  (struct sparc_dma_registers*) esp->dregs;
@@ -3632,7 +3633,9 @@ again:
 			}
 			SCptr->result = (DID_RESET << 16);
 
+			spin_lock_irqsave(&io_request_lock,flags);
 			SCptr->scsi_done(SCptr);
+			spin_unlock_irqrestore(&io_request_lock, flags);
 		}
 		esp->current_SC = NULL;
 		if(esp->disconnected_SC) {
@@ -3647,7 +3650,9 @@ again:
 				}
 				SCptr->result = (DID_RESET << 16);
 
+				spin_lock_irqsave(&io_request_lock,flags);
 				SCptr->scsi_done(SCptr);
+				spin_unlock_irqrestore(&io_request_lock, flags);
 			}
 		}
 		esp->resetting_bus = 0;

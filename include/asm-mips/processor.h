@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.17 1999/08/09 19:43:17 harald Exp $
+/* $Id: processor.h,v 1.18 1999/08/18 23:37:49 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -6,10 +6,11 @@
  *
  * Copyright (C) 1994 Waldorf GMBH
  * Copyright (C) 1995, 1996, 1997, 1998 Ralf Baechle
- * Modified further for R[236]000 compatibility by Paul M. Antoine
+ * Copyright (C) 1996 Paul M. Antoine
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#ifndef __ASM_MIPS_PROCESSOR_H
-#define __ASM_MIPS_PROCESSOR_H
+#ifndef _ASM_PROCESSOR_H
+#define _ASM_PROCESSOR_H
 
 /*
  * Default implementation of macro that returns current
@@ -179,7 +180,8 @@ struct thread_struct {
 #if !defined (_LANGUAGE_ASSEMBLY)
 
 /* Free all resources held by a thread. */
-extern void release_thread(struct task_struct *);
+#define release_thread(thread) do { } while(0)
+
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
 /* Copy and release all segment info associated with a VM */
@@ -201,12 +203,16 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 	return ((unsigned long*)t->reg29)[17];
 }
 
-struct pt_regs;
-
 /*
  * Do necessary setup to start up a newly executed thread.
  */
-extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
+#define start_thread(regs, new_pc, new_sp) do {				\
+	/* New thread looses kernel privileges. */			\
+	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;\
+	regs->cp0_epc = new_pc;						\
+	regs->regs[29] = new_sp;					\
+	current->tss.current_ds = USER_DS;				\
+} while (0)
 
 /* Allocation and freeing of basic task resources. */
 /*
@@ -246,4 +252,4 @@ extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long 
 #define return_address() NULL
 #endif
 
-#endif /* __ASM_MIPS_PROCESSOR_H */
+#endif /* _ASM_PROCESSOR_H */

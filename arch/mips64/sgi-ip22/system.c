@@ -66,10 +66,10 @@ void __init sgi_sysinit(void)
 	/* The root component tells us what machine architecture we
 	 * have here.
 	 */
-	p = prom_getchild(PROM_NULL_COMPONENT);
+	p = ArcGetChild(PROM_NULL_COMPONENT);
 
 	/* Now scan for cpu(s). */
-	toplev = p = prom_getchild(p);
+	toplev = p = ArcGetChild(p);
 	while(p) {
 		int ncpus = 0;
 
@@ -84,7 +84,7 @@ void __init sgi_sysinit(void)
 			cpup = p;
 			cputype = string_to_cpu(cpup->iname);
 		}
-		p = prom_getsibling(p);
+		p = ArcGetPeer(p);
 	}
 	if(cputype == -1) {
 		prom_printf("\nYeee, could not find cpu ARCS component\n");
@@ -92,7 +92,7 @@ void __init sgi_sysinit(void)
 		prom_getchar();
 		romvec->imode();
 	}
-	p = prom_getchild(cpup);
+	p = ArcGetChild(cpup);
 	while(p) {
 		switch(p->class) {
 		case processor:
@@ -129,7 +129,7 @@ void __init sgi_sysinit(void)
 		default:
 			break;
 		};
-		p = prom_getsibling(p);
+		p = ArcGetPeer(p);
 	}
 	printk("\n");
 }

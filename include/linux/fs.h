@@ -346,6 +346,7 @@ struct inode {
 	struct file_lock	*i_flock;
 	struct vm_area_struct	*i_mmap;
 	struct page		*i_pages;
+	spinlock_t		i_shared_lock;
 	struct dquot		*i_dquot[MAXQUOTAS];
 	struct pipe_inode_info	*i_pipe;
 
@@ -354,7 +355,7 @@ struct inode {
 	unsigned int		i_flags;
 	unsigned char		i_sock;
 
-	int			i_writecount;
+	atomic_t		i_writecount;
 	unsigned int		i_attr_flags;
 	__u32			i_generation;
 	union {
@@ -400,7 +401,7 @@ struct fown_struct {
 };
 
 struct file {
-	struct file		*f_next, **f_pprev;
+	struct list_head	f_list;
 	struct dentry		*f_dentry;
 	struct file_operations	*f_op;
 	atomic_t		f_count;
@@ -417,6 +418,12 @@ struct file {
 	/* needed for tty driver, and maybe others */
 	void			*private_data;
 };
+extern spinlock_t files_lock;
+#define file_list_lock() spin_lock(&files_lock);
+#define file_list_unlock() spin_unlock(&files_lock);
+
+#define get_file(x)	atomic_inc(&(x)->f_count)
+#define file_count(x)	atomic_read(&(x)->f_count)
 
 extern int init_private_file(struct file *, struct dentry *, int);
 
@@ -524,6 +531,7 @@ struct super_block {
 	short int		s_ibasket_count;
 	short int		s_ibasket_max;
 	struct list_head	s_dirty;	/* dirty inodes */
+	struct list_head	s_files;
 
 	union {
 		struct minix_sb_info	minix_sb;
@@ -657,6 +665,10 @@ struct file_system_type {
 extern int register_filesystem(struct file_system_type *);
 extern int unregister_filesystem(struct file_system_type *);
 
+/* Return value for VFS lock functions - tells locks.c to lock conventionally
+ * REALLY kosha for root NFS and nfs_lock
+ */ 
+#define LOCK_USE_CLNT 1
 
 #define FLOCK_VERIFY_READ  1
 #define FLOCK_VERIFY_WRITE 2
@@ -664,29 +676,27 @@ extern int unregister_filesystem(struct file_system_type *);
 extern int locks_mandatory_locked(struct inode *);
 extern int locks_mandatory_area(int, struct inode *, struct file *, loff_t, size_t);
 
-extern inline int locks_verify_locked(struct inode *inode)
+/*
+ * Candidates for mandatory locking have the setgid bit set
+ * but no group execute bit -  an otherwise meaningless combination.
+ */
+#define MANDATORY_LOCK(inode) \
+	(IS_MANDLOCK(inode) && ((inode)->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
+
+static inline int locks_verify_locked(struct inode *inode)
 {
-	/* Candidates for mandatory locking have the setgid bit set
-	 * but no group execute bit -  an otherwise meaningless combination.
-	 */
-	if (IS_MANDLOCK(inode) &&
-	    (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		return (locks_mandatory_locked(inode));
-	return (0);
+	if (MANDATORY_LOCK(inode))
+		return locks_mandatory_locked(inode);
+	return 0;
 }
 
 extern inline int locks_verify_area(int read_write, struct inode *inode,
 				    struct file *filp, loff_t offset,
 				    size_t count)
 {
-	/* Candidates for mandatory locking have the setgid bit set
-	 * but no group execute bit -  an otherwise meaningless combination.
-	 */
-	if (IS_MANDLOCK(inode) &&
-	    (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		return (locks_mandatory_area(read_write, inode, filp, offset,
-					     count));
-	return (0);
+	if (inode->i_flock && MANDATORY_LOCK(inode))
+		return locks_mandatory_area(read_write, inode, filp, offset, count);
+	return 0;
 }
 
 
@@ -743,8 +753,6 @@ extern struct file_system_type *get_fs_type(const char *);
 
 extern int fs_may_remount_ro(struct super_block *);
 extern int fs_may_mount(kdev_t);
-
-extern struct file *inuse_filps;
 
 extern int try_to_free_buffers(struct page *);
 extern void refile_buffer(struct buffer_head * buf);
@@ -854,6 +862,8 @@ extern struct inode * get_empty_inode(void);
 extern void insert_inode_hash(struct inode *);
 extern void remove_inode_hash(struct inode *);
 extern struct file * get_empty_filp(void);
+extern void file_move(struct file *f, struct list_head *list);
+extern void file_moveto(struct file *new, struct file *old);
 extern struct buffer_head * get_hash_table(kdev_t, int, int);
 extern struct buffer_head * getblk(kdev_t, int, int);
 extern void ll_rw_block(int, int, struct buffer_head * bh[]);
@@ -916,10 +926,6 @@ extern int generic_buffer_fdatasync(struct inode *inode, unsigned long start, un
 
 extern int inode_change_ok(struct inode *, struct iattr *);
 extern void inode_setattr(struct inode *, struct iattr *);
-
-/* kludge to get SCSI modules working */
-#include <linux/minix_fs.h>
-#include <linux/minix_fs_sb.h>
 
 #endif /* __KERNEL__ */
 

@@ -87,13 +87,26 @@ static void proc_delete_inode(struct inode *inode)
 	}
 }
 
+struct super_block *proc_super_blocks = NULL;
+
+static void proc_put_super(struct super_block *sb)
+{
+	struct super_block **p = &proc_super_blocks;
+	while (*p != sb) {
+		if (!*p)	/* should never happen */
+			return;
+		p = (struct super_block **)&(*p)->u.generic_sbp;
+	}
+	*p = (struct super_block *)(*p)->u.generic_sbp;
+}
+
 static struct super_operations proc_sops = { 
 	proc_read_inode,
 	proc_write_inode,
 	proc_put_inode,
 	proc_delete_inode,	/* delete_inode(struct inode *) */
 	NULL,
-	NULL,
+	proc_put_super,
 	NULL,
 	proc_statfs,
 	NULL
@@ -323,6 +336,8 @@ struct super_block *proc_read_super(struct super_block *s,void *data,
 	if (!s->s_root)
 		goto out_no_root;
 	parse_options(data, &root_inode->i_uid, &root_inode->i_gid);
+	s->u.generic_sbp = (void*) proc_super_blocks;
+	proc_super_blocks = s;
 	unlock_super(s);
 	return s;
 
@@ -385,9 +400,12 @@ void proc_read_inode(struct inode * inode)
 	if (ino & PROC_PID_FD_DIR) {
 		struct file * file;
 		ino &= 0x7fff;
+		if (!p->files)	/* can we ever get here if that's the case? */
+			goto out_unlock;
+		read_lock(&p->files->file_lock);
 		file = fcheck_task(p, ino);
 		if (!file)
-			goto out_unlock;
+			goto out_unlock2;
 
 		inode->i_op = &proc_link_inode_operations;
 		inode->i_size = 64;
@@ -396,6 +414,8 @@ void proc_read_inode(struct inode * inode)
 			inode->i_mode |= S_IRUSR | S_IXUSR;
 		if (file->f_mode & 2)
 			inode->i_mode |= S_IWUSR | S_IXUSR;
+out_unlock2:
+		read_unlock(&p->files->file_lock);
 	}
 out_unlock:
 	/* Defer unlocking until we're done with the task */

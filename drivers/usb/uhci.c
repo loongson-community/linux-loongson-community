@@ -32,14 +32,9 @@
 #include <linux/malloc.h>
 #include <linux/smp_lock.h>
 #include <linux/errno.h>
-
-#include <linux/sched.h>
 #include <linux/unistd.h>
-#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
-
-
 #include <asm/spinlock.h>
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -70,7 +65,7 @@ static int uhci_map_status(int status, int dir_out)
     	    return USB_ST_BITSTUFF;
     if (status & 0x04)	{			/* CRC/Timeout */
 	if (dir_out)
-    	    return USB_ST_TIMEOUT;
+    	    return USB_ST_NORESPONSE;
 	else
 	    return USB_ST_CRC;
     }
@@ -104,7 +99,7 @@ static int uhci_td_result(struct uhci_device *dev, struct uhci_td *td, unsigned 
 		if (status) {
 			/* must reset the toggle on first error */
     			if (uhci_debug) {
-			    printk("Set toggle from %x rval %d\n", (unsigned int)tmp, rval ? *rval : 0);
+			    printk("Set toggle from %x rval %ld\n", (unsigned int)tmp, rval ? *rval : 0);
 			}
 			usb_settoggle(dev->usb, usb_pipeendpoint(tmp->info), usb_pipeout(tmp->info), (tmp->info >> 19) & 1);
 			break;
@@ -1442,10 +1437,12 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 
 	/* We need exactly one page (per UHCI specs), how convenient */
 	uhci->fl = (void *)__get_free_page(GFP_KERNEL);
+	if (!uhci->fl)
+		goto au_free_uhci;
 
 	bus = kmalloc(sizeof(*bus), GFP_KERNEL);
 	if (!bus)
-		return NULL;
+		goto au_free_fl;
 
 	memset(bus, 0, sizeof(*bus));
 
@@ -1465,7 +1462,7 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 	 */
 	usb = uhci_usb_allocate(NULL);
 	if (!usb)
-		return NULL;
+		goto au_free_bus;
 
 	usb->bus = bus;
 	dev = usb_to_uhci(usb);
@@ -1536,6 +1533,18 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 	}
 
 	return uhci;
+
+/*
+ * error exits:
+ */
+
+au_free_bus:
+	kfree (bus);
+au_free_fl:
+	free_page ((unsigned long)uhci->fl);
+au_free_uhci:
+	kfree (uhci);
+	return NULL;
 }
 
 

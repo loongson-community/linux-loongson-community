@@ -341,7 +341,11 @@ int fcntl_getlk(unsigned int fd, struct flock *l)
 		error = filp->f_op->lock(filp, F_GETLK, &file_lock);
 		if (error < 0)
 			goto out_putf;
-		fl = &file_lock;
+		else if (error == LOCK_USE_CLNT)
+		  /* Bypass for NFS with no locking - 2.0.36 compat */
+		  fl = posix_test_lock(filp, &file_lock);
+		else
+		  fl = (file_lock.fl_type == F_UNLCK ? NULL : &file_lock);
 	} else {
 		fl = posix_test_lock(filp, &file_lock);
 	}
@@ -402,14 +406,17 @@ int fcntl_setlk(unsigned int fd, unsigned int cmd, struct flock *l)
 	 * and shared.
 	 */
 	if (IS_MANDLOCK(inode) &&
-	    (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID &&
-	    inode->i_mmap) {
-		struct vm_area_struct *vma = inode->i_mmap;
-		error = -EAGAIN;
-		do {
-			if (vma->vm_flags & VM_MAYSHARE)
-				goto out_putf;
-		} while ((vma = vma->vm_next_share) != NULL);
+	    (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID) {
+		struct vm_area_struct *vma;
+		spin_lock(&inode->i_shared_lock);
+		for(vma = inode->i_mmap;vma;vma = vma->vm_next_share) {
+			if (!(vma->vm_flags & VM_MAYSHARE))
+				continue;
+			spin_unlock(&inode->i_shared_lock);
+			error = -EAGAIN;
+			goto out_putf;
+		}
+		spin_unlock(&inode->i_shared_lock);
 	}
 
 	error = -EINVAL;
@@ -546,47 +553,23 @@ posix_test_lock(struct file *filp, struct file_lock *fl)
 	return (cfl);
 }
 
-int locks_verify_locked(struct inode *inode)
-{
-	/* Candidates for mandatory locking have the setgid bit set
-	 * but no group execute bit -  an otherwise meaningless combination.
-	 */
-	if (IS_MANDLOCK(inode) &&
-	    (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		return (locks_mandatory_locked(inode));
-	return (0);
-}
-
-int locks_verify_area(int read_write, struct inode *inode, struct file *filp,
-		      loff_t offset, size_t count)
-{
-	/* Candidates for mandatory locking have the setgid bit set
-	 * but no group execute bit -  an otherwise meaningless combination.
-	 */
-	if (IS_MANDLOCK(inode) && (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID) {
-		int retval;
-		lock_kernel();
-		retval = locks_mandatory_area(read_write, inode, filp, offset, count);
-		unlock_kernel();
-		return retval;
-	}
-	return 0;
-}
-
 int locks_mandatory_locked(struct inode *inode)
 {
 	fl_owner_t owner = current->files;
 	struct file_lock *fl;
 
-	/* Search the lock list for this inode for any POSIX locks.
+	/*
+	 * Search the lock list for this inode for any POSIX locks.
 	 */
+	lock_kernel();
 	for (fl = inode->i_flock; fl != NULL; fl = fl->fl_next) {
 		if (!(fl->fl_flags & FL_POSIX))
 			continue;
 		if (fl->fl_owner != owner)
-			return (-EAGAIN);
+			break;
 	}
-	return (0);
+	unlock_kernel();
+	return fl ? -EAGAIN : 0;
 }
 
 int locks_mandatory_area(int read_write, struct inode *inode,
@@ -595,6 +578,7 @@ int locks_mandatory_area(int read_write, struct inode *inode,
 {
 	struct file_lock *fl;
 	struct file_lock tfl;
+	int error;
 
 	memset(&tfl, 0, sizeof(tfl));
 
@@ -607,31 +591,39 @@ int locks_mandatory_area(int read_write, struct inode *inode,
 	tfl.fl_start = offset;
 	tfl.fl_end = offset + count - 1;
 
+	error = 0;
+	lock_kernel();
+
 repeat:
 	/* Search the lock list for this inode for locks that conflict with
 	 * the proposed read/write.
 	 */
-	for (fl = inode->i_flock; fl != NULL; fl = fl->fl_next) {
+	for (fl = inode->i_flock; ; fl = fl->fl_next) {
+		error = 0;
+		if (!fl)
+			break;
 		if (!(fl->fl_flags & FL_POSIX))
 			continue;
 		/* Block for writes against a "read" lock,
 		 * and both reads and writes against a "write" lock.
 		 */
 		if (posix_locks_conflict(fl, &tfl)) {
+			error = -EAGAIN;
 			if (filp && (filp->f_flags & O_NONBLOCK))
-				return (-EAGAIN);
+				break;
+			error = -ERESTARTSYS;
 			if (signal_pending(current))
-				return (-ERESTARTSYS);
+				break;
+			error = -EDEADLK;
 			if (posix_locks_deadlock(&tfl, fl))
-				return (-EDEADLK);
+				break;
 
 			locks_insert_block(fl, &tfl);
 			interruptible_sleep_on(&tfl.fl_wait);
 			locks_delete_block(fl, &tfl);
 
-			if (signal_pending(current))
-				return (-ERESTARTSYS);
-			/* If we've been sleeping someone might have
+			/*
+			 * If we've been sleeping someone might have
 			 * changed the permissions behind our back.
 			 */
 			if ((inode->i_mode & (S_ISGID | S_IXGRP)) != S_ISGID)
@@ -639,7 +631,8 @@ repeat:
 			goto repeat;
 		}
 	}
-	return (0);
+	unlock_kernel();
+	return error;
 }
 
 /* Verify a "struct flock" and copy it to a "struct file_lock" as a POSIX

@@ -53,6 +53,7 @@ CONFIG_KMOD=y
 # Please see Documentation/ide.txt for help/info on IDE drives
 #
 # CONFIG_BLK_DEV_HD_ONLY is not set
+# CONFIG_BLK_CPQ_DA is not set
 
 #
 # Additional Block Devices
@@ -123,6 +124,7 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_SERIAL_NONSTANDARD is not set
 # CONFIG_UNIX98_PTYS is not set
 # CONFIG_PRINTER is not set
+# CONFIG_PPDEV is not set
 # CONFIG_MOUSE is not set
 # CONFIG_QIC02_TAPE is not set
 # CONFIG_WATCHDOG is not set

@@ -249,16 +249,18 @@ static inline int dup_mmap(struct mm_struct * mm)
 		tmp->vm_next = NULL;
 		file = tmp->vm_file;
 		if (file) {
-			atomic_inc(&file->f_count);
+			get_file(file);
 			if (tmp->vm_flags & VM_DENYWRITE)
-				file->f_dentry->d_inode->i_writecount--;
+				atomic_dec(&file->f_dentry->d_inode->i_writecount);
       
 			/* insert tmp into the share list, just after mpnt */
+			spin_lock(&file->f_dentry->d_inode->i_shared_lock);
 			if((tmp->vm_next_share = mpnt->vm_next_share) != NULL)
 				mpnt->vm_next_share->vm_pprev_share =
 					&tmp->vm_next_share;
 			mpnt->vm_next_share = tmp;
 			tmp->vm_pprev_share = &mpnt->vm_next_share;
+			spin_unlock(&file->f_dentry->d_inode->i_shared_lock);
 		}
 
 		/* Copy the pages, but defer checking for errors */
@@ -304,6 +306,7 @@ struct mm_struct * mm_alloc(void)
 		mm->map_count = 0;
 		mm->def_flags = 0;
 		init_MUTEX_LOCKED(&mm->mmap_sem);
+		mm->page_table_lock = SPIN_LOCK_UNLOCKED;
 		/*
 		 * Leave mm->pgd set to the parent's pgd
 		 * so that pgd_offset() is always valid.
@@ -360,6 +363,10 @@ static inline int copy_mm(int nr, unsigned long clone_flags, struct task_struct 
 	struct mm_struct * mm;
 	int retval;
 
+	tsk->min_flt = tsk->maj_flt = 0;
+	tsk->cmin_flt = tsk->cmaj_flt = 0;
+	tsk->nswap = tsk->cnswap = 0;
+
 	if (clone_flags & CLONE_VM) {
 		mmget(current->mm);
 		/*
@@ -376,9 +383,6 @@ static inline int copy_mm(int nr, unsigned long clone_flags, struct task_struct 
 		goto fail_nomem;
 
 	tsk->mm = mm;
-	tsk->min_flt = tsk->maj_flt = 0;
-	tsk->cmin_flt = tsk->cmaj_flt = 0;
-	tsk->nswap = tsk->cnswap = 0;
 	copy_segments(nr, tsk, mm);
 	retval = new_page_tables(tsk);
 	if (retval)
@@ -478,17 +482,18 @@ static int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 	atomic_set(&newf->count, 1);
 	newf->max_fds = NR_OPEN;
 	newf->fd = new_fds;
+	read_lock(&oldf->file_lock);
 	newf->close_on_exec = oldf->close_on_exec;
 	i = copy_fdset(&newf->open_fds, &oldf->open_fds);
 
 	old_fds = oldf->fd;
 	for (; i != 0; i--) {
 		struct file *f = *old_fds++;
-		*new_fds = f;
 		if (f)
-			atomic_inc(&f->f_count);
-		new_fds++;
+			get_file(f);
+		*new_fds++ = f;
 	}
+	read_unlock(&oldf->file_lock);
 	/* This is long word aligned thus could use a optimized version */ 
 	memset(new_fds, 0, (char *)newf->fd + size - (char *)new_fds); 
       

@@ -77,10 +77,12 @@ static inline void remove_shared_vm_struct(struct vm_area_struct *vma)
 
 	if (file) {
 		if (vma->vm_flags & VM_DENYWRITE)
-			file->f_dentry->d_inode->i_writecount++;
+			atomic_inc(&file->f_dentry->d_inode->i_writecount);
+		spin_lock(&file->f_dentry->d_inode->i_shared_lock);
 		if(vma->vm_next_share)
 			vma->vm_next_share->vm_pprev_share = vma->vm_pprev_share;
 		*vma->vm_pprev_share = vma->vm_next_share;
+		spin_unlock(&file->f_dentry->d_inode->i_shared_lock);
 	}
 }
 
@@ -294,7 +296,7 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	if (file) {
 		int correct_wcount = 0;
 		if (vma->vm_flags & VM_DENYWRITE) {
-			if (file->f_dentry->d_inode->i_writecount > 0) {
+			if (atomic_read(&file->f_dentry->d_inode->i_writecount) > 0) {
 				error = -ETXTBSY;
 				goto free_vma;
 			}
@@ -303,17 +305,17 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 			 * might). In any case, this takes care of any
 			 * race that this might cause.
 			 */
-			file->f_dentry->d_inode->i_writecount--;
+			atomic_dec(&file->f_dentry->d_inode->i_writecount);
 			correct_wcount = 1;
 		}
 		error = file->f_op->mmap(file, vma);
 		/* Fix up the count if necessary, then check for an error */
 		if (correct_wcount)
-			file->f_dentry->d_inode->i_writecount++;
+			atomic_inc(&file->f_dentry->d_inode->i_writecount);
 		if (error)
 			goto unmap_and_free_vma;
 		vma->vm_file = file;
-		atomic_inc(&file->f_count);
+		get_file(file);
 	}
 
 	/*
@@ -547,7 +549,7 @@ static struct vm_area_struct * unmap_fixup(struct vm_area_struct *area,
 		mpnt->vm_file = area->vm_file;
 		mpnt->vm_pte = area->vm_pte;
 		if (mpnt->vm_file)
-			atomic_inc(&mpnt->vm_file->f_count);
+			get_file(mpnt->vm_file);
 		if (mpnt->vm_ops && mpnt->vm_ops->open)
 			mpnt->vm_ops->open(mpnt);
 		area->vm_end = addr;	/* Truncate area */
@@ -678,9 +680,9 @@ int do_munmap(unsigned long addr, size_t len)
 		size = end - st;
 
 		lock_kernel();
-
 		if (mpnt->vm_ops && mpnt->vm_ops->unmap)
 			mpnt->vm_ops->unmap(mpnt, st, size);
+		unlock_kernel();
 
 		remove_shared_vm_struct(mpnt);
 		mm->map_count--;
@@ -693,8 +695,6 @@ int do_munmap(unsigned long addr, size_t len)
 		 * Fix the mapping, and free the old area if it wasn't reused.
 		 */
 		extra = unmap_fixup(mpnt, st, size, extra);
-
-		unlock_kernel();
 	}
 
 	/* Release the extra vma struct if it wasn't used */
@@ -787,10 +787,8 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 	flags = vma->vm_flags;
 	addr = vma->vm_start;
 
-	lock_kernel();		/* kswapd, ugh */
 	insert_vm_struct(mm, vma);
 	merge_segments(mm, vma->vm_start, vma->vm_end);
-	unlock_kernel();
 	
 	mm->total_vm += len >> PAGE_SHIFT;
 	if (flags & VM_LOCKED) {
@@ -878,13 +876,15 @@ void insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vmp)
 	if (file) {
 		struct inode * inode = file->f_dentry->d_inode;
 		if (vmp->vm_flags & VM_DENYWRITE)
-			inode->i_writecount--;
+			atomic_dec(&inode->i_writecount);
       
 		/* insert vmp into inode's share list */
+		spin_lock(&inode->i_shared_lock);
 		if((vmp->vm_next_share = inode->i_mmap) != NULL)
 			inode->i_mmap->vm_pprev_share = &vmp->vm_next_share;
 		inode->i_mmap = vmp;
 		vmp->vm_pprev_share = &inode->i_mmap;
+		spin_unlock(&inode->i_shared_lock);
 	}
 }
 

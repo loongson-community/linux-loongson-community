@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.1 1999/08/18 23:37:53 ralf Exp $
+/* $Id: unistd.h,v 1.3 1999/09/27 16:01:41 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1016,7 +1016,7 @@
 #define __NR_ptrace			(__NR_Linux +  26)
 #define __NR_alarm			(__NR_Linux +  27)
 #define __NR_oldfstat			(__NR_Linux +  28)
-#define __NR_pause			(__NR_Linux +  29)
+#define __NR_unused29			(__NR_Linux +  29)
 #define __NR_utime			(__NR_Linux +  30)
 #define __NR_stty			(__NR_Linux +  31)
 #define __NR_gtty			(__NR_Linux +  32)
@@ -1515,7 +1515,6 @@ return -1; \
  */
 #define __NR__exit __NR_exit
 static inline _syscall0(int,idle)
-static inline _syscall0(int,pause)
 static inline _syscall0(int,sync)
 static inline _syscall0(pid_t,setsid)
 static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)

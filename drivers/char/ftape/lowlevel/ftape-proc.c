@@ -112,6 +112,7 @@ static struct inode_operations ftape_proc_inode_operations =
 	NULL,			/* mknod */
 	NULL,			/* rename */
 	NULL,			/* readlink */
+	NULL,			/* follow_link */
 	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
@@ -420,7 +421,7 @@ int ftape_read_proc(char *page, char **start, off_t off,
 	return len;
 }
 
-__initfunc(int ftape_proc_init(void))
+int __init ftape_proc_init(void)
 {
 	return FT_PROC_REGISTER(&proc_root, &proc_ftape);
 }

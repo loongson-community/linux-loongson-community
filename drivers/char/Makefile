@@ -372,6 +372,30 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_VIDEO_ZORAN),y)
+L_OBJS += buz.o
+else
+  ifeq ($(CONFIG_VIDEO_LML33),m)
+    M_OBJS += buz.o
+  endif
+endif
+
+ifeq ($(CONFIG_VIDEO_LML33),y)
+L_OBJS += bt856.o bt819.o
+else
+  ifeq ($(CONFIG_VIDEO_LML33),m)
+    M_OBJS += bt856.o bt819.o
+  endif
+endif
+
+ifeq ($(CONFIG_VIDEO_BUZ),y)
+L_OBJS += saa7111.o saa7185.o
+else
+  ifeq ($(CONFIG_VIDEO_BUZ),m)
+    M_OBJS += saa7111.o saa7185.o
+  endif
+endif
+
 ifeq ($(CONFIG_VIDEO_PMS),y)
 L_OBJS += pms.o
 else
@@ -385,6 +409,14 @@ L_OBJS += planb.o
 else
   ifeq ($(CONFIG_VIDEO_PLANB),m)
   M_OBJS += planb.o
+  endif
+endif
+
+ifeq ($(CONFIG_VIDEO_VINO),y)
+L_OBJS += vino.o
+else
+  ifeq ($(CONFIG_VIDEO_VINO),m)
+  M_OBJS += vino.o
   endif
 endif
 
@@ -468,6 +500,14 @@ else
   endif
 endif                                             
 
+ifeq ($(CONFIG_RADIO_TERRATEC),y)
+L_OBJS += radio-terratec.o
+else
+  ifeq ($(CONFIG_RADIO_TERRATEC),m)
+  M_OBJS += radio-terratec.o
+  endif
+endif
+
 ifeq ($(CONFIG_QIC02_TAPE),y)
 L_OBJS += tpqic02.o
 else
@@ -490,6 +530,14 @@ endif
 
 ifdef CONFIG_H8
 LX_OBJS += h8.o
+endif
+
+ifeq ($(CONFIG_PPDEV),y)
+L_OBJS += ppdev.o
+else
+  ifeq ($(CONFIG_PPDEV),m)
+  M_OBJS += ppdev.o
+  endif
 endif
 
 ifeq ($(L_I2C),y)

@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.17 1999/08/20 21:59:02 ralf Exp $
+/* $Id: setup.c,v 1.18 1999/09/18 20:48:03 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -30,7 +30,6 @@
 #endif
 #include <linux/ide.h>
 #ifdef CONFIG_RTC
-#include <linux/ioport.h>
 #include <linux/timex.h>
 #endif
 
@@ -67,15 +66,6 @@ char cyclecounter_available;
  */
 int EISA_bus = 0;
 
-/*
- * Milo passes some information to the kernel that looks like as if it
- * had been returned by a Intel PC BIOS.  Milo doesn't fill the passed
- * drive_info and Linux can find out about this anyway, so I'm going to
- * remove this sometime.  screen_info contains information about the 
- * resolution of the text screen.  For VGA graphics based machine this
- * information is being use to continue the screen output just below
- * the BIOS printed text and with the same text resolution.
- */
 struct screen_info screen_info;
 
 #ifdef CONFIG_BLK_DEV_FD

@@ -86,11 +86,6 @@ EXPORT_SYMBOL(dma_cache_inv);
 EXPORT_SYMBOL(invalid_pte_table);
 
 /*
- * Base address of ports for Intel style I/O.
- */
-EXPORT_SYMBOL(mips_io_port_base);
-
-/*
  * Kernel hacking ...
  */
 #include <asm/branch.h>

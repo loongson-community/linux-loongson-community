@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
+/* $Id: processor.h,v 1.3 1999/09/27 20:56:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -209,7 +209,13 @@ extern int (*user_mode)(struct pt_regs *);
 /*
  * Do necessary setup to start up a newly executed thread.
  */
-extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
+#define start_thread(regs, new_pc, new_sp) do {				\
+	/* New thread looses kernel privileges. */			\
+	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;\
+	regs->cp0_epc = new_pc;						\
+	regs->regs[29] = new_sp;					\
+	current->tss.current_ds = USER_DS;				\
+} while (0)
 
 /* Allocation and freeing of basic task resources. */
 /*

@@ -202,8 +202,8 @@ ifeq ($(CONFIG_BLK_DEV_AEC6210),y)
 IDE_OBJS += aec6210.o
 endif
 
-ifeq ($(CONFIG_BLK_DEV_HPT343),y)
-IDE_OBJS += hpt343.o
+ifeq ($(CONFIG_BLK_DEV_HPT34X),y)
+IDE_OBJS += hpt34x.o
 endif
 
 ### if CONFIG_BLK_DEV_IDE is n, IDE_OBJS will be ignored
@@ -271,6 +271,14 @@ L_OBJS += xd.o
 else
   ifeq ($(CONFIG_BLK_DEV_XD),m)
   M_OBJS += xd.o
+  endif
+endif
+
+ifeq ($(CONFIG_BLK_CPQ_DA),y)
+L_OBJS += cpqarray.o
+else
+  ifeq ($(CONFIG_BLK_CPQ_DA),m)
+  M_OBJS += cpqarray.o
   endif
 endif
 

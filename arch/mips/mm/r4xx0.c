@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.22 1999/06/17 13:25:51 ralf Exp $
+/* $Id: r4xx0.c,v 1.23 1999/08/09 19:43:16 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -2202,7 +2202,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 	unsigned int flags;
 
 	daddr = addr & ~(dc_lsize - 1);
-	save_and_cli(flags);
+	__save_and_cli(flags);
 
 	/* Clear internal cache refill buffer */
 	*(volatile unsigned int *)KSEG1;
@@ -2212,7 +2212,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 	iaddr = addr & ~(ic_lsize - 1);
 	protected_flush_icache_line(iaddr);
 	protected_flush_icache_line(iaddr + ic_lsize);
-	restore_flags(flags);
+	__restore_flags(flags);
 }
 
 #undef DEBUG_TLB

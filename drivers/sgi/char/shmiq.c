@@ -1,4 +1,4 @@
-/* $Id: shmiq.c,v 1.11 1998/09/19 19:17:50 ralf Exp $
+/* $Id: shmiq.c,v 1.12 1999/06/17 13:29:04 ralf Exp $
  *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -302,8 +302,7 @@ static struct vm_operations_struct qcntl_mmap = {
 	NULL,			/* no special mmap-advise */
 	shmiq_nopage,		/* our magic no-page fault handler */
 	NULL,			/* no special mmap-wppage */
-	NULL,			/* no special mmap-swapout */
-	NULL			/* no special mmap-swapin */
+	NULL			/* no special mmap-swapout */
 };
 
 static int

@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.16 1999/04/01 23:45:00 ulfc Exp $
+/* $Id: graphics.c,v 1.17 1999/08/19 22:56:32 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -262,8 +262,7 @@ static struct vm_operations_struct graphics_mmap = {
 	NULL,			/* no special mmap-advise */
 	sgi_graphics_nopage,	/* our magic no-page fault handler */
 	NULL,			/* no special mmap-wppage */
-	NULL,			/* no special mmap-swapout */
-	NULL			/* no special mmap-swapin */
+	NULL			/* no special mmap-swapout */
 };
 	
 int

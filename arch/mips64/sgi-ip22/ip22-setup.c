@@ -34,47 +34,47 @@
 #include <asm/sgi/sgint23.h>
 
 extern struct rtc_ops indy_rtc_ops;
-void indy_reboot_setup(void);
-void sgi_volume_set(unsigned char);
+extern void ip22_reboot_setup(void);
+extern void ip22_volume_set(unsigned char);
 
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 
-static void sgi_request_region(void)
+static void ip22_request_region(void)
 {
 	/* No I/O ports are being used on the Indy.  */
 }
 
-static int sgi_request_irq(void (*handler)(int, void *, struct pt_regs *))
+static int ip22_request_irq(void (*handler)(int, void *, struct pt_regs *))
 {
 	/* Dirty hack, this get's called as a callback from the keyboard
 	   driver.  We piggyback the initialization of the front panel
 	   button handling on it even though they're technically not
 	   related with the keyboard driver in any way.  Doing it from
 	   indy_setup wouldn't work since kmalloc isn't initialized yet.  */
-	indy_reboot_setup();
+	ip22_reboot_setup();
 
 	return request_irq(SGI_KEYBOARD_IRQ, handler, 0, "keyboard", NULL);
 }
 
-static int sgi_aux_request_irq(void (*handler)(int, void *, struct pt_regs *))
+static int ip22_aux_request_irq(void (*handler)(int, void *, struct pt_regs *))
 {
 	/* Nothing to do, interrupt is shared with the keyboard hw  */
 	return 0;
 }
 
-static void sgi_aux_free_irq(void)
+static void ip22_aux_free_irq(void)
 {
 	/* Nothing to do, interrupt is shared with the keyboard hw  */
 }
 
-static unsigned char sgi_read_input(void)
+static unsigned char ip22_read_input(void)
 {
 	return sgi_kh->data;
 }
 
-static void sgi_write_output(unsigned char val)
+static void ip22_write_output(unsigned char val)
 {
 	int status;
 
@@ -84,7 +84,7 @@ static void sgi_write_output(unsigned char val)
 	sgi_kh->data = val;
 }
 
-static void sgi_write_command(unsigned char val)
+static void ip22_write_command(unsigned char val)
 {
 	int status;
 
@@ -94,36 +94,29 @@ static void sgi_write_command(unsigned char val)
 	sgi_kh->command = val;
 }
 
-static unsigned char sgi_read_status(void)
+static unsigned char ip22_read_status(void)
 {
 	return sgi_kh->command;
 }
 
 struct kbd_ops sgi_kbd_ops = {
-	sgi_request_region,
-	sgi_request_irq,
+	ip22_request_region,
+	ip22_request_irq,
 
-	sgi_aux_request_irq,
-	sgi_aux_free_irq,
+	ip22_aux_request_irq,
+	ip22_aux_free_irq,
 
-	sgi_read_input,
-	sgi_write_output,
-	sgi_write_command,
-	sgi_read_status
+	ip22_read_input,
+	ip22_write_output,
+	ip22_write_command,
+	ip22_read_status
 };
-
-static void __init sgi_irq_setup(void)
-{
-	sgint_init();
-}
 
 void __init ip22_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
 #endif
-
-	irq_setup = sgi_irq_setup;
 
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the
@@ -142,7 +135,7 @@ void __init ip22_setup(void)
 	 * graphics console, it is set to "d" for the first serial
 	 * line and "d2" for the second serial line.
 	 */
-	ctype = prom_getenv("console");
+	ctype = ArcArcGetEnvironmentVariable("console");
 	if(*ctype == 'd') {
 		if(*(ctype+1)=='2')
 			console_setup ("ttyS1");
@@ -154,7 +147,8 @@ void __init ip22_setup(void)
 	console_setup("ttyS0");
 #endif
 
-	sgi_volume_set(simple_strtoul(prom_getenv("volume"), NULL, 10));
+	ip22_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"),
+	                              NULL, 10));
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE

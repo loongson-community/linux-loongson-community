@@ -62,7 +62,7 @@ prom_identify_arch(void)
 
 	/* The root component tells us what machine architecture we
 	   have here.  */
-	p = prom_getchild(PROM_NULL_COMPONENT);
+	p = ArcGetChild(PROM_NULL_COMPONENT);
 	printk("ARCH: %s\n", p->iname);
 	mach = string_to_mach(p->iname);
 

@@ -1,4 +1,4 @@
-/* $Id: syscalls.h,v 1.15 1998/09/19 19:16:17 ralf Exp $
+/* $Id: syscalls.h,v 1.16 1999/07/11 23:56:29 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -44,7 +44,7 @@ SYS(sys_stime, 1)				/* 4025 */
 SYS(sys_ptrace, 4)
 SYS(sys_alarm, 1)
 SYS(sys_fstat, 2)
-SYS(sys_pause, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_utime, 2)				/* 4030 */
 SYS(sys_ni_syscall, 0)
 SYS(sys_ni_syscall, 0)
@@ -214,14 +214,14 @@ SYS(sys_rt_sigprocmask, 4)			/* 4195 */
 SYS(sys_rt_sigpending, 2)
 SYS(sys_rt_sigtimedwait, 4)
 SYS(sys_rt_sigqueueinfo, 3)
-SYS(sys_rt_sigsuspend, 2)
+SYS(sys_rt_sigsuspend, 0)
 SYS(sys_pread, 6)				/* 4200 */
 SYS(sys_pwrite, 6)
 SYS(sys_chown, 3)
 SYS(sys_getcwd, 2)
 SYS(sys_capget, 2)
 SYS(sys_capset, 2)				/* 4205 */
-SYS(sys_sigaltstack, 2)
+SYS(sys_sigaltstack, 0)
 SYS(sys_sendfile, 3)
 SYS(sys_ni_syscall, 0)
 SYS(sys_ni_syscall, 0)

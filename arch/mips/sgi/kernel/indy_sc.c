@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.8 1999/05/10 17:40:16 ulfc Exp $
+/* $Id: indy_sc.c,v 1.9 1999/05/12 21:57:49 ulfc Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -9,7 +9,6 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
-#include <linux/autoconf.h>
 
 #include <asm/bcache.h>
 #include <asm/sgi.h>

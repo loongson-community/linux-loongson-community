@@ -375,6 +375,7 @@ static inline int proc_scsi_unregister(struct proc_dir_entry *driver, int x)
     }
 }
 
+extern struct super_block *proc_super_blocks;
 extern struct dentry_operations proc_dentry_operations;
 extern struct super_block *proc_read_super(struct super_block *,void *,int);
 extern int init_proc_fs(void);
@@ -456,12 +457,12 @@ extern void proc_device_tree_init(void);
 
 #else
 
-extern inline int proc_register(struct proc_dir_entry *a, struct proc_dir_entry *b) {};
-extern inline int proc_unregister(struct proc_dir_entry *a, int b) {};
-extern inline int proc_net_register(struct proc_dir_entry *a) {};
-extern inline int proc_net_unregister(int x) {};
-extern inline int proc_scsi_register(struct proc_dir_entry *b, struct proc_dir_entry *c) {};
-extern inline int proc_scsi_unregister(struct proc_dir_entry *a, int x);
+extern inline int proc_register(struct proc_dir_entry *a, struct proc_dir_entry *b) { return 0; }
+extern inline int proc_unregister(struct proc_dir_entry *a, int b) { return 0; }
+extern inline int proc_net_register(struct proc_dir_entry *a) { return 0; }
+extern inline int proc_net_unregister(int x) { return 0; }
+extern inline int proc_scsi_register(struct proc_dir_entry *b, struct proc_dir_entry *c) { return 0; }
+extern inline int proc_scsi_unregister(struct proc_dir_entry *a, int x) { return 0; }
 
 extern inline struct proc_dir_entry *create_proc_entry(const char *name, mode_t mode,
 					 struct proc_dir_entry *parent)

@@ -1,7 +1,6 @@
 /* sgiserial.c: Serial port driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
  */
 
 /*
@@ -2081,7 +2080,8 @@ rs_kgdb_hook(int tty_num)
 	ZS_CLEARFIFO(zs_kgdbchan);
 }
 
-static void zs_console_write(struct console *co, const char *str, unsigned int count)
+static void zs_console_write(struct console *co, const char *str,
+                             unsigned int count)
 {
 
 	while(count--) {

@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.101 1999/01/04 06:24:52 jj Exp $
+/* $Id: fault.c,v 1.103 1999/07/04 04:35:51 davem Exp $
  * fault.c:  Page fault handlers for the Sparc.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -14,7 +14,6 @@
 #include <linux/mman.h>
 #include <linux/tasks.h>
 #include <linux/kernel.h>
-#include <linux/smp.h>
 #include <linux/signal.h>
 #include <linux/mm.h>
 #include <linux/smp.h>

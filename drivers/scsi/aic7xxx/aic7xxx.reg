@@ -32,7 +32,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: aic7xxx.reg,v 1.6 1999/02/01 22:31:10 ralf Exp $
+ *	$Id: aic7xxx.reg,v 1.8 1999/09/27 20:56:35 ralf Exp $
  */
 
 /*
@@ -845,7 +845,7 @@ register CRCCONTROL1 {
 	bit	CRCENDCHKEN	0x20 /* CRC End Check Enable */
 	bit	CRCREQCHKEN	0x10
 	bit	TARGCRCENDEN	0x08 /* Enable End CRC transfer when target */
-	bit	TARGCRCCNTEN	0x40 /* Enable CRC transfer when target */
+	bit	TARGCRCCNTEN	0x04 /* Enable CRC transfer when target */
 }
 
 /*

@@ -17,7 +17,6 @@
 #include <linux/utime.h>
 #include <linux/resource.h>
 #include <linux/times.h>
-#include <linux/utime.h>
 #include <linux/utsname.h>
 #include <linux/timex.h>
 #include <linux/smp.h>
@@ -32,18 +31,15 @@
 #include <linux/smb_mount.h>
 #include <linux/ncp_fs.h>
 #include <linux/quota.h>
-#include <linux/file.h>
 #include <linux/module.h>
 #include <linux/sunrpc/svc.h>
 #include <linux/nfsd/nfsd.h>
 #include <linux/nfsd/cache.h>
 #include <linux/nfsd/xdr.h>
 #include <linux/nfsd/syscall.h>
-#include <linux/module.h>
 #include <linux/poll.h>
 #include <linux/personality.h>
 #include <linux/stat.h>
-#include <linux/timex.h>
 
 #include <asm/types.h>
 #include <asm/ipc.h>
@@ -2328,8 +2324,8 @@ static void scm_detach_fds32(struct msghdr *kmsg, struct scm_cookie *scm)
 			break;
 		}
 		/* Bump the usage count and install the file. */
-		atomic_inc(&fp[i]->f_count);
-		current->files->fd[new_fd] = fp[i];
+		get_file(fp[i]);
+		fd_install(new_fd, fp[i]);
 	}
 
 	if (i > 0) {

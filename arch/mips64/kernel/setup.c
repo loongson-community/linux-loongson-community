@@ -37,6 +37,10 @@
 
 struct mips_cpuinfo boot_cpu_data;
 
+#ifdef CONFIG_VT
+struct screen_info screen_info;
+#endif
+
 /*
  * Not all of the MIPS CPUs have the "wait" instruction available.  This
  * is set to true if it is available.  The wait instruction stops the

@@ -116,7 +116,8 @@ EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_fs_type);
 EXPORT_SYMBOL(getname);
-EXPORT_SYMBOL(__fput);
+EXPORT_SYMBOL(__fput);	/* goner? */
+EXPORT_SYMBOL(_fput);
 EXPORT_SYMBOL(igrab);
 EXPORT_SYMBOL(iunique);
 EXPORT_SYMBOL(iget);
@@ -141,8 +142,8 @@ EXPORT_SYMBOL(get_empty_filp);
 EXPORT_SYMBOL(init_private_file);
 EXPORT_SYMBOL(filp_open);
 EXPORT_SYMBOL(filp_close);
-EXPORT_SYMBOL(fput);
 EXPORT_SYMBOL(put_filp);
+EXPORT_SYMBOL(files_lock);
 EXPORT_SYMBOL(check_disk_change);
 EXPORT_SYMBOL(invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
@@ -231,6 +232,7 @@ EXPORT_SYMBOL(init_buffer);
 EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(max_sectors);
 EXPORT_SYMBOL(max_readahead);
+EXPORT_SYMBOL(file_moveto);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);

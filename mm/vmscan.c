@@ -45,7 +45,11 @@ static int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
 	page_addr = pte_page(pte);
 	if (MAP_NR(page_addr) >= max_mapnr)
 		goto out_failed;
+
 	page = mem_map + MAP_NR(page_addr);
+	spin_lock(&tsk->mm->page_table_lock);
+	if (pte_val(pte) != pte_val(*page_table))
+		goto out_failed_unlock;
 
 	/*
 	 * Dont be too eager to get aging right if
@@ -58,13 +62,13 @@ static int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
 		 */
 		set_pte(page_table, pte_mkold(pte));
 		set_bit(PG_referenced, &page->flags);
-		goto out_failed;
+		goto out_failed_unlock;
 	}
 
 	if (PageReserved(page)
 	    || PageLocked(page)
 	    || ((gfp_mask & __GFP_DMA) && !PageDMA(page)))
-		goto out_failed;
+		goto out_failed_unlock;
 
 	/*
 	 * Is the page already in the swap cache? If so, then
@@ -82,7 +86,7 @@ drop_pte:
 		vma->vm_mm->rss--;
 		flush_tlb_page(vma, address);
 		__free_page(page);
-		goto out_failed;
+		goto out_failed_unlock;
 	}
 
 	/*
@@ -109,7 +113,7 @@ drop_pte:
 	 * locks etc.
 	 */
 	if (!(gfp_mask & __GFP_IO))
-		goto out_failed;
+		goto out_failed_unlock;
 
 	/*
 	 * Ok, it's really dirty. That means that
@@ -134,6 +138,7 @@ drop_pte:
 	if (vma->vm_ops && vma->vm_ops->swapout) {
 		pid_t pid = tsk->pid;
 		pte_clear(page_table);
+		spin_unlock(&tsk->mm->page_table_lock);
 		flush_tlb_page(vma, address);
 		vma->vm_mm->rss--;
 		
@@ -155,6 +160,8 @@ drop_pte:
 	vma->vm_mm->rss--;
 	tsk->nswap++;
 	set_pte(page_table, __pte(entry));
+	spin_unlock(&tsk->mm->page_table_lock);
+
 	flush_tlb_page(vma, address);
 	swap_duplicate(entry);	/* One for the process, one for the swap cache */
 
@@ -167,6 +174,8 @@ drop_pte:
 out_free_success:
 	__free_page(page);
 	return 1;
+out_failed_unlock:
+	spin_unlock(&tsk->mm->page_table_lock);
 out_failed:
 	return 0;
 }

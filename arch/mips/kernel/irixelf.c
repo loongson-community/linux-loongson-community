@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.19 1999/08/04 05:28:51 ulfc Exp $
+/* $Id: irixelf.c,v 1.20 1999/08/04 14:54:04 ulfc Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -624,9 +624,10 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	has_interp = has_ephdr = 0;
 	elf_ihdr = elf_ephdr = 0;
 	elf_ex = *((struct elfhdr *) bprm->buf);
-	
-	if(verify_binary(&elf_ex, bprm))
-		return -ENOEXEC;
+	retval = -ENOEXEC;
+
+	if (verify_binary(&elf_ex, bprm))
+		goto out;
 
 #ifdef DEBUG_ELF
 	print_elfhdr(&elf_ex);
@@ -634,15 +635,19 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 
 	/* Now read in all of the header information */
 	size = elf_ex.e_phentsize * elf_ex.e_phnum;
+	if (size > 65536)
+		goto out;
 	elf_phdata = (struct elf_phdr *) kmalloc(size, GFP_KERNEL);
-	if (elf_phdata == NULL)
-		return -ENOMEM;
-	
+	if (elf_phdata == NULL) {
+		retval = -ENOMEM;
+		goto out;
+	}
+
 	retval = read_exec(bprm->dentry, elf_ex.e_phoff,
 	                   (char *) elf_phdata, size, 1);
 	if (retval < 0)
-		goto out_phdata;
-	
+		goto out_free_ph;
+
 #ifdef DEBUG_ELF
 	dump_phdrs(elf_phdata, elf_ex.e_phnum);
 #endif
@@ -668,39 +673,39 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	elf_brk = 0;
 	retval = open_dentry(bprm->dentry, O_RDONLY);
 	if (retval < 0)
-		goto out_phdata;
+		goto out_free_ph;
 	file = fget(elf_exec_fileno = retval);
-	
+
 	elf_stack = 0xffffffff;
 	elf_interpreter = NULL;
 	start_code = 0xffffffff;
 	end_code = 0;
 	end_data = 0;
-	
+
 	retval = look_for_irix_interpreter(&elf_interpreter,
 	                                   &interpreter_dentry,
 					   &interp_elf_ex, elf_phdata, bprm,
 					   elf_ex.e_phnum);
 	if(retval)
-		goto out_file;
-	
+		goto out_free_file;
+
 	if(elf_interpreter) {
 		retval = verify_irix_interpreter(&interp_elf_ex);
 		if(retval)
-			goto out_interp;
+			goto out_free_interp;
 	}
-	
+
 	/* OK, we are done with that, now set up the arg stuff,
 	 * and then start this sucker up.
 	 */
 	retval = -E2BIG;
 	if (!bprm->sh_bang && !bprm->p)
-		goto out_interp;
-	
+		goto out_free_interp;
+
 	/* Flush all traces of the currently running executable */
 	retval = flush_old_exec(bprm);
 	if (retval)
-		goto out_interp;
+		goto out_free_dentry;
 
 	/* OK, This is the point of no return */
 	current->mm->end_data = 0;
@@ -715,15 +720,16 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	current->mm->rss = 0;
 	setup_arg_pages(bprm);
 	current->mm->start_stack = bprm->p;
-	
+
 	/* At this point, we assume that the image should be loaded at
 	 * fixed address, not at a variable address.
 	 */
 	old_fs = get_fs();
 	set_fs(get_ds());
-	
-	map_executable(file, elf_phdata, elf_ex.e_phnum, &elf_stack, &load_addr,
-		       &start_code, &elf_bss, &end_code, &end_data, &elf_brk);
+
+	map_executable(file, elf_phdata, elf_ex.e_phnum, &elf_stack,
+	               &load_addr, &start_code, &elf_bss, &end_code,
+	               &end_data, &elf_brk);
 
 	if(elf_interpreter) {
 		retval = map_interpreter(elf_phdata, &interp_elf_ex,
@@ -740,7 +746,7 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	}
 
 	set_fs(old_fs);
-	
+
 	kfree(elf_phdata);
 	fput(file);
 	sys_close(elf_exec_fileno);
@@ -805,17 +811,20 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	if (current->flags & PF_PTRACED)
 		send_sig(SIGTRAP, current, 0);
 	return 0;
+out:
+	return retval;
 
-out_interp:
-	if(elf_interpreter) {
-	      kfree(elf_interpreter);
-	}
-out_file:
+out_free_dentry:
+	dput(interpreter_dentry);
+out_free_interp:
+	if (elf_interpreter)
+		kfree(elf_interpreter);
+out_free_file:
 	fput(file);
 	sys_close(elf_exec_fileno);
-out_phdata:
+out_free_ph:
 	kfree (elf_phdata);
-	return retval;
+	goto out;
 }
 
 static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
@@ -1069,11 +1078,11 @@ struct memelfnote
 static int notesize(struct memelfnote *en)
 {
 	int sz;
-	
+
 	sz = sizeof(struct elf_note);
 	sz += roundup(strlen(en->name), 4);
 	sz += roundup(en->datasz, 4);
-	
+
 	return sz;
 }
 

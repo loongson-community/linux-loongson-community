@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.66 1999/03/29 05:08:42 davem Exp $
+# $Id: config.in,v 1.67 1999/05/01 09:17:37 davem Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -68,20 +68,8 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 fi
 
 if [ "$CONFIG_PCI" = "y" ]; then
-  tristate 'Parallel port support' CONFIG_PARPORT
-  if [ "$CONFIG_PARPORT" != "n" ]; then
-    dep_tristate '  Ultra/AX-style hardware' CONFIG_PARPORT_AX $CONFIG_PARPORT
-    if [ "$CONFIG_PARPORT_AX" = "m" ]; then
-      define_bool CONFIG_PARPORT_LOWLEVEL_MODULE y
-    fi
-    if [ "$CONFIG_PARPORT_AX" != "n" ]; then
-      bool '  Support foreign hardware' CONFIG_PARPORT_OTHER
-    fi
-    dep_tristate '  Parallel printer support' CONFIG_PRINTER $CONFIG_PARPORT
-    if [ "$CONFIG_PRINTER" != "n" ]; then
-      bool '    Support IEEE1284 status readback' CONFIG_PRINTER_READBACK
-    fi
-  fi
+  source drivers/misc/Config.in
+  dep_tristate '  Parallel printer support' CONFIG_PRINTER $CONFIG_PARPORT
   tristate 'SUNW,envctrl support' CONFIG_ENVCTRL
 fi
 endmenu
@@ -232,6 +220,16 @@ comment 'Unix 98 PTY support'
 bool 'Unix98 PTY support' CONFIG_UNIX98_PTYS
 if [ "$CONFIG_UNIX98_PTYS" = "y" ]; then
 	int 'Maximum number of Unix98 PTYs in use (0-2048)' CONFIG_UNIX98_PTY_COUNT 256
+fi
+endmenu
+
+mainmenu_option next_comment
+comment 'Video For Linux'
+tristate 'Video For Linux' CONFIG_VIDEO_DEV
+if [ "$CONFIG_VIDEO_DEV" != "n" ]; then
+  if [ "$CONFIG_PCI" != "n" ]; then
+    dep_tristate 'BT848 Video For Linux' CONFIG_VIDEO_BT848 $CONFIG_VIDEO_DEV
+  fi
 fi
 endmenu
 

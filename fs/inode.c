@@ -130,6 +130,7 @@ static inline void init_once(struct inode * inode)
 	INIT_LIST_HEAD(&inode->i_hash);
 	INIT_LIST_HEAD(&inode->i_dentry);
 	sema_init(&inode->i_sem, 1);
+	spin_lock_init(&inode->i_shared_lock);
 }
 
 static inline void write_inode(struct inode *inode)
@@ -523,7 +524,7 @@ void clean_inode(struct inode *inode)
 	inode->i_sock = 0;
 	inode->i_op = NULL;
 	inode->i_nlink = 1;
-	inode->i_writecount = 0;
+	atomic_set(&inode->i_writecount, 0);
 	inode->i_size = 0;
 	inode->i_generation = 0;
 	memset(&inode->i_dquot, 0, sizeof(inode->i_dquot));
@@ -816,31 +817,6 @@ void __init inode_init(void)
 	if (max > MAX_INODE)
 		max = MAX_INODE;
 	max_inodes = max;
-}
-
-/* This belongs in file_table.c, not here... */
-int fs_may_remount_ro(struct super_block *sb)
-{
-	struct file *file;
-
-	/* Check that no files are currently opened for writing. */
-	for (file = inuse_filps; file; file = file->f_next) {
-		struct inode *inode;
-		if (!file->f_dentry)
-			continue;
-		inode = file->f_dentry->d_inode;
-		if (!inode || inode->i_sb != sb)
-			continue;
-
-		/* File with pending delete? */
-		if (inode->i_nlink == 0)
-			return 0;
-
-		/* Writable file? */
-		if (S_ISREG(inode->i_mode) && (file->f_mode & FMODE_WRITE))
-			return 0;
-	}
-	return 1; /* Tis' cool bro. */
 }
 
 void update_atime (struct inode *inode)

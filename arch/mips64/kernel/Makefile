@@ -12,7 +12,7 @@
 all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
-O_OBJS	:= entry.o setup.o
+O_OBJS	:= entry.o proc.o r4k_fpu.o setup.o signal.o traps.o
 OX_OBJS := mips64_ksyms.o
 
 clean:

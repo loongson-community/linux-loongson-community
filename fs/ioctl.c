@@ -25,6 +25,8 @@ static int file_ioctl(struct file *filp,unsigned int cmd,unsigned long arg)
 				return -EBADF;
 		    	if (inode->i_op->get_block == NULL)
 				return -EINVAL;
+			if (!capable(CAP_SYS_RAWIO))
+				return -EPERM;
 			if ((error = get_user(block, (int *) arg)) != 0)
 				return error;
 
@@ -52,11 +54,11 @@ asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 	unsigned int flag;
 	int on, error = -EBADF;
 
-	lock_kernel();
 	filp = fget(fd);
 	if (!filp)
 		goto out;
 	error = 0;
+	lock_kernel();
 	switch (cmd) {
 		case FIOCLEX:
 			FD_SET(fd, &current->files->close_on_exec);
@@ -107,8 +109,8 @@ asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 				error = filp->f_op->ioctl(filp->f_dentry->d_inode, filp, cmd, arg);
 	}
 	fput(filp);
+	unlock_kernel();
 
 out:
-	unlock_kernel();
 	return error;
 }

@@ -163,7 +163,7 @@ D: Driver for WaveFront soundcards (Turtle Beach Maui, Tropez, Tropez+)
 D: Various bugfixes and changes to sound drivers
 S: USA 
 
-M: Krzysztof G. Baranowski
+N: Krzysztof G. Baranowski
 E: kgb@manjak.knm.org.pl
 P: 1024/FA6F16D1 96 D1 1A CF 5F CA 69 EC  F9 4F 36 1F 6D 60 7B DA
 D: Maintainer of the System V file system.
@@ -173,6 +173,17 @@ D: Various bugfixes.
 S: ul. Koscielna 12a
 S: 62-300 Wrzesnia
 S: Poland
+
+N: Carlos Henrique Bauer
+E: chbauer@acm.org
+E: bauer@atlas.unisinos.tche.br
+D: A test for detection of EPP-1.7 and ECP/EPP parports.
+D: Some new sysctl entries for the parport driver.
+S: Universidade do Vale do Rio dos Sinos - UNISINOS
+S: DSI/IDASI
+S: Av. Unisinos, 950
+S: 93022000 Sao Leopoldo RS
+S: Brazil
 
 N: Peter Bauer
 E: 100136.3530@compuserve.com
@@ -869,13 +880,11 @@ S: Mergenthalerallee 45-47
 S: 65760 Eschborn
 S: Germany
 
-N: Kenji Tsutomu Hollis
-E: khollis@bitgate.com
-W: http://www.nurk.org/
+N: Kenji Hollis
+E: kenji@bitgate.com
+W: http://www.bitgate.com/
 D: Berkshire PC Watchdog Driver
-S: Post Office Box 15
-S: Grants Pass, Oregon 97526
-S: USA
+D: Small/Industrial Driver Project
 
 N: Nick Holloway
 E: Nick.Holloway@alfie.demon.co.uk
@@ -1666,6 +1675,15 @@ D: random Linux documentation, patches, and hacks
 S: 4390 Albany Drive #41A
 S: San Jose, California 95129
 S: USA
+
+N: Augusto Cesar Radtke
+E: bishop@sekure.org
+W: http://bishop.sekure.org
+D: {copy,get,put}_user calls updates
+D: Miscellaneous hacks
+S: R. Otto Marquardt, 226 - Garcia
+S: 89020-350 Blumenau - Santa Catarina
+S: Brazil
 
 N: Eric S. Raymond
 E: esr@thyrsus.com

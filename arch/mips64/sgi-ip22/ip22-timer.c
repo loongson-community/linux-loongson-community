@@ -268,7 +268,7 @@ void indy_8254timer_irq(void)
 	kstat.irqs[0][irq]++;
 	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
 	prom_getchar();
-	prom_imode();
+	ArcEnterInteractiveMode();
 	hardirq_exit(cpu);
 }
 

@@ -57,14 +57,13 @@
 #ifdef MODVERSIONS
 #include <linux/modversions.h>
 #endif
-#include <linux/module.h>
 #else /* !NEW_MODULES */
 #ifdef MODVERSIONS
 #define MODULE
 #endif
-#include <linux/module.h>
 #endif /* NEW_MODULES */
 
+#include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/major.h>
 #include <linux/kernel.h>
@@ -154,7 +153,6 @@
 /*
  * NB. we must include the kernel idenfication string in to install the module.
  */
-#include <linux/version.h>
 /*static*/ char kernel_version[] = UTS_RELEASE;
 #endif
 
@@ -1664,7 +1662,6 @@ static void rp_wait_until_sent(struct tty_struct *tty, int timeout)
 		       jiffies, check_time);
 #endif
 		current->state = TASK_INTERRUPTIBLE;
-		current->counter = 0;	/* make us low-priority */
 		schedule_timeout(check_time);
 		if (signal_pending(current))
 			break;
