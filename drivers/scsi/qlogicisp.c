@@ -872,14 +872,14 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 
 		/* fill in first four sg entries: */
 		n = sg_count;
-		if (n > 4)
-			n = 4;
+		if (n > IOCB_SEGS)
+			n = IOCB_SEGS;
 		for (i = 0; i < n; i++) {
 			set_dbase(&ds[i], (unsigned long)(sg->address));
 			ds[i].d_count = cpu_to_le32(sg->length);
 			++sg;
 		}
-		sg_count -= 4;
+		sg_count -= IOCB_SEGS;
 
 		while (sg_count > 0) {
 			++cmd->hdr.entry_cnt;
@@ -901,8 +901,8 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 #endif
 			ds = cont->dataseg;
 			n = sg_count;
-			if (n > 7)
-				n = 7;
+			if (n > CONTINUATION_SEGS)
+				n = CONTINUATION_SEGS;
 			for (i = 0; i < n; ++i) {
 				set_dbase(&ds[i], (unsigned long)(sg->address));
 				ds[i].d_count = cpu_to_le32(sg->length);
@@ -922,11 +922,7 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 
 	num_free = QLOGICISP_REQ_QUEUE_LEN - REQ_QUEUE_DEPTH(in_ptr, out_ptr);
 	host->can_queue = host->host_busy + num_free;
-#ifndef CONFIG_SGI_IP27
 	host->sg_tablesize = QLOGICISP_MAX_SG(num_free);
-#else
-	host->sg_tablesize = 0;
-#endif
 
 	LEAVE("isp1020_queuecommand");
 
