@@ -999,12 +999,114 @@ asmlinkage int sys32_rt_sigpending(sigset32_t *uset, unsigned int sigsetsize)
 	return ret;
 }
 
-asmlinkage void sys32_rt_sigtimedwait(void)
+struct timespec32 {
+	int	tv_sec;
+	int	tv_nsec;
+};
+
+asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
+	struct timespec32 *uts, __kernel_size_t32 sigsetsize)
 {
-	panic("%s called.", __FUNCTION__);
+	int ret, sig;
+	sigset_t these;
+	sigset_t32 these32;
+	struct timespec ts;
+	siginfo_t info;
+	long timeout = 0;
+
+	/*
+	 * As the result of a brainfarting competition a few years ago the
+	 * size of sigset_t for the 32-bit kernel was choosen to be 128 bits
+	 * but nothing so far is actually using that many, 64 are enough.  So
+	 * for now we just drop the high bits.
+	 */
+	if (copy_from_user (&these32, uthese, sizeof(old_sigset_t32)))
+		return -EFAULT;
+
+	switch (_NSIG_WORDS) {
+#ifdef __MIPSEB__
+	case 4: these.sig[3] = these32.sig[6] | (((long)these32.sig[7]) << 32);
+	case 3: these.sig[2] = these32.sig[4] | (((long)these32.sig[5]) << 32);
+	case 2: these.sig[1] = these32.sig[2] | (((long)these32.sig[3]) << 32);
+	case 1: these.sig[0] = these32.sig[0] | (((long)these32.sig[1]) << 32);
+#endif
+#ifdef __MIPSEL__
+	case 4: these.sig[3] = these32.sig[7] | (((long)these32.sig[6]) << 32);
+	case 3: these.sig[2] = these32.sig[5] | (((long)these32.sig[4]) << 32);
+	case 2: these.sig[1] = these32.sig[3] | (((long)these32.sig[2]) << 32);
+	case 1: these.sig[0] = these32.sig[1] | (((long)these32.sig[0]) << 32);
+#endif
+	}
+
+	/*
+	 * Invert the set of allowed signals to get those we
+	 * want to block.
+	 */
+	sigdelsetmask(&these, sigmask(SIGKILL)|sigmask(SIGSTOP));
+	signotset(&these);
+
+	if (uts) {
+		if (get_user (ts.tv_sec, &uts->tv_sec) ||
+		    get_user (ts.tv_nsec, &uts->tv_nsec))
+			return -EINVAL;
+		if (ts.tv_nsec >= 1000000000L || ts.tv_nsec < 0
+		    || ts.tv_sec < 0)
+			return -EINVAL;
+	}
+
+	spin_lock_irq(&current->sigmask_lock);
+	sig = dequeue_signal(&these, &info);
+	if (!sig) {
+		/* None ready -- temporarily unblock those we're interested
+		   in so that we'll be awakened when they arrive.  */
+		sigset_t oldblocked = current->blocked;
+		sigandsets(&current->blocked, &current->blocked, &these);
+		recalc_sigpending(current);
+		spin_unlock_irq(&current->sigmask_lock);
+
+		timeout = MAX_SCHEDULE_TIMEOUT;
+		if (uts)
+			timeout = (timespec_to_jiffies(&ts)
+				   + (ts.tv_sec || ts.tv_nsec));
+
+		current->state = TASK_INTERRUPTIBLE;
+		timeout = schedule_timeout(timeout);
+
+		spin_lock_irq(&current->sigmask_lock);
+		sig = dequeue_signal(&these, &info);
+		current->blocked = oldblocked;
+		recalc_sigpending(current);
+	}
+	spin_unlock_irq(&current->sigmask_lock);
+
+	if (sig) {
+		ret = sig;
+		if (uinfo) {
+			if (copy_siginfo_to_user32(uinfo, &info))
+				ret = -EFAULT;
+		}
+	} else {
+		ret = -EAGAIN;
+		if (timeout)
+			ret = -EINTR;
+	}
+
+	return ret;
 }
 
-asmlinkage void sys32_rt_sigqueueinfo(void)
+extern asmlinkage int sys_rt_sigqueueinfo(int pid, int sig, siginfo_t *uinfo);
+
+asmlinkage int sys32_rt_sigqueueinfo(int pid, int sig, siginfo_t32 *uinfo)
 {
-	panic("%s called.", __FUNCTION__);
+	siginfo_t info;
+	int ret;
+	mm_segment_t old_fs = get_fs();
+
+	if (copy_from_user (&info, uinfo, 3*sizeof(int)) ||
+	    copy_from_user (info._sifields._pad, uinfo->_sifields._pad, SI_PAD_SIZE))
+		return -EFAULT;
+	set_fs (KERNEL_DS);
+	ret = sys_rt_sigqueueinfo(pid, sig, &info);
+	set_fs (old_fs);
+	return ret;
 }
