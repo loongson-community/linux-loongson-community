@@ -576,7 +576,7 @@ void set_async_breakpoint(unsigned int epc)
 	async_bp.addr = epc;
 	async_bp.val  = *(unsigned *)epc;
 	*(unsigned *)epc = BP;
-	flush_cache_all();
+	__flush_cache_all();
 }
 
 
@@ -803,7 +803,7 @@ void handle_exception (struct gdb_regs *regs)
 			 * NB: We flush both caches, just to be sure...
 			 */
 
-			flush_cache_all();
+			__flush_cache_all();
 			return;
 			/* NOTREACHED */
 			break;
@@ -832,7 +832,7 @@ void handle_exception (struct gdb_regs *regs)
 			 * use breakpoints and continue, instead.
 			 */
 			single_step(regs);
-			flush_cache_all();
+			__flush_cache_all();
 			return;
 			/* NOTREACHED */
 

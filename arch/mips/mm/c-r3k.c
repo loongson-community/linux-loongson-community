@@ -232,7 +232,6 @@ static inline unsigned long get_phys_page (unsigned long addr,
 
 static inline void r3k_flush_cache_all(void)
 {
-	r3k_flush_icache_range(KSEG0, KSEG0 + icache_size);
 }
  
 static inline void r3k___flush_cache_all(void)

@@ -84,7 +84,7 @@ _sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		goto out;
 
 	case FLUSH_CACHE:
-		flush_cache_all();
+		__flush_cache_all();
 		retval = 0;
 		goto out;
 
