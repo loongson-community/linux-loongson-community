@@ -324,6 +324,7 @@ EXPORT(exception_count_##exception);                                    \
 		BUILD_HANDLER(ov,ov,kmode,silent)		/* #12 */
 		BUILD_HANDLER(tr,tr,kmode,silent)		/* #13 */
 		BUILD_HANDLER(fpe,fpe,fpe,silent)		/* #15 */
+		BUILD_HANDLER(mdmx,mdmx,sti,silent)		/* #22 */
 		BUILD_HANDLER(watch,watch,sti,silent)		/* #23 */
 		BUILD_HANDLER(mcheck,mcheck,cli,silent)		/* #24 */
 		BUILD_HANDLER(reserved,reserved,kmode,silent)	/* others */

@@ -51,6 +51,7 @@ extern asmlinkage void handle_cpu(void);
 extern asmlinkage void handle_ov(void);
 extern asmlinkage void handle_tr(void);
 extern asmlinkage void handle_fpe(void);
+extern asmlinkage void handle_mdmx(void);
 extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_mcheck(void);
 extern asmlinkage void handle_reserved(void);
@@ -705,6 +706,11 @@ bad_cid:
 	force_sig(SIGILL, current);
 }
 
+asmlinkage void do_mdmx(struct pt_regs *regs)
+{
+	force_sig(SIGILL, current);
+}
+
 asmlinkage void do_watch(struct pt_regs *regs)
 {
 	/*
@@ -962,6 +968,7 @@ void __init trap_init(void)
 	set_except_vector(11, handle_cpu);
 	set_except_vector(12, handle_ov);
 	set_except_vector(13, handle_tr);
+	set_except_vector(22, handle_mdmx);
 
 	if ((mips_cpu.options & MIPS_CPU_FPU) &&
 	    !(mips_cpu.options & MIPS_CPU_NOFPUEX))
