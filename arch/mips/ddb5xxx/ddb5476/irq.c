@@ -107,11 +107,6 @@ static void nile4_irq_setup(void)
 	/* memory resource acquire in ddb_setup */
 }
 
-static void error_action(int irq, void *dev_id, struct pt_regs *regs)
-{
-	printk(KERN_ERR "Error interrupt happend: %d\n", irq);
-}
-
 static struct irqaction irq_cascade = { no_action, 0, 0, "cascade", NULL, NULL };
 static struct irqaction irq_error = { no_action, 0, 0, "error", NULL, NULL };
 
