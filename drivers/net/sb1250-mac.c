@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2001 Broadcom Corporation
+ * Copyright (C) 2001,2002,2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,10 +17,10 @@
  */
 
 /*
-  This driver is designed for the Broadcom BCM12500 SOC chip's built-in
+  This driver is designed for the Broadcom SiByte SOC built-in
   Ethernet controllers.
   
-  The author may be reached as mpl@broadcom.com
+  Written by Mitch Lichtenberg at Broadcom Corp.
 */
 
 
@@ -76,8 +76,6 @@ static int int_timeout = 0;
 #include <asm/processor.h>		/* Processor type for cache alignment. */
 #include <asm/bitops.h>
 #include <asm/io.h>
-#include <asm/sibyte/sb1250.h>
-#include <asm/sibyte/64bit.h>
 #include <asm/cache.h>
 
 /* This is only here until the firmware is ready.  In that case,
@@ -92,13 +90,13 @@ static int int_timeout = 0;
 /* These identify the driver base version and may not be removed. */
 #if 0
 static char version1[] __devinitdata =
-"sb1250-mac.c:1.00 1/11/2001 Written by Mitch Lichtenberg (mpl@broadcom.com)\n";
+"sb1250-mac.c:1.00 1/11/2001 Written by Mitch Lichtenberg\n";
 #endif
 
 
 
-MODULE_AUTHOR("Mitch Lichtenberg (mpl@broadcom.com)");
-MODULE_DESCRIPTION("Broadcom BCM12500 SOC GB Ethernet driver");
+MODULE_AUTHOR("Mitch Lichtenberg (Broadcom Corp.)");
+MODULE_DESCRIPTION("Broadcom SiByte SOC GB Ethernet driver");
 MODULE_PARM(debug, "i");
 MODULE_PARM(options, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
@@ -106,12 +104,14 @@ MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(int_pktcnt, "i");
 MODULE_PARM(int_timeout, "i");
 
+#include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_mac.h>
 #include <asm/sibyte/sb1250_dma.h>
 #include <asm/sibyte/sb1250_int.h>
-#include <asm/sibyte/sb1250_scd.h>		/* Only to check SOC part number. */
+#include <asm/sibyte/sb1250_scd.h>
+#include <asm/sibyte/64bit.h>
 
 
 /**********************************************************************
@@ -184,8 +184,8 @@ typedef struct sbmacdma_s {
 	int		 sbdma_txdir;       /* direction (1=transmit) */
 	int		 sbdma_maxdescr;	/* total # of descriptors in ring */
 #ifdef CONFIG_SBMAC_COALESCE
-        int              sbdma_int_pktcnt;  /* # descriptors rx/tx before interrupt*/
-        int              sbdma_int_timeout; /* # usec rx/tx interrupt */
+	int		 sbdma_int_pktcnt;  /* # descriptors rx/tx before interrupt*/
+	int		 sbdma_int_timeout; /* # usec rx/tx interrupt */
 #endif
 
 	sbmac_port_t     sbdma_config0;	/* DMA config register 0 */
@@ -225,10 +225,10 @@ struct sbmac_softc {
 	struct net_device_stats sbm_stats; 
 	int sbm_devflags;			/* current device flags */
 
-        int	     sbm_phy_oldbmsr;
-        int	     sbm_phy_oldanlpar;
-        int	     sbm_phy_oldk1stsr;
-        int          sbm_phy_oldlinkstat;
+	int	     sbm_phy_oldbmsr;
+	int	     sbm_phy_oldanlpar;
+	int	     sbm_phy_oldk1stsr;
+	int	     sbm_phy_oldlinkstat;
 	int sbm_buffersize;
 	
 	unsigned char sbm_phys[2];
@@ -287,7 +287,6 @@ static void sbmac_channel_start(struct sbmac_softc *s);
 static void sbmac_channel_stop(struct sbmac_softc *s);
 static sbmac_state_t sbmac_set_channel_state(struct sbmac_softc *,sbmac_state_t);
 static void sbmac_promiscuous_mode(struct sbmac_softc *sc,int onoff);
-/*static void sbmac_init_and_start(struct sbmac_softc *sc);*/
 static uint64_t sbmac_addr2reg(unsigned char *ptr);
 static void sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs);
 static int sbmac_start_tx(struct sk_buff *skb, struct net_device *dev);
@@ -317,7 +316,6 @@ static void sbmac_mii_write(struct sbmac_softc *s,int phyaddr,int regidx,
  ********************************************************************* */
 
 static uint64_t sbmac_orig_hwaddr[MAX_UNITS];
-static uint64_t chip_revision;
 
 
 /**********************************************************************
@@ -673,47 +671,47 @@ static void sbdma_initctx(sbmacdma_t *d,
 #endif
 
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BYTES)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BYTES)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_COLLISIONS)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_COLLISIONS)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_LATE_COL)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_LATE_COL)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_EX_COL)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_EX_COL)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_FCS_ERROR)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_FCS_ERROR)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_ABORT)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_ABORT)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BAD)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BAD)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_GOOD)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_GOOD)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_RUNT)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_RUNT)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_OVERSIZE)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_OVERSIZE)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BYTES)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BYTES)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_MCAST)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_MCAST)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BCAST)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BCAST)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BAD)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BAD)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_GOOD)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_GOOD)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_RUNT)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_RUNT)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_OVERSIZE)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_OVERSIZE)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_FCS_ERROR)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_FCS_ERROR)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_LENGTH_ERROR)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_LENGTH_ERROR)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_CODE_ERROR)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_CODE_ERROR)), 0);
 	SBMAC_WRITECSR(KSEG1ADDR(
-        A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_ALIGN_ERROR)), 0);
+	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_ALIGN_ERROR)), 0);
 
 	/* 
 	 * initialize register pointers 
@@ -755,9 +753,9 @@ static void sbdma_initctx(sbmacdma_t *d,
 	memset(d->sbdma_ctxtable,0,d->sbdma_maxdescr*sizeof(struct sk_buff *));
 	
 #ifdef CONFIG_SBMAC_COALESCE
-        /*
-         * Setup Rx/Tx DMA coalescing defaults
-         */
+	/*
+	 * Setup Rx/Tx DMA coalescing defaults
+	 */
 
 	if ( int_pktcnt ) {
 		d->sbdma_int_pktcnt = int_pktcnt;
@@ -915,9 +913,9 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 *    3. The buffer can be aligned such that the IP addresses are 
 	 *       naturally aligned.
 	 *
-	 *  Remember, the SB1250's MAC writes whole cache lines at a time,
+	 *  Remember, the SOCs MAC writes whole cache lines at a time,
 	 *  without reading the old contents first.  So, if the sk_buff's
-	 *  data portion starts in the middle of a cache line, the SB1250
+	 *  data portion starts in the middle of a cache line, the SOC
 	 *  DMA will trash the beginning (and ending) portions.
 	 */
 	
@@ -1194,47 +1192,47 @@ static void sbdma_rx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 		
 		if (!(dsc->dscr_a & M_DMA_ETHRX_BAD)) {
 			
-       			/*
+			/*
 			 * Add a new buffer to replace the old one.  If we fail
 			 * to allocate a buffer, we're going to drop this
 			 * packet and put it right back on the receive ring.
 			 */
 			
 			if (sbdma_add_rcvbuffer(d,NULL) == -ENOBUFS) {
-			    sc->sbm_stats.rx_dropped++;
-			    sbdma_add_rcvbuffer(d,sb);	/* re-add old buffer */
-			    }
-			else {
-			    /*
-			     * Set length into the packet
-			     */
-			    skb_put(sb,len);
-
-			    /*
-			     * Buffer has been replaced on the receive ring.
-			     * Pass the buffer to the kernel
-			     */
-			    sc->sbm_stats.rx_bytes += len;
-			    sc->sbm_stats.rx_packets++;
-			    sb->protocol = eth_type_trans(sb,d->sbdma_eth->sbm_dev);
-                            if (sc->rx_hw_checksum == ENABLE) {
-			    /* if the ip checksum is good indicate in skb.
-		                else set CHECKSUM_NONE as device failed to
-					checksum the packet */
-
-			       if (((dsc->dscr_b) |M_DMA_ETHRX_BADTCPCS) ||
-			     	  ((dsc->dscr_a)| M_DMA_ETHRX_BADIP4CS)){
-				  sb->ip_summed = CHECKSUM_NONE;
-			       } else {
-				 printk(KERN_DEBUG "hw checksum fail .\n");
-				 sb->ip_summed = CHECKSUM_UNNECESSARY;
-			       }
-			    } /*rx_hw_checksum */
-
-			    netif_rx(sb);
-			    }
-		}
-		else {
+				sc->sbm_stats.rx_dropped++;
+				sbdma_add_rcvbuffer(d,sb); /* re-add old buffer */
+			} else {
+				/*
+				 * Set length into the packet
+				 */
+				skb_put(sb,len);
+				
+				/*
+				 * Buffer has been replaced on the
+				 * receive ring.  Pass the buffer to
+				 * the kernel */
+				sc->sbm_stats.rx_bytes += len;
+				sc->sbm_stats.rx_packets++;
+				sb->protocol = eth_type_trans(sb,d->sbdma_eth->sbm_dev);
+				if (sc->rx_hw_checksum == ENABLE) {
+					/* if the ip checksum is good
+					   indicate in skb.  else set
+					   CHECKSUM_NONE as device
+					   failed to checksum the
+					   packet */
+					
+					if (((dsc->dscr_b) |M_DMA_ETHRX_BADTCPCS) ||
+					    ((dsc->dscr_a)| M_DMA_ETHRX_BADIP4CS)) {
+						sb->ip_summed = CHECKSUM_NONE;
+					} else {
+						printk(KERN_DEBUG "hw checksum fail .\n");
+						sb->ip_summed = CHECKSUM_UNNECESSARY;
+					}
+				} /* rx_hw_checksum */
+				
+				netif_rx(sb);
+			}
+		} else {
 			/*
 			 * Packet was mangled somehow.  Just drop it and
 			 * put it back on the receive ring.
@@ -1296,21 +1294,27 @@ static void sbdma_tx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 		
 		curidx = d->sbdma_remptr - d->sbdma_dscrtable;
 		{
-			/* XXX This is gross, ugly, and only here because justin hacked it
-			   in to fix a problem without really understanding it. 
-			   
-			   It seems that, for whatever reason, this routine is invoked immediately upon the enabling of interrupts.
-			   So then the Read below returns zero, making hwidx a negative number, and anti-hilarity
-			   ensues.
-			   
-			   I'm guessing there's a proper fix involving clearing out interrupt state from old packets
-			   before enabling interrupts, but I'm not sure.  
+			/* XXX This is gross, ugly, and only here
+			 * because justin hacked it in to fix a
+			 * problem without really understanding it.
+			 * 
+			 * It seems that, for whatever reason, this
+			 * routine is invoked immediately upon the
+			 * enabling of interrupts.  So then the Read
+			 * below returns zero, making hwidx a negative
+			 * number, and anti-hilarity ensues.
+			 * 
+			 * I'm guessing there's a proper fix involving
+			 * clearing out interrupt state from old
+			 * packets before enabling interrupts, but I'm
+			 * not sure.
+			 *
+			 * Anyways, this hack seems to work, and is
+			 * Good Enough for 11 PM.  :)
+			 * 
+			 * -Justin
+			 */
 
-			   Anyways, this hack seems to work, and is Good Enough for 11 PM.  :)
-			   
-			   -Justin
-			*/
-			  
 			uint64_t tmp = SBMAC_READCSR(d->sbdma_curdscr);
 			if (!tmp) {
 				break;
@@ -1511,7 +1515,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 * and make sure that RD_THRSH + WR_THRSH <=128 for pass2 and above
 	 * Use a larger RD_THRSH for gigabit
 	 */
-	if (soc_pass >= K_SYS_REVISION_PASS2) 
+	if (periph_rev >= 2) 
 		th_value = 64;
 	else 
 		th_value = 28;
@@ -1535,7 +1539,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 */
 	
 	port = s->sbm_base + R_MAC_HASH_BASE;
-        for (idx = 0; idx < MAC_HASH_COUNT; idx++) {
+	for (idx = 0; idx < MAC_HASH_COUNT; idx++) {
 		SBMAC_WRITECSR(port,0);
 		port += sizeof(uint64_t);
 	}
@@ -1580,7 +1584,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 	/*
-	 * Pass1 SB1250s do not receive packets addressed to the
+	 * Pass1 SOCs do not receive packets addressed to the
 	 * destination address in the R_MAC_ETHERNET_ADDR register.
 	 * Set the value to zero.
 	 */
@@ -1819,45 +1823,20 @@ static void sbmac_set_iphdr_offset(struct sbmac_softc *sc)
 {
 	uint64_t reg;
 	
-	reg = SBMAC_READCSR(sc->sbm_rxfilter);
-	reg &= ~M_MAC_IPHDR_OFFSET;
 	/* Hard code the off set to 15 for now */
-	reg |= 15 << S_MAC_IPHDR_OFFSET;
+	reg = SBMAC_READCSR(sc->sbm_rxfilter);
+	reg &= ~M_MAC_IPHDR_OFFSET | V_MAC_IPHDR_OFFSET(15);
 	SBMAC_WRITECSR(sc->sbm_rxfilter,reg);
 	
 	/* read system identification to determine revision */
-	if (soc_pass >= K_SYS_REVISION_PASS2) {
-		printk(KERN_INFO "pass2 - enabling Rx rcv tcp checksum\n");
+	if (periph_rev >= 2) {
+		printk(KERN_INFO "%s: enabling TCP rcv checksum\n",
+		       sc->sbm_dev->name);
 		sc->rx_hw_checksum = ENABLE;
 	} else {
 		sc->rx_hw_checksum = DISABLE;
 	}
 }
-
-
-#if 0
-/**********************************************************************
- *  SBMAC_INIT_AND_START(sc)
- *  
- *  Stop the channel and restart it.  This is generally used
- *  when we have to do something to the channel that requires
- *  a swift kick.
- *  
- *  Input parameters: 
- *  	   sc - softc
- ********************************************************************* */
-
-static void sbmac_init_and_start(struct sbmac_softc *sc)
-{
-	unsigned long flags;
-	
-	spin_lock_irqsave(&(sc->sbm_lock),flags);
-	
-	sbmac_set_channel_state(sc,sbmac_state_on);
-	
-	spin_unlock_irqrestore(&(sc->sbm_lock),flags);
-}
-#endif
 
 
 /**********************************************************************
@@ -1982,7 +1961,6 @@ static int sbmac_set_speed(struct sbmac_softc *s,sbmac_speed_t speed)
 	SBMAC_WRITECSR(s->sbm_maccfg,cfg);
 	
 	return 1;
-	
 }
 
 /**********************************************************************
@@ -2148,7 +2126,6 @@ static void sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs)
 			sbdma_rx_process(sc,&(sc->sbm_rxdma));
 		}
 	}
-	
 }
 
 
@@ -2364,11 +2341,11 @@ static int sbmac_parse_hwaddr(char *str, unsigned char *hwaddr)
 
 static int sb1250_change_mtu(struct net_device *_dev, int new_mtu)
 {
-        if (new_mtu >  ENET_PACKET_SIZE)
-                return -EINVAL;
-        _dev->mtu = new_mtu;
+	if (new_mtu >  ENET_PACKET_SIZE)
+		return -EINVAL;
+	_dev->mtu = new_mtu;
 	printk(KERN_INFO "changing the mtu to %d\n", new_mtu);
-        return 0;
+	return 0;
 }
 
 /**********************************************************************
@@ -2432,11 +2409,12 @@ static int sbmac_init(struct net_device *dev, int idx)
 	
 	
 	/*
-	 * Display Ethernet address (this is called during the config process
-	 * so we need to finish off the config message that was being displayed)
+	 * Display Ethernet address (this is called during the config
+	 * process so we need to finish off the config message that
+	 * was being displayed)
 	 */
 	printk(KERN_INFO
-	       "%s: SB1250 Ethernet at 0x%08lX, address: %02X-%02X-%02X-%02X-%02X-%02X\n", 
+	       "%s: SiByte Ethernet at 0x%08lX, address: %02X-%02X-%02X-%02X-%02X-%02X\n", 
 	       dev->name, dev->base_addr,
 	       eaddr[0],eaddr[1],eaddr[2],eaddr[3],eaddr[4],eaddr[5]);
 	
@@ -2458,16 +2436,10 @@ static int sbmac_init(struct net_device *dev, int idx)
 
 	dev->change_mtu         = sb1250_change_mtu;
 
-	if (soc_pass >= K_SYS_REVISION_PASS3) {
-		/* In pass3 we do dumb checksum in TX */
-		dev->features |= NETIF_F_IP_CSUM;
-	}
-
-        /* This is needed for PASS2 for Rx H/W checksum feature */
-	sbmac_set_iphdr_offset( sc);
+	/* This is needed for PASS2 for Rx H/W checksum feature */
+	sbmac_set_iphdr_offset(sc);
 	
 	return 0;
-	
 }
 
 
@@ -2659,18 +2631,18 @@ static void sbmac_timer(unsigned long data)
 	 */
 
 	if (sbmac_mii_poll(sc,1)) {
-	    if (sc->sbm_state != sbmac_state_off) {
-		/*
-		 * something changed, restart the channel
-		 */
-		if (debug > 1) {
-		    printk("%s: restarting channel because speed changed\n",
-			   sc->sbm_dev->name);
-		    }
-		sbmac_channel_stop(sc);
-		sbmac_channel_start(sc);
+		if (sc->sbm_state != sbmac_state_off) {
+			/*
+			 * something changed, restart the channel
+			 */
+			if (debug > 1) {
+				printk("%s: restarting channel because speed changed\n",
+				       sc->sbm_dev->name);
+			}
+			sbmac_channel_stop(sc);
+			sbmac_channel_start(sc);
 		}
-	    }
+	}
 	
 	spin_unlock_irq (&sc->sbm_lock);
 	
@@ -2738,7 +2710,8 @@ static void sbmac_set_rx_mode(struct net_device *dev)
 	spin_unlock_irqrestore(&sc->sbm_lock, flags);
 	
 	if (msg_flag) {
-		printk(KERN_NOTICE "%s: Promiscuous mode %sabled.\n", dev->name,(msg_flag==1)?"en":"dis");
+		printk(KERN_NOTICE "%s: Promiscuous mode %sabled.\n",
+		       dev->name,(msg_flag==1)?"en":"dis");
 	}
 	
 	/*
@@ -2805,7 +2778,7 @@ static int sbmac_close(struct net_device *dev)
 	spin_unlock_irqrestore(&sc->sbm_lock, flags);
 	
 	/* Make sure there is no irq-handler running on a different CPU. */
-	synchronize_irq(dev->irq);
+	synchronize_irq();
 	
 	free_irq(dev->irq, dev);
 	
@@ -2865,16 +2838,15 @@ sbmac_init_module(void)
 	 * Walk through the Ethernet controllers and find
 	 * those who have their MAC addresses set.
 	 */
-	chip_revision = SBMAC_READCSR(KSEG1ADDR(A_SCD_SYSTEM_REVISION));
-	switch ((int)G_SYS_PART(chip_revision)) {
-	case 0x1150:
-	case 0x1250:
+	switch (soc_type) {
+	case K_SYS_SOC_TYPE_BCM1250:
+	case K_SYS_SOC_TYPE_BCM1250_ALT:
 		chip_max_units = 3;
 		break;
-	case 0x1121:
-	case 0x1123:
-	case 0x1124:
-	case 0x1125:	// Hybrid.
+	case K_SYS_SOC_TYPE_BCM1120:
+	case K_SYS_SOC_TYPE_BCM1125:
+	case K_SYS_SOC_TYPE_BCM1125H:
+	case K_SYS_SOC_TYPE_BCM1250_ALT2: /* Hybrid */
 		chip_max_units = 2;
 		break;
 	default:
@@ -2913,7 +2885,7 @@ sbmac_init_module(void)
 		if (!dev) 
 		  return -ENOMEM;	/* return ENOMEM */
 
-printk(KERN_DEBUG "sbmac: configuring MAC at %lx\n", port);
+		printk(KERN_DEBUG "sbmac: configuring MAC at %lx\n", port);
 
 		dev->irq = K_INT_MAC_0 + idx;
 		dev->base_addr = port;
