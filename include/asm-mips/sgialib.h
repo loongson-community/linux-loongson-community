@@ -20,7 +20,7 @@ extern int prom_flags;
  * Init the PROM library and it's internal data structures.  Called
  * at boot time from head.S before start_kernel is invoked.
  */
-extern int prom_init(int argc, char **argv, char **envp, int *prom_vec);
+extern void prom_init(int argc, char **argv, char **envp, int *prom_vec);
 
 /* Simple char-by-char console I/O. */
 extern void prom_putchar(char c);
