@@ -583,11 +583,10 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    comment 'SGI Character devices'
    if [ "$CONFIG_VT" = "y" ]; then
       tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
-      if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
-	 define_bool CONFIG_DUMMY_CONSOLE y
-      else
+      if [ "$CONFIG_SGI_NEWPORT_CONSOLE" = "y" ]; then
 	 define_bool CONFIG_FONT_8x16 y
       fi
+      define_bool CONFIG_DUMMY_CONSOLE y
    fi
    endmenu
 fi
