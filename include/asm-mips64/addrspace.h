@@ -85,7 +85,7 @@
 #if defined (CONFIG_CPU_R4300)						\
     || defined (CONFIG_CPU_R4X00)					\
     || defined (CONFIG_CPU_R5000)					\
-    || defined (CONFIG_CPU_NEVADA)
+    || defined (CONFIG_CPU_NEVADA)					\
     || defined (CONFIG_CPU_MIPS64)
 #define	KUSIZE			0x0000010000000000	/* 2^^40 */
 #define	KUSIZE_64		0x0000010000000000	/* 2^^40 */
