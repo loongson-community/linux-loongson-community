@@ -247,6 +247,7 @@ static void check_partition(struct gendisk *hd, kdev_t dev, int first_part_minor
 		printk(KERN_INFO " %s:", disk_name(hd, MINOR(dev), buf));
 	bdev = bdget(kdev_t_to_nr(dev));
 	bdev->bd_inode->i_size = (loff_t)hd->part[MINOR(dev)].nr_sects << 9;
+	bdev->bd_inode->i_blkbits = blksize_bits(block_size(dev));
 	for (i = 0; check_part[i]; i++) {
 		int res;
 		res = check_part[i](hd, bdev, first_sector, first_part_minor);
@@ -385,6 +386,12 @@ void grok_partitions(struct gendisk *dev, int drive, unsigned minors, long size)
 	if (!size || minors == 1)
 		return;
 
+	if (dev->sizes) {
+		dev->sizes[first_minor] = size >> (BLOCK_SIZE_BITS - 9);
+		for (i = first_minor + 1; i < end_minor; i++)
+			dev->sizes[i] = 0;
+	}
+	blk_size[dev->major] = dev->sizes;
 	check_partition(dev, MKDEV(dev->major, first_minor), 1 + first_minor);
 
  	/*
@@ -394,7 +401,6 @@ void grok_partitions(struct gendisk *dev, int drive, unsigned minors, long size)
 	if (dev->sizes != NULL) {	/* optional safeguard in ll_rw_blk.c */
 		for (i = first_minor; i < end_minor; i++)
 			dev->sizes[i] = dev->part[i].nr_sects >> (BLOCK_SIZE_BITS - 9);
-		blk_size[dev->major] = dev->sizes;
 	}
 }
 

@@ -1528,7 +1528,7 @@ acornfb_setup(char *options)
 
 	acornfb_init_fbinfo();
 
-	for (opt = strtok(options, ","); opt; opt = strtok(NULL, ",")) {
+	while (opt = strsep(&options, ",")) {
 		if (!*opt)
 			continue;
 
@@ -1772,4 +1772,7 @@ acornfb_init(void)
 	return 0;
 }
 
+MODULE_AUTHOR("Russell King");
+MODULE_DESCRIPTION("VIDC 1/1a/20 framebuffer driver");
 MODULE_LICENSE("GPL");
+EXPORT_NO_SYMBOLS;

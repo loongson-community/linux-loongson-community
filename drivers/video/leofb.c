@@ -1,4 +1,4 @@
-/* $Id: leofb.c,v 1.13 2001/09/19 00:04:33 davem Exp $
+/* $Id: leofb.c,v 1.14 2001/10/16 05:44:44 davem Exp $
  * leofb.c: Leo (ZX) 24/8bit frame buffer driver
  *
  * Copyright (C) 1996-1999 Jakub Jelinek (jj@ultra.linux.cz)
@@ -285,14 +285,16 @@ static void leo_putcs(struct vc_data *conp, struct display *p, const unsigned sh
 	unsigned long flags;
 	int i, x, y;
 	u8 *fd1, *fd2, *fd3, *fd4;
+	u16 c;
 	u32 *u;
 
 	spin_lock_irqsave(&fb->lock, flags);
 	do {
 		i = sbus_readl(&us->csr);
 	} while (i & 0x20000000);
-	sbus_writel(attr_fgcol(p,scr_readw(s)) << 24, &ss->fg);
-	sbus_writel(attr_bgcol(p,scr_readw(s)) << 24, &ss->bg);
+	c = scr_readw(s);
+	sbus_writel(attr_fgcol(p, c) << 24, &ss->fg);
+	sbus_writel(attr_bgcol(p, c) << 24, &ss->bg);
 	sbus_writel(0xFFFFFFFF<<(32-fontwidth(p)), &us->fontmsk);
 	if (fontwidthlog(p))
 		x = (xx << fontwidthlog(p));

@@ -1053,6 +1053,12 @@ M:     Andreas Mohr <100.30936@germany.net>
 L:     linux-net@vger.kernel.org
 S:     Maintained
 
+NINJA SCSI-3 / NINJA SCSI-32Bi PCMCIA SCSI HOST ADAPTER DRIVER
+P:	YOKOTA Hiroshi
+M:	yokota@netlab.is.tsukuba.ac.jp
+W:	http://www.netlab.is.tsukuba.ac.jp/~yokota/izumi/ninja/
+S:	Maintained
+
 NON-IDE/NON-SCSI CDROM DRIVERS [GENERAL] (come on, crew - mark your responsibility)
 P:	Eberhard Moenkeberg
 M:	emoenke@gwdg.de
@@ -1114,6 +1120,12 @@ M:	tim@cyberelk.net
 L:	linux-parport@torque.net
 W:	http://www.torque.net/linux-pp.html
 S:	Maintained
+
+PERSONALITY HANDLING
+P:	Christoph Hellwig
+M:	hch@caldera.de
+L:	linux-abi-devel@lists.sourceforge.net
+S:	Supported
 
 PCI ID DATABASE
 P:	Jens Maurer
@@ -1293,6 +1305,13 @@ W:	http://samba.org/
 L:	samba@samba.org
 S:	Maintained
 
+SNA NETWORK LAYER
+P:	Jay Schulist
+M:	jschlst@samba.org
+L:	linux-sna@turbolinux.com
+W:	http://www.linux-sna.org
+S:	Supported
+
 SOFTWARE RAID (Multiple Disks) SUPPORT
 P:	Ingo Molnar
 M:	mingo@redhat.com
@@ -1340,12 +1359,11 @@ M:	jschlst@samba.org
 L:	linux-net@vger.kernel.org
 S:	Supported
 
-SNA NETWORK LAYER
-P:	Jay Schulist
-M:	jschlst@samba.org
-L:	linux-sna@turbolinux.com
-W:	http://www.linux-sna.org
-S:	Supported
+SRM (Alpha) environment access
+P:	Jan-Benedict Glaw
+M:	jbglaw@lug-owl.de
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
 
 STALLION TECHNOLOGIES MULTIPORT SERIAL BOARDS
 M:	support@stallion.oz.au
@@ -1404,6 +1422,13 @@ M:	mikep@linuxtr.net
 L:	linux-net@vger.kernel.org
 L:	linux-tr@linuxtr.net
 W:	http://www.linuxtr.net
+S:	Maintained
+
+TOSHIBA SMM DRIVER
+P:	Jonathan Buzzard
+M:	jonathan@buzzard.org.uk
+L:	tlinux-users@tce.toshiba-dme.co.jp
+W:	http://www.buzzard.org.uk/toshiba/
 S:	Maintained
 
 TRIDENT 4DWAVE/SIS 7018 PCI AUDIO CORE
@@ -1673,6 +1698,12 @@ YAM DRIVER FOR AX.25
 P:	Jean-Paul Roubelat
 M:	jpr@f6fbb.org
 L:	linux-hams@vger.kernel.org
+S:	Maintained
+
+YMFPCI YAMAHA PCI SOUND
+P:	Pete Zaitcev
+M:	zaitcev@yahoo.com
+L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
 Z85230 SYNCHRONOUS DRIVER

@@ -1,5 +1,5 @@
 /*
- *  $Id: ipconfig.c,v 1.38 2001/09/25 23:23:07 davem Exp $
+ *  $Id: ipconfig.c,v 1.39 2001/10/13 01:47:31 davem Exp $
  *
  *  Automatic Configuration of IP -- use DHCP, BOOTP, RARP, or
  *  user-supplied information to configure own IP address and routes.
@@ -95,7 +95,7 @@
  */
 
 /* This is used by platforms which might be able to set the ipconfig
- * variabled using firmware environment vars.  If this is set, it will
+ * variables using firmware environment vars.  If this is set, it will
  * ignore such firmware variables.
  */
 int ic_set_manually __initdata = 0;		/* IPconfig parameters set manually */

@@ -36,6 +36,13 @@
 
 #define A(__x) ((unsigned long)(__x))
 
+#ifdef __MIPSEB__
+#define merge_64(r1,r2)	((((r1) & 0xffffffffUL) << 32) + ((r2) & 0xffffffffUL))
+#endif
+#ifdef __MIPSEL__
+#define merge_64(r1,r2)	((((r2) & 0xffffffffUL) << 32) + ((r1) & 0xffffffffUL))
+#endif
+
 /*
  * Revalidate the inode. This is required for proper NFS attribute caching.
  */
@@ -887,9 +894,9 @@ extern asmlinkage long sys_llseek(unsigned int fd, unsigned long offset_high,
 			          unsigned long offset_low, loff_t * result,
 			          unsigned int origin);
 
-extern asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
-			           unsigned int offset_low, loff_t * result,
-			           unsigned int origin)
+asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
+			    unsigned int offset_low, loff_t * result,
+			    unsigned int origin)
 {
 	return sys_llseek(fd, offset_high, offset_low, result, origin);
 }
@@ -1043,11 +1050,12 @@ bad_file:
    non-seekable files.  */
 
 asmlinkage ssize_t sys32_pread(unsigned int fd, char * buf,
-			       size_t count, u32 unused, loff_t pos)
+			       size_t count, u32 unused, u64 a4, u64 a5)
 {
 	ssize_t ret;
 	struct file * file;
 	ssize_t (*read)(struct file *, char *, size_t, loff_t *);
+	loff_t pos;
 
 	ret = -EBADF;
 	file = fget(fd);
@@ -1055,6 +1063,7 @@ asmlinkage ssize_t sys32_pread(unsigned int fd, char * buf,
 		goto bad_file;
 	if (!(file->f_mode & FMODE_READ))
 		goto out;
+	pos = merge_64(a4, a5);
 	ret = locks_verify_area(FLOCK_VERIFY_READ, file->f_dentry->d_inode,
 				file, pos, count);
 	if (ret)
@@ -1074,11 +1083,12 @@ bad_file:
 }
 
 asmlinkage ssize_t sys32_pwrite(unsigned int fd, const char * buf,
-			        size_t count, u32 unused, loff_t pos)
+			        size_t count, u32 unused, u64 a4, u64 a5)
 {
 	ssize_t ret;
 	struct file * file;
 	ssize_t (*write)(struct file *, const char *, size_t, loff_t *);
+	loff_t pos;
 
 	ret = -EBADF;
 	file = fget(fd);
@@ -1086,6 +1096,7 @@ asmlinkage ssize_t sys32_pwrite(unsigned int fd, const char * buf,
 		goto bad_file;
 	if (!(file->f_mode & FMODE_WRITE))
 		goto out;
+	pos = merge_64(a4, a5);
 	ret = locks_verify_area(FLOCK_VERIFY_WRITE, file->f_dentry->d_inode,
 				file, pos, count);
 	if (ret)
@@ -2328,4 +2339,12 @@ out_put:
 	sockfd_put(sock);
 out:
 	return err;
+}
+
+asmlinkage ssize_t sys_readahead(int fd, loff_t offset, size_t count);
+
+asmlinkage ssize_t sys32_readahead(int fd, u32 pad0, u64 a2, u64 a3,
+                                   size_t count)
+{
+	return sys_readahead(fd, merge_64(a2, a3), count);
 }

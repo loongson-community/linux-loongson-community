@@ -15,6 +15,8 @@
    Based on work
    	Copyleft  (C) 2001 by Wilfried Weissmann <wweissmann@gmx.at>
 	Copyright (C) 1994-96 Marc ZYNGIER <zyngier@ufr-info-p7.ibp.fr>
+   Based on work done by Søren Schmidt for FreeBSD
+
    
 */
 
@@ -83,8 +85,8 @@ static int hptraid_ioctl(struct inode *inode, struct file *file, unsigned int cm
 			if (!arg)  return -EINVAL;
 			sectors = ataraid_gendisk.part[MINOR(inode->i_rdev)].nr_sects;
 			if (MINOR(inode->i_rdev)&15)
-				return put_user(sectors, (long *) arg);
-			return put_user(raid[minor].sectors , (long *) arg);
+				return put_user(sectors, (unsigned long *) arg);
+			return put_user(raid[minor].sectors , (unsigned long *) arg);
 			break;
 			
 

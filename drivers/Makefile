@@ -7,7 +7,7 @@
 
 
 mod-subdirs :=	dio mtd sbus video macintosh usb input telephony sgi ide \
-		i2o message/fusion scsi md ieee1394 pnp isdn atm \
+		message/i2o message/fusion scsi md ieee1394 pnp isdn atm \
 		fc4 net/hamradio i2c acpi bluetooth
 
 subdir-y :=	parport char block net sound misc media cdrom
@@ -31,7 +31,7 @@ subdir-$(CONFIG_PHONE)		+= telephony
 subdir-$(CONFIG_SGI)		+= sgi
 subdir-$(CONFIG_IDE)		+= ide
 subdir-$(CONFIG_SCSI)		+= scsi
-subdir-$(CONFIG_I2O)		+= i2o
+subdir-$(CONFIG_I2O)		+= message/i2o
 subdir-$(CONFIG_FUSION)		+= message/fusion
 subdir-$(CONFIG_MD)		+= md
 subdir-$(CONFIG_IEEE1394)	+= ieee1394

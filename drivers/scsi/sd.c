@@ -152,6 +152,9 @@ static int sd_ioctl(struct inode * inode, struct file * file, unsigned int cmd, 
 	int diskinfo[4];
     
 	SDev = rscsi_disks[DEVICE_NR(dev)].device;
+	if (!SDev)
+		return -ENODEV;
+
 	/*
 	 * If we are in the middle of error recovery, don't let anyone
 	 * else try and use this device.  Also, if error recovery fails, it
@@ -228,7 +231,7 @@ static int sd_ioctl(struct inode * inode, struct file * file, unsigned int cmd, 
 			return 0;
 		}
 		case BLKGETSIZE:   /* Return device size */
-			return put_user(sd[SD_PARTITION(inode->i_rdev)].nr_sects, (long *) arg);
+			return put_user(sd[SD_PARTITION(inode->i_rdev)].nr_sects, (unsigned long *) arg);
 		case BLKGETSIZE64:
 			return put_user((u64)sd[SD_PARTITION(inode->i_rdev)].nr_sects << 9, (u64 *)arg);
 
@@ -533,6 +536,8 @@ static int sd_release(struct inode *inode, struct file *file)
 
 	target = DEVICE_NR(inode->i_rdev);
 	SDev = rscsi_disks[target].device;
+	if (!SDev)
+		return -ENODEV;
 
 	SDev->access_count--;
 
@@ -786,7 +791,7 @@ static int sd_init_onedisk(int i)
 			SRpnt->sr_cmd_len = 0;
 			SRpnt->sr_sense_buffer[0] = 0;
 			SRpnt->sr_sense_buffer[2] = 0;
-			SRpnt->sr_data_direction = SCSI_DATA_READ;
+			SRpnt->sr_data_direction = SCSI_DATA_NONE;
 
 			scsi_wait_req (SRpnt, (void *) cmd, (void *) buffer,
 				0/*512*/, SD_TIMEOUT, MAX_RETRIES);

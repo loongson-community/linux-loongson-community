@@ -1253,7 +1253,8 @@ int mtrr_add_page(unsigned long base, unsigned long size, unsigned int type, cha
 	break;
 
     case MTRR_IF_INTEL:
-	/*  For Intel PPro stepping <= 7, must be 4 MiB aligned  */
+	/*  For Intel PPro stepping <= 7, must be 4 MiB aligned 
+	    and not touch 0x70000000->0x7003FFFF */
 	if ( boot_cpu_data.x86_vendor == X86_VENDOR_INTEL &&
 	     boot_cpu_data.x86 == 6 &&
 	     boot_cpu_data.x86_model == 1 &&
@@ -1263,6 +1264,12 @@ int mtrr_add_page(unsigned long base, unsigned long size, unsigned int type, cha
 	    {
 		printk (KERN_WARNING "mtrr: base(0x%lx000) is not 4 MiB aligned\n", base);
 		return -EINVAL;
+	    }
+	    if (!(base + size < 0x70000000 || base > 0x7003FFFF) &&
+		 (type == MTRR_TYPE_WRCOMB || type == MTRR_TYPE_WRBACK))
+	    {
+		printk (KERN_WARNING "mtrr: writable mtrr between 0x70000000 and 0x7003FFFF may hang the CPU.\n");
+	        return -EINVAL;
 	    }
 	}
 	/* Fall through */
@@ -2119,10 +2126,8 @@ static int __init mtrr_setup(void)
 		break;
 
 	case X86_VENDOR_CENTAUR:
-		/* Cyrix III has Intel style MTRRs, but doesn't support PAE */
-		if (boot_cpu_data.x86 == 6 &&
-			(boot_cpu_data.x86_model == 6 ||
-			 boot_cpu_data.x86_model == 7)) {
+		/* VIA Cyrix family have Intel style MTRRs, but don't support PAE */
+		if (boot_cpu_data.x86 == 6) {
 			size_or_mask  = 0xfff00000; /* 32 bits */
 			size_and_mask = 0;
 		}

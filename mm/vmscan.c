@@ -47,20 +47,24 @@ static inline int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* 
 {
 	pte_t pte;
 	swp_entry_t entry;
-	int right_classzone;
 
 	/* Don't look at this pte if it's been accessed recently. */
 	if (ptep_test_and_clear_young(page_table)) {
 		flush_tlb_page(vma, address);
+		mark_page_accessed(page);
 		return 0;
 	}
 
-	if (TryLockPage(page))
+	/* Don't bother unmapping pages that are active */
+	if (PageActive(page))
 		return 0;
 
-	right_classzone = 1;
+	/* Don't bother replenishing zones not under pressure.. */
 	if (!memclass(page->zone, classzone))
-		right_classzone = 0;
+		return 0;
+
+	if (TryLockPage(page))
+		return 0;
 
 	/* From this point on, the odds are that we're going to
 	 * nuke this pte, so read and clear the pte.  This hook
@@ -89,7 +93,7 @@ drop_pte:
 		{
 			int freeable = page_count(page) - !!page->buffers <= 2;
 			page_cache_release(page);
-			return freeable & right_classzone;
+			return freeable;
 		}
 	}
 
@@ -283,10 +287,10 @@ out_unlock:
 	return count;
 }
 
-static int FASTCALL(swap_out(unsigned int priority, zone_t * classzone, unsigned int gfp_mask, int nr_pages));
-static int swap_out(unsigned int priority, zone_t * classzone, unsigned int gfp_mask, int nr_pages)
+static int FASTCALL(swap_out(unsigned int priority, unsigned int gfp_mask, zone_t * classzone));
+static int swap_out(unsigned int priority, unsigned int gfp_mask, zone_t * classzone)
 {
-	int counter;
+	int counter, nr_pages = SWAP_CLUSTER_MAX;
 	struct mm_struct *mm;
 
 	/* Then, look at the other mm's */
@@ -326,13 +330,13 @@ empty:
 	return 0;
 }
 
-static int FASTCALL(shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned int gfp_mask));
-static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned int gfp_mask)
+static int FASTCALL(shrink_cache(int nr_pages, int max_mapped, zone_t * classzone, unsigned int gfp_mask));
+static int shrink_cache(int nr_pages, int max_mapped, zone_t * classzone, unsigned int gfp_mask)
 {
 	struct list_head * entry;
 
 	spin_lock(&pagemap_lru_lock);
-	while (max_scan && (entry = inactive_list.prev) != &inactive_list) {
+	while (max_mapped && (entry = inactive_list.prev) != &inactive_list) {
 		struct page * page;
 
 		if (unlikely(current->need_resched)) {
@@ -345,31 +349,35 @@ static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned
 
 		page = list_entry(entry, struct page, lru);
 
-		if (unlikely(!PageInactive(page) && !PageActive(page)))
+		if (unlikely(!PageInactive(page)))
 			BUG();
 
 		list_del(entry);
 		list_add(entry, &inactive_list);
-		if (PageTestandClearReferenced(page))
-			continue;
 
-		max_scan--;
-
-		if (unlikely(!memclass(page->zone, classzone)))
+		if (!memclass(page->zone, classzone))
 			continue;
 
 		/* Racy check to avoid trylocking when not worthwhile */
 		if (!page->buffers && page_count(page) != 1)
-			continue;
+			goto page_mapped;
 
 		/*
 		 * The page is locked. IO in progress?
 		 * Move it to the back of the list.
 		 */
-		if (unlikely(TryLockPage(page)))
+		if (unlikely(TryLockPage(page))) {
+			if (PageLaunder(page) && (gfp_mask & __GFP_FS)) {
+				page_cache_get(page);
+				spin_unlock(&pagemap_lru_lock);
+				wait_on_page(page);
+				page_cache_release(page);
+				spin_lock(&pagemap_lru_lock);
+			}
 			continue;
+		}
 
-		if (PageDirty(page) && is_page_cache_freeable(page)) {
+		if (PageDirty(page) && is_page_cache_freeable(page) && page->mapping) {
 			/*
 			 * It is not critical here to write it only if
 			 * the page is unmapped beause any direct writer
@@ -383,6 +391,7 @@ static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned
 			writepage = page->mapping->a_ops->writepage;
 			if ((gfp_mask & __GFP_FS) && writepage) {
 				ClearPageDirty(page);
+				SetPageLaunder(page);
 				page_cache_get(page);
 				spin_unlock(&pagemap_lru_lock);
 
@@ -462,7 +471,10 @@ static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned
 		if (!is_page_cache_freeable(page) || PageDirty(page)) {
 			spin_unlock(&pagecache_lock);
 			UnlockPage(page);
-			continue;
+page_mapped:
+			if (--max_mapped)
+				continue;
+			break;
 		}
 
 		/* point of no return */
@@ -522,8 +534,8 @@ static void refill_inactive(int nr_pages)
 	spin_unlock(&pagemap_lru_lock);
 }
 
-static int FASTCALL(shrink_caches(int priority, zone_t * classzone, unsigned int gfp_mask, int nr_pages));
-static int shrink_caches(int priority, zone_t * classzone, unsigned int gfp_mask, int nr_pages)
+static int FASTCALL(shrink_caches(zone_t * classzone, int priority, unsigned int gfp_mask, int nr_pages));
+static int shrink_caches(zone_t * classzone, int priority, unsigned int gfp_mask, int nr_pages)
 {
 	int max_scan;
 	int chunk_size = nr_pages;
@@ -537,7 +549,7 @@ static int shrink_caches(int priority, zone_t * classzone, unsigned int gfp_mask
 	/* try to keep the active list 2/3 of the size of the cache */
 	ratio = (unsigned long) nr_pages * nr_active_pages / ((nr_inactive_pages + 1) * 2);
 	refill_inactive(ratio);
-  
+
 	max_scan = nr_inactive_pages / priority;
 	nr_pages = shrink_cache(nr_pages, max_scan, classzone, gfp_mask);
 	if (nr_pages <= 0)
@@ -552,18 +564,18 @@ static int shrink_caches(int priority, zone_t * classzone, unsigned int gfp_mask
 	return nr_pages;
 }
 
-int try_to_free_pages(zone_t * classzone, unsigned int gfp_mask, unsigned int order)
+int try_to_free_pages(zone_t *classzone, unsigned int gfp_mask, unsigned int order)
 {
 	int ret = 0;
 	int priority = DEF_PRIORITY;
 	int nr_pages = SWAP_CLUSTER_MAX;
 
 	do {
-		nr_pages = shrink_caches(priority, classzone, gfp_mask, nr_pages);
+		nr_pages = shrink_caches(classzone, priority, gfp_mask, nr_pages);
 		if (nr_pages <= 0)
 			return 1;
 
-		ret |= swap_out(priority, classzone, gfp_mask, SWAP_CLUSTER_MAX << 2);
+		ret |= swap_out(priority, gfp_mask, classzone);
 	} while (--priority);
 
 	return ret;

@@ -7,6 +7,7 @@
 #define _ASM_PCI_H
 
 #include <linux/config.h>
+#include <linux/types.h>
 
 #ifdef __KERNEL__
 
@@ -115,6 +116,35 @@ static inline void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
 }
 
 /*
+ * pci_{map,unmap}_single_page maps a kernel page to a dma_addr_t. identical
+ * to pci_map_single, but takes a struct page instead of a virtual address
+ */
+static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
+				      unsigned long offset, size_t size,
+                                      int direction)
+{
+	unsigned long addr;
+
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
+	addr = (unsigned long) page_address(page);
+#ifndef CONFIG_COHERENT_IO
+	dma_cache_wback_inv(addr, size);
+#endif
+
+	return virt_to_bus((void *)addr);
+}
+
+static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
+				  size_t size, int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+	/* Nothing to do */
+}
+
+/*
  * Map a set of buffers described by scatterlist in streaming
  * mode for DMA.  This is the scather-gather version of the
  * above pci_map_single interface.  Here the scatter gather list
@@ -215,7 +245,7 @@ static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
  * only drive the low 24-bits during PCI bus mastering, then
  * you would pass 0x00ffffff as the mask to this function.
  */
-static inline int pci_dma_supported(struct pci_dev *hwdev, dma_addr_t mask)
+static inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 {
 	/*
 	 * we fall back to GFP_DMA when the mask isn't all 1s,
@@ -228,6 +258,39 @@ static inline int pci_dma_supported(struct pci_dev *hwdev, dma_addr_t mask)
 	return 1;
 }
 
+/* This is always fine. */
+/* Well ...  this actually needs more thought ...  */
+#define pci_dac_dma_supported(pci_dev, mask)	(0)
+
+#if 0
+static __inline__ dma64_addr_t
+pci_dac_page_to_dma(struct pci_dev *pdev, struct page *page, unsigned long offset, int direction)
+{
+	return ((dma64_addr_t) page_to_bus(page) +
+		(dma64_addr_t) offset);
+}
+
+static __inline__ struct page *
+pci_dac_dma_to_page(struct pci_dev *pdev, dma64_addr_t dma_addr)
+{
+	unsigned long poff = (dma_addr >> PAGE_SHIFT);
+
+	return mem_map + poff;
+}
+
+static __inline__ unsigned long
+pci_dac_dma_to_offset(struct pci_dev *pdev, dma64_addr_t dma_addr)
+{
+	return (dma_addr & ~PAGE_MASK);
+}
+
+static __inline__ void
+pci_dac_dma_sync_single(struct pci_dev *pdev, dma64_addr_t dma_addr,
+                        size_t len, int direction)
+{
+	/* Nothing to do. */
+}
+#endif
 
 /* Return the index of the PCI controller for device. */
 #define pci_controller_num(pdev)	(0)

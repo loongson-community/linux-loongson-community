@@ -349,3 +349,4 @@ sys_call_table:
 	PTR	sys_getdents64
 	PTR	sys_ni_syscall
 	PTR	sys_gettid				/* 5215 */
+	PTR	sys_readahead

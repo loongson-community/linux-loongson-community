@@ -48,7 +48,7 @@ pager_daemon_t pager_daemon = {
  * called on a page which is not on any of the lists, the
  * page is left alone.
  */
-void deactivate_page_nolock(struct page * page)
+static inline void deactivate_page_nolock(struct page * page)
 {
 	if (PageActive(page)) {
 		del_page_from_active_list(page);
@@ -66,7 +66,7 @@ void deactivate_page(struct page * page)
 /*
  * Move an inactive page to the active list.
  */
-void activate_page_nolock(struct page * page)
+static inline void activate_page_nolock(struct page * page)
 {
 	if (PageInactive(page)) {
 		del_page_from_inactive_list(page);
@@ -130,11 +130,15 @@ void lru_cache_del(struct page * page)
  */
 void __init swap_setup(void)
 {
-	/* Use a smaller cluster for memory <16MB or <32MB */
-	if (num_physpages < ((16 * 1024 * 1024) >> PAGE_SHIFT))
+	unsigned long megs = num_physpages >> (20 - PAGE_SHIFT);
+
+	/* Use a smaller cluster for small-memory machines */
+	if (megs < 16)
 		page_cluster = 2;
-	else if (num_physpages < ((32 * 1024 * 1024) >> PAGE_SHIFT))
-		page_cluster = 3;
 	else
-		page_cluster = 4;
+		page_cluster = 3;
+	/*
+	 * Right now other parts of the system means that we
+	 * _really_ don't want to cluster much more
+	 */
 }

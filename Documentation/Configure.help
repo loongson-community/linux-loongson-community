@@ -2568,6 +2568,31 @@ CONFIG_PCMCIA_SERIAL_CS
   a module, say M here and read Documentation/modules.txt. If unsure,
   say N.
 
+ACP Modem (Mwave) support
+CONFIG_MWAVE
+  The ACP modem (Mwave) for Linux is a WinModem. It is composed of a
+  kernel driver and a user level application. Together these components
+  support direct attachment to public switched telephone networks (PSTNs)
+  and support selected world wide countries.
+
+  This version of the ACP Modem driver supports the IBM Thinkpad 600E,
+  600, and 770 that include on board ACP modem hardware.
+
+  The modem also supports the standard communications port interface
+  (ttySx) and is compatible with the Hayes AT Command Set.
+
+  The user level application needed to use this driver can be found at
+  the IBM Linux Technology Center (LTC) web site:
+  http://www.ibm.com/linux/ltc/
+
+  If you own one of the above IBM Thinkpads which has the Mwave chipset
+  in it, say Y.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called mwave.o. If you want to compile it as
+  a module, say M here and read Documentation/modules.txt.
+
 /dev/agpgart (AGP Support) (EXPERIMENTAL)
 CONFIG_AGP
   AGP (Accelerated Graphics Port) is a bus system mainly used to
@@ -7675,15 +7700,6 @@ CONFIG_PLX_HERMES
   Support for these adaptors is so far still incomplete and buggy.
   You have been warned.
 
-Hermes PCMCIA card support
-CONFIG_PCMCIA_HERMES
-  Enable support for PCMCIA 802.11b cards using the Hermes or Intersil
-  HFA384x (Prism 2) chipset.  To use your PC-cards, you will need
-  supporting software from David Hinds' pcmcia-cs package (see the
-  file Documentation/Changes for location). You also want to check out
-  the PCMCIA-HOWTO, available from
-  http://www.linuxdoc.org/docs.html#howto .
-
 Hermes support (Orinoco/WavelanIEEE/PrismII/Symbol 802.11b cards)
 CONFIG_PCMCIA_HERMES
   A driver for "Hermes" chipset based PCMCIA wireless adaptors, such
@@ -8849,6 +8865,18 @@ CONFIG_NI65
   The module will be called ni65.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
+
+RealTek RTL-8139C+ 10/100 PCI Fast Ethernet Adapter support
+CONFIG_8139CP
+  This is a driver for the Fast Ethernet PCI network cards based on
+  the RTL8139C+ chips. If you have one of those, say Y and read
+  the Ethernet-HOWTO, available from
+  http://www.linuxdoc.org/docs.html#howto .
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is recommended.
+  The module will be called 8139cp.o.
 
 RealTek RTL-8139 PCI Fast Ethernet Adapter support
 CONFIG_8139TOO
@@ -11042,7 +11070,29 @@ CONFIG_USB_DEBUG
   of debug messages to the system log. Select this if you are having a
   problem with USB support and want to see more of what is going on.
 
-UHCI (intel PIIX4, VIA, ...) support?
+USB fetch large config
+CONFIG_USB_LARGE_CONFIG
+  This option changes the initial request for a config descriptor so
+  that some poorly designed devices will still work.  Some APC UPSes
+  need it.  Basically, the usb subsystem sends a request for a short
+  (8 byte) config, just to find out how large the real config is.
+  Incorrectly implemented devices may choke on this small config
+  request.  This option make the initial request for a quite large
+  config (1009 bytes), and things just work.
+
+  If you have an APC UPS, say Y; otherwise say N.
+
+USB long timeout
+CONFIG_USB_LONG_TIMEOUT
+  This option makes the standard time out a bit longer.  Basically,
+  some devices are just slow to respond, so this makes usb more 
+  patient.  There should be no harm in selecting this, but it is
+  needed for some MGE Ellipse UPSes.
+
+  If you have an MGE Ellipse UPS, or you see timeouts in HID
+  transactions, say Y; otherwise say N.
+
+UHCI (intel PIIX4, VIA, ...) support
 CONFIG_USB_UHCI
   The Universal Host Controller Interface is a standard by Intel for
   accessing the USB hardware in the PC (which is also called the USB
@@ -11117,6 +11167,20 @@ CONFIG_USB_HID
   inserted in and removed from the running kernel whenever you want).
   The module will be called hid.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+/dev/usb/hiddev raw HID device support
+CONFIG_USB_HIDDEV
+  Say Y here if you want to support HID devices (from the USB
+  specification standpoint) that aren't strictly user interface
+  devices, like monitor controls and Uninterruptable Power Supplies.
+  It is also used for "consumer keys" on multimedia keyboards and
+  USB speakers.
+
+  This module supports these devices separately using a separate
+  event interface on /dev/usb/hiddevX (char 180:96 to 180:111).
+  This driver requires CONFIG_USB_HID.
+
+  If unsure, say N.
 
 USB HIDBP Keyboard (basic) support
 CONFIG_USB_KBD
@@ -11376,8 +11440,7 @@ CONFIG_USB_SERIAL_KEYSPAN
   and was developed with their support.  You must also include
   firmware to support your particular device(s). 
 
-  See http://www.linuxcare.com.au/hugh/keyspan.html for 
-  more information.
+  See http://misc.nu/hugh/keyspan.html for more information.
  
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -11391,6 +11454,20 @@ CONFIG_USB_SERIAL_KEYSPAN_USA28
 USB Keyspan USA-28X Firmware
 CONFIG_USB_SERIAL_KEYSPAN_USA28X
   Say Y here to include firmware for the USA-28X converter.
+  Be sure you have a USA-28X, there are also 28XA and 28XB
+  models, the label underneath has the actual part number.
+
+USB Keyspan USA-28XA Firmware
+CONFIG_USB_SERIAL_KEYSPAN_USA28XA
+  Say Y here to include firmware for the USA-28XA converter.
+  Be sure you have a USA-28XA, there are also 28X and 28XB
+  models, the label underneath has the actual part number.
+
+USB Keyspan USA-28XB Firmware
+CONFIG_USB_SERIAL_KEYSPAN_USA28XB
+  Say Y here to include firmware for the USA-28XB converter.
+  Be sure you have a USA-28XB, there are also 28X and 28XA
+  models, the label underneath has the actual part number.
 
 USB Keyspan USA-19 Firmware
 CONFIG_USB_SERIAL_KEYSPAN_USA19
@@ -11601,26 +11678,14 @@ CONFIG_USB_SE401
   The module will be called se401.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-USB ADMtek Pegasus-based ethernet device support
+Pegasus/Pegasus II based USB-Ethernet device support
 CONFIG_USB_PEGASUS
-  Say Y if you want to use your USB ethernet device. Supported
-  cards until now are:
-    ADMtek AN986 Pegasus (eval. board)
-    ADMtek ADM8511 Pegasus II (eval. board)
-    Accton 10/100
-    Billington USB-100
-    Corega FEter USB-TX
-    MELCO/BUFFALO LUA-TX
-    D-Link DSB-650TX, DSB-650TX-PNA, DSB-650, DU-E10, DU-E100
-    Linksys USB100TX, USB10TX
-    LANEED Ethernet LD-USB/TX
-    SMC 202
-    SOHOware NUB Ethernet
-    
-  Any Pegasus II based board also are supported.
-  If you have devices with vendor IDs other than noted above
-  you should add them in the driver code and send a message
-  to me (petkan@dce.bg) for update.
+  Say Y here if you know you have Pegasus or Pegasus II based adapter.
+  If in doubt then look at linux/drivers/usb/pegasus.h for the complete
+  list of supported devices.
+  If your particular adapter is not in the list and you are _sure_ it
+  is Pegasus or Pegasus II based then send me (pmanolov@lnxw.com) vendor
+  and device IDs.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -11702,6 +11767,10 @@ CONFIG_USB_CDCETHER
   The module will be called CDCEther.o.  If you want to compile it as
   a module, say M here and read <file:Documentation/modules.txt>.
 
+NetChip 1080-based USB Host-to-Host Link
+CONFIG_USB_NET1080
+  The NetChip 1080 is a USB 1.1 host controller.  NetChip has a web
+  site with technical information at http://www.netchip.com/ .
 
 USB Kodak DC-2xx Camera support
 CONFIG_USB_DC2XX
@@ -11885,6 +11954,12 @@ CONFIG_USB_MICROTEK
   of the system. Scsi support is required for this driver to compile
   and work. SANE 1.0.4 or newer is needed to make use of your scanner.
   This driver can be compiled as a module.
+
+HP 53xx and Minolta Dual Scanner support
+CONFIG_USB_HPUSBSCSI
+  Say Y here if you want support for the HP 53xx series of scanners
+  and the Minolta Scan Dual. This driver is experimental.
+  The scanner will be accessible as a SCSI device.
 
 USB Bluetooth support
 CONFIG_USB_BLUETOOTH
@@ -14868,6 +14943,17 @@ CONFIG_MACHZ_WDT
   The module is called machzwd.o. If you want to compile it as a module,
   say M here and read Documentation/modules.txt.
 
+SuperH 3/4 Watchdog
+CONFIG_SH_WDT
+  This driver adds watchdog support for the integrated watchdog in the
+  SuperH 3 and 4 processors. If you have one of these processors, say Y,
+  otherwise say N.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module is called shwdt.o. If you want to compile it as a module,
+  say M here and read Documentation/modules.txt.
+	      
 Toshiba Laptop support
 CONFIG_TOSHIBA
   This adds a driver to safely access the System Management Mode
@@ -16653,6 +16739,121 @@ CONFIG_PARPORT_SUNBPP
   found on many Sun machines. Note that many of the newer Ultras
   actually have pc style hardware instead.
 
+# The following options are for Linux when running on the Hitachi
+# SuperH family of RISC microprocessors.
+
+CPU Selection
+CONFIG_CPU_SUBTYPE_SH7707
+  This is the type of your Hitachi SuperH processor. This information is
+  used for optimizing and configuration purposes.
+
+  - "SH7707" for SH7707
+  - "SH7708" for SH7708, SH7708S, SH7708R
+  - "SH7709" for SH7707, SH7709, SH7709A, and SH7729.
+  - "SH7750" for SH7750, SH7750S
+  - "SH7751" for SH7751
+  - "ST40STB1" for ST40STB1
+
+Target machine selection
+CONFIG_SH_GENERIC
+  This is machine type of your target.
+
+  - "Generic" for Generic kernel which might support all of them
+  - "SolutionEngine" for Hitachi SolutionEngine (7709A, 7750, 7750S)
+  - "SolutionEngine7751" for Hitachi SolutionEngine (7751)
+  - "STB1_Harp" for STMicroelectronics HARP
+  - "STB1_Overdrive" for STMicroelectronics Overdrive
+  - "HP620" for HP 'Jornada' 620
+  - "HP680" for HP 'Jornada' 680
+  - "HP690" for HP 'Jornada' 690
+  - "CqREEK" for CQ Publishing CqREEK SH-4
+  - "DMIDA" for DMIDA, industrial data assistant
+  - "EC3104" for Compaq Aero 8000
+  - "Dreamcast" for SEGA Dreamcast
+  - "CAT68701" for CAT 68701 Evaluation Board (SH7708)
+  - "BigSur" for Big Sur Evaluation Board
+  - "SH2000" for SH2000 Evaluation Board (SH7709A)
+  - "ADX" for A&D ADX
+  - "BareCPU" for Bare CPU board such as CqREEK SH-3
+
+  If unsure, select "BareCPU".
+
+Physical memory start address
+CONFIG_MEMORY_START
+  Computers built with Hitachi SuperH processors always
+  map the ROM starting at address zero.  But the processor
+  does not specify the range that RAM takes.  RAM is usually
+  mapped starting at 0c000000, but it may be elsewhere.
+
+  You should set this value to the address of the lowest
+  RAM location.
+
+  A value of 0c000000 will work for most boards.
+
+Directly Connected Compact Flash support
+CONFIG_CF_ENABLER
+  If your board has "Directly Connected" CompactFlash at area 5 or 6, 
+  you may want to enable this option.  Then, you can use CF as
+  primary IDE drive (only tested for SanDisk).
+
+  If in doubt, press "n".
+
+SuperH RTC support
+CONFIG_SH_RTC
+  Selecting this option will allow the Linux kernel to emulate
+  PC's RTC.
+
+  If unsure, say N.
+
+SuperH DMAC support
+CONFIG_SH_DMA
+  Selecting this option will provide same API as PC's Direct Memory
+  Access Controller(8237A) for SuperH DMAC.
+
+  If unsure, say N.
+
+SuperH SCI (serial) support
+CONFIG_SH_SCI
+  Selecting this option will allow the Linux kernel to transfer
+  data over SCI (Serial Communication Interface) and/or SCIF
+  which are built into the Hitachi SuperH processor.
+
+  If unsure, say N.
+
+Use LinuxSH standard BIOS
+CONFIG_SH_STANDARD_BIOS
+  Say Y here if your target has the gdb-sh-stub package from
+  www.m17n.org (or any conforming standard LinuxSH BIOS) in FLASH
+  or EPROM.  The kernel will use standard BIOS calls during boot
+  for various housekeeping tasks.  Note this does not work with
+  WindowsCE machines.  If unsure, say N.
+
+Early printk support
+CONFIG_SH_EARLY_PRINTK
+  If you say Y here, the kernel printk routine will begin output to
+  the console much earlier in the boot process, before the serial
+  console is initialised, instead of buffering output.  Standard
+  LinuxSH BIOS calls are used for the output.  This helps when
+  debugging fatal problems early in the boot sequence.  This is only
+  useful for kernel hackers.  If unsure, say N.
+  
+National Semiconductor DP83902AV 'ST-NIC' support
+CONFIG_STNIC
+  If you have a network adaptor with National Semiconductor DP83902AV, 
+  say Y or M (for module).
+
+  If unsure, say N.
+
+CompactFlash Connection Area
+CONFIG_CF_AREA5
+  If your board has "Directly Connected" CompactFlash, You should
+  select the area where your CF is connected to.
+  
+  - "Area5" if CompactFlash is connected to Area 5 (0x14000000)
+  - "Area6" if it is connected to Area 6 (0x18000000)
+
+  "Area6" will work for most boards. For ADX, select "Area5".
+
 #
 # m68k-specific kernel options
 # Documented by Chris Lawrence <quango@themall.net> et al.
@@ -18205,6 +18406,11 @@ CONFIG_DS1620
   It is also possible to say M here to build it as a module (ds1620.o)
   It is recommended to be used on a NetWinder, but it is not a
   necessity.
+
+Debug high memory support
+CONFIG_DEBUG_HIGHMEM
+  This options enables addition error checking for high memory systems.
+  Disable for production systems.
 
 Verbose kernel error messages
 CONFIG_DEBUG_ERRORS

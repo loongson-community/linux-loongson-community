@@ -456,6 +456,7 @@ illegal_syscall:
 	sys	sys32_fcntl64	3			/* 4220 */
 	sys	sys_ni_syscall	0
 	sys	sys_gettid	0
+	sys	sys32_readahead	5
 	.endm
 
 	.macro	sys function, nargs
