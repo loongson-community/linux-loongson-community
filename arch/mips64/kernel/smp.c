@@ -8,7 +8,9 @@
  * Copyright (C) 2000, 2001 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
+#include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/threads.h>
 #include <linux/time.h>
@@ -121,6 +123,184 @@ int setup_profiling_timer(unsigned int multiplier)
 	return 0;
 }
 
+/*
+ * This following are the global intr on off routines, copied almost
+ * entirely from i386 code.
+ */
+
+int global_irq_holder = NO_PROC_ID;
+spinlock_t global_irq_lock = SPIN_LOCK_UNLOCKED;
+
+extern void show_stack(unsigned long* esp);
+
+static void show(char * str)
+{
+	int i;
+	int cpu = smp_processor_id();
+
+	printk("\n%s, CPU %d:\n", str, cpu);
+	printk("irq:  %d [",irqs_running());
+	for(i=0;i < smp_num_cpus;i++)
+		printk(" %d",local_irq_count(i));
+	printk(" ]\nbh:   %d [",spin_is_locked(&global_bh_lock) ? 1 : 0);
+	for(i=0;i < smp_num_cpus;i++)
+		printk(" %d",local_bh_count(i));
+
+	printk(" ]\nStack dumps:");
+	for(i = 0; i < smp_num_cpus; i++) {
+		if (i == cpu)
+			continue;
+		printk("\nCPU %d:",i);
+		printk("Code not developed yet\n");
+		/* show_stack(0); */
+	}
+	printk("\nCPU %d:",cpu);
+	printk("Code not developed yet\n");
+	/* show_stack(NULL); */
+	printk("\n");
+}
+
+#define MAXCOUNT 		100000000
+#define SYNC_OTHER_CORES(x)	udelay(x+1)
+
+static inline void wait_on_irq(int cpu)
+{
+	int count = MAXCOUNT;
+
+	for (;;) {
+
+		/*
+		 * Wait until all interrupts are gone. Wait
+		 * for bottom half handlers unless we're
+		 * already executing in one..
+		 */
+		if (!irqs_running())
+			if (local_bh_count(cpu) || !spin_is_locked(&global_bh_lock))
+				break;
+
+		/* Duh, we have to loop. Release the lock to avoid deadlocks */
+		spin_unlock(&global_irq_lock);
+
+		for (;;) {
+			if (!--count) {
+				show("wait_on_irq");
+				count = ~0;
+			}
+			__sti();
+			SYNC_OTHER_CORES(cpu);
+			__cli();
+			if (irqs_running())
+				continue;
+			if (spin_is_locked(&global_irq_lock))
+				continue;
+			if (!local_bh_count(cpu) && spin_is_locked(&global_bh_lock))
+				continue;
+			if (spin_trylock(&global_irq_lock))
+				break;
+		}
+	}
+}
+
+void synchronize_irq(void)
+{
+	if (irqs_running()) {
+		/* Stupid approach */
+		cli();
+		sti();
+	}
+}
+
+static inline void get_irqlock(int cpu)
+{
+	if (!spin_trylock(&global_irq_lock)) {
+		/* do we already hold the lock? */
+		if ((unsigned char) cpu == global_irq_holder)
+			return;
+		/* Uhhuh.. Somebody else got it. Wait.. */
+		spin_lock(&global_irq_lock);
+	}
+	/*
+	 * We also to make sure that nobody else is running
+	 * in an interrupt context.
+	 */
+	wait_on_irq(cpu);
+
+	/*
+	 * Ok, finally..
+	 */
+	global_irq_holder = cpu;
+}
+
+void __global_cli(void)
+{
+	unsigned int flags;
+
+	__save_flags(flags);
+	if (flags & ST0_IE) {
+		int cpu = smp_processor_id();
+		__cli();
+		if (!local_irq_count(cpu))
+			get_irqlock(cpu);
+	}
+}
+
+void __global_sti(void)
+{
+	int cpu = smp_processor_id();
+
+	if (!local_irq_count(cpu))
+		release_irqlock(cpu);
+	__sti();
+}
+
+/*
+ * SMP flags value to restore to:
+ * 0 - global cli
+ * 1 - global sti
+ * 2 - local cli
+ * 3 - local sti
+ */
+unsigned long __global_save_flags(void)
+{
+	int retval;
+	int local_enabled;
+	unsigned long flags;
+	int cpu = smp_processor_id();
+
+	__save_flags(flags);
+	local_enabled = (flags & ST0_IE);
+	/* default to local */
+	retval = 2 + local_enabled;
+
+	/* check for global flags if we're not in an interrupt */
+	if (!local_irq_count(cpu)) {
+		if (local_enabled)
+			retval = 1;
+		if (global_irq_holder == cpu)
+			retval = 0;
+	}
+	return retval;
+}
+
+void __global_restore_flags(unsigned long flags)
+{
+	switch (flags) {
+		case 0:
+			__global_cli();
+			break;
+		case 1:
+			__global_sti();
+			break;
+		case 2:
+			__cli();
+			break;
+		case 3:
+			__sti();
+			break;
+		default:
+			printk("global_restore_flags: %08lx\n", flags);
+	}
+}
 /*
  * Run a function on all other CPUs.
  *  <func>      The function to run. This must be fast and non-blocking.
@@ -294,4 +474,3 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	}
 	_flush_tlb_page(vma, page);
 }
-
