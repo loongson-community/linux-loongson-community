@@ -243,7 +243,7 @@ set_cp0_##name(unsigned int set)				\
 	unsigned int res;                                       \
                                                                 \
 	res = read_32bit_cp0_register(register);                \
-	res |= ~set;						\
+	res |= set;						\
 	write_32bit_cp0_register(register, res);        	\
                                                                 \
 	return res;                                             \
@@ -313,7 +313,7 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
 /*
  * Bits specific to the R4640/R4650
  */
-#define ST0_UM                 <1   <<  4)
+#define ST0_UM                 (1   <<  4)
 #define ST0_IL                 (1   << 23)
 #define ST0_DL                 (1   << 24)
 
