@@ -390,7 +390,7 @@ static inline int find_next_zero_bit (void * addr, int size, int offset)
  *
  * Undefined if no zero exists, so code should check against ~0UL first.
  */
-static inline unsigned long ffz(unsigned long word)
+static __inline__ unsigned long ffz(unsigned long word)
 {
 	int b = 0, s;
 
