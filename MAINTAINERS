@@ -1205,6 +1205,13 @@ P:	Zach Brown
 M:	zab@zabbo.net
 S:	Odd Fixes
 
+MARVELL MV64340 ETHERNET DRIVER
+P:	Manish Lachwani
+M:	Manish_Lachwani@pmc-sierra.com
+L:	linux-mips@linux-mips.org
+L:	netdev@oss.sgi.com
+S:	Supported
+
 MATROX FRAMEBUFFER DRIVER
 P:	Petr Vandrovec
 M:	vandrove@vc.cvut.cz
