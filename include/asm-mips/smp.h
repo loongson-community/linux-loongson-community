@@ -97,6 +97,14 @@ static inline int num_booting_cpus(void)
 	return hweight32(cpu_callout_map);
 }
 
+extern inline unsigned int any_online_cpu(unsigned int mask)
+{
+	if (mask & cpu_online_map)
+		return __ffs(mask & cpu_online_map);
+
+	return NR_CPUS;
+}
+
 #endif /* CONFIG_SMP */
 
 #endif /* __ASM_SMP_H */
