@@ -30,6 +30,7 @@ menu "Machine selection"
 config MACH_JAZZ
 	bool "Support for the Jazz family of machines"
 	select ARC
+	select I8259
 	select ISA
 	help
 	 This a family of machines based on the MIPS R4030 chipset which was
@@ -165,6 +166,7 @@ config MIPS_COBALT
 	depends on EXPERIMENTAL
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select I8259
 	select IRQ_CPU
 
 config MACH_DECSTATION
@@ -285,6 +287,7 @@ config MIPS_MALTA
 	select HAVE_STD_PC_SERIAL_PORT
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select I8259
 	select SWAP_IO_SPACE
 	help
 	  This enables support for the VR5000-based MIPS Malta evaluation
@@ -393,6 +396,7 @@ config DDB5074
 	select HAVE_STD_PC_SERIAL_PORT
 	select HW_HAS_PCI
 	select IRQ_CPU
+	select I8259
 	select ISA
 	help
 	  This enables support for the VR5000-based NEC DDB Vrc-5074
@@ -404,6 +408,7 @@ config DDB5476
 	select HAVE_STD_PC_SERIAL_PORT
 	select HW_HAS_PCI
 	select IRQ_CPU
+	select I8259
 	select ISA
 	help
 	  This enables support for the R5432-based NEC DDB Vrc-5476
@@ -417,6 +422,7 @@ config DDB5477
 	bool "Support for NEC DDB Vrc-5477"
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select I8259
 	select IRQ_CPU
 	help
 	  This enables support for the R5432-based NEC DDB Vrc-5477,
@@ -852,6 +858,7 @@ config SNI_RM200_PCI
 	select DMA_NONCOHERENT
 	select HAVE_STD_PC_SERIAL_PORT
 	select HW_HAS_PCI
+	select I8259
 	select ISA
 	help
 	  The SNI RM200 PCI was a MIPS-based platform manufactured by Siemens
@@ -913,8 +920,6 @@ config GENERIC_ISA_DMA
 
 config I8259
 	bool
-	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MACH_JAZZ || MIPS_MALTA || MIPS_COBALT
-	default y
 
 config LIMITED_DMA
 	bool
