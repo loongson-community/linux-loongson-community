@@ -67,8 +67,8 @@ static int indy_rtc_set_time(unsigned long tim)
 
 	to_tm(tim, &tm);
 
-	tm.tm_mon += 1;
-	tm.tm_year -= 40;
+	tm.tm_mon += 1;		/* tm_mon starts at zero */
+	tm.tm_year -= 1940;
 	if (tm.tm_year >= 100)
 		tm.tm_year -= 100;
 
