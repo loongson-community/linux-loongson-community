@@ -43,7 +43,7 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
 
 #define flush_icache_range(start, end)	flush_cache_all()
-#define flush_icache_page(vma, page)	flush_cache_page(vma, page)
+#define flush_icache_page(vma, page)	flush_cache_page(vma, page->virtual & PAGE_MASK)
 
 
 /*
