@@ -450,12 +450,8 @@ static unsigned int decode_cache_line_size(unsigned int config_field)
 static __init void probe_cache_sizes(void)
 {
 	u32 config1;
-	__asm__ __volatile__(
-		".set push                  \n"
-		".set mips64                \n"
-		"     mfc0    %0, $16, 1    \n"  /* Get config1 register */
-		".set pop                   \n"
-		:"=r" (config1));
+
+	config1 = read_mips32_cp0_config1();
 	icache_line_size = decode_cache_line_size((config1 >> 19) & 0x7);
 	dcache_line_size = decode_cache_line_size((config1 >> 10) & 0x7);
 	icache_sets = decode_cache_sets((config1 >> 22) & 0x7);
