@@ -28,6 +28,7 @@
 #ifdef CONFIG_64BIT_PHYS_ADDR
 #define PTE_L		ld
 #define PTE_S		sd
+#define PTE_SRL		dsrl
 #define P_MTC0		dmtc0
 #define PTE_SIZE	8
 #define PTEP_INDX_MSK	0xff0
@@ -36,6 +37,7 @@
 #else
 #define PTE_L		lw
 #define PTE_S		sw
+#define PTE_SRL		srl
 #define P_MTC0		mtc0
 #define PTE_SIZE	4
 #define PTEP_INDX_MSK	0xff8
@@ -86,9 +88,9 @@
 	addu	k1, k1, k0			# add in offset
 	PTE_L	k0, 0(k1)			# get even pte
 	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
-	srl	k0, k0, 6			# convert to entrylo0
+	PTE_SRL	k0, k0, 6			# convert to entrylo0
 	P_MTC0	k0, CP0_ENTRYLO0		# load it
-	srl	k1, k1, 6			# convert to entrylo1
+	PTE_SRL	k1, k1, 6			# convert to entrylo1
 	P_MTC0	k1, CP0_ENTRYLO1		# load it
 	b	1f
 	tlbwr					# write random tlb entry
@@ -114,9 +116,9 @@
 	addu	k1, k1, k0
 	PTE_L	k0, 0(k1)
 	PTE_L	k1, PTE_SIZE(k1)
-	srl	k0, k0, 6
+	PTE_SRL	k0, k0, 6
 	P_MTC0	k0, CP0_ENTRYLO0
-	srl	k1, k1, 6
+	PTE_SRL	k1, k1, 6
 	P_MTC0	k1, CP0_ENTRYLO1
 	nop
 	tlbwr
@@ -152,9 +154,9 @@
 	addu	k1, k1, k0			# add in offset
 	PTE_L	k0, 0(k1)			# get even pte
 	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
-	srl	k0, k0, 6			# convert to entrylo0
+	PTE_SRL	k0, k0, 6			# convert to entrylo0
 	P_MTC0	k0, CP0_ENTRYLO0		# load it
-	srl	k1, k1, 6			# convert to entrylo1
+	PTE_SRL	k1, k1, 6			# convert to entrylo1
 	P_MTC0	k1, CP0_ENTRYLO1		# load it
 	nop					# QED specified nops
 	nop
@@ -182,9 +184,9 @@
 	PTE_L	k1, PTE_SIZE(k1)
 	nop				/* XXX */
 	tlbp
-	srl	k0, k0, 6
+	PTE_SRL	k0, k0, 6
 	P_MTC0	k0, CP0_ENTRYLO0
-	srl	k1, k1, 6
+	PTE_SRL	k1, k1, 6
 	mfc0	k0, CP0_INDEX
 	P_MTC0	k1, CP0_ENTRYLO1
 	bltzl	k0, 1f
@@ -214,9 +216,9 @@
 	PTE_L	k1, PTE_SIZE(k1)
 	nop				/* XXX */
 	tlbp
-	srl	k0, k0, 6
+	PTE_SRL	k0, k0, 6
 	P_MTC0	k0, CP0_ENTRYLO0
-	srl	k1, k1, 6
+	PTE_SRL	k1, k1, 6
 	mfc0	k0, CP0_INDEX
 	P_MTC0	k1, CP0_ENTRYLO1
 	bltzl	k0, 1f
@@ -244,10 +246,10 @@
 	addu	k1, k1, k0
 	PTE_L	k0, 0(k1)
 	PTE_L	k1, PTE_SIZE(k1)
-	srl	k0, k0, 6
+	PTE_SRL	k0, k0, 6
 	P_MTC0	zero, CP0_ENTRYLO0
 	P_MTC0	k0, CP0_ENTRYLO0
-	srl	k1, k1, 6
+	PTE_SRL	k1, k1, 6
 	P_MTC0	zero, CP0_ENTRYLO1
 	P_MTC0	k1, CP0_ENTRYLO1
 	b	1f
@@ -277,11 +279,11 @@
 	PTE_L	k1, PTE_SIZE(k1)
 	nop				/* XXX */
 	tlbp
-	srl	k0, k0, 6
+	PTE_SRL	k0, k0, 6
 	P_MTC0  zero, CP0_ENTRYLO0
 	P_MTC0  k0, CP0_ENTRYLO0
 	mfc0    k0, CP0_INDEX
-	srl	k1, k1, 6
+	PTE_SRL	k1, k1, 6
 	P_MTC0	zero, CP0_ENTRYLO1
 	P_MTC0	k1, CP0_ENTRYLO1
 	bltzl	k0, 1f
@@ -362,9 +364,9 @@
 	xori	ptr, ptr, PTE_SIZE; \
 	PTE_L	tmp, PTE_SIZE(ptr); \
 	PTE_L	ptr, 0(ptr); \
-	srl	tmp, tmp, 6; \
+	PTE_SRL	tmp, tmp, 6; \
 	P_MTC0	tmp, CP0_ENTRYLO1; \
-	srl	ptr, ptr, 6; \
+	PTE_SRL	ptr, ptr, 6; \
 	P_MTC0	ptr, CP0_ENTRYLO0;
 
 #define DO_FAULT(write) \

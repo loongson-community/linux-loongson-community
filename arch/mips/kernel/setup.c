@@ -555,7 +555,7 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 	start_kernel();
 }
 
-void __init add_memory_region(unsigned long start, unsigned long size,
+void __init add_memory_region(phys_t start, phys_t size,
 			      long type)
 {
 	int x = boot_mem_map.nr_map;
@@ -576,7 +576,7 @@ static void __init print_memory_map(void)
 	int i;
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
-		printk(" memory: %08lx @ %08lx ",
+		printk(" memory: %08Lx @ %08Lx ",
 			boot_mem_map.map[i].size, boot_mem_map.map[i].addr);
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:
@@ -982,6 +982,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		struct resource *res;
+		unsigned long addr_pfn, end_pfn;
 
 		res = alloc_bootmem(sizeof(struct resource));
 		switch (boot_mem_map.map[i].type) {
@@ -993,8 +994,16 @@ void __init setup_arch(char **cmdline_p)
 		default:
 			res->name = "reserved";
 		}
+		addr_pfn = PFN_UP(boot_mem_map.map[i].addr);
+		end_pfn = PFN_UP(boot_mem_map.map[i].addr+boot_mem_map.map[i].size);
+		if (addr_pfn > max_low_pfn)
+			continue;
 		res->start = boot_mem_map.map[i].addr;
-		res->end = res->start + boot_mem_map.map[i].size - 1;
+		if (end_pfn < max_low_pfn) {
+			res->end = res->start + boot_mem_map.map[i].size - 1;
+		} else {
+			res->end = max_low_pfn;
+		}
 		res->flags = IORESOURCE_MEM | IORESOURCE_BUSY;
 		request_resource(&iomem_resource, res);
 

@@ -64,8 +64,6 @@ extern unsigned long bus_to_baddr[256];
  */
 #define page_to_phys(page)	PHYSADDR(page_address(page))
 
-typedef unsigned long phys_t;
-
 /*
  * On MIPS, we have the whole physical address space mapped at all
  * times, so "ioremap()" and "iounmap()" do not need to do anything.

@@ -271,7 +271,7 @@ extern unsigned char __rd_end;
 
 static __init void prom_meminit(void)
 {
-	unsigned long long addr, size; /* regardless of 64BIT_PHYS_ADDR */
+	u64 addr, size; /* regardless of 64BIT_PHYS_ADDR */
 	long type;
 	unsigned int idx;
 	int rd_flag;

@@ -20,16 +20,16 @@
  * Memory related routines 
  */
 
+#include <linux/config.h>
 #include <asm/page.h>
-#include <linux/autoconf.h>
 
-extern long swarm_mem_region_addrs[];
-extern long swarm_mem_region_sizes[];
+extern phys_t swarm_mem_region_addrs[];
+extern phys_t swarm_mem_region_sizes[];
 extern unsigned int swarm_mem_region_count;
 
 int page_is_ram(unsigned long pagenr)
 {
-	unsigned long addr = pagenr << PAGE_SHIFT;
+	phys_t addr = pagenr << PAGE_SHIFT;
 #ifdef CONFIG_SWARM_STANDALONE
 	if (addr < (CONFIG_SIBYTE_SWARM_RAM_SIZE * 1024 * 1024)) {
 		return 1;

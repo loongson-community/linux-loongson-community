@@ -72,6 +72,12 @@ typedef unsigned long long u64;
 typedef u32 dma_addr_t;
 typedef u64 dma64_addr_t;
 
+#ifdef CONFIG_64BIT_PHYS_ADDR
+typedef unsigned long long phys_t;
+#else
+typedef unsigned long phys_t;
+#endif
+
 #endif /* __KERNEL__ */
 
 #endif /* _ASM_TYPES_H */

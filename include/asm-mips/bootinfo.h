@@ -179,15 +179,14 @@ extern unsigned long mips_machgroup;
 struct boot_mem_map {
 	int nr_map;
 	struct {
-		unsigned long addr;	/* start of memory segment */
-		unsigned long size;	/* size of memory segment */
+		phys_t addr;	/* start of memory segment */
+		phys_t size;	/* size of memory segment */
 		long type;		/* type of memory segment */
 	} map[BOOT_MEM_MAP_MAX];
 };
 
 extern struct boot_mem_map boot_mem_map;
 
-extern void add_memory_region(unsigned long start, unsigned long size,
-                              long type);
+extern void add_memory_region(phys_t start, phys_t size, long type);
 
 #endif /* _ASM_BOOTINFO_H */

@@ -443,12 +443,13 @@ static inline pte_t pte_mkyoung(pte_t pte)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
+
 #ifdef CONFIG_CPU_VR41XX
 #define mk_pte(page, pgprot)                                            \
 ({                                                                      \
         pte_t   __pte;                                                  \
                                                                         \
-        pte_val(__pte) = ((unsigned long)(page - mem_map) << (PAGE_SHIFT + 2)) | \
+        pte_val(__pte) = ((phys_t)(page - mem_map) << (PAGE_SHIFT + 2)) | \
                          pgprot_val(pgprot);                            \
                                                                         \
         __pte;                                                          \
@@ -458,14 +459,14 @@ static inline pte_t pte_mkyoung(pte_t pte)
 ({									\
 	pte_t   __pte;							\
 									\
-	pte_val(__pte) = ((unsigned long)(page - mem_map) << PAGE_SHIFT) | \
+	pte_val(__pte) = ((phys_t)(page - mem_map) << PAGE_SHIFT) | \
 	                 pgprot_val(pgprot);				\
 									\
 	__pte;								\
 })
 #endif
 
-static inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
+static inline pte_t mk_pte_phys(phys_t physpage, pgprot_t pgprot)
 {
 #ifdef CONFIG_CPU_VR41XX
         return __pte((physpage << 2) | pgprot_val(pgprot));
