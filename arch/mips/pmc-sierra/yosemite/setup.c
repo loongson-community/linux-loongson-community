@@ -74,12 +74,6 @@ unsigned long m48t37y_get_time(void)
 {
 	unsigned int year, month, day, hour, min, sec;
 
-	if (!m48t37_base) {
-		printk(KERN_CRIT
-		       "m48t37y_get_time called and m48t37_base is NULL!\n");
-		return;
-	}
-
 	/* Stop the update to the time */
 	m48t37_base->control = 0x40;
 
@@ -101,13 +95,6 @@ unsigned long m48t37y_get_time(void)
 int m48t37y_set_time(unsigned long sec)
 {
 	struct rtc_time tm;
-
-	if (!m48t37_base) {
-		printk(KERN_CRIT
-		       "m48t37y_set_time called and m48t37_base is NULL!\n");
-		return;
-	}
-
 
 	/* convert to a more useful format -- note months count from 0 */
 	to_tm(sec, &tm);
