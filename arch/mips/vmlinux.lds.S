@@ -1,10 +1,10 @@
 OUTPUT_ARCH(mips)
 ENTRY(kernel_entry)
-jiffies = @@JIFFIES32@@;
+jiffies = JIFFIES32;
 SECTIONS
 {
   /* Read-only sections, merged into text segment: */
-  . = @@LOADADDR@@;
+  . = LOADADDR;
   .init          : { *(.init)		} =0
   .text      :
   {

@@ -124,7 +124,7 @@ SYS(sys_newstat, 2)
 SYS(sys_newlstat, 2)
 SYS(sys_newfstat, 2)
 SYS(sys_uname, 1)
-SYS(sys_iopl, 0)				/* 4110 was iopl(2) */
+SYS(sys_ni_syscall, 0)				/* 4110 was iopl(2) */
 SYS(sys_vhangup, 0)
 SYS(sys_ni_syscall, 0)				/* was sys_idle() */
 SYS(sys_ni_syscall, 0)				/* was sys_vm86 */

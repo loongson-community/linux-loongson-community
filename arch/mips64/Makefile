@@ -211,11 +211,8 @@ endif
 #
 ifdef CONFIG_BOOT_ELF32
 GCCFLAGS	+= -Wa,-32
-LDFLAGS_vmlinux	+= -T arch/mips64/ld.script.elf32
 
-vmlinux:	arch/mips64/ld.script.elf32.s
-
-AFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 endif
 
@@ -225,19 +222,13 @@ endif
 #
 ifdef CONFIG_BOOT_ELF64
 GCCFLAGS += -Wa,-32
-LDFLAGS_vmlinux += -T arch/mips64/ld.script.elf32
 
-vmlinux:	arch/mips64/ld.script.elf32.s
-
-AFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 #AS += -64
 #LDFLAGS += -m elf64bmip
-#LDFLAGS_vmlinux += -T arch/mips64/ld.script.elf64
 #
-#vmlinux:	arch/mips64/ld.script.elf64
-#
-#AFLAGS_arch/mips64/ld.script.elf64.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+#AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 endif
 
