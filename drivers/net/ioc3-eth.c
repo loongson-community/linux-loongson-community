@@ -113,7 +113,7 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
 static void ioc3_timeout(struct net_device *dev);
 static inline unsigned int ioc3_hash(const unsigned char *addr);
 static inline void ioc3_stop(struct ioc3_private *ip);
-static void ioc3_init(struct ioc3_private *ip);
+static void ioc3_init(struct net_device *dev);
 
 static const char ioc3_str[] = "IOC3 Ethernet";
 
@@ -430,7 +430,7 @@ static int ioc3_mii_init(struct ioc3_private *ip);
 
 static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 {
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 
 	ip->stats.collisions += (ioc3->etcdc & ETCDC_COLLCNT_MASK);
@@ -581,7 +581,7 @@ ioc3_error(struct ioc3_private *ip, u32 eisr)
 		printk(KERN_ERR "%s: TX PCI error.\n", iface);
 
 	ioc3_stop(ip);
-	ioc3_init(ip);
+	ioc3_init(dev);
 	ioc3_mii_init(ip);
 
 	dev->trans_start = jiffies;
@@ -593,7 +593,7 @@ ioc3_error(struct ioc3_private *ip, u32 eisr)
 static irqreturn_t ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 {
 	struct net_device *dev = (struct net_device *)_dev;
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 	const u32 enabled = EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
 	                    EISR_RXMEMERR | EISR_RXPARERR | EISR_TXBUFUFLO |
@@ -920,7 +920,7 @@ static void ioc3_timer(unsigned long data)
 					       "cable problem?\n",
 					       ip->dev->name);
 
-					ioc3_init(ip);
+					ioc3_init(ip->dev);
 					return;
 				}
 				if (!is_lucent_phy(ip)) {
@@ -1176,10 +1176,9 @@ ioc3_free_rings(struct ioc3_private *ip)
 	}
 }
 
-static void
-ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
-		 struct ioc3 *ioc3)
+static void ioc3_alloc_rings(struct net_device *dev)
 {
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3_erxbuf *rxb;
 	unsigned long *rxr;
 	int i;
@@ -1227,14 +1226,14 @@ ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
 	}
 }
 
-static void
-ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
-	        struct ioc3 *ioc3)
+static void ioc3_init_rings(struct net_device *dev)
 {
+	struct ioc3_private *ip = netdev_priv(dev);
+	struct ioc3 *ioc3 = ip->regs;
 	unsigned long ring;
 
 	ioc3_free_rings(ip);
-	ioc3_alloc_rings(dev, ip, ioc3);
+	ioc3_alloc_rings(dev);
 
 	ioc3_clean_rx_ring(ip);
 	ioc3_clean_tx_ring(ip);
@@ -1282,9 +1281,9 @@ ioc3_ssram_disc(struct ioc3_private *ip)
 	}
 }
 
-static void ioc3_init(struct ioc3_private *ip)
+static void ioc3_init(struct net_device *dev)
 {
-	struct net_device *dev = ip->dev;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 
 	del_timer(&ip->ioc3_timer);		/* Kill if running	*/
@@ -1308,7 +1307,7 @@ static void ioc3_init(struct ioc3_private *ip)
 	ioc3->ehar_l = ip->ehar_l;
 	ioc3->ersr = 42;			/* XXX should be random */
 
-	ioc3_init_rings(ip->dev, ip, ioc3);
+	ioc3_init_rings(ip->dev);
 
 	ip->emcr |= ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
 	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
@@ -1331,7 +1330,7 @@ static inline void ioc3_stop(struct ioc3_private *ip)
 static int
 ioc3_open(struct net_device *dev)
 {
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 
 	if (request_irq(dev->irq, ioc3_interrupt, SA_SHIRQ, ioc3_str, dev)) {
 		printk(KERN_ERR "%s: Can't get irq %d\n", dev->name, dev->irq);
@@ -1341,7 +1340,7 @@ ioc3_open(struct net_device *dev)
 
 	ip->ehar_h = 0;
 	ip->ehar_l = 0;
-	ioc3_init(ip);
+	ioc3_init(dev);
 
 	netif_start_queue(dev);
 	return 0;
@@ -1350,7 +1349,7 @@ ioc3_open(struct net_device *dev)
 static int
 ioc3_close(struct net_device *dev)
 {
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 
 	del_timer(&ip->ioc3_timer);
 
@@ -1471,7 +1470,7 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	SET_MODULE_OWNER(dev);
 	SET_NETDEV_DEV(dev, &pdev->dev);
 
-	ip = dev->priv;
+	ip = netdev_priv(dev);
 	ip->dev = dev;
 
 	dev->irq = pdev->irq;
@@ -1495,7 +1494,7 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	init_timer(&ip->ioc3_timer);
 
 	ioc3_stop(ip);
-	ioc3_init(ip);
+	ioc3_init(dev);
 
 	ioc3_mii_init(ip);
 
@@ -1547,7 +1546,7 @@ out_free:
 static void __devexit ioc3_remove_one (struct pci_dev *pdev)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 
 	unregister_netdev(dev);
@@ -1583,7 +1582,7 @@ static int
 ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	unsigned long data;
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 	unsigned int len;
 	struct ioc3_etxd *desc;
@@ -1650,12 +1649,12 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 static void ioc3_timeout(struct net_device *dev)
 {
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 
 	printk(KERN_ERR "%s: transmit timed out, resetting\n", dev->name);
 
 	ioc3_stop(ip);
-	ioc3_init(ip);
+	ioc3_init(dev);
 	ioc3_mii_init(ip);
 
 	dev->trans_start = jiffies;
@@ -1690,7 +1689,7 @@ ioc3_hash(const unsigned char *addr)
 /* We provide both the mii-tools and the ethtool ioctls.  */
 static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ethtool_cmd *ep_user = (struct ethtool_cmd *) rq->ifr_data;
 	u16 *data = (u16 *)&rq->ifr_data;
 	struct ioc3 *ioc3 = ip->regs;
@@ -1811,7 +1810,7 @@ static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 static void ioc3_set_multicast_list(struct net_device *dev)
 {
 	struct dev_mc_list *dmi = dev->mc_list;
-	struct ioc3_private *ip = dev->priv;
+	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 	u64 ehar = 0;
 	int i;
@@ -1855,7 +1854,7 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 	netif_wake_queue(dev);			/* Let us get going again. */
 }
 
-MODULE_AUTHOR("Ralf Baechle <ralf@oss.sgi.com>");
+MODULE_AUTHOR("Ralf Baechle <ralf@linux-mips.org>");
 MODULE_DESCRIPTION("SGI IOC3 Ethernet driver");
 MODULE_LICENSE("GPL");
 
