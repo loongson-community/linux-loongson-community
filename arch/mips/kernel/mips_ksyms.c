@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.14 1999/02/09 22:54:10 adevries Exp $
+/* $Id: mips_ksyms.c,v 1.15 1999/02/15 02:16:51 ralf Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -108,7 +108,6 @@ int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
 int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
 
 #ifdef CONFIG_MIPS_FPE_MODULE
-EXPORT_SYMBOL(force_sig);
 EXPORT_SYMBOL(__compute_return_epc);
 EXPORT_SYMBOL(register_fpe);
 EXPORT_SYMBOL(unregister_fpe);
