@@ -350,7 +350,7 @@ static void r4k_flush_cache_range_d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		blast_dcache16(); blast_icache16();
 	}
 }
@@ -361,7 +361,7 @@ static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		blast_dcache32(); blast_icache32();
 	}
 }

@@ -118,14 +118,14 @@ static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_contexT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s16d16i16();
 		} else {
 			pgd_t *pgd;
@@ -150,14 +150,14 @@ static void r4k_flush_cache_range_s32d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s32d16i16();
 		} else {
 			pgd_t *pgd;
@@ -183,14 +183,14 @@ static void r4k_flush_cache_range_s64d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if(vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s64d16i16();
 		} else {
 			pgd_t *pgd;
@@ -216,14 +216,14 @@ static void r4k_flush_cache_range_s128d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s128d16i16();
 		} else {
 			pgd_t *pgd;
@@ -249,14 +249,14 @@ static void r4k_flush_cache_range_s32d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s32d32i32();
 		} else {
 			pgd_t *pgd;
@@ -281,14 +281,14 @@ static void r4k_flush_cache_range_s64d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s64d32i32();
 		} else {
 			pgd_t *pgd;
@@ -314,14 +314,14 @@ static void r4k_flush_cache_range_s128d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (CPU_CONTEXT(smp_processor_id(), mm) !=
-		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+		if (cpu_context(smp_processor_id(), mm) !=
+		    cpu_context(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s128d32i32();
 		} else {
 			pgd_t *pgd;
@@ -346,7 +346,7 @@ static void r4k_flush_cache_range_d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		blast_dcache16(); blast_icache16();
 	}
 }
@@ -356,7 +356,7 @@ static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		blast_dcache32(); blast_icache32();
 	}
 }

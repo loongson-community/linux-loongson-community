@@ -153,13 +153,13 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 
 	__save_and_cli(flags);
 	cpu = smp_processor_id();
-	if (CPU_CONTEXT(cpu, mm) != 0) {
+	if (cpu_context(cpu, mm) != 0) {
 		int size;
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if (size <= (mips_cpu.tlbsize/2)) {
 			int oldpid = (get_entryhi() & 0xff);
-			int newpid = (CPU_CONTEXT(cpu, mm) & 0xff);
+			int newpid = (cpu_context(cpu, mm) & 0xff);
 
 			start &= (PAGE_MASK << 1);
 			end += ((PAGE_SIZE << 1) - 1);
