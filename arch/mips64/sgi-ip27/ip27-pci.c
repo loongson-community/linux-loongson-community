@@ -18,7 +18,7 @@
 /*
  * Max #PCI busses we can handle; ie, max #PCI bridges.
  */
-#define MAX_PCI_BUSSES		20
+#define MAX_PCI_BUSSES		40
 
 /*
  * Max #PCI devices (like scsi controllers) we handle on a bus.
