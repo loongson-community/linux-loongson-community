@@ -1359,7 +1359,7 @@ static inline void __init setup_scache(unsigned int config)
 	case CPU_R5000:
 	case CPU_NEVADA:
 			setup_noscache_funcs();
-#if defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
+#if defined(CONFIG_R5000_CPU_SCACHE)
 			r5k_sc_init();
 #endif
 			break;

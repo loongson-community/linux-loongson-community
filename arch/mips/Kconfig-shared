@@ -804,10 +804,15 @@ config CPU_SB1
 
 endchoice
 
+config R5000_CPU_SCACHE
+	bool
+	depends on CPU_NEVADA || CPU_R5000
+	default y if SGI_IP32 || LASAT
+
 config BOARD_SCACHE
 	bool
 	depends on CPU_NEVADA || CPU_R4X00 || CPU_R5000
-	default y if SGI_IP22 || (SGI_IP32 && CPU_R5000)
+	default y if SGI_IP22 || (SGI_IP32 && CPU_R5000) || R5000_CPU_SCACHE
 
 config CPU_HAS_PREFETCH
 	bool "Enable prefetches" if CPU_SB1 && !CPU_SB1_PASS_2
