@@ -199,9 +199,9 @@ static void mask_and_ack_crime_irq (unsigned int irq)
 	unsigned long flags;
 
 	/* Edge triggered interrupts must be cleared. */
-	if ((irq <= CRIME_GBE0_IRQ && irq >= CRIME_GBE3_IRQ)
-	    || (irq <= CRIME_RE_EMPTY_E_IRQ && irq >= CRIME_RE_IDLE_E_IRQ)
-	    || (irq <= CRIME_SOFT0_IRQ && irq >= CRIME_SOFT2_IRQ)) {
+	if ((irq >= CRIME_GBE0_IRQ && irq <= CRIME_GBE3_IRQ)
+	    || (irq >= CRIME_RE_EMPTY_E_IRQ && irq <= CRIME_RE_IDLE_E_IRQ)
+	    || (irq >= CRIME_SOFT0_IRQ && irq <= CRIME_SOFT2_IRQ)) {
 		save_and_cli(flags);
 		crime_mask = crime_read_64(CRIME_HARD_INT);
 		crime_mask &= ~(1 << (irq - 1));
@@ -473,9 +473,18 @@ static void ip32_unknown_interrupt (struct pt_regs *regs)
 /* CRIME 1.1 appears to deliver all interrupts to this one pin. */
 void ip32_irq0(struct pt_regs *regs)
 {
-	u64 crime_int = crime_read_64 (CRIME_INT_STAT);
+	u64 crime_int;
+	u64 crime_mask;
 	int irq = 0;
-	
+	unsigned long flags;
+
+	save_and_cli (flags);
+	/* disable crime interrupts */
+	crime_mask = crime_read_64(CRIME_INT_MASK);
+	crime_write_64(CRIME_INT_MASK, 0);
+
+	crime_int = crime_read_64(CRIME_INT_STAT);
+
 	if (crime_int & CRIME_MACE_INT_MASK) {
 		crime_int &= CRIME_MACE_INT_MASK;
 		irq = ffs (crime_int);
@@ -498,6 +507,10 @@ void ip32_irq0(struct pt_regs *regs)
 		ip32_unknown_interrupt(regs);
 	DBG("*irq %u*\n", irq);
 	do_IRQ(irq, regs);
+
+	/* enable crime interrupts */
+	crime_write_64(CRIME_INT_MASK, crime_mask);
+	restore_flags (flags);
 }
 
 void ip32_irq1(struct pt_regs *regs)
