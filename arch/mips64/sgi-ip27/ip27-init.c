@@ -295,14 +295,10 @@ void per_hub_init(cnodeid_t cnode)
 	if (!(done = CNODEMASK_TSTB(hub_init_mask, cnode))) {
 		/* Turn our bit on in the mask. */
 		CNODEMASK_SETB(hub_init_mask, cnode);
-	}
-	spin_unlock(&hub_mask_lock);
-
-	/*
-	 * Do the actual initialization if it hasn't been done yet.
-	 * We don't need to hold a lock for this work.
-	 */
-	if (!done) {
+		/*
+	 	 * Do the actual initialization if it hasn't been done yet.
+	 	 * We don't need to hold a lock for this work.
+	 	 */
 		hub_rtc_init(cnode);
 		pcibr_setup(cnode); 
 #ifdef CONFIG_REPLICATE_EXHANDLERS
@@ -327,6 +323,7 @@ void per_hub_init(cnodeid_t cnode)
 		}
 #endif
 	}
+	spin_unlock(&hub_mask_lock);
 }
 
 /*
