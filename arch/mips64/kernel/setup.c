@@ -397,8 +397,8 @@ cpu_4kc:
 				mips_cpu.options |= MIPS_CPU_MIPS16;
 			if (config1 & 1)
 				mips_cpu.options |= MIPS_CPU_FPU;
-			break;
 			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
+			break;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
