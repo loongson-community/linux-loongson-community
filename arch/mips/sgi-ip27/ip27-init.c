@@ -44,9 +44,9 @@
 #define CNODEMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 #define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
 
-hubreg_t	region_mask;
+static hubreg_t region_mask;
 static int	fine_mode;
-int		maxcpus;
+static int maxcpus;
 static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
 static cnodemask_t hub_init_mask;
 static atomic_t numstarted = ATOMIC_INIT(1);
@@ -58,7 +58,7 @@ nasid_t		compact_to_nasid_node[MAX_COMPACT_NODES];
 cnodeid_t	cpuid_to_compact_node[MAXCPUS];
 char		node_distances[MAX_COMPACT_NODES][MAX_COMPACT_NODES];
 
-hubreg_t get_region(cnodeid_t cnode)
+static hubreg_t get_region(cnodeid_t cnode)
 {
 	if (fine_mode)
 		return COMPACT_TO_NASID_NODEID(cnode) >> NASID_TO_FINEREG_SHFT;
@@ -76,13 +76,13 @@ static void gen_region_mask(hubreg_t *region_mask, int maxnodes)
 	}
 }
 
-int is_fine_dirmode(void)
+static int is_fine_dirmode(void)
 {
 	return (((LOCAL_HUB_L(NI_STATUS_REV_ID) & NSRI_REGIONSIZE_MASK)
 		>> NSRI_REGIONSIZE_SHFT) & REGIONSIZE_FINE);
 }
 
-nasid_t get_actual_nasid(lboard_t *brd)
+static nasid_t get_actual_nasid(lboard_t *brd)
 {
 	klhub_t *hub;
 
@@ -99,7 +99,7 @@ nasid_t get_actual_nasid(lboard_t *brd)
 		return brd->brd_nasid;
 }
 
-int do_cpumask(cnodeid_t cnode, nasid_t nasid, int *highest)
+static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int *highest)
 {
 	static int tot_cpus_found = 0;
 	lboard_t *brd;
@@ -172,7 +172,7 @@ static cpuid_t cpu_node_probe(void)
 	return highest + 1;
 }
 
-int cpu_enabled(cpuid_t cpu)
+static int cpu_enabled(cpuid_t cpu)
 {
 	if (cpu == CPU_NONE)
 		return 0;
@@ -237,8 +237,8 @@ void mlreset(void)
 }
 
 
-void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend, int base_level,
-							char *name)
+static void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend,
+	int base_level, char *name)
 {
 	volatile hubreg_t bits;
 	int i;
@@ -250,7 +250,7 @@ void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend, int base_level,
 				LOCAL_HUB_CLR_INTR(base_level + i);
 }
 
-void intr_clear_all(nasid_t nasid)
+static void intr_clear_all(nasid_t nasid)
 {
 	REMOTE_HUB_S(nasid, PI_INT_MASK0_A, 0);
 	REMOTE_HUB_S(nasid, PI_INT_MASK0_B, 0);
@@ -262,7 +262,7 @@ void intr_clear_all(nasid_t nasid)
 		INT_PEND1_BASELVL, "INT_PEND1");
 }
 
-void sn_mp_setup(void)
+static void sn_mp_setup(void)
 {
 	cnodeid_t	cnode;
 #if 0
@@ -282,7 +282,7 @@ void sn_mp_setup(void)
 #endif
 }
 
-void per_hub_init(cnodeid_t cnode)
+static void per_hub_init(cnodeid_t cnode)
 {
 	extern void pcibr_setup(cnodeid_t);
 	cnodemask_t	done;
@@ -334,7 +334,7 @@ void per_hub_init(cnodeid_t cnode)
 /*
  * This is similar to hard_smp_processor_id().
  */
-cpuid_t getcpuid(void)
+static cpuid_t getcpuid(void)
 {
 	klcpu_t *klcpu;
 
@@ -473,7 +473,7 @@ void __init prom_cpus_done(void)
 
 #define	rou_rflag	rou_flags
 
-void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
+static void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 {
 	klrou_t *router;
 	lboard_t *brd;
@@ -509,7 +509,7 @@ void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 	router_a->rou_rflag = 0;
 }
 
-int node_distance(nasid_t nasid_a, nasid_t nasid_b)
+static int node_distance(nasid_t nasid_a, nasid_t nasid_b)
 {
 	nasid_t nasid;
 	cnodeid_t cnode;
@@ -576,7 +576,7 @@ int node_distance(nasid_t nasid_a, nasid_t nasid_b)
 	return router_distance;
 }
 
-void init_topology_matrix(void)
+static void init_topology_matrix(void)
 {
 	nasid_t nasid, nasid2;
 	cnodeid_t row, col;
@@ -594,7 +594,7 @@ void init_topology_matrix(void)
 	}
 }
 
-void dump_topology(void)
+static void dump_topology(void)
 {
 	nasid_t nasid;
 	cnodeid_t cnode;
