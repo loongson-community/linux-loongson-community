@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.9 2000/01/29 01:41:59 ralf Exp $
+/* $Id: scall_o32.S,v 1.10 2000/02/23 00:41:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -66,10 +66,10 @@ stack_done:
 1:	sw	v0, PT_R2(sp)		# result
 
 EXPORT(o32_ret_from_sys_call)
-	lw	t0,bh_mask
-	lw	t1,bh_active		# unused delay slot
-	and	t0,t1
-	bnez	t0,o32_handle_bottom_half
+	lw	t0, softirq_state
+	lw	t1, softirq_state+4	# unused delay slot
+	and	t0, t1
+	bnez	t0, o32_handle_softirq
 
 9:	lw	t0,PT_STATUS(sp)	# returning to kernel mode?
 	andi	t1, t0, KU_USER

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.25 2000/02/04 07:40:23 ralf Exp $
+/* $Id: init.c,v 1.26 2000/02/23 00:41:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -41,7 +41,6 @@
 
 static unsigned long totalram_pages = 0;
 
-extern void show_net_buffers(void);
 extern void prom_fixup_mem_map(unsigned long start, unsigned long end);
 extern void prom_free_prom_memory(void);
 
@@ -238,9 +237,6 @@ void show_mem(void)
 	printk("%ld pages in page table cache\n",pgtable_cache_size);
 	printk("%d free pages\n", free);
 	show_buffers();
-#ifdef CONFIG_NET
-	show_net_buffers();
-#endif
 }
 
 /* References to section boundaries */
