@@ -654,7 +654,7 @@ void __init trap_init(void)
 {
 	extern char except_vec0;
 	extern char except_vec1_r10k;
-	extern char except_vec2_generic, except_vec2_sb1;
+	extern char except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec4;
 	unsigned long i;
@@ -700,9 +700,12 @@ void __init trap_init(void)
 	switch(mips_cpu.cputype) {
         case CPU_SB1:
 #ifdef CONFIG_SB1_CACHE_ERROR
+		{
 		/* Special cache error handler for SB1 */
+		extern char except_vec2_sb1;
 		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
 		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+		}
 #endif
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_cp0_status(0xf000);
