@@ -20,6 +20,7 @@
 #include <asm/sgialib.h>
 #include <asm/sgi/ioc.h>
 #include <asm/sgi/hpc3.h>
+#include <asm/sgi/mc.h>
 #include <asm/sgi/ip22.h>
 
 /*
@@ -45,12 +46,12 @@ static void sgi_machine_restart(char *command) __attribute__((noreturn));
 static void sgi_machine_halt(void) __attribute__((noreturn));
 static void sgi_machine_power_off(void) __attribute__((noreturn));
 
-/* XXX How to pass the reboot command to the firmware??? */
 static void sgi_machine_restart(char *command)
 {
 	if (machine_state & MACHINE_SHUTTING_DOWN)
 		sgi_machine_power_off();
-	ArcReboot();
+	sgimc->cpuctrl0 |= SGIMC_CCTRL0_SYSINIT;
+	while (1);
 }
 
 static void sgi_machine_halt(void)
@@ -112,7 +113,7 @@ static void debounce(unsigned long data)
 	}
 
 	if (machine_state & MACHINE_PANICED)
-		ArcReboot();
+		sgimc->cpuctrl0 |= SGIMC_CCTRL0_SYSINIT;
 
 	enable_irq(SGI_PANEL_IRQ);
 }
