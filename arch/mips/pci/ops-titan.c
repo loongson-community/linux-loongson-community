@@ -120,16 +120,3 @@ struct pci_ops titan_pci_ops = {
 	titan_read_config,
 	titan_write_config,
 };
-
-void __init pcibios_init(void)
-{
-	/* 
-	 * XXX These values below need to change
-	 */
-	ioport_resource.start = 0xe0000000;
-	ioport_resource.end   = 0xe0000000 + 0x20000000 - 1;
-	iomem_resource.start  = 0xc0000000;
-	iomem_resource.end    = 0xc0000000 + 0x20000000 - 1;
-
-	pci_scan_bus(0, &titan_pci_ops, NULL);
-}
