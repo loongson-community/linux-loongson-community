@@ -53,6 +53,7 @@ struct pt_regs {
 
 #define save_static_function(symbol)                                    \
 __asm__ (                                                               \
+	".text\n\t"							\
         ".globl\t" #symbol "\n\t"                                       \
         ".align\t2\n\t"                                                 \
         ".type\t" #symbol ", @function\n\t"                             \
