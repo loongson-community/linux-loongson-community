@@ -262,7 +262,7 @@ static inline void * __ioremap_mode(phys_t offset, unsigned long size,
 
 static inline void iounmap(volatile void __iomem *addr)
 {
-	if (cpu_has_64bits)
+	if (cpu_has_64bit_addresses)
 		return;
 
 	__iounmap(addr);
