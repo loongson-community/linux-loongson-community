@@ -75,7 +75,7 @@
 
 /*
  * Private ioctls that de facto are well known and used for examply
- * by mii-tool.
+ * by mii-tool.  These are deprecated.
  */
 #define SIOCGMIIPHY (SIOCDEVPRIVATE)	/* Read from current PHY */
 #define SIOCGMIIREG (SIOCDEVPRIVATE+1)	/* Read any PHY register */
