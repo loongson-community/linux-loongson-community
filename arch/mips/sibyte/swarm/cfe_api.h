@@ -46,7 +46,7 @@ int cfe_write(int handle,unsigned char *buffer,int length);
 int cfe_ioctl(int handle,unsigned int ioctlnum,unsigned char *buffer,int length,int *retlen);
 int cfe_inpstat(int handle);
 int cfe_enumenv(int idx,char *name,int namelen,char *val,int vallen);
-int cfe_enummem(long idx, unsigned long *addr, unsigned long *size, long *type);
+int cfe_enummem(long idx, unsigned long long *addr, unsigned long long *size, long *type);
 int cfe_setenv(char *name,char *val);
 int cfe_getenv(char *name,char *dest,int destlen);
 long long cfe_getticks(void);

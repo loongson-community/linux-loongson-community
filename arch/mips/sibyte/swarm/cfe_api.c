@@ -253,7 +253,7 @@ int cfe_setenv(char *name,char *val)
 	return xiocb.xiocb_status;
 }
 
-int cfe_enummem(long idx, unsigned long *addr, unsigned long *size, long *type)
+int cfe_enummem(long idx, unsigned long long *addr, unsigned long long *size, long *type)
 {
 	cfe_xiocb_t xiocb;
 	xiocb.xiocb_fcode = CFE_CMD_FW_MEMENUM;
@@ -369,8 +369,18 @@ void cfe_open_console()
 
 void cfe_console_print(char *str)
 {
+	int len = strlen(str);
+	int res;
+
 	if (cfe_console_handle != -1) {
 		cfe_write(cfe_console_handle, str, strlen(str));
+		do {
+			res = cfe_writeblk(cfe_console_handle, 0, str, len);
+			if (res < 0)
+				break;
+			str += res;
+			len -= res;
+		} while (len);
 	}
 }
 

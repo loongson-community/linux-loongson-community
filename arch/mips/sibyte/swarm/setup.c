@@ -54,12 +54,21 @@ extern void *l3info;
 #endif
 
 /* Max ram addressable in 32-bit segments */
-#define MAX_RAM_SIZE (1024*1024*256)
+#ifdef CONFIG_HIGHMEM
+#ifdef CONFIG_64BIT_PHYS_ADDR
+/* #define MAX_RAM_SIZE (0xffffffffffffffff) */
+#define MAX_RAM_SIZE (0xffffffff)
+#else
+#define MAX_RAM_SIZE (0xffffffff)
+#endif
+#else
+#define MAX_RAM_SIZE (0xfffffff)
+#endif
 
 #ifndef CONFIG_SWARM_STANDALONE
 
-long swarm_mem_region_addrs[CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS];
-long swarm_mem_region_sizes[CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS];
+phys_t swarm_mem_region_addrs[CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS];
+phys_t swarm_mem_region_sizes[CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS];
 unsigned int swarm_mem_region_count;
 
 #endif
@@ -226,7 +235,7 @@ extern unsigned char __rd_end;
 
 static __init void prom_meminit(void)
 {
-	unsigned long addr, size;
+	unsigned long long addr, size; /* regardless of 64BIT_PHYS_ADDR */
 	long type;
 	unsigned int idx;
 	int rd_flag;
@@ -284,13 +293,11 @@ static __init void prom_meminit(void)
 			}
 #endif
 			if (!rd_flag) {
-				if (addr < MAX_RAM_SIZE) {
-					if (size > MAX_RAM_SIZE) {
-						size = MAX_RAM_SIZE - addr;
-					}
-					add_memory_region(addr, size,
-					                  BOOT_MEM_RAM);
-				}
+				if (addr > MAX_RAM_SIZE)
+					continue;
+				if (addr+size > MAX_RAM_SIZE)
+					size = MAX_RAM_SIZE - (addr+size) + 1;
+				add_memory_region(addr, size, BOOT_MEM_RAM);
 			}
 			swarm_mem_region_addrs[swarm_mem_region_count] = addr;
 			swarm_mem_region_sizes[swarm_mem_region_count] = size;
