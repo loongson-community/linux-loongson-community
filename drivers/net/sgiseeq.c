@@ -536,7 +536,7 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		struct sgiseeq_tx_desc *backend;
 
 		backend = &sp->srings.tx_desc[PREV_TX(sp->tx_new)];
-		backend->tdma.cntinfo &= ~(HPCDMA_EOX);
+		backend->tdma.cntinfo &= ~HPCDMA_EOX;
 	}
 	sp->tx_new = NEXT_TX(sp->tx_new); /* Advance. */
 
