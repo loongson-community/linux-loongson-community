@@ -58,12 +58,6 @@ void copy_page(void *to, void *from) __attribute__((alias("copy_page_array")));
 EXPORT_SYMBOL(copy_page);
 
 /*
- * An address fits into a single register so it's safe to use 64-bit registers
- * if we have 64-bit adresses.
- */
-#define cpu_has_64bit_registers	cpu_has_64bit_addresses
-
-/*
  * This is suboptimal for 32-bit kernels; we assume that R10000 is only used
  * with 64-bit kernels.  The prefetch offsets have been experimentally tuned
  * an Origin 200.
@@ -145,7 +139,7 @@ static inline void __build_load_reg(int reg)
 	union mips_instruction mi;
 	unsigned int width;
 
-	if (cpu_has_64bit_registers) {
+	if (cpu_has_64bit_gp_regs) {
 		mi.i_format.opcode     = ld_op;
 		width = 8;
 	} else {
@@ -229,7 +223,7 @@ static void __init __build_store_reg(int reg)
 	union mips_instruction mi;
 	unsigned int width;
 
-	if (cpu_has_64bit_registers ||
+	if (cpu_has_64bit_gp_regs ||
 	    (cpu_has_64bit_zero_reg && reg == 0)) {
 		mi.i_format.opcode     = sd_op;
 		width = 8;
@@ -266,7 +260,7 @@ static inline void build_addiu_a2_a0(unsigned long offset)
 
 	BUG_ON(offset > 0x7fff);
 
-	mi.i_format.opcode     = cpu_has_64bit_addresses ? daddiu_op : addiu_op;
+	mi.i_format.opcode     = cpu_has_64bit_gp_regs ? daddiu_op : addiu_op;
 	mi.i_format.rs         = 4;		/* $a0 */
 	mi.i_format.rt         = 6;		/* $a2 */
 	mi.i_format.simmediate = offset;
@@ -280,7 +274,7 @@ static inline void build_addiu_a1(unsigned long offset)
 
 	BUG_ON(offset > 0x7fff);
 
-	mi.i_format.opcode     = cpu_has_64bit_addresses ? daddiu_op : addiu_op;
+	mi.i_format.opcode     = cpu_has_64bit_gp_regs ? daddiu_op : addiu_op;
 	mi.i_format.rs         = 5;		/* $a1 */
 	mi.i_format.rt         = 5;		/* $a1 */
 	mi.i_format.simmediate = offset;
@@ -296,7 +290,7 @@ static inline void build_addiu_a0(unsigned long offset)
 
 	BUG_ON(offset > 0x7fff);
 
-	mi.i_format.opcode     = cpu_has_64bit_addresses ? daddiu_op : addiu_op;
+	mi.i_format.opcode     = cpu_has_64bit_gp_regs ? daddiu_op : addiu_op;
 	mi.i_format.rs         = 4;		/* $a0 */
 	mi.i_format.rt         = 4;		/* $a0 */
 	mi.i_format.simmediate = offset;
