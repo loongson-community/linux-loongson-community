@@ -17,7 +17,7 @@ static unsigned int shouldnt_happen(void)
 
 	if (!called) {
 		called = 1;
-		printk(KERN_DEBUG "RTC functions called - shouldn't happen");
+		printk(KERN_DEBUG "RTC functions called - shouldn't happen\n");
 	}
 
 	return 0;
