@@ -58,12 +58,13 @@ static void inline ioc3_console_probe(void)
 	 * the serial driver which we don't properly support yet.
 	 */
 	memset(&up, 0, sizeof(up));
-	up.membase         = (unsigned char *) console_uart();
-	up.irq             = 0;
-	up.uartclk         = IOC3_CLK;
-	up.regshift        = 0;
-	up.iotype          = UPIO_MEM;
-	up.flags           = IOC3_FLAGS;
+	up.membase	= (unsigned char *) console_uart();
+	up.irq		= 0;
+	up.uartclk	= IOC3_CLK;
+	up.regshift	= 0;
+	up.iotype	= UPIO_MEM;
+	up.flags	= IOC3_FLAGS;
+	up.line		= 0;
 
 	if (early_serial_setup(&up))
 		printk(KERN_ERR "Early serial init of port 0 failed\n");
