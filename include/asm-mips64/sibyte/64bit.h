@@ -34,7 +34,7 @@
  */
 static inline void __out64(u64 val, unsigned long addr)
 {
-	unsigned long tmp;
+	u64 tmp;
 
 	__asm__ __volatile__ (
 		"	.set	mips3				\n"
