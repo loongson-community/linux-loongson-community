@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10-rc3
-# Sun Dec 12 03:14:36 2004
+# Linux kernel version: 2.6.10
+# Mon Dec 27 02:58:56 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -706,6 +706,7 @@ CONFIG_USB_ARCH_HAS_OHCI=y
 # CONFIG_USB_EHCI_HCD is not set
 CONFIG_USB_OHCI_HCD=y
 # CONFIG_USB_UHCI_HCD is not set
+# CONFIG_USB_SL811_HCD is not set
 
 #
 # USB Device Class drivers
@@ -792,6 +793,11 @@ CONFIG_USB_HIDINPUT=y
 # USB Gadget Support
 #
 # CONFIG_USB_GADGET is not set
+
+#
+# MMC/SD Card support
+#
+# CONFIG_MMC is not set
 
 #
 # File systems

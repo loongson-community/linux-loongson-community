@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10-rc3
-# Sun Dec 12 03:14:44 2004
+# Linux kernel version: 2.6.10
+# Mon Dec 27 02:59:01 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -578,6 +578,11 @@ CONFIG_SOUND_IT8172=y
 # USB Gadget Support
 #
 # CONFIG_USB_GADGET is not set
+
+#
+# MMC/SD Card support
+#
+# CONFIG_MMC is not set
 
 #
 # File systems

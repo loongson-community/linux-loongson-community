@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10-rc3
-# Sun Dec 12 03:14:53 2004
+# Linux kernel version: 2.6.10
+# Mon Dec 27 02:59:08 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -58,6 +58,7 @@ CONFIG_KMOD=y
 #
 # CONFIG_MACH_JAZZ is not set
 CONFIG_MACH_VR41XX=y
+# CONFIG_NEC_CMBVR4133 is not set
 # CONFIG_CASIO_E55 is not set
 # CONFIG_IBM_WORKPAD is not set
 # CONFIG_TANBAC_TB0226 is not set
@@ -548,6 +549,11 @@ CONFIG_USB_ARCH_HAS_OHCI=y
 # USB Gadget Support
 #
 # CONFIG_USB_GADGET is not set
+
+#
+# MMC/SD Card support
+#
+# CONFIG_MMC is not set
 
 #
 # File systems

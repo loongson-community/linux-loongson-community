@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10-rc3
-# Sun Dec 12 03:14:42 2004
+# Linux kernel version: 2.6.10
+# Mon Dec 27 02:58:59 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -698,6 +698,11 @@ CONFIG_LOGO_SGI_CLUT224=y
 # CONFIG_USB_GADGET is not set
 
 #
+# MMC/SD Card support
+#
+# CONFIG_MMC is not set
+
+#
 # File systems
 #
 CONFIG_EXT2_FS=m
@@ -802,7 +807,7 @@ CONFIG_SMB_NLS_REMOTE="cp437"
 CONFIG_CIFS=m
 # CONFIG_CIFS_STATS is not set
 # CONFIG_CIFS_XATTR is not set
-# CONFIG_CIFS_POSIX is not set
+# CONFIG_CIFS_EXPERIMENTAL is not set
 # CONFIG_NCP_FS is not set
 CONFIG_CODA_FS=m
 # CONFIG_CODA_FS_OLD_API is not set
