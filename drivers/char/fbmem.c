@@ -83,6 +83,7 @@ extern void hpfb_init(void);
 extern void hpfb_setup(char *options, int *ints);
 extern void sbusfb_init(void);
 extern void sbusfb_setup(char *options, int *ints);
+extern void g364fb_init(void);
 
 static struct {
 	const char *name;
@@ -142,6 +143,9 @@ static struct {
 #endif 
 #ifdef CONFIG_FB_SBUS
 	{ "sbus", sbusfb_init, sbusfb_setup },
+#endif
+#ifdef CONFIG_FB_G364
+	{ "g364", g364fb_init, NULL },
 #endif
 #ifdef CONFIG_GSP_RESOLVER
 	/* Not a real frame buffer device... */
@@ -423,6 +427,9 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 #elif defined(__i386__)
 	if (boot_cpu_data.x86 > 3)
 		pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
+#elif defined(__mips__)
+	pgprot_val(vma->vm_page_prot) &= ~_CACHE_MASK;
+	pgprot_val(vma->vm_page_prot) |= _CACHE_UNCACHED;
 #else
 #warning What do we have to do here??
 #endif
