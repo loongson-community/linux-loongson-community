@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 5
-SUBLEVEL = 38
+SUBLEVEL = 39
 EXTRAVERSION =
 
 # *DOCUMENTATION*
@@ -138,6 +138,7 @@ OBJDUMP		= $(CROSS_COMPILE)objdump
 MAKEFILES	= $(TOPDIR)/.config
 GENKSYMS	= /sbin/genksyms
 DEPMOD		= /sbin/depmod
+KALLSYMS	= /sbin/kallsyms
 PERL		= perl
 MODFLAGS	= -DMODULE
 CFLAGS_MODULE   = $(MODFLAGS)
@@ -171,6 +172,9 @@ noconfig_targets := xconfig menuconfig config oldconfig randconfig \
 		    clean mrproper distclean \
 		    help tags TAGS sgmldocs psdocs pdfdocs htmldocs \
 		    checkconfig checkhelp checkincludes
+
+RCS_FIND_IGNORE := \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \) -prune -o
+RCS_TAR_IGNORE := --exclude SCCS --exclude BitKeeper --exclude .svn --exclude CVS
 
 # Helpers built in scripts/
 # ---------------------------------------------------------------------------
@@ -291,32 +295,64 @@ boot: vmlinux
 vmlinux-objs := $(HEAD) $(INIT) $(CORE_FILES) $(LIBS) $(DRIVERS) $(NETWORKS)
 
 quiet_cmd_link_vmlinux = LD      $@
-cmd_link_vmlinux = $(LD) $(LDFLAGS) $(LDFLAGS_$(@F)) $(HEAD) $(INIT) \
-		--start-group \
-		$(CORE_FILES) \
-		$(LIBS) \
-		$(DRIVERS) \
-		$(NETWORKS) \
-		--end-group \
-		-o vmlinux
+define cmd_link_vmlinux
+	$(LD) $(LDFLAGS) $(LDFLAGS_vmlinux) $(HEAD) $(INIT) \
+	--start-group \
+	$(CORE_FILES) \
+	$(LIBS) \
+	$(DRIVERS) \
+	$(NETWORKS) \
+	--end-group \
+	$(filter $(kallsyms.o),$^) \
+	-o $@
+endef
 
 #	set -e makes the rule exit immediately on error
 
-define rule_link_vmlinux
+define rule_vmlinux
 	set -e
 	echo '  Generating build number'
-	. scripts/mkversion > .tmpversion
-	mv -f .tmpversion .version
+	. scripts/mkversion > .tmp_version
+	mv -f .tmp_version .version
 	+$(MAKE) -C init
 	$(call cmd,link_vmlinux)
 	echo 'cmd_$@ := $(cmd_link_vmlinux)' > $(@D)/.$(@F).cmd
-	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System.map
+	$(NM) $@ | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System.map
 endef
 
 LDFLAGS_vmlinux += -T arch/$(ARCH)/vmlinux.lds.s
 
-vmlinux: $(vmlinux-objs) arch/$(ARCH)/vmlinux.lds.s FORCE
-	$(call if_changed_rule,link_vmlinux)
+#	Generate section listing all symbols and add it into vmlinux
+
+ifdef CONFIG_KALLSYMS
+
+kallsyms.o := .tmp_kallsyms.o
+
+quiet_cmd_kallsyms = KSYM    $@
+cmd_kallsyms = $(KALLSYMS) $< > $@
+
+.tmp_kallsyms.o: .tmp_vmlinux
+	$(call cmd,kallsyms)
+
+# 	After generating .tmp_vmlinux just like vmlinux, decrement the version
+#	number again, so the final vmlinux gets the same one.
+#	Ignore return value of 'expr'.
+
+define rule_.tmp_vmlinux
+	$(rule_vmlinux)
+	if expr 0`cat .version` - 1 > .tmp_version; then true; fi
+	mv -f .tmp_version .version
+endef
+
+.tmp_vmlinux: $(vmlinux-objs) arch/$(ARCH)/vmlinux.lds.s FORCE
+	$(call if_changed_rule,.tmp_vmlinux)
+
+endif
+
+#	Finally the vmlinux rule
+
+vmlinux: $(vmlinux-objs) $(kallsyms.o) arch/$(ARCH)/vmlinux.lds.s FORCE
+	$(call if_changed_rule,vmlinux)
 
 #	The actual objects are generated when descending, 
 #	make sure no implicit rule kicks in
@@ -436,7 +472,8 @@ include/linux/modversions.h: scripts/fixdep prepare FORCE
 	@( echo "#ifndef _LINUX_MODVERSIONS_H";\
 	   echo "#define _LINUX_MODVERSIONS_H"; \
 	   echo "#include <linux/modsetver.h>"; \
-	   for f in `cd .tmp_export-objs; find modules -name SCCS -prune -o -name BitKeeper -prune -o -name \*.ver -print | sort`; do \
+	   cd .tmp_export-objs >/dev/null; \
+	   for f in `find modules -name \*.ver -print | sort`; do \
 	     echo "#include <linux/$${f}>"; \
 	   done; \
 	   echo "#endif"; \
@@ -547,13 +584,13 @@ spec:
 #	   will become invalid
 
 rpm:	clean spec
-	find . -name SCCS -prune -o -name BitKeeper -prune -o \
+	find . $(RCS_FIND_IGNORE) \
 		\( -size 0 -o -name .depend -o -name .hdepend \) \
 		-type f -print | xargs rm -f
 	set -e; \
 	cd $(TOPDIR)/.. ; \
 	ln -sf $(TOPDIR) $(KERNELPATH) ; \
-	tar -cvz --exclude CVS -f $(KERNELPATH).tar.gz $(KERNELPATH)/. ; \
+	tar -cvz $(RCS_TAR_IGNORE) -f $(KERNELPATH).tar.gz $(KERNELPATH)/. ; \
 	rm $(KERNELPATH) ; \
 	cd $(TOPDIR) ; \
 	. scripts/mkversion > .version ; \
@@ -684,7 +721,7 @@ include arch/$(ARCH)/Makefile
 
 clean:	archclean
 	@echo 'Cleaning up'
-	@find . -name SCCS -prune -o -name BitKeeper -prune -o \
+	@find . $(RCS_FIND_IGNORE) \
 		\( -name \*.[oas] -o -name core -o -name .\*.cmd -o \
 		-name .\*.tmp -o -name .\*.d \) -type f -print \
 		| grep -v lxdialog/ | xargs rm -f
@@ -693,7 +730,7 @@ clean:	archclean
 
 mrproper: clean archmrproper
 	@echo 'Making mrproper'
-	@find . -name SCCS -prune -o -name BitKeeper -prune -o \
+	@find . $(RCS_FIND_IGNORE) \
 		\( -name .depend -o -name .\*.cmd \) \
 		-type f -print | xargs rm -f
 	@rm -f $(MRPROPER_FILES)
@@ -703,7 +740,7 @@ mrproper: clean archmrproper
 
 distclean: mrproper
 	@echo 'Making distclean'
-	@find . -name SCCS -prune -o -name BitKeeper -prune -o \
+	@find . $(RCS_FIND_IGNORE) \
 		\( -not -type d \) -and \
 	 	\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
@@ -713,25 +750,38 @@ distclean: mrproper
 # Generate tags for editors
 # ---------------------------------------------------------------------------
 
-TAGS: FORCE
-	{ find include/asm-${ARCH} -name SCCS -prune -o -name BitKeeper -prune \
-		-o -name '*.h' -print ; \
-	find include -name SCCS -prune -o -name BitKeeper -prune -o \
-		-type d \( -name "asm-*" -o -name config \) -prune -o \
-		-name '*.h' -print ; \
-	find $(SUBDIRS) init arch/${ARCH} \
-		-name SCCS -prune -o -name BitKeeper -prune -o \
-		-name '*.[chS]' -print ; } | grep -v SCCS | etags -
+define all-sources
+	( find . $(RCS_FIND_IGNORE) \
+	       \( -name include -o -name arch \) -prune -o \
+	       -name '*.[chS]' -print; \
+	  find arch/$(ARCH) $(RCS_FIND_IGNORE) \
+	       -name '*.[chS]' -print; \
+	  find include $(RCS_FIND_IGNORE) \
+	       \( -name config -o -name 'asm-*' \) -prune -o \
+	       -o -name '*.[chS]' -print; \
+	  find include/asm-$(ARCH) $(RCS_FIND_IGNORE) \
+	       -name '*.[chS]' -print; \
+	  find include/asm-generic $(RCS_FIND_IGNORE) \
+	       -name '*.[chS]' -print )
+endef
+
+quiet_cmd_TAGS = MAKE   $@
+cmd_TAGS = $(all-sources) | etags -
 
 # 	Exuberant ctags works better with -I
-tags: FORCE
+
+quiet_cmd_tags = MAKE   $@
+define cmd_tags
+	rm -f $@; \
 	CTAGSF=`ctags --version | grep -i exuberant >/dev/null && echo "-I __initdata,__exitdata,EXPORT_SYMBOL,EXPORT_SYMBOL_NOVERS"`; \
-	ctags $$CTAGSF `find include/asm-$(ARCH) -name SCCS -prune -o -name BitKeeper -prune -o -name '*.h' -print` && \
-	find include -name SCCS -prune -o -name BitKeeper -prune -o \
-		-type d \( -name "asm-*" -o -name config \) -prune -o \
-		-name '*.h' -print | xargs ctags $$CTAGSF -a && \
-	find $(SUBDIRS) init -name SCCS -prune -o -name BitKeeper -prune -o \
-		-name '*.[ch]' -print | xargs ctags $$CTAGSF -a
+	$(all-sources) | xargs ctags $$CTAGSF -a
+endef
+
+TAGS: FORCE
+	$(call cmd,TAGS)
+
+tags: FORCE
+	$(call cmd,tags)
 
 # Brief documentation of the typical targets used
 # ---------------------------------------------------------------------------
@@ -779,17 +829,17 @@ sgmldocs psdocs pdfdocs htmldocs: scripts
 # ---------------------------------------------------------------------------
 
 checkconfig:
-	find * -name SCCS -prune -o -name BitKeeper -prune -o \
+	find * $(RCS_FIND_IGNORE) \
 		-name '*.[hcS]' -type f -print | sort \
 		| xargs $(PERL) -w scripts/checkconfig.pl
 
 checkhelp:
-	find * -name SCCS -prune -o -name BitKeeper -prune -o \
+	find * $(RCS_FIND_IGNORE) \
 		-name [cC]onfig.in -print | sort \
 		| xargs $(PERL) -w scripts/checkhelp.pl
 
 checkincludes:
-	find * -name SCCS -prune -o -name BitKeeper -prune -o \
+	find * $(RCS_FIND_IGNORE) \
 		-name '*.[hcS]' -type f -print | sort \
 		| xargs $(PERL) -w scripts/checkincludes.pl
 
@@ -807,7 +857,7 @@ endif # ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
 
 # FIXME Should go into a make.lib or something 
 # ===========================================================================
-echo_target = $(RELDIR)/$@
+echo_target = $@
 
 a_flags = -Wp,-MD,$(depfile) $(AFLAGS) $(NOSTDINC_FLAGS) \
 	  $(modkern_aflags) $(EXTRA_AFLAGS) $(AFLAGS_$(*F).o)

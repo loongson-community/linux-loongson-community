@@ -60,8 +60,8 @@
  *      ->swap_list_lock
  *        ->swap_device_lock	(exclusive_swap_page, others)
  *          ->mapping->page_lock
- *      ->inode_lock		(__mark_inode_dirty)
- *        ->sb_lock		(fs/fs-writeback.c)
+ *  ->inode_lock
+ *    ->sb_lock			(fs/fs-writeback.c)
  */
 
 /*
@@ -632,19 +632,15 @@ static inline wait_queue_head_t *page_waitqueue(struct page *page)
 void wait_on_page_bit(struct page *page, int bit_nr)
 {
 	wait_queue_head_t *waitqueue = page_waitqueue(page);
-	struct task_struct *tsk = current;
-	DECLARE_WAITQUEUE(wait, tsk);
+	DEFINE_WAIT(wait);
 
-	add_wait_queue(waitqueue, &wait);
 	do {
-		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
-		if (!test_bit(bit_nr, &page->flags))
-			break;
+		prepare_to_wait(waitqueue, &wait, TASK_UNINTERRUPTIBLE);
 		sync_page(page);
-		schedule();
+		if (test_bit(bit_nr, &page->flags))
+			schedule();
 	} while (test_bit(bit_nr, &page->flags));
-	__set_task_state(tsk, TASK_RUNNING);
-	remove_wait_queue(waitqueue, &wait);
+	finish_wait(waitqueue, &wait);
 }
 EXPORT_SYMBOL(wait_on_page_bit);
 
@@ -690,38 +686,27 @@ void end_page_writeback(struct page *page)
 EXPORT_SYMBOL(end_page_writeback);
 
 /*
- * Get a lock on the page, assuming we need to sleep
- * to get it..
+ * Get a lock on the page, assuming we need to sleep to get it.
+ *
+ * Ugly: running sync_page() in state TASK_UNINTERRUPTIBLE is scary.  If some
+ * random driver's requestfn sets TASK_RUNNING, we could busywait.  However
+ * chances are that on the second loop, the block layer's plug list is empty,
+ * so sync_page() will then return in state TASK_UNINTERRUPTIBLE.
  */
-static void __lock_page(struct page *page)
+void __lock_page(struct page *page)
 {
-	wait_queue_head_t *waitqueue = page_waitqueue(page);
-	struct task_struct *tsk = current;
-	DECLARE_WAITQUEUE(wait, tsk);
+	wait_queue_head_t *wqh = page_waitqueue(page);
+	DEFINE_WAIT(wait);
 
-	add_wait_queue_exclusive(waitqueue, &wait);
-	for (;;) {
-		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
-		if (PageLocked(page)) {
-			sync_page(page);
+	while (TestSetPageLocked(page)) {
+		prepare_to_wait(wqh, &wait, TASK_UNINTERRUPTIBLE);
+		sync_page(page);
+		if (PageLocked(page))
 			schedule();
-		}
-		if (!TestSetPageLocked(page))
-			break;
 	}
-	__set_task_state(tsk, TASK_RUNNING);
-	remove_wait_queue(waitqueue, &wait);
+	finish_wait(wqh, &wait);
 }
-
-/*
- * Get an exclusive lock on the page, optimistically
- * assuming it's not locked..
- */
-void lock_page(struct page *page)
-{
-	if (TestSetPageLocked(page))
-		__lock_page(page);
-}
+EXPORT_SYMBOL(__lock_page);
 
 /*
  * a rather lightweight function, finding and getting a reference to a
@@ -1643,7 +1628,7 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
 
 static inline int
 __filemap_copy_from_user_iovec(char *vaddr, 
-			const struct iovec *iov, size_t base, unsigned bytes)
+			const struct iovec *iov, size_t base, size_t bytes)
 {
 	int left = 0;
 
@@ -1662,7 +1647,7 @@ __filemap_copy_from_user_iovec(char *vaddr,
 
 static inline int
 filemap_copy_from_user_iovec(struct page *page, unsigned long offset,
-			const struct iovec *iov, size_t base, unsigned bytes)
+			const struct iovec *iov, size_t base, size_t bytes)
 {
 	char *kaddr;
 	int left;
@@ -1679,7 +1664,7 @@ filemap_copy_from_user_iovec(struct page *page, unsigned long offset,
 }
 
 static inline void
-filemap_set_next_iovec(const struct iovec **iovp, size_t *basep, unsigned bytes)
+filemap_set_next_iovec(const struct iovec **iovp, size_t *basep, size_t bytes)
 {
 	const struct iovec *iov = *iovp;
 	size_t base = *basep;
@@ -1723,11 +1708,11 @@ generic_file_write_nolock(struct file *file, const struct iovec *iov,
 	struct page	*cached_page = NULL;
 	ssize_t		written;
 	int		err;
-	unsigned	bytes;
+	size_t		bytes;
 	time_t		time_now;
 	struct pagevec	lru_pvec;
 	const struct iovec *cur_iov = iov; /* current iovec */
-	unsigned	iov_base = 0;	   /* offset in the current iovec */
+	size_t		iov_base = 0;	   /* offset in the current iovec */
 	unsigned long	seg;
 	char		*buf;
 
@@ -1754,6 +1739,9 @@ generic_file_write_nolock(struct file *file, const struct iovec *iov,
 	pos = *ppos;
 	if (unlikely(pos < 0))
 		return -EINVAL;
+
+	/* We can write back this queue in page reclaim */
+	current->backing_dev_info = mapping->backing_dev_info;
 
 	pagevec_init(&lru_pvec);
 
@@ -1959,6 +1947,7 @@ out_status:
 	err = written ? written : status;
 out:
 	pagevec_lru_add(&lru_pvec);
+	current->backing_dev_info = 0;
 	return err;
 }
 

@@ -118,14 +118,16 @@ static inline int kernel_text_address(long addr)
  * This routine abuses get_user()/put_user() to reference pointers
  * with at least a bit of error checking ...
  */
-void show_stack(long *sp)
+void show_stack(unsigned long *sp)
 {
 	int i;
 	long stackdata;
 
+	sp = sp ? sp : (unsigned long *) &sp;
+
 	printk("Stack:");
 	i = 0;
-	while ((long) sp & (PAGE_SIZE - 1)) {
+	while ((unsigned long) sp & (PAGE_SIZE - 1)) {
 		if (i && ((i % 4) == 0))
 			printk("\n      ");
 		if (i > 40) {
@@ -144,7 +146,7 @@ void show_stack(long *sp)
 	printk("\n");
 }
 
-void show_trace(long *sp)
+void show_trace(unsigned long *sp)
 {
 	int i;
 	long addr;

@@ -65,9 +65,7 @@ int llc_conn_ac_conn_ind(struct sock *sk, struct sk_buff *skb)
 		llc_pdu_decode_sa(skb, llc->daddr.mac);
 		llc_pdu_decode_da(skb, llc->laddr.mac);
 		llc->dev = skb->dev;
-		/* FIXME: find better way to notify upper layer */
-		ev->flag     = LLC_CONN_PRIM + 1;
-		ev->ind_prim = (void *)1;
+		ev->ind_prim = LLC_CONN_PRIM;
 		rc = 0;
 	}
 	return rc;
@@ -77,8 +75,7 @@ int llc_conn_ac_conn_confirm(struct sock *sk, struct sk_buff *skb)
 {
 	struct llc_conn_state_ev *ev = llc_conn_ev(skb);
 
-	ev->flag     = LLC_CONN_PRIM + 1;
-	ev->cfm_prim = (void *)1;
+	ev->cfm_prim = LLC_CONN_PRIM;
 	return 0;
 }
 
@@ -86,12 +83,7 @@ static int llc_conn_ac_data_confirm(struct sock *sk, struct sk_buff *skb)
 {
 	struct llc_conn_state_ev *ev = llc_conn_ev(skb);
 
-	/*
-	 * FIXME: find better way to tell upper layer that the packet was
-	 * confirmed by the other endpoint
-	 */
-	ev->flag     = LLC_DATA_PRIM + 1;
-	ev->cfm_prim = (void *)1;
+	ev->cfm_prim = LLC_DATA_PRIM;
 	return 0;
 }
 
@@ -129,15 +121,8 @@ int llc_conn_ac_disc_ind(struct sock *sk, struct sk_buff *skb)
 		rc = 1;
 	}
 	if (!rc) {
-		/*
-		 * FIXME: ev needs reason field,
-		 * perhaps the ev->status is enough,
-		 * have to check,
-		 * better way to signal its a disc
-		 */
-		/* prim_data->disc.reason = reason; */
-		ev->flag     = LLC_DISC_PRIM + 1;
-		ev->ind_prim = (void *)1;
+		ev->reason   = reason;
+		ev->ind_prim = LLC_DISC_PRIM;
 	}
 	return rc;
 }
@@ -146,10 +131,8 @@ int llc_conn_ac_disc_confirm(struct sock *sk, struct sk_buff *skb)
 {
 	struct llc_conn_state_ev *ev = llc_conn_ev(skb);
 
-	/* here we use the ev->status, humm */
-	/* prim_data->disc.reason = ev->status; */
-	ev->flag     = LLC_DISC_PRIM + 1;
-	ev->cfm_prim = (void *)1;
+	ev->reason   = ev->status;
+	ev->cfm_prim = LLC_DISC_PRIM;
 	return 0;
 }
 
@@ -191,18 +174,8 @@ int llc_conn_ac_rst_ind(struct sock *sk, struct sk_buff *skb)
 			break;
 	}
 	if (!rc) {
-		struct llc_sap *sap = llc->sap;
-		struct llc_prim_if_block *prim = &sap->llc_ind_prim;
-		union llc_u_prim_data *prim_data = prim->data;
-
-		prim_data->res.sk     = sk;
-		prim_data->res.reason = reason;
-		prim_data->res.link   = llc->link;
-		prim->data	      = prim_data;
-		prim->prim	      = LLC_RESET_PRIM;
-		prim->sap	      = sap;
-		ev->flag	      = 1;
-		ev->ind_prim	      = prim;
+		ev->reason   = reason;
+		ev->ind_prim = LLC_RESET_PRIM;
 	}
 	return rc;
 }
@@ -210,18 +183,9 @@ int llc_conn_ac_rst_ind(struct sock *sk, struct sk_buff *skb)
 int llc_conn_ac_rst_confirm(struct sock *sk, struct sk_buff *skb)
 {
 	struct llc_conn_state_ev *ev = llc_conn_ev(skb);
-	struct llc_opt *llc = llc_sk(sk);
-	struct llc_sap *sap = llc->sap;
-	struct llc_prim_if_block *prim = &sap->llc_cfm_prim;
-	union llc_u_prim_data *prim_data = prim->data;
 
-	prim_data->res.sk   = sk;
-	prim_data->res.link = llc->link;
-	prim->data	    = prim_data;
-	prim->prim	    = LLC_RESET_PRIM;
-	prim->sap	    = sap;
-	ev->flag	    = 1;
-	ev->cfm_prim	    = prim;
+	ev->reason   = 0;
+	ev->cfm_prim = LLC_RESET_PRIM;
 	return 0;
 }
 
@@ -813,6 +777,16 @@ int llc_conn_ac_send_ack_xxx_x_set_0(struct sock *sk, struct sk_buff *skb)
 	return rc;
 }
 
+void llc_conn_set_p_flag(struct sock *sk, u8 value)
+{
+	int state_changed = llc_sk(sk)->p_flag && !value;
+
+	llc_sk(sk)->p_flag = value;
+
+	if (state_changed)
+		sk->state_change(sk);
+}
+
 int llc_conn_ac_send_sabme_cmd_p_set_x(struct sock *sk, struct sk_buff *skb)
 {
 	int rc = 1;
@@ -834,7 +808,8 @@ int llc_conn_ac_send_sabme_cmd_p_set_x(struct sock *sk, struct sk_buff *skb)
 		rc = 0;
 		llc_conn_send_pdu(sk, nskb);
 	}
-	llc->p_flag = p_bit;
+	llc_conn_set_p_flag(sk, p_bit);
+
 	return rc;
 }
 
@@ -897,7 +872,7 @@ int llc_conn_ac_start_p_timer(struct sock *sk, struct sk_buff *skb)
 {
 	struct llc_opt *llc = llc_sk(sk);
 
-	llc->p_flag = 1;
+	llc_conn_set_p_flag(sk, 1);
 	mod_timer(&llc->pf_cycle_timer.timer,
 		  jiffies + llc->pf_cycle_timer.expire * HZ);
 	return 0;
@@ -1205,7 +1180,7 @@ int llc_conn_ac_stop_p_timer(struct sock *sk, struct sk_buff *skb)
 	struct llc_opt *llc = llc_sk(sk);
 
 	del_timer(&llc->pf_cycle_timer.timer);
-	llc->p_flag = 0;
+	llc_conn_set_p_flag(sk, 0);
 	return 0;
 }
 
@@ -1259,7 +1234,7 @@ int llc_conn_ac_upd_p_flag(struct sock *sk, struct sk_buff *skb)
 
 		llc_pdu_decode_pf_bit(skb, &f_bit);
 		if (f_bit) {
-			llc_sk(sk)->p_flag = 0;
+			llc_conn_set_p_flag(sk, 0);
 			llc_conn_ac_stop_p_timer(sk, skb);
 		}
 	}
@@ -1294,13 +1269,13 @@ int llc_conn_ac_set_data_flag_1_if_data_flag_eq_0(struct sock *sk,
 
 int llc_conn_ac_set_p_flag_0(struct sock *sk, struct sk_buff *skb)
 {
-	llc_sk(sk)->p_flag = 0;
+	llc_conn_set_p_flag(sk, 0);
 	return 0;
 }
 
 int llc_conn_ac_set_p_flag_1(struct sock *sk, struct sk_buff *skb)
 {
-	llc_sk(sk)->p_flag = 1;
+	llc_conn_set_p_flag(sk, 1);
 	return 0;
 }
 

@@ -53,6 +53,8 @@ static pidmap_t pidmap_array[PIDMAP_ENTRIES] =
 
 static pidmap_t *map_limit = pidmap_array + PIDMAP_ENTRIES;
 
+static spinlock_t pidmap_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
+
 inline void free_pidmap(int pid)
 {
 	pidmap_t *map = pidmap_array + pid / BITS_PER_PAGE;
@@ -77,8 +79,13 @@ static inline pidmap_t *next_free_map(pidmap_t *map, int *max_steps)
 			 * Free the page if someone raced with us
 			 * installing it:
 			 */
-			if (cmpxchg(&map->page, NULL, (void *) page))
+			spin_lock(&pidmap_lock);
+			if (map->page)
 				free_page(page);
+			else
+				map->page = (void *)page;
+			spin_unlock(&pidmap_lock);
+
 			if (!map->page)
 				break;
 		}
@@ -142,12 +149,19 @@ inline struct pid *find_pid(enum pid_type type, int nr)
 	struct list_head *elem, *bucket = &pid_hash[type][pid_hashfn(nr)];
 	struct pid *pid;
 
-	list_for_each_noprefetch(elem, bucket) {
+	__list_for_each(elem, bucket) {
 		pid = list_entry(elem, struct pid, hash_chain);
 		if (pid->nr == nr)
 			return pid;
 	}
 	return NULL;
+}
+
+void link_pid(task_t *task, struct pid_link *link, struct pid *pid)
+{
+	atomic_inc(&pid->count);
+	list_add_tail(&link->pid_chain, &pid->task_list);
+	link->pidptr = pid;
 }
 
 int attach_pid(task_t *task, enum pid_type type, int nr)
@@ -165,13 +179,13 @@ int attach_pid(task_t *task, enum pid_type type, int nr)
 		get_task_struct(task);
 		list_add(&pid->hash_chain, &pid_hash[type][pid_hashfn(nr)]);
 	}
-	list_add(&task->pids[type].pid_chain, &pid->task_list);
+	list_add_tail(&task->pids[type].pid_chain, &pid->task_list);
 	task->pids[type].pidptr = pid;
 
 	return 0;
 }
 
-void detach_pid(task_t *task, enum pid_type type)
+static inline int __detach_pid(task_t *task, enum pid_type type)
 {
 	struct pid_link *link = task->pids + type;
 	struct pid *pid = link->pidptr;
@@ -179,11 +193,26 @@ void detach_pid(task_t *task, enum pid_type type)
 
 	list_del(&link->pid_chain);
 	if (!atomic_dec_and_test(&pid->count))
-		return;
+		return 0;
 
 	nr = pid->nr;
 	list_del(&pid->hash_chain);
 	put_task_struct(pid->task);
+
+	return nr;
+}
+
+static void _detach_pid(task_t *task, enum pid_type type)
+{
+	__detach_pid(task, type);
+}
+
+void detach_pid(task_t *task, enum pid_type type)
+{
+	int nr = __detach_pid(task, type);
+
+	if (!nr)
+		return;
 
 	for (type = 0; type < PIDTYPE_MAX; ++type)
 		if (find_pid(type, nr))
@@ -191,13 +220,42 @@ void detach_pid(task_t *task, enum pid_type type)
 	free_pidmap(nr);
 }
 
-extern task_t *find_task_by_pid(int nr)
+task_t *find_task_by_pid(int nr)
 {
 	struct pid *pid = find_pid(PIDTYPE_PID, nr);
 
 	if (!pid)
 		return NULL;
 	return pid_task(pid->task_list.next, PIDTYPE_PID);
+}
+
+/*
+ * This function switches the PIDs if a non-leader thread calls
+ * sys_execve() - this must be done without releasing the PID.
+ * (which a detach_pid() would eventually do.)
+ */
+void switch_exec_pids(task_t *leader, task_t *thread)
+{
+	_detach_pid(leader, PIDTYPE_PID);
+	_detach_pid(leader, PIDTYPE_TGID);
+	_detach_pid(leader, PIDTYPE_PGID);
+	_detach_pid(leader, PIDTYPE_SID);
+
+	_detach_pid(thread, PIDTYPE_PID);
+	_detach_pid(thread, PIDTYPE_TGID);
+
+	leader->pid = leader->tgid = thread->pid;
+	thread->pid = thread->tgid;
+
+	attach_pid(thread, PIDTYPE_PID, thread->pid);
+	attach_pid(thread, PIDTYPE_TGID, thread->tgid);
+	attach_pid(thread, PIDTYPE_PGID, thread->pgrp);
+	attach_pid(thread, PIDTYPE_SID, thread->session);
+
+	attach_pid(leader, PIDTYPE_PID, leader->pid);
+	attach_pid(leader, PIDTYPE_TGID, leader->tgid);
+	attach_pid(leader, PIDTYPE_PGID, leader->pgrp);
+	attach_pid(leader, PIDTYPE_SID, leader->session);
 }
 
 void __init pidhash_init(void)

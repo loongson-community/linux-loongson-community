@@ -62,13 +62,15 @@ void __put_task_struct(struct task_struct *tsk)
 		free_thread_info(tsk->thread_info);
 		kmem_cache_free(task_struct_cachep,tsk);
 	} else {
-		int cpu = smp_processor_id();
+		int cpu = get_cpu();
 
-		tsk = xchg(task_cache + cpu, tsk);
+		tsk = task_cache[cpu];
 		if (tsk) {
 			free_thread_info(tsk->thread_info);
 			kmem_cache_free(task_struct_cachep,tsk);
 		}
+		task_cache[cpu] = current;
+		put_cpu();
 	}
 }
 
@@ -101,6 +103,52 @@ void remove_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 	spin_unlock_irqrestore(&q->lock, flags);
 }
 
+void prepare_to_wait(wait_queue_head_t *q, wait_queue_t *wait, int state)
+{
+	unsigned long flags;
+
+	__set_current_state(state);
+	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave(&q->lock, flags);
+	if (list_empty(&wait->task_list))
+		__add_wait_queue(q, wait);
+	spin_unlock_irqrestore(&q->lock, flags);
+}
+
+void
+prepare_to_wait_exclusive(wait_queue_head_t *q, wait_queue_t *wait, int state)
+{
+	unsigned long flags;
+
+	__set_current_state(state);
+	wait->flags |= WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave(&q->lock, flags);
+	if (list_empty(&wait->task_list))
+		__add_wait_queue_tail(q, wait);
+	spin_unlock_irqrestore(&q->lock, flags);
+}
+
+void finish_wait(wait_queue_head_t *q, wait_queue_t *wait)
+{
+	unsigned long flags;
+
+	__set_current_state(TASK_RUNNING);
+	if (!list_empty(&wait->task_list)) {
+		spin_lock_irqsave(&q->lock, flags);
+		list_del_init(&wait->task_list);
+		spin_unlock_irqrestore(&q->lock, flags);
+	}
+}
+
+int autoremove_wake_function(wait_queue_t *wait, unsigned mode, int sync)
+{
+	int ret = default_wake_function(wait, mode, sync);
+
+	if (ret)
+		list_del_init(&wait->task_list);
+	return ret;
+}
+
 void __init fork_init(unsigned long mempages)
 {
 	/* create a slab on which task_structs can be allocated */
@@ -126,8 +174,11 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 {
 	struct task_struct *tsk;
 	struct thread_info *ti;
+	int cpu = get_cpu();
 
-	tsk = xchg(task_cache + smp_processor_id(), NULL);
+	tsk = task_cache[cpu];
+	task_cache[cpu] = NULL;
+	put_cpu();
 	if (!tsk) {
 		ti = alloc_thread_info();
 		if (!ti)
@@ -330,7 +381,7 @@ void mm_release(void)
 		 * not set up a proper pointer then tough luck.
 		 */
 		put_user(0, tsk->user_tid);
-		sys_futex(tsk->user_tid, FUTEX_WAKE, 1, NULL);
+		sys_futex((unsigned long)tsk->user_tid, FUTEX_WAKE, 1, NULL);
 	}
 }
 
@@ -802,7 +853,6 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	 */
 	p->tgid = p->pid;
 	p->group_leader = p;
-	INIT_LIST_HEAD(&p->thread_group);
 	INIT_LIST_HEAD(&p->ptrace_children);
 	INIT_LIST_HEAD(&p->ptrace_list);
 
@@ -830,7 +880,6 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 		}
 		p->tgid = current->tgid;
 		p->group_leader = current->group_leader;
-		list_add(&p->thread_group, &current->thread_group);
 		spin_unlock(&current->sig->siglock);
 	}
 
@@ -840,9 +889,11 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 
 	attach_pid(p, PIDTYPE_PID, p->pid);
 	if (thread_group_leader(p)) {
+		attach_pid(p, PIDTYPE_TGID, p->tgid);
 		attach_pid(p, PIDTYPE_PGID, p->pgrp);
 		attach_pid(p, PIDTYPE_SID, p->session);
-	}
+	} else
+		link_pid(p, p->pids + PIDTYPE_TGID, &p->group_leader->pids[PIDTYPE_TGID].pid);
 
 	nr_threads++;
 	write_unlock_irq(&tasklist_lock);

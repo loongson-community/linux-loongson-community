@@ -100,8 +100,9 @@ extern unsigned long nr_uninterruptible(void);
 #define TASK_RUNNING		0
 #define TASK_INTERRUPTIBLE	1
 #define TASK_UNINTERRUPTIBLE	2
-#define TASK_ZOMBIE		4
-#define TASK_STOPPED		8
+#define TASK_STOPPED		4
+#define TASK_ZOMBIE		8
+#define TASK_DEAD		16
 
 #define __set_task_state(tsk, state_value)		\
 	do { (tsk)->state = (state_value); } while (0)
@@ -151,7 +152,13 @@ typedef struct task_struct task_t;
 
 extern void sched_init(void);
 extern void init_idle(task_t *idle, int cpu);
+
 extern void show_state(void);
+extern void show_trace(unsigned long *stack);
+extern void show_stack(unsigned long *stack);
+extern void show_regs(struct pt_regs *);
+
+
 extern void cpu_init (void);
 extern void trap_init(void);
 extern void update_process_times(int user);
@@ -273,6 +280,7 @@ extern struct user_struct root_user;
 #define INIT_USER (&root_user)
 
 typedef struct prio_array prio_array_t;
+struct backing_dev_info;
 
 struct task_struct {
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
@@ -327,7 +335,6 @@ struct task_struct {
 	struct list_head children;	/* list of my children */
 	struct list_head sibling;	/* linkage in my parent's children list */
 	struct task_struct *group_leader;
-	struct list_head thread_group;
 
 	/* PID/PID hash table linkage. */
 	struct pid_link pids[PIDTYPE_MAX];
@@ -398,6 +405,7 @@ struct task_struct {
 /* journalling filesystem info */
 	void *journal_info;
 	struct dentry *proc_dentry;
+	struct backing_dev_info *backing_dev_info;
 };
 
 extern void __put_task_struct(struct task_struct *tsk);
@@ -799,34 +807,19 @@ static inline struct task_struct *younger_sibling(struct task_struct *p)
 #define while_each_thread(g, t) \
 	while ((t = next_thread(t)) != g)
 
-static inline task_t *next_thread(task_t *p)
-{
-	if (!p->sig)
-		BUG();
-#if CONFIG_SMP
-	if (!spin_is_locked(&p->sig->siglock) &&
-				!rwlock_is_locked(&tasklist_lock))
-		BUG();
-#endif
-	return list_entry((p)->thread_group.next, task_t, thread_group);
-}
-
-static inline task_t *prev_thread(task_t *p)
-{
-	if (!p->sig)
-		BUG();
-#if CONFIG_SMP
-	if (!spin_is_locked(&p->sig->siglock) &&
-				!rwlock_is_locked(&tasklist_lock))
-		BUG();
-#endif
-	return list_entry((p)->thread_group.prev, task_t, thread_group);
-}
+extern task_t * FASTCALL(next_thread(task_t *p));
 
 #define thread_group_leader(p)	(p->pid == p->tgid)
 
+static inline int thread_group_empty(task_t *p)
+{
+	struct pid *pid = p->pids[PIDTYPE_TGID].pidptr;
+
+	return pid->task_list.next->next == &pid->task_list;
+}
+
 #define delay_group_leader(p) \
-	(p->tgid == p->pid && !list_empty(&p->thread_group))
+		(thread_group_leader(p) && !thread_group_empty(p))
 
 extern void unhash_process(struct task_struct *p);
 

@@ -1,10 +1,12 @@
 #ifndef _LINUX_ELEVATOR_H
 #define _LINUX_ELEVATOR_H
 
-typedef int (elevator_merge_fn) (request_queue_t *, struct request **,
+typedef int (elevator_merge_fn) (request_queue_t *, struct list_head **,
 				 struct bio *);
 
 typedef void (elevator_merge_req_fn) (request_queue_t *, struct request *, struct request *);
+
+typedef void (elevator_merged_fn) (request_queue_t *, struct request *);
 
 typedef struct request *(elevator_next_req_fn) (request_queue_t *);
 
@@ -19,6 +21,7 @@ typedef void (elevator_exit_fn) (request_queue_t *, elevator_t *);
 struct elevator_s
 {
 	elevator_merge_fn *elevator_merge_fn;
+	elevator_merged_fn *elevator_merged_fn;
 	elevator_merge_req_fn *elevator_merge_req_fn;
 
 	elevator_next_req_fn *elevator_next_req_fn;
@@ -39,9 +42,10 @@ struct elevator_s
  */
 extern void __elv_add_request(request_queue_t *, struct request *,
 			      struct list_head *);
-extern int elv_merge(request_queue_t *, struct request **, struct bio *);
+extern int elv_merge(request_queue_t *, struct list_head **, struct bio *);
 extern void elv_merge_requests(request_queue_t *, struct request *,
 			       struct request *);
+extern void elv_merged_request(request_queue_t *, struct request *);
 extern void elv_remove_request(request_queue_t *, struct request *);
 extern int elv_queue_empty(request_queue_t *);
 extern inline struct list_head *elv_get_sort_head(request_queue_t *, struct request *);
@@ -52,12 +56,10 @@ extern inline struct list_head *elv_get_sort_head(request_queue_t *, struct requ
 extern elevator_t elevator_noop;
 
 /*
- * elevator linus. based on linus ideas of starvation control, using
- * sequencing to manage inserts and merges.
+ * deadline i/o scheduler. uses request time outs to prevent indefinite
+ * starvation
  */
-extern elevator_t elevator_linus;
-#define elv_linus_sequence(rq)	((long)(rq)->elevator_private)
-#define ELV_LINUS_SEEK_COST	16
+extern elevator_t iosched_deadline;
 
 /*
  * use the /proc/iosched interface, all the below is history ->
@@ -76,7 +78,7 @@ extern void elevator_exit(request_queue_t *, elevator_t *);
 extern inline int bio_rq_in_between(struct bio *, struct request *, struct list_head *);
 extern inline int elv_rq_merge_ok(struct request *, struct bio *);
 extern inline int elv_try_merge(struct request *, struct bio *);
-extern inline int elv_try_last_merge(request_queue_t *, struct request **, struct bio *);
+extern inline int elv_try_last_merge(request_queue_t *, struct bio *);
 
 /*
  * Return values from elevator merger
