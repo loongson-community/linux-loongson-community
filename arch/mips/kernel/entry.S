@@ -75,9 +75,14 @@ FEXPORT(syscall_exit)
 	and	t0, a2, t0
 	bnez	t0, syscall_exit_work
 
-FEXPORT(restore_all)
+FEXPORT(restore_all)			# restore full frame
 	.set	noat
-	RESTORE_ALL_AND_RET
+	RESTORE_TEMP
+	RESTORE_AT
+	RESTORE_STATIC
+FEXPORT(restore_partial)		# restore partial frame
+	RESTORE_SOME
+	RESTORE_SP_AND_RET
 	.set	at
 
 FEXPORT(work_pending)
@@ -103,6 +108,8 @@ work_notifysig:				# deal with pending signals and
 	jal	do_notify_resume	# a2 already loaded
 	j	restore_all
 
+FEXPORT(syscall_exit_work_partial)
+	SAVE_STATIC
 FEXPORT(syscall_exit_work)
 	LONG_L	t0, TI_FLAGS($28)
 	li	t1, _TIF_SYSCALL_TRACE

@@ -81,12 +81,10 @@ FEXPORT(o32_syscall_exit)
 	and	t0, a2, t0
 	bnez	t0, o32_syscall_exit_work
 
-	RESTORE_SOME
-	RESTORE_SP_AND_RET
+	j	restore_partial
 
 o32_syscall_exit_work:
-	SAVE_STATIC
-	j	syscall_exit_work
+	j	syscall_exit_work_partial
 
 /* ------------------------------------------------------------------------ */
 

@@ -75,19 +75,10 @@ syscall_exit:
 	and	t0, a2, t0
 	bnez	t0, n64_syscall_exit_work
 
-	j	restore_all
-
-work_notifysig:				# deal with pending signals and
-					# notify-resume requests
-	SAVE_STATIC
-	move	a0, sp
-	li	a1, 0
-	jal	do_notify_resume	# a2 already loaded
-	RESTORE_STATIC
-	j	restore_all
+	j	restore_partial
 
 n64_syscall_exit_work:
-	j	syscall_exit_work
+	j	syscall_exit_work_partial
 
 /* ------------------------------------------------------------------------ */
 
