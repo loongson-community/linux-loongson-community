@@ -43,6 +43,7 @@ extern asmlinkage void handle_ov(void);
 extern asmlinkage void handle_tr(void);
 extern asmlinkage void handle_fpe(void);
 extern asmlinkage void handle_watch(void);
+extern asmlinkage void handle_mcheck(void);
 extern asmlinkage void handle_reserved(void);
 
 static char *cpu_names[] = CPU_NAMES;
