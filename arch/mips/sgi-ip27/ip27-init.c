@@ -475,11 +475,6 @@ void __init prom_cpus_done(void)
 #endif
 }
 
-#else /* CONFIG_SMP */
-void __init start_secondary(void)
-{
-	/* XXX Why do we need this empty definition at all?  */
-}
 #endif /* CONFIG_SMP */
 
 
