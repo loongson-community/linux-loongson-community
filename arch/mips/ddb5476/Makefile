@@ -15,7 +15,7 @@
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
 O_TARGET = ddb5476.a
-O_OBJS  = setup.o irq.o time.o prom.o pci.o pci-dma.o int-handler.o nile4.o
+O_OBJS  = setup.o irq.o time.o prom.o pci.o int-handler.o nile4.o
 
 ifdef CONFIG_REMOTE_DEBUG
 O_OBJS += dbg_io.o

@@ -19,7 +19,8 @@ all: ev96100.o
 
 O_TARGET:= ev96100.o
 
-O_OBJS:= prom.o time.o rtc.o irq.o int-handler.o setup.o puts.o uart.o pci-dma.o memory.o
+O_OBJS:= prom.o time.o rtc.o irq.o int-handler.o setup.o puts.o uart.o \
+	 memory.o
 
 dep:
 	$(CPP) -M *.c > .depend

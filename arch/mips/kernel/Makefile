@@ -64,9 +64,10 @@ ifdef CONFIG_REMOTE_DEBUG
 O_OBJS += gdb-low.o gdb-stub.o 
 endif
 
-#
-# Depending from some other kernel option
-#
+ifdef CONFIG_PCI
+O_OBJS += pci-dma.o
+endif
+
 ifdef CONFIG_PROC_FS
 O_OBJS += proc.o
 endif

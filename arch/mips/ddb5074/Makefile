@@ -17,6 +17,6 @@
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
 O_TARGET = ddb5074.a
-O_OBJS  = setup.o irq.o time.o prom.o pci.o pci-dma.o int-handler.o nile4.o
+O_OBJS  = setup.o irq.o time.o prom.o pci.o int-handler.o nile4.o
 
 include $(TOPDIR)/Rules.make
