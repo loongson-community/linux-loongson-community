@@ -117,8 +117,8 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	 * switching for most programs since they don't use the fpu.
 	 */
 	p->thread.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
-                            ~(ST0_CU3|ST0_CU2|ST0_CU1|KU_MASK);
-	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
+                            ~(ST0_CU2|ST0_CU1|KU_MASK);
+	childregs->cp0_status &= ~(ST0_CU2|ST0_CU1);
 
 	return 0;
 }
