@@ -68,7 +68,7 @@ void sb1_dump_tlb(void)
 	       "--------------------------------------------------------------------\n");
 	dump_cur_tlb_regs();
 	printk(" %08X\n", read_32bit_cp0_register(CP0_INDEX));
-	printk("\n\nFull TLB Dump:"
+	printk("\n\nFull TLB Dump:\n"
 	       "Idx      EntryHi       EntryLo0          EntryLo1     PageMask\n"
 	       "--------------------------------------------------------------\n");
 	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {

@@ -5,7 +5,7 @@
 
 O_TARGET := sb1250.o
 
-obj-y := setup.o irq.o irq_handler.o time.o lib_hssubr.o
+obj-y := irq.o irq_handler.o time.o lib_hssubr.o
 
 obj-$(CONFIG_PCI) += pci.o
 obj-$(CONFIG_SMP) += smp.o

@@ -210,7 +210,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		".set pop                   \n"
 		:
 		: "r" (start & ~(icache_line_size - 1)),
-		  "r" ((end - 1) & ~(dcache_line_size - 1)),
+		  "r" ((end - 1) & ~(icache_line_size - 1)),
 		  "r" (icache_line_size),
 		  "i" (Index_Invalidate_I));
 }
