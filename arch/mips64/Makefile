@@ -218,12 +218,12 @@ zdisk: vmlinux
 
 archclean:
 	@$(MAKEBOOT) clean
-	$(MAKE) -C arch/$(ARCH)/tools clean
+	$(MAKE) -C arch/mips/tools clean
 	rm -f vmlinux.64 arch/$(ARCH)/ld.script.elf32
 
 archmrproper:
 	@$(MAKEBOOT) mrproper
-	$(MAKE) -C arch/$(ARCH)/tools mrproper
+	$(MAKE) -C arch/mips/tools mrproper
 
 archdep:
 	if [ ! -f $(TOPDIR)/include/asm-$(ARCH)/offset.h ]; then \
