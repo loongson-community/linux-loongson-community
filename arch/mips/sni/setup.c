@@ -51,9 +51,6 @@ static void __init sni_rm200_pci_timer_setup(struct irqaction *irq)
 	setup_irq(0, irq);
 }
 
-
-extern unsigned char sni_map_isa_cache;
-
 /*
  * A bit more gossip about the iron we're running on ...
  */
@@ -189,7 +186,6 @@ void __init sni_rm200_pci_setup(void)
 	 * Setup (E)ISA I/O memory access stuff
 	 */
 	isa_slot_offset = 0xb0000000;
-	// sni_map_isa_cache = 0;
 #ifdef CONFIG_EISA
 	EISA_bus = 1;
 #endif
