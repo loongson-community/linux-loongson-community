@@ -22,6 +22,7 @@
 #include <linux/sem.h>
 #include <linux/msg.h>
 #include <linux/sysctl.h>
+#include <linux/utime.h>
 #include <linux/utsname.h>
 #include <linux/personality.h>
 #include <linux/timex.h>
@@ -177,6 +178,36 @@ asmlinkage int sys_ftruncate64(unsigned int fd, unsigned int high,
 	if ((int)high < 0)
 		return -EINVAL;
 	return sys_ftruncate(fd, ((long) high << 32) | low);
+}
+
+extern asmlinkage int sys_utime(char * filename, struct utimbuf * times);
+
+struct utimbuf32 {
+	__kernel_time_t32 actime, modtime;
+};
+
+asmlinkage int sys32_utime(char * filename, struct utimbuf32 *times)
+{
+	struct utimbuf t;
+	mm_segment_t old_fs;
+	int ret;
+	char *filenam;
+	
+	if (!times)
+		return sys_utime(filename, NULL);
+	if (get_user (t.actime, &times->actime) ||
+	    __get_user (t.modtime, &times->modtime))
+		return -EFAULT;
+	filenam = getname (filename);
+	ret = PTR_ERR(filenam);
+	if (!IS_ERR(filenam)) {
+		old_fs = get_fs();
+		set_fs (KERNEL_DS); 
+		ret = sys_utime(filenam, &t);
+		set_fs (old_fs);
+		putname (filenam);
+	}
+	return ret;
 }
 
 #if 0
