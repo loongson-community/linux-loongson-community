@@ -35,7 +35,7 @@
 		 * Reserved space for exception handlers.
 		 * Necessary for machines which link their kernels at KSEG0.
 		 */
-		.fill	0x280
+		.fill	0x400
 
 		/* Cache Error */
 		LEAF(except_vec2_generic)
@@ -77,7 +77,7 @@
 		END(except_vec4)
 
 		/*
-		 * SBDDP EJTAG debug exception handler.
+		 * EJTAG debug exception handler.
 		 * The EJTAG debug exception entry point is 0xbfc00480, which
 		 * normally is in the boot PROM, so the boot PROM must do a
 		 * unconditional jump to this vector.
@@ -93,24 +93,56 @@
 		NESTED(ejtag_debug_handler, PT_SIZE, sp)
 		.set	noat
 		.set	noreorder
+		mtc0	k0, CP0_DESAVE
+		mfc0	k0, CP0_DEBUG	
+
+		sll	k0, k0, 30	# Check for SDBBP.
+		bgez	k0, ejtag_return
+
+		la	k0, ejtag_debug_buffer
+		sw	k1, 0(k0)
 		SAVE_ALL
-		PRINT("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
-		mfc0	k0, $23         # Get EJTAG Debug register.
-		mfc0    k1, $24         # Get DEPC register.
-		bgez	k0, 1f
-		 addiu	k1, k1, 4	# SBDDP inst. in delay slot.
-		addiu	k1, k1, 4
-1:		mtc0	k1, $24
+		jal	ejtag_exception_handler
+		 move	a0, sp
 		RESTORE_ALL
-		.word	0x4200001f      # deret, return EJTAG debug exception.
+		la	k0, ejtag_debug_buffer
+		lw	k1, 0(k0)	
+
+ejtag_return:
+		mfc0	k0, CP0_DESAVE	
+		.word	0x4200001f     # DERET, return from EJTAG debug exception.
 		 nop
 		.set	at
 		END(ejtag_debug_handler)
+	
+		/*
+		* NMI debug exception handler for MIPS reference boards.
+		* The NMI debug exception entry point is 0xbfc00000, which
+		* normally is in the boot PROM, so the boot PROM must do a
+		* unconditional jump to this vector.
+		*/
+		NESTED(except_vec_nmi, 0, sp)
+		j       nmi_handler
+		 nop
+		END(except_vec_nmi)
 
+		NESTED(nmi_handler, PT_SIZE, sp)
+		.set    noat
+		.set    noreorder
+		.set    mips3
+		SAVE_ALL
+		jal     nmi_exception_handler
+		 move   a0, sp
+		RESTORE_ALL
+		eret
+		.set    at
+		.set    mips0
+		END(nmi_handler)	
+		
 		/*
 		 * Kernel entry point
 		 */
-NESTED(kernel_entry, 16, sp)
+		NESTED(kernel_entry, 16, sp)
 		.set	noreorder
 		/* The following two symbols are used for kernel profiling. */
 		EXPORT(stext)
@@ -165,6 +197,14 @@ NESTED(kernel_entry, 16, sp)
 
 		__FINIT
 
+		/*
+		 * This buffer is reserved for the use of the EJTAG debug 
+		 * handler.
+		 */
+		.data
+		EXPORT(ejtag_debug_buffer)
+		.fill	4
+	
 		.comm	kernelsp,    NR_CPUS * 8, 8
 		.comm	pgd_current, NR_CPUS * 8, 8
 
