@@ -12,8 +12,12 @@
 #include <linux/kernel_stat.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
-#include <linux/irq.h>
 #include <linux/bitops.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/mm.h>
+#include <linux/random.h>
+#include <linux/sched.h>
 
 #include <asm/bitops.h>
 #include <asm/mipsregs.h>
@@ -22,12 +26,6 @@
 #include <asm/ip32/crime.h>
 #include <asm/ip32/mace.h>
 #include <asm/signal.h>
-
-#include <linux/kernel.h>
-#include <linux/slab.h>
-#include <linux/mm.h>
-#include <linux/random.h>
-#include <linux/sched.h>
 
 #undef DEBUG_IRQ
 #ifdef DEBUG_IRQ
@@ -119,7 +117,8 @@ struct irqaction cpuerr_irq = { crime_cpuerr_intr, SA_INTERRUPT,
 extern void ip32_handle_int (void);
 asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
-/* For interrupts wired from a single device to the CPU.  Only the clock
+/*
+ * For interrupts wired from a single device to the CPU.  Only the clock
  * uses this it seems, which is IRQ 0 and IP7.
  */
 
@@ -247,7 +246,8 @@ static void enable_macepci_irq(unsigned int irq)
 	mace_mask = mace_read_32(MACEPCI_CONTROL);
 	mace_mask |= MACEPCI_CONTROL_INT(irq - 9);
 	mace_write_32(MACEPCI_CONTROL, mace_mask);
-	/* In case the CRIME interrupt isn't enabled, we must enable it;
+	/*
+	 * In case the CRIME interrupt isn't enabled, we must enable it;
 	 * however, we never disable interrupts at that level.
 	 */
 	crime_mask = crime_read_64(CRIME_INT_MASK);
@@ -259,6 +259,7 @@ static void enable_macepci_irq(unsigned int irq)
 static unsigned int startup_macepci_irq(unsigned int irq)
 {
 	enable_macepci_irq (irq);
+
 	return 0; /* XXX */
 }
 

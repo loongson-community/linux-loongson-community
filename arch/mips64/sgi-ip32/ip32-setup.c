@@ -12,10 +12,8 @@
 #include <linux/mc146818rtc.h>
 #include <linux/param.h>
 #include <linux/init.h>
-#include <linux/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/bootinfo.h>
-#include <asm/irq.h>
 #include <asm/mmu_context.h>
 #include <asm/ip32/crime.h>
 #include <asm/ip32/mace.h>
@@ -28,7 +26,11 @@ extern u32 cc_interval;
 unsigned long mips_io_port_base = UNCACHEDADDR (MACEPCI_HI_IO);;
 
 #ifdef CONFIG_SGI_O2MACE_ETH
-/* this is taken care of in here 'cause they say using Arc later on is problematic */
+
+/*
+ * This is taken care of in here 'cause they say using Arc later on is
+ * problematic
+ */
 extern char o2meth_eaddr[8];
 static inline unsigned char str2hexnum(unsigned char c)
 {
@@ -38,6 +40,7 @@ static inline unsigned char str2hexnum(unsigned char c)
 		return c - 'a' + 10;
 	return 0; /* foo */
 }
+
 static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 {
 	int i;
@@ -53,6 +56,7 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 	}
 }
 #endif
+
 void __init ip32_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE

@@ -19,12 +19,10 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/linkage.h>
-#include <linux/irq.h>
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
-#include <linux/irq_cpustat.h>
 #include <asm/io.h>
 #include <asm/errno.h>
 #include <asm/signal.h>
@@ -40,11 +38,10 @@
  *  These are the routines that handle all the low level interrupt stuff. 
  *  Actions handled here are: initialization of the interrupt map, 
  *  requesting of interrupt lines by handlers, dispatching if interrupts
- *   to handlers, probing for interrupt lines */
-
+ *   to handlers, probing for interrupt lines
+ */
 
 static spinlock_t irq_mask_lock = SPIN_LOCK_UNLOCKED;
-
 
 #define IMR_MASK(cpu)     (*(volatile unsigned long *)(IO_SPACE_BASE | A_IMR_REGISTER(cpu, R_IMR_INTERRUPT_MASK)))
 #define IMR_REG(cpu, ofs) (*(volatile unsigned long *)((IO_SPACE_BASE | A_IMR_REGISTER(cpu, R_IMR_INTERRUPT_MAP_BASE)) + (ofs<<3)))

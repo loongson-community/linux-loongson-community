@@ -19,7 +19,6 @@
 #include <linux/smp_lock.h>
 #include <linux/kernel_stat.h>
 #include <linux/delay.h>
-#include <linux/irq.h>
 
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>

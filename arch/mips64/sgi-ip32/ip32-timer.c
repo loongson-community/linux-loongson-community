@@ -7,14 +7,8 @@
  *
  * Copyright (C) 2001 Keith M Wesolowski
  */
-#include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <asm/mipsregs.h>
-#include <asm/param.h>
-#include <asm/ip32/crime.h>
-#include <asm/ip32/ip32_ints.h>
-
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
@@ -22,15 +16,18 @@
 #include <linux/string.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
+#include <linux/mc146818rtc.h>
+#include <linux/timex.h>
 
+#include <asm/mipsregs.h>
+#include <asm/param.h>
+#include <asm/ip32/crime.h>
+#include <asm/ip32/ip32_ints.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-
-#include <linux/mc146818rtc.h>
-#include <linux/timex.h>
 
 extern volatile unsigned long wall_jiffies;
 extern rwlock_t xtime_lock;
@@ -49,7 +46,8 @@ static unsigned int timerhi, timerlo;
 #define USECS_PER_JIFFY (1000000/HZ)
 
 
-void __init ip32_timer_setup (struct irqaction *irq) {
+void __init ip32_timer_setup (struct irqaction *irq)
+{
 	u64 crime_time;
 	u32 cc_tick;
 
@@ -239,6 +237,7 @@ void __init time_init(void)
         change_cp0_status(ST0_IM, ALLINTS);
 	sti ();
 }
+
 /*
  * This version of gettimeofday has near microsecond resolution.
  */

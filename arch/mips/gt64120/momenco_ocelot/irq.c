@@ -40,7 +40,6 @@
 #include <linux/timex.h>
 #include <linux/slab.h>
 #include <linux/random.h>
-#include <linux/irq.h>
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>
 #include <asm/io.h>
