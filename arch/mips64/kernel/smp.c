@@ -61,6 +61,7 @@ static void stop_this_cpu(void *dummy)
 {
 	/*
 	 * Remove this CPU
+	 * XXX update this from 32-bit version
 	 */
 	for (;;);
 }
@@ -265,6 +266,11 @@ void __global_restore_flags(unsigned long flags)
 			printk("global_restore_flags: %08lx\n", flags);
 	}
 }
+
+static spinlock_t call_lock = SPIN_LOCK_UNLOCKED;
+
+struct call_data_struct *call_data;
+
 /*
  * Run a function on all other CPUs.
  *  <func>      The function to run. This must be fast and non-blocking.
@@ -276,22 +282,14 @@ void __global_restore_flags(unsigned long flags)
  * Does not return until remote CPUs are nearly ready to execute <func>
  * or are or have executed.
  */
-static volatile struct call_data_struct {
-	void (*func) (void *info);
-	void *info;
-	atomic_t started;
-	atomic_t finished;
-	int wait;
-} *call_data;
 
 int smp_call_function (void (*func) (void *info), void *info, int retry, 
 								int wait)
 {
 	struct call_data_struct data;
 	int i, cpus = smp_num_cpus-1;
-	static spinlock_t lock = SPIN_LOCK_UNLOCKED;
 
-	if (cpus == 0)
+	if (!cpus)
 		return 0;
 
 	data.func = func;
@@ -301,8 +299,9 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	if (wait)
 		atomic_set(&data.finished, 0);
 
-	spin_lock_bh(&lock);
+	spin_lock_bh(&call_lock);
 	call_data = &data;
+
 	/* Send a message to all other CPUs and wait for them to respond */
 	for (i = 0; i < smp_num_cpus; i++)
 		if (smp_processor_id() != i)
@@ -316,7 +315,8 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	if (wait)
 		while (atomic_read(&data.finished) != cpus)
 			barrier();
-	spin_unlock_bh(&lock);
+	spin_unlock_bh(&call_lock);
+
 	return 0;
 }
 
@@ -330,16 +330,18 @@ extern void smp_call_function_interrupt(int irq, void *d, struct pt_regs *r)
 	 * Notify initiating CPU that I've grabbed the data and am
 	 * about to execute the function.
 	 */
+	mb();
 	atomic_inc(&call_data->started);
 
 	/*
 	 * At this point the info structure may be out of scope unless wait==1.
 	 */
 	(*func)(info);
-	if (wait)
+	if (wait) {
+		mb();
 		atomic_inc(&call_data->finished);
+	}
 }
-	
 
 static void flush_tlb_all_ipi(void *info)
 {

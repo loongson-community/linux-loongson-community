@@ -63,16 +63,24 @@ static void sb1250_smp_reschedule(void)
 
 static void sb1250_smp_call_function(void)
 {
-	void (*func) (void *info) = smp_fn_call.fn;
-	void *data = smp_fn_call.data;
-	int wait = smp_fn_call.wait;
+	void (*func) (void *info) = call_data->func;
+	void *info = call_data->info;
+	int wait = call_data->wait;
 
-	/* Notify initiating CPU that I've grabbed the data
-	 * and am about to execute the function */
-	atomic_inc(&smp_fn_call.started);
-	(*func)(data);
-	if (wait)
-		atomic_inc(&smp_fn_call.finished);
+	/*
+	 * Notify initiating CPU that I've grabbed the data
+	 * and am about to execute the function
+	 */
+	mb();
+	atomic_inc(&call_data->started);
+	(*func)(info);
+	/*
+	 * At this point the info structure may be out of scope unless wait==1
+	 */
+	if (wait) {
+		mb();
+		atomic_inc(&call_data->finished);
+	}
 }
 
 
