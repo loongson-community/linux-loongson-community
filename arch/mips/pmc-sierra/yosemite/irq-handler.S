@@ -91,7 +91,7 @@ ll_smp_irq:
 		li	a0, 5
 		move	a1, sp
 #ifdef CONFIG_SMP
-		jal	jaguar_mailbox_irq
+		jal	titan_mailbox_irq
 #else
 		jal	do_IRQ
 #endif
