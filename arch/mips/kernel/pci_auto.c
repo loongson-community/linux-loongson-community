@@ -260,6 +260,14 @@ pciauto_postscan_setup_bridge(struct pci_channel *hose,
 {
 	u32 temp;
 
+	/* 
+	 * [jsun] we always bump up baselines a little, so that if there
+	 * nothing behind P2P bridge, we don't wind up overlapping IO/MEM
+	 * spaces.
+	 */
+	pciauto_lower_memspc += 1;
+	pciauto_lower_iospc += 1;
+
 	/* Configure bus number registers */
 	early_write_config_byte(hose, top_bus, current_bus, pci_devfn,
 				PCI_SUBORDINATE_BUS, sub_bus);
@@ -419,6 +427,8 @@ pciauto_bus_scan(struct pci_channel *hose, int top_bus, int current_bus)
 		if ((pci_class >> 16) == PCI_CLASS_BRIDGE_PCI) {
 			DBG("        Bridge: primary=%.2x, secondary=%.2x\n",
 				current_bus, sub_bus + 1);
+			pciauto_setup_bars(hose, top_bus, current_bus, 
+					pci_devfn, PCI_BASE_ADDRESS_1);
 			pciauto_prescan_setup_bridge(hose, top_bus, current_bus,
 						     pci_devfn, sub_bus);
 			DBG("Scanning sub bus %.2x, I/O 0x%.8x, Mem 0x%.8x\n",
