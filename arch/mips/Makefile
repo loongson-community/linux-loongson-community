@@ -36,8 +36,9 @@ endif
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
 GCCFLAGS	:= -G 0 -mno-abicalls -fno-pic
-LINKFLAGS	+= -static -G 0
+LINKFLAGS	+= -static
 MODFLAGS	+= -mlong-calls
+LD		:= $(LD) -G 0
 
 ifdef CONFIG_REMOTE_DEBUG
 CFLAGS		:= $(CFLAGS) -g
