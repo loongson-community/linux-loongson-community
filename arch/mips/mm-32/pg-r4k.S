@@ -783,21 +783,3 @@ LEAF(andes_copy_page)
 	j		ra
 	END(andes_copy_page)
 	.set		mips0
-
-/* This one still needs to receive cache optimizations  */
-LEAF(pgd_init)
-	.set	mips0
-	addiu	AT, a0, PGD_SIZE / 2
-	la	v0, invalid_pte_table
-1:	sw	v0, (a0)
-	sw	v0, 4(a0)
-	sw	v0, 8(a0)
-	sw	v0, 12(a0)
-	addiu	a0, 32
-	sw	v0, -16(a0)
-	sw	v0, -12(a0)
-	sw	v0, -8(a0)
-	sw	v0, -4(a0)
-	bne	AT, a0, 1b
-	jr	ra
-	END(pgd_init)

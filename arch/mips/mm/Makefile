@@ -4,7 +4,8 @@
 
 obj-y				+= cache.o extable.o loadmmu.o pgtable.o
 
-obj-$(CONFIG_MIPS32)		+= ioremap.o
+obj-$(CONFIG_MIPS32)		+= ioremap.o pgtable-32.o
+obj-$(CONFIG_MIPS64)		+= pgtable-64.o
 obj-$(CONFIG_HIGHMEM)		+= highmem.o
 
 obj-$(CONFIG_CPU_MIPS32)	+= c-r4k.o tlb-r4k.o
