@@ -271,6 +271,56 @@ void __declare_dbe_table(void)
 	);
 }
 
+#ifdef CONFIG_MDULES
+
+/* Given an address, look for it in the module exception tables. */
+const struct exception_table_entry *search_module_dbetables(unsigned long addr)
+{
+	unsigned long flags;
+	const struct exception_table_entry *e = NULL;
+	struct module *mod;
+
+	spin_lock_irqsave(&modlist_lock, flags);
+	list_for_each_entry(mod, &modules, list) {
+		if (mod->arch.num_dbeentries == 0)
+			continue;
+				
+		e = search_extable(mod->arch.dbe_table_start,
+				   mod->arch.dbe_table_end +
+		                   mod->arch.num_dbeentries - 1,
+				   addr);
+		if (e)
+			break;
+	}
+	spin_unlock_irqrestore(&modlist_lock, flags);
+
+	/* Now, if we found one, we are running inside it now, hence
+           we cannot unload the module, hence no refcnt needed. */
+	return e;
+}
+
+#else
+
+/* Given an address, look for it in the exception tables. */
+static inline const struct exception_table_entry *
+search_module_dbetables(unsigned long addr)
+{
+	return NULL;
+}
+
+#endif
+
+/* Given an address, look for it in the exception tables. */
+const struct exception_table_entry *search_dbe_tables(unsigned long addr)
+{
+	const struct exception_table_entry *e;
+
+	e = search_extable(__start___dbe_table, __stop___dbe_table - 1, addr);
+	if (!e)
+		e = search_module_dbetables(addr);
+	return e;
+}
+
 asmlinkage void do_be(struct pt_regs *regs)
 {
 	const int field = 2 * sizeof(unsigned long);
@@ -280,7 +330,7 @@ asmlinkage void do_be(struct pt_regs *regs)
 
 	/* XXX For now.  Fixme, this searches the wrong table ...  */
 	if (data && !user_mode(regs))
-		fixup = search_exception_tables(regs->cp0_epc);
+		fixup = search_dbe_tables(regs->cp0_epc);
 
 	if (fixup)
 		action = MIPS_BE_FIXUP;
