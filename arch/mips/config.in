@@ -42,12 +42,13 @@ bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 unset CONFIG_ARC32
 unset CONFIG_BOARD_SCACHE
 unset CONFIG_HAVE_STD_PC_SERIAL_PORT
+unset CONFIG_I8259
 unset CONFIG_ISA
 unset CONFIG_PCI
 unset CONFIG_MIPS_JAZZ
+unset CONFIG_SWAP_IO_SPACE
 unset CONFIG_VIDEO_G364
 unset CONFIG_PC_KEYB
-unset CONFIG_I8259
 
 define_bool CONFIG_MCA n
 define_bool CONFIG_SBUS n
@@ -55,6 +56,7 @@ define_bool CONFIG_SBUS n
 if [ "$CONFIG_MIPS_EV96100" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_MIPS_GT96100 y
+   define_bool CONFIG_SWAP_IO_SPACE y
 fi
 if [ "$CONFIG_MIPS_EV64120" = "y" ]; then
    define_bool CONFIG_PCI y
@@ -97,6 +99,7 @@ fi
 if [ "$CONFIG_PMC_CP7000" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_SYSCLK_100 y
+   define_bool CONFIG_SWAP_IO_SPACE y
 fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y

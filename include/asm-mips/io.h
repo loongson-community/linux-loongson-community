@@ -1,5 +1,4 @@
-/* $Id: io.h,v 1.13 2000/02/24 00:13:19 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -7,16 +6,37 @@
  * Copyright (C) 1994, 1995 Waldorf GmbH
  * Copyright (C) 1994 - 2000 Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 2000 FSMLabs, Inc.
  */
 #ifndef _ASM_IO_H
 #define _ASM_IO_H
+
+#include <linux/config.h>
+#include <asm/addrspace.h>
+#include <asm/byteorder.h>
 
 /*
  * Slowdown I/O port space accesses for antique hardware.
  */
 #undef CONF_SLOWDOWN_IO
 
-#include <asm/addrspace.h>
+/*
+ * Sane hardware offers swapping of I/O space accesses in hardware; less
+ * sane hardware forces software to fiddle with this ...
+ */
+#ifdef CONFIG_SWAP_IO_SPACE
+
+#define __ioswab8(x) (x)
+#define __ioswab16(x) swab16(x)
+#define __ioswab32(x) swab32(x)
+
+#else
+
+#define __ioswab8(x) (x)
+#define __ioswab16(x) (x)
+#define __ioswab32(x) (x)
+
+#endif
 
 /*
  * This file contains the definitions for the MIPS counterpart of the
@@ -152,15 +172,15 @@ extern inline void iounmap(void *addr)
  * XXX more SNI hacks.
  */
 #define readb(addr) (*(volatile unsigned char *)(addr))
-#define readw(addr) (*(volatile unsigned short *)(addr))
-#define readl(addr) (*(volatile unsigned int *)(addr))
+#define readw(addr) __ioswab16((*(volatile unsigned short *)(addr)))
+#define readl(addr) __ioswab32((*(volatile unsigned int *)(addr)))
 #define __raw_readb readb
 #define __raw_readw readw
 #define __raw_readl readl
 
 #define writeb(b,addr) (*(volatile unsigned char *)(addr)) = (b)
-#define writew(b,addr) (*(volatile unsigned short *)(addr)) = (b)
-#define writel(b,addr) (*(volatile unsigned int *)(addr)) = (b)
+#define writew(b,addr) (*(volatile unsigned short *)(addr)) = (__ioswab16(b))
+#define writel(b,addr) (*(volatile unsigned int *)(addr)) = (__ioswab32(b))
 #define __raw_writeb writeb
 #define __raw_writew writew
 #define __raw_writel writel
@@ -226,12 +246,12 @@ extern inline void __out##s(unsigned int value, unsigned int port) {
 #define __OUT2(m) \
 __asm__ __volatile__ ("s" #m "\t%0,%1(%2)"
 
-#define __OUT(m,s) \
-__OUT1(s) __OUT2(m) : : "r" (value), "i" (0), "r" (mips_io_port_base+port)); } \
-__OUT1(s##c) __OUT2(m) : : "r" (value), "ir" (port), "r" (mips_io_port_base)); } \
-__OUT1(s##_p) __OUT2(m) : : "r" (value), "i" (0), "r" (mips_io_port_base+port)); \
+#define __OUT(m,s,w) \
+__OUT1(s) __OUT2(m) : : "r" (__ioswab##w(value)), "i" (0), "r" (mips_io_port_base+port)); } \
+__OUT1(s##c) __OUT2(m) : : "r" (__ioswab##w(value)), "ir" (port), "r" (mips_io_port_base)); } \
+__OUT1(s##_p) __OUT2(m) : : "r" (__ioswab##w(value)), "i" (0), "r" (mips_io_port_base+port)); \
 	SLOW_DOWN_IO; } \
-__OUT1(s##c_p) __OUT2(m) : : "r" (value), "ir" (port), "r" (mips_io_port_base)); \
+__OUT1(s##c_p) __OUT2(m) : : "r" (__ioswab##w(value)), "ir" (port), "r" (mips_io_port_base)); \
 	SLOW_DOWN_IO; }
 
 #define __IN1(t,s) \
@@ -243,11 +263,11 @@ extern __inline__ t __in##s(unsigned int port) { t _v;
 #define __IN2(m) \
 __asm__ __volatile__ ("l" #m "\t%0,%1(%2)"
 
-#define __IN(t,m,s) \
-__IN1(t,s) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); return _v; } \
-__IN1(t,s##c) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); return _v; } \
-__IN1(t,s##_p) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); SLOW_DOWN_IO; return _v; } \
-__IN1(t,s##c_p) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); SLOW_DOWN_IO; return _v; }
+#define __IN(t,m,s,w) \
+__IN1(t,s) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); return __ioswab##w(_v); } \
+__IN1(t,s##c) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); return __ioswab##w(_v); } \
+__IN1(t,s##_p) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); SLOW_DOWN_IO; return __ioswab##w(_v); } \
+__IN1(t,s##c_p) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); SLOW_DOWN_IO; return __ioswab##w(_v); }
 
 #define __INS1(s) \
 extern inline void __ins##s(unsigned int port, void * addr, unsigned long count) {
@@ -268,11 +288,13 @@ __asm__ __volatile__ ( \
 #define __INS(m,s,i) \
 __INS1(s) __INS2(m) \
 	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), "I" (i) \
+	: "0" (addr), "1" (count), "i" (0), \
+	  "r" (mips_io_port_base+port), "I" (i) \
 	: "$1");} \
 __INS1(s##c) __INS2(m) \
 	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), "I" (i) \
+	: "0" (addr), "1" (count), "ir" (port), \
+	  "r" (mips_io_port_base), "I" (i) \
 	: "$1");}
 
 #define __OUTS1(s) \
@@ -301,13 +323,13 @@ __OUTS1(s##c) __OUTS2(m) \
 	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), "I" (i) \
 	: "$1");}
 
-__IN(unsigned char,b,b)
-__IN(unsigned short,h,w)
-__IN(unsigned int,w,l)
+__IN(unsigned char,b,b,8)
+__IN(unsigned short,h,w,16)
+__IN(unsigned int,w,l,32)
 
-__OUT(b,b)
-__OUT(h,w)
-__OUT(w,l)
+__OUT(b,b,8)
+__OUT(h,w,16)
+__OUT(w,l,32)
 
 __INS(b,b,1)
 __INS(h,w,2)
@@ -317,56 +339,6 @@ __OUTS(b,b,1)
 __OUTS(h,w,2)
 __OUTS(w,l,4)
 
-
-#ifdef CONFIG_MIPS_EV96100
-
-#include <asm/byteorder.h>
-
-#define inb(port)		in_8((u8 *)((port)+mips_io_port_base))
-#define outb(val, port)		out_8((u8 *)((port)+mips_io_port_base), (val))
-#define inw(port)		in_16((u16 *)((port)+mips_io_port_base))
-#define outw(val, port)		out_16((u16 *)((port)+mips_io_port_base), (val))
-#define inl(port)		in_32((u32 *)((port)+mips_io_port_base))
-#define outl(val, port)		out_32((u32 *)((port)+mips_io_port_base), (val))
-
-#define inb_p(port)		inb((port))
-#define outb_p(val, port)	outb((val), (port))
-#define inw_p(port)		inw((port))
-#define outw_p(val, port)	outw((val), (port))
-#define inl_p(port)		inl((port))
-#define outl_p(val, port)	outl((val), (port))
-
-extern inline unsigned char in_8(const unsigned char *addr)
-{
-    return *KSEG1ADDR(addr);
-}
-
-extern inline void out_8(unsigned char *addr, unsigned int val)
-{
-    *KSEG1ADDR(addr) = (unsigned char)val;
-}
-
-extern inline unsigned short in_16(const unsigned short *addr)
-{
-    return (le16_to_cpu(*KSEG1ADDR(addr)));
-}
-
-extern inline void out_16(unsigned short *addr, unsigned int val)
-{
-    *KSEG1ADDR(addr) = cpu_to_le16((unsigned short)val);
-}
-
-extern inline unsigned int in_32(const unsigned int *addr)
-{
-    return (le32_to_cpu(*KSEG1ADDR(addr)));
-}
-
-extern inline void out_32(unsigned int *addr, unsigned int val)
-{
-    *KSEG1ADDR(addr) = cpu_to_le32((unsigned int)val);
-}
-
-#else
 
 /*
  * Note that due to the way __builtin_constant_p() works, you
@@ -463,7 +435,6 @@ extern inline void out_32(unsigned int *addr, unsigned int val)
 ((__builtin_constant_p((port)) && (port) < 32768) ? \
 	__inslc((port),(addr),(count)) : \
 	__insl((port),(addr),(count)))
-#endif
 
 #define IO_SPACE_LIMIT 0xffff
 
