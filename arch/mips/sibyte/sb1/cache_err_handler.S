@@ -16,18 +16,9 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#include <linux/config.h>
-#include <linux/threads.h>
-
 #include <asm/asm.h>
-#include <asm/cacheops.h>
-#include <asm/current.h>
-#include <asm/offset.h>
-#include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/cachectl.h>
 #include <asm/mipsregs.h>
-#include <asm/stackframe.h>
 
 	.text
 	/* Special Cache Error handler for SB1 for now */
