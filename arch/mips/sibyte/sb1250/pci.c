@@ -45,8 +45,8 @@
  * Macros for calculating offsets into config space given a device
  * structure or dev/fun/reg
  */
-#define CFGOFFSET(bus,devfn,where) (((bus)<<16)+((devfn)<<8)+(where))
-#define CFGADDR(dev,where)         CFGOFFSET((dev)->bus->number,(dev)->devfn,where)
+#define CFGOFFSET(bus,devfn,where) (((bus)<<16) + ((devfn)<<8) + (where))
+#define CFGADDR(bus,devfn,where)   CFGOFFSET((bus)->number,(devfn),where)
 
 static void *cfg_space;
 
@@ -85,16 +85,15 @@ static inline void WRITECFG32(u32 addr, u32 data)
  * In PCI Device Mode, hide everything on bus 0 except the LDT host
  * bridge.  Otherwise, access is controlled by bridge MasterEn bits.
  */
-static int
-sb1250_pci_can_access(struct pci_dev *dev)
+static int sb1250_pci_can_access(struct pci_bus *bus, int devfn)
 {
 	u32 devno;
 
 	if (!(sb1250_bus_status & (PCI_BUS_ENABLED | PCI_DEVICE_MODE)))
 		return 0;
 
-	if (dev->bus->number == 0) {
-		devno = PCI_SLOT(dev->devfn);
+	if (bus->number == 0) {
+		devno = PCI_SLOT(devfn);
 		if (devno == LDT_BRIDGE_DEVICE)
 		        return (sb1250_bus_status & LDT_BUS_ENABLED) != 0;
  		else if (sb1250_bus_status & PCI_DEVICE_MODE)
@@ -111,121 +110,62 @@ sb1250_pci_can_access(struct pci_dev *dev)
  * for a kludgy but adequate simulation of master aborts.
  */
 
-static int
-sb1250_pci_read_config_byte(struct pci_dev *dev, int where, u8 * val)
+static int sb1250_pcibios_read(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 *val)
 {
 	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
 
-	if (sb1250_pci_can_access(dev))
-		data = READCFG32(cfgaddr);
-	else
-		data = 0xFFFFFFFF;
-
-	*val = (data >> ((where & 3) << 3)) & 0xff;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-sb1250_pci_read_config_word(struct pci_dev *dev, int where, u16 * val)
-{
-	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	if (where & 1)
+	if ((size == 2) && (where & 1))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (sb1250_pci_can_access(dev))
-		data = READCFG32(cfgaddr);
+	if (sb1250_pci_can_access(bus, devfn))
+		data = READCFG32(CFGADDR(bus, devfn, where));
 	else
 		data = 0xFFFFFFFF;
 
-	*val = (data >> ((where & 3) << 3)) & 0xffff;
+	if (size == 1)
+		*val = (data >> ((where & 3) << 3)) & 0xff;
+	else if (size == 2)
+		*val = (data >> ((where & 3) << 3)) & 0xffff;
+	else
+		*val = data;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int
-sb1250_pci_read_config_dword(struct pci_dev *dev, int where, u32 * val)
+static int sb1250_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 val)
 {
+	u32 cfgaddr = CFGADDR(bus, devfn, where);
 	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
 
-	if (where & 3)
+	if ((size == 2) && (where & 1))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (sb1250_pci_can_access(dev))
-		data = READCFG32(cfgaddr);
-	else
-		data = 0xFFFFFFFF;
+	if (!sb1250_pci_can_access(bus, devfn))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	*val = data;
+	data = READCFG32(cfgaddr);
 
-	return PCIBIOS_SUCCESSFUL;
-}
-
-
-static int
-sb1250_pci_write_config_byte(struct pci_dev *dev, int where, u8 val)
-{
-	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	if (sb1250_pci_can_access(dev)) {
-		data = READCFG32(cfgaddr);
-
+	if (size == 1)
 		data = (data & ~(0xff << ((where & 3) << 3))) |
-		    (val << ((where & 3) << 3));
-
-		WRITECFG32(cfgaddr, data);
-	}
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-sb1250_pci_write_config_word(struct pci_dev *dev, int where, u16 val)
-{
-	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (sb1250_pci_can_access(dev)) {
-		data = READCFG32(cfgaddr);
-
+			(val << ((where & 3) << 3));
+	else if (size == 2)
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
-		    (val << ((where & 3) << 3));
+			(val << ((where & 3) << 3));
 
-		WRITECFG32(cfgaddr, data);
-	}
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-sb1250_pci_write_config_dword(struct pci_dev *dev, int where, u32 val)
-{
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (sb1250_pci_can_access(dev))
-		WRITECFG32(cfgaddr, val);
+	WRITECFG32(cfgaddr, data);
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 struct pci_ops sb1250_pci_ops = {
-	sb1250_pci_read_config_byte,
-	sb1250_pci_read_config_word,
-	sb1250_pci_read_config_dword,
-	sb1250_pci_write_config_byte,
-	sb1250_pci_write_config_word,
-	sb1250_pci_write_config_dword
+	.read	= sb1250_pcibios_read,
+	.write	= sb1250_pcibios_write
 };
 
 
