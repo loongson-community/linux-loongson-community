@@ -331,6 +331,7 @@ config NEC_OSPREY
 
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
+	select BOARD_SCACHE
 	select IRQ_CPU
 	help
 	  This are the SGI Indy, Challenge S and Indigo2, as well as certain
@@ -965,8 +966,6 @@ config ARC_PROMLIB
 
 config BOARD_SCACHE
 	bool
-	depends on CPU_RM9000 || MIPS_EV96100 || MOMENCO_OCELOT || SGI_IP22
-	default y
 
 config ARC64
 	bool
@@ -1083,9 +1082,11 @@ config CPU_R10000
 
 config CPU_RM7000
 	bool "RM7000"
+	select BOARD_SCACHE
 
 config CPU_RM9000
 	bool "RM9000"
+	select BOARD_SCACHE
 
 config CPU_SB1
 	bool "SB1"
