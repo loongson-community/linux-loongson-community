@@ -382,21 +382,19 @@ static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
 	__u32 retval;
 
 #ifdef CONFIG_CPU_HAS_LLSC
-	unsigned long dummy;
-
 	__asm__ __volatile__(
-	"1:	ll	%2, %3			# __cmpxchg_u32	\n"
-	"	li	%0, 1					\n"
-	"	bne	%2, %z4, 2f				\n"
-	"	move	%2, %z5					\n"
-	"	sc	%2, %1					\n"
-	"	beqz	%2, 1b					\n"
-	"	li	%0, 1					\n"
+	"	.set	noat					\n"
+	"1:	ll	%0, %2			# __cmpxchg_u32	\n"
+	"	bne	%0, %z3, 2f				\n"
+	"	move	$1, %z4					\n"
+	"	sc	$1, %1					\n"
+	"	beqz	$1, 1b					\n"
 #ifdef CONFIG_SMP
 	"	sync						\n"
 #endif
 	"2:							\n"
-	: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+	"	.set	at					\n"
+	: "=&r" (retval), "=m" (*m)
 	: "R" (*m), "Jr" (old), "Jr" (new)
 	: "memory");
 #else
@@ -419,21 +417,19 @@ static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
 	__u64 retval;
 
 #ifdef CONFIG_CPU_HAS_LLDSCD
-	unsigned long dummy;
-
 	__asm__ __volatile__(
-	"1:	ll	%2, %3			# __cmpxchg_u64	\n"
-	"	li	%0, 1					\n"
-	"	bne	%2, %z4, 2f				\n"
-	"	move	%2, %z5					\n"
-	"	sc	%2, %1					\n"
-	"	beqz	%2, 1b					\n"
-	"	li	%0, 1					\n"
+	"	.set	noat					\n"
+	"1:	lld	%0, %2			# __cmpxchg_u64	\n"
+	"	bne	%0, %z3, 2f				\n"
+	"	move	$1, %z4					\n"
+	"	scd	$1, %1					\n"
+	"	beqz	$1, 1b					\n"
 #ifdef CONFIG_SMP
 	"	sync						\n"
 #endif
 	"2:							\n"
-	: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+	"	.set	at					\n"
+	: "=&r" (retval), "=m" (*m)
 	: "R" (*m), "Jr" (old), "Jr" (new)
 	: "memory");
 #else
