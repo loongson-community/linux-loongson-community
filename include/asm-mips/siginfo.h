@@ -9,6 +9,8 @@
 #ifndef _ASM_SIGINFO_H
 #define _ASM_SIGINFO_H
 
+#include <linux/config.h>
+
 #define SIGEV_HEAD_SIZE	(sizeof(long) + 2*sizeof(int))
 #define SIGEV_PAD_SIZE	((SIGEV_MAX_SIZE-SIGEV_HEAD_SIZE) / sizeof(int))
 #undef __ARCH_SI_TRAPNO	/* exception code needs to fill this ...  */
@@ -22,10 +24,17 @@
 #define HAVE_ARCH_COPY_SIGINFO
 struct siginfo;
 
-#include <asm-generic/siginfo.h>
+/*
+ * Careful to keep union _sifields from shifting ...
+ */
+#ifdef CONFIG_MIPS32
+#define __ARCH_SI_PREAMBLE_SIZE (3 * sizeof(int))
+#endif
+#ifdef CONFIG_MIPS64
+#define __ARCH_SI_PREAMBLE_SIZE (4 * sizeof(int))
+#endif
 
-/* This structure matches the 32/n32 ABIs for source compatibility but
-   has Linux extensions.  */
+#include <asm-generic/siginfo.h>
 
 typedef struct siginfo {
 	int si_signo;
