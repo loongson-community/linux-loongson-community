@@ -89,10 +89,10 @@ static int set_rtc_mmss(unsigned long nowtime)
 	return retval;
 }
 
-void rt_timer_interrupt(struct pt_regs *regs)
+void ip27_rt_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
-	int cpuA = ((cputoslice(cpu)) == 0);
+	int cpuA = cputoslice(cpu) == 0;
 	int irq = 9;				/* XXX Assign number */
 
 	irq_enter();
