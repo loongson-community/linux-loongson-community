@@ -266,11 +266,6 @@ int __init pcibios_init(void)	xxx This needs to be called somehow ...
 	return 0;
 }
 
-void __init pcibios_fixup_irqs(void)
-{
-	panic("pcibios_fixup_irqs: Implement me");
-}
-
 struct pci_fixup pcibios_fixups[] = {
 	{0}
 };

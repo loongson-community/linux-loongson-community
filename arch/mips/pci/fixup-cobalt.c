@@ -21,11 +21,6 @@
 
 extern int cobalt_board_id;
 
-void __init pcibios_fixup_irqs(void)
-{
-	/* This needs to be written ...  */
-}
-
 static void qube_expansion_slot_bist(struct pci_dev *dev)
 {
 	unsigned char ctrl;
