@@ -43,10 +43,6 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
  * works even with the cache aliasing problem the R4k and above have.
  */
 
-/* PMD_SHIFT determines the size of the area a second-level page table can map */
-#define PMD_SIZE	(1UL << PMD_SHIFT)
-#define PMD_MASK	(~(PMD_SIZE-1))
-
 /* PGDIR_SHIFT determines what a third-level page table entry can map */
 #ifdef CONFIG_64BIT_PHYS_ADDR
 #define PGDIR_SHIFT	21
@@ -58,26 +54,27 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 /*
  * Entries per page directory level: we use two-level, so
- * we don't really have any PMD directory physically.
+ * we don't really have any PUD/PMD directory physically.
  */
 #ifdef CONFIG_64BIT_PHYS_ADDR
 #define PGD_ORDER	1
-#define PMD_ORDER	0
+#define PUD_ORDER	aieeee_attempt_to_allocate_pud
+#define PMD_ORDER	1
 #define PTE_ORDER	0
 #else
 #define PGD_ORDER	0
-#define PMD_ORDER	0
+#define PUD_ORDER	aieeee_attempt_to_allocate_pud
+#define PMD_ORDER	1
 #define PTE_ORDER	0
 #endif
 
 #define PTRS_PER_PGD	((PAGE_SIZE << PGD_ORDER) / sizeof(pgd_t))
-#define PTRS_PER_PMD	1
 #define PTRS_PER_PTE	((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
 
 #define USER_PTRS_PER_PGD	(0x80000000UL/PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
 
-#define VMALLOC_START     KSEG2
+#define VMALLOC_START     MAP_BASE
 
 #ifdef CONFIG_HIGHMEM
 # define VMALLOC_END	(PKMAP_BASE-2*PAGE_SIZE)
@@ -145,12 +142,13 @@ pfn_pte(unsigned long pfn, pgprot_t prot)
 #endif /* defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32) */
 
 #define __pgd_offset(address)	pgd_index(address)
+#define __pud_offset(address)	(((address) >> PUD_SHIFT) & (PTRS_PER_PUD-1))
 #define __pmd_offset(address)	(((address) >> PMD_SHIFT) & (PTRS_PER_PMD-1))
 
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)
 
-#define pgd_index(address)	((address) >> PGDIR_SHIFT)
+#define pgd_index(address)	(((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
 
 /* to find an entry in a page-table-directory */
 #define pgd_offset(mm,addr)	((mm)->pgd + pgd_index(addr))
