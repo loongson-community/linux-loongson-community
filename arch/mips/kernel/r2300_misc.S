@@ -1,4 +1,4 @@
-/* $Id: r2300_misc.S,v 1.4 1999/08/09 19:43:14 harald Exp $
+/* $Id: r2300_misc.S,v 1.5 1999/08/18 23:37:44 ralf Exp $
  * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -8,7 +8,7 @@
  *
  * Further modifications to make this work:
  * Copyright (c) 1998 Harald Koerfgen
- * Copyright (c) 1998 Gleb Raiko & Vladimir Roganov
+ * Copyright (c) 1998, 1999 Gleb Raiko & Vladimir Roganov
  */
 #include <linux/config.h>
 
@@ -116,6 +116,27 @@
 			   _PAGE_VALID | _PAGE_DIRTY); \
 	sw	pte, (ptr);
 
+/*
+ * The index register may have the probe fail bit set,
+ * because we would trap on access kseg2, i.e. without refill.
+ */
+#define TLB_WRITE(reg) \
+	mfc0	reg, CP0_INDEX; \
+	nop; \
+	bltz    reg, 1f; \
+	 nop; \
+	tlbwi; \
+	j	2f; \
+	 nop; \
+1:	tlbwr; \
+2:
+
+#define RET(reg) \
+	mfc0	reg, CP0_EPC; \
+	nop; \
+	jr	reg; \
+	 rfe
+			
 	.set	noreorder
 
 	.align	5
@@ -126,16 +147,11 @@ NESTED(handle_tlbl, PT_SIZE, sp)
 	/* Test present bit in entry. */
 	LOAD_PTE(k0, k1)
         tlbp
-	nop
         PTE_PRESENT(k0, k1, nopage_tlbl)
         PTE_MAKEVALID(k0, k1)
         PTE_RELOAD(k1)
-	tlbwi
-	nop
-	mfc0	k0, CP0_EPC
-	nop
-	jr	k0
-	 rfe
+	TLB_WRITE(k0)
+	RET(k0)
 nopage_tlbl:
 #endif
 
@@ -148,16 +164,11 @@ NESTED(handle_tlbs, PT_SIZE, sp)
 #ifndef NOTLB_OPTIMIZE
 	LOAD_PTE(k0, k1)
 	tlbp                            # find faulting entry
-	nop
 	PTE_WRITABLE(k0, k1, nopage_tlbs)
 	PTE_MAKEWRITE(k0, k1)
 	PTE_RELOAD(k1)
-	tlbwi
-	nop
-	mfc0	k0, CP0_EPC
-	nop
-	jr	k0
-	 rfe
+	TLB_WRITE(k0)
+	RET(k0)
 nopage_tlbs:
 #endif
 
@@ -182,13 +193,8 @@ NESTED(handle_mod, PT_SIZE, sp)
 
 	/* Now reload the entry into the tlb. */
 	PTE_RELOAD(k1)
-	nop
 	tlbwi
-	nop
-	mfc0	k0, CP0_EPC
-	nop
-	jr	k0
-	 rfe
+	RET(k0)
 #endif
 
 nowrite_mod:
