@@ -242,4 +242,4 @@ EXPORT_SYMBOL(release_tc_card);
 EXPORT_SYMBOL(get_tc_base_addr);
 EXPORT_SYMBOL(get_tc_irq_nr);
 EXPORT_SYMBOL(get_tc_speed);
-
+EXPORT_SYMBOL(system_base);
