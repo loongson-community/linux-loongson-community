@@ -57,9 +57,9 @@ __asm__ (
 	"xori\t$1,1\n\t"
 	".set\tnoreorder\n\t"
 	"mtc0\t$1,$12\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
+	"ssnop\n\t"
+	"ssnop\n\t"
+	"ssnop\n\t"
 	".set\tpop\n\t"
 	".endm");
 
@@ -95,9 +95,9 @@ __asm__ (
 	"xori\t$1, 1\n\t"
 	".set\tnoreorder\n\t"
 	"mtc0\t$1, $12\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
+	"ssnop\n\t"
+	"ssnop\n\t"
+	"ssnop\n\t"
 	".set\tpop\n\t"
 	".endm");
 
@@ -117,9 +117,9 @@ __asm__(".macro\tlocal_irq_restore flags\n\t"
 	"xori\t$1, 1\n\t"
 	"or\t\\flags, $1\n\t"
 	"mtc0\t\\flags, $12\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	"sll\t$0, $0, 1\t\t\t# nop\n\t"
+	"ssnop\n\t"
+	"ssnop\n\t"
+	"ssnop\n\t"
 	".set\tat\n\t"
 	".set\treorder\n\t"
 	".endm");
