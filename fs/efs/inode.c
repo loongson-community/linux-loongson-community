@@ -12,9 +12,9 @@
 
 static inline void extent_copy(efs_extent *src, efs_extent *dst) {
 	/*
-	 * this is slightly evil. it doesn't just copy the
-	 * efs_extent from src to dst, it also mangles the bits
-	 * so that dst ends up in cpu byte-order.
+	 * this is slightly evil. it doesn't just copy
+	 * efs_extent from src to dst, it also mangles
+	 * the bits so that dst ends up in cpu byte-order.
 	 */
 
 	dst->cooked.ex_magic  =  (unsigned int) src->raw[0];
@@ -28,12 +28,12 @@ static inline void extent_copy(efs_extent *src, efs_extent *dst) {
 	return;
 }
 
-void efs_read_inode(struct inode *in) {
-	int i, extents, inode_index;
+void efs_read_inode(struct inode *inode) {
+	int i, inode_index;
 	dev_t device;
 	struct buffer_head *bh;
-	struct efs_sb_info *sbp = (struct efs_sb_info *)&in->i_sb->u.generic_sbp;
-	struct efs_inode_info *ini = (struct efs_inode_info *)&in->u.generic_ip;
+	struct efs_sb_info    *sb = SUPER_INFO(inode->i_sb);
+	struct efs_inode_info *in = INODE_INFO(inode);
 	efs_block_t block, offset;
 	struct efs_dinode *efs_inode;
   
@@ -49,16 +49,18 @@ void efs_read_inode(struct inode *in) {
 	** offset of the inode within that block.
 	*/
 
-	/* four inodes are stored in one block */
-	inode_index = in->i_ino / (EFS_BLOCKSIZE / sizeof(struct efs_dinode));
+	inode_index = inode->i_ino /
+		(EFS_BLOCKSIZE / sizeof(struct efs_dinode));
 
-	block = sbp->fs_start + sbp->first_block + 
-		(sbp->group_size * (inode_index / sbp->inode_blocks)) +
-		(inode_index % sbp->inode_blocks);
+	block = sb->fs_start + sb->first_block + 
+		(sb->group_size * (inode_index / sb->inode_blocks)) +
+		(inode_index % sb->inode_blocks);
 
-	offset = (in->i_ino % (EFS_BLOCKSIZE / sizeof(struct efs_dinode))) << 7;
+	offset = (inode->i_ino %
+			(EFS_BLOCKSIZE / sizeof(struct efs_dinode))) *
+		sizeof(struct efs_dinode);
 
-	bh = bread(in->i_dev, block, EFS_BLOCKSIZE);
+	bh = bread(inode->i_dev, block, EFS_BLOCKSIZE);
 	if (!bh) {
 		printk("EFS: bread() failed at block %d\n", block);
 		goto read_inode_error;
@@ -67,17 +69,21 @@ void efs_read_inode(struct inode *in) {
 	efs_inode = (struct efs_dinode *) (bh->b_data + offset);
     
 	/* fill in standard inode infos */
-	in->i_mode  = be16_to_cpu(efs_inode->di_mode);
-	in->i_nlink = be16_to_cpu(efs_inode->di_nlink);
-	in->i_uid   = be16_to_cpu(efs_inode->di_uid);
-	in->i_gid   = be16_to_cpu(efs_inode->di_gid);
-	in->i_size  = be32_to_cpu(efs_inode->di_size);
-	in->i_atime = be32_to_cpu(efs_inode->di_atime);
-	in->i_mtime = be32_to_cpu(efs_inode->di_mtime);
-	in->i_ctime = be32_to_cpu(efs_inode->di_ctime);
+	inode->i_mode  = be16_to_cpu(efs_inode->di_mode);
+	inode->i_nlink = be16_to_cpu(efs_inode->di_nlink);
+	inode->i_uid   = be16_to_cpu(efs_inode->di_uid);
+	inode->i_gid   = be16_to_cpu(efs_inode->di_gid);
+	inode->i_size  = be32_to_cpu(efs_inode->di_size);
+	inode->i_atime = be32_to_cpu(efs_inode->di_atime);
+	inode->i_mtime = be32_to_cpu(efs_inode->di_mtime);
+	inode->i_ctime = be32_to_cpu(efs_inode->di_ctime);
 
-	/* this is last valid block in the file */
-	in->i_blocks = ((in->i_size - 1) >> EFS_BLOCKSIZE_BITS);
+	/* this is the number of blocks in the file */
+	if (inode->i_size == 0) {
+		inode->i_blocks = 0;
+	} else {
+		inode->i_blocks = ((inode->i_size - 1) >> EFS_BLOCKSIZE_BITS) + 1;
+	}
 
     	device = be32_to_cpu(efs_inode->di_u.di_dev);
 
@@ -85,51 +91,50 @@ void efs_read_inode(struct inode *in) {
 	   They are necessary for further operations with the file */
 
 	/* get the number of extents for this object */
-	extents = be16_to_cpu(efs_inode->di_numextents);
+	in->numextents = be16_to_cpu(efs_inode->di_numextents);
+	in->lastextent = 0;
 
-	/* copy the first 12 extents directly from the inode */
+	/* copy the extents contained within the inode to memory */
 	for(i = 0; i < EFS_DIRECTEXTENTS; i++) {
-		extent_copy(&(efs_inode->di_u.di_extents[i]), &(ini->extents[i]));
-		if (i < extents && ini->extents[i].cooked.ex_magic != 0) {
-			printk("EFS: extent %d has bad magic number in inode %lu\n", i, in->i_ino);
+		extent_copy(&(efs_inode->di_u.di_extents[i]), &(in->extents[i]));
+		if (i < in->numextents && in->extents[i].cooked.ex_magic != 0) {
+			printk("EFS: extent %d has bad magic number in inode %lu\n", i, inode->i_ino);
 			brelse(bh);
 			goto read_inode_error;
 		}
 	}
-	ini->numextents = extents;
-	ini->lastextent = 0;
 
 	brelse(bh);
    
 #ifdef DEBUG
-	printk("EFS: efs_read_inode(): inode %lu, extents %d\n",
-		in->i_ino, extents);
+	printk("EFS: read_inode(): inode %lu, extents %d\n",
+		inode->i_ino, in->numextents);
 #endif
 
 	/* Install the filetype Handler */
-	switch (in->i_mode & S_IFMT) {
+	switch (inode->i_mode & S_IFMT) {
 		case S_IFDIR: 
-			in->i_op = &efs_dir_inode_operations; 
+			inode->i_op = &efs_dir_inode_operations; 
 			break;
 		case S_IFREG:
-			in->i_op = &efs_file_inode_operations;
+			inode->i_op = &efs_file_inode_operations;
 			break;
 		case S_IFLNK:
-			in->i_op = &efs_symlink_inode_operations;
+			inode->i_op = &efs_symlink_inode_operations;
 			break;
 		case S_IFCHR:
-			in->i_rdev = device;
-			in->i_op = &chrdev_inode_operations; 
+			inode->i_rdev = device;
+			inode->i_op = &chrdev_inode_operations; 
 			break;
 		case S_IFBLK:
-			in->i_rdev = device;
-			in->i_op = &blkdev_inode_operations; 
+			inode->i_rdev = device;
+			inode->i_op = &blkdev_inode_operations; 
 			break;
 		case S_IFIFO:
-			init_fifo(in);
+			init_fifo(inode);
 			break;    
 		default:
-			printk("EFS: unsupported inode mode %o\n",in->i_mode);
+			printk("EFS: unsupported inode mode %o\n", inode->i_mode);
 			goto read_inode_error;
 			break;
 	}
@@ -137,23 +142,23 @@ void efs_read_inode(struct inode *in) {
 	return;
         
 read_inode_error:
-	printk("EFS: failed to read inode %lu\n", in->i_ino);
-	in->i_mode = S_IFREG;
-	in->i_atime = 0;
-	in->i_ctime = 0;
-	in->i_mtime = 0;
-	in->i_nlink = 1;
-	in->i_size = 0;
-	in->i_blocks = 0;
-	in->i_uid = 0;
-	in->i_gid = 0;
-	in->i_op = NULL;
+	printk("EFS: failed to read inode %lu\n", inode->i_ino);
+	inode->i_mode = S_IFREG;
+	inode->i_atime = 0;
+	inode->i_ctime = 0;
+	inode->i_mtime = 0;
+	inode->i_nlink = 1;
+	inode->i_size = 0;
+	inode->i_blocks = 0;
+	inode->i_uid = 0;
+	inode->i_gid = 0;
+	inode->i_op = NULL;
 
 	return;
 }
 
 static inline efs_block_t
-efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sbp, struct efs_inode_info *ini) {
+efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sb) {
 	efs_block_t start;
 	efs_block_t length;
 	efs_block_t offset;
@@ -167,7 +172,7 @@ efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sbp, st
 	offset = ptr->cooked.ex_offset;
 
 	if ((block >= offset) && (block < offset+length)) {
-		return(sbp->fs_start + start + block - offset);
+		return(sb->fs_start + start + block - offset);
 	} else {
 		return 0;
 	}
@@ -175,101 +180,113 @@ efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sbp, st
 
 /* find the disk block number for a given logical file block number */
 
-efs_block_t efs_read_block(struct inode *inode, efs_block_t block) {
-	struct efs_sb_info *sbp = (struct efs_sb_info *) &inode->i_sb->u.generic_sbp;
-	struct efs_inode_info *ini = (struct efs_inode_info *) &inode->u.generic_ip;
-	struct buffer_head *bh;
+efs_block_t efs_map_block(struct inode *inode, efs_block_t block) {
+	struct efs_sb_info    *sb = SUPER_INFO(inode->i_sb);
+	struct efs_inode_info *in = INODE_INFO(inode);
+	struct buffer_head    *bh = NULL;
 
-	efs_block_t result = 0;
-	int indirexts, indirext, imagic;
-	efs_block_t istart, iblock, ilen;
-	int i, cur, last, total, checked;
-	efs_extent *exts;
-	efs_extent ext;
+	int cur, last, first = 1;
+	int ibase, ioffset, dirext, direxts, indext, indexts;
+	efs_block_t iblock, result = 0, lastblock = 0;
+	efs_extent ext, *exts;
 
-	last  = ini->lastextent;
-	total = ini->numextents;
+	last = in->lastextent;
 
-	if (total <= EFS_DIRECTEXTENTS) {
+	if (in->numextents <= EFS_DIRECTEXTENTS) {
 		/* first check the last extent we returned */
-		if ((result = efs_extent_check(&ini->extents[last], block, sbp, ini)))
+		if ((result = efs_extent_check(&in->extents[last], block, sb)))
 			return result;
     
 		/* if we only have one extent then nothing can be found */
-		if (total == 1) {
-			printk("EFS: read_block() failed to map (1 extent)\n");
+		if (in->numextents == 1) {
+			printk("EFS: map_block() failed to map (1 extent)\n");
 			return 0;
 		}
 
+		direxts = in->numextents;
+
 		/* check the stored extents in the inode */
 		/* start with next extent and check forwards */
-		for(i = 1; i < total; i++) {
-			if ((result = efs_extent_check(&ini->extents[(last + i) % total], block, sbp, ini))) {
-				ini->lastextent = i;
+		for(dirext = 1; dirext < direxts; dirext++) {
+			cur = (last + dirext) % in->numextents;
+			if ((result = efs_extent_check(&in->extents[cur], block, sb))) {
+				in->lastextent = cur;
 				return result;
 			}
 		}
 
-		printk("EFS: read_block() failed to map for direct extents\n");
+		printk("EFS: map_block() failed to map block %u (dir)\n", block);
 		return 0;
 	}
 
 #ifdef DEBUG
-	printk("EFS: indirect search for logical block %u\n", block);
+	printk("EFS: map_block(): indirect search for logical block %u\n", block);
 #endif
+	direxts = in->extents[0].cooked.ex_offset;
+	indexts = in->numextents;
 
-	/*
-	 * OPT: this lot is inefficient.
-	 */
+	for(indext = 0; indext < indexts; indext++) {
+		cur = (last + indext) % indexts;
 
-	indirexts = ini->extents[0].cooked.ex_offset;
-	checked = 0;
+		/*
+		 * work out which direct extent contains `cur'.
+		 *
+		 * also compute ibase: i.e. the number of the first
+		 * indirect extent contained within direct extent `cur'.
+		 *
+		 */
+		ibase = 0;
+		for(dirext = 0; cur < ibase && dirext < direxts; dirext++) {
+			ibase += in->extents[dirext].cooked.ex_length *
+				(EFS_BLOCKSIZE / sizeof(efs_extent));
+		}
 
-	for(indirext = 0; indirext < indirexts; indirext++) {
-		cur = (last + indirext) % indirexts;
-		imagic = ini->extents[cur].cooked.ex_magic;
-		istart = ini->extents[cur].cooked.ex_bn + sbp->fs_start;
-		ilen   = ini->extents[cur].cooked.ex_length;
+		if (dirext == direxts) {
+			/* should never happen */
+			printk("EFS: couldn't find direct extent for indirect extent %d (block %u)\n", cur, block);
+			return 0;
+		}
+		
+		/* work out block number and offset of this indirect extent */
+		iblock = sb->fs_start + in->extents[dirext].cooked.ex_bn +
+			(cur - ibase) /
+			(EFS_BLOCKSIZE / sizeof(efs_extent));
+		ioffset = (cur - ibase) %
+			(EFS_BLOCKSIZE / sizeof(efs_extent));
 
-		for(iblock = istart; iblock < istart + ilen; iblock++) {
+		if (first || lastblock != iblock) {
+			if (bh) brelse(bh);
+
 			bh = bread(inode->i_dev, iblock, EFS_BLOCKSIZE);
 			if (!bh) {
-				printk("EFS: bread() failed at block %d\n", block);
+				printk("EFS: bread() failed at block %d\n", iblock);
 				return 0;
 			}
 #ifdef DEBUG
-			printk("EFS: read indirect extent block %d\n", iblock-istart);
+			printk("EFS: map_block(): read indirect extent block %d\n", iblock);
 #endif
+			first = 0;
+			lastblock = iblock;
+		}
 
-			exts = (efs_extent *) bh->b_data;
-			for(i = 0; i < EFS_BLOCKSIZE / sizeof(efs_extent) && checked < total; i++, checked++) {
-				/*
-				 * this block might be read-cached
-				 * so fiddle the endianness in a private copy
-				 */
-				extent_copy(&(exts[i]), &ext);
+		exts = (efs_extent *) bh->b_data;
 
-				if (ext.cooked.ex_magic != 0) {
-					printk("EFS: extent %d has bad magic number in block %d\n", i, iblock);
-					brelse(bh);
-					return 0;
-				}
+		extent_copy(&(exts[ioffset]), &ext);
 
-				if ((result = efs_extent_check(&ext, block, sbp, ini))) {
-					brelse(bh);
-					ini->lastextent = cur;
-					return result;
-				}
-			}
+		if (ext.cooked.ex_magic != 0) {
+			printk("EFS: extent %d has bad magic number in block %d\n", cur, iblock);
 			brelse(bh);
-			/* shouldn't need this if the FS is consistent */
-			if (checked == total) {
-				printk("EFS: unable to map (checked all extents)\n");
-				return 0;
-			}
+			return 0;
+		}
+
+		if ((result = efs_extent_check(&ext, block, sb))) {
+			brelse(bh);
+			in->lastextent = cur;
+			return result;
 		}
 	}
-	printk("EFS: unable to map (fell out of loop)\n");
+	if (bh) brelse(bh);
+	printk("EFS: map_block() failed to map block %u (indir)\n", block);
 	return 0;
 }  
 

@@ -6,17 +6,12 @@
  * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/module.h>
 #include <linux/init.h>
-
+#include <linux/module.h>
+#include <linux/locks.h>
 #include <linux/efs_fs.h>
 #include <linux/efs_vh.h>
 #include <linux/efs_fs_sb.h>
-
-void			efs_read_inode(struct inode *);
-void			efs_put_super(struct super_block *);
-int			efs_statfs(struct super_block *, struct statfs *, int);
-struct super_block *	efs_read_super(struct super_block *, void *, int);
 
 static struct file_system_type efs_fs_type = {
 	"efs",			/* filesystem name */
@@ -38,8 +33,7 @@ static struct super_operations efs_superblock_operations = {
 };
 
 __initfunc(int init_efs_fs(void)) {
-	printk(cprt);
-	printk(" - http://aeschi.ch.eu.org/efs/\n");
+	printk("EFS: "EFS_VERSION" - http://aeschi.ch.eu.org/efs/\n");
 	return register_filesystem(&efs_fs_type);
 }
 
@@ -55,11 +49,12 @@ void cleanup_module(void) {
 }
 #endif
 
-static long efs_validate_vh(struct volume_header *vh) {
-	int	i, j;
-	int32_t	sblock = -1;
-	int	type, slice = -1;
-	char	name[VDNAMESIZE+1];
+static efs_block_t efs_validate_vh(struct volume_header *vh) {
+	int		i;
+	unsigned int	cs, csum, *ui;
+	efs_block_t	sblock = 0; /* shuts up gcc */
+	struct pt_types	*pt_entry;
+	int		pt_type, slice = -1;
 
 	if (be32_to_cpu(vh->vh_magic) != VHMAGIC) {
 		/*
@@ -70,44 +65,65 @@ static long efs_validate_vh(struct volume_header *vh) {
 		return 0;
 	}
 
+	ui = ((unsigned int *) (vh + 1)) - 1;
+	for(csum = 0; ui >= ((unsigned int *) vh);) {
+		cs = *ui--;
+		csum += be32_to_cpu(cs);
+	}
+	if (csum) {
+		printk("EFS: SGI disklabel: checksum bad, label corrupted\n");
+		return 0;
+	}
+
 #ifdef DEBUG
-	printk("EFS: bf: %16s\n", vh->vh_bootfile);
-#endif
+	printk("EFS: bf: \"%16s\"\n", vh->vh_bootfile);
 
 	for(i = 0; i < NVDIR; i++) {
+		int	j;
+		char	name[VDNAMESIZE+1];
+
 		for(j = 0; j < VDNAMESIZE; j++) {
 			name[j] = vh->vh_vd[i].vd_name[j];
 		}
 		name[j] = (char) 0;
 
-#ifdef DEBUG
 		if (name[0]) {
 			printk("EFS: vh: %8s block: 0x%08x size: 0x%08x\n",
 				name,
 				(int) be32_to_cpu(vh->vh_vd[i].vd_lbn),
 				(int) be32_to_cpu(vh->vh_vd[i].vd_nbytes));
 		}
-#endif
 	}
+#endif
 
 	for(i = 0; i < NPARTAB; i++) {
-		type = (int) be32_to_cpu(vh->vh_pt[i].pt_type);
+		pt_type = (int) be32_to_cpu(vh->vh_pt[i].pt_type);
+		for(pt_entry = sgi_pt_types; pt_entry->pt_name; pt_entry++) {
+			if (pt_type == pt_entry->pt_type) break;
+		}
 #ifdef DEBUG
-		printk("EFS: pt: start: %08d size: %08d type: %08d\n",
-			(int) be32_to_cpu(vh->vh_pt[i].pt_firstlbn),
-			(int) be32_to_cpu(vh->vh_pt[i].pt_nblks),
-			type);
+		if (be32_to_cpu(vh->vh_pt[i].pt_nblks)) {
+			printk("EFS: pt %2d: start: %08d size: %08d type: 0x%02x (%s)\n",
+				i,
+				(int) be32_to_cpu(vh->vh_pt[i].pt_firstlbn),
+				(int) be32_to_cpu(vh->vh_pt[i].pt_nblks),
+				pt_type,
+				(pt_entry->pt_name) ? pt_entry->pt_name : "unknown");
+		}
 #endif
-		if (type == 5 || type == 7) {
+		if (IS_EFS(pt_type)) {
 			sblock = be32_to_cpu(vh->vh_pt[i].pt_firstlbn);
 			slice = i;
 		}
 	}
 
-	if (sblock < 0) {
-		printk("EFS: found valid partition table but no EFS partitions\n");
+	if (slice == -1) {
+		printk("EFS: partition table contained no EFS partitions\n");
 	} else {
-		printk("EFS: using CD slice %d (offset 0x%x)\n", slice, sblock);
+		printk("EFS: using slice %d (type %s, offset 0x%x)\n",
+			slice,
+			(pt_entry->pt_name) ? pt_entry->pt_name : "unknown",
+			sblock);
 	}
 	return(sblock);
 }
@@ -131,14 +147,13 @@ static int efs_validate_super(struct efs_sb_info *sb, struct efs_super *super) {
 struct super_block *efs_read_super(struct super_block *s, void *d, int verbose) {
 	kdev_t dev = s->s_dev;
 	struct inode *root_inode;
-	struct efs_sb_info *spb;
+	struct efs_sb_info *sb;
 	struct buffer_head *bh;
 
 	MOD_INC_USE_COUNT;
 	lock_super(s);
   
-	/* approx 230 bytes available in this union */
- 	spb = (struct efs_sb_info *) &(s->u.generic_sbp);
+ 	sb = SUPER_INFO(s);
 
 	set_blocksize(dev, EFS_BLOCKSIZE);
   
@@ -155,21 +170,21 @@ struct super_block *efs_read_super(struct super_block *s, void *d, int verbose) 
 	 * this isn't (yet) an error - just assume for the moment that
 	 * the device is valid and go on to search for a superblock.
 	 */
-	spb->fs_start = efs_validate_vh((struct volume_header *) bh->b_data);
+	sb->fs_start = efs_validate_vh((struct volume_header *) bh->b_data);
 	brelse(bh);
 
-	if (spb->fs_start < 0) {
+	if (sb->fs_start == -1) {
 		goto out_no_fs_ul;
 	}
 
-	bh = bread(dev, spb->fs_start + EFS_SUPER, EFS_BLOCKSIZE);
+	bh = bread(dev, sb->fs_start + EFS_SUPER, EFS_BLOCKSIZE);
 	if (!bh) {
 		printk("EFS: unable to read superblock\n");
 		goto out_no_fs_ul;
 	}
 		
-	if (efs_validate_super(spb, (struct efs_super *) bh->b_data)) {
-		printk("EFS: invalid superblock\n");
+	if (efs_validate_super(sb, (struct efs_super *) bh->b_data)) {
+		printk("EFS: invalid superblock at block %u\n", sb->fs_start + EFS_SUPER);
 		brelse(bh);
 		goto out_no_fs_ul;
 	}
@@ -179,7 +194,7 @@ struct super_block *efs_read_super(struct super_block *s, void *d, int verbose) 
 	s->s_blocksize_bits	= EFS_BLOCKSIZE_BITS;
 	if (!(s->s_flags & MS_RDONLY)) {
 #ifdef DEBUG
-		printk("EFS: forcing read-only: RW access not supported\n");
+		printk("EFS: forcing read-only mode\n");
 #endif
 		s->s_flags |= MS_RDONLY;
 	}
@@ -222,23 +237,23 @@ void efs_put_super(struct super_block *s) {
 }
 
 int efs_statfs(struct super_block *s, struct statfs *buf, int bufsiz) {
-	struct statfs tmp;
-	struct efs_sb_info *sbp = (struct efs_sb_info *)&s->u.generic_sbp;
+	struct statfs ret;
+	struct efs_sb_info *sb = SUPER_INFO(s);
 
-	tmp.f_type    = EFS_SUPER_MAGIC;	/* efs magic number */
-	tmp.f_bsize   = EFS_BLOCKSIZE;		/* blocksize */
-	tmp.f_blocks  = sbp->total_groups *	/* total data blocks */
-			(sbp->group_size - sbp->inode_blocks);
-	tmp.f_bfree   = sbp->data_free;		/* free data blocks */
-	tmp.f_bavail  = sbp->data_free;		/* free blocks for non-root */
-	tmp.f_files   = sbp->total_groups *	/* total inodes */
-			sbp->inode_blocks *
+	ret.f_type    = EFS_SUPER_MAGIC;	/* efs magic number */
+	ret.f_bsize   = EFS_BLOCKSIZE;		/* blocksize */
+	ret.f_blocks  = sb->total_groups *	/* total data blocks */
+			(sb->group_size - sb->inode_blocks);
+	ret.f_bfree   = sb->data_free;		/* free data blocks */
+	ret.f_bavail  = sb->data_free;		/* free blocks for non-root */
+	ret.f_files   = sb->total_groups *	/* total inodes */
+			sb->inode_blocks *
 			(EFS_BLOCKSIZE / sizeof(struct efs_dinode));
-	tmp.f_ffree   = sbp->inode_free;	/* free inodes */
-	tmp.f_fsid.val[0] = (sbp->fs_magic >> 16) & 0xffff; /* fs ID */
-	tmp.f_fsid.val[1] =  sbp->fs_magic        & 0xffff; /* fs ID */
-	tmp.f_namelen = EFS_MAXNAMELEN;		/* max filename length */
+	ret.f_ffree   = sb->inode_free;	/* free inodes */
+	ret.f_fsid.val[0] = (sb->fs_magic >> 16) & 0xffff; /* fs ID */
+	ret.f_fsid.val[1] =  sb->fs_magic        & 0xffff; /* fs ID */
+	ret.f_namelen = EFS_MAXNAMELEN;		/* max filename length */
 
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	return copy_to_user(buf, &ret, bufsiz) ? -EFAULT : 0;
 }
 

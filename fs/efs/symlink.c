@@ -6,6 +6,7 @@
  * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
+#include <linux/malloc.h>
 #include <linux/efs_fs.h>
 
 static int
@@ -14,7 +15,7 @@ static struct dentry *
 	efs_follow_link(struct dentry *, struct dentry *, unsigned int);
 
 struct inode_operations efs_symlink_inode_operations = {
-	NULL,			/* no file-operations */
+	NULL,			/* no symlink file-operations */
 	NULL,			/* create */
 	NULL,			/* lookup */
 	NULL,			/* link */
@@ -30,7 +31,8 @@ struct inode_operations efs_symlink_inode_operations = {
 	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
-	NULL			/* permission */
+	NULL,			/* permission */
+	NULL			/* smap */
 };
 
 static char *efs_linktarget(struct inode *in, int *len) {
@@ -39,7 +41,7 @@ static char *efs_linktarget(struct inode *in, int *len) {
 	efs_block_t size = in->i_size;
   
 	if (size > 2 * EFS_BLOCKSIZE) {
-		printk("EFS: efs_linktarget: name too long: %lu\n", in->i_size);
+		printk("EFS: linktarget(): name too long: %lu\n", in->i_size);
 		return NULL;
 	}
   
@@ -50,7 +52,7 @@ static char *efs_linktarget(struct inode *in, int *len) {
 	bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCKSIZE);
 	if (!bh) {
 		kfree(name);
-		printk("EFS: efs_linktarget: couldn't read block %d\n", efs_bmap(in, 0));
+		printk("EFS: linktarget(): couldn't read block %d\n", efs_bmap(in, 0));
 		return NULL;
 	}
 
@@ -61,7 +63,7 @@ static char *efs_linktarget(struct inode *in, int *len) {
 		bh = bread(in->i_dev, efs_bmap(in, 1), EFS_BLOCKSIZE);
 		if (!bh) {
 			kfree(name);
-			printk("EFS: efs_linktarget: couldn't read block %d\n", efs_bmap(in, 1));
+			printk("EFS: linktarget(): couldn't read block %d\n", efs_bmap(in, 1));
 			return NULL;
 		}
 		memcpy(name + EFS_BLOCKSIZE, bh->b_data, size - EFS_BLOCKSIZE);
@@ -78,7 +80,10 @@ static struct dentry *efs_follow_link(struct dentry *dentry, struct dentry *base
 	char *name;
 	struct inode *inode = dentry->d_inode;
 
-	name = efs_linktarget(inode, NULL);
+	if (!(name = efs_linktarget(inode, NULL))) {
+		dput(base);
+		return ERR_PTR(-ELOOP);
+	}
 	base = lookup_dentry(name, base, follow);
 	kfree(name);
   

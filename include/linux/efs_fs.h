@@ -9,52 +9,41 @@
 #ifndef __EFS_FS_H__
 #define __EFS_FS_H__
 
-#define VERSION "0.97"
+#define EFS_VERSION "0.97e"
 
-static const char cprt[] = "EFS: version "VERSION" - (c) 1999 Al Smith <Al.Smith@aeschi.ch.eu.org>";
+static const char cprt[] = "EFS: "EFS_VERSION" - (c) 1999 Al Smith <Al.Smith@aeschi.ch.eu.org>";
 
-#include <linux/stat.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/major.h>
-#include <linux/mm.h>
-#include <linux/string.h>
-#include <linux/locks.h>
-#include <linux/malloc.h>
-#include <linux/errno.h>
-#include <linux/cdrom.h>
-
-#include <asm/system.h>
-#include <asm/segment.h>
 #include <asm/uaccess.h>
-#include <asm/byteorder.h>
 
-#define	EFS_BLOCKSIZE		512
+#ifndef LINUX_VERSION_CODE
+#include <linux/version.h>
+#endif
+
+#if LINUX_VERSION_CODE < 0x20200
+#error This code is only for linux-2.2 and later.
+#endif
+
+/* 1 block is 512 bytes */
 #define	EFS_BLOCKSIZE_BITS	9
+#define	EFS_BLOCKSIZE		(1 << EFS_BLOCKSIZE_BITS)
 
 #include <linux/efs_fs_i.h>
 #include <linux/efs_dir.h>
 
 #ifndef MIN
-#define MIN(a,b) ((a)<(b)?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 #ifndef MAX
-#define MAX(a,b) ((a)>(b)?(a):(b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
-/* efs superblock information in memory */
-struct efs_spb {
-	int32_t	fs_magic;	/* superblock magic number */
-	int32_t	fs_start;	/* first block of filesystem */
-	int32_t	first_block;	/* first data block in filesystem */
-	int32_t	total_blocks;	/* total number of blocks in filesystem */
-	int32_t	group_size;	/* # of blocks a group consists of */ 
-	int32_t	data_free;	/* # of free data blocks */
-	int32_t	inode_free;	/* # of free inodes */
-	short	inode_blocks;	/* # of blocks used for inodes in every grp */
-	short	total_groups;	/* # of groups */
-};
-
+#ifdef _EFS_USE_GENERIC
+#define INODE_INFO(i) (struct efs_inode_info *)	&((i)->u.generic_ip)
+#define SUPER_INFO(s) (struct efs_sb_info *)	&((s)->u.generic_sbp)
+#else
+#define INODE_INFO(i)				&((i)->u.efs_i)
+#define SUPER_INFO(s)				&((s)->u.efs_sb)
+#endif
 
 extern struct inode_operations efs_dir_inode_operations;
 extern struct inode_operations efs_file_inode_operations;
@@ -67,7 +56,7 @@ extern void efs_put_super(struct super_block *);
 extern int efs_statfs(struct super_block *, struct statfs *, int);
 
 extern void efs_read_inode(struct inode *);
-extern efs_block_t efs_read_block(struct inode *, efs_block_t);
+extern efs_block_t efs_map_block(struct inode *, efs_block_t);
 
 extern int efs_lookup(struct inode *, struct dentry *);
 extern int efs_bmap(struct inode *, int);

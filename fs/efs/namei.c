@@ -10,8 +10,8 @@
 
 /* search an efs directory inode for the given name */
 
-static uint32_t efs_find_entry(struct inode *inode, const char *name, int len) {
-	struct efs_inode_info *ini = (struct efs_inode_info *) &inode->u.generic_ip;
+static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) {
+	struct efs_inode_info *in = INODE_INFO(inode);
 	struct buffer_head *bh;
 
 	int			slot, namelen;
@@ -21,13 +21,13 @@ static uint32_t efs_find_entry(struct inode *inode, const char *name, int len) {
 	efs_ino_t		inodenum;
 	efs_block_t		block;
  
-	if (ini->numextents != 1)
-		printk("EFS: WARNING: readdir(): more than one extent\n");
+	if (in->numextents != 1)
+		printk("EFS: WARNING: find_entry(): more than one extent\n");
 
 	if (inode->i_size & (EFS_BLOCKSIZE-1))
-		printk("EFS: WARNING: readdir(): directory size not a multiple of EFS_BLOCKSIZE\n");
+		printk("EFS: WARNING: find_entry(): directory size not a multiple of EFS_BLOCKSIZE\n");
 
-	for(block = 0; block <= inode->i_blocks; block++) {
+	for(block = 0; block < inode->i_blocks; block++) {
 
 		bh = bread(inode->i_dev, efs_bmap(inode, block), EFS_BLOCKSIZE);
 		if (!bh) {
@@ -38,7 +38,7 @@ static uint32_t efs_find_entry(struct inode *inode, const char *name, int len) {
 		dirblock = (struct efs_dir *) bh->b_data;
 
 		if (be16_to_cpu(dirblock->magic) != EFS_DIRBLK_MAGIC) {
-			printk("EFS: readdir(): invalid directory block\n");
+			printk("EFS: find_entry(): invalid directory block\n");
 			brelse(bh);
 			return(0);
 		}
@@ -64,16 +64,16 @@ static uint32_t efs_find_entry(struct inode *inode, const char *name, int len) {
 /* get inode associated with directory entry */
 
 int efs_lookup(struct inode *dir, struct dentry *dentry) {
-	int ino;
+	efs_ino_t inodenum;
 	struct inode * inode;
 
 	if (!dir || !S_ISDIR(dir->i_mode)) return -ENOENT;
 
 	inode = NULL;
 
-	ino = efs_find_entry(dir, dentry->d_name.name, dentry->d_name.len);
-	if (ino) {
-		if (!(inode = iget(dir->i_sb, ino)))
+	inodenum = efs_find_entry(dir, dentry->d_name.name, dentry->d_name.len);
+	if (inodenum) {
+		if (!(inode = iget(dir->i_sb, inodenum)))
 			return -EACCES;
 	}
 

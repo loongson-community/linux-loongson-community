@@ -7,7 +7,8 @@
 #ifndef __EFS_DIR_H__
 #define __EFS_DIR_H__
 
-#define EFS_DIRBSIZE	EFS_BLOCKSIZE
+#define EFS_DIRBSIZE_BITS	EFS_BLOCKSIZE_BITS
+#define EFS_DIRBSIZE		(1 << EFS_DIRBSIZE_BITS)
 
 struct efs_dentry {
 	unsigned int	inode;
