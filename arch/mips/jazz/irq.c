@@ -93,8 +93,6 @@ void __init init_r4030_ints(void)
  */
 void __init init_IRQ (void)
 {
-	int i;
-
 	set_except_vector(0, jazz_handle_int);
 
 	init_generic_irq();
