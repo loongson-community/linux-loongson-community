@@ -1,6 +1,6 @@
 /*
  * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000, 2001 MIPS Technologies, Inc.
+ * Copyright (C) 2000, 2001, 2004 MIPS Technologies, Inc.
  * Copyright (C) 2001 Ralf Baechle
  *
  *  This program is free software; you can distribute it and/or modify it
@@ -155,8 +155,8 @@ void corehi_irqdispatch(struct pt_regs *regs)
         case MIPS_REVISION_CORID_CORE_FPGAR2:
                 data = GT_READ(GT_INTRCAUSE_OFS);
                 printk("GT_INTRCAUSE = %08x\n", data);
-                data = GT_READ(0x70);
-                datahi = GT_READ(0x78);
+                data = GT_READ(GT_BERRLO_OFS);
+                datahi = GT_READ(GT_BERRHI_OFS);
                 printk("GT_CPU_ERR_ADDR = %02x%08x\n", datahi, data);
                 break;
         case MIPS_REVISION_CORID_BONITO64:

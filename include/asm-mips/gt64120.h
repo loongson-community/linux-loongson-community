@@ -1,6 +1,7 @@
 /*
- * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2000, 2004  MIPS Technologies, Inc.  All rights reserved.
+ *	Authors: Carsten Langgaard <carstenl@mips.com>
+ *		 Maciej W. Rozycki <macro@mips.com>
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -27,11 +28,12 @@
 /*
  *  Register offset addresses
  */
+/* CPU Configuration.  */
 #define GT_CPU_OFS		0x000
 
-/*
- * Interrupt Registers
- */
+#define GT_MULTI_OFS		0x120
+
+/* CPU Address Decode.  */
 #define GT_SCS10LD_OFS		0x008
 #define GT_SCS10HD_OFS		0x010
 #define GT_SCS32LD_OFS		0x018
@@ -44,7 +46,12 @@
 #define GT_PCI0IOHD_OFS		0x050
 #define GT_PCI0M0LD_OFS		0x058
 #define GT_PCI0M0HD_OFS		0x060
+
 #define GT_ISD_OFS		0x068
+
+#define GT_BERRLO_OFS		0x070
+#define GT_BERRHI_OFS		0x078
+
 #define GT_PCI0M1LD_OFS		0x080
 #define GT_PCI0M1HD_OFS		0x088
 #define GT_PCI1IOLD_OFS		0x090
@@ -53,10 +60,14 @@
 #define GT_PCI1M0HD_OFS		0x0a8
 #define GT_PCI1M1LD_OFS		0x0b0
 #define GT_PCI1M1HD_OFS		0x0b8
+#define GT_PCI1M1LD_OFS		0x0b0
+#define GT_PCI1M1HD_OFS		0x0b8
 
-/*
- * GT64120A only
- */
+#define GT_SCS10AR_OFS		0x0d0
+#define GT_SCS32AR_OFS		0x0d8
+#define GT_CS20R_OFS		0x0e0
+#define GT_CS3BOOTR_OFS		0x0e8
+
 #define GT_PCI0IOREMAP_OFS	0x0f0
 #define GT_PCI0M0REMAP_OFS	0x0f8
 #define GT_PCI0M1REMAP_OFS	0x100
@@ -64,6 +75,11 @@
 #define GT_PCI1M0REMAP_OFS	0x110
 #define GT_PCI1M1REMAP_OFS	0x118
 
+/* CPU Sync Barrier.  */
+#define GT_PCI0SYNC_OFS		0x0c0
+#define GT_PCI1SYNC_OFS		0x0c8
+
+/* SDRAM and Device Address Decode.  */
 #define GT_SCS0LD_OFS		0x400
 #define GT_SCS0HD_OFS		0x404
 #define GT_SCS1LD_OFS		0x408
@@ -83,37 +99,122 @@
 #define GT_BOOTLD_OFS		0x440
 #define GT_BOOTHD_OFS		0x444
 
-#define GT_SDRAM_B0_OFS	    	0x44c
+#define GT_ADERR_OFS		0x470
+
+/* SDRAM Configuration.  */
 #define GT_SDRAM_CFG_OFS	0x448
-#define GT_SDRAM_B2_OFS		0x454
+
 #define GT_SDRAM_OPMODE_OFS	0x474
 #define GT_SDRAM_BM_OFS		0x478
 #define GT_SDRAM_ADDRDECODE_OFS	0x47c
 
-#define GT_PCI0_CMD_OFS		0xc00	/* GT64120A only */
-#define GT_PCI0_TOR_OFS		0xc04
-#define GT_PCI0_BS_SCS10_OFS    0xc08
-#define GT_PCI0_BS_SCS32_OFS    0xc0c
-#define GT_INTRCAUSE_OFS	0xc18
-#define GT_INTRMASK_OFS		0xc1c	/* GT64120A only */
-#define GT_PCI0_IACK_OFS	0xc34
-#define GT_PCI0_BARE_OFS	0xc3c
-#define GT_HINTRCAUSE_OFS	0xc98	/* GT64120A only */
-#define GT_HINTRMASK_OFS	0xc9c	/* GT64120A only */
-#define GT_PCI1_CFGADDR_OFS	0xcf0	/* GT64120A only */
-#define GT_PCI1_CFGDATA_OFS	0xcf4	/* GT64120A only */
-#define GT_PCI0_CFGADDR_OFS	0xcf8
-#define GT_PCI0_CFGDATA_OFS	0xcfc
+/* SDRAM Parameters.  */
+#define GT_SDRAM_B0_OFS	    	0x44c
+#define GT_SDRAM_B1_OFS	    	0x450
+#define GT_SDRAM_B2_OFS		0x454
+#define GT_SDRAM_B3_OFS		0x458
 
+/* Device Parameters.  */
+#define GT_DEV_B0_OFS	    	0x45c
+#define GT_DEV_B1_OFS	    	0x460
+#define GT_DEV_B2_OFS		0x464
+#define GT_DEV_B3_OFS		0x468
+#define GT_DEV_BOOT_OFS		0x46c
 
-/*
- * Timer/Counter.  GT64120A only.
- */
+/* DMA Record.  */
+#define GT_DMA0_CNT_OFS    	0x800
+#define GT_DMA1_CNT_OFS    	0x804
+#define GT_DMA2_CNT_OFS    	0x808
+#define GT_DMA3_CNT_OFS    	0x80c
+#define GT_DMA0_SA_OFS    	0x810
+#define GT_DMA1_SA_OFS    	0x814
+#define GT_DMA2_SA_OFS    	0x818
+#define GT_DMA3_SA_OFS    	0x81c
+#define GT_DMA0_DA_OFS    	0x820
+#define GT_DMA1_DA_OFS    	0x824
+#define GT_DMA2_DA_OFS    	0x828
+#define GT_DMA3_DA_OFS    	0x82c
+#define GT_DMA0_NEXT_OFS    	0x830
+#define GT_DMA1_NEXT_OFS    	0x834
+#define GT_DMA2_NEXT_OFS    	0x838
+#define GT_DMA3_NEXT_OFS    	0x83c
+
+#define GT_DMA0_CUR_OFS    	0x870
+#define GT_DMA1_CUR_OFS    	0x874
+#define GT_DMA2_CUR_OFS    	0x878
+#define GT_DMA3_CUR_OFS    	0x87c
+
+/* DMA Channel Control.  */
+#define GT_DMA0_CTRL_OFS    	0x840
+#define GT_DMA1_CTRL_OFS    	0x844
+#define GT_DMA2_CTRL_OFS    	0x848
+#define GT_DMA3_CTRL_OFS    	0x84c
+
+/* DMA Arbiter.  */
+#define GT_DMA_ARB_OFS    	0x860
+
+/* Timer/Counter.  */
 #define GT_TC0_OFS		0x850
 #define GT_TC1_OFS		0x854
 #define GT_TC2_OFS		0x858
-#define GT_TC3_OFS		0x85C
+#define GT_TC3_OFS		0x85c
 #define GT_TC_CONTROL_OFS	0x864
+
+/* PCI Internal.  */
+#define GT_PCI0_CMD_OFS		0xc00
+#define GT_PCI0_TOR_OFS		0xc04
+#define GT_PCI0_BS_SCS10_OFS    0xc08
+#define GT_PCI0_BS_SCS32_OFS    0xc0c
+#define GT_PCI0_BS_CS20_OFS	0xc10
+#define GT_PCI0_BS_CS3BT_OFS	0xc14
+
+#define GT_PCI1_IACK_OFS	0xc30
+#define GT_PCI0_IACK_OFS	0xc34
+#define GT_PCI0_BARE_OFS	0xc3c
+#define GT_PCI0_PREFMBR_OFS	0xc40
+#define GT_PCI0_SCS10_BAR_OFS	0xc48
+#define GT_PCI0_SCS32_BAR_OFS	0xc4c
+#define GT_PCI0_CS20_BAR_OFS	0xc50
+#define GT_PCI0_CS3BT_BAR_OFS	0xc54
+#define GT_PCI0_SSCS10_BAR_OFS	0xc58
+#define GT_PCI0_SSCS32_BAR_OFS	0xc5c
+#define GT_PCI0_SCS3BT_BAR_OFS	0xc64
+
+#define GT_PCI1_CMD_OFS		0xc80
+#define GT_PCI1_TOR_OFS		0xc84
+#define GT_PCI1_BS_SCS10_OFS    0xc88
+#define GT_PCI1_BS_SCS32_OFS    0xc8c
+#define GT_PCI1_BS_CS20_OFS	0xc90
+#define GT_PCI1_BS_CS3BT_OFS	0xc94
+
+#define GT_PCI1_BARE_OFS	0xcbc
+#define GT_PCI1_PREFMBR_OFS	0xcc0
+#define GT_PCI1_SCS10_BAR_OFS	0xcc8
+#define GT_PCI1_SCS32_BAR_OFS	0xccc
+#define GT_PCI1_CS20_BAR_OFS	0xcd0
+#define GT_PCI1_CS3BT_BAR_OFS	0xcd4
+#define GT_PCI1_SSCS10_BAR_OFS	0xcd8
+#define GT_PCI1_SSCS32_BAR_OFS	0xcdc
+#define GT_PCI1_SCS3BT_BAR_OFS	0xce4
+#define GT_PCI1_CFGADDR_OFS	0xcf0
+#define GT_PCI1_CFGDATA_OFS	0xcf4
+#define GT_PCI0_CFGADDR_OFS	0xcf8
+#define GT_PCI0_CFGDATA_OFS	0xcfc
+
+/* Interrupts.  */
+#define GT_INTRCAUSE_OFS	0xc18
+#define GT_INTRMASK_OFS		0xc1c
+#define GT_PCI0_ICMASK_OFS	0xc24
+#define GT_PCI0_SERR0MASK_OFS	0xc28
+
+#define GT_HINTRCAUSE_OFS	0xc98
+#define GT_HINTRMASK_OFS	0xc9c
+#define GT_PCI0_HICMASK_OFS	0xca4
+#define GT_PCI1_SERR1MASK_OFS	0xca8
+
+#define GT_CPU_INTSEL_OFS	0xc70
+#define GT_PCI0_INTSEL_OFS	0xc74
+
 
 /*
  * I2O Support Registers
