@@ -1,4 +1,4 @@
-/* $Id: bootinfo.h,v 1.5 1998/10/18 13:23:45 tsbogend Exp $
+/* $Id: bootinfo.h,v 1.6 1999/01/04 16:09:20 ralf Exp $
  *
  * bootinfo.h -- Definition of the Linux/MIPS boot information structure
  *
@@ -49,11 +49,21 @@
 /*
  * Valid machtype for group DEC 
  */
-/* FIXME: this is a very fuzzy name, and we got a big "name space now" */
-/* So otiginal DEC codes can be used -Stoned */
-#define MACH_DECSTATION		0	/* DECStation 5000/2x for now */
+#define MACH_DSUNKNOWN		0
+#define MACH_DS23100		1	/* DECstation 2100 or 3100	*/
+#define MACH_DS5100		2	/* DECstation 5100		*/
+#define MACH_DS5000_200		3	/* DECstation 5000/200		*/
+#define MACH_DS5000_1XX		4	/* DECstation 5000/120, 125, 133, 150 */
+#define MACH_DS5000_XX		5	/* DECstation 5000/20, 25, 33, 50 */
+#define MACH_DS5000_2X0		6	/* DECstation 5000/240, 260	*/
+#define MACH_DS5400		7	/* DECstation 5400		*/
+#define MACH_DS5500		8	/* DECstation 5500		*/
+#define MACH_DS5800		9	/* DECstation 5800		*/
 
-#define GROUP_DEC_NAMES { "3min" }
+#define GROUP_DEC_NAMES { "unknown", "DECstation 2100/3100", "DECstation 5100", \
+	"DECstation 5000/200", "DECstation 5000/1xx", "Personal DECstation 5000/xx", \
+	"DECstation 5000/2x0", "DECstation 5400", "DECstation 5500", \
+	"DECstation 5800" }
 
 /*
  * Valid machtype for group ARC
