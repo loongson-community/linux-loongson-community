@@ -1,4 +1,4 @@
-/* $Id: linux_logo.h,v 1.1 1998/08/19 21:58:12 ralf Exp $
+/* $Id: linux_logo.h,v 1.1 1998/08/25 09:21:57 ralf Exp $
  * include/asm-mips/linux_logo.h: This is a linux logo
  *                                 to be displayed on boot.
  *
@@ -21,7 +21,7 @@
 #include <linux/init.h>
 #include <linux/version.h>
 
-#define linux_logo_banner "Linux/m68k version " UTS_RELEASE
+#define linux_logo_banner "Linux/MIPS version " UTS_RELEASE
 
 #define LINUX_LOGO_COLORS 221
 
