@@ -452,14 +452,26 @@ static int sgiseeq_open(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = dev->priv;
 	struct sgiseeq_regs *sregs = sp->sregs;
+	unsigned int irq = dev->irq;
+	int err;
 
-	int err = init_seeq(dev, sp, sregs);
+	if (request_irq(irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
+		printk(KERN_ERR "Seeq8003: Can't get irq %d\n", dev->irq);
+		err = -EAGAIN;
+	}
+
+	err = init_seeq(dev, sp, sregs);
 	if (err)
-		return err;
+		goto out_free_irq;
 
 	netif_start_queue(dev);
 
 	return 0;
+
+out_free_irq:
+	free_irq(sgiseeq_interrupt, dev);
+
+	return err;
 }
 
 static int sgiseeq_close(struct net_device *dev)
@@ -601,7 +613,7 @@ static inline void setup_rx_ring(struct sgiseeq_rx_desc *buf, int nbufs)
 
 #define ALIGNED(x)  ((((unsigned long)(x)) + 0xf) & ~(0xf))
 
-int sgiseeq_init(struct hpc3_regs* regs, int irq)
+static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 {
 	struct net_device *dev;
 	struct sgiseeq_private *sp;
@@ -619,12 +631,6 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 		printk(KERN_ERR "Sgiseeq: Page alloc failed, aborting.\n");
 		err = -ENOMEM;
 		goto err_out_free_dev;
-	}
-
-	if (request_irq(irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
-		printk(KERN_ERR "Seeq8003: Can't get irq %d\n", dev->irq);
-		err = -EAGAIN;
-		goto err_out_free_page;
 	}
 
 #define EADDR_NVOFS     250
@@ -680,7 +686,7 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 		printk(KERN_ERR "Sgiseeq: Cannot register net device, "
 		       "aborting.\n");
 		err = -ENODEV;
-		goto err_out_free_irq;
+		goto err_out_free_page;
 	}
 
 	printk(KERN_INFO "%s: SGI Seeq8003 ", dev->name);
@@ -692,8 +698,6 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 
 	return 0;
 
-err_out_free_irq:
-	free_irq(irq, dev);
 err_out_free_page:
 	free_page((unsigned long) sp);
 err_out_free_dev:
