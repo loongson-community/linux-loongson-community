@@ -69,6 +69,12 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
       if [ "$CONFIG_AU1000_UART" = "y" ]; then
          bool '        Enable Au1000 serial console' CONFIG_AU1000_SERIAL_CONSOLE
       fi
+      if [ "$CONFIG_AU1000_USB_DEVICE" = "y" ]; then
+         dep_tristate '  Au1000 USB TTY Device support' CONFIG_AU1000_USB_TTY $CONFIG_AU1000_USB_DEVICE
+         if [ "$CONFIG_AU1000_USB_TTY" != "y" ]; then
+	    dep_tristate '  Au1000 USB Raw Device support' CONFIG_AU1000_USB_RAW $CONFIG_AU1000_USB_DEVICE
+	 fi
+      fi
       bool 'TXx927 SIO support' CONFIG_TXX927_SERIAL 
       if [ "$CONFIG_TXX927_SERIAL" = "y" ]; then
          bool 'TXx927 SIO Console support' CONFIG_TXX927_SERIAL_CONSOLE  

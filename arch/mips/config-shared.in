@@ -104,7 +104,8 @@ if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PC_KEYB y
-   define_int  MAX_HWIFS 1
+   define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_AU1000_USB_DEVICE y
 fi
 if [ "$CONFIG_MIPS_PB1100" = "y" ]; then
    define_bool CONFIG_MIPS_AU1000 y
@@ -119,10 +120,11 @@ fi
 if [ "$CONFIG_MIPS_PB1500" = "y" ]; then
    define_bool CONFIG_MIPS_AU1000 y
    define_bool CONFIG_PCI y
-   define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_NEW_PCI y
+   define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PC_KEYB y
+   define_bool CONFIG_AU1000_USB_DEVICE y
 fi
 if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
    define_bool CONFIG_PCI y
