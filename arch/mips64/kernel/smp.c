@@ -71,6 +71,7 @@ asmlinkage void start_secondary(void)
 	printk("Slave cpu booted successfully\n");
 	CPUMASK_SETB(cpu_online_map, cpu);
 	atomic_inc(&cpus_booted);
+	while (!atomic_read(&smp_commenced));
 	cpu_idle();
 }
 
