@@ -163,7 +163,7 @@ ejtag_return:
 		 */
 		la	t0, __bss_start
 		sw	zero, (t0)
-		la	t1, (_end - 4)
+		la	t1, __bss_stop - 4
 1:
 		addiu	t0, 4
 		bne	t0, t1, 1b
