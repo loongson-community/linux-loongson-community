@@ -16,6 +16,9 @@
 #include <asm/system.h>
 #include <asm/mmu_context.h>
 
+extern void except_vec0_generic(void);
+extern void except_vec0_r4000(void);
+extern void except_vec1_generic(void);
 extern void except_vec1_r10k(void);
 
 #define NTLB_ENTRIES       64
@@ -235,7 +238,7 @@ void __update_tlb(struct vm_area_struct * vma, unsigned long address, pte_t pte)
 	local_irq_restore(flags);
 }
 
-void __init andes_tlb_init(void)
+void __init tlb_init(void)
 {
 	/*
 	 * You should never change this register:
