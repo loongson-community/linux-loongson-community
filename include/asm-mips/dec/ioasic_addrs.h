@@ -17,17 +17,17 @@
 
 #define CHUNK_SIZE 0x00040000
 
-#define SYSTEM_ROM 	(00*CHUNK_SIZE)		/* ??? */
-#define IOCTL 		(01*CHUNK_SIZE)
-#define ESAR 		(02*CHUNK_SIZE)
-#define LANCE 		(03*CHUNK_SIZE)
-#define SCC0 		(04*CHUNK_SIZE)
-#define VDAC_HI		(05*CHUNK_SIZE)		/* maxine only */
-#define SCC1 		(06*CHUNK_SIZE)
-#define VDAC_LO		(07*CHUNK_SIZE)		/* maxine only */
-#define TOY 		(08*CHUNK_SIZE)
-#define ISDN 		(09*CHUNK_SIZE)		/* maxine only */
-#define ERRADDR		(09*CHUNK_SIZE)		/* 3maxplus only */
+#define SYSTEM_ROM 	(0*CHUNK_SIZE)		/* ??? */
+#define IOCTL 		(1*CHUNK_SIZE)
+#define ESAR 		(2*CHUNK_SIZE)
+#define LANCE 		(3*CHUNK_SIZE)
+#define SCC0 		(4*CHUNK_SIZE)
+#define VDAC_HI		(5*CHUNK_SIZE)		/* maxine only */
+#define SCC1 		(6*CHUNK_SIZE)
+#define VDAC_LO		(7*CHUNK_SIZE)		/* maxine only */
+#define TOY 		(8*CHUNK_SIZE)
+#define ISDN 		(9*CHUNK_SIZE)		/* maxine only */
+#define ERRADDR		(9*CHUNK_SIZE)		/* 3maxplus only */
 #define CHKSYN 		(10*CHUNK_SIZE)		/* 3maxplus only */
 #define ACCESS_BUS	(10*CHUNK_SIZE)		/* maxine only */
 #define MCR 		(11*CHUNK_SIZE)		/* 3maxplus only */
