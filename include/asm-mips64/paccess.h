@@ -19,8 +19,8 @@
 #define put_dbe(x,ptr) __put_dbe((x),(ptr),sizeof(*(ptr)))
 #define get_dbe(x,ptr) __get_dbe((x),(ptr),sizeof(*(ptr)))
 
-struct __large_struct { unsigned long buf[100]; };
-#define __m(x) (*(struct __large_struct *)(x))
+struct __large_pstruct { unsigned long buf[100]; };
+#define __m(x) (*(struct __large_pstruct *)(x))
 
 #define __get_dbe(x,ptr,size) ({ \
 long __gu_err; \

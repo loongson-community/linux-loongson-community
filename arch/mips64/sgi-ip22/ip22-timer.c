@@ -33,6 +33,8 @@
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 
+extern rwlock_t xtime_lock;
+
 static inline void ack_r4ktimer(unsigned long newval)
 {
 	write_32bit_cp0_register(CP0_COMPARE, newval);

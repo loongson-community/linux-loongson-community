@@ -24,7 +24,7 @@
  *
  * No filesystems were harmed in the development of this code.
  *
- * $Id: ohci.c,v 1.77 1999/09/16 04:30:19 greg Exp $
+ * $Id: ohci.c,v 1.80 1999/09/30 06:32:17 greg Exp $
  */
 
 #include <linux/config.h>
@@ -941,7 +941,7 @@ static __u16 ohci_td_bytes_done(struct ohci_td *td)
  * interrupt.  (It's really a pointer to the TD).
  */
 static int ohci_request_irq(struct usb_device *usb, unsigned int pipe,
-	usb_device_irq handler, int period, void *dev_id, void **handle)
+	usb_device_irq handler, int period, void *dev_id, void **handle, long bustime)
 {
 	struct ohci_device *dev = usb_to_ohci(usb);
 	struct ohci_td *td;
@@ -2511,7 +2511,6 @@ static void release_ohci(struct ohci *ohci)
 		writel(OHCI_USB_SUSPEND, &ohci->regs->control);
 		free_page((unsigned long) root_hub->hcca);
 		kfree(ohci->bus->root_hub);
-		root_hub->hcca = NULL;
 		ohci->bus->root_hub = NULL;
 	}
 
@@ -2601,7 +2600,6 @@ static int ohci_control_thread(void * __ohci)
 			spin_unlock_irq(&current->sigmask_lock);
 
 			if(signr == SIGUSR1) {
-				/* TODO: have it do a full ed/td queue dump? */
 				printk(KERN_DEBUG "OHCI status dump:\n");
 				show_ohci_status(ohci);
 			} else if (signr == SIGUSR2) {

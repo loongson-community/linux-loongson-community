@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.15 1999/10/21 00:23:05 ralf Exp $
+/* $Id: indy_timer.c,v 1.16 2000/01/17 23:32:46 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -32,6 +32,8 @@
  */
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
+
+extern rwlock_t xtime_lock;
 
 static inline void ack_r4ktimer(unsigned long newval)
 {

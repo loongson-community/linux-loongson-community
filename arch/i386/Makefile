@@ -17,7 +17,6 @@
 #
 
 LD=$(CROSS_COMPILE)ld -m elf_i386
-CPP=$(CC) -E
 OBJCOPY=$(CROSS_COMPILE)objcopy -O binary -R .note -R .comment -S
 LDFLAGS=-e stext
 LINKFLAGS =-T $(TOPDIR)/arch/i386/vmlinux.lds $(LDFLAGS)
@@ -58,6 +57,12 @@ CFLAGS += $(shell if $(CC) -march=i686 -S -o /dev/null -xc /dev/null >/dev/null 
 AFLAGS := $(AFLAGS) -DCPU=686
 endif
 
+ifdef CONFIG_MK7
+CFLAGS := $(CFLAGS) -DCPU=686 -march=pentiumpro -mpentiumpro -malign-functions=4 -fschedule-insns2 -mwide-multiply -fexpensive-optimizations
+CFLAGS += $(shell if $(CC) -march=i686 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i686"; fi)
+AFLAGS := $(AFLAGS) -DCPU=686
+endif
+
 HEAD := arch/i386/kernel/head.o arch/i386/kernel/init_task.o
 
 SUBDIRS := $(SUBDIRS) arch/i386/kernel arch/i386/mm arch/i386/lib
@@ -80,9 +85,12 @@ MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 vmlinux: arch/i386/vmlinux.lds
 
 arch/i386/vmlinux.lds: arch/i386/vmlinux.lds.S FORCE
-	gcc -E -C -P -I$(HPATH) -imacros $(HPATH)/asm-i386/page_offset.h -Ui386 arch/i386/vmlinux.lds.S >arch/i386/vmlinux.lds
+	$(CPP) -C -P -imacros $(HPATH)/asm-i386/page_offset.h -Ui386 arch/i386/vmlinux.lds.S >arch/i386/vmlinux.lds
 
 FORCE: ;
+
+.PHONY: zImage bzImage compressed zlilo bzlilo zdisk bzdisk install \
+		clean archclean archmrproper archdep
 
 zImage: vmlinux
 	@$(MAKEBOOT) zImage

@@ -119,6 +119,7 @@ static int uhci_map_status(int status, int dir_out)
 
 	return USB_ST_INTERNALERROR;
 }
+
 /*
  * Return the result of a TD..
  */
@@ -189,12 +190,12 @@ static int uhci_td_result(struct uhci_device *dev, struct uhci_td *td, unsigned 
 		if (!status)
 			return USB_ST_NOERROR;
 
-		/* APC BackUPS Pro kludge */
+		/* XXX FIXME APC BackUPS Pro kludge */
 		/* It tries to send all of the descriptor instead of */
 		/*  the amount we requested */
 		if (tmp->status & TD_CTRL_IOC &&
 		    tmp->status & TD_CTRL_ACTIVE &&
-		    tmp->status & TD_CTRL_NAK)
+		    tmp->status & TD_CTRL_NAK /* && its a control TD */)
 			return USB_ST_NOERROR;
 
 #if 0
@@ -627,9 +628,11 @@ static void uhci_remove_transfer(struct uhci_td *td, char removeirq)
  *
  * Returns 0 (success) or negative (failure).
  * Also returns/sets a "handle pointer" that release_irq can use to stop this
- * interrupt.  (It's really a pointer to the TD).
+ * interrupt.  (It's really a pointer to the TD.)
  */
-static int uhci_request_irq(struct usb_device *usb_dev, unsigned int pipe, usb_device_irq handler, int period, void *dev_id, void **handle)
+static int uhci_request_irq(struct usb_device *usb_dev, unsigned int pipe,
+			usb_device_irq handler, int period,
+			void *dev_id, void **handle, long bustime)
 {
 	struct uhci_device *dev = usb_to_uhci(usb_dev);
 	struct uhci_td *td = uhci_td_alloc(dev);
@@ -658,13 +661,15 @@ static int uhci_request_irq(struct usb_device *usb_dev, unsigned int pipe, usb_d
 	td->buffer = virt_to_bus(dev->data);
 	td->qh = qh;
 	td->dev = dev;
+	td->pipetype = PIPE_INTERRUPT;
+	td->bandwidth_alloc = bustime;
 
-	/* if period 0, insert into fast q */
+	/* if period 0, set _REMOVE flag */
 	if (period == 0) {
 		td->flags |= UHCI_TD_REMOVE;
-		qh->skel = &dev->uhci->skel_int2_qh;
-	} else
-		qh->skel = &dev->uhci->skel_int8_qh;
+	}
+
+	qh->skel = &dev->uhci->skelqh[__interval_to_skel(period)];
 
 	uhci_add_irq_list(dev->uhci, td, handler, dev_id);
 
@@ -964,6 +969,7 @@ static int uhci_run_isoc (struct usb_isoc_desc *isocdesc,
 		td->info   = destination | ((frlen - 1) << 21);
 		td->buffer = virt_to_bus (bufptr);
 		td->dev    = dev;
+		td->pipetype = PIPE_ISOCHRONOUS;
 		td->isoc_td_number = ix;        /* 0-based; does not wrap/overflow back to 0 */
 
 		if (isocdesc->callback_frames &&
@@ -971,7 +977,7 @@ static int uhci_run_isoc (struct usb_isoc_desc *isocdesc,
 			td->status |= TD_CTRL_IOC;
 			td->completed = isocdesc->callback_fn;
 			cb_frames = 0;
-			uhci_add_irq_list (dev->uhci, td, isocdesc->callback_fn, isocdesc->context);
+			uhci_add_irq_list (dev->uhci, td, isocdesc->callback_fn, isocdesc);
 		}
 
 		bufptr += fd->frame_length;  /* or isocdesc->frame_size; */
@@ -991,7 +997,7 @@ static int uhci_run_isoc (struct usb_isoc_desc *isocdesc,
 	if (!(td->status & TD_CTRL_IOC)) {
 		td->status |= TD_CTRL_IOC;
 		td->completed = isocdesc->callback_fn;
-		uhci_add_irq_list(dev->uhci, td, isocdesc->callback_fn, isocdesc->context); /* TBD: D.K. ??? */
+		uhci_add_irq_list(dev->uhci, td, isocdesc->callback_fn, isocdesc); /* TBD: D.K. ??? */
 	}
 	return 0;
 } /* end uhci_run_isoc */
@@ -1158,6 +1164,7 @@ static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, devre
 	td->status = status;				/* Try forever */
 	td->info = destination | (7 << 21);		/* 8 bytes of data */
 	td->buffer = virt_to_bus(cmd);
+	td->pipetype = PIPE_CONTROL;
 
 	/*
 	 * If direction is "send", change the frame from SETUP (0x2D)
@@ -1191,6 +1198,7 @@ static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, devre
 		td->info = destination | ((pktsze - 1) << 21);		/* pktsze bytes of data */
 		td->buffer = virt_to_bus(data);
 		td->backptr = &prevtd->link;
+		td->pipetype = PIPE_CONTROL;
 
 		data += pktsze;
 		len -= pktsze;
@@ -1219,6 +1227,7 @@ static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, devre
 	td->buffer = 0;
 	td->backptr = &prevtd->link;
 	td->link = UHCI_PTR_TERM;			/* Terminate */
+	td->pipetype = PIPE_CONTROL;
 
 	/* Start it up.. */
 	ret = uhci_run_control(dev, first, td, timeout);
@@ -1349,6 +1358,7 @@ static int uhci_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *da
 				usb_pipeout(pipe)) << TD_TOKEN_TOGGLE); /* pktsze bytes of data */
 		td->buffer = virt_to_bus(data);
 		td->backptr = &prevtd->link;
+		td->pipetype = PIPE_BULK;
 
 		data += maxsze;
 		len -= maxsze;
@@ -1429,6 +1439,7 @@ static void * uhci_request_bulk(struct usb_device *usb_dev, unsigned int pipe, u
 		td->backptr = &prevtd->link;
 		td->qh = bulk_qh;
 		td->dev = dev;
+		td->pipetype = PIPE_BULK;
 		data += pktsze;
 		len -= pktsze;
 
@@ -1467,11 +1478,11 @@ static int uhci_terminate_bulk(struct usb_device *dev, void *first)
 {
 	/* none found? there is nothing to remove! */
 	if (!first)
-		return 0;
+		return USB_ST_REMOVED;
 
 	uhci_remove_transfer(first, 1);
 
-	return 1;
+	return USB_ST_NOERROR;
 }
 
 struct usb_operations uhci_device_operations = {
@@ -1698,7 +1709,7 @@ static void uhci_interrupt_notify(struct uhci *uhci)
 				uhci_packetout(td->info)) << 19; /* toggle between data0 and data1 */
 			td->status = (td->status & 0x2F000000) | TD_CTRL_ACTIVE | TD_CTRL_IOC;
 			/* The HC only removes it when it completed */
-			/* successfully, so force remove and readd it */
+			/* successfully, so force remove and re-add it */
 			uhci_remove_td(td);
 			uhci_insert_td_in_qh(td->qh, td);
 		} else if (td->flags & UHCI_TD_REMOVE) {
@@ -1710,6 +1721,8 @@ static void uhci_interrupt_notify(struct uhci *uhci)
 			uhci_remove_qh(td->qh->skel, td->qh);
 			uhci_qh_free(td->qh);
 			uhci_td_free(td);
+			if (td->pipetype == PIPE_INTERRUPT)
+				usb_release_bandwidth(usb_dev, td->bandwidth_alloc);
 		}
 
 		/* If completed does not wants to reactivate, then */
@@ -1790,6 +1803,7 @@ static void uhci_init_ticktd(struct uhci *uhci)
 	td->info = (15 << 21) | (0x7f << 8) | USB_PID_IN;	/* (ignored) input packet, 16 bytes, device 127 */
 	td->buffer = 0;
 	td->qh = NULL;
+	td->pipetype = -1;
 
 	uhci->fl->frame[0] = virt_to_bus(td);
 
@@ -1931,16 +1945,21 @@ static struct uhci *alloc_uhci(unsigned int io_addr, unsigned int io_size)
 	usb->maxchild = port;
 	usb_init_root_hub(usb);
 
-	/* 8 Interrupt queues */
-	for (i = 0; i < 8; i++) {
+	/*
+	 * 9 Interrupt queues; link int2 thru int256 to int1 first,
+	 * then link int1 to control and control to bulk
+	 */
+	for (i = 1; i < 9; i++) {
 		struct uhci_qh *qh = &uhci->skelqh[i];
 
-		qh->link = virt_to_bus(&uhci->skel_control_qh) | UHCI_PTR_QH;
+		qh->link = virt_to_bus(&uhci->skel_int1_qh) | UHCI_PTR_QH;
 		qh->element = UHCI_PTR_TERM;
 	}
 
-	uhci->skel_control_qh.link = virt_to_bus(&uhci->skel_bulk_qh) |
-		UHCI_PTR_QH;
+	uhci->skel_int1_qh.link = virt_to_bus(&uhci->skel_control_qh) | UHCI_PTR_QH;
+	uhci->skel_int1_qh.element = UHCI_PTR_TERM;
+
+	uhci->skel_control_qh.link = virt_to_bus(&uhci->skel_bulk_qh) | UHCI_PTR_QH;
 	uhci->skel_control_qh.element = UHCI_PTR_TERM;
 
 	uhci->skel_bulk_qh.link = UHCI_PTR_TERM;

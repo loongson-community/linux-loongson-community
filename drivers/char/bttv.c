@@ -544,7 +544,13 @@ static struct tvcard tvcards[] =
         /* AVEC Intercapture */
         { 3, 2, 0, 2, 0, { 2, 3, 1, 1}, { 1, 0, 0, 0, 0}},
          /* LifeView FlyKit w/o Tuner */
-        { 3, 1, -1, -1, 0x8dff00, { 2, 3, 1, 1}}
+        { 3, 1, -1, -1, 0x8dff00, { 2, 3, 1, 1}},
+        /* CEI Raffles Card */
+        { 3, 3, 0, 2, 0, {2, 3, 1, 1}, {0, 0, 0, 0 ,0}},
+         /* Lucky Star Image World ConferenceTV */
+        {3, 1, 0, 2, 16777215, { 2, 3, 1, 1}, { 131072, 1, 1638400, 3, 4}},
+         /* Phoebe Tv Master + FM */
+        { 3, 1, 0, 2, 0xc00, { 2, 3, 1, 1},{0, 1, 0x800, 0x400, 0xc00, 0}}
 };
 #define TVCARDS (sizeof(tvcards)/sizeof(tvcard))
 
@@ -2118,6 +2124,21 @@ static int bttv_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			   data &= ~WINVIEW_PT2254_STROBE;
 			   btwrite(data, BT848_GPIO_DATA);
 			}
+                        /* TEA 6320 Audio Support by Michael Wrighton
+                           mgw1@cec.wustl.edu */
+                        if (btv->audio_chip == TEA6320)
+                        {
+                          int vol;
+                          vol = v.volume >> 11;
+                          if (!(v.flags&VIDEO_AUDIO_MUTE))
+                            I2CWrite(&(btv->i2c), I2C_TEA6320,
+                                     TEA6320_S, TEA6320_S_SB,1); /* at least Raffles card uses input B */
+                          else
+                            I2CWrite(&(btv->i2c), I2C_TEA6320,
+                                     TEA6320_S, TEA6320_S_GMU,1);
+                          I2CWrite(&(btv->i2c), I2C_TEA6320,
+                                   TEA6320_V, vol, 1);
+                        }
 			if (btv->have_msp3400) 
 			{
                                 i2c_control_device(&(btv->i2c),
@@ -2597,14 +2618,13 @@ static void handle_chipset(void)
 	if (triton1)
 		triton1=BT848_INT_ETBF;
 	
-	while ((dev = pci_find_device(PCI_VENDOR_ID_SI, PCI_DEVICE_ID_SI_496, dev))) 
+	
+	if(pci_pci_problems&PCIPCI_FAIL)
 	{
-		/* Beware the SiS 85C496 my friend - rev 49 don't work with a bttv */
-		printk(KERN_WARNING "BT848 and SIS 85C496 chipset don't always work together.\n");
-	}			
-
-	/* dev == NULL */
-
+		printk(KERN_WARNING "bttv: This configuration is known to have PCI to PCI DMA problems\n");
+		printk(KERN_WARNING "bttv: You may not be able to use overlay mode.\n");
+	}
+			
 	while ((dev = pci_find_device(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82441, dev))) 
 	{
 		unsigned char b;
@@ -2721,6 +2741,12 @@ static void idcard(int i)
 			btv->pll.pll_crystal=BT848_IFORM_XT0;
 		}
         }
+   
+        if (btv->type == BTTV_CONFERENCETV) {
+		btv->tuner_type = 1;
+	   	btv->pll.pll_ifreq=28636363;
+	   	btv->pll.pll_crystal=BT848_IFORM_XT0;
+	}
 
         if (btv->type == BTTV_PIXVIEWPLAYTV) {
 		btv->pll.pll_ifreq=28636363;
@@ -2772,7 +2798,7 @@ static void idcard(int i)
         
         if (I2CRead(&(btv->i2c), I2C_TEA6300) >=0)
         {
-		if(btv->type==BTTV_AVEC_INTERCAP)
+		if(btv->type==BTTV_AVEC_INTERCAP || btv->type==BTTV_CEI_RAFFLES)
         	{
                 	printk(KERN_INFO "bttv%d: fader chip: TEA6320\n",btv->nr);
                 	btv->audio_chip = TEA6320;
@@ -2820,13 +2846,22 @@ static void idcard(int i)
 			strcat(btv->video_dev.name,"(AVerMedia TVCapture 98)");
 			break;
 		case BTTV_VHX:
-			strcpy(btv->video_dev.name,"BT848(Aimslab-VHX)");
+			strcpy(btv->video_dev.name,"(Aimslab-VHX)");
  			break;
 	        case BTTV_WINVIEW_601:
-			strcpy(btv->video_dev.name,"BT848(Leadtek WinView 601)");
+			strcpy(btv->video_dev.name,"(Leadtek WinView 601)");
  			break;	   
                 case BTTV_AVEC_INTERCAP:
                         strcpy(btv->video_dev.name,"(AVEC Intercapture)");
+                        break;
+                case BTTV_CEI_RAFFLES:
+                        strcpy(btv->video_dev.name,"(CEI Raffles Card)");
+                        break;
+                case BTTV_CONFERENCETV:
+                        strcpy(btv->video_dev.name,"(Image World ConferenceTV)");
+                        break;
+                case BTTV_PHOEBE_TVMAS:
+                        strcpy(btv->video_dev.name,"(Phoebe TV Master)");
                         break;
 	}
 	printk("%s\n",btv->video_dev.name);

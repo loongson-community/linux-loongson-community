@@ -31,18 +31,24 @@ static int usb_find_driver(struct usb_device *);
 static void usb_check_support(struct usb_device *);
 static void usb_driver_purge(struct usb_driver *, struct usb_device *);
 
-
 /*
  * We have a per-interface "registered driver" list.
  */
 static LIST_HEAD(usb_driver_list);
 static LIST_HEAD(usb_bus_list);
 
+static struct usb_driver *usb_minors[16];
+
 int usb_register(struct usb_driver *new_driver)
 {
 	struct list_head *tmp;
 
 	printk("usbcore: Registering new driver %s\n", new_driver->name);
+	if (new_driver->fops != NULL) {
+		if (usb_minors[new_driver->minor/16])
+			BUG();
+		usb_minors[new_driver->minor/16] = new_driver;
+	}
 
 	/* Add it to the list of known drivers */
 	list_add(&new_driver->driver_list, &usb_driver_list);
@@ -69,6 +75,8 @@ void usb_deregister(struct usb_driver *driver)
 	struct list_head *tmp;
 
 	printk("usbcore: Deregistering driver %s\n", driver->name);
+	if (driver->fops != NULL)
+		usb_minors[driver->minor/16] = NULL;
 
 	/*
 	 * first we remove the driver, to be sure it doesn't get used by
@@ -1131,9 +1139,9 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u
 
         dr.requesttype = requesttype;
         dr.request = request;
-        dr.value = cpu_to_le16p(&value);
-        dr.index = cpu_to_le16p(&index);
-        dr.length = cpu_to_le16p(&size);
+        dr.value = value;
+        dr.index = index;
+        dr.length = size;
 
         return dev->bus->op->control_msg(dev, pipe, &dr, data, size, timeout);
 }
@@ -1152,7 +1160,7 @@ int usb_request_irq(struct usb_device *dev, unsigned int pipe, usb_device_irq ha
 	if (check_bandwidth_alloc (dev->bus->bandwidth_allocated, bustime))
 		return (USB_ST_BANDWIDTH_ERROR);
 
-	ret = dev->bus->op->request_irq(dev, pipe, handler, period, dev_id, handle);
+	ret = dev->bus->op->request_irq(dev, pipe, handler, period, dev_id, handle, bustime);
 
 	/* Claim the USB bandwidth if no error. */
 	if (!ret) {
@@ -1177,6 +1185,21 @@ int usb_terminate_bulk(struct usb_device *dev, void *first)
 	return dev->bus->op->terminate_bulk(dev, first);
 }
 
+/*
+ * usb_release_bandwidth():
+ *
+ * called to release an interrupt pipe's bandwidth (in microseconds)
+ */
+void usb_release_bandwidth(struct usb_device *dev, int bw_alloc)
+{
+	dev->bus->bandwidth_allocated -= bw_alloc;
+	dev->bus->bandwidth_int_reqs--;
+	PRINTD ("bw_alloc reduced to %d for %d requesters",
+		dev->bus->bandwidth_allocated,
+		dev->bus->bandwidth_int_reqs +
+		dev->bus->bandwidth_isoc_reqs);
+}
+
 int usb_release_irq(struct usb_device *dev, void *handle, unsigned int pipe)
 {
 	long    bustime;
@@ -1188,13 +1211,8 @@ int usb_release_irq(struct usb_device *dev, void *handle, unsigned int pipe)
 	if (!err) {
 		bustime = calc_bus_time (usb_pipeslow(pipe), usb_pipein(pipe), 0,
 				usb_maxpacket(dev, pipe, usb_pipeout(pipe)));
-		bustime = NS_TO_US(bustime);
-		dev->bus->bandwidth_allocated -= bustime;
-		dev->bus->bandwidth_int_reqs--;
-		PRINTD ("bw_alloc reduced to %d for %d requesters",
-			dev->bus->bandwidth_allocated,
-			dev->bus->bandwidth_int_reqs +
-			dev->bus->bandwidth_isoc_reqs);
+		bustime = NS_TO_US(bustime);	/* work in microseconds */
+		usb_release_bandwidth(dev, bustime);
 	}
 
 	return err;
@@ -1276,6 +1294,41 @@ int usb_kill_isoc (struct usb_isoc_desc *isocdesc)
 	return isocdesc->usb_dev->bus->op->kill_isoc (isocdesc);
 }
 
+static int usb_open(struct inode * inode, struct file * file)
+{
+	int minor = MINOR(inode->i_rdev);
+	struct usb_driver *c = usb_minors[minor/16];
+	file->f_op = NULL;
+
+	if ((file->f_op = c->fops) && file->f_op->open)
+		return file->f_op->open(inode,file);
+	else
+		return -ENODEV;
+}
+
+static struct file_operations usb_fops = {
+        NULL,		/* seek */
+	NULL,		/* read */
+	NULL,		/* write */
+	NULL,		/* readdir */
+	NULL,		/* poll */
+	NULL,		/* ioctl */
+	NULL,		/* mmap */
+        usb_open,
+	NULL,		/* flush */
+        NULL		/* release */
+};
+
+void usb_major_init(void)
+{
+	if (register_chrdev(180,"usb",&usb_fops)) {
+		printk("unable to get major %d for usb devices\n",
+		       MISC_MAJOR);
+		return -EIO;
+	}
+}
+
+
 #ifdef CONFIG_PROC_FS
 struct list_head *usb_driver_get_list(void)
 {
@@ -1308,6 +1361,7 @@ EXPORT_SYMBOL(usb_init_root_hub);
 EXPORT_SYMBOL(usb_new_device);
 EXPORT_SYMBOL(usb_connect);
 EXPORT_SYMBOL(usb_disconnect);
+EXPORT_SYMBOL(usb_release_bandwidth);
 
 EXPORT_SYMBOL(usb_set_address);
 EXPORT_SYMBOL(usb_get_descriptor);

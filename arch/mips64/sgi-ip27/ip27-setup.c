@@ -9,6 +9,7 @@
  * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999 Silcon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <asm/sn/types.h>
@@ -19,6 +20,11 @@
 #include <asm/ioc3.h>
 #include <asm/mipsregs.h>
 #include <asm/sn/klconfig.h>
+
+/* Check against user dumbness.  */
+#ifdef CONFIG_VT
+#error "CONFIG_VT not allowed for IP27."
+#endif
 
 /*
  * get_nasid() returns the physical node id number of the caller.

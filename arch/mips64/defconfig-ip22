@@ -11,8 +11,11 @@
 # Machine selection
 #
 CONFIG_SGI_IP22=y
+# CONFIG_SGI_IP27 is not set
 CONFIG_BOOT_ELF32=y
 CONFIG_ARC32=y
+CONFIG_BOARD_SCACHE=y
+CONFIG_ARC_MEMORY=y
 
 #
 # CPU selection
@@ -28,13 +31,13 @@ CONFIG_CPU_R5000=y
 # General setup
 #
 # CONFIG_CPU_LITTLE_ENDIAN is not set
-# CONFIG_BINFMT_AOUT is not set
-CONFIG_BINFMT_ELF=y
-# CONFIG_BINFMT_MISC is not set
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
+CONFIG_BINFMT_ELF=y
+# CONFIG_MIPS32_COMPAT is not set
+# CONFIG_BINFMT_MISC is not set
 
 #
 # Loadable module support

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.3 1999/12/04 03:59:00 ralf Exp $
+# $Id: Makefile,v 1.4 2000/01/17 23:32:46 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -67,7 +67,7 @@ endif
 # Board-dependent options and extra files
 #
 ifdef CONFIG_SGI_IP22
-LIBS          += arch/mips64/sgi-ip22/sgikern.a arch/mips64/arc/arclib.a
+LIBS          += arch/mips64/sgi-ip22/ip22.a arch/mips64/arc/arclib.a
 SUBDIRS       += arch/mips64/sgi-ip22 arch/mips64/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
