@@ -407,6 +407,8 @@ static __init void tx39_probe_cache(void)
 
 void __init ld_mmu_tx39(void)
 {
+	extern void build_clear_page(void);
+	extern void build_copy_page(void);
 	unsigned long config;
 
 	config = read_c0_conf();
@@ -483,4 +485,7 @@ void __init ld_mmu_tx39(void)
 		icache_size >> 10, current_cpu_data.icache.linesz);
 	printk("Primary data cache %ldkb, linesize %d bytes\n",
 		dcache_size >> 10, current_cpu_data.dcache.linesz);
+
+	build_clear_page();
+	build_copy_page();
 }

@@ -1154,6 +1154,7 @@ static inline void coherency_setup(void)
 void __init ld_mmu_r4xx0(void)
 {
 	extern void build_clear_page(void);
+	extern void build_copy_page(void);
 	extern char except_vec2_generic;
 	struct cpuinfo_mips *c = &current_cpu_data;
 
@@ -1198,4 +1199,5 @@ void __init ld_mmu_r4xx0(void)
 	__flush_cache_all();
 
 	build_clear_page();
+	build_copy_page();
 }
