@@ -31,10 +31,6 @@ extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
 #endif
 
-#ifdef CONFIG_BLK_DEV_IDE
-extern struct ide_ops e55_ide_ops;
-#endif
-
 void __init casio_e55_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
@@ -60,8 +56,8 @@ void __init casio_e55_setup(void)
 	conswitchp = &dummy_con;
 #endif
 
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &e55_ide_ops;
+#if defined(CONFIG_IDE) || defined(CONFIG_IDE_MODULE)
+	ide_ops = &vr41xx_ide_ops;
 #endif
 
 	vr41xx_bcu_init();

@@ -189,4 +189,8 @@ extern void vr41xx_restart(char *command);
 extern void vr41xx_halt(void);
 extern void vr41xx_power_off(void);
 
+#if defined(CONFIG_IDE) || defined(CONFIG_IDE_MODULE)
+extern struct ide_ops vr41xx_ide_ops;
+#endif
+
 #endif /* __NEC_VR41XX_H */

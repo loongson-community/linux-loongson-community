@@ -16,7 +16,6 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/console.h>
-#include <linux/ide.h>
 #include <linux/ioport.h>
 
 #include <asm/pci_channel.h>
