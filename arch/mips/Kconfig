@@ -645,6 +645,23 @@ config VICTOR_MPC30X
 config ZAO_CAPCELLA
 	bool "Support for ZAO Networks Capcella"
 
+choice
+	prompt "Kernel page size"
+	default CONFIG_PAGE_SIZE_4KB
+
+config CONFIG_PAGE_SIZE_4KB
+	bool "4kB"
+
+config CONFIG_PAGE_SIZE_16KB
+	bool "16kB"
+	depends on EXPERIMENTAL
+
+config CONFIG_PAGE_SIZE_64KB
+	bool "64kB"
+	depends on EXPERIMENTAL
+
+endchoice
+
 config RWSEM_GENERIC_SPINLOCK
 	bool
 	default y
