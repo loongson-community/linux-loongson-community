@@ -85,7 +85,9 @@ extern inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
+#ifndef CONFIG_COHERENT_IO
 	dma_cache_wback_inv((unsigned long)ptr, size);
+#endif
 
 	return virt_to_bus(ptr);
 }
@@ -173,7 +175,9 @@ extern inline void pci_dma_sync_single(struct pci_dev *hwdev,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
+#ifndef CONFIG_COHERENT_IO
 	dma_cache_wback_inv((unsigned long)bus_to_virt(dma_handle), size);
+#endif
 }
 
 /*
@@ -213,7 +217,7 @@ extern inline int pci_dma_supported(struct pci_dev *hwdev, dma_addr_t mask)
 	 * so we can't guarantee allocations that must be
 	 * within a tighter range than GFP_DMA..
 	 */
-	if (mask < 0x00ffffff)
+	if (mask < 0x1fffffff)
 		return 0;
 
 	return 1;
