@@ -174,7 +174,7 @@ static struct pci_controller sni_controller = {
 	.io_offset	= 0x00000000UL
 };
 
-void __init sni_rm200_pci_setup(void)
+static void __init sni_rm200_pci_setup(void)
 {
 	sni_pcimt_detect();
 	sni_pcimt_sc_init();
@@ -209,3 +209,5 @@ void __init sni_rm200_pci_setup(void)
 	register_pci_controller(&sni_controller);
 #endif
 }
+
+early_initcall(sni_rm200_pci_setup);

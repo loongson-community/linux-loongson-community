@@ -81,7 +81,7 @@ static struct vr41xx_pci_address_map pci_address_map = {
 };
 #endif
 
-void __init tanbac_tb0229_setup(void)
+static void __init tanbac_tb0229_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -118,3 +118,4 @@ void __init tanbac_tb0229_setup(void)
 #endif
 }
 
+early_initcall(tanbac_tb0229_setup);

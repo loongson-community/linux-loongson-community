@@ -72,7 +72,7 @@ const char *get_system_type(void)
 	return "MIPS Malta";
 }
 
-void __init malta_setup(void)
+static void __init malta_setup(void)
 {
 #ifdef CONFIG_KGDB
 	int rs_putDebugChar(char);
@@ -149,3 +149,5 @@ void __init malta_setup(void)
 	board_timer_setup = mips_timer_setup;
 	rtc_get_time = mips_rtc_get_time;
 }
+
+early_initcall(malta_setup);

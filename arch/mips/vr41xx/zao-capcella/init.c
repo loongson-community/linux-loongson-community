@@ -32,6 +32,8 @@ const char *get_system_type(void)
 
 void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
 {
+	int argc = fw_arg0;
+	char **argv = (char **) fw_arg1;
 	u32 config;
 	int i;
 

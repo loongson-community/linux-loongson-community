@@ -15,9 +15,9 @@ const char *get_system_type(void)
 	return "Baget";
 }
 
-void __init prom_init(unsigned int mem_upper)
+void __init prom_init(void)
 {
-	mem_upper = PHYSADDR(mem_upper);
+	mem_upper = PHYSADDR(fw_arg0);
 
 	mips_machgroup  = MACH_GROUP_UNKNOWN;
 	mips_machtype   = MACH_UNKNOWN;

@@ -218,7 +218,7 @@ void momenco_time_init(void)
 	rtc_set_time = m48t37y_set_time;
 }
 
-void __init momenco_ocelot_c_setup(void)
+static void __init momenco_ocelot_c_setup(void)
 {
 	unsigned int tmpword;
 
@@ -333,6 +333,8 @@ void __init momenco_ocelot_c_setup(void)
 		break;
 	}
 }
+
+early_initcall(momenco_ocelot_c_setup);
 
 #ifndef CONFIG_MIPS64
 /* This needs to be one of the first initcalls, because no I/O port access

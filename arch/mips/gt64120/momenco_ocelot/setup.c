@@ -155,7 +155,7 @@ void PMON_v2_setup()
 	gt64120_base = 0xe0000000;
 }
 
-void __init momenco_ocelot_setup(void)
+static void __init momenco_ocelot_setup(void)
 {
 	void (*l3func)(unsigned long)=KSEG1ADDR(&setup_l3cache);
 	unsigned int tmpword;
@@ -312,6 +312,8 @@ void __init momenco_ocelot_setup(void)
 	/* Fix up the DiskOnChip mapping */
 	GT_WRITE(0x468, 0xfef73);
 }
+
+early_initcall(momenco_ocelot_setup);
 
 extern int rm7k_tcache_enabled;
 /*

@@ -218,7 +218,7 @@ void momenco_time_init(void)
 	rtc_set_time = m48t37y_set_time;
 }
 
-void __init momenco_jaguar_atx_setup(void)
+static void __init momenco_jaguar_atx_setup(void)
 {
 	unsigned int tmpword;
 
@@ -338,6 +338,8 @@ void __init momenco_jaguar_atx_setup(void)
 	}
 #endif
 }
+
+early_initcall(momenco_jaguar_atx_setup);
 
 
 #ifndef CONFIG_MIPS64

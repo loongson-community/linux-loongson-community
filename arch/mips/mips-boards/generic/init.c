@@ -159,11 +159,11 @@ static void __init console_config(void)
 }
 #endif
 
-int __init prom_init(int argc, char **argv, char **envp)
+void __init prom_init(void)
 {
-	prom_argc = argc;
-	_prom_argv = (int *)argv;
-	_prom_envp = (int *)envp;
+	prom_argc = fw_arg0;
+	_prom_argv = (int *) fw_arg1;
+	_prom_envp = (int *) fw_arg2;
 
 	mips_display_message("LINUX");
 

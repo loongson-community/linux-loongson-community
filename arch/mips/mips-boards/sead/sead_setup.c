@@ -46,7 +46,7 @@ const char *get_system_type(void)
 	return "MIPS SEAD";
 }
 
-void __init sead_setup(void)
+static void __init sead_setup(void)
 {
 	ioport_resource.end = 0x7fffffff;
 
@@ -57,6 +57,8 @@ void __init sead_setup(void)
 
 	mips_reboot_setup();
 }
+
+early_initcall(sead_setup);
 
 static void __init serial_init(void)
 {

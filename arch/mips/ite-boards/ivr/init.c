@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	IVR board setup.
  *
@@ -55,16 +54,14 @@ const char *get_system_type(void)
 	return "Globespan IVR";
 }
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	unsigned long mem_size;
 	unsigned long pcicr;
 
-	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
-
-	puts("IVR board running...");
+	prom_argc = fw_arg0;
+	prom_argv = (char **) fw_arg1;
+	prom_envp = (int *) fw_arg3;
 
 	mips_machgroup = MACH_GROUP_GLOBESPAN;
 	mips_machtype = MACH_IVR;  /* Globespan's iTVC15 reference board */
@@ -85,5 +82,4 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 
 	it8172_init_ram_resource(mem_size);
 	add_memory_region(0, mem_size, BOOT_MEM_RAM);
-	return 0;
 }

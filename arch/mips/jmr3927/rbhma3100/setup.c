@@ -199,7 +199,7 @@ extern void jmr3927_irq_setup(void);
 extern struct resource pci_io_resource;
 extern struct resource pci_mem_resource;
 
-void __init jmr3927_setup(void)
+static void __init jmr3927_setup(void)
 {
 	extern int panic_timeout;
 	char *argptr;
@@ -281,6 +281,8 @@ void __init jmr3927_setup(void)
 	}
 #endif
 }
+
+early_initcall(jmr3927_setup);
 
 
 static void tx3927_setup(void);

@@ -59,7 +59,7 @@ const char *get_system_type(void)
 	return "MIPS Atlas";
 }
 
-void __init atlas_setup(void)
+static void __init atlas_setup(void)
 {
 #ifdef CONFIG_KGDB
 	int rs_putDebugChar(char);
@@ -113,6 +113,8 @@ void __init atlas_setup(void)
 
 	mips_reboot_setup();
 }
+
+early_initcall(atlas_setup);
 
 static void __init serial_init(void)
 {

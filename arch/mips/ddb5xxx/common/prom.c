@@ -1,17 +1,11 @@
-/***********************************************************************
- *
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: jsun@mvista.com or jsun@junsun.net
- *
- * arch/mips/ddb5xxx/common/prom.c
- *     prom.c file.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- *
- ***********************************************************************
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -39,8 +33,9 @@ const char *get_system_type(void)
 }
 
 /* [jsun@junsun.net] PMON passes arguments in C main() style */
-void __init prom_init(int argc, const char **arg)
+void __init prom_init(void)
 {
+	int argc = fw_arg0;
 	int i;
 
 	/* arg[0] is "g", the rest is boot parameters */

@@ -102,7 +102,7 @@ static void __init ddb_time_init(void)
 
 
 
-void __init ddb_setup(void)
+static void __init ddb5074_setup(void)
 {
 	extern int panic_timeout;
 
@@ -136,6 +136,7 @@ void __init ddb_setup(void)
 	panic_timeout = 180;
 }
 
+early_initcall(ddb5074_setup);
 
 #define USE_NILE4_SERIAL	0
 

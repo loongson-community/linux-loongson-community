@@ -88,40 +88,8 @@ EXPORT_SYMBOL(mips_io_port_base);
 unsigned long isa_slot_offset;
 EXPORT_SYMBOL(isa_slot_offset);
 
-extern void SetUpBootInfo(void);
-extern ATTRIB_NORET asmlinkage void start_kernel(void);
-extern void prom_init(int, char **, char **, int *);
-
 static struct resource code_resource = { "Kernel code" };
 static struct resource data_resource = { "Kernel data" };
-
-asmlinkage void __init init_arch(int argc, char **argv, char **envp,
-	int *prom_vec)
-{
-	/* Determine which MIPS variant we are running on. */
-	cpu_probe();
-
-	prom_init(argc, argv, envp, prom_vec);
-
-	cpu_report();
-
-#ifdef CONFIG_MIPS32
-	/* Disable coprocessors and set FPU for 16/32 FPR register model */
-	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
-	set_c0_status(ST0_CU0);
-#endif
-#ifdef CONFIG_MIPS64
-	/*
-	 * On IP27, I am seeing the TS bit set when the kernel is loaded.
-	 * Maybe because the kernel is in ckseg0 and not xkphys? Clear it
-	 * anyway ...
-	 */
-	clear_c0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
-	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
-#endif
-
-	start_kernel();
-}
 
 void __init add_memory_region(phys_t start, phys_t size, long type)
 {
@@ -459,40 +427,52 @@ static inline void resource_init(void)
 #undef MAXMEM
 #undef MAXMEM_PFN
 
+static int __initdata earlyinit_debug;
+
+static int __init earlyinit_debug_setup(char *str)
+{
+	earlyinit_debug = 1;
+	return 1;
+}
+__setup("earlyinit_debug", earlyinit_debug_setup);
+
+extern initcall_t __earlyinitcall_start, __earlyinitcall_end;
+
+static void __init do_earlyinitcalls(void)
+{
+	initcall_t *call, *start, *end;
+
+	start = &__earlyinitcall_start;
+	end = &__earlyinitcall_end;
+
+	for (call = start; call < end; call++) {
+		if (earlyinit_debug)
+			printk("calling earlyinitcall 0x%p\n", *call);
+
+		(*call)();
+	}
+}
+
 void __init setup_arch(char **cmdline_p)
 {
-	extern void atlas_setup(void);
-	extern void baget_setup(void);
-	extern void cobalt_setup(void);
-	extern void lasat_setup(void);
-	extern void ddb_setup(void);
-	extern void decstation_setup(void);
-	extern void deskstation_setup(void);
-	extern void jazz_setup(void);
-	extern void sni_rm200_pci_setup(void);
-	extern void ip22_setup(void);
-	extern void ip27_setup(void);
-	extern void ip32_setup(void);
-	extern void ev96100_setup(void);
-	extern void malta_setup(void);
-	extern void sead_setup(void);
-	extern void ikos_setup(void);
-	extern void momenco_ocelot_setup(void);
-	extern void momenco_ocelot_g_setup(void);
-	extern void momenco_ocelot_c_setup(void);
-	extern void momenco_jaguar_atx_setup(void);
-	extern void nec_osprey_setup(void);
-	extern void nec_eagle_setup(void);
-	extern void zao_capcella_setup(void);
-	extern void victor_mpc30x_setup(void);
-	extern void ibm_workpad_setup(void);
-	extern void casio_e55_setup(void);
-	extern void jmr3927_setup(void);
-	extern void it8172_setup(void);
-	extern void swarm_setup(void);
-	extern void hp_setup(void);
-	extern void au1x00_setup(void);
-	extern void frame_info_init(void);
+	cpu_probe();
+	prom_init();
+	cpu_report();
+
+#ifdef CONFIG_MIPS32
+	/* Disable coprocessors and set FPU for 16/32 FPR register model */
+	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
+	set_c0_status(ST0_CU0);
+#endif
+#ifdef CONFIG_MIPS64
+	/*
+	 * On IP27, I am seeing the TS bit set when the kernel is loaded.
+	 * Maybe because the kernel is in ckseg0 and not xkphys? Clear it
+	 * anyway ...
+	 */
+	clear_c0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
+	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
+#endif
 
 	frame_info_init();
 
@@ -506,188 +486,7 @@ void __init setup_arch(char **cmdline_p)
 
 	rtc_ops = &no_rtc_ops;
 
-	switch (mips_machgroup) {
-#ifdef CONFIG_BAGET_MIPS
-	case MACH_GROUP_BAGET:
-		baget_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_COBALT
-	case MACH_GROUP_COBALT:
-		cobalt_setup();
-		break;
-#endif
-#ifdef CONFIG_DECSTATION
-	case MACH_GROUP_DEC:
-		decstation_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_ATLAS
-	case MACH_GROUP_UNKNOWN:
-		atlas_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_JAZZ
-	case MACH_GROUP_JAZZ:
-		jazz_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_MALTA
-	case MACH_GROUP_UNKNOWN:
-		malta_setup();
-		break;
-#endif
-#ifdef CONFIG_MOMENCO_OCELOT
-	case MACH_GROUP_MOMENCO:
-		momenco_ocelot_setup();
-		break;
-#endif
-#ifdef CONFIG_MOMENCO_OCELOT_G
-	case MACH_GROUP_MOMENCO:
-		momenco_ocelot_g_setup();
-		break;
-#endif
-#ifdef CONFIG_MOMENCO_OCELOT_C
-	case MACH_GROUP_MOMENCO:
-		momenco_ocelot_c_setup();
-		break;
-#endif
-#ifdef CONFIG_MOMENCO_JAGUAR_ATX
-	case MACH_GROUP_MOMENCO:
-		momenco_jaguar_atx_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_SEAD
-	case MACH_GROUP_UNKNOWN:
-		sead_setup();
-		break;
-#endif
-#ifdef CONFIG_SGI_IP22
-	/* As of now this is only IP22.  */
-	case MACH_GROUP_SGI:
-		ip22_setup();
-		break;
-#endif
-#ifdef CONFIG_SGI_IP27
-	case MACH_GROUP_SGI:
-		ip27_setup();
-		break;
-#endif
-#ifdef CONFIG_SGI_IP32
-	case MACH_GROUP_SGI:
-		ip32_setup();
-		break;
-#endif
-#ifdef CONFIG_SNI_RM200_PCI
-	case MACH_GROUP_SNI_RM:
-		sni_rm200_pci_setup();
-		break;
-#endif
-#ifdef CONFIG_DDB5074
-	case MACH_GROUP_NEC_DDB:
-		ddb_setup();
-		break;
-#endif
-#ifdef CONFIG_DDB5476
-       case MACH_GROUP_NEC_DDB:
-               ddb_setup();
-               break;
-#endif
-#ifdef CONFIG_DDB5477
-       case MACH_GROUP_NEC_DDB:
-               ddb_setup();
-               break;
-#endif
-#ifdef CONFIG_CPU_VR41XX
-	case MACH_GROUP_NEC_VR41XX:
-		switch (mips_machtype) {
-#ifdef CONFIG_NEC_OSPREY
-		case MACH_NEC_OSPREY:
-			nec_osprey_setup();
-			break;
-#endif
-#ifdef CONFIG_NEC_EAGLE
-		case MACH_NEC_EAGLE:
-			nec_eagle_setup();
-			break;
-#endif
-#ifdef CONFIG_ZAO_CAPCELLA
-		case MACH_ZAO_CAPCELLA:
-			zao_capcella_setup();
-			break;
-#endif
-#ifdef CONFIG_VICTOR_MPC30X
-		case MACH_VICTOR_MPC30X:
-			victor_mpc30x_setup();
-			break;
-#endif
-#ifdef CONFIG_IBM_WORKPAD
-		case MACH_IBM_WORKPAD:
-			ibm_workpad_setup();
-			break;
-#endif
-#ifdef CONFIG_CASIO_E55
-		case MACH_CASIO_E55:
-			casio_e55_setup();
-			break;
-#endif
-#ifdef CONFIG_TANBAC_TB0229
-		case MACH_TANBAC_TB0229:
-			tanbac_tb0229_setup();
-			break;
-#endif
-		}
-		break;
-#endif
-#ifdef CONFIG_MIPS_EV96100
-	case MACH_GROUP_GALILEO:
-		ev96100_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_EV64120
-	case MACH_GROUP_GALILEO:
-		ev64120_setup();
-		break;
-#endif
-#if defined(CONFIG_MIPS_IVR) || defined(CONFIG_MIPS_ITE8172)
-	case  MACH_GROUP_ITE:
-	case  MACH_GROUP_GLOBESPAN:
-		it8172_setup();
-		break;
-#endif
-#ifdef CONFIG_LASAT
-        case MACH_GROUP_LASAT:
-                lasat_setup();
-                break;
-#endif
-#ifdef CONFIG_SOC_AU1X00
-	case MACH_GROUP_ALCHEMY:
-		au1x00_setup();
-		break;
-#endif
-#ifdef CONFIG_TOSHIBA_JMR3927
-	case MACH_GROUP_TOSHIBA:
-		jmr3927_setup();
-		break;
-#endif
-#ifdef CONFIG_TOSHIBA_RBTX4927
-	case MACH_GROUP_TOSHIBA:
-		tx4927_setup();
-		break;
-#endif
-#ifdef CONFIG_SIBYTE_BOARD
-	case MACH_GROUP_SIBYTE:
-		swarm_setup();
-		break;
-#endif
-#ifdef CONFIG_HP_LASERJET
-        case MACH_GROUP_HP_LJ:
-                hp_setup();
-                break;
-#endif
-	default:
-		panic("Unsupported architecture");
-	}
+	do_earlyinitcalls();
 
 	strlcpy(command_line, arcs_cmdline, sizeof(command_line));
 	strlcpy(saved_command_line, command_line, sizeof(saved_command_line));
@@ -695,11 +494,8 @@ void __init setup_arch(char **cmdline_p)
 	*cmdline_p = command_line;
 
 	parse_cmdline_early();
-
 	bootmem_init();
-
 	paging_init();
-
 	resource_init();
 }
 

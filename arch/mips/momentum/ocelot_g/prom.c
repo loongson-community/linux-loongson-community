@@ -50,10 +50,14 @@ const char *get_system_type(void)
 }
 
 /* [jsun@junsun.net] PMON passes arguments in C main() style */
-void __init prom_init(int argc, char **arg, char** env, struct callvectors *cv)
+void __init prom_init(void)
 {
-	int i;
 	uint32_t tmp;
+	int argc = fw_arg0;
+	char **arg = (char **) fw_arg1;
+	char **env = (char **) fw_arg2;
+	struct callvectors *cv = (struct callvectors *) fw_arg3;
+	int i;
 
 	/* save the PROM vectors for debugging use */
 	debug_vectors = cv;
@@ -94,8 +98,4 @@ void __init prom_init(int argc, char **arg, char** env, struct callvectors *cv)
 unsigned long __init prom_free_prom_memory(void)
 {
 	return 0;
-}
-
-void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
-{
 }

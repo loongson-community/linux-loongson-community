@@ -155,8 +155,11 @@ char *arg64(unsigned long addrin, int arg_index)
 #endif  /* CONFIG_MIPS64 */
 
 /* PMON passes arguments in C main() style */
-void __init prom_init(int argc, char **arg, char **env, struct callvectors *cv)
+void __init prom_init(void)
 {
+	int argc = fw_arg0;
+	char **arg = (char **) fw_arg1;
+	char **env = (char **) fw_arg2;
 	int i;
 #ifdef CONFIG_MIPS64
 	char *ptr;
@@ -243,8 +246,4 @@ void __init prom_init(int argc, char **arg, char **env, struct callvectors *cv)
 unsigned long __init prom_free_prom_memory(void)
 {
 	return 0;
-}
-
-void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
-{
 }

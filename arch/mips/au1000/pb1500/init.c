@@ -47,14 +47,14 @@ const char *get_system_type(void)
 	return "Alchemy Pb1500";
 }
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	unsigned char *memsize_str;
 	unsigned long memsize;
 
-	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
+	prom_argc = (int) fw_arg0;
+	prom_argv = (char **) fw_arg1;
+	prom_envp = (char **) fw_arg2;
 
 	mips_machgroup = MACH_GROUP_ALCHEMY;
 	mips_machtype = MACH_PB1500;
@@ -67,5 +67,4 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 		memsize = simple_strtol(memsize_str, NULL, 0);
 	}
 	add_memory_region(0, memsize, BOOT_MEM_RAM);
-	return 0;
 }

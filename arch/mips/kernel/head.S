@@ -111,13 +111,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	CLI					# disable interrupts
 
-	/*
-	 * The firmware/bootloader passes argc/argp/envp
-	 * to us as arguments.  But clear bss first because
-	 * the romvec and other important info is stored there
-	 * by prom_init().
-	 */
-	PTR_LA		t0, __bss_start
+	PTR_LA		t0, __bss_start		# clear .bss
 	LONG_S		zero, (t0)
 	PTR_LA		t1, __bss_stop - LONGSIZE
 1:
@@ -125,12 +119,17 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	LONG_S		zero, (t0)
 	bne		t0, t1, 1b
 
+	LONG_S		a0, fw_arg0		# firmware arguments
+	LONG_S		a1, fw_arg1
+	LONG_S		a2, fw_arg2
+	LONG_S		a3, fw_arg3
+
 	PTR_LA		$28, init_thread_union
 	PTR_ADDIU	sp, $28, _THREAD_SIZE - 32
 	set_saved_sp	sp, t0, t1
 	PTR_SUBU	sp, 4 * SZREG		# init stack pointer
 
-	jal		init_arch
+	jal		start_kernel
 	END(kernel_entry)
 
 #ifdef CONFIG_SMP
@@ -172,6 +171,11 @@ NESTED(smp_bootstrap, 16, sp)
 
 	.comm	kernelsp,    NR_CPUS * 8, 8
 	.comm	pgd_current, NR_CPUS * 8, 8
+
+	.comm	fw_arg0, SZREG, SZREG		# firmware arguments
+	.comm	fw_arg1, SZREG, SZREG
+	.comm	fw_arg2, SZREG, SZREG
+	.comm	fw_arg3, SZREG, SZREG
 
 	.macro	page name, order=0
 	.globl	\name

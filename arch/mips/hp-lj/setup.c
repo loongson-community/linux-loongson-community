@@ -123,7 +123,7 @@ static void hplj_halt(void)
    while(1);
 }
 
-void __init hp_setup(void)
+static void __init hp_setup(void)
 {
 #ifdef CONFIG_PCI
    extern void pci_setup(void);
@@ -152,3 +152,5 @@ void __init hp_setup(void)
 
    printk("HP SETUP\n");
 }
+
+early_initcall(swarm_setup);

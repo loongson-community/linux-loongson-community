@@ -80,7 +80,7 @@ static struct vr41xx_pci_address_map pci_address_map = {
 };
 #endif
 
-void __init zao_capcella_setup(void)
+static void __init zao_capcella_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -122,3 +122,5 @@ void __init zao_capcella_setup(void)
 	vr41xx_pciu_init(&pci_address_map);
 #endif
 }
+
+early_initcall(zao_capcella_setup);

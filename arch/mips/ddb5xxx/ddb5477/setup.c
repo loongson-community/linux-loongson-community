@@ -176,7 +176,7 @@ extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
 extern struct pci_controller ddb5477_ext_controller;
 extern struct pci_controller ddb5477_io_controller;
 
-void __init ddb_setup(void)
+static void __init ddb5477_setup(void)
 {
 	extern int panic_timeout;
 #ifdef CONFIG_BLK_DEV_IDE
@@ -221,6 +221,8 @@ void __init ddb_setup(void)
 	register_pci_controller (&ddb5477_ext_controller);
 	register_pci_controller (&ddb5477_io_controller);
 }
+
+early_initcall(ddb5477_setup);
 
 static void __init ddb5477_board_init(void)
 {

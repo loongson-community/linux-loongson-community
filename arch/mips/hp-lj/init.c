@@ -19,7 +19,7 @@ const char CommandLine[] = Delimiter
 
 char arcs_cmdline[CL_SIZE];
 
-int __init prom_init(int argc, char ** argv, char **envp)
+void __init prom_init(void)
 {
 	ulong mem_size = get_mem_avail();
         int reserve_size = 0;
@@ -43,8 +43,6 @@ int __init prom_init(int argc, char ** argv, char **envp)
 	mips_machtype   = MACH_UNKNOWN;
 
 	strcpy(arcs_cmdline, CommandLine+strlen(Delimiter));
-
-	return 0;
 }
 
 

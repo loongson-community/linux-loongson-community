@@ -239,12 +239,14 @@ static int __init initrd_setup(char *str)
 #endif
 
 /*
- * prom_init is called just after the cpu type is determined, from init_arch()
+ * prom_init is called just after the cpu type is determined, from setup_arch()
  */
-__init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	uint64_t cfe_ept, cfe_handle;
 	unsigned int cfe_eptseal;
+	int argc = fw_arg0;
+	char **envp = (char **) fw_arg2;
 #ifdef CONFIG_KGDB
 	char *arg;
 #endif
@@ -344,8 +346,6 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 
 	mips_machgroup = MACH_GROUP_SIBYTE;
 	prom_meminit();
-
-	return 0;
 }
 
 unsigned long __init prom_free_prom_memory(void)

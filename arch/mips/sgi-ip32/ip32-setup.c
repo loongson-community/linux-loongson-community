@@ -78,7 +78,7 @@ extern void __init ip32_pci_setup(void);
 
 #endif /* CONFIG_SERIAL_8250 */
 
-void __init ip32_setup(void)
+static void __init ip32_setup(void)
 {
 	TLBMISS_HANDLER_SETUP ();
 
@@ -119,3 +119,5 @@ void __init ip32_setup(void)
 	crime_init();
  	ip32_pci_setup();
 }
+
+early_initcall(ip32_setup);

@@ -52,8 +52,10 @@ const char *get_system_type(void)
 	return "NEC Eagle/Hawk";
 }
 
-void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
+void __init prom_init(void)
 {
+	int argc = fw_arg0;
+	char **argv = (char **) fw_arg1;
 	int i;
 
 	/*

@@ -91,9 +91,9 @@ static void prom_linux_exit(void)
 }
 
 /*
- * prom_init is called just after the cpu type is determined, from init_arch()
+ * prom_init is called just after the cpu type is determined, from setup_arch()
  */
-__init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	_machine_restart   = (void (*)(char *))prom_linux_exit;
 	_machine_halt      = prom_linux_exit;
@@ -103,8 +103,6 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 
 	mips_machgroup = MACH_GROUP_SIBYTE;
 	prom_meminit();
-
-	return 0;
 }
 
 unsigned long __init prom_free_prom_memory(void)

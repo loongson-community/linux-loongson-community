@@ -115,7 +115,7 @@ void __init it8172_init_ram_resource(unsigned long memsize)
 	it8172_resources.ram.end = memsize;
 }
 
-void __init it8172_setup(void)
+static void __init it8172_setup(void)
 {
 	unsigned short dsr;
 	char *argptr;
@@ -262,6 +262,7 @@ void __init it8172_setup(void)
 #endif /* CONFIG_IT8172_SCR1 */
 }
 
+early_initcall(it8172_setup);
 
 #ifdef CONFIG_SERIO_I8042
 /*

@@ -80,7 +80,7 @@ static struct vr41xx_pci_address_map pci_address_map = {
 };
 #endif
 
-void __init victor_mpc30x_setup(void)
+static void __init victor_mpc30x_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -121,3 +121,5 @@ void __init victor_mpc30x_setup(void)
 	vr41xx_pciu_init(&pci_address_map);
 #endif
 }
+
+early_initcall(victor_mpc30x_setup);

@@ -102,7 +102,7 @@ static struct pci_controller cobalt_pci_controller = {
 	.io_offset	= 0x00001000UL - GT64111_IO_BASE
 };
 
-void __init cobalt_setup(void)
+static void __init cobalt_setup(void)
 {
 	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
 	int i;
@@ -143,10 +143,17 @@ void __init cobalt_setup(void)
 #endif
 }
 
-/* Prom init. We read our one and only communication with the
-    firmware. Grab the amount of installed memory */
-void __init prom_init(int argc)
+early_initcall(cobalt_setup);
+
+/*
+ * Prom init. We read our one and only communication with the firmware.
+ * Grab the amount of installed memory
+ */
+
+void __init prom_init(void)
 {
+	int argc = fw_arg0;
+
 	mips_machgroup = MACH_GROUP_COBALT;
 
 	add_memory_region(0x0, argc & 0x7fffffff, BOOT_MEM_RAM);

@@ -31,7 +31,7 @@ extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
 #endif
 
-void __init casio_e55_setup(void)
+static void __init casio_e55_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -68,3 +68,5 @@ void __init casio_e55_setup(void)
 	vr41xx_siu_init(SIU_RS232C, 0);
 #endif
 }
+
+early_initcall(casio_e55_setup);

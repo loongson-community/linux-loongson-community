@@ -219,4 +219,11 @@ extern struct boot_mem_map boot_mem_map;
 
 extern void add_memory_region(phys_t start, phys_t size, long type);
 
+extern void prom_init(void);
+
+/*
+ * Registers a0, a1, a3 and a4 as passed to the kenrel entry by firmware
+ */
+extern unsigned long fw_arg0, fw_arg1, fw_arg2, fw_arg3;
+
 #endif /* _ASM_BOOTINFO_H */

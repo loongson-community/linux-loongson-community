@@ -61,7 +61,7 @@ extern void ip22_time_init(void) __init;
 
 extern int console_setup(char *) __init;
 
-void __init ip22_setup(void)
+static void __init ip22_setup(void)
 {
 	char *ctype;
 #ifdef CONFIG_KGDB
@@ -160,3 +160,5 @@ void __init ip22_setup(void)
 #endif
 	rtc_ops = &ip22_rtc_ops;
 }
+
+early_initcall(ip22_setup);

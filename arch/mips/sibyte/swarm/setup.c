@@ -92,7 +92,7 @@ int swarm_be_handler(struct pt_regs *regs, int is_fixup)
 	return (is_fixup ? MIPS_BE_FIXUP : MIPS_BE_FATAL);
 }
 
-void __init swarm_setup(void)
+static void __init swarm_setup(void)
 {
 	extern int panic_timeout;
 
@@ -156,6 +156,8 @@ void __init swarm_setup(void)
 	prom_build_cpu_map();
 #endif
 }
+
+early_initcall(swarm_setup);
 
 #ifdef LEDS_PHYS
 

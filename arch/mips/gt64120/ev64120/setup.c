@@ -101,7 +101,7 @@ struct rtc_ops galileo_rtc_ops = {
  */
 extern void gt64120_time_init(void);
 
-void ev64120_setup(void)
+static void __init ev64120_setup(void)
 {
 	_machine_restart = galileo_machine_restart;
 	_machine_halt = galileo_machine_halt;
@@ -113,33 +113,25 @@ void ev64120_setup(void)
 	set_io_port_base(KSEG1);
 }
 
+early_initcall(ev64120_setup);
+
 const char *get_system_type(void)
 {
 	return "Galileo EV64120A";
 }
 
 /*
- * SetUpBootInfo -
+ * Kernel arguments passed by the firmware
  *
- * This function is called at very first stages of kernel startup.
- * It specifies for the kernel the evaluation board that the linux
- * is running on. Then it saves the eprom parameters that holds the
- * command line, memory size etc...
- *
- * Inputs :
- * argc - nothing
- * argv - holds a pointer to the eprom parameters
- * envp - nothing
+ * $a0 - nothing
+ * $a1 - holds a pointer to the eprom parameters
+ * $a2 - nothing
  */
 
-void SetUpBootInfo(int argc, char **argv, char **envp)
+void __init prom_init(void)
 {
 	mips_machgroup = MACH_GROUP_GALILEO;
 	mips_machtype = MACH_EV64120A;
-}
 
-void __init prom_init(int a, char **b, char **c, int *d)
-{
-	mips_machgroup = MACH_GROUP_GALILEO;
 	add_memory_region(0, 32 << 20, BOOT_MEM_RAM);
 }

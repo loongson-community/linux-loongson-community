@@ -182,7 +182,7 @@ void __init serial_init(void)
 }
 #endif
 
-void __init lasat_setup(void)
+static void __init lasat_setup(void)
 {
 	int i;
 	lasat_misc  = &lasat_misc_info[mips_machtype];
@@ -220,4 +220,4 @@ void __init lasat_setup(void)
 	prom_printf("Lasat specific initialization complete\n");
 }
 
-
+early_initcall(lasat_setup);

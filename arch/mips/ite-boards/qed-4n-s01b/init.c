@@ -54,16 +54,14 @@ const char *get_system_type(void)
 	return "ITE QED-4N-S01B";
 }
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	unsigned long mem_size;
 	unsigned long pcicr;
 
-	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
-
-	puts("ITE board running...");
+	prom_argc = fw_arg0;
+	prom_argv = (char **) fw_arg1;
+	prom_envp = (int *) fw_arg3;
 
 	mips_machgroup = MACH_GROUP_ITE;
 	mips_machtype = MACH_QED_4N_S01B;  /* ITE board name/number */
@@ -85,6 +83,4 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 
 	it8172_init_ram_resource(mem_size);
 	add_memory_region(0, mem_size, BOOT_MEM_RAM);
-
-	return 0;
 }

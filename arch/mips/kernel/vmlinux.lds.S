@@ -97,6 +97,13 @@ SECTIONS
   __start___param = .;
   __param : { *(__param) }
   __stop___param = .;
+
+  __earlyinitcall_start = .;
+  .initcall.init : {
+	*(.initcall.early1.init)
+  }
+  __earlyinitcall_end = .;
+
   __initcall_start = .;
   .initcall.init : {
 	*(.initcall1.init)
@@ -108,6 +115,7 @@ SECTIONS
 	*(.initcall7.init)
   }
   __initcall_end = .;
+
   __con_initcall_start = .;
   .con_initcall.init : { *(.con_initcall.init) }
   __con_initcall_end = .;

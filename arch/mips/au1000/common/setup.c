@@ -73,7 +73,7 @@ extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
 static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
 #endif
 
-void __init au1x00_setup(void)
+static void __init au1x00_setup(void)
 {
 	char *argptr;
 
@@ -180,6 +180,8 @@ void __init au1x00_setup(void)
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T0S);
 	au_writel(0, SYS_TOYTRIM);
 }
+
+early_initcall(au1x00_setup);
 
 #if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_SOC_AU1500)
 /* This routine should be valid for all Au1500 based boards */

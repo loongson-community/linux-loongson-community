@@ -32,7 +32,7 @@ extern void nec_osprey_power_off(void);
 extern void vr4181_init_serial(void);
 extern void vr4181_init_time(void);
 
-void __init nec_osprey_setup(void)
+static void __init nec_osprey_setup(void)
 {
 	set_io_port_base(VR4181_PORT_BASE);
 	isa_slot_offset = VR4181_ISAMEM_BASE;
@@ -69,3 +69,5 @@ void __init nec_osprey_setup(void)
 	 */
 	*VR4181_GPINTTYPL = 0x3000;
 }
+
+early_initcall(nec_osprey_setup);

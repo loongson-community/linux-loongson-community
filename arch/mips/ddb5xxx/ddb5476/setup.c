@@ -137,8 +137,7 @@ static void ddb5476_board_init(void);
 extern void ddb5476_irq_setup(void);
 extern void (*irq_setup)(void);
 
-void __init
-ddb_setup(void)
+static void __init ddb5476_setup(void)
 {
 	extern int panic_timeout;
 
@@ -181,6 +180,8 @@ ddb_setup(void)
 	/* board initialization stuff */
 	ddb5476_board_init();
 }
+
+early_initcall(ddb5476_setup);
 
 /*
  * We don't trust bios.  We essentially does hardware re-initialization

@@ -82,9 +82,13 @@ void __init which_prom(s32 magic, s32 *prom_vec)
 	}
 }
 
-int __init prom_init(s32 argc, s32 *argv, u32 magic, s32 *prom_vec)
+void __init prom_init(void)
 {
 	extern void dec_machine_halt(void);
+	s32 argc = fw_arg0;
+	s32 argv = fw_arg1;
+	u32 envp = fw_arg2;
+	s32 prom_vec = fw_arg3;
 
 	/*
 	 * Determine which PROM's we have
@@ -117,6 +121,4 @@ int __init prom_init(s32 argc, s32 *argv, u32 magic, s32 *prom_vec)
 	prom_meminit(magic);
 	prom_identify_arch(magic);
 	prom_init_cmdline(argc, argv, magic);
-
-	return 0;
 }

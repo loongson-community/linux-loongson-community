@@ -30,7 +30,7 @@ const char *get_system_type(void)
  * [jsun] right now we assume it is the nec debug monitor, which does
  * not pass any arguments.
  */
-void __init prom_init()
+void __init prom_init(void)
 {
 	strcpy(arcs_cmdline, "ip=bootp ");
 	strcat(arcs_cmdline, "ether=46,0x03fe0300,eth0 ");
@@ -48,8 +48,3 @@ unsigned long __init prom_free_prom_memory(void)
 {
 	return 0;
 }
-
-void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
-{
-}
-

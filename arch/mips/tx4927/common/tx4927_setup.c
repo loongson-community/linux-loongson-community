@@ -1,8 +1,4 @@
 /*
- * linux/arch/mips/tx4927/common/tx4927_setup.c
- *
- * common tx4927 setup stuff
- *
  * Author: MontaVista Software, Inc.
  *         source@mvista.com
  *
@@ -55,7 +51,6 @@
 
 #undef DEBUG
 
-void __init tx4927_setup(void);
 void __init tx4927_time_init(void);
 void __init tx4927_timer_setup(struct irqaction *irq);
 void dump_cp0(char *key);
@@ -70,7 +65,7 @@ static void tx4927_write_buffer_flush(void)
 }
 
 
-void __init tx4927_setup(void)
+static void __init tx4927_setup(void)
 {
 	board_time_init = tx4927_time_init;
 	board_timer_setup = tx4927_timer_setup;
@@ -86,6 +81,7 @@ void __init tx4927_setup(void)
 	return;
 }
 
+early_initcall(tx4927_setup);
 
 void __init tx4927_time_init(void)
 {

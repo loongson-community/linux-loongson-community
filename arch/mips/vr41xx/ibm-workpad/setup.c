@@ -31,7 +31,7 @@ extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
 #endif
 
-void __init ibm_workpad_setup(void)
+static void __init ibm_workpad_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -68,3 +68,5 @@ void __init ibm_workpad_setup(void)
 	vr41xx_siu_init(SIU_RS232C, 0);
 #endif
 }
+
+early_initcall(ibm_workpad_setup);

@@ -156,14 +156,14 @@ const char *get_system_type(void)
 	return "Galileo EV96100";
 }
 
-void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	volatile unsigned char *uart;
 	char ppbuf[8];
 
-	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
+	prom_argc = fw_arg0;
+	prom_argv = (char **) fw_arg1;
+	prom_envp = (char **) fw_arg2;
 
 	mips_machgroup = MACH_GROUP_GALILEO;
 	mips_machtype = MACH_EV96100;
