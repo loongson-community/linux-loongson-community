@@ -27,6 +27,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/mmu_context.h>
+#include <asm/war.h>
 
 /* Primary cache parameters. */
 static int icache_size, dcache_size; /* Size in bytes */
@@ -1011,11 +1012,16 @@ static void r4k_flush_page_to_ram_d32(struct page *page)
 
 static void r4k_flush_page_to_ram_d32_r4600(struct page *page)
 {
+#ifdef R4600_V1_HIT_DCACHE_WAR
 	unsigned long flags;
 
-	__save_and_cli(flags);			/* For R4600 v1.7 bug.  */
+	__save_and_cli(flags);
+	__asm__ __volatile__("nop;nop;nop;nop");
+#endif
 	blast_dcache32_page((unsigned long)page_address(page));
+#ifdef R4600_V1_HIT_DCACHE_WAR
 	__restore_flags(flags);
+#endif
 }
 
 static void
@@ -1046,17 +1052,6 @@ r4k_flush_icache_page_p(struct vm_area_struct *vma, struct page *page)
 	flush_cache_all();
 }
 
-/*
- * Writeback and invalidate the primary cache dcache before DMA.
- *
- * R4600 v2.0 bug: "The CACHE instructions Hit_Writeback_Inv_D,
- * Hit_Writeback_D, Hit_Invalidate_D and Create_Dirty_Exclusive_D will only
- * operate correctly if the internal data cache refill buffer is empty.  These
- * CACHE instructions should be separated from any potential data cache miss
- * by a load instruction to an uncached address to empty the response buffer."
- * (Revision 2.0 device errata from IDT available on http://www.idt.com/
- * in .pdf format.)
- */
 static void
 r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 {
@@ -1066,9 +1061,11 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		flush_cache_all();
 	} else {
-		/* Workaround for R4600 bug.  See comment above. */
+#ifdef R4600_V2_HIT_CACHEOP_WAR
+		/* Workaround for R4600 bug.  See comment in <asm/war>. */
 		__save_and_cli(flags);
 		*(volatile unsigned long *)KSEG1;
+#endif
 
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size) & ~(dc_lsize - 1);
@@ -1077,7 +1074,9 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 			if (a == end) break;
 			a += dc_lsize;
 		}
+#ifdef R4600_V2_HIT_CACHEOP_WAR
 		__restore_flags(flags);
+#endif
 	}
 	bc_wback_inv(addr, size);
 }
@@ -1110,9 +1109,11 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		flush_cache_all();
 	} else {
+#ifdef R4600_V2_HIT_CACHEOP_WAR
 		/* Workaround for R4600 bug.  See comment above. */
 		__save_and_cli(flags);
 		*(volatile unsigned long *)KSEG1;
+#endif
 
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size) & ~(dc_lsize - 1);
@@ -1121,7 +1122,9 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 			if (a == end) break;
 			a += dc_lsize;
 		}
+#ifdef R4600_V2_HIT_CACHEOP_WAR
 		__restore_flags(flags);
+#endif
 	}
 
 	bc_inv(addr, size);
@@ -1159,24 +1162,36 @@ r4k_dma_cache_wback(unsigned long addr, unsigned long size)
  */
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
-	__asm__ __volatile__("nop;nop;nop;nop");	/* R4600 V1.7 */
+#ifdef R4600_V1_HIT_DCACHE_WAR
+	unsigned long flags;
+
+	__save_and_cli(flags);
+	__asm__ __volatile__("nop;nop;nop;nop");
+#endif
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
+#ifdef R4600_V1_HIT_DCACHE_WAR
+	__restore_flags(flags);
+#endif
 }
 
 static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned int flags;
 
+#ifdef R4600_V2_HIT_CACHEOP_WAR
 	__save_and_cli(flags);
 
 	/* Clear internal cache refill buffer */
 	*(volatile unsigned int *)KSEG1;
+#endif
 
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 
+#ifdef R4600_V2_HIT_CACHEOP_WAR
 	__restore_flags(flags);
+#endif
 }
 
 /* Detect and size the various r4k caches. */
