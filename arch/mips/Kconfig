@@ -1384,7 +1384,7 @@ config BINFMT_ELF32
 
 config PM
 	bool "Power Management support (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && MACH_AU1X00
+	depends on EXPERIMENTAL && SOC_AU1X00
 
 endmenu
 
