@@ -110,6 +110,7 @@ void __init smp_boot_cpus(void)
 {
 	int i;
 
+	set_context(0);
 	smp_num_cpus = prom_setup_smp();
 	init_new_context(current, &init_mm);
 	current->processor = 0;

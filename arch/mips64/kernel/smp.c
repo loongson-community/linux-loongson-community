@@ -85,6 +85,7 @@ void __init smp_boot_cpus(void)
 {
 	extern void allowboot(void);
 
+	set_context(0);
 	init_new_context(current, &init_mm);
 	current->processor = 0;
 	init_idle();
