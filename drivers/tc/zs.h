@@ -92,7 +92,7 @@ struct dec_zschannel {
 struct dec_serial;
 
 struct zs_hook {
-	void (*init_channel)(struct dec_serial* info);
+	int (*init_channel)(struct dec_serial* info);
 	void (*init_info)(struct dec_serial* info);
 	void (*rx_char)(unsigned char ch, unsigned char stat);
 	int  (*poll_rx_char)(struct dec_serial* info);

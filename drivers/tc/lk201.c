@@ -18,9 +18,20 @@
 #include "zs.h"
 #include "lk201.h"
 
+/* Simple translation table for the SysRq keys */
+
+#ifdef CONFIG_MAGIC_SYSRQ
+/*
+ * Actually no translation at all, at least until we figure out
+ * how to define SysRq for LK201 and friends. --macro
+ */
+unsigned char lk201_sysrq_xlate[128];
+unsigned char *kbd_sysrq_xlate = lk201_sysrq_xlate;
+#endif
+
 #define KEYB_LINE	3
 
-static void __init lk201_init(struct dec_serial *);
+static int __init lk201_init(struct dec_serial *);
 static void __init lk201_info(struct dec_serial *);
 static void lk201_kbd_rx_char(unsigned char, unsigned char);
 
@@ -60,13 +71,16 @@ static unsigned char lk201_reset_string[] = {
 	LK_CMD_LEDS_OFF, LK_PARAM_LED_MASK(0xf)
 };
 
-static void __init lk201_reset(struct dec_serial *info)
+static int __init lk201_reset(struct dec_serial *info)
 {
 	int i;
 
 	for (i = 0; i < sizeof(lk201_reset_string); i++)
-		if(info->hook->poll_tx_char(info, lk201_reset_string[i]))
+		if (info->hook->poll_tx_char(info, lk201_reset_string[i])) {
 			printk(__FUNCTION__" transmit timeout\n");
+			return -EIO;
+		}
+	return 0;
 }
 
 void kbd_leds(unsigned char leds)
@@ -149,21 +163,24 @@ static void __init lk201_info(struct dec_serial *info)
 {
 }
 
-static void __init lk201_init(struct dec_serial *info)
+static int __init lk201_init(struct dec_serial *info)
 {
-	unsigned int ch, id;
+	unsigned int ch, id = 0;
+	int result;
 
 	printk("DECstation LK keyboard driver v0.04... ");
 
-	lk201_reset(info);
-	udelay(10000);
+	result = lk201_reset(info);
+	if (result)
+		return result;
+	mdelay(10);
 
 	/*
-	 * Detect wether there is an LK201 or an LK401
+	 * Detect whether there is an LK201 or an LK401
 	 * The LK401 has ALT keys...
 	 */
 	info->hook->poll_tx_char(info, LK_CMD_REQ_ID);
-	while((ch = info->hook->poll_rx_char(info)) > 0)
+	while ((ch = info->hook->poll_rx_char(info)) > 0)
 		id = ch;
 
 	switch (id) {
@@ -174,13 +191,16 @@ static void __init lk201_init(struct dec_serial *info)
 		printk("LK401 detected\n");
 		break;
 	default:
-		printk("unkown keyboard, ID %d\n", id);
+		printk("unknown keyboard, ID %d,\n", id);
+		printk("... please report to <linux-mips@oss.sgi.com>\n");
 	}
 
 	/*
 	 * now we're ready
 	 */
 	info->hook->rx_char = lk201_kbd_rx_char;
+
+	return 0;
 }
 
 void __init kbd_init_hw(void)
@@ -206,7 +226,7 @@ void __init kbd_init_hw(void)
 	} else {
 		/*
 		 * TODO: modify dz.c to allow similar hooks
-		 * for LK201 handling on DS2100, Ds3100, and DS5000/200
+		 * for LK201 handling on DS2100, DS3100, and DS5000/200
 		 */
 		printk("LK201 Support for DS3100 not yet ready ...\n");
 	}

@@ -1,17 +1,42 @@
 /*
- * decserial.c: Serial port driver for IOASIC DECsatations.
+ * decserial.c: Serial port driver for IOASIC DECstations.
  *
  * Derived from drivers/sbus/char/sunserial.c by Paul Mackerras.
  * Derived from drivers/macintosh/macserial.c by Harald Koerfgen.
  *
  * DECstation changes
  * Copyright (C) 1998-2000 Harald Koerfgen (Harald.Koerfgen@home.ivm.de)
- * Copyright (C) 2000 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
+ * Copyright (C) 2000,2001 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  *
  * For the rest of the code the original Copyright applies:
  * Copyright (C) 1996 Paul Mackerras (Paul.Mackerras@cs.anu.edu.au)
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
  *
+ *
+ * Note: for IOASIC systems the wiring is as follows:
+ *
+ * mouse/keyboard:
+ * DIN-7 MJ-4  signal        SCC
+ * 2     1     TxD       <-  A.TxD
+ * 3     4     RxD       ->  A.RxD
+ *
+ * EIA-232/EIA-423:
+ * DB-25 MMJ-6 signal        SCC
+ * 2     2     TxD       <-  B.TxD
+ * 3     5     RxD       ->  B.RxD
+ * 4           RTS       <- ~A.RTS
+ * 5           CTS       -> ~B.CTS
+ * 6     6     DSR       -> ~A.SYNC
+ * 8           CD        -> ~B.DCD
+ * 12          DSRS(DCE) -> ~A.CTS  (*)
+ * 15          TxC       ->  B.TxC
+ * 17          RxC       ->  B.RxC
+ * 20    1     DTR       <- ~A.DTR
+ * 22          RI        -> ~A.DCD
+ * 23          DSRS(DTE) <- ~B.RTS
+ *
+ * (*) EIA-232 defines the signal at this pin to be SCD, while DSRS(DCE)
+ *     is shared with DSRS(DTE) at pin 23.
  */
 
 #include <linux/config.h>
@@ -62,7 +87,6 @@ unsigned long system_base;
 #endif
 
 #include "zs.h"
-
 
 /*
  * It would be nice to dynamically allocate everything that
@@ -237,7 +261,7 @@ static inline int serial_paranoia_check(struct dec_serial *info,
  */
 static int baud_table[] = {
 	0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800,
-	9600, 19200, 38400, 57600, 0, 0 };
+	9600, 19200, 38400, 57600, 115200, 0 };
 
 /* 
  * Reading and writing Z8530 registers.
@@ -309,18 +333,21 @@ static inline void load_zsregs(struct dec_zschannel *channel,
 }
 
 /* Sets or clears DTR/RTS on the requested line */
-static inline void zs_rtsdtr(struct dec_serial *info, int set)
+static inline void zs_rtsdtr(struct dec_serial *info, int which, int set)
 {
         unsigned long flags;
 
-        save_flags(flags); cli();
-        if(set) {
-                info->zs_channel->curregs[5] |= (RTS | DTR);
-        } else {
-                info->zs_channel->curregs[5] &= ~(RTS | DTR);
+
+	save_flags(flags); cli();
+	if (info->zs_channel != info->zs_chan_a) {
+		if (set) {
+			info->zs_chan_a->curregs[5] |= (which & (RTS | DTR));
+		} else {
+			info->zs_chan_a->curregs[5] &= ~(which & (RTS | DTR));
+		}
+		write_zsreg(info->zs_chan_a, 5, info->zs_chan_a->curregs[5]);
 	}
-	write_zsreg(info->zs_channel, 5, info->zs_channel->curregs[5]);
-        restore_flags(flags);
+	restore_flags(flags);
 }
 
 /* Utility routines for the Zilog */
@@ -493,34 +520,31 @@ static _INLINE_ void status_handle(struct dec_serial *info)
 		tty_break = 1;
 	}
 
-	/* FIXEM: Check for DCD transitions */
-	if (((stat ^ info->read_reg_zero) & DCD) != 0
-	    && info->tty && !C_CLOCAL(info->tty)) {
-		if (stat & DCD) {
-			wake_up_interruptible(&info->open_wait);
-		} else if (!(info->flags & ZILOG_CALLOUT_ACTIVE)) {
-			tty_hangup(info->tty);
-		}
-	}
+	if (info->zs_channel != info->zs_chan_a) {
 
-	/* Check for CTS transitions */
-	if (info->tty && C_CRTSCTS(info->tty)) {
-		/*
-		 * For some reason, on the Power Macintosh,
-		 * it seems that the CTS bit is 1 when CTS is
-		 * *negated* and 0 when it is asserted.
-		 * The DCD bit doesn't seem to be inverted
-		 * like this.
-		 */
-		if ((stat & CTS) != 0) {
-			if (info->tx_stopped) {
-				info->tx_stopped = 0;
-				if (!info->tx_active)
-					transmit_chars(info);
+		/* FIXEM: Check for DCD transitions */
+		if (((stat ^ info->read_reg_zero) & DCD) != 0
+		    && info->tty && !C_CLOCAL(info->tty)) {
+			if (stat & DCD) {
+				wake_up_interruptible(&info->open_wait);
+			} else if (!(info->flags & ZILOG_CALLOUT_ACTIVE)) {
+				tty_hangup(info->tty);
 			}
-		} else {
-			info->tx_stopped = 1;
 		}
+
+		/* Check for CTS transitions */
+		if (info->tty && C_CRTSCTS(info->tty)) {
+			if ((stat & CTS) != 0) {
+				if (info->tx_stopped) {
+					info->tx_stopped = 0;
+					if (!info->tx_active)
+						transmit_chars(info);
+				}
+			} else {
+				info->tx_stopped = 1;
+			}
+		}
+
 	}
 
 	/* Clear status condition... */
@@ -708,7 +732,7 @@ int zs_startup(struct dec_serial * info)
 	/*
 	 * Turn on RTS and DTR.
 	 */
-	zs_rtsdtr(info, 1);
+	zs_rtsdtr(info, RTS | DTR, 1);
 
 	/*
 	 * Finally, enable sequencing and interrupts
@@ -779,7 +803,7 @@ static void shutdown(struct dec_serial * info)
 	info->zs_channel->curregs[5] &= ~TxENAB;
 	write_zsreg(info->zs_channel, 5, info->zs_channel->curregs[5]);
 	if (!info->tty || C_HUPCL(info->tty)) {
-		zs_rtsdtr(info, 0);
+		zs_rtsdtr(info, RTS | DTR, 0);
 	}
 
 	if (info->tty)
@@ -801,27 +825,39 @@ static void change_speed(struct dec_serial *info)
 	unsigned long flags;
 
 	if (!info->hook) {
-	if (!info->tty || !info->tty->termios)
-		return;
-	cflag = info->tty->termios->c_cflag;
+		if (!info->tty || !info->tty->termios)
+			return;
+		cflag = info->tty->termios->c_cflag;
 		if (!info->port)
-		return;
+			return;
 	} else {
 		cflag = info->hook->cflags;
 	}
+
 	i = cflag & CBAUD;
+	if (i & CBAUDEX) {
+		i &= ~CBAUDEX;
+		if (i < 1 || i > 2) {
+			if (!info->hook)
+				info->tty->termios->c_cflag &= ~CBAUDEX;
+			else
+				info->hook->cflags &= ~CBAUDEX;
+		} else
+			i += 15;
+	}
+
 	save_flags(flags); cli();
 	info->zs_baud = baud_table[i];
 	info->clk_divisor = 16;
-        if (info->zs_baud) {
+	if (info->zs_baud) {
 		info->zs_channel->curregs[4] = X16CLK;
 		brg = BPS_TO_BRG(info->zs_baud, zs_parms->clock/info->clk_divisor);
 		info->zs_channel->curregs[12] = (brg & 255);
 		info->zs_channel->curregs[13] = ((brg >> 8) & 255);
-		zs_rtsdtr(info, 1); 
+		zs_rtsdtr(info, DTR, 1); 
 	} else {
-                zs_rtsdtr(info, 0);
-                return;
+		zs_rtsdtr(info, RTS | DTR, 0);
+		return;
 	}
 
 	/* byte size and parity */
@@ -875,7 +911,7 @@ static void change_speed(struct dec_serial *info)
 		info->zs_channel->curregs[15] &= ~DCDIE;
 	if (cflag & CRTSCTS) {
 		info->zs_channel->curregs[15] |= CTSIE;
-		if ((read_zsreg(info->zs_channel, 0) & CTS) != 0)
+		if ((read_zsreg(info->zs_channel, 0) & CTS) == 0)
 			info->tx_stopped = 1;
 	} else {
 		info->zs_channel->curregs[15] &= ~CTSIE;
@@ -1020,7 +1056,7 @@ static void rs_throttle(struct tty_struct * tty)
 	}
 
 	if (C_CRTSCTS(tty)) {
-		zs_rtsdtr(info, 0);
+		zs_rtsdtr(info, RTS, 0);
 	}
 }
 
@@ -1052,7 +1088,7 @@ static void rs_unthrottle(struct tty_struct * tty)
 	}
 
 	if (C_CRTSCTS(tty)) {
-		zs_rtsdtr(info, 1);
+		zs_rtsdtr(info, RTS, 1);
 	}
 }
 
@@ -1150,18 +1186,25 @@ static int get_lsr_info(struct dec_serial * info, unsigned int *value)
 
 static int get_modem_info(struct dec_serial *info, unsigned int *value)
 {
-	unsigned char control, status;
+	unsigned char control, status_a, status_b;
 	unsigned int result;
 
-	cli();
-	control = info->zs_channel->curregs[5];
-	status = read_zsreg(info->zs_channel, 0);
-	sti();
-	result =  ((control & RTS) ? TIOCM_RTS: 0)
-		| ((control & DTR) ? TIOCM_DTR: 0)
-		| ((status  & DCD) ? TIOCM_CAR: 0)
-		| ((status  & CTS) ? 0: TIOCM_CTS);
-	put_user(result,value);
+	if (info->zs_channel == info->zs_chan_a)
+		result = 0;
+	else {
+		cli();
+		control = info->zs_chan_a->curregs[5];
+		status_a = read_zsreg(info->zs_chan_a, 0);
+		status_b = read_zsreg(info->zs_channel, 0);
+		sti();
+		result =  ((control  & RTS) ? TIOCM_RTS: 0)
+			| ((control  & DTR) ? TIOCM_DTR: 0)
+			| ((status_b & DCD) ? TIOCM_CAR: 0)
+			| ((status_a & DCD) ? TIOCM_RNG: 0)
+			| ((status_a & SYNC_HUNT) ? TIOCM_DSR: 0)
+			| ((status_b & CTS) ? TIOCM_CTS: 0);
+	}
+	put_user(result, value);
 	return 0;
 }
 
@@ -1174,25 +1217,29 @@ static int set_modem_info(struct dec_serial *info, unsigned int cmd,
 	error = verify_area(VERIFY_READ, value, sizeof(int));
 	if (error)
 		return error;
+
+	if (info->zs_channel == info->zs_chan_a)
+		return 0;
+
 	get_user(arg, value);
 	bits = (arg & TIOCM_RTS? RTS: 0) + (arg & TIOCM_DTR? DTR: 0);
 	cli();
 	switch (cmd) {
 	case TIOCMBIS:
-		info->zs_channel->curregs[5] |= bits;
+		info->zs_chan_a->curregs[5] |= bits;
 		break;
 	case TIOCMBIC:
-		info->zs_channel->curregs[5] &= ~bits;
+		info->zs_chan_a->curregs[5] &= ~bits;
 		break;
 	case TIOCMSET:
-		info->zs_channel->curregs[5] = 
-			(info->zs_channel->curregs[5] & ~(DTR | RTS)) | bits;
+		info->zs_chan_a->curregs[5] = 
+			(info->zs_chan_a->curregs[5] & ~(DTR | RTS)) | bits;
 		break;
 	default:
 		sti();
 		return -EINVAL;
 	}
-	write_zsreg(info->zs_channel, 5, info->zs_channel->curregs[5]);
+	write_zsreg(info->zs_chan_a, 5, info->zs_chan_a->curregs[5]);
 	sti();
 	return 0;
 }
@@ -1538,7 +1585,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		cli();
 		if (!(info->flags & ZILOG_CALLOUT_ACTIVE) &&
 		    (tty->termios->c_cflag & CBAUD))
-			zs_rtsdtr(info, 1);
+			zs_rtsdtr(info, RTS | DTR, 1);
 		sti();
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (tty_hung_up_p(filp) ||
@@ -1794,9 +1841,9 @@ static void __init probe_sccs(void)
 /*	save_and_cli(flags);
 	for (n = 0; n < zs_channels_found; n++) {
 		if (((int)zs_channels[n].control & 0xf) == 1) {
-			write_zsreg(zs_soft[channel].zs_chan_a, R9, FHWRES);
-			udelay(10000);
-			write_zsreg(zs_soft[channel].zs_chan_a, R9, 0);
+			write_zsreg(zs_soft[n].zs_chan_a, R9, FHWRES);
+			mdelay(10);
+			write_zsreg(zs_soft[n].zs_chan_a, R9, 0);
 		}
 		load_zsregs(zs_soft[n].zs_channel, zs_soft[n].zs_channel->curregs);
 	} 
@@ -1887,7 +1934,8 @@ int __init zs_init(void)
 	for (channel = 0; channel < zs_channels_found; ++channel) {
 		if (zs_soft[channel].hook &&
 		    zs_soft[channel].hook->init_channel)
-			(*zs_soft[channel].hook->init_channel)(&zs_soft[channel]);
+			(*zs_soft[channel].hook->init_channel)
+				(&zs_soft[channel]);
 
 		zs_soft[channel].clk_divisor = 16;
 		zs_soft[channel].zs_baud = get_zsbaud(&zs_soft[channel]);
@@ -1917,7 +1965,7 @@ int __init zs_init(void)
 		info->blocked_open = 0;
 		info->tqueue.routine = do_softint;
 		info->tqueue.data = info;
-		info->callout_termios =callout_driver.init_termios;
+		info->callout_termios = callout_driver.init_termios;
 		info->normal_termios = serial_driver.init_termios;
 		init_waitqueue_head(&info->open_wait);
 		init_waitqueue_head(&info->close_wait);
@@ -2016,23 +2064,24 @@ unsigned int register_zs_hook(unsigned int channel, struct zs_hook *hook)
 {
 	struct dec_serial *info = &zs_soft[channel];
 
-        if (info->hook) {
-                printk(__FUNCTION__": line %d has already a hook registered\n", channel);
+	if (info->hook) {
+		printk(__FUNCTION__": line %d has already a hook registered\n", channel);
 
-                return 0;
-        } else {
+		return 0;
+	} else {
+		info->hook = hook;
+
 		if (zs_chain == 0)
 			probe_sccs();
 
 		if (!(info->flags & ZILOG_INITIALIZED))
 			zs_startup(info);
 
-                hook->poll_rx_char = zs_poll_rx_char;
-                hook->poll_tx_char = zs_poll_tx_char;
-                info->hook = hook;
+		hook->poll_rx_char = zs_poll_rx_char;
+		hook->poll_tx_char = zs_poll_tx_char;
 
-                return 1;
-        }
+		return 1;
+	}
 }
 
 unsigned int unregister_zs_hook(unsigned int channel)
@@ -2184,7 +2233,7 @@ static int __init serial_console_setup(struct console *co, char *options)
 	/*
 	 * Turn on RTS and DTR.
 	 */
-	zs_rtsdtr(info, 1);
+	zs_rtsdtr(info, RTS | DTR, 1);
 
 	/*
 	 * Finally, enable sequencing
@@ -2285,8 +2334,9 @@ void kgdb_interruptible(int yes)
 	write_zsreg(chan, 9, nine);
 }
 
-static void kgdbhook_init_channel(struct dec_serial* info) 
+static int kgdbhook_init_channel(struct dec_serial* info) 
 {
+	return 0;
 }
 
 static void kgdbhook_init_info(struct dec_serial* info)
