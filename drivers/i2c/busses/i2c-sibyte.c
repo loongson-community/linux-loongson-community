@@ -11,7 +11,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -36,7 +36,7 @@ static struct i2c_adapter sibyte_board_adapter[2] = {
 		.algo		= NULL,
 		.algo_data	= &sibyte_board_data[0],
 		.name		= "SiByte SMBus 0",
-	}, 
+	},
 	{
 		.owner		= THIS_MODULE,
 		.id		= I2C_HW_SIBYTE,
@@ -44,15 +44,15 @@ static struct i2c_adapter sibyte_board_adapter[2] = {
 		.algo		= NULL,
 		.algo_data	= &sibyte_board_data[1],
 		.name		= "SiByte SMBus 1",
-	}, 
+	},
 };
 
 static int __init i2c_sibyte_init(void)
 {
 	printk("i2c-swarm.o: i2c SMBus adapter module for SiByte board\n");
-        if (i2c_sibyte_add_bus(&sibyte_board_adapter[0], K_SMB_FREQ_100KHZ) < 0)
+	if (i2c_sibyte_add_bus(&sibyte_board_adapter[0], K_SMB_FREQ_100KHZ) < 0)
 		return -ENODEV;
-        if (i2c_sibyte_add_bus(&sibyte_board_adapter[1], K_SMB_FREQ_400KHZ) < 0)
+	if (i2c_sibyte_add_bus(&sibyte_board_adapter[1], K_SMB_FREQ_400KHZ) < 0)
 		return -ENODEV;
 	return 0;
 }
