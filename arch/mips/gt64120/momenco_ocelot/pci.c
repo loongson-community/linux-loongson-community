@@ -35,7 +35,7 @@ void __init gt64120_board_pcibios_fixup_bus(struct pci_bus *bus)
 			/*
 			 * Slot 1 is primary ether port, i82559
 			 * we double-check against that assumption
-			 /
+			 */
 			if ((devices->vendor != 0x8086) ||
 			    (devices->device != 0x1209) ) {
 				panic("gt64120_board_pcibios_fixup_bus: found "
@@ -55,7 +55,7 @@ void __init gt64120_board_pcibios_fixup_bus(struct pci_bus *bus)
 			devices->irq = 3;       /* irq_nr is 3 for INT1 */
 		} else {
 			/* We don't have assign interrupts for other devices. */
-			devices->irq = 0;       /* irq_nr is 3 for INT1 */
+			devices->irq = 0xff;
 		}
 
 		/* Assign an interrupt number for the device */

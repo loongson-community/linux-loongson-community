@@ -100,13 +100,11 @@ fi
 if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
      "$CONFIG_OLIVETTI_M700" = "y" ]; then
    define_bool CONFIG_ARC32 y
-   define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_FB y
    define_bool CONFIG_FB_G364 y	
    define_bool CONFIG_MIPS_JAZZ y
-   define_bool CONFIG_ROTTEN_IRQ y
    define_bool CONFIG_PC_KEYB y
 fi
 if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
@@ -152,6 +150,7 @@ if [ "$CONFIG_DDB5074" = "y" -o "$CONFIG_DDB5476"  = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_ROTTEN_IRQ y
+   define_bool CONFIG_HAVE_STD_PC_SERIAL_PORT y
 fi
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_PCI y

@@ -246,9 +246,24 @@ static void __init ddb5476_pci_fixup(void)
 			 * first memory bank. Unfortunately the address is
 			 * wrong, so we fix it (again).
 			 */
+
+			/* [jsun] We cannot request the resource anymore,
+			 * because kernel/setup.c has already reserved "System 
+			 * RAM" resource at the same spot.  
+			 * The fundamental problem here is that PCI host 
+			 * controller should not put system RAM mapping in BAR
+			 * and make subject to PCI resource assignement.
+			 * Current fix is a total hack.  We set parent to 1 so
+                         * so that PCI resource assignement code is fooled to 
+                         * think the resource is assigned, and will not attempt
+                         * to mess with it.
+			 */
 			dev->resource[2] = ddb5476_resources.ram;
-			request_resource(&iomem_resource,
-					 &dev->resource[2]);
+			if (request_resource(&iomem_resource,
+			                     &dev->resource[2]) ) {
+				dev->resource[2].parent = 0x1;
+                        }
+
 		} else if (dev->vendor == PCI_VENDOR_ID_AL
 			   && dev->device == PCI_DEVICE_ID_AL_M7101) {
 			/*
@@ -326,8 +341,6 @@ static void __init pcibios_fixup_irqs(void)
 
 void __init pcibios_init(void)
 {
-	u32 base;
-
 	printk("PCI: Emulate bios initialization \n");
 	/* [jsun] we need to set BAR0 so that SDRAM 0 appears at 0x0 in PCI */
 	*(long *) (NILE4_BASE + NILE4_BAR0) = 0x8;
