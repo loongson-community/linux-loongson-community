@@ -1,4 +1,4 @@
-/* $Id: serial.h,v 1.7 2000/01/31 03:44:29 ralf Exp $
+/* $Id: serial.h,v 1.8 2000/02/04 07:40:53 ralf Exp $
  *
  * Copyright (C) 1999 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
@@ -147,18 +147,8 @@
 #define MCA_SERIAL_PORT_DFNS
 #endif
 
-#ifdef CONFIG_DDB5074
-#define DDB5074_SERIAL_PORT_DEFNS			\
-	{ 0, 520833, 0, 20,				\
-	  STD_COM_FLAGS, 0, 0, 0, 0, 0, 0, 0,		\
-	  (u8 *)0xbfa00300, 3 }
-#else
-#define DDB5074_SERIAL_PORT_DEFNS
-#endif
-
 #define SERIAL_PORT_DFNS		\
 	JAZZ_SERIAL_PORT_DEFNS		\
 	STD_SERIAL_PORT_DEFNS		\
 	EXTRA_SERIAL_PORT_DEFNS		\
-	HUB6_SERIAL_PORT_DFNS		\
-	DDB5074_SERIAL_PORT_DEFNS
+	HUB6_SERIAL_PORT_DFNS

@@ -3978,6 +3978,16 @@ static struct pci_board pci_boards[] = {
 	{	PCI_VENDOR_ID_USR, 0x1006,
 		0x12b9, 0x0060,
 		SPCI_FL_BASE1 | SPCI_FL_IOMEM, 1, 115200 },
+#ifdef CONFIG_DDB5074
+	/*
+	 * NEC Vrc-5074 (Nile 4) builtin UART.
+	 * Conditionally compiled in since this is a motherboard device.
+	 */
+	{	PCI_VENDOR_ID_NEC, PCI_DEVICE_ID_NEC_NILE4,
+		PCI_ANY_ID, PCI_ANY_ID,
+		SPCI_FL_BASE0 | SPCI_FL_IOMEM, 1, 520833,
+		64, 3, NULL, 0x300 },
+#endif
 	{	0, }
 };
 
@@ -4022,7 +4032,8 @@ static void probe_serial_pci(void)
 #ifdef SERIAL_DEBUG_PCI
 		printk(KERN_DEBUG
 		       "Found unknown serial board: %x:%x, %x:%x, %x\n",
-		       dev->vendor, dev->device, subvendor, subdevice,
+		       dev->vendor, dev->device, dev->subsystem_vendor,
+		       dev->subsystem_device,
 		       dev->class);
 		printk(KERN_DEBUG
 		       "   Addresses: %lx, %lx, %lx, %lx\n",
@@ -4082,8 +4093,8 @@ static void probe_serial_pci(void)
 #ifdef SERIAL_DEBUG_PCI
 		printk(KERN_DEBUG
 		       "Found Serial PCI device: %x:%x, %x:%x, %x\n",
-		       dev->vendor, dev->device, subvendor, subdevice,
-		       dev->class);
+		       dev->vendor, dev->device, dev->subsystem_vendor,
+		       dev->subsystem_device, dev->class);
 		printk(KERN_DEBUG
 		       "   IRQ: %d, base: %lx (%s), num_ports: %d\n",
 		       dev->irq, port, board->flags & SPCI_FL_IOMEM ?

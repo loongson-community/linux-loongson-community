@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.10 2000/01/29 01:42:28 ralf Exp $
+/* $Id: io.h,v 1.11 2000/02/04 07:40:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -153,23 +153,23 @@ extern inline void iounmap(void *addr)
  * 24-31 on SNI.
  * XXX more SNI hacks.
  */
-#define readb(addr) (*(volatile unsigned char *) (0xa0000000 + (unsigned long)(addr)))
-#define readw(addr) (*(volatile unsigned short *) (0xa0000000 + (unsigned long)(addr)))
-#define readl(addr) (*(volatile unsigned int *) (0xa0000000 + (unsigned long)(addr)))
+#define readb(addr) (*(volatile unsigned char *)(addr))
+#define readw(addr) (*(volatile unsigned short *)(addr))
+#define readl(addr) (*(volatile unsigned int *)(addr))
 #define __raw_readb readb
 #define __raw_readw readw
 #define __raw_readl readl
 
-#define writeb(b,addr) (*(volatile unsigned char *) (0xa0000000 + (unsigned long)(addr)) = (b))
-#define writew(b,addr) (*(volatile unsigned short *) (0xa0000000 + (unsigned long)(addr)) = (b))
-#define writel(b,addr) (*(volatile unsigned int *) (0xa0000000 + (unsigned long)(addr)) = (b))
+#define writeb(b,addr) (*(volatile unsigned char *)(addr)) = (b)
+#define writew(b,addr) (*(volatile unsigned short *)(addr)) = (b)
+#define writel(b,addr) (*(volatile unsigned int *)(addr)) = (b)
 #define __raw_writeb writeb
 #define __raw_writew writew
 #define __raw_writel writel
 
-#define memset_io(a,b,c)	memset((void *)(0xa0000000 + (unsigned long)a),(b),(c))
-#define memcpy_fromio(a,b,c)	memcpy((a),(void *)(0xa0000000 + (unsigned long)(b)),(c))
-#define memcpy_toio(a,b,c)	memcpy((void *)(0xa0000000 + (unsigned long)(a)),(b),(c))
+#define memset_io(a,b,c)	memset((void *)(a),(b),(c))
+#define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
+#define memcpy_toio(a,b,c)	memcpy((void *)(a),(b),(c))
 
 /* END SNI HACKS ... */
 

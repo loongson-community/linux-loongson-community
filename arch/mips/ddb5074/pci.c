@@ -5,7 +5,7 @@
  *                     Albert Dorofeev <albert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
  *
- *  $Id: pci.c,v 1.1 2000/01/26 00:07:44 ralf Exp $
+ *  $Id: pci.c,v 1.2 2000/02/14 17:07:36 ralf Exp $
  */
 
 #include <linux/init.h>
@@ -205,23 +205,6 @@ void pcibios_init(void)
     ioport_resource.end = 0x1ffffff;
     pci_scan_bus(0, &nile4_pci_ops, NULL);
     pcibios_claim_resources(&pci_root_buses);
-
-#if 0
-    {
-	char buf[PAGE_SIZE];
-	printk("*** PCI Devices ***\n");
-	get_pci_list(buf);
-	printk(buf);
-	printk("*** PCI I/O Space ***\n");
-	buf[0] = '\0';
-	get_ioport_list(buf);
-	printk(buf);
-	printk("*** PCI Memory ***\n");
-	buf[0] = '\0';
-	get_mem_list(buf);
-	printk(buf);
-    }
-#endif
 }
 
 void pcibios_fixup_bus(struct pci_bus *bus)
@@ -288,6 +271,18 @@ void pcibios_fixup_bus(struct pci_bus *bus)
 		dev->resource[0].end = dev->resource[0].start+0x7fffff;
 		nile4_pci_write_config_dword(dev, PCI_BASE_ADDRESS_0,
 					     dev->resource[0].start);
+		break;
+	    case 5:
+		printk("[onboard] NEC Vrc-5074 Nile 4 Host Bridge\n");
+		/*
+		 * Fixup so the serial driver can use the UART
+		 */
+		dev->irq = nile4_to_irq(NILE4_INT_UART);
+		dev->resource[0].start = PHYSADDR(NILE4_BASE);
+		dev->resource[0].end = dev->resource[0].start+NILE4_SIZE-1;
+		dev->resource[0].flags = IORESOURCE_MEM |
+					 PCI_BASE_ADDRESS_MEM_TYPE_64;
+		
 		break;
 	    case 10:
 		printk("[onboard] Acer Labs M7101 PMU\n");
