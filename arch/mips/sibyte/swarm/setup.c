@@ -25,6 +25,7 @@
 #include <linux/mm.h>
 #include <linux/bootmem.h>
 #include <linux/blk.h>
+#include <linux/init.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <asm/bootinfo.h>
@@ -215,14 +216,13 @@ extern unsigned char __rd_start;
 extern unsigned char __rd_end;  
 #endif
 
-static void prom_meminit(void)
+static __init void prom_meminit(void)
 {
-#ifndef CONFIG_SWARM_STANDALONE
 	unsigned long addr, size;
 	long type;
 	unsigned int idx;
 	int rd_flag;
-#endif
+
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long initrd_pstart; 
 	unsigned long initrd_pend; 
@@ -244,61 +244,64 @@ static void prom_meminit(void)
 	    ((initrd_pstart > MAX_RAM_SIZE)
 	     || (initrd_pend > MAX_RAM_SIZE))) {
 		setleds("INRD");
-		panic("initrd out of addressable memory\n");
+		panic("initrd out of addressable memory");
 	}
        
 #endif /* INITRD */
 		
-#ifdef CONFIG_SWARM_STANDALONE
-	/* Standalone compile, memory is hardcoded */
-
-	if (initrd_start) {
-		add_memory_region(0, initrd_pstart, BOOT_MEM_RAM);
-		add_memory_region(initrd_pstart, initrd_pend-initrd_pstart, BOOT_MEM_RESERVED);
-		add_memory_region(initrd_pend, (CONFIG_SIBYTE_SWARM_RAM_SIZE * 1024 * 1024)-initrd_pend, BOOT_MEM_RAM);
-	} else {
-		add_memory_region(0, CONFIG_SIBYTE_SWARM_RAM_SIZE * 1024 * 1024, BOOT_MEM_RAM);
-	}
-	
-#else  /* Run with the firmware */
-	for (idx = 0; cfe_enummem(idx, &addr, &size, &type) != CFE_ERR_NOMORE; idx++) {
+	for (idx = 0; cfe_enummem(idx, &addr, &size, &type) != CFE_ERR_NOMORE;
+	     idx++) {
 		rd_flag = 0;
 		if (type == CFE_MI_AVAILABLE) {
-			/* See if this block contains (any portion of) the ramdisk */
+			/*
+			 * See if this block contains (any portion of) the
+			 * ramdisk
+			 */
 #ifdef CONFIG_BLK_DEV_INITRD
 			if (initrd_start) {
-				if ((initrd_pstart > addr) && (initrd_pstart < (addr + size))) {
-					add_memory_region(addr, initrd_pstart-addr, BOOT_MEM_RAM);
-					rd_flag = 1;
-				} 
-				if ((initrd_pend > addr) && (initrd_pend < (addr + size))) {
-					add_memory_region(initrd_pend, (addr + size)-initrd_pend, BOOT_MEM_RAM);
+				if ((initrd_pstart > addr) &&
+				    (initrd_pstart < (addr + size))) {
+					add_memory_region(addr,
+					                  initrd_pstart - addr,
+					                  BOOT_MEM_RAM);
 					rd_flag = 1;
 				}
-			} 
+				if ((initrd_pend > addr) &&
+				    (initrd_pend < (addr + size))) {
+					add_memory_region(initrd_pend,
+						(addr + size) - initrd_pend,
+						 BOOT_MEM_RAM);
+					rd_flag = 1;
+				}
+			}
 #endif
 			if (!rd_flag) {
 				if (addr < MAX_RAM_SIZE) {
 					if (size > MAX_RAM_SIZE) {
 						size = MAX_RAM_SIZE - addr;
 					}
-					add_memory_region(addr, size, BOOT_MEM_RAM);
+					add_memory_region(addr, size,
+					                  BOOT_MEM_RAM);
 				}
 			}
 			swarm_mem_region_addrs[swarm_mem_region_count] = addr;
 			swarm_mem_region_sizes[swarm_mem_region_count] = size;
 			swarm_mem_region_count++;
-			if (swarm_mem_region_count == CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS) {
-				while(1); /* Too many regions.  Need to configure more */
+			if (swarm_mem_region_count ==
+			    CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS) {
+				/*
+				 * Too many regions.  Need to configure more
+				 */
+				while(1);
 			}
 		}
 	}
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start) {
-		add_memory_region(initrd_pstart, initrd_pend-initrd_pstart, BOOT_MEM_RESERVED);
+		add_memory_region(initrd_pstart, initrd_pend - initrd_pstart,
+		                 BOOT_MEM_RESERVED);
 	}
 #endif
-#endif  /* CONFIG_SWARM_STANDALONE */
 }
 
 
@@ -341,13 +344,13 @@ static int __init initrd_setup(char *str)
 
 #endif
 
-/* prom_init is called just after the cpu type is determined, from
-   init_arch() */
-int prom_init(int argc, char **argv, char **envp, int *prom_vec)
+/*
+ * prom_init is called just after the cpu type is determined, from init_arch()
+ */
+__init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
-
 #ifdef CONFIG_SWARM_STANDALONE
-        strcpy(arcs_cmdline, "root=/dev/ram0 ");
+	strcpy(arcs_cmdline, "root=/dev/ram0 ");
 #else	
 	/* 
 	 * This should go away.  Detect if we're booting
@@ -357,21 +360,23 @@ int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	 */
 	if (argc < 0) {
 		prom_vec = (int *)argc;
-        }
-        cfe_init((long)prom_vec);
-        cfe_open_console();
-        if (cfe_getenv("LINUX_CMDLINE", arcs_cmdline, COMMAND_LINE_SIZE) < 0) {
-                if (argc < 0) {
-                        /* It's OK for direct boot to not provide a
-                           command line */
-                        strcpy(arcs_cmdline, "root=/dev/ram0 ");
-                } else {
-                        /* The loader should have set the command
-                           line */
-                        setleds("CMDL");
+	}
+	cfe_init((long)prom_vec);
+	cfe_open_console();
+	if (cfe_getenv("LINUX_CMDLINE", arcs_cmdline, COMMAND_LINE_SIZE) < 0) {
+		if (argc < 0) {
+			/*
+			 * It's OK for direct boot to not provide a
+			 *  command line
+			 */
+			strcpy(arcs_cmdline, "root=/dev/ram0 ");
+		} else {
+			/* The loader should have set the command line */
+			setleds("CMDL");
 			panic("LINUX_CMDLINE not defined in cfe.");
 		}
 	}
+strcpy(arcs_cmdline, "root=/dev/nfs ip=bootp");
 	
 #ifdef CONFIG_BLK_DEV_INITRD
 	{
@@ -399,58 +404,21 @@ int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	arcs_cmdline[COMMAND_LINE_SIZE-1] = 0;
 
 	mips_machgroup = MACH_GROUP_SIBYTE;
-#if 0
-#ifndef CONFIG_SWARM_STANDALONE
-	for (i = 0; (i < argc) && (cmdline_idx < COMMAND_LINE_SIZE); i++) {
-		if (!strncmp(argv[i], "initrd=", 7)) {
-			/* Handle initrd argument early; we need to know
-			   about them for the memory map */
-			unsigned char *size_str = argv[i] + 7;
-			unsigned char *loc_str = size_str;
-			unsigned long size, loc;
-			while (*loc_str && (*loc_str != '@')) {
-				loc_str++;
-			}
-			if (!*loc_str) {
-				printk("Ignoring malformed initrd argument: %s\n", argv[i]);
-				continue;
-			}
-			*loc_str = '\0';
-			loc_str++;
-			size = simple_strtoul(size_str, NULL, 16);
-			loc = simple_strtoul(loc_str, NULL, 16);
-			if (size && loc) {
-				printk("Found initrd argument: 0x%lx@0x%lx\n", size, loc);
-				initrd_start = loc;
-				initrd_end = (loc + size + PAGE_SIZE - 1) & PAGE_MASK;
-			} 
-		} else {
-			if ((strlen(argv[i]) + cmdline_idx + 1) > COMMAND_LINE_SIZE) {
-				printk("Command line too long.  Cut these:\n");
-				for (; i < argc; i++) {
-					printk("  %s\n", argv[i]);
-				}
-			} else {
-				strcpy(arcs_cmdline + cmdline_idx, argv[i]);
-			}
-		}
-	}
-#endif
-#endif
 	prom_meminit();
 
 	return 0;
 }
 
-/* Not sure what I'm supposed to do here.  Nothing, I think */
 void prom_free_prom_memory(void)
 {
-
-} 
+	/* Not sure what I'm supposed to do here.  Nothing, I think */
+}
 
 static void setled(unsigned int index, char c) 
 {
-	volatile unsigned char *led_ptr = (unsigned char *)(IO_SPACE_BASE | LED_BASE_ADDR);
+	volatile unsigned char *led_ptr;
+
+	led_ptr = (unsigned char *)(IO_SPACE_BASE | LED_BASE_ADDR);
 	if (index < 4) {
 		led_ptr[(3-index)<<3] = c;
 	}
@@ -473,18 +441,10 @@ void setleds(char *str)
 #include <linux/timer.h>
 
 static struct timer_list led_timer;
-/*
-#ifdef CONFIG_SMP
-static unsigned char led_msg[] = "CSWARM...now in glorious SMP!       ";
-#else
-static unsigned char led_msg[] = "CSWARM Lives!!!   ";
-#endif
-*/
-static unsigned char default_led_msg[] = "Today: the CSWARM.  Tomorrow: the WORLD!!!!           ";
-
+static unsigned char default_led_msg[] =
+	"Today: the CSWARM.  Tomorrow: the WORLD!!!!           ";
 static unsigned char *led_msg = default_led_msg;
 static unsigned char *led_msg_ptr = default_led_msg;
-
 
 void set_led_msg(char *new_msg)
 {
