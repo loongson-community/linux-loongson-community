@@ -347,8 +347,9 @@
  *    - Don't print errors when the device is busy.
  *      
  * 0.4.11  2003-02-25
- *    - Added vendor/product ids for Artec, Avision, Brother, Medion, Primax,
- *      Prolink, Fujitsu, Plustek, and SYSCAN scanners.
+ *    - Added vendor/product ids for Artec, Avision, Brother, Canon, Compaq,
+ *      Fujitsu, Hewlett-Packard, Lexmark, LG Electronics, Medion, Microtek,
+ *      Primax, Prolink,  Plustek, SYSCAN, Trust and UMAX scanners.
  *    - Fixed generation of devfs names if dynamic minors are disabled.
  *    - Used kobject reference counting to free the scn struct when the device
  *      is closed and disconnected. Avoids crashes when writing to a 
@@ -877,7 +878,7 @@ probe_scanner(struct usb_interface *intf,
 
 	char valid_device = 0;
 	char have_bulk_in, have_bulk_out, have_intr;
-	char name[10];
+	char name[14];
 
 	dbg("probe_scanner: USB dev address:%p", dev);
 
@@ -1098,9 +1099,9 @@ probe_scanner(struct usb_interface *intf,
 	scn->scn_minor = scn_minor;
 	scn->isopen = 0;
 
-	sprintf(name, "scanner%d", scn->scn_minor - SCN_BASE_MNR);
+	sprintf(name, "usb/scanner%d", scn->scn_minor - SCN_BASE_MNR);
 	
-	scn->devfs = devfs_register(usb_devfs_handle, name,
+	scn->devfs = devfs_register(NULL, name,
 				    DEVFS_FL_DEFAULT, USB_MAJOR,
 				    scn->scn_minor,
 				    S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP |

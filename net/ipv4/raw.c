@@ -251,7 +251,7 @@ static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
 
 int raw_rcv(struct sock *sk, struct sk_buff *skb)
 {
-	if (!xfrm_policy_check(sk, XFRM_POLICY_IN, skb)) {
+	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb)) {
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}
@@ -280,7 +280,7 @@ static int raw_send_hdrinc(struct sock *sk, void *from, int length,
 	if (flags&MSG_PROBE)
 		goto out;
 
-	hh_len = (rt->u.dst.dev->hard_header_len&~15) + 16;
+	hh_len = LL_RESERVED_SPACE(rt->u.dst.dev);
 
 	skb = sock_alloc_send_skb(sk, length+hh_len+15,
 				  flags&MSG_DONTWAIT, &err);

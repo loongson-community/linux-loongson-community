@@ -792,6 +792,7 @@ int vc_resize(int currcons, unsigned int cols, unsigned int lines)
 		memset(&ws, 0, sizeof(ws));
 		ws.ws_row = video_num_lines;
 		ws.ws_col = video_num_columns;
+		ws.ws_ypixel = video_scan_lines;
 		if ((ws.ws_row != cws->ws_row || ws.ws_col != cws->ws_col) &&
 		    vc_cons[currcons].d->vc_tty->pgrp > 0)
 			kill_pg(vc_cons[currcons].d->vc_tty->pgrp, SIGWINCH, 1);
@@ -3040,8 +3041,6 @@ EXPORT_SYMBOL(color_table);
 EXPORT_SYMBOL(default_red);
 EXPORT_SYMBOL(default_grn);
 EXPORT_SYMBOL(default_blu);
-EXPORT_SYMBOL(video_font_height);
-EXPORT_SYMBOL(video_scan_lines);
 EXPORT_SYMBOL(vc_cons_allocated);
 EXPORT_SYMBOL(update_region);
 EXPORT_SYMBOL(redraw_screen);

@@ -334,11 +334,11 @@ void tcp_listen_wlock(void)
 	write_lock(&tcp_lhash_lock);
 
 	if (atomic_read(&tcp_lhash_users)) {
-		DECLARE_WAITQUEUE(wait, current);
+		DEFINE_WAIT(wait);
 
-		add_wait_queue_exclusive(&tcp_lhash_wait, &wait);
 		for (;;) {
-			set_current_state(TASK_UNINTERRUPTIBLE);
+			prepare_to_wait_exclusive(&tcp_lhash_wait,
+						&wait, TASK_UNINTERRUPTIBLE);
 			if (!atomic_read(&tcp_lhash_users))
 				break;
 			write_unlock_bh(&tcp_lhash_lock);
@@ -346,8 +346,7 @@ void tcp_listen_wlock(void)
 			write_lock_bh(&tcp_lhash_lock);
 		}
 
-		__set_current_state(TASK_RUNNING);
-		remove_wait_queue(&tcp_lhash_wait, &wait);
+		finish_wait(&tcp_lhash_wait, &wait);
 	}
 }
 
@@ -853,11 +852,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	/* OK, now commit destination to socket.  */
 	__sk_dst_set(sk, &rt->u.dst);
 	tcp_v4_setup_caps(sk, &rt->u.dst);
-
-	/* DAVEM REDPEN: This used to sit above forced ext_header_len = 0
-	 *               above, it was real bug.  Is this one correct?
-	 */
-	tp->ext_header_len += rt->u.dst.header_len;
+	tp->ext2_header_len = rt->u.dst.header_len;
 
 	if (!tp->write_seq)
 		tp->write_seq = secure_tcp_sequence_number(inet->saddr,
@@ -868,6 +863,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	inet->id = tp->write_seq ^ jiffies;
 
 	err = tcp_connect(sk);
+	rt = NULL;
 	if (err)
 		goto failure;
 
@@ -1611,7 +1607,7 @@ struct sock *tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 	newtp->ext_header_len = 0;
 	if (newinet->opt)
 		newtp->ext_header_len = newinet->opt->optlen;
-	newtp->ext_header_len += dst->header_len;
+	newtp->ext2_header_len = dst->header_len;
 	newinet->id = newtp->write_seq ^ jiffies;
 
 	tcp_sync_mss(newsk, dst_pmtu(dst));
@@ -1802,7 +1798,7 @@ process:
 	if (sk->state == TCP_TIME_WAIT)
 		goto do_time_wait;
 
-	if (!xfrm_policy_check(sk, XFRM_POLICY_IN, skb))
+	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb))
 		goto discard_and_relse;
 
 	if (sk_filter(sk, skb, 0))
@@ -1824,7 +1820,7 @@ process:
 	return ret;
 
 no_tcp_socket:
-	if (!xfrm_policy_check(NULL, XFRM_POLICY_IN, skb))
+	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))
 		goto discard_it;
 
 	if (skb->len < (th->doff << 2) || tcp_checksum_complete(skb)) {
@@ -1844,7 +1840,7 @@ discard_and_relse:
 	goto discard_it;
 
 do_time_wait:
-	if (!xfrm_policy_check(NULL, XFRM_POLICY_IN, skb))
+	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))
 		goto discard_and_relse;
 
 	if (skb->len < (th->doff << 2) || tcp_checksum_complete(skb)) {

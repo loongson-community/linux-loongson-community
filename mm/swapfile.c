@@ -384,6 +384,8 @@ unuse_pte(struct vm_area_struct *vma, unsigned long address, pte_t *dir,
 {
 	pte_t pte = *dir;
 
+	if (pte_file(pte))
+		return;
 	if (likely(pte_to_swp_entry(pte).val != entry.val))
 		return;
 	if (unlikely(pte_none(pte) || pte_present(pte)))
@@ -736,8 +738,7 @@ static int try_to_unuse(unsigned int type)
 		 * interactive performance.  Interruptible check on
 		 * signal_pending() would be nice, but changes the spec?
 		 */
-		if (need_resched())
-			schedule();
+		cond_resched();
 	}
 
 	mmput(start_mm);

@@ -24,6 +24,7 @@
 #include <linux/percpu.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/swap.h>
 #include <linux/notifier.h>
 #include <linux/thread_info.h>
 #include <linux/time.h>
@@ -44,15 +45,12 @@
 #define TVR_MASK (TVR_SIZE - 1)
 
 typedef struct tvec_s {
-	int index;
 	struct list_head vec[TVN_SIZE];
 } tvec_t;
 
 typedef struct tvec_root_s {
-	int index;
 	struct list_head vec[TVR_SIZE];
 } tvec_root_t;
-
 
 struct tvec_t_base_s {
 	spinlock_t lock;
@@ -66,6 +64,14 @@ struct tvec_t_base_s {
 } ____cacheline_aligned_in_smp;
 
 typedef struct tvec_t_base_s tvec_base_t;
+
+static inline void set_running_timer(tvec_base_t *base,
+					struct timer_list *timer)
+{
+#ifdef CONFIG_SMP
+	base->running_timer = timer;
+#endif
+}
 
 /* Fake initialization */
 static DEFINE_PER_CPU(tvec_base_t, tvec_bases) = { SPIN_LOCK_UNLOCKED };
@@ -94,7 +100,8 @@ static inline void check_timer(struct timer_list *timer)
 		check_timer_failed(timer);
 }
 
-static inline void internal_add_timer(tvec_base_t *base, struct timer_list *timer)
+
+static void internal_add_timer(tvec_base_t *base, struct timer_list *timer)
 {
 	unsigned long expires = timer->expires;
 	unsigned long idx = expires - base->timer_jiffies;
@@ -117,7 +124,7 @@ static inline void internal_add_timer(tvec_base_t *base, struct timer_list *time
 		 * Can happen if you add a timer with expires == jiffies,
 		 * or you set a timer to go off in the past
 		 */
-		vec = base->tv1.vec + base->tv1.index;
+		vec = base->tv1.vec + (base->timer_jiffies & TVR_MASK);
 	} else if (idx <= 0xffffffffUL) {
 		int i = (expires >> (TVR_BITS + 3 * TVN_BITS)) & TVN_MASK;
 		vec = base->tv5.vec + i;
@@ -351,12 +358,12 @@ del_again:
 #endif
 
 
-static int cascade(tvec_base_t *base, tvec_t *tv)
+static int cascade(tvec_base_t *base, tvec_t *tv, int index)
 {
 	/* cascade all the timers from tv up one level */
-	struct list_head *head, *curr, *next;
+	struct list_head *head, *curr;
 
-	head = tv->vec + tv->index;
+	head = tv->vec + index;
 	curr = head->next;
 	/*
 	 * We are removing _all_ timers from the list, so we don't  have to
@@ -366,15 +373,13 @@ static int cascade(tvec_base_t *base, tvec_t *tv)
 		struct timer_list *tmp;
 
 		tmp = list_entry(curr, struct timer_list, entry);
-		if (tmp->base != base)
-			BUG();
-		next = curr->next;
+		BUG_ON(tmp->base != base);
+		curr = curr->next;
 		internal_add_timer(base, tmp);
-		curr = next;
 	}
 	INIT_LIST_HEAD(head);
 
-	return tv->index = (tv->index + 1) & TVN_MASK;
+	return index;
 }
 
 /***
@@ -384,51 +389,46 @@ static int cascade(tvec_base_t *base, tvec_t *tv)
  * This function cascades all vectors and executes all expired timer
  * vectors.
  */
+#define INDEX(N) (base->timer_jiffies >> (TVR_BITS + N * TVN_BITS)) & TVN_MASK
+
 static inline void __run_timers(tvec_base_t *base)
 {
-	spin_lock_irq(&base->lock);
-	while ((long)(jiffies - base->timer_jiffies) >= 0) {
-		struct list_head *head, *curr;
+	struct timer_list *timer;
 
+	spin_lock_irq(&base->lock);
+	while (time_after_eq(jiffies, base->timer_jiffies)) {
+		struct list_head *head;
+ 		int index = base->timer_jiffies & TVR_MASK;
+ 
 		/*
 		 * Cascade timers:
 		 */
-		if (!base->tv1.index &&
-			(cascade(base, &base->tv2) == 1) &&
-				(cascade(base, &base->tv3) == 1) &&
-					cascade(base, &base->tv4) == 1)
-			cascade(base, &base->tv5);
+		if (!index &&
+			(!cascade(base, &base->tv2, INDEX(0))) &&
+				(!cascade(base, &base->tv3, INDEX(1))) &&
+					!cascade(base, &base->tv4, INDEX(2)))
+			cascade(base, &base->tv5, INDEX(3));
+		++base->timer_jiffies; 
 repeat:
-		head = base->tv1.vec + base->tv1.index;
-		curr = head->next;
-		if (curr != head) {
+		head = base->tv1.vec + index;
+		if (!list_empty(head)) {
 			void (*fn)(unsigned long);
 			unsigned long data;
-			struct timer_list *timer;
 
-			timer = list_entry(curr, struct timer_list, entry);
+			timer = list_entry(head->next,struct timer_list,entry);
  			fn = timer->function;
  			data = timer->data;
 
 			list_del(&timer->entry);
 			timer->base = NULL;
-#if CONFIG_SMP
-			base->running_timer = timer;
-#endif
+			set_running_timer(base, timer);
 			spin_unlock_irq(&base->lock);
-			if (!fn)
-				printk("Bad: timer %p has NULL fn. (data: %08lx)\n", timer, data);
-			else
-				fn(data);
+			fn(data);
 			spin_lock_irq(&base->lock);
 			goto repeat;
 		}
-		++base->timer_jiffies; 
-		base->tv1.index = (base->tv1.index + 1) & TVR_MASK;
 	}
-#if CONFIG_SMP
-	base->running_timer = NULL;
-#endif
+	set_running_timer(base, NULL);
 	spin_unlock_irq(&base->lock);
 }
 
@@ -775,7 +775,7 @@ static void run_timer_softirq(struct softirq_action *h)
 {
 	tvec_base_t *base = &per_cpu(tvec_bases, smp_processor_id());
 
-	if ((long)(jiffies - base->timer_jiffies) >= 0)
+	if (time_after_eq(jiffies, base->timer_jiffies))
 		__run_timers(base);
 }
 
@@ -1181,12 +1181,7 @@ static void __devinit init_timers_cpu(int cpu)
 	for (j = 0; j < TVR_SIZE; j++)
 		INIT_LIST_HEAD(base->tv1.vec + j);
 
-	base->timer_jiffies = INITIAL_JIFFIES;
-	base->tv1.index = INITIAL_JIFFIES & TVR_MASK;
-	base->tv2.index = (INITIAL_JIFFIES >> TVR_BITS) & TVN_MASK;
-	base->tv3.index = (INITIAL_JIFFIES >> (TVR_BITS+TVN_BITS)) & TVN_MASK;
-	base->tv4.index = (INITIAL_JIFFIES >> (TVR_BITS+2*TVN_BITS)) & TVN_MASK;
-	base->tv5.index = (INITIAL_JIFFIES >> (TVR_BITS+3*TVN_BITS)) & TVN_MASK;
+	base->timer_jiffies = jiffies;
 }
 	
 static int __devinit timer_cpu_notify(struct notifier_block *self, 

@@ -912,19 +912,25 @@ static int do_replace(void *user, unsigned int len)
 		goto free_newinfo_counters_untrans_unlock;
 	}
 
+	/* Get a reference in advance, we're not allowed fail later */
+	if (!try_module_get(t->me)) {
+		ret = -EBUSY;
+		goto free_newinfo_counters_untrans_unlock;
+	}
+
 	oldinfo = replace_table(t, tmp.num_counters, newinfo, &ret);
 	if (!oldinfo)
-		goto free_newinfo_counters_untrans_unlock;
+		goto put_module;
 
 	/* Update module usage count based on number of rules */
 	duprintf("do_replace: oldnum=%u, initnum=%u, newnum=%u\n",
 		oldinfo->number, oldinfo->initial_entries, newinfo->number);
-	if (t->me && (oldinfo->number <= oldinfo->initial_entries) &&
- 	    (newinfo->number > oldinfo->initial_entries))
-		__MOD_INC_USE_COUNT(t->me);
-	else if (t->me && (oldinfo->number > oldinfo->initial_entries) &&
-	 	 (newinfo->number <= oldinfo->initial_entries))
-		__MOD_DEC_USE_COUNT(t->me);
+	if ((oldinfo->number > oldinfo->initial_entries) || 
+	    (newinfo->number <= oldinfo->initial_entries)) 
+		module_put(t->me);
+	if ((oldinfo->number > oldinfo->initial_entries) &&
+	    (newinfo->number <= oldinfo->initial_entries))
+		module_put(t->me);
 
 	/* Get the old counters. */
 	get_counters(oldinfo, counters);
@@ -938,6 +944,8 @@ static int do_replace(void *user, unsigned int len)
 	up(&arpt_mutex);
 	return 0;
 
+ put_module:
+	module_put(t->me);
  free_newinfo_counters_untrans_unlock:
 	up(&arpt_mutex);
  free_newinfo_counters_untrans:
@@ -1205,14 +1213,24 @@ void arpt_unregister_table(struct arpt_table *table)
 }
 
 /* The built-in targets: standard (NULL) and error. */
-static struct arpt_target arpt_standard_target
-= { { NULL, NULL }, ARPT_STANDARD_TARGET, NULL, NULL, NULL };
-static struct arpt_target arpt_error_target
-= { { NULL, NULL }, ARPT_ERROR_TARGET, arpt_error, NULL, NULL };
+static struct arpt_target arpt_standard_target = {
+	.name		= ARPT_STANDARD_TARGET,
+};
 
-static struct nf_sockopt_ops arpt_sockopts
-= { { NULL, NULL }, PF_INET, ARPT_BASE_CTL, ARPT_SO_SET_MAX+1, do_arpt_set_ctl,
-    ARPT_BASE_CTL, ARPT_SO_GET_MAX+1, do_arpt_get_ctl, 0, NULL  };
+static struct arpt_target arpt_error_target = {
+	.name		= ARPT_ERROR_TARGET,
+	.target		= arpt_error,
+};
+
+static struct nf_sockopt_ops arpt_sockopts = {
+	.pf		= PF_INET,
+	.set_optmin	= ARPT_BASE_CTL,
+	.set_optmax	= ARPT_SO_SET_MAX+1,
+	.set		= do_arpt_set_ctl,
+	.get_optmin	= ARPT_BASE_CTL,
+	.get_optmax	= ARPT_SO_GET_MAX+1,
+	.get		= do_arpt_get_ctl,
+};
 
 #ifdef CONFIG_PROC_FS
 static inline int print_name(const struct arpt_table *t,

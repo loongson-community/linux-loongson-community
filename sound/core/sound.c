@@ -346,7 +346,7 @@ static int __init alsa_sound_init(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,0)
 	devfs_handle = devfs_mk_dir(NULL, "snd", 3, NULL);
 #else
-	devfs_handle = devfs_mk_dir(NULL, "snd", NULL);
+	devfs_handle = devfs_mk_dir("snd");
 #endif
 #endif
 	if (register_chrdev(major, "alsa", &snd_fops)) {
@@ -432,24 +432,6 @@ EXPORT_SYMBOL(snd_magic_kfree);
 #endif
 EXPORT_SYMBOL(snd_kcalloc);
 EXPORT_SYMBOL(snd_kmalloc_strdup);
-EXPORT_SYMBOL(snd_malloc_pages);
-EXPORT_SYMBOL(snd_malloc_pages_fallback);
-EXPORT_SYMBOL(snd_free_pages);
-#if defined(CONFIG_ISA) && ! defined(CONFIG_PCI)
-EXPORT_SYMBOL(snd_malloc_isa_pages);
-EXPORT_SYMBOL(snd_malloc_isa_pages_fallback);
-#endif
-#ifdef CONFIG_PCI
-EXPORT_SYMBOL(snd_malloc_pci_pages);
-EXPORT_SYMBOL(snd_malloc_pci_pages_fallback);
-EXPORT_SYMBOL(snd_malloc_pci_page);
-EXPORT_SYMBOL(snd_free_pci_pages);
-#endif
-#ifdef CONFIG_SBUS
-EXPORT_SYMBOL(snd_malloc_sbus_pages);
-EXPORT_SYMBOL(snd_malloc_sbus_pages_fallback);
-EXPORT_SYMBOL(snd_free_sbus_pages);
-#endif
 EXPORT_SYMBOL(copy_to_user_fromio);
 EXPORT_SYMBOL(copy_from_user_toio);
   /* init.c */
@@ -522,9 +504,6 @@ EXPORT_SYMBOL(snd_verbose_printk);
 #if defined(CONFIG_SND_DEBUG) && defined(CONFIG_SND_VERBOSE_PRINTK)
 EXPORT_SYMBOL(snd_verbose_printd);
 #endif
-#if defined(CONFIG_SND_DEBUG) && !defined(CONFIG_SND_VERBOSE_PRINTK)
-EXPORT_SYMBOL(snd_printd);
-#endif
   /* wrappers */
 #ifdef CONFIG_SND_DEBUG_MEMORY
 EXPORT_SYMBOL(snd_wrapper_kmalloc);
@@ -532,6 +511,3 @@ EXPORT_SYMBOL(snd_wrapper_kfree);
 EXPORT_SYMBOL(snd_wrapper_vmalloc);
 EXPORT_SYMBOL(snd_wrapper_vfree);
 #endif
-#ifdef HACK_PCI_ALLOC_CONSISTENT
-EXPORT_SYMBOL(snd_pci_hack_alloc_consistent);
-#endif 

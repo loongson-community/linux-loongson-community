@@ -26,6 +26,15 @@
 
 static int indydog_alive;
 
+#ifdef CONFIG_WATCHDOG_NOWAYOUT
+static int nowayout = 1;
+#else
+static int nowayout = 0;
+#endif
+
+MODULE_PARM(nowayout,"i");
+MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started (default=CONFIG_WATCHDOG_NOWAYOUT)");
+
 static inline void indydog_ping(void)
 {
 	sgimc->watchdogt = 0;
@@ -40,9 +49,10 @@ static int indydog_open(struct inode *inode, struct file *file)
 	
 	if(indydog_alive)
 		return -EBUSY;
-#ifdef CONFIG_WATCHDOG_NOWAYOUT
-	MOD_INC_USE_COUNT;
-#endif
+
+	if (nowayout)
+		MOD_INC_USE_COUNT;
+
 	/* Activate timer */
 	mc_ctrl0 = sgimc->cpuctrl0 | SGIMC_CCTRL0_WDOG;
 	sgimc->cpuctrl0 = mc_ctrl0;
@@ -59,14 +69,12 @@ static int indydog_release(struct inode *inode, struct file *file)
 	/* Shut off the timer.
 	 * Lock it in if it's a module and we defined ...NOWAYOUT */
 	lock_kernel();
-#ifndef CONFIG_WATCHDOG_NOWAYOUT
-	{
-	u32 mc_ctrl0 = sgimc->cpuctrl0; 
-	mc_ctrl0 &= ~SGIMC_CCTRL0_WDOG;
-	sgimc->cpuctrl0 = mc_ctrl0;
-	printk(KERN_INFO "Stopped watchdog timer.\n");
+	if (!nowayout) {
+		u32 mc_ctrl0 = sgimc->cpuctrl0; 
+		mc_ctrl0 &= ~SGIMC_CCTRL0_WDOG;
+		sgimc->cpuctrl0 = mc_ctrl0;
+		printk(KERN_INFO "Stopped watchdog timer.\n");
 	}
-#endif
 	indydog_alive = 0;
 	unlock_kernel();
 	

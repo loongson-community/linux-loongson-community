@@ -1041,7 +1041,9 @@ static void release_mem(struct tty_struct *tty, int idx)
 		}
 		o_tty->magic = 0;
 		(*o_tty->driver.refcount)--;
+		file_list_lock();
 		list_del(&o_tty->tty_files);
+		file_list_unlock();
 		free_tty_struct(o_tty);
 	}
 
@@ -1053,7 +1055,9 @@ static void release_mem(struct tty_struct *tty, int idx)
 	}
 	tty->magic = 0;
 	(*tty->driver.refcount)--;
+	file_list_lock();
 	list_del(&tty->tty_files);
+	file_list_unlock();
 	module_put(tty->driver.owner);
 	free_tty_struct(tty);
 }
@@ -2121,7 +2125,8 @@ int tty_register_driver(struct tty_driver *driver)
 	if (driver->flags & TTY_DRIVER_INSTALLED)
 		return 0;
 
-	error = register_chrdev(driver->major, driver->name, &tty_fops);
+	error = register_chrdev_region(driver->major, driver->minor_start,
+				       driver->num, driver->name, &tty_fops);
 	if (error < 0)
 		return error;
 	else if(driver->major == 0)

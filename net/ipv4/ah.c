@@ -68,8 +68,10 @@ static int ah_output(struct sk_buff *skb)
 		char 		buf[60];
 	} tmp_iph;
 
-	if (skb->ip_summed == CHECKSUM_HW && skb_checksum_help(skb) == NULL)
-		return -EINVAL;
+	if (skb->ip_summed == CHECKSUM_HW && skb_checksum_help(skb) == NULL) {
+		err = -EINVAL;
+		goto error_nolock;
+	}
 
 	spin_lock_bh(&x->lock);
 	if ((err = xfrm_state_check_expire(x)) != 0)
@@ -90,8 +92,8 @@ static int ah_output(struct sk_buff *skb)
 		top_iph->ttl = 0;
 		top_iph->protocol = IPPROTO_AH;
 		top_iph->check = 0;
-		top_iph->saddr = x->props.saddr.xfrm4_addr;
-		top_iph->daddr = x->id.daddr.xfrm4_addr;
+		top_iph->saddr = x->props.saddr.a4;
+		top_iph->daddr = x->id.daddr.a4;
 		ah = (struct ip_auth_hdr*)(top_iph+1);
 		ah->nexthdr = IPPROTO_IPIP;
 	} else {
@@ -139,8 +141,10 @@ static int ah_output(struct sk_buff *skb)
 	x->curlft.bytes += skb->len;
 	x->curlft.packets++;
 	spin_unlock_bh(&x->lock);
-	if ((skb->dst = dst_pop(dst)) == NULL)
+	if ((skb->dst = dst_pop(dst)) == NULL) {
+		err = -EHOSTUNREACH;
 		goto error_nolock;
+	}
 	return NET_XMIT_BYPASS;
 
 error:
@@ -228,7 +232,7 @@ void ah4_err(struct sk_buff *skb, u32 info)
 	    skb->h.icmph->code != ICMP_FRAG_NEEDED)
 		return;
 
-	x = xfrm4_state_lookup(iph->daddr, ah->spi, IPPROTO_AH);
+	x = xfrm_state_lookup((xfrm_address_t *)&iph->daddr, ah->spi, IPPROTO_AH, AF_INET);
 	if (!x)
 		return;
 	printk(KERN_DEBUG "pmtu discvovery on SA AH/%08x/%08x\n",
@@ -334,13 +338,13 @@ static struct inet_protocol ah4_protocol = {
 static int __init ah4_init(void)
 {
 	SET_MODULE_OWNER(&ah_type);
-	if (xfrm_register_type(&ah_type) < 0) {
+	if (xfrm_register_type(&ah_type, AF_INET) < 0) {
 		printk(KERN_INFO "ip ah init: can't add xfrm type\n");
 		return -EAGAIN;
 	}
 	if (inet_add_protocol(&ah4_protocol, IPPROTO_AH) < 0) {
 		printk(KERN_INFO "ip ah init: can't add protocol\n");
-		xfrm_unregister_type(&ah_type);
+		xfrm_unregister_type(&ah_type, AF_INET);
 		return -EAGAIN;
 	}
 	return 0;
@@ -350,7 +354,7 @@ static void __exit ah4_fini(void)
 {
 	if (inet_del_protocol(&ah4_protocol, IPPROTO_AH) < 0)
 		printk(KERN_INFO "ip ah close: can't remove protocol\n");
-	if (xfrm_unregister_type(&ah_type) < 0)
+	if (xfrm_unregister_type(&ah_type, AF_INET) < 0)
 		printk(KERN_INFO "ip ah close: can't remove xfrm type\n");
 }
 

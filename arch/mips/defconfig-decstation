@@ -204,7 +204,6 @@ CONFIG_SCSI_DECNCR=y
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -507,6 +506,7 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_SOLARIS_X86_PARTITION is not set
 # CONFIG_UNIXWARE_DISKLABEL is not set
 # CONFIG_LDM_PARTITION is not set
+# CONFIG_NEC98_PARTITION is not set
 # CONFIG_SGI_PARTITION is not set
 CONFIG_ULTRIX_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
@@ -515,13 +515,6 @@ CONFIG_ULTRIX_PARTITION=y
 #
 # Graphics support
 #
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

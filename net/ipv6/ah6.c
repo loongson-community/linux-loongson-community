@@ -60,9 +60,11 @@ int ah6_output(struct sk_buff *skb)
 	struct ah_data *ahp;
 	u16 nh_offset = 0;
 	u8 nexthdr;
-printk(KERN_DEBUG "%s\n", __FUNCTION__);
-	if (skb->ip_summed == CHECKSUM_HW && skb_checksum_help(skb) == NULL)
-		return -EINVAL;
+
+	if (skb->ip_summed == CHECKSUM_HW && skb_checksum_help(skb) == NULL) {
+		err = -EINVAL;
+		goto error_nolock;
+	}
 
 	spin_lock_bh(&x->lock);
 	if ((err = xfrm_state_check_expire(x)) != 0)
@@ -134,8 +136,10 @@ printk(KERN_DEBUG "%s\n", __FUNCTION__);
 	x->curlft.bytes += skb->len;
 	x->curlft.packets++;
 	spin_unlock_bh(&x->lock);
-	if ((skb->dst = dst_pop(dst)) == NULL)
+	if ((skb->dst = dst_pop(dst)) == NULL) {
+		err = -EHOSTUNREACH;
 		goto error_nolock;
+	}
 	return NET_XMIT_BYPASS;
 error:
 	spin_unlock_bh(&x->lock);
@@ -224,7 +228,7 @@ void ah6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	    type != ICMPV6_PKT_TOOBIG)
 		return;
 
-	x = xfrm6_state_lookup(&iph->daddr, ah->spi, IPPROTO_AH);
+	x = xfrm_state_lookup((xfrm_address_t *)&iph->daddr, ah->spi, IPPROTO_AH, AF_INET6);
 	if (!x)
 		return;
 
@@ -332,14 +336,14 @@ int __init ah6_init(void)
 {
 	SET_MODULE_OWNER(&ah6_type);
 
-	if (xfrm6_register_type(&ah6_type) < 0) {
+	if (xfrm_register_type(&ah6_type, AF_INET6) < 0) {
 		printk(KERN_INFO "ipv6 ah init: can't add xfrm type\n");
 		return -EAGAIN;
 	}
 
 	if (inet6_add_protocol(&ah6_protocol, IPPROTO_AH) < 0) {
 		printk(KERN_INFO "ipv6 ah init: can't add protocol\n");
-		xfrm6_unregister_type(&ah6_type);
+		xfrm_unregister_type(&ah6_type, AF_INET6);
 		return -EAGAIN;
 	}
 
@@ -351,7 +355,7 @@ static void __exit ah6_fini(void)
 	if (inet6_del_protocol(&ah6_protocol, IPPROTO_AH) < 0)
 		printk(KERN_INFO "ipv6 ah close: can't remove protocol\n");
 
-	if (xfrm6_unregister_type(&ah6_type) < 0)
+	if (xfrm_unregister_type(&ah6_type, AF_INET6) < 0)
 		printk(KERN_INFO "ipv6 ah close: can't remove xfrm type\n");
 
 }

@@ -28,8 +28,7 @@
 #endif
 #include <linux/usb.h>
 
-devfs_handle_t usb_devfs_handle;	/* /dev/usb dir. */
-EXPORT_SYMBOL(usb_devfs_handle);
+static devfs_handle_t usb_devfs_handle;	/* /dev/usb dir. */
 
 #define MAX_USB_MINORS	256
 static struct file_operations *usb_minors[MAX_USB_MINORS];
@@ -76,7 +75,7 @@ int usb_major_init(void)
 		return -EBUSY;
 	}
 
-	usb_devfs_handle = devfs_mk_dir(NULL, "usb", NULL);
+	usb_devfs_handle = devfs_mk_dir("usb");
 
 	return 0;
 }

@@ -28,10 +28,10 @@
  * Ugh, we don't have PCI space, so map readb() and friends to use Zorro space
  * for MMIO accesses. This should make clgenfb work again on Amiga
  */
-#define inb(port)	0
-#define inw(port)	0
-#define outb(port, val)	do { } while (0)
-#define outw(port, val)	do { } while (0)
+#define inb_p(port)	0
+#define inw_p(port)	0
+#define outb_p(port, val)	do { } while (0)
+#define outw(port, val)		do { } while (0)
 #define readb		z_readb
 #define writeb		z_writeb
 #define writew		z_writew
@@ -197,9 +197,9 @@
 
 struct vgastate {
 	caddr_t vgabase;	/* mmio base, if supported 		   */
-	__u32 flags;		/* what state[s] to save (see VGA_SAVE_*)  */
-	__u32 membase;		/* VGA window base, 0 for default - 0xA000 */
+	unsigned long membase;	/* VGA window base, 0 for default - 0xA000 */
 	__u32 memsize;		/* VGA window size, 0 for default 64K	   */
+	__u32 flags;		/* what state[s] to save (see VGA_SAVE_*)  */
 	__u32 depth;		/* current fb depth, not important	   */
 	__u32 num_attr;		/* number of att registers, 0 for default  */
 	__u32 num_crtc;		/* number of crt registers, 0 for default  */
@@ -217,18 +217,18 @@ extern int restore_vga(struct vgastate *state);
  
 static inline unsigned char vga_io_r (unsigned short port)
 {
-	return inb (port);
+	return inb_p(port);
 }
 
 static inline void vga_io_w (unsigned short port, unsigned char val)
 {
-	outb (val, port);
+	outb_p(val, port);
 }
 
 static inline void vga_io_w_fast (unsigned short port, unsigned char reg,
 				  unsigned char val)
 {
-	outw (VGA_OUT16VAL (val, reg), port);
+	outw(VGA_OUT16VAL (val, reg), port);
 }
 
 static inline unsigned char vga_mm_r (caddr_t regbase, unsigned short port)
@@ -379,8 +379,6 @@ static inline void vga_mm_wseq (caddr_t regbase, unsigned char reg, unsigned cha
 #endif /* VGA_OUTW_WRITE */
 }
 
-
-
 /*
  * VGA graphics controller register read/write
  */
@@ -473,8 +471,5 @@ static inline void vga_mm_wattr (caddr_t regbase, unsigned char reg, unsigned ch
         vga_mm_w (regbase, VGA_ATT_IW, reg);
         vga_mm_w (regbase, VGA_ATT_W, val);
 }
-
-
-
 
 #endif /* __linux_video_vga_h__ */

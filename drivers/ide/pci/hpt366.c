@@ -85,7 +85,7 @@ static int hpt366_get_info (char *buffer, char **addr, off_t offset, int count)
 	char *chipset_nums[] = {"366", "366",  "368",
 				"370", "370A", "372",
 				"302", "371",  "374" };
-	int i;
+	int i, len;
 
 	p += sprintf(p, "\n                             "
 		"HighPoint HPT366/368/370/372/374\n");
@@ -153,8 +153,12 @@ static int hpt366_get_info (char *buffer, char **addr, off_t offset, int count)
 		}
 	}
 	p += sprintf(p, "\n");
+
+	/* p - buffer must be less than 4k! */
+	len = (p - buffer) - offset;
+	*addr = buffer + offset;
 	
-	return p-buffer;/* => must be less than 4k! */
+	return len > count ? count : len;
 }
 #endif  /* defined(DISPLAY_HPT366_TIMINGS) && defined(CONFIG_PROC_FS) */
 
@@ -443,7 +447,7 @@ static void hpt3xx_tune_drive (ide_drive_t *drive, u8 pio)
 /*
  * This allows the configuration of ide_pci chipset registers
  * for cards that learn about the drive's UDMA, DMA, PIO capabilities
- * after the drive is reported by the OS.  Initally for designed for
+ * after the drive is reported by the OS.  Initially for designed for
  * HPT366 UDMA chipset by HighPoint|Triones Technologies, Inc.
  *
  * check_in_drive_lists(drive, bad_ata66_4)

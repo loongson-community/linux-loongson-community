@@ -1,5 +1,6 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/swap.h>
 
 void show_mem(void)
 {

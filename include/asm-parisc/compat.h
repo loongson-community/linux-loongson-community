@@ -18,6 +18,7 @@ typedef u16	compat_mode_t;
 typedef u32	compat_ino_t;
 typedef u32	compat_dev_t;
 typedef s32	compat_off_t;
+typedef s64	compat_loff_t;
 typedef u16	compat_nlink_t;
 typedef u16	compat_ipc_pid_t;
 typedef s32	compat_daddr_t;
@@ -96,11 +97,24 @@ struct compat_statfs {
 typedef u32		compat_old_sigset_t;	/* at least 32 bits */
 
 #define _COMPAT_NSIG		64
-#define _COMPAT_NSIG_BPW	BITS_PER_LONG
+#define _COMPAT_NSIG_BPW	32
 
 typedef u32		compat_sigset_word;
 
 #define COMPAT_OFF_T_MAX	0x7fffffff
 #define COMPAT_LOFF_T_MAX	0x7fffffffffffffffL
+
+/*
+ * A pointer passed in from user mode. This should not
+ * be used for syscall parameters, just declare them
+ * as pointers because the syscall entry code will have
+ * appropriately comverted them already.
+ */
+typedef	u32		compat_uptr_t;
+
+static inline void *compat_ptr(compat_uptr_t uptr)
+{
+	return (void *)(unsigned long)uptr;
+}
 
 #endif /* _ASM_PARISC_COMPAT_H */

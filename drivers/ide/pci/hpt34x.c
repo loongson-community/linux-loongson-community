@@ -58,7 +58,7 @@ static int n_hpt34x_devs;
 static int hpt34x_get_info (char *buffer, char **addr, off_t offset, int count)
 {
 	char *p = buffer;
-	int i;
+	int i, len;
 
 	p += sprintf(p, "\n                             "
 			"HPT34X Chipset.\n");
@@ -96,7 +96,11 @@ static int hpt34x_get_info (char *buffer, char **addr, off_t offset, int count)
 	}
 	p += sprintf(p, "\n");
 
-	return p-buffer;	/* => must be less than 4k! */
+	/* p - buffer must be less than 4k! */
+	len = (p - buffer) - offset;
+	*addr = buffer + offset;
+	
+	return len > count ? count : len;
 }
 #endif  /* defined(DISPLAY_HPT34X_TIMINGS) && defined(CONFIG_PROC_FS) */
 
@@ -162,7 +166,7 @@ static void hpt34x_tune_drive (ide_drive_t *drive, u8 pio)
 /*
  * This allows the configuration of ide_pci chipset registers
  * for cards that learn about the drive's UDMA, DMA, PIO capabilities
- * after the drive is reported by the OS.  Initally for designed for
+ * after the drive is reported by the OS.  Initially for designed for
  * HPT343 UDMA chipset by HighPoint|Triones Technologies, Inc.
  */
 

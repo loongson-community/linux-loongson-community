@@ -24,6 +24,7 @@
 #include <linux/cache.h>
 #include <linux/module.h>
 #include <linux/mount.h>
+#include <linux/file.h>
 #include <asm/uaccess.h>
 #include <linux/security.h>
 
@@ -783,7 +784,8 @@ struct dentry * d_alloc_root(struct inode * root_inode)
 	struct dentry *res = NULL;
 
 	if (root_inode) {
-		res = d_alloc(NULL, &(const struct qstr) { "/", 1, 0 });
+		static const struct qstr name = { .name = "/", .len = 1, .hash = 0 };
+		res = d_alloc(NULL, &name);
 		if (res) {
 			res->d_sb = root_inode->i_sb;
 			res->d_parent = res;
@@ -993,12 +995,12 @@ struct dentry * d_lookup(struct dentry * parent, struct qstr * name)
 		/*
 		 * If dentry is moved, fail the lookup
 		 */ 
-		if (unlikely(move_count != dentry->d_move_count)) 
-			break;
-		if (!d_unhashed(dentry)) {
-			atomic_inc(&dentry->d_count);
-			dentry->d_vfs_flags |= DCACHE_REFERENCED;
-			found = dentry;
+		if (likely(move_count == dentry->d_move_count)) {
+			if (!d_unhashed(dentry)) {
+				atomic_inc(&dentry->d_count);
+				dentry->d_vfs_flags |= DCACHE_REFERENCED;
+				found = dentry;
+			}
 		}
 		spin_unlock(&dentry->d_lock);
 		break;
@@ -1562,7 +1564,6 @@ kmem_cache_t *filp_cachep;
 EXPORT_SYMBOL(d_genocide);
 
 extern void bdev_cache_init(void);
-extern void cdev_cache_init(void);
 
 void __init vfs_caches_init(unsigned long mempages)
 {
@@ -1574,7 +1575,7 @@ void __init vfs_caches_init(unsigned long mempages)
 
 	filp_cachep = kmem_cache_create("filp", 
 			sizeof(struct file), 0,
-			SLAB_HWCACHE_ALIGN, NULL, NULL);
+			SLAB_HWCACHE_ALIGN, filp_ctor, filp_dtor);
 	if(!filp_cachep)
 		panic("Cannot create filp SLAB cache");
 
@@ -1583,5 +1584,4 @@ void __init vfs_caches_init(unsigned long mempages)
 	files_init(mempages); 
 	mnt_init(mempages);
 	bdev_cache_init();
-	cdev_cache_init();
 }

@@ -233,6 +233,34 @@ static inline void pgd_clear(pgd_t *pgdp)	{ }
 #define pte_pfn(x)		((unsigned long)((x).pte >> PAGE_SHIFT))
 #define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
 
+#define PTE_FILE_MAX_BITS       27
+                                                                                
+#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
+
+/*
+ * Bits 0, 1, 2, 9 and 10 are taken, split up the 27 bits of offset
+ * into this range:
+ */
+#define pte_to_pgoff(_pte) \
+	((((_pte).pte >> 3) & 0x3f ) + (((_pte).pte >> 11) << 8 ))
+
+#define pgoff_to_pte(off) \
+	((pte_t) { (((off) & 0x3f) << 3) + (((off) >> 8) << 11) + _PAGE_FILE })
+
+#else
+
+/*
+ * Bits 0, 1, 2, 7 and 8 are taken, split up the 27 bits of offset
+ * into this range:
+ */
+#define pte_to_pgoff(_pte) \
+	((((_pte).pte >> 3) & 0x1f ) + (((_pte).pte >> 9) << 6 ))
+ 
+#define pgoff_to_pte(off) \
+	((pte_t) { (((off) & 0x1f) << 3) + (((off) >> 6) << 9) + _PAGE_FILE })
+
+#endif
+
 /*
  * The following only work if pte_present() is true.
  * Undefined behaviour if not..
@@ -241,6 +269,7 @@ static inline int pte_read(pte_t pte)	{ return pte_val(pte) & _PAGE_READ; }
 static inline int pte_write(pte_t pte)	{ return pte_val(pte) & _PAGE_WRITE; }
 static inline int pte_dirty(pte_t pte)	{ return pte_val(pte) & _PAGE_MODIFIED; }
 static inline int pte_young(pte_t pte)	{ return pte_val(pte) & _PAGE_ACCESSED; }
+static inline int pte_file(pte_t pte)	{ return pte_val(pte) & _PAGE_FILE; }
 
 static inline pte_t pte_wrprotect(pte_t pte)
 {

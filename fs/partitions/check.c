@@ -28,6 +28,7 @@
 #include "ldm.h"
 #include "mac.h"
 #include "msdos.h"
+#include "nec98.h"
 #include "osf.h"
 #include "sgi.h"
 #include "sun.h"
@@ -53,6 +54,9 @@ static int (*check_part[])(struct parsed_partitions *, struct block_device *) = 
 #endif
 #ifdef CONFIG_LDM_PARTITION
 	ldm_partition,		/* this must come before msdos */
+#endif
+#ifdef CONFIG_NEC98_PARTITION
+	nec98_partition,	/* must be come before `msdos_partition' */
 #endif
 #ifdef CONFIG_MSDOS_PARTITION
 	msdos_partition,
@@ -156,7 +160,6 @@ static void devfs_register_partition(struct gendisk *dev, int part)
 {
 #ifdef CONFIG_DEVFS_FS
 	devfs_handle_t dir;
-	unsigned int devfs_flags = DEVFS_FL_DEFAULT;
 	struct hd_struct *p = dev->part;
 	char devname[16];
 
@@ -165,108 +168,13 @@ static void devfs_register_partition(struct gendisk *dev, int part)
 	dir = dev->de;
 	if (!dir)
 		return;
-	if (dev->flags & GENHD_FL_REMOVABLE)
-		devfs_flags |= DEVFS_FL_REMOVABLE;
 	sprintf(devname, "part%d", part);
-	p[part-1].de = devfs_register (dir, devname, devfs_flags,
+	p[part-1].de = devfs_register (dir, devname, 0,
 				    dev->major, dev->first_minor + part,
 				    S_IFBLK | S_IRUSR | S_IWUSR,
 				    dev->fops, NULL);
 #endif
 }
-
-#ifdef CONFIG_DEVFS_FS
-static struct unique_numspace disc_numspace = UNIQUE_NUMBERSPACE_INITIALISER;
-static struct unique_numspace cdrom_numspace = UNIQUE_NUMBERSPACE_INITIALISER;
-#endif
-
-static void devfs_create_partitions(struct gendisk *dev)
-{
-#ifdef CONFIG_DEVFS_FS
-	int pos = 0;
-	devfs_handle_t dir, slave;
-	unsigned int devfs_flags = DEVFS_FL_DEFAULT;
-	char dirname[64], symlink[16];
-
-	if (dev->flags & GENHD_FL_REMOVABLE)
-		devfs_flags |= DEVFS_FL_REMOVABLE;
-	if (dev->flags & GENHD_FL_DEVFS) {
-		dir = dev->de;
-		if (!dir)  /*  Aware driver wants to block disc management  */
-			return;
-		pos = devfs_generate_path(dir, dirname + 3, sizeof dirname-3);
-		if (pos < 0)
-			return;
-		strncpy(dirname + pos, "../", 3);
-	} else {
-		/*  Unaware driver: construct "real" directory  */
-		sprintf(dirname, "../%s/disc%d", dev->disk_name,
-			dev->first_minor >> dev->minor_shift);
-		dir = devfs_mk_dir(NULL, dirname + 3, NULL);
-		dev->de = dir;
-	}
-	dev->number = devfs_alloc_unique_number (&disc_numspace);
-	sprintf(symlink, "discs/disc%d", dev->number);
-	devfs_mk_symlink(NULL, symlink, DEVFS_FL_DEFAULT,
-			  dirname + pos, &slave, NULL);
-	dev->disk_de = devfs_register(dir, "disc", devfs_flags,
-			    dev->major, dev->first_minor,
-			    S_IFBLK | S_IRUSR | S_IWUSR, dev->fops, NULL);
-#endif
-}
-
-static void devfs_create_cdrom(struct gendisk *dev)
-{
-#ifdef CONFIG_DEVFS_FS
-	char vname[23];
-
-	dev->number = devfs_alloc_unique_number(&cdrom_numspace);
-	sprintf(vname, "cdroms/cdrom%d", dev->number);
-	if (dev->de) {
-		int pos;
-		devfs_handle_t slave;
-		char rname[64];
-
-		dev->disk_de = devfs_register(dev->de, "cd", DEVFS_FL_DEFAULT,
-				     dev->major, dev->first_minor,
-				     S_IFBLK | S_IRUGO | S_IWUGO,
-				     dev->fops, NULL);
-
-		pos = devfs_generate_path(dev->disk_de, rname+3, sizeof(rname)-3);
-		if (pos >= 0) {
-			strncpy(rname + pos, "../", 3);
-			devfs_mk_symlink(NULL, vname, DEVFS_FL_DEFAULT,
-					 rname + pos, &slave, NULL);
-		}
-	} else {
-		dev->disk_de = devfs_register (NULL, vname, DEVFS_FL_DEFAULT,
-				    dev->major, dev->first_minor,
-				    S_IFBLK | S_IRUGO | S_IWUGO,
-				    dev->fops, NULL);
-	}
-#endif
-}
-
-static void devfs_remove_partitions(struct gendisk *dev)
-{
-#ifdef CONFIG_DEVFS_FS
-	devfs_unregister(dev->disk_de);
-	dev->disk_de = NULL;
-	if (dev->flags & GENHD_FL_CD) {
-		if (dev->de)
-			devfs_remove("cdroms/cdrom%d", dev->number);
-		devfs_dealloc_unique_number(&cdrom_numspace, dev->number);
-	} else {
-		devfs_remove("discs/disc%d", dev->number);
-		if (!(dev->flags & GENHD_FL_DEVFS)) {
-			devfs_unregister(dev->de);
-			dev->de = NULL;
-		}
-		devfs_dealloc_unique_number(&disc_numspace, dev->number);
-	}
-#endif
-}
-
 
 /*
  * sysfs bindings for partitions
@@ -527,6 +435,7 @@ char *partition_name(dev_t dev)
 {
 	struct gendisk *hd;
 	static char nomem [] = "<nomem>";
+	char b[BDEVNAME_SIZE];
 	struct dev_name *dname;
 	struct list_head *tmp;
 	int part;
@@ -552,7 +461,7 @@ char *partition_name(dev_t dev)
 		put_disk(hd);
 	}
 	if (!dname->name) {
-		sprintf(dname->namebuf, "[dev %s]", kdevname(to_kdev_t(dev)));
+		sprintf(dname->namebuf, "[dev %s]", __bdevname(dev, b));
 		dname->name = dname->namebuf;
 	}
 

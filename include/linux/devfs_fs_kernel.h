@@ -13,7 +13,6 @@
 
 #define DEVFS_FL_NONE           0x000 /* This helps to make code more readable
 				       */
-#define DEVFS_FL_REMOVABLE      0x008 /* This is a removable media device    */
 #define DEVFS_FL_WAIT           0x010 /* Wait for devfsd to finish           */
 #define DEVFS_FL_CURRENT_OWNER  0x020 /* Set initial ownership to current    */
 #define DEVFS_FL_DEFAULT        DEVFS_FL_NONE
@@ -21,55 +20,27 @@
 
 typedef struct devfs_entry * devfs_handle_t;
 
+struct gendisk;
+
 #ifdef CONFIG_DEVFS_FS
-
-extern void devfs_remove(const char *fmt, ...) __attribute__((format (printf, 1, 2)));
-
-struct unique_numspace
-{
-    spinlock_t init_lock;
-    unsigned char sem_initialised;
-    unsigned int num_free;          /*  Num free in bits       */
-    unsigned int length;            /*  Array length in bytes  */
-    unsigned long *bits;
-    struct semaphore semaphore;
-};
-
-#define UNIQUE_NUMBERSPACE_INITIALISER {SPIN_LOCK_UNLOCKED, 0, 0, 0, NULL}
-
-extern void devfs_put (devfs_handle_t de);
 extern devfs_handle_t devfs_register (devfs_handle_t dir, const char *name,
 				      unsigned int flags,
 				      unsigned int major, unsigned int minor,
 				      umode_t mode, void *ops, void *info);
 extern void devfs_unregister (devfs_handle_t de);
-extern int devfs_mk_symlink (devfs_handle_t dir, const char *name,
-			     unsigned int flags, const char *link,
-			     devfs_handle_t *handle, void *info);
-extern devfs_handle_t devfs_mk_dir (devfs_handle_t dir, const char *name,
-				    void *info);
+extern int devfs_mk_symlink (const char *name, const char *link);
+extern devfs_handle_t devfs_mk_dir(const char *fmt, ...)
+	__attribute__((format (printf, 1, 2)));
+extern void devfs_remove(const char *fmt, ...)
+	__attribute__((format (printf, 1, 2)));
 extern int devfs_generate_path (devfs_handle_t de, char *path, int buflen);
 extern int devfs_register_tape (devfs_handle_t de);
 extern void devfs_unregister_tape(int num);
-extern int devfs_alloc_unique_number (struct unique_numspace *space);
-extern void devfs_dealloc_unique_number (struct unique_numspace *space,
-					 int number);
-
+extern void devfs_create_partitions(struct gendisk *dev);
+extern void devfs_create_cdrom(struct gendisk *dev);
+extern void devfs_remove_partitions(struct gendisk *dev);
 extern void mount_devfs_fs (void);
-
 #else  /*  CONFIG_DEVFS_FS  */
-
-struct unique_numspace
-{
-    char dummy;
-};
-
-#define UNIQUE_NUMBERSPACE_INITIALISER {0}
-
-static inline void devfs_put (devfs_handle_t de)
-{
-    return;
-}
 static inline devfs_handle_t devfs_register (devfs_handle_t dir,
 					     const char *name,
 					     unsigned int flags,
@@ -84,14 +55,11 @@ static inline void devfs_unregister (devfs_handle_t de)
 {
     return;
 }
-static inline int devfs_mk_symlink (devfs_handle_t dir, const char *name,
-				    unsigned int flags, const char *link,
-				    devfs_handle_t *handle, void *info)
+static inline int devfs_mk_symlink (const char *name, const char *link)
 {
     return 0;
 }
-static inline devfs_handle_t devfs_mk_dir (devfs_handle_t dir,
-					   const char *name, void *info)
+static inline devfs_handle_t devfs_mk_dir(const char *fmt, ...)
 {
     return NULL;
 }
@@ -110,14 +78,14 @@ static inline int devfs_register_tape (devfs_handle_t de)
 static inline void devfs_unregister_tape(int num)
 {
 }
-static inline int devfs_alloc_unique_number (struct unique_numspace *space)
+static inline void devfs_create_partitions(struct gendisk *dev)
 {
-    return -1;
 }
-static inline void devfs_dealloc_unique_number (struct unique_numspace *space,
-						int number)
+static inline void devfs_create_cdrom(struct gendisk *dev)
 {
-    return;
+}
+static inline void devfs_remove_partitions(struct gendisk *dev)
+{
 }
 static inline void mount_devfs_fs (void)
 {

@@ -451,7 +451,7 @@ static struct accel_switch accel_image = {
  * Accel functions called by the upper layers
  */
 
-static void tridentfb_fillrect(struct fb_info * info, struct fb_fillrect *fr)
+static void tridentfb_fillrect(struct fb_info * info, const struct fb_fillrect *fr)
 {
 	int bpp = info->var.bits_per_pixel;
 	int dx,dy,w,h,col;
@@ -468,7 +468,7 @@ static void tridentfb_fillrect(struct fb_info * info, struct fb_fillrect *fr)
 	acc->fill_rect(fr->dx, fr->dy, fr->width, fr->height, col, fr->rop);
 	acc->wait_engine();
 }
-static void tridentfb_copyarea(struct fb_info *info, struct fb_copyarea *ca)
+static void tridentfb_copyarea(struct fb_info *info, const struct fb_copyarea *ca)
 {
 	acc->copy_rect(ca->sx,ca->sy,ca->dx,ca->dy,ca->width,ca->height);
 	acc->wait_engine();

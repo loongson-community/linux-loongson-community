@@ -728,7 +728,7 @@ S:	Odd fixes (e.g., new signatures)
 
 GDT SCSI DISK ARRAY CONTROLLER DRIVER
 P:	Achim Leubner
-M:	achim@vortex.de
+M:	achim.leubner@intel.com
 L:	linux-scsi@vger.kernel.org
 W:	http://www.icp-vortex.com/
 S:	Supported
@@ -923,10 +923,11 @@ M:	scott.feldman@intel.com
 S:	Supported
 
 INTEL PRO/1000 GIGABIT ETHERNET SUPPORT
-P:	Chris Leech
-M:	christopher.leech@intel.com
+P:	Jeb Cramer
+M:	cramerj@intel.com
 P:	Scott Feldman
 M:	scott.feldman@intel.com
+W:	http://sourceforge.net/projects/e1000/
 S:	Supported
 
 INTERMEZZO FILE SYSTEM
@@ -1617,6 +1618,12 @@ M:	ollie@sis.com.tw
 L:	linux-net@vger.kernel.org
 S:	Supported
 
+SIS FRAMEBUFFER DRIVER
+P:	Thomas Winischhofer
+M:	thomas@winischhofer.net
+W:	http://www.winischhofer.net/linuxsisvga.shtml
+S:	Maintained	
+
 SMB FILESYSTEM
 P:	Urban Widmark
 M:	urban@teststation.com
@@ -2063,6 +2070,11 @@ VIA 82Cxxx AUDIO DRIVER
 P:	Jeff Garzik
 L:	linux-via@gtf.org
 S:	Odd fixes
+
+VIA RHINE NETWORK DRIVER
+P:	Roger Luethi
+M:	rl@hellgate.ch
+S:	Maintained
 
 UCLINUX
 P:	Greg Ungerer

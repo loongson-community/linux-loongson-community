@@ -164,7 +164,6 @@ CONFIG_EMBEDDED_RAMDISK_IMAGE="ramdisk.gz"
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -351,13 +350,6 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Graphics support
 #
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

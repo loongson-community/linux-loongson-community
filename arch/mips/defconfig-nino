@@ -165,7 +165,6 @@ CONFIG_BLK_DEV_INITRD=y
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -445,6 +444,11 @@ CONFIG_FB_TX3912=y
 # CONFIG_MDA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FRAMEBUFFER_CONSOLE is not set
+
+#
+# Logo configuration
+#
+# CONFIG_LOGO is not set
 
 #
 # Sound

@@ -326,11 +326,11 @@ static char * snd_opti9xx_names[] = {
 static long snd_legacy_find_free_ioport(long *port_table, long size)
 {
 	while (*port_table != -1) {
-		if (!check_region(*port_table, size))
+		if (request_region(*port_table, size, "opti92x-ad1848"))
 			return *port_table;
 		port_table++;
 	}
-	return -1;
+	return SNDRV_AUTO_PORT;
 }
 
 static int __init snd_opti9xx_init(opti9xx_t *chip, unsigned short hardware)
@@ -987,9 +987,11 @@ static int snd_opti93x_trigger(snd_pcm_substream_t *substream,
 			s = s->link_next;
 		} while (s != substream);
 		spin_lock(&chip->lock);
-		if (cmd == SNDRV_PCM_TRIGGER_START)
+		if (cmd == SNDRV_PCM_TRIGGER_START) {
 			snd_opti93x_out_mask(chip, OPTi93X_IFACE_CONF, what, what);
-		else
+			if (what & OPTi93X_CAPTURE_ENABLE)
+				udelay(50);
+		} else
 			snd_opti93x_out_mask(chip, OPTi93X_IFACE_CONF, what, 0x00);
 		spin_unlock(&chip->lock);
 		break;
@@ -1207,6 +1209,7 @@ static int snd_opti93x_capture_open(snd_pcm_substream_t *substream)
 		return error;
 	runtime->hw = snd_opti93x_capture;
 	snd_pcm_set_sync(substream);
+	chip->capture_substream = substream;
 	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.buffer_bytes_max);
 	snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE, &hw_constraints_rates);
 	return error;
@@ -1914,6 +1917,10 @@ static void snd_card_opti9xx_free(snd_card_t *card)
 #ifdef __ISAPNP__
 		snd_card_opti9xx_deactivate(chip);
 #endif	/* __ISAPNP__ */
+		if (chip->wss_base != SNDRV_AUTO_PORT)
+			release_region(chip->wss_base, 4);
+		if (chip->mpu_port != SNDRV_AUTO_PORT)
+			release_region(chip->mpu_port, 2);
 		if (chip->res_mc_base) {
 			release_resource(chip->res_mc_base);
 			kfree_nocheck(chip->res_mc_base);
@@ -1959,6 +1966,16 @@ static int __init snd_card_opti9xx_probe(void)
 	card->private_free = snd_card_opti9xx_free;
 	chip = (opti9xx_t *)card->private_data;
 
+	chip->wss_base = port;
+	chip->fm_port = fm_port;
+	chip->mpu_port = mpu_port;
+	chip->irq = irq;
+	chip->mpu_irq = mpu_irq;
+	chip->dma1 = dma1;
+#if defined(CS4231) || defined(OPTi93X)
+	chip->dma2 = dma2;
+#endif
+
 #ifdef __ISAPNP__
 	if (isapnp && (hw = snd_card_opti9xx_isapnp(chip)) > 0) {
 		switch (hw) {
@@ -1997,28 +2014,18 @@ static int __init snd_card_opti9xx_probe(void)
 		return -ENOMEM;
 	}
 
-	chip->wss_base = port;
-	chip->fm_port = fm_port;
-	chip->mpu_port = mpu_port;
-	chip->irq = irq;
-	chip->mpu_irq = mpu_irq;
-	chip->dma1 = dma1;
-#if defined(CS4231) || defined(OPTi93X)
-	chip->dma2 = dma2;
-#endif
-
 #ifdef __ISAPNP__
 	if (!isapnp) {
 #endif
 	if (chip->wss_base == SNDRV_AUTO_PORT) {
-		if ((chip->wss_base = snd_legacy_find_free_ioport(possible_ports, 4)) < 0) {
+		if ((chip->wss_base = snd_legacy_find_free_ioport(possible_ports, 4)) == SNDRV_AUTO_PORT) {
 			snd_card_free(card);
 			snd_printk("unable to find a free WSS port\n");
 			return -EBUSY;
 		}
 	}
 	if (chip->mpu_port == SNDRV_AUTO_PORT) {
-		if ((chip->mpu_port = snd_legacy_find_free_ioport(possible_mpu_ports, 2)) < 0) {
+		if ((chip->mpu_port = snd_legacy_find_free_ioport(possible_mpu_ports, 2)) == SNDRV_AUTO_PORT) {
 			snd_card_free(card);
 			snd_printk("unable to find a free MPU401 port\n");
 			return -EBUSY;

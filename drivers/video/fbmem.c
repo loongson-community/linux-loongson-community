@@ -41,8 +41,6 @@
 #include <asm/pgtable.h>
 
 #include <linux/fb.h>
-#define INCLUDE_LINUX_LOGO_DATA
-#include <asm/linux_logo.h>
 
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 #include "console/fbcon.h"
@@ -173,7 +171,7 @@ static struct {
 	 * Chipset specific drivers that use resource management
 	 */
 #ifdef CONFIG_FB_RETINAZ3
-	{ "retz3", retz3fb_init, retz3fb_setup },
+	{ "retz3fb", retz3fb_init, retz3fb_setup },
 #endif
 #ifdef CONFIG_FB_AMIGA
 	{ "amifb", amifb_init, amifb_setup },
@@ -185,10 +183,10 @@ static struct {
 	{ "clps711xfb", clps711xfb_init, NULL },
 #endif
 #ifdef CONFIG_FB_CYBER
-	{ "cyber", cyberfb_init, cyberfb_setup },
+	{ "cyberfb", cyberfb_init, cyberfb_setup },
 #endif
 #ifdef CONFIG_FB_CYBER2000
-	{ "cyber2000", cyber2000fb_init, cyber2000fb_setup },
+	{ "cyber2000fb", cyber2000fb_init, cyber2000fb_setup },
 #endif
 #ifdef CONFIG_FB_PM2
 	{ "pm2fb", pm2fb_init, pm2fb_setup },
@@ -197,28 +195,28 @@ static struct {
 	{ "pm3fb", pm3fb_init, pm3fb_setup },
 #endif           
 #ifdef CONFIG_FB_CLGEN
-	{ "clgen", clgenfb_init, clgenfb_setup },
+	{ "clgenfb", clgenfb_init, clgenfb_setup },
 #endif
 #ifdef CONFIG_FB_ATY
 	{ "atyfb", atyfb_init, atyfb_setup },
 #endif
 #ifdef CONFIG_FB_MATROX
-	{ "matrox", matroxfb_init, matroxfb_setup },
+	{ "matroxfb", matroxfb_init, matroxfb_setup },
 #endif
 #ifdef CONFIG_FB_ATY128
 	{ "aty128fb", aty128fb_init, aty128fb_setup },
 #endif
 #ifdef CONFIG_FB_NEOMAGIC
-	{ "neo", neofb_init, neofb_setup },
+	{ "neofb", neofb_init, neofb_setup },
 #endif
 #ifdef CONFIG_FB_VIRGE
-	{ "virge", virgefb_init, virgefb_setup },
+	{ "virgefb", virgefb_init, virgefb_setup },
 #endif
 #ifdef CONFIG_FB_RIVA
-	{ "riva", rivafb_init, rivafb_setup },
+	{ "rivafb", rivafb_init, rivafb_setup },
 #endif
 #ifdef CONFIG_FB_RADEON
-	{ "radeon", radeonfb_init, radeonfb_setup },
+	{ "radeonfb", radeonfb_init, radeonfb_setup },
 #endif
 #ifdef CONFIG_FB_CONTROL
 	{ "controlfb", control_init, control_setup },
@@ -236,7 +234,7 @@ static struct {
 	{ "imsttfb", imsttfb_init, imsttfb_setup },
 #endif
 #ifdef CONFIG_FB_S3TRIO
-	{ "s3trio", s3triofb_init, NULL },
+	{ "s3triofb", s3triofb_init, NULL },
 #endif 
 #ifdef CONFIG_FB_FM2
 	{ "fm2fb", fm2fb_init, fm2fb_setup },
@@ -245,7 +243,7 @@ static struct {
 	{ "sisfb", sisfb_init, sisfb_setup },
 #endif
 #ifdef CONFIG_FB_VOODOO1
-	{ "sst", sstfb_init, sstfb_setup },
+	{ "sstfb", sstfb_init, sstfb_setup },
 #endif
 	/*
 	 * Generic drivers that are used as fallbacks
@@ -259,7 +257,7 @@ static struct {
 	{ "offb", offb_init, NULL },
 #endif
 #ifdef CONFIG_FB_VESA
-	{ "vesa", vesafb_init, vesafb_setup },
+	{ "vesafb", vesafb_init, vesafb_setup },
 #endif 
 
 	/*
@@ -267,13 +265,13 @@ static struct {
 	 */
 
 #ifdef CONFIG_FB_3DFX
-	{ "tdfx", tdfxfb_init, tdfxfb_setup },
+	{ "tdfxfb", tdfxfb_init, tdfxfb_setup },
 #endif
 #ifdef CONFIG_FB_SGIVW
-	{ "sgivw", sgivwfb_init, sgivwfb_setup },
+	{ "sgivwfb", sgivwfb_init, sgivwfb_setup },
 #endif
 #ifdef CONFIG_FB_ACORN
-	{ "acorn", acornfb_init, acornfb_setup },
+	{ "acornfb", acornfb_init, acornfb_setup },
 #endif
 #ifdef CONFIG_FB_ATARI
 	{ "atafb", atafb_init, atafb_setup },
@@ -282,43 +280,43 @@ static struct {
 	{ "macfb", macfb_init, macfb_setup },
 #endif
 #ifdef CONFIG_FB_HGA
-	{ "hga", hgafb_init, hgafb_setup },
+	{ "hgafb", hgafb_init, hgafb_setup },
 #endif 
 #ifdef CONFIG_FB_IGA
 	{ "igafb", igafb_init, igafb_setup },
 #endif
 #ifdef CONFIG_APOLLO
-	{ "apollo", dnfb_init, NULL },
+	{ "apollofb", dnfb_init, NULL },
 #endif
 #ifdef CONFIG_FB_Q40
 	{ "q40fb", q40fb_init, NULL },
 #endif
 #ifdef CONFIG_FB_TGA
-	{ "tga", tgafb_init, tgafb_setup },
+	{ "tgafb", tgafb_init, tgafb_setup },
 #endif
 #ifdef CONFIG_FB_HP300
 	{ "hpfb", hpfb_init, NULL },
 #endif 
 #ifdef CONFIG_FB_G364
-	{ "g364", g364fb_init, NULL },
+	{ "g364fb", g364fb_init, NULL },
 #endif
 #ifdef CONFIG_FB_SA1100
-	{ "sa1100", sa1100fb_init, NULL },
+	{ "sa1100fb", sa1100fb_init, NULL },
 #endif
 #ifdef CONFIG_FB_SUN3
-	{ "sun3", sun3fb_init, sun3fb_setup },
+	{ "sun3fb", sun3fb_init, sun3fb_setup },
 #endif
 #ifdef CONFIG_FB_HIT
 	{ "hitfb", hitfb_init, NULL },
 #endif
 #ifdef CONFIG_FB_TX3912
-	{ "tx3912", tx3912fb_init, tx3912fb_setup },
+	{ "tx3912fb", tx3912fb_init, tx3912fb_setup },
 #endif
 #ifdef CONFIG_FB_E1355
 	{ "e1355fb", e1355fb_init, e1355fb_setup },
 #endif
 #ifdef CONFIG_FB_PVR2
-	{ "pvr2", pvr2fb_init, pvr2fb_setup },
+	{ "pvr2fb", pvr2fb_init, pvr2fb_setup },
 #endif
 #ifdef CONFIG_FB_PMAG_BA
 	{ "pmagbafb", pmagbafb_init, NULL },
@@ -339,10 +337,10 @@ static struct {
 	 */
 
 #ifdef CONFIG_FB_VGA16
-	{ "vga16", vga16fb_init, vga16fb_setup },
+	{ "vga16fb", vga16fb_init, vga16fb_setup },
 #endif 
 #ifdef CONFIG_FB_TRIDENT
-	{ "trident", tridentfb_init, tridentfb_setup },
+	{ "tridentfb", tridentfb_init, tridentfb_setup },
 #endif
 #ifdef CONFIG_FB_I810
 	{ "i810fb", i810fb_init, i810fb_setup },
@@ -354,30 +352,30 @@ static struct {
 	{ "ffb", ffb_init, ffb_setup },
 #endif
 #ifdef CONFIG_FB_CG6
-	{ "cg6", cg6_init, cg6_setup },
+	{ "cg6fb", cg6_init, cg6_setup },
 #endif
 #ifdef CONFIG_FB_CG3
-	{ "cg3", cg3_init, cg3_setup },
+	{ "cg3fb", cg3_init, cg3_setup },
 #endif
 #ifdef CONFIG_FB_BW2
-	{ "bw2", bw2_init, bw2_setup },
+	{ "bw2fb", bw2_init, bw2_setup },
 #endif
 #ifdef CONFIG_FB_CG14
-	{ "cg14", cg14_init, cg14_setup },
+	{ "cg14fb", cg14_init, cg14_setup },
 #endif
 #ifdef CONFIG_FB_P9100
-	{ "p9100", p9100_init, p9100_setup },
+	{ "p9100fb", p9100_init, p9100_setup },
 #endif
 #ifdef CONFIG_FB_TCX
-	{ "tcx", tcx_init, tcx_setup },
+	{ "tcxfb", tcx_init, tcx_setup },
 #endif
 #ifdef CONFIG_FB_LEO
-	{ "leo", leo_init, leo_setup },
+	{ "leofb", leo_init, leo_setup },
 #endif
 
 #ifdef CONFIG_GSP_RESOLVER
 	/* Not a real frame buffer device... */
-	{ "resolver", NULL, resolver_video_setup },
+	{ "resolverfb", NULL, resolver_video_setup },
 #endif
 
 #ifdef CONFIG_FB_VIRTUAL
@@ -390,6 +388,7 @@ static struct {
 };
 
 #define NUM_FB_DRIVERS	(sizeof(fb_drivers)/sizeof(*fb_drivers))
+#define FBPIXMAPSIZE	8192
 
 extern const char *global_mode_option;
 
@@ -402,21 +401,105 @@ int num_registered_fb;
 static int ofonly __initdata = 0;
 #endif
 
-#define LOGO_H		80
-#define LOGO_W		80
+/*
+ * Drawing helpers.
+ */
+u8 sys_inbuf(u8 *src)
+{	
+	return *src;
+}
+
+void sys_outbuf(u8 src, u8 *dst)
+{
+	*dst = src;
+}	
+
+void move_buf_aligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch, 
+			u32 s_pitch, u32 height)
+{
+	int i, j;
+	
+	for (i = height; i--; ) {
+		for (j = 0; j < s_pitch; j++)
+			info->pixmap.outbuf(*src++, dst+j);
+		dst += d_pitch;
+	}	
+}	
+
+void move_buf_unaligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch, 
+			u32 height, u32 mask, u32 shift_high, u32 shift_low,
+			u32 mod, u32 idx)
+{
+	int i, j;
+	u8 tmp;
+
+	for (i = height; i--; ) {
+		for (j = 0; j < idx; j++) {
+			tmp = info->pixmap.inbuf(dst+j);
+			tmp &= mask;
+			tmp |= *src >> shift_low;
+			info->pixmap.outbuf(tmp, dst+j);
+			info->pixmap.outbuf(*src << shift_high, dst+j+1);
+			src++;
+		}
+		tmp = info->pixmap.inbuf(dst+idx);
+		tmp &= mask;
+		tmp |= *src >> shift_low;
+		info->pixmap.outbuf(tmp, dst+idx);
+		if (shift_high < mod)
+			info->pixmap.outbuf(*src<<shift_high, dst+idx+1);
+		src++;
+		dst += d_pitch;
+	}	
+}	
+
+/*
+ * we need to lock this section since fb_cursor
+ * may use fb_imageblit()
+ */
+u32 fb_get_buffer_offset(struct fb_info *info, u32 size)
+{
+	u32 align = info->pixmap.buf_align - 1;
+	u32 offset, count = 1000;
+
+	spin_lock_irqsave(&info->pixmap.lock,
+			  info->pixmap.lock_flags);
+	offset = info->pixmap.offset + align;
+	offset &= ~align;
+	if (offset + size > info->pixmap.size) {
+		while (atomic_read(&info->pixmap.count) && count--);
+		if (info->fbops->fb_sync && 
+		    info->pixmap.flags & FB_PIXMAP_SYNC)
+			info->fbops->fb_sync(info);
+		offset = 0;
+	}
+	info->pixmap.offset = offset + size;
+
+	atomic_inc(&info->pixmap.count);	
+	smp_mb__after_atomic_inc();
+
+	spin_unlock_irqrestore(&info->pixmap.lock,
+			       info->pixmap.lock_flags);
+	return offset;
+}
+
+#ifdef CONFIG_LOGO
+#include <linux/linux_logo.h>
 
 static inline unsigned safe_shift(unsigned d, int n)
 {
 	return n < 0 ? d >> -n : d << n;
 }
 
-static void __init fb_set_logocmap(struct fb_info *info)
+static void __init fb_set_logocmap(struct fb_info *info,
+				   const struct linux_logo *logo)
 {
 	struct fb_cmap palette_cmap;
 	u16 palette_green[16];
 	u16 palette_blue[16];
 	u16 palette_red[16];
 	int i, j, n;
+	const unsigned char *clut = logo->clut;
 
 	palette_cmap.start = 0;
 	palette_cmap.len = 16;
@@ -425,34 +508,32 @@ static void __init fb_set_logocmap(struct fb_info *info)
 	palette_cmap.blue = palette_blue;
 	palette_cmap.transp = NULL;
 
-	for (i = 0; i < LINUX_LOGO_COLORS; i += n) {
-		n = LINUX_LOGO_COLORS - i;
+	for (i = 0; i < logo->clutsize; i += n) {
+		n = logo->clutsize - i;
 		/* palette_cmap provides space for only 16 colors at once */
 		if (n > 16)
 			n = 16;
 		palette_cmap.start = 32 + i;
 		palette_cmap.len = n;
 		for (j = 0; j < n; ++j) {
-			palette_cmap.red[j] =
-				(linux_logo_red[i + j] << 8) |
-				 linux_logo_red[i + j];
-			palette_cmap.green[j] =
-				(linux_logo_green[i + j] << 8) |
-				 linux_logo_green[i + j];
-			palette_cmap.blue[j] =
-				(linux_logo_blue[i + j] << 8) |
-				 linux_logo_blue[i + j];
+			palette_cmap.red[j] = clut[0] << 8 | clut[0];
+			palette_cmap.green[j] = clut[1] << 8 | clut[1];
+			palette_cmap.blue[j] = clut[2] << 8 | clut[2];
+			clut += 3;
 		}
 		fb_set_cmap(&palette_cmap, 1, info);
 	}
 }
 
-static void  __init fb_set_logo_truepalette(struct fb_info *info, u32 *palette)
+static void  __init fb_set_logo_truepalette(struct fb_info *info,
+					    const struct linux_logo *logo,
+					    u32 *palette)
 {
 	unsigned char mask[9] = { 0,0x80,0xc0,0xe0,0xf0,0xf8,0xfc,0xfe,0xff };
 	unsigned char redmask, greenmask, bluemask;
 	int redshift, greenshift, blueshift;
 	int i;
+	const unsigned char *clut = logo->clut;
 
 	/*
 	 * We have to create a temporary palette since console palette is only
@@ -466,14 +547,17 @@ static void  __init fb_set_logo_truepalette(struct fb_info *info, u32 *palette)
 	greenshift = info->var.green.offset - (8 - info->var.green.length);
 	blueshift  = info->var.blue.offset  - (8 - info->var.blue.length);
 
-	for ( i = 0; i < LINUX_LOGO_COLORS; i++) {
-		palette[i+32] = (safe_shift((linux_logo_red[i]   & redmask), redshift) |
-				 safe_shift((linux_logo_green[i] & greenmask), greenshift) |
-				 safe_shift((linux_logo_blue[i]  & bluemask), blueshift));
+	for ( i = 0; i < logo->clutsize; i++) {
+		palette[i+32] = (safe_shift((clut[0] & redmask), redshift) |
+				 safe_shift((clut[1] & greenmask), greenshift) |
+				 safe_shift((clut[2] & bluemask), blueshift));
+		clut += 3;
 	}
 }
 
-static void __init fb_set_logo_directpalette(struct fb_info *info, u32 *palette)
+static void __init fb_set_logo_directpalette(struct fb_info *info,
+					     const struct linux_logo *logo,
+					     u32 *palette)
 {
 	int redshift, greenshift, blueshift;
 	int i;
@@ -482,40 +566,54 @@ static void __init fb_set_logo_directpalette(struct fb_info *info, u32 *palette)
 	greenshift = info->var.green.offset;
 	blueshift = info->var.blue.offset;
 
-	for (i = 32; i < LINUX_LOGO_COLORS; i++)
+	for (i = 32; i < logo->clutsize; i++)
 		palette[i] = i << redshift | i << greenshift | i << blueshift;
 }
 
-static void __init fb_set_logo(struct fb_info *info, u8 *logo, int needs_logo)
+static void __init fb_set_logo(struct fb_info *info,
+			       const struct linux_logo *logo, u8 *dst,
+			       int needs_logo)
 {
-	int i, j;
+	int i, j, shift;
+	const u8 *src = logo->data;
+	u8 d, xor = 0;
 
 	switch (needs_logo) {
 	case 4:
-		for (i = 0; i < (LOGO_W * LOGO_H)/2; i++) {
-			logo[i*2] = linux_logo16[i] >> 4;
-			logo[(i*2)+1] = linux_logo16[i] & 0xf;
+		for (i = 0; i < logo->height; i++)
+			for (j = 0; j < logo->width; src++) {
+				*dst++ = *src >> 4;
+				j++;
+				if (j < logo->width) {
+					*dst++ = *src & 0x0f;
+					j++;
+				}
+			}
+		break;
+	case ~1:
+		xor = 0xff;
+	case 1:
+		for (i = 0; i < logo->height; i++) {
+			shift = 7;
+			d = *src++ ^ xor;
+			for (j = 0; j < logo->width; j++) {
+				*dst++ = (d >> shift) & 1;
+				shift = (shift-1) & 7;
+				if (shift == 7)
+					d = *src++ ^ xor;
+			}
 		}
 		break;
-	case 1:
-	case ~1:
-	default:
-		for (i = 0; i < (LOGO_W * LOGO_H)/8; i++)
-			for (j = 0; j < 8; j++)
-				logo[i*8 + j] = (linux_logo_bw[i] &  (7 - j)) ?
-						((needs_logo == 1) ? 1 : 0) :
-						((needs_logo == 1) ? 0 : 1);
-			break;
 	}
 }
 
 /*
- * Three (3) kinds of logo maps exist.  linux_logo (>16 colors), linux_logo_16
- * (16 colors) and linux_logo_bw (2 colors).  Depending on the visual format and
- * color depth of the framebuffer, the DAC, the pseudo_palette, and the logo data
- * will be adjusted accordingly.
+ * Three (3) kinds of logo maps exist.  linux_logo_clut224 (>16 colors),
+ * linux_logo_vga16 (16 colors) and linux_logo_mono (2 colors).  Depending on
+ * the visual format and color depth of the framebuffer, the DAC, the
+ * pseudo_palette, and the logo data will be adjusted accordingly.
  *
- * Case 1 - linux_logo:
+ * Case 1 - linux_logo_clut224:
  * Color exceeds the number of console colors (16), thus we set the hardware DAC
  * using fb_set_cmap() appropriately.  The "needs_cmapreset"  flag will be set.
  *
@@ -523,135 +621,161 @@ static void __init fb_set_logo(struct fb_info *info, u8 *logo, int needs_logo)
  * one for temporary use. The "needs_directpalette" or "needs_truepalette" flags
  * will be set.
  *
- * Case 2 - linux_logo_16:
+ * Case 2 - linux_logo_vga16:
  * The number of colors just matches the console colors, thus there is no need
  * to set the DAC or the pseudo_palette.  However, the bitmap is packed, ie,
  * each byte contains color information for two pixels (upper and lower nibble).
  * To be consistent with fb_imageblit() usage, we therefore separate the two
  * nibbles into separate bytes. The "needs_logo" flag will be set to 4.
  *
- * Case 3 - linux_logo_bw:
+ * Case 3 - linux_logo_mono:
  * This is similar with Case 2.  Each byte contains information for 8 pixels.
  * We isolate each bit and expand each into a byte. The "needs_logo" flag will
  * be set to 1.
  */
+static struct logo_data {
+	int depth;
+	int needs_logo;
+	int needs_directpalette;
+	int needs_truepalette;
+	int needs_cmapreset;
+	int type;
+	const struct linux_logo *logo;
+} fb_logo;
+
+int fb_prepare_logo(struct fb_info *info)
+{
+	memset(&fb_logo, 0, sizeof(struct logo_data));
+
+	fb_logo.depth = info->var.bits_per_pixel;
+
+	switch (info->fix.visual) {
+	case FB_VISUAL_TRUECOLOR:
+		if (fb_logo.depth >= 8) {
+			fb_logo.needs_truepalette = 1;
+			fb_logo.needs_logo = 8;
+		} else if (fb_logo.depth >= 4)
+			fb_logo.needs_logo = 4;
+		else 
+			fb_logo.needs_logo = 1;
+		break;
+	case FB_VISUAL_DIRECTCOLOR:
+		if (fb_logo.depth >= 24) {
+			fb_logo.needs_directpalette = 1;
+			fb_logo.needs_cmapreset = 1;
+			fb_logo.needs_logo = 8;
+		} else if (fb_logo.depth >= 16)	/* 16 colors */
+			fb_logo.needs_logo = 4;
+		else
+			fb_logo.needs_logo = 1;	/* 2 colors */
+		break;
+	case FB_VISUAL_MONO01:
+		/* reversed 0 = fg, 1 = bg */
+		fb_logo.needs_logo = ~1;
+		break;
+	case FB_VISUAL_MONO10:
+		fb_logo.needs_logo = 1;
+		break;
+	case FB_VISUAL_STATIC_PSEUDOCOLOR:
+		if (fb_logo.depth >= 8) {
+			fb_logo.needs_logo = 8;
+			if (info->fix.visual == FB_VISUAL_PSEUDOCOLOR)
+				fb_logo.needs_cmapreset = 1;
+		} else if (fb_logo.depth >= 4)
+			fb_logo.needs_logo = 4;	/* 16 colors */
+		else
+			fb_logo.needs_logo = 1;	
+		break;
+	}
+
+	if (fb_logo.needs_logo >= 8)
+		fb_logo.type = LINUX_LOGO_CLUT224;
+	else if (fb_logo.needs_logo >= 4)
+		fb_logo.type = LINUX_LOGO_VGA16;
+	else
+		fb_logo.type = LINUX_LOGO_MONO;
+
+	/* Return if no suitable logo was found */
+	fb_logo.logo = fb_find_logo(fb_logo.type);
+	if (!fb_logo.logo || fb_logo.logo->height > info->var.yres) {
+		fb_logo.logo = NULL;
+		return 0;
+	}
+	return fb_logo.logo->height;
+}
+
 int fb_show_logo(struct fb_info *info)
 {
 	unsigned char *fb = info->screen_base, *logo_new = NULL;
 	u32 *palette = NULL, *saved_pseudo_palette = NULL;
-	int needs_directpalette = 0;
-	int needs_truepalette = 0;
-	int needs_cmapreset = 0;
 	struct fb_image image;
-	int needs_logo = 0;
-	int done = 0, x;
+	int x;
 
 	/* Return if the frame buffer is not mapped */
-	if (!fb || !info->fbops->fb_imageblit)
+	if (!fb || !info->fbops->fb_imageblit ||
+	    fb_logo.logo == NULL)
 		return 0;
 
-	image.depth = info->var.bits_per_pixel;
+	image.depth = fb_logo.depth;
+	image.data = fb_logo.logo->data;
 
-	/* reasonable default */
-	if (image.depth >= 8)
-		image.data = linux_logo;
-	else if (image.depth >= 4)
-		image.data = linux_logo16;
-	else
-		image.data = linux_logo_bw;
+	if (fb_logo.needs_cmapreset)
+		fb_set_logocmap(info, fb_logo.logo);
 
-	switch (info->fix.visual) {
-	case FB_VISUAL_TRUECOLOR:
-		needs_truepalette = 1;
-		if (image.depth >= 4 && image.depth <= 8)
-			needs_logo = 4;
-		else if (image.depth < 4)
-			needs_logo = 1;
-		break;
-	case FB_VISUAL_DIRECTCOLOR:
-		if (image.depth >= 24) {
-			needs_directpalette = 1;
-			needs_cmapreset = 1;
-		}
-		/* 16 colors */
-		else if (image.depth >= 16)
-			needs_logo = 4;
-		/* 2 colors */
-		else
-			needs_logo = 1;
-		break;
-	case FB_VISUAL_MONO01:
-		/* reversed 0 = fg, 1 = bg */
-		needs_logo = ~1;
-		break;
-	case FB_VISUAL_MONO10:
-		needs_logo = 1;
-		break;
-	case FB_VISUAL_PSEUDOCOLOR:
-	default:
-		if (image.depth >= 8)
-			needs_cmapreset = 1;
-		/* fall through */
-	case FB_VISUAL_STATIC_PSEUDOCOLOR:
-		/* 16 colors */
-		if (image.depth >= 4 && image.depth < 8)
-			needs_logo = 4;
-		/* 2 colors */
-		else if (image.depth < 4)
-			needs_logo = 1;
-		break;
-	}
-
-	if (needs_cmapreset)
-		fb_set_logocmap(info);
-
-	if (needs_truepalette || needs_directpalette) {
+	if (fb_logo.needs_truepalette || 
+	    fb_logo.needs_directpalette) {
 		palette = kmalloc(256 * 4, GFP_KERNEL);
 		if (palette == NULL)
-			return 1;
+			return 0;
 
-		if (needs_truepalette)
-			fb_set_logo_truepalette(info, palette);
+		if (fb_logo.needs_truepalette)
+			fb_set_logo_truepalette(info, fb_logo.logo, palette);
 		else
-			fb_set_logo_directpalette(info, palette);
+			fb_set_logo_directpalette(info, fb_logo.logo, palette);
 
 		saved_pseudo_palette = info->pseudo_palette;
 		info->pseudo_palette = palette;
 	}
 
-	if (needs_logo) {
-		logo_new = kmalloc(LOGO_W * LOGO_H, GFP_KERNEL);
+	if (fb_logo.needs_logo != 8) {
+		logo_new = kmalloc(fb_logo.logo->width * fb_logo.logo->height, 
+				   GFP_KERNEL);
 		if (logo_new == NULL) {
 			if (palette)
 				kfree(palette);
 			if (saved_pseudo_palette)
 				info->pseudo_palette = saved_pseudo_palette;
-			return 1;
+			return 0;
 		}
 
 		image.data = logo_new;
-		fb_set_logo(info, logo_new, needs_logo);
+		fb_set_logo(info, fb_logo.logo, logo_new, fb_logo.needs_logo);
 	}
 
-	image.width = LOGO_W;
-	image.height = LOGO_H;
+	image.width = fb_logo.logo->width;
+	image.height = fb_logo.logo->height;
 	image.dy = 0;
 
-	for (x = 0; x < num_online_cpus() * (LOGO_W + 8) &&
-	     x < info->var.xres - (LOGO_W + 8); x += (LOGO_W + 8)) {
+	for (x = 0; x < num_online_cpus() * (fb_logo.logo->width + 8) &&
+	     x <= info->var.xres-fb_logo.logo->width; x += (fb_logo.logo->width + 8)) {
 		image.dx = x;
 		info->fbops->fb_imageblit(info, &image);
-		done = 1;
+		atomic_dec(&info->pixmap.count);
+		smp_mb__after_atomic_dec();
 	}
-
+	
 	if (palette != NULL)
 		kfree(palette);
 	if (saved_pseudo_palette != NULL)
 		info->pseudo_palette = saved_pseudo_palette;
 	if (logo_new != NULL)
 		kfree(logo_new);
-	return 0;
+	return fb_logo.logo->height;
 }
+#else
+int fb_prepare_logo(struct fb_info *info) { return 0; }
+int fb_show_logo(struct fb_info *info) { return 0; }
+#endif /* CONFIG_LOGO */
 
 static int fbmem_read_proc(char *buf, char **start, off_t offset,
 			   int len, int *eof, void *private)
@@ -897,11 +1021,9 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if (!registered_fb[con2fb.framebuffer])
 		    return -EINVAL;
 		if (con2fb.console != 0)
-		    set_con2fb_map(con2fb.console-1, con2fb.framebuffer);
+			set_con2fb_map(con2fb.console-1, con2fb.framebuffer);
 		else
-		    /* set them all */
-		    for (i = 0; i < MAX_NR_CONSOLES; i++)
-			set_con2fb_map(i, con2fb.framebuffer);
+			fb_console_init();		
 		return 0;
 #endif	/* CONFIG_FRAMEBUFFER_CONSOLE */
 	case FBIOBLANK:
@@ -1085,6 +1207,23 @@ register_framebuffer(struct fb_info *fb_info)
 		if (!registered_fb[i])
 			break;
 	fb_info->node = mk_kdev(FB_MAJOR, i);
+	
+	if (fb_info->pixmap.addr == NULL) {
+		fb_info->pixmap.addr = kmalloc(FBPIXMAPSIZE, GFP_KERNEL);
+		if (fb_info->pixmap.addr) {
+			fb_info->pixmap.size = FBPIXMAPSIZE;
+			fb_info->pixmap.buf_align = 1;
+			fb_info->pixmap.scan_align = 1;
+			fb_info->pixmap.flags = FB_PIXMAP_DEFAULT;
+		}
+	}	
+	fb_info->pixmap.offset = 0;
+	if (fb_info->pixmap.outbuf == NULL)
+		fb_info->pixmap.outbuf = sys_outbuf;
+	if (fb_info->pixmap.inbuf == NULL)
+		fb_info->pixmap.inbuf = sys_inbuf;
+	spin_lock_init(&fb_info->pixmap.lock);
+	
 	registered_fb[i] = fb_info;
 	sprintf(name_buf, "fb/%d", i);
 	devfs_register(NULL, name_buf, DEVFS_FL_DEFAULT,
@@ -1113,6 +1252,9 @@ unregister_framebuffer(struct fb_info *fb_info)
 	if (!registered_fb[i])
 		return -EINVAL;
 	devfs_remove("fb/%d", i);
+
+	if (fb_info->pixmap.addr)
+		kfree(fb_info->pixmap.addr);
 	registered_fb[i]=NULL;
 	num_registered_fb--;
 	return 0;
@@ -1135,7 +1277,7 @@ fbmem_init(void)
 
 	create_proc_read_entry("fb", 0, 0, fbmem_read_proc, NULL);
 
-	devfs_mk_dir(NULL, "fb", NULL);
+	devfs_mk_dir("fb");
 	if (register_chrdev(FB_MAJOR,"fb",&fb_fops))
 		printk("unable to get major %d for fb devs\n", FB_MAJOR);
 
@@ -1224,9 +1366,13 @@ EXPORT_SYMBOL(register_framebuffer);
 EXPORT_SYMBOL(unregister_framebuffer);
 EXPORT_SYMBOL(num_registered_fb);
 EXPORT_SYMBOL(registered_fb);
+EXPORT_SYMBOL(fb_prepare_logo);
 EXPORT_SYMBOL(fb_show_logo);
 EXPORT_SYMBOL(fb_set_var);
 EXPORT_SYMBOL(fb_blank);
 EXPORT_SYMBOL(fb_pan_display);
+EXPORT_SYMBOL(fb_get_buffer_offset);
+EXPORT_SYMBOL(move_buf_unaligned);
+EXPORT_SYMBOL(move_buf_aligned);
 
 MODULE_LICENSE("GPL");

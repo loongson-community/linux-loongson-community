@@ -14,6 +14,9 @@
 #ifdef CONFIG_PCI
 #include <linux/pci.h>
 #endif
+#ifdef CONFIG_ALL_PPC
+#include <asm/prom.h>
+#endif
 
 /* 
  * EDID parser
@@ -573,6 +576,10 @@ int fb_get_mode(int flags, u32 val, struct fb_var_screeninfo *var, struct fb_inf
 			timings.vfreq = vfmax;
 			fb_timings_vfreq(&timings);
 		}
+		if (timings.dclk > dclkmax) {
+			timings.dclk = dclkmax;
+			fb_timings_dclk(&timings);
+		}
 		break;
 	case FB_VSYNCTIMINGS: /* vrefresh driven */
 		timings.vfreq = val;
@@ -666,7 +673,8 @@ int fb_validate_mode(struct fb_var_screeninfo *var, struct fb_info *info)
 	vfreq = hfreq/vtotal;
 
 	return (vfreq < vfmin || vfreq > vfmax || 
-		hfreq < hfmin || hfreq > hfmax) ?
+		hfreq < hfmin || hfreq > hfmax ||
+		pixclock < dclkmin || pixclock > dclkmax) ?
 		-EINVAL : 0;
 }
 

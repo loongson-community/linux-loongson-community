@@ -105,7 +105,7 @@ static int ipmi_fasync(int fd, struct file *file, int on)
 
 static struct ipmi_user_hndl ipmi_hndlrs =
 {
-	ipmi_recv_hndl : file_receive_handler
+	.ipmi_recv_hndl	= file_receive_handler,
 };
 
 static int ipmi_open(struct inode *inode, struct file *file)
@@ -424,12 +424,12 @@ static int ipmi_ioctl(struct inode  *inode,
 
 
 static struct file_operations ipmi_fops = {
-	owner:   THIS_MODULE,
-	ioctl:   ipmi_ioctl,
-	open:    ipmi_open,
-	release: ipmi_release,
-	fasync:  ipmi_fasync,
-	poll:    ipmi_poll
+	.owner		= THIS_MODULE,
+	.ioctl		= ipmi_ioctl,
+	.open		= ipmi_open,
+	.release	= ipmi_release,
+	.fasync		= ipmi_fasync,
+	.poll		= ipmi_poll,
 };
 
 #define DEVICE_NAME     "ipmidev"
@@ -444,15 +444,14 @@ static devfs_handle_t handles[MAX_DEVICES];
 
 static void ipmi_new_smi(int if_num)
 {
-	char name[2];
+	char name[10];
 
 	if (if_num > MAX_DEVICES)
 		return;
 
-	name[0] = if_num + '0';
-	name[1] = '\0';
+	snprinf(name, sizeof(name), "ipmidev/%d", if_num);
 
-	handles[if_num] = devfs_register(devfs_handle, name, DEVFS_FL_NONE,
+	handles[if_num] = devfs_register(NULL, name, DEVFS_FL_NONE,
 					 ipmi_major, if_num,
 					 S_IFCHR | S_IRUSR | S_IWUSR,
 					 &ipmi_fops, NULL);
@@ -468,8 +467,8 @@ static void ipmi_smi_gone(int if_num)
 
 static struct ipmi_smi_watcher smi_watcher =
 {
-	new_smi  : ipmi_new_smi,
-	smi_gone : ipmi_smi_gone
+	.new_smi	= ipmi_new_smi,
+	.smi_gone	= ipmi_smi_gone,
 };
 
 static __init int init_ipmi_devintf(void)
@@ -489,7 +488,7 @@ static __init int init_ipmi_devintf(void)
 		ipmi_major = rv;
 	}
 
-	devfs_handle = devfs_mk_dir(NULL, DEVICE_NAME, NULL);
+	devfs_handle = devfs_mk_dir(DEVICE_NAME);
 
 	rv = ipmi_smi_watcher_register(&smi_watcher);
 	if (rv) {

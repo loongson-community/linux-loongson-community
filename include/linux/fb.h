@@ -98,6 +98,8 @@
 #define FB_ACCEL_3DLABS_PERMEDIA3 37	/* 3Dlabs Permedia 3		*/
 #define FB_ACCEL_ATI_RADEON	38	/* ATI Radeon family		*/
 #define FB_ACCEL_I810           39      /* Intel 810/815                */
+#define FB_ACCEL_SIS_GLAMOUR_2  40	/* SiS 315, 650, 740		*/
+#define FB_ACCEL_SIS_XABRE      41	/* SiS 330 ("Xabre")		*/
 
 #define FB_ACCEL_NEOMAGIC_NM2070 90	/* NeoMagic NM2070              */
 #define FB_ACCEL_NEOMAGIC_NM2090 91	/* NeoMagic NM2090              */
@@ -294,7 +296,7 @@ struct fb_image {
 	__u32 fg_color;		/* Only used when a mono bitmap */
 	__u32 bg_color;
 	__u8  depth;		/* Depth of the image */
-	char  *data;		/* Pointer to image data */
+	const char *data;	/* Pointer to image data */
 	struct fb_cmap cmap;	/* color map info */
 };
 
@@ -307,8 +309,8 @@ struct fb_image {
 #define FB_CUR_SETHOT   0x04
 #define FB_CUR_SETCMAP  0x08
 #define FB_CUR_SETSHAPE 0x10
-#define FB_CUR_SETDEST	0x20
-#define FB_CUR_SETSIZE	0x40
+#define FB_CUR_SETSIZE	0x20
+#define FB_CUR_SETDEST	0x40
 #define FB_CUR_SETALL   0xFF
 
 struct fbcurpos {
@@ -325,10 +327,27 @@ struct fb_cursor {
 	struct fb_image	image;	/* Cursor image */
 };
 
+#define FB_PIXMAP_DEFAULT 1     /* used internally by fbcon */
+#define FB_PIXMAP_SYSTEM  2     /* memory is in system RAM  */
+#define FB_PIXMAP_IO      4     /* memory is iomapped       */
+#define FB_PIXMAP_SYNC    256   /* set if GPU can DMA       */
+
+struct fb_pixmap {
+        __u8  *addr;                      /* pointer to memory             */  
+	__u32 size;                       /* size of buffer in bytes       */
+	__u32 offset;                     /* current offset to buffer      */
+	__u32 buf_align;                  /* byte alignment of each bitmap */
+	__u32 scan_align;                 /* alignment per scanline        */
+	__u32 flags;                      /* see FB_PIXMAP_*               */
+	void (*outbuf)(u8 dst, u8 *addr); /* access methods                */
+	u8   (*inbuf) (u8 *addr);
+	unsigned long lock_flags;         /* flags for locking             */
+	spinlock_t lock;                  /* spinlock                      */
+	atomic_t count;
+};
 #ifdef __KERNEL__
 
 #include <linux/fs.h>
-#include <linux/poll.h>
 #include <linux/init.h>
 #include <linux/devfs_fs_kernel.h>
 
@@ -360,17 +379,15 @@ struct fb_ops {
     /* pan display */
     int (*fb_pan_display)(struct fb_var_screeninfo *var, struct fb_info *info);
     /* draws a rectangle */
-    void (*fb_fillrect)(struct fb_info *info, struct fb_fillrect *rect); 
+    void (*fb_fillrect)(struct fb_info *info, const struct fb_fillrect *rect); 
     /* Copy data from area to another */
-    void (*fb_copyarea)(struct fb_info *info, struct fb_copyarea *region); 
+    void (*fb_copyarea)(struct fb_info *info,const struct fb_copyarea *region); 
     /* Draws a image to the display */
-    void (*fb_imageblit)(struct fb_info *info, struct fb_image *image);
+    void (*fb_imageblit)(struct fb_info *info, const struct fb_image *image);
     /* Draws cursor */
     int (*fb_cursor)(struct fb_info *info, struct fb_cursor *cursor);
     /* Rotates the display */
     void (*fb_rotate)(struct fb_info *info, int angle);
-    /* perform polling on fb device */
-    int (*fb_poll)(struct fb_info *info, poll_table *wait);
     /* wait for blit idle, optional */
     int (*fb_sync)(struct fb_info *info);		
     /* perform fb specific ioctl (optional) */
@@ -390,13 +407,12 @@ struct fb_info {
    struct fb_monspecs monspecs;         /* Current Monitor specs */
    struct fb_cursor cursor;		/* Current cursor */	
    struct fb_cmap cmap;                 /* Current cmap */
+   struct fb_pixmap pixmap;	        /* Current pixmap */
    struct fb_ops *fbops;
    char *screen_base;                   /* Virtual address */
    struct vc_data *display_fg;		/* Console visible on this display */
    int currcon;				/* Current VC. */	
-   void *pseudo_palette;                /* Fake palette of 16 colors and 
-					   the cursor's color for non
-                                           palette mode */
+   void *pseudo_palette;                /* Fake palette of 16 colors */ 
    /* From here on everything is device dependent */
    void *par;	
 };
@@ -457,14 +473,21 @@ extern int fb_set_var(struct fb_var_screeninfo *var, struct fb_info *info);
 extern int fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info); 
 extern int fb_blank(int blank, struct fb_info *info);
 extern int soft_cursor(struct fb_info *info, struct fb_cursor *cursor);
-extern void cfb_fillrect(struct fb_info *info, struct fb_fillrect *rect); 
-extern void cfb_copyarea(struct fb_info *info, struct fb_copyarea *area); 
-extern void cfb_imageblit(struct fb_info *info, struct fb_image *image);
+extern void cfb_fillrect(struct fb_info *info, const struct fb_fillrect *rect); 
+extern void cfb_copyarea(struct fb_info *info, const struct fb_copyarea *area); 
+extern void cfb_imageblit(struct fb_info *info, const struct fb_image *image);
 
 /* drivers/video/fbmem.c */
 extern int register_framebuffer(struct fb_info *fb_info);
 extern int unregister_framebuffer(struct fb_info *fb_info);
+extern int fb_prepare_logo(struct fb_info *fb_info);
 extern int fb_show_logo(struct fb_info *fb_info);
+extern u32 fb_get_buffer_offset(struct fb_info *info, u32 size);
+extern void move_buf_unaligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch,
+			     	u32 height, u32 mask, u32 shift_high, u32 shift_low,
+				u32 mod, u32 idx);
+extern void move_buf_aligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch,
+			     u32 s_pitch, u32 height);
 extern struct fb_info *registered_fb[FB_MAX];
 extern int num_registered_fb;
 

@@ -26,6 +26,7 @@
 #include <linux/bootmem.h>	/* for max_pfn/max_low_pfn */
 #include <linux/completion.h>
 #include <linux/slab.h>
+#include <linux/swap.h>
 
 static void blk_unplug_work(void *data);
 static void blk_unplug_timeout(unsigned long data);
@@ -56,11 +57,7 @@ static int batch_requests;
 unsigned long blk_max_low_pfn, blk_max_pfn;
 int blk_nohighio = 0;
 
-static struct congestion_state {
-	wait_queue_head_t wqh;
-	atomic_t nr_congested_queues;
-	atomic_t nr_active_queues;
-} congestion_states[2];
+static wait_queue_head_t congestion_wqh[2];
 
 /*
  * Return the threshold (number of free requests) at which the queue is
@@ -98,14 +95,12 @@ static inline int queue_congestion_off_threshold(void)
 static void clear_queue_congested(request_queue_t *q, int rw)
 {
 	enum bdi_state bit;
-	struct congestion_state *cs = &congestion_states[rw];
+	wait_queue_head_t *wqh = &congestion_wqh[rw];
 
 	bit = (rw == WRITE) ? BDI_write_congested : BDI_read_congested;
-
-	if (test_and_clear_bit(bit, &q->backing_dev_info.state))
-		atomic_dec(&cs->nr_congested_queues);
-	if (waitqueue_active(&cs->wqh))
-		wake_up(&cs->wqh);
+	clear_bit(bit, &q->backing_dev_info.state);
+	if (waitqueue_active(wqh))
+		wake_up(wqh);
 }
 
 /*
@@ -117,37 +112,7 @@ static void set_queue_congested(request_queue_t *q, int rw)
 	enum bdi_state bit;
 
 	bit = (rw == WRITE) ? BDI_write_congested : BDI_read_congested;
-
-	if (!test_and_set_bit(bit, &q->backing_dev_info.state))
-		atomic_inc(&congestion_states[rw].nr_congested_queues);
-}
-
-/*
- * A queue has just put back its last read or write request and has fallen
- * idle.
- */
-static void clear_queue_active(request_queue_t *q, int rw)
-{
-	enum bdi_state bit;
-
-	bit = (rw == WRITE) ? BDI_write_active : BDI_read_active;
-
-	if (test_and_clear_bit(bit, &q->backing_dev_info.state))
-		atomic_dec(&congestion_states[rw].nr_active_queues);
-}
-
-/*
- * A queue has just taken its first read or write request and has become
- * active.
- */
-static void set_queue_active(request_queue_t *q, int rw)
-{
-	enum bdi_state bit;
-
-	bit = (rw == WRITE) ? BDI_write_active : BDI_read_active;
-
-	if (!test_and_set_bit(bit, &q->backing_dev_info.state))
-		atomic_inc(&congestion_states[rw].nr_active_queues);
+	set_bit(bit, &q->backing_dev_info.state);
 }
 
 /**
@@ -236,6 +201,7 @@ void blk_queue_make_request(request_queue_t * q, make_request_fn * mfn)
 	q->make_request_fn = mfn;
 	q->backing_dev_info.ra_pages = (VM_MAX_READAHEAD * 1024) / PAGE_CACHE_SIZE;
 	q->backing_dev_info.state = 0;
+	q->backing_dev_info.memory_backed = 0;
 	blk_queue_max_sectors(q, MAX_SECTORS);
 	blk_queue_hardsect_size(q, 512);
 	blk_queue_dma_alignment(q, 511);
@@ -1325,8 +1291,6 @@ static struct request *get_request(request_queue_t *q, int rw)
 		rq = blkdev_free_rq(&rl->free);
 		list_del_init(&rq->queuelist);
 		rq->ref_count = 1;
-		if (rl->count == queue_nr_requests)
-			set_queue_active(q, rw);
 		rl->count--;
 		if (rl->count < queue_congestion_on_threshold())
 			set_queue_congested(q, rw);
@@ -1569,8 +1533,6 @@ void __blk_put_request(request_queue_t *q, struct request *req)
 		rl->count++;
 		if (rl->count >= queue_congestion_off_threshold())
 			clear_queue_congested(q, rw);
-		if (rl->count == queue_nr_requests)
-			clear_queue_active(q, rw);
 		if (rl->count >= batch_requests && waitqueue_active(&rl->wait))
 			wake_up(&rl->wait);
 	}
@@ -1605,12 +1567,12 @@ void blk_put_request(struct request *req)
 void blk_congestion_wait(int rw, long timeout)
 {
 	DEFINE_WAIT(wait);
-	struct congestion_state *cs = &congestion_states[rw];
+	wait_queue_head_t *wqh = &congestion_wqh[rw];
 
 	blk_run_queues();
-	prepare_to_wait(&cs->wqh, &wait, TASK_UNINTERRUPTIBLE);
+	prepare_to_wait(wqh, &wait, TASK_UNINTERRUPTIBLE);
 	io_schedule_timeout(timeout);
-	finish_wait(&cs->wqh, &wait);
+	finish_wait(wqh, &wait);
 }
 
 /*
@@ -1932,13 +1894,14 @@ void generic_make_request(struct bio *bio)
 
 		if (maxsector < nr_sectors ||
 		    maxsector - nr_sectors < sector) {
+			char b[BDEVNAME_SIZE];
 			/* This may well happen - the kernel calls
 			 * bread() without checking the size of the
 			 * device, e.g., when mounting a device. */
 			printk(KERN_INFO
 			       "attempt to access beyond end of device\n");
 			printk(KERN_INFO "%s: rw=%ld, want=%Lu, limit=%Lu\n",
-			       bdevname(bio->bi_bdev),
+			       bdevname(bio->bi_bdev, b),
 			       bio->bi_rw,
 			       (unsigned long long) sector + nr_sectors,
 			       (long long) maxsector);
@@ -1957,12 +1920,15 @@ void generic_make_request(struct bio *bio)
 	 * Stacking drivers are expected to know what they are doing.
 	 */
 	do {
+		char b[BDEVNAME_SIZE];
+
 		q = bdev_get_queue(bio->bi_bdev);
 		if (!q) {
 			printk(KERN_ERR
-			       "generic_make_request: Trying to access nonexistent block-device %s (%Lu)\n",
-			       bdevname(bio->bi_bdev),
-			       (long long) bio->bi_sector);
+			       "generic_make_request: Trying to access "
+				"nonexistent block-device %s (%Lu)\n",
+				bdevname(bio->bi_bdev, b),
+				(long long) bio->bi_sector);
 end_io:
 			bio_endio(bio, bio->bi_size, -EIO);
 			break;
@@ -1970,9 +1936,9 @@ end_io:
 
 		if (unlikely(bio_sectors(bio) > q->max_sectors)) {
 			printk("bio too big device %s (%u > %u)\n", 
-			       bdevname(bio->bi_bdev),
-			       bio_sectors(bio),
-			       q->max_sectors);
+				bdevname(bio->bi_bdev, b),
+				bio_sectors(bio),
+				q->max_sectors);
 			goto end_io;
 		}
 
@@ -2249,11 +2215,8 @@ int __init blk_dev_init(void)
 	blk_max_low_pfn = max_low_pfn;
 	blk_max_pfn = max_pfn;
 
-	for (i = 0; i < ARRAY_SIZE(congestion_states); i++) {
-		init_waitqueue_head(&congestion_states[i].wqh);
-		atomic_set(&congestion_states[i].nr_congested_queues, 0);
-		atomic_set(&congestion_states[i].nr_active_queues, 0);
-	}
+	for (i = 0; i < ARRAY_SIZE(congestion_wqh); i++)
+		init_waitqueue_head(&congestion_wqh[i]);
 	return 0;
 };
 

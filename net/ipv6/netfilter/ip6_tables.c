@@ -1178,19 +1178,25 @@ do_replace(void *user, unsigned int len)
 		goto free_newinfo_counters_untrans_unlock;
 	}
 
+	/* Get a reference in advance, we're not allowed fail later */
+	if (!try_module_get(t->me)) {
+		ret = -EBUSY;
+		goto free_newinfo_counters_untrans_unlock;
+	}
+
 	oldinfo = replace_table(t, tmp.num_counters, newinfo, &ret);
 	if (!oldinfo)
-		goto free_newinfo_counters_untrans_unlock;
+		goto put_module;
 
 	/* Update module usage count based on number of rules */
 	duprintf("do_replace: oldnum=%u, initnum=%u, newnum=%u\n",
 		oldinfo->number, oldinfo->initial_entries, newinfo->number);
-	if (t->me && (oldinfo->number <= oldinfo->initial_entries) &&
- 	    (newinfo->number > oldinfo->initial_entries))
-		__MOD_INC_USE_COUNT(t->me);
-	else if (t->me && (oldinfo->number > oldinfo->initial_entries) &&
-	 	 (newinfo->number <= oldinfo->initial_entries))
-		__MOD_DEC_USE_COUNT(t->me);
+	if ((oldinfo->number > oldinfo->initial_entries) || 
+	    (newinfo->number <= oldinfo->initial_entries)) 
+		module_put(t->me);
+	if ((oldinfo->number > oldinfo->initial_entries) &&
+	    (newinfo->number <= oldinfo->initial_entries))
+		module_put(t->me);
 
 	/* Get the old counters. */
 	get_counters(oldinfo, counters);
@@ -1204,6 +1210,8 @@ do_replace(void *user, unsigned int len)
 	up(&ip6t_mutex);
 	return 0;
 
+ put_module:
+	module_put(t->me);
  free_newinfo_counters_untrans_unlock:
 	up(&ip6t_mutex);
  free_newinfo_counters_untrans:
@@ -1735,21 +1743,42 @@ icmp6_checkentry(const char *tablename,
 }
 
 /* The built-in targets: standard (NULL) and error. */
-static struct ip6t_target ip6t_standard_target
-= { { NULL, NULL }, IP6T_STANDARD_TARGET, NULL, NULL, NULL };
-static struct ip6t_target ip6t_error_target
-= { { NULL, NULL }, IP6T_ERROR_TARGET, ip6t_error, NULL, NULL };
+static struct ip6t_target ip6t_standard_target = {
+	.name		= IP6T_STANDARD_TARGET,
+};
 
-static struct nf_sockopt_ops ip6t_sockopts
-= { { NULL, NULL }, PF_INET6, IP6T_BASE_CTL, IP6T_SO_SET_MAX+1, do_ip6t_set_ctl,
-    IP6T_BASE_CTL, IP6T_SO_GET_MAX+1, do_ip6t_get_ctl, 0, NULL  };
+static struct ip6t_target ip6t_error_target = {
+	.name		= IP6T_ERROR_TARGET,
+	.target		= ip6t_error,
+};
 
-static struct ip6t_match tcp_matchstruct
-= { { NULL, NULL }, "tcp", &tcp_match, &tcp_checkentry, NULL };
-static struct ip6t_match udp_matchstruct
-= { { NULL, NULL }, "udp", &udp_match, &udp_checkentry, NULL };
-static struct ip6t_match icmp6_matchstruct
-= { { NULL, NULL }, "icmp6", &icmp6_match, &icmp6_checkentry, NULL };
+static struct nf_sockopt_ops ip6t_sockopts = {
+	.pf		= PF_INET6,
+	.set_optmin	= IP6T_BASE_CTL,
+	.set_optmax	= IP6T_SO_SET_MAX+1,
+	.set		= do_ip6t_set_ctl,
+	.get_optmin	= IP6T_BASE_CTL,
+	.get_optmax	= IP6T_SO_GET_MAX+1,
+	.get		= do_ip6t_get_ctl,
+};
+
+static struct ip6t_match tcp_matchstruct = {
+	.name		= "tcp",
+	.match		= &tcp_match,
+	.checkentry	= &tcp_checkentry,
+};
+
+static struct ip6t_match udp_matchstruct = {
+	.name		= "udp",
+	.match		= &udp_match,
+	.checkentry	= &udp_checkentry,
+};
+
+static struct ip6t_match icmp6_matchstruct = {
+	.name		= "icmp6",
+	.match		= &icmp6_match,
+	.checkentry	= &icmp6_checkentry,
+};
 
 #ifdef CONFIG_PROC_FS
 static inline int print_name(const struct ip6t_table *t,

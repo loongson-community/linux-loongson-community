@@ -246,7 +246,6 @@ CONFIG_BLK_DEV_IDECS=m
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -638,14 +637,14 @@ CONFIG_NFSD=m
 CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_EXPORTFS=m
+CONFIG_SUNRPC=y
+# CONFIG_SUNRPC_GSS is not set
 CONFIG_SMB_FS=m
 # CONFIG_SMB_NLS_DEFAULT is not set
 # CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_CODA_FS is not set
 # CONFIG_INTERMEZZO_FS is not set
-CONFIG_SUNRPC=y
-# CONFIG_SUNRPC_GSS is not set
 # CONFIG_AFS_FS is not set
 
 #
@@ -710,6 +709,11 @@ CONFIG_NLS_DEFAULT="iso8859-1"
 # CONFIG_MDA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FRAMEBUFFER_CONSOLE is not set
+
+#
+# Logo configuration
+#
+# CONFIG_LOGO is not set
 
 #
 # Sound

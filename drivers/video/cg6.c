@@ -33,8 +33,8 @@ static int cg6_setcolreg(unsigned, unsigned, unsigned, unsigned,
 			 unsigned, struct fb_info *);
 static int cg6_blank(int, struct fb_info *);
 
-static void cg6_imageblit(struct fb_info *, struct fb_image *);
-static void cg6_fillrect(struct fb_info *, struct fb_fillrect *);
+static void cg6_imageblit(struct fb_info *, const struct fb_image *);
+static void cg6_fillrect(struct fb_info *, const struct fb_fillrect *);
 static int cg6_sync(struct fb_info *);
 static int cg6_mmap(struct fb_info *, struct file *, struct vm_area_struct *);
 static int cg6_ioctl(struct inode *, struct file *, unsigned int,
@@ -289,7 +289,7 @@ static int cg6_sync(struct fb_info *info)
  *      @info: frame buffer structure that represents a single frame buffer
  *      @rect: structure defining the rectagle and operation.
  */
-static void cg6_fillrect(struct fb_info *info, struct fb_fillrect *rect)
+static void cg6_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
 	struct cg6_par *par = (struct cg6_par *) info->par;
 	struct cg6_fbc *fbc = par->fbc;
@@ -324,11 +324,11 @@ static void cg6_fillrect(struct fb_info *info, struct fb_fillrect *rect)
  *      @info: frame buffer structure that represents a single frame buffer
  *      @image: structure defining the image.
  */
-static void cg6_imageblit(struct fb_info *info, struct fb_image *image)
+static void cg6_imageblit(struct fb_info *info, const struct fb_image *image)
 {
 	struct cg6_par *par = (struct cg6_par *) info->par;
 	struct cg6_fbc *fbc = par->fbc;
-	u8 *data = image->data;
+	const u8 *data = image->data;
 	unsigned long flags;
 	u32 x, y;
 	int i, width;

@@ -323,6 +323,7 @@ xfs_showargs(
 	};
 	struct proc_xfs_info	*xfs_infop;
 	struct xfs_mount	*mp = XFS_BHVTOM(vfsp->vfs_fbhv);
+	char b[BDEVNAME_SIZE];
 
 	for (xfs_infop = xfs_info; xfs_infop->flag; xfs_infop++) {
 		if (mp->m_flags & xfs_infop->flag)
@@ -352,12 +353,12 @@ xfs_showargs(
 
 	if (mp->m_ddev_targp->pbr_dev != mp->m_logdev_targp->pbr_dev)
 		seq_printf(m, "," MNTOPT_LOGDEV "=%s",
-				bdevname(mp->m_logdev_targp->pbr_bdev));
+				bdevname(mp->m_logdev_targp->pbr_bdev, b));
 
 	if (mp->m_rtdev_targp &&
 	    mp->m_ddev_targp->pbr_dev != mp->m_rtdev_targp->pbr_dev)
 		seq_printf(m, "," MNTOPT_RTDEV "=%s",
-				bdevname(mp->m_rtdev_targp->pbr_bdev));
+				bdevname(mp->m_rtdev_targp->pbr_bdev, b));
 
 	if (mp->m_dalign > 0)
 		seq_printf(m, "," MNTOPT_SUNIT "=%d",
@@ -766,7 +767,9 @@ linvfs_put_super(
 	vfs_t			*vfsp = LINVFS_GET_VFS(sb);
 	int			error;
 
-	VFS_DOUNMOUNT(vfsp, 0, NULL, NULL, error);
+	VFS_SYNC(vfsp, SYNC_ATTR|SYNC_DELWRI, NULL, error);
+	if (error == 0)
+		VFS_UNMOUNT(vfsp, 0, NULL, error);
 	if (error) {
 		printk("XFS unmount got error %d\n", error);
 		printk("%s: vfsp/0x%p left dangling!\n", __FUNCTION__, vfsp);

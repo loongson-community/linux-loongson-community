@@ -17,6 +17,7 @@
  */
 
 #include <linux/mm.h>
+#include <linux/swap.h>
 #include <linux/bio.h>
 #include <linux/pagemap.h>
 #include <linux/mempool.h>
@@ -120,7 +121,7 @@ start:
 		{
 			DECLARE_WAITQUEUE(wait, current);
 
-			current->state = TASK_UNINTERRUPTIBLE;
+			__set_current_state(TASK_UNINTERRUPTIBLE);
 			add_wait_queue(&pkmap_map_wait, &wait);
 			spin_unlock(&kmap_lock);
 			schedule();

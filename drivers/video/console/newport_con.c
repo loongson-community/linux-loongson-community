@@ -26,13 +26,10 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <video/newport.h>
-#define INCLUDE_LINUX_LOGO_DATA
-#include <asm/linux_logo.h>
 
+#include <linux/linux_logo.h>
 #include <linux/font.h>
 
-#define LOGO_W		80
-#define LOGO_H		80
 
 extern struct font_desc font_vga_8x16;
 extern unsigned long sgi_gfxaddr;
@@ -99,29 +96,32 @@ static inline void newport_init_cmap(void)
 	}
 }
 
-static inline void newport_show_logo(void)
+static void newport_show_logo(void)
 {
+#ifdef CONFIG_LOGO_SGI_CLUT224
+	const struct linux_logo *logo = fb_find_logo(LINUX_LOGO_CLUT224);
+	const unsigned char *clut = logo->clut;
+	const unsigned char *data = logo->data;
 	unsigned long i;
 
-	for (i = 0; i < LINUX_LOGO_COLORS; i++) {
+	for (i = 0; i < logo->clutsize; i++) {
 		newport_bfwait();
 		newport_cmap_setaddr(npregs, i + 0x20);
-		newport_cmap_setrgb(npregs,
-				    linux_logo_red[i],
-				    linux_logo_green[i],
-				    linux_logo_blue[i]);
+		newport_cmap_setrgb(npregs, clut[0], clut[1], clut[2]);
+		clut += 3;
 	}
 
 	newport_wait();
 	npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 				 NPORT_DMODE0_CHOST);
 
-	npregs->set.xystarti = ((newport_xsize - LOGO_W) << 16) | (0);
+	npregs->set.xystarti = ((newport_xsize - logo->width) << 16) | (0);
 	npregs->set.xyendi = ((newport_xsize - 1) << 16);
 	newport_wait();
 
-	for (i = 0; i < LOGO_W * LOGO_H; i++)
-		npregs->go.hostrw0 = linux_logo[i] << 24;
+	for (i = 0; i < logo->width*logo->height; i++)
+		npregs->go.hostrw0 = *data++ << 24;
+#endif /* CONFIG_LOGO_SGI_CLUT224 */
 }
 
 static inline void newport_clear_screen(int xstart, int ystart, int xend,

@@ -204,7 +204,6 @@ CONFIG_BLK_DEV_SD=y
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -486,13 +485,13 @@ CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
 # CONFIG_EXPORTFS is not set
+CONFIG_SUNRPC=y
+# CONFIG_SUNRPC_GSS is not set
 # CONFIG_SMB_FS is not set
 # CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_CODA_FS is not set
 # CONFIG_INTERMEZZO_FS is not set
-CONFIG_SUNRPC=y
-# CONFIG_SUNRPC_GSS is not set
 # CONFIG_AFS_FS is not set
 
 #
@@ -504,13 +503,6 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Graphics support
 #
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

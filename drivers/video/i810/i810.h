@@ -170,13 +170,6 @@
 #define REF_FREQ                    24000000
 #define TARGET_N_MAX                30
 
-#define FLYBACK                     550
-#define V_FRONTPORCH                1
-#define H_OFFSET                    40
-#define H_SCALEFACTOR               20
-#define H_BLANKSCALE                128
-#define H_GRADIENT                   600
-
 #define MAX_PIXELCLOCK              230000000
 #define MIN_PIXELCLOCK               15000000
 #define VFMAX                       60
@@ -263,6 +256,7 @@ struct i810fb_par {
 	drm_agp_t                *drm_agp;
 	atomic_t                 use_count;
 	u32 pseudo_palette[17];
+	u32 pci_state[16];
 	unsigned long mmio_start_phys;
 	u8 *mmio_start_virtual;
 	u32 cursor_reset;
@@ -280,6 +274,7 @@ struct i810fb_par {
 	u32 depth;
 	u32 blit_bpp;
 	u32 ovract;
+	u32 cur_state;
 	int mtrr_reg;
 	u16 bltcntl;
 	u8 interlace;

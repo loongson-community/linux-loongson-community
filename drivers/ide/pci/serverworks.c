@@ -57,7 +57,7 @@ static int n_svwks_devs;
 static int svwks_get_info (char *buffer, char **addr, off_t offset, int count)
 {
 	char *p = buffer;
-	int i;
+	int i, len;
 
 	p += sprintf(p, "\n                             "
 			"ServerWorks OSB4/CSB5/CSB6\n");
@@ -195,7 +195,11 @@ static int svwks_get_info (char *buffer, char **addr, off_t offset, int count)
 	}
 	p += sprintf(p, "\n");
 
-	return p-buffer;	 /* => must be less than 4k! */
+	/* p - buffer must be less than 4k! */
+	len = (p - buffer) - offset;
+	*addr = buffer + offset;
+	
+	return len > count ? count : len;
 }
 #endif  /* defined(DISPLAY_SVWKS_TIMINGS) && defined(CONFIG_PROC_FS) */
 
@@ -578,7 +582,7 @@ static unsigned int __init init_chipset_svwks (struct pci_dev *dev, const char *
 			 * This is a device pin issue on CSB6.
 			 * Since there will be a future raid mode,
 			 * early versions of the chipset require the
-			 * interrupt pin to be set, and it is a compatiblity
+			 * interrupt pin to be set, and it is a compatibility
 			 * mode issue.
 			 */
 			dev->irq = 0;

@@ -96,12 +96,10 @@
 #include <linux/init.h>
 #include <linux/version.h>
 #include <linux/slab.h>
-
 #include <asm/io.h>
 #include <asm/ioctl.h>
 #include <asm/uaccess.h>
-
-#include "sstfb.h"
+#include <video/sstfb.h>
 
 
 /* initialized by setup */
@@ -835,7 +833,7 @@ static int sstfb_ioctl(struct inode *inode, struct file *file,
  * Screen-to-Screen BitBlt 2D command (for the bmove fb op.) - Voodoo2 only
  */
 #if 0
-static void sstfb_copyarea(struct fb_info *info, struct fb_copyarea *area)  
+static void sstfb_copyarea(struct fb_info *info, const struct fb_copyarea *area)
 {
 	struct sstfb_par *par = (struct sstfb_par *) info->par;
 	u32 stride = info->fix.line_length;
@@ -860,7 +858,7 @@ static void sstfb_copyarea(struct fb_info *info, struct fb_copyarea *area)
 /*
  * FillRect 2D command (solidfill or invert (via ROP_XOR)) - Voodoo2 only
  */
-static void sstfb_fillrect(struct fb_info *info, struct fb_fillrect *rect) 
+static void sstfb_fillrect(struct fb_info *info, const struct fb_fillrect *rect) 
 {
 	struct sstfb_par *par = (struct sstfb_par *) info->par;
 	u32 stride = info->fix.line_length;
@@ -1638,15 +1636,15 @@ static int sstfb_dump_regs(struct fb_info *info)
 #endif
 }
 
-static void sstfb_fillrect_softw( struct fb_info *info, struct fb_fillrect *rect)
+static void sstfb_fillrect_softw( struct fb_info *info, const struct fb_fillrect *rect)
 {
 	unsigned long fbbase_virt = (unsigned long) info->screen_base;
-	unsigned long p;
 	int x, y, w = info->var.bits_per_pixel == 16 ? 2 : 4;
-	u32 color = rect->color;
+	u32 color = rect->color, height = rect->height;
+	unsigned long p;
 	
 	if (w==2) color |= color<<16;
-	for (y=rect->dy; rect->height; y++, rect->height--) {
+	for (y=rect->dy; height; y++, height--) {
 		p = fbbase_virt + y*info->fix.line_length + rect->dx*w;
 		x = rect->width;
 		if (w==2) x>>=1;

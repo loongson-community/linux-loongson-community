@@ -32,8 +32,10 @@ int esp_output(struct sk_buff *skb)
 	} tmp_iph;
 
 	/* First, if the skb is not checksummed, complete checksum. */
-	if (skb->ip_summed == CHECKSUM_HW && skb_checksum_help(skb) == NULL)
-		return -EINVAL;
+	if (skb->ip_summed == CHECKSUM_HW && skb_checksum_help(skb) == NULL) {
+		err = -EINVAL;
+		goto error_nolock;
+	}
 
 	spin_lock_bh(&x->lock);
 	if ((err = xfrm_state_check_expire(x)) != 0)
@@ -89,8 +91,8 @@ int esp_output(struct sk_buff *skb)
 		top_iph->ttl = iph->ttl;	/* TTL disclosed */
 		top_iph->protocol = IPPROTO_ESP;
 		top_iph->check = 0;
-		top_iph->saddr = x->props.saddr.xfrm4_addr;
-		top_iph->daddr = x->id.daddr.xfrm4_addr;
+		top_iph->saddr = x->props.saddr.a4;
+		top_iph->daddr = x->id.daddr.a4;
 		memset(&(IPCB(skb)->opt), 0, sizeof(struct ip_options));
 	} else {
 		esph = (struct ip_esp_hdr*)skb_push(skb, x->props.header_len);
@@ -143,8 +145,10 @@ int esp_output(struct sk_buff *skb)
 	x->curlft.bytes += skb->len;
 	x->curlft.packets++;
 	spin_unlock_bh(&x->lock);
-	if ((skb->dst = dst_pop(dst)) == NULL)
+	if ((skb->dst = dst_pop(dst)) == NULL) {
+		err = -EHOSTUNREACH;
 		goto error_nolock;
+	}
 	return NET_XMIT_BYPASS;
 
 error:
@@ -259,7 +263,7 @@ static u32 esp4_get_max_size(struct xfrm_state *x, int mtu)
 	if (esp->conf.padlen)
 		mtu = (mtu + esp->conf.padlen-1)&~(esp->conf.padlen-1);
 
-	return mtu + x->props.header_len + esp->auth.icv_full_len;
+	return mtu + x->props.header_len + esp->auth.icv_trunc_len;
 }
 
 void esp4_err(struct sk_buff *skb, u32 info)
@@ -272,7 +276,7 @@ void esp4_err(struct sk_buff *skb, u32 info)
 	    skb->h.icmph->code != ICMP_FRAG_NEEDED)
 		return;
 
-	x = xfrm4_state_lookup(iph->daddr, esph->spi, IPPROTO_ESP);
+	x = xfrm_state_lookup((xfrm_address_t *)&iph->daddr, esph->spi, IPPROTO_ESP, AF_INET);
 	if (!x)
 		return;
 	printk(KERN_DEBUG "pmtu discvovery on SA ESP/%08x/%08x\n",
@@ -365,6 +369,7 @@ int esp_init_state(struct xfrm_state *x, void *args)
 	if (x->props.mode)
 		x->props.header_len += 20;
 	x->data = esp;
+	x->props.trailer_len = esp4_get_max_size(x, 0) - x->props.header_len;
 	return 0;
 
 error:
@@ -400,13 +405,13 @@ static struct inet_protocol esp4_protocol = {
 int __init esp4_init(void)
 {
 	SET_MODULE_OWNER(&esp_type);
-	if (xfrm_register_type(&esp_type) < 0) {
+	if (xfrm_register_type(&esp_type, AF_INET) < 0) {
 		printk(KERN_INFO "ip esp init: can't add xfrm type\n");
 		return -EAGAIN;
 	}
 	if (inet_add_protocol(&esp4_protocol, IPPROTO_ESP) < 0) {
 		printk(KERN_INFO "ip esp init: can't add protocol\n");
-		xfrm_unregister_type(&esp_type);
+		xfrm_unregister_type(&esp_type, AF_INET);
 		return -EAGAIN;
 	}
 	return 0;
@@ -416,7 +421,7 @@ static void __exit esp4_fini(void)
 {
 	if (inet_del_protocol(&esp4_protocol, IPPROTO_ESP) < 0)
 		printk(KERN_INFO "ip esp close: can't remove protocol\n");
-	if (xfrm_unregister_type(&esp_type) < 0)
+	if (xfrm_unregister_type(&esp_type, AF_INET) < 0)
 		printk(KERN_INFO "ip esp close: can't remove xfrm type\n");
 }
 

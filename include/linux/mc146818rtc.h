@@ -88,7 +88,7 @@ extern spinlock_t rtc_lock;		/* serialize CMOS RAM access */
 /**********************************************************************/
 
 #ifndef RTC_IO_EXTENT
-#define RTC_IO_EXTENT	0x10	/* Only really two ports, but...	*/
+#define RTC_IO_EXTENT	0x8
 #endif
 
 #ifndef RTC_IOMAPPED

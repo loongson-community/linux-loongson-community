@@ -227,7 +227,6 @@ CONFIG_SCSI_CONSTANTS=y
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -532,6 +531,8 @@ CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
 CONFIG_EXPORTFS=m
+CONFIG_SUNRPC=y
+# CONFIG_SUNRPC_GSS is not set
 CONFIG_SMB_FS=m
 CONFIG_SMB_NLS_DEFAULT=y
 CONFIG_SMB_NLS_REMOTE="cp932"
@@ -539,8 +540,6 @@ CONFIG_SMB_NLS_REMOTE="cp932"
 # CONFIG_NCP_FS is not set
 # CONFIG_CODA_FS is not set
 # CONFIG_INTERMEZZO_FS is not set
-CONFIG_SUNRPC=y
-# CONFIG_SUNRPC_GSS is not set
 # CONFIG_AFS_FS is not set
 
 #
@@ -605,6 +604,11 @@ CONFIG_NLS_ISO8859_1=m
 # CONFIG_MDA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FRAMEBUFFER_CONSOLE is not set
+
+#
+# Logo configuration
+#
+# CONFIG_LOGO is not set
 
 #
 # Sound

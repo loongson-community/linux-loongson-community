@@ -208,12 +208,14 @@ static spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
 void __die(const char * str, struct pt_regs * regs, const char * file,
 	   const char * func, unsigned long line)
 {
+	static int die_counter;
+
 	console_verbose();
 	spin_lock_irq(&die_lock);
 	printk("%s", str);
 	if (file && func)
 		printk(" in %s:%s, line %ld", file, func, line);
-	printk(":\n");
+	printk("[#%d]:\n", ++die_counter);
 	show_registers(regs);
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
