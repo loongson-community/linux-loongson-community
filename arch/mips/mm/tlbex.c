@@ -497,7 +497,8 @@ static __init void i_LA_mostly(u32 **buf, unsigned int rs, long addr)
 		i_lui(buf, rs, rel_hi(addr));
 }
 
-static __init void i_LA(u32 **buf, unsigned int rs, long addr)
+static __init void __attribute__((unused)) i_LA(u32 **buf, unsigned int rs,
+						long addr)
 {
 	i_LA_mostly(buf, rs, addr);
 	if (rel_lo(addr))
@@ -565,7 +566,8 @@ static __init void copy_handler(struct reloc *rel, struct label *lab,
 			lab->addr += off;
 }
 
-static __init int insn_has_bdelay(struct reloc *rel, u32 *addr)
+static __init int __attribute__((unused)) insn_has_bdelay(struct reloc *rel,
+							  u32 *addr)
 {
 	for (; rel->lab != label_invalid; rel++) {
 		if (rel->addr == addr
@@ -578,14 +580,15 @@ static __init int insn_has_bdelay(struct reloc *rel, u32 *addr)
 }
 
 /* convenience functions for labeled branches */
-static void il_bltz(u32 **p, struct reloc **r, unsigned int reg,
-		    enum label_id l)
+static void __attribute__((unused)) il_bltz(u32 **p, struct reloc **r,
+					    unsigned int reg, enum label_id l)
 {
 	r_mips_pc16(r, *p, l);
 	i_bltz(p, reg, 0);
 }
 
-static void il_b(u32 **p, struct reloc **r, enum label_id l)
+static void __attribute__((unused)) il_b(u32 **p, struct reloc **r,
+					 enum label_id l)
 {
 	r_mips_pc16(r, *p, l);
 	i_b(p, 0);
