@@ -168,8 +168,8 @@ static int isBranchInstr(mips_instruction * i)
 
 #define SIFROMREG(si,x)	((si) = \
 			(xcp->cp0_status & FR_BIT) || !(x & 1) ? \
-			ctx->regs[x] : \
-			ctx->regs[x & ~1] >> 32 )
+			(int)ctx->regs[x] : \
+			(int)(ctx->regs[x & ~1] >> 32 ))
 #define SITOREG(si,x)	(ctx->regs[x & ~((xcp->cp0_status & FR_BIT) == 0)] = \
 			(xcp->cp0_status & FR_BIT) || !(x & 1) ? \
 			ctx->regs[x & ~1] >> 32 << 32 | (u32)(si) : \
