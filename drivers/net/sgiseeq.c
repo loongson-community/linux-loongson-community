@@ -716,6 +716,13 @@ int sgiseeq_probe(struct net_device *dev)
 	 * On MIPS64 it crashes for some other, yet unknown reason ...
 	 */
 	ep = ArcGetEnvironmentVariable("eaddr");
+	if (ep == NULL) {
+		/*
+		 * This one is likely to be caused by a broken NVRAM
+		 */
+		printk(KERN_CRIT "Seeq8003: Can't get MAC address!\n");
+		return -ENODEV;
+	}
 	str2eaddr(onboard_eth_addr, ep);
 	return sgiseeq_init(dev,
 			    (struct sgiseeq_regs *) (KSEG1ADDR(0x1fbd4000)),
