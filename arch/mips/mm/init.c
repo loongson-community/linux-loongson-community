@@ -99,8 +99,8 @@ static void __init kmap_init(void)
 	kmap_prot = PAGE_KERNEL;
 }
 
-#ifdef CONFIG_MIPS64
-static void __init fixrange_init(unsigned long start, unsigned long end,
+#ifdef CONFIG_MIPS32
+void __init fixrange_init(unsigned long start, unsigned long end,
 	pgd_t *pgd_base)
 {
 	pgd_t *pgd;
@@ -128,7 +128,7 @@ static void __init fixrange_init(unsigned long start, unsigned long end,
 		j = 0;
 	}
 }
-#endif /* CONFIG_MIPS64 */
+#endif /* CONFIG_MIPS32 */
 #endif /* CONFIG_HIGHMEM */
 
 #ifndef CONFIG_DISCONTIGMEM
