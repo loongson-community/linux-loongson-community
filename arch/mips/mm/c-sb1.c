@@ -98,36 +98,32 @@ static void sb1_writeback_inv_dcache_all(void)
 }
 
 
-static inline void __sb1_writeback_inv_dcache_range(unsigned long start, unsigned long end)
+static inline void __sb1_writeback_inv_dcache_range(unsigned long start,
+	unsigned long end)
 {
 	__asm__ __volatile__ (
-		".set push                  \n"
-		".set noreorder             \n"
-		".set noat                  \n"
-		".set mips4                 \n"
-		"     move   $1, %0         \n"
-		"1:                         \n"
-		"     cache  %3, (0<<13)($1) \n" /* Index-WB-inval this address */
-		"     cache  %3, (1<<13)($1) \n" /* Index-WB-inval this address */
-		"     cache  %3, (2<<13)($1) \n" /* Index-WB-inval this address */
-		"     cache  %3, (3<<13)($1) \n" /* Index-WB-inval this address */
-		"     li     $8, 1<<12       \n"
-		"     xor    $1, $1, $8      \n"
-		"     cache  %3, (0<<13)($1) \n" /* Index-WB-inval this address */
-		"     cache  %3, (1<<13)($1) \n" /* Index-WB-inval this address */
-		"     cache  %3, (2<<13)($1) \n" /* Index-WB-inval this address */
-		"     cache  %3, (3<<13)($1) \n" /* Index-WB-inval this address */
-		"     bne    $1, %1, 1b     \n" /* loop test */
-		"      addu  $1, $1, %2     \n" /* next line */
-		"     sync                  \n"
-		".set pop                   \n"
-		:
-		: "r" (start  & ~(dcache_line_size - 1)),
-		  "r" ((end - 1) & ~(dcache_line_size - 1)),
-		  "r" (dcache_line_size),
-		  "i" (Index_Writeback_Inv_D)
-		: "$8"
-		);
+	"	.set	push		\n"
+	"	.set	noreorder	\n"
+	"	.set	noat		\n"
+	"	.set	mips4		\n"
+	"1:	cache	%3, (0<<13)(%0)	\n" /* Index-WB-inval this address */
+	"	cache	%3, (1<<13)(%0)	\n" /* Index-WB-inval this address */
+	"	cache	%3, (2<<13)(%0)	\n" /* Index-WB-inval this address */
+	"	cache	%3, (3<<13)(%0)	\n" /* Index-WB-inval this address */
+	"	xori	$1, %0, 1<<12 	\n"
+	"	cache	%3, (0<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%3, (1<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%3, (2<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%3, (3<<13)($1)	\n" /* Index-WB-inval this address */
+	"	bne	$1, %1, 1b	\n" /* loop test */
+	"	 addu	$1, $1, %2	\n" /* next line */
+	"	sync			\n"
+	"	.set pop		\n"
+	:
+	: "r" (start  & ~(dcache_line_size - 1)),
+	  "r" ((end - 1) & ~(dcache_line_size - 1)),
+	  "r" (dcache_line_size),
+	  "i" (Index_Writeback_Inv_D));
 }
 
 
@@ -278,38 +274,28 @@ static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 	 * This routine is called on both cores.  We assume the ASID
 	 * has been set up properly, and interrupts are off to prevent
 	 * reschedule and TLB changes.
-	 *
-	 * XXXKW the dcache flush on the remote core may be argued to
-	 * be unnecessary.
 	 */
 	__asm__ __volatile__ (
-		".set push                  \n"
-		".set noreorder             \n"
-		".set noat                  \n"
-		".set mips4                 \n"
-		"     move   $1, %0         \n"
-		"     cache  %1, (0<<13)($1) \n" /* Index-inval this address */
-		"     cache  %1, (1<<13)($1) \n" /* Index-inval this address */
-		"     cache  %1, (2<<13)($1) \n" /* Index-inval this address */
-		"     cache  %1, (3<<13)($1) \n" /* Index-inval this address */
-		"     li     $8, 1<<12       \n"
-		"     xor    $8, $1, $8      \n" /* Flip index bit 12 (VA/PA alias) */
-		"     cache  %1, (0<<13)($8) \n" /* Index-inval this address */
-		"     cache  %1, (1<<13)($8) \n" /* Index-inval this address */
-		"     cache  %1, (2<<13)($8) \n" /* Index-inval this address */
-		"     cache  %1, (3<<13)($8) \n" /* Index-inval this address */
-		"     cache  %2, (0<<13)($1) \n" /* Index-inval this address */
-		"     cache  %2, (1<<13)($1) \n" /* Index-inval this address */
-		"     cache  %2, (2<<13)($1) \n" /* Index-inval this address */
-		"     cache  %2, (3<<13)($1) \n" /* Index-inval this address */
-		"                            \n"
-		".set pop                    \n"
-		:
-		: "r" (addr),
-		"i" (Index_Writeback_Inv_D),
-		"i" (Index_Invalidate_I)
-		: "$8"
-		);
+	"	.set	push		\n"
+	"	.set	noreorder	\n"
+	"	.set	noat		\n"
+	"	.set	mips4		\n"
+	"	cache	%2, (0<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%2, (1<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%2, (2<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%2, (3<<13)(%0)	\n" /* Index-inval this address */
+	"	xor	$1, %0, 1<<12	\n" /* Flip index bit 12	*/
+	"	cache	%2, (0<<13)($1)	\n" /* Index-inval this address */
+	"	cache	%2, (1<<13)($1)	\n" /* Index-inval this address */
+	"	cache	%2, (2<<13)($1)	\n" /* Index-inval this address */
+	"	cache	%2, (3<<13)($1)	\n" /* Index-inval this address */
+	"	cache	%3, (0<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%3, (1<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%3, (2<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%3, (3<<13)(%0)	\n" /* Index-inval this address */
+	"	.set	pop		\n"
+	: "=r" (addr)
+	: "0" (addr), "i" (Index_Writeback_Inv_D), "i" (Index_Invalidate_I));
 }
 
 #ifdef CONFIG_SMP
@@ -336,7 +322,8 @@ asm("sb1_flush_cache_sigtramp = local_sb1_flush_cache_sigtramp");
  * XXXKW the dcache flush on the remote core may be argued to
  * be unnecessary.
  */
-static void local_sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr)
+static void local_sb1_flush_cache_page(struct vm_area_struct *vma,
+	unsigned long addr)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
@@ -377,30 +364,8 @@ asm("sb1_flush_cache_page = local_sb1_flush_cache_page");
  * coherent in dcache space.  This is just a dummy function that all the
  * nop'ed routines point to
  */
-
 static void sb1_nop(void)
 {
-}
-
-/*
- * This only needs to make sure stores done up to this
- * point are visible to other agents outside the CPU.  Given
- * the coherent nature of the ZBbus, all that's required here is
- * a sync to make sure the data gets out to the caches and is
- * visible to an arbitrary A Phase from an external agent
- *
- * Actually, I'm not even sure that's necessary; the semantics
- * of this function aren't clear.  If it's supposed to serve as
- * a memory barrier, this is needed.  If it's only meant to
- * prevent data from being invisible to non-cpu memory accessors
- * for some indefinite period of time (e.g. in a non-coherent
- * dcache) then this function would be a complete nop.
- */
-static void sb1_sync(struct page *page)
-{
-	__asm__ __volatile__(
-		"     sync  \n"  /* Short pipe */
-		:::"memory");
 }
 
 /*
@@ -509,7 +474,7 @@ void ld_mmu_sb1(void)
 	 * coherence with I-stream is needed, an icache will be used
 	 * -- so we don't have to do any flushing.
 	 */
-	_flush_page_to_ram = (void (*)(struct page *)) sb1_sync;
+	_flush_page_to_ram = (void (*)(struct page *)) sb1_nop;
 
 	___flush_cache_all = sb1___flush_cache_all;
 	_flush_icache_page = sb1_flush_icache_page;
