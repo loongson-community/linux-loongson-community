@@ -523,7 +523,7 @@ endif
 #
 # SGI-IP32 (O2)
 #
-# Set the load address to >= 0x????????? if you want to leave space for symmon,
+# Set the load address to >= 80069000 if you want to leave space for symmon,
 # 0x80002000 for production kernels.  Note that the value must be aligned to
 # a multiple of the kernel stack size or the handling of the current variable
 # will break so for 64-bit kernels we have to raise the start address by 8kb.
