@@ -1,7 +1,7 @@
 /*
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *         	stevel@mvista.com or support@mvista.com
+ *         	stevel@mvista.com or source@mvista.com
  *
  * ########################################################################
  *

@@ -1,7 +1,7 @@
 #
 #  Copyright 2000 MontaVista Software Inc.
 #  Author: MontaVista Software, Inc.
-#     	ppopov@mvista.com or support@mvista.com
+#     	ppopov@mvista.com or source@mvista.com
 #
 # Makefile for the Alchemy Au1000 CPU, generic files.
 #
