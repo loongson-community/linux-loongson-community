@@ -20,6 +20,20 @@
 
 #include <asm/mach-au1x00/au1000.h>
 
+#define USBH_ENABLE_BE (1<<0)
+#define USBH_ENABLE_C  (1<<1)
+#define USBH_ENABLE_E  (1<<2)
+#define USBH_ENABLE_CE (1<<3)
+#define USBH_ENABLE_RD (1<<4)
+
+#ifdef __LITTLE_ENDIAN
+#define USBH_ENABLE_INIT (USBH_ENABLE_CE | USBH_ENABLE_E | USBH_ENABLE_C)
+#elif __BIG_ENDIAN
+#define USBH_ENABLE_INIT (USBH_ENABLE_CE | USBH_ENABLE_E | USBH_ENABLE_C | USBH_ENABLE_BE)
+#else
+#error not byte order defined
+#endif
+
 extern int usb_disabled(void);
 
 /*-------------------------------------------------------------------------*/
@@ -27,21 +41,21 @@ extern int usb_disabled(void);
 static void au1xxx_start_hc(struct platform_device *dev)
 {
 	printk(KERN_DEBUG __FILE__
-	       ": starting Au1xxx OHCI USB Controller\n");
+		": starting Au1xxx OHCI USB Controller\n");
 
 	/* enable host controller */
-	au_writel(0x00000008, USB_HOST_CONFIG);
+	au_writel(USBH_ENABLE_CE, USB_HOST_CONFIG);
 	udelay(1000);
-	au_writel(0x0000000e, USB_HOST_CONFIG);
+	au_writel(USBH_ENABLE_INIT, USB_HOST_CONFIG);
 	udelay(1000);
 
-	/* wait for reset complete */
-	au_readl(USB_HOST_CONFIG); /* throw away first read */
-	while (!(au_readl(USB_HOST_CONFIG) & 0x10))
-		au_readl(USB_HOST_CONFIG);
+	/* wait for reset complete (read register twice; see au1500 errata) */
+	while (au_readl(USB_HOST_CONFIG),
+		!(au_readl(USB_HOST_CONFIG) & USBH_ENABLE_RD)) 
+		udelay(1000);
 
 	printk(KERN_DEBUG __FILE__
-		   ": Clock to USB host has been enabled \n");
+	": Clock to USB host has been enabled \n");
 }
 
 static void au1xxx_stop_hc(struct platform_device *dev)
@@ -49,9 +63,8 @@ static void au1xxx_stop_hc(struct platform_device *dev)
 	printk(KERN_DEBUG __FILE__
 	       ": stopping Au1xxx OHCI USB Controller\n");
 
-
 	/* Disable clock */
-	au_writel(readl(USB_HOST_CONFIG) & 0xffffff7, USB_HOST_CONFIG);
+	au_writel(readl(USB_HOST_CONFIG) & ~USBH_ENABLE_CE, USB_HOST_CONFIG);
 }
 
 
@@ -169,9 +182,8 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
 
  err2:
 	hcd_buffer_destroy (hcd);
-	if (hcd)
-		driver->hcd_free(hcd);
  err1:
+	kfree(hcd);
 	au1xxx_stop_hc(dev);
 	release_mem_region(dev->resource[0].start,
 				dev->resource[0].end
@@ -195,8 +207,6 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
  */
 void usb_hcd_au1xxx_remove (struct usb_hcd *hcd, struct platform_device *dev)
 {
-	void *base;
-
 	pr_debug ("remove: %s, state %x", hcd->self.bus_name, hcd->state);
 
 	if (in_interrupt ())
@@ -215,9 +225,6 @@ void usb_hcd_au1xxx_remove (struct usb_hcd *hcd, struct platform_device *dev)
 
 	usb_deregister_bus (&hcd->self);
 
-	base = hcd->regs;
-	hcd->driver->hcd_free (hcd);
-
 	au1xxx_stop_hc(dev);
 	release_mem_region(dev->resource[0].start,
 			   dev->resource[0].end
@@ -234,37 +241,15 @@ ohci_au1xxx_start (struct usb_hcd *hcd)
 
 	ohci_dbg (ohci, "ohci_au1xxx_start, ohci:%p", ohci);
 			
-	ohci->hcca = dma_alloc_noncoherent (hcd->self.controller,
-			sizeof *ohci->hcca, &ohci->hcca_dma, 0);
-	if (!ohci->hcca)
-		return -ENOMEM;
+	if ((ret = ohci_init (ohci)) < 0)
+		return ret;
 
-	ohci_dbg (ohci, "ohci_au1xxx_start, ohci->hcca:%p",
-			ohci->hcca);
-
-	memset (ohci->hcca, 0, sizeof (struct ohci_hcca));
-
-	if ((ret = ohci_mem_init (ohci)) < 0) {
+	if ((ret = ohci_run (ohci)) < 0) {
+		err ("can't start %s", ohci->hcd.self.bus_name);
 		ohci_stop (hcd);
 		return ret;
 	}
-	ohci->regs = hcd->regs;
 
-	if (hc_reset (ohci) < 0) {
-		ohci_stop (hcd);
-		return -ENODEV;
-	}
-
-	if (hc_start (ohci) < 0) {
-		err ("can't start %s", ohci->hcd.self.bus_name);
-		ohci_stop (hcd);
-		return -EBUSY;
-	}
-	create_debug_files (ohci);
-
-#ifdef	DEBUG
-	ohci_dump (ohci, 1);
-#endif /*DEBUG*/
 	return 0;
 }
 
@@ -293,7 +278,6 @@ static const struct hc_driver ohci_au1xxx_hc_driver = {
 	 * memory lifecycle (except per-request)
 	 */
 	.hcd_alloc =		ohci_hcd_alloc,
-	.hcd_free =		ohci_hcd_free,
 
 	/*
 	 * managing i/o requests and associated device resources
