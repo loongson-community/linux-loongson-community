@@ -25,6 +25,7 @@
 #include <linux/sysctl.h>
 #include <linux/stddef.h>
 #include <linux/init.h>
+#include <linux/fs.h>
 #include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/net.h>
