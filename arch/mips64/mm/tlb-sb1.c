@@ -274,7 +274,7 @@ void sb1_update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 	set_entrylo0(pte_val(*ptep++) >> 6);
 	set_entrylo1(pte_val(*ptep) >> 6);
 	set_entryhi(address | (pid));
-	if(idx < 0) {
+	if (idx < 0) {
 		tlb_write_random();
 	} else {
 		tlb_write_indexed();
