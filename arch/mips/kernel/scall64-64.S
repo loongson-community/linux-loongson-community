@@ -160,8 +160,8 @@ illegal_syscall:
 	.previous
 #endif
 
+	sd	zero, PT_R7(sp)		# success
 	sd	v0, PT_R2(sp)		# result
-1:
 
 	/* Success, so skip usual error handling garbage.  */
 	LONG_L	a2, TI_FLAGS($28)	# syscall tracing enabled?
