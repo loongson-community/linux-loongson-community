@@ -170,6 +170,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
 		".align 3                   \n"
 		"     lw     $0,   0($1)    \n" /* Bug 1370, 1368            */
+		"     sync                  \n"
 		"     cache  0x15, 0($1)    \n" /* Hit-WB-inval this address */
 #else
 		"     cache  0x19, 0($1)    \n" /* Hit-WB this address */
@@ -306,6 +307,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		"1:                           \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
 		"     lw    $0,   (%0)         \n"  
+		"     sync                  \n"
 		"     cache  0x15, 0(%0)    \n" /* Hit-WB-inval this address */
 #else
 		"     cache  0x19, 0(%0)    \n" /* Hit-WB this address */
