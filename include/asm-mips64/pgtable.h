@@ -223,7 +223,7 @@ static inline unsigned long pgd_page(pgd_t pgd)
 
 static inline int pte_none(pte_t pte)
 {
-	return !pte_val(pte);
+	return !(pte_val(pte) & ~_PAGE_GLOBAL);
 }
 
 static inline int pte_present(pte_t pte)
@@ -239,11 +239,28 @@ static inline int pte_present(pte_t pte)
 static inline void set_pte(pte_t *ptep, pte_t pteval)
 {
 	*ptep = pteval;
+#if !defined(CONFIG_CPU_R3000) && !defined(CONFIG_CPU_TX39XX)
+	if (pte_val(pteval) & _PAGE_GLOBAL) {
+		pte_t *buddy = ptep_buddy(ptep);
+		/*
+		 * Make sure the buddy is global too (if it's !none,
+		 * it better already be global)
+		 */
+		if (pte_none(*buddy))
+			pte_val(*buddy) = pte_val(*buddy) | _PAGE_GLOBAL;
+	}
+#endif
 }
 
 static inline void pte_clear(pte_t *ptep)
 {
-	set_pte(ptep, __pte(0));
+#if !defined(CONFIG_CPU_R3000) && !defined(CONFIG_CPU_TX39XX)
+	/* Preserve global status for the pair */
+	if (pte_val(*ptep_buddy(ptep)) & _PAGE_GLOBAL)
+		set_pte(ptep, __pte(_PAGE_GLOBAL));
+	else
+#endif
+		set_pte(ptep, __pte(0));
 }
 
 /*
