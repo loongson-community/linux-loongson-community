@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/mmzone.h>
+#include <linux/module.h>
 #include <linux/swap.h>
 #include <linux/bootmem.h>
 #include <asm/page.h>
@@ -38,6 +39,8 @@ static struct bootmem_data __initdata plat_node_bdata[MAX_COMPACT_NODES];
 
 struct pglist_data *node_data[MAX_COMPACT_NODES];
 struct hub_data *hub_data[MAX_COMPACT_NODES];
+
+EXPORT_SYMBOL(node_data);
 
 static pfn_t __init slot_getbasepfn(cnodeid_t cnode, int slot)
 {
