@@ -244,7 +244,7 @@ struct __large_struct { unsigned long buf[100]; };
 	case 8: __GET_USER_DW(ptr); break;				\
 	default: __get_user_unknown(); break;				\
 	}								\
-	x = (__typeof__(*(ptr))) __gu_val;				\
+	(x) = (__typeof__(*(ptr))) __gu_val;				\
 	__gu_err;							\
 })
 
@@ -266,12 +266,12 @@ struct __large_struct { unsigned long buf[100]; };
 		default: __get_user_unknown(); break;			\
 		}							\
 	}								\
-	x = (__typeof__(*(ptr))) __gu_val;				\
+	(x) = (__typeof__(*(ptr))) __gu_val;				\
 	__gu_err;							\
 })
 
 #define __get_user_asm(insn, addr)					\
-({									\
+{									\
 	__asm__ __volatile__(						\
 	"1:	" insn "	%1, %3				\n"	\
 	"2:							\n"	\
@@ -284,13 +284,13 @@ struct __large_struct { unsigned long buf[100]; };
 	"	.previous					\n"	\
 	: "=r" (__gu_err), "=r" (__gu_val)				\
 	: "0" (__gu_err), "o" (__m(addr)), "i" (-EFAULT));		\
-})
+}
 
 /*
  * Get a long long 64 using 32 bit registers.
  */
 #define __get_user_asm_ll32(addr)					\
-({									\
+{									\
 	__asm__ __volatile__(						\
 	"1:	lw	%1, (%3)				\n"	\
 	"2:	lw	%D1, 4(%3)				\n"	\
@@ -307,7 +307,7 @@ struct __large_struct { unsigned long buf[100]; };
 	"	.previous					\n"	\
 	: "=r" (__gu_err), "=&r" (__gu_val)				\
 	: "0" (__gu_err), "r" (addr), "i" (-EFAULT));			\
-})
+}
 
 extern void __get_user_unknown(void);
 
@@ -360,7 +360,7 @@ extern void __get_user_unknown(void);
 })
 
 #define __put_user_asm(insn, ptr)					\
-({									\
+{									\
 	__asm__ __volatile__(						\
 	"1:	" insn "	%z2, %3		# __put_user_asm\n"	\
 	"2:							\n"	\
@@ -374,10 +374,10 @@ extern void __get_user_unknown(void);
 	: "=r" (__pu_err)						\
 	: "0" (__pu_err), "Jr" (__pu_val), "o" (__m(ptr)),		\
 	  "i" (-EFAULT));						\
-})
+}
 
 #define __put_user_asm_ll32(ptr)					\
-({									\
+{									\
 	__asm__ __volatile__(						\
 	"1:	sw	%2, (%3)	# __put_user_asm_ll32	\n"	\
 	"2:	sw	%D2, 4(%3)				\n"	\
@@ -393,7 +393,7 @@ extern void __get_user_unknown(void);
 	: "=r" (__pu_err)						\
 	: "0" (__pu_err), "r" (__pu_val), "r" (ptr),			\
 	  "i" (-EFAULT));						\
-})
+}
 
 extern void __put_user_unknown(void);
 
