@@ -43,6 +43,7 @@ int smp_threads_ready;	/* Not used */
 // static atomic_t cpus_booted = ATOMIC_INIT(0);
 atomic_t cpus_booted = ATOMIC_INIT(0);
 
+cpumask_t phys_cpu_present_map;		/* Bitmask of physically CPUs */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 int __cpu_number_map[NR_CPUS];
 int __cpu_logical_map[NR_CPUS];
