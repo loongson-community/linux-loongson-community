@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.15 1999/02/06 05:12:57 adevries Exp $
+/* $Id: sysirix.c,v 1.16 1999/02/15 02:16:52 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -735,6 +735,8 @@ asmlinkage int irix_statfs(const char *path, struct irix_statfs *buf,
 	struct statfs kbuf;
 	int error, i;
 
+	lock_kernel();
+
 	/* We don't support this feature yet. */
 	if(fs_type) {
 		error = -EINVAL;
@@ -824,7 +826,6 @@ asmlinkage int irix_fstatfs(unsigned int fd, struct irix_statfs *buf)
 		__put_user(0, &buf->f_fname[i]);
 		__put_user(0, &buf->f_fpack[i]);
 	}
-	error = 0;
 
 out_f:
 	fput(file);
@@ -1590,6 +1591,10 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 		error = -ENOENT;
 		goto out_f;
 	}
+	if (!inode->i_sb) {
+		error = -ENODEV;
+		goto out_f;
+	}
 	if (!inode->i_sb->s_op->statfs) {
 		error = -ENOSYS;
 		goto out_f;
@@ -1619,10 +1624,7 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 		__put_user(0, &buf->f_basetype[i]);
 	__put_user(0, &buf->f_flag);
 	__put_user(kbuf.f_namelen, &buf->f_namemax);
-	for(i = 0; i < 32; i++)
-		__put_user(0, &buf->f_fstr[i]);
-
-	error = 0;
+	__clear_user(&buf->f_fstr, sizeof(buf->f_fstr));
 
 out_f:
 	fput(file);
@@ -1809,6 +1811,7 @@ asmlinkage int irix_statvfs64(char *fname, struct irix_statvfs64 *buf)
 	struct statfs kbuf;
 	int error, i;
 
+	lock_kernel();
 	printk("[%s:%ld] Wheee.. irix_statvfs(%s,%p)\n",
 	       current->comm, current->pid, fname, buf);
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
@@ -1882,6 +1885,10 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 		error = -ENOENT;
 		goto out_f;
 	}
+	if (!inode->i_sb) {
+		error = -ENODEV;
+		goto out_f;
+	}
 	if (!inode->i_sb->s_op->statfs) {
 		error = -ENOSYS;
 		goto out_f;
@@ -1911,10 +1918,7 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 		__put_user(0, &buf->f_basetype[i]);
 	__put_user(0, &buf->f_flag);
 	__put_user(kbuf.f_namelen, &buf->f_namemax);
-	for(i = 0; i < 32; i++)
-		__put_user(0, &buf->f_fstr[i]);
-
-	error = 0;
+	__clear_user(buf->f_fstr, sizeof(buf->f_fstr[i]));
 
 out_f:
 	fput(file);
@@ -1980,23 +1984,21 @@ struct irix_dirent32_callback {
 #define NAME_OFFSET32(de) ((int) ((de)->d_name - (char *) (de)))
 #define ROUND_UP32(x) (((x)+sizeof(u32)-1) & ~(sizeof(u32)-1))
 
-static int irix_filldir32(void *__buf, const char *name, int namlen, off_t offset, ino_t ino)
+static int irix_filldir32(void *__buf, const char *name, int namlen,
+                          off_t offset, ino_t ino)
 {
 	struct irix_dirent32 *dirent;
-	struct irix_dirent32_callback *buf = (struct irix_dirent32_callback *)__buf;
+	struct irix_dirent32_callback *buf =
+		 (struct irix_dirent32_callback *)__buf;
 	unsigned short reclen = ROUND_UP32(NAME_OFFSET32(dirent) + namlen + 1);
-	int retval;
 
-	lock_kernel();
 #ifdef DEBUG_GETDENTS
 	printk("\nirix_filldir32[reclen<%d>namlen<%d>count<%d>]",
 	       reclen, namlen, buf->count);
 #endif
 	buf->error = -EINVAL;	/* only used if we fail.. */
-	if (reclen > buf->count) {
-		retval = -EINVAL;
-		goto out;
-	}
+	if (reclen > buf->count)
+		return -EINVAL;
 	dirent = buf->previous;
 	if (dirent)
 		__put_user(offset, &dirent->d_off);
@@ -2010,17 +2012,12 @@ static int irix_filldir32(void *__buf, const char *name, int namlen, off_t offse
 	buf->current_dir = dirent;
 	buf->count -= reclen;
 
-	retval = 0;
-
-out:
-	unlock_kernel();
-	return retval;
+	return 0;
 }
 
 asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count, int *eob)
 {
 	struct file *file;
-	struct dentry *dentry;
 	struct inode *inode;
 	struct irix_dirent32 *lastdirent;
 	struct irix_dirent32_callback buf;
@@ -2036,11 +2033,7 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	if (!file)
 		goto out;
 
-	dentry = file->f_dentry;
-	if (!dentry)
-		goto out_putf;
-
-	inode = dentry->d_inode;
+	inode = file->f_dentry->d_inode;
 	if (!inode)
 		goto out_putf;
 
@@ -2111,14 +2104,10 @@ static int irix_filldir64(void * __buf, const char * name, int namlen,
 	struct irix_dirent64_callback * buf =
 		(struct irix_dirent64_callback *) __buf;
 	unsigned short reclen = ROUND_UP64(NAME_OFFSET64(dirent) + namlen + 1);
-	int retval;
 
-	lock_kernel();
 	buf->error = -EINVAL;	/* only used if we fail.. */
-	if (reclen > buf->count) {
-		retval = -EINVAL;
-		goto out;
-	}
+	if (reclen > buf->count)
+		return -EINVAL;
 	dirent = buf->previous;
 	if (dirent)
 		__put_user(offset, &dirent->d_off);
@@ -2126,16 +2115,13 @@ static int irix_filldir64(void * __buf, const char * name, int namlen,
 	buf->previous = dirent;
 	__put_user(ino, &dirent->d_ino);
 	__put_user(reclen, &dirent->d_reclen);
-	copy_to_user(dirent->d_name, name, namlen);
+	__copy_to_user(dirent->d_name, name, namlen);
 	__put_user(0, &dirent->d_name[namlen]);
 	((char *) dirent) += reclen;
 	buf->curr = dirent;
 	buf->count -= reclen;
 
-	retval = 0;
-out:
-	unlock_kernel();
-	return retval;
+	return 0;
 }
 
 asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
@@ -2175,7 +2161,9 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	buf.previous = NULL;
 	buf.count = cnt;
 	buf.error = 0;
+	down(&inode->i_sem);
 	error = file->f_op->readdir(file, &buf, irix_filldir64);
+	up(&inode->i_sem);
 	if (error < 0)
 		goto out_f;
 	lastdirent = buf.previous;
@@ -2235,7 +2223,9 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	buf.previous = NULL;
 	buf.count = cnt;
 	buf.error = 0;
+	down(&inode->i_sem);
 	error = file->f_op->readdir(file, &buf, irix_filldir64);
+	up(&inode->i_sem);
 	if (error < 0)
 		goto out_f;
 	lastdirent = buf.previous;
