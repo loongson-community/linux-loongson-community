@@ -263,7 +263,6 @@ static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
 
 	for (i = 13; i >= 0; i--)
 		nic[i] = nic_read_byte(ioc3);
-nic[7] = 0x42;
 
 	printk("Ethernet address is ");
 	for (i = 2; i < 8; i++) {
