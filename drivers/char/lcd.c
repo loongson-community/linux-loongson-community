@@ -556,9 +556,8 @@ static struct file_operations lcd_fops = {
 	.open		= lcd_open,
 };
 
-static struct miscdevice lcd_dev=
-{
-	LCD_MINOR,
+static struct miscdevice lcd_dev = {
+	MISC_DYNAMIC_MINOR,
 	"lcd",
 	&lcd_fops
 };

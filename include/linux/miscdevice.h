@@ -22,9 +22,8 @@
 #define NVRAM_MINOR 144
 #define I2O_MINOR 166
 #define MICROCODE_MINOR		184
-#define GPIO_MINOR             185  
-#define MWAVE_MINOR		219	/* ACP/Mwave Modem */
-#define MPT_MINOR		220
+#define MWAVE_MINOR	219		/* ACP/Mwave Modem */
+#define MPT_MINOR	220
 #define MISC_DYNAMIC_MINOR 255
 
 #define SGI_GRAPHICS_MINOR   146
@@ -36,8 +35,6 @@
 #define SGI_USEMACLONE	     151
 
 #define TUN_MINOR	     200
-
-#define LCD_MINOR	     140	/* Inofficial Linux/MIPS only alloc */
 
 struct miscdevice 
 {
