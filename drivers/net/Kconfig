@@ -450,8 +450,9 @@ config MIPS_JAZZ_SONIC
 	  Acer PICA, Olivetti M700-10 and a few other identical OEM systems.
 
 config GALILEO_64240_ETH
-	tristate "Galileo GT96100 Ethernet support"
+	tristate "Galileo GT64240 Ethernet support"
 	depends on NET_ETHERNET && MOMENCO_OCELOT_G
+	select MII
 	help
 	  This is the driver for the ethernet interfaces integrated into
 	  the Galileo (now Marvell) GT64240 chipset.
