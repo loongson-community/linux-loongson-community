@@ -552,7 +552,7 @@ config MIPS_PB1100
 config MIPS_PB1500
 	bool "PB1500 board"
 	depends on SOC_AU1500
-	select DMA_NONCOHERENT
+	select DMA_COHERENT
 	select HW_HAS_PCI
 
 config MIPS_PB1550
