@@ -41,7 +41,7 @@ extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
 
 #endif /* CONFIG_SMP */
 
-extern inline void flush_tlb_pgtables(struct mm_struct *mm,
+static inline void flush_tlb_pgtables(struct mm_struct *mm,
                                       unsigned long start, unsigned long end)
 {
 	/* Nothing to do on MIPS.  */
@@ -62,7 +62,7 @@ extern inline void flush_tlb_pgtables(struct mm_struct *mm,
 
 extern pgd_t *get_pgd_slow(void);
 
-extern inline pgd_t *get_pgd_fast(void)
+static inline pgd_t *get_pgd_fast(void)
 {
 	unsigned long *ret;
 
@@ -77,14 +77,14 @@ extern inline pgd_t *get_pgd_fast(void)
 	return (pgd_t *)ret;
 }
 
-extern inline void free_pgd_fast(pgd_t *pgd)
+static inline void free_pgd_fast(pgd_t *pgd)
 {
 	*(unsigned long *)pgd = (unsigned long) pgd_quicklist;
 	pgd_quicklist = (unsigned long *) pgd;
 	pgtable_cache_size++;
 }
 
-extern inline void free_pgd_slow(pgd_t *pgd)
+static inline void free_pgd_slow(pgd_t *pgd)
 {
 	free_pages((unsigned long)pgd, 1);
 }
@@ -113,7 +113,7 @@ static inline pte_t *pte_alloc_one_fast(struct mm_struct *mm, unsigned long addr
 
 extern pte_t *get_pte_slow(pmd_t *pmd, unsigned long address_preadjusted);
 
-extern inline pte_t *get_pte_fast(void)
+static inline pte_t *get_pte_fast(void)
 {
 	unsigned long *ret;
 
@@ -125,14 +125,14 @@ extern inline pte_t *get_pte_fast(void)
 	return (pte_t *)ret;
 }
 
-extern inline void free_pte_fast(pte_t *pte)
+static inline void free_pte_fast(pte_t *pte)
 {
 	*(unsigned long *)pte = (unsigned long) pte_quicklist;
 	pte_quicklist = (unsigned long *) pte;
 	pgtable_cache_size++;
 }
 
-extern inline void free_pte_slow(pte_t *pte)
+static inline void free_pte_slow(pte_t *pte)
 {
 	free_pages((unsigned long)pte, 0);
 }
@@ -161,7 +161,7 @@ static inline pmd_t *pmd_alloc_one_fast(struct mm_struct *mm, unsigned long addr
 
 extern pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long address_preadjusted);
 
-extern inline pmd_t *get_pmd_fast(void)
+static inline pmd_t *get_pmd_fast(void)
 {
 	unsigned long *ret;
 
@@ -175,14 +175,14 @@ extern inline pmd_t *get_pmd_fast(void)
 	return (pmd_t *)ret;
 }
 
-extern inline void free_pmd_fast(pmd_t *pmd)
+static inline void free_pmd_fast(pmd_t *pmd)
 {
 	*(unsigned long *)pmd = (unsigned long) pmd_quicklist;
 	pmd_quicklist = (unsigned long *) pmd;
 	pgtable_cache_size++;
 }
 
-extern inline void free_pmd_slow(pmd_t *pmd)
+static inline void free_pmd_slow(pmd_t *pmd)
 {
 	free_pages((unsigned long)pmd, 1);
 }

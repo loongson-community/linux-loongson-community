@@ -36,7 +36,7 @@ extern unsigned long bus_to_baddr[256];
  * We cheat a bit and always return uncachable areas until we've fixed
  * the drivers to handle caching properly.
  */
-extern inline void *
+static inline void *
 ioremap(unsigned long offset, unsigned long size)
 {
 	return (void *) (IO_SPACE_BASE | offset);
@@ -46,13 +46,13 @@ ioremap(unsigned long offset, unsigned long size)
  *  area.  It's useful if some control registers are in such an area and write
  * combining or read caching is not desirable.
  */
-extern inline void *
+static inline void *
 ioremap_nocache (unsigned long offset, unsigned long size)
 {
 	return (void *) (IO_SPACE_BASE | offset);
 }
 
-extern inline void iounmap(void *addr)
+static inline void iounmap(void *addr)
 {
 }
 
@@ -102,12 +102,12 @@ extern unsigned long mips_io_port_base;
  * Change virtual addresses to physical addresses and vv.
  * These are trivial on the 1:1 Linux/MIPS mapping
  */
-extern inline unsigned long virt_to_phys(volatile void * address)
+static inline unsigned long virt_to_phys(volatile void * address)
 {
 	return (unsigned long)address - PAGE_OFFSET;
 }
 
-extern inline void * phys_to_virt(unsigned long address)
+static inline void * phys_to_virt(unsigned long address)
 {
 	return (void *)(address + PAGE_OFFSET);
 }
@@ -161,7 +161,7 @@ __OUT1(s##c_p) __OUT2(m) : : "r" (value), "ir" (port), "r" (mips_io_port_base));
 	SLOW_DOWN_IO; }
 
 #define __IN1(t,s) \
-extern __inline__ t __in##s(unsigned long port) { t _v;
+extern inline t __in##s(unsigned long port) { t _v;
 
 /*
  * Required nops will be inserted by the assembler
@@ -360,15 +360,15 @@ __OUTS(w,l,4)
 #ifdef CONFIG_COHERENT_IO
 
 /* This is for example for IP27.  */
-extern inline void dma_cache_wback_inv(unsigned long start, unsigned long size)
+static inline void dma_cache_wback_inv(unsigned long start, unsigned long size)
 {
 }
 
-extern inline void dma_cache_wback(unsigned long start, unsigned long size)
+static inline void dma_cache_wback(unsigned long start, unsigned long size)
 {
 }
 
-extern inline void dma_cache_inv(unsigned long start, unsigned long size)
+static inline void dma_cache_inv(unsigned long start, unsigned long size)
 {
 }
 

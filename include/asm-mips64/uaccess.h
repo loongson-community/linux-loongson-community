@@ -56,7 +56,7 @@
 #define access_ok(type,addr,size) \
 	__access_ok(((unsigned long)(addr)),(size),__access_mask)
 
-extern inline int verify_area(int type, const void * addr, unsigned long size)
+static inline int verify_area(int type, const void * addr, unsigned long size)
 {
 	return access_ok(type,addr,size) ? 0 : -EFAULT;
 }
@@ -351,7 +351,7 @@ __clear_user(void *addr, __kernel_size_t size)
  * Returns: -EFAULT if exception before terminator, N if the entire
  * buffer filled, else strlen.
  */
-extern inline long
+static inline long
 __strncpy_from_user(char *__to, const char *__from, long __len)
 {
 	long res;
@@ -369,7 +369,7 @@ __strncpy_from_user(char *__to, const char *__from, long __len)
 	return res;
 }
 
-extern inline long
+static inline long
 strncpy_from_user(char *__to, const char *__from, long __len)
 {
 	long res;
@@ -388,7 +388,7 @@ strncpy_from_user(char *__to, const char *__from, long __len)
 }
 
 /* Returns: 0 if bad, string length+1 (memory size) of string if ok */
-extern inline long __strlen_user(const char *s)
+static inline long __strlen_user(const char *s)
 {
 	long res;
 
@@ -403,7 +403,7 @@ extern inline long __strlen_user(const char *s)
 	return res;
 }
 
-extern inline long strlen_user(const char *s)
+static inline long strlen_user(const char *s)
 {
 	long res;
 
@@ -419,7 +419,7 @@ extern inline long strlen_user(const char *s)
 }
 
 /* Returns: 0 if bad, string length+1 (memory size) of string if ok */
-extern inline long __strnlen_user(const char *s, long n)
+static inline long __strnlen_user(const char *s, long n)
 {
 	long res;
 
@@ -435,7 +435,7 @@ extern inline long __strnlen_user(const char *s, long n)
 	return res;
 }
 
-extern inline long strnlen_user(const char *s, long n)
+static inline long strnlen_user(const char *s, long n)
 {
 	long res;
 

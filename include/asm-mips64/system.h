@@ -13,10 +13,11 @@
 #include <linux/config.h>
 
 #include <asm/sgidefs.h>
+#include <asm/ptrace.h>
+
 #include <linux/kernel.h>
 
-extern __inline__ void
-__sti(void)
+static inline void __sti(void)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -39,8 +40,7 @@ __sti(void)
  * R4000/R4400 need three nops, the R4600 two nops and the R10000 needs
  * no nops at all.
  */
-extern __inline__ void
-__cli(void)
+static inline void __cli(void)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -196,7 +196,7 @@ do { \
 	(last) = resume(prev, next); \
 } while(0)
 
-extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
+static inline unsigned long xchg_u32(volatile int * m, unsigned long val)
 {
 	unsigned long dummy;
 
@@ -217,7 +217,7 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 	return val;
 }
 
-extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
+static inline unsigned long xchg_u64(volatile long * m, unsigned long val)
 {
 	unsigned long dummy;
 
@@ -242,8 +242,8 @@ extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
 #define tas(ptr) (xchg((ptr),1))
 
 
-static __inline__ unsigned long
-__xchg(unsigned long x, volatile void * ptr, int size)
+static inline unsigned long __xchg(unsigned long x, volatile void * ptr,
+				   int size)
 {
 	switch (size) {
 		case 4:
