@@ -338,7 +338,7 @@ typedef struct { volatile __s64 counter; } atomic64_t;
  *
  * Atomically adds @i to @v.
  */
-static __inline__ void atomic64_add(int i, atomic64_t * v)
+static __inline__ void atomic64_add(long i, atomic64_t * v)
 {
 	unsigned long temp;
 
@@ -358,7 +358,7 @@ static __inline__ void atomic64_add(int i, atomic64_t * v)
  *
  * Atomically subtracts @i from @v.
  */
-static __inline__ void atomic64_sub(int i, atomic64_t * v)
+static __inline__ void atomic64_sub(long i, atomic64_t * v)
 {
 	unsigned long temp;
 
@@ -374,7 +374,7 @@ static __inline__ void atomic64_sub(int i, atomic64_t * v)
 /*
  * Same as above, but return the result value
  */
-static __inline__ int atomic64_add_return(int i, atomic64_t * v)
+static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 {
 	unsigned long temp, result;
 
@@ -392,7 +392,7 @@ static __inline__ int atomic64_add_return(int i, atomic64_t * v)
 	return result;
 }
 
-static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
+static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 {
 	unsigned long temp, result;
 
@@ -417,13 +417,13 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
  * Atomically test @v and decrement if it is greater than 0.
  * The function returns the old value of @v minus 1.
  */
-static __inline__ int atomic64_sub_if_positive(int i, atomic64_t * v)
+static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 {
 	unsigned long temp, result;
 
 	__asm__ __volatile__(
 	"1:	lld	%1, %2		# atomic64_sub_if_positive\n"
-	"	subu	%0, %1, %3				\n"
+	"	dsubu	%0, %1, %3				\n"
 	"	bltz	%0, 1f					\n"
 	"	scd	%0, %2					\n"
 	"	beqz	%0, 1b					\n"
@@ -448,7 +448,7 @@ static __inline__ int atomic64_sub_if_positive(int i, atomic64_t * v)
  *
  * Atomically adds @i to @v.
  */
-static __inline__ void atomic64_add(int i, atomic64_t * v)
+static __inline__ void atomic64_add(long i, atomic64_t * v)
 {
 	unsigned long flags;
 
@@ -464,7 +464,7 @@ static __inline__ void atomic64_add(int i, atomic64_t * v)
  *
  * Atomically subtracts @i from @v.
  */
-static __inline__ void atomic64_sub(int i, atomic64_t * v)
+static __inline__ void atomic64_sub(long i, atomic64_t * v)
 {
 	unsigned long flags;
 
@@ -473,10 +473,10 @@ static __inline__ void atomic64_sub(int i, atomic64_t * v)
 	spin_unlock_irqrestore(&atomic_lock, flags);
 }
 
-static __inline__ int atomic64_add_return(int i, atomic64_t * v)
+static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 {
 	unsigned long flags;
-	int temp;
+	long temp;
 
 	spin_lock_irqsave(&atomic_lock, flags);
 	temp = v->counter;
@@ -487,10 +487,10 @@ static __inline__ int atomic64_add_return(int i, atomic64_t * v)
 	return temp;
 }
 
-static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
+static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 {
 	unsigned long flags;
-	int temp;
+	long temp;
 
 	spin_lock_irqsave(&atomic_lock, flags);
 	temp = v->counter;
@@ -508,7 +508,7 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
  * Atomically test @v and decrement if it is greater than 0.
  * The function returns the old value of @v minus 1.
  */
-static __inline__ int atomic64_sub_if_positive(int i, atomic64_t * v)
+static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 {
 	unsigned long flags;
 	long temp, result;
