@@ -143,7 +143,7 @@ extern unsigned int vced_count, vcei_count;
 
 #define NUM_FPU_REGS	32
 
-typedef u64 fpureg_t;
+typedef __u64 fpureg_t;
 
 struct mips_fpu_hard_struct {
 	fpureg_t	fpr[NUM_FPU_REGS];
@@ -235,8 +235,6 @@ struct thread_struct {
 	MF_FIXADE, 0, 0 \
 }
 
-#ifdef __KERNEL__
-
 struct task_struct;
 
 /* Free all resources held by a thread. */
@@ -263,8 +261,6 @@ unsigned long get_wchan(struct task_struct *p);
 #define KSTK_STATUS(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_status)))
 
 #define cpu_relax()	barrier()
-
-#endif /* __KERNEL__ */
 
 /*
  * Return_address is a replacement for __builtin_return_address(count)
