@@ -84,27 +84,6 @@
 
 /* Sanity hazzard ...  Below all the Origin hacks are following.  */
 
-/*
- * These bits in the PEND0 registers have a hardware-assigned use.
- */
-#define IP_PEND0_6_63		63		/* What is this bit? */
-#define IP_PEND0_CC_B		 6
-#define IP_PEND0_CC_A		 5
-#define IP_PEND0_UART_UCNTRL	 4
-#define IP_PEND0_PAGE_MIGRATION	 3
-#define IP_PEND0_GFX_INT_B	 2
-#define IP_PEND0_GFX_INT_A	 1
-#define IP_PEND0_0		 0		/* What is this bit? */
-
-/*
- * Of the remaining bits in PEND0 Linux uses a few for itself ...
- */
-#define CPU_RESCHED_A_IRQ	 7
-#define CPU_RESCHED_B_IRQ	 8
-#define CPU_CALL_A_IRQ		 9
-#define CPU_CALL_B_IRQ		10
-#define BASE_PCI_IRQ		11
-
 #define SN00_BRIDGE		0x9200000008000000
 #define SN00I_BRIDGE0		0x920000000b000000
 #define SN00I_BRIDGE1		0x920000000e000000
