@@ -1043,11 +1043,11 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 
 	tx_curr = &(titan_ge_eth->tx_desc_area[curr_desc]);
 	tx_curr->buffer_addr = 
-		pci_map_single(0, skb->data, skb->len - skb->data_len,
+		pci_map_single(0, skb->data, skb_headlen(skb),
 					PCI_DMA_TODEVICE);
 
 	titan_ge_eth->tx_skb[curr_desc] = (struct sk_buff *) skb;
-	tx_curr->buffer_len = skb->len - skb->data_len;
+	tx_curr->buffer_len = skb_headlen(skb);
 
 	/* Last descriptor enables interrupt and changes ownership */
 	tx_curr->cmd_sts = 0x1 | (1 << 15) | (1 << 5);
