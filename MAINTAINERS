@@ -865,7 +865,7 @@ S:	Maintained
 
 IOC3 DRIVER
 P:	Ralf Baechle
-M:	ralf@oss.sgi.com
+M:	ralf@linux-mips.org
 L:	linux-mips@linux-mips.org
 S:	Maintained
 
@@ -1081,7 +1081,7 @@ S:	Maintained
 
 MIPS
 P:	Ralf Baechle
-M:	ralf@gnu.org
+M:	ralf@linux-mips.org
 W:	http://oss.sgi.com/mips/mips-howto.html
 L:	linux-mips@linux-mips.org
 S:	Maintained
