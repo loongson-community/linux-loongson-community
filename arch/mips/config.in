@@ -278,7 +278,6 @@ mainmenu_option next_comment
 comment 'General setup'
 if [ "$CONFIG_DECSTATION" = "y" -o \
      "$CONFIG_DDB5074" = "y" -o    \
-     "$CONFIG_DDB5476" = "y" -o    \
      "$CONFIG_NINO" = "y" ]; then
    define_bool CONFIG_CPU_LITTLE_ENDIAN y
 else
