@@ -52,7 +52,7 @@
 #define PCI_CFG_TYPE1_BUS_SHF           16
 
 static int mips_pcibios_config_access(unsigned char access_type,
-	struct pci_bus *bus, unsigned int devfn, u32 *data)
+	struct pci_bus *bus, unsigned int devfn, int where, u32 *data)
 {
 	unsigned char busnum = bus->number;
 	unsigned char type;
@@ -261,8 +261,8 @@ static int mips_pcibios_config_access(unsigned char access_type,
  * We can't address 8 and 16 bit words directly.  Instead we have to
  * read/write a 32bit word and mask/modify the data we actually want.
  */
-static int mips_pcibios_read_config(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u16 *val)
+static int mips_pcibios_read(struct pci_bus *bus, unsigned int devfn, int where,
+                             int size, u32 *val)
 {
 	u32 data = 0;
 
@@ -271,7 +271,8 @@ static int mips_pcibios_read_config(struct pci_bus *bus, unsigned int devfn,
 	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (mips_pcibios_config_access(PCI_ACCESS_READ, bus, where, &data))
+	if (mips_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
+	                               &data))
 	       return -1;
 
 	if (size == 1)
@@ -284,8 +285,8 @@ static int mips_pcibios_read_config(struct pci_bus *bus, unsigned int devfn,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int mips_pcibios_write_config(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u16 val)
+static int mips_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+                              int where, int size, u32 val)
 {
         u32 data = 0;
 
@@ -294,7 +295,8 @@ static int mips_pcibios_write_config(struct pci_bus *bus, unsigned int devfn,
 	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-        if (mips_pcibios_config_access(PCI_ACCESS_READ, bus, where, &data))
+        if (mips_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
+	                               &data))
 	       return -1;
 
 	if (size == 1)
@@ -304,7 +306,8 @@ static int mips_pcibios_write_config(struct pci_bus *bus, unsigned int devfn,
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
 		       (val << ((where & 3) << 3));
 
-	if (mips_pcibios_config_access(PCI_ACCESS_WRITE, bus, where, &data))
+	if (mips_pcibios_config_access(PCI_ACCESS_WRITE, bus, devfn, where,
+	                               &data))
 	       return -1;
 
 	return PCIBIOS_SUCCESSFUL;
@@ -364,7 +367,7 @@ int mips_pcibios_iack(void)
 	return irq;
 }
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 #ifdef CONFIG_MIPS_MALTA
 	struct pci_dev *pdev;
@@ -441,6 +444,8 @@ void __init pcibios_init(void)
 	/* Exit config state. */
 	SMSC_WRITE(SMSC_CONFIG_EXIT, SMSC_CONFIG_REG);
 #endif
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

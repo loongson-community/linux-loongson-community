@@ -1182,7 +1182,7 @@ unsigned __init int pcibios_assign_all_busses(void)
 	return 1;
 }
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 
 	u32 tmp;
@@ -1219,6 +1219,7 @@ void __init pcibios_init(void)
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

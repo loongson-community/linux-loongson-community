@@ -537,7 +537,7 @@ void pci1P2PConfig(unsigned int SecondBusLow,unsigned int SecondBusHigh,
 #define PCI0_STATUS_COMMAND_REG                 0x4
 #define PCI1_STATUS_COMMAND_REG                 0x84
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	/* Reset PCI I/O and PCI MEM values */
 	ioport_resource.start = 0xe0000000;
@@ -547,6 +547,8 @@ void __init pcibios_init(void)
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 	pci_scan_bus(1, &galileo_pci_ops, NULL);
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

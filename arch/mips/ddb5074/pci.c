@@ -263,7 +263,7 @@ static void __init pcibios_fixup_irqs(void)
 	}
 }
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	printk("PCI: Probing PCI hardware\n");
 	ioport_resource.end = 0x1ffffff;	/*  32 MB */
@@ -280,6 +280,8 @@ void __init pcibios_init(void)
 	ddb5074_pci_fixup();
 	pci_assign_unassigned_resources();
 	pcibios_fixup_irqs();
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

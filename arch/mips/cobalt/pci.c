@@ -363,7 +363,7 @@ struct pci_ops qube_pci_ops = {
 	.write	= qube_pci_write_config,
 };
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
 
@@ -383,6 +383,8 @@ void __init pcibios_init(void)
 	iomem_resource.end = 0xffffffff;
 
 	pci_scan_bus(0, &qube_pci_ops, NULL);
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

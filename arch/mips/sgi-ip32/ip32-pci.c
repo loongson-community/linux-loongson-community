@@ -112,7 +112,7 @@ static struct pci_ops macepci_ops = {
 
 struct pci_fixup pcibios_fixups[] = { { 0 } };
 
-void __init pcibios_init (void)
+static int __init pcibios_init (void)
 {
 	struct pci_dev *dev;
 	u32 start, size;
@@ -251,6 +251,8 @@ void __init pcibios_init (void)
 		}
 	}
 #endif
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

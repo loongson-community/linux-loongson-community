@@ -130,7 +130,7 @@ static struct pci_ops bridge_pci_ops = {
 	.write	= pci_conf0_write_config,
 };
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	struct pci_ops *ops = &bridge_pci_ops;
 	int	i;
@@ -142,6 +142,8 @@ void __init pcibios_init(void)
 		printk("PCI: Probing PCI hardware on host bus %2d.\n", i);
 		pci_scan_bus(i, ops, NULL);
 	}
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

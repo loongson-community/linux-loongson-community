@@ -1020,7 +1020,7 @@ static void __init allocate_pci_space(struct pci_device *pci_devices)
 	} while (maxSize);
 }
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	u32 tmp;
 	struct pci_dev controller;
@@ -1050,6 +1050,8 @@ void __init pcibios_init(void)
 	iomem_resource.end    = GT_PCI_MEM_BASE + GT_PCI_MEM_BASE - 1;
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

@@ -163,11 +163,13 @@ void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 	}
 }
 
-void __init pcibios_init(void)
+static int  __init pcibios_init(void)
 {
 	struct pci_ops *ops = &sni_pci_ops;
 
 	pci_scan_bus(0, ops, NULL);
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

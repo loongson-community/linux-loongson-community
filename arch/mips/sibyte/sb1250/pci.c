@@ -160,7 +160,7 @@ struct pci_ops sb1250_pci_ops = {
 	.write	= sb1250_pci_write_config,
 };
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	uint32_t cmdreg;
 	uint64_t reg;
@@ -173,15 +173,14 @@ void __init pcibios_init(void)
 			   PCI_COMMAND);
 
 	if (!(cmdreg & PCI_COMMAND_MASTER)) {
-		printk
-		    ("PCI: Skipping PCI probe.  Bus is not initialized.\n");
-		return;
+		printk("PCI: Skipping PCI probe.  Bus is not initialized.\n");
+		return 0;
 	}
 
 	reg = *((volatile uint64_t *) KSEG1ADDR(A_SCD_SYSTEM_CFG));
 	if (!(reg & M_SYS_PCI_HOST)) {
 		printk("PCI: Skipping PCI probe.  Processor is in PCI device mode.\n");
-		return;
+		return 0;
 	}
 
 	sb1250_bus_status |= PCI_BUS_ENABLED;
@@ -217,6 +216,8 @@ void __init pcibios_init(void)
 #ifdef CONFIG_VGA_CONSOLE
 	take_over_console(&vga_con,0,MAX_NR_CONSOLES-1,1);
 #endif
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);

@@ -24,7 +24,7 @@ char * __init pcibios_setup(char *str)
 	return str;
 }
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	switch (mips_machtype) {
 	case MACH_LASAT_100:
@@ -37,9 +37,12 @@ void __init pcibios_init(void)
 		panic("pcibios_init: mips_machtype incorrect");
 	}
 
-	Dprintk("pcibios_init()\n");
 	pci_scan_bus(0, lasat_pci_ops, NULL);
+
+	return 0;
 }
+
+subsys_initcall(pcibios_init);
 
 void __init pcibios_fixup_bus(struct pci_bus *b)
 {

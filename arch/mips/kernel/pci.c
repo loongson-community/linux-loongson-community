@@ -73,7 +73,7 @@ struct pci_fixup pcibios_fixups[] = {
 
 extern int pciauto_assign_resources(int busno, struct pci_channel * hose);
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	struct pci_channel *p;
 	struct pci_bus *bus;
@@ -98,6 +98,8 @@ void __init pcibios_init(void)
 	pcibios_fixup();
 	/* fixup irqs (board specific routines) */
 	pcibios_fixup_irqs();
+
+	return 0;
 }
 
 subsys_initcall(pcibios_init);
