@@ -201,15 +201,15 @@ static int count32(u32 * argv, int max)
 
 	if (argv != NULL) {
 		for (;;) {
-			u32 p;
-			/* egcs is stupid */
-			if (!access_ok(VERIFY_READ, argv, sizeof (u32)))
-				return -EFAULT;
-			__get_user(p,argv);
+			u32 p; int error;
+
+			error = get_user(p,argv);
+			if (error)
+				return error;
 			if (!p)
 				break;
 			argv++;
-			if(++i > max)
+			if (++i > max)
 				return -E2BIG;
 		}
 	}
