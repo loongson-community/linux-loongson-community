@@ -202,8 +202,8 @@ CONFIG_BLK_DEV_INITRD=y
 # Ftape, the floppy tape device driver
 #
 # CONFIG_FTAPE is not set
-# CONFIG_DRM is not set
 # CONFIG_AGP is not set
+# CONFIG_DRM is not set
 
 #
 # File systems
