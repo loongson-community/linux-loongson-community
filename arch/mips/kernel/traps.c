@@ -897,11 +897,6 @@ void __init trap_init(void)
 		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
 		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
 		break;
-	case CPU_R8000:
-		printk("Detected unsupported CPU type %s.\n",
-			cpu_names[mips_cpu.cputype]);
-		panic("Can't handle CPU");
-		break;
 
 	case CPU_UNKNOWN:
 	default:
