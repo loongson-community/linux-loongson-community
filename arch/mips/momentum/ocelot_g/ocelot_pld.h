@@ -8,11 +8,7 @@
 #ifndef __MOMENCO_OCELOT_PLD_H__
 #define __MOMENCO_OCELOT_PLD_H__
 
-#if 0
-#define OCELOT_CS0_ADDR (0xe0020000)
-#else
 #define OCELOT_CS0_ADDR (0xfc000000)
-#endif
 
 #define OCELOT_REG_BOARDREV (0)
 #define OCELOT_REG_PLD1_ID (1)
