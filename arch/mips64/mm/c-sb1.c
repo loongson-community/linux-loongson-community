@@ -19,8 +19,10 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/mm.h>
 #include <asm/mmu_context.h>
 #include <asm/bootinfo.h>
+#include <asm/cacheflush.h>
 #include <asm/cacheops.h>
 #include <asm/cpu.h>
 #include <asm/uaccess.h>

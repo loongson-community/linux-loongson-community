@@ -13,7 +13,6 @@
 #include <linux/highuid.h>
 #include <linux/dirent.h>
 #include <linux/resource.h>
-#include <linux/filter.h>
 #include <linux/highmem.h>
 #include <linux/time.h>
 #include <linux/poll.h>

@@ -65,7 +65,7 @@ ifdef CONFIG_CPU_R10000
 GCCFLAGS	+= -mcpu=r8000 -mips4
 endif
 ifdef CONFIG_CPU_SB1
-GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r8000 -mips4 -Wa,--trap
 ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 MODFLAGS	+= -msb1-pass1-workarounds
 endif
@@ -174,6 +174,15 @@ SUBDIRS		+= arch/mips/sgi-ip32 arch/mips/arc
 # 16kb aligned or the handling of the current variable will break.
 #
 LOADADDR	:= 0x80002000
+endif
+
+#
+# Sibyte SWARM board
+#
+ifdef CONFIG_SIBYTE_SWARM
+LIBS		+= arch/mips/sibyte/swarm/sbswarm.a
+SUBDIRS		+= arch/mips/sibyte/swarm
+LOADADDR	:= 0x80100000
 endif
 
 #

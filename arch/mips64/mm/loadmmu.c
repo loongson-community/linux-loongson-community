@@ -25,6 +25,7 @@ void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
 void (*_flush_cache_all)(void);
+void (*___flush_cache_all)(void);
 void (*_flush_cache_mm)(struct mm_struct *mm);
 void (*_flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
                            unsigned long end);
