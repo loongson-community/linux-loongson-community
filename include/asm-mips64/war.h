@@ -82,6 +82,11 @@
  */
 #define BCM1250_M3_WAR
 
+/* 
+ * This is a DUART workaround related to glitches around register accesses
+ */
+#define SIBYTE_1956_WAR
+
 #endif
 
 #endif /* _ASM_WAR_H */
