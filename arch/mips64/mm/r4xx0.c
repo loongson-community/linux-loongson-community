@@ -2146,6 +2146,11 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	}
 }
 
+static void
+r4k_flush_cache_l2(void)
+{
+}
+
 #ifdef DEBUG_TLBUPDATE
 static unsigned long ehi_debug[NTLB_ENTRIES];
 static unsigned long el0_debug[NTLB_ENTRIES];
@@ -2538,6 +2543,7 @@ void __init ld_mmu_r4xx0(void)
 	_flush_tlb_mm = r4k_flush_tlb_mm;
 	_flush_tlb_range = r4k_flush_tlb_range;
 	_flush_tlb_page = r4k_flush_tlb_page;
+	_flush_cache_l2 = r4k_flush_cache_l2;
 
 	update_mmu_cache = r4k_update_mmu_cache;
 

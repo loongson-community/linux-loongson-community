@@ -6,6 +6,7 @@
  *
  * Copyright (C) 1997, 1998, 1999 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 2000 Kanoj Sarcar (kanoj@sgi.com)
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -86,6 +87,26 @@ static void
 andes_flush_cache_all(void)
 {
 	blast_dcache32(); blast_icache64();
+}
+
+/*
+ * This is only used during initialization time. vmalloc() also calls
+ * this, but that will be changed pretty soon.
+ */
+static void
+andes_flush_cache_l2(void)
+{
+	switch (sc_lsize()) {
+		case 64:
+			blast_scache64();
+			break;
+		case 128:
+			blast_scache128();
+			break;
+		default:
+			printk("Unknown L2 line size\n");
+			while(1);
+	}
 }
 
 static void
@@ -441,6 +462,7 @@ void __init ld_mmu_andes(void)
 	_copy_page = andes_copy_page;
 
 	_flush_cache_all = andes_flush_cache_all;
+	_flush_cache_l2 = andes_flush_cache_l2;
 	_flush_cache_mm = andes_flush_cache_mm;
 	_flush_cache_range = andes_flush_cache_range;
 	_flush_cache_page = andes_flush_cache_page;
