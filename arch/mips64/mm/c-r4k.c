@@ -459,7 +459,7 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -478,7 +478,6 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 		blast_scache16_page_indexed(page);
 	} else
 		blast_scache16_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
@@ -505,7 +504,7 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -524,7 +523,6 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 		blast_scache32_page_indexed(page);
 	} else
 		blast_scache32_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
@@ -551,7 +549,7 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -570,7 +568,6 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 		blast_scache64_page_indexed(page);
 	} else
 		blast_scache64_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
@@ -598,7 +595,7 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -617,7 +614,6 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 		blast_scache128_page_indexed(page);
 	} else
 		blast_scache128_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
@@ -645,7 +641,7 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -664,7 +660,6 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 		blast_scache32_page_indexed(page);
 	} else
 		blast_scache32_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
@@ -692,7 +687,7 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -711,7 +706,6 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 		blast_scache64_page_indexed(page);
 	} else
 		blast_scache64_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
@@ -739,7 +733,7 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -757,7 +751,6 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 		blast_scache128_page_indexed(page);
 	} else
 		blast_scache128_page(page);
-out:
 }
 
 static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
@@ -785,7 +778,7 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -802,7 +795,6 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 		page = (KSEG0 + (page & (dcache_size - 1)));
 		blast_dcache16_page_indexed(page);
 	}
-out:
 }
 
 static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
@@ -830,7 +822,7 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_PRESENT))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -848,7 +840,6 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 		page = (KSEG0 + (page & (dcache_size - 1)));
 		blast_dcache32_page_indexed(page);
 	}
-out:
 }
 
 static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
@@ -876,7 +867,7 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_PRESENT))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -894,7 +885,6 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 		blast_dcache32_page_indexed(page);
 		blast_dcache32_page_indexed(page ^ dcache_waybit);
 	}
-out:
 }
 
 static void r4k_flush_page_to_ram_s16(struct page *page)
