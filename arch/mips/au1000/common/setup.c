@@ -164,35 +164,12 @@ static int __init au1x00_setup(void)
 	initrd_end = (unsigned long)&__rd_end;
 #endif
 
-#if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
-#ifdef CONFIG_USB_OHCI
-	if ((argptr = strstr(argptr, "usb_ohci=")) == NULL) {
-	        char usb_args[80];
-		argptr = prom_getcmdline();
-		memset(usb_args, 0, sizeof(usb_args));
-		sprintf(usb_args, " usb_ohci=base:0x%x,len:0x%x,irq:%d",
-			USB_OHCI_BASE, USB_OHCI_LEN, AU1000_USB_HOST_INT);
-		strcat(argptr, usb_args);
-	}
-#endif
-
-#ifdef CONFIG_USB_OHCI
-	/* enable host controller and wait for reset done */
-	au_writel(0x08, USB_HOST_CONFIG);
-	udelay(1000);
-	au_writel(0x0E, USB_HOST_CONFIG);
-	udelay(1000);
-	au_readl(USB_HOST_CONFIG); /* throw away first read */
-	while (!(au_readl(USB_HOST_CONFIG) & 0x10))
-		au_readl(USB_HOST_CONFIG);
-#endif
-#endif /* defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE) */
-
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
 	au_writel(SYS_CNTRL_E0 | SYS_CNTRL_EN0, SYS_COUNTER_CNTRL);
 	au_sync();
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T0S);
 	au_writel(0, SYS_TOYTRIM);
+
 	return 0;
 }
 
