@@ -48,7 +48,7 @@ extern unsigned long pgd_current[];
 #elif defined(CONFIG_CPU_R8000)
 
 #define ASID_INC	0x10
-#define ASID_MASK	0xfff
+#define ASID_MASK	0xff0
 
 #elif defined(CONFIG_CPU_RM9000)
 
