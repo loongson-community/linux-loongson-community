@@ -58,6 +58,10 @@
 /* MIPS type numbers.  */
 #define PORT_IP22ZILOG	40
 
+/* NEC v850.  */
+#define PORT_NB85E_UART	40
+
+
 #ifdef __KERNEL__
 
 #include <linux/config.h>

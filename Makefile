@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 5
-SUBLEVEL = 49
+SUBLEVEL = 50
 EXTRAVERSION =
 
 # *DOCUMENTATION*
@@ -168,7 +168,10 @@ NOSTDINC_FLAGS  = -nostdinc -iwithprefix include
 
 CPPFLAGS	:= -D__KERNEL__ -Iinclude
 CFLAGS 		:= $(CPPFLAGS) -Wall -Wstrict-prototypes -Wno-trigraphs -O2 \
-	  	   -fomit-frame-pointer -fno-strict-aliasing -fno-common
+	  	   -fno-strict-aliasing -fno-common
+ifndef CONFIG_FRAME_POINTER
+CFLAGS		+= -fomit-frame-pointer
+endif
 AFLAGS		:= -D__ASSEMBLY__ $(CPPFLAGS)
 
 export	VERSION PATCHLEVEL SUBLEVEL EXTRAVERSION KERNELRELEASE ARCH \

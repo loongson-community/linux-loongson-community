@@ -20,6 +20,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/user.h>
+#include <linux/security.h>
 
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
@@ -45,18 +46,19 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	struct task_struct *child;
 	int ret;
 
-	lock_kernel();
 #if 0
 	printk("ptrace(r=%d,pid=%d,addr=%08lx,data=%08lx)\n",
 	       (int) request, (int) pid, (unsigned long) addr,
 	       (unsigned long) data);
 #endif
+	lock_kernel();
+	ret = -EPERM;
 	if (request == PTRACE_TRACEME) {
 		/* are we already being traced? */
-		if (current->ptrace & PT_PTRACED) {
-			ret = -EPERM;
+		if (current->ptrace & PT_PTRACED)
 			goto out;
-		}
+		if ((ret = security_ptrace(current->parent, current)))
+			goto out;
 		/* set the ptrace bit in the process flags. */
 		current->ptrace |= PT_PTRACED;
 		ret = 0;

@@ -126,9 +126,9 @@ static const char *task_state_array[] = {
 	"R (running)",		/*  0 */
 	"S (sleeping)",		/*  1 */
 	"D (disk sleep)",	/*  2 */
-	"Z (zombie)",		/*  4 */
 	"T (stopped)",		/*  8 */
-	"W (paging)"		/* 16 */
+	"Z (zombie)",		/*  4 */
+	"X (dead)"		/* 16 */
 };
 
 static inline const char * get_task_state(struct task_struct *tsk)
@@ -597,25 +597,3 @@ out_free1:
 out:
 	return retval;
 }
-
-#ifdef CONFIG_SMP
-int proc_pid_cpu(struct task_struct *task, char * buffer)
-{
-	int i, len;
-
-	len = sprintf(buffer,
-		"cpu  %lu %lu\n",
-		jiffies_to_clock_t(task->utime),
-		jiffies_to_clock_t(task->stime));
-		
-	for (i = 0 ; i < NR_CPUS; i++) {
-		if (cpu_online(i))
-		len += sprintf(buffer + len, "cpu%d %lu %lu\n",
-			i,
-			jiffies_to_clock_t(task->per_cpu_utime[i]),
-			jiffies_to_clock_t(task->per_cpu_stime[i]));
-
-	}
-	return len;
-}
-#endif

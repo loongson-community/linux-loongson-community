@@ -68,7 +68,7 @@ void release_task(struct task_struct * p)
 		wait_task_inactive(p);
 
 	atomic_dec(&p->user->processes);
-	security_ops->task_free_security(p);
+	security_task_free(p);
 	free_uid(p->user);
 	write_lock_irq(&tasklist_lock);
 	if (unlikely(p->ptrace))
@@ -249,7 +249,7 @@ void reparent_to_init(void)
 	/* cpus_allowed? */
 	/* rt_priority? */
 	/* signals? */
-	security_ops->task_reparent_to_init(current);
+	security_task_reparent_to_init(current);
 	memcpy(current->rlim, init_task.rlim, sizeof(*(current->rlim)));
 	current->user = INIT_USER;
 
@@ -636,11 +636,11 @@ NORET_TYPE void do_exit(long code)
 {
 	struct task_struct *tsk = current;
 
-	if (in_interrupt())
+	if (unlikely(in_interrupt()))
 		panic("Aiee, killing interrupt handler!");
-	if (!tsk->pid)
+	if (unlikely(!tsk->pid))
 		panic("Attempted to kill the idle task!");
-	if (tsk->pid == 1)
+	if (unlikely(tsk->pid == 1))
 		panic("Attempted to kill init!");
 	tsk->flags |= PF_EXITING;
 	del_timer_sync(&tsk->real_timer);
@@ -787,7 +787,7 @@ static int eligible_child(pid_t pid, int options, task_t *p)
 	if (current->tgid != p->tgid && delay_group_leader(p))
 		return 2;
 
-	if (security_ops->task_wait(p))
+	if (security_task_wait(p))
 		return 0;
 
 	return 1;

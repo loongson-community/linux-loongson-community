@@ -8,6 +8,8 @@
 obj-$(CONFIG_PCI)		+= pci/
 obj-$(CONFIG_PARISC)		+= parisc/
 obj-$(CONFIG_ACPI)		+= acpi/
+# PnP must come after ACPI since it will eventually need to check if acpi
+# was used and do nothing if so
 obj-y				+= serial/
 obj-$(CONFIG_PARPORT)		+= parport/
 obj-y				+= base/ char/ block/ misc/ net/ media/

@@ -230,7 +230,7 @@
 #define __NR_madvise			(__NR_Linux + 218)
 #define __NR_getdents64			(__NR_Linux + 219)
 #define __NR_fcntl64			(__NR_Linux + 220)
-#define __NR_security			(__NR_Linux + 221)
+#define __NR_reserved221		(__NR_Linux + 221)
 #define __NR_gettid			(__NR_Linux + 222)
 #define __NR_readahead			(__NR_Linux + 223)
 #define __NR_setxattr			(__NR_Linux + 224)

@@ -97,6 +97,7 @@ CONFIG_CPU_VR41XX=y
 # CONFIG_CPU_ADVANCED is not set
 CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PREEMPT is not set
+# CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
@@ -517,7 +518,7 @@ CONFIG_CROSSCOMPILE=y
 #
 # Security options
 #
-CONFIG_SECURITY_CAPABILITIES=y
+# CONFIG_SECURITY is not set
 
 #
 # Cryptographic options

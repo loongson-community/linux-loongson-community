@@ -117,6 +117,7 @@ CONFIG_HIGHMEM=y
 CONFIG_SMP=y
 CONFIG_NR_CPUS=2
 # CONFIG_PREEMPT is not set
+# CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
@@ -492,7 +493,7 @@ CONFIG_CROSSCOMPILE=y
 #
 # Security options
 #
-CONFIG_SECURITY_CAPABILITIES=y
+# CONFIG_SECURITY is not set
 
 #
 # Cryptographic options

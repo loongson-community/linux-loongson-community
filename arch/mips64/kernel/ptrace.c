@@ -21,6 +21,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/user.h>
+#include <linux/security.h>
 
 #include <asm/cpu.h>
 #include <asm/fpu.h>
@@ -55,6 +56,8 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 	if (request == PTRACE_TRACEME) {
 		/* are we already being traced? */
 		if (current->ptrace & PT_PTRACED)
+			goto out;
+		if ((ret = security_ptrace(current->parent, current)))
 			goto out;
 		/* set the ptrace bit in the process flags. */
 		current->ptrace |= PT_PTRACED;
@@ -292,6 +295,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	if (request == PTRACE_TRACEME) {
 		/* are we already being traced? */
 		if (current->ptrace & PT_PTRACED)
+			goto out;
+		if ((ret = security_ptrace(current->parent, current)))
 			goto out;
 		/* set the ptrace bit in the process flags. */
 		current->ptrace |= PT_PTRACED;
