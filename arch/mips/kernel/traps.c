@@ -1026,7 +1026,7 @@ void __init trap_init(void)
 		set_except_vector(24, handle_mcheck);
 
 	if (cpu_has_vce)
-		memcpy((void *)(CAC_BASE + 0x180), &except_vec3_r4000, 0x80);
+		memcpy((void *)(CAC_BASE + 0x180), &except_vec3_r4000, 0x100);
 	else if (cpu_has_4kex)
 		memcpy((void *)(CAC_BASE + 0x180), &except_vec3_generic, 0x80);
 	else
