@@ -31,6 +31,7 @@
 #include <asm/uaccess.h>
 #include <asm/smplock.h>
 #include <asm/io.h>
+#include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_scd.h>
 #include <asm/sibyte/sb1250_int.h>
@@ -55,8 +56,7 @@ static struct sbprof_tb sbp;
  *
  ************************************************************************/
 
-/* 100 samples per second on a 500 Mhz 1250 (default) */
-static u_int64_t tb_period = 2500000ULL;
+static u_int64_t tb_period;
 
 static void arm_tb(void)
 {
@@ -365,58 +365,15 @@ static struct file_operations sbprof_tb_fops = {
 	.mmap		= NULL,
 };
 
-#define UNDEF 0
-static unsigned long long pll_div_to_mhz[32] = {
-  UNDEF,
-  UNDEF,
-  UNDEF,
-  UNDEF,
-  200,
-  250,
-  300,
-  350,
-  400,
-  450,
-  500,
-  550,
-  600,
-  650,
-  700,
-  750,
-  800, 
-  850, 
-  900,
-  950,
-  1000,
-  1050,
-  1100,
-  UNDEF,
-  UNDEF,
-  UNDEF,
-  UNDEF, 
-  UNDEF, 
-  UNDEF,
-  UNDEF,
-  UNDEF,
-  UNDEF
-};
-
 static int __init sbprof_tb_init(void)
 {
-	unsigned int pll_div;
-
 	if (register_chrdev(SBPROF_TB_MAJOR, DEVNAME, &sbprof_tb_fops)) {
 		printk(KERN_WARNING DEVNAME ": initialization failed (dev %d)\n",
 		       SBPROF_TB_MAJOR);
 		return -EIO;
 	}
 	sbp.open = 0;
-	pll_div = pll_div_to_mhz[G_SYS_PLL_DIV(__raw_readq(KSEG1 + A_SCD_SYSTEM_CFG))];
-	if (pll_div != UNDEF) {
-		tb_period = (pll_div / 2) * 10000;
-	} else {
-		printk(KERN_INFO DEVNAME ": strange PLL divide\n");
-	}
+	tb_period = zbbus_mhz * 10000LL;
 	printk(KERN_INFO DEVNAME ": initialized - tb_period = %lld\n", tb_period);
 	return 0;
 }
