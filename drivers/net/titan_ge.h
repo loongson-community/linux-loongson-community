@@ -153,8 +153,10 @@ typedef struct eth_tx_desc {
 
 /* Define the Rx descriptor */
 typedef struct eth_rx_desc {
-	u32	buffer_addr;	/* Buffer address inclusive of checksum */
-	u32     cmd_sts;	/* Command and Status info */
+	u32	buffer_addr;	/* CPU buffer address   */
+	u32	reserved;	/* Unused               */
+	u32	buffer;		/* XDMA buffer address  */
+	u32	cmd_sts;	/* Command and Status   */
 } titan_ge_rx_desc;
 
 /* Define the Tx descriptor */
