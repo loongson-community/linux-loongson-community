@@ -132,8 +132,8 @@ symbol		=	value
 #define TTABLE(string)                                  \
 		.pushsection .text;			\
 		.word	1f;                             \
-		.previous;                              \
-		.data;                                  \
+		.popsection				\
+		.pushsection .data;			\
 1:		.asciz	string;                         \
 		.popsection
 
