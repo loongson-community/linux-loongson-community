@@ -201,11 +201,3 @@ NESTED(smp_bootstrap, 16, sp)
 	page	invalid_pmd_table, _PMD_ORDER
 #endif
 	page	invalid_pte_table, _PTE_ORDER
-
-#ifdef CONFIG_MIPS64
-	/*
-	 * 64-bit kernel mappings are really screwed up ...
-	 */
-	page	kptbl, _PGD_ORDER
-	page	kpmdtbl, 0
-#endif

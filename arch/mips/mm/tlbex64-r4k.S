@@ -54,27 +54,6 @@
 	daddu	\ptr, \tmp
 	.endm
 
-
-	/*
-	 * Ditto for the kernel table.
-	 */
-	.macro	LOAD_KPTE2, ptr, tmp
-	/*
-	 * First, determine that the address is in/above vmalloc range.
-	 */
-	dli	\ptr, _VMALLOC_START
-
-	/*
-	 * Now find offset into kptbl.
-	 */
-	dsubu	\tmp, \tmp, \ptr
-	dla	\ptr, kptbl
-	dsrl	\tmp, (_PAGE_SHIFT+1)		# get vpn2
-	dsll	\tmp, 4				# byte offset of pte
-	daddu	\ptr, \ptr, \tmp
-	.endm
-
-
 	/*
 	 * This places the even/odd pte pair in the page table at the pte
 	 * entry pointed to by PTE into ENTRYLO0 and ENTRYLO1.
@@ -141,7 +120,10 @@ LEAF(handle_vec1_r4k)
 	eret
 
 9:						# handle the vmalloc range
-	LOAD_KPTE2 k1 k0
+	dli	k1, _VMALLOC_START
+	dsubu	k0, k1
+	dla	k1, swapper_pg_dir		# pointer to root of pgd
+	LOAD_PTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
