@@ -151,9 +151,6 @@ void ip27_do_irq_mask0(struct pt_regs *regs)
 	if (!pend0)
 		return;
 
-	/* Prevent any of the picked intrs from recursing */
-	LOCAL_HUB_S(pi_int_mask0, mask0 & ~pend0);
-
 	swlevel = ms1bit(pend0);
 #ifdef CONFIG_SMP
 	if (pend0 & (1UL << CPU_RESCHED_A_IRQ)) {
@@ -176,11 +173,6 @@ void ip27_do_irq_mask0(struct pt_regs *regs)
 		do_IRQ(irq, regs);
 	}
 
-	/* clear bit in pend0 */
-	pend0 ^= 1UL << swlevel;
-
-	/* Now allow the set of serviced intrs again */
-	LOCAL_HUB_S(pi_int_mask0, mask0);
 	LOCAL_HUB_L(PI_INT_PEND0);
 }
 
@@ -232,9 +224,6 @@ static int intr_connect_level(int cpu, int bit)
 	struct slice_data *si = cpu_data[cpu].data;
 
 	__set_bit(bit, si->irq_enable_mask);
-
-	/* Make sure it's not already pending when we connect it. */
-	REMOTE_HUB_CLR_INTR(nasid, bit);
 
 	if (!cputoslice(cpu)) {
 		REMOTE_HUB_S(nasid, PI_INT_MASK0_A, si->irq_enable_mask[0]);
@@ -339,21 +328,32 @@ static void shutdown_bridge_irq(unsigned int irq)
 
 static inline void enable_bridge_irq(unsigned int irq)
 {
-	/* All the braindamage happens magically for us in ip27_do_irq */
+	cpuid_t cpu;
+	int swlevel;
+
+	swlevel = find_level(&cpu, irq);	/* Criminal offence */
+	intr_connect_level(cpu, swlevel);
 }
 
-static void disable_bridge_irq(unsigned int irq)
+static inline void disable_bridge_irq(unsigned int irq)
 {
-	/* All the braindamage happens magically for us in ip27_do_irq */
+	cpuid_t cpu;
+	int swlevel;
+
+	swlevel = find_level(&cpu, irq);	/* Criminal offence */
+	intr_disconnect_level(cpu, swlevel);
 }
 
 static void mask_and_ack_bridge_irq(unsigned int irq)
 {
-	/* All the braindamage happens magically for us in ip27_do_irq */
+	disable_bridge_irq(irq);
 }
 
 static void end_bridge_irq(unsigned int irq)
 {
+	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)) &&
+	    irq_desc[irq].action)
+		enable_bridge_irq(irq);
 }
 
 static struct hw_interrupt_type bridge_irq_type = {
@@ -400,7 +400,8 @@ void __devinit register_bridge_irq(unsigned int irq)
 int __devinit request_bridge_irq(struct bridge_controller *bc)
 {
 	int irq = allocate_irqno();
-	int swlevel;
+	int swlevel, cpu;
+	nasid_t nasid;
 
 	if (irq < 0)
 		return irq;
@@ -409,13 +410,19 @@ int __devinit request_bridge_irq(struct bridge_controller *bc)
 	 * "map" irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
-	swlevel = alloc_level(bc->irq_cpu, irq);
+	cpu = bc->irq_cpu;
+	swlevel = alloc_level(cpu, irq);
 	if (unlikely(swlevel < 0)) {
 		free_irqno(irq);
 
 		return -EAGAIN;
 	}
-	intr_connect_level(bc->irq_cpu, swlevel);
+
+	/* Make sure it's not already pending when we connect it. */
+	nasid = COMPACT_TO_NASID_NODEID(cpu_to_node(cpu));
+	REMOTE_HUB_CLR_INTR(nasid, swlevel);
+
+	intr_connect_level(cpu, swlevel);
 
 	register_bridge_irq(irq);
 
