@@ -75,17 +75,12 @@ static inline int is_rm300_revd(void)
 	return (csmsr & 0xa0) == 0x20;
 }
 
-static int __init sni_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	if (is_rm300_revd())
 		return irq_tab_rm300d[slot][pin];
 
 	return irq_tab_rm200[slot][pin];
-}
-
-void __init pcibios_fixup_irqs(void)
-{
-	pci_fixup_irqs(common_swizzle, sni_map_irq);
 }
 
 struct pci_fixup pcibios_fixups[] = {

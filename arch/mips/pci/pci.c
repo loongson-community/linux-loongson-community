@@ -90,6 +90,28 @@ void __init register_pci_controller(struct pci_controller *hose)
 	hose_tail = &hose->next;
 }
 
+/* Most MIPS systemems have straight-forward swizzling needs.  */
+
+static inline u8 bridge_swizzle(u8 pin, u8 slot)
+{
+	return (((pin - 1) + slot) % 4) + 1;
+}
+
+static u8 __init common_swizzle(struct pci_dev *dev, u8 *pinp)
+{
+	u8 pin = *pinp;
+
+	while (dev->bus->parent) {
+		pin = bridge_swizzle(pin, PCI_SLOT(dev->devfn));
+		/* Move up the chain of bridges. */
+		dev = dev->bus->self;
+        }
+	*pinp = pin;
+
+	/* The slot is the slot of the last bridge. */
+	return PCI_SLOT(dev->devfn);
+}
+
 static int __init pcibios_init(void)
 {
 	struct pci_controller *hose;
@@ -130,7 +152,7 @@ out:
 
 	if (!pci_probe_only)
 		pci_assign_unassigned_resources();
-	pcibios_fixup_irqs();
+	pci_fixup_irqs(common_swizzle, pcibios_map_irq);
 
 	return 0;
 }
@@ -266,28 +288,6 @@ void __init
 pcibios_update_irq(struct pci_dev *dev, int irq)
 {
 	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
-}
-
-/* Most MIPS systemems have straight-forward swizzling needs.  */
-
-static inline u8 bridge_swizzle(u8 pin, u8 slot)
-{
-	return (((pin - 1) + slot) % 4) + 1;
-}
-
-u8 __init common_swizzle(struct pci_dev *dev, u8 *pinp)
-{
-	u8 pin = *pinp;
-
-	while (dev->bus->parent) {
-		pin = bridge_swizzle(pin, PCI_SLOT(dev->devfn));
-		/* Move up the chain of bridges. */
-		dev = dev->bus->self;
-        }
-	*pinp = pin;
-
-	/* The slot is the slot of the last bridge. */
-	return PCI_SLOT(dev->devfn);
 }
 
 void __devinit

@@ -38,8 +38,6 @@ extern void register_pci_controller(struct pci_controller *hose);
 /*
  * board supplied pci irq fixup routine
  */
-extern void pcibios_fixup_irqs(void);
-
-extern u8 common_swizzle(struct pci_dev *dev, u8 *pinp);
+extern int pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin);
 
 #endif  /* __ASM_PCI_CHANNEL_H */
