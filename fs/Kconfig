@@ -406,18 +406,21 @@ config QUOTA
 	help
 	  If you say Y here, you will be able to set per user limits for disk
 	  usage (also called disk quotas). Currently, it works for the
-	  ext2, ext3, and reiserfs file system. You need additional software
-	  in order to use quota support (you can download sources from
+	  ext2, ext3, and reiserfs file system. ext3 also supports journalled
+	  quotas for which you don't need to run quotacheck(8) after an unclean
+	  shutdown. You need additional software in order to use quota support
+	  (you can download sources from
 	  <http://www.sf.net/projects/linuxquota/>). For further details, read
 	  the Quota mini-HOWTO, available from
-	  <http://www.tldp.org/docs.html#howto>. Probably the quota
-	  support is only useful for multi user systems. If unsure, say N.
+	  <http://www.tldp.org/docs.html#howto>, or the documentation provided
+	  with the quota tools. Probably the quota support is only useful for
+	  multi user systems. If unsure, say N.
 
 config QFMT_V1
 	tristate "Old quota format support"
 	depends on QUOTA
 	help
-	  This quota format was (is) used by kernels earlier than 2.4.??. If
+	  This quota format was (is) used by kernels earlier than 2.4.22. If
 	  you have quota working and you don't want to convert to new quota
 	  format say Y here.
 
@@ -426,8 +429,8 @@ config QFMT_V2
 	depends on QUOTA
 	help
 	  This quota format allows using quotas with 32-bit UIDs/GIDs. If you
-	  need this functionality say Y here. Note that you will need latest
-	  quota utilities for new quota format with this kernel.
+	  need this functionality say Y here. Note that you will need recent
+	  quota utilities (>= 3.01) for new quota format with this kernel.
 
 config QUOTACTL
 	bool
@@ -779,6 +782,30 @@ config PROC_FS
 config PROC_KCORE
 	bool
 	default y if !ARM
+
+config SYSFS
+	bool "sysfs file system support" if EMBEDDED
+	default y
+	help
+	The sysfs filesystem is a virtual filesystem that the kernel uses to
+	export internal kernel objects, their attributes, and their
+	relationships to one another.
+
+	Users can use sysfs to ascertain useful information about the running
+	kernel, such as the devices the kernel has discovered on each bus and
+	which driver each is bound to. sysfs can also be used to tune devices
+	and other kernel subsystems.
+
+	Some system agents rely on the information in sysfs to operate.
+	/sbin/hotplug uses device and object attributes in sysfs to assist in
+	delegating policy decisions, like persistantly naming devices.
+
+	sysfs is currently used by the block subsystem to mount the root
+	partition.  If sysfs is disabled you must specify the boot device on
+	the kernel boot command line via its major and minor numbers.  For
+	example, "root=03:01" for /dev/hda1.
+
+	Designers of embedded systems may wish to say N here to conserve space.
 
 config DEVFS_FS
 	bool "/dev file system support (OBSOLETE)"

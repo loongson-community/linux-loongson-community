@@ -103,7 +103,7 @@ Step 1: decide how you like to implement the time services.
      Do you plan to use the CPU counter register as the timer interrupt
      or use an exnternal timer?
 
-     In order to use CPU counter register as the timer interrupt source, you 
+     In order to use CPU counter register as the timer interrupt source, you
      must know the counter speed (mips_counter_frequency).  It is usually the
      same as the CPU speed or an integral divisor of it.
 
@@ -163,7 +163,7 @@ RTC routines and/or timer interrupt routine).
 PORTING NOTES FOR SMP
 ----------------------
 
-If you have a SMP box, things are slightly more complicated.  
+If you have a SMP box, things are slightly more complicated.
 
 The time service running every jiffy is logically divided into two parts:
 
@@ -191,7 +191,7 @@ You need to decide on your timer interrupt sources.
 	following similar dispatching routes described above.
 
 Note about do_gettimeoffset():
-  
+
   It is very likely the CPU counter registers are not sync'ed up in a SMP box.
   Therefore you cannot really use the many of the existing routines that
   are based on CPU counter.  You should wirte your own gettimeoffset rouinte

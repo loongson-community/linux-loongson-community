@@ -7,7 +7,7 @@
 #
 # Copyright (C) 1995-2001 by Russell King
 
-LDFLAGS_vmlinux	:=-p -X
+LDFLAGS_vmlinux	:=-p --no-undefined -X
 LDFLAGS_BLOB	:=--format binary
 AFLAGS_vmlinux.lds.o = -DTEXTADDR=$(TEXTADDR) -DDATAADDR=$(DATAADDR)
 OBJCOPYFLAGS	:=-O binary -R .note -R .comment -S
@@ -47,6 +47,7 @@ tune-$(CONFIG_CPU_ARM710)	:=-mtune=arm710
 tune-$(CONFIG_CPU_ARM720T)	:=-mtune=arm7tdmi
 tune-$(CONFIG_CPU_ARM920T)	:=-mtune=arm9tdmi
 tune-$(CONFIG_CPU_ARM922T)	:=-mtune=arm9tdmi
+tune-$(CONFIG_CPU_ARM925T)	:=-mtune=arm9tdmi
 tune-$(CONFIG_CPU_ARM926T)	:=-mtune=arm9tdmi
 tune-$(CONFIG_CPU_SA110)	:=-mtune=strongarm110
 tune-$(CONFIG_CPU_SA1100)	:=-mtune=strongarm1100
@@ -91,12 +92,14 @@ textaddr-$(CONFIG_ARCH_CLPS711X)   := 0xc0028000
 textaddr-$(CONFIG_ARCH_FORTUNET)   := 0xc0008000
  machine-$(CONFIG_ARCH_IOP3XX)	   := iop3xx
  machine-$(CONFIG_ARCH_ADIFCC)	   := adifcc
+ machine-$(CONFIG_ARCH_OMAP)	   := omap
+ machine-$(CONFIG_ARCH_S3C2410)	   := s3c2410
 
 TEXTADDR := $(textaddr-y)
 ifeq ($(incdir-y),)
 incdir-y := $(machine-y)
 endif
-INCDIR   := $(incdir-y)
+INCDIR   := arch-$(incdir-y)
   
 export	TEXTADDR GZFLAGS
 
@@ -130,8 +133,13 @@ boot := arch/arm/boot
 #	last, otherwise make uses the target directory mtime.
 
 include/asm-arm/.arch: $(wildcard include/config/arch/*.h) include/config/MARKER
-	@echo '  SYMLINK include/asm-arm/arch -> include/asm-arm/arch-$(INCDIR)'
-	@ln -fsn arch-$(INCDIR) include/asm-arm/arch
+	@echo '  SYMLINK include/asm-arm/arch -> include/asm-arm/$(INCDIR)'
+ifneq ($(KBUILD_SRC),)
+	$(Q)mkdir -p include/asm-arm
+	$(Q)ln -fsn $(srctree)/include/asm-arm/$(INCDIR) include/asm-arm/arch
+else
+	$(Q)ln -fsn $(INCDIR) include/asm-arm/arch
+endif
 	@touch $@
 
 prepare: maketools include/asm-arm/.arch

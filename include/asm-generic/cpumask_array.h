@@ -16,7 +16,7 @@
 
 #define cpus_and(dst,src1,src2)	bitmap_and((dst).mask,(src1).mask, (src2).mask, NR_CPUS)
 #define cpus_or(dst,src1,src2)	bitmap_or((dst).mask, (src1).mask, (src2).mask, NR_CPUS)
-#define cpus_clear(map)		bitmap_clear((map).mask, NR_CPUS)
+#define cpus_clear(map)		bitmap_zero((map).mask, NR_CPUS)
 #define cpus_complement(map)	bitmap_complement((map).mask, NR_CPUS)
 #define cpus_equal(map1, map2)	bitmap_equal((map1).mask, (map2).mask, NR_CPUS)
 #define cpus_empty(map)		bitmap_empty(map.mask, NR_CPUS)
@@ -48,7 +48,7 @@
 /*
  * um, these need to be usable as static initializers
  */
-#define CPU_MASK_ALL	{ {[0 ... CPU_ARRAY_SIZE-1] = ~0UL} }
-#define CPU_MASK_NONE	{ {[0 ... CPU_ARRAY_SIZE-1] =  0UL} }
+#define CPU_MASK_ALL	((cpumask_t) { {[0 ... CPU_ARRAY_SIZE-1] = ~0UL} })
+#define CPU_MASK_NONE	((cpumask_t) { {[0 ... CPU_ARRAY_SIZE-1] =  0UL} })
 
 #endif /* __ASM_GENERIC_CPUMASK_ARRAY_H */

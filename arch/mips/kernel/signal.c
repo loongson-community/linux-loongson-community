@@ -34,8 +34,6 @@
 
 extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
 
-extern asmlinkage void do_syscall_trace(void);
-
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
  */
@@ -232,7 +230,7 @@ asmlinkage void sys_sigreturn(struct pt_regs regs)
 	 * Don't let your children do this ...
 	 */
 	if (current_thread_info()->flags & TIF_SYSCALL_TRACE)
-		do_syscall_trace();
+		do_syscall_trace(&regs, 1);
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
 		"j\tsyscall_exit"

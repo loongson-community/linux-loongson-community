@@ -42,13 +42,14 @@ struct divert_blk;
 struct vlan_group;
 struct ethtool_ops;
 
-					/* source back-compat hook */
+					/* source back-compat hooks */
 #define SET_ETHTOOL_OPS(netdev,ops) \
 	( (netdev)->ethtool_ops = (ops) )
 
 #define HAVE_ALLOC_NETDEV		/* feature macro: alloc_xxxdev
 					   functions are available. */
-#define HAVE_FREE_NETDEV
+#define HAVE_FREE_NETDEV		/* free_netdev() */
+#define HAVE_NETDEV_PRIV		/* netdev_priv() */
 
 #define NET_XMIT_SUCCESS	0
 #define NET_XMIT_DROP		1	/* skb dropped			*/
@@ -484,9 +485,14 @@ struct net_device
 	int padded;
 };
 
+#define	NETDEV_ALIGN		32
+#define	NETDEV_ALIGN_CONST	(NETDEV_ALIGN - 1)
+
 static inline void *netdev_priv(struct net_device *dev)
 {
-	return (char *)dev + ((sizeof(struct net_device) + 31) & ~31);
+	return (char *)dev + ((sizeof(struct net_device)
+					+ NETDEV_ALIGN_CONST)
+				& ~NETDEV_ALIGN_CONST);
 }
 
 #define SET_MODULE_OWNER(dev) do { } while (0)

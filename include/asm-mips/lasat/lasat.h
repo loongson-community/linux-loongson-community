@@ -220,7 +220,7 @@ extern void lasat_write_eeprom_info(void);
 #define N_MACHTYPES		2
 /* for calibration of delays */
 
-/* the lasat_ndelay function is necessary because it is used at an 
+/* the lasat_ndelay function is necessary because it is used at an
  * early stage of the boot process where ndelay is not calibrated.
  * It is used for the bit-banging rtc and eeprom drivers */
 

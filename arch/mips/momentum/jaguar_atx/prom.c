@@ -256,7 +256,7 @@ void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
 }
 
 /*
- * SMP support 
+ * SMP support
  */
 int prom_setup_smp(void)
 {

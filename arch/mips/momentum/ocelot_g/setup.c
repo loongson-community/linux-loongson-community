@@ -83,7 +83,7 @@ static char reset_reason;
 
 static unsigned long ENTRYLO(unsigned long paddr)
 {
-	return ((paddr & PAGE_MASK) | 
+	return ((paddr & PAGE_MASK) |
 	       (_PAGE_PRESENT | __READABLE | __WRITEABLE | _PAGE_GLOBAL |
 		_CACHE_UNCACHED)) >> 6;
 }

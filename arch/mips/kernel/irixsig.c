@@ -17,8 +17,6 @@
 #include <asm/ptrace.h>
 #include <asm/uaccess.h>
 
-extern asmlinkage void do_syscall_trace(void);
-
 #undef DEBUG_SIG
 
 #define _S(nr) (1<<((nr)-1))
@@ -263,7 +261,7 @@ irix_sigreturn(struct pt_regs *regs)
 	 * Don't let your children do this ...
 	 */
 	if (current_thread_info()->flags & TIF_SYSCALL_TRACE)
-		do_syscall_trace();
+		do_syscall_trace(regs, 1);
 	__asm__ __volatile__(
 		"move\t$29,%0\n\t"
 		"j\tsyscall_exit"

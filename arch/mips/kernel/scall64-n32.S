@@ -49,8 +49,10 @@ NESTED(handle_sysn32, PT_SIZE, sp)
 
 	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
 
+	li	t1, _TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT
 	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
-	bltz	t0, n32_syscall_trace_entry
+	and	t0, t1, t0
+	bnez	t0, n32_syscall_trace_entry
 
 	jalr	t2			# Do The Real Thing (TM)
 
@@ -82,6 +84,8 @@ n32_syscall_exit_work:
 n32_syscall_trace_entry:
 	SAVE_STATIC
 	sd	t2,PT_R1(sp)
+	move	a0, sp
+	li	a1, 0
 	jal	do_syscall_trace
 	ld	t2,PT_R1(sp)
 
@@ -341,3 +345,12 @@ EXPORT(sysn32_call_table)
 	PTR	sys_clock_nanosleep
 	PTR	sys_tgkill
 	PTR	compat_sys_utimes		/* 6230 */
+	PTR	sys_ni_syscall			/* sys_mbind */
+	PTR	sys_ni_syscall			/* sys_get_mempolicy */
+	PTR	sys_ni_syscall			/* sys_set_mempolicy */
+	PTR	compat_sys_mq_open
+	PTR	sys_mq_unlink			/* 6235 */
+	PTR	compat_sys_mq_timedsend
+	PTR	compat_sys_mq_timedreceive
+	PTR	compat_sys_mq_notify
+	PTR	compat_sys_mq_getsetattr	/* 6239 */

@@ -14,23 +14,16 @@
  */
 #include <linux/config.h>
 #include <linux/module.h>
-#include <linux/types.h>
-#include <linux/kernel.h>
 #include <linux/signal.h>
-#include <linux/sched.h>
-#include <linux/mm.h>
 #include <linux/spinlock.h>
 #include <linux/personality.h>
 #include <linux/ptrace.h>
-#include <linux/elf.h>
-#include <linux/interrupt.h>
 #include <linux/kallsyms.h>
 #include <linux/init.h>
 
 #include <asm/atomic.h>
+#include <asm/cacheflush.h>
 #include <asm/io.h>
-#include <asm/pgalloc.h>
-#include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
@@ -204,6 +197,7 @@ void show_stack(struct task_struct *tsk, unsigned long *sp)
 		asm("mov%? %0, fp" : "=r" (fp));
 
 	c_backtrace(fp, 0x10);
+	barrier();
 }
 
 spinlock_t die_lock = SPIN_LOCK_UNLOCKED;

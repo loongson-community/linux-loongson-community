@@ -24,7 +24,15 @@
 #include <asm/uaccess.h>
 
 extern int __init init_rootfs(void);
+
+#ifdef CONFIG_SYSFS
 extern int __init sysfs_init(void);
+#else
+static inline int sysfs_init(void)
+{
+	return 0;
+}
+#endif
 
 /* spinlock for vfsmount related operations, inplace of dcache_lock */
 spinlock_t vfsmount_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
@@ -769,7 +777,7 @@ long do_mount(char * dev_name, char * dir_name, char *type_page,
 		mnt_flags |= MNT_NODEV;
 	if (flags & MS_NOEXEC)
 		mnt_flags |= MNT_NOEXEC;
-	flags &= ~(MS_NOSUID|MS_NOEXEC|MS_NODEV);
+	flags &= ~(MS_NOSUID|MS_NOEXEC|MS_NODEV|MS_ACTIVE);
 
 	/* ... and get the mountpoint */
 	retval = path_lookup(dir_name, LOOKUP_FOLLOW, &nd);

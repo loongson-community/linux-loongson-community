@@ -1097,7 +1097,7 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
   #define AC97C_RS              (1<<1)
   #define AC97C_CE              (1<<0)
 
- 
+
 /* Secure Digital (SD) Controller */
 #define SD0_XMIT_FIFO	0xB0600000
 #define SD0_RECV_FIFO	0xB0600004

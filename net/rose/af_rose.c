@@ -1270,12 +1270,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	}
 
 	case SIOCGSTAMP:
-		if (!sk->sk_stamp.tv_sec)
-			err = -ENOENT;
-		else if (copy_to_user((void *)arg, &sk->sk_stamp,
-				     sizeof(struct timeval)))
-			err = -EFAULT;
-		break;
+		return sock_get_timestamp(sk, (struct timeval *)arg);
 
 	case SIOCGIFADDR:
 	case SIOCSIFADDR:

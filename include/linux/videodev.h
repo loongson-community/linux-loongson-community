@@ -430,7 +430,7 @@ struct video_code
 #define VID_HARDWARE_VICAM      34
 #define VID_HARDWARE_SF16FMR2	35
 #define VID_HARDWARE_W9968CF	36	/* W996[87]CF JPEG USB Dual Mode Cam */
-#define VID_HARDWARE_SAA7114H   37	/* Linux/MIPS Private allocation */
+#define VID_HARDWARE_SAA7114H   37
 
 #endif /* __LINUX_VIDEODEV_H */
 

@@ -42,7 +42,7 @@ static inline void flush_dcache_page(struct page *page)
 {
 	if (cpu_has_dc_aliases)
 		__flush_dcache_page(page);
-	    
+
 }
 
 extern void (*flush_icache_page)(struct vm_area_struct *vma,

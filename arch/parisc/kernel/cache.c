@@ -68,7 +68,7 @@ update_mmu_cache(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 {
 	struct page *page = pte_page(pte);
 
-	if (VALID_PAGE(page) && page->mapping &&
+	if (VALID_PAGE(page) && page_mapping(page) &&
 	    test_bit(PG_dcache_dirty, &page->flags)) {
 
 		flush_kernel_dcache_page(page_address(page));
@@ -229,16 +229,17 @@ void disable_sr_hashing(void)
 
 void __flush_dcache_page(struct page *page)
 {
+	struct address_space *mapping = page_mapping(page);
 	struct mm_struct *mm = current->active_mm;
 	struct list_head *l;
 
 	flush_kernel_dcache_page(page_address(page));
 
-	if (!page->mapping)
+	if (!mapping)
 		return;
 	/* check shared list first if it's not empty...it's usually
 	 * the shortest */
-	list_for_each(l, &page->mapping->i_mmap_shared) {
+	list_for_each(l, &mapping->i_mmap_shared) {
 		struct vm_area_struct *mpnt;
 		unsigned long off;
 
@@ -267,7 +268,7 @@ void __flush_dcache_page(struct page *page)
 
 	/* then check private mapping list for read only shared mappings
 	 * which are flagged by VM_MAYSHARE */
-	list_for_each(l, &page->mapping->i_mmap) {
+	list_for_each(l, &mapping->i_mmap) {
 		struct vm_area_struct *mpnt;
 		unsigned long off;
 

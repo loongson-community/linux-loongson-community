@@ -83,7 +83,7 @@ kernel_stack_top(struct task_struct *tsk)
 unsigned long
 task_top(struct task_struct *tsk)
 {
-	return ((unsigned long)tsk) + sizeof(struct task_struct);
+	return ((unsigned long)tsk) + sizeof(struct thread_info);
 }
 
 /* check to make sure the kernel stack is healthy */
@@ -661,8 +661,6 @@ void __init ll_puts(const char *s)
 /*
  * These bracket the sleeping functions..
  */
-extern void scheduling_functions_start_here(void);
-extern void scheduling_functions_end_here(void);
 #define first_sched    ((unsigned long) scheduling_functions_start_here)
 #define last_sched     ((unsigned long) scheduling_functions_end_here)
 

@@ -77,7 +77,6 @@ struct reclaim_state {
 };
 
 struct address_space;
-struct pte_chain;
 struct sysinfo;
 struct writeback_control;
 struct zone;
@@ -178,25 +177,10 @@ extern int try_to_free_pages(struct zone **, unsigned int, unsigned int);
 extern int shrink_all_memory(int);
 extern int vm_swappiness;
 
-/* linux/mm/rmap.c */
 #ifdef CONFIG_MMU
-int FASTCALL(page_referenced(struct page *));
-struct pte_chain *FASTCALL(page_add_rmap(struct page *, pte_t *,
-					struct pte_chain *));
-void FASTCALL(page_remove_rmap(struct page *, pte_t *));
-int FASTCALL(try_to_unmap(struct page *));
-
 /* linux/mm/shmem.c */
 extern int shmem_unuse(swp_entry_t entry, struct page *page);
-#else
-#define page_referenced(page)	TestClearPageReferenced(page)
-#define try_to_unmap(page)	SWAP_FAIL
 #endif /* CONFIG_MMU */
-
-/* return values of try_to_unmap */
-#define	SWAP_SUCCESS	0
-#define	SWAP_AGAIN	1
-#define	SWAP_FAIL	2
 
 #ifdef CONFIG_SWAP
 /* linux/mm/page_io.c */
@@ -233,6 +217,7 @@ extern sector_t map_swap_page(struct swap_info_struct *, pgoff_t);
 extern struct swap_info_struct *get_swap_info_struct(unsigned);
 extern int can_share_swap_page(struct page *);
 extern int remove_exclusive_swap_page(struct page *);
+extern void swap_unplug_io_fn(struct page *);
 
 extern struct swap_list_t swap_list;
 extern spinlock_t swaplock;
@@ -266,6 +251,7 @@ extern spinlock_t swaplock;
 #define move_from_swap_cache(p, i, m)		1
 #define __delete_from_swap_cache(p)		/*NOTHING*/
 #define delete_from_swap_cache(p)		/*NOTHING*/
+#define swap_unplug_io_fn(p)			/*NOTHING*/
 
 static inline int remove_exclusive_swap_page(struct page *p)
 {

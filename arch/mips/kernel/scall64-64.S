@@ -85,6 +85,8 @@ n64_syscall_exit_work:
 syscall_trace_entry:
 	SAVE_STATIC
 	sd	t2,PT_R1(sp)
+	move	a0, sp
+	li	a1, 0
 	jal	do_syscall_trace
 	ld	t2,PT_R1(sp)
 
@@ -165,13 +167,15 @@ illegal_syscall:
 
 	/* Success, so skip usual error handling garbage.  */
 	LONG_L	a2, TI_FLAGS($28)	# syscall tracing enabled?
-	li	t0, _TIF_SYSCALL_TRACE
+	li	t0, _TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT
 	and	t0, a2, t0
 	bnez	t0, 1f
 
 	b	syscall_exit
 
 1:	SAVE_STATIC
+	move	a0, sp
+	li	a1, 1
 	jal	do_syscall_trace
 	j	syscall_exit
 
@@ -432,3 +436,12 @@ sys_call_table:
 	PTR	sys_clock_nanosleep
 	PTR	sys_tgkill			/* 5225 */
 	PTR	sys_utimes
+	PTR	sys_ni_syscall			/* sys_mbind */
+	PTR	sys_ni_syscall			/* sys_get_mempolicy */
+	PTR	sys_ni_syscall			/* sys_set_mempolicy */
+	PTR	sys_mq_open			/* 5230 */
+	PTR	sys_mq_unlink
+	PTR	sys_mq_timedsend
+	PTR	sys_mq_timedreceive
+	PTR	sys_mq_notify
+	PTR	sys_mq_getsetattr		/* 5235 */

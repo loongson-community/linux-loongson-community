@@ -385,7 +385,8 @@ can_vma_merge_after(struct vm_area_struct *vma, unsigned long vm_flags,
  * whether that can be merged with its predecessor or its successor.  Or
  * both (it neatly fills a hole).
  */
-static int vma_merge(struct mm_struct *mm, struct vm_area_struct *prev,
+static struct vm_area_struct *vma_merge(struct mm_struct *mm,
+			struct vm_area_struct *prev,
 			struct rb_node *rb_parent, unsigned long addr, 
 			unsigned long end, unsigned long vm_flags,
 			struct file *file, unsigned long pgoff)
@@ -399,7 +400,7 @@ static int vma_merge(struct mm_struct *mm, struct vm_area_struct *prev,
 	 * vma->vm_flags & VM_SPECIAL, too.
 	 */
 	if (vm_flags & VM_SPECIAL)
-		return 0;
+		return NULL;
 
 	i_shared_sem = file ? &file->f_mapping->i_shared_sem : NULL;
 
@@ -412,7 +413,6 @@ static int vma_merge(struct mm_struct *mm, struct vm_area_struct *prev,
 	 * Can it merge with the predecessor?
 	 */
 	if (prev->vm_end == addr &&
-			is_mergeable_vma(prev, file, vm_flags) &&
 			can_vma_merge_after(prev, vm_flags, file, pgoff)) {
 		struct vm_area_struct *next;
 		int need_up = 0;
@@ -443,12 +443,12 @@ static int vma_merge(struct mm_struct *mm, struct vm_area_struct *prev,
 
 			mm->map_count--;
 			kmem_cache_free(vm_area_cachep, next);
-			return 1;
+			return prev;
 		}
 		spin_unlock(lock);
 		if (need_up)
 			up(i_shared_sem);
-		return 1;
+		return prev;
 	}
 
 	/*
@@ -459,7 +459,7 @@ static int vma_merge(struct mm_struct *mm, struct vm_area_struct *prev,
  merge_next:
 		if (!can_vma_merge_before(prev, vm_flags, file,
 				pgoff, (end - addr) >> PAGE_SHIFT))
-			return 0;
+			return NULL;
 		if (end == prev->vm_start) {
 			if (file)
 				down(i_shared_sem);
@@ -469,11 +469,11 @@ static int vma_merge(struct mm_struct *mm, struct vm_area_struct *prev,
 			spin_unlock(lock);
 			if (file)
 				up(i_shared_sem);
-			return 1;
+			return prev;
 		}
 	}
 
-	return 0;
+	return NULL;
 }
 
 /*
@@ -728,7 +728,7 @@ unmap_and_free_vma:
 	fput(file);
 
 	/* Undo any partial mapping done by a device driver. */
-	zap_page_range(vma, vma->vm_start, vma->vm_end - vma->vm_start);
+	zap_page_range(vma, vma->vm_start, vma->vm_end - vma->vm_start, NULL);
 free_vma:
 	kmem_cache_free(vm_area_cachep, vma);
 unacct_error:
@@ -1160,7 +1160,7 @@ static void unmap_region(struct mm_struct *mm,
 
 	lru_add_drain();
 	tlb = tlb_gather_mmu(mm, 0);
-	unmap_vmas(&tlb, mm, vma, start, end, &nr_accounted);
+	unmap_vmas(&tlb, mm, vma, start, end, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
 
 	if (is_hugepage_only_range(start, end - start))
@@ -1446,7 +1446,7 @@ void exit_mmap(struct mm_struct *mm)
 	flush_cache_mm(mm);
 	/* Use ~0UL here to ensure all VMAs in the mm are unmapped */
 	mm->map_count -= unmap_vmas(&tlb, mm, mm->mmap, 0,
-					~0UL, &nr_accounted);
+					~0UL, &nr_accounted, NULL);
 	vm_unacct_memory(nr_accounted);
 	BUG_ON(mm->map_count);	/* This is just debugging */
 	clear_page_tables(tlb, FIRST_USER_PGD_NR, USER_PTRS_PER_PGD);
@@ -1492,5 +1492,45 @@ void insert_vm_struct(struct mm_struct * mm, struct vm_area_struct * vma)
 	if (__vma && __vma->vm_start < vma->vm_end)
 		BUG();
 	vma_link(mm, vma, prev, rb_link, rb_parent);
-	validate_mm(mm);
+}
+
+/*
+ * Copy the vma structure to a new location in the same mm,
+ * prior to moving page table entries, to effect an mremap move.
+ */
+struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
+	unsigned long addr, unsigned long len, unsigned long pgoff)
+{
+	struct vm_area_struct *vma = *vmap;
+	unsigned long vma_start = vma->vm_start;
+	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *new_vma, *prev;
+	struct rb_node **rb_link, *rb_parent;
+
+	find_vma_prepare(mm, addr, &prev, &rb_link, &rb_parent);
+	new_vma = vma_merge(mm, prev, rb_parent, addr, addr + len,
+			vma->vm_flags, vma->vm_file, pgoff);
+	if (new_vma) {
+		/*
+		 * Source vma may have been merged into new_vma
+		 */
+		if (vma_start >= new_vma->vm_start &&
+		    vma_start < new_vma->vm_end)
+			*vmap = new_vma;
+	} else {
+		new_vma = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
+		if (new_vma) {
+			*new_vma = *vma;
+			INIT_LIST_HEAD(&new_vma->shared);
+			new_vma->vm_start = addr;
+			new_vma->vm_end = addr + len;
+			new_vma->vm_pgoff = pgoff;
+			if (new_vma->vm_file)
+				get_file(new_vma->vm_file);
+			if (new_vma->vm_ops && new_vma->vm_ops->open)
+				new_vma->vm_ops->open(new_vma);
+			vma_link(mm, new_vma, prev, rb_link, rb_parent);
+		}
+	}
+	return new_vma;
 }

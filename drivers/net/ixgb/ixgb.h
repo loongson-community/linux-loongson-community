@@ -43,6 +43,7 @@
 #include <linux/timer.h>
 #include <linux/string.h>
 #include <linux/pagemap.h>
+#include <linux/dma-mapping.h>
 #include <linux/bitops.h>
 #include <linux/in.h>
 #include <linux/ip.h>
@@ -65,8 +66,6 @@ struct ixgb_adapter;
 #define BAR_0           0
 #define BAR_1           1
 #define BAR_5           5
-#define PCI_DMA_64BIT   0xffffffffffffffffULL
-#define PCI_DMA_32BIT   0x00000000ffffffffULL
 
 #include "ixgb_hw.h"
 #include "ixgb_ee.h"

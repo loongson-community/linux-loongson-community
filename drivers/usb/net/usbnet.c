@@ -3104,7 +3104,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 
 	}
 	if (status < 0)
-		goto out2;
+		goto out1;
 
 	dev->maxpacket = usb_maxpacket (dev->udev, dev->out, 1);
 	
@@ -3127,7 +3127,6 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 out3:
 	if (info->unbind)
 		info->unbind (dev, udev);
-out2:
 	free_netdev(net);
 out1:
 	kfree(dev);
@@ -3414,9 +3413,7 @@ static int __init usbnet_init (void)
 			< sizeof (struct cdc_state)));
 #endif
 
-	get_random_bytes (node_id, sizeof node_id);
-	node_id [0] &= 0xfe;	// clear multicast bit
-	node_id [0] |= 0x02;    // set local assignment bit (IEEE802)
+	random_ether_addr(node_id);
 
  	return usb_register(&usbnet_driver);
 }

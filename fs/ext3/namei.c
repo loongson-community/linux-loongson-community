@@ -1606,11 +1606,9 @@ static int ext3_add_nondir(handle_t *handle,
 {
 	int err = ext3_add_entry(handle, dentry, inode);
 	if (!err) {
-		err = ext3_mark_inode_dirty(handle, inode);
-		if (!err) {
-			d_instantiate(dentry, inode);
-			return 0;
-		}
+		ext3_mark_inode_dirty(handle, inode);
+		d_instantiate(dentry, inode);
+		return 0;
 	}
 	ext3_dec_count(handle, inode);
 	iput(inode);
@@ -1633,7 +1631,8 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 	int err;
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS +
-					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3);
+					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3 +
+					2*EXT3_QUOTA_INIT_BLOCKS);
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
 
@@ -1663,7 +1662,8 @@ static int ext3_mknod (struct inode * dir, struct dentry *dentry,
 		return -EINVAL;
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS +
-			 		EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3);
+			 		EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3 +
+					2*EXT3_QUOTA_INIT_BLOCKS);
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
 
@@ -1695,7 +1695,8 @@ static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 		return -EMLINK;
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS +
-					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3);
+					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3 +
+					2*EXT3_QUOTA_INIT_BLOCKS);
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
 
@@ -1974,6 +1975,9 @@ static int ext3_rmdir (struct inode * dir, struct dentry *dentry)
 	struct ext3_dir_entry_2 * de;
 	handle_t *handle;
 
+	/* Initialize quotas before so that eventual writes go in
+	 * separate transaction */
+	DQUOT_INIT(dentry->d_inode);
 	handle = ext3_journal_start(dir, EXT3_DELETE_TRANS_BLOCKS);
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
@@ -1987,7 +1991,6 @@ static int ext3_rmdir (struct inode * dir, struct dentry *dentry)
 		handle->h_sync = 1;
 
 	inode = dentry->d_inode;
-	DQUOT_INIT(inode);
 
 	retval = -EIO;
 	if (le32_to_cpu(de->inode) != inode->i_ino)
@@ -2031,6 +2034,9 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 	struct ext3_dir_entry_2 * de;
 	handle_t *handle;
 
+	/* Initialize quotas before so that eventual writes go
+	 * in separate transaction */
+	DQUOT_INIT(dentry->d_inode);
 	handle = ext3_journal_start(dir, EXT3_DELETE_TRANS_BLOCKS);
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
@@ -2044,7 +2050,6 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 		goto end_unlink;
 
 	inode = dentry->d_inode;
-	DQUOT_INIT(inode);
 
 	retval = -EIO;
 	if (le32_to_cpu(de->inode) != inode->i_ino)
@@ -2087,7 +2092,8 @@ static int ext3_symlink (struct inode * dir,
 		return -ENAMETOOLONG;
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS +
-			 		EXT3_INDEX_EXTRA_TRANS_BLOCKS + 5);
+			 		EXT3_INDEX_EXTRA_TRANS_BLOCKS + 5 +
+					2*EXT3_QUOTA_INIT_BLOCKS);
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
 
@@ -2172,6 +2178,10 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 
 	old_bh = new_bh = dir_bh = NULL;
 
+	/* Initialize quotas before so that eventual writes go
+	 * in separate transaction */
+	if (new_dentry->d_inode)
+		DQUOT_INIT(new_dentry->d_inode);
 	handle = ext3_journal_start(old_dir, 2 * EXT3_DATA_TRANS_BLOCKS +
 			 		EXT3_INDEX_EXTRA_TRANS_BLOCKS + 2);
 	if (IS_ERR(handle))
@@ -2198,8 +2208,6 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 		if (!new_inode) {
 			brelse (new_bh);
 			new_bh = NULL;
-		} else {
-			DQUOT_INIT(new_inode);
 		}
 	}
 	if (S_ISDIR(old_inode->i_mode)) {

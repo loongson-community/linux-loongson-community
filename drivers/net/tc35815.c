@@ -597,6 +597,7 @@ static int __devinit tc35815_probe1(struct pci_dev *pdev, unsigned int base_addr
 	dev->get_stats		= tc35815_get_stats;
 	dev->set_multicast_list = tc35815_set_multicast_list;
 	SET_MODULE_OWNER(dev);
+	SET_NETDEV_DEV(dev, &pdev->dev);
 
 	ret = register_netdev(dev);
 	if (ret)
@@ -1724,12 +1725,7 @@ static struct pci_driver tc35815_driver = {
 
 static int __init tc35815_init_module(void)
 {
-	int err;
-
-	if ((err = pci_module_init(&tc35815_driver)) < 0)
-		       return err;      
-	else
-		return 0;
+	return pci_module_init(&tc35815_driver);
 }
 
 static void __exit tc35815_cleanup_module(void)

@@ -70,7 +70,7 @@ config X86_NUMAQ
 	  multiquad box. This changes the way that processors are bootstrapped,
 	  and uses Clustered Logical APIC addressing mode instead of Flat Logical.
 	  You will need a new lynxer.elf file to flash your firmware with - send
-	  email to Martin.Bligh@us.ibm.com
+	  email to <Martin.Bligh@us.ibm.com>.
 
 config X86_SUMMIT
 	bool "Summit/EXA (IBM x440)"
@@ -322,9 +322,13 @@ endchoice
 config X86_GENERIC
        bool "Generic x86 support" 
        help
-       	  Including some tuning for non selected x86 CPUs too.
-	  when it has moderate overhead. This is intended for generic 
-	  distributions kernels.
+	  Instead of just including optimizations for the selected
+	  x86 variant (e.g. PII, Crusoe or Athlon), include some more
+	  generic optimizations as well. This will make the kernel
+	  perform better on x86 CPUs other than that selected.
+
+	  This is really intended for distributors who need more
+	  generic optimizations.
 
 endif
 
@@ -598,7 +602,7 @@ config I8K
 
 	  For information on utilities to make use of this driver see the
 	  I8K Linux utilities web site at:
-	  <http://www.debian.org/~dz/i8k/>
+	  <http://people.debian.org/~dz/i8k/>
 
 	  Say Y if you intend to run this kernel on a Dell Inspiron 8000.
 	  Say N otherwise.
@@ -809,8 +813,8 @@ config EFI
 	This option is only useful on systems that have EFI firmware
 	and will result in a kernel image that is ~8k larger.  In addition,
 	you must use the latest ELILO loader available at
-	ftp.hpl.hp.com/pub/linux-ia64/ in order to take advantage of kernel
-	initialization using EFI information (neither GRUB nor LILO know
+	<ftp://ftp.hpl.hp.com/pub/linux-ia64/> in order to take advantage of
+	kernel initialization using EFI information (neither GRUB nor LILO know
 	anything about EFI).  However, even with this option, the resultant
 	kernel should continue to boot on existing non-EFI platforms.
 
@@ -1091,25 +1095,6 @@ config PCI_MMCONFIG
 	select ACPI_BOOT
 	default y
 
-config PCI_USE_VECTOR
-	bool "Vector-based interrupt indexing (MSI)"
-	depends on X86_LOCAL_APIC && X86_IO_APIC
-	default n
-	help
-	   This replaces the current existing IRQ-based index interrupt scheme
-	   with the vector-base index scheme. The advantages of vector base
-	   over IRQ base are listed below:
-	   1) Support MSI implementation.
-	   2) Support future IOxAPIC hotplug
-
-	   Note that this allows the device drivers to enable MSI, Message
-	   Signaled Interrupt, on all MSI capable device functions detected.
-	   Message Signal Interrupt enables an MSI-capable hardware device to
-	   send an inbound Memory Write on its PCI bus instead of asserting
-	   IRQ signal on device IRQ pin.
-
-	   If you don't know what to do here, say N.
-
 source "drivers/pci/Kconfig"
 
 config ISA
@@ -1290,6 +1275,15 @@ config FRAME_POINTER
 	  If you don't debug the kernel, you can say N, but we may not be able
 	  to solve problems without frame pointers.
 
+config 4KSTACKS
+	bool "Use 4Kb for kernel stacks instead of 8Kb"
+	help
+	  If you say Y here the kernel will use a 4Kb stacksize for the
+	  kernel stack attached to each process/thread. This facilitates
+	  running more threads on a system and also reduces the pressure
+	  on the VM subsystem for higher order allocations. This option
+	  will also use IRQ stacks to compensate for the reduced stackspace.
+
 config X86_FIND_SMP_CONFIG
 	bool
 	depends on X86_LOCAL_APIC || X86_VOYAGER
@@ -1326,6 +1320,12 @@ config X86_BIOS_REBOOT
 config X86_TRAMPOLINE
 	bool
 	depends on X86_SMP || (X86_VOYAGER && SMP)
+	default y
+
+# std_resources is overridden for pc9800, but that's not
+# a currently selectable arch choice
+config X86_STD_RESOURCES
+	bool
 	default y
 
 config PC

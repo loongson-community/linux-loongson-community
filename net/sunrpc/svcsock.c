@@ -591,6 +591,12 @@ svc_udp_recvfrom(struct svc_rqst *rqstp)
 		/* possibly an icmp error */
 		dprintk("svc: recvfrom returned error %d\n", -err);
 	}
+	if (skb->stamp.tv_sec == 0) {
+		skb->stamp.tv_sec = xtime.tv_sec; 
+		skb->stamp.tv_usec = xtime.tv_nsec * 1000; 
+		/* Don't enable netstamp, sunrpc doesn't 
+		   need that much accuracy */
+	}
 	svsk->sk_sk->sk_stamp = skb->stamp;
 	set_bit(SK_DATA, &svsk->sk_flags); /* there may be more data... */
 
@@ -828,21 +834,38 @@ svc_tcp_accept(struct svc_sock *svsk)
 
 	/* make sure that we don't have too many active connections.
 	 * If we have, something must be dropped.
-	 * We randomly choose between newest and oldest (in terms
-	 * of recent activity) and drop it.
+	 *
+	 * There's no point in trying to do random drop here for
+	 * DoS prevention. The NFS clients does 1 reconnect in 15
+	 * seconds. An attacker can easily beat that.
+	 *
+	 * The only somewhat efficient mechanism would be if drop
+	 * old connections from the same IP first. But right now
+	 * we don't even record the client IP in svc_sock.
 	 */
-	if (serv->sv_tmpcnt > (serv->sv_nrthreads+3)*5) {
+	if (serv->sv_tmpcnt > (serv->sv_nrthreads+3)*20) {
 		struct svc_sock *svsk = NULL;
 		spin_lock_bh(&serv->sv_lock);
 		if (!list_empty(&serv->sv_tempsocks)) {
-			if (net_random()&1)
-				svsk = list_entry(serv->sv_tempsocks.prev,
-						  struct svc_sock,
-						  sk_list);
-			else
-				svsk = list_entry(serv->sv_tempsocks.next,
-						  struct svc_sock,
-						  sk_list);
+			if (net_ratelimit()) {
+				/* Try to help the admin */
+				printk(KERN_NOTICE "%s: too many open TCP "
+					"sockets, consider increasing the "
+					"number of nfsd threads\n",
+						   serv->sv_name);
+				printk(KERN_NOTICE "%s: last TCP connect from "
+					"%u.%u.%u.%u:%d\n",
+					serv->sv_name,
+					NIPQUAD(sin.sin_addr.s_addr),
+					ntohs(sin.sin_port));
+			}
+			/*
+			 * Always select the oldest socket. It's not fair,
+			 * but so is life
+			 */
+			svsk = list_entry(serv->sv_tempsocks.prev,
+					  struct svc_sock,
+					  sk_list);
 			set_bit(SK_CLOSE, &svsk->sk_flags);
 			svsk->sk_inuse ++;
 		}
@@ -1209,7 +1232,7 @@ svc_recv(struct svc_serv *serv, struct svc_rqst *rqstp, long timeout)
 		schedule_timeout(timeout);
 
 		if (current->flags & PF_FREEZE)
-			refrigerator(PF_IOTHREAD);
+			refrigerator(PF_FREEZE);
 
 		spin_lock_bh(&serv->sv_lock);
 		remove_wait_queue(&rqstp->rq_wait, &wait);

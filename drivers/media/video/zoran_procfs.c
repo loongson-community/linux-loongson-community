@@ -204,6 +204,9 @@ zoran_write_proc (struct file   *file,
 	char *line, *ldelim, *varname, *svar, *tdelim;
 	struct zoran *zr;
 
+	if (count > 32768)	/* Stupidity filter */
+		return -EINVAL;
+
 	zr = (struct zoran *) data;
 
 	string = sp = vmalloc(count + 1);

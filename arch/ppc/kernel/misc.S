@@ -738,12 +738,15 @@ _GLOBAL(__flush_dcache_icache_phys)
 	blr
 
 /*
- * Clear a page using the dcbz instruction, which doesn't cause any
+ * Clear pages using the dcbz instruction, which doesn't cause any
  * memory traffic (except to write out any cache lines which get
  * displaced).  This only works on cacheable memory.
+ *
+ * void clear_pages(void *page, int order) ;
  */
-_GLOBAL(clear_page)
+_GLOBAL(clear_pages)
 	li	r0,4096/L1_CACHE_LINE_SIZE
+	slw	r0,r0,r4
 	mtctr	r0
 #ifdef CONFIG_8xx
 	li	r4, 0
@@ -1369,4 +1372,16 @@ _GLOBAL(sys_call_table)
 	.long sys_statfs64
 	.long sys_fstatfs64
 	.long ppc_fadvise64_64
-	.long sys_ni_syscall	/* 255 - rtas (used on ppc64) */
+	.long sys_ni_syscall		/* 255 - rtas (used on ppc64) */
+	.long sys_ni_syscall		/* 256 reserved for sys_debug_setcontext */
+	.long sys_ni_syscall		/* 257 reserved for vserver */
+	.long sys_ni_syscall		/* 258 reserved for new sys_remap_file_pages */
+	.long sys_ni_syscall		/* 259 reserved for new sys_mbind */
+	.long sys_ni_syscall		/* 260 reserved for new sys_get_mempolicy */
+	.long sys_ni_syscall		/* 261 reserved for new sys_set_mempolicy */
+	.long sys_mq_open
+	.long sys_mq_unlink
+	.long sys_mq_timedsend
+	.long sys_mq_timedreceive	/* 265 */
+	.long sys_mq_notify
+	.long sys_mq_getsetattr

@@ -312,7 +312,7 @@ int dma_mapping_error(dma_addr_t dma_addr)
 {
 	return 0;
 }
-                                                                                
+
 EXPORT_SYMBOL(dma_mapping_error);
 
 int dma_supported(struct device *dev, u64 mask)

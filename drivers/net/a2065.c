@@ -274,6 +274,7 @@ static int lance_rx (struct net_device *dev)
 	struct sk_buff *skb = 0;	/* XXX shut up gcc warnings */
 
 #ifdef TEST_HITS
+	int i;
 	printk ("[");
 	for (i = 0; i < RX_RING_SIZE; i++) {
 		if (i == lp->rx_new)
@@ -764,11 +765,6 @@ static int __devinit a2065_init_one(struct zorro_dev *z,
 	dev->dev_addr[3] = (z->rom.er_SerialNumber>>16) & 0xff;
 	dev->dev_addr[4] = (z->rom.er_SerialNumber>>8) & 0xff;
 	dev->dev_addr[5] = z->rom.er_SerialNumber & 0xff;
-	printk("%s: A2065 at 0x%08lx, Ethernet Address "
-	       "%02x:%02x:%02x:%02x:%02x:%02x\n", dev->name, board,
-	       dev->dev_addr[0], dev->dev_addr[1], dev->dev_addr[2],
-	       dev->dev_addr[3], dev->dev_addr[4], dev->dev_addr[5]);
-
 	dev->base_addr = ZTWO_VADDR(base_addr);
 	dev->mem_start = ZTWO_VADDR(mem_start);
 	dev->mem_end = dev->mem_start+A2065_RAM_SIZE;
@@ -806,6 +802,11 @@ static int __devinit a2065_init_one(struct zorro_dev *z,
 		return err;
 	}
 	zorro_set_drvdata(z, dev);
+
+	printk("%s: A2065 at 0x%08lx, Ethernet Address "
+	       "%02x:%02x:%02x:%02x:%02x:%02x\n", dev->name, board,
+	       dev->dev_addr[0], dev->dev_addr[1], dev->dev_addr[2],
+	       dev->dev_addr[3], dev->dev_addr[4], dev->dev_addr[5]);
 
 	return 0;
 }

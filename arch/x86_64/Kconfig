@@ -290,9 +290,11 @@ config GART_IOMMU
 	  Normally the kernel will take the right choice by itself.
 	  If unsure say Y 
 
+# need this always enabled with GART_IOMMU for the VIA workaround
 config SWIOTLB
-       select GART_IOMMU
-       bool "Software IOTLB support"
+       bool
+       depends on GART_IOMMU
+       default y
 
 config DUMMY_IOMMU
 	bool
@@ -335,26 +337,6 @@ config PCI_MMCONFIG
 	bool "Support mmconfig PCI config space access" 
 	depends on PCI
 	select ACPI_BOOT
-
-# the drivers/pci/msi.c code needs to be fixed first before enabling
-config PCI_USE_VECTOR
-	bool "Vector-based interrupt indexing"
-	depends on X86_LOCAL_APIC && NOTWORKING
-	default n
-	help
-	   This replaces the current existing IRQ-based index interrupt scheme
-	   with the vector-base index scheme. The advantages of vector base
-	   over IRQ base are listed below:
-	   1) Support MSI implementation.
-	   2) Support future IOxAPIC hotplug
-
-	   Note that this enables MSI, Message Signaled Interrupt, on all
-	   MSI capable device functions detected if users also install the
-	   MSI patch. Message Signal Interrupt enables an MSI-capable
-	   hardware device to send an inbound Memory Write on its PCI bus
-	   instead of asserting IRQ signal on device IRQ pin.
-
-	   If you don't know what to do here, say N.
 
 source "drivers/pci/Kconfig"
 
@@ -400,6 +382,8 @@ config UID16
 endmenu
 
 source drivers/Kconfig
+
+source "drivers/firmware/Kconfig"
 
 source fs/Kconfig
 
@@ -480,11 +464,18 @@ config FRAME_POINTER
 
 config IOMMU_DEBUG
        depends on GART_IOMMU && DEBUG_KERNEL
-       bool "Force IOMMU to on" 
+       bool "Enable IOMMU debugging"
        help
-         Force the IOMMU to on even when you have less than 4GB of memory and add 
-	 debugging code. 
-	 Can be disabled at boot time with iommu=noforce.
+         Force the IOMMU to on even when you have less than 4GB of
+	 memory and add debugging code. On overflow always panic. And
+	 allow to enable IOMMU leak tracing. Can be disabled at boot
+	 time with iommu=noforce. This will also enable scatter gather
+	 list merging.  Currently not recommended for production
+	 code. When you use it make sure you have a big enough
+	 IOMMU/AGP aperture.  Most of the options enabled by this can
+	 be set more finegrained using the iommu= command line
+	 options. See Documentation/x86_64/boot-options.txt for more
+	 details.
 
 config IOMMU_LEAK
        bool "IOMMU leak tracing"

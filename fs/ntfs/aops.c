@@ -743,7 +743,7 @@ lock_retry_remap:
 	}
 
 	BUG_ON(PageWriteback(page));
-	SetPageWriteback(page);		/* Keeps try_to_free_buffers() away. */
+	set_page_writeback(page);	/* Keeps try_to_free_buffers() away. */
 	unlock_page(page);
 
 	/*
@@ -885,7 +885,7 @@ static int ntfs_writepage(struct page *page, struct writeback_control *wbc)
 	// FIXME: Make sure it is ok to SetPageError() on unlocked page under
 	// writeback before doing the change!
 #if 0
-	SetPageWriteback(page);
+	set_page_writeback(page);
 	unlock_page(page);
 #endif
 
@@ -1340,8 +1340,6 @@ err_out:
 			void *kaddr;
 
 			clear_buffer_new(bh);
-			if (buffer_uptodate(bh))
-				buffer_error();
 			kaddr = kmap_atomic(page, KM_USER0);
 			memset(kaddr + block_start, 0, bh->b_size);
 			kunmap_atomic(kaddr, KM_USER0);

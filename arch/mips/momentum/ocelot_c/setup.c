@@ -84,7 +84,7 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1, unsigned lo
 
 static unsigned long ENTRYLO(unsigned long paddr)
 {
-	return ((paddr & PAGE_MASK) | 
+	return ((paddr & PAGE_MASK) |
 	       (_PAGE_PRESENT | __READABLE | __WRITEABLE | _PAGE_GLOBAL |
 		_CACHE_UNCACHED)) >> 6;
 }

@@ -171,7 +171,7 @@ au1xxx_dbdma_chan_alloc(u32 srcid, u32 destid,
 
 	if ((srcid > DSCR_NDEV_IDS) || (destid > DSCR_NDEV_IDS))
 		return 0;
-	
+
 	stp = &dbdev_tab[srcid];
 	dtp = &dbdev_tab[destid];
 	used = 0;
@@ -316,7 +316,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 	desc_base = (u32)kmalloc(entries * sizeof(au1x_ddma_desc_t), GFP_KERNEL);
 	if (desc_base == 0)
 		return 0;
-	
+
 	if (desc_base & 0x1f) {
 		/* Lost....do it again, allocate extra, and round
 		 * the address base.
@@ -433,7 +433,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 		dest0 = dtp->dev_physaddr;
 		dest1 |= DSCR_DEST1_DAM(DSCR_xAM_STATIC);
 	}
-	
+
 	for (i=0; i<entries; i++) {
 		dp->dscr_cmd0 = cmd0;
 		dp->dscr_cmd1 = cmd1;
@@ -445,7 +445,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 		dp->dscr_nxtptr = DSCR_NXTPTR(virt_to_phys(dp + 1));
 		dp++;
 	}
-	
+
 	/* Make last descrptor point to the first.
 	*/
 	dp--;
@@ -482,14 +482,14 @@ au1xxx_dbdma_put_source(u32 chanid, void *buf, int nbytes)
 	if (dp->dscr_cmd0 & DSCR_CMD0_V) {
 		return 0;
 	}
-	
+
 	/* Load up buffer address and byte count.
 	*/
 	dp->dscr_source0 = virt_to_phys(buf);
 	dp->dscr_cmd1 = nbytes;
 	dp->dscr_cmd0 |= DSCR_CMD0_V;	/* Let it rip */
 	ctp->chan_ptr->ddma_dbell = 0xffffffff;	/* Make it go */
-	
+
 	/* Get next descriptor pointer.
 	*/
 	ctp->put_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
@@ -525,13 +525,13 @@ au1xxx_dbdma_put_dest(u32 chanid, void *buf, int nbytes)
 	 */
 	if (dp->dscr_cmd0 & DSCR_CMD0_V)
 		return 0;
-	
+
 	/* Load up buffer address and byte count.
 	*/
 	dp->dscr_dest0 = virt_to_phys(buf);
 	dp->dscr_cmd1 = nbytes;
 	dp->dscr_cmd0 |= DSCR_CMD0_V;	/* Let it rip */
-	
+
 	/* Get next descriptor pointer.
 	*/
 	ctp->put_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
@@ -569,13 +569,13 @@ au1xxx_dbdma_get_dest(u32 chanid, void **buf, int *nbytes)
 	 */
 	if (dp->dscr_cmd0 & DSCR_CMD0_V)
 		return 0;
-	
+
 	/* Return buffer address and byte count.
 	*/
 	*buf = (void *)(phys_to_virt(dp->dscr_dest0));
 	*nbytes = dp->dscr_cmd1;
 	rv = dp->dscr_stat;
-	
+
 	/* Get next descriptor pointer.
 	*/
 	ctp->get_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
@@ -683,7 +683,7 @@ au1xxx_dbdma_chan_free(u32 chanid)
 
 	if (ctp->chan_desc_base != NULL)
 		kfree(ctp->chan_desc_base);
-	
+
 	stp->dev_flags &= ~DEV_FLAGS_INUSE;
 	dtp->dev_flags &= ~DEV_FLAGS_INUSE;
 	chan_tab_ptr[ctp->chan_index] = NULL;
@@ -717,7 +717,7 @@ dbdma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		(ctp->chan_callback)(irq, ctp->chan_callparam, regs);
 
 	ctp->cur_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
-	
+
 }
 
 static void
@@ -751,7 +751,7 @@ au1xxx_dbdma_dump(u32 chanid)
 	printk("desc base %x, get %x, put %x, cur %x\n",
 		(u32)(ctp->chan_desc_base), (u32)(ctp->get_ptr),
 		(u32)(ctp->put_ptr), (u32)(ctp->cur_ptr));
-	
+
 	printk("dbdma chan %x\n", (u32)cp);
 	printk("cfg %08x, desptr %08x, statptr %08x\n",
 		cp->ddma_cfg, cp->ddma_desptr, cp->ddma_statptr);

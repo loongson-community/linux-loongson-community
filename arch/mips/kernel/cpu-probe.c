@@ -186,7 +186,7 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c)
 		else
 			c->cputype = CPU_R3000;
 		c->isa_level = MIPS_CPU_ISA_I;
-		c->options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX; 
+		c->options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
 		if (__cpu_has_fpu())
 			c->options |= MIPS_CPU_FPU;
 		c->tlbsize = 64;

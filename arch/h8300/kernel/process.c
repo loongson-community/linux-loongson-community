@@ -264,8 +264,6 @@ out:
 /*
  * These bracket the sleeping functions..
  */
-extern void scheduling_functions_start_here(void);
-extern void scheduling_functions_end_here(void);
 #define first_sched	((unsigned long) scheduling_functions_start_here)
 #define last_sched	((unsigned long) scheduling_functions_end_here)
 
@@ -285,11 +283,10 @@ unsigned long get_wchan(struct task_struct *p)
 	stack_page = (unsigned long)p;
 	fp = ((struct pt_regs *)p->thread.ksp)->er6;
 	do {
-		if (fp < stack_page+sizeof(struct task_struct) ||
+		if (fp < stack_page+sizeof(struct thread_info) ||
 		    fp >= 8184+stack_page)
 			return 0;
 		pc = ((unsigned long *)fp)[1];
-		/* FIXME: This depends on the order of these functions. */
 		if (pc < first_sched || pc >= last_sched)
 			return pc;
 		fp = *(unsigned long *) fp;

@@ -64,7 +64,7 @@ unsigned long arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	struct vm_area_struct * vmm;
 	int do_color_align;
 	unsigned long task_size;
-	
+
 #if CONFIG_MIPS32
 	task_size = TASK_SIZE;
 #else

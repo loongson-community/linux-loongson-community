@@ -126,7 +126,7 @@ void ll_mv64340_irq(struct pt_regs *regs)
 	irq_src_low &= irq_mask_low;
 	irq_src_high &= irq_mask_high;
 
-	if (irq_src_low) 
+	if (irq_src_low)
 		do_IRQ(ls1bit32(irq_src_low) + irq_base, regs);
 	else
 		do_IRQ(ls1bit32(irq_src_high) + irq_base + 32, regs);

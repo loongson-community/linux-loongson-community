@@ -612,15 +612,20 @@ vicam_ioctl(struct inode *inode, struct file *file, unsigned int ioctlnr, unsign
 
 	case VIDIOCSPICT:
 		{
-			struct video_picture *vp = (struct video_picture *) arg;
+			struct video_picture vp;
+			
+			if (copy_from_user(&vp, arg, sizeof(vp))) {
+				retval = -EFAULT;
+				break;
+			}
+			
+			DBG("VIDIOCSPICT depth = %d, pal = %d\n", vp.depth,
+			    vp.palette);
 
-			DBG("VIDIOCSPICT depth = %d, pal = %d\n", vp->depth,
-			    vp->palette);
+			cam->gain = vp.brightness >> 8;
 
-			cam->gain = vp->brightness >> 8;
-
-			if (vp->depth != 24
-			    || vp->palette != VIDEO_PALETTE_RGB24)
+			if (vp.depth != 24
+			    || vp.palette != VIDEO_PALETTE_RGB24)
 				retval = -EINVAL;
 
 			break;
@@ -653,12 +658,18 @@ vicam_ioctl(struct inode *inode, struct file *file, unsigned int ioctlnr, unsign
 	case VIDIOCSWIN:
 		{
 
-			struct video_window *vw = (struct video_window *) arg;
-			DBG("VIDIOCSWIN %d x %d\n", vw->width, vw->height);
+			struct video_window vw;
 
-			if ( vw->width != 320 || vw->height != 240 )
+			if (copy_from_user(&vw, arg, sizeof(vw))) {
 				retval = -EFAULT;
+				break;
+			}
+
+			DBG("VIDIOCSWIN %d x %d\n", vw.width, vw.height);
 			
+			if ( vw.width != 320 || vw.height != 240 )
+				retval = -EFAULT;
+
 			break;
 		}
 
@@ -1269,6 +1280,8 @@ static struct usb_driver vicam_driver = {
 
 /**
  *	vicam_probe
+ *	@intf: the interface
+ *	@id: the device id
  *
  *	Called by the usb core when a new device is connected that it thinks
  *	this driver might be interested in.

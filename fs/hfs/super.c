@@ -94,6 +94,7 @@ static int hfs_statfs(struct super_block *sb, struct kstatfs *buf)
 
 int hfs_remount(struct super_block *sb, int *flags, char *data)
 {
+	*flags |= MS_NODIRATIME;
 	if ((*flags & MS_RDONLY) == (sb->s_flags & MS_RDONLY))
 		return 0;
 	if (!(*flags & MS_RDONLY)) {
@@ -276,6 +277,7 @@ static int hfs_fill_super(struct super_block *sb, void *data, int silent)
 		if (!silent)
 			hfs_warn("VFS: Can't find a HFS filesystem on dev %s.\n",
 				hfs_mdb_name(sb));
+		res = -EINVAL;
 		goto bail2;
 	}
 

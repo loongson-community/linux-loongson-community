@@ -47,13 +47,13 @@ unsigned long hub_pio_map(cnodeid_t cnode, xwidgetnum_t widget,
 		if (test_and_set_bit(i, HUB_DATA(cnode)->h_bigwin_used))
 			continue;
 
-		/* 
+		/*
 		 * The code below does a PIO write to setup an ITTE entry.
 		 *
 		 * We need to prevent other CPUs from seeing our updated
 		 * memory shadow of the ITTE (in the piomap) until the ITTE
 		 * entry is actually set up; otherwise, another CPU might
-		 * attempt a PIO prematurely.  
+		 * attempt a PIO prematurely.
 		 *
 		 * Also, the only way we can know that an entry has been
 		 * received  by the hub and can be used by future PIO reads/
@@ -123,7 +123,7 @@ static void hub_setup_prb(nasid_t nasid, int prbnum, int credits)
  * Put the hub into either "PIO conveyor belt" mode or "fire-and-forget" mode.
  * To do this, we have to make absolutely sure that no PIOs are in progress
  * so we turn off access to all widgets for the duration of the function.
- * 
+ *
  * XXX - This code should really check what kind of widget we're talking
  * to.  Bridges can only handle three requests, but XG will do more.
  * How many can crossbow handle to widget 0?  We're assuming 1.
@@ -145,12 +145,12 @@ static void hub_set_piomode(nasid_t nasid)
 	ii_wcr.wcr_reg_value = REMOTE_HUB_L(nasid, IIO_WCR);
 
 	if (ii_wcr.iwcr_dir_con) {
-		/* 
+		/*
 		 * Assume a bridge here.
 		 */
 		hub_setup_prb(nasid, 0, 3);
 	} else {
-		/* 
+		/*
 		 * Assume a crossbow here.
 		 */
 		hub_setup_prb(nasid, 0, 1);
@@ -166,18 +166,18 @@ static void hub_set_piomode(nasid_t nasid)
 	REMOTE_HUB_S(nasid, IIO_OUTWIDGET_ACCESS, ii_iowa);
 }
 
-/**
- * hub_pio_init  -  PIO-related hub initalization 
+/*
+ * hub_pio_init  -  PIO-related hub initalization
  *
  * @hub:	hubinfo structure for our hub
- **/
+ */
 void hub_pio_init(cnodeid_t cnode)
 {
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
 	unsigned i;
 
 	/* initialize big window piomaps for this hub */
-	CLEAR_BITMAP(HUB_DATA(cnode)->h_bigwin_used, HUB_NUM_BIG_WINDOW);
+	bitmap_zero(HUB_DATA(cnode)->h_bigwin_used, HUB_NUM_BIG_WINDOW);
 	for (i = 0; i < HUB_NUM_BIG_WINDOW; i++)
 		IIO_ITTE_DISABLE(nasid, i);
 

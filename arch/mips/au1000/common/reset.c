@@ -174,7 +174,7 @@ void au1000_halt(void)
 #if defined(CONFIG_MIPS_PB1550)
 	/* power off system */
 	printk("\n** Powering off Pb1550\n");
-	au_writew(au_readw(0xAF00001C) | (3<<14), 0xAF00001C); 
+	au_writew(au_readw(0xAF00001C) | (3<<14), 0xAF00001C);
 	au_sync();
 	while(1); /* should not get here */
 #endif

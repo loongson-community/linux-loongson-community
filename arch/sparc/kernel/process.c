@@ -28,6 +28,7 @@
 #include <linux/reboot.h>
 #include <linux/delay.h>
 #include <linux/pm.h>
+#include <linux/init.h>
 
 #include <asm/auxio.h>
 #include <asm/oplib.h>
@@ -54,6 +55,12 @@ void (*pm_idle)(void);
  * handler when auxio is not present-- unused for now...
  */
 void (*pm_power_off)(void);
+
+/*
+ * sysctl - toggle power-off restriction for serial console 
+ * systems in machine_power_off()
+ */
+int scons_pwroff = 1;
 
 extern void fpsave(unsigned long *, unsigned long *, void *, unsigned long *);
 
@@ -186,7 +193,7 @@ EXPORT_SYMBOL(machine_restart);
 void machine_power_off(void)
 {
 #ifdef CONFIG_SUN_AUXIO
-	if (auxio_power_register && !serial_console)
+	if (auxio_power_register && (!serial_console || scons_pwroff))
 		*auxio_power_register |= AUXIO_POWER_OFF;
 #endif
 	machine_halt();
@@ -317,7 +324,7 @@ void show_stack(struct task_struct *tsk, unsigned long *_ksp)
 	fp = (unsigned long) _ksp;
 	do {
 		/* Bogus frame pointer? */
-		if (fp < (task_base + sizeof(struct task_struct)) ||
+		if (fp < (task_base + sizeof(struct thread_info)) ||
 		    fp >= (task_base + (PAGE_SIZE << 1)))
 			break;
 		rw = (struct reg_window *) fp;
@@ -694,9 +701,6 @@ pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	return retval;
 }
 
-extern void scheduling_functions_start_here(void);
-extern void scheduling_functions_end_here(void);
-
 unsigned long get_wchan(struct task_struct *task)
 {
 	unsigned long pc, fp, bias = 0;
@@ -712,7 +716,7 @@ unsigned long get_wchan(struct task_struct *task)
 	fp = task->thread_info->ksp + bias;
 	do {
 		/* Bogus frame pointer? */
-		if (fp < (task_base + sizeof(struct task_struct)) ||
+		if (fp < (task_base + sizeof(struct thread_info)) ||
 		    fp >= (task_base + (2 * PAGE_SIZE)))
 			break;
 		rw = (struct reg_window *) fp;

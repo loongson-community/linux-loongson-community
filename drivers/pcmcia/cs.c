@@ -94,7 +94,7 @@ MODULE_AUTHOR("David Hinds <dahinds@users.sourceforge.net>");
 MODULE_DESCRIPTION("Linux Kernel Card Services\noptions:" OPTIONS);
 MODULE_LICENSE("Dual MPL/GPL");	  
 
-#define INT_MODULE_PARM(n, v) static int n = v; MODULE_PARM(n, "i")
+#define INT_MODULE_PARM(n, v) static int n = v; module_param(n, int, 0444)
 
 INT_MODULE_PARM(setup_delay,	10);		/* centiseconds */
 INT_MODULE_PARM(resume_delay,	20);		/* centiseconds */
@@ -720,7 +720,7 @@ static int pccardd(void *__skt)
 
 		schedule();
 		if (current->flags & PF_FREEZE)
-			refrigerator(PF_IOTHREAD);
+			refrigerator(PF_FREEZE);
 
 		if (!skt->thread)
 			break;
@@ -2151,9 +2151,8 @@ static int __init init_pcmcia_cs(void)
 {
     printk(KERN_INFO "%s\n", release);
     printk(KERN_INFO "  %s\n", options);
-    class_register(&pcmcia_socket_class);
 
-    return 0;
+    return class_register(&pcmcia_socket_class);
 }
 
 static void __exit exit_pcmcia_cs(void)

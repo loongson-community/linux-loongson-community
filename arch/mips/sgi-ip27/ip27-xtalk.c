@@ -61,7 +61,7 @@ static int __init xbow_probe(nasid_t nasid)
 	brd = find_lboard((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_MIDPLANE8);
 	if (!brd)
 		return -ENODEV;
-	
+
 	xbow_p = (klxbow_t *)find_component(brd, NULL, KLSTRUCT_XBOW);
 	if (!xbow_p)
 		return -ENODEV;

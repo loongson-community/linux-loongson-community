@@ -196,6 +196,9 @@ void		nfsd_lockd_shutdown(void);
 #define	nfserr_openmode		__constant_htonl(NFSERR_OPENMODE)
 #define	nfserr_locks_held	__constant_htonl(NFSERR_LOCKS_HELD)
 #define	nfserr_op_illegal	__constant_htonl(NFSERR_OP_ILLEGAL)
+#define	nfserr_grace		__constant_htonl(NFSERR_GRACE)
+#define	nfserr_no_grace		__constant_htonl(NFSERR_NO_GRACE)
+#define	nfserr_reclaim_bad	__constant_htonl(NFSERR_RECLAIM_BAD)
 
 /* error codes for internal use */
 /* if a request fails due to kmalloc failure, it gets dropped.
@@ -278,7 +281,7 @@ static inline int is_fsid(struct svc_fh *fh, struct knfsd_fh *reffh)
  | FATTR4_WORD1_SPACE_AVAIL     | FATTR4_WORD1_SPACE_FREE   | FATTR4_WORD1_SPACE_TOTAL      \
  | FATTR4_WORD1_SPACE_USED      | FATTR4_WORD1_TIME_ACCESS  | FATTR4_WORD1_TIME_ACCESS_SET  \
  | FATTR4_WORD1_TIME_CREATE     | FATTR4_WORD1_TIME_DELTA   | FATTR4_WORD1_TIME_METADATA    \
- | FATTR4_WORD1_TIME_MODIFY     | FATTR4_WORD1_TIME_MODIFY_SET)
+ | FATTR4_WORD1_TIME_MODIFY     | FATTR4_WORD1_TIME_MODIFY_SET | FATTR4_WORD1_MOUNTED_ON_FILEID)
 
 /* These will return ERR_INVAL if specified in GETATTR or READDIR. */
 #define NFSD_WRITEONLY_ATTRS_WORD1							    \

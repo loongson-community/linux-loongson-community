@@ -35,9 +35,9 @@
 
 #define rs_dprintk(f, str...) if(TX3912_UART_DEBUG_NO_TX & f) printk(str)
 #define func_enter() rs_dprintk(TX3912_UART_DEBUG_FLOW,		\
-				"rs: enter " __FUNCTION__ "\n")
+				"rs: enter %s\n", __FUNCTION__)
 #define func_exit() rs_dprintk(TX3912_UART_DEBUG_FLOW,		\
-				"rs: exit " __FUNCTION__ "\n")
+				"rs: exit %s\n", __FUNCTION__)
 #else
 #define rs_dprintk(f, str...)
 #define func_enter()

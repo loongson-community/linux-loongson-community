@@ -1975,8 +1975,7 @@ static int lbmRead(struct jfs_log * log, int pn, struct lbuf ** bpp)
 
 	bio->bi_end_io = lbmIODone;
 	bio->bi_private = bp;
-	submit_bio(READ, bio);
-	blk_run_queues();
+	submit_bio(READ_SYNC, bio);
 
 	wait_event(bp->l_ioevent, (bp->l_flag != lbmREAD));
 
@@ -2120,9 +2119,8 @@ static void lbmStartIO(struct lbuf * bp)
 
 	/* check if journaling to disk has been disabled */
 	if (!log->no_integrity) {
-		submit_bio(WRITE, bio);
+		submit_bio(WRITE_SYNC, bio);
 		INCREMENT(lmStat.submitted);
-		blk_run_queues();
 	}
 	else {
 		bio->bi_size = 0;
@@ -2330,7 +2328,7 @@ int jfsIOWait(void *arg)
 		}
 		if (current->flags & PF_FREEZE) {
 			spin_unlock_irq(&log_redrive_lock);
-			refrigerator(PF_IOTHREAD);
+			refrigerator(PF_FREEZE);
 		} else {
 			add_wait_queue(&jfs_IO_thread_wait, &wq);
 			set_current_state(TASK_INTERRUPTIBLE);
