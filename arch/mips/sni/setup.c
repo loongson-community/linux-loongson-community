@@ -101,6 +101,10 @@ static void __init sni_display_setup(void)
 #endif
 }
 
+static struct resource sni_io_resource = {
+	"PCIMT IO MEM", 0x00001000UL, 0x03bfffffUL, IORESOURCE_IO,
+};
+
 static struct resource pcimt_io_resources[] = {
 	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
 	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
@@ -113,18 +117,54 @@ static struct resource pcimt_io_resources[] = {
 #define PCIMT_IO_RESOURCES (sizeof(pcimt_io_resources)/sizeof(struct resource))
 
 static struct resource sni_mem_resource = {
-	.name	= "PCIMT PCI MEM",
-	.start	= 0x10000000UL,
-	.end	= 0x13ffffffUL,
-	.flags	= IORESOURCE_MEM,
+	"PCIMT PCI MEM", 0x10000000UL, 0xffffffffUL, IORESOURCE_MEM
 };
 
-static struct resource sni_io_resource = {
-	.name	= "PCIMT IO MEM",
-	.start	= 0x00000000UL,
-	.end	= 0x03ffffffUL,
-	.flags	= IORESOURCE_IO,
+/*
+ * The RM200/RM300 has a few holes in it's PCI/EISA memory address space used
+ * for other purposes.  Be paranoid and allocate all of the before the PCI
+ * code gets a chance to to map anything else there ...
+ * 
+ * This leaves the following areas available:
+ *
+ * 0x10000000 - 0x1009ffff (640kB) PCI/EISA/ISA Bus Memory
+ * 0x10100000 - 0x13ffffff ( 15MB) PCI/EISA/ISA Bus Memory
+ * 0x18000000 - 0x1fbfffff (124MB) PCI/EISA Bus Memory
+ * 0x1ff08000 - 0x1ffeffff (816kB) PCI/EISA Bus Memory
+ * 0xa0000000 - 0xffffffff (1.5GB) PCI/EISA Bus Memory
+ */
+static struct resource pcimt_mem_resources[] = {
+	{ "Video RAM area", 0x100a0000, 0x100bffff, IORESOURCE_BUSY },
+	{ "ISA Reserved", 0x100c0000, 0x100fffff, IORESOURCE_BUSY },
+	{ "PCI IO", 0x14000000, 0x17bfffff, IORESOURCE_BUSY },
+	{ "Cache Replacement Area", 0x17c00000, 0x17ffffff, IORESOURCE_BUSY},
+	{ "PCI INT Acknowledge", 0x1a000000, 0x1a000003, IORESOURCE_BUSY },
+	{ "Boot PROM", 0x1fc00000, 0x1fc7ffff, IORESOURCE_BUSY},
+	{ "Diag PROM", 0x1fc80000, 0x1fcfffff, IORESOURCE_BUSY},
+	{ "X Bus", 0x1fd00000, 0x1fdfffff, IORESOURCE_BUSY},
+	{ "BIOS map", 0x1fe00000, 0x1fefffff, IORESOURCE_BUSY},
+	{ "NVRAM / EEPROM", 0x1ff00000, 0x1ff7ffff, IORESOURCE_BUSY},
+	{ "ASIC PCI", 0x1fff0000, 0x1fffefff, IORESOURCE_BUSY},
+	{ "MP Agent", 0x1ffff000, 0x1fffffff, IORESOURCE_BUSY},
+	{ "Main Memory", 0x20000000, 0x9fffffff, IORESOURCE_BUSY}
 };
+
+#define PCIMT_MEM_RESOURCES (sizeof(pcimt_mem_resources)/sizeof(struct resource))
+
+static void __init sni_resource_init(void)
+{
+	int i;
+
+	/* request I/O space for devices used on all i[345]86 PCs */
+	for (i = 0; i < PCIMT_IO_RESOURCES; i++)
+		request_resource(&ioport_resource, pcimt_io_resources + i);
+
+	/* request mem space for pcimt-specific devices */
+	for (i = 0; i < PCIMT_MEM_RESOURCES; i++)
+		request_resource(&sni_mem_resource, pcimt_mem_resources + i);
+
+	ioport_resource.end = sni_io_resource.end;
+}
 
 extern struct pci_ops sni_pci_ops;
 
@@ -136,8 +176,6 @@ static struct pci_controller sni_controller = {
 
 void __init sni_rm200_pci_setup(void)
 {
-	int i;
-
 	sni_pcimt_detect();
 	sni_pcimt_sc_init();
 
@@ -153,10 +191,7 @@ void __init sni_rm200_pci_setup(void)
 	EISA_bus = 1;
 #endif
 
-	/* request I/O space for devices used on all i[345]86 PCs */
-	for (i = 0; i < PCIMT_IO_RESOURCES; i++)
-		request_resource(&ioport_resource, pcimt_io_resources + i);
-
+	sni_resource_init();
 	board_timer_setup = sni_rm200_pci_timer_setup;
 
 	_machine_restart = sni_machine_restart;
