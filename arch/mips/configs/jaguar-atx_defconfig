@@ -11,7 +11,6 @@ CONFIG_MIPS32=y
 #
 # CONFIG_EXPERIMENTAL is not set
 CONFIG_CLEAN_COMPILE=y
-CONFIG_STANDALONE=y
 CONFIG_BROKEN_ON_SMP=y
 
 #
@@ -145,6 +144,7 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Generic Driver Options
 #
+CONFIG_STANDALONE=y
 CONFIG_PREVENT_FIRMWARE_BUILD=y
 
 #
@@ -408,7 +408,6 @@ CONFIG_LEGACY_PTY_COUNT=256
 #
 # Ftape, the floppy tape device driver
 #
-# CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set

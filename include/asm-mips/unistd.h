@@ -1120,21 +1120,7 @@ type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
  * won't be any messing with the stack from main(), but we define
  * some others too.
  */
-static inline _syscall0(pid_t,setsid)
-static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)
-static inline _syscall3(int,read,int,fd,char *,buf,off_t,count)
-static inline _syscall3(off_t,lseek,int,fd,off_t,offset,int,count)
-static inline _syscall1(int,dup,int,fd)
 static inline _syscall3(int,execve,const char *,file,char **,argv,char **,envp)
-static inline _syscall3(int,open,const char *,file,int,flag,int,mode)
-static inline _syscall1(int,close,int,fd)
-struct rusage;
-static inline _syscall4(pid_t,wait4,pid_t,pid,int *,stat_addr,int,options,struct rusage *,ru)
-
-static inline pid_t waitpid(int pid, int * wait_stat, int flags)
-{
-	return wait4(pid, wait_stat, flags, NULL);
-}
 
 asmlinkage unsigned long sys_mmap(
 				unsigned long addr, size_t len,
