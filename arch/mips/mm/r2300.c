@@ -280,7 +280,7 @@ static inline unsigned long get_phys_page (unsigned long addr,
 
 static inline void r3k_flush_cache_all(void)
 {
-	r3k_flush_icache_range(KSEG0, icache_size);
+	r3k_flush_icache_range(KSEG0, KSEG0 + icache_size);
 }
  
 static void r3k_flush_cache_mm(struct mm_struct *mm)
@@ -308,21 +308,22 @@ static void r3k_flush_cache_range(struct mm_struct *mm,
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
 	vma = find_vma(mm, start);
-	if (vma) {
-		if (mm->context != current->active_mm->context) {
-			flush_cache_all();
-		} else {
-			unsigned long flags, physpage;
+	if (!vma)
+		return;
 
-			save_and_cli(flags);
-			while (start < end) {
-				if ((physpage = get_phys_page(start, mm)))
-					r3k_flush_icache_range(physpage, PAGE_SIZE);
-		
-				start += PAGE_SIZE;
-			}
-			restore_flags(flags);
+	if (mm->context != current->active_mm->context) {
+		flush_cache_all();
+	} else {
+		unsigned long flags, physpage;
+
+		save_and_cli(flags);
+		while (start < end) {
+			if ((physpage = get_phys_page(start, mm)))
+				r3k_flush_icache_range(physpage,
+				                       physpage + PAGE_SIZE);
+			start += PAGE_SIZE;
 		}
+		restore_flags(flags);
 	}
 }
 
@@ -341,8 +342,7 @@ static void r3k_flush_cache_page(struct vm_area_struct *vma,
 		unsigned long physpage;
 
 		if ((physpage = get_phys_page(page, vma->vm_mm)))
-			r3k_flush_icache_range(physpage, PAGE_SIZE);
-
+			r3k_flush_icache_range(physpage, physpage + PAGE_SIZE);
 	}
 }
 
@@ -354,7 +354,7 @@ static void r3k_flush_page_to_ram(struct page * page)
 }
 
 static void r3k_flush_icache_page(struct vm_area_struct *vma,
-				   unsigned long page, unsigned long address)
+				  struct page *page, unsigned long address)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long physpage;
@@ -369,8 +369,9 @@ static void r3k_flush_icache_page(struct vm_area_struct *vma,
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
 
-	if ((physpage = get_phys_page(page, vma->vm_mm)))
-		r3k_flush_icache_range(physpage, PAGE_SIZE);
+	physpage = (unsigned long) page_address(page);
+	if (physpage)
+		r3k_flush_icache_range(physpage, physpage + PAGE_SIZE);
 }
 
 static void r3k_flush_cache_sigtramp(unsigned long addr)
@@ -662,6 +663,7 @@ void __init ld_mmu_r2300(void)
 	_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
 	_flush_page_to_ram = r3k_flush_page_to_ram;
 	_flush_icache_page = r3k_flush_icache_page;
+	_flush_icache_range = r3k_flush_icache_range;
 
         _dma_cache_wback_inv = r3k_dma_cache_wback_inv;
 

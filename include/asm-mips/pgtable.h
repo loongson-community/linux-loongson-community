@@ -25,6 +25,7 @@
  *  - flush_cache_page(mm, vmaddr) flushes a single page
  *  - flush_cache_range(mm, start, end) flushes a range of pages
  *  - flush_page_to_ram(page) write back kernel page to ram
+ *  - flush_icache_range(start, end) flush a range of instructions
  */
 extern void (*_flush_cache_all)(void);
 extern void (*_flush_cache_mm)(struct mm_struct *mm);
@@ -33,6 +34,7 @@ extern void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
 extern void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
 extern void (*_flush_cache_sigtramp)(unsigned long addr);
 extern void (*_flush_page_to_ram)(struct page * page);
+extern void (*_flush_icache_range)(unsigned long start, unsigned long end);
 extern void (*_flush_icache_page)(struct vm_area_struct *vma,
                                   struct page *page, unsigned long addr);
 
@@ -45,7 +47,7 @@ extern void (*_flush_icache_page)(struct vm_area_struct *vma,
 #define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
 
-#define flush_icache_range(start, end)	flush_cache_all()
+#define flush_icache_range(start, end)	_flush_icache_range(start,end)
 #define flush_icache_page(vma, page, addr) _flush_icache_page(vma, page, addr)
 
 

@@ -1956,6 +1956,12 @@ r4k_flush_icache_page_s(struct vm_area_struct *vma, struct page *page,
 }
 
 static void
+r4k_flush_icache_range(unsigned long start, unsigned long end)
+{
+	flush_cache_all();
+}
+
+static void
 r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page,
                       unsigned long address)
 {
@@ -2697,6 +2703,7 @@ void __init ld_mmu_r4xx0(void)
 	}
 
 	_flush_cache_sigtramp = r4k_flush_cache_sigtramp;
+	_flush_icache_range = r4k_flush_icache_range;	/* Ouch */
 	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
 		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}

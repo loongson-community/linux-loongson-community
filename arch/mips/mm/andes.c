@@ -119,6 +119,11 @@ static void andes_flush_page_to_ram(struct page * page)
 	/* XXX */
 }
 
+static void __andes_flush_icache_range(unsigned long start, unsigned long end)
+{
+	/* XXX */
+}
+
 static void andes_flush_icache_page(struct vm_area_struct *vma,
                                     struct page *page, unsigned long addr)
 {
@@ -178,6 +183,7 @@ void __init ld_mmu_andes(void)
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
 	_flush_page_to_ram = andes_flush_page_to_ram;
 	_flush_icache_page = andes_flush_icache_page;
+	_flush_icache_range = andes_flush_icache_range;
 
 	flush_cache_all();
 	flush_tlb_all();

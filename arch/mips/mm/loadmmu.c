@@ -92,12 +92,6 @@ void __init loadmmu(void)
 #endif
 
 	default:
-		/* XXX We need an generic routine in the MIPS port
-		 * XXX to jabber stuff onto the screen on all machines
-		 * XXX before the console is setup.  The ARCS prom
-		 * XXX routines look good for this, but only the SGI
-		 * XXX code has a full library for that at this time.
-		 */
-		panic("Yeee, unsupported mmu/cache architecture.");
+		prom_printf("Yeee, unsupported mmu/cache architecture.");
 	}
 }
