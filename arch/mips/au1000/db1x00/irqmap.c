@@ -65,6 +65,7 @@ au1xxx_irq_map_t au1xxx_irq_map[] = {
 #endif
 #else
 	{ AU1000_GPIO_7, INTC_INT_RISE_EDGE, 0 }, /* touchscreen pen down */
+#endif
 
 };
 

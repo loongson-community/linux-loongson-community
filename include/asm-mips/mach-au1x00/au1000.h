@@ -200,6 +200,10 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 #ifdef CONFIG_SOC_AU1550
 #define MEM_STNDCTL                0xB4001100
 #define MEM_STSTAT                 0xB4001104
+
+#define MEM_STNAND_CMD                  (0x0)
+#define MEM_STNAND_ADDR                 (0x4)
+#define MEM_STNAND_DATA                (0x20)
 #endif
 
 /* Interrupt Controller 0 */
@@ -1093,6 +1097,14 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
   #define AC97C_RS              (1<<1)
   #define AC97C_CE              (1<<0)
 
+ 
+/* Secure Digital (SD) Controller */
+#define SD0_XMIT_FIFO	0xB0600000
+#define SD0_RECV_FIFO	0xB0600004
+#define SD1_XMIT_FIFO	0xB0680000
+#define SD1_RECV_FIFO	0xB0680004
+
+
 #if defined (CONFIG_SOC_AU1500) || defined(CONFIG_SOC_AU1550)
 /* Au1500 PCI Controller */
 #define Au1500_CFG_BASE           0xB4005000 // virtual, kseg0 addr
@@ -1140,6 +1152,20 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 #define IOPORT_RESOURCE_END   0xffffffff
 #define IOMEM_RESOURCE_START  0x10000000
 #define IOMEM_RESOURCE_END    0xffffffff
+
+  /*
+   * Borrowed from the PPC arch:
+   * The following macro is used to lookup irqs in a standard table
+   * format for those PPC systems that do not already have PCI
+   * interrupts properly routed.
+   */
+  /* FIXME - double check this from asm-ppc/pci-bridge.h */
+#define PCI_IRQ_TABLE_LOOKUP                            \
+  ({ long _ctl_ = -1;                                 \
+      if (idsel >= min_idsel && idsel <= max_idsel && pin <= irqs_per_slot)    \
+	       _ctl_ = pci_irq_table[idsel - min_idsel][pin-1];               \
+		      _ctl_; })
+
 
 #else /* Au1000 and Au1100 */
 
