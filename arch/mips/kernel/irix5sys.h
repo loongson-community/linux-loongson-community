@@ -1023,7 +1023,7 @@
 	sys	irix_unimp	0
 	sys	irix_unimp	0
 #else
-	mille	irix_unimp	0
+	mille	sys_ni_syscall	0
 #endif
 
 /* YEEEEEEEEEEEEEEEEEE!!!! */
