@@ -95,8 +95,8 @@ void __init malta_setup(void)
 #ifdef CONFIG_REMOTE_DEBUG
 	int rs_putDebugChar(char);
 	char rs_getDebugChar(void);
-	extern int (*putDebugChar)(char);
-	extern char (*getDebugChar)(void);
+	extern int (*generic_putDebugChar)(char);
+	extern char (*generic_getDebugChar)(void);
 #endif
 	char *argptr;
 	int i;
@@ -133,8 +133,8 @@ void __init malta_setup(void)
 		       line ? 1 : 0);
 
 		rs_kgdb_hook(line);
-		putDebugChar = rs_putDebugChar;
-		getDebugChar = rs_getDebugChar;
+		generic_putDebugChar = rs_putDebugChar;
+		generic_getDebugChar = rs_getDebugChar;
 
 		prom_printf("KGDB: Using serial line /dev/ttyS%d for session, "
 			    "please connect your debugger\n", line ? 1 : 0);
