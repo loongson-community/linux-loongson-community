@@ -77,7 +77,6 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 {
 	struct pt_regs * childregs;
 	long childksp;
-	extern void save_fp(void*);
 
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 

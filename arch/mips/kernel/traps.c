@@ -332,7 +332,7 @@ void __die(const char * str, struct pt_regs * regs, const char * file,
 	console_verbose();
 	spin_lock_irq(&die_lock);
 	printk("%s", str);
-	if (where)
+	if (file && func)
 		printk(" in %s:%s, line %ld", file, func, line);
 	printk(":\n");
 	show_registers(regs);
