@@ -164,10 +164,10 @@ int __compute_return_epc(struct pt_regs *regs)
 	 * And now the FPA/cp1 branch instructions.
 	 */
 	case cop1_op:
-		if(!(mips_cpu.options & MIPS_CPU_FPU))
+		if (!(mips_cpu.options & MIPS_CPU_FPU))
 			fcr31 = current->thread.fpu.soft.sr;
 		else
-			asm ("cfc1\t%0,$31":"=r" (fcr31));
+			asm("cfc1\t%0,$31":"=r" (fcr31));
 		bit = (insn.i_format.rt >> 2);
 		bit += (bit != 0);
 		bit += 23;
