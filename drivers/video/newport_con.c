@@ -1,10 +1,9 @@
-/* $Id: newport_con.c,v 1.10 1999/03/19 23:07:18 tsbogend Exp $
+/* $Id: newport_con.c,v 1.11 1999/04/09 20:23:57 ulfc Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
  * (C) 1998 Thomas Bogendoerfer (tsbogend@alpha.franken.de)
- *
- * Optimized and fixed by Ulf Carlsson (ulfc@bun.falkenberg.se)
+ * (C) 1999 Ulf Carlsson (ulfc@bun.falkenberg.se)
  * 
  * This driver is based on sgicons.c and cons_newport.
  * 
@@ -28,10 +27,13 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/newport.h>
+#include <asm/linux_logo.h>
 
 extern unsigned char vga_font[];
 extern struct newport_regs *npregs;
 
+static int logo_drawn;
+static int logo_active;
 static int topscan;
 static int xcurs_correction = 29;
 static int newport_xsize;
@@ -80,8 +82,36 @@ static inline void newport_init_cmap(void)
     }
 }
 
+static inline void newport_show_logo(void)
+{
+    unsigned long i;
+
+    for(i = 0; i < LINUX_LOGO_COLORS; i++) {
+	newport_bfwait();
+	newport_cmap_setaddr(npregs, i + 0x20);
+	newport_cmap_setrgb(npregs,
+			    linux_logo_red[i],
+			    linux_logo_green[i],
+			    linux_logo_blue[i]);
+    }
+
+    newport_wait();
+    npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+			     NPORT_DMODE0_CHOST);
+    
+    npregs->set.xystarti = ((newport_xsize - 80) << 16) | (0);
+    npregs->set.xyendi = ((newport_xsize - 1) << 16);
+    newport_wait();
+
+    for (i = 0; i < 80 * 80; i++)
+	npregs->go.hostrw0 = linux_logo[i] << 24;
+}
+
 static inline void newport_clear_screen(int xstart, int ystart, int xend,
 					int yend, int ci) {
+    if (logo_active)
+	return;
+
     newport_wait();
     npregs->set.wrmask = 0xffffffff;
     npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
@@ -273,6 +303,15 @@ static void newport_clear(struct vc_data *vc, int sy, int sx, int height, int wi
     int xend = ((sx + width) << 3) - 1;
     int ystart = ((sy << 4) + topscan) & 0x3ff;
     int yend = (((sy + height) << 4) + topscan - 1) & 0x3ff;
+
+    if (logo_active)
+	return;
+    if (!logo_drawn) {
+	newport_show_logo();
+	logo_drawn = 1;
+	logo_active = 1;
+	return;
+    }
     
     if (ystart < yend) {
 	newport_clear_screen(sx << 3, ystart, xend, yend,
@@ -294,8 +333,7 @@ static void newport_putc(struct vc_data *vc, int charattr, int ypos, int xpos)
     xpos <<= 3;
     ypos <<= 4;
 
-    newport_render_background(xpos, ypos, xpos, ypos,
-			      (charattr & 0xf0) >> 4);
+    newport_render_background(xpos, ypos, xpos, ypos, (charattr & 0xf0) >> 4);
     
     /* Set the color and drawing mode. */
     newport_wait();
@@ -325,9 +363,10 @@ static void newport_putcs(struct vc_data *vc, const unsigned short *s,
     xpos <<= 3;
     ypos <<= 4;
 
-    /* Clear the area behing the string */
-    newport_render_background(xpos, ypos, xpos + ((count-1) << 3), ypos,
-			      (charattr & 0xf0) >> 4);
+    if (!logo_active)
+	/* Clear the area behing the string */
+	newport_render_background(xpos, ypos, xpos + ((count-1) << 3), ypos,
+				  (charattr & 0xf0) >> 4);
 
     newport_wait();
 
@@ -418,6 +457,8 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
     int count,x,y;
     unsigned short *s, *d;
     unsigned short chattr;
+
+    logo_active = 0;	/* it's time to disable the logo now.. */
 
     if (t == 0 && b == vc->vc_rows) {
 	if (dir == SM_UP) {
