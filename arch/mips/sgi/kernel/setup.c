@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.22 1999/04/10 12:21:30 ulfc Exp $
+/* $Id: setup.c,v 1.23 1999/05/07 18:00:17 ulfc Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -26,10 +26,22 @@
 #include <asm/sgimc.h>
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
+#include <asm/gdb-stub.h>
+
+#ifdef CONFIG_REMOTE_DEBUG
+extern void rs_kgdb_hook(int);
+extern void breakpoint(void);
+#endif
+
+#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
+extern void console_setup(char *, int *);
+#endif
 
 extern struct rtc_ops indy_rtc_ops;
 void indy_reboot_setup(void);
 void sgi_volume_set(unsigned char);
+
+static int remote_debug = 0;
 
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
@@ -109,6 +121,12 @@ struct kbd_ops sgi_kbd_ops = {
 __initfunc(static void sgi_irq_setup(void))
 {
 	sgint_init();
+
+#ifdef CONFIG_REMOTE_DEBUG
+	if (remote_debug)
+		set_debug_traps();
+	breakpoint(); /* you may move this line to whereever you want :-) */
+#endif
 }
 
 __initfunc(void sgi_setup(void))
@@ -116,6 +134,10 @@ __initfunc(void sgi_setup(void))
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
 #endif
+#ifdef CONFIG_REMOTE_DEBUG
+	char *kgdb_ttyd;
+#endif
+
 
 	irq_setup = sgi_irq_setup;
 
@@ -139,13 +161,35 @@ __initfunc(void sgi_setup(void))
 	ctype = prom_getenv("console");
 	if(*ctype == 'd') {
 		if(*(ctype+1)=='2')
-			console_setup ("ttyS1");
+			console_setup ("ttyS1", NULL);
 		else
-			console_setup ("ttyS0");
+			console_setup ("ttyS0", NULL);
 	}
 #endif
+
+#ifdef CONFIG_REMOTE_DEBUG
+	kgdb_ttyd = prom_getcmdline();
+	if ((kgdb_ttyd = strstr(kgdb_ttyd, "kgdb=ttyd")) != NULL) {
+		int line;
+		kgdb_ttyd += strlen("kgdb=ttyd");
+		if (*kgdb_ttyd != '1' && *kgdb_ttyd != '2')
+			printk("KGDB: Uknown serial line /dev/ttyd%c, "
+			       "falling back to /dev/ttyd1\n", *kgdb_ttyd);
+		line = *kgdb_ttyd == '2' ? 0 : 1;
+		printk("KGDB: Using serial line /dev/ttyd%d for session\n",
+		       line ? 1 : 2);
+		rs_kgdb_hook(line);
+
+		prom_printf("KGDB: Using serial line /dev/ttyd%d for session, "
+			    "please connect your debugger\n", line ? 1 : 2);
+
+		remote_debug = 1;
+		/* Breakpoints and stuff are in sgi_irq_setup() */
+	}
+#endif
+
 #ifdef CONFIG_SGI_PROM_CONSOLE
-	console_setup("ttyS0");
+	console_setup("ttyS0", NULL);
 #endif
 	  
 	sgi_volume_set(simple_strtoul(prom_getenv("volume"), NULL, 10));
@@ -157,6 +201,7 @@ __initfunc(void sgi_setup(void))
 	conswitchp = &dummy_con;
 #endif
 #endif
+
 	rtc_ops = &indy_rtc_ops;
 	kbd_ops = &sgi_kbd_ops;
 #ifdef CONFIG_PSMOUSE
