@@ -54,6 +54,7 @@ call_do_IRQ:
 	jal	do_IRQ
 	nop				# delay slot
 	j       ret_from_irq
+	nop
 
 /*
 	mfc0	t0,CP0_STATUS		# disable interrupts
