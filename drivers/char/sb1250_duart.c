@@ -725,8 +725,6 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 	if (tty->ldisc.flush_buffer)
 		tty->ldisc.flush_buffer(tty);
 	tty->closing = 0;
-
-	MOD_DEC_USE_COUNT;
 }
 
 
