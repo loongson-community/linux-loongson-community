@@ -1,4 +1,4 @@
-/* $Id: spinlock.h,v 1.2 1998/06/30 00:23:12 ralf Exp $
+/* $Id: spinlock.h,v 1.3 1998/08/25 16:20:59 tsbogend Exp $
  */
 #ifndef __ASM_MIPS_SPINLOCK_H
 #define __ASM_MIPS_SPINLOCK_H
@@ -8,8 +8,6 @@
 /*
  * Gcc-2.7.x has a nasty bug with empty initializers.
  */
-typedef struct { } spinlock_t;
-#define SPIN_LOCK_UNLOCKED { }
 #if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
   typedef struct { } spinlock_t;
   #define SPIN_LOCK_UNLOCKED { }
