@@ -442,7 +442,7 @@ void __init kmem_cache_sizes_init(void)
 		 * eliminates "false sharing".
 		 * Note for systems short on memory removing the alignment will
 		 * allow tighter packing of the smaller caches. */
-		sprintf(name,"size-%d",sizes->cs_size);
+		sprintf(name,"size-%ld", (unsigned long) sizes->cs_size);
 		if (!(sizes->cs_cachep =
 			kmem_cache_create(name, sizes->cs_size,
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL))) {
@@ -454,7 +454,7 @@ void __init kmem_cache_sizes_init(void)
 			offslab_limit = sizes->cs_size-sizeof(slab_t);
 			offslab_limit /= 2;
 		}
-		sprintf(name, "size-%d(DMA)",sizes->cs_size);
+		sprintf(name, "size-%ld(DMA)", (unsigned long) sizes->cs_size);
 		sizes->cs_dmacachep = kmem_cache_create(name, sizes->cs_size, 0,
 			      SLAB_CACHE_DMA|SLAB_HWCACHE_ALIGN, NULL, NULL);
 		if (!sizes->cs_dmacachep)
