@@ -25,6 +25,7 @@
 #include <asm/irq_cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
+#include <asm/time.h>
 #include <asm/traps.h>
 #include <asm/wbflush.h>
 
@@ -105,28 +106,6 @@ static struct irqaction haltirq = {
 };
 
 
-void (*board_time_init)(struct irqaction *irq);
-
-
-/*
- * enable the periodic interrupts
- */
-static void __init dec_time_init(struct irqaction *irq)
-{
-	/*
-	* Here we go, enable periodic rtc interrupts.
-	*/
-
-#ifndef LOG_2_HZ
-#  define LOG_2_HZ 7
-#endif
-
-	CMOS_WRITE(RTC_REF_CLCK_32KHZ | (16 - LOG_2_HZ), RTC_REG_A);
-	CMOS_WRITE(CMOS_READ(RTC_REG_B) | RTC_PIE, RTC_REG_B);
-	setup_irq(dec_interrupt[DEC_IRQ_RTC], irq);
-}
-
-
 /*
  * Bus error (DBE/IBE exceptions and bus interrupts) handling setup.
  */
@@ -147,10 +126,14 @@ void __init dec_be_init(void)
 }
 
 
+extern void dec_time_init(void);
+extern void dec_timer_setup(struct irqaction *);
+
 void __init decstation_setup(void)
 {
 	board_be_init = dec_be_init;
 	board_time_init = dec_time_init;
+	board_timer_setup = dec_timer_setup;
 
 	wbflush_setup();
 
