@@ -726,7 +726,7 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		}
 		desc->cmd    = len | ETXD_INTWHENDONE | ETXD_D0V;
 		desc->bufcnt = len;
-	} if ((data ^ (data + len)) & 0x4000) {
+	} else if ((data ^ (data + len)) & 0x4000) {
 		unsigned long b2, s1, s2;
 
 		b2 = (data | 0x3fffUL) + 1UL;
