@@ -74,6 +74,8 @@ void __flush_dcache_page(struct page *page)
 	flush_data_cache_page(addr);
 }
 
+EXPORT_SYMBOL(__flush_dcache_page);
+
 void __update_cache(struct vm_area_struct *vma, unsigned long address,
 	pte_t pte)
 {
@@ -92,8 +94,6 @@ void __update_cache(struct vm_area_struct *vma, unsigned long address,
 		ClearPageDcacheDirty(page);
 	}
 }
-
-EXPORT_SYMBOL(flush_dcache_page);
 
 extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);
