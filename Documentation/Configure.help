@@ -1608,12 +1608,12 @@ CONFIG_DDB5476
   TODO : USB, Compact-PCI interface.
 
 Support for MIPS Atlas board
-CONFIG_DDB5074
+CONFIG_MIPS_ATLAS
   This enables support for the QED R5231-based MIPS Atlas evaluation
   board.
 
 Support for MIPS Malta board
-CONFIG_DDB5074
+CONFIG_MIPS_MALTA
   This enables support for the VR5000-based MIPS Malta evaluation
   board.
 
