@@ -24,7 +24,7 @@ static void jazz_rtc_write_data(unsigned char data, unsigned long addr)
 	*(char *)JAZZ_RTC_BASE = data;
 }
 
-static void jazz_rtc_bcd_mode(void)
+static int jazz_rtc_bcd_mode(void)
 {
 	return 0;
 }
