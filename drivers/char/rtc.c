@@ -905,6 +905,9 @@ static int __init rtc_init(void)
 	struct sparc_isa_device *isa_dev;
 #endif
 #endif
+#ifndef __sparc__
+	void *r;
+#endif
 
 #ifdef __sparc__
 	for_each_ebus(ebus) {
