@@ -369,7 +369,7 @@ asmlinkage void sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
 		syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
-		"j\tret_from_sys_call"
+		"j\to32_ret_from_sys_call"
 		:/* no outputs */
 		:"r" (&regs));
 	/* Unreached */
@@ -410,7 +410,7 @@ asmlinkage void sys32_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	 */
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
-		"j\tret_from_sys_call"
+		"j\to32_ret_from_sys_call"
 		:/* no outputs */
 		:"r" (&regs));
 	/* Unreached */
