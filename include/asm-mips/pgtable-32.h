@@ -131,8 +131,15 @@ static inline int pgd_present(pgd_t pgd)	{ return 1; }
 static inline void pgd_clear(pgd_t *pgdp)	{ }
 
 #define pte_page(x)		pfn_to_page(pte_pfn(x))
+
+
+#ifdef CONFIG_CPU_VR41XX
+#define pte_pfn(x)		((unsigned long)((x).pte >> (PAGE_SHIFT + 2)))
+#define pfn_pte(pfn, prot)	__pte(((pfn) << (PAGE_SHIFT + 2)) | pgprot_val(prot))
+#else
 #define pte_pfn(x)		((unsigned long)((x).pte >> PAGE_SHIFT))
 #define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
+#endif
 
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 

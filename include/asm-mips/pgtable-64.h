@@ -147,8 +147,14 @@ static inline void pgd_clear(pgd_t *pgdp)
 				  
 #else
 #define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+#ifdef CONFIG_CPU_VR41XX
+#define pte_pfn(x)		((unsigned long)((x).pte >> (PAGE_SHIFT + 2)))
+#define pfn_pte(pfn, prot)	__pte(((pfn) << (PAGE_SHIFT + 2)) |
+pgprot_val(prot))
+#else
 #define pte_pfn(x)		((unsigned long)((x).pte >> PAGE_SHIFT))
 #define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
+#endif
 #endif
 
 /*
