@@ -274,7 +274,7 @@ bad_alignment:
 	sltu	v0, a0, __NR_Linux + __NR_Linux_syscalls + 1
 	beqz	v0, enosys
 
-	sll	v0, t1, 2
+	sll	v0, a0, 2
 	la	v1, sys_syscall
 	lw	t2, sys_call_table(v0)		# function pointer
 	lbu	t4, sys_narg_table(t1)		# number of arguments
