@@ -550,4 +550,6 @@ struct exception_table_entry
 	unsigned long nextinsn;
 };
 
+extern int fixup_exception(struct pt_regs *regs);
+
 #endif /* _ASM_UACCESS_H */

@@ -18,7 +18,6 @@
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
-#include <linux/version.h>
 #include <linux/vt_kern.h>		/* For unblank_screen() */
 #include <linux/module.h>
 
@@ -29,13 +28,6 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/ptrace.h>
-
-#define development_version (LINUX_VERSION_CODE & 0x100)
-
-/*
- * Macro for exception fixup code to access integer registers.
- */
-#define dpf_reg(r) (regs->regs[r])
 
 /*
  * This routine handles page faults.  It determines the address,
@@ -48,7 +40,6 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	const struct exception_table_entry *fixup;
 	const int szlong = sizeof(unsigned long);
 	siginfo_t info;
 
@@ -157,15 +148,8 @@ bad_area:
 
 no_context:
 	/* Are we prepared to handle this kernel fault?  */
-	fixup = search_exception_tables(exception_epc(regs));
-	if (fixup) {
-		unsigned long new_epc = fixup->nextinsn;
-
-		tsk->thread.cp0_baduaddr = address;
-		if (development_version)
-			printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
-			       tsk->comm, regs->cp0_epc, new_epc);
-		regs->cp0_epc = new_epc;
+	if (fixup_exception(regs)) {
+		current->thread.cp0_baduaddr = address;
 		return;
 	}
 

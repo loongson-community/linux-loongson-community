@@ -99,7 +99,6 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 {
 	union mips_instruction insn;
 	unsigned long value;
-	const struct exception_table_entry *fixup;
 	unsigned int res;
 
 	regs->regs[0] = 0;
@@ -470,14 +469,8 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 
 fault:
 	/* Did we have an exception handler installed? */
-	fixup = search_exception_tables(exception_epc(regs));
-	if (fixup) {
-		unsigned long new_epc = fixup->nextinsn;
-		printk(KERN_DEBUG "%s: Forwarding exception at [<%lx>] (%lx)\n",
-		       current->comm, regs->cp0_epc, new_epc);
-		regs->cp0_epc = new_epc;
+	if (fixup_exception(regs))
 		return 1;
-	}
 
 	die_if_kernel ("Unhandled kernel unaligned access", regs);
 	send_sig(SIGSEGV, current, 1);
