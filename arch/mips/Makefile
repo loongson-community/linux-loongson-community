@@ -95,11 +95,6 @@ CORE_FILES    += arch/mips/algor/algor.o
 SUBDIRS       += arch/mips/algor
 #LOADADDR      += 0x80000000
 endif
-ifdef CONFIG_ACER_PICA_61
-CORE_FILES    += arch/mips/jazz/jazz.o
-SUBDIRS       += arch/mips/jazz
-LOADADDR      += 0x80000000
-endif
 ifdef CONFIG_DECSTATION
 CORE_FILES    += arch/mips/dec/dec.o
 SUBDIRS       += arch/mips/dec
@@ -116,17 +111,15 @@ CORE_FILES    += arch/mips/deskstation/deskstation.o
 SUBDIRS       += arch/mips/deskstation
 LOADADDR      += 0x80000000
 endif
+#
+# Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
+#
+ifdef CONFIG_MIPS_JAZZ
+CORE_FILES    += arch/mips/jazz/jazz.o
+SUBDIRS       += arch/mips/jazz
+LOADADDR      += 0x80000000
+endif
 ifdef CONFIG_MIPS_MAGNUM_3000
-LOADADDR      += 0x80000000
-endif
-ifdef CONFIG_MIPS_MAGNUM_4000
-CORE_FILES    += arch/mips/jazz/jazz.o
-SUBDIRS       += arch/mips/jazz
-LOADADDR      += 0x80000000
-endif
-ifdef CONFIG_OLIVETTI_M700
-CORE_FILES    += arch/mips/jazz/jazz.o
-SUBDIRS       += arch/mips/jazz
 LOADADDR      += 0x80000000
 endif
 ifdef CONFIG_SNI_RM200_PCI
