@@ -2120,6 +2120,8 @@ struct sysctl_args32
 	unsigned int __unused[4];
 };
 
+#ifdef CONFIG_SYSCTL
+
 asmlinkage long sys32_sysctl(struct sysctl_args32 *args)
 {
 	struct sysctl_args32 tmp;
@@ -2157,6 +2159,15 @@ asmlinkage long sys32_sysctl(struct sysctl_args32 *args)
 	}
 	return error;
 }
+
+#else /* CONFIG_SYSCTL */
+
+asmlinkage long sys32_sysctl(struct sysctl_args32 *args)
+{
+	return -ENOSYS;
+}
+
+#endif /* CONFIG_SYSCTL */
 
 asmlinkage long sys32_newuname(struct new_utsname * name)
 {
