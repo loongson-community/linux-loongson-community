@@ -84,10 +84,11 @@ main (int argc, char **argv, char **envp)
   struct sect text, data, bss;
   struct filehdr efh;
   struct aouthdr eah;
-  struct scnhdr esecs [3];
+  struct scnhdr esecs [6];
   int infile, outfile;
   unsigned long cur_vma = ULONG_MAX;
-  int symflag = 0;
+  int addflag = 0;
+  int nosecs;
 
   text.len = data.len = bss.len = 0;
   text.vaddr = data.vaddr = bss.vaddr = 0;
@@ -97,14 +98,14 @@ main (int argc, char **argv, char **envp)
     {
     usage:
       fprintf (stderr,
-	       "usage: elf2aout <elf executable> <a.out executable> [-s]\n");
+	       "usage: elf2aout <elf executable> <a.out executable> [-a]\n");
       exit (1);
     }
   if (argc == 4)
     {
-      if (strcmp (argv [3], "-s"))
+      if (strcmp (argv [3], "-a"))
 	goto usage;
-      symflag = 1;
+      addflag = 1;
     }
 
   /* Try the input file... */
@@ -191,7 +192,7 @@ main (int argc, char **argv, char **envp)
 	  ntxt.vaddr = ph [i].p_vaddr;
 	  ntxt.len = ph [i].p_filesz;
 
-	  combine (&text, &ntxt);
+	  combine (&text, &ntxt, 0);
 	}
       /* Remember the lowest segment start address. */
       if (ph [i].p_vaddr < cur_vma)
@@ -242,7 +243,11 @@ main (int argc, char **argv, char **envp)
     efh.f_magic = MIPSEBMAGIC;
   else
     efh.f_magic = MIPSELMAGIC;
-  efh.f_nscns = 3;
+  if (addflag)
+    nosecs = 6;
+  else
+    nosecs = 3;
+  efh.f_nscns = nosecs;
   efh.f_timdat = 0;	/* bogus */
   efh.f_symptr = 0;
   efh.f_nsyms = 0;
@@ -253,27 +258,60 @@ main (int argc, char **argv, char **envp)
   strcpy (esecs [0].s_name, ".text");
   strcpy (esecs [1].s_name, ".data");
   strcpy (esecs [2].s_name, ".bss");
+  if (addflag) {
+    strcpy (esecs [3].s_name, ".rdata");
+    strcpy (esecs [4].s_name, ".sdata");
+    strcpy (esecs [5].s_name, ".sbss");
+  }
   esecs [0].s_paddr = esecs [0].s_vaddr = eah.text_start;
   esecs [1].s_paddr = esecs [1].s_vaddr = eah.data_start;
   esecs [2].s_paddr = esecs [2].s_vaddr = eah.bss_start;
+  if (addflag) {
+    esecs [3].s_paddr = esecs [3].s_vaddr = 0;
+    esecs [4].s_paddr = esecs [4].s_vaddr = 0;
+    esecs [5].s_paddr = esecs [5].s_vaddr = 0;
+  }
   esecs [0].s_size = eah.tsize;
   esecs [1].s_size = eah.dsize;
   esecs [2].s_size = eah.bsize;
+  if (addflag) {
+    esecs [3].s_size = 0;
+    esecs [4].s_size = 0;
+    esecs [5].s_size = 0;
+  }
   esecs [0].s_scnptr = N_TXTOFF (efh, eah);
   esecs [1].s_scnptr = N_DATOFF (efh, eah);
 #define ECOFF_SEGMENT_ALIGNMENT(a) 0x10
 #define ECOFF_ROUND(s,a) (((s)+(a)-1)&~((a)-1))
   esecs [2].s_scnptr = esecs [1].s_scnptr +
 	  ECOFF_ROUND (esecs [1].s_size, ECOFF_SEGMENT_ALIGNMENT (&eah));
+  if (addflag) {
+    esecs [3].s_scnptr = 0;
+    esecs [4].s_scnptr = 0;
+    esecs [5].s_scnptr = 0;
+  }
   esecs [0].s_relptr = esecs [1].s_relptr
 	  = esecs [2].s_relptr = 0;
   esecs [0].s_lnnoptr = esecs [1].s_lnnoptr
 	  = esecs [2].s_lnnoptr = 0;
   esecs [0].s_nreloc = esecs [1].s_nreloc = esecs [2].s_nreloc = 0;
   esecs [0].s_nlnno = esecs [1].s_nlnno = esecs [2].s_nlnno = 0;
+  if (addflag) {
+    esecs [3].s_relptr = esecs [4].s_relptr 
+  	  = esecs [5].s_relptr = 0;
+    esecs [3].s_lnnoptr = esecs [4].s_lnnoptr
+	  = esecs [5].s_lnnoptr = 0;
+    esecs [3].s_nreloc = esecs [4].s_nreloc = esecs [5].s_nreloc = 0;
+    esecs [3].s_nlnno = esecs [4].s_nlnno = esecs [5].s_nlnno = 0;
+  }
   esecs [0].s_flags = 0x20;
   esecs [1].s_flags = 0x40;
   esecs [2].s_flags = 0x82;
+  if (addflag) {
+    esecs [3].s_flags = 0x100;
+    esecs [4].s_flags = 0x200;
+    esecs [5].s_flags = 0x400;
+  }
 
   /* Make the output file... */
   if ((outfile = open (argv [2], O_WRONLY | O_CREAT, 0777)) < 0)
@@ -291,12 +329,12 @@ main (int argc, char **argv, char **envp)
       perror ("efh: write");
       exit (1);
 
-  for (i = 0; i < 6; i++)
-    {
-      printf ("Section %d: %s phys %x  size %x  file offset %x\n",
+    for (i = 0; i < nosecs; i++)
+      {
+        printf ("Section %d: %s phys %x  size %x  file offset %x\n", 
 	      i, esecs [i].s_name, esecs [i].s_paddr,
 	      esecs [i].s_size, esecs [i].s_scnptr);
-    }
+      }
     }
   fprintf (stderr, "wrote %d byte file header.\n", i);
 
@@ -311,16 +349,16 @@ main (int argc, char **argv, char **envp)
   fprintf (stderr, "wrote %d byte a.out header.\n", i);
 
   if (must_convert_endian)
-	convert_ecoff_esecs (&esecs[0], sizeof esecs / sizeof (struct scnhdr));
-  i = write (outfile, &esecs, sizeof esecs);
-  if (i != sizeof esecs)
+	convert_ecoff_esecs (&esecs[0], nosecs);
+  i = write (outfile, &esecs, nosecs * sizeof(struct scnhdr));
+  if (i != nosecs * sizeof(struct scnhdr))
     {
       perror ("esecs: write");
       exit (1);
     }
   fprintf (stderr, "wrote %d bytes of section headers.\n", i);
 
-  if (pad = ((sizeof efh + sizeof eah + sizeof esecs) & 15))
+  if (pad = ((sizeof efh + sizeof eah + nosecs * sizeof(struct scnhdr)) & 15))
     {
       pad = 16 - pad;
       i = write (outfile, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0", pad);
@@ -369,6 +407,21 @@ main (int argc, char **argv, char **envp)
 fprintf (stderr, "writing %d bytes...\n", ph [i].p_filesz);
 	  copy (outfile, infile, ph [i].p_offset, ph [i].p_filesz);
 	  cur_vma = ph [i].p_vaddr + ph [i].p_filesz;
+	}
+    }
+
+   /*
+     * Write a page of padding for boot PROMS that read entire pages.
+     * Without this, they may attempt to read past the end of the
+     * data section, incur an error, and refuse to boot.
+     */
+    {
+	char obuf[4096];
+	memset(obuf, 0, sizeof obuf);
+	if (write(outfile, obuf, sizeof(obuf)) != sizeof(obuf)) {
+	    fprintf(stderr, "Error writing PROM padding: %s\n",
+		    strerror(errno));
+	    exit(1);
 	}
     }
 
