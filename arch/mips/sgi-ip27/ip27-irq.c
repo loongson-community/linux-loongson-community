@@ -255,8 +255,8 @@ static int intr_disconnect_level(int cpu, int bit)
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int startup_bridge_irq(unsigned int irq)
 {
-	struct bridge_controller *bc = IRQ_TO_BRIDGE(irq);
-	bridge_t *bridge = bc->base;
+	struct bridge_controller *bc;
+	bridge_t *bridge;
 	bridgereg_t device;
 	int pin, swlevel;
 
@@ -264,6 +264,8 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 		return 0;
 
 	pin = SLOT_FROM_PCI_IRQ(irq);
+	bc = IRQ_TO_BRIDGE(irq);
+	bridge = bc->base;
 
 	DBG("bridge_startup(): irq= 0x%x  pin=%d\n", irq, pin);
 	/*
@@ -339,13 +341,13 @@ static void end_bridge_irq (unsigned int irq)
 }
 
 static struct hw_interrupt_type bridge_irq_type = {
-	"bridge",
-	startup_bridge_irq,
-	shutdown_bridge_irq,
-	enable_bridge_irq,
-	disable_bridge_irq,
-	mask_and_ack_bridge_irq,
-	end_bridge_irq
+	.typename	= "bridge",
+	.startup	= startup_bridge_irq,
+	.shutdown	= shutdown_bridge_irq,
+	.enable		= enable_bridge_irq,
+	.disable	= disable_bridge_irq,
+	.ack		= mask_and_ack_bridge_irq,
+	.end		= end_bridge_irq,
 };
 
 void irq_debug(void)
