@@ -15,8 +15,7 @@
 #include <asm/sn/types.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/gda.h>
-#include <asm/mmzone.h>
-#include <asm/sn/klkernvars.h>
+#include <asm/sn/hub.h>
 #include <asm/sn/mapped_kernel.h>
 #include <asm/sn/sn_private.h>
 
@@ -67,7 +66,7 @@ static __init void set_ktext_source(nasid_t client_nasid, nasid_t server_nasid)
 
 	client_cnode = NASID_TO_COMPACT_NODEID(client_nasid);
 
-	kvp = node_kern_vars(client_cnode);
+	kvp = &(HUB_DATA(client_nasid)->kern_vars);
 
 	KERN_VARS_ADDR(client_nasid) = (unsigned long)kvp;
 

@@ -23,6 +23,7 @@
 #include <asm/pgalloc.h>
 #include <asm/sn/types.h>
 #include <asm/sn/addrs.h>
+#include <asm/sn/hub.h>
 #include <asm/sn/klconfig.h>
 #include <asm/sn/arch.h>
 #include <asm/mmzone.h>
@@ -37,8 +38,9 @@ extern pfn_t node_getfirstfree(cnodeid_t cnode);
 short slot_lastfilled_cache[MAX_COMPACT_NODES];
 unsigned short slot_psize_cache[MAX_COMPACT_NODES][MAX_MEM_SLOTS];
 
-ip27_pg_data_t *ip27_node_data[MAX_COMPACT_NODES];
-bootmem_data_t plat_node_bdata[MAX_COMPACT_NODES];
+struct bootmem_data plat_node_bdata[MAX_COMPACT_NODES];
+struct pglist_data *node_data[MAX_COMPACT_NODES];
+struct hub_data *hub_data[MAX_COMPACT_NODES];
 
 int numa_debug(void)
 {
@@ -172,31 +174,32 @@ static pfn_t szmem(void)
  * contains at least 32 MBytes of memory. We assume all bootmem data
  * fits on the first slot.
  */
+extern void mlreset(void);
 void __init prom_meminit(void)
 {
-	extern void mlreset(void);
 	cnodeid_t node;
-	pfn_t slot_firstpfn, slot_lastpfn, slot_freepfn;
-	unsigned long bootmap_size;
-	int node_datasz;
 
-	node_datasz = PFN_UP(sizeof(ip27_pg_data_t));
 	mlreset();
 
 	num_physpages = szmem();
 
 	for (node = 0; node < numnodes; node++) {
-		slot_firstpfn = slot_getbasepfn(node, 0);
-		slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
-		slot_freepfn = node_getfirstfree(node);
+		pfn_t slot_firstpfn = slot_getbasepfn(node, 0);
+		pfn_t slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
+		pfn_t slot_freepfn = node_getfirstfree(node);
+		unsigned long bootmap_size;
 
 		/*
-		 * Allocate the node data structure on the node first.
+		 * Allocate the node data structures on the node first.
 		 */
-		ip27_node_data[node] = __va(slot_freepfn << PAGE_SHIFT);
+		node_data[node] = __va(slot_freepfn << PAGE_SHIFT);
+		node_data[node]->bdata = &plat_node_bdata[node];
 
-		NODE_DATA(node)->bdata = plat_node_bdata + node;
-		slot_freepfn += node_datasz;
+		hub_data[node] = node_data[node] + 1;
+
+		slot_freepfn += PFN_UP(sizeof(struct pglist_data) +
+				       sizeof(struct hub_data));
+	
 	  	bootmap_size = init_bootmem_node(NODE_DATA(node), slot_freepfn,
 						slot_firstpfn, slot_lastpfn);
 		free_bootmem_node(NODE_DATA(node), slot_firstpfn << PAGE_SHIFT,
