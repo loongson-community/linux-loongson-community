@@ -319,6 +319,7 @@ choice 'CPU type' \
 if [ "$CONFIG_CPU_SB1" = "y" ]; then
    bool '  Workarounds for pass 1 sb1 bugs' CONFIG_SB1_PASS_1_WORKAROUNDS
    bool '  Support for SB1 Cache Error handler' CONFIG_SB1_CACHE_ERROR
+   define_bool CONFIG_VTAG_ICACHE y
 fi
 
 bool 'Override CPU Options' CONFIG_CPU_ADVANCED
