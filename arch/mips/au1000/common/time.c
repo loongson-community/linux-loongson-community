@@ -193,7 +193,8 @@ unsigned long cal_r4koff(void)
 	count = read_c0_count();
 	cpu_speed = count * 2;
 	mips_hpt_frequency = count;
-	set_au1x00_uart_baud_base(((cpu_speed) / 4) / 16);
+	// Equation: Baudrate = CPU / (SD * 2 * CLKDIV * 16)
+	set_au1x00_uart_baud_base(cpu_speed / (2 * ((int)(au_readl(SYS_POWERCTRL)&0x03) + 2) * 16));
 	spin_unlock_irqrestore(&time_lock, flags);
 	return (cpu_speed / HZ);
 }
