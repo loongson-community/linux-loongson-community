@@ -1210,11 +1210,6 @@ static void sbdma_rx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 		
 		if (!(dsc->dscr_a & M_DMA_ETHRX_BAD)) {
 			
-			/*
-			 * Set length into the packet
-			 */
-			skb_put(sb,len);
-			
        			/*
 			 * Add a new buffer to replace the old one.  If we fail
 			 * to allocate a buffer, we're going to drop this
@@ -1222,9 +1217,15 @@ static void sbdma_rx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 			 */
 			
 			if (sbdma_add_rcvbuffer(d,NULL) == -ENOBUFS) {
+			    sc->sbm_stats.rx_dropped++;
 			    sbdma_add_rcvbuffer(d,sb);	/* re-add old buffer */
 			    }
 			else {
+			    /*
+			     * Set length into the packet
+			     */
+			    skb_put(sb,len);
+
 			    /*
 			     * Buffer has been replaced on the receive ring.
 			     * Pass the buffer to the kernel
@@ -1254,6 +1255,7 @@ static void sbdma_rx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 			 * Packet was mangled somehow.  Just drop it and
 			 * put it back on the receive ring.
 			 */
+			sc->sbm_stats.rx_errors++;
 			sbdma_add_rcvbuffer(d,sb);
 		}
 		
@@ -2868,9 +2870,10 @@ sbmac_init_module(void)
 	case 0x1250:
 		chip_max_units = 3;
 		break;
-	case 0x1120:
-	case 0x1125:
-	case 0x1126:
+	case 0x1121:
+	case 0x1123:
+	case 0x1124:
+	case 0x1125:	// Hybrid.
 		chip_max_units = 2;
 		break;
 	default:
