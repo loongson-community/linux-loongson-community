@@ -31,7 +31,7 @@ struct semaphore {
 #if WAITQUEUE_DEBUG
 	long __magic;
 #endif
-};
+} __attribute__((aligned(8)));
 
 #if WAITQUEUE_DEBUG
 # define __SEM_DEBUG_INIT(name) \
