@@ -9,19 +9,20 @@
  */
 #include <linux/mc146818rtc.h>
 #include <asm/io.h>
+#include <asm/au1000.h>
 
 #define PB1500_RTC_ADDR 0xAC000000
 
-static unsigned char std_rtc_read_data(unsigned long addr)
+unsigned char std_rtc_read_data(unsigned long offset)
 {
-	addr <<= 2;
-:	return (u8)(au_readl(addr + PB1500_RTC_ADDR) & 0xff);
+	offset <<= 2;
+	return (u8)(au_readl(offset + PB1500_RTC_ADDR) & 0xff);
 }
 
-static void std_rtc_write_data(unsigned char data, unsigned long addr)
+static void std_rtc_write_data(unsigned char data, unsigned long offset)
 {
-	addr <<= 2;
-	au_writel(data, addr + PB1500_RTC_ADDR);
+	offset <<= 2;
+	au_writel(data, offset + PB1500_RTC_ADDR);
 }
 
 static int std_rtc_bcd_mode(void)
