@@ -414,6 +414,8 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 	__cu_len;							\
 })
 
+#define __copy_in_user(to, from, n)	__copy_from_user(to, from, n)
+
 static inline __kernel_size_t
 __clear_user(void *addr, __kernel_size_t size)
 {
