@@ -4,6 +4,8 @@
  * gdb-low.S contains the low-level trap handler for the GDB stub.
  *
  * Copyright (C) 1995 Andreas Busse
+ *
+ * $Id:$
  */
 
 #include <linux/sys.h>

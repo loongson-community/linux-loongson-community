@@ -8,7 +8,7 @@
  * Copyright (C) 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for further R[236]000 support by Paul M. Antoine, 1996.
  *
- * $Id: mipsregs.h,v 1.2 1997/09/12 22:25:34 ralf Exp $
+ * $Id: mipsregs.h,v 1.4 1997/09/20 19:02:46 root Exp $
  */
 #ifndef __ASM_MIPS_MIPSREGS_H
 #define __ASM_MIPS_MIPSREGS_H
@@ -254,6 +254,22 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
  * Status register bits available in all MIPS CPUs.
  */
 #define ST0_IM			0x0000ff00
+#define  STATUSB_IP0		8
+#define  STATUSF_IP0		(1   <<  8)
+#define  STATUSB_IP1		9
+#define  STATUSF_IP1		(1   <<  9)
+#define  STATUSB_IP2		10
+#define  STATUSF_IP2		(1   << 10)
+#define  STATUSB_IP3		11
+#define  STATUSF_IP3		(1   << 11)
+#define  STATUSB_IP4		12
+#define  STATUSF_IP4		(1   << 12)
+#define  STATUSB_IP5		13
+#define  STATUSF_IP5		(1   << 13)
+#define  STATUSB_IP6		14
+#define  STATUSF_IP6		(1   << 14)
+#define  STATUSB_IP7		15
+#define  STATUSF_IP7		(1   << 15)
 #define ST0_DE			0x00010000
 #define ST0_CE			0x00020000
 #define ST0_CH			0x00040000
@@ -293,6 +309,8 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
 #define  CAUSEF_IP6		(1   << 14)
 #define  CAUSEB_IP7		15
 #define  CAUSEF_IP7		(1   << 15)
+#define  CAUSEB_IV		23
+#define  CAUSEF_IV		(1   << 23)
 #define  CAUSEB_CE		28
 #define  CAUSEF_CE		(3   << 28)
 #define  CAUSEB_BD		31

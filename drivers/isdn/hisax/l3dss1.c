@@ -1,4 +1,4 @@
-/* $Id: l3dss1.c,v 1.2 1997/06/03 09:24:34 ralf Exp $
+/* $Id: l3dss1.c,v 1.15 1997/04/17 11:50:48 keil Exp $
 
  * EURO/DSS1 D-channel protocol
  *
@@ -9,9 +9,6 @@
  *              Fritz Elfert
  *
  * $Log: l3dss1.c,v $
- * Revision 1.2  1997/06/03 09:24:34  ralf
- * Sync with Linux 2.1.42.
- *
  * Revision 1.15  1997/04/17 11:50:48  keil
  * pa->loc was undefined, if it was not send by the exchange
  *
@@ -67,7 +64,7 @@
 #include <linux/ctype.h>
 
 extern char *HiSax_getrev(const char *revision);
-const char *dss1_revision = "$Revision: 1.2 $";
+const char *dss1_revision = "$Revision: 1.15 $";
 
 #define	MsgHead(ptr, cref, mty) \
 	*ptr++ = 0x8; \

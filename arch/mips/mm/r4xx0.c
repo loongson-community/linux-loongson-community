@@ -3,7 +3,13 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.7 1997/09/12 01:30:27 ralf Exp $
+ * $Id: r4xx0.c,v 1.9 1997/12/01 16:17:58 ralf Exp $
+ *
+ * To do:
+ *
+ *  - this code is a overbloated pig
+ *  - many of the bug workarounds are not efficient at all, but at
+ *    least they are functional ...
  */
 #include <linux/config.h>
 
@@ -118,7 +124,7 @@ static void r4k_clear_page_d32(unsigned long page)
  * IDT R4600 V1.7 errata:
  *
  *  18. The CACHE instructions Hit_Writeback_Invalidate_D, Hit_Writeback_D,
- *      Hit_Invalidate_D and Create_Dirty_Exclusive_D should only be
+ *      Hit_Invalidate_D and Create_Dirty_Excl_D should only be
  *      executed if there is no other dcache activity. If the dcache is
  *      accessed for another instruction immeidately preceding when these
  *      cache instructions are executing, it is possible that the dcache 
@@ -175,6 +181,44 @@ static void r4k_clear_page_r4600_v1(unsigned long page)
 		 "i" (Create_Dirty_Excl_D)
 		:"$1","memory");
 }
+
+/*
+ * And this one is for the R4600 V2.0
+ */
+static void r4k_clear_page_r4600_v2(unsigned long page)
+{
+	unsigned int flags;
+
+	save_and_cli(flags);
+	*(volatile unsigned int *)KSEG1;
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%2\n"
+		"1:\tcache\t%3,(%0)\n\t"
+		"sd\t$0,(%0)\n\t"
+		"sd\t$0,8(%0)\n\t"
+		"sd\t$0,16(%0)\n\t"
+		"sd\t$0,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"cache\t%3,-32(%0)\n\t"
+		"sd\t$0,-32(%0)\n\t"
+		"sd\t$0,-24(%0)\n\t"
+		"sd\t$0,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sd\t$0,-8(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (page)
+		:"0" (page),
+		 "I" (PAGE_SIZE),
+		 "i" (Create_Dirty_Excl_D)
+		:"$1","memory");
+	restore_flags(flags);
+}
+
 
 /*
  * This is still inefficient.  We only can do better if we know the
@@ -363,6 +407,74 @@ static void r4k_copy_page_r4600_v1(unsigned long to, unsigned long from)
 		:"0" (to), "1" (from),
 		 "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
+}
+
+static void r4k_copy_page_r4600_v2(unsigned long to, unsigned long from)
+{
+	unsigned long dummy1, dummy2;
+	unsigned long reg1, reg2, reg3, reg4;
+	unsigned int flags;
+
+	__save_and_cli(flags);
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%8\n"
+		"1:\tnop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"\tcache\t%9,(%0)\n\t"
+		"lw\t%2,(%1)\n\t"
+		"lw\t%3,4(%1)\n\t"
+		"lw\t%4,8(%1)\n\t"
+		"lw\t%5,12(%1)\n\t"
+		"sw\t%2,(%0)\n\t"
+		"sw\t%3,4(%0)\n\t"
+		"sw\t%4,8(%0)\n\t"
+		"sw\t%5,12(%0)\n\t"
+		"lw\t%2,16(%1)\n\t"
+		"lw\t%3,20(%1)\n\t"
+		"lw\t%4,24(%1)\n\t"
+		"lw\t%5,28(%1)\n\t"
+		"sw\t%2,16(%0)\n\t"
+		"sw\t%3,20(%0)\n\t"
+		"sw\t%4,24(%0)\n\t"
+		"sw\t%5,28(%0)\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"cache\t%9,32(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"daddiu\t%1,64\n\t"
+		"lw\t%2,-32(%1)\n\t"
+		"lw\t%3,-28(%1)\n\t"
+		"lw\t%4,-24(%1)\n\t"
+		"lw\t%5,-20(%1)\n\t"
+		"sw\t%2,-32(%0)\n\t"
+		"sw\t%3,-28(%0)\n\t"
+		"sw\t%4,-24(%0)\n\t"
+		"sw\t%5,-20(%0)\n\t"
+		"lw\t%2,-16(%1)\n\t"
+		"lw\t%3,-12(%1)\n\t"
+		"lw\t%4,-8(%1)\n\t"
+		"lw\t%5,-4(%1)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sw\t%5,-4(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2),
+		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
+		:"0" (to), "1" (from),
+		 "I" (PAGE_SIZE),
+		 "i" (Create_Dirty_Excl_D));
+	restore_flags(flags);
 }
 
 /*
@@ -1437,7 +1549,8 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 	pte_t *ptep;
 	int text;
 
-	/* If ownes no valid ASID yet, cannot possibly have gotten
+	/*
+	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
 	if(mm->context == 0)
@@ -1768,7 +1881,9 @@ static void r4k_flush_page_to_ram_d32i32(unsigned long page)
 }
 
 /*
- * R4600 v2.0 bug: "The CACHE instructions Hit_Writeback_Invalidate_D,
+ * Writeback and invalidate the primary cache dcache before DMA.
+ *
+ * R4600 v2.0 bug: "The CACHE instructions Hit_Writeback_Inv_D,
  * Hit_Writeback_D, Hit_Invalidate_D and Create_Dirty_Exclusive_D will only
  * operate correctly if the internal data cache refill buffer is empty.  These
  * CACHE instructions should be separated from any potential data cache miss
@@ -1776,6 +1891,104 @@ static void r4k_flush_page_to_ram_d32i32(unsigned long page)
  * (Revision 2.0 device errata from IDT available on http://www.idt.com/
  * in .pdf format.)
  */
+static void
+r4k_flush_cache_pre_dma_out_pc(unsigned long addr, unsigned long size)
+{
+	unsigned long end, a;
+	unsigned int cmode, flags;
+
+	cmode = read_32bit_cp0_register(CP0_CONFIG) & CONFIG_CM_CMASK;
+	if (cmode == CONFIG_CM_CACHABLE_WA ||
+	    cmode == CONFIG_CM_CACHABLE_NO_WA) {
+		/* primary dcache is writethrough, therefore memory
+		   is already consistent with the caches.  */
+		return;
+	}
+
+	if (size >= dcache_size) {
+		flush_cache_all();
+		return;
+	}
+
+	/* Workaround for R4600 bug.  See comment above. */
+	save_and_cli(flags);
+	*(volatile unsigned long *)KSEG1;
+
+	a = addr & ~(dc_lsize - 1);
+	end = (addr + size) & ~(dc_lsize - 1);
+	while (1) {
+		flush_dcache_line(a); /* Hit_Writeback_Inv_D */
+		if (a == end) break;
+		a += dc_lsize;
+	}
+	restore_flags(flags);
+}
+
+static void
+r4k_flush_cache_pre_dma_out_sc(unsigned long addr, unsigned long size)
+{
+	unsigned long end;
+	unsigned long a;
+
+	if (size >= scache_size) {
+		flush_cache_all();
+		return;
+	}
+
+	a = addr & ~(sc_lsize - 1);
+	end = (addr + size) & ~(sc_lsize - 1);
+	while (1) {
+		flush_scache_line(addr); /* Hit_Writeback_Inv_SD */
+		if (addr == end) break;
+		addr += sc_lsize;
+	}
+	r4k_flush_cache_pre_dma_out_pc(addr, size);
+}
+
+static void
+r4k_flush_cache_post_dma_in_pc(unsigned long addr, unsigned long size)
+{
+	unsigned long end;
+	unsigned long a;
+
+	if (size >= dcache_size) {
+		flush_cache_all();
+		return;
+	}
+
+	/* Workaround for R4600 bug.  See comment above. */
+	*(volatile unsigned long *)KSEG1;
+
+	a = addr & ~(dc_lsize - 1);
+	end = (addr + size) & ~(dc_lsize - 1);
+	while (1) {
+		invalidate_dcache_line(a); /* Hit_Invalidate_D */
+		if (a == end) break;
+		a += dc_lsize;
+	}
+}
+
+static void
+r4k_flush_cache_post_dma_in_sc(unsigned long addr, unsigned long size)
+{
+	unsigned long end;
+	unsigned long a;
+
+	if (size >= scache_size) {
+		flush_cache_all();
+		return;
+	}
+
+	a = addr & ~(sc_lsize - 1);
+	end = (addr + size) & ~(sc_lsize - 1);
+	while (1) {
+		invalidate_scache_line(addr); /* Hit_Invalidate_SD */
+		if (addr == end) break;
+		addr += sc_lsize;
+	}
+	r4k_flush_cache_pre_dma_out_pc(addr, size);
+}
+
 static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 {
 	page &= PAGE_MASK;
@@ -1785,19 +1998,12 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("r4600_cram[%08lx]", page);
 #endif
-		/*
-		 * Workaround for R4600 bug.  Explanation see above.
-		 */
-		*(volatile unsigned long *)KSEG1;
-
 		save_and_cli(flags);
 		blast_dcache32_page(page);
 #ifdef CONFIG_SGI
 		{
 			unsigned long tmp1, tmp2;
-			/*
-			 * SGI goo.  Have to check this closer ...
-			 */
+
 			__asm__ __volatile__("
 			.set noreorder
 			.set mips3
@@ -1834,18 +2040,41 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
  */
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
-	addr &= ~(dc_lsize - 1);
-	__asm__ __volatile__("nop;nop;nop;nop");
-	protected_writeback_dcache_line(addr);
-	protected_writeback_dcache_line(addr + dc_lsize);
-	protected_flush_icache_line(addr);
-	protected_flush_icache_line(addr + dc_lsize);
+	unsigned long daddr, iaddr;
+
+	daddr = addr & ~(dc_lsize - 1);
+	__asm__ __volatile__("nop;nop;nop;nop");	/* R4600 V1.7 */
+	protected_writeback_dcache_line(daddr);
+	protected_writeback_dcache_line(daddr + dc_lsize);
+	iaddr = addr & ~(ic_lsize - 1);
+	protected_flush_icache_line(iaddr);
+	protected_flush_icache_line(iaddr + ic_lsize);
+}
+
+static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
+{
+	unsigned long daddr, iaddr;
+	unsigned int flags;
+
+	daddr = addr & ~(dc_lsize - 1);
+	save_and_cli(flags);
+
+	/* Clear internal cache refill buffer */
+	*(volatile unsigned int *)KSEG1;
+
+	protected_writeback_dcache_line(daddr);
+	protected_writeback_dcache_line(daddr + dc_lsize);
+	iaddr = addr & ~(ic_lsize - 1);
+	protected_flush_icache_line(iaddr);
+	protected_flush_icache_line(iaddr + ic_lsize);
+	restore_flags(flags);
 }
 
 #undef DEBUG_TLB
 #undef DEBUG_TLBUPDATE
 
 #define NTLB_ENTRIES       48  /* Fixed on all R4XX0 variants... */
+
 #define NTLB_ENTRIES_HALF  24  /* Fixed on all R4XX0 variants... */
 
 static inline void r4k_flush_tlb_all(void)
@@ -1866,7 +2095,7 @@ static inline void r4k_flush_tlb_all(void)
 	set_entrylo1(0);
 	BARRIER;
 
-	entry = get_wired();
+	entry = 0;
 
 	/* Blast 'em all away. */
 	while(entry < NTLB_ENTRIES) {
@@ -1953,7 +2182,7 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		int oldpid, newpid, idx;
 
 #ifdef DEBUG_TLB
-               printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
+		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
 #endif
 		newpid = (vma->vm_mm->context & 0xff);
 		page &= (PAGE_MASK << 1);
@@ -2131,37 +2360,6 @@ static void r4k_show_regs(struct pt_regs * regs)
 	/* Saved cp0 registers. */
 	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
 	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
-}
-			
-static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-				      unsigned long entryhi, unsigned long pagemask)
-{
-        unsigned long flags;
-        unsigned long wired;
-        unsigned long old_pagemask;
-        unsigned long old_ctx;
-
-        save_and_cli(flags);
-        /* Save old context and create impossible VPN2 value */
-        old_ctx = (get_entryhi() & 0xff);
-        old_pagemask = get_pagemask();
-        wired = get_wired();
-        set_wired (wired + 1);
-        set_index (wired);
-        BARRIER;    
-        set_pagemask (pagemask);
-        set_entryhi(entryhi);
-        set_entrylo0(entrylo0);
-        set_entrylo1(entrylo1);
-        BARRIER;    
-        tlb_write_indexed();
-        BARRIER;    
-    
-        set_entryhi(old_ctx);
-        BARRIER;    
-        set_pagemask (old_pagemask);
-        flush_tlb_all();    
-        restore_flags(flags);
 }
 
 /* Detect and size the various r4k caches. */
@@ -2417,6 +2615,8 @@ static int probe_scache(unsigned long config)
 
 static void setup_noscache_funcs(void)
 {
+	unsigned int prid;
+
 	switch(dc_lsize) {
 	case 16:
 		clear_page = r4k_clear_page_d16;
@@ -2428,9 +2628,13 @@ static void setup_noscache_funcs(void)
 		flush_page_to_ram = r4k_flush_page_to_ram_d16i16;
 		break;
 	case 32:
-		if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2010) {
+		prid = read_32bit_cp0_register(CP0_PRID) & 0xfff0;
+		if (prid == 0x2010) {			/* R4600 V1.7 */
 			clear_page = r4k_clear_page_r4600_v1;
 			copy_page = r4k_copy_page_r4600_v1;
+		} else if (prid == 0x2020) {		/* R4600 V2.0 */
+			clear_page = r4k_clear_page_r4600_v2;
+			copy_page = r4k_copy_page_r4600_v2;
 		} else {
 			clear_page = r4k_clear_page_d32;
 			copy_page = r4k_copy_page_d32;
@@ -2442,6 +2646,8 @@ static void setup_noscache_funcs(void)
 		flush_page_to_ram = r4k_flush_page_to_ram_d32i32;
 		break;
 	}
+	flush_cache_pre_dma_out = r4k_flush_cache_pre_dma_out_pc;
+	flush_cache_post_dma_in = r4k_flush_cache_post_dma_in_pc;
 }
 
 static void setup_scache_funcs(void)
@@ -2534,6 +2740,10 @@ static void setup_scache_funcs(void)
 		};
 		break;
 	}
+
+	/* XXX Do these for Indy style caches also.  No need for now ... */
+	flush_cache_pre_dma_out = r4k_flush_cache_pre_dma_out_sc;
+	flush_cache_post_dma_in = r4k_flush_cache_post_dma_in_sc;
 }
 
 typedef int (*probe_func_t)(unsigned long);
@@ -2600,6 +2810,9 @@ void ld_mmu_r4xx0(void)
 
 	/* XXX Handle true second level cache w/ split I/D */
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
+	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
+		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
+	}
 
 	flush_tlb_all = r4k_flush_tlb_all;
 	flush_tlb_mm = r4k_flush_tlb_mm;

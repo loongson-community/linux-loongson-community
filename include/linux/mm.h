@@ -304,9 +304,15 @@ extern void truncate_inode_pages(struct inode *, unsigned long);
 #define GFP_NOBUFFER	0x04
 #define GFP_NFS		0x05
 
+/* Flag - indicates that the buffer should be allocated uncached as for an
+   architecture where the caches don't snoop DMA access.  This is a even
+   stricter requirement than GFP_DMA as GFP_DMA allocated buffers might be
+   writeback cacheable and not be suitable for use with devices like
+   networks cards which manipulate objects smaller than a cacheline. */
+#define GFP_UNCACHED	0x40
+
 /* Flag - indicates that the buffer will be suitable for DMA.  Ignored on some
    platforms, used as appropriate on others */
-
 #define GFP_DMA		0x80
 
 #define GFP_LEVEL_MASK 0xf

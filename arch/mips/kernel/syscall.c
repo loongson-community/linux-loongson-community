@@ -10,6 +10,8 @@
  * TODO:  Implement the compatibility syscalls.
  *        Don't waste that much memory for empty entries in the syscall
  *        table.
+ *
+ * $Id: syscall.c,v 1.4 1997/09/18 07:57:30 root Exp $
  */
 #undef CONF_PRINT_SYSCALLS
 #undef CONF_DEBUG_IRIX
@@ -84,15 +86,17 @@ asmlinkage int sys_idle(void)
 	current->counter = -100;
 	for (;;) {
 		/*
-		 * R4[236]00 have wait, R4[04]00 don't.
+		 * R4[36]00 have wait, R4[04]00 don't.
 		 * FIXME: We should save power by reducing the clock where
-		 *        possible.  Should help alot for battery powered
-		 *        R4200/4300i systems.
+		 *        possible.  Thiss will cut down the power consuption
+		 *        of R4200 systems to about 1/16th of normal, the
+		 *        same for logic clocked with the processor generated
+		 *        clocks.
 		 */
 		if (wait_available && !need_resched)
 			__asm__(".set\tmips3\n\t"
 				"wait\n\t"
-				".set\tmips0\n\t");
+				".set\tmips0");
 		run_task_queue(&tq_scheduler);
 		schedule();
 	}

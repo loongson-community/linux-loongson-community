@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.3 1997/07/24 01:55:54 ralf Exp $
+ * $Id: keyboard.h,v 1.4 1997/08/05 09:44:28 ralf Exp $
  */
 
 /*

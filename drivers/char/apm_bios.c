@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * $Id: apm_bios.c,v 1.2 1997/09/12 01:31:41 ralf Exp $
+ * $Id: apm_bios.c,v 0.22 1995/03/09 14:12:02 sfr Exp $
  *
  * October 1995, Rik Faith (faith@cs.unc.edu):
  *    Minor enhancements and updates (to the patch set) for 1.3.x

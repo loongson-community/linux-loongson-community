@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: mips_ksyms.c,v 1.2 1997/07/29 03:58:54 ralf Exp $
+ * $Id: mips_ksyms.c,v 1.4 1997/08/11 04:17:18 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -62,11 +62,21 @@ EXPORT_SYMBOL(csum_partial_copy);
  */
 EXPORT_SYMBOL(flush_page_to_ram);
 EXPORT_SYMBOL(fd_cacheflush);
+EXPORT_SYMBOL(flush_cache_all);
 
 /*
  * Base address of ports for Intel style I/O.
  */
-EXPORT_SYMBOL(port_base);
+EXPORT_SYMBOL(mips_io_port_base);
+
+/*
+ * Architecture specific stuff.
+ */
+#ifdef CONFIG_MIPS_JAZZ
+EXPORT_SYMBOL(vdma_alloc);
+EXPORT_SYMBOL(vdma_free);
+EXPORT_SYMBOL(vdma_log2phys);
+#endif
 
 #ifdef CONFIG_SGI
 EXPORT_SYMBOL(hpc3c0);

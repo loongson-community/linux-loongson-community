@@ -13,7 +13,9 @@
 #include <linux/types.h>
 #include <asm/pci.h>
 
-#ifndef CONFIG_PCI
+#ifdef CONFIG_PCI
+
+struct pci_ops *pci_ops;
 
 /*
  * BIOS32 replacement.
@@ -24,15 +26,13 @@ __initfunc(unsigned long pcibios_init(unsigned long memory_start,
 	return memory_start;
 }
 
-#else /* defined(CONFIG_PCI) */
-
 /*
  * Following the generic parts of the MIPS BIOS32 code.
  */
 
 int pcibios_present (void)
 {
-	return _pcibios_init != NULL;
+	return pci_ops != NULL;
 }
 
 /*
@@ -87,68 +87,46 @@ int pcibios_find_class (unsigned int class_code, unsigned short index,
  * each PCI chipset configuration.  We just run the hook to the machine
  * specific implementation.
  */
-unsigned long (*_pcibios_init)(unsigned long memory_start, unsigned long memory_end);
-__initfunc(unsigned long pcibios_init(unsigned long memory_start,
-                                      unsigned long memory_end))
-{
-	return _pcibios_init ? _pcibios_init(memory_start, memory_end)
-	                     : memory_start;
-}
-
-unsigned long (*_pcibios_fixup) (unsigned long memory_start,
-                                 unsigned long memory_end);
 unsigned long pcibios_fixup (unsigned long memory_start,
                              unsigned long memory_end)
 {
-	return _pcibios_fixup(memory_start, memory_end);
+	return pci_ops->pcibios_fixup(memory_start, memory_end);
 }
 
-int (*_pcibios_read_config_byte) (unsigned char bus, unsigned char dev_fn,
-                                  unsigned char where, unsigned char *val);
 int pcibios_read_config_byte (unsigned char bus, unsigned char dev_fn,
                               unsigned char where, unsigned char *val)
 {
-	return _pcibios_read_config_byte(bus, dev_fn, where, val);
+	return pci_ops->pcibios_read_config_byte(bus, dev_fn, where, val);
 }
 
-int (*_pcibios_read_config_word) (unsigned char bus, unsigned char dev_fn,
-                                  unsigned char where, unsigned short *val);
 int pcibios_read_config_word (unsigned char bus, unsigned char dev_fn,
                               unsigned char where, unsigned short *val)
 {
-	return _pcibios_read_config_word(bus, dev_fn, where, val);
+	return pci_ops->pcibios_read_config_word(bus, dev_fn, where, val);
 }
 
-int (*_pcibios_read_config_dword) (unsigned char bus, unsigned char dev_fn,
-                                   unsigned char where, unsigned int *val);
 int pcibios_read_config_dword (unsigned char bus, unsigned char dev_fn,
                                unsigned char where, unsigned int *val)
 {
-	return _pcibios_read_config_dword(bus, dev_fn, where, val);
+	return pci_ops->pcibios_read_config_dword(bus, dev_fn, where, val);
 }
 
-int (*_pcibios_write_config_byte) (unsigned char bus, unsigned char dev_fn,
-                                   unsigned char where, unsigned char val);
 int pcibios_write_config_byte (unsigned char bus, unsigned char dev_fn,
                                unsigned char where, unsigned char val)
 {
-	return _pcibios_write_config_byte(bus, dev_fn, where, val);
+	return pci_ops->pcibios_write_config_byte(bus, dev_fn, where, val);
 }
 
-int (*_pcibios_write_config_word) (unsigned char bus, unsigned char dev_fn,
-                                   unsigned char where, unsigned short val);
 int pcibios_write_config_word (unsigned char bus, unsigned char dev_fn,
                                unsigned char where, unsigned short val)
 {
-	return _pcibios_write_config_word(bus, dev_fn, where, val);
+	return pci_ops->pcibios_write_config_word(bus, dev_fn, where, val);
 }
 
-int (*_pcibios_write_config_dword) (unsigned char bus, unsigned char dev_fn,
-                                    unsigned char where, unsigned int val);
 int pcibios_write_config_dword (unsigned char bus, unsigned char dev_fn,
                                 unsigned char where, unsigned int val)
 {
-	return _pcibios_write_config_dword(bus, dev_fn, where, val);
+	return pci_ops->pcibios_write_config_dword(bus, dev_fn, where, val);
 }
 
 #endif /* defined(CONFIG_PCI) */

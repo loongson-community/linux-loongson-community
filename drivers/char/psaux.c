@@ -306,8 +306,6 @@ static int open_aux(struct inode * inode, struct file * file)
 		return -EBUSY;
 	}
 	MOD_INC_USE_COUNT;
-
-
 	poll_aux_status();
 	kbd_write_command(KBD_CCMD_MOUSE_ENABLE);	/* Enable Aux */
 	aux_write_dev(AUX_ENABLE_DEV);			/* Enable aux device */
@@ -627,7 +625,11 @@ __initfunc(int psaux_init(void))
 		psaux_fops.release = release_qp;
 	} else
 #endif
+#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
+	if (1) {
+#else
 	if (aux_device_present == 0xaa) {
+#endif
 		printk(KERN_INFO "PS/2 auxiliary pointing device detected -- driver installed.\n");
 	 	aux_present = 1;
 #ifdef CONFIG_VT
@@ -654,10 +656,10 @@ __initfunc(int psaux_init(void))
 #endif /* INITIALIZE_DEVICE */
 		kbd_write_command(KBD_CCMD_MOUSE_DISABLE);   /* Disable Aux device */
 		poll_aux_status();
-		kbd_write_command(KBD_CCMD_WRITE_MODE);    /* Disable controller interrupts */
+		kbd_write_command(KBD_CCMD_WRITE_MODE);	/* Disable controller interrupts */
 		poll_aux_status();
-		kbd_write_output (AUX_INTS_OFF);
-		kbd_pause ();
+		kbd_write_output(AUX_INTS_OFF);
+		kbd_pause();
 		poll_aux_status();
 		aux_end_atomic();
 	}

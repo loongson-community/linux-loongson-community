@@ -51,21 +51,24 @@ struct sun_floppy_ops {
 
 static struct sun_floppy_ops sun_fdops;
 
-#define fd_inb(port)              sun_fdops.fd_inb(port)
-#define fd_outb(value,port)       sun_fdops.fd_outb(value,port)
-#define fd_enable_dma()           sun_fd_enable_dma()
-#define fd_disable_dma()          sun_fd_disable_dma()
-#define fd_request_dma()          (0) /* nothing... */
-#define fd_free_dma()             /* nothing... */
-#define fd_clear_dma_ff()         /* nothing... */
-#define fd_set_dma_mode(mode)     sun_fd_set_dma_mode(mode)
-#define fd_set_dma_addr(addr)     sun_fd_set_dma_addr(addr)
-#define fd_set_dma_count(count)   sun_fd_set_dma_count(count)
-#define fd_enable_irq()           /* nothing... */
-#define fd_disable_irq()          /* nothing... */
-#define fd_cacheflush(addr, size) /* nothing... */
-#define fd_request_irq()          sun_fd_request_irq()
-#define fd_free_irq()             /* nothing... */
+#define fd_inb(port)			sun_fdops.fd_inb(port)
+#define fd_outb(value,port)		sun_fdops.fd_outb(value,port)
+
+#define fd_enable_dma(channel)		sun_fd_enable_dma()
+#define fd_disable_dma(channel)		sun_fd_disable_dma()
+#define fd_request_dma(channel)		(0) /* nothing... */
+#define fd_free_dma(channel)		/* nothing... */
+#define fd_clear_dma_ff(channel)	/* nothing... */
+#define fd_set_dma_mode(channel,mode)	sun_fd_set_dma_mode(mode)
+#define fd_set_dma_addr(channel,addr)	sun_fd_set_dma_addr(addr)
+#define fd_set_dma_count(channel,count)	sun_fd_set_dma_count(count)
+
+#define fd_enable_irq(irq)		/* nothing... */
+#define fd_disable_irq(irq)		/* nothing... */
+#define fd_request_irq(irq)		sun_fd_request_irq()
+#define fd_free_irq(irq)		/* nothing... */
+
+#define fd_cacheflush(addr, size)	/* nothing... */
 #if 0  /* P3: added by Alain, these cause a MMU corruption. 19960524 XXX */
 #define fd_dma_mem_alloc(size)    ((unsigned long) vmalloc(size))
 #define fd_dma_mem_free(addr,size) (vfree((void *)(addr)))

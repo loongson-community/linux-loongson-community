@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id:$
+ * $Id: signal.h,v 1.2 1997/09/07 05:27:50 ralf Exp $
  */
 #ifndef __ASM_MIPS_SIGNAL_H
 #define __ASM_MIPS_SIGNAL_H

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: setup.c,v 1.4 1997/09/11 08:13:11 shaver Exp $
+ * $Id: setup.c,v 1.5 1997/09/13 02:19:18 ralf Exp $
  */
 #include <linux/kernel.h>
 #include <linux/sched.h>

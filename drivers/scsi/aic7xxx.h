@@ -18,12 +18,12 @@
  * along with this program; see the file COPYING.  If not, write to
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  * 
- * $Id: aic7xxx.h,v 1.1.1.1 1997/06/01 03:17:41 ralf Exp $
+ * $Id: aic7xxx.h,v 3.2 1996/07/23 03:37:26 deang Exp $
  *-M*************************************************************************/
 #ifndef _aic7xxx_h
 #define _aic7xxx_h
 
-#define AIC7XXX_H_VERSION  "$Revision: 1.1.1.1 $"
+#define AIC7XXX_H_VERSION  "$Revision: 3.2 $"
 
 /*
  * Scsi_Host_Template (see hosts.h) for AIC-7xxx - some fields

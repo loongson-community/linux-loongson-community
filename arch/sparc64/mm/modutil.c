@@ -1,4 +1,4 @@
-/*  $Id: modutil.c,v 1.1 1997/07/18 06:26:54 ralf Exp $
+/*  $Id: modutil.c,v 1.1 1997/06/27 14:53:35 jj Exp $
  *  arch/sparc64/mm/modutil.c
  *
  *  Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)

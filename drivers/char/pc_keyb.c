@@ -27,6 +27,18 @@
 
 #include "pc_keyb.h"
 
+/*
+ * In case we run on a non-x86 hardware we need to initialize both the keyboard
+ * controller and the keyboard. On a x86, the BIOS will already have initialized
+ * them.
+ */
+
+#ifndef __i386__
+#define INIT_KBD
+#endif
+
+#ifdef INIT_KBD
+
 /* Simple translation table for the SysRq keys */
 
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -40,25 +52,13 @@ unsigned char pckbd_sysrq_xlate[128] =
 	"\r\000/";					/* 0x60 - 0x6f */
 #endif
 
-/*
- * In case we run on a non-x86 hardware we need to initialize both the keyboard
- * controller and the keyboard. On a x86, the BIOS will already have initialized
- * them.
- */
-
-#ifndef __i386__
-#define INIT_KBD
-#endif
-
-#ifdef INIT_KBD
-
 __initfunc(static int kbd_wait_for_input(void))
 {
-	int     n;
-	int     status, data;
+	int	n;
+	int	status, data;
 	unsigned long start = jiffies;
 
-	do {
+        do {
                 status = kbd_read_status();
                 /*
                  * Wait for input data to become available.  This bit will
@@ -526,10 +526,8 @@ static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		unsigned char scancode;
 
 		/* mouse data? */
-		if (status & kbd_read_mask & KBD_STAT_MOUSE_OBF){
-			printk ("MOUSE!\n");
+		if (status & kbd_read_mask & KBD_STAT_MOUSE_OBF)
 			break;
-		}
 
 		scancode = kbd_read_input();
 		if ((status & KBD_STAT_OBF) && do_acknowledge(scancode))
@@ -585,7 +583,7 @@ void pckbd_leds(unsigned char leds)
 
 __initfunc(void pckbd_init_hw(void))
 {
-	request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, "keyboard-aaa", NULL);
+	request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, "keyboard", NULL);
 	keyboard_setup();
 #ifdef INIT_KBD
 	initialize_kbd();

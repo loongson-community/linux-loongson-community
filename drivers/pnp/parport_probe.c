@@ -1,4 +1,4 @@
-/* $Id: parport_probe.c,v 1.4 1997/09/12 01:32:20 ralf Exp $ 
+/* $Id: parport_probe.c,v 1.1.2.9 1997/03/29 21:08:16 phil Exp $ 
  * Parallel port device probing code
  * 
  * Authors:    Carsten Gross, carsten@sol.wohnheim.uni-ulm.de

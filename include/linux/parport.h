@@ -1,4 +1,4 @@
-/* $Id: parport.h,v 1.3 1997/08/06 19:16:45 miguel Exp $ */
+/* $Id: parport.h,v 1.2.6.3.2.2 1997/04/18 15:03:53 phil Exp $ */
 
 #ifndef _PARPORT_H_
 #define _PARPORT_H_

@@ -1,6 +1,6 @@
 #define BLOCKMOVE
 static char rcsid[] =
-"$Revision: 1.1.1.1 $$Date: 1997/06/01 03:17:29 $";
+"$Revision: 1.36.4.33 $$Date: 1997/06/27 19:00:00 $";
 
 /*
  *  linux/drivers/char/cyclades.c
@@ -29,8 +29,49 @@ static char rcsid[] =
  *   void cleanup_module(void);
  *
  * $Log: cyclades.c,v $
- * Revision 1.1.1.1  1997/06/01 03:17:29  ralf
- * Initial import of Linux/MIPS pre-2.1.40.
+ * Revision 1.36.4.33  1997/06/27 19:00:00  ivan
+ * Fixes related to kernel version conditional 
+ * compilation.
+ *  
+ * Revision 1.36.4.32  1997/06/14 19:30:00  ivan
+ * Compatibility issues between kernels 2.0.x and 
+ * 2.1.x (mainly related to clear_bit function).
+ *  
+ * Revision 1.36.4.31  1997/06/03 15:30:00  ivan
+ * Changes to define the memory window according to the 
+ * board type.
+ *  
+ * Revision 1.36.4.30  1997/05/16 15:30:00  daniel
+ * Changes to suport new cycladesZ boards.
+ *
+ * Revision 1.36.4.29  1997/05/12 11:30:00  daniel
+ * Merge of Bentson's and Daniel's version 1.36.4.28.
+ * Corrects bug in cy_detect_pci: check if there are more
+ * ports than the number of static structs allocated.
+ * Warning message during initialization if this driver is
+ * used with the new generation of cycladesZ boards.  Those
+ * will be supported only in next release of the driver.
+ * Corrects bug in cy_detect_pci and cy_detect_isa that
+ * returned wrong number of VALID boards, when a cyclomY
+ * was found with no serial modules connected.
+ * Changes to use current (2.1.x) kernel subroutine names
+ * and created macros for compilation with 2.0.x kernel,
+ * instead of the other way around.
+ *
+ * Revision 1.36.4.28  1997/05/?? ??:00:00  bentson
+ * Change queue_task_irq_off to queue_task_irq.
+ * The inline function queue_task_irq_off (tqueue.h)
+ * was removed from latest releases of 2.1.x kernel.
+ * Use of macro __initfunc to mark the initialization
+ * routines, so memory can be reused.
+ * Also incorporate implementation of critical region
+ * in function cleanup_module() created by anonymous
+ * linuxer.
+ *
+ * Revision 1.36.4.28  1997/04/25 16:00:00  daniel
+ * Change to support new firmware that solves DCD problem:
+ * application could fail to receive SIGHUP signal when DCD
+ * varying too fast.
  *
  * Revision 1.36.4.27  1997/03/26 10:30:00  daniel
  * Changed for suport linux versions 2.1.X.

@@ -4,7 +4,7 @@
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
  *
- * $Id: irq.c,v 1.4 1997/09/12 01:30:22 ralf Exp $
+ * $Id: irq.c,v 1.7 1997/09/26 11:51:33 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -86,8 +86,6 @@ void enable_irq(unsigned int irq_nr)
  * fast ones, then the bad ones.
  */
 extern void interrupt(void);
-extern void fast_interrupt(void);
-extern void bad_interrupt(void);
 
 static struct irqaction *irq_action[32] = {
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -130,48 +128,45 @@ atomic_t __mips_bh_counter;
  */
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
-	struct irqaction * action = *(irq + irq_action);
-	int do_random, cpu = smp_processor_id();
+	struct irqaction *action;
+	int do_random, cpu;
 
+	cpu = smp_processor_id();
 	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
 
-	/* slow interrupts run with interrupts enabled */
-	sti();
-	action = *(irq + irq_action);
-	do_random = 0;
-        while (action) {
-		do_random |= action->flags;
-		action->handler(irq, action->dev_id, regs);
-		action = action->next;
-        }
-	if (do_random & SA_SAMPLE_RANDOM)
-		add_interrupt_randomness(irq);
-	irq_exit(cpu, irq);
-}
+	/*
+	 * mask and ack quickly, we don't want the irq controller
+	 * thinking we're snobs just because some other CPU has
+	 * disabled global interrupts (we have already done the
+	 * INT_ACK cycles, it's too late to try to pretend to the
+	 * controller that we aren't taking the interrupt).
+	 *
+	 * Commented out because we've already done this in the
+	 * machinespecific part of the handler.  It's reasonable to
+	 * do this here in a highlevel language though because that way
+	 * we could get rid of a good part of duplicated code ...
+	 */
+        /* mask_and_ack_irq(irq); */
 
-/*
- * do_fast_IRQ handles IRQ's that don't need the fancy interrupt return
- * stuff - the handler is also running with interrupts disabled unless
- * it explicitly enables them later.
- */
-asmlinkage void do_fast_IRQ(int irq)
-{
-	struct irqaction * action;
-	int do_random, cpu = smp_processor_id();
-
-	irq_enter(cpu, irq);
-	kstat.interrupts[irq]++;
 	action = *(irq + irq_action);
-	do_random = 0;
-	while (action) {
-		do_random |= action->flags;
-		action->handler(irq, action->dev_id, NULL);
-		action = action->next;
+	if (action) {
+		if (!(action->flags & SA_INTERRUPT))
+			__sti();
+		action = *(irq + irq_action);
+		do_random = 0;
+        	do {
+			do_random |= action->flags;
+			action->handler(irq, action->dev_id, regs);
+			action = action->next;
+        	} while (action);
+		if (do_random & SA_SAMPLE_RANDOM)
+			add_interrupt_randomness(irq);
+		__cli();
 	}
-	if (do_random & SA_SAMPLE_RANDOM)
-		add_interrupt_randomness(irq);
 	irq_exit(cpu, irq);
+
+	/* unmasking and bottom half handling is done magically for us. */
 }
 
 /*
@@ -211,10 +206,6 @@ int setup_x86_irq(int irq, struct irqaction * new)
 	*p = new;
 
 	if (!shared) {
-		if (new->flags & SA_INTERRUPT)
-			set_int_vector(irq,fast_interrupt);
-		else
-			set_int_vector(irq,interrupt);
 		unmask_irq(irq);
 	}
 	restore_flags(flags);
@@ -269,10 +260,8 @@ void free_irq(unsigned int irq, void *dev_id)
 		/* Found it - now free it */
 		save_and_cli(flags);
 		*p = action->next;
-		if (!irq[irq_action]) {
+		if (!irq[irq_action])
 			mask_irq(irq);
-			set_int_vector(irq, bad_interrupt);
-		}
 		restore_flags(flags);
 		kfree(action);
 		return;
@@ -321,9 +310,5 @@ int probe_irq_off (unsigned long irqs)
 
 __initfunc(void init_IRQ(void))
 {
-	int i;
-
-	for (i = 0; i < 32 ; i++)
-		set_int_vector(i, bad_interrupt);
 	irq_setup();
 }

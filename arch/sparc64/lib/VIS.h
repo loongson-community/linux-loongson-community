@@ -1,4 +1,4 @@
-/* $Id: VIS.h,v 1.1 1997/07/18 06:26:48 ralf Exp $
+/* $Id: VIS.h,v 1.3 1997/06/27 14:53:18 jj Exp $
  * VIS.h: High speed copy/clear operations utilizing the UltraSparc
  *        Visual Instruction Set.
  *

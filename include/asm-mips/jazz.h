@@ -8,6 +8,8 @@
  * Copyright (C) 1995 by Andreas Busse and Ralf Baechle
  *
  * This file is a mess. It really needs some reorganisation!
+ *
+ * $Id:$
  */
 #ifndef __ASM_MIPS_JAZZ_H 
 #define __ASM_MIPS_JAZZ_H 

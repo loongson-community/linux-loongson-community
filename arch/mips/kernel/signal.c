@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.5 1997/09/12 01:30:24 ralf Exp $
+ * $Id: signal.c,v 1.8 1997/12/01 16:26:34 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -174,7 +174,7 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	 * Set up the return code ...
 	 *
 	 *         .set    noreorder
-	 *         addiu   sp,24
+	 *         addiu   sp,0x20
 	 *         li      v0,__NR_sigreturn
 	 *         syscall
 	 *         .set    reorder

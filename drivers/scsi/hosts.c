@@ -204,7 +204,7 @@
 
 
 /*
-static const char RCSid[] = "$Header: /src/cvs/linux/drivers/scsi/hosts.c,v 1.1.1.1 1997/06/01 03:17:37 ralf Exp $";
+static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 1.20 1996/12/12 19:18:32 davem Exp $";
 */
 
 /*

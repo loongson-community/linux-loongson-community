@@ -5,7 +5,7 @@
  *  Copyright (C) 1995, 1996  Ralf Baechle
  *  Copyright (C) 1996  Stoned Elipot
  *
- * $Id:$
+ * $Id: setup.c,v 1.4 1997/09/07 04:55:42 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -120,6 +120,12 @@ static char command_line[CL_SIZE] = { 0, };
  * specific setup routine.
  */
 void (*irq_setup)(void);
+
+/*
+ * mips_io_port_base is the begin of the address space to which x86 style
+ * I/O ports are mapped.
+ */
+unsigned long mips_io_port_base;
 
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped

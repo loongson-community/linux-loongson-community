@@ -5,9 +5,9 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
+ * Copyright (C) 1995, 1996 by Ralf Baechle
  *
- * $Id: syscalls.h,v 1.6 1997/08/06 19:15:08 miguel Exp $
+ * $Id: syscalls.h,v 1.5 1997/09/11 01:57:38 ralf Exp $
  */
 
 /*
@@ -208,7 +208,5 @@ SYS(sys_getresuid, 3)
 SYS(sys_query_module, 5)
 SYS(sys_poll, 3)
 SYS(sys_nfsservctl, 3)
-SYS(sys_setresgid, 3)				/* 4190 */
-SYS(sys_getresgid, 3)
 SYS(sys_setresgid, 3)				/* 4190 */
 SYS(sys_getresgid, 3)

@@ -73,7 +73,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *      $Id: aic7xxx.c,v 1.2 1997/08/06 19:16:00 miguel Exp $
+ *      $Id: aic7xxx.c,v 1.119 1997/06/27 19:39:18 gibbs Exp $
  *---------------------------------------------------------------------------
  *
  *  Thanks also go to (in alphabetical order) the following:
@@ -93,7 +93,7 @@
  *
  *  Daniel M. Eischen, deischen@iworks.InterWorks.org, 1/23/97
  *
- *  $Id: aic7xxx.c,v 1.2 1997/08/06 19:16:00 miguel Exp $
+ *  $Id: aic7xxx.c,v 4.1 1997/06/12 08:23:42 deang Exp $
  *-M*************************************************************************/
 
 #ifdef MODULE
@@ -139,7 +139,7 @@ struct proc_dir_entry proc_scsi_aic7xxx = {
     0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
-#define AIC7XXX_C_VERSION  "$Revision: 1.2 $"
+#define AIC7XXX_C_VERSION  "$Revision: 4.1 $"
 
 #define NUMBER(arr)     (sizeof(arr) / sizeof(arr[0]))
 #define MIN(a,b)        (((a) < (b)) ? (a) : (b))

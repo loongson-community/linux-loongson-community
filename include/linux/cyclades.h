@@ -6,8 +6,13 @@
  *
  * This file contains the general definitions for the cyclades.c driver
  *$Log: cyclades.h,v $
- *Revision 1.1.1.1  1997/06/01 03:17:04  ralf
- *Initial import of Linux/MIPS pre-2.1.40.
+ *Revision 2.0  1997/06/30 10:30:00  ivan
+ *added some new doorbell command constants related to IOCTLW and
+ *UART error signaling
+ *
+ *Revision 1.8  1997/06/03 15:30:00  ivan
+ *added constant ZFIRM_HLT
+ *added constant CyPCI_Ze_win ( = 2 * Cy_PCI_Zwin)
  *
  *Revision 1.7  1997/03/26 10:30:00  daniel
  *new entries at the end of cyclades_port struct to reallocate

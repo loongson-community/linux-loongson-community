@@ -21,12 +21,12 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139,
  * USA.
  *
- * $Source: /src/cvs/linux/drivers/char/ftape/ecc.c,v $
- * $Author: ralf $
+ * $Source: /home/bas/distr/ftape-2.03b/RCS/ecc.c,v $
+ * $Author: bas $
  *
- * $Revision: 1.1.1.1 $
- * $Date: 1997/06/01 03:17:30 $
- * $State: Exp $
+ * $Revision: 1.32 $
+ * $Date: 1995/04/22 07:30:15 $
+ * $State: Beta $
  *
  *      This file contains the Reed-Solomon error correction code 
  *      for the QIC-40/80 floppy-tape driver for Linux.

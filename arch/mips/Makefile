@@ -13,7 +13,7 @@
 # Copyright (C) 1994, 1995, 1996 by Ralf Baechle
 # DECStation modifications by Paul M. Antoine, 1996
 #
-# $Id: Makefile,v 1.7 1997/08/30 04:51:27 ralf Exp $
+# $Id: Makefile,v 1.9 1997/09/19 08:34:54 ralf Exp $
 #
 
 #
@@ -81,6 +81,9 @@ CFLAGS		:= $(CFLAGS) -mcpu=r4600 -mips2
 endif
 ifdef CONFIG_CPU_R5000
 CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2
+endif
+ifdef CONFIG_CPU_NEVADA
+CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -mmad
 endif
 ifdef CONFIG_CPU_R8000
 CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2

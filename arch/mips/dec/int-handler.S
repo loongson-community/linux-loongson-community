@@ -12,7 +12,7 @@
  * FIXME: still plenty to do in this file, as much of the code hasn't been
  *	  modified to suit the DECStation's interrupts.
  *
- * $Id:$
+ * $Id: int-handler.S,v 1.3 1997/09/20 19:20:07 root Exp $
  */
 #include <asm/asm.h>
 #include <asm/regdef.h>
@@ -98,7 +98,7 @@ ll_sw0:		li	s1,~IE_SW0
 	PRINT("sw0 received...\n")
 		li	t1,1
 		b	call_real
-		li	t3,PTRSIZE	# delay slot, re-map to irq level 1
+		 nop
 
 ll_sw1:		li	s1,~IE_SW1
 		PANIC("Unimplemented sw1 handler")
@@ -108,14 +108,6 @@ loc_sound:	PANIC("Unimplemented loc_sound handler")
 loc_video:	PANIC("Unimplemented loc_video handler")
 loc_scsi:	PANIC("Unimplemented loc_scsi handler")
 
-/*
- * Ethernet interrupt, remapped to level 15
- * NOTE: Due to a bug somewhere in the kernel I was not able
- * to figure out, the PRINT() is necessary. Without this,
- * I get a "gfp called nonatomically from interrupt 00000000".
- * Only god knows why... Tell me if you find the reason!
- * Andy, 6/16/95
- */
 loc_ethernet:	PANIC("Unimplemented loc_ethernet")
 
 /*
@@ -148,19 +140,15 @@ loc_floppy:	PANIC("Unimplemented loc_floppy handler")
 /*
  * Now call the real handler
  */
-loc_call:	la	t0,IRQ_vectors			# delay slot
-
-		/*
+loc_call:	/*
 		 * Temporarily disable interrupt source
 		 */
 /*		lhu	t2,JAZZ_IO_IRQ_ENABLE
 */
-		addu	t0,t3			# make ptr to IRQ handler
-		lw	t0,(t0)
-		and	t2,s1			# delay slot
+		and	t2,s1
 /*		sh	t2,JAZZ_IO_IRQ_ENABLE */
-		jalr	t0			# call IRQ handler
-		nor	s1,zero,s1		# delay slot
+		jal	do_IRQ			# call IRQ handler
+		 nor	s1,zero,s1
 
 		/*
 		 * Reenable interrupt
@@ -169,7 +157,7 @@ loc_call:	la	t0,IRQ_vectors			# delay slot
 		or	t2,s1
 /*		sh	t2,JAZZ_IO_IRQ_ENABLE */
 
-		jr	v0
+		j	ret_from_irq
 		nop				# delay slot
 
 ll_tc3:		PANIC("Unimplemented tc3 interrupt handler")
@@ -195,19 +183,15 @@ ll_reset:	li	a0,0
 /*
  * Now call the real handler
  */
-call_real:	la	t0,IRQ_vectors			# delay slot
-
-		/*
+call_real:	/*
 		 * temporarily disable interrupt
 		 */
 		mfc0	t2,CP0_STATUS
 		and	t2,s1
 
-		addu	t0,t3
-		lw	t0,(t0)
-		mtc0	t2,CP0_STATUS		# delay slot
-		jalr	t0
-		nor	s1,zero,s1		# delay slot
+		mtc0	t2,CP0_STATUS
+		jal	do_IRQ
+		 nor	s1,zero,s1
 
 		/*
 		 * reenable interrupt
@@ -216,7 +200,7 @@ call_real:	la	t0,IRQ_vectors			# delay slot
 		or	t2,s1
 		mtc0	t2,CP0_STATUS
 
-		jr	v0
+		j	ret_from_irq
 		nop				# delay slot
 
 /*

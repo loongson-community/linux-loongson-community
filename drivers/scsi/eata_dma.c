@@ -259,7 +259,11 @@ void eata_int_handler(int irq, void *dev_id, struct pt_regs * regs)
 	    
 	    sp = &SD(sh)->sp;
 #ifdef __mips__
-	    cacheflush((unsigned long)sp, sizeof(struct eata_sp), CF_DCACHE|CF_ALL);
+	    /*
+	     * We flush too much, this should be something like:
+	     * cacheflush_before_dma((unsigned long)sp, sizeof(struct eata_sp));
+	     */
+	    flush_cache_all();
 #endif
 	    ccb = sp->ccb;
 	    

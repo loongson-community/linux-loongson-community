@@ -1,4 +1,4 @@
-#define RCS_ID "$Id: scc.c,v 1.1.1.1 1997/06/01 03:17:20 ralf Exp $"
+#define RCS_ID "$Id: scc.c,v 1.69 1997/04/06 19:22:45 jreuter Exp jreuter $"
 
 #define VERSION "3.0"
 #define BANNER  "Z8530 SCC driver version "VERSION".dl1bke (experimental) by DL1BKE\n"

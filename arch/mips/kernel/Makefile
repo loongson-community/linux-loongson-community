@@ -16,7 +16,6 @@ O_OBJS	:= branch.o process.o signal.o entry.o traps.o ptrace.o vm86.o \
 	   ioport.o pci.o reset.o setup.o syscall.o sysmips.o ipc.o \
 	   r4k_switch.o r4k_misc.o r4k_scall.o r4k_fpu.o r2300_switch.o \
 	   r2300_misc.o r2300_scall.o r2300_fpu.o r6000_fpu.o unaligned.o
-
 OX_OBJS := mips_ksyms.o
 
 ifdef CONFIG_MIPS_FPE_MODULE

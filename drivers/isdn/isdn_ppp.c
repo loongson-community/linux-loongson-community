@@ -1,4 +1,4 @@
-/* $Id: isdn_ppp.c,v 1.2 1997/06/03 09:24:20 ralf Exp $
+/* $Id: isdn_ppp.c,v 1.27 1997/03/30 16:51:17 calle Exp $
  *
  * Linux ISDN subsystem, functions for synchronous PPP (linklevel).
  *
@@ -19,9 +19,6 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * $Log: isdn_ppp.c,v $
- * Revision 1.2  1997/06/03 09:24:20  ralf
- * Sync with Linux 2.1.42.
- *
  * Revision 1.27  1997/03/30 16:51:17  calle
  * changed calls to copy_from_user/copy_to_user and removed verify_area
  * were possible.
@@ -163,7 +160,7 @@ static int isdn_ppp_fill_mpqueue(isdn_net_dev *, struct sk_buff **skb,
 static void isdn_ppp_free_mpqueue(isdn_net_dev *);
 #endif
 
-char *isdn_ppp_revision = "$Revision: 1.2 $";
+char *isdn_ppp_revision = "$Revision: 1.27 $";
 
 static struct ippp_struct *ippp_table[ISDN_MAX_CHANNELS];
 static struct isdn_ppp_compressor *ipc_head = NULL;

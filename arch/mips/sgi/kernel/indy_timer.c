@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_timer.c,v 1.2 1997/07/01 09:00:59 ralf Exp $
+ * $Id: indy_timer.c,v 1.3 1997/08/11 04:37:09 ralf Exp $
  */
 
 #include <linux/errno.h>

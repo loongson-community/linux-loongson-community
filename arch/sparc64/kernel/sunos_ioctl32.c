@@ -1,4 +1,4 @@
-/* $Id: sunos_ioctl32.c,v 1.1 1997/07/18 06:26:42 ralf Exp $
+/* $Id: sunos_ioctl32.c,v 1.4 1997/07/17 02:20:43 davem Exp $
  * sunos_ioctl32.c: SunOS ioctl compatability on sparc64.
  *
  * Copyright (C) 1995 Miguel de Icaza (miguel@nuclecu.unam.mx)

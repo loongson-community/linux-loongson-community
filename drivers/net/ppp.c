@@ -51,7 +51,7 @@
 #define PPP_MAX_DEV	256
 #endif
 
-/* $Id: ppp.c,v 1.1.1.1 1997/06/01 03:17:18 ralf Exp $
+/* $Id: ppp.c,v 1.27 1997/01/26 07:13:29 davem Exp $
  * Added dynamic allocation of channels to eliminate
  *   compiled-in limits on the number of channels.
  *

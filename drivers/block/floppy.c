@@ -114,8 +114,8 @@ static int print_unex=1;
  * motor of these drives causes system hangs on some PCI computers. drive
  * 0 is the low bit (0x1), and drive 7 is the high bit (0x80). Bits are on if
  * a drive is allowed. */
-int FLOPPY_IRQ=6;
-int FLOPPY_DMA=2;
+static int FLOPPY_IRQ=6;
+static int FLOPPY_DMA=2;
 static int allowed_drive_mask = 0x33;
  
 
@@ -1025,15 +1025,16 @@ static void setup_DMA(void)
 	}
 #endif
 	INT_OFF;
-	fd_disable_dma();
-	fd_clear_dma_ff();
+	fd_disable_dma(FLOPPY_DMA);
+	fd_clear_dma_ff(FLOPPY_DMA);
 	fd_cacheflush(raw_cmd->kernel_data, raw_cmd->length);
-	fd_set_dma_mode((raw_cmd->flags & FD_RAW_READ)?
-			DMA_MODE_READ : DMA_MODE_WRITE);
-	fd_set_dma_addr(raw_cmd->kernel_data);
-	fd_set_dma_count(raw_cmd->length);
+	fd_set_dma_mode(FLOPPY_DMA, (raw_cmd->flags & FD_RAW_READ)
+	                            ? DMA_MODE_READ
+	                            : DMA_MODE_WRITE);
+	fd_set_dma_addr(FLOPPY_DMA, raw_cmd->kernel_data);
+	fd_set_dma_count(FLOPPY_DMA, raw_cmd->length);
 	virtual_dma_port = FDCS->address;
-	fd_enable_dma();
+	fd_enable_dma(FLOPPY_DMA);
 	INT_ON;
 	floppy_disable_hlt();
 }
@@ -1636,7 +1637,7 @@ void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	lasthandler = handler;
 	interruptjiffies = jiffies;
 
-	fd_disable_dma();
+	fd_disable_dma(FLOPPY_DMA);
 	floppy_enable_hlt();
 	CLEAR_INTR;
 	if (fdc >= N_FDC || FDCS->address == -1){
@@ -1722,7 +1723,7 @@ static void reset_fdc(void)
 
 	/* Pseudo-DMA may intercept 'reset finished' interrupt.  */
 	/* Irrelevant for systems with true DMA (i386).          */
-	fd_disable_dma();
+	fd_disable_dma(FLOPPY_DMA);
 
 	if (FDCS->version >= FDC_82072A)
 		fd_outb(0x80 | (FDCS->dtr &3), FD_STATUS);
@@ -1787,7 +1788,7 @@ static void floppy_shutdown(void)
 	sti();
 
 	floppy_enable_hlt();
-	fd_disable_dma();
+	fd_disable_dma(FLOPPY_DMA);
 	/* avoid dma going to a random drive after shutdown */
 
 	if (!initialising)
@@ -2896,7 +2897,7 @@ static void raw_cmd_done(int flag)
 			raw_cmd->reply[i] = reply_buffer[i];
 
 		if (raw_cmd->flags & (FD_RAW_READ | FD_RAW_WRITE))
-			raw_cmd->length = fd_get_dma_residue();
+			raw_cmd->length = fd_get_dma_residue(FLOPPY_DMA);
 		
 		if ((raw_cmd->flags & FD_RAW_SOFTFAILURE) &&
 		    (!raw_cmd->reply_count || (raw_cmd->reply[0] & 0xc0)))
@@ -4055,17 +4056,17 @@ static int floppy_grab_irq_and_dma(void)
 	fdc = 0;
 	set_dor(0, ~0, 8);  /* avoid immediate interrupt */
 
-	if (fd_request_irq()) {
+	if (fd_request_irq(FLOPPY_IRQ)) {
 		DPRINT("Unable to grab IRQ%d for the floppy driver\n",
 			FLOPPY_IRQ);
 		MOD_DEC_USE_COUNT;
 		usage_count--;
 		return -1;
 	}
-	if (fd_request_dma()) {
+	if (fd_request_dma(FLOPPY_DMA)) {
 		DPRINT("Unable to grab DMA%d for the floppy driver\n",
 			FLOPPY_DMA);
-		fd_free_irq();
+		fd_free_irq(FLOPPY_IRQ);
 		MOD_DEC_USE_COUNT;
 		usage_count--;
 		return -1;
@@ -4074,7 +4075,7 @@ static int floppy_grab_irq_and_dma(void)
 		if (FDCS->address != -1)
 			fd_outb(FDCS->dor, FD_DOR);
 	fdc = 0;
-	fd_enable_irq();
+	fd_enable_irq(FLOPPY_IRQ);
 	return 0;
 }
 
@@ -4095,10 +4096,10 @@ static void floppy_release_irq_and_dma(void)
 		return;
 	}
 	INT_ON;
-	fd_disable_dma();
-	fd_free_dma();
-	fd_disable_irq();
-	fd_free_irq();
+	fd_disable_dma(FLOPPY_DMA);
+	fd_free_dma(FLOPPY_DMA);
+	fd_disable_irq(FLOPPY_IRQ);
+	fd_free_irq(FLOPPY_IRQ);
 
 	set_dor(0, ~0, 8);
 #if N_FDC > 1

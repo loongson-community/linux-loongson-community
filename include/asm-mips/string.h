@@ -7,7 +7,7 @@
  *
  * Copyright (c) 1994, 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: string.h,v 1.2 1997/07/24 01:49:29 ralf Exp $
+ * $Id: string.h,v 1.3 1997/08/11 04:11:53 ralf Exp $
  */
 #ifndef __ASM_MIPS_STRING_H
 #define __ASM_MIPS_STRING_H

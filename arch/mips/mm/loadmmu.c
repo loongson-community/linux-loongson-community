@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.1.1.1 1997/06/01 03:16:38 ralf Exp $
+ * $Id: loadmmu.c,v 1.3 1997/09/19 08:44:20 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -28,6 +28,10 @@ void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
 void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
 void (*flush_cache_sigtramp)(unsigned long addr);
 void (*flush_page_to_ram)(unsigned long page);
+
+/* DMA cache operations. */
+void (*flush_cache_pre_dma_out)(unsigned long start, unsigned long size);
+void (*flush_cache_post_dma_in)(unsigned long start, unsigned long size);
 
 /* TLB operations. */
 void (*flush_tlb_all)(void);

@@ -9,23 +9,26 @@
 #define fd_inb(port)			inb_p(port)
 #define fd_outb(port,value)		outb_p(port,value)
 
-#define fd_enable_dma()         SW._enable_dma(FLOPPY_DMA)
-#define fd_disable_dma()        SW._disable_dma(FLOPPY_DMA)
-#define fd_request_dma()        SW._request_dma(FLOPPY_DMA,"floppy")
-#define fd_free_dma()           SW._free_dma(FLOPPY_DMA)
-#define fd_clear_dma_ff()       SW._clear_dma_ff(FLOPPY_DMA)
-#define fd_set_dma_mode(mode)   SW._set_dma_mode(FLOPPY_DMA,mode)
-#define fd_set_dma_addr(addr)   SW._set_dma_addr(FLOPPY_DMA,addr)
-#define fd_set_dma_count(count) SW._set_dma_count(FLOPPY_DMA,count)
-#define fd_enable_irq()         enable_irq(FLOPPY_IRQ)
-#define fd_disable_irq()        disable_irq(FLOPPY_IRQ)
-#define fd_cacheflush(addr,size) /* nothing */
-#define fd_request_irq()        SW._request_irq(FLOPPY_IRQ, floppy_interrupt, \
-					       SA_INTERRUPT|SA_SAMPLE_RANDOM, \
-					       "floppy", NULL)
-#define fd_free_irq()		free_irq(FLOPPY_IRQ, NULL)
-#define fd_get_dma_residue()    SW._get_dma_residue(FLOPPY_DMA)
-#define fd_dma_mem_alloc(size)	SW._dma_mem_alloc(size)
+#define fd_enable_dma(channel)		SW._enable_dma(channel)
+#define fd_disable_dma(channel)		SW._disable_dma(channel)
+#define fd_request_dma(channel)		SW._request_dma(channel, "floppy")
+#define fd_free_dma(channel)		SW._free_dma(channel)
+#define fd_clear_dma_ff(channel)	SW._clear_dma_ff(channel)
+#define fd_set_dma_mode(channel,mode)	SW._set_dma_mode(channel, mode)
+#define fd_set_dma_addr(channel,addr)	SW._set_dma_addr(channel, addr)
+#define fd_set_dma_count(channel,count)	SW._set_dma_count(channel ,count)
+#define fd_enable_irq(irq)		enable_irq(irq)
+#define fd_disable_irq(irq)		disable_irq(irq)
+#define fd_cacheflush(addr,size)	/* nothing */
+#define fd_request_irq(irq)		SW._request_irq(irq, \
+					                floppy_interrupt, \
+							SA_INTERRUPT \
+					                | SA_SAMPLE_RANDOM, \
+							"floppy", NULL)
+#define fd_free_irq(irq)		free_irq(irq, NULL)
+#define fd_get_dma_residue(channel)	SW._get_dma_residue(channel)
+
+#define fd_dma_mem_alloc(size)		SW._dma_mem_alloc(size)
 #define fd_dma_mem_free(addr,size)	SW._dma_mem_free(addr,size)
 
 static int virtual_dma_count=0;

@@ -6,7 +6,7 @@
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
  *
- * $Id: time.c,v 1.2 1997/07/01 08:59:08 ralf Exp $
+ * $Id: time.c,v 1.5 1997/11/12 12:12:12 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -39,7 +39,6 @@ extern volatile unsigned long lost_ticks;
 /* Cycle counter value at the previous timer interrupt.. */
 
 static unsigned int timerhi = 0, timerlo = 0;
-static char cyclecounter_available = 1;
 
 /*
  * On MIPS only R4000 and better have a cycle counter.
@@ -397,7 +396,7 @@ static inline unsigned long mktime(unsigned int year, unsigned int mon,
 	  )*60 + sec; /* finally seconds */
 }
 
-static char cyclecounter_available;
+char cyclecounter_available;
 
 static inline void init_cycle_counter(void)
 {
@@ -437,7 +436,9 @@ static inline void init_cycle_counter(void)
 	}
 }
 
-static struct irqaction irq0  = { timer_interrupt, 0, 0, "timer", NULL, NULL};
+struct irqaction irq0  = { timer_interrupt, SA_INTERRUPT, 0,
+                                  "timer", NULL, NULL};
+
 
 void (*board_time_init)(struct irqaction *irq);
 

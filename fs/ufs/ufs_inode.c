@@ -6,7 +6,7 @@
  * Laboratory for Computer Science Research Computing Facility
  * Rutgers, The State University of New Jersey
  *
- * $Id: ufs_inode.c,v 1.2 1997/06/17 13:27:29 ralf Exp $
+ * $Id: ufs_inode.c,v 1.9 1997/07/17 02:24:14 davem Exp $
  *
  */
 

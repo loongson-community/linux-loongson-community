@@ -9,7 +9,7 @@
 
 SUB_DIRS     := block char net misc #streams
 MOD_SUB_DIRS := $(SUB_DIRS) sbus
-ALL_SUB_DIRS := $(SUB_DIRS) pci sgi scsi sound cdrom isdn pnp macintosh
+ALL_SUB_DIRS := $(SUB_DIRS) pci sgi scsi sound cdrom isdn misc pnp macintosh
 
 ifdef CONFIG_PCI
 SUB_DIRS += pci

@@ -159,7 +159,7 @@ DRIVERS := $(DRIVERS) drivers/pnp/pnp.a
 endif
 
 ifdef CONFIG_SGI
-DRIVERS := --start-group $(DRIVERS) drivers/sgi/sgi.a --end-group
+DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
 endif
 
 include arch/$(ARCH)/Makefile

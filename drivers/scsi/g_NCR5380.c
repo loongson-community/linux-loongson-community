@@ -70,10 +70,7 @@
  */
  
 /*
- * $Log: g_NCR5380.c,v $
- * Revision 1.3  1997/06/17 13:25:29  ralf
- * Merge with 2.1.43.
- *
+ * $Log: generic_NCR5380.c,v $
  */
 
 #define AUTOPROBE_IRQ

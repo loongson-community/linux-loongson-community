@@ -1,4 +1,4 @@
-/* $Id: ultra.S,v 1.3 1997/08/30 04:53:20 ralf Exp $
+/* $Id: ultra.S,v 1.18 1997/08/08 08:34:23 jj Exp $
  * ultra.S: Don't expand these all over the place...
  *
  * Copyright (C) 1997 David S. Miller (davem@caip.rutgers.edu)

@@ -1,5 +1,5 @@
 /*
- * include/asm-mips/uaccess.h
+ * include/asm-mips/sigcontext.h
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,12 +7,10 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: sigcontext.h,v 1.2 1997/06/25 20:49:07 ralf Exp $
+ * $Id: sigcontext.h,v 1.4 1997/12/01 16:46:19 ralf Exp $
  */
 #ifndef __ASM_MIPS_SIGCONTEXT_H
 #define __ASM_MIPS_SIGCONTEXT_H
-
-#include <linux/posix_types.h>
 
 /*
  * Keep this struct definition in sync with the sigcontext fragment
@@ -34,7 +32,7 @@ struct sigcontext {
 	unsigned int       sc_cause;		/* Unused */
 	unsigned int       sc_badvaddr;		/* Unused */
 
-	__kernel_sigset_t	sc_sigset;	/* DANGER: kernel vs. libc sigset_t ... */
+	unsigned long      sc_sigset;		/* kernel's sigset_t */
 	unsigned long      __pad0[3];		/* pad for constant size */
 };
 

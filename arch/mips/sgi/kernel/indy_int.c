@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_int.c,v 1.3 1997/08/26 04:34:55 miguel Exp $
+ * $Id: indy_int.c,v 1.4 1997/09/20 19:20:15 root Exp $
  */
 #include <linux/config.h>
 
@@ -269,46 +269,49 @@ atomic_t __mips_bh_counter;
  */
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
-	struct irqaction * action = *(irq + irq_action);
-	int cpu = smp_processor_id ();
-	
-	lock_kernel();
-	irq_enter (cpu, irq);
+	struct irqaction *action;
+	int do_random, cpu;
+
+	cpu = smp_processor_id();
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
+
 	printk("Got irq %d, press a key.", irq);
 	prom_getchar();
 	romvec->imode();
-        while (action) {
-		if (action->flags & SA_SAMPLE_RANDOM)
-			add_interrupt_randomness(irq);
-		action->handler(irq, action->dev_id, regs);
-		action = action->next;
-        }
-	irq_exit (cpu, irq);
-	unlock_kernel();
-}
 
-/*
- * do_fast_IRQ handles IRQ's that don't need the fancy interrupt return
- * stuff - the handler is also running with interrupts disabled unless
- * it explicitly enables them later.
- */
-asmlinkage void do_fast_IRQ(int irq)
-{
-	struct irqaction * action = *(irq + irq_action);
+	/*
+	 * mask and ack quickly, we don't want the irq controller
+	 * thinking we're snobs just because some other CPU has
+	 * disabled global interrupts (we have already done the
+	 * INT_ACK cycles, it's too late to try to pretend to the
+	 * controller that we aren't taking the interrupt).
+	 *
+	 * Commented out because we've already done this in the
+	 * machinespecific part of the handler.  It's reasonable to
+	 * do this here in a highlevel language though because that way
+	 * we could get rid of a good part of duplicated code ...
+	 */
+        /* mask_and_ack_irq(irq); */
 
-	lock_kernel();
-	printk("Got irq %d, press a key.", irq);
-	prom_getchar();
-	romvec->imode();
-	kstat.interrupts[irq]++;
-        while (action) {
-		if (action->flags & SA_SAMPLE_RANDOM)
+	action = *(irq + irq_action);
+	if (action) {
+		if (!(action->flags & SA_INTERRUPT))
+			__sti();
+		action = *(irq + irq_action);
+		do_random = 0;
+		do {
+			do_random |= action->flags;
+			action->handler(irq, action->dev_id, regs);
+			action = action->next;
+		} while (action);
+		if (do_random & SA_SAMPLE_RANDOM)
 			add_interrupt_randomness(irq);
-		action->handler(irq, action->dev_id, NULL);
-		action = action->next;
-        }
-	unlock_kernel();
+		__cli();
+	}
+	irq_exit(cpu, irq);
+
+	/* unmasking and bottom half handling is done magically for us. */
 }
 
 int request_local_irq(unsigned int lirq, void (*func)(int, void *, struct pt_regs *),
@@ -415,10 +418,6 @@ void free_irq(unsigned int irq, void *dev_id)
 
 void init_IRQ(void)
 {
-	int i;
-
-	for (i = 0; i < 16 ; i++)
-		set_int_vector(i, 0);
 	irq_setup();
 }
 

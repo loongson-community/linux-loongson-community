@@ -6,7 +6,6 @@
  *
  * Based upon work which is:
  * Copyright 1993, 1994: Eric Youngdale (ericy@cais.com).
- *
  */
 
 #include <linux/module.h>
@@ -227,6 +226,7 @@ unsigned long * create_irix_tables(char * p, int argc, int envc,
 	current->mm->env_end = (unsigned long) p;
 	return sp;
 }
+
 
 /* This is much more generalized than the library routine read function,
  * so we keep this separate.  Technically the library read function
@@ -679,7 +679,7 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	start_code = 0xffffffff;
 	end_code = 0;
 	end_data = 0;
-
+	
 	retval = look_for_irix_interpreter(&elf_interpreter,
 	                                   &interpreter_dentry,
 					   &interp_elf_ex, elf_phdata, bprm,
@@ -753,7 +753,6 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 			return 0;
 		}
 	}
-
 
 	set_fs(old_fs);
 	
@@ -861,7 +860,7 @@ static inline int do_load_irix_library(int fd)
 
 	/* Seek to the beginning of the file. */
 	if (file->f_op->llseek) {
-		if ((error = file->f_op->llseek(inode, file, 0, 0)) != 0)
+		if ((error = file->f_op->llseek(file, 0, 0)) != 0)
 			return -ENOEXEC;
 	} else
 		file->f_pos = 0;
@@ -1028,7 +1027,7 @@ static int dump_write(struct file *file, const void *addr, int nr)
 static int dump_seek(struct file *file, off_t off)
 {
 	if (file->f_op->llseek) {
-		if (file->f_op->llseek(file->f_dentry->d_inode, file, off, 0) != off)
+		if (file->f_op->llseek(file, off, 0) != off)
 			return 0;
 	} else
 		file->f_pos = off;

@@ -110,9 +110,5 @@
 #define TIOCSERSETMULTI 0x5490 /* Set multiport config */
 #define TIOCMIWAIT      0x5491 /* wait for a change on serial input line(s) */
 #define TIOCGICOUNT     0x5492 /* read serial port inline interrupt counts */
-#if 0
-#define TIOCSBRK	0x5491  /* BSD compatibility */
-#define TIOCCBRK	0x5492  /* BSD compatibility */
-#endif
 
 #endif /* __ASM_MIPS_IOCTLS_H */

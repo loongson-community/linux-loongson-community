@@ -15,7 +15,7 @@
  *        (Paul, you need to fix this file to comply with NAPS.  Won't be
  *         too hard - Ralf)
  *
- * $Id:$
+ * $Id: decstation.S,v 1.3 1997/09/20 19:20:06 root Exp $
  */
 #include <asm/asm.h>
 #include <asm/mipsconfig.h>
@@ -257,19 +257,16 @@ loc_floppy:	PANIC("Unimplemented loc_floppy handler")
 /*
  * Now call the real handler
  */
-loc_call:	la	t0,IRQ_vectors			# delay slot
-
-		/*
+loc_call:	/*
 		 * Temporarily disable interrupt source
 		 */
 /*		lhu	t2,JAZZ_IO_IRQ_ENABLE
 */
-		addu	t0,t3			# make ptr to IRQ handler
-		LOAD_L	t0,(t0)
 		and	t2,s1			# delay slot
 /*		sh	t2,JAZZ_IO_IRQ_ENABLE */
-		jalr	t0			# call IRQ handler
-		nor	s1,zero,s1		# delay slot
+		nor	s1,zero,s1
+		jal	do_IRQ			# call IRQ handler
+		 move	a1,sp
 
 		/*
 		 * Reenable interrupt
@@ -278,7 +275,7 @@ loc_call:	la	t0,IRQ_vectors			# delay slot
 		or	t2,s1
 /*		sh	t2,JAZZ_IO_IRQ_ENABLE */
 
-		jr	v0
+		j	ret_from_irq
 		nop				# delay slot
 
 ll_tc3:		PANIC("Unimplemented tc3 interrupt handler")
@@ -304,19 +301,15 @@ ll_reset:	li	a0,0
 /*
  * Now call the real handler
  */
-call_real:	la	t0,IRQ_vectors			# delay slot
-
-		/*
+call_real:	/*
 		 * temporarily disable interrupt
 		 */
 		mfc0	t2,CP0_STATUS
 		and	t2,s1
-
-		addu	t0,t3
-		LOAD_L	t0,(t0)
-		mtc0	t2,CP0_STATUS		# delay slot
-		jalr	t0
-		nor	s1,zero,s1		# delay slot
+		mtc0	t2,CP0_STATUS
+		nor	s1,zero,s1
+		jal	do_IRQ
+		 move	a1,sp
 
 		/*
 		 * reenable interrupt
@@ -325,8 +318,8 @@ call_real:	la	t0,IRQ_vectors			# delay slot
 		or	t2,s1
 		mtc0	t2,CP0_STATUS
 
-		jr	v0
-		nop				# delay slot
+		j	ret_from_irq
+		 nop				# delay slot
 
 /*
  * Just for debugging... load a0 with address of the point inside the

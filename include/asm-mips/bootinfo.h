@@ -8,36 +8,13 @@
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
  *
- * $Id:$
+ * $Id: bootinfo.h,v 1.3 1997/09/19 08:37:44 ralf Exp $
  */
 #ifndef __ASM_MIPS_BOOTINFO_H
 #define __ASM_MIPS_BOOTINFO_H
 
 /* XXX */
 #include <linux/config.h>
-
-#if 0
-/*
- * Valid machtype values
- * FIXME: note that we really need a hierarchy for this stuff, as there are 
- * several models of DECStation (for example). PMA
- */
-#define MACH_UNKNOWN		0	/* whatever...                   */
-#define MACH_DESKSTATION_RPC44	1	/* Deskstation rPC44             */
-#define MACH_DESKSTATION_TYNE	2	/* Deskstation Tyne              */
-#define MACH_ACER_PICA_61	3	/* Acer PICA-61 (PICA1)          */
-#define MACH_MIPS_MAGNUM_4000	4	/* Mips Magnum 4000 "RC4030"     */
-#define MACH_OLIVETTI_M700	4	/* almost a clone ...            */
-#define MACH_DECSTATION		5	/* DECStation 5000/2x for now    */
-#define MACH_SNI_RM200_PCI	6	/* RM200/RM300/RM400 PCI series  */
-#define MACH_SGI_INDY		7	/* R4?K and R5K Indy workstaions */
-#define MACH_RESERVED		8	/* Erlkoenig ...		 */
-#define MACH_LAST		8
-
-#define MACH_NAMES {"unknown", "Deskstation rPC44", "Deskstation Tyne", \
-	"Acer PICA 61", "Mips Magnum 4000", "DECStation", "RM200 PCI", \
-        "SGI INDY" }
-#endif
 
 /*
  * Values for machgroup
@@ -49,10 +26,10 @@
 #define MACH_GROUP_SNI_RM	4 /* Siemens Nixdorf RM series                */
 #define MACH_GROUP_ACN		5
 #define MACH_GROUP_SGI          6 /* Silicon Graphics workstations and servers */
-#define MACH_GROUP_RESERVED	7 /* Erlkoenig ...                            */
+#define MACH_GROUP_RESERVED     7 /* No Such Architecture	 	      */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", \
-                      "SNI", "ACN", "You'd like to know" }
+                      "SNI", "ACN", "SGI", "NSA" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -106,12 +83,7 @@
  */
 #define MACH_SGI_INDY		0	/* R4?K and R5K Indy workstaions */
 
-/*
- * Valid machtype for group RESERVED
- */
-#define MACH_RESERVED 		 0	/* Proto "27" hardware */
-
-#define GROUP_RESERVED { "You'd like to know" }
+#define GROUP_SGI_NAMES { "Indy" }
 
 /*
  * Valid cputype values

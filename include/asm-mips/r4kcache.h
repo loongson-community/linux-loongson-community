@@ -3,7 +3,9 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4kcache.h,v 1.3 1997/09/12 22:25:35 ralf Exp $
+ * $Id: r4kcache.h,v 1.5 1997/12/01 16:47:05 ralf Exp $
+ *
+ * FIXME: Handle split L2 caches.
  */
 #ifndef _MIPS_R4KCACHE_H
 #define _MIPS_R4KCACHE_H
@@ -74,6 +76,32 @@ extern inline void flush_dcache_line(unsigned long addr)
 		:
 		: "r" (addr),
 		  "i" (Hit_Writeback_Inv_D));
+}
+
+extern inline void invalidate_dcache_line(unsigned long addr)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		".set mips3\n\t"
+		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
+		".set reorder"
+		:
+		: "r" (addr),
+		  "i" (Hit_Invalidate_D));
+}
+
+extern inline void invalidate_scache_line(unsigned long addr)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		".set mips3\n\t"
+		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
+		".set reorder"
+		:
+		: "r" (addr),
+		  "i" (Hit_Invalidate_SD));
 }
 
 extern inline void flush_scache_line(unsigned long addr)
@@ -372,10 +400,27 @@ extern inline void blast_dcache32(void)
 	}
 }
 
+/*
+ * Call this function only with interrupts disabled or R4600 V2.0 may blow
+ * you up.
+ *
+ * R4600 v2.0 bug: "The CACHE instructions Hit_Writeback_Inv_D,
+ * Hit_Writeback_D, Hit_Invalidate_D and Create_Dirty_Excl_D will only
+ * operate correctly if the internal data cache refill buffer is empty.  These
+ * CACHE instructions should be separated from any potential data cache miss
+ * by a load instruction to an uncached address to empty the response buffer."
+ * (Revision 2.0 device errata from IDT available on http://www.idt.com/
+ * in .pdf format.)
+ */
 extern inline void blast_dcache32_page(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
+
+	/*
+	 * Sigh ... workaround for R4600 v1.7 bug.  Explanation see above.
+	 */
+	*(volatile unsigned long *)KSEG1;
 
 	__asm__ __volatile__("nop;nop;nop;nop");
 	while(start < end) {

@@ -13,7 +13,7 @@
  * diskquota system. This implementation is not based on any BSD
  * kernel sourcecode.
  * 
- * Version: $Id: dquot.c,v 1.4 1997/08/06 19:16:09 miguel Exp $
+ * Version: $Id: dquot.c,v 1.11 1997/01/06 06:53:02 davem Exp $
  * 
  * Author:  Marco van Wieringen <mvw@mcs.ow.nl> <mvw@tnix.net>
  * 

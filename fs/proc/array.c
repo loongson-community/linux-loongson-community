@@ -472,7 +472,7 @@ static unsigned long get_wchan(struct task_struct *p)
 
 		pc = thread_saved_pc(&p->tss);
 		if (pc >= (unsigned long) interruptible_sleep_on && pc < (unsigned long) add_timer) {
-			schedule_frame = ((unsigned long *)(long)p->tss.reg30)[15];
+			schedule_frame = ((unsigned long *)(long)p->tss.reg30)[16];
 			return (unsigned long)((unsigned long *)schedule_frame)[11];
 		}
 		return pc;

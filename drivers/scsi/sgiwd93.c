@@ -1,4 +1,4 @@
-/* $Id: sgiwd93.c,v 1.1.1.1 1997/06/01 03:17:36 ralf Exp $
+/* $Id: sgiwd93.c,v 1.7 1996/07/23 09:00:16 dm Exp $
  * sgiwd93.c: SGI WD93 scsi driver.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)

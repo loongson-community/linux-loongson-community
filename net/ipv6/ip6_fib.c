@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: ip6_fib.c,v 1.1.1.1 1997/06/01 03:16:27 ralf Exp $
+ *	$Id: ip6_fib.c,v 1.7 1997/04/12 04:32:46 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License

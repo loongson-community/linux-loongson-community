@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: byteorder.h,v 1.3 1997/06/25 20:51:39 ralf Exp $
+ * $Id: byteorder.h,v 1.4 1997/07/15 01:56:32 ralf Exp $
  */
 #ifndef __ASM_MIPS_BYTEORDER_H
 #define __ASM_MIPS_BYTEORDER_H
