@@ -851,11 +851,8 @@ mips_dsemul(struct pt_regs *xcp, mips_instruction ir, vaddr_t cpc)
 	current->thread.dsemul_epc = (unsigned long) cpc;
 	current->thread.dsemul_aerpc = (unsigned long) &dsemul_insns[1];
 	xcp->cp0_epc = VA_TO_REG & dsemul_insns[0];
+	flush_cache_sigtramp((unsigned long) dsemul_insns);
 
-	/* What we'd really like to do is just flush the line(s) of the */
-	/* icache containing the dsemulret instructions, but there's no */
-	/* mechanism to do this yet...  */
-	flush_cache_all();
 	return SIGILL;		/* force out of emulation loop */
 }
 
