@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.18 1999/02/15 02:22:11 ralf Exp $
+/* $Id: pgtable.h,v 1.19 1999/06/13 16:35:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -580,9 +580,9 @@ extern void (*update_mmu_cache)(struct vm_area_struct *vma,
 /*
  * Kernel with 32 bit address space
  */
-#define SWP_TYPE(entry) (((entry) >> 1) & 0x3f)
-#define SWP_OFFSET(entry) ((entry) >> 8)
-#define SWP_ENTRY(type,offset) (((type) << 1) | ((offset) << 8))
+#define SWP_TYPE(entry) (((entry) >> 8) & 0x7f)
+#define SWP_OFFSET(entry) ((entry) >> 15)
+#define SWP_ENTRY(type,offset) (((type) << 8) | ((offset) << 15))
 
 #define module_map      vmalloc
 #define module_unmap    vfree
