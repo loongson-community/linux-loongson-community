@@ -25,7 +25,7 @@
 
 extern void build_tlb_refill_handler(void);
 
-#define UNIQUE_ENTRYHI(idx) (KSEG0 + ((idx) << (PAGE_SHIFT + 1)))
+#define UNIQUE_ENTRYHI(idx) (CKSEG0 + ((idx) << (PAGE_SHIFT + 1)))
 
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
