@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.5 1997/08/10 22:24:11 shaver Exp $
+/* $Id: sysirix.c,v 1.6 1997/08/11 22:24:56 shaver Exp $
  * sysirix.c: IRIX system call emulation.
  *
  * Copyright (C) 1996 David S. Miller
@@ -2071,7 +2071,7 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	buf.count = count;
 	buf.error = 0;
 
-	error = file->f_op->readdir(inode, file, &buf, irix_filldir32);
+	error = file->f_op->readdir(file, &buf, irix_filldir32);
 	if (error < 0)
 		goto out;
 	lastdirent = buf.previous;
@@ -2183,7 +2183,7 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	buf.previous = NULL;
 	buf.count = cnt;
 	buf.error = 0;
-	error = file->f_op->readdir(inode, file, &buf, irix_filldir64);
+	error = file->f_op->readdir(file, &buf, irix_filldir64);
 	if (error < 0)
 		goto out;
 	lastdirent = buf.previous;
@@ -2246,7 +2246,7 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	buf.previous = NULL;
 	buf.count = cnt;
 	buf.error = 0;
-	error = file->f_op->readdir(inode, file, &buf, irix_filldir64);
+	error = file->f_op->readdir(file, &buf, irix_filldir64);
 	if (error < 0)
 		goto out;
 	lastdirent = buf.previous;
