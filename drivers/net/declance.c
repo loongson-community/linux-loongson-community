@@ -1022,6 +1022,11 @@ static void lance_set_multicast_retry(unsigned long _opaque)
 	lance_set_multicast(dev);
 }
 
+static int __init dec_lance_fail(struct net_device *dev)
+{
+	return -EAGAIN;
+}
+
 static int __init dec_lance_init(const int type, const int slot)
 {
 	static unsigned version_printed;
@@ -1054,6 +1059,16 @@ static int __init dec_lance_init(const int type, const int slot)
 	 */
 	lp = (struct lance_private *) dev->priv;
 	spin_lock_init(&lp->lock);
+
+	/* Prevent from opening until initialization finishes. */
+	dev->open = dec_lance_fail;
+
+	ret = register_netdev(dev);
+	if (ret) {
+		printk(KERN_ERR
+			"declance: Unable to register netdev, aborting.\n");
+		goto err_out_free_dev;
+	}
 
 	lp->type = type;
 	lp->slot = slot;
@@ -1166,7 +1181,7 @@ static int __init dec_lance_init(const int type, const int slot)
 	default:
 		printk("declance_init called with unknown type\n");
 		ret = -ENODEV;
-		goto err_out_free_dev;
+		goto err_out_unregister;
 	}
 
 	ll = (struct lance_regs *) dev->base_addr;
@@ -1178,7 +1193,7 @@ static int __init dec_lance_init(const int type, const int slot)
 	    esar[0x68] != 0x55 && esar[0x6c] != 0xaa) {
 		printk("Ethernet station address prom not found!\n");
 		ret = -ENODEV;
-		goto err_out_free_dev;
+		goto err_out_unregister;
 	}
 	/* Check the prom contents */
 	for (i = 0; i < 8; i++) {
@@ -1188,7 +1203,7 @@ static int __init dec_lance_init(const int type, const int slot)
 			printk("Something is wrong with the ethernet "
 			       "station address prom!\n");
 			ret = -ENODEV;
-			goto err_out_free_dev;
+			goto err_out_unregister;
 		}
 	}
 
@@ -1217,7 +1232,6 @@ static int __init dec_lance_init(const int type, const int slot)
 
 	printk(" irq = %d\n", dev->irq);
 
-	dev->open = &lance_open;
 	dev->stop = &lance_close;
 	dev->hard_start_xmit = &lance_start_xmit;
 	dev->tx_timeout = &lance_tx_timeout;
@@ -1244,14 +1258,13 @@ static int __init dec_lance_init(const int type, const int slot)
 	lp->multicast_timer.data = (unsigned long) dev;
 	lp->multicast_timer.function = &lance_set_multicast_retry;
 
-	ret = register_netdev(dev);
-	if (ret) {
-		printk(KERN_ERR
-			"declance: Unable to register netdev, aborting.\n");
-		goto err_out_free_dev;
-	}
+	/* Allow opening now that initialization succeeded. */
+	dev->open = &lance_open;
 
 	return 0;
+
+err_out_unregister:
+	unregister_netdev(dev);
 
 err_out_free_dev:
 	kfree(dev);
