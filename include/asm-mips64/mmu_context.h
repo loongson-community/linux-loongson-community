@@ -51,15 +51,6 @@ get_new_cpu_mmu_context(struct mm_struct *mm, unsigned long cpu)
 	CPU_CONTEXT(cpu, mm) = ASID_CACHE(cpu) = asid;
 }
 
-extern inline void
-get_new_mmu_context(struct mm_struct *mm)
-{
-#ifdef CONFIG_SMP
-	memset((void *)mm->context, 0, smp_num_cpus * sizeof(unsigned long));
-#endif
-	get_new_cpu_mmu_context(mm, smp_processor_id());
-}
-
 /*
  * Initialize the context related info for a new mm_struct
  * instance.
@@ -70,18 +61,20 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 #ifndef CONFIG_SMP
 	mm->context = 0;
 #else
-	/* this allocation can be moved to copy_thread */
-	mm->context = (unsigned long)kmalloc(smp_num_cpus * 
+	/* Make sure not to do anything during a clone-vm operation */
+	if ((current == tsk) || (current->mm != mm)) {
+		mm->context = (unsigned long)kmalloc(smp_num_cpus * 
 					sizeof(unsigned long), GFP_KERNEL);
-	/*
-	 * Init the "context" values so that a tlbpid allocation 
-	 * happens on the first switch.
-	 */
-	if (mm->context)
-		memset((void *)mm->context, 0, smp_num_cpus * 
+		/*
+	 	 * Init the "context" values so that a tlbpid allocation 
+	 	 * happens on the first switch.
+	 	 */
+		if (mm->context)
+			memset((void *)mm->context, 0, smp_num_cpus * 
 							sizeof(unsigned long));
-	else
-		printk("Warning: init_new_context failed\n");
+		else
+			printk("Warning: init_new_context failed\n");
+	}
 #endif
 }
 
