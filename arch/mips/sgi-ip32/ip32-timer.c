@@ -75,7 +75,7 @@ void __init ip32_timer_setup (struct irqaction *irq)
 struct irqaction irq0  = { NULL, SA_INTERRUPT, 0,
 			   "timer", NULL, NULL};
 
-void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
+irqreturn_t cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	u32 count;
 
@@ -99,6 +99,7 @@ void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 		 */
 		timerhi = timerlo = 0;
 	}
+	return IRQ_HANDLED;
 }
 
 void __init ip32_time_init(void)
