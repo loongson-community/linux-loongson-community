@@ -43,17 +43,20 @@
 #define PRID_VR4133		0x00000c84
 
 /*
+ * Memory resource
+ */
+#define IO_MEM_RESOURCE_START	0UL
+#define IO_MEM_RESOURCE_END	0x1fffffffUL
+
+/*
  * Bus Control Uint
  */
-extern void vr41xx_bcu_init(void);
 extern unsigned long vr41xx_get_vtclock_frequency(void);
 extern unsigned long vr41xx_get_tclock_frequency(void);
 
 /*
  * Clock Mask Unit
  */
-extern void vr41xx_cmu_init(void);
-
 typedef enum {
 	PIU_CLOCK,
 	SIU_CLOCK,
@@ -137,7 +140,6 @@ extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
 /*
  * Power Management Unit
  */
-extern void vr41xx_pmu_init(void);
 
 /*
  * RTC
@@ -150,8 +152,6 @@ extern uint32_t vr41xx_read_rtclong2_counter(void);
 
 extern void vr41xx_set_tclock_cycle(uint32_t cycles);
 extern uint32_t vr41xx_read_tclock_counter(void);
-
-extern void vr41xx_rtc_init(void);
 
 /*
  * General-Purpose I/O Unit
