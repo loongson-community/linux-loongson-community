@@ -799,11 +799,20 @@ void *set_except_vector(int n, void *addr)
 asmlinkage int (*save_fp_context)(struct sigcontext *sc);
 asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
 
+asmlinkage int (*save_fp_context32)(struct sigcontext32 *sc);
+asmlinkage int (*restore_fp_context32)(struct sigcontext32 *sc);
+
 extern asmlinkage int _save_fp_context(struct sigcontext *sc);
 extern asmlinkage int _restore_fp_context(struct sigcontext *sc);
 
+extern asmlinkage int _save_fp_context32(struct sigcontext32 *sc);
+extern asmlinkage int _restore_fp_context32(struct sigcontext32 *sc);
+
 extern asmlinkage int fpu_emulator_save_context(struct sigcontext *sc);
 extern asmlinkage int fpu_emulator_restore_context(struct sigcontext *sc);
+
+extern asmlinkage int fpu_emulator_save_context32(struct sigcontext32 *sc);
+extern asmlinkage int fpu_emulator_restore_context32(struct sigcontext32 *sc);
 
 void __init per_cpu_trap_init(void)
 {
@@ -925,11 +934,15 @@ void __init trap_init(void)
 	}
 
 	if (cpu_has_fpu) {
-	        save_fp_context = _save_fp_context;
+		save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
+		save_fp_context32 = _save_fp_context32;
+		restore_fp_context32 = _restore_fp_context32;
 	} else {
 		save_fp_context = fpu_emulator_save_context;
 		restore_fp_context = fpu_emulator_restore_context;
+		save_fp_context32 = fpu_emulator_save_context32;
+		restore_fp_context32 = fpu_emulator_restore_context32;
 	}
 
 	flush_icache_range(KSEG0, KSEG0 + 0x400);

@@ -156,6 +156,12 @@ void output_sc_defines(void)
 	offset("#define SC_CAUSE      ", struct sigcontext, sc_cause);
 	offset("#define SC_BADVADDR   ", struct sigcontext, sc_badvaddr);
 	linefeed;
+
+	text("/* Linux 32-bit sigcontext offsets. */");
+	offset("#define SC32_FPREGS     ", struct sigcontext32, sc_fpregs);
+	offset("#define SC32_FPC_CSR    ", struct sigcontext32, sc_fpc_csr);
+	offset("#define SC32_FPC_EIR    ", struct sigcontext32, sc_fpc_eir);
+	linefeed;
 }
 
 void output_signal_defined(void)
