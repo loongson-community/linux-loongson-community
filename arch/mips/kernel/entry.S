@@ -87,7 +87,7 @@ FEXPORT(restore_partial)		# restore partial frame
 
 FEXPORT(work_pending)
 	andi	t0, a2, _TIF_NEED_RESCHED
-	bnez	t0, work_notifysig
+	beqz	t0, work_notifysig
 work_resched:
 	jal	schedule
 
@@ -114,7 +114,7 @@ FEXPORT(syscall_exit_work)
 	LONG_L	t0, TI_FLAGS($28)
 	li	t1, _TIF_SYSCALL_TRACE
 	and	t0, t1
-	bnez	t0, work_pending	# trace bit is set
+	beqz	t0, work_pending	# trace bit is set
 	local_irq_enable		# could let do_syscall_trace()
 					# call schedule() instead
 	jal	do_syscall_trace
