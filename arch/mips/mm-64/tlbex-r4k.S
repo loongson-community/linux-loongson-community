@@ -73,7 +73,7 @@
 	 * Determine that fault address is within vmalloc range.
 	 */
 	dla	\tmp, ekptbl
-	sltu	\tmp, \ptr, \tmp
+	slt	\tmp, \ptr, \tmp
 	beqz	\tmp, \not_vmalloc		# not vmalloc
 	 nop
 	.endm
