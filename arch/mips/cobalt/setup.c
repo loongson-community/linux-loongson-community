@@ -62,11 +62,11 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 extern struct pci_ops gt64111_pci_ops;
 
 static struct resource cobalt_mem_resource = {
-	"GT64111 PCI MEM", GT64111_MEM_BASE, GT64111_MEM_END, IORESOURCE_MEM
+	"PCI memory", GT64111_MEM_BASE, GT64111_MEM_END, IORESOURCE_MEM
 };
 
 static struct resource cobalt_io_resource = {
-	"GT64111 IO MEM", 0x00001000UL, GT64111_IO_END - GT64111_IO_BASE, IORESOURCE_IO
+	"PCI I/O", 0x1000, 0xffff, IORESOURCE_IO
 };
 
 static struct resource cobalt_io_resources[] = {
@@ -100,7 +100,7 @@ static int __init cobalt_setup(void)
 
         set_io_port_base(CKSEG1ADDR(GT64111_IO_BASE));
 
-	/* IO region should cover all Galileo IO */
+	/* I/O port resource must include UART and LCD/buttons */
 	ioport_resource.end = 0x0fffffff;
 
 	/*

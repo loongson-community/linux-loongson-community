@@ -21,6 +21,20 @@
 
 extern int cobalt_board_id;
 
+static void qube_raq_galileo_early_fixup(struct pci_dev *dev)
+{
+	if (dev->devfn == PCI_DEVFN(0, 0) &&
+		(dev->class >> 8) == PCI_CLASS_MEMORY_OTHER) {
+
+		dev->class = (PCI_CLASS_BRIDGE_HOST << 8) | (dev->class & 0xff);
+
+		printk(KERN_INFO "Galileo: fixed bridge class\n");
+	}
+}
+
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL, PCI_DEVICE_ID_MARVELL_GT64111,
+	 qube_raq_galileo_early_fixup);
+
 static void qube_raq_via_bmIDE_fixup(struct pci_dev *dev)
 {
 	unsigned short cfgword;
@@ -47,8 +61,10 @@ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_82C586_1,
 static void qube_raq_galileo_fixup(struct pci_dev *dev)
 {
 	unsigned short galileo_id;
-	int i;
 
+	if (dev->devfn != PCI_DEVFN(0, 0))
+		return;
+		
 	/* Fix PCI latency-timer and cache-line-size values in Galileo
 	 * host bridge.
 	 */
@@ -73,7 +89,7 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 	pci_read_config_word(dev, PCI_REVISION_ID, &galileo_id);
 	galileo_id &= 0xff;	/* mask off class info */
 
- 	printk("Galileo ID: %u\n", galileo_id);
+ 	printk(KERN_INFO "Galileo: revision %u\n", galileo_id);
 
 #if 0
 	if (galileo_id >= 0x10) {
@@ -88,18 +104,9 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 		/* Old Galileo, assumes PCI STOP line to VIA is disconnected. */
 		GALILEO_OUTL(0xffff, GT_PCI0_TOR_OFS);
 	}
-
-	/*
-	 * hide Galileo from the kernel's PCI resource assignment. The BARs
-	 * on Galileo will already have been set up by the boot loader to
-	 * match the DRAM configuration so we don't want them being monkeyed
-	 * around with.
-	 */
-	for (i = 0; i < DEVICE_COUNT_RESOURCE; ++i)
-		dev->resource[i].start = dev->resource[i].end = dev->resource[i].flags = 0;
 }
 
-DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL, PCI_ANY_ID,
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL, PCI_DEVICE_ID_MARVELL_GT64111,
 	 qube_raq_galileo_fixup);
 
 static char irq_tab_cobalt[] __initdata = {
