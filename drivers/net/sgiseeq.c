@@ -169,7 +169,7 @@ static int seeq_init_ring(struct net_device *dev)
 			buffer = (unsigned long) kmalloc(PKT_BUF_SZ, GFP_KERNEL);
 			if (!buffer)
 				return -ENOMEM;
-			sp->tx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
+			sp->tx_desc[i].buf_vaddr = CKSEG1ADDR(buffer);
 			sp->tx_desc[i].tdma.pbuf = CPHYSADDR(buffer);
 		}
 		sp->tx_desc[i].tdma.cntinfo = TCNTINFO_INIT;
@@ -183,7 +183,7 @@ static int seeq_init_ring(struct net_device *dev)
 			buffer = (unsigned long) kmalloc(PKT_BUF_SZ, GFP_KERNEL);
 			if (!buffer)
 				return -ENOMEM;
-			sp->rx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
+			sp->rx_desc[i].buf_vaddr = CKSEG1ADDR(buffer);
 			sp->rx_desc[i].rdma.pbuf = CPHYSADDR(buffer);
 		}
 		sp->rx_desc[i].rdma.cntinfo = RCNTINFO_INIT;
@@ -374,7 +374,7 @@ static inline void kick_tx(struct sgiseeq_tx_desc *td,
 	 */
 	while ((td->tdma.cntinfo & (HPCDMA_XIU | HPCDMA_ETXD)) ==
 	      (HPCDMA_XIU | HPCDMA_ETXD))
-		td = (struct sgiseeq_tx_desc *)(long) KSEG1ADDR(td->tdma.pnext);
+		td = (struct sgiseeq_tx_desc *)(long) CKSEG1ADDR(td->tdma.pnext);
 	if (td->tdma.cntinfo & HPCDMA_XIU) {
 		hregs->tx_ndptr = CPHYSADDR(td);
 		hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
@@ -671,11 +671,11 @@ static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	sp->mode = SEEQ_RCMD_RBCAST;
 
 	sp->rx_desc = (struct sgiseeq_rx_desc *)
-	              KSEG1ADDR(ALIGNED(&sp->srings->rxvector[0]));
+	              CKSEG1ADDR(ALIGNED(&sp->srings->rxvector[0]));
 	dma_cache_wback_inv((unsigned long)&sp->srings->rxvector,
 	                    sizeof(sp->srings->rxvector));
 	sp->tx_desc = (struct sgiseeq_tx_desc *)
-	              KSEG1ADDR(ALIGNED(&sp->srings->txvector[0]));
+	              CKSEG1ADDR(ALIGNED(&sp->srings->txvector[0]));
 	dma_cache_wback_inv((unsigned long)&sp->srings->txvector,
 	                    sizeof(sp->srings->txvector));
 
