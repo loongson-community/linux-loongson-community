@@ -260,10 +260,10 @@ static void titan_ge_tx_timeout(struct net_device *netdev)
  */
 static void titan_ge_update_afx(titan_ge_port_info * titan_ge_eth)
 {
+	int port = titan_ge_eth->port_num;
 	unsigned int i;
 	volatile unsigned long reg_data = 0;
 	u8 p_addr[6];
-	int port = titan_ge_eth->port_num;
 
 	memcpy(p_addr, titan_ge_eth->port_mac_addr, 6);
 
@@ -343,9 +343,7 @@ static void titan_ge_tx_timeout_task(struct net_device *netdev)
 static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num;
 	unsigned long flags;
-	port_num = titan_ge_eth->port_num;
 
 	spin_lock_irqsave(&titan_ge_eth->lock, flags);
 
@@ -391,15 +389,14 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 {
 	struct net_device *netdev = (struct net_device *) dev_id;
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num, reg_data;
+	unsigned int port_num = titan_ge_eth->port_num;
+	unsigned int reg_data;
 	unsigned int eth_int_cause_error = 0, is;
 	unsigned long eth_int_cause1;
 	int err = 0;
 #ifdef CONFIG_SMP
 	unsigned long eth_int_cause2;
 #endif
-
-	port_num = titan_ge_eth->port_num;
 
 	/* Ack the CPU interrupt */
 	if (port_num == 1) {
@@ -541,10 +538,8 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 static void titan_ge_set_multi(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
+	unsigned int port_num = titan_ge_eth->port_num;
 	unsigned long reg_data;
-	unsigned int port_num;
-
-	port_num = titan_ge_eth->port_num;
 
 	reg_data = TITAN_GE_READ(TITAN_GE_AFX_ADDRS_FILTER_CTRL_1 + 
 				(port_num << 12));
@@ -581,9 +576,7 @@ static int titan_ge_open(struct net_device *netdev)
 {
 	int retval;
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num;
-
-	port_num = titan_ge_eth->port_num;
+	unsigned int port_num = titan_ge_eth->port_num;
 
 	retval = request_irq(TITAN_ETH_PORT_IRQ - port_num, titan_ge_int_handler,
 		     SA_INTERRUPT | SA_SAMPLE_RANDOM , netdev->name, netdev);
@@ -725,8 +718,8 @@ static int titan_ge_port_start(struct net_device *netdev,
 				titan_ge_port_info * titan_port)
 {
 	volatile unsigned long reg_data, reg_data1;
-	int count = 0;
 	int port_num = titan_port->port_num;
+	int count = 0;
 
 	if (config_done == 0) {
 		reg_data = TITAN_GE_READ(0x0004);
@@ -1089,11 +1082,10 @@ static unsigned long titan_ge_rx_coal(unsigned long delay, int port)
 static int titan_ge_eth_open(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num, size, phy_reg;
+	unsigned int port_num = titan_ge_eth->port_num;
+	unsigned int size, phy_reg;
 	unsigned long reg_data;
 	int err = 0;
-
-	port_num = titan_ge_eth->port_num;
 
 	/* Stop the Rx activity */
 	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_1 +
@@ -1472,14 +1464,13 @@ static int titan_ge_slowpath(struct sk_buff *skb,
 int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num;
+	unsigned int port_num = titan_ge_eth->port_num;
 	titan_ge_packet packet;
 	struct net_device_stats *stats;
 	struct sk_buff *skb;
 	unsigned long received_packets = 0;
 	unsigned int ack;
 
-	port_num = titan_ge_eth->port_num;
 	stats = &titan_ge_eth->stats;
 
 	while ((--max)
@@ -1679,9 +1670,6 @@ done:
 int titan_ge_stop(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num;
-
-	port_num = titan_ge_eth->port_num;
 
 	spin_lock_irq(&(titan_ge_eth->lock));
 	titan_ge_eth_stop(netdev);
@@ -1698,10 +1686,9 @@ int titan_ge_stop(struct net_device *netdev)
 static void titan_ge_free_tx_rings(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num, curr;
+	unsigned int port_num = titan_ge_eth->port_num;
+	unsigned int curr;
 	unsigned long reg_data;
-
-	port_num = titan_ge_eth->port_num;
 
 	/* Stop the Tx DMA */
 	reg_data = TITAN_GE_READ(TITAN_GE_CHANNEL0_CONFIG +
@@ -1743,10 +1730,9 @@ static void titan_ge_free_tx_rings(struct net_device *netdev)
 static void titan_ge_free_rx_rings(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num, curr;
+	unsigned int port_num = titan_ge_eth->port_num;
+	unsigned int curr;
 	unsigned long reg_data;
-
-	port_num = titan_ge_eth->port_num;
 
 	/* Stop the Rx DMA */
 	reg_data = TITAN_GE_READ(TITAN_GE_CHANNEL0_CONFIG + 
@@ -1788,9 +1774,6 @@ static void titan_ge_free_rx_rings(struct net_device *netdev)
 static int titan_ge_eth_stop(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num;
-
-	port_num = titan_ge_eth->port_num;
 
 	netif_stop_queue(netdev);
 
@@ -1861,13 +1844,9 @@ int titan_ge_set_mac_address(struct net_device *netdev, void *addr)
 /*
  * Get the Ethernet device stats
  */
-static struct net_device_stats *titan_ge_get_stats(struct net_device
-						   *netdev)
+static struct net_device_stats *titan_ge_get_stats(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-	unsigned int port_num;
-
-	port_num = titan_ge_eth->port_num;
 
 	return &titan_ge_eth->stats;
 }
