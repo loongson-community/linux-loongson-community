@@ -448,7 +448,7 @@ void allowboot(void)
 			 * (so that current-> works).
 		 	 */
 			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus), 
-				(launch_proc_t)MAPPED_KERN_RO_TO_K0(bootstrap),
+				(launch_proc_t)MAPPED_KERN_RW_TO_K0(bootstrap),
 				0, (void *)((unsigned long)p + 
 				KERNEL_STACK_SIZE - 32), (void *)p);
 
