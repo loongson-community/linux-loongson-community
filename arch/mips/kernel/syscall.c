@@ -111,7 +111,7 @@ static inline long
 do_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
         unsigned long flags, unsigned long fd, unsigned long pgoff)
 {
-	int error = -EBADF;
+	unsigned long error = -EBADF;
 	struct file * file = NULL;
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
@@ -134,7 +134,7 @@ out:
 asmlinkage unsigned long old_mmap(unsigned long addr, size_t len, int prot,
                                   int flags, int fd, off_t offset)
 {
-	int result;
+	unsigned long result;
 
 	result = -EINVAL;
 	if (offset & ~PAGE_MASK)
