@@ -1755,7 +1755,7 @@ static int e1356fb_open(struct fb_info *fb, int user)
         if (user) {
                 info->open++;
 	}
-	MOD_INC_USE_COUNT;
+
 	return 0;
 }
 
@@ -1767,7 +1767,7 @@ static int e1356fb_release(struct fb_info *fb, int user)
 		if (info->open == 0)
                         info->mmaped = 0;
 	}
-	MOD_DEC_USE_COUNT;
+
 	return 0;
 }
 

@@ -564,7 +564,7 @@ au1000_open(struct inode * inode, struct file * filp)
 	add_timer(&ts->acq_timer);
 
 	spin_unlock_irqrestore(&ts->lock, flags);
-	MOD_INC_USE_COUNT;
+
 	return 0;
 }
 
@@ -582,7 +582,6 @@ au1000_release(struct inode * inode, struct file * filp)
 	outl(0, SSI0_INT_ENABLE);
 	spin_unlock_irqrestore(&ts->lock, flags);
 
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

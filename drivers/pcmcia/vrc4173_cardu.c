@@ -155,11 +155,6 @@ static int cardu_register_callback(unsigned int sock,
 	socket->handler = handler;
 	socket->info = info;
 
-	if (handler)
-		MOD_INC_USE_COUNT;
-	else
-		MOD_DEC_USE_COUNT;
-
 	return 0;
 }
 

@@ -1644,7 +1644,6 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 
 	if (tty_hung_up_p(filp)) {
 		DBG_CNT("before DEC-hung");
-		MOD_DEC_USE_COUNT;
 		local_irq_restore(flags);
 		return;
 	}
@@ -1674,7 +1673,6 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	}
 	if (state->count) {
 		DBG_CNT("before DEC-2");
-		MOD_DEC_USE_COUNT;
 		local_irq_restore(flags);
 		return;
 	}
@@ -1720,7 +1718,6 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	}
 	info->flags &= ~(ASYNC_NORMAL_ACTIVE|ASYNC_CLOSING);
 	wake_up_interruptible(&info->close_wait);
-	MOD_DEC_USE_COUNT;
 	local_irq_restore(flags);
 }
 
@@ -1955,23 +1952,18 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	int 			retval, line;
 	unsigned long		page;
 
-	MOD_INC_USE_COUNT;
 	line = MINOR(tty->device) - tty->driver.minor_start;
-	if ((line < 0) || (line >= NR_PORTS)) {
-		MOD_DEC_USE_COUNT;
+	if ((line < 0) || (line >= NR_PORTS))
 		return -ENODEV;
-	}
+
 	retval = get_async_struct(line, &info);
-	if (retval) {
-		MOD_DEC_USE_COUNT;
+	if (retval)
 		return retval;
-	}
+
         tty->driver_data = info;
         info->tty = tty;
-	if (serial_paranoia_check(info, tty->name, "rs_open")) {
-	        /* MOD_DEC_USE_COUNT; "info->tty" will cause this */
+	if (serial_paranoia_check(info, tty->name, "rs_open"))
 		return -ENODEV;
-	}
 
 #ifdef SERIAL_DEBUG_OPEN
 	baget_printk("rs_open %s, count = %d\n", tty->name,
@@ -1981,10 +1973,9 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 
 	if (!tmp_buf) {
 		page = get_zeroed_page(GFP_KERNEL);
-		if (!page) {
-			/* MOD_DEC_USE_COUNT; "info->tty" will cause this */
+		if (!page)
 			return -ENOMEM;
-		}
+
 		if (tmp_buf)
 			free_page(page);
 		else
@@ -1998,7 +1989,6 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	    (info->flags & ASYNC_CLOSING)) {
 		if (info->flags & ASYNC_CLOSING)
 			interruptible_sleep_on(&info->close_wait);
-		/* MOD_DEC_USE_COUNT; "info->tty" will cause this */
 #ifdef SERIAL_DO_RESTART
 		return ((info->flags & ASYNC_HUP_NOTIFY) ?
 			-EAGAIN : -ERESTARTSYS);
@@ -2011,14 +2001,11 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	 * Start up serial port
 	 */
 	retval = startup(info);
-	if (retval) {
-		/* MOD_DEC_USE_COUNT; "info->tty" will cause this */
+	if (retval)
 		return retval;
-	}
 
 	retval = block_til_ready(tty, filp, info);
 	if (retval) {
-		 /* MOD_DEC_USE_COUNT; "info->tty" will cause this */
 #ifdef SERIAL_DEBUG_OPEN
 		 baget_printk("rs_open returning after block_til_ready "
 			      "with %d\n",

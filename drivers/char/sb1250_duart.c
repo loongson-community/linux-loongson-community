@@ -660,12 +660,8 @@ static int duart_open(struct tty_struct *tty, struct file *filp)
 	unsigned int line = tty->index;
 	unsigned long flags;
 
-	MOD_INC_USE_COUNT;
-
-	if ((line >= tty->driver->num) || !sb1250_duart_present[line]) {
-		MOD_DEC_USE_COUNT;
+	if ((line >= tty->driver->num) || !sb1250_duart_present[line])
 		return -ENODEV;
-	}
 
 #ifdef DUART_SPEW
 	printk("duart_open called by %i (%s), tty is %p, rw is %p, ww is %p\n",
@@ -709,7 +705,6 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 
 	spin_lock_irqsave(&open_lock, flags);
 	if (tty_hung_up_p(filp)) {
-		MOD_DEC_USE_COUNT;
 		spin_unlock_irqrestore(&open_lock, flags);
 		return;
 	}

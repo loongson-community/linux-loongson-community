@@ -1633,8 +1633,6 @@ static int saa7114h_attach(struct i2c_adapter *adap, int addr, unsigned short fl
 	create_proc_decoder(vd->priv);
 #endif
 
-	MOD_INC_USE_COUNT;
-
 	return 0;
 }
 
@@ -1667,7 +1665,6 @@ static int saa7114h_detach(struct i2c_client *device)
 {
 #if 0
 	kfree(device->data);
-	MOD_DEC_USE_COUNT;
 #endif
 #ifdef CONFIG_PROC_FS
 	destroy_proc_decoder(((struct video_device *)device->data)->priv);

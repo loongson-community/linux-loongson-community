@@ -40,16 +40,10 @@ static int sibyte_unreg(struct i2c_client *client)
 
 static void sibyte_inc_use(struct i2c_adapter *adap)
 {
-#ifdef MODULE
-	MOD_INC_USE_COUNT;
-#endif
 }
 
 static void sibyte_dec_use(struct i2c_adapter *adap)
 {
-#ifdef MODULE
-	MOD_DEC_USE_COUNT;
-#endif
 }
 
 static struct i2c_algo_sibyte_data sibyte_board_data[2] = {

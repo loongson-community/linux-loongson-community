@@ -1568,7 +1568,6 @@ static int big_sur_ge_open(struct net_device *netdev)
 		return -EBUSY;
 	}
 
-	MOD_INC_USE_COUNT;
 	netif_start_queue(netdev);
 
 	lp->phy_timer.expires = jiffies + 2 * HZ;
@@ -1597,7 +1596,6 @@ static int big_sur_ge_close(struct net_device *netdev)
 		return -EBUSY;
 	}
 
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

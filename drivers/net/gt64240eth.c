@@ -1239,22 +1239,20 @@ static int gt64240_open(struct net_device *dev)
 {
 	int retval;
 
-	MOD_INC_USE_COUNT;
-
 	if (gt64240_debug > 3)
 		printk("%s: gt64240_open: dev=%p\n", dev->name, dev);
 
 	if ((retval = request_irq(dev->irq, &gt64240_interrupt,
 				  SA_SHIRQ, dev->name, dev))) {
 		printk("%s: unable to get IRQ %d\n", dev->name, dev->irq);
-		MOD_DEC_USE_COUNT;
+
 		return retval;
 	}
 	// Initialize and startup the GT-64240 ethernet port
 	if ((retval = gt64240_init(dev))) {
 		printk("%s: error in gt64240_open\n", dev->name);
 		free_irq(dev->irq, dev);
-		MOD_DEC_USE_COUNT;
+
 		return retval;
 	}
 
@@ -1278,7 +1276,6 @@ static int gt64240_close(struct net_device *dev)
 
 	free_irq(dev->irq, dev);
 
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

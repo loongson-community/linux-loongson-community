@@ -164,16 +164,12 @@ EXPORT_SYMBOL(au1000gpio_out);
 
 static int au1000gpio_open(struct inode *inode, struct file *file)
 {
-	MOD_INC_USE_COUNT;
-
 	return 0;
 }
 
 
 static int au1000gpio_release(struct inode *inode, struct file *file)
 {
-	MOD_DEC_USE_COUNT;
-
 	return 0;
 }
 

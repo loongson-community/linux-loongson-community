@@ -602,8 +602,6 @@ int __init au1100fb_init(void)
 			GET_FB_IDX(fb_info.gen.info.node), 
 			fb_info.gen.info.modename);
 
-	/* uncomment this if your driver cannot be unloaded */
-	/* MOD_INC_USE_COUNT; */
 	return 0;
 }
 

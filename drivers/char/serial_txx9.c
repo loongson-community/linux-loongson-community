@@ -761,8 +761,6 @@ static int rs_open (struct tty_struct * tty, struct file * filp)
 	port->gs.flags |= GS_ACTIVE;
 
 	if (port->gs.count == 1) {
-		MOD_INC_USE_COUNT;
-
 		/*
 		 * Clear the FIFO buffers and disable them
 		 * (they will be reenabled in rs_set_real_termios())
@@ -781,7 +779,6 @@ static int rs_open (struct tty_struct * tty, struct file * filp)
 		if (retval) {
 			printk(KERN_ERR "serial_txx9: request_irq: err %d\n",
 			       retval);
-			MOD_DEC_USE_COUNT;
 			port->gs.count--;
 			return retval;
 		}
@@ -813,10 +810,9 @@ static int rs_open (struct tty_struct * tty, struct file * filp)
 	retval = gs_block_til_ready(&port->gs, filp);
 
 	if (retval) {
-		if (port->gs.count == 1) {
+		if (port->gs.count == 1)
 			free_irq(port->irq, port);
-			MOD_DEC_USE_COUNT;
-		}
+
 		port->gs.count--;
 		return retval;
 	}

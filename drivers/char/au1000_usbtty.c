@@ -299,8 +299,6 @@ static int serial_open(struct tty_struct *tty, struct file *filp)
 	/* initialize the pointer incase something fails */
 	tty->driver_data = NULL;
 
-	MOD_INC_USE_COUNT;
-
 	/* set up our port structure making the tty driver remember
 	   our port object, and us it */
 	portNumber = MINOR(tty->device);
@@ -314,7 +312,6 @@ static int serial_open(struct tty_struct *tty, struct file *filp)
 		 * the device-layer must be in the configured state before
 		 * the function layer can operate.
 		 */
-		MOD_DEC_USE_COUNT;
 		return -ENODEV;
 	}
 	

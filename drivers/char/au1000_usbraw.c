@@ -310,8 +310,6 @@ static int usbraw_open(struct inode * inode, struct file *filp)
 	if (usbraw.dev_state != CONFIGURED)
 		return -ENODEV;
 	
-	MOD_INC_USE_COUNT;
-
 	/* set up our port structure making the tty driver remember
 	   our port object, and us it */
 	portNumber = MINOR(inode->i_rdev);
@@ -360,7 +358,7 @@ static int usbraw_release(struct inode * inode, struct file * filp)
 	}
 
 	spin_unlock_irqrestore(&port->port_lock, flags);
-	MOD_DEC_USE_COUNT;
+
 	return 0;
 }
 
