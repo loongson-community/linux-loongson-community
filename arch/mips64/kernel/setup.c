@@ -119,7 +119,7 @@ static inline void check_wait(void)
 	}
 }
 
-static void __init check_bugs(void)
+void __init check_bugs(void)
 {
 	check_wait();
 }
