@@ -485,7 +485,8 @@ config MIPS_JAZZ
 config NONCOHERENT_IO
 	bool
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || NINO || NEC_EAGLE || NEC_OSPREY || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_SEAD || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_ATLAS || LASAT || MIPS_ITE8172 || IBM_WORKPAD || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || DECSTATION || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || CASIO_E55 || ACER_PICA_61
-	default y
+	default y if ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || NINO || NEC_EAGLE || NEC_OSPREY || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_SEAD || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_ATLAS || LASAT || MIPS_ITE8172 || IBM_WORKPAD || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || DECSTATION || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || CASIO_E55 || ACER_PICA_61
+	default n if (SIBYTE_SB1250 || SGI_IP27)
 
 config CPU_LITTLE_ENDIAN
 	bool
@@ -794,8 +795,8 @@ endchoice
 
 config BOARD_SCACHE
 	bool
-	depends on CPU_NEVADA || CPU_R5000
-	default y
+	depends on CPU_NEVADA || CPU_R4X00 || CPU_R5000
+	default y if SGI_IP22 || (SGI_IP32 && CPU_R5000)
 
 config CPU_HAS_PREFETCH
 	bool "Enable prefetches" if CPU_SB1 && !CPU_SB1_PASS_2
@@ -889,9 +890,23 @@ config CPU_HAS_SYNC
 	depends on !CPU_R3000
 	default y
 
+#
+# - Highmem only makes sense for the 32-bit kernel.
+# - The current highmem code will only work properly on physically indexed
+#   caches such as R3000, SB1, R7000 or those that look like they're virtually
+#   indexed such as R4000/R4400 SC and MC versions or R10000.  So for the
+#   moment we protect the user and offer the highmem option only on machines
+#   where it's known to be safe.  This will not offer highmem on a few systems
+#   such as MIPS32 and MIPS64 CPUs which may have virtual and physically
+#   indexed CPUs but we're playing safe.
+# - We should not offer highmem for system of which we already know that they
+#   don't have memory configurations that could gain from highmem support in
+#   the kernel because they don't support configurations with RAM at physical
+#   addresses > 0x20000000.
+#
 config HIGHMEM
 	bool "High Memory Support"
-	depends on MIPS32 || CPU_SB1 || CPU_R70000 || CPU_R10000
+	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_R10000) && !(BAGET_MIPS || DECSTATION || NINO)
 
 config SMP
 	bool "Multi-Processing support"
@@ -940,6 +955,7 @@ config PREEMPT
 config CPU_LITTLE_ENDIAN
 	bool "Generate little endian code" if !DECSTATION && !DDB5074 && !NINO && !MIPS_COBALT
 	default y if DECSTATION || DDB5074 || NINO || MIPS_COBALT
+	default n if SGI_IP22 || SGI_IP27 || SGI_IP32
 
 config RTC_DS1742
 	bool "DS1742 BRAM/RTC support"

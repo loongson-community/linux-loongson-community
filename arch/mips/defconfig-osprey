@@ -92,7 +92,6 @@ CONFIG_CPU_VR41XX=y
 # CONFIG_CPU_SB1 is not set
 # CONFIG_CPU_ADVANCED is not set
 CONFIG_CPU_HAS_SYNC=y
-# CONFIG_HIGHMEM is not set
 # CONFIG_PREEMPT is not set
 
 #
