@@ -38,6 +38,8 @@ extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
 extern asmlinkage int save_fp_context(struct sigcontext *sc);
 extern asmlinkage int restore_fp_context(struct sigcontext *sc);
 
+extern asmlinkage void syscall_trace(void);
+
 static inline int store_fp_context(struct sigcontext *sc)
 {
 	unsigned int fcr0;
@@ -257,6 +259,8 @@ sys_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	/*
 	 * Don't let your children do this ...
 	 */
+	if (current->flags & PF_TRACESYS)
+		syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
 		"j\tret_from_sys_call"

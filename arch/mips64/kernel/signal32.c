@@ -38,6 +38,8 @@ extern asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs);
 extern asmlinkage int save_fp_context(struct sigcontext *sc);
 extern asmlinkage int restore_fp_context(struct sigcontext *sc);
 
+extern asmlinkage void syscall_trace(void);
+
 /* 32-bit compatibility types */
 
 #define _NSIG32_BPW	32
@@ -376,6 +378,8 @@ printk("%s called.\n", __FUNCTION__);
 	/*
 	 * Don't let your children do this ...
 	 */
+	if (current->flags & PF_TRACESYS)
+		syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
 		"j\tret_from_sys_call"
