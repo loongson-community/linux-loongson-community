@@ -324,7 +324,7 @@ static void pmagbafb_set_disp(int con, struct pmag_ba_my_fb_info *info)
 	display->next_line = fix.line_length;
 	display->can_soft_blank = 0;
 	display->inverse = 0;
-
+	display->scrollmode = SCROLL_YREDRAW;
 	display->dispsw = &fbcon_cfb8;
 }
 

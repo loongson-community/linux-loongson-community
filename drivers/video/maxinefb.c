@@ -301,7 +301,7 @@ static void maxinefb_set_disp(int con)
 	display->next_line = fix.line_length;
 	display->can_soft_blank = 0;
 	display->inverse = 0;
-
+	display->scrollmode = SCROLL_YREDRAW;
 	display->dispsw = &fbcon_cfb8;
 }
 
