@@ -1302,17 +1302,8 @@ static int __init init_irix_binfmt(void)
 {
 	int init_inventory(void);
 	extern asmlinkage unsigned long sys_call_table;
-	extern asmlinkage unsigned long sys_call_table_irix5;
 
 	init_inventory();
-
-	/*
-	 * Copy the IRIX5 syscall table (8000 bytes) into the main syscall
-	 * table. The IRIX5 calls are located by an offset of 8000 bytes
-	 * from the beginning of the main table.
-	 */
-	memcpy((void *) ((unsigned long) &sys_call_table + 8000),
-		&sys_call_table_irix5, 8000);
 
 	return register_binfmt(&irix_format);
 }
