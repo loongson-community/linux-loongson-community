@@ -11,14 +11,12 @@
 #include <linux/hdreg.h>
 #include <linux/init.h>
 #include <linux/mm.h>
-#include <asm/irq.h>
-#include <asm/time.h>
-#include <linux/irq.h>
-#include <linux/ide.h>
 #include <linux/interrupt.h>
+#include <linux/ide.h>
 #include <linux/bootmem.h>
 #include <asm/mc146818rtc.h>
 #include <asm/reboot.h>
+#include <asm/time.h>
 #include <asm/hp-lj/asic.h>
 #include "utils.h"
 

@@ -28,15 +28,13 @@
 #include <linux/kernel_stat.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
-#include <linux/irq.h>
+#include <linux/mc146818rtc.h>
+#include <linux/timex.h>
 
 #include <asm/mipsregs.h>
 #include <asm/ptrace.h>
 #include <asm/it8172/it8172_int.h>
 #include <asm/debug.h>
-
-#include <linux/mc146818rtc.h>
-#include <linux/timex.h>
 
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */

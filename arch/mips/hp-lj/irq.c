@@ -11,7 +11,7 @@
 
 #include <linux/config.h>
 #include <linux/init.h>
-#include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 #include <asm/gdb-stub.h>

@@ -19,12 +19,10 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/linkage.h>
-#include <linux/irq.h>
-#include <linux/spinlock.h>
 #include <linux/interrupt.h>
+#include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
-#include <linux/irq_cpustat.h>
 #include <asm/errno.h>
 #include <asm/signal.h>
 #include <asm/system.h>

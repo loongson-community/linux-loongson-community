@@ -12,9 +12,7 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
-#include <linux/irq.h>
 #include <asm/io.h>
-#include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/tx3912.h>
 

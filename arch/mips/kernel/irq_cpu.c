@@ -19,24 +19,21 @@
  * This file exports one global function:
  *	mips_cpu_irq_init(u32 irq_base);
  */
-
-#include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 
 #include <asm/mipsregs.h>
 
-static int mips_cpu_irq_base=-1;
+static int mips_cpu_irq_base = -1;
 
-static void 
-mips_cpu_irq_enable(unsigned int irq)
+static void mips_cpu_irq_enable(unsigned int irq)
 {
 	clear_cp0_cause( 1 << (irq - mips_cpu_irq_base + 8));
 	set_cp0_status(1 << (irq - mips_cpu_irq_base + 8));
 }
 
-static void 
-mips_cpu_irq_disable(unsigned int irq)
+static void mips_cpu_irq_disable(unsigned int irq)
 {
 	clear_cp0_status(1 << (irq - mips_cpu_irq_base + 8));
 }
@@ -50,8 +47,7 @@ static unsigned int mips_cpu_irq_startup(unsigned int irq)
 
 #define	mips_cpu_irq_shutdown	mips_cpu_irq_disable
 
-static void
-mips_cpu_irq_ack(unsigned int irq)
+static void mips_cpu_irq_ack(unsigned int irq)
 {
 	/* although we attemp to clear the IP bit in cause reigster, I think
 	 * usually it is cleared by device (irq source)
@@ -62,8 +58,7 @@ mips_cpu_irq_ack(unsigned int irq)
 	mips_cpu_irq_disable(irq);
 }
 
-static void
-mips_cpu_irq_end(unsigned int irq)
+static void mips_cpu_irq_end(unsigned int irq)
 {
 	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
 		mips_cpu_irq_enable(irq);
@@ -81,13 +76,11 @@ static hw_irq_controller mips_cpu_irq_controller = {
 };
 
 
-void 
-mips_cpu_irq_init(u32 irq_base)
+void mips_cpu_irq_init(u32 irq_base)
 {
-	extern irq_desc_t irq_desc[];
 	u32 i;
 
-	for (i= irq_base; i< irq_base+8; i++) {
+	for (i = irq_base; i < irq_base + 8; i++) {
 		irq_desc[i].status = IRQ_DISABLED;
 		irq_desc[i].action = NULL;
 		irq_desc[i].depth = 1;
