@@ -41,13 +41,6 @@ void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
-/* TLB operations. */
-void (*_flush_tlb_all)(void);
-void (*_flush_tlb_mm)(struct mm_struct *mm);
-void (*_flush_tlb_range)(struct mm_struct *mm, unsigned long start,
-			unsigned long end);
-void (*_flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
-
 /* Miscellaneous. */
 void (*update_mmu_cache)(struct vm_area_struct * vma,
 			 unsigned long address, pte_t pte);

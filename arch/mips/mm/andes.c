@@ -60,23 +60,23 @@ static void andes_flush_cache_sigtramp(unsigned long page)
 }
 
 /* TLB operations. XXX Write these dave... */
-void flush_tlb_all(void)
+void local_flush_tlb_all(void)
 {
 	/* XXX */
 }
 
-void flush_tlb_mm(struct mm_struct *mm)
+void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	/* XXX */
 }
 
-void flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				  unsigned long end)
 {
 	/* XXX */
 }
 
-void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	/* XXX */
 }
@@ -109,7 +109,7 @@ void __init ld_mmu_andes(void)
 	write_32bit_cp0_register(CP0_FRAMEMASK, 0);
 
 	flush_cache_all();
-	flush_tlb_all();
+	local_flush_tlb_all();
 
 	/*
 	 * The R10k might even work for Linux/MIPS - but we're paranoid

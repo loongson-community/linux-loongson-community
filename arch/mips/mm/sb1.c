@@ -61,7 +61,7 @@ void pgd_init(unsigned long page)
 	}
 }
 
-void flush_tlb_all(void)
+void local_flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -80,8 +80,6 @@ void flush_tlb_all(void)
 	set_entryhi(old_ctx);
 	__restore_flags(flags);	
 }
-
-
 
 /* These are the functions hooked by the memory management function pointers */
 static void sb1_clear_page(void *page)
@@ -422,8 +420,8 @@ void ld_mmu_sb1(void)
 	 * at this level instead of as common code in loadmmu()?
 	 */
 	flush_cache_all();
-	flush_tlb_all();
-	
+	local_flush_tlb_all();
+
 	/* Turn on caching in kseg0 */
 	set_cp0_config(CONF_CM_CMASK, 0);
 }

@@ -13,7 +13,7 @@ all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
 
-export-objs = mips64_ksyms.o
+export-objs = mips64_ksyms.o smp.o
 
 obj-y	:= branch.o entry.o proc.o process.o ptrace.o r4k_cache.o r4k_fpu.o \
 	   r4k_genex.o r4k_switch.o r4k_tlb.o r4k_tlb_debug.o r4k_tlb_glue.o \

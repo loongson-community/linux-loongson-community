@@ -12,6 +12,7 @@
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/threads.h>
+#include <linux/module.h>
 #include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/sched.h>
@@ -341,18 +342,18 @@ extern void smp_call_function_interrupt(int irq, void *d, struct pt_regs *r)
 
 static void flush_tlb_all_ipi(void *info)
 {
-	_flush_tlb_all();
+	local_flush_tlb_all();
 }
 
 void flush_tlb_all(void)
 {
 	smp_call_function(flush_tlb_all_ipi, 0, 1, 1);
-	_flush_tlb_all();
+	local_flush_tlb_all();
 }
 
 static void flush_tlb_mm_ipi(void *mm)
 {
-	_flush_tlb_mm((struct mm_struct *)mm);
+	local_flush_tlb_mm((struct mm_struct *)mm);
 }
 
 /*
@@ -378,7 +379,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 			if (smp_processor_id() != i)
 				CPU_CONTEXT(i, mm) = 0;
 	}
-	_flush_tlb_mm(mm);
+	local_flush_tlb_mm(mm);
 }
 
 struct flush_tlb_data {
@@ -392,7 +393,7 @@ static void flush_tlb_range_ipi(void *info)
 {
 	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
 
-	_flush_tlb_range(fd->mm, fd->addr1, fd->addr2);
+	local_flush_tlb_range(fd->mm, fd->addr1, fd->addr2);
 }
 
 void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
@@ -410,14 +411,14 @@ void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long en
 			if (smp_processor_id() != i)
 				CPU_CONTEXT(i, mm) = 0;
 	}
-	_flush_tlb_range(mm, start, end);
+	local_flush_tlb_range(mm, start, end);
 }
 
 static void flush_tlb_page_ipi(void *info)
 {
 	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
 
-	_flush_tlb_page(fd->vma, fd->addr1);
+	local_flush_tlb_page(fd->vma, fd->addr1);
 }
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
@@ -434,5 +435,7 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 			if (smp_processor_id() != i)
 				CPU_CONTEXT(i, vma->vm_mm) = 0;
 	}
-	_flush_tlb_page(vma, page);
+	local_flush_tlb_page(vma, page);
 }
+
+EXPORT_SYMBOL(flush_tlb_page);

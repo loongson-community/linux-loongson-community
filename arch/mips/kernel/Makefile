@@ -34,6 +34,7 @@ obj-y	+= r4k_fpu.o
 endif
 endif
 
+export-objs			+= smp.o
 obj-$(CONFIG_SMP)		+= smp.o
 
 # Old style irq support, going to die in 2.5.

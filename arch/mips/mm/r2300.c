@@ -370,7 +370,7 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 }
 
 /* TLB operations. */
-void flush_tlb_all(void)
+void local_flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -392,7 +392,7 @@ void flush_tlb_all(void)
 	restore_flags(flags);
 }
 
-void flush_tlb_mm(struct mm_struct *mm)
+void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	if (mm->context != 0) {
 		unsigned long flags;
@@ -408,7 +408,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-void flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
                      unsigned long end)
 {
 	if (mm->context != 0) {
@@ -451,7 +451,7 @@ void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if(vma->vm_mm->context != 0) {
 		unsigned long flags;
@@ -610,7 +610,7 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		wired++;
 		tlb_write_indexed();
 		set_entryhi(old_ctx);
-	        flush_tlb_all();    
+	        local_flush_tlb_all();    
 		restore_flags(flags);
 	}
 }
@@ -723,5 +723,5 @@ void __init ld_mmu_r23000(void)
 	printk("Primary data cache %dkb, linesize %d bytes\n",
 		(int) (dcache_size >> 10), (int) dcache_lsize);
 
-	flush_tlb_all();
+	local_flush_tlb_all();
 }

@@ -1282,7 +1282,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #undef DEBUG_TLB
 #undef DEBUG_TLBUPDATE
 
-void flush_tlb_all(void)
+void local_flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -1315,7 +1315,7 @@ void flush_tlb_all(void)
 	__restore_flags(flags);
 }
 
-void flush_tlb_mm(struct mm_struct *mm)
+void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	if (mm->context != 0) {
 		unsigned long flags;
@@ -1331,7 +1331,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-void flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				unsigned long end)
 {
 	if(mm->context != 0) {
@@ -1380,7 +1380,7 @@ void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if (vma->vm_mm->context != 0) {
 		unsigned long flags;
@@ -1566,7 +1566,7 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         set_entryhi(old_ctx);
         BARRIER;    
         set_pagemask (old_pagemask);
-        flush_tlb_all();    
+        local_flush_tlb_all();    
         __restore_flags(flags);
 }
 
@@ -1880,5 +1880,5 @@ void __init ld_mmu_r4xx0(void)
 	 *     be set for 4kb pages.
 	 */
 	set_pagemask(PM_4K);
-	flush_tlb_all();
+	local_flush_tlb_all();
 }

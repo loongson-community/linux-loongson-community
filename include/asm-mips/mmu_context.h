@@ -46,8 +46,8 @@ extern inline void
 get_new_mmu_context(struct mm_struct *mm, unsigned long asid)
 {
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
-		flush_tlb_all(); /* start new asid cycle */
-		if (!asid)      /* fix version if needed */
+		local_flush_tlb_all();	/* start new asid cycle */
+		if (!asid)		/* fix version if needed */
 			asid = ASID_FIRST_VERSION;
 	}
 	mm->context = asid_cache = asid;

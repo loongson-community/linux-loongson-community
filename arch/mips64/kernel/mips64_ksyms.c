@@ -118,4 +118,3 @@ EXPORT_SYMBOL(screen_info);
 #endif
 
 EXPORT_SYMBOL(get_wchan);
-EXPORT_SYMBOL(_flush_tlb_page);

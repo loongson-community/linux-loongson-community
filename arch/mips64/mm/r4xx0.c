@@ -1858,7 +1858,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 
 #define NTLB_ENTRIES_HALF  24  /* Fixed on all R4XX0 variants... */
 
-static inline void r4k_flush_tlb_all(void)
+void local_flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -1891,7 +1891,7 @@ static inline void r4k_flush_tlb_all(void)
 	__restore_flags(flags);
 }
 
-static void r4k_flush_tlb_mm(struct mm_struct *mm)
+void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
@@ -1907,7 +1907,7 @@ static void r4k_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-static void r4k_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+static void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				unsigned long end)
 {
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
@@ -1957,7 +1957,7 @@ static void r4k_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+static void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) != 0) {
 		unsigned long flags;
@@ -2385,10 +2385,6 @@ void __init ld_mmu_r4xx0(void)
 		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
 
-	_flush_tlb_all = r4k_flush_tlb_all;
-	_flush_tlb_mm = r4k_flush_tlb_mm;
-	_flush_tlb_range = r4k_flush_tlb_range;
-	_flush_tlb_page = r4k_flush_tlb_page;
 	_flush_cache_l2 = r4k_flush_cache_l2;
 
 	update_mmu_cache = r4k_update_mmu_cache;
@@ -2405,5 +2401,5 @@ void __init ld_mmu_r4xx0(void)
 	 *     be set for 4kb pages.
 	 */
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
-	_flush_tlb_all();
+	local_flush_tlb_all();
 }

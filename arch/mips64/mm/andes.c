@@ -132,8 +132,7 @@ andes_flush_cache_sigtramp(unsigned long addr)
 #define NTLB_ENTRIES       64
 #define NTLB_ENTRIES_HALF  32
 
-static inline void
-andes_flush_tlb_all(void)
+void local_flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -162,7 +161,7 @@ andes_flush_tlb_all(void)
 	__restore_flags(flags);
 }
 
-static void andes_flush_tlb_mm(struct mm_struct *mm)
+void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
@@ -178,9 +177,8 @@ static void andes_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-static void
-andes_flush_tlb_range(struct mm_struct *mm, unsigned long start,
-                      unsigned long end)
+void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+                           unsigned long end)
 {
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
@@ -225,8 +223,7 @@ andes_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-static void
-andes_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) != 0) {
 		unsigned long flags;
@@ -350,11 +347,6 @@ void __init ld_mmu_andes(void)
 	_flush_cache_l2 = andes_flush_cache_l2;
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
 
-	_flush_tlb_all = andes_flush_tlb_all;
-	_flush_tlb_mm = andes_flush_tlb_mm;
-	_flush_tlb_range = andes_flush_tlb_range;
-	_flush_tlb_page = andes_flush_tlb_page;
-
 	switch (sc_lsize()) {
 		case 64:
 			scache_lsz64 = 1;
@@ -383,7 +375,7 @@ void __init ld_mmu_andes(void)
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
 
         /* From this point on the ARC firmware is dead.  */
-	_flush_tlb_all();
+	local_flush_tlb_all();
 
         /* Did I tell you that ARC SUCKS?  */
 }

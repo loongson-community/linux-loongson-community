@@ -21,13 +21,12 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
  */ 
-
-
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
 #include <linux/threads.h>
 #include <linux/time.h>
+#include <linux/module.h>
 #include <linux/timex.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
@@ -400,3 +399,5 @@ void __global_restore_flags(unsigned long flags)
 			printk("global_restore_flags: %08lx\n", flags);
 	}
 }
+
+EXPORT_SYMBOL(flush_tlb_page);

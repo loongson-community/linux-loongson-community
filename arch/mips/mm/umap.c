@@ -101,7 +101,7 @@ remove_mapping (struct task_struct *task, unsigned long start, unsigned long end
 		start = (start + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	flush_tlb_range (task->mm, beg, end);
+	local_flush_tlb_range (task->mm, beg, end);
 	up_write (&task->mm->mmap_sem);
 }
 
@@ -213,6 +213,6 @@ vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr)
 		from = (from + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	flush_tlb_range(current->mm, beg, end);
+	local_flush_tlb_range(current->mm, beg, end);
 	return error;
 }

@@ -19,25 +19,26 @@
  *  - flush_tlb_range(mm, start, end) flushes a range of pages
  *  - flush_tlb_pgtables(mm, start, end) flushes a range of page tables
  */
-extern void (*_flush_tlb_all)(void);
-extern void (*_flush_tlb_mm)(struct mm_struct *mm);
-extern void (*_flush_tlb_range)(struct mm_struct *mm, unsigned long start,
+extern void local_flush_tlb_all(void);
+extern void local_flush_tlb_mm(struct mm_struct *mm);
+extern void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			       unsigned long end);
-extern void (*_flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
+extern void local_flush_tlb_page(struct vm_area_struct *vma,
+                                 unsigned long page);
 
-#ifndef CONFIG_SMP
-
-#define flush_tlb_all()			_flush_tlb_all()
-#define flush_tlb_mm(mm)		_flush_tlb_mm(mm)
-#define flush_tlb_range(mm,vmaddr,end)	_flush_tlb_range(mm, vmaddr, end)
-#define flush_tlb_page(vma,page)	_flush_tlb_page(vma, page)
-
-#else /* CONFIG_SMP */
+#ifdef CONFIG_SMP
 
 extern void flush_tlb_all(void);
 extern void flush_tlb_mm(struct mm_struct *);
 extern void flush_tlb_range(struct mm_struct *, unsigned long, unsigned long);
 extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
+
+#else /* CONFIG_SMP */
+
+#define flush_tlb_all()			local_flush_tlb_all()
+#define flush_tlb_mm(mm)		local_flush_tlb_mm(mm)
+#define flush_tlb_range(mm,vmaddr,end)	local_flush_tlb_range(mm, vmaddr, end)
+#define flush_tlb_page(vma,page)	local_flush_tlb_page(vma, page)
 
 #endif /* CONFIG_SMP */
 
