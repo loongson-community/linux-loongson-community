@@ -179,7 +179,7 @@ void __init init_IRQ(void)
 	 * Enable timer.  Other interrupts will be enabled as they are
 	 * registered.
 	 */
-	change_cp0_status(ST0_IM | ST0_BEV | IE_IRQ2, IE_IRQ2);
+	change_cp0_status(ST0_IM | IE_IRQ2, IE_IRQ2);
 
 	/* Sets the exception_handler array. */
 	set_except_vector(0, galileo_handle_int);

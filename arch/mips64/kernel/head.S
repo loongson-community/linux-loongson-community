@@ -35,13 +35,13 @@
 
 #ifdef CONFIG_SGI_IP27
 	/*
-	 * outputs the local nasid into t1.
+	 * outputs the local nasid into res.  IP27 stuff.
 	 */
-	.macro GET_NASID_ASM
-	dli	t1, LOCAL_HUB_ADDR(NI_STATUS_REV_ID)
-	ld	t1, (t1)
-	and	t1, NSRI_NODEID_MASK
-	dsrl	t1, NSRI_NODEID_SHFT
+	.macro GET_NASID_ASM res
+	dli	\res, LOCAL_HUB_ADDR(NI_STATUS_REV_ID)
+	ld	\res, (\res)
+	and	\res, NSRI_NODEID_MASK
+	dsrl	\res, NSRI_NODEID_SHFT
 	.endm
 #endif /* CONFIG_SGI_IP27 */
 
@@ -97,7 +97,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	xori	sp, 0xf
 
 #ifdef CONFIG_SGI_IP27
-	GET_NASID_ASM
+	GET_NASID_ASM	t1
 	move	t2, t1				# text and data are here
 	MAPPED_KERNEL_SETUP_TLB
 #endif /* IP27 */
@@ -107,25 +107,24 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	CLI					# disable interrupts
 
 	la	$28, init_task_union		# init current pointer
-	daddiu	t0, $28, KERNEL_STACK_SIZE-32
-	sd	t0, kernelsp
-	dsubu	sp, t0, 4*SZREG			# init stack pointer
-	move	t0, $28
+	daddiu	sp, $28, KERNEL_STACK_SIZE-32
+	set_saved_sp	sp, t0
 
-#ifdef CONFIG_SMP
-	mtc0	t0, CP0_WATCHLO
-	dsrl32	t0, t0, 0
-	mtc0	t0, CP0_WATCHHI
-#endif
+	dsubu	sp, 4*SZREG			# init stack pointer
 
-	jal	init_arch
+	j	init_arch
 	END(kernel_entry)
 
 #ifdef CONFIG_SMP
+/*
+ * SMP slave cpus entry point.  Board specific code for bootstrap calls this
+ * function after setting up the stack and gp registers. 
+ */
+NESTED(smp_bootstrap, 16, sp)
 #ifdef CONFIG_SGI_IP27
-NESTED(bootstrap, 16, sp)
-	GET_NASID_ASM
-	li	t0, KLDIR_OFFSET + (KLI_KERN_VARS * KLDIR_ENT_SIZE) + KLDIR_OFF_POINTER + K0BASE
+	GET_NASID_AS	t1
+	li	t0, KLDIR_OFFSET + (KLI_KERN_VARS * KLDIR_ENT_SIZE) + \
+		    KLDIR_OFF_POINTER + K0BASE
 	dsll	t1, NASID_SHFT
 	or	t0, t0, t1
 	ld	t0, 0(t0)			# t0 points to kern_vars struct
@@ -133,40 +132,29 @@ NESTED(bootstrap, 16, sp)
 	lh	t2, KV_RW_NASID_OFFSET(t0)
 	MAPPED_KERNEL_SETUP_TLB
 	ARC64_TWIDDLE_PC
-	CLI
-	mfc0	t0, CP0_STATUS
-	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
-	and	t0, t1
-	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR) # Bogosity: cu0 indicates kernel
-	mtc0	t0, CP0_STATUS			   # thread in copy_thread.
-	jal	cboot
-	END(bootstrap)
-#else
-
-/*
- * SMP slave cpus entry point.  Board specific code for bootstrap calls this
- * function after setting up the stack and gp registers. 
- */
-	LEAF(smp_bootstrap)
-	.set push
-	.set noreorder
-
-	mtc0	zero, CP0_WIRED
-	CLI
-	mfc0	t0, CP0_STATUS
-	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV)
-	and	t0, t1
-	or	t0, (ST0_CU0|ST0_FR|ST0_KX|ST0_SX);
-	jal	start_secondary
-	mtc0	t0, CP0_STATUS
-	.set pop
-	END(smp_bootstrap)
 #endif /* CONFIG_SGI_IP27 */
+
+	CLI
+
+	/*
+	 * For the moment set ST0_KU so the CPU will not spit fire when
+	 * executing 64-bit instructions.  The full initialization of the
+	 * CPU's status register is done later in per_cpu_trap_init().
+	 */
+        mfc0	t0, CP0_STATUS
+        or	t0, ST0_KX
+	mtc0	t0, CP0_STATUS
+
+	set_saved_sp	sp, t0
+
+	jal	start_secondary			# XXX: IP27: cboot
+
+	END(smp_bootstrap)
 #endif /* CONFIG_SMP */
 
 	__FINIT
 
-	.comm	kernelsp, 8, 8			# current stackpointer
+	declare_saved_sp
 
 #undef PAGE_SIZE
 #define PAGE_SIZE	0x1000

@@ -68,7 +68,6 @@ void __init ip32_setup(void)
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
 #endif
-	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
 	TLBMISS_HANDLER_SETUP ();
 
 	mips_io_port_base = UNCACHEDADDR(MACEPCI_HI_IO);;

@@ -806,6 +806,24 @@ extern asmlinkage int _restore_fp_context(struct sigcontext *sc);
 extern asmlinkage int fpu_emulator_save_context(struct sigcontext *sc);
 extern asmlinkage int fpu_emulator_restore_context(struct sigcontext *sc);
 
+void __init per_cpu_trap_init(void)
+{
+	unsigned int cpu = smp_processor_id();
+
+	/* Some firmware leaves the BEV flag set, clear it.  */
+	clear_cp0_status(ST0_BEV);
+
+	/*
+	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
+	 * interrupt processing overhead.  Use it where available.
+	 */
+	if (mips_cpu.options & MIPS_CPU_DIVEC)
+		set_cp0_cause(CAUSEF_IV);
+
+	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
+	set_context(cpu << 23);
+}
+
 void __init trap_init(void)
 {
 	extern char except_vec1_generic, except_vec2_generic;
@@ -814,9 +832,6 @@ void __init trap_init(void)
 	extern char except_vec_ejtag_debug;
 	unsigned long i;
 	int dummy;
-
-	/* Some firmware leaves the BEV flag set, clear it.  */
-	clear_cp0_status(ST0_BEV);
 
 	/* Copy the generic exception handler code to it's final destination. */
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);

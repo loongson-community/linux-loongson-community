@@ -9,7 +9,6 @@
  * Copyright (C) 2001 by Liam Davies (ldavies@agile.tv)
  *
  */
-
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>

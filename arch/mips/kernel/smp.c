@@ -87,19 +87,15 @@ asmlinkage void start_secondary(void)
 	unsigned int cpu = smp_processor_id();
 
 	prom_init_secondary();
+	cpu_cpu_trap_init();
 
-	/* Do stuff that trap_init() did for the first processor */
-	clear_cp0_status(ST0_BEV);
-	if (mips_cpu.options & MIPS_CPU_DIVEC) {
-		set_cp0_cause(CAUSEF_IV);
-	}
-	/* XXX parity protection should be folded in here when it's converted to
-	   an option instead of something based on .cputype */
+	/*
+	 * XXX parity protection should be folded in here when it's converted
+	 * to an option instead of something based on .cputype
+	 */
 
-	set_context(cpu << 23);
 	pgd_current[cpu] = init_mm.pgd;
 	cpu_data[cpu].udelay_val = loops_per_jiffy;
-	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
 	prom_smp_finish();
 	printk("Slave cpu booted successfully\n");
 	CPUMASK_SETB(cpu_online_map, cpu);

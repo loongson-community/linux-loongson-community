@@ -6,7 +6,9 @@
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
  */
+#define __ASSEMBLY__
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/threads.h>
 #include <asm/asm.h>
 #include <asm/regdef.h>
@@ -63,18 +65,22 @@
 	.set	noreorder
 	.set	mips3
 
+	__INIT
+
 	.align	5
 FEXPORT(except_vec0)
 	.set	noat
+	PANIC("Unused vector called")
 1:	b	1b
 	 nop
 
-	/* TLB refill handler for the R10000.
-	 * Attention:  We may only use 32 instructions.
+	/*
+	 * TLB refill handler for the R10000.
+	 * Attention:  We may only use 32 instructions / 128 bytes.
 	 */
 
 	.align	5
-FEXPORT(except_vec1_r10k)
+LEAF(except_vec1_r10k)
 	.set	noat
 	LOAD_PTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
@@ -87,9 +93,12 @@ kaddr:
 	dla	k0, handle_vmalloc_address	# MAPPED kernel needs this
 	jr	k0
 	 nop
+	END(except_vec1_r10k)
+
+	__FINIT
 
 	.align	5
-FEXPORT(handle_vmalloc_address)
+LEAF(handle_vmalloc_address)
 	.set	noat
 	/*
 	 * First, determine that the address is in/above vmalloc range.
@@ -124,3 +133,4 @@ not_vmalloc:
 	nop
 	tlbwr
 	eret
+	END(handle_vmalloc_address)

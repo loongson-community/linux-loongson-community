@@ -589,6 +589,7 @@ void set_except_vector(int n, void *addr)
 {
 	unsigned long handler = (unsigned long) addr;
 	exception_handlers[n] = handler;
+
 	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
@@ -596,13 +597,24 @@ void set_except_vector(int n, void *addr)
 	}
 }
 
-static inline void go_64(void)
+void __init per_cpu_trap_init(void)
 {
-	unsigned int bits;
+	unsigned int cpu = smp_processor_id();
 
-	bits = ST0_KX|ST0_SX|ST0_UX;
-	set_cp0_status(bits);
-	printk("Entering 64-bit mode.\n");
+	/* Some firmware leaves the BEV flag set, clear it.  */
+	clear_cp0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV);
+	set_cp0_status(ST0_CU0|ST0_FR|ST0_KX|ST0_SX|ST0_UX);
+
+	/*
+	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
+	 * interrupt processing overhead.  Use it where available.
+	 */
+	if (mips_cpu.options & MIPS_CPU_DIVEC)
+		set_cp0_cause(CAUSEF_IV);
+
+	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
+	set_context(cpu << 23);
+	set_wired(0);
 }
 
 void __init trap_init(void)
@@ -616,10 +628,9 @@ void __init trap_init(void)
 	unsigned long i;
 	int dummy;
 
-	/* Some firmware leaves the BEV flag set, clear it.  */
-	clear_cp0_status(ST0_BEV);
+	per_cpu_trap_init();
 
-	/* Copy the generic exception handler code to it's final destination. */
+	/* Copy the generic exception handlers to their final destination. */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 
@@ -639,12 +650,7 @@ void __init trap_init(void)
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (mips_cpu.options & MIPS_CPU_DIVEC) {
-		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
-		set_cp0_cause(CAUSEF_IV);
-	}
-
-	go_64();		/* In memoriam C128 ;-)  */
+	memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
 
 	if (mips_cpu.options & MIPS_CPU_MCHECK)
 		set_except_vector(24, handle_mcheck);
@@ -662,7 +668,7 @@ void __init trap_init(void)
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_cp0_status(0xf000);
 		set_cp0_status(0xc00);
-		break;
+		goto nocache;
 
 	case CPU_R10000:
 	case CPU_R4000MC:
@@ -676,7 +682,9 @@ void __init trap_init(void)
 	case CPU_R4600:
 	case CPU_R5000:
 	case CPU_NEVADA:
-r4k:
+		/* Cache error vector  */
+		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
+nocache:
 		/* Debug TLB refill handler.  */
 		memcpy((void *)KSEG0, &except_vec0, 0x80);
 		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
@@ -686,10 +694,10 @@ r4k:
 
 		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
-			       0x180);
+			       0x80);
 		} else {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-			       0x100);
+			       0x80);
 		}
 
 		set_except_vector(1, __xtlb_mod);

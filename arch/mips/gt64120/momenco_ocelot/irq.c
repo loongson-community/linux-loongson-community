@@ -145,7 +145,7 @@ void __init init_IRQ(void)
 	 * Clear all of the interrupts while we change the able around a bit.
 	 * int-handler is not on bootstrap
 	 */
-	clear_cp0_status(ST0_IM | ST0_BEV);
+	clear_cp0_status(ST0_IM);
 	__cli();
 
 	/* Sets the first-level interrupt dispatcher. */

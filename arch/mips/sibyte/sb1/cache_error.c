@@ -48,9 +48,10 @@
 asmlinkage void sb1_cache_error(void)
 {
 	unsigned int errctl, cerr_i, cerr_d, cerr_dpa;
-	unsigned int eepc;
+	unsigned long eepc;
 
-	eepc = read_32bit_cp0_register(CP0_ERROREPC);
+	eepc = get_errorepc();
+
 	__asm__ __volatile__ (
 		".set push\n"
 		"#.set mips64\n"
@@ -60,17 +61,19 @@ asmlinkage void sb1_cache_error(void)
 		".word 0x4001D801; move %2, $1; # mfc0 %2, $27, 1\n"
 		".word 0x4001D803; move %3, $1; # mfc0 %3, $27, 3\n"
 		".set pop\n"
-		: "=r" (errctl), "=r" (cerr_i), "=r" (cerr_d), "=r" (cerr_dpa));
+		: "=r" (errctl), "=r" (cerr_i),
+		  "=r" (cerr_d), "=r" (cerr_dpa));
 
 	printk("Cache error exception:\n");
-	printk(" cp0_errorepc == %08x\n", eepc);
-	printk(" cp0_errctl   == %08x\n", errctl);
+	printk(" cp0_errorepc == 0x%0lx\n", eepc);
+	printk(" cp0_errctl   == 0x%08x\n", errctl);
+
 	if (errctl & CP0_ERRCTL_DCACHE) {
-		printk(" cp0_cerr_d   == %08x\n", cerr_d);
-		printk(" cp0_cerr_dpa == %08x\n", cerr_dpa);
+		printk(" cp0_cerr_d   == 0x%08x\n", cerr_d);
+		printk(" cp0_cerr_dpa == 0x%08x\n", cerr_dpa);
 	}
 	if (errctl & CP0_ERRCTL_ICACHE) {
-		printk(" cp0_cerr_i   == %08x\n", cerr_i);
+		printk(" cp0_cerr_i   == 0x%08x\n", cerr_i);
 	}
 
 	panic("Can't handle the cache error!");

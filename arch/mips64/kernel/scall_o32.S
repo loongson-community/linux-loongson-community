@@ -43,6 +43,12 @@ NESTED(handle_sys, PT_SIZE, sp)
 	daddiu	t1, 4			# skip to next instruction
 	beqz	t0, not_o32_scall
 	sd	t1, PT_EPC(sp)
+#if 0
+ SAVE_ALL
+ move a1, v0
+ PRINT("Scall %ld\n")
+ RESTORE_ALL
+#endif
 
 	/* XXX Put both in one cacheline, should save a bit. */
 	dsll	t0, v0, 3		# offset into table

@@ -250,8 +250,6 @@ void __init jmr3927_setup(void)
 		int mips_config_wbon = 1;
 #endif
 
-		clear_cp0_status(ST0_BEV);
-
 		conf = read_32bit_cp0_register(CP0_CONF);
 		conf &= ~(TX39_CONF_ICE | TX39_CONF_DCE | TX39_CONF_WBON | TX39_CONF_CWFON);
 		conf |= mips_ic_disable ? 0 : TX39_CONF_ICE;

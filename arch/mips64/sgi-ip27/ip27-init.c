@@ -360,7 +360,6 @@ void per_cpu_init(void)
 	int cpu = smp_processor_id();
 	cnodeid_t cnode = get_compact_nodeid();
 
-	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
 	TLBMISS_HANDLER_SETUP();
 #if 0
 	intr_init();
@@ -423,10 +422,11 @@ static void alloc_cpupda(cpuid_t cpu, int cpunum)
 
 static volatile cpumask_t boot_barrier;
 
-void cboot(void)
+void __init start_secondary(void)
 {
 	CPUMASK_CLRB(boot_barrier, getcpuid());	/* needs atomicity */
 	per_cpu_init();
+	per_cpu_trap_init();
 #if 0
 	ecc_init();
 	bte_lateinit();
@@ -485,7 +485,7 @@ void allowboot(void)
 			/* Attach to the address space of init_task. */
 			atomic_inc(&init_mm.mm_count);
 			p->active_mm = &init_mm;
-			
+
 			/*
 		 	 * Launch a slave into bootstrap().
 		 	 * It doesn't take an argument, and we
@@ -539,7 +539,10 @@ void allowboot(void)
 }
 
 #else /* CONFIG_SMP */
-void cboot(void) {}
+void __init start_secondary(void)
+{
+	/* XXX Why do we need this empty definition at all?  */
+}
 #endif /* CONFIG_SMP */
 
 

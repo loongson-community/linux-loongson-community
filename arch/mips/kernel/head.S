@@ -154,7 +154,7 @@ NESTED(kernel_entry, 16, sp)
 		mtc0	zero, CP0_WIRED
 		CLI
 		mfc0	t0, CP0_STATUS
-		li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_BEV)
+		li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX)
 		and	t0, t1
 		or	t0, (ST0_CU0|ST0_FR);
 		jal	start_secondary

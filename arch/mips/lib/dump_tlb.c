@@ -24,11 +24,13 @@ static inline const char *msg2str(unsigned int mask)
 	case PM_16K:	return "16kb";
 	case PM_64K:	return "64kb";
 	case PM_256K:	return "256kb";
+#ifndef CONFIG_CPU_VR41XX
 	case PM_1M:	return "1Mb";
 	case PM_4M:	return "4Mb";
 	case PM_16M:	return "16Mb";
 	case PM_64M:	return "64Mb";
 	case PM_256M:	return "256Mb";
+#endif
 	}
 }
 

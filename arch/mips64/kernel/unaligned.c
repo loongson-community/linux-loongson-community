@@ -381,6 +381,10 @@ unsigned long unaligned_instructions;
 asmlinkage void do_ade(struct pt_regs *regs)
 {
 	unsigned long pc;
+#if 0
+        printk("ade: Cpu%d[%s:%d:%0lx:%0lx]\n", smp_processor_id(),
+                current->comm, current->pid, regs->cp0_badvaddr, regs->cp0_epc);
+#endif
 
 	/*
 	 * Did we catch a fault trying to load an instruction?

@@ -56,7 +56,7 @@ static void sb1_flush_cache_all(void)
 {
 }
 
-static void local_sb1___flush_cache_all(void)
+static inline void local_sb1___flush_dcache_all(void)
 {
 	/*
 	 * Haven't worried too much about speed here; given that we're flushing
@@ -90,7 +90,10 @@ static void local_sb1___flush_cache_all(void)
 		"sync                       \n"
 #endif
 		".set pop                   \n");
+}
 
+static inline void local_sb1___flush_icache_all(void)
+{
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
@@ -105,6 +108,12 @@ static void local_sb1___flush_cache_all(void)
 		:
 		: "r" (icache_line_size), "r" (icache_sets * icache_assoc),
 		  "r" (KSEG0), "i" (Index_Invalidate_I));
+}
+
+static void local_sb1___flush_cache_all(void)
+{
+	local_sb1___flush_dcache_all();
+	local_sb1___flush_icache_all();
 }
 
 #ifdef CONFIG_SMP
@@ -228,10 +237,17 @@ asm("sb1_flush_icache_range = local_sb1_flush_icache_range");
 /*
  * If there's no context yet, or the page isn't executable, no icache flush
  * is needed
+ *
+ * This is broken.  If there is no context yet we still have to writeback
+ * the d-cache to memory.
  */
-static void sb1_flush_icache_page(struct vm_area_struct *vma, struct page *page)
+static void sb1_flush_icache_page(struct vm_area_struct *vma,
+	struct page *page)
 {
-	if ((vma->vm_mm->context == 0) || !(vma->vm_flags & VM_EXEC)) {
+	unsigned int cpu = smp_processor_id();
+
+	if (!(vma->vm_flags & VM_EXEC)) {
+//		printk("sb1_flush_icache_page(): not exec\n");
 		return;
 	}
 
@@ -239,7 +255,10 @@ static void sb1_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	 * We're not sure of the virtual address(es) involved here, so
 	 * conservatively flush the entire caches on all processors
 	 * (ouch).
+	 *
+	 * Bumping the ASID may well be cheaper, need to experiment ...
 	 */
+//printk("sb1_flush_icache_page(): flushing exec page\n");
 	sb1___flush_cache_all();
 }
 
@@ -252,11 +271,10 @@ static inline void protected_flush_icache_line(unsigned long addr)
 		"1:  cache %1, (%0)           \n"
 		"2:  .set pop                 \n"
 		"    .section __ex_table,\"a\"\n"
-		"     .word  1b, 2b          \n"
+		"     .dword  1b, 2b          \n"
 		"     .previous"
 		:
-		: "r" (addr),
-		  "i" (Hit_Invalidate_I));
+		: "r" (addr), "i" (Hit_Invalidate_I));
 }
 
 static inline void protected_writeback_dcache_line(unsigned long addr)
@@ -273,12 +291,15 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		"    .set push                \n"
 		"    .set noreorder           \n"
 		"    .set mips4               \n"
-		"1:                           \n"
+		"                             \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
-		"     lw    $0,   (%0)        \n"
-		"     sync                  \n"
+		"1:   lw    $0,   (%0)        \n"
+		"     sync                    \n"
+		"     .section __ex_table,\"a\"\n"
+		"     .dword  1b, 3f           \n"
+		"     .previous               \n"
 #endif
-		"     cache  %1, 0(%0)    \n" /* Hit-WB{-inval} this address */
+		"2:   cache  %1, 0(%0)    \n" /* Hit-WB{-inval} this address */
 		/* XXX: should be able to do this after both dcache cache
 		   ops, but there's no guarantee that this will be inlined,
 		   and the pass1 restriction checker can't detect syncs
@@ -288,9 +309,9 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */
 		"     sync                    \n"
 #endif
-		"2:  .set pop                 \n"
+		"3:  .set pop                 \n"
 		"    .section __ex_table,\"a\"\n"
-		"     .word  1b, 2b          \n"
+		"     .dword  2b, 3b          \n"
 		"     .previous"
 		:
 		: "r" (addr),
@@ -305,15 +326,10 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 #endif
 }
 
-/*
- * XXX - Still need to really understand this.  This is mostly just
- * derived from the r10k and r4k implementations, and seems to work
- * but things that "seem to work" when I don't understand *why* they
- * "seem to work" disturb me greatly...JDC
- */
 static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long daddr, iaddr;
+
 	
 	daddr = addr & ~(dcache_line_size - 1);
 	protected_writeback_dcache_line(daddr);

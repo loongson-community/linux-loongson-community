@@ -86,7 +86,7 @@ void au1000_restart(char *command)
 		break;
 	}
 
-	set_cp0_status((ST0_BEV | ST0_ERL));
+	set_cp0_status(ST0_BEV | ST0_ERL);
 	set_cp0_config(CONF_CM_UNCACHED);
 	flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
