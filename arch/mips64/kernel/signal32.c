@@ -582,10 +582,10 @@ static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 		/*
 		 * Set up the return code ...
 		 *
-		 *         li      v0, __NR_Linux32_sigreturn
+		 *         li      v0, __NR_O32_sigreturn
 		 *         syscall
 		 */
-		err |= __put_user(0x24020000 + __NR_Linux32_sigreturn,
+		err |= __put_user(0x24020000 + __NR_O32_sigreturn,
 		                  frame->sf_code + 0);
 		err |= __put_user(0x0000000c                 ,
 		                  frame->sf_code + 1);
@@ -646,10 +646,10 @@ static void inline setup_rt_frame(struct k_sigaction * ka,
 		/*
 		 * Set up the return code ...
 		 *
-		 *         li      v0, __NR_Linux32_rt_sigreturn
+		 *         li      v0, __NR_O32_rt_sigreturn
 		 *         syscall
 		 */
-		err |= __put_user(0x24020000 + __NR_Linux32_rt_sigreturn,
+		err |= __put_user(0x24020000 + __NR_O32_rt_sigreturn,
 		                  frame->rs_code + 0);
 		err |= __put_user(0x0000000c                 ,
 		                  frame->rs_code + 1);

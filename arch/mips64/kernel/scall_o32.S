@@ -31,8 +31,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 	.set	at
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
-	subu	t0, v0, __NR_Linux32	# check syscall number
-	sltiu	t0, t0, __NR_Linux32_syscalls + 1
+	subu	t0, v0, __NR_O32_Linux	# check syscall number
+	sltiu	t0, t0, __NR_O32_Linux_syscalls + 1
 	daddiu	t1, 4			# skip to next instruction
 	beqz	t0, not_o32_scall
 	sd	t1, PT_EPC(sp)
@@ -45,8 +45,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 
 	/* XXX Put both in one cacheline, should save a bit. */
 	dsll	t0, v0, 3		# offset into table
-	ld	t2, (sys_call_table - (__NR_Linux32 * 8))(t0) # syscall routine
-	lbu	t3, (sys_narg_table - __NR_Linux32)(v0)	# number of arguments
+	ld	t2, (sys_call_table - (__NR_O32_Linux * 8))(t0)
+	lbu	t3, (sys_narg_table - __NR_O32_Linux)(v0)
 
 	subu	t0, t3, 5		# 5 or more arguments?
 	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
@@ -230,7 +230,7 @@ LEAF(sys32_sysmips)
 		j	sys_sysmips
 		END(sys32_sysmips)
 
-	LEAF(sys32_syscall)
+LEAF(sys32_syscall)
 	ld	t0, PT_R29(sp)		# user sp
 
 	sltu	v0, a0, __NR_Linux + __NR_Linux_syscalls + 1
@@ -238,8 +238,8 @@ LEAF(sys32_sysmips)
 
 	dsll	v0, a0, 3
 	dla	v1, sys32_syscall
-	ld	t2, (sys_call_table - (__NR_Linux32 * 8))(v0)	# function pointer
-	lbu	t3, (sys_narg_table - __NR_Linux32)(a0)	# number of arguments
+	ld	t2, (sys_call_table - (__NR_O32_Linux * 8))(v0)
+	lbu	t3, (sys_narg_table - __NR_O32_Linux)(a0)
 
 	li	v0, -EINVAL
 	beq	t2, v1, out		# do not recurse
@@ -413,7 +413,7 @@ out:	jr	ra
 	sys	sys_ni_syscall	0	/* sys_vm86 */
 	sys	sys32_wait4	4
 	sys	sys_swapoff	1			/* 4115 */
-	sys	sys_sysinfo	1
+	sys	sys_ni_syscall	0
 	sys	sys32_ipc		6
 	sys	sys_fsync	1
 	sys	sys32_sigreturn	0
