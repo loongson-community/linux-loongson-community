@@ -949,7 +949,17 @@ build_get_pmde64(u32 **p, struct label **l, struct reloc **r,
 	if (in_compat_space_p(pgdc)) {
 		i_dmfc0(p, ptr, C0_CONTEXT);
 		i_dsra(p, ptr, ptr, 23);
+		i_ld(p, ptr, 0, ptr);
 	} else {
+#ifdef CONFIG_BUILD_ELF64
+		i_dmfc0(p, ptr, C0_CONTEXT);
+		i_dsrl(p, ptr, ptr, 23);
+		i_dsll(p, ptr, ptr, 3);
+		i_LA_mostly(p, tmp, pgdc);
+		i_daddu(p, ptr, ptr, tmp);
+		i_dmfc0(p, tmp, C0_BADVADDR);
+		i_ld(p, ptr, rel_lo(pgdc), ptr);
+#else
 		i_dmfc0(p, ptr, C0_CONTEXT);
 		i_lui(p, tmp, rel_highest(pgdc));
 		i_dsll(p, ptr, ptr, 9);
@@ -957,8 +967,9 @@ build_get_pmde64(u32 **p, struct label **l, struct reloc **r,
 		i_dsrl32(p, ptr, ptr, 0);
 		i_and(p, ptr, ptr, tmp);
 		i_dmfc0(p, tmp, C0_BADVADDR);
+		i_ld(p, ptr, 0, ptr);
+#endif
 	}
-	i_ld(p, ptr, 0, ptr);
 #else
 	i_LA_mostly(p, ptr, pgdc);
 	i_ld(p, ptr, rel_lo(pgdc), ptr);

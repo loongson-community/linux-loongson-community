@@ -23,19 +23,26 @@
  * to the current pgd for each processor. Also, the proc. id is stuffed
  * into the context register.
  */
+extern unsigned long pgd_current[];
+
 #define TLBMISS_HANDLER_SETUP_PGD(pgd) \
 	pgd_current[smp_processor_id()] = (unsigned long)(pgd)
+
 #ifdef CONFIG_MIPS32
-#define TLBMISS_HANDLER_SETUP() \
-	write_c0_context((unsigned long) smp_processor_id() << 23); \
+#define TLBMISS_HANDLER_SETUP()						\
+	write_c0_context((unsigned long) smp_processor_id() << 23);	\
 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
 #endif
-#ifdef CONFIG_MIPS64
-#define TLBMISS_HANDLER_SETUP() \
+#if defined(CONFIG_MIPS64) && !defined(CONFIG_BUILD_ELF64)
+#define TLBMISS_HANDLER_SETUP()						\
 	write_c0_context((unsigned long) &pgd_current[smp_processor_id()] << 23); \
 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
 #endif
-extern unsigned long pgd_current[];
+#if defined(CONFIG_MIPS64) && defined(CONFIG_BUILD_ELF64)
+#define TLBMISS_HANDLER_SETUP()						\
+	write_c0_context((unsigned long) smp_processor_id() << 23);	\
+	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
+#endif
 
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 
