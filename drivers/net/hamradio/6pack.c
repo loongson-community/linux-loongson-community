@@ -727,7 +727,7 @@ out:
  */
 static void sixpack_close(struct tty_struct *tty)
 {
-	struct sixpack *sp = (struct sixpack *) tty->disc_data;
+	struct sixpack *sp;
 
 	write_lock(&disc_data_lock);
 	sp = tty->disc_data;
