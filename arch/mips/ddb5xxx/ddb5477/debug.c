@@ -64,9 +64,9 @@ void vrc5477_show_int_regs()
 static Register pdar_regs[] = {
         {"DDB_SDRAM0", DDB_BASE + DDB_SDRAM0},
         {"DDB_SDRAM1", DDB_BASE + DDB_SDRAM1},
-        {"DDB_LDCS0", DDB_BASE + DDB_LDCS0},
-        {"DDB_LDCS1", DDB_BASE + DDB_LDCS1},
-        {"DDB_LDCS2", DDB_BASE + DDB_LDCS2},
+        {"DDB_LCS0", DDB_BASE + DDB_LCS0},
+        {"DDB_LCS1", DDB_BASE + DDB_LCS1},
+        {"DDB_LCS2", DDB_BASE + DDB_LCS2},
         {"DDB_INTCS", DDB_BASE + DDB_INTCS},
         {"DDB_BOOTCS", DDB_BASE + DDB_BOOTCS},
         {"DDB_PCIW0", DDB_BASE + DDB_PCIW0},
