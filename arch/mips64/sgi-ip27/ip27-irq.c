@@ -173,6 +173,25 @@ static unsigned int bridge_startup(unsigned int irq)
 
 	bridge->b_int_addr[pin].addr = 0x20000 | irq;
 	bridge->b_int_enable |= (1 << pin);
+	if (irq < 2) {
+		bridgereg_t device;
+#if 0
+		/*
+	 	 * Allocate enough RRBs on the bridge for the DMAs.
+	 	 * Right now allocating 2 RRBs on the normal channel
+	 	 * and 2 on the virtual channel for slot 0 on the bus.
+		 * And same for slot 1, to get ioc3 eth working.
+	 	 */
+		Not touching b_even_resp	  /* boot doesn't go far */
+		bridge->b_even_resp = 0xdd99cc88; /* boot doesn't go far */
+		bridge->b_even_resp = 0xcccc8888; /* breaks eth0 */
+		bridge->b_even_resp = 0xcc88;	  /* breaks eth0 */
+#endif
+		/* Turn on bridge swapping */
+		device = bridge->b_device[irq].reg;
+		device |= BRIDGE_DEV_SWAP_DIR;
+		bridge->b_device[irq].reg = device;
+	}
 	bridge->b_widget.w_tflush;			/* Flush */
 
 	return 0;	/* Never anything pending.  */
@@ -292,7 +311,6 @@ int request_irq(unsigned int irq,
 	retval = setup_irq(irq, action);
 	if (retval)
 		kfree(action);
-
 	return retval;
 }
 
