@@ -19,7 +19,6 @@
  * The romvec write and read functions seem to interfere with the serial lines
  * in some way. You should be careful with them.
  */
-extern struct bcache_ops *bcops;
 
 #ifdef CONFIG_ARC_CONSOLE
 void prom_putchar(char c)
@@ -30,9 +29,9 @@ void __init prom_putchar(char c)
 	long cnt;
 	char it = c;
 
-	bcops->bc_disable();
+	bc_disable();
 	romvec->write(1, &it, 1, &cnt);
-	bcops->bc_enable();
+	bc_enable();
 }
 
 #ifdef CONFIG_ARC_CONSOLE
@@ -44,9 +43,9 @@ char __init prom_getchar(void)
 	long cnt;
 	char c;
 
-	bcops->bc_disable();
+	bc_disable();
 	romvec->read(0, &c, 1, &cnt);
-	bcops->bc_enable();
+	bc_enable();
 	return c;
 }
 

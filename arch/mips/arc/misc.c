@@ -19,7 +19,7 @@ extern void reset_wd33c93(void *instance);
 
 void prom_halt(void)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -29,7 +29,7 @@ void prom_halt(void)
 
 void prom_powerdown(void)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -40,7 +40,7 @@ void prom_powerdown(void)
 /* XXX is this a soft reset basically? XXX */
 void prom_restart(void)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -50,7 +50,7 @@ void prom_restart(void)
 
 void prom_reboot(void)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -60,7 +60,7 @@ void prom_reboot(void)
 
 void prom_imode(void)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);

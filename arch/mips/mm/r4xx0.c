@@ -44,17 +44,7 @@ static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
 
 #undef DEBUG_CACHE
 
-/*
- * Dummy cache handling routines for machines without boardcaches
- */
-static void no_sc_noop(void) {}
-
-static struct bcache_ops no_sc_ops = {
-	(void *)no_sc_noop, (void *)no_sc_noop,
-	(void *)no_sc_noop, (void *)no_sc_noop
-};
-
-struct bcache_ops *bcops = &no_sc_ops;
+DECLARE_BCOPS;
 
 /*
  * On processors with QED R4600 style two set assosicative cache
@@ -2008,7 +1998,7 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 		}
 		__restore_flags(flags);
 	}
-	bcops->bc_wback_inv(addr, size);
+	bc_wback_inv(addr, size);
 }
 
 static void
@@ -2053,7 +2043,7 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 		__restore_flags(flags);
 	}
 
-	bcops->bc_inv(addr, size);
+	bc_inv(addr, size);
 }
 
 static void

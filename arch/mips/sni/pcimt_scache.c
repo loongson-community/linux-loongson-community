@@ -16,6 +16,13 @@
 #define cacheconf (*(volatile unsigned int *)PCIMT_CACHECONF)
 #define invspace (*(volatile unsigned int *)PCIMT_INVSPACE)
 
+static void no_sc_noop(void) {}
+
+static struct bcache_ops sni_pcimt_sc_ops = {
+	(void *)no_sc_noop, (void *)no_sc_noop,
+	(void *)no_sc_noop, (void *)no_sc_noop
+};
+
 void __init sni_pcimt_sc_init(void)
 {
 	unsigned int scsiz, sc_size;
@@ -35,4 +42,6 @@ void __init sni_pcimt_sc_init(void)
 	sc_size = 128 << scsiz;
 	printk("%dkb second level cache detected, deactivating.\n", sc_size);
 	cacheconf = 0;
+	
+	bcops = &sni_pcimt_sc_ops;
 }

@@ -22,7 +22,6 @@
 #include <linux/pc_keyb.h>
 #include <linux/ide.h>
 
-#include <asm/bcache.h>
 #include <asm/bootinfo.h>
 #include <asm/keyboard.h>
 #include <asm/io.h>
