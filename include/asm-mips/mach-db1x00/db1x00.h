@@ -29,6 +29,7 @@
 
 #ifdef CONFIG_MIPS_DB1550
 #define BCSR_KSEG1_ADDR 0xAF000000
+#define NAND_PHYS_ADDR  0x20000000
 #else
 #define BCSR_KSEG1_ADDR 0xAE000000
 #endif
@@ -129,15 +130,6 @@ typedef volatile struct
 /* VPP/VCC */
 #define SET_VCC_VPP(VCC, VPP, SLOT)\
 	((((VCC)<<2) | ((VPP)<<0)) << ((SLOT)*8))
-
-/* MTD CONFIG OPTIONS */
-#if defined(CONFIG_MTD_DB1X00_BOOT) && defined(CONFIG_MTD_DB1X00_USER)
-#define DB1X00_BOTH_BANKS
-#elif defined(CONFIG_MTD_DB1X00_BOOT) && !defined(CONFIG_MTD_DB1X00_USER)
-#define DB1X00_BOOT_ONLY
-#elif !defined(CONFIG_MTD_DB1X00_BOOT) && defined(CONFIG_MTD_DB1X00_USER)
-#define DB1X00_USER_ONLY
-#endif
 
 /* SD controller macros */
 /*
