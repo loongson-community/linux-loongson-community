@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.4 1999/02/09 22:54:12 adevries Exp $
+/* $Id: newport_con.c,v 1.5 1999/02/11 23:46:58 tsbogend Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -33,6 +33,7 @@ extern struct newport_regs *npregs;
 int newport_num_lines;
 int newport_num_columns;
 int topscan;
+int xcurs_correction = 29;
 
 #define BMASK(c) (c << 24)
 
@@ -123,6 +124,55 @@ void newport_reset (void)
     newport_clear_screen(0,0,1280+63,1024);
 }
 
+static void newport_get_revisions(void)
+{
+    unsigned int tmp;
+    unsigned int board_rev;
+    unsigned int rex3_rev;
+    unsigned int vc2_rev;
+    unsigned int cmap_rev;
+    unsigned int xmap9_rev;
+    unsigned int bt445_rev;
+    unsigned int bitplanes;
+
+    rex3_rev = npregs->cset.stat & NPORT_STAT_VERS;
+
+    npregs->set.dcbmode = (DCB_CMAP0 | NCMAP_PROTOCOL |
+                           NCMAP_REGADDR_RREG | NPORT_DMODE_W1);
+    tmp = npregs->set.dcbdata0.bytes.b3;
+    cmap_rev = tmp & 7;
+    board_rev = (tmp >> 4) & 7;
+    bitplanes = ((board_rev > 1) && (tmp & 0x80)) ? 8 : 24; 
+
+    npregs->set.dcbmode = (DCB_CMAP1 | NCMAP_PROTOCOL |
+                           NCMAP_REGADDR_RREG | NPORT_DMODE_W1);
+    tmp = npregs->set.dcbdata0.bytes.b3;
+    if ((tmp & 7) < cmap_rev)
+	cmap_rev = (tmp & 7);
+
+    vc2_rev = (newport_vc2_get(npregs, VC2_IREG_CONFIG) >> 5) & 7;
+
+    npregs->set.dcbmode = (DCB_XMAP0 | R_DCB_XMAP9_PROTOCOL |
+                           XM9_CRS_REVISION | NPORT_DMODE_W1);
+    xmap9_rev = npregs->set.dcbdata0.bytes.b3 & 7;
+
+    npregs->set.dcbmode = (DCB_BT445 | BT445_PROTOCOL |
+                           BT445_CSR_ADDR_REG | NPORT_DMODE_W1);
+    npregs->set.dcbdata0.bytes.b3 = BT445_REVISION_REG;
+    npregs->set.dcbmode = (DCB_BT445 | BT445_PROTOCOL |
+                           BT445_CSR_REVISION | NPORT_DMODE_W1);
+    bt445_rev = npregs->set.dcbdata0.bytes.b3 & 15;
+
+#define L(a)     (char)('A'+(a))
+    printk ("NG1: Revision %d, %d bitplanes, REX3 revision %c, VC2 revision %c, xmap9 revision %c, cmap revision %c, bt445 revision %c\n",
+	    board_rev,bitplanes,L(rex3_rev),L(vc2_rev), L(xmap9_rev),
+	    L(cmap_rev),L(bt445_rev));
+#undef L
+
+    if (board_rev == 3) /* I don't know all affected revsions */
+	xcurs_correction = 21;
+}
+
 #ifdef MODULE
 static const char *newport_startup(void)
 #else
@@ -145,6 +195,8 @@ __initfunc(static const char *newport_startup(void))
     }
 
     newport_reset ();
+
+    newport_get_revisions();
 
     // gfx_init (display_desc);
     newport_num_lines = ORIG_VIDEO_LINES;
@@ -225,7 +277,7 @@ static void newport_cursor(struct vc_data *vc, int mode)
 	newport_vc2_set(npregs, VC2_IREG_CONTROL, (treg | VC2_CTRL_ECDISP));
 	xcurs = (vc->vc_pos - vc->vc_visible_origin) / 2;
 	ycurs = ((xcurs / vc->vc_cols) << 4) + 31;
-	xcurs = ((xcurs % vc->vc_cols) << 3) + 21;
+	xcurs = ((xcurs % vc->vc_cols) << 3) + xcurs_correction;
 	newport_vc2_set(npregs, VC2_IREG_CURSX, xcurs);
 	newport_vc2_set(npregs, VC2_IREG_CURSY, ycurs);
     }
