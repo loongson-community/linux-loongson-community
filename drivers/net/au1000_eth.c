@@ -1679,6 +1679,7 @@ static int au1000_init(struct net_device *dev)
 		control |= MAC_FULL_DUPLEX;
 	}
 	aup->mac->control = control;
+	aup->mac->vlan1_tag = 0x8100; /* activate vlan support */
 	au_sync();
 
 	spin_unlock_irqrestore(&aup->lock, flags);
