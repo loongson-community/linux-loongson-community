@@ -273,11 +273,20 @@
 #define __NR_O32_fadvise64		(__NR_O32_Linux + 254)
 #define __NR_O32_statfs64		(__NR_O32_Linux + 255)
 #define __NR_O32_fstatfs64		(__NR_O32_Linux + 256)
+#define __NR_O32_timer_create		(__NR_O32_Linux + 257)
+#define __NR_O32_timer_settime		(__NR_O32_Linux + 258)
+#define __NR_O32_timer_gettime		(__NR_O32_Linux + 259)
+#define __NR_O32_timer_getoverrun	(__NR_O32_Linux + 260)
+#define __NR_O32_timer_delete		(__NR_O32_Linux + 261)
+#define __NR_O32_clock_settime		(__NR_O32_Linux + 262)
+#define __NR_O32_clock_gettime		(__NR_O32_Linux + 263)
+#define __NR_O32_clock_getres		(__NR_O32_Linux + 264)
+#define __NR_O32_clock_nanosleep	(__NR_O32_Linux + 265)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_O32_Linux_syscalls		256
+#define __NR_O32_Linux_syscalls		265
 
 
 /*
@@ -500,11 +509,20 @@
 #define __NR_restart_syscall		(__NR_Linux + 213)
 #define __NR_semtimedop			(__NR_Linux + 214)
 #define __NR_fadvise64			(__NR_Linux + 215)
+#define __NR_timer_create		(__NR_Linux + 216)
+#define __NR_timer_settime		(__NR_Linux + 217)
+#define __NR_timer_gettime		(__NR_Linux + 218)
+#define __NR_timer_getoverrun		(__NR_Linux + 219)
+#define __NR_timer_delete		(__NR_Linux + 220)
+#define __NR_clock_settime		(__NR_Linux + 221)
+#define __NR_clock_gettime		(__NR_Linux + 222)
+#define __NR_clock_getres		(__NR_Linux + 223)
+#define __NR_clock_nanosleep		(__NR_Linux + 224)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		215
+#define __NR_Linux_syscalls		224
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -729,11 +747,21 @@
 #define __NR_N32_fadvise64		(__NR_N32_Linux + 216)
 #define __NR_N32_statfs64		(__NR_N32_Linux + 217)
 #define __NR_N32_fstatfs64		(__NR_N32_Linux + 218)
+#define __NR_N32_sendfile64		(__NR_N32_Linux + 219)
+#define __NR_N32_timer_create		(__NR_N32_Linux + 221)
+#define __NR_N32_timer_settime		(__NR_N32_Linux + 222)
+#define __NR_N32_timer_gettime		(__NR_N32_Linux + 223)
+#define __NR_N32_timer_getoverrun	(__NR_N32_Linux + 224)
+#define __NR_N32_timer_delete		(__NR_N32_Linux + 225)
+#define __NR_N32_clock_settime		(__NR_N32_Linux + 226)
+#define __NR_N32_clock_gettime		(__NR_N32_Linux + 227)
+#define __NR_N32_clock_getres		(__NR_N32_Linux + 228)
+#define __NR_N32_clock_nanosleep	(__NR_N32_Linux + 229)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		218
+#define __NR_N32_Linux_syscalls		229
 
 #ifndef __ASSEMBLY__
 

@@ -368,3 +368,12 @@ sys_call_table:
 	PTR	sys_restart_syscall
 	PTR	sys_semtimedop
 	PTR	sys_fadvise64			/* 5215 */
+	sys	sys_timer_create
+	sys	sys_timer_settime
+	sys	sys_timer_gettime
+	sys	sys_timer_getoverrun
+	sys	sys_timer_delete		/* 5220 */
+	sys	sys_clock_settime
+	sys	sys_clock_gettime
+	sys	sys_clock_getres
+	sys	sys_clock_nanosleep

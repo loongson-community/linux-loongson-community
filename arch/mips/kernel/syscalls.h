@@ -271,3 +271,12 @@ SYS(sys_restart_syscall, 0)			/* XXX */
 SYS(sys_fadvise64, 6)
 SYS(sys_statfs64, 3)				/* 4255 */
 SYS(sys_fstatfs64, 2)
+SYS(sys_timer_create, 3)
+SYS(sys_timer_settime, 4)
+SYS(sys_timer_gettime, 2)
+SYS(sys_timer_getoverrun, 1)			/* 4260 */
+SYS(sys_timer_delete, 1)
+SYS(sys_clock_settime, 2)
+SYS(sys_clock_gettime, 2)
+SYS(sys_clock_getres, 2)
+SYS(sys_clock_nanosleep, 4)			/* 4265 */

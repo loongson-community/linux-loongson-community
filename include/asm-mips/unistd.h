@@ -266,11 +266,20 @@
 #define __NR_fadvise64			(__NR_Linux + 254)
 #define __NR_statfs64			(__NR_Linux + 255)
 #define __NR_fstatfs64			(__NR_Linux + 256)
+#define __NR_timer_create		(__NR_Linux + 257)
+#define __NR_timer_settime		(__NR_Linux + 258)
+#define __NR_timer_gettime		(__NR_Linux + 259)
+#define __NR_timer_getoverrun		(__NR_Linux + 260)
+#define __NR_timer_delete		(__NR_Linux + 261)
+#define __NR_clock_settime		(__NR_Linux + 262)
+#define __NR_clock_gettime		(__NR_Linux + 263)
+#define __NR_clock_getres		(__NR_Linux + 264)
+#define __NR_clock_nanosleep		(__NR_Linux + 265)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		256
+#define __NR_Linux_syscalls		265
 
 #ifndef __ASSEMBLY__
 

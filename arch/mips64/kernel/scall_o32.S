@@ -560,6 +560,16 @@ out:	jr	ra
 	sys	sys_fadvise64		6
 	sys	sys_statfs64		3		/* 4255 */
 	sys	sys_fstatfs64		2
+	sys	sys_timer_create	3
+	sys	sys_timer_settime	4
+	sys	sys_timer_gettime	2
+	sys	sys_timer_getoverrun	1		/* 4260 */
+	sys	sys_timer_delete	1
+	sys	sys_clock_settime	2
+	sys	sys_clock_gettime	2
+	sys	sys_clock_getres	2
+	sys	sys_clock_nanosleep	4		/* 4265 */
+
 	.endm
 
 	.macro	sys function, nargs
