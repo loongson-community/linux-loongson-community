@@ -390,11 +390,7 @@ void __init ld_mmu_tx49(void)
 	if (mips_configk0 != -1)
 		change_cp0_config(CONF_CM_CMASK, mips_configk0);
 	else
-#ifdef CONFIG_MIPS_UNCACHED
-		change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
-#else
-		change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
-#endif
+		change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);

@@ -1465,11 +1465,7 @@ void __init ld_mmu_r4xx0(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 
-#ifdef CONFIG_MIPS_UNCACHED
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
-#else
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
-#endif
+	change_cp0_config(CONF_CM_CMASK | CONF_CU, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);

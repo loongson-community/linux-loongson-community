@@ -318,9 +318,7 @@ void __init ld_mmu_rm7k(void)
 			: "r" (addr), "i" (Index_Store_Tag_I), "i" (Fill));
 	}
 
-#ifndef CONFIG_MIPS_UNCACHED
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
-#endif
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);

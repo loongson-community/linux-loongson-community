@@ -518,6 +518,6 @@ void ld_mmu_sb1(void)
 	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 	_flush_icache_all = sb1_flush_icache_all;
 
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_COW);
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 	flush_cache_all();
 }

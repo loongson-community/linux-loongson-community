@@ -456,7 +456,7 @@ void __init ld_mmu_r5432(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);
