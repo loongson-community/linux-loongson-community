@@ -16,11 +16,10 @@
 #include <asm/cache.h>
 #include <asm/pci/bridge.h>
 
+#define pdev_to_baddr(pdev, addr) \
+	(BRIDGE_CONTROLLER(pdev->bus)->baddr + (addr))
 #define dev_to_baddr(dev, addr) \
-	(BRIDGE_CONTROLLER(to_pci_dev(dev)->bus)->baddr + (addr))
-#define baddr_to_dev(dev, addr) \
-	((addr) - BRIDGE_CONTROLLER(to_pci_dev(dev)->bus)->baddr)
-
+	pdev_to_baddr(to_pci_dev(dev), (addr))
 
 void *dma_alloc_noncoherent(struct device *dev, size_t size,
 	dma_addr_t * dma_handle, int gfp)
@@ -180,3 +179,39 @@ void dma_cache_sync(void *vaddr, size_t size,
 }
 
 EXPORT_SYMBOL(dma_cache_sync);
+
+dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
+	struct page *page, unsigned long offset, int direction)
+{
+	dma64_addr_t addr = page_to_phys(page) + offset;
+
+	return (dma64_addr_t) pdev_to_baddr(pdev, addr);
+}
+
+EXPORT_SYMBOL(dma_cache_sync);
+
+struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
+	dma64_addr_t dma_addr)
+{
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(pdev->bus);
+
+	return mem_map + ((dma_addr - bc->baddr) >> PAGE_SHIFT);
+}
+
+EXPORT_SYMBOL(pci_dac_dma_to_page);
+
+unsigned long pci_dac_dma_to_offset(struct pci_dev *pdev,
+	dma64_addr_t dma_addr)
+{
+	return dma_addr & ~PAGE_MASK;
+}
+
+EXPORT_SYMBOL(pci_dac_dma_to_offset);
+
+void pci_dac_dma_sync_single(struct pci_dev *pdev,
+	dma64_addr_t dma_addr, size_t len, int direction)
+{
+	BUG_ON(direction == PCI_DMA_NONE);
+}
+
+EXPORT_SYMBOL(pci_dac_dma_sync_single);

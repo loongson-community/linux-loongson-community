@@ -29,7 +29,7 @@ void *dma_alloc_noncoherent(struct device *dev, size_t size,
 
 	if (ret != NULL) {
 		memset(ret, 0, size);
-		*dma_handle = dev_to_baddr(dev, virt_to_phys(ret));
+		*dma_handle = virt_to_phys(ret);
 	}
 
 	return ret;
@@ -63,7 +63,7 @@ dma_addr_t dma_map_single(struct device *dev, void *ptr, size_t size,
 {
 	BUG_ON(direction == DMA_NONE);
 
-	return dev_to_baddr(dev, __pa(ptr));
+	return __pa(ptr);
 }
 
 EXPORT_SYMBOL(dma_map_single);
@@ -84,8 +84,7 @@ int dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
 	BUG_ON(direction == DMA_NONE);
 
 	for (i = 0; i < nents; i++, sg++) {
-		sg->dma_address = (dma_addr_t) dev_to_baddr(dev,
-			page_to_phys(sg->page) + sg->offset);
+		sg->dma_address = (dma_addr_t)page_to_phys(sg->page) + sg->offset;
 	}
 
 	return nents;
@@ -98,7 +97,7 @@ dma_addr_t dma_map_page(struct device *dev, struct page *page,
 {
 	BUG_ON(direction == DMA_NONE);
 
-	return dev_to_baddr(dev, page_to_phys(page) + offset);
+	return page_to_phys(page) + offset;
 }
 
 EXPORT_SYMBOL(dma_map_page);
@@ -173,3 +172,40 @@ void dma_cache_sync(void *vaddr, size_t size,
 }
 
 EXPORT_SYMBOL(dma_cache_sync);
+
+/* The DAC routines are a PCIism.. */
+#ifdef CONFIG_PCI
+#include <linux/pci.h>
+
+dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
+	struct page *page, unsigned long offset, int direction)
+{
+	return (dma64_addr_t)page_to_phys(page) + offset;
+}
+
+EXPORT_SYMBOL(dma_cache_sync);
+
+struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
+	dma64_addr_t dma_addr)
+{
+	return mem_map + (dma_addr >> PAGE_SHIFT);
+}
+
+EXPORT_SYMBOL(pci_dac_dma_to_page);
+
+unsigned long pci_dac_dma_to_offset(struct pci_dev *pdev,
+	dma64_addr_t dma_addr)
+{
+	return dma_addr & ~PAGE_MASK;
+}
+
+EXPORT_SYMBOL(pci_dac_dma_to_offset);
+
+void pci_dac_dma_sync_single(struct pci_dev *pdev,
+	dma64_addr_t dma_addr, size_t len, int direction)
+{
+	BUG_ON(direction == PCI_DMA_NONE);
+}
+
+EXPORT_SYMBOL(pci_dac_dma_sync_single);
+#endif /* CONFIG_PCI */

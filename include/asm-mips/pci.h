@@ -74,39 +74,14 @@ extern unsigned int PCI_DMA_BUS_IS_PHYS;
 /* This is always fine. */
 #define pci_dac_dma_supported(pci_dev, mask)	(1)
 
-static inline dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
-	struct page *page, unsigned long offset, int direction)
-{
-	dma64_addr_t addr = page_to_phys(page) + offset;
-
-	return (dma64_addr_t) dev_to_baddr(pdev->dev, addr);
-}
-
-static inline struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
-	dma64_addr_t dma_addr)
-{
-	unsigned long poff = baddr_to_dev(pdev->dev, dma_addr) >> PAGE_SHIFT;
-
-	return mem_map + poff;
-}
-
-static inline unsigned long pci_dac_dma_to_offset(struct pci_dev *pdev,
-	dma64_addr_t dma_addr)
-{
-	return dma_addr & ~PAGE_MASK;
-}
-
-static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
-	dma64_addr_t dma_addr, size_t len, int direction)
-{
-	unsigned long addr;
-
-	if (direction == PCI_DMA_NONE)
-		BUG();
-
-	addr = baddr_to_dev(pdev->dev, dma_addr) + PAGE_OFFSET;
-	dma_cache_wback_inv(addr, len);
-}
+extern dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
+	struct page *page, unsigned long offset, int direction);
+extern struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
+	dma64_addr_t dma_addr);
+extern unsigned long pci_dac_dma_to_offset(struct pci_dev *pdev,
+	dma64_addr_t dma_addr);
+extern void pci_dac_dma_sync_single(struct pci_dev *pdev,
+	dma64_addr_t dma_addr, size_t len, int direction);
 
 #endif /* __KERNEL__ */
 
