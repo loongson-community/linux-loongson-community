@@ -53,7 +53,7 @@ asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 	return 0;
 }
 
-void flush_dcache_page(struct page *page)
+void __flush_dcache_page(struct page *page)
 {
 	unsigned long addr;
 
