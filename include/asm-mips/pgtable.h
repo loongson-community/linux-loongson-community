@@ -123,7 +123,8 @@ extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 			_CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_KERNEL	__pgprot(_PAGE_PRESENT | __READABLE | __WRITEABLE | \
 			_CACHE_CACHABLE_NONCOHERENT)
-
+#define PAGE_USERIO     __pgprot(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | \
+			_CACHE_UNCACHED)
 /*
  * MIPS can't do page protection for execute, and considers that the same like
  * read. Also, write permissions imply read permissions. This is the closest

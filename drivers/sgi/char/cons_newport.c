@@ -1,4 +1,4 @@
-/* $Id: newport.c,v 1.2 1997/06/17 11:15:12 ralf Exp $
+/* $Id: cons_newport.c,v 1.1 1997/07/02 06:20:17 miguel Exp $
  * cons_newport.c: Newport graphics console code for the SGI.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -541,14 +541,15 @@ struct ng1_info newport_board_info = {
 /* right now the newport does not do anything at all */
 struct graphics_ops newport_graphic_ops = {
 	0,			      /* owner */
-
+	0,			      /* current user */
 	(void *) &newport_board_info, /* board info */
 	sizeof (struct ng1_info),     /* size of our data structure */
+	0, 0,			      /* g_regs, g_regs_size */
 	0, 0			      /* save_context, restore_context */
 };
 
 struct graphics_ops *
-newport_probe (int slot, struct console_ops *cops, char **name)
+newport_probe (int slot, const char **name)
 {
 	struct newport_regs *p;
 
@@ -567,9 +568,8 @@ newport_probe (int slot, struct console_ops *cops, char **name)
 		return 0;
 	}
 
-	/* It may be null if we are not the first graphics card on the system */
-	if (cops != NULL){
-		*cops = newport_console;
+	if (slot == 0){
+		register_gconsole (&newport_console);
 		video_type = VIDEO_TYPE_SGI;
 		can_do_color = 1;
 		*name = "NEWPORT";
@@ -594,5 +594,7 @@ newport_probe (int slot, struct console_ops *cops, char **name)
 #if 0
 	newport_render_logo();
 #endif
+	newport_graphic_ops.g_regs = 0x1f0f0000;
+	newport_graphic_ops.g_regs_size = sizeof (struct newport_regs);
 	return &newport_graphic_ops;
 }

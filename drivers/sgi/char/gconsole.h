@@ -18,10 +18,12 @@ struct console_ops {
 	void (*memcpyw)(unsigned short *to, unsigned short *from, unsigned int count);
 };
 
-/* This points to the system console */
-extern struct console_ops gconsole;
+void register_gconsole (struct console_ops *);
 
-extern void gfx_init (char **name);
+/* This points to the system console */
+extern struct console_ops *gconsole;
+
+extern void gfx_init (const char **name);
 
 extern void __set_origin (unsigned short offset);
 extern void hide_cursor (void);

@@ -17,60 +17,79 @@
 #include "gconsole.h"
 
 /* This is the system graphics console (the first adapter found) */
-struct console_ops gconsole;
+struct console_ops *gconsole = 0;
+
+void
+register_gconsole (struct console_ops *gc)
+{
+	if (gconsole)
+		return;
+	gconsole = gc;
+}
 
 void
 __set_origin (unsigned short offset)
 {
-	(*gconsole.set_origin)(offset);
+	if (gconsole)
+		(*gconsole->set_origin)(offset);
 }
 
 void
 hide_cursor (void)
 {
-	(*gconsole.hide_cursor)();
+
+	if (gconsole)
+		(*gconsole->hide_cursor)();
 }
 
 void
 set_cursor (int currcons)
 {
-	(*gconsole.set_cursor)(currcons);
+	if (gconsole)
+		(*gconsole->set_cursor)(currcons);
 }
 
 void
 get_scrmem (int currcons)
 {
-	(*gconsole.get_scrmem)(currcons);
+	if (gconsole)
+		(*gconsole->get_scrmem)(currcons);
 }
 
 void
 set_scrmem (int currcons, long offset)
 {
-	(*gconsole.set_scrmem)(currcons, offset);
+	if (gconsole)
+		(*gconsole->set_scrmem)(currcons, offset);
 }
 
 int
 set_get_cmap (unsigned char *arg, int set)
 {
-	return (*gconsole.set_get_cmap)(arg, set);
+	if (gconsole)
+		return (*gconsole->set_get_cmap)(arg, set);
+	return 0;
 }
 
 void
 blitc (unsigned short charattr, unsigned long addr)
 {
-	(*gconsole.blitc)(charattr, addr);
+	if (gconsole)
+		(*gconsole->blitc)(charattr, addr);
 }
 
 void
 memsetw (void *s, unsigned short c, unsigned int count)
 {
-	(*gconsole.memsetw)(s, c, count);
+	if (gconsole)
+		(*gconsole->memsetw)(s, c, count);
 }
 
 void
 memcpyw (unsigned short *to, unsigned short *from, unsigned int count)
 {
-	(*gconsole.memcpyw)(to, from, count);
+	if (gconsole)
+		(*gconsole->memcpyw)(to, from, count);
 }
 
 int
