@@ -537,6 +537,8 @@ void __init setup_arch(char **cmdline_p)
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn, first_usable_pfn;
+	unsigned long tmp;
+	unsigned long* initrd_header;
 
 	int i;
 
@@ -658,11 +660,23 @@ void __init setup_arch(char **cmdline_p)
 #define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
 #define PFN_PHYS(x)	((x) << PAGE_SHIFT)
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8; 
+	if (tmp < (unsigned long)&_end) 
+		tmp += PAGE_SIZE;
+	initrd_header = (unsigned long *)tmp;
+	if (initrd_header[0] == 0x494E5244) {
+		initrd_start = (unsigned long)&initrd_header[2];
+		initrd_end = initrd_start + initrd_header[1];
+	}
+	start_pfn = PFN_UP(__pa((&_end)+(initrd_end - initrd_start) + PAGE_SIZE));
+#else
 	/*
 	 * Partially used pages are not usable - thus
 	 * we are rounding upwards.
 	 */
 	start_pfn = PFN_UP(__pa(&_end));
+#endif	/* CONFIG_BLK_DEV_INITRD */
 
 	/* Find the highest page frame number we have available.  */
 	max_pfn = 0;
