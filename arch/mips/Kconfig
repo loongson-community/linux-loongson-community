@@ -898,11 +898,6 @@ config IRQ_CPU
 config IRQ_CPU_RM7K
 	bool
 
-config DUMMY_KEYB
-	bool
-	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1xxx_SOC || NEC_EAGLE || NEC_OSPREY || DDB5477 || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
-	default y
-
 config DDB5XXX_COMMON
 	bool
 	depends on DDB5074 || DDB5476 || DDB5477
