@@ -599,7 +599,6 @@ static int titan_ge_open(struct net_device *netdev)
 		return -EBUSY;
 	}
 
-	SET_MODULE_OWNER(netdev);
 	spin_unlock_irq(&(titan_ge_eth->lock));
 	return 0;
 }
