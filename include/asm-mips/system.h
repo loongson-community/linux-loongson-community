@@ -149,9 +149,9 @@ extern void __global_restore_flags(unsigned long);
 #ifdef CONFIG_CPU_HAS_WB
 
 #include <asm/wbflush.h>
-#define rmb()
-#define wmb() wbflush()
-#define mb() wbflush()
+#define rmb()	do { } while(0)
+#define wmb()	wbflush()
+#define mb()	wbflush()
 
 #else /* CONFIG_CPU_HAS_WB  */
 
