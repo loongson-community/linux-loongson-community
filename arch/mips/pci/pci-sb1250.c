@@ -182,8 +182,8 @@ static int sb1250_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 }
 
 struct pci_ops sb1250_pci_ops = {
-	.read = sb1250_pcibios_read,
-	.write = sb1250_pcibios_write
+	.read	= sb1250_pcibios_read,
+	.write	= sb1250_pcibios_write,
 };
 
 static struct resource sb1250_mem_resource = {
@@ -192,7 +192,7 @@ static struct resource sb1250_mem_resource = {
 	.end	= 0x5fffffffUL,
 	.flags	= IORESOURCE_MEM,
 };
-                                                                                
+
 static struct resource sb1250_io_resource = {
 	.name	= "SB1250 PCI I/O",
 	.start	= 0x00000000UL,
