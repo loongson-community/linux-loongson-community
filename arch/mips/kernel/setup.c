@@ -297,8 +297,8 @@ static inline void bootmem_init(void)
 		max_low_pfn = MAXMEM_PFN;
 #ifndef CONFIG_HIGHMEM
 		/* Maximum memory usable is what is directly addressable */
-		printk(KERN_WARNING "Warning only %dMB will be used.\n",
-		       MAXMEM>>20);
+		printk(KERN_WARNING "Warning only %ldMB will be used.\n",
+		       MAXMEM >> 20);
 		printk(KERN_WARNING "Use a HIGHMEM enabled kernel.\n");
 #endif
 	}
