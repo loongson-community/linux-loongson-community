@@ -113,7 +113,7 @@ extern inline void * phys_to_virt(unsigned long address)
 }
 
 /*
- * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
+ * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped
  * for the processor.  This implies the assumption that there is only
  * one of these busses.
  */
