@@ -68,7 +68,7 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	*timer_reg = 500000;
 
 	/* Register our timer interrupt */
-	setup_irq(0, irq);
+	setup_irq(COBALT_TIMER_IRQ, irq);
 
 	/* Enable timer ints */
 	*((volatile unsigned long *) GALILEO_TIMER_CTRL) =

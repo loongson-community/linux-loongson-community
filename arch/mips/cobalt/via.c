@@ -93,7 +93,7 @@ asmlinkage void galileo_irq(struct pt_regs *regs)
 	if (irq_src & GALILEO_T0EXP) {
 		/* Clear the int line */
 		*((volatile unsigned long *) GALILEO_INTCAUSE) = 0;
-		do_IRQ(0, regs);
+		do_IRQ(COBALT_TIMER_IRQ, regs);
 	} else
 		printk("Spurious Galileo interrupt...\n");
 }

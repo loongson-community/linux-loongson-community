@@ -46,6 +46,8 @@
 #define COBALT_PARALLEL_IRQ    5
 #define COBALT_FLOPPY_IRQ      6 /* needs to be consistent with floppy driver! */
 #define COBALT_SCSI_IRQ        7
+#define COBALT_SERIAL_IRQ      7
+#define COBALT_RAQ_SCSI_IRQ    4
 
 /*
  * PCI configuration space manifest constants.  These are wired into

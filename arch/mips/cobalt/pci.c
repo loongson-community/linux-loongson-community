@@ -58,6 +58,7 @@ static void qube_expansion_slot_fixup(struct pci_dev *dev)
 
 	/* Give it a working IRQ. */
 	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_QUBE_SLOT_IRQ);
+	dev->irq = COBALT_QUBE_SLOT_IRQ;
 
 	/* Fixup base addresses, we only support I/O at the moment. */
 	for(i = 0; i <= 5; i++) {
@@ -156,6 +157,7 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 		/* Give it it's IRQ. */
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
                                       COBALT_RAQ_ETH1_IRQ);
+		dev->irq = COBALT_RAQ_ETH1_IRQ;
 
 		/* And finally, a usable I/O space allocation, right after what
 		 * the first Tulip uses.
@@ -174,6 +176,7 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
          * IRQ 7 and not the default 0.
          */
         pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_SCSI_IRQ);
+	dev->irq = COBALT_SCSI_IRQ;
 
 	if (cobalt_board_id == COBALT_BRD_ID_RAQ2) {
 
@@ -185,7 +188,8 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
 		pci_write_config_word(dev, PCI_COMMAND, pci_cmd);
 
 		/* Give it it's RAQ IRQ. */
-		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 4);
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_RAQ_SCSI_IRQ);
+		dev->irq = COBALT_RAQ_SCSI_IRQ;
 
 		/* And finally, a usable I/O space allocation, right after what
 		 * the second Tulip uses.
