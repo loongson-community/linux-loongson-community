@@ -20,6 +20,7 @@
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
 #include <linux/pc_keyb.h>
+#include <linux/tty.h>
 
 #include <asm/addrspace.h>
 #include <asm/bcache.h>
@@ -116,7 +117,7 @@ static void __init sgi_irq_setup(void)
 	sgint_init();
 }
 
-void __init sgi_setup(void)
+void __init ip22_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
@@ -152,12 +153,24 @@ void __init sgi_setup(void)
 #ifdef CONFIG_SGI_PROM_CONSOLE
 	console_setup("ttyS0");
 #endif
-	  
+
 	sgi_volume_set(simple_strtoul(prom_getenv("volume"), NULL, 10));
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	conswitchp = &newport_con;
+
+	screen_info = (struct screen_info) {
+		0, 0,		/* orig-x, orig-y */
+		0,		/* unused */
+		0,		/* orig_video_page */
+		0,		/* orig_video_mode */
+		160,		/* orig_video_cols */
+		0, 0, 0,	/* unused, ega_bx, unused */
+		64,		/* orig_video_lines */
+		0,		/* orig_video_isVGA */
+		16		/* orig_video_points */
+	};
 #else
 	conswitchp = &dummy_con;
 #endif

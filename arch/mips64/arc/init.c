@@ -25,7 +25,8 @@ unsigned short prom_vers, prom_rev;
 
 extern void prom_testtree(void);
 
-int __init prom_init(int argc, char **argv, char **envp)
+int __init
+prom_init(int argc, char **argv, char **envp)
 {
 	struct linux_promblock *pb;
 
@@ -54,7 +55,7 @@ int __init prom_init(int argc, char **argv, char **envp)
 	{
 		prom_printf("Press a key to reboot\n");
 		(void) prom_getchar();
-		romvec->imode();
+		ArcEnterInteractiveMode();
 	}
 #endif
 	return 0;

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: andes.c,v 1.1 1999/08/18 23:37:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -94,13 +94,6 @@ andes_pgd_init(unsigned long page)
 {
 }
 
-static void
-andes_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-                      unsigned long entryhi, unsigned long pagemask)
-{
-        /* XXX */
-}
-
 static int
 andes_user_mode(struct pt_regs *regs)
 {
@@ -120,10 +113,7 @@ void __init ld_mmu_andes(void)
 	flush_tlb_mm = andes_flush_tlb_mm;
 	flush_tlb_range = andes_flush_tlb_range;
 	flush_tlb_page = andes_flush_tlb_page;
-	andes_asid_setup();
     
-	add_wired_entry = andes_add_wired_entry;
-
 	user_mode = andes_user_mode;
 
 	load_pgd = andes_load_pgd;

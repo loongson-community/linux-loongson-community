@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.23 1999/05/07 18:00:17 ulfc Exp $
+/* $Id: setup.c,v 1.24 1999/06/12 17:26:15 ulfc Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -197,6 +197,18 @@ __initfunc(void sgi_setup(void))
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	conswitchp = &newport_con;
+
+	screen_info = (struct screen_info) {
+		0, 0,		/* orig-x, orig-y */
+		0,		/* unused */
+		0,		/* orig_video_page */
+		0,		/* orig_video_mode */
+		160,		/* orig_video_cols */
+		0, 0, 0,	/* unused, ega_bx, unused */
+		64,		/* orig_video_lines */
+		0,		/* orig_video_isVGA */
+		16		/* orig_video_points */
+	};
 #else
 	conswitchp = &dummy_con;
 #endif

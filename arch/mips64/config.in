@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.1 1999/08/18 23:37:46 ralf Exp $
+# $Id: config.in,v 1.2 1999/08/20 21:59:03 ralf Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -16,12 +16,15 @@ bool 'Support for SGI IP22' CONFIG_SGI_IP22
 endmenu
 
 #
-# Select some configuration options automatically for certain systems
+# Select some configuration options automatically based on user selections
 #
 unset CONFIG_BOOT_ELF32
+unset CONFIG_ARC32
+unset CONFIG_ARC64
 
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
   define_bool CONFIG_BOOT_ELF32 y
+  define_bool CONFIG_ARC32 y
 fi
 
 mainmenu_option next_comment

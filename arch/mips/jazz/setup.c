@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.20 1999/02/25 21:57:47 tsbogend Exp $
+/* $Id: setup.c,v 1.21 1999/06/22 22:08:07 tsbogend Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -103,6 +103,21 @@ __initfunc(void jazz_setup(void))
 	ide_ops = &std_ide_ops;
 #endif
 	conswitchp = &dummy_con;
+
+#warning "Somebody should check if screen_info is ok for Jazz."
+
+	screen_info = (struct screen_info) {
+		0, 0,		/* orig-x, orig-y */
+		0,		/* unused */
+		0,		/* orig_video_page */
+		0,		/* orig_video_mode */
+		160,		/* orig_video_cols */
+		0, 0, 0,	/* unused, ega_bx, unused */
+		64,		/* orig_video_lines */
+		0,		/* orig_video_isVGA */
+		16		/* orig_video_points */
+	};
+
 	rtc_ops = &jazz_rtc_ops;
 	kbd_ops = &jazz_kbd_ops;
 	fd_ops = &jazz_fd_ops;

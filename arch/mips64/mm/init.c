@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.2 1999/08/19 22:56:32 ralf Exp $
+/* $Id: init.c,v 1.3 1999/08/20 21:59:05 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -28,7 +28,6 @@
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/dma.h>
-#include <asm/jazzdma.h>
 #include <asm/system.h>
 #include <asm/pgtable.h>
 #ifdef CONFIG_SGI_IP22
@@ -41,13 +40,13 @@ extern void show_net_buffers(void);
 void __bad_pte_kernel(pmd_t *pmd)
 {
 	printk("Bad pmd in pte_alloc_kernel: %08lx\n", pmd_val(*pmd));
-	pmd_val(*pmd) = BAD_PAGETABLE;
+	pmd_set(pmd, BAD_PAGETABLE);
 }
 
 void __bad_pte(pmd_t *pmd)
 {
 	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
-	pmd_val(*pmd) = BAD_PAGETABLE;
+	pmd_set(pmd, BAD_PAGETABLE);
 }
 
 pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
@@ -58,10 +57,10 @@ pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
 	if (pmd_none(*pmd)) {
 		if (page) {
 			clear_page((unsigned long)page);
-			pmd_val(*pmd) = (unsigned long)page;
+			pmd_set(pmd, page);
 			return page + offset;
 		}
-		pmd_val(*pmd) = BAD_PAGETABLE;
+		pmd_set(pmd, BAD_PAGETABLE);
 		return NULL;
 	}
 	free_page((unsigned long)page);
@@ -83,7 +82,7 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 			pmd_val(*pmd) = (unsigned long)page;
 			return page + offset;
 		}
-		pmd_val(*pmd) = BAD_PAGETABLE;
+		pmd_set(pmd, BAD_PAGETABLE);
 		return NULL;
 	}
 	free_page((unsigned long)page);
@@ -177,58 +176,26 @@ int do_check_pgt_cache(int low, int high)
 pte_t * __bad_pagetable(void)
 {
 	extern char empty_bad_page_table[PAGE_SIZE];
-	unsigned long page;
-	unsigned long dummy1, dummy2;
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-	unsigned long dummy3;
-#endif
+	unsigned long dummy1, dummy2, page;
 
 	page = (unsigned long) empty_bad_page_table;
-	/*
-	 * As long as we only save the low 32 bit of the 64 bit wide
-	 * R4000 registers on interrupt we cannot use 64 bit memory accesses
-	 * to the main memory.
-	 */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-        /*
-         * Use 64bit code even for Linux/MIPS 32bit on R4000
-         */
 	__asm__ __volatile__(
-		".set\tnoreorder\n"
+		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"dsll32\t$1,%2,0\n\t"
-		"dsrl32\t%2,$1,0\n\t"
-		"or\t%2,$1\n"
-		"1:\tsd\t%2,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,8\n\t"
-		".set\tmips0\n\t"
-		".set\tat\n"
+		"dsll\t$1, %1, 32\n\t"
+		"dsrl\t%1, $1, 32\n\t"
+		"or\t%1, $1\n\t"
+		"daddiu\t$1, %0, %4\n"
+		"1:\tdaddiu\t%0, 8\n\t"
+		"bne\t$1, %0, 1b\n\t"
+		" sd\t%1, -8(%0)\n\t"
+		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2),
-		 "=r" (dummy3)
-		:"0" (page),
-		 "1" (PAGE_SIZE/8),
-		 "2" (pte_val(BAD_PAGE)));
-#else /* (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2) */
-	__asm__ __volatile__(
-		".set\tnoreorder\n"
-		"1:\tsw\t%2,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,4\n\t"
-		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2)
-		:"r" (pte_val(BAD_PAGE)),
-		 "0" (page),
-		 "1" (PAGE_SIZE/4));
-#endif
+		:"=r" (dummy1), "=r" (dummy2)
+		:"0" (page), "1" (pte_val(BAD_PAGE)), "i" (PAGE_SIZE)
+		:"$1");
 
-	return (pte_t *)page;
+	return (pte_t *) page;
 }
 
 pte_t __bad_page(void)
@@ -346,6 +313,7 @@ mem_init(unsigned long start_mem, unsigned long end_mem)
 }
 
 extern char __init_begin, __init_end;
+extern void prom_free_prom_memory(void);
 
 void
 free_initmem(void)
@@ -360,14 +328,14 @@ free_initmem(void)
 		set_page_count(mem_map + MAP_NR(addr), 1);
 		free_page(addr);
 	}
-	printk("Freeing unused kernel memory: %dk freed\n",
+	printk("Freeing unused kernel memory: %ldk freed\n",
 	       (&__init_end - &__init_begin) >> 10);
 }
 
 void
 si_meminfo(struct sysinfo *val)
 {
-	int i;
+	long i;
 
 	i = MAP_NR(high_memory);
 	val->totalram = 0;

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: loadmmu.c,v 1.1 1999/08/18 23:37:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -51,9 +51,6 @@ void (*update_mmu_cache)(struct vm_area_struct * vma,
 			 unsigned long address, pte_t pte);
 
 void (*show_regs)(struct pt_regs *);
-
-void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
-			unsigned long entryhi, unsigned long pagemask);
 
 int (*user_mode)(struct pt_regs *);
 

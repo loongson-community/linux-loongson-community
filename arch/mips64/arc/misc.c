@@ -7,12 +7,16 @@
  * Miscellaneous ARCS PROM routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 
 #include <asm/bcache.h>
+
+#include <asm/arc/types.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 #include <asm/system.h>
@@ -21,7 +25,8 @@ extern unsigned long mips_cputype;
 extern void *sgiwd93_host;
 extern void reset_wd33c93(void *instance);
 
-void prom_halt(void)
+VOID
+ArcHalt(VOID)
 {
 	bcops->bc_disable();
 	cli();
@@ -32,7 +37,8 @@ void prom_halt(void)
 never:	goto never;
 }
 
-void prom_powerdown(void)
+VOID
+ArcPowerDown(VOID)
 {
 	bcops->bc_disable();
 	cli();
@@ -44,7 +50,8 @@ never:	goto never;
 }
 
 /* XXX is this a soft reset basically? XXX */
-void prom_restart(void)
+VOID
+ArcRestart(VOID)
 {
 	bcops->bc_disable();
 	cli();
@@ -55,7 +62,8 @@ void prom_restart(void)
 never:	goto never;
 }
 
-void prom_reboot(void)
+VOID
+ArcReboot(VOID)
 {
 	bcops->bc_disable();
 	cli();
@@ -66,7 +74,8 @@ void prom_reboot(void)
 never:	goto never;
 }
 
-void prom_imode(void)
+VOID
+ArcEnterInteractiveMode(VOID)
 {
 	bcops->bc_disable();
 	cli();
@@ -77,17 +86,20 @@ void prom_imode(void)
 never:	goto never;
 }
 
-long prom_cfgsave(void)
+LONG
+ArcSaveConfiguration(VOID)
 {
 	return ARC_CALL0(cfg_save);
 }
 
-struct linux_sysid *prom_getsysid(void)
+struct linux_sysid *
+ArcGetSystemId(VOID)
 {
 	return (struct linux_sysid *) ARC_CALL0(get_sysid);
 }
 
-void __init prom_cacheflush(void)
+VOID __init
+ArcFlushAllCaches(VOID)
 {
 	ARC_CALL0(cache_flush);
 }

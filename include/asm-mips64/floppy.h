@@ -12,8 +12,6 @@
 #define _ASM_FLOPPY_H
 
 #include <asm/bootinfo.h>
-#include <asm/jazz.h>
-#include <asm/jazzdma.h>
 
 struct fd_ops {
 	unsigned char (*fd_inb)(unsigned int port);
@@ -79,7 +77,7 @@ extern struct fd_ops *fd_ops;
 #define FLOPPY1_TYPE			fd_drive_type(1)
 
 #define FDC1			fd_ops->fd_getfdaddr1();
-static int FDC2=-1;
+static int __attribute__((__unused__)) FDC2=-1;
 
 #define N_FDC 1			/* do you *really* want a second controller? */
 #define N_DRIVE 8

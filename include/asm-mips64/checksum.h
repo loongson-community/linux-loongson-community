@@ -53,7 +53,8 @@ unsigned int csum_partial_copy(const char *src, char *dst, int len, unsigned int
 /*
  *	Fold a partial checksum without adding pseudo headers
  */
-static inline unsigned short int csum_fold(unsigned int sum)
+static inline unsigned short int
+csum_fold(unsigned int sum)
 {
 	__asm__("
 	.set	noat            
@@ -78,8 +79,8 @@ static inline unsigned short int csum_fold(unsigned int sum)
  *	By Jorge Cwik <jorge@laser.satlink.net>, adapted for linux by
  *	Arnt Gulbrandsen.
  */
-static inline unsigned short ip_fast_csum(unsigned char * iph,
-					  unsigned int ihl)
+static inline unsigned short
+ip_fast_csum(unsigned char * iph, unsigned int ihl)
 {
 	unsigned int sum;
 	unsigned long dummy;
@@ -91,31 +92,31 @@ static inline unsigned short ip_fast_csum(unsigned char * iph,
 	__asm__ __volatile__("
 	.set	noreorder
 	.set	noat
-	lw	%0,(%1)
-	subu	%2,4
-	#blez	%2,2f
-	sll	%2,2			# delay slot
+	lw	%0, (%1)
+	subu	%2, 4
+	#blez	%2, 2f
+	sll	%2, 2			# delay slot
 
-	lw	%3,4(%1)
-	addu	%2,%1			# delay slot
-	addu	%0,%3
-	sltu	$1,%0,%3
-	lw	%3,8(%1)
-	addu	%0,$1
-	addu	%0,%3
-	sltu	$1,%0,%3
-	lw	%3,12(%1)
-	addu	%0,$1
-	addu	%0,%3
-	sltu	$1,%0,%3
-	addu	%0,$1
+	lw	%3, 4(%1)
+	daddu	%2, %1			# delay slot
+	addu	%0, %3
+	sltu	$1, %0, %3
+	lw	%3, 8(%1)
+	addu	%0, $1
+	addu	%0, %3
+	sltu	$1, %0, %3
+	lw	%3, 12(%1)
+	addu	%0, $1
+	addu	%0, %3
+	sltu	$1, %0, %3
+	addu	%0, $1
 
-1:	lw	%3,16(%1)
-	addiu	%1,4
-	addu	%0,%3
-	sltu	$1,%0,%3
-	bne	%2,%1,1b
-	addu	%0,$1			# delay slot
+1:	lw	%3, 16(%1)
+	daddiu	%1, 4
+	addu	%0, %3
+	sltu	$1, %0, %3
+	bne	%2, %1, 1b
+	addu	%0, $1			# delay slot
 
 2:	.set	at
 	.set	reorder"
@@ -130,11 +131,9 @@ static inline unsigned short ip_fast_csum(unsigned char * iph,
  * computes the checksum of the TCP/UDP pseudo-header
  * returns a 16-bit checksum, already complemented
  */
-static inline unsigned long csum_tcpudp_nofold(unsigned long saddr,
-                                               unsigned long daddr,
-                                               unsigned short len,
-                                               unsigned short proto,
-                                               unsigned int sum)
+static inline unsigned long
+csum_tcpudp_nofold(unsigned long saddr, unsigned long daddr,
+                   unsigned short len, unsigned short proto, unsigned int sum)
 {
     __asm__("
 	.set	noat
@@ -167,11 +166,9 @@ static inline unsigned long csum_tcpudp_nofold(unsigned long saddr,
  * computes the checksum of the TCP/UDP pseudo-header
  * returns a 16-bit checksum, already complemented
  */
-static inline unsigned short int csum_tcpudp_magic(unsigned long saddr,
-						   unsigned long daddr,
-						   unsigned short len,
-						   unsigned short proto,
-						   unsigned int sum)
+static inline unsigned short int
+csum_tcpudp_magic(unsigned long saddr, unsigned long daddr, unsigned short len,
+                  unsigned short proto, unsigned int sum)
 {
 	return csum_fold(csum_tcpudp_nofold(saddr,daddr,len,proto,sum));
 }
@@ -180,17 +177,16 @@ static inline unsigned short int csum_tcpudp_magic(unsigned long saddr,
  * this routine is used for miscellaneous IP-like checksums, mainly
  * in icmp.c
  */
-static inline unsigned short ip_compute_csum(unsigned char * buff, int len)
+static inline unsigned short
+ip_compute_csum(unsigned char * buff, int len)
 {
 	return csum_fold(csum_partial(buff, len, 0));
 }
 
 #define _HAVE_ARCH_IPV6_CSUM
-static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
-						     struct in6_addr *daddr,
-						     __u16 len,
-						     unsigned short proto,
-						     unsigned int sum) 
+static inline unsigned short int
+csum_ipv6_magic(struct in6_addr *saddr, struct in6_addr *daddr, __u16 len,
+                unsigned short proto, unsigned int sum) 
 {
 	__asm__("
 		.set	noreorder
@@ -242,13 +238,9 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 		sltu	$1,%0,$1
 		.set	noat
 		.set	noreorder"
-		: "=r" (sum),
-		  "=r" (proto)
-		: "r" (saddr),
-		  "r" (daddr),
-		  "0" (htonl((__u32) (len))),
-		  "1" (htonl(proto)),
-		  "r"(sum)
+		: "=r" (sum), "=r" (proto)
+		: "r" (saddr), "r" (daddr),
+		  "0" (htonl((__u32) (len))), "1" (htonl(proto)), "r"(sum)
 		: "$1");
 
 	return csum_fold(sum);

@@ -12,14 +12,17 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 
+#include <asm/arc/types.h>
 #include <asm/sgialib.h>
 
-char * __init prom_getenv(char *name)
+CHAR * __init
+ArcArcGetEnvironmentVariable(CHAR *name)
 {
-	return romvec->get_evar(name);
+	return (CHAR *) ARC_CALL1(get_evar, name);
 }
 
-long __init prom_setenv(char *name, char *value)
+LONG __init
+ArcSetEnvironmentVariable(CHAR *name, CHAR *value)
 {
-	return romvec->set_evar(name, value);
+	return ARC_CALL2(set_evar, name, value);
 }

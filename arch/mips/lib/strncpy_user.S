@@ -1,13 +1,10 @@
-/*
- * arch/mips/lib/strncpy_user.S
+/* $Id: strncpy_user.S,v 1.2 1998/05/04 09:12:54 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1996 by Ralf Baechle
- *
- * $Id: strncpy_user.S,v 1.3 1998/05/03 11:13:45 ralf Exp $
+ * Copyright (c) 1996, 1999 by Ralf Baechle
  */
 #include <linux/errno.h>
 #include <asm/asm.h>
@@ -32,11 +29,11 @@
  */
 
 LEAF(__strncpy_from_user_asm)
-	lw	v0, THREAD_CURDS($28)		# pointer ok?
-	subu	v0, zero, v0
-	and	v0, a1
-	nor	v0, zero, v0
-	beqz	v0, fault
+	LONG_L		v0, THREAD_CURDS($28)		# pointer ok?
+	LONG_SUBU	v0, zero, v0
+	and		v0, a1
+	not		v0
+	beqz		v0, fault
 EXPORT(__strncpy_from_user_nocheck_asm)
 	move		v0,zero
 	move		v1,a1
@@ -55,9 +52,9 @@ EXPORT(__strncpy_from_user_nocheck_asm)
 	jr		ra			# return n
 	END(__strncpy_from_user_asm)
 
-fault:	li		v0,-EFAULT
+fault:	li		v0, -EFAULT
 	jr		ra
 
 	.section	__ex_table,"a"
-	PTR		1b,fault
+	PTR		1b, fault
 	.previous

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.16 1999/08/09 19:43:16 harald Exp $
+/* $Id: init.c,v 1.17 1999/08/20 21:59:02 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -176,43 +176,9 @@ int do_check_pgt_cache(int low, int high)
 pte_t * __bad_pagetable(void)
 {
 	extern char empty_bad_page_table[PAGE_SIZE];
-	unsigned long page;
-	unsigned long dummy1, dummy2;
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-	unsigned long dummy3;
-#endif
+	unsigned long page, dummy1, dummy2;
 
 	page = (unsigned long) empty_bad_page_table;
-	/*
-	 * As long as we only save the low 32 bit of the 64 bit wide
-	 * R4000 registers on interrupt we cannot use 64 bit memory accesses
-	 * to the main memory.
-	 */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-        /*
-         * Use 64bit code even for Linux/MIPS 32bit on R4000
-         */
-	__asm__ __volatile__(
-		".set\tnoreorder\n"
-		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"dsll32\t$1,%2,0\n\t"
-		"dsrl32\t%2,$1,0\n\t"
-		"or\t%2,$1\n"
-		"1:\tsd\t%2,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,8\n\t"
-		".set\tmips0\n\t"
-		".set\tat\n"
-		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2),
-		 "=r" (dummy3)
-		:"0" (page),
-		 "1" (PAGE_SIZE/8),
-		 "2" (pte_val(BAD_PAGE)));
-#else /* (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2) */
 	__asm__ __volatile__(
 		".set\tnoreorder\n"
 		"1:\tsw\t%2,(%0)\n\t"
@@ -220,12 +186,9 @@ pte_t * __bad_pagetable(void)
 		"bnez\t%1,1b\n\t"
 		"addiu\t%0,4\n\t"
 		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2)
-		:"r" (pte_val(BAD_PAGE)),
-		 "0" (page),
-		 "1" (PAGE_SIZE/4));
-#endif
+		:"=r" (dummy1), "=r" (dummy2)
+		:"r" (pte_val(BAD_PAGE)), "0" (page), "1" (PAGE_SIZE/4)
+		:"$1");
 
 	return (pte_t *)page;
 }

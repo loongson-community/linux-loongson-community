@@ -9,11 +9,11 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all:	kernel.o
+all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
-O_OBJS	:=
-OX_OBJS :=
+O_OBJS	:= entry.o setup.o
+OX_OBJS := mips64_ksyms.o
 
 clean:
 

@@ -24,7 +24,6 @@
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/sgihpc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
 
@@ -92,19 +91,6 @@ EXPORT_SYMBOL(invalid_pte_table);
 EXPORT_SYMBOL(mips_io_port_base);
 
 /*
- * Architecture specific stuff.
- */
-#ifdef CONFIG_MIPS_JAZZ
-EXPORT_SYMBOL(vdma_alloc);
-EXPORT_SYMBOL(vdma_free);
-EXPORT_SYMBOL(vdma_log2phys);
-#endif
-
-#ifdef CONFIG_SGI_IP22
-EXPORT_SYMBOL(hpc3c0);
-#endif
-
-/*
  * Kernel hacking ...
  */
 #include <asm/branch.h>
@@ -122,4 +108,3 @@ EXPORT_SYMBOL(unregister_fpe);
 #ifdef CONFIG_VT
 EXPORT_SYMBOL(screen_info);
 #endif
-

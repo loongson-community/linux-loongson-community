@@ -1,4 +1,4 @@
-/* $Id: sgiarcs.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
+/* $Id: sgiarcs.h,v 1.2 1999/08/20 21:59:08 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -370,6 +370,10 @@ struct linux_smonblock {
 	unsigned long   stab;              /* Symbol table. */
 	int             smax;              /* Max # of symbols. */
 };
+
+/*
+ * Macros for calling a 32-bit ARC implementation from 64-bit code
+ */
 
 #define __arc_clobbers							\
 	"$2","$3","$4","$5","$6","$7","$8","$9","$10","$11",		\

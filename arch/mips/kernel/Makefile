@@ -72,8 +72,6 @@ endif
 #
 O_OBJS := $(sort $(O_OBJS))
 
-all: kernel.o head.o
-
 entry.o: entry.S
 
 head.o: head.S

@@ -10,59 +10,67 @@
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #include <linux/init.h>
+
+#include <asm/arc/types.h>
 #include <asm/sgialib.h>
 
-long __init prom_getvdirent(unsigned long fd, struct linux_vdirent *ent,
-                            unsigned long num, unsigned long *cnt)
+LONG __init
+ArcGetDirectoryEntry(ULONG FileID, struct linux_vdirent *Buffer,
+                     ULONG N, ULONG *Count)
 {
-	return ARC_CALL4(get_vdirent, fd, ent, num, cnt);
+	return ARC_CALL4(get_vdirent, FileID, Buffer, N, Count);
 }
 
-long __init prom_open(char *name, enum linux_omode md, unsigned long *fd)
+LONG __init
+ArcOpen(CHAR *Path, enum linux_omode OpenMode, ULONG *FileID)
 {
-	return ARC_CALL3(open, name, md, fd);
+	return ARC_CALL3(open, Path, OpenMode, FileID);
 }
 
-long __init prom_close(unsigned long fd)
+LONG __init
+ArcClose(ULONG FileID)
 {
-	return ARC_CALL1(close, fd);
+	return ARC_CALL1(close, FileID);
 }
 
-long __init prom_read(unsigned long fd, void *buf, unsigned long num,
-                      unsigned long *cnt)
+LONG __init
+ArcRead(ULONG FileID, VOID *Buffer, ULONG N, ULONG *Count)
 {
-	return ARC_CALL4(read, fd, buf, num, cnt);
+	return ARC_CALL4(read, FileID, Buffer, N, Count);
 }
 
-long __init prom_getrstatus(unsigned long fd)
+LONG __init
+ArcGetReadStatus(ULONG FileID)
 {
-	return ARC_CALL1(get_rstatus, fd);
+	return ARC_CALL1(get_rstatus, FileID);
 }
 
-long __init prom_write(unsigned long fd, void *buf, unsigned long num,
-                       unsigned long *cnt)
+LONG __init
+ArcWrite(ULONG long FileID, void *Buffer, ULONG N, ULONG *Count)
 {
-	return ARC_CALL4(write, fd, buf, num, cnt);
+	return ARC_CALL4(write, FileID, Buffer, N, Count);
 }
 
-long __init prom_seek(unsigned long fd, struct linux_bigint *off,
-                      enum linux_seekmode sm)
+LONG __init
+ArcSeek(ULONG FileID, struct linux_bigint *Position, enum linux_seekmode SeekMode)
 {
-	return ARC_CALL3(seek, fd, off, sm);
+	return ARC_CALL3(seek, FileID, Position, SeekMode);
 }
 
-long __init prom_mount(char *name, enum linux_mountops op)
+LONG __init
+ArcMount(char *name, enum linux_mountops op)
 {
 	return ARC_CALL2(mount, name, op);
 }
 
-long __init prom_getfinfo(unsigned long fd, struct linux_finfo *buf)
+LONG __init
+ArcGetFileInformation(ULONG FileID, struct linux_finfo *Information)
 {
-	return ARC_CALL2(get_finfo, fd, buf);
+	return ARC_CALL2(get_finfo, FileID, Information);
 }
 
-long __init prom_setfinfo(unsigned long fd, unsigned long flags,
-                          unsigned long msk)
+LONG __init ArcSetFileInformation(ULONG FileID, ULONG AttributeFlags,
+                                  ULONG AttributeMask)
 {
-	return ARC_CALL3(set_finfo, fd, flags, msk);
+	return ARC_CALL3(set_finfo, FileID, AttributeFlags, AttributeMask);
 }

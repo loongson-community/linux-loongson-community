@@ -11,6 +11,8 @@
 # Machine selection
 #
 CONFIG_SGI_IP22=y
+CONFIG_BOOT_ELF32=y
+CONFIG_ARC32=y
 
 #
 # CPU selection

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: r4xx0.c,v 1.1 1999/08/18 23:37:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -17,8 +17,8 @@
 
 #include <asm/bcache.h>
 #include <asm/io.h>
-#include <asm/sgi.h>
-#include <asm/sgimc.h>
+//#include <asm/sgi.h>
+//#include <asm/sgimc.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -81,7 +81,6 @@ static void r4k_clear_page_d16(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -97,14 +96,11 @@ static void r4k_clear_page_d16(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_D)
-		:"$1","memory");
+		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		:"$1", "memory");
 }
 
 static void r4k_clear_page_d32(unsigned long page)
@@ -112,7 +108,6 @@ static void r4k_clear_page_d32(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -126,14 +121,11 @@ static void r4k_clear_page_d32(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_D)
-		:"$1","memory");
+		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		:"$1", "memory");
 }
 
 
@@ -169,7 +161,6 @@ static void r4k_clear_page_r4600_v1(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tnop\n\t"
 		"nop\n\t"
@@ -190,14 +181,13 @@ static void r4k_clear_page_r4600_v1(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
 		:"0" (page),
 		 "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D)
-		:"$1","memory");
+		:"$1", "memory");
 }
 
 /*
@@ -207,12 +197,11 @@ static void r4k_clear_page_r4600_v2(unsigned long page)
 {
 	unsigned int flags;
 
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	*(volatile unsigned int *)KSEG1;
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -226,15 +215,12 @@ static void r4k_clear_page_r4600_v2(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_D)
-		:"$1","memory");
-	restore_flags(flags);
+		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		:"$1", "memory");
+	__restore_flags(flags);
 }
 
 /*
@@ -251,7 +237,6 @@ static void r4k_clear_page_s16(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -267,13 +252,10 @@ static void r4k_clear_page_s16(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_SD)
+		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
 		:"$1","memory");
 }
 
@@ -282,7 +264,6 @@ static void r4k_clear_page_s32(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -296,13 +277,10 @@ static void r4k_clear_page_s32(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_SD)
+		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
 		:"$1","memory");
 }
 
@@ -311,7 +289,6 @@ static void r4k_clear_page_s64(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -324,7 +301,6 @@ static void r4k_clear_page_s64(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
@@ -339,7 +315,6 @@ static void r4k_clear_page_s128(unsigned long page)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%2\n"
 		"1:\tcache\t%3,(%0)\n\t"
 		"sd\t$0,(%0)\n\t"
@@ -360,14 +335,13 @@ static void r4k_clear_page_s128(unsigned long page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (page)
 		:"0" (page),
 		 "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_SD)
-		:"$1","memory");
+		:"$1", "memory");
 }
 
 
@@ -378,117 +352,75 @@ static void r4k_clear_page_s128(unsigned long page)
 
 static void r4k_copy_page_d16(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
-		"1:\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"cache\t%9,16(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
-		"cache\t%9,32(%0)\n\t"
+		"daddiu\t$1,%0,%6\n"
+		"1:\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"cache\t%7,16(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
+		"cache\t%7,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"cache\t%9,-16(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"cache\t%7,-16(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%4,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
 }
 
 static void r4k_copy_page_d32(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
-		"1:\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
-		"cache\t%9,32(%0)\n\t"
+		"daddiu\t$1,%0,%6\n"
+		"1:\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
+		"cache\t%7,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
 }
 
@@ -497,135 +429,93 @@ static void r4k_copy_page_d32(unsigned long to, unsigned long from)
  */
 static void r4k_copy_page_r4600_v1(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
+		"daddiu\t$1,%0,%6\n"
 		"1:\tnop\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
-		"\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
+		"\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
-		"cache\t%9,32(%0)\n\t"
+		"cache\t%7,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
 }
 
 static void r4k_copy_page_r4600_v2(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 	unsigned int flags;
 
 	__save_and_cli(flags);
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
+		"daddiu\t$1,%0,%6\n"
 		"1:\tnop\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
-		"\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
+		"\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
 		"nop\n\t"
-		"cache\t%9,32(%0)\n\t"
+		"cache\t%7,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
-	restore_flags(flags);
+	__restore_flags(flags);
 }
 
 /*
@@ -633,173 +523,110 @@ static void r4k_copy_page_r4600_v2(unsigned long to, unsigned long from)
  */
 static void r4k_copy_page_s16(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
-		"1:\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"cache\t%9,16(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
-		"cache\t%9,32(%0)\n\t"
+		"daddiu\t$1,%0,%6\n"
+		"1:\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"cache\t%7,16(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
+		"cache\t%7,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"cache\t%9,-16(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"cache\t%7,-16(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_SD));
 }
 
 static void r4k_copy_page_s32(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
-		"1:\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
-		"cache\t%9,32(%0)\n\t"
+		"daddiu\t$1,%0,%6\n"
+		"1:\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
+		"cache\t%7,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_SD));
 }
 
 static void r4k_copy_page_s64(unsigned long to, unsigned long from)
 {
-	unsigned long dummy1, dummy2;
-	unsigned long reg1, reg2, reg3, reg4;
+	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
-		"daddiu\t$1,%0,%8\n"
-		"1:\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
+		"daddiu\t$1,%0,%6\n"
+		"1:\tcache\t%7,(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2),
-		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
-		:"0" (to), "1" (from),
-		 "I" (PAGE_SIZE),
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_SD));
 }
 
@@ -811,77 +638,43 @@ static void r4k_copy_page_s128(unsigned long to, unsigned long from)
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
-		".set\tmips3\n\t"
 		"daddiu\t$1,%0,%8\n"
 		"1:\tcache\t%9,(%0)\n\t"
-		"lw\t%2,(%1)\n\t"
-		"lw\t%3,4(%1)\n\t"
-		"lw\t%4,8(%1)\n\t"
-		"lw\t%5,12(%1)\n\t"
-		"sw\t%2,(%0)\n\t"
-		"sw\t%3,4(%0)\n\t"
-		"sw\t%4,8(%0)\n\t"
-		"sw\t%5,12(%0)\n\t"
-		"lw\t%2,16(%1)\n\t"
-		"lw\t%3,20(%1)\n\t"
-		"lw\t%4,24(%1)\n\t"
-		"lw\t%5,28(%1)\n\t"
-		"sw\t%2,16(%0)\n\t"
-		"sw\t%3,20(%0)\n\t"
-		"sw\t%4,24(%0)\n\t"
-		"sw\t%5,28(%0)\n\t"
-		"lw\t%2,32(%1)\n\t"
-		"lw\t%3,36(%1)\n\t"
-		"lw\t%4,40(%1)\n\t"
-		"lw\t%5,44(%1)\n\t"
-		"sw\t%2,32(%0)\n\t"
-		"sw\t%3,36(%0)\n\t"
-		"sw\t%4,40(%0)\n\t"
-		"sw\t%5,44(%0)\n\t"
-		"lw\t%2,48(%1)\n\t"
-		"lw\t%3,52(%1)\n\t"
-		"lw\t%4,56(%1)\n\t"
-		"lw\t%5,60(%1)\n\t"
-		"sw\t%2,48(%0)\n\t"
-		"sw\t%3,52(%0)\n\t"
-		"sw\t%4,56(%0)\n\t"
-		"sw\t%5,60(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"ld\t%4,16(%1)\n\t"
+		"ld\t%5,24(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"sd\t%4,16(%0)\n\t"
+		"sd\t%5,24(%0)\n\t"
+		"ld\t%2,32(%1)\n\t"
+		"ld\t%3,40(%1)\n\t"
+		"ld\t%4,48(%1)\n\t"
+		"ld\t%5,56(%1)\n\t"
+		"sd\t%2,32(%0)\n\t"
+		"sd\t%3,40(%0)\n\t"
+		"sd\t%4,48(%0)\n\t"
+		"sd\t%5,56(%0)\n\t"
 		"daddiu\t%0,128\n\t"
 		"daddiu\t%1,128\n\t"
-		"lw\t%2,-64(%1)\n\t"
-		"lw\t%3,-60(%1)\n\t"
-		"lw\t%4,-56(%1)\n\t"
-		"lw\t%5,-52(%1)\n\t"
-		"sw\t%2,-64(%0)\n\t"
-		"sw\t%3,-60(%0)\n\t"
-		"sw\t%4,-56(%0)\n\t"
-		"sw\t%5,-52(%0)\n\t"
-		"lw\t%2,-48(%1)\n\t"
-		"lw\t%3,-44(%1)\n\t"
-		"lw\t%4,-40(%1)\n\t"
-		"lw\t%5,-36(%1)\n\t"
-		"sw\t%2,-48(%0)\n\t"
-		"sw\t%3,-44(%0)\n\t"
-		"sw\t%4,-40(%0)\n\t"
-		"sw\t%5,-36(%0)\n\t"
-		"lw\t%2,-32(%1)\n\t"
-		"lw\t%3,-28(%1)\n\t"
-		"lw\t%4,-24(%1)\n\t"
-		"lw\t%5,-20(%1)\n\t"
-		"sw\t%2,-32(%0)\n\t"
-		"sw\t%3,-28(%0)\n\t"
-		"sw\t%4,-24(%0)\n\t"
-		"sw\t%5,-20(%0)\n\t"
-		"lw\t%2,-16(%1)\n\t"
-		"lw\t%3,-12(%1)\n\t"
-		"lw\t%4,-8(%1)\n\t"
-		"lw\t%5,-4(%1)\n\t"
-		"sw\t%2,-16(%0)\n\t"
-		"sw\t%3,-12(%0)\n\t"
-		"sw\t%4,-8(%0)\n\t"
+		"ld\t%2,-64(%1)\n\t"
+		"ld\t%3,-56(%1)\n\t"
+		"ld\t%4,-48(%1)\n\t"
+		"ld\t%5,-40(%1)\n\t"
+		"sd\t%2,-64(%0)\n\t"
+		"sd\t%3,-56(%0)\n\t"
+		"sd\t%4,-48(%0)\n\t"
+		"sd\t%5,-40(%0)\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"ld\t%4,-16(%1)\n\t"
+		"ld\t%5,-8(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"sd\t%4,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sw\t%5,-4(%0)\n\t"
-		".set\tmips0\n\t"
+		" sd\t%5,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (dummy1), "=r" (dummy2),
@@ -987,8 +780,7 @@ static inline void r4k_flush_cache_all_d32i32(void)
 }
 
 static void
-r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
-                                unsigned long start,
+r4k_flush_cache_range_s16d16i16(struct mm_struct *mm, unsigned long start,
                                 unsigned long end)
 {
 	struct vm_area_struct *vma;
@@ -1028,8 +820,7 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 }
 
 static void
-r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
-                                unsigned long start,
+r4k_flush_cache_range_s32d16i16(struct mm_struct *mm, unsigned long start,
                                 unsigned long end)
 {
 	struct vm_area_struct *vma;
@@ -1068,9 +859,9 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
-					    unsigned long start,
-					    unsigned long end)
+static void
+r4k_flush_cache_range_s64d16i16(struct mm_struct *mm, unsigned long start,
+                                unsigned long end)
 {
 	struct vm_area_struct *vma;
 	unsigned long flags;
@@ -1108,9 +899,9 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
-					     unsigned long start,
-					     unsigned long end)
+static void
+r4k_flush_cache_range_s128d16i16(struct mm_struct *mm, unsigned long start,
+                                 unsigned long end)
 {
 	struct vm_area_struct *vma;
 	unsigned long flags;
@@ -1148,9 +939,9 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
-					    unsigned long start,
-					    unsigned long end)
+static void
+r4k_flush_cache_range_s32d32i32(struct mm_struct *mm, unsigned long start,
+                                unsigned long end)
 {
 	struct vm_area_struct *vma;
 	unsigned long flags;
@@ -1188,9 +979,9 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
-					    unsigned long start,
-					    unsigned long end)
+static void
+r4k_flush_cache_range_s64d32i32(struct mm_struct *mm, unsigned long start,
+                                unsigned long end)
 {
 	struct vm_area_struct *vma;
 	unsigned long flags;
@@ -1228,9 +1019,9 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
-					     unsigned long start,
-					     unsigned long end)
+static void
+r4k_flush_cache_range_s128d32i32(struct mm_struct *mm, unsigned long start,
+                                 unsigned long end)
 {
 	struct vm_area_struct *vma;
 	unsigned long flags;
@@ -1268,9 +1059,9 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
-					 unsigned long start,
-					 unsigned long end)
+static void
+r4k_flush_cache_range_d16i16(struct mm_struct *mm, unsigned long start,
+                             unsigned long end)
 {
 	if(mm->context != 0) {
 		unsigned long flags;
@@ -1284,9 +1075,9 @@ static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_d32i32(struct mm_struct *mm,
-					 unsigned long start,
-					 unsigned long end)
+static void
+r4k_flush_cache_range_d32i32(struct mm_struct *mm, unsigned long start,
+                             unsigned long end)
 {
 	if(mm->context != 0) {
 		unsigned long flags;
@@ -1395,8 +1186,8 @@ static void r4k_flush_cache_mm_d32i32(struct mm_struct *mm)
 	}
 }
 
-static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
-					   unsigned long page)
+static void
+r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1449,8 +1240,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
-					   unsigned long page)
+static void
+r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1502,8 +1293,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
-					   unsigned long page)
+static void
+r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1556,8 +1347,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
-					    unsigned long page)
+static void
+r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1611,8 +1402,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
-					   unsigned long page)
+static void
+r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1667,8 +1458,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
-					   unsigned long page)
+static void
+r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1723,8 +1514,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
-					    unsigned long page)
+static void
+r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1777,8 +1568,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
-					unsigned long page)
+static void
+r4k_flush_cache_page_d16i16(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1833,8 +1624,8 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
-					unsigned long page)
+static void
+r4k_flush_cache_page_d32i32(struct vm_area_struct *vma, unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -1891,8 +1682,9 @@ out:
 	restore_flags(flags);
 }
 
-static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
-					      unsigned long page)
+static void
+r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
+                                  unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
@@ -2478,37 +2270,6 @@ static void r4k_show_regs(struct pt_regs * regs)
 	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
 	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
 }
-			
-static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-				      unsigned long entryhi, unsigned long pagemask)
-{
-        unsigned long flags;
-        unsigned long wired;
-        unsigned long old_pagemask;
-        unsigned long old_ctx;
-
-        save_and_cli(flags);
-        /* Save old context and create impossible VPN2 value */
-        old_ctx = (get_entryhi() & 0xff);
-        old_pagemask = get_pagemask();
-        wired = get_wired();
-        set_wired (wired + 1);
-        set_index (wired);
-        BARRIER;    
-        set_pagemask (pagemask);
-        set_entryhi(entryhi);
-        set_entrylo0(entrylo0);
-        set_entrylo1(entrylo1);
-        BARRIER;    
-        tlb_write_indexed();
-        BARRIER;    
-    
-        set_entryhi(old_ctx);
-        BARRIER;    
-        set_pagemask (old_pagemask);
-        flush_tlb_all();    
-        restore_flags(flags);
-}
 
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
@@ -2582,19 +2343,13 @@ static int __init probe_scache(unsigned long config)
 	set_taghi(0);
 	__asm__ __volatile__("nop; nop; nop; nop;"); /* avoid the hazard */
 	__asm__ __volatile__("\n\t.set noreorder\n\t"
-			     ".set mips3\n\t"
 			     "cache 8, (%0)\n\t"
-			     ".set mips0\n\t"
 			     ".set reorder\n\t" : : "r" (begin));
 	__asm__ __volatile__("\n\t.set noreorder\n\t"
-			     ".set mips3\n\t"
 			     "cache 9, (%0)\n\t"
-			     ".set mips0\n\t"
 			     ".set reorder\n\t" : : "r" (begin));
 	__asm__ __volatile__("\n\t.set noreorder\n\t"
-			     ".set mips3\n\t"
 			     "cache 11, (%0)\n\t"
-			     ".set mips0\n\t"
 			     ".set reorder\n\t" : : "r" (begin));
 
 	/* Now search for the wrap around point. */
@@ -2602,9 +2357,7 @@ static int __init probe_scache(unsigned long config)
 	tmp = 0;
 	for(addr = (begin + (128 * 1024)); addr < (end); addr = (begin + pow2)) {
 		__asm__ __volatile__("\n\t.set noreorder\n\t"
-				     ".set mips3\n\t"
 				     "cache 7, (%0)\n\t"
-				     ".set mips0\n\t"
 				     ".set reorder\n\t" : : "r" (addr));
 		__asm__ __volatile__("nop; nop; nop; nop;"); /* hazard... */
 		if(!get_taglo())
@@ -2794,7 +2547,6 @@ void __init ld_mmu_r4xx0(void)
 	flush_tlb_mm = r4k_flush_tlb_mm;
 	flush_tlb_range = r4k_flush_tlb_range;
 	flush_tlb_page = r4k_flush_tlb_page;
-	r4xx0_asid_setup();
 
 	load_pgd = r4k_load_pgd;
 	pgd_init = r4k_pgd_init;
@@ -2802,8 +2554,6 @@ void __init ld_mmu_r4xx0(void)
 
 	show_regs = r4k_show_regs;
     
-        add_wired_entry = r4k_add_wired_entry;
-
 	user_mode = r4k_user_mode;
 
 	flush_cache_all();

@@ -9,14 +9,18 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 #include <linux/init.h>
+
+#include <asm/arc/types.h>
 #include <asm/sgialib.h>
 
-struct __init linux_tinfo *prom_gettinfo(void)
+struct linux_tinfo * __init
+ArcGetTime(VOID)
 {
-	return romvec->get_tinfo();
+	return (struct linux_tinfo *) ARC_CALL0(get_tinfo);
 }
 
-unsigned __init long prom_getrtime(void)
+ULONG __init
+ArcGetRelativeTime(VOID)
 {
-	return romvec->get_rtime();
+	return ARC_CALL0(get_rtime);
 }

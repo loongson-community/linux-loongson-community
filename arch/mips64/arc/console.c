@@ -4,7 +4,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * console.c: SGI arcs console code.
+ * ARC console code.
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  */
@@ -16,7 +16,7 @@ void __init prom_putchar(char c)
 	long cnt;
 	char it = c;
 
-	romvec->write(1, &it, 1, &cnt);
+	ArcWrite(1, &it, 1, &cnt);
 }
 
 char __init prom_getchar(void)
@@ -24,6 +24,7 @@ char __init prom_getchar(void)
 	long cnt;
 	char c;
 
-	romvec->read(0, &c, 1, &cnt);
+	ArcRead(0, &c, 1, &cnt);
+
 	return c;
 }

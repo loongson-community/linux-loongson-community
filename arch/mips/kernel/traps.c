@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.23 1999/08/09 19:43:15 harald Exp $
+/* $Id: traps.c,v 1.24 1999/08/13 17:07:26 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -324,7 +324,6 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 	return 0;
 }
 
-
 void do_bp(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
@@ -579,7 +578,7 @@ void set_except_vector(int n, void *addr)
 	}
 }
 
-__initfunc(void trap_init(void))
+void __init trap_init(void)
 {
 	extern char except_vec0_nevada, except_vec0_r4000;
 	extern char except_vec0_r4600, except_vec0_r2300;

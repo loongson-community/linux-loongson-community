@@ -24,13 +24,14 @@
 
 #undef DEBUG
 
-struct linux_mdesc * __init prom_getmdesc(struct linux_mdesc *curr)
+struct linux_mdesc * __init
+ArcGetMemoryDescriptor(struct linux_mdesc *Current)
 {
-	return romvec->get_mdesc(curr);
+	return (struct linux_mdesc *) ARC_CALL1(get_mdesc, Current);
 }
 
 #ifdef DEBUG
-static char *arcs_mtypes[8] = {	/* convenient for debugging */
+static char *arcs_mtypes[8] = {		/* convenient for debugging */
 	"Exception Block",
 	"ARCS Romvec Page",
 	"Free/Contig RAM",
@@ -51,8 +52,10 @@ static char *arc_mtypes[8] = {
 	"FirmwarePermanent",
 	"FreeContigiuous"
 };
+
 #define mtypes(a) (prom_flags & PROM_FLAG_ARCS) ? arcs_mtypes[a.arcs] : arc_mtypes[a.arc]
-#endif
+
+#endif /* DEBUG  */
 
 static struct prom_pmemblock prom_pblocks[PROM_MAX_PMEMBLOCKS];
 
@@ -65,35 +68,37 @@ struct prom_pmemblock * __init prom_getpblock_array(void)
 #define MEMTYPE_PROM      1
 #define MEMTYPE_FREE      2
 
-static int __init prom_memtype_classify (union linux_memtypes type)
+static int __init
+prom_memtype_classify (union linux_memtypes type)
 {
-    if (prom_flags & PROM_FLAG_ARCS) {
-	switch (type.arcs) {
-	 case arcs_free:
-	 case arcs_fcontig:
-	    return MEMTYPE_FREE;
-	 case arcs_atmp:
-	 case arcs_aperm:
-	    return MEMTYPE_PROM;
-	 default:
-	    return MEMTYPE_DONTUSE;
+	if (prom_flags & PROM_FLAG_ARCS) {
+		switch (type.arcs) {
+		case arcs_free:
+		case arcs_fcontig:
+			return MEMTYPE_FREE;
+		case arcs_atmp:
+		case arcs_aperm:
+			return MEMTYPE_PROM;
+		default:
+			return MEMTYPE_DONTUSE;
+		}
+	} else {
+		switch (type.arc) {
+		case arc_free:
+		case arc_fcontig:
+			return MEMTYPE_FREE;
+		case arc_rvpage:
+		case arc_atmp:
+		case arc_aperm:
+			return MEMTYPE_PROM;
+		default:
+			return MEMTYPE_DONTUSE;
+		}
 	}
-    } else {
-	switch (type.arc) {
-	 case arc_free:
-	 case arc_fcontig:
-	    return MEMTYPE_FREE;
-	 case arc_rvpage:
-	 case arc_atmp:
-	 case arc_aperm:
-	    return MEMTYPE_PROM;
-	 default:
-	    return MEMTYPE_DONTUSE;
-	}
-    }
 }
 
-static void __init prom_setup_memupper(void)
+static void __init
+prom_setup_memupper(void)
 {
 	struct prom_pmemblock *p, *highest;
 
@@ -106,67 +111,69 @@ static void __init prom_setup_memupper(void)
 	mips_memory_upper = highest->base + highest->size;
 #ifdef DEBUG
 	prom_printf("prom_setup_memupper: mips_memory_upper = %08lx\n",
-		    mips_memory_upper);
+	            mips_memory_upper);
 #endif
 }
 
-void __init prom_meminit(void)
+void __init
+prom_meminit(void)
 {
 	struct linux_mdesc *p;
 	int totram;
 	int i = 0;
 
-	p = prom_getmdesc(PROM_NULL_MDESC);
+	p = ArcGetMemoryDescriptor(PROM_NULL_MDESC);
 #ifdef DEBUG
 	prom_printf("ARCS MEMORY DESCRIPTOR dump:\n");
 	while(p) {
 		prom_printf("[%d,%p]: base<%08lx> pages<%08lx> type<%s>\n",
-			    i, p, p->base, p->pages, mtypes(p->type));
-		p = prom_getmdesc(p);
+		            i, p, p->base, p->pages, mtypes(p->type));
+		p = ArcGetMemoryDescriptor(p);
 		i++;
 	}
 #endif
-	p = prom_getmdesc(PROM_NULL_MDESC);
+	p = ArcGetMemoryDescriptor(PROM_NULL_MDESC);
 	totram = 0;
 	i = 0;
 	while(p) {
-	    prom_pblocks[i].type = prom_memtype_classify (p->type);
-	    prom_pblocks[i].base = ((p->base<<PAGE_SHIFT) + 0x80000000);
-	    prom_pblocks[i].size = p->pages << PAGE_SHIFT;
-	    switch (prom_pblocks[i].type) {
-	     case MEMTYPE_FREE:
-		totram += prom_pblocks[i].size;
+		prom_pblocks[i].type = prom_memtype_classify (p->type);
+		prom_pblocks[i].base = ((p->base<<PAGE_SHIFT) + 0x80000000);
+		prom_pblocks[i].size = p->pages << PAGE_SHIFT;
+		switch (prom_pblocks[i].type) {
+		case MEMTYPE_FREE:
+			totram += prom_pblocks[i].size;
 #ifdef DEBUG
-		prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
-			    i, prom_pblocks[i].base,
-			    prom_pblocks[i].size);
+			prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
+			            i, prom_pblocks[i].base,
+			            prom_pblocks[i].size);
 #endif
-		i++;
-		break;
-	     case MEMTYPE_PROM:
+			i++;
+			break;
+		case MEMTYPE_PROM:
 #ifdef DEBUG
-		prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
-			    i, prom_pblocks[i].base,
-			    prom_pblocks[i].size);
+			prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
+			            i, prom_pblocks[i].base,
+			            prom_pblocks[i].size);
 #endif
-		i++;
-		break;
-	     default:
-		break;
-	    }
-	    p = prom_getmdesc(p);
+			i++;
+			break;
+		default:
+			break;
+		}
+		p = ArcGetMemoryDescriptor(p);
 	}
 	prom_pblocks[i].base = 0xdeadbeef;
 	prom_pblocks[i].size = 0; /* indicates last elem. of array */
 	printk("PROMLIB: Total free ram %d bytes (%dK,%dMB)\n",
-		    totram, (totram/1024), (totram/1024/1024));
+	       totram, (totram/1024), (totram/1024/1024));
 
 	/* Setup upper physical memory bound. */
 	prom_setup_memupper();
 }
 
 /* Called from mem_init() to fixup the mem_map page settings. */
-void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
+void __init
+prom_fixup_mem_map(unsigned long start, unsigned long end)
 {
 	struct prom_pmemblock *p;
 	int i, nents;
@@ -179,9 +186,9 @@ void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
 restart:
 	while(start < end) {
 		for(i = 0; i < nents; i++) {
-			if((p[i].type == MEMTYPE_FREE) &&
-			   (start >= (p[i].base)) &&
-			   (start < (p[i].base + p[i].size))) {
+			if ((p[i].type == MEMTYPE_FREE)
+			    && (start >= (p[i].base))
+			    && (start < (p[i].base + p[i].size))) {
 				start = p[i].base + p[i].size;
 				start &= PAGE_MASK;
 				goto restart;
@@ -192,21 +199,22 @@ restart:
 	}
 }
 
-void prom_free_prom_memory (void)
+void
+prom_free_prom_memory (void)
 {
-    struct prom_pmemblock *p;
-    unsigned long addr;
-    unsigned long num_pages = 0;
+	struct prom_pmemblock *p;
+	unsigned long addr;
+	unsigned long num_pages = 0;
 
-    for(p = prom_getpblock_array(); p->size != 0; p++) {
-	if (p->type == MEMTYPE_PROM) {
-	    for (addr = p->base; addr < p->base + p->size; addr += PAGE_SIZE) {
-		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
-		atomic_set(&mem_map[MAP_NR(addr)].count, 1);
-		free_page(addr);
-		num_pages++;
-	    }
+	for(p = prom_getpblock_array(); p->size != 0; p++) {
+		if (p->type == MEMTYPE_PROM) {
+			for (addr = p->base; addr < p->base + p->size; addr += PAGE_SIZE) {
+				mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
+				atomic_set(&mem_map[MAP_NR(addr)].count, 1);
+				free_page(addr);
+				num_pages++;
+			}
+		}
 	}
-    }
-    printk ("Freeing prom memory: %ldk freed\n", num_pages * PAGE_SIZE);
+	printk ("Freeing prom memory: %ldk freed\n", num_pages * PAGE_SIZE);
 }

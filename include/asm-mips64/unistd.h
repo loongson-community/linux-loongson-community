@@ -1,10 +1,11 @@
-/* $Id$
+/* $Id: unistd.h,v 1.1 1999/08/18 23:37:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1995, 1996, 1997, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * Changed system calls macros _syscall5 - _syscall7 to push args 5 to 7 onto
  * the stack. Robin Farine for ACN S.A, Copyright (C) 1996 by ACN S.A
@@ -1308,6 +1309,98 @@ errno = __res; \
 return -1; \
 }
 
+#if (_MIPS_SIM == _ABIN32) || (_MIPS_SIM == _ABI64)
+
+#define _syscall5(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e) \
+type name (atype a,btype b,ctype c,dtype d,etype e) \
+{ \
+register long __res __asm__ ("$2"); \
+register long __err __asm__ ("$7"); \
+__asm__ volatile ("move\t$4,%3\n\t" \
+                  "move\t$5,%4\n\t" \
+                  "move\t$6,%5\n\t" \
+                  "move\t$7,%6\n\t" \
+		  "move\t$8,%7\n\t" \
+		  "sw\t$2,16($29)\n\t" \
+		  "li\t$2,%2\n\t" \
+                  "syscall" \
+                  : "=r" (__res), "=r" (__err) \
+                  : "i" (__NR_##name),"r" ((long)(a)), \
+                                      "r" ((long)(b)), \
+                                      "r" ((long)(c)), \
+                                      "r" ((long)(d)), \
+                                      "r" ((long)(e)) \
+                  : "$2","$4","$5","$6","$7","$8","$9","$10","$11","$12", \
+                    "$13","$14","$15","$24"); \
+if (__err == 0) \
+	return (type) __res; \
+errno = __res; \
+return -1; \
+}
+
+#define _syscall6(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e,ftype,f) \
+type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
+{ \
+register long __res __asm__ ("$2"); \
+register long __err __asm__ ("$7"); \
+__asm__ volatile ("move\t$4,%3\n\t" \
+                  "move\t$5,%4\n\t" \
+                  "move\t$6,%5\n\t" \
+                  "move\t$7,%6\n\t" \
+                  "move\t$8,%7\n\t" \
+                  "move\t$9,%8\n\t" \
+		  "li\t$2,%2\n\t" \
+                  "syscall" \
+                  : "=r" (__res), "=r" (__err) \
+                  : "i" (__NR_##name),"r" ((long)(a)), \
+                                      "r" ((long)(b)), \
+                                      "r" ((long)(c)), \
+                                      "r" ((long)(d)), \
+                                      "m" ((long)(e)), \
+                                      "m" ((long)(f)) \
+                  : "$2","$3","$4","$5","$6","$7","$8","$9","$10","$11", \
+                    "$12","$13","$14","$15","$24"); \
+if (__err == 0) \
+	return (type) __res; \
+errno = __res; \
+return -1; \
+}
+
+#define _syscall7(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e,ftype,f,gtype,g) \
+type name (atype a,btype b,ctype c,dtype d,etype e,ftype f,gtype g) \
+{ \
+register long __res __asm__ ("$2"); \
+register long __err __asm__ ("$7"); \
+__asm__ volatile ("move\t$4,%3\n\t" \
+                  "move\t$5,%4\n\t" \
+                  "move\t$6,%5\n\t" \
+                  "move\t$7,%6\n\t" \
+                  "move\t$8,%7\n\t" \
+                  "move\t$9,%8\n\t" \
+                  "move\t$10,%9\n\t" \
+		  "li\t$2,%2\n\t" \
+                  "syscall" \
+                  : "=r" (__res), "=r" (__err) \
+                  : "i" (__NR_##name),"r" ((long)(a)), \
+                                      "r" ((long)(b)), \
+                                      "r" ((long)(c)), \
+                                      "r" ((long)(d)), \
+                                      "r" ((long)(e)), \
+                                      "r" ((long)(f)), \
+                                      "r" ((long)(g)) \
+                  : "$2","$3","$4","$5","$6","$7","$8","$9","$10","$11", \
+                    "$12","$13","$14","$15","$24"); \
+if (__err == 0) \
+	return (type) __res; \
+errno = __res; \
+return -1; \
+}
+
+#else /* not N32 or 64 ABI */
+
+/* These are here for sake of fucked lusercode that fucking believes to
+   fucking have to fuck around with the syscall interface themselfes.  */
+
 #define _syscall5(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e) \
 type name (atype a,btype b,ctype c,dtype d,etype e) \
 { \
@@ -1403,6 +1496,8 @@ if (__err == 0) \
 errno = __res; \
 return -1; \
 }
+
+#endif
 
 #ifdef __KERNEL_SYSCALLS__
 

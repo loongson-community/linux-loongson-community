@@ -1,13 +1,11 @@
-/*
- * arch/mips/lib/strlen_user.S
+/* $Id: strlen_user.S,v 1.2 1998/05/04 09:12:54 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1996, 1998 by Ralf Baechle
- *
- * $Id: strlen_user.S,v 1.3 1998/05/03 11:13:45 ralf Exp $
+ * Copyright (c) 1996, 1998, 1999 by Ralf Baechle
+ * Copyright (c) 1999 Silicon Graphics, Inc.
  */
 #include <asm/asm.h>
 #include <asm/offset.h>
@@ -26,11 +24,11 @@
  * Return 0 for error
  */
 LEAF(__strlen_user_nocheck_asm)
-	lw	v0, THREAD_CURDS($28)			# pointer ok?
-	subu	v0, zero, v0
-	and	v0, a0
-	nor	v0, zero, v0
-	beqz	v0, fault
+	LONG_L		v0, THREAD_CURDS($28)			# pointer ok?
+	LONG_SUBU	v0, zero, v0
+	and		v0, a0
+	not		v0
+	beqz		v0, fault
 EXPORT(__strlen_user_asm)
 	move		v0, a0
 1:	EX(lb, t0, (v0), fault)
