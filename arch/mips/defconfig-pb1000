@@ -102,7 +102,64 @@ CONFIG_SYSCTL=y
 #
 # Memory Technology Devices (MTD)
 #
-# CONFIG_MTD is not set
+CONFIG_MTD=y
+# CONFIG_MTD_DEBUG is not set
+CONFIG_MTD_PARTITIONS=y
+# CONFIG_MTD_REDBOOT_PARTS is not set
+
+#
+# User Modules And Translation Layers
+#
+CONFIG_MTD_CHAR=y
+CONFIG_MTD_BLOCK=y
+# CONFIG_FTL is not set
+# CONFIG_NFTL is not set
+
+#
+# RAM/ROM/Flash chip drivers
+#
+CONFIG_MTD_CFI=y
+# CONFIG_MTD_JEDECPROBE is not set
+CONFIG_MTD_GEN_PROBE=y
+# CONFIG_MTD_CFI_ADV_OPTIONS is not set
+# CONFIG_MTD_CFI_INTELEXT is not set
+CONFIG_MTD_CFI_AMDSTD=y
+# CONFIG_MTD_RAM is not set
+# CONFIG_MTD_ROM is not set
+# CONFIG_MTD_ABSENT is not set
+# CONFIG_MTD_OBSOLETE_CHIPS is not set
+# CONFIG_MTD_AMDSTD is not set
+# CONFIG_MTD_SHARP is not set
+# CONFIG_MTD_JEDEC is not set
+
+#
+# Mapping drivers for chip access
+#
+# CONFIG_MTD_PHYSMAP is not set
+CONFIG_MTD_PB1000=y
+# CONFIG_MTD_CSTM_MIPS_IXX is not set
+# CONFIG_MTD_OCELOT is not set
+
+#
+# Self-contained MTD device drivers
+#
+# CONFIG_MTD_PMC551 is not set
+# CONFIG_MTD_SLRAM is not set
+# CONFIG_MTD_MTDRAM is not set
+# CONFIG_MTD_BLKMTD is not set
+
+#
+# Disk-On-Chip Device Drivers
+#
+# CONFIG_MTD_DOC1000 is not set
+# CONFIG_MTD_DOC2000 is not set
+# CONFIG_MTD_DOC2001 is not set
+# CONFIG_MTD_DOCPROBE is not set
+
+#
+# NAND Flash Device Drivers
+#
+# CONFIG_MTD_NAND is not set
 
 #
 # Parallel port support
@@ -372,7 +429,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 CONFIG_AU1000_GPIO=y
-CONFIG_TS_AU1000_ADS7846=y
+# CONFIG_TS_AU1000_ADS7846 is not set
 
 #
 # Multimedia devices
@@ -402,11 +459,12 @@ CONFIG_AUTOFS4_FS=y
 # CONFIG_VFAT_FS is not set
 # CONFIG_EFS_FS is not set
 # CONFIG_JFFS_FS is not set
-# CONFIG_JFFS2_FS is not set
+CONFIG_JFFS2_FS=y
+CONFIG_JFFS2_FS_DEBUG=0
 # CONFIG_CRAMFS is not set
 # CONFIG_TMPFS is not set
 # CONFIG_RAMFS is not set
-CONFIG_ISO9660_FS=y
+# CONFIG_ISO9660_FS is not set
 # CONFIG_JOLIET is not set
 # CONFIG_ZISOFS is not set
 # CONFIG_MINIX_FS is not set
@@ -418,7 +476,7 @@ CONFIG_PROC_FS=y
 # CONFIG_DEVFS_FS is not set
 # CONFIG_DEVFS_MOUNT is not set
 # CONFIG_DEVFS_DEBUG is not set
-# CONFIG_DEVPTS_FS is not set
+CONFIG_DEVPTS_FS=y
 # CONFIG_QNX4FS_FS is not set
 # CONFIG_QNX4FS_RW is not set
 # CONFIG_ROMFS_FS is not set
