@@ -2414,7 +2414,7 @@ static void __init probe_icache(unsigned long config)
 	icache_size = 1 << (12 + ((config >> 9) & 7));
 	ic_lsize = 16 << ((config >> 5) & 1);
 
-	printk("Primary instruction cache %dkb, linesize %d bytes)\n",
+	printk("Primary instruction cache %dkb, linesize %d bytes.\n",
 	       icache_size >> 10, ic_lsize);
 }
 
@@ -2423,7 +2423,7 @@ static void __init probe_dcache(unsigned long config)
 	dcache_size = 1 << (12 + ((config >> 6) & 7));
 	dc_lsize = 16 << ((config >> 4) & 1);
 
-	printk("Primary data cache %dkb, linesize %d bytes)\n",
+	printk("Primary data cache %dkb, linesize %d bytes.\n",
 	       dcache_size >> 10, dc_lsize);
 }
 
@@ -2511,7 +2511,7 @@ static int __init probe_scache(unsigned long config)
 	}
 	__restore_flags(flags);
 	addr -= begin;
-	printk("Secondary cache sized at %dK linesize %d\n",
+	printk("Secondary cache sized at %dK linesize %d bytes.\n",
 	       (int) (addr >> 10), sc_lsize);
 	scache_size = addr;
 	return 1;
