@@ -202,6 +202,7 @@ void __init tc_init(void)
 		break;
 	case MACH_DS5000_1XX:
 	case MACH_DS5000_2X0:
+	case MACH_DS5900:
 		max_tcslot = 2;
 		break;
 	case MACH_DS5000_XX:

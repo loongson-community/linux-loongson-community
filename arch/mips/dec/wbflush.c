@@ -39,6 +39,7 @@ void __init wbflush_setup(void)
 	case MACH_DS5000_1XX:	/* DS5000/100 3min */
 	case MACH_DS5000_XX:	/* Personal DS5000/2x */
 	case MACH_DS5000_2X0:	/* DS5000/240 3max+ */
+	case MACH_DS5900:	/* DS5900 bigmax */
 	default:
 		__wbflush = wbflush_mips;
 		break;

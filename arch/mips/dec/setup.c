@@ -727,6 +727,7 @@ void __init init_IRQ(void)
 		dec_init_kn02ba();
 		break;
 	case MACH_DS5000_2X0:	/* DS5000/240 3max+ */
+	case MACH_DS5900:	/* DS5900 bigmax */
 		dec_init_kn03();
 		break;
 	case MACH_DS5000_XX:	/* Personal DS5000/xx */

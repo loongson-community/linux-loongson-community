@@ -1749,6 +1749,7 @@ static void __init probe_sccs(void)
 	switch(mips_machtype) {
 #ifdef CONFIG_DECSTATION
 	case MACH_DS5000_2X0:
+	case MACH_DS5900:
 		system_base = KSEG1ADDR(0x1f800000);
 		n_chips = 2;
 		zs_parms = &ds_parms;

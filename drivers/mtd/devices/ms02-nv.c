@@ -296,6 +296,7 @@ static int __init ms02nv_init(void)
 			stride = 2;
 		break;
 	case MACH_DS5000_2X0:
+	case MACH_DS5900:
 		csr = (volatile u32 *)KN03_MCR_BASE;
 		if (*csr & KN03_MCR_BNK32M)
 			stride = 2;

@@ -19,14 +19,15 @@ extern unsigned long mips_machtype;
 static const char *dec_system_strings[] = {
 	[MACH_DSUNKNOWN]	"unknown DECstation",
 	[MACH_DS23100]		"DECstation 2100/3100",
-	[MACH_DS5100]		"DECstation 5100",
+	[MACH_DS5100]		"DECsystem 5100",
 	[MACH_DS5000_200]	"DECstation 5000/200",
 	[MACH_DS5000_1XX]	"DECstation 5000/1xx",
 	[MACH_DS5000_XX]	"Personal DECstation 5000/xx",
 	[MACH_DS5000_2X0]	"DECstation 5000/2x0",
-	[MACH_DS5400]		"DECstation 5400",
-	[MACH_DS5500]		"DECstation 5500",
-	[MACH_DS5800]		"DECstation 5800"
+	[MACH_DS5400]		"DECsystem 5400",
+	[MACH_DS5500]		"DECsystem 5500",
+	[MACH_DS5800]		"DECsystem 5800",
+	[MACH_DS5900]		"DECsystem 5900",
 };
 
 const char *get_system_type(void)

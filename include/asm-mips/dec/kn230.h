@@ -1,7 +1,7 @@
 /*
  *	include/asm-mips/dec/kn230.h
  *
- *	DECstation 5100 (MIPSmate or KN230) definitions.
+ *	DECsystem 5100 (MIPSmate or KN230) definitions.
  *
  *	Copyright (C) 2002  Maciej W. Rozycki
  *
