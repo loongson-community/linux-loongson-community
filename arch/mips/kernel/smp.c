@@ -280,11 +280,8 @@ int __devinit __cpu_up(unsigned int cpu)
 	 * Linux can schedule processes on this slave.
 	 */
 	idle = fork_idle(cpu);
-	if (IS_ERR(idle)) {
+	if (IS_ERR(idle))
 		panic(KERN_ERR "Fork failed for CPU %d\n", cpu);
-
-		return PTR_ERR(idle);
-	}
 
 	prom_boot_secondary(cpu, idle);
 
