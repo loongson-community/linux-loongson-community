@@ -232,7 +232,6 @@ void __init sgi_setup(void)
 	char *kgdb_ttyd;
 #endif
 
-
 	irq_setup = sgi_irq_setup;
 	board_time_init = sgi_time_init;
 
@@ -275,7 +274,7 @@ void __init sgi_setup(void)
 		       line ? 1 : 2);
 		rs_kgdb_hook(line);
 
-		prom_printf("KGDB: Using serial line /dev/ttyd%d for session, "
+		printk("KGDB: Using serial line /dev/ttyd%d for session, "
 			    "please connect your debugger\n", line ? 1 : 2);
 
 		remote_debug = 1;
@@ -317,5 +316,4 @@ void __init sgi_setup(void)
 #ifdef CONFIG_VIDEO_VINO
 	init_vino();
 #endif
-
 }

@@ -1,16 +1,19 @@
 /*
- * console.c: SGI arcs console code.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  * Compability with board caches, Ulf Carlsson
- *
- * $Id: console.c,v 1.3 1999/10/09 00:00:57 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <asm/sgialib.h>
 #include <asm/bcache.h>
+#include <linux/console.h>
+#include <linux/kdev_t.h>
+#include <linux/major.h>
 
 #ifdef CONFIG_ARC_CONSOLE
 #define __init
@@ -44,6 +47,7 @@ char __init prom_getchar(void)
 	bc_disable();
 	romvec->read(0, &c, 1, &cnt);
 	bc_enable();
+
 	return c;
 }
 
@@ -67,4 +71,29 @@ void __init prom_printf(char *fmt, ...)
 		prom_putchar(ch);
 	}
 	va_end(args);
+}
+
+static void
+arc_console_write(struct console *con, const char *s, unsigned n)
+{
+	prom_printf("%s", s);
+}
+
+static kdev_t 
+arc_console_dev(struct console *c)
+{
+	return MKDEV(TTY_MAJOR, 64 + c->index);
+}
+
+static struct console arc_prom_console = {
+    name:	"prom",
+    write:	arc_console_write,
+    device:	arc_console_dev,
+    flags:	CON_PRINTBUFFER,
+    index:	-1,
+};
+
+__init void arc_setup_console(void)
+{
+	register_console(&arc_prom_console);
 }
