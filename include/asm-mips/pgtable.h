@@ -221,11 +221,11 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define PAGE_READONLY   __pgprot(_PAGE_PRESENT | _PAGE_READ | \
 			PAGE_CACHABLE_DEFAULT)
 #define PAGE_KERNEL	__pgprot(_PAGE_PRESENT | __READABLE | __WRITEABLE | \
-			PAGE_CACHABLE_DEFAULT)
+			_PAGE_GLOBAL | PAGE_CACHABLE_DEFAULT)
 #define PAGE_USERIO     __pgprot(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | \
 			PAGE_CACHABLE_DEFAULT)
-#define PAGE_KERNEL_UNCACHED __pgprot(_PAGE_PRESENT | __READABLE | __WRITEABLE | \
-			_CACHE_UNCACHED)
+#define PAGE_KERNEL_UNCACHED __pgprot(_PAGE_PRESENT | __READABLE | \
+			__WRITEABLE | _PAGE_GLOBAL | _CACHE_UNCACHED)
 
 /*
  * MIPS can't do page protection for execute, and considers that the same like
