@@ -1,1 +1,2 @@
-ld.script.elf32
+.*.cmd
+vmlinux.lds.s
