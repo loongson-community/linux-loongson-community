@@ -92,9 +92,11 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void local_flush_tlb_range(struct vma_struct *vma, unsigned long start,
 				unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
 		int size;

@@ -237,7 +237,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	size = (size + 1) >> 1;
 	if (size <= NTLB_ENTRIES_HALF) {
-		int old = get_entryhi();
+		int pid = get_entryhi();
 
 		start &= (PAGE_MASK << 1);
 		end += ((PAGE_SIZE << 1) - 1);

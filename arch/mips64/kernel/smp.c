@@ -300,12 +300,14 @@ static void flush_tlb_range_ipi(void *info)
 	local_flush_tlb_range(fd->vma, fd->addr1, fd->addr2);
 }
 
-void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
+void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		struct flush_tlb_data fd;
 
-		fd.mm = mm;
+		fd.vma = vma;
 		fd.addr1 = start;
 		fd.addr2 = end;
 		smp_call_function(flush_tlb_range_ipi, (void *)&fd, 1, 1);
@@ -315,7 +317,7 @@ void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long en
 			if (smp_processor_id() != i)
 				CPU_CONTEXT(i, mm) = 0;
 	}
-	local_flush_tlb_range(mm, start, end);
+	local_flush_tlb_range(vma, start, end);
 }
 
 static void flush_tlb_page_ipi(void *info)
