@@ -80,8 +80,8 @@ void __init swarm_ide_probe(void)
 	hwif = ide_hwifs + i;
 
 	base = ioremap(A_IO_EXT_BASE, 0x800);
-	offset = bus_readq(base + R_IO_EXT_REG(R_IO_EXT_START_ADDR, IDE_CS));
-	size = bus_readq(base + R_IO_EXT_REG(R_IO_EXT_MULT_SIZE, IDE_CS));
+	offset = __raw_readq(base + R_IO_EXT_REG(R_IO_EXT_START_ADDR, IDE_CS));
+	size = __raw_readq(base + R_IO_EXT_REG(R_IO_EXT_MULT_SIZE, IDE_CS));
 	iounmap(base);
 	
 	offset = G_IO_START_ADDR(offset) << S_IO_ADDRBASE;

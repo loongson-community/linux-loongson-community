@@ -135,14 +135,16 @@ static void init_duart_port(uart_state_t *port, int line)
 {
 	if (!(port->flags & DUART_INITIALIZED)) {
 		port->line = line;
-		port->status = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_STATUS)));
-		port->imr = (u32 *)(IOADDR(A_DUART_IMRREG(line)));
-		port->tx_hold = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_TX_HOLD)));
-		port->rx_hold = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_RX_HOLD)));
-		port->mode_1 = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_MODE_REG_1)));
-		port->mode_2 = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_MODE_REG_2)));
-		port->clk_sel = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_CLK_SEL)));
-		port->cmd = (u32 *)(IOADDR(A_DUART_CHANREG(line, R_DUART_CMD)));
+		port->status = IOADDR(A_DUART_CHANREG(line, R_DUART_STATUS));
+		port->imr = IOADDR(A_DUART_IMRREG(line));
+		port->tx_hold = IOADDR(A_DUART_CHANREG(line, R_DUART_TX_HOLD));
+		port->rx_hold = IOADDR(A_DUART_CHANREG(line, R_DUART_RX_HOLD));
+		port->mode_1 = IOADDR(A_DUART_CHANREG(line,
+						      R_DUART_MODE_REG_1));
+		port->mode_2 = IOADDR(A_DUART_CHANREG(line,
+						      R_DUART_MODE_REG_2));
+		port->clk_sel = IOADDR(A_DUART_CHANREG(line, R_DUART_CLK_SEL));
+		port->cmd = IOADDR(A_DUART_CHANREG(line, R_DUART_CMD));
 		port->flags |= DUART_INITIALIZED;
 	}
 }
@@ -773,7 +775,7 @@ static int __init sb1250_duart_init(void)
 			panic("Couldn't get uart0 interrupt line");
 		}
 		__raw_writeq(M_DUART_RX_EN|M_DUART_TX_EN,
-			     (u8 *) IOADDR(A_DUART_CHANREG(i, R_DUART_CMD)));
+			     IOADDR(A_DUART_CHANREG(i, R_DUART_CMD)));
 		duart_set_cflag(i, DEFAULT_CFLAGS);
 	}
 
