@@ -8,7 +8,7 @@
 
 #include <linux/config.h>
 #include <linux/types.h>
-#include <asm/io.h>			/* for virt_to_bus()  */
+#include <asm/io.h>
 
 #ifdef __KERNEL__
 
@@ -124,9 +124,8 @@ static inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-#ifdef CONFIG_NONCOHERENT_IO
 	dma_cache_wback_inv((unsigned long)ptr, size);
-#endif
+
 	return virt_to_bus(ptr);
 }
 
@@ -169,11 +168,9 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 		BUG();
 
 	addr = (unsigned long) page_address(page) + offset;
-#ifdef CONFIG_NONCOHERENT_IO
 	dma_cache_wback_inv(addr, size);
-#endif
 
-	return virt_to_bus((void *)addr);
+	return page_to_bus(page) + offset;
 }
 
 static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
@@ -212,7 +209,7 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 		dma_cache_wback_inv((unsigned long)page_address(sg->page),
 		                    sg->length);
 		sg->address = bus_to_baddr(hwdev->bus->number) +
-		               page_to_bus(sg->page) + sg->offset;
+		              page_to_bus(sg->page) + sg->offset;
 	}
 
 	return nents;
@@ -246,10 +243,13 @@ static inline void pci_dma_sync_single(struct pci_dev *hwdev,
 				       dma_addr_t dma_handle,
 				       size_t size, int direction)
 {
+	unsigned long addr;
+
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	dma_cache_wback_inv((unsigned long)__va(dma_handle - bus_to_baddr(hwdev->bus->number)), size);
+	addr = dma_handle - bus_to_baddr(hwdev->bus->number) + PAGE_OFFSET;
+	dma_cache_wback_inv(addr, size);
 }
 
 /*
@@ -270,7 +270,7 @@ static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	/*  Make sure that gcc doesn't leave the empty loop body.  */
+	/* Make sure that gcc doesn't leave the empty loop body.  */
 #ifdef CONFIG_NONCOHERENT_IO
 	for (i = 0; i < nelems; i++, sg++)
 		dma_cache_wback_inv((unsigned long)page_address(sg->page),
@@ -279,6 +279,12 @@ static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 }
 #endif /* CONFIG_MAPPED_PCI_IO  */
 
+/*
+ * Return whether the given PCI device DMA address mask can
+ * be supported properly.  For example, if your device can
+ * only drive the low 24-bits during PCI bus mastering, then
+ * you would pass 0x00ffffff as the mask to this function.
+ */
 static inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 {
 	/*
