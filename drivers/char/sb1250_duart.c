@@ -16,16 +16,10 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-
 /* 
  * Driver support for the on-chip sb1250 dual-channel serial port,
  * running in asynchronous mode.  Also, support for doing a serial console
  * on one of those ports 
- *
- * The non-console part of this code is based heavily on the serial_21285.c
- * driver also in this directory.  See tty_driver.h for a description of some
- * of the driver functions, though it (like most of the inline code
- * documentation :) is a bit out of date.  
  */
 #include <linux/config.h>
 #include <linux/types.h>
@@ -91,7 +85,6 @@ static struct termios    *duart_termios_locked[DUART_MAX_LINE];
 static spinlock_t          open_lock = SPIN_LOCK_UNLOCKED;
 
 typedef struct { 
-	struct tty_struct   *tty;
 	unsigned char       outp_buf[SERIAL_XMIT_SIZE];
 	unsigned int        outp_head;
 	unsigned int        outp_tail;
@@ -101,6 +94,7 @@ typedef struct {
 	unsigned int        line;
 	unsigned int        last_cflags;
 	unsigned long       flags;
+	struct tty_struct   *tty;
 	/* CSR addresses */
 	u32		    *status;
 	u32		    *imr;
@@ -309,6 +303,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 {
 	uart_state_t *us;
 	int c, t, total = 0;
+	unsigned long flags;
 
 	if (!tty) return 0;
 
@@ -319,7 +314,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 	printk("duart_write called for %i chars by %i (%s)\n", count, current->pid, current->comm);
 #endif
 
-	spin_lock(&us->outp_lock);
+	spin_lock_irqsave(&us->outp_lock, flags);
 
 	for (;;) {
 		c = count;
@@ -334,7 +329,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 
 		if (from_user) {
 			if (copy_from_user(us->outp_buf + us->outp_tail, buf, c)) {
-				spin_unlock(&us->outp_lock);
+				spin_unlock_irqrestore(&us->outp_lock, flags);
 				return -EFAULT;
 			}
 		} else {
@@ -348,7 +343,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 		total += c;
 	}
 
-	spin_unlock(&us->outp_lock);
+	spin_unlock_irqrestore(&us->outp_lock, flags);
 
 	if (us->outp_count && !tty->stopped && 
 	    !tty->hw_stopped && !(us->flags & TX_INTEN)) {
@@ -365,15 +360,16 @@ static int duart_write(struct tty_struct * tty, int from_user,
 static void duart_put_char(struct tty_struct *tty, u_char ch)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
+	unsigned long flags;
 
 #ifdef DUART_SPEW
 	printk("duart_put_char called.  Char is %x (%c)\n", (int)ch, ch);
 #endif
 
-	spin_lock(&us->outp_lock);
+	spin_lock_irqsave(&us->outp_lock, flags);
 
 	if (us->outp_count >= SERIAL_XMIT_SIZE - 1) {
-		spin_unlock(&us->outp_lock);
+		spin_unlock_irqrestore(&us->outp_lock, flags);
 		return;
 	}
 
@@ -381,7 +377,7 @@ static void duart_put_char(struct tty_struct *tty, u_char ch)
 	us->outp_tail = (us->outp_tail + 1) &(SERIAL_XMIT_SIZE-1);
 	us->outp_count++;
 
-	spin_unlock(&us->outp_lock);
+	spin_unlock_irqrestore(&us->outp_lock, flags);
 }
 
 static void duart_flush_chars(struct tty_struct * tty)
@@ -422,13 +418,14 @@ static int duart_chars_in_buffer(struct tty_struct *tty)
 static void duart_flush_buffer(struct tty_struct *tty)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
+	unsigned long flags;
 
 #ifdef DUART_SPEW
 	printk("duart_flush_buffer called\n");
 #endif
-	spin_lock(&us->outp_lock);
+	spin_lock_irqsave(&us->outp_lock, flags);
 	us->outp_head = us->outp_tail = us->outp_count = 0;
-	spin_unlock(&us->outp_lock);
+	spin_unlock_irqrestore(&us->outp_lock, flags);
 
 	wake_up_interruptible(&us->tty->write_wait);
 	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
@@ -499,22 +496,6 @@ static void duart_set_termios(struct tty_struct *tty, struct termios *old)
 	if (old && tty->termios->c_cflag == old->c_cflag)
 		return;
 	duart_set_cflag(us->line, tty->termios->c_cflag);
-}
-
-/* Stop pushing stuff into the fifo, now.  Do the mask under the 
-   outp_lock to avoid races involving turning the interrupt line on/off */
-static void duart_stop(struct tty_struct *tty)
-{
-	uart_state_t *us = (uart_state_t *) tty->driver_data;
-
-#ifdef DUART_SPEW
-	printk("duart_stop called\n");
-#endif
-
-	if (us->outp_count && (us->flags & TX_INTEN)) {
-		us->flags &= ~TX_INTEN;
-		duart_mask_ints(us->line, M_DUART_IMR_TX);
-	}
 }
 
 static int duart_ioctl(struct tty_struct *tty, struct file * file,
@@ -599,8 +580,7 @@ static int duart_ioctl(struct tty_struct *tty, struct file * file,
 	return 0;
 }
 
-/* Stop pushing stuff into the fifo, now.  Do the mask under the 
-   outp_lock to avoid races involving turning the interrupt line on/off */
+/* XXXKW locking? */
 static void duart_start(struct tty_struct *tty)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
@@ -612,6 +592,21 @@ static void duart_start(struct tty_struct *tty)
 	if (us->outp_count && !(us->flags & TX_INTEN)) {
 		us->flags |= TX_INTEN;
 		duart_unmask_ints(us->line, M_DUART_IMR_TX);
+	}
+}
+
+/* XXXKW locking? */
+static void duart_stop(struct tty_struct *tty)
+{
+	uart_state_t *us = (uart_state_t *) tty->driver_data;
+
+#ifdef DUART_SPEW
+	printk("duart_stop called\n");
+#endif
+
+	if (us->outp_count && (us->flags & TX_INTEN)) {
+		us->flags &= ~TX_INTEN;
+		duart_mask_ints(us->line, M_DUART_IMR_TX);
 	}
 }
 
