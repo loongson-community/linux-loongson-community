@@ -318,6 +318,8 @@ static inline void pgd_clear(pgd_t *pgdp)
 
 #ifndef CONFIG_DISCONTIGMEM
 #define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+#define pte_pfn(x)		((unsigned long)((x).pte >> PAGE_SHIFT))
+#define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
 #else
 #define mips64_pte_pagenr(x) \
 	(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID(pte_val(x))) + \
@@ -433,20 +435,7 @@ static inline pgprot_t pgprot_noncached(pgprot_t _prot)
 		((((page)-(page)->zone->zone_mem_map) << PAGE_SHIFT) \
 		+ ((page)->zone->zone_start_paddr))
 #endif
-#define mk_pte(page, pgprot)						\
-({									\
-	pte_t	__pte;							\
-									\
-	pte_val(__pte) = ((unsigned long)(PAGE_TO_PA(page))) |		\
-						pgprot_val(pgprot);	\
-									\
-	__pte;								\
-})
-
-static inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
-{
-	return __pte(physpage | pgprot_val(pgprot));
-}
+#define mk_pte(page, pgprot)	pfn_pte(page_to_pfn(page), (pgprot))
 
 static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {

@@ -227,11 +227,9 @@ static inline int pgd_bad(pgd_t pgd)		{ return 0; }
 static inline int pgd_present(pgd_t pgd)	{ return 1; }
 static inline void pgd_clear(pgd_t *pgdp)	{ }
 
-#ifdef CONFIG_CPU_VR41XX
-#define pte_page(x)             (mem_map+(unsigned long)((pte_val(x) >> (PAGE_SHIFT + 2))))
-#else
-#define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
-#endif
+#define pte_page(x)		pfn_to_page(pte_pfn(x))
+#define pte_pfn(x)		((unsigned long)((x).pte >> PAGE_SHIFT))
+#define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
 
 /*
  * The following only work if pte_present() is true.
@@ -319,37 +317,7 @@ static inline pte_t pte_mkyoung(pte_t pte)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-
-#ifdef CONFIG_CPU_VR41XX
-#define mk_pte(page, pgprot)                                            \
-({                                                                      \
-        pte_t   __pte;                                                  \
-                                                                        \
-        pte_val(__pte) = ((phys_t)(page - mem_map) << (PAGE_SHIFT + 2)) | \
-                         pgprot_val(pgprot);                            \
-                                                                        \
-        __pte;                                                          \
-})
-#else
-#define mk_pte(page, pgprot)						\
-({									\
-	pte_t   __pte;							\
-									\
-	pte_val(__pte) = ((phys_t)(page - mem_map) << PAGE_SHIFT) | \
-	                 pgprot_val(pgprot);				\
-									\
-	__pte;								\
-})
-#endif
-
-static inline pte_t mk_pte_phys(phys_t physpage, pgprot_t pgprot)
-{
-#ifdef CONFIG_CPU_VR41XX
-        return __pte((physpage << 2) | pgprot_val(pgprot));
-#else
-	return __pte(physpage | pgprot_val(pgprot));
-#endif
-}
+#define mk_pte(page, pgprot)	pfn_pte(page_to_pfn(page), (pgprot))
 
 static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {

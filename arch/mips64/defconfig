@@ -569,6 +569,11 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_USB is not set
 
 #
+# Bluetooth support
+#
+# CONFIG_BLUEZ is not set
+
+#
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
