@@ -54,8 +54,10 @@ void __init smp_callin(void)
  * Hook for doing final board-specific setup after the generic smp setup
  * is done
  */
-asmlinkage int start_secondary(void)
+asmlinkage void start_secondary(void)
 {
+	unsigned int cpu = smp_processor_id();
+
 	prom_init_secondary();
 
 	/* Do stuff that trap_init() did for the first processor */
@@ -68,17 +70,15 @@ asmlinkage int start_secondary(void)
 	 * XXX parity protection should be folded in here when it's converted
 	 * to an option instead of something based on .cputype
 	 */
-	write_32bit_cp0_register(CP0_CONTEXT, smp_processor_id() << 23);
-	pgd_current[smp_processor_id()] = init_mm.pgd;
-	cpu_data[smp_processor_id()].udelay_val = loops_per_jiffy;
-	cpu_data[smp_processor_id()].asid_cache = ASID_FIRST_VERSION;
+	set_context(cpu << 23);
+	pgd_current[cpu] = init_mm.pgd;
+	cpu_data[cpu].udelay_val = loops_per_jiffy;
+	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
 	prom_smp_finish();
 	printk("Slave cpu booted successfully\n");
-	CPUMASK_SETB(cpu_online_map, smp_processor_id());
+	CPUMASK_SETB(cpu_online_map, cpu);
 	atomic_inc(&cpus_booted);
 	cpu_idle();
-
-	return 0;
 }
 
 void __init smp_boot_cpus(void)
