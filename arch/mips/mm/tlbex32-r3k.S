@@ -43,10 +43,7 @@
 	lw	pte, (ptr); \
 	nop;
 
-	/* This places the even/odd pte pair in the page
-	 * table at PTR into ENTRYLO0 and ENTRYLO1 using
-	 * TMP as a scratch register.
-	 */
+	/* This places the pte in the page table at PTR into ENTRYLO0. */
 #define PTE_RELOAD(ptr) \
 	lw	ptr, (ptr)	; \
 	nop			; \
