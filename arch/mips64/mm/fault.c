@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.5 2000/02/04 07:40:24 ralf Exp $
+/* $Id: fault.c,v 1.6 2000/02/18 00:24:31 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -32,7 +32,7 @@
 
 extern void die(char *, struct pt_regs *, unsigned long write);
 
-unsigned long asid_cache;
+unsigned long asid_cache = ASID_FIRST_VERSION;
 
 /*
  * Macro for exception fixup code to access integer registers.

@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.5 2000/01/27 01:05:24 ralf Exp $
+/* $Id: andes.c,v 1.6 2000/02/24 00:12:41 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -356,13 +356,11 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 
 	pid = get_entryhi() & 0xff;
 
-#ifdef DEBUG_TLB
 	if((pid != (vma->vm_mm->context & 0xff)) ||
            (vma->vm_mm->context == 0)) {
 		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
 		       (int) (vma->vm_mm->context & 0xff), pid);
 	}
-#endif
 
 	__save_and_cli(flags);
 	address &= (PAGE_MASK << 1);
