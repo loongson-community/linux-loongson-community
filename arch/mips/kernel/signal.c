@@ -384,14 +384,15 @@ static int inline setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	int err = 0;
 	u64 reg;
 
-	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
+	reg = regs->cp0_epc; err |= __put_user(reg, &sc->sc_pc);
 	err |= __put_user(regs->cp0_status, &sc->sc_status);
 
 #define save_gp_reg(i) {						\
 	reg = regs->regs[i];						\
 	err |= __put_user(reg, &sc->sc_regs[i]);			\
 } while(0)
-	__put_user(0, &sc->sc_regs[0]); save_gp_reg(1); save_gp_reg(2);
+	reg = 0; err |= __put_user(reg, &sc->sc_regs[0]);
+	save_gp_reg(1); save_gp_reg(2);
 	save_gp_reg(3); save_gp_reg(4); save_gp_reg(5); save_gp_reg(6);
 	save_gp_reg(7); save_gp_reg(8); save_gp_reg(9); save_gp_reg(10);
 	save_gp_reg(11); save_gp_reg(12); save_gp_reg(13); save_gp_reg(14);
@@ -402,8 +403,8 @@ static int inline setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	save_gp_reg(31);
 #undef save_gp_reg
 
-	err |= __put_user(regs->hi, &sc->sc_mdhi);
-	err |= __put_user(regs->lo, &sc->sc_mdlo);
+	reg = regs->hi; err |= __put_user(reg, &sc->sc_mdhi);
+	reg = regs->lo; err |= __put_user(reg, &sc->sc_mdlo);
 	err |= __put_user(regs->cp0_cause, &sc->sc_cause);
 	err |= __put_user(regs->cp0_badvaddr, &sc->sc_badvaddr);
 
