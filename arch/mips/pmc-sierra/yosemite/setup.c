@@ -35,6 +35,10 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/timex.h>
+#include <linux/termios.h>
+#include <linux/tty.h>
+#include <linux/serial.h>
+#include <linux/serial_core.h>
 
 #include <asm/time.h>
 #include <asm/bootinfo.h>
@@ -45,10 +49,6 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/serial.h>
-#include <linux/termios.h>
-#include <linux/tty.h>
-#include <linux/serial.h>
-#include <linux/serial_core.h>
 #include <asm/titan_dep.h>
 #include <asm/m48t37.h>
 
