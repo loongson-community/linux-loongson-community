@@ -118,7 +118,6 @@ struct serial_uart_config {
 #define ASYNC_FLAGS	0x3FFF	/* Possible legal async flags */
 #define ASYNC_USR_MASK	0x3430	/* Legal flags that non-privileged
 				 * users can set or reset */
-#define ASYNC_IOC3	0x4000	/* SGI IOC3 serial */
 
 /* Internal flags used only by kernel/chr_drv/serial.c */
 #define ASYNC_INITIALIZED	0x80000000 /* Serial port was initialized */
