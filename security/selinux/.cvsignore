@@ -1,4 +1,5 @@
 .*.o
 .*.o.d
 .*.cmd
-oui.c
+*.ko
+*.mod.c
