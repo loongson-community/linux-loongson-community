@@ -90,7 +90,7 @@ unsigned int video_scan_lines;
  */
 
 #if defined(__i386__) || defined(__alpha__) || defined(__powerpc__) \
-    || (defined(__mips__) && defined(CONFIG_HAVE_IO_PORTS)) \
+    || (defined(__mips__) && defined(CONFIG_ISA)) \
     || (defined(__arm__) && defined(CONFIG_HOST_FOOTBRIDGE))
 
 static void
