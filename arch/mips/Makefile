@@ -228,11 +228,18 @@ endif
 # ITE 8172 eval board with QED 5231 CPU
 #
 ifdef CONFIG_MIPS_ITE8172
-LIBS		+= arch/mips/ite-boards/qed-4n-s01b/ite.o		     \
-		   arch/mips/ite-boards/generic/it8172.o
-SUBDIRS		+= arch/mips/ite-boards/generic				     \
-		   arch/mips/ite-boards/qed-4n-s01b
-LOADADDR	+= 0x80100000
+LIBS          += arch/mips/ite-boards/qed-4n-s01b/ite.o arch/mips/ite-boards/generic/it8172.o
+SUBDIRS       += arch/mips/ite-boards/generic arch/mips/ite-boards/qed-4n-s01b
+LOADADDR      += 0x80100000
+endif
+
+#
+# Globespan IVR eval board with QED 5231 CPU
+#
+ifdef CONFIG_MIPS_IVR
+LIBS          += arch/mips/ite-boards/ivr/ivr.o arch/mips/ite-boards/generic/it8172.o
+SUBDIRS       += arch/mips/ite-boards/generic arch/mips/ite-boards/ivr
+LOADADDR      += 0x80100000
 endif
 
 #

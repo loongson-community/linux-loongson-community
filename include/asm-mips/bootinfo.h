@@ -27,10 +27,11 @@
 #define MACH_GROUP_MOMENCO     12 /* Momentum Boards                          */
 #define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards                     */
 #define MACH_GROUP_PHILLIPS    14
+#define MACH_GROUP_GLOBESPAN   15 /* Globespan PVR Referrence Board           */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
 	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \
-	"ITE", "Phillips" }
+	"ITE", "Phillips", "Globepspan" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -150,6 +151,13 @@
 #define MACH_QED_4N_S01B	0	/* ITE8172 based eval board */
  
 #define GROUP_ITE_NAMES { "QED-4N-S01B" } /* the actual board name */
+	
+/*
+ * Valid machtype for group Globespan
+ */
+#define MACH_IVR       0                  /* IVR eval board */
+
+#define GROUP_GLOBESPAN_NAMES { "IVR" }   /* the actual board name */   
 
 /*
  * Valid machtype for group PHILIPS

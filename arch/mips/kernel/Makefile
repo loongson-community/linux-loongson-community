@@ -11,7 +11,7 @@
 .S.o:
 	$(CC) $(AFLAGS) -c $< -o $@
 
-EXTRA_ASFLAGS = -mips3 -mcpu=r4000
+EXTRA_AFLAGS = -mips3 -mcpu=r4000
 
 all:	kernel.o head.o init_task.o
 
@@ -54,7 +54,9 @@ ifndef CONFIG_DECSTATION
         ifndef CONFIG_MIPS_EV96100
 	  ifndef CONFIG_MIPS_ITE8172
             ifndef CONFIG_NINO
-	      obj-y += time.o
+	      ifndef CONFIG_MIPS_IVR
+	        obj-y += time.o
+	      endif
             endif
 	  endif
         endif

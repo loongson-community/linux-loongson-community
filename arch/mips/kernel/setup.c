@@ -548,11 +548,12 @@ void __init setup_arch(char **cmdline_p)
 		ev64120_setup();
 		break;
 #endif
-#ifdef CONFIG_MIPS_ITE8172
+#if defined(CONFIG_MIPS_IVR) || defined(CONFIG_MIPS_ITE8172)
 	case  MACH_GROUP_ITE:
+	case  MACH_GROUP_GLOBESPAN:
 		it8172_setup();
 		break;
-#endif
+#endif  
 #ifdef CONFIG_NINO
 	case MACH_GROUP_PHILIPS:
 		nino_setup();

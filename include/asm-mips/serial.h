@@ -121,6 +121,19 @@
 #define ITE_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_MIPS_IVR
+#include <asm/it8172/it8172.h>
+#include <asm/it8172/it8172_int.h>
+#define IVR_SERIAL_PORT_DEFNS                                  \
+    { baud_base: BASE_BAUD, port: (IT8172_PCI_IO_BASE + IT_UART_BASE), \
+      irq: IT8172_UART_IRQ, flags: STD_COM_FLAGS, type: 0x3 },         \
+    /* Smart Card Reader 1 */ \
+    { baud_base: BASE_BAUD, port: (IT8172_PCI_IO_BASE + IT_SCR1_BASE), \
+      irq: IT8172_SCR1_IRQ, flags: STD_COM_FLAGS, type: 0x3 },
+#else
+#define IVR_SERIAL_PORT_DEFNS
+#endif
+
 #ifdef CONFIG_HAVE_STD_PC_SERIAL_PORT
 #define STD_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
@@ -219,6 +232,7 @@
 #endif
 
 #define SERIAL_PORT_DFNS		\
+	IVR_SERIAL_PORT_DEFNS           \
 	ITE_SERIAL_PORT_DEFNS           \
 	ATLAS_SERIAL_PORT_DEFNS		\
 	EV96100_SERIAL_PORT_DEFNS	\
