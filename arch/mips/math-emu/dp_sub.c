@@ -176,11 +176,12 @@ ieee754dp ieee754dp_sub(ieee754dp x, ieee754dp y)
 			xe = xe;
 			xs = ys;
 		}
-		if (xm == 0)
+		if (xm == 0) {
 			if (ieee754_csr.rm == IEEE754_RD)
 				return ieee754dp_zero(1);	/* round negative inf. => sign = -1 */
 			else
 				return ieee754dp_zero(0);	/* other round modes   => sign = 1 */
+		}
 
 		/* normalize to rounding precision 
 		 */
