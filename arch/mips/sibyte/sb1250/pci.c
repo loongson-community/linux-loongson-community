@@ -44,7 +44,6 @@
 
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
-#include <asm/sibyte/sb1250_pci.h>
 #include <asm/io.h>
 
 #include "lib_hssubr.h"
@@ -238,10 +237,9 @@ void __init pcibios_init(void)
 	 * See if the PCI bus has been configured by the firmware.
 	 */
 
-	cmdreg = READCFG32((A_PCI_TYPE00_HEADER | MATCH_BITS) +
-			   R_PCI_TYPE0_CMDSTATUS);
+	cmdreg = READCFG32((A_PCI_TYPE00_HEADER | MATCH_BITS) + PCI_COMMAND);
 
-	if (!(cmdreg & M_PCI_CMD_MASTER_EN)) {
+	if (!(cmdreg & PCI_COMMAND_MASTER)) {
 		printk
 		    ("PCI: Skipping PCI probe.  Bus is not initialized.\n");
 		return;
@@ -262,10 +260,9 @@ void __init pcibios_init(void)
 	 * initialize that one.
 	 */
 
-	cmdreg = READCFG32((A_PCI_TYPE01_HEADER | MATCH_BITS) +
-			   R_PCI_TYPE0_CMDSTATUS);
+	cmdreg = READCFG32((A_PCI_TYPE01_HEADER | MATCH_BITS) + PCI_COMMAND);
 
-	if (cmdreg & M_PCI_CMD_MASTER_EN) {
+	if (cmdreg & PCI_COMMAND_MASTER) {
 		sb1250_bus_status |= LDT_BUS_ENABLED;
 	}
 
