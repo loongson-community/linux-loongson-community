@@ -869,8 +869,9 @@ static int irq_affinity_read_proc (char *page, char **start, off_t off,
 
 	if (count < HEX_DIGITS+1)
 		return -EINVAL;
+	len = 0;
 	for (k = 0; k < sizeof(cpumask_t)/sizeof(u16); ++k) {
-		int j = sprintf(page, "%04hx", cpus_coerce(tmp));
+		int j = sprintf(page, "%04hx", (u16)cpus_coerce(tmp));
 		len += j;
 		page += j;
 		cpus_shift_right(tmp, tmp, 16);
@@ -895,7 +896,7 @@ static int irq_affinity_write_proc (struct file *file, const char *buffer,
 	 * way to make the system unusable accidentally :-) At least
 	 * one online CPU still has to be targeted.
 	 */
-	cpus_and(tmp, tmp, cpu_online_map);
+	cpus_and(tmp, new_value, cpu_online_map);
 	if (cpus_empty(tmp))
 		return -EINVAL;
 
@@ -917,8 +918,9 @@ static int prof_cpu_mask_read_proc (char *page, char **start, off_t off,
 		return -EINVAL;
 	tmp = *mask;
 
+	len = 0;
 	for (k = 0; k < sizeof(cpumask_t)/sizeof(u16); ++k) {
-		int j = sprintf(page, "%04hx", cpus_coerce(tmp));
+		int j = sprintf(page, "%04hx", (u16)cpus_coerce(tmp));
 		len += j;
 		page += j;
 		cpus_shift_right(tmp, tmp, 16);
