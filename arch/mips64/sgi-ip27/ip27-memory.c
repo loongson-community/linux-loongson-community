@@ -30,13 +30,6 @@
 typedef unsigned long pfn_t;			/* into <asm/sn/types.h> */
 #define KDM_TO_PHYS(x)	((x) & TO_PHYS_MASK)	/* into asm/addrspace.h */
 
-#define SLOT_PFNSHIFT	(SLOT_SHIFT - PAGE_SHIFT) /* into asm/sn/arch.h */
-#define PFN_NASIDSHFT	(NASID_SHFT - PAGE_SHIFT)
-#define mkpfn(nasid, off)	(((pfn_t)(nasid) << PFN_NASIDSHFT) | (off))
-#define slot_getbasepfn(node,slot) \
-		(mkpfn(COMPACT_TO_NASID_NODEID(node), slot<<SLOT_PFNSHIFT))
-extern nasid_t compact_to_nasid_node[];
-
 extern char _end;
 
 #define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)

@@ -45,6 +45,13 @@ typedef u64	nic_t;
 #define	INVALID_PARTID		(partid_t)-1
 
 extern nasid_t get_nasid(void);
+/*
+ * NO ONE should access these arrays directly.  The only reason we refer to
+ * them here is to avoid the procedure call that would be required in the
+ * macros below.  (Really want private data members here :-)
+ */
+extern cnodeid_t nasid_to_compact_node[MAX_NASIDS];
+extern nasid_t compact_to_nasid_node[MAX_COMPACT_NODES];
 
 /*
  * These macros are used by various parts of the kernel to convert
@@ -91,4 +98,12 @@ extern int node_getlastslot(cnodeid_t);
 #define NODE_MAX_MEM_SIZE	SLOT_SIZE * MAX_MEM_SLOTS
 #endif /* SABLE */
 
+/*
+ * New stuff in here from Irix sys/pfdat.h.
+ */
+#define	SLOT_PFNSHIFT		(SLOT_SHIFT - PAGE_SHIFT)
+#define	PFN_NASIDSHFT		(NASID_SHFT - PAGE_SHIFT)
+#define mkpfn(nasid, off)	(((pfn_t)(nasid) << PFN_NASIDSHFT) | (off))
+#define slot_getbasepfn(node,slot) \
+		(mkpfn(COMPACT_TO_NASID_NODEID(node), slot<<SLOT_PFNSHIFT))
 #endif /* _ASM_SN_ARCH_H */

@@ -8,8 +8,6 @@
 #include <asm/sn/addrs.h>
 #include <asm/sn/arch.h>
 
-extern cnodeid_t nasid_to_compact_node[]; 	/* to sn/arch.h */
-
 typedef struct plat_pglist_data {
 	pg_data_t	gendata;
 	unsigned long	physstart;
@@ -21,9 +19,8 @@ typedef struct plat_pglist_data {
  * Following are macros that are specific to this numa platform.
  */
 
-extern pg_data_t node_data[];
-extern plat_pg_data_t plat_node_data[];
 extern int numa_debug(void);
+extern plat_pg_data_t plat_node_data[];
 
 #define PHYSADDR_TO_NID(pa)		NASID_TO_COMPACT_NODEID(NASID_GET(pa))
 #define PLAT_NODE_DATA(n)		(plat_node_data + (n))
@@ -52,7 +49,7 @@ extern int numa_debug(void);
 /*
  * Return a pointer to the node data for node n.
  */
-#define NODE_DATA(n)	(&((plat_node_data + (n))->gendata))
+#define NODE_DATA(n)	(&((PLAT_NODE_DATA(n))->gendata))
 
 /*
  * NODE_MEM_MAP gives the kaddr for the mem_map of the node.
