@@ -825,7 +825,7 @@ static int mips_dsemul(struct pt_regs *regs, mips_instruction ir,
 
 	err = __put_user(ir, &dsemul_insns[0]);
 	err |= __put_user((mips_instruction)AdELOAD, &fr->adel);
-	err |= __put_user((mips_instruction)BD_COOKIE, &fr->epc);
+	err |= __put_user((mips_instruction)BD_COOKIE, &fr->cookie);
 	err |= __put_user(cpc, &fr->epc);
 
 	if (unlikely(err)) {
@@ -1641,22 +1641,26 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 {
 	struct mips_fpu_soft_struct *ctx = &current->thread.fpu.soft;
 	unsigned long oldepc, prevepc;
-	mips_instruction insn;
+	mips_instruction insn, *insnp;
 	int sig = 0;
-	int err = 0;
 
 	oldepc = xcp->cp0_epc;
 	do {
-		if (current->need_resched)
-			schedule();
-
 		prevepc = xcp->cp0_epc;
-		err = get_user(insn, (mips_instruction *) xcp->cp0_epc);
-		if (err) {
+
+		/*
+		 * This is a braindead way to do it but the only sane way I
+		 * found to keep the 64-bit egcs 1.1.2 from crashing.
+		 */
+		insnp = (mips_instruction *) xcp->cp0_epc;
+		if (verify_area(VERIFY_READ, insnp, 4) ||
+		    __get_user(insn, (mips_instruction *) xcp->cp0_epc)) {
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
 		}
-		if (insn != 0) {
+		if (insn == 0)
+			xcp->cp0_epc += 4;	/* skip nops */
+		else {
 			/* Update ieee754_csr. Only relevant if we have a
 			   h/w FPU */
 			ieee754_csr.nod = (ctx->sr & 0x1000000) != 0;
@@ -1664,12 +1668,15 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 			ieee754_csr.cx = (ctx->sr >> 12) & 0x1f;
 			sig = cop1Emulate(xcp, ctx);
 		}
-		else
-			xcp->cp0_epc += 4;	/* skip nops */
 
 		if (mips_cpu.options & MIPS_CPU_FPU)
 			break;
-	} while (xcp->cp0_epc > prevepc && sig == 0);
+		if (sig)
+			break;
+
+		if (current->need_resched)
+			schedule();
+	} while (xcp->cp0_epc > prevepc);
 
 	/* SIGILL indicates a non-fpu instruction */
 	if (sig == SIGILL && xcp->cp0_epc != oldepc)
@@ -1678,80 +1685,3 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 
 	return sig;
 }
-
-
-#ifdef NOTDEF
-/*
- * Patch up the hardware fpu state when an f.p. exception occurs.  
- */
-static int cop1Patcher(int xcptno, struct pt_regs *xcp)
-{
-	struct mips_fpu_soft_struct *ctx = &current->thread.fpu.soft;
-	unsigned sr;
-	int sig;
-
-	/* reenable Cp1, else fpe_save() will get nested exception */
-	sr = mips_bissr(ST0_CU1);
-
-	/* get fpu registers and status, then clear pending exceptions */
-	fpe_save(ctx);
-	fpe_setsr(ctx->sr &= ~FPU_CSR_ALL_X);
-
-	/* get current rounding mode for IEEE library, and emulate insn */
-	ieee754_csr.rm = ieee_rm[ctx->sr & 0x3];
-	sig = cop1Emulate(xcp, ctx);
-
-	/* don't return with f.p. exceptions pending */
-	ctx->sr &= ~FPU_CSR_ALL_X;
-	fpe_restore(ctx);
-
-	mips_setsr(sr);
-	return sig;
-}
-
-void _cop1_init(int emulate)
-{
-	extern int _nofpu;
-
-	if (emulate) {
-		/* 
-		 * Install cop1 emulator to handle "coprocessor unusable" exception
-		 */
-		xcption(XCPTCPU, cop1Handler);
-		fpuemuactive = 1;	/* tell dbg.c that we are in charge */
-		_nofpu = 0;	/* tell setjmp() it "has" an fpu */
-	} else {
-		/* 
-		 * Install cop1 emulator for floating point exceptions only,
-		 * i.e. denormalised results, underflow, overflow etc, which
-		 * must be emulated in s/w.
-		 */
-#if 1
-		/* r4000 or above use dedicate exception */
-		xcption(XCPTFPE, cop1Patcher);
-#else
-		/* r3000 et al use interrupt */
-		extern int _sbd_getfpuintr(void);
-		int intno = _sbd_getfpuintr();
-		intrupt(intno, cop1Patcher, 0);
-		mips_bissr(SR_IM0 << intno);
-#endif
-
-#if (#cpu(r4640) || #cpu(r4650)) && !defined(SINGLE_ONLY_FPU)
-		/* For R4640/R4650 compiled *without* the -msingle-float flag,
-		   then we share responsibility: the h/w handles the single
-		   precision operations, and the trap emulator handles the
-		   double precision. We set fpuemuactive so that dbg.c first
-		   fetches the s/w state before saving the h/w state. */
-		fpuemuactive = 1;
-		{
-			int i;
-			/* initialise the unused d.p high order words to be NaN */
-			for (i = 0; i < 32; i++)
-				current->thread.fpu.soft.regs[i] =
-				    0x7ff80bad00000000LL;
-		}
-#endif				/* (r4640 || r4650) && !fpu(single) */
-	}
-}
-#endif
