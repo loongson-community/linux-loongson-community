@@ -984,7 +984,7 @@ out_free:
 	return err;
 }
 
-static void __devexit eepro100_remove_one (struct pci_dev *pdev)
+static void __devexit ioc3_remove_one (struct pci_dev *pdev)
 {
 	/* Later ... */
 }
