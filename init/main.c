@@ -314,6 +314,7 @@ static int __init init_setup(char *str)
 __setup("init=", init_setup);
 
 extern void setup_arch(char **);
+extern void cpu_idle(void);
 
 #ifndef CONFIG_SMP
 
@@ -325,6 +326,7 @@ static void __init smp_init(void)
 #else
 #define smp_init()	do { } while (0)
 #endif
+
 static inline void setup_per_cpu_areas(void) { }
 static inline void smp_prepare_cpus(unsigned int maxcpus) { }
 

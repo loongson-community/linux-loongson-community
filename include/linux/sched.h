@@ -756,8 +756,6 @@ extern void FASTCALL(sched_exit(task_t * p));
 extern int in_group_p(gid_t);
 extern int in_egroup_p(gid_t);
 
-extern ATTRIB_NORET void cpu_idle(void);
-
 extern void release_task(struct task_struct * p);
 
 extern void proc_caches_init(void);
