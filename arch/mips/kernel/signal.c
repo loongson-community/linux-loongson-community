@@ -29,12 +29,13 @@
 #include <asm/sim.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>
+#include <asm/cpu-features.h>
 
 #define DEBUG_SIG 0
 
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
 
-extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
+static int do_signal(sigset_t *oldset, struct pt_regs *regs);
 
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
@@ -152,7 +153,7 @@ asmlinkage int sys_sigaltstack(nabi_no_regargs struct pt_regs regs)
 	return do_sigaltstack(uss, uoss, usp);
 }
 
-asmlinkage int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int err = 0;
 
@@ -557,7 +558,7 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 extern int do_signal32(sigset_t *oldset, struct pt_regs *regs);
 extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
 
-asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
+static int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
 	struct k_sigaction ka;
 	siginfo_t info;
