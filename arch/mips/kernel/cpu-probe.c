@@ -278,7 +278,7 @@ __init void cpu_probe(void)
 		#endif
 		case PRID_IMP_TX39:
 			current_cpu_data.isa_level = MIPS_CPU_ISA_I;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_LLSC;
+			current_cpu_data.options = MIPS_CPU_TLB;
 
 			if ((current_cpu_data.processor_id & 0xf0) ==
 			    (PRID_REV_TX3927 & 0xf0)) {
