@@ -78,9 +78,8 @@ get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 	unsigned long asid = asid_cache(cpu);
 
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
-#ifdef CONFIG_VTAG_ICACHE
-		flush_icache_all();
-#endif
+		if (cpu_has_vtag_icache)
+			flush_icache_all();
 		local_flush_tlb_all();	/* start new asid cycle */
 		if (!asid)		/* fix version if needed */
 			asid = ASID_FIRST_VERSION;
