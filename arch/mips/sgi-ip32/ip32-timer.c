@@ -52,7 +52,7 @@ void __init ip32_timer_setup (struct irqaction *irq)
 
 	printk("Calibrating system timer... ");
 
-	crime_time = crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK;
+	crime_time = crime_read_64(CRIME_TIME) & CRIME_TIME_MASK;
 	cc_tick = read_c0_count();
 
 	while ((crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK) - crime_time
@@ -60,7 +60,8 @@ void __init ip32_timer_setup (struct irqaction *irq)
 		;
 	cc_tick = read_c0_count() - cc_tick;
 	cc_interval = cc_tick / HZ * (1000 / WAIT_MS);
-	/* The round-off seems unnecessary; in testing, the error of the
+	/*
+	 * The round-off seems unnecessary; in testing, the error of the
 	 * above procedure is < 100 ticks, which means it gets filtered
 	 * out by the HZ adjustment.
 	 */
@@ -86,13 +87,11 @@ void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	timerhi += (count < timerlo);	/* Wrap around */
 	timerlo = count;
 
-	write_c0_compare(
-				  (u32) (count + cc_interval));
+	write_c0_compare((u32) (count + cc_interval));
 	kstat_cpu(0).irqs[irq]++;
-	do_timer (regs);
+	do_timer(regs);
 
-	if (!jiffies)
-	{
+	if (!jiffies) {
 		/*
 		 * If jiffies has overflowed in this timer_interrupt we must
 		 * update the timer[hi]/[lo] to make do_fast_gettimeoffset()
