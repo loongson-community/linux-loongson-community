@@ -879,6 +879,9 @@ static int __init probe_scache(unsigned long config)
 	unsigned long flags, addr, begin, end, pow2;
 	int tmp;
 
+	if (mips_cpu.scache.flags == MIPS_CACHE_NOT_PRESENT)
+		return 0;
+
 	tmp = ((config >> 17) & 1);
 	if(tmp)
 		return 0;

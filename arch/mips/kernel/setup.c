@@ -288,6 +288,7 @@ static inline void cpu_probe(void)
 		        mips_cpu.options |= MIPS_CPU_MIPS16;
 		if (config1 & 1)
 		        mips_cpu.options |= MIPS_CPU_FPU;
+		mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 		break;
 	case PRID_IMP_5KC:
 		mips_cpu.cputype = CPU_5KC;
@@ -302,6 +303,7 @@ static inline void cpu_probe(void)
 		        mips_cpu.options |= MIPS_CPU_MIPS16;
 		if (config1 & 1)
 		        mips_cpu.options |= MIPS_CPU_FPU;
+		mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 		break;
 #endif
 	default:
