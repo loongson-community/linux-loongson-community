@@ -109,14 +109,10 @@ void lasat_timer_setup(struct irqaction *irq)
 	change_cp0_status(ST0_IM, IE_IRQ0 | IE_IRQ5);
 }
 
+#define MIPS_CPU_TIMER_IRQ 7
 asmlinkage void lasat_timer_interrupt(struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
-
-	timer_interrupt(7, NULL, regs);
-
-	if (softirq_pending(cpu))
-		do_softirq();
+	ll_timer_interrupt(MIPS_CPU_TIMER_IRQ, regs);
 }
 
 void __init lasat_setup(void)
