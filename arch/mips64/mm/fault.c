@@ -27,6 +27,7 @@
 #include <asm/softirq.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/ptrace.h>
 
 #define development_version (LINUX_VERSION_CODE & 0x100)
 
@@ -36,6 +37,12 @@ extern void die(char *, struct pt_regs *, unsigned long write);
  * Macro for exception fixup code to access integer registers.
  */
 #define dpf_reg(r) (regs->regs[r])
+
+asmlinkage void
+dodebug(abi64_no_regargs, struct pt_regs regs)
+{
+	printk("Got syscall %d, cpu %d proc %s:%d epc 0x%lx\n", regs.regs[2], smp_processor_id(), current->comm, current->pid, regs.cp0_epc);
+}
 
 /*
  * This routine handles page faults.  It determines the address,

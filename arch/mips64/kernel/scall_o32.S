@@ -37,8 +37,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	.set	at
 #if DEBUG_MIPS64
  SAVE_ALL
- ld	a1, PT_R2(sp)
- PRINT("Got syscall %d\n")
+ jal dodebug
  RESTORE_ALL
 #endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
