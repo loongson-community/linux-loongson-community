@@ -1,4 +1,4 @@
-/* $Id: uaccess.h,v 1.2 1999/08/19 22:56:35 ralf Exp $
+/* $Id: uaccess.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -261,10 +261,12 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 		"move\t$4, %1\n\t" \
 		"move\t$5, %2\n\t" \
 		"move\t$6, %3\n\t" \
+		".set\tnoreorder\n\t" \
 		".set\tnoat\n\t" \
-		"addu\t$1, %2, %3\n\t" \
-		".set\tat\n\t" \
 		__MODULE_JAL(__copy_user) \
+		"daddu\t$1, %2, %3\n\t" \
+		".set\tat\n\t" \
+		".set\treorder\n\t" \
 		"move\t%0, $6" \
 		: "=r" (__cu_len) \
 		: "r" (__cu_to), "r" (__cu_from), "r" (__cu_len) \
@@ -308,10 +310,12 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 			"move\t$4, %1\n\t" \
 			"move\t$5, %2\n\t" \
 			"move\t$6, %3\n\t" \
+			".set\tnoreorder\n\t" \
 			".set\tnoat\n\t" \
-			"addu\t$1, %2, %3\n\t" \
-			".set\tat\n\t" \
 			__MODULE_JAL(__copy_user) \
+			"daddu\t$1, %2, %3\n\t" \
+			".set\tat\n\t" \
+			".set\treorder\n\t" \
 			"move\t%0, $6" \
 			: "=r" (__cu_len) \
 			: "r" (__cu_to), "r" (__cu_from), "r" (__cu_len) \
