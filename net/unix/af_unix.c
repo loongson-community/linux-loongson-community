@@ -8,7 +8,7 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  *
- * Version:	$Id: af_unix.c,v 1.91 2000/03/25 01:55:34 davem Exp $
+ * Version:	$Id: af_unix.c,v 1.94 2000/04/25 04:13:35 davem Exp $
  *
  * Fixes:
  *		Linus Torvalds	:	Assorted bug cures.
@@ -1103,6 +1103,9 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	    (err = unix_autobind(sock)) != 0)
 		goto out;
 
+	err = -EMSGSIZE;
+	if ((unsigned)len > sk->sndbuf - 32)
+		goto out;
 
 	skb = sock_alloc_send_skb(sk, len, 0, msg->msg_flags&MSG_DONTWAIT, &err);
 	if (skb==NULL)
@@ -1719,45 +1722,43 @@ done:
 #endif
 
 struct proto_ops unix_stream_ops = {
-	PF_UNIX,
+	family:		PF_UNIX,
 	
-	unix_release,
-	unix_bind,
-	unix_stream_connect,
-	unix_socketpair,
-	unix_accept,
-	unix_getname,
-	unix_poll,
-	unix_ioctl,
-	unix_listen,
-	unix_shutdown,
-	sock_no_setsockopt,
-	sock_no_getsockopt,
-	sock_no_fcntl,
-	unix_stream_sendmsg,
-	unix_stream_recvmsg,
-	sock_no_mmap
+	release:	unix_release,
+	bind:		unix_bind,
+	connect:	unix_stream_connect,
+	socketpair:	unix_socketpair,
+	accept:		unix_accept,
+	getname:	unix_getname,
+	poll:		unix_poll,
+	ioctl:		unix_ioctl,
+	listen:		unix_listen,
+	shutdown:	unix_shutdown,
+	setsockopt:	sock_no_setsockopt,
+	getsockopt:	sock_no_getsockopt,
+	sendmsg:	unix_stream_sendmsg,
+	recvmsg:	unix_stream_recvmsg,
+	mmap:		sock_no_mmap,
 };
 
 struct proto_ops unix_dgram_ops = {
-	PF_UNIX,
+	family:		PF_UNIX,
 	
-	unix_release,
-	unix_bind,
-	unix_dgram_connect,
-	unix_socketpair,
-	sock_no_accept,
-	unix_getname,
-	datagram_poll,
-	unix_ioctl,
-	sock_no_listen,
-	unix_shutdown,
-	sock_no_setsockopt,
-	sock_no_getsockopt,
-	sock_no_fcntl,
-	unix_dgram_sendmsg,
-	unix_dgram_recvmsg,
-	sock_no_mmap
+	release:	unix_release,
+	bind:		unix_bind,
+	connect:	unix_dgram_connect,
+	socketpair:	unix_socketpair,
+	accept:		sock_no_accept,
+	getname:	unix_getname,
+	poll:		datagram_poll,
+	ioctl:		unix_ioctl,
+	listen:		sock_no_listen,
+	shutdown:	unix_shutdown,
+	setsockopt:	sock_no_setsockopt,
+	getsockopt:	sock_no_getsockopt,
+	sendmsg:	unix_dgram_sendmsg,
+	recvmsg:	unix_dgram_recvmsg,
+	mmap:		sock_no_mmap,
 };
 
 struct net_proto_family unix_family_ops = {

@@ -1215,9 +1215,9 @@ static int irda_recvmsg_dgram(struct socket *sock, struct msghdr *msg,
 static void irda_data_wait(struct sock *sk)
 {
 	if (!skb_peek(&sk->receive_queue)) {
-		sk->socket->flags |= SO_WAITDATA;
+		set_bit(SOCK_ASYNC_WAITDATA, &sk->socket->flags);
 		interruptible_sleep_on(sk->sleep);
-		sk->socket->flags &= ~SO_WAITDATA;
+		clear_bit(SOCK_ASYNC_WAITDATA, &sk->socket->flags);
 	}
 }
 
@@ -1241,7 +1241,7 @@ static int irda_recvmsg_stream(struct socket *sock, struct msghdr *msg,
 	self = sk->protinfo.irda;
 	ASSERT(self != NULL, return -1;);
 
-	if (sock->flags & SO_ACCEPTCON) 
+	if (sock->flags & __SO_ACCEPTCON) 
 		return(-EINVAL);
 
 	if (flags & MSG_OOB)
@@ -2015,88 +2015,84 @@ static struct net_proto_family irda_family_ops =
 };
 
 static struct proto_ops SOCKOPS_WRAPPED(irda_stream_ops) = {
-	PF_IRDA,
+	family:		PF_IRDA,
 	
-	irda_release,
-	irda_bind,
-	irda_connect,
-	sock_no_socketpair,
-	irda_accept,
-	irda_getname,
-	irda_poll,
-	irda_ioctl,
-	irda_listen,
-	irda_shutdown,
-	irda_setsockopt,
-	irda_getsockopt,
-	sock_no_fcntl,
-	irda_sendmsg,
-	irda_recvmsg_stream,
-	sock_no_mmap
+	release:	irda_release,
+	bind:		irda_bind,
+	connect:	irda_connect,
+	socketpair:	sock_no_socketpair,
+	accept:		irda_accept,
+	getname:	irda_getname,
+	poll:		irda_poll,
+	ioctl:		irda_ioctl,
+	listen:		irda_listen,
+	shutdown:	irda_shutdown,
+	setsockopt:	irda_setsockopt,
+	getsockopt:	irda_getsockopt,
+	sendmsg:	irda_sendmsg,
+	recvmsg:	irda_recvmsg_stream,
+	mmap:		sock_no_mmap,
 };
 
 static struct proto_ops SOCKOPS_WRAPPED(irda_seqpacket_ops) = {
-	PF_IRDA,
+	family:		PF_IRDA,
 	
-	irda_release,
-	irda_bind,
-	irda_connect,
-	sock_no_socketpair,
-	irda_accept,
-	irda_getname,
-	datagram_poll,
-	irda_ioctl,
-	irda_listen,
-	irda_shutdown,
-	irda_setsockopt,
-	irda_getsockopt,
-	sock_no_fcntl,
-	irda_sendmsg,
-	irda_recvmsg_dgram,
-	sock_no_mmap,
+	release:	irda_release,
+	bind:		irda_bind,
+	connect:	irda_connect,
+	socketpair:	sock_no_socketpair,
+	accept:		irda_accept,
+	getname:	irda_getname,
+	poll:		datagram_poll,
+	ioctl:		irda_ioctl,
+	listen:		irda_listen,
+	shutdown:	irda_shutdown,
+	setsockopt:	irda_setsockopt,
+	getsockopt:	irda_getsockopt,
+	sendmsg:	irda_sendmsg,
+	recvmsg:	irda_recvmsg_dgram,
+	mmap:		sock_no_mmap,
 };
 
 static struct proto_ops SOCKOPS_WRAPPED(irda_dgram_ops) = {
-	PF_IRDA,
+	family:		PF_IRDA,
        
-	irda_release,
-	irda_bind,
-	irda_connect,
-	sock_no_socketpair,
-	irda_accept,
-	irda_getname,
-	datagram_poll,
-	irda_ioctl,
-	irda_listen,
-	irda_shutdown,
-	irda_setsockopt,
-	irda_getsockopt,
-	sock_no_fcntl,
-	irda_sendmsg_dgram,
-	irda_recvmsg_dgram,
-	sock_no_mmap,
+	release:	irda_release,
+	bind:		irda_bind,
+	connect:	irda_connect,
+	socketpair:	sock_no_socketpair,
+	accept:		irda_accept,
+	getname:	irda_getname,
+	poll:		datagram_poll,
+	ioctl:		irda_ioctl,
+	listen:		irda_listen,
+	shutdown:	irda_shutdown,
+	setsockopt:	irda_setsockopt,
+	getsockopt:	irda_getsockopt,
+	sendmsg:	irda_sendmsg_dgram,
+	recvmsg:	irda_recvmsg_dgram,
+	mmap:		sock_no_mmap,
 };
 
 #ifdef CONFIG_IRDA_ULTRA
 static struct proto_ops SOCKOPS_WRAPPED(irda_ultra_ops) = {
-	PF_IRDA,
+	family:		PF_IRDA,
        
-	irda_release,
-	irda_bind,
-	sock_no_connect,
-	sock_no_socketpair,
-	sock_no_accept,
-	irda_getname,
-	datagram_poll,
-	irda_ioctl,
-	sock_no_listen,
-	irda_shutdown,
-	irda_setsockopt,
-	irda_getsockopt,
-	sock_no_fcntl,
-	irda_sendmsg_ultra,
-	irda_recvmsg_dgram,
-	sock_no_mmap,
+	release:	irda_release,
+	bind:		irda_bind,
+	connect:	sock_no_connect,
+	socketpair:	sock_no_socketpair,
+	accept:		sock_no_accept,
+	getname:	irda_getname,
+	poll:		datagram_poll,
+	ioctl:		irda_ioctl,
+	listen:		sock_no_listen,
+	shutdown:	irda_shutdown,
+	setsockopt:	irda_setsockopt,
+	getsockopt:	irda_getsockopt,
+	sendmsg:	irda_sendmsg_ultra,
+	recvmsg:	irda_recvmsg_dgram,
+	mmap:		sock_no_mmap,
 };
 #endif /* CONFIG_IRDA_ULTRA */
 

@@ -427,6 +427,8 @@ static size_t parport_pc_ecpepp_read_data (struct parport *port, void *buf,
 	size_t got;
 
 	frob_econtrol (port, 0xe0, ECR_EPP << 5);
+	parport_pc_data_reverse (port);
+	parport_pc_write_control (port, 0x4);
 	got = parport_pc_epp_read_data (port, buf, length, flags);
 	frob_econtrol (port, 0xe0, ECR_PS2 << 5);
 
@@ -440,6 +442,8 @@ static size_t parport_pc_ecpepp_write_data (struct parport *port,
 	size_t written;
 
 	frob_econtrol (port, 0xe0, ECR_EPP << 5);
+	parport_pc_write_control (port, 0x4);
+	parport_pc_data_forward (port);
 	written = parport_pc_epp_write_data (port, buf, length, flags);
 	frob_econtrol (port, 0xe0, ECR_PS2 << 5);
 
@@ -452,6 +456,8 @@ static size_t parport_pc_ecpepp_read_addr (struct parport *port, void *buf,
 	size_t got;
 
 	frob_econtrol (port, 0xe0, ECR_EPP << 5);
+	parport_pc_data_reverse (port);
+	parport_pc_write_control (port, 0x4);
 	got = parport_pc_epp_read_addr (port, buf, length, flags);
 	frob_econtrol (port, 0xe0, ECR_PS2 << 5);
 
@@ -465,6 +471,8 @@ static size_t parport_pc_ecpepp_write_addr (struct parport *port,
 	size_t written;
 
 	frob_econtrol (port, 0xe0, ECR_EPP << 5);
+	parport_pc_write_control (port, 0x4);
+	parport_pc_data_forward (port);
 	written = parport_pc_epp_write_addr (port, buf, length, flags);
 	frob_econtrol (port, 0xe0, ECR_PS2 << 5);
 
@@ -582,7 +590,7 @@ static size_t parport_pc_fifo_write_block_dma (struct parport *port,
 	if (end < MAX_DMA_ADDRESS) {
 		/* If it would cross a 64k boundary, cap it at the end. */
 		if ((start ^ end) & ~0xffffUL)
-			maxlen = (0x10000 - start) & 0xffff;
+			maxlen = 0x10000 - (start & 0xffff);
 
 		dma_addr = dma_handle = pci_map_single(priv->dev, (void *)buf, length,
 						       PCI_DMA_TODEVICE);
@@ -1733,7 +1741,7 @@ static int __devinit parport_ECPEPP_supported(struct parport *pb)
 	oecr = inb (ECONTROL (pb));
 	/* Search for SMC style EPP+ECP mode */
 	outb (0x80, ECONTROL (pb));
-	
+	outb (0x04, CONTROL (pb));
 	result = parport_EPP_supported(pb);
 
 	outb (oecr, ECONTROL (pb));
@@ -2254,6 +2262,7 @@ enum parport_pc_pci_cards {
 	boca_ioppar,
 	plx_9050,
 	afavlab_tk9902,
+	timedia_1889,
 };
 
 
@@ -2291,6 +2300,7 @@ static struct parport_pc_pci {
 	/* boca_ioppar */		{ 1, { { 0, -1 }, } },
 	/* plx_9050 */			{ 2, { { 4, -1 }, { 5, -1 }, } },
 	/* afavlab_tk9902 */		{ 1, { { 0, 1 }, } },
+	/* timedia_1889 */		{ 1, { { 2, -1 }, } },
 };
 
 static struct pci_device_id parport_pc_pci_tbl[] __devinitdata = {
@@ -2348,6 +2358,8 @@ static struct pci_device_id parport_pc_pci_tbl[] __devinitdata = {
 	  PCI_SUBVENDOR_ID_EXSYS, PCI_SUBDEVICE_ID_EXSYS_4014, 0,0, plx_9050 },
 	{ PCI_VENDOR_ID_AFAVLAB, PCI_DEVICE_ID_AFAVLAB_TK9902,
 	  PCI_ANY_ID, PCI_ANY_ID, 0, 0, afavlab_tk9902 },
+	{ PCI_VENDOR_ID_TIMEDIA, PCI_DEVICE_ID_TIMEDIA_1889,
+	  PCI_ANY_ID, PCI_ANY_ID, 0, 0, timedia_1889 },
 	{ 0, }, /* terminate list */
 };
 MODULE_DEVICE_TABLE(pci,parport_pc_pci_tbl);

@@ -3,7 +3,7 @@
  *	
  *		Alan Cox, <alan@redhat.com>
  *
- *	Version: $Id: icmp.c,v 1.67 2000/03/25 01:55:11 davem Exp $
+ *	Version: $Id: icmp.c,v 1.69 2000/04/15 01:48:10 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -521,9 +521,12 @@ void icmp_reply(struct icmp_bxm *icmp_param, struct sk_buff *skb)
 	}
 	if (ip_route_output(&rt, daddr, rt->rt_spec_dst, RT_TOS(skb->nh.iph->tos), 0))
 		goto out;
-	ip_build_xmit(sk, icmp_glue_bits, icmp_param, 
-		icmp_param->data_len+sizeof(struct icmphdr),
-		&ipc, rt, MSG_DONTWAIT);
+	if (icmpv4_xrlim_allow(rt, icmp_param->icmph.type, 
+			       icmp_param->icmph.code)) { 
+		ip_build_xmit(sk, icmp_glue_bits, icmp_param, 
+			      icmp_param->data_len+sizeof(struct icmphdr),
+			      &ipc, rt, MSG_DONTWAIT);
+	}
 	ip_rt_put(rt);
 out:
 	icmp_xmit_unlock_bh();
@@ -720,7 +723,7 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 			case ICMP_FRAG_NEEDED:
 				if (ipv4_config.no_pmtu_disc) {
 					if (net_ratelimit())
-						printk(KERN_INFO "ICMP: %d.%d.%d.%d: fragmentation needed and DF set.\n",
+						printk(KERN_INFO "ICMP: %u.%u.%u.%u: fragmentation needed and DF set.\n",
 						       NIPQUAD(iph->daddr));
 				} else {
 					unsigned short new_mtu;
@@ -732,7 +735,7 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 				break;
 			case ICMP_SR_FAILED:
 				if (net_ratelimit())
-					printk(KERN_INFO "ICMP: %d.%d.%d.%d: Source Route Failed.\n", NIPQUAD(iph->daddr));
+					printk(KERN_INFO "ICMP: %u.%u.%u.%u: Source Route Failed.\n", NIPQUAD(iph->daddr));
 				break;
 			default:
 				break;
@@ -762,7 +765,7 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 		if (inet_addr_type(iph->daddr) == RTN_BROADCAST)
 		{
 			if (net_ratelimit())
-				printk(KERN_WARNING "%d.%d.%d.%d sent an invalid ICMP error to a broadcast.\n",
+				printk(KERN_WARNING "%u.%u.%u.%u sent an invalid ICMP error to a broadcast.\n",
 			       	NIPQUAD(skb->nh.iph->saddr));
 			return; 
 		}
@@ -983,9 +986,8 @@ static void icmp_address_reply(struct icmphdr *icmph, struct sk_buff *skb, int l
 				break;
 		}
 		if (!ifa && net_ratelimit()) {
-			char b1[16], b2[16];
-			printk(KERN_INFO "Wrong address mask %s from %s/%s\n",
-			       in_ntoa2(mask, b1), in_ntoa2(rt->rt_src, b2), dev->name);
+			printk(KERN_INFO "Wrong address mask %u.%u.%u.%u from %s/%u.%u.%u.%u\n",
+			       NIPQUAD(mask), dev->name, NIPQUAD(rt->rt_src));
 		}
 	}
 	read_unlock(&in_dev->lock);

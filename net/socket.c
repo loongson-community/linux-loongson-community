@@ -130,7 +130,7 @@ static struct file_operations socket_file_ops = {
 
 static struct net_proto_family *net_families[NPROTO];
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 static atomic_t net_family_lockct = ATOMIC_INIT(0);
 static spinlock_t net_family_lock = SPIN_LOCK_UNLOCKED;
 
@@ -561,21 +561,16 @@ int sock_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 }
 
 
+/* No kernel lock held - perfect */
 static unsigned int sock_poll(struct file *file, poll_table * wait)
 {
 	struct socket *sock;
-	int err;
-
-	unlock_kernel();
-	sock = socki_lookup(file->f_dentry->d_inode);
 
 	/*
 	 *	We can't return errors to poll, so it's either yes or no. 
 	 */
-
-	err = sock->ops->poll(file, sock, wait);
-	lock_kernel();
-	return err;
+	sock = socki_lookup(file->f_dentry->d_inode);
+	return sock->ops->poll(file, sock, wait);
 }
 
 static int sock_mmap(struct file * file, struct vm_area_struct * vma)
@@ -1397,7 +1392,7 @@ int sock_fcntl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	sock = socki_lookup (filp->f_dentry->d_inode);
 	if (sock && sock->ops)
-		return sock->ops->fcntl(sock, cmd, arg);
+		return sock_no_fcntl(sock, cmd, arg);
 	return(-EINVAL);
 }
 
@@ -1618,7 +1613,7 @@ int socket_get_info(char *buffer, char **start, off_t offset, int length)
 	int counter = 0;
 
 	for (cpu=0; cpu<smp_num_cpus; cpu++)
-		counter += sockets_in_use[cpu].counter;
+		counter += sockets_in_use[cpu_logical_map(cpu)].counter;
 
 	/* It can be negative, by the way. 8) */
 	if (counter < 0)

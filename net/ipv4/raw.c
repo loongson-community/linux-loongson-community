@@ -5,7 +5,7 @@
  *
  *		RAW - implementation of IP "raw" sockets.
  *
- * Version:	$Id: raw.c,v 1.48 2000/01/18 08:24:15 davem Exp $
+ * Version:	$Id: raw.c,v 1.49 2000/04/25 04:13:34 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -644,26 +644,20 @@ out:
 }
 
 struct proto raw_prot = {
-	raw_close,			/* close */
-	udp_connect,			/* connect */
-	udp_disconnect,			/* disconnect */
-	NULL,				/* accept */
+	name:		"RAW",
+	close:		raw_close,
+	connect:	udp_connect,
+	disconnect:	udp_disconnect,
 #ifdef CONFIG_IP_MROUTE
-	ipmr_ioctl,			/* ioctl */
-#else
-	NULL,				/* ioctl */
+	ioctl:		ipmr_ioctl,
 #endif
-	raw_init,			/* init */
-	NULL,				/* destroy */
-	NULL,				/* shutdown */
-	raw_setsockopt,			/* setsockopt */
-	raw_getsockopt,			/* getsockopt */
-	raw_sendmsg,			/* sendmsg */
-	raw_recvmsg,			/* recvmsg */
-	raw_bind,			/* bind */
-	raw_rcv_skb,			/* backlog_rcv */
-	raw_v4_hash,			/* hash */
-	raw_v4_unhash,			/* unhash */
-	NULL,				/* get_port */
-	"RAW",				/* name */
+	init:		raw_init,
+	setsockopt:	raw_setsockopt,
+	getsockopt:	raw_getsockopt,
+	sendmsg:	raw_sendmsg,
+	recvmsg:	raw_recvmsg,
+	bind:		raw_bind,
+	backlog_rcv:	raw_rcv_skb,
+	hash:		raw_v4_hash,
+	unhash:		raw_v4_unhash,
 };

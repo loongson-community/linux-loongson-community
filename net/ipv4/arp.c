@@ -1,6 +1,6 @@
 /* linux/net/inet/arp.c
  *
- * Version:	$Id: arp.c,v 1.84 2000/01/18 08:24:14 davem Exp $
+ * Version:	$Id: arp.c,v 1.86 2000/04/26 09:36:36 davem Exp $
  *
  * Copyright (C) 1994 by Florian  La Roche
  *
@@ -1021,7 +1021,6 @@ static int arp_get_info(char *buffer, char **start, off_t offset, int length)
 	char hbuffer[HBUFFERLEN];
 	int i,j,k;
 	const char hexbuf[] =  "0123456789ABCDEF";
-	char abuf[16];
 
 	size = sprintf(buffer,"IP address       HW type     Flags       HW address            Mask     Device\n");
 
@@ -1060,15 +1059,21 @@ static int arp_get_info(char *buffer, char **start, off_t offset, int length)
 		}
 #endif
 
-			size = sprintf(buffer+len,
-				"%-17s0x%-10x0x%-10x%s",
-				in_ntoa2(*(u32*)n->primary_key, abuf),
-				hatype,
-				arp_state_to_flags(n), 
-				hbuffer);
-			size += sprintf(buffer+len+size,
-				 "     %-17s %s\n",
-				 "*", dev->name);
+			{
+				char tbuf[16];
+				sprintf(tbuf, "%u.%u.%u.%u", NIPQUAD(*(u32*)n->primary_key));
+
+				size = sprintf(buffer+len, "%-16s 0x%-10x0x%-10x%s",
+					tbuf,
+					hatype,
+					arp_state_to_flags(n), 
+					hbuffer);
+
+				size += sprintf(buffer+len+size,
+					 "     %-8s %s\n",
+					 "*", dev->name);
+			}
+
 			read_unlock(&n->lock);
 
 			len += size;
@@ -1091,8 +1096,8 @@ static int arp_get_info(char *buffer, char **start, off_t offset, int length)
 			int hatype = dev ? dev->type : 0;
 
 			size = sprintf(buffer+len,
-				"%-17s0x%-10x0x%-10x%s",
-				in_ntoa2(*(u32*)n->key, abuf),
+				"%u.%u.%u.%u0x%-10x0x%-10x%s",
+				NIPQUAD(*(u32*)n->key),
 				hatype,
  				ATF_PUBL|ATF_PERM,
 				"00:00:00:00:00:00");

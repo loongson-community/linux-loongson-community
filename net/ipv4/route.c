@@ -5,7 +5,7 @@
  *
  *		ROUTE - implementation of the IP router.
  *
- * Version:	$Id: route.c,v 1.83 2000/03/23 05:34:13 davem Exp $
+ * Version:	$Id: route.c,v 1.86 2000/04/24 07:03:14 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -616,9 +616,9 @@ restart:
 #if RT_CACHE_DEBUG >= 2
 	if (rt->u.rt_next) {
 		struct rtable * trt;
-		printk("rt_cache @%02x: %08x", hash, rt->rt_dst);
+		printk("rt_cache @%02x: %u.%u.%u.%u", hash, NIPQUAD(rt->rt_dst));
 		for (trt=rt->u.rt_next; trt; trt=trt->u.rt_next)
-			printk(" . %08x", trt->rt_dst);
+			printk(" . %u.%u.%u.%u", NIPQUAD(trt->rt_dst));
 		printk("\n");
 	}
 #endif
@@ -816,10 +816,10 @@ void ip_rt_redirect(u32 old_gw, u32 daddr, u32 new_gw,
 reject_redirect:
 #ifdef CONFIG_IP_ROUTE_VERBOSE
 	if (IN_DEV_LOG_MARTIANS(in_dev) && net_ratelimit())
-		printk(KERN_INFO "Redirect from %X/%s to %X ignored."
-		       "Path = %X -> %X, tos %02x\n",
-		       ntohl(old_gw), dev->name, ntohl(new_gw),
-		       ntohl(saddr), ntohl(daddr), tos);
+		printk(KERN_INFO "Redirect from %u.%u.%u.%u on %s about %u.%u.%u.%u ignored.\n"
+		       "  Advised path = %u.%u.%u.%u -> %u.%u.%u.%u, tos %02x\n",
+		       NIPQUAD(old_gw), dev->name, NIPQUAD(new_gw),
+		       NIPQUAD(saddr), NIPQUAD(daddr), tos);
 #endif
 	in_dev_put(in_dev);
 }
@@ -836,7 +836,8 @@ static struct dst_entry *ipv4_negative_advice(struct dst_entry *dst)
 		if ((rt->rt_flags&RTCF_REDIRECTED) || rt->u.dst.expires) {
 			unsigned hash = rt_hash_code(rt->key.dst, rt->key.src^(rt->key.oif<<5), rt->key.tos);
 #if RT_CACHE_DEBUG >= 1
-			printk(KERN_DEBUG "ip_rt_advice: redirect to %d.%d.%d.%d/%02x dropped\n", NIPQUAD(rt->rt_dst), rt->key.tos);
+			printk(KERN_DEBUG "ip_rt_advice: redirect to %u.%u.%u.%u/%02x dropped\n",
+				NIPQUAD(rt->rt_dst), rt->key.tos);
 #endif
 			rt_del(hash, rt);
 			return NULL;
@@ -896,8 +897,10 @@ void ip_rt_send_redirect(struct sk_buff *skb)
 #ifdef CONFIG_IP_ROUTE_VERBOSE
 		if (IN_DEV_LOG_MARTIANS(in_dev) &&
 		    rt->u.dst.rate_tokens == ip_rt_redirect_number && net_ratelimit())
-			printk(KERN_WARNING "host %08x/if%d ignores redirects for %08x to %08x.\n",
-			       rt->rt_src, rt->rt_iif, rt->rt_dst, rt->rt_gateway);
+			printk(KERN_WARNING "host %u.%u.%u.%u/if%d ignores redirects for "
+				"%u.%u.%u.%u to %u.%u.%u.%u.\n",
+				NIPQUAD(rt->rt_src), rt->rt_iif,
+				NIPQUAD(rt->rt_dst), NIPQUAD(rt->rt_gateway));
 #endif
 	}
 out:
@@ -1061,8 +1064,9 @@ static void ipv4_link_failure(struct sk_buff *skb)
 
 static int ip_rt_bug(struct sk_buff *skb)
 {
-	printk(KERN_DEBUG "ip_rt_bug: %08x -> %08x, %s\n", skb->nh.iph->saddr,
-	       skb->nh.iph->daddr, skb->dev ? skb->dev->name : "?");
+	printk(KERN_DEBUG "ip_rt_bug: %u.%u.%u.%u -> %u.%u.%u.%u, %s\n",
+		NIPQUAD(skb->nh.iph->saddr), NIPQUAD(skb->nh.iph->daddr),
+		skb->dev ? skb->dev->name : "?");
 	kfree_skb(skb);
 	return 0;
 }
@@ -1499,7 +1503,8 @@ no_route:
 martian_destination:
 #ifdef CONFIG_IP_ROUTE_VERBOSE
 	if (IN_DEV_LOG_MARTIANS(in_dev) && net_ratelimit())
-		printk(KERN_WARNING "martian destination %08x from %08x, dev %s\n", daddr, saddr, dev->name);
+		printk(KERN_WARNING "martian destination %u.%u.%u.%u from %u.%u.%u.%u, dev %s\n",
+			NIPQUAD(daddr), NIPQUAD(saddr), dev->name);
 #endif
 e_inval:
 	err = -EINVAL;
@@ -1513,16 +1518,20 @@ martian_source:
 #ifdef CONFIG_IP_ROUTE_VERBOSE
 	if (IN_DEV_LOG_MARTIANS(in_dev) && net_ratelimit()) {
 		/*
-		 *	RFC1812 recommenadtion, if source is martian,
+		 *	RFC1812 recommendation, if source is martian,
 		 *	the only hint is MAC header.
 		 */
-		printk(KERN_WARNING "martian source %08x for %08x, dev %s\n", saddr, daddr, dev->name);
+		printk(KERN_WARNING "martian source %u.%u.%u.%u from %u.%u.%u.%u, on dev %s\n",
+			NIPQUAD(daddr), NIPQUAD(saddr), dev->name);
 		if (dev->hard_header_len) {
 			int i;
 			unsigned char *p = skb->mac.raw;
-			printk(KERN_WARNING "ll header:");
-			for (i=0; i<dev->hard_header_len; i++, p++)
-				printk(" %02x", *p);
+			printk(KERN_WARNING "ll header: ");
+			for (i=0; i<dev->hard_header_len; i++, p++) {
+				printk("%02x", *p);
+				if(i<(dev->hard_header_len-1))
+					printk(":");
+			}
 			printk("\n");
 		}
 	}
@@ -2218,15 +2227,20 @@ static int ip_rt_acct_read(char *buffer, char **start, off_t offset,
 
 		memcpy(dst, src, length);
 
-#ifdef __SMP__
-		if (smp_num_cpus > 1) {
+#ifdef CONFIG_SMP
+		if (smp_num_cpus > 1 || cpu_logical_map(0) != 0) {
 			int i;
 			int cnt = length/4;
 
-			for (i=1; i<smp_num_cpus; i++) {
+			for (i=0; i<smp_num_cpus; i++) {
+				int cpu = cpu_logical_map(i);
 				int k;
 
-				src += (256/4)*sizeof(struct ip_rt_acct);
+				if (cpu == 0)
+					continue;
+
+				src = (u32*)(((u8*)ip_rt_acct) + offset +
+					     cpu*256*sizeof(struct ip_rt_acct));
 
 				for (k=0; k<cnt; k++)
 					dst[k] += src[k];
@@ -2245,7 +2259,7 @@ void __init ip_rt_init(void)
 
 #ifdef CONFIG_NET_CLS_ROUTE
 	for (order=0;
-	     (PAGE_SIZE<<order) < 256*sizeof(ip_rt_acct)*smp_num_cpus; order++)
+	     (PAGE_SIZE<<order) < 256*sizeof(ip_rt_acct)*NR_CPUS; order++)
 		/* NOTHING */;
 	ip_rt_acct = (struct ip_rt_acct *)__get_free_pages(GFP_KERNEL, order);
 	if (!ip_rt_acct)

@@ -1383,8 +1383,13 @@ extern __inline__ void tcp_acceptq_queue(struct sock *sk, struct open_request *r
 	req->sk = child;
 	tcp_acceptq_added(sk);
 
-	req->dl_next = tp->accept_queue;
-	tp->accept_queue = req;
+	if (!tp->accept_queue_tail) {
+		tp->accept_queue = req;
+	} else {
+		tp->accept_queue_tail->dl_next = req;
+	}
+	tp->accept_queue_tail = req;
+	req->dl_next = NULL;
 }
 
 struct tcp_listen_opt
@@ -1486,10 +1491,8 @@ static inline void tcp_clear_xmit_timer(struct sock *sk, int what)
 		return;
 	};
 
-	spin_lock_bh(&sk->timer_lock);
-	if (timer->prev != NULL && del_timer(timer))
+	if (timer_pending(timer) && del_timer(timer))
 		__sock_put(sk);
-	spin_unlock_bh(&sk->timer_lock);
 }
 
 /* This function does not return reliable answer. Use it only as advice.

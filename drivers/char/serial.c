@@ -3159,7 +3159,7 @@ int rs_read_proc(char *page, char **start, off_t off, int count,
 done:
 	if (off >= len+begin)
 		return 0;
-	*start = page + (begin-off);
+	*start = page + (off-begin);
 	return ((count < begin+len-off) ? count : begin+len-off);
 }
 
@@ -4164,7 +4164,7 @@ static struct pci_board pci_boards[] __initdata = {
 		PCI_ANY_ID, PCI_ANY_ID,
 		SPCI_FL_BASE0 | SPCI_FL_BASE_TABLE, 4, 921600,
 		0, 0, pci_siig20x_fn },
-	/* Computone devices submitted by Doug McNash dmcnash@computone.com */
+	/* Computone devices submitted by Doug McNash dougm@computone.com */
 	{	PCI_VENDOR_ID_COMPUTONE, PCI_DEVICE_ID_COMPUTONE_PG,
 		PCI_SUBVENDOR_ID_COMPUTONE, PCI_SUBDEVICE_ID_COMPUTONE_PG4,
 		SPCI_FL_BASE0, 4, 921600, /* IOMEM */
@@ -4478,7 +4478,7 @@ int __init rs_init(void)
 #if (LINUX_VERSION_CODE > 0x20100)
 	serial_driver.driver_name = "serial";
 #endif
-#if (LINUX_VERSION_CODE > 0x2032D)
+#if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
 	serial_driver.name = "tts/%d";
 #else
 	serial_driver.name = "ttyS";
@@ -4526,7 +4526,7 @@ int __init rs_init(void)
 	 * major number and the subtype code.
 	 */
 	callout_driver = serial_driver;
-#if (LINUX_VERSION_CODE > 0x2032D)
+#if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
 	callout_driver.name = "cua/%d";
 #else
 	callout_driver.name = "cua";
@@ -4684,7 +4684,7 @@ int register_serial(struct serial_struct *req)
  *
  *	The port specified is deconfigured and its resources are freed. Any
  *	user of the port is disconnected as if carrier was dropped. Line is
- *	the port number returned by register_serial.
+ *	the port number returned by register_serial().
  */
 
 void unregister_serial(int line)
@@ -5024,6 +5024,6 @@ void __init serial_console_init(void)
 
 /*
   Local variables:
-  compile-command: "gcc -D__KERNEL__ -I../../include -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -fno-strict-aliasing -D__SMP__ -pipe -fno-strength-reduce  -march=i686 -DMODULE -DMODVERSIONS -include ../../include/linux/modversions.h   -DEXPORT_SYMTAB -c serial.c"
+  compile-command: "gcc -D__KERNEL__ -I../../include -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -fno-strict-aliasing -pipe -fno-strength-reduce  -march=i686 -DMODULE -DMODVERSIONS -include ../../include/linux/modversions.h   -DEXPORT_SYMTAB -c serial.c"
   End:
 */

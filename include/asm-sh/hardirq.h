@@ -1,14 +1,22 @@
 #ifndef __ASM_SH_HARDIRQ_H
 #define __ASM_SH_HARDIRQ_H
 
+#include <linux/config.h>
 #include <linux/threads.h>
 
 extern unsigned int local_irq_count[NR_CPUS];
-#define in_interrupt()	(local_irq_count[smp_processor_id()] != 0)
+extern unsigned int local_bh_count[NR_CPUS];
+
+/*
+ * Are we in an interrupt context? Either doing bottom half
+ * or hardware interrupt processing?
+ */
+#define in_interrupt() ({ int __cpu = smp_processor_id(); \
+	(local_irq_count[__cpu] + local_bh_count[__cpu] != 0); })
 
 #define in_irq() (local_irq_count[smp_processor_id()] != 0)
 
-#ifndef __SMP__
+#ifndef CONFIG_SMP
 
 #define hardirq_trylock(cpu)	(local_irq_count[cpu] == 0)
 #define hardirq_endlock(cpu)	do { } while (0)
@@ -22,5 +30,5 @@ extern unsigned int local_irq_count[NR_CPUS];
 
 #error Super-H SMP is not available
 
-#endif /* __SMP__ */
+#endif /* CONFIG_SMP */
 #endif /* __ASM_SH_HARDIRQ_H */

@@ -356,7 +356,10 @@ struct tcp_opt {
 	 */
 	rwlock_t		syn_wait_lock;
 	struct tcp_listen_opt	*listen_opt;
-	struct open_request	*accept_queue; /* Established children */
+
+	/* FIFO of established children */
+	struct open_request	*accept_queue;
+	struct open_request	*accept_queue_tail;
 
 	int write_pending;	/* A write to socket waits to start. */
 
@@ -597,7 +600,6 @@ struct sock {
 
 
 	/* This part is used for the timeout functions. */
-	spinlock_t		timer_lock;	/* Required until timer in core is repaired */
 	struct timer_list	timer;		/* This is the sock cleanup timer. */
 	struct timeval		stamp;
 
@@ -818,7 +820,7 @@ extern int                      sock_no_sendmsg(struct socket *,
 						struct msghdr *, int,
 						struct scm_cookie *);
 extern int                      sock_no_recvmsg(struct socket *,
-						struct msghdr *, int,
+						struct msghdr *, int, int,
 						struct scm_cookie *);
 extern int			sock_no_mmap(struct file *file,
 					     struct socket *sock,

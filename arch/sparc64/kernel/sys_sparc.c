@@ -1,4 +1,4 @@
-/* $Id: sys_sparc.c,v 1.37 2000/03/17 05:48:46 anton Exp $
+/* $Id: sys_sparc.c,v 1.38 2000/04/13 07:30:34 jj Exp $
  * linux/arch/sparc64/kernel/sys_sparc.c
  *
  * This file contains various random system calls that
@@ -23,6 +23,7 @@
 #include <linux/smp_lock.h>
 #include <linux/malloc.h>
 #include <linux/ipc.h>
+#include <linux/personality.h>
 
 #include <asm/uaccess.h>
 #include <asm/ipc.h>
@@ -182,6 +183,33 @@ out:
 	return err;
 }
 
+extern asmlinkage int sys_newuname(struct new_utsname * name);
+
+asmlinkage int sparc64_newuname(struct new_utsname * name)
+{
+	int ret = sys_newuname(name);
+	
+	if (current->personality == PER_LINUX32 && !ret) {
+		ret = copy_to_user(name->machine, "sparc\0\0", 8);
+	}
+	return ret;
+}
+
+extern asmlinkage long sys_personality(unsigned long);
+
+asmlinkage int sparc64_personality(unsigned long personality)
+{
+	int ret;
+	lock_kernel();
+	if (current->personality == PER_LINUX32 && personality == PER_LINUX)
+		personality = PER_LINUX32;
+	ret = sys_personality(personality);
+	unlock_kernel();
+	if (ret == PER_LINUX32)
+		ret = PER_LINUX;
+	return ret;
+}
+
 /* Linux version of mmap */
 asmlinkage unsigned long sys_mmap(unsigned long addr, unsigned long len,
 	unsigned long prot, unsigned long flags, unsigned long fd,
@@ -232,7 +260,7 @@ asmlinkage long sys64_munmap(unsigned long addr, size_t len)
 	    (addr < PAGE_OFFSET && addr + len > -PAGE_OFFSET))
 		return -EINVAL;
 	down(&current->mm->mmap_sem);
-	ret = do_munmap(addr, len);
+	ret = do_munmap(current->mm, addr, len);
 	up(&current->mm->mmap_sem);
 	return ret;
 }

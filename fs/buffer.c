@@ -28,6 +28,7 @@
 
 /* async buffer flushing, 1999 Andrea Arcangeli <andrea@suse.de> */
 
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/malloc.h>
@@ -1755,8 +1756,6 @@ static void end_buffer_io_kiobuf(struct buffer_head *bh, int uptodate)
 
 	kiobuf = bh->b_kiobuf;
 	unlock_buffer(bh);
-	
-	kiobuf = bh->b_kiobuf;
 	end_kio_request(kiobuf, uptodate);
 }
 
@@ -2192,7 +2191,7 @@ busy_buffer_page:
 
 void show_buffers(void)
 {
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 	struct buffer_head * bh;
 	int found = 0, locked = 0, dirty = 0, used = 0, lastused = 0;
 	int protected = 0;
@@ -2203,7 +2202,7 @@ void show_buffers(void)
 	printk("Buffer memory:   %6dkB\n",
 			atomic_read(&buffermem_pages) << (PAGE_SHIFT-10));
 
-#ifdef __SMP__ /* trylock does nothing on UP and so we could deadlock */
+#ifdef CONFIG_SMP /* trylock does nothing on UP and so we could deadlock */
 	if (!spin_trylock(&lru_list_lock))
 		return;
 	for(nlist = 0; nlist < NR_LIST; nlist++) {
@@ -2412,6 +2411,12 @@ static int sync_old_buffers(void)
 
 	flush_dirty_buffers(1);
 	/* must really sync all the active I/O request to disk here */
+	run_task_queue(&tq_disk);
+	return 0;
+}
+
+int block_sync_page(struct page *page)
+{
 	run_task_queue(&tq_disk);
 	return 0;
 }

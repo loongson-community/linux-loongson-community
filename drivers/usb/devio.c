@@ -162,7 +162,7 @@ static int my_usb_bulk_msg(struct usb_device *dev, unsigned int pipe,
 	return ret;
 }
 
-static long long usbdev_lseek(struct file *file, long long offset, int orig)
+static loff_t usbdev_lseek(struct file *file, loff_t offset, int orig)
 {
 	switch (orig) {
 	case 0:
@@ -989,6 +989,7 @@ static int usbdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 	return ret;
 }
 
+/* No kernel lock - fine */
 static unsigned int usbdev_poll(struct file *file, struct poll_table_struct *wait)
 {
 	struct dev_state *ps = (struct dev_state *)file->private_data;

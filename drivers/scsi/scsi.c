@@ -478,6 +478,7 @@ Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait,
 
         SCpnt->result = 0;
 	SCpnt->underflow = 0;	/* Do not flag underflow conditions */
+	SCpnt->old_underflow = 0;
 	SCpnt->resid = 0;
 	SCpnt->state = SCSI_STATE_INITIALIZING;
 	SCpnt->owner = SCSI_OWNER_HIGHLEVEL;
@@ -906,6 +907,7 @@ void scsi_init_cmd_from_req(Scsi_Cmnd * SCpnt, Scsi_Request * SRpnt)
 		SCpnt->cmd_len = COMMAND_SIZE(SCpnt->cmnd[0]);
 	SCpnt->old_cmd_len = SCpnt->cmd_len;
 	SCpnt->sc_old_data_direction = SCpnt->sc_data_direction;
+	SCpnt->old_underflow = SCpnt->underflow;
 
 	/* Start the timer ticking.  */
 
@@ -1011,6 +1013,7 @@ void scsi_do_cmd(Scsi_Cmnd * SCpnt, const void *cmnd,
 		SCpnt->cmd_len = COMMAND_SIZE(SCpnt->cmnd[0]);
 	SCpnt->old_cmd_len = SCpnt->cmd_len;
 	SCpnt->sc_old_data_direction = SCpnt->sc_data_direction;
+	SCpnt->old_underflow = SCpnt->underflow;
 
 	/* Start the timer ticking.  */
 
@@ -1271,6 +1274,7 @@ int scsi_retry_command(Scsi_Cmnd * SCpnt)
 	SCpnt->use_sg = SCpnt->old_use_sg;
 	SCpnt->cmd_len = SCpnt->old_cmd_len;
 	SCpnt->sc_data_direction = SCpnt->sc_old_data_direction;
+	SCpnt->underflow = SCpnt->old_underflow;
 
         /*
          * Zero the sense information from the last time we tried
@@ -1435,6 +1439,7 @@ void scsi_build_commandblocks(Scsi_Device * SDpnt)
 		SCpnt->old_use_sg = 0;
 		SCpnt->old_cmd_len = 0;
 		SCpnt->underflow = 0;
+		SCpnt->old_underflow = 0;
 		SCpnt->transfersize = 0;
 		SCpnt->resid = 0;
 		SCpnt->serial_number = 0;
@@ -1895,7 +1900,12 @@ out:
 }
 #endif
 
-#ifdef CONFIG_MODULES		/* a big #ifdef block... */
+/*
+ * Some host adapters that are plugging into other subsystems register
+ * their hosts through the modules entrypoints, and don't use the big
+ * list in hosts.c.
+ */
+#if defined(CONFIG_MODULES) || defined(CONFIG_BLK_DEV_IDESCSI) || defined(CONFIG_USB_STORAGE)	/* a big #ifdef block... */
 
 /*
  * This entry point should be called by a loadable module if it is trying

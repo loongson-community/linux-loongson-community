@@ -1,4 +1,4 @@
-/* $Id: systbls.S,v 1.96 2000/03/15 02:43:32 davem Exp $
+/* $Id: systbls.S,v 1.97 2000/04/13 00:55:49 davem Exp $
  * systbls.S: System call entry point tables for OS compatibility.
  *            The native Linux system call table lives here also.
  *
@@ -79,7 +79,7 @@ sys_call_table:
 	.globl sunos_sys_table
 sunos_sys_table:
 /*0*/	.long sunos_indir, sys_exit, sys_fork
-	.long sunos_read, sunos_write, sunos_open
+	.long sunos_read, sunos_write, sys_open
 	.long sys_close, sunos_wait4, sys_creat
 	.long sys_link, sys_unlink, sunos_execv
 	.long sys_chdir, sunos_nosys, sys_mknod

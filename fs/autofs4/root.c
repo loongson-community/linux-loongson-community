@@ -1,4 +1,4 @@
-/* -*- linux-c -*- --------------------------------------------------------- *
+/* -*- c -*- --------------------------------------------------------------- *
  *
  * linux/fs/autofs/root.c
  *
@@ -87,7 +87,7 @@ static int autofs4_dir_readdir(struct file *filp, void *dirent,
 		filp->f_pos = ++nr;
 		/* fall through */
 	case 1:
-		if (filldir(dirent, "..", 2, nr, dentry->d_covers->d_parent->d_inode->i_ino) < 0)
+		if (filldir(dirent, "..", 2, nr, dentry->d_parent->d_inode->i_ino) < 0)
 			return 0;
 		filp->f_pos = ++nr;
 		/* fall through */
@@ -175,7 +175,7 @@ static int try_to_fill_dentry(struct dentry *dentry,
 			/* Return a negative dentry, but leave it "pending" */
 			return 1;
 		}
-		status = autofs4_wait(sbi, &dentry->d_name, NFY_MOUNT);
+		/* status = autofs4_wait(sbi, &dentry->d_name, NFY_MOUNT); */
 	}
 
 	/* If this is an unused directory that isn't a mount point,
@@ -230,7 +230,7 @@ static int autofs4_root_revalidate(struct dentry * dentry, int flags)
 	    list_empty(&dentry->d_subdirs)) {
 		DPRINTK(("autofs_root_revalidate: dentry=%p %.*s, emptydir\n",
 			 dentry, dentry->d_name.len, dentry->d_name.name));
-		if (autofs4_oz_mode(sbi))
+		if (oz_mode)
 			return 1;
 		else
 			return try_to_fill_dentry(dentry, dir->i_sb, sbi);
@@ -305,7 +305,7 @@ static struct dentry *autofs4_root_lookup(struct inode *dir, struct dentry *dent
 		 dentry->d_name.len, dentry->d_name.name));
 
 	if (dentry->d_name.len > NAME_MAX)
-		return ERR_PTR(-ENOENT);/* File name too long to exist */
+		return ERR_PTR(-ENAMETOOLONG);/* File name too long to exist */
 
 	sbi = autofs4_sbi(dir->i_sb);
 
@@ -323,12 +323,10 @@ static struct dentry *autofs4_root_lookup(struct inode *dir, struct dentry *dent
 	 *
 	 * We need to do this before we release the directory semaphore.
 	 */
-	if (dir->i_ino == AUTOFS_ROOT_INO)
-		dentry->d_op = &autofs4_root_dentry_operations;
-	else
-		dentry->d_op = &autofs4_dentry_operations;
+	dentry->d_op = &autofs4_root_dentry_operations;
 
-	dentry->d_flags |= DCACHE_AUTOFS_PENDING;
+	if (!oz_mode)
+		dentry->d_flags |= DCACHE_AUTOFS_PENDING;
 	dentry->d_fsdata = NULL;
 	d_add(dentry, NULL);
 
@@ -371,17 +369,8 @@ static int autofs4_dir_symlink(struct inode *dir,
 	DPRINTK(("autofs_dir_symlink: %s <- %.*s\n", symname, 
 		 dentry->d_name.len, dentry->d_name.name));
 
-	if (!S_ISDIR(dir->i_mode))
-		return -ENOTDIR;
-
 	if (!autofs4_oz_mode(sbi))
 		return -EACCES;
-
-	if (dentry->d_name.len > NAME_MAX)
-		return -ENAMETOOLONG;
-
-	if (dentry->d_inode != NULL)
-		return -EEXIST;
 
 	ino = autofs4_init_ino(ino, sbi, S_IFLNK | 0555);
 	if (ino == NULL)
@@ -397,11 +386,10 @@ static int autofs4_dir_symlink(struct inode *dir,
 
 	strcpy(cp, symname);
 
-	autofs4_ihash_insert(&sbi->ihash, ino);
-	inode = iget(dir->i_sb,ino->ino);
+	inode = autofs4_get_inode(dir->i_sb, ino);
 	d_instantiate(dentry, inode);
 
-	if (dir->i_ino == AUTOFS_ROOT_INO)
+	if (dir == dir->i_sb->s_root->d_inode)
 		dentry->d_op = &autofs4_root_dentry_operations;
 	else
 		dentry->d_op = &autofs4_dentry_operations;
@@ -434,12 +422,6 @@ static int autofs4_dir_unlink(struct inode *dir, struct dentry *dentry)
 {
 	struct autofs_sb_info *sbi = autofs4_sbi(dir->i_sb);
 	struct autofs_info *ino = autofs4_dentry_ino(dentry);
-
-	if (!S_ISDIR(dir->i_mode))
-		return -ENOTDIR;
-
-	if (dentry->d_inode == NULL)
-		return -ENOENT;
 	
 	/* This allows root to remove symlinks */
 	if ( !autofs4_oz_mode(sbi) && !capable(CAP_SYS_ADMIN) )
@@ -464,12 +446,6 @@ static int autofs4_dir_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	struct autofs_sb_info *sbi = autofs4_sbi(dir->i_sb);
 	struct autofs_info *ino = autofs4_dentry_ino(dentry);
-
-	if (!S_ISDIR(dir->i_mode))
-		return -ENOTDIR;
-
-	if (dentry->d_inode == NULL)
-		return -ENOENT;
 	
 	if (!autofs4_oz_mode(sbi))
 		return -EACCES;
@@ -501,17 +477,8 @@ static int autofs4_dir_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	struct autofs_info *ino = autofs4_dentry_ino(dentry);
 	struct inode *inode;
 
-	if (!S_ISDIR(dir->i_mode))
-		return -ENOTDIR;
-
 	if ( !autofs4_oz_mode(sbi) )
 		return -EACCES;
-
-	if ( dentry->d_inode != NULL )
-		return -EEXIST;
-	
-	if ( dentry->d_name.len > NAME_MAX )
-		return -ENAMETOOLONG;
 
 	DPRINTK(("autofs_dir_mkdir: dentry %p, creating %.*s\n",
 		 dentry, dentry->d_name.len, dentry->d_name.name));
@@ -520,12 +487,10 @@ static int autofs4_dir_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	if (ino == NULL)
 		return -ENOSPC;
 
-	autofs4_ihash_insert(&sbi->ihash, ino);
-
-	inode = iget(dir->i_sb, ino->ino);
+	inode = autofs4_get_inode(dir->i_sb, ino);
 	d_instantiate(dentry, inode);
 
-	if (dir->i_ino == AUTOFS_ROOT_INO)
+	if (dir == dir->i_sb->s_root->d_inode)
 		dentry->d_op = &autofs4_root_dentry_operations;
 	else
 		dentry->d_op = &autofs4_dentry_operations;

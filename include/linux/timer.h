@@ -1,6 +1,8 @@
 #ifndef _LINUX_TIMER_H
 #define _LINUX_TIMER_H
 
+#include <linux/config.h>
+
 /*
  * Old-style timers. Please don't use for any new code.
  *
@@ -69,7 +71,7 @@ extern inline void init_timer(struct timer_list * timer)
 {
 	timer->next = NULL;
 	timer->prev = NULL;
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 	timer->running = 0;
 #endif
 }
@@ -79,17 +81,17 @@ extern inline int timer_pending(const struct timer_list * timer)
 	return timer->prev != NULL;
 }
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 #define timer_exit(t) do { (t)->running = 0; mb(); } while (0)
 #define timer_set_running(t) do { (t)->running = 1; mb(); } while (0)
 #define timer_is_running(t) ((t)->running != 0)
 #define timer_synchronize(t) while (timer_is_running(t)) barrier()
 extern int del_timer_sync(struct timer_list * timer);
 #else
-#define timer_exit(t) do { } while (0)
-#define timer_set_running(t) do { } while (0)
+#define timer_exit(t) (void)(t)
+#define timer_set_running(t) (void)(t)
 #define timer_is_running(t) (0)
-#define timer_synchronize(t) barrier()
+#define timer_synchronize(t) do { (void)(t); barrier(); } while(0)
 #define del_timer_sync(t) del_timer(t)
 #endif
 

@@ -138,7 +138,7 @@ static int pty_write(struct tty_struct * tty, int from_user,
 		       const unsigned char *buf, int count)
 {
 	struct tty_struct *to = tty->link;
-	int	c=0, n;
+	int	c=0, n, room;
 	char	*temp_buffer;
 
 	if (!to || tty->stopped)
@@ -149,7 +149,9 @@ static int pty_write(struct tty_struct * tty, int from_user,
 		temp_buffer = &tty->flip.char_buf[0];
 		while (count > 0) {
 			/* check space so we don't copy needlessly */ 
-			n = MIN(count, to->ldisc.receive_room(to));
+			n = to->ldisc.receive_room(to);
+			if (n > count)
+				n = count;
 			if (!n) break;
 
 			n  = MIN(n, PTY_BUF_SIZE);
@@ -161,7 +163,9 @@ static int pty_write(struct tty_struct * tty, int from_user,
 			}
 
 			/* check again in case the buffer filled up */
-			n = MIN(n, to->ldisc.receive_room(to));
+			room = to->ldisc.receive_room(to);
+			if (n > room)
+				n = room;
 			if (!n) break;
 			buf   += n; 
 			c     += n;
@@ -356,7 +360,11 @@ int __init pty_init(void)
 	memset(&pty_driver, 0, sizeof(struct tty_driver));
 	pty_driver.magic = TTY_DRIVER_MAGIC;
 	pty_driver.driver_name = "pty_master";
+#ifdef CONFIG_DEVFS_FS
 	pty_driver.name = "pty/m%d";
+#else
+	pty_driver.name = "pty";
+#endif
 	pty_driver.major = PTY_MASTER_MAJOR;
 	pty_driver.minor_start = 0;
 	pty_driver.num = NR_PTYS;
@@ -387,7 +395,11 @@ int __init pty_init(void)
 	pty_slave_driver = pty_driver;
 	pty_slave_driver.driver_name = "pty_slave";
 	pty_slave_driver.proc_entry = 0;
+#ifdef CONFIG_DEVFS_FS
 	pty_slave_driver.name = "pty/s%d";
+#else
+	pty_slave_driver.name = "ttyp";
+#endif
 	pty_slave_driver.subtype = PTY_TYPE_SLAVE;
 	pty_slave_driver.major = PTY_SLAVE_MAJOR;
 	pty_slave_driver.minor_start = 0;
@@ -440,7 +452,11 @@ int __init pty_init(void)
 			init_waitqueue_head(&ptm_state[i][j].open_wait);
 		
 		pts_driver[i] = pty_slave_driver;
+#ifdef CONFIG_DEVFS_FS
 		pts_driver[i].name = "pts/%d";
+#else
+		pts_driver[i].name = "pts";
+#endif
 		pts_driver[i].proc_entry = 0;
 		pts_driver[i].major = UNIX98_PTY_SLAVE_MAJOR+i;
 		pts_driver[i].minor_start = 0;

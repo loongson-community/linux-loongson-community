@@ -17,7 +17,7 @@
  *	license in recognition of the original copyright.
  *				-- Alan Cox.
  *
- *	$Id: ipfwadm_core.c,v 1.1 2000/03/17 14:42:00 davem Exp $
+ *	$Id: ipfwadm_core.c,v 1.2 2000/04/15 01:48:10 davem Exp $
  *
  *	Ported from BSD to Linux,
  *		Alan Cox 22/Nov/1994.
@@ -143,10 +143,7 @@
 #define dprintf4(a1,a2,a3,a4)
 #endif
 
-#define print_ip(a)	 printk("%d.%d.%d.%d",(ntohl(a)>>24)&0xFF,\
-					      (ntohl(a)>>16)&0xFF,\
-					      (ntohl(a)>>8)&0xFF,\
-					      (ntohl(a))&0xFF);
+#define print_ip(a)	 printk("%u.%u.%u.%u", NIPQUAD(a));
 
 #ifdef DEBUG_IP_FIREWALL
 #define dprint_ip(a)	print_ip(a)

@@ -218,19 +218,10 @@ int ext2_add_entry (struct inode * dir, const char * name, int namelen,
 	struct super_block * sb;
 	int	retval;
 
-	if (!dir || !dir->i_nlink)
-		return -EINVAL;
 	sb = dir->i_sb;
 
 	if (!namelen)
 		return -EINVAL;
-	/*
-	 * Is this a busy deleted directory?  Can't create new files if so
-	 */
-	if (dir->i_size == 0)
-	{
-		return -ENOENT;
-	}
 	bh = ext2_bread (dir, 0, 0, &retval);
 	if (!bh)
 		return retval;
@@ -284,13 +275,13 @@ int ext2_add_entry (struct inode * dir, const char * name, int namelen,
 				de->rec_len = cpu_to_le16(EXT2_DIR_REC_LEN(de->name_len));
 				de = de1;
 			}
+			de->file_type = EXT2_FT_UNKNOWN;
 			if (inode) {
 				de->inode = cpu_to_le32(inode->i_ino);
 				ext2_set_de_type(dir->i_sb, de, inode->i_mode);
 			} else
 				de->inode = 0;
 			de->name_len = namelen;
-			de->file_type = 0;
 			memcpy (de->name, name, namelen);
 			/*
 			 * XXX shouldn't update any times until successful

@@ -44,7 +44,7 @@
 /* stall/wait timeout for rio */
 #define NAK_TIMEOUT (HZ)
 
-#define IBUF_SIZE 128
+#define IBUF_SIZE 0x1000
 
 /* Size of the rio buffer */
 #define OBUF_SIZE 0x10000
@@ -317,7 +317,7 @@ read_rio(struct file *file, char *buffer, size_t count, loff_t * ppos)
 		result = usb_bulk_msg(rio->rio_dev,
 				      usb_rcvbulkpipe(rio->rio_dev, 1),
 				      ibuf, this_read, &partial,
-				      (int) (HZ * .1));
+				      (int) (HZ * 8));
 
 		dbg(KERN_DEBUG "read stats: result:%d this_read:%u partial:%u",
 		       result, this_read, partial);
@@ -405,18 +405,11 @@ static void disconnect_rio(struct usb_device *dev, void *ptr)
 
 static struct
 file_operations usb_rio_fops = {
-	NULL,			/* seek */
-	read_rio,
-	write_rio,
-	NULL,			/* readdir */
-	NULL,			/* poll */
-	ioctl_rio,		/* ioctl */
-	NULL,			/* mmap */
-	open_rio,
-	NULL,			/* flush */
-	close_rio,
-	NULL,
-	NULL,			/* fasync */
+	read:		read_rio,
+	write:		write_rio,
+	ioctl:		ioctl_rio,
+	open:		open_rio,
+	release:	close_rio,
 };
 
 static struct

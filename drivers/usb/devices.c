@@ -54,6 +54,7 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/usb.h>
+#include <linux/smp_lock.h>
 #include <linux/usbdevice_fs.h>
 #include <asm/uaccess.h>
 
@@ -452,11 +453,13 @@ static ssize_t usb_device_read(struct file *file, char *buf, size_t nbytes, loff
 	return ret;
 }
 
+/* Kernel lock for "lastev" protection */
 static unsigned int usb_device_poll(struct file *file, struct poll_table_struct *wait)
 {
 	struct usb_device_status *st = (struct usb_device_status *)file->private_data;
 	unsigned int mask = 0;
-	
+
+	lock_kernel();
 	if (!st) {
 		st = kmalloc(sizeof(struct usb_device_status), GFP_KERNEL);
 		if (!st)
@@ -475,6 +478,7 @@ static unsigned int usb_device_poll(struct file *file, struct poll_table_struct 
 	if (st->lastev != conndiscevcnt)
 		mask |= POLLIN;
 	st->lastev = conndiscevcnt;
+	unlock_kernel();
 	return mask;
 }
 
@@ -494,7 +498,7 @@ static int usb_device_release(struct inode *inode, struct file *file)
         return 0;
 }
 
-static long long usb_device_lseek(struct file * file, long long offset, int orig)
+static loff_t usb_device_lseek(struct file * file, loff_t offset, int orig)
 {
 	switch (orig) {
 	case 0:

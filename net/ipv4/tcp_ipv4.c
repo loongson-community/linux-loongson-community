@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_ipv4.c,v 1.205 2000/03/26 09:16:08 davem Exp $
+ * Version:	$Id: tcp_ipv4.c,v 1.207 2000/04/25 04:13:34 davem Exp $
  *
  *		IPv4 specific functions
  *
@@ -1384,7 +1384,8 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 		    peer->v4daddr == saddr) {
 			if (xtime.tv_sec < peer->tcp_ts_stamp + TCP_PAWS_MSL &&
 			    (s32)(peer->tcp_ts - req->ts_recent) > TCP_PAWS_WINDOW) {
-				NETDEBUG(printk(KERN_DEBUG "TW_REC: reject openreq %u/%u %08x/%u\n", peer->tcp_ts, req->ts_recent, saddr, ntohs(skb->h.th->source)));
+				NETDEBUG(printk(KERN_DEBUG "TW_REC: reject openreq %u/%u %u.%u.%u.%u/%u\n", \
+					peer->tcp_ts, req->ts_recent, NIPQUAD(saddr), ntohs(skb->h.th->source)));
 				NET_INC_STATS_BH(PAWSPassiveRejected);
 				dst_release(dst);
 				goto drop_and_free;
@@ -1402,7 +1403,9 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 			 * to destinations, already remembered
 			 * to the moment of synflood.
 			 */
-			NETDEBUG(if (net_ratelimit()) printk(KERN_DEBUG "TCP: drop open request from %08x/%u\n", saddr, ntohs(skb->h.th->source)));
+			NETDEBUG(if (net_ratelimit()) \
+				printk(KERN_DEBUG "TCP: drop open request from %u.%u.%u.%u/%u\n", \
+					NIPQUAD(saddr), ntohs(skb->h.th->source)));
 			TCP_INC_STATS_BH(TcpAttemptFails);
 			dst_release(dst);
 			goto drop_and_free;
@@ -2169,24 +2172,23 @@ out_no_bh:
 }
 
 struct proto tcp_prot = {
-	tcp_close,			/* close */
-	tcp_v4_connect,			/* connect */
-	tcp_disconnect,			/* disconnect */
-	tcp_accept,			/* accept */
-	tcp_ioctl,			/* ioctl */
-	tcp_v4_init_sock,		/* init */
-	tcp_v4_destroy_sock,		/* destroy */
-	tcp_shutdown,			/* shutdown */
-	tcp_setsockopt,			/* setsockopt */
-	tcp_getsockopt,			/* getsockopt */
-	tcp_sendmsg,			/* sendmsg */
-	tcp_recvmsg,			/* recvmsg */
-	NULL,				/* bind */
-	tcp_v4_do_rcv,			/* backlog_rcv */
-	tcp_v4_hash,			/* hash */
-	tcp_unhash,			/* unhash */
-	tcp_v4_get_port,		/* get_port */
-	"TCP",				/* name */
+	name:		"TCP",
+	close:		tcp_close,
+	connect:	tcp_v4_connect,
+	disconnect:	tcp_disconnect,
+	accept:		tcp_accept,
+	ioctl:		tcp_ioctl,
+	init:		tcp_v4_init_sock,
+	destroy:	tcp_v4_destroy_sock,
+	shutdown:	tcp_shutdown,
+	setsockopt:	tcp_setsockopt,
+	getsockopt:	tcp_getsockopt,
+	sendmsg:	tcp_sendmsg,
+	recvmsg:	tcp_recvmsg,
+	backlog_rcv:	tcp_v4_do_rcv,
+	hash:		tcp_v4_hash,
+	unhash:		tcp_unhash,
+	get_port:	tcp_v4_get_port,
 };
 
 

@@ -5,6 +5,7 @@
 
 extern unsigned long event;
 
+#include <linux/config.h>
 #include <linux/binfmts.h>
 #include <linux/personality.h>
 #include <linux/threads.h>
@@ -23,6 +24,7 @@ extern unsigned long event;
 #include <linux/sem.h>
 #include <linux/signal.h>
 #include <linux/securebits.h>
+#include <linux/fs_struct.h>
 
 /*
  * cloning flags:
@@ -84,7 +86,7 @@ extern int last_pid;
 
 #define __set_task_state(tsk, state_value)		\
 	do { (tsk)->state = (state_value); } while (0)
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 #define set_task_state(tsk, state_value)		\
 	set_mb((tsk)->state, (state_value))
 #else
@@ -94,7 +96,7 @@ extern int last_pid;
 
 #define __set_current_state(state_value)			\
 	do { current->state = (state_value); } while (0)
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 #define set_current_state(state_value)		\
 	set_mb(current->state, (state_value))
 #else
@@ -181,19 +183,6 @@ struct files_struct {
 	{ NULL, } \
 }
 
-struct fs_struct {
-	atomic_t count;
-	int umask;
-	struct dentry * root, * pwd;
-	struct vfsmount * rootmnt, * pwdmnt;
-};
-
-#define INIT_FS { \
-	ATOMIC_INIT(1), \
-	0022, \
-	NULL, NULL, NULL, NULL \
-}
-
 /* Maximum number of active map areas.. This is a random (large) number */
 #define MAX_MAP_COUNT	(65536)
 
@@ -214,7 +203,7 @@ struct mm_struct {
 	unsigned long start_code, end_code, start_data, end_data;
 	unsigned long start_brk, brk, start_stack;
 	unsigned long arg_start, arg_end, env_start, env_end;
-	unsigned long rss, total_vm, locked_vm;
+	unsigned long min_flt, maj_flt, rss, total_vm, locked_vm;
 	unsigned long def_flags;
 	unsigned long cpu_vm_mask;
 	unsigned long swap_cnt;	/* number of pages to swap on next pass */
@@ -236,7 +225,7 @@ struct mm_struct {
 		0, 0, 0, 0,				\
 		0, 0, 0, 				\
 		0, 0, 0, 0,				\
-		0, 0, 0,				\
+		0, 0, 0, 0, 0,				\
 		0, 0, 0, 0, NULL }
 
 struct signal_struct {
@@ -321,6 +310,7 @@ struct task_struct {
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt, nswap, cmin_flt, cmaj_flt, cnswap;
 	int swappable:1;
+	int hog:1;
 /* process credentials */
 	uid_t uid,euid,suid,fsuid;
 	gid_t gid,egid,sgid,fsgid;
@@ -711,7 +701,6 @@ extern void flush_thread(void);
 extern void exit_thread(void);
 
 extern void exit_mm(struct task_struct *);
-extern void exit_fs(struct task_struct *);
 extern void exit_files(struct task_struct *);
 extern void exit_sighand(struct task_struct *);
 

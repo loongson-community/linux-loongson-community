@@ -370,7 +370,7 @@ static void shm_put_super(struct super_block *sb)
 
 static int shm_statfs(struct super_block *sb, struct statfs *buf)
 {
-	buf->f_type = 0;
+	buf->f_type = SHM_FS_MAGIC;
 	buf->f_bsize = PAGE_SIZE;
 	buf->f_blocks = shm_ctlall;
 	buf->f_bavail = buf->f_bfree = shm_ctlall - shm_tot;
@@ -1202,7 +1202,7 @@ asmlinkage long sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	sprintf (name, SHM_FMT, shmid);
 
 	lock_kernel();
-	dentry = lookup_one(name, dget(lock_parent(shm_sb->s_root)));
+	dentry = lookup_one(name, lock_parent(shm_sb->s_root));
 	unlock_dir(shm_sb->s_root);
 	err = PTR_ERR(dentry);
 	if (IS_ERR(dentry))
@@ -1256,7 +1256,7 @@ static int shm_remove_name(int id)
 	sprintf (name, SHM_FMT, id);
 	lock_kernel();
 	dir = lock_parent(shm_sb->s_root);
-	dentry = lookup_one(name, dget(dir));
+	dentry = lookup_one(name, dir);
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
 		/*
@@ -1320,16 +1320,17 @@ static void shm_close (struct vm_area_struct *shmd)
  */
 asmlinkage long sys_shmdt (char *shmaddr)
 {
+	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *shmd, *shmdnext;
 
-	down(&current->mm->mmap_sem);
-	for (shmd = current->mm->mmap; shmd; shmd = shmdnext) {
+	down(&mm->mmap_sem);
+	for (shmd = mm->mmap; shmd; shmd = shmdnext) {
 		shmdnext = shmd->vm_next;
 		if (shmd->vm_ops == &shm_vm_ops
 		    && shmd->vm_start - (shmd->vm_pgoff << PAGE_SHIFT) == (ulong) shmaddr)
-			do_munmap(shmd->vm_start, shmd->vm_end - shmd->vm_start);
+			do_munmap(mm, shmd->vm_start, shmd->vm_end - shmd->vm_start);
 	}
-	up(&current->mm->mmap_sem);
+	up(&mm->mmap_sem);
 	return 0;
 }
 
@@ -1715,12 +1716,13 @@ static struct file *file_setup(struct file *fzero, struct shmid_kernel *shp)
 	d_instantiate(filp->f_dentry, inp);
 
 	/*
-	 * Copy over /dev/zero dev/ino for benefit of procfs. Use
+	 * Copy over dev/ino for benefit of procfs. Use
 	 * ino to indicate seperate mappings.
 	 */
-	filp->f_dentry->d_inode->i_dev = fzero->f_dentry->d_inode->i_dev;
+	filp->f_dentry->d_inode->i_dev = shm_sb->s_dev;
 	filp->f_dentry->d_inode->i_ino = (unsigned long)shp;
-	fput(fzero);	/* release /dev/zero file */
+	if (fzero)
+		fput(fzero);	/* release /dev/zero file */
 	return(filp);
 }
 

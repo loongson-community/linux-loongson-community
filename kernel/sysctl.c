@@ -228,7 +228,7 @@ static ctl_table kern_table[] = {
 static ctl_table vm_table[] = {
 	{VM_FREEPG, "freepages", 
 	 &freepages, sizeof(freepages_t), 0644, NULL, &proc_dointvec},
-	{VM_BDFLUSH, "bdflush", &bdf_prm, 9*sizeof(int), 0600, NULL,
+	{VM_BDFLUSH, "bdflush", &bdf_prm, 9*sizeof(int), 0644, NULL,
 	 &proc_dointvec_minmax, &sysctl_intvec, NULL,
 	 &bdflush_min, &bdflush_max},
 	{VM_OVERCOMMIT_MEMORY, "overcommit_memory", &sysctl_overcommit_memory,
@@ -240,9 +240,9 @@ static ctl_table vm_table[] = {
 	{VM_PAGERDAEMON, "kswapd",
 	 &pager_daemon, sizeof(pager_daemon_t), 0644, NULL, &proc_dointvec},
 	{VM_PGT_CACHE, "pagetable_cache", 
-	 &pgt_cache_water, 2*sizeof(int), 0600, NULL, &proc_dointvec},
+	 &pgt_cache_water, 2*sizeof(int), 0644, NULL, &proc_dointvec},
 	{VM_PAGE_CLUSTER, "page-cluster", 
-	 &page_cluster, sizeof(int), 0600, NULL, &proc_dointvec},
+	 &page_cluster, sizeof(int), 0644, NULL, &proc_dointvec},
 	{0}
 };
 
@@ -320,6 +320,7 @@ int do_sysctl(int *name, int nlen, void *oldval, size_t *oldlenp,
 			kfree(context);
 		if (error != -ENOTDIR)
 			return error;
+		tmp = tmp->next;
 	} while (tmp != &root_table_header.ctl_entry);
 	return -ENOTDIR;
 }
@@ -365,14 +366,13 @@ static int parse_table(int *name, int nlen,
 		       void *newval, size_t newlen,
 		       ctl_table *table, void **context)
 {
+	int n;
 repeat:
 	if (!nlen)
 		return -ENOTDIR;
-
+	if (get_user(n, name))
+		return -EFAULT;
 	for ( ; table->ctl_name; table++) {
-		int n;
-		if (get_user(n, name))
-			return -EFAULT;
 		if (n == table->ctl_name || table->ctl_name == CTL_ANY) {
 			int error;
 			if (table->child) {

@@ -10,8 +10,7 @@
 SUB_DIRS	:= 
 MOD_SUB_DIRS	:=
 MOD_IN_SUB_DIRS	:=
-ALL_SUB_DIRS	:= $(SUB_DIRS)
-
+ALL_SUB_DIRS	:= $(SUB_DIRS) emu10k1
 
 # All of the (potential) objects that export symbols.
 # This list comes from 'grep -l EXPORT_SYMBOL *.[hc]'.
@@ -72,6 +71,7 @@ obj-$(CONFIG_SOUND_MSNDCLAS)	+= msnd.o msnd_classic.o
 obj-$(CONFIG_SOUND_MSNDPIN)	+= msnd.o msnd_pinnacle.o
 obj-$(CONFIG_SOUND_VWSND)	+= vwsnd.o
 obj-$(CONFIG_SOUND_NM256)	+= nm256_audio.o ac97.o
+obj-$(CONFIG_SOUND_ICH)		+= i810_audio.o ac97.o
 obj-$(CONFIG_SOUND_SONICVIBES)	+= sonicvibes.o
 obj-$(CONFIG_SOUND_CMPCI)	+= cmpci.o
 obj-$(CONFIG_SOUND_ES1370)	+= es1370.o
@@ -79,6 +79,15 @@ obj-$(CONFIG_SOUND_ES1371)	+= es1371.o ac97_codec.o
 obj-$(CONFIG_SOUND_ESSSOLO1)	+= esssolo1.o
 obj-$(CONFIG_SOUND_MAESTRO)	+= maestro.o
 obj-$(CONFIG_SOUND_TRIDENT)	+= trident.o ac97_codec.o
+
+ifeq ($(CONFIG_SOUND_EMU10K1),y)
+  SUB_DIRS          += emu10k1
+  obj-y += emu10k1/emu10k1.o
+else
+  ifeq ($(CONFIG_SOUND_EMU10K1),m)
+     MOD_SUB_DIRS   += emu10k1
+  endif
+endif
 
 ifeq ($(CONFIG_DMASOUND),y)
   SUB_DIRS += dmasound
@@ -138,8 +147,7 @@ obj-y		:= $(filter-out $(list-multi), $(obj-y)) $(int-y)
 # Translate to Rules.make lists.
 
 O_TARGET	:= sounddrivers.o
-# This is a nice idea but needs depmod altering
-#MOD_LIST_NAME	:= SOUND_MODULES
+MOD_LIST_NAME	:= SOUND_MODULES
 
 O_OBJS		:= $(filter-out $(export-objs), $(obj-y))
 OX_OBJS		:= $(filter     $(export-objs), $(obj-y))

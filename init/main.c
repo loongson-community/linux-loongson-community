@@ -47,6 +47,10 @@
 #  include <asm/mtrr.h>
 #endif
 
+#ifdef CONFIG_3215_CONSOLE
+extern int con3215_activate(void);
+#endif
+
 #ifdef CONFIG_MAC
 extern void nubus_init(void);
 #endif
@@ -69,7 +73,7 @@ extern void nubus_init(void);
  * To avoid associated bogus bug reports, we flatly refuse to compile
  * with a gcc that is known to be too old from the very beginning.
  */
-#if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 6)
+#if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7)
 #error sorry, your GCC is too old. It builds incorrect kernels.
 #endif
 
@@ -255,6 +259,27 @@ static struct dev_name_struct {
 	{ "pf",		0x2f00 },
 	{ "apblock", APBLOCK_MAJOR << 8},
 	{ "ddv", DDV_MAJOR << 8},
+	{ "jsfd",    JSFD_MAJOR << 8},
+#ifdef CONFIG_MDISK
+        { "mnda", (MDISK_MAJOR << MINORBITS)},
+        { "mndb", (MDISK_MAJOR << MINORBITS) + 1},
+        { "mndc", (MDISK_MAJOR << MINORBITS) + 2},
+        { "mndd", (MDISK_MAJOR << MINORBITS) + 3},
+        { "mnde", (MDISK_MAJOR << MINORBITS) + 4},
+        { "mndf", (MDISK_MAJOR << MINORBITS) + 5},
+        { "mndg", (MDISK_MAJOR << MINORBITS) + 6},
+        { "mndh", (MDISK_MAJOR << MINORBITS) + 7},
+#endif
+#ifdef CONFIG_DASD
+	{ "dasda", (DASD_MAJOR << MINORBITS) },
+	{ "dasdb", (DASD_MAJOR << MINORBITS) + (1 << 2) },
+	{ "dasdc", (DASD_MAJOR << MINORBITS) + (2 << 2) },
+	{ "dasdd", (DASD_MAJOR << MINORBITS) + (3 << 2) },
+	{ "dasde", (DASD_MAJOR << MINORBITS) + (4 << 2) },
+	{ "dasdf", (DASD_MAJOR << MINORBITS) + (5 << 2) },
+	{ "dasdg", (DASD_MAJOR << MINORBITS) + (6 << 2) },
+	{ "dasdh", (DASD_MAJOR << MINORBITS) + (7 << 2) },
+#endif
 	{ NULL, 0 }
 };
 
@@ -404,7 +429,7 @@ __setup("debug", debug_kernel);
  */
 static void __init parse_options(char *line)
 {
-	char *next;
+	char *next,*quote;
 	int args, envs;
 
 	if (!*line)
@@ -413,8 +438,20 @@ static void __init parse_options(char *line)
 	envs = 1;	/* TERM is set to 'linux' by default */
 	next = line;
 	while ((line = next) != NULL) {
-		if ((next = strchr(line,' ')) != NULL)
-			*next++ = 0;
+                quote = strchr(line,'"');
+                next = strchr(line, ' ');
+                while (next != NULL && quote != NULL && quote < next) {
+                        /* we found a left quote before the next blank
+                         * now we have to find the matching right quote
+                         */
+                        next = strchr(quote+1, '"');
+                        if (next != NULL) {
+                                quote = strchr(next+1, '"');
+                                next = strchr(next+1, ' ');
+                        }
+                }
+                if (next != NULL)
+                        *next++ = 0;
 		if (!strncmp(line,"init=",5)) {
 			line += 5;
 			execute_command = line;
@@ -440,6 +477,7 @@ static void __init parse_options(char *line)
 		} else {
 			if (args >= MAX_INIT_ARGS)
 				break;
+                        if(*line)
 			argv_init[++args] = line;
 		}
 	}
@@ -451,7 +489,7 @@ static void __init parse_options(char *line)
 extern void setup_arch(char **);
 extern void cpu_idle(void);
 
-#ifndef __SMP__
+#ifndef CONFIG_SMP
 
 #ifdef CONFIG_X86_IO_APIC
 static void __init smp_init(void)
@@ -532,6 +570,9 @@ asmlinkage void __init start_kernel(void)
 #endif
 	mem_init();
 	kmem_cache_sizes_init();
+#ifdef CONFIG_3215_CONSOLE
+        con3215_activate();
+#endif
 #ifdef CONFIG_PROC_FS
 	proc_root_init();
 #endif
@@ -539,14 +580,14 @@ asmlinkage void __init start_kernel(void)
 
 	fork_init(mempages);
 	filescache_init();
-	dcache_init();
+	dcache_init(mempages);
 	vma_init();
 	buffer_init(mempages);
 	page_cache_init(mempages);
 	kiobuf_setup();
 	signals_init();
 	bdev_init();
-	inode_init();
+	inode_init(mempages);
 	file_table_init();
 #if defined(CONFIG_SYSVIPC)
 	ipc_init();

@@ -87,7 +87,6 @@ void __init smp_store_cpu_info(int id)
 {
 	int i;
 
-	cpu_data[id].irq_count			= 0;
 	cpu_data[id].bh_count			= 0;
 	/* multiplier and counter set by
 	   smp_setup_percpu_timer()  */
@@ -627,33 +626,7 @@ void smp_promstop_others(void)
 		smp_cross_call(&xcall_promstop, 0, 0, 0);
 }
 
-static inline void sparc64_do_profile(unsigned long pc, unsigned long o7)
-{
-	if (prof_buffer && current->pid) {
-		extern int _stext;
-		extern int rwlock_impl_begin, rwlock_impl_end;
-		extern int atomic_impl_begin, atomic_impl_end;
-		extern int __memcpy_begin, __memcpy_end;
-		extern int __bitops_begin, __bitops_end;
-
-		if ((pc >= (unsigned long) &atomic_impl_begin &&
-		     pc < (unsigned long) &atomic_impl_end) ||
-		    (pc >= (unsigned long) &rwlock_impl_begin &&
-		     pc < (unsigned long) &rwlock_impl_end) ||
-		    (pc >= (unsigned long) &__memcpy_begin &&
-		     pc < (unsigned long) &__memcpy_end) ||
-		    (pc >= (unsigned long) &__bitops_begin &&
-		     pc < (unsigned long) &__bitops_end))
-			pc = o7;
-
-		pc -= (unsigned long) &_stext;
-		pc >>= prof_shift;
-
-		if(pc >= prof_len)
-			pc = prof_len - 1;
-		atomic_inc((atomic_t *)&prof_buffer[pc]);
-	}
-}
+extern void sparc64_do_profile(unsigned long pc, unsigned long o7);
 
 static unsigned long current_tick_offset;
 
@@ -682,40 +655,29 @@ void smp_percpu_timer_interrupt(struct pt_regs *regs)
 
 	clear_softint((1UL << 0));
 	do {
-		if(!user)
+		if (!user)
 			sparc64_do_profile(regs->tpc, regs->u_regs[UREG_RETPC]);
-		if(!--prof_counter(cpu))
-		{
+		if (!--prof_counter(cpu)) {
 			if (cpu == boot_cpu_id) {
-/* XXX Keep this in sync with irq.c --DaveM */
-#define irq_enter(cpu, irq)			\
-do {	hardirq_enter(cpu);			\
-	spin_unlock_wait(&global_irq_lock);	\
-} while(0)
-#define irq_exit(cpu, irq)	hardirq_exit(cpu)
-
 				irq_enter(cpu, 0);
-				kstat.irqs[cpu][0]++;
 
+				kstat.irqs[cpu][0]++;
 				timer_tick_interrupt(regs);
 
 				irq_exit(cpu, 0);
-
-#undef irq_enter
-#undef irq_exit
 			}
 
-			if(current->pid) {
+			if (current->pid) {
 				unsigned int *inc, *inc2;
 
 				update_one_process(current, 1, user, !user, cpu);
-				if(--current->counter <= 0) {
+				if (--current->counter <= 0) {
 					current->counter = 0;
 					current->need_resched = 1;
 				}
 
-				if(user) {
-					if(current->priority < DEF_PRIORITY) {
+				if (user) {
+					if (current->priority < DEF_PRIORITY) {
 						inc = &kstat.cpu_nice;
 						inc2 = &kstat.per_cpu_nice[cpu];
 					} else {
@@ -862,7 +824,7 @@ cycles_t cacheflush_time;
 
 static void __init smp_tune_scheduling (void)
 {
-	unsigned long flush_base, flags, *p;
+	unsigned long orig_flush_base, flush_base, flags, *p;
 	unsigned int ecache_size, order;
 	cycles_t tick1, tick2, raw;
 
@@ -881,7 +843,8 @@ static void __init smp_tune_scheduling (void)
 					 "ecache-size", (512 * 1024));
 	if (ecache_size > (4 * 1024 * 1024))
 		ecache_size = (4 * 1024 * 1024);
-	flush_base = __get_free_pages(GFP_KERNEL, order = get_order(ecache_size));
+	orig_flush_base = flush_base =
+		__get_free_pages(GFP_KERNEL, order = get_order(ecache_size));
 
 	if (flush_base != 0UL) {
 		__save_and_cli(flags);
@@ -923,7 +886,7 @@ static void __init smp_tune_scheduling (void)
 		 */
 		cacheflush_time = (raw - (raw >> 2));
 
-		free_pages(flush_base, order);
+		free_pages(orig_flush_base, order);
 	} else {
 		cacheflush_time = ((ecache_size << 2) +
 				   (ecache_size << 1));

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.166 2000/03/25 01:55:11 davem Exp $
+ * Version:	$Id: tcp.c,v 1.169 2000/04/20 14:41:16 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -583,9 +583,13 @@ int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 			answ = 0;
 		else if (sk->urginline || !tp->urg_data ||
 			 before(tp->urg_seq,tp->copied_seq) ||
-			 !before(tp->urg_seq,tp->rcv_nxt))
+			 !before(tp->urg_seq,tp->rcv_nxt)) {
 			answ = tp->rcv_nxt - tp->copied_seq;
-		else
+
+			/* Subtract 1, if FIN is in queue. */
+			if (answ && !skb_queue_empty(&sk->receive_queue))
+				answ -= ((struct sk_buff*)sk->receive_queue.prev)->h.th->fin;
+		} else
 			answ = tp->urg_seq - tp->copied_seq;
 		release_sock(sk);
 		break;
@@ -618,7 +622,7 @@ int tcp_listen_start(struct sock *sk)
 
 	sk->max_ack_backlog = 0;
 	sk->ack_backlog = 0;
-	tp->accept_queue = NULL;
+	tp->accept_queue = tp->accept_queue_tail = NULL;
 	tp->syn_wait_lock = RW_LOCK_UNLOCKED;
 
 	lopt = kmalloc(sizeof(struct tcp_listen_opt), GFP_KERNEL);
@@ -677,7 +681,7 @@ static void tcp_listen_stop (struct sock *sk)
 	write_lock_bh(&tp->syn_wait_lock);
 	tp->listen_opt =NULL;
 	write_unlock_bh(&tp->syn_wait_lock);
-	tp->accept_queue = NULL;
+	tp->accept_queue = tp->accept_queue_tail = NULL;
 
 	if (lopt->qlen) {
 		for (i=0; i<TCP_SYNQ_HSIZE; i++) {
@@ -951,10 +955,14 @@ int tcp_sendmsg(struct sock *sk, struct msghdr *msg, int size)
 				tmp += copy;
 				queue_it = 0;
 			}
-			skb = sock_wmalloc(sk, tmp, 0, GFP_KERNEL);
 
-			/* If we didn't get any memory, we need to sleep. */
-			if (skb == NULL) {
+			if (tcp_memory_free(sk)) {
+				skb = alloc_skb(tmp, GFP_KERNEL);
+				if (skb == NULL)
+					goto do_oom;
+				skb_set_owner_w(skb, sk);
+			} else {
+				/* If we didn't get any memory, we need to sleep. */
 				set_bit(SOCK_ASYNC_NOSPACE, &sk->socket->flags);
 				set_bit(SOCK_NOSPACE, &sk->socket->flags);
 
@@ -1028,6 +1036,9 @@ do_shutdown:
 			send_sig(SIGPIPE, current, 0);
 		err = -EPIPE;
 	}
+	goto out;
+do_oom:
+	err = copied ? : -ENOBUFS;
 	goto out;
 do_interrupted:
 	if(copied)
@@ -2027,7 +2038,8 @@ struct sock *tcp_accept(struct sock *sk, int flags, int *err)
 	}
 
 	req = tp->accept_queue;
-	tp->accept_queue = req->dl_next;
+	if ((tp->accept_queue = req->dl_next) == NULL)
+		tp->accept_queue_tail = NULL;
 
  	newsk = req->sk;
 	tcp_acceptq_removed(sk);

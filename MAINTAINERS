@@ -50,7 +50,7 @@ trivial patch so apply some common sense.
 Maintainers List (try to look for most precise areas first)
 
 Note: For the hard of thinking, this list is meant to remain in alphabetical
-order. If you could add yourselves to it in alphabetical order that would
+order. If you could add yourselves to it in alphabetical order that would be
 so much easier [Ed]
 
 P: Person
@@ -147,7 +147,7 @@ S:	Maintained
 ARM PORT
 P:	Russell King
 M:	linux@arm.linux.org.uk
-L:	linux-arm@vger.rutgers.edu
+L:	linux-arm-kernel@lists.arm.linux.org.uk
 W:	http://www.arm.linux.org.uk/
 S:	Maintained
 
@@ -205,7 +205,7 @@ S:	Maintained
 COMPUTONE INTELLIPORT MULTIPORT CARD
 P:     Doug McNash
 P:     Michael H. Warfield
-M:     Doug McNash <dmcnash@computone.com>
+M:     Doug McNash <dougm@computone.com>
 M:     Michael H. Warfield <mhw@wittsend.com>
 W:     http://www.computone.com/
 W:     http://www.wittsend.com/computone.html
@@ -338,6 +338,13 @@ S:	Maintained
 EEPRO100 NETWORK DRIVER
 P:	Andrey V. Savochkin
 M:	saw@saw.sw.com.sg
+S:	Maintained
+
+EMU10K1 SOUND DRIVER
+P:	Rui Sousa	
+M:	rsousa@grad.physics.sunysb.edu	
+L:	emu10k1-devel@opensource.creative.com
+W:	http://opensource.creative.com/
 S:	Maintained
 
 ETHEREXPRESS-16 NETWORK DRIVER
@@ -474,9 +481,11 @@ S:      Supported
 
 IDE DRIVER [GENERAL]
 P:	Andre Hedrick
+M:	andre@linux-ide.org
 M:	andre@suse.com
 L:	linux-kernel@vger.rutgers.edu
-W:	http://linux.kernel.org/pub/linux/kernel/people/hedrick/
+W:	http://www.kernel.org/pub/linux/kernel/people/hedrick/
+W:	http://www.linux-ide.org/
 S:	Supported
 
 IDE/ATAPI CDROM DRIVER
@@ -590,6 +599,12 @@ L:	nfs-devel@linux.kernel.org (Linux NFS)
 W:	http://csua.berkeley.edu/~gam3/knfsd
 S:	Maintained
 
+LANMEDIA WAN CARD DRIVER
+P:      Andrew Stanley-Jones
+M:      asj@lanmedia.com
+W:      http://www.lanmedia.com/
+S:      Supported
+ 
 LAPB module
 P:	Henner Eisen
 M:	eis@baty.hanse.de
@@ -611,9 +626,8 @@ S:	Maintained
 
 MAESTRO PCI SOUND DRIVER
 P:	Zach Brown
-M:	zab@redhat.com
-W:	http://people.redhat.com/zab/maestro/
-S:	Supported
+M:	zab@zabbo.net
+S:	Odd Fixes
 
 M68K
 P:	Jes Sorensen
@@ -969,7 +983,7 @@ M:	ecd@skynet.be
 P:	Jakub Jelinek
 M:	jj@sunsite.ms.mff.cuni.cz
 P:	Anton Blanchard
-M:	anton@progsoc.uts.edu.au
+M:	anton@linuxcare.com
 L:	sparclinux@vger.rutgers.edu
 L:	ultralinux@vger.rutgers.edu
 W:	http://ultra.linux.cz

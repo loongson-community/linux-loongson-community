@@ -465,10 +465,8 @@ int cdrom_open(struct inode *ip, struct file *fp)
 	if ((cdi = cdrom_find_device(dev)) == NULL)
 		return -ENODEV;
 
-	/* just CD-RW for now. DVD-RW will come soon, CD-R and DVD-R
-	 * need to be handled differently. */
-	if ((fp->f_mode & FMODE_WRITE) && !CDROM_CAN(CDC_CD_RW))
-			return -EROFS;
+	if (fp->f_mode & FMODE_WRITE)
+		return -EROFS;
 
 	/* if this was a O_NONBLOCK open and we should honor the flags,
 	 * do a quick open without drive/disc integrity checks. */
@@ -964,7 +962,7 @@ static void setup_report_key(struct cdrom_generic_command *cgc, unsigned agid, u
 		}
 	}
 	cgc->cmd[9] = cgc->buflen;
-	cgc->data_direction = CGC_DATA_WRITE;
+	cgc->data_direction = CGC_DATA_READ;
 }
 
 static void setup_send_key(struct cdrom_generic_command *cgc, unsigned agid, unsigned type)
@@ -986,7 +984,7 @@ static void setup_send_key(struct cdrom_generic_command *cgc, unsigned agid, uns
 		}
 	}
 	cgc->cmd[9] = cgc->buflen;
-	cgc->data_direction = CGC_DATA_READ;
+	cgc->data_direction = CGC_DATA_WRITE;
 }
 
 static int dvd_do_auth(struct cdrom_device_info *cdi, dvd_authinfo *ai)
@@ -1648,7 +1646,7 @@ static int cdrom_ioctl(struct inode *ip, struct file *fp, unsigned int cmd,
 		if (tracks.data > 0) return CDS_DATA_1;
 		/* Policy mode off */
 
-		cdinfo(CD_WARNING,"This disc doesn't have any tracks I recognise!\n");
+		cdinfo(CD_WARNING,"This disc doesn't have any tracks I recognize!\n");
 		return CDS_NO_INFO;
 		}
 
@@ -2529,33 +2527,31 @@ static void cdrom_sysctl_register(void)
 
 	initialized = 1;
 }
-#endif /* endif CONFIG_SYSCTL */
 
-
-#ifdef MODULE
 static void cdrom_sysctl_unregister(void)
 {
-#ifdef CONFIG_SYSCTL
 	unregister_sysctl_table(cdrom_sysctl_header);
-#endif
 }
 
-int init_module(void)
+#endif /* CONFIG_SYSCTL */
+
+static int __init cdrom_init(void)
 {
 #ifdef CONFIG_SYSCTL
 	cdrom_sysctl_register();
 #endif
-	devfs_handle = devfs_mk_dir (NULL, "cdroms", 6, NULL);
+	devfs_handle = devfs_mk_dir(NULL, "cdroms", 6, NULL);
 	return 0;
 }
 
-void cleanup_module(void)
+static void __exit cdrom_exit(void)
 {
 	printk(KERN_INFO "Uniform CD-ROM driver unloaded\n");
 #ifdef CONFIG_SYSCTL
 	cdrom_sysctl_unregister();
-#endif /* CONFIG_SYSCTL */
-	devfs_unregister (devfs_handle);
+#endif
+	devfs_unregister(devfs_handle);
 }
-#endif /* endif MODULE */
 
+module_init(cdrom_init);
+module_exit(cdrom_exit);

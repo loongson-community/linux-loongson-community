@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.114 2000/02/14 04:52:36 jj Exp $
+/* $Id: fault.c,v 1.115 2000/04/25 04:13:25 davem Exp $
  * fault.c:  Page fault handlers for the Sparc.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -250,7 +250,7 @@ good_area:
 	 * the fault.
 	 */
 	{
-		int fault = handle_mm_fault(tsk, vma, address, write);
+		int fault = handle_mm_fault(mm, vma, address, write);
 		if (fault < 0)
 			goto out_of_memory;
 		if (!fault)
@@ -450,7 +450,7 @@ good_area:
 		if(!(vma->vm_flags & (VM_READ | VM_EXEC)))
 			goto bad_area;
 	}
-	if (!handle_mm_fault(current, vma, address, write))
+	if (!handle_mm_fault(mm, vma, address, write))
 		goto do_sigbus;
 	up(&mm->mmap_sem);
 	return;

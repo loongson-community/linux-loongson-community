@@ -20,7 +20,6 @@
 #include <linux/stat.h>
 #include <linux/cache.h>
 #include <linux/stddef.h>
-#include <linux/string.h>
 
 #include <asm/atomic.h>
 #include <asm/bitops.h>
@@ -99,6 +98,7 @@ extern int max_super_blocks, nr_super_blocks;
 #define MS_ODD_RENAME	32768	/* Temporary stuff; will go away as soon
 				  * as nfs_rename() will be cleaned up
 				  */
+#define S_DEAD		(1<<16)	/* removed, but still open directory */
 
 /*
  * Flags that can be altered by MS_REMOUNT
@@ -141,6 +141,7 @@ extern int max_super_blocks, nr_super_blocks;
 #define IS_NOATIME(inode)	__IS_FLG(inode, MS_NOATIME)
 #define IS_NODIRATIME(inode)	__IS_FLG(inode, MS_NODIRATIME)
 
+#define IS_DEADDIR(inode)	((inode)->i_flags & S_DEAD)
 
 /* the read-only stuff doesn't really belong here, but any other place is
    probably as bad and I don't want to create yet another include file. */
@@ -172,6 +173,7 @@ extern int max_super_blocks, nr_super_blocks;
 
 #ifdef __KERNEL__
 
+#include <linux/string.h>
 #include <asm/semaphore.h>
 #include <asm/byteorder.h>
 
@@ -179,9 +181,9 @@ extern void update_atime (struct inode *);
 #define UPDATE_ATIME(inode) update_atime (inode)
 
 extern void buffer_init(unsigned long);
-extern void inode_init(void);
+extern void inode_init(unsigned long);
 extern void file_table_init(void);
-extern void dcache_init(void);
+extern void dcache_init(unsigned long);
 
 /* bh state bits */
 #define BH_Uptodate	0	/* 1 if the buffer contains valid data */
@@ -336,8 +338,9 @@ struct page;
 struct address_space;
 
 struct address_space_operations {
-	int (*writepage) (struct dentry *, struct page *);
+	int (*writepage)(struct file *, struct dentry *, struct page *);
 	int (*readpage)(struct dentry *, struct page *);
+	int (*sync_page)(struct page *);
 	int (*prepare_write)(struct file *, struct page *, unsigned, unsigned);
 	int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
 	/* Unfortunately this kludge is needed for FIBMAP. Don't use it */
@@ -551,6 +554,8 @@ struct nameidata {
 	struct dentry *dentry;
 	struct vfsmount *mnt;
 	struct qstr last;
+	unsigned int flags;
+	int last_type;
 };
 
 #define FASYNC_MAGIC 0x4601
@@ -689,6 +694,11 @@ struct block_device_operations {
 	int (*revalidate) (kdev_t);
 };
 
+/*
+ * NOTE:
+ * read, write, poll, fsync, readv, writev can be called
+ *   without the big kernel lock held in all filesystems.
+ */
 struct file_operations {
 	loff_t (*llseek) (struct file *, loff_t, int);
 	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
@@ -841,7 +851,8 @@ asmlinkage long sys_close(unsigned int);	/* yes, it's really unsigned */
 extern int do_close(unsigned int, int);		/* yes, it's really unsigned */
 extern int do_truncate(struct dentry *, loff_t start);
 extern int get_unused_fd(void);
-extern void put_unused_fd(unsigned int);
+extern void __put_unused_fd(struct files_struct *, unsigned int); /* locked outside */
+extern void put_unused_fd(unsigned int);                          /* locked inside */
 
 extern struct file *filp_open(const char *, int, int);
 extern struct file * dentry_open(struct dentry *, struct vfsmount *, int);
@@ -857,6 +868,7 @@ extern int unregister_blkdev(unsigned int, const char *);
 extern struct block_device *bdget(dev_t);
 extern void bdput(struct block_device *);
 extern int blkdev_open(struct inode *, struct file *);
+extern int blkdev_close(struct inode * inode, struct file * filp);
 extern struct file_operations def_blk_fops;
 extern struct file_operations def_fifo_fops;
 extern int ioctl_by_bdev(struct block_device *, unsigned, unsigned long);
@@ -878,7 +890,6 @@ extern void init_special_inode(struct inode *, umode_t, int);
 extern void make_bad_inode(struct inode *);
 extern int is_bad_inode(struct inode *);
 
-extern struct file_operations connecting_fifo_fops;
 extern struct file_operations read_fifo_fops;
 extern struct file_operations write_fifo_fops;
 extern struct file_operations rdwr_fifo_fops;
@@ -947,7 +958,6 @@ extern void invalidate_inode_pages(struct inode *);
 #define invalidate_buffers(dev)	__invalidate_buffers((dev), 0)
 #define destroy_buffers(dev)	__invalidate_buffers((dev), 1)
 extern void __invalidate_buffers(kdev_t dev, int);
-extern int floppy_is_wp(int);
 extern void sync_inodes(kdev_t);
 extern void write_inode_now(struct inode *);
 extern void sync_dev(kdev_t);
@@ -991,10 +1001,14 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
  */
 #define LOOKUP_FOLLOW		(1)
 #define LOOKUP_DIRECTORY	(2)
-#define LOOKUP_SLASHOK		(4)
-#define LOOKUP_CONTINUE		(8)
-#define LOOKUP_POSITIVE		(16)
-#define LOOKUP_PARENT		(32)
+#define LOOKUP_CONTINUE		(4)
+#define LOOKUP_POSITIVE		(8)
+#define LOOKUP_PARENT		(16)
+#define LOOKUP_NOALT		(32)
+/*
+ * Type of the last component on LOOKUP_PARENT
+ */
+enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT };
 
 /*
  * "descriptor" for what we're up to with a read for sendfile().
@@ -1014,9 +1028,12 @@ typedef struct {
 
 typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, unsigned long);
 
+/* needed for stackable file system support */
+extern loff_t default_llseek(struct file *file, loff_t offset, int origin);
+
 extern struct dentry * lookup_dentry(const char *, unsigned int);
 extern int walk_init(const char *, unsigned, struct nameidata *);
-extern int walk_name(const char *, unsigned, struct nameidata *);
+extern int walk_name(const char *, struct nameidata *);
 extern struct dentry * lookup_one(const char *, struct dentry *);
 extern struct dentry * __namei(const char *, unsigned int);
 
@@ -1071,12 +1088,15 @@ typedef int (get_block_t)(struct inode*,long,struct buffer_head*,int);
 
 /* Generic buffer handling for block filesystems.. */
 extern int block_flushpage(struct page *, unsigned long);
+extern int block_fsync(struct file *filp, struct dentry *dentry);
 extern int block_symlink(struct inode *, const char *, int);
 extern int block_write_full_page(struct page*, get_block_t*);
 extern int block_read_full_page(struct page*, get_block_t*);
 extern int block_prepare_write(struct page*, unsigned, unsigned, get_block_t*);
 extern int cont_prepare_write(struct page*, unsigned, unsigned, get_block_t*,
 				unsigned long *);
+extern int block_sync_page(struct page *);
+
 int generic_block_bmap(struct address_space *, long, get_block_t *);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
 

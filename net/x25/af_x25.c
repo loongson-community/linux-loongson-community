@@ -17,6 +17,9 @@
  *	X.25 002	Jonathan Naylor	Centralised disconnect handling.
  *					New timer architecture.
  *	2000-11-03	Henner Eisen	MSG_EOR handling more POSIX compliant.
+ *	2000-22-03	Daniela Squassoni Allowed disabling/enabling of 
+ *					  facilities negotiation and increased 
+ *					  the throughput upper limit.
  */
 
 #include <linux/config.h>
@@ -811,6 +814,7 @@ int x25_rx_call_request(struct sk_buff *skb, struct x25_neigh *neigh, unsigned i
 	make->protinfo.x25->source_addr   = source_addr;
 	make->protinfo.x25->neighbour     = neigh;
 	make->protinfo.x25->facilities    = facilities;
+	make->protinfo.x25->vc_facil_mask = sk->protinfo.x25->vc_facil_mask;
 
 	x25_write_internal(make, X25_CALL_ACCEPTED);
 
@@ -1133,7 +1137,7 @@ static int x25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 				return -EINVAL;
 			if (facilities.winsize_in < 1 || facilities.winsize_in > 127)
 				return -EINVAL;
-			if (facilities.throughput < 0x03 || facilities.throughput > 0x2C)
+			if (facilities.throughput < 0x03 || facilities.throughput > 0xDD)
 				return -EINVAL;
 			if (facilities.reverse != 0 && facilities.reverse != 1)
 				return -EINVAL;
@@ -1239,24 +1243,23 @@ struct net_proto_family x25_family_ops = {
 };
 
 static struct proto_ops SOCKOPS_WRAPPED(x25_proto_ops) = {
-	AF_X25,
+	family:		AF_X25,
 
-	x25_release,
-	x25_bind,
-	x25_connect,
-	sock_no_socketpair,
-	x25_accept,
-	x25_getname,
-	datagram_poll,
-	x25_ioctl,
-	x25_listen,
-	sock_no_shutdown,
-	x25_setsockopt,
-	x25_getsockopt,
-	sock_no_fcntl,
-	x25_sendmsg,
-	x25_recvmsg,
-	sock_no_mmap
+	release:	x25_release,
+	bind:		x25_bind,
+	connect:	x25_connect,
+	socketpair:	sock_no_socketpair,
+	accept:		x25_accept,
+	getname:	x25_getname,
+	poll:		datagram_poll,
+	ioctl:		x25_ioctl,
+	listen:		x25_listen,
+	shutdown:	sock_no_shutdown,
+	setsockopt:	x25_setsockopt,
+	getsockopt:	x25_getsockopt,
+	sendmsg:	x25_sendmsg,
+	recvmsg:	x25_recvmsg,
+	mmap:		sock_no_mmap,
 };
 
 #include <linux/smp_lock.h>

@@ -15,6 +15,7 @@ extern unsigned long max_mapnr;
 extern unsigned long num_physpages;
 extern void * high_memory;
 extern int page_cluster;
+extern struct list_head lru_cache;
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -88,6 +89,8 @@ struct vm_area_struct {
 
 #define VM_SEQ_READ	0x00008000	/* App will access data sequentially */
 #define VM_RAND_READ	0x00010000	/* App will not benefit from clustered reads */
+
+#define VM_DONTCOPY	0x00020000      /* Do not copy this vma on fork */
 
 #define VM_STACK_FLAGS	0x00000177
 
@@ -400,7 +403,7 @@ extern int remap_page_range(unsigned long from, unsigned long to, unsigned long 
 extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t prot);
 
 extern void vmtruncate(struct inode * inode, loff_t offset);
-extern int handle_mm_fault(struct task_struct *tsk,struct vm_area_struct *vma, unsigned long address, int write_access);
+extern int handle_mm_fault(struct mm_struct *mm,struct vm_area_struct *vma, unsigned long address, int write_access);
 extern int make_pages_present(unsigned long addr, unsigned long end);
 extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
 extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char *dst, int len);
@@ -443,7 +446,8 @@ out:
 	return ret;
 }
 
-extern int do_munmap(unsigned long, size_t);
+extern int do_munmap(struct mm_struct *, unsigned long, size_t);
+
 extern unsigned long do_brk(unsigned long, unsigned long);
 
 struct zone_t;
@@ -538,7 +542,7 @@ static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * m
 	return vma;
 }
 
-extern struct vm_area_struct *find_extend_vma(struct task_struct *tsk, unsigned long addr);
+extern struct vm_area_struct *find_extend_vma(struct mm_struct *mm, unsigned long addr);
 
 #define buffer_under_min()	(atomic_read(&buffermem_pages) * 100 < \
 				buffer_mem.min_percent * num_physpages)

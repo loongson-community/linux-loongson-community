@@ -1,11 +1,15 @@
 /*
- * $Id: capifs.c,v 1.5 2000/03/13 17:49:52 calle Exp $
+ * $Id: capifs.c,v 1.6 2000/04/03 13:29:25 calle Exp $
  * 
  * (c) Copyright 2000 by Carsten Paeth (calle@calle.de)
  *
  * Heavily based on devpts filesystem from H. Peter Anvin
  * 
  * $Log: capifs.c,v $
+ * Revision 1.6  2000/04/03 13:29:25  calle
+ * make Tim Waugh happy (module unload races in 2.3.99-pre3).
+ * no real problem there, but now it is much cleaner ...
+ *
  * Revision 1.5  2000/03/13 17:49:52  calle
  * make it running with 2.3.51.
  *
@@ -56,7 +60,7 @@
 
 MODULE_AUTHOR("Carsten Paeth <calle@calle.de>");
 
-static char *revision = "$Revision: 1.5 $";
+static char *revision = "$Revision: 1.6 $";
 
 struct capifs_ncci {
 	struct inode *inode;
@@ -554,6 +558,8 @@ int __init capifs_init(void)
 	char *p;
 	int err;
 
+	MOD_INC_USE_COUNT;
+
 	if ((p = strchr(revision, ':'))) {
 		strcpy(rev, p + 1);
 		p = strchr(rev, '$');
@@ -562,13 +568,16 @@ int __init capifs_init(void)
 		strcpy(rev, "1.0");
 
 	err = register_filesystem(&capifs_fs_type);
-	if (err)
+	if (err) {
+		MOD_DEC_USE_COUNT;
 		return err;
+	}
 #ifdef MODULE
         printk(KERN_NOTICE "capifs: Rev%s: loaded\n", rev);
 #else
 	printk(KERN_NOTICE "capifs: Rev%s: started\n", rev);
 #endif
+	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

@@ -516,7 +516,6 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 /* This is only called on sync() and umount(), when s_dirt=1. */
 static void sysv_write_super(struct super_block *sb)
 {
-	lock_super(sb);
 	if (buffer_dirty(sb->sv_bh1) || buffer_dirty(sb->sv_bh2)) {
 		/* If we are going to write out the super block,
 		   then attach current time stamp.
@@ -534,7 +533,6 @@ static void sysv_write_super(struct super_block *sb)
 		mark_buffer_dirty(sb->sv_bh2, 1);
 	}
 	sb->s_dirt = 0;
-	unlock_super(sb);
 }
 
 static void sysv_put_super(struct super_block *sb)
@@ -941,7 +939,7 @@ struct buffer_head *sysv_file_bread(struct inode *inode, int block, int create)
 	return NULL;
 }
 
-static int sysv_writepage(struct dentry *dentry, struct page *page)
+static int sysv_writepage(struct file *file, struct dentry *dentry, struct page *page)
 {
 	return block_write_full_page(page,sysv_get_block);
 }
@@ -960,6 +958,7 @@ static int sysv_bmap(struct address_space *mapping, long block)
 struct address_space_operations sysv_aops = {
 	readpage: sysv_readpage,
 	writepage: sysv_writepage,
+	sync_page: block_sync_page,
 	prepare_write: sysv_prepare_write,
 	commit_write: generic_commit_write,
 	bmap: sysv_bmap

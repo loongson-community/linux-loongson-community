@@ -12,6 +12,7 @@
 #include <asm/segment.h>
 #include <asm/page.h>
 #include <asm/types.h>
+#include <linux/config.h>
 #include <linux/threads.h>
 
 /*
@@ -100,7 +101,7 @@ struct cpuinfo_x86 {
 extern struct cpuinfo_x86 boot_cpu_data;
 extern struct tss_struct init_tss[NR_CPUS];
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 extern struct cpuinfo_x86 cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 #else
@@ -356,7 +357,7 @@ struct thread_struct {
 }
 
 #define start_thread(regs, new_eip, new_esp) do {		\
-	__asm__("movl %w0,%%fs ; movl %w0,%%gs": :"r" (0));	\
+	__asm__("movl %0,%%fs ; movl %0,%%gs": :"r" (0));	\
 	set_fs(USER_DS);					\
 	regs->xds = __USER_DS;					\
 	regs->xes = __USER_DS;					\

@@ -160,7 +160,7 @@ typedef struct wait_queue *wait_queue_head_t;
 
 #define __set_current_state(state_value)                        \
 	do { current->state = state_value; } while (0)
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 #define set_current_state(state_value)          \
 	set_mb(current->state, state_value)
 #else
@@ -618,7 +618,7 @@ int usb_get_current_frame_number (struct usb_device *usb_dev);
  *  - current Data0/1 state (1 bit)
  *  - direction (1 bit)
  *  - speed (1 bit)
- *  - max packet size (2 bits: 8, 16, 32 or 64)
+ *  - max packet size (2 bits: 8, 16, 32 or 64) [Historical; now gone.]
  *  - pipe type (2 bits: control, interrupt, bulk, isochronous)
  *
  * That's 18 bits. Really. Nothing more. And the USB people have
@@ -628,7 +628,7 @@ int usb_get_current_frame_number (struct usb_device *usb_dev);
  * Let's not fall in that trap. We'll just encode it as a simple
  * unsigned int. The encoding is:
  *
- *  - max size:		bits 0-1	(00 = 8, 01 = 16, 10 = 32, 11 = 64)
+ *  - max size:		bits 0-1	(00 = 8, 01 = 16, 10 = 32, 11 = 64) [Historical; now gone.]
  *  - direction:	bit 7		(0 = Host-to-Device [Out], 1 = Device-to-Host [In])
  *  - device:		bits 8-14
  *  - endpoint:		bits 15-18
@@ -646,11 +646,6 @@ int usb_get_current_frame_number (struct usb_device *usb_dev);
 #define PIPE_INTERRUPT			1
 #define PIPE_CONTROL			2
 #define PIPE_BULK			3
-
-#define USB_ISOCHRONOUS		0
-#define USB_INTERRUPT		1
-#define USB_CONTROL		2
-#define USB_BULK		3
 
 #define usb_maxpacket(dev, pipe, out)	(out \
 				? (dev)->epmaxpacketout[usb_pipeendpoint(pipe)] \

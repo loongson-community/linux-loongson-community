@@ -583,6 +583,8 @@ static int __init acpi_find_tables(void)
 			dt = acpi_map_table(facp->dsdt);
 			if (acpi_init_table(&acpi_dsdt, dt, 1))
 				acpi_unmap_table(dt);
+
+			break;
 		}
 		else {
 			acpi_unmap_table(dt);
@@ -1127,6 +1129,7 @@ static int acpi_enter_sx(acpi_sstate_t state)
 	// finished sleeping, update system time
 	acpi_update_clock();
 	acpi_enter_dx(ACPI_D0);
+	acpi_sleep_state = ACPI_S0;
 	
 	return 0;
 }

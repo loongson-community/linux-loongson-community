@@ -3,7 +3,7 @@
 
 #include <linux/linkage.h>
 #include <linux/ptrace.h>
-
+#include <asm/current.h>
 
 /* Flags for bug emulation. These occupy the top three bytes. */
 #define STICKY_TIMEOUTS		0x4000000
@@ -22,6 +22,7 @@
 #define PER_WYSEV386		(0x0004 | STICKY_TIMEOUTS)
 #define PER_ISCR4		(0x0005 | STICKY_TIMEOUTS)
 #define PER_BSD			(0x0006)
+#define PER_SUNOS		(PER_BSD | STICKY_TIMEOUTS)
 #define PER_XENIX		(0x0007 | STICKY_TIMEOUTS)
 #define PER_LINUX32		(0x0008)
 #define PER_IRIX32              (0x0009 | STICKY_TIMEOUTS) /* IRIX5 32-bit     */
@@ -51,11 +52,17 @@ struct exec_domain {
 
 extern struct exec_domain default_exec_domain;
 
-extern struct exec_domain *lookup_exec_domain(unsigned long personality);
 extern int register_exec_domain(struct exec_domain *it);
 extern int unregister_exec_domain(struct exec_domain *it);
 #define put_exec_domain(it) \
 	if (it && it->module) __MOD_DEC_USE_COUNT(it->module);
+#define get_exec_domain(it) \
+	if (it && it->module) __MOD_INC_USE_COUNT(it->module);
+extern void __set_personality(unsigned long personality);
+#define set_personality(pers) do {	\
+	if (current->personality != pers) \
+		__set_personality(pers); \
+} while (0)
 asmlinkage long sys_personality(unsigned long personality);
 
 #endif /* _PERSONALITY_H */

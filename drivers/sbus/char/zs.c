@@ -1,4 +1,4 @@
-/* $Id: zs.c,v 1.56 2000/03/12 04:02:11 davem Exp $
+/* $Id: zs.c,v 1.57 2000/04/26 09:36:32 davem Exp $
  * zs.c: Zilog serial port driver for the Sparc.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -1928,7 +1928,7 @@ int zs_open(struct tty_struct *tty, struct file * filp)
 
 static void show_serial_version(void)
 {
-	char *revision = "$Revision: 1.56 $";
+	char *revision = "$Revision: 1.57 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
@@ -2415,7 +2415,11 @@ int __init zs_init(void)
 	memset(&serial_driver, 0, sizeof(struct tty_driver));
 	serial_driver.magic = TTY_DRIVER_MAGIC;
 	serial_driver.driver_name = "serial";
+#ifdef CONFIG_DEVFS_FS
 	serial_driver.name = "tts/%d";
+#else
+	serial_driver.name = "ttyS";
+#endif
 	serial_driver.major = TTY_MAJOR;
 	serial_driver.minor_start = 64;
 	serial_driver.num = NUM_CHANNELS;

@@ -5,7 +5,7 @@
  *
  *		The User Datagram Protocol (UDP).
  *
- * Version:	$Id: udp.c,v 1.80 2000/02/27 19:51:43 davem Exp $
+ * Version:	$Id: udp.c,v 1.81 2000/04/25 04:13:34 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -1041,22 +1041,17 @@ out:
 }
 
 struct proto udp_prot = {
-	udp_close,			/* close */
-	udp_connect,			/* connect */
-	udp_disconnect,			/* disconnect */
-	NULL,				/* accept */
-	udp_ioctl,			/* ioctl */
-	NULL,				/* init */
-	NULL,				/* destroy */
-	NULL,				/* shutdown */
-	ip_setsockopt,			/* setsockopt */
-	ip_getsockopt,			/* getsockopt */
-	udp_sendmsg,			/* sendmsg */
-	udp_recvmsg,			/* recvmsg */
-	NULL,				/* bind */
-	udp_queue_rcv_skb,		/* backlog_rcv */
-	udp_v4_hash,			/* hash */
-	udp_v4_unhash,			/* unhash */
-	udp_v4_get_port,		/* good_socknum */
- 	"UDP",				/* name */
+ 	name:		"UDP",
+	close:		udp_close,
+	connect:	udp_connect,
+	disconnect:	udp_disconnect,
+	ioctl:		udp_ioctl,
+	setsockopt:	ip_setsockopt,
+	getsockopt:	ip_getsockopt,
+	sendmsg:	udp_sendmsg,
+	recvmsg:	udp_recvmsg,
+	backlog_rcv:	udp_queue_rcv_skb,
+	hash:		udp_v4_hash,
+	unhash:		udp_v4_unhash,
+	get_port:	udp_v4_get_port,
 };

@@ -268,10 +268,10 @@ E: bir7@leland.Stanford.Edu
 D: Original author of the Linux networking code
 
 N: Anton Blanchard
-E: anton@progsoc.uts.edu.au
-W: http://www.progsoc.uts.edu.au/~anton/
+E: anton@linuxcare.com
+W: http://linuxcare.com.au/anton/
 P: 1024/8462A731 4C 55 86 34 44 59 A7 99  2B 97 88 4A 88 9A 0D 97
-D: sun4 port
+D: sun4 port, Sparc hacker
 S: 47 Robert Street
 S: Marrickville NSW 2204
 S: Australia
@@ -941,17 +941,13 @@ E: ajh@primag.co.uk
 D: Selection mechanism
 
 N: Andre Hedrick
+E: andre@linux-ide.org
 E: andre@suse.com
 D: Random SMP kernel hacker...
 D: Uniform Multi-Platform E-IDE driver
-D: AEC6210UF Ultra33
-D: Aladdin 1533/1543(C) chipset
-D: Active-Chipset maddness..........
-D: HighPoint HPT343/5 Ultra/33 & HPT366 Ultra/66 chipsets
-D: Intel PIIX chipset
-D: Promise PDC20246/20247 & PDC20262 chipsets
-D: SiS5513 Ultra/66/33 chipsets
-D: VIA 82C586/596/686 chipsets
+D: Active-ATA-Chipset maddness..........
+D: Ultra DMA 66/33
+D: ATA-Smart Kernel Daemon
 S: 580 Second Street, Suite 2
 S: Oakland, CA
 S: USA
@@ -1148,6 +1144,7 @@ W: http://www.image.dk/~nkbj
 D: 4.4BSD and NeXTstep filesystem support in the old ufs.
 D: Openstep filesystem and NeXTstep CDROM support in the new ufs.
 D: Replace CPU==[3-6]86 and __i386__ submodel flags by configuration options.
+D: Replace __SMP__ by CONFIG_SMP.
 D: Danish HOWTO, Linux+FreeBSD mini-HOWTO.
 S: Dr. Holsts Vej 34, lejl. 164
 S: DK-8230 Åbyhøj
@@ -1173,6 +1170,7 @@ E: djones2@glam.ac.uk
 W: http://linux.powertweak.com
 D: Moved PCI bridge tuning to userspace (Powertweak).
 D: Centaur/IDT Winchip/Winchip 2 tweaks.
+D: AFFS fixes for 2.3.x
 D: Misc clean ups and other random hacking.
 S: 28, Laura Street,
 S: Treforest, Pontypridd,
@@ -1791,6 +1789,13 @@ S: Matlock
 S: Derbyshire DE4 3RL
 S: United Kingdom
 
+N: Ian S. Nelson
+E: ian.nelson@echostar.com
+D: Minor mmap and ide hacks
+S: 1370 Atlantis Ave.
+S: Lafayette CO, 80026
+S: USA
+
 N: Russell Nelson
 E: nelson@crynwr.com
 W: http://www.crynwr.com/~nelson
@@ -2262,6 +2267,10 @@ D: Read only HPFS filesystem
 S: Richardson, Texas
 S: USA
 
+N: Christopher Smith
+E: x@xman.org
+D: Tulip net driver hacker
+
 N: Miquel van Smoorenburg
 E: miquels@cistron.nl
 D: Kernel and net hacker. Sysvinit, minicom. doing Debian stuff.
@@ -2293,6 +2302,13 @@ D: various bug fixes (mostly SMP code)
 S: Warburgring 67
 S: 66424 Homburg 
 S: Germany
+
+N: Andrew Stanley-Jones
+E: asj@lanmedia.com
+D: LanMedia Corp. Device WAN card device driver
+S: #102, 686 W. Maude Ave
+S: Sunyvale, CA 94086
+S: USA
 
 N: Henrik Storner
 E: storner@image.dk

@@ -344,9 +344,6 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 	Uint32 extoffset, elen, offset;
 	struct buffer_head *bh = NULL;
 
-	*err = -EINVAL;
-	if (!dir || !dir->i_nlink)
-		return NULL;
 	sb = dir->i_sb;
 
 	if (dentry->d_name.len)
@@ -365,6 +362,7 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 	}
 	else if (dir->i_size != 0)
 	{
+		/* WTF??? */
 		*err = -ENOENT;
 		return NULL;
 	}
@@ -724,7 +722,7 @@ static int udf_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	cfi.fileCharacteristics = FILE_DIRECTORY | FILE_PARENT;
 	udf_write_fi(&cfi, fi, &fibh, NULL, NULL);
 	udf_release_data(fibh.sbh);
-	inode->i_mode = S_IFDIR | (mode & (S_IRWXUGO|S_ISVTX) & ~current->fs->umask);
+	inode->i_mode = S_IFDIR | mode;
 	if (dir->i_mode & S_ISGID)
 		inode->i_mode |= S_ISGID;
 	mark_inode_dirty(inode);
@@ -1165,9 +1163,6 @@ static int udf_rename (struct inode * old_dir, struct dentry * old_dentry,
 
 		if (new_inode)
 		{
-			retval = -EBUSY;
-			if (!d_unhashed(new_dentry))
-				goto end_rename;
 			retval = -ENOTEMPTY;
 			if (!empty_dir(new_inode))
 				goto end_rename;

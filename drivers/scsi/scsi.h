@@ -105,7 +105,7 @@ extern const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE];
  */
 #define ASSERT_LOCK(_LOCK, _COUNT)
 
-#if defined(__SMP__) && defined(CONFIG_USER_DEBUG)
+#if defined(CONFIG_SMP) && defined(CONFIG_USER_DEBUG)
 #undef ASSERT_LOCK
 #define ASSERT_LOCK(_LOCK,_COUNT)       \
         { if( (_LOCK)->lock != _COUNT )   \
@@ -756,6 +756,8 @@ struct scsi_cmnd {
 
 	unsigned underflow;	/* Return error if less than
 				   this amount is transfered */
+	unsigned old_underflow;	/* save underflow here when reusing the
+				 * command for error handling */
 
 	unsigned transfersize;	/* How much we are guaranteed to
 				   transfer with each SCSI transfer

@@ -76,6 +76,13 @@ LIST_HEAD(super_blocks);
 static struct file_system_type *file_systems = NULL;
 static spinlock_t file_systems_lock = SPIN_LOCK_UNLOCKED;
 
+/* WARNING: This can be used only if we _already_ own a reference */
+static void get_filesystem(struct file_system_type *fs)
+{
+	if (fs->owner)
+		__MOD_INC_USE_COUNT(fs->owner);
+}
+
 static void put_filesystem(struct file_system_type *fs)
 {
 	if (fs->owner)
@@ -96,10 +103,10 @@ static struct file_system_type **find_filesystem(const char *name)
  *	@fs: the file system structure
  *
  *	Adds the file system passed to the list of file systems the kernel
- *	is aware of for by mount and other syscalls. Returns 0 on success,
+ *	is aware of for mount and other syscalls. Returns 0 on success,
  *	or a negative errno code on an error.
  *
- *	The file_system_type that is passed is linked into the kernel 
+ *	The &struct file_system_type that is passed is linked into the kernel 
  *	structures and must not be freed until the file system has been
  *	unregistered.
  */
@@ -131,8 +138,8 @@ int register_filesystem(struct file_system_type * fs)
  *	with the kernel. An error is returned if the file system is not found.
  *	Zero is returned on a success.
  *	
- *	Once this function has returned the file_system_type structure may be
- *	freed or reused.
+ *	Once this function has returned the &struct file_system_type structure
+ *	may be freed or reused.
  */
  
 int unregister_filesystem(struct file_system_type * fs)
@@ -269,79 +276,58 @@ static struct file_system_type *get_fs_type(const char *name)
 	return fs;
 }
 
-struct vfsmount *vfsmntlist = NULL;
-static struct vfsmount *vfsmnttail = NULL, *mru_vfsmnt = NULL;
+static LIST_HEAD(vfsmntlist);
 
 static struct vfsmount *add_vfsmnt(struct super_block *sb,
 			const char *dev_name, const char *dir_name)
 {
-	struct vfsmount *lptr;
+	struct vfsmount *mnt;
 	char *name;
 
-	lptr = (struct vfsmount *)kmalloc(sizeof(struct vfsmount), GFP_KERNEL);
-	if (!lptr)
+	mnt = (struct vfsmount *)kmalloc(sizeof(struct vfsmount), GFP_KERNEL);
+	if (!mnt)
 		goto out;
-	memset(lptr, 0, sizeof(struct vfsmount));
+	memset(mnt, 0, sizeof(struct vfsmount));
 
-	lptr->mnt_sb = sb;
-	lptr->mnt_dev = sb->s_dev;
+	mnt->mnt_sb = sb;
+	mnt->mnt_dev = sb->s_dev;
 
 	/* N.B. Is it really OK to have a vfsmount without names? */
 	if (dev_name) {
 		name = (char *) kmalloc(strlen(dev_name)+1, GFP_KERNEL);
 		if (name) {
 			strcpy(name, dev_name);
-			lptr->mnt_devname = name;
+			mnt->mnt_devname = name;
 		}
 	}
 	if (dir_name) {
 		name = (char *) kmalloc(strlen(dir_name)+1, GFP_KERNEL);
 		if (name) {
 			strcpy(name, dir_name);
-			lptr->mnt_dirname = name;
+			mnt->mnt_dirname = name;
 		}
 	}
 
-	if (vfsmntlist == (struct vfsmount *)NULL) {
-		vfsmntlist = vfsmnttail = lptr;
-	} else {
-		vfsmnttail->mnt_next = lptr;
-		vfsmnttail = lptr;
-	}
+	list_add(&mnt->mnt_list, vfsmntlist.prev);
 out:
-	return lptr;
+	return mnt;
 }
 
 void remove_vfsmnt(kdev_t dev)
 {
-	struct vfsmount *lptr, *tofree;
+	struct list_head *p, *next;
 
-	if (vfsmntlist == NULL)
-		return;
-	lptr = vfsmntlist;
-	if (lptr->mnt_dev == dev) {
-		tofree = lptr;
-		vfsmntlist = lptr->mnt_next;
-		if (vfsmnttail->mnt_dev == dev)
-			vfsmnttail = vfsmntlist;
-	} else {
-		while (lptr->mnt_next != NULL) {
-			if (lptr->mnt_next->mnt_dev == dev)
-				break;
-			lptr = lptr->mnt_next;
-		}
-		tofree = lptr->mnt_next;
-		if (tofree == NULL)
-			return;
-		lptr->mnt_next = lptr->mnt_next->mnt_next;
-		if (vfsmnttail->mnt_dev == dev)
-			vfsmnttail = lptr;
+	for (p = vfsmntlist.next; p != &vfsmntlist; p = next) {
+		struct vfsmount *mnt = list_entry(p, struct vfsmount, mnt_list);
+
+		next = p->next;
+		if (mnt->mnt_dev != dev)
+			continue;
+		list_del(&mnt->mnt_list);
+		kfree(mnt->mnt_devname);
+		kfree(mnt->mnt_dirname);
+		kfree(mnt);
 	}
-	if (tofree == mru_vfsmnt)
-		mru_vfsmnt = NULL;
-	kfree(tofree->mnt_devname);
-	kfree(tofree->mnt_dirname);
-	kfree_s(tofree, sizeof(struct vfsmount));
 }
 
 static struct proc_fs_info {
@@ -378,7 +364,7 @@ static struct proc_nfs_info {
 
 int get_filesystem_info( char *buf )
 {
-	struct vfsmount *tmp;
+	struct list_head *p;
 	struct proc_fs_info *fs_infop;
 	struct proc_nfs_info *nfs_infop;
 	struct nfs_server *nfss;
@@ -386,7 +372,9 @@ int get_filesystem_info( char *buf )
 	char *path,*buffer = (char *) __get_free_page(GFP_KERNEL);
 
 	if (!buffer) return 0;
-	for (tmp = vfsmntlist; tmp && len < PAGE_SIZE - 160; tmp = tmp->mnt_next) {
+	for (p = vfsmntlist.next; p!=&vfsmntlist && len < PAGE_SIZE - 160;
+	    p = p->next) {
+		struct vfsmount *tmp = list_entry(p, struct vfsmount, mnt_list);
 		if (!tmp->mnt_sb || !tmp->mnt_sb->s_root)
 			continue;
 		path = d_path(tmp->mnt_sb->s_root, tmp, buffer, PAGE_SIZE);
@@ -459,7 +447,7 @@ int get_filesystem_info( char *buf )
  *	@sb: superblock to wait on
  *
  *	Waits for a superblock to become unlocked and then returns. It does
- *	not take the lock. This is an internal function. See wait_on_super.
+ *	not take the lock. This is an internal function. See wait_on_super().
  */
  
 void __wait_on_super(struct super_block * sb)
@@ -495,23 +483,20 @@ void sync_supers(kdev_t dev)
 			continue;
 		if (!sb->s_dirt)
 			continue;
-		/* N.B. Should lock the superblock while writing */
-		wait_on_super(sb);
-		if (!sb->s_dev || !sb->s_dirt)
-			continue;
-		if (dev && (dev != sb->s_dev))
-			continue;
-		if (sb->s_op && sb->s_op->write_super)
-			sb->s_op->write_super(sb);
+		lock_super(sb);
+		if (sb->s_dev && sb->s_dirt && (!dev || dev == sb->s_dev))
+			if (sb->s_op && sb->s_op->write_super)
+				sb->s_op->write_super(sb);
+		unlock_super(sb);
 	}
 }
 
 /**
  *	get_super	-	get the superblock of a device
- *	@dev: device to get the super block for
+ *	@dev: device to get the superblock for
  *	
  *	Scans the superblock list and finds the superblock of the file system
- *	mounted on the device given. NULL is returned if no match is found.
+ *	mounted on the device given. %NULL is returned if no match is found.
  */
  
 struct super_block * get_super(kdev_t dev)
@@ -561,10 +546,10 @@ out:
 /**
  *	get_empty_super	-	find empty superblocks
  *
- *	Find a super_block with no device assigned. A free superblock is 
+ *	Find a superblock with no device assigned. A free superblock is 
  *	found and returned. If neccessary new superblocks are allocated.
- *	NULL is returned if there are insufficient resources to complete
- *	the request
+ *	%NULL is returned if there are insufficient resources to complete
+ *	the request.
  */
  
 struct super_block *get_empty_super(void)
@@ -659,6 +644,165 @@ void put_unnamed_dev(kdev_t dev)
 			kdevname(dev));
 }
 
+static struct super_block *get_sb_bdev(struct file_system_type *fs_type,
+	char *dev_name, int flags, void * data)
+{
+	struct dentry *dentry;
+	struct inode *inode;
+	struct block_device *bdev;
+	struct block_device_operations *bdops;
+	struct super_block * sb;
+	kdev_t dev;
+	int error;
+	/* What device it is? */
+	if (!dev_name || !*dev_name)
+		return ERR_PTR(-EINVAL);
+	dentry = lookup_dentry(dev_name, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
+	if (IS_ERR(dentry))
+		return (struct super_block *)dentry;
+	inode = dentry->d_inode;
+	error = -ENOTBLK;
+	if (!S_ISBLK(inode->i_mode))
+		goto out;
+	error = -EACCES;
+	if (IS_NODEV(inode))
+		goto out;
+	bdev = inode->i_bdev;
+	bdops = devfs_get_ops ( devfs_get_handle_from_inode (inode) );
+	if (bdops) bdev->bd_op = bdops;
+	/* Done with lookups, semaphore down */
+	down(&mount_sem);
+	dev = to_kdev_t(bdev->bd_dev);
+	check_disk_change(dev);
+	error = -EACCES;
+	if (!(flags & MS_RDONLY) && is_read_only(dev))
+		goto out;
+	sb = get_super(dev);
+	if (sb) {
+		error = -EBUSY;
+		goto out;
+		/* MOUNT_REWRITE: the following should be used
+		if (fs_type == sb->s_type) {
+			dput(dentry);
+			return sb;
+		}
+		*/
+	} else {
+		mode_t mode = FMODE_READ; /* we always need it ;-) */
+		if (!(flags & MS_RDONLY))
+			mode |= FMODE_WRITE;
+		error = blkdev_get(bdev, mode, 0, BDEV_FS);
+		if (error)
+			goto out;
+		error = -EINVAL;
+		sb = read_super(dev, bdev, fs_type, flags, data, 0);
+		if (sb) {
+			get_filesystem(fs_type);
+			dput(dentry);
+			return sb;
+		}
+		blkdev_put(bdev, BDEV_FS);
+	}
+out:
+	dput(dentry);
+	up(&mount_sem);
+	return ERR_PTR(error);
+}
+
+static struct super_block *get_sb_nodev(struct file_system_type *fs_type,
+	int flags, void * data)
+{
+	kdev_t dev;
+	int error = -EMFILE;
+	down(&mount_sem);
+	dev = get_unnamed_dev();
+	if (dev) {
+		struct super_block * sb;
+		error = -EINVAL;
+		sb = read_super(dev, NULL, fs_type, flags, data, 0);
+		if (sb) {
+			get_filesystem(fs_type);
+			return sb;
+		}
+		put_unnamed_dev(dev);
+	}
+	up(&mount_sem);
+	return ERR_PTR(error);
+}
+
+static struct block_device *kill_super(struct super_block *sb, int umount_root)
+{
+	struct block_device *bdev;
+	kdev_t dev;
+	lock_super(sb);
+	if (sb->s_op) {
+		if (sb->s_op->write_super && sb->s_dirt)
+			sb->s_op->write_super(sb);
+		if (sb->s_op->put_super)
+			sb->s_op->put_super(sb);
+	}
+
+	/* Forget any remaining inodes */
+	if (invalidate_inodes(sb)) {
+		printk("VFS: Busy inodes after unmount. "
+			"Self-destruct in 5 seconds.  Have a nice day...\n");
+	}
+
+	dev = sb->s_dev;
+	sb->s_dev = 0;		/* Free the superblock */
+	bdev = sb->s_bdev;
+	sb->s_bdev = NULL;
+	put_filesystem(sb->s_type);
+	sb->s_type = NULL;
+	unlock_super(sb);
+	if (umount_root) {
+		/* special: the old device driver is going to be
+		   a ramdisk and the point of this call is to free its
+		   protected memory (even if dirty). */
+		destroy_buffers(dev);
+	}
+	if (bdev) {
+		blkdev_put(bdev, BDEV_FS);
+		bdput(bdev);
+	} else
+		put_unnamed_dev(dev);
+	return bdev;
+}
+
+/*
+ * Alters the mount flags of a mounted file system. Only the mount point
+ * is used as a reference - file system type and the device are ignored.
+ */
+
+static int do_remount_sb(struct super_block *sb, int flags, char *data)
+{
+	int retval;
+	
+	if (!(flags & MS_RDONLY) && sb->s_dev && is_read_only(sb->s_dev))
+		return -EACCES;
+		/*flags |= MS_RDONLY;*/
+	/* If we are remounting RDONLY, make sure there are no rw files open */
+	if ((flags & MS_RDONLY) && !(sb->s_flags & MS_RDONLY))
+		if (!fs_may_remount_ro(sb))
+			return -EBUSY;
+	if (sb->s_op && sb->s_op->remount_fs) {
+		lock_super(sb);
+		retval = sb->s_op->remount_fs(sb, &flags, data);
+		unlock_super(sb);
+		if (retval)
+			return retval;
+	}
+	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) | (flags & MS_RMT_MASK);
+
+	/*
+	 * We can't invalidate inodes as we can loose data when remounting
+	 * (someone might manage to alter data while we are waiting in lock_super()
+	 * or in foo_remount_fs()))
+	 */
+
+	return 0;
+}
+
 static int d_umount(struct super_block * sb)
 {
 	struct dentry * root = sb->s_root;
@@ -747,32 +891,8 @@ static struct block_device *do_umount(kdev_t dev, int unmount_root, int flags)
 	retval = d_umount(sb);
 	if (retval)
 		goto out;
-
-	if (sb->s_op) {
-		if (sb->s_op->write_super && sb->s_dirt)
-			sb->s_op->write_super(sb);
-	}
-
-	lock_super(sb);
-	if (sb->s_op) {
-		if (sb->s_op->put_super)
-			sb->s_op->put_super(sb);
-	}
-
-	/* Forget any remaining inodes */
-	if (invalidate_inodes(sb)) {
-		printk("VFS: Busy inodes after unmount. "
-			"Self-destruct in 5 seconds.  Have a nice day...\n");
-	}
-
-	sb->s_dev = 0;		/* Free the superblock */
-	bdev = sb->s_bdev;
-	sb->s_bdev = NULL;
-	put_filesystem(sb->s_type);
-	sb->s_type = NULL;
-	unlock_super(sb);
-
 	remove_vfsmnt(dev);
+	bdev = kill_super(sb, unmount_root);
 
 	return bdev;
 
@@ -796,15 +916,8 @@ static int umount_dev(kdev_t dev, int flags)
 	bdev = do_umount(dev, 0, flags);
 	if (IS_ERR(bdev))
 		retval = PTR_ERR(bdev);
-	else {
+	else
 		retval = 0;
-		if (bdev) {
-			blkdev_put(bdev, BDEV_FS);
-			bdput(bdev);
-		} else {
-			put_unnamed_dev(dev);
-		}
-	}
 	up(&mount_sem);
 out:
 	return retval;
@@ -877,169 +990,18 @@ int fs_may_mount(kdev_t dev)
 }
 
 /*
- * do_mount() does the actual mounting after sys_mount has done the ugly
- * parameter parsing. When enough time has gone by, and everything uses the
- * new mount() parameters, sys_mount() can then be cleaned up.
- *
- * We cannot mount a filesystem if it has active, used, or dirty inodes.
- * We also have to flush all inode-data for this device, as the new mount
- * might need new info.
- *
- * [21-Mar-97] T.Schoebel-Theuer: Now this can be overridden when
- * supplying a leading "!" before the dir_name, allowing "stacks" of
- * mounted filesystems. The stacking will only influence any pathname lookups
- * _after_ the mount, but open file descriptors or working directories that
- * are now covered remain valid. For example, when you overmount /home, any
- * process with old cwd /home/joe will continue to use the old versions,
- * as long as relative paths are used, but absolute paths like /home/joe/xxx
- * will go to the new "top of stack" version. In general, crossing a
- * mount point will always go to the top of stack element.
- * Anyone using this new feature must know what he/she is doing.
+ * change filesystem flags. dir should be a physical root of filesystem.
+ * If you've mounted a non-root directory somewhere and want to do remount
+ * on it - tough luck.
  */
-
-static int do_mount(struct block_device *bdev, const char *dev_name,
-	     const char *dir_name, const char * type, int flags, void * data)
-{
-	kdev_t dev;
-	struct dentry * dir_d;
-	struct super_block * sb;
-	struct vfsmount *vfsmnt;
-	struct file_system_type *fs_type;
-	int error;
-
-	if (bdev) {
-		mode_t mode = FMODE_READ; /* we always need it ;-) */
-		if (!(flags & MS_RDONLY))
-			mode |= FMODE_WRITE;
-		dev = to_kdev_t(bdev->bd_dev);
-		error = blkdev_get(bdev, mode, 0, BDEV_FS);
-		if (error)
-			return error;
-	} else {
-		dev = get_unnamed_dev();
-		if (!dev)
-			return -EMFILE;	/* huh? */
-	}
-
-	error = -EACCES;
-	if (!(flags & MS_RDONLY) && dev && is_read_only(dev))
-		goto out;
-
-	/*
-	 * Do the lookup first to force automounting.
-	 */
-	dir_d = lookup_dentry(dir_name, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
-	error = PTR_ERR(dir_d);
-	if (IS_ERR(dir_d))
-		goto out;
-
-	down(&mount_sem);
-	error = -ENOTDIR;
-	if (!S_ISDIR(dir_d->d_inode->i_mode))
-		goto dput_and_out;
-
-	error = -EBUSY;
-	if (dir_d->d_covers != dir_d)
-		goto dput_and_out;
-
-	error = -EINVAL;
-	if (!dev)
-		goto dput_and_out;
-	check_disk_change(dev);
-	sb = get_super(dev);
-	if (sb) {
-		/* Already mounted */
-		error = -EBUSY;
-		goto dput_and_out;
-	}
-
-	fs_type = get_fs_type(type);
-	if (!fs_type) {
-		printk("VFS: on device %s: get_fs_type(%s) failed\n",
-		       kdevname(dev), type);
-		goto dput_and_out;
-	}
-
-	sb = read_super(dev, bdev, fs_type, flags, data, 0);
-	if (!sb)
-		goto fsput_and_out;
-
-	/*
-	 * We may have slept while reading the super block, 
-	 * so we check afterwards whether it's safe to mount.
-	 */
-	error = -EBUSY;
-	if (!fs_may_mount(dev))
-		goto bdput_and_out;
-
-	error = -ENOMEM;
-	vfsmnt = add_vfsmnt(sb, dev_name, dir_name);
-	if (vfsmnt) {
-		d_mount(dget(dir_d), sb->s_root);
-		dput(dir_d);
-		up(&mount_sem);
-		return 0;
-	}
-
-bdput_and_out:
-	/* FIXME: ->put_super() is needed here */
-	sb->s_bdev = NULL;
-	sb->s_dev = 0;
-	sb->s_type = NULL;
-	if (bdev)
-		bdput(bdev);
-fsput_and_out:
-	put_filesystem(fs_type);
-dput_and_out:
-	dput(dir_d);
-	up(&mount_sem);
-out:
-	if (bdev)
-		blkdev_put(bdev, BDEV_FS);
-	else
-		put_unnamed_dev(dev);
-	return error;
-}
-
-
-/*
- * Alters the mount flags of a mounted file system. Only the mount point
- * is used as a reference - file system type and the device are ignored.
- */
-
-static int do_remount_sb(struct super_block *sb, int flags, char *data)
-{
-	int retval;
-	
-	if (!(flags & MS_RDONLY) && sb->s_dev && is_read_only(sb->s_dev))
-		return -EACCES;
-		/*flags |= MS_RDONLY;*/
-	/* If we are remounting RDONLY, make sure there are no rw files open */
-	if ((flags & MS_RDONLY) && !(sb->s_flags & MS_RDONLY))
-		if (!fs_may_remount_ro(sb))
-			return -EBUSY;
-	if (sb->s_op && sb->s_op->remount_fs) {
-		lock_super(sb);
-		retval = sb->s_op->remount_fs(sb, &flags, data);
-		unlock_super(sb);
-		if (retval)
-			return retval;
-	}
-	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) | (flags & MS_RMT_MASK);
-
-	/*
-	 * We can't invalidate inodes as we can loose data when remounting
-	 * (someone might manage to alter data while we are waiting in lock_super()
-	 * or in foo_remount_fs()))
-	 */
-
-	return 0;
-}
 
 static int do_remount(const char *dir,int flags,char *data)
 {
 	struct dentry *dentry;
 	int retval;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
 
 	dentry = lookup_dentry(dir, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
 	retval = PTR_ERR(dentry);
@@ -1111,9 +1073,9 @@ long do_sys_mount(char * dev_name, char * dir_name, char *type_page,
 		  unsigned long new_flags, void *data_page)
 {
 	struct file_system_type * fstype;
-	struct dentry * dentry = NULL;
-	struct inode * inode = NULL;
-	struct block_device *bdev = NULL;
+	struct dentry * dir_d;
+	struct vfsmount *mnt;
+	struct super_block *sb;
 	int retval;
 	unsigned long flags = 0;
  
@@ -1126,59 +1088,84 @@ long do_sys_mount(char * dev_name, char * dir_name, char *type_page,
 	if (dev_name && !memchr(dev_name, 0, PAGE_SIZE))
 		return -EINVAL;
 
-	if (!capable(CAP_SYS_ADMIN))
-		return -EPERM;
+	/* OK, looks good, now let's see what do they want */
 
-	if ((new_flags &
-	     (MS_MGC_MSK | MS_REMOUNT)) == (MS_MGC_VAL | MS_REMOUNT)) {
-		retval = do_remount(dir_name,
-				    new_flags & ~MS_MGC_MSK & ~MS_REMOUNT,
+	/* just change the flags? - capabilities are checked in do_remount() */
+	if ((new_flags & (MS_MGC_MSK|MS_REMOUNT)) == (MS_MGC_VAL|MS_REMOUNT))
+		return do_remount(dir_name, new_flags&~(MS_MGC_MSK|MS_REMOUNT),
 				    (char *) data_page);
-		goto out;
-	}
-
-	fstype = get_fs_type(type_page);
-	retval = -ENODEV;
-	if (!fstype)		
-		goto out;
-
-	if (fstype->fs_flags & FS_REQUIRES_DEV) {
-		struct block_device_operations *bdops;
-
-		retval = -EINVAL;
-		if (!dev_name || !*dev_name)
-			goto fs_out;
-		dentry = lookup_dentry(dev_name, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
-		retval = PTR_ERR(dentry);
-		if (IS_ERR(dentry))
-			goto fs_out;
-
-		inode = dentry->d_inode;
-		retval = -ENOTBLK;
-		if (!S_ISBLK(inode->i_mode))
-			goto dput_and_out;
-
-		retval = -EACCES;
-		if (IS_NODEV(inode))
-			goto dput_and_out;
-
-		bdev = inode->i_bdev;
-		bdops = devfs_get_ops ( devfs_get_handle_from_inode (inode) );
-		if (bdops) bdev->bd_op = bdops;
-	}
 
 	if ((new_flags & MS_MGC_MSK) == MS_MGC_VAL)
 		flags = new_flags & ~MS_MGC_MSK;
 
-	retval = do_mount(bdev, dev_name, dir_name, fstype->name, flags,
-				data_page);
+	/* loopback mount? This is special - requires fewer capabilities */
+	/* MOUNT_REWRITE: ... and is yet to be merged */
 
-dput_and_out:
-	dput(dentry);
+	/* for the rest we _really_ need capabilities... */
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	/* ... filesystem driver... */
+	fstype = get_fs_type(type_page);
+	if (!fstype)		
+		return -ENODEV;
+
+	/* ... and mountpoint. Do the lookup first to force automounting. */
+	dir_d = lookup_dentry(dir_name, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
+	retval = PTR_ERR(dir_d);
+	if (IS_ERR(dir_d))
+		goto fs_out;
+
+	/* get superblock, locks mount_sem on success */
+	if (fstype->fs_flags & FS_REQUIRES_DEV)
+		sb = get_sb_bdev(fstype, dev_name,flags, data_page);
+	else
+		sb = get_sb_nodev(fstype, flags, data_page);
+
+	retval = PTR_ERR(sb);
+	if (IS_ERR(sb))
+		goto dput_out;
+
+	retval = -ENOENT;
+	if (d_unhashed(dir_d))
+		goto fail;
+
+	retval = -ENOTDIR;
+	if (!S_ISDIR(dir_d->d_inode->i_mode))
+		goto fail;
+
+	retval = -EBUSY;
+	if (dir_d->d_covers != dir_d)
+		goto fail;
+
+	/*
+	 * We may have slept while reading the super block, 
+	 * so we check afterwards whether it's safe to mount.
+	 */
+	retval = -EBUSY;
+	if (!fs_may_mount(sb->s_dev))
+		goto fail;
+
+	retval = -ENOMEM;
+	mnt = add_vfsmnt(sb, dev_name, dir_name);
+	if (!mnt)
+		goto fail;
+	d_mount(dget(dir_d), sb->s_root);
+
+	retval = 0;
+unlock_out:
+	up(&mount_sem);
+dput_out:
+	dput(dir_d);
 fs_out:
 	put_filesystem(fstype);
-out:
 	return retval;
+
+fail:
+	dput(sb->s_root);
+	sb->s_root = NULL;
+	kill_super(sb, 0);
+	goto unlock_out;
 }
 
 asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
@@ -1242,39 +1229,38 @@ void __init mount_root(void)
 	int path_start = -1;
 
 #ifdef CONFIG_ROOT_NFS
-	if (MAJOR(ROOT_DEV) == UNNAMED_MAJOR) {
-		ROOT_DEV = 0;
-		if ((fs_type = get_fs_type("nfs"))) {
-			sb = get_empty_super(); /* "can't fail" */
-			sb->s_dev = get_unnamed_dev();
-			sb->s_bdev = NULL;
-			sb->s_flags = root_mountflags;
-			sema_init(&sb->s_vfs_rename_sem,1);
-			sema_init(&sb->s_nfsd_free_path_sem,1);
-			vfsmnt = add_vfsmnt(sb, "/dev/root", "/");
-			if (vfsmnt) {
-				if (nfs_root_mount(sb) >= 0) {
-					sb->s_dirt = 0;
-					sb->s_type = fs_type;
-					current->fs->root = dget(sb->s_root);
-					current->fs->rootmnt = mntget(vfsmnt);
-					current->fs->pwd = dget(sb->s_root);
-					current->fs->pwdmnt = mntget(vfsmnt);
-					ROOT_DEV = sb->s_dev;
-			                printk (KERN_NOTICE "VFS: Mounted root (NFS filesystem)%s.\n", (sb->s_flags & MS_RDONLY) ? " readonly" : "");
-					return;
-				}
-				remove_vfsmnt(sb->s_dev);
-			}
-			put_unnamed_dev(sb->s_dev);
-			sb->s_dev = 0;
-			put_filesystem(fs_type);
-		}
-		if (!ROOT_DEV) {
-			printk(KERN_ERR "VFS: Unable to mount root fs via NFS, trying floppy.\n");
-			ROOT_DEV = MKDEV(FLOPPY_MAJOR, 0);
-		}
-	}
+	void *data;
+	if (MAJOR(ROOT_DEV) != UNNAMED_MAJOR)
+		goto skip_nfs;
+	fs_type = get_fs_type("nfs");
+	if (!fs_type)
+		goto no_nfs;
+	ROOT_DEV = get_unnamed_dev();
+	if (!ROOT_DEV)
+		/*
+		 * Your /linuxrc sucks worse than MSExchange - that's the
+		 * only way you could run out of anon devices at that point.
+		 */
+		goto no_anon;
+	data = nfs_root_data();
+	if (!data)
+		goto no_server;
+	sb = read_super(ROOT_DEV, NULL, fs_type, root_mountflags, data, 1);
+	if (sb)
+		/*
+		 * We _can_ fail there, but if that will happen we have no
+		 * chance anyway (no memory for vfsmnt and we _will_ need it,
+		 * no matter which fs we try to mount).
+		 */
+		goto mount_it;
+no_server:
+	put_unnamed_dev(ROOT_DEV);
+no_anon:
+	put_filesystem(fs_type);
+no_nfs:
+	printk(KERN_ERR "VFS: Unable to mount root fs via NFS, trying floppy.\n");
+	ROOT_DEV = MKDEV(FLOPPY_MAJOR, 0);
+skip_nfs:
 #endif
 
 #ifdef CONFIG_BLK_DEV_FD
@@ -1369,11 +1355,8 @@ void __init mount_root(void)
 		kdevname(ROOT_DEV));
 
 mount_it:
-	sb->s_flags = root_mountflags;
-	current->fs->root = dget(sb->s_root);
-	current->fs->rootmnt = mntget(vfsmnt);
-	current->fs->pwd = dget(sb->s_root);
-	current->fs->pwdmnt = mntget(vfsmnt);
+	set_fs_root(current->fs, vfsmnt, sb->s_root);
+	set_fs_pwd(current->fs, vfsmnt, sb->s_root);
 	printk ("VFS: Mounted root (%s filesystem)%s.\n",
 		fs_type->name,
 		(sb->s_flags & MS_RDONLY) ? " readonly" : "");
@@ -1388,7 +1371,8 @@ mount_it:
 	}
 	else vfsmnt = add_vfsmnt (sb, "/dev/root", "/");
 	if (vfsmnt) {
-		bdput(bdev); /* sb holds a reference */
+		if (bdev)
+			bdput(bdev); /* sb holds a reference */
 		return;
 	}
 	panic("VFS: add_vfsmnt failed for root fs");
@@ -1402,27 +1386,22 @@ static void chroot_fs_refs(struct dentry *old_root,
 {
 	struct task_struct *p;
 
+	/* We can't afford dput() blocking under the tasklist_lock */
+	mntget(old_rootmnt);
+	dget(old_root);
+
 	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (!p->fs) continue;
-		if (p->fs->root == old_root && p->fs->rootmnt == old_rootmnt) {
-			p->fs->root = dget(new_root);
-			p->fs->rootmnt = mntget(new_rootmnt);
-			mntput(old_rootmnt);
-			dput(old_root);
-			printk(KERN_DEBUG "chroot_fs_refs: changed root of "
-			    "process %d\n",p->pid);
-		}
-		if (p->fs->pwd == old_root && p->fs->pwdmnt == old_rootmnt) {
-			p->fs->pwd = dget(new_root);
-			p->fs->pwdmnt = mntget(new_rootmnt);
-			mntput(old_rootmnt);
-			dput(old_root);
-			printk(KERN_DEBUG "chroot_fs_refs: changed cwd of "
-			    "process %d\n",p->pid);
-		}
+		if (p->fs->root == old_root && p->fs->rootmnt == old_rootmnt)
+			set_fs_root(p->fs, new_rootmnt, new_root);
+		if (p->fs->pwd == old_root && p->fs->pwdmnt == old_rootmnt)
+			set_fs_pwd(p->fs, new_rootmnt, new_root);
 	}
 	read_unlock(&tasklist_lock);
+
+	dput(old_root);
+	mntput(old_rootmnt);
 }
 
 /*
@@ -1570,14 +1549,6 @@ int __init change_root(kdev_t new_root_dev,const char *put_old)
 		bdev = do_umount(old_root_dev,1, 0);
 		if (!IS_ERR(bdev)) {
 			printk("okay\n");
-			/* special: the old device driver is going to be
-			   a ramdisk and the point of this call is to free its
-			   protected memory (even if dirty). */
-			destroy_buffers(old_root_dev);
-			if (bdev) {
-				blkdev_put(bdev, BDEV_FS);
-				bdput(bdev);
-			}
 			return 0;
 		}
 		printk(KERN_ERR "error %ld\n",PTR_ERR(bdev));

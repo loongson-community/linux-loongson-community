@@ -62,7 +62,7 @@ running, the suggested command should tell you.
 - Bash                   1.14.7                  ; bash -version
 - Ncpfs                  2.2.0                   ; ncpmount -v
 - Pcmcia-cs              3.1.2                   ; cardmgr -V
-- PPP                    2.3.11                  ; pppd --version
+- PPP                    2.4.0b1                 ; pppd --version
 - Util-linux             2.9i                    ; chsh -v
 - isdn4k-utils           v3.1beta7               ; isdnctrl 2>&1|grep version
 
@@ -391,22 +391,33 @@ support utils to the latest release of pcmcia-cs.
 PPP
 ===
 
-   Due to changes in the PPP driver and routing code, those of you
+   The PPP driver has been restructured to support multilink and
+to enable it to operate over diverse kinds of media.  Those of you
 using PPP networking will need to upgrade your pppd to at least
-version 2.3.11. See ftp://cs.anu.edu.au/pub/software/ppp/ for newest
-versions.
+version 2.4.0b1.  See ftp://linuxcare.com.au/pub/ppp/ for the latest
+version.
 
-   You must make sure that the special device file /dev/ppp exists.
-It can be made by executing this command as root:
+   If you are not using devfs, you must make sure that the special
+device file /dev/ppp exists.  It can be made by executing this command
+as root:
 
 	mknod /dev/ppp c 108 0
 
    If you have built ppp support as modules, you should put the lines
-below in your /etc/modules.conf file. I assume you want asynchronous
-ppp; replace ppp_async by ppp_synctty if you want synchronous ppp.
+below in your /etc/modules.conf file.
 
-	alias char-major-108 ppp_generic
-	alias tty-ldisc-3 ppp_async
+	alias char-major-108	ppp_generic
+	alias /dev/ppp		ppp_generic
+	alias tty-ldisc-3	ppp_async
+	alias tty-ldisc-14	ppp_synctty
+	alias ppp-compress-21	bsd_comp
+	alias ppp-compress-24	ppp_deflate
+	alias ppp-compress-26	ppp_deflate
+
+If you are using devfsd and you have ppp_generic as a module, put the
+following line in your /etc/devfsd.conf:
+
+	LOOKUP		ppp		MODLOAD
 
 iBCS
 ====
@@ -424,12 +435,6 @@ Psmisc
 
    fuser, which comes with psmisc, reads /proc/*/fd/* to do its job.
 Upgrade psmisc if 2.2 changes to /proc broke the version you're using.
-
-Tunelp
-======
-
-   A new version of tunelp is available which will allow you to enable
-"trustirq" mode, improving printing while using IRQ-driven lp ports.
 
 PCI utils
 =========
@@ -524,6 +529,17 @@ Logical Volume Manager
 Since 2.3.47 the kernel contains the Logical Volume Manager aka LVM. To use it,
 you need to install the LVM tools. More information can be found at the home page
 of the LVM project at http://linux.msede.com/lvm/.
+
+Inline Documentation
+====================
+Many of the functions available for modules to use are now documented
+with specially-formatted comments near their definitions.  These
+comments can be combined with the SGML templates in the
+Documentation/DocBook directory to make DocBook files, which can then
+be combined with DocBook stylesheets to make PostScript documents,
+HTML pages, PDF files, and so on.  In order to convert from DocBook
+format to a format of your choice, you'll need to install jade, as
+well as some stylesheets.
 
 
 Where to get the files
@@ -718,8 +734,8 @@ ftp://metalab.unc.edu/pub/Linux/system/serial/setserial-2.15.tar.gz
 PPP
 ===
 
-The 2.3.11 release:
-ftp://cs.anu.edu.au/pub/software/ppp/ppp-2.3.11.tar.gz
+The 2.4.0b1 release:
+ftp://linuxcare.com.au/pub/ppp/ppp-2.4.0b1.tar.gz
 
 IP Chains
 =========
@@ -775,12 +791,6 @@ The 0.1.2 release:
 http://linux.powertweak.com/files/powertweak-0.1.2.tgz
 ftp://atrey.karlin.mff.cuni.cz/pub/linux/pci/powertweak/powertweak-0.1.2.tgz
 
-Tunelp
-======
-
-The 0-2.1.131 release:
-ftp://e-mind.com/pub/linux/tunelp/tunelp-0-2.1.131.tar.gz
-
 Xosview
 =======
 
@@ -817,6 +827,17 @@ Logical Volume Manager
 
 The 0.7 release:
 ftp://linux.msede.com/lvm/v0.7/lvm_0.7.tar.gz
+
+Jade
+====
+
+The 1.2.1 release:
+ftp://ftp.jclark.com/pub/jade/jade-1.2.1.tar.gz
+
+DSSSL Stylesheets for the DocBook DTD
+=====================================
+
+http://nwalsh.com/docbook/dsssl/
 
 
 Other Info
