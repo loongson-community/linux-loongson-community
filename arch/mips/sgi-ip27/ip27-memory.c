@@ -195,7 +195,7 @@ void __init prom_meminit(void)
 		node_data[node] = __va(slot_freepfn << PAGE_SHIFT);
 		node_data[node]->bdata = &plat_node_bdata[node];
 
-		hub_data[node] = node_data[node] + 1;
+		hub_data[node] = (struct hub_data *)(node_data[node] + 1);
 
 		slot_freepfn += PFN_UP(sizeof(struct pglist_data) +
 				       sizeof(struct hub_data));
