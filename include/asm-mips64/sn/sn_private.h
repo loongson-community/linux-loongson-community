@@ -1,3 +1,5 @@
+extern nasid_t master_nasid;
+
 extern cnodeid_t get_compact_nodeid(void);
 extern void hub_rtc_init(cnodeid_t);
 extern void cpu_time_init(void);

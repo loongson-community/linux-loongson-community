@@ -42,6 +42,7 @@ int		maxcpus;
 static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
 static cnodemask_t hub_init_mask;
 static atomic_t numstarted = ATOMIC_INIT(1);
+nasid_t master_nasid = INVALID_NASID;
 
 cnodeid_t	nasid_to_compact_node[MAX_NASIDS];
 nasid_t		compact_to_nasid_node[MAX_COMPACT_NODES];
@@ -190,6 +191,7 @@ void mlreset (void)
 {
 	int i;
 
+	master_nasid = get_nasid();
 	fine_mode = is_fine_dirmode();
 
 	/*
