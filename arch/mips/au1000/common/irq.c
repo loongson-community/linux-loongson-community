@@ -94,6 +94,7 @@ extern void counter0_irq(int irq, void *dev_id, struct pt_regs *regs);
 
 static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 {
+	if (irq_nr > AU1000_MAX_INTR) return;
 	/* Config2[n], Config1[n], Config0[n] */
 	if (irq_nr > AU1000_LAST_INTC0_INT) {
 		switch (type) {
@@ -385,7 +386,7 @@ void __init init_IRQ(void)
 	memcpy((void *)KSEG0, &except_vec0_au1000, 0x80);
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
 	
-	for (i = 0; i <= NR_IRQS; i++) {
+	for (i = 0; i <= AU1000_MAX_INTR; i++) {
 		switch (i) {
 			case AU1000_UART0_INT:
 			case AU1000_UART1_INT:
