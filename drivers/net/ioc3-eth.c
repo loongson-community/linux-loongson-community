@@ -626,10 +626,9 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
  * configurations and we stop when we see a link-up condition before the
  * maximum number of "peek" ticks have occurred.
  *
- * Once a valid link status has been detected we configure the BigMAC and the
- * rest of the Happy Meal to speak the most efficient protocol we could
- * get a clean link for.  The priority for link configurations, highest first
- * is:
+ * Once a valid link status has been detected we configure the IOC3 to speak
+ * the most efficient protocol we could get a clean link for.  The priority
+ * for link configurations, highest first is:
  *
  *     100 Base-T Full Duplex
  *     100 Base-T Half Duplex
@@ -984,11 +983,11 @@ ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
 		mii_write(ip, MII_ADVERTISE, ip->sw_advertise);
 
 		/*
-		 * XXX Currently no Happy Meal cards I know off support
-		 * XXX 100BaseT4, XXX and this is because the DP83840 does not
-		 * XXX support it, changes XXX would need to be made to the
-		 * XXX tx/rx logic in the driver as well so I completely skip
-		 * XXX checking for it in the BMSR for now.
+		 * XXX Currently no IOC3 card I know off supports 100BaseT4,
+		 * XXX and this is because the DP83840 does not support it,
+		 * XXX changes XXX would need to be made to the tx/rx logic in
+		 * XXX the driver as well so I completely skip checking for it
+		 * XXX in the BMSR for now.
 		 */
 
 #ifdef AUTO_SWITCH_DEBUG
@@ -1011,7 +1010,7 @@ ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
 		ip->sw_bmcr |= BMCR_ANRESTART;
 		mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
-		/* MII_CR_ANRESTART self clears when the process has begun. */
+		/* BMCR_ANRESTART self clears when the process has begun. */
 
 		timeout = 64;  /* More than enough. */
 		while (--timeout) {
@@ -1021,10 +1020,11 @@ ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
 			udelay(10);
 		}
 		if (!timeout) {
-			printk(KERN_ERR "%s: Happy Meal would not start auto negotiation "
-			       "BMCR=0x%04x\n", ip->dev->name, ip->sw_bmcr);
-			printk(KERN_NOTICE "%s: Performing force link detection.\n",
-			       ip->dev->name);
+			printk(KERN_ERR "%s: IOC3 would not start auto "
+			       "negotiation BMCR=0x%04x\n",
+			       ip->dev->name, ip->sw_bmcr);
+			printk(KERN_NOTICE "%s: Performing force link "
+			       "detection.\n", ip->dev->name);
 			goto force_link;
 		} else {
 			ip->timer_state = arbwait;
@@ -1032,9 +1032,9 @@ ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
 	} else {
 force_link:
 		/*
-		 * Force the link up, trying first a particular mode.
-		 * Either we are here at the request of ethtool or
-		 * because the Happy Meal would not start to autoneg.
+		 * Force the link up, trying first a particular mode.  Either
+		 * we are here at the request of ethtool or because the IOC3
+		 * would not start to autoneg.
 		 */
 
 		/*
