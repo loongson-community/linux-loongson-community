@@ -657,7 +657,7 @@ static void __init build_r3000_tlb_refill_handler(void)
 	i_sll(&p, K0, K0, 2);
 	i_addu(&p, K1, K1, K0);
 	i_mfc0(&p, K0, C0_CONTEXT);
-	i_lw(&p, K1, 0, K1);
+	i_lw(&p, K1, 0, K1); /* cp0 delay */
 	i_andi(&p, K0, K0, 0xffc); /* load delay */
 	i_addu(&p, K1, K1, K0);
 	i_lw(&p, K0, 0, K1);
@@ -665,7 +665,7 @@ static void __init build_r3000_tlb_refill_handler(void)
 	i_mtc0(&p, K0, C0_ENTRYLO0);
 	i_mfc0(&p, K1, C0_EPC); /* cp0 delay */
 	i_tlbwr(&p); /* cp0 delay */
-	i_jr(&p, K1); /* cp0 delay */
+	i_jr(&p, K1);
 	i_rfe(&p); /* branch delay */
 
 	if (p > tlb_handler + 32)
