@@ -172,6 +172,7 @@ config MIPS_COBALT
 
 config MACH_DECSTATION
 	bool "Support for DECstations"
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select IRQ_CPU
 	depends on MIPS32 || EXPERIMENTAL
@@ -278,6 +279,7 @@ config IT8172_REVC
 
 config MIPS_ATLAS
 	bool "Support for MIPS Atlas board"
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select MIPS_GT64120
@@ -288,6 +290,7 @@ config MIPS_ATLAS
 
 config MIPS_MALTA
 	bool "Support for MIPS Malta board"
+	select BOOT_ELF32
 	select HAVE_STD_PC_SERIAL_PORT
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
@@ -345,6 +348,7 @@ config MOMENCO_OCELOT_C
 
 config MOMENCO_OCELOT_3
 	bool "Support for Momentum Ocelot-3 board"
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select IRQ_CPU
@@ -359,6 +363,7 @@ config MOMENCO_OCELOT_3
 
 config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select IRQ_CPU
@@ -450,6 +455,7 @@ config NEC_OSPREY
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
 	select ARC
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select IP22_CPU_SCACHE
 	select IRQ_CPU
@@ -530,6 +536,7 @@ config SGI_IP32
 	bool "Support for SGI IP32 (O2) (EXPERIMENTAL)"
 	depends on MIPS64 && EXPERIMENTAL
 	select ARC
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select R5000_CPU_SCACHE
@@ -648,6 +655,7 @@ endchoice
 config SIBYTE_SB1xxx_SOC
 	bool "Support for Broadcom BCM1xxx SOCs (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select BOOT_ELF32
 	select DMA_COHERENT
 	select SWAP_IO_SPACE
 
@@ -861,6 +869,7 @@ config SIBYTE_TBPROF
 config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
 	select ARC
+	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select GENERIC_ISA_DMA
 	select HAVE_STD_PC_SERIAL_PORT
@@ -1046,8 +1055,6 @@ config IT8712
 
 config BOOT_ELF32
 	bool
-	depends on MACH_DECSTATION || MIPS_ATLAS || MIPS_MALTA || MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT_3 || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
-	default y
 
 config MIPS_L1_CACHE_SHIFT
 	int
