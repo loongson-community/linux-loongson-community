@@ -27,7 +27,9 @@ CONFIG_MIPS_EV96100=y
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_SBUS is not set
 CONFIG_PCI=y
+CONFIG_MIPS_GT96100=y
 # CONFIG_ISA is not set
+# CONFIG_I8259 is not set
 
 #
 # Loadable module support
@@ -196,6 +198,7 @@ CONFIG_NETDEVICES=y
 # Ethernet (10 or 100Mbit)
 #
 CONFIG_NET_ETHERNET=y
+CONFIG_MIPS_GT96100ETH=y
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
