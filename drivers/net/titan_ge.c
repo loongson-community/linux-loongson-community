@@ -1121,15 +1121,12 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	int err = 0;
 
 	/* Stop the Rx activity */
-	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_1 +
-				(port_num << 12));
+	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_1 + (port_num << 12));
 	reg_data &= ~(0x00000001);
-	TITAN_GE_WRITE((TITAN_GE_RMAC_CONFIG_1 +
-			(port_num << 12)), reg_data);
+	TITAN_GE_WRITE((TITAN_GE_RMAC_CONFIG_1 + (port_num << 12)), reg_data);
 
 	/* Clear the port interrupts */
-	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_INTERRUPT +
-			(port_num << 8)), 0x0);
+	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_INTERRUPT + (port_num << 8)), 0x0);
 
 	if (config_done == 0) {
 		TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, 0);
@@ -1178,12 +1175,10 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1000 + TITAN_RX_RING_BYTES * port_num;
 
 	if (!titan_ge_eth->rx_desc_area) {
-		printk(KERN_ERR
-		       "%s: Cannot allocate Rx Ring (size %d bytes)\n",
+		printk(KERN_ERR "%s: Cannot allocate Rx Ring (size %d bytes)\n",
 		       netdev->name, TITAN_RX_RING_BYTES);
 
-		printk(KERN_ERR
-		       "%s: Freeing previously allocated TX queues...",
+		printk(KERN_ERR "%s: Freeing previously allocated TX queues...",
 		       netdev->name);
 
 		dma_free_coherent(device, titan_ge_eth->tx_desc_area_size,
@@ -1317,8 +1312,7 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 	packet->checksum = ntohs((rx_desc->buffer & 0xffff0000) >> 16);
 	packet->cmd_sts = rx_desc->cmd_sts;
 
-	titan_ge_port->rx_curr_desc_q =
-	    (rx_curr_desc + 1) % TITAN_GE_RX_QUEUE;
+	titan_ge_port->rx_curr_desc_q = (rx_curr_desc + 1) % TITAN_GE_RX_QUEUE;
 
 	/* Prefetch the next descriptor */
 	prefetch((const void *)
@@ -1761,8 +1755,7 @@ static int titan_ge_init_rx_desc_ring(titan_ge_port_info * titan_eth_port,
 	titan_eth_port->rx_curr_desc_q = 0;
 	titan_eth_port->rx_used_desc_q = 0;
 
-	titan_eth_port->rx_desc_area =
-	    (titan_ge_rx_desc *) rx_desc_base_addr;
+	titan_eth_port->rx_desc_area = (titan_ge_rx_desc *) rx_desc_base_addr;
 	titan_eth_port->rx_desc_area_size =
 	    rx_desc_num * sizeof(titan_ge_rx_desc);
 
