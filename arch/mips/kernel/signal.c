@@ -508,9 +508,9 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	regs->regs[0] = 0;		/* Don't deal with this again.  */
 
 #ifdef CONFIG_TRAD_SIGNALS
-	if (ka->sa.sa_flags & SA_SIGINFO)
+	if (ka->sa.sa_flags & SA_SIGINFO) {
 #else
-	if (1)
+	if (1) {
 #endif
 #ifdef CONFIG_MIPS32_N32
 		if ((current->thread.mflags & MF_ABI_MASK) == MF_N32)
@@ -518,8 +518,11 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 		else
 #endif
 			setup_rt_frame(ka, regs, sig, oldset, info);
+	}
+#ifdef CONFIG_TRAD_SIGNALS
 	else
 		setup_frame(ka, regs, sig, oldset);
+#endif
 
 	if (ka->sa.sa_flags & SA_ONESHOT)
 		ka->sa.sa_handler = SIG_DFL;
