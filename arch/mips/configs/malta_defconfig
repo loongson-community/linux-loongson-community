@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:46 2004
+# Mon Dec 27 19:10:59 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -87,7 +87,6 @@ CONFIG_MIPS_MALTA=y
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 CONFIG_HAVE_DEC_LOCK=y
 CONFIG_DMA_NONCOHERENT=y
-CONFIG_GENERIC_ISA_DMA=y
 CONFIG_I8259=y
 CONFIG_MIPS_BONITO64=y
 CONFIG_MIPS_MSC=y
@@ -97,7 +96,6 @@ CONFIG_MIPS_GT64120=y
 CONFIG_SWAP_IO_SPACE=y
 CONFIG_BOOT_ELF32=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-# CONFIG_FB is not set
 CONFIG_HAVE_STD_PC_SERIAL_PORT=y
 
 #
@@ -504,6 +502,7 @@ CONFIG_RTC=y
 #
 # Graphics support
 #
+# CONFIG_FB is not set
 
 #
 # Console display driver support

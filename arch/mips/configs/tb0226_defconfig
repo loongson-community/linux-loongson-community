@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:51 2004
+# Mon Dec 27 19:11:04 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -97,7 +97,6 @@ CONFIG_DMA_NONCOHERENT=y
 CONFIG_CPU_LITTLE_ENDIAN=y
 CONFIG_IRQ_CPU=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-CONFIG_FB=y
 
 #
 # CPU selection
@@ -504,6 +503,7 @@ CONFIG_LEGACY_PTY_COUNT=256
 #
 # Graphics support
 #
+CONFIG_FB=y
 # CONFIG_FB_MODE_HELPERS is not set
 # CONFIG_FB_TILEBLITTING is not set
 # CONFIG_FB_VIRTUAL is not set

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:52 2004
+# Mon Dec 27 19:11:05 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -88,7 +88,6 @@ CONFIG_IRQ_CPU_RM7K=y
 CONFIG_IRQ_CPU_RM9K=y
 CONFIG_SWAP_IO_SPACE=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -442,6 +441,7 @@ CONFIG_GEN_RTC_X=y
 #
 # Graphics support
 #
+# CONFIG_FB is not set
 
 #
 # Sound

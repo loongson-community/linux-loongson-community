@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:47 2004
+# Mon Dec 27 19:11:00 2004
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
@@ -85,7 +85,6 @@ CONFIG_IRQ_MV64340=y
 CONFIG_PCI_MARVELL=y
 CONFIG_SWAP_IO_SPACE=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -475,6 +474,7 @@ CONFIG_LEGACY_PTY_COUNT=256
 #
 # Graphics support
 #
+# CONFIG_FB is not set
 
 #
 # Console display driver support

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:50 2004
+# Mon Dec 27 19:11:03 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -93,10 +93,9 @@ CONFIG_DMA_NONCOHERENT=y
 CONFIG_GENERIC_ISA_DMA=y
 CONFIG_I8259=y
 CONFIG_CPU_LITTLE_ENDIAN=y
+CONFIG_ARC32=y
 CONFIG_BOOT_ELF32=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-CONFIG_ARC32=y
-# CONFIG_FB is not set
 CONFIG_HAVE_STD_PC_SERIAL_PORT=y
 CONFIG_ARC_CONSOLE=y
 CONFIG_ARC_MEMORY=y
@@ -894,6 +893,7 @@ CONFIG_W1_SMEM=m
 #
 # Graphics support
 #
+# CONFIG_FB is not set
 
 #
 # Console display driver support

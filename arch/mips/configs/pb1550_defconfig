@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:49 2004
+# Mon Dec 27 19:11:02 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -106,7 +106,6 @@ CONFIG_DMA_COHERENT=y
 CONFIG_MIPS_DISABLE_OBSOLETE_IDE=y
 CONFIG_CPU_LITTLE_ENDIAN=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -603,6 +602,7 @@ CONFIG_SYNCLINK_CS=m
 #
 # Graphics support
 #
+# CONFIG_FB is not set
 
 #
 # Sound

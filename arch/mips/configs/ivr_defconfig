@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 06:11:44 2004
+# Mon Dec 27 19:10:57 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -92,7 +92,6 @@ CONFIG_CPU_LITTLE_ENDIAN=y
 CONFIG_ITE_BOARD_GEN=y
 CONFIG_IT8172_CIR=y
 CONFIG_MIPS_L1_CACHE_SHIFT=5
-# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -499,6 +498,7 @@ CONFIG_RTC=y
 #
 # Graphics support
 #
+# CONFIG_FB is not set
 
 #
 # Console display driver support
