@@ -733,6 +733,11 @@ config MIPS_BOARDS_GEN
 	depends on MIPS_ATLAS || MIPS_MALTA || MIPS_SEAD
 	default y
 
+config MIPS_GT64111
+	bool
+	depends on MIPS_COBALT
+	default y
+
 config MIPS_GT64120
 	bool
 	depends on MIPS_EV64120 || MIPS_EV96100 || LASAT || MIPS_ATLAS || MIPS_MALTA || MOMENCO_OCELOT

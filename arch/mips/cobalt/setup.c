@@ -18,6 +18,7 @@
 #include <linux/ide.h>
 
 #include <asm/bootinfo.h>
+#include <asm/pci_channel.h>
 #include <asm/time.h>
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -34,6 +35,7 @@ extern void cobalt_machine_power_off(void);
 extern struct rtc_ops std_rtc_ops;
 extern struct ide_ops std_ide_ops;
 
+int cobalt_board_id;
 
 char arcs_cmdline[CL_SIZE] = {
  "console=ttyS0,115200 "
@@ -72,9 +74,38 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	GALILEO_OUTL(0x100, GT_INTRMASK_OFS);
 }
 
+extern struct pci_ops gt64111_pci_ops;
+
+static struct resource cobalt_mem_resource = {
+	"GT64111 PCI MEM", GT64111_IO_BASE, 0xffffffffUL, IORESOURCE_MEM
+};
+
+static struct resource cobalt_io_resource = {
+	"GT64111 IO MEM", 0x00001000UL, 0x0fffffffUL, IORESOURCE_IO
+};
+
+static struct resource cobalt_io_resources[] = {
+	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
+	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
+	{ "keyboard", 0x60, 0x6f, IORESOURCE_BUSY },
+	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
+	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
+};
+
+#define COBALT_IO_RESOURCES (sizeof(cobalt_io_resources)/sizeof(struct resource))
+
+static struct pci_controller cobalt_pci_controller = {
+	.pci_ops	= &gt64111_pci_ops,
+	.mem_resource	= &cobalt_mem_resource,
+	.mem_offset	= 0,
+	.io_resource	= &cobalt_io_resource,
+	.io_offset	= 0x00001000UL - GT64111_IO_BASE
+};
 
 void __init cobalt_setup(void)
 {
+	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
+	int i;
 
 	_machine_restart = cobalt_machine_restart;
 	_machine_halt = cobalt_machine_halt;
@@ -87,7 +118,7 @@ void __init cobalt_setup(void)
 	ide_ops = &std_ide_ops;
 #endif
 
-        set_io_port_base(KSEG1ADDR(0x10000000));
+        set_io_port_base(KSEG1ADDR(GT64111_IO_BASE));
 
 	/*
 	 * This is a prom style console. We just poke at the
@@ -96,6 +127,20 @@ void __init cobalt_setup(void)
 	 *  get to the stage of setting up a real serial console.
 	 */
 	/*ns16550_setup_console();*/
+
+	/* request I/O space for devices used on all i[345]86 PCs */
+	for (i = 0; i < COBALT_IO_RESOURCES; i++)
+		request_resource(&ioport_resource, cobalt_io_resources + i);
+
+        /* Read the cobalt id register out of the PCI config space */
+        PCI_CFG_SET(devfn, (VIA_COBALT_BRD_ID_REG & ~0x3));
+        cobalt_board_id = GALILEO_INL(GT_PCI0_CFGDATA_OFS);
+        cobalt_board_id >>= ((VIA_COBALT_BRD_ID_REG & 3) * 8);
+        cobalt_board_id = VIA_COBALT_BRD_REG_to_ID(cobalt_board_id);
+
+#ifdef CONFIG_PCI
+	register_pci_controller(&cobalt_pci_controller);
+#endif
 }
 
 /* Prom init. We read our one and only communication with the

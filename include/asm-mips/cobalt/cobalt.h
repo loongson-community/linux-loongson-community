@@ -65,8 +65,11 @@
 /*
  * Galileo chipset access macros for the Cobalt. The base address for
  * the GT64111 chip is 0x14000000
+ *
+ * Most of this really should go into a separate GT64111 header file.
  */
-#define GT64111_BASE		0x14000000
+#define GT64111_IO_BASE		0x10000000UL
+#define GT64111_BASE		0x14000000UL
 #define GALILEO_REG(ofs)	(KSEG0 + GT64111_BASE + (unsigned long)(ofs))
 
 #define GALILEO_INL(port)	(*(volatile unsigned int *) GALILEO_REG(port))
@@ -78,5 +81,10 @@ do {									\
 #define GALILEO_T0EXP		0x0100
 #define GALILEO_ENTC0		0x01
 #define GALILEO_SELTC0		0x02
+
+#define PCI_CFG_SET(devfn,where)					\
+	GALILEO_OUTL((0x80000000 | (PCI_SLOT (devfn) << 11) |		\
+		(PCI_FUNC (devfn) << 8) | (where)), GT_PCI0_CFGADDR_OFS)
+
 
 #endif /* __ASM_COBALT_H */
