@@ -647,16 +647,16 @@ config ZAO_CAPCELLA
 
 choice
 	prompt "Kernel page size"
-	default CONFIG_PAGE_SIZE_4KB
+	default PAGE_SIZE_4KB
 
-config CONFIG_PAGE_SIZE_4KB
+config PAGE_SIZE_4KB
 	bool "4kB"
 
-config CONFIG_PAGE_SIZE_16KB
+config PAGE_SIZE_16KB
 	bool "16kB"
 	depends on EXPERIMENTAL
 
-config CONFIG_PAGE_SIZE_64KB
+config PAGE_SIZE_64KB
 	bool "64kB"
 	depends on EXPERIMENTAL
 
