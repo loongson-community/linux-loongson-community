@@ -266,6 +266,7 @@ extern unsigned int get_au1000_lcd_clock(void);
 #define AU1000_GPIO_29            61
 #define AU1000_GPIO_30            62
 #define AU1000_GPIO_31            63
+#define AU1000_MAX_INTR           63
 
 /* Programmable Counters 0 and 1 */
 #define PC_BASE                   0xB1900000

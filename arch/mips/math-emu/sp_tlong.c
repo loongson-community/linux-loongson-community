@@ -49,6 +49,9 @@ long long ieee754sp_tlong(ieee754sp x)
 		break;
 	}
 	if (xe >= 63) {
+		/* look for valid corner case */
+		if (xe == 63 && xs && xm == SP_HIDDEN_BIT)
+			return -9223372036854775808LL;
 		/* Set invalid. We will only use overflow for floating
 		   point overflow */
 		SETCX(IEEE754_INVALID_OPERATION);

@@ -50,6 +50,9 @@ int ieee754sp_tint(ieee754sp x)
 		break;
 	}
 	if (xe >= 31) {
+		/* look for valid corner case */
+		if (xe == 31 && xs && xm == SP_HIDDEN_BIT)
+			return -2147483648;
 		/* Set invalid. We will only use overflow for floating
 		   point overflow */
 		SETCX(IEEE754_INVALID_OPERATION);
