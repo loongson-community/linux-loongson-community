@@ -334,6 +334,15 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 	bridge->b_int_enable |= 0x7ffffe00;
 
 	/*
+	 * Enable sending of an interrupt clear packt to the hub on a high to
+	 * low transition of the interrupt pin.
+	 *
+	 * IRIX sets additional bits in the address which are documented as
+	 * reserved in the bridge docs.
+	 */
+	bridge->b_int_mode |= (1UL << pin);
+
+	/*
 	 * We assume the bridge to have a 1:1 mapping between devices
 	 * (slots) and intr pins.
 	 */

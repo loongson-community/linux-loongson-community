@@ -249,7 +249,6 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	 * Hmm...  IRIX sets additional bits in the address which
 	 * are documented as reserved in the bridge docs.
 	 */
-	bridge->b_int_mode = 0xff;		/* clear ints */
 	bridge->b_wid_int_upper = 0x8000 | (masterwid << 16);
 	bridge->b_wid_int_lower = 0x01800090;	/* PI_INT_PEND_MOD off*/
 	bridge->b_dir_map = (masterwid << 20);	/* DMA */
