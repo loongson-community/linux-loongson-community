@@ -47,7 +47,7 @@ struct pci_dev;
  * networking and block device layers use this boolean for bounce buffer
  * decisions.  This is set if any hose does not have an IOMMU.
  */
-extern int PCI_DMA_BUS_IS_PHYS;
+extern unsigned int PCI_DMA_BUS_IS_PHYS;
 
 #ifdef CONFIG_MAPPED_DMA_IO
 

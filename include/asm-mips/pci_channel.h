@@ -21,12 +21,15 @@ struct pci_controller {
 
 	struct pci_ops *pci_ops;
 	struct resource *mem_resource;
+	unsigned long mem_offset;
 	struct resource *io_resource;
+	unsigned long io_offset;
 
 	/* For compatibility with current (as of July 2003) pciutils
 	   and XFree86. Eventually will be removed. */
 	unsigned int need_domain_info;
-	int iommu;			/* Set if iommu on this bus */
+
+	int iommu;
 };
 
 /*

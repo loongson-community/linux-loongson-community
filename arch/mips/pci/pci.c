@@ -35,9 +35,9 @@ unsigned int pci_probe = PCI_ASSIGN_ALL_BUSSES;
 struct pci_controller *hose_head, **hose_tail = &hose_head;
 struct pci_controller *pci_isa_hose;
 
-unsigned long PCIBIOS_MIN_IO	= 0x1000;
+unsigned long PCIBIOS_MIN_IO	= 0x0000;
 unsigned long PCIBIOS_MIN_MEM	= 0;
-int PCI_DMA_BUS_IS_PHYS = 0;
+unsigned int PCI_DMA_BUS_IS_PHYS = 0;
 
 /*
  * We need to avoid collisions with `mirrored' VGA ports
@@ -227,35 +227,24 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 	return 0;
 }
 
-static void __init pcibios_fixup_resource(struct pci_dev *dev,
-	struct resource *res, struct resource *root)
-{
-	struct pci_controller *hose = (struct pci_controller *) dev->sysdata;
-
-	if (hose->iommu) {
-		res->start += root->start;
-		res->end += root->start;
-	}
-}
-
 static void __init pcibios_fixup_device_resources(struct pci_dev *dev,
 	struct pci_bus *bus)
 {
 	/* Update device resources.  */
 	struct pci_controller *hose = (struct pci_controller *)bus->sysdata;
+	unsigned long offset;
 	int i;
 
 	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 		if (!dev->resource[i].start)
 			continue;
 		if (dev->resource[i].flags & IORESOURCE_IO)
-			pcibios_fixup_resource(dev,
-			                       &dev->resource[i],
-					       hose->io_resource);
+			offset = hose->io_offset;
 		else if (dev->resource[i].flags & IORESOURCE_MEM)
-			pcibios_fixup_resource(dev,
-			                       &dev->resource[i],
-					       hose->mem_resource);
+			offset = hose->mem_offset;
+
+		dev->resource[i].start += offset;
+		dev->resource[i].end += offset;
 	}
 }
 
@@ -297,12 +286,10 @@ pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 	struct pci_controller *hose = (struct pci_controller *)dev->sysdata;
 	unsigned long offset = 0;
 
-	if (hose->iommu) {
-		if (res->flags & IORESOURCE_IO)
-			offset = hose->io_resource->start;
-		else if (res->flags & IORESOURCE_MEM)
-			offset = hose->mem_resource->start;
-	}
+	if (res->flags & IORESOURCE_IO)
+		offset = hose->io_offset;
+	else if (res->flags & IORESOURCE_MEM)
+		offset = hose->mem_offset;
 
 	region->start = res->start - offset;
 	region->end = res->end - offset;

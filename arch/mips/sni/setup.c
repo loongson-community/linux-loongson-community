@@ -171,8 +171,10 @@ extern struct pci_ops sni_pci_ops;
 
 static struct pci_controller sni_controller = {
 	.pci_ops	= &sni_pci_ops,
+	.mem_resource	= &sni_mem_resource,
+	.mem_offset	= 0x10000000UL,
 	.io_resource	= &sni_io_resource,
-	.mem_resource	= &sni_mem_resource
+	.io_offset	= 0x1000
 };
 
 void __init sni_rm200_pci_setup(void)
