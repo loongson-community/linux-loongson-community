@@ -134,9 +134,9 @@ do {									\
 
 static void r4k_blast_dcache_page(unsigned long addr)
 {
-	R4600_HIT_CACHEOP_WAR_DECL;
 	static void *l = &&init;
 	unsigned long dc_lsize;
+	R4600_HIT_CACHEOP_WAR_DECL;
 
 	goto *l;
 
