@@ -284,14 +284,14 @@ __OUTS(w,l,4)
 	__inb_p(port))
 
 #define outw(val,port) \
-((__builtin_constant_p((port^2)) && (port^2) < 32768) ? \
-	__outwc((val),(port^2)) : \
-	__outw((val),(port^2)))
+((__builtin_constant_p(((port)^(2))) && ((port)^(2)) < 32768) ? \
+	__outwc((val),((port)^(2))) : \
+	__outw((val),((port)^(2))))
 
 #define inw(port) \
-((__builtin_constant_p((port^2)) && (port^2) < 32768) ? \
-	__inwc(port^2) : \
-	__inw(port^2))
+((__builtin_constant_p(((port)^(2))) && ((port)^(2)) < 32768) ? \
+	__inwc((port)^(2)) : \
+	__inw((port)^(2)))
 
 #define outw_p(val,port) \
 ((__builtin_constant_p((port)) && (port) < 32768) ? \
