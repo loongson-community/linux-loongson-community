@@ -10,7 +10,6 @@
  */
 
 #include <linux/tty.h>
-#include <linux/major.h>
 #include <linux/ptrace.h>
 #include <linux/init.h>
 #include <linux/console.h>
@@ -42,15 +41,9 @@ static int __init prom_console_setup(struct console *co, char *options)
 	return 0;
 }
 
-static kdev_t prom_console_device(struct console *c)
-{
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
-}
-
 static struct console sercons = {
 	.name	= "ttyS",
 	.write	= prom_console_write,
-	.device	= prom_console_device,
 	.setup	= prom_console_setup,
 	.flags	= CON_PRINTBUFFER,
 	.index	= -1,
