@@ -146,7 +146,7 @@ handle_mmu_bus_fault(struct pt_regs *regs)
  * routines.
  *
  * Notice that the address we're given is aligned to the page the fault
- * occured in, since we only get the PFN in R_MMU_CAUSE not the complete
+ * occurred in, since we only get the PFN in R_MMU_CAUSE not the complete
  * address.
  *
  * error_code:
@@ -212,7 +212,7 @@ do_page_fault(unsigned long address, struct pt_regs *regs,
 	if (in_interrupt() || !mm)
 		goto no_context;
 
-	down(&mm->mmap_sem);
+	down_read(&mm->mmap_sem);
 	vma = find_vma(mm, address);
 	if (!vma)
 		goto bad_area;
@@ -270,7 +270,7 @@ do_page_fault(unsigned long address, struct pt_regs *regs,
                 goto out_of_memory;
 	}
 
-	up(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 	return;
 	
 	/*
@@ -280,7 +280,7 @@ do_page_fault(unsigned long address, struct pt_regs *regs,
 
  bad_area:
 
-	up(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 
  bad_area_nosemaphore:
 	DPG(show_registers(regs));
@@ -334,14 +334,14 @@ do_page_fault(unsigned long address, struct pt_regs *regs,
 	 */
 
  out_of_memory:
-        up(&mm->mmap_sem);
+        up_read(&mm->mmap_sem);
 	printk("VM: killing process %s\n", tsk->comm);
 	if(user_mode(regs))
 		do_exit(SIGKILL);
 	goto no_context;
 
  do_sigbus:
-	up(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 
 	/*
          * Send a sigbus, regardless of whether we were in kernel
@@ -381,7 +381,7 @@ vmalloc_fault:
                 pmd = pmd_offset(pgd, address);
                 pmd_k = pmd_offset(pgd_k, address);
 
-                if (pmd_present(*pmd) || !pmd_present(*pmd_k))
+                if (!pmd_present(*pmd_k))
                         goto bad_area_nosemaphore;
                 set_pmd(pmd, *pmd_k);
                 return;

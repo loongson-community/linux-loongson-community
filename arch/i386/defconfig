@@ -280,6 +280,7 @@ CONFIG_SCSI_CONSTANTS=y
 # CONFIG_SCSI_AHA1542 is not set
 # CONFIG_SCSI_AHA1740 is not set
 # CONFIG_SCSI_AIC7XXX is not set
+# CONFIG_SCSI_AIC7XXX_OLD is not set
 # CONFIG_SCSI_ADVANSYS is not set
 # CONFIG_SCSI_IN2000 is not set
 # CONFIG_SCSI_AM53C974 is not set
@@ -382,7 +383,6 @@ CONFIG_EEPRO100=y
 # CONFIG_NE3210 is not set
 # CONFIG_ES3210 is not set
 # CONFIG_8139TOO is not set
-# CONFIG_RTL8129 is not set
 # CONFIG_SIS900 is not set
 # CONFIG_EPIC100 is not set
 # CONFIG_SUNDANCE is not set
@@ -434,6 +434,7 @@ CONFIG_PCMCIA_PCNET=y
 # CONFIG_PCMCIA_XIRTULIP is not set
 CONFIG_NET_PCMCIA_RADIO=y
 CONFIG_PCMCIA_RAYCS=y
+# CONFIG_PCMCIA_HERMES is not set
 # CONFIG_PCMCIA_NETWAVE is not set
 # CONFIG_PCMCIA_WAVELAN is not set
 # CONFIG_AIRONET4500_CS is not set
@@ -529,13 +530,11 @@ CONFIG_DRM_TDFX=y
 CONFIG_DRM_RADEON=y
 # CONFIG_DRM_I810 is not set
 # CONFIG_DRM_MGA is not set
-CONFIG_PCMCIA_SERIAL=y
 
 #
-# PCMCIA character device support
+# PCMCIA character devices
 #
 # CONFIG_PCMCIA_SERIAL_CS is not set
-# CONFIG_PCMCIA_SERIAL_CB is not set
 
 #
 # Multimedia devices

@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/ide/ide-probe.c	Version 1.06	June 9, 2000
+ *  linux/drivers/ide/ide-probe.c	Version 1.07	March 18, 2001
  *
  *  Copyright (C) 1994-1998  Linus Torvalds & authors (see below)
  */
@@ -25,6 +25,8 @@
  *			allowed for secondary flash card to be detectable
  *			 with new flag : drive->ata_flash : 1;
  * Version 1.06		stream line request queue and prep for cascade project.
+ * Version 1.07		max_sect <= 255; slower disks would get behind and
+ * 			then fall over when they get to 256.	Paul G.
  */
 
 #undef REALLY_SLOW_IO		/* most systems can safely undef this */
@@ -614,9 +616,14 @@ static int init_irq (ide_hwif_t *hwif)
 {
 	unsigned long flags;
 	unsigned int index;
-	ide_hwgroup_t *hwgroup;
+	ide_hwgroup_t *hwgroup, *new_hwgroup;
 	ide_hwif_t *match = NULL;
 
+	
+	/* Allocate the buffer and potentially sleep first */
+	
+	new_hwgroup = kmalloc(sizeof(ide_hwgroup_t),GFP_KERNEL);
+	
 	save_flags(flags);	/* all CPUs */
 	cli();			/* all CPUs */
 
@@ -650,10 +657,14 @@ static int init_irq (ide_hwif_t *hwif)
 	 */
 	if (match) {
 		hwgroup = match->hwgroup;
+		if(new_hwgroup)
+			kfree(new_hwgroup);
 	} else {
-		hwgroup = kmalloc(sizeof(ide_hwgroup_t), GFP_KERNEL);
-		if (!hwgroup)
+		hwgroup = new_hwgroup;
+		if (!hwgroup) {
+			restore_flags(flags);	/* all CPUs */
 			return 1;
+		}
 		memset(hwgroup, 0, sizeof(ide_hwgroup_t));
 		hwgroup->hwif     = hwif->next = hwif;
 		hwgroup->rq       = NULL;
@@ -763,10 +774,10 @@ static void init_gendisk (ide_hwif_t *hwif)
 	for (unit = 0; unit < minors; ++unit) {
 		*bs++ = BLOCK_SIZE;
 #ifdef CONFIG_BLK_DEV_PDC4030
-		*max_sect++ = ((hwif->chipset == ide_pdc4030) ? 127 : 256);
+		*max_sect++ = ((hwif->chipset == ide_pdc4030) ? 127 : 255);
 #else
 		/* IDE can do up to 128K per request. */
-		*max_sect++ = 256;
+		*max_sect++ = 255;
 #endif
 		*max_ra++ = MAX_READAHEAD;
 	}

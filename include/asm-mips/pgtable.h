@@ -222,21 +222,9 @@ extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define pgd_ERROR(e) \
 	printk("%s:%d: bad pgd %016lx.\n", __FILE__, __LINE__, pgd_val(e))
 
-/*
- * BAD_PAGETABLE is used when we need a bogus page-table, while
- * BAD_PAGE is used for a bogus page.
- *
- * ZERO_PAGE is a global shared page that is always zero: used
- * for zero-mapped memory areas etc..
- */
-extern pte_t __bad_page(void);
-extern pte_t *__bad_pagetable(void);
-
 extern unsigned long empty_zero_page;
 extern unsigned long zero_page_mask;
 
-#define BAD_PAGETABLE __bad_pagetable()
-#define BAD_PAGE __bad_page()
 #define ZERO_PAGE(vaddr) \
 	(virt_to_page(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
 
@@ -458,11 +446,6 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
  */
 extern void pgd_init(unsigned long page);
 
-extern void __bad_pte(pmd_t *pmd);
-extern void __bad_pte_kernel(pmd_t *pmd);
-
-#define pte_free_kernel(pte)    free_pte_fast(pte)
-#define pte_free(pte)           free_pte_fast(pte)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
 #define pgd_alloc()             get_pgd_fast()
 

@@ -152,14 +152,16 @@ static unsigned long dosample(volatile unsigned char *tcwp,
                 ct1 = read_32bit_cp0_register(CP0_COUNT);
         } while(msb);
 
-        /* Stop the counter. */
-        *tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MSWST);
+	/* Stop the counter. */
+	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MSWST);
 
-        /* Return the difference, this is how far the r4k counter increments
-         * for every 1/HZ seconds. We round off the nearest 1 MHz of
-	 * master clock (= 1000000 / 100 / 2 = 5000 count).
-         */
-        return ((ct1 - ct0) / 5000) * 5000;
+	/*
+	 * Return the difference, this is how far the r4k counter increments
+	 * for every 1/HZ seconds. We round off the nearest 1 MHz of master
+	 * clock (= 1000000 / 100 / 2 = 5000 count).
+	 */
+
+	return ((ct1 - ct0) / 5000) * 5000;
 }
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)

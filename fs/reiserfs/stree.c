@@ -734,7 +734,7 @@ int search_by_key (struct super_block * p_s_sb,
 	    return IO_ERROR;
 	}
 
-	/* It is possible that schedule occured. We must check whether the key
+	/* It is possible that schedule occurred. We must check whether the key
 	   to search is still in the tree rooted from the current buffer. If
 	   not then repeat search from the root. */
 	if ( fs_changed (fs_gen, p_s_sb) && 
@@ -1438,7 +1438,6 @@ int reiserfs_delete_item (struct reiserfs_transaction_handle *th,
 
     if ( p_s_un_bh )  {
 	int off;
-        int block_off ;
         char *data ;
 
 	/* We are in direct2indirect conversion, so move tail contents
@@ -1452,7 +1451,8 @@ int reiserfs_delete_item (struct reiserfs_transaction_handle *th,
 	** the unformatted node, which might schedule, meaning we'd have to
 	** loop all the way back up to the start of the while loop.
 	**
-	** The unformatted node is prepared and logged after the do_balance.
+	** The unformatted node must be dirtied later on.  We can't be
+	** sure here if the entire tail has been deleted yet.
         **
         ** p_s_un_bh is from the page cache (all unformatted nodes are
         ** from the page cache) and might be a highmem page.  So, we
@@ -1463,24 +1463,12 @@ int reiserfs_delete_item (struct reiserfs_transaction_handle *th,
 
         data = page_address(p_s_un_bh->b_page) ;
 	off = ((le_ih_k_offset (&s_ih) - 1) & (PAGE_CACHE_SIZE - 1));
-        block_off = off & (p_s_un_bh->b_size - 1) ;
 	memcpy(data + off,
 	       B_I_PITEM(PATH_PLAST_BUFFER(p_s_path), &s_ih), n_ret_value);
-
-	/* clear out the rest of the block past the end of the file. */
-	if (block_off + n_ret_value < p_s_un_bh->b_size) {
-	    memset(data + off + n_ret_value, 0, 
-		   p_s_un_bh->b_size - block_off - n_ret_value) ;
-	}
     }
 
     /* Perform balancing after all resources have been collected at once. */ 
     do_balance(&s_del_balance, NULL, NULL, M_DELETE);
-
-    /* see comment above for why this is after the do_balance */
-    if (p_s_un_bh) {
-        mark_buffer_dirty(p_s_un_bh) ;
-    }
 
     /* Return deleted body length */
     return n_ret_value;
@@ -1521,7 +1509,7 @@ static void reiserfs_delete_solid_item (struct reiserfs_transaction_handle *th,
 	retval = search_item (th->t_super, &cpu_key, &path);
 	if (retval == IO_ERROR) {
 	    reiserfs_warning ("vs-: reiserfs_delete_solid_item: "
-			      "i/o failure occured trying to delete %K\n", &cpu_key);
+			      "i/o failure occurred trying to delete %K\n", &cpu_key);
 	    break;
 	}
 	if (retval != ITEM_FOUND) {
@@ -1869,7 +1857,7 @@ void reiserfs_do_truncate (struct reiserfs_transaction_handle *th,
     retval = search_for_position_by_key(p_s_inode->i_sb, &s_item_key, &s_search_path);
     if (retval == IO_ERROR) {
 	reiserfs_warning ("vs-5657: reiserfs_do_truncate: "
-			  "i/o failure occured trying to truncate %K\n", &s_item_key);
+			  "i/o failure occurred trying to truncate %K\n", &s_item_key);
 	return;
     }
     if (retval == POSITION_FOUND || retval == FILE_NOT_FOUND) {

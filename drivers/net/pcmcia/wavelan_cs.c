@@ -37,6 +37,12 @@
  * Apr 2 '98  made changes to bring the i82593 control/int handling in line
  *             with offical specs...
  *
+ * Changes:
+ * Arnaldo Carvalho de Melo <acme@conectiva.com.br> - 08/08/2000
+ * - reorganize kmallocs in wavelan_attach, checking all for failure
+ *   and releasing the previous allocations if one fails
+ *
+ *
  ****************************************************************************
  *   Copyright 1995
  *   Anthony D. Joseph
@@ -512,7 +518,7 @@ void wv_roam_init(struct net_device *dev)
   /* Do not remove this unless you have a good reason */
   printk(KERN_NOTICE "%s: Warning, you have enabled roaming on"
 	 " device %s !\n", dev->name, dev->name);
-  printk(KERN_NOTICE "Roaming is currently an experimental unsuported feature"
+  printk(KERN_NOTICE "Roaming is currently an experimental unsupported feature"
 	 " of the Wavelan driver.\n");
   printk(KERN_NOTICE "It may work, but may also make the driver behave in"
 	 " erratic ways or crash.\n");
@@ -820,7 +826,7 @@ static inline int WAVELAN_BEACON(unsigned char *data)
 
 /************************ I82593 SUBROUTINES *************************/
 /*
- * Usefull subroutines to manage the Ethernet controler
+ * Useful subroutines to manage the Ethernet controller
  */
 
 /*------------------------------------------------------------------*/
@@ -853,7 +859,7 @@ wv_82593_cmd(device *	dev,
   /* We are waiting for command completion */
   wv_wait_completed = TRUE;
 
-  /* Issue the command to the controler */
+  /* Issue the command to the controller */
   outb(cmd, LCCR(base));
 
   /* If we don't have to check the result of the command */
@@ -1398,7 +1404,7 @@ wv_init_info(device *	dev)
 	  printk("2430.5");
 	  break;
 	default:
-	  printk("???");
+	  printk("unknown");
 	}
     }
 
@@ -1713,7 +1719,7 @@ wv_set_frequency(u_long		base,	/* i/o port of the card */
 	 memcmp(dac, dac_verify, 2 * 2))
 	{
 #ifdef DEBUG_IOCTL_ERROR
-	  printk(KERN_INFO "Wavelan: wv_set_frequency : unable to write new frequency to EEprom (??)\n");
+	  printk(KERN_INFO "Wavelan: wv_set_frequency : unable to write new frequency to EEprom (?)\n");
 #endif
 	  return -EOPNOTSUPP;
 	}
@@ -1774,7 +1780,7 @@ wv_frequency_list(u_long	base,	/* i/o port of the card */
 #if WIRELESS_EXT > 7
   const int	BAND_NUM = 10;	/* Number of bands */
   int		c = 0;		/* Channel number */
-#endif WIRELESS_EXT
+#endif /* WIRELESS_EXT */
 
   /* Read the frequency table */
   fee_read(base, 0x71 /* frequency table */,
@@ -1792,7 +1798,7 @@ wv_frequency_list(u_long	base,	/* i/o port of the card */
 	      (c < BAND_NUM))
 	  c++;
 	list[i].i = c;	/* Set the list index */
-#endif WIRELESS_EXT
+#endif /* WIRELESS_EXT */
 
 	/* put in the list */
 	list[i].m = (((freq + 24) * 5) + 24000L) * 10000;
@@ -1962,7 +1968,7 @@ wavelan_ioctl(struct net_device *	dev,	/* Device on wich the ioctl apply */
 
     case SIOCGIWFREQ:
       /* Attempt to recognise 2.00 cards (2.4 GHz frequency selectable)
-       * (does it work for everybody ??? - especially old cards...) */
+       * (does it work for everybody XXX - especially old cards...) */
       if(!(mmc_in(base, mmroff(0, mmr_fee_status)) &
 	   (MMR_FEE_STATUS_DWLD | MMR_FEE_STATUS_BUSY)))
 	{
@@ -2524,11 +2530,12 @@ wavelan_get_wireless_stats(device *	dev)
   printk(KERN_DEBUG "%s: ->wavelan_get_wireless_stats()\n", dev->name);
 #endif
 
+  if (lp == NULL) /* XXX will this ever occur? */
+    return NULL;
+
   /* Disable interrupts & save flags */
   spin_lock_irqsave (&lp->lock, flags);
 
-  if(lp == (net_local *) NULL)
-    return (iw_stats *) NULL;
   wstats = &lp->wstats;
 
   /* Get data from the mmc */
@@ -2727,8 +2734,9 @@ wv_packet_read(device *		dev,
   netif_rx(skb);
 
   /* Keep stats up to date */
+  dev->last_rx = jiffies;
   lp->stats.rx_packets++;
-  lp->stats.rx_bytes += skb->len;
+  lp->stats.rx_bytes += sksize;
 
 #ifdef DEBUG_RX_TRACE
   printk(KERN_DEBUG "%s: <-wv_packet_read()\n", dev->name);
@@ -2949,7 +2957,7 @@ wv_packet_write(device *	dev,
 /*------------------------------------------------------------------*/
 /*
  * This routine is called when we want to send a packet (NET3 callback)
- * In this routine, we check if the the harware is ready to accept
+ * In this routine, we check if the hardware is ready to accept
  * the packet. We also prevent reentrance. Then, we call the function
  * to send the packet...
  */
@@ -2974,7 +2982,7 @@ static int wavelan_packet_xmit (struct sk_buff *skb,
 	 * In other words, prevent reentering this routine.
 	 */
 	if (1) {
-		/* If somebody has asked to reconfigure the controler, we can do it now */
+		/* If somebody has asked to reconfigure the controller, we can do it now */
 		if (lp->reconfig_82593) {
 			lp->reconfig_82593 = FALSE;
 			wv_82593_config (dev);
@@ -3144,7 +3152,7 @@ wv_mmc_init(device *	dev)
    */
 
   /* Attempt to recognise 2.00 cards (2.4 GHz frequency selectable)
-   * (does it work for everybody ??? - especially old cards...) */
+   * (does it work for everybody XXX - especially old cards...) */
   /* Note : WFREQSEL verify that it is able to read from EEprom
    * a sensible frequency (address 0x00) + that MMR_FEE_STATUS_ID
    * is 0xA (Xilinx version) or 0xB (Ariadne version).
@@ -3332,7 +3340,7 @@ wv_ru_start(device *	dev)
 
 /*------------------------------------------------------------------*/
 /*
- * This routine does a standard config of the WaveLAN controler (i82593).
+ * This routine does a standard config of the WaveLAN controller (i82593).
  * In the ISA driver, this is integrated in wavelan_hardware_reset()
  * (called by wv_hw_config(), wv_82593_reconfig() & wavelan_packet_xmit())
  */
@@ -3596,7 +3604,7 @@ wv_hw_config(device *	dev)
   hacr_write_slow(base, HACR_RESET);
   hacr_write(base, HACR_DEFAULT);
 
-  /* Check if the the module has been powered up... */
+  /* Check if the module has been powered up... */
   if(hasr_read(base) & HASR_NO_CLK)
     {
 #ifdef DEBUG_CONFIG_ERRORS
@@ -3614,7 +3622,7 @@ wv_hw_config(device *	dev)
   outb(OP0_RESET, LCCR(base));
   mdelay(1);	/* A bit crude ! */
 
-  /* Initialize the LAN controler */
+  /* Initialize the LAN controller */
   if((wv_82593_config(dev) == FALSE) ||
      (wv_diag(dev) == FALSE))
     {
@@ -3822,7 +3830,7 @@ wv_pcmcia_config(dev_link_t *	link)
       return FALSE;
     }
 
-  /* ???? Could you explain me this, Dave ? */
+  /* XXX Could you explain me this, Dave ? */
   link->dev = &((net_local *) dev->priv)->node;
 
 #ifdef DEBUG_CONFIG_TRACE
@@ -3918,7 +3926,7 @@ wv_flush_stale_links(void)
  * This function is the interrupt handler for the WaveLAN card. This
  * routine will be called whenever: 
  *	1. A packet is received.
- *	2. A packet has successfully been transfered and the unit is
+ *	2. A packet has successfully been transferred and the unit is
  *	   ready to transmit another packet.
  *	3. A command has completed execution.
  */
@@ -4285,7 +4293,7 @@ wavelan_open(device *	dev)
       /* Power up (power up time is 250us) */
       hacr_write(base, HACR_DEFAULT);
 
-      /* Check if the the module has been powered up... */
+      /* Check if the module has been powered up... */
       if(hasr_read(base) & HASR_NO_CLK)
 	{
 #ifdef DEBUG_CONFIG_ERRORS
@@ -4424,7 +4432,24 @@ wavelan_attach(void)
 
   /* Initialize the dev_link_t structure */
   link = kmalloc(sizeof(struct dev_link_t), GFP_KERNEL);
+  if (!link)
+	  return NULL;
+  
+  /* Allocate the generic data structure */
+  dev = kmalloc(sizeof(struct net_device), GFP_KERNEL);
+  if (!dev)
+	  goto fail_alloc_dev;
+  
+  /* Allocate the wavelan-specific data structure. */
+  lp = (net_local *) kmalloc(sizeof(net_local), GFP_KERNEL);
+  if (!lp)
+	  goto fail_alloc_dev_priv;
+  
+  memset(lp, 0, sizeof(net_local));
   memset(link, 0, sizeof(struct dev_link_t));
+  memset(dev, 0, sizeof(struct net_device));
+
+  dev->priv = lp;
 
   /* Unused for the Wavelan */
   link->release.function = &wv_pcmcia_release;
@@ -4454,14 +4479,7 @@ wavelan_attach(void)
   link->next = dev_list;
   dev_list = link;
 
-  /* Allocate the generic data structure */
-  dev = kmalloc(sizeof(struct net_device), GFP_KERNEL);
-  memset(dev, 0x00, sizeof(struct net_device));
   link->priv = link->irq.Instance = dev;
-
-  /* Allocate the wavelan-specific data structure. */
-  dev->priv = lp = (net_local *) kmalloc(sizeof(net_local), GFP_KERNEL);
-  memset(lp, 0x00, sizeof(net_local));
 
   /* Init specific data */
   wv_wait_completed = 0;
@@ -4531,6 +4549,12 @@ wavelan_attach(void)
 #endif
 
   return link;
+
+fail_alloc_dev_priv:
+  kfree(dev);
+fail_alloc_dev:
+  kfree(link);
+  return NULL;
 }
 
 /*------------------------------------------------------------------*/
@@ -4683,7 +4707,7 @@ wavelan_event(event_t		event,		/* The event received */
 	 * obliged to close nicely the wavelan here. David, could you
 	 * close the device before suspending them ? And, by the way,
 	 * could you, on resume, add a "route add -net ..." after the
-	 * ifconfig up ??? Thanks... */
+	 * ifconfig up XXX Thanks... */
 
 	/* Stop receiving new messages and wait end of transmission */
 	wv_ru_stop(dev);
@@ -4711,7 +4735,7 @@ wavelan_event(event_t		event,		/* The event received */
 	if(link->state & DEV_CONFIG)
 	  {
       	    CardServices(RequestConfiguration, link->handle, &link->conf);
-      	    if(link->open)	/* If RESET -> True, If RESUME -> False ??? */
+      	    if(link->open)	/* If RESET -> True, If RESUME -> False XXX */
 	      {
 		wv_hw_reset(dev);
 		netif_device_attach(dev);

@@ -46,21 +46,6 @@
 #define ENABLE_PCI
 #endif
 
-#define NEW_MODULES
-#ifdef LOCAL_ROCKET_H		/* We're building standalone */
-#define MODULE
-#endif
-
-#if defined(NEW_MODULES) && defined(LOCAL_ROCKET_H)
-#ifdef MODVERSIONS
-#include <linux/modversions.h>
-#endif
-#else /* !NEW_MODULES */
-#ifdef MODVERSIONS
-#define MODULE
-#endif
-#endif /* NEW_MODULES */
-
 #include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/major.h>
@@ -137,13 +122,6 @@
 #undef TIME_STAT_VERBOSE   /* Undef this if you want a terse log message. */
 
 #define _INLINE_ inline
-
-#ifndef NEW_MODULES
-/*
- * NB. we must include the kernel idenfication string in to install the module.
- */
-/*static*/ char kernel_version[] = UTS_RELEASE;
-#endif
 
 static struct r_port *rp_table[MAX_RP_PORTS];
 static struct tty_struct *rocket_table[MAX_RP_PORTS];

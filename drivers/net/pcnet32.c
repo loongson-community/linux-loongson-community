@@ -490,6 +490,12 @@ pcnet32_probe_pci(struct pci_dev *pdev, const struct pci_device_id *ent)
 
     printk(KERN_INFO "pcnet32_probe_pci: found device %#08x.%#08x\n", ent->vendor, ent->device);
 
+    if ((err = pci_enable_device(pdev)) < 0) {
+	printk(KERN_ERR "pcnet32.c: failed to enable device -- err=%d\n", err);
+	return err;
+    }
+    pci_set_master(pdev);
+
     ioaddr = pci_resource_start (pdev, 0);
     printk(KERN_INFO "    ioaddr=%#08lx  resource_flags=%#08lx\n", ioaddr, pci_resource_flags (pdev, 0));
     if (!ioaddr) {
@@ -502,13 +508,6 @@ pcnet32_probe_pci(struct pci_dev *pdev, const struct pci_device_id *ent)
 	return -ENODEV;
     }
 
-    if ((err = pci_enable_device(pdev)) < 0) {
-	printk(KERN_ERR "pcnet32.c: failed to enable device -- err=%d\n", err);
-	return err;
-    }
-    
-    pci_set_master(pdev);
-    
     return pcnet32_probe1(ioaddr, pdev->irq, 1, card_idx, pdev);
 }
 
@@ -634,10 +633,35 @@ pcnet32_probe1(unsigned long ioaddr, unsigned char irq_line, int shared, int car
 
     printk(KERN_INFO "%s: %s at %#3lx,", dev->name, chipname, ioaddr);
 
-    /* There is a 16 byte station address PROM at the base address.
-       The first six bytes are the station address. */
+    /* In most chips, after a chip reset, the ethernet address is read from the
+     * station address PROM at the base address and programmed into the
+     * "Physical Address Registers" CSR12-14.
+     * As a precautionary measure, we read the PROM values and complain if
+     * they disagree with the CSRs.  Either way, we use the CSR values, and
+     * double check that they are valid.
+     */
+    for (i = 0; i < 3; i++) {
+	unsigned int val;
+	val = a->read_csr(ioaddr, i+12) & 0x0ffff;
+	/* There may be endianness issues here. */
+	dev->dev_addr[2*i] = val & 0x0ff;
+	dev->dev_addr[2*i+1] = (val >> 8) & 0x0ff;
+    }
+    {
+	u8 promaddr[6];
+	for (i = 0; i < 6; i++) {
+	    promaddr[i] = inb(ioaddr + i);
+	}
+	if( memcmp( promaddr, dev->dev_addr, 6) )
+	    printk(" warning: PROM address does not match CSR address");
+    }
+    /* if the ethernet address is not valid, force to 00:00:00:00:00:00 */
+    if( !is_valid_ether_addr(dev->dev_addr) )
+	for (i = 0; i < 6; i++)
+	    dev->dev_addr[i]=0;
+
     for (i = 0; i < 6; i++)
-	printk(" %2.2x", dev->dev_addr[i] = inb(ioaddr + i));
+	printk(" %2.2x", dev->dev_addr[i] );
 
     if (((chip_version + 1) & 0xfffe) == 0x2624) { /* Version 0x2623 or 0x2624 */
 	i = a->read_csr(ioaddr, 80) & 0x0C00;  /* Check tx_start_pt */
@@ -666,7 +690,7 @@ pcnet32_probe1(unsigned long ioaddr, unsigned char irq_line, int shared, int car
     request_region(ioaddr, PCNET32_TOTAL_SIZE, chipname);
     
     /* pci_alloc_consistent returns page-aligned memory, so we do not have to check the alignment */
-    if ((lp = (struct pcnet32_private *)pci_alloc_consistent(pdev, sizeof(*lp), &lp_dma_addr)) == NULL)
+    if ((lp = pci_alloc_consistent(pdev, sizeof(*lp), &lp_dma_addr)) == NULL)
 	return -ENOMEM;
 
     memset(lp, 0, sizeof(*lp));
@@ -774,7 +798,7 @@ pcnet32_probe1(unsigned long ioaddr, unsigned char irq_line, int shared, int car
 static int
 pcnet32_open(struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     unsigned long ioaddr = dev->base_addr;
     u16 val;
     int i;
@@ -784,6 +808,10 @@ pcnet32_open(struct net_device *dev)
 		    lp->shared_irq ? SA_SHIRQ : 0, lp->name, (void *)dev)) {
 	return -EAGAIN;
     }
+
+    /* Check for a valid station address */
+    if( !is_valid_ether_addr(dev->dev_addr) )
+	return -EINVAL;
 
     /* Reset the PCNET32 */
     lp->a.reset (ioaddr);
@@ -828,6 +856,12 @@ pcnet32_open(struct net_device *dev)
 	if (lp->options & PORT_100)
 	    val |= 0x08;
 	lp->a.write_bcr (ioaddr, 32, val);
+    } else {
+	if (lp->options & PORT_ASEL) {  /* enable auto negotiate, setup, disable fd */
+		val = lp->a.read_bcr(ioaddr, 32) & ~0x98;
+		val |= 0x20;
+		lp->a.write_bcr(ioaddr, 32, val);
+	}
     }
 
 #ifdef DO_DXSUFLO 
@@ -895,7 +929,7 @@ pcnet32_open(struct net_device *dev)
 static void 
 pcnet32_purge_tx_ring(struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     int i;
 
     for (i = 0; i < TX_RING_SIZE; i++) {
@@ -913,7 +947,7 @@ pcnet32_purge_tx_ring(struct net_device *dev)
 static int
 pcnet32_init_ring(struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     int i;
 
     lp->tx_full = 0;
@@ -954,7 +988,7 @@ pcnet32_init_ring(struct net_device *dev)
 static void
 pcnet32_restart(struct net_device *dev, unsigned int csr0_bits)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     unsigned long ioaddr = dev->base_addr;
     int i;
     
@@ -976,7 +1010,7 @@ pcnet32_restart(struct net_device *dev, unsigned int csr0_bits)
 static void
 pcnet32_tx_timeout (struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     unsigned int ioaddr = dev->base_addr;
 
     /* Transmitter timeout, serious problems. */
@@ -1009,7 +1043,7 @@ pcnet32_tx_timeout (struct net_device *dev)
 static int
 pcnet32_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     unsigned int ioaddr = dev->base_addr;
     u16 status;
     int entry;
@@ -1077,7 +1111,7 @@ pcnet32_start_xmit(struct sk_buff *skb, struct net_device *dev)
 static void
 pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
-    struct net_device *dev = (struct net_device *)dev_id;
+    struct net_device *dev = dev_id;
     struct pcnet32_private *lp;
     unsigned long ioaddr;
     u16 csr0,rap;
@@ -1090,7 +1124,7 @@ pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
     }
 
     ioaddr = dev->base_addr;
-    lp = (struct pcnet32_private *)dev->priv;
+    lp = dev->priv;
     
     spin_lock(&lp->lock);
     
@@ -1223,7 +1257,7 @@ pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 static int
 pcnet32_rx(struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     int entry = lp->cur_rx & RX_RING_MOD_MASK;
 
     /* If we own the next entry, it's a new packet. Send it up. */
@@ -1317,7 +1351,7 @@ static int
 pcnet32_close(struct net_device *dev)
 {
     unsigned long ioaddr = dev->base_addr;
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     int i;
 
     netif_stop_queue(dev);
@@ -1367,7 +1401,7 @@ pcnet32_close(struct net_device *dev)
 static struct net_device_stats *
 pcnet32_get_stats(struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     unsigned long ioaddr = dev->base_addr;
     u16 saved_addr;
     unsigned long flags;
@@ -1384,7 +1418,7 @@ pcnet32_get_stats(struct net_device *dev)
 /* taken from the sunlance driver, which it took from the depca driver */
 static void pcnet32_load_multicast (struct net_device *dev)
 {
-    struct pcnet32_private *lp = (struct pcnet32_private *) dev->priv;
+    struct pcnet32_private *lp = dev->priv;
     volatile struct pcnet32_init_block *ib = &lp->init_block;
     volatile u16 *mcast_table = (u16 *)&ib->filter;
     struct dev_mc_list *dmi=dev->mc_list;
@@ -1437,7 +1471,7 @@ static void pcnet32_load_multicast (struct net_device *dev)
 static void pcnet32_set_multicast_list(struct net_device *dev)
 {
     unsigned long ioaddr = dev->base_addr;
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;	 
+    struct pcnet32_private *lp = dev->priv;	 
 
     if (dev->flags&IFF_PROMISC) {
 	/* Log any net taps. */
@@ -1457,7 +1491,7 @@ static void pcnet32_set_multicast_list(struct net_device *dev)
 static int pcnet32_mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
     unsigned long ioaddr = dev->base_addr;
-    struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;	 
+    struct pcnet32_private *lp = dev->priv;	 
     u16 *data = (u16 *)&rq->ifr_data;
     int phyaddr = lp->a.read_bcr (ioaddr, 33);
 
@@ -1546,7 +1580,7 @@ static void __exit pcnet32_cleanup_module(void)
 
     /* No need to check MOD_IN_USE, as sys_delete_module() checks. */
     while (pcnet32_dev) {
-        struct pcnet32_private *lp = (struct pcnet32_private *) pcnet32_dev->priv;
+        struct pcnet32_private *lp = pcnet32_dev->priv;
 	next_dev = lp->next;
 	unregister_netdev(pcnet32_dev);
 	release_region(pcnet32_dev->base_addr, PCNET32_TOTAL_SIZE);

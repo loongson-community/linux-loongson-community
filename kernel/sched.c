@@ -82,6 +82,8 @@ struct task_struct * init_tasks[NR_CPUS] = {&init_task, };
  *
  * If both locks are to be concurrently held, the runqueue_lock
  * nests inside the tasklist_lock.
+ *
+ * task->alloc_lock nests inside tasklist_lock.
  */
 spinlock_t runqueue_lock __cacheline_aligned = SPIN_LOCK_UNLOCKED;  /* inner */
 rwlock_t tasklist_lock __cacheline_aligned = RW_LOCK_UNLOCKED;	/* outer */
@@ -339,7 +341,7 @@ static inline int try_to_wake_up(struct task_struct * p, int synchronous)
 	if (task_on_runqueue(p))
 		goto out;
 	add_to_runqueue(p);
-	if (!synchronous)
+	if (!synchronous || !(p->cpus_allowed & (1 << smp_processor_id())))
 		reschedule_idle(p);
 	success = 1;
 out:
@@ -359,6 +361,32 @@ static void process_timeout(unsigned long __data)
 	wake_up_process(p);
 }
 
+/**
+ * schedule_timeout - sleep until timeout
+ * @timeout: timeout value in jiffies
+ *
+ * Make the current task sleep until @timeout jiffies have
+ * elapsed. The routine will return immediately unless
+ * the current task state has been set (see set_current_state()).
+ *
+ * You can set the task state as follows -
+ *
+ * %TASK_UNINTERRUPTIBLE - at least @timeout jiffies are guaranteed to
+ * pass before the routine returns. The routine will return 0
+ *
+ * %TASK_INTERRUPTIBLE - the routine may return early if a signal is
+ * delivered to the current task. In this case the remaining time
+ * in jiffies will be returned, or 0 if the timer expired in time
+ *
+ * The current task state is guaranteed to be TASK_RUNNING when this 
+ * routine returns.
+ *
+ * Specifying a @timeout value of %MAX_SCHEDULE_TIMEOUT will schedule
+ * the CPU away without a bound on the timeout. In this case the return
+ * value will be %MAX_SCHEDULE_TIMEOUT.
+ *
+ * In all cases the return value is guaranteed to be non-negative.
+ */
 signed long schedule_timeout(signed long timeout)
 {
 	struct timer_list timer;
@@ -473,7 +501,7 @@ needs_resched:
 			goto out_unlock;
 
 		spin_lock_irqsave(&runqueue_lock, flags);
-		if (prev->state == TASK_RUNNING)
+		if ((prev->state == TASK_RUNNING) && !prev->has_cpu)
 			reschedule_idle(prev);
 		spin_unlock_irqrestore(&runqueue_lock, flags);
 		goto out_unlock;
@@ -541,7 +569,7 @@ move_rr_back:
 			}
 		default:
 			del_from_runqueue(prev);
-		case TASK_RUNNING:
+		case TASK_RUNNING:;
 	}
 	prev->need_resched = 0;
 

@@ -663,6 +663,11 @@ root_found:
 
 	s->s_flags |= MS_RDONLY /* | MS_NODEV | MS_NOSUID */;
 
+	/* Set this for reference. Its not currently used except on write
+	   which we don't have .. */
+	   
+	s->s_maxbytes = MAX_NON_LFS;
+
 	/* RDE: data zone now byte offset! */
 
 	first_data_zone = ((isonum_733 (rootp->extent) +

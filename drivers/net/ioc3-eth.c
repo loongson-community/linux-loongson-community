@@ -8,28 +8,6 @@
  * Copyright (C) 1999, 2000 Ralf Baechle
  * Copyright (C) 1995, 1999, 2000 by Silicon Graphics, Inc.
  *
- * Reporting bugs:
- *
- * If you find problems with this drivers, then if possible do the
- * following.  Hook up a terminal to the MSC port, send an NMI to the CPUs
- * by typing ^Tnmi (where ^T stands for <CTRL>-T).  You'll see something
- * like:
- * 1A 000: 
- * 1A 000: *** NMI while in Kernel and no NMI vector installed on node 0
- * 1A 000: *** Error EPC: 0xffffffff800265e4 (0xffffffff800265e4)
- * 1A 000: *** Press ENTER to continue.
- *
- * Next enter the command ``lw i:0x86000f0 0x18'' and include this
- * commands output which will look like below with your bugreport.
- *
- * 1A 000: POD MSC Dex> lw i:0x86000f0 0x18
- * 1A 000: 92000000086000f0: 0021f28c 00000000 00000000 00000000
- * 1A 000: 9200000008600100: a5000000 01cde000 00000000 000004e0
- * 1A 000: 9200000008600110: 00000650 00000000 00110b15 00000000
- * 1A 000: 9200000008600120: 006d0005 77bbca0a a5000000 01ce0000
- * 1A 000: 9200000008600130: 80000500 00000500 00002538 05690008
- * 1A 000: 9200000008600140: 00000000 00000000 000003e1 0000786d
- *
  * To do:
  *
  *  - Handle allocation failures in ioc3_alloc_skb() more gracefully.
@@ -50,6 +28,12 @@
 #include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#ifdef CONFIG_SERIAL
+#include <linux/serial.h>
+#include <asm/serial.h>
+#define IOC3_BAUD (22000000 / (3*16))
+#define IOC3_COM_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST)
+#endif
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -889,6 +873,27 @@ ioc3_close(struct net_device *dev)
 	return 0;
 }
 
+static void inline ioc3_serial_probe(struct pci_dev *pdev,
+				struct ioc3 *ioc3)
+{
+	struct serial_struct req;
+
+	/* Register to interrupt zero because we share the interrupt with
+	   the serial driver which we don't properly support yet.  */
+	memset(&req, 0, sizeof(req));
+	req.irq             = 0;
+	req.flags           = IOC3_COM_FLAGS;
+	req.io_type         = SERIAL_IO_MEM;
+	req.iomem_reg_shift = 0;
+	req.baud_base       = IOC3_BAUD;
+
+	req.iomem_base      = (unsigned char *) &ioc3->sregs.uarta;
+	register_serial(&req);
+
+	req.iomem_base      = (unsigned char *) &ioc3->sregs.uartb;
+	register_serial(&req);
+}
+
 static int __devinit ioc3_probe(struct pci_dev *pdev,
 	                        const struct pci_device_id *ent)
 {
@@ -900,33 +905,33 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	u32 vendor, model, rev;
 	int phy, err;
 
-	dev = init_etherdev(0, sizeof(struct ioc3_private));
-
+	dev = alloc_etherdev(sizeof(struct ioc3_private));
 	if (!dev)
 		return -ENOMEM;
 
+	err = pci_request_regions(pdev, "ioc3");
+	if (err)
+		goto out_free;
+
 	SET_MODULE_OWNER(dev);
 	ip = dev->priv;
-	memset(ip, 0, sizeof(*ip));
-
-	/*
-	 * This probably needs to be register_netdevice, or call
-	 * init_etherdev so that it calls register_netdevice. Quick
-	 * hack for now.
-	 */
-	netif_device_attach(dev);
 
 	dev->irq = pdev->irq;
 
-	ioc3_base = pdev->resource[0].start;
-	ioc3_size = pdev->resource[0].end - ioc3_base;
+	ioc3_base = pci_resource_start(pdev, 0);
+	ioc3_size = pci_resource_len(pdev, 0);
 	ioc3 = (struct ioc3 *) ioremap(ioc3_base, ioc3_size);
 	if (!ioc3) {
-		printk(KERN_CRIT"%s: Unable to map device I/O.\n", dev->name);
+		printk(KERN_CRIT "ioc3eth(%s): Didn't find a PHY, goodbye.\n",
+		       pdev->slot_name);
 		err = -ENOMEM;
-		goto out_free;
+		goto out_res;
 	}
 	ip->regs = ioc3;
+
+#ifdef CONFIG_SERIAL
+	ioc3_serial_probe(pdev, ioc3);
+#endif
 
 	spin_lock_init(&ip->ioc3_lock);
 
@@ -954,9 +959,9 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	rev    = mii3 & 0xf;
 	printk(KERN_INFO"Using PHY %d, vendor 0x%x, model %d, rev %d.\n",
 	       phy, vendor, model, rev);
-	printk(KERN_INFO "%s:  MII transceiver found at MDIO address "
+	printk(KERN_INFO "ioc3eth(%s):  MII transceiver found at MDIO address "
 	       "%d, config %4.4x status %4.4x.\n",
-	       dev->name, phy, mii0, mii_status);
+	       pdev->slot_name, phy, mii0, mii_status);
 
 	ioc3_ssram_disc(ip);
 	printk("IOC3 SSRAM has %d kbyte.\n", ip->emcr & EMCR_BUFSIZ ? 128 : 64);
@@ -973,12 +978,18 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	dev->do_ioctl		= ioc3_ioctl;
 	dev->set_multicast_list	= ioc3_set_multicast_list;
 
+	err = register_netdev(dev);
+	if (err)
+		goto out_stop;
+
 	return 0;
 
 out_stop:
 	ioc3_stop(dev);
 	free_irq(dev->irq, dev);
 	ioc3_free_rings(ip);
+out_res:
+	pci_release_regions(pdev);
 out_free:
 	kfree(dev);
 	return err;

@@ -93,7 +93,7 @@ remove_mapping (struct task_struct *task, unsigned long start, unsigned long end
 	unsigned long beg = start;
 	pgd_t *dir;
 
-	down (&task->mm->mmap_sem);
+	down_write (&task->mm->mmap_sem);
 	dir = pgd_offset (task->mm, start);
 	flush_cache_range (task->mm, beg, end);
 	while (start < end){
@@ -102,7 +102,7 @@ remove_mapping (struct task_struct *task, unsigned long start, unsigned long end
 		dir++;
 	}
 	flush_tlb_range (task->mm, beg, end);
-	up (&task->mm->mmap_sem);
+	up_write (&task->mm->mmap_sem);
 }
 
 EXPORT_SYMBOL(remove_mapping);
@@ -181,7 +181,7 @@ vmap_pmd_range (pmd_t *pmd, unsigned long address, unsigned long size, unsigned 
 		end = PGDIR_SIZE;
 	vaddr -= address;
 	do {
-		pte_t * pte = pte_alloc(pmd, address);
+		pte_t * pte = pte_alloc(current->mm, pmd, address);
 		if (!pte)
 			return -ENOMEM;
 		vmap_pte_range(pte, address, end - address, address + vaddr);
@@ -203,7 +203,7 @@ vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr)
 	dir = pgd_offset(current->mm, from);
 	flush_cache_range(current->mm, beg, end);
 	while (from < end) {
-		pmd_t *pmd = pmd_alloc(dir, from);
+		pmd_t *pmd = pmd_alloc(current->mm, dir, from);
 		error = -ENOMEM;
 		if (!pmd)
 			break;

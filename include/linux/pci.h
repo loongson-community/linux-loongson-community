@@ -527,6 +527,7 @@ int pci_write_config_dword(struct pci_dev *dev, int where, u32 val);
 
 int pci_enable_device(struct pci_dev *dev);
 void pci_set_master(struct pci_dev *dev);
+int pci_set_dma_mask(struct pci_dev *dev, dma_addr_t mask);
 int pci_set_power_state(struct pci_dev *dev, int state);
 int pci_assign_resource(struct pci_dev *dev, int i);
 
@@ -539,6 +540,9 @@ void pdev_sort_resources(struct pci_dev *, struct resource_list *, u32);
 unsigned long pci_bridge_check_io(struct pci_dev *);
 void pci_fixup_irqs(u8 (*)(struct pci_dev *, u8 *),
 		    int (*)(struct pci_dev *, u8, u8));
+#define HAVE_PCI_REQ_REGIONS
+int pci_request_regions(struct pci_dev *, char *);
+void pci_release_regions(struct pci_dev *);
 
 /* New-style probing supporting hot-pluggable devices */
 int pci_register_driver(struct pci_driver *);

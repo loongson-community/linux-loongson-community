@@ -14,6 +14,8 @@ MOD_SUB_DIRS	:=
 MOD_IN_SUB_DIRS	:=
 ALL_SUB_DIRS	:= $(SUB_DIRS) pcmcia
 
+subdir-$(CONFIG_SCSI_AIC7XXX)	+= aic7xxx
+
 ifeq ($(CONFIG_PCMCIA),y)
   SUB_DIRS += pcmcia
   MOD_IN_SUB_DIRS += pcmcia
@@ -24,7 +26,6 @@ else
 endif
 
 export-objs	:= scsi_syms.o
-list-multi	:= scsi_mod.o initio.o a100u2w.o
 
 CFLAGS_aha152x.o =   -DAHA152X_STAT -DAUTOCONF
 CFLAGS_gdth.o    = # -DDEBUG_GDTH=2 -D__SERIAL__ -D__COM2__ -DGDTH_STATISTICS
@@ -64,7 +65,7 @@ obj-$(CONFIG_SCSI_ULTRASTOR)	+= ultrastor.o
 obj-$(CONFIG_SCSI_AHA152X)	+= aha152x.o
 obj-$(CONFIG_SCSI_AHA1542)	+= aha1542.o
 obj-$(CONFIG_SCSI_AHA1740)	+= aha1740.o
-obj-$(CONFIG_SCSI_AIC7XXX)	+= aic7xxx.o
+obj-$(CONFIG_SCSI_AIC7XXX_OLD)	+= aic7xxx_old.o
 obj-$(CONFIG_SCSI_IPS)		+= ips.o
 obj-$(CONFIG_SCSI_FD_MCS)	+= fd_mcs.o
 obj-$(CONFIG_SCSI_FUTURE_DOMAIN)+= fdomain.o
@@ -113,20 +114,25 @@ obj-$(CONFIG_SUN3X_ESP)		+= NCR53C9x.o	sun3x_esp.o
 obj-$(CONFIG_SCSI_DEBUG)	+= scsi_debug.o
 obj-$(CONFIG_SCSI_FCAL)		+= fcal.o
 
+ifeq ($(CONFIG_ARCH_ACORN),y)
+mod-subdirs	+= ../acorn/scsi
+subdir-y	+= ../acorn/scsi
+obj-y		+= ../acorn/scsi/acorn-scsi.o
+endif
+
 obj-$(CONFIG_CHR_DEV_ST)	+= st.o
 obj-$(CONFIG_CHR_DEV_OSST)	+= osst.o
 obj-$(CONFIG_BLK_DEV_SD)	+= sd_mod.o
 obj-$(CONFIG_BLK_DEV_SR)	+= sr_mod.o
 obj-$(CONFIG_CHR_DEV_SG)	+= sg.o
 
-
-
+list-multi	:= scsi_mod.o sd_mod.o sr_mod.o initio.o a100u2w.o
 scsi_mod-objs	:= scsi.o hosts.o scsi_ioctl.o constants.o \
 			scsicam.o scsi_proc.o scsi_error.o \
 			scsi_obsolete.o scsi_queue.o scsi_lib.o \
 			scsi_merge.o scsi_dma.o scsi_scan.o \
 			scsi_syms.o
-			
+sd_mod-objs	:= sd.o
 sr_mod-objs	:= sr.o sr_ioctl.o sr_vendor.o
 initio-objs	:= ini9100u.o i91uscsi.o
 a100u2w-objs	:= inia100.o i60uscsi.o
@@ -137,8 +143,8 @@ include $(TOPDIR)/Rules.make
 scsi_mod.o: $(scsi_mod-objs)
 	$(LD) -r -o $@ $(scsi_mod-objs)
 
-sd_mod.o: sd.o
-	$(LD) -r -o $@ sd.o
+sd_mod.o: $(sd_mod-objs)
+	$(LD) -r -o $@ $(sd_mod-objs)
 
 sr_mod.o: $(sr_mod-objs)
 	$(LD) -r -o $@ $(sr_mod-objs)
@@ -148,7 +154,6 @@ initio.o: $(initio-objs)
 
 a100u2w.o: $(a100u2w-objs)
 	$(LD) -r -o $@ $(a100u2w-objs)
-
 
 53c8xx_d.h: 53c7,8xx.scr script_asm.pl
 	ln -sf 53c7,8xx.scr fake8.c

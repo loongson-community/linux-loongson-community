@@ -1,4 +1,4 @@
-$Id: INTERFACE,v 1.15 1999/08/25 20:02:13 werner Exp $
+$Id: INTERFACE,v 1.15.8.2 2001/03/13 16:17:07 kai Exp $
 
 Description of the Interface between Linklevel and Hardwarelevel
   of isdn4linux:
@@ -481,7 +481,7 @@ Description of the Interface between Linklevel and Hardwarelevel
       driver      = driver-Id
       command     = ISDN_CMD_PROT_IO
       arg         = The lower 8 Bits define the addressed protocol as defined
-                    in ISDN_PTYPE..., the upper bits are used to differenciate
+                    in ISDN_PTYPE..., the upper bits are used to differentiate
                     the protocol specific CMD.  
       
       para        = protocol and function specific. See isdnif.h for detail.

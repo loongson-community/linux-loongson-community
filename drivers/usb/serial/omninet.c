@@ -160,7 +160,7 @@ static int omninet_open (struct usb_serial_port *port, struct file *filp)
 
 		od = kmalloc( sizeof(struct omninet_data), GFP_KERNEL );
 		if( !od ) {
-			err(__FUNCTION__"- kmalloc(%d) failed.", sizeof(struct omninet_data));
+			err(__FUNCTION__"- kmalloc(%Zd) failed.", sizeof(struct omninet_data));
 			--port->open_count;
 			port->active = 0;
 			spin_unlock_irqrestore (&port->port_lock, flags);
@@ -305,8 +305,6 @@ static int omninet_write (struct usb_serial_port *port, int from_user, const uns
 		return (0);
 	}
 
-	usb_serial_debug_data (__FILE__, __FUNCTION__, count, buf);
-	
 	spin_lock_irqsave (&port->port_lock, flags);
 	
 	count = (count > OMNINET_BULKOUTSIZE) ? OMNINET_BULKOUTSIZE : count;
@@ -318,6 +316,7 @@ static int omninet_write (struct usb_serial_port *port, int from_user, const uns
 		memcpy (wport->write_urb->transfer_buffer + OMNINET_DATAOFFSET, buf, count);
 	}
 
+	usb_serial_debug_data (__FILE__, __FUNCTION__, count, wport->write_urb->transfer_buffer);
 
 	header->oh_seq 	= od->od_outseq++;
 	header->oh_len 	= count;

@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.21 2001/01/10 18:22:59 davem Exp $
+/* $Id: pci.c,v 1.23 2001/03/14 04:17:14 davem Exp $
  * pci.c: UltraSparc PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@redhat.com)
@@ -78,9 +78,7 @@ volatile int pci_poke_faulted;
 /* Probe for all PCI controllers in the system. */
 extern void sabre_init(int);
 extern void psycho_init(int);
-#if 0
 extern void schizo_init(int);
-#endif
 
 static struct {
 	char *model_name;
@@ -88,12 +86,11 @@ static struct {
 } pci_controller_table[] = {
 	{ "SUNW,sabre", sabre_init },
 	{ "pci108e,a000", sabre_init },
+	{ "pci108e,a001", sabre_init },
 	{ "SUNW,psycho", psycho_init },
-	{ "pci108e,8000", psycho_init }
-#if 0
+	{ "pci108e,8000", psycho_init },
 	{ "SUNW,schizo", schizo_init },
 	{ "pci108e,8001", schizo_init }
-#endif
 };
 #define PCI_NUM_CONTROLLER_TYPES (sizeof(pci_controller_table) / \
 				  sizeof(pci_controller_table[0]))

@@ -559,7 +559,7 @@ static inline int page_cache_read(struct file * file, unsigned long offset)
 	if (page)
 		return 0;
 
-	page = page_cache_alloc();
+	page = page_cache_alloc(mapping);
 	if (!page)
 		return -ENOMEM;
 
@@ -659,7 +659,7 @@ void lock_page(struct page *page)
 
 /*
  * a rather lightweight function, finding and getting a reference to a
- * hashed page atomically, waiting for it if it's locked.
+ * hashed page atomically.
  */
 struct page * __find_get_page(struct address_space *mapping,
 			      unsigned long offset, struct page **hash)
@@ -679,7 +679,8 @@ struct page * __find_get_page(struct address_space *mapping,
 }
 
 /*
- * Get the lock to a page atomically.
+ * Same as the above, but lock the page too, verifying that
+ * it's still valid once we own it.
  */
 struct page * __find_lock_page (struct address_space *mapping,
 				unsigned long offset, struct page **hash)
@@ -1174,7 +1175,7 @@ no_cached_page:
 		 */
 		if (!cached_page) {
 			spin_unlock(&pagecache_lock);
-			cached_page = page_cache_alloc();
+			cached_page = page_cache_alloc(mapping);
 			if (!cached_page) {
 				desc->error = -ENOMEM;
 				break;
@@ -1474,7 +1475,7 @@ success:
 	 */
 	old_page = page;
 	if (no_share) {
-		struct page *new_page = page_cache_alloc();
+		struct page *new_page = alloc_page(GFP_HIGHUSER);
 
 		if (new_page) {
 			copy_user_highpage(new_page, old_page, address);
@@ -1752,7 +1753,7 @@ asmlinkage long sys_msync(unsigned long start, size_t len, int flags)
 	struct vm_area_struct * vma;
 	int unmapped_error, error = -EINVAL;
 
-	down(&current->mm->mmap_sem);
+	down_read(&current->mm->mmap_sem);
 	if (start & ~PAGE_MASK)
 		goto out;
 	len = (len + ~PAGE_MASK) & PAGE_MASK;
@@ -1798,7 +1799,7 @@ asmlinkage long sys_msync(unsigned long start, size_t len, int flags)
 		vma = vma->vm_next;
 	}
 out:
-	up(&current->mm->mmap_sem);
+	up_read(&current->mm->mmap_sem);
 	return error;
 }
 
@@ -2097,7 +2098,7 @@ asmlinkage long sys_madvise(unsigned long start, size_t len, int behavior)
 	int unmapped_error = 0;
 	int error = -EINVAL;
 
-	down(&current->mm->mmap_sem);
+	down_write(&current->mm->mmap_sem);
 
 	if (start & ~PAGE_MASK)
 		goto out;
@@ -2148,7 +2149,7 @@ asmlinkage long sys_madvise(unsigned long start, size_t len, int behavior)
 	}
 
 out:
-	up(&current->mm->mmap_sem);
+	up_write(&current->mm->mmap_sem);
 	return error;
 }
 
@@ -2250,7 +2251,7 @@ asmlinkage long sys_mincore(unsigned long start, size_t len,
 	int unmapped_error = 0;
 	long error = -EINVAL;
 
-	down(&current->mm->mmap_sem);
+	down_read(&current->mm->mmap_sem);
 
 	if (start & ~PAGE_CACHE_MASK)
 		goto out;
@@ -2302,7 +2303,7 @@ asmlinkage long sys_mincore(unsigned long start, size_t len,
 	}
 
 out:
-	up(&current->mm->mmap_sem);
+	up_read(&current->mm->mmap_sem);
 	return error;
 }
 
@@ -2319,7 +2320,7 @@ repeat:
 	page = __find_get_page(mapping, index, hash);
 	if (!page) {
 		if (!cached_page) {
-			cached_page = page_cache_alloc();
+			cached_page = page_cache_alloc(mapping);
 			if (!cached_page)
 				return ERR_PTR(-ENOMEM);
 		}
@@ -2382,7 +2383,7 @@ repeat:
 	page = __find_lock_page(mapping, index, hash);
 	if (!page) {
 		if (!*cached_page) {
-			*cached_page = page_cache_alloc();
+			*cached_page = page_cache_alloc(mapping);
 			if (!*cached_page)
 				return NULL;
 		}

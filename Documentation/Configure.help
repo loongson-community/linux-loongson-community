@@ -1501,15 +1501,6 @@ CONFIG_MD_RAID0
 
   If unsure, say Y.
 
-RAID-1/RAID-5 code (DANGEROUS)
-CONFIG_RAID15_DANGEROUS
-  This new RAID1/RAID5 code has been freshly merged, and has not seen
-  enough testing yet. While there are no known bugs in it, it might
-  destroy your filesystems, eat your data and start World War III.
-  You have been warned.
-
-  If unsure, say N.
-
 RAID-1 (mirroring) mode
 CONFIG_MD_RAID1
   A RAID-1 set consists of several disk drives which are exact copies
@@ -2016,6 +2007,40 @@ CONFIG_IP_NF_TARGET_MARK
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt.  If unsure, say `N'.
 
+TCPMSS target support
+CONFIG_IP_NF_TARGET_TCPMSS
+  This option adds a `TCPMSS' target, which allows you to alter the
+  MSS value of TCP SYN packets, to control the maximum size for that
+  connection (usually limiting it to your outgoing interface's MTU
+  minus 40).
+
+  This is used to overcome criminally braindead ISPs or servers which
+  block ICMP Fragmentation Needed packets.  The symptoms of this
+  problem are that everything works fine from your Linux
+  firewall/router, but machines behind it can never exchange large
+  packets:
+	1) Web browsers connect, then hang with no data received.
+	2) Small mail works fine, but large emails hang.
+	3) ssh works fine, but scp hangs after initial handshaking.
+
+  Workaround: activate this option and add a rule to your firewall
+  configuration like:
+
+        iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN \
+		 -j TCPMSS --clamp-mss-to-pmtu
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+tcpmss match support
+CONFIG_IP_NF_MATCH_TCPMSS
+  This option adds a `tcpmss' match, which allows you to examine the
+  MSS value of TCP SYN packets, which control the maximum packet size
+  for that connection.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
 LOG target support
 CONFIG_IP_NF_TARGET_LOG
   This option adds a `LOG' target, which allows you to create rules in
@@ -2045,6 +2070,73 @@ CONFIG_IP_NF_COMPAT_IPFWADM
 
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt.  If unsure, say `N'.
+
+IP6 tables support (required for filtering/masq/NAT)
+CONFIG_IP6_NF_IPTABLES
+  ip6tables is a general, extensible packet identification framework.
+  Currently only the packet filtering and packet mangling subsystem
+  for IPv6 use this, but connection tracking is going to follow.
+  Say 'Y' or 'M' here if you want to use either of those.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+IPv6 limit match support
+CONFIG_IP6_NF_MATCH_LIMIT
+  limit matching allows you to control the rate at which a rule can be
+  matched: mainly useful in combination with the LOG target ("LOG
+  target support", below) and to avoid some Denial of Service attacks.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+MAC address match support
+CONFIG_IP6_NF_MATCH_MAC
+  mac matching allows you to match packets based on the source
+  ethernet address of the packet.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+netfilter mark match support
+CONFIG_IP6_NF_MATCH_MARK
+  Netfilter mark matching allows you to match packets based on the
+  `nfmark' value in the packet.  This can be set by the MARK target
+  (see below).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Packet filtering
+CONFIG_IP6_NF_FILTER
+  Packet filtering defines a table `filter', which has a series of
+  rules for simple packet filtering at local input, forwarding and
+  local output.  See the man page for iptables(8).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Packet mangling
+CONFIG_IP6_NF_MANGLE
+  This option adds a `mangle' table to iptables: see the man page for
+  iptables(8).  This table is used for various packet alterations
+  which can effect how the packet is routed.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+MARK target support
+CONFIG_IP6_NF_TARGET_MARK
+  This option adds a `MARK' target, which allows you to create rules
+  in the `mangle' table which alter the netfilter mark (nfmark) field
+  associated with the packet packet prior to routing. This can change
+  the routing method (see `IP: use netfilter MARK value as routing
+  key') and can also be used by other subsystems to change their
+  behavior.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
 
 TCP Explicit Congestion Notification support
 CONFIG_INET_ECN
@@ -5496,6 +5588,45 @@ CONFIG_SCSI_AHA1740
 
 Adaptec AIC7xxx chipset SCSI controller support
 CONFIG_SCSI_AIC7XXX
+  This driver supports all of Adaptec's PCI based SCSI controllers (not
+  the hardware RAID controllers though) as well as the aic7770 based
+  EISA and VLB SCSI controllers (the 274x and 284x series).  This is
+  an Adaptec sponsored driver written by Justin Gibbs.  It is intended
+  to replace the previous aic7xxx driver maintained by Doug Ledford since
+  Doug is no longer maintaining that driver.
+
+Default number of TCQ commands per device
+CONFIG_AIC7XXX_CMDS_PER_DEVICE
+  Specify the number of commands you would like to allocate per SCSI
+  device when Tagged Command Queueing (TCQ) is enabled on that device.
+
+  This is an upper bound value for the number of tagged transactions
+  to be used for any device.  The aic7xxx driver will automatically
+  vary this number based on device behavior.  For devices with a
+  fixed maximum, the driver will eventually lock to this maximum
+  and display a console message inidicating this value.
+
+  Note: Unless you experience some type of device failure, the default
+	value, no enforced limit, should work for you.
+
+  Default: 253
+
+Initial Bus Reset Settle Delay
+CONFIG_AIC7XXX_RESET_DELAY
+  The number of milliseconds to delay after an initial bus reset.
+  The bus settle delay following all error recovery actions is
+  dictated by the SCSI layer and is not affected by this value.
+
+  Default: 5000 (5 seconds)
+
+Old Adaptec AIC7xxx chipset SCSI controller support
+CONFIG_SCSI_AIC7XXX_OLD
+  WARNING This driver is an older aic7xxx driver and is no longer under
+  active development.  Adaptec, Inc. is writing a new driver to take the
+  place of this one, and it is recommended that whenever possible, people
+  should use the new Adaptec written driver instead of this one.  This
+  driver will eventually be phased out entirely.
+
   This is support for the various aic7xxx based Adaptec SCSI
   controllers. These include the 274x EISA cards; 284x VLB cards;
   2902, 2910, 293x, 294x, 394x, 3985 and several other PCI and
@@ -5517,7 +5648,7 @@ CONFIG_SCSI_AIC7XXX
 
   Information on the configuration options for this controller can be
   found by checking the help file for each of the available
-  configuration options. You should read drivers/scsi/README.aic7xxx
+  configuration options. You should read drivers/scsi/aic7xxx_old/README.aic7xxx
   at a minimum before contacting the maintainer with any questions.
   The SCSI-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto , can also be of great
@@ -5526,10 +5657,10 @@ CONFIG_SCSI_AIC7XXX
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. The module will be
-  called aic7xxx.o.
+  called aic7xxx_old.o.
 
 Enable or Disable Tagged Command Queueing by default
-CONFIG_AIC7XXX_TCQ_ON_BY_DEFAULT
+CONFIG_AIC7XXX_OLD_TCQ_ON_BY_DEFAULT
   This option causes the aic7xxx driver to attempt to use Tagged
   Command Queueing (TCQ) on all devices that claim to support it. 
 
@@ -5563,7 +5694,7 @@ CONFIG_AIC7XXX_TCQ_ON_BY_DEFAULT
   reduce performance.
 
 Default number of TCQ commands per device
-CONFIG_AIC7XXX_CMDS_PER_DEVICE
+CONFIG_AIC7XXX_OLD_CMDS_PER_DEVICE
   Specify the number of commands you would like to allocate per SCSI
   device when Tagged Command Queueing (TCQ) is enabled on that device.
 
@@ -5584,7 +5715,7 @@ CONFIG_AIC7XXX_CMDS_PER_DEVICE
   Default: 8
 
 Collect statistics to report in /proc
-CONFIG_AIC7XXX_PROC_STATS
+CONFIG_AIC7XXX_OLD_PROC_STATS
   This option tells the driver to keep track of how many commands have
   been sent to each particular device and report that information to
   the user via the /proc/scsi/aic7xxx/n file, where n is the number of
@@ -5595,21 +5726,6 @@ CONFIG_AIC7XXX_PROC_STATS
   you also say Y to "/proc file system support", below. 
 
   If unsure, say N.
-
-Delay in seconds after SCSI bus reset
-CONFIG_AIC7XXX_RESET_DELAY
-  This sets how long the driver will wait after resetting the SCSI bus
-  before attempting to communicate with the devices on the SCSI bus
-  again. This delay will be used during the reset phase at bootup time
-  as well as after any reset that might occur during normal operation.
-  Reasonable numbers range anywhere from 5 to 15 seconds depending on
-  your devices. DAT tape drives are notorious for needing more time
-  after a bus reset to be ready for the next command, but most hard
-  drives and CD-ROM devices are ready in only a few seconds. This
-  option has a maximum upper limit of 20 seconds to avoid bad
-  interactions between the aic7xxx driver and the rest of the Linux
-  kernel. The default value has been reduced to 5 seconds. If this
-  doesn't work with your hardware, try increasing this value.
 
 IBM ServeRAID Support
 CONFIG_SCSI_IPS
@@ -7385,6 +7501,24 @@ CONFIG_NET_PCMCIA_RADIO
   location). You also want to check out the PCMCIA-HOWTO, available
   from http://www.linuxdoc.org/docs.html#howto .
 
+Hermes support (Orinoco/WavelanIEEE/PrismII/Symbol 802.11b cards)
+CONFIG_PCMCIA_HERMES
+  A driver for "Hermes" chipset based PCMCIA wireless adaptors, such
+  as the Lucent WavelanIEEE/Orinoco cards and their OEM (Cabletron/
+  EnteraSys RoamAbout 802.11, ELSA Airlancer, Melco Buffalo and others).
+  It should also be usable on various Prism II based cards such as the
+  Linksys, D-Link and Farallon Skyline. It should also work on Symbol
+  cards such as the 3Com AirConnect and Ericsson WLAN.
+
+  To use your PC-cards, you will need supporting software from David
+  Hinds' pcmcia-cs package (see the file Documentation/Changes for
+  location). You also want to check out the PCMCIA-HOWTO, available
+  from http://www.linuxdoc.org/docs.html#howto .
+
+  You will also very likely also need the Wireless Tools in order to
+  configure your card and that /etc/pcmcia/wireless.opts works :
+    http://www.hpl.hp.com/personal/Jean_Tourrilhes/Linux/Tools.html
+
 Aviator/Raytheon 2.4MHz wireless support
 CONFIG_PCMCIA_RAYCS
   Say Y here if you intend to attach an Aviator/Raytheon PCMCIA
@@ -8417,22 +8551,6 @@ CONFIG_NI65
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-RealTek 8129 (not 8019/8029/8139!) support (EXPERIMENTAL)
-CONFIG_RTL8129
-  This is NOT for RTL-8139 cards.  Instead, select the 8139too driver
-  (CONFIG_8139TOO).
-  This is a driver for the Fast Ethernet PCI network cards based on
-  the RTL8129 chip. If you have one of those, say Y and
-  read the Ethernet-HOWTO, available from
-  http://www.linuxdoc.org/docs.html#howto .
-
-  Note: the 8029 is a NE2000 PCI clone, you can use the NE2K-PCI driver.
-
-  If you want to compile this driver as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want),
-  say M here and read Documentation/modules.txt. This is recommended.
-  The module will be called rtl8129.o.
-
 RealTek RTL-8139 PCI Fast Ethernet Adapter support
 CONFIG_8139TOO
   This is a driver for the Fast Ethernet PCI network cards based on
@@ -8444,6 +8562,26 @@ CONFIG_8139TOO
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. This is recommended.
   The module will be called 8139too.o.
+
+Use PIO instead of MMIO
+CONFIG_8139TOO_PIO
+  This instructs the driver to use programmed I/O ports (PIO) instead
+  of PCI shared memory (MMIO). This can possibly solve some problems in
+  case your mainboard has memory consistency issues.  If unsure, say N.
+
+Support for automatic channel equalization (EXPERIMENTAL)
+CONFIG_8139TOO_TUNE_TWISTER
+  This implements a function which might come in handy in case you are
+  using low quality on long cabling. It tries to match the transceiver
+  to the cable characteristics. This is experimental since hardly
+  documented by the manufacturer.  If unsure, say N.
+
+Support for older RTL-8129/8130 boards
+CONFIG_8139TOO_8129
+  This enables support for the older and uncommon RTL-8129 and
+  RTL-8130 chips, which support MII via an external transceiver, instead
+  of an internal one.  Disabling this option will save some memory
+  by making the code size smaller.  If unsure, say Y.
 
 SiS 900 PCI Fast Ethernet Adapter support
 CONFIG_SIS900
@@ -8508,7 +8646,7 @@ CONFIG_ADAPTEC_STARFIRE
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. This is recommended.
-  The module will be called starfile.o.
+  The module will be called starfire.o.
   
 Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support
 CONFIG_ACENIC
@@ -9426,7 +9564,7 @@ CONFIG_IBMOL
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
-  The module will will be called olympic.o. If you want to compile it
+  The module will be called olympic.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
   Also read the file Documentation/networking/olympic.txt or check the
@@ -9466,7 +9604,7 @@ CONFIG_TMS380TR
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
-  The module will will be called tms380tr.o. If you want to compile it
+  The module will be called tms380tr.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
 Generic TMS380 PCI support
@@ -9481,7 +9619,7 @@ CONFIG_TMSPCI
 
   This driver is available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
-  The module will will be called tmspci.o. If you want to compile it
+  The module will be called tmspci.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
 Madge Smart 16/4 PCI Mk2 support
@@ -9491,7 +9629,7 @@ CONFIG_ABYSS
 
   This driver is available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
-  The module will will be called abyss.o. If you want to compile it
+  The module will be called abyss.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
 Madge Smart 16/4 Ringode MicroChannel 
@@ -9501,7 +9639,7 @@ CONFIG_MADGEMC
 
   This driver is available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
-  The module will will be called madgemc.o. If you want to compile it
+  The module will be called madgemc.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
 SMC ISA TokenRing adapter support
@@ -9517,7 +9655,7 @@ CONFIG_SMCTR
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
-  The module will will be called smctr.o. If you want to compile it
+  The module will be called smctr.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
 Sun Happy Meal 10/100baseT support
@@ -10541,6 +10679,32 @@ CONFIG_USB_SERIAL_MCT_U232
   inserted in and removed from the running kernel whenever you want).
   The module will be called mct_u232.o.  If you want to compile it as
   a module, say M here and read Documentation/modules.txt.
+
+USB Edgeport Serial Driver
+CONFIG_USB_SERIAL_EDGEPORT
+  Say Y here if you want to use any of the following devices from
+  Inside Out Networks (Digi):
+       Edgeport/4
+       Rapidport/4
+       Edgeport/4t
+       Edgeport/2
+       Edgeport/4i
+       Edgeport/2i
+       Edgeport/421
+       Edgeport/21
+       Edgeport/8
+       Edgeport/8 Dual
+       Edgeport/2D8
+       Edgeport/4D8
+       Edgeport/8i
+       Edgeport/2 DIN
+       Edgeport/4 DIN
+       Edgeport/16 Dual
+
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called io_edgeport.o.  If you want to compile it 
+  as a module, say M here and read Documentation/modules.txt.
 
 USB Serial Converter verbose debug
 CONFIG_USB_SERIAL_DEBUG

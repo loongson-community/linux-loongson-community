@@ -28,6 +28,7 @@ static int access_one_page(struct mm_struct * mm, struct vm_area_struct * vma, u
 	struct page *page;
 
 repeat:
+	spin_lock(&mm->page_table_lock);
 	pgdir = pgd_offset(vma->vm_mm, addr);
 	if (pgd_none(*pgdir))
 		goto fault_in_page;
@@ -47,9 +48,13 @@ repeat:
 
 	/* ZERO_PAGE is special: reads from it are ok even though it's marked reserved */
 	if (page != ZERO_PAGE(addr) || write) {
-		if ((!VALID_PAGE(page)) || PageReserved(page))
+		if ((!VALID_PAGE(page)) || PageReserved(page)) {
+			spin_unlock(&mm->page_table_lock);
 			return 0;
+		}
 	}
+	get_page(page);
+	spin_unlock(&mm->page_table_lock);
 	flush_cache_page(vma, addr);
 
 	if (write) {
@@ -64,19 +69,23 @@ repeat:
 		flush_page_to_ram(page);
 		kunmap(page);
 	}
+	put_page(page);
 	return len;
 
 fault_in_page:
+	spin_unlock(&mm->page_table_lock);
 	/* -1: out of memory. 0 - unmapped page */
 	if (handle_mm_fault(mm, vma, addr, write) > 0)
 		goto repeat;
 	return 0;
 
 bad_pgd:
+	spin_unlock(&mm->page_table_lock);
 	pgd_ERROR(*pgdir);
 	return 0;
 
 bad_pmd:
+	spin_unlock(&mm->page_table_lock);
 	pmd_ERROR(*pgmiddle);
 	return 0;
 }
@@ -131,13 +140,13 @@ int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, in
 	if (!mm)
 		return 0;
 
-	down(&mm->mmap_sem);
+	down_read(&mm->mmap_sem);
 	vma = find_extend_vma(mm, addr);
 	copied = 0;
 	if (vma)
 		copied = access_mm(mm, vma, addr, buf, len, write);
 
-	up(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 	mmput(mm);
 	return copied;
 }

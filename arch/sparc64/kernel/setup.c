@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.59 2001/02/13 01:16:44 davem Exp $
+/*  $Id: setup.c,v 1.63 2001/03/09 22:04:25 davem Exp $
  *  linux/arch/sparc64/kernel/setup.c
  *
  *  Copyright (C) 1995,1996  David S. Miller (davem@caip.rutgers.edu)
@@ -42,8 +42,6 @@
 #ifdef CONFIG_IP_PNP
 #include <net/ipconfig.h>
 #endif
-
-#undef PROM_DEBUG_CONSOLE
 
 struct screen_info screen_info = {
 	0, 0,			/* orig-x, orig-y */
@@ -166,10 +164,14 @@ int prom_callback(long *args)
 					     "r" (PRIMARY_CONTEXT), "i" (ASI_DMMU));
 
 			/*
-			 * Locked down tlb entry 63.
+			 * Locked down tlb entry.
 			 */
 
-			tte = spitfire_get_dtlb_data(63);
+			if (tlb_type == spitfire)
+				tte = spitfire_get_dtlb_data(SPITFIRE_HIGHEST_LOCKED_TLBENT);
+			else if (tlb_type == cheetah)
+				tte = cheetah_get_ldtlb_data(CHEETAH_HIGHEST_LOCKED_TLBENT);
+
 			res = PROM_TRUE;
 			goto done;
 		}
@@ -253,7 +255,7 @@ int prom_callback(long *args)
 		unsigned long tte;
 
 		tte = args[3];
-		prom_printf("%lx ", (tte & _PAGE_SOFT2) >> 50);
+		prom_printf("%lx ", (tte & 0x07FC000000000000) >> 50);
 
 		args[2] = 2;
 		args[args[1] + 3] = 0;
@@ -285,14 +287,12 @@ static int console_fb __initdata = 0;
 /* Exported for mm/init.c:paging_init. */
 unsigned long cmdline_memory_size = 0;
 
-#ifdef PROM_DEBUG_CONSOLE
 static struct console prom_debug_console = {
 	name:		"debug",
 	write:		prom_console_write,
 	flags:		CON_PRINTBUFFER,
 	index:		-1,
 };
-#endif
 
 /* XXX Implement this at some point... */
 void kernel_enter_debugger(void)
@@ -325,6 +325,10 @@ static void __init process_switch(char c)
 	case 'h':
 		prom_printf("boot_flags_init: Halt!\n");
 		prom_halt();
+		break;
+	case 'p':
+		/* Use PROM debug console. */
+		register_console(&prom_debug_console);
 		break;
 	default:
 		printk("Unknown boot switch (-%c)\n", c);
@@ -453,10 +457,6 @@ void __init setup_arch(char **cmdline_p)
 	/* Initialize PROM console and command line. */
 	*cmdline_p = prom_getbootargs();
 	strcpy(saved_command_line, *cmdline_p);
-
-#ifdef PROM_DEBUG_CONSOLE
-	register_console(&prom_debug_console);
-#endif
 
 	printk("ARCH: SUN4U\n");
 

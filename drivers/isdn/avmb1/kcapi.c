@@ -1,11 +1,23 @@
 /*
- * $Id: kcapi.c,v 1.21.6.1 2000/12/10 23:39:19 kai Exp $
+ * $Id: kcapi.c,v 1.21.6.5 2001/03/21 08:52:21 kai Exp $
  * 
  * Kernel CAPI 2.0 Module
  * 
  * (c) Copyright 1999 by Carsten Paeth (calle@calle.in-berlin.de)
  * 
  * $Log: kcapi.c,v $
+ * Revision 1.21.6.5  2001/03/21 08:52:21  kai
+ * merge from main branch: fix buffer for revision string (calle)
+ *
+ * Revision 1.21.6.4  2001/03/15 15:11:24  kai
+ * *** empty log message ***
+ *
+ * Revision 1.21.6.3  2001/03/13 16:17:08  kai
+ * spelling fixes from 2.4.3-pre
+ *
+ * Revision 1.21.6.2  2001/02/13 11:43:29  kai
+ * more compatility changes for 2.2.19
+ *
  * Revision 1.21.6.1  2000/12/10 23:39:19  kai
  * in 2.4 we don't have tq_scheduler anymore.
  * also add one supported card to hfc_pci.c
@@ -136,7 +148,7 @@
 #include <linux/b1lli.h>
 #endif
 
-static char *revision = "$Revision: 1.21.6.1 $";
+static char *revision = "$Revision: 1.21.6.5 $";
 
 /* ------------------------------------------------------------- */
 
@@ -814,7 +826,7 @@ static void controllercb_appl_released(struct capi_ctr * card, __u16 appl)
 	}
 }
 /*
- * ncci managment
+ * ncci management
  */
 
 static void controllercb_new_ncci(struct capi_ctr * card,
@@ -1752,7 +1764,7 @@ EXPORT_SYMBOL(detach_capi_driver);
 static int __init kcapi_init(void)
 {
 	char *p;
-	char rev[10];
+	char rev[32];
 
 	MOD_INC_USE_COUNT;
 
@@ -1766,17 +1778,18 @@ static int __init kcapi_init(void)
 
         proc_capi_init();
 
-	if ((p = strchr(revision, ':'))) {
-		strcpy(rev, p + 1);
-		p = strchr(rev, '$');
-		*p = 0;
+	if ((p = strchr(revision, ':')) != 0 && p[1]) {
+		strncpy(rev, p + 2, sizeof(rev));
+		rev[sizeof(rev)-1] = 0;
+		if ((p = strchr(rev, '$')) != 0 && p > rev)
+		   *(p-1) = 0;
 	} else
 		strcpy(rev, "1.0");
 
 #ifdef MODULE
-        printk(KERN_NOTICE "CAPI-driver Rev%s: loaded\n", rev);
+        printk(KERN_NOTICE "CAPI-driver Rev %s: loaded\n", rev);
 #else
-	printk(KERN_NOTICE "CAPI-driver Rev%s: started\n", rev);
+	printk(KERN_NOTICE "CAPI-driver Rev %s: started\n", rev);
 #endif
 	MOD_DEC_USE_COUNT;
 	return 0;

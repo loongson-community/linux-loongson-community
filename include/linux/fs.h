@@ -244,7 +244,7 @@ struct buffer_head {
 	struct buffer_head *b_reqnext;	/* request queue */
 
 	struct buffer_head **b_pprev;	/* doubly linked list of hash-queue */
-	char * b_data;			/* pointer to data block (512 byte) */
+	char * b_data;			/* pointer to data block */
 	struct page *b_page;		/* the page this bh is mapped to */
 	void (*b_end_io)(struct buffer_head *bh, int uptodate); /* I/O completion */
  	void *b_private;		/* reserved for b_end_io */
@@ -381,6 +381,7 @@ struct address_space {
 	struct vm_area_struct	*i_mmap;	/* list of private mappings */
 	struct vm_area_struct	*i_mmap_shared; /* list of shared mappings */
 	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
+	int			gfp_mask;	/* how to allocate the pages */
 };
 
 struct block_device {
@@ -503,6 +504,8 @@ extern spinlock_t files_lock;
 #define file_count(x)	atomic_read(&(x)->f_count)
 
 extern int init_private_file(struct file *, struct dentry *, int);
+
+#define	MAX_NON_LFS	((1UL<<31) - 1)
 
 #define FL_POSIX	1
 #define FL_FLOCK	2
@@ -651,6 +654,7 @@ struct super_block {
 	unsigned char		s_blocksize_bits;
 	unsigned char		s_lock;
 	unsigned char		s_dirt;
+	unsigned long long	s_maxbytes;	/* Max file size */
 	struct file_system_type	*s_type;
 	struct super_operations	*s_op;
 	struct dquot_operations	*dq_op;

@@ -563,7 +563,6 @@ static int de620_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		printk(KERN_WARNING "%s: No tx-buffer available!\n", dev->name);
 		restore_flags(flags);
 		return 1;
-		break;
 	}
 	de620_write_block(dev, buffer, len);
 
@@ -699,8 +698,10 @@ static int de620_rx_intr(struct net_device *dev)
 			PRINTK(("Read %d bytes\n", size));
 			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb); /* deliver it "upstairs" */
+			dev->last_rx = jiffies;
 			/* count all receives */
 			((struct net_device_stats *)(dev->priv))->rx_packets++;
+			((struct net_device_stats *)(dev->priv))->rx_bytes += size;
 		}
 	}
 

@@ -234,8 +234,6 @@ void __init paging_init(void)
 	pgd_init((unsigned long)swapper_pg_dir);
 	pmd_init((unsigned long)invalid_pmd_table, (unsigned long)invalid_pte_table);
 	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
-	pmd_init((unsigned long)empty_bad_pmd_table, (unsigned long)empty_bad_page_table);
-	memset((void *)empty_bad_page_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
 
 	for (node = 0; node < numnodes; node++) {
 		pfn_t start_pfn = slot_getbasepfn(node, 0);

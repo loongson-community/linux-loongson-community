@@ -54,7 +54,7 @@ int setup_arg_pages32(struct linux_binprm *bprm)
 	if (!mpnt) 
 		return -ENOMEM; 
 	
-	down(&current->mm->mmap_sem);
+	down_write(&current->mm->mmap_sem);
 	{
 		mpnt->vm_mm = current->mm;
 		mpnt->vm_start = PAGE_MASK & (unsigned long) bprm->p;
@@ -73,12 +73,11 @@ int setup_arg_pages32(struct linux_binprm *bprm)
 		struct page *page = bprm->page[i];
 		if (page) {
 			bprm->page[i] = NULL;
-			current->mm->rss++;
 			put_dirty_page(current,page,stack_base);
 		}
 		stack_base += PAGE_SIZE;
 	}
-	up(&current->mm->mmap_sem);
+	up_write(&current->mm->mmap_sem);
 	
 	return 0;
 }

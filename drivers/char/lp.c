@@ -135,8 +135,8 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
-/* if you have more than 3 printers, remember to increase LP_NO */
-#define LP_NO 3
+/* if you have more than 8 printers, remember to increase LP_NO */
+#define LP_NO 8
 
 /* ROUND_UP macro from fs/select.c */
 #define ROUND_UP(x,y) (((x)+(y)-1)/(y))
@@ -344,26 +344,7 @@ static ssize_t lp_read(struct file * file, char * buf,
 		return -EINTR;
 
 	parport_claim_or_block (lp_table[minor].dev);
-
-	for (;;) {
-		retval = parport_read (port, kbuf, count);
-
-		if (retval)
-			break;
-
-		if (file->f_flags & O_NONBLOCK)
-			break;
-
-		/* Wait for an interrupt. */
-		interruptible_sleep_on_timeout (&lp_table[minor].waitq,
-						LP_TIMEOUT_POLLED);
-
-		if (signal_pending (current)) {
-			retval = -EINTR;
-			break;
-		}
-	}
-
+	retval = parport_read (port, kbuf, count);
 	parport_release (lp_table[minor].dev);
 
 	if (retval > 0 && copy_to_user (buf, kbuf, retval))
@@ -500,7 +481,7 @@ static int lp_ioctl(struct inode *inode, struct file *file,
 			if (copy_to_user((int *) arg, &LP_STAT(minor),
 					sizeof(struct lp_stats)))
 				return -EFAULT;
-			if (suser())
+			if (capable(CAP_SYS_ADMIN))
 				memset(&LP_STAT(minor), 0,
 						sizeof(struct lp_stats));
 			break;

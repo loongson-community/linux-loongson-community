@@ -119,7 +119,7 @@ MODULE_DEVICE_TABLE(pci, rcpci45_pci_table);
 
 static void __exit rcpci45_remove_one(struct pci_dev *pdev)
 {
-	struct net_device *dev = pdev->driver_data;
+	struct net_device *dev = pci_get_drvdata(pdev);
 	PDPA pDpa = dev->priv;
 
         if (!dev) {
@@ -134,10 +134,12 @@ static void __exit rcpci45_remove_one(struct pci_dev *pdev)
   	unregister_netdev(dev);
 	free_irq(dev->irq, dev); 
 	iounmap((void *)dev->base_addr);
+	pci_release_regions(pdev);
 	kfree(pDpa->PLanApiPA);
 	kfree(pDpa->pPab);
 	kfree(pDpa);
 	kfree(dev);
+	pci_set_drvdata(pdev, NULL);
 }
 
 static int RCinit(struct net_device *dev)
@@ -156,12 +158,10 @@ static int rcpci45_init_one(struct pci_dev *pdev,
 {
     unsigned long *vaddr;
     PDPA pDpa;
-    int error = -ENOMEM;
+    int error;
     static int card_idx = -1;
     struct net_device *dev;
-    unsigned long pci_start = pci_resource_start(pdev,0);
-    unsigned long pci_len = pci_resource_len(pdev,0);
-    
+    unsigned long pci_start, pci_len;
 
     card_idx++;
 
@@ -177,10 +177,20 @@ static int rcpci45_init_one(struct pci_dev *pdev,
     dev = init_etherdev(NULL, sizeof(*pDpa));
     if (!dev) {
 	printk(KERN_ERR "(rcpci45 driver:) unable to allocate in init_etherdev\n");
+        error = -ENOMEM;
 	goto err_out;
     }
 
-    pdev->driver_data = dev;
+    error = pci_enable_device(pdev);
+    if (error) {
+        printk(KERN_ERR "(rcpci45 driver:) %d: unable to enable pci device, aborting\n",card_idx);
+	goto err_out;
+    }
+    error = -ENOMEM;
+    pci_start = pci_resource_start(pdev,0);
+    pci_len = pci_resource_len(pdev,0);
+
+    pci_set_drvdata(pdev, dev);
     
     pDpa = dev->priv;
     pDpa->id = card_idx;
@@ -188,6 +198,7 @@ static int rcpci45_init_one(struct pci_dev *pdev,
 
     if (!pci_start || !(pci_resource_flags(pdev, 0) & IORESOURCE_MEM)) {
 	printk(KERN_ERR "(rcpci45 driver:) No PCI memory resources! Aborting.\n");
+	error = -EBUSY;
 	goto err_out_free_dev;
     }    
 
@@ -214,20 +225,14 @@ static int rcpci45_init_one(struct pci_dev *pdev,
      * I/O read/write.  Thus, we need to map it to some virtual address
      * area in order to access the registers as normal memory.
      */
-    if (request_mem_region(pci_start, pci_len, dev->name) == NULL) {
-        printk(KERN_ERR "(rcpci45 driver:) %d: resource 0x%lx @ 0x%lx busy, aborting\n",card_idx, pci_start, pci_len);
-	goto err_out_free_msgbuf;
-    }
-
-    if (pci_enable_device(pdev)) {
-        printk(KERN_ERR "(rcpci45 driver:) %d: unable to enable pci device, aborting\n",card_idx);
-	goto err_out_free_msgbuf;
-    }
+    error = pci_request_regions(pdev, dev->name);
+    if (error)
+    	goto err_out_free_msgbuf;
 
     vaddr = (ulong *) ioremap (pci_start, pci_len); 
     if (!vaddr) {
         printk(KERN_ERR "(rcpci45 driver:) Unable to remap address range from %lu to %lu\n", pci_start, pci_start+pci_len);
-	goto err_out_free_msgbuf;
+	goto err_out_free_region;
     }
 
     dprintk("rcpci45_init_one: 0x%x, priv = 0x%x, vaddr = 0x%x\n", 
@@ -239,13 +244,14 @@ static int rcpci45_init_one(struct pci_dev *pdev,
 
     return 0; /* success */
 
-
+ err_out_free_region:
+    pci_release_regions(pdev);
  err_out_free_msgbuf:
     kfree(pDpa->msgbuf);
  err_out_free_dev:
+    unregister_netdev(dev);
     kfree(dev);
  err_out:
-    unregister_netdev(dev);
     card_idx--;
     return error;
 }
@@ -270,7 +276,7 @@ static int
 RCopen(struct net_device *dev)
 {
     int post_buffers = MAX_NMBR_RCV_BUFFERS;
-    PDPA pDpa = (PDPA) dev->priv;
+    PDPA pDpa = dev->priv;
     int count = 0;
     int requested = 0;
     int error;
@@ -278,8 +284,8 @@ RCopen(struct net_device *dev)
     dprintk("(rcpci45 driver:) RCopen\n");
 
     /* Request a shared interrupt line. */
-    if ( (error=request_irq(dev->irq, (void *)RCinterrupt,
-                     SA_INTERRUPT|SA_SHIRQ, "RedCreek VPN Adapter", dev)) ) {
+    error=request_irq(dev->irq, RCinterrupt, SA_SHIRQ, dev->name, dev);
+    if (error) {
         printk(KERN_ERR "(rcpci45 driver:) %s: unable to get IRQ %d\n", dev->name, dev->irq );
 	goto err_out;
     }
@@ -361,7 +367,7 @@ static int
 RC_xmit_packet(struct sk_buff *skb, struct net_device *dev)
 {
 
-    PDPA pDpa = (PDPA) dev->priv;
+    PDPA pDpa = dev->priv;
     singleTCB tcb;
     psingleTCB ptcb = &tcb;
     RC_RETURN status = 0;
@@ -384,7 +390,7 @@ RC_xmit_packet(struct sk_buff *skb, struct net_device *dev)
 
     /* 
      * we'll get the context when the adapter interrupts us to tell us that
-     * the transmision is done. At that time, we can free skb.
+     * the transmission is done. At that time, we can free skb.
      */
     ptcb->b.context = (U32)skb;    
     ptcb->b.scount = 1;
@@ -662,9 +668,9 @@ RCinterrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 
     PDPA pDpa;
-    struct net_device *dev = (struct net_device *)(dev_id);
+    struct net_device *dev = dev_id;
 
-    pDpa = (PDPA) (dev->priv);
+    pDpa = dev->priv;
      
     if (pDpa->shutdown)
         dprintk("shutdown: service irq\n");
@@ -681,7 +687,7 @@ RCinterrupt(int irq, void *dev_id, struct pt_regs *regs)
 static void rc_timer(unsigned long data)
 {
     struct net_device *dev = (struct net_device *)data;
-    PDPA pDpa = (PDPA) (dev->priv);
+    PDPA pDpa = dev->priv;
     int init_status;
     static int retry;
     int post_buffers = MAX_NMBR_RCV_BUFFERS;
@@ -760,7 +766,7 @@ static void rc_timer(unsigned long data)
 static int
 RCclose(struct net_device *dev)
 {
-    PDPA pDpa = (PDPA) dev->priv;
+    PDPA pDpa = dev->priv;
 
     netif_stop_queue(dev);
     

@@ -1013,7 +1013,7 @@ do_last:
 		error = -ELOOP;
 		if (flag & O_NOFOLLOW)
 			goto exit_dput;
-		do __follow_down(&nd->mnt,&dentry); while(d_mountpoint(dentry));
+		while (__follow_down(&nd->mnt,&dentry) && d_mountpoint(dentry));
 	}
 	error = -ENOENT;
 	if (!dentry->d_inode)
@@ -1927,13 +1927,11 @@ out:
 	 * bloody create() on broken symlinks. Furrfu...
 	 */
 	name = __getname();
-	if (IS_ERR(name))
-		goto fail_name;
+	if (!name)
+		return -ENOMEM;
 	strcpy(name, nd->last.name);
 	nd->last.name = name;
 	return 0;
-fail_name:
-	link = name;
 fail:
 	path_release(nd);
 	return PTR_ERR(link);

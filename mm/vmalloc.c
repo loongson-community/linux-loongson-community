@@ -102,9 +102,11 @@ static inline int alloc_area_pte (pte_t * pte, unsigned long address,
 		end = PMD_SIZE;
 	do {
 		struct page * page;
+		spin_unlock(&init_mm.page_table_lock);
+		page = alloc_page(gfp_mask);
+		spin_lock(&init_mm.page_table_lock);
 		if (!pte_none(*pte))
 			printk(KERN_ERR "alloc_area_pte: page already exists\n");
-		page = alloc_page(gfp_mask);
 		if (!page)
 			return -ENOMEM;
 		set_pte(pte, mk_pte(page, prot));
@@ -123,7 +125,7 @@ static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned lo
 	if (end > PGDIR_SIZE)
 		end = PGDIR_SIZE;
 	do {
-		pte_t * pte = pte_alloc_kernel(pmd, address);
+		pte_t * pte = pte_alloc(&init_mm, pmd, address);
 		if (!pte)
 			return -ENOMEM;
 		if (alloc_area_pte(pte, address, end - address, gfp_mask, prot))
@@ -143,11 +145,11 @@ inline int vmalloc_area_pages (unsigned long address, unsigned long size,
 
 	dir = pgd_offset_k(address);
 	flush_cache_all();
-	lock_kernel();
+	spin_lock(&init_mm.page_table_lock);
 	do {
 		pmd_t *pmd;
 		
-		pmd = pmd_alloc_kernel(dir, address);
+		pmd = pmd_alloc(&init_mm, dir, address);
 		ret = -ENOMEM;
 		if (!pmd)
 			break;
@@ -161,7 +163,7 @@ inline int vmalloc_area_pages (unsigned long address, unsigned long size,
 
 		ret = 0;
 	} while (address && (address < end));
-	unlock_kernel();
+	spin_unlock(&init_mm.page_table_lock);
 	flush_tlb_all();
 	return ret;
 }

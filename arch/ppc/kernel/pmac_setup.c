@@ -81,7 +81,7 @@ extern int mackbd_setkeycode(unsigned int scancode, unsigned int keycode);
 extern int mackbd_getkeycode(unsigned int scancode);
 extern int mackbd_translate(unsigned char keycode, unsigned char *keycodep,
 		     char raw_mode);
-extern int mackbd_unexpected_up(unsigned char keycode);
+extern char mackbd_unexpected_up(unsigned char keycode);
 extern void mackbd_leds(unsigned char leds);
 extern void __init mackbd_init_hw(void);
 extern int mac_hid_kbd_translate(unsigned char scancode, unsigned char *keycode,
@@ -253,6 +253,7 @@ pmac_get_cpuinfo(char *buffer)
 
 #endif
 
+#ifdef CONFIG_VT
 /*
  * Dummy mksound function that does nothing.
  * The real one is in the dmasound driver.
@@ -262,6 +263,7 @@ static void
 pmac_mksound(unsigned int hz, unsigned int ticks)
 {
 }
+#endif /* CONFIG_VT */
 
 static volatile u32 *sysctrl_regs;
 
@@ -345,9 +347,9 @@ pmac_setup_arch(void)
 #ifdef CONFIG_DUMMY_CONSOLE
 	conswitchp = &dummy_con;
 #endif
-
+#ifdef CONFIG_VT
 	kd_mksound = pmac_mksound;
-
+#endif
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start)
 		ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
@@ -380,7 +382,7 @@ extern char *bootdevice;
 void *boot_host;
 int boot_target;
 int boot_part;
-kdev_t boot_dev;
+extern kdev_t boot_dev;
 
 void __init
 pmac_init2(void)

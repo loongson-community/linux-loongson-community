@@ -827,14 +827,14 @@ static int generic_write (struct usb_serial_port *port, int from_user, const uns
 		spin_lock_irqsave (&port->port_lock, flags);
 		count = (count > port->bulk_out_size) ? port->bulk_out_size : count;
 
-		usb_serial_debug_data (__FILE__, __FUNCTION__, count, buf);
-
 		if (from_user) {
 			copy_from_user(port->write_urb->transfer_buffer, buf, count);
 		}
 		else {
 			memcpy (port->write_urb->transfer_buffer, buf, count);
 		}  
+
+		usb_serial_debug_data (__FILE__, __FUNCTION__, count, port->write_urb->transfer_buffer);
 
 		/* set up our urb */
 		FILL_BULK_URB(port->write_urb, serial->dev, 
@@ -1211,6 +1211,7 @@ static void * usb_serial_probe(struct usb_device *dev, unsigned int ifnum,
 	/* we don't use num_ports here cauz some devices have more endpoint pairs than ports */
 	max_endpoints = MAX(num_bulk_in, num_bulk_out);
 	max_endpoints = MAX(max_endpoints, num_interrupt_in);
+	max_endpoints = MAX(max_endpoints, serial->num_ports);
 	dbg (__FUNCTION__ " - setting up %d port structures for this device", max_endpoints);
 	for (i = 0; i < max_endpoints; ++i) {
 		port = &serial->port[i];

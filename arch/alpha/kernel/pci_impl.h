@@ -6,7 +6,7 @@
  */
 
 struct pci_dev;
-struct pci_controler;
+struct pci_controller;
 struct pci_iommu_arena;
 
 /*
@@ -68,6 +68,7 @@ struct pci_iommu_arena;
 /* ??? Experimenting with no HAE for CIA.  */
 #define CIA_DEFAULT_MEM_BASE ((32+2)*1024*1024)
 
+#define IRONGATE_DEFAULT_MEM_BASE ((256*8-16)*1024*1024)
 
 /* 
  * A small note about bridges and interrupts.  The DECchip 21050 (and
@@ -133,7 +134,7 @@ static inline u8 bridge_swizzle(u8 pin, u8 slot)
 struct pci_iommu_arena
 {
 	spinlock_t lock;
-	struct pci_controler *hose;
+	struct pci_controller *hose;
 	unsigned long *ptes;
 	dma_addr_t dma_base;
 	unsigned int size;
@@ -143,15 +144,15 @@ struct pci_iommu_arena
 
 
 /* The hose list.  */
-extern struct pci_controler *hose_head, **hose_tail;
-extern struct pci_controler *pci_isa_hose;
+extern struct pci_controller *hose_head, **hose_tail;
+extern struct pci_controller *pci_isa_hose;
 
 extern void common_init_pci(void);
 extern u8 common_swizzle(struct pci_dev *, u8 *);
-extern struct pci_controler *alloc_pci_controler(void);
+extern struct pci_controller *alloc_pci_controller(void);
 extern struct resource *alloc_resource(void);
 
-extern struct pci_iommu_arena *iommu_arena_new(struct pci_controler *,
+extern struct pci_iommu_arena *iommu_arena_new(struct pci_controller *,
 					       dma_addr_t, unsigned long,
 					       unsigned long);
 extern long iommu_arena_alloc(struct pci_iommu_arena *arena, long n);

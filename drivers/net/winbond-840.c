@@ -1,6 +1,6 @@
 /* winbond-840.c: A Linux PCI network adapter skeleton device driver. */
 /*
-	Written 1998-2000 by Donald Becker.
+	Written 1998-2001 by Donald Becker.
 
 	This software may be used and distributed according to the terms of
 	the GNU General Public License (GPL), incorporated herein by reference.
@@ -198,7 +198,8 @@ enum pci_id_flags_bits {
         PCI_ADDR0=0<<4, PCI_ADDR1=1<<4, PCI_ADDR2=2<<4, PCI_ADDR3=3<<4,
         PCI_ADDR_64BITS=0x100, PCI_NO_ACPI_WAKE=0x200, PCI_NO_MIN_LATENCY=0x400,
 };
-enum chip_capability_flags {CanHaveMII=1, HasBrokenTx=2};
+enum chip_capability_flags {
+	CanHaveMII=1, HasBrokenTx=2, AlwaysFDX=4, FDXOnNoMII=8,};
 #ifdef USE_IO_OPS
 #define W840_FLAGS (PCI_USES_IO | PCI_ADDR0 | PCI_USES_MASTER)
 #else
@@ -206,8 +207,9 @@ enum chip_capability_flags {CanHaveMII=1, HasBrokenTx=2};
 #endif
 
 static struct pci_device_id w840_pci_tbl[] __devinitdata = {
-	{ 0x1050, 0x0840, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0 },
-	{ 0x11f6, 0x2011, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 1 },
+	{ 0x1050, 0x0840, PCI_ANY_ID, 0x8153,     0, 0, 0 },
+	{ 0x1050, 0x0840, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 1 },
+	{ 0x11f6, 0x2011, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 2 },
 	{ 0, }
 };
 MODULE_DEVICE_TABLE(pci, w840_pci_tbl);
@@ -223,6 +225,9 @@ struct pci_id_info {
         int drv_flags;                          /* Driver use, intended as capability flags. */
 };
 static struct pci_id_info pci_id_tbl[] = {
+	{"Winbond W89c840",			/* Sometime a Level-One switch card. */
+	 { 0x08401050, 0xffffffff, 0x81530000, 0xffff0000 },
+	 W840_FLAGS, 128, CanHaveMII | HasBrokenTx | FDXOnNoMII},
 	{"Winbond W89c840", { 0x08401050, 0xffffffff, },
 	 W840_FLAGS, 128, CanHaveMII | HasBrokenTx},
 	{"Compex RL100-ATX", { 0x201111F6, 0xffffffff,},
@@ -305,21 +310,17 @@ struct w840_tx_desc {
 enum desc_status_bits {
 	DescOwn=0x80000000, DescEndRing=0x02000000, DescUseLink=0x01000000,
 	DescWholePkt=0x60000000, DescStartPkt=0x20000000, DescEndPkt=0x40000000,
-};
-
-/* Bits in w840_tx_desc.length */
-enum desc_length_bits {
 	DescIntr=0x80000000,
 };
 
 #define PRIV_ALIGN	15 	/* Required alignment mask */
+#define MII_CNT		1 /* winbond only supports one MII */
 struct netdev_private {
 	struct w840_rx_desc *rx_ring;
 	dma_addr_t	rx_addr[RX_RING_SIZE];
 	struct w840_tx_desc *tx_ring;
 	dma_addr_t	tx_addr[RX_RING_SIZE];
 	dma_addr_t ring_dma_addr;
-	struct pci_dev *pdev;
 	/* The addresses of receive-in-place skbuffs. */
 	struct sk_buff* rx_skbuff[RX_RING_SIZE];
 	/* The saved address of a sent-in-place packet/buffer, for later free(). */
@@ -329,6 +330,7 @@ struct netdev_private {
 	/* Frequently used values: keep some adjacent for cache effect. */
 	spinlock_t lock;
 	int chip_id, drv_flags;
+	struct pci_dev *pci_dev;
 	int csr6;
 	struct w840_rx_desc *rx_head_desc;
 	unsigned int cur_rx, dirty_rx;		/* Producer/consumer ring indices */
@@ -344,7 +346,7 @@ struct netdev_private {
 	/* MII transceiver section. */
 	int mii_cnt;						/* MII device addresses. */
 	u16 advertising;					/* NWay media advertisement */
-	unsigned char phys[2];				/* MII device addresses. */
+	unsigned char phys[MII_CNT];		/* MII device addresses, but only the first is used */
 };
 
 static int  eeprom_read(long ioaddr, int location);
@@ -377,47 +379,42 @@ static int __devinit w840_probe1 (struct pci_dev *pdev,
 	struct netdev_private *np;
 	static int find_cnt;
 	int chip_idx = ent->driver_data;
-	int irq = pdev->irq;
+	int irq;
 	int i, option = find_cnt < MAX_UNITS ? options[find_cnt] : 0;
 	long ioaddr;
 
-	if (pci_enable_device(pdev))
-		return -EIO;
+	i = pci_enable_device(pdev);
+	if (i) return i;
+
 	pci_set_master(pdev);
 
-	if(!pci_dma_supported(pdev,0xFFFFffff)) {
+	irq = pdev->irq;
+
+	if (pci_set_dma_mask(pdev,0xFFFFffff)) {
 		printk(KERN_WARNING "Winbond-840: Device %s disabled due to DMA limitations.\n",
-				pdev->name);
+		       pdev->slot_name);
 		return -EIO;
 	}
-	dev = init_etherdev(NULL, sizeof(*np));
+	dev = alloc_etherdev(sizeof(*np));
 	if (!dev)
 		return -ENOMEM;
 	SET_MODULE_OWNER(dev);
 
+	if (pci_request_regions(pdev, "winbond-840"))
+		goto err_out_netdev;
+
 #ifdef USE_IO_OPS
 	ioaddr = pci_resource_start(pdev, 0);
-	if (!request_region(ioaddr, pci_id_tbl[chip_idx].io_size, dev->name))
-		goto err_out_netdev;
 #else
 	ioaddr = pci_resource_start(pdev, 1);
-	if (!request_mem_region(ioaddr, pci_id_tbl[chip_idx].io_size, dev->name))
-		goto err_out_netdev;
 	ioaddr = (long) ioremap (ioaddr, pci_id_tbl[chip_idx].io_size);
 	if (!ioaddr)
-		goto err_out_iomem;
+		goto err_out_free_res;
 #endif
-
-	printk(KERN_INFO "%s: %s at 0x%lx, ",
-		   dev->name, pci_id_tbl[chip_idx].name, ioaddr);
 
 	/* Warning: broken for big-endian machines. */
 	for (i = 0; i < 3; i++)
 		((u16 *)dev->dev_addr)[i] = le16_to_cpu(eeprom_read(ioaddr, i));
-
-	for (i = 0; i < 5; i++)
-			printk("%2.2x:", dev->dev_addr[i]);
-	printk("%2.2x, IRQ %d.\n", dev->dev_addr[i], irq);
 
 	/* Reset the chip to erase previous misconfiguration.
 	   No hold time required! */
@@ -427,12 +424,12 @@ static int __devinit w840_probe1 (struct pci_dev *pdev,
 	dev->irq = irq;
 
 	np = dev->priv;
+	np->pci_dev = pdev;
 	np->chip_id = chip_idx;
 	np->drv_flags = pci_id_tbl[chip_idx].drv_flags;
-	np->pdev = pdev;
 	spin_lock_init(&np->lock);
 	
-	pdev->driver_data = dev;
+	pci_set_drvdata(pdev, dev);
 
 	if (dev->mem_start)
 		option = dev->mem_start;
@@ -461,9 +458,19 @@ static int __devinit w840_probe1 (struct pci_dev *pdev,
 	dev->tx_timeout = &tx_timeout;
 	dev->watchdog_timeo = TX_TIMEOUT;
 
+	i = register_netdev(dev);
+	if (i)
+		goto err_out_cleardev;
+
+	printk(KERN_INFO "%s: %s at 0x%lx, ",
+		   dev->name, pci_id_tbl[chip_idx].name, ioaddr);
+	for (i = 0; i < 5; i++)
+			printk("%2.2x:", dev->dev_addr[i]);
+	printk("%2.2x, IRQ %d.\n", dev->dev_addr[i], irq);
+
 	if (np->drv_flags & CanHaveMII) {
 		int phy, phy_idx = 0;
-		for (phy = 1; phy < 32 && phy_idx < 4; phy++) {
+		for (phy = 1; phy < 32 && phy_idx < MII_CNT; phy++) {
 			int mii_status = mdio_read(dev, phy, 1);
 			if (mii_status != 0xffff  &&  mii_status != 0x0000) {
 				np->phys[phy_idx++] = phy;
@@ -483,13 +490,14 @@ static int __devinit w840_probe1 (struct pci_dev *pdev,
 	find_cnt++;
 	return 0;
 
+err_out_cleardev:
+	pci_set_drvdata(pdev, NULL);
 #ifndef USE_IO_OPS
-err_out_iomem:
-	release_mem_region(pci_resource_start(pdev, 1),
-			   pci_id_tbl[chip_idx].io_size);
+	iounmap((void *)ioaddr);
+err_out_free_res:
 #endif
+	pci_release_regions(pdev);
 err_out_netdev:
-	unregister_netdev (dev);
 	kfree (dev);
 	return -ENODEV;
 }
@@ -535,6 +543,7 @@ static int eeprom_read(long addr, int location)
 		eeprom_delay(ee_addr);
 	}
 	writel(EE_ChipSelect, ee_addr);
+	eeprom_delay(ee_addr);
 
 	for (i = 16; i > 0; i--) {
 		writel(EE_ChipSelect | EE_ShiftClk, ee_addr);
@@ -612,7 +621,7 @@ static int mdio_read(struct net_device *dev, int phy_id, int location)
 
 static void mdio_write(struct net_device *dev, int phy_id, int location, int value)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long mdio_addr = dev->base_addr + MIICtrl;
 	int mii_cmd = (0x5002 << 16) | (phy_id << 23) | (location<<18) | value;
 	int i;
@@ -645,7 +654,7 @@ static void mdio_write(struct net_device *dev, int phy_id, int location, int val
 
 static int netdev_open(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int i;
 
@@ -680,7 +689,7 @@ static int netdev_open(struct net_device *dev)
 
 static void check_duplex(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int mii_reg5 = mdio_read(dev, np->phys[0], 5);
 	int negotiated =  mii_reg5 & np->advertising;
 	int duplex;
@@ -702,7 +711,7 @@ static void check_duplex(struct net_device *dev)
 static void netdev_timer(unsigned long data)
 {
 	struct net_device *dev = (struct net_device *)data;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int next_tick = 10*HZ;
 	int old_csr6 = np->csr6;
@@ -725,7 +734,7 @@ static void netdev_timer(unsigned long data)
 
 static void init_rxtx_rings(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int i;
 
 	np->rx_head_desc = &np->rx_ring[0];
@@ -747,7 +756,7 @@ static void init_rxtx_rings(struct net_device *dev)
 		if (skb == NULL)
 			break;
 		skb->dev = dev;			/* Mark as being used by this device. */
-		np->rx_addr[i] = pci_map_single(np->pdev,skb->tail,
+		np->rx_addr[i] = pci_map_single(np->pci_dev,skb->tail,
 					skb->len,PCI_DMA_FROMDEVICE);
 
 		np->rx_ring[i].buffer1 = cpu_to_le32(np->rx_addr[i]);
@@ -778,7 +787,7 @@ static void free_rxtx_rings(struct netdev_private* np)
 	for (i = 0; i < RX_RING_SIZE; i++) {
 		np->rx_ring[i].status = 0;
 		if (np->rx_skbuff[i]) {
-			pci_unmap_single(np->pdev,
+			pci_unmap_single(np->pci_dev,
 						np->rx_addr[i],
 						np->rx_skbuff[i]->len,
 						PCI_DMA_FROMDEVICE);
@@ -788,7 +797,7 @@ static void free_rxtx_rings(struct netdev_private* np)
 	}
 	for (i = 0; i < TX_RING_SIZE; i++) {
 		if (np->tx_skbuff[i]) {
-			pci_unmap_single(np->pdev,
+			pci_unmap_single(np->pci_dev,
 						np->tx_addr[i],
 						np->tx_skbuff[i]->len,
 						PCI_DMA_TODEVICE);
@@ -800,7 +809,7 @@ static void free_rxtx_rings(struct netdev_private* np)
 
 static void init_registers(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int i;
 
@@ -832,7 +841,7 @@ static void init_registers(struct net_device *dev)
 	if (x86 <= 4)
 		printk(KERN_INFO "%s: This is a 386/486 PCI system, setting cache "
 			   "alignment to %x.\n", dev->name,
-			   (x86 <= 4 ? 0x4810 : 0x8010));
+			   (x86 <= 4 ? 0x4810 : 0xE010));
 #endif
 #else
 	writel(0xE010, ioaddr + PCIBusCfg);
@@ -857,7 +866,7 @@ static void init_registers(struct net_device *dev)
 
 static void tx_timeout(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 
 	printk(KERN_WARNING "%s: Transmit timed out, status %8.8x,"
@@ -905,11 +914,11 @@ static void tx_timeout(struct net_device *dev)
 /* Initialize the Rx and Tx rings, along with various 'dev' bits. */
 static int alloc_ring(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 
 	np->rx_buf_sz = (dev->mtu <= 1500 ? PKT_BUF_SZ : dev->mtu + 32);
 
-	np->rx_ring = pci_alloc_consistent(np->pdev,
+	np->rx_ring = pci_alloc_consistent(np->pci_dev,
 			sizeof(struct w840_rx_desc)*RX_RING_SIZE +
 			sizeof(struct w840_tx_desc)*TX_RING_SIZE,
 			&np->ring_dma_addr);
@@ -922,7 +931,7 @@ static int alloc_ring(struct net_device *dev)
 
 static int start_tx(struct sk_buff *skb, struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	unsigned entry;
 	int len1, len2;
 
@@ -933,7 +942,7 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	entry = np->cur_tx % TX_RING_SIZE;
 
 	np->tx_skbuff[entry] = skb;
-	np->tx_addr[entry] = pci_map_single(np->pdev,
+	np->tx_addr[entry] = pci_map_single(np->pci_dev,
 				skb->data,skb->len, PCI_DMA_TODEVICE);
 	np->tx_ring[entry].buffer1 = cpu_to_le32(np->tx_addr[entry]);
 	len2 = 0;
@@ -987,7 +996,7 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 {
 	struct net_device *dev = (struct net_device *)dev_instance;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int work_limit = max_interrupt_work;
 
@@ -1040,7 +1049,7 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 				np->stats.tx_packets++;
 			}
 			/* Free the original skb. */
-			pci_unmap_single(np->pdev,np->tx_addr[entry],
+			pci_unmap_single(np->pci_dev,np->tx_addr[entry],
 						np->tx_skbuff[entry]->len,
 						PCI_DMA_TODEVICE);
 			np->tx_q_bytes -= np->tx_skbuff[entry]->len;
@@ -1082,7 +1091,7 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
    for clarity and better register allocation. */
 static int netdev_rx(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int entry = np->cur_rx % RX_RING_SIZE;
 	int work_limit = np->dirty_rx + RX_RING_SIZE - np->cur_rx;
 
@@ -1136,7 +1145,7 @@ static int netdev_rx(struct net_device *dev)
 				&& (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
 				skb->dev = dev;
 				skb_reserve(skb, 2);	/* 16 byte align the IP header */
-				pci_dma_sync_single(np->pdev,np->rx_addr[entry],
+				pci_dma_sync_single(np->pci_dev,np->rx_addr[entry],
 							np->rx_skbuff[entry]->len,
 							PCI_DMA_FROMDEVICE);
 				/* Call copy + cksum if available. */
@@ -1148,7 +1157,7 @@ static int netdev_rx(struct net_device *dev)
 					   pkt_len);
 #endif
 			} else {
-				pci_unmap_single(np->pdev,np->rx_addr[entry],
+				pci_unmap_single(np->pci_dev,np->rx_addr[entry],
 							np->rx_skbuff[entry]->len,
 							PCI_DMA_FROMDEVICE);
 				skb_put(skb = np->rx_skbuff[entry], pkt_len);
@@ -1187,7 +1196,7 @@ static int netdev_rx(struct net_device *dev)
 			if (skb == NULL)
 				break;			/* Better luck next round. */
 			skb->dev = dev;			/* Mark as being used by this device. */
-			np->rx_addr[entry] = pci_map_single(np->pdev,
+			np->rx_addr[entry] = pci_map_single(np->pci_dev,
 							skb->tail,
 							skb->len, PCI_DMA_FROMDEVICE);
 			np->rx_ring[entry].buffer1 = cpu_to_le32(np->rx_addr[entry]);
@@ -1202,7 +1211,7 @@ static int netdev_rx(struct net_device *dev)
 static void netdev_error(struct net_device *dev, int intr_status)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 
 	if (debug > 2)
 		printk(KERN_DEBUG "%s: Abnormal event, %8.8x.\n",
@@ -1243,7 +1252,7 @@ static void netdev_error(struct net_device *dev, int intr_status)
 static struct net_device_stats *get_stats(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 
 	/* The chip only need report frame silently dropped. */
 	if (netif_running(dev))
@@ -1270,7 +1279,7 @@ static inline u32 ether_crc(int length, unsigned char *data)
 
 static void set_rx_mode(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	u32 mc_filter[2];			/* Multicast hash filter */
 	u32 rx_mode;
@@ -1328,7 +1337,7 @@ static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 static int netdev_close(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int i;
 
 	netif_stop_queue(dev);
@@ -1379,23 +1388,19 @@ static int netdev_close(struct net_device *dev)
 
 static void __devexit w840_remove1 (struct pci_dev *pdev)
 {
-	struct net_device *dev = pdev->driver_data;
+	struct net_device *dev = pci_get_drvdata(pdev);
 	
 	/* No need to check MOD_IN_USE, as sys_delete_module() checks. */
 	if (dev) {
-		struct netdev_private *np = (void *)(dev->priv);
 		unregister_netdev(dev);
-#ifdef USE_IO_OPS
-		release_region(dev->base_addr, pci_id_tbl[np->chip_id].io_size);
-#else
-		release_mem_region(pci_resource_start(pdev, 1),
-				   pci_id_tbl[np->chip_id].io_size);
+		pci_release_regions(pdev);
+#ifndef USE_IO_OPS
 		iounmap((char *)(dev->base_addr));
 #endif
 		kfree(dev);
 	}
 
-	pdev->driver_data = NULL;
+	pci_set_drvdata(pdev, NULL);
 }
 
 static struct pci_driver w840_driver = {

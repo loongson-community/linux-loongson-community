@@ -73,8 +73,8 @@
 #error For now, COMX really needs the /proc filesystem
 #endif
 
+#include <net/syncppp.h>
 #include "comx.h"
-#include "syncppp.h"
 
 MODULE_AUTHOR("Gergely Madarasz <gorgo@itc.hu>");
 MODULE_DESCRIPTION("Common code for the COMX synchronous serial adapters");
@@ -380,6 +380,7 @@ int comx_rx(struct net_device *dev, struct sk_buff *skb)
 	}
 	if (skb) {
 		netif_rx(skb);
+		dev->last_rx = jiffies;
 	}
 	return 0;
 }

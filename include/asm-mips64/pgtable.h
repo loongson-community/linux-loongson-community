@@ -3,8 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 2000 by Ralf Baechle at alii
- * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 1994 - 2001 by Ralf Baechle at alii
+ * Copyright (C) 1999, 2000, 2001 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PGTABLE_H
 #define _ASM_PGTABLE_H
@@ -234,22 +234,13 @@ extern void (*_flush_cache_l1)(void);
 	printk("%s:%d: bad pgd %016lx.\n", __FILE__, __LINE__, pgd_val(e))
 
 /*
- * BAD_PAGETABLE is used when we need a bogus page-table, while
- * BAD_PAGE is used for a bogus page.
- *
  * ZERO_PAGE is a global shared page that is always zero: used
  * for zero-mapped memory areas etc..
  */
-extern pte_t __bad_page(void);
-extern pte_t *__bad_pagetable(void);
-extern pmd_t *__bad_pmd_table(void);
 
 extern unsigned long empty_zero_page;
 extern unsigned long zero_page_mask;
 
-#define BAD_PAGETABLE __bad_pagetable()
-#define BAD_PMDTABLE __bad_pmd_table()
-#define BAD_PAGE __bad_page()
 #define ZERO_PAGE(vaddr) \
 	(virt_to_page(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
 
@@ -307,7 +298,8 @@ extern inline int pte_present(pte_t pte)
 	return pte_val(pte) & _PAGE_PRESENT;
 }
 
-/* Certain architectures need to do special things when pte's
+/*
+ * Certain architectures need to do special things when pte's
  * within a page table are directly modified.  Thus, the following
  * hook is made available.
  */
@@ -331,7 +323,12 @@ extern inline int pmd_none(pmd_t pmd)
 
 extern inline int pmd_bad(pmd_t pmd)
 {
-	return pmd_val(pmd) == (unsigned long) empty_bad_page_table;
+	return pmd_val(pmd) &~ PAGE_MASK;
+}
+
+extern inline int pmd_present(pmd_t pmd)
+{
+	return pmd_val(pmd) != (unsigned long) invalid_pte_table;
 }
 
 extern inline void pmd_clear(pmd_t *pmdp)
@@ -349,7 +346,12 @@ extern inline int pgd_none(pgd_t pgd)
 
 extern inline int pgd_bad(pgd_t pgd)
 {
-	return pgd_val(pgd) == (unsigned long) empty_bad_pmd_table;
+	return pgd_val(pgd) &~ PAGE_MASK;
+}
+
+extern inline int pgd_present(pgd_t pgd)
+{
+	return pgd_val(pgd) != (unsigned long) invalid_pmd_table;
 }
 
 extern inline void pgd_clear(pgd_t *pgdp)
@@ -360,7 +362,6 @@ extern inline void pgd_clear(pgd_t *pgdp)
 /*
  * Permanent address of a page.  On MIPS64 we never have highmem, so this
  * is simple.
- * called on a highmem page.
  */
 #define page_address(page)	((page)->virtual)
 #ifndef CONFIG_DISCONTIGMEM

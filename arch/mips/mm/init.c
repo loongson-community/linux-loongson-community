@@ -5,15 +5,10 @@
  *
  * Copyright (C) 1994 - 2000 by Ralf Baechle
  * Copyright (C) 2000 Silicon Graphics, Inc.
- */
-/**************************************************************************
- *  9 Nov, 2000.
- *  Use mips_cpu structure.
  *
- *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
- *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
- *************************************************************************/
-
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/signal.h>
@@ -50,63 +45,6 @@
 static unsigned long totalram_pages;
 
 extern void prom_free_prom_memory(void);
-
-
-void __bad_pte_kernel(pmd_t *pmd)
-{
-	printk("Bad pmd in pte_alloc_kernel: %08lx\n", pmd_val(*pmd));
-	pmd_set(pmd, BAD_PAGETABLE);
-}
-
-void __bad_pte(pmd_t *pmd)
-{
-	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
-	pmd_set(pmd, BAD_PAGETABLE);
-}
-
-pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
-{
-	pte_t *page;
-
-	page = (pte_t *) __get_free_page(GFP_USER);
-	if (pmd_none(*pmd)) {
-		if (page) {
-			clear_page(page);
-			pmd_val(*pmd) = (unsigned long)page;
-			return page + offset;
-		}
-		pmd_set(pmd, BAD_PAGETABLE);
-		return NULL;
-	}
-	free_page((unsigned long)page);
-	if (pmd_bad(*pmd)) {
-		__bad_pte_kernel(pmd);
-		return NULL;
-	}
-	return (pte_t *) pmd_page(*pmd) + offset;
-}
-
-pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
-{
-	pte_t *page;
-
-	page = (pte_t *) __get_free_page(GFP_KERNEL);
-	if (pmd_none(*pmd)) {
-		if (page) {
-			clear_page(page);
-			pmd_val(*pmd) = (unsigned long)page;
-			return page + offset;
-		}
-		pmd_set(pmd, BAD_PAGETABLE);
-		return NULL;
-	}
-	free_page((unsigned long)page);
-	if (pmd_bad(*pmd)) {
-		__bad_pte(pmd);
-		return NULL;
-	}
-	return (pte_t *) pmd_page(*pmd) + offset;
-}
 
 
 asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
@@ -168,48 +106,6 @@ int do_check_pgt_cache(int low, int high)
 		} while(pgtable_cache_size > low);
 	}
 	return freed;
-}
-
-/*
- * BAD_PAGE is the page that is used for page faults when linux
- * is out-of-memory. Older versions of linux just did a
- * do_exit(), but using this instead means there is less risk
- * for a process dying in kernel mode, possibly leaving a inode
- * unused etc..
- *
- * BAD_PAGETABLE is the accompanying page-table: it is initialized
- * to point to BAD_PAGE entries.
- *
- * ZERO_PAGE is a special page that is used for zero-initialized
- * data and COW.
- */
-pte_t * __bad_pagetable(void)
-{
-	extern char empty_bad_page_table[PAGE_SIZE];
-	unsigned long page, dummy1, dummy2;
-
-	page = (unsigned long) empty_bad_page_table;
-	__asm__ __volatile__(
-		".set\tnoreorder\n"
-		"1:\tsw\t%2,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,4\n\t"
-		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2)
-		:"r" (pte_val(BAD_PAGE)), "0" (page), "1" (PAGE_SIZE/4)
-		:"$1");
-
-	return (pte_t *)page;
-}
-
-pte_t __bad_page(void)
-{
-	extern char empty_bad_page[PAGE_SIZE];
-	unsigned long page = (unsigned long) empty_bad_page;
-
-	clear_page((void *)page);
-	return pte_mkdirty(mk_pte_phys(__pa(page), PAGE_SHARED));
 }
 
 void show_mem(void)

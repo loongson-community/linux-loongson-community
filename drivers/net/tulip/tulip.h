@@ -18,6 +18,7 @@
 #include <linux/netdevice.h>
 #include <linux/timer.h>
 #include <asm/io.h>
+#include <asm/irq.h>
 
 
 
@@ -107,7 +108,14 @@ enum tulip_offsets {
 	CSR12 = 0x60,
 	CSR13 = 0x68,
 	CSR14 = 0x70,
-	CSR15 = 0x78
+	CSR15 = 0x78,
+};
+
+/* register offset and bits for CFDD PCI config reg */
+enum pci_cfg_driver_reg {	
+	CFDD = 0x40,
+	CFDD_Sleep = (1 << 31),
+	CFDD_Snooze = (1 << 30),
 };
 
 

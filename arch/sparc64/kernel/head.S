@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.65 2000/05/09 17:40:13 davem Exp $
+/* $Id: head.S,v 1.75 2001/03/22 09:54:26 davem Exp $
  * head.S: Initial boot code for the Sparc64 port of Linux.
  *
  * Copyright (C) 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -21,6 +21,8 @@
 #include <asm/signal.h>
 #include <asm/processor.h>
 #include <asm/lsu.h>
+#include <asm/dcr.h>
+#include <asm/dcu.h>
 #include <asm/head.h>
 #include <asm/ttable.h>
 	
@@ -76,11 +78,145 @@ sparc_ramdisk_size:
 	 * PROM entry point is on %o4
 	 */
 sparc64_boot:
+	rdpr	%ver, %g1
+	sethi	%hi(0x003e0014), %g5
+	srlx	%g1, 32, %g1
+	or	%g5, %lo(0x003e0014), %g5
+	cmp	%g1, %g5
+	bne,pt	%icc, spitfire_boot
+	 nop
+
+cheetah_boot:
+	mov	DCR_BPE | DCR_RPE | DCR_SI | DCR_IFPOE | DCR_MS, %g1
+	wr	%g1, %asr18
+
+	sethi	%uhi(DCU_ME | DCU_RE | DCU_PE | DCU_HPE | DCU_SPE | DCU_SL | DCU_WE), %g5
+	or	%g5, %ulo(DCU_ME | DCU_RE | DCU_PE | DCU_HPE | DCU_SPE | DCU_SL | DCU_WE), %g5
+	sllx	%g5, 32, %g5
+	or	%g5, DCU_DM | DCU_IM | DCU_DC | DCU_IC, %g5
+	ldxa	[%g0] ASI_DCU_CONTROL_REG, %g3
+	or	%g5, %g3, %g5
+	stxa	%g5, [%g0] ASI_DCU_CONTROL_REG
+	membar	#Sync
+
+	wrpr    %g0, (PSTATE_PRIV|PSTATE_PEF|PSTATE_IE), %pstate
+	wr	%g0, 0, %fprs
+
+	/* Just like for Spitfire, we probe itlb-2 for a mapping which
+	 * matches our current %pc.  We take the physical address in
+	 * that mapping and use it to make our own.
+	 */
+
+	/* %g5 holds the tlb data */
+        sethi   %uhi(_PAGE_VALID | _PAGE_SZ4MB), %g5
+        sllx    %g5, 32, %g5
+        or      %g5, (_PAGE_CP | _PAGE_CV | _PAGE_P | _PAGE_L | _PAGE_W | _PAGE_G), %g5
+
+	/* Put PADDR tlb data mask into %g3. */
+	sethi	%uhi(_PAGE_PADDR), %g3
+	or	%g3, %ulo(_PAGE_PADDR), %g3
+	sllx	%g3, 32, %g3
+	sethi	%hi(_PAGE_PADDR), %g7
+	or	%g7, %lo(_PAGE_PADDR), %g7
+	or	%g3, %g7, %g3
+
+	set	2 << 16, %l0		/* TLB entry walker. */
+	set	0x1fff, %l2		/* Page mask. */
+	rd	%pc, %l3
+	andn	%l3, %l2, %g2		/* vaddr comparator */
+
+1:	ldxa	[%l0] ASI_ITLB_TAG_READ, %g1
+	membar	#Sync
+	andn	%g1, %l2, %g1
+	cmp	%g1, %g2
+	be,pn	%xcc, cheetah_got_tlbentry
+	 nop
+	and	%l0, (127 << 3), %g1
+	cmp	%g1, (127 << 3)
+	blu,pt	%xcc, 1b
+	 add	%l0, (1 << 3), %l0
+
+cheetah_got_tlbentry:
+	ldxa	[%l0] ASI_ITLB_DATA_ACCESS, %g1
+	membar	#Sync
+	and	%g1, %g3, %g1
+	sub	%g1, %g2, %g1
+	or	%g5, %g1, %g5
+
+	/* Clear out any KERNBASE area entries. */
+	set	2 << 16, %l0
+	sethi	%hi(KERNBASE), %g3
+	sethi	%hi(KERNBASE<<1), %g7
+	mov	TLB_TAG_ACCESS, %l7
+
+	/* First, check ITLB */
+1:	ldxa	[%l0] ASI_ITLB_TAG_READ, %g1
+	membar	#Sync
+	andn	%g1, %l2, %g1
+	cmp	%g1, %g3
+	blu,pn	%xcc, 2f
+	 cmp	%g1, %g7
+	bgeu,pn	%xcc, 2f
+	 nop
+	stxa	%g0, [%l7] ASI_IMMU
+	membar	#Sync
+	stxa	%g0, [%l0] ASI_ITLB_DATA_ACCESS
+	membar	#Sync
+
+2:	and	%l0, (127 << 3), %g1
+	cmp	%g1, (127 << 3)
+	blu,pt	%xcc, 1b
+	 add	%l0, (1 << 3), %l0
+
+	/* Next, check DTLB */
+	set	2 << 16, %l0
+1:	ldxa	[%l0] ASI_DTLB_TAG_READ, %g1
+	membar	#Sync
+	andn	%g1, %l2, %g1
+	cmp	%g1, %g3
+	blu,pn	%xcc, 2f
+	 cmp	%g1, %g7
+	bgeu,pn	%xcc, 2f
+	 nop
+	stxa	%g0, [%l7] ASI_DMMU
+	membar	#Sync
+	stxa	%g0, [%l0] ASI_DTLB_DATA_ACCESS
+	membar	#Sync
+	
+2:	and	%l0, (511 << 3), %g1
+	cmp	%g1, (511 << 3)
+	blu,pt	%xcc, 1b
+	 add	%l0, (1 << 3), %l0
+
+	/* Now lock the TTE we created into ITLB-0 and DTLB-0,
+	 * entry 15.
+	 */
+	sethi	%hi(KERNBASE), %g3
+	set	(0 << 16) | (15 << 3), %g7
+	stxa	%g3, [%l7] ASI_DMMU
+	membar	#Sync
+	stxa	%g5, [%g7] ASI_DTLB_DATA_ACCESS
+	membar	#Sync
+	stxa	%g3, [%l7] ASI_IMMU
+	membar	#Sync
+	stxa	%g5, [%g7] ASI_ITLB_DATA_ACCESS
+	membar	#Sync
+	flush	%g3
+	membar	#Sync
+	ba,pt	%xcc, 1f
+	 nop
+
+1:	set	sun4u_init, %g2
+	jmpl    %g2 + %g0, %g0
+	 nop
+
+spitfire_boot:
 	/* Typically PROM has already enabled both MMU's and both on-chip
 	 * caches, but we do it here anyway just to be paranoid.
 	 */
 	mov	(LSU_CONTROL_IC|LSU_CONTROL_DC|LSU_CONTROL_IM|LSU_CONTROL_DM), %g1
 	stxa	%g1, [%g0] ASI_LSU_CONTROL
+	membar	#Sync
 
 	/*
 	 * Make sure we are in privileged mode, have address masking,
@@ -93,7 +229,7 @@ sparc64_boot:
 	wrpr    %g0, (PSTATE_PRIV|PSTATE_PEF|PSTATE_IE), %pstate
 	wr	%g0, 0, %fprs
 
-create_mappings:
+spitfire_create_mappings:
 	/* %g5 holds the tlb data */
         sethi   %uhi(_PAGE_VALID | _PAGE_SZ4MB), %g5
         sllx    %g5, 32, %g5
@@ -104,11 +240,11 @@ create_mappings:
 	 */
 
 	/* Put PADDR tlb data mask into %g3. */
-	sethi	%uhi(_PAGE_PADDR), %g3
-	or	%g3, %ulo(_PAGE_PADDR), %g3
+	sethi	%uhi(_PAGE_PADDR_SF), %g3
+	or	%g3, %ulo(_PAGE_PADDR_SF), %g3
 	sllx	%g3, 32, %g3
-	sethi	%hi(_PAGE_PADDR), %g7
-	or	%g7, %lo(_PAGE_PADDR), %g7
+	sethi	%hi(_PAGE_PADDR_SF), %g7
+	or	%g7, %lo(_PAGE_PADDR_SF), %g7
 	or	%g3, %g7, %g3
 
 	/* Walk through entire ITLB, looking for entry which maps
@@ -126,13 +262,13 @@ create_mappings:
 	nop
 	andn	%g1, %l2, %g1		/* Get vaddr */
 	cmp	%g1, %g2
-	be,a,pn	%xcc, got_tlbentry
+	be,a,pn	%xcc, spitfire_got_tlbentry
 	 ldxa	[%l0] ASI_ITLB_DATA_ACCESS, %g1
 	cmp	%l0, (63 << 3)
 	blu,pt	%xcc, 1b
 	 add	%l0, (1 << 3), %l0
 
-got_tlbentry:
+spitfire_got_tlbentry:
 	/* Nops here again, perhaps Cheetah/Blackbird are better behaved... */
 	nop
 	nop
@@ -164,6 +300,7 @@ got_tlbentry:
 	 nop
 	stxa	%g0, [%l7] ASI_IMMU
 	stxa	%g0, [%l0] ASI_ITLB_DATA_ACCESS
+	membar	#Sync
 2:
 	cmp	%l0, (63 << 3)
 	blu,pt	%xcc, 1b
@@ -186,6 +323,7 @@ got_tlbentry:
 	 nop
 	stxa	%g0, [%l7] ASI_DMMU
 	stxa	%g0, [%l0] ASI_DTLB_DATA_ACCESS
+	membar	#Sync
 2:
 	cmp	%l0, (63 << 3)
 	blu,pt	%xcc, 1b
@@ -235,7 +373,47 @@ sun4u_init:
 	mov	TLB_TAG_ACCESS, %g2
 	stxa	%g3, [%g2] ASI_IMMU
 	stxa	%g3, [%g2] ASI_DMMU
+	membar	#Sync
 
+	rdpr	%ver, %g1
+	sethi	%hi(0x003e0014), %g5
+	srlx	%g1, 32, %g1
+	or	%g5, %lo(0x003e0014), %g5
+	cmp	%g1, %g5
+	bne,pt	%icc, spitfire_tlb_fixup
+	 nop
+
+cheetah_tlb_fixup:
+	set	(0 << 16) | (15 << 3), %g7
+	ldxa	[%g7] ASI_ITLB_DATA_ACCESS, %g1
+	andn	%g1, (_PAGE_G), %g1
+	stxa	%g1, [%g7] ASI_ITLB_DATA_ACCESS
+	membar	#Sync
+
+	ldxa	[%g7] ASI_DTLB_DATA_ACCESS, %g1
+	andn	%g1, (_PAGE_G), %g1
+	stxa	%g1, [%g7] ASI_DTLB_DATA_ACCESS
+	membar	#Sync
+
+	/* Kill instruction prefetch queues. */
+	flush	%g3
+	membar	#Sync
+
+	/* Set TLB type to cheetah. */
+	mov	1, %g2
+	sethi	%hi(tlb_type), %g5
+	stw	%g2, [%g5 + %lo(tlb_type)]
+
+	/* Patch copy/page operations to cheetah optimized versions. */
+	call	cheetah_patch_copyops
+	 nop
+	call	cheetah_patch_pgcopyops
+	 nop
+
+	ba,pt	%xcc, tlb_fixup_done
+	 nop
+
+spitfire_tlb_fixup:
 	mov	(63 << 3), %g7
 	ldxa	[%g7] ASI_ITLB_DATA_ACCESS, %g1
 	andn	%g1, (_PAGE_G), %g1
@@ -251,6 +429,12 @@ sun4u_init:
 	flush	%g3
 	membar	#Sync
 
+	/* Set TLB type to spitfire. */
+	mov	0, %g2
+	sethi	%hi(tlb_type), %g5
+	stw	%g2, [%g5 + %lo(tlb_type)]
+
+tlb_fixup_done:
 	sethi	%hi(init_task_union), %g6
 	or	%g6, %lo(init_task_union), %g6
 	mov	%sp, %l6
@@ -285,28 +469,19 @@ sun4u_init:
 	wrpr	%g0, 0x0, %tl
 
 	/* Clear the bss */
-	sethi	%hi(8191), %l2
-	or	%l2, %lo(8191), %l2
-	sethi	%hi(__bss_start), %l0
-	or	%l0, %lo(__bss_start), %l0
-	sethi	%hi(_end), %l1
-	or	%l1, %lo(_end), %l1
-	add	%l1, %l2, %l1
-	andn	%l1, %l2, %l1
-	add	%l2, 1, %l2
-	add	%l0, %g0, %o0
-1:
-	mov	%l2, %o1
+	sethi	%hi(__bss_start), %o0
+	or	%o0, %lo(__bss_start), %o0
+	sethi	%hi(_end), %o1
+	or	%o1, %lo(_end), %o1
 	call	__bzero
-	 add	%l0, %l2, %l0
-	cmp	%l0, %l1
-	blu,pt	%xcc, 1b
-	 add	%l0, %g0, %o0
+	 sub	%o1, %o0, %o1
 
 	/* Now clear empty_zero_page */
-	mov	%l2, %o1
+	sethi	%hi(8192), %o1
+	or	%o1, %lo(8192), %o1
+	sethi	%hi(KERNBASE), %g3
 	call	__bzero
-	 mov	%g3, %o0
+	 or	%g3, %lo(KERNBASE), %o0
 
 	mov	%l6, %o1			! OpenPROM stack
 	call	prom_init
@@ -340,14 +515,16 @@ setup_tba:	/* i0 = is_starfire */
 	wrpr	%o1, (PSTATE_MG|PSTATE_IE), %pstate
 
 	/* Set fixed globals used by dTLB miss handler. */
-#define KERN_HIGHBITS		((_PAGE_VALID | _PAGE_SZ4MB) ^ 0xfffff80000000000)
+#define KERN_HIGHBITS		((_PAGE_VALID|_PAGE_SZ4MB)^0xfffff80000000000)
 #define KERN_LOWBITS		(_PAGE_CP | _PAGE_CV | _PAGE_P | _PAGE_W)
-#ifdef THIS_IS_CHEETAH
-#error Dave, make sure you took care of other issues in rest of sparc64 code...
-#define VPTE_BASE		0xffe0000000000000
-#else /* Spitfire/Blackbird */
-#define VPTE_BASE		0xfffffffe00000000
+
+#define VPTE_BASE_SPITFIRE	0xfffffffe00000000
+#if 1
+#define VPTE_BASE_CHEETAH	VPTE_BASE_SPITFIRE
+#else
+#define VPTE_BASE_CHEETAH	0xffe0000000000000
 #endif
+
 	mov	TSB_REG, %g1
 	stxa	%g0, [%g1] ASI_DMMU
 	membar	#Sync
@@ -356,13 +533,30 @@ setup_tba:	/* i0 = is_starfire */
 	or	%g2, %ulo(KERN_HIGHBITS), %g2
 	sllx	%g2, 32, %g2
 	or	%g2, KERN_LOWBITS, %g2
-	sethi	%uhi(VPTE_BASE), %g3
-	or	%g3, %ulo(VPTE_BASE), %g3
-	sllx	%g3, 32, %g3
+
+	rdpr		%ver, %g3
+	sethi		%hi(0x003e0014), %g7
+	srlx		%g3, 32, %g3
+	or		%g7, %lo(0x003e0014), %g7
+	cmp		%g3, %g7
+	bne,pt		%icc, 1f
+	 nop
+
+	sethi		%uhi(VPTE_BASE_CHEETAH), %g3
+	or		%g3, %ulo(VPTE_BASE_CHEETAH), %g3
+	ba,pt		%xcc, 2f
+	 sllx		%g3, 32, %g3
+1:
+	sethi		%uhi(VPTE_BASE_SPITFIRE), %g3
+	or		%g3, %ulo(VPTE_BASE_SPITFIRE), %g3
+	sllx		%g3, 32, %g3
+
+2:
 	clr	%g7
 #undef KERN_HIGHBITS
 #undef KERN_LOWBITS
-#undef VPTE_BASE
+#undef VPTE_BASE_SPITFIRE
+#undef VPTE_BASE_CHEETAH
 
 	/* Setup Interrupt globals */
 	wrpr	%o1, (PSTATE_IG|PSTATE_IE), %pstate
@@ -371,9 +565,6 @@ setup_tba:	/* i0 = is_starfire */
 	or	%g5, %lo(__up_workvec), %g6
 #else
 	/* By definition of where we are, this is boot_cpu. */
-	sethi	%hi(cpu_data), %g5
-	or	%g5, %lo(cpu_data), %g5
-
 	brz,pt	%i0, not_starfire
 	 sethi	%hi(0x1fff4000), %g1
 	or	%g1, %lo(0x1fff4000), %g1
@@ -384,12 +575,27 @@ setup_tba:	/* i0 = is_starfire */
 	 nop
 
 not_starfire:
+	rdpr		%ver, %g1
+	sethi		%hi(0x003e0014), %g5
+	srlx		%g1, 32, %g1
+	or		%g7, %lo(0x003e0014), %g5
+	cmp		%g1, %g5
+	bne,pt		%icc, not_cheetah
+	 nop
+
+	ldxa		[%g0] ASI_SAFARI_CONFIG, %g1
+	srlx		%g1, 17, %g1
+	and		%g1, 0x3ff, %g1		! 10bit Safari Agent ID
+
+not_cheetah:
 	ldxa	[%g0] ASI_UPA_CONFIG, %g1
 	srlx	%g1, 17, %g1
 	and	%g1, 0x1f, %g1
 
 	/* In theory this is: &(cpu_data[boot_cpu_id].irq_worklists[0]) */
 set_worklist:
+	sethi	%hi(cpu_data), %g5
+	or	%g5, %lo(cpu_data), %g5
 	sllx	%g1, 7, %g1
 	add	%g5, %g1, %g5
 	add	%g5, 64, %g6
@@ -398,9 +604,23 @@ set_worklist:
 	/* Kill PROM timer */
 	wr	%g0, 0, %tick_cmpr
 
+	rdpr		%ver, %g1
+	sethi		%hi(0x003e0014), %g5
+	srlx		%g1, 32, %g1
+	or		%g7, %lo(0x003e0014), %g5
+	cmp		%g1, %g5
+	bne,pt		%icc, 1f
+	 nop
+
+	/* Disable STICK_INT interrupts. */
+	sethi		%hi(0x80000000), %g1
+	sllx		%g1, 32, %g1
+	wr		%g1, %asr25
+
 	/* Ok, we're done setting up all the state our trap mechanims needs,
 	 * now get back into normal globals and let the PROM know what is up.
 	 */
+1:
 	wrpr	%g0, %g0, %wstate
 	wrpr	%o1, PSTATE_IE, %pstate
 

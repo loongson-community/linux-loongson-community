@@ -314,6 +314,7 @@ enum desc_status_bits {
 #define PRIV_ALIGN	15 	/* Required alignment mask */
 /* Use  __attribute__((aligned (L1_CACHE_BYTES)))  to maintain alignment
    within the structure. */
+#define MII_CNT		4
 struct netdev_private {
 	/* Descriptor rings first for alignment. */
 	struct netdev_desc rx_ring[RX_RING_SIZE];
@@ -346,7 +347,7 @@ struct netdev_private {
 	/* MII transceiver section. */
 	int mii_cnt;						/* MII device addresses. */
 	u16 advertising;					/* NWay media advertisement */
-	unsigned char phys[2];				/* MII device addresses. */
+	unsigned char phys[MII_CNT];		/* MII device addresses, only first one used. */
 };
 
 /* The station address location in the EEPROM. */
@@ -379,7 +380,7 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 	struct netdev_private *np;
 	static int card_idx;
 	int chip_idx = ent->driver_data;
-	int irq = pdev->irq;
+	int irq;
 	int i, option = card_idx < MAX_UNITS ? options[card_idx] : 0;
 	long ioaddr;
 
@@ -387,33 +388,28 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 		return -EIO;
 	pci_set_master(pdev);
 
-	dev = init_etherdev(NULL, sizeof(*np));
+	irq = pdev->irq;
+
+	dev = alloc_etherdev(sizeof(*np));
 	if (!dev)
 		return -ENOMEM;
 	SET_MODULE_OWNER(dev);
 
+	if (pci_request_regions(pdev, "sundance"))
+		goto err_out_netdev;
+
 #ifdef USE_IO_OPS
 	ioaddr = pci_resource_start(pdev, 0);
-	if (!request_region(ioaddr, pci_id_tbl[chip_idx].io_size, dev->name))
-		goto err_out_netdev;
 #else
 	ioaddr = pci_resource_start(pdev, 1);
-	if (!request_mem_region(ioaddr, pci_id_tbl[chip_idx].io_size, dev->name))
-		goto err_out_netdev;
 	ioaddr = (long) ioremap (ioaddr, pci_id_tbl[chip_idx].io_size);
 	if (!ioaddr)
 		goto err_out_iomem;
 #endif
 
-	printk(KERN_INFO "%s: %s at 0x%lx, ",
-		   dev->name, pci_id_tbl[chip_idx].name, ioaddr);
-
 	for (i = 0; i < 3; i++)
 		((u16 *)dev->dev_addr)[i] =
 			le16_to_cpu(eeprom_read(ioaddr, i + EEPROM_SA_OFFSET));
-	for (i = 0; i < 5; i++)
-			printk("%2.2x:", dev->dev_addr[i]);
-	printk("%2.2x, IRQ %d.\n", dev->dev_addr[i], irq);
 
 	dev->base_addr = ioaddr;
 	dev->irq = irq;
@@ -453,10 +449,20 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 	if (mtu)
 		dev->mtu = mtu;
 
+	i = register_netdev(dev);
+	if (i)
+		goto err_out_cleardev;
+
+	printk(KERN_INFO "%s: %s at 0x%lx, ",
+		   dev->name, pci_id_tbl[chip_idx].name, ioaddr);
+	for (i = 0; i < 5; i++)
+			printk("%2.2x:", dev->dev_addr[i]);
+	printk("%2.2x, IRQ %d.\n", dev->dev_addr[i], irq);
+
 	if (1) {
 		int phy, phy_idx = 0;
 		np->phys[0] = 1;		/* Default setting */
-		for (phy = 0; phy < 32 && phy_idx < 4; phy++) {
+		for (phy = 0; phy < 32 && phy_idx < MII_CNT; phy++) {
 			int mii_status = mdio_read(dev, phy, 1);
 			if (mii_status != 0xffff  &&  mii_status != 0x0000) {
 				np->phys[phy_idx++] = phy;
@@ -483,13 +489,14 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 	card_idx++;
 	return 0;
 
+err_out_cleardev:
+	pci_set_drvdata(pdev, NULL);
 #ifndef USE_IO_OPS
+	iounmap((void *)ioaddr);
 err_out_iomem:
-	release_mem_region(pci_resource_start(pdev, 1),
-			   pci_id_tbl[chip_idx].io_size);
 #endif
+	pci_release_regions(pdev);
 err_out_netdev:
-	unregister_netdev (dev);
 	kfree (dev);
 	return -ENODEV;
 }
@@ -604,7 +611,7 @@ static void mdio_write(struct net_device *dev, int phy_id, int location, int val
 
 static int netdev_open(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int i;
 
@@ -667,7 +674,7 @@ static int netdev_open(struct net_device *dev)
 
 static void check_duplex(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int mii_reg5 = mdio_read(dev, np->phys[0], 5);
 	int negotiated = mii_reg5 & np->advertising;
@@ -689,7 +696,7 @@ static void check_duplex(struct net_device *dev)
 static void netdev_timer(unsigned long data)
 {
 	struct net_device *dev = (struct net_device *)data;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int next_tick = 10*HZ;
 
@@ -706,7 +713,7 @@ static void netdev_timer(unsigned long data)
 
 static void tx_timeout(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 
 	printk(KERN_WARNING "%s: Transmit timed out, status %2.2x,"
@@ -735,14 +742,16 @@ static void tx_timeout(struct net_device *dev)
 
 	dev->trans_start = jiffies;
 	np->stats.tx_errors++;
-	return;
+
+	if (!np->tx_full)
+		netif_wake_queue(dev);
 }
 
 
 /* Initialize the Rx and Tx rings, along with various 'dev' bits. */
 static void init_ring(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int i;
 
 	np->tx_full = 0;
@@ -784,7 +793,7 @@ static void init_ring(struct net_device *dev)
 
 static int start_tx(struct sk_buff *skb, struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	struct netdev_desc *txdesc;
 	unsigned entry;
 
@@ -838,7 +847,7 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 	int boguscnt = max_interrupt_work;
 
 	ioaddr = dev->base_addr;
-	np = (struct netdev_private *)dev->priv;
+	np = dev->priv;
 	spin_lock(&np->lock);
 
 	do {
@@ -935,7 +944,7 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
    for clarity and better register allocation. */
 static int netdev_rx(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int entry = np->cur_rx % RX_RING_SIZE;
 	int boguscnt = np->dirty_rx + RX_RING_SIZE - np->cur_rx;
 
@@ -1026,7 +1035,7 @@ static int netdev_rx(struct net_device *dev)
 static void netdev_error(struct net_device *dev, int intr_status)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 
 	if (intr_status & IntrDrvRqst) {
 		/* Stop the down counter and turn interrupts back on. */
@@ -1055,7 +1064,7 @@ static void netdev_error(struct net_device *dev, int intr_status)
 static struct net_device_stats *get_stats(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int i;
 
 	/* We should lock this segment of code for SMP eventually, although
@@ -1165,7 +1174,7 @@ static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 static int netdev_close(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int i;
 
 	netif_stop_queue(dev);
@@ -1227,23 +1236,19 @@ static int netdev_close(struct net_device *dev)
 
 static void __devexit sundance_remove1 (struct pci_dev *pdev)
 {
-	struct net_device *dev = pdev->driver_data;
+	struct net_device *dev = pci_get_drvdata(pdev);
 	
 	/* No need to check MOD_IN_USE, as sys_delete_module() checks. */
 	while (dev) {
-		struct netdev_private *np = (void *)(dev->priv);
 		unregister_netdev(dev);
-#ifdef USE_IO_OPS
-		release_region(dev->base_addr, pci_id_tbl[np->chip_id].io_size);
-#else
-		release_mem_region(pci_resource_start(pdev, 1),
-				   pci_id_tbl[np->chip_id].io_size);
+		pci_release_regions(pdev);
+#ifndef USE_IO_OPS
 		iounmap((char *)(dev->base_addr));
 #endif
 		kfree(dev);
 	}
 
-	pdev->driver_data = NULL;
+	pci_set_drvdata(pdev, NULL);
 }
 
 static struct pci_driver sundance_driver = {

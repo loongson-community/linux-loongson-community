@@ -167,7 +167,7 @@ extern int current_is_keventd(void);
  */
 struct files_struct {
 	atomic_t count;
-	rwlock_t file_lock;
+	rwlock_t file_lock;	/* Protects all the below members.  Nests inside tsk->alloc_lock */
 	int max_fds;
 	int max_fdset;
 	int next_fd;
@@ -208,10 +208,13 @@ struct mm_struct {
 	atomic_t mm_users;			/* How many users with user space? */
 	atomic_t mm_count;			/* How many references to "struct mm_struct" (users count as 1) */
 	int map_count;				/* number of VMAs */
-	struct semaphore mmap_sem;
-	spinlock_t page_table_lock;
+	struct rw_semaphore mmap_sem;
+	spinlock_t page_table_lock;		/* Protects task page tables and mm->rss */
 
-	struct list_head mmlist;		/* List of all active mm's */
+	struct list_head mmlist;		/* List of all active mm's.  These are globally strung
+						 * together off init_mm.mmlist, and are protected
+						 * by mmlist_lock
+						 */
 
 	unsigned long start_code, end_code, start_data, end_data;
 	unsigned long start_brk, brk, start_stack;
@@ -236,7 +239,7 @@ extern int mmlist_nr;
 	mm_users:	ATOMIC_INIT(2), 		\
 	mm_count:	ATOMIC_INIT(1), 		\
 	map_count:	1, 				\
-	mmap_sem:	__MUTEX_INITIALIZER(name.mmap_sem), \
+	mmap_sem:	__RWSEM_INITIALIZER(name.mmap_sem, RW_LOCK_BIAS), \
 	page_table_lock: SPIN_LOCK_UNLOCKED, 		\
 	mmlist:		LIST_HEAD_INIT(name.mmlist),	\
 }
@@ -859,6 +862,7 @@ static inline void unhash_process(struct task_struct *p)
 	write_unlock_irq(&tasklist_lock);
 }
 
+/* Protects ->fs, ->files, ->mm, and synchronises with wait4().  Nests inside tasklist_lock */
 static inline void task_lock(struct task_struct *p)
 {
 	spin_lock(&p->alloc_lock);

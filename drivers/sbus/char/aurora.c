@@ -1,4 +1,4 @@
-/*	$Id: aurora.c,v 1.10 2000/12/07 04:35:38 anton Exp $
+/*	$Id: aurora.c,v 1.11 2001/03/08 01:43:30 davem Exp $
  *	linux/drivers/sbus/char/aurora.c -- Aurora multiport driver
  *
  *	Copyright (c) 1999 by Oliver Aldulea (oli@bv.ro)
@@ -1942,7 +1942,7 @@ static int aurora_set_serial_info(struct Aurora_port * port,
 	change_speed = ((port->flags & ASYNC_SPD_MASK) !=
 			(tmp.flags & ASYNC_SPD_MASK));
 	
-	if (!suser()) {
+	if (!capable(CAP_SYS_ADMIN)) {
 		if ((tmp.close_delay != port->close_delay) ||
 		    (tmp.closing_wait != port->closing_wait) ||
 		    ((tmp.flags & ~ASYNC_USR_MASK) !=

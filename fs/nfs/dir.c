@@ -321,7 +321,7 @@ int uncached_readdir(nfs_readdir_descriptor_t *desc, void *dirent,
 		desc->page = NULL;
 	}
 
-	page = page_cache_alloc();
+	page = alloc_page(GFP_HIGHUSER);
 	if (!page) {
 		status = -ENOMEM;
 		goto out;
@@ -1097,6 +1097,10 @@ nfs_permission(struct inode *inode, int mask)
 
 	if (!NFS_PROTO(inode)->access)
 		goto out;
+
+	if (error == -EROFS)
+		goto out;
+
 	/*
 	 * Trust UNIX mode bits except:
 	 *

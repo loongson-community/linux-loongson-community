@@ -252,6 +252,8 @@ int copy_strings_kernel(int argc,char ** argv, struct linux_binprm *bprm)
 /*
  * This routine is used to map in a page into an address space: needed by
  * execve() for the initial stack and environment pages.
+ *
+ * tsk->mmap_sem is held for writing.
  */
 void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long address)
 {
@@ -262,27 +264,29 @@ void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long a
 	if (page_count(page) != 1)
 		printk("mem_map disagrees with %p at %08lx\n", page, address);
 	pgd = pgd_offset(tsk->mm, address);
-	pmd = pmd_alloc(pgd, address);
-	if (!pmd) {
-		__free_page(page);
-		force_sig(SIGKILL, tsk);
-		return;
-	}
-	pte = pte_alloc(pmd, address);
-	if (!pte) {
-		__free_page(page);
-		force_sig(SIGKILL, tsk);
-		return;
-	}
-	if (!pte_none(*pte)) {
-		pte_ERROR(*pte);
-		__free_page(page);
-		return;
-	}
+
+	spin_lock(&tsk->mm->page_table_lock);
+	pmd = pmd_alloc(tsk->mm, pgd, address);
+	if (!pmd)
+		goto out;
+	pte = pte_alloc(tsk->mm, pmd, address);
+	if (!pte)
+		goto out;
+	if (!pte_none(*pte))
+		goto out;
 	flush_dcache_page(page);
 	flush_page_to_ram(page);
 	set_pte(pte, pte_mkdirty(pte_mkwrite(mk_pte(page, PAGE_COPY))));
-/* no need for flush_tlb */
+	tsk->mm->rss++;
+	spin_unlock(&tsk->mm->page_table_lock);
+
+	/* no need for flush_tlb */
+	return;
+out:
+	spin_unlock(&tsk->mm->page_table_lock);
+	__free_page(page);
+	force_sig(SIGKILL, tsk);
+	return;
 }
 
 int setup_arg_pages(struct linux_binprm *bprm)
@@ -302,7 +306,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 	if (!mpnt) 
 		return -ENOMEM; 
 	
-	down(&current->mm->mmap_sem);
+	down_write(&current->mm->mmap_sem);
 	{
 		mpnt->vm_mm = current->mm;
 		mpnt->vm_start = PAGE_MASK & (unsigned long) bprm->p;
@@ -321,12 +325,11 @@ int setup_arg_pages(struct linux_binprm *bprm)
 		struct page *page = bprm->page[i];
 		if (page) {
 			bprm->page[i] = NULL;
-			current->mm->rss++;
 			put_dirty_page(current,page,stack_base);
 		}
 		stack_base += PAGE_SIZE;
 	}
-	up(&current->mm->mmap_sem);
+	up_write(&current->mm->mmap_sem);
 	
 	return 0;
 }

@@ -1,5 +1,4 @@
-/* $Id: init.c,v 1.13 2000/02/23 00:41:00 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -39,25 +38,6 @@
 #include <asm/mmu_context.h>
 
 unsigned long totalram_pages;
-
-void __bad_pte_kernel(pmd_t *pmd)
-{
-	printk("Bad pmd in pte_alloc_kernel: %08lx\n", pmd_val(*pmd));
-	pmd_set(pmd, BAD_PAGETABLE);
-}
-
-void __bad_pte(pmd_t *pmd)
-{
-	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
-	pmd_set(pmd, BAD_PAGETABLE);
-}
-
-/* Fixme, we need something like BAD_PMDTABLE ...  */
-void __bad_pmd(pgd_t *pgd)
-{
-	printk("Bad pgd in pmd_alloc: %08lx\n", pgd_val(*pgd));
-	pgd_set(pgd, empty_bad_pmd_table);
-}
 
 void pgd_init(unsigned long page)
 {
@@ -111,72 +91,6 @@ void pmd_init(unsigned long addr, unsigned long pagetable)
 		p[7] = (unsigned long)pagetable;
 		p += 8;
 	}
-}
-
-pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long offset)
-{
-	pmd_t *pmd;
-
-	pmd = (pmd_t *) __get_free_pages(GFP_KERNEL, 1);
-	if (pgd_none(*pgd)) {
-		if (pmd) {
-			pmd_init((unsigned long)pmd, (unsigned long)invalid_pte_table);
-			pgd_set(pgd, pmd);
-			return pmd + offset;
-		}
-		pgd_set(pgd, BAD_PMDTABLE);
-		return NULL;
-	}
-	free_page((unsigned long)pmd);
-	if (pgd_bad(*pgd)) {
-		__bad_pmd(pgd);
-		return NULL;
-	}
-	return (pmd_t *) pgd_page(*pgd) + offset;
-}
-
-pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
-{
-	pte_t *page;
-
-	page = (pte_t *) __get_free_pages(GFP_USER, 1);
-	if (pmd_none(*pmd)) {
-		if (page) {
-			clear_page(page);
-			pmd_set(pmd, page);
-			return page + offset;
-		}
-		pmd_set(pmd, BAD_PAGETABLE);
-		return NULL;
-	}
-	free_page((unsigned long)page);
-	if (pmd_bad(*pmd)) {
-		__bad_pte_kernel(pmd);
-		return NULL;
-	}
-	return (pte_t *) pmd_page(*pmd) + offset;
-}
-
-pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
-{
-	pte_t *page;
-
-	page = (pte_t *) __get_free_pages(GFP_KERNEL, 0);
-	if (pmd_none(*pmd)) {
-		if (page) {
-			clear_page(page);
-			pmd_val(*pmd) = (unsigned long)page;
-			return page + offset;
-		}
-		pmd_set(pmd, BAD_PAGETABLE);
-		return NULL;
-	}
-	free_pages((unsigned long)page, 0);
-	if (pmd_bad(*pmd)) {
-		__bad_pte(pmd);
-		return NULL;
-	}
-	return (pte_t *) pmd_page(*pmd) + offset;
 }
 
 int do_check_pgt_cache(int low, int high)
@@ -245,34 +159,6 @@ unsigned long setup_zero_pages(void)
 	memset((void *)empty_zero_page, 0, size);
 
 	return 1UL << order;
-}
-
-/*
- * BAD_PAGE is the page that is used for page faults when linux
- * is out-of-memory. Older versions of linux just did a
- * do_exit(), but using this instead means there is less risk
- * for a process dying in kernel mode, possibly leaving a inode
- * unused etc..
- *
- * BAD_PAGETABLE is the accompanying page-table: it is initialized
- * to point to BAD_PAGE entries.
- *
- * ZERO_PAGE is a special page that is used for zero-initialized
- * data and COW.
- */
-pmd_t * __bad_pmd_table(void)
-{
-	return empty_bad_pmd_table;
-}
-
-pte_t * __bad_pagetable(void)
-{
-	return empty_bad_page_table;
-}
-
-pte_t __bad_page(void)
-{
-	return __pte(0);
 }
 
 void __init add_memory_region(unsigned long start, unsigned long size,
@@ -474,8 +360,6 @@ void __init paging_init(void)
 	pgd_init((unsigned long)swapper_pg_dir);
 	pmd_init((unsigned long)invalid_pmd_table, (unsigned long)invalid_pte_table);
 	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
-	pmd_init((unsigned long)empty_bad_pmd_table, (unsigned long)empty_bad_page_table);
-	memset((void *)empty_bad_page_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
 
 	max_dma =  virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;

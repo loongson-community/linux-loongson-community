@@ -117,9 +117,11 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       tristate '    ICL EtherTeam 16i/32 support' CONFIG_ETH16I
       tristate '    NE2000/NE1000 support' CONFIG_NE2000
       if [ "$CONFIG_OBSOLETE" = "y" ]; then
-	 tristate '    SEEQ8005 support (EXPERIMENTAL)' CONFIG_SEEQ8005
+	 dep_tristate '    SEEQ8005 support (EXPERIMENTAL)' CONFIG_SEEQ8005 $CONFIG_EXPERIMENTAL
       fi
-      tristate '    SK_G16 support' CONFIG_SK_G16
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
+         tristate '    SK_G16 support' CONFIG_SK_G16
+      fi
    fi
    if [ "$CONFIG_MCA" = "y" ]; then
       tristate '  SKnet MCA support' CONFIG_SKMC
@@ -145,12 +147,14 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       dep_tristate '    EtherExpressPro/100 support' CONFIG_EEPRO100 $CONFIG_PCI
       dep_mbool '      Enable Power Management (EXPERIMENTAL)' CONFIG_EEPRO100_PM $CONFIG_EEPRO100 $CONFIG_EXPERIMENTAL
       dep_tristate '    Mylex EISA LNE390A/B support (EXPERIMENTAL)' CONFIG_LNE390 $CONFIG_EISA $CONFIG_EXPERIMENTAL
-      dep_tristate '    National Semiconductor DP83810 series PCI Ethernet support' CONFIG_NATSEMI $CONFIG_PCI
+      dep_tristate '    National Semiconductor DP8381x series PCI Ethernet support' CONFIG_NATSEMI $CONFIG_PCI
       dep_tristate '    PCI NE2000 and clones support (see help)' CONFIG_NE2K_PCI $CONFIG_PCI
       dep_tristate '    Novell/Eagle/Microdyne NE3210 EISA support (EXPERIMENTAL)' CONFIG_NE3210 $CONFIG_EISA $CONFIG_EXPERIMENTAL
       dep_tristate '    Racal-Interlan EISA ES3210 support (EXPERIMENTAL)' CONFIG_ES3210 $CONFIG_EISA $CONFIG_EXPERIMENTAL
       dep_tristate '    RealTek RTL-8139 PCI Fast Ethernet Adapter support' CONFIG_8139TOO $CONFIG_PCI
-      dep_tristate '    RealTek 8129 (not 8019/8029/8139!) support (EXPERIMENTAL)' CONFIG_RTL8129 $CONFIG_PCI $CONFIG_EXPERIMENTAL
+      dep_mbool '      Use PIO instead of MMIO' CONFIG_8139TOO_PIO $CONFIG_8139TOO
+      dep_mbool '      Support for automatic channel equalization (EXPERIMENTAL)' CONFIG_8139TOO_TUNE_TWISTER $CONFIG_8139TOO $CONFIG_EXPERIMENTAL
+      dep_mbool '      Support for older RTL-8129/8130 boards' CONFIG_8139TOO_8129 $CONFIG_8139TOO
       dep_tristate '    SiS 900/7016 PCI Fast Ethernet Adapter support' CONFIG_SIS900 $CONFIG_PCI
       dep_tristate '    SMC EtherPower II' CONFIG_EPIC100 $CONFIG_PCI
       dep_tristate '    Sundance Alta support' CONFIG_SUNDANCE $CONFIG_PCI
@@ -208,14 +212,16 @@ endmenu
 
 bool 'FDDI driver support' CONFIG_FDDI
 if [ "$CONFIG_FDDI" = "y" ]; then
-   dep_tristate '  Digital DEFEA and DEFPA adapter support' CONFIG_DEFXX $CONFIG_PCI
+   if [ "$CONFIG_PCI" = "y" -o "$CONFIG_EISA" = "y" ]; then
+      tristate '  Digital DEFEA and DEFPA adapter support' CONFIG_DEFXX
+   fi
    tristate '  SysKonnect FDDI PCI support' CONFIG_SKFP
 fi
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    if [ "$CONFIG_INET" = "y" ]; then
       bool 'HIPPI driver support (EXPERIMENTAL)' CONFIG_HIPPI
-      if [ "$CONFIG_HIPPI" = "y" ]; then
+      if [ "$CONFIG_HIPPI" = "y" -a "$CONFIG_PCI" = "y" ]; then
          tristate '  Essential RoadRunner HIPPI PCI adapter support' CONFIG_ROADRUNNER
          if [ "$CONFIG_ROADRUNNER" != "n" ]; then
    	    bool '    Use large TX/RX rings' CONFIG_ROADRUNNER_LARGE_RINGS
@@ -276,7 +282,7 @@ if [ "$CONFIG_NET_FC" = "y" ]; then
 fi
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-   tristate 'Red Creek Hardware VPN (EXPERIMENTAL)' CONFIG_RCPCI
+   dep_tristate 'Red Creek Hardware VPN (EXPERIMENTAL)' CONFIG_RCPCI $CONFIG_PCI
    tristate 'Traffic Shaper (EXPERIMENTAL)' CONFIG_SHAPER
 fi
 
