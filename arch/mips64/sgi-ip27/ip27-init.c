@@ -346,6 +346,7 @@ void per_cpu_init(void)
 	cnodeid_t cnode = get_compact_nodeid();
 
 	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
+	TLBMISS_HANDLER_SETUP();
 #if 0
 	intr_init();
 #endif
