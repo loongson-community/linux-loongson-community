@@ -411,6 +411,6 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 			return;
 		}
 #endif
-		do_signal(regs,oldset);
+		do_signal(oldset, regs);
 	}
 }
