@@ -3,12 +3,13 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: setup.c,v 1.5 1997/09/13 02:19:18 ralf Exp $
+ * $Id: setup.c,v 1.6 1997/12/01 17:57:38 ralf Exp $
  */
 #include <linux/kernel.h>
 #include <linux/sched.h>
 
 #include <asm/addrspace.h>
+#include <asm/bcache.h>
 #include <asm/keyboard.h>
 #include <asm/reboot.h>
 #include <asm/vector.h>
@@ -82,6 +83,9 @@ void sgi_setup(void)
 
 	/* Init INDY memory controller. */
 	sgimc_init();
+
+	/* Now enable boardcaches, if any. */
+	indy_sc_init();
 
 	/* ARCS console environment variable is set to "g?" for
 	 * graphics console, it is set to "d" for the first serial
