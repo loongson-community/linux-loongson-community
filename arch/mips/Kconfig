@@ -4,22 +4,25 @@ config MIPS
 	# Horrible source of confusion.  Die, die, die ...
 	select EMBEDDED
 
+choice
+
+	prompt "Kernel code model"
+	help
+	  Select this option if you want to build a 32-bit kernel.  You should
+	  only select this option if you have hardware that only has a
+	  32-bit processor or if your particular workload won't benefit from
+	  64-bit processin.  Neither do all systems support 32-bit kernels nor
+	  do all systems support 64-bit kernels.
+
+config MIPS32
+	bool "32-bit kernel"
 config MIPS64
 	bool "64-bit kernel"
-	help
-	  Select this option if you want to build a 64-bit kernel.  You should
-	  only select this option if you have hardware that actually has a
-	  64-bit processor and if your application will actually benefit from
-	  64-bit processing, otherwise say N.  You must say Y for kernels for
-	  SGI IP27 (Origin 200 and 2000) and SGI IP32 (O2).  If in doubt say N.
+
+endchoice
 
 config 64BIT
 	def_bool MIPS64
-
-config MIPS32
-	bool
-	depends on MIPS64 = 'n'
-	default y
 
 mainmenu "Linux/MIPS Kernel Configuration"
 

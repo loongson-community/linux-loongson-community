@@ -1,12 +1,12 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.11-rc2
-# Wed Jan 26 02:49:02 2005
+# Sun Jan 30 01:25:57 2005
 #
 CONFIG_MIPS=y
+CONFIG_MIPS32=y
 # CONFIG_MIPS64 is not set
 # CONFIG_64BIT is not set
-CONFIG_MIPS32=y
 
 #
 # Code maturity level options
