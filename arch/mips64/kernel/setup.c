@@ -57,7 +57,9 @@ char wait_available;
 /*
  * Set if box has EISA slots.
  */
+#ifdef CONFIG_EISA
 int EISA_bus = 0;
+#endif
 
 #ifdef CONFIG_BLK_DEV_FD
 extern struct fd_ops no_fd_ops;
