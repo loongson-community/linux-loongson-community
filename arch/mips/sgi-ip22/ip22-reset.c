@@ -181,9 +181,15 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 		add_timer(&debounce_timer);
 	}
 
-	/* Power button was pressed */
-	if (!(buttons & SGIOC_PANEL_POWERINTR))
+	/* Power button was pressed 
+	 * ioc.ps page 22: "The Panel Register is called Power Control by Full
+	 * House. Only lowest 2 bits are used. Guiness uses upper four bits
+	 * for volume control". This is not true, all bits are pulled high
+	 * on fullhouse */
+	if (ip22_is_fullhouse() || !(buttons & SGIOC_PANEL_POWERINTR)) {
 		power_button();
+		return;
+	}
 	/* TODO: mute/unmute */
 	/* Volume up button was pressed */
 	if (!(buttons & SGIOC_PANEL_VOLUPINTR)) {
