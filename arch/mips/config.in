@@ -67,7 +67,7 @@ fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_PC_KEYB y
-   define_bool CONFIG_SGI
+   define_bool CONFIG_SGI y
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ARC32 y
