@@ -1199,5 +1199,20 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 #elif defined(CONFIG_SOC_AU1100)
 #define NUM_ETH_INTERFACES 1
 #endif
+/* Processor information base on prid.
+ * Copied from PowerPC.
+ */
+struct cpu_spec {
+	/* CPU is matched via (PRID & prid_mask) == prid_value */
+	unsigned int	prid_mask;
+	unsigned int	prid_value;
+
+	char		*cpu_name;
+	unsigned int	cpu_od;		/* Set Config[OD] */
+	unsigned int	cpu_bclk;	/* Enable BCLK switching */
+};
+ 
+extern struct cpu_spec		cpu_specs[];
+extern struct cpu_spec		*cur_cpu_spec[];
 
 #endif
