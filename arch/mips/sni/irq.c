@@ -58,7 +58,7 @@ static void end_pciasic_irq(unsigned int irq)
 }
 
 static struct hw_interrupt_type pciasic_irq_type = {
-	"PCIASIC",
+	"ASIC-PCI",
 	startup_pciasic_irq,
 	shutdown_pciasic_irq,
 	enable_pciasic_irq,
@@ -109,26 +109,27 @@ static unsigned int ls1bit8(unsigned int x)
 void pciasic_hwint1(struct pt_regs *regs)
 {
 	u8 pend = *(volatile char *)PCIMT_CSITPEND;
-	int irq;
+	unsigned long flags;
 
 	if (pend & IT_EISA) {
+		int irq;
 		/*
 		 * Note: ASIC PCI's builtin interrupt achknowledge feature is
 		 * broken.  Using it may result in loss of some or all i8259
 		 * interupts, so don't use PCIMT_INT_ACKNOWLEDGE ...
 		 */
 		irq = i8259_irq();
-		if (unlikely(i8259_irq < 0))
+		if (unlikely(irq < 0))
 			return;
 
 		do_IRQ(irq, regs);
-		return;
 	}
 
 	if (!(pend & IT_SCSI)) {
-		clear_c0_status(IE_IRQ1);
+		flags = read_c0_status();
+		clear_c0_status(ST0_IM);
 		do_IRQ(PCIMT_IRQ_SCSI, regs);
-		set_c0_status(IE_IRQ1);
+		write_c0_status(flags);
 	}
 }
 
@@ -140,6 +141,7 @@ void pciasic_hwint3(struct pt_regs *regs)
 	u8 pend = *(volatile char *)PCIMT_CSITPEND;
 	int irq;
 
+	pend &= (IT_INTA | IT_INTB | IT_INTC | IT_INTD);
 	clear_c0_status(IE_IRQ3);
 	irq = PCIMT_IRQ_INT2 + ls1bit8(pend);
 	do_IRQ(irq, regs);
