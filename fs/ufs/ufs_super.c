@@ -8,7 +8,7 @@
  *
  * Copyright (C) 1996  Eddie C. Dost  (ecd@skynet.be)
  *
- * $Id: ufs_super.c,v 1.24 1997/06/04 08:28:29 davem Exp $
+ * $Id: ufs_super.c,v 1.2 1997/06/17 13:27:29 ralf Exp $
  *
  */
 
@@ -254,7 +254,7 @@ ufs_read_super(struct super_block * sb, void * data, int silent)
 	sb->u.ufs_sb.s_lmask = ~((ufs_swab32(usb->fs_fmask) - ufs_swab32(usb->fs_bmask))
 					>> ufs_swab32(usb->fs_fshift));
 	sb->u.ufs_sb.s_fsfrag = ufs_swab32(usb->fs_frag); /* XXX - rename this later */
-	sb->s_mounted = iget(sb, UFS_ROOTINO);
+	sb->s_root = d_alloc_root(iget(sb, UFS_ROOTINO), NULL);
 
 #ifdef DEBUG_UFS_SUPER
 	printk("ufs_read_super: inopb %u\n", sb->u.ufs_sb.s_inopb);

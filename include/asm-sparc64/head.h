@@ -1,10 +1,10 @@
-/* $Id: head.h,v 1.22 1997/06/02 06:33:40 davem Exp $ */
+/* $Id: head.h,v 1.27 1997/07/13 17:30:43 davem Exp $ */
 #ifndef _SPARC64_HEAD_H
 #define _SPARC64_HEAD_H
 
 #include <asm/pstate.h>
 
-#define KERNBASE    0xFFFFF80000000000
+#define KERNBASE    0x400000
 #define BOOT_KERNEL b sparc64_boot; nop; nop; nop; nop; nop; nop; nop;
 
 /* We need a "cleaned" instruction... */
@@ -43,17 +43,6 @@
 	nop;						\
 	nop;
 	
-/* Just for testing */
-#define PROM_TRAP					\
-	rd	%pc, %g1;				\
-	sethi	%uhi(KERNBASE), %g4;			\
-	sethi	%hi(0xf0000000-0x8000), %g2;		\
-	sllx	%g4, 32, %g4;				\
-	add	%g1, %g2, %g1;				\
-	sub	%g1, %g4, %g1;				\
-	jmpl	%g1 + %g0, %g0;				\
-	nop;
-
 #define TRAP_ARG(routine, arg)				\
 	ba,pt	%xcc, etrap;				\
 	 rd	%pc, %g7;				\
@@ -105,12 +94,12 @@
 #define SUNOS_SYSCALL_TRAP SYSCALL_TRAP(linux_sparc_syscall, sunos_sys_table)
 #define	LINUX_32BIT_SYSCALL_TRAP SYSCALL_TRAP(linux_sparc_syscall, sys_call_table32)
 #define LINUX_64BIT_SYSCALL_TRAP SYSCALL_TRAP(linux_sparc_syscall, sys_call_table64)
+#define GETCC_TRAP TRAP(getcc)
+#define SETCC_TRAP TRAP(setcc)
 /* FIXME: Write these actually */	
 #define NETBSD_SYSCALL_TRAP TRAP(netbsd_syscall)
 #define SOLARIS_SYSCALL_TRAP TRAP(solaris_syscall)
 #define BREAKPOINT_TRAP TRAP(breakpoint_trap)
-#define GETCC_TRAP TRAP(getcc)
-#define SETCC_TRAP TRAP(setcc)
 #define INDIRECT_SOLARIS_SYSCALL(tlvl) TRAP_ARG(indirect_syscall, tlvl)
 
 #define TRAP_IRQ(routine, level)			\
@@ -126,7 +115,7 @@
 /* On UP this is ok, and worth the effort, for SMP we need
  * a different mechanism and thus cannot do it all in trap table. -DaveM
  */
-#if 0 /* ndef __SMP__ */
+#ifndef __SMP__
 #define TRAP_IVEC				\
 	ldxa	[%g2] ASI_UDB_INTR_R, %g3;	\
 	and	%g3, 0x7ff, %g3;		\
@@ -207,16 +196,23 @@
 #define SPILL_2_GENERIC(xxx)				\
 	wr	%g0, xxx, %asi;				\
 	srl	%sp, 0, %sp;				\
-	stda	%l0, [%sp + 0x00] %asi;			\
-	stda	%l2, [%sp + 0x08] %asi;			\
-	stda	%l4, [%sp + 0x10] %asi;			\
-	stda	%l6, [%sp + 0x18] %asi;			\
-	stda	%i0, [%sp + 0x20] %asi;			\
-	stda	%i2, [%sp + 0x28] %asi;			\
-	stda	%i4, [%sp + 0x30] %asi;			\
-	stda	%i6, [%sp + 0x38] %asi;			\
+	stwa	%l0, [%sp + 0x00] %asi;			\
+	stwa	%l1, [%sp + 0x04] %asi;			\
+	stwa	%l2, [%sp + 0x08] %asi;			\
+	stwa	%l3, [%sp + 0x0c] %asi;			\
+	stwa	%l4, [%sp + 0x10] %asi;			\
+	stwa	%l5, [%sp + 0x14] %asi;			\
+	stwa	%l6, [%sp + 0x18] %asi;			\
+	stwa	%l7, [%sp + 0x1c] %asi;			\
+	stwa	%i0, [%sp + 0x20] %asi;			\
+	stwa	%i1, [%sp + 0x24] %asi;			\
+	stwa	%i2, [%sp + 0x28] %asi;			\
+	stwa	%i3, [%sp + 0x2c] %asi;			\
+	stwa	%i4, [%sp + 0x30] %asi;			\
+	stwa	%i5, [%sp + 0x34] %asi;			\
+	stwa	%i6, [%sp + 0x38] %asi;			\
+	stwa	%i7, [%sp + 0x3c] %asi;			\
 	saved; retry; nop; nop; nop; nop;		\
-	nop; nop; nop; nop; nop; nop; nop; nop;		\
 	nop; nop; nop; nop; nop; nop;			\
 	b,a,pt	%xcc, spill_fixup_mna;			\
 	b,a,pt	%xcc, spill_fixup;
@@ -287,16 +283,23 @@
 #define FILL_2_GENERIC(xxx)				\
 	wr	%g0, xxx, %asi;				\
 	srl	%sp, 0, %sp;				\
-	ldda	[%sp + 0x00] %asi, %l0;			\
-	ldda	[%sp + 0x08] %asi, %l2;			\
-	ldda	[%sp + 0x10] %asi, %l4;			\
-	ldda	[%sp + 0x18] %asi, %l6;			\
-	ldda	[%sp + 0x20] %asi, %i0;			\
-	ldda	[%sp + 0x28] %asi, %i2;			\
-	ldda	[%sp + 0x30] %asi, %i4;			\
-	ldda	[%sp + 0x38] %asi, %i6;			\
+	lduwa	[%sp + 0x00] %asi, %l0;			\
+	lduwa	[%sp + 0x04] %asi, %l1;			\
+	lduwa	[%sp + 0x08] %asi, %l2;			\
+	lduwa	[%sp + 0x0c] %asi, %l3;			\
+	lduwa	[%sp + 0x10] %asi, %l4;			\
+	lduwa	[%sp + 0x14] %asi, %l5;			\
+	lduwa	[%sp + 0x18] %asi, %l6;			\
+	lduwa	[%sp + 0x1c] %asi, %l7;			\
+	lduwa	[%sp + 0x20] %asi, %i0;			\
+	lduwa	[%sp + 0x24] %asi, %i1;			\
+	lduwa	[%sp + 0x28] %asi, %i2;			\
+	lduwa	[%sp + 0x2c] %asi, %i3;			\
+	lduwa	[%sp + 0x30] %asi, %i4;			\
+	lduwa	[%sp + 0x34] %asi, %i5;			\
+	lduwa	[%sp + 0x38] %asi, %i6;			\
+	lduwa	[%sp + 0x3c] %asi, %i7;			\
 	restored; retry; nop; nop; nop; nop;		\
-	nop; nop; nop; nop; nop; nop; nop; nop;		\
 	nop; nop; nop; nop; nop; nop;			\
 	b,a,pt	%xcc, fill_fixup_mna;			\
 	b,a,pt	%xcc, fill_fixup;

@@ -130,7 +130,7 @@ struct files_struct {
 struct fs_struct {
 	int count;
 	int umask;
-	struct inode * root, * pwd;
+	struct dentry * root, * pwd;
 };
 
 #define INIT_FS { \
@@ -519,12 +519,10 @@ extern inline void __remove_wait_queue(struct wait_queue ** p, struct wait_queue
 {
 	struct wait_queue * next = wait->next;
 	struct wait_queue * head = next;
+	struct wait_queue * tmp;
 
-	for (;;) {
-		struct wait_queue * nextlist = head->next;
-		if (nextlist == wait)
-			break;
-		head = nextlist;
+	while ((tmp = head->next) != wait) {
+		head = tmp;
 	}
 	head->next = next;
 }

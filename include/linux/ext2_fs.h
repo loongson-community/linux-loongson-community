@@ -483,6 +483,7 @@ extern int ext2_getcluster (struct inode * inode, long block);
 extern void ext2_read_inode (struct inode *);
 extern void ext2_write_inode (struct inode *);
 extern void ext2_put_inode (struct inode *);
+extern void ext2_delete_inode (struct inode *);
 extern int ext2_sync_inode (struct inode *);
 extern void ext2_discard_prealloc (struct inode *);
 
@@ -492,17 +493,15 @@ extern int ext2_ioctl (struct inode *, struct file *, unsigned int,
 
 /* namei.c */
 extern void ext2_release (struct inode *, struct file *);
-extern int ext2_lookup (struct inode *,const char *, int, struct inode **);
-extern int ext2_create (struct inode *,const char *, int, int,
-			struct inode **);
-extern int ext2_mkdir (struct inode *, const char *, int, int);
-extern int ext2_rmdir (struct inode *, const char *, int);
-extern int ext2_unlink (struct inode *, const char *, int);
-extern int ext2_symlink (struct inode *, const char *, int, const char *);
-extern int ext2_link (struct inode *, struct inode *, const char *, int);
-extern int ext2_mknod (struct inode *, const char *, int, int, int);
-extern int ext2_rename (struct inode *, const char *, int,
-			struct inode *, const char *, int);
+extern int ext2_lookup (struct inode *, struct dentry *);
+extern int ext2_create (struct inode *,struct dentry *,int);
+extern int ext2_mkdir (struct inode *,struct dentry *,int);
+extern int ext2_rmdir (struct inode *,struct dentry *);
+extern int ext2_unlink (struct inode *,struct dentry *);
+extern int ext2_symlink (struct inode *,struct dentry *,const char *);
+extern int ext2_link (struct inode *, struct inode *, struct dentry *);
+extern int ext2_mknod (struct inode *, struct dentry *, int, int);
+extern int ext2_rename (struct inode *, struct dentry *,struct inode *, struct dentry *);
 
 /* super.c */
 extern void ext2_error (struct super_block *, const char *, const char *, ...)
@@ -517,7 +516,7 @@ extern void ext2_write_super (struct super_block *);
 extern int ext2_remount (struct super_block *, int *, char *);
 extern struct super_block * ext2_read_super (struct super_block *,void *,int);
 extern int init_ext2_fs(void);
-extern void ext2_statfs (struct super_block *, struct statfs *, int);
+extern int ext2_statfs (struct super_block *, struct statfs *, int);
 
 /* truncate.c */
 extern void ext2_truncate (struct inode *);

@@ -6,7 +6,7 @@
  * Laboratory for Computer Science Research Computing Facility
  * Rutgers, The State University of New Jersey
  *
- * $Id: ufs_namei.c,v 1.7 1996/06/01 14:56:49 ecd Exp $
+ * $Id: ufs_namei.c,v 1.1.1.1 1997/06/01 03:16:19 ralf Exp $
  *
  */
 
@@ -35,12 +35,14 @@ static int ufs_match (int len, const char * const name, struct ufs_direct * d)
 }
 
 /* XXX - this is a mess, especially for endianity */
-int ufs_lookup (struct inode * dir, const char * name, int len,
+int ufs_lookup (struct inode * dir, struct qstr *qname,
 	        struct inode ** result)
 {
 	unsigned long int lfragno, fragno;
 	struct buffer_head * bh;
 	struct ufs_direct * d;
+	const char *name = qname->name;
+	int len = qname->len;
 
 	if (dir->i_sb->u.ufs_sb.s_flags & UFS_DEBUG)
 		printk("Passed name: %s\nPassed length: %d\n", name, len);

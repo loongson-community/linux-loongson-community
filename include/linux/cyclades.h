@@ -1,4 +1,4 @@
-/* $Revision: 1.7 $$Date: 1997/03/26 10:30:00 $
+/* $Revision: 2.0 $$Date: 1997/06/30 10:30:00 $
  * linux/include/linux/cyclades.h
  *
  * This file is maintained by Marcio Saito <marcio@cyclades.com> and
@@ -6,6 +6,9 @@
  *
  * This file contains the general definitions for the cyclades.c driver
  *$Log: cyclades.h,v $
+ *Revision 1.1.1.1  1997/06/01 03:17:04  ralf
+ *Initial import of Linux/MIPS pre-2.1.40.
+ *
  *Revision 1.7  1997/03/26 10:30:00  daniel
  *new entries at the end of cyclades_port struct to reallocate
  *variables illegally allocated within card memory.
@@ -86,6 +89,8 @@ typedef unsigned char	ucchar;		/* 8 bits, unsigned */
  */
 
 #define	DP_WINDOW_SIZE		(0x00080000)	/* window size 512 Kb */
+#define	ZE_DP_WINDOW_SIZE	(0x00100000)	/* window size 1 Mb (Ze and
+						  8Zo V.2 */
 #define	CTRL_WINDOW_SIZE	(0x00000100)	/* runtime regs 256 bytes */
 
 /*
@@ -183,6 +188,7 @@ struct RUNTIME_9060 {
 
 #define ID_ADDRESS	0x00000180L	/* signature/pointer address */
 #define	ZFIRM_ID	0x5557465AL	/* ZFIRM/U signature */
+#define	ZFIRM_HLT	0x59505B5CL	/* ZFIRM needs external power supply */
 struct	FIRM_ID {
 	uclong	signature;		/* ZFIRM/U signature */
 	uclong	zfwctrl_addr;		/* pointer to ZFW_CTRL structure */
@@ -238,7 +244,10 @@ struct	FIRM_ID {
 #define	C_IN_RXBRK	0x00001000	/* Break received */
 #define	C_IN_PR_ERROR	0x00002000	/* parity error */
 #define	C_IN_FR_ERROR	0x00004000	/* frame error */
-
+#define C_IN_OVR_ERROR  0x00008000      /* overrun error */
+#define C_IN_RXOFL	0x00010000      /* RX buffer overflow */
+#define C_IN_IOCTLW	0x00020000      /* I/O control w/ wait */
+ 
 /* flow control */
 
 #define	C_FL_OXX	0x00000001	/* output Xon/Xoff flow control */
@@ -294,6 +303,8 @@ struct	FIRM_ID {
 #define	C_CM_RXBRK	0x84		/* Break received */
 #define	C_CM_PR_ERROR	0x85		/* Parity error */
 #define	C_CM_FR_ERROR	0x86		/* Frame error */
+#define C_CM_OVR_ERROR  0x87            /* Overrun error */
+#define C_CM_RXOFL	0x88            /* RX buffer overflow */
 #define	C_CM_CMDERROR	0x90		/* command error */
 #define	C_CM_FATAL	0x91		/* fatal error */
 #define	C_CM_HW_RESET	0x92		/* reset board */
@@ -468,9 +479,10 @@ struct cyclades_port {
 
 #define CyMaxChipsPerCard 8
 
-#define CyPCI_Ywin 0x4000
-#define CyPCI_Zctl 0x100
-#define CyPCI_Zwin 0x80000
+#define CyPCI_Ywin 	0x4000
+#define CyPCI_Zctl 	0x100
+#define CyPCI_Zwin 	0x80000
+#define CyPCI_Ze_win 	(2 * CyPCI_Zwin)
 
 /**** CD1400 registers ****/
 

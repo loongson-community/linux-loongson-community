@@ -75,10 +75,7 @@ static long pipe_read(struct inode * inode, struct file * filp,
 	PIPE_LOCK(*inode)--;
 	wake_up_interruptible(&PIPE_WAIT(*inode));
 	if (read) {
-		if (DO_UPDATE_ATIME(inode)) {
-			inode->i_atime = CURRENT_TIME;
-			inode->i_dirt = 1;
-		}
+		UPDATE_ATIME(inode);
 		return read;
 	}
 	if (PIPE_WRITERS(*inode))
@@ -132,7 +129,7 @@ static long pipe_write(struct inode * inode, struct file * filp,
 		free = 1;
 	}
 	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-	inode->i_dirt = 1;
+	mark_inode_dirty(inode);
 	return written;
 }
 
@@ -168,7 +165,7 @@ static int pipe_ioctl(struct inode *pino, struct file * filp,
 static unsigned int pipe_poll(struct file * filp, poll_table * wait)
 {
 	unsigned int mask;
-	struct inode * inode = filp->f_inode;
+	struct inode * inode = filp->f_dentry->d_inode;
 
 	poll_wait(&PIPE_WAIT(*inode), wait);
 	mask = POLLIN | POLLRDNORM;
@@ -189,7 +186,7 @@ static unsigned int pipe_poll(struct file * filp, poll_table * wait)
 static unsigned int fifo_poll(struct file * filp, poll_table * wait)
 {
 	unsigned int mask;
-	struct inode * inode = filp->f_inode;
+	struct inode * inode = filp->f_dentry->d_inode;
 
 	poll_wait(&PIPE_WAIT(*inode), wait);
 	mask = POLLIN | POLLRDNORM;
@@ -221,7 +218,7 @@ static long connect_read(struct inode * inode, struct file * filp,
 
 static unsigned int connect_poll(struct file * filp, poll_table * wait)
 {
-	struct inode * inode = filp->f_inode;
+	struct inode * inode = filp->f_dentry->d_inode;
 
 	poll_wait(&PIPE_WAIT(*inode), wait);
 	if (!PIPE_EMPTY(*inode)) {
@@ -233,18 +230,26 @@ static unsigned int connect_poll(struct file * filp, poll_table * wait)
 	return POLLOUT | POLLWRNORM;
 }
 
+static int pipe_release(struct inode * inode)
+{
+	if (!PIPE_READERS(*inode) && !PIPE_WRITERS(*inode)) {
+		free_page((unsigned long) PIPE_BASE(*inode));
+		PIPE_BASE(*inode) = NULL;
+	}
+	wake_up_interruptible(&PIPE_WAIT(*inode));
+	return 0;
+}
+
 static int pipe_read_release(struct inode * inode, struct file * filp)
 {
 	PIPE_READERS(*inode)--;
-	wake_up_interruptible(&PIPE_WAIT(*inode));
-	return 0;
+	return pipe_release(inode);
 }
 
 static int pipe_write_release(struct inode * inode, struct file * filp)
 {
 	PIPE_WRITERS(*inode)--;
-	wake_up_interruptible(&PIPE_WAIT(*inode));
-	return 0;
+	return pipe_release(inode);
 }
 
 static int pipe_rdwr_release(struct inode * inode, struct file * filp)
@@ -253,8 +258,7 @@ static int pipe_rdwr_release(struct inode * inode, struct file * filp)
 		PIPE_READERS(*inode)--;
 	if (filp->f_mode & FMODE_WRITE)
 		PIPE_WRITERS(*inode)--;
-	wake_up_interruptible(&PIPE_WAIT(*inode));
-	return 0;
+	return pipe_release(inode);
 }
 
 static int pipe_read_open(struct inode * inode, struct file * filp)
@@ -373,6 +377,42 @@ struct file_operations rdwr_pipe_fops = {
 	NULL
 };
 
+static struct inode * get_pipe_inode(void)
+{
+	extern struct inode_operations pipe_inode_operations;
+	struct inode *inode = get_empty_inode();
+
+	if (inode) {
+		unsigned long page = __get_free_page(GFP_USER);
+
+		if (!page) {
+			iput(inode);
+			inode = NULL;
+		} else {
+			PIPE_BASE(*inode) = (char *) page;
+			inode->i_op = &pipe_inode_operations;
+			PIPE_WAIT(*inode) = NULL;
+			PIPE_START(*inode) = PIPE_LEN(*inode) = 0;
+			PIPE_RD_OPENERS(*inode) = PIPE_WR_OPENERS(*inode) = 0;
+			PIPE_READERS(*inode) = PIPE_WRITERS(*inode) = 1;
+			PIPE_LOCK(*inode) = 0;
+			/*
+			 * Mark the inode dirty from the very beginning,
+			 * that way it will never be moved to the dirty
+			 * list because "make_inode_dirty()" will think
+			 * that it already _is_ on the dirty list.
+			 */
+			inode->i_state = 1 << I_DIRTY;
+			inode->i_mode = S_IFIFO | S_IRUSR | S_IWUSR;
+			inode->i_uid = current->fsuid;
+			inode->i_gid = current->fsgid;
+			inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+			inode->i_blksize = PAGE_SIZE;
+		}
+	}
+	return inode;
+}
+
 struct inode_operations pipe_inode_operations = {
 	&rdwr_pipe_fops,
 	NULL,			/* create */
@@ -422,12 +462,14 @@ int do_pipe(int *fd)
 		goto close_f12_inode_i;
 	j = error;
 
-	f1->f_inode = f2->f_inode = inode;
+	f1->f_dentry = f2->f_dentry = dget(d_alloc_root(inode, NULL));
+
 	/* read file */
 	f1->f_pos = f2->f_pos = 0;
 	f1->f_flags = O_RDONLY;
 	f1->f_op = &read_pipe_fops;
 	f1->f_mode = 1;
+
 	/* write file */
 	f2->f_flags = O_WRONLY;
 	f2->f_op = &write_pipe_fops;
@@ -441,7 +483,6 @@ int do_pipe(int *fd)
 close_f12_inode_i:
 	put_unused_fd(i);
 close_f12_inode:
-	atomic_dec(&inode->i_count);
 	iput(inode);
 close_f12:
 	put_filp(f2);

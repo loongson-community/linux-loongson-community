@@ -310,10 +310,11 @@ static inline int proc_scsi_unregister(struct proc_dir_entry *driver, int x)
 extern struct super_block *proc_read_super(struct super_block *,void *,int);
 extern int init_proc_fs(void);
 extern struct inode * proc_get_inode(struct super_block *, int, struct proc_dir_entry *);
-extern void proc_statfs(struct super_block *, struct statfs *, int);
+extern int proc_statfs(struct super_block *, struct statfs *, int);
 extern void proc_read_inode(struct inode *);
 extern void proc_write_inode(struct inode *);
-extern int proc_match(int, const char *, struct proc_dir_entry *);
+
+extern int proc_match(int, const char *,struct proc_dir_entry *);
 
 /*
  * These are generic /proc routines that use the internal
@@ -323,7 +324,7 @@ extern int proc_match(int, const char *, struct proc_dir_entry *);
  * of the /proc/<pid> subdirectories.
  */
 extern int proc_readdir(struct inode *, struct file *, void *, filldir_t);
-extern int proc_lookup(struct inode *, const char *, int, struct inode **);
+extern int proc_lookup(struct inode *, struct dentry *);
 
 struct openpromfs_dev {
  	struct openpromfs_dev *next;
@@ -335,7 +336,7 @@ struct openpromfs_dev {
 };
 extern struct inode_operations *
 proc_openprom_register(int (*readdir)(struct inode *, struct file *, void *, filldir_t),
-		       int (*lookup)(struct inode *, const char *, int, struct inode **),
+		       int (*lookup)(struct inode *, struct qstr *, struct inode **),
 		       void (*use)(struct inode *, int),
 		       struct openpromfs_dev ***);
 extern void proc_openprom_deregister(void);
@@ -363,9 +364,6 @@ extern struct inode_operations proc_ringbuf_inode_operations;
 #endif
 extern struct inode_operations proc_omirr_inode_operations;
 
-/* Not sure whether this belongs here */
-int proc_arbitrary_lookup(struct inode * dir, const char * name,
-			  int len, struct inode ** result);
 #endif
 
 /*

@@ -48,7 +48,7 @@ struct vm_area_struct {
 
 	struct vm_operations_struct * vm_ops;
 	unsigned long vm_offset;
-	struct inode * vm_inode;
+	struct dentry * vm_dentry;
 	unsigned long vm_pte;			/* shared mem */
 };
 
@@ -118,7 +118,7 @@ typedef struct page {
 	unsigned long offset;
 	struct page *next_hash;
 	atomic_t count;
-	unsigned flags;	/* atomic flags, some possibly updated asynchronously */
+	unsigned long flags;	/* atomic flags, some possibly updated asynchronously */
 	unsigned dirty:16,
 		 age:8;
 	struct wait_queue *wait;

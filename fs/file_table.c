@@ -102,6 +102,24 @@ again:
 	return f;
 }
 
+/*
+ * Clear and initialize a (private) struct file for the given dentry,
+ * and call the open function (if any).  The caller must verify that
+ * inode->i_op and inode->i_op->default_file_ops are not NULL.
+ */
+int init_private_file(struct file *filp, struct dentry *dentry, int mode)
+{
+	memset(filp, 0, sizeof(*filp));
+	filp->f_mode   = mode;
+	filp->f_count  = 1;
+	filp->f_dentry = dentry;
+	filp->f_op     = dentry->d_inode->i_op->default_file_ops;
+	if (filp->f_op->open)
+		return filp->f_op->open(dentry->d_inode, filp);
+	else
+		return 0;
+}
+
 #ifdef CONFIG_QUOTA
 
 void add_dquot_ref(kdev_t dev, short type)
@@ -109,11 +127,15 @@ void add_dquot_ref(kdev_t dev, short type)
 	struct file *filp;
 
 	for (filp = inuse_filps; filp; filp = filp->f_next) {
-		if (!filp->f_inode || filp->f_inode->i_dev != dev)
+		struct inode * inode;
+		if (!filp->f_dentry)
 			continue;
-		if (filp->f_mode & FMODE_WRITE && filp->f_inode->i_sb->dq_op) {
-			filp->f_inode->i_sb->dq_op->initialize(filp->f_inode, type);
-			filp->f_inode->i_flags |= S_WRITE;
+		inode = filp->f_dentry->d_inode;
+		if (!inode || inode->i_dev != dev)
+			continue;
+		if (filp->f_mode & FMODE_WRITE && inode->i_sb->dq_op) {
+			inode->i_sb->dq_op->initialize(inode, type);
+			inode->i_flags |= S_WRITE;
 		}
 	}
 }
@@ -123,11 +145,15 @@ void reset_dquot_ptrs(kdev_t dev, short type)
 	struct file *filp;
 
 	for (filp = inuse_filps; filp; filp = filp->f_next) {
-		if (!filp->f_inode || filp->f_inode->i_dev != dev)
+		struct inode * inode;
+		if (!filp->f_dentry)
 			continue;
-		if (IS_WRITABLE(filp->f_inode)) {
-			filp->f_inode->i_dquot[type] = NODQUOT;
-			filp->f_inode->i_flags &= ~S_WRITE;
+		inode = filp->f_dentry->d_inode;
+		if (!inode || inode->i_dev != dev)
+			continue;
+		if (IS_WRITABLE(inode)) {
+			inode->i_dquot[type] = NODQUOT;
+			inode->i_flags &= ~S_WRITE;
 		}
 	}
 }

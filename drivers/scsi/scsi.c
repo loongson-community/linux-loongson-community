@@ -12,6 +12,7 @@
  *      Rik Faith <faith@cs.unc.edu>
  *      Tommy Thorn <tthorn>
  *      Thomas Wuensche <tw@fgb1.fgb.mw.tu-muenchen.de>
+ *      Andrea Arcangeli <arcangeli@mbox.queen.it>
  *
  *  Modified by Eric Youngdale eric@aib.com to
  *  add scatter-gather, multiple outstanding request, and other
@@ -65,7 +66,7 @@
 #undef USE_STATIC_SCSI_MEMORY
 
 /*
-static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/scsi.c,v 1.38 1997/01/19 23:07:18 davem Exp $";
+static const char RCSid[] = "$Header: /src/cvs/linux/drivers/scsi/scsi.c,v 1.1.1.1 1997/06/01 03:17:37 ralf Exp $";
 */
 
 
@@ -3512,6 +3513,7 @@ int init_module(void) {
 
 void cleanup_module( void)
 {
+    timer_active &= ~(1 << SCSI_TIMER);
 #if CONFIG_PROC_FS
     proc_scsi_unregister(0, PROC_SCSI_SCSI);
 

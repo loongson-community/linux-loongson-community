@@ -1,13 +1,8 @@
-/* $Id: ioctls.h,v 1.2 1997/04/04 00:50:18 davem Exp $ */
+/* $Id: ioctls.h,v 1.4 1997/06/23 07:26:03 davem Exp $ */
 #ifndef _ASM_SPARC64_IOCTLS_H
 #define _ASM_SPARC64_IOCTLS_H
 
 #include <asm/ioctl.h>
-
-/* XXX 32-bit binary compatability issues, I am sure that
- * XXX only IOCTL's which reference structures will be of
- * XXX concern and these are easily fabricated using wrappers.
- */
 
 /* Big T */
 #define TCGETA		_IOR('T', 1, struct termio)
@@ -24,7 +19,7 @@
 
 /* Note that all the ioctls that are not available in Linux have a 
  * double underscore on the front to: a) avoid some programs to
- * thing we support some ioctls under Linux (autoconfiguration stuff)
+ * think we support some ioctls under Linux (autoconfiguration stuff)
  */
 /* Little t */
 #define TIOCGETD	_IOR('t', 0, int)
@@ -69,8 +64,8 @@
 /* 119 is the non-posix getpgrp tty ioctl */
 #define __TIOCCDTR        _IO('t', 120) /* SunOS Specific */
 #define __TIOCSDTR        _IO('t', 121) /* SunOS Specific */
-#define __TIOCCBRK        _IO('t', 122) /* SunOS Specific */
-#define __TIOCSBRK        _IO('t', 123) /* SunOS Specific */
+#define TIOCCBRK        _IO('t', 122)
+#define TIOCSBRK        _IO('t', 123)
 #define __TIOCLGET        _IOW('t', 124, int) /* SunOS Specific */
 #define __TIOCLSET        _IOW('t', 125, int) /* SunOS Specific */
 #define __TIOCLBIC        _IOW('t', 126, int) /* SunOS Specific */

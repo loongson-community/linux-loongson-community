@@ -1,5 +1,5 @@
-/* $Id: sparc64_ksyms.c,v 1.4 1997/04/14 17:04:43 jj Exp $
- * arch/sparc/kernel/ksyms.c: Sparc specific ksyms support.
+/* $Id: sparc64_ksyms.c,v 1.11 1997/07/14 23:58:20 davem Exp $
+ * arch/sparc64/kernel/sparc64_ksyms.c: Sparc64 specific ksyms support.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
  * Copyright (C) 1996 Eddie C. Dost (ecd@skynet.be)
@@ -18,6 +18,8 @@
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/softirq.h>
+#include <asm/hardirq.h>
 #include <asm/idprom.h>
 #include <asm/svr4.h>
 #include <asm/head.h>
@@ -38,19 +40,17 @@ struct poll {
 	short revents;
 };
 
-extern int svr4_getcontext (svr4_ucontext_t *, struct pt_regs *);
-extern int svr4_setcontext (svr4_ucontext_t *, struct pt_regs *);
 extern unsigned long sunos_mmap(unsigned long, unsigned long, unsigned long,
 				unsigned long, unsigned long, unsigned long);
 void _sigpause_common (unsigned int set, struct pt_regs *);
-extern void __copy_1page(void *, const void *);
-extern void *bzero_1page(void *);
+extern void *__bzero_1page(void *);
 extern void *__bzero(void *, size_t);
 extern void *__memscan_zero(void *, size_t);
 extern void *__memscan_generic(void *, int, size_t);
 extern int __memcmp(const void *, const void *, __kernel_size_t);
 extern int __strncmp(const char *, const char *, __kernel_size_t);
 extern unsigned int __csum_partial_copy_sparc_generic (const char *, char *);
+extern char saved_command_line[];
 
 extern void bcopy (const char *, char *, int);
 extern int __ashrdi3(int, int);
@@ -75,32 +75,24 @@ EXPORT_SYMBOL(klock_info);
 EXPORT_SYMBOL_PRIVATE(_lock_kernel);
 EXPORT_SYMBOL_PRIVATE(_unlock_kernel);
 
+EXPORT_SYMBOL_PRIVATE(flushw_user);
+
 EXPORT_SYMBOL(mstk48t02_regs);
 EXPORT_SYMBOL(request_fast_irq);
 EXPORT_SYMBOL(sparc_alloc_io);
 EXPORT_SYMBOL(sparc_free_io);
-#if 0
-EXPORT_SYMBOL(io_remap_page_range);
-EXPORT_SYMBOL(mmu_unlockarea);
-EXPORT_SYMBOL(mmu_lockarea);
+EXPORT_SYMBOL(local_irq_count);
+EXPORT_SYMBOL(__sparc64_bh_counter);
+EXPORT_SYMBOL(sparc_ultra_unmapioaddr);
 EXPORT_SYMBOL(mmu_get_scsi_sgl);
 EXPORT_SYMBOL(mmu_get_scsi_one);
-EXPORT_SYMBOL(mmu_release_scsi_sgl);
-EXPORT_SYMBOL(mmu_release_scsi_one);
-#endif
 EXPORT_SYMBOL(sparc_dvma_malloc);
-#if 0
-EXPORT_SYMBOL(sun4c_unmapioaddr);
-EXPORT_SYMBOL(srmmu_unmapioaddr);
-#endif
 #if CONFIG_SBUS
 EXPORT_SYMBOL(SBus_chain);
 EXPORT_SYMBOL(dma_chain);
 #endif
 
 /* Solaris/SunOS binary compatibility */
-EXPORT_SYMBOL(svr4_setcontext);
-EXPORT_SYMBOL(svr4_getcontext);
 EXPORT_SYMBOL(_sigpause_common);
 EXPORT_SYMBOL(sunos_mmap);
 
@@ -119,7 +111,7 @@ EXPORT_SYMBOL(prom_getproplen);
 EXPORT_SYMBOL(prom_getproperty);
 EXPORT_SYMBOL(prom_node_has_property);
 EXPORT_SYMBOL(prom_setprop);
-EXPORT_SYMBOL(prom_getbootargs);
+EXPORT_SYMBOL(saved_command_line);
 EXPORT_SYMBOL(prom_getname);
 EXPORT_SYMBOL(prom_feval);
 EXPORT_SYMBOL(prom_getstring);
@@ -148,10 +140,9 @@ EXPORT_SYMBOL(strstr);
 EXPORT_SYMBOL(strspn);
 
 /* Special internal versions of library functions. */
-EXPORT_SYMBOL(__copy_1page);
 EXPORT_SYMBOL(__memcpy);
 EXPORT_SYMBOL(__memset);
-EXPORT_SYMBOL(bzero_1page);
+EXPORT_SYMBOL(__bzero_1page);
 EXPORT_SYMBOL(__bzero);
 EXPORT_SYMBOL(__memscan_zero);
 EXPORT_SYMBOL(__memscan_generic);

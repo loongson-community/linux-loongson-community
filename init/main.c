@@ -32,7 +32,6 @@
 #include <linux/slab.h>
 #include <linux/major.h>
 #include <linux/blk.h>
-#include <linux/nametrans.h>
 #include <linux/init.h>
 #ifdef CONFIG_ROOT_NFS
 #include <linux/nfs_fs.h>
@@ -570,12 +569,6 @@ __initfunc(static int checksetup(char *line))
 		return 1;
 	}
 #endif
-#ifdef CONFIG_TRANS_NAMES
-	if(!strncmp(line,"nametrans=",10)) {
-		nametrans_setup(line+10);
-		return 1;
-	}
-#endif
 	while (bootsetups[i].str) {
 		int n = strlen(bootsetups[i].str);
 		if (!strncmp(line,bootsetups[i].str,n)) {
@@ -769,6 +762,12 @@ __initfunc(static void parse_options(char *line))
 		if (!strncmp(line,"init=",5)) {
 			line += 5;
 			execute_command = line;
+			/* In case LILO is going to boot us with default command line,
+			 * it prepends "auto" before the whole cmdline which makes
+			 * the shell think it should execute a script with such name.
+			 * So we ignore all arguments entered _before_ init=... [MJ]
+			 */
+			args = 0;
 			continue;
 		}
 		if (checksetup(line))
@@ -901,7 +900,6 @@ __initfunc(asmlinkage void start_kernel(void))
 	memory_start = kmem_cache_init(memory_start, memory_end);
 	sti();
 	calibrate_delay();
-	memory_start = name_cache_init(memory_start,memory_end);
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start && !initrd_below_start_ok && initrd_start < memory_start) {
 		printk(KERN_CRIT "initrd overwritten (0x%08lx < 0x%08lx) - "
@@ -916,6 +914,7 @@ __initfunc(asmlinkage void start_kernel(void))
 #endif
 	uidcache_init();
 	filescache_init();
+	dcache_init();
 	vma_init();
 	buffer_init();
 	inode_init();

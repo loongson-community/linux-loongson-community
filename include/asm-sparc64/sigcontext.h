@@ -1,13 +1,8 @@
-/* $Id: sigcontext.h,v 1.4 1997/04/04 00:50:28 davem Exp $ */
+/* $Id: sigcontext.h,v 1.8 1997/06/20 11:54:41 davem Exp $ */
 #ifndef __SPARC64_SIGCONTEXT_H
 #define __SPARC64_SIGCONTEXT_H
 
 #include <asm/ptrace.h>
-
-/* XXX This gets exported to userland as well as kernel, it is probably
- * XXX riddled with many hard to find 32-bit binary compatability issues.
- * XXX Signals and this file need to be investigated heavily. -DaveM
- */
 
 #define SUNOS_MAXWIN   31
 
@@ -47,12 +42,12 @@ struct sigcontext32 {
 struct sigcontext {
 	int sigc_onstack;      /* state to restore */
 	int sigc_mask;         /* sigmask to restore */
-	int sigc_sp;           /* stack pointer */
-	int sigc_pc;           /* program counter */
-	int sigc_npc;          /* next program counter */
-	int sigc_psr;          /* for condition codes etc */
-	int sigc_g1;           /* User uses these two registers */
-	int sigc_o0;           /* within the trampoline code. */
+	unsigned long sigc_sp;   /* stack pointer */
+	unsigned long sigc_pc;   /* program counter */
+	unsigned long sigc_npc;  /* next program counter */
+	unsigned long sigc_psr;  /* for condition codes etc */
+	unsigned long sigc_g1;   /* User uses these two registers */
+	unsigned long sigc_o0;   /* within the trampoline code. */
 
 	/* Now comes information regarding the users window set
 	 * at the time of the signal.
@@ -72,17 +67,6 @@ typedef struct {
 } __siginfo32_t;
 
 typedef struct {
-	unsigned int si_float_regs [32];
-	unsigned int si_fsr;
-	unsigned int si_fpqdepth;
-	struct {
-		unsigned int *insn_addr;
-		unsigned int insn;
-	} si_fpqueue [16];
-} __siginfo_fpu32_t;
-
-
-typedef struct {
 	struct     pt_regs si_regs;
 	int si_mask;
 } __siginfo_t;
@@ -90,6 +74,7 @@ typedef struct {
 typedef struct {
 	unsigned   int si_float_regs [64];
 	unsigned   long si_fsr;
+	unsigned   long si_gsr;
 	unsigned   int si_fpqdepth;
 	struct {
 		unsigned int *insn_addr;

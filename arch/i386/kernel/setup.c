@@ -219,7 +219,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 	request_region(0x40,0x20,"timer");
 	request_region(0x80,0x10,"dma page reg");
 	request_region(0xc0,0x20,"dma2");
-	request_region(0xf0,0x10,"npu");
+	request_region(0xf0,0x10,"fpu");
 }
 
 static const char * i486model(unsigned int nr)
@@ -238,6 +238,17 @@ static const char * i586model(unsigned int nr)
 	static const char *model[] = {
 		"0", "Pentium 60/66","Pentium 75+","OverDrive PODP5V83",
 		"Pentium MMX"
+	};
+	if (nr < sizeof(model)/sizeof(char *))
+		return model[nr];
+	return NULL;
+}
+
+static const char * k5model(unsigned int nr)
+{
+	static const char *model[] = {
+		"SSA5 (PR-75, PR-90, PR-100)", "5k86 (PR-120, PR-133)",
+		"5k86 (PR-166)", "5k86 (PR-200)", "", "", "K6"
 	};
 	if (nr < sizeof(model)/sizeof(char *))
 		return model[nr];
@@ -263,7 +274,11 @@ static const char * getmodel(int x86, int model)
 			p = i486model(model);
 			break;
 		case 5:
-			p = i586model(model);
+			if(strcmp(x86_vendor_id, "AuthenticAMD") == 0){
+				p = k5model(model);
+			} else {
+				p = i586model(model);
+			}
 			break;
 		case 6:
 			p = i686model(model);

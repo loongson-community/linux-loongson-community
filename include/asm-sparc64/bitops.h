@@ -1,4 +1,4 @@
-/* $Id: bitops.h,v 1.16 1997/05/28 13:48:56 jj Exp $
+/* $Id: bitops.h,v 1.19 1997/07/08 10:17:37 davem Exp $
  * bitops.h: Bit string operations on the V9.
  *
  * Copyright 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -23,21 +23,21 @@ extern __inline__ unsigned long test_and_set_bit(unsigned long nr, void *addr)
 {
 	unsigned long oldbit;
 	unsigned long temp0, temp1;
-	unsigned int * m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 6);
 
 	__asm__ __volatile__("
-	lduw		[%4], %0
+	ldx		[%4], %0
 1:
 	andcc		%0, %3, %2
-	bne,pn		%%icc, 2f
+	bne,pn		%%xcc, 2f
 	 xor		%0, %3, %1
-	cas 		[%4], %0, %1
+	casx 		[%4], %0, %1
 	cmp		%0, %1
-	bne,a,pn	%%icc, 1b
-	 lduw		[%4], %0
+	bne,a,pn	%%xcc, 1b
+	 ldx		[%4], %0
 2:
 "	: "=&r" (temp0), "=&r" (temp1), "=&r" (oldbit)
-	: "HIr" (1UL << (nr & 31)), "r" (m)
+	: "HIr" (1UL << (nr & 63)), "r" (m)
 	: "cc");
 	return oldbit != 0;
 }
@@ -51,21 +51,21 @@ extern __inline__ unsigned long test_and_clear_bit(unsigned long nr, void *addr)
 {
 	unsigned long oldbit;
 	unsigned long temp0, temp1;
-	unsigned int * m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 6);
 
 	__asm__ __volatile__("
-	lduw		[%4], %0
+	ldx		[%4], %0
 1:
 	andcc		%0, %3, %2
-	be,pn		%%icc, 2f
+	be,pn		%%xcc, 2f
 	 xor		%0, %3, %1
-	cas 		[%4], %0, %1
+	casx 		[%4], %0, %1
 	cmp		%0, %1
-	bne,a,pn	%%icc, 1b
-	 lduw		[%4], %0
+	bne,a,pn	%%xcc, 1b
+	 ldx		[%4], %0
 2:
 "	: "=&r" (temp0), "=&r" (temp1), "=&r" (oldbit)
-	: "HIr" (1UL << (nr & 31)), "r" (m)
+	: "HIr" (1UL << (nr & 63)), "r" (m)
 	: "cc");
 	return oldbit != 0;
 }
@@ -79,19 +79,19 @@ extern __inline__ unsigned long test_and_change_bit(unsigned long nr, void *addr
 {
 	unsigned long oldbit;
 	unsigned long temp0, temp1;
-	unsigned int * m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 6);
 
 	__asm__ __volatile__("
-	lduw		[%4], %0
+	ldx		[%4], %0
 1:
 	and		%0, %3, %2
 	xor		%0, %3, %1
-	cas 		[%4], %0, %1
+	casx 		[%4], %0, %1
 	cmp		%0, %1
-	bne,a,pn	%%icc, 1b
-	 lduw		[%4], %0
+	bne,a,pn	%%xcc, 1b
+	 ldx		[%4], %0
 "	: "=&r" (temp0), "=&r" (temp1), "=&r" (oldbit)
-	: "HIr" (1UL << (nr & 31)), "r" (m)
+	: "HIr" (1UL << (nr & 63)), "r" (m)
 	: "cc");
 	return oldbit != 0;
 }
@@ -103,7 +103,7 @@ extern __inline__ void change_bit(unsigned long nr, void *addr)
 
 extern __inline__ unsigned long test_bit(int nr, __const__ void *addr)
 {
-	return 1UL & (((__const__ int *) addr)[nr >> 5] >> (nr & 31));
+	return 1UL & (((__const__ long *) addr)[nr >> 6] >> (nr & 63));
 }
 
 /* The easy/cheese version for now. */
@@ -121,7 +121,7 @@ extern __inline__ unsigned long ffz(unsigned long word)
 	  : "0" (word)
 	  : "g1", "g2");
 #else
-#ifdef EASY_CHEESE_VERSION
+#if 1 /* def EASY_CHEESE_VERSION */
 	result = 0;
 	while(word & 1) {
 		result++;
@@ -177,13 +177,11 @@ extern __inline__ unsigned long find_next_zero_bit(void *addr, unsigned long siz
 		size -= 64;
 		result += 64;
 	}
-	offset = size >> 6;
-	size &= 63UL;
-	while (offset) {
+	while (size & ~63UL) {
 		if (~(tmp = *(p++)))
 			goto found_middle;
 		result += 64;
-		offset--;
+		size -= 64;
 	}
 	if (!size)
 		return result;
@@ -260,22 +258,12 @@ extern __inline__ int test_le_bit(int nr, __const__ void * addr)
 #define find_first_zero_le_bit(addr, size) \
         find_next_zero_le_bit((addr), (size), 0)
 
-extern __inline__ unsigned long __swab64(unsigned long value)
-{
-	return (((value>>56) & 0x00000000000000ff) |
-		((value>>40) & 0x000000000000ff00) |
-		((value>>24) & 0x0000000000ff0000) |
-		((value>>8)  & 0x00000000ff000000) |
-		((value<<8)  & 0x000000ff00000000) |
-		((value<<24) & 0x0000ff0000000000) |
-		((value<<40) & 0x00ff000000000000) |
-		((value<<56) & 0xff00000000000000));
-}     
-
 extern __inline__ unsigned long __swab64p(unsigned long *addr)
 {
 	unsigned long ret;
-	__asm__ __volatile__ ("ldxa [%1] %2, %0" : "=r" (ret) : "r" (addr), "i" (ASI_PL));
+	__asm__ __volatile__ ("ldxa [%1] %2, %0"
+			      : "=r" (ret)
+			      : "r" (addr), "i" (ASI_PL));
 	return ret;
 }
 
@@ -299,13 +287,11 @@ extern __inline__ unsigned long find_next_zero_le_bit(void *addr, unsigned long 
 		size -= 64;
 		result += 64;
 	}
-	offset = size >> 6;
-	size &= 63UL;
-	while(offset) {
+	while(size & ~63) {
 		if(~(tmp = __swab64p(p++)))
 			goto found_middle;
 		result += 64;
-		offset--;
+		size -= 64;
 	}
 	if(!size)
 		return result;

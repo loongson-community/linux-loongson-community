@@ -20,6 +20,7 @@
 #include <linux/mm.h>
 #include <linux/random.h>
 #include <linux/init.h>
+#include <linux/joystick.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -134,8 +135,7 @@ static int mmap_mem(struct inode * inode, struct file * file, struct vm_area_str
 #endif
 	if (remap_page_range(vma->vm_start, offset, vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
-	vma->vm_inode = inode;
-	atomic_inc(&inode->i_count);
+	vma->vm_dentry = dget(file->f_dentry);
 	return 0;
 }
 
@@ -532,6 +532,13 @@ __initfunc(int chr_dev_init(void))
 #ifdef CONFIG_SOUND
 	soundcard_init();
 #endif
+#ifdef CONFIG_JOYSTICK
+	/*
+	 *	Some joysticks only appear when the soundcard they are
+	 *	connected too is confgured. Keep the sound/joystick ordering.
+	 */
+	joystick_init();
+#endif	
 #if CONFIG_QIC02_TAPE
 	qic02_tape_init();
 #endif

@@ -58,6 +58,7 @@ struct inode_operations minix_file_inode_operations = {
 	NULL,			/* mknod */
 	NULL,			/* rename */
 	NULL,			/* readlink */
+	NULL,			/* follow_link */
 	generic_readpage,	/* readpage */
 	NULL,			/* writepage */
 	minix_bmap,		/* bmap */
@@ -120,6 +121,6 @@ static long minix_file_write(struct inode * inode, struct file * filp,
 		inode->i_size = pos;
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	filp->f_pos = pos;
-	inode->i_dirt = 1;
+	mark_inode_dirty(inode);
 	return written;
 }

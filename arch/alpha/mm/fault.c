@@ -67,8 +67,7 @@ asmlinkage void do_page_fault(unsigned long address, unsigned long mmcsr,
 			      long cause, struct pt_regs *regs)
 {
 	struct vm_area_struct * vma;
-	struct task_struct *tsk = current;
-	struct mm_struct *mm = tsk->mm;
+	struct mm_struct *mm = current->mm;
 	unsigned fixup;
 
 	down(&mm->mmap_sem);
@@ -97,7 +96,7 @@ good_area:
 		if (!(vma->vm_flags & VM_WRITE))
 			goto bad_area;
 	}
-	handle_mm_fault(tsk, vma, address, cause > 0);
+	handle_mm_fault(current, vma, address, cause > 0);
 	up(&mm->mmap_sem);
 	return;
 
@@ -108,23 +107,20 @@ good_area:
 bad_area:
 	up(&mm->mmap_sem);
 
+	if (user_mode(regs)) {
+		force_sig(SIGSEGV, current);
+		return;
+	}
+
 	/* Are we prepared to handle this fault as an exception?  */
 	if ((fixup = search_exception_table(regs->pc)) != 0) {
 		unsigned long newpc;
 		newpc = fixup_exception(dpf_reg, fixup, regs->pc);
-		printk("Taking exception at [<%lx>] (%lx)\n", regs->pc, newpc);
+		printk("%s: Exception at [<%lx>] (%lx)\n", current->comm, regs->pc, newpc);
 		regs->pc = newpc;
 		return;
 	}
 
-	if (user_mode(regs)) {
-		printk("%s: memory violation at pc=%08lx ra=%08lx "
-		       "(bad address = %08lx)\n",
-			tsk->comm, regs->pc, regs->r26, address);
-		die_if_kernel("oops", regs, cause, (unsigned long*)regs - 16);
-		force_sig(SIGSEGV, tsk);
-		return;
-	}
 /*
  * Oops. The kernel tried to access some bad page. We'll have to
  * terminate things with extreme prejudice.

@@ -152,8 +152,7 @@ extern int find_rock_ridge_relocation(struct iso_directory_record *, struct inod
 
 extern int isofs_open(struct inode * inode, struct file * filp);
 extern void isofs_release(struct inode * inode, struct file * filp);
-extern int isofs_lookup(struct inode * dir,const char * name, int len,
-			struct inode ** result);
+extern int isofs_lookup(struct inode * dir, struct dentry *);
 extern unsigned long isofs_count_free_inodes(struct super_block *sb);
 extern int isofs_new_block(int dev);
 extern int isofs_free_block(int dev, int block);
@@ -164,7 +163,7 @@ extern struct super_block *isofs_read_super(struct super_block *,void *,int);
 extern int init_iso9660_fs(void);
 extern void isofs_read_inode(struct inode *);
 extern void isofs_put_inode(struct inode *);
-extern void isofs_statfs(struct super_block *, struct statfs *, int);
+extern int isofs_statfs(struct super_block *, struct statfs *, int);
 
 extern int isofs_lseek(struct inode *, struct file *, off_t, int);
 extern int isofs_read(struct inode *, struct file *, char *, int);

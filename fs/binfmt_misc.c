@@ -7,9 +7,11 @@
  *  a specified wrapper. This should obsolete binfmt_java, binfmt_em86 and
  *  binfmt_mz.
  *
- *  25.4.97 first version
- *    [...]
- *  19.5.97 cleanup
+ *  1997-04-25 first version
+ *  [...]
+ *  1997-05-19 cleanup
+ *  1997-06-26 hpa: pass the real filename rather than argv[0]
+ *  1997-06-30 minor cleanup
  */
 
 #include <linux/module.h>
@@ -48,7 +50,7 @@ struct binfmt_entry {
 
 #define ENTRY_ENABLED 1		/* the old binfmt_entry.enabled */
 #define	ENTRY_MAGIC 8		/* not filename detection */
-#define ENTRY_STRIP_EXT 32	/* strip of last filename extension */
+#define ENTRY_STRIP_EXT 32	/* strip off last filename extension */
 
 static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs);
 static void entry_proc_cleanup(struct binfmt_entry *e);
@@ -85,7 +87,6 @@ static void clear_entry(int id)
 		*ep = e->next;
 		entry_proc_cleanup(e);
 		kfree(e);
-		MOD_DEC_USE_COUNT;
 	}
 	write_unlock(&entries_lock);
 }
@@ -102,7 +103,6 @@ static void clear_entries(void)
 		entries = entries->next;
 		entry_proc_cleanup(e);
 		kfree(e);
-		MOD_DEC_USE_COUNT;
 	}
 	write_unlock(&entries_lock);
 }
@@ -157,6 +157,7 @@ static struct binfmt_entry *check_file(struct linux_binprm *bprm)
 static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 {
 	struct binfmt_entry *fmt;
+	struct dentry * dentry;
 	char iname[128];
 	char *iname_addr = iname, *p;
 	int retval, fmt_flags = 0;
@@ -180,17 +181,16 @@ static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 		goto _ret;
 	}
 
-	iput(bprm->inode);
-	bprm->dont_iput = 1;
+	dput(bprm->dentry);
+	bprm->dentry = NULL;
 
 	/* Build args for interpreter */
 	if ((fmt_flags & ENTRY_STRIP_EXT) &&
-	    (p = strrchr(bprm->filename, '.'))) {
+	    (p = strrchr(bprm->filename, '.')))
 		*p = '\0';
-		remove_arg_zero(bprm);
-		bprm->p = copy_strings(1, &bprm->filename, bprm->page, bprm->p, 2);
-		bprm->argc++;
-	}
+	remove_arg_zero(bprm);
+	bprm->p = copy_strings(1, &bprm->filename, bprm->page, bprm->p, 2);
+	bprm->argc++;
 	bprm->p = copy_strings(1, &iname_addr, bprm->page, bprm->p, 2);
 	bprm->argc++;
 	if (!bprm->p) {
@@ -199,11 +199,14 @@ static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 	}
 	bprm->filename = iname;	/* for binfmt_script */
 
-	if ((retval = open_namei(iname, 0, 0, &bprm->inode, NULL)))
+	dentry = open_namei(iname, 0, 0);
+	retval = PTR_ERR(dentry);
+	if (IS_ERR(dentry))
 		goto _ret;
-	bprm->dont_iput = 0;
+	bprm->dentry = dentry;
 
-	if ((retval = prepare_binprm(bprm)) >= 0)
+	retval = prepare_binprm(bprm);
+	if (retval >= 0)
 		retval = search_binary_handler(bprm, regs);
 _ret:
 	MOD_DEC_USE_COUNT;
@@ -322,7 +325,7 @@ static int proc_write_register(struct file *file, const char *buffer,
 	entries = e;
 	write_unlock(&entries_lock);
 
-	return count;
+	err = count;
 _err:
 	MOD_DEC_USE_COUNT;
 	return err;
@@ -499,6 +502,7 @@ void cleanup_module(void)
 	unregister_binfmt(&misc_format);
 	remove_proc_entry("register", bm_dir);
 	remove_proc_entry("status", bm_dir);
+	clear_entries();
 	remove_proc_entry("sys/fs/binfmt_misc", NULL);
 }
 #endif

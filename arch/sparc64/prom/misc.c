@@ -1,4 +1,4 @@
-/* $Id: misc.c,v 1.6 1997/04/10 05:13:05 davem Exp $
+/* $Id: misc.c,v 1.8 1997/07/14 23:45:28 davem Exp $
  * misc.c:  Miscellaneous prom functions that don't belong
  *          anywhere else.
  *
@@ -6,6 +6,7 @@
  * Copyright (C) 1996,1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
  */
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -45,8 +46,8 @@ void
 prom_cmdline(void)
 {
 	extern void kernel_enter_debugger(void);
-	extern void install_obp_ticker(void);
-	extern void install_linux_ticker(void);
+	/* extern void install_obp_ticker(void); */
+	/* extern void install_linux_ticker(void); */
 	unsigned long flags;
     
 	/* kernel_enter_debugger(); */
@@ -132,3 +133,10 @@ void prom_set_trap_table(unsigned long tba)
 {
 	p1275_cmd("SUNW,set-trap-table", P1275_INOUT(1, 0), tba);
 }
+
+#ifdef __SMP__
+void prom_start_cpu(int cpunode, unsigned long pc, unsigned long o0)
+{
+	p1275_cmd("SUNW,start-cpu", P1275_INOUT(3, 0), cpunode, pc, o0);
+}
+#endif

@@ -54,9 +54,10 @@ void isofs_put_super(struct super_block *sb)
 
 static struct super_operations isofs_sops = {
 	isofs_read_inode,
-	NULL,			/* notify_change */
 	NULL,			/* write_inode */
 	NULL,			/* put_inode */
+	NULL,			/* delete_inode */
+	NULL,			/* notify_change */
 	isofs_put_super,
 	NULL,			/* write_super */
 	isofs_statfs,
@@ -481,12 +482,12 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	s->u.isofs_sb.s_mode = opt.mode & 0777;
 	s->s_blocksize = opt.blocksize;
 	s->s_blocksize_bits = blocksize_bits;
-	s->s_mounted = iget(s, (isonum_733(rootp->extent) +
+	s->s_root = d_alloc_root(iget(s, (isonum_733(rootp->extent) +
 			    isonum_711(rootp->ext_attr_length))
-				<< s -> u.isofs_sb.s_log_zone_size);
+				<< s -> u.isofs_sb.s_log_zone_size), NULL);
 	unlock_super(s);
 
-	if (!(s->s_mounted)) {
+	if (!(s->s_root)) {
 		s->s_dev = 0;
 		printk("get root inode failed\n");
 		MOD_DEC_USE_COUNT;
@@ -504,7 +505,7 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	return NULL;
 }
 
-void isofs_statfs (struct super_block *sb, struct statfs *buf, int bufsiz)
+int isofs_statfs (struct super_block *sb, struct statfs *buf, int bufsiz)
 {
 	struct statfs tmp;
 
@@ -517,7 +518,7 @@ void isofs_statfs (struct super_block *sb, struct statfs *buf, int bufsiz)
 	tmp.f_files = sb->u.isofs_sb.s_ninodes;
 	tmp.f_ffree = 0;
 	tmp.f_namelen = NAME_MAX;
-	copy_to_user(buf, &tmp, bufsiz);
+	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
 }
 
 int isofs_bmap(struct inode * inode,int block)
@@ -663,7 +664,6 @@ void isofs_read_inode(struct inode * inode)
 					   isonum_711 (raw_inode->ext_attr_length))
 	  << inode -> i_sb -> u.isofs_sb.s_log_zone_size;
 
-	inode->u.isofs_i.i_backlink = 0xffffffff; /* Will be used for previous directory */
 	switch (inode->i_sb->u.isofs_sb.s_conversion){
 	case 'a':
 	  inode->u.isofs_i.i_file_format = ISOFS_FILE_UNKNOWN; /* File type */
@@ -735,7 +735,6 @@ void isofs_read_inode(struct inode * inode)
 	/* With a data error we return this information */
 	inode->i_mtime = inode->i_atime = inode->i_ctime = 0;
 	inode->u.isofs_i.i_first_extent = 0;
-	inode->u.isofs_i.i_backlink = 0xffffffff;
 	inode->i_size = 0;
 	inode->i_nlink = 1;
 	inode->i_uid = inode->i_gid = 0;

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.16 1997/05/04 07:21:08 davem Exp $
+# $Id: Makefile,v 1.20 1997/07/11 11:05:29 jj Exp $
 # sparc64/Makefile
 #
 # Makefile for the architecture dependent flags and dependencies on the
@@ -24,8 +24,8 @@ ELF2AOUT64	= elf2aout64
 # debugging of the kernel to get the proper debugging information.
 
 #CFLAGS := $(CFLAGS) -g -pipe -fcall-used-g5 -fcall-used-g7 
-CFLAGS := $(CFLAGS) -pipe \
-          -fcall-used-g5 -fcall-used-g7 -Wno-sign-compare
+CFLAGS := $(CFLAGS) -pipe -mno-fpu -mtune=ultrasparc -mmedlow \
+	-ffixed-g4 -fcall-used-g5 -fcall-used-g7 -Wno-sign-compare
 
 LINKFLAGS = -T arch/sparc64/vmlinux.lds
 
@@ -49,3 +49,6 @@ archdep:
 
 check_asm:
 	$(MAKE) -C arch/sparc64/kernel check_asm
+
+tftpboot.img:
+	$(MAKE) -C arch/sparc64/boot tftpboot.img

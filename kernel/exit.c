@@ -369,8 +369,11 @@ static inline void close_files(struct files_struct * files)
 			break;
 		while (set) {
 			if (set & 1) {
-				close_fp(files->fd[i]);
-				files->fd[i] = NULL;
+				struct file * file = files->fd[i];
+				if (file) {
+					files->fd[i] = NULL;
+					close_fp(file);
+				}
 			}
 			i++;
 			set >>= 1;
@@ -405,8 +408,8 @@ static inline void __exit_fs(struct task_struct *tsk)
 	if (fs) {
 		tsk->fs = NULL;
 		if (!--fs->count) {
-			iput(fs->root);
-			iput(fs->pwd);
+			dput(fs->root);
+			dput(fs->pwd);
 			kfree(fs);
 		}
 	}

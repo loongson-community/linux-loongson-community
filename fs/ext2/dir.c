@@ -65,6 +65,7 @@ struct inode_operations ext2_dir_inode_operations = {
 	ext2_mknod,		/* mknod */
 	ext2_rename,		/* rename */
 	NULL,			/* readlink */
+	NULL,			/* follow_link */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
 	NULL,			/* bmap */
@@ -211,9 +212,6 @@ revalidate:
 		offset = 0;
 		brelse (bh);
 	}
-	if (DO_UPDATE_ATIME(inode)) {
-		inode->i_atime = CURRENT_TIME;
-		inode->i_dirt = 1;
-	}
+	UPDATE_ATIME(inode);
 	return 0;
 }

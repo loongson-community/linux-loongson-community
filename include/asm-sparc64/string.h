@@ -1,4 +1,4 @@
-/* $Id: string.h,v 1.5 1997/05/18 04:16:57 davem Exp $
+/* $Id: string.h,v 1.7 1997/07/13 18:23:44 davem Exp $
  * string.h: External definitions for optimized assembly string
  *           routines for the Linux Kernel.
  *
@@ -13,8 +13,14 @@
 
 #ifdef __KERNEL__
 
+#include <asm/asi.h>
+
 extern void __memmove(void *,const void *,__kernel_size_t);
 extern __kernel_size_t __memcpy(void *,const void *,__kernel_size_t);
+extern __kernel_size_t __memcpy_short(void *,const void *,__kernel_size_t,long,long);
+extern __kernel_size_t __memcpy_entry(void *,const void *,__kernel_size_t,long,long);
+extern __kernel_size_t __memcpy_16plus(void *,const void *,__kernel_size_t,long,long);
+extern __kernel_size_t __memcpy_384plus(void *,const void *,__kernel_size_t,long,long);
 extern __kernel_size_t __memset(void *,int,__kernel_size_t);
 
 #ifndef EXPORT_SYMTAB
@@ -35,24 +41,11 @@ extern __kernel_size_t __memset(void *,int,__kernel_size_t);
 
 extern inline void *__constant_memcpy(void *to, const void *from, __kernel_size_t n)
 {
-	extern void __copy_1page(void *, const void *);
-
 	if(n) {
 		if(n <= 32) {
 			__builtin_memcpy(to, from, n);
 		} else {
-#if 0
-			switch(n) {
-			case 8192:
-				__copy_1page(to, from);
-				break;
-			default:
-#endif
-				__memcpy(to, from, n);
-#if 0
-				break;
-			}
-#endif
+			__memcpy(to, from, n);
 		}
 	}
 	return to;
@@ -74,15 +67,13 @@ extern inline void *__nonconstant_memcpy(void *to, const void *from, __kernel_si
 
 extern inline void *__constant_c_and_count_memset(void *s, char c, __kernel_size_t count)
 {
-	extern void *bzero_1page(void *);
+	extern void *__bzero_1page(void *);
 	extern __kernel_size_t __bzero(void *, __kernel_size_t);
 
 	if(!c) {
-#if 0
-		if(count == 8192)
-			bzero_1page(s);
+		if (count == 8192)
+			__bzero_1page(s);
 		else
-#endif
 			__bzero(s, count);
 	} else {
 		__memset(s, c, count);

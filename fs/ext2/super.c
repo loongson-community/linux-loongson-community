@@ -133,9 +133,10 @@ void ext2_put_super (struct super_block * sb)
 
 static struct super_operations ext2_sops = {
 	ext2_read_inode,
-	NULL,
 	ext2_write_inode,
 	ext2_put_inode,
+	ext2_delete_inode,
+	NULL,
 	ext2_put_super,
 	ext2_write_super,
 	ext2_statfs,
@@ -632,7 +633,8 @@ struct super_block * ext2_read_super (struct super_block * sb, void * data,
 	 */
 	sb->s_dev = dev;
 	sb->s_op = &ext2_sops;
-	if (!(sb->s_mounted = iget (sb, EXT2_ROOT_INO))) {
+	sb->s_root = d_alloc_root(iget(sb, EXT2_ROOT_INO), NULL);
+	if (!sb->s_root) {
 		sb->s_dev = 0;
 		for (i = 0; i < db_count; i++)
 			if (sb->u.ext2_sb.s_group_desc[i])
@@ -761,7 +763,7 @@ void cleanup_module(void)
 
 #endif
 
-void ext2_statfs (struct super_block * sb, struct statfs * buf, int bufsiz)
+int ext2_statfs (struct super_block * sb, struct statfs * buf, int bufsiz)
 {
 	unsigned long overhead;
 	unsigned long overhead_per_group;
@@ -792,5 +794,5 @@ void ext2_statfs (struct super_block * sb, struct statfs * buf, int bufsiz)
 	tmp.f_files = le32_to_cpu(sb->u.ext2_sb.s_es->s_inodes_count);
 	tmp.f_ffree = ext2_count_free_inodes (sb);
 	tmp.f_namelen = EXT2_NAME_LEN;
-	copy_to_user(buf, &tmp, bufsiz);
+	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
 }

@@ -7,7 +7,6 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
-#include <linux/dalloc.h>
 #include <linux/omirr.h>
 #include <asm/uaccess.h>
 
@@ -288,6 +287,7 @@ struct inode_operations proc_omirr_inode_operations = {
     NULL, /* mknod */
     NULL, /* rename */
     NULL, /* readlink */
+    NULL, /* follow_link */
     NULL, /* readpage */
     NULL, /* writepage */
     NULL, /* bmap */

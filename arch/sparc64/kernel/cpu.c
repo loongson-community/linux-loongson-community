@@ -6,7 +6,9 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <asm/asi.h>
 #include <asm/system.h>
+#include <asm/fpumacro.h>
 
 struct cpu_iu_info {
   short manuf;
@@ -26,6 +28,7 @@ struct cpu_fp_info {
  */
 struct cpu_fp_info linux_sparc_fpu[] = {
   { 0x17, 0x10, 0, "UltraSparc I integrated FPU"},
+  { 0x22, 0x10, 0, "UltraSparc II integrated FPU"},
   { 0x17, 0x11, 0, "UltraSparc II integrated FPU"},
   { 0x17, 0x12, 0, "UltraSparc III integrated FPU"},
 };
@@ -34,6 +37,7 @@ struct cpu_fp_info linux_sparc_fpu[] = {
 
 struct cpu_iu_info linux_sparc_chips[] = {
   { 0x17, 0x10, "TI UltraSparc I   (SpitFire)"},
+  { 0x22, 0x10, "TI UltraSparc II  (BlackBird)"},
   { 0x17, 0x11, "TI UltraSparc II  (BlackBird)"},
   { 0x17, 0x12, "TI UltraSparc III (Cheetah)"},  /* A guess... */
 };
@@ -50,11 +54,20 @@ __initfunc(void cpu_probe(void))
 	int manuf, impl;
 	unsigned i, cpuid;
 	long ver, fpu_vers;
-
-	cpuid = get_cpuid();
+	long fprs;
 	
-	__asm__ __volatile__ ("rdpr %%ver, %0; stx %%fsr, [%1]" : "=r" (ver) : "r" (&fpu_vers));
+#ifndef __SMP__
+	cpuid = 0;
+#else
+#error SMP not supported on sparc64 yet
+	/* cpuid = get_cpuid(); */
+#endif
 
+	fprs = fprs_read ();
+	fprs_write (FPRS_FEF);
+	__asm__ __volatile__ ("rdpr %%ver, %0; stx %%fsr, [%1]" : "=r" (ver) : "r" (&fpu_vers));
+	fprs_write (fprs);
+	
 	manuf = ((ver >> 48)&0xffff);
 	impl = ((ver >> 32)&0xffff);
 

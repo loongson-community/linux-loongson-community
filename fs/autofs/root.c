@@ -16,11 +16,11 @@
 #include "autofs_i.h"
 
 static int autofs_root_readdir(struct inode *,struct file *,void *,filldir_t);
-static int autofs_root_lookup(struct inode *,const char *,int,struct inode **);
-static int autofs_root_symlink(struct inode *,const char *,int,const char *);
-static int autofs_root_unlink(struct inode *,const char *,int);
-static int autofs_root_rmdir(struct inode *,const char *,int);
-static int autofs_root_mkdir(struct inode *,const char *,int,int);
+static int autofs_root_lookup(struct inode *,struct dentry *);
+static int autofs_root_symlink(struct inode *,struct dentry *,const char *);
+static int autofs_root_unlink(struct inode *,struct dentry *);
+static int autofs_root_rmdir(struct inode *,struct dentry *);
+static int autofs_root_mkdir(struct inode *,struct dentry *,int);
 static int autofs_root_ioctl(struct inode *, struct file *,unsigned int,unsigned long);
 
 static struct file_operations autofs_root_operations = {
@@ -48,6 +48,7 @@ struct inode_operations autofs_root_inode_operations = {
         NULL,                   /* mknod */
         NULL,                   /* rename */
         NULL,                   /* readlink */
+        NULL,                   /* follow_link */
         NULL,                   /* readpage */
         NULL,                   /* writepage */
         NULL,                   /* bmap */
@@ -92,167 +93,189 @@ static int autofs_root_readdir(struct inode *inode, struct file *filp,
 	return 0;
 }
 
-static int autofs_root_lookup(struct inode *dir, const char *name, int len,
-			      struct inode **result)
+static int try_to_fill_dentry(struct dentry * dentry, struct super_block * sb, struct autofs_sb_info *sbi)
+{
+	struct inode * inode;
+	struct autofs_dir_ent *ent;
+	
+	while (!(ent = autofs_hash_lookup(&sbi->dirhash, &dentry->d_name))) {
+		int status = autofs_wait(sbi, &dentry->d_name);
+
+		/* Turn this into a real negative dentry? */
+		if (status == -ENOENT) {
+			dentry->d_flags = 0;
+			return 0;
+		}
+		if (status)
+			return status;
+	}
+
+	if (!dentry->d_inode) {
+		inode = iget(sb, ent->ino);
+		if (!inode)
+			return -EACCES;
+
+		dentry->d_inode = inode;
+	}
+
+	if (S_ISDIR(dentry->d_inode->i_mode)) {
+		while (dentry == dentry->d_mounts)
+			schedule();
+	}
+	dentry->d_flags = 0;
+	return 0;
+}
+
+
+/*
+ * Revalidate is called on every cache lookup.  Some of those
+ * cache lookups may actually happen while the dentry is not
+ * yet completely filled in, and revalidate has to delay such
+ * lookups..
+ */
+static struct dentry * autofs_revalidate(struct dentry * dentry)
 {
 	struct autofs_sb_info *sbi;
-	struct autofs_dir_ent *ent;
-	struct inode *res;
-	autofs_hash_t hash;
-	int status, oz_mode;
+	struct inode * dir = dentry->d_parent->d_inode;
 
-	DPRINTK(("autofs_root_lookup: name = "));
-	autofs_say(name,len);
-
-	*result = NULL;
-	if (!dir)
-		return -ENOENT;
-	if (!S_ISDIR(dir->i_mode)) {
-		iput(dir);
-		return -ENOTDIR;
-	}
-
-	/* Handle special cases: . and ..; since this is a root directory,
-	   they both point to the inode itself */
-	*result = dir;
-	if (!len)
-		return 0;
-	if (name[0] == '.') {
-		if (len == 1)
-			return 0;
-		if (name[1] == '.' && len == 2)
-			return 0;
-	}
-
-	*result = res = NULL;
 	sbi = (struct autofs_sb_info *) dir->i_sb->u.generic_sbp;
 
-	hash = autofs_hash(name,len);
+	/* Incomplete dentry? */
+	if (dentry->d_flags) {
+		if (autofs_oz_mode(sbi))
+			return dentry;
+
+		try_to_fill_dentry(dentry, dir->i_sb, sbi);
+		return dentry;
+	}
+
+	/* Negative dentry.. Should we time these out? */
+	if (!dentry->d_inode)
+		return dentry;
+
+	/* We should update the usage stuff here.. */
+	return dentry;
+}
+
+static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
+{
+	struct autofs_sb_info *sbi;
+	struct inode *res;
+	int oz_mode;
+
+	DPRINTK(("autofs_root_lookup: name = "));
+	autofs_say(dentry->d_name.name,dentry->d_name.len);
+
+	if (!S_ISDIR(dir->i_mode))
+		return -ENOTDIR;
+
+	res = NULL;
+	sbi = (struct autofs_sb_info *) dir->i_sb->u.generic_sbp;
 
 	oz_mode = autofs_oz_mode(sbi);
 	DPRINTK(("autofs_lookup: pid = %u, pgrp = %u, catatonic = %d, oz_mode = %d\n", current->pid, current->pgrp, sbi->catatonic, oz_mode));
 
-	do {
-		while ( !(ent = autofs_hash_lookup(&sbi->dirhash,hash,name,len)) ) {
-			DPRINTK(("lookup failed, pid = %u, pgrp = %u\n", current->pid, current->pgrp));
-			
-			if ( oz_mode ) {
-				iput(dir);
-				return -ENOENT;
-			} else {
-				status = autofs_wait(sbi,hash,name,len);
-				DPRINTK(("autofs_wait returned %d\n", status));
-				if ( status ) {
-					iput(dir);
-					return status;
-				}
-			}
-		}
+	/*
+	 * Mark the dentry incomplete, but add it. This is needed so
+	 * that the VFS layer knows about the dentry, and we can count
+	 * on catching any lookups through the revalidate.
+	 *
+	 * Let all the hard work be done by the revalidate function that
+	 * needs to be able to do this anyway..
+	 *
+	 * We need to do this before we release the directory semaphore.
+	 */
+	dentry->d_revalidate = autofs_revalidate;
+	dentry->d_flags = 1;
+	d_add(dentry, NULL);
 
-		DPRINTK(("lookup successful, inode = %08x\n", (unsigned int)ent->ino));
-
-		if (!(res = iget(dir->i_sb,ent->ino))) {
-			printk("autofs: iget returned null!\n");
-			iput(dir);
-			return -EACCES;
-		}
-		
-		if ( !oz_mode && S_ISDIR(res->i_mode) && res->i_sb == dir->i_sb ) {
-			/* Not a mount point yet, call 1-800-DAEMON */
-			DPRINTK(("autofs: waiting on non-mountpoint dir, inode = %lu, pid = %u, pgrp = %u\n", res->i_ino, current->pid, current->pgrp));
-			iput(res);
-			res = NULL;
-			status = autofs_wait(sbi,hash,name,len);
-			if ( status ) {
-				iput(dir);
-				return status;
-			}
-		}
-	} while(!res);
-	autofs_update_usage(&sbi->dirhash,ent);
-	
-	*result = res;
-	iput(dir);
+	up(&dir->i_sem);
+	autofs_revalidate(dentry);
+	down(&dir->i_sem);
 	return 0;
 }
 
-static int autofs_root_symlink(struct inode *dir, const char *name, int len, const char *symname)
+static int autofs_root_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	struct autofs_sb_info *sbi = (struct autofs_sb_info *) dir->i_sb->u.generic_sbp;
 	struct autofs_dirhash *dh = &sbi->dirhash;
-	autofs_hash_t hash = autofs_hash(name,len);
 	struct autofs_dir_ent *ent;
 	unsigned int n;
 	int slsize;
 	struct autofs_symlink *sl;
 
 	DPRINTK(("autofs_root_symlink: %s <- ", symname));
-	autofs_say(name,len);
+	autofs_say(dentry->d_name.name,dentry->d_name.len);
 
-	if ( !autofs_oz_mode(sbi) ) {
-		iput(dir);
+	if ( !autofs_oz_mode(sbi) )
 		return -EPERM;
-	}
-	if ( autofs_hash_lookup(dh,hash,name,len) ) {
-		iput(dir);
+
+	if ( autofs_hash_lookup(dh, &dentry->d_name) )
 		return -EEXIST;
-	}
+
 	n = find_first_zero_bit(sbi->symlink_bitmap,AUTOFS_MAX_SYMLINKS);
-	if ( n >= AUTOFS_MAX_SYMLINKS ) {
-		iput(dir);
+	if ( n >= AUTOFS_MAX_SYMLINKS )
 		return -ENOSPC;
-	}
+
 	set_bit(n,sbi->symlink_bitmap);
 	sl = &sbi->symlink[n];
 	sl->len = strlen(symname);
 	sl->data = kmalloc(slsize = sl->len+1, GFP_KERNEL);
 	if ( !sl->data ) {
 		clear_bit(n,sbi->symlink_bitmap);
-		iput(dir);
 		return -ENOSPC;
 	}
+
 	ent = kmalloc(sizeof(struct autofs_dir_ent), GFP_KERNEL);
 	if ( !ent ) {
 		kfree(sl->data);
 		clear_bit(n,sbi->symlink_bitmap);
-		iput(dir);
 		return -ENOSPC;
 	}
-	ent->name = kmalloc(len, GFP_KERNEL);
+
+	ent->name = kmalloc(dentry->d_name.len, GFP_KERNEL);
 	if ( !ent->name ) {
 		kfree(sl->data);
 		kfree(ent);
 		clear_bit(n,sbi->symlink_bitmap);
-		iput(dir);
 		return -ENOSPC;
 	}
+
 	memcpy(sl->data,symname,slsize);
 	sl->mtime = CURRENT_TIME;
 
 	ent->ino = AUTOFS_FIRST_SYMLINK + n;
-	ent->hash = hash;
-	memcpy(ent->name,name,ent->len = len);
+	ent->hash = dentry->d_name.hash;
+	memcpy(ent->name, dentry->d_name.name,ent->len = dentry->d_name.len);
 
 	autofs_hash_insert(dh,ent);
-	iput(dir);
+	d_instantiate(dentry, iget(dir->i_sb,ent->ino));
 
 	return 0;
 }
 
-static int autofs_root_unlink(struct inode *dir, const char *name, int len)
+/*
+ * NOTE!
+ *
+ * Normal filesystems would do a "d_delete()" to tell the VFS dcache
+ * that the file no longer exists. However, doing that means that the
+ * VFS layer can turn the dentry into a negative dentry, which we
+ * obviously do not want (we're dropping the entry not because it
+ * doesn't exist, but because it has timed out).
+ *
+ * Also see autofs_root_rmdir()..
+ */
+static int autofs_root_unlink(struct inode *dir, struct dentry *dentry)
 {
 	struct autofs_sb_info *sbi = (struct autofs_sb_info *) dir->i_sb->u.generic_sbp;
 	struct autofs_dirhash *dh = &sbi->dirhash;
-	autofs_hash_t hash = autofs_hash(name,len);
 	struct autofs_dir_ent *ent;
 	unsigned int n;
-
-	iput(dir);		/* Nothing below can sleep */
 
 	if ( !autofs_oz_mode(sbi) )
 		return -EPERM;
 
-	ent = autofs_hash_lookup(dh,hash,name,len);
+	ent = autofs_hash_lookup(dh, &dentry->d_name);
 	if ( !ent )
 		return -ENOENT;
 
@@ -263,75 +286,68 @@ static int autofs_root_unlink(struct inode *dir, const char *name, int len)
 	autofs_hash_delete(ent);
 	clear_bit(n,sbi->symlink_bitmap);
 	kfree(sbi->symlink[n].data);
+	d_drop(dentry);
 	
 	return 0;
 }
 
-static int autofs_root_rmdir(struct inode *dir, const char *name, int len)
+static int autofs_root_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	struct autofs_sb_info *sbi = (struct autofs_sb_info *) dir->i_sb->u.generic_sbp;
 	struct autofs_dirhash *dh = &sbi->dirhash;
-	autofs_hash_t hash = autofs_hash(name,len);
 	struct autofs_dir_ent *ent;
 
-	if ( !autofs_oz_mode(sbi) ) {
-		iput(dir);
+	if ( !autofs_oz_mode(sbi) )
 		return -EPERM;
-	}
-	ent = autofs_hash_lookup(dh,hash,name,len);
-	if ( !ent ) {
-		iput(dir);
+
+	ent = autofs_hash_lookup(dh, &dentry->d_name);
+	if ( !ent )
 		return -ENOENT;
-	}
-	if ( (unsigned int)ent->ino < AUTOFS_FIRST_DIR_INO ) {
-		iput(dir);
+
+	if ( (unsigned int)ent->ino < AUTOFS_FIRST_DIR_INO )
 		return -ENOTDIR; /* Not a directory */
-	}
+
 	autofs_hash_delete(ent);
 	dir->i_nlink--;
-	iput(dir);
+	d_drop(dentry);
 
 	return 0;
 }
 
-static int autofs_root_mkdir(struct inode *dir, const char *name, int len, int mode)
+static int autofs_root_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	struct autofs_sb_info *sbi = (struct autofs_sb_info *) dir->i_sb->u.generic_sbp;
 	struct autofs_dirhash *dh = &sbi->dirhash;
-	autofs_hash_t hash = autofs_hash(name,len);
 	struct autofs_dir_ent *ent;
 
-	if ( !autofs_oz_mode(sbi) ) {
-		iput(dir);
+	if ( !autofs_oz_mode(sbi) )
 		return -EPERM;
-	}
-	ent = autofs_hash_lookup(dh,hash,name,len);
-	if ( ent ) {
-		iput(dir);
+
+	ent = autofs_hash_lookup(dh, &dentry->d_name);
+	if ( ent )
 		return -EEXIST;
-	}
+
 	if ( sbi->next_dir_ino < AUTOFS_FIRST_DIR_INO ) {
 		printk("autofs: Out of inode numbers -- what the heck did you do??\n");
-		iput(dir);
 		return -ENOSPC;
 	}
+
 	ent = kmalloc(sizeof(struct autofs_dir_ent), GFP_KERNEL);
-	if ( !ent ) {
-		iput(dir);
+	if ( !ent )
 		return -ENOSPC;
-	}
-	ent->name = kmalloc(len, GFP_KERNEL);
+
+	ent->name = kmalloc(dentry->d_name.len, GFP_KERNEL);
 	if ( !ent->name ) {
 		kfree(ent);
-		iput(dir);
 		return -ENOSPC;
 	}
-	ent->hash = hash;
-	memcpy(ent->name, name, ent->len = len);
+
+	ent->hash = dentry->d_name.hash;
+	memcpy(ent->name, dentry->d_name.name, ent->len = dentry->d_name.len);
 	ent->ino = sbi->next_dir_ino++;
 	autofs_hash_insert(dh,ent);
 	dir->i_nlink++;
-	iput(dir);
+	d_instantiate(dentry, iget(dir->i_sb,ent->ino));
 
 	return 0;
 }

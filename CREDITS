@@ -81,6 +81,14 @@ S: University of Notre Dame
 S: Notre Dame, Indiana
 S: USA
 
+N: James Banks
+E: james.banks@caldera.com
+D: TLAN network driver
+S: Caldera, Inc.
+S: 633 South 550 East
+S: Provo, UT 84606
+S: USA
+
 N: Peter Bauer
 E: 100136.3530@compuserve.com
 D: Driver for depca-ethernet-board
@@ -107,7 +115,9 @@ S: USA
 
 N: Randolph Bentson
 E: bentson@grieg.seaslug.org
-D: author of driver for Cyclades Cyclom-Y async mux
+D: author of driver for Cyclom-Y and Cyclades-Z async mux
+P: 1024/39ED5729 5C A8 7A F4 B2 7A D1 3E  B5 3B 81 CF 47 30 11 71
+W: http://www.aa.net/~bentson/
 S: 2322 37th Ave SW
 S: Seattle, Washington 98126-2010
 S: USA
@@ -793,6 +803,12 @@ S: Schlehenweg 9
 S: D-91080 Uttenreuth
 S: Germany
 
+N: Jaroslav Kysela
+E: perex@jcu.cz
+D: Original Author and Maintainer for HP 10/100 Mbit Network Adapters
+W: http://www.pf.jcu.cz/~perex
+S: Unix Centre of Pedagogical Faculty, University of South Bohemia
+
 N: Bas Laarhoven
 E: bas@vimec.nl
 D: Loadable modules and ftape driver
@@ -841,6 +857,13 @@ D: Promised to send money if I would put his name in the source tree.
 S: PO Box 371
 S: North Little Rock, Arkansas 72115
 S: US
+
+N: Siegfried "Frieder" Loeffler (dg1sek)
+E: floeff@tunix.mathematik.uni-stuttgart.de, fl@LF.net
+W: http://www.mathematik.uni-stuttgart.de/~floeff
+D: Busmaster driver for HP 10/100 Mbit Network Adapters
+S: University of Stuttgart, Germany  and
+S: Ecole Nationale Superieure des Telecommunications, Paris
 
 N: Martin von Loewis
 E: loewis@informatik.hu-berlin.de
@@ -956,12 +979,13 @@ S: D-91056 Erlangen
 S: Germany
 
 N: Michael Meskes
-E: meskes@informatik.rwth-aachen.de
+E: meskes@topsystem.de
+P: 1024/04B6E8F5 6C 77 33 CA CC D6 22 03  AB AB 15 A3 AE AD 39 7D
 D: Kernel hacker. Software watchdog daemon.
 D: Maintainer of several Debian packages
-S: Lehrstuhl fuer angewandte Mathematik insb. Informatik
-S: RWTH-Aachen
-S: D-52056 Aachen
+S: topsystem Systemhaus GmbH
+S: Europark A2, Adenauerstr. 20
+S: D-52146 Wuerselen
 S: Germany
 
 N: Nigel Metheringham
@@ -1055,8 +1079,9 @@ S: FIN-00330 Helsingfors
 S: Finland
 
 N: Jonathan Naylor
-E: jsn@cs.nott.ac.uk
+E: g4klx@g4klx.demon.co.uk
 E: g4klx@amsat.org
+W: http://zone.pspt.fi/~jsn/
 D: AX.25, NET/ROM and ROSE amateur radio protocol suites
 D: CCITT X.25 PLP and LAPB.
 S: 24 Castle View Drive

@@ -2,7 +2,7 @@
  *    wd33c93.h -  Linux device driver definitions for the
  *                 Commodore Amiga A2091/590 SCSI controller card
  *
- *    IMPORTANT: This file is for version 1.24 - 29/Jan/1997
+ *    IMPORTANT: This file is for version 1.25 - 09/Jul/1997
  *
  * Copyright (c) 1996 John Shifflett, GeoLog Consulting
  *    john@geolog.com
@@ -33,6 +33,8 @@
 #define DEBUGGING_ON       /* enable command-line debugging bitmask */
 #define DEBUG_DEFAULTS 0   /* default debugging bitmask */
 
+
+#define ILLEGAL_STATUS_BYTE   0xff
 
 #ifdef DEBUGGING_ON
 #define DB(f,a) if (hostdata->args & (f)) a;

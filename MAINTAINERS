@@ -95,6 +95,12 @@ M:	phil@tazenda.demon.co.uk
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
+TLAN NETWORK DRIVER
+P:	James Banks
+M:	james.banks@caldera.com
+L:	linux-net@vger.rutgers.edu
+S:	Supported
+
 DIGI RIGHTSWITCH NETWORK DRIVER
 P:	Rick Richardson
 M:	rick@dgii.com
@@ -105,6 +111,11 @@ S:	Maintained
 WAVELAN NETWORK DRIVER & WIRELESS EXTENSIONS
 P:	Jean Tourrilhes
 M:	jt@hplb.hpl.hp.com
+S:	Maintained
+
+HP100: Driver for HP 10/100 Mbit/s Network Adapter Series
+P:	Jarsolav Kysela
+M:	perex@jcu.cz
 S:	Maintained
 
 APM DRIVER
@@ -217,10 +228,10 @@ L:	linux-tape@vger.rutgers.edu
 S:	Maintained
 
 IPX NETWORK LAYER
-P:	Alan Cox [for the moment]
-M:	net-patches@lxorguk.ukuu.org.uk
-L:	linux-ipx@vger.rutgers.edu [will change]
-S:	Maintained
+P:	
+M:
+L:	
+S:	Orphan
 
 IDE DRIVER [GENERAL]
 P:	Mark Lord
@@ -267,6 +278,13 @@ W:	http://lena.fnet.fr/
 L:	linux-mips@fnet.fr
 S:	Maintained
 
+MIPS:
+P:	Ralf Baechle
+M:	ralf@gnu.ai.mit.edu
+W:	http://lena.fnet.fr/
+L:	linux-mips@fnet.fr
+S:	Maintained
+
 NCP FILESYSTEM:
 P:	Volker Lendecke
 M:	lendecke@Math.Uni-Goettingen.de
@@ -280,10 +298,10 @@ L:	linux-hams@vger.rutgers.edu
 S:	Maintained
 
 NETWORKING [GENERAL]:
-P:	Alan Cox
-M:	net-patches@lxorguk.ukuu.org.uk
+P:	Networking Teak
+M:	netdev@nuclecu.unam.mx
 L:	linux-net@vger.rutgers.edu
-W:	http://www.uk.linux.org/NetNews.html
+W:	http://www.uk.linux.org/NetNews.html (2.0 only)
 S:	Maintained
 
 NETWORKING [IPv4/IPv6]:
@@ -326,8 +344,8 @@ L:	samba@listproc.anu.edu.au
 S:	Maintained
 
 SMP: (except SPARC)
-P:	Alan Cox
-M:	smp-patches@lxorguk.ukuu.org.uk
+P:	Linus Torvalds
+M:	torvalds@transmeta.com
 L:	linux-smp@vger.rutgers.edu
 S:	Maintained
 

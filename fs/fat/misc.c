@@ -19,13 +19,14 @@
 
 /* Well-known binary file extensions - of course there are many more */
 
-static char bin_extensions[] =
-  "EXE" "COM" "BIN" "APP" "SYS" "DRV" "OVL" "OVR" "OBJ" "LIB" "DLL" "PIF" /* program code */
-  "ARC" "ZIP" "LHA" "LZH" "ZOO" "TAR" "Z  " "ARJ"	/* common archivers */
-  "TZ " "TAZ" "TZP" "TPZ"		/* abbreviations of tar.Z and tar.zip */
-  "GZ " "TGZ" "DEB"			/* .gz, .tar.gz and Debian packages   */
-  "GIF" "BMP" "TIF" "GL " "JPG" "PCX"	/* graphics */
-  "TFM" "VF " "GF " "PK " "PXL" "DVI";	/* TeX */
+static char ascii_extensions[] =
+  "TXT" "ME " "HTM" "1ST" "LOG" "   " 	/* text files */
+  "C  " "H  " "CPP" "LIS" "PAS" "FOR"  /* programming languages */
+  "F  " "MAK" "INC" "BAS" 		/* programming languages */
+  "BAT" "SH "				/* program code :) */
+  "INI"					/* config files */
+  "PBM" "PGM" "DXF"			/* graphics */
+  "TEX";				/* TeX */
 
 
 /*
@@ -39,9 +40,7 @@ void fat_fs_panic(struct super_block *s,const char *msg)
 
 	not_ro = !(s->s_flags & MS_RDONLY);
 	if (not_ro) s->s_flags |= MS_RDONLY;
-	printk("Filesystem panic (dev %s, ", kdevname(s->s_dev));
-	printk("mounted on %s:%ld)\n  %s\n", /* note: kdevname returns & static char[] */
-	       kdevname(s->s_covered->i_dev), s->s_covered->i_ino, msg);
+	printk("Filesystem panic (dev %s).", kdevname(s->s_dev));
 	if (not_ro)
 		printk("  File system has been set read-only\n");
 }
@@ -62,9 +61,9 @@ int is_binary(char conversion,char *extension)
 		case 't':
 			return 0;
 		case 'a':
-			for (walk = bin_extensions; *walk; walk += 3)
-				if (!strncmp(extension,walk,3)) return 1;
-			return 0;
+			for (walk = ascii_extensions; *walk; walk += 3)
+				if (!strncmp(extension,walk,3)) return 0;
+			return 1;	/* default binary conversion */
 		default:
 			printk("Invalid conversion mode - defaulting to "
 			    "binary.\n");
@@ -179,7 +178,7 @@ printk("last = %d\n",last);
 	if (last) fat_access(sb,last,nr);
 	else {
 		MSDOS_I(inode)->i_start = nr;
-		inode->i_dirt = 1;
+		mark_inode_dirty(inode);
 	}
 #ifdef DEBUG
 if (last) printk("next set to %d\n",fat_access(sb,last,-1));
@@ -216,7 +215,7 @@ if (last) printk("next set to %d\n",fat_access(sb,last,-1));
 #ifdef DEBUG
 printk("size is %d now (%x)\n",inode->i_size,inode);
 #endif
-		inode->i_dirt = 1;
+		mark_inode_dirty(inode);
 	}
 	return 0;
 }

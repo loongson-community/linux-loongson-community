@@ -36,15 +36,17 @@
 
 static int nfs_notify_change(struct inode *, struct iattr *);
 static void nfs_put_inode(struct inode *);
+static void nfs_delete_inode(struct inode *);
 static void nfs_put_super(struct super_block *);
 static void nfs_read_inode(struct inode *);
-static void nfs_statfs(struct super_block *, struct statfs *, int bufsiz);
+static int nfs_statfs(struct super_block *, struct statfs *, int bufsiz);
 
 static struct super_operations nfs_sops = { 
 	nfs_read_inode,		/* read inode */
-	nfs_notify_change,	/* notify change */
 	NULL,			/* write inode */
 	nfs_put_inode,		/* put inode */
+	nfs_delete_inode,	/* delete inode */
+	nfs_notify_change,	/* notify change */
 	nfs_put_super,		/* put superblock */
 	NULL,			/* write superblock */
 	nfs_statfs,		/* stat filesystem */
@@ -73,11 +75,16 @@ static void
 nfs_put_inode(struct inode * inode)
 {
 	dprintk("NFS: put_inode(%x/%ld)\n", inode->i_dev, inode->i_ino);
+}
 
-	if (NFS_RENAMED_DIR(inode))
-		nfs_sillyrename_cleanup(inode);
-	if (inode->i_pipe)
-		clear_inode(inode);
+/*
+ * This should do any silly-rename cleanups once we
+ * get silly-renaming working again..
+ */
+static void
+nfs_delete_inode(struct inode * inode)
+{
+	dprintk("NFS: delete_inode(%x/%ld)\n", inode->i_dev, inode->i_ino);
 }
 
 void
@@ -230,7 +237,8 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	/* Unlock super block and try to get root fh attributes */
 	unlock_super(sb);
 
-	if ((sb->s_mounted = nfs_fhget(sb, &data->root, NULL)) != NULL) {
+	sb->s_root = d_alloc_root(nfs_fhget(sb, &data->root, NULL), NULL);
+	if (sb->s_root != NULL) {
 		/* We're airborne */
 		if (!(server->flags & NFS_MOUNT_NONLM))
 			lockd_up();
@@ -250,7 +258,7 @@ failure:
 	return NULL;
 }
 
-static void
+static int
 nfs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 {
 	int error;
@@ -271,7 +279,7 @@ nfs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 	tmp.f_files = 0;
 	tmp.f_ffree = 0;
 	tmp.f_namelen = NAME_MAX;
-	copy_to_user(buf, &tmp, bufsiz);
+	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
 }
 
 /*
@@ -317,7 +325,7 @@ nfs_fhget(struct super_block *sb, struct nfs_fh *fhandle,
 	}
 	dprintk("NFS: fhget(%x/%ld ct=%d)\n",
 		inode->i_dev, inode->i_ino,
-		atomic_read(&inode->i_count));
+		inode->i_count);
 
 	return inode;
 }
@@ -364,7 +372,6 @@ nfs_notify_change(struct inode *inode, struct iattr *attr)
 		nfs_truncate_dirty_pages(inode, sattr.size);
 		nfs_refresh_inode(inode, &fattr);
 	}
-	inode->i_dirt = 0;
 	return error;
 }
 
@@ -435,7 +442,7 @@ done:
  */
 static struct file_system_type nfs_fs_type = {
 	"nfs",
-	FS_NO_DCACHE,
+	0 /* FS_NO_DCACHE - this doesn't work right now*/,
 	nfs_read_super,
 	NULL
 };

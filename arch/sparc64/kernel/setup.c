@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.7 1997/05/20 07:58:56 jj Exp $
+/*  $Id: setup.c,v 1.10 1997/07/08 11:07:47 jj Exp $
  *  linux/arch/sparc64/kernel/setup.c
  *
  *  Copyright (C) 1995,1996  David S. Miller (davem@caip.rutgers.edu)
@@ -35,6 +35,7 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/idprom.h>
+#include <asm/head.h>
 
 struct screen_info screen_info = {
 	0, 0,			/* orig-x, orig-y */
@@ -62,7 +63,6 @@ unsigned long bios32_init(unsigned long memory_start, unsigned long memory_end)
  */
 
 extern unsigned long sparc64_ttable_tl0;
-extern void breakpoint(void);
 #if CONFIG_SUN_CONSOLE
 extern void console_restore_palette(void);
 #endif
@@ -108,23 +108,13 @@ static int console_fb = 0;
 #endif
 static unsigned long memory_size = 0;
 
+/* XXX Implement this at some point... */
 void kernel_enter_debugger(void)
 {
-#if 0
-	if (boot_flags & BOOTME_KGDB) {
-		printk("KGDB: Entered\n");
-		breakpoint();
-	}
-#endif
 }
 
 int obp_system_intr(void)
 {
-	if (boot_flags & BOOTME_KGDB) {
-		printk("KGDB: system interrupted\n");
-		breakpoint();
-		return 1;
-	}
 	if (boot_flags & BOOTME_DEBUG) {
 		printk("OBP: system interrupted\n");
 		prom_halt();
@@ -148,7 +138,7 @@ __initfunc(static void process_switch(char c))
 		break;
 	case 'h':
 		prom_printf("boot_flags_init: Halt!\n");
-		halt();
+		prom_halt();
 		break;
 	default:
 		printk("Unknown boot switch (-%c)\n", c);
@@ -266,23 +256,9 @@ __initfunc(void setup_arch(char **cmdline_p,
 	*cmdline_p = prom_getbootargs();
 	strcpy(saved_command_line, *cmdline_p);
 
-	prom_printf("BOOT: args[%s] saved[%s]\n", *cmdline_p, saved_command_line);
-
 	printk("ARCH: SUN4U\n");
 
 	boot_flags_init(*cmdline_p);
-#if 0	
-	if((boot_flags&BOOTME_DEBUG) && (linux_dbvec!=0) && 
-	   ((*(short *)linux_dbvec) != -1)) {
-		printk("Booted under KADB. Syncing trap table.\n");
-		(*(linux_dbvec->teach_debugger))();
-	}
-	if((boot_flags & BOOTME_KGDB)) {
-		set_debug_traps();
-		prom_printf ("Breakpoint!\n");
-		breakpoint();
-	}
-#endif	
 
 	idprom_init();
 	total = prom_probe_memory();
@@ -313,7 +289,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 	*memory_start_p = PAGE_ALIGN(((unsigned long) &end));
 	*memory_end_p = (end_of_phys_memory + PAGE_OFFSET);
 
-#ifndef NO_DAVEM_DEBUGGING
+#ifdef DAVEM_DEBUGGING
 	prom_printf("phys_base[%016lx] memory_start[%016lx] memory_end[%016lx]\n",
 		    phys_base, *memory_start_p, *memory_end_p);
 #endif
@@ -328,8 +304,11 @@ __initfunc(void setup_arch(char **cmdline_p,
 #endif
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (ramdisk_image) {
-		initrd_start = ramdisk_image;
-		if (initrd_start < PAGE_OFFSET) initrd_start += PAGE_OFFSET;
+		unsigned long start = 0;
+		
+		if (ramdisk_image >= (unsigned long)&end - 2 * PAGE_SIZE)
+			ramdisk_image -= KERNBASE;
+		initrd_start = ramdisk_image + phys_base + PAGE_OFFSET;
 		initrd_end = initrd_start + ramdisk_size;
 		if (initrd_end > *memory_end_p) {
 			printk(KERN_CRIT "initrd extends beyond end of memory "
@@ -337,9 +316,11 @@ __initfunc(void setup_arch(char **cmdline_p,
 		       			 initrd_end,*memory_end_p);
 			initrd_start = 0;
 		}
-		if (initrd_start >= *memory_start_p && initrd_start < *memory_start_p + 2 * PAGE_SIZE) {
+		if (initrd_start)
+			start = ramdisk_image + KERNBASE;
+		if (start >= *memory_start_p && start < *memory_start_p + 2 * PAGE_SIZE) {
 			initrd_below_start_ok = 1;
-			*memory_start_p = PAGE_ALIGN (initrd_end);
+			*memory_start_p = PAGE_ALIGN (start + ramdisk_size);
 		}
 	}
 #endif	
@@ -424,7 +405,11 @@ extern char *mmu_info(void);
 
 int get_cpuinfo(char *buffer)
 {
-	int cpuid=get_cpuid();
+#ifndef __SMP__
+	int cpuid=0;
+#else
+#error SMP not supported on sparc64 yet
+#endif
 
 	return sprintf(buffer, "cpu\t\t: %s\n"
             "fpu\t\t: %s\n"

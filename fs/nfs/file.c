@@ -69,6 +69,7 @@ struct inode_operations nfs_file_inode_operations = {
 	NULL,			/* mknod */
 	NULL,			/* rename */
 	NULL,			/* readlink */
+	NULL,			/* follow_link */
 	nfs_readpage,		/* readpage */
 	nfs_writepage,		/* writepage */
 	NULL,			/* bmap */
@@ -142,7 +143,7 @@ nfs_file_write(struct inode *inode, struct file *file,
 	int	result;
 
 	dfprintk(VFS, "nfs: write(%x/%ld (%d), %lu@%lu)\n",
-			inode->i_dev, inode->i_ino, atomic_read(&inode->i_count),
+			inode->i_dev, inode->i_ino, inode->i_count,
 			count, (unsigned long) file->f_pos);
 
 	if (!inode) {
@@ -179,11 +180,11 @@ nfs_lock(struct inode *inode, struct file *filp, int cmd, struct file_lock *fl)
 	int	status;
 
 	dprintk("NFS: nfs_lock(f=%4x/%ld, t=%x, fl=%x, r=%ld:%ld)\n",
-			filp->f_inode->i_dev, filp->f_inode->i_ino,
+			filp->f_dentry->d_inode->i_dev, filp->f_dentry->d_inode->i_ino,
 			fl->fl_type, fl->fl_flags,
 			fl->fl_start, fl->fl_end);
 
-	if (!(inode = filp->f_inode))
+	if (!(inode = filp->f_dentry->d_inode))
 		return -EINVAL;
 
 	/* No mandatory locks over NFS */

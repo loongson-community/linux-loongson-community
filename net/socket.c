@@ -149,7 +149,11 @@ static int sockets_in_use  = 0;
 #define MAX_SOCK_ADDR	128		/* 108 for Unix domain - 
 					   16 for IP, 16 for IPX,
 					   24 for IPv6,
-					   about 80 for AX.25 */
+					   about 80 for AX.25 
+					   must be at least one bigger than
+					   the AF_UNIX size (see net/unix/af_unix.c
+					   :unix_mkname()).  
+					 */
  
 int move_addr_to_kernel(void *uaddr, int ulen, void *kaddr)
 {
@@ -206,13 +210,23 @@ static int get_fd(struct inode *inode)
 			return -ENFILE;
 		}
 
+		file->f_dentry = d_alloc_root(inode, NULL);
+		if (!file->f_dentry) {
+			put_filp(file);
+			put_unused_fd(fd);
+			return -ENOMEM;
+		}
+
+		/*
+		 * The socket maintains a reference to the inode, so we
+		 * have to increment the count.
+		 */
+		inode->i_count++;
+
 		current->files->fd[fd] = file;
 		file->f_op = &socket_file_ops;
 		file->f_mode = 3;
 		file->f_flags = O_RDWR;
-		file->f_inode = inode;
-		if (inode) 
-			atomic_inc(&inode->i_count);
 		file->f_pos = 0;
 	}
 	return fd;
@@ -238,11 +252,11 @@ extern __inline__ struct socket *sockfd_lookup(int fd, int *err)
 		return NULL;
 	}
 
-	inode = file->f_inode;
+	inode = file->f_dentry->d_inode;
 	if (!inode || !inode->i_sock || !socki_lookup(inode))
 	{
 		*err = -ENOTSOCK;
-		fput(file,inode);
+		fput(file);
 		return NULL;
 	}
 
@@ -251,7 +265,7 @@ extern __inline__ struct socket *sockfd_lookup(int fd, int *err)
 
 extern __inline__ void sockfd_put(struct socket *sock)
 {
-	fput(sock->file,sock->inode);
+	fput(sock->file);
 }
 
 /*
@@ -266,6 +280,7 @@ struct socket *sock_alloc(void)
 	inode = get_empty_inode();
 	if (!inode)
 		return NULL;
+
 	sock = socki_lookup(inode);
 
 	inode->i_mode = S_IFSOCK;
@@ -459,7 +474,7 @@ static unsigned int sock_poll(struct file *file, poll_table * wait)
 {
 	struct socket *sock;
 
-	sock = socki_lookup(file->f_inode);
+	sock = socki_lookup(file->f_dentry->d_inode);
 
 	/*
 	 *	We can't return errors to poll, so it's either yes or no. 
@@ -1291,7 +1306,7 @@ int sock_fcntl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct socket *sock;
 
-	sock = socki_lookup (filp->f_inode);
+	sock = socki_lookup (filp->f_dentry->d_inode);
 	if (sock && sock->ops && sock->ops->fcntl)
 		return sock->ops->fcntl(sock, cmd, arg);
 	return(-EINVAL);

@@ -1,4 +1,4 @@
-/* $Id: parport_procfs.c,v 1.3.2.6 1997/04/16 21:30:38 phil Exp $
+/* $Id: parport_procfs.c,v 1.2 1997/06/03 07:28:11 ralf Exp $
  * Parallel port /proc interface code.
  * 
  * Authors: David Campbell <campbell@tirian.che.curtin.edu.au>
@@ -13,7 +13,6 @@
 #include <asm/io.h>
 #include <asm/dma.h>
 
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>

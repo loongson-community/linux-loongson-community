@@ -14,7 +14,7 @@
 #include <linux/stat.h>
 
 static int proc_readfd(struct inode *, struct file *, void *, filldir_t);
-static int proc_lookupfd(struct inode *,const char *,int,struct inode **);
+static int proc_lookupfd(struct inode *, struct dentry *);
 
 static struct file_operations proc_fd_operations = {
 	NULL,			/* lseek - default */
@@ -44,6 +44,7 @@ struct inode_operations proc_fd_inode_operations = {
 	NULL,			/* mknod */
 	NULL,			/* rename */
 	NULL,			/* readlink */
+	NULL,			/* follow_link */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
 	NULL,			/* bmap */
@@ -51,39 +52,36 @@ struct inode_operations proc_fd_inode_operations = {
 	NULL			/* permission */
 };
 
-static int proc_lookupfd(struct inode * dir, const char * name, int len,
-	struct inode ** result)
+/*
+ * NOTE! Normally we'd indicate that a file does not
+ * exist by creating a negative dentry and returning
+ * a successful return code. However, for this case
+ * we do not want to create negative dentries, because
+ * the state of the world can change behind our backs.
+ *
+ * Thus just return -ENOENT instead.
+ */
+static int proc_lookupfd(struct inode * dir, struct dentry * dentry)
 {
 	unsigned int ino, pid, fd, c;
 	struct task_struct * p;
 	struct super_block * sb;
+	struct inode *inode;
+	const char *name;
+	int len;
 
-	*result = NULL;
 	ino = dir->i_ino;
 	pid = ino >> 16;
 	ino &= 0x0000ffff;
 	if (!dir)
 		return -ENOENT;
 	sb = dir->i_sb;
-	if (!pid || ino != PROC_PID_FD || !S_ISDIR(dir->i_mode)) {
-		iput(dir);
+	if (!pid || ino != PROC_PID_FD || !S_ISDIR(dir->i_mode))
 		return -ENOENT;
-	}
-	if (!len || (name[0] == '.' && (len == 1 ||
-	    (name[1] == '.' && len == 2)))) {
-		if (len < 2) {
-			*result = dir;
-			return 0;
-		}
-		if (!(*result = proc_get_inode(sb, (pid << 16)+PROC_PID_INO, &proc_pid))) {
-			iput(dir);
-			return -ENOENT;
-		}
-		iput(dir);
-		return 0;
-	}
-	iput(dir);
+
 	fd = 0;
+	len = dentry->d_name.len;
+	name = dentry->d_name.name;
 	while (len-- > 0) {
 		c = *name - '0';
 		name++;
@@ -111,13 +109,16 @@ static int proc_lookupfd(struct inode * dir, const char * name, int len,
  	if (fd >= NR_OPEN	||
 	    !p->files		||
 	    !p->files->fd[fd]	||
-	    !p->files->fd[fd]->f_inode)
+	    !p->files->fd[fd]->f_dentry)
 		return -ENOENT;
 
 	ino = (pid << 16) + (PROC_PID_FD_DIR << 8) + fd;
 
-	if (!(*result = proc_get_inode(sb, ino, NULL)))
+	inode = proc_get_inode(sb, ino, NULL);
+	if (!inode)
 		return -ENOENT;
+
+	d_add(dentry, inode);
 	return 0;
 }
 
@@ -155,7 +156,7 @@ static int proc_readfd(struct inode * inode, struct file * filp,
 	for (fd -= 2 ; fd < NR_OPEN; fd++, filp->f_pos++) {
 		if (!p->files)
 			break;
-		if (!p->files->fd[fd] || !p->files->fd[fd]->f_inode)
+		if (!p->files->fd[fd] || !p->files->fd[fd]->f_dentry)
 			continue;
 
 		j = NUMBUF;

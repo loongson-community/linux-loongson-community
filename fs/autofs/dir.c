@@ -34,25 +34,13 @@ static int autofs_dir_readdir(struct inode *inode, struct file *filp,
 	return 1;
 }
 
-static int autofs_dir_lookup(struct inode *dir, const char *name, int len,
-			      struct inode **result)
+/*
+ * No entries except for "." and "..", both of which are handled by the VFS layer
+ */
+static int autofs_dir_lookup(struct inode *dir, struct dentry * dentry)
 {
-	*result = dir;
-	if (!len)
-		return 0;
-	if (name[0] == '.') {
-		if (len == 1)
-			return 0;
-		if (name[1] == '.' && len == 2) {
-			/* Return the root directory */
-			*result = iget(dir->i_sb,AUTOFS_ROOT_INO);
-			iput(dir);
-			return 0;
-		}
-	}
-	*result = NULL;
-	iput(dir);
-	return -ENOENT;		/* No other entries */
+	d_add(dentry, NULL);
+	return 0;
 }
 
 static struct file_operations autofs_dir_operations = {

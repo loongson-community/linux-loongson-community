@@ -53,6 +53,8 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
+#include "pc_keyb.h"
+
 #ifdef CONFIG_SGI
 #include <asm/segment.h>
 #include <asm/sgihpc.h>
@@ -79,17 +81,6 @@
 
 #define AUX_DISABLE	0xa7		/* disable aux */
 #define AUX_ENABLE	0xa8		/* enable aux */
-
-/* aux device commands */
-#define AUX_SET_RES	0xe8		/* set resolution */
-#define AUX_SET_SCALE11	0xe6		/* set 1:1 scaling */
-#define AUX_SET_SCALE21	0xe7		/* set 2:1 scaling */
-#define AUX_GET_SCALE	0xe9		/* get scaling factor */
-#define AUX_SET_STREAM	0xea		/* set stream mode */
-#define AUX_SET_SAMPLE	0xf3		/* set sample rate */
-#define AUX_ENABLE_DEV	0xf4		/* enable aux device */
-#define AUX_DISABLE_DEV	0xf5		/* disable aux device */
-#define AUX_RESET	0xff		/* reset aux device */
 
 #define MAX_RETRIES	60		/* some aux operations take long time*/
 #if defined(__alpha__) && !defined(CONFIG_PCI)
@@ -212,7 +203,16 @@ static void aux_write_dev(int val)
 /*
  * Write to device & handle returned ack
  */
-#if defined INITIALIZE_DEVICE
+
+#ifdef INITIALIZE_DEVICE
+__initfunc(static void aux_write_dev_nosleep(int val))
+{
+	poll_aux_status_nosleep();
+	ps2_outb_p(KBD_CCMD_WRITE_MOUSE, KBD_CNTL_REG);
+	poll_aux_status_nosleep();
+	ps2_outb_p(val, KBD_DATA_REG);
+}
+
 static int aux_write_ack(int val)
 {
 	int retries = 0;
@@ -663,11 +663,11 @@ __initfunc(int psaux_init(void))
 		aux_write_ack(AUX_SET_SCALE21);		/* 2:1 scaling */
 		poll_aux_status_nosleep();
 #endif /* INITIALIZE_DEVICE */
-		ps2_outb_p(AUX_DISABLE,AUX_COMMAND);   /* Disable Aux device */
+		ps2_outb_p(KBD_CCMD_MOUSE_DISABLE, AUX_COMMAND); /* Disable Aux device */
 		poll_aux_status_nosleep();
-		ps2_outb_p(AUX_CMD_WRITE,AUX_COMMAND);
-		poll_aux_status_nosleep();             /* Disable interrupts */
-		ps2_outb_p(AUX_INTS_OFF, AUX_OUTPUT_PORT); /*  on the controller */
+		ps2_outb_p(KBD_CCMD_WRITE_MODE, AUX_COMMAND);
+		poll_aux_status_nosleep();
+		ps2_outb_p(AUX_INTS_OFF, AUX_OUTPUT_PORT);
 	}
 	return 0;
 }

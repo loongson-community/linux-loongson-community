@@ -32,7 +32,7 @@ typedef struct kmem_cache_s kmem_cache_t;
 #define	SLAB_DEBUG_FREE		0x00000100UL	/* Peform (expensive) checks on free */
 #define	SLAB_DEBUG_INITIAL	0x00000200UL	/* Call constructor (as verifier) */
 #define	SLAB_RED_ZONE		0x00000400UL	/* Red zone objs in a cache */
-#define	SLAB_POISION		0x00000800UL	/* Poision objects */
+#define	SLAB_POISON		0x00000800UL	/* Poison objects */
 #define	SLAB_NO_REAP		0x00001000UL	/* never reap from the cache */
 #define	SLAB_HWCACHE_ALIGN	0x00002000UL	/* align objs on a h/w cache lines */
 #if	0
@@ -56,8 +56,8 @@ extern void *kmem_cache_alloc(kmem_cache_t *, int);
 extern void kmem_cache_free(kmem_cache_t *, void *);
 
 extern void *kmalloc(size_t, int);
-extern void kfree(void *);
-extern void kfree_s(void *, size_t);
+extern void kfree(const void *);
+extern void kfree_s(const void *, size_t);
 
 extern int kmem_cache_reap(int, int, int);
 extern int get_slabinfo(char *);

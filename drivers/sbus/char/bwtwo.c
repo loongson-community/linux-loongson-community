@@ -1,4 +1,4 @@
-/* $Id: bwtwo.c,v 1.16 1997/06/04 08:27:26 davem Exp $
+/* $Id: bwtwo.c,v 1.18 1997/07/17 02:21:43 davem Exp $
  * bwtwo.c: bwtwo console driver
  *
  * Copyright (C) 1996 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -74,7 +74,8 @@ static int
 bwtwo_mmap (struct inode *inode, struct file *file, struct vm_area_struct *vma,
 	    long base, fbinfo_t *fb)
 {
-	uint size, map_offset, r;
+	uint size, r;
+	unsigned long map_offset;
 	int map_size;
 	
 	map_size = size = vma->vm_end - vma->vm_start;
@@ -91,9 +92,10 @@ bwtwo_mmap (struct inode *inode, struct file *file, struct vm_area_struct *vma,
 	map_offset = get_phys ((unsigned long) fb->base);
 	r = io_remap_page_range (vma->vm_start, map_offset, map_size,
 				 vma->vm_page_prot, fb->space);
-	if (r) return -EAGAIN;
-	vma->vm_inode = inode;
-	atomic_inc(&inode->i_count);
+	if (r)
+		return -EAGAIN;
+
+	vma->vm_dentry = dget(file->f_dentry);
 	return 0;
 }
 

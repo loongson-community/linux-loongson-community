@@ -82,12 +82,13 @@ static inline void mask_and_ack_irq(int irq_nr)
 	if (irq_nr & 8) {
 		inb(0xA1);	/* DUMMY */
 		outb(cached_A1,0xA1);
+		outb(0x62,0x20);	/* Specific EOI to cascade */
 		outb(0x20,0xA0);
 	} else {
 		inb(0x21);	/* DUMMY */
 		outb(cached_21,0x21);
+		outb(0x20,0x20);
 	}
-	outb(0x20,0x20);
 	spin_unlock(&irq_controller_lock);
 }
 
@@ -207,7 +208,7 @@ static void math_error_irq(int cpl, void *dev_id, struct pt_regs *regs)
 	math_error();
 }
 
-static struct irqaction irq13 = { math_error_irq, 0, 0, "math error", NULL, NULL };
+static struct irqaction irq13 = { math_error_irq, 0, 0, "fpu", NULL, NULL };
 
 /*
  * IRQ2 is cascade interrupt to second interrupt controller

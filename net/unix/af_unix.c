@@ -162,8 +162,16 @@ static int unix_mkname(struct sockaddr_un * sunaddr, int len, unsigned *hashp)
 		return -EINVAL;
 	if (sunaddr->sun_path[0])
 	{
-		if (len >= sizeof(*sunaddr))
-			len = sizeof(*sunaddr)-1;
+		/*
+		 *	This may look like an off by one error but it is
+		 *	a bit more subtle. 108 is the longest valid AF_UNIX
+		 *	path for a binding. sun_path[108] doesnt as such
+		 *	exist. However in kernel space we are guaranteed that
+		 *	it is a valid memory location in our kernel
+		 *	address buffer.
+		 */
+		if (len > sizeof(*sunaddr))
+			len = sizeof(*sunaddr);
 		((char *)sunaddr)[len]=0;
 		len = strlen(sunaddr->sun_path)+1+sizeof(short);
 		return len;
@@ -450,24 +458,18 @@ retry:
 static unix_socket *unix_find_other(struct sockaddr_un *sunname, int len,
 				    int type, unsigned hash, int *error)
 {
-	int old_fs;
-	int err;
-	struct inode *inode;
 	unix_socket *u;
 	
 	if (sunname->sun_path[0])
 	{
-		old_fs=get_fs();
-		set_fs(get_ds());
-		err = open_namei(sunname->sun_path, 2, S_IFSOCK, &inode, NULL);
-		set_fs(old_fs);
-		if(err<0)
-		{
-			*error=err;
+		struct dentry *dentry;
+		dentry = open_namei(sunname->sun_path, 2, S_IFSOCK);
+		if (IS_ERR(dentry)) {
+			*error = PTR_ERR(dentry);
 			return NULL;
 		}
-		u=unix_find_socket_byinode(inode);
-		iput(inode);
+		u=unix_find_socket_byinode(dentry->d_inode);
+		dput(dentry);
 		if (u && u->type != type)
 		{
 			*error=-EPROTOTYPE;
@@ -491,8 +493,8 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_un *sunaddr=(struct sockaddr_un *)uaddr;
-	struct inode * inode;
-	int old_fs;
+	struct dentry * dentry;
+	struct inode * inode = NULL;
 	int err;
 	unsigned hash;
 	struct unix_address *addr;
@@ -545,15 +547,16 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	addr->hash = UNIX_HASH_SIZE;
 	sk->protinfo.af_unix.addr = addr;
 	
-	old_fs=get_fs();
-	set_fs(get_ds());
 
-	err=do_mknod(sunaddr->sun_path, S_IFSOCK|S_IRWXUGO, 0);
-	if (!err)
-		err=open_namei(sunaddr->sun_path, 2, S_IFSOCK, &inode, NULL);
-	
-	set_fs(old_fs);
-	
+	dentry = do_mknod(sunaddr->sun_path, S_IFSOCK|S_IRWXUGO, 0);
+	err = PTR_ERR(dentry);
+	if (!IS_ERR(dentry)) {
+		inode = dentry->d_inode;
+		inode->i_count++;	/* HATEFUL - we should use the dentry */
+		dput(dentry);
+		err = 0;
+	}
+
 	if(err<0)
 	{
 		unix_release_addr(addr);
@@ -799,7 +802,7 @@ static int unix_accept(struct socket *sock, struct socket *newsock, int flags)
 	}
 	if (sk->protinfo.af_unix.inode)
 	{
-		atomic_inc(&sk->protinfo.af_unix.inode->i_count);
+		sk->protinfo.af_unix.inode->i_count++;	/* Should use dentry */
 		newsk->protinfo.af_unix.inode=sk->protinfo.af_unix.inode;
 	}
 		

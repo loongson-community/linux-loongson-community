@@ -211,7 +211,7 @@ static inline int dup_mmap(struct mm_struct * mm)
 	flush_cache_mm(current->mm);
 	pprev = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
-		struct inode *inode;
+		struct dentry *dentry;
 
 		tmp = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
 		if (!tmp) {
@@ -223,11 +223,11 @@ static inline int dup_mmap(struct mm_struct * mm)
 		tmp->vm_flags &= ~VM_LOCKED;
 		tmp->vm_mm = mm;
 		tmp->vm_next = NULL;
-		inode = tmp->vm_inode;
-		if (inode) {
-			atomic_inc(&inode->i_count);
+		dentry = tmp->vm_dentry;
+		if (dentry) {
+			dentry->d_count++;
 			if (tmp->vm_flags & VM_DENYWRITE)
-				inode->i_writecount--;
+				dentry->d_inode->i_writecount--;
       
 			/* insert tmp into the share list, just after mpnt */
 			if((tmp->vm_next_share = mpnt->vm_next_share) != NULL)
@@ -302,10 +302,8 @@ static inline int copy_fs(unsigned long clone_flags, struct task_struct * tsk)
 		return -1;
 	tsk->fs->count = 1;
 	tsk->fs->umask = current->fs->umask;
-	if ((tsk->fs->root = current->fs->root))
-		atomic_inc(&tsk->fs->root->i_count);
-	if ((tsk->fs->pwd = current->fs->pwd))
-		atomic_inc(&tsk->fs->pwd->i_count);
+	tsk->fs->root = dget(current->fs->root);
+	tsk->fs->pwd = dget(current->fs->pwd);
 	return 0;
 }
 

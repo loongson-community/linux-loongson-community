@@ -7,7 +7,7 @@
  *  kswapd added: 7.1.96  sct
  *  Removed kswapd_ctl limits, and swap out as many pages as needed
  *  to bring the system back to free_pages_high: 2.4.97, Rik van Riel.
- *  Version: $Id: vmscan.c,v 1.23 1997/04/12 04:31:05 davem Exp $
+ *  Version: $Id: vmscan.c,v 1.3 1997/06/17 13:31:02 ralf Exp $
  */
 
 #include <linux/mm.h>
@@ -362,13 +362,22 @@ static inline int do_try_to_free_page(int priority, int dma, int wait)
 				return 1;
 			state = 1;
 		case 1:
-			if (kmem_cache_reap(i, dma, wait))
-				return 1;
+			shrink_dcache();
 			state = 2;
 		case 2:
-			if (shm_swap(i, dma))
+			/*
+			 * We shouldn't have a priority here:
+			 * If we're low on memory we should
+			 * unconditionally throw away _all_
+			 * kmalloc caches!
+			 */
+			if (kmem_cache_reap(0, dma, wait))
 				return 1;
 			state = 3;
+		case 3:
+			if (shm_swap(i, dma))
+				return 1;
+			state = 4;
 		default:
 			if (swap_out(i, dma, wait))
 				return 1;
@@ -403,7 +412,7 @@ int try_to_free_page(int priority, int dma, int wait)
 int kswapd(void *unused)
 {
 	int i;
-	char *revision="$Revision: 1.23 $", *s, *e;
+	char *revision="$Revision: 1.3 $", *s, *e;
 	
 	current->session = 1;
 	current->pgrp = 1;

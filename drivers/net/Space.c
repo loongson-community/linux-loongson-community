@@ -89,6 +89,7 @@ extern int atarilance_probe(struct device *);
 extern int a2065_probe(struct device *);
 extern int ariadne_probe(struct device *);
 extern int hydra_probe(struct device *);
+extern int tlan_probe(struct device *);
 extern int cs89x0_probe(struct device *dev);
 
 /* Detachable devices ("pocket adaptors") */
@@ -242,6 +243,9 @@ __initfunc(static int ethif_probe(struct device *dev))
 #ifdef CONFIG_SUNLANCE
 	&& sparc_lance_probe(dev)
 #endif
+#ifdef CONFIG_TLAN
+	&& tlan_probe(dev)
+#endif
 #ifdef CONFIG_HAPPYMEAL
 	&& happy_meal_probe(dev)
 #endif
@@ -300,6 +304,17 @@ static struct device atp_dev = {
 #   undef NEXT_DEV
 #   define NEXT_DEV	(&dev_ltpc)
 #endif  /* LTPC */
+
+#if defined(CONFIG_COPS)
+    extern int cops_probe(struct device *);
+    static struct device dev_cops = {
+        "lt0",
+        0, 0, 0, 0,
+        0x0, 0,
+        0, 0, 0, NEXT_DEV, cops_probe };
+#   undef NEXT_DEV
+#   define NEXT_DEV     (&dev_cops)
+#endif  /* COPS */
 
 /* The first device defaults to I/O base '0', which means autoprobe. */
 #ifndef ETH0_ADDR
