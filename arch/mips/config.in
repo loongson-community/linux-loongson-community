@@ -73,6 +73,10 @@ fi
 bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927
 bool 'Support for Hewlett Packard LaserJet board' CONFIG_HP_LASERJET
 
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool 'High Memory Support (experimental)' CONFIG_HIGHMEM
+fi
+
 define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
 define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 
