@@ -547,6 +547,7 @@ void __init ld_mmu_rm7k(void)
 	_copy_page = rm7k_copy_page;
 
 	_flush_cache_all = rm7k_flush_cache_all_d32i32;
+	___flush_cache_all = rm7k_flush_cache_all_d32i32;
 	_flush_cache_mm = rm7k_flush_cache_mm_d32i32;
 	_flush_cache_range = rm7k_flush_cache_range_d32i32;
 	_flush_cache_page = rm7k_flush_cache_page_d32i32;

@@ -660,6 +660,7 @@ void __init ld_mmu_r2300(void)
 	probe_dcache();
 
 	_flush_cache_all = r3k_flush_cache_all;
+	___flush_cache_all = r3k_flush_cache_all;
 	_flush_cache_mm = r3k_flush_cache_mm;
 	_flush_cache_range = r3k_flush_cache_range;
 	_flush_cache_page = r3k_flush_cache_page;

@@ -28,6 +28,7 @@
  *  - flush_icache_range(start, end) flush a range of instructions
  */
 extern void (*_flush_cache_all)(void);
+extern void (*___flush_cache_all)(void);
 extern void (*_flush_cache_mm)(struct mm_struct *mm);
 extern void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
 				 unsigned long end);
@@ -41,6 +42,7 @@ extern void (*_flush_icache_page)(struct vm_area_struct *vma,
 #define flush_dcache_page(page)			do { } while (0)
 
 #define flush_cache_all()		_flush_cache_all()
+#define __flush_cache_all()		___flush_cache_all()
 #define flush_cache_mm(mm)		_flush_cache_mm(mm)
 #define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
 #define flush_cache_page(vma,page)	_flush_cache_page(vma, page)

@@ -979,6 +979,7 @@ static void __init setup_noscache_funcs(void)
 static void __init setup_scache_funcs(void)
 {
         _flush_cache_all = mips32_flush_cache_all_sc;
+        ___flush_cache_all = mips32_flush_cache_all_sc;
 	_flush_cache_mm = mips32_flush_cache_mm_sc;
 	_flush_cache_range = mips32_flush_cache_range_sc;
 	_flush_cache_page = mips32_flush_cache_page_sc;
@@ -1062,7 +1063,7 @@ void __init ld_mmu_mips32(void)
 	_flush_cache_sigtramp = mips32_flush_cache_sigtramp;
 	_flush_icache_range = mips32_flush_icache_range;	/* Ouch */
 
-	flush_cache_all();
+	__flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
 
 	/*

@@ -1961,24 +1961,18 @@ r4k_flush_icache_range(unsigned long start, unsigned long end)
 	flush_cache_all();
 }
 
+/*
+ * Ok, this seriously sucks.  We use them to flush a user page but don't
+ * know the virtual address, so we have to blast away the whole icache
+ * which is significantly more expensive than the real thing.
+ */
 static void
-r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page)
+r4k_flush_icache_page_p(struct vm_area_struct *vma, struct page *page)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	blast_icache16_page((unsigned long)page_address(page));
-}
-
-static void
-r4k_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page)
-{
-	int address;
-	if (!(vma->vm_flags & VM_EXEC))
-		return;
-
-	address = KSEG0 + ((unsigned long)page_address(page) & PAGE_MASK & (dcache_size - 1));
-	blast_icache32_page_indexed(address);
+	flush_cache_all();
 }
 
 /*
@@ -2563,13 +2557,9 @@ static void __init setup_noscache_funcs(void)
 		_flush_cache_page = r4k_flush_cache_page_d32i32;
 		break;
 	}
+	___flush_cache_all = _flush_cache_all;
 
-	switch(ic_lsize) {
-	case 16:
-		_flush_icache_page = r4k_flush_icache_page_i16;
-	case 32:
-		_flush_icache_page = r4k_flush_icache_page_i32;
-	}
+	_flush_icache_page = r4k_flush_icache_page_p;
 
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
 	_dma_cache_wback = r4k_dma_cache_wback;
@@ -2652,6 +2642,7 @@ static void __init setup_scache_funcs(void)
 		_copy_page = r4k_copy_page_s128;
 		break;
 	}
+	___flush_cache_all = _flush_cache_all;
 	_flush_icache_page = r4k_flush_icache_page_s;
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
 	_dma_cache_wback = r4k_dma_cache_wback;
@@ -2707,7 +2698,7 @@ void __init ld_mmu_r4xx0(void)
 		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
 
-	flush_cache_all();
+	__flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
 
 	/*

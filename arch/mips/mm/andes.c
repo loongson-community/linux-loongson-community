@@ -173,6 +173,7 @@ void __init ld_mmu_andes(void)
 	_copy_page = andes_copy_page;
 
 	_flush_cache_all = andes_flush_cache_all;
+	___flush_cache_all = andes_flush_cache_all;
 	_flush_cache_mm = andes_flush_cache_mm;
 	_flush_cache_range = andes_flush_cache_range;
 	_flush_cache_page = andes_flush_cache_page;

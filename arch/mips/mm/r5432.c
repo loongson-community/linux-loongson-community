@@ -459,17 +459,21 @@ static void r5432_flush_page_to_ram_d32(struct page *page)
 static void 
 r5432_flush_icache_range(unsigned long start, unsigned long end)
 {
-	flush_cache_all();
+	r5432_flush_cache_all_d32i32();
 }
 
+/*
+ * Ok, this seriously sucks.  We use them to flush a user page but don't
+ * know the virtual address, so we have to blast away the whole icache
+ * which is significantly more expensive than the real thing.
+ */
 static void
 r5432_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	address = KSEG0 + (address & PAGE_MASK & (dcache_size - 1));
-	blast_icache32_page_indexed(address);
+	r5432_flush_cache_all_d32i32();
 }
 
 /*
@@ -835,8 +839,9 @@ void __init ld_mmu_r5432(void)
 
 	_clear_page = r5432_clear_page_d32;
 	_copy_page = r5432_copy_page_d32;
-	_flush_page_to_ram = r5432_flush_page_to_ram_d32;
 	_flush_cache_all = r5432_flush_cache_all_d32i32;
+	___flush_cache_all = r5432_flush_cache_all_d32i32;
+	_flush_page_to_ram = r5432_flush_page_to_ram_d32;
 	_flush_cache_mm = r5432_flush_cache_mm_d32i32;
 	_flush_cache_range = r5432_flush_cache_range_d32i32;
 	_flush_cache_page = r5432_flush_cache_page_d32i32;
@@ -848,7 +853,7 @@ void __init ld_mmu_r5432(void)
 	_flush_cache_sigtramp = r5432_flush_cache_sigtramp;
 	_flush_icache_range = r5432_flush_icache_range;	/* Ouch */
 
-	flush_cache_all();
+	__flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
 
 	/*

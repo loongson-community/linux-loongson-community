@@ -111,8 +111,9 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 
 asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 {
-	/* XXX Just get it working for now... */
-	flush_cache_all();
+	/* This should flush more selectivly ...  */
+	__flush_cache_all();
+
 	return 0;
 }
 
