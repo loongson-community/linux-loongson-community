@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.27 2000/03/13 10:33:02 raiko Exp $
+/* $Id: setup.c,v 1.28 2000/03/13 22:21:44 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -135,6 +135,7 @@ extern int prom_init(int, char **, char **, int *);
  */
 static inline int cpu_has_confreg(void)
 {
+#ifdef CONFIG_CPU_R3000
 	extern unsigned long r3k_cache_size(unsigned long);
 	unsigned long size1, size2; 
 	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
@@ -144,6 +145,9 @@ static inline int cpu_has_confreg(void)
 	size2 = r3k_cache_size(ST0_DE);
 	write_32bit_cp0_register(CP0_CONF, cfg);
 	return size1 != size2;
+#else
+	return 0;
+#endif
 }
 
 static inline void cpu_probe(void)
