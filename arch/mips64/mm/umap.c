@@ -202,7 +202,7 @@ int vmap_page_range (unsigned long from, unsigned long size,
 	dir = pgd_offset(current->mm, from);
 	flush_cache_range(current->mm, beg, end);
 	while (from < end) {
-		pmd_t *pmd = pmd_alloc(dir, from);
+		pmd_t *pmd = pmd_alloc(current->mm, dir, from);
 		error = -ENOMEM;
 		if (!pmd)
 			break;
