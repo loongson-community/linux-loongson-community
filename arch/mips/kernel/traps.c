@@ -775,10 +775,6 @@ void __init trap_init(void)
 	extern char except_vec_ejtag_debug;
 	unsigned long i;
 
-	if(mips_machtype == MACH_MIPS_MAGNUM_4000 ||
-	   mips_machtype == MACH_SNI_RM200_PCI)
-		EISA_bus = 1;
-
 	/* Some firmware leaves the BEV flag set, clear it.  */
 	clear_cp0_status(ST0_BEV);
 

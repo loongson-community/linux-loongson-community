@@ -5,7 +5,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 2001 by Ralf Baechle
+ * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #include <linux/config.h>
 #include <linux/hdreg.h>
@@ -87,6 +88,8 @@ void __init jazz_setup(void)
 
 	irq_setup = jazz_irq_setup;
 	mips_io_port_base = JAZZ_PORT_BASE;
+	if (mips_machtype == MACH_MIPS_MAGNUM_4000)
+		EISA_bus = 1;
 	isa_slot_offset = 0xe3000000;
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
