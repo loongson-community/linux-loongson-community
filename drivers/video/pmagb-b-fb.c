@@ -9,7 +9,7 @@
  *      DECstation related code Copyright (C) 1999, 2000, 2001 by
  *      Michael Engel <engel@unix-ag.org>,
  *      Karsten Merker <merker@linuxtag.org> and 
- *	Harald Koerfgen <harald@unix-ag.org>.
+ *	Harald Koerfgen.
  *      This file is subject to the terms and conditions of the GNU General
  *      Public License.  See the file COPYING in the main directory of this
  *      archive for more details.

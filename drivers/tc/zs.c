@@ -5,7 +5,7 @@
  * Derived from drivers/macintosh/macserial.c by Harald Koerfgen.
  *
  * DECstation changes
- * Copyright (C) 1998-2000 Harald Koerfgen (Harald.Koerfgen@home.ivm.de)
+ * Copyright (C) 1998-2000 Harald Koerfgen
  * Copyright (C) 2000,2001 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  *
  * For the rest of the code the original Copyright applies:
