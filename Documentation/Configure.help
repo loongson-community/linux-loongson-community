@@ -1576,6 +1576,16 @@ CONFIG_BAGET_MIPS
   more details about the Baget see the Linux/MIPS FAQ on 
   http://oss.sgi.com/mips .
 
+Support for Cobalt Microserver
+CONFIG_COBALT_MICRO_SERVER
+  This enables support for the Cobalt Microserver.  For more information
+  see the Linux/MIPS FAQ on http://oss.sgi.com/mips .
+
+Support for 2800
+CONFIG_COBALT_28
+  This adds support for the Cobalt Microserver 2800.  A kernel with this
+  option selected will only work on the 2800.
+
 Support for DECstations
 CONFIG_DECSTATION
   This enables support for DEC's MIPS based workstations.  For details
