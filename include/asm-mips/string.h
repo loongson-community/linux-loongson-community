@@ -1,4 +1,4 @@
-/* $Id: string.h,v 1.11 1999/08/13 17:07:28 harald Exp $
+/* $Id: string.h,v 1.12 2000/02/16 01:07:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -100,8 +100,14 @@ strncmp(__const__ char *__cs, __const__ char *__ct, size_t __count)
 	".set\tnoreorder\n\t"
 	".set\tnoat\n"
 	"1:\tlbu\t%3,(%0)\n\t"
+#if defined(CONFIG_CPU_R3000)
+	"lbu\t$1,(%1)\n\t"
+	"nop\n\t"
+	"beqz\t%2,2f\n\t"
+#else
 	"beqz\t%2,2f\n\t"
 	"lbu\t$1,(%1)\n\t"
+#endif
 	"subu\t%2,1\n\t"
 	"bne\t$1,%3,3f\n\t"
 	"addiu\t%0,1\n\t"

@@ -335,7 +335,7 @@ static __inline__ int tcp_sk_listen_hashfn(struct sock *sk)
    so that we select tick to get range about 4 seconds.
  */
 
-#if HZ == 100
+#if HZ == 100 || HZ == 128
 #define TCP_TW_RECYCLE_TICK (7+2-TCP_TW_RECYCLE_SLOTS_LOG)
 #elif HZ == 1024
 #define TCP_TW_RECYCLE_TICK (10+2-TCP_TW_RECYCLE_SLOTS_LOG)
