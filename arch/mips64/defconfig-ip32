@@ -199,6 +199,7 @@ CONFIG_SCSI_LOGGING=y
 # CONFIG_BLK_DEV_3W_XXXX_RAID is not set
 # CONFIG_SCSI_7000FASST is not set
 # CONFIG_SCSI_ACARD is not set
+# CONFIG_SCSI_AACRAID is not set
 CONFIG_SCSI_AIC7XXX=y
 CONFIG_AIC7XXX_CMDS_PER_DEVICE=8
 CONFIG_AIC7XXX_RESET_DELAY_MS=15000
@@ -237,6 +238,7 @@ CONFIG_AIC7XXX_RESET_DELAY_MS=15000
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
+# CONFIG_SCSI_NSP32 is not set
 # CONFIG_SCSI_DEBUG is not set
 
 #
@@ -358,6 +360,11 @@ CONFIG_SGI_O2MACE_ETH=y
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_ISA is not set
 # CONFIG_NET_PCI is not set
@@ -399,11 +406,6 @@ CONFIG_SGI_O2MACE_ETH=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
-
-#
-# Tulip family network device support
-#
-# CONFIG_NET_TULIP is not set
 
 #
 # Amateur Radio support
@@ -557,6 +559,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_SCx200_GPIO is not set
 # CONFIG_RAW_DRIVER is not set
 
 #

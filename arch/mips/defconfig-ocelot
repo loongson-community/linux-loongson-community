@@ -287,6 +287,11 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_ISA is not set
 CONFIG_NET_PCI=y
@@ -356,11 +361,6 @@ CONFIG_EEPRO100=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
-
-#
-# Tulip family network device support
-#
-# CONFIG_NET_TULIP is not set
 
 #
 # Amateur Radio support
@@ -514,6 +514,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_SCx200_GPIO is not set
 # CONFIG_RAW_DRIVER is not set
 
 #

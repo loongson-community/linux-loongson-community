@@ -122,6 +122,10 @@ SECTIONS
   .sdata     : { *(.sdata) }
   _edata  =  .;
 
+  __start___kallsyms = .;		/* All kernel symbols */
+  __kallsyms : { *(__kallsyms) }
+  __stop___kallsyms = .;
+
   .sbss      : { *(.sbss) *(.scommon) }
   .bss       :
   {

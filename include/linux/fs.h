@@ -308,7 +308,8 @@ struct address_space_operations {
 	int (*bmap)(struct address_space *, long);
 	int (*invalidatepage) (struct page *, unsigned long);
 	int (*releasepage) (struct page *, int);
-	int (*direct_IO)(int, struct inode *, const struct iovec *iov, loff_t offset, unsigned long nr_segs);
+	int (*direct_IO)(int, struct file *, const struct iovec *iov,
+			loff_t offset, unsigned long nr_segs);
 };
 
 struct backing_dev_info;
@@ -627,9 +628,6 @@ extern int send_sigurg(struct fown_struct *fown);
 #define MNT_FORCE	0x00000001	/* Attempt to forcibily umount */
 #define MNT_DETACH	0x00000002	/* Just detach from the tree */
 
-#include <linux/ext3_fs_sb.h>
-#include <linux/hpfs_fs_sb.h>
-
 extern struct list_head super_blocks;
 extern spinlock_t sb_lock;
 
@@ -670,8 +668,6 @@ struct super_block {
 	char s_id[32];				/* Informational name */
 
 	union {
-		struct ext3_sb_info	ext3_sb;
-		struct hpfs_sb_info	hpfs_sb;
 		void			*generic_sbp;
 	} u;
 	/*
@@ -1140,7 +1136,7 @@ extern int full_check_disk_change(struct block_device *);
 extern int __check_disk_change(dev_t);
 extern int invalidate_inodes(struct super_block *);
 extern int invalidate_device(kdev_t, int);
-extern void invalidate_inode_pages(struct inode *);
+extern void invalidate_inode_pages(struct address_space *mapping);
 extern void invalidate_inode_pages2(struct address_space *mapping);
 extern void write_inode_now(struct inode *, int);
 extern int filemap_fdatawrite(struct address_space *);
@@ -1247,7 +1243,7 @@ ssize_t generic_file_write_nolock(struct file *file, const struct iovec *iov,
 				unsigned long nr_segs, loff_t *ppos);
 extern ssize_t generic_file_sendfile(struct file *, struct file *, loff_t *, size_t);
 extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, read_actor_t);
-extern ssize_t generic_file_direct_IO(int rw, struct inode *inode, 
+extern ssize_t generic_file_direct_IO(int rw, struct file *file,
 	const struct iovec *iov, loff_t offset, unsigned long nr_segs);
 extern int generic_direct_IO(int rw, struct inode *inode, const struct iovec 
 	*iov, loff_t offset, unsigned long nr_segs, get_blocks_t *get_blocks);

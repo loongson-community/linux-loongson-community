@@ -619,9 +619,11 @@ ext2_get_blocks(struct inode *inode, sector_t iblock, unsigned long max_blocks,
 }
 
 static int
-ext2_direct_IO(int rw, struct inode *inode, const struct iovec *iov,
+ext2_direct_IO(int rw, struct file *file, const struct iovec *iov,
 			loff_t offset, unsigned long nr_segs)
 {
+	struct inode *inode = file->f_dentry->d_inode->i_mapping->host;
+
 	return generic_direct_IO(rw, inode, iov,
 				offset, nr_segs, ext2_get_blocks);
 }
@@ -629,14 +631,7 @@ ext2_direct_IO(int rw, struct inode *inode, const struct iovec *iov,
 static int
 ext2_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
-	int ret;
-	int err;
-
-	ret = write_mapping_buffers(mapping);
-	err = mpage_writepages(mapping, wbc, ext2_get_block);
-	if (!ret)
-		ret = err;
-	return ret;
+	return mpage_writepages(mapping, wbc, ext2_get_block);
 }
 
 struct address_space_operations ext2_aops = {

@@ -57,7 +57,7 @@
 #include <asm/param.h>		/* We get MAXHOSTNAMELEN.     */
 #include <asm/atomic.h>		/* This gets us atomic counters.  */
 #include <linux/skbuff.h>	/* We need sk_buff_head. */
-#include <linux/tqueue.h>	/* We need tq_struct.    */
+#include <linux/workqueue.h>	/* We need tq_struct.    */
 #include <linux/sctp.h>         /* We need sctp* header structs.  */
 
 /*
@@ -761,7 +761,7 @@ struct SCTP_inqueue {
 	/* This is the delayed task to finish delivering inbound
 	 * messages.
 	 */
-	struct tq_struct immediate;
+	struct work_struct immediate;
 
 	int malloced;        /* Is this structure kfree()able?  */
 };
@@ -1044,6 +1044,20 @@ sctp_association_t *sctp_endpoint_lookup_assoc(const sctp_endpoint_t *ep,
 sctp_endpoint_t *sctp_endpoint_is_match(sctp_endpoint_t *,
 					const sockaddr_storage_t *);
 
+int sctp_verify_init(const sctp_association_t *asoc,
+		     sctp_cid_t cid,
+		     sctp_init_chunk_t *peer_init,
+		     sctp_chunk_t *chunk,
+		     sctp_chunk_t **err_chunk);
+int sctp_verify_param(const sctp_association_t *asoc,
+		      sctpParam_t param,
+		      sctp_cid_t cid,
+		      sctp_chunk_t *chunk,
+		      sctp_chunk_t **err_chunk);
+int sctp_process_unk_param(const sctp_association_t *asoc,
+			   sctpParam_t param,
+			   sctp_chunk_t *chunk,
+			   sctp_chunk_t **err_chunk);
 void sctp_process_init(sctp_association_t *asoc, sctp_cid_t cid,
 		       const sockaddr_storage_t *peer_addr,
 		       sctp_init_chunk_t  *peer_init, int priority);

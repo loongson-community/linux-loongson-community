@@ -65,8 +65,6 @@
 
 extern void set_device_ro(kdev_t dev,int flag);
 
-extern void *sys_call_table;
-
 extern struct timezone sys_tz;
 
 #ifdef CONFIG_MODVERSIONS
@@ -134,6 +132,9 @@ EXPORT_SYMBOL(highmem_start_page);
 EXPORT_SYMBOL(kmap_prot);
 EXPORT_SYMBOL(kmap_pte);
 #endif
+#ifdef HASHED_PAGE_VIRTUAL
+EXPORT_SYMBOL(page_address);
+#endif
 EXPORT_SYMBOL(get_user_pages);
 
 /* filesystem internal functions */
@@ -192,6 +193,7 @@ EXPORT_SYMBOL(invalidate_bdev);
 EXPORT_SYMBOL(invalidate_inodes);
 EXPORT_SYMBOL(invalidate_device);
 EXPORT_SYMBOL(invalidate_inode_pages);
+EXPORT_SYMBOL_GPL(invalidate_inode_pages2);
 EXPORT_SYMBOL(truncate_inode_pages);
 EXPORT_SYMBOL(fsync_bdev);
 EXPORT_SYMBOL(permission);
@@ -517,9 +519,6 @@ EXPORT_SYMBOL(simple_strtoul);
 EXPORT_SYMBOL(simple_strtol);
 EXPORT_SYMBOL(system_utsname);	/* UTS data */
 EXPORT_SYMBOL(uts_sem);		/* UTS semaphore */
-#ifndef __mips__
-EXPORT_SYMBOL(sys_call_table);
-#endif
 EXPORT_SYMBOL(machine_restart);
 EXPORT_SYMBOL(machine_halt);
 EXPORT_SYMBOL(machine_power_off);

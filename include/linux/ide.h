@@ -17,6 +17,7 @@
 #include <linux/interrupt.h>
 #include <linux/bitops.h>
 #include <linux/bio.h>
+#include <linux/device.h>
 #include <linux/pci.h>
 #include <asm/byteorder.h>
 #include <asm/system.h>
@@ -298,27 +299,17 @@ typedef enum {	ide_unknown,	ide_generic,	ide_pci,
 
 typedef struct ide_io_ops_s {
 	/* insert io operations here! */
-	void (*OUTB)(u8 addr, u32 port);
-	void (*OUTW)(u16 addr, u32 port);
-	void (*OUTL)(u32 addr, u32 port);
-	void (*OUTBP)(u8 addr, u32 port);
-	void (*OUTWP)(u16 addr, u32 port);
-	void (*OUTLP)(u32 addr, u32 port);
-	void (*OUTSW)(u32 port, void *addr, u32 count);
-	void (*OUTSWP)(u32 port, void *addr, u32 count);
-	void (*OUTSL)(u32 port, void *addr, u32 count);
-	void (*OUTSLP)(u32 port, void *addr, u32 count);
+	void (*OUTB)(u8 addr, ide_ioreg_t port);
+	void (*OUTW)(u16 addr, ide_ioreg_t port);
+	void (*OUTL)(u32 addr, ide_ioreg_t port);
+	void (*OUTSW)(ide_ioreg_t port, void *addr, u32 count);
+	void (*OUTSL)(ide_ioreg_t port, void *addr, u32 count);
 
-	u8  (*INB)(u32 port);
-	u16 (*INW)(u32 port);
-	u32 (*INL)(u32 port);
-	u8  (*INBP)(u32 port);
-	u16 (*INWP)(u32 port);
-	u32 (*INLP)(u32 port);
-	void (*INSW)(u32 port, void *addr, u32 count);
-	void (*INSWP)(u32 port, void *addr, u32 count);
-	void (*INSL)(u32 port, void *addr, u32 count);
-	void (*INSLP)(u32 port, void *addr, u32 count);
+	u8  (*INB)(ide_ioreg_t port);
+	u16 (*INW)(ide_ioreg_t port);
+	u32 (*INL)(ide_ioreg_t port);
+	void (*INSW)(ide_ioreg_t port, void *addr, u32 count);
+	void (*INSL)(ide_ioreg_t port, void *addr, u32 count);
 } ide_io_ops_t;
 
 /*
@@ -372,41 +363,6 @@ extern int ide_irq_lock;
 # define ide_release_lock(lock)			do {} while (0)
 # define ide_get_lock(lock, hdlr, data)		do {} while (0)
 #endif /* IDE_ARCH_LOCK */
-
-/*
- * If the arch-dependant ide.h did not declare/define any OUT_BYTE
- * or IN_BYTE functions, we make some defaults here.
- */
-
-#ifndef HAVE_ARCH_OUT_BYTE
-# ifdef REALLY_FAST_IO
-#  define OUT_BYTE(b,p)		outb((b),(p))
-#  define OUT_WORD(w,p)		outw((w),(p))
-#  define OUT_LONG(l,p)		outl((l),(p))
-# else
-#  define OUT_BYTE(b,p)		outb_p((b),(p))
-#  define OUT_WORD(w,p)		outw_p((w),(p))
-#  define OUT_LONG(l,p)		outl_p((l),(p))
-# endif
-# define OUT_BYTE_P(b,p)	outb_p((b),(p))
-# define OUT_WORD_P(w,p)	outw_p((w),(p))
-# define OUT_LONG_P(l,p)	outl_p((l),(p))
-#endif
-
-#ifndef HAVE_ARCH_IN_BYTE
-# ifdef REALLY_FAST_IO
-#  define IN_BYTE(p)		(u8) inb(p)
-#  define IN_WORD(p)		(u16) inw(p)
-#  define IN_LONG(p)		(u32) inl(p)
-# else
-#  define IN_BYTE(p)		(u8) inb_p(p)
-#  define IN_WORD(p)		(u16) inw_p(p)
-#  define IN_LONG(p)		(u32) inl_p(p)
-# endif
-# define IN_BYTE_P(p)		(u8) inb_p(p)
-# define IN_WORD_P(p)		(u16) inw_p(p)
-# define IN_LONG_P(p)		(u32) inl_p(p)
-#endif
 
 /*
  * Now for the data we need to maintain per-drive:  ide_drive_t
@@ -789,6 +745,7 @@ typedef struct ide_drive_s {
 	unsigned autotune	: 2;	/* 1=autotune, 2=noautotune, 0=default */
 	unsigned remap_0_to_1	: 2;	/* 0=remap if ezdrive, 1=remap, 2=noremap */
 	unsigned ata_flash	: 1;	/* 1=present, 0=default */
+	unsigned blocked        : 1;	/* 1=powermanagment told us not to do anything, so sleep nicely */
 	unsigned addressing;		/*      : 3;
 					 *  0=28-bit
 					 *  1=48-bit
@@ -1006,27 +963,17 @@ typedef struct hwif_s {
 #if 0
 	ide_io_ops_t	*iops;
 #else
-	void (*OUTB)(u8 addr, u32 port);
-	void (*OUTW)(u16 addr, u32 port);
-	void (*OUTL)(u32 addr, u32 port);
-	void (*OUTBP)(u8 addr, u32 port);
-	void (*OUTWP)(u16 addr, u32 port);
-	void (*OUTLP)(u32 addr, u32 port);
-	void (*OUTSW)(u32 port, void *addr, u32 count);
-	void (*OUTSWP)(u32 port, void *addr, u32 count);
-	void (*OUTSL)(u32 port, void *addr, u32 count);
-	void (*OUTSLP)(u32 port, void *addr, u32 count);
+	void (*OUTB)(u8 addr, ide_ioreg_t port);
+	void (*OUTW)(u16 addr, ide_ioreg_t port);
+	void (*OUTL)(u32 addr, ide_ioreg_t port);
+	void (*OUTSW)(ide_ioreg_t port, void *addr, u32 count);
+	void (*OUTSL)(ide_ioreg_t port, void *addr, u32 count);
 
-	u8  (*INB)(u32 port);
-	u16 (*INW)(u32 port);
-	u32 (*INL)(u32 port);
-	u8  (*INBP)(u32 port);
-	u16 (*INWP)(u32 port);
-	u32 (*INLP)(u32 port);
-	void (*INSW)(u32 port, void *addr, u32 count);
-	void (*INSWP)(u32 port, void *addr, u32 count);
-	void (*INSL)(u32 port, void *addr, u32 count);
-	void (*INSLP)(u32 port, void *addr, u32 count);
+	u8  (*INB)(ide_ioreg_t port);
+	u16 (*INW)(ide_ioreg_t port);
+	u32 (*INL)(ide_ioreg_t port);
+	void (*INSW)(ide_ioreg_t port, void *addr, u32 count);
+	void (*INSL)(ide_ioreg_t port, void *addr, u32 count);
 #endif
 
 	/* dma physical region descriptor table (cpu view) */

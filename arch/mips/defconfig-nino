@@ -428,6 +428,7 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_SCx200_GPIO is not set
 # CONFIG_RAW_DRIVER is not set
 
 #

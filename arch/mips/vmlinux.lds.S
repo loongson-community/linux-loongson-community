@@ -115,6 +115,10 @@ SECTIONS
   _edata  =  .;
   PROVIDE (edata = .);
 
+  __start___kallsyms = .;	/* All kernel symbols */
+  __kallsyms : { *(__kallsyms) }
+  __stop___kallsyms = .;
+
   __bss_start = .;
   _fbss = .;
   .sbss      : { *(.sbss) *(.scommon) }

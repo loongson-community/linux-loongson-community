@@ -15,6 +15,7 @@
 #include <linux/config.h>
 #include <linux/version.h>
 #include <linux/ctype.h>
+#include <linux/vmalloc.h>
 
 #include <asm/debug.h>
 #include <asm/irq.h>
@@ -123,7 +124,7 @@ dasd_devices_write(struct file *file, const char *user_buf,
 	}
 	features = dasd_feature_list(str, &str);
 	/* Negative numbers in from/to/features indicate errors */
-	if (from < 0 || to < 0 || features < 0)
+	if (from < 0 || to < 0 || from > 65546 || to > 65536 || features < 0)
 		goto out_error;
 
 	if (add_or_set == 0) {
@@ -152,10 +153,7 @@ static inline int
 dasd_devices_print(dasd_devmap_t *devmap, char *str)
 {
 	dasd_device_t *device;
-	struct gendisk *gdp;
-	char buffer[7];
 	char *substr;
-	int minor;
 	int len;
 
 	device = dasd_get_device(devmap);
@@ -169,11 +167,10 @@ dasd_devices_print(dasd_devmap_t *devmap, char *str)
 	else
 		len += sprintf(str + len, "(none)");
 	/* Print kdev. */
-	gdp = dasd_gendisk_from_devindex(devmap->devindex);
-	minor = devmap->devindex % DASD_PER_MAJOR;
-	len += sprintf(str + len, " at (%3d:%3d)", gdp->major, minor);
+	len += sprintf(str + len, " at (%3d:%3d)",
+		       device->gdp->major, device->gdp->first_minor);
 	/* Print device name. */
-	len += sprintf(str + len, " is %-7s", gdp->disk_name);
+	len += sprintf(str + len, " is %-7s", device->gdp->disk_name);
 	/* Print devices features. */
 	substr = (devmap->features & DASD_FEATURE_READONLY) ? "(ro)" : " ";
 	len += sprintf(str + len, "%4s: ", substr);

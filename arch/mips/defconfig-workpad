@@ -310,6 +310,11 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
 # CONFIG_AT1700 is not set
 # CONFIG_DEPCA is not set
 # CONFIG_HP100 is not set
@@ -353,11 +358,6 @@ CONFIG_NET_ETHERNET=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
-
-#
-# Tulip family network device support
-#
-# CONFIG_NET_TULIP is not set
 
 #
 # Amateur Radio support
@@ -511,6 +511,7 @@ CONFIG_WATCHDOG=y
 # CONFIG_IB700_WDT is not set
 # CONFIG_I810_TCO is not set
 # CONFIG_MIXCOMWD is not set
+# CONFIG_SCx200_WDT is not set
 # CONFIG_60XX_WDT is not set
 # CONFIG_W83877F_WDT is not set
 # CONFIG_MACHZ_WDT is not set
@@ -528,6 +529,7 @@ CONFIG_WATCHDOG=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_SCx200_GPIO is not set
 # CONFIG_RAW_DRIVER is not set
 
 #

@@ -196,7 +196,7 @@ struct packet_list {
 /* This implements a circular buffer for incoming samples. */
 
 struct buffer {
-	int head, tail, length, size;
+	size_t head, tail, length, size;
 	unsigned char data[0];
 };
 
@@ -623,9 +623,9 @@ static unsigned char *buffer_get_bytes(struct buffer *buffer, int size)
 }
 
 static unsigned char *buffer_put_bytes(struct buffer *buffer,
-				       int max, int *actual)
+				       size_t max, size_t *actual)
 {
-	int length;
+	size_t length;
 	unsigned char *p;
 
 	p = &buffer->data[buffer->tail];
@@ -834,7 +834,7 @@ static int stream_alloc_packet_lists(struct stream *s)
 
 	max_packet_size = max_nevents * s->dimension * 4 + 8;
 	s->packet_pool = pci_pool_create("packet pool", s->host->ohci->dev,
-					 max_packet_size, 0, 0, SLAB_KERNEL);
+					 max_packet_size, 0, 0);
 	if (s->packet_pool == NULL)
 		return -1;
 
@@ -1020,7 +1020,7 @@ struct stream *stream_alloc(struct amdtp_host *host)
 
 	s->descriptor_pool = pci_pool_create("descriptor pool", host->ohci->dev,
 					     sizeof(struct descriptor_block),
-					     16, 0, SLAB_KERNEL);
+					     16, 0);
 	if (s->descriptor_pool == NULL) {
 		kfree(s->input);
 		kfree(s);
@@ -1089,7 +1089,8 @@ static ssize_t amdtp_write(struct file *file, const char *buffer, size_t count,
 {
 	struct stream *s = file->private_data;
 	unsigned char *p;
-	int i, length;
+	int i;
+	size_t length;
 	
 	if (s->packet_pool == NULL)
 		return -EBADFD;

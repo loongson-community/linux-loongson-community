@@ -410,6 +410,11 @@ CONFIG_MIPS_AU1000_ENET=y
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_ISA is not set
 # CONFIG_NET_PCI is not set
@@ -458,11 +463,6 @@ CONFIG_PPPOE=m
 # Wan interfaces
 #
 # CONFIG_WAN is not set
-
-#
-# Tulip family network device support
-#
-# CONFIG_NET_TULIP is not set
 
 #
 # PCMCIA network device support
@@ -701,6 +701,7 @@ CONFIG_RTC=y
 # PCMCIA character devices
 #
 # CONFIG_SYNCLINK_CS is not set
+# CONFIG_SCx200_GPIO is not set
 # CONFIG_RAW_DRIVER is not set
 
 #

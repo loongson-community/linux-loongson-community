@@ -26,7 +26,6 @@
 #include <net/llc_c_ac.h>
 #include <net/llc_c_st.h>
 #include <net/llc_main.h>
-#include <net/llc_mac.h>
 
 /**
  *	llc_sap_open - open interface to the upper layers.
@@ -57,7 +56,7 @@ struct llc_sap *llc_sap_open(u8 lsap, int (*func)(struct sk_buff *skb,
 	/* allocated a SAP; initialize it and clear out its memory pool */
 	sap->laddr.lsap = lsap;
 	sap->rcv_func	= func;
-	sap->station	= llc_station_get();
+	sap->station	= &llc_main_station;
 	/* initialized SAP; add it to list of SAPs this station manages */
 	llc_sap_save(sap);
 out:

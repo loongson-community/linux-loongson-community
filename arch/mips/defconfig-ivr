@@ -318,6 +318,11 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_ISA is not set
 CONFIG_NET_PCI=y
@@ -387,11 +392,6 @@ CONFIG_8139TOO=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
-
-#
-# Tulip family network device support
-#
-# CONFIG_NET_TULIP is not set
 
 #
 # Amateur Radio support
@@ -551,6 +551,7 @@ CONFIG_RTC=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_SCx200_GPIO is not set
 # CONFIG_RAW_DRIVER is not set
 
 #
@@ -811,6 +812,7 @@ CONFIG_USB_HID=y
 # CONFIG_USB_BRLVGER is not set
 # CONFIG_USB_LCD is not set
 # CONFIG_USB_SPEEDTOUCH is not set
+# CONFIG_USB_TEST is not set
 
 #
 # Bluetooth support
