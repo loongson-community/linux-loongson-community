@@ -6,7 +6,7 @@
  * for more details.
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
- * Copyright (C) 2001 by Liam Davies (ldavies@agile.tv)
+ * Copyright (C) 2001, 2002, 2003 by Liam Davies (ldavies@agile.tv)
  */
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
@@ -79,7 +79,7 @@
 		 andi	a0,s0,CAUSEF_IP7
 
 		/* Serial interrupt */
-		li	a0,7
+		li	a0,COBALT_SERIAL_IRQ
 		jal     do_IRQ
 		 move	a1,sp
 
@@ -90,7 +90,7 @@
 		  nop
 
 		/* PCI interrupt */
-		li	a0,9
+		li	a0,COBALT_QUBE_SLOT_IRQ
 		jal     do_IRQ
 		 move	a1,sp
 
