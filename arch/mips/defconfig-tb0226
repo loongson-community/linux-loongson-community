@@ -3,13 +3,16 @@
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
+# CONFIG_64BIT is not set
 CONFIG_MIPS32=y
 
 #
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
-# CONFIG_BROKEN is not set
+CONFIG_CLEAN_COMPILE=y
+CONFIG_STANDALONE=y
+CONFIG_BROKEN_ON_SMP=y
 
 #
 # General setup
@@ -121,7 +124,6 @@ CONFIG_MMU=y
 #
 # Executable file formats
 #
-CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
@@ -188,6 +190,7 @@ CONFIG_IDE_TASKFILE_IO=y
 # SCSI device support
 #
 CONFIG_SCSI=y
+CONFIG_SCSI_PROC_FS=y
 
 #
 # SCSI support type (disk, tape, CD-ROM)
@@ -212,7 +215,6 @@ CONFIG_SCSI_CONSTANTS=y
 #
 # CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
-# CONFIG_SCSI_DPT_I2O is not set
 # CONFIG_SCSI_EATA_PIO is not set
 # CONFIG_SCSI_DEBUG is not set
 

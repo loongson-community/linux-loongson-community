@@ -3,13 +3,16 @@
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
+# CONFIG_64BIT is not set
 CONFIG_MIPS32=y
 
 #
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
-# CONFIG_BROKEN is not set
+CONFIG_CLEAN_COMPILE=y
+CONFIG_STANDALONE=y
+CONFIG_BROKEN_ON_SMP=y
 
 #
 # General setup
@@ -120,7 +123,6 @@ CONFIG_MMU=y
 #
 # Executable file formats
 #
-CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
@@ -554,8 +556,6 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Graphics support
 #
-# CONFIG_FB_CIRRUS is not set
-# CONFIG_FB_PM2 is not set
 # CONFIG_FB_CYBER2000 is not set
 # CONFIG_FB_IMSTT is not set
 # CONFIG_FB_RIVA is not set
@@ -568,7 +568,6 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_FB_3DFX is not set
 # CONFIG_FB_VOODOO1 is not set
 # CONFIG_FB_TRIDENT is not set
-# CONFIG_FB_PM3 is not set
 # CONFIG_FB_E1356 is not set
 # CONFIG_FB_VIRTUAL is not set
 

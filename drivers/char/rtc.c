@@ -44,10 +44,12 @@
  *	1.11	Takashi Iwai: Kernel access functions
  *			      rtc_register/rtc_unregister/rtc_control
  *      1.11a   Daniele Bellucci: Audit create_proc_read_entry in rtc_init
- *	1.11b	Maciej W. Rozycki: Handle memory-mapped chips properly.
+ *	1.12    Venkatesh Pallipadi: Hooks for emulating rtc on HPET base-timer
+ *		CONFIG_HPET_EMULATE_RTC
+ *	1.12a	Maciej W. Rozycki: Handle memory-mapped chips properly.
  */
 
-#define RTC_VERSION		"1.11b"
+#define RTC_VERSION		"1.12a"
 
 /*
  *	Note that *all* calls to CMOS_READ and CMOS_WRITE are done with
@@ -78,6 +80,10 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
+#if defined(__i386__)
+#include <asm/hpet.h>
+#endif
+
 #ifdef __sparc__
 #include <linux/pci.h>
 #include <asm/ebus.h>
@@ -91,6 +97,17 @@ static int rtc_irq = PCI_IRQ_NONE;
 
 #if RTC_IRQ
 static int rtc_has_irq = 1;
+#endif
+
+#ifndef CONFIG_HPET_EMULATE_RTC
+#define is_hpet_enabled()			0
+#define hpet_set_alarm_time(hrs, min, sec) 	0
+#define hpet_set_periodic_freq(arg) 		0
+#define hpet_mask_rtc_irq_bit(arg) 		0
+#define hpet_set_rtc_irq_bit(arg) 		0
+#define hpet_rtc_timer_init() 			do { } while (0)
+#define hpet_rtc_dropped_irq() 			0
+static inline irqreturn_t hpet_rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs) {return 0;}
 #endif
 
 /*
@@ -118,7 +135,6 @@ static int rtc_ioctl(struct inode *inode, struct file *file,
 static unsigned int rtc_poll(struct file *file, poll_table *wait);
 #endif
 
-static void get_rtc_time (struct rtc_time *rtc_tm);
 static void get_rtc_alm_time (struct rtc_time *alm_tm);
 #if RTC_IRQ
 static void rtc_dropped_irq(unsigned long data);
@@ -180,7 +196,7 @@ static const unsigned char days_in_mo[] =
  *	(See ./arch/XXXX/kernel/time.c for the set_rtc_mmss() function.)
  */
 
-static irqreturn_t rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+irqreturn_t rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/*
 	 *	Can be an alarm interrupt, update complete interrupt,
@@ -192,7 +208,16 @@ static irqreturn_t rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	spin_lock (&rtc_lock);
 	rtc_irq_data += 0x100;
 	rtc_irq_data &= ~0xff;
-	rtc_irq_data |= (CMOS_READ(RTC_INTR_FLAGS) & 0xF0);
+	if (is_hpet_enabled()) {
+		/*
+		 * In this case it is HPET RTC interrupt handler
+		 * calling us, with the interrupt information
+		 * passed as arg1, instead of irq.
+		 */
+		rtc_irq_data |= (unsigned long)irq & 0xF0;
+	} else {
+		rtc_irq_data |= (CMOS_READ(RTC_INTR_FLAGS) & 0xF0);
+	}
 
 	if (rtc_status & RTC_TIMER_ON)
 		mod_timer(&rtc_irq_timer, jiffies + HZ/rtc_freq + 2*HZ/100);
@@ -437,6 +462,12 @@ static int rtc_do_ioctl(unsigned int cmd, unsigned long arg, int kernel)
 		sec = alm_tm.tm_sec;
 
 		spin_lock_irq(&rtc_lock);
+		if (hpet_set_alarm_time(hrs, min, sec)) {
+			/*
+			 * Fallthru and set alarm time in CMOS too,
+			 * so that we will get proper value in RTC_ALM_READ
+			 */
+		}
 		if (!(CMOS_READ(RTC_CONTROL) & RTC_DM_BINARY) ||
 		    RTC_ALWAYS_BCD)
 		{
@@ -458,7 +489,7 @@ static int rtc_do_ioctl(unsigned int cmd, unsigned long arg, int kernel)
 	}
 	case RTC_RD_TIME:	/* Read the time/date from RTC	*/
 	{
-		get_rtc_time(&wtime);
+		rtc_get_rtc_time(&wtime);
 		break;
 	}
 	case RTC_SET_TIME:	/* Set the RTC */
@@ -590,6 +621,10 @@ static int rtc_do_ioctl(unsigned int cmd, unsigned long arg, int kernel)
 			return -EINVAL;
 
 		spin_lock_irq(&rtc_lock);
+		if (hpet_set_periodic_freq(arg)) {
+			spin_unlock_irq(&rtc_lock);
+			return 0;
+		}
 		rtc_freq = arg;
 
 		val = CMOS_READ(RTC_FREQ_SELECT) & 0xf0;
@@ -675,13 +710,14 @@ static int rtc_release(struct inode *inode, struct file *file)
 	 */
 
 	spin_lock_irq(&rtc_lock);
-	tmp = CMOS_READ(RTC_CONTROL);
-	tmp &=  ~RTC_PIE;
-	tmp &=  ~RTC_AIE;
-	tmp &=  ~RTC_UIE;
-	CMOS_WRITE(tmp, RTC_CONTROL);
-	CMOS_READ(RTC_INTR_FLAGS);
-
+	if (!hpet_mask_rtc_irq_bit(RTC_PIE | RTC_AIE | RTC_UIE)) {
+		tmp = CMOS_READ(RTC_CONTROL);
+		tmp &=  ~RTC_PIE;
+		tmp &=  ~RTC_AIE;
+		tmp &=  ~RTC_UIE;
+		CMOS_WRITE(tmp, RTC_CONTROL);
+		CMOS_READ(RTC_INTR_FLAGS);
+	}
 	if (rtc_status & RTC_TIMER_ON) {
 		rtc_status &= ~RTC_TIMER_ON;
 		del_timer(&rtc_irq_timer);
@@ -773,12 +809,14 @@ int rtc_unregister(rtc_task_t *task)
 	rtc_callback = NULL;
 	
 	/* disable controls */
-	tmp = CMOS_READ(RTC_CONTROL);
-	tmp &= ~RTC_PIE;
-	tmp &= ~RTC_AIE;
-	tmp &= ~RTC_UIE;
-	CMOS_WRITE(tmp, RTC_CONTROL);
-	CMOS_READ(RTC_INTR_FLAGS);
+	if (!hpet_mask_rtc_irq_bit(RTC_PIE | RTC_AIE | RTC_UIE)) {
+		tmp = CMOS_READ(RTC_CONTROL);
+		tmp &= ~RTC_PIE;
+		tmp &= ~RTC_AIE;
+		tmp &= ~RTC_UIE;
+		CMOS_WRITE(tmp, RTC_CONTROL);
+		CMOS_READ(RTC_INTR_FLAGS);
+	}
 	if (rtc_status & RTC_TIMER_ON) {
 		rtc_status &= ~RTC_TIMER_ON;
 		del_timer(&rtc_irq_timer);
@@ -829,6 +867,10 @@ static struct miscdevice rtc_dev=
 	"rtc",
 	&rtc_fops
 };
+
+#if RTC_IRQ
+static irqreturn_t (*rtc_int_handler_ptr)(int irq, void *dev_id, struct pt_regs *regs);
+#endif
 
 static int __init rtc_init(void)
 {
@@ -905,7 +947,13 @@ no_irq:
 	}
 
 #if RTC_IRQ
-	if(request_irq(RTC_IRQ, rtc_interrupt, SA_INTERRUPT, "rtc", NULL)) {
+	if (is_hpet_enabled()) {
+		rtc_int_handler_ptr = hpet_rtc_interrupt;
+	} else {
+		rtc_int_handler_ptr = rtc_interrupt;
+	}
+
+	if(request_irq(RTC_IRQ, rtc_int_handler_ptr, SA_INTERRUPT, "rtc", NULL)) {
 		/* Yeah right, seeing as irq 8 doesn't even hit the bus. */
 		printk(KERN_ERR "rtc: IRQ %d is not free.\n", RTC_IRQ);
 		if (RTC_IOMAPPED)
@@ -914,6 +962,8 @@ no_irq:
 			release_mem_region(RTC_PORT(0), RTC_IO_EXTENT);
 		return -EIO;
 	}
+	hpet_rtc_timer_init();
+
 #endif
 
 #endif /* __sparc__ vs. others */
@@ -984,10 +1034,12 @@ no_irq:
 	init_timer(&rtc_irq_timer);
 	rtc_irq_timer.function = rtc_dropped_irq;
 	spin_lock_irq(&rtc_lock);
-	/* Initialize periodic freq. to CMOS reset default, which is 1024Hz */
-	CMOS_WRITE(((CMOS_READ(RTC_FREQ_SELECT) & 0xF0) | 0x06), RTC_FREQ_SELECT);
-	spin_unlock_irq(&rtc_lock);
 	rtc_freq = 1024;
+	if (!hpet_set_periodic_freq(rtc_freq)) {
+		/* Initialize periodic freq. to CMOS reset default, which is 1024Hz */
+		CMOS_WRITE(((CMOS_READ(RTC_FREQ_SELECT) & 0xF0) | 0x06), RTC_FREQ_SELECT);
+	}
+	spin_unlock_irq(&rtc_lock);
 no_irq2:
 #endif
 
@@ -1041,6 +1093,11 @@ static void rtc_dropped_irq(unsigned long data)
 
 	spin_lock_irq (&rtc_lock);
 
+	if (hpet_rtc_dropped_irq()) {
+		spin_unlock_irq(&rtc_lock);
+		return;
+	}
+
 	/* Just in case someone disabled the timer from behind our back... */
 	if (rtc_status & RTC_TIMER_ON)
 		mod_timer(&rtc_irq_timer, jiffies + HZ/rtc_freq + 2*HZ/100);
@@ -1083,7 +1140,7 @@ static int rtc_proc_output (char *buf)
 
 	p = buf;
 
-	get_rtc_time(&tm);
+	rtc_get_rtc_time(&tm);
 
 	/*
 	 * There is no way to tell if the luser has the RTC set for local
@@ -1170,7 +1227,7 @@ static inline unsigned char rtc_is_updating(void)
 	return uip;
 }
 
-static void get_rtc_time(struct rtc_time *rtc_tm)
+void rtc_get_rtc_time(struct rtc_time *rtc_tm)
 {
 	unsigned long uip_watchdog = jiffies;
 	unsigned char ctrl;
@@ -1276,6 +1333,10 @@ static void mask_rtc_irq_bit(unsigned char bit)
 	unsigned char val;
 
 	spin_lock_irq(&rtc_lock);
+	if (hpet_mask_rtc_irq_bit(bit)) {
+		spin_unlock_irq(&rtc_lock);
+		return;
+	}
 	val = CMOS_READ(RTC_CONTROL);
 	val &=  ~bit;
 	CMOS_WRITE(val, RTC_CONTROL);
@@ -1290,6 +1351,10 @@ static void set_rtc_irq_bit(unsigned char bit)
 	unsigned char val;
 
 	spin_lock_irq(&rtc_lock);
+	if (hpet_set_rtc_irq_bit(bit)) {
+		spin_unlock_irq(&rtc_lock);
+		return;
+	}
 	val = CMOS_READ(RTC_CONTROL);
 	val |= bit;
 	CMOS_WRITE(val, RTC_CONTROL);
@@ -1302,3 +1367,4 @@ static void set_rtc_irq_bit(unsigned char bit)
 
 MODULE_AUTHOR("Paul Gortmaker");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS_MISCDEV(RTC_MINOR);

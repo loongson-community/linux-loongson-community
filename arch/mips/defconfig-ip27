@@ -3,12 +3,14 @@
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
+CONFIG_64BIT=y
 
 #
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
-# CONFIG_BROKEN is not set
+CONFIG_CLEAN_COMPILE=y
+CONFIG_STANDALONE=y
 
 #
 # General setup
@@ -124,7 +126,6 @@ CONFIG_MMU=y
 #
 # Executable file formats
 #
-CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_MIPS32_COMPAT=y
@@ -174,6 +175,7 @@ CONFIG_BINFMT_ELF32=y
 # SCSI device support
 #
 CONFIG_SCSI=y
+CONFIG_SCSI_PROC_FS=y
 
 #
 # SCSI support type (disk, tape, CD-ROM)
@@ -201,7 +203,6 @@ CONFIG_SCSI_LOGGING=y
 # CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
 # CONFIG_SCSI_AIC79XX is not set
-# CONFIG_SCSI_DPT_I2O is not set
 # CONFIG_SCSI_ADVANSYS is not set
 # CONFIG_SCSI_MEGARAID is not set
 # CONFIG_SCSI_BUSLOGIC is not set
@@ -211,17 +212,13 @@ CONFIG_SCSI_LOGGING=y
 # CONFIG_SCSI_EATA_PIO is not set
 # CONFIG_SCSI_FUTURE_DOMAIN is not set
 # CONFIG_SCSI_GDTH is not set
-# CONFIG_SCSI_INITIO is not set
+# CONFIG_SCSI_IPS is not set
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_SYM53C8XX_2 is not set
-# CONFIG_SCSI_SYM53C8XX is not set
-# CONFIG_SCSI_PCI2000 is not set
-# CONFIG_SCSI_PCI2220I is not set
 # CONFIG_SCSI_QLOGIC_ISP is not set
 # CONFIG_SCSI_QLOGIC_FC is not set
 # CONFIG_SCSI_QLOGIC_1280 is not set
 # CONFIG_SCSI_DC395x is not set
-# CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_NSP32 is not set
 # CONFIG_SCSI_DEBUG is not set
 
@@ -499,7 +496,6 @@ CONFIG_SGI_IP27_RTC=y
 #
 # Ftape, the floppy tape device driver
 #
-# CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set

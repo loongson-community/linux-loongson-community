@@ -3,13 +3,15 @@
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
+# CONFIG_64BIT is not set
 CONFIG_MIPS32=y
 
 #
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
-# CONFIG_BROKEN is not set
+CONFIG_CLEAN_COMPILE=y
+CONFIG_STANDALONE=y
 
 #
 # General setup
@@ -155,7 +157,6 @@ CONFIG_MMU=y
 #
 # Executable file formats
 #
-CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
@@ -402,21 +403,10 @@ CONFIG_SOUND_GAMEPORT=y
 #
 # CONFIG_VT is not set
 CONFIG_SERIAL_NONSTANDARD=y
-# CONFIG_COMPUTONE is not set
 # CONFIG_ROCKETPORT is not set
-# CONFIG_CYCLADES is not set
-# CONFIG_DIGIEPCA is not set
-# CONFIG_DIGI is not set
-# CONFIG_MOXA_INTELLIO is not set
-# CONFIG_MOXA_SMARTIO is not set
-# CONFIG_ISI is not set
 # CONFIG_SYNCLINK is not set
 # CONFIG_SYNCLINKMP is not set
 # CONFIG_N_HDLC is not set
-# CONFIG_RISCOM8 is not set
-# CONFIG_SPECIALIX is not set
-# CONFIG_SX is not set
-# CONFIG_RIO is not set
 # CONFIG_STALDRV is not set
 CONFIG_SIBYTE_SB1250_DUART=y
 CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
@@ -430,6 +420,7 @@ CONFIG_SERIAL_CONSOLE=y
 #
 # Non-8250 serial port support
 #
+CONFIG_SERIAL_CORE=m
 # CONFIG_UNIX98_PTYS is not set
 
 #
@@ -471,7 +462,6 @@ CONFIG_SERIAL_CONSOLE=y
 #
 # Ftape, the floppy tape device driver
 #
-# CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
