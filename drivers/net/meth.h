@@ -27,6 +27,7 @@
 #define TX_RING_BUFFER_SIZE	(TX_RING_ENTRIES*sizeof(tx_packet))
 #define RX_BUFFER_SIZE 1546 /* ethenet packet size */
 #define METH_RX_BUFF_SIZE 4096
+#define METH_RX_HEAD 34 /* status + 3 quad garbage-fill + 2 byte zero-pad */
 #define RX_BUFFER_OFFSET (sizeof(rx_status_vector)+2) /* staus vector + 2 bytes of padding */
 #define RX_BUCKET_SIZE 256
 
@@ -124,13 +125,7 @@ typedef struct meth_regs {
 	u64		int_rx;			/*0x28,wo,9:4*/
 	u64             tx_info;		/*0x30,rw,31:0*/
 	u64		tx_info_al;		/*0x38,rw,31:0*/
-	struct {
-		u32	rx_buff_pad1;
-		u32	rx_buff_pad2:8,
-			wptr:8,
-			rptr:8,
-			depth:8;
-	}		rx_buff;		/*0x40,ro,23:0*/
+	u64             rx_buff;		/*0x40,ro,23:0*/
 	u64		rx_buff_al1;	/*0x48,ro,23:0*/
 	u64		rx_buff_al2;	/*0x50,ro,23:0*/
 	u64		int_update;		/*0x58,wo,31:0*/
@@ -202,9 +197,14 @@ typedef struct meth_regs {
 #define METH_DMA_RX_EN BIT(15) /* Enable RX */
 #define METH_DMA_RX_INT_EN BIT(9) /* Enable interrupt on RX packet */
 
+/* RX FIFO MCL Info bits */
+#define METH_RX_FIFO_WPTR(x)   ((x>>16)&0xF)
+#define METH_RX_FIFO_RPTR(x)   ((x>>8)&0xF)
+#define METH_RX_FIFO_DEPTH(x)  (x&0x1F)
 
 /* RX status bits */
 
+#define METH_RX_ST_VALID BIT(63)
 #define METH_RX_ST_RCV_CODE_VIOLATION BIT(16)
 #define METH_RX_ST_DRBL_NBL BIT(17)
 #define METH_RX_ST_CRC_ERR BIT(18)
@@ -239,7 +239,8 @@ typedef struct meth_regs {
 #define METH_INT_RX_UNDERFLOW	BIT(6)	/* 0: No interrupt pending, 1: FIFO was empty, packet could not be queued */
 #define METH_INT_RX_OVERFLOW		BIT(7)	/* 0: No interrupt pending, 1: DMA FIFO Overflow, DMA stopped, FATAL */
 
-#define METH_INT_RX_RPTR_MASK 0x0001F00		/* Bits 8 through 12 alias of RX read-pointer */
+/*#define METH_INT_RX_RPTR_MASK 0x0001F00*/		/* Bits 8 through 12 alias of RX read-pointer */
+#define METH_INT_RX_RPTR_MASK 0x0000F00		/* Bits 8 through 11 alias of RX read-pointer - so, is Rx FIFO 16 or 32 entry?*/
 
 						/* Bits 13 through 15 are always 0. */
 
@@ -248,11 +249,11 @@ typedef struct meth_regs {
 #define METH_INT_SEQ_MASK    0x2E000000	        /* Bits 25 through 29 are the starting seq number for the message at the */
 						/* top of the queue */
 
-#define METH_ERRORS ( \
-	METH_INT_RX_OVERFLOW|	\
-	METH_INT_RX_UNDERFLOW|	\
-	METH_INT_MEM_ERROR|			\
-	METH_INT_TX_ABORT)
+#define METH_INT_ERROR	(METH_INT_TX_LINK_FAIL| \
+			METH_INT_MEM_ERROR| \
+			METH_INT_TX_ABORT| \
+			METH_INT_RX_OVERFLOW| \
+			METH_INT_RX_UNDERFLOW)
 
 #define METH_INT_MCAST_HASH		BIT(30) /* If RX DMA is enabled the hash select logic output is latched here */
 
@@ -270,3 +271,5 @@ typedef struct meth_regs {
 #define PHY_ICS1889    0x0015F41    /* ICS FX */
 #define PHY_ICS1890    0x0015F42    /* ICS TX */
 #define PHY_DP83840    0x20005C0    /* National TX */
+
+#define ADVANCE_RX_PTR(x)  x=(x+1)&(RX_RING_ENTRIES-1)
