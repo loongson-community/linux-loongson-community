@@ -560,7 +560,6 @@ config MIPS_PB1550
 	depends on SOC_AU1550
 	select DMA_COHERENT
 	select HW_HAS_PCI
-	select DMA_COHERENT
 	select MIPS_DISABLE_OBSOLETE_IDE
 
 config MIPS_DB1000
