@@ -116,6 +116,17 @@ void __init pcibr_setup(cnodeid_t nid)
 	static spinlock_t	pcibr_setup_lock = SPIN_LOCK_UNLOCKED;
 
 	/*
+	 * If the master is doing this for headless node, nothing to do.
+	 * This is because currently we require at least one of the hubs
+	 * (master hub) connected to the xbow to have at least one enabled 
+	 * cpu to receive intrs. Else we need an array bus_to_intrnasid[] 
+	 * that bridge_startup() needs to use to target intrs. All dma is
+	 * routed thru the widget of the master hub. The master hub wid
+	 * is selectable by WIDGET_A below.
+	 */
+	if (nid != get_compact_nodeid())
+		return;
+	/*
 	 * find what's on our local node
 	 */
 	spin_lock(&pcibr_setup_lock);
@@ -157,21 +168,22 @@ void __init pcibr_setup(cnodeid_t nid)
 			else {
 			   /*
 			    * Okay, here's a xbow. Lets arbitrate and find
-			    * out if we should initialize it. Set hub connected
-			    * at highest or lowest widget as master.
-			    * This algo needs to change a little for headless
-			    * nodes.
+			    * out if we should initialize it. Set enabled 
+			    * hub connected at highest or lowest widget as 
+			    * master.
 			    */
 #ifdef WIDGET_A
 			   i = HUB_WIDGET_ID_MAX + 1;
 			   do {
 				i--;
-			   } while (!XBOW_PORT_TYPE_HUB(xbow_p, i));
+			   } while ((!XBOW_PORT_TYPE_HUB(xbow_p, i)) ||
+					(!XBOW_PORT_IS_ENABLED(xbow_p, i)));
 #else
 			   i = HUB_WIDGET_ID_MIN - 1;
 			   do {
 				i++;
-			   } while (!XBOW_PORT_TYPE_HUB(xbow_p, i));
+			   } while ((!XBOW_PORT_TYPE_HUB(xbow_p, i)) ||
+					(!XBOW_PORT_IS_ENABLED(xbow_p, i)));
 #endif
 			   masterwid = i;
 			   masternasid = XBOW_PORT_NASID(xbow_p, i);
@@ -240,14 +252,11 @@ void __init pcibr_setup(cnodeid_t nid)
 		/*
 		 * Hmm...  IRIX sets additional bits in the address which 
 		 * are documented as reserved in the bridge docs.
-		 * We waste time programming b_wid_int_upper/b_wid_int_lower,
-		 * since bridge_startup will set up the widget->nasid intr
-		 * path anyway.
 		 */
 		bridge->b_int_mode = 0x0;		/* Don't clear ints */
-		bridge->b_wid_int_upper = 0x000a8000;	/* Ints to widget A */
-		bridge->b_wid_int_lower = 0x01800090;
-		bridge->b_dir_map = 0xa00000;		/* DMA */
+		bridge->b_wid_int_upper = 0x8000 | (masterwid << 16);
+		bridge->b_wid_int_lower = 0x01800090;	/* PI_INT_PEND_MOD off*/
+		bridge->b_dir_map = (masterwid << 20);	/* DMA */
 		bridge->b_int_enable = 0;
 
 		bridge->b_wid_tflush;     /* wait until Bridge PIO complete */
