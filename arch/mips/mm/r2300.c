@@ -21,7 +21,7 @@
 #include <asm/wbflush.h>
 
 /* Primary cache parameters. */
-static int icache_size, dcache_size; /* Size in bytes */
+static unsigned long icache_size, dcache_size; /* Size in bytes */
 /* the linesizes are usually fixed on R3000s */
 
 #undef DEBUG_TLB
@@ -144,22 +144,23 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 static void __init probe_dcache(void)
 {
 	dcache_size = r3k_cache_size(ST0_ISC);
-	printk("Primary data cache %dkb, linesize 4 bytes\n",
+	printk("Primary data cache %lukb, linesize 4 bytes\n",
 		dcache_size >> 10);
 }
 
 static void __init probe_icache(void)
 {
 	icache_size = r3k_cache_size(ST0_ISC|ST0_SWC);
-	printk("Primary instruction cache %dkb, linesize 4 bytes\n",
+	printk("Primary instruction cache %lukb, linesize 4 bytes\n",
 		icache_size >> 10);
 }
 
-static void r3k_flush_icache_range(unsigned long start, unsigned long size)
+static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 {
-	unsigned long i, flags;
+	unsigned long size, i, flags;
 	volatile unsigned char *p = (char *)start;
 
+	size = end - start;
 	if (size > icache_size)
 		size = icache_size;
 
@@ -208,11 +209,12 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long size)
 	write_32bit_cp0_register(CP0_STATUS, flags);
 }
 
-static void r3k_flush_dcache_range(unsigned long start, unsigned long size)
+static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
 {
-	unsigned long i, flags;
+	unsigned long size, i, flags;
 	volatile unsigned char *p = (char *)start;
 
+	size = end - start;
 	if (size > dcache_size)
 		size = dcache_size;
 
@@ -398,7 +400,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 {
 	wbflush();
-	r3k_flush_dcache_range(start, size);
+	r3k_flush_dcache_range(start, start + size);
 }
 
 /* TLB operations. */
