@@ -63,7 +63,7 @@ extern void r4k_tlb_init(void);
 
 void __init load_mmu(void)
 {
-	if (current_cpu_data.options & MIPS_CPU_4KTLB) {
+	if (cpu_has_4ktlb) {
 #if defined (CONFIG_CPU_R4300)						\
     || defined (CONFIG_CPU_R4X00)					\
     || defined (CONFIG_CPU_R5000)					\

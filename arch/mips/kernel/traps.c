@@ -688,7 +688,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		init_fpu();
 		current->used_math = 1;
 	}
-	if (!(current_cpu_data.options & MIPS_CPU_FPU)) {
+
+	if (!cpu_has_fpu) {
 		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
 		if (sig)
 			force_sig(sig, current);
@@ -859,7 +860,7 @@ void *set_except_vector(int n, void *addr)
 	unsigned long old_handler = exception_handlers[n];
 
 	exception_handlers[n] = handler;
-	if (n == 0 && current_cpu_data.options & MIPS_CPU_DIVEC) {
+	if (n == 0 && cpu_has_divec) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
 		flush_icache_range(KSEG0+0x200, KSEG0 + 0x204);
@@ -887,7 +888,7 @@ void __init per_cpu_trap_init(void)
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (current_cpu_data.options & MIPS_CPU_DIVEC)
+	if (cpu_has_divec)
 		set_c0_cause(CAUSEF_IV);
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
@@ -917,21 +918,21 @@ void __init trap_init(void)
 	 * Copy the EJTAG debug exception vector handler code to it's final
 	 * destination.
 	 */
-	if (current_cpu_data.options & MIPS_CPU_EJTAG)
+	if (cpu_has_ejtag)
 		memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
 	 * interrupt vector.
 	 */
-	if (current_cpu_data.options & MIPS_CPU_WATCH)
+	if (cpu_has_watch)
 		set_except_vector(23, handle_watch);
 
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (current_cpu_data.options & MIPS_CPU_DIVEC)
+	if (cpu_has_divec)
 		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
 
 	/*
@@ -964,16 +965,15 @@ void __init trap_init(void)
 	set_except_vector(13, handle_tr);
 	set_except_vector(22, handle_mdmx);
 
-	if ((current_cpu_data.options & MIPS_CPU_FPU) &&
-	    !(current_cpu_data.options & MIPS_CPU_NOFPUEX))
+	if (cpu_has_fpu && !cpu_has_nofpuex)
 		set_except_vector(15, handle_fpe);
 
-	if (current_cpu_data.options & MIPS_CPU_MCHECK)
+	if (cpu_has_mcheck)
 		set_except_vector(24, handle_mcheck);
 
-	if (current_cpu_data.options & MIPS_CPU_VCE)
+	if (cpu_has_vce)
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
-	else if (current_cpu_data.options & MIPS_CPU_4KEX)
+	else if (cpu_has_4kex)
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 	else
 		memcpy((void *)(KSEG0 + 0x080), &except_vec3_generic, 0x80);
@@ -991,7 +991,7 @@ void __init trap_init(void)
 		//set_except_vector(15, handle_ndc);
 	}
 
-	if (current_cpu_data.options & MIPS_CPU_FPU) {
+	if (cpu_has_fpu) {
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
 	} else {

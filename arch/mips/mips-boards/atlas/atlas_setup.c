@@ -122,7 +122,7 @@ void __init atlas_setup(void)
 	argptr = prom_getcmdline();
 
 	if ((argptr = strstr(argptr, "nofpu")) != NULL)
-		current_cpu_data.options &= ~MIPS_CPU_FPU;
+		cpu_data[0].options &= ~MIPS_CPU_FPU;
 
 	rtc_ops = &atlas_rtc_ops;
 	board_time_init = mips_time_init;

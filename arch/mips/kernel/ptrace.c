@@ -143,7 +143,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			tmp = regs->lo;
 			break;
 		case FPC_CSR:
-			if (!(current_cpu_data.options & MIPS_CPU_FPU))
+			if (!cpu_has_fpu)
 				tmp = child->thread.fpu.soft.sr;
 			else
 				tmp = child->thread.fpu.hard.control;
@@ -151,9 +151,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		case FPC_EIR: {	/* implementation / version register */
 			unsigned int flags;
 
-			if (!(current_cpu_data.options & MIPS_CPU_FPU)) {
+			if (!cpu_has_fpu)
 				break;
-			}
 
 			flags = read_c0_status();
 			__enable_fpu();
@@ -222,7 +221,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			regs->lo = data;
 			break;
 		case FPC_CSR:
-			if (!(current_cpu_data.options & MIPS_CPU_FPU))
+			if (!cpu_has_fpu)
 				child->thread.fpu.soft.sr = data;
 			else
 				child->thread.fpu.hard.control = data;

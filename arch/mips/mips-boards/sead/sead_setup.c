@@ -72,7 +72,7 @@ void __init sead_setup(void)
 	argptr = prom_getcmdline();
 
 	if ((argptr = strstr(argptr, "nofpu")) != NULL)
-		current_cpu_data.options &= ~MIPS_CPU_FPU;
+		cpu_data[0].options &= ~MIPS_CPU_FPU;
 
 	board_time_init = mips_time_init;
 	board_timer_setup = mips_timer_setup;

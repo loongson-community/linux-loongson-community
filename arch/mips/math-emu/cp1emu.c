@@ -1313,7 +1313,7 @@ int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp,
 			sig = cop1Emulate(xcp, ctx);
 		}
 
-		if (current_cpu_data.options & MIPS_CPU_FPU)
+		if (cpu_has_fpu)
 			break;
 		if (sig)
 			break;

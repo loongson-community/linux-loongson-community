@@ -415,8 +415,7 @@ void __init r4k_tlb_init(void)
 	temp_tlb_entry = current_cpu_data.tlbsize - 1;
 	local_flush_tlb_all();
 
-	if ((current_cpu_data.options & MIPS_CPU_4KEX)
-	    && (current_cpu_data.options & MIPS_CPU_4KTLB)) {
+	if (cpu_has_4kex && cpu_has_4ktlb) {
 		if (current_cpu_data.cputype == CPU_NEVADA)
 			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
 		else if (current_cpu_data.cputype == CPU_R4600)

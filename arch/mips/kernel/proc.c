@@ -97,7 +97,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 
 	seq_printf(m, "processor\t\t: %ld\n", n);
 	sprintf(fmt, "cpu model\t\t: %%s V%%d.%%d%s\n",
-	        (current_cpu_data.options & MIPS_CPU_FPU) ? "  FPU V%d.%d" : "");
+	        cpu_has_fpu ? "  FPU V%d.%d" : "");
 	seq_printf(m, fmt, cpu_name[current_cpu_data.cputype <= CPU_LAST ?
 	                            current_cpu_data.cputype : CPU_UNKNOWN],
 	                           (version >> 4) & 0x0f, version & 0x0f,
@@ -107,15 +107,15 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	              (loops_per_jiffy / (5000/HZ)) % 100);
 	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
 	seq_printf(m, "microsecond timers\t: %s\n",
-	              (current_cpu_data.options & MIPS_CPU_COUNTER) ? "yes" : "no");
+	              cpu_has_counter ? "yes" : "no");
 	seq_printf(m, "tlb_entries\t\t: %d\n", current_cpu_data.tlbsize);
 	seq_printf(m, "extra interrupt vector\t: %s\n",
-	              (current_cpu_data.options & MIPS_CPU_DIVEC) ? "yes" : "no");
+	              cpu_has_divec ? "yes" : "no");
 	seq_printf(m, "hardware watchpoint\t: %s\n",
 	              cpu_has_watch ? "yes" : "no");
 
 	sprintf(fmt, "VCE%%c exceptions\t\t: %s\n",
-	        (current_cpu_data.options & MIPS_CPU_VCE) ? "%d" : "not available");
+	        cpu_has_vce ? "%d" : "not available");
 	seq_printf(m, fmt, 'D', vced_count);
 	seq_printf(m, fmt, 'I', vcei_count);
 

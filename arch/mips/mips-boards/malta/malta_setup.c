@@ -135,7 +135,7 @@ void __init malta_setup(void)
 
 	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "nofpu")) != NULL)
-		current_cpu_data.options &= ~MIPS_CPU_FPU;
+		cpu_data[0].options &= ~MIPS_CPU_FPU;
 
 	rtc_ops = &malta_rtc_ops;
 

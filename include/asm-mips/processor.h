@@ -69,7 +69,20 @@ struct cpuinfo_mips {
  * Assumption: Options of CPU 0 are a superset of all processors.
  * This is true for all known MIPS systems.
  */
-#define cpu_has_watch	(test_bit(MIPS_CPU_WATCH, cpu_data[0].options))
+#define cpu_has_tlb		(cpu_data[0].options & MIPS_CPU_TLB)
+#define cpu_has_4kex		(cpu_data[0].options & MIPS_CPU_4KEX)
+#define cpu_has_4ktlb		(cpu_data[0].options & MIPS_CPU_4KTLB)
+#define cpu_has_fpu		(cpu_data[0].options & MIPS_CPU_FPU)
+#define cpu_has_32fpr		(cpu_data[0].options & MIPS_CPU_32FPR)
+#define cpu_has_counter		(cpu_data[0].options & MIPS_CPU_COUNTER)
+#define cpu_has_watch		(cpu_data[0].options & MIPS_CPU_WATCH)
+#define cpu_has_mips16		(cpu_data[0].options & MIPS_CPU_MIPS16)
+#define cpu_has_divec		(cpu_data[0].options & MIPS_CPU_DIVEC)
+#define cpu_has_vce		(cpu_data[0].options & MIPS_CPU_VCE)
+#define cpu_has_cache_cdex	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX)
+#define cpu_has_mcheck		(cpu_data[0].options & MIPS_CPU_MCHECK)
+#define cpu_has_ejtag		(cpu_data[0].options & MIPS_CPU_EJTAG)
+#define cpu_has_nofpuex		(cpu_data[0].options & MIPS_CPU_NOFPUEX)
 
 extern struct cpuinfo_mips cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]

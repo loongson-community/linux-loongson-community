@@ -134,7 +134,7 @@ static inline unsigned long cpu_get_fpu_id(void)
 /*
  * Check the CPU has an FPU the official way.
  */
-static inline int cpu_has_fpu(void)
+static inline int __cpu_has_fpu(void)
 {
 	return ((cpu_get_fpu_id() & 0xff00) != FPIR_IMP_NONE);
 }
@@ -183,7 +183,7 @@ __init void cpu_probe(void)
 			current_cpu_data.isa_level = MIPS_CPU_ISA_I;
 			current_cpu_data.options = MIPS_CPU_TLB |
 			                           MIPS_CPU_NOFPUEX;
-			if (cpu_has_fpu())
+			if (__cpu_has_fpu())
 				current_cpu_data.options |= MIPS_CPU_FPU;
 			current_cpu_data.tlbsize = 64;
 			break;
@@ -197,7 +197,7 @@ __init void cpu_probe(void)
 				current_cpu_data.cputype = CPU_R3000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_I;
 			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
-			if (cpu_has_fpu())
+			if (__cpu_has_fpu())
 				current_cpu_data.options |= MIPS_CPU_FPU;
 			current_cpu_data.tlbsize = 64;
 			break;

@@ -16,6 +16,7 @@
 
 #include <asm/mipsregs.h>
 #include <asm/cpu.h>
+#include <asm/bitops.h>
 #include <asm/processor.h>
 #include <asm/current.h>
 
@@ -61,13 +62,13 @@ do {									\
 
 #define enable_fpu()							\
 do {									\
-	if (current_cpu_data.options & MIPS_CPU_FPU)			\
+	if (cpu_has_fpu)						\
 		__enable_fpu();						\
 } while (0)
 
 #define disable_fpu()							\
 do {									\
-	if (current_cpu_data.options & MIPS_CPU_FPU)			\
+	if (cpu_has_fpu)						\
 		__disable_fpu();					\
 } while (0)
 
@@ -76,13 +77,12 @@ do {									\
 
 static inline int is_fpu_owner(void)
 {
-	return (current_cpu_data.options & MIPS_CPU_FPU) && 
-		test_thread_flag(TIF_USEDFPU); 
+	return cpu_has_fpu && test_thread_flag(TIF_USEDFPU); 
 }
 
 static inline void own_fpu(void)
 {
-	if (current_cpu_data.options & MIPS_CPU_FPU) {
+	if (cpu_has_fpu) {
 		__enable_fpu();
 		KSTK_STATUS(current) |= ST0_CU1;
 		set_thread_flag(TIF_USEDFPU); 
@@ -91,7 +91,7 @@ static inline void own_fpu(void)
 
 static inline void loose_fpu(void)
 {
-	if (current_cpu_data.options & MIPS_CPU_FPU) {
+	if (cpu_has_fpu) {
 		KSTK_STATUS(current) &= ~ST0_CU1;
 		clear_thread_flag(TIF_USEDFPU); 
 		__disable_fpu();
@@ -100,7 +100,7 @@ static inline void loose_fpu(void)
 
 static inline void init_fpu(void)
 {
-	if (current_cpu_data.options & MIPS_CPU_FPU) {
+	if (cpu_has_fpu) {
 		_init_fpu();
 	} else {
 		fpu_emulator_init_fpu();
@@ -109,19 +109,19 @@ static inline void init_fpu(void)
 
 static inline void save_fp(struct task_struct *tsk)
 {
-	if (current_cpu_data.options & MIPS_CPU_FPU) 
+	if (cpu_has_fpu)
 		_save_fp(tsk);
 }
 
 static inline void restore_fp(struct task_struct *tsk)
 {
-	if (current_cpu_data.options & MIPS_CPU_FPU) 
+	if (cpu_has_fpu)
 		_restore_fp(tsk);
 }
 
 static inline unsigned long *get_fpu_regs(struct task_struct *tsk)
 {
-	if (current_cpu_data.options & MIPS_CPU_FPU) {
+	if (cpu_has_fpu) {
 		if ((tsk == current) && is_fpu_owner()) 
 			_save_fp(current);
 		return (unsigned long *)&tsk->thread.fpu.hard.fp_regs[0];

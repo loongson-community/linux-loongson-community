@@ -340,7 +340,7 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  */
 void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	if (current_cpu_data.options & MIPS_CPU_COUNTER) {
+	if (cpu_has_counter) {
 		unsigned int count;
 
 		/*
@@ -492,7 +492,7 @@ void __init time_init(void)
 	xtime.tv_nsec = 0;
 
 	/* choose appropriate gettimeoffset routine */
-	if (!(current_cpu_data.options & MIPS_CPU_COUNTER)) {
+	if (!cpu_has_counter) {
 		/* no cpu counter - sorry */
 		do_gettimeoffset = null_gettimeoffset;
 	} else if (mips_counter_frequency != 0) {
