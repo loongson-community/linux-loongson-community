@@ -1,4 +1,4 @@
-/* $Id: r6000.c,v 1.5 1996/07/29 11:10:08 dm Exp $
+/* $Id: r6000.c,v 1.1.1.1 1997/06/01 03:16:38 ralf Exp $
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -156,6 +156,12 @@ static void r6000_show_regs(struct pt_regs * regs)
 	       (unsigned int) regs->cp0_cause);
 }
 
+static void r6000_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+				  unsigned long entryhi, unsigned long pagemask)
+{
+        /* XXX */
+}
+
 void ld_mmu_r6000(void)
 {
 	flush_cache_all = r6000_flush_cache_all;
@@ -175,6 +181,8 @@ void ld_mmu_r6000(void)
 	update_mmu_cache = r6000_update_mmu_cache;
 
 	show_regs = r6000_show_regs;
+    
+        add_wired_entry = r6000_add_wired_entry;
 
 	flush_cache_all();
 	flush_tlb_all();
