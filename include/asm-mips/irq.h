@@ -26,7 +26,7 @@ struct pt_regs;
 
 #ifdef CONFIG_PREEMPT
 
-extern asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
+extern asmlinkage unsigned int do_IRQ(unsigned int irq, struct pt_regs *regs);
 
 #else
 
