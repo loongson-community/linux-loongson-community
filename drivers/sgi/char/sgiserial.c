@@ -44,7 +44,7 @@ struct sgi_zschannel *zs_kgdbchan;
 
 struct sgi_serial zs_soft[NUM_CHANNELS];
 struct sgi_serial *zs_chain;  /* IRQ servicing chain */
-static int zilog_irq = 21;
+static int zilog_irq = SGI_SERIAL_IRQ;
 
 /* Console hooks... */
 static int zs_cons_chanout = 0;

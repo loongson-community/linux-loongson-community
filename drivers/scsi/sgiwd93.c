@@ -7,7 +7,7 @@
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.13 1999/03/28 23:06:06 tsbogend Exp $
+ * $Id: sgiwd93.c,v 1.14 1999/08/02 17:34:29 andrewb Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -281,7 +281,7 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 
 	sgiwd93_host = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
 	sgiwd93_host->base = (unsigned char *) hregs;
-	sgiwd93_host->irq = 1;
+	sgiwd93_host->irq = SGI_WD93_0_IRQ;
 
 	buf = (uchar *) get_free_page(GFP_KERNEL);
 	init_hpc_chain(buf);
@@ -295,12 +295,12 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 	hdata->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
-	request_irq(1, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host);
+	request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host);
         /* set up second controller on the Indigo2 */
 	if(!sgi_guiness) {
 		sgiwd93_host1 = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
 		sgiwd93_host1->base = (unsigned char *) hregs1;
-		sgiwd93_host1->irq = 2;
+		sgiwd93_host1->irq = SGI_WD93_1_IRQ;
 
 		buf = (uchar *) get_free_page(GFP_KERNEL);
 		init_hpc_chain(buf);
@@ -314,7 +314,7 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 		hdata1->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
 		dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
-		request_irq(2, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1);
+		request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1);
 	}
 	
 	called = 1;
@@ -337,9 +337,14 @@ Scsi_Host_Template driver_template = SGIWD93_SCSI;
 int sgiwd93_release(struct Scsi_Host *instance)
 {
 #ifdef MODULE
-	free_irq(1, sgiwd93_intr);
+	free_irq(SGI_WD93_0_IRQ, sgiwd93_intr);
 	free_page(KSEG0ADDR(hdata->dma_bounce_buffer));
 	wd33c93_release();
+	if(!sgi_guiness) {
+		free_irq(SGI_WD93_1_IRQ, sgiwd93_intr);
+		free_page(KSEG0ADDR(hdata1->dma_bounce_buffer));
+		wd33c93_release();
+	}
 #endif
 	return 1;
 }

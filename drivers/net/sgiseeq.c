@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.8 1998/08/25 09:17:45 ralf Exp $
+/* $Id: sgiseeq.c,v 1.9 1998/10/14 23:40:46 ralf Exp $
  *
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
@@ -32,6 +32,7 @@
 #include <linux/skbuff.h>
 
 #include <asm/sgihpc.h>
+#include <asm/sgint23.h>
 #include <asm/sgialib.h>
 
 #include "sgiseeq.h"
@@ -738,5 +739,5 @@ int sgiseeq_probe(struct device *dev)
 	str2eaddr(onboard_eth_addr, ep);
 	return sgiseeq_init(dev,
 			    (struct sgiseeq_regs *) (KSEG1ADDR(0x1fbd4000)),
-			    &hpc3c0->ethregs, 3);
+			    &hpc3c0->ethregs, SGI_ENET_IRQ);
 }
