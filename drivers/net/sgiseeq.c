@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.2 1997/08/20 18:18:52 shaver Exp $
+/* $Id: sgiseeq.c,v 1.3 1997/09/16 14:44:21 marks Exp $
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -507,6 +507,8 @@ static inline int verify_tx(struct sgiseeq_private *sp,
 	/* Are we bolixed? */
 	if(dev->tbusy) {
 		int tickssofar = jiffies - dev->trans_start;
+		if (tickssofar < 20)
+			return 1;
 
 		printk("%s: transmit timed out, ticks=%d resetting\n",
 		       dev->name, tickssofar);
