@@ -127,6 +127,39 @@ static inline void breakout_cerrd(unsigned int val)
 	prom_printf("\n");
 }
 
+#ifndef CONFIG_SIBYTE_BUS_WATCHER
+
+#include <asm/io.h>
+#include <asm/sibyte/sb1250.h>
+#include <asm/sibyte/sb1250_regs.h>
+#include <asm/sibyte/sb1250_scd.h>
+#include <asm/sibyte/64bit.h>
+
+static void check_bus_watcher(void)              
+{                               
+	uint32_t status, l2_err, memio_err;
+
+	/* Destructive read, clears register and interrupt */
+	status = csr_in32(IO_SPACE_BASE | A_SCD_BUS_ERR_STATUS);
+	/* Bit 31 is always on, but there's no #define for that */
+	if (status & ~(1UL << 31)) {  
+		l2_err = csr_in32(IO_SPACE_BASE | A_BUS_L2_ERRORS);
+		memio_err = csr_in32(IO_SPACE_BASE | A_BUS_MEM_IO_ERRORS);
+		prom_printf("Bus watcher error counters: %08x %08x\n", l2_err, memio_err);
+		prom_printf("\nLast recorded signature:\n");
+		prom_printf("Request %02x from %d, answered by %d with Dcode %d\n",
+		       (unsigned int)(G_SCD_BERR_TID(status) & 0x3f),
+		       (int)(G_SCD_BERR_TID(status) >> 6),
+		       (int)G_SCD_BERR_RID(status),
+		       (int)G_SCD_BERR_DCODE(status));
+	} else {		
+		prom_printf("Bus watcher indicates no error\n"); 
+	}			
+}                                       
+#else                                                    
+extern void check_bus_watcher(void);    
+#endif                                          
+                                
 asmlinkage void sb1_cache_error(void)
 {
 	uint64_t cerr_dpa;
@@ -190,6 +223,8 @@ asmlinkage void sb1_cache_error(void)
 			}
 		}
 	}
+
+	check_bus_watcher();
 
 	while (1);
 	/*
