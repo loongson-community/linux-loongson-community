@@ -173,16 +173,14 @@ static inline void * __ioremap_mode(unsigned long offset, unsigned long size,
 	unsigned long flags)
 {
 	if (cpu_has_64bit_addresses) {
-		u64 base = (u64)XKPHYS + ((u64)flags >> 9 << 59);
+		u64 base = UNCAC_BASE;
 
 		/*
-		 * R10000 supports uncached attributes therefore UNCAC_BASE
-		 * may not be XKPHYS + (2 << 59) for some machines such as
-		 * the Origin.
+		 * R10000 supports a 2 bit uncached attribute therefore
+		 * UNCAC_BASE may not equal IO_BASE.
 		 */
-		if (UNCAC_BASE != XKPHYS + ((u64)K_CALG_UNCACHED << 59) &&
-		    flags == _CACHE_UNCACHED)
-			base = (u64) UNCAC_BASE;
+		if (flags == _CACHE_UNCACHED)
+			base = (u64) IO_BASE;
 		return (void *) (unsigned long) (base + offset);
 	}
 
