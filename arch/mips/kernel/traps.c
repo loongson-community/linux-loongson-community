@@ -227,8 +227,50 @@ void __die_if_kernel(const char * str, struct pt_regs * regs, const char *where,
 		__die(str, regs, where, line);
 }
 
+extern const struct exception_table_entry __start___dbe_table[];
+extern const struct exception_table_entry __stop___dbe_table[];
+
+static void __declare_dbe_table(void)
+{
+	__asm__ __volatile__(
+	".section\t__dbe_table,\"a\"\n\t"
+	".previous"
+	);
+}
+
+static inline unsigned long
+search_one_table(const struct exception_table_entry *first,
+		 const struct exception_table_entry *last,
+		 unsigned long value)
+{
+	const struct exception_table_entry *mid;
+	long diff;
+
+	while (first < last) {
+		mid = (last - first) / 2 + first;
+		diff = mid->insn - value;
+		if (diff < 0)
+			first = mid + 1;
+		else
+			last = mid;
+	}
+	return (first == last && first->insn == value) ? first->nextinsn : 0;
+}
+
+#define search_dbe_table(addr)	\
+	search_one_table(__start___dbe_table, __stop___dbe_table - 1, (addr))
+
 static void default_be_board_handler(struct pt_regs *regs)
 {
+	unsigned long new_epc;
+	unsigned long fixup = search_dbe_table(regs->cp0_epc);
+
+	if (fixup) {
+		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
+		regs->cp0_epc = new_epc;
+		return;
+	}
+
 	/*
 	 * Assume it would be too dangerous to continue ...
 	 */
@@ -282,7 +324,7 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 	unsigned long pc;
 	unsigned int insn;
-	extern void simfp(void*);
+	extern void simfp(unsigned int);
 
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
