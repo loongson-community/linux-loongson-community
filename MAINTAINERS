@@ -1610,13 +1610,6 @@ M:	george@mvista.com
 L:	linux-net@vger.kernel.org
 S:	Supported
 
-PHILIPS NINO PALM PC
-P:	Steven Hill
-M:	sjhill@realitydiluted.com
-L:	linux-mips@linux-mips.org
-W:	http://www.realitydiluted.com/projects/nino
-S:	Maintained
-
 PNP SUPPORT
 P:	Adam Belay
 M:	ambx1@neo.rr.com
