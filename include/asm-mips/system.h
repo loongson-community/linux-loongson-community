@@ -21,6 +21,7 @@
 #include <asm/cpu-features.h>
 #include <asm/ptrace.h>
 #include <asm/hazards.h>
+#include <asm/war.h>
 
 __asm__ (
 	".macro\tlocal_irq_enable\n\t"
@@ -278,11 +279,30 @@ do { \
 	(last) = resume(prev, next, next->thread_info); \
 } while(0)
 
+#define ROT_IN_PIECES							\
+	"	.set	noreorder	\n"				\
+	"	.set	reorder		\n"
+
 static inline unsigned long __xchg_u32(volatile int * m, unsigned int val)
 {
 	__u32 retval;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long dummy;
+
+		__asm__ __volatile__(
+		"1:	ll	%0, %3			# xchg_u32	\n"
+		"	move	%2, %z4					\n"
+		"	sc	%2, %1					\n"
+		"	beqzl	%2, 1b					\n"
+		ROT_IN_PIECES
+#ifdef CONFIG_SMP
+		"	sync						\n"
+#endif
+		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+		: "R" (*m), "Jr" (val)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		unsigned long dummy;
 
 		__asm__ __volatile__(
@@ -313,7 +333,22 @@ static inline __u64 __xchg_u64(volatile __u64 * m, __u64 val)
 {
 	__u64 retval;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long dummy;
+
+		__asm__ __volatile__(
+		"1:	lld	%0, %3			# xchg_u64	\n"
+		"	move	%2, %z4					\n"
+		"	scd	%2, %1					\n"
+		"	beqzl	%2, 1b					\n"
+		ROT_IN_PIECES
+#ifdef CONFIG_SMP
+		"	sync						\n"
+#endif
+		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+		: "R" (*m), "Jr" (val)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		unsigned long dummy;
 
 		__asm__ __volatile__(
@@ -369,7 +404,24 @@ static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
 {
 	__u32 retval;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		__asm__ __volatile__(
+		"	.set	noat					\n"
+		"1:	ll	%0, %2			# __cmpxchg_u32	\n"
+		"	bne	%0, %z3, 2f				\n"
+		"	move	$1, %z4					\n"
+		"	sc	$1, %1					\n"
+		"	beqzl	$1, 1b					\n"
+		ROT_IN_PIECES
+#ifdef CONFIG_SMP
+		"	sync						\n"
+#endif
+		"2:							\n"
+		"	.set	at					\n"
+		: "=&r" (retval), "=m" (*m)
+		: "R" (*m), "Jr" (old), "Jr" (new)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		__asm__ __volatile__(
 		"	.set	noat					\n"
 		"1:	ll	%0, %2			# __cmpxchg_u32	\n"
@@ -405,6 +457,23 @@ static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
 	__u64 retval;
 
 	if (cpu_has_llsc) {
+		__asm__ __volatile__(
+		"	.set	noat					\n"
+		"1:	lld	%0, %2			# __cmpxchg_u64	\n"
+		"	bne	%0, %z3, 2f				\n"
+		"	move	$1, %z4					\n"
+		"	scd	$1, %1					\n"
+		"	beqzl	$1, 1b					\n"
+		ROT_IN_PIECES
+#ifdef CONFIG_SMP
+		"	sync						\n"
+#endif
+		"2:							\n"
+		"	.set	at					\n"
+		: "=&r" (retval), "=m" (*m)
+		: "R" (*m), "Jr" (old), "Jr" (new)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		__asm__ __volatile__(
 		"	.set	noat					\n"
 		"1:	lld	%0, %2			# __cmpxchg_u64	\n"

@@ -24,6 +24,7 @@
 #define _ASM_ATOMIC_H
 
 #include <asm/cpu-features.h>
+#include <asm/war.h>
 
 extern spinlock_t atomic_lock;
 
@@ -48,6 +49,9 @@ typedef struct { volatile int counter; } atomic_t;
  */
 #define atomic_set(v,i)		((v)->counter = (i))
 
+#define SHOOT_AT_GAS_SHOOT_TO_KILL					\
+	"	.set	noreorder	\n"				\
+	"	.set	reorder		\n"
 /*
  * atomic_add - add integer to atomic variable
  * @i: integer value to add
@@ -57,7 +61,18 @@ typedef struct { volatile int counter; } atomic_t;
  */
 static __inline__ void atomic_add(int i, atomic_t * v)
 {
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	ll	%0, %1		# atomic_add		\n"
+		"	addu	%0, %2					\n"
+		"	sc	%0, %1					\n"
+		"	beqzl	%0, 1b					\n"
+		SHOOT_AT_GAS_SHOOT_TO_KILL
+		: "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -85,7 +100,18 @@ static __inline__ void atomic_add(int i, atomic_t * v)
  */
 static __inline__ void atomic_sub(int i, atomic_t * v)
 {
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	ll	%0, %1		# atomic_sub		\n"
+		"	subu	%0, %2					\n"
+		"	sc	%0, %1					\n"
+		"	beqzl	%0, 1b					\n"
+		SHOOT_AT_GAS_SHOOT_TO_KILL
+		: "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -111,7 +137,20 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
 {
 	unsigned long result;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	ll	%1, %2		# atomic_add_return	\n"
+		"	addu	%0, %1, %3				\n"
+		"	sc	%0, %2					\n"
+		"	beqzl	%0, 1b					\n"
+		"	addu	%0, %1, %3				\n"
+		"	sync						\n"
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -141,7 +180,20 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 {
 	unsigned long result;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	ll	%1, %2		# atomic_sub_return	\n"
+		"	subu	%0, %1, %3				\n"
+		"	sc	%0, %2					\n"
+		"	beqzl	%0, 1b					\n"
+		"	subu	%0, %1, %3				\n"
+		"	sync						\n"
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -178,9 +230,23 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 {
 	unsigned long result;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		unsigned long temp;
-	
+
+		__asm__ __volatile__(
+		"1:	ll	%1, %2		# atomic_sub_if_positive\n"
+		"	subu	%0, %1, %3				\n"
+		"	bltz	%0, 1f					\n"
+		"	sc	%0, %2					\n"
+		"	beqzl	%0, 1b					\n"
+		"	sync						\n"
+		"1:							\n"
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
+	} else if (cpu_has_llsc) {
+		unsigned long temp;
+
 		__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_sub_if_positive\n"
 		"	subu	%0, %1, %3				\n"
@@ -302,7 +368,18 @@ typedef struct { volatile __s64 counter; } atomic64_t;
  */
 static __inline__ void atomic64_add(long i, atomic64_t * v)
 {
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	lld	%0, %1		# atomic64_add		\n"
+		"	addu	%0, %2					\n"
+		"	scd	%0, %1					\n"
+		"	beqzl	%0, 1b					\n"
+		SHOOT_AT_GAS_SHOOT_TO_KILL
+		: "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -330,7 +407,18 @@ static __inline__ void atomic64_add(long i, atomic64_t * v)
  */
 static __inline__ void atomic64_sub(long i, atomic64_t * v)
 {
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	lld	%0, %1		# atomic64_sub		\n"
+		"	subu	%0, %2					\n"
+		"	scd	%0, %1					\n"
+		"	beqzl	%0, 1b					\n"
+		SHOOT_AT_GAS_SHOOT_TO_KILL
+		: "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -356,7 +444,20 @@ static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 {
 	unsigned long result;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	lld	%1, %2		# atomic64_add_return	\n"
+		"	addu	%0, %1, %3				\n"
+		"	scd	%0, %2					\n"
+		"	beqzl	%0, 1b					\n"
+		"	addu	%0, %1, %3				\n"
+		"	sync						\n"
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -386,7 +487,20 @@ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 {
 	unsigned long result;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
+		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	lld	%1, %2		# atomic64_sub_return	\n"
+		"	subu	%0, %1, %3				\n"
+		"	scd	%0, %2					\n"
+		"	beqzl	%0, 1b					\n"
+		"	subu	%0, %1, %3				\n"
+		"	sync						\n"
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
+	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
 		__asm__ __volatile__(
@@ -423,8 +537,23 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 {
 	unsigned long result;
 
-	if (cpu_has_llsc) {
+	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		unsigned long temp;
+
+		__asm__ __volatile__(
+		"1:	lld	%1, %2		# atomic64_sub_if_positive\n"
+		"	dsubu	%0, %1, %3				\n"
+		"	bltz	%0, 1f					\n"
+		"	scd	%0, %2					\n"
+		"	beqzl	%0, 1b					\n"
+		"	sync						\n"
+		"1:							\n"
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
+	} else if (cpu_has_llsc) {
+		unsigned long temp;
+
 		__asm__ __volatile__(
 		"1:	lld	%1, %2		# atomic64_sub_if_positive\n"
 		"	dsubu	%0, %1, %3				\n"

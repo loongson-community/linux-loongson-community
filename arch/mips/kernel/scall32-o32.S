@@ -17,6 +17,7 @@
 #include <asm/sysmips.h>
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
+#include <asm/war.h>
 #include <asm/offset.h>
 
 /* Highest syscall used of any syscall flavour */
@@ -199,7 +200,11 @@ illegal_syscall:
 1:	ll	v0, (a1)
 	move	a0, a2
 2:	sc	a0, (a1)
+#if R10000_LLSC_WAR
+	beqzl	a0, 1b
+#else
 	beqz	a0, 1b
+#endif
 
 	.section __ex_table,"a"
 	PTR	1b, bad_stack
