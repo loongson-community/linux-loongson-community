@@ -476,6 +476,7 @@ endif
 # will break so for 64-bit kernels we have to raise the start address by 8kb.
 #
 core-$(CONFIG_SGI_IP32)		+= arch/mips/sgi-ip32/
+cflags-$(CONFIG_SGI_IP32)	+= -Iinclude/asm-mips/mach-ip32
 ifdef CONFIG_MIPS32
 load-$(CONFIG_SGI_IP32)		+= 0x88002000
 endif
