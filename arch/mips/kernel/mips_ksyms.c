@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 2000 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 2000, 2001 by Ralf Baechle
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -145,3 +145,4 @@ EXPORT_SYMBOL(ide_ops);
 #endif
 
 EXPORT_SYMBOL(get_wchan);
+EXPORT_SYMBOL(flush_tlb_page);

@@ -5,8 +5,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 1999, 2000 by Ralf Baechle
- * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001 by Ralf Baechle
+ * Copyright (C) 1999, 2000, 2001 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -121,3 +121,4 @@ EXPORT_SYMBOL(screen_info);
 #endif
 
 EXPORT_SYMBOL(get_wchan);
+EXPORT_SYMBOL(_flush_tlb_page);
