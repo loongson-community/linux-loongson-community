@@ -1080,7 +1080,7 @@ void __init ld_mmu_r4xx0(void)
 	     PAGE_SIZE - 1);
 
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
-	_flush_icache_all = r4k_flush_icache_all;
+	flush_icache_all = r4k_flush_icache_all;
 	flush_data_cache_page = r4k_flush_data_cache_page;
 	flush_icache_range = r4k_flush_icache_range;	/* Ouch */
 
