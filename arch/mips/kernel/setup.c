@@ -333,6 +333,7 @@ void __init setup_arch(char **cmdline_p)
 
 	*cmdline_p = command_line;
 
+#if 0
 #ifdef CONFIG_BLK_DEV_INITRD
 #error "Fixme, I'm broken."
 	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
@@ -351,7 +352,8 @@ void __init setup_arch(char **cmdline_p)
 		} else
 			*memory_start_p = initrd_end;
 	}
-#endif
+#endif /* CONFIG_BLK_DEV_INITRD  */
+#endif /* 0  */
 
 	paging_init();
 }
