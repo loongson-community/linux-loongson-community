@@ -163,8 +163,7 @@ emulate_load_store_insn(struct pt_regs *regs,
 			STR(PTR)"\t2b,%2\n\t"
 			".previous"
 			:"=&r" (value)
-			:"r" (addr), "i" (&&fault)
-			:"$1");
+			:"r" (addr), "i" (&&fault));
 		regs->regs[insn.i_format.rt] = value;
 		return;
 
@@ -208,8 +207,7 @@ emulate_load_store_insn(struct pt_regs *regs,
 			STR(PTR)"\t2b,%2\n\t"
 			".previous"
 			:"=&r" (value)
-			:"r" (addr), "i" (&&fault)
-			:"$1");
+			:"r" (addr), "i" (&&fault));
 		regs->regs[insn.i_format.rt] = value;
 		return;
 
@@ -279,8 +277,7 @@ emulate_load_store_insn(struct pt_regs *regs,
 			STR(PTR)"\t2b,%2\n\t"
 			".previous"
 			: /* no outputs */
-			:"r" (value), "r" (addr), "i" (&&fault)
-			:"$1");
+			:"r" (value), "r" (addr), "i" (&&fault));
 		return;
 
 	case sw_op:
