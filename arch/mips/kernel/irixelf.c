@@ -466,9 +466,7 @@ static inline int look_for_irix_interpreter(char **name,
 	return 0;
 
 dput_and_out:
-	lock_kernel();
 	fput(file);
-	unlock_kernel();
 out:
 	kfree(*name);
 	return retval;
