@@ -22,11 +22,13 @@
 #include <linux/smp_lock.h>
 #include <linux/user.h>
 
+#include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
 #include <asm/page.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/bootinfo.h>
 
 /*
  * Called by kernel/ptrace.c when detaching..
@@ -114,17 +116,23 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			break;
 		case FPR_BASE ... FPR_BASE + 31:
 			if (child->used_math) {
-				unsigned long *fregs =
-					(void *) child->thread.fpu.hard.fp_regs;
-
+				unsigned long long *fregs
+					= (unsigned long long *)
+					    &child->thread.fpu.hard.fp_regs[0];
+				if (mips_cpu.options & MIPS_CPU_FPU) {
 #ifndef CONFIG_SMP
-				if (last_task_used_math == child) {
-					__enable_fpu();
-					save_fp(child);
-					__disable_fpu();
-					last_task_used_math = NULL;
-				}
+					if (last_task_used_math == child) {
+						__enable_fpu();
+						save_fp(child);
+						__disable_fpu();
+						last_task_used_math = NULL;
+					}
 #endif
+				} else {
+					fregs = (unsigned long long *)
+						child->thread.fpu.soft.regs;
+				}
+
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
@@ -154,7 +162,10 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			tmp = regs->lo;
 			break;
 		case FPC_CSR:
-			tmp = child->thread.fpu.hard.control;
+			if (mips_cpu.options & MIPS_CPU_FPU)
+				tmp = child->thread.fpu.hard.control;
+			else
+				tmp = child->thread.fpu.soft.sr;
 			break;
 		case FPC_EIR: { /* implementation / version register */
 			unsigned int flags;
@@ -192,17 +203,21 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			regs->regs[addr] = data;
 			break;
 		case FPR_BASE ... FPR_BASE + 31: {
-			unsigned long *fregs =
-				(void *) child->thread.fpu.hard.fp_regs;
+			unsigned long long *fregs;
+			fregs = (unsigned long long *)&child->thread.fpu.hard.fp_regs[0];
 			if (child->used_math) {
 #ifndef CONFIG_SMP
-				if (last_task_used_math == child) {
-					__enable_fpu();
-					save_fp(child);
-					__disable_fpu();
-					last_task_used_math = NULL;
-					regs->cp0_status &= ~ST0_CU1;
-				}
+				if (last_task_used_math == child) 
+					if (mips_cpu.options & MIPS_CPU_FPU) {
+						__enable_fpu();
+						save_fp(child);
+						__disable_fpu();
+						last_task_used_math = NULL;
+						regs->cp0_status &= ~ST0_CU1;
+					} else {
+						fregs = (unsigned long long *)
+						child->thread.fpu.soft.regs;
+					}
 #endif
 			} else {
 				/* FP not yet used  */
@@ -234,7 +249,10 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			regs->lo = data;
 			break;
 		case FPC_CSR:
-			child->thread.fpu.hard.control = data;
+			if (mips_cpu.options & MIPS_CPU_FPU) 
+				child->thread.fpu.hard.control = data;
+			else
+				child->thread.fpu.soft.sr = data;
 			break;
 		default:
 			/* The rest are not allowed. */
@@ -377,14 +395,20 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				unsigned long long *fregs
 					= (unsigned long long *)
 					&child->thread.fpu.hard.fp_regs[0];
+				if (mips_cpu.options & MIPS_CPU_FPU) {
 #ifndef CONFIG_SMP
-				if (last_task_used_math == child) {
-					__enable_fpu();
-					save_fp(child);
-					__disable_fpu();
-					last_task_used_math = NULL;
-				}
+					if (last_task_used_math == child) {
+						__enable_fpu();
+						save_fp(child);
+						__disable_fpu();
+						last_task_used_math = NULL;
+					}
 #endif
+				} else {
+					fregs = (unsigned long long *)
+						child->thread.fpu.soft.regs;
+				}
+
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
@@ -414,7 +438,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			tmp = regs->lo;
 			break;
 		case FPC_CSR:
-			tmp = child->thread.fpu.hard.control;
+			if (mips_cpu.options & MIPS_CPU_FPU)
+				tmp = child->thread.fpu.hard.control;
+			else
+				tmp = child->thread.fpu.soft.sr;
 			break;
 		case FPC_EIR: { /* implementation / version register */
 			unsigned int flags;
@@ -452,16 +479,22 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			regs->regs[addr] = data;
 			break;
 		case FPR_BASE ... FPR_BASE + 31: {
-			unsigned long *fregs =
-				(void *) child->thread.fpu.hard.fp_regs;
+			unsigned long long *fregs = (unsigned long long *)
+				&child->thread.fpu.hard.fp_regs[0];
+
 			if (child->used_math) {
 #ifndef CONFIG_SMP
-				if (last_task_used_math == child) {
-					__enable_fpu();
-					save_fp(child);
-					__disable_fpu();
-					last_task_used_math = NULL;
-					regs->cp0_status &= ~ST0_CU1;
+				if (mips_cpu.options & MIPS_CPU_FPU) {
+					if (last_task_used_math == child) {
+						__enable_fpu();
+						save_fp(child);
+						__disable_fpu();
+						last_task_used_math = NULL;
+						regs->cp0_status &= ~ST0_CU1;
+					} else {
+						fregs = (unsigned long long *)
+						child->thread.fpu.soft.regs;
+					}
 				}
 #endif
 			} else {
@@ -494,7 +527,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			regs->lo = data;
 			break;
 		case FPC_CSR:
-			child->thread.fpu.hard.control = data;
+			if (mips_cpu.options & MIPS_CPU_FPU)
+				child->thread.fpu.hard.control = data;
+			else
+				child->thread.fpu.soft.sr = data;
 			break;
 		default:
 			/* The rest are not allowed. */
