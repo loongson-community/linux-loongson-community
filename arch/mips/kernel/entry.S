@@ -245,6 +245,7 @@ EXPORT(exception_count_##exception);                                    \
 		BUILD_HANDLER(tr,tr,sti,silent)			/* #13 */
 		BUILD_HANDLER(fpe,fpe,fpe,silent)		/* #15 */
 		BUILD_HANDLER(watch,watch,sti,verbose)		/* #23 */
+		BUILD_HANDLER(mcheck,mcheck,cli,verbose)	/* #24 */
 		BUILD_HANDLER(reserved,reserved,sti,verbose)	/* others */
 
 		.set	pop
