@@ -171,4 +171,3 @@ NESTED(bootstrap, 16, sp)
 	page	invalid_pmd_table, 1
 	page	empty_bad_page_table, 0
 	page	empty_bad_pmd_table, 1
-	page	empty_bad_page

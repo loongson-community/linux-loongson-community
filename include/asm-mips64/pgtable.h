@@ -53,7 +53,12 @@ extern void (*_flush_page_to_ram)(struct page * page);
  * page tables. Each page table is a single 4K page, giving 512 (==
  * PTRS_PER_PTE) 8 byte ptes. Each pgde is initialized to point to
  * invalid_pmd_table, each pmde is initialized to point to 
- * invalid_pte_table, each pte is initialized to 0.
+ * invalid_pte_table, each pte is initialized to 0. When memory is low,
+ * and a pmd table or a page table allocation fails, empty_bad_pmd_table
+ * and empty_bad_page_table is returned back to higher layer code, so
+ * that the failure is recognized later on. Linux does not seem to 
+ * handle these failures very well though. The empty_bad_page_table has
+ * invalid pte entries in it, to force page faults.
  */
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
@@ -275,13 +280,7 @@ extern inline int pmd_none(pmd_t pmd)
 
 extern inline int pmd_bad(pmd_t pmd)
 {
-	return ((pmd_page(pmd) > (unsigned long) high_memory) ||
-	        (pmd_page(pmd) < PAGE_OFFSET));
-}
-
-extern inline int pmd_present(pmd_t pmd)
-{
-	return pmd_val(pmd) != (unsigned long) invalid_pte_table;
+	return pmd_val(pmd) == (unsigned long) empty_bad_page_table;
 }
 
 extern inline void pmd_clear(pmd_t *pmdp)
@@ -299,13 +298,7 @@ extern inline int pgd_none(pgd_t pgd)
 
 extern inline int pgd_bad(pgd_t pgd)
 {
-	return ((pgd_page(pgd) > (unsigned long) high_memory) ||
-	        (pgd_page(pgd) < PAGE_OFFSET));
-}
-
-extern inline int pgd_present(pgd_t pgd)
-{
-	return pgd_val(pgd) != (unsigned long) invalid_pmd_table;
+	return pgd_val(pgd) == (unsigned long) empty_bad_pmd_table;
 }
 
 extern inline void pgd_clear(pgd_t *pgdp)
@@ -470,7 +463,7 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
  * Initialize a new pgd / pmd table with invalid pointers.
  */
 extern void pgd_init(unsigned long page);
-extern void pmd_init(unsigned long page);
+extern void pmd_init(unsigned long page, unsigned long pagetable);
 
 extern pgd_t swapper_pg_dir[1024];
 extern void paging_init(void);
