@@ -1292,10 +1292,6 @@ config SIBYTE_DMA_PAGEOPS
 config CPU_HAS_PREFETCH
 	bool
 
-config VTAG_ICACHE
-	bool "Support for Virtual Tagged I-cache" if CPU_MIPS64 || CPU_MIPS32
-	default y if CPU_SB1
-
 config SB1_PASS_1_WORKAROUNDS
 	bool
 	depends on CPU_SB1_PASS_1
