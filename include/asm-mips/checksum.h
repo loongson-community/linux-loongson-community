@@ -213,42 +213,44 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 	"lw\t%1, 0(%2)\t\t\t# four words source address\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 4(%2)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 8(%2)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 12(%2)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 0(%3)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 4(%3)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 8(%3)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
 
 	"lw\t%1, 12(%3)\n\t"
 	"addu\t%0, $1\n\t"
 	"addu\t%0, %1\n\t"
-	"sltu\t$1, %0, $1\n\t"
+	"sltu\t$1, %0, %1\n\t"
+
+	"addu\t%0, $1\t\t\t# Add final carry\n\t"
 	".set\tnoat\n\t"
 	".set\tnoreorder"
 	: "=r" (sum), "=r" (proto)
