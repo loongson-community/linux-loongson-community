@@ -65,7 +65,6 @@ SECTIONS
     CONSTRUCTORS
   }
   .data1   : { *(.data1) }
-  _gp = . + 0x8000;
   .lit8 : { *(.lit8) }
   .lit4 : { *(.lit4) }
   .ctors         : { *(.ctors)   }
@@ -79,8 +78,6 @@ SECTIONS
   _edata  =  .;
   PROVIDE (edata = .);
 
-  __bss_start = .;
-  _fbss = .;
   .sbss      : { *(.sbss) *(.scommon) }
   .bss       :
   {
