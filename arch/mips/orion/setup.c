@@ -150,15 +150,15 @@ int __init prom_init(int a, char **b, char **c, int *d)
 	mips_machgroup = MACH_GROUP_ORION;
 	/* 64 MB non-upgradable */
 	mem_size = 64 << 20;
-	
+
 	free_start = PHYSADDR(PFN_ALIGN(&_end));
 	free_end = mem_size;
 	start_pfn = PFN_UP((unsigned long)&_end);
-	
+
 	/* Register all the contiguous memory with the bootmem allocator
 	   and free it.  Be careful about the bootmem freemap.  */
 	bootmap_size = init_bootmem(start_pfn, mem_size >> PAGE_SHIFT);
-	
+
 	/* Free the entire available memory after the _end symbol.  */
 	free_start += bootmap_size;
 	free_bootmem(free_start, free_end-free_start);
