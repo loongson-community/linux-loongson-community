@@ -10,6 +10,7 @@
 #include <asm/processor.h>
 #include <asm/system.h>
 #include <asm/hardirq.h>
+#include <asm/softirq.h>
 
 #ifdef CONFIG_SGI_IP27
 
@@ -17,29 +18,32 @@
 #include <asm/sn/intr.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/agent.h>
+#include <asm/sn/sn0/ip27.h>
 
-#define DOACTION	0xab
+#define DORESCHED	0xab
+#define DOCALL		0xbc
+
+#define IRQ_TO_SWLEVEL(i)	i + 7	/* Delete this from here */
 
 static void sendintr(int destid, unsigned char status)
 {
-	int level;
+	int irq;
 
 #if (CPUS_PER_NODE == 2)
-	/*
-	 * CPU slice A gets level CPU_ACTION_A
-	 * CPU slice B gets level CPU_ACTION_B
-	 */
-	if (status == DOACTION)
-		level = CPU_ACTION_A + cputoslice(destid);
-	else	/* DOTLBACTION */
-		level = N_INTPEND_BITS + TLB_INTR_A + cputoslice(destid);
+	switch (status) {
+		case DORESCHED:	irq = CPU_RESCHED_A_IRQ; break;
+		case DOCALL:	irq = CPU_CALL_A_IRQ; break;
+		default:	panic("sendintr");
+	}
+	irq += cputoslice(destid);
 
 	/*
 	 * Convert the compact hub number to the NASID to get the correct
 	 * part of the address space.  Then set the interrupt bit associated
 	 * with the CPU we want to send the interrupt to.
 	 */
-	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)), level);
+	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)),
+			IRQ_TO_SWLEVEL(irq));
 #else
 	<< Bomb!  Must redefine this for more than 2 CPUS. >>
 #endif
@@ -63,6 +67,8 @@ static void smp_tune_scheduling (void)
 
 void __init smp_boot_cpus(void)
 {
+	extern void allowboot(void);
+
 	global_irq_holder = 0;
 	current->processor = 0;
 	init_idle();
@@ -98,12 +104,13 @@ void smp_send_stop(void)
  */
 void smp_send_reschedule(int cpu)
 {
-	panic("smp_send_reschedule\n");
+	sendintr(cpu, DORESCHED);
 }
 
 /* Not really SMP stuff ... */
 int setup_profiling_timer(unsigned int multiplier)
 {
+	return 0;
 }
 
 /*
@@ -117,12 +124,70 @@ int setup_profiling_timer(unsigned int multiplier)
  * Does not return until remote CPUs are nearly ready to execute <func>
  * or are or have executed.
  */
-int
-smp_call_function (void (*func) (void *info), void *info, int retry, int wait)
+static volatile struct call_data_struct {
+	void (*func) (void *info);
+	void *info;
+	atomic_t started;
+	atomic_t finished;
+	int wait;
+} *call_data = NULL;
+
+int smp_call_function (void (*func) (void *info), void *info, int retry, 
+								int wait)
 {
-	/* XXX - kinda important ;-)  */
-	panic("smp_call_function\n");
+	struct call_data_struct data;
+	int i, cpus = smp_num_cpus-1;
+	static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+
+	if (cpus == 0)
+		return 0;
+
+	data.func = func;
+	data.info = info;
+	atomic_set(&data.started, 0);
+	data.wait = wait;
+	if (wait)
+		atomic_set(&data.finished, 0);
+
+	spin_lock_bh(&lock);
+	call_data = &data;
+	/* Send a message to all other CPUs and wait for them to respond */
+	for (i = 0; i < smp_num_cpus; i++)
+		if (smp_processor_id() != i)
+			sendintr(i, DOCALL);
+
+	/* Wait for response */
+	/* FIXME: lock-up detection, backtrace on lock-up */
+	while (atomic_read(&data.started) != cpus)
+		barrier();
+
+	if (wait)
+		while (atomic_read(&data.finished) != cpus)
+			barrier();
+	spin_unlock_bh(&lock);
+	return 0;
 }
+
+void smp_call_function_interrupt(void)
+{
+	void (*func) (void *info) = call_data->func;
+	void *info = call_data->info;
+	int wait = call_data->wait;
+
+	/*
+	 * Notify initiating CPU that I've grabbed the data and am
+	 * about to execute the function.
+	 */
+	atomic_inc(&call_data->started);
+
+	/*
+	 * At this point the info structure may be out of scope unless wait==1.
+	 */
+	(*func)(info);
+	if (wait)
+		atomic_inc(&call_data->finished);
+}
+	
 
 void flush_tlb_others (unsigned long cpumask, struct mm_struct *mm, 
 						unsigned long va)

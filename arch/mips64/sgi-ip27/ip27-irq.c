@@ -198,9 +198,11 @@ static unsigned int bridge_startup(unsigned int irq)
 	case IOC3_ETH_INT:	pin = 2; break;
 	case SCSI1_INT:		pin = 1; break;
 	case SCSI0_INT:		pin = 0; break;
-	case SWLEVEL_TO_IRQ(CPU_ACTION_A):
-	case SWLEVEL_TO_IRQ(CPU_ACTION_B):
-				return;
+	case CPU_RESCHED_A_IRQ:
+	case CPU_RESCHED_B_IRQ:
+	case CPU_CALL_A_IRQ:
+	case CPU_CALL_B_IRQ:
+				return 0;
 	default:		panic("bridge_startup: whoops? %d\n", irq);
 	}
 
@@ -258,6 +260,11 @@ static unsigned int bridge_shutdown(unsigned int irq)
 	case IOC3_ETH_INT:	pin = 2; break;
 	case SCSI1_INT:		pin = 1; break;
 	case SCSI0_INT:		pin = 0; break;
+	case CPU_RESCHED_A_IRQ:
+	case CPU_RESCHED_B_IRQ:
+	case CPU_CALL_A_IRQ:
+	case CPU_CALL_B_IRQ:
+				return 0;
 	default:		panic("bridge_startup: whoops?");
 	}
 
@@ -677,18 +684,28 @@ int intr_disconnect_level(cpuid_t cpu, int bit)
 }
 
 
+void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
+{
+	/* Nothing, the return from intr will work for us */
+}
+
 void handle_cpuintr(int irq, void *dev_id, struct pt_regs *regs)
 {
-	printk("HANDLE_CPUINTR: cpu%d irq%d\n", smp_processor_id(), irq);
 }
 
 void install_cpuintr(cpuid_t cpu)
 {
-	int intr_bit = CPU_ACTION_A + cputoslice(cpu);
+	int irq;
+	extern void smp_call_function_interrupt(void);
 
-	intr_connect_level(cpu, intr_bit);
-	if (request_irq(SWLEVEL_TO_IRQ(intr_bit), handle_cpuintr, 0, 
-							"intercpu", 0))
+	irq = CPU_RESCHED_A_IRQ + cputoslice(cpu);
+	intr_connect_level(cpu, IRQ_TO_SWLEVEL(irq));
+	if (request_irq(irq, handle_resched_intr, SA_SHIRQ, "resched", 0))
+		panic("intercpu intr unconnectible\n");
+	irq = CPU_CALL_A_IRQ + cputoslice(cpu);
+	intr_connect_level(cpu, IRQ_TO_SWLEVEL(irq));
+	if (request_irq(irq, smp_call_function_interrupt, SA_SHIRQ,
+						"callfunc", 0))
 		panic("intercpu intr unconnectible\n");
 }
 
