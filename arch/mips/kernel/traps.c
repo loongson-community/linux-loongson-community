@@ -222,7 +222,7 @@ void show_regs(struct pt_regs *regs)
 		printk("IE ");
 	printk("\n");
 
-	printk("Cause : %08lx\n", cause);
+	printk("Cause : %08x\n", cause);
 
 	cause = (cause & CAUSEF_EXCCODE) >> CAUSEB_EXCCODE;
 	if (1 <= cause && cause <= 5)
