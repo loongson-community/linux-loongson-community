@@ -13,6 +13,7 @@
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
+#include <asm/thread_info.h>
 
 #define KU_USER 0x10
 

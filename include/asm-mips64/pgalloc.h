@@ -9,6 +9,7 @@
 #ifndef _ASM_PGALLOC_H
 #define _ASM_PGALLOC_H
 
+#include <asm/pgtable.h>
 #include <linux/config.h>
 
 /* TLB flushing:

@@ -15,6 +15,7 @@
 #include <asm/stackframe.h>
 #include <asm/offset.h>
 #include <asm/unistd.h>
+#include <asm/thread_info.h>
 
 #ifndef CONFIG_MIPS32_COMPAT
 #define handle_sys64 handle_sys
