@@ -54,6 +54,8 @@
 #define CLOCK_TICK_RATE		1000000
 #elif defined(CONFIG_MIPS_SEAD)
 #define CLOCK_TICK_RATE		1000000
+#elif defined(CONFIG_CPU_VR41XX)
+#define CLOCK_TICK_RATE		6144000
 #endif
 
 /*
