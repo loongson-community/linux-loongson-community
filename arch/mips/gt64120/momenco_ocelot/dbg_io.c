@@ -2,6 +2,8 @@
 
 #if defined(CONFIG_REMOTE_DEBUG)
 
+#include <asm/serial.h> /* For the serial port location and base baud */
+
 /* --- CONFIG --- */
 
 typedef unsigned char uint8;
@@ -36,8 +38,8 @@ typedef unsigned int uint32;
 /* === CONFIG === */
 
 /* [jsun] we use the second serial port for kdb */
-#define         BASE                    0xbd000020
-#define         MAX_BAUD                115200
+#define         BASE                    OCELOT_SERIAL1_BASE
+#define         MAX_BAUD                OCELOT_BASE_BAUD
 
 /* === END OF CONFIG === */
 
@@ -111,7 +113,7 @@ int putDebugChar(uint8 byte)
 {
 	if (!remoteDebugInitialized) {
 		remoteDebugInitialized = 1;
-		debugInit(UART16550_BAUD_9600,
+		debugInit(UART16550_BAUD_38400,
 			  UART16550_DATA_8BIT,
 			  UART16550_PARITY_NONE, UART16550_STOP_1BIT);
 	}
