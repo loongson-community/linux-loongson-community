@@ -167,9 +167,6 @@ find_first_zero_bit (void *addr, unsigned size)
 		"nop\n\t"
 		"subu\t%0,32\n\t"
 #endif
-#ifdef __MIPSEB__
-#error "Fix this for big endian"
-#endif /* __MIPSEB__ */
 		"li\t%1,1\n"
 		"1:\tand\t%2,$1,%1\n\t"
 		"beqz\t%2,2f\n\t"
@@ -197,14 +194,11 @@ find_next_zero_bit (void * addr, int size, int offset)
 	unsigned int *p = ((unsigned int *) addr) + (offset >> 5);
 	int set = 0, bit = offset & 31, res;
 	unsigned long dummy;
-	
+
 	if (bit) {
 		/*
 		 * Look for zero in first byte
 		 */
-#ifdef __MIPSEB__
-#error "Fix this for big endian byte order"
-#endif
 		__asm__(".set\tnoreorder\n\t"
 			".set\tnoat\n"
 			"1:\tand\t$1,%4,%1\n\t"
