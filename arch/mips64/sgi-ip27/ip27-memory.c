@@ -171,15 +171,10 @@ void __init prom_meminit(void)
 
 	mlreset();
 	numpages = szmem(0, 0);
-	for (node = 0; node < numnodes; node++) {
+	for (node = (numnodes - 1); node >= 0; node--) {
 		slot_firstpfn = slot_getbasepfn(node, 0);
 		slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
 		slot_freepfn = node_getfirstfree(node);
-		printk("Node %d slot 0: 0x%lx 0x%lx 0x%lx\n", node, 
-			slot_firstpfn<<PAGE_SHIFT, slot_lastpfn<<PAGE_SHIFT,
-			slot_freepfn<<PAGE_SHIFT);
-		/* delete next 2 lines when we have numa support */
-		if (node == 0) {
 		max_low_pfn = (slot_lastpfn - slot_firstpfn);
 	  	bootmap_size = init_bootmem_node(node, slot_freepfn, 
 						slot_firstpfn, slot_lastpfn);
@@ -187,7 +182,6 @@ void __init prom_meminit(void)
 				(slot_lastpfn - slot_firstpfn) << PAGE_SHIFT);
 		reserve_bootmem_node(node, slot_firstpfn << PAGE_SHIFT,
 		  ((slot_freepfn - slot_firstpfn) << PAGE_SHIFT) + bootmap_size);
-		}
 	}
 	printk("Total memory probed : 0x%lx pages\n", numpages);
 }

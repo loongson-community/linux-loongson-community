@@ -1,4 +1,5 @@
 #include <linux/kernel.h>
+#include <linux/mmzone.h>	/* for numnodes */
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
 #include <asm/sn/sn0/hubni.h>
@@ -184,7 +185,6 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 
 void mlreset (void)
 {
-	extern int numnodes;
 	int i, maxcpus;
 
 	fine_mode = is_fine_dirmode();
@@ -212,7 +212,7 @@ void mlreset (void)
 		 * thinks it is a node 0 address.
 		 */
 		REMOTE_HUB_S(nasid, PI_REGION_PRESENT, (region_mask | 1));
-		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_8K);
+		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_0);
 
 #ifdef LATER
 		/*
