@@ -169,8 +169,25 @@ extern asmlinkage void *resume(void *last, void *next);
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 #define prepare_to_switch()	do { } while(0)
+
+extern asmlinkage void lazy_fpu_switch(void *, void *);
+extern asmlinkage void init_fpu(void);
+extern asmlinkage void save_fp(void *);
+
+#ifdef CONFIG_SMP
+#define SWITCH_DO_LAZY_FPU \
+	if (prev->flags & PF_USEDFPU) { \
+		lazy_fpu_switch(prev, 0); \
+		set_cp0_status(ST0_CU1, ~ST0_CU1); \
+		prev->flags &= ~PF_USEDFPU; \
+	}
+#else /* CONFIG_SMP */
+#define SWITCH_DO_LAZY_FPU	do { } while(0)
+#endif /* CONFIG_SMP */
+
 #define switch_to(prev,next,last) \
 do { \
+	SWITCH_DO_LAZY_FPU; \
 	(last) = resume(prev, next); \
 } while(0)
 

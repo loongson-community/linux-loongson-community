@@ -87,6 +87,14 @@ extern int EISA_bus;
 /* Lazy FPU handling on uni-processor */
 extern struct task_struct *last_task_used_math;
 
+#ifndef CONFIG_SMP
+#define IS_FPU_OWNER()		(last_task_used_math == current)
+#define CLEAR_FPU_OWNER()	last_task_used_math = NULL;
+#else
+#define IS_FPU_OWNER()		(current->flags & PF_USEDFPU)
+#define CLEAR_FPU_OWNER()	current->flags &= ~PF_USEDFPU;
+#endif
+
 /*
  * User space process size: 1TB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.  TASK_SIZE

@@ -13,6 +13,7 @@
  * At this time Linux/MIPS64 only supports syscall tracing, even for 32-bit
  * binaries.
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -36,7 +37,6 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 	struct task_struct *child;
 	unsigned long flags;
 	int ret;
-	extern void save_fp(void*);
 
 	lock_kernel();
 #if 0
@@ -132,12 +132,14 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			break;
 		case FPR_BASE ... FPR_BASE + 31:
 			if (child->used_math) {
+#ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
 					set_cp0_status(ST0_CU1, ST0_CU1);
 					save_fp(child);
 					set_cp0_status(ST0_CU1, 0);
 					last_task_used_math = NULL;
 				}
+#endif
 				tmp = child->thread.fpu.hard.fp_regs[addr - 32];
 			} else {
 				tmp = -EIO;
@@ -199,6 +201,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		case FPR_BASE ... FPR_BASE + 31: {
 			unsigned long *fregs;
 			if (child->used_math) {
+#ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
 					set_cp0_status(ST0_CU1, ST0_CU1);
 					save_fp(child);
@@ -206,6 +209,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 					last_task_used_math = NULL;
 					regs->cp0_status &= ~ST0_CU1;
 				}
+#endif
 			} else {
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,
@@ -293,7 +297,6 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	struct task_struct *child;
 	unsigned long flags;
 	int ret;
-	extern void save_fp(void*);
 
 	lock_kernel();
 #if 0
@@ -389,12 +392,14 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			break;
 		case FPR_BASE ... FPR_BASE + 31:
 			if (child->used_math) {
+#ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
 					set_cp0_status(ST0_CU1, ST0_CU1);
 					save_fp(child);
 					set_cp0_status(ST0_CU1, 0);
 					last_task_used_math = NULL;
 				}
+#endif
 				tmp = child->thread.fpu.hard.fp_regs[addr - 32];
 			} else {
 				tmp = -EIO;
@@ -456,6 +461,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		case FPR_BASE ... FPR_BASE + 31: {
 			unsigned long *fregs;
 			if (child->used_math) {
+#ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
 					set_cp0_status(ST0_CU1, ST0_CU1);
 					save_fp(child);
@@ -463,6 +469,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 					last_task_used_math = NULL;
 					regs->cp0_status &= ~ST0_CU1;
 				}
+#endif
 			} else {
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,

@@ -8,6 +8,7 @@
  * Copyright (C) 1994 - 1999  Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/smp.h>
@@ -25,6 +26,7 @@
 #include <asm/stackframe.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>
+#include <asm/system.h>
 
 #define DEBUG_SIG 0
 
@@ -239,8 +241,8 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 
 	err |= __get_user(owned_fp, &sc->sc_ownedfp);
 	if (owned_fp) {
-		if (current == last_task_used_math) {
-			last_task_used_math = 0;
+		if (IS_FPU_OWNER()) {
+			CLEAR_FPU_OWNER();
 			regs->cp0_status &= ~ST0_CU1;
 		}
 		current->used_math = 1;
@@ -373,9 +375,9 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	err |= __put_user(regs->cp0_badvaddr, &sc->sc_badvaddr);
 
 	if (current->used_math) {	/* fp is active.  */
-		if (current == last_task_used_math) {
+		if (IS_FPU_OWNER()) {
 			lazy_fpu_switch(current, 0);
-			last_task_used_math = NULL;
+			CLEAR_FPU_OWNER();
 			regs->cp0_status &= ~ST0_CU1;
 		}
 		err |= __put_user(1, &sc->sc_ownedfp);

@@ -7,6 +7,7 @@
  * Copyright (C) 1994 - 1999 by Ralf Baechle and others.
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -52,20 +53,20 @@ asmlinkage void ret_from_fork(void);
 void exit_thread(void)
 {
 	/* Forget lazy fpu state */
-	if (last_task_used_math == current) {
+	if (IS_FPU_OWNER()) {
 		set_cp0_status(ST0_CU1, ST0_CU1);
 		__asm__ __volatile__("cfc1\t$0,$31");
-		last_task_used_math = NULL;
+		CLEAR_FPU_OWNER();
 	}
 }
 
 void flush_thread(void)
 {
 	/* Forget lazy fpu state */
-	if (last_task_used_math == current) {
+	if (IS_FPU_OWNER()) {
 		set_cp0_status(ST0_CU1, ST0_CU1);
 		__asm__ __volatile__("cfc1\t$0,$31");
-		last_task_used_math = NULL;
+		CLEAR_FPU_OWNER();
 	}
 }
 
@@ -77,7 +78,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 
-	if (last_task_used_math == current) {
+	if (IS_FPU_OWNER()) {
 		save_fp(p);
 	}
 	/* set up new TSS. */
