@@ -153,8 +153,8 @@ dump_list_process(struct task_struct *t, void *address)
 	addr = (unsigned int) address;
 
 	printk("Addr                 == %08x\n", addr);
-	printk("task                 == %08p\n", t);
-	printk("task->mm             == %08p\n", t->mm);
+	printk("task                 == %8p\n", t);
+	printk("task->mm             == %8p\n", t->mm);
 	//printk("tasks->mm.pgd        == %08x\n", (unsigned int) t->mm->pgd);
 
 	if (addr > KSEG0)
