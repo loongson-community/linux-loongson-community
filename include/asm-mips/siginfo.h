@@ -13,7 +13,7 @@
 
 #define SIGEV_HEAD_SIZE	(sizeof(long) + 2*sizeof(int))
 #define SIGEV_PAD_SIZE	((SIGEV_MAX_SIZE-SIGEV_HEAD_SIZE) / sizeof(int))
-#define SI_PAD_SIZE	((SI_MAX_SIZE/sizeof(int)) - 4)
+#define SI_PAD_SIZE	((SI_MAX_SIZE/sizeof(int)) - 3)
 
 #define HAVE_ARCH_SIGINFO_T
 
