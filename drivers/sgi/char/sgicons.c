@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
  *
- * This implement a virtual console interface.
+ * This implements a virtual console interface.
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
