@@ -100,7 +100,7 @@ static inline void __build_load_reg(int reg)
 	else
 		mi.i_format.opcode     = lw_op;
 	mi.i_format.rs         = 5;		/* $a1 */
-	mi.i_format.rt         = reg;		/* $zero */
+	mi.i_format.rt         = reg;		/* $reg */
 	mi.i_format.simmediate = load_offset;
 
 	load_offset += (cpu_has_64bit_registers ? 8 : 4);
@@ -201,7 +201,7 @@ static inline void __build_store_reg(int reg)
 	reg_size               = 8;
 #endif
 	mi.i_format.rs         = 4;		/* $a0 */
-	mi.i_format.rt         = reg;		/* $zero */
+	mi.i_format.rt         = reg;		/* $reg */
 	mi.i_format.simmediate = store_offset;
 
 	store_offset += reg_size;
@@ -222,7 +222,7 @@ static inline void build_store_reg(int reg)
 	__build_store_reg(reg);
 }
 
-static inline void build_addiu_at_a0(unsigned long offset)
+static inline void build_addiu_a2_a0(unsigned long offset)
 {
 	union mips_instruction mi;
 
@@ -230,7 +230,7 @@ static inline void build_addiu_at_a0(unsigned long offset)
 
 	mi.i_format.opcode     = cpu_has_64bit_addresses ? daddiu_op : addiu_op;
 	mi.i_format.rs         = 4;		/* $a0 */
-	mi.i_format.rt         = 1;		/* $at */
+	mi.i_format.rt         = 6;		/* $a2 */
 	mi.i_format.simmediate = offset;
 
 	*epc++ = mi.word;
@@ -273,7 +273,7 @@ static inline void build_bne(unsigned int *dest)
 	union mips_instruction mi;
 
 	mi.i_format.opcode = bne_op;
-	mi.i_format.rs     = 1;			/* $at */
+	mi.i_format.rs     = 6;			/* $a2 */
 	mi.i_format.rt     = 4;			/* $a0 */
 	mi.i_format.simmediate = dest - epc - 1;
 
@@ -317,7 +317,7 @@ void __init build_clear_page(void)
 		}
 	}
 
-	build_addiu_at_a0(PAGE_SIZE - (cpu_has_prefetch ? pref_offset_clear : 0));
+	build_addiu_a2_a0(PAGE_SIZE - (cpu_has_prefetch ? pref_offset_clear : 0));
 
 	if (R4600_V2_HIT_CACHEOP_WAR && ((read_c0_prid() & 0xfff0) == 0x2020)) {
 		*epc++ = 0x40026000;		/* mfc0    $v0, $12	*/
@@ -356,7 +356,7 @@ dest = epc;
 	 build_store_reg(0);
 
 	if (cpu_has_prefetch && pref_offset_clear) {
-		build_addiu_at_a0(pref_offset_clear);
+		build_addiu_a2_a0(pref_offset_clear);
 	dest = epc;
 		__build_store_reg(0);
 		__build_store_reg(0);
@@ -386,7 +386,7 @@ void __init build_copy_page(void)
 {
 	epc = (unsigned int *) &copy_page_array;
 
-	build_addiu_at_a0(PAGE_SIZE - (cpu_has_prefetch ? pref_offset_copy : 0));
+	build_addiu_a2_a0(PAGE_SIZE - (cpu_has_prefetch ? pref_offset_copy : 0));
 
 	if (R4600_V2_HIT_CACHEOP_WAR && ((read_c0_prid() & 0xfff0) == 0x2020)) {
 		*epc++ = 0x40026000;		/* mfc0    $v0, $12	*/
@@ -442,7 +442,7 @@ dest = epc;
 	 build_store_reg(11);
 
 	if (cpu_has_prefetch && pref_offset_copy) {
-		build_addiu_at_a0(pref_offset_copy);
+		build_addiu_a2_a0(pref_offset_copy);
 	dest = epc;
 		__build_load_reg( 8);
 		__build_load_reg( 9);
