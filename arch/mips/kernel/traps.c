@@ -38,12 +38,9 @@
 #include <asm/watch.h>
 #include <asm/types.h>
 
-extern asmlinkage void handle_mod(void);
+extern asmlinkage void handle_tlbm(void);
 extern asmlinkage void handle_tlbl(void);
 extern asmlinkage void handle_tlbs(void);
-extern asmlinkage void __xtlb_mod(void);
-extern asmlinkage void __xtlb_tlbl(void);
-extern asmlinkage void __xtlb_tlbs(void);
 extern asmlinkage void handle_adel(void);
 extern asmlinkage void handle_ades(void);
 extern asmlinkage void handle_ibe(void);
@@ -1010,16 +1007,10 @@ void __init trap_init(void)
 	if (board_be_init)
 		board_be_init();
 
-#ifdef CONFIG_MIPS32
-	set_except_vector(1, handle_mod);
+	set_except_vector(1, handle_tlbm);
 	set_except_vector(2, handle_tlbl);
 	set_except_vector(3, handle_tlbs);
-#endif
-#ifdef CONFIG_MIPS64
-	set_except_vector(1, __xtlb_mod);
-	set_except_vector(2, __xtlb_tlbl);
-	set_except_vector(3, __xtlb_tlbs);
-#endif
+
 	set_except_vector(4, handle_adel);
 	set_except_vector(5, handle_ades);
 
