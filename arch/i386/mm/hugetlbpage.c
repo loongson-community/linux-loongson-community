@@ -88,6 +88,18 @@ static void set_huge_pte(struct mm_struct *mm, struct vm_area_struct *vma, struc
 	set_pte(page_table, entry);
 }
 
+/*
+ * This function checks for proper alignment of input addr and len parameters.
+ */
+int is_aligned_hugepage_range(unsigned long addr, unsigned long len)
+{
+	if (len & ~HPAGE_MASK)
+		return -EINVAL;
+	if (addr & ~HPAGE_MASK)
+		return -EINVAL;
+	return 0;
+}
+
 int copy_hugetlb_page_range(struct mm_struct *dst, struct mm_struct *src,
 			struct vm_area_struct *vma)
 {
@@ -284,7 +296,6 @@ zap_hugepage_range(struct vm_area_struct *vma,
 int hugetlb_prefault(struct address_space *mapping, struct vm_area_struct *vma)
 {
 	struct mm_struct *mm = current->mm;
-	struct inode *inode = mapping->host;
 	unsigned long addr;
 	int ret = 0;
 
@@ -308,7 +319,6 @@ int hugetlb_prefault(struct address_space *mapping, struct vm_area_struct *vma)
 			+ (vma->vm_pgoff >> (HPAGE_SHIFT - PAGE_SHIFT));
 		page = find_get_page(mapping, idx);
 		if (!page) {
-			loff_t i_size;
 			page = alloc_hugetlb_page();
 			if (!page) {
 				ret = -ENOMEM;
@@ -320,9 +330,6 @@ int hugetlb_prefault(struct address_space *mapping, struct vm_area_struct *vma)
 				free_huge_page(page);
 				goto out;
 			}
-			i_size = (loff_t)(idx + 1) * HPAGE_SIZE;
-			if (i_size > inode->i_size)
-				inode->i_size = i_size;
 		}
 		set_huge_pte(mm, vma, page, pte, vma->vm_flags & VM_WRITE);
 	}

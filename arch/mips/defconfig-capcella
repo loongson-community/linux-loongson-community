@@ -461,6 +461,7 @@ CONFIG_WATCHDOG=y
 # CONFIG_ALIM7101_WDT is not set
 # CONFIG_SC1200_WDT is not set
 # CONFIG_WAFER_WDT is not set
+# CONFIG_CPU5_WDT is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 # CONFIG_GEN_RTC is not set

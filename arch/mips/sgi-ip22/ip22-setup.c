@@ -12,7 +12,6 @@
 #include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/tty.h>
-#include <linux/pc_keyb.h>
 
 #include <asm/addrspace.h>
 #include <asm/bcache.h>

@@ -19,7 +19,6 @@
 #include <linux/mc146818rtc.h>
 #include <linux/console.h>
 #include <linux/fb.h>
-#include <linux/pc_keyb.h>
 #include <linux/ide.h>
 
 #include <asm/bcache.h>

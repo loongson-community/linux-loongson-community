@@ -509,6 +509,7 @@ extern void __set_special_pids(pid_t session, pid_t pgrp);
 /* per-UID process charging. */
 extern struct user_struct * alloc_uid(uid_t);
 extern void free_uid(struct user_struct *);
+extern void switch_uid(struct user_struct *);
 
 #include <asm/current.h>
 
@@ -533,7 +534,7 @@ extern void release_task(struct task_struct * p);
 extern void proc_caches_init(void);
 extern void flush_signals(struct task_struct *);
 extern void flush_signal_handlers(struct task_struct *);
-extern int dequeue_signal(sigset_t *mask, siginfo_t *info);
+extern int dequeue_signal(struct task_struct *tsk, sigset_t *mask, siginfo_t *info);
 extern void block_all_signals(int (*notifier)(void *priv), void *priv,
 			      sigset_t *mask);
 extern void unblock_all_signals(void);
@@ -619,7 +620,8 @@ extern void __exit_sighand(struct task_struct *);
 extern NORET_TYPE void do_group_exit(int);
 
 extern void reparent_to_init(void);
-extern void daemonize(void);
+extern void daemonize(const char *, ...);
+extern int allow_signal(int);
 extern task_t *child_reaper;
 
 extern int do_execve(char *, char **, char **, struct pt_regs *);

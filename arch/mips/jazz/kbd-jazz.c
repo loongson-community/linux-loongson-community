@@ -8,7 +8,6 @@
  * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
  */
 #include <linux/sched.h>
-#include <linux/pc_keyb.h>
 #include <asm/jazz.h>
 
 #define jazz_kh ((keyboard_hardware *) JAZZ_KEYBOARD_ADDRESS)

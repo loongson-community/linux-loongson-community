@@ -662,7 +662,7 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 	if (!oldset)
 		oldset = &current->blocked;
 
-	signr = get_signal_to_deliver(&info, regs);
+	signr = get_signal_to_deliver(&info, regs, NULL);
 	if (signr > 0) {
 		handle_signal(signr, &info, oldset, regs);
 		return 1;
@@ -822,7 +822,7 @@ asmlinkage int sys32_rt_sigtimedwait(compat_sigset_t *uthese,
 	}
 
 	spin_lock_irq(&current->sighand->siglock);
-	sig = dequeue_signal(&these, &info);
+	sig = dequeue_signal(current, &these, &info);
 	if (!sig) {
 		/* None ready -- temporarily unblock those we're interested
 		   in so that we'll be awakened when they arrive.  */
@@ -840,7 +840,7 @@ asmlinkage int sys32_rt_sigtimedwait(compat_sigset_t *uthese,
 		timeout = schedule_timeout(timeout);
 
 		spin_lock_irq(&current->sighand->siglock);
-		sig = dequeue_signal(&these, &info);
+		sig = dequeue_signal(current, &these, &info);
 		current->blocked = oldblocked;
 		recalc_sigpending();
 	}

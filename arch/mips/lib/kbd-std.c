@@ -10,7 +10,6 @@
 #include <linux/config.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
-#include <linux/pc_keyb.h>
 #include <asm/keyboard.h>
 #include <asm/io.h>
 

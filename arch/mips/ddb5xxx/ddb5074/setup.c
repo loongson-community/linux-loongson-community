@@ -13,7 +13,6 @@
 #include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
-#include <linux/pc_keyb.h>
 #include <linux/pci.h>
 #include <linux/ide.h>
 #include <linux/ioport.h>

@@ -585,7 +585,7 @@ EXPORT_SYMBOL(tty_hung_up_p);
  */
 void disassociate_ctty(int on_exit)
 {
-	struct tty_struct *tty = current->tty;
+	struct tty_struct *tty;
 	struct task_struct *p;
 	struct list_head *l;
 	struct pid *pid;
@@ -593,6 +593,7 @@ void disassociate_ctty(int on_exit)
 
 	lock_kernel();
 
+	tty = current->tty;
 	if (tty) {
 		tty_pgrp = tty->pgrp;
 		if (on_exit && tty->driver.type != TTY_DRIVER_TYPE_PTY)

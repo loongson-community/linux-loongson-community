@@ -306,6 +306,7 @@ CONFIG_NET_PCI=y
 # CONFIG_TC35815 is not set
 # CONFIG_DGRS is not set
 CONFIG_EEPRO100=y
+# CONFIG_EEPRO100_PIO is not set
 # CONFIG_E100 is not set
 # CONFIG_LNE390 is not set
 # CONFIG_FEALNX is not set

@@ -8,6 +8,8 @@
  *
  * VRA support Copyright 2001 Bradley D. LaRonde <brad@ltc.com>
  *
+ * VRA support Copyright 2001 Bradley D. LaRonde <brad@ltc.com>
+ *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
@@ -237,7 +239,7 @@ static LIST_HEAD(devs);
 
 /* --------------------------------------------------------------------- */
 
-extern inline unsigned ld2(unsigned int x)
+static inline unsigned ld2(unsigned int x)
 {
     unsigned r = 0;
 	
@@ -399,6 +401,43 @@ static void set_dac_rate(struct vrc5477_ac97_state *s, unsigned rate)
 	}
 }
 
+static int ac97_codec_not_present(struct ac97_codec *codec)
+{
+	struct vrc5477_ac97_state *s = 
+		(struct vrc5477_ac97_state *)codec->private_data;
+	unsigned long flags;
+	unsigned short count  = 0xffff; 
+
+	spin_lock_irqsave(&s->lock, flags);
+
+	/* wait until we can access codec registers */
+	do {
+	       if (!(inl(s->io + VRC5477_CODEC_WR) & 0x80000000))
+		       break;
+	} while (--count);
+
+	if (count == 0) {
+		spin_unlock_irqrestore(&s->lock, flags);
+		return -1;
+	}
+
+	/* write 0 to reset */
+	outl((AC97_RESET << 16) | 0, s->io + VRC5477_CODEC_WR);
+
+	/* test whether we get a response from ac97 chip */
+	count  = 0xffff; 
+	do { 
+	       if (!(inl(s->io + VRC5477_CODEC_WR) & 0x80000000))
+		       break;
+	} while (--count);
+
+	if (count == 0) {
+		spin_unlock_irqrestore(&s->lock, flags);
+		return -1;
+	}
+	spin_unlock_irqrestore(&s->lock, flags);
+	return 0;
+}
 
 /* --------------------------------------------------------------------- */
 
@@ -693,13 +732,13 @@ static int prog_dmabuf(struct vrc5477_ac97_state *s,
 	return 0;
 }
 
-extern inline int prog_dmabuf_adc(struct vrc5477_ac97_state *s)
+static inline int prog_dmabuf_adc(struct vrc5477_ac97_state *s)
 {
     stop_adc(s);
     return prog_dmabuf(s, &s->dma_adc, s->adcRate);
 }
 
-extern inline int prog_dmabuf_dac(struct vrc5477_ac97_state *s)
+static inline int prog_dmabuf_dac(struct vrc5477_ac97_state *s)
 {
     stop_dac(s);
     return prog_dmabuf(s, &s->dma_dac, s->dacRate);
@@ -1853,6 +1892,13 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 	 * adcChannels, adcRate is done in open() so that
          * no persistent state across file opens.
 	 */
+
+	/* test if get response from ac97, if not return */
+        if (ac97_codec_not_present(&(s->codec))) {
+		printk(KERN_ERR PFX "no ac97 codec\n");
+		goto err_region;
+
+        }
 
 	/* test if get response from ac97, if not return */
         if (ac97_codec_not_present(&(s->codec))) {

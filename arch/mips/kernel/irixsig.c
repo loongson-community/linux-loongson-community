@@ -179,7 +179,7 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 	if (!oldset)
 		oldset = &current->blocked;
 
-	signr = get_signal_to_deliver(&info, regs);
+	signr = get_signal_to_deliver(&info, regs, NULL);
 	if (signr > 0) {
 		handle_signal(signr, &info, oldset, regs);
 		return 1;

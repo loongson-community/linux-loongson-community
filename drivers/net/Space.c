@@ -223,9 +223,6 @@ static struct devprobe isa_probes[] __initdata = {
 #ifdef CONFIG_EL2 		/* 3c503 */
 	{el2_probe, 0},
 #endif
-#ifdef CONFIG_EL3
-	{el3_probe, 0},
-#endif
 #ifdef CONFIG_HPLAN
 	{hp_probe, 0},
 #endif
@@ -543,6 +540,8 @@ static struct net_device eth0_dev = {
 #ifdef CONFIG_TR
 /* Token-ring device probe */
 extern int ibmtr_probe(struct net_device *);
+extern int sk_isa_probe(struct net_device *);
+extern int proteon_probe(struct net_device *);
 extern int smctr_probe(struct net_device *);
 
 static int
@@ -551,6 +550,12 @@ trif_probe(struct net_device *dev)
     if (1
 #ifdef CONFIG_IBMTR
 	&& ibmtr_probe(dev)
+#endif
+#ifdef CONFIG_SKISA
+	&& sk_isa_probe(dev)
+#endif
+#ifdef CONFIG_PROTEON
+	&& proteon_probe(dev)
 #endif
 #ifdef CONFIG_SMCTR
 	&& smctr_probe(dev)
