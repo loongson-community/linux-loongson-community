@@ -132,7 +132,8 @@ static void andes_flush_icache_page(struct vm_area_struct *vma,
 
 static void andes_flush_cache_sigtramp(unsigned long page)
 {
-	/* XXX */
+	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
+	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
 /* TLB operations. XXX Write these dave... */

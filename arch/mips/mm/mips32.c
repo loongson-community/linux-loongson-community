@@ -506,14 +506,8 @@ mips32_dma_cache_wback(unsigned long addr, unsigned long size)
  */
 static void mips32_flush_cache_sigtramp(unsigned long addr)
 {
-	unsigned long daddr, iaddr;
-
-	daddr = addr & ~(dc_lsize - 1);
-	protected_writeback_dcache_line(daddr);
-	protected_writeback_dcache_line(daddr + dc_lsize);
-	iaddr = addr & ~(ic_lsize - 1);
-	protected_flush_icache_line(iaddr);
-	protected_flush_icache_line(iaddr + ic_lsize);
+	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
+	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
 #undef DEBUG_TLB
