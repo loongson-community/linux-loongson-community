@@ -280,7 +280,7 @@ do { \
 	(last) = resume(prev, next, next->thread_info); \
 } while(0)
 
-static inline unsigned long xchg_u32(volatile int * m, unsigned int val)
+static inline unsigned long __xchg_u32(volatile int * m, unsigned int val)
 {
 	__u32 retval;
 
@@ -316,7 +316,7 @@ static inline unsigned long xchg_u32(volatile int * m, unsigned int val)
 }
 
 #ifdef CONFIG_MIPS64
-static inline __u64 xchg_u64(volatile __u64 * m, __u64 val)
+static inline __u64 __xchg_u64(volatile __u64 * m, __u64 val)
 {
 	__u64 retval;
 
@@ -352,22 +352,124 @@ static inline __u64 xchg_u64(volatile __u64 * m, __u64 val)
 }
 #else
 extern __u64 __xchg_u64_unsupported_on_32bit_kernels(volatile __u64 * m, __u64 val);
-#define xchg_u64 __xchg_u64_unsupported_on_32bit_kernels
+#define __xchg_u64 __xchg_u64_unsupported_on_32bit_kernels
 #endif
 
-#define xchg(ptr,x) ((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
-#define tas(ptr) (xchg((ptr),1))
+/* This function doesn't exist, so you'll get a linker error
+   if something tries to do an invalid xchg().  */
+extern void __xchg_called_with_bad_pointer(void);
 
 static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int size)
 {
 	switch (size) {
 		case 4:
-			return xchg_u32(ptr, x);
+			return __xchg_u32(ptr, x);
 		case 8:
-			return xchg_u64(ptr, x);
+			return __xchg_u64(ptr, x);
 	}
+	__xchg_called_with_bad_pointer();
 	return x;
 }
+
+#define xchg(ptr,x) ((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
+#define tas(ptr) (xchg((ptr),1))
+
+#define __HAVE_ARCH_CMPXCHG 1
+
+static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
+	unsigned long new)
+{
+	__u32 retval;
+
+#ifdef CONFIG_CPU_HAS_LLSC
+	unsigned long dummy;
+
+	__asm__ __volatile__(
+	"1:	ll	%2, %3			# __cmpxchg_u32	\n"
+	"	li	%0, 1					\n"
+	"	bnez	%2, %z4, 2f				\n"
+	"	move	%2, %z5					\n"
+	"	sc	%2, %1					\n"
+	"	beqz	%2, 1b					\n"
+	"	li	%0, 1					\n"
+#ifdef CONFIG_SMP
+	"	sync						\n"
+#endif
+	"2:							\n"
+	: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+	: "R" (*m), "Jr" (old), "Jr" (new)
+	: "memory");
+#else
+	unsigned long flags;
+
+	local_irq_save(flags);
+	retval = *m;
+	*m = val;
+	local_irq_restore(flags);	/* implies memory barrier  */
+#endif
+
+	return retval;
+}
+
+#ifdef CONFIG_MIPS64
+static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
+	unsigned long new)
+{
+	__u64 retval;
+
+#ifdef CONFIG_CPU_HAS_LLDSCD
+	unsigned long dummy;
+
+	__asm__ __volatile__(
+	"1:	ll	%2, %3			# __cmpxchg_u32	\n"
+	"	li	%0, 1					\n"
+	"	bnez	%2, %z4, 2f				\n"
+	"	move	%2, %z5					\n"
+	"	sc	%2, %1					\n"
+	"	beqz	%2, 1b					\n"
+	"	li	%0, 1					\n"
+#ifdef CONFIG_SMP
+	"	sync						\n"
+#endif
+	"2:							\n"
+	: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+	: "R" (*m), "Jr" (old), "Jr" (new)
+	: "memory");
+#else
+	unsigned long flags;
+
+	local_irq_save(flags);
+	retval = *m;
+	*m = val;
+	local_irq_restore(flags);	/* implies memory barrier  */
+#endif
+
+	return retval;
+}
+#else
+extern unsigned long __cmpxchg_u64_unsupported_on_32bit_kernels(
+	volatile int * m, unsigned long old, unsigned long new);
+#define __cmpxchg_u64 __cmpxchg_u64_unsupported_on_32bit_kernels
+#endif
+
+/* This function doesn't exist, so you'll get a linker error
+   if something tries to do an invalid cmpxchg().  */
+extern void __cmpxchg_called_with_bad_pointer(void);
+
+static inline unsigned long __cmpxchg(volatile void * ptr, unsigned long old,
+	unsigned long new, int size)
+{
+	switch (size) {
+	case 4:
+		return __cmpxchg_u32(ptr, old, new);
+	case 8:
+		return __cmpxchg_u64(ptr, old, new);
+	}
+	__cmpxchg_called_with_bad_pointer();
+	return old;
+}
+
+#define cmpxchg(ptr,old,new) ((__typeof__(*(ptr)))__cmpxchg((ptr), (unsigned long)(old), (unsigned long)(new),sizeof(*(ptr))))
 
 extern void *set_except_vector(int n, void *addr);
 extern void per_cpu_trap_init(void);
