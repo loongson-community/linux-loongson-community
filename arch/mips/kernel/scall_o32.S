@@ -277,7 +277,7 @@ bad_alignment:
 	sll	v0, a0, 2
 	la	v1, sys_syscall
 	lw	t2, sys_call_table(v0)		# function pointer
-	lbu	t4, sys_narg_table(t1)		# number of arguments
+	lbu	t4, sys_narg_table(a0)		# number of arguments
 
 	li	v0, -EINVAL
 	beq	t2, v1, out			# do not recurse
