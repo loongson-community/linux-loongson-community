@@ -26,11 +26,11 @@
 #include <asm/sgialib.h>
 #include <asm/ptrace.h>
 
-#include "../../char/kbd_kern.h"
-#include "../../char/vt_kern.h"
-#include "../../char/consolemap.h"
-#include "../../char/selection.h"
-#include "../../char/console_struct.h"
+#include <linux/kbd_kern.h>
+#include <linux/vt_kern.h>
+#include <linux/consolemap.h>
+#include <linux/selection.h>
+#include <linux/console_struct.h>
 
 #include "newport.h"
 
