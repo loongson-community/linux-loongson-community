@@ -59,7 +59,7 @@ extern void set_debug_traps(void);
 static int kgdb_flag = 1;
 static int __init nokgdb(char *str)
 {
-	kgdb_flag = 1;
+	kgdb_flag = 0;
 }
 __setup("nokgdb", nokgdb);
 #endif
