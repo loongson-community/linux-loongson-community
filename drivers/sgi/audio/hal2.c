@@ -1,4 +1,4 @@
-/* $Id: hal2.c,v 1.4 1999/01/27 21:13:01 ulfc Exp $
+/* $Id: hal2.c,v 1.8 1999/01/28 01:01:42 ulfc Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -106,29 +106,32 @@ struct sgiaudio_chan_ops {
 #define INDIRECT_WAIT(regs) while(regs->isr & H2_ISR_TSTATUS);
 #endif
 
-#define INDIRECT_WAIT(regs)							\
-{										\
-	int cnt = 1000;								\
-	udelay(1000);								\
-	printk("hal2: waiting isr:%04hx ", regs->isr);				\
-	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",			\
-	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);			\
-										\
-	while(regs->isr & H2_ISR_TSTATUS && --cnt)				\
-		udelay(1000);							\
-	if (!cnt)								\
-		printk("hal2: failed while waiting for indirect trans.\n");	\
-										\
-	printk("hal2: finished waiting at cnt:%d isr:%04hx ", cnt, regs->isr);	\
-	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",			\
-	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);			\
-	udelay(1000);								\
-}										\
+#define INDIRECT_WAIT(regs)						\
+{									\
+	int cnt = 1000;							\
+	udelay(200);							\
+	printk("hal2: waiting isr:%04hx ", regs->isr);			\
+	udelay(200);							\
+	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",		\
+	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);		\
+									\
+	while(regs->isr & H2_ISR_TSTATUS && --cnt)			\
+		udelay(200);						\
+	if (!cnt)							\
+		printk("hal2: failed waiting for indirect trans.\n");	\
+									\
+	printk("hal2: finished waiting at cnt:%d isr:%04hx ",		\
+	       cnt, regs->isr);						\
+	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",		\
+	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);		\
+	udelay(200);							\
+}									\
 
 static unsigned short ireg_read(unsigned short address)
 {
 	unsigned short tmp;
 
+	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 	tmp = h2_ctrl->idr0;
@@ -137,8 +140,9 @@ static unsigned short ireg_read(unsigned short address)
 
 static void ireg_write(unsigned short address, unsigned short val)
 {
+	udelay(200);
 	h2_ctrl->idr0 = val;
-	udelay(1000);
+	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -146,9 +150,11 @@ static void ireg_write(unsigned short address, unsigned short val)
 static void ireg_write2(unsigned short address, unsigned short val0, unsigned
 			short val1)
 {
+	udelay(200);
 	h2_ctrl->idr0 = val0;
+	udelay(200);
 	h2_ctrl->idr1 = val1;
-	udelay(1000);
+	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -156,11 +162,15 @@ static void ireg_write2(unsigned short address, unsigned short val0, unsigned
 static void ireg_write4(unsigned short address, unsigned short val0, unsigned
 			short val1, unsigned short val2, unsigned short val3)
 {
+	udelay(200);
 	h2_ctrl->idr0 = val0;
+	udelay(200);
 	h2_ctrl->idr1 = val1;
+	udelay(200);
 	h2_ctrl->idr2 = val2;
+	udelay(200);
 	h2_ctrl->idr3 = val3;
-	udelay(1000);
+	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -174,7 +184,7 @@ static void ireg_setbit(unsigned short write_address, unsigned short
 	INDIRECT_WAIT(h2_ctrl);
 	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp | bit;
-	udelay(1000);
+	udelay(200);
 	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
@@ -182,27 +192,28 @@ static void ireg_setbit(unsigned short write_address, unsigned short
 static void ireg_clearbit(unsigned short write_address, unsigned short
 			  read_address, int bit)
 {
-	int tmp;
+	unsigned short tmp;
 
 	h2_ctrl->iar = read_address;
 	INDIRECT_WAIT(h2_ctrl);
 	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp & ~bit;
-	udelay(1000);
+	udelay(200);
 	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
 
 static void hal2_reset(void)
 {
-#if 0
-	h2_ctrl->isr &= ~H2_ISR_CODEC_RESET_N;
-	h2_ctrl->isr |= H2_ISR_CODEC_RESET_N;
-#endif
-	h2_ctrl->isr &= ~H2_ISR_GLOBAL_RESET_N;		/* reset the card */
-	udelay(1000);
-	h2_ctrl->isr |= H2_ISR_GLOBAL_RESET_N;		/* and reactivate it */
-	udelay(1000);
+	printk("resetting global isr:%04hx\n", h2_ctrl->isr);
+	udelay(200);
+	h2_ctrl->isr = 0;		/* reset the card */
+	udelay(200);
+	printk("reset done isr:%04hx\n", h2_ctrl->isr);
+	udelay(200);
+	h2_ctrl->isr = H2_ISR_GLOBAL_RESET_N | H2_ISR_CODEC_RESET_N;
+	udelay(200);
+	printk("reactivation done isr:%04hx\n", h2_ctrl->isr);
 }
 
 static int hal2_probe(void)
@@ -218,6 +229,7 @@ static int hal2_probe(void)
 		printk("hal2: there was no device?\n");
 		return -ENODEV;
 	}
+	
 	board = (h2_ctrl->rev & H2_REV_BOARD_M) >> 12;
 	major = (h2_ctrl->rev & H2_REV_MAJOR_CHIP_M) >> 4;
 	minor = (h2_ctrl->rev & H2_REV_MINOR_CHIP_M);
@@ -260,12 +272,6 @@ static int hal2_probe(void)
 
 #ifdef DEBUG
 	printk("hal2: card found\n");
-#endif
-
-
-#if 0
-	hp->volume = (struct hal2_volume_regs *)
-		&hpc3c0->pbus_extregs[H2_VOLUME_PIO][0];
 #endif
 
 	return 0;
@@ -692,13 +698,13 @@ static void hal2_configure_bres##clock(struct hal2_private *hp,		\
 	int master = chan->bres_master;					\
 		int mod = chan->bres_mod;				\
 		int inc = 4;						\
-		\
+									\
 		ireg_write(H2IW_BRES##clock##_C1 , master);		\
 		ireg_write2(H2IW_BRES##clock##_C2 , inc, mod);		\
 }									\
 
-	__BUILD_CONF_BRESN_CLOCK(1)
-	__BUILD_CONF_BRESN_CLOCK(2)
+__BUILD_CONF_BRESN_CLOCK(1)
+__BUILD_CONF_BRESN_CLOCK(2)
 __BUILD_CONF_BRESN_CLOCK(3)
 
 static int hal2_configure_dac(struct sgiaudio *sa)
