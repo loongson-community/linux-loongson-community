@@ -1,4 +1,4 @@
-/* $Id: r2300_misc.S,v 1.6 1999/09/27 11:13:47 raiko Exp $
+/* $Id: r2300_misc.S,v 1.7 1999/10/09 00:00:58 ralf Exp $
  * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -39,13 +39,10 @@
 	 */
 #define LOAD_PTE(pte, ptr) \
 	mfc0	pte, CP0_BADVADDR; \
-	_GET_CURRENT(ptr); \
+	lw	ptr, current_pgd; \
 	srl	pte, pte, 22; \
-	lw	ptr, TASK_MM(ptr); \
-	nop; \
-	lw	ptr, MM_PGD(ptr); \
 	sll	pte, pte, 2; \
-	addu	ptr, pte, ptr; \
+	addu	ptr, ptr, pte; \
 	mfc0	pte, CP0_CONTEXT; \
 	lw	ptr, (ptr); \
 	andi	pte, pte, 0xffc; \

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.17 1999/12/04 03:58:59 ralf Exp $
+ * $Id: entry.S,v 1.18 1999/12/06 23:13:20 ralf Exp $
  */
 
 /*
@@ -41,10 +41,10 @@
 		.set	push
 		.set	reorder
 EXPORT(ret_from_fork)
-		jal	schedule_tail
 		 move	a0, v0			# prev
+		jal	schedule_tail
 		j	ret_from_sys_call
-                 nop
+
 EXPORT(handle_bottom_half)
 		jal	do_bottom_half
 		b	9f
