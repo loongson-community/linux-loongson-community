@@ -158,19 +158,21 @@ extern void iounmap(void *addr);
  * 24-31 on SNI.
  * XXX more SNI hacks.
  */
-#define readb(addr) (*(volatile unsigned char *)(addr))
-#define readw(addr) __ioswab16((*(volatile unsigned short *)(addr)))
-#define readl(addr) __ioswab32((*(volatile unsigned int *)(addr)))
-#define __raw_readb readb
-#define __raw_readw readw
-#define __raw_readl readl
+#define readb(addr)		(*(volatile unsigned char *)(addr))
+#define readw(addr)		__ioswab16((*(volatile unsigned short *)(addr)))
+#define readl(addr)		__ioswab32((*(volatile unsigned int *)(addr)))
 
-#define writeb(b,addr) (*(volatile unsigned char *)(addr)) = (__ioswab8(b))
-#define writew(b,addr) (*(volatile unsigned short *)(addr)) = (__ioswab16(b))
-#define writel(b,addr) (*(volatile unsigned int *)(addr)) = (__ioswab32(b))
-#define __raw_writeb writeb
-#define __raw_writew writew
-#define __raw_writel writel
+#define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
+#define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
+#define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
+
+#define writeb(b,addr) ((*(volatile unsigned char *)(addr)) = (__ioswab8(b)))
+#define writew(b,addr) ((*(volatile unsigned short *)(addr)) = (__ioswab16(b)))
+#define writel(b,addr) ((*(volatile unsigned int *)(addr)) = (__ioswab32(b)))
+
+#define __raw_writeb(b,addr)	((*(volatile unsigned char *)(addr)) = (b))
+#define __raw_writew(w,addr)	((*(volatile unsigned short *)(addr)) = (w))
+#define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
 
 #define memset_io(a,b,c)	memset((void *)(a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))

@@ -42,6 +42,24 @@ extern unsigned long bus_to_baddr[256];
 #undef CONF_SLOWDOWN_IO
 
 /*
+ * Sane hardware offers swapping of I/O space accesses in hardware; less
+ * sane hardware forces software to fiddle with this ...
+ */
+#if defined(CONFIG_SWAP_IO_SPACE) && defined(__MIPSEB__)
+
+#define __ioswab8(x) (x)
+#define __ioswab16(x) swab16(x)
+#define __ioswab32(x) swab32(x)
+
+#else
+
+#define __ioswab8(x) (x)
+#define __ioswab16(x) (x)
+#define __ioswab32(x) (x)
+
+#endif
+
+/*
  * Change "struct page" to physical address.
  */
 #define page_to_phys(page)	PHYSADDR(page_address(page))
@@ -80,9 +98,17 @@ static inline void iounmap(void *addr)
 #define readw(addr)		(*(volatile unsigned short *) (addr))
 #define readl(addr)		(*(volatile unsigned int *) (addr))
 
+#define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
+#define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
+#define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
+
 #define writeb(b,addr)		(*(volatile unsigned char *) (addr) = (b))
-#define writew(b,addr)		(*(volatile unsigned short *) (addr) = (b))
-#define writel(b,addr)		(*(volatile unsigned int *) (addr) = (b))
+#define writew(w,addr)		(*(volatile unsigned short *) (addr) = (w))
+#define writel(l,addr)		(*(volatile unsigned int *) (addr) = (l))
+
+#define __raw_writeb(b,addr)	((*(volatile unsigned char *)(addr)) = (b))
+#define __raw_writew(w,addr)	((*(volatile unsigned short *)(addr)) = (w))
+#define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
 
 #define memset_io(a,b,c)	memset((void *) a,(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
