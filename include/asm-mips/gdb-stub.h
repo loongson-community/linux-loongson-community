@@ -14,7 +14,7 @@
  * important register numbers
  */
 
-#define REG_EPC			34
+#define REG_EPC			37
 #define REG_FP			72
 #define REG_SP			29
 
@@ -22,7 +22,7 @@
  * Stack layout for the GDB exception handler
  * Derived from the stack layout described in asm-mips/stackframe.h
  *
- * The first PTRSIZE*5 bytes are argument save space for C subroutines.
+ * The first PTRSIZE*6 bytes are argument save space for C subroutines.
  */
 #define NUMREGS			90
 
@@ -62,12 +62,12 @@
 /*
  * Saved special registers
  */
-#define GDB_FR_LO		((GDB_FR_REG31) + LONGSIZE)	/* 32 */
-#define GDB_FR_HI		((GDB_FR_LO) + LONGSIZE)	/* 33 */
-#define GDB_FR_EPC		((GDB_FR_HI) + LONGSIZE)	/* 34 */
-#define GDB_FR_BADVADDR		((GDB_FR_EPC) + LONGSIZE)	/* 35 */
-#define GDB_FR_STATUS		((GDB_FR_BADVADDR) + LONGSIZE)	/* 36 */
-#define GDB_FR_CAUSE		((GDB_FR_STATUS) + LONGSIZE)	/* 37 */
+#define GDB_FR_STATUS		((GDB_FR_REG31) + LONGSIZE)	/* 32 */
+#define GDB_FR_LO		((GDB_FR_STATUS) + LONGSIZE)	/* 33 */
+#define GDB_FR_HI		((GDB_FR_LO) + LONGSIZE)	/* 34 */
+#define GDB_FR_BADVADDR		((GDB_FR_HI) + LONGSIZE)	/* 35 */
+#define GDB_FR_CAUSE		((GDB_FR_BADVADDR) + LONGSIZE)	/* 36 */
+#define GDB_FR_EPC		((GDB_FR_CAUSE) + LONGSIZE)	/* 37 */
 
 /*
  * Saved floating point registers
@@ -158,12 +158,12 @@ struct gdb_regs {
 	/*
 	 * Saved special registers
 	 */
+	long	cp0_status;
 	long	lo;
 	long	hi;
-	long	cp0_epc;
 	long	cp0_badvaddr;
-	long	cp0_status;
 	long	cp0_cause;
+	long	cp0_epc;
 
 	/*
 	 * Saved floating point registers
