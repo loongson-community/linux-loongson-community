@@ -49,7 +49,6 @@
 #include <asm/system.h>
 
 extern asmlinkage void ocelot_handle_int(void);
-extern void gt64120_irq_init(void);
 
 void __init init_IRQ(void)
 {
@@ -66,7 +65,6 @@ void __init init_IRQ(void)
 	init_generic_irq();
 	mips_cpu_irq_init(0);
 	rm7k_cpu_irq_init(8);
-	gt64120_irq_init();
 
 #ifdef CONFIG_KGDB
 	printk("start kgdb ...\n");
