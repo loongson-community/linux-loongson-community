@@ -392,7 +392,7 @@ VENDOR( SIERRA, "Sierra" )
 	DEVICE( SIERRA,		SIERRA_STB,	"STB Horizon 64")
 ENDVENDOR()
 
-VENDOR( SGI, "Silicon Graphics Inc" )
+VENDOR( SGI, "Silicon Graphics Inc." )
 	DEVICE( SGI,		SGI_IOC3,	"IOC3")
 ENDVENDOR()
 
