@@ -117,9 +117,9 @@ EXPORT(sysn32_call_table)
 	PTR	sys_write
 	PTR	sys_open
 	PTR	sys_close
-	PTR	sys32_newstat
-	PTR	sys32_newfstat			/* 6005 */
-	PTR	sys32_newlstat
+	PTR	sys_newstat
+	PTR	sys_newfstat			/* 6005 */
+	PTR	sys_newlstat
 	PTR	sys_poll
 	PTR	sys_lseek
 	PTR	sys_mmap
@@ -326,6 +326,3 @@ EXPORT(sysn32_call_table)
 	PTR	sys_remap_file_pages		/* 6210 */
 	PTR	sys_ni_syscall
 	PTR	sys_fcntl
-	PTR	sys_newstat
-	PTR	sys_newfstat
-	PTR	sys_newlstat			/* 6215 */

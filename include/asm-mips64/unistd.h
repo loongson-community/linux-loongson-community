@@ -714,14 +714,11 @@
 #define __NR_N32_remap_file_page	(__NR_N32_Linux + 210)
 #define __NR_N32_rt_sigreturn		(__NR_N32_Linux + 211)
 #define __NR_N32_fcntl64		(__NR_N32_Linux + 212)
-#define __NR_N32_stat64			(__NR_N32_Linux + 213)
-#define __NR_N32_fstat64		(__NR_N32_Linux + 214)
-#define __NR_N32_lstat64		(__NR_N32_Linux + 215)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		215
+#define __NR_N32_Linux_syscalls		212
 
 #ifndef __ASSEMBLY__
 
