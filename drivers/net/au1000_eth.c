@@ -657,7 +657,7 @@ au1000_probe1(struct net_device *dev, long ioaddr, int irq, int port_num)
 	char *pmac, *argptr;
 	char ethaddr[6];
 
-	if (!request_region(ioaddr, MAC_IOSIZE, "Au1000 ENET")) {
+	if (!request_region(PHYSADDR(ioaddr), MAC_IOSIZE, "Au1000 ENET")) {
 		 return -ENODEV;
 	}
 
@@ -811,7 +811,7 @@ au1000_probe1(struct net_device *dev, long ioaddr, int irq, int port_num)
 	return 0;
 
 free_region:
-	release_region(ioaddr, MAC_IOSIZE);
+	release_region(PHYSADDR(ioaddr), MAC_IOSIZE);
 	unregister_netdev(dev);
 	if (aup->vaddr) 
 		dma_free((void *)aup->vaddr, 
