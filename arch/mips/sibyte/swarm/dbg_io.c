@@ -40,8 +40,6 @@ extern int kgdb_port;
 #define	duart_out(reg, val)	csr_out32(val, KSEG1 + A_DUART_CHANREG(kgdb_port,reg))
 #define duart_in(reg)		csr_in32(KSEG1 + A_DUART_CHANREG(kgdb_port,reg))
 
-extern void set_async_breakpoint(unsigned int epc);
-
 void putDebugChar(unsigned char c);
 unsigned char getDebugChar(void);
 static void

@@ -61,8 +61,8 @@ extern unsigned long ldt_eoi_space;
 #endif
 
 #ifdef CONFIG_KGDB
+#include <asm/gdb-stub.h>
 extern void breakpoint(void);
-extern void set_debug_traps(void);
 static int kgdb_irq;
 #ifdef CONFIG_GDB_CONSOLE
 extern void register_gdb_console(void);
@@ -215,18 +215,18 @@ static void ack_sb1250_irq(unsigned int irq)
 	 * changing easier for us)
 	 */
 	pending = __raw_readq(KSEG1 + A_IMR_REGISTER(sb1250_irq_owner[irq],
-					      R_IMR_LDT_INTERRUPT));
+						     R_IMR_LDT_INTERRUPT));
 	pending &= ((u64)1 << (irq));
 	if (pending) {
 		int i;
-		for (i=0; i<smp_num_cpus; i++) {
+		for (i=0; i<NR_CPUS; i++) {
 			/*
 			 * Clear for all CPUs so an affinity switch
 			 * doesn't find an old status
 			 */
 			__raw_writeq(pending, 
-			      KSEG1+A_IMR_REGISTER(cpu_logical_map(i),
-						   R_IMR_LDT_INTERRUPT_CLR));
+				     KSEG1+A_IMR_REGISTER(cpu_logical_map(i),
+							  R_IMR_LDT_INTERRUPT_CLR));
 		}
 
 		/*
@@ -341,12 +341,12 @@ void __init init_IRQ(void)
 	/* Default everything to IP2 */
 	for (i = 0; i < SB1250_NR_IRQS; i++) {	/* was I0 */
 		__raw_writeq(IMR_IP2_VAL,
-		      KSEG1 + A_IMR_REGISTER(0,
-					     R_IMR_INTERRUPT_MAP_BASE) +
+			     KSEG1 + A_IMR_REGISTER(0,
+						    R_IMR_INTERRUPT_MAP_BASE) +
 		      (i << 3));
 		__raw_writeq(IMR_IP2_VAL,
-		      KSEG1 + A_IMR_REGISTER(1,
-					     R_IMR_INTERRUPT_MAP_BASE) +
+			     KSEG1 + A_IMR_REGISTER(1,
+						    R_IMR_INTERRUPT_MAP_BASE) +
 		      (i << 3));
 	}
 
@@ -364,9 +364,9 @@ void __init init_IRQ(void)
 
 	/* Clear the mailboxes.  The firmware may leave them dirty */
 	__raw_writeq(0xffffffffffffffff,
-	      KSEG1 + A_IMR_REGISTER(0, R_IMR_MAILBOX_CLR_CPU));
+		     KSEG1 + A_IMR_REGISTER(0, R_IMR_MAILBOX_CLR_CPU));
 	__raw_writeq(0xffffffffffffffff,
-	      KSEG1 + A_IMR_REGISTER(1, R_IMR_MAILBOX_CLR_CPU));
+		     KSEG1 + A_IMR_REGISTER(1, R_IMR_MAILBOX_CLR_CPU));
 
 	/* Mask everything except the mailbox registers for both cpus */
 	tmp = ~((u64) 0) ^ (((u64) 1) << K_INT_MBOX_0);
@@ -419,8 +419,6 @@ void __init init_IRQ(void)
 #ifdef CONFIG_KGDB
 
 #include <linux/delay.h>
-
-extern void set_async_breakpoint(unsigned long *epc);
 
 #define duart_out(reg, val)     csr_out32(val, KSEG1 + A_DUART_CHANREG(kgdb_port,reg))
 #define duart_in(reg)           csr_in32(KSEG1 + A_DUART_CHANREG(kgdb_port,reg))

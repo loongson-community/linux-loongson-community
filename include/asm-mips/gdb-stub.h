@@ -207,6 +207,7 @@ struct gdb_regs {
  */
 
 void set_debug_traps(void);
+void set_async_breakpoint(unsigned long *epc);
 
 #endif /* !__ASSEMBLY__ */
 #endif /* __ASM_MIPS_GDB_STUB_H */
