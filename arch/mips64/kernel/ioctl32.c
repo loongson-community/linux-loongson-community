@@ -68,6 +68,24 @@ struct timeval32 {
 	int tv_usec;
 };
 
+static int do_siocgstamp(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+	struct timeval32 *up = (struct timeval32 *)arg;
+	struct timeval ktv;
+	mm_segment_t old_fs = get_fs();
+	int err;
+
+	set_fs(KERNEL_DS);
+	err = sys_ioctl(fd, cmd, (unsigned long)&ktv);
+	set_fs(old_fs);
+	if (!err) {
+		err = put_user(ktv.tv_sec, &up->tv_sec);
+		err |= __put_user(ktv.tv_usec, &up->tv_usec);
+	}
+
+	return err;
+}
+
 #define EXT2_IOC32_GETFLAGS               _IOR('f', 1, int)
 #define EXT2_IOC32_SETFLAGS               _IOW('f', 2, int)
 #define EXT2_IOC32_GETVERSION             _IOR('v', 1, int)
@@ -367,6 +385,11 @@ static int hdio_ioctl_trans(unsigned int fd, unsigned int cmd, unsigned long arg
 	}
 
 	return error;
+}
+
+static int ret_einval(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+	return -EINVAL;
 }
 
 struct blkpg_ioctl_arg32 {
@@ -671,6 +694,12 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_HANDLER(SIOCSIFTXQLEN, dev_ifsioc),
 	IOCTL32_HANDLER(SIOCADDRT, routing_ioctl),
 	IOCTL32_HANDLER(SIOCDELRT, routing_ioctl),
+	/*
+	 * Note SIOCRTMSG is no longer, so this is safe and * the user would
+	 * have seen just an -EINVAL anyways.
+	 */
+	IOCTL32_HANDLER(SIOCRTMSG, ret_einval),
+	IOCTL32_HANDLER(SIOCGSTAMP, do_siocgstamp),
 
 #endif /* CONFIG_NET */
 
