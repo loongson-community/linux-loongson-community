@@ -1228,29 +1228,4 @@ char *pcibios_setup(char *str)
 	return str;
 }
 
-void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
-			   dma_addr_t * dma_handle)
-{
-	void *ret;
-	int gfp = GFP_ATOMIC;
-
-	if (hwdev == NULL || hwdev->dma_mask != 0xffffffff)
-		gfp |= GFP_DMA;
-	ret = (void *) __get_free_pages(gfp, get_order(size));
-
-	if (ret != NULL) {
-		memset(ret, 0, size);
-		*dma_handle = virt_to_bus(ret);
-	}
-	return ret;
-}
-
-#if 1
-void pci_free_consistent(struct pci_dev *hwdev, size_t size,
-			 void *vaddr, dma_addr_t dma_handle)
-{
-	free_pages((unsigned long) vaddr, get_order(size));
-}
-#endif
-
 #endif /* CONFIG_PCI */

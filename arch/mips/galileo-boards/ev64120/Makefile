@@ -15,6 +15,8 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
+all:	ev64120.o int-handler.o
+
 O_TARGET := ev64120.o
 
 obj-y	:= serialGT.o int-handler.o promcon.o reset.o setup.o irq.o \
