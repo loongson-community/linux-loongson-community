@@ -336,6 +336,7 @@ void per_cpu_init(void)
 		if (mips4_available)
 			set_cp0_status(ST0_XX, ST0_XX);
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
+		sti();
 	}
 	if (is_slave == 0)
 		is_slave = 1;
