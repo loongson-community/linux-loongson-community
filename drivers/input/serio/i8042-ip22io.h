@@ -3,8 +3,6 @@
 
 #include <asm/sgi/ioc.h>
 #include <asm/sgi/ip22.h>
-#include <asm/sgi/sgint23.h>
-#include <asm/sgi/sgint23.h>
 
 /*
  * This program is free software; you can redistribute it and/or modify it
