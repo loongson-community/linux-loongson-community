@@ -1,3 +1,4 @@
 .*.o
 .*.o.d
 .*.cmd
+maui_boot.h msndperm.c msndinit.c pndsperm.c pndspini.c pss_boot.h trix_boot.h
