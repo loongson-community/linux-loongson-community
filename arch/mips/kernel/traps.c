@@ -27,6 +27,7 @@
 #include <asm/jazz.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
+#include <asm/siginfo.h>
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -436,6 +437,7 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 
 void do_bp(struct pt_regs *regs)
 {
+	siginfo_t info;
 	unsigned int opcode, bcode;
 
 	/*
@@ -451,12 +453,28 @@ void do_bp(struct pt_regs *regs)
 	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
 	 * insns, even for break codes that indicate arithmetic failures.
 	 * Weird ...)
+	 * But should we continue the brokenness???  --macro
 	 */
-	force_sig(SIGTRAP, current);
+	switch (bcode) {
+	case 6:
+	case 7:
+		if (bcode == 7)
+			info.si_code = FPE_INTDIV;
+		else
+			info.si_code = FPE_INTOVF;
+		info.si_signo = SIGFPE;
+		info.si_errno = 0;
+		info.si_addr = (void *)compute_return_epc(regs);
+		force_sig_info(SIGFPE, &info, current);
+		break;
+	default:
+		force_sig(SIGTRAP, current);
+	}
 }
 
 void do_tr(struct pt_regs *regs)
 {
+	siginfo_t info;
 	unsigned int opcode, bcode;
 
 	if (get_insn_opcode(regs, &opcode))
@@ -467,8 +485,23 @@ void do_tr(struct pt_regs *regs)
 	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
 	 * insns, even for break codes that indicate arithmetic failures.
 	 * Weird ...)
+	 * But should we continue the brokenness???  --macro
 	 */
-	force_sig(SIGTRAP, current);
+	switch (bcode) {
+	case 6:
+	case 7:
+		if (bcode == 7)
+			info.si_code = FPE_INTDIV;
+		else
+			info.si_code = FPE_INTOVF;
+		info.si_signo = SIGFPE;
+		info.si_errno = 0;
+		info.si_addr = (void *)compute_return_epc(regs);
+		force_sig_info(SIGFPE, &info, current);
+		break;
+	default:
+		force_sig(SIGTRAP, current);
+	}
 }
 
 #if !defined(CONFIG_CPU_HAS_LLSC)
