@@ -58,6 +58,7 @@
 
 /* MIPS type numbers.  */
 #define PORT_IP22ZILOG	40
+#define PORT_DZ		41
 
 /* NEC v850.  */
 #define PORT_NB85E_UART	40

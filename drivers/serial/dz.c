@@ -32,6 +32,7 @@
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/console.h>
+#include <linux/serial.h>
 #include <linux/serial_core.h>
 
 #include <asm/bootinfo.h>
@@ -88,7 +89,7 @@ static void debug_console(const char *s, int count)
 static inline unsigned short dz_in(struct dz_port *dport, unsigned offset)
 {
 	volatile unsigned short *addr =
-		(volatile unsigned short *) (dport->port.base + offset);
+		(volatile unsigned short *) (dport->port.membase + offset);
 	return *addr;
 }
 
@@ -96,7 +97,7 @@ static inline void dz_out(struct dz_port *dport, unsigned offset,
                           unsigned short value)
 {
 	volatile unsigned short *addr =
-		(volatile unsigned short *) (dport->port.base + offset);
+		(volatile unsigned short *) (dport->port.membase + offset);
 	*addr = value;
 }
 
@@ -112,7 +113,7 @@ static inline void dz_out(struct dz_port *dport, unsigned offset,
 
 static void dz_stop_tx(struct uart_port *uport, unsigned int tty_stop)
 {
-	struct dz_port *dport = (struct dz_port *)uport);
+	struct dz_port *dport = (struct dz_port *)uport;
 	unsigned short tmp, mask = 1 << dport->port.line;
 	unsigned long flags;
 
@@ -125,8 +126,8 @@ static void dz_stop_tx(struct uart_port *uport, unsigned int tty_stop)
 
 static void dz_start_tx(struct uart_port *uport, unsigned int tty_start)
 {
-	struct dz_port *dport = (struct dz_port *)uport);
-	unsigned short tmp, mask = 1 << port->line;
+	struct dz_port *dport = (struct dz_port *)uport;
+	unsigned short tmp, mask = 1 << dport->port.line;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dport->port.lock, flags);
@@ -138,12 +139,12 @@ static void dz_start_tx(struct uart_port *uport, unsigned int tty_start)
 
 static void dz_stop_rx(struct uart_port *uport)
 {
-	struct dz_port *dport = (struct dz_port *)uport);
+	struct dz_port *dport = (struct dz_port *)uport;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dport->port.lock, flags);
 	dport->cflag &= ~DZ_CREAD;
-	dz_out(dport, DZ_LPR, dport->cflags);
+	dz_out(dport, DZ_LPR, dport->cflag);
 	spin_unlock_irqrestore(&dport->port.lock, flags);
 }
 
@@ -182,7 +183,7 @@ static void dz_enable_ms(struct uart_port *port)
 static inline void dz_receive_chars(struct dz_port *dport)
 {
 	struct tty_struct *tty = NULL;
-	struct async_icount *icount;
+	struct uart_icount *icount;
 	int ignore = 0;
 	unsigned short status, tmp;
 	unsigned char ch;
@@ -192,8 +193,7 @@ static inline void dz_receive_chars(struct dz_port *dport)
 	   to be rethought...
 	 */
 	do {
-		status = dz_in(info_in, DZ_RBUF);
-		dport = dz_ports[LINE(status)];
+		status = dz_in(dport, DZ_RBUF);
 
 		/* punt so we don't get duplicate characters */
 		if (!(status & DZ_DVAL))
@@ -340,7 +340,7 @@ static inline void check_modem_status(struct dz_port *dport)
  * It deals with the multiple ports.
  * ------------------------------------------------------------
  */
-static void dz_interrupt(int irq, void *dev, struct pt_regs *regs)
+static irqreturn_t dz_interrupt(int irq, void *dev, struct pt_regs *regs)
 {
 	struct dz_port *dport;
 	unsigned short status;
@@ -353,9 +353,11 @@ static void dz_interrupt(int irq, void *dev, struct pt_regs *regs)
 		dz_receive_chars(dport);
 
 	if (status & DZ_TRDY)
-		dz_transmit_chars(port);
+		dz_transmit_chars(dport);
 
 	/* FIXME: what about check modem status??? --rmk */
+
+	return IRQ_HANDLED;
 }
 
 /*
@@ -415,14 +417,14 @@ static int dz_startup(struct uart_port *uport)
 	    (dport->port.line == DZ_MOUSE))
 		return -ENODEV;
 
-	spin_lock_irqsave(&dport->port.lock);
+	spin_lock_irqsave(&dport->port.lock, flags);
 
 	/* enable the interrupt and the scanning */
 	tmp = dz_in(dport, DZ_CSR);
 	tmp |= DZ_RIE | DZ_TIE | DZ_MSE;
 	dz_out(dport, DZ_CSR, tmp);
 
-	spin_unlock_irqrestore(&dport->port.lock);
+	spin_unlock_irqrestore(&dport->port.lock, flags);
 
 	return 0;
 }
@@ -437,7 +439,7 @@ static int dz_startup(struct uart_port *uport)
  */
 static void dz_shutdown(struct uart_port *uport)
 {
-	dz_stop(uport, 0);
+	dz_stop_tx(uport, 0);
 }
 
 /*
@@ -459,19 +461,20 @@ static unsigned int dz_tx_empty(struct uart_port *uport)
 	return status ? TIOCSER_TEMT : 0;
 }
 
-static void dz_break_ctl(struct uart_port *port, int break_state)
+static void dz_break_ctl(struct uart_port *uport, int break_state)
 {
+	struct dz_port *dport = (struct dz_port *)uport;
 	unsigned long flags;
-	unsigned short tmp, mask = 1 << port->line;
+	unsigned short tmp, mask = 1 << uport->line;
 
-	spin_lock_irqsave(&port->lock, flags);
-	tmp = dz_in(port, DZ_TCR);
+	spin_lock_irqsave(&uport->lock, flags);
+	tmp = dz_in(dport, DZ_TCR);
 	if (break_state)
 		tmp |= mask;
 	else
 		tmp &= ~mask;
-	dz_out(port, DZ_TCR, tmp);
-	spin_unlock_irqrestore(&port->lock, flags);
+	dz_out(dport, DZ_TCR, tmp);
+	spin_unlock_irqrestore(&uport->lock, flags);
 }
 
 static void dz_set_termios(struct uart_port *uport, struct termios *termios,
@@ -505,7 +508,7 @@ static void dz_set_termios(struct uart_port *uport, struct termios *termios,
 	if (termios->c_cflag & PARODD)
 		cflag |= DZ_PARODD;
 
-	baud = uart_get_baud_rate(termios);
+	baud = uart_get_baud_rate(uport, termios, old_termios, 50, 9600);
 	switch (baud) {
 	case 50:
 		cflag |= DZ_B50;
@@ -559,8 +562,8 @@ static void dz_set_termios(struct uart_port *uport, struct termios *termios,
 
 	spin_lock_irqsave(&dport->port.lock, flags);
 
-	info->cflags = cflag;
-	dz_out(info, DZ_LPR, info->cflags);
+	dz_out(dport, DZ_LPR, cflag);
+	dport->cflag = cflag;
 
 	/* setup accept flag */
 	dport->port.read_status_mask = DZ_OERR;
@@ -568,7 +571,7 @@ static void dz_set_termios(struct uart_port *uport, struct termios *termios,
 		dport->port.read_status_mask |= DZ_FERR | DZ_PERR;
 
 	/* characters to ignore */
-	info->ignore_status_mask = 0;
+	uport->ignore_status_mask = 0;
 	if (termios->c_iflag & IGNPAR)
 		dport->port.ignore_status_mask |= DZ_FERR | DZ_PERR;
 
@@ -647,13 +650,13 @@ static void __init dz_init_ports(void)
 
 	for (i = 0, dport = dz_ports; i < DZ_NB_PORT; i++, dport++) {
 		spin_lock_init(&dport->port.lock);
-		dport->port.base	= base;
-		dport->port.iotype	= SERIAL_IO_PORT,
+		dport->port.membase	= (char *) base;
+		dport->port.iotype	= SERIAL_IO_PORT;
 		dport->port.irq		= dec_interrupt[DEC_IRQ_DZ11];
 		dport->port.line	= i;
-		dport->port.fifosize	= 1,
-		dport->port.ops		= &dz_ops,
-		dport->port.flags	= UPF_BOOT_AUTOCONF,
+		dport->port.fifosize	= 1;
+		dport->port.ops		= &dz_ops;
+		dport->port.flags	= UPF_BOOT_AUTOCONF;
 	}
 }
 
@@ -682,11 +685,12 @@ static void dz_console_put_char(struct dz_port *dport, unsigned char ch)
 	spin_lock_irqsave(&dport->port.lock, flags);
 
 	/* spin our wheels */
-	while (((dz_in(dz_console, DZ_CSR) & DZ_TRDY) != DZ_TRDY) && loops--);
+	while (((dz_in(dport, DZ_CSR) & DZ_TRDY) != DZ_TRDY) && loops--)
 		/* FIXME: cpu_relax, udelay? --rmk */
+		;
 
 	/* Actually transmit the character. */
-	dz_out(dz_console, DZ_TDR, tmp);
+	dz_out(dport, DZ_TDR, tmp);
 
 	spin_unlock_irqrestore(&dport->port.lock, flags);
 }
@@ -713,11 +717,6 @@ static void dz_console_print(struct console *cons,
 	}
 }
 
-static kdev_t dz_console_device(struct console *c)
-{
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
-}
-
 static int __init dz_console_setup(struct console *co, char *options)
 {
 	struct dz_port *dport = &dz_ports[CONSOLE_LINE];
@@ -726,6 +725,7 @@ static int __init dz_console_setup(struct console *co, char *options)
 	int parity = 'n';
 	int flow = 'n';
 	int ret;
+	unsigned short mask, tmp;
 
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
@@ -749,7 +749,7 @@ static struct console dz_sercons =
 {
 	.name	= "ttyS",
 	.write	= dz_console_print,
-	.device	= dz_console_device,
+	.device	= uart_console_device,
 	.setup	= dz_console_setup,
 	.flags	= CON_CONSDEV | CON_PRINTBUFFER,
 	.index	= CONSOLE_LINE,
@@ -783,7 +783,7 @@ static struct uart_driver dz_reg = {
 
 int __init dz_init(void)
 {
-	unsigned short tmp;
+	unsigned long flags;
 	int ret, i;
 
 	printk("%s%s\n", dz_name, dz_version);
@@ -812,7 +812,7 @@ int __init dz_init(void)
 		return ret;
 
 	for (i = 0; i < DZ_NB_PORT; i++)
-		uart_add_one_port(&dz_reg, &dz_port[i].port);
+		uart_add_one_port(&dz_reg, &dz_ports[i].port);
 
 	return ret;
 }
