@@ -367,12 +367,12 @@ cpu_4kc:
 				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 			break;
-#endif /* CONFIG_CPU_MIPS32 */
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
 		}
 		break;
+#endif /* CONFIG_CPU_MIPS32 */
 	case PRID_COMP_SIBYTE:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_SB1:
