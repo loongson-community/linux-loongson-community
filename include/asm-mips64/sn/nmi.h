@@ -8,7 +8,7 @@
 #ifndef __ASM_SN_NMI_H
 #define __ASM_SN_NMI_H
 
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.4 $"
 
 #include <asm/sn/addrs.h>
 
@@ -42,7 +42,7 @@
  * The NMI routine is called only if the complement address is
  * correct.
  *
- * Before control is transferred to a routine, the compliment address
+ * Before control is transferred to a routine, the complement address
  * is zeroed (invalidated) to prevent an accidental call from a spurious
  * interrupt.
  *
