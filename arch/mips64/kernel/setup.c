@@ -13,6 +13,7 @@
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
+#include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -88,6 +89,7 @@ unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 struct boot_mem_map boot_mem_map;
 
 unsigned char aux_device_present;
+extern char _ftext, _etext, _fdata, _edata, _end;
 
 static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];
@@ -116,6 +118,9 @@ extern void SetUpBootInfo(void);
 extern void load_mmu(void);
 extern ATTRIB_NORET asmlinkage void start_kernel(void);
 extern void prom_init(int, char **, char **, int *);
+
+static struct resource code_resource = { "Kernel code" };
+static struct resource data_resource = { "Kernel data" };
 
 asmlinkage void __init init_arch(int argc, char **argv, char **envp,
 	int *prom_vec)
@@ -241,7 +246,12 @@ static inline void parse_mem_cmdline(void)
 	}
 }
 
-void bootmem_init(void)
+
+#define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
+#define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
+#define PFN_PHYS(x)	((x) << PAGE_SHIFT)
+
+static inline void bootmem_init(void)
 {
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
@@ -250,11 +260,6 @@ void bootmem_init(void)
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn;
 	int i;
-	extern int _end;
-
-#define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
-#define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
-#define PFN_PHYS(x)	((x) << PAGE_SHIFT)
 
 	/*
 	 * Partially used pages are not usable - thus
@@ -347,12 +352,55 @@ void bootmem_init(void)
 			*memory_start_p = initrd_end;
 	}
 #endif
+}
+
+static inline void resource_init(void)
+{
+	int i;
+
+	code_resource.start = virt_to_bus(&_ftext);
+	code_resource.end = virt_to_bus(&_etext) - 1;
+	data_resource.start = virt_to_bus(&_fdata);
+	data_resource.end = virt_to_bus(&_edata) - 1;
+
+	/*
+	 * Request address space for all standard RAM.
+	 */
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		struct resource *res;
+
+		res = alloc_bootmem(sizeof(struct resource));
+		switch (boot_mem_map.map[i].type) {
+		case BOOT_MEM_RAM:
+		case BOOT_MEM_ROM_DATA:
+			res->name = "System RAM";
+			break;
+		case BOOT_MEM_RESERVED:
+		default:
+			res->name = "reserved";
+		}
+
+		res->start = boot_mem_map.map[i].addr;
+		res->end = boot_mem_map.map[i].addr +
+			   boot_mem_map.map[i].size - 1;
+
+		res->flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+		request_resource(&iomem_resource, res);
+
+		/*
+		 *  We dont't know which RAM region contains kernel data,
+		 *  so we try it repeatedly and let the resource manager
+		 *  test it.
+		 */
+		request_resource(res, &code_resource);
+		request_resource(res, &data_resource);
+	}
+}
 
 #undef PFN_UP
 #undef PFN_DOWN
 #undef PFN_PHYS
 
-}
 
 void __init setup_arch(char **cmdline_p)
 {
@@ -383,6 +431,8 @@ void __init setup_arch(char **cmdline_p)
 	bootmem_init();
 
 	paging_init();
+
+	resource_init();
 }
 
 int __init fpu_disable(char *s)
