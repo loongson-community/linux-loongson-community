@@ -172,9 +172,6 @@ static void no_initrd(char *s,int *ints);
 #ifdef CONFIG_ISDN_DRV_ICN
 extern void icn_setup(char *str, int *ints);
 #endif
-#ifdef CONFIG_ISDN_DRV_TELES
-extern void teles_setup(char *str, int *ints);
-#endif
 #ifdef CONFIG_ISDN_DRV_HISAX
 extern void HiSax_setup(char *str, int *ints);
 #endif
@@ -469,9 +466,6 @@ struct {
 #endif
 #ifdef CONFIG_ISDN_DRV_ICN
 	{ "icn=", icn_setup },
-#endif
-#ifdef CONFIG_ISDN_DRV_TELES
-	{ "teles=", teles_setup },
 #endif
 #ifdef CONFIG_ISDN_DRV_HISAX
        { "hisax=", HiSax_setup },
@@ -992,7 +986,7 @@ printk("init() #2\n");while(1);
 	else mount_initrd =0;
 #endif
 printk("init() #3\n");while(1);
-	setup();
+	setup(0);
 printk("init() #4\n");while(1);
 
 #ifdef __SMP__
@@ -1037,6 +1031,8 @@ printk("init() #4\n");while(1);
 	}
 #endif
 
+	setup(1);
+	
 	if (open("/dev/console",O_RDWR,0) < 0)
 		printk("Unable to open an initial console.\n");
 
