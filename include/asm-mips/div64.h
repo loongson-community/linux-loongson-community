@@ -8,8 +8,6 @@
 #ifndef _ASM_DIV64_H
 #define _ASM_DIV64_H
 
-#include <asm/sgidefs.h>
-
 /*
  * No traps on overflows for any of these...
  */
@@ -33,10 +31,10 @@
 		"sll	%2, %2, 0x1\n" \
 		"1:\n\t" \
 		"bnez	%3, 2f\n\t" \
-		"sltu	%5, %0, %z6\n\t" \
+		" sltu	%5, %0, %z6\n\t" \
 		"bnez	%5, 3f\n\t" \
 		"2:\n\t" \
-		" addiu	%4,%4,-1\n\t" \
+		" addiu	%4, %4, -1\n\t" \
 		"subu	%0, %0, %z6\n\t" \
 		"addiu	%2, %2, 1\n" \
 		"3:\n\t" \
@@ -60,7 +58,7 @@
 	__upper = __high; \
 	\
 	if (__high) \
-		__asm__("divu	$0,%z2,%z3" \
+		__asm__("divu	$0, %z2, %z3" \
 			: "=h" (__upper), "=l" (__high) \
 			: "Jr" (__high), "Jr" (base)); \
 	\
