@@ -1121,6 +1121,7 @@ static inline int ioc3_is_menet(struct pci_dev *pdev)
 	       && dev->device == PCI_DEVICE_ID_SGI_IOC3;
 }
 
+#ifdef CONFIG_SERIAL_8250
 /*
  * Note about serial ports and consoles:
  * For console output, everyone uses the IOC3 UARTA (offset 0x178)
@@ -1149,8 +1150,7 @@ static inline int ioc3_is_menet(struct pci_dev *pdev)
  * (IOC3_BAUD = (22000000 / (3*16)))
  */
 
-static inline void ioc3_serial_probe(struct pci_dev *pdev,
-				struct ioc3 *ioc3)
+static void __devinit ioc3_serial_probe(struct pci_dev *pdev, struct ioc3 *ioc3)
 {
 	struct serial_struct req;
 
@@ -1181,6 +1181,7 @@ static inline void ioc3_serial_probe(struct pci_dev *pdev,
 	req.iomem_base      = (unsigned char *) &ioc3->sregs.uartb;
 	register_serial(&req);
 }
+#endif
 
 static int ioc3_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
