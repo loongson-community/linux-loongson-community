@@ -46,14 +46,14 @@ config MIPS_PB1100
 config MIPS_PB1500
 	bool "AMD Alchemy PB1500 board"
 	select SOC_AU1500
-	select DMA_COHERENT
+	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 
 config MIPS_PB1550
 	bool "AMD Alchemy PB1550 board"
 	select SOC_AU1550
-	select DMA_COHERENT
+	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select MIPS_DISABLE_OBSOLETE_IDE
 	select SYS_SUPPORTS_LITTLE_ENDIAN
@@ -74,7 +74,7 @@ config MIPS_DB1100
 config MIPS_DB1500
 	bool "AMD Alchemy DB1500 board"
 	select SOC_AU1500
-	select DMA_COHERENT
+	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select MIPS_DISABLE_OBSOLETE_IDE
 	select SYS_SUPPORTS_LITTLE_ENDIAN
@@ -83,7 +83,7 @@ config MIPS_DB1550
 	bool "AMD Alchemy DB1550 board"
 	select SOC_AU1550
 	select HW_HAS_PCI
-	select DMA_COHERENT
+	select DMA_NONCOHERENT
 	select MIPS_DISABLE_OBSOLETE_IDE
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 
