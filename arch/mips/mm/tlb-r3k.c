@@ -20,7 +20,6 @@
 #include <asm/system.h>
 #include <asm/isadep.h>
 #include <asm/io.h>
-#include <asm/wbflush.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 

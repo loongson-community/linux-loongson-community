@@ -19,7 +19,6 @@
 #include <asm/system.h>
 #include <asm/isadep.h>
 #include <asm/io.h>
-#include <asm/wbflush.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
@@ -314,7 +313,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 
 static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 {
-	wbflush();
+	iob();
 	r3k_flush_dcache_range(start, start + size);
 }
 

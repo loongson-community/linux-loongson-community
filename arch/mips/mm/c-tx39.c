@@ -20,7 +20,6 @@
 #include <asm/system.h>
 #include <asm/isadep.h>
 #include <asm/io.h>
-#include <asm/wbflush.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
@@ -63,8 +62,8 @@ static void tx39h_flush_icache_all(void)
 static void tx39h_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
-	wbflush();
 
+	iob();
 	a = addr & ~(dcache_lsize - 1);
 	end = (addr + size) & ~(dcache_lsize - 1);
 	while (1) {

@@ -84,6 +84,7 @@ static inline void ack_ioasic_irq(unsigned int irq)
 	spin_lock(&ioasic_lock);
 	mask_ioasic_irq(irq);
 	spin_unlock(&ioasic_lock);
+	fast_iob();
 }
 
 static inline void end_ioasic_irq(unsigned int irq)
@@ -119,6 +120,7 @@ static struct hw_interrupt_type ioasic_irq_type = {
 static inline void end_ioasic_dma_irq(unsigned int irq)
 {
 	clear_ioasic_irq(irq);
+	fast_iob();
 	end_ioasic_irq(irq);
 }
 
@@ -142,6 +144,7 @@ void __init init_ioasic_irqs(int base)
 
 	/* Mask interrupts. */
 	ioasic_write(SIMR, 0);
+	fast_iob();
 
 	for (i = base; i < base + IO_INR_DMA; i++) {
 		irq_desc[i].status = IRQ_DISABLED;

@@ -25,6 +25,7 @@
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/traps.h>
+#include <asm/wbflush.h>
 
 #include <asm/dec/interrupts.h>
 #include <asm/dec/kn01.h>
@@ -88,8 +89,6 @@ static struct irqaction fpuirq = {NULL, 0, 0, "fpu", NULL, NULL};
 
 static struct irqaction haltirq = {dec_intr_halt, 0, 0, "halt", NULL, NULL};
 
-
-extern void wbflush_setup(void);
 
 extern struct rtc_ops dec_rtc_ops;
 

@@ -35,7 +35,6 @@
 #include <linux/param.h>
 #include <linux/tqueue.h>
 #include <linux/interrupt.h>
-#include <asm-mips/wbflush.h>
 #include <asm/dec/interrupts.h>
 
 #include <linux/console.h>
@@ -52,6 +51,8 @@
 #include <linux/ptrace.h>
 #include <linux/fs.h>
 #include <asm/bootinfo.h>
+
+#include <asm/system.h>
 
 #define CONSOLE_LINE (3)	/* for definition of struct console */
 
@@ -1416,7 +1417,7 @@ int __init dz_init(void)
 #ifndef CONFIG_SERIAL_CONSOLE
 	dz_out(info, DZ_CSR, DZ_CLR);
 	while ((tmp = dz_in(info, DZ_CSR)) & DZ_CLR);
-	wbflush();
+	iob();
 
 	/* enable scanning */
 	dz_out(info, DZ_CSR, DZ_MSE);

@@ -46,6 +46,8 @@
 #include <asm/dec/ioasic_ints.h>
 #include <asm/dec/machtype.h>
 
+#include <asm/system.h>
+
 /*
  * Once upon a time the pmaz code used to be working but
  * it hasn't been maintained for quite some time.
@@ -308,17 +310,9 @@ static void scsi_dma_err_int(int irq, void *dev_id, struct pt_regs *regs)
 
 static void scsi_dma_int(int irq, void *dev_id, struct pt_regs *regs)
 {
-	volatile unsigned int *dummy = (volatile unsigned int *)KSEG1;
-
 	/* next page */
 	*scsi_next_ptr = ((*scsi_dma_ptr + PAGE_SIZE) & PAGE_MASK) << 3;
-
-	/*
-	 * This routine will only work on IOASIC machines
-	 * so we can avoid an indirect function call here
-	 * and flush the writeback buffer the fast way
-	 */
-	*dummy;
+	fast_iob();
 }
 
 static int dma_bytes_sent(struct NCR_ESP *esp, int fifo_count)
@@ -370,8 +364,6 @@ static void dma_dump_state(struct NCR_ESP *esp)
 
 static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length)
 {
-	volatile unsigned int *dummy = (volatile unsigned int *)KSEG1;
-
 	if (vaddress & 3)
 		panic("dec_efs.c: unable to handle partial word transfers, yet...");
 
@@ -384,17 +376,11 @@ static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length)
 	/* prepare for next page */
 	*scsi_next_ptr = ((vaddress + PAGE_SIZE) & PAGE_MASK) << 3;
 	*ioasic_ssr |= (SCSI_DMA_DIR | SCSI_DMA_EN);
-
-	/*
-	 * see above
-	 */
-	*dummy;
+	fast_iob();
 }
 
 static void dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length)
 {
-	volatile unsigned int *dummy = (volatile unsigned int *)KSEG1;
-
 	if (vaddress & 3)
 		panic("dec_efs.c: unable to handle partial word transfers, yet...");
 
@@ -407,11 +393,7 @@ static void dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length)
 	/* prepare for next page */
 	*scsi_next_ptr = ((vaddress + PAGE_SIZE) & PAGE_MASK) << 3;
 	*ioasic_ssr |= SCSI_DMA_EN;
-
-	/*
-	 * see above
-	 */
-	*dummy;
+	fast_iob();
 }
 
 static void dma_ints_off(struct NCR_ESP *esp)
@@ -492,6 +474,8 @@ static void pmaz_dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length)
 
 	*dmareg = TC_ESP_DMA_ADDR(esp->slot + DEC_SCSI_SRAM + ESP_TGT_DMA_SIZE);
 
+	iob();
+
 	esp_virt_buffer = vaddress;
 	scsi_current_length = length;
 }
@@ -506,6 +490,7 @@ static void pmaz_dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length)
 	*dmareg = TC_ESP_DMAR_WRITE | 
 		TC_ESP_DMA_ADDR(esp->slot + DEC_SCSI_SRAM + ESP_TGT_DMA_SIZE);
 
+	iob();
 }
 
 static void pmaz_dma_ints_off(struct NCR_ESP *esp)

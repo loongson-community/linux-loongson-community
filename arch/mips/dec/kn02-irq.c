@@ -83,6 +83,7 @@ static void ack_kn02_irq(unsigned int irq)
 	spin_lock(&kn02_lock);
 	mask_kn02_irq(irq);
 	spin_unlock(&kn02_lock);
+	iob();
 }
 
 static void end_kn02_irq(unsigned int irq)
@@ -113,6 +114,7 @@ void __init init_kn02_irqs(int base)
 	/* Mask interrupts and preset write-only bits. */
 	cached_kn02_csr = (*csr & ~0xff0000) | 0xff;
 	*csr = cached_kn02_csr;
+	iob();
 
 	for (i = base; i < base + KN02_IRQ_LINES; i++) {
 		irq_desc[i].status = IRQ_DISABLED;

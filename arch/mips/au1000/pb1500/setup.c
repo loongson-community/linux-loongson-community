@@ -71,7 +71,6 @@ extern struct ide_ops *ide_ops;
 extern struct rtc_ops pb1500_rtc_ops;
 #endif
 
-void (*__wbflush) (void);
 extern char * __init prom_getcmdline(void);
 extern void au1000_restart(char *);
 extern void au1000_halt(void);
@@ -81,15 +80,6 @@ extern struct resource iomem_resource;
 
 
 void __init bus_error_init(void) { /* nothing */ }
-
-void au1500_wbflush(void)
-{
-	__asm__ volatile ("sync");
-}
-
-void __init bus_error_init(void)
-{
-}
 
 void __init au1500_setup(void)
 {
@@ -116,7 +106,6 @@ void __init au1500_setup(void)
 	argptr = prom_getcmdline();
 #endif
 
-        __wbflush = au1500_wbflush;
 	_machine_restart = au1000_restart;
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;

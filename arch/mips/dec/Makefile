@@ -14,9 +14,10 @@ all: dec.o
 
 export-objs := setup.o wbflush.o
 obj-y	 := int-handler.o ioasic-irq.o kn02-irq.o reset.o rtc-dec.o setup.o \
-	time.o wbflush.o
+	time.o
 
 obj-$(CONFIG_PROM_CONSOLE)	+= promcon.o
+obj-$(CONFIG_CPU_HAS_WB)	+= wbflush.o
 
 int-handler.o:	int-handler.S
 
