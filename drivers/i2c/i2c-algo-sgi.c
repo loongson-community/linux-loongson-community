@@ -30,29 +30,21 @@
 #define SGI_I2C_BUS_OK		(0 << 7)
 #define SGI_I2C_BUS_ERR		(1 << 7)
 
-#define get_control(adap)	adap->getctrl(adap->data)
-#define set_control(adap, val)	adap->setctrl(adap->data, val)
-#define read_data(adap)		adap->rdata(adap->data)
-#define write_data(adap, val)	adap->wdata(adap->data, val)
+#define get_control()		adap->getctrl(adap->data)
+#define set_control(val)	adap->setctrl(adap->data, val)
+#define read_data()		adap->rdata(adap->data)
+#define write_data(val)		adap->wdata(adap->data, val)
 
-/* I2C debugging? */
-#if 1
-#define DEBUGI2C(x...)     printk(x);
-#else
-#define DEBUGI2C(x...)
-#endif
 
 static int wait_xfer_done(struct i2c_algo_sgi_data *adap)
 {
 	int i;
 
 	for (i = 0; i < adap->xfer_timeout; i++) {
-		if ((get_control(adap) & SGI_I2C_XFER_BUSY) == 0)
+		if ((get_control() & SGI_I2C_XFER_BUSY) == 0)
 			return 0;
 		udelay(1);
 	}
-
-	DEBUGI2C("sgi_i2c: timeout waiting for xfer done.\n");
 
 	return -ETIMEDOUT;
 }
@@ -64,12 +56,10 @@ static int wait_ack(struct i2c_algo_sgi_data *adap)
 	if (wait_xfer_done(adap))
 		return -ETIMEDOUT;
 	for (i = 0; i < adap->ack_timeout; i++) {
-		if ((get_control(adap) & SGI_I2C_NACK) == 0)
+		if ((get_control() & SGI_I2C_NACK) == 0)
 			return 0;
 		udelay(1);
 	}
-
-	DEBUGI2C("sgi_i2c: timeout waiting for ack.\n");
 
 	return -ETIMEDOUT;
 }
@@ -78,74 +68,63 @@ static int force_idle(struct i2c_algo_sgi_data *adap)
 {
 	int i;
 
-	set_control(adap, SGI_I2C_FORCE_IDLE);
+	set_control(SGI_I2C_FORCE_IDLE);
 	for (i = 0; i < adap->xfer_timeout; i++) {
-		if ((get_control(adap) & SGI_I2C_NOT_IDLE) == 0)
+		if ((get_control() & SGI_I2C_NOT_IDLE) == 0)
 			goto out;
 		udelay(1);
 	}
 	return -ETIMEDOUT;
 out:
-	if (get_control(adap) & SGI_I2C_BUS_ERR) {
+	if (get_control() & SGI_I2C_BUS_ERR)
 		return -EIO;
-	}
 	return 0;
 }
 
 static int do_address(struct i2c_algo_sgi_data *adap, unsigned int addr,
-		      int rd, int release)
+		      int rd)
 {
-	DEBUGI2C("preparing to %s %02x.\n", rd ? "read from" : "write to",
-		 addr);
+	if (rd)
+		set_control(SGI_I2C_NOT_IDLE);
 	/* Check if bus is idle, eventually force it to do so */
-	if ((get_control(adap) & SGI_I2C_NOT_IDLE) == 0)
+	if (get_control() & SGI_I2C_NOT_IDLE)
 		if (force_idle(adap))
 	                return -EIO;
 	/* Write out the i2c chip address and specify operation */
-	set_control(adap, (release ? SGI_I2C_RELEASE_BUS : SGI_I2C_HOLD_BUS) |
-			  SGI_I2C_WRITE | SGI_I2C_NOT_IDLE);
-	write_data(adap, addr | (rd ? 1 : 0));
+	set_control(SGI_I2C_HOLD_BUS | SGI_I2C_WRITE | SGI_I2C_NOT_IDLE);
+	if (rd)
+		addr |= 1;
+	write_data(addr);
 	if (wait_ack(adap))
 		return -EIO;
 	return 0;
 }
 
 static int i2c_read(struct i2c_algo_sgi_data *adap, unsigned char *buf,
-		    unsigned int len, int last)
+		    unsigned int len)
 {
 	int i;
 
-	DEBUGI2C("i2c_read\n");
-	set_control(adap, (last && len < 2 ?
-			  SGI_I2C_RELEASE_BUS : SGI_I2C_HOLD_BUS) |
-			  SGI_I2C_READ | SGI_I2C_NOT_IDLE);
+	set_control(SGI_I2C_HOLD_BUS | SGI_I2C_READ | SGI_I2C_NOT_IDLE);
 	for (i = 0; i < len; i++) {
-		if (last && len == i + 1)
-			set_control(adap, SGI_I2C_RELEASE_BUS |
-					  SGI_I2C_READ |
-					  SGI_I2C_NOT_IDLE);
 		if (wait_xfer_done(adap))
 			return -EIO;
-		buf[i] = read_data(adap);
+		buf[i] = read_data();
 	}
+	set_control(SGI_I2C_RELEASE_BUS | SGI_I2C_FORCE_IDLE);
+
 	return 0;
 
 }
 
 static int i2c_write(struct i2c_algo_sgi_data *adap, unsigned char *buf,
-		     unsigned int len, int last)
+		     unsigned int len)
 {
 	int i;
 
-	DEBUGI2C("i2c_write\n");
 	/* We are already in write state */
 	for (i = 0; i < len; i++) {
-		if (last && len == i + 1)
-			set_control(adap, SGI_I2C_RELEASE_BUS |
-					  SGI_I2C_WRITE |
-					  SGI_I2C_NOT_IDLE);
-		DEBUGI2C("writing %02x\n", buf[i]);
-		write_data(adap, buf[i]);
+		write_data(buf[i]);
 		if (wait_ack(adap))
 			return -EIO;
 	}
@@ -158,17 +137,16 @@ static int sgi_xfer(struct i2c_adapter *i2c_adap, struct i2c_msg msgs[],
 	struct i2c_algo_sgi_data *adap = i2c_adap->algo_data;
 	struct i2c_msg *p;
 	int i, err = 0;
-  
+
 	for (i = 0; !err && i < num; i++) {
 		p = &msgs[i];
-		err = do_address(adap, p->addr, p->flags & I2C_M_RD,
-				 p->len == 0);
-		if (err || p->len == 0)
+		err = do_address(adap, p->addr, p->flags & I2C_M_RD);
+		if (err || !p->len)
 			continue;
 		if (p->flags & I2C_M_RD)
-			err = i2c_read(adap, p->buf, p->len, num == i + 1);
+			err = i2c_read(adap, p->buf, p->len);
 		else
-			err = i2c_write(adap, p->buf, p->len, num == i + 1);
+			err = i2c_write(adap, p->buf, p->len);
 	}
 
 	return err;
