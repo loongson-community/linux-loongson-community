@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.16 1999/10/09 00:00:58 ralf Exp $
+/* $Id: head.S,v 1.17 1999/12/04 03:58:59 ralf Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -101,7 +101,7 @@
 	eret
 	END(except_vec0_r4600)
 
-	/* TLB refill, EXL == 0, R4xx0, non-R4600 version */
+	/* TLB refill, EXL == 0, R52x0 "Nevada" version */
 	.set	noreorder
 	.set	noat
 	LEAF(except_vec0_nevada)
@@ -122,9 +122,10 @@
 	mtc0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
 	mtc0	k1, CP0_ENTRYLO1		# load it
+	nop					# QED specified nops
+	nop
 	tlbwr					# write random tlb entry
-	nop
-	nop
+	nop					# traditional nop
 	eret					# return from trap
 	END(except_vec0_nevada)
 
