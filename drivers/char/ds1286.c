@@ -254,7 +254,7 @@ static int ds1286_open(struct inode *inode, struct file *file)
 
 	ds1286_status |= RTC_IS_OPEN;
 
-	spin_lock_irq(&ds1286_lock);
+	spin_unlock_irq(&ds1286_lock);
 	return 0;
 
 out_busy:
