@@ -126,6 +126,8 @@
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/console.h>
+#include <linux/init.h>
 
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
@@ -402,6 +404,7 @@ void set_debug_traps(void)
 	for (ht = hard_trap_info; ht->tt && ht->signo; ht++)
 		set_except_vector(ht->tt, trap_low);
   
+	putDebugChar('+'); /* 'hello world' */
 	/*
 	 * In case GDB is started before us, ack any packets
 	 * (presumably "$?#xx") sitting there.
@@ -955,3 +958,47 @@ void adel(void)
 			lw	$9,0($8)
 	");
 }
+
+#ifdef CONFIG_GDB_CONSOLE
+
+void gdb_puts(const char *str)
+{
+	int l = strlen(str);
+	char outbuf[18];
+
+	outbuf[0]='O';
+
+	while(l) {
+		int i = (l>8)?8:l;
+		mem2hex((char *)str, &outbuf[1], i, 0);
+		outbuf[(i*2)+1]=0;
+		putpacket(outbuf); 
+		str += i;
+		l -= i;
+	}
+}
+
+static kdev_t gdb_console_dev(struct console *con)
+{
+	return MKDEV(1, 3); /* /dev/null */
+}
+
+static void gdb_console_write(struct console *con, const char *s, unsigned n)
+{
+	gdb_puts(s);
+}
+
+static struct console gdb_console = {
+	name:	"gdb",
+	write:	gdb_console_write,
+	device:	gdb_console_dev,
+	flags:	CON_PRINTBUFFER,
+	index:	-1
+};
+
+__init void register_gdb_console(void)
+{
+	register_console(&gdb_console);
+}
+     
+#endif

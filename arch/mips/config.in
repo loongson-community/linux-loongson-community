@@ -492,6 +492,7 @@ if [ "$CONFIG_MODULES" = "y" ]; then
 fi
 if [ "$CONFIG_SERIAL" = "y" -o "$CONFIG_AU1000_UART" = "y" ]; then
   bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
+  dep_bool 'Console output to GDB' CONFIG_GDB_CONSOLE $CONFIG_REMOTE_DEBUG
 fi
 if [ "$CONFIG_SERIAL" = "y" ]; then
   bool 'Low-level debugging' CONFIG_LL_DEBUG

@@ -155,6 +155,9 @@ void momenco_ocelot_irq_setup(void)
 		printk("start kgdb ...\n");
 		set_debug_traps();
 		breakpoint();	/* you may move this line to whereever you want :-) */
+#ifdef CONFIG_GDB_CONSOLE		
+		register_gdb_console();
+#endif
 	}
 #endif
 }
