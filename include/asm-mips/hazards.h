@@ -12,12 +12,17 @@
 
 #ifdef __ASSEMBLY__
 
+	.macro	_ssnop
+	sll	$0, $2, 1
+	.endm
+
 /*
  * RM9000 hazards.  When the JTLB is updated by tlbwi or tlbwr, a subsequent
  * use of the JTLB for instructions should not occur for 4 cpu cycles and use
  * for data translations should not occur for 3 cpu cycles.
  */
 #ifdef CONFIG_CPU_RM9000
+
 #define mtc0_tlbw_hazard						\
 	.set	push;							\
 	.set	mips32;							\
