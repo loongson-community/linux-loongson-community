@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.4 2000/02/29 20:49:15 ulfc Exp $
+/* $Id: linux32.c,v 1.5 2000/02/29 22:13:07 kanoj Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -180,7 +180,7 @@ nargs(unsigned int arg, char **ap)
 	int n, err;
 
 	n = 0;
-	for (; ptr; ) {
+	for (ptr++; ptr; ) {
 		if ((err = get_user(ptr, (int *)arg)))
 			return(err);
 		if (ap)
