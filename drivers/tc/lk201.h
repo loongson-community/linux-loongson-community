@@ -20,7 +20,7 @@
 #define LK_CMD_ENB_BELL		0x23	/* enable the bell */
 					/* 1st param: volume */
 #define LK_CMD_BELL		0xa7	/* emit a bell */
-#define LK_CMD_TMP_NORPT	0xc1	/* disable typematic */
+#define LK_CMD_TMP_NORPT	0xd1	/* disable typematic */
 					/* for the currently pressed key */
 #define LK_CMD_ENB_RPT		0xe3	/* enable typematic */
 					/* for RPT_DOWN groups */
@@ -33,15 +33,15 @@
 #define LK_CMD_TEST_EXIT	0x80	/* exit the factory test mode */
 #define LK_CMD_SET_DEFAULTS	0xd3	/* set power-up defaults */
 
-#define LK_CMD_MODE(m,div)	(LK_PARAM|(((div)&0xf)<<3)|m)
+#define LK_CMD_MODE(m,div)	(LK_PARAM|(((div)&0xf)<<3)|(((m)&0x3)<<1))
 					/* select the repeat mode */
 					/* for the selected key group */
-#define LK_CMD_MODE_AR(m,div)	((((div)&0xf)<<3)|m)
+#define LK_CMD_MODE_AR(m,div)	((((div)&0xf)<<3)|(((m)&0x3)<<1))
 					/* select the repeat mode */
 					/* and the repeat register */
 					/* for the selected key group */
 					/* 1st param: register number */
-#define LK_CMD_RPT_RATE(r)	(0x04|((((r)&0x3)<<1)))
+#define LK_CMD_RPT_RATE(r)	(0x78|(((r)&0x3)<<1))
 					/* set the delay and repeat rate */
 					/* for the selected repeat register */
 					/* 1st param: initial delay */
@@ -59,8 +59,8 @@
 
 /* mode set command details, div is a key group number */
 #define LK_MODE_DOWN		0x0	/* make only */
-#define LK_MODE_RPT_DOWN	0x2	/* make and typematic */
-#define LK_MODE_DOWN_UP		0x6	/* make and release */
+#define LK_MODE_RPT_DOWN	0x1	/* make and typematic */
+#define LK_MODE_DOWN_UP		0x3	/* make and release */
 
 /* there are 4 repeat registers */
 #define LK_PARAM_AR(r)		(LK_PARAM|((v)&0x3))
