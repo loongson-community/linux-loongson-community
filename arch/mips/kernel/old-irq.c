@@ -69,7 +69,7 @@ static unsigned int cached_irq_mask = 0xffff;
 #define cached_21       (__byte(0,cached_irq_mask))
 #define cached_A1       (__byte(1,cached_irq_mask))
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 /*
  * (un)mask_irq, disable_irq() and enable_irq() only handle (E)ISA and
