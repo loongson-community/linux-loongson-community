@@ -50,7 +50,7 @@ void local_flush_tlb_all(void)
 		 * Make sure all entries differ.  If they're not different
 		 * MIPS32 will take revenge ...
 		 */
-		write_c0_entryhi(KSEG0 + entry * 0x2000);
+		write_c0_entryhi(CKSEG0 + (entry << (PAGE_SHIFT + 1)));
 		write_c0_index(entry);
 		BARRIER;
 		tlb_write_indexed();
@@ -104,7 +104,8 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				if (idx < 0)
 					continue;
 				/* Make sure all entries differ. */
-				write_c0_entryhi(KSEG0 + idx * 0x2000);
+				write_c0_entryhi(CKSEG0 +
+				                 (idx << (PAGE_SHIFT + 1)));
 				BARRIER;
 				tlb_write_indexed();
 				BARRIER;
@@ -146,7 +147,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 			if (idx < 0)
 				continue;
 			/* Make sure all entries differ. */
-			write_c0_entryhi(KSEG0 + idx * 0x2000);
+			write_c0_entryhi(CKSEG0 + (idx << (PAGE_SHIFT + 1)));
 			BARRIER;
 			tlb_write_indexed();
 			BARRIER;
@@ -180,7 +181,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		if (idx < 0)
 			goto finish;
 		/* Make sure all entries differ. */
-		write_c0_entryhi(KSEG0 + idx * 0x2000);
+		write_c0_entryhi(CKSEG0 + (idx << (PAGE_SHIFT + 1)));
 		BARRIER;
 		tlb_write_indexed();
 
@@ -212,7 +213,7 @@ void local_flush_tlb_one(unsigned long page)
 	write_c0_entrylo1(0);
 	if (idx >= 0) {
 		/* Make sure all entries differ. */
-		write_c0_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		write_c0_entryhi(CKSEG0 + (idx << (PAGE_SHIFT + 1)));
 		BARRIER;
 		tlb_write_indexed();
 	}
