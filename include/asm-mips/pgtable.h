@@ -134,6 +134,11 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define pgd_ERROR(e) \
 	printk("%s:%d: bad pgd %08lx.\n", __FILE__, __LINE__, pgd_val(e))
 
+/*
+ * ZERO_PAGE is a global shared page that is always zero; used
+ * for zero-mapped memory areas etc..
+ */
+
 extern unsigned long empty_zero_page;
 extern unsigned long zero_page_mask;
 
@@ -149,11 +154,12 @@ extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
  * and a page entry and page directory to the page they refer to.
  */
 #define page_pte(page)		page_pte_prot(page, __pgprot(0))
-#define pmd_page_kernel(pmd)	pmd_val(pmd)
-#define pmd_page(pmd)		(mem_map + (pmd_val(pmd) - PAGE_OFFSET))
+#define pmd_phys(pmd)		(pmd_val(pmd) - PAGE_OFFSET)
+#define pmd_page(pmd)		(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
+#define pmd_page_kernel(pmd)	(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
 
-static inline int pte_none(pte_t pte)    { return !(pte_val(pte) & ~_PAGE_GLOBAL); }
-static inline int pte_present(pte_t pte) { return pte_val(pte) & _PAGE_PRESENT; }
+#define pte_none(pte)		(!(pte_val(pte) & ~_PAGE_GLOBAL))
+#define pte_present(pte)	(pte_val(pte) & _PAGE_PRESENT)
 
 /* Certain architectures need to do special things when pte's
  * within a page table are directly modified.  Thus, the following
@@ -201,11 +207,7 @@ static inline int pmd_none(pmd_t pmd)
 	return pmd_val(pmd) == (unsigned long) invalid_pte_table;
 }
 
-#define pmd_bad(pmd)							\
-({	pmd_t __pmd = (pmd);						\
-	((pmd_page(__pmd) >= (unsigned long) KSEG1) ||			\
-	        (pmd_page(__pmd) < PAGE_OFFSET));			\
-})
+#define pmd_bad(pmd)		(pmd_val(pmd) & ~PAGE_MASK)
 
 static inline int pmd_present(pmd_t pmd)
 {
@@ -288,6 +290,14 @@ static inline pte_t pte_mkdirty(pte_t pte)
 	return pte;
 }
 
+static inline pte_t pte_mkyoung(pte_t pte)
+{
+	pte_val(pte) |= _PAGE_ACCESSED;
+	if (pte_val(pte) & _PAGE_READ)
+		pte_val(pte) |= _PAGE_SILENT_READ;
+	return pte;
+}
+
 /*
  * Macro to make mark a page protection value as "uncacheable".  Note
  * that "protection" is really a misnomer here as the protection value
@@ -303,14 +313,6 @@ static inline pgprot_t pgprot_noncached(pgprot_t _prot)
 	prot = (prot & ~_CACHE_MASK) | _CACHE_UNCACHED;
 
 	return __pgprot(prot);
-}
-
-static inline pte_t pte_mkyoung(pte_t pte)
-{
-	pte_val(pte) |= _PAGE_ACCESSED;
-	if (pte_val(pte) & _PAGE_READ)
-		pte_val(pte) |= _PAGE_SILENT_READ;
-	return pte;
 }
 
 /*

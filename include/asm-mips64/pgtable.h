@@ -193,7 +193,7 @@ extern void (*_flush_cache_l1)(void);
 	printk("%s:%d: bad pgd %016lx.\n", __FILE__, __LINE__, pgd_val(e))
 
 /*
- * ZERO_PAGE is a global shared page that is always zero: used
+ * ZERO_PAGE is a global shared page that is always zero; used
  * for zero-mapped memory areas etc..
  */
 
@@ -213,8 +213,9 @@ extern pmd_t empty_bad_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
  * and a page entry and page directory to the page they refer to.
  */
 #define page_pte(page)		page_pte_prot(page, __pgprot(0))
-#define pmd_page_kernel(pmd)	pmd_val(pmd)
-#define pmd_page(pmd)		(mem_map + ((pmd_val(pmd) - PAGE_OFFSET) >> PAGE_SHIFT))
+#define pmd_phys(pmd)		(pmd_val(pmd) - PAGE_OFFSET)
+#define pmd_page(pmd)		(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
+#define pmd_page_kernel(pmd)	(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
 
 static inline unsigned long pgd_page(pgd_t pgd)
 {
@@ -278,10 +279,7 @@ static inline int pmd_none(pmd_t pmd)
 	return pmd_val(pmd) == (unsigned long) invalid_pte_table;
 }
 
-static inline int pmd_bad(pmd_t pmd)
-{
-	return pmd_val(pmd) &~ PAGE_MASK;
-}
+#define pmd_bad(pmd)		(pmd_val(pmd) &~ PAGE_MASK)
 
 static inline int pmd_present(pmd_t pmd)
 {
@@ -301,10 +299,7 @@ static inline int pgd_none(pgd_t pgd)
 	return pgd_val(pgd) == (unsigned long) invalid_pmd_table;
 }
 
-static inline int pgd_bad(pgd_t pgd)
-{
-	return pgd_val(pgd) &~ PAGE_MASK;
-}
+#define pgd_bad(pgd)		(pgd_val(pgd) &~ PAGE_MASK)
 
 static inline int pgd_present(pgd_t pgd)
 {
@@ -447,13 +442,13 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(address) pgd_offset(&init_mm, 0)
 
-#define pgd_index(address)	((address >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
+#define pgd_index(address)		((address) >> PGDIR_SHIFT)
 
 /* to find an entry in a page-table-directory */
 #define pgd_offset(mm,addr)	((mm)->pgd + pgd_index(addr))
 
 /* Find an entry in the second-level page table.. */
-static inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
+static inline pmd_t *pmd_offset(pgd_t * dir, unsigned long address)
 {
 	return (pmd_t *) pgd_page(*dir) +
 	       ((address >> PMD_SHIFT) & (PTRS_PER_PMD - 1));

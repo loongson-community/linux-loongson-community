@@ -7,14 +7,14 @@
  *
  * Copyright (C) 1994 - 1999 by Ralf Baechle
  */
-#ifndef __ASM_PAGE_H
-#define __ASM_PAGE_H
+#ifndef _ASM_PAGE_H
+#define _ASM_PAGE_H
 
 #include <linux/config.h>
 
 /* PAGE_SHIFT determines the page size */
 #define PAGE_SHIFT	12
-#define PAGE_SIZE	(1L << PAGE_SHIFT)
+#define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK	(~(PAGE_SIZE-1))
 
 #ifdef __KERNEL__
@@ -62,8 +62,8 @@ void sb1_copy_page(void * to, void * from);
 extern void (*_clear_page)(void * page);
 extern void (*_copy_page)(void * to, void * from);
 
-#define clear_page(page)			_clear_page(page)
-#define copy_page(to, from)			_copy_page(to, from)
+#define clear_page(addr)		_clear_page((void *)(addr))
+#define copy_page(to, from)		_copy_page((void *)(to), (void *)(from))
 #define clear_user_page(page, vaddr, pg)	clear_page(page)
 #define copy_user_page(to, from, vaddr, pg)	copy_page(to, from)
 
@@ -114,11 +114,11 @@ extern __inline__ int get_order(unsigned long size)
  * This handles the memory map.
  * We handle pages at KSEG0 for kernels with 32 bit address space.
  */
-#define PAGE_OFFSET	0x80000000UL
-#define UNCAC_BASE	0xa0000000UL
+#define PAGE_OFFSET		0x80000000UL
+#define UNCAC_BASE		0xa0000000UL
 
-#define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
-#define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
+#define __pa(x)			((unsigned long) (x) - PAGE_OFFSET)
+#define __va(x)			((void *)((unsigned long) (x) + PAGE_OFFSET))
 
 #define pfn_to_kaddr(pfn)	__va((pfn) << PAGE_SHIFT)
 #define pfn_to_page(pfn)	(mem_map + (pfn))
@@ -128,8 +128,8 @@ extern __inline__ int get_order(unsigned long size)
 #define pfn_valid(pfn)		((pfn) < max_mapnr)
 #define virt_addr_valid(kaddr)	pfn_valid(__pa(kaddr) >> PAGE_SHIFT)
 
-#define VM_DATA_DEFAULT_FLAGS  (VM_READ | VM_WRITE | VM_EXEC | \
-                                VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+#define VM_DATA_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
+				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
 
 #define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
 #define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
@@ -137,8 +137,8 @@ extern __inline__ int get_order(unsigned long size)
 /*
  * Memory above this physical address will be considered highmem.
  */
-#define HIGHMEM_START	(0x20000000)
+#define HIGHMEM_START		(0x20000000UL)
 
 #endif /* defined (__KERNEL__) */
 
-#endif /* __ASM_PAGE_H */
+#endif /* _ASM_PAGE_H */

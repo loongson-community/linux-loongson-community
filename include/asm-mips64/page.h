@@ -27,9 +27,7 @@
  * Prototypes for clear_page / copy_page variants with processor dependant
  * optimizations.
  */
-extern void (*_clear_page)(void * page);
-extern void (*_copy_page)(void * to, void * from);
-
+extern void andes_clear_page(void * page);
 extern void mips64_clear_page_dc(unsigned long page);
 extern void mips64_clear_page_sc(unsigned long page);
 void r4k_clear_page_d16(void * page);
@@ -40,6 +38,9 @@ void r4k_clear_page_s16(void * page);
 void r4k_clear_page_s32(void * page);
 void r4k_clear_page_s64(void * page);
 void r4k_clear_page_s128(void * page);
+void r5432_clear_page_d32(void * page);
+void rm7k_clear_page(void * page);
+void sb1_clear_page(void * page);
 
 extern void mips64_copy_page_dc(unsigned long to, unsigned long from);
 extern void mips64_copy_page_sc(unsigned long to, unsigned long from);
@@ -51,11 +52,15 @@ void r4k_copy_page_s16(void * to, void * from);
 void r4k_copy_page_s32(void * to, void * from);
 void r4k_copy_page_s64(void * to, void * from);
 void r4k_copy_page_s128(void * to, void * from);
-void sb1_clear_page(void * page);
+void r5432_copy_page_d32(void * to, void * from);
+void rm7k_copy_page(void * to, void * from);
 void sb1_copy_page(void * to, void * from);
 
-#define clear_page(page)			_clear_page(page)
-#define copy_page(to, from)			_copy_page(to, from)
+extern void (*_clear_page)(void * page);
+extern void (*_copy_page)(void * to, void * from);
+
+#define clear_page(page)		_clear_page((void *)(page))
+#define copy_page(to, from)		_copy_page((void *)(to), (void *)(from))
 #define clear_user_page(page, vaddr, pg)	clear_page(page)
 #define copy_user_page(to, from, vaddr, pg)	copy_page(to, from)
 
@@ -96,7 +101,7 @@ extern __inline__ int get_order(unsigned long size)
 #endif /* !__ASSEMBLY__ */
 
 /* to align the pointer to the (next) page boundary */
-#define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
+#define PAGE_ALIGN(addr)	(((addr) + PAGE_SIZE - 1) & PAGE_MASK)
 
 /*
  * This handles the memory map.
@@ -115,17 +120,17 @@ extern __inline__ int get_order(unsigned long size)
 #ifndef CONFIG_DISCONTIGMEM
 #define pfn_to_page(pfn)	(mem_map + (pfn))
 #define page_to_pfn(page)	((unsigned long)((page) - mem_map))
-#define virt_to_page(kaddr)     pfn_to_page(__pa(kaddr) >> PAGE_SHIFT)
+#define virt_to_page(kaddr)	pfn_to_page(__pa(kaddr) >> PAGE_SHIFT)
 
 #define pfn_valid(pfn)		((pfn) < max_mapnr)
 #define virt_addr_valid(kaddr)	pfn_valid(__pa(kaddr) >> PAGE_SHIFT)
 #endif
 
-#define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
-#define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
-
 #define VM_DATA_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
 				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+
+#define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
+#define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
 
 #endif /* defined (__KERNEL__) */
 
