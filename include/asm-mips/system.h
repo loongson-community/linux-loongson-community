@@ -98,9 +98,9 @@ __asm__ (
 	"xori\t$1, 1\n\t"
 	".set\tnoreorder\n\t"
 	"mtc0\t$1, $12\n\t"
-	"nop\n\t"
-	"nop\n\t"
-	"nop\n\t"
+	"sll\t$0, $0, 1\t\t\t# nop\n\t"
+	"sll\t$0, $0, 1\t\t\t# nop\n\t"
+	"sll\t$0, $0, 1\t\t\t# nop\n\t"
 	".set\tpop\n\t"	
 	".endm");
 
