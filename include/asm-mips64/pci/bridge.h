@@ -41,7 +41,7 @@
  *    Bridge address map
  */
 
-#if defined(_LANGUAGE_C) || defined(_LANGUAGE_C_PLUS_PLUS)
+#ifndef __ASSEMBLY__
 
 /*
  * All accesses to bridge hardware registers must be done
@@ -283,7 +283,7 @@ typedef struct bridge_err_cmdword_s {
 } bridge_err_cmdword_t;
 
 #define berr_field	berr_un.berr_st
-#endif	/* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * The values of these macros can and should be crosschecked
@@ -793,7 +793,7 @@ typedef struct bridge_err_cmdword_s {
 #define PCI64_ATTR_RMF_MASK	0x00ff000000000000
 #define PCI64_ATTR_RMF_SHFT	48
 
-#if LANGUAGE_C
+#ifndef __ASSEMBLY__
 /* Address translation entry for mapped pci32 accesses */
 typedef union ate_u {
 	u64	ent;
@@ -809,7 +809,7 @@ typedef union ate_u {
 		u64	valid:1;
 	} field;
 } ate_t;
-#endif /* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 #define ATE_V		0x01
 #define ATE_CO		0x02

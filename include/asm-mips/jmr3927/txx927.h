@@ -10,7 +10,7 @@
 #ifndef __ASM_TXX927_H 
 #define __ASM_TXX927_H 
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 struct txx927_tmr_reg {
 	volatile unsigned long tcr;
@@ -52,7 +52,7 @@ struct txx927_pio_reg {
 	volatile unsigned long maskext;
 };
 
-#endif /* _LANGUAGE_ASSEMBLY */
+#endif /* !__ASSEMBLY__ */
 
 
 /*

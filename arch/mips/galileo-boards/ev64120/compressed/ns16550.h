@@ -11,7 +11,7 @@
 #define NS16550_HZ      3686400
 #endif
 
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 
 #ifndef NSREG
 #define NSREG(x) ((x)*4)

@@ -31,18 +31,18 @@
 #ifndef _ASM_MIPS_BOARDS_BONITO64_H
 #define _ASM_MIPS_BOARDS_BONITO64_H
 
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 
 /* offsets from base register */
 #define BONITO(x)	(x)
 
-#else /* !__ASSEMBLER */
+#else /* !__ASSEMBLY__ */
 
 /* offsets from base pointer, this construct allows optimisation */
 /* static char * const _bonito = PA_TO_KVA1(BONITO_BASE); */
 #define BONITO(x)		*(volatile u32 *)(_bonito + (x))
 
-#endif /* __ASSEMBLER__ */
+#endif /* __ASSEMBLY__ */
 
 
 #define BONITO_BOOT_BASE		0x1fc00000

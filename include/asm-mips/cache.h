@@ -11,7 +11,7 @@
 
 #include <linux/config.h>
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 /*
  * Descriptor for a cache
  */
@@ -21,7 +21,7 @@ struct cache_desc {
 	int ways;
 	int flags;	/* Details like write thru/back, coherent, etc. */
 };
-#endif
+#endif /* !__ASSEMBLY__ */
 
 /*
  * Flag definitions

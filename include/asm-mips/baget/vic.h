@@ -182,11 +182,11 @@
 #define VIC_BXFER_LEN_HI    0xDF
 #define VIC_SYS_RESET    0xE3
 
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef __ASSEMBLY__
 
 #define vic_inb(p)    (*(volatile unsigned char *)(VIC_BASE + (p)))
 #define vic_outb(v,p) (*((volatile unsigned char *)(VIC_BASE + (p))) = v)
 
-#endif /* __LANGUAGE_ASSEMBLY__ */
+#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_BAGET_VIC_H */

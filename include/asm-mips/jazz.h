@@ -70,7 +70,7 @@
 #define LED_E                   0x9e
 #define LED_F                   0x8e
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 extern __inline__ void pica_set_led(unsigned int bits)
 {
@@ -79,7 +79,7 @@ extern __inline__ void pica_set_led(unsigned int bits)
 	*led_register = bits;
 }
 
-#endif
+#endif /* !__ASSEMBLY__ */
 
 /*
  * Base address of the Sonic Ethernet adapter in Jazz machines.
@@ -100,7 +100,7 @@ extern __inline__ void pica_set_led(unsigned int bits)
 #define JAZZ_KEYBOARD_DATA      0xe0005000
 #define JAZZ_KEYBOARD_COMMAND   0xe0005001
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 typedef struct {
 	unsigned char data;
@@ -119,7 +119,7 @@ typedef struct {
  */
 #define keyboard_hardware       jazz_keyboard_hardware
 
-#endif
+#endif /* !__ASSEMBLY__ */
 
 /*
  * i8042 keyboard controller for most other Mips machines.
@@ -152,7 +152,7 @@ typedef struct {
 /*
  * DRAM configuration register
  */
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 #ifdef __MIPSEL__
 typedef struct {
 	unsigned int bank2 : 3;
@@ -172,7 +172,7 @@ typedef struct {
 	unsigned int bank2 : 3;
 } dram_configuration;
 #endif
-#endif /* _LANGUAGE_ASSEMBLY */
+#endif /* !__ASSEMBLY__ */
 
 #define PICA_DRAM_CONFIG        0xe00fffe0
 
@@ -270,7 +270,7 @@ typedef struct {
 /*
  * Access the R4030 DMA and I/O Controller
  */
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 static inline void r4030_delay(void)
 {
@@ -309,7 +309,7 @@ static inline void r4030_write_reg32(unsigned addr, unsigned val)
 	r4030_delay();
 }
 
-#endif /* !LANGUAGE_ASSEMBLY__ */
+#endif /* !__ASSEMBLY__ */
 
 #define JAZZ_FDC_BASE	0xe0003000
 #define JAZZ_RTC_BASE	0xe0004000

@@ -36,7 +36,7 @@
     *  Configure language
     ********************************************************************* */
 
-#if defined(__ASSEMBLER__)
+#if defined(__ASSEMBLY__)
 #define _ATYPE_
 #define _ATYPE32_
 #define _ATYPE64_
@@ -81,7 +81,7 @@
     *  32-bit MIPS Address Spaces
     ********************************************************************* */
 
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 #define _ACAST32_
 #define _ACAST64_
 #else
@@ -133,7 +133,7 @@
 #define XKPHYS_TO_PHYS(p) ((p) & _SB_MAKEMASK(0,59))
 
 
-#if !defined(__ASSEMBLER__)
+#if !defined(__ASSEMBLY__)
 #define mips_wbflush()  __asm__ __volatile__ ("sync" : : : "memory")
 #define	ISK0SEG(va)	((va) >= K0BASE && (va) <= (K0BASE + K0SIZE - 1))
 #define	ISK1SEG(va)	((va) >= K1BASE && (va) <= (K1BASE + K1SIZE - 1))
@@ -143,7 +143,7 @@
     *  Register aliases
     ********************************************************************* */
 
-#if defined(__ASSEMBLER__)
+#if defined(__ASSEMBLY__)
 #define zero		$0
 #define	AT		$1		/* assembler temporaries */
 #define	v0		$2		/* value holders */
@@ -187,7 +187,7 @@
     *  CP0 Registers 
     ********************************************************************* */
 
-#if defined(__ASSEMBLER__)
+#if defined(__ASSEMBLY__)
 #define C0_INX		$0		/* CP0: TLB Index */
 #define C0_RAND		$1		/* CP0: TLB Random */
 #define C0_TLBLO0	$2		/* CP0: TLB EntryLo0 */
@@ -256,7 +256,7 @@
     *  Macros for generating assembly language routines
     ********************************************************************* */
 
-#if defined(__ASSEMBLER__)
+#if defined(__ASSEMBLY__)
 
 /* global leaf function (does not call other functions) */
 #define LEAF(name)		\
@@ -442,7 +442,7 @@ name:
 
 /* FPU stuff */
 
-#if defined(__ASSEMBLER__)
+#if defined(__ASSEMBLY__)
 #define C1_CSR		$31
 #define C1_FRID		$0
 #else

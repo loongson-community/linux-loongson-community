@@ -197,7 +197,7 @@
 #define MACEISA_SERIAL2_RDMAT_INT	BIT (30)
 #define MACEISA_SERIAL2_RDMAOR_INT	BIT (31)
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 #include <asm/types.h>
 
 /*
@@ -248,7 +248,7 @@ static inline void mace_inv_read_buffers(void)
 {
 /*	mace_write_32(MACEPCI_WFLUSH,0xffffffff);*/
 }
-#endif
+#endif /* !__ASSEMBLY__ */
 
 
 #endif /* __ASM_MACE_H__ */

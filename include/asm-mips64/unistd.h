@@ -473,7 +473,7 @@
  */
 #define __NR_Linux_syscalls		216
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 /* XXX - _foo needs to be __foo, while __NR_bar could be _NR_bar. */
 #define _syscall0(type,name) \
@@ -819,7 +819,7 @@ static inline pid_t wait(int * wait_stat)
 	return waitpid(-1,wait_stat,0);
 }
 
-#endif /* !defined (__KERNEL_SYSCALLS__) */
-#endif /* !defined (_LANGUAGE_ASSEMBLY) */
+#endif /* __KERNEL_SYSCALLS__ */
+#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_UNISTD_H */

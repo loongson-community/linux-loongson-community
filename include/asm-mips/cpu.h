@@ -99,7 +99,7 @@
 
 #define FPIR_IMP_NONE		0x0000
 
-#ifndef  _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 /*
  * Capability and feature descriptor structure for MIPS CPU
  */
@@ -131,7 +131,7 @@ enum cputype {
 	CPU_LAST
 };
 
-#endif
+#endif /* !__ASSEMBLY__ */
 
 /*
  * ISA Level encodings

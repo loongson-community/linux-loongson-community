@@ -445,7 +445,7 @@
 #define CEB_KERNEL	2	/* Count events in kernel mode EXL = ERL = 0 */
 #define CEB_EXL		1	/* Count events with EXL = 1, ERL = 0 */
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 /*
  * Functions to access the r10k performance counter and control registers
@@ -918,6 +918,6 @@ do {									\
 	if (mips_cpu.options & MIPS_CPU_FPU)				\
 		__disable_fpu();					\
 } while (0)
-#endif /* defined (_LANGUAGE_ASSEMBLY) */
+#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_MIPSREGS_H */

@@ -23,7 +23,7 @@
 #define FPC_CSR		69
 #define FPC_EIR		70
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 /*
  * This struct defines the way the registers are stored on the stack during a
  * system call/exception. As usual the registers k0/k1 aren't being saved.
@@ -74,7 +74,7 @@ __asm__ (                                                               \
 /* Used in declaration of save_static functions.  */
 #define static_unused static __attribute__((unused))
 
-#endif /* !(_LANGUAGE_ASSEMBLY) */
+#endif /* !__ASSEMBLY__ */
 
 /* Arbitrarily choose the same ptrace numbers as used by the Sparc code. */
 /* #define PTRACE_GETREGS		12 */
@@ -89,13 +89,13 @@ __asm__ (                                                               \
 /* options set using PTRACE_SETOPTIONS */
 #define PTRACE_O_TRACESYSGOOD	0x00000001
 
-#ifdef _LANGUAGE_ASSEMBLY
+#ifdef __ASSEMBLY__
 #include <asm/offset.h>
 #endif
 
 #ifdef __KERNEL__
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 /*
  * Does the process account for user or for system time?
  */
@@ -104,7 +104,7 @@ __asm__ (                                                               \
 #define instruction_pointer(regs) ((regs)->cp0_epc)
 
 extern void show_regs(struct pt_regs *);
-#endif /* !(_LANGUAGE_ASSEMBLY) */
+#endif /* !__ASSEMBLY__ */
 
 #endif
 

@@ -19,7 +19,7 @@
 #define FPC_CSR		69
 #define FPC_EIR		70
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 #define abi64_no_regargs						\
 	unsigned long __dummy0,						\
@@ -52,7 +52,7 @@ struct pt_regs {
 	unsigned long cp0_cause;
 };
 
-#endif /* !(_LANGUAGE_ASSEMBLY__) */
+#endif /* !__ASSEMBLY__ */
 
 /* Arbitrarily choose the same ptrace numbers as used by the Sparc code. */
 /* #define PTRACE_GETREGS		12 */
@@ -67,16 +67,16 @@ struct pt_regs {
 /* options set using PTRACE_SETOPTIONS */
 #define PTRACE_O_TRACESYSGOOD	0x00000001
 
-#ifdef _LANGUAGE_ASSEMBLY
+#ifdef __ASSEMBLY__
 #include <asm/offset.h>
-#endif /* (_LANGUAGE_ASSEMBLY__) */
+#endif /* !__ASSEMBLY__ */
 
 #ifdef __KERNEL__
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 #define instruction_pointer(regs) ((regs)->cp0_epc)
 
-#endif /* !(_LANGUAGE_ASSEMBLY__) */
+#endif /* !__ASSEMBLY__ */
 
 #endif
 

@@ -306,7 +306,7 @@
 #define ERR_STACK_SIZE_BYTES(_sz) \
        ((_sz) ? (PI_MIN_STACK_SIZE << ((_sz) - 1)) : 0)
 
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 /*
  * format of error stack and error status registers.
  */
@@ -359,7 +359,7 @@ typedef union pi_err_stat1 {
 
 typedef u64	rtc_time_t;
 
-#endif /* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 
 /* Bits in PI_SYSAD_ERRCHK_EN */

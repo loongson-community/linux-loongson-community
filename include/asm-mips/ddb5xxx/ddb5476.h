@@ -139,7 +139,7 @@
 /*
  * low-level irq functions
  */
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 extern void nile4_map_irq(int nile4_irq, int cpu_irq);
 extern void nile4_map_irq_all(int cpu_irq);
 extern void nile4_enable_irq(int nile4_irq);
@@ -154,4 +154,4 @@ extern void nile4_clear_irq(int nile4_irq);
 extern void nile4_clear_irq_mask(u32 mask);
 extern u8 nile4_i8259_iack(void);
 extern void nile4_dump_irq_status(void);        /* Debug */
-#endif
+#endif /* !__ASSEMBLY__ */

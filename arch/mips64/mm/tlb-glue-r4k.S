@@ -6,7 +6,6 @@
  * Copyright (C) 1999 Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#define __ASSEMBLY__
 #include <linux/init.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>

@@ -29,7 +29,7 @@
 	_a;								\
 })
 
-#if !defined(_LANGUAGE_ASSEMBLY)
+#ifndef __ASSEMBLY__
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/reg.h>
@@ -194,7 +194,7 @@ struct thread_struct {
 	unsigned long irix_oldctx;
 };
 
-#endif /* !defined (_LANGUAGE_ASSEMBLY) */
+#endif /* !__ASSEMBLY__ */
 
 #define INIT_THREAD  { \
         /* \
@@ -224,7 +224,7 @@ struct thread_struct {
 
 #define KERNEL_STACK_SIZE 0x4000
 
-#if !defined (_LANGUAGE_ASSEMBLY)
+#ifndef __ASSEMBLY__
 
 /* Free all resources held by a thread. */
 #define release_thread(thread) do { } while(0)
@@ -290,7 +290,7 @@ unsigned long get_wchan(struct task_struct *p);
 
 #define cpu_relax()	do { } while (0)
 
-#endif /* !defined (_LANGUAGE_ASSEMBLY) */
+#endif /* !__ASSEMBLY__ */
 #endif /* __KERNEL__ */
 
 /*

@@ -6,7 +6,6 @@
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
  */
-#define __ASSEMBLY__
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/threads.h>

@@ -169,7 +169,7 @@
 /*
  * The IO LLP control status register and widget control register
  */
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 
 typedef union hubii_wid_u {
 	u64	wid_reg_value;
@@ -292,7 +292,7 @@ typedef union io_perf_cnt {
 	} perf_cnt_bits;
 } io_perf_cnt_t;
 
-#endif
+#endif /* !__ASSEMBLY__ */
 
 
 #define LNK_STAT_WORKING	0x2
@@ -440,7 +440,7 @@ typedef union io_perf_cnt {
 /*
  * Fields in CRB Register A
  */
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 typedef union icrba_u {
 	u64	reg_value;
 	struct {
@@ -500,7 +500,7 @@ typedef union h1_icrba_u {
 #define	a_valid		icrba_fields_s.valid
 #define	a_iow		icrba_fields_s.iow
 
-#endif /* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 #define	IIO_ICRB_ADDR_SHFT	2	/* Shift to get proper address */
 
@@ -523,7 +523,7 @@ typedef union h1_icrba_u {
 /*
  * Fields in CRB Register B
  */
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 typedef union icrbb_u {
 	u64	reg_value;
 	struct {
@@ -622,7 +622,7 @@ typedef union h1_icrbb_u {
 #define	b_imsg		icrbb_field_s.imsg
 #define	b_initiator	icrbb_field_s.initiator
 
-#endif /* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * values for field xtsize
@@ -680,7 +680,7 @@ typedef union h1_icrbb_u {
  * Fields in CRB Register C 
  */
 
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 
 typedef union icrbc_s {
 	u64	reg_value;
@@ -712,13 +712,13 @@ typedef union icrbc_s {
 #define	c_barrop	icrbc_field_s.barrop
 #define	c_doresp	icrbc_field_s.doresp
 #define	c_gbr	icrbc_field_s.gbr
-#endif /* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * Fields in CRB Register D
  */
 
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 typedef union icrbd_s {
 	u64	reg_value;
 	struct {
@@ -751,7 +751,7 @@ typedef union hubii_ifdr_u {
 	} hi_ifdr_fields;
 } hubii_ifdr_t;
 
-#endif /* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * Hardware designed names for the BTE control registers.
@@ -798,7 +798,7 @@ typedef union hubii_ifdr_u {
  * IO PIO Read Table Entry format 
  */
 
-#ifdef	_LANGUAGE_C
+#ifndef __ASSEMBLY__
 
 typedef union iprte_a {
 	u64	entry;
@@ -820,7 +820,7 @@ typedef union iprte_a {
 #define	iprte_init	iprte_fields.initiator
 #define	iprte_addr	iprte_fields.addr
 
-#endif /* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 #define	IPRTE_ADDRSHFT	3
 
@@ -828,7 +828,7 @@ typedef union iprte_a {
  * Hub IIO PRB Register format.
  */
 
-#ifdef	_LANGUAGE_C
+#ifndef __ASSEMBLY__
 /*
  * Note: Fields bnakctr, anakctr, xtalkctrmode, ovflow fields are 
  * "Status" fields, and should only be used in case of clean up after errors.
@@ -860,7 +860,7 @@ typedef union iprb_u {
 #define	iprb_anakctr	iprb_fields_s.anakctr
 #define	iprb_xtalkctr	iprb_fields_s.xtalkctr
 
-#endif	/* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * values for mode field in iprb_t.
@@ -875,7 +875,7 @@ typedef union iprb_u {
 /*
  * IO CRB entry C_A to E_A : Partial (cache) CRBS
  */
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 typedef union icrbp_a {
 	u64   ip_reg;	    /* the entire register value	*/
 	struct {
@@ -909,7 +909,7 @@ typedef union icrbp_a {
 	} ip_fmt;
 } icrbp_a_t;
 
-#endif /* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * A couple of defines to go with the above structure.
@@ -917,7 +917,7 @@ typedef union icrbp_a {
 #define ICRBP_A_CERR_SHFT	54
 #define ICRBP_A_ERR_MASK	0x3ff
 
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 typedef union hubii_idsr {
 	u64 iin_reg;
 	struct {
@@ -931,7 +931,7 @@ typedef union hubii_idsr {
 	            level : 7;
 	} iin_fmt;
 } hubii_idsr_t;
-#endif /* LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 	
 /* 
  * IO BTE Length/Status (IIO_IBLS) register bit field definitions

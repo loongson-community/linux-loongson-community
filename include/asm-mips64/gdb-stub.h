@@ -132,7 +132,7 @@
 
 #define GDB_FR_SIZE		((((GDB_FR_CP0_PRID) + 4) + (PTRSIZE-1)) & ~(PTRSIZE-1))
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 /*
  * This is the same as above, but for the high-level
@@ -208,5 +208,5 @@ struct gdb_regs {
 
 void set_debug_traps(void);
 
-#endif /* _LANGUAGE_ASSEMBLY */
+#endif /* !__ASSEMBLY__ */
 #endif /* __ASM_MIPS_GDB_STUB_H */

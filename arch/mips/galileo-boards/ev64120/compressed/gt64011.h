@@ -3,7 +3,7 @@
  * Copyright (c) 1998 Algorithmics Ltd
  */
 
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 
 /* offsets from base register */
 #define GT64011(x)		(x)
@@ -20,7 +20,7 @@
 /* #define ltohl(x) (x) */
 #endif
 
-#else				/* !__ASSEMBLER */
+#else /* !__ASSEMBLY__ */
 
 /* offsets from base pointer, this construct allows optimisation */
 static char *const _gt64011p = (char *) PA_TO_KVA1(GT64011_BASE);
@@ -44,7 +44,7 @@ asjdsajd
 #define htoll(x) (x)
 #define ltohl(x) (x)
 #endif
-#endif				/* __ASSEMBLER__ */
+#endif /* __ASSEMBLY__ */
 /* CPU configuration */
 #define GT_CPU_CFG	GT64011(0x000)
 #define GT_CPU_CFG_WriteMode	(1<<11)

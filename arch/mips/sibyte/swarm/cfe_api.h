@@ -35,7 +35,7 @@
 #define CFE_APIENTRY 0x9FC00500
 #define CFE_APISEAL  0x9FC00508
 
-#ifndef __ASSEMBLER__
+#ifndef __ASSEMBLY__
 int cfe_init(cfe_xuint_t handle);
 int cfe_open(char *name);
 int cfe_close(int handle);

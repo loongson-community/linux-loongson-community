@@ -8,7 +8,6 @@
  *
  * Low level exception handling
  */
-#define __ASSEMBLY__
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/fpregdef.h>

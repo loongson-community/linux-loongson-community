@@ -20,7 +20,7 @@
 #define INTPEND0_MAXMASK	(N_INTPEND0_MASKS - 1)
 #define INTPEND1_MAXMASK	(N_INTPEND1_MASKS - 1)
 
-#if _LANGUAGE_C
+#ifndef __ASSEMBLY__
 #include <asm/sn/arch.h>
 
 struct intr_vecblk_s;	/* defined in asm/sn/intr.h */
@@ -49,5 +49,5 @@ typedef struct hub_intmasks_s {
 	struct intr_vecblk_s	*dispatch1;
 } hub_intmasks_t;
 
-#endif /* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 #endif /* __ASM_SN_INTR_PUBLIC_H */

@@ -10,7 +10,6 @@
  * Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999 Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#define __ASSEMBLY__
 #include <linux/config.h>
 #include <linux/init.h>
 #include <asm/asm.h>

@@ -13,7 +13,7 @@
 #include <asm/jmr3927/tx3927.h>
 #include <asm/addrspace.h>
 #include <asm/jmr3927/irq.h>
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 #include <asm/system.h>
 #endif
 
@@ -142,7 +142,7 @@
 #define JMR3927_ISAC_INTF_IRQ10	(1 << JMR3927_ISAC_INTB_IRQ10)
 #define JMR3927_ISAC_INTF_ISAER	(1 << JMR3927_ISAC_INTB_ISAER)
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 #if 0
 #define jmr3927_ioc_reg_out(d, a)	((*(volatile unsigned short *)(a)) = (d) << 8)
@@ -197,7 +197,7 @@ extern inline int jmr3927_have_isac(void)
 #define jmr3927_io_dipsw()	(jmr3927_isac_reg_in(JMR3927_ISAC_LED_ADDR) >> 4)
 
 
-#endif /* _LANGUAGE_ASSEMBLY */
+#endif /* !__ASSEMBLY__ */
 
 /*
  * UART defines for serial.h

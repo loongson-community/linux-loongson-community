@@ -28,7 +28,7 @@
 #define RAMMS		ASMDELAY(1000000, CACHEMISS+RAMCYCLE)
 #define ROMMS		ASMDELAY(1000000, CACHEMISS+ROMCYCLE)
 
-#ifndef __ASSEMBLER__
+#ifndef __ASSEMBLY__
 #define nsdelay(ns)	mips_cycle (ASMDELAY (ns, CACHECYCLE))
 #define usdelay(us)	mips_cycle (ASMDELAY ((us)*1000, CACHECYCLE))
 #endif

@@ -14,7 +14,7 @@
 /*
  *  Configure language
  */
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 #define _ATYPE_
 #define _ATYPE32_
 #define _ATYPE64_
@@ -27,7 +27,7 @@
 /*
  *  32-bit MIPS address spaces
  */
-#ifdef __ASSEMBLER__
+#ifdef __ASSEMBLY__
 #define _ACAST32_
 #define _ACAST64_
 #else

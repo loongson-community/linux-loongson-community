@@ -17,7 +17,7 @@
 #include <asm/processor.h>
 #include <asm/addrspace.h>
 
-#ifdef _LANGUAGE_C
+#ifndef __ASSEMBLY__
 
 #define __str2(x) #x
 #define __str(x) __str2(x)
@@ -36,9 +36,9 @@
 		: /* No outputs */                       \
 		: "r" (frame))
 
-#endif /* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
-#ifdef _LANGUAGE_ASSEMBLY
+#ifdef __ASSEMBLY__
 
 		.macro	SAVE_AT
 		.set	push
@@ -264,6 +264,6 @@
 		mtc0	t0, CP0_STATUS
 		.endm
 
-#endif /* _LANGUAGE_ASSEMBLY */
+#endif /* __ASSEMBLY__ */
 
 #endif /* _ASM_STACKFRAME_H */

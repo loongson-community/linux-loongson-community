@@ -424,7 +424,7 @@
  * Operations on page migration threshold register
  */
 
-#if _LANGUAGE_C
+#ifndef __ASSEMBLY__
 #ifndef _STANDALONE
 
 /*
@@ -739,7 +739,7 @@ typedef union md_perf_cnt {
 } md_perf_cnt_t;
 
 
-#endif /* _LANGUAGE_C */
+#endif /* !__ASSEMBLY__ */
 
 
 #define DIR_ERROR_VALID_MASK	0xe000000000000000

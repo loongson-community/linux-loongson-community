@@ -10,7 +10,7 @@
 #ifndef __ASM_TX3927_IRQ_H
 #define __ASM_TX3927_IRQ_H
 
-#ifndef _LANGUAGE_ASSEMBLY
+#ifndef __ASSEMBLY__
 
 #include <linux/config.h>
 #include <asm/irq.h>
@@ -52,7 +52,7 @@ extern void tx_branch_likely_bug_fixup(struct pt_regs *regs);
 
 extern int (*toshibaboards_gen_iack)(void);
 
-#endif /* _LANGUAGE_ASSEMBLY */
+#endif /* !__ASSEMBLY__ */
 
 #define NR_ISA_IRQS 16
 #define TB_IRQ_IS_ISA(irq)	\

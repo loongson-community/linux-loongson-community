@@ -196,13 +196,13 @@
 #define VAC_ID               0x2900
 
 
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef __ASSEMBLY__
 
 #define vac_inb(p)    (*(volatile unsigned char *)(VAC_BASE + (p)))
 #define vac_outb(v,p) (*((volatile unsigned char *)(VAC_BASE + (p))) = v)
 #define vac_inw(p)    (*(volatile unsigned short*)(VAC_BASE + (p)))
 #define vac_outw(v,p) (*((volatile unsigned short*)(VAC_BASE + (p))) = v)
 
-#endif /* __LANGUAGE_ASSEMBLY__ */
+#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_VAC_H */
