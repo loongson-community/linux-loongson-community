@@ -562,7 +562,7 @@ void ld_mmu_sb1(void)
 	 * occur
 	 */
 	flush_cache_range = (void *) sb1_nop;
-	flush_cache_page = sb1_flush_cache_page
+	flush_cache_page = sb1_flush_cache_page;
 	flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
 	flush_cache_all = sb1_nop;
 
@@ -570,10 +570,11 @@ void ld_mmu_sb1(void)
 	flush_icache_range = sb1_flush_icache_range;
 	flush_icache_page = sb1_flush_icache_page;
 	flush_icache_all = __sb1_flush_icache_all; /* local only */
+
 	flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 	flush_data_cache_page = (void *) sb1_nop;
 
-	/* Full flushes */
+	/* Full flush */
 	__flush_cache_all = sb1___flush_cache_all;
 
 	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
