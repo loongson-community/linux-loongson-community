@@ -66,6 +66,9 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    if [ "$CONFIG_SGI_IP27" = "y" ]; then
       bool '  SGI IOC3 Ethernet' CONFIG_SGI_IOC3_ETH
    fi
+   if [ "$CONFIG_SGI_IP32" = "y" ]; then
+      tristate '  SGI O2 MACE Fast Ethernet support' CONFIG_SGI_O2MACE_ETH
+   fi
    if [ "$CONFIG_IA64_SGI_SN1" = "y" ]; then
       bool '  SGI IOC3 Ethernet' CONFIG_SGI_IOC3_ETH
    fi
