@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.14 1998/09/19 19:16:19 ralf Exp $
+/* $Id: setup.c,v 1.15 1998/09/26 12:25:03 tsbogend Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -113,7 +113,7 @@ __initfunc(void sgi_setup(void))
 	 */
 	ctype = prom_getenv("console");
 	if(*ctype == 'd') {
-		if(*(ctype+1)=='1')
+		if(*(ctype+1)=='2')
 			console_setup ("ttyS1");
 		else
 			console_setup ("ttyS0");
