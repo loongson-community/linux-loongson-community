@@ -1,6 +1,7 @@
 #include <linux/config.h>
 
-#include <asm/page.h>
+#include <asm/cache.h>
+#include <asm/ptrace.h>
 #include <asm/system.h>
 
 OUTPUT_FORMAT("elf64-ia64-little")
@@ -13,6 +14,8 @@ SECTIONS
 	*(.text.exit)
 	*(.data.exit)
 	*(.exitcall.exit)
+	*(.IA_64.unwind.text.exit)
+	*(.IA_64.unwind_info.text.exit)
 	}
 
   v = PAGE_OFFSET;	/* this symbol is here to make debugging easier... */
@@ -68,11 +71,6 @@ SECTIONS
 	{ *(__ksymtab) }
   __stop___ksymtab = .;
 
-  __start___kallsyms = .;	/* All kernel symbols for debugging */
-  __kallsyms : AT(ADDR(__kallsyms) - PAGE_OFFSET)
-	{ *(__kallsyms) }
-  __stop___kallsyms = .;
-
   /* Unwind info & table: */
   . = ALIGN(8);
   .IA_64.unwind_info : AT(ADDR(.IA_64.unwind_info) - PAGE_OFFSET)
@@ -104,34 +102,42 @@ SECTIONS
         { *(.setup.init) }
   __setup_end = .;
   __initcall_start = .;
-  .initcall.init : AT(ADDR(.initcall1.init) - PAGE_OFFSET)
+  .initcall.init : AT(ADDR(.initcall.init) - PAGE_OFFSET)
 	{
-		 *(.initcall1.init) 
-		 *(.initcall2.init) 
-		 *(.initcall3.init) 
-		 *(.initcall4.init) 
-		 *(.initcall5.init) 
-		 *(.initcall6.init) 
-		 *(.initcall7.init) 
+		*(.initcall1.init)
+		*(.initcall2.init)
+		*(.initcall3.init)
+		*(.initcall4.init)
+		*(.initcall5.init)
+		*(.initcall6.init)
+		*(.initcall7.init)
 	}
   __initcall_end = .;
   . = ALIGN(PAGE_SIZE);
   __init_end = .;
 
   /* The initial task and kernel stack */
-  init_task : AT(ADDR(init_task) - PAGE_OFFSET)
-	{ *(init_task) }
+  .data.init_task : AT(ADDR(.data.init_task) - PAGE_OFFSET)
+	{ *(.data.init_task) }
 
-  .data.page_aligned : AT(ADDR(.data.page_aligned) - PAGE_OFFSET)
-        { *(.data.idt) }
-
-  . = ALIGN(64);
+  . = ALIGN(SMP_CACHE_BYTES);
   .data.cacheline_aligned : AT(ADDR(.data.cacheline_aligned) - PAGE_OFFSET)
         { *(.data.cacheline_aligned) }
 
   /* Kernel symbol names for modules: */
   .kstrtab : AT(ADDR(.kstrtab) - PAGE_OFFSET)
 	{ *(.kstrtab) }
+
+  /* Per-cpu data: */
+  . = ALIGN(PAGE_SIZE);
+  __phys_per_cpu_start = .;
+  .data.percpu PERCPU_ADDR : AT(__phys_per_cpu_start - PAGE_OFFSET)
+	{
+		__per_cpu_start = .;
+		*(.data.percpu)
+		__per_cpu_end = .;
+	}
+  . = __phys_per_cpu_start + 4096;	/* ensure percpu fits into smallest page size (4KB) */
 
   .data : AT(ADDR(.data) - PAGE_OFFSET)
 	{ *(.data) *(.gnu.linkonce.d*) CONSTRUCTORS }
@@ -149,7 +155,7 @@ SECTIONS
 	{ *(.sbss) *(.scommon) }
   .bss : AT(ADDR(.bss) - PAGE_OFFSET)
 	{ *(.bss) *(COMMON) }
-  . = ALIGN(64 / 8);
+
   _end = .;
 
   /* Stabs debugging sections.  */

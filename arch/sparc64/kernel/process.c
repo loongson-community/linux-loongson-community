@@ -106,9 +106,11 @@ void kpreempt_maybe(void)
 	int cpu = smp_processor_id();
 
 	if (local_irq_count(cpu) == 0 &&
-	    local_bh_count(cpu) == 0)
-		preempt_schedule();
-	current_thread_info()->preempt_count--;
+	    local_bh_count(cpu) == 0 &&
+	    test_thread_flag(TIF_NEED_RESCHED)) {
+		current->state = TASK_RUNNING;
+		schedule();
+	}
 }
 #endif
 
@@ -625,6 +627,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 		       (void *)(regs->u_regs[UREG_FP] + STACK_BIAS),
 		       sizeof(struct reg_window));
 		t->kregs->u_regs[UREG_G6] = (unsigned long) t;
+		t->kregs->u_regs[UREG_G4] = (unsigned long) t->task;
 	} else {
 		if (t->flags & _TIF_32BIT) {
 			sp &= 0x00000000ffffffffUL;

@@ -149,7 +149,7 @@
 #include <asm/io.h>
 #include <asm/bitops.h>
 
-#include "ide_modes.h"
+#include "ata-timing.h"
 
 /*
  * Those will be moved into separate header files eventually.
@@ -194,95 +194,6 @@ extern void buddha_init(void);
 extern void pnpide_init(int);
 #endif
 
-/*
- * Constant tables for PIO mode programming:
- */
-const ide_pio_timings_t ide_pio_timings[6] = {
-	{ 70,	165,	600 },	/* PIO Mode 0 */
-	{ 50,	125,	383 },	/* PIO Mode 1 */
-	{ 30,	100,	240 },	/* PIO Mode 2 */
-	{ 30,	80,	180 },	/* PIO Mode 3 with IORDY */
-	{ 25,	70,	120 },	/* PIO Mode 4 with IORDY */
-	{ 20,	50,	100 }	/* PIO Mode 5 with IORDY (nonstandard) */
-};
-
-/*
- * Black list. Some drives incorrectly report their maximal PIO mode,
- * at least in respect to CMD640. Here we keep info on some known drives.
- */
-static struct ide_pio_info {
-	const char	*name;
-	int		pio;
-} ide_pio_blacklist[] = {
-/*	{ "Conner Peripherals 1275MB - CFS1275A", 4 }, */
-	{ "Conner Peripherals 540MB - CFS540A", 3 },
-
-	{ "WDC AC2700",  3 },
-	{ "WDC AC2540",  3 },
-	{ "WDC AC2420",  3 },
-	{ "WDC AC2340",  3 },
-	{ "WDC AC2250",  0 },
-	{ "WDC AC2200",  0 },
-	{ "WDC AC21200", 4 },
-	{ "WDC AC2120",  0 },
-	{ "WDC AC2850",  3 },
-	{ "WDC AC1270",  3 },
-	{ "WDC AC1170",  1 },
-	{ "WDC AC1210",  1 },
-	{ "WDC AC280",   0 },
-/*	{ "WDC AC21000", 4 }, */
-	{ "WDC AC31000", 3 },
-	{ "WDC AC31200", 3 },
-/*	{ "WDC AC31600", 4 }, */
-
-	{ "Maxtor 7131 AT", 1 },
-	{ "Maxtor 7171 AT", 1 },
-	{ "Maxtor 7213 AT", 1 },
-	{ "Maxtor 7245 AT", 1 },
-	{ "Maxtor 7345 AT", 1 },
-	{ "Maxtor 7546 AT", 3 },
-	{ "Maxtor 7540 AV", 3 },
-
-	{ "SAMSUNG SHD-3121A", 1 },
-	{ "SAMSUNG SHD-3122A", 1 },
-	{ "SAMSUNG SHD-3172A", 1 },
-
-/*	{ "ST51080A", 4 },
- *	{ "ST51270A", 4 },
- *	{ "ST31220A", 4 },
- *	{ "ST31640A", 4 },
- *	{ "ST32140A", 4 },
- *	{ "ST3780A",  4 },
- */
-	{ "ST5660A",  3 },
-	{ "ST3660A",  3 },
-	{ "ST3630A",  3 },
-	{ "ST3655A",  3 },
-	{ "ST3391A",  3 },
-	{ "ST3390A",  1 },
-	{ "ST3600A",  1 },
-	{ "ST3290A",  0 },
-	{ "ST3144A",  0 },
-	{ "ST3491A",  1 },	/* reports 3, should be 1 or 2 (depending on
-				 * drive) according to Seagates FIND-ATA program */
-
-	{ "QUANTUM ELS127A", 0 },
-	{ "QUANTUM ELS170A", 0 },
-	{ "QUANTUM LPS240A", 0 },
-	{ "QUANTUM LPS210A", 3 },
-	{ "QUANTUM LPS270A", 3 },
-	{ "QUANTUM LPS365A", 3 },
-	{ "QUANTUM LPS540A", 3 },
-	{ "QUANTUM LIGHTNING 540A", 3 },
-	{ "QUANTUM LIGHTNING 730A", 3 },
-
-        { "QUANTUM FIREBALL_540", 3 }, /* Older Quantum Fireballs don't work */
-        { "QUANTUM FIREBALL_640", 3 },
-        { "QUANTUM FIREBALL_1080", 3 },
-        { "QUANTUM FIREBALL_1280", 3 },
-	{ NULL,	0 }
-};
-
 /* default maximum number of failures */
 #define IDE_DEFAULT_MAX_FAILURES	1
 
@@ -313,106 +224,6 @@ int noautodma = 0;
  * This is declared extern in ide.h, for access by other IDE modules:
  */
 ide_hwif_t ide_hwifs[MAX_HWIFS];	/* master data repository */
-
-
-/*
- * This routine searches the ide_pio_blacklist for an entry
- * matching the start/whole of the supplied model name.
- *
- * Returns -1 if no match found.
- * Otherwise returns the recommended PIO mode from ide_pio_blacklist[].
- */
-int ide_scan_pio_blacklist (char *model)
-{
-	struct ide_pio_info *p;
-
-	for (p = ide_pio_blacklist; p->name != NULL; p++) {
-		if (strncmp(p->name, model, strlen(p->name)) == 0)
-			return p->pio;
-	}
-	return -1;
-}
-
-/*
- * This routine returns the recommended PIO settings for a given drive,
- * based on the drive->id information and the ide_pio_blacklist[].
- * This is used by most chipset support modules when "auto-tuning".
- */
-
-/*
- * Drive PIO mode auto selection
- */
-byte ide_get_best_pio_mode (ide_drive_t *drive, byte mode_wanted, byte max_mode, ide_pio_data_t *d)
-{
-	int pio_mode;
-	int cycle_time = 0;
-	int use_iordy = 0;
-	struct hd_driveid* id = drive->id;
-	int overridden  = 0;
-	int blacklisted = 0;
-
-	if (mode_wanted != 255) {
-		pio_mode = mode_wanted;
-	} else if (!drive->id) {
-		pio_mode = 0;
-	} else if ((pio_mode = ide_scan_pio_blacklist(id->model)) != -1) {
-		overridden = 1;
-		blacklisted = 1;
-		use_iordy = (pio_mode > 2);
-	} else {
-		pio_mode = id->tPIO;
-		if (pio_mode > 2) {	/* 2 is maximum allowed tPIO value */
-			pio_mode = 2;
-			overridden = 1;
-		}
-		if (id->field_valid & 2) {	  /* drive implements ATA2? */
-			if (id->capability & 8) { /* drive supports use_iordy? */
-				use_iordy = 1;
-				cycle_time = id->eide_pio_iordy;
-				if (id->eide_pio_modes & 7) {
-					overridden = 0;
-					if (id->eide_pio_modes & 4)
-						pio_mode = 5;
-					else if (id->eide_pio_modes & 2)
-						pio_mode = 4;
-					else
-						pio_mode = 3;
-				}
-			} else {
-				cycle_time = id->eide_pio;
-			}
-		}
-
-#if 0
-		if (drive->id->major_rev_num & 0x0004) printk("ATA-2 ");
-#endif
-
-		/*
-		 * Conservative "downgrade" for all pre-ATA2 drives
-		 */
-		if (pio_mode && pio_mode < 4) {
-			pio_mode--;
-			overridden = 1;
-#if 0
-			use_iordy = (pio_mode > 2);
-#endif
-			if (cycle_time && cycle_time < ide_pio_timings[pio_mode].cycle_time)
-				cycle_time = 0; /* use standard timing */
-		}
-	}
-	if (pio_mode > max_mode) {
-		pio_mode = max_mode;
-		cycle_time = 0;
-	}
-	if (d) {
-		d->pio_mode = pio_mode;
-		d->cycle_time = cycle_time ? cycle_time : ide_pio_timings[pio_mode].cycle_time;
-		d->use_iordy = use_iordy;
-		d->overridden = overridden;
-		d->blacklisted = blacklisted;
-	}
-	return pio_mode;
-}
 
 #if (DISK_RECOVERY_TIME > 0)
 /*
@@ -445,7 +256,7 @@ static inline void set_recovery_timer (ide_hwif_t *hwif)
 /*
  * Do not even *think* about calling this!
  */
-static void init_hwif_data (unsigned int index)
+static void init_hwif_data(ide_hwif_t *hwif, unsigned int index)
 {
 	static const byte ide_major[] = {
 		IDE0_MAJOR, IDE1_MAJOR, IDE2_MAJOR, IDE3_MAJOR, IDE4_MAJOR,
@@ -454,7 +265,6 @@ static void init_hwif_data (unsigned int index)
 
 	unsigned int unit;
 	hw_regs_t hw;
-	ide_hwif_t *hwif = &ide_hwifs[index];
 
 	/* bulk initialize hwif & drive info with zeros */
 	memset(hwif, 0, sizeof(ide_hwif_t));
@@ -507,7 +317,7 @@ static void init_hwif_data (unsigned int index)
 #define MAGIC_COOKIE 0x12345678
 static void __init init_ide_data (void)
 {
-	unsigned int index;
+	unsigned int h;
 	static unsigned long magic_cookie = MAGIC_COOKIE;
 
 	if (magic_cookie != MAGIC_COOKIE)
@@ -515,8 +325,8 @@ static void __init init_ide_data (void)
 	magic_cookie = 0;
 
 	/* Initialize all interface structures */
-	for (index = 0; index < MAX_HWIFS; ++index)
-		init_hwif_data(index);
+	for (h = 0; h < MAX_HWIFS; ++h)
+		init_hwif_data(&ide_hwifs[h], h);
 
 	/* Add default hw interfaces */
 	ide_init_default_hwifs();
@@ -885,14 +695,6 @@ static ide_startstop_t do_reset1 (ide_drive_t *drive, int do_not_try_atapi)
 	return ide_started;
 }
 
-/*
- * ide_do_reset() is the entry point to the drive/interface reset code.
- */
-ide_startstop_t ide_do_reset (ide_drive_t *drive)
-{
-	return do_reset1 (drive, 0);
-}
-
 static inline u32 read_24 (ide_drive_t *drive)
 {
 	return  (IN_BYTE(IDE_HCYL_REG)<<16) |
@@ -1116,7 +918,7 @@ ide_startstop_t ide_error (ide_drive_t *drive, const char *msg, byte stat)
 	} else {
 		if ((rq->errors & ERROR_RESET) == ERROR_RESET) {
 			++rq->errors;
-			return ide_do_reset(drive);
+			return do_reset1(drive, 0);
 		}
 		if ((rq->errors & ERROR_RECAL) == ERROR_RECAL)
 			drive->special.b.recalibrate = 1;
@@ -1629,7 +1431,7 @@ void ide_dma_timeout_retry(ide_drive_t *drive)
  * But note that it can also be invoked as a result of a "sleep" operation
  * triggered by the mod_timer() call in ide_do_request.
  */
-void ide_timer_expiry (unsigned long data)
+void ide_timer_expiry(unsigned long data)
 {
 	ide_hwgroup_t	*hwgroup = (ide_hwgroup_t *) data;
 	ide_handler_t	*handler;
@@ -1667,7 +1469,7 @@ void ide_timer_expiry (unsigned long data)
 			if ((expiry = hwgroup->expiry) != NULL) {
 				/* continue */
 				if ((wait = expiry(drive)) != 0) {
-					/* reset timer */
+					/* reengage timer */
 					hwgroup->timer.expires  = jiffies + wait;
 					add_timer(&hwgroup->timer);
 					spin_unlock_irqrestore(&ide_lock, flags);
@@ -1867,15 +1669,15 @@ out_lock:
  * get_info_ptr() returns the (ide_drive_t *) for a given device number.
  * It returns NULL if the given device number does not match any present drives.
  */
-ide_drive_t *get_info_ptr (kdev_t i_rdev)
+ide_drive_t *get_info_ptr(kdev_t i_rdev)
 {
-	int		major = major(i_rdev);
-	unsigned int	h;
+	unsigned int major = major(i_rdev);
+	int h;
 
 	for (h = 0; h < MAX_HWIFS; ++h) {
 		ide_hwif_t  *hwif = &ide_hwifs[h];
 		if (hwif->present && major == hwif->major) {
-			unsigned unit = DEVICE_NR(i_rdev);
+			int unit = DEVICE_NR(i_rdev);
 			if (unit < MAX_DRIVES) {
 				ide_drive_t *drive = &hwif->drives[unit];
 				if (drive->present)
@@ -2012,13 +1814,13 @@ void revalidate_drives(void)
 {
 	ide_hwif_t *hwif;
 	ide_drive_t *drive;
-	int index;
-	int unit;
+	int h;
 
-	for (index = 0; index < MAX_HWIFS; ++index) {
-		hwif = &ide_hwifs[index];
+	for (h = 0; h < MAX_HWIFS; ++h) {
+		int unit;
+		hwif = &ide_hwifs[h];
 		for (unit = 0; unit < MAX_DRIVES; ++unit) {
-			drive = &ide_hwifs[index].drives[unit];
+			drive = &ide_hwifs[h].drives[unit];
 			if (drive->revalidate) {
 				drive->revalidate = 0;
 				if (!initializing)
@@ -2164,22 +1966,18 @@ jump_eight:
 #endif
 }
 
-void ide_unregister (unsigned int index)
+void ide_unregister(ide_hwif_t *hwif)
 {
 	struct gendisk *gd;
 	ide_drive_t *drive, *d;
-	ide_hwif_t *hwif, *g;
+	ide_hwif_t *g;
 	ide_hwgroup_t *hwgroup;
 	int irq_count = 0, unit, i;
 	unsigned long flags;
 	unsigned int p, minor;
 	ide_hwif_t old_hwif;
 
-	if (index >= MAX_HWIFS)
-		return;
-	save_flags(flags);	/* all CPUs */
-	cli();			/* all CPUs */
-	hwif = &ide_hwifs[index];
+	spin_lock_irqsave(&ide_lock, flags);
 	if (!hwif->present)
 		goto abort;
 	put_device(&hwif->device);
@@ -2202,7 +2000,7 @@ void ide_unregister (unsigned int index)
 	/*
 	 * All clear?  Then blow away the buffer cache
 	 */
-	sti();
+	spin_unlock_irqrestore(&ide_lock, flags);
 	for (unit = 0; unit < MAX_DRIVES; ++unit) {
 		drive = &hwif->drives[unit];
 		if (!drive->present)
@@ -2214,11 +2012,11 @@ void ide_unregister (unsigned int index)
 				invalidate_device(devp, 0);
 			}
 		}
-#ifdef CONFIG_PROC_FS
-		destroy_proc_ide_drives(hwif);
-#endif
 	}
-	cli();
+#ifdef CONFIG_PROC_FS
+	destroy_proc_ide_drives(hwif);
+#endif
+	spin_lock_irqsave(&ide_lock, flags);
 	hwgroup = hwif->hwgroup;
 
 	/*
@@ -2271,11 +2069,8 @@ void ide_unregister (unsigned int index)
 		hwgroup->hwif = HWIF(hwgroup->drive);
 
 #if defined(CONFIG_BLK_DEV_IDEDMA) && !defined(CONFIG_DMA_NONPCI)
-	if (hwif->dma_base) {
-		(void) ide_release_dma(hwif);
-		hwif->dma_base = 0;
-	}
-#endif /* (CONFIG_BLK_DEV_IDEDMA) && !(CONFIG_DMA_NONPCI) */
+	ide_release_dma(hwif);
+#endif
 
 	/*
 	 * Remove us from the kernel's knowledge
@@ -2297,8 +2092,14 @@ void ide_unregister (unsigned int index)
 		kfree(gd);
 		hwif->gd = NULL;
 	}
+
+	/*
+	 * Reinitialize the hwif handler, but preserve any special methods for
+	 * it.
+	 */
+
 	old_hwif		= *hwif;
-	init_hwif_data(index);	/* restore hwif data to pristine status */
+	init_hwif_data(hwif, hwif->index);
 	hwif->hwgroup		= old_hwif.hwgroup;
 	hwif->tuneproc		= old_hwif.tuneproc;
 	hwif->speedproc		= old_hwif.speedproc;
@@ -2329,7 +2130,7 @@ void ide_unregister (unsigned int index)
 #endif
 	hwif->straight8		= old_hwif.straight8;
 abort:
-	restore_flags(flags);	/* all CPUs */
+	spin_unlock_irqrestore(&ide_lock, flags);
 }
 
 /*
@@ -2374,28 +2175,27 @@ void ide_setup_ports (	hw_regs_t *hw,
  */
 int ide_register_hw(hw_regs_t *hw, ide_hwif_t **hwifp)
 {
-	int index, retry = 1;
+	int h, retry = 1;
 	ide_hwif_t *hwif;
 
 	do {
-		for (index = 0; index < MAX_HWIFS; ++index) {
-			hwif = &ide_hwifs[index];
+		for (h = 0; h < MAX_HWIFS; ++h) {
+			hwif = &ide_hwifs[h];
 			if (hwif->hw.io_ports[IDE_DATA_OFFSET] == hw->io_ports[IDE_DATA_OFFSET])
 				goto found;
 		}
-		for (index = 0; index < MAX_HWIFS; ++index) {
-			hwif = &ide_hwifs[index];
+		for (h = 0; h < MAX_HWIFS; ++h) {
+			hwif = &ide_hwifs[h];
 			if ((!hwif->present && !hwif->mate && !initializing) ||
 			    (!hwif->hw.io_ports[IDE_DATA_OFFSET] && initializing))
 				goto found;
 		}
-		for (index = 0; index < MAX_HWIFS; index++)
-			ide_unregister(index);
+		for (h = 0; h < MAX_HWIFS; ++h)
+			ide_unregister(&ide_hwifs[h]);
 	} while (retry--);
 	return -1;
 found:
-	if (hwif->present)
-		ide_unregister(index);
+	ide_unregister(hwif);
 	if (hwif->present)
 		return -1;
 	memcpy(&hwif->hw, hw, sizeof(*hw));
@@ -2415,7 +2215,7 @@ found:
 	if (hwifp)
 		*hwifp = hwif;
 
-	return (initializing || hwif->present) ? index : -1;
+	return (initializing || hwif->present) ? h : -1;
 }
 
 /*
@@ -2756,21 +2556,6 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 				return -EACCES;
 			return ide_task_ioctl(drive, inode, file, cmd, arg);
 
-		case HDIO_SCAN_HWIF:
-		{
-			int args[3];
-			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
-			if (copy_from_user(args, (void *)arg, 3 * sizeof(int)))
-				return -EFAULT;
-			if (ide_register(args[0], args[1], args[2]) == -1)
-				return -EIO;
-			return 0;
-		}
-	        case HDIO_UNREGISTER_HWIF:
-			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
-			/* (arg > MAX_HWIFS) checked in function */
-			ide_unregister(arg);
-			return 0;
 		case HDIO_SET_NICE:
 			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
 			if (arg != (arg & ((1 << IDE_NICE_DSC_OVERLAP) | (1 << IDE_NICE_1))))
@@ -2783,27 +2568,6 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 			}
 			drive->nice1 = (arg >> IDE_NICE_1) & 1;
 			return 0;
-		case HDIO_DRIVE_RESET:
-		{
-			unsigned long flags;
-			ide_hwgroup_t *hwgroup = HWGROUP(drive);
-
-			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
-#if 1
-			spin_lock_irqsave(&ide_lock, flags);
-			if (hwgroup->handler != NULL) {
-				printk("%s: ide_set_handler: handler not null; %p\n", drive->name, hwgroup->handler);
-				hwgroup->handler(drive);
-				hwgroup->timer.expires = jiffies + 0;;
-				del_timer(&hwgroup->timer);
-			}
-			spin_unlock_irqrestore(&ide_lock, flags);
-#endif
-			ide_do_reset(drive);
-			if (drive->suspend_reset)
-				return ide_revalidate_disk(inode->i_rdev);
-			return 0;
-		}
 		case BLKGETSIZE:
 		case BLKGETSIZE64:
 		case BLKROSET:
@@ -3485,6 +3249,7 @@ struct block_device_operations ide_fops[] = {{
 	revalidate:		ide_revalidate_disk
 }};
 
+EXPORT_SYMBOL(ide_fops);
 EXPORT_SYMBOL(ide_hwifs);
 EXPORT_SYMBOL(ide_spin_wait_hwgroup);
 EXPORT_SYMBOL(revalidate_drives);
@@ -3512,7 +3277,6 @@ EXPORT_SYMBOL(ide_dump_status);
 EXPORT_SYMBOL(ide_error);
 EXPORT_SYMBOL(ide_fixstring);
 EXPORT_SYMBOL(ide_wait_stat);
-EXPORT_SYMBOL(ide_do_reset);
 EXPORT_SYMBOL(restart_request);
 EXPORT_SYMBOL(ide_init_drive_cmd);
 EXPORT_SYMBOL(ide_do_drive_cmd);
@@ -3590,7 +3354,7 @@ static struct notifier_block ide_notifier = {
  */
 static int __init ata_module_init(void)
 {
-	int i;
+	int h;
 
 	printk(KERN_INFO "Uniform Multi-Platform E-IDE driver ver.:" VERSION "\n");
 
@@ -3672,7 +3436,7 @@ static int __init ata_module_init(void)
 	pnpide_init(1);
 #endif
 
-#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULES)
+#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 # if defined(__mc68000__) || defined(CONFIG_APUS)
 	if (ide_hwifs[0].io_ports[IDE_DATA_OFFSET]) {
 		ide_get_lock(&ide_intr_lock, NULL, NULL);/* for atari only */
@@ -3720,8 +3484,8 @@ static int __init ata_module_init(void)
 
 	initializing = 0;
 
-	for (i = 0; i < MAX_HWIFS; ++i) {
-		ide_hwif_t  *hwif = &ide_hwifs[i];
+	for (h = 0; h < MAX_HWIFS; ++h) {
+		ide_hwif_t  *hwif = &ide_hwifs[h];
 		if (hwif->present)
 			ide_geninit(hwif);
 	}
@@ -3756,21 +3520,17 @@ static int __init init_ata (void)
 
 static void __exit cleanup_ata (void)
 {
-	int index;
+	int h;
 
 	unregister_reboot_notifier(&ide_notifier);
-	for (index = 0; index < MAX_HWIFS; ++index) {
-		ide_unregister(index);
-# if defined(CONFIG_BLK_DEV_IDEDMA) && !defined(CONFIG_DMA_NONPCI)
-		if (ide_hwifs[index].dma_base)
-			ide_release_dma(&ide_hwifs[index]);
-# endif /* (CONFIG_BLK_DEV_IDEDMA) && !(CONFIG_DMA_NONPCI) */
+	for (h = 0; h < MAX_HWIFS; ++h) {
+		ide_unregister(&ide_hwifs[h]);
 	}
 
 # ifdef CONFIG_PROC_FS
 	proc_ide_destroy();
 # endif
-	devfs_unregister (ide_devfs_handle);
+	devfs_unregister(ide_devfs_handle);
 }
 
 module_init(init_ata);

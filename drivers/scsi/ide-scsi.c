@@ -290,7 +290,7 @@ static int idescsi_end_request(ide_drive_t *drive, int uptodate)
 			if (!test_bit(PC_WRITING, &pc->flags) && pc->actually_transferred && pc->actually_transferred <= 1024 && pc->buffer) {
 				printk(", rst = ");
 				scsi_buf = pc->scsi_cmd->request_buffer;
-				hexdump(scsi_buf, min(16, pc->scsi_cmd->request_bufflen));
+				hexdump(scsi_buf, min(16U, pc->scsi_cmd->request_bufflen));
 			} else printk("\n");
 		}
 	}
@@ -307,7 +307,7 @@ static int idescsi_end_request(ide_drive_t *drive, int uptodate)
 
 static inline unsigned long get_timeout(idescsi_pc_t *pc)
 {
-	return max(WAIT_CMD, pc->timeout - jiffies);
+	return max((unsigned long) WAIT_CMD, pc->timeout - jiffies);
 }
 
 /*
@@ -350,7 +350,7 @@ static ide_startstop_t idescsi_pc_intr (ide_drive_t *drive)
 
 	if (ireason & IDESCSI_IREASON_COD) {
 		printk (KERN_ERR "ide-scsi: CoD != 0 in idescsi_pc_intr\n");
-		return ide_do_reset (drive);
+		return ide_stopped;
 	}
 	if (ireason & IDESCSI_IREASON_IO) {
 		temp = pc->actually_transferred + bcount;
@@ -411,7 +411,7 @@ static ide_startstop_t idescsi_transfer_pc (ide_drive_t *drive)
 	ireason = IN_BYTE (IDE_IREASON_REG);
 	if ((ireason & (IDESCSI_IREASON_IO | IDESCSI_IREASON_COD)) != IDESCSI_IREASON_COD) {
 		printk (KERN_ERR "ide-scsi: (IO,CoD) != (0,1) while issuing a packet command\n");
-		return ide_do_reset (drive);
+		return ide_stopped;
 	}
 	ide_set_handler(drive, &idescsi_pc_intr, get_timeout(pc), NULL);	/* Set the interrupt routine */
 	atapi_output_bytes (drive, scsi->pc->c, 12);			/* Send the actual packet */
@@ -565,7 +565,7 @@ static struct ata_operations idescsi_driver = {
 /*
  *	idescsi_init will register the driver for each scsi.
  */
-static int idescsi_init(void)
+int idescsi_init(void)
 {
 	ide_drive_t *drive;
 	idescsi_scsi_t *scsi;

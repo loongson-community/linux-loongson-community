@@ -172,7 +172,7 @@ if ((PREV)->thread.smp_lock_count) {					\
 	 * not preserve it's value.  Hairy, but it lets us remove 2 loads
 	 * and 2 stores in this critical code path.  -DaveM
 	 */
-#define switch_to(prev, next, last)						\
+#define switch_to(prev, next)							\
 do {	CHECK_LOCKS(prev);							\
 	if (test_thread_flag(TIF_PERFCTR)) {					\
 		unsigned long __tmp;						\
@@ -193,27 +193,28 @@ do {	CHECK_LOCKS(prev);							\
 	"stx	%%i6, [%%sp + 2047 + 0x70]\n\t"					\
 	"stx	%%i7, [%%sp + 2047 + 0x78]\n\t"					\
 	"rdpr	%%wstate, %%o5\n\t"						\
-	"stx	%%o6, [%%g6 + %3]\n\t"						\
-	"stb	%%o5, [%%g6 + %2]\n\t"						\
+	"stx	%%o6, [%%g6 + %2]\n\t"						\
+	"stb	%%o5, [%%g6 + %1]\n\t"						\
 	"rdpr	%%cwp, %%o5\n\t"						\
-	"stb	%%o5, [%%g6 + %5]\n\t"						\
-	"mov	%1, %%g6\n\t"							\
-	"ldub	[%1 + %5], %%g1\n\t"						\
+	"stb	%%o5, [%%g6 + %4]\n\t"						\
+	"mov	%0, %%g6\n\t"							\
+	"ldub	[%0 + %4], %%g1\n\t"						\
 	"wrpr	%%g1, %%cwp\n\t"						\
-	"ldx	[%%g6 + %3], %%o6\n\t"						\
-	"ldub	[%%g6 + %2], %%o5\n\t"						\
-	"ldx	[%%g6 + %4], %%o7\n\t"						\
+	"ldx	[%%g6 + %2], %%o6\n\t"						\
+	"ldub	[%%g6 + %1], %%o5\n\t"						\
+	"ldx	[%%g6 + %3], %%o7\n\t"						\
 	"mov	%%g6, %%l2\n\t"							\
 	"wrpr	%%o5, 0x0, %%wstate\n\t"					\
 	"ldx	[%%sp + 2047 + 0x70], %%i6\n\t"					\
 	"ldx	[%%sp + 2047 + 0x78], %%i7\n\t"					\
 	"wrpr	%%g0, 0x94, %%pstate\n\t"					\
 	"mov	%%l2, %%g6\n\t"							\
+	"ldx	[%%g6 + %6], %%g4\n\t"						\
 	"wrpr	%%g0, 0x96, %%pstate\n\t"					\
-	"andcc	%%o7, %6, %%g0\n\t"						\
+	"andcc	%%o7, %5, %%g0\n\t"						\
 	"bne,pn	%%icc, ret_from_syscall\n\t"					\
-	" ldx	[%%g5 + %7], %0\n\t"						\
-	: "=&r" (last)								\
+	" nop\n\t"								\
+	: /* no outputs */							\
 	: "r" (next->thread_info),						\
 	  "i" (TI_WSTATE), "i" (TI_KSP), "i" (TI_FLAGS), "i" (TI_CWP),		\
 	  "i" (_TIF_NEWCHILD), "i" (TI_TASK)					\

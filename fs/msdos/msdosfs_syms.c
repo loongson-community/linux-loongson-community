@@ -23,7 +23,6 @@ EXPORT_SYMBOL(msdos_mkdir);
 EXPORT_SYMBOL(msdos_rename);
 EXPORT_SYMBOL(msdos_rmdir);
 EXPORT_SYMBOL(msdos_unlink);
-EXPORT_SYMBOL(msdos_put_super);
 
 static struct super_block *msdos_get_sb(struct file_system_type *fs_type,
 	int flags, char *dev_name, void *data)
@@ -35,6 +34,7 @@ static struct file_system_type msdos_fs_type = {
 	owner:		THIS_MODULE,
 	name:		"msdos",
 	get_sb:		msdos_get_sb,
+	kill_sb:	kill_block_super,
 	fs_flags:	FS_REQUIRES_DEV,
 };
 

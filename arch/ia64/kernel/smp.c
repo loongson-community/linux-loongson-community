@@ -29,6 +29,7 @@
 #include <linux/smp.h>
 #include <linux/kernel_stat.h>
 #include <linux/mm.h>
+#include <linux/cache.h>
 #include <linux/delay.h>
 #include <linux/cache.h>
 
@@ -38,7 +39,6 @@
 #include <asm/delay.h>
 #include <asm/efi.h>
 #include <asm/machvec.h>
-
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/page.h>
@@ -51,14 +51,19 @@
 #include <asm/unistd.h>
 #include <asm/mca.h>
 
-/* The 'big kernel lock' */
-spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
+/*
+ * The Big Kernel Lock.  It's not supposed to be used for performance critical stuff
+ * anymore.  But we still need to align it because certain workloads are still affected by
+ * it.  For example, llseek() and various other filesystem related routines still use the
+ * BKL.
+ */
+spinlock_t kernel_flag __cacheline_aligned = SPIN_LOCK_UNLOCKED;
 
 /*
  * Structure and data for smp_call_function(). This is designed to minimise static memory
  * requirements. It also looks cleaner.
  */
-static spinlock_t call_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t call_lock __cacheline_aligned = SPIN_LOCK_UNLOCKED;
 
 struct call_data_struct {
 	void (*func) (void *info);
@@ -72,6 +77,9 @@ static volatile struct call_data_struct *call_data;
 
 #define IPI_CALL_FUNC		0
 #define IPI_CPU_STOP		1
+
+/* This needs to be cacheline aligned because it is written to by *other* CPUs.  */
+static __u64 ipi_operation __per_cpu_data ____cacheline_aligned;
 
 static void
 stop_this_cpu (void)
@@ -90,7 +98,7 @@ void
 handle_IPI (int irq, void *dev_id, struct pt_regs *regs)
 {
 	int this_cpu = smp_processor_id();
-	unsigned long *pending_ipis = &local_cpu_data->ipi_operation;
+	unsigned long *pending_ipis = &this_cpu(ipi_operation);
 	unsigned long ops;
 
 	/* Count this now; we may make a call that never returns. */
@@ -98,58 +106,59 @@ handle_IPI (int irq, void *dev_id, struct pt_regs *regs)
 
 	mb();	/* Order interrupt and bit testing. */
 	while ((ops = xchg(pending_ipis, 0)) != 0) {
-	  mb();	/* Order bit clearing and data access. */
-	  do {
-		unsigned long which;
+		mb();	/* Order bit clearing and data access. */
+		do {
+			unsigned long which;
 
-		which = ffz(~ops);
-		ops &= ~(1 << which);
+			which = ffz(~ops);
+			ops &= ~(1 << which);
 
-		switch (which) {
-		case IPI_CALL_FUNC:
-			{
-				struct call_data_struct *data;
-				void (*func)(void *info);
-				void *info;
-				int wait;
+			switch (which) {
+			      case IPI_CALL_FUNC:
+			      {
+				      struct call_data_struct *data;
+				      void (*func)(void *info);
+				      void *info;
+				      int wait;
 
-				/* release the 'pointer lock' */
-				data = (struct call_data_struct *) call_data;
-				func = data->func;
-				info = data->info;
-				wait = data->wait;
+				      /* release the 'pointer lock' */
+				      data = (struct call_data_struct *) call_data;
+				      func = data->func;
+				      info = data->info;
+				      wait = data->wait;
 
-				mb();
-				atomic_inc(&data->started);
+				      mb();
+				      atomic_inc(&data->started);
+				      /*
+				       * At this point the structure may be gone unless
+				       * wait is true.
+				       */
+				      (*func)(info);
 
-				/* At this point the structure may be gone unless wait is true.  */
-				(*func)(info);
+				      /* Notify the sending CPU that the task is done.  */
+				      mb();
+				      if (wait)
+					      atomic_inc(&data->finished);
+			      }
+			      break;
 
-				/* Notify the sending CPU that the task is done.  */
-				mb();
-				if (wait)
-					atomic_inc(&data->finished);
+			      case IPI_CPU_STOP:
+				stop_this_cpu();
+				break;
+
+			      default:
+				printk(KERN_CRIT "Unknown IPI on CPU %d: %lu\n", this_cpu, which);
+				break;
 			}
-			break;
-
-		case IPI_CPU_STOP:
-			stop_this_cpu();
-			break;
-
-		default:
-			printk(KERN_CRIT "Unknown IPI on CPU %d: %lu\n", this_cpu, which);
-			break;
-		} /* Switch */
-	  } while (ops);
-
-	  mb();	/* Order data access and bit testing. */
+		} while (ops);
+		mb();	/* Order data access and bit testing. */
 	}
 }
 
 static inline void
 send_IPI_single (int dest_cpu, int op)
 {
-	set_bit(op, &cpu_data(dest_cpu)->ipi_operation);
+	set_bit(op, &per_cpu(ipi_operation, dest_cpu));
 	platform_send_ipi(dest_cpu, IA64_IPI_VECTOR, IA64_IPI_DM_INT, 0);
 }
 
@@ -185,10 +194,25 @@ smp_send_reschedule (int cpu)
 	platform_send_ipi(cpu, IA64_IPI_RESCHEDULE, IA64_IPI_DM_INT, 0);
 }
 
+/*
+ * This function sends a reschedule IPI to all (other) CPUs.  This should only be used if
+ * some 'global' task became runnable, such as a RT task, that must be handled now. The
+ * first CPU that manages to grab the task will run it.
+ */
+void
+smp_send_reschedule_all (void)
+{
+	int i;
+
+	for (i = 0; i < smp_num_cpus; i++)
+		if (i != smp_processor_id())
+			smp_send_reschedule(i);
+}
+
 void
 smp_flush_tlb_all (void)
 {
-	smp_call_function ((void (*)(void *))__flush_tlb_all,0,1,1);
+	smp_call_function((void (*)(void *))__flush_tlb_all, 0, 1, 1);
 	__flush_tlb_all();
 }
 

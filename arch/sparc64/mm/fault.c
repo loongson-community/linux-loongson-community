@@ -55,13 +55,21 @@ void syscall_trace_exit(struct pt_regs *regs)
  */
 void set_brkpt(unsigned long addr, unsigned char mask, int flags, int mode)
 {
-	unsigned long lsubits = LSU_CONTROL_IC|LSU_CONTROL_DC|LSU_CONTROL_IM|LSU_CONTROL_DM;
+	unsigned long lsubits;
+
+	__asm__ __volatile__("ldxa [%%g0] %1, %0"
+			     : "=r" (lsubits)
+			     : "i" (ASI_LSU_CONTROL));
+	lsubits &= ~(LSU_CONTROL_PM | LSU_CONTROL_VM |
+		     LSU_CONTROL_PR | LSU_CONTROL_VR |
+		     LSU_CONTROL_PW | LSU_CONTROL_VW);
 
 	__asm__ __volatile__("stxa	%0, [%1] %2\n\t"
 			     "membar	#Sync"
 			     : /* no outputs */
 			     : "r" (addr), "r" (mode ? VIRT_WATCHPOINT : PHYS_WATCHPOINT),
 			       "i" (ASI_DMMU));
+
 	lsubits |= ((unsigned long)mask << (mode ? 25 : 33));
 	if (flags & VM_READ)
 		lsubits |= (mode ? LSU_CONTROL_VR : LSU_CONTROL_PR);
@@ -160,10 +168,12 @@ static unsigned int get_user_insn(unsigned long tpc)
 	pmdp = pmd_offset(pgdp, tpc);
 	if (pmd_none(*pmdp))
 		goto outret;
-	ptep = pte_offset(pmdp, tpc);
+
+	/* This disables preemption for us as well. */
 	__asm__ __volatile__("rdpr %%pstate, %0" : "=r" (pstate));
 	__asm__ __volatile__("wrpr %0, %1, %%pstate"
 				: : "r" (pstate), "i" (PSTATE_IE));
+	ptep = pte_offset_map(pmdp, tpc);
 	pte = *ptep;
 	if (!pte_present(pte))
 		goto out;
@@ -177,6 +187,7 @@ static unsigned int get_user_insn(unsigned long tpc)
 			     : "r" (pa), "i" (ASI_PHYS_USE_EC));
 
 out:
+	pte_unmap(ptep);
 	__asm__ __volatile__("wrpr %0, 0x0, %%pstate" : : "r" (pstate));
 outret:
 	return insn;
@@ -340,6 +351,20 @@ continue_fault:
 		goto good_area;
 	if (!(vma->vm_flags & VM_GROWSDOWN))
 		goto bad_area;
+	if (!(fault_code & FAULT_CODE_WRITE)) {
+		/* Non-faulting loads shouldn't expand stack. */
+		insn = get_fault_insn(regs, insn);
+		if ((insn & 0xc0800000) == 0xc0800000) {
+			unsigned char asi;
+
+			if (insn & 0x2000)
+				asi = (regs->tstate >> 24);
+			else
+				asi = (insn >> 5);
+			if ((asi & 0xf2) == 0x82)
+				goto bad_area;
+		}
+	}
 	if (expand_stack(vma, address))
 		goto bad_area;
 	/*

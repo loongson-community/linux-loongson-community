@@ -366,4 +366,5 @@ sys_call_table:
 	PTR	sys_gettid				/* 5215 */
 	PTR	sys_readahead
 	PTR	sys_tkill
-	PTR	sys_syscall64
+	PTR	sys_sendfile64
+	PTR	sys_futex

@@ -92,7 +92,6 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 			   * FS_NO_DCACHE is not set.
 			   */
 #define FS_NOMOUNT	16 /* Never mount from userland */
-#define FS_LITTER	32 /* Keeps the tree in dcache */
 #define FS_ODD_RENAME	32768	/* Temporary stuff; will go away as soon
 				  * as nfs_rename() will be cleaned up
 				  */
@@ -290,8 +289,6 @@ extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned long
 
 #include <linux/pipe_fs_i.h>
 /* #include <linux/umsdos_fs_i.h> */
-#include <linux/romfs_fs_i.h>
-#include <linux/cramfs_fs_sb.h>
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what
@@ -455,8 +452,6 @@ struct inode {
 	unsigned int		i_attr_flags;
 	__u32			i_generation;
 	union {
-		/* struct umsdos_inode_info	umsdos_i; */
-		struct romfs_inode_info		romfs_i;
 		void				*generic_ip;
 	} u;
 };
@@ -476,7 +471,6 @@ static inline struct inode *SOCK_INODE(struct socket *socket)
 	return &list_entry(socket, struct socket_alloc, socket)->vfs_inode;
 }
 
-#include <linux/shmem_fs.h>
 /* will die */
 #include <linux/coda_fs_i.h>
 #include <linux/ext3_fs_i.h>
@@ -650,29 +644,15 @@ struct quota_mount_options
 #define MNT_FORCE	0x00000001	/* Attempt to forcibily umount */
 #define MNT_DETACH	0x00000002	/* Just detach from the tree */
 
-#include <linux/minix_fs_sb.h>
-#include <linux/ext2_fs_sb.h>
 #include <linux/ext3_fs_sb.h>
 #include <linux/hpfs_fs_sb.h>
 #include <linux/ntfs_fs_sb.h>
-#include <linux/msdos_fs_sb.h>
-#include <linux/iso_fs_sb.h>
-#include <linux/nfs_fs_sb.h>
 #include <linux/sysv_fs_sb.h>
-#include <linux/affs_fs_sb.h>
 #include <linux/ufs_fs_sb.h>
-#include <linux/efs_fs_sb.h>
 #include <linux/romfs_fs_sb.h>
-#include <linux/smb_fs_sb.h>
-#include <linux/hfs_fs_sb.h>
 #include <linux/adfs_fs_sb.h>
-#include <linux/qnx4_fs_sb.h>
 #include <linux/reiserfs_fs_sb.h>
 #include <linux/bfs_fs_sb.h>
-#include <linux/udf_fs_sb.h>
-#include <linux/ncp_fs_sb.h>
-#include <linux/cramfs_fs_sb.h>
-#include <linux/jffs2_fs_sb.h>
 
 extern struct list_head super_blocks;
 extern spinlock_t sb_lock;
@@ -708,30 +688,15 @@ struct super_block {
 	char s_id[32];				/* Informational name */
 
 	union {
-		struct minix_sb_info	minix_sb;
-		struct ext2_sb_info	ext2_sb;
 		struct ext3_sb_info	ext3_sb;
 		struct hpfs_sb_info	hpfs_sb;
 		struct ntfs_sb_info	ntfs_sb;
-		struct msdos_sb_info	msdos_sb;
-		struct isofs_sb_info	isofs_sb;
-		struct nfs_sb_info	nfs_sb;
 		struct sysv_sb_info	sysv_sb;
-		struct affs_sb_info	affs_sb;
 		struct ufs_sb_info	ufs_sb;
-		struct efs_sb_info	efs_sb;
-		struct shmem_sb_info	shmem_sb;
 		struct romfs_sb_info	romfs_sb;
-		struct smb_sb_info	smbfs_sb;
-		struct hfs_sb_info	hfs_sb;
 		struct adfs_sb_info	adfs_sb;
-		struct qnx4_sb_info	qnx4_sb;
 		struct reiserfs_sb_info	reiserfs_sb;
 		struct bfs_sb_info	bfs_sb;
-		struct udf_sb_info	udf_sb;
-		struct ncp_sb_info	ncpfs_sb;
-		struct jffs2_sb_info	jffs2_sb;
-		struct cramfs_sb_info	cramfs_sb;
 		void			*generic_sbp;
 	} u;
 	/*
@@ -944,6 +909,7 @@ struct file_system_type {
 	const char *name;
 	int fs_flags;
 	struct super_block *(*get_sb) (struct file_system_type *, int, char *, void *);
+	void (*kill_sb) (struct super_block *);
 	struct module *owner;
 	struct file_system_type * next;
 	struct list_head fs_supers;
@@ -958,6 +924,15 @@ struct super_block *get_sb_single(struct file_system_type *fs_type,
 struct super_block *get_sb_nodev(struct file_system_type *fs_type,
 	int flags, void *data,
 	int (*fill_super)(struct super_block *, void *, int));
+void kill_block_super(struct super_block *sb);
+void kill_anon_super(struct super_block *sb);
+void kill_litter_super(struct super_block *sb);
+void deactivate_super(struct super_block *sb);
+int set_anon_super(struct super_block *s, void *data);
+struct super_block *sget(struct file_system_type *type,
+			int (*test)(struct super_block *,void *),
+			int (*set)(struct super_block *,void *),
+			void *data);
 
 /* Alas, no aliases. Too much hassle with bringing module.h everywhere */
 #define fops_get(fops) \
@@ -1463,7 +1438,6 @@ extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, r
 extern loff_t no_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t generic_file_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t remote_llseek(struct file *file, loff_t offset, int origin);
-extern ssize_t generic_read_dir(struct file *, char *, size_t, loff_t *);
 extern int generic_file_open(struct inode * inode, struct file * filp);
 
 extern struct file_operations generic_ro_fops;
@@ -1475,7 +1449,6 @@ extern int page_follow_link(struct dentry *, struct nameidata *);
 extern struct inode_operations page_symlink_inode_operations;
 
 extern int vfs_readdir(struct file *, filldir_t, void *);
-extern int dcache_readdir(struct file *, void *, filldir_t);
 
 extern int vfs_stat(char *, struct kstat *);
 extern int vfs_lstat(char *, struct kstat *);
@@ -1487,6 +1460,12 @@ extern void drop_super(struct super_block *sb);
 extern kdev_t ROOT_DEV;
 extern char root_device_name[];
 
+extern int dcache_readdir(struct file *, void *, filldir_t);
+extern int simple_statfs(struct super_block *, struct statfs *);
+extern struct dentry *simple_lookup(struct inode *, struct dentry *);
+extern ssize_t generic_read_dir(struct file *, char *, size_t, loff_t *);
+extern struct file_operations simple_dir_operations;
+extern struct inode_operations simple_dir_inode_operations;
 
 extern void show_buffers(void);
 

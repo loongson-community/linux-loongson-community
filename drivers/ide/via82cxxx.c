@@ -1,5 +1,5 @@
 /*
- * $Id: via82cxxx.c,v 3.33 2001/12/23 22:46:12 vojtech Exp $
+ * $Id: via82cxxx.c,v 3.34 2002/02/12 11:26:11 vojtech Exp $
  *
  *  Copyright (c) 2000-2001 Vojtech Pavlik
  *
@@ -67,7 +67,7 @@
 #include <linux/ide.h>
 #include <asm/io.h>
 
-#include "ide-timing.h"
+#include "ata-timing.h"
 
 #define VIA_IDE_ENABLE		0x40
 #define VIA_IDE_CONFIG		0x41
@@ -163,7 +163,7 @@ static int via_get_info(char *buffer, char **addr, off_t offset, int count)
 
 	via_print("----------VIA BusMastering IDE Configuration----------------");
 
-	via_print("Driver Version:                     3.33");
+	via_print("Driver Version:                     3.34");
 	via_print("South Bridge:                       VIA %s", via_config->name);
 
 	pci_read_config_byte(isa_dev, PCI_REVISION_ID, &t);
@@ -269,7 +269,7 @@ static int via_get_info(char *buffer, char **addr, off_t offset, int count)
  * via_set_speed() writes timing values to the chipset registers
  */
 
-static void via_set_speed(struct pci_dev *dev, unsigned char dn, struct ide_timing *timing)
+static void via_set_speed(struct pci_dev *dev, unsigned char dn, struct ata_timing *timing)
 {
 	unsigned char t;
 
@@ -303,7 +303,7 @@ static void via_set_speed(struct pci_dev *dev, unsigned char dn, struct ide_timi
 static int via_set_drive(ide_drive_t *drive, unsigned char speed)
 {
 	ide_drive_t *peer = HWIF(drive)->drives + (~drive->dn & 1);
-	struct ide_timing t, p;
+	struct ata_timing t, p;
 	unsigned int T, UT;
 
 	if (speed != XFER_PIO_SLOW && speed != drive->current_speed)
@@ -321,11 +321,11 @@ static int via_set_drive(ide_drive_t *drive, unsigned char speed)
 		default: UT = T;
 	}
 
-	ide_timing_compute(drive, speed, &t, T, UT);
+	ata_timing_compute(drive, speed, &t, T, UT);
 
 	if (peer->present) {
-		ide_timing_compute(peer, peer->current_speed, &p, T, UT);
-		ide_timing_merge(&p, &t, &t, IDE_TIMING_8BIT);
+		ata_timing_compute(peer, peer->current_speed, &p, T, UT);
+		ata_timing_merge(&p, &t, &t, IDE_TIMING_8BIT);
 	}
 
 	via_set_speed(HWIF(drive)->pci_dev, drive->dn, &t);
@@ -348,11 +348,11 @@ static void via82cxxx_tune_drive(ide_drive_t *drive, unsigned char pio)
 		return;
 
 	if (pio == 255) {
-		via_set_drive(drive, ide_find_best_mode(drive, XFER_PIO | XFER_EPIO));
+		via_set_drive(drive, ata_timing_mode(drive, XFER_PIO | XFER_EPIO));
 		return;
 	}
 
-	via_set_drive(drive, XFER_PIO_0 + MIN(pio, 5));
+	via_set_drive(drive, XFER_PIO_0 + min_t(byte, pio, 5));
 }
 
 #ifdef CONFIG_BLK_DEV_IDEDMA
@@ -370,7 +370,7 @@ int via82cxxx_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 
 		short w80 = HWIF(drive)->udma_four;
 
-		short speed = ide_find_best_mode(drive,
+		short speed = ata_timing_mode(drive,
 			XFER_PIO | XFER_EPIO | XFER_SWDMA | XFER_MWDMA |
 			(via_config->flags & VIA_UDMA ? XFER_UDMA : 0) |
 			(w80 && (via_config->flags & VIA_UDMA) >= VIA_UDMA_66 ? XFER_UDMA_66 : 0) |
@@ -495,7 +495,7 @@ unsigned int __init pci_init_via82cxxx(struct pci_dev *dev)
 	if (via_clock < 20000 || via_clock > 50000) {
 		printk(KERN_WARNING "VP_IDE: User given PCI clock speed impossible (%d), using 33 MHz instead.\n", via_clock);
 		printk(KERN_WARNING "VP_IDE: Use ide0=ata66 if you want to assume 80-wire cable.\n");
-		via_clock = 33;
+		via_clock = 33333;
 	}
 
 /*

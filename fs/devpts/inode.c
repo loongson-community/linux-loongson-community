@@ -48,12 +48,11 @@ static void devpts_put_super(struct super_block *sb)
 	kfree(sbi);
 }
 
-static int devpts_statfs(struct super_block *sb, struct statfs *buf);
 static int devpts_remount (struct super_block * sb, int * flags, char * data);
 
 static struct super_operations devpts_sops = {
 	put_super:	devpts_put_super,
-	statfs:		devpts_statfs,
+	statfs:		simple_statfs,
 	remount_fs:	devpts_remount,
 };
 
@@ -171,14 +170,6 @@ fail:
 	return error;
 }
 
-static int devpts_statfs(struct super_block *sb, struct statfs *buf)
-{
-	buf->f_type = DEVPTS_SUPER_MAGIC;
-	buf->f_bsize = 1024;
-	buf->f_namelen = NAME_MAX;
-	return 0;
-}
-
 static struct super_block *devpts_get_sb(struct file_system_type *fs_type,
 	int flags, char *dev_name, void *data)
 {
@@ -189,6 +180,7 @@ static struct file_system_type devpts_fs_type = {
 	owner:		THIS_MODULE,
 	name:		"devpts",
 	get_sb:		devpts_get_sb,
+	kill_sb:	kill_anon_super,
 };
 
 void devpts_pty_new(int number, kdev_t device)

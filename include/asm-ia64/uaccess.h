@@ -26,8 +26,8 @@
  * associated and, if so, sets r8 to -EFAULT and clears r9 to 0 and
  * then resumes execution at the continuation point.
  *
- * Copyright (C) 1998, 1999, 2001 Hewlett-Packard Co
- * Copyright (C) 1998, 1999, 2001 David Mosberger-Tang <davidm@hpl.hp.com>
+ * Copyright (C) 1998, 1999, 2001-2002 Hewlett-Packard Co
+ *	David Mosberger-Tang <davidm@hpl.hp.com>
  */
 
 #include <linux/errno.h>
@@ -45,8 +45,8 @@
 #define VERIFY_WRITE	1
 
 #define get_ds()  (KERNEL_DS)
-#define get_fs()  (current->addr_limit)
-#define set_fs(x) (current->addr_limit = (x))
+#define get_fs()  (current_thread_info()->addr_limit)
+#define set_fs(x) (current_thread_info()->addr_limit = (x))
 
 #define segment_eq(a,b)	((a).seg == (b).seg)
 
@@ -319,5 +319,23 @@ struct exception_fixup {
 
 extern struct exception_fixup search_exception_table (unsigned long addr);
 extern void handle_exception (struct pt_regs *regs, struct exception_fixup fixup);
+
+#ifdef GAS_HAS_LOCAL_TAGS
+#define SEARCH_EXCEPTION_TABLE(regs) search_exception_table(regs->cr_iip + ia64_psr(regs)->ri);
+#else
+#define SEARCH_EXCEPTION_TABLE(regs) search_exception_table(regs->cr_iip);
+#endif
+
+static inline int
+done_with_exception (struct pt_regs *regs)
+{
+	struct exception_fixup fix;
+	fix = SEARCH_EXCEPTION_TABLE(regs);
+	if (fix.cont) {
+		handle_exception(regs, fix);
+		return 1;
+	}
+	return 0;
+}
 
 #endif /* _ASM_IA64_UACCESS_H */

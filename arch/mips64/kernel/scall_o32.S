@@ -522,7 +522,8 @@ out:	jr	ra
 	sys	sys_gettid	0
 	sys	sys32_readahead	5
 	sys	sys_tkill	2
-	sys	sys_sendfile64	5			/* 5225 */
+	sys	sys_sendfile64	5			/* 4225 */
+	sys	sys_futex	2
 	.endm
 
 	.macro	sys function, nargs

@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995 by Ralf Baechle
+ * Copyright (C) 1995, 2002 by Ralf Baechle
  */
 #ifndef __ASM_MIPS_MMAN_H
 #define __ASM_MIPS_MMAN_H
@@ -16,10 +16,12 @@
  * without PROT_READ.  The only guarantees are that no writing will be
  * allowed without PROT_WRITE and no access will be allowed for PROT_NONE.
  */
-#define PROT_NONE	0x0		/* page can not be accessed */
-#define PROT_READ	0x1		/* page can be read */
-#define PROT_WRITE	0x2		/* page can be written */
-#define PROT_EXEC	0x4		/* page can be executed */
+#define PROT_NONE	0x00		/* page can not be accessed */
+#define PROT_READ	0x01		/* page can be read */
+#define PROT_WRITE	0x02		/* page can be written */
+#define PROT_EXEC	0x04		/* page can be executed */
+/*			0x08		   reserved for PROT_EXEC_NOFLUSH */
+#define PROT_SEM	0x10		/* page may be used for atomic ops */
 
 /*
  * Flags for mmap

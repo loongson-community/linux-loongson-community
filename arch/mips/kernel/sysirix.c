@@ -600,7 +600,7 @@ out:
 
 asmlinkage int irix_getpid(struct pt_regs *regs)
 {
-	regs->regs[3] = current->p_opptr->pid;
+	regs->regs[3] = current->real_parent->pid;
 	return current->pid;
 }
 

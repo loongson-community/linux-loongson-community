@@ -1,6 +1,7 @@
 #include <asm/asmmacro.h>
 #include <asm/offsets.h>
 #include <asm/signal.h>
+#include <asm/thread_info.h>
 
 #include "../kernel/minstate.h"
 
@@ -37,7 +38,7 @@ ENTRY(ia32_clone)
 	mov loc1=r16				// save ar.pfs across do_fork
 	.body
 	zxt4 out1=in1				// newsp
-	mov out3=0				// stacksize
+	mov out3=16				// stacksize (compensates for 16-byte scratch area)
 	adds out2=IA64_SWITCH_STACK_SIZE+16,sp	// out2 = &regs
 	zxt4 out0=in0				// out0 = clone_flags
 	br.call.sptk.many rp=do_fork
@@ -87,18 +88,21 @@ END(sys32_sigsuspend)
 
 GLOBAL_ENTRY(ia32_ret_from_clone)
 	PT_REGS_UNWIND_INFO(0)
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT)
 	/*
 	 * We need to call schedule_tail() to complete the scheduling process.
 	 * Called by ia64_switch_to after do_fork()->copy_thread().  r8 contains the
 	 * address of the previously executing task.
 	 */
 	br.call.sptk.many rp=ia64_invoke_schedule_tail
-.ret1:	adds r2=IA64_TASK_PTRACE_OFFSET,r13
+.ret1:
+#endif
+	adds r2=TI_FLAGS+IA64_TASK_SIZE,r13
 	;;
-	ld8 r2=[r2]
+	ld4 r2=[r2]
 	;;
 	mov r8=0
-	tbit.nz p6,p0=r2,PT_TRACESYS_BIT
+	tbit.nz p6,p0=r2,TIF_SYSCALL_TRACE
 (p6)	br.cond.spnt .ia32_strace_check_retval
 	;;					// prevent RAW on r8
 END(ia32_ret_from_clone)
@@ -220,7 +224,7 @@ ia32_syscall_table:
 	data8 sys32_pipe
 	data8 sys32_times
 	data8 sys32_ni_syscall	  /* old prof syscall holder */
-	data8 sys_brk		  /* 45 */
+	data8 sys32_brk		  /* 45 */
 	data8 sys_setgid	/* 16-bit version */
 	data8 sys_getgid	/* 16-bit version */
 	data8 sys32_signal

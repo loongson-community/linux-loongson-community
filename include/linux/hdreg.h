@@ -354,7 +354,6 @@ struct hd_big_geometry {
 
 #define HDIO_GET_BUSSTATE	0x031a	/* get the bus state of the hwif */
 #define HDIO_TRISTATE_HWIF	0x031b	/* execute a channel tristate */
-#define HDIO_DRIVE_RESET	0x031c	/* execute a device reset */
 #define HDIO_DRIVE_TASK		0x031e	/* execute task and special drive command */
 #define HDIO_DRIVE_CMD		0x031f	/* execute a special drive command */
 
@@ -368,9 +367,7 @@ struct hd_big_geometry {
 #define HDIO_SET_NOWERR		0x0325	/* change ignore-write-error flag */
 #define HDIO_SET_DMA		0x0326	/* change use-dma flag */
 #define HDIO_SET_PIO_MODE	0x0327	/* reconfig interface to new speed */
-#define HDIO_SCAN_HWIF		0x0328	/* register and (re)scan interface */
 #define HDIO_SET_NICE		0x0329	/* set nice flags */
-#define HDIO_UNREGISTER_HWIF	0x032a  /* unregister interface */
 #define HDIO_SET_WCACHE		0x032b	/* change write cache enable-disable */
 #define HDIO_SET_ACOUSTIC	0x032c	/* change acoustic behavior */
 #define HDIO_SET_BUSSTATE	0x032d	/* set the bus state of the hwif */
@@ -644,18 +641,5 @@ struct hd_driveid {
 #define IDE_NICE_0		(2)	/* when sure that it won't affect us */
 #define IDE_NICE_1		(3)	/* when probably won't affect us much */
 #define IDE_NICE_2		(4)	/* when we know it's on our expense */
-
-#ifdef __KERNEL__
-/*
- * These routines are used for kernel command line parameters from main.c:
- */
-#include <linux/config.h>
-
-#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
-int ide_register(int io_port, int ctl_port, int irq);
-void ide_unregister(unsigned int);
-#endif /* CONFIG_BLK_DEV_IDE || CONFIG_BLK_DEV_IDE_MODULE */
-
-#endif  /* __KERNEL__ */
 
 #endif	/* _LINUX_HDREG_H */

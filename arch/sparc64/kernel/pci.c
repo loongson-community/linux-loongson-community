@@ -418,7 +418,7 @@ static int __pci_mmap_make_offset(struct pci_dev *dev, struct vm_area_struct *vm
 				  enum pci_mmap_state mmap_state)
 {
 	unsigned long user_offset = vma->vm_pgoff << PAGE_SHIFT;
-	unsigned long user32 = user_offset & 0xffffffffUL;
+	unsigned long user32 = user_offset & pci_memspace_mask;
 	unsigned long largest_base, this_base, addr32;
 	int i;
 
@@ -448,7 +448,7 @@ static int __pci_mmap_make_offset(struct pci_dev *dev, struct vm_area_struct *vm
 
 		this_base = rp->start;
 
-		addr32 = (this_base & PAGE_MASK) & 0xffffffffUL;
+		addr32 = (this_base & PAGE_MASK) & pci_memspace_mask;
 
 		if (mmap_state == pci_mmap_io)
 			addr32 &= 0xffffff;
@@ -464,7 +464,7 @@ static int __pci_mmap_make_offset(struct pci_dev *dev, struct vm_area_struct *vm
 	if (mmap_state == pci_mmap_io)
 		vma->vm_pgoff = (((largest_base & ~0xffffffUL) | user32) >> PAGE_SHIFT);
 	else
-		vma->vm_pgoff = (((largest_base & ~0xffffffffUL) | user32) >> PAGE_SHIFT);
+		vma->vm_pgoff = (((largest_base & ~(pci_memspace_mask)) | user32) >> PAGE_SHIFT);
 
 	return 0;
 }
@@ -546,6 +546,15 @@ int pci_controller_num(struct pci_dev *pdev)
 	}
 
 	return ret;
+}
+
+int pcibios_prep_mwi(struct pci_dev *dev)
+{
+	/* We set correct PCI_CACHE_LINE_SIZE register values for every
+	 * device probed on this platform.  So there is nothing to check
+	 * and this always succeeds.
+	 */
+	return 0;
 }
 
 #endif /* !(CONFIG_PCI) */

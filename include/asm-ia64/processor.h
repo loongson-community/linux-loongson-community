@@ -2,9 +2,9 @@
 #define _ASM_IA64_PROCESSOR_H
 
 /*
- * Copyright (C) 1998-2001 Hewlett-Packard Co
- * Copyright (C) 1998-2001 David Mosberger-Tang <davidm@hpl.hp.com>
- * Copyright (C) 1998-2001 Stephane Eranian <eranian@hpl.hp.com>
+ * Copyright (C) 1998-2002 Hewlett-Packard Co
+ *	David Mosberger-Tang <davidm@hpl.hp.com>
+ *	Stephane Eranian <eranian@hpl.hp.com>
  * Copyright (C) 1999 Asit Mallick <asit.k.mallick@intel.com>
  * Copyright (C) 1999 Don Dugger <don.dugger@intel.com>
  *
@@ -14,6 +14,8 @@
  */
 
 #include <linux/config.h>
+
+#include <linux/compiler.h>
 
 #include <asm/ptrace.h>
 #include <asm/kregs.h>
@@ -27,7 +29,6 @@
  */
 #define IA64_NUM_PMC_REGS	32
 #define IA64_NUM_PMD_REGS	32
-#define IA64_NUM_PMD_COUNTERS	4
 
 #define DEFAULT_MAP_BASE	0x2000000000000000
 #define DEFAULT_TASK_SIZE	0xa000000000000000
@@ -170,6 +171,7 @@
 #define IA64_THREAD_KRBS_SYNCED	(__IA64_UL(1) << 5)	/* krbs synced with process vm? */
 #define IA64_THREAD_FPEMU_NOPRINT (__IA64_UL(1) << 6)	/* don't log any fpswa faults */
 #define IA64_THREAD_FPEMU_SIGFPE  (__IA64_UL(1) << 7)	/* send a SIGFPE for fpswa faults */
+#define IA64_THREAD_XSTACK	(__IA64_UL(1) << 8)	/* stack executable by default? */
 
 #define IA64_THREAD_UAC_SHIFT	3
 #define IA64_THREAD_UAC_MASK	(IA64_THREAD_UAC_NOPRINT | IA64_THREAD_UAC_SIGBUS)
@@ -184,9 +186,14 @@
  */
 #define IA64_USEC_PER_CYC_SHIFT	41
 
+#define __HAVE_ARCH_PER_CPU
+
+#define THIS_CPU(var)	(var)
+
 #ifndef __ASSEMBLY__
 
 #include <linux/threads.h>
+#include <linux/cache.h>
 
 #include <asm/fpu.h>
 #include <asm/offsets.h>
@@ -194,6 +201,11 @@
 #include <asm/rse.h>
 #include <asm/unwind.h>
 #include <asm/atomic.h>
+
+extern unsigned long __per_cpu_offset[NR_CPUS];
+
+#define per_cpu(var, cpu)	(*(__typeof__(&(var))) ((void *) &(var) + __per_cpu_offset[cpu]))
+#define this_cpu(var)		(var)
 
 /* like above but expressed as bitfields for more efficient access: */
 struct ia64_psr {
@@ -238,7 +250,7 @@ struct ia64_psr {
  * CPU type, hardware bug flags, and per-CPU state.  Frequently used
  * state comes earlier:
  */
-struct cpuinfo_ia64 {
+extern struct cpuinfo_ia64 {
 	/* irq_stat must be 64-bit aligned */
 	union {
 		struct {
@@ -248,12 +260,10 @@ struct cpuinfo_ia64 {
 		__u64 irq_and_bh_counts;
 	} irq_stat;
 	__u32 softirq_pending;
-	__u32 phys_stacked_size_p8;	/* size of physical stacked registers + 8 */
 	__u64 itm_delta;	/* # of clock cycles between clock ticks */
 	__u64 itm_next;		/* interval timer mask value to use for next clock tick */
 	__u64 *pgd_quick;
 	__u64 *pmd_quick;
-	__u64 *pte_quick;
 	__u64 pgtable_cache_sz;
 	/* CPUID-derived information: */
 	__u64 ppn;
@@ -275,39 +285,22 @@ struct cpuinfo_ia64 {
 	__u32 ptce_stride[2];
 	struct task_struct *ksoftirqd;	/* kernel softirq daemon for this CPU */
 #ifdef CONFIG_SMP
+	int cpu;
 	__u64 loops_per_jiffy;
 	__u64 ipi_count;
 	__u64 prof_counter;
 	__u64 prof_multiplier;
-	__u64 ipi_operation;
+	__u32 pfm_syst_wide;
+	__u32 pfm_dcr_pp;
 #endif
-#ifdef CONFIG_NUMA
-	struct cpuinfo_ia64 *cpu_data[NR_CPUS];
-#endif
-} __attribute__ ((aligned (PAGE_SIZE))) ;
+} cpu_info __per_cpu_data;
 
 /*
  * The "local" data pointer.  It points to the per-CPU data of the currently executing
  * CPU, much like "current" points to the per-task data of the currently executing task.
  */
-#define local_cpu_data		((struct cpuinfo_ia64 *) PERCPU_ADDR)
-
-/*
- * On NUMA systems, cpu_data for each cpu is allocated during cpu_init() & is allocated on
- * the node that contains the cpu. This minimizes off-node memory references.  cpu_data
- * for each cpu contains an array of pointers to the cpu_data structures of each of the
- * other cpus.
- *
- * On non-NUMA systems, cpu_data is a static array allocated at compile time.  References
- * to the cpu_data of another cpu is done by direct references to the appropriate entry of
- * the array.
- */
-#ifdef CONFIG_NUMA
-# define cpu_data(cpu)		local_cpu_data->cpu_data_ptrs[cpu]
-#else
-  extern struct cpuinfo_ia64 _cpu_data[NR_CPUS];
-# define cpu_data(cpu)		(&_cpu_data[cpu])
-#endif
+#define local_cpu_data		(&this_cpu(cpu_info))
+#define cpu_data(cpu)		(&per_cpu(cpu_info, cpu))
 
 extern void identify_cpu (struct cpuinfo_ia64 *);
 extern void print_cpu_info (struct cpuinfo_ia64 *);
@@ -343,8 +336,8 @@ typedef struct {
 struct siginfo;
 
 struct thread_struct {
+	__u64 flags;			/* various thread flags (see IA64_THREAD_*) */
 	__u64 ksp;			/* kernel stack pointer */
-	unsigned long flags;		/* various flags */
 	__u64 map_base;			/* base address for get_unmapped_area() */
 	__u64 task_size;		/* limit for task size */
 	struct siginfo *siginfo;	/* current siginfo struct for ptrace() */
@@ -366,10 +359,12 @@ struct thread_struct {
 #ifdef CONFIG_PERFMON
 	__u64 pmc[IA64_NUM_PMC_REGS];
 	__u64 pmd[IA64_NUM_PMD_REGS];
-	unsigned long pfm_must_block;	/* non-zero if we need to block on overflow */
+	unsigned long pfm_ovfl_block_reset;/* non-zero if we need to block or reset regs on ovfl */
 	void *pfm_context;		/* pointer to detailed PMU context */
-	atomic_t pfm_notifiers_check;	/* indicate if release_thread much check tasklist */
-# define INIT_THREAD_PM		{0, }, {0, }, 0, 0, {0},
+	atomic_t pfm_notifiers_check;	/* when >0, will cleanup ctx_notify_task in tasklist */
+	atomic_t pfm_owners_check;	/* when >0, will cleanup ctx_owner in tasklist */
+	void *pfm_smpl_buf_list;	/* list of sampling buffers to vfree */
+# define INIT_THREAD_PM		{0, }, {0, }, 0, NULL, {0}, {0}, NULL,
 #else
 # define INIT_THREAD_PM
 #endif
@@ -378,17 +373,17 @@ struct thread_struct {
 	struct ia64_fpreg fph[96];	/* saved/loaded on demand */
 };
 
-#define INIT_THREAD {					\
-	0,				/* ksp */	\
-	0,				/* flags */	\
-	DEFAULT_MAP_BASE,		/* map_base */	\
-	DEFAULT_TASK_SIZE,		/* task_size */	\
-	0,				/* siginfo */	\
-	INIT_THREAD_IA32				\
-	INIT_THREAD_PM					\
-	{0, },				/* dbr */	\
-	{0, },				/* ibr */	\
-	{{{{0}}}, }			/* fph */	\
+#define INIT_THREAD {				\
+	flags:		0,			\
+	ksp:		0,			\
+	map_base:	DEFAULT_MAP_BASE,	\
+	task_size:	DEFAULT_TASK_SIZE,	\
+	siginfo:	0,			\
+	INIT_THREAD_IA32			\
+	INIT_THREAD_PM				\
+	dbr:		{0, },			\
+	ibr:		{0, },			\
+	fph:		{{{{0}}}, }		\
 }
 
 #define start_thread(regs,new_ip,new_sp) do {							\
@@ -398,6 +393,7 @@ struct thread_struct {
 	ia64_psr(regs)->cpl = 3;	/* set user mode */					\
 	ia64_psr(regs)->ri = 0;		/* clear return slot number */				\
 	ia64_psr(regs)->is = 0;		/* IA-64 instruction set */				\
+	ia64_psr(regs)->sp = 1;		/* enforce secure perfmon */				\
 	regs->cr_iip = new_ip;									\
 	regs->ar_rsc = 0xf;		/* eager mode, privilege level 3 */			\
 	regs->ar_rnat = 0;									\
@@ -540,11 +536,6 @@ extern void ia64_load_debug_regs (unsigned long *save_area);
 #ifdef CONFIG_IA32_SUPPORT
 extern void ia32_save_state (struct task_struct *task);
 extern void ia32_load_state (struct task_struct *task);
-#endif
-
-#ifdef CONFIG_PERFMON
-extern void ia64_save_pm_regs (struct task_struct *task);
-extern void ia64_load_pm_regs (struct task_struct *task);
 #endif
 
 #define ia64_fph_enable()	asm volatile (";; rsm psr.dfh;; srlz.d;;" ::: "memory");
@@ -808,15 +799,12 @@ ia64_set_unat (__u64 *unat, void *spill_addr, unsigned long nat)
  * Note that the only way T can block is through a call to schedule() -> switch_to().
  */
 static inline unsigned long
-thread_saved_pc (struct thread_struct *t)
+thread_saved_pc (struct task_struct *t)
 {
 	struct unw_frame_info info;
 	unsigned long ip;
 
-	/* XXX ouch: Linus, please pass the task pointer to thread_saved_pc() instead! */
-	struct task_struct *p = (void *) ((unsigned long) t - IA64_TASK_THREAD_OFFSET);
-
-	unw_init_from_blocked_task(&info, p);
+	unw_init_from_blocked_task(&info, t);
 	if (unw_unwind(&info) < 0)
 		return 0;
 	unw_get_ip(&info, &ip);
@@ -828,16 +816,6 @@ thread_saved_pc (struct thread_struct *t)
  */
 #define current_text_addr() \
 	({ void *_pc; asm volatile ("mov %0=ip" : "=r" (_pc)); _pc; })
-
-#define THREAD_SIZE	IA64_STK_OFFSET
-/* NOTE: The task struct and the stacks are allocated together.  */
-#define alloc_task_struct() \
-        ((struct task_struct *) __get_free_pages(GFP_KERNEL, IA64_TASK_STRUCT_LOG_NUM_PAGES))
-#define free_task_struct(p)	free_pages((unsigned long)(p), IA64_TASK_STRUCT_LOG_NUM_PAGES)
-#define get_task_struct(tsk)	atomic_inc(&virt_to_page(tsk)->count)
-
-#define init_task	(init_task_union.task)
-#define init_stack	(init_task_union.stack)
 
 /*
  * Set the correctable machine check vector register

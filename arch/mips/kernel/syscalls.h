@@ -240,3 +240,4 @@ SYS(sys_gettid, 0)
 SYS(sys_readahead, 5)
 SYS(sys_tkill, 2)
 SYS(sys_sendfile64, 5)				/* 4225 */
+SYS(sys_futex, 2)

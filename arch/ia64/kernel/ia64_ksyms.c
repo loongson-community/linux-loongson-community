@@ -24,6 +24,7 @@ EXPORT_SYMBOL(strnlen);
 EXPORT_SYMBOL(strrchr);
 EXPORT_SYMBOL(strstr);
 EXPORT_SYMBOL(strtok);
+EXPORT_SYMBOL(strpbrk);
 
 #include <linux/irq.h>
 EXPORT_SYMBOL(isa_irq_to_vector_map);
@@ -58,7 +59,7 @@ EXPORT_SYMBOL(clear_page);
 
 #include <asm/processor.h>
 # ifndef CONFIG_NUMA
-EXPORT_SYMBOL(_cpu_data);
+EXPORT_SYMBOL(cpu_info);
 # endif
 EXPORT_SYMBOL(kernel_thread);
 

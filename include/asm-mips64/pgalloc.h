@@ -50,6 +50,8 @@ static inline void flush_tlb_pgtables(struct mm_struct *mm,
 	/* Nothing to do on MIPS.  */
 }
 
+#define check_pgt_cache()	do { } while (0)
+
 #define pmd_populate_kernel(mm, pmd, pte)	set_pmd(pmd, __pmd(pte))
 #define pmd_populate(mm, pmd, page)		set_pmd(pmd, __pmd(((page - mem_map) << PAGE_SHIFT) + PAGE_OFFSET))
 #define pgd_populate(mm, pgd, pmd)		set_pgd(pgd, __pgd(pmd))

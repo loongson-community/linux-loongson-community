@@ -192,9 +192,11 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
+			preempt_disable();
 			current->state = TASK_STOPPED;
 			notify_parent(current, SIGCHLD);
 			schedule();
+			preempt_enable();
 
 			/* We're back.  Did the debugger cancel the sig?  */
 			if (!(signr = current->exit_code))
@@ -210,8 +212,8 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 				info.si_signo = signr;
 				info.si_errno = 0;
 				info.si_code = SI_USER;
-				info.si_pid = current->p_pptr->pid;
-				info.si_uid = current->p_pptr->uid;
+				info.si_pid = current->parent->pid;
+				info.si_uid = current->parent->uid;
 			}
 
 			/* If the (new) signal is now blocked, requeue it.  */
@@ -247,13 +249,18 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 					continue;
 				/* FALLTHRU */
 
-			case SIGSTOP:
-				current->state = TASK_STOPPED;
+			case SIGSTOP: {
+				struct signal_struct *sig;
 				current->exit_code = signr;
-				if (!(current->p_pptr->sig->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDSTOP))
+				sig = current->parent->sig;
+				preempt_disable();
+				current->state = TASK_STOPPED;
+				if (sig && !(sig->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDSTOP))
 					notify_parent(current, SIGCHLD);
 				schedule();
+				preempt_enable();
 				continue;
+			}
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
@@ -639,7 +646,9 @@ asmlinkage int irix_waitsys(int type, int pid, struct irix5_siginfo *info,
 {
 	int flag, retval;
 	DECLARE_WAITQUEUE(wait, current);
+	struct task_struct *tsk;
 	struct task_struct *p;
+	struct list_head *_p;
 
 	if (!info) {
 		retval = -EINVAL;
@@ -666,7 +675,9 @@ repeat:
 	flag = 0;
 	current->state = TASK_INTERRUPTIBLE;
 	read_lock(&tasklist_lock);
-	for (p = current->p_cptr; p; p = p->p_osptr) {
+	tsk = current;
+	list_for_each(_p,&tsk->children) {
+		p = list_entry(_p,struct task_struct,sibling);
 		if ((type == P_PID) && p->pid != pid)
 			continue;
 		if ((type == P_PGID) && p->pgrp != pid)
@@ -675,50 +686,63 @@ repeat:
 			continue;
 		flag = 1;
 		switch (p->state) {
-			case TASK_STOPPED:
-				if (!p->exit_code)
-					continue;
-				if (!(options & (W_TRAPPED|W_STOPPED)) &&
-				    !(p->ptrace & PT_PTRACED))
-					continue;
-				if (ru != NULL)
-					getrusage(p, RUSAGE_BOTH, ru);
-				__put_user(SIGCHLD, &info->sig);
-				__put_user(0, &info->code);
-				__put_user(p->pid, &info->stuff.procinfo.pid);
-				__put_user((p->exit_code >> 8) & 0xff,
-				           &info->stuff.procinfo.procdata.child.status);
-				__put_user(p->times.tms_utime, &info->stuff.procinfo.procdata.child.utime);
-				__put_user(p->times.tms_stime, &info->stuff.procinfo.procdata.child.stime);
-				p->exit_code = 0;
-				retval = 0;
-				goto end_waitsys;
-			case TASK_ZOMBIE:
-				current->times.tms_cutime += p->times.tms_utime + p->times.tms_cutime;
-				current->times.tms_cstime += p->times.tms_stime + p->times.tms_cstime;
-				if (ru != NULL)
-					getrusage(p, RUSAGE_BOTH, ru);
-				__put_user(SIGCHLD, &info->sig);
-				__put_user(1, &info->code);      /* CLD_EXITED */
-				__put_user(p->pid, &info->stuff.procinfo.pid);
-				__put_user((p->exit_code >> 8) & 0xff,
-				           &info->stuff.procinfo.procdata.child.status);
-				__put_user(p->times.tms_utime,
-				           &info->stuff.procinfo.procdata.child.utime);
-				__put_user(p->times.tms_stime,
-				           &info->stuff.procinfo.procdata.child.stime);
-				retval = 0;
-				if (p->p_opptr != p->p_pptr) {
-					REMOVE_LINKS(p);
-					p->p_pptr = p->p_opptr;
-					SET_LINKS(p);
-					notify_parent(p, SIGCHLD);
-				} else
-					release_task(p);
-				goto end_waitsys;
-			default:
+		case TASK_STOPPED:
+			if (!p->exit_code)
 				continue;
+			if (!(options & (W_TRAPPED|W_STOPPED)) &&
+			    !(p->ptrace & PT_PTRACED))
+				continue;
+			read_unlock(&tasklist_lock);
+
+			/* move to end of parent's list to avoid starvation */
+			write_lock_irq(&tasklist_lock);
+			remove_parent(p);
+			add_parent(p, p->parent);
+			write_unlock_irq(&tasklist_lock);
+			retval = ru ? getrusage(p, RUSAGE_BOTH, ru) : 0;
+			if (!retval && ru) {
+				retval |= __put_user(SIGCHLD, &info->sig);
+				retval |= __put_user(0, &info->code);
+				retval |= __put_user(p->pid, &info->stuff.procinfo.pid);
+				retval |= __put_user((p->exit_code >> 8) & 0xff,
+				           &info->stuff.procinfo.procdata.child.status);
+				retval |= __put_user(p->times.tms_utime, &info->stuff.procinfo.procdata.child.utime);
+				retval |= __put_user(p->times.tms_stime, &info->stuff.procinfo.procdata.child.stime);
+			}
+			if (!retval) {
+				p->exit_code = 0;
+			}
+			goto end_waitsys;
+
+		case TASK_ZOMBIE:
+			current->times.tms_cutime += p->times.tms_utime + p->times.tms_cutime;
+			current->times.tms_cstime += p->times.tms_stime + p->times.tms_cstime;
+			if (ru != NULL)
+				getrusage(p, RUSAGE_BOTH, ru);
+			__put_user(SIGCHLD, &info->sig);
+			__put_user(1, &info->code);      /* CLD_EXITED */
+			__put_user(p->pid, &info->stuff.procinfo.pid);
+			__put_user((p->exit_code >> 8) & 0xff,
+			           &info->stuff.procinfo.procdata.child.status);
+			__put_user(p->times.tms_utime,
+			           &info->stuff.procinfo.procdata.child.utime);
+			__put_user(p->times.tms_stime,
+			           &info->stuff.procinfo.procdata.child.stime);
+			retval = 0;
+			if (p->real_parent != p->parent) {
+				write_lock_irq(&tasklist_lock);
+				remove_parent(p);
+				p->parent = p->real_parent;
+				add_parent(p, p->parent);
+				do_notify_parent(p, SIGCHLD);
+				write_unlock_irq(&tasklist_lock);
+			} else
+				release_task(p);
+			goto end_waitsys;
+		default:
+			continue;
 		}
+		tsk = next_thread(tsk);
 	}
 	read_unlock(&tasklist_lock);
 	if (flag) {
