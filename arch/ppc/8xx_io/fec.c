@@ -26,6 +26,7 @@
 #define CONFIG_FEC_LXT971
 #define CONFIG_FEC_QS6612
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>

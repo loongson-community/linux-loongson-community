@@ -9,6 +9,7 @@
  *  more details.
  */
  
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -307,7 +308,7 @@ static struct fb_ops hitfb_ops = {
 	fb_get_var:	fbgen_get_var,
 	fb_set_var:	fbgen_set_var,
 	fb_get_cmap:	fbgen_get_cmap,
-	fb_set_cmap	fbgen_set_cmap,
+	fb_set_cmap:	fbgen_set_cmap,
 	fb_pan_display:	fbgen_pan_display,
 	fb_ioctl:	fbgen_ioctl,
 };

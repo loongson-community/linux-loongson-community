@@ -274,7 +274,7 @@ static struct fb_ops riva_fb_ops = {
 	fb_get_var:	rivafb_get_var,
 	fb_set_var:	rivafb_set_var,
 	fb_get_cmap:	rivafb_get_cmap,
-	fb_set_cmap	rivafb_set_cmap,
+	fb_set_cmap:	rivafb_set_cmap,
 	fb_pan_display:	rivafb_pan_display,
 	fb_ioctl:	rivafb_ioctl,
 };

@@ -126,7 +126,7 @@ static struct fb_ops offb_ops = {
 	fb_get_var:	offb_get_var,
 	fb_set_var:	offb_set_var,
 	fb_get_cmap:	offb_get_cmap,
-	fb_set_cmap	offb_set_cmap,
+	fb_set_cmap:	offb_set_cmap,
 	fb_pan_display:	offb_pan_display,
 	fb_ioctl:	offb_ioctl,
 };

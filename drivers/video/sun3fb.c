@@ -113,7 +113,7 @@ static struct fb_ops sun3fb_ops = {
 	fb_get_var:	sun3fb_get_var,
 	fb_set_var:	sun3fb_set_var,
 	fb_get_cmap:	sun3fb_get_cmap,
-	fb_set_cmap	sun3fb_set_cmap,
+	fb_set_cmap:	sun3fb_set_cmap,
 	fb_pan_display:	sun3fb_pan_display,
 	fb_ioctl:	sun3fb_ioctl,
 };

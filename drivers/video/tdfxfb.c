@@ -484,7 +484,7 @@ static struct fb_ops tdfxfb_ops = {
 	fb_get_var:	tdfxfb_get_var,
 	fb_set_var:	tdfxfb_set_var,
 	fb_get_cmap:	tdfxfb_get_cmap,
-	fb_set_cmap	tdfxfb_set_cmap,
+	fb_set_cmap:	tdfxfb_set_cmap,
 	fb_pan_display:	tdfxfb_pan_display,
 	fb_ioctl:	tdfxfb_ioctl,
 };

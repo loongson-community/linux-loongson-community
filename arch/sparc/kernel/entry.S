@@ -1,4 +1,4 @@
-/* $Id: entry.S,v 1.165 2000/06/05 06:08:45 anton Exp $
+/* $Id: entry.S,v 1.166 2000/06/19 06:24:36 davem Exp $
  * arch/sparc/kernel/entry.S:  Sparc trap low-level entry points.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -1233,8 +1233,8 @@ C_LABEL(sys_ptrace):
 	call	C_LABEL(do_ptrace)
 	 add	%sp, REGWIN_SZ, %o0
 
-	ld	[%curptr + AOFF_task_flags], %l5
-	andcc	%l5, 0x20, %g0
+	ld	[%curptr + AOFF_task_ptrace], %l5
+	andcc	%l5, 0x02, %g0
 	be	1f
 	 nop
 
@@ -1283,8 +1283,8 @@ C_LABEL(sys_sigpause):
 	call	C_LABEL(do_sigpause)
 	 add	%sp, REGWIN_SZ, %o1
 
-	ld	[%curptr + AOFF_task_flags], %l5
-	andcc	%l5, 0x20, %g0
+	ld	[%curptr + AOFF_task_ptrace], %l5
+	andcc	%l5, 0x02, %g0
 	be	1f
 	 nop
 
@@ -1301,8 +1301,8 @@ C_LABEL(sys_sigsuspend):
 	call	C_LABEL(do_sigsuspend)
 	 add	%sp, REGWIN_SZ, %o0
 
-	ld	[%curptr + AOFF_task_flags], %l5
-	andcc	%l5, 0x20, %g0
+	ld	[%curptr + AOFF_task_ptrace], %l5
+	andcc	%l5, 0x02, %g0
 	be	1f
 	 nop
 
@@ -1320,8 +1320,8 @@ C_LABEL(sys_rt_sigsuspend):
 	call	C_LABEL(do_rt_sigsuspend)
 	 add	%sp, REGWIN_SZ, %o2
 
-	ld	[%curptr + AOFF_task_flags], %l5
-	andcc	%l5, 0x20, %g0
+	ld	[%curptr + AOFF_task_ptrace], %l5
+	andcc	%l5, 0x02, %g0
 	be	1f
 	 nop
 
@@ -1338,8 +1338,8 @@ C_LABEL(sys_sigreturn):
 	call	C_LABEL(do_sigreturn)
 	 add	%sp, REGWIN_SZ, %o0
 
-	ld	[%curptr + AOFF_task_flags], %l5
-	andcc	%l5, 0x20, %g0
+	ld	[%curptr + AOFF_task_ptrace], %l5
+	andcc	%l5, 0x02, %g0
 	be	1f
 	 nop
 
@@ -1358,8 +1358,8 @@ C_LABEL(sys_rt_sigreturn):
 	call	C_LABEL(do_rt_sigreturn)
 	 add	%sp, REGWIN_SZ, %o0
 
-	ld	[%curptr + AOFF_task_flags], %l5
-	andcc	%l5, 0x20, %g0
+	ld	[%curptr + AOFF_task_ptrace], %l5
+	andcc	%l5, 0x02, %g0
 	be	1f
 	 nop
 
@@ -1496,9 +1496,9 @@ syscall_is_too_hard:
 	mov	%i1, %o1
 	mov	%i2, %o2
 
-	ld	[%curptr + AOFF_task_flags], %l5
+	ld	[%curptr + AOFF_task_ptrace], %l5
 	mov	%i3, %o3
-	andcc	%l5, 0x20, %g0
+	andcc	%l5, 0x02, %g0
 	mov	%i4, %o4
 	bne	linux_syscall_trace
 	 mov	%i0, %l5
@@ -1510,12 +1510,12 @@ syscall_is_too_hard:
 
 	.globl	C_LABEL(ret_sys_call)
 C_LABEL(ret_sys_call):
-	ld	[%curptr + AOFF_task_flags], %l6
+	ld	[%curptr + AOFF_task_ptrace], %l6
 	cmp	%o0, -ENOIOCTLCMD
 	ld	[%sp + REGWIN_SZ + PT_PSR], %g3
 	set	PSR_C, %g2
 	bgeu	1f
-	 andcc	%l6, 0x20, %l6	
+	 andcc	%l6, 0x02, %l6	
 
 	/* System call success, clear Carry condition code. */
 	andn	%g3, %g2, %g3

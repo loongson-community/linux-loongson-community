@@ -119,33 +119,29 @@ static void usb_hub_power_on(struct usb_hub *hub)
 static int usb_hub_configure(struct usb_hub *hub)
 {
 	struct usb_device *dev = hub->dev;
-	unsigned char buffer[4], *bitmap;
+	unsigned char buffer[HUB_DESCRIPTOR_MAX_SIZE], *bitmap;
 	struct usb_hub_descriptor *descriptor;
 	struct usb_descriptor_header *header;
 	struct usb_hub_status *hubsts;
 	int i, ret;
 
-	/* Get the length first */
-	ret = usb_get_hub_descriptor(dev, buffer, sizeof(*header));
+	/* Request the entire hub descriptor. */
+	header = (struct usb_descriptor_header *)buffer;
+	ret = usb_get_hub_descriptor(dev, buffer, sizeof(buffer));
+		/* <buffer> is large enough for a hub with 127 ports;
+		 * the hub can/will return fewer bytes here. */
 	if (ret < 0) {
-		err("Unable to get partial hub descriptor (err = %d)", ret);
+		err("Unable to get hub descriptor (err = %d)", ret);
 		return -1;
 	}
 
-	header = (struct usb_descriptor_header *)buffer;
 	bitmap = kmalloc(header->bLength, GFP_KERNEL);
 	if (!bitmap) {
 		err("Unable to kmalloc %d bytes for bitmap", header->bLength);
 		return -1;
 	}
 
-	ret = usb_get_hub_descriptor(dev, bitmap, header->bLength);
-	if (ret < 0) {
-		err("Unable to get hub descriptor (err = %d)", ret);
-		kfree(bitmap);
-		return -1;
-	}
-
+	memcpy (bitmap, buffer, header->bLength);
 	descriptor = (struct usb_hub_descriptor *)bitmap;
 
 	hub->nports = dev->maxchild = descriptor->bNbrPorts;

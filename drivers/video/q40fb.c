@@ -59,7 +59,7 @@ static struct fb_ops q40fb_ops = {
 	fb_get_var:	q40fb_get_var,
 	fb_set_var:	q40fb_set_var,
 	fb_get_cmap:	q40fb_get_cmap,
-	fb_set_cmap	q40fb_set_cmap,
+	fb_set_cmap:	q40fb_set_cmap,
 	fb_pan_display:	q40fb_pan_display,
 	fb_ioctl:	q40fb_ioctl,
 };

@@ -127,7 +127,7 @@ static struct fb_ops vfb_ops = {
 	fb_get_var:	vfb_get_var,
 	fb_set_var:	vfb_set_var,
 	fb_get_cmap:	vfb_get_cmap,
-	fb_set_cmap	vfb_set_cmap,
+	fb_set_cmap:	vfb_set_cmap,
 	fb_pan_display:	vfb_pan_display,
 	fb_ioctl:	vfb_ioctl,
 };

@@ -136,7 +136,7 @@ static struct fb_ops chipsfb_ops = {
 	fb_get_var:	chips_get_var,
 	fb_set_var:	chips_set_var,
 	fb_get_cmap:	chips_get_cmap,
-	fb_set_cmap	chips_set_cmap,
+	fb_set_cmap:	chips_set_cmap,
 	fb_pan_display:	chips_pan_display,
 	fb_ioctl:	chips_ioctl,
 };

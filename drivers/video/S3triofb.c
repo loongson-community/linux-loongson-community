@@ -144,7 +144,7 @@ static struct fb_ops s3trio_ops = {
 	fb_get_var:	s3trio_get_var,
 	fb_set_var:	s3trio_set_var,
 	fb_get_cmap:	s3trio_get_cmap,
-	fb_set_cmap	s3trio_set_cmap,
+	fb_set_cmap:	s3trio_set_cmap,
 	fb_pan_display:	s3trio_pan_display,
 	fb_ioctl:	s3trio_ioctl,
 };

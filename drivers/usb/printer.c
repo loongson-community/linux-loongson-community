@@ -138,7 +138,7 @@ static int usblp_check_status(struct usblp *usblp)
 		return -EIO;
 	}
 
-	if (status & LP_PERRORP) {
+	if (~status & LP_PERRORP) {
 		if (status & LP_POUTPA) {
 			info("usblp%d: out of paper", usblp->minor);
 			return -ENOSPC;
@@ -200,11 +200,11 @@ static int usblp_release(struct inode *inode, struct file *file)
 	struct usblp *usblp = file->private_data;
 
 	usblp->used = 0;
-			
+
 	if (usblp->dev) {
 		if (usblp->bidir)
-        		usb_unlink_urb(&usblp->readurb);
-        	usb_unlink_urb(&usblp->writeurb);
+			usb_unlink_urb(&usblp->readurb);
+		usb_unlink_urb(&usblp->writeurb);
 		return 0;
 	}
 
@@ -270,7 +270,7 @@ static ssize_t usblp_write(struct file *file, const char *buffer, size_t count, 
 				if (signal_pending(current))
 					return writecount ? writecount : -EINTR;
 
-				timeout = interruptible_sleep_on_timeout(&usblp->wait, timeout);	
+				timeout = interruptible_sleep_on_timeout(&usblp->wait, timeout);
 			}
 		}
 
@@ -288,14 +288,14 @@ static ssize_t usblp_write(struct file *file, const char *buffer, size_t count, 
 			usblp->writeurb.transfer_buffer_length = 0;
 		} else {
 			if (!(retval = usblp_check_status(usblp))) {
-				err("usblp%d: error %d writing to printer",
-					usblp->minor, usblp->writeurb.status);
+				err("usblp%d: error %d writing to printer (retval=%d)",
+					usblp->minor, usblp->writeurb.status, retval);
 				return -EIO;
 			}
 
 			return retval;
 		}
-	
+
 		if (writecount == count)
 			continue;
 
@@ -326,7 +326,7 @@ static ssize_t usblp_read(struct file *file, char *buffer, size_t count, loff_t 
 		while (usblp->readurb.status == -EINPROGRESS) {
 			if (signal_pending(current))
 				return -EINTR;
-			interruptible_sleep_on(&usblp->wait);	
+			interruptible_sleep_on(&usblp->wait);
 		}
 	}
 

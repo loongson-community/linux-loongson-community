@@ -1,4 +1,4 @@
-/* $Id: pcikbd.c,v 1.47 2000/06/09 07:35:40 davem Exp $
+/* $Id: pcikbd.c,v 1.48 2000/06/19 06:24:47 davem Exp $
  * pcikbd.c: Ultra/AX PC keyboard support.
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)

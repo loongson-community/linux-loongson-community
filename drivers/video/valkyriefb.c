@@ -154,7 +154,7 @@ static struct fb_ops valkyriefb_ops = {
 	fb_get_var:	valkyrie_get_var,
 	fb_set_var:	valkyrie_set_var,
 	fb_get_cmap:	valkyrie_get_cmap,
-	fb_set_cmap	valkyrie_set_cmap,
+	fb_set_cmap:	valkyrie_set_cmap,
 	fb_pan_display:	valkyrie_pan_display,
 	fb_ioctl:	valkyrie_ioctl,
 };

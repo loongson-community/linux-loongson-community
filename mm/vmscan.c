@@ -444,6 +444,7 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 	int priority;
 	int count = FREE_COUNT;
 	int swap_count = 0;
+	int made_progress = 0;
 	int ret = 0;
 
 	/* Always trim SLAB caches when memory gets low. */
@@ -452,7 +453,7 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 	priority = 64;
 	do {
 		while (shrink_mmap(priority, gfp_mask)) {
-			ret = 1;
+			made_progress = 1;
 			if (!--count)
 				goto done;
 		}
@@ -468,11 +469,11 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 			count -= shrink_dcache_memory(priority, gfp_mask);
 			count -= shrink_icache_memory(priority, gfp_mask);
 			if (count <= 0) {
-				ret = 1;
+				made_progress = 1;
 				goto done;
 			}
 			while (shm_swap(priority, gfp_mask)) {
-				ret = 1;
+				made_progress = 1;
 				if (!--count)
 					goto done;
 			}
@@ -493,11 +494,25 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 		 */
 		swap_count += count;
 		while (swap_out(priority, gfp_mask)) {
+			made_progress = 1;
 			if (--swap_count < 0)
 				break;
 		}
 
-	} while (--priority >= 0);
+		/*
+		 * If we made progress at the current priority, the next
+		 * loop will also be done at this priority level. There's
+		 * absolutely no reason to drop to a lower priority and
+		 * potentially upset the balance between shrink_mmap and
+		 * swap_out.
+		 */
+		if (made_progress) {
+			made_progress = 0;
+			ret = 1;
+		} else {
+			priority--;
+		}
+	} while (priority >= 0);
 
 	/* Always end on a shrink_mmap.. */
 	while (shrink_mmap(0, gfp_mask)) {

@@ -5,6 +5,7 @@
  *	Copyright (C) 2000 YAEGASHI Takeshi
  *	Hitachi HD64461 companion chip support
  */
+#include <linux/config.h>
 
 #define HD64461_CPTWAR	0x1030	
 #define HD64461_CPTWDR	0x1032

@@ -450,7 +450,7 @@ static struct fb_ops igafb_ops = {
 	fb_get_var:	igafb_get_var,
 	fb_set_var:	igafb_set_var,
 	fb_get_cmap:	igafb_get_cmap,
-	fb_set_cmap	igafb_set_cmap,
+	fb_set_cmap:	igafb_set_cmap,
 	fb_pan_display:	igafb_pan_display,
 	fb_ioctl:	igafb_ioctl,
 #ifdef __sparc__

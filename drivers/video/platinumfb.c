@@ -169,7 +169,7 @@ static struct fb_ops platinumfb_ops = {
 	fb_get_var:	platinum_get_var,
 	fb_set_var:	platinum_set_var,
 	fb_get_cmap:	platinum_get_cmap,
-	fb_set_cmap	platinum_set_cmap,
+	fb_set_cmap:	platinum_set_cmap,
 	fb_pan_display:	platinum_pan_display,
 	fb_ioctl:	platinum_ioctl,
 };

@@ -1451,46 +1451,34 @@ static void unmap_buffer(struct buffer_head * bh)
  * any IO, we are not interested in the contents of the buffer.  This
  * function can block if the buffer is locked.
  */
-static struct buffer_head *discard_buffer(struct buffer_head * bh)
+static inline struct buffer_head *discard_buffer(struct buffer_head * bh)
 {
-	int index = BUFSIZE_INDEX(bh->b_size);
 	struct buffer_head *next;
 
-	/* grab the lru lock here to block bdflush. */
-	atomic_inc(&bh->b_count);
-	lock_buffer(bh);
+	if (bh->b_dev == B_FREE)
+		BUG();
+
 	next = bh->b_this_page;
-	clear_bit(BH_Uptodate, &bh->b_state);
-	clear_bit(BH_Mapped, &bh->b_state);
-	clear_bit(BH_Req, &bh->b_state);
-	clear_bit(BH_New, &bh->b_state);
+
+	unmap_buffer(bh);
 
 	spin_lock(&lru_list_lock);
 	write_lock(&hash_table_lock);
-	spin_lock(&free_list[index].lock);
 	spin_lock(&unused_list_lock);
 
-	if (!atomic_dec_and_test(&bh->b_count))
+	if (atomic_read(&bh->b_count))
 		BUG();
 
 	__hash_unlink(bh);
-	/* The bunffer can be either on the regular
-	 * queues or on the free list..
-	 */
-	if (bh->b_dev != B_FREE) {
-		remove_inode_queue(bh);
-		__remove_from_queues(bh);
-	}
-	else
-		__remove_from_free_list(bh, index);
+	write_unlock(&hash_table_lock);
+
+	remove_inode_queue(bh);
+	__remove_from_lru_list(bh, bh->b_list);
+	spin_unlock(&lru_list_lock);
+
 	__put_unused_buffer_head(bh);	
 	spin_unlock(&unused_list_lock);
-	write_unlock(&hash_table_lock);
-	spin_unlock(&free_list[index].lock);
-	spin_unlock(&lru_list_lock);
-	/* We can unlock the buffer, we have just returned it.
-	 * Ditto for the counter 
-         */
+
 	return next;
 }
 

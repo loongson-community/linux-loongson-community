@@ -226,7 +226,7 @@ static struct fb_ops fm2fb_ops = {
 	fb_get_var:	fm2fb_get_var,
 	fb_set_var:	fm2fb_set_var,
 	fb_get_cmap:	fm2fb_get_cmap,
-	fb_set_cmap	fm2fb_set_cmap,
+	fb_set_cmap:	fm2fb_set_cmap,
 	fb_pan_display:	fm2fb_pan_display,
 	fb_ioctl:	fm2fb_ioctl,
 };

@@ -1599,7 +1599,7 @@ static struct fb_ops imsttfb_ops = {
 	fb_get_var:	imsttfb_get_var,
 	fb_set_var:	imsttfb_set_var,
 	fb_get_cmap:	imsttfb_get_cmap,
-	fb_set_cmap	imsttfb_set_cmap,
+	fb_set_cmap:	imsttfb_set_cmap,
 	fb_pan_display:	imsttfb_pan_display,
 	fb_ioctl:	imsttfb_ioctl,
 };

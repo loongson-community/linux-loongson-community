@@ -1124,7 +1124,7 @@ static struct fb_ops acornfb_ops = {
 	fb_get_var:	acornfb_get_var,
 	fb_set_var:	acornfb_set_var,
 	fb_get_cmap:	acornfb_get_cmap,
-	fb_set_cmap	acornfb_set_cmap,
+	fb_set_cmap:	acornfb_set_cmap,
 	fb_pan_display:	acornfb_pan_display,
 	fb_ioctl:	acornfb_ioctl,
 };

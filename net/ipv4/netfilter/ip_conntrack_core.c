@@ -262,7 +262,7 @@ ip_conntrack_confirm(struct ip_conntrack *ct)
 	/* Race check */
 	if (!(ct->status & IPS_CONFIRMED)) {
 		IP_NF_ASSERT(!timer_pending(&ct->timeout));
-		ct->status |= IPS_CONFIRMED;
+		set_bit(IPS_CONFIRMED_BIT, &ct->status);
 		/* Timer relative to confirmation time, not original
 		   setting time, otherwise we'd get timer wrap in
 		   wierd delay cases. */
@@ -536,7 +536,7 @@ init_conntrack(const struct ip_conntrack_tuple *tuple,
 static inline struct ip_conntrack *
 resolve_normal_ct(struct sk_buff *skb,
 		  struct ip_conntrack_protocol *proto,
-		  unsigned int *newstatus,
+		  int *set_reply,
 		  enum ip_conntrack_info *ctinfo)
 {
 	struct ip_conntrack_tuple tuple;
@@ -565,7 +565,8 @@ resolve_normal_ct(struct sk_buff *skb,
 		}
 
 		*ctinfo = IP_CT_ESTABLISHED + IP_CT_IS_REPLY;
-		*newstatus = (h->ctrack->status | IPS_SEEN_REPLY);
+		/* Please set reply bit if this packet OK */
+		*set_reply = 1;
 	} else {
 		/* Once we've had two way comms, always ESTABLISHED. */
 		if (h->ctrack->status & IPS_SEEN_REPLY) {
@@ -581,7 +582,7 @@ resolve_normal_ct(struct sk_buff *skb,
 			       h->ctrack);
 			*ctinfo = IP_CT_NEW;
 		}
-		*newstatus = h->ctrack->status;
+		*set_reply = 0;
 	}
 	skb->nfct = &h->ctrack->infos[*ctinfo];
 	return h->ctrack;
@@ -614,7 +615,7 @@ unsigned int ip_conntrack_in(unsigned int hooknum,
 	struct ip_conntrack *ct;
 	enum ip_conntrack_info ctinfo;
 	struct ip_conntrack_protocol *proto;
-	unsigned int status;
+	int set_reply;
 	int ret;
 
 	/* FIXME: Do this right please. --RR */
@@ -654,10 +655,10 @@ unsigned int ip_conntrack_in(unsigned int hooknum,
 	    && icmp_error_track(*pskb, &ctinfo, hooknum))
 		return NF_ACCEPT;
 
-	if (!(ct = resolve_normal_ct(*pskb, proto, &status, &ctinfo))) {
+	if (!(ct = resolve_normal_ct(*pskb, proto, &set_reply, &ctinfo)))
 		/* Not valid part of a connection */
 		return NF_ACCEPT;
-	}
+
 	IP_NF_ASSERT((*pskb)->nfct);
 
 	ret = proto->packet(ct, (*pskb)->nh.iph, (*pskb)->len, ctinfo);
@@ -678,7 +679,8 @@ unsigned int ip_conntrack_in(unsigned int hooknum,
 			return NF_ACCEPT;
 		}
 	}
-	ct->status = status;
+	if (set_reply)
+		set_bit(IPS_SEEN_REPLY_BIT, &ct->status);
 
 	return ret;
 }
@@ -877,9 +879,12 @@ ip_ct_selective_cleanup(int (*kill)(const struct ip_conntrack *i, void *data),
 			   mark confirmed so it gets cleaned as soon
 			   as skb freed. */
 			WRITE_LOCK(&ip_conntrack_lock);
+			/* Lock protects race against another setting
+                           of confirmed bit.  set_bit isolates this
+                           bit from the others. */
 			if (!(h->ctrack->status & IPS_CONFIRMED)) {
 				clean_from_lists(h->ctrack);
-				h->ctrack->status |= IPS_CONFIRMED;
+				set_bit(IPS_CONFIRMED_BIT, &h->ctrack->status);
 			}
 			WRITE_UNLOCK(&ip_conntrack_lock);
 		}

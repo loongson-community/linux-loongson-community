@@ -413,7 +413,7 @@ static struct fb_ops aty128fb_ops = {
 	fb_get_var:	aty128fb_get_var,
 	fb_set_var:	aty128fb_set_var,
 	fb_get_cmap:	aty128fb_get_cmap,
-	fb_set_cmap	aty128fb_set_cmap,
+	fb_set_cmap:	aty128fb_set_cmap,
 	fb_pan_display:	aty128fb_pan_display,
 	fb_ioctl:	aty128fb_ioctl,
 	fb_rasterimg:	aty128fb_rasterimg,

@@ -445,7 +445,7 @@ static struct fb_ops vesafb_ops = {
 	fb_get_var:	vesafb_get_var,
 	fb_set_var:	vesafb_set_var,
 	fb_get_cmap:	vesafb_get_cmap,
-	fb_set_cmap	vesafb_set_cmap,
+	fb_set_cmap:	vesafb_set_cmap,
 	fb_pan_display:	vesafb_pan_display,
 	fb_ioctl:	vesafb_ioctl,
 };

@@ -535,7 +535,7 @@ static struct fb_ops hgafb_ops = {
 	fb_get_var:	hga_get_var,
 	fb_set_var:	hga_set_var,
 	fb_get_cmap:	hga_get_cmap,
-	fb_set_cmap	hga_set_cmap,
+	fb_set_cmap:	hga_set_cmap,
 	fb_pan_display:	hga_pan_display,
 	fb_ioctl:	hga_ioctl,
 };

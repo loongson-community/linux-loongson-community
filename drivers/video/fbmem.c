@@ -640,7 +640,7 @@ register_framebuffer(struct fb_info *fb_info)
 					__MOD_INC_USE_COUNT(owner);
 				if (!fb_info->fbops->fb_open)
 					continue;
-				if (!fb_info->fbops->fb_open(fb_info,0)
+				if (!fb_info->fbops->fb_open(fb_info,0))
 					continue;
 				if (owner)
 					__MOD_DEC_USE_COUNT(owner);

@@ -179,7 +179,7 @@ static struct fb_ops sa1100fb_ops = {
 	fb_get_var:	sa1100fb_get_var,
 	fb_set_var:	sa1100fb_set_var,
 	fb_get_cmap:	sa1100fb_get_cmap,
-	fb_set_cmap	sa1100fb_set_cmap,
+	fb_set_cmap:	sa1100fb_set_cmap,
 	fb_pan_display:	sa1100fb_pan_display,
 	fb_ioctl:	sa1100fb_ioctl,
 };

@@ -114,7 +114,7 @@ static struct fb_ops sgivwfb_ops = {
 	fb_get_var:	sgivwfb_get_var,
 	fb_set_var:	sgivwfb_set_var,
 	fb_get_cmap:	sgivwfb_get_cmap,
-	fb_set_cmap	sgivwfb_set_cmap,
+	fb_set_cmap:	sgivwfb_set_cmap,
 	fb_pan_display:	sgivwfb_pan_display,
 	fb_ioctl:	sgivwfb_ioctl,
 	fb_mmap:	sgivwfb_mmap,

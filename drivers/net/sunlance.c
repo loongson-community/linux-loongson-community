@@ -1,4 +1,4 @@
-/* $Id: sunlance.c,v 1.100 2000/02/27 09:38:12 anton Exp $
+/* $Id: sunlance.c,v 1.101 2000/06/19 06:24:46 davem Exp $
  * lance.c: Linux/Sparc/Lance driver
  *
  *	Written 1995, 1996 by Miguel de Icaza

@@ -686,7 +686,7 @@ static struct fb_ops vga16fb_ops = {
 	fb_get_var:	vga16fb_get_var,
 	fb_set_var:	vga16fb_set_var,
 	fb_get_cmap:	vga16fb_get_cmap,
-	fb_set_cmap	vga16fb_set_cmap,
+	fb_set_cmap:	vga16fb_set_cmap,
 	fb_pan_display:	vga16fb_pan_display,
 	fb_ioctl:	vga16fb_ioctl,
 };

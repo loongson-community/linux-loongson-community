@@ -124,7 +124,7 @@ static struct fb_ops sbusfb_ops = {
 	fb_get_var:	sbusfb_get_var,
 	fb_set_var:	sbusfb_set_var,
 	fb_get_cmap:	sbusfb_get_cmap,
-	fb_set_cmap	sbusfb_set_cmap,
+	fb_set_cmap:	sbusfb_set_cmap,
 	fb_pan_display:	sbusfb_pan_display,
 	fb_ioctl:	sbusfb_ioctl,
 	fb_mmap:	sbusfb_mmap,

@@ -173,7 +173,7 @@ static struct fb_ops controlfb_ops = {
 	fb_get_var:	control_get_var,
 	fb_set_var:	control_set_var,
 	fb_get_cmap:	control_get_cmap,
-	fb_set_cmap	control_set_cmap,
+	fb_set_cmap:	control_set_cmap,
 	fb_pan_display:	control_pan_display,
 	fb_ioctl:	control_ioctl,
 };

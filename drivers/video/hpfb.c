@@ -278,7 +278,7 @@ static struct fb_ops hpfb_ops = {
 	fb_get_var:	hpfb_get_var,
 	fb_set_var:	hpfb_set_var,
 	fb_get_cmap:	hpfb_get_cmap,
-	fb_set_cmap	hpfb_set_cmap,
+	fb_set_cmap:	hpfb_set_cmap,
 	fb_ioctl:	hpfb_ioctl,
 };
 

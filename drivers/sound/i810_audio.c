@@ -1893,7 +1893,7 @@ static int __init i810_init_module (void)
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
 
-	if(ftsodell=1)
+	if(ftsodell==1)
 		clocking=41194;
 		
 	printk(KERN_INFO "Intel 810 + AC97 Audio, version "

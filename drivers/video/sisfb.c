@@ -2681,7 +2681,7 @@ static struct fb_ops sisfb_ops = {
 	fb_get_var:	sisfb_get_var,
 	fb_set_var:	sisfb_set_var,
 	fb_get_cmap:	sisfb_get_cmap,
-	fb_set_cmap	sisfb_set_cmap,
+	fb_set_cmap:	sisfb_set_cmap,
 	fb_pan_display:	sisfb_pan_display,
 	fb_ioctl:	sisfb_ioctl,
 	fb_mmap:	sisfb_mmap,

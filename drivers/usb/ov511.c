@@ -30,7 +30,7 @@
  * Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-static const char version[] = "1.16";
+static const char version[] = "1.17";
 
 #define __NO_VERSION__
 
@@ -1683,25 +1683,23 @@ static int ov511_new_frame(struct usb_ov511 *ov511, int framenum)
 
 static int ov511_open(struct video_device *dev, int flags)
 {
-	int err = -EBUSY;
 	struct usb_ov511 *ov511 = (struct usb_ov511 *)dev;
-	int i;
+	int i, err = 0;
 
+	MOD_INC_USE_COUNT;
 	PDEBUG(4, "opening");
-
 	down(&ov511->lock);
 
-	if (ov511->user) {
-		up(&ov511->lock);
-		return -EBUSY;
-	}
+	err = -EBUSY;
+	if (ov511->user) 
+		goto out;
 
 	err = -ENOMEM;
 
 	/* Allocate memory for the frame buffers */
 	ov511->fbuf = rvmalloc(OV511_NUMFRAMES * MAX_DATA_SIZE);
 	if (!ov511->fbuf)
-		return err;
+		goto out;
 
 	ov511->sub_flag = 0;
 
@@ -1716,7 +1714,7 @@ static int ov511_open(struct video_device *dev, int flags)
 open_free_ret:
 			while (--i) kfree(ov511->sbuf[i].data);
 			rvfree(ov511->fbuf, 2 * MAX_DATA_SIZE);
-			return err;
+			goto out;
 		}	
 		PDEBUG(4, "sbuf[%d] @ %p", i, ov511->sbuf[i].data);
 	}
@@ -1726,11 +1724,14 @@ open_free_ret:
 		goto open_free_ret;
 
 	ov511->user++;
+
+out:
 	up(&ov511->lock);
 
-	MOD_INC_USE_COUNT;
+	if (err)
+		MOD_DEC_USE_COUNT;
 
-	return 0;
+	return err;
 }
 
 static void ov511_close(struct video_device *dev)
@@ -1742,8 +1743,6 @@ static void ov511_close(struct video_device *dev)
 	
 	down(&ov511->lock);	
 	ov511->user--;
-
-	MOD_DEC_USE_COUNT;
 
 	ov511_stop_isoc(ov511);
 
@@ -1757,6 +1756,9 @@ static void ov511_close(struct video_device *dev)
 		video_unregister_device(&ov511->vdev);
 		kfree(ov511);
 	}
+
+	MOD_DEC_USE_COUNT;
+
 }
 
 static int ov511_init_done(struct video_device *dev)
@@ -1988,6 +1990,7 @@ static int ov511_ioctl(struct video_device *vdev, unsigned int cmd, void *arg)
 	case VIDIOCMCAPTURE:
 	{
 		struct video_mmap vm;
+		int ret;
 
 		if (copy_from_user((void *)&vm, (void *)arg, sizeof(vm)))
 			return -EFAULT;
@@ -2016,8 +2019,12 @@ static int ov511_ioctl(struct video_device *vdev, unsigned int cmd, void *arg)
 			   before changing modes */
 			interruptible_sleep_on(&ov511->wq);
 			if (signal_pending(current)) return -EINTR;
-			ov511_mode_init_regs(ov511, vm.width, vm.height,
+			ret = ov511_mode_init_regs(ov511, vm.width, vm.height,
 				vm.format, ov511->sub_flag);
+#if 0
+			if (ret < 0)
+				return ret;
+#endif
 		}
 
 		ov511->frame[vm.frame].width = vm.width;
@@ -2540,9 +2547,6 @@ error:
 	usb_driver_release_interface(&ov511_driver,
 		&dev->actconfig->interface[ov511->iface]);
 
-	kfree(ov511);
-	ov511 = NULL;
-
 	return -EBUSY;	
 }
 
@@ -2580,9 +2584,12 @@ static void* ov511_probe(struct usb_device *dev, unsigned int ifnum)
 	if (interface->bInterfaceSubClass != 0x00)
 		return NULL;
 
+	/* Since code below may sleep, we use this as a lock */
+	MOD_INC_USE_COUNT;
+
 	if ((ov511 = kmalloc(sizeof(*ov511), GFP_KERNEL)) == NULL) {
 		err("couldn't kmalloc ov511 struct");
-		return NULL;
+		goto error;
 	}
 
 	memset(ov511, 0, sizeof(*ov511));
@@ -2620,7 +2627,7 @@ static void* ov511_probe(struct usb_device *dev, unsigned int ifnum)
 	/* Lifeview USB Life TV not supported */
 	if (clist[i].id == 38) {
 		err("This device is not supported yet.");
-		return NULL;
+		goto error;
 	}
 
 	if (clist[i].id == -1) {
@@ -2637,12 +2644,12 @@ static void* ov511_probe(struct usb_device *dev, unsigned int ifnum)
 	if (!ov511_configure(ov511)) {
 		ov511->user = 0;
 		init_MUTEX(&ov511->lock);	/* to 1 == available */
-		return ov511;
 	} else {
 		err("Failed to configure camera");
 		goto error;
 	}
 
+	MOD_DEC_USE_COUNT;
      	return ov511;
 
 error:
@@ -2651,6 +2658,7 @@ error:
 		ov511 = NULL;
 	}
 
+	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
@@ -2659,7 +2667,7 @@ static void ov511_disconnect(struct usb_device *dev, void *ptr)
 {
 	struct usb_ov511 *ov511 = (struct usb_ov511 *) ptr;
 
-//	video_unregister_device(&ov511->vdev);
+	MOD_INC_USE_COUNT;
 
 	/* We don't want people trying to open up the device */
 	if (!ov511->user)
@@ -2702,10 +2710,12 @@ static void ov511_disconnect(struct usb_device *dev, void *ptr)
 #endif
 
 	/* Free the memory */
-	if (!ov511->user) {
+	if (ov511 && !ov511->user) {
 		kfree(ov511);
 		ov511 = NULL;
 	}
+
+	MOD_DEC_USE_COUNT;
 }
 
 static struct usb_driver ov511_driver = {

@@ -1,6 +1,6 @@
 # $Id: config.in,v 1.114 2000/06/04 22:23:10 anton Exp $
 # For a description of the syntax of this configuration file,
-# see Documentation/kbuild/config-language.txt.
+# see the Configure script.
 #
 mainmenu_name "Linux/UltraSPARC Kernel Configuration"
 

@@ -132,7 +132,7 @@ static struct fb_ops g364fb_ops = {
 	fb_get_var:	g364fb_get_var,
 	fb_set_var:	g364fb_set_var,
 	fb_get_cmap:	g364fb_get_cmap,
-	fb_set_cmap	g364fb_set_cmap,
+	fb_set_cmap:	g364fb_set_cmap,
 	fb_pan_display:	g364fb_pan_display,
 	fb_ioctl:	g364fb_ioctl,
 };

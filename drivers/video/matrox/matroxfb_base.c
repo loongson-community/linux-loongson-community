@@ -1143,7 +1143,7 @@ static struct fb_ops matroxfb_ops = {
 	fb_get_var:	matroxfb_get_var,
 	fb_set_var:	matroxfb_set_var,
 	fb_get_cmap:	matroxfb_get_cmap,
-	fb_set_cmap	matroxfb_set_cmap,
+	fb_set_cmap:	matroxfb_set_cmap,
 	fb_pan_display:	matroxfb_pan_display,
 	fb_ioctl:	matroxfb_ioctl,
 };

@@ -3,6 +3,7 @@
 /*
  *	$Id: keyboard.h,v 1.1 2000/06/10 21:45:48 yaegashi Exp $
  */
+#include <linux/config.h>
 
 static __inline__ int kbd_setkeycode(unsigned int scancode,
 				     unsigned int keycode)

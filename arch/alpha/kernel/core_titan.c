@@ -4,6 +4,7 @@
  * Code common to all TITAN core logic chips.
  */
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/pci.h>

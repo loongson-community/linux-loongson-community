@@ -140,7 +140,7 @@ static struct fb_ops dn_fb_ops = {
 	fb_get_var:	dn_fb_get_var,
 	fb_set_var:	dn_fb_set_var,
 	fb_get_cmap:	dn_fb_get_cmap,
-	fb_set_cmap	dn_fb_set_cmap,
+	fb_set_cmap:	dn_fb_set_cmap,
 	fb_pan_display:	dn_fb_pan_display,
 	fb_ioctl:	dn_fb_ioctl,
 };

@@ -12,6 +12,7 @@
 #ifndef __ASM_ARCH_HARDWARE_H
 #define __ASM_ARCH_HARDWARE_H
 
+#include <linux/config.h>
 
 /* Flushing areas */
 #define FLUSH_BASE_PHYS		0xe0000000	/* SA1100 zero bank */

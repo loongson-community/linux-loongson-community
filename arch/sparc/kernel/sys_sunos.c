@@ -1,4 +1,4 @@
-/* $Id: sys_sunos.c,v 1.123 2000/05/22 07:29:39 davem Exp $
+/* $Id: sys_sunos.c,v 1.124 2000/06/19 06:24:37 davem Exp $
  * sys_sunos.c: SunOS specific syscall compatibility support.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)

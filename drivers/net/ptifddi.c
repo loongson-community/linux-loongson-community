@@ -1,4 +1,4 @@
-/* $Id: ptifddi.c,v 1.11 1999/10/25 01:50:16 zaitcev Exp $
+/* $Id: ptifddi.c,v 1.12 2000/06/19 06:24:46 davem Exp $
  * ptifddi.c: Network driver for Performance Technologies single-attach
  *            and dual-attach FDDI sbus cards.
  *

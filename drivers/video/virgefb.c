@@ -1102,7 +1102,7 @@ static struct fb_ops virgefb_ops = {
 	fb_get_var:	virgefb_get_var,
 	fb_set_var:	virgefb_set_var,
 	fb_get_cmap:	virgefb_get_cmap,
-	fb_set_cmap	virgefb_set_cmap,
+	fb_set_cmap:	virgefb_set_cmap,
 	fb_pan_display:	virgefb_pan_display,
 	fb_ioctl:	virgefb_ioctl,
 };
