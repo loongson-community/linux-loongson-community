@@ -527,11 +527,12 @@ void __init time_init(void)
 		BCD_TO_BIN(year);
 	}
 	/*
-	 * The DECstation RTC is used as a TOY (Time Of Year).
-	 * The PROM will reset the year to either '70, '71 or '72.
-	 * This hack will only work until Dec 31 2001.
+	 * The PROM will reset the year to either '72 or '73.
+	 * Therefore we store the real year separately, in one
+	 * of unused BBU RAM locations.
 	 */
-	year += 1928;
+	real_year = CMOS_READ(RTC_DEC_YEAR);
+	year += real_year - 72 + 2000;
 
 	write_lock_irq(&xtime_lock);
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);

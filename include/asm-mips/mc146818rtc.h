@@ -49,4 +49,6 @@ extern struct rtc_ops *rtc_ops;
 #define RTC_IRQ	8
 #endif
 
+#define RTC_DEC_YEAR	0x3f	/* Where we store the real year on DECs.  */
+
 #endif /* _ASM_MC146818RTC_H */

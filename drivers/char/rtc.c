@@ -39,9 +39,10 @@
  *	1.10a	Andrea Arcangeli: Alpha updates
  *	1.10b	Andrew Morton: SMP lock fix
  *	1.10c	Cesar Barros: SMP locking fixes and cleanup
+ *	1.10d	Maciej W. Rozycki: Handle DECstation's year weirdness.
  */
 
-#define RTC_VERSION		"1.10c"
+#define RTC_VERSION		"1.10d"
 
 #define RTC_IO_EXTENT	0x10	/* Only really two ports, but...	*/
 
@@ -366,6 +367,9 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		unsigned char mon, day, hrs, min, sec, leap_yr;
 		unsigned char save_control, save_freq_select;
 		unsigned int yrs;
+#ifdef CONFIG_DECSTATION
+		unsigned int real_yrs;
+#endif
 
 		if (!capable(CAP_SYS_TIME))
 			return -EACCES;
@@ -399,6 +403,20 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 			return -EINVAL;
 
 		spin_lock_irq(&rtc_lock);
+#ifdef CONFIG_DECSTATION
+		real_yrs = yrs;
+		yrs = 72;
+
+		/*
+		 * We want to keep the year set to 73 until March
+		 * for non-leap years, so that Feb, 29th is handled
+		 * correctly.
+		 */
+		 if (!leap_yr && mon < 3) {
+			real_yrs--;
+			yrs = 73;
+		}
+#endif
 		if (!(CMOS_READ(RTC_CONTROL) & RTC_DM_BINARY)
 		    || RTC_ALWAYS_BCD) {
 			if (yrs > 169) {
@@ -421,6 +439,9 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		save_freq_select = CMOS_READ(RTC_FREQ_SELECT);
 		CMOS_WRITE((save_freq_select|RTC_DIV_RESET2), RTC_FREQ_SELECT);
 
+#ifdef CONFIG_DECSTATION
+		CMOS_WRITE(real_yrs, RTC_DEC_YEAR);
+#endif
 		CMOS_WRITE(yrs, RTC_YEAR);
 		CMOS_WRITE(mon, RTC_MONTH);
 		CMOS_WRITE(day, RTC_DAY_OF_MONTH);
@@ -474,7 +495,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		spin_unlock_irq(&rtc_lock);
 		return 0;
 	}
-#elif !defined(CONFIG_DECSTATION)
+#endif
 	case RTC_EPOCH_READ:	/* Read the epoch.	*/
 	{
 		return put_user (epoch, (unsigned long *)arg);
@@ -493,7 +514,6 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		epoch = arg;
 		return 0;
 	}
-#endif
 	default:
 		return -EINVAL;
 	}
@@ -696,10 +716,10 @@ found:
 	if (year > 20 && year < 48) {
 		epoch = 1980;
 		guess = "ARC console";
-	} else if (year >= 48 && year < 70) {
+	} else if (year >= 48 && year < 72) {
 		epoch = 1952;
 		guess = "Digital UNIX";
-	} else if (year >= 70 && year < 100) {
+	} else if (year >= 72 && year < 74) {
 		epoch = 1928;
 		guess = "Digital DECstation";
 	}
@@ -904,6 +924,9 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 {
 	unsigned long uip_watchdog = jiffies;
 	unsigned char ctrl;
+#ifdef CONFIG_DECSTATION
+	unsigned int real_year;
+#endif
 
 	/*
 	 * read RTC once any update in progress is done. The update
@@ -932,6 +955,9 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 	rtc_tm->tm_mday = CMOS_READ(RTC_DAY_OF_MONTH);
 	rtc_tm->tm_mon = CMOS_READ(RTC_MONTH);
 	rtc_tm->tm_year = CMOS_READ(RTC_YEAR);
+#ifdef CONFIG_DECSTATION
+	real_year = CMOS_READ(RTC_DEC_YEAR);
+#endif
 	ctrl = CMOS_READ(RTC_CONTROL);
 	spin_unlock_irq(&rtc_lock);
 
@@ -944,6 +970,10 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 		BCD_TO_BIN(rtc_tm->tm_mon);
 		BCD_TO_BIN(rtc_tm->tm_year);
 	}
+
+#ifdef CONFIG_DECSTATION
+	rtc_tm->tm_year += real_year - 72;
+#endif
 
 	/*
 	 * Account for differences between how the RTC uses the values
