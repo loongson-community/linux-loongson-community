@@ -90,8 +90,6 @@ void __init ip32_setup(void)
 	conswitchp = &dummy_con;
 #endif
 
-	ip32_reboot_setup();
-
 	rtc_ops = &ip32_rtc_ops;
 	board_time_init = ip32_time_init;
 

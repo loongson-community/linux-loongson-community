@@ -151,8 +151,8 @@
 #define MACEISA_PWD_CLEAR      BIT(1) /* 1=> PWD CLEAR jumper detected */
 #define MACEISA_NIC_DEASSERT   BIT(2)
 #define MACEISA_NIC_DATA       BIT(3)
-#define MACEISA_LED_RED        BIT(4) /* 1=> Illuminate RED LED */
-#define MACEISA_LED_GREEN      BIT(5) /* 1=> Illuminate GREEN LED */
+#define MACEISA_LED_RED        BIT(4) /* 0=> Illuminate RED LED */
+#define MACEISA_LED_GREEN      BIT(5) /* 0=> Illuminate GREEN LED */
 #define MACEISA_DP_RAM_ENABLE  BIT(6)
 
 /*
