@@ -19,7 +19,6 @@
 #define SUN_OPENPROM_MINOR 139
 #define DMAPI_MINOR		140	/* DMAPI */
 #define NVRAM_MINOR 144
-#define	HPET_MINOR	     152
 #define STORE_QUEUE_MINOR	155
 #define I2O_MINOR 166
 #define MICROCODE_MINOR		184
@@ -28,6 +27,7 @@
 #define MISC_DYNAMIC_MINOR 255
 
 #define TUN_MINOR	     200
+#define	HPET_MINOR	     228
 
 struct device;
 
