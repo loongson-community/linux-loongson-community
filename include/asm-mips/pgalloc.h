@@ -10,6 +10,7 @@
 #define _ASM_PGALLOC_H
 
 #include <linux/config.h>
+#include <linux/mm.h>
 #include <asm/fixmap.h>
 
 #define pmd_populate_kernel(mm, pmd, pte)	set_pmd(pmd, __pmd(pte))

@@ -660,6 +660,7 @@ CONFIG_USB=y
 #
 # CONFIG_USB_AUDIO is not set
 # CONFIG_USB_BLUETOOTH_TTY is not set
+# CONFIG_USB_MIDI is not set
 # CONFIG_USB_ACM is not set
 # CONFIG_USB_PRINTER is not set
 

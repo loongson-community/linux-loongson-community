@@ -605,7 +605,7 @@ skip_queue:
 #define CAN_MIGRATE_TASK(p,rq,this_cpu)					\
 	((jiffies - (p)->sleep_timestamp > cache_decay_ticks) &&	\
 		((p) != (rq)->curr) &&					\
-			((p)->cpus_allowed & (1 << (this_cpu))))
+			((p)->cpus_allowed & (1UL << (this_cpu))))
 
 	if (!CAN_MIGRATE_TASK(tmp, busiest, this_cpu)) {
 		curr = curr->next;
@@ -777,12 +777,12 @@ need_resched:
 	spin_lock_irq(&rq->lock);
 
 	/*
-	 * if entering from preempt_schedule, off a kernel preemption,
-	 * go straight to picking the next task.
+	 * if entering off a kernel preemption go straight
+	 * to picking the next task.
 	 */
 	if (unlikely(preempt_get_count() & PREEMPT_ACTIVE))
 		goto pick_next_task;
-	
+
 	switch (prev->state) {
 	case TASK_INTERRUPTIBLE:
 		if (unlikely(signal_pending(prev))) {
@@ -854,7 +854,9 @@ switch_tasks:
 
 #ifdef CONFIG_PREEMPT
 /*
- * this is is the entry point to schedule() from in-kernel preemption.
+ * this is is the entry point to schedule() from in-kernel preemption
+ * off of preempt_enable.  Kernel preemptions off return from interrupt
+ * occur there and call schedule directly.
  */
 asmlinkage void preempt_schedule(void)
 {
@@ -866,7 +868,6 @@ asmlinkage void preempt_schedule(void)
 	ti->preempt_count = PREEMPT_ACTIVE;
 	schedule();
 	ti->preempt_count = 0;
-	barrier();
 }
 #endif /* CONFIG_PREEMPT */
 
@@ -903,9 +904,9 @@ void __wake_up(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
 	if (unlikely(!q))
 		return;
 
-	wq_read_lock_irqsave(&q->lock, flags);
+	spin_lock_irqsave(&q->lock, flags);
 	__wake_up_common(q, mode, nr_exclusive);
-	wq_read_unlock_irqrestore(&q->lock, flags);
+	spin_unlock_irqrestore(&q->lock, flags);
 }
 
 void complete(struct completion *x)
@@ -944,14 +945,14 @@ void wait_for_completion(struct completion *x)
 	init_waitqueue_entry(&wait, current);
 
 #define	SLEEP_ON_HEAD					\
-	wq_write_lock_irqsave(&q->lock,flags);		\
+	spin_lock_irqsave(&q->lock,flags);		\
 	__add_wait_queue(q, &wait);			\
-	wq_write_unlock(&q->lock);
+	spin_unlock(&q->lock);
 
 #define	SLEEP_ON_TAIL						\
-	wq_write_lock_irq(&q->lock);				\
+	spin_lock_irq(&q->lock);				\
 	__remove_wait_queue(q, &wait);				\
-	wq_write_unlock_irqrestore(&q->lock,flags);
+	spin_unlock_irqrestore(&q->lock, flags);
 
 void interruptible_sleep_on(wait_queue_head_t *q)
 {
@@ -1143,7 +1144,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 				policy != SCHED_OTHER)
 			goto out_unlock;
 	}
-	
+
 	/*
 	 * Valid priorities for SCHED_FIFO and SCHED_RR are
 	 * 1..MAX_USER_RT_PRIO, valid priority for SCHED_OTHER is 0.
@@ -1376,6 +1377,7 @@ asmlinkage long sys_sched_yield(void)
 
 	return 0;
 }
+
 asmlinkage long sys_sched_get_priority_max(int policy)
 {
 	int ret = -EINVAL;
@@ -1595,9 +1597,9 @@ void __init sched_init(void)
 	int i, j, k;
 
 	for (i = 0; i < NR_CPUS; i++) {
-		runqueue_t *rq = cpu_rq(i);
 		prio_array_t *array;
 
+		rq = cpu_rq(i);
 		rq->active = rq->arrays;
 		rq->expired = rq->arrays + 1;
 		spin_lock_init(&rq->lock);
@@ -1665,7 +1667,8 @@ typedef struct {
  * is removed from the allowed bitmask.
  *
  * NOTE: the caller must have a valid reference to the task, the
- * task must not exit() & deallocate itself prematurely.
+ * task must not exit() & deallocate itself prematurely.  The
+ * call is not atomic; no spinlocks may be held.
  */
 void set_cpus_allowed(task_t *p, unsigned long new_mask)
 {
@@ -1685,16 +1688,6 @@ void set_cpus_allowed(task_t *p, unsigned long new_mask)
 	 * migrate the process off to a proper CPU.
 	 */
 	if (new_mask & (1UL << p->thread_info->cpu)) {
-		task_rq_unlock(rq, &flags);
-		goto out;
-	}
-
-	/*
-	 * If the task is not on a runqueue, then it is sufficient
-	 * to simply update the task's cpu field.
-	 */
-	if (!p->array) {
-		p->thread_info->cpu = __ffs(p->cpus_allowed);
 		task_rq_unlock(rq, &flags);
 		goto out;
 	}

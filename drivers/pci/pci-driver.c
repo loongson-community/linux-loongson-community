@@ -38,23 +38,35 @@ pci_match_device(const struct pci_device_id *ids, const struct pci_dev *dev)
 static int pci_device_probe(struct device * dev)
 {
 	int error = 0;
+	struct pci_driver *drv;
+	struct pci_dev *pci_dev;
 
-	struct pci_driver * drv = list_entry(dev->driver,struct pci_driver,driver);
-	struct pci_dev * pci_dev = list_entry(dev,struct pci_dev,dev);
+	drv = list_entry(dev->driver, struct pci_driver, driver);
+	pci_dev = list_entry(dev, struct pci_dev, dev);
 
-	if (drv->probe)
-		error = drv->probe(pci_dev,drv->id_table);
-	return error > 0 ? 0 : -ENODEV;
+	if (drv->probe) {
+		const struct pci_device_id *id;
+
+		id = pci_match_device(drv->id_table, pci_dev);
+		if (id)
+			error = drv->probe(pci_dev, id);
+		if (error >= 0) {
+			pci_dev->driver = drv;
+			error = 0;
+		}
+	}
+	return error;
 }
 
 static int pci_device_remove(struct device * dev)
 {
 	struct pci_dev * pci_dev = list_entry(dev,struct pci_dev,dev);
+	struct pci_driver * drv = pci_dev->driver;
 
-	if (dev->driver) {
-		struct pci_driver * drv = list_entry(dev->driver,struct pci_driver,driver);
+	if (drv) {
 		if (drv->remove)
 			drv->remove(pci_dev);
+		pci_dev->driver = NULL;
 	}
 	return 0;
 }
@@ -124,7 +136,7 @@ pci_register_driver(struct pci_driver *drv)
 void
 pci_unregister_driver(struct pci_driver *drv)
 {
-	put_driver(&drv->driver);
+	remove_driver(&drv->driver);
 }
 
 static struct pci_driver pci_compat_driver = {
@@ -153,7 +165,7 @@ pci_dev_driver(const struct pci_dev *dev)
 }
 
 /**
- * pci_bus_bind - Tell if a PCI device structure has a matching PCI device id structure
+ * pci_bus_match - Tell if a PCI device structure has a matching PCI device id structure
  * @ids: array of PCI device id structures to search in
  * @dev: the PCI device structure to match against
  * 
@@ -161,7 +173,7 @@ pci_dev_driver(const struct pci_dev *dev)
  * system is in its list of supported devices.Returns the matching
  * pci_device_id structure or %NULL if there is no match.
  */
-static int pci_bus_bind(struct device * dev, struct device_driver * drv) 
+static int pci_bus_match(struct device * dev, struct device_driver * drv) 
 {
 	struct pci_dev * pci_dev = list_entry(dev, struct pci_dev, dev);
 	struct pci_driver * pci_drv = list_entry(drv,struct pci_driver,driver);
@@ -184,7 +196,7 @@ static int pci_bus_bind(struct device * dev, struct device_driver * drv)
 
 struct bus_type pci_bus_type = {
 	name:	"pci",
-	bind:	pci_bus_bind,
+	match:	pci_bus_match,
 };
 
 static int __init pci_driver_init(void)
@@ -192,7 +204,7 @@ static int __init pci_driver_init(void)
 	return bus_register(&pci_bus_type);
 }
 
-subsys_initcall(pci_driver_init);
+postcore_initcall(pci_driver_init);
 
 EXPORT_SYMBOL(pci_match_device);
 EXPORT_SYMBOL(pci_register_driver);

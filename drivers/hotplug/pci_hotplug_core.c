@@ -36,6 +36,7 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
+#include <linux/namei.h>
 #include <linux/pci.h>
 #include <asm/uaccess.h>
 #include "pci_hotplug.h"
@@ -290,7 +291,7 @@ static struct inode_operations pcihpfs_dir_inode_operations = {
 
 static struct super_operations pcihpfs_ops = {
 	statfs:		simple_statfs,
-	put_inode:	force_delete,
+	drop_inode:	generic_delete_inode,
 };
 
 static int pcihpfs_fill_super(struct super_block *sb, void *data, int silent)

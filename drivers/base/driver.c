@@ -3,6 +3,8 @@
  *
  */
 
+#define DEBUG 0
+
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -67,13 +69,33 @@ int driver_register(struct device_driver * drv)
 	get_bus(drv->bus);
 	atomic_set(&drv->refcount,2);
 	rwlock_init(&drv->lock);
+	INIT_LIST_HEAD(&drv->devices);
 	write_lock(&drv->bus->lock);
 	list_add(&drv->bus_list,&drv->bus->drivers);
 	write_unlock(&drv->bus->lock);
 	driver_make_dir(drv);
-	driver_bind(drv);
+	driver_attach(drv);
 	put_driver(drv);
 	return 0;
+}
+
+static void __remove_driver(struct device_driver * drv)
+{
+	pr_debug("Unregistering driver '%s' from bus '%s'\n",drv->name,drv->bus->name);
+	driver_detach(drv);
+	driverfs_remove_dir(&drv->dir);
+	if (drv->release)
+		drv->release(drv);
+	put_bus(drv->bus);
+}
+
+void remove_driver(struct device_driver * drv)
+{
+	write_lock(&drv->bus->lock);
+	atomic_set(&drv->refcount,0);
+	list_del_init(&drv->bus_list);
+	write_unlock(&drv->bus->lock);
+	__remove_driver(drv);
 }
 
 /**
@@ -82,25 +104,17 @@ int driver_register(struct device_driver * drv)
  */
 void put_driver(struct device_driver * drv)
 {
-	if (!atomic_dec_and_lock(&drv->refcount,&device_lock))
-		return;
-	spin_unlock(&device_lock);
-
-	if (drv->bus) {
-		pr_debug("Unregistering driver '%s' from bus '%s'\n",drv->name,drv->bus->name);
-
-		driver_unbind(drv);
-		write_lock(&drv->bus->lock);
-		list_del_init(&drv->bus_list);
+	write_lock(&drv->bus->lock);
+	if (!atomic_dec_and_test(&drv->refcount)) {
 		write_unlock(&drv->bus->lock);
-
-		driverfs_remove_dir(&drv->dir);
-		put_bus(drv->bus);
+		return;
 	}
-	if (drv->release)
-		drv->release(drv);
+	list_del_init(&drv->bus_list);
+	write_unlock(&drv->bus->lock);
+	__remove_driver(drv);
 }
 
 EXPORT_SYMBOL(driver_for_each_dev);
 EXPORT_SYMBOL(driver_register);
 EXPORT_SYMBOL(put_driver);
+EXPORT_SYMBOL(remove_driver);
