@@ -13,7 +13,8 @@
 
 all: jazz.o
 O_TARGET := jazz.o
-O_OBJS	 := hw-access.o int-handler.o jazzdma.o reset.o rtc-jazz.o setup.o
+O_OBJS	 := hw-access.o int-handler.o jazzdma.o reset.o rtc-jazz.o setup.o \
+            floppy-jazz.o
 
 int-handler.o: int-handler.S
 
