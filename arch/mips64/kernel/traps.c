@@ -347,11 +347,9 @@ sigsegv:
 
 void do_ri(struct pt_regs *regs)
 {
-	printk("Cpu%d[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
-	        smp_processor_id(), current->comm, current->pid, regs->cp0_epc, 
-		regs->regs[31]);
 	if (compute_return_epc(regs))
 		return;
+
 	force_sig(SIGILL, current);
 }
 
@@ -388,6 +386,7 @@ void do_cpu(struct pt_regs *regs)
 	return;
 
 bad_cid:
+	compute_return_epc(regs);
 	force_sig(SIGILL, current);
 }
 

@@ -606,9 +606,6 @@ void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 
 asmlinkage void do_ri(struct pt_regs *regs)
 {
-	unsigned int opcode;
-
-	get_insn_opcode(regs, &opcode);
 	if (compute_return_epc(regs))
 		return;
 
@@ -659,6 +656,7 @@ fp_emul:
 	return;
 
 bad_cid:
+	compute_return_epc(regs);
 	force_sig(SIGILL, current);
 }
 
