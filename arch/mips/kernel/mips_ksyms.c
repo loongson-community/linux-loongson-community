@@ -87,15 +87,6 @@ EXPORT_SYMBOL(__down_trylock);
 EXPORT_SYMBOL(__up);
 
 /*
- * Architecture specific stuff.
- */
-#ifdef CONFIG_MIPS_JAZZ
-EXPORT_SYMBOL(vdma_alloc);
-EXPORT_SYMBOL(vdma_free);
-EXPORT_SYMBOL(vdma_log2phys);
-#endif
-
-/*
  * Kernel hacking ...
  */
 #include <asm/branch.h>
