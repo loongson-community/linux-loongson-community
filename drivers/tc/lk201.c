@@ -341,19 +341,19 @@ static void lk201_kbd_rx_char(unsigned char ch, unsigned char stat)
 		break;
 	case LK_KEY_LOCK:
 		shift_state ^= LK_LOCK;
-		handle_scancode(c, shift_state && LK_LOCK ? 1 : 0);
+		handle_scancode(c, (shift_state & LK_LOCK) ? 1 : 0);
 		break;
 	case LK_KEY_SHIFT:
 		shift_state ^= LK_SHIFT;
-		handle_scancode(c, shift_state && LK_SHIFT ? 1 : 0);
+		handle_scancode(c, (shift_state & LK_SHIFT) ? 1 : 0);
 		break;
 	case LK_KEY_CTRL:
 		shift_state ^= LK_CTRL;
-		handle_scancode(c, shift_state && LK_CTRL ? 1 : 0);
+		handle_scancode(c, (shift_state & LK_CTRL) ? 1 : 0);
 		break;
 	case LK_KEY_COMP:
 		shift_state ^= LK_COMP;
-		handle_scancode(c, shift_state && LK_COMP ? 1 : 0);
+		handle_scancode(c, (shift_state & LK_COMP) ? 1 : 0);
 		break;
 	case LK_KEY_RELEASE:
 		if (shift_state & LK_SHIFT)
