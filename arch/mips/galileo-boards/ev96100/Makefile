@@ -17,6 +17,6 @@
 
 O_TARGET:= ev96100.o
 
-obj-y	:= init.o pci.o time.o irq.o int-handler.o setup.o puts.o memory.o
+obj-y	:= init.o pci_ops.o pci_fixups.o time.o irq.o int-handler.o setup.o puts.o
 
 include $(TOPDIR)/Rules.make

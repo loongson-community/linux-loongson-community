@@ -34,6 +34,6 @@
 
 O_TARGET:= galboards.o
 
-obj-y := reset.o cmdline.o
+obj-y := reset.o
 
 include $(TOPDIR)/Rules.make
