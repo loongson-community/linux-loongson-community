@@ -224,7 +224,7 @@ static inline void build_cdex_p(void)
 	emit_instruction(mi);
 }
 
-static void __build_store_reg(int reg)
+static void __init __build_store_reg(int reg)
 {
 	union mips_instruction mi;
 	unsigned int width;
