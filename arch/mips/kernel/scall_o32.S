@@ -278,7 +278,7 @@ bad_alignment:
 	and	v1, v1, v0
 	bltz	v1, efault
 
-	move	a0, a1				# shit argument registers
+	move	a0, a1				# shift argument registers
 	move	a1, a2
 	move	a2, a3
 
