@@ -698,7 +698,7 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 		goto out1;
 	}
 
-	gp = dev->priv;
+	gp = netdev_priv(dev);
 
 	memset(gp, 0, sizeof(*gp)); // clear it
 
@@ -1526,8 +1526,8 @@ static void gt96100_cleanup_module(void)
 	for (i=0; i<NUM_INTERFACES; i++) {
 		struct gt96100_if_t *gtif = &gt96100_iflist[i];
 		if (gtif->dev != NULL) {
-			struct gt96100_private *gp =
-				(struct gt96100_private *)gtif->dev->priv;
+			struct gt96100_private *gp = (struct gt96100_private *)
+				netdev_priv(gtif->dev);
 			unregister_netdev(gtif->dev);
 			dmafree(RX_HASH_TABLE_SIZE, gp->hash_table_dma);
 			dmafree(PKT_BUF_SZ*RX_RING_SIZE, gp->rx_buff);
