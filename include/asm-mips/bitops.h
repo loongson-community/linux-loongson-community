@@ -259,9 +259,9 @@ extern __inline__ int test_and_change_bit(int nr, volatile void * addr)
 }
 
 #undef __bi_flags
-#undef __bi_cli()
-#undef __bi_save_flags(x)
-#undef __bi_restore_flags(x)
+#undef __bi_cli
+#undef __bi_save_flags
+#undef __bi_restore_flags
 
 #endif /* MIPS I */
 
