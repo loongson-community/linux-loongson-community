@@ -95,5 +95,9 @@ config PCMCIA_SA1111
 	tristate "SA1111 support"
 	depends on PCMCIA_SA1100 && SA1111
 
+config PCMCIA_VRC4173
+	tristate "NEC VRC4173 CARDU support"
+	depends on CPU_VR41XX && PCI && PCMCIA
+
 endmenu
 

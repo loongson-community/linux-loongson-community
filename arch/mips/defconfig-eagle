@@ -105,7 +105,22 @@ CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PCI_NAMES is not set
 CONFIG_MMU=y
 CONFIG_SWAP=y
-# CONFIG_HOTPLUG is not set
+CONFIG_HOTPLUG=y
+
+#
+# PCMCIA/CardBus support
+#
+CONFIG_PCMCIA=y
+# CONFIG_CARDBUS is not set
+# CONFIG_I82092 is not set
+# CONFIG_I82365 is not set
+# CONFIG_TCIC is not set
+CONFIG_PCMCIA_VRC4173=y
+
+#
+# PCI Hotplug Support
+#
+# CONFIG_HOTPLUG_PCI is not set
 
 #
 # Executable file formats
@@ -156,6 +171,7 @@ CONFIG_MTD_PHYSMAP_START=0x1c000000
 CONFIG_MTD_PHYSMAP_LEN=0x2000000
 CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 # CONFIG_MTD_PCI is not set
+# CONFIG_MTD_PCMCIA is not set
 
 #
 # Self-contained MTD device drivers
@@ -202,7 +218,29 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 #
 # ATA/ATAPI/MFM/RLL support
 #
-# CONFIG_IDE is not set
+CONFIG_IDE=y
+
+#
+# IDE, ATA and ATAPI Block devices
+#
+CONFIG_BLK_DEV_IDE=y
+
+#
+# Please see Documentation/ide.txt for help/info on IDE drives
+#
+# CONFIG_BLK_DEV_HD is not set
+CONFIG_BLK_DEV_IDEDISK=y
+CONFIG_IDEDISK_MULTI_MODE=y
+# CONFIG_IDEDISK_STROKE is not set
+CONFIG_BLK_DEV_IDECS=y
+# CONFIG_BLK_DEV_IDECD is not set
+# CONFIG_BLK_DEV_IDEFLOPPY is not set
+# CONFIG_IDE_TASK_IOCTL is not set
+
+#
+# IDE chipset support/bugfixes
+#
+# CONFIG_BLK_DEV_IDEPCI is not set
 
 #
 # SCSI device support
@@ -369,6 +407,20 @@ CONFIG_PCNET32=y
 # CONFIG_WAN is not set
 
 #
+# PCMCIA network device support
+#
+CONFIG_NET_PCMCIA=y
+# CONFIG_PCMCIA_3C589 is not set
+# CONFIG_PCMCIA_3C574 is not set
+CONFIG_PCMCIA_FMVJ18X=y
+CONFIG_PCMCIA_PCNET=m
+# CONFIG_PCMCIA_NMCLAN is not set
+# CONFIG_PCMCIA_SMC91C92 is not set
+# CONFIG_PCMCIA_XIRC2PS is not set
+# CONFIG_PCMCIA_AXNET is not set
+# CONFIG_NET_PCMCIA_RADIO is not set
+
+#
 # Amateur Radio support
 #
 # CONFIG_HAMRADIO is not set
@@ -431,6 +483,7 @@ CONFIG_HW_CONSOLE=y
 #
 CONFIG_SERIAL_8250=y
 CONFIG_SERIAL_8250_CONSOLE=y
+# CONFIG_SERIAL_8250_CS is not set
 # CONFIG_SERIAL_8250_EXTENDED is not set
 
 #
@@ -484,6 +537,11 @@ CONFIG_WATCHDOG=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+
+#
+# PCMCIA character devices
+#
+# CONFIG_SYNCLINK_CS is not set
 # CONFIG_RAW_DRIVER is not set
 
 #
