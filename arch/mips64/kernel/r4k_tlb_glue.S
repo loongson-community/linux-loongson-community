@@ -23,14 +23,6 @@
 	.macro	tlb_handler name interruptible writebit
 	NESTED(__\name, PT_SIZE, sp)
 	SAVE_ALL
-#if DEBUG_MIPS64
-jal dodebug2
-ld $4, PT_R4(sp)
-ld $5, PT_R5(sp)
-ld $6, PT_R6(sp)
-ld $7, PT_R7(sp)
-ld $2, PT_R2(sp)
-#endif
 	dmfc0	a2, CP0_BADVADDR
 	__BUILD_\interruptible
 	li	a1, \writebit
