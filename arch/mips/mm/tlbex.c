@@ -807,6 +807,14 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 		l_tlbwr_hazard(l, *p);
 		break;
 
+	case CPU_RM7000:
+		i_nop(p);
+		i_nop(p);
+		i_nop(p);
+		i_nop(p);
+		i_tlbwr(p);
+		break;
+
 	case CPU_4KEC:
 	case CPU_24K:
 		i_ehb(p);
