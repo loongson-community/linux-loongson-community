@@ -265,7 +265,7 @@ static int intr_connect_level(int cpu, int bit)
 	int slice = cputoslice(cpu);
 	volatile hubreg_t *mask_reg;
 	hubreg_t *intpend_masks;
-	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cpu_to_node(cpu));
 
 	intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
 
@@ -292,7 +292,7 @@ static int intr_disconnect_level(int cpu, int bit)
 	int slice = cputoslice(cpu);
 	volatile hubreg_t *mask_reg;
 	hubreg_t *intpend_masks;
-	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cpu_to_node(cpu));
 
 	intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
 	intpend_masks[0] &= ~(1ULL << (u64)bit);

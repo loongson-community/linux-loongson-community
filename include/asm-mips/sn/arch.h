@@ -34,8 +34,6 @@ typedef u64	nic_t;
 #endif
 #define CNODE_NUM_CPUS(_cnode)		(NODEPDA(_cnode)->node_num_cpus)
 
-#define CNODE_TO_CPU_BASE(_cnode)	(NODEPDA(_cnode)->node_first_cpu)
-#define cputocnode(cpu)			(cpu_data[(cpu)].p_nodeid)
 #define cputonasid(cpu)			(cpu_data[(cpu)].p_nasid)
 #define cputoslice(cpu)			(cpu_data[(cpu)].p_slice)
 #define makespnum(_nasid, _slice)					\
