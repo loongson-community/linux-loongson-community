@@ -259,7 +259,7 @@ vmalloc_fault:
 		pgd = (pgd_t *) pgd_current[smp_processor_id()] + offset;
 		pgd_k = init_mm.pgd + offset;
 
-		if (!pgd_present(*pgd))
+		if (!pgd_present(*pgd_k))
 			goto no_context;
 		set_pgd(pgd, *pgd_k);
 
