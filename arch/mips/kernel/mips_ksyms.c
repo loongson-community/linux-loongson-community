@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.15 1999/02/15 02:16:51 ralf Exp $
+/* $Id: mips_ksyms.c,v 1.16 1999/02/25 20:36:34 tsbogend Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -79,6 +79,7 @@ EXPORT_SYMBOL(csum_partial_copy);
  */
 EXPORT_SYMBOL(flush_page_to_ram);
 EXPORT_SYMBOL(flush_cache_all);
+EXPORT_SYMBOL(dma_cache_wback_inv);
 
 /*
  * Base address of ports for Intel style I/O.
