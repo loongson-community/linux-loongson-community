@@ -155,13 +155,13 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	struct sigcontext *sc;
 	int i;
 
+	/* Align the stackframe to an adequate boundary for the architecture. */
 	frame = (struct sc *) (long) regs->regs[29];
 	frame--;
-
-	/* We realign the stack to an adequate boundary for the architecture. */
-	if (verify_area(VERIFY_WRITE, frame, sizeof (struct sc)))
-		goto segv_and_exit;
 	frame = (struct sc *)((unsigned long)frame & ALMASK);
+
+	if (verify_area(VERIFY_WRITE, frame, sizeof (*frame)))
+		goto segv_and_exit;
 	sc = &frame->scc;
 
 	/*
@@ -206,6 +206,7 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	regs->regs[31] = (unsigned long) frame->code;	/* Return address */
 	regs->cp0_epc = (unsigned long) sa->sa_handler;	/* "return" to the first handler */
 	regs->regs[25] = regs->cp0_epc;			/* PIC shit... */
+	return;
 
 segv_and_exit:
 	lock_kernel();
