@@ -15,27 +15,27 @@
 #ifndef IOASIC_ADDRS_H
 #define IOASIC_ADDRS_H
 
-#define CHUNK_SIZE 0x00040000
+#define IOASIC_SLOT_SIZE 0x00040000
 
-#define SYSTEM_ROM 	(0*CHUNK_SIZE)		/* board ROM */
-#define IOCTL 		(1*CHUNK_SIZE)		/* I/O ASIC */
-#define ESAR 		(2*CHUNK_SIZE)		/* LANCE MAC address chip */
-#define LANCE 		(3*CHUNK_SIZE)		/* LANCE Ethernet */
-#define SCC0 		(4*CHUNK_SIZE)		/* SCC #0 */
-#define VDAC_HI		(5*CHUNK_SIZE)		/* VDAC (maxine) */
-#define SCC1 		(6*CHUNK_SIZE)		/* SCC #1 (3min, 3max+) */
-#define VDAC_LO		(7*CHUNK_SIZE)		/* VDAC (maxine) */
-#define TOY 		(8*CHUNK_SIZE)		/* RTC */
-#define ISDN 		(9*CHUNK_SIZE)		/* ISDN (maxine) */
-#define ERRADDR		(9*CHUNK_SIZE)		/* bus error address (3max+) */
-#define CHKSYN 		(10*CHUNK_SIZE)		/* ECC syndrome (3max+) */
-#define ACCESS_BUS	(10*CHUNK_SIZE)		/* Access.Bus (maxine) */
-#define MCR 		(11*CHUNK_SIZE)		/* memory control (3max+) */
-#define FLOPPY 		(11*CHUNK_SIZE)		/* FDC (maxine) */
-#define SCSI 		(12*CHUNK_SIZE)		/* ASC SCSI */
-#define FLOPPY_DMA 	(13*CHUNK_SIZE)		/* FDC DMA (maxine) */
-#define SCSI_DMA 	(14*CHUNK_SIZE)		/* ??? */
-#define RESERVED_4 	(15*CHUNK_SIZE)		/* unused? */
+#define SYSTEM_ROM 	(0*IOASIC_SLOT_SIZE)	/* board ROM */
+#define IOCTL 		(1*IOASIC_SLOT_SIZE)	/* I/O ASIC */
+#define ESAR 		(2*IOASIC_SLOT_SIZE)	/* LANCE MAC address chip */
+#define LANCE 		(3*IOASIC_SLOT_SIZE)	/* LANCE Ethernet */
+#define SCC0 		(4*IOASIC_SLOT_SIZE)	/* SCC #0 */
+#define VDAC_HI		(5*IOASIC_SLOT_SIZE)	/* VDAC (maxine) */
+#define SCC1 		(6*IOASIC_SLOT_SIZE)	/* SCC #1 (3min, 3max+) */
+#define VDAC_LO		(7*IOASIC_SLOT_SIZE)	/* VDAC (maxine) */
+#define TOY 		(8*IOASIC_SLOT_SIZE)	/* RTC */
+#define ISDN 		(9*IOASIC_SLOT_SIZE)	/* ISDN (maxine) */
+#define ERRADDR		(9*IOASIC_SLOT_SIZE)	/* bus error address (3max+) */
+#define CHKSYN 		(10*IOASIC_SLOT_SIZE)	/* ECC syndrome (3max+) */
+#define ACCESS_BUS	(10*IOASIC_SLOT_SIZE)	/* Access.Bus (maxine) */
+#define MCR 		(11*IOASIC_SLOT_SIZE)	/* memory control (3max+) */
+#define FLOPPY 		(11*IOASIC_SLOT_SIZE)	/* FDC (maxine) */
+#define SCSI 		(12*IOASIC_SLOT_SIZE)	/* ASC SCSI */
+#define FLOPPY_DMA 	(13*IOASIC_SLOT_SIZE)	/* FDC DMA (maxine) */
+#define SCSI_DMA 	(14*IOASIC_SLOT_SIZE)	/* ??? */
+#define RESERVED_4 	(15*IOASIC_SLOT_SIZE)	/* unused? */
 
 /*
  * Offsets for IOCTL registers (relative to (system_base + IOCTL))

@@ -29,6 +29,8 @@
 /*
  * Some port addresses...
  */
+#define KN02_SLOT_SIZE	0x00080000
+
 #define KN02_RTC_BASE	KSEG1ADDR(0x1fe80000)
 #define KN02_DZ11_BASE	KSEG1ADDR(0x1fe00000)
 

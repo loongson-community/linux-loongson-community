@@ -12,22 +12,6 @@
 
 #include <asm/io.h>
 
-#ifndef RTC_PORT
-#define RTC_PORT(x)	(0x70 + (x))
-#endif
-
-/*
- * The yet supported machines all access the RTC index register via
- * an ISA port access but the way to access the date register differs ...
- */
-#define CMOS_READ(addr) ({ \
-rtc_ops->rtc_read_data(addr); \
-})
-#define CMOS_WRITE(val, addr) ({ \
-rtc_ops->rtc_write_data(val, addr); \
-})
-#define RTC_ALWAYS_BCD \
-rtc_ops->rtc_bcd_mode()
 
 /*
  * This structure defines how to access various features of
@@ -42,6 +26,21 @@ struct rtc_ops {
 
 extern struct rtc_ops *rtc_ops;
 
-#define RTC_IRQ 8
+/*
+ * The yet supported machines all access the RTC index register via
+ * an ISA port access but the way to access the date register differs ...
+ */
+#define CMOS_READ(addr) ({ \
+rtc_ops->rtc_read_data(addr); \
+})
+#define CMOS_WRITE(val, addr) ({ \
+rtc_ops->rtc_write_data(val, addr); \
+})
+#define RTC_ALWAYS_BCD \
+rtc_ops->rtc_bcd_mode()
+
+
+#define RTC_PORT(x)	(0x70 + (x))
+#define RTC_IRQ		8
 
 #endif /* _ASM_MC146818RTC_H */

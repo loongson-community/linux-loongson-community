@@ -27,22 +27,22 @@
  * passed to the I/O ASIC's decoder like with the KN03.  Others are
  * handled locally.  "Low" slots are always passed.
  */
-#define KN05_MB_ROM	(16*CHUNK_SIZE)		/* KN05 card ROM */
-#define KN05_IOCTL	(17*CHUNK_SIZE)		/* I/O ASIC */
-#define KN05_ESAR	(18*CHUNK_SIZE)		/* LANCE MAC address chip */
-#define KN05_LANCE	(19*CHUNK_SIZE)		/* LANCE Ethernet */
-#define KN05_MB_INT	(20*CHUNK_SIZE)		/* MB interrupt register? */
-#define KN05_MB_UNKN_0	(21*CHUNK_SIZE)		/* MB unknown register */
-#define KN05_MB_UNKN_1	(22*CHUNK_SIZE)		/* MB unknown register */
-#define KN05_MB_CSR	(23*CHUNK_SIZE)		/* MB control & status */
-#define KN05_RESERVED_0	(24*CHUNK_SIZE)		/* unused? */
-#define KN05_RESERVED_1	(25*CHUNK_SIZE)		/* unused? */
-#define KN05_RESERVED_2	(26*CHUNK_SIZE)		/* unused? */
-#define KN05_RESERVED_3	(27*CHUNK_SIZE)		/* unused? */
-#define KN05_SCSI	(28*CHUNK_SIZE)		/* ASC SCSI */
-#define KN05_RESERVED_4	(29*CHUNK_SIZE)		/* unused? */
-#define KN05_RESERVED_5	(30*CHUNK_SIZE)		/* unused? */
-#define KN05_RESERVED_6	(31*CHUNK_SIZE)		/* unused? */
+#define KN05_MB_ROM	(16*IOASIC_SLOT_SIZE)	/* KN05 card ROM */
+#define KN05_IOCTL	(17*IOASIC_SLOT_SIZE)	/* I/O ASIC */
+#define KN05_ESAR	(18*IOASIC_SLOT_SIZE)	/* LANCE MAC address chip */
+#define KN05_LANCE	(19*IOASIC_SLOT_SIZE)	/* LANCE Ethernet */
+#define KN05_MB_INT	(20*IOASIC_SLOT_SIZE)	/* MB interrupt register? */
+#define KN05_MB_UNKN_0	(21*IOASIC_SLOT_SIZE)	/* MB unknown register */
+#define KN05_MB_UNKN_1	(22*IOASIC_SLOT_SIZE)	/* MB unknown register */
+#define KN05_MB_CSR	(23*IOASIC_SLOT_SIZE)	/* MB control & status */
+#define KN05_RESERVED_0	(24*IOASIC_SLOT_SIZE)	/* unused? */
+#define KN05_RESERVED_1	(25*IOASIC_SLOT_SIZE)	/* unused? */
+#define KN05_RESERVED_2	(26*IOASIC_SLOT_SIZE)	/* unused? */
+#define KN05_RESERVED_3	(27*IOASIC_SLOT_SIZE)	/* unused? */
+#define KN05_SCSI	(28*IOASIC_SLOT_SIZE)	/* ASC SCSI */
+#define KN05_RESERVED_4	(29*IOASIC_SLOT_SIZE)	/* unused? */
+#define KN05_RESERVED_5	(30*IOASIC_SLOT_SIZE)	/* unused? */
+#define KN05_RESERVED_6	(31*IOASIC_SLOT_SIZE)	/* unused? */
 
 /*
  * Bits for the MB interrupt (?) register.

@@ -18,6 +18,7 @@
 /*
  * Some port addresses...
  */
+#define KN01_SLOT_SIZE	0x01000000
 
 #define KN01_LANCE_BASE (KSEG1ADDR(0x18000000)) /* 0xB8000000 */
 #define KN01_DZ11_BASE	(KSEG1ADDR(0x1c000000)) /* 0xBC000000 */
