@@ -37,8 +37,8 @@ void __init prom_grab_secondary(void)
 {
 	spin_lock(&launch_lock);
 
-	debug_vectors->cpustart(1, &prom_smp_bootstrap,
-	                        launchstack + LAUNCHSTACK_SIZE, 0);
+	pmon_cpustart(1, &prom_smp_bootstrap,
+	              launchstack + LAUNCHSTACK_SIZE, 0);
 }
 
 /*
