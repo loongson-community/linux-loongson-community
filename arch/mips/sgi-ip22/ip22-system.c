@@ -34,7 +34,7 @@ static struct smatch sgi_cputable[] = {
 
 static int __init string_to_cpu(char *s)
 {
-	long cnt;
+	ULONG cnt;
 	char c;
 	int i;
 
@@ -57,7 +57,7 @@ void __init sgi_sysinit(void)
 {
 	pcomponent *p, *toplev, *cpup = 0;
 	int cputype = -1;
-	long cnt;
+	ULONG cnt;
 	char c;
 
 
