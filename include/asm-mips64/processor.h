@@ -68,10 +68,6 @@ struct cpuinfo_mips {
  * XXX: Should go into mips_cpuinfo.
  */
 extern void (*cpu_wait)(void);
-extern void r3081_wait(void);
-extern void r39xx_wait(void);
-extern void r4k_wait(void);
-extern void au1k_wait(void);
 
 extern unsigned int vced_count, vcei_count;
 extern struct cpuinfo_mips cpu_data[];
