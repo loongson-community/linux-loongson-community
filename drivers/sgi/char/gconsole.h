@@ -1,3 +1,7 @@
+#ifndef _SGI_GCONSOLE_H
+#define _SGI_GCONSOLE_H
+
+
 /*
  * This is a temporary measure, we should eventually migrate to
  * Gert's generic graphic console code.
@@ -31,3 +35,5 @@ extern unsigned char vga_font[];
 
 extern void disable_gconsole (void);
 extern void enable_gconsole (void);
+
+#endif /* _SGI_GCONSOLE */

@@ -1,3 +1,6 @@
+#ifndef _SGI_GRAPHICS_H
+#define _SGI_GRAPHICS_H
+
 #define MAXCARDS 4
 
 struct graphics_ops {
@@ -25,3 +28,5 @@ struct graphics_ops {
 
 void shmiq_init (void);
 void streamable_init (void);
+
+#endif /* _SGI_GRAPHICS_H */
