@@ -5,7 +5,7 @@
  *
  * Copyright (C) 1994 Waldorf GMBH
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2001, 2002, 2003 Ralf Baechle
- * Modified further for R[236]000 compatibility by Paul M. Antoine
+ * Copyright (C) 1996 Paul M. Antoine
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PROCESSOR_H
@@ -47,11 +47,12 @@
  * Descriptor for a cache
  */
 struct cache_desc {
-	unsigned short linesz;
-	unsigned short ways;
-	unsigned int sets;
+	unsigned short linesz;	/* Size of line in bytes */
+	unsigned short ways;	/* Number of ways */
+	unsigned int sets;	/* Number of lines per set */
+	unsigned int waysize;	/* Bytes per way */
 	unsigned int waybit;	/* Bits to select in a cache set */
-	unsigned int flags;	/* Flags describingcache properties */
+	unsigned int flags;	/* Flags describing cache properties */
 };
 
 /*
@@ -185,7 +186,6 @@ struct mips_fpu_soft_struct {
 	unsigned int	sr;
 };
 
-
 union mips_fpu_union {
         struct mips_fpu_hard_struct hard;
         struct mips_fpu_soft_struct soft;
@@ -203,10 +203,10 @@ typedef struct {
  * If you change thread_struct remember to change the #defines below too!
  */
 struct thread_struct {
-        /* Saved main processor registers. */
-        unsigned long reg16;
+	/* Saved main processor registers. */
+	unsigned long reg16;
 	unsigned long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
-        unsigned long reg29, reg30, reg31;
+	unsigned long reg29, reg30, reg31;
 
 	/* Saved cp0 stuff. */
 	unsigned long cp0_status;
@@ -261,7 +261,7 @@ struct thread_struct {
 
 #ifdef __KERNEL__
 
-#define KERNEL_STACK_SIZE 0x4000
+#define KERNEL_STACK_SIZE	0x4000
 
 #ifndef __ASSEMBLY__
 
@@ -305,9 +305,9 @@ unsigned long get_wchan(struct task_struct *p);
  * aborts compilation on some CPUs.  It's simply not possible to unwind
  * some CPU's stackframes.
  *
- * In gcc 2.8 and newer  __builtin_return_address works only for non-leaf
- * functions.  We avoid the overhead of a function call by forcing the
- * compiler to save the return address register on the stack.
+ * __builtin_return_address works only for non-leaf functions.  We avoid the
+ * overhead of a function call by forcing the compiler to save the return
+ * address register on the stack.
  */
 #define return_address() ({__asm__ __volatile__("":::"$31");__builtin_return_address(0);})
 

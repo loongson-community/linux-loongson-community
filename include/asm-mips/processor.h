@@ -6,7 +6,7 @@
  * Copyright (C) 1994 Waldorf GMBH
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2001, 2002, 2003 Ralf Baechle
  * Copyright (C) 1996 Paul M. Antoine
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PROCESSOR_H
 #define _ASM_PROCESSOR_H
@@ -17,8 +17,7 @@
 #include <asm/page.h>
 
 /*
- * Default implementation of macro that returns current
- * instruction pointer ("program counter").
+ * Return current * instruction pointer ("program counter").
  */
 #define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
@@ -35,11 +34,12 @@
  * Descriptor for a cache
  */
 struct cache_desc {
-	unsigned short linesz;
-	unsigned short ways;
-	unsigned int sets;
+	unsigned short linesz;	/* Size of line in bytes */
+	unsigned short ways;	/* Number of ways */
+	unsigned short sets;	/* Number of lines per set */
+	unsigned int waysize;	/* Bytes per way */
 	unsigned int waybit;	/* Bits to select in a cache set */
-	unsigned int flags;	/* Flags describingcache properties */
+	unsigned int flags;	/* Flags describing cache properties */
 };
 
 /*
@@ -53,7 +53,6 @@ struct cache_desc {
 struct cpuinfo_mips {
 	unsigned long udelay_val;
 	unsigned long asid_cache;
-
 	/*
 	 * Capability and feature descriptor structure for MIPS CPU
 	 */
@@ -67,7 +66,7 @@ struct cpuinfo_mips {
 	struct cache_desc dcache;	/* Primary D or combined I/D cache */
 	struct cache_desc scache;	/* Secondary cache */
 	struct cache_desc tcache;	/* Tertiary/split secondary cache */
-} __attribute__((__aligned__(SMP_CACHE_BYTES)));
+} __attribute__((aligned(SMP_CACHE_BYTES)));
 
 /*
  * Assumption: Options of CPU 0 are a superset of all processors.
@@ -125,7 +124,7 @@ extern int EISA_bus;
  * for a 64 bit kernel expandable to 8192EB, of which the current MIPS
  * implementations will "only" be able to use 1TB ...
  */
-#define TASK_SIZE	(0x7fff8000UL)
+#define TASK_SIZE	0x7fff8000UL
 
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
@@ -189,8 +188,8 @@ struct thread_struct {
 	unsigned long cp0_baduaddr;	/* Last kernel fault accessing USEG */
 	unsigned long error_code;
 	unsigned long trap_no;
-#define MF_FIXADE 1			/* Fix address errors in software */
-#define MF_LOGADE 2			/* Log address errors to syslog */
+#define MF_FIXADE	1		/* Fix address errors in software */
+#define MF_LOGADE	2		/* Log address errors to syslog */
 	unsigned long mflags;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
@@ -224,7 +223,7 @@ struct thread_struct {
 
 #ifdef __KERNEL__
 
-#define KERNEL_STACK_SIZE 8192
+#define KERNEL_STACK_SIZE	0x2000
 
 #ifndef __ASSEMBLY__
 
