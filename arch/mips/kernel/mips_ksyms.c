@@ -26,9 +26,6 @@
 #include <asm/pgalloc.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
-#ifdef CONFIG_BLK_DEV_FD
-#include <asm/floppy.h>
-#endif
 
 extern void *__bzero(void *__s, size_t __count);
 extern long __strncpy_from_user_nocheck_asm(char *__to,
@@ -74,12 +71,6 @@ EXPORT_SYMBOL_NOVERS(__strnlen_user_nocheck_asm);
 EXPORT_SYMBOL_NOVERS(__strnlen_user_asm);
 
 EXPORT_SYMBOL(invalid_pte_table);
-
-/*
- * Kernel hacking ...
- */
-#include <asm/branch.h>
-#include <linux/sched.h>
 
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 EXPORT_SYMBOL(ide_ops);
