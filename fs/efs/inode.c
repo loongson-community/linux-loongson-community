@@ -17,13 +17,14 @@
 
 /* ----- Define the operations for the Superblock ----- */
 void efs_read_inode(struct inode *);
+void efs_put_inode(struct inode *);
 void efs_put_super(struct super_block *);
 int efs_statfs(struct super_block *, struct statfs *,int );
 
 static struct super_operations efs_sops = {
 	efs_read_inode, 
 	NULL, /* write_inode */
-	NULL, /* put_inode */
+	efs_put_inode, /* put_inode */
 	NULL, /* delete_inode */
 	NULL, /* notify_change */
 	efs_put_super, 
@@ -31,6 +32,10 @@ static struct super_operations efs_sops = {
 	efs_statfs, 
 	NULL
 };
+
+static void efs_put_inode(struct inode *i) {
+  printk("efs_put_inode: iput()ting inode %d\n", i->i_ino);
+}
 
 
 /* ----- Conversion utilities ----- 
@@ -369,7 +374,7 @@ void efs_read_inode(struct inode *in)
   
 	/* Read the block with the inode from disk */
 #ifdef DEBUG_EFS
-	printk("EFS: looking for inode %#xl\n", in->i_ino);
+	printk("EFS: looking for inode %#lx\n", in->i_ino);
 #endif
 	bh = bread(in->i_dev,blk,EFS_BLOCK_SIZE);
 	if(bh) {
@@ -430,7 +435,7 @@ void efs_read_inode(struct inode *in)
 
 		} else {
 #ifdef DEBUG_EFS
-			printk("EFS: inode %#Xl is direct (woohoo!)\n",
+			printk("EFS: inode %#lx is direct (woohoo!)\n",
 			       in->i_ino);
 #endif
 			/* The extends are found in the inode block */

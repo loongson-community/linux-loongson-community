@@ -47,13 +47,13 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 	/* Search in every dirblock */
 	inode = 0;
 	blknum = dir->i_size >> EFS_BLOCK_SIZE_BITS;
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_DIRS
 	printk("EFS: directory with inode %#xd has %d blocks\n",
 	       dir->i_ino, blknum);
 #endif
 	for(b=0;b<blknum;b++) {
 		int db_offset;
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_DIRS
 		printk("EFS: trying block %d\n", b);
 #endif
 		/* Read a raw dirblock */
@@ -69,7 +69,7 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 			       db->db_magic);
 			return NULL;
 		}
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_DIRS
 		printk("EFS: db %d has %d entries, starting at offset %#x\n",
 		       b, db->db_slots, (__u16)db->db_firstused << 1);
 #endif
@@ -81,18 +81,18 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 			de = (struct efs_dent *)(&db->db_space[db_offset]);
 
 			/* inode, namelen and name of direntry */
-			entry_inode = efs_swab32(de->ud_inum.l); 
+			entry_inode = EFS_DE_GET_INUM(de); 
 			namelen = de->d_namelen; 
 			name = de->d_name;
-#ifdef 0
-			printk("EFS: entry %d @ %#x has inode %#x, %s/%d\n",
-			       i, db_offset, entry_inode, name, namelen);
+#ifdef DEBUG_EFS_DIRS
+			printk("EFS: entry %d @ %#lx has inode %#x: \"%*s\"\n",
+			       i, db_offset, entry_inode, namelen, name);
 #endif
 			/* we found the name! */
 			if((namelen==onamelen)&&
 			   (!memcmp(oname,name,onamelen))) {
 				res_dir->inode = entry_inode;
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_DIRS
 				printk("EFS: found inode %d\n", 
 				       entry_inode); 
 #endif
