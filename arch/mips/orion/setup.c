@@ -20,6 +20,7 @@
 #include <linux/a.out.h>
 #include <linux/tty.h>
 #include <linux/interrupt.h>
+#include <linux/fs.h>
 #ifdef CONFIG_BLK_DEV_RAM
 #include <linux/blk.h>
 #endif
@@ -35,8 +36,10 @@
 #include <asm/stackframe.h>
 #include <asm/system.h>
 #include <asm/cpu.h>
+#include <linux/sched.h>
 #include <linux/bootmem.h>
 #include <asm/addrspace.h>
+#include <asm/bootinfo.h>
 #include <asm/mc146818rtc.h>
 #include <asm/orion.h>
 
@@ -89,6 +92,7 @@ int __init prom_init(int a, char **b, char **c, int *d)
 {
 	unsigned long free_start, free_end, start_pfn, bootmap_size;
 	extern unsigned long orion_initrd_start[], orion_initrd_size;
+	extern int rd_size;
 
 	mips_machgroup = MACH_GROUP_ORION;
 	/* 64 MB non-upgradable */
@@ -109,7 +113,13 @@ int __init prom_init(int a, char **b, char **c, int *d)
 	initrd_start = (ulong)orion_initrd_start;
 	initrd_end = (ulong)orion_initrd_start + (ulong)orion_initrd_size;
 	initrd_below_start_ok = 1;
-
+	real_root_dev = 0x0100; /* ramdisk */
+	/*
+	 * Change the ramdisk size to 12M since we only have a ramdisk
+	 * root on the orion and need a decent size.
+	 *  -- Cort <cort@fsmlabs.com>
+	 */
+	rd_size = 22<<10;
 	return 0;
 }
 

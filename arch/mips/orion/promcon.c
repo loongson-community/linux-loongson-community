@@ -7,16 +7,13 @@
  * Derived from DECstation promcon.c
  * Copyright (c) 1998 Harald Koerfgen 
  */
-
 #include <linux/tty.h>
 #include <linux/major.h>
 #include <linux/ptrace.h>
 #include <linux/init.h>
 #include <linux/console.h>
 #include <linux/fs.h>
-/*
-#include <asm/sgialib.h>
-*/
+
 extern void prom_printf(char *fmt, ...);
 unsigned long splx(unsigned long mask){return 0;}
 #if 0
@@ -34,66 +31,68 @@ extern void  SerialPollConout(unsigned char c);
 static void prom_console_write(struct console *co, const char *s,
 			       unsigned count)
 {
-    unsigned i;
+	unsigned i;
 
-    /*
-     *    Now, do each character
-     */
-    for (i = 0; i < count; i++) {
-	if (*s == 10)
-	  SerialPollConout(13);
-	SerialPollConout(*s++);
-    }
+	/*
+	 *    Now, do each character
+	 */
+	for (i = 0; i < count; i++) {
+		if (*s == 10)
+			SerialPollConout(13);
+		SerialPollConout(*s++);
+	}
 }
+
 extern int prom_getchar(void);
 static int prom_console_wait_key(struct console *co)
 {
-    return prom_getchar();
+	return prom_getchar();
 }
 
 extern void SerialPollInit(void);
 extern void  SerialSetup(unsigned long  baud, unsigned long  console, unsigned long  host, unsigned long  intr_desc);
 static int __init prom_console_setup(struct console *co, char *options)
 {
-  SerialSetup(19200,1,1,3);
-  SerialPollInit();
-  SerialPollOn();
-  return 0;
+	SerialSetup(19200,1,1,3);
+	SerialPollInit();
+	SerialPollOn();
+
+	return 0;
 }
 
 static kdev_t prom_console_device(struct console *c)
 {
-    return MKDEV(TTY_MAJOR, 64 + c->index);
+	return MKDEV(TTY_MAJOR, 64 + c->index);
 }
 
 static struct console sercons =
 {
-    "ttyS",
-    prom_console_write,
-    NULL,
-    prom_console_device,
-    prom_console_wait_key,
-    NULL,
-    prom_console_setup,
-    CON_PRINTBUFFER,
-    -1,
-    0,
-    NULL
+	"ttyS",
+	prom_console_write,
+	NULL,
+	prom_console_device,
+	prom_console_wait_key,
+	NULL,
+	prom_console_setup,
+	CON_PRINTBUFFER,
+	-1,
+	0,
+	NULL
 };
 
 /*
  *    Register console.
  */
-
+extern void zs_serial_console_init();
 void serial_console_init(void)
 {
 	register_console(&sercons);
+	/*zs_serial_console_init();*/
 }
 
-extern void prom_putchar(int mychar);
+void prom_putchar(char c);
 
 static char ppbuf[1000];
-
 
 void prom_printf(char *fmt, ...)
 {
@@ -116,10 +115,73 @@ void prom_printf(char *fmt, ...)
 	return;
 }
 
+#define kSCC_Control	0xbf200008
+#define kSCC_Data	(kSCC_Control + 4)
 
+#define Tx_BUF_EMP      0x4     /* Tx Buffer empty */
 
-void prom_putchar(int mychar){}
-int prom_getchar(void){return 0;}
+static inline void RegisterDelay(void)
+{
+	int delay = 2*125;	/* Assuming 4us clock.  */
+	while (delay--);
+}
+
+static inline unsigned char read_zsreg(unsigned char reg)
+{
+	unsigned char retval;
+
+	if (reg != 0) {
+		*(volatile unsigned char *)kSCC_Control = reg & 0xf;
+		RegisterDelay();
+	}
+
+	retval = *(volatile unsigned char *) kSCC_Control;
+	RegisterDelay();
+
+	return retval;
+}
+
+static inline void write_zsreg(unsigned char reg, unsigned char value)
+{
+	if (reg != 0) {
+		*((volatile unsigned char *) (kSCC_Control)) = reg & 0xf ;
+		RegisterDelay();
+	}
+
+	*((volatile unsigned char *) (kSCC_Control)) = value ;
+	RegisterDelay();
+}
+
+static inline unsigned char read_zsdata(void)
+{
+	unsigned char retval;
+
+	retval = *(volatile unsigned char *)kSCC_Data;
+	RegisterDelay();
+
+	return retval;
+}
+
+static inline void write_zsdata(unsigned char value)
+{
+	*(volatile unsigned char *)kSCC_Data = value;
+	RegisterDelay();
+
+        return;
+}
+
+void prom_putchar(char c)
+{
+	while ((read_zsreg(0) & Tx_BUF_EMP) == 0)
+		RegisterDelay();
+	write_zsdata(c);
+}
+
+int prom_getchar(void)
+{
+	return 0;
+}
+
 struct app_header_s {
   unsigned long    MAGIC_JMP;
   unsigned long    MAGIC_NOP;
@@ -139,6 +201,7 @@ struct app_header_s {
   unsigned long    crc;
   unsigned long    reserved;
 };
+
 typedef struct app_header_s app_header_t;
 char linked_app_name[]="linux";
 char *linked_app_name_p=&linked_app_name[0];

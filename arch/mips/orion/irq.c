@@ -25,12 +25,17 @@
 
 void (*board_time_init)(struct irqaction *irq);
 extern asmlinkage void orionIRQ(void);
+irq_cpustat_t irq_stat [NR_CPUS];
+unsigned int local_bh_count[NR_CPUS];
+unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 irq_desc_t irq_desc[NR_IRQS];
+irq_desc_t *irq_desc_base=&irq_desc[0];
 
 static void galileo_ack(unsigned int irq_nr)
 {
-	*((unsigned long *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0xC18) ) = (((( 0 )&0xff)<<24)+	((( 0 )&0xff00)<<8)+	((( 0 )&0xff0000)>>8)+	((( 0 )&0xff000000)>>24))  ;
+	*((unsigned long *) (((unsigned)(0x14000000)|0xA0000000) + 0xC18)) =
+		cpu_to_le32(0);
 }
 
 struct hw_interrupt_type galileo_pic = {
@@ -91,10 +96,9 @@ void enable_irq(unsigned int irq_nr)
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 */
+
 void __init orion_time_init(struct irqaction *irq)
 {
-	__u32 timer_count;
-	
 	irq_desc[2].handler = &galileo_pic;
 	irq_desc[2].action = irq;
 	
@@ -102,19 +106,23 @@ void __init orion_time_init(struct irqaction *irq)
 	 * appearance init's the timer.
 	 * -- Cort
 	 */
-	*((__u32 *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0x864) ) = (((( 0 )&0xff)<<24)+	((( 0 )&0xff00)<<8)+	((( 0 )&0xff0000)>>8)+	((( 0 )&0xff000000)>>24)) ;
+	*((__u32 *) (((unsigned)(0x14000000)|0xA0000000) + 0x864)) =
+		cpu_to_le32(0);
 	
-	*((__u32 *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0x850) ) = (((( 0 )&0xff)<<24)+	((( 0 )&0xff00)<<8)+	((( 0 )&0xff0000)>>8)+	((( 0 )&0xff000000)>>24)) ;
+	*((__u32 *) (((unsigned)(0x14000000)|0xA0000000) + 0x850)) =
+		cpu_to_le32(0);
 
-        timer_count = 300000000/100;
-	
-	*((__u32 *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0x850) ) = ((((  timer_count  )&0xff)<<24)+	(((  timer_count  )&0xff00)<<8)+	(((  timer_count  )&0xff0000)>>8)+	(((  timer_count  )&0xff000000)>>24))  ;
+	*((__u32 *) (((unsigned)(0x14000000)|0xA0000000) + 0x850)) =
+		cpu_to_le32(50000000/HZ);
 
-	*((__u32 *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0xC1C) ) = ((((  0x100   )&0xff)<<24)+	(((  0x100   )&0xff00)<<8)+	(((  0x100   )&0xff0000)>>8)+	(((  0x100   )&0xff000000)>>24))  ;
+	*((__u32 *) (((unsigned)(0x14000000)|0xA0000000) + 0xC1C)) =
+		cpu_to_le32(0x100);
      
-	*((__u32 *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0x864) ) = ((((  0x03  )&0xff)<<24)+	(((  0x03  )&0xff00)<<8)+	(((  0x03  )&0xff0000)>>8)+	(((  0x03  )&0xff000000)>>24))  ;
+	*((__u32 *) (((unsigned)(0x14000000)|0xA0000000) + 0x864)) =
+		cpu_to_le32(0x03);
      
-	*((__u32 *) (((unsigned)( 0x14000000  )|0xA0000000)   + 0xC18) ) = (((( 0 )&0xff)<<24)+	((( 0 )&0xff00)<<8)+	((( 0 )&0xff0000)>>8)+	((( 0 )&0xff000000)>>24))  ;
+	*((__u32 *) (((unsigned)(0x14000000)|0xA0000000) + 0xC18)) =
+		cpu_to_le32(0);
 }
 
 int get_irq_list(char *buf)
@@ -150,7 +158,7 @@ int get_irq_list(char *buf)
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
 	struct irqaction *action;
-	int do_random, cpu;
+	int cpu;
 	int status;
 
 	cpu = smp_processor_id();
@@ -180,10 +188,18 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 				irq_desc[irq].handler->enable(irq);
 		}
 	}
+	else
+	{
+		spurious_count++;
+		printk(KERN_DEBUG "Unhandled interrupt %x, disabled\n", irq);
+		disable_irq(irq);
+		if (irq_desc[irq].handler->end)
+			irq_desc[irq].handler->end(irq);
+	}
 
 	irq_exit(cpu);
 
-	if (softirq_active(cpu)&softirq_mask(cpu))
+	if (softirq_state[cpu].active&softirq_state[cpu].mask)
 		do_softirq();
 
 	/* unmasking and bottom half handling is done magically for us. */
@@ -252,6 +268,7 @@ void free_irq(unsigned int irq, void *dev_id)
 	request_irq(irq, NULL, 0, NULL, dev_id);
 }
 
+
 unsigned long probe_irq_on (void)
 {
 	return 0;
@@ -271,6 +288,7 @@ int orion_irq_cannonicalize(int i)
 
 void __init init_IRQ(void)
 {
+	
 	irq_cannonicalize = orion_irq_cannonicalize;
 	set_except_vector(0, orionIRQ);
 }
