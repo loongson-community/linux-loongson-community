@@ -30,7 +30,7 @@
  * - Don't fall through to pci_setup_bars for bridge.
  * - Reformat the debug output to look more like lspci's output.
  *
- * 2003-04-09 Youchi Yuasa, Alice Hennessy, Jun Sun
+ * 2003-04-09 Yoichi Yuasa, Alice Hennessy, Jun Sun
  * - Add cardbus bridge support, mostly copied from PPC
  */
 
