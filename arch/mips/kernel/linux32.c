@@ -231,6 +231,25 @@ int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 	return 0;
 }
 
+#ifdef CONFIG_MMU
+
+#define free_arg_pages(bprm) do { } while (0)
+
+#else
+
+static inline void free_arg_pages(struct linux_binprm *bprm)
+{
+	int i;
+
+	for (i = 0; i < MAX_ARG_PAGES; i++) {
+		if (bprm->page[i])
+			__free_page(bprm->page[i]);
+		bprm->page[i] = NULL;
+	}
+}
+
+#endif /* CONFIG_MMU */
+
 /*
  * sys32_execve() executes a new program.
  */
@@ -240,7 +259,8 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	struct linux_binprm bprm;
 	struct file * file;
 	int retval;
-	int i;
+
+	sched_balance_exec();
 
 	file = open_exec(filename);
 
@@ -274,7 +294,8 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	if ((retval = bprm.envc) < 0)
 		goto out_mm;
 
-	if ((retval = security_bprm_alloc(&bprm)))
+	retval = security_bprm_alloc(&bprm);
+	if (retval)
 		goto out;
 
 	retval = prepare_binprm(&bprm);
@@ -296,6 +317,8 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 
 	retval = search_binary_handler(&bprm, regs);
 	if (retval >= 0) {
+		free_arg_pages(&bprm);
+
 		/* execve success */
 		security_bprm_free(&bprm);
 		return retval;
@@ -303,17 +326,14 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 
 out:
 	/* Something went wrong, return the inode and free the argument pages*/
-	for (i = 0 ; i < MAX_ARG_PAGES ; i++) {
-		struct page * page = bprm.page[i];
-		if (page)
-			__free_page(page);
-	}
+	free_arg_pages(&bprm);
 
 	if (bprm.security)
 		security_bprm_free(&bprm);
 
 out_mm:
-	mmdrop(bprm.mm);
+	if (bprm.mm)
+		mmdrop(bprm.mm);
 
 out_file:
 	if (bprm.file) {
@@ -332,7 +352,6 @@ asmlinkage int sys32_execve(nabi_no_regargs struct pt_regs regs)
 	char * filename;
 
 	filename = getname((char *) (long)regs.regs[4]);
-	printk("Executing: %s\n", filename);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
 		goto out;
