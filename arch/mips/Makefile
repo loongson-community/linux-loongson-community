@@ -57,7 +57,7 @@ endif
 cflags-y			:= -I $(TOPDIR)/include/asm/gcc
 cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
 cflags-y			+= $(call check_gcc, -finline-limit=100000,)
-LDFLAGS_vmlinux			+= -G 0 -static # -N
+LDFLAGS_vmlinux			+= -G 0 -static -n
 MODFLAGS			+= -mlong-calls
 
 cflags-$(CONFIG_SB1XXX_CORELIS)	+= -mno-sched-prolog -fno-omit-frame-pointer
