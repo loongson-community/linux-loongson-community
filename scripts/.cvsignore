@@ -8,3 +8,4 @@ modpost
 mk_elfconfig
 pnmtologo
 split-include
+bin2c

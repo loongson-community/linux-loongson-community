@@ -151,6 +151,15 @@ CONFIG_TRAD_SIGNALS=y
 # CONFIG_PM is not set
 
 #
+# Device Drivers
+#
+
+#
+# Generic Driver Options
+#
+# CONFIG_FW_LOADER is not set
+
+#
 # Memory Technology Devices (MTD)
 #
 # CONFIG_MTD is not set
@@ -166,14 +175,8 @@ CONFIG_TRAD_SIGNALS=y
 # CONFIG_PNP is not set
 
 #
-# Generic Driver Options
-#
-# CONFIG_FW_LOADER is not set
-
-#
 # Block devices
 #
-# CONFIG_BLK_DEV_FD is not set
 CONFIG_BLK_DEV_LOOP=y
 # CONFIG_BLK_DEV_CRYPTOLOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
@@ -491,6 +494,27 @@ CONFIG_RTC=y
 # CONFIG_DVB is not set
 
 #
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+
+#
+# Sound
+#
+# CONFIG_SOUND is not set
+
+#
+# USB support
+#
+# CONFIG_USB_GADGET is not set
+
+#
 # File systems
 #
 CONFIG_EXT2_FS=y
@@ -538,7 +562,6 @@ CONFIG_DEVPTS_FS=y
 CONFIG_DEVPTS_FS_XATTR=y
 CONFIG_DEVPTS_FS_SECURITY=y
 CONFIG_TMPFS=y
-# CONFIG_HUGETLBFS is not set
 # CONFIG_HUGETLB_PAGE is not set
 CONFIG_RAMFS=y
 
@@ -629,27 +652,6 @@ CONFIG_NLS_DEFAULT="iso8859-1"
 # CONFIG_NLS_KOI8_R is not set
 # CONFIG_NLS_KOI8_U is not set
 # CONFIG_NLS_UTF8 is not set
-
-#
-# Graphics support
-#
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
-
-#
-# Sound
-#
-# CONFIG_SOUND is not set
-
-#
-# USB support
-#
-# CONFIG_USB_GADGET is not set
 
 #
 # Kernel hacking

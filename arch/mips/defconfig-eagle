@@ -146,6 +146,15 @@ CONFIG_BINFMT_ELF=y
 CONFIG_TRAD_SIGNALS=y
 
 #
+# Device Drivers
+#
+
+#
+# Generic Driver Options
+#
+# CONFIG_FW_LOADER is not set
+
+#
 # Memory Technology Devices (MTD)
 #
 CONFIG_MTD=y
@@ -221,14 +230,8 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 # CONFIG_PNP is not set
 
 #
-# Generic Driver Options
-#
-# CONFIG_FW_LOADER is not set
-
-#
 # Block devices
 #
-# CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
@@ -511,6 +514,7 @@ CONFIG_HW_CONSOLE=y
 CONFIG_SERIAL_8250=y
 CONFIG_SERIAL_8250_CONSOLE=y
 # CONFIG_SERIAL_8250_CS is not set
+CONFIG_SERIAL_8250_NR_UARTS=4
 # CONFIG_SERIAL_8250_EXTENDED is not set
 
 #
@@ -607,6 +611,28 @@ CONFIG_WATCHDOG=y
 # CONFIG_DVB is not set
 
 #
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+
+#
+# Sound
+#
+# CONFIG_SOUND is not set
+
+#
+# USB support
+#
+# CONFIG_USB is not set
+# CONFIG_USB_GADGET is not set
+
+#
 # File systems
 #
 CONFIG_EXT2_FS=y
@@ -644,7 +670,6 @@ CONFIG_DEVPTS_FS=y
 CONFIG_DEVPTS_FS_XATTR=y
 CONFIG_DEVPTS_FS_SECURITY=y
 # CONFIG_TMPFS is not set
-# CONFIG_HUGETLBFS is not set
 # CONFIG_HUGETLB_PAGE is not set
 CONFIG_RAMFS=y
 
@@ -695,28 +720,6 @@ CONFIG_SUNRPC=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
-
-#
-# Graphics support
-#
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
-
-#
-# Sound
-#
-# CONFIG_SOUND is not set
-
-#
-# USB support
-#
-# CONFIG_USB is not set
-# CONFIG_USB_GADGET is not set
 
 #
 # Kernel hacking

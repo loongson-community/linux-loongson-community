@@ -127,6 +127,14 @@ CONFIG_BINFMT_ELF=y
 CONFIG_TRAD_SIGNALS=y
 
 #
+# Device Drivers
+#
+
+#
+# Generic Driver Options
+#
+
+#
 # Memory Technology Devices (MTD)
 #
 # CONFIG_MTD is not set
@@ -142,13 +150,8 @@ CONFIG_TRAD_SIGNALS=y
 # CONFIG_PNP is not set
 
 #
-# Generic Driver Options
-#
-
-#
 # Block devices
 #
-# CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
@@ -451,6 +454,27 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_DVB is not set
 
 #
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+
+#
+# Sound
+#
+# CONFIG_SOUND is not set
+
+#
+# USB support
+#
+# CONFIG_USB_GADGET is not set
+
+#
 # File systems
 #
 CONFIG_EXT2_FS=y
@@ -492,7 +516,6 @@ CONFIG_DEVPTS_FS=y
 CONFIG_DEVPTS_FS_XATTR=y
 CONFIG_DEVPTS_FS_SECURITY=y
 # CONFIG_TMPFS is not set
-# CONFIG_HUGETLBFS is not set
 # CONFIG_HUGETLB_PAGE is not set
 CONFIG_RAMFS=y
 
@@ -545,27 +568,6 @@ CONFIG_MSDOS_PARTITION=y
 CONFIG_ULTRIX_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_EFI_PARTITION is not set
-
-#
-# Graphics support
-#
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
-
-#
-# Sound
-#
-# CONFIG_SOUND is not set
-
-#
-# USB support
-#
-# CONFIG_USB_GADGET is not set
 
 #
 # Kernel hacking

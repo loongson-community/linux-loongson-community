@@ -14,6 +14,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/param.h>
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -189,6 +190,8 @@ void __init dec_time_init(void)
 	/* Set up the rate of periodic DS1287 interrupts.  */
 	CMOS_WRITE(RTC_REF_CLCK_32KHZ | (16 - LOG_2_HZ), RTC_REG_A);
 }
+
+EXPORT_SYMBOL(do_settimeofday);
 
 void __init dec_timer_setup(struct irqaction *irq)
 {

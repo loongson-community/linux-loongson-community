@@ -45,6 +45,8 @@
 
 u64 jiffies_64 = INITIAL_JIFFIES;
 
+EXPORT_SYMBOL(jiffies_64);
+
 /*
  * forward reference
  */
@@ -188,6 +190,8 @@ void do_gettimeofday(struct timeval *tv)
 	tv->tv_usec = usec;
 }
 
+EXPORT_SYMBOL(do_gettimeofday);
+
 int do_settimeofday(struct timespec *tv)
 {
 	time_t wtm_sec, sec = tv->tv_sec;
@@ -223,6 +227,7 @@ int do_settimeofday(struct timespec *tv)
 	return 0;
 }
 
+EXPORT_SYMBOL(do_settimeofday);
 
 /*
  * Gettimeoffset routines.  These routines returns the time duration

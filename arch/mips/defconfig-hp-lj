@@ -129,6 +129,14 @@ CONFIG_BINFMT_ELF=y
 CONFIG_TRAD_SIGNALS=y
 
 #
+# Device Drivers
+#
+
+#
+# Generic Driver Options
+#
+
+#
 # Memory Technology Devices (MTD)
 #
 CONFIG_MTD=y
@@ -205,13 +213,8 @@ CONFIG_MTD_NAND_IDS=y
 # CONFIG_PNP is not set
 
 #
-# Generic Driver Options
-#
-
-#
 # Block devices
 #
-# CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
@@ -441,6 +444,7 @@ CONFIG_HW_CONSOLE=y
 #
 CONFIG_SERIAL_8250=y
 CONFIG_SERIAL_8250_CONSOLE=y
+CONFIG_SERIAL_8250_NR_UARTS=4
 # CONFIG_SERIAL_8250_EXTENDED is not set
 
 #
@@ -509,6 +513,27 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 # CONFIG_DVB is not set
 
 #
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+
+#
+# Sound
+#
+# CONFIG_SOUND is not set
+
+#
+# USB support
+#
+# CONFIG_USB_GADGET is not set
+
+#
 # File systems
 #
 CONFIG_EXT2_FS=y
@@ -543,7 +568,6 @@ CONFIG_PROC_FS=y
 CONFIG_PROC_KCORE=y
 # CONFIG_DEVFS_FS is not set
 # CONFIG_TMPFS is not set
-# CONFIG_HUGETLBFS is not set
 # CONFIG_HUGETLB_PAGE is not set
 CONFIG_RAMFS=y
 
@@ -592,27 +616,6 @@ CONFIG_SUNRPC=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
-
-#
-# Graphics support
-#
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
-
-#
-# Sound
-#
-# CONFIG_SOUND is not set
-
-#
-# USB support
-#
-# CONFIG_USB_GADGET is not set
 
 #
 # Kernel hacking
