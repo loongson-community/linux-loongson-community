@@ -27,6 +27,21 @@
 #include "zs.h"
 #include "lk201.h"
 
+/*
+ * Only handle DECstations that have an LK201 interface.
+ * Maxine uses LK501 at the Access.Bus and various DECsystems
+ * have no keyboard interface at all.
+ */
+#define LK_IFACE	(mips_machtype == MACH_DS23100    || \
+			 mips_machtype == MACH_DS5000_200 || \
+			 mips_machtype == MACH_DS5000_1XX || \
+			 mips_machtype == MACH_DS5000_2X0)
+/*
+ * These use the Z8530 SCC.  Others use the DZ11.
+ */
+#define LK_IFACE_ZS	(mips_machtype == MACH_DS5000_1XX || \
+			 mips_machtype == MACH_DS5000_2X0)
+
 /* Simple translation table for the SysRq keys */
 
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -402,28 +417,24 @@ void __init kbd_init_hw(void)
 	extern int unregister_zs_hook(unsigned int);
 
 	/* Maxine uses LK501 at the Access.Bus. */
-	if (mips_machtype == MACH_DS5000_XX)
+	if (!LK_IFACE)
 		return;
 
 	printk(KERN_INFO "lk201: DECstation LK keyboard driver v0.05.\n");
 
-	if (TURBOCHANNEL) {
+	if (LK_IFACE_ZS) {
 		/*
 		 * kbd_init_hw() is being called before
 		 * rs_init() so just register the kbd hook
 		 * and let zs_init do the rest :-)
 		 */
-		if (mips_machtype == MACH_DS5000_200)
-			printk(KERN_ERR "lk201: support for DS5000/200 "
-			       "not yet ready.\n");
-		else
-			if(!register_zs_hook(KEYB_LINE, &lk201_kbdhook))
-				unregister_zs_hook(KEYB_LINE);
+		if(!register_zs_hook(KEYB_LINE, &lk201_kbdhook))
+			unregister_zs_hook(KEYB_LINE);
 	} else {
 		/*
 		 * TODO: modify dz.c to allow similar hooks
 		 * for LK201 handling on DS2100, DS3100, and DS5000/200
 		 */
-		printk(KERN_ERR "lk201: support for DS3100 not yet ready.\n");
+		printk(KERN_ERR "lk201: support for DZ11 not yet ready.\n");
 	}
 }
