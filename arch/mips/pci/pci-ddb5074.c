@@ -39,40 +39,19 @@ struct pci_controller ddb5476_controller = {
 #define     MAX_SLOT_NUM        14
 
 static unsigned char irq_map[MAX_SLOT_NUM] = {
-	/* SLOT:  0 */ nile4_to_irq(PCI_EXT_INTE),
-	/* SLOT:  1 */ nile4_to_irq(PCI_EXT_INTA),
-	/* SLOT:  2 */ nile4_to_irq(PCI_EXT_INTA),
-	/* SLOT:  3 */ nile4_to_irq(PCI_EXT_INTB),
-	/* SLOT:  4 */ nile4_to_irq(PCI_EXT_INTC),
-	/* SLOT:  5 */ nile4_to_irq(NILE4_INT_UART),
-	/* SLOT:  6 */ 0xff,
-	/* SLOT:  7 */ 0xff,
-	/* SLOT:  8 */ 0xff,
-	/* SLOT:  9 */ 0xff,
-	/* SLOT:  10 */ nile4_to_irq(PCI_EXT_INTE),
-	/* SLOT:  11 */ 0xff,
-	/* SLOT:  12 */ 0xff,
-	/* SLOT:  13 */ nile4_to_irq(PCI_EXT_INTE),
+  [ 0] = nile4_to_irq(PCI_EXT_INTE),
+  [ 1] = nile4_to_irq(PCI_EXT_INTA),
+  [ 2] = nile4_to_irq(PCI_EXT_INTA),
+  [ 3] = nile4_to_irq(PCI_EXT_INTB),
+  [ 4] = nile4_to_irq(PCI_EXT_INTC),
+  [ 5] = nile4_to_irq(NILE4_INT_UART),
+  [10] = nile4_to_irq(PCI_EXT_INTE),
+  [13] = nile4_to_irq(PCI_EXT_INTE),
 };
 
-void __init pcibios_fixup_irqs(void)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-
-	struct pci_dev *dev = NULL;
-	int slot_num;
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		slot_num = PCI_SLOT(dev->devfn);
-		db_assert(slot_num < MAX_SLOT_NUM);
-		printk("irq_map[%d]: %02x\n", slot_num, irq_map[slot_num]);
-		db_assert(irq_map[slot_num] != 0xff);
-
-		pci_write_config_byte(dev,
-				      PCI_INTERRUPT_LINE,
-				      irq_map[slot_num]);
-
-		dev->irq = irq_map[slot_num];
-	}
+	return irq_map[slot];
 }
 
 void __init ddb_pci_reset_bus(void)
