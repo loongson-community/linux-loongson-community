@@ -402,6 +402,13 @@ void do_watch(struct pt_regs *regs)
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
 
+asmlinkage void do_mcheck(struct pt_regs *regs)
+{
+	show_regs(regs);
+	panic("Caught Machine Check exception - probably caused by multiple "
+	      "matching entries in the TLB.");
+}
+
 void do_reserved(struct pt_regs *regs)
 {
 	/*
