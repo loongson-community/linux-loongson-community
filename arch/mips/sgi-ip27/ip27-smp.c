@@ -11,7 +11,9 @@
 #include <asm/page.h>
 #include <asm/processor.h>
 #include <asm/sn/arch.h>
+#include <asm/sn/gda.h>
 #include <asm/sn/intr.h>
+#include <asm/sn/klconfig.h>
 #include <asm/sn/launch.h>
 #include <asm/sn/mapped_kernel.h>
 #include <asm/sn/sn_private.h>
@@ -21,6 +23,7 @@
 #include <asm/sn/sn0/ip27.h>
 
 static atomic_t numstarted = ATOMIC_INIT(1);
+static int maxcpus;
 
 /*
  * Takes as first input the PROM assigned cpu id, and the kernel
@@ -36,9 +39,105 @@ static void alloc_cpupda(cpuid_t cpu, int cpunum)
 	cputoslice(cpunum) = get_cpu_slice(cpu);
 }
 
+static nasid_t get_actual_nasid(lboard_t *brd)
+{
+	klhub_t *hub;
+
+	if (!brd)
+		return INVALID_NASID;
+
+	/* find out if we are a completely disabled brd. */
+	hub  = (klhub_t *)find_first_component(brd, KLSTRUCT_HUB);
+	if (!hub)
+		return INVALID_NASID;
+	if (!(hub->hub_info.flags & KLINFO_ENABLE))	/* disabled node brd */
+		return hub->hub_info.physid;
+	else
+		return brd->brd_nasid;
+}
+
+static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
+{
+	static int tot_cpus_found = 0;
+	lboard_t *brd;
+	klcpu_t *acpu;
+	int cpus_found = 0;
+	cpuid_t cpuid;
+
+	brd = find_lboard((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_IP27);
+
+	do {
+		acpu = (klcpu_t *)find_first_component(brd, KLSTRUCT_CPU);
+		while (acpu) {
+			cpuid = acpu->cpu_info.virtid;
+			/* cnode is not valid for completely disabled brds */
+			if (get_actual_nasid(brd) == brd->brd_nasid)
+				cpuid_to_compact_node[cpuid] = cnode;
+			if (cpuid > highest)
+				highest = cpuid;
+			/* Only let it join in if it's marked enabled */
+			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
+			    (tot_cpus_found != NR_CPUS)) {
+				cpu_set(cpuid, phys_cpu_present_map);
+				alloc_cpupda(cpuid, cpus_found);
+				cpus_found++;
+				tot_cpus_found++;
+			}
+			acpu = (klcpu_t *)find_component(brd, (klinfo_t *)acpu,
+								KLSTRUCT_CPU);
+		}
+		brd = KLCF_NEXT(brd);
+		if (!brd)
+			break;
+
+		brd = find_lboard(brd, KLTYPE_IP27);
+	} while (brd);
+
+	return highest;
+}
+
+static cpuid_t cpu_node_probe(void)
+{
+	int i, highest = 0;
+	gda_t *gdap = GDA;
+
+	/*
+	 * Initialize the arrays to invalid nodeid (-1)
+	 */
+	for (i = 0; i < MAX_COMPACT_NODES; i++)
+		compact_to_nasid_node[i] = INVALID_NASID;
+	for (i = 0; i < MAX_NASIDS; i++)
+		nasid_to_compact_node[i] = INVALID_CNODEID;
+	for (i = 0; i < MAXCPUS; i++)
+		cpuid_to_compact_node[i] = INVALID_CNODEID;
+
+	numnodes = 0;
+	for (i = 0; i < MAX_COMPACT_NODES; i++) {
+		nasid_t nasid = gdap->g_nasidtable[i];
+		if (nasid == INVALID_NASID)
+			break;
+		compact_to_nasid_node[i] = nasid;
+		nasid_to_compact_node[nasid] = i;
+		numnodes++;
+		highest = do_cpumask(i, nasid, highest);
+	}
+
+	/*
+	 * Cpus are numbered in order of cnodes. Currently, disabled
+	 * cpus are not numbered.
+	 */
+
+	return highest + 1;
+}
+
 void __init prom_build_cpu_map(void)
 {
-	/* Work was already done in mlreset */
+	/*
+	 * Probe for all CPUs - this creates the cpumask and
+	 * sets up the mapping tables.
+	 */
+	maxcpus = cpu_node_probe();
+	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 }
 
 static void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend,

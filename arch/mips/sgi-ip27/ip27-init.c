@@ -46,7 +46,6 @@
 
 static hubreg_t region_mask;
 static int	fine_mode;
-static int maxcpus;
 static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
 static cnodemask_t hub_init_mask;
 static int router_distance;
