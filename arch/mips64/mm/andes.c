@@ -142,7 +142,7 @@ void local_flush_tlb_all(void)
 
 	__save_and_cli(flags);
 	/* Save old context and create impossible VPN2 value */
-	old_ctx = get_entryhi() & 0xff;
+	old_ctx = get_entryhi() & ASID_MASK;
 	set_entryhi(CKSEG0);
 	set_entrylo0(0);
 	set_entrylo1(0);
@@ -170,7 +170,8 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		__save_and_cli(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if(mm == current->mm)
-			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) & 0xff);
+			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm)
+				    & ASID_MASK);
 		__restore_flags(flags);
 	}
 }
@@ -183,15 +184,16 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		int size;
 
 #ifdef DEBUG_TLB
-		printk("[tlbrange<%02x,%08lx,%08lx>]", (mm->context & 0xff),
-		       start, end);
+		printk("[tlbrange<%02x,%08lx,%08lx>]",
+		       (mm->context & ASID_MASK), start, end);
 #endif
 		__save_and_cli(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if (size <= NTLB_ENTRIES_HALF) {
-			int oldpid = (get_entryhi() & 0xff);
-			int newpid = (CPU_CONTEXT(smp_processor_id(), mm) & 0xff);
+			int oldpid = (get_entryhi() & ASID_MASK);
+			int newpid = (CPU_CONTEXT(smp_processor_id(), mm)
+				      & ASID_MASK);
 
 			start &= (PAGE_MASK << 1);
 			end += ((PAGE_SIZE << 1) - 1);
@@ -214,8 +216,8 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if(mm == current->mm)
-				set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) & 
-									0xff);
+				set_entryhi(CPU_CONTEXT(smp_processor_id(), mm)
+					    & ASID_MASK);
 		}
 		__restore_flags(flags);
 	}
@@ -230,10 +232,11 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 #ifdef DEBUG_TLB
 		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
 #endif
-		newpid = (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff);
+		newpid = (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) &
+			  ASID_MASK);
 		page &= (PAGE_MASK << 1);
 		__save_and_cli(flags);
-		oldpid = (get_entryhi() & 0xff);
+		oldpid = (get_entryhi() & ASID_MASK);
 		set_entryhi(page | newpid);
 		tlb_probe();
 		idx = get_index();
@@ -268,13 +271,14 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 	if (current->active_mm != vma->vm_mm)
 		return;
 
-	pid = get_entryhi() & 0xff;
+	pid = get_entryhi() & ASID_MASK;
 
-	if ((pid != (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff)) ||
-	   (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) == 0)) {
-		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d "
-			"tlbpid=%d\n", (int) (CPU_CONTEXT(smp_processor_id(),
-			vma->vm_mm) & 0xff), pid);
+	if ((pid != (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & ASID_MASK))
+	    || (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) == 0)) {
+		printk(KERN_WARNING
+		       "%s: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
+		       __FUNCTION__, (int) (CPU_CONTEXT(smp_processor_id(),
+		       vma->vm_mm) & ASID_MASK), pid);
 	}
 
 	__save_and_cli(flags);

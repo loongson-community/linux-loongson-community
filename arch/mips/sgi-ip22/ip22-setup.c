@@ -41,11 +41,12 @@ extern void console_setup(char *);
 
 extern void sgitime_init(void);
 
+extern struct hpc3_miscregs *hpc3mregs;
 extern struct rtc_ops indy_rtc_ops;
 extern void indy_reboot_setup(void);
 extern void sgi_volume_set(unsigned char);
 
-#define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
+#define sgi_kh ((struct hpc_keyb *) &(hpc3mregs->kbdmouse0))
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 
