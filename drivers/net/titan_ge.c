@@ -571,20 +571,20 @@ static void titan_ge_set_multi(struct net_device *netdev)
  */
 static int titan_ge_open(struct net_device *netdev)
 {
-	int retval;
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	unsigned int port_num = titan_ge_eth->port_num;
+	unsigned int irq = TITAN_ETH_PORT_IRQ - port_num;
+	int retval;
 
-	retval = request_irq(TITAN_ETH_PORT_IRQ - port_num, titan_ge_int_handler,
+	retval = request_irq(irq, titan_ge_int_handler,
 		     SA_INTERRUPT | SA_SAMPLE_RANDOM , netdev->name, netdev);
 
 	if (retval != 0) {
 		printk(KERN_ERR "Cannot assign IRQ number to TITAN GE \n");
 		return -1;
 	} else {
-		netdev->irq = TITAN_ETH_PORT_IRQ - port_num;
-		printk(KERN_INFO "Assigned IRQ %d to port %d\n",
-				netdev->irq, port_num);
+		netdev->irq = irq;
+		printk(KERN_INFO "Assigned IRQ %d to port %d\n", irq, port_num);
 	}
 
 	spin_lock_irq(&(titan_ge_eth->lock));
