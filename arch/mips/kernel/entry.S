@@ -61,7 +61,7 @@ EXPORT(ret_from_sys_call)
 		ori	t0, t0, 1
 		xori	t0, t0, 1
 		mtc0	t0, CP0_STATUS
-		nop; nop; nop
+		SSNOP; SSNOP; SSNOP
 
 		lw	v0, TASK_NEED_RESCHED($28)
 		lw	v1, TASK_SIGPENDING($28)

@@ -68,6 +68,7 @@ ret_from_sys_call:
 	xori	t0, t0, 1
 	ori	t0, t0, 1
 	mtc0	t0, CP0_STATUS
+	SSNOP; SSNOP; SSNOP
 
 	ld	t2, TASK_NEED_RESCHED($28)
 	bnez	t2, reschedule

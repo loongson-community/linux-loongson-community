@@ -66,6 +66,7 @@ EXPORT(o32_ret_from_sys_call)
 	ori	t0, t0, 1
 	xori	t0, t0, 1
 	mtc0	t0, CP0_STATUS
+	SSNOP; SSNOP; SSNOP
 
 	lw	t2, TASK_NEED_RESCHED($28)
 	bnez	t2, o32_reschedule
