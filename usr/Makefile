@@ -17,6 +17,7 @@ $(obj)/initramfs_data.o: $(obj)/initramfs_data.cpio.gz $(obj)/empty.o
 	$(OBJCOPY) $(ARCHBLOBLFLAGS) \
 		--only-section=.init.initramfs \
 		--add-section=.init.initramfs=$(obj)/initramfs_data.cpio.gz \
+		--set-section-flags .init.initramfs=alloc,contents,data \
 		$(obj)/empty.o $(obj)/initramfs_data.o
 	$(STRIP) -s $(obj)/initramfs_data.o
 
