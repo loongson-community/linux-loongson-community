@@ -451,6 +451,7 @@
 #endif
 invalid_tlbl:
 #ifdef TLB_OPTIMIZE
+	.set	mips3
 	/* Test present bit in entry. */
 	LOAD_PTE(k0, k1)
 	R5K_HAZARD
