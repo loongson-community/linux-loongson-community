@@ -469,7 +469,7 @@ static int sgiseeq_open(struct net_device *dev)
 	return 0;
 
 out_free_irq:
-	free_irq(sgiseeq_interrupt, dev);
+	free_irq(irq, dev);
 
 	return err;
 }
