@@ -513,8 +513,8 @@ void do_tty_hangup(void *data)
 				p->tty = NULL;
 			if (!p->leader)
 				continue;
-			send_sig(SIGHUP, p, 1);
-			send_sig(SIGCONT, p, 1);
+			send_group_sig_info(SIGHUP, SEND_SIG_PRIV, p);
+			send_group_sig_info(SIGCONT, SEND_SIG_PRIV, p);
 			if (tty->pgrp > 0)
 				p->tty_old_pgrp = tty->pgrp;
 		}
@@ -1669,13 +1669,6 @@ static int tiocgsid(struct tty_struct *tty, struct tty_struct *real_tty, pid_t *
 	return put_user(real_tty->session, arg);
 }
 
-static int tiocttygstruct(struct tty_struct *tty, struct tty_struct *arg)
-{
-	if (copy_to_user(arg, tty, sizeof(*arg)))
-		return -EFAULT;
-	return 0;
-}
-
 static int tiocsetd(struct tty_struct *tty, int *arg)
 {
 	int ldisc;
@@ -1802,9 +1795,6 @@ int tty_ioctl(struct inode * inode, struct file * file,
 		case TIOCLINUX:
 			return tioclinux(tty, arg);
 #endif
-		case TIOCTTYGSTRUCT:
-			return tiocttygstruct(tty, (struct tty_struct *) arg);
-
 		/*
 		 * Break handling
 		 */
@@ -2150,31 +2140,16 @@ int tty_register_driver(struct tty_driver *driver)
  */
 int tty_unregister_driver(struct tty_driver *driver)
 {
-	int	retval;
-	struct tty_driver *p;
-	int	i, found = 0;
+	int retval, i;
 	struct termios *tp;
-	const char *othername = NULL;
-	
+
 	if (*driver->refcount)
 		return -EBUSY;
 
-	list_for_each_entry(p, &tty_drivers, tty_drivers) {
-		if (p == driver)
-			found++;
-		else if (p->major == driver->major)
-			othername = p->name;
-	}
-	
-	if (!found)
-		return -ENOENT;
-
-	if (othername == NULL) {
-		retval = unregister_chrdev(driver->major, driver->name);
-		if (retval)
-			return retval;
-	} else
-		register_chrdev(driver->major, othername, &tty_fops);
+	retval = unregister_chrdev_region(driver->major, driver->minor_start,
+					  driver->num, driver->name);
+	if (retval)
+		return retval;
 
 	list_del(&driver->tty_drivers);
 
@@ -2268,6 +2243,7 @@ void __init tty_init(void)
 	 */
 	memset(&dev_tty_driver, 0, sizeof(struct tty_driver));
 	dev_tty_driver.magic = TTY_DRIVER_MAGIC;
+	dev_tty_driver.owner = THIS_MODULE;
 	dev_tty_driver.driver_name = "/dev/tty";
 	dev_tty_driver.name = dev_tty_driver.driver_name + 5;
 	dev_tty_driver.name_base = 0;
@@ -2281,6 +2257,7 @@ void __init tty_init(void)
 		panic("Couldn't register /dev/tty driver\n");
 
 	dev_syscons_driver = dev_tty_driver;
+	dev_syscons_driver.owner = THIS_MODULE;
 	dev_syscons_driver.driver_name = "/dev/console";
 	dev_syscons_driver.name = dev_syscons_driver.driver_name + 5;
 	dev_syscons_driver.major = TTYAUX_MAJOR;
@@ -2293,6 +2270,7 @@ void __init tty_init(void)
 
 #ifdef CONFIG_UNIX98_PTYS
 	dev_ptmx_driver = dev_tty_driver;
+	dev_ptmx_driver.owner = THIS_MODULE;
 	dev_ptmx_driver.driver_name = "/dev/ptmx";
 	dev_ptmx_driver.name = dev_ptmx_driver.driver_name + 5;
 	dev_ptmx_driver.major= TTYAUX_MAJOR;
@@ -2306,6 +2284,7 @@ void __init tty_init(void)
 	
 #ifdef CONFIG_VT
 	dev_console_driver = dev_tty_driver;
+	dev_console_driver.owner = THIS_MODULE;
 	dev_console_driver.driver_name = "/dev/vc/0";
 	dev_console_driver.name = dev_console_driver.driver_name + 5;
 	dev_console_driver.major = TTY_MAJOR;
@@ -2354,9 +2333,6 @@ void __init tty_init(void)
 	rs_8xx_init();
 #endif /* CONFIG_8xx */
 	pty_init();
-#ifdef CONFIG_MOXA_SMARTIO
-	mxser_init();
-#endif	
 #ifdef CONFIG_MOXA_INTELLIO
 	moxa_init();
 #endif	

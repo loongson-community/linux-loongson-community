@@ -31,10 +31,6 @@
 #include "pci_socket.h"
 
 
-extern void pcmcia_suspend_socket (struct socket_info_t *socket);
-extern void pcmcia_resume_socket (struct socket_info_t *socket);
-
-
 /*
  * Arbitrary define. This is the array of active cardbus
  * entries.
@@ -105,30 +101,12 @@ static int pci_set_socket(unsigned int sock, socket_state_t *state)
 	return -EINVAL;
 }
 
-static int pci_get_io_map(unsigned int sock, struct pccard_io_map *io)
-{
-	pci_socket_t *socket = pci_socket_array + sock;
-
-	if (socket->op && socket->op->get_io_map)
-		return socket->op->get_io_map(socket, io);
-	return -EINVAL;
-}
-
 static int pci_set_io_map(unsigned int sock, struct pccard_io_map *io)
 {
 	pci_socket_t *socket = pci_socket_array + sock;
 
 	if (socket->op && socket->op->set_io_map)
 		return socket->op->set_io_map(socket, io);
-	return -EINVAL;
-}
-
-static int pci_get_mem_map(unsigned int sock, struct pccard_mem_map *mem)
-{
-	pci_socket_t *socket = pci_socket_array + sock;
-
-	if (socket->op && socket->op->get_mem_map)
-		return socket->op->get_mem_map(socket, mem);
 	return -EINVAL;
 }
 
@@ -158,9 +136,7 @@ static struct pccard_operations pci_socket_operations = {
 	.get_status		= pci_get_status,
 	.get_socket		= pci_get_socket,
 	.set_socket		= pci_set_socket,
-	.get_io_map		= pci_get_io_map,
 	.set_io_map		= pci_set_io_map,
-	.get_mem_map		= pci_get_mem_map,
 	.set_mem_map		= pci_set_mem_map,
 	.proc_setup		= pci_proc_setup,
 };
@@ -177,7 +153,6 @@ static int __devinit add_pci_socket(int nr, struct pci_dev *dev, struct pci_sock
 	socket->cls_d.nsock = 1; /* yenta is 1, no other low-level driver uses
 			     this yet */
 	socket->cls_d.ops = &pci_socket_operations;
-	socket->cls_d.use_bus_pm = 1;
 	dev->dev.class_data = &socket->cls_d;
 
 	/* prepare pci_socket_t */
@@ -224,18 +199,12 @@ static void __devexit cardbus_remove (struct pci_dev *dev)
 
 static int cardbus_suspend (struct pci_dev *dev, u32 state)
 {
-	pci_socket_t *socket = pci_get_drvdata(dev);
-	if (socket && socket->cls_d.s_info)
-		pcmcia_suspend_socket (socket->cls_d.s_info);
-	return 0;
+	return pcmcia_socket_dev_suspend(&dev->dev, state, 0);
 }
 
 static int cardbus_resume (struct pci_dev *dev)
 {
-	pci_socket_t *socket = pci_get_drvdata(dev);
-	if (socket && socket->cls_d.s_info)
-		pcmcia_resume_socket (socket->cls_d.s_info);
-	return 0;
+	return pcmcia_socket_dev_resume(&dev->dev, RESUME_RESTORE_STATE);
 }
 
 

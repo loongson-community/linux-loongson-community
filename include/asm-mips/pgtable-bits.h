@@ -38,7 +38,7 @@
 #define _PAGE_WRITE                 (1<<2)  /* implemented in software */
 #define _PAGE_ACCESSED              (1<<3)  /* implemented in software */
 #define _PAGE_MODIFIED              (1<<4)  /* implemented in software */
-#define _PAGE_FILE                  (1<<4)  /* pagecache or swap? */
+#define _PAGE_FILE                  (1<<4)  /* set:pagecache unset:swap */
 
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 

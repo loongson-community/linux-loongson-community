@@ -23,7 +23,7 @@ int sgiwd93_release(struct Scsi_Host *instance);
 const char *wd33c93_info(void);
 int wd33c93_queuecommand(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
 int wd33c93_abort(Scsi_Cmnd *);
-int wd33c93_reset(Scsi_Cmnd *, unsigned int);
+int wd33c93_host_reset(Scsi_Cmnd * SCpnt);
 
 #define SGIWD93_SCSI {.proc_name	   = "SGIWD93", \
 		      .name                = "SGI WD93", \
@@ -31,7 +31,7 @@ int wd33c93_reset(Scsi_Cmnd *, unsigned int);
 		      .release             = sgiwd93_release,   \
 		      .queuecommand        = wd33c93_queuecommand, \
 		      .abort               = wd33c93_abort,   \
-		      .reset               = wd33c93_reset,   \
+		      .reset               = wd33c93_host_reset,   \
 		      .can_queue           = CAN_QUEUE,       \
 		      .this_id             = 7,               \
 		      .sg_tablesize        = SG_ALL,          \

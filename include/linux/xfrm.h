@@ -42,7 +42,6 @@ struct xfrm_selector
 	__u8	proto;
 	int	ifindex;
 	uid_t	user;
-	void	*owner;
 };
 
 #define XFRM_INF (~(u64)0)
@@ -131,12 +130,19 @@ struct xfrm_user_tmpl {
 	__u32			calgos;
 };
 
+struct xfrm_encap_tmpl {
+	__u16		encap_type;
+	__u16		encap_sport;
+	__u16		encap_dport;
+};
+
 /* Netlink message attributes.  */
 enum xfrm_attr_type_t {
 	XFRMA_UNSPEC,
 	XFRMA_ALG_AUTH,		/* struct xfrm_algo */
 	XFRMA_ALG_CRYPT,	/* struct xfrm_algo */
 	XFRMA_ALG_COMP,		/* struct xfrm_algo */
+	XFRMA_ENCAP,		/* struct xfrm_algo + struct xfrm_encap_tmpl */
 	XFRMA_TMPL,		/* 1 or more struct xfrm_user_tmpl */
 
 #define XFRMA_MAX XFRMA_TMPL
@@ -164,8 +170,8 @@ struct xfrm_usersa_id {
 
 struct xfrm_userspi_info {
 	struct xfrm_usersa_info		info;
-	u32				min;
-	u32				max;
+	__u32				min;
+	__u32				max;
 };
 
 struct xfrm_userpolicy_info {

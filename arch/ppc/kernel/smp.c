@@ -28,7 +28,6 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/hardirq.h>
-#include <asm/softirq.h>
 #include <asm/io.h>
 #include <asm/prom.h>
 #include <asm/smp.h>
@@ -67,6 +66,9 @@ extern int cpu_idle(void *unused);
 void smp_call_function_interrupt(void);
 static int __smp_call_function(void (*func) (void *info), void *info,
 			       int wait, int target);
+
+/* Low level assembly function used to backup CPU 0 state */
+extern void __save_cpu_setup(void);
 
 /* Since OpenPIC has only 4 IPIs, we use slightly different message numbers.
  * 
@@ -348,6 +350,9 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	/* Probe platform for CPUs: always linear. */
 	num_cpus = smp_ops->probe();
 	cpu_possible_map = (1 << num_cpus)-1;
+
+	/* Backup CPU 0 state */
+	__save_cpu_setup();
 
 	if (smp_ops->space_timers)
 		smp_ops->space_timers(num_cpus);

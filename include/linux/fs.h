@@ -1060,6 +1060,8 @@ extern int register_chrdev_region(unsigned int, unsigned int, int,
 extern int register_chrdev(unsigned int, const char *,
 			   struct file_operations *);
 extern int unregister_chrdev(unsigned int, const char *);
+extern int unregister_chrdev_region(unsigned int, unsigned int, int,
+				    const char *);
 extern int chrdev_open(struct inode *, struct file *);
 
 /* fs/block_dev.c */
@@ -1074,7 +1076,6 @@ extern struct block_device *open_bdev_excl(const char *, int, int, void *);
 extern void close_bdev_excl(struct block_device *, int);
 
 extern const char * cdevname(kdev_t);
-extern const char * kdevname(kdev_t);
 extern void init_special_inode(struct inode *, umode_t, dev_t);
 
 /* Invalid inode operations -- fs/bad_inode.c */
@@ -1111,6 +1112,7 @@ unsigned long invalidate_inode_pages(struct address_space *mapping);
 extern void invalidate_inode_pages2(struct address_space *mapping);
 extern void write_inode_now(struct inode *, int);
 extern int filemap_fdatawrite(struct address_space *);
+extern int filemap_flush(struct address_space *);
 extern int filemap_fdatawait(struct address_space *);
 extern void sync_supers(void);
 extern void sync_filesystems(int wait);
@@ -1304,9 +1306,10 @@ extern void inode_update_time(struct inode *inode, int ctime_too);
 static inline ino_t parent_ino(struct dentry *dentry)
 {
 	ino_t res;
-	read_lock(&dparent_lock);
+
+	spin_lock(&dentry->d_lock);
 	res = dentry->d_parent->d_inode->i_ino;
-	read_unlock(&dparent_lock);
+	spin_unlock(&dentry->d_lock);
 	return res;
 }
 

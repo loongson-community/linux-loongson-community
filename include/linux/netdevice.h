@@ -486,6 +486,7 @@ extern int		dev_close(struct net_device *dev);
 extern int		dev_queue_xmit(struct sk_buff *skb);
 extern int		register_netdevice(struct net_device *dev);
 extern int		unregister_netdevice(struct net_device *dev);
+extern void		synchronize_net(void);
 extern int 		register_netdevice_notifier(struct notifier_block *nb);
 extern int		unregister_netdevice_notifier(struct notifier_block *nb);
 extern int		call_netdevice_notifiers(unsigned long val, void *v);
@@ -622,11 +623,6 @@ static inline int netif_rx_ni(struct sk_buff *skb)
        if (softirq_pending(smp_processor_id()))
                do_softirq();
        return err;
-}
-
-static inline void dev_init_buffers(struct net_device *dev)
-{
-	/* WILL BE REMOVED IN 2.5.0 */
 }
 
 extern int netdev_finish_unregister(struct net_device *dev);

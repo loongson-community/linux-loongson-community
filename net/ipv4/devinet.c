@@ -1065,6 +1065,62 @@ static int devinet_sysctl_forward(ctl_table *ctl, int write,
 	return ret;
 }
 
+static int ipv4_doint_and_flush(ctl_table *ctl, int write,
+				struct file* filp, void *buffer,
+				size_t *lenp)
+{
+	int *valp = ctl->data;
+	int val = *valp;
+	int ret = proc_dointvec(ctl, write, filp, buffer, lenp);
+
+	if (write && *valp != val)
+		rt_cache_flush(0);
+
+	return ret;
+}
+
+static int ipv4_doint_and_flush_strategy(ctl_table *table, int *name, int nlen,
+					 void *oldval, size_t *oldlenp,
+					 void *newval, size_t newlen, 
+					 void **context)
+{
+	int *valp = table->data;
+	int new;
+
+	if (!newval || !newlen)
+		return 0;
+
+	if (newlen != sizeof(int))
+		return -EINVAL;
+
+	if (get_user(new, (int *)newval))
+		return -EFAULT;
+
+	if (new == *valp)
+		return 0;
+
+	if (oldval && oldlenp) {
+		size_t len;
+
+		if (get_user(len, oldlenp))
+			return -EFAULT;
+
+		if (len) {
+			if (len > table->maxlen)
+				len = table->maxlen;
+			if (copy_to_user(oldval, valp, len))
+				return -EFAULT;
+			if (put_user(len, oldlenp))
+				return -EFAULT;
+		}
+	}
+
+	*valp = new;
+	rt_cache_flush(0);
+	return 1;
+}
+
+
 static struct devinet_sysctl_table {
 	struct ctl_table_header *sysctl_header;
 	ctl_table		devinet_vars[17];
@@ -1075,164 +1131,166 @@ static struct devinet_sysctl_table {
 } devinet_sysctl = {
 	.devinet_vars = {
 		{
-			.ctl_name =	NET_IPV4_CONF_FORWARDING,
-			.procname =	"forwarding",
-			.data =	&ipv4_devconf.forwarding,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&devinet_sysctl_forward,
+			.ctl_name	= NET_IPV4_CONF_FORWARDING,
+			.procname	= "forwarding",
+			.data		= &ipv4_devconf.forwarding,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &devinet_sysctl_forward,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_MC_FORWARDING,
-			.procname =	"mc_forwarding",
-			.data =	&ipv4_devconf.mc_forwarding,
-			.maxlen =		sizeof(int),
-			.mode =	0444,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_MC_FORWARDING,
+			.procname	= "mc_forwarding",
+			.data		= &ipv4_devconf.mc_forwarding,
+			.maxlen		= sizeof(int),
+			.mode		= 0444,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_ACCEPT_REDIRECTS,
-			.procname =	"accept_redirects",
-			.data =	&ipv4_devconf.accept_redirects,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_ACCEPT_REDIRECTS,
+			.procname	= "accept_redirects",
+			.data		= &ipv4_devconf.accept_redirects,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_SECURE_REDIRECTS,
-			.procname =	"secure_redirects",
-			.data =	&ipv4_devconf.secure_redirects,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_SECURE_REDIRECTS,
+			.procname	= "secure_redirects",
+			.data		= &ipv4_devconf.secure_redirects,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_SHARED_MEDIA,
-			.procname =	"shared_media",
-			.data =	&ipv4_devconf.shared_media,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_SHARED_MEDIA,
+			.procname	= "shared_media",
+			.data		= &ipv4_devconf.shared_media,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_RP_FILTER,
-			.procname =	"rp_filter",
-			.data =	&ipv4_devconf.rp_filter,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_RP_FILTER,
+			.procname	= "rp_filter",
+			.data		= &ipv4_devconf.rp_filter,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_SEND_REDIRECTS,
-			.procname =	"send_redirects",
-			.data =	&ipv4_devconf.send_redirects,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_SEND_REDIRECTS,
+			.procname	= "send_redirects",
+			.data		= &ipv4_devconf.send_redirects,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_ACCEPT_SOURCE_ROUTE,
-			.procname =	"accept_source_route",
-			.data =	&ipv4_devconf.accept_source_route,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_ACCEPT_SOURCE_ROUTE,
+			.procname	= "accept_source_route",
+			.data		= &ipv4_devconf.accept_source_route,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_PROXY_ARP,
-			.procname =	"proxy_arp",
-			.data =	&ipv4_devconf.proxy_arp,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_PROXY_ARP,
+			.procname	= "proxy_arp",
+			.data		= &ipv4_devconf.proxy_arp,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_MEDIUM_ID,
-			.procname =	"medium_id",
-			.data =	&ipv4_devconf.medium_id,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_MEDIUM_ID,
+			.procname	= "medium_id",
+			.data		= &ipv4_devconf.medium_id,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_BOOTP_RELAY,
-			.procname =	"bootp_relay",
-			.data =	&ipv4_devconf.bootp_relay,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_BOOTP_RELAY,
+			.procname	= "bootp_relay",
+			.data		= &ipv4_devconf.bootp_relay,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_LOG_MARTIANS,
-			.procname =	"log_martians",
-			.data =	&ipv4_devconf.log_martians,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_LOG_MARTIANS,
+			.procname	= "log_martians",
+			.data		= &ipv4_devconf.log_martians,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_TAG,
-			.procname =	"tag",
-			.data =	&ipv4_devconf.tag,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_TAG,
+			.procname	= "tag",
+			.data		= &ipv4_devconf.tag,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_ARPFILTER,
-			.procname =	"arp_filter",
-			.data =	&ipv4_devconf.arp_filter,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_ARPFILTER,
+			.procname	= "arp_filter",
+			.data		= &ipv4_devconf.arp_filter,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &proc_dointvec,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_NOXFRM,
-			.procname =	"disable_xfrm",
-			.data =	&ipv4_devconf.no_xfrm,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_NOXFRM,
+			.procname	= "disable_xfrm",
+			.data		= &ipv4_devconf.no_xfrm,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &ipv4_doint_and_flush,
+			.strategy	= &ipv4_doint_and_flush_strategy,
 		},
 		{
-			.ctl_name =	NET_IPV4_CONF_NOPOLICY,
-			.procname =	"disable_policy",
-			.data =	&ipv4_devconf.no_policy,
-			.maxlen =		sizeof(int),
-			.mode =	0644,
-			.proc_handler =&proc_dointvec,
+			.ctl_name	= NET_IPV4_CONF_NOPOLICY,
+			.procname	= "disable_policy",
+			.data		= &ipv4_devconf.no_policy,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &ipv4_doint_and_flush,
+			.strategy	= &ipv4_doint_and_flush_strategy,
 		},
 	},
 	.devinet_dev = {
 		{
-			.ctl_name =	NET_PROTO_CONF_ALL,
-			.procname =	"all",
-			.mode =	0555,
-			.child =		devinet_sysctl.devinet_vars,
+			.ctl_name	= NET_PROTO_CONF_ALL,
+			.procname	= "all",
+			.mode		= 0555,
+			.child		= devinet_sysctl.devinet_vars,
 		},
 	},
 	.devinet_conf_dir = {
 	        {
-			.ctl_name =	NET_IPV4_CONF,
-			.procname =	"conf",
-			.mode =	0555,
-			.child =		devinet_sysctl.devinet_dev,
+			.ctl_name	= NET_IPV4_CONF,
+			.procname	= "conf",
+			.mode		= 0555,
+			.child		= devinet_sysctl.devinet_dev,
 		},
 	},
 	.devinet_proto_dir = {
 		{
-			.ctl_name =	NET_IPV4,
-			.procname =	"ipv4",
-			.mode =	0555,
-			.child =		devinet_sysctl.devinet_conf_dir,
+			.ctl_name	= NET_IPV4,
+			.procname	= "ipv4",
+			.mode		= 0555,
+			.child 		= devinet_sysctl.devinet_conf_dir,
 		},
 	},
 	.devinet_root_dir = {
 		{
-			.ctl_name =	CTL_NET,
-			.procname =	"net",
-			.mode =	0555,
-			.child =		devinet_sysctl.devinet_proto_dir,
+			.ctl_name	= CTL_NET,
+			.procname 	= "net",
+			.mode		= 0555,
+			.child		= devinet_sysctl.devinet_proto_dir,
 		},
 	},
 };

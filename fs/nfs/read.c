@@ -252,8 +252,7 @@ nfs_pagein_list(struct list_head *head, int rpages)
 void
 nfs_readpage_result(struct rpc_task *task)
 {
-	struct nfs_read_data	*data = (struct nfs_read_data *) task->tk_calldata;
-	struct nfs_fattr	*fattr = &data->fattr;
+	struct nfs_read_data *data = (struct nfs_read_data *)task->tk_calldata;
 	unsigned int count = data->res.count;
 
 	dprintk("NFS: %4d nfs_readpage_result, (status %d)\n",
@@ -270,18 +269,10 @@ nfs_readpage_result(struct rpc_task *task)
 							req->wb_pgbase + count,
 							req->wb_bytes - count);
 
-				if (data->res.eof ||
-				    ((fattr->valid & NFS_ATTR_FATTR) &&
-				     ((req_offset(req) + count) >= fattr->size)))
-					SetPageUptodate(page);
-				else
-					if (count < req->wb_bytes)
-						SetPageError(page);
 				count = 0;
-			} else {
+			} else
 				count -= PAGE_CACHE_SIZE;
-				SetPageUptodate(page);
-			}
+			SetPageUptodate(page);
 		} else
 			SetPageError(page);
 		unlock_page(page);

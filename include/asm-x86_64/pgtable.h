@@ -151,7 +151,7 @@ static inline void set_pml4(pml4_t *dst, pml4_t val)
 #define _PAGE_ACCESSED	0x020
 #define _PAGE_DIRTY	0x040
 #define _PAGE_PSE	0x080	/* 2MB page */
-#define _PAGE_FILE	0x040	/* pagecache or swap */
+#define _PAGE_FILE	0x040	/* set:pagecache, unset:swap */
 #define _PAGE_GLOBAL	0x100	/* Global TLB entry */
 
 #define _PAGE_PROTNONE	0x080	/* If not present */
@@ -283,6 +283,7 @@ static inline int pmd_large(pmd_t pte) {
 #define pml4_page(pml4) ((unsigned long) __va(pml4_val(pml4) & PTE_MASK))
 #define pml4_index(address) ((address >> PML4_SHIFT) & (PTRS_PER_PML4-1))
 #define pml4_offset_k(address) (init_level4_pgt + pml4_index(address))
+#define pml4_present(pml4) (pml4_val(pml4) & _PAGE_PRESENT)
 #define mk_kernel_pml4(address) ((pml4_t){ (address) | _KERNPG_TABLE })
 #define level3_offset_k(dir, address) ((pgd_t *) pml4_page(*(dir)) + pgd_index(address))
 

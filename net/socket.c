@@ -55,6 +55,7 @@
  *	This module is effectively the top level interface to the BSD socket
  *	paradigm. 
  *
+ *	Based upon Swansea University Computer Society NET3.039
  */
 
 #include <linux/config.h>
@@ -347,17 +348,17 @@ static struct dentry_operations sockfs_dentry_operations = {
 /*
  *	Obtains the first available file descriptor and sets it up for use.
  *
- *	This functions creates file structure and maps it to fd space
+ *	This function creates file structure and maps it to fd space
  *	of current process. On success it returns file descriptor
  *	and file struct implicitly stored in sock->file.
  *	Note that another thread may close file descriptor before we return
  *	from this function. We use the fact that now we do not refer
  *	to socket after mapping. If one day we will need it, this
- *	function will inincrement ref. count on file by 1.
+ *	function will increment ref. count on file by 1.
  *
  *	In any case returned fd MAY BE not valid!
- *	This race condition is inavoidable
- *	with shared fd spaces, we cannot solve is inside kernel,
+ *	This race condition is unavoidable
+ *	with shared fd spaces, we cannot solve it inside kernel,
  *	but we take care of internal coherence yet.
  */
 
@@ -1692,6 +1693,8 @@ asmlinkage long sys_recvmsg(int fd, struct msghdr *msg, unsigned int flags)
 
 	cmsg_ptr = (unsigned long)msg_sys.msg_control;
 	msg_sys.msg_flags = 0;
+	if (MSG_CMSG_COMPAT & flags)
+		msg_sys.msg_flags = MSG_CMSG_COMPAT;
 	
 	if (sock->file->f_flags & O_NONBLOCK)
 		flags |= MSG_DONTWAIT;
@@ -1709,7 +1712,8 @@ asmlinkage long sys_recvmsg(int fd, struct msghdr *msg, unsigned int flags)
 	if (err)
 		goto out_freeiov;
 	if (MSG_CMSG_COMPAT & flags)
-		err = put_compat_msg_controllen(&msg_sys, msg_compat, cmsg_ptr);
+		err = __put_user((unsigned long)msg_sys.msg_control-cmsg_ptr, 
+				 &msg_compat->msg_controllen);
 	else
 		err = __put_user((unsigned long)msg_sys.msg_control-cmsg_ptr, 
 				 &msg->msg_controllen);
@@ -1870,9 +1874,6 @@ extern void wanrouter_init(void);
 void __init sock_init(void)
 {
 	int i;
-
-	printk(KERN_INFO "Linux NET4.0 for Linux 2.4\n");
-	printk(KERN_INFO "Based upon Swansea University Computer Society NET3.039\n");
 
 	/*
 	 *	Initialize all address (protocol) families. 

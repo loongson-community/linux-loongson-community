@@ -58,7 +58,6 @@ typedef struct socket_cap_t {
     ioaddr_t	io_offset;
     u_char	pci_irq;
     struct pci_dev *cb_dev;
-    struct bus_operations *bus;
 } socket_cap_t;
 
 /* InquireSocket capabilities */
@@ -134,9 +133,7 @@ struct pccard_operations {
 	int (*get_status)(unsigned int sock, u_int *value);
 	int (*get_socket)(unsigned int sock, socket_state_t *state);
 	int (*set_socket)(unsigned int sock, socket_state_t *state);
-	int (*get_io_map)(unsigned int sock, struct pccard_io_map *io);
 	int (*set_io_map)(unsigned int sock, struct pccard_io_map *io);
-	int (*get_mem_map)(unsigned int sock, struct pccard_mem_map *mem);
 	int (*set_mem_map)(unsigned int sock, struct pccard_mem_map *mem);
 	void (*proc_setup)(unsigned int sock, struct proc_dir_entry *base);
 };
@@ -151,9 +148,12 @@ struct pcmcia_socket_class_data {
 	 * returned to driver) = sock_offset + (0, 1, .. , (nsock-1) */
 	struct pccard_operations *ops;		/* see above */
 	void *s_info;				/* socket_info_t */
-	unsigned int use_bus_pm;
 };
 
 extern struct device_class pcmcia_socket_class;
+
+/* socket drivers are expected to use these callbacks in their .drv struct */
+int pcmcia_socket_dev_suspend(struct device * dev, u32 state, u32 level);
+int pcmcia_socket_dev_resume(struct device * dev, u32 level);
 
 #endif /* _LINUX_SS_H */

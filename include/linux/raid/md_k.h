@@ -203,6 +203,7 @@ struct mddev_s
 	int				raid_disks;
 	int				max_disks;
 	sector_t			size; /* used size of component devices */
+	sector_t			array_size; /* exported array size */
 	__u64				events;
 
 	char				uuid[16];
@@ -254,6 +255,7 @@ struct mddev_s
 struct mdk_personality_s
 {
 	char *name;
+	struct module *owner;
 	int (*make_request)(request_queue_t *q, struct bio *bio);
 	int (*run)(mddev_t *mddev);
 	int (*stop)(mddev_t *mddev);

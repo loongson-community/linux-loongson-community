@@ -28,7 +28,7 @@
 #include <asm/io.h>
 #include <asm/proto.h>
 
-static struct saved_context saved_context;
+struct saved_context saved_context;
 
 unsigned long saved_context_eax, saved_context_ebx, saved_context_ecx, saved_context_edx;
 unsigned long saved_context_esp, saved_context_ebp, saved_context_esi, saved_context_edi;
@@ -121,7 +121,11 @@ void fix_processor_context(void)
 	int cpu = smp_processor_id();
 	struct tss_struct * t = init_tss + cpu;
 
-	printk("Should fix processor context!\n");
+	set_tss_desc(cpu,t);	/* This just modifies memory; should not be neccessary. But... This is neccessary, because 386 hardware has concept of busy TSS or some similar stupidity. */
+        ((struct n_desc_struct *) &cpu_gdt_table[cpu][GDT_ENTRY_TSS])->b &= 0xfffffdff;
+
+	syscall_init();                         /* This sets MSR_*STAR and related */
+	load_TR_desc();				/* This does ltr */
 	load_LDT(&current->mm->context);	/* This does lldt */
 
 	/*

@@ -29,6 +29,11 @@ typedef struct {
 	s32	val[2];
 } compat_fsid_t;
 
+typedef s32		compat_int_t;
+typedef s32		compat_long_t;
+typedef u32		compat_uint_t;
+typedef u32		compat_ulong_t;
+
 struct compat_timespec {
 	compat_time_t	tv_sec;
 	s32		tv_nsec;
