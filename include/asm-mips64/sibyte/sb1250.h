@@ -30,12 +30,14 @@
 extern unsigned int sb1_pass;
 extern unsigned int soc_pass;
 extern unsigned int soc_type;
+extern unsigned int periph_rev;
 
 extern void sb1250_time_init(void);
 extern unsigned long sb1250_gettimeoffset(void);
 extern void sb1250_mask_irq(int cpu, int irq);
 extern void sb1250_unmask_irq(int cpu, int irq);
 extern void sb1250_smp_finish(void);
+extern void prom_printf(char *fmt, ...);
 
 #define AT_spin \
 	__asm__ __volatile__ (		\
