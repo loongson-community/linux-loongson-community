@@ -77,7 +77,11 @@ static struct console ns16550_console = {
     .index	= -1,
 };
 
-void __init ns16550_setup_console(void)
+static int __init ns16550_setup_console(void)
 {
 	register_console(&ns16550_console);
+
+	return 0;
 }
+
+console_initcall(ns16550_setup_console);
