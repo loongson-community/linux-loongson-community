@@ -158,8 +158,8 @@ NESTED(bootstrap, 16, sp)
 
 	.macro	page name, order=0
 	.globl	\name
-	.org	. + (PAGE_SIZE << \order)
 \name:	.size	\name, (PAGE_SIZE << \order)
+	.org	. + (PAGE_SIZE << \order)
 	.type	\name, @object
 	.endm
 
