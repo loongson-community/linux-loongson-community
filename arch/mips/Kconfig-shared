@@ -345,6 +345,8 @@ config REPLICATE_EXHANDLERS
 config SGI_IP32
 	bool "Support for SGI IP32 (O2) (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	help
+	  If you want this kernel to run on SGI O2 workstation, say Y here.
 
 config SOC_AU1X00
 	depends on MIPS32
