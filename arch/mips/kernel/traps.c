@@ -280,6 +280,7 @@ asmlinkage void do_ov(struct pt_regs *regs)
 {
 	if (compute_return_epc(regs))
 		return;
+
 	force_sig(SIGFPE, current);
 }
 
@@ -459,9 +460,7 @@ asmlinkage void do_ri(struct pt_regs *regs)
 			return;
 		}
 	}
-	printk("[%s:%d] Illegal instruction %08lx at %08lx, ra=%08lx, CP0_STATUS=%08lx\n",
-	       current->comm, current->pid, *((unsigned long*)regs->cp0_epc), regs->cp0_epc,
-		regs->regs[31], regs->cp0_status);
+
 	if (compute_return_epc(regs))
 		return;
 	force_sig(SIGILL, current);
@@ -564,11 +563,9 @@ asmlinkage void do_ri(struct pt_regs *regs)
 	unsigned int opcode;
 
 	get_insn_opcode(regs, &opcode);
-	printk("[%s:%ld] Illegal instruction %08x at %08lx ra=%08lx\n",
-	       current->comm, (unsigned long)current->pid, opcode,
-	       regs->cp0_epc, regs->regs[31]);
 	if (compute_return_epc(regs))
 		return;
+
 	force_sig(SIGILL, current);
 }
 
