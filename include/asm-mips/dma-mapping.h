@@ -74,6 +74,12 @@ dma_unmap_single(struct device *dev, dma_addr_t dma_addr, size_t size,
 		 enum dma_data_direction direction)
 {
 	BUG_ON(direction == DMA_NONE);
+
+	if (direction != DMA_TO_DEVICE) {
+		unsigned long addr;
+		addr = baddr_to_bus(hwdev->bus, dma_addr) + PAGE_OFFSET;
+		dma_cache_wback_inv(addr, size);
+	}
 }
 
 static inline int
@@ -104,6 +110,7 @@ dma_map_page(struct device *dev, struct page *page, unsigned long offset,
 	unsigned long addr;
 
 	BUG_ON(direction == DMA_NONE);
+
 	addr = (unsigned long) page_address(page) + offset;
 	dma_cache_wback_inv(addr, size);
 
@@ -128,7 +135,20 @@ static inline void
 dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nhwentries,
 	     enum dma_data_direction direction)
 {
+	unsigned long addr;
+	int i;
+
 	BUG_ON(direction == DMA_NONE);
+
+	if (direction == DMA_TO_DEVICE)
+		return;
+
+	for (i = 0; i < nhwentries; i++, sg++) {
+		addr = (unsigned long) page_address(sg->page);
+		if (!addr)
+			continue;
+		dma_cache_wback_inv(addr + sg->offset, sg->length);
+	}
 }
 
 static inline void
@@ -217,6 +237,9 @@ static inline void
 dma_cache_sync(void *vaddr, size_t size,
 	       enum dma_data_direction direction)
 {
+	if (direction == DMA_NONE)
+		return;
+
 	dma_cache_wback_inv((unsigned long)vaddr, size);
 }
 
