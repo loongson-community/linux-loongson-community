@@ -273,9 +273,6 @@ static void default_be_board_handler(struct pt_regs *regs)
 	/*
 	 * Assume it would be too dangerous to continue ...
 	 */
-/* XXX */
-printk("Got Bus Error at %08x\n", (unsigned int)regs->cp0_epc);
-show_regs(regs); while(1);
 	force_sig(SIGBUS, current);
 }
 

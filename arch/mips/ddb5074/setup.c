@@ -251,4 +251,3 @@ void ddb5074_led_d3(int on)
 	pci_write_config_byte(pci_pmu, 0x7e, t);
     }
 }
-

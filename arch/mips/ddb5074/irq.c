@@ -228,4 +228,3 @@ void __init ddb_irq_setup(void)
 
     set_except_vector(0, ddbIRQ);
 }
-

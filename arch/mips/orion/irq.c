@@ -252,7 +252,6 @@ void free_irq(unsigned int irq, void *dev_id)
 	request_irq(irq, NULL, 0, NULL, dev_id);
 }
 
-
 unsigned long probe_irq_on (void)
 {
 	return 0;
@@ -272,10 +271,8 @@ int orion_irq_cannonicalize(int i)
 
 void __init init_IRQ(void)
 {
-	
 	irq_cannonicalize = orion_irq_cannonicalize;
 	set_except_vector(0, orionIRQ);
 }
 
 EXPORT_SYMBOL(irq_cannonicalize);
-
