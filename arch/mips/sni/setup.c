@@ -74,7 +74,7 @@ static inline void sni_pcimt_detect(void)
 	printk("%s.\n", boardtype);
 }
 
-struct resource pcimt_io_resources[] = {
+static struct resource pcimt_io_resources[] = {
 	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
 	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
 	{ "keyboard", 0x60, 0x6f, IORESOURCE_BUSY },
