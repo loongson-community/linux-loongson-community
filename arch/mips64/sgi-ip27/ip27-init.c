@@ -15,6 +15,8 @@
 #include <asm/processor.h>
 #include <asm/sn/launch.h>
 
+#define CPU_NONE		(cpuid_t)-1
+
 #define	CPUMASK_CLRALL(p)	(p) = 0
 #define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
 #define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
@@ -144,6 +146,35 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 	return(highest + 1);
 }
 
+void alloc_cpupda(int i)
+{
+	cnodeid_t	node;
+	nasid_t		nasid;
+
+	node = get_cpu_cnode(i);
+	nasid = COMPACT_TO_NASID_NODEID(node);
+
+	cputonasid(i) = nasid;
+	cputocnode(i) = node;
+	cputoslice(i) = get_cpu_slice(i);
+}
+
+int cpu_enabled(cpuid_t cpu)
+{
+	if (cpu == CPU_NONE)
+		return 0;
+	return (CPUMASK_TSTB(boot_cpumask, cpu) != 0);
+}
+
+void initpdas(void)
+{
+	cpuid_t i;
+
+	for (i = 0; i < maxcpus; i++)
+		if (cpu_enabled(i))
+			alloc_cpupda(i);
+}
+
 void mlreset (void)
 {
 	int i;
@@ -156,6 +187,7 @@ void mlreset (void)
 	 */
 	CPUMASK_CLRALL(boot_cpumask);
 	maxcpus = cpu_node_probe(&boot_cpumask, &numnodes);
+	initpdas();
 
 	gen_region_mask(&region_mask, numnodes);
 

@@ -121,16 +121,3 @@ int get_cpu_slice(cpuid_t cpu)
 		return -1;
 	return acpu->cpu_info.physid;
 }
-
-void alloc_cpupda(int i)
-{
-	cnodeid_t	node;
-	nasid_t		nasid;
-
-	node = get_cpu_cnode(i);
-	nasid = COMPACT_TO_NASID_NODEID(node);
-
-	cputonasid(i) = nasid;
-	cputocnode(i) = node;
-	cputoslice(i) = get_cpu_slice(i);
-}
