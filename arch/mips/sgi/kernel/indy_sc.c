@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.5 1998/08/25 09:14:49 ralf Exp $
+/* $Id: indy_sc.c,v 1.6 1999/01/04 16:03:56 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -38,6 +38,7 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 		.set	noreorder
 		.set	mips3
 		.set	noat
+		mfc0	$2, $12
 		li	$1, 0x80	# Go 64 bit
 		mtc0	$1, $12
 
@@ -50,7 +51,7 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 		bne	%0, %1, 1b
 		daddu	%0, 32
 
-		mtc0	$0, $12		# Back to 32 bit
+		mtc0	$2, $12		# Back to 32 bit
 		nop; nop; nop; nop;
 		.set mips0
 		.set reorder"
