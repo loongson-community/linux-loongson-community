@@ -16,21 +16,29 @@
 extern unsigned long mips_machgroup;
 extern unsigned long mips_machtype;
 
-extern unsigned long mips_machtype;
+static const char *dec_system_strings[] = {
+	[MACH_DSUNKNOWN]	"unknown DECstation",
+	[MACH_DS23100]		"DECstation 2100/3100",
+	[MACH_DS5100]		"DECstation 5100",
+	[MACH_DS5000_200]	"DECstation 5000/200",
+	[MACH_DS5000_1XX]	"DECstation 5000/1xx",
+	[MACH_DS5000_XX]	"Personal DECstation 5000/xx",
+	[MACH_DS5000_2X0]	"DECstation 5000/2x0",
+	[MACH_DS5400]		"DECstation 5400",
+	[MACH_DS5500]		"DECstation 5500",
+	[MACH_DS5800]		"DECstation 5800"
+};
+
 const char *get_system_type(void)
 {
-	static char system[32];
-	int called = 0;
-	const char *dec_system_strings[] = { "unknown", "DECstation 2100/3100",
-        	"DECstation 5100", "DECstation 5000/200", "DECstation 5000/1xx",
-		"Personal DECstation 5000/xx", "DECstation 5000/2x0",
-		"DECstation 5400", "DECstation 5500", "DECstation 5800"
-	};
+#define STR_BUF_LEN	64
+	static char system[STR_BUF_LEN];
+	static int called = 0;
 
 	if (called == 0) {
 		called = 1;
-		strcpy(system, "Digital ");
-		strcat(system, dec_system_strings[mips_machtype]);
+		snprintf(system, STR_BUF_LEN, "Digital %s",
+			 dec_system_strings[mips_machtype]);
 	}
 
 	return system;
@@ -63,50 +71,44 @@ void __init prom_identify_arch(u32 magic)
 	 * FIXME: This may not be an exhaustive list of DECStations/Servers!
 	 * Put all model-specific initialisation calls here.
 	 */
-	prom_printf("This DECstation is a ");
-
 	switch (dec_systype) {
 	case DS2100_3100:
-		prom_printf("DS2100/3100\n");
 		mips_machtype = MACH_DS23100;
 		break;
 	case DS5100:		/* DS5100 MIPSMATE */
-		prom_printf("DS5100\n");
 		mips_machtype = MACH_DS5100;
 		break;
 	case DS5000_200:	/* DS5000 3max */
-		prom_printf("DS5000/200\n");
 		mips_machtype = MACH_DS5000_200;
 		break;
 	case DS5000_1XX:	/* DS5000/100 3min */
-		prom_printf("DS5000/1xx\n");
 		mips_machtype = MACH_DS5000_1XX;
 		break;
 	case DS5000_2X0:	/* DS5000/240 3max+ */
-		prom_printf("DS5000/2x0\n");
 		mips_machtype = MACH_DS5000_2X0;
 		break;
 	case DS5000_XX:	/* Personal DS5000/2x */
-		prom_printf("Personal DS5000/xx\n");
 		mips_machtype = MACH_DS5000_XX;
 		break;
 	case DS5800:		/* DS5800 Isis */
-		prom_printf("DS5800\n");
 		mips_machtype = MACH_DS5800;
 		break;
 	case DS5400:		/* DS5400 MIPSfair */
-		prom_printf("DS5400\n");
 		mips_machtype = MACH_DS5400;
 		break;
 	case DS5500:		/* DS5500 MIPSfair-2 */
-		prom_printf("DS5500\n");
 		mips_machtype = MACH_DS5500;
 		break;
 	default:
-		prom_printf("unknown, id is %x", dec_systype);
 		mips_machtype = MACH_DSUNKNOWN;
 		break;
 	}
+
+	if (mips_machtype == MACH_DSUNKNOWN)
+		prom_printf("This is an %s, id is %x\n",
+			    dec_system_strings[mips_machtype],
+			    dec_systype);
+	else
+		prom_printf("This is a %s\n",
+			    dec_system_strings[mips_machtype]);
 }
-
-
