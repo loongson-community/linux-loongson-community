@@ -107,7 +107,7 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 /*
  * Determine which stack to use..
  */
-extern inline void *
+static inline void *
 get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 {
 	unsigned long sp, almask;
