@@ -762,8 +762,18 @@ l_fixup:					# clear the rest of the buffer
 	dsubu	a2, AT, ta0			# a2 bytes to go
 	daddu	a0, ta0				# compute start address in a1
 	dsubu	a0, a1
-	j	__bzero
-	 move	a1, zero
+	/*
+	 * Clear len bytes starting at dst.  Can't call __bzero because it
+	 * might modify len.  An inefficient loop for these rare times...
+	 */
+	beqz	a2, 2f
+	 dsubu	a1, a2, 1
+1:	sb	zero, 0(a0)
+	daddu	a0, a0, 1
+	bnez	a1, 1b
+	 dsubu	a1, a1, 1
+2:	jr	ra
+	 nop
 
 s_fixup:
 	jr	ra
