@@ -17,34 +17,12 @@
  */
 
 #include <linux/config.h>
-#include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
-#include <linux/errno.h>
 
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_smbus.h>
 
-#include <linux/i2c.h>
 #include <linux/i2c-algo-sibyte.h>
-
-static int sibyte_reg(struct i2c_client *client)
-{
-	return 0;
-}
-
-static int sibyte_unreg(struct i2c_client *client)
-{
-	return 0;
-}
-
-static void sibyte_inc_use(struct i2c_adapter *adap)
-{
-}
-
-static void sibyte_dec_use(struct i2c_adapter *adap)
-{
-}
 
 static struct i2c_algo_sibyte_data sibyte_board_data[2] = {
         { NULL, 0, (void *)(KSEG1+A_SMB_BASE(0)) },
@@ -57,26 +35,16 @@ static struct i2c_adapter sibyte_board_adapter[2] = {
                 id:                I2C_HW_SIBYTE,
                 algo:              NULL,
                 algo_data:         &sibyte_board_data[0],
-                inc_use:           sibyte_inc_use,
-                dec_use:           sibyte_dec_use,
-                client_register:   sibyte_reg,
-                client_unregister: sibyte_unreg,
-		client_count:      0
         } , 
         {
                 name:              "SiByte SMBus 1",
                 id:                I2C_HW_SIBYTE,
                 algo:              NULL,
                 algo_data:         &sibyte_board_data[1],
-                inc_use:           sibyte_inc_use,
-                dec_use:           sibyte_dec_use,
-                client_register:   sibyte_reg,
-                client_unregister: sibyte_unreg,
-		client_count:      0
         }
 };
 
-int __init i2c_sibyte_init(void)
+static int __init i2c_sibyte_init(void)
 {
 	printk("i2c-swarm.o: i2c SMBus adapter module for SiByte board\n");
         if (i2c_sibyte_add_bus(&sibyte_board_adapter[0], K_SMB_FREQ_100KHZ) < 0)
@@ -86,23 +54,15 @@ int __init i2c_sibyte_init(void)
 	return 0;
 }
 
-
-EXPORT_NO_SYMBOLS;
-
-#ifdef MODULE
-MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
-MODULE_DESCRIPTION("SMBus adapter routines for SiByte boards");
-MODULE_LICENSE("GPL");
-
-int init_module(void)
-{
-	return i2c_sibyte_init();
-}
-
-void cleanup_module(void)
+static void __exit i2c_sibyte_exit(void)
 {
 	i2c_sibyte_del_bus(&sibyte_board_adapter[0]);
 	i2c_sibyte_del_bus(&sibyte_board_adapter[1]);
 }
 
-#endif
+module_init(i2c_sibyte_init);
+module_exit(i2c_sibyte_exit);
+
+MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
+MODULE_DESCRIPTION("SMBus adapter routines for SiByte boards");
+MODULE_LICENSE("GPL");
