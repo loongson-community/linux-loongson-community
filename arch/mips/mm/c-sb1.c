@@ -74,31 +74,33 @@ void pgd_init(unsigned long page)
 /*
  * Writeback and invalidate the entire dcache
  */
-static void sb1_writeback_inv_dcache_all(void)
+static inline void __sb1_writeback_inv_dcache_all(void)
 {
-	/*
-	 * Register usage:
-	 *
-	 * $1 - moving cache index
-	 * $2 - set count
-	 */
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
 		".set noat                  \n"
 		".set mips4                 \n"
-		"     move   $1, %2         \n" /* Start at index 0 */
-		"1:   cache  %3, 0($1)      \n" /* Invalidate this index */
+		"     move   $1, $0         \n" /* Start at index 0 */
+		"1:   cache  %2, 0($1)      \n" /* Invalidate this index */
+		"     cache  %2, (1<<13)($1)\n" /* Invalidate this index */
+		"     cache  %2, (2<<13)($1)\n" /* Invalidate this index */
+		"     cache  %2, (3<<13)($1)\n" /* Invalidate this index */
 		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
-		"      addu   $1, $1, %0    \n" /* Next address */
+		"      addu  $1, $1, %0     \n" /* Next address */
 		".set pop                   \n"
 		:
-		: "r" (dcache_line_size), "r" (dcache_sets * dcache_assoc),
-		  "r" (KSEG0), "i" (Index_Writeback_Inv_D));
+		: "r" (dcache_line_size), "r" (dcache_sets),
+		  "i" (Index_Writeback_Inv_D));
 }
 
-
+/*
+ * Writeback and invalidate a range of the dcache.  The addresses are
+ * virtual, and since we're using index ops and bit 12 is part of both
+ * the virtual frame and physical index, we have to clear both sets
+ * (bit 12 set and cleared).
+ */
 static inline void __sb1_writeback_inv_dcache_range(unsigned long start,
 	unsigned long end)
 {
@@ -127,29 +129,102 @@ static inline void __sb1_writeback_inv_dcache_range(unsigned long start,
 	  "i" (Index_Writeback_Inv_D));
 }
 
+/*
+ * Writeback and invalidate a range of the dcache.  With physical
+ * addresseses, we don't have to worry about possible bit 12 aliasing.
+ * XXXKW is it worth turning on KX and using hit ops with xkphys?
+ */
+static inline void __sb1_writeback_inv_dcache_phys_range(unsigned long start,
+	unsigned long end)
+{
+	__asm__ __volatile__ (
+		"	.set	push		\n"
+		"	.set	noreorder	\n"
+		"	.set	noat		\n"
+		"	.set	mips4		\n"
+		"1:	cache	%3, (0<<13)(%0)	\n" /* Index-WB-inval this address */
+		"	cache	%3, (1<<13)(%0)	\n" /* Index-WB-inval this address */
+		"	cache	%3, (2<<13)(%0)	\n" /* Index-WB-inval this address */
+		"	cache	%3, (3<<13)(%0)	\n" /* Index-WB-inval this address */
+		"	bne	%0, %1, 1b	\n" /* loop test */
+		"	 addu	%0, %0, %2	\n" /* next line */
+		"	sync			\n"
+		"	.set pop		\n"
+		:
+		: "r" (start  & dcache_index_mask),
+		  "r" ((end - 1) & dcache_index_mask),
+		  "r" (dcache_line_size),
+		  "i" (Index_Writeback_Inv_D));
+}
 
-static inline void local_sb1___flush_icache_all(void)
+
+/*
+ * Invalidate the entire icache
+ */
+static inline void __sb1_flush_icache_all(void)
 {
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
 		".set noat                  \n"
 		".set mips4                 \n"
-		"     move   $1, %2         \n" /* Start at index 0 */
-		"1:   cache  %3, 0($1)       \n" /* Invalidate this index */
+		"     move   $1, $0         \n" /* Start at index 0 */
+		"1:   cache  %2, 0($1)      \n" /* Invalidate this index */
+		"     cache  %2, (1<<13)($1)\n" /* Invalidate this index */
+		"     cache  %2, (2<<13)($1)\n" /* Invalidate this index */
+		"     cache  %2, (3<<13)($1)\n" /* Invalidate this index */
 		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
-		"      addu   $1, $1, %0    \n" /* Next address */
+		"      addu  $1, $1, %0     \n" /* Next address */
+		"     bnezl  $0, 2f         \n" /* Force mispredict */
+		"      nop                  \n"
+		"2:                         \n"
 		".set pop                   \n"
 		:
-		: "r" (icache_line_size), "r" (icache_sets * icache_assoc),
-		  "r" (KSEG0), "i" (Index_Invalidate_I));
+		: "r" (icache_line_size), "r" (icache_sets),
+		  "i" (Index_Invalidate_I));
 }
 
+/*
+ * Invalidate a range of the icache.  The addresses are virtual, and
+ * the cache is virtually indexed and tagged.  However, we don't
+ * necessarily have the right ASID context, so use index ops instead
+ * of hit ops.
+ */
+static inline void __sb1_flush_icache_range(unsigned long start,
+	unsigned long end)
+{
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set noat                  \n"
+		".set mips4                 \n"
+		"1:   cache  %3, (0<<13)(%0) \n" /* Index-inval this address */
+		"     cache  %3, (1<<13)(%0) \n" /* Index-inval this address */
+		"     cache  %3, (2<<13)(%0) \n" /* Index-inval this address */
+		"     cache  %3, (3<<13)(%0) \n" /* Index-inval this address */
+		"     bne    %0, %1, 1b     \n" /* loop test */
+		"      addu  %0, %0, %2     \n" /* next line */
+		"     sync                  \n"
+		"     bnezl  $0, 2f         \n" /* Force mispredict */
+		"      nop                  \n"
+		"2:                         \n"
+		".set pop                   \n"
+		:
+		: "r" (start & icache_index_mask),
+		  "r" ((end - 1) & icache_index_mask),
+		  "r" (icache_line_size),
+		  "i" (Index_Invalidate_I));
+}
+
+
+/*
+ * Invalidate all caches on this CPU
+ */
 static void local_sb1___flush_cache_all(void)
 {
-	sb1_writeback_inv_dcache_all();
-	local_sb1___flush_icache_all();
+	__sb1_writeback_inv_dcache_all();
+	__sb1_flush_icache_all();
 }
 
 #ifdef CONFIG_SMP
@@ -165,12 +240,6 @@ static void sb1___flush_cache_all(void)
 extern void sb1___flush_cache_all(void);
 asm("sb1___flush_cache_all = local_sb1___flush_cache_all");
 #endif
-
-static void sb1_flush_icache_all(void)
-{
-	sb1_writeback_inv_dcache_all();
-	local_sb1___flush_icache_all();
-}
 
 /*
  * When flushing a range in the icache, we have to first writeback
@@ -191,32 +260,12 @@ static void local_sb1_flush_icache_range(unsigned long start,
 	 * formally.
 	 */
 	if ((end - start) > (icache_size * 2)) {
-		sb1_flush_icache_all();
+		local_sb1___flush_cache_all();
 		return;
 	}
 
-	__sb1_writeback_inv_dcache_range(start, end);
-
-	__asm__ __volatile__ (
-		".set push                  \n"
-		".set noreorder             \n"
-		".set noat                  \n"
-		".set mips4                 \n"
-		"     move   $1, %0         \n"
-		".align 3                   \n"
-		"1:   cache  %3, (0<<13)($1) \n" /* Index-inval this address */
-		"     cache  %3, (1<<13)($1) \n" /* Index-inval this address */
-		"     cache  %3, (2<<13)($1) \n" /* Index-inval this address */
-		"     cache  %3, (3<<13)($1) \n" /* Index-inval this address */
-		"     bne    $1, %1, 1b     \n" /* loop test */
-		"      addu  $1, $1, %2     \n" /* next line */
-		"     sync                  \n"
-		".set pop                   \n"
-		:
-		: "r" (start & icache_index_mask),
-		  "r" ((end - 1) & icache_index_mask),
-		  "r" (icache_line_size),
-		  "i" (Index_Invalidate_I));
+	__sb1_writeback_inv_dcache_phys_range(PHYSADDR(start), PHYSADDR(end));
+	__sb1_flush_icache_range(start, end);
 }
 
 #ifdef CONFIG_SMP
@@ -258,14 +307,13 @@ static void local_sb1_flush_icache_page(struct vm_area_struct *vma,
 	int cpu = smp_processor_id();
 
 #ifndef CONFIG_SMP
-	if (!(vma->vm_flags & VM_EXEC)) {
+	if (!(vma->vm_flags & VM_EXEC))
 		return;
-	}
 #endif
 
 	/* Need to writeback any dirty data for that page, we have the PA */
-	start = ((unsigned long)(page-mem_map) << PAGE_SHIFT) & dcache_index_mask;
-	__sb1_writeback_inv_dcache_range(start, start + PAGE_SIZE);
+	start = (unsigned long)(page-mem_map) << PAGE_SHIFT;
+	__sb1_writeback_inv_dcache_phys_range(start, start + PAGE_SIZE);
 	/*
 	 * If there's a context, bump the ASID (cheaper than a flush,
 	 * since we don't know VAs!)
@@ -310,11 +358,6 @@ asm("sb1_flush_icache_page = local_sb1_flush_icache_page");
  */
 static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 {
-	/*
-	 * This routine is called on both cores.  We assume the ASID
-	 * has been set up properly, and interrupts are off to prevent
-	 * reschedule and TLB changes.
-	 */
 	__asm__ __volatile__ (
 	"	.set	push		\n"
 	"	.set	noreorder	\n"
@@ -324,18 +367,22 @@ static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 	"	cache	%2, (1<<13)(%0)	\n" /* Index-inval this address */
 	"	cache	%2, (2<<13)(%0)	\n" /* Index-inval this address */
 	"	cache	%2, (3<<13)(%0)	\n" /* Index-inval this address */
-	"	xor	$1, %0, 1<<12	\n" /* Flip index bit 12	*/
+	"	xori	$1, %0, 1<<12	\n" /* Flip index bit 12	*/
 	"	cache	%2, (0<<13)($1)	\n" /* Index-inval this address */
 	"	cache	%2, (1<<13)($1)	\n" /* Index-inval this address */
 	"	cache	%2, (2<<13)($1)	\n" /* Index-inval this address */
 	"	cache	%2, (3<<13)($1)	\n" /* Index-inval this address */
-	"	cache	%3, (0<<13)(%0)	\n" /* Index-inval this address */
-	"	cache	%3, (1<<13)(%0)	\n" /* Index-inval this address */
-	"	cache	%3, (2<<13)(%0)	\n" /* Index-inval this address */
-	"	cache	%3, (3<<13)(%0)	\n" /* Index-inval this address */
+	"	cache	%3, (0<<13)(%1)	\n" /* Index-inval this address */
+	"	cache	%3, (1<<13)(%1)	\n" /* Index-inval this address */
+	"	cache	%3, (2<<13)(%1)	\n" /* Index-inval this address */
+	"	cache	%3, (3<<13)(%1)	\n" /* Index-inval this address */
+	"	bnezl	$0, 1f		\n" /* Force mispredict */
+	"	 nop			\n"
+	"1:                             \n"
 	"	.set	pop		\n"
-	: "=r" (addr)
-	: "0" (addr), "i" (Index_Writeback_Inv_D), "i" (Index_Invalidate_I));
+	:
+	: "r" (addr & dcache_index_mask), "r" (addr & icache_index_mask),
+	  "i" (Index_Writeback_Inv_D), "i" (Index_Invalidate_I));
 }
 
 #ifdef CONFIG_SMP
@@ -451,27 +498,25 @@ void ld_mmu_sb1(void)
 	_clear_page = sb1_clear_page;
 	_copy_page = sb1_copy_page;
 
-	/* None of these are needed for the sb1 */
-	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
+	/*
+	 * None of these are needed for the SB1 - the Dcache is
+	 * physically indexed and tagged, so no virtual aliasing can
+	 * occur
+	 */
 	_flush_cache_range = (void *) sb1_nop;
 	_flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
+	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
 	_flush_cache_all = sb1_nop;
-
-	/*
-	 * "flush_page_to_ram" is expected to prevent virtual aliasing
-	 * in the Dcache, and is called before a new mapping for a
-	 * page is about the be installed.  Since our Dcache is
-	 * physically indexed and tagged, there can't be aliasing.  If
-	 * coherence with I-stream is needed, an icache will be used
-	 * -- so we don't have to do any flushing.
-	 */
 	_flush_page_to_ram = (void (*)(struct page *)) sb1_nop;
 
-	___flush_cache_all = sb1___flush_cache_all;
-	_flush_icache_page = sb1_flush_icache_page;
+	/* These routines are for Icache coherence with the Dcache */
 	_flush_icache_range = sb1_flush_icache_range;
+	_flush_icache_page = sb1_flush_icache_page;
+	_flush_icache_all = __sb1_flush_icache_all; /* local only */
 	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
-	_flush_icache_all = sb1_flush_icache_all;
+
+	/* Full flush */
+	___flush_cache_all = sb1___flush_cache_all;
 
 	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 	/*
