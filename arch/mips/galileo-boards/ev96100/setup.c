@@ -86,9 +86,6 @@ static void __init ev96100_irq_setup(void)
 void __init ev96100_setup(void)
 {
 
-	unsigned long mem_size, free_start, free_end, start_pfn,
-	    bootmap_size;
-
 #ifdef CONFIG_REMOTE_DEBUG
 	int rs_putDebugChar(char);
 	char rs_getDebugChar(void);

@@ -133,7 +133,6 @@ void ev64120_setup(void)
 
 	board_time_init = galileo_time_init;
 	mips_io_port_base = KSEG1;
-	mips_memory_upper = 32 * 1024 * 1024 | KSEG0;
 	set_cp0_status(ST0_FR, 0);
 
 #ifdef CONFIG_L2_L3_CACHE
@@ -174,7 +173,6 @@ void SetUpBootInfo(int argc, char **argv, char **envp)
 	mips_machtype = MACH_EV64120A;
 }
 
-unsigned long mem_size;
 void __init prom_init(int a, char **b, char **c, int *d)
 {
 	unsigned long free_start, free_end, start_pfn, bootmap_size;

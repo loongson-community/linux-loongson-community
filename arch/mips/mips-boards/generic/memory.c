@@ -135,7 +135,7 @@ void __init prom_meminit(void)
 		long type;
 
 		type = prom_memtype_classify (p->type);
-		base = __pa(p->base);			/* Fix up from KSEG0 */
+		base = p->base;
 		size = p->size;
 
 		add_memory_region(base, size, type);
