@@ -400,22 +400,22 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 
 	/* Ack the CPU interrupt */
 	if (port_num == 1) {
-                is = *(volatile u_int32_t *)(titan_ge_base + 0x1b00);
-                *(volatile u_int32_t *)(titan_ge_base + 0x1b0c) = is;
+                is = *(volatile uint32_t *)(titan_ge_base + 0x1b00);
+                *(volatile uint32_t *)(titan_ge_base + 0x1b0c) = is;
 
 #ifdef CONFIG_SMP
-		is = *(volatile u_int32_t *)(titan_ge_base + 0x2b00);
-		*(volatile u_int32_t *)(titan_ge_base + 0x2b0c) = is;
+		is = *(volatile uint32_t *)(titan_ge_base + 0x2b00);
+		*(volatile uint32_t *)(titan_ge_base + 0x2b0c) = is;
 #endif
         }
 
         if (port_num == 0) {
-                is = *(volatile u_int32_t *)(titan_ge_base + 0x1b10);
-                *(volatile u_int32_t *)(titan_ge_base + 0x1b1c) = is;
+                is = *(volatile uint32_t *)(titan_ge_base + 0x1b10);
+                *(volatile uint32_t *)(titan_ge_base + 0x1b1c) = is;
 
 #ifdef CONFIG_SMP
-		is = *(volatile u_int32_t *)(titan_ge_base + 0x2b10);
-		*(volatile u_int32_t *)(titan_ge_base + 0x2b1c) = is;
+		is = *(volatile uint32_t *)(titan_ge_base + 0x2b10);
+		*(volatile uint32_t *)(titan_ge_base + 0x2b1c) = is;
 #endif
         }
 
