@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.26 1999/10/09 00:00:59 ralf Exp $
+/* $Id: setup.c,v 1.27 1999/10/21 00:23:05 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -33,7 +33,7 @@ extern void breakpoint(void);
 #endif
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
-extern void console_setup(char *, int *);
+extern void console_setup(char *);
 #endif
 
 extern struct rtc_ops indy_rtc_ops;
@@ -160,9 +160,9 @@ void __init sgi_setup(void)
 	ctype = prom_getenv("console");
 	if(*ctype == 'd') {
 		if(*(ctype+1)=='2')
-			console_setup ("ttyS1", NULL);
+			console_setup ("ttyS1");
 		else
-			console_setup ("ttyS0", NULL);
+			console_setup ("ttyS0");
 	}
 #endif
 
