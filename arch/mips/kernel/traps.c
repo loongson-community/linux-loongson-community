@@ -9,7 +9,7 @@
  * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2000 MIPS Technologies, Inc.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -32,9 +32,6 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
-#ifndef CONFIG_MIPS_FPU_EMULATOR 
-#include <asm/inst.h>
-#endif
 
 /*
  * Machine specific interrupt handlers
@@ -316,11 +313,8 @@ int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
  */
 void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
-
-#ifdef CONFIG_MIPS_FPU_EMULATOR
-	if(!(mips_cpu.options & MIPS_CPU_FPU))
+	if (!(mips_cpu.options & MIPS_CPU_FPU))
 		panic("Floating Point Exception with No FPU");
-#endif
 
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
@@ -330,7 +324,6 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 #endif
 
 	if (fcr31 & FPU_CSR_UNI_X) {
-#ifdef CONFIG_MIPS_FPU_EMULATOR
 		extern void save_fp(struct task_struct *);
 		extern void restore_fp(struct task_struct *);
 		int sig;
@@ -362,37 +355,6 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		/* If something went wrong, signal */
 		if (sig)
 			force_sig(sig, current);
-#else
-		/* Else use mini-emulator */
-
-		extern void simfp(int);
-		unsigned long pc;
-		unsigned int insn;
-
-		/* Retry instruction with flush to zero ...  */
-		if (!(fcr31 & (1<<24))) {
-			printk("Setting flush to zero for %s.\n",
-			       current->comm);
-			fcr31 &= ~FPU_CSR_UNI_X;
-			fcr31 |= (1<<24);
-			__asm__ __volatile__(
-				"ctc1\t%0,$31"
-				: /* No outputs */
-				: "r" (fcr31));
-			return;
-		}
-		pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
-		if(pc & 0x80000000) insn = *(unsigned int *)pc;
-		else if (get_user(insn, (unsigned int *)pc)) {
-			/* XXX Can this happen?  */
-			force_sig(SIGSEGV, current);
-		}
-
-		printk(KERN_DEBUG "Unimplemented exception for insn %08x at 0x%08lx in %s.\n",
-		       insn, regs->cp0_epc, current->comm);
-		simfp(MIPSInst(insn));
-		compute_return_epc(regs);
-#endif /* CONFIG_MIPS_FPU_EMULATOR */
 
 		return;
 	}
@@ -648,32 +610,26 @@ void do_cpu(struct pt_regs *regs)
 	unsigned int cpid;
 	extern void lazy_fpu_switch(void*);
 	extern void init_fpu(void);
-#ifdef CONFIG_MIPS_FPU_EMULATOR
 	void fpu_emulator_init_fpu(void);
 	int sig;
-#endif
+
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 	if (cpid != 1)
 		goto bad_cid;
 
-#ifdef CONFIG_MIPS_FPU_EMULATOR
-	if(!(mips_cpu.options & MIPS_CPU_FPU)) {
-	    if (last_task_used_math != current) {
-		if(!current->used_math) {
-		    fpu_emulator_init_fpu();
-		    current->used_math = 1;
+	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
+		if (last_task_used_math != current) {
+			if (!current->used_math) {
+				fpu_emulator_init_fpu();
+				current->used_math = 1;
+			}
 		}
-	    }
-	    sig = fpu_emulator_cop1Handler(0, regs);
-	    last_task_used_math = current;
-	    if(sig) {
-		force_sig(sig, current);
-	    }
-	    return;
+		sig = fpu_emulator_cop1Handler(0, regs);
+		last_task_used_math = current;
+		if (sig)
+			force_sig(sig, current);
+		return;
 	}
-#else
-	if(!(mips_cpu.options & MIPS_CPU_FPU)) goto bad_cid;
-#endif
 
 	regs->cp0_status |= ST0_CU1;
 	if (last_task_used_math == current)
@@ -682,7 +638,6 @@ void do_cpu(struct pt_regs *regs)
 	if (current->used_math) {		/* Using the FPU again.  */
 		lazy_fpu_switch(last_task_used_math);
 	} else {				/* First time FPU user.  */
-
 		init_fpu();
 		current->used_math = 1;
 	}
@@ -823,10 +778,8 @@ asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
 extern asmlinkage int _save_fp_context(struct sigcontext *sc);
 extern asmlinkage int _restore_fp_context(struct sigcontext *sc);
 
-#ifdef CONFIG_MIPS_FPU_EMULATOR
 extern asmlinkage int fpu_emulator_save_context(struct sigcontext *sc);
 extern asmlinkage int fpu_emulator_restore_context(struct sigcontext *sc);
-#endif
 
 void __init trap_init(void)
 {
@@ -922,11 +875,9 @@ void __init trap_init(void)
 		if(mips_cpu.options & MIPS_CPU_FPU) {
 		        save_fp_context = _save_fp_context;
 			restore_fp_context = _restore_fp_context;
-#ifdef CONFIG_MIPS_FPU_EMULATOR
 		} else {
 		        save_fp_context = fpu_emulator_save_context;
 			restore_fp_context = fpu_emulator_restore_context;
-#endif
 		}
 	} else switch(mips_cpu.cputype) {
 	case CPU_R10000:

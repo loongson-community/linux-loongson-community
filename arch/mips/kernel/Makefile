@@ -36,9 +36,6 @@ endif
 
 obj-$(CONFIG_SMP)		+= smp.o
 obj-$(CONFIG_MIPS_FPE_MODULE)	+= fpe.o
-ifndef CONFIG_MIPS_FPU_EMULATOR
-  obj-y				+= softfp.o
-endif
 
 # Old style irq support, going to die in 2.5.
 export-objs			+= old-irq.o

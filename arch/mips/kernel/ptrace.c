@@ -138,12 +138,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			        unsigned long long *fregs
 					= (unsigned long long *)
 					    &child->thread.fpu.hard.fp_regs[0];
-#ifdef CONFIG_MIPS_FPU_EMULATOR
-			    if(!(mips_cpu.options & MIPS_CPU_FPU)) {
+			    if (!(mips_cpu.options & MIPS_CPU_FPU)) {
 				    fregs = (unsigned long long *)
 					&child->thread.fpu.soft.regs[0];
 			    } else 
-#endif
 				if (last_task_used_math == child) {
 					enable_cp1();
 					save_fp(child);
@@ -171,12 +169,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			tmp = regs->lo;
 			break;
 		case FPC_CSR:
-#ifdef CONFIG_MIPS_FPU_EMULATOR
-			if(!(mips_cpu.options & MIPS_CPU_FPU))
+			if (!(mips_cpu.options & MIPS_CPU_FPU))
 				tmp = child->thread.fpu.soft.sr;
 			else
-#endif
-			tmp = child->thread.fpu.hard.control;
+				tmp = child->thread.fpu.hard.control;
 			break;
 		case FPC_EIR: {	/* implementation / version register */
 			unsigned int flags;
@@ -220,13 +216,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			fregs = (unsigned long long *)&child->thread.fpu.hard.fp_regs[0];
 			if (child->used_math) {
 				if (last_task_used_math == child)
-#ifdef CONFIG_MIPS_FPU_EMULATOR
-				    if(!(mips_cpu.options & MIPS_CPU_FPU)) {
-					fregs = (unsigned long long *)
-					    &child->thread.fpu.soft.regs[0];
-				    } else
-#endif
-				{
+					if(!(mips_cpu.options & MIPS_CPU_FPU)) {
+						fregs = (unsigned long long *)
+						&child->thread.fpu.soft.regs[0];
+				} else {
 					enable_cp1();
 					save_fp(child);
 					disable_cp1();
@@ -252,11 +245,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			regs->lo = data;
 			break;
 		case FPC_CSR:
-#ifdef CONFIG_MIPS_FPU_EMULATOR
-			if(!(mips_cpu.options & MIPS_CPU_FPU)) 
+			if (!(mips_cpu.options & MIPS_CPU_FPU)) 
 				child->thread.fpu.soft.sr = data;
 			else
-#endif
 			child->thread.fpu.hard.control = data;
 			break;
 		default:

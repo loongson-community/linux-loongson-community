@@ -78,16 +78,17 @@ ifdef CONFIG_CPU_SB1
 GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
 endif
 
-ifdef CONFIG_MIPS_FPU_EMULATOR
-CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
-SUBDIRS		+=arch/mips/math-emu
-endif
-
 GCCFLAGS	+= -pipe
 
 CFLAGS		:= -I $(TOPDIR)/include/asm/gcc $(CFLAGS) $(GCCFLAGS)
 AFLAGS		+= $(GCCFLAGS)
 ASFLAGS		+= $(GCCFLAGS)
+
+#
+# We unconditionally build the math emulator
+#
+CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
+SUBDIRS		+=arch/mips/math-emu
 
 #
 # Board-dependent options and extra files
