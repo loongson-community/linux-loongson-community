@@ -58,6 +58,7 @@
 /* Checksum offload for Tx is broken */
 #define  MV64340_CHECKSUM_OFFLOAD_TX	1
 #define  MV64340_NIC_SRAM_BASE_TX       0xfe000000
+#define	 MV64340_NAPI	1
 
 /* 
  * Number of RX / TX descriptors on RX / TX rings.
@@ -569,7 +570,7 @@ typedef struct _eth_port_ctrl {
 	volatile ETH_TX_DESC *p_tx_desc_area;
 	unsigned int tx_desc_area_size;
 	struct sk_buff* tx_skb[MV64340_TX_QUEUE_SIZE];
-
+	struct tq_struct tx_timeout_task;
 } ETH_PORT_INFO;
 
 

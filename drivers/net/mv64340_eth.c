@@ -82,12 +82,22 @@ static int mv64340_eth_real_stop(struct net_device *);
 static int mv64340_eth_change_mtu(struct net_device *, int);
 static struct net_device_stats *mv64340_eth_get_stats(struct net_device *);
 static void eth_port_init_mac_tables(ETH_PORT eth_port_num);
+#ifdef MV64340_NAPI
+static int mv64340_poll(struct net_device *dev, int *budget);
+#endif
 
 static unsigned char prom_mac_addr_base[6];
 
 /************************************************** 
  * Helper functions - used inside the driver only *
  **************************************************/
+
+static inline void __netif_rx_complete(struct net_device *dev)
+{
+        if (!test_bit(__LINK_STATE_RX_SCHED, &dev->state)) BUG();
+        list_del(&dev->poll_list);
+        clear_bit(__LINK_STATE_RX_SCHED, &dev->state);
+}
 
 static void *mv64340_eth_malloc_ring(unsigned int size)
 {
@@ -328,7 +338,27 @@ static int mv64340_eth_set_mac_address(struct net_device *dev, void *addr)
  **********************************************************************/
 static void mv64340_eth_tx_timeout(struct net_device *dev)
 {
-	printk(KERN_INFO "%s: TX timeout\n", dev->name);
+	ETH_PORT_INFO *ethernet_private = dev->priv;
+	printk(KERN_INFO "%s: TX timeout  ", dev->name);
+	printk(KERN_INFO "Resetting card \n");
+
+	/* Do the reset outside of interrupt context */
+        schedule_task(&ethernet_private->tx_timeout_task);
+}
+
+/**********************************************************************
+ * mv64340_eth_tx_timeout_task
+ *
+ * Actual routine to reset the adapter when a timeout on Tx has occurred
+ **********************************************************************/
+static void mv64340_eth_tx_timeout_task(struct net_device *dev)
+{
+        ETH_PORT_INFO *ethernet_private = dev->priv;
+
+        netif_device_detach(dev);
+        eth_port_reset(ethernet_private->port_num);
+        eth_port_start(ethernet_private);
+        netif_device_attach(dev);
 }
 
 /**********************************************************************
@@ -412,8 +442,12 @@ static int mv64340_eth_free_tx_queue(struct net_device *dev,
  *
  * Output : number of served packets
  **********************************************************************/
-
+#ifdef MV64340_NAPI
+static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max,
+								int budget)
+#else
 static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
+#endif
 {
 	ETH_PORT_INFO *ethernet_private;
 	struct mv64340_eth_priv *port_private;
@@ -429,12 +463,20 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 	port_num = port_private->port_num;
 	stats = &port_private->stats;
 
+#ifdef MV64340_NAPI
+	while ((eth_port_receive(ethernet_private, &pkt_info) == ETH_OK) 
+		&&
+		budget > 0) {
+#else
 	while ((--max)
 	       && (eth_port_receive(ethernet_private, &pkt_info) ==
 		   ETH_OK)) {
+#endif
 		port_private->rx_ring_skbs--;
 		received_packets++;
-
+#ifdef MV64340_NAPI
+		budget--;
+#endif
 		/* Update statistics. Note byte count includes 4 byte CRC count */
 		stats->rx_packets++;
 		stats->rx_bytes += pkt_info.byte_cnt;
@@ -484,7 +526,11 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 			else 
 				skb->ip_summed = CHECKSUM_NONE;
 			skb->protocol = eth_type_trans(skb, dev);
+#ifdef MV64340_NAPI
+			netif_receive_skb(skb);
+#else
 			netif_rx(skb);
+#endif
 		}
 	}
 
@@ -542,15 +588,22 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 		return IRQ_NONE;
 	}
 
-	/*
-	 * Clear specific ethernet port intrerrupt registers by acknowleding
-	 * relevant bits.
-	 */
-	MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num),
-		 ~eth_int_cause);
-	if (eth_int_cause_ext != 0x0)
-		MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num),
-			 ~eth_int_cause_ext);
+#ifdef MV64340_NAPI
+	if (!(eth_int_cause & 0x0007fffd)) {
+	/* Dont ack the Rx interrupt */
+#endif
+		/*
+	 	 * Clear specific ethernet port intrerrupt registers by acknowleding
+	 	 * relevant bits.
+   	 	 */
+		MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num),
+			 ~eth_int_cause);
+		if (eth_int_cause_ext != 0x0)
+			MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num),
+				 ~eth_int_cause_ext);
+#ifdef MV64340_NAPI
+	}
+#endif
 
 	if (eth_int_cause_ext & 0x0000ffff) {
 		/* 
@@ -575,9 +628,19 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 			}
 		}
 	}
-	if (eth_int_cause & 0x0007fffd) {	/*RxBuffer returned, RxResource Error */
+	if (eth_int_cause & 0x0007fffd) {	
 		unsigned int total_received = 0;
 		/* Rx Return Buffer / Resource Error Priority queue 0 */
+#ifdef MV64340_NAPI
+		if (eth_int_cause & (BIT2 | BIT11)) {
+			if (netif_rx_schedule_prep(dev)) {
+				/* Mask all the interrupts */
+				MV_WRITE(MV64340_ETH_INTERRUPT_MASK_REG(port_num),0);
+				MV_WRITE(MV64340_ETH_INTERRUPT_EXTEND_MASK_REG(port_num), 0);
+				__netif_rx_schedule(dev);
+			}
+		}
+#else
 		if (eth_int_cause & (BIT2 | BIT11)) {
 			total_received +=
 			    mv64340_eth_receive_queue(dev, 0);
@@ -595,8 +658,10 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 #else
 		port_private->rx_task.routine(dev);
 #endif
+#endif
 
 	}
+
 	/* PHY status changed */
 	if (eth_int_cause_ext & (BIT16 | BIT20)) {
 		unsigned int phy_reg_data;
@@ -786,7 +851,7 @@ static int mv64340_eth_real_open(struct net_device *dev)
 		eth_port_set_rx_coal (port_num, 133000000, MV64340_RX_COAL);
 
 	port_private->tx_int_coal =
-		eth_port_set_tx_coal (port_num, 133000000, MV64340_TX_COAL);
+		eth_port_set_tx_coal (port_num, 133000000, MV64340_TX_COAL); 
 
 	/* Increase the Rx side buffer size */
 
@@ -944,6 +1009,85 @@ static int mv64340_eth_real_stop(struct net_device *dev)
 	return 0;
 }
 
+#ifdef MV64340_NAPI
+static void mv64340_tx(struct net_device *dev)
+{
+	ETH_PORT_INFO *ethernet_private;
+        struct mv64340_eth_priv *port_private;
+        unsigned int port_num;
+        PKT_INFO pkt_info;
+
+	ethernet_private = dev->priv;
+	port_private =
+            (struct mv64340_eth_priv *) ethernet_private->port_private;
+
+	port_num = port_private->port_num;
+
+	while (eth_tx_return_desc(ethernet_private, &pkt_info) == ETH_OK) {
+		if (pkt_info.return_info) {
+			dev_kfree_skb_irq((struct sk_buff *)
+                                                  pkt_info.return_info);
+			if (skb_shinfo(pkt_info.return_info)->nr_frags) 
+                                 pci_unmap_page(0, pkt_info.buf_ptr,
+                                             pkt_info.byte_cnt,
+                                             PCI_DMA_TODEVICE);
+
+                         if (port_private->tx_ring_skbs != 1)
+                                  port_private->tx_ring_skbs--;
+                } else 
+                       pci_unmap_page(0, pkt_info.buf_ptr,
+                             pkt_info.byte_cnt,
+                             PCI_DMA_TODEVICE);
+	}
+
+	if (netif_queue_stopped(dev) &&
+		(dev->flags & IFF_RUNNING) &&
+                (MV64340_TX_QUEUE_SIZE > port_private->tx_ring_skbs + 1)) {
+                       netif_wake_queue(dev);
+	}
+}
+
+/**********************************************************************
+ * mv64340_poll
+ *
+ * This function is used in case of NAPI
+ ***********************************************************************/
+static int mv64340_poll(struct net_device *netdev, int *budget)
+{
+	ETH_PORT_INFO *ethernet_private = netdev->priv;
+	struct mv64340_eth_priv *port_private = 
+		(struct mv64340_eth_priv *) ethernet_private->port_private;
+	int	done = 1, orig_budget, work_done;
+	unsigned long	flags;
+	unsigned int	port_num = port_private->port_num;
+
+	spin_lock_irqsave(&port_private->lock, flags);
+	mv64340_tx(netdev);
+
+	orig_budget = *budget;
+	if (orig_budget > netdev->quota)
+		orig_budget = netdev->quota;
+	work_done = mv64340_eth_receive_queue(netdev, 0, orig_budget);
+	port_private->rx_task.routine(netdev);
+	*budget -= work_done;
+	netdev->quota -= work_done;
+	if (work_done >= orig_budget)
+		done = 0;
+
+	if (done) {
+		__netif_rx_complete(netdev);
+		MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num),0);
+                MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num),0);
+		MV_WRITE(MV64340_ETH_INTERRUPT_MASK_REG(port_num), 
+						INT_CAUSE_UNMASK_ALL);
+		MV_WRITE(MV64340_ETH_INTERRUPT_EXTEND_MASK_REG(port_num),
+				                 INT_CAUSE_UNMASK_ALL_EXT);
+	}
+
+	spin_unlock_irqrestore(&port_private->lock, flags);
+	return (done ? 0 : 1);
+}
+#endif
 
 /**********************************************************************
  * mv64340_eth_start_xmit
@@ -1036,8 +1180,8 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
                 if (skb->ip_summed == CHECKSUM_HW)  {
                         /* Fly baby fly */
                         pkt_info.cmd_sts |= ETH_GEN_TCP_UDP_CHECKSUM |
-                                        ETH_GEN_IP_V_4_CHECKSUM |
-                                        BIT10 |
+					ETH_GEN_IP_V_4_CHECKSUM |
+					BIT10 |
                                         ipheader;
                         pkt_info.l4i_chk = 0x0000;
                 }
@@ -1167,6 +1311,10 @@ static int mv64340_eth_init(int port_num)
 
 	/* No need to Tx Timeout */
 	dev->tx_timeout = mv64340_eth_tx_timeout;
+#ifdef MV64340_NAPI
+        dev->poll = mv64340_poll;
+        dev->weight = 64;
+#endif
 	dev->watchdog_timeo = 2 * HZ;
 	dev->tx_queue_len = MV64340_TX_QUEUE_SIZE;
 	dev->flags &= ~(IFF_RUNNING);
@@ -1216,6 +1364,10 @@ static int mv64340_eth_init(int port_num)
 
 	memset(&port_private->stats, 0, sizeof(struct net_device_stats));
 
+	/* Configure the timeout task */
+        INIT_TQUEUE(&ethernet_private->tx_timeout_task,
+                        (void (*)(void *))mv64340_eth_tx_timeout_task, dev);
+
 	/* Init spinlock */
 	spin_lock_init(&port_private->lock);
 
@@ -1240,6 +1392,10 @@ static int mv64340_eth_init(int port_num)
 
 	printk("RX TCP/UDP Checksum Offload ON, \n");
 	printk("TX and RX Interrupt Coalescing ON \n");
+
+#ifdef MV64340_NAPI
+	printk("RX NAPI Enabled \n");
+#endif
 
 	return 0;
 
@@ -1470,33 +1626,6 @@ MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port), (1 << rx_queue))
 #define ETH_DISABLE_RX_QUEUE(rx_queue, eth_port) \
 MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port), (1 << (8 + rx_queue)))
 
-#if 0
-#define CURR_RFD_GET(p_curr_desc) \
- ((p_curr_desc) = p_eth_port_ctrl->p_rx_curr_desc_q)
-
-#define CURR_RFD_SET(p_curr_desc) \
- (p_eth_port_ctrl->p_rx_curr_desc_q = (p_curr_desc))
-
-#define USED_RFD_GET(p_used_desc) \
- ((p_used_desc) = p_eth_port_ctrl->p_rx_used_desc_q)
-
-#define USED_RFD_SET(p_used_desc)\
-(p_eth_port_ctrl->p_rx_used_desc_q = (p_used_desc))
-
-
-#define CURR_TFD_GET(p_curr_desc) \
- ((p_curr_desc) = p_eth_port_ctrl->p_tx_curr_desc_q)
-
-#define CURR_TFD_SET(p_curr_desc) \
- (p_eth_port_ctrl->p_tx_curr_desc_q = (p_curr_desc))
-
-#define USED_TFD_GET(p_used_desc) \
- ((p_used_desc) = p_eth_port_ctrl->p_tx_used_desc_q)
-
-#define USED_TFD_SET(p_used_desc) \
- (p_eth_port_ctrl->p_tx_used_desc_q = (p_used_desc))
-#endif
-
 #define LINK_UP_TIMEOUT		100000
 #define PHY_BUSY_TIMEOUT	10000000
 
@@ -1608,7 +1737,7 @@ static bool eth_port_start(ETH_PORT_INFO * p_eth_port_ctrl)
 	/* Assignment of Tx CTRP of given queue */
 	tx_curr_desc = p_eth_port_ctrl->tx_curr_desc_q;
 	MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(eth_port_num),
-		 &(p_eth_port_ctrl->p_tx_desc_area[tx_curr_desc]));
+		 (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_curr_desc]));
 
 	/* Assignment of Rx CRDP of given queue */
 	rx_curr_desc = p_eth_port_ctrl->rx_curr_desc_q;
@@ -2303,14 +2432,14 @@ static bool ether_init_tx_desc_ring(ETH_PORT_INFO * p_eth_port_ctrl,
 		p_tx_desc[ix].byte_cnt = 0x0000;
 		p_tx_desc[ix].l4i_chk = 0x0000;
 		p_tx_desc[ix].cmd_sts = 0x00000000;
-		p_tx_desc[ix].next_desc_ptr = &(p_tx_desc[ix+1]);
+		p_tx_desc[ix].next_desc_ptr = (u32)&(p_tx_desc[ix+1]);
 		p_tx_desc[ix].buf_ptr = 0x00000000;
 		dma_cache_wback_inv((unsigned long)&(p_tx_desc[ix]), sizeof(ETH_TX_DESC));
 		p_eth_port_ctrl->tx_skb[ix] = NULL;
 	}
 
 	/* Closing Tx descriptors ring */
-	p_tx_desc[tx_desc_num-1].next_desc_ptr = &(p_tx_desc[0]);
+	p_tx_desc[tx_desc_num-1].next_desc_ptr = (u32)&(p_tx_desc[0]);
 	dma_cache_wback_inv((unsigned long)&(p_tx_desc[tx_desc_num-1]),
 			sizeof(ETH_TX_DESC));
 
@@ -2394,7 +2523,7 @@ static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
                 first_descriptor->cmd_sts = command_status;
                 first_descriptor->byte_cnt = p_pkt_info->byte_cnt;
                 first_descriptor->buf_ptr = p_pkt_info->buf_ptr;
-                first_descriptor->next_desc_ptr = &(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
+                first_descriptor->next_desc_ptr = (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
                 dma_cache_wback_inv((u32)first_descriptor, sizeof(ETH_TX_DESC));
                 wmb();
         }
@@ -2409,7 +2538,7 @@ static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
                         current_descriptor->next_desc_ptr = 0x00000000;
                 else {
                         command_status |= ETH_BUFFER_OWNED_BY_DMA;
-                        current_descriptor->next_desc_ptr = &(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
+                        current_descriptor->next_desc_ptr = (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
                 }
         }
 
@@ -2447,7 +2576,7 @@ static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
 
                 /* Apply send command */
                 if (first_chip_ptr == 0x00000000) {
-                        MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(p_eth_port_ctrl->port_num), &(p_eth_port_ctrl->p_tx_desc_area[tx_first_desc]));
+                        MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(p_eth_port_ctrl->port_num), (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_first_desc]));
                 }
 
                 ETH_ENABLE_TX_QUEUE(p_eth_port_ctrl->port_num);
