@@ -52,6 +52,30 @@
 #define SEAD_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_MOMENCO_OCELOT_C
+/* Ordinary NS16552 duart with a 20MHz crystal.  */
+#define OCELOT_C_BASE_BAUD ( 20000000 / 16 )
+
+#define OCELOT_C_SERIAL1_IRQ	80
+#define OCELOT_C_SERIAL1_BASE	0xfd000020
+
+#define OCELOT_C_SERIAL2_IRQ	81
+#define OCELOT_C_SERIAL2_BASE	0xfd000000
+
+#define _OCELOT_C_SERIAL_INIT(int, base)				\
+	{ .baud_base		= OCELOT_C_BASE_BAUD,			\
+	  .irq			= (int),				\
+	  .flags		= STD_COM_FLAGS,			\
+	  .iomem_base		= (u8 *) base,				\
+	  .iomem_reg_shift	= 2,					\
+	  .io_type		= SERIAL_IO_MEM				\
+	 }
+#define MOMENCO_OCELOT_C_SERIAL_PORT_DEFNS				\
+	_OCELOT_C_SERIAL_INIT(OCELOT_C_SERIAL1_IRQ, OCELOT_C_SERIAL1_BASE), \
+	_OCELOT_C_SERIAL_INIT(OCELOT_C_SERIAL2_IRQ, OCELOT_C_SERIAL2_BASE)
+#else
+#define MOMENCO_OCELOT_C_SERIAL_PORT_DEFNS
+#endif
 
 #ifdef CONFIG_SGI_IP27
 
@@ -128,6 +152,7 @@
 #define SERIAL_PORT_DFNS				\
 	IP27_SERIAL_PORT_DEFNS				\
 	IP32_SERIAL_PORT_DEFNS				\
+	MOMENCO_OCELOT_C_SERIAL_PORT_DEFNS		\
 	SEAD_SERIAL_PORT_DEFNS				\
 	STD_SERIAL_PORT_DEFNS
 

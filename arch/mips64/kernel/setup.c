@@ -416,6 +416,10 @@ void __init setup_arch(char **cmdline_p)
 	extern void ip32_setup(void);
 	extern void swarm_setup(void);
 	extern void malta_setup(void);
+	extern void momenco_ocelot_setup(void);
+	extern void momenco_ocelot_g_setup(void);
+	extern void momenco_ocelot_c_setup(void);
+	extern void swarm_setup(void);
 	void frame_info_init(void);
 
 	frame_info_init();
@@ -437,6 +441,22 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_MIPS_MALTA
 	malta_setup();
 #endif
+#ifdef CONFIG_MOMENCO_OCELOT
+	case MACH_GROUP_MOMENCO:
+		momenco_ocelot_setup();
+		break;
+#endif
+#ifdef CONFIG_MOMENCO_OCELOT_G
+	case MACH_GROUP_MOMENCO:
+		momenco_ocelot_g_setup();
+		break;
+#endif
+#ifdef CONFIG_MOMENCO_OCELOT_C
+	case MACH_GROUP_MOMENCO:
+		momenco_ocelot_c_setup();
+		break;
+#endif
+
 
 	strlcpy(command_line, arcs_cmdline, sizeof(command_line));
 	strlcpy(saved_command_line, command_line, sizeof(saved_command_line));

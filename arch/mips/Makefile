@@ -205,6 +205,14 @@ core-$(CONFIG_MOMENCO_OCELOT_G)	+= arch/mips/momentum/ocelot_g/
 load-$(CONFIG_MOMENCO_OCELOT_G)	+= 0x80100000
 
 #
+# Momentum Ocelot-C and -CS boards
+#
+# The Ocelot-C[S] setup.o must be linked early - it does the ioremap() for the
+# mips_io_port_base.
+core-$(CONFIG_MOMENCO_OCELOT_C)	+= arch/mips/momentum/ocelot_c/
+load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x80100000
+
+#
 # NEC DDB Vrc-5074
 #
 core-$(CONFIG_DDB5XXX_COMMON)	+= arch/mips/ddb5xxx/common/

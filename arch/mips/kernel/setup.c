@@ -474,6 +474,7 @@ void __init setup_arch(char **cmdline_p)
 	void ikos_setup(void);
 	void momenco_ocelot_setup(void);
 	void momenco_ocelot_g_setup(void);
+	void momenco_ocelot_c_setup(void);
 	void nec_osprey_setup(void);
 	void nec_eagle_setup(void);
 	void zao_capcella_setup(void);
@@ -539,6 +540,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_MOMENCO_OCELOT_G
 	case MACH_GROUP_MOMENCO:
 		momenco_ocelot_g_setup();
+		break;
+#endif
+#ifdef CONFIG_MOMENCO_OCELOT_C
+	case MACH_GROUP_MOMENCO:
+		momenco_ocelot_c_setup();
 		break;
 #endif
 #ifdef CONFIG_MIPS_SEAD

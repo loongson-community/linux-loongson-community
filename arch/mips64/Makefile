@@ -120,6 +120,33 @@ core-$(CONFIG_MIPS_SEAD)	+= arch/mips/mips-boards/sead/
 load-$(CONFIG_MIPS_SEAD)	+= 0x80100000
 
 #
+# Momentum Ocelot board
+#
+# The Ocelot setup.o must be linked early - it does the ioremap() for the
+# mips_io_port_base.
+#
+core-$(CONFIG_MOMENCO_OCELOT)	+= arch/mips/gt64120/common/ \
+				   arch/mips/gt64120/momenco_ocelot/
+load-$(CONFIG_MOMENCO_OCELOT)	+= 0x80100000
+
+#
+# Momentum Ocelot-G board
+#
+# The Ocelot-G setup.o must be linked early - it does the ioremap() for the
+# mips_io_port_base.
+#
+core-$(CONFIG_MOMENCO_OCELOT_G)	+= arch/mips/momentum/ocelot_g/
+load-$(CONFIG_MOMENCO_OCELOT_G)	+= 0x80100000
+
+#
+# Momentum Ocelot-C and -CS boards
+#
+# The Ocelot-C[S] setup.o must be linked early - it does the ioremap() for the
+# mips_io_port_base.
+core-$(CONFIG_MOMENCO_OCELOT_C)	+= arch/mips/momentum/ocelot_c/
+load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x80100000
+
+#
 # SGI IP22 (Indy/Indigo2)
 #
 # Set the load address to >= 0x88069000 if you want to leave space for symmon,
