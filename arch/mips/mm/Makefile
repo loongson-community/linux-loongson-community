@@ -49,6 +49,7 @@ obj-$(CONFIG_CPU_TX39XX)	+= tlbex32-r3k.o
 endif
 ifdef CONFIG_MIPS64
 obj-$(CONFIG_CPU_R4300)		+= tlbex64.o
+obj-$(CONFIG_CPU_TX49XX)	+= tlbex64.o
 obj-$(CONFIG_CPU_R4X00)		+= tlbex64.o
 obj-$(CONFIG_CPU_R5000)		+= tlbex64.o
 obj-$(CONFIG_CPU_NEVADA)	+= tlbex64.o
