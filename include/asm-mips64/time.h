@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 MontaVista Software Inc.
+ * Copyright (C) 2001, 2002, MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
  * include/asm-mips/time.h
@@ -59,6 +59,12 @@ extern void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs);
  * the corresponding low-level timer interrupt routine.
  */
 asmlinkage void ll_timer_interrupt(int irq, struct pt_regs *regs);
+
+/*
+ * profiling and process accouting is done separately in local_timer_interrupt
+ */
+void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs);
+asmlinkage void ll_local_timer_interrupt(int irq, struct pt_regs *regs);
 
 /*
  * board specific routines required by time_init().
