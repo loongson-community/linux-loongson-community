@@ -6,7 +6,7 @@
  * for more details.
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
- * Copyright (C) 2001 by Liam Davies (ldavies@agile.tv)
+ * Copyright (C) 2001, 2002, 2003 by Liam Davies (ldavies@agile.tv)
  *
  */
 
@@ -49,12 +49,7 @@ char arcs_cmdline[CL_SIZE] = {
 
 const char *get_system_type(void)
 {
-	return "Cobalt";
-}
-
-
-void __init bus_error_init(void)
-{
+	return "MIPS Cobalt";
 }
 
 
@@ -87,6 +82,10 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	*((volatile unsigned long *) GALILEO_CPU_MASK) = (unsigned long) 0x00000100;
 }
 
+
+void __init bus_error_init(void) { /* nothing */ }
+
+
 void __init cobalt_setup(void)
 {
 
@@ -100,7 +99,8 @@ void __init cobalt_setup(void)
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
 #endif
-        set_io_port_base(0xb0000000);
+
+        set_io_port_base(KSEG1ADDR(0x10000000));
 
 	/*
 	 * This is a prom style console. We just poke at the
