@@ -383,7 +383,7 @@ CONFIG_SGISEEQ=y
 # CONFIG_WAN is not set
 
 #
-# "Tulip" family network device support
+# Tulip family network device support
 #
 # CONFIG_NET_TULIP is not set
 
@@ -490,7 +490,6 @@ CONFIG_DUMMY_CONSOLE=y
 # CONFIG_QUOTA is not set
 # CONFIG_QFMT_V1 is not set
 # CONFIG_QFMT_V2 is not set
-# CONFIG_QIFACE_COMPAT is not set
 CONFIG_AUTOFS_FS=y
 CONFIG_AUTOFS4_FS=y
 # CONFIG_REISERFS_FS is not set

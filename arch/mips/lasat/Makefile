@@ -1,7 +1,6 @@
 #
 # Makefile for the LASAT specific kernel interface routines under Linux.
 #
-USE_STANDARD_AS_RULE := 1
 
 O_TARGET := lasatkern.o
 obj-y	 := reset.o setup.o prom.o lasat_board.o \
@@ -17,6 +16,8 @@ obj-$(CONFIG_PICVUE_PROC)       += picvue_proc.o
 ifeq ($(CONFIG_PCI),y)
   obj-y += pci.o pci100.o pci200.o
 endif
+
+EXTRA_AFLAGS := $(CFLAGS)
 
 include $(TOPDIR)/Rules.make
 

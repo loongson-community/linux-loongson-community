@@ -280,7 +280,6 @@ CONFIG_BLK_DEV_IDEDMA=y
 # CONFIG_BLK_DEV_IDE_TCQ_DEFAULT is not set
 # CONFIG_IDEDMA_NEW_DRIVE_LISTINGS is not set
 # CONFIG_BLK_DEV_AEC62XX is not set
-# CONFIG_AEC62XX_TUNING is not set
 # CONFIG_AEC6280_BURST is not set
 # CONFIG_BLK_DEV_ALI15X3 is not set
 # CONFIG_WDC_ALI15X3 is not set
@@ -422,7 +421,7 @@ CONFIG_8139TOO=y
 # CONFIG_WAN is not set
 
 #
-# "Tulip" family network device support
+# Tulip family network device support
 #
 # CONFIG_NET_TULIP is not set
 
@@ -523,7 +522,6 @@ CONFIG_WATCHDOG=y
 # CONFIG_QUOTA is not set
 # CONFIG_QFMT_V1 is not set
 # CONFIG_QFMT_V2 is not set
-# CONFIG_QIFACE_COMPAT is not set
 CONFIG_AUTOFS_FS=y
 CONFIG_AUTOFS4_FS=y
 # CONFIG_REISERFS_FS is not set

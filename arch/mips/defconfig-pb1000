@@ -354,7 +354,6 @@ CONFIG_BLK_DEV_IDEDMA=y
 # CONFIG_BLK_DEV_IDE_TCQ_DEFAULT is not set
 # CONFIG_IDEDMA_NEW_DRIVE_LISTINGS is not set
 # CONFIG_BLK_DEV_AEC62XX is not set
-# CONFIG_AEC62XX_TUNING is not set
 # CONFIG_AEC6280_BURST is not set
 # CONFIG_BLK_DEV_ALI15X3 is not set
 # CONFIG_WDC_ALI15X3 is not set
@@ -470,7 +469,7 @@ CONFIG_MIPS_AU1000_ENET=y
 # CONFIG_WAN is not set
 
 #
-# "Tulip" family network device support
+# Tulip family network device support
 #
 # CONFIG_NET_TULIP is not set
 
@@ -642,7 +641,6 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_QUOTA is not set
 # CONFIG_QFMT_V1 is not set
 # CONFIG_QFMT_V2 is not set
-# CONFIG_QIFACE_COMPAT is not set
 CONFIG_AUTOFS_FS=y
 CONFIG_AUTOFS4_FS=y
 # CONFIG_REISERFS_FS is not set
@@ -744,10 +742,10 @@ CONFIG_MSDOS_PARTITION=y
 #
 CONFIG_FB=y
 CONFIG_DUMMY_CONSOLE=y
-# CONFIG_FB_RIVA is not set
 # CONFIG_FB_CLGEN is not set
 # CONFIG_FB_PM2 is not set
 # CONFIG_FB_CYBER2000 is not set
+# CONFIG_FB_RIVA is not set
 # CONFIG_FB_MATROX is not set
 # CONFIG_FB_ATY is not set
 # CONFIG_FB_RADEON is not set
@@ -756,6 +754,8 @@ CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FB_NEOMAGIC is not set
 # CONFIG_FB_3DFX is not set
 # CONFIG_FB_VOODOO1 is not set
+# CONFIG_FB_TRIDENT is not set
+# CONFIG_FB_PM3 is not set
 CONFIG_FB_E1356=y
 CONFIG_PB1000_CRT=y
 # CONFIG_PB1000_NTSC is not set
@@ -769,6 +769,7 @@ CONFIG_FBCON_CFB8=y
 CONFIG_FBCON_CFB16=y
 # CONFIG_FBCON_CFB24 is not set
 # CONFIG_FBCON_CFB32 is not set
+# CONFIG_FBCON_ACCEL is not set
 # CONFIG_FBCON_AFB is not set
 # CONFIG_FBCON_ILBM is not set
 # CONFIG_FBCON_IPLAN2P2 is not set

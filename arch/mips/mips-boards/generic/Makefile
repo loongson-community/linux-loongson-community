@@ -17,11 +17,6 @@
 #
 # Makefile for the MIPS boards generic routines under Linux.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
-# Note 2! The CFLAGS definitions are now in the main makefile...
 
 O_TARGET := mipsboards.o
 
@@ -31,5 +26,7 @@ obj-$(CONFIG_MIPS_ATLAS)	+= time.o
 obj-$(CONFIG_MIPS_MALTA)	+= time.o
 obj-$(CONFIG_PCI)		+= pci.o
 obj-$(CONFIG_REMOTE_DEBUG)	+= gdb_hook.o
+
+EXTRA_AFLAGS := $(CFLAGS)
 
 include $(TOPDIR)/Rules.make

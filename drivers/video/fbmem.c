@@ -61,6 +61,8 @@ extern int cyberfb_init(void);
 extern int cyberfb_setup(char*);
 extern int pm2fb_init(void);
 extern int pm2fb_setup(char*);
+extern int pm3fb_init(void);
+extern int pm3fb_setup(char*);
 extern int clps711xfb_init(void);
 extern int cyber2000fb_init(void);
 extern int cyber2000fb_setup(char*);
@@ -120,6 +122,8 @@ extern int rivafb_init(void);
 extern int rivafb_setup(char*);
 extern int tdfxfb_init(void);
 extern int tdfxfb_setup(char*);
+extern int tridentfb_init(void);
+extern int tridentfb_setup(char*);
 extern int sisfb_init(void);
 extern int sisfb_setup(char*);
 extern int stifb_init(void);
@@ -178,6 +182,9 @@ static struct {
 #ifdef CONFIG_FB_PM2
 	{ "pm2fb", pm2fb_init, pm2fb_setup },
 #endif
+#ifdef CONFIG_FB_PM3
+	{ "pm3fb", pm3fb_init, pm3fb_setup },
+#endif           
 #ifdef CONFIG_FB_CLGEN
 	{ "clgen", clgenfb_init, clgenfb_setup },
 #endif
@@ -325,6 +332,9 @@ static struct {
 #endif 
 #ifdef CONFIG_FB_STI
 	{ "stifb", stifb_init, stifb_setup },
+#endif
+#ifdef CONFIG_FB_TRIDENT
+	{ "trident", tridentfb_init, tridentfb_setup },
 #endif
 
 #ifdef CONFIG_GSP_RESOLVER

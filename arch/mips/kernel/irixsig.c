@@ -133,27 +133,11 @@ setup_irix_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	do_exit(SIGSEGV);
 }
 
-static inline void handle_signal(unsigned long sig, struct k_sigaction *ka,
-        siginfo_t *info, sigset_t *oldset, struct pt_regs * regs)
+static inline void handle_signal(unsigned long sig, siginfo_t *info,
+	sigset_t *oldset, struct pt_regs * regs)
 {
-	if (ka->sa.sa_flags & SA_SIGINFO)
-		setup_irix_rt_frame(ka, regs, sig, oldset, info);
-	else
-		setup_irix_frame(ka, regs, sig, oldset);
+	struct k_sigaction *ka = &current->sig->action[sig-1];
 
-	if (ka->sa.sa_flags & SA_ONESHOT)
-		ka->sa.sa_handler = SIG_DFL;
-	if (!(ka->sa.sa_flags & SA_NODEFER)) {
-		spin_lock_irq(&current->sigmask_lock);
-		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
-	sigaddset(&current->blocked,sig);
-	recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
-	}
-}
-
-static inline void syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
-{
 	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:
 		regs->regs[2] = EINTR;
@@ -169,6 +153,21 @@ static inline void syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
 	}
 
 	regs->regs[0] = 0;		/* Don't deal with this again.  */
+
+	if (ka->sa.sa_flags & SA_SIGINFO)
+		setup_irix_rt_frame(ka, regs, sig, oldset, info);
+	else
+		setup_irix_frame(ka, regs, sig, oldset);
+
+	if (ka->sa.sa_flags & SA_ONESHOT)
+		ka->sa.sa_handler = SIG_DFL;
+	if (!(ka->sa.sa_flags & SA_NODEFER)) {
+		spin_lock_irq(&current->sigmask_lock);
+		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
+		sigaddset(&current->blocked,sig);
+		recalc_sigpending();
+		spin_unlock_irq(&current->sigmask_lock);
+	}
 }
 
 asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)

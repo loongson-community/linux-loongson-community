@@ -363,7 +363,7 @@ CONFIG_DECLANCE=y
 # CONFIG_WAN is not set
 
 #
-# "Tulip" family network device support
+# Tulip family network device support
 #
 # CONFIG_NET_TULIP is not set
 
@@ -457,7 +457,6 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_QUOTA is not set
 # CONFIG_QFMT_V1 is not set
 # CONFIG_QFMT_V2 is not set
-# CONFIG_QIFACE_COMPAT is not set
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AUTOFS4_FS is not set
 # CONFIG_REISERFS_FS is not set

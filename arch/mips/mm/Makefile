@@ -1,10 +1,6 @@
 #
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
 
 O_TARGET := mm.o
 
@@ -33,5 +29,7 @@ obj-$(CONFIG_SB1_CACHE_ERROR)	+= cex-sb1.o cerr-sb1.o
 
 obj-$(CONFIG_SGI_IP22)		+= umap.o
 obj-$(CONFIG_BAGET_MIPS)	+= umap.o
+
+EXTRA_AFLAGS := $(CFLAGS)
 
 include $(TOPDIR)/Rules.make

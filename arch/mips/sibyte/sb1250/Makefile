@@ -8,4 +8,6 @@ obj-$(CONFIG_BCM1250_TBPROF)	+= bcm1250_tbprof.o
 obj-$(CONFIG_MIPS32)		+= lib_hssubr.o
 obj-$(CONFIG_SIBYTE_STANDALONE)	+= prom.o
 
+EXTRA_AFLAGS := $(CFLAGS)
+
 include $(TOPDIR)/Rules.make

@@ -5,14 +5,12 @@
 #
 # Makefile for the Galileo EV96100 board.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
 
 O_TARGET:= ev96100.o
 
 obj-y	:= init.o pci_ops.o pci_fixups.o time.o irq.o int-handler.o setup.o \
 	   puts.o
+
+EXTRA_AFLAGS := $(CFLAGS)
 
 include $(TOPDIR)/Rules.make

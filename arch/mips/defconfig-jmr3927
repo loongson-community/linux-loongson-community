@@ -349,7 +349,7 @@ CONFIG_TC35815=y
 # CONFIG_WAN is not set
 
 #
-# "Tulip" family network device support
+# Tulip family network device support
 #
 # CONFIG_NET_TULIP is not set
 
@@ -453,7 +453,6 @@ CONFIG_TXX927_SERIAL_CONSOLE=y
 # CONFIG_QUOTA is not set
 # CONFIG_QFMT_V1 is not set
 # CONFIG_QFMT_V2 is not set
-# CONFIG_QIFACE_COMPAT is not set
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AUTOFS4_FS is not set
 # CONFIG_REISERFS_FS is not set
@@ -553,10 +552,10 @@ CONFIG_MSDOS_PARTITION=y
 #
 CONFIG_FB=y
 CONFIG_DUMMY_CONSOLE=y
-# CONFIG_FB_RIVA is not set
 # CONFIG_FB_CLGEN is not set
 # CONFIG_FB_PM2 is not set
 # CONFIG_FB_CYBER2000 is not set
+# CONFIG_FB_RIVA is not set
 # CONFIG_FB_MATROX is not set
 # CONFIG_FB_ATY is not set
 # CONFIG_FB_RADEON is not set
@@ -565,6 +564,8 @@ CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FB_NEOMAGIC is not set
 # CONFIG_FB_3DFX is not set
 # CONFIG_FB_VOODOO1 is not set
+# CONFIG_FB_TRIDENT is not set
+# CONFIG_FB_PM3 is not set
 # CONFIG_FB_E1356 is not set
 # CONFIG_FB_VIRTUAL is not set
 CONFIG_FBCON_ADVANCED=y
@@ -575,6 +576,7 @@ CONFIG_FBCON_CFB8=y
 CONFIG_FBCON_CFB16=y
 # CONFIG_FBCON_CFB24 is not set
 # CONFIG_FBCON_CFB32 is not set
+# CONFIG_FBCON_ACCEL is not set
 # CONFIG_FBCON_AFB is not set
 # CONFIG_FBCON_ILBM is not set
 # CONFIG_FBCON_IPLAN2P2 is not set

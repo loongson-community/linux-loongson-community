@@ -6,10 +6,6 @@
 # Makefile for the ITE 8172 (qed-4n-s01b) board, board
 # specific files.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
 
 O_TARGET := ite.o
 

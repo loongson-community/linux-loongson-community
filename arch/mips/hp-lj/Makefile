@@ -2,12 +2,6 @@
 # Makefile for the HP specific kernel interface routines
 # under Linux.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
-
-all: hp-lj.o
 
 O_TARGET := hp-lj.o
 
@@ -20,9 +14,6 @@ obj-$(CONFIG_DIRECT_PRINTK) += gdb_hook.o
 
 obj-$(CONFIG_BLK_DEV_INITRD) += initrd.o
 
-clean:
-	rm *.o
-
 forceit:
 
 # package filesystem from rootfs directory into binary package
@@ -34,6 +25,7 @@ initrd.o: romfs.bin
 	@echo "" | $(CROSS_COMPILE)as -o $@
 	@$(CROSS_COMPILE)objcopy --add-section .initrd=$< $@
 
+EXTRA_AFLAGS := $(CFLAGS)
 
 include $(TOPDIR)/Rules.make
 

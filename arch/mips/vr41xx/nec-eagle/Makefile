@@ -6,14 +6,8 @@
 #
 # Copyright 2001,2002 MontaVista Software Inc.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
 
 O_TARGET := eagle.o
-
-all: eagle.o
 
 obj-y	:= init.o irq.o setup.o
 

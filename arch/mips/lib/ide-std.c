@@ -30,16 +30,11 @@ static int std_ide_default_irq(ide_ioreg_t base)
 
 static ide_ioreg_t std_ide_default_io_base(int index)
 {
-	switch (index) {
-		case 0:	return 0x1f0;
-		case 1:	return 0x170;
-		case 2: return 0x1e8;
-		case 3: return 0x168;
-		case 4: return 0x1e0;
-		case 5: return 0x160;
-		default:
-			return 0;
-	}
+	static unsigned long ata_io_base[MAX_HWIFS] = {
+		0x1f0, 0x170, 0x1e8, 0x168, 0x1e0, 0x160
+	};
+
+	return ata_io_base[index];
 }
 
 static void std_ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port,

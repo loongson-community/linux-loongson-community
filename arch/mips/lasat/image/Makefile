@@ -51,5 +51,6 @@ kImage.bin: $(KERNEL_IMAGE)
 clean:
 	rm -f rom rom.bin rom.sw kImage.bin
 
-USE_STANDARD_AS_RULE = 1
+EXTRA_AFLAGS := $(CFLAGS)
+
 include $(TOPDIR)/Rules.make

@@ -45,6 +45,4 @@ mrproper:
 	rm -f addinitrd
 	rm -f elf2ecoff
 
-dummy:
-
 include $(TOPDIR)/Rules.make

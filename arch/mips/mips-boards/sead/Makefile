@@ -22,17 +22,10 @@
 # Makefile for the MIPS SEAD specific kernel interface routines
 # under Linux.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
-# Note 2! The CFLAGS definitions are now in the main makefile...
 
-all: sead.o
+O_TARGET	:= sead.o
 
-O_TARGET := sead.o
-
-obj-y	:= sead_int.o sead_setup.o sead_time.o
+obj-y		:= sead_int.o sead_setup.o sead_time.o
 
 include $(TOPDIR)/Rules.make
 

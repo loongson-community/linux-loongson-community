@@ -1,14 +1,9 @@
 #
 # Makefile for the Linux/MIPS kernel.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
 
-all:	kernel.o head.o init_task.o
-
-O_TARGET := kernel.o
+O_TARGET	:= kernel.o
+EXTRA_TARGETS	:= head.o init_task.o
 
 export-objs	= irq.o pci-dma.o setup.o smp.o mips_ksyms.o
 
@@ -57,7 +52,6 @@ ifndef CONFIG_MAPPED_PCI_IO
 obj-y				+= pci-dma.o
 endif
 
-entry.o: entry.S
-head.o: head.S
+EXTRA_AFLAGS := $(CFLAGS)
 
 include $(TOPDIR)/Rules.make
