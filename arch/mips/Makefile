@@ -700,4 +700,6 @@ include/asm-$(ARCH)/reg.h: arch/$(ARCH)/kernel/reg.s
 CLEAN_FILES += include/asm-$(ARCH)/offset.h.tmp \
 	       include/asm-$(ARCH)/offset.h \
 	       include/asm-$(ARCH)/reg.h.tmp \
-	       include/asm-$(ARCH)/reg.h
+	       include/asm-$(ARCH)/reg.h \
+	       vmlinux.64 \
+	       vmlinux.ecoff
