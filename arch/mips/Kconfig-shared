@@ -107,14 +107,6 @@ config MIPS_IVR
 config LASAT
 	bool "Support for LASAT Networks platforms"
 
-config LASAT_100
-	bool "Support for LASAT Networks 100 series"
-	depends on LASAT
-
-config LASAT_200
-	bool "Support for LASAT Networks 200 series"
-	depends on LASAT
-
 config PICVUE
 	tristate "PICVUE LCD display driver"
 	depends on LASAT

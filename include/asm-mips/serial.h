@@ -156,13 +156,11 @@
 #endif
 
 #ifdef CONFIG_LASAT
-#include <asm/lasat/serial.h>
-#define LASAT_SERIAL_PORT_DEFNS						\
-	{ .baud_base = LASAT_BASE_BAUD, .irq = LASATINT_UART,		\
-	  .flags = STD_COM_FLAGS,						\
-	  .port = LASAT_UART_REGS_BASE, /* Only for display */		\
-	  .iomem_base = (u8 *)KSEG1ADDR(LASAT_UART_REGS_BASE),		\
-	  .iomem_reg_shift = LASAT_UART_REGS_SHIFT, .io_type = SERIAL_IO_MEM },
+/* This dummy definition allocates one element in the SERIAL_PORT_DFNS
+ * list below. This element is filled out by the the code in serial_init() 
+ * in arch/mips/lasat/setup.c which autoselects the configuration based 
+ * on machine type. */
+#define LASAT_SERIAL_PORT_DEFNS { },
 #else
 #define LASAT_SERIAL_PORT_DEFNS
 #endif

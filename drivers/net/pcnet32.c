@@ -769,9 +769,12 @@ pcnet32_probe1(unsigned long ioaddr, unsigned int irq_line, int shared,
     if (irq_line) {
 	dev->irq = irq_line;
     }
-    
+
+#ifndef CONFIG_LASAT
     if (dev->irq >= 2)
+#endif
 	printk(" assigned IRQ %d.\n", dev->irq);
+#ifndef CONFIG_LASAT
     else {
 	unsigned long irq_mask = probe_irq_on();
 	
@@ -794,6 +797,7 @@ pcnet32_probe1(unsigned long ioaddr, unsigned int irq_line, int shared,
 	    return -ENODEV;
 	}
     }
+#endif
 
     /* Set the mii phy_id so that we can query the link state */
     if (lp->mii)
