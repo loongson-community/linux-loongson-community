@@ -138,7 +138,8 @@ if [ "$CONFIG_FB" = "y" ]; then
 	 "$CONFIG_FB_OF" = "y" -o "$CONFIG_FB_TGA" = "y" -o \
 	 "$CONFIG_FB_VESA" = "y" -o "$CONFIG_FB_VIRTUAL" = "y" -o \
 	 "$CONFIG_FB_TCX" = "y" -o "$CONFIG_FB_CGTHREE" = "y" -o \
-	 "$CONFIG_FB_CONTROL" = "y" -o "$CONFIG_FB_CLGEN" = "y" ]; then
+	 "$CONFIG_FB_CONTROL" = "y" -o "$CONFIG_FB_CLGEN" = "y" -o \
+	 "$CONFIG_FB_G364" = "y" ]; then
       define_bool CONFIG_FBCON_CFB8 y
     else
       if [ "$CONFIG_FB_ACORN" = "m" -o "$CONFIG_FB_ATARI" = "m" -o \

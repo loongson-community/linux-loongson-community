@@ -188,6 +188,10 @@ else
   endif
 endif
 
+ifdef CONFIG_FB_G364
+L_OBJS := $(L_OBJS) g364fb.o
+endif
+
 ifeq ($(CONFIG_FB_SBUS),y)
 L_OBJS += sbusfb.o
   ifeq ($(CONFIG_FB_CREATOR),y)
@@ -411,12 +415,6 @@ endif
 
 ifdef CONFIG_SGI
 L_OBJS := $(L_OBJS) newport_con.o
-endif
-
-# G364 Console for Mips Magnum 4000 / Olivetti M700-10
-
-ifdef CONFIG_VIDEO_G364
-L_OBJS := $(L_OBJS) g364fb.o
 endif
 
 include $(TOPDIR)/Rules.make
