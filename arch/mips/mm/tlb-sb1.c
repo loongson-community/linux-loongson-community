@@ -360,7 +360,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
  */
 void tlb_init(void)
 {
-	set_pagemask(PM_DEFAULT_MASK);
+	write_c0_pagemask(PM_DEFAULT_MASK);
 	write_c0_wired(0);
 
 	/*
