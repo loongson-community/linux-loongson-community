@@ -424,7 +424,7 @@ void __init tlb_init(void)
 	flush_icache_range(KSEG0, KSEG0 + 0x80);
 #endif
 #ifdef CONFIG_MIPS64
-	memcpy((void *)(KSEG0 + 0x80), except_vec1_r4k, 0x80);
-	flush_icache_range(KSEG0 + 0x80, KSEG0 + 0x100);
+	memcpy((void *)(CKSEG0 + 0x80), except_vec1_r4k, 0x80);
+	flush_icache_range(CKSEG0 + 0x80, CKSEG0 + 0x100);
 #endif
 }
