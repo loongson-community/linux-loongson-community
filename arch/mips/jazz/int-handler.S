@@ -249,7 +249,7 @@ ll_vectors:	PTR	ll_count		# Count/Compare IRQ
 		.text
 loc_no_irq:	PANIC("Unimplemented loc_no_irq handler")
 /*
- * Parallel port IRQ, remapped to level 5
+ * Parallel port IRQ
  */
 loc_parallel:	li	s1,~JAZZ_IE_PARALLEL
 		li	a0,JAZZ_PARALLEL_IRQ
@@ -271,13 +271,16 @@ loc_sound:	PANIC("Unimplemented loc_sound handler")
 loc_video:	PANIC("Unimplemented loc_video handler")
 
 /*
- * Ethernet interrupt handler, remapped to level 13
+ * Ethernet interrupt handler
  */
 loc_ethernet: 	li	s1,~JAZZ_IE_ETHERNET
 		li	a0,JAZZ_ETHERNET_IRQ
 		b	loc_call
 		li	t3,PTRSIZE*JAZZ_ETHERNET_IRQ 	# delay slot
 
+/*
+ * SCSI interrupt handler
+ */
 loc_scsi:	li	s1,~JAZZ_IE_SCSI
 		li	a0,12         # JAZZ_SCSI_IRQ */
 		b	loc_call
@@ -294,7 +297,7 @@ loc_keyboard:	li	s1,~JAZZ_IE_KEYBOARD
 loc_mouse:	PANIC("Unimplemented loc_mouse handler")
 
 /*
- * Serial port 1 IRQ, remapped to level 3
+ * Serial port 1 IRQ
  */
 loc_serial1:	li	s1,~JAZZ_IE_SERIAL1
 		li	a0,JAZZ_SERIAL1_IRQ
@@ -302,7 +305,7 @@ loc_serial1:	li	s1,~JAZZ_IE_SERIAL1
 		li	t3,PTRSIZE*JAZZ_SERIAL1_IRQ 	# delay slot
 
 /*
- * Serial port 2 IRQ, remapped to level 4
+ * Serial port 2 IRQ
  */
 loc_serial2:	li	s1,~JAZZ_IE_SERIAL2
 		li	a0,JAZZ_SERIAL2_IRQ
