@@ -1,10 +1,7 @@
 /*
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 2001 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 2000 Sibyte
- * 
- * Written by Justin Carlson (carlson@sibyte.com)
- *
+ * Copyright (C) 2000, 2001 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,7 +17,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
-
 
 /*
  * In this entire file, I'm not sure what the role of the L2 on the sb1250 
