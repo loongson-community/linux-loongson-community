@@ -14,7 +14,7 @@
  */
 
 static const char *version =
-	"sonic.c:v0.10 6.7.96 tsbogend@alpha.franken.de\n";
+	"sonic.c:v0.50 7.8.97 tsbogend@alpha.franken.de\n";
 
 /*
  * Sources: Olivetti M700-10 Risc Personal Computer hardware handbook,
@@ -435,16 +435,21 @@ static int sonic_send_packet(struct sk_buff *skb, struct device *dev)
     lp->tda[entry].tx_frag_ptr_h = laddr >> 16;
     lp->tda[entry].tx_frag_size  = length;
     
-    /* if there are already packets queued, allow sending serveral packets at once */
-    if (lp->dirty_tx != lp->cur_tx)
-	lp->tda[(lp->cur_tx-1) % SONIC_TDS_MASK].link &= ~SONIC_END_OF_LINKS;
-    
-    lp->cur_tx++;
+    /* if there are already packets queued, allow sending several packets at once */
+    if (lp->dirty_tx != lp->cur_tx++)
+	lp->tda[(lp->cur_tx-2) & SONIC_TDS_MASK].link &= ~SONIC_END_OF_LINKS;
     
     if (sonic_debug > 2)
-      printk("sonic_send_packet: issueing Tx command\n");
-
-    SONIC_WRITE(SONIC_CMD,SONIC_CR_TXP);
+      printk("sonic_send_packet: issueing Tx command, cur_tx %d, ctda %x\n",
+	     lp->cur_tx,SONIC_READ(SONIC_CTDA));
+    
+    /* 
+     * trigger a new transmission only when there are no outstanding transmits,
+     * otherwise we may trigger a transmission without a valid descriptor which
+     * messes up our dirty_tx
+     */
+    if (lp->dirty_tx == lp->cur_tx-1 && !(SONIC_READ(SONIC_CMD) & SONIC_CR_TXP))
+	SONIC_WRITE(SONIC_CMD,SONIC_CR_TXP);
 
     dev->trans_start = jiffies;
 
@@ -477,7 +482,6 @@ sonic_interrupt(int irq, void *dev_id, struct pt_regs * regs)
     lp = (struct sonic_local *)dev->priv;
 
     status = SONIC_READ(SONIC_ISR);
-    SONIC_WRITE(SONIC_ISR,0x7fff); /* clear all bits */
   
     if (sonic_debug > 2)
       printk("sonic_interrupt: ISR=%x\n",status);
@@ -488,17 +492,27 @@ sonic_interrupt(int irq, void *dev_id, struct pt_regs * regs)
     
     if (status & SONIC_INT_TXDN) {
 	int dirty_tx = lp->dirty_tx;
-	
+
 	while (dirty_tx < lp->cur_tx) {
 	    int entry = dirty_tx & SONIC_TDS_MASK;
 	    int status = lp->tda[entry].tx_status;
+
+	    if (sonic_debug > 2)
+	      printk ("sonic_interrupt: status %d, cur_tx %d, dirty_tx %d, ctda %x\n",
+		      status,lp->cur_tx,dirty_tx,SONIC_READ(SONIC_CTDA));
 	    
-	    if (sonic_debug > 3)
-	      printk ("sonic_interrupt: status %d, cur_tx %d, dirty_tx %d\n",
-		      status,lp->cur_tx,lp->dirty_tx);
-	    
-	    if (status == 0)
-	      break;			/* It still hasn't been Txed */
+	    if (status == 0) {
+		/*
+		 * there is a small race, when we try to send more packets with one 
+		 * transmission command. To solve this race, we trigger the transmission
+		 * again
+		 */
+		if (sonic_debug > 1)
+		    printk ("triggering lost transmission\n");
+		if (!(SONIC_READ(SONIC_CMD) & SONIC_CR_TXP))
+		    SONIC_WRITE(SONIC_CMD,SONIC_CR_TXP);
+		break;
+	    }
 
 	    /* put back EOL and free descriptor */
 	    lp->tda[entry].link |= SONIC_END_OF_LINKS;
@@ -548,7 +562,7 @@ sonic_interrupt(int irq, void *dev_id, struct pt_regs * regs)
     }
     if (status & SONIC_INT_RBE) {
 	printk ("%s: receive buffer exhausted\n",dev->name);
-	lp->stats.rx_dropped++;	
+	lp->stats.rx_dropped++;
     }
     if (status & SONIC_INT_RBAE) {
 	printk ("%s: receive buffer area exhausted\n",dev->name);
@@ -736,6 +750,11 @@ static int sonic_init(struct device *dev)
     SONIC_WRITE(SONIC_ISR,0x7fff);
     SONIC_WRITE(SONIC_IMR,0);
     SONIC_WRITE(SONIC_CMD,SONIC_CR_RST);
+    
+    /*
+     * write data config register
+     */
+    SONIC_WRITE(SONIC_DCR, 0x2423);
   
     /*
      * clear software reset flag, disable receiver, clear and
