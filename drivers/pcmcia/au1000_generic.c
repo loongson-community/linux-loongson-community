@@ -138,7 +138,6 @@ static int __init au1000_pcmcia_driver_init(void)
 	struct pcmcia_init pcmcia_init;
 	struct pcmcia_state state;
 	unsigned int i;
-	unsigned long timing3;
 
 	printk("\nAu1x00 PCMCIA (CS release %s)\n", CS_RELEASE);
 

@@ -348,7 +348,7 @@ static struct hw_interrupt_type rise_edge_irq_type = {
 	NULL
 };
 
-
+/*
 static struct hw_interrupt_type fall_edge_irq_type = {
 	"Au1000 Fall Edge",
 	startup_irq,
@@ -359,7 +359,7 @@ static struct hw_interrupt_type fall_edge_irq_type = {
 	end_irq,
 	NULL
 };
-
+*/
 
 static struct hw_interrupt_type level_irq_type = {
 	"Au1000 Level",
@@ -384,7 +384,6 @@ void __init init_IRQ(void)
 {
 	int i;
 	unsigned long cp0_status;
-	extern char except_vec0_au1000;
 
 	cp0_status = read_32bit_cp0_register(CP0_STATUS);
 	memset(irq_desc, 0, sizeof(irq_desc));
@@ -575,8 +574,6 @@ void intc1_req0_irqdispatch(struct pt_regs *regs)
 {
 	int irq = 0, i;
 	static unsigned long intc1_req0 = 0;
-	volatile unsigned short levels, mdr;
-	unsigned char ide_status;
 
 	intc1_req0 |= au_readl(IC1_REQ0INT);
 

@@ -145,13 +145,6 @@ static unsigned char au1000_mac_addr[6] __devinitdata = {
  * code.
  */
 
-static char *phy_link[] = 
-	{"unknown", 
-	"10Base2", "10BaseT", 
-	"AUI",
-	"100BaseT", "100BaseTX", "100BaseFX"
-	};
-
 int bcm_5201_init(struct net_device *dev, int phy_addr)
 {
 	s16 data;

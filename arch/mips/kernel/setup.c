@@ -261,6 +261,9 @@ void __init setup_arch(char **cmdline_p)
  	void it8172_setup(void);
 	void swarm_setup(void);
 	void hp_setup(void);
+	void au1000_setup(void);
+	void au1100_setup(void);
+	void au1500_setup(void);
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_low_pfn, first_usable_pfn;

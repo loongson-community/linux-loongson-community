@@ -142,6 +142,7 @@ extern long vme_scc_console_init(void);
 extern int serial167_init(void);
 extern long serial167_console_init(void);
 extern void console_8xx_init(void);
+extern void au1000_serial_console_init(void);
 extern int rs_8xx_init(void);
 extern void mac_scc_console_init(void);
 extern void hwc_console_init(void);

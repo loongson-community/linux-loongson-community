@@ -128,7 +128,6 @@ inline void str2eaddr(unsigned char *ea, unsigned char *str)
 
 int get_ethernet_addr(char *ethernet_addr)
 {
-	int i;
         char *ethaddr_str;
 
         ethaddr_str = prom_getenv("ethaddr");
@@ -139,10 +138,14 @@ int get_ethernet_addr(char *ethernet_addr)
 	str2eaddr(ethernet_addr, ethaddr_str);
 
 #if 0
+	{
+		int i;
+
 	printk("get_ethernet_addr: ");
 	for (i=0; i<5; i++)
 		printk("%02x:", (unsigned char)*(ethernet_addr+i));
 	printk("%02x\n", *(ethernet_addr+i));
+	}
 #endif
 
 	return 0;

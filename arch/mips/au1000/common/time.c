@@ -45,7 +45,7 @@
 #include <linux/timex.h>
 
 extern void startup_match20_interrupt(void);
-
+extern void do_softirq(void);
 extern volatile unsigned long wall_jiffies;
 unsigned long missed_heart_beats = 0;
 
@@ -266,7 +266,7 @@ void __init time_init(void)
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
 
-
+#ifndef CONFIG_PM
 static unsigned long
 div64_32(unsigned long v1, unsigned long v2, unsigned long v3)
 {
@@ -274,7 +274,7 @@ div64_32(unsigned long v1, unsigned long v2, unsigned long v3)
 	do_div64_32(r0, v1, v2, v3);
 	return r0;
 }
-
+#endif
 
 static unsigned long do_fast_gettimeoffset(void)
 {
