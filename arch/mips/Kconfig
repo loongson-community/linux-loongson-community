@@ -1246,7 +1246,7 @@ config CPU_HAS_SYNC
 #
 config HIGHMEM
 	bool "High Memory Support"
-	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_R10000) && !(BAGET_MIPS || MACH_DECSTATION)
+	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_RM9000 || CPU_R10000) && !(BAGET_MIPS || MACH_DECSTATION || MOMENCO_JAGUAR_ATX)
 
 config SMP
 	bool "Multi-Processing support"
