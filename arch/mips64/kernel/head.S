@@ -21,6 +21,7 @@
 #include <asm/pgtable.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/sn0/hubni.h>
+#include <asm/sn/klkernvars.h>
 
 	.macro	ARC64_TWIDDLE_PC
 #if defined(CONFIG_ARC64) || defined(CONFIG_MAPPED_KERNEL)
@@ -130,8 +131,12 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 NESTED(bootstrap, 16, sp)
 	GET_NASID_ASM
-	move	t1, zero			# till we know who is master
-	move	t2, zero			# till we know who is master
+	li	t0, KLDIR_OFFSET + (KLI_KERN_VARS * KLDIR_ENT_SIZE) + KLDIR_OFF_POINTER + K0BASE
+	dsll	t1, NASID_SHFT
+	or	t0, t0, t1
+	ld	t0, 0(t0)			# t0 points to kern_vars struct
+	lh	t1, KV_RO_NASID_OFFSET(t0)
+	lh	t2, KV_RW_NASID_OFFSET(t0)
 	MAPPED_KERNEL_SETUP_TLB
 	ARC64_TWIDDLE_PC
 	CLI

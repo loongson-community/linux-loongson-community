@@ -3,7 +3,9 @@
  * Copyright 2000 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/mmzone.h>
+#include <linux/kernel.h>
 
 #include <asm/sn/types.h>
 #include <asm/sn/arch.h>
@@ -19,16 +21,12 @@
 
 static cpumask_t ktext_repmask;
 
-static void set_ktext_source(nasid_t client_nasid, nasid_t server_nasid);
-
-
 /*
  * XXX - This needs to be much smarter about where it puts copies of the
  * kernel.  For example, we should never put a copy on a headless node,
  * and we should respect the topology of the machine.
  */
-void
-setup_replication_mask(int maxnodes)
+void __init setup_replication_mask(int maxnodes)
 {
 	static int 	numa_kernel_replication_ratio;
 	cnodeid_t	cnode;
@@ -57,8 +55,7 @@ setup_replication_mask(int maxnodes)
 }
 
 
-static void
-set_ktext_source(nasid_t client_nasid, nasid_t server_nasid)
+static __init void set_ktext_source(nasid_t client_nasid, nasid_t server_nasid)
 {
 	kern_vars_t *kvp;
 	cnodeid_t client_cnode;
@@ -75,11 +72,11 @@ set_ktext_source(nasid_t client_nasid, nasid_t server_nasid)
 	kvp->kv_rw_nasid = master_nasid;
 	kvp->kv_ro_baseaddr = NODE_CAC_BASE(server_nasid);
 	kvp->kv_rw_baseaddr = NODE_CAC_BASE(master_nasid);
+	printk("REPLICATION: ON nasid %d, ktext from nasid %d, kdata from nasid %d\n", client_nasid, server_nasid, master_nasid);
 }
 
 /* XXX - When the BTE works, we should use it instead of this. */
-static void
-copy_kernel(nasid_t dest_nasid)
+static __init void copy_kernel(nasid_t dest_nasid)
 {
 	extern char _stext, _etext;
 	unsigned long dest_kern_start, source_start, source_end, kern_size;
@@ -93,8 +90,7 @@ copy_kernel(nasid_t dest_nasid)
 	memcpy((void *)dest_kern_start, (void *)source_start, kern_size);
 }
 
-void
-replicate_kernel_text(int maxnodes)
+void __init replicate_kernel_text(int maxnodes)
 {
 	cnodeid_t cnode;
 	nasid_t client_nasid;
