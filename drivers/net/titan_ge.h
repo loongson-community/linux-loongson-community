@@ -183,7 +183,7 @@ typedef struct _pkt_info {
 } titan_ge_packet;
 
 
-#define	PHYS_CNT	2
+#define	PHYS_CNT	3
 
 /* Titan Port specific data structure */
 typedef struct _eth_port_ctrl {
