@@ -47,13 +47,10 @@
  */
 
 #include <linux/config.h>
-#include <linux/version.h>
+#include <linux/dma-mapping.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
 #include <linux/sched.h>
-#include <linux/ptrace.h>
-#include <linux/fcntl.h>
 #include <linux/ioport.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
@@ -62,7 +59,6 @@
 #include <linux/ip.h>
 #include <linux/init.h>
 #include <linux/in.h>
-#include <linux/pci.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -127,6 +123,8 @@ static int titan_ge_poll(struct net_device *netdev, int *budget);
 #endif
 
 static int titan_ge_receive_queue(struct net_device *, unsigned int);
+
+static struct platform_device *titan_ge_device[3];
 
 /* MAC Address */
 extern unsigned char titan_ge_mac_addr_base[6];
@@ -619,20 +617,21 @@ static int titan_ge_open(struct net_device *netdev)
 static int titan_ge_rx_return_buff(titan_ge_port_info * titan_ge_port,
 					struct sk_buff *skb)
 {
-	int rx_used_desc;
+	struct device *device = &titan_ge_device[titan_ge_port->port_num]->dev;
 	volatile titan_ge_rx_desc *rx_desc;
+	int rx_used_desc;
 
 	rx_used_desc = titan_ge_port->rx_used_desc_q;
 	rx_desc = &(titan_ge_port->rx_desc_area[rx_used_desc]);
 
 #ifdef TITAN_GE_JUMBO_FRAMES
 	rx_desc->buffer_addr =
-	       pci_map_single(0, skb->data, TITAN_GE_JUMBO_BUFSIZE - 2,
-					    PCI_DMA_FROMDEVICE);
+	       dma_map_single(device, skb->data, TITAN_GE_JUMBO_BUFSIZE - 2,
+			      DMA_FROM_DEVICE);
 #else
 	rx_desc->buffer_addr =
-		pci_map_single(0, skb->data, TITAN_GE_STD_BUFSIZE - 2,
-					    PCI_DMA_FROMDEVICE);
+		dma_map_single(device, skb->data, TITAN_GE_STD_BUFSIZE - 2,
+			       DMA_FROM_DEVICE);
 #endif
 
 	titan_ge_port->rx_skb[rx_used_desc] = skb;
@@ -1117,15 +1116,15 @@ static int titan_ge_port_start(struct net_device *netdev,
 static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 				struct sk_buff * skb)
 {
+	struct device *device = &titan_ge_device[titan_ge_eth->port_num]->dev;
+	unsigned int curr_desc = titan_ge_eth->tx_curr_desc_q;
 	volatile titan_ge_tx_desc *tx_curr;
 	int port_num = titan_ge_eth->port_num;
-	unsigned int curr_desc =
-			titan_ge_eth->tx_curr_desc_q;
 
 	tx_curr = &(titan_ge_eth->tx_desc_area[curr_desc]);
 	tx_curr->buffer_addr =
-		pci_map_single(0, skb->data, skb_headlen(skb),
-					PCI_DMA_TODEVICE);
+		dma_map_single(device, skb->data, skb_headlen(skb),
+			       DMA_TO_DEVICE);
 
 	titan_ge_eth->tx_skb[curr_desc] = (struct sk_buff *) skb;
 	tx_curr->buffer_len = skb_headlen(skb);
@@ -1164,6 +1163,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	unsigned int port_num = titan_ge_eth->port_num;
+	struct device *device = &titan_ge_device[port_num]->dev;
 	unsigned int size, phy_reg;
 	unsigned long reg_data;
 	int err = 0;
@@ -1212,6 +1212,13 @@ static int titan_ge_eth_open(struct net_device *netdev)
 		titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x100;
 	}
 
+	if (port_num == 2) {
+		titan_ge_eth->tx_desc_area =
+		    (titan_ge_tx_desc *) (titan_ge_sram + 0x200);
+
+		titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x200;
+	}
+
 	if (!titan_ge_eth->tx_desc_area) {
 		printk(KERN_ERR
 		       "%s: Cannot allocate Tx Ring (size %d bytes) for port %d\n",
@@ -1246,6 +1253,12 @@ static int titan_ge_eth_open(struct net_device *netdev)
 		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1100;
 	}
 
+	if (port_num == 2) {
+		titan_ge_eth->rx_desc_area =
+			(titan_ge_rx_desc *)(titan_ge_sram + 0x1200);
+		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1200;
+	}
+
 	if (!titan_ge_eth->rx_desc_area) {
 		printk(KERN_ERR
 		       "%s: Cannot allocate Rx Ring (size %d bytes)\n",
@@ -1255,7 +1268,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 		       "%s: Freeing previously allocated TX queues...",
 		       netdev->name);
 
-		pci_free_consistent(0, titan_ge_eth->tx_desc_area_size,
+		dma_free_coherent(device, titan_ge_eth->tx_desc_area_size,
 				    (void *) titan_ge_eth->tx_desc_area,
 				    titan_ge_eth->tx_dma);
 
@@ -1633,7 +1646,6 @@ int titan_ge_stop(struct net_device *netdev)
 	spin_lock_irq(&(titan_ge_eth->lock));
 	titan_ge_eth_stop(netdev);
 	free_irq(netdev->irq, netdev);
-	MOD_DEC_USE_COUNT;
 	spin_unlock_irq(&titan_ge_eth->lock);
 
 	return TITAN_OK;
@@ -1679,9 +1691,10 @@ static void titan_ge_free_tx_rings(struct net_device *netdev)
 		     titan_ge_eth->tx_ring_skbs);
 
 #ifndef TITAN_RX_RING_IN_SRAM
-	pci_free_consistent(0, titan_ge_eth->tx_desc_area_size,
-			    (void *) titan_ge_eth->tx_desc_area,
-			    titan_ge_eth->tx_dma);
+	dma_free_coherent(&titan_ge_device[port_num]->dev,
+			  titan_ge_eth->tx_desc_area_size,
+			  (void *) titan_ge_eth->tx_desc_area,
+			  titan_ge_eth->tx_dma);
 #endif
 }
 
@@ -1725,9 +1738,10 @@ static void titan_ge_free_rx_rings(struct net_device *netdev)
 		       titan_ge_eth->rx_ring_skbs);
 
 #ifndef TITAN_RX_RING_IN_SRAM
-	pci_free_consistent(0, titan_ge_eth->rx_desc_area_size,
-			    (void *) titan_ge_eth->rx_desc_area,
-			    titan_ge_eth->rx_dma);
+	dma_free_coherent(&titan_ge_device[port_num]->dev,
+			  titan_ge_eth->rx_desc_area_size,
+			  (void *) titan_ge_eth->rx_desc_area,
+			  titan_ge_eth->rx_dma);
 #endif
 }
 
@@ -2057,8 +2071,6 @@ static struct device_driver titan_soc_driver = {
 	.probe  = titan_ge_probe,
 	.remove = __devexit_p(titan_device_remove),
 };
-
-static struct platform_device *titan_ge_device[3];
 
 static void titan_platform_release (struct device *device)
 {
