@@ -134,6 +134,7 @@
 #include <linux/reboot.h>
 
 #include <asm/asm.h>
+#include <asm/cacheflush.h>
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -414,10 +415,10 @@ void restore_debug_traps(void)
 	struct hard_trap_info *ht;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	for (ht = hard_trap_info; ht->tt && ht->signo; ht++)
 		set_except_vector(ht->tt, saved_vectors[ht->tt]);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -695,7 +696,7 @@ void handle_exception (struct gdb_regs *regs)
 	/* 
 	 * acquire the CPU spinlocks
 	 */
-	for (i=0; i< smp_num_cpus; i++) 
+	for (i = num_online_cpus()-1; i >= 0; i--)
 		if (spin_trylock(&kgdb_cpulock[i]) == 0)
 			panic("kgdb: couldn't get cpulock %d\n", i);
 
@@ -963,7 +964,7 @@ finish_kgdb:
 
 exit_kgdb_exception:
 	/* release locks so other CPUs can go */
-	for (i=0; i < smp_num_cpus; i++) 
+	for (i = num_online_cpus()-1; i >= 0; i--)
 		spin_unlock(&kgdb_cpulock[i]);
 	spin_unlock(&kgdb_lock);
 
