@@ -20,6 +20,7 @@
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/string.h>
+#include <asm/page.h>
 
 /*
  * Algorithm masks and types.
