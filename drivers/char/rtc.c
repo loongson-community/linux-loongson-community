@@ -61,6 +61,7 @@
 #include <linux/poll.h>
 #include <linux/proc_fs.h>
 #include <linux/spinlock.h>
+#include <linux/rtc.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
