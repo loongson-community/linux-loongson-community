@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.17 1999/12/04 03:59:00 ralf Exp $
+/* $Id: process.c,v 1.18 2000/01/29 01:41:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -40,10 +40,8 @@ void cpu_idle(void)
 
 	while (1) {
 		while (!current->need_resched)
-			if (wait_available)
-				__asm__(".set\tmips3\n\t"
-					"wait\n\t"
-					".set\tmips0");
+			if (cpu_wait)
+				(*cpu_wait)();
 		schedule();
 		check_pgt_cache();
 	}

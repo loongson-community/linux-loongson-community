@@ -70,7 +70,7 @@ int get_cpuinfo(char *buffer)
 	len += sprintf(buffer + len, "unaligned accesses\t: %lu\n",
 		       unaligned_instructions);
 	len += sprintf(buffer + len, "wait instruction\t: %s\n",
-	               wait_available ? "yes" : "no");
+	               cpu_wait ? "yes" : "no");
 	len += sprintf(buffer + len, "microsecond timers\t: %s\n",
 	               cyclecounter_available ? "yes" : "no");
 	len += sprintf(buffer + len, "extra interrupt vector\t: %s\n",
