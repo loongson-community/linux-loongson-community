@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.12 1999/10/21 00:23:05 ralf Exp $
+/* $Id: indy_sc.c,v 1.13 1999/12/04 03:59:00 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -33,11 +33,13 @@ static unsigned long scache_size;
 
 static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 {
+	unsigned long tmp;
+
 	__asm__ __volatile__("
 		.set	noreorder
 		.set	mips3
 		.set	noat
-		mfc0	$2, $12
+		mfc0	%2, $12
 		li	$1, 0x80	# Go 64 bit
 		mtc0	$1, $12
 
@@ -50,12 +52,12 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 		bne	%0, %1, 1b
 		daddu	%0, 32
 
-		mtc0	$2, $12		# Back to 32 bit
+		mtc0	%2, $12		# Back to 32 bit
 		nop; nop; nop; nop;
 		.set mips0
 		.set reorder"
-		: /* no output */
-		: "r" (first), "r" (last)
+		: "=r" (first), "=r" (last), "=&r" (tmp)
+		: "0" (first), "1" (last)
 		: "$1");
 }
 
