@@ -807,7 +807,7 @@ ip22zilog_convert_to_zs(struct uart_ip22zilog_port *up, unsigned int cflag,
 	up->curregs[R4] |= X16CLK;
 	up->curregs[R12] = brg & 0xff;
 	up->curregs[R13] = (brg >> 8) & 0xff;
-	up->curregs[R14] = BRSRC | BRENAB;
+	up->curregs[R14] = BRENAB;
 
 	/* Character size, stop bits, and parity. */
 	up->curregs[3] &= ~RxN_MASK;
@@ -1048,9 +1048,6 @@ ip22serial_console_termios(struct console *con, char *options)
 	int parity = 'n';
 	int flow = 'n';
 
-	if (!serial_console)
-		return;
-
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
 
@@ -1126,21 +1123,6 @@ static struct console ip22zilog_console = {
 
 static int __init ip22zilog_console_init(void)
 {
-	int i;
-
-	if (con_is_present())
-		return 0;
-
-	for (i = 0; i < NUM_CHANNELS; i++) {
-		int this_minor = ip22zilog_reg.minor + i;
-
-		if ((this_minor - 64) == (serial_console - 1))
-			break;
-	}
-	if (i == NUM_CHANNELS)
-		return 0;
-
-	ip22zilog_console.index = i;
 	register_console(&ip22zilog_console);
 	return 0;
 }
@@ -1161,9 +1143,10 @@ static void __init ip22zilog_prepare(void)
 	for (channel = 0; channel < NUM_CHANNELS; channel++)
 		spin_lock_init(&ip22zilog_port_table[channel].port.lock);
 
-	ip22zilog_irq_chain = up = &ip22zilog_port_table[0];
-	for (channel = 0; channel < NUM_CHANNELS - 1; channel++)
-		up[channel].next = &up[channel + 1];
+	ip22zilog_irq_chain = &ip22zilog_port_table[NUM_CHANNELS - 1];
+        up = &ip22zilog_port_table[0];
+	for (channel = NUM_CHANNELS -1 ; channel > 0; channel--)
+		up[channel].next = &up[channel -1];
 	up[channel].next = NULL;
 
 	for (chip = 0; chip < NUM_IP22ZILOG; chip++) {
@@ -1189,7 +1172,7 @@ static void __init ip22zilog_prepare(void)
 		up[(chip * 2) + 0].port.type = PORT_IP22ZILOG;
 		up[(chip * 2) + 0].port.flags = 0;
 		up[(chip * 2) + 0].port.line = (chip * 2) + 0;
-		up[(chip * 2) + 0].flags |= IP22ZILOG_FLAG_IS_CHANNEL_A;
+		up[(chip * 2) + 0].flags = 0;
 
 		/* Channel B */
 		up[(chip * 2) + 1].port.iotype = UPIO_MEM;
@@ -1198,7 +1181,7 @@ static void __init ip22zilog_prepare(void)
 		up[(chip * 2) + 1].port.fifosize = 1;
 		up[(chip * 2) + 1].port.ops = &ip22zilog_pops;
 		up[(chip * 2) + 1].port.type = PORT_IP22ZILOG;
-		up[(chip * 2) + 1].port.flags = 0;
+		up[(chip * 2) + 1].port.flags |= IP22ZILOG_FLAG_IS_CHANNEL_A;
 		up[(chip * 2) + 1].port.line = (chip * 2) + 1;
 		up[(chip * 2) + 1].flags |= 0;
 	}
@@ -1235,8 +1218,10 @@ static void __init ip22zilog_init_hw(void)
 		brg = BPS_TO_BRG(baud, ZS_CLOCK / ZS_CLOCK_DIVISOR);
 		up->curregs[R12] = (brg & 0xff);
 		up->curregs[R13] = (brg >> 8) & 0xff;
-		up->curregs[R14] = BRSRC | BRENAB;
+		up->curregs[R14] = BRENAB;
 		__load_zsregs(channel, up->curregs);
+	        /* set master interrupt enable */
+	        write_zsreg(channel, R9, up->curregs[R9]);
 
 		spin_unlock_irqrestore(&up->port.lock, flags);
 	}
