@@ -191,7 +191,6 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 		$(LIBS) \
 		-o vmlinux
 	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aU] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System.map
-	elf2ecoff vmlinux /tmpu/miguel/vmlinux.ecoff
 
 symlinks:
 	rm -f include/asm
