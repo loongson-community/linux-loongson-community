@@ -2024,7 +2024,7 @@ static inline void r4k_flush_tlb_all(void)
 	printk("[tlball]");
 #endif
 
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	/* Save old context and create impossible VPN2 value */
 	old_ctx = (get_entryhi() & 0xff);
 	set_entryhi(KSEG0);
@@ -2044,7 +2044,7 @@ static inline void r4k_flush_tlb_all(void)
 	}
 	BARRIER;
 	set_entryhi(old_ctx);
-	restore_flags(flags);
+	__restore_flags(flags);
 }
 
 static void r4k_flush_tlb_mm(struct mm_struct *mm)
@@ -2055,11 +2055,11 @@ static void r4k_flush_tlb_mm(struct mm_struct *mm)
 #ifdef DEBUG_TLB
 		printk("[tlbmm<%d>]", mm->context);
 #endif
-		save_and_cli(flags);
+		__save_and_cli(flags);
 		get_new_mmu_context(mm);
 		if(mm == current->mm)
 			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) & 0xff);
-		restore_flags(flags);
+		__restore_flags(flags);
 	}
 }
 
@@ -2074,7 +2074,7 @@ static void r4k_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		printk("[tlbrange<%02x,%08lx,%08lx>]", (mm->context & 0xff),
 		       start, end);
 #endif
-		save_and_cli(flags);
+		__save_and_cli(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if(size <= NTLB_ENTRIES_HALF) {
@@ -2124,7 +2124,7 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 #endif
 		newpid = (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff);
 		page &= (PAGE_MASK << 1);
-		save_and_cli(flags);
+		__save_and_cli(flags);
 		oldpid = (get_entryhi() & 0xff);
 		set_entryhi(page | newpid);
 		BARRIER;
@@ -2142,7 +2142,7 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	finish:
 		BARRIER;
 		set_entryhi(oldpid);
-		restore_flags(flags);
+		__restore_flags(flags);
 	}
 }
 
@@ -2165,6 +2165,7 @@ static void r4k_update_mmu_cache(struct vm_area_struct * vma,
 	pte_t *ptep;
 	int idx, pid;
 
+	__save_and_cli(flags);
 	pid = (get_entryhi() & 0xff);
 
 #ifdef DEBUG_TLB
@@ -2176,7 +2177,6 @@ static void r4k_update_mmu_cache(struct vm_area_struct * vma,
 	}
 #endif
 
-	__save_and_cli(flags);
 	address &= (PAGE_MASK << 1);
 	set_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);

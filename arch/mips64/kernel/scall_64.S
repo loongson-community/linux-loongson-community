@@ -32,6 +32,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 #ifndef CONFIG_MIPS32_COMPAT
 	.set	noat
 	SAVE_SOME
+	STI
 	.set	at
 #endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return

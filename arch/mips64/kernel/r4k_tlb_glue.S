@@ -23,10 +23,18 @@ NESTED(__tlb_refill_debug_tramp, PT_SIZE, sp)
 	END(__tlb_refill_debug_tramp)
 	__FINIT
 
-	.macro	tlb_handler name
+	.macro	__BUILD_cli
+	CLI
+	.endm
+
+	.macro	__BUILD_sti
+	STI
+	.endm
+
+	.macro	tlb_handler name interruptible
 	NESTED(__\name, PT_SIZE, sp)
 	SAVE_ALL
-	CLI
+	__BUILD_\interruptible
 	dmfc0	t0, CP0_BADVADDR
 	sd	t0, PT_BVADDR(sp)
 	move	a0, sp
@@ -35,8 +43,8 @@ NESTED(__tlb_refill_debug_tramp, PT_SIZE, sp)
 	END(__\name)
 	.endm
 
-	tlb_handler	tlb_refill_debug
-	tlb_handler	xtlb_refill_debug
-	tlb_handler	xtlb_mod_debug
-	tlb_handler	xtlb_tlbl_debug
-	tlb_handler	xtlb_tlbs_debug
+	tlb_handler	tlb_refill_debug cli
+	tlb_handler	xtlb_refill_debug cli
+	tlb_handler	xtlb_mod_debug sti
+	tlb_handler	xtlb_tlbl_debug sti
+	tlb_handler	xtlb_tlbs_debug sti
