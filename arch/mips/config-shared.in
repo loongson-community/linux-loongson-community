@@ -600,6 +600,9 @@ if [ "$CONFIG_BLK_DEV_INITRD" = "y" ]; then
    mainmenu_option next_comment
    comment 'MIPS initrd options'
    bool '  Embed root filesystem ramdisk into the kernel' CONFIG_EMBEDDED_RAMDISK
+   if [ "$CONFIG_EMBEDDED_RAMDISK" = "y" ]; then
+      string '    Filename of gziped ramdisk image' CONFIG_EMBEDDED_RAMDISK_IMAGE ramdisk.gz
+   fi
    endmenu
 fi
 

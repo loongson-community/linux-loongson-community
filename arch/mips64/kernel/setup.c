@@ -72,6 +72,8 @@ extern struct ide_ops no_ide_ops;
 struct ide_ops *ide_ops;
 #endif
 
+extern void * __rd_start, * __rd_end;
+
 extern struct rtc_ops no_rtc_ops;
 struct rtc_ops *rtc_ops;
 
@@ -261,12 +263,23 @@ static inline void bootmem_init(void)
 	unsigned long start_pfn, max_pfn;
 	int i;
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
+	if (tmp < (unsigned long)&_end)
+		tmp += PAGE_SIZE;
+	initrd_header = (unsigned long *)tmp;
+	if (initrd_header[0] == 0x494E5244) {
+		initrd_start = (unsigned long)&initrd_header[2];
+		initrd_end = initrd_start + initrd_header[1];
+	}
+	start_pfn = PFN_UP(CPHYSADDR((&_end)+(initrd_end - initrd_start) + PAGE_SIZE));
+#else
 	/*
 	 * Partially used pages are not usable - thus
 	 * we are rounding upwards.
-	 * start_pfn = PFN_UP(__pa(&_end));
 	 */
-	start_pfn = PFN_UP((unsigned long)&_end - KSEG0);
+	start_pfn = PFN_UP(CPHYSADDR(&_end));
+#endif	/* CONFIG_BLK_DEV_INITRD */
 
 	/* Find the highest page frame number we have available.  */
 	max_pfn = 0;
@@ -334,22 +347,25 @@ static inline void bootmem_init(void)
 	reserve_bootmem(PFN_PHYS(start_pfn), bootmap_size);
 
 #ifdef CONFIG_BLK_DEV_INITRD
-#error "Initrd is broken, please fit it."
-	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
-	if (tmp < (unsigned long)&_end)
-		tmp += PAGE_SIZE;
-	initrd_header = (unsigned long *)tmp;
-	if (initrd_header[0] == 0x494E5244) {
-		initrd_start = (unsigned long)&initrd_header[2];
-		initrd_end = initrd_start + initrd_header[1];
-		initrd_below_start_ok = 1;
-		if (initrd_end > memory_end) {
+	/* Board specific code should have set up initrd_start and initrd_end */
+	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	if (&__rd_start != &__rd_end) {
+		initrd_start = (unsigned long)&__rd_start;
+		initrd_end = (unsigned long)&__rd_end;
+	}
+	initrd_below_start_ok = 1;
+	if (initrd_start) {
+		unsigned long initrd_size = ((unsigned char *)initrd_end) - ((unsigned char *)initrd_start);
+		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",
+		       (void *)initrd_start,
+		       initrd_size);
+		if (CPHYSADDR(initrd_end) > PFN_PHYS(max_pfn)) {
 			printk("initrd extends beyond end of memory "
-			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			       initrd_end,memory_end);
+			       "(0x%p > 0x%p)\ndisabling initrd\n",
+			       (void *)CPHYSADDR(initrd_end),
+			       (void *)PFN_PHYS(max_pfn));
 			initrd_start = 0;
-		} else
-			*memory_start_p = initrd_end;
+		}
 	}
 #endif
 }

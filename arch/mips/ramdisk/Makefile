@@ -7,9 +7,9 @@
 #
 
 O_FORMAT = $(shell $(OBJDUMP) -i | head -2 | grep elf32)
+img = $(CONFIG_EMBEDDED_RAMDISK_IMAGE)
 ramdisk.o: ramdisk.gz ld.script
 	echo "O_FORMAT:  " $(O_FORMAT)
-	$(LD) -T ld.script -b binary --oformat $(O_FORMAT) -o $@ ramdisk.gz
+	$(LD) -T ld.script -b binary --oformat $(O_FORMAT) -o $@ $(img)
 
 include $(TOPDIR)/Rules.make
-

@@ -157,6 +157,7 @@ CONFIG_BLK_DEV_INITRD=y
 # MIPS initrd options
 #
 CONFIG_EMBEDDED_RAMDISK=y
+CONFIG_EMBEDDED_RAMDISK_IMAGE="ramdisk.gz"
 
 #
 # Multi-device support (RAID and LVM)

@@ -801,3 +801,16 @@ CONFIG_GDB_CONSOLE
   would like kernel messages to be formatted into GDB $O packets so
   that GDB prints them as program output, say 'Y'.
 
+CONFIG_EMBEDDED_RAMDISK_IMAGE
+  This is the filename of the ramdisk image to be built into the
+  kernel.  Relative pathnames are relative to arch/mips/ramdisk/.  
+  The ramdisk image is not part of the kernel distribution; you must
+  provide one yourself.
+
+CONFIG_BLK_DEV_LOOP
+  Saying Y here will allow you to use a regular file as a block
+  device; you can then create a file system on that block device and
+  mount it just as you would mount other block devices such as hard
+  drive partitions, CD-ROM drives or floppy drives. The loop devices
+  are block special device files with major number 7 and typically
+  called /dev/loop0, /dev/loop1 etc.

@@ -820,6 +820,11 @@ static inline pid_t waitpid(int pid, int * wait_stat, int flags)
 	return wait4(pid, wait_stat, flags, NULL);
 }
 
+static inline pid_t wait(int * wait_stat)
+{
+	return waitpid(-1, wait_stat, 0);
+}
+
 #endif /* __KERNEL_SYSCALLS__ */
 #endif /* !__ASSEMBLY__ */
 
