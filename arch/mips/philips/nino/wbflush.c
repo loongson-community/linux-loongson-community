@@ -1,13 +1,13 @@
 /*
  *  linux/arch/mips/philips/nino/wbflush.c
  *
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Function to flush the write buffer on the PR31700 chip.
+ *  Function to flush the write buffer on the Philips Nino.
  */
 #include <linux/init.h>
 

@@ -1,0 +1,11 @@
+OUTPUT_FORMAT("ecoff-littlemips")
+OUTPUT_ARCH(mips)
+SECTIONS
+{
+  .data :
+  {
+        __rd_start = .;
+        *(.data)
+        __rd_end = .;
+  }
+}

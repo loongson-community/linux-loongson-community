@@ -1,16 +1,16 @@
 /*
  *  linux/arch/mips/philips/nino/kgdb.c
  *
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Low level functions for remote debugging on PR31700.
+ *  Kernel debugging on the Philips Nino.
  */
 #include <asm/system.h>
-#include <asm/philips/pr31700.h>
+#include <asm/tx3912.h>
 
 static int remoteDebugInitialized = 0;
 

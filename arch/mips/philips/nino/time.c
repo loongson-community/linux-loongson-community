@@ -1,15 +1,15 @@
 /*
  *  linux/arch/mips/philips/nino/time.c
  *
- *  Copyright (C) 1999 Harald Koerfgen (Harald.Koerfgen@home.ivm.de)
+ *  Copyright (C) 1999 Harald Koerfgen
  *  Copyright (C) 2000 Pavel Machek (pavel@suse.cz)
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Time handling details for PR31700.
+ *  Time handling functinos for Philips Nino.
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -21,7 +21,7 @@
 #include <linux/interrupt.h>
 #include <linux/timex.h>
 #include <linux/delay.h>
-#include <asm/philips/pr31700.h>
+#include <asm/tx3912.h>
 
 extern volatile unsigned long wall_jiffies;
 extern rwlock_t xtime_lock;

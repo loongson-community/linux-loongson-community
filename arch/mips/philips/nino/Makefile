@@ -17,10 +17,17 @@ all: nino.o
 
 obj-y	 := int-handler.o setup.o irq.o time.o reset.o rtc.o prom.o power.o wbflush.o
 
-obj-$(CONFIG_BLK_DEV_INITRD)	+= ../boot/ramdisk.o
+int-handler.o: int-handler.S
 
 obj-$(CONFIG_REMOTE_DEBUG)	+= kgdb.o
 
-int-handler.o: int-handler.S
+obj-$(CONFIG_BLK_DEV_INITRD)	+= ramdisk.o
+
+ramdisk.o:
+		$(MAKE) -C ramdisk
+		ln -sf ramdisk/ramdisk.o ramdisk.o
+
+clean:
+		rm -f *.o
 
 include $(TOPDIR)/Rules.make

@@ -1,13 +1,13 @@
 /*
  *  linux/arch/mips/philips/nino/setup.c
  *
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Interrupt and exception initialization for PR31700.
+ *  Interrupt and exception initialization for Philips Nino.
  */
 #include <linux/console.h>
 #include <linux/init.h>
@@ -18,7 +18,7 @@
 #include <asm/gdb-stub.h>
 #include <asm/irq.h>
 #include <asm/wbflush.h>
-#include <asm/philips/pr31700.h>
+#include <asm/tx3912.h>
 
 extern struct rtc_ops nino_rtc_ops;
 
@@ -58,7 +58,7 @@ static void __init nino_irq_setup(void)
 	 * Enable only the interrupts for the UART and negative
 	 * edge (1-to-0) triggered multi-function I/O pins.
 	 */
-    	clear_cp0_status(ST0_BEV);
+    	change_cp0_status(ST0_BEV, 0);
 	tmp = read_32bit_cp0_register(CP0_STATUS);
     	change_cp0_status(ST0_IM, tmp | IE_IRQ2 | IE_IRQ4);
 
@@ -75,6 +75,8 @@ static void __init nino_irq_setup(void)
 
 static __init void nino_time_init(struct irqaction *irq)
 {
+	unsigned int scratch = 0;
+
 	/*
 	 * Enable periodic interrupts
 	 */
@@ -83,7 +85,10 @@ static __init void nino_time_init(struct irqaction *irq)
 	RTCperiodTimer = PER_TIMER_COUNT;
 	RTCtimerControl = TIM_ENPERTIMER;
 	IntEnable5 |= INT5_PERIODICINT;
-	ClockControl |= CLK_ENTIMERCLK;
+
+	scratch = inl(TX3912_CLK_CTRL_BASE);
+	scratch |= TX3912_CLK_CTRL_ENTIMERCLK;
+	outl(scratch, TX3912_CLK_CTRL_BASE);
 
 	/* Enable all interrupts */
 	IntEnable6 |= INT6_GLOBALEN | INT6_PERIODICINT;
@@ -96,7 +101,7 @@ void __init nino_setup(void)
 	board_time_init = nino_time_init;
 
 	/* Base address to use for PC type I/O accesses */
-	mips_io_port_base = KSEG1ADDR(0x08000000);
+	mips_io_port_base = KSEG1ADDR(0xB0C00000);
 
 	setup_nino_reset_vectors();
 

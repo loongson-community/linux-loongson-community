@@ -1,14 +1,15 @@
 /*
- *  linux/arch/mips/philips-mobile/nino/rtc.c
+ *  linux/arch/mips/philips/nino/rtc.c
  *
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Functions to access the RTC on the PR31700 chip.
+ *  Functions to access RTC on the Philips Nino.
  */
+#include <linux/spinlock.h>
 #include <linux/mc146818rtc.h>
 
 static unsigned char nino_rtc_read_data(unsigned long addr)

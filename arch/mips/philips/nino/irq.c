@@ -2,15 +2,15 @@
  *  linux/arch/mips/philips/nino/irq.c
  *
  *  Copyright (C) 1992 Linus Torvalds
- *  Copyright (C) 1999 Harald Koerfgen (Harald.Koerfgen@home.ivm.de)
+ *  Copyright (C) 1999 Harald Koerfgen
  *  Copyright (C) 2000 Pavel Machek (pavel@suse.cz)
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  * 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *  
- *  Generic interrupt handler for PR31700.
+ *  Generic interrupt handler for Philips Nino.
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -30,7 +30,7 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/philips/pr31700.h>
+#include <asm/tx3912.h>
 
 unsigned long spurious_count = 0;
 
@@ -45,10 +45,12 @@ static inline void mask_irq(unsigned int irq_nr)
 		IntEnable6 &= ~INT6_PERIODICINT;
 		break;
 
-	case 3:  /* Serial port receive interrupt */
+	case 3:
+		/* Serial port receive interrupt */
 		break;
 
-	case 2:  /* Serial port transmit interrupt */
+	case 2:
+		/* Serial port transmit interrupt */
 		break;
 
 	default:
@@ -63,12 +65,12 @@ static inline void unmask_irq(unsigned int irq_nr)
 		IntEnable6 |= INT6_PERIODICINT;
 		break;
 
-	case 3:  /* Serial port receive interrupt */
-		/* FIXME: currently handled in driver */
+	case 3:
+		/* Serial port receive interrupt */
 		break;
 
-	case 2:  /* Serial port transmit interrupt */
-		/* FIXME: currently handled in driver */
+	case 2:
+		/* Serial port transmit interrupt */
 		break;
 
 	default:
@@ -149,17 +151,24 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
     struct irqaction *action;
     int do_random, cpu;
 
+    if (irq == 20) {
+        if (IntStatus2 & 0xfffff00) {
+		if (IntStatus2 & 0x0f000000)
+		return do_IRQ(2, regs);
+	}
+    }
+
     cpu = smp_processor_id();
     irq_enter(cpu, irq);
     kstat.irqs[cpu][irq]++;
 
     if (irq == 20) {
-	    printk("20 %08lx %08lx\n   %08lx %08lx\n   %08lx\n",
-		   IntStatus1, IntStatus2, IntStatus3,
-		   IntStatus4, IntStatus5 );
-	    printk("20 %08lx %08lx\n   %08lx %08lx\n   %08lx\n",
-		   IntEnable1, IntEnable2, IntEnable3,
-		   IntEnable4, IntEnable5 );
+            printk("20 %08lx %08lx\n   %08lx %08lx\n   %08lx\n",
+                   IntStatus1, IntStatus2, IntStatus3,
+                   IntStatus4, IntStatus5 );
+            printk("20 %08lx %08lx\n   %08lx %08lx\n   %08lx\n",
+                   IntEnable1, IntEnable2, IntEnable3,
+                   IntEnable4, IntEnable5 );
 
     }
 
@@ -179,6 +188,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 	unmask_irq(irq);
 	__cli();
     } else {
+            IntClear1 = ~0;
             IntClear3 = ~0;
 	    IntClear4 = ~0;
 	    IntClear5 = ~0;

@@ -1,13 +1,13 @@
 /*
  *  linux/arch/mips/philips/nino/reset.c
  *
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Generic restart, halt and power off functions.
+ *  Generic restart, halt and power off functions for Philips Nino.
  */
 #include <linux/init.h>
 #include <asm/reboot.h>

@@ -1,22 +1,21 @@
 /*
  *  linux/arch/mips/philips/nino/int-handler.S
  *
- *  Copyright (C) 1999 Harald Koerfgen (Harald.Koerfgen@home.ivm.de)
+ *  Copyright (C) 1999 Harald Koerfgen
  *  Copyright (C) 2000 Jim Pick (jim@jimpick.com)
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Interrupt handler for PR31700.
+ *  Interrupt handler for Philips Nino.
  */
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
-#include <asm/philips/pr31700.h>
-
+#include <asm/tx3912.h>
 
 		.data
 	        .globl  HighPriVect

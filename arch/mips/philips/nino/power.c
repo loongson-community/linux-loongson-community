@@ -2,15 +2,15 @@
  *  linux/arch/mips/philips/nino/power.c
  *
  *  Copyright (C) 2000 Jim Pick <jim@jimpick.com>
- *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Routines for power management on the Nino.
+ *  Power management routines on the Philips Nino.
  */
-#include <asm/philips/pr31700.h>
+#include <asm/tx3912.h>
 
 void nino_wait(void)
 {

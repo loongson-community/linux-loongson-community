@@ -1,5 +1,5 @@
 /*
- *  linux/arch/mips/philips-hpc/nino/prom.c
+ *  linux/arch/mips/philips/nino/prom.c
  *
  *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
@@ -7,50 +7,30 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *  
- *  Early initialization code for the Nino.
+ *  Early initialization code for the Philips Nino.
  */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <asm/bootinfo.h>
+#include <asm/addrspace.h>
+#include <asm/page.h>
 
 char arcs_cmdline[COMMAND_LINE_SIZE];
 
-#ifdef CONFIG_LL_DEBUG
-extern void init_uart(void);
-
-int __init prom_printf(const char * fmt, ...)
-{
-        extern void serial_outc(char);
-        static char buf[1024];
-        va_list args;
-        char c;
-        int i = 0;
-
-        /*
-         * Printing messages via serial port
-         */
-        va_start(args, fmt);
-        vsprintf(buf, fmt, args);
-        va_end(args);
-
-        for (i = 0; buf[i] != '\0'; i++) {
-                c = buf[i];
-                if (c == '\n')
-                        serial_outc('\r');
-                serial_outc(c);
-        }
-
-        return i;
-}
+#ifdef CONFIG_FB_TX3912
+extern u_long tx3912fb_paddr;
+extern u_long tx3912fb_vaddr;
+extern u_long tx3912fb_size;
 #endif
 
 /* Do basic initialization */
 void __init prom_init(int argc, char **argv,
 		unsigned long magic, int *prom_vec)
 {
-	int i;
+	u_long free_end, mem_size;
+	u_int i;
 
 	/*
 	 * collect args and prepare cmd_line
@@ -61,20 +41,37 @@ void __init prom_init(int argc, char **argv,
 			strcat(arcs_cmdline, " ");
 	}
 
-#ifdef CONFIG_LL_DEBUG
-	earlyInitUartPR31700();
-#endif
-
 	mips_machgroup = MACH_GROUP_PHILIPS;
 	mips_machtype = MACH_PHILIPS_NINO;
 
-	/* Add memory region */
 #ifdef CONFIG_NINO_4MB
-	add_memory_region(0,  4 << 20, BOOT_MEM_RAM); 
+	mem_size = 4 << 20;
 #elif CONFIG_NINO_8MB
-	add_memory_region(0,  8 << 20, BOOT_MEM_RAM); 
+	mem_size = 8 << 20;
 #elif CONFIG_NINO_16MB
-	add_memory_region(0, 16 << 20, BOOT_MEM_RAM); 
+	mem_size = 16 << 20;
+#endif
+
+#ifdef CONFIG_FB_TX3912
+	/*
+	 * The LCD controller requires that the framebuffer
+	 * start address fall within a 1MB segment and is
+	 * aligned on a 16 byte boundary. The way to assure
+	 * this is to place the framebuffer at the end of
+	 * memory and mark it as reserved.
+	 */
+	free_end = (mem_size - tx3912fb_size) & PAGE_MASK;
+	add_memory_region(0, free_end, BOOT_MEM_RAM); 
+	add_memory_region(free_end, (mem_size - free_end), BOOT_MEM_RESERVED); 
+
+	/*
+	 * Calculate physical and virtual addresses for
+	 * the beginning of the framebuffer.
+	 */
+	tx3912fb_paddr = PHYSADDR(free_end);
+	tx3912fb_vaddr = KSEG1ADDR(free_end);
+#else
+	add_memory_region(0, mem_size, BOOT_MEM_RAM); 
 #endif
 }
 
