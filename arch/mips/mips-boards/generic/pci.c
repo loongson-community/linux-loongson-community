@@ -357,6 +357,12 @@ int mips_pcibios_iack(void)
 			".set\treorder");
 
 		irq = *(volatile u32 *)(KSEG1ADDR(BONITO_PCICFG_BASE));
+		__asm__ __volatile__(
+			".set\tnoreorder\n\t"
+			".set\tnoat\n\t"
+			"sync\n\t"
+			".set\tat\n\t"
+			".set\treorder");
 		irq &= 0xff;
 		BONITO_PCIMAP_CFG = 0;
 		break;

@@ -91,6 +91,9 @@ void corehi_irqdispatch(struct pt_regs *regs)
 {
         unsigned int data,datahi;
 
+	/* Mask out corehi interrupt. */
+	clear_c0_status(IE_IRQ3);
+
         printk("CoreHI interrupt, shouldn't happen, so we die here!!!\n");
         printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\nbadVaddr : %08lx\n"
 , regs->cp0_epc, regs->cp0_status, regs->cp0_cause, regs->cp0_badvaddr);
@@ -125,7 +128,6 @@ void corehi_irqdispatch(struct pt_regs *regs)
 
         /* We die here*/
         die("CoreHi interrupt", regs);
-        while (1) ;
 }
 
 void __init init_IRQ(void)
