@@ -168,14 +168,6 @@ not_o32_scall:
 #else
 	j	handle_sys64
 #endif
-
-illegal_syscall:
-	/* This also isn't a 64-bit syscall, throw an error.  */
-	li	v0, -ENOSYS		# error
-	sd	v0, PT_R2(sp)
-	li	t0, 1			# set error flag
-	sd	t0, PT_R7(sp)
-	j	o32_syscall_exit
 	END(handle_sys)
 
 LEAF(sys32_syscall)
