@@ -1,4 +1,4 @@
-/* $Id: serial.h,v 1.5 1998/08/26 22:40:50 tsbogend Exp $
+/* $Id: serial.h,v 1.6 2000/01/26 00:07:45 ralf Exp $
  *
  * include/asm-mips/serial.h
  */
@@ -151,7 +151,7 @@
 	  STD_COM_FLAGS, 0, 0, 0, 0, 0, 0, 0,		\
 	  (u8 *)0xbfa00300, 3 }
 #else
-#define STD_SERIAL_PORT_DEFNS
+#define DDB5074_SERIAL_PORT_DEFNS
 #endif
 
 #define SERIAL_PORT_DFNS		\
