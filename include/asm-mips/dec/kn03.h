@@ -30,9 +30,6 @@
 #define KN03_MCR_BNK32M		(1<<10)			/* 32M stride */
 #define KN03_MCR_ECCEN		(1<<13)			/* ECC enabled */
 
-#define KN03_IOASIC_REG(r)	(KN03_IOASIC_BASE+(r))
-
-
 /*
  * CPU interrupt bits.
  */
