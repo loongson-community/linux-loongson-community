@@ -72,6 +72,42 @@ FEXPORT(except_vec0)
 1:	b	1b
 	 nop
 
+	.align  5
+LEAF(except_vec1_r4k)
+	.set    noat
+	dla     k1, pgd_current
+	dmfc0   k0, CP0_BADVADDR
+	ld      k1, (k1)
+	bltz    k0, vmaddr
+	 dsrl   k0, (PGDIR_SHIFT-3)             # get pgd offset in bytes
+	andi    k0, ((PTRS_PER_PGD - 1)<<3)
+	daddu   k1, k0                          # add in pgd offset
+	dmfc0   k0, CP0_BADVADDR
+	ld      k1, (k1)                        # get pmd pointer
+	dsrl    k0, (PMD_SHIFT-3)               # get pmd offset in bytes
+	andi    k0, ((PTRS_PER_PMD - 1)<<3)
+	daddu   k1, k0                          # add in pmd offset
+	dmfc0   k0, CP0_XCONTEXT
+	andi    k0, 0xff0                       # get pte offset
+	ld      k1, (k1)                        # get pte pointer
+	daddu   k1, k0
+	ld      k0, 0(k1)                       # get even pte
+	ld      k1, 8(k1)                       # get odd pte
+	dsrl    k0, 6                           # convert to entrylo0
+	dmtc0   k0, CP0_ENTRYLO0                # load it
+	dsrl    k1, 6                           # convert to entrylo1
+	dmtc0   k1, CP0_ENTRYLO1                # load it
+	nop                                     # Need 2 cycles between mtc0
+	nop                                     #  and tlbwr (CP0 hazard).
+	tlbwr
+	nop
+	eret
+vmaddr:
+	dla     k0, handle_vmalloc_address
+	jr      k0
+	 nop
+END(except_vec1_r4k)
+	
 	/*
 	 * TLB refill handler for the R10000.
 	 * Attention:  We may only use 32 instructions / 128 bytes.

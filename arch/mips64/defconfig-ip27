@@ -52,10 +52,11 @@ CONFIG_L1_CACHE_SHIFT=7
 #
 # CPU selection
 #
+# CONFIG_CPU_MIPS64 is not set
+# CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R4300 is not set
 # CONFIG_CPU_R4X00 is not set
 # CONFIG_CPU_R5000 is not set
-# CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R8000 is not set
 CONFIG_CPU_R10000=y
 # CONFIG_CPU_SB1 is not set

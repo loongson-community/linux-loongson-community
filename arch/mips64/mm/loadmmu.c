@@ -53,33 +53,26 @@ extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
 extern void sb1_tlb_init(void);
+extern void ld_mmu_mips64(void);
+extern void r4k_tlb_init(void);
 
 void __init load_mmu(void)
 {
-	switch(mips_cpu.cputype) {
+	if (mips_cpu.options & MIPS_CPU_4KTLB) {
 #if defined (CONFIG_CPU_R4300)						\
     || defined (CONFIG_CPU_R4X00)					\
     || defined (CONFIG_CPU_R5000)					\
     || defined (CONFIG_CPU_NEVADA)
-	case CPU_R4000PC:
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4200:
-	case CPU_R4300:
-	case CPU_R4400PC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-	case CPU_R4600:
-	case CPU_R4640:
-	case CPU_R4650:
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_R5000A:
-	case CPU_NEVADA:
 		printk(KERN_INFO "Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
-		break;
 #endif
+#if defined(CONFIG_CPU_MIPS64)
+		printk(KERN_INFO "Loading MIPS64 MMU routines.\n");
+                ld_mmu_mips64();
+		r4k_tlb_init();
+#endif
+
+	} else switch(mips_cpu.cputype) {
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 		printk(KERN_INFO "Loading R10000 MMU routines.\n");

@@ -25,6 +25,10 @@
 
 extern void (*_clear_page)(void * page);
 extern void (*_copy_page)(void * to, void * from);
+extern void mips64_clear_page_dc(unsigned long page);
+extern void mips64_clear_page_sc(unsigned long page);
+extern void mips64_copy_page_dc(unsigned long to, unsigned long from);
+extern void mips64_copy_page_sc(unsigned long to, unsigned long from);
 
 #define clear_page(page)	_clear_page(page)
 #define copy_page(to, from)	_copy_page(to, from)

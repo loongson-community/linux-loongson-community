@@ -678,6 +678,7 @@ void __init per_cpu_trap_init(void)
 void __init trap_init(void)
 {
 	extern char except_vec0;
+	extern char except_vec1_r4k;
 	extern char except_vec1_r10k;
 	extern char except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
@@ -749,10 +750,17 @@ void __init trap_init(void)
 	case CPU_R4600:
 	case CPU_R5000:
 	case CPU_NEVADA:
+	case CPU_5KC:
+	case CPU_20KC:
+	case CPU_RM7000:
 		/* Debug TLB refill handler.  */
 		memcpy((void *)KSEG0, &except_vec0, 0x80);
-		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
-
+		if ((mips_cpu.options & MIPS_CPU_4KEX)
+		    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
+			memcpy((void *)KSEG0 + 0x080, &except_vec1_r4k, 0x80);
+		} else {
+			memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
+		}
 		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
 			       0x80);

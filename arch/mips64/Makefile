@@ -70,7 +70,10 @@ ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 MODFLAGS	+= -msb1-pass1-workarounds
 endif
 endif
-
+ifdef CONFIG_CPU_MIPS64
+#CFLAGS		+= -mips64	# Should be used then we get a MIPS64 compiler
+CFLAGS		+= -mcpu=r8000 -mips4  
+endif
 
 #
 # We unconditionally build the math emulator

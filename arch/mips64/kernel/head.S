@@ -108,7 +108,20 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	la	$28, init_thread_union		# init current pointer
 	daddiu	sp, $28, KERNEL_STACK_SIZE-32
 	set_saved_sp	sp, t0
-
+	
+	/* The firmware/bootloader passes argc/argp/envp
+	 * to us as arguments.  But clear bss first because
+	 * the romvec and other important info is stored there
+	 * by prom_init().
+	 */
+	la      t0, _edata
+	sd      zero, (t0)
+	la      t1, (_end - 8)
+1:
+	daddiu  t0, 8
+	sd     zero, (t0)
+	bne     t0, t1, 1b
+ 
 	dsubu	sp, 4*SZREG			# init stack pointer
 
 	j	init_arch

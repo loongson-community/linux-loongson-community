@@ -61,10 +61,12 @@ fi
 if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
    define_bool CONFIG_I8259 y
+   define_bool CONFIG_HAVE_STD_PC_SERIAL_PORT y
    define_int CONFIG_L1_CACHE_SHIFT 5
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_PC_KEYB y
 fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
@@ -111,14 +113,25 @@ mainmenu_option next_comment
 comment 'CPU selection'
 
 choice 'CPU type' \
-	"R4300	CONFIG_CPU_R4300 \
+	"MIPS64 CONFIG_CPU_MIPS64 \
+	 R52x0	CONFIG_CPU_NEVADA \
+	 R4300	CONFIG_CPU_R4300 \
 	 R4x00	CONFIG_CPU_R4X00 \
 	 R5000	CONFIG_CPU_R5000 \
-	 R52x0	CONFIG_CPU_NEVADA \
 	 R8000	CONFIG_CPU_R8000 \
 	 R10000	CONFIG_CPU_R10000 \
 	 SB1	CONFIG_CPU_SB1" R4x00
 endmenu
+
+if [ "$CONFIG_CPU_SB1" = "y" ]; then
+   bool '  Workarounds for pass 1 sb1 bugs' CONFIG_SB1_PASS_1_WORKAROUNDS
+   bool '  Support for SB1 Cache Error handler' CONFIG_SB1_CACHE_ERROR
+   define_bool CONFIG_VTAG_ICACHE y
+fi
+
+if [ "$CONFIG_CPU_MIPS64" = "y" ]; then
+   bool '  Support for Virtual Tagged I-cache' CONFIG_VTAG_ICACHE
+fi
 
 define_bool CONFIG_CPU_HAS_LLSC y
 define_bool CONFIG_CPU_HAS_LLDSCD y

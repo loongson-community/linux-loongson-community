@@ -50,7 +50,9 @@ struct cpuinfo_mips cpu_data[1];
  * boxes ...
  * This flag is set if a EISA slots are available.
  */
+#ifdef CONFIG_EISA
 int EISA_bus = 0;
+#endif
 
 struct screen_info screen_info;
 
