@@ -1,7 +1,4 @@
-.S.s:
-	$(CPP) $(AFLAGS) $< -o $@
-.S.o:
-	$(CC) $(AFLAGS) -c $< -o $@
+USE_STANDARD_AS_RULE := true
 
 O_TARGET := sb1250.o
 

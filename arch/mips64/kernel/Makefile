@@ -6,8 +6,7 @@
 # unless it's something special (ie not a .c file).
 #
 
-.S.o:
-	$(CC) $(CFLAGS) $(CFLAGS_$@) -c $< -o $*.o
+USE_STANDARD_AS_RULE := true
 
 all:	kernel.o head.o init_task.o
 

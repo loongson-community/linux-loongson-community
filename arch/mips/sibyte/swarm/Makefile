@@ -1,9 +1,4 @@
-.S.s:
-	$(CPP) $(AFLAGS) $< -o $@
-.S.o:
-	$(CC) $(AFLAGS) -c $< -o $@
-
-EXTRA_AFLAGS = -mips3 -mcpu=r4000
+USE_STANDARD_AS_RULE := true
 
 all: sbswarm.a
 

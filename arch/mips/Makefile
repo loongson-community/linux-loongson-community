@@ -5,6 +5,7 @@
 #
 # Copyright (C) 1994, 1995, 1996 by Ralf Baechle
 # DECStation modifications by Paul M. Antoine, 1996
+# Copyright (C) 2002  Maciej W. Rozycki
 #
 # This file is included by the global makefile so that you can add your own
 # architecture-specific flags and dependencies. Remember to do have actions
@@ -22,7 +23,7 @@ tool-prefix	= mips-linux-
 endif
 
 ifdef CONFIG_CROSSCOMPILE
-CROSS_COMPILE  = $(tool-prefix)
+CROSS_COMPILE	= $(tool-prefix)
 endif
 
 #
@@ -35,13 +36,13 @@ endif
 # machines may also.  Since BFD is incredibly buggy with respect to
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
-GCCFLAGS	:= -G 0 -mno-abicalls -fno-pic
-LINKFLAGS	+= -static
+GCCFLAGS	:= -I $(TOPDIR)/include/asm/gcc
+GCCFLAGS	+= -G 0 -mno-abicalls -fno-pic -pipe
+LINKFLAGS	+= -G 0 -static # -N
 MODFLAGS	+= -mlong-calls
-LD		:= $(LD) -G 0
 
 ifdef CONFIG_REMOTE_DEBUG
-CFLAGS		:= $(CFLAGS) -g
+GCCFLAGS	+= -g
 endif
 
 #
@@ -78,7 +79,7 @@ ifdef CONFIG_CPU_R5000
 GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R5432
-GCCFLAGS        += -mcpu=r5000 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_NEVADA
 # Cannot use -mmad with currently recommended tools
@@ -90,21 +91,19 @@ endif
 ifdef CONFIG_CPU_SB1
 GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
 ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
-MODFLAGS       += -msb1-pass1-workarounds
+MODFLAGS	+= -msb1-pass1-workarounds
 endif
 endif
 
-GCCFLAGS	+= -pipe
-
-CFLAGS		:= -I $(TOPDIR)/include/asm/gcc $(CFLAGS) $(GCCFLAGS)
 AFLAGS		+= $(GCCFLAGS)
-ASFLAGS		+= $(GCCFLAGS)
+CFLAGS		+= $(GCCFLAGS)
+
 
 #
 # We unconditionally build the math emulator
 #
-CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
-SUBDIRS		+=arch/mips/math-emu
+CORE_FILES	+= arch/mips/math-emu/fpu_emulator.o
+SUBDIRS		+= arch/mips/math-emu
 
 #
 # ramdisk/initrd support
@@ -116,138 +115,145 @@ CORE_FILES	+= arch/mips/ramdisk/ramdisk.o
 SUBDIRS		+= arch/mips/ramdisk
 endif
 
+
 #
 # Board-dependent options and extra files
 #
-ifdef CONFIG_ALGOR_P4032
-CORE_FILES    += arch/mips/algor/algor.o
-SUBDIRS       += arch/mips/algor
-LOADADDR      += 0x80000000
-endif
-
-#
-# DECstation family
-#
-ifdef CONFIG_DECSTATION
-CORE_FILES    += arch/mips/dec/dec.o
-SUBDIRS       += arch/mips/dec arch/mips/dec/prom
-LIBS          += arch/mips/dec/prom/rexlib.a
-LOADADDR      += 0x80040000
-endif
-
-ifdef CONFIG_MIPS_ATLAS
-LIBS          += arch/mips/mips-boards/atlas/atlas.o arch/mips/mips-boards/generic/mipsboards.o
-SUBDIRS       += arch/mips/mips-boards/generic arch/mips/mips-boards/atlas
-LOADADDR      += 0x80100000
-endif
-
-ifdef CONFIG_MIPS_MALTA
-LIBS          += arch/mips/mips-boards/malta/malta.o arch/mips/mips-boards/generic/mipsboards.o
-SUBDIRS       += arch/mips/mips-boards/malta arch/mips/mips-boards/generic
-LOADADDR      += 0x80100000
-endif
 
 #
 # Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
 #
 ifdef CONFIG_MIPS_JAZZ
-CORE_FILES    += arch/mips/jazz/jazz.o
-SUBDIRS       += arch/mips/jazz arch/mips/arc
-LIBS          += arch/mips/arc/arclib.a
-LOADADDR      += 0x80080000
+CORE_FILES	+= arch/mips/jazz/jazz.o
+SUBDIRS		+= arch/mips/jazz arch/mips/arc
+LIBS		+= arch/mips/arc/arclib.a
+LOADADDR	:= 0x80080000
 endif
 
-ifdef CONFIG_MIPS_COBALT
-SUBDIRS       += arch/mips/cobalt
-CORE_FILES    += arch/mips/cobalt/cobalt.o
-LOADADDR      += 0x80080000
-endif
-
-ifdef CONFIG_SNI_RM200_PCI
-CORE_FILES    += arch/mips/sni/sni.o
-SUBDIRS       += arch/mips/sni arch/mips/arc
-LIBS          += arch/mips/arc/arclib.a
-LOADADDR      += 0x80080000
-endif
-
-ifdef CONFIG_SGI_IP22
-CORE_FILES    += arch/mips/sgi-ip22/ip22-kern.o
-LIBS          += arch/mips/arc/arclib.a
-SUBDIRS       += arch/mips/sgi-ip22 arch/mips/arc
 #
-# Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
-# 0x88002000 for production kernels.  Note that the value must be
-# 8kb aligned or the handling of the current variable will break.
+# Au1000 (Alchemy Semi PB1000) eval board
 #
-LOADADDR      += 0x88002000
+ifdef CONFIG_MIPS_PB1000
+LIBS		+= arch/mips/au1000/pb1000/pb1000.o \
+		   arch/mips/au1000/common/au1000.o
+SUBDIRS		+= arch/mips/au1000/pb1000 arch/mips/au1000/common
+LOADADDR	:= 0x80100000
+endif
+
+#
+# Au1000 (Alchemy Semi PB1500) eval board
+#
+ifdef CONFIG_MIPS_PB1500
+LIBS		+= arch/mips/au1000/pb1500/pb1500.o \
+		   arch/mips/au1000/common/au1000.o
+SUBDIRS		+= arch/mips/au1000/pb1500 arch/mips/au1000/common
+LOADADDR	:= 0x80100000
+endif
+
+#
+# Algorithmics P4032
+#
+ifdef CONFIG_ALGOR_P4032
+CORE_FILES	+= arch/mips/algor/algor.o
+SUBDIRS		+= arch/mips/algor
+LOADADDR	:= 0x80000000
 endif
 
 #
 # Baget/MIPS
 #
 ifdef CONFIG_BAGET_MIPS
-SUBDIRS       += arch/mips/baget arch/mips/baget/prom
-LIBS          += arch/mips/baget/baget.a arch/mips/baget/prom/bagetlib.a
-LOADADDR      += 0x80001000
+SUBDIRS		+= arch/mips/baget arch/mips/baget/prom
+LIBS		+= arch/mips/baget/baget.a arch/mips/baget/prom/bagetlib.a
+LOADADDR	:= 0x80001000
 endif
 
 #
-# NEC DDB Vrc-5074
+# Cobalt Server
 #
-ifdef CONFIG_DDB5074
-SUBDIRS       += arch/mips/ddb5074
-LIBS          += arch/mips/ddb5074/ddb5074.a
-LOADADDR      += 0x80080000
+ifdef CONFIG_MIPS_COBALT
+SUBDIRS		+= arch/mips/cobalt
+CORE_FILES	+= arch/mips/cobalt/cobalt.o
+LOADADDR	:= 0x80080000
 endif
 
 #
+# DECstation family
 #
-# NEC DDB Vrc-5476
-#
-ifdef CONFIG_DDB5476
-SUBDIRS       += arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5476
-LIBS          += arch/mips/ddb5xxx/common/ddb5xxx.o \
-		 arch/mips/ddb5xxx/ddb5476/ddb5476.o
-LOADADDR      += 0x80080000
-endif
-
-#
-#
-# NEC DDB Vrc-5477
-#
-ifdef CONFIG_DDB5477
-SUBDIRS       += arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5477
-LIBS          += arch/mips/ddb5xxx/common/ddb5xxx.o \
-                 arch/mips/ddb5xxx/ddb5477/ddb5477.o
-LOADADDR      += 0x80080000
-endif
-
-#
-# NEC Osprey (vr4181) board
-#
-ifdef CONFIG_NEC_OSPREY
-SUBDIRS       += arch/mips/vr4181/common arch/mips/vr4181/osprey
-LIBS          += arch/mips/vr4181/common/vr4181.o \
-                 arch/mips/vr4181/osprey/osprey.o
-LOADADDR      += 0x80002000
+ifdef CONFIG_DECSTATION
+CORE_FILES	+= arch/mips/dec/dec.o
+SUBDIRS		+= arch/mips/dec arch/mips/dec/prom
+LIBS		+= arch/mips/dec/prom/rexlib.a
+LOADADDR	:= 0x80040000
 endif
 
 #
 # Galileo EV64120 Board
 #
 ifdef CONFIG_MIPS_EV64120
-LIBS          += arch/mips/galileo-boards/ev64120/ev64120.o
-SUBDIRS       += arch/mips/galileo-boards/ev64120
-LOADADDR      += 0x80100000
+LIBS		+= arch/mips/galileo-boards/ev64120/ev64120.o
+SUBDIRS		+= arch/mips/galileo-boards/ev64120
+LOADADDR	:= 0x80100000
 endif
 
 #
 # Galileo EV96100 Board
 #
 ifdef CONFIG_MIPS_EV96100
-LIBS          += arch/mips/galileo-boards/ev96100/ev96100.o arch/mips/galileo-boards/generic/galboards.o
-SUBDIRS       += arch/mips/galileo-boards/generic arch/mips/galileo-boards/ev96100
-LOADADDR      += 0x80100000
+LIBS		+= arch/mips/galileo-boards/ev96100/ev96100.o \
+		   arch/mips/galileo-boards/generic/galboards.o
+SUBDIRS		+= arch/mips/galileo-boards/generic \
+		   arch/mips/galileo-boards/ev96100
+LOADADDR	:= 0x80100000
+endif
+
+#
+# Globespan IVR eval board with QED 5231 CPU
+#
+ifdef CONFIG_MIPS_IVR
+LIBS		+= arch/mips/ite-boards/ivr/ivr.o \
+		   arch/mips/ite-boards/generic/it8172.o
+SUBDIRS		+= arch/mips/ite-boards/generic arch/mips/ite-boards/ivr
+LOADADDR	:= 0x80100000
+endif
+
+#
+# HP LaserJet
+#
+ifdef CONFIG_HP_LASERJET
+SUBDIRS		+= arch/mips/hp-lj
+LIBS		+= arch/mips/hp-lj/hp-lj.o
+LOADADDR	:= 0x80030000
+endif
+
+#
+# ITE 8172 eval board with QED 5231 CPU
+#
+ifdef CONFIG_MIPS_ITE8172
+LIBS		+= arch/mips/ite-boards/qed-4n-s01b/ite.o \
+		   arch/mips/ite-boards/generic/it8172.o
+SUBDIRS		+= arch/mips/ite-boards/generic arch/mips/ite-boards/qed-4n-s01b
+LOADADDR	:= 0x80100000
+endif
+
+#
+# MIPS Atlas board
+#
+ifdef CONFIG_MIPS_ATLAS
+LIBS		+= arch/mips/mips-boards/atlas/atlas.o \
+		   arch/mips/mips-boards/generic/mipsboards.o
+SUBDIRS		+= arch/mips/mips-boards/generic arch/mips/mips-boards/atlas
+LOADADDR	:= 0x80100000
+endif
+
+#
+# MIPS Malta board
+#
+ifdef CONFIG_MIPS_MALTA
+LIBS		+= arch/mips/mips-boards/malta/malta.o \
+		   arch/mips/mips-boards/generic/mipsboards.o
+SUBDIRS		+= arch/mips/mips-boards/malta arch/mips/mips-boards/generic
+LOADADDR	:= 0x80100000
 endif
 
 #
@@ -256,53 +262,73 @@ endif
 ifdef CONFIG_MOMENCO_OCELOT
 # The Ocelot setup.o must be linked early - it does the ioremap() for the
 # mips_io_port_base.
-CORE_FILES    += arch/mips/gt64120/common/gt64120.o arch/mips/gt64120/momenco_ocelot/momenco_ocelot.o
-SUBDIRS       += arch/mips/gt64120/common arch/mips/gt64120/momenco_ocelot
-LOADADDR      += 0x80100000
+CORE_FILES	+= arch/mips/gt64120/common/gt64120.o \
+		   arch/mips/gt64120/momenco_ocelot/momenco_ocelot.o
+SUBDIRS		+= arch/mips/gt64120/common arch/mips/gt64120/momenco_ocelot
+LOADADDR	:= 0x80100000
+endif
+
+#
+# NEC DDB Vrc-5074
+#
+ifdef CONFIG_DDB5074
+SUBDIRS		+= arch/mips/ddb5074
+LIBS		+= arch/mips/ddb5074/ddb5074.a
+LOADADDR	:= 0x80080000
+endif
+
+#
+# NEC DDB Vrc-5476
+#
+ifdef CONFIG_DDB5476
+SUBDIRS		+= arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5476
+LIBS		+= arch/mips/ddb5xxx/common/ddb5xxx.o \
+		   arch/mips/ddb5xxx/ddb5476/ddb5476.o
+LOADADDR	:= 0x80080000
+endif
+
+#
+# NEC DDB Vrc-5477
+#
+ifdef CONFIG_DDB5477
+SUBDIRS		+= arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5477
+LIBS		+= arch/mips/ddb5xxx/common/ddb5xxx.o \
+		   arch/mips/ddb5xxx/ddb5477/ddb5477.o
+LOADADDR	:= 0x80080000
+endif
+
+#
+# NEC Osprey (vr4181) board
+#
+ifdef CONFIG_NEC_OSPREY
+SUBDIRS		+= arch/mips/vr4181/common arch/mips/vr4181/osprey
+LIBS		+= arch/mips/vr4181/common/vr4181.o \
+		   arch/mips/vr4181/osprey/osprey.o
+LOADADDR	:= 0x80002000
 endif
 
 #
 # Philips Nino
 #
 ifdef CONFIG_NINO
-CORE_FILES    += arch/mips/philips/nino/nino.o
-SUBDIRS       += arch/mips/philips/nino
-LOADADDR      += 0x80000000
+CORE_FILES	+= arch/mips/philips/nino/nino.o
+SUBDIRS		+= arch/mips/philips/nino
+LOADADDR	:= 0x80000000
 endif
 
 #
-# ITE 8172 eval board with QED 5231 CPU
+# SGI IP22 (Indy/Indigo2)
 #
-ifdef CONFIG_MIPS_ITE8172
-LIBS          += arch/mips/ite-boards/qed-4n-s01b/ite.o arch/mips/ite-boards/generic/it8172.o
-SUBDIRS       += arch/mips/ite-boards/generic arch/mips/ite-boards/qed-4n-s01b
-LOADADDR      += 0x80100000
-endif
-
+ifdef CONFIG_SGI_IP22
+CORE_FILES	+= arch/mips/sgi-ip22/ip22-kern.o
+LIBS		+= arch/mips/arc/arclib.a
+SUBDIRS		+= arch/mips/sgi-ip22 arch/mips/arc
 #
-# Globespan IVR eval board with QED 5231 CPU
+# Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
+# 0x88002000 for production kernels.  Note that the value must be
+# 8kb aligned or the handling of the current variable will break.
 #
-ifdef CONFIG_MIPS_IVR
-LIBS          += arch/mips/ite-boards/ivr/ivr.o arch/mips/ite-boards/generic/it8172.o
-SUBDIRS       += arch/mips/ite-boards/generic arch/mips/ite-boards/ivr
-LOADADDR      += 0x80100000
-endif
-
-#
-# Au1000 eval board
-#
-ifdef CONFIG_MIPS_PB1000
-LIBS          += arch/mips/au1000/pb1000/pb1000.o \
-                 arch/mips/au1000/common/au1000.o
-SUBDIRS       += arch/mips/au1000/pb1000 arch/mips/au1000/common
-LOADADDR      += 0x80100000
-endif
-
-ifdef CONFIG_MIPS_PB1500
-LIBS          += arch/mips/au1000/pb1500/pb1500.o \
-                 arch/mips/au1000/common/au1000.o
-SUBDIRS       += arch/mips/au1000/pb1500 arch/mips/au1000/common
-LOADADDR      += 0x80100000
+LOADADDR	:= 0x88002000
 endif
 
 #
@@ -312,38 +338,47 @@ ifdef CONFIG_SIBYTE_SB1250
 # This is a LIB so that it links at the end, and initcalls are later
 # the sequence; but it is built as an object so that modules don't get
 # removed (as happens, even if they have __initcall/module_init)
-LIBS          += arch/mips/sibyte/sb1250/sb1250.o
-SUBDIRS       += arch/mips/sibyte/sb1250 
+LIBS		+= arch/mips/sibyte/sb1250/sb1250.o
+SUBDIRS		+= arch/mips/sibyte/sb1250
 endif
 
 #
 # Sibyte SWARM board
 #
-ifdef CONFIG_SB1_CACHE_ERROR
-LIBS          += arch/mips/sibyte/sb1/sb1kern.a
-SUBDIRS       += arch/mips/sibyte/sb1
-endif
-
 ifdef CONFIG_SIBYTE_SWARM
-LIBS          += arch/mips/sibyte/swarm/sbswarm.a
-SUBDIRS       += arch/mips/sibyte/swarm
-LOADADDR      += 0x80100000
+LIBS		+= arch/mips/sibyte/swarm/sbswarm.a
+SUBDIRS		+= arch/mips/sibyte/swarm
+LOADADDR	:= 0x80100000
 endif
 
 #
-# HP LaserJet
+# SB1 Cache Error handler
 #
-ifdef CONFIG_HP_LASERJET
-SUBDIRS       += arch/mips/hp-lj
-LIBS          += arch/mips/hp-lj/hp-lj.o
-LOADADDR      := 0x80030000
+ifdef CONFIG_SB1_CACHE_ERROR
+LIBS		+= arch/mips/sibyte/sb1/sb1kern.a
+SUBDIRS		+= arch/mips/sibyte/sb1
 endif
 
+#
+# SNI RM200 PCI
+#
+ifdef CONFIG_SNI_RM200_PCI
+CORE_FILES	+= arch/mips/sni/sni.o
+SUBDIRS		+= arch/mips/sni arch/mips/arc
+LIBS		+= arch/mips/arc/arclib.a
+LOADADDR	:= 0x80080000
+endif
+
+#
+# Toshiba JMR-TX3927 board
+#
 ifdef CONFIG_TOSHIBA_JMR3927
-CORE_FILES    += arch/mips/jmr3927/rbhma3100/jmr3927.o arch/mips/jmr3927/common/tx3927.o
-SUBDIRS       += arch/mips/jmr3927/rbhma3100  arch/mips/jmr3927/common
-LOADADDR      += 0x80050000 
-endif                                                        
+CORE_FILES	+= arch/mips/jmr3927/rbhma3100/jmr3927.o \
+		   arch/mips/jmr3927/common/tx3927.o
+SUBDIRS		+= arch/mips/jmr3927/rbhma3100 arch/mips/jmr3927/common
+LOADADDR	:= 0x80050000
+endif
+
 
 #
 # Choosing incompatible machines durings configuration will result in
@@ -366,7 +401,7 @@ ifdef CONFIG_BAGET_MIPS
 
 BAGETBOOT = $(MAKE) -C arch/$(ARCH)/baget
 
-balo:  vmlinux
+balo: vmlinux
 	$(BAGETBOOT) balo
 
 endif
@@ -375,7 +410,7 @@ ifdef CONFIG_MIPS_EV64120
 GALILEOBOOT = $(MAKE) -C arch/$(ARCH)/galileo-boards/ev64120
 
 gboot: vmlinux
-	$(MAKE) -C arch/$(ARCH)/galileo-boards/ev64120/compressed 
+	$(MAKE) -C arch/$(ARCH)/galileo-boards/ev64120/compressed
 endif
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
@@ -395,6 +430,6 @@ archmrproper:
 
 archdep:
 	if [ ! -f $(TOPDIR)/include/asm-$(ARCH)/offset.h ]; then \
-	 touch $(TOPDIR)/include/asm-$(ARCH)/offset.h; \
+		touch $(TOPDIR)/include/asm-$(ARCH)/offset.h; \
 	fi;
 	@$(MAKEBOOT) dep

@@ -3,6 +3,8 @@
 # License.  See the file "COPYING" in the main directory of this archive
 # for more details.
 #
+# Copyright (C) 2002  Maciej W. Rozycki
+#
 # This file is included by the global makefile so that you can add your own
 # architecture-specific flags and dependencies. Remember to do have actions
 # for "archclean" and "archdep" for cleaning up and making dependencies for
@@ -12,7 +14,6 @@
 #
 # Select the object file format to substitute into the linker script.
 #
-CPP=$(CC) -E
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 tool-prefix	= mips64el-linux-
 else
@@ -20,7 +21,7 @@ tool-prefix	= mips64-linux-
 endif
 
 ifdef CONFIG_CROSSCOMPILE
-CROSS_COMPILE  = $(tool-prefix)
+CROSS_COMPILE	= $(tool-prefix)
 endif
 
 #
@@ -33,35 +34,35 @@ endif
 # machines may also.  Since BFD is incredibly buggy with respect to
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
-CFLAGS		+= -I $(TOPDIR)/include/asm/gcc $(CFLAGS)
-CFLAGS		+= -mabi=64 -G 0 -mno-abicalls -fno-pic -Wa,--trap -pipe
+GCCFLAGS	:= -I $(TOPDIR)/include/asm/gcc
+GCCFLAGS	+= -mabi=64 -G 0 -mno-abicalls -fno-pic -Wa,--trap -pipe
 LINKFLAGS	+= -G 0 -static # -N
 MODFLAGS	+= -mlong-calls
 
 ifdef CONFIG_REMOTE_DEBUG
-CFLAGS		:= $(CFLAGS) -g
+GCCFLAGS	+= -g
 endif
 
 #
 # CPU-dependent compiler/assembler options for optimization.
 #
 ifdef CONFIG_CPU_R4300
-CFLAGS		:= $(CFLAGS) -mcpu=r4300 -mips3
+GCCFLAGS	+= -mcpu=r4300 -mips3
 endif
 ifdef CONFIG_CPU_R4X00
-CFLAGS		:= $(CFLAGS) -mcpu=r4600 -mips3
+GCCFLAGS	+= -mcpu=r4600 -mips3
 endif
 ifdef CONFIG_CPU_R5000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips4
+GCCFLAGS	+= -mcpu=r8000 -mips4
 endif
 ifdef CONFIG_CPU_NEVADA
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips3 -mmad
+GCCFLAGS	+= -mcpu=r8000 -mips3 -mmad
 endif
 ifdef CONFIG_CPU_R8000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips4
+GCCFLAGS	+= -mcpu=r8000 -mips4
 endif
 ifdef CONFIG_CPU_R10000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips4
+GCCFLAGS	+= -mcpu=r8000 -mips4
 endif
 ifdef CONFIG_CPU_SB1
 GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
@@ -70,65 +71,91 @@ MODFLAGS	+= -msb1-pass1-workarounds
 endif
 endif
 
+AFLAGS		+= $(GCCFLAGS)
+CFLAGS		+= $(GCCFLAGS)
+
+
 #
 # We unconditionally build the math emulator
 #
 CORE_FILES	+= arch/mips/math-emu/fpu_emulator.o
 SUBDIRS		+= arch/mips/math-emu
 
+
 #
 # Board-dependent options and extra files
 #
+
+#
+# MIPS Atlas board
+#
 ifdef CONFIG_MIPS_ATLAS
-LIBS		+= arch/mips/mips-boards/atlas/atlas.o arch/mips/mips-boards/generic/mipsboards.o
+LIBS		+= arch/mips/mips-boards/atlas/atlas.o \
+		   arch/mips/mips-boards/generic/mipsboards.o
 SUBDIRS		+= arch/mips/mips-boards/generic arch/mips/mips-boards/atlas
-LOADADDR	+= 0x80100000
+LOADADDR	:= 0x80100000
 endif
 
+#
+# MIPS Malta board
+#
 ifdef CONFIG_MIPS_MALTA
-LIBS		+= arch/mips/mips-boards/malta/malta.o arch/mips/mips-boards/generic/mipsboards.o
+LIBS		+= arch/mips/mips-boards/malta/malta.o \
+		   arch/mips/mips-boards/generic/mipsboards.o
 SUBDIRS		+= arch/mips/mips-boards/malta arch/mips/mips-boards/generic
-LOADADDR	+= 0x80100000
+LOADADDR	:= 0x80100000
 endif
 
+#
+# SGI IP22 (Indy/Indigo2)
+#
 ifdef CONFIG_SGI_IP22
-LIBS          += arch/mips/sgi-ip22/ip22-kern.o arch/mips64/arc/arclib.a
-SUBDIRS       += arch/mips/sgi-ip22 arch/mips64/arc
+CORE_FILES	+= arch/mips/sgi-ip22/ip22-kern.o
+LIBS		+= arch/mips64/arc/arclib.a 
+SUBDIRS		+= arch/mips/sgi-ip22 arch/mips64/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
 # 0x88004000 for production kernels.  Note that the value must be
 # 16kb aligned or the handling of the current variable will break.
 #
-LOADADDR      += 0x88004000
+LOADADDR	:= 0x88004000
 endif
 
+#
+# SGI-IP27 (Origin200/2000)
+#
 ifdef CONFIG_SGI_IP27
-CORE_FILES    += arch/mips64/sgi-ip27/ip27.o
-LIBS          += arch/mips64/arc/arclib.a
-SUBDIRS       += arch/mips64/sgi-ip27 arch/mips64/arc
+CORE_FILES	+= arch/mips64/sgi-ip27/ip27.o
+LIBS		+= arch/mips64/arc/arclib.a
+SUBDIRS		+= arch/mips64/sgi-ip27 arch/mips64/arc
 #
 # Set LOADADDR to >= 0xc000000000300000 if you want to leave space for
 # symmon, 0xc00000000001c000 for production kernels.  Note that the value
 # must be 16kb aligned or the handling of the current variable will break.
 #
-#LOADADDR      += 0xa80000000001c000
+#LOADADDR	:= 0xa80000000001c000
 ifdef CONFIG_MAPPED_KERNEL
-LOADADDR      += 0xc001c000
+LOADADDR	:= 0xc001c000
 else
-LOADADDR      += 0x8001c000
+LOADADDR	:= 0x8001c000
 endif
 endif
 
+#
+# SGI-IP32 (O2)
+#
 ifdef CONFIG_SGI_IP32
-LIBS		+= arch/mips64/sgi-ip32/ip32-kern.a arch/mips64/arc/arclib.a
+CORE_FILES	+= arch/mips64/sgi-ip32/ip32-kern.a
+LIBS		+= arch/mips64/arc/arclib.a
 SUBDIRS		+= arch/mips64/sgi-ip32 arch/mips64/arc
 #
 # Set LOADADDR to >= 0x????????? if you want to leave space for symmon,
 # 0x80002000 for production kernels.  Note that the value must be
 # 16kb aligned or the handling of the current variable will break.
 #
-LOADADDR	+= 0x80002000
+LOADADDR	:= 0x80002000
 endif
+
 
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
@@ -198,6 +225,6 @@ archmrproper:
 
 archdep:
 	if [ ! -f $(TOPDIR)/include/asm-$(ARCH)/offset.h ]; then \
-	 touch $(TOPDIR)/include/asm-$(ARCH)/offset.h; \
+		touch $(TOPDIR)/include/asm-$(ARCH)/offset.h; \
 	fi;
 	@$(MAKEBOOT) dep

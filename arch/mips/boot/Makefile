@@ -6,10 +6,7 @@
 # Copyright (C) 1995, 1998, 2001 by Ralf Baechle
 #
 
-.S.s:
-	$(CPP) $(CFLAGS) $< -o $*.s
-.S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+USE_STANDARD_AS_RULE := true
 
 OBJS  = milo.o a.out.o
 

@@ -41,6 +41,8 @@
 #
 # =============================================================
 
+USE_STANDARD_AS_RULE := true
+
 all: ramsys.srec \
      flashsys.srec \
      flashsys2.srec \
@@ -65,11 +67,6 @@ load.o:
 	$(CC) $(CFLAGS) $(CFLAGS_2) -c load.c -o $*.o
 flashdrv.o:
 	$(CC) $(CFLAGS) $(CFLAGS_2) -c flashdrv.c -o $*.o
-
-.S.s:
-	$(CPP) $(CFLAGS) $< -o $*.s
-.S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
 
 gz2asm: gz2asm.c
 	g++ -o gz2asm gz2asm.c

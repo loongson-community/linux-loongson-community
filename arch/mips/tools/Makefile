@@ -5,10 +5,7 @@
 #
 TARGET	:= $(TOPDIR)/include/asm-$(ARCH)/offset.h
 
-.S.s:
-	$(CPP) $(CFLAGS) $< -o $*.s
-.S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+USE_STANDARD_AS_RULE := true
 
 $(TARGET): offset.h
 	cmp -s $^ $@ || (cp $^ $(TARGET).new && mv $(TARGET).new $(TARGET))

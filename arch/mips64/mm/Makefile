@@ -2,8 +2,7 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-.S.o:
-	$(CC) $(CFLAGS) $(CFLAGS_$@) -c $< -o $*.o
+USE_STANDARD_AS_RULE := true
 
 O_TARGET := mm.o
 

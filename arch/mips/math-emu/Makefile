@@ -6,10 +6,7 @@
 # unless it's something special (ie not a .c file).
 #
 
-.S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
-
-EXTRA_ASFLAGS = -mips2 -mcpu=r4000
+USE_STANDARD_AS_RULE := true
 
 O_TARGET:= fpu_emulator.o
 

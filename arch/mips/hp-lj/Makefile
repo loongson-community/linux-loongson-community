@@ -7,8 +7,7 @@
 # unless it's something special (ie not a .c file).
 #
 
-.S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+USE_STANDARD_AS_RULE := true
 
 all: hp-lj.o
 
