@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: stackframe.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -116,7 +116,10 @@
 		.endm
 
 		.macro	RESTORE_AT
+		.set	push
+		.set	noat
 		ld	$1,  PT_R1(sp)
+		.set	pop
 		.endm
 
 		.macro	RESTORE_SP
