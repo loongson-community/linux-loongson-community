@@ -369,7 +369,7 @@ load-$(CONFIG_MIPS_SEAD)	+= 0x80100000
 #
 core-$(CONFIG_MOMENCO_OCELOT)	+= arch/mips/gt64120/common/ \
 				   arch/mips/gt64120/momenco_ocelot/
-core-$(CONFIG_MOMENCO_OCELOT)	+= arch/mips/gt64120/common/
+cflags-$(CONFIG_MOMENCO_OCELOT)	+= -Iinclude/asm-mips/mach-ocelot
 load-$(CONFIG_MOMENCO_OCELOT)	+= 0x80100000
 
 #
