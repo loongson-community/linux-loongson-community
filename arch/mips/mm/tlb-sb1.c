@@ -333,10 +333,12 @@ void tlb_init(void)
 
 #ifdef CONFIG_MIPS32
 	memcpy((void *)KSEG0, except_vec0_sb1, 0x80);
+	memcpy((void *)(KSEG0 + 0x080), &except_vec1_generic, 0x80);
 	flush_icache_range(KSEG0, KSEG0 + 0x80);
 #endif
 #ifdef CONFIG_MIPS64
-	memcpy((void *)KSEG0 + 0x80, except_vec1_sb1, 0x80);
-	flush_icache_range(KSEG0 + 0x80, KSEG0 + 0x100);
+	memcpy((void *)(CKSEG0 + 0x80), except_vec1_r4k, 0x80);
+	memcpy((void *)CKSEG0 + 0x80, except_vec1_sb1, 0x80);
+	flush_icache_range(CKSEG0 + 0x80, KSEG0 + 0x100);
 #endif
 }

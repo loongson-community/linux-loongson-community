@@ -873,12 +873,12 @@ void __init per_cpu_trap_init(void)
 	write_c0_context(((long)(&pgd_current[cpu])) << 23);
 #endif
 	write_c0_wired(0);
+
+	tlb_init();
 }
 
 void __init trap_init(void)
 {
-	extern char except_vec0_generic;
-	extern char except_vec1_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec_ejtag_debug;
 	extern char except_vec4;
@@ -891,8 +891,6 @@ void __init trap_init(void)
 	 * This will be overriden later as suitable for a particular
 	 * configuration.
 	 */
-	memcpy((void *) K0BASE         , &except_vec0_generic, 0x80);
-	memcpy((void *)(K0BASE + 0x080), &except_vec1_generic, 0x80);
 	memcpy((void *)(K0BASE + 0x180), &except_vec3_generic, 0x80);
 
 	/*

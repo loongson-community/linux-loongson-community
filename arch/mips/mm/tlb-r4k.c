@@ -19,9 +19,11 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 
+extern void except_vec0_generic(void);
 extern void except_vec0_nevada(void);
 extern void except_vec0_r4000(void);
 extern void except_vec0_r4600(void);
+extern void except_vec1_generic(void);
 extern void except_vec1_r4k(void);
 
 /* CP0 hazard avoidance. */
@@ -421,9 +423,11 @@ void __init tlb_init(void)
 		memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
 	else
 		memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
-	flush_icache_range(KSEG0, KSEG0 + 0x80);
+	memcpy((void *)(KSEG0 + 0x080), &except_vec1_generic, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x100);
 #endif
 #ifdef CONFIG_MIPS64
+	memcpy((void *)(CKSEG0 + 0x00), &except_vec0_generic, 0x80);
 	memcpy((void *)(CKSEG0 + 0x80), except_vec1_r4k, 0x80);
 	flush_icache_range(CKSEG0 + 0x80, CKSEG0 + 0x100);
 #endif
