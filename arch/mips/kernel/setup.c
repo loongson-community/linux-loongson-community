@@ -356,8 +356,7 @@ static inline void bootmem_init(void)
 		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",
 		       (void *)initrd_start,
 		       initrd_size);
-/* FIXME: is this right? */
-#ifndef CONFIG_SGI_IP27
+
 		if (CPHYSADDR(initrd_end) > PFN_PHYS(max_low_pfn)) {
 			printk("initrd extends beyond end of memory "
 			       "(0x%0*Lx > 0x%0*Lx)\ndisabling initrd\n",
@@ -365,7 +364,6 @@ static inline void bootmem_init(void)
 			       sizeof(long) * 2, PFN_PHYS(max_low_pfn));
 			initrd_start = initrd_end = 0;
 		}
-#endif /* !CONFIG_SGI_IP27 */
 	}
 #endif /* CONFIG_BLK_DEV_INITRD  */
 }
