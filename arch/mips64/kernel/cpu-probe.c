@@ -730,7 +730,6 @@ __init void cpu_probe(void)
 		break;
 	default:
 		c->cputype = CPU_UNKNOWN;
-		c->tlbsize = ((config1 >> 25) & 0x3f) + 1;
 	}
 	if (c->options & MIPS_CPU_FPU)
 		c->fpu_id = cpu_get_fpu_id();
