@@ -81,7 +81,6 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT: 20, AD:31 */ 0xff
 };
 
-extern int vrc5477_irq_to_irq(int irq);
 void __init pcibios_fixup_irqs(void)
 {
 	struct pci_dev *dev = NULL;
