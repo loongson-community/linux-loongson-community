@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.21 1999/06/22 22:08:07 tsbogend Exp $
+/* $Id: setup.c,v 1.22 1999/08/21 22:19:10 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -102,7 +102,12 @@ __initfunc(void jazz_setup(void))
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
 #endif
+#ifdef CONFIG_BLK_DEV_FD
+	fd_ops = &jazz_fd_ops;
+#endif
+#ifdef CONFIG_VT
 	conswitchp = &dummy_con;
+#endif
 
 #warning "Somebody should check if screen_info is ok for Jazz."
 
@@ -120,5 +125,4 @@ __initfunc(void jazz_setup(void))
 
 	rtc_ops = &jazz_rtc_ops;
 	kbd_ops = &jazz_kbd_ops;
-	fd_ops = &jazz_fd_ops;
 }
