@@ -1,3 +1,6 @@
+asm-offsets.s
+vmlinux.lds
+vsyscall.lds
 .*.o
 .*.o.d
 .*.cmd
