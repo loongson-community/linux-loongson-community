@@ -12,7 +12,7 @@
  *
  *  Copyright (C) 1995 Andreas Busse
  *
- * $Id: gdb-stub.c,v 1.5 1997/09/16 14:59:54 marks Exp $
+ * $Id: gdb-stub.c,v 1.6 1999/05/01 22:40:35 ralf Exp $
  */
 
 /*
@@ -362,8 +362,6 @@ void set_debug_traps(void)
 
 	initialized = 1;
 	restore_flags(flags);
-
-	breakpoint();
 }
 
 
