@@ -82,8 +82,6 @@ extern void dquot_init(void);
 extern void smp_setup(char *str, int *ints);
 extern void ioapic_pirq_setup(char *str, int *ints);
 extern void no_scroll(char *str, int *ints);
-extern void swap_setup(char *str, int *ints);
-extern void buff_setup(char *str, int *ints);
 extern void panic_setup(char *str, int *ints);
 extern void bmouse_setup(char *str, int *ints);
 extern void msmouse_setup(char *str, int *ints);
@@ -282,7 +280,7 @@ extern void nfs_root_setup(char *str, int *ints);
 extern void ftape_setup(char *str, int *ints);
 #endif
 
-#if defined(CONFIG_SYSVIPC) || defined(CONFIG_KERNELD)
+#if defined(CONFIG_SYSVIPC)
 extern void ipc_init(void);
 #endif
 #ifdef CONFIG_MIPS_JAZZ
@@ -502,8 +500,6 @@ static struct kernel_param cooked_params[] __initdata = {
 #if defined (CONFIG_AMIGA) || defined (CONFIG_ATARI)
 	{ "video=", video_setup },
 #endif
-	{ "swap=", swap_setup },
-	{ "buff=", buff_setup },
 	{ "panic=", panic_setup },
 	{ "console=", console_setup },
 #ifdef CONFIG_VT
@@ -1083,7 +1079,7 @@ __initfunc(asmlinkage void start_kernel(void))
 	inode_init();
 	file_table_init();
 	sock_init();
-#if defined(CONFIG_SYSVIPC) || defined(CONFIG_KERNELD)
+#if defined(CONFIG_SYSVIPC)
 	ipc_init();
 #endif
 	dquot_init();
@@ -1202,6 +1198,13 @@ static int init(void * unused)
 				printk(KERN_ERR "Change root to /initrd: "
 				    "error %d\n",error);
 		}
+	}
+#endif
+
+#ifdef CONFIG_KMOD
+	{
+		extern int kmod_init(void);
+		kmod_init();
 	}
 #endif
 

@@ -35,6 +35,7 @@
  *		Alan Cox	:	sendmsg/recvmsg support.
  *		Alan Cox	:	Protocol setting support
  *	Alexey Kuznetsov	:	Untied from IPv4 stack.
+ *	Cyrus Durgin		:	Fixed kerneld for kmod.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -54,7 +55,7 @@
 #include <linux/netdevice.h>
 #include <linux/if_packet.h>
 #include <linux/wireless.h>
-#include <linux/kerneld.h>
+#include <linux/kmod.h>
 #include <net/ip.h>
 #include <net/protocol.h>
 #include <linux/skbuff.h>
@@ -710,7 +711,7 @@ static int packet_create(struct socket *sock, int protocol)
 
 	sock->state = SS_UNCONNECTED;
 	MOD_INC_USE_COUNT;
-	sk = sk_alloc(AF_PACKET, GFP_KERNEL);
+	sk = sk_alloc(AF_PACKET, GFP_KERNEL, 1);
 	if (sk == NULL) {
 		MOD_DEC_USE_COUNT;
 		return -ENOBUFS;
@@ -831,9 +832,10 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 
 	/* We can't use skb_copy_datagram here */
 	err = memcpy_toiovec(msg->msg_iov, skb->data, copied);
-	if (err)
+	if (err) {
+		err = -EFAULT;
 		goto out_free;
-
+	}
 	sk->stamp=skb->stamp;
 
 	if (msg->msg_name)

@@ -11,7 +11,6 @@ int DMAbuf_start_output(int dev, int buff_no, int l);
 int DMAbuf_move_wrpointer(int dev, int l);
 /* int DMAbuf_ioctl(int dev, unsigned int cmd, caddr_t arg, int local); */
 void DMAbuf_init(int dev, int dma1, int dma2);
-void DMAbuf_deinit(int dev);
 int DMAbuf_start_dma (int dev, unsigned long physaddr, int count, int dma_mode);
 int DMAbuf_open_dma (int dev);
 void DMAbuf_close_dma (int dev);
@@ -84,8 +83,9 @@ void MIDIbuf_init(void);
 /*	From soundcard.c	*/
 void request_sound_timer (int count);
 void sound_stop_timer(void);
-int snd_set_irq_handler (int interrupt_level, void(*iproc)(int, void*, struct pt_regs *), char *name, int *osp);
-void snd_release_irq(int vect);
+/* These two are about to die.. */
+int snd_set_irq_handler (int interrupt_level, void(*iproc)(int, void*, struct pt_regs *), char *name, int *osp, void *dev_id);
+void snd_release_irq(int vect, void *ptr);
 void sound_dma_malloc(int dev);
 void sound_dma_free(int dev);
 void conf_printf(char *name, struct address_info *hw_config);

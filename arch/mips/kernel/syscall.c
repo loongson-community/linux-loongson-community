@@ -11,7 +11,7 @@
  *        Don't waste that much memory for empty entries in the syscall
  *        table.
  *
- * $Id: syscall.c,v 1.5 1997/12/16 05:34:37 ralf Exp $
+ * $Id: syscall.c,v 1.6 1998/03/17 22:07:36 ralf Exp $
  */
 #undef CONF_PRINT_SYSCALLS
 #undef CONF_DEBUG_IRIX
@@ -23,6 +23,7 @@
 #include <linux/smp_lock.h>
 #include <linux/mman.h>
 #include <linux/sched.h>
+#include <linux/file.h>
 #include <linux/utsname.h>
 #include <linux/unistd.h>
 #include <asm/branch.h>
@@ -59,19 +60,22 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
                                   int flags, int fd, off_t offset)
 {
 	struct file * file = NULL;
-	unsigned long res;
+	unsigned long error = -EFAULT;
 
 	lock_kernel();
 	if (!(flags & MAP_ANONYMOUS)) {
-		if (fd >= NR_OPEN || !(file = current->files->fd[fd]))
-			return -EBADF;
+		error = -EBADF;
+		file = fget(fd);
+		if (!file)
+			goto out;
 	}
-	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
-
-	res = do_mmap(file, addr, len, prot, flags, offset);
-
+        flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
+        error = do_mmap(file, addr, len, prot, flags, offset);
+        if (file)
+                fput(file);
+out:
 	unlock_kernel();
-	return res;
+	return error;
 }
 
 asmlinkage int sys_idle(void)

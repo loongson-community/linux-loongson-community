@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.77 1998/01/15 22:40:18 freitag Exp $
+ * Version:	$Id: tcp.c,v 1.96 1998/03/16 02:25:55 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -169,7 +169,7 @@
  *					Fixed tcp_write_timeout: stuck close,
  *					and TCP syn retries gets used now.
  *		Mark Yarvis	:	In tcp_read_wakeup(), don't send an
- *					ack if stat is TCP_CLOSED.
+ *					ack if state is TCP_CLOSED.
  *		Alan Cox	:	Look up device on a retransmit - routes may
  *					change. Doesn't yet cope with MSS shrink right
  *					but its a start!
@@ -425,6 +425,8 @@ int sysctl_tcp_fin_timeout = TCP_FIN_TIMEOUT;
 struct tcp_mib	tcp_statistics;
 
 kmem_cache_t *tcp_openreq_cachep;
+kmem_cache_t *tcp_bucket_cachep;
+kmem_cache_t *tcp_timewait_cachep;
 
 /*
  *	Find someone to 'accept'. Must be called with
@@ -478,20 +480,6 @@ static void tcp_close_pending (struct sock *sk)
 }
 
 /*
- *	Enter the time wait state.
- */
-
-void tcp_time_wait(struct sock *sk)
-{
-	tcp_set_state(sk,TCP_TIME_WAIT);
-	sk->shutdown = SHUTDOWN_MASK;
-	if (!sk->dead)
-		sk->state_change(sk);
-	tcp_reset_msl_timer(sk, TIME_CLOSE, TCP_TIMEWAIT_LEN);
-}
-
-
-/*
  *	Walk down the receive queue counting readable data.
  *
  *	Must be called with the socket lock held.
@@ -512,7 +500,7 @@ static int tcp_readable(struct sock *sk)
 	  	return(0);
 	}
 
-	counted = sk->copied_seq;	/* Where we are at the moment */
+	counted = sk->tp_pinfo.af_tcp.copied_seq;	/* Where we are at the moment */
 	amount = 0;
 
 	/* Do until a push or until we are out of data. */
@@ -606,10 +594,10 @@ unsigned int tcp_poll(struct file * file, struct socket *sock, poll_table *wait)
 		if (sk->shutdown & RCV_SHUTDOWN)
 			mask |= POLLHUP;
 		
-		if ((tp->rcv_nxt != sk->copied_seq) &&
-		    (sk->urg_seq != sk->copied_seq ||
-		     tp->rcv_nxt != sk->copied_seq+1 ||
-		     sk->urginline || !sk->urg_data))
+		if ((tp->rcv_nxt != tp->copied_seq) &&
+		    (tp->urg_seq != tp->copied_seq ||
+		     tp->rcv_nxt != tp->copied_seq+1 ||
+		     sk->urginline || !tp->urg_data))
 			mask |= POLLIN | POLLRDNORM;
 
 #if 1 /* This needs benchmarking and real world tests */
@@ -621,9 +609,9 @@ unsigned int tcp_poll(struct file * file, struct socket *sock, poll_table *wait)
 		space = atomic_read(&sk->wmem_alloc) / 2;
 #endif
 		/* Always wake the user up when an error occured */
-		if (sock_wspace(sk) >= space)
+		if (sock_wspace(sk) >= space || sk->err)
 			mask |= POLLOUT | POLLWRNORM;
-		if (sk->urg_data)
+		if (tp->urg_data)
 		    	mask |= POLLPRI;
 	}
 	return mask;
@@ -649,7 +637,8 @@ int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 		}
 		case SIOCATMARK:
 		{
-			int answ = sk->urg_data && sk->urg_seq == sk->copied_seq;
+			struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
+			int answ = tp->urg_data && tp->urg_seq == tp->copied_seq;
 			return put_user(answ,(int *) arg);
 		}
 		case TIOCOUTQ:
@@ -669,21 +658,38 @@ int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 /*
  *	Wait for a socket to get into the connected state
  */
-static void wait_for_tcp_connect(struct sock * sk)
+static int wait_for_tcp_connect(struct sock * sk, int flags)
 {
 	struct task_struct *tsk = current;
 	struct wait_queue wait = { tsk, NULL };
 
-	tsk->state = TASK_INTERRUPTIBLE;
-	add_wait_queue(sk->sleep, &wait);
-	release_sock(sk);
+	while((1 << sk->state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT)) {
+		if(sk->err)
+			return sock_error(sk);
+		if((1 << sk->state) &
+		   ~(TCPF_SYN_SENT | TCPF_SYN_RECV)) {
+			if(sk->keepopen)
+				send_sig(SIGPIPE, tsk, 0);
+			return -EPIPE;
+		}
+		if(flags & MSG_DONTWAIT)
+			return -EAGAIN;
+		if(signal_pending(tsk))
+			return -ERESTARTSYS;
 
-	if (((1 << sk->state) & ~(TCPF_ESTABLISHED|TCPF_CLOSE_WAIT)) && sk->err == 0)
-		schedule();
+		tsk->state = TASK_INTERRUPTIBLE;
+		add_wait_queue(sk->sleep, &wait);
+		release_sock(sk);
 
-	tsk->state = TASK_RUNNING;
-	remove_wait_queue(sk->sleep, &wait);
-	lock_sock(sk);
+		if (((1 << sk->state) & ~(TCPF_ESTABLISHED|TCPF_CLOSE_WAIT)) &&
+		    sk->err == 0)
+			schedule();
+
+		tsk->state = TASK_RUNNING;
+		remove_wait_queue(sk->sleep, &wait);
+		lock_sock(sk);
+	}
+	return 0;
 }
 
 static inline int tcp_memory_free(struct sock *sk)
@@ -720,32 +726,6 @@ static void wait_for_tcp_memory(struct sock * sk)
 	lock_sock(sk);
 }
 
-
-static int tcp_append_tail(struct sock *sk, struct sk_buff *skb, u8 *from,
-			   int tcp_size, int seglen)
-{
-	int fault;
-	int copy;
-
-	/* Add more stuff to the end of the skb. */
-	copy = min(sk->mss - tcp_size, skb_tailroom(skb));
-	copy = min(copy, seglen);
-
-	tcp_size += copy;
-
-	fault = copy_from_user(skb->tail, from, copy);
-	if (fault)
-		return -1;
-
-	skb_put(skb, copy);
-	skb->csum = csum_partial(skb->tail - tcp_size, tcp_size, 0);
-
-	sk->write_seq += copy;
-	skb->end_seq += copy;
-
-	return copy;
-}
-
 /*
  *	This routine copies from a user buffer into a socket,
  *	and starts the transmit system.
@@ -758,24 +738,9 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 	struct tcp_opt *tp=&(sk->tp_pinfo.af_tcp);
 
 	/* Wait for a connection to finish. */
-	while ((1 << sk->state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT)) {
-		if (sk->err)
-			return sock_error(sk);
-
-		if ((1 << sk->state) & ~(TCPF_SYN_SENT | TCPF_SYN_RECV)) {
-			if (sk->keepopen)
-				send_sig(SIGPIPE, current, 0);
-			return -EPIPE;
-		}
-		
-		if (flags&MSG_DONTWAIT)
-			return -EAGAIN;
-		
-		if (signal_pending(current))
-			return -ERESTARTSYS;
-		
-		wait_for_tcp_connect(sk);
-	}
+	if ((1 << sk->state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT))
+		if((err = wait_for_tcp_connect(sk, flags)) != 0)
+			return err;
 
 	/* Ok commence sending. */
 	while(--iovlen >= 0) {
@@ -785,41 +750,28 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 		iov++;
 
 		while(seglen > 0) {
-			unsigned int actual_win;
-			int copy;
-			int tmp;
+			int copy, tmp, queue_it;
 			struct sk_buff *skb;
 
 			if (err)
 				return -EFAULT;
 
 			/* Stop on errors. */
-			if (sk->err) {
-				if (copied) 
-					return copied;
-				return sock_error(sk);
-			}
+			if (sk->err)
+				goto do_sock_err;
 
 			/* Make sure that we are established. */
-			if (sk->shutdown & SEND_SHUTDOWN) {
-				if (copied)
-					return copied;
-				send_sig(SIGPIPE,current,0);
-				return -EPIPE;
-			}
+			if (sk->shutdown & SEND_SHUTDOWN)
+				goto do_shutdown;
 	
-			/* Now we need to check if we have a half built packet. */
-
-			/* If we have queued packets.. */
+			/* Now we need to check if we have a half
+			 * built packet we can tack some data onto.
+			 */
 			if (tp->send_head && !(flags & MSG_OOB)) {
-				int tcp_size;
-
-				/* Tail */
-
 				skb = sk->write_queue.prev;
-				tcp_size = skb->tail -
-					((unsigned char *)(skb->h.th) + tp->tcp_header_len);
-
+				copy = skb->tail -
+					((unsigned char *)(skb->h.th) +
+					 tp->tcp_header_len);
 				/* This window_seq test is somewhat dangerous
 				 * If the remote does SWS avoidance we should
 				 * queue the best we can if not we should in 
@@ -827,79 +779,92 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 				 * a method for detecting this would be most
 				 * welcome
 				 */
-				if (skb->end > skb->tail &&
-				    sk->mss - tcp_size > 0 &&
+				if (skb_tailroom(skb) > 0 &&
+				    (sk->mss - copy) > 0 &&
 				    tp->snd_nxt < skb->end_seq) {
-					int tcopy;
+					int last_byte_was_odd = (copy & 1);
 
-					tcopy = tcp_append_tail(sk, skb, from,
-							       tcp_size,
-							       seglen);
-					if (tcopy == -1)
-						return -EFAULT;
-
-					from += tcopy;
-					copied += tcopy;
-					seglen -= tcopy;
-
-					/*	FIXME: if we're nagling we
-					 *	should send here.
-					 */
+					copy = sk->mss - copy;
+					if(copy > skb_tailroom(skb))
+						copy = skb_tailroom(skb);
+					if(copy > seglen)
+						copy = seglen;
+					if(last_byte_was_odd) {
+						if(copy_from_user(skb_put(skb, copy),
+								  from, copy))
+							err = -EFAULT;
+						skb->csum = csum_partial(
+							(((unsigned char *)skb->h.th) +
+							 tp->tcp_header_len),
+							(skb->tail -
+							 (((unsigned char *)skb->h.th) +
+							  tp->tcp_header_len)), 0);
+					} else {
+						skb->csum =
+							csum_and_copy_from_user(
+							from, skb_put(skb, copy),
+							copy, skb->csum, &err);
+					}
+					tp->write_seq += copy;
+					skb->end_seq += copy;
+					from += copy;
+					copied += copy;
+					seglen -= copy;
 					continue;
 				}
 			}
 
-			/*   We also need to worry about the window.
-			 *   If window < 1/2 the maximum window we've seen from this
-			 *   host, don't use it.  This is sender side
-			 *   silly window prevention, as specified in RFC1122.
-			 *   (Note that this is different than earlier versions of
-			 *   SWS prevention, e.g. RFC813.).  What we actually do is
-			 *   use the whole MSS.  Since the results in the right
-			 *   edge of the packet being outside the window, it will
-			 *   be queued for later rather than sent.
+			/* We also need to worry about the window.  If
+			 * window < 1/2 the maximum window we've seen
+			 * from this host, don't use it.  This is
+			 * sender side silly window prevention, as
+			 * specified in RFC1122.  (Note that this is
+			 * different than earlier versions of SWS
+			 * prevention, e.g. RFC813.).  What we
+			 * actually do is use the whole MSS.  Since
+			 * the results in the right edge of the packet
+			 * being outside the window, it will be queued
+			 * for later rather than sent.
 			 */
-			copy = min(seglen, sk->mss);
-			actual_win = tp->snd_wnd - (tp->snd_nxt - tp->snd_una);
-
-			if (copy > actual_win &&
-			    (((int) actual_win) >= (tp->max_window >> 1)) &&
-			    actual_win)
-				copy = actual_win;
-
-			if (copy <= 0) {
-				printk(KERN_DEBUG "sendmsg: copy < 0\n");
-				return -EIO;
-			}
-
-			/* If tp->packets_out > 0 segment will be nagled
-			 *  else we kick it right away.
-			 */
-			tmp = MAX_HEADER + sk->prot->max_header + 
-				sizeof(struct sk_buff) + 15;
-			if (copy < min(sk->mss, tp->max_window >> 1) && 
-			    !(flags & MSG_OOB) && tp->packets_out)
-				tmp += min(sk->mss, tp->max_window);
+			copy = tp->snd_wnd - (tp->snd_nxt - tp->snd_una);
+			if(copy >= (tp->max_window >> 1))
+				copy = min(copy, sk->mss);
 			else
-				tmp += copy;
+				copy = sk->mss;
+			if(copy > seglen)
+				copy = seglen;
 
+			tmp = MAX_HEADER + sk->prot->max_header +
+				sizeof(struct sk_buff) + 15;
+			queue_it = 0;
+			if (copy < min(sk->mss, tp->max_window >> 1) &&
+			    !(flags & MSG_OOB)) {
+				tmp += min(sk->mss, tp->max_window);
+
+				/* What is happening here is that we want to
+				 * tack on later members of the users iovec
+				 * if possible into a single frame.  When we
+				 * leave this loop our caller checks to see if
+				 * we can send queued frames onto the wire.
+				 * See tcp_v[46]_sendmsg() for this.
+				 */
+				queue_it = 1;
+			} else {
+				tmp += copy;
+			}
 			skb = sock_wmalloc(sk, tmp, 0, GFP_KERNEL);
 
 			/* If we didn't get any memory, we need to sleep. */
 			if (skb == NULL) {
 				sk->socket->flags |= SO_NOSPACE;
 				if (flags&MSG_DONTWAIT) {
-					if (copied) 
-						return copied;
-					return -EAGAIN;
+					err = -EAGAIN;
+					goto do_interrupted;
 				}
-
 				if (signal_pending(current)) {
-					if (copied)
-						return copied;
-					return -ERESTARTSYS;
+					err = -ERESTARTSYS;
+					goto do_interrupted;
 				}
-
 				wait_for_tcp_memory(sk);
 				continue;
 			}
@@ -910,9 +875,8 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 			tmp = tp->af_specific->build_net_header(sk, skb);
 			if (tmp < 0) {
 				kfree_skb(skb);
-				if (copied)
-					return(copied);
-				return(tmp);
+				err = tmp;
+				goto do_interrupted;
 			}
 
 			skb->h.th =(struct tcphdr *)
@@ -920,7 +884,6 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 
 			seglen -= copy;
 			tcp_build_header_data(skb->h.th, sk, seglen || iovlen);
-			/* FIXME: still need to think about SACK options here. */
 
 			if (flags & MSG_OOB) {
 				skb->h.th->urg = 1;
@@ -933,21 +896,29 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 			from += copy;
 			copied += copy;
 
-			sk->write_seq += copy;
+			tp->write_seq += copy;
 
-			tcp_send_skb(sk, skb);
-
-			release_sock(sk);
-			lock_sock(sk);
+			tcp_send_skb(sk, skb, queue_it);
 		}
 	}
-
 	sk->err = 0;
-
 	if (err)
 		return -EFAULT;
-
 	return copied;
+
+do_sock_err:
+	if(copied)
+		return copied;
+	return sock_error(sk);
+do_shutdown:
+	if(copied)
+		return copied;
+	send_sig(SIGPIPE, current, 0);
+	return -EPIPE;
+do_interrupted:
+	if(copied)
+		return copied;
+	return err;
 }
 
 /*
@@ -980,7 +951,7 @@ static int tcp_recv_urg(struct sock * sk, int nonblock,
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 
 	/* No URG data to read. */
-	if (sk->urginline || !sk->urg_data || sk->urg_data == URG_READ)
+	if (sk->urginline || !tp->urg_data || tp->urg_data == URG_READ)
 		return -EINVAL;	/* Yes this is right ! */
 
 	if (sk->err)
@@ -1000,18 +971,10 @@ static int tcp_recv_urg(struct sock * sk, int nonblock,
 	}
 
 	lock_sock(sk);
-	if (sk->urg_data & URG_VALID) {
-		char c = sk->urg_data;
+	if (tp->urg_data & URG_VALID) {
+		char c = tp->urg_data;
 		if (!(flags & MSG_PEEK))
-			sk->urg_data = URG_READ;
-			
-		if(len>0)
-		{
-			err = memcpy_toiovec(msg->msg_iov, &c, 1);
-			msg->msg_flags|=MSG_OOB;
-		}
-		else
-			msg->msg_flags|=MSG_TRUNC;
+			tp->urg_data = URG_READ;
 			
 		if(msg->msg_name)
 			tp->af_specific->addr2sockaddr(sk, (struct sockaddr *)
@@ -1023,6 +986,15 @@ static int tcp_recv_urg(struct sock * sk, int nonblock,
 		/* Read urgent data. */
 		msg->msg_flags|=MSG_OOB;
 		release_sock(sk);
+
+		if(len>0)
+		{
+			err = memcpy_toiovec(msg->msg_iov, &c, 1);
+			msg->msg_flags|=MSG_OOB;
+		}
+		else
+			msg->msg_flags|=MSG_TRUNC;
+			
 		return err ? -EFAULT : 1;
 	}
 	release_sock(sk);
@@ -1044,45 +1016,37 @@ static int tcp_recv_urg(struct sock * sk, int nonblock,
 
 static inline void tcp_eat_skb(struct sock *sk, struct sk_buff * skb)
 {
-	sk->tp_pinfo.af_tcp.delayed_acks++;
-
 	__skb_unlink(skb, &sk->receive_queue);
 	kfree_skb(skb);
 }
 
-
-static void cleanup_rbuf(struct sock *sk)
+/* Clean up the receive buffer for full frames taken by the user,
+ * then send an ACK if necessary.  COPIED is the number of bytes
+ * tcp_recvmsg has given to the user so far, it speeds up the
+ * calculation of whether or not we must ACK for the sake of
+ * a window update.
+ */
+static void cleanup_rbuf(struct sock *sk, int copied)
 {
 	struct sk_buff *skb;
-	struct tcp_opt *tp;
 	
 	/* NOTE! The socket must be locked, so that we don't get
 	 * a messed-up receive queue.
 	 */
 	while ((skb=skb_peek(&sk->receive_queue)) != NULL) {
-		if (!skb->used || atomic_read(&skb->users)>1)
+		if (!skb->used || atomic_read(&skb->users) > 1)
 			break;
 		tcp_eat_skb(sk, skb);
 	}
 
 	SOCK_DEBUG(sk, "sk->rspace = %lu\n", sock_rspace(sk));
 
-	tp = &(sk->tp_pinfo.af_tcp);
-
-  	/* We send a ACK if the sender is blocked
-  	 * else let tcp_data deal with the acking policy.
+  	/* We send an ACK if we can now advertise a non-zero window
+	 * which has been raised "significantly".
   	 */
-	if (tp->delayed_acks) {
-		__u32 rcv_wnd;
-
-	 	/* FIXME: double check this rule, then check against
-		 * other use of similar rules. Abtract if possible.
-		 */
-		rcv_wnd = tp->rcv_wnd - (tp->rcv_nxt - tp->rcv_wup);
-
-		if ((rcv_wnd < sk->mss) && (sock_rspace(sk) > rcv_wnd))
-			tcp_read_wakeup(sk);
-	}
+	if((copied > 0) &&
+	   (copied >= tcp_receive_window(&sk->tp_pinfo.af_tcp)))
+		tcp_read_wakeup(sk);
 }
 
 
@@ -1100,7 +1064,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 	volatile u32 *seq;	/* So gcc doesn't overoptimise */
 	unsigned long used;
 	int err = 0; 
-	int target = 1;		/* Read at least this may bytes */
+	int target = 1;		/* Read at least this many bytes */
 
 	if (sk->state == TCP_LISTEN)
 		return -ENOTCONN;
@@ -1113,8 +1077,8 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 	 *	the multi-reader case neatly (memcpy_to/fromfs might be
 	 *	inline and thus not flush cached variables otherwise).
 	 */
-	peek_seq = sk->copied_seq;
-	seq = &sk->copied_seq;
+	peek_seq = tp->copied_seq;
+	seq = &tp->copied_seq;
 	if (flags & MSG_PEEK)
 		seq = &peek_seq;
 		
@@ -1129,7 +1093,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 		u32 offset;
 
 		/* Are we at urgent data? Stop if we have read anything. */
-		if (copied && sk->urg_data && sk->urg_seq == *seq)
+		if (copied && tp->urg_data && tp->urg_seq == *seq)
 			break;
 
 		/* We need to check signals first, to get correct SIGURG
@@ -1200,7 +1164,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 			break;
 		}
 
-		cleanup_rbuf(sk);
+		cleanup_rbuf(sk, copied);
 		release_sock(sk);
 		sk->socket->flags |= SO_WAITDATA;
 		schedule();
@@ -1222,8 +1186,8 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 			used = len;
 
 		/* Do we have urgent data here? */
-		if (sk->urg_data) {
-			u32 urg_offset = sk->urg_seq - *seq;
+		if (tp->urg_data) {
+			u32 urg_offset = tp->urg_seq - *seq;
 			if (urg_offset < used) {
 				if (!urg_offset) {
 					if (!sk->urginline) {
@@ -1264,8 +1228,8 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 		 */
 		atomic_dec(&skb->users);
 
-		if (after(sk->copied_seq,sk->urg_seq))
-			sk->urg_data = 0;
+		if (after(tp->copied_seq,tp->urg_seq))
+			tp->urg_data = 0;
 		if (used + offset < skb->len)
 			continue;
 
@@ -1303,7 +1267,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 	current->state = TASK_RUNNING;
 
 	/* Clean up data we have read: This will do ACK frames. */
-	cleanup_rbuf(sk);
+	cleanup_rbuf(sk, copied);
 	release_sock(sk);
 	return copied;
 }
@@ -1356,8 +1320,7 @@ static int tcp_close_state(struct sock *sk, int dead)
 	 *	reset mistake.
 	 */
 	if(dead && ns==TCP_FIN_WAIT2) {
-		int timer_active=del_timer(&sk->timer);
-		if(timer_active)
+		if(sk->timer.prev && del_timer(&sk->timer))
 			add_timer(&sk->timer);
 		else
 			tcp_reset_msl_timer(sk, TIME_CLOSE, sysctl_tcp_fin_timeout);
@@ -1410,6 +1373,7 @@ static inline int closing(struct sock * sk)
 void tcp_close(struct sock *sk, unsigned long timeout)
 {
 	struct sk_buff *skb;
+	int data_was_unread = 0;
 
 	/* We need to grab some memory, and put together a FIN,
 	 * and then put it into the queue to be sent.
@@ -1421,7 +1385,6 @@ void tcp_close(struct sock *sk, unsigned long timeout)
 		tcp_close_pending(sk);
 		release_sock(sk);
 		sk->dead = 1;
-		sk->prot->unhash(sk);
 		return;
 	}
 
@@ -1435,14 +1398,30 @@ void tcp_close(struct sock *sk, unsigned long timeout)
 	 *  descriptor close, not protocol-sourced closes, because the
 	 *  reader process may not have drained the data yet!
 	 */
-	while((skb=skb_dequeue(&sk->receive_queue))!=NULL)
+	while((skb=skb_dequeue(&sk->receive_queue))!=NULL) {
+		data_was_unread++;
 		kfree_skb(skb);
+	}
 
-	/*  Timeout is not the same thing - however the code likes
-	 *  to send both the same way (sigh).
+	/* As outlined in draft-ietf-tcpimpl-prob-03.txt, section
+	 * 3.10, we send a RST here because data was lost.  To
+	 * witness the awful effects of the old behavior of always
+	 * doing a FIN, run an older 2.1.x kernel or 2.0.x, start
+	 * a bulk GET in an FTP client, suspend the process, wait
+	 * for the client to advertise a zero window, then kill -9
+	 * the FTP client, wheee...  Note: timeout is always zero
+	 * in such a case.
 	 */
-	if (tcp_close_state(sk,1)==1)
+	if(data_was_unread != 0) {
+		/* Unread data was tossed, zap the connection. */
+		tcp_set_state(sk, TCP_CLOSE);
+		tcp_send_active_reset(sk);
+	} else if (tcp_close_state(sk,1)) {
+		/* We FIN if the application ate all the data before
+		 * zapping the connection.
+		 */
 		tcp_send_fin(sk);
+	}
 
 	if (timeout) {
 		struct task_struct *tsk = current;
@@ -1470,8 +1449,7 @@ void tcp_close(struct sock *sk, unsigned long timeout)
 	 * we may need to set up a timer.
          */
 	if (sk->state==TCP_FIN_WAIT2) {
-		int timer_active=del_timer(&sk->timer);
-		if(timer_active)
+		if(sk->timer.prev && del_timer(&sk->timer))
 			add_timer(&sk->timer);
 		else
 			tcp_reset_msl_timer(sk, TIME_CLOSE, sysctl_tcp_fin_timeout);
@@ -1479,9 +1457,6 @@ void tcp_close(struct sock *sk, unsigned long timeout)
 
 	sk->dead = 1;
 	release_sock(sk);
-
-	if(sk->state == TCP_CLOSE)
-		sk->prot->unhash(sk);
 }
 
 /*
@@ -1538,13 +1513,12 @@ struct sock *tcp_accept(struct sock *sk, int flags)
 	    /* If this is a non blocking socket don't sleep */
 	    error = EAGAIN;
 	    if (flags & O_NONBLOCK)
-		goto out;
+			goto out;
 	    
 	    error = ERESTARTSYS;
 	    req = wait_for_connect(sk, &prev);
 	    if (!req) 
-		goto out;
-	    error = 0; 
+			goto out;
 	}
 
 	tcp_synq_unlink(tp, req, prev);
@@ -1647,9 +1621,23 @@ void tcp_set_keepalive(struct sock *sk, int val)
 __initfunc(void tcp_init(void))
 {
 	tcp_openreq_cachep = kmem_cache_create("tcp_open_request",
-					       sizeof(struct open_request),
+						   sizeof(struct open_request),
 					       0, SLAB_HWCACHE_ALIGN,
 					       NULL, NULL);
 	if(!tcp_openreq_cachep)
 		panic("tcp_init: Cannot alloc open_request cache.");
+
+	tcp_bucket_cachep = kmem_cache_create("tcp_bind_bucket",
+					      sizeof(struct tcp_bind_bucket),
+					      0, SLAB_HWCACHE_ALIGN,
+					      NULL, NULL);
+	if(!tcp_bucket_cachep)
+		panic("tcp_init: Cannot alloc tcp_bind_bucket cache.");
+
+	tcp_timewait_cachep = kmem_cache_create("tcp_tw_bucket",
+						sizeof(struct tcp_tw_bucket),
+						0, SLAB_HWCACHE_ALIGN,
+						NULL, NULL);
+	if(!tcp_timewait_cachep)
+		panic("tcp_init: Cannot alloc tcp_tw_bucket cache.");
 }

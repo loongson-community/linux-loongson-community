@@ -70,7 +70,9 @@ enum
 	KERN_PRINTK,            /* sturct: control printk logging parameters */
 	KERN_NAMETRANS,		/* Name translation */
 	KERN_STATINODE,
-	KERN_DENTRY		/* dentry statistics */
+	KERN_DENTRY,		/* dentry statistics */
+	KERN_MODPROBE,
+	KERN_KMOD_UNLOAD_DELAY
 };
 
 
@@ -82,6 +84,7 @@ enum
 	VM_FREEPG,		/* struct: Set free page thresholds */
 	VM_BDFLUSH,		/* struct: Control buffer cache flushing */
 	VM_OVERCOMMIT_MEMORY,	/* Turn off the virtual memory safety limit */
+	VM_BUFFERMEM		/* struct: Set cache memory thresholds */
 };
 
 
@@ -118,6 +121,7 @@ enum
 	NET_CORE_FASTROUTE,
 	NET_CORE_MSG_COST,
 	NET_CORE_MSG_BURST,
+	NET_CORE_OPTMEM_MAX,
 };
 
 /* /proc/sys/net/ethernet */
@@ -145,8 +149,6 @@ enum
 	NET_IPV4_FIB_HASH = 19,
 
 	NET_IPV4_TCP_HOE_RETRANSMITS=32,
-	NET_IPV4_TCP_SACK,
-	NET_IPV4_TCP_TSACK,
 	NET_IPV4_TCP_TIMESTAMPS,
 	NET_IPV4_TCP_WINDOW_SCALING,
 	NET_IPV4_TCP_VEGAS_CONG_AVOID,
@@ -167,6 +169,7 @@ enum
 	NET_IPV4_IP_MASQ_DEBUG,
 	NET_TCP_SYNCOOKIES,
 	NET_TCP_STDURG,
+	NET_TCP_RFC1337,
 	NET_TCP_SYN_TAILDROP,
 	NET_TCP_MAX_SYN_BACKLOG,
 	NET_IPV4_LOCAL_PORT_RANGE,

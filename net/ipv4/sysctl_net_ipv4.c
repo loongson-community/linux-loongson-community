@@ -1,7 +1,7 @@
 /*
  * sysctl_net_ipv4.c: sysctl interface to net IPV4 subsystem.
  *
- * $Id: sysctl_net_ipv4.c,v 1.6 1998/03/03 01:23:42 ralf Exp $
+ * $Id: sysctl_net_ipv4.c,v 1.7 1998/03/17 22:18:33 ralf Exp $
  *
  * Begun April 1, 1996, Mike Shaver.
  * Added /proc/sys/net/ipv4 directory entry (empty =) ). [MS]
@@ -45,8 +45,6 @@ extern int sysctl_ip_masq_debug;
 
 extern int sysctl_tcp_cong_avoidance;
 extern int sysctl_tcp_hoe_retransmits;
-extern int sysctl_tcp_sack;
-extern int sysctl_tcp_tsack;
 extern int sysctl_tcp_timestamps;
 extern int sysctl_tcp_window_scaling;
 extern int sysctl_tcp_keepalive_time;
@@ -57,7 +55,8 @@ extern int sysctl_tcp_retries2;
 extern int sysctl_tcp_fin_timeout;
 extern int sysctl_tcp_syncookies;
 extern int sysctl_tcp_syn_retries;
-extern int sysctl_tcp_stdurg; 
+extern int sysctl_tcp_stdurg;
+extern int sysctl_tcp_rfc1337;
 extern int sysctl_tcp_syn_taildrop; 
 extern int sysctl_max_syn_backlog; 
 
@@ -98,12 +97,6 @@ int ipv4_sysctl_forward(ctl_table *ctl, int write, struct file * filp,
 ctl_table ipv4_table[] = {
         {NET_IPV4_TCP_HOE_RETRANSMITS, "tcp_hoe_retransmits",
          &sysctl_tcp_hoe_retransmits, sizeof(int), 0644, NULL,
-         &proc_dointvec},
-        {NET_IPV4_TCP_SACK, "tcp_sack",
-         &sysctl_tcp_sack, sizeof(int), 0644, NULL,
-         &proc_dointvec},
-        {NET_IPV4_TCP_TSACK, "tcp_tsack",
-         &sysctl_tcp_tsack, sizeof(int), 0644, NULL,
          &proc_dointvec},
         {NET_IPV4_TCP_TIMESTAMPS, "tcp_timestamps",
          &sysctl_tcp_timestamps, sizeof(int), 0644, NULL,
@@ -161,6 +154,8 @@ ctl_table ipv4_table[] = {
 	 &sysctl_tcp_syncookies, sizeof(int), 0644, NULL, &proc_dointvec},
 #endif
 	{NET_TCP_STDURG, "tcp_stdurg", &sysctl_tcp_stdurg,
+	 sizeof(int), 0644, NULL, &proc_dointvec},
+	{NET_TCP_RFC1337, "tcp_rfc1337", &sysctl_tcp_rfc1337,
 	 sizeof(int), 0644, NULL, &proc_dointvec},
 	{NET_TCP_SYN_TAILDROP, "tcp_syn_taildrop", &sysctl_tcp_syn_taildrop,
 	 sizeof(int), 0644, NULL, &proc_dointvec},

@@ -10,7 +10,6 @@
  *  we attempt to remove commands from the queue and retry them.
  */
 
-#include <linux/config.h>
 #define __NO_VERSION__
 #include <linux/module.h>
 
@@ -37,10 +36,6 @@
 #include "scsi.h"
 #include "hosts.h"
 #include "constants.h"
-
-#ifdef CONFIG_KERNELD
-#include <linux/kerneld.h>
-#endif
 
 /*
  * TODO:

@@ -44,6 +44,7 @@
 #ifdef CONFIG_MATH_EMULATION
 #include <asm/math_emu.h>
 #endif
+#include "irq.h"
 
 #ifdef __SMP__
 asmlinkage void ret_from_smpfork(void) __asm__("ret_from_smpfork");
@@ -280,6 +281,12 @@ static inline void kb_wait(void)
 
 void machine_restart(char * __unused)
 {
+#if __SMP__
+	/*
+	 * turn off the IO-APIC, so we can do a clean reboot
+	 */
+	init_pic_mode();
+#endif
 
 	if(!reboot_thru_bios) {
 		/* rebooting needs to touch the page at absolute addr 0 */
@@ -314,10 +321,10 @@ void machine_restart(char * __unused)
 
 	/* Remap the kernel at virtual address zero, as well as offset zero
 	   from the kernel segment.  This assumes the kernel segment starts at
-	   virtual address 0xc0000000. */
+	   virtual address PAGE_OFFSET. */
 
-	memcpy (swapper_pg_dir, swapper_pg_dir + 768,
-		sizeof (swapper_pg_dir [0]) * 256);
+	memcpy (swapper_pg_dir, swapper_pg_dir + USER_PGD_PTRS,
+		sizeof (swapper_pg_dir [0]) * KERNEL_PGD_PTRS);
 
 	/* Make sure the first page is mapped to the start of physical memory.
 	   It is normally not mapped, to trap kernel NULL pointer dereferences. */
@@ -473,7 +480,6 @@ void release_thread(struct task_struct *dead_task)
 int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 	struct task_struct * p, struct pt_regs * regs)
 {
-	int i;
 	struct pt_regs * childregs;
 
 	p->tss.tr = _TSS(nr);
@@ -510,9 +516,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 		set_ldt_desc(gdt+(nr<<1)+FIRST_LDT_ENTRY,p->ldt, 512);
 	else
 		set_ldt_desc(gdt+(nr<<1)+FIRST_LDT_ENTRY,&default_ldt, 1);
-	p->tss.bitmap = offsetof(struct thread_struct,io_bitmap);
-	for (i = 0; i < IO_BITMAP_SIZE+1 ; i++) /* IO bitmap is actually SIZE+1 */
-		p->tss.io_bitmap[i] = ~0;
+	/*
+	 * a bitmap offset pointing outside of the TSS limit causes a nicely
+	 * controllable SIGSEGV. The first sys_ioperm() call sets up the
+	 * bitmap properly.
+	 */
+	p->tss.bitmap = sizeof(struct thread_struct);
+
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0 ; frstor %0":"=m" (p->tss.i387));
 

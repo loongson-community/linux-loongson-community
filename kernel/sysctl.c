@@ -41,6 +41,10 @@ extern int console_loglevel, C_A_D, swapout_interval;
 extern int bdf_prm[], bdflush_min[], bdflush_max[];
 extern char binfmt_java_interpreter[], binfmt_java_appletviewer[];
 extern int sysctl_overcommit_memory;
+#ifdef CONFIG_KMOD
+extern char modprobe_path[];
+extern int kmod_unload_delay;
+#endif
 
 #ifdef __sparc__
 extern char reboot_command [];
@@ -174,6 +178,12 @@ static ctl_table kern_table[] = {
 	 0644, NULL, &proc_dointvec},
 	{KERN_PRINTK, "printk", &console_loglevel, 4*sizeof(int),
 	 0644, NULL, &proc_dointvec},
+#ifdef CONFIG_KMOD
+	{KERN_MODPROBE, "modprobe", &modprobe_path, 256,
+	 0644, NULL, &proc_dostring, &sysctl_string },
+	{KERN_KMOD_UNLOAD_DELAY, "kmod_unload_delay", &kmod_unload_delay,
+	sizeof(int), 0644, NULL, &proc_dointvec},
+#endif
 	{0}
 };
 
@@ -183,12 +193,14 @@ static ctl_table vm_table[] = {
 	{VM_SWAPOUT, "swapout_interval",
 	 &swapout_interval, sizeof(int), 0600, NULL, &proc_dointvec_jiffies},
 	{VM_FREEPG, "freepages", 
-	 &min_free_pages, 3*sizeof(int), 0600, NULL, &proc_dointvec},
+	 &freepages, sizeof(freepages_t), 0600, NULL, &proc_dointvec},
 	{VM_BDFLUSH, "bdflush", &bdf_prm, 9*sizeof(int), 0600, NULL,
 	 &proc_dointvec_minmax, &sysctl_intvec, NULL,
 	 &bdflush_min, &bdflush_max},
 	{VM_OVERCOMMIT_MEMORY, "overcommit_memory", &sysctl_overcommit_memory,
 	 sizeof(sysctl_overcommit_memory), 0644, NULL, &proc_dointvec},
+	{VM_BUFFERMEM, "buffermem",
+	 &buffer_mem, sizeof(buffer_mem_t), 0600, NULL, &proc_dointvec},
 	{0}
 };
 

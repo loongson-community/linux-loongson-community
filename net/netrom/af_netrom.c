@@ -98,7 +98,7 @@ static struct sock *nr_alloc_sock(void)
 	struct sock *sk;
 	nr_cb *nr;
 
-	if ((sk = sk_alloc(AF_NETROM, GFP_ATOMIC)) == NULL)
+	if ((sk = sk_alloc(AF_NETROM, GFP_ATOMIC, 1)) == NULL)
 		return NULL;
 
 	if ((nr = kmalloc(sizeof(*nr), GFP_ATOMIC)) == NULL) {
@@ -759,6 +759,8 @@ static int nr_accept(struct socket *sock, struct socket *newsock, int flags)
 
 	newsk = skb->sk;
 	newsk->pair = NULL;
+	newsk->socket = newsock;
+	newsk->sleep = &newsock->wait;
 	sti();
 
 	/* Now attach up the new socket */

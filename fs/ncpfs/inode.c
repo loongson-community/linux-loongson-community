@@ -25,9 +25,6 @@
 #include <linux/fcntl.h>
 #include <linux/malloc.h>
 #include <linux/init.h>
-#ifdef CONFIG_KERNELD
-#include <linux/kerneld.h>
-#endif
 
 #include <linux/ncp_fs.h>
 #include "ncplib_kernel.h"
@@ -287,6 +284,7 @@ ncp_read_super(struct super_block *sb, void *raw_data, int silent)
 	server->buffer_size = 0;
 	server->conn_status = 0;
 	server->root_dentry = NULL;
+	server->root_setuped = 0;
 #ifdef CONFIG_NCPFS_PACKET_SIGNING
 	server->sign_wanted = 0;
 	server->sign_active = 0;

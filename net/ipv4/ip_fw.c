@@ -6,7 +6,7 @@
  *	license in recognition of the original copyright. 
  *				-- Alan Cox.
  *
- *	$Id: ip_fw.c,v 1.3 1997/12/16 05:37:37 ralf Exp $
+ *	$Id: ip_fw.c,v 1.4 1998/03/17 22:18:25 ralf Exp $
  *
  *	Ported from BSD to Linux,
  *		Alan Cox 22/Nov/1994.
@@ -390,6 +390,39 @@ int ip_fw_chk(struct iphdr *ip, struct device *rif, __u16 *redirport, struct ip_
 		{
 			if(rif!=f->fw_viadev)
 				continue;	/* Mismatch */
+		}
+
+		/* This looks stupid, because we scan almost static
+		   list, searching for static key. However, this way seems
+		   to be only reasonable way of handling fw_via rules
+		   (btw bsd makes the same thing).
+
+		   It will not affect performance if you will follow
+		   the following simple rules:
+
+		   - if inteface is aliased, ALWAYS specify fw_viadev,
+		     so that previous check will guarantee, that we will
+		     not waste time when packet arrive on another interface.
+
+		   - avoid using fw_via.s_addr if fw_via.s_addr is owned
+		     by an aliased interface.
+
+		                                                       --ANK
+		 */
+		if (f->fw_via.s_addr && rif) {
+			struct in_ifaddr *ifa;
+
+			if (rif->ip_ptr == NULL)
+				continue;	/* Mismatch */
+
+			for (ifa = ((struct in_device*)(rif->ip_ptr))->ifa_list;
+			     ifa; ifa = ifa->ifa_next) {
+				if (ifa->ifa_local == f->fw_via.s_addr)
+					goto ifa_ok;
+			}
+			continue;	/* Mismatch */
+
+		ifa_ok:
 		}
 
 		/*

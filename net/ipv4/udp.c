@@ -5,7 +5,7 @@
  *
  *		The User Datagram Protocol (UDP).
  *
- * Version:	$Id: udp.c,v 1.3 1998/03/03 01:23:44 ralf Exp $
+ * Version:	$Id: udp.c,v 1.4 1998/03/17 22:18:36 ralf Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -828,7 +828,7 @@ int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 				 * of this packet since that is all
 				 * that will be read.
 				 */
-				amount = skb->tail - skb->h.raw;
+				amount = skb->len - sizeof(struct udphdr);
 			}
 			return put_user(amount, (int *)arg);
 		}
@@ -1033,17 +1033,18 @@ static inline void udp_deliver(struct sock *sk, struct sk_buff *skb)
 
 /*
  *	Multicasts and broadcasts go to each listener.
+ *
+ *	Note: called only from the BH handler context,
+ *	so we don't need to lock the hashes.
  */
 static int udp_v4_mcast_deliver(struct sk_buff *skb, struct udphdr *uh,
 				 u32 saddr, u32 daddr)
 {
 	struct sock *sk;
-	int given = 0;
 
-	SOCKHASH_LOCK();
 	sk = udp_hash[ntohs(uh->dest) & (UDP_HTABLE_SIZE - 1)];
 	sk = udp_v4_mcast_next(sk, uh->dest, saddr, uh->source, daddr);
-	if(sk) {
+	if (sk) {
 		struct sock *sknext = NULL;
 
 		do {
@@ -1058,10 +1059,7 @@ static int udp_v4_mcast_deliver(struct sk_buff *skb, struct udphdr *uh,
 				udp_deliver(sk, skb1);
 			sk = sknext;
 		} while(sknext);
-		given = 1;
-	}
-	SOCKHASH_UNLOCK();
-	if(!given)
+	} else
 		kfree_skb(skb);
 	return 0;
 }

@@ -2,12 +2,11 @@
 #define __irq_h
 
 /*
- * Various low-level irq details needed by irq.c and smp.c
+ * Various low-level irq details needed by irq.c, process.c,
+ * time.c, io_apic.c and smp.c
  *
  * Interrupt entry/exit code at both C and assembly level
  */
-
-#define IO_APIC_GATE_OFFSET 0x51
 
 void mask_irq(unsigned int irq);
 void unmask_irq(unsigned int irq);
@@ -19,8 +18,15 @@ void setup_IO_APIC (void);
 void init_IO_APIC_traps(void);
 int IO_APIC_get_PCI_irq_vector (int bus, int slot, int fn);
 void make_8259A_irq (unsigned int irq);
+void send_IPI (int dest, int vector);
+void init_pic_mode (void);
 
 extern unsigned int io_apic_irqs;
+
+extern inline int IO_APIC_VECTOR (int irq)
+{
+	return (0x51+(irq<<3));
+}
 
 #define MAX_IRQ_SOURCES 128
 #define MAX_MP_BUSSES 32
@@ -37,6 +43,7 @@ extern spinlock_t irq_controller_lock; /*
 					* Protects both the 8259 and the
 					* IO-APIC
 					*/
+
 
 #ifdef __SMP__
 

@@ -5,7 +5,7 @@
  *
  *		TIMER - implementation of software timers for IP.
  *
- * Version:	$Id: timer.c,v 1.7 1997/09/17 18:50:26 freitag Exp $
+ * Version:	$Id: timer.c,v 1.2 1997/12/16 05:37:48 ralf Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -52,76 +52,52 @@
 
 void net_delete_timer (struct sock *t)
 {
-	unsigned long flags;
-
-	save_flags (flags);
-	cli();
-
+	if(t->timer.prev)
+		del_timer (&t->timer);
 	t->timeout = 0;
-	del_timer (&t->timer);
-
-	restore_flags (flags);
 }
 
 void net_reset_timer (struct sock *t, int timeout, unsigned long len)
 {
 	net_delete_timer (t);
 	t->timeout = timeout;
-#if 1
-  /* FIXME: ??? */
-	if ((int) len < 0)	/* prevent close to infinite timers. THEY _DO_ */
-		len = 3;	/* happen (negative values ?) - don't ask me why ! -FB */
-#endif
 	t->timer.expires = jiffies+len;
 	add_timer (&t->timer);
 }
 
-
-/*
- *	Now we will only be called whenever we need to do
- *	something, but we must be sure to process all of the
- *	sockets that need it.
+/* Now we will only be called whenever we need to do
+ * something, but we must be sure to process all of the
+ * sockets that need it.
  */
-
 void net_timer (unsigned long data)
 {
 	struct sock *sk = (struct sock*)data;
 	int why = sk->timeout;
 
-	/* 
-	 * only process if socket is not in use
-	 */
-
-	if (sk->sock_readers)
-	{
+	/* Only process if socket is not in use. */
+	if (sk->sock_readers) {
 		sk->timer.expires = jiffies+HZ;
 		add_timer(&sk->timer);
-		sti();
 		return;
 	}
 
 	/* Always see if we need to send an ack. */
-
-	if (sk->ack_backlog && !sk->zapped) 
-	{
+	if (sk->tp_pinfo.af_tcp.delayed_acks && !sk->zapped) {
 		sk->prot->read_wakeup (sk);
-		if (! sk->dead)
-		sk->data_ready(sk,0);
+		if (!sk->dead)
+			sk->data_ready(sk,0);
 	}
 
 	/* Now we need to figure out why the socket was on the timer. */
-
-	switch (why) 
-	{
+	switch (why) {
 		case TIME_DONE:
-			/* If the socket hasn't been closed off, re-try a bit later */
+			/* If the socket hasn't been closed off, re-try a bit later. */
 			if (!sk->dead) {
 				net_reset_timer(sk, TIME_DONE, TCP_DONE_TIME);
 				break;
 			}
 
-			if (sk->state != TCP_CLOSE) 
-			{
+			if (sk->state != TCP_CLOSE) {
 				printk (KERN_DEBUG "non CLOSE socket in time_done\n");
 				break;
 			}
@@ -129,11 +105,9 @@ void net_timer (unsigned long data)
 			break;
 
 		case TIME_DESTROY:
-		/*
-		 *	We've waited for a while for all the memory associated with
-		 *	the socket to be freed.
-		 */
-
+			/* We've waited for a while for all the memory associated with
+			 * the socket to be freed.
+			 */
 			destroy_sock(sk);
 			break;
 
@@ -148,7 +122,8 @@ void net_timer (unsigned long data)
 			break;
 
 		default:
-			printk (KERN_DEBUG "net_timer: timer expired - reason %d is unknown\n", why);
+			/* I want to see these... */
+			printk ("net_timer: timer expired - reason %d is unknown\n", why);
 			break;
 	}
 }

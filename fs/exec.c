@@ -49,8 +49,9 @@
 #include <asm/mmu_context.h>
 
 #include <linux/config.h>
-#ifdef CONFIG_KERNELD
-#include <linux/kerneld.h>
+
+#ifdef CONFIG_KMOD
+#include <linux/kmod.h>
 #endif
 
 asmlinkage int sys_exit(int exit_code);
@@ -421,6 +422,7 @@ static int exec_mmap(void)
 	retval = new_page_tables(current);
 	if (retval)
 		goto fail_restore;
+	up(&mm->mmap_sem);
 	mmput(old_mm);
 	return 0;
 
@@ -697,7 +699,7 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 		}
 		if (retval != -ENOEXEC) {
 			break;
-#ifdef CONFIG_KERNELD
+#ifdef CONFIG_KMOD
 		}else{
 #define printable(c) (((c)=='\t') || ((c)=='\n') || (0x20<=(c) && (c)<=0x7e))
 			char modname[20];

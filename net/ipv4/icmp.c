@@ -3,7 +3,7 @@
  *	
  *		Alan Cox, <alan@cymru.net>
  *
- *	Version: $Id: icmp.c,v 1.4 1998/03/03 01:23:37 ralf Exp $
+ *	Version: $Id: icmp.c,v 1.5 1998/03/17 22:18:23 ralf Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -928,10 +928,8 @@ int icmp_chkaddr(struct sk_buff *skb)
 			struct tcphdr *th = (struct tcphdr *)(((unsigned char *)iph)+(iph->ihl<<2));
 
 			sk = tcp_v4_lookup(iph->daddr, th->dest, iph->saddr, th->source, skb->dev->ifindex);
-			if (!sk) return 0;
-			if (sk->saddr != iph->saddr) return 0;
-			if (sk->daddr != iph->daddr) return 0;
-			if (sk->dummy_th.dest != th->dest) return 0;
+			if (!sk || (sk->state == TCP_LISTEN))
+				return 0;
 			/*
 			 * This packet came from us.
 			 */

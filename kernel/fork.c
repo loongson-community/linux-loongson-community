@@ -41,7 +41,6 @@ kmem_cache_t *mm_cachep;
 kmem_cache_t *files_cachep; 
 
 struct task_struct *pidhash[PIDHASH_SZ];
-spinlock_t pidhash_lock = SPIN_LOCK_UNLOCKED;
 
 struct task_struct **tarray_freelist = NULL;
 spinlock_t taskslot_lock = SPIN_LOCK_UNLOCKED;
@@ -263,6 +262,9 @@ fail_nomem:
 
 /*
  * Allocate and initialize an mm_struct.
+ *
+ * NOTE! The mm mutex will be locked until the
+ * caller decides that all systems are go..
  */
 struct mm_struct * mm_alloc(void)
 {
@@ -275,7 +277,7 @@ struct mm_struct * mm_alloc(void)
 		mm->count = 1;
 		mm->map_count = 0;
 		mm->def_flags = 0;
-		mm->mmap_sem = MUTEX;
+		mm->mmap_sem = MUTEX_LOCKED;
 		/*
 		 * Leave mm->pgd set to the parent's pgd
 		 * so that pgd_offset() is always valid.
@@ -328,6 +330,7 @@ static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 	retval = dup_mmap(mm);
 	if (retval)
 		goto free_pt;
+	up(&mm->mmap_sem);
 	return 0;
 
 free_mm:
@@ -375,44 +378,66 @@ static inline int copy_fdset(fd_set *dst, fd_set *src)
 	return __copy_fdset(dst->fds_bits, src->fds_bits);  
 }
 
-static inline int copy_files(unsigned long clone_flags, struct task_struct * tsk)
+static int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 {
-	int i;  
 	struct files_struct *oldf, *newf;
 	struct file **old_fds, **new_fds;
+	int size, i, error = 0;
 
 	/*
 	 * A background process may not have any files ...
 	 */
 	oldf = current->files;
 	if (!oldf)
-		return 0;
+		goto out;
 
 	if (clone_flags & CLONE_FILES) {
 		oldf->count++;
-		return 0;
+		goto out;
 	}
 
+	tsk->files = NULL;
+	error = -ENOMEM;
 	newf = kmem_cache_alloc(files_cachep, SLAB_KERNEL);
-	tsk->files = newf;
 	if (!newf) 
-		return -1;
+		goto out;
+
+	/*
+	 * Allocate the fd array, using get_free_page() if possible.
+	 * Eventually we want to make the array size variable ...
+	 */
+	size = NR_OPEN * sizeof(struct file *);
+	if (size == PAGE_SIZE)
+		new_fds = (struct file **) __get_free_page(GFP_KERNEL);
+	else
+		new_fds = (struct file **) kmalloc(size, GFP_KERNEL);
+	if (!new_fds)
+		goto out_release;
+	memset((void *) new_fds, 0, size);
 
 	newf->count = 1;
+	newf->max_fds = NR_OPEN;
+	newf->fd = new_fds;
 	newf->close_on_exec = oldf->close_on_exec;
-	i = copy_fdset(&newf->open_fds,&oldf->open_fds);
+	i = copy_fdset(&newf->open_fds, &oldf->open_fds);
 
 	old_fds = oldf->fd;
-	new_fds = newf->fd;
 	for (; i != 0; i--) {
 		struct file * f = *old_fds;
 		old_fds++;
 		*new_fds = f;
-		new_fds++;
 		if (f)
 			f->f_count++;
+		new_fds++;
 	}
-	return 0;
+	tsk->files = newf;
+	error = 0;
+out:
+	return error;
+
+out_release:
+	kmem_cache_free(files_cachep, newf);
+	goto out;
 }
 
 static inline int copy_sighand(unsigned long clone_flags, struct task_struct * tsk)
@@ -495,8 +520,15 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->start_time = jiffies;
 	p->tarray_ptr = &task[nr];
 	*p->tarray_ptr = p;
-	SET_LINKS(p);
-	hash_pid(p);
+
+	{
+		unsigned long flags;
+		write_lock_irqsave(&tasklist_lock, flags);
+		SET_LINKS(p);
+		hash_pid(p);
+		write_unlock_irqrestore(&tasklist_lock, flags);
+	}
+
 	nr_tasks++;
 
 	error = -ENOMEM;
@@ -553,8 +585,15 @@ bad_fork_cleanup:
 	if (p->binfmt && p->binfmt->module)
 		__MOD_DEC_USE_COUNT(p->binfmt->module);
 	add_free_taskslot(p->tarray_ptr);
-	unhash_pid(p);
-	REMOVE_LINKS(p);
+
+	{
+		unsigned long flags;
+		write_lock_irqsave(&tasklist_lock, flags); 
+		unhash_pid(p);
+		REMOVE_LINKS(p);
+		write_unlock_irqrestore(&tasklist_lock, flags);
+	}
+
 	nr_tasks--;
 bad_fork_free:
 	free_task_struct(p);

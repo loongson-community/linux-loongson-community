@@ -20,10 +20,6 @@
  *  Native multichannel, wide scsi, /proc/scsi and hot plugging
  *  support added by Michael Neuffer <mike@i-connect.net>
  *
- *  Added request_module("scsi_hostadapter") for kerneld:
- *  (Put an "alias scsi_hostadapter your_hostadapter" in /etc/conf.modules)
- *  Bjorn Ekwall  <bj0rn@blox.se>
- *
  *  Major improvements to the timeout, abort, and reset processing,
  *  as well as performance modifications for large queue depths by
  *  Leonard N. Zubkoff <lnz@dandelion.com>
@@ -47,7 +43,6 @@
  * driver uses the new code this *ENTIRE* file will be nuked.
  */
 
-#include <linux/config.h> /* for CONFIG_KERNELD */
 #define __NO_VERSION__
 #include <linux/module.h>
 
@@ -69,10 +64,6 @@
 #include "scsi.h"
 #include "hosts.h"
 #include "constants.h"
-
-#ifdef CONFIG_KERNELD
-#include <linux/kerneld.h>
-#endif
 
 #undef USE_STATIC_SCSI_MEMORY
 

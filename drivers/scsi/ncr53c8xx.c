@@ -9470,7 +9470,7 @@ printk("ncr53c8xx_pci_init() #1: bus == %d, device_fn == %d\n", bus, device_fn);
 	/*
 	 * Try to fix up PCI config according to wished features.
 	 */
-#if defined(__i386) && !defined(MODULE)
+#if defined(__i386__) && !defined(MODULE)
 	if ((driver_setup.pci_fix_up & 1) &&
 	    (chip->features & FE_CLSE) && cache_line_size == 0) {
 #if LINUX_VERSION_CODE < LinuxVersionCode(2,1,75)

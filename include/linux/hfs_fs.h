@@ -237,20 +237,20 @@ extern const struct hfs_name hfs_cap_reserved2[];
 extern struct inode_operations hfs_cap_ndir_inode_operations;
 extern struct inode_operations hfs_cap_fdir_inode_operations;
 extern struct inode_operations hfs_cap_rdir_inode_operations;
-extern void hfs_cap_drop_dentry(const ino_t, struct dentry *);
+extern void hfs_cap_drop_dentry(struct dentry *, const ino_t);
 
 /* dir_dbl.c */
 extern const struct hfs_name hfs_dbl_reserved1[];
 extern const struct hfs_name hfs_dbl_reserved2[];
 extern struct inode_operations hfs_dbl_dir_inode_operations;
-extern void hfs_dbl_drop_dentry(const ino_t, struct dentry *);
+extern void hfs_dbl_drop_dentry(struct dentry *, const ino_t);
 
 /* dir_nat.c */
 extern const struct hfs_name hfs_nat_reserved1[];
 extern const struct hfs_name hfs_nat_reserved2[];
 extern struct inode_operations hfs_nat_ndir_inode_operations;
 extern struct inode_operations hfs_nat_hdir_inode_operations;
-extern void hfs_nat_drop_dentry(const ino_t, struct dentry *);
+extern void hfs_nat_drop_dentry(struct dentry *, const ino_t);
 
 /* dir_sngl.c */
 extern const struct hfs_name hfs_sngl_reserved1[];

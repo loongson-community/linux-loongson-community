@@ -27,7 +27,6 @@
 #include <asm/mmu_context.h>
 
 extern void sem_exit (void);
-extern void kerneld_exit(void);
 
 int getrusage(struct task_struct *, int, struct rusage *);
 
@@ -44,8 +43,14 @@ void release(struct task_struct * p)
 		charge_uid(p, -1);
 		nr_tasks--;
 		add_free_taskslot(p->tarray_ptr);
-		unhash_pid(p);
-		REMOVE_LINKS(p);
+		{
+			unsigned long flags;
+
+			write_lock_irqsave(&tasklist_lock, flags);
+			unhash_pid(p);
+			REMOVE_LINKS(p);
+			write_unlock_irqrestore(&tasklist_lock, flags);
+		}
 		release_thread(p);
 		current->cmin_flt += p->min_flt + p->cmin_flt;
 		current->cmaj_flt += p->maj_flt + p->cmaj_flt;
@@ -157,7 +162,7 @@ static inline void close_files(struct files_struct * files)
 		unsigned long set = files->open_fds.fds_bits[j];
 		i = j * __NFDBITS;
 		j++;
-		if (i >= NR_OPEN)
+		if (i >= files->max_fds)
 			break;
 		while (set) {
 			if (set & 1) {
@@ -183,6 +188,13 @@ static inline void __exit_files(struct task_struct *tsk)
 		tsk->files = NULL;
 		if (!--files->count) {
 			close_files(files);
+			/*
+			 * Free the fd array as appropriate ...
+			 */
+			if (NR_OPEN * sizeof(struct file *) == PAGE_SIZE)
+				free_page((unsigned long) files->fd);
+			else
+				kfree(files->fd);
 			kmem_cache_free(files_cachep, files);
 		}
 	}
@@ -328,7 +340,6 @@ fake_volatile:
 	acct_process(code);
 	del_timer(&current->real_timer);
 	sem_exit();
-	kerneld_exit();
 	__exit_mm(current);
 #if CONFIG_AP1000
 	exit_msc(current);

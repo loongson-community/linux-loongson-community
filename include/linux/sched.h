@@ -86,6 +86,12 @@ extern int last_pid;
 #define SCHED_FIFO		1
 #define SCHED_RR		2
 
+/*
+ * This is an additional bit set when we want to
+ * yield the CPU for one re-schedule..
+ */
+#define SCHED_YIELD		0x10
+
 struct sched_param {
 	int sched_priority;
 };
@@ -113,19 +119,24 @@ extern void trap_init(void);
 
 asmlinkage void schedule(void);
 
-/* Open file table structure */
+
+/*
+ * Open file table structure
+ */
 struct files_struct {
 	int count;
+	int max_fds;
+	struct file ** fd;	/* current fd array */
 	fd_set close_on_exec;
 	fd_set open_fds;
-	struct file * fd[NR_OPEN];
 };
 
 #define INIT_FILES { \
 	1, \
+	NR_OPEN, \
+	&init_fd_array[0], \
 	{ { 0, } }, \
-	{ { 0, } }, \
-	{ NULL, } \
+	{ { 0, } } \
 }
 
 struct fs_struct {
@@ -387,43 +398,32 @@ extern __inline__ struct task_struct **get_free_taskslot(void)
 /* PID hashing. */
 #define PIDHASH_SZ (NR_TASKS >> 2)
 extern struct task_struct *pidhash[PIDHASH_SZ];
-extern spinlock_t pidhash_lock;
 
 #define pid_hashfn(x)	((((x) >> 8) ^ (x)) & (PIDHASH_SZ - 1))
 
 extern __inline__ void hash_pid(struct task_struct *p)
 {
 	struct task_struct **htable = &pidhash[pid_hashfn(p->pid)];
-	unsigned long flags;
 
-	spin_lock_irqsave(&pidhash_lock, flags);
 	if((p->pidhash_next = *htable) != NULL)
 		(*htable)->pidhash_pprev = &p->pidhash_next;
 	*htable = p;
 	p->pidhash_pprev = htable;
-	spin_unlock_irqrestore(&pidhash_lock, flags);
 }
 
 extern __inline__ void unhash_pid(struct task_struct *p)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&pidhash_lock, flags);
 	if(p->pidhash_next)
 		p->pidhash_next->pidhash_pprev = p->pidhash_pprev;
 	*p->pidhash_pprev = p->pidhash_next;
-	spin_unlock_irqrestore(&pidhash_lock, flags);
 }
 
 extern __inline__ struct task_struct *find_task_by_pid(int pid)
 {
 	struct task_struct *p, **htable = &pidhash[pid_hashfn(pid)];
-	unsigned long flags;
 
-	spin_lock_irqsave(&pidhash_lock, flags);
 	for(p = *htable; p && p->pid != pid; p = p->pidhash_next)
 		;
-	spin_unlock_irqrestore(&pidhash_lock, flags);
 
 	return p;
 }
@@ -571,19 +571,6 @@ extern void exit_sighand(struct task_struct *);
 extern int do_execve(char *, char **, char **, struct pt_regs *);
 extern int do_fork(unsigned long, unsigned long, struct pt_regs *);
 
-/* See if we have a valid user level fd.
- * If it makes sense, return the file structure it references.
- * Otherwise return NULL.
- */
-extern inline struct file *file_from_fd(const unsigned int fd)
-{
-
-	if (fd >= NR_OPEN)
-		return NULL;
-	/* either valid or null */
-	return current->files->fd[fd];
-}
-	
 /*
  * The wait-queues are circular lists, and you have to be *very* sure
  * to keep them correct. Use only these two functions to add/remove
@@ -627,11 +614,9 @@ extern inline void remove_wait_queue(struct wait_queue ** p, struct wait_queue *
 	write_unlock_irqrestore(&waitqueue_lock, flags); 
 }
 
-#define REMOVE_LINKS(p) do { unsigned long flags; \
-	write_lock_irqsave(&tasklist_lock, flags); \
+#define REMOVE_LINKS(p) do { \
 	(p)->next_task->prev_task = (p)->prev_task; \
 	(p)->prev_task->next_task = (p)->next_task; \
-	write_unlock_irqrestore(&tasklist_lock, flags); \
 	if ((p)->p_osptr) \
 		(p)->p_osptr->p_ysptr = (p)->p_ysptr; \
 	if ((p)->p_ysptr) \
@@ -640,13 +625,11 @@ extern inline void remove_wait_queue(struct wait_queue ** p, struct wait_queue *
 		(p)->p_pptr->p_cptr = (p)->p_osptr; \
 	} while (0)
 
-#define SET_LINKS(p) do { unsigned long flags; \
-	write_lock_irqsave(&tasklist_lock, flags); \
+#define SET_LINKS(p) do { \
 	(p)->next_task = &init_task; \
 	(p)->prev_task = init_task.prev_task; \
 	init_task.prev_task->next_task = (p); \
 	init_task.prev_task = (p); \
-	write_unlock_irqrestore(&tasklist_lock, flags); \
 	(p)->p_ysptr = NULL; \
 	if (((p)->p_osptr = (p)->p_pptr->p_cptr) != NULL) \
 		(p)->p_osptr->p_ysptr = p; \

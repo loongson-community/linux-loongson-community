@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.19 1998/01/18 02:49:41 ralf Exp $
+ * $Id: r4xx0.c,v 1.12 1998/03/03 16:57:26 ralf Exp $
  *
  * To do:
  *
@@ -2379,7 +2379,7 @@ static void probe_icache(unsigned long config)
 	ic_lsize = 16 << ((config >> 4) & 1);
 
 	printk("Primary instruction cache %dkb, linesize %d bytes)\n",
-	       icache_size, ic_lsize);
+	       icache_size >> 10, ic_lsize);
 }
 
 static void probe_dcache(unsigned long config)
@@ -2388,7 +2388,7 @@ static void probe_dcache(unsigned long config)
 	dc_lsize = 16 << ((config >> 4) & 1);
 
 	printk("Primary data cache %dkb, linesize %d bytes)\n",
-	       dcache_size, dc_lsize);
+	       dcache_size >> 10, dc_lsize);
 }
 
 

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: mips_ksyms.c,v 1.4 1997/12/01 17:57:28 ralf Exp $
+ * $Id: mips_ksyms.c,v 1.5 1998/03/17 22:07:35 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -15,6 +15,7 @@
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/in6.h>
+#include <linux/pci.h>
 
 #include <asm/checksum.h>
 #include <asm/dma.h>
@@ -97,4 +98,8 @@ EXPORT_SYMBOL(force_sig);
 EXPORT_SYMBOL(__compute_return_epc);
 EXPORT_SYMBOL(register_fpe);
 EXPORT_SYMBOL(unregister_fpe);
+#endif
+
+#if CONFIG_PCI
+EXPORT_SYMBOL(pci_devices);
 #endif

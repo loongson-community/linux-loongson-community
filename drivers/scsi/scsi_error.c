@@ -8,7 +8,6 @@
  *
  */
 
-#include <linux/config.h>
 #define __NO_VERSION__
 #include <linux/module.h>
 
@@ -37,10 +36,6 @@
 #include "constants.h"
 
 #define SHUTDOWN_SIGS	(sigmask(SIGKILL)|sigmask(SIGINT)|sigmask(SIGTERM))
-
-#ifdef CONFIG_KERNELD
-#include <linux/kerneld.h>
-#endif
 
 #ifdef DEBUG
     #define SENSE_TIMEOUT SCSI_TIMEOUT

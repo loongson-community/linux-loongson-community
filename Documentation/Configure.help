@@ -103,6 +103,17 @@ CONFIG_MATH_EMULATION
   you are not sure, say Y; apart from resulting in a 45kB bigger
   kernel, it won't hurt.
 
+Max physical memory
+CONFIG_MAX_MEMSIZE
+  Linux/x86 can use up to 3.8 gigabytes of physical memory. Default
+  is max 1 gigabyte physical memory (1024 MB), this is enough for
+  most systems.
+  A system with 2G physical memory should use a value of ~2400, a
+  system with 3.8G memory should use something like 3900. A bit of
+  experimentation with the limit wont hurt, the kernel needs a ~128M
+  window for vmalloc() plus PCI space uses up some memory too, thus
+  addresses above FD000000 should rather be kept free.
+
 Normal floppy disk support
 CONFIG_BLK_DEV_FD
   If you want to use your floppy disk drive(s) under Linux, say
@@ -1343,21 +1354,12 @@ CONFIG_MODVERSIONS
   non-kernel sources, you would benefit from this option. Otherwise
   it's not that important. So, N ought to be a safe bet.
 
-Kernel daemon support
-CONFIG_KERNELD
-  Normally when you have selected some drivers and/or filesystems to
-  be created as loadable modules, you also have the responsibility to
-  load the corresponding module (via insmod/modprobe) before you can
-  use it.  If you select Y here, the kernel will take care of this all
-  by itself, together with the user level daemon "kerneld".  Note that
-  "kerneld" will also automatically unload all unused modules, so you
-  don't have to use "rmmod" either.  kerneld will also provide support
-  for different user-level beeper and screen blanker programs later
-  on.  The "kerneld" daemon is included in the modutils package (check
-  Documentation/Changes for latest version and location). You will
-  probably want to read the kerneld mini-HOWTO, available via ftp
-  (user: anonymous) from
-  sunsite.unc.edu:/pub/Linux/docs/HOWTO/mini. If unsure, say Y.
+Kernel module loader support
+CONFIG_KMOD
+  This feature allows the kernel to load modules for itself.  When
+  a part of the kernel needs a module, it runs modprobe with the
+  appropriate arguments.  Say Y here and read about configuring it
+  in Documentation/kmod.txt.  (this is a replacement of kerneld)
 
 ARP daemon support (EXPERIMENTAL)
 CONFIG_ARPD
@@ -6135,9 +6137,9 @@ CONFIG_ZFTAPE
   loadable module called `zft-compressor.o' which contains code to
   support user transparent on-the-fly compression based on Ross
   William's lzrw3 algorithm will be produced. If you have enabled
-  auto-loading of kernel modules via `kerneld' (i.e. have said `Y' to
-  CONFIG_KERNELD) then `zft-compressor.o' will be loaded automatically
-  by zftape when needed.
+  the kernel module loader (i.e. have said `Y' to CONFIG_KMOD) then
+  `zft-compressor.o' will be loaded automatically by zftape when
+  needed.
   Despite of its name zftape does NOT use compression by default. The
   file Documentation/ftape.txt contains a short description of the
   most important changes in the file system interface compared to
@@ -6595,12 +6597,6 @@ CONFIG_JOYSTICK
   be called joystick.o. If you want to compile it as a module, say M
   here and read Documentation/modules.txt.
 
-ARC console time
-CONFIG_RTC_ARC
-  If you boot your Alpha using the ARC firmware, say Y here. This option
-  adjusts the RTC clock to take into account the different starting epoch
-  used by ARC.
-
 Sound card support
 CONFIG_SOUND
   If you have a Sound Card in your Computer, i.e. if it can say more
@@ -6635,6 +6631,16 @@ CONFIG_SB
   drivers/sound/Readme.cards file before answering this question. For
   an unknown card you may answer Y if the card claims to be
   SoundBlaster compatible.
+
+Are you using the IBM Mwave "emulation" of SB ?
+CONFIG_SB_MWAVE
+  The IBM Mwave can do whats loosely describable as emulation of an 8bit
+  soundblaster if you load the right firmware from DOS warm boot and pray
+  and your machine happens to like you. Say Y if you are doing this as the
+  IRQ test normally fails on the mwave emulation. If you'd like real MWAVE
+  support phone IBM (425-556-8822) and ask them why they still haven't 
+  released any documentation.
+  [http://204.200.238.31/cgi-bin/link.pl?co=i&cl=/ts/ibm/contact.html]
 
 Generic OPL2/OPL3 FM synthesizer support
 CONFIG_ADLIB

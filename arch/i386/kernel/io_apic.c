@@ -271,7 +271,7 @@ void setup_IO_APIC_irqs (void)
 		if (!IO_APIC_IRQ(irq))
 			continue;
 
-		entry.vector = IO_APIC_GATE_OFFSET + (irq<<3);
+		entry.vector = IO_APIC_VECTOR(irq);
 
 		/*
 		 * Determine IRQ line polarity (high active or low active):
@@ -383,7 +383,7 @@ void setup_IO_APIC_irq_ISA_default (unsigned int irq)
 	entry.mask = 1;					/* unmask IRQ now */
 	entry.dest.logical.logical_dest = 0xff;		/* all CPUs */
 
-	entry.vector = IO_APIC_GATE_OFFSET + (irq<<3);
+	entry.vector = IO_APIC_VECTOR(irq);
 
 	entry.polarity=0;
 	entry.trigger=0;
@@ -513,11 +513,19 @@ void print_IO_APIC (void)
 	return;
 }
 
-void init_sym_mode (void)
+static void init_sym_mode (void)
 {
 	printk("enabling Symmetric IO mode ... ");
 		outb (0x70, 0x22);
 		outb (0x01, 0x23);
+	printk("...done.\n");
+}
+
+void init_pic_mode (void)
+{
+	printk("disabling Symmetric IO mode ... ");
+		outb (0x70, 0x22);
+		outb (0x00, 0x23);
 	printk("...done.\n");
 }
 

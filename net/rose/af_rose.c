@@ -149,7 +149,7 @@ static struct sock *rose_alloc_sock(void)
 	struct sock *sk;
 	rose_cb *rose;
 
-	if ((sk = sk_alloc(AF_ROSE, GFP_ATOMIC)) == NULL)
+	if ((sk = sk_alloc(AF_ROSE, GFP_ATOMIC, 1)) == NULL)
 		return NULL;
 
 	if ((rose = kmalloc(sizeof(*rose), GFP_ATOMIC)) == NULL) {
@@ -847,6 +847,8 @@ static int rose_accept(struct socket *sock, struct socket *newsock, int flags)
 
 	newsk = skb->sk;
 	newsk->pair = NULL;
+	newsk->socket = newsock;
+	newsk->sleep = &newsock->wait;
 	sti();
 
 	/* Now attach up the new socket */

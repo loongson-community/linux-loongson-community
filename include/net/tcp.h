@@ -27,13 +27,13 @@
  * New scheme, half the table is for TIME_WAIT, the other half is
  * for the rest.  I'll experiment with dynamic table growth later.
  */
-#define TCP_HTABLE_SIZE		1024
+#define TCP_HTABLE_SIZE		512
 
 /* This is for listening sockets, thus all sockets which possess wildcards. */
 #define TCP_LHTABLE_SIZE	32	/* Yes, really, this is all you need. */
 
 /* This is for all sockets, to keep track of the local port allocations. */
-#define TCP_BHTABLE_SIZE	64
+#define TCP_BHTABLE_SIZE	512
 
 /* tcp_ipv4.c: These need to be shared by v4 and v6 because the lookup
  *             and hashing code needs to work with different AF's yet
@@ -41,7 +41,142 @@
  */
 extern struct sock *tcp_established_hash[TCP_HTABLE_SIZE];
 extern struct sock *tcp_listening_hash[TCP_LHTABLE_SIZE];
-extern struct sock *tcp_bound_hash[TCP_BHTABLE_SIZE];
+
+/* There are a few simple rules, which allow for local port reuse by
+ * an application.  In essence:
+ *
+ *	1) Sockets bound to different interfaces may share a local port.
+ *	   Failing that, goto test 2.
+ *	2) If all sockets have sk->reuse set, and none of them are in
+ *	   TCP_LISTEN state, the port may be shared.
+ *	   Failing that, goto test 3.
+ *	3) If all sockets are bound to a specific sk->rcv_saddr local
+ *	   address, and none of them are the same, the port may be
+ *	   shared.
+ *	   Failing this, the port cannot be shared.
+ *
+ * The interesting point, is test #2.  This is what an FTP server does
+ * all day.  To optimize this case we use a specific flag bit defined
+ * below.  As we add sockets to a bind bucket list, we perform a
+ * check of: (newsk->reuse && (newsk->state != TCP_LISTEN))
+ * As long as all sockets added to a bind bucket pass this test,
+ * the flag bit will be set.
+ * The resulting situation is that tcp_v[46]_verify_bind() can just check
+ * for this flag bit, if it is set and the socket trying to bind has
+ * sk->reuse set, we don't even have to walk the owners list at all,
+ * we return that it is ok to bind this socket to the requested local port.
+ *
+ * Sounds like a lot of work, but it is worth it.  In a more naive
+ * implementation (ie. current FreeBSD etc.) the entire list of ports
+ * must be walked for each data port opened by an ftp server.  Needless
+ * to say, this does not scale at all.  With a couple thousand FTP
+ * users logged onto your box, isn't it nice to know that new data
+ * ports are created in O(1) time?  I thought so. ;-)	-DaveM
+ */
+struct tcp_bind_bucket {
+	unsigned short		port;
+	unsigned short		flags;
+#define TCPB_FLAG_LOCKED	0x0001
+#define TCPB_FLAG_FASTREUSE	0x0002
+
+	struct tcp_bind_bucket	*next;
+	struct sock		*owners;
+	struct tcp_bind_bucket	**pprev;
+};
+
+extern struct tcp_bind_bucket *tcp_bound_hash[TCP_BHTABLE_SIZE];
+extern kmem_cache_t *tcp_bucket_cachep;
+extern struct tcp_bind_bucket *tcp_bucket_create(unsigned short snum);
+extern void tcp_bucket_unlock(struct sock *sk);
+extern int tcp_port_rover;
+
+/* Level-1 socket-demux cache. */
+#define TCP_NUM_REGS		32
+extern struct sock *tcp_regs[TCP_NUM_REGS];
+
+#define TCP_RHASH_FN(__fport) \
+	((((__fport) >> 7) ^ (__fport)) & (TCP_NUM_REGS - 1))
+#define TCP_RHASH(__fport)	tcp_regs[TCP_RHASH_FN((__fport))]
+#define TCP_SK_RHASH_FN(__sock)	TCP_RHASH_FN((__sock)->dummy_th.dest)
+#define TCP_SK_RHASH(__sock)	tcp_regs[TCP_SK_RHASH_FN((__sock))]
+
+static __inline__ void tcp_reg_zap(struct sock *sk)
+{
+	struct sock **rpp;
+
+	rpp = &(TCP_SK_RHASH(sk));
+	if(*rpp == sk)
+		*rpp = NULL;
+}
+
+/* These are AF independent. */
+static __inline__ int tcp_bhashfn(__u16 lport)
+{
+	return (lport & (TCP_BHTABLE_SIZE - 1));
+}
+
+static __inline__ void tcp_sk_bindify(struct sock *sk)
+{
+	struct tcp_bind_bucket *tb;
+	unsigned short snum = sk->num;
+
+	for(tb = tcp_bound_hash[tcp_bhashfn(snum)]; tb->port != snum; tb = tb->next)
+		;
+	/* Update bucket flags. */
+	if(tb->owners == NULL) {
+		/* We're the first. */
+		if(sk->reuse && sk->state != TCP_LISTEN)
+			tb->flags = TCPB_FLAG_FASTREUSE;
+		else
+			tb->flags = 0;
+	} else {
+		if((tb->flags & TCPB_FLAG_FASTREUSE) &&
+		   ((sk->reuse == 0) || (sk->state == TCP_LISTEN)))
+			tb->flags &= ~TCPB_FLAG_FASTREUSE;
+	}
+	if((sk->bind_next = tb->owners) != NULL)
+		tb->owners->bind_pprev = &sk->bind_next;
+	tb->owners = sk;
+	sk->bind_pprev = &tb->owners;
+	sk->prev = (struct sock *) tb;
+}
+
+/* This is a TIME_WAIT bucket.  It works around the memory consumption
+ * problems of sockets in such a state on heavily loaded servers, but
+ * without violating the protocol specification.
+ */
+struct tcp_tw_bucket {
+	/* These _must_ match the beginning of struct sock precisely.
+	 * XXX Yes I know this is gross, but I'd have to edit every single
+	 * XXX networking file if I created a "struct sock_header". -DaveM
+	 */
+	struct sock		*sklist_next;
+	struct sock		*sklist_prev;
+	struct sock		*bind_next;
+	struct sock		**bind_pprev;
+	struct sock		*next;
+	struct sock		**pprev;
+	__u32			daddr;
+	__u32			rcv_saddr;
+	int			bound_dev_if;
+	unsigned short		num;
+	unsigned char		state,
+				family;		/* sk->zapped */
+	__u16			source;		/* sk->dummy_th.source */
+	__u16			dest;		/* sk->dummy_th.dest */
+
+	/* And these are ours. */
+	__u32			rcv_nxt;
+	struct tcp_func		*af_specific;
+	struct tcp_bind_bucket	*tb;
+	struct timer_list	timer;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	struct in6_addr		v6_daddr;
+	struct in6_addr		v6_rcv_saddr;
+#endif
+};
+
+extern kmem_cache_t *tcp_timewait_cachep;
 
 /* tcp_ipv4.c: These sysctl variables need to be shared between v4 and v6
  * because the v6 tcp code to intialize a connection needs to interoperate
@@ -50,37 +185,8 @@ extern struct sock *tcp_bound_hash[TCP_BHTABLE_SIZE];
  * address family independent and just leave one copy in the ipv4 section.
  * This would also clean up some code duplication. -- erics
  */
-extern int sysctl_tcp_sack;
 extern int sysctl_tcp_timestamps;
 extern int sysctl_tcp_window_scaling;
-
-/* These are AF independent. */
-static __inline__ int tcp_bhashfn(__u16 lport)
-{
-	return (lport ^ (lport >> 7)) & (TCP_BHTABLE_SIZE - 1);
-}
-
-/* Find the next port that hashes h that is larger than lport.
- * If you change the hash, change this function to match, or you will
- * break TCP port selection. This function must also NOT wrap around
- * when the next number exceeds the largest possible port (2^16-1).
- */
-static __inline__ int tcp_bhashnext(__u16 lport, __u16 h)
-{
-        __u32 s;	/* don't change this to a smaller type! */
-
-        s = (lport ^ (h ^ tcp_bhashfn(lport)));
-        if (s > lport)
-                return s;
-        s = lport + TCP_BHTABLE_SIZE;
-        return (s ^ (h ^ tcp_bhashfn(s)));
-}
-
-static __inline__ int tcp_sk_bhashfn(struct sock *sk)
-{
-	__u16 lport = sk->num;
-	return tcp_bhashfn(lport);
-}
 
 /* These can have wildcards, don't try too hard. */
 static __inline__ int tcp_lhashfn(unsigned short num)
@@ -91,28 +197,6 @@ static __inline__ int tcp_lhashfn(unsigned short num)
 static __inline__ int tcp_sk_listen_hashfn(struct sock *sk)
 {
 	return tcp_lhashfn(sk->num);
-}
-
-/* Only those holding the sockhash lock call these two things here.
- * Note the slightly gross overloading of sk->prev, AF_UNIX is the
- * only other main benefactor of that member of SK, so who cares.
- */
-static __inline__ void tcp_sk_bindify(struct sock *sk)
-{
-	int hashent = tcp_sk_bhashfn(sk);
-	struct sock **htable = &tcp_bound_hash[hashent];
-
-	if((sk->bind_next = *htable) != NULL)
-		(*htable)->bind_pprev = &sk->bind_next;
-	*htable = sk;
-	sk->bind_pprev = htable;
-}
-
-static __inline__ void tcp_sk_unbindify(struct sock *sk)
-{
-	if(sk->bind_next)
-		sk->bind_next->bind_pprev = sk->bind_pprev;
-	*(sk->bind_pprev) = sk->bind_next;
 }
 
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
@@ -186,6 +270,8 @@ static __inline__ void tcp_sk_unbindify(struct sock *sk)
 				    * we tell the LL layer that it is something
 				    * wrong (e.g. that it can expire redirects) */
 
+#define TCP_BUCKETGC_PERIOD	(HZ)
+
 /*
  *	TCP option
  */
@@ -193,9 +279,6 @@ static __inline__ void tcp_sk_unbindify(struct sock *sk)
 #define TCPOPT_NOP		1	/* Padding */
 #define TCPOPT_EOL		0	/* End of options */
 #define TCPOPT_MSS		2	/* Segment size negotiating */
-/*
- *	We don't use these yet, but they are for PAWS and big windows
- */
 #define TCPOPT_WINDOW		3	/* Window scaling */
 #define TCPOPT_SACK_PERM        4       /* SACK Permitted */
 #define TCPOPT_SACK             5       /* SACK Block */
@@ -209,6 +292,10 @@ static __inline__ void tcp_sk_unbindify(struct sock *sk)
 #define TCPOLEN_WINDOW         3
 #define TCPOLEN_SACK_PERM      2
 #define TCPOLEN_TIMESTAMP      10
+
+/* But this is what stacks really send out. */
+#define TCPOLEN_TSTAMP_ALIGNED	12
+#define TCPOLEN_WSCALE_ALIGNED	4
 
 /*
  *      TCP option flags for parsed options.
@@ -259,7 +346,6 @@ struct open_request {
 	__u8			__pad;
 	unsigned snd_wscale : 4, 
 		rcv_wscale : 4, 
-		sack_ok : 1,
 		tstamp_ok : 1,
 		wscale_ok : 1;
 	/* The following two fields can be easily recomputed I think -AK */
@@ -355,7 +441,7 @@ extern __inline int after(__u32 seq1, __u32 seq2)
 /* is s2<=s1<=s3 ? */
 extern __inline int between(__u32 seq1, __u32 seq2, __u32 seq3)
 {
-	return (after(seq1+1, seq2) && before(seq1, seq3+1));
+	return seq3 - seq2 >= seq1 - seq2;
 }
 
 
@@ -389,6 +475,11 @@ extern int			tcp_rcv_established(struct sock *sk,
 						    struct sk_buff *skb,
 						    struct tcphdr *th, 
 						    __u16 len);
+
+extern int			tcp_timewait_state_process(struct tcp_tw_bucket *tw,
+							   struct sk_buff *skb,
+							   struct tcphdr *th,
+							   void *opt, __u16 len);
 
 extern void			tcp_close(struct sock *sk, 
 					  unsigned long timeout);
@@ -427,6 +518,10 @@ extern int			tcp_v4_conn_request(struct sock *sk,
 						    struct sk_buff *skb,
 						    void *ptr, __u32 isn);
 
+extern struct sock *		tcp_create_openreq_child(struct sock *sk,
+							 struct open_request *req,
+							 struct sk_buff *skb);
+
 extern struct sock *		tcp_v4_syn_recv_sock(struct sock *sk,
 						     struct sk_buff *skb,
 						     struct open_request *req,
@@ -457,10 +552,11 @@ extern void tcp_send_probe0(struct sock *);
 extern void tcp_send_partial(struct sock *);
 extern void tcp_write_wakeup(struct sock *);
 extern void tcp_send_fin(struct sock *sk);
+extern void tcp_send_active_reset(struct sock *sk);
 extern int  tcp_send_synack(struct sock *);
-extern void tcp_send_skb(struct sock *, struct sk_buff *);
+extern void tcp_send_skb(struct sock *, struct sk_buff *, int force_queue);
 extern void tcp_send_ack(struct sock *sk);
-extern void tcp_send_delayed_ack(struct sock *sk, int max_timeout);
+extern void tcp_send_delayed_ack(struct tcp_opt *tp, int max_timeout);
 
 /* CONFIG_IP_TRANSPARENT_PROXY */
 extern int tcp_chkaddr(struct sk_buff *);
@@ -492,40 +588,94 @@ struct tcp_sl_timer {
 
 #define TCP_SLT_SYNACK		0
 #define TCP_SLT_KEEPALIVE	1
-#define TCP_SLT_MAX		2
+#define TCP_SLT_BUCKETGC	2
+#define TCP_SLT_MAX		3
 
 extern struct tcp_sl_timer tcp_slt_array[TCP_SLT_MAX];
  
-/*
- * FIXME: this method of choosing when to send a window update
- * does not seem correct to me. -- erics
- */
-static __inline__ unsigned short tcp_raise_window(struct sock *sk)
+/* Compute the actual receive window we are currently advertising. */
+static __inline__ u32 tcp_receive_window(struct tcp_opt *tp)
 {
-	struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
-	long cur_win;
-	int res = 0;
-	
-	/* 
-         * compute the actual window i.e. 
-         * old_window - received_bytes_on_that_win
-	 */
-
-	cur_win = tp->rcv_wup - (tp->rcv_nxt - tp->rcv_wnd);
-
-
-	/*
-	 *	We need to send an ack right away if
-	 *	our rcv window is blocking the sender and 
-	 *	we have more free space to offer.
-	 */
-
-	if (cur_win < (sk->mss << 1))
-		res = 1;
-	return res;
+	return tp->rcv_wup - (tp->rcv_nxt - tp->rcv_wnd);
 }
 
-extern unsigned short	tcp_select_window(struct sock *sk);
+/* Choose a new window, without checks for shrinking, and without
+ * scaling applied to the result.  The caller does these things
+ * if necessary.  This is a "raw" window selection.
+ */
+extern u32	__tcp_select_window(struct sock *sk);
+
+/* Chose a new window to advertise, update state in tcp_opt for the
+ * socket, and return result with RFC1323 scaling applied.  The return
+ * value can be stuffed directly into th->window for an outgoing
+ * frame.
+ */
+extern __inline__ u16 tcp_select_window(struct sock *sk)
+{
+	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
+	u32 new_win = __tcp_select_window(sk);
+	u32 cur_win = tcp_receive_window(tp);
+
+	/* Never shrink the offered window */
+	if(new_win < cur_win)
+		new_win = cur_win;
+	tp->rcv_wnd = new_win;
+	tp->rcv_wup = tp->rcv_nxt;
+
+	/* RFC1323 scaling applied */
+	return new_win >> tp->rcv_wscale;
+}
+
+/* See if we can advertise non-zero, and if so how much we
+ * can increase our advertisement.  If it becomes more than
+ * twice what we are talking about right now, return true.
+ */
+extern __inline__ int tcp_raise_window(struct sock *sk)
+{
+	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
+	u32 new_win = __tcp_select_window(sk);
+	u32 cur_win = tcp_receive_window(tp);
+
+	return (new_win && (new_win > (cur_win << 1)));
+}
+
+/* This checks if the data bearing packet SKB (usually tp->send_head)
+ * should be put on the wire right now.
+ */
+static __inline__ int tcp_snd_test(struct sock *sk, struct sk_buff *skb)
+{
+	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
+	int nagle_check = 1;
+	int len;
+
+	/*	RFC 1122 - section 4.2.3.4
+	 *
+	 *	We must queue if
+	 *
+	 *	a) The right edge of this frame exceeds the window
+	 *	b) There are packets in flight and we have a small segment
+	 *	   [SWS avoidance and Nagle algorithm]
+	 *	   (part of SWS is done on packetization)
+	 *	c) We are retransmiting [Nagle]
+	 *	d) We have too many packets 'in flight'
+	 *
+	 * 	Don't use the nagle rule for urgent data.
+	 */
+	len = skb->end_seq - skb->seq;
+	if (!sk->nonagle && len < (sk->mss >> 1) && tp->packets_out && 
+	    !skb->h.th->urg)
+		nagle_check = 0;
+
+	return (nagle_check && tp->packets_out < tp->snd_cwnd &&
+		!after(skb->end_seq, tp->snd_una + tp->snd_wnd) &&
+		tp->retransmits == 0);
+}
+
+/* This tells the input processing path that an ACK should go out
+ * right now.
+ */
+#define tcp_enter_quickack_mode(__tp)	((__tp)->ato = (HZ/100))
+#define tcp_in_quickack_mode(__tp)	((__tp)->ato == (HZ/100))
 
 /*
  * List all states of a TCP socket that can be viewed as a "connected"
@@ -581,33 +731,42 @@ static __inline__ void tcp_set_state(struct sock *sk, int state)
 	case TCP_CLOSE:
 		/* Should be about 2 rtt's */
 		net_reset_timer(sk, TIME_DONE, min(tp->srtt * 2, TCP_DONE_TIME));
+		sk->prot->unhash(sk);
 		/* fall through */
 	default:
 		if (oldstate==TCP_ESTABLISHED)
 			tcp_statistics.TcpCurrEstab--;
-		if (state == TCP_TIME_WAIT || state == TCP_CLOSE)
-			sk->prot->rehash(sk);
 	}
 }
 
 static __inline__ void tcp_build_options(__u32 *ptr, struct tcp_opt *tp)
 {
-	/* FIXME: We will still need to do SACK here. */
 	if (tp->tstamp_ok) {
-		*ptr = ntohl((TCPOPT_NOP << 24)
-			| (TCPOPT_NOP << 16)
-                        | (TCPOPT_TIMESTAMP << 8)
-			| TCPOLEN_TIMESTAMP);
+		*ptr = __constant_htonl((TCPOPT_NOP << 24) |
+					(TCPOPT_NOP << 16) |
+					(TCPOPT_TIMESTAMP << 8) |
+					TCPOLEN_TIMESTAMP);
 		/* rest filled in by tcp_update_options */
 	}
 }
 
 static __inline__ void tcp_update_options(__u32 *ptr, struct tcp_opt *tp)
 {
-	/* FIXME: We will still need to do SACK here. */
 	if (tp->tstamp_ok) {
 		*++ptr = htonl(jiffies);
 		*++ptr = htonl(tp->ts_recent);
+	}
+}
+
+static __inline__ void tcp_build_and_update_options(__u32 *ptr, struct tcp_opt *tp)
+{
+	if (tp->tstamp_ok) {
+		*ptr++ = __constant_htonl((TCPOPT_NOP << 24) |
+					  (TCPOPT_NOP << 16) |
+					  (TCPOPT_TIMESTAMP << 8) |
+					  TCPOLEN_TIMESTAMP);
+		*ptr++ = htonl(jiffies);
+		*ptr   = htonl(tp->ts_recent);
 	}
 }
 
@@ -615,7 +774,6 @@ static __inline__ void tcp_update_options(__u32 *ptr, struct tcp_opt *tp)
  *	This routines builds a generic TCP header. 
  *	They also build the RFC1323 Timestamp, but don't fill the
  *	actual timestamp in (you need to call tcp_update_options for this).
- *	It can't (unfortunately) do SACK as well.
  *	XXX: pass tp instead of sk here.
  */
  
@@ -624,21 +782,10 @@ static inline void tcp_build_header_data(struct tcphdr *th, struct sock *sk, int
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 
 	memcpy(th,(void *) &(sk->dummy_th), sizeof(*th));
-	th->seq = htonl(sk->write_seq);
+	th->seq = htonl(tp->write_seq);
 	if (!push)
 		th->psh = 1;
 	tcp_build_options((__u32*)(th+1), tp);
-}
-
-static inline void tcp_build_header(struct tcphdr *th, struct sock *sk)
-{
-     	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
-
-	memcpy(th,(void *) &(sk->dummy_th), sizeof(*th));
-	th->seq = htonl(sk->write_seq);
-	th->ack_seq = htonl(tp->last_ack_sent = tp->rcv_nxt);
-	th->window = htons(tcp_select_window(sk));
-	tcp_build_options((__u32 *)(th+1), tp);
 }
 
 /*
@@ -651,31 +798,32 @@ static inline void tcp_build_header(struct tcphdr *th, struct sock *sk)
  * It would be especially magical to compute the checksum for this
  * stuff on the fly here.
  */
-extern __inline__ int tcp_syn_build_options(struct sk_buff *skb, int mss, int sack, int ts, int offer_wscale, int wscale)
+extern __inline__ int tcp_syn_build_options(struct sk_buff *skb, int mss, int ts, int offer_wscale, int wscale)
 {
-	int count = 4 + (offer_wscale ? 4 : 0) +  ((ts || sack) ? 4 : 0) +  (ts ? 8 : 0);
+	int count = 4 + (offer_wscale ? TCPOLEN_WSCALE_ALIGNED : 0) +
+		((ts) ? TCPOLEN_TSTAMP_ALIGNED : 0);
 	unsigned char *optr = skb_put(skb,count);
 	__u32 *ptr = (__u32 *)optr;
 
-	/*
-	 * We always get an MSS option.
+	/* We always get an MSS option.
+	 * The option bytes which will be seen in normal data
+	 * packets should timestamps be used, must be in the MSS
+	 * advertised.  But we subtract them from sk->mss so
+	 * that calculations in tcp_sendmsg are simpler etc.
+	 * So account for this fact here if necessary.  If we
+	 * don't do this correctly, as a receiver we won't
+	 * recognize data packets as being full sized when we
+	 * should, and thus we won't abide by the delayed ACK
+	 * rules correctly.
 	 */
+	if(ts)
+		mss += TCPOLEN_TSTAMP_ALIGNED;
 	*ptr++ = htonl((TCPOPT_MSS << 24) | (TCPOLEN_MSS << 16) | mss);
 	if (ts) {
-		if (sack) {
-			*ptr++ = htonl((TCPOPT_SACK_PERM << 24) | (TCPOLEN_SACK_PERM << 16)
-					| (TCPOPT_TIMESTAMP << 8) | TCPOLEN_TIMESTAMP);
-			*ptr++ = htonl(jiffies);	/* TSVAL */
-			*ptr++ = htonl(0);		/* TSECR */
-		} else {
-			*ptr++ = htonl((TCPOPT_NOP << 24) | (TCPOPT_NOP << 16)
-					| (TCPOPT_TIMESTAMP << 8) | TCPOLEN_TIMESTAMP);
-			*ptr++ = htonl(jiffies);	/* TSVAL */
-			*ptr++ = htonl(0);		/* TSECR */
-		}
-	} else if (sack) {
-		*ptr++ = htonl((TCPOPT_SACK_PERM << 24) | (TCPOLEN_SACK_PERM << 16)
-				| (TCPOPT_NOP << 8) | TCPOPT_NOP);
+		*ptr++ = __constant_htonl((TCPOPT_NOP << 24) | (TCPOPT_NOP << 16) |
+					  (TCPOPT_TIMESTAMP << 8) | TCPOLEN_TIMESTAMP);
+		*ptr++ = htonl(jiffies);	/* TSVAL */
+		*ptr++ = __constant_htonl(0);	/* TSECR */
 	}
 	if (offer_wscale)
 		*ptr++ = htonl((TCPOPT_WINDOW << 24) | (TCPOLEN_WINDOW << 16) | (wscale << 8));
@@ -724,33 +872,15 @@ extern __inline__ void tcp_select_initial_window(__u32 space, __u16 mss,
 	(*window_clamp) = min(65535<<(*rcv_wscale),*window_clamp);
 }
 
-#define SYNQ_DEBUG 1
-
 extern __inline__ void tcp_synq_unlink(struct tcp_opt *tp, struct open_request *req, struct open_request *prev)
 {
-#ifdef SYNQ_DEBUG
-	if (prev->dl_next != req) {
-		printk(KERN_DEBUG "synq_unlink: bad prev ptr: %p\n",prev);
-		return;
-	}
-#endif
-	if(!req->dl_next) {
-#ifdef SYNQ_DEBUG
-		if (tp->syn_wait_last != (void*) req)
-			printk(KERN_DEBUG "synq_unlink: bad last ptr %p,%p\n",
-			       req,tp->syn_wait_last);
-#endif
+	if(!req->dl_next)
 		tp->syn_wait_last = (struct open_request **)prev;
-	}
 	prev->dl_next = req->dl_next;
 }
 
 extern __inline__ void tcp_synq_queue(struct tcp_opt *tp, struct open_request *req)
 { 
-#ifdef SYNQ_DEBUG
-	if (*tp->syn_wait_last != NULL)
-	    printk("synq_queue: last ptr doesn't point to last req.\n"); 
-#endif
 	req->dl_next = NULL;
 	*tp->syn_wait_last = req; 
 	tp->syn_wait_last = &req->dl_next;
@@ -765,14 +895,11 @@ extern __inline__ void tcp_synq_init(struct tcp_opt *tp)
 extern __inline__ struct open_request *tcp_synq_unlink_tail(struct tcp_opt *tp)
 {
 	struct open_request *head = tp->syn_wait_queue;
-#ifdef SYNQ_DEBUG
-	if (!head) {
-		printk(KERN_DEBUG "tail drop on empty queue? - bug\n"); 
-		return NULL;
-	}
-#endif
+#if 0
+	/* Should be a net-ratelimit'd thing, not all the time. */
 	printk(KERN_DEBUG "synq tail drop with expire=%ld\n", 
 	       head->expires-jiffies);
+#endif
 	if (head->dl_next == NULL)
 		tp->syn_wait_last = &tp->syn_wait_queue;
 	tp->syn_wait_queue = head->dl_next;
@@ -799,6 +926,17 @@ extern __inline__ void tcp_dec_slow_timer(int timer)
 	atomic_dec(&slt->count);
 }
 
+/* This needs to use a slow timer, so it is here. */
+static __inline__ void tcp_sk_unbindify(struct sock *sk)
+{
+	struct tcp_bind_bucket *tb = (struct tcp_bind_bucket *) sk->prev;
+	if(sk->bind_next)
+		sk->bind_next->bind_pprev = sk->bind_pprev;
+	*sk->bind_pprev = sk->bind_next;
+	if(tb->owners == NULL)
+		tcp_inc_slow_timer(TCP_SLT_BUCKETGC);
+}
+
 extern const char timer_bug_msg[];
 
 static inline void tcp_clear_xmit_timer(struct sock *sk, int what)
@@ -820,7 +958,8 @@ static inline void tcp_clear_xmit_timer(struct sock *sk, int what)
 		printk(timer_bug_msg);
 		return;
 	};
-	del_timer(timer);
+	if(timer->prev != NULL)
+		del_timer(timer);
 }
 
 static inline int tcp_timer_is_set(struct sock *sk, int what)
@@ -829,13 +968,13 @@ static inline int tcp_timer_is_set(struct sock *sk, int what)
 
 	switch (what) {
 	case TIME_RETRANS:
-		return tp->retransmit_timer.next != NULL;
+		return tp->retransmit_timer.prev != NULL;
 		break;
 	case TIME_DACK:
-		return tp->delack_timer.next != NULL;
+		return tp->delack_timer.prev != NULL;
 		break;
 	case TIME_PROBE0:
-		return tp->probe_timer.next != NULL;
+		return tp->probe_timer.prev != NULL;
 		break;	
 	default:
 		printk(timer_bug_msg);
