@@ -189,18 +189,20 @@ NESTED(smp_bootstrap, 16, sp)
 	 * Here we only have a two-level pagetable structure ...
 	 */
 	page	swapper_pg_dir, _PGD_ORDER
-	page	empty_bad_page, 0
-	page	empty_bad_page_table, 0
-	page	invalid_pte_table, 0
+	page	invalid_pte_table, _PTE_ORDER
 #endif
 #ifdef CONFIG_MIPS64
 	/*
 	 * ... but on 64-bit we've got three-level pagetables with a
 	 * slightly different layout ...
 	 */
-	page	swapper_pg_dir, 1
-	page	invalid_pte_table, 0
-	page	invalid_pmd_table, 1
+	page	swapper_pg_dir, _PGD_ORDER
+	page	invalid_pmd_table, _PMD_ORDER
+	page	invalid_pte_table, _PTE_ORDER
+
+	/*
+	 * 64-bit kernel mappings are really screwed up ...
+	 */
 	page	kptbl, _PGD_ORDER
 	.globl	ekptbl
 	page	kpmdtbl, 0
