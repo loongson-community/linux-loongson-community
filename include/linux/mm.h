@@ -173,7 +173,7 @@ typedef struct page {
 #define PG_slab			 8
 #define PG_swap_cache		 9
 #define PG_skip			10
-#define PG_swap_entry		11
+#define PG_unused_03		11
 #define PG_highmem		12
 				/* bits 21-30 unused */
 #define PG_reserved		31
@@ -196,7 +196,11 @@ typedef struct page {
 #define SetPageError(page)	set_bit(PG_error, &(page)->flags)
 #define ClearPageError(page)	clear_bit(PG_error, &(page)->flags)
 #define PageReferenced(page)	test_bit(PG_referenced, &(page)->flags)
+#define SetPageReferenced(page)	set_bit(PG_referenced, &(page)->flags)
+#define PageTestandClearReferenced(page)	test_and_clear_bit(PG_referenced, &(page)->flags)
 #define PageDecrAfter(page)	test_bit(PG_decr_after, &(page)->flags)
+#define SetPageDecrAfter(page)	set_bit(PG_decr_after, &(page)->flags)
+#define PageTestandClearDecrAfter(page)	test_and_clear_bit(PG_decr_after, &(page)->flags)
 #define PageSlab(page)		test_bit(PG_slab, &(page)->flags)
 #define PageSwapCache(page)	test_bit(PG_swap_cache, &(page)->flags)
 #define PageReserved(page)	test_bit(PG_reserved, &(page)->flags)
@@ -210,9 +214,6 @@ typedef struct page {
 #define PageClearSwapCache(page)	clear_bit(PG_swap_cache, &(page)->flags)
 
 #define PageTestandClearSwapCache(page)	test_and_clear_bit(PG_swap_cache, &(page)->flags)
-#define PageSwapEntry(page)		test_bit(PG_swap_entry, &(page)->flags)
-#define SetPageSwapEntry(page)		set_bit(PG_swap_entry, &(page)->flags)
-#define ClearPageSwapEntry(page)	clear_bit(PG_swap_entry, &(page)->flags)
 
 #ifdef CONFIG_HIGHMEM
 #define PageHighMem(page)		test_bit(PG_highmem, &(page)->flags)
@@ -312,7 +313,7 @@ extern struct page * FASTCALL(__alloc_pages(zonelist_t *zonelist, unsigned long 
 extern struct page * alloc_pages_node(int nid, int gfp_mask, unsigned long order);
 
 #ifndef CONFIG_DISCONTIGMEM
-extern inline struct page * alloc_pages(int gfp_mask, unsigned long order)
+static inline struct page * alloc_pages(int gfp_mask, unsigned long order)
 {
 	/*  temporary check. */
 	if (contig_page_data.node_zonelists[gfp_mask].gfp_mask != (gfp_mask))
@@ -331,7 +332,7 @@ extern struct page * alloc_pages(int gfp_mask, unsigned long order);
 #define alloc_page(gfp_mask) \
 		alloc_pages(gfp_mask, 0)
 
-extern inline unsigned long __get_free_pages (int gfp_mask, unsigned long order)
+static inline unsigned long __get_free_pages (int gfp_mask, unsigned long order)
 {
 	struct page * page;
 
@@ -347,7 +348,7 @@ extern inline unsigned long __get_free_pages (int gfp_mask, unsigned long order)
 #define __get_dma_pages(gfp_mask, order) \
 		__get_free_pages((gfp_mask) | GFP_DMA,(order))
 
-extern inline unsigned long get_zeroed_page(int gfp_mask)
+static inline unsigned long get_zeroed_page(int gfp_mask)
 {
 	unsigned long page;
 
@@ -367,7 +368,7 @@ extern inline unsigned long get_zeroed_page(int gfp_mask)
  */
 extern void FASTCALL(__free_pages_ok(struct page * page, unsigned long order));
 
-extern inline void __free_pages(struct page *page, unsigned long order)
+static inline void __free_pages(struct page *page, unsigned long order)
 {
 	if (!put_page_testzero(page))
 		return;
@@ -376,7 +377,7 @@ extern inline void __free_pages(struct page *page, unsigned long order)
 
 #define __free_page(page) __free_pages(page, 0)
 
-extern inline void free_pages(unsigned long addr, unsigned long order)
+static inline void free_pages(unsigned long addr, unsigned long order)
 {
 	unsigned long map_nr;
 
@@ -433,7 +434,7 @@ extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long pgoff);
 
-extern inline unsigned long do_mmap(struct file *file, unsigned long addr,
+static inline unsigned long do_mmap(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long offset)
 {
@@ -454,7 +455,7 @@ struct zone_t;
 /* filemap.c */
 extern void remove_inode_page(struct page *);
 extern unsigned long page_unuse(struct page *);
-extern int shrink_mmap(int, int, zone_t *);
+extern int shrink_mmap(int, int);
 extern void truncate_inode_pages(struct address_space *, loff_t);
 
 /* generic vm_area_ops exported for stackable file systems */

@@ -9,7 +9,7 @@
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
  *
- *	Version: $Id: ipmr.c,v 1.51 2000/03/17 14:41:52 davem Exp $
+ *	Version: $Id: ipmr.c,v 1.53 2000/05/05 02:17:17 davem Exp $
  *
  *	Fixes:
  *	Michael Chastain	:	Incorrect size of copying.
@@ -189,7 +189,7 @@ struct net_device *ipmr_reg_vif(struct vifctl *v)
 	struct in_device *in_dev;
 	int size;
 
-	size = sizeof(*dev) + IFNAMSIZ + sizeof(struct net_device_stats);
+	size = sizeof(*dev) + sizeof(struct net_device_stats);
 	dev = kmalloc(size, GFP_KERNEL);
 	if (!dev)
 		return NULL;
@@ -197,7 +197,6 @@ struct net_device *ipmr_reg_vif(struct vifctl *v)
 	memset(dev, 0, size);
 
 	dev->priv = dev + 1;
-	dev->name = dev->priv + sizeof(struct net_device_stats);
 
 	strcpy(dev->name, "pimreg");
 
@@ -321,7 +320,7 @@ void ipmr_expire_process(unsigned long dummy)
 	struct mfc_cache *c, **cp;
 
 	if (!spin_trylock(&mfc_unres_lock)) {
-		mod_timer(&ipmr_expire_timer, jiffies + HZ/10);
+		mod_timer(&ipmr_expire_timer, jiffies+HZ/10);
 		return;
 	}
 
@@ -661,9 +660,7 @@ ipmr_cache_unresolved(vifi_t vifi, struct sk_buff *skb)
 		c->next = mfc_unres_queue;
 		mfc_unres_queue = c;
 
-		if (!del_timer(&ipmr_expire_timer))
-			ipmr_expire_timer.expires = c->mfc_un.unres.expires;
-		add_timer(&ipmr_expire_timer);
+		mod_timer(&ipmr_expire_timer, c->mfc_un.unres.expires);
 	}
 
 	/*

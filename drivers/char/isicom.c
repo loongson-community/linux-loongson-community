@@ -98,7 +98,7 @@ static DECLARE_MUTEX(tmp_buf_sem);
 
 /*   baud index mappings from linux defns to isi */
 
-static char linuxb_to_isib[] = {
+static signed char linuxb_to_isib[] = {
 	-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15, 16, 17,     
 	18, 19
 };
@@ -1995,12 +1995,14 @@ int init_module(void)
 				if (card >= BOARD_COUNT)
 					break;
 					
+				if (pci_enable_device(dev))
+					break;
+
 				/* found a PCI ISI card! */
-				ioaddr = dev->resource[3].start; /* i.e at offset 0x1c in the
-								* PCI configuration register
-								* space.
-								*/
-				ioaddr &= PCI_BASE_ADDRESS_IO_MASK;
+				ioaddr = pci_resource_start (dev, 3); /* i.e at offset 0x1c in the
+								       * PCI configuration register
+								       * space.
+								       */
 				pciirq = dev->irq;
 				printk(KERN_INFO "ISI PCI Card(Device ID 0x%x)\n", device_id[idx]);
 				/*

@@ -5,7 +5,7 @@
  *	Authors:
  *	Lennert Buytenhek		<buytenh@gnu.org>
  *
- *	$Id: br_stp_timer.c,v 1.2 2000/02/21 15:51:35 davem Exp $
+ *	$Id: br_stp_timer.c,v 1.3 2000/05/05 02:17:17 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -58,7 +58,7 @@ static void br_message_age_timer_expired(struct net_bridge_port *p)
 	int was_root;
 
 	br = p->br;
-	printk(KERN_INFO "%s: ", br->name);
+	printk(KERN_INFO "%s: ", br->dev.name);
 	printk("neighbour ");
 	dump_bridge_id(&p->designated_bridge);
 	printk(" lost on port %i(%s)\n", p->port_no, p->dev->name);
@@ -82,13 +82,13 @@ static void br_forward_delay_timer_expired(struct net_bridge_port *p)
 {
 	if (p->state == BR_STATE_LISTENING) {
 		printk(KERN_INFO "%s: port %i(%s) entering %s state\n",
-		       p->br->name, p->port_no, p->dev->name, "learning");
+		       p->br->dev.name, p->port_no, p->dev->name, "learning");
 
 		p->state = BR_STATE_LEARNING;
 		br_timer_set(&p->forward_delay_timer, jiffies);
 	} else if (p->state == BR_STATE_LEARNING) {
 		printk(KERN_INFO "%s: port %i(%s) entering %s state\n",
-		       p->br->name, p->port_no, p->dev->name, "forwarding");
+		       p->br->dev.name, p->port_no, p->dev->name, "forwarding");
 
 		p->state = BR_STATE_FORWARDING;
 		if (br_is_designated_for_some_port(p->br))
@@ -99,7 +99,7 @@ static void br_forward_delay_timer_expired(struct net_bridge_port *p)
 /* called under bridge lock */
 static void br_tcn_timer_expired(struct net_bridge *br)
 {
-	printk(KERN_INFO "%s: retransmitting tcn bpdu\n", br->name);
+	printk(KERN_INFO "%s: retransmitting tcn bpdu\n", br->dev.name);
 	br_transmit_tcn(br);
 	br_timer_set(&br->tcn_timer, jiffies);
 }

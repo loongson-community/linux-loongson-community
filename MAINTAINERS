@@ -847,6 +847,11 @@ M:	paulus@linuxcare.com
 L:	linux-ppp@vger.rutgers.edu
 S:	Maintained
 
+PPP OVER ETHERNET
+P:	Michal Ostrowski
+M:	mostrows@styx.uwaterloo.ca
+S:	Maintained
+
 PROMISE DC4030 CACHING DISK CONTROLLER DRIVER
 P:	Peter Denison
 M:	promise@pnd-pc.demon.co.uk
@@ -863,7 +868,7 @@ S:	Maintained
 RAGE128 FRAMEBUFFER DISPLAY DRIVER
 P:	Brad Douglas
 M:	brad@neruo.com
-L:	linux-fbdev@vuser.vc.union.edu
+L:	linux-fbdev@vuser.vu.union.edu
 S:	Maintained
 
 RAYLINK/WEBGEAR 802.11 WIRELESS LAN DRIVER

@@ -125,12 +125,12 @@ void udf_discard_prealloc(struct inode * inode)
 		udf_trunc(inode);
 }
 
-static int udf_writepage(struct file *file, struct dentry *dentry, struct page *page)
+static int udf_writepage(struct file *file, struct page *page)
 {
 	return block_write_full_page(page, udf_get_block);
 }
 
-static int udf_readpage(struct dentry *dentry, struct page *page)
+static int udf_readpage(struct file *file, struct page *page)
 {
 	return block_read_full_page(page, udf_get_block);
 }
@@ -202,7 +202,7 @@ void udf_expand_file_adinicb(struct inode * inode, int newsize, int * err)
 	mark_buffer_dirty(bh, 1);
 	udf_release_data(bh);
 
-	inode->i_data.a_ops->writepage(NULL, NULL, page);
+	inode->i_data.a_ops->writepage(NULL, page);
 	UnlockPage(page);
 	page_cache_release(page);
 
@@ -397,7 +397,7 @@ static struct buffer_head * inode_getblk(struct inode * inode, long block,
 	int c = 1;
 	int lbcount = 0, b_off = 0, offset = 0;
 	Uint32 newblocknum, newblock;
-	char etype;
+	int etype;
 	int goal = 0, pgoal = UDF_I_LOCATION(inode).logicalBlockNum;
 	char lastblock = 0;
 
@@ -1885,7 +1885,7 @@ int udf_delete_aext(struct inode *inode, lb_addr nbloc, int nextoffset,
 	struct buffer_head *obh;
 	lb_addr obloc;
 	int oextoffset, adsize;
-	char type;
+	int type;
 	struct AllocExtDesc *aed;
 
 	if (!(nbh))

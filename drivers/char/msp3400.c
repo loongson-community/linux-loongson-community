@@ -663,11 +663,8 @@ static void watch_stereo(struct i2c_client *client)
 	}
 	if (once)
 		msp->watch_stereo = 0;
-	if (msp->watch_stereo) {
-		del_timer(&msp->wake_stereo);
-		msp->wake_stereo.expires = jiffies + 5*HZ;
-		add_timer(&msp->wake_stereo);
-	}
+	if (msp->watch_stereo)
+		mod_timer(&msp->wake_stereo, jiffies+5*HZ);
 }
 
 static int msp3400c_thread(void *data)
@@ -874,11 +871,8 @@ static int msp3400c_thread(void *data)
 		/* unmute */
 		msp3400c_setvolume(client, msp->left, msp->right);
 
-		if (msp->watch_stereo) {
-			del_timer(&msp->wake_stereo);
-			msp->wake_stereo.expires = jiffies + 5*HZ;
-			add_timer(&msp->wake_stereo);
-		}
+		if (msp->watch_stereo) 
+			mod_timer(&msp->wake_stereo, jiffies+5*HZ);
 
 		if (debug)
 			msp3400c_print_mode(msp);
@@ -1092,11 +1086,8 @@ static int msp3410d_thread(void *data)
 		msp3400c_settreble(client, msp->treble);
 		msp3400c_setvolume(client, msp->left, msp->right);
 
-		if (msp->watch_stereo) {
-			del_timer(&msp->wake_stereo);
-			msp->wake_stereo.expires = jiffies + HZ;
-			add_timer(&msp->wake_stereo);
-		}
+		if (msp->watch_stereo) 
+			mod_timer(&msp->wake_stereo, jiffies+HZ);
 
 		msp->active = 0;
 	}
@@ -1245,7 +1236,7 @@ static int
 msp3400c_mixer_open(struct inode *inode, struct file *file)
 {
         int minor = MINOR(inode->i_rdev);
-	struct i2c_client *client;
+	struct i2c_client *client = NULL;
 	struct msp3400c *msp;
 	int i;
 
@@ -1255,12 +1246,12 @@ msp3400c_mixer_open(struct inode *inode, struct file *file)
 		if (msp->mixer_num == minor) {
 			client = msps[i];
 			file->private_data = client;
-			break;
+			goto match;
 		}
 	}
-	if (MSP3400_MAX == i)
-		return -ENODEV;
+	return -ENODEV;
 
+match:
 	/* lock bttv in memory while the mixer is in use  */
 	if (client->adapter->inc_use)
 		client->adapter->inc_use(client->adapter);

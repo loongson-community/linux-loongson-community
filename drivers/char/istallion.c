@@ -796,7 +796,7 @@ static struct file_operations	stli_fsiomem = {
  *	not increase character latency by much either...
  */
 static struct timer_list	stli_timerlist = {
-	NULL, NULL, 0, 0, stli_poll
+	function: stli_poll
 };
 
 static int	stli_timeron = 0;
@@ -837,7 +837,7 @@ void cleanup_module()
 	stlibrd_t	*brdp;
 	stliport_t	*portp;
 	unsigned long	flags;
-	int		i, j, k;
+	int		i, j;
 
 #if DEBUG
 	printk("cleanup_module()\n");
@@ -4657,6 +4657,8 @@ static inline int stli_initpcibrd(int brdtype, struct pci_dev *devp)
 		dev->bus->number, dev->devfn);
 #endif
 
+	if (pci_enable_device(devp))
+		return(-EIO);
 	if ((brdp = stli_allocbrd()) == (stlibrd_t *) NULL)
 		return(-ENOMEM);
 	if ((brdp->brdnr = stli_getbrdnr()) < 0) {
@@ -4667,17 +4669,19 @@ static inline int stli_initpcibrd(int brdtype, struct pci_dev *devp)
 	brdp->brdtype = brdtype;
 
 #if DEBUG
-	printk("%s(%d): BAR[]=%x,%x,%x,%x\n", __FILE__, __LINE__,
-		devp->resource[0].start, devp->resource[1].start,
-		devp->resource[2].start, devp->resource[3].start);
+	printk("%s(%d): BAR[]=%lx,%lx,%lx,%lx\n", __FILE__, __LINE__,
+		pci_resource_start(devp, 0),
+		pci_resource_start(devp, 1),
+		pci_resource_start(devp, 2),
+		pci_resource_start(devp, 3));
 #endif
 
 /*
  *	We have all resources from the board, so lets setup the actual
  *	board structure now.
  */
-	brdp->iobase = (devp->resource[3].start & PCI_BASE_ADDRESS_IO_MASK);
-	brdp->memaddr = (devp->resource[2].start & PCI_BASE_ADDRESS_MEM_MASK);
+	brdp->iobase = pci_resource_start(devp, 3);
+	brdp->memaddr = pci_resource_start(devp, 2);
 	stli_brdinit(brdp);
 
 	return(0);

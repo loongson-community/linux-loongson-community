@@ -12,6 +12,7 @@
 
 #include <linux/config.h>
 
+#include <linux/config.h>
 #include <linux/threads.h>
 #include <linux/irq.h>
 

@@ -2,10 +2,10 @@
  *  fs.c
  *  NTFS driver for Linux 2.3.x
  *
- *  Copyright (C) 2000, Anton Altaparmakov
  *  Copyright (C) 1995-1997, 1999 Martin von Löwis
  *  Copyright (C) 1996 Richard Russon
  *  Copyright (C) 1996-1997 Régis Duchesne
+ *  Copyright (C) 2000, Anton Altaparmakov
  */
 
 #ifdef HAVE_CONFIG_H
@@ -587,11 +587,11 @@ static struct inode_operations ntfs_dir_inode_operations = {
 #endif
 };
 
-static int ntfs_writepage(struct file *file, struct dentry *dentry, struct page *page)
+static int ntfs_writepage(struct file *file, struct page *page)
 {
 	return block_write_full_page(page,ntfs_get_block);
 }
-static int ntfs_readpage(struct dentry *dentry, struct page *page)
+static int ntfs_readpage(struct file *file, struct page *page)
 {
 	return block_read_full_page(page,ntfs_get_block);
 }
@@ -937,7 +937,7 @@ static int __init init_ntfs_fs(void)
 	return register_filesystem(&ntfs_fs_type);
 }
 
-static __exit void exit_ntfs_fs(void)
+static void __exit exit_ntfs_fs(void)
 {
 	SYSCTL(0);
 	ntfs_debug(DEBUG_OTHER, "unregistering %s\n",ntfs_fs_type.name);

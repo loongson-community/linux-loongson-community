@@ -203,7 +203,7 @@ struct mm_struct {
 	unsigned long start_code, end_code, start_data, end_data;
 	unsigned long start_brk, brk, start_stack;
 	unsigned long arg_start, arg_end, env_start, env_end;
-	unsigned long min_flt, maj_flt, rss, total_vm, locked_vm;
+	unsigned long rss, total_vm, locked_vm;
 	unsigned long def_flags;
 	unsigned long cpu_vm_mask;
 	unsigned long swap_cnt;	/* number of pages to swap on next pass */
@@ -225,7 +225,7 @@ struct mm_struct {
 		0, 0, 0, 0,				\
 		0, 0, 0, 				\
 		0, 0, 0, 0,				\
-		0, 0, 0, 0, 0,				\
+		0, 0, 0,				\
 		0, 0, 0, 0, NULL }
 
 struct signal_struct {
@@ -310,7 +310,6 @@ struct task_struct {
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt, nswap, cmin_flt, cmaj_flt, cnswap;
 	int swappable:1;
-	int hog:1;
 /* process credentials */
 	uid_t uid,euid,suid,fsuid;
 	gid_t gid,egid,sgid,fsgid;
@@ -346,8 +345,8 @@ struct task_struct {
 /* Thread group tracking */
    	u32 parent_exec_id;
    	u32 self_exec_id;
-/* Protection of fields allocatio/deallocation */
-	struct semaphore exit_sem;
+/* Protection of (de-)allocation: mm, files, fs, tty */
+	spinlock_t alloc_lock;
 };
 
 /*
@@ -418,7 +417,7 @@ struct task_struct {
     blocked:		{{0}},						\
     sigqueue:		NULL,						\
     sigqueue_tail:	&tsk.sigqueue,					\
-    exit_sem:		__MUTEX_INITIALIZER(tsk.exit_sem)		\
+    alloc_lock:		SPIN_LOCK_UNLOCKED				\
 }
 
 
@@ -442,7 +441,7 @@ extern struct task_struct *pidhash[PIDHASH_SZ];
 
 #define pid_hashfn(x)	((((x) >> 8) ^ (x)) & (PIDHASH_SZ - 1))
 
-extern __inline__ void hash_pid(struct task_struct *p)
+static inline void hash_pid(struct task_struct *p)
 {
 	struct task_struct **htable = &pidhash[pid_hashfn(p->pid)];
 
@@ -452,14 +451,14 @@ extern __inline__ void hash_pid(struct task_struct *p)
 	p->pidhash_pprev = htable;
 }
 
-extern __inline__ void unhash_pid(struct task_struct *p)
+static inline void unhash_pid(struct task_struct *p)
 {
 	if(p->pidhash_next)
 		p->pidhash_next->pidhash_pprev = p->pidhash_pprev;
 	*p->pidhash_pprev = p->pidhash_next;
 }
 
-extern __inline__ struct task_struct *find_task_by_pid(int pid)
+static inline struct task_struct *find_task_by_pid(int pid)
 {
 	struct task_struct *p, **htable = &pidhash[pid_hashfn(pid)];
 
@@ -527,7 +526,7 @@ extern int kill_proc(pid_t, int, int);
 extern int do_sigaction(int, const struct k_sigaction *, struct k_sigaction *);
 extern int do_sigaltstack(const stack_t *, stack_t *, unsigned long);
 
-extern inline int signal_pending(struct task_struct *p)
+static inline int signal_pending(struct task_struct *p)
 {
 	return (p->sigpending != 0);
 }
@@ -595,7 +594,7 @@ extern void free_irq(unsigned int, void *);
  * These will be removed, but in the mean time, when the SECURE_NOROOT 
  * flag is set, uids don't grant privilege.
  */
-extern inline int suser(void)
+static inline int suser(void)
 {
 	if (!issecure(SECURE_NOROOT) && current->euid == 0) { 
 		current->flags |= PF_SUPERPRIV;
@@ -604,7 +603,7 @@ extern inline int suser(void)
 	return 0;
 }
 
-extern inline int fsuser(void)
+static inline int fsuser(void)
 {
 	if (!issecure(SECURE_NOROOT) && current->fsuid == 0) {
 		current->flags |= PF_SUPERPRIV;
@@ -619,7 +618,7 @@ extern inline int fsuser(void)
  * fsuser(). See include/linux/capability.h for defined capabilities.
  */
 
-extern inline int capable(int cap)
+static inline int capable(int cap)
 {
 #if 1 /* ok now */
 	if (cap_raised(current->cap_effective, cap))
@@ -709,7 +708,7 @@ extern void daemonize(void);
 extern int do_execve(char *, char **, char **, struct pt_regs *);
 extern int do_fork(unsigned long, unsigned long, struct pt_regs *);
 
-extern inline void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
+static inline void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 {
 	unsigned long flags;
 
@@ -718,7 +717,7 @@ extern inline void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
 
-extern inline void add_wait_queue_exclusive(wait_queue_head_t *q,
+static inline void add_wait_queue_exclusive(wait_queue_head_t *q,
 							wait_queue_t * wait)
 {
 	unsigned long flags;
@@ -728,7 +727,7 @@ extern inline void add_wait_queue_exclusive(wait_queue_head_t *q,
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
 
-extern inline void remove_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
+static inline void remove_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 {
 	unsigned long flags;
 
@@ -822,12 +821,12 @@ static inline void del_from_runqueue(struct task_struct * p)
 	p->run_list.next = NULL;
 }
 
-extern inline int task_on_runqueue(struct task_struct *p)
+static inline int task_on_runqueue(struct task_struct *p)
 {
 	return (p->run_list.next != NULL);
 }
 
-extern inline void unhash_process(struct task_struct *p)
+static inline void unhash_process(struct task_struct *p)
 {
 	if (task_on_runqueue(p)) BUG();
 	write_lock_irq(&tasklist_lock);
@@ -837,19 +836,14 @@ extern inline void unhash_process(struct task_struct *p)
 	write_unlock_irq(&tasklist_lock);
 }
 
-static inline int task_lock(struct task_struct *p)
+static inline void task_lock(struct task_struct *p)
 {
-	down(&p->exit_sem);
-	if (p->p_pptr)
-		return 1;
-	/* He's dead, Jim. You take his wallet, I'll take the tricorder... */
-	up(&p->exit_sem);
-	return 0;
+	spin_lock(&p->alloc_lock);
 }
 
 static inline void task_unlock(struct task_struct *p)
 {
-	up(&p->exit_sem);
+	spin_unlock(&p->alloc_lock);
 }
 
 #endif /* __KERNEL__ */

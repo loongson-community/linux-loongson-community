@@ -200,49 +200,6 @@ bad_count:
 	goto out;
 }
 
-/* needs the big kernel lock */
-swp_entry_t acquire_swap_entry(struct page *page)
-{
-	struct swap_info_struct * p;
-	unsigned long offset, type;
-	swp_entry_t entry;
-
-	if (!PageSwapEntry(page))
-		goto new_swap_entry;
-
-	/* We have the old entry in the page offset still */
-	if (!page->index)
-		goto new_swap_entry;
-	entry.val = page->index;
-	type = SWP_TYPE(entry);
-	if (type >= nr_swapfiles)
-		goto new_swap_entry;
-	p = type + swap_info;
-	if ((p->flags & SWP_WRITEOK) != SWP_WRITEOK)
-		goto new_swap_entry;
-	offset = SWP_OFFSET(entry);
-	if (offset >= p->max)
-		goto new_swap_entry;
-	/* Has it been re-used for something else? */
-	swap_list_lock();
-	swap_device_lock(p);
-	if (p->swap_map[offset])
-		goto unlock_new_swap_entry;
-
-	/* We're cool, we can just use the old one */
-	p->swap_map[offset] = 1;
-	swap_device_unlock(p);
-	nr_swap_pages--;
-	swap_list_unlock();
-	return entry;
-
-unlock_new_swap_entry:
-	swap_device_unlock(p);
-	swap_list_unlock();
-new_swap_entry:
-	return get_swap_page();
-}
-
 /*
  * The swap entry has been read in advance, and we return 1 to indicate
  * that the page has been used or is no longer needed.
@@ -443,8 +400,7 @@ static int try_to_unuse(unsigned int type)
 asmlinkage long sys_swapoff(const char * specialfile)
 {
 	struct swap_info_struct * p = NULL;
-	struct dentry * dentry;
-	struct vfsmount *mnt;
+	struct nameidata nd;
 	int i, type, prev;
 	int err;
 	
@@ -452,9 +408,8 @@ asmlinkage long sys_swapoff(const char * specialfile)
 		return -EPERM;
 
 	lock_kernel();
-	dentry = namei(specialfile);
-	err = PTR_ERR(dentry);
-	if (IS_ERR(dentry))
+	err = user_path_walk(specialfile, &nd);
+	if (err)
 		goto out;
 
 	prev = -1;
@@ -463,11 +418,11 @@ asmlinkage long sys_swapoff(const char * specialfile)
 		p = swap_info + type;
 		if ((p->flags & SWP_WRITEOK) == SWP_WRITEOK) {
 			if (p->swap_file) {
-				if (p->swap_file == dentry)
+				if (p->swap_file == nd.dentry)
 				  break;
 			} else {
-				if (S_ISBLK(dentry->d_inode->i_mode)
-				    && (p->swap_device == dentry->d_inode->i_rdev))
+				if (S_ISBLK(nd.dentry->d_inode->i_mode)
+				    && (p->swap_device == nd.dentry->d_inode->i_rdev))
 				  break;
 			}
 		}
@@ -509,22 +464,21 @@ asmlinkage long sys_swapoff(const char * specialfile)
 		goto out_dput;
 	}
 	if (p->swap_device)
-		blkdev_put(dentry->d_inode->i_bdev, BDEV_SWAP);
-	dput(dentry);
+		blkdev_put(nd.dentry->d_inode->i_bdev, BDEV_SWAP);
+	path_release(&nd);
 
-	dentry = p->swap_file;
+	nd.dentry = p->swap_file;
 	p->swap_file = NULL;
-	mnt = p->swap_vfsmnt;
+	nd.mnt = p->swap_vfsmnt;
 	p->swap_vfsmnt = NULL;
 	p->swap_device = 0;
 	vfree(p->swap_map);
 	p->swap_map = NULL;
 	p->flags = 0;
 	err = 0;
-	mntput(mnt);
 
 out_dput:
-	dput(dentry);
+	path_release(&nd);
 out:
 	unlock_kernel();
 	return err;
@@ -637,8 +591,8 @@ asmlinkage long sys_swapon(const char * specialfile, int swap_flags)
 	if (IS_ERR(name))
 		goto bad_swap_2;
 	error = 0;
-	if (walk_init(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, &nd))
-		error = walk_name(name, &nd);
+	if (path_init(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, &nd))
+		error = path_walk(name, &nd);
 	putname(name);
 	if (error)
 		goto bad_swap_2;
@@ -835,8 +789,7 @@ bad_swap_2:
 	p->flags = 0;
 	if (!(swap_flags & SWAP_FLAG_PREFER))
 		++least_priority;
-	dput(nd.dentry);
-	mntput(nd.mnt);
+	path_release(&nd);
 out:
 	if (swap_header)
 		free_page((long) swap_header);

@@ -39,7 +39,6 @@ struct timer_list tunertimer,rdstimer,readtimer;
 static __u8 rdsin=0,rdsout=0,rdsstat=0;
 static unsigned char rdsbuf[RDS_BUFFER];
 static int cadet_lock=0;
-static int cadet_probe(void);
 
 /*
  * Signal Strength Threshold Values
@@ -562,7 +561,7 @@ static int cadet_probe(void)
 }
 #endif
 
-int __init cadet_init(void)
+static int __init cadet_init(void)
 {
 #ifndef MODULE        
 	io = cadet_probe ();
@@ -572,12 +571,14 @@ int __init cadet_init(void)
 #ifdef MODULE        
 		printk(KERN_ERR "You must set an I/O address with io=0x???\n");
 #endif
-	        return EINVAL;
+	        return -EINVAL;
 	}
-	if(video_register_device(&cadet_radio,VFL_TYPE_RADIO)==-1)
+	if (!request_region(io,2,"cadet"))
+		return -EBUSY;
+	if(video_register_device(&cadet_radio,VFL_TYPE_RADIO)==-1) {
+		release_region(io,2);
 		return -EINVAL;
-		
-	request_region(io,2,"cadet");
+	}
 	printk(KERN_INFO "ADS Cadet Radio Card at 0x%x\n",io);
 	return 0;
 }

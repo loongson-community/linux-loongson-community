@@ -6,9 +6,9 @@
 
 /*
  *  'fork.c' contains the help-routines for the 'fork' system call
- * (see also system_call.s).
+ * (see also entry.S and others).
  * Fork is rather simple, once you get the hang of it, but the memory
- * management can be a bitch. See 'mm/mm.c': 'copy_page_tables()'
+ * management can be a bitch. See 'mm/memory.c': 'copy_page_tables()'
  */
 
 #include <linux/config.h>
@@ -680,7 +680,7 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->p_cptr = NULL;
 	init_waitqueue_head(&p->wait_chldexit);
 	p->vfork_sem = NULL;
-	sema_init(&p->exit_sem, 1);
+	spin_lock_init(&p->alloc_lock);
 
 	p->sigpending = 0;
 	sigemptyset(&p->signal);

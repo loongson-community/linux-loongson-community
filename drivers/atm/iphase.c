@@ -81,7 +81,8 @@ static unsigned char ia_phy_get(struct atm_dev *dev, unsigned long addr);
 static IADEV *ia_dev[8] = {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
 static struct atm_dev *_ia_dev[8] = {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
 static int iadev_count = 0;
-static struct timer_list ia_timer;
+static void ia_led_timer(unsigned long arg);
+static struct timer_list ia_timer = { function: ia_led_timer };
 struct atm_vcc *vcc_close_que[100];
 static int IA_TX_BUF = DFL_TX_BUFFERS, IA_TX_BUF_SZ = DFL_TX_BUF_SZ;
 static int IA_RX_BUF = DFL_RX_BUFFERS, IA_RX_BUF_SZ = DFL_RX_BUF_SZ;
@@ -2728,11 +2729,7 @@ static int ia_open(struct atm_vcc *vcc, short vpi, int vci)
         {
            static u8 first = 1; 
            if (first) {
-              ia_timer.next = NULL;
-              ia_timer.prev = NULL;
               ia_timer.expires = jiffies + 3*HZ;
-              ia_timer.data = 0UL;
-              ia_timer.function = ia_led_timer;
               add_timer(&ia_timer);
               first = 0;
            }           
@@ -3206,6 +3203,7 @@ __initfunc(int ia_detect(void))
 		IF_INIT(printk("ia detected at bus:%d dev: %d function:%d\n",
                      iadev->pci->bus->number, PCI_SLOT(iadev->pci->devfn), 
                                                  PCI_FUNC(iadev->pci->devfn));)  
+		if (pci_enable_device(iadev->pci)) break;
 		dev = atm_dev_register(DEV_LABEL, &ops, -1, NULL);
 		if (!dev) break;  
 		IF_INIT(printk(DEV_LABEL "registered at (itf :%d)\n", 
@@ -3254,11 +3252,7 @@ int init_module(void)
 		return -ENXIO;  
 	}  
 	// MOD_INC_USE_COUNT; 
-        ia_timer.next = NULL;
-       	ia_timer.prev = NULL;
    	ia_timer.expires = jiffies + 3*HZ;
-   	ia_timer.data = 0UL;
-   	ia_timer.function = ia_led_timer;
    	add_timer(&ia_timer); 
    
 	return 0;  
@@ -3319,4 +3313,4 @@ void cleanup_module(void)
 }  
 
 #endif  
-  
+

@@ -322,8 +322,9 @@ struct file *open_exec(const char *name)
 	int err = 0;
 
 	lock_kernel();
-	if (walk_init(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, &nd))
-		err = walk_name(name, &nd);
+	if (path_init(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, &nd))
+		err = path_walk(name, &nd);
+	unlock_kernel();
 	file = ERR_PTR(err);
 	if (!err) {
 		file = ERR_PTR(-EACCES);
@@ -331,14 +332,14 @@ struct file *open_exec(const char *name)
 			int err = permission(nd.dentry->d_inode, MAY_EXEC);
 			file = ERR_PTR(err);
 			if (!err) {
+				lock_kernel();
 				file = dentry_open(nd.dentry, nd.mnt, O_RDONLY);
-out:
 				unlock_kernel();
+out:
 				return file;
 			}
 		}
-		dput(nd.dentry);
-		mntput(nd.mnt);
+		path_release(&nd);
 	}
 	goto out;
 }
@@ -378,8 +379,10 @@ static int exec_mmap(void)
 		struct mm_struct *active_mm = current->active_mm;
 
 		init_new_context(current, mm);
+		task_lock(current);
 		current->mm = mm;
 		current->active_mm = mm;
+		task_unlock(current);
 		activate_mm(active_mm, mm);
 		mm_release();
 		if (old_mm) {
@@ -412,7 +415,9 @@ static inline int make_private_signals(void)
 	spin_lock_init(&newsig->siglock);
 	atomic_set(&newsig->count, 1);
 	memcpy(newsig->action, current->sig->action, sizeof(newsig->action));
+	spin_lock_irq(&current->sigmask_lock);
 	current->sig = newsig;
+	spin_unlock_irq(&current->sigmask_lock);
 	return 0;
 }
 	
@@ -465,7 +470,6 @@ int flush_old_exec(struct linux_binprm * bprm)
 	/*
 	 * Make sure we have a private signal table
 	 */
-	task_lock(current);
 	oldsig = current->sig;
 	retval = make_private_signals();
 	if (retval) goto flush_failed;
@@ -504,16 +508,16 @@ int flush_old_exec(struct linux_binprm * bprm)
 			
 	flush_signal_handlers(current);
 	flush_old_files(current->files);
-	task_unlock(current);
 
 	return 0;
 
 mmap_failed:
+flush_failed:
+	spin_lock_irq(&current->sigmask_lock);
 	if (current->sig != oldsig)
 		kfree(current->sig);
-flush_failed:
 	current->sig = oldsig;
-	task_unlock(current);
+	spin_unlock_irq(&current->sigmask_lock);
 	return retval;
 }
 

@@ -240,7 +240,7 @@ asmlinkage handle_sys_nfsservctl(int cmd, void *opaque_argp, void *opaque_resp)
 	if (cmd<0 || cmd > CMD_MAX)
 		goto done;
 	err = -EFAULT;
-	argsize = sizes[cmd].argsize + sizeof(int); /* int for ca_version */
+	argsize = sizes[cmd].argsize + (int)&((struct nfsctl_arg *)0)->u;
 	respsize = sizes[cmd].respsize;	/* maximum */
 	if (!access_ok(VERIFY_READ, argp, argsize)
 	 || (resp && !access_ok(VERIFY_WRITE, resp, respsize))) {
@@ -288,7 +288,7 @@ asmlinkage handle_sys_nfsservctl(int cmd, void *opaque_argp, void *opaque_resp)
 		break;
 	case NFSCTL_GETFS:
 		err = nfsctl_getfs(&arg->ca_getfs, &res->cr_getfs);
-		respsize = res->cr_getfs.fh_size+sizeof(int);
+		respsize = res->cr_getfs.fh_size+ (int)&((struct knfsd_fh*)0)->fh_base;
 		break;
 	default:
 		err = -EINVAL;

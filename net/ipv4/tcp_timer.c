@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_timer.c,v 1.75 2000/04/08 07:21:25 davem Exp $
+ * Version:	$Id: tcp_timer.c,v 1.76 2000/05/03 06:37:07 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -378,7 +378,7 @@ void tcp_tw_deschedule(struct tcp_tw_bucket *tw)
 static int tcp_twcal_hand = -1;
 static int tcp_twcal_jiffie;
 static void tcp_twcal_tick(unsigned long);
-static struct timer_list tcp_twcal_timer = {NULL, NULL, 0, 0, tcp_twcal_tick,};
+static struct timer_list tcp_twcal_timer = {function: tcp_twcal_tick};
 static struct tcp_tw_bucket *tcp_twcal_row[TCP_TW_RECYCLE_SLOTS];
 
 void tcp_tw_schedule(struct tcp_tw_bucket *tw, int timeo)

@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 1996 Paul Mackerras.
  */
+#include <linux/config.h>
 
 #define GETREG(reg)		\
     static inline int get_ ## reg (void)	\
@@ -38,6 +39,7 @@ GSETSPR(274, sprg2)
 GSETSPR(275, sprg3)
 GSETSPR(282, ear)
 GSETSPR(287, pvr)
+#ifndef CONFIG_8xx
 GSETSPR(528, bat0u)
 GSETSPR(529, bat0l)
 GSETSPR(530, bat1u)
@@ -51,6 +53,13 @@ GSETSPR(1009, hid1)
 GSETSPR(1010, iabr)
 GSETSPR(1013, dabr)
 GSETSPR(1023, pir)
+#else
+GSETSPR(144, cmpa)
+GSETSPR(145, cmpb)
+GSETSPR(146, cmpc)
+GSETSPR(147, cmpd)
+GSETSPR(158, ictrl)
+#endif
 
 static inline int get_sr(int n)
 {

@@ -877,9 +877,8 @@ static void cyz_poll(unsigned long);
 static long cyz_polling_cycle = CZ_DEF_POLL;
 
 static int cyz_timeron = 0;
-static struct timer_list
-cyz_timerlist = {
-    NULL, NULL, 0, 0, cyz_poll
+static struct timer_list cyz_timerlist = {
+    function: cyz_poll
 };
 #else /* CONFIG_CYZ_INTR */
 static void cyz_rx_restart(unsigned long);
@@ -4859,9 +4858,6 @@ cy_detect_pci(void)
   uclong		Ze_addr0[NR_CARDS], Ze_addr2[NR_CARDS], ZeIndex = 0;
   unsigned char         Ze_irq[NR_CARDS];
 
-        if(pci_present() == 0) {    /* PCI bus not present */
-                return(0);
-        }
         for (i = 0; i < NR_CARDS; i++) {
                 /* look for a Cyclades card by vendor and device id */
                 while((device_id = cy_pci_dev_id[dev_index]) != 0) {
@@ -4876,11 +4872,14 @@ cy_detect_pci(void)
 		if (device_id == 0)
 		    break;
 
+		if (pci_enable_device(pdev))
+		    continue;
+
                 /* read PCI configuration area */
 		cy_pci_irq = pdev->irq;
-		cy_pci_addr0 = pdev->resource[0].start;
-		cy_pci_addr1 = pdev->resource[1].start;
-		cy_pci_addr2 = pdev->resource[2].start;
+		cy_pci_addr0 = pci_resource_start(pdev, 0);
+		cy_pci_addr1 = pci_resource_start(pdev, 1);
+		cy_pci_addr2 = pci_resource_start(pdev, 2);
                 pci_read_config_byte(pdev, PCI_REVISION_ID, &cyy_rev_id);
 
 		device_id &= ~PCI_DEVICE_ID_MASK;

@@ -1,7 +1,7 @@
 /*
  *	Linux NET3:	IP/IP protocol decoder. 
  *
- *	Version: $Id: ipip.c,v 1.32 2000/03/21 06:13:54 davem Exp $
+ *	Version: $Id: ipip.c,v 1.33 2000/05/05 02:17:17 davem Exp $
  *
  *	Authors:
  *		Sam Lantinga (slouken@cs.ucdavis.edu)  02/01/95
@@ -121,11 +121,11 @@ static int ipip_fb_tunnel_init(struct net_device *dev);
 static int ipip_tunnel_init(struct net_device *dev);
 
 static struct net_device ipip_fb_tunnel_dev = {
-	NULL, 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NULL, ipip_fb_tunnel_init,
+	"tunl%d", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NULL, ipip_fb_tunnel_init,
 };
 
 static struct ip_tunnel ipip_fb_tunnel = {
-	NULL, &ipip_fb_tunnel_dev, {0, }, 0, 0, 0, 0, 0, 0, 0, {"tunl0", }
+	NULL, &ipip_fb_tunnel_dev, {0, }, 0, 0, 0, 0, 0, 0, 0, {"tunl%d", }
 };
 
 static struct ip_tunnel *tunnels_r_l[HASH_SIZE];
@@ -237,7 +237,7 @@ struct ip_tunnel * ipip_tunnel_locate(struct ip_tunnel_parm *parms, int create)
 	dev->priv = (void*)(dev+1);
 	nt = (struct ip_tunnel*)dev->priv;
 	nt->dev = dev;
-	dev->name = nt->parms.name;
+	strcpy(dev->name, nt->parms.name);
 	dev->init = ipip_tunnel_init;
 	dev->new_style = 1;
 	memcpy(&nt->parms, parms, sizeof(*parms));
@@ -875,7 +875,6 @@ int __init ipip_init(void)
 	printk(KERN_INFO "IPv4 over IPv4 tunneling driver\n");
 
 	ipip_fb_tunnel_dev.priv = (void*)&ipip_fb_tunnel;
-	ipip_fb_tunnel_dev.name = ipip_fb_tunnel.parms.name;
 #ifdef MODULE
 	register_netdev(&ipip_fb_tunnel_dev);
 #else

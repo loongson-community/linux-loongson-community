@@ -70,20 +70,6 @@ static struct fasync_struct *asyncptr;
 static int active=0;	/* number of concurrent open()s */
 static struct semaphore reader_lock;
 
-/*
- *	set_timer_callback:
- *
- *	Utility to reset a timer to go off some time in the future.
- */
-
-static void set_timer_callback(struct timer_list *timer, int ticks)
-{
-	del_timer(timer);
-	timer->expires = jiffies+ticks;
-	add_timer(timer);
-}
-
-
 /**
  *	wake_readers:
  *
@@ -130,7 +116,7 @@ static int recent_transition=0;
 static int transition_count=0;
 static int synthesize_tap=0;
 static void tap_timeout(unsigned long data);
-static struct timer_list tap_timer = { NULL, NULL, 0, 0, tap_timeout };
+static struct timer_list tap_timer = { function: tap_timeout };
 
 
 /**
@@ -178,7 +164,7 @@ void notify_pad_up_down(void)
 		transition_count=1;
 		recent_transition=1;
 	}
-	set_timer_callback(&tap_timer, current_params.tap_interval);
+	mod_timer(&tap_timer, jiffies + current_params.tap_interval);
 
 	/* changes to transition_count can cause reported button to change */
 	button_pending = 1;
@@ -246,7 +232,7 @@ static int xy_pending=0;	/* set if new data have not yet been read */
  */
  
 static void bounce_timeout(unsigned long data);
-static struct timer_list bounce_timer = { NULL, NULL, 0, 0, bounce_timeout };
+static struct timer_list bounce_timer = { function: bounce_timeout };
 
 
 
@@ -369,8 +355,8 @@ static void pad_irq(int irq, void *ptr, struct pt_regs *regs)
 				else
 				{
 					bounce=JUST_GONE_DOWN;
-					set_timer_callback(&bounce_timer,
-						current_params.bounce_interval);
+					mod_timer(&bounce_timer,
+						jiffies+current_params.bounce_interval);
 					/* start new stroke/tap */
 					debounced_down=new_down;
 					notify_pad_up_down();
@@ -391,8 +377,8 @@ static void pad_irq(int irq, void *ptr, struct pt_regs *regs)
 				{
 					/* don't trust it yet */
 					bounce=JUST_GONE_UP;
-					set_timer_callback(&bounce_timer,
-						current_params.bounce_interval);
+					mod_timer(&bounce_timer,
+						jiffies+current_params.bounce_interval);
 				}
 			}
 		}

@@ -56,7 +56,7 @@ smb_readpage_sync(struct dentry *dentry, struct page *page)
 
 	/* We can't replace this with ClearPageError. why? is it a problem? 
 	   fs/buffer.c:brw_page does the same. */
-	/* clear_bit(PG_error, &page->flags); */
+	/* ClearPageError(page); */
 
 #ifdef SMBFS_DEBUG_VERBOSE
 printk("smb_readpage_sync: file %s/%s, count=%d@%ld, rsize=%d\n",
@@ -98,9 +98,10 @@ io_error:
 }
 
 static int
-smb_readpage(struct dentry *dentry, struct page *page)
+smb_readpage(struct file *file, struct page *page)
 {
 	int		error;
+	struct dentry  *dentry = file->f_dentry;
 
 	pr_debug("SMB: smb_readpage %08lx\n", page_address(page));
 #ifdef SMBFS_PARANOIA
@@ -167,8 +168,9 @@ printk("smb_writepage_sync: short write, wsize=%d, result=%d\n", wsize, result);
  * We are called with the page locked and the caller unlocks.
  */
 static int
-smb_writepage(struct file *file, struct dentry *dentry, struct page *page)
+smb_writepage(struct file *file, struct page *page)
 {
+	struct dentry *dentry = file->f_dentry;
 	struct inode *inode = dentry->d_inode;
 	unsigned long end_index = inode->i_size >> PAGE_CACHE_SHIFT;
 	unsigned offset = PAGE_CACHE_SIZE;

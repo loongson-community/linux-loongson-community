@@ -85,6 +85,7 @@ EXPORT_SYMBOL(exec_usermodehelper);
 
 #ifdef CONFIG_MODULES
 EXPORT_SYMBOL(get_module_symbol);
+EXPORT_SYMBOL(try_inc_mod_count);
 #endif
 EXPORT_SYMBOL(get_option);
 EXPORT_SYMBOL(get_options);
@@ -137,18 +138,20 @@ EXPORT_SYMBOL(in_group_p);
 EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_empty_super);
-EXPORT_SYMBOL(remove_vfsmnt);
 EXPORT_SYMBOL(getname);
 EXPORT_SYMBOL(_fput);
 EXPORT_SYMBOL(igrab);
 EXPORT_SYMBOL(iunique);
 EXPORT_SYMBOL(iget4);
 EXPORT_SYMBOL(iput);
-EXPORT_SYMBOL(__namei);
-EXPORT_SYMBOL(lookup_dentry);
-EXPORT_SYMBOL(walk_init);
-EXPORT_SYMBOL(walk_name);
+EXPORT_SYMBOL(follow_up);
+EXPORT_SYMBOL(follow_down);
+EXPORT_SYMBOL(path_init);
+EXPORT_SYMBOL(path_walk);
+EXPORT_SYMBOL(path_release);
+EXPORT_SYMBOL(__user_walk);
 EXPORT_SYMBOL(lookup_one);
+EXPORT_SYMBOL(lookup_hash);
 EXPORT_SYMBOL(sys_close);
 EXPORT_SYMBOL(d_alloc_root);
 EXPORT_SYMBOL(d_delete);
@@ -214,7 +217,6 @@ EXPORT_SYMBOL(posix_block_lock);
 EXPORT_SYMBOL(posix_unblock_lock);
 EXPORT_SYMBOL(locks_mandatory_area);
 EXPORT_SYMBOL(dput);
-EXPORT_SYMBOL(is_root_busy);
 EXPORT_SYMBOL(have_submounts);
 EXPORT_SYMBOL(prune_dcache);
 EXPORT_SYMBOL(shrink_dcache_sb);
@@ -230,6 +232,7 @@ EXPORT_SYMBOL(vfs_link);
 EXPORT_SYMBOL(vfs_rmdir);
 EXPORT_SYMBOL(vfs_unlink);
 EXPORT_SYMBOL(vfs_rename);
+EXPORT_SYMBOL(vfs_statfs);
 EXPORT_SYMBOL(generic_read_dir);
 EXPORT_SYMBOL(__pollwait);
 EXPORT_SYMBOL(ROOT_DEV);
@@ -309,6 +312,9 @@ EXPORT_SYMBOL(console_loglevel);
 /* filesystem registration */
 EXPORT_SYMBOL(register_filesystem);
 EXPORT_SYMBOL(unregister_filesystem);
+EXPORT_SYMBOL(kern_mount);
+EXPORT_SYMBOL(kern_umount);
+EXPORT_SYMBOL(may_umount);
 
 /* executable format registration */
 EXPORT_SYMBOL(register_binfmt);
@@ -351,7 +357,7 @@ EXPORT_SYMBOL(autoirq_setup);
 EXPORT_SYMBOL(autoirq_report);
 #endif
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 EXPORT_SYMBOL(del_timer_sync);
 #endif
 EXPORT_SYMBOL(mod_timer);
@@ -361,7 +367,7 @@ EXPORT_SYMBOL(tq_scheduler);
 EXPORT_SYMBOL(timer_active);
 EXPORT_SYMBOL(timer_table);
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 /* Various random spinlocks we want to export */
 EXPORT_SYMBOL(tqueue_lock);
 

@@ -1830,7 +1830,7 @@ limit match support
 CONFIG_IP_NF_MATCH_LIMIT
   limit matching allows you to control the rate at which a rule can be
   matched: mainly useful in combination with the LOG target ("LOG
-  target support", below).
+  target support", below) and to avoid some Denial of Service attacks.
 
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt.  If unsure, say `N'.
@@ -6686,6 +6686,14 @@ CONFIG_PPP_BSDCOMP
   Note that the BSD compression code will always be compiled as a
   module; it is called bsd_comp.o and will show up in the directory
   modules once you have said "make modules". If unsure, say N.
+
+PPP over Ethernet (EXPERIMENTAL)
+CONFIG_PPPOE
+  Support for PPP over Ethernet.
+
+  This driver requires a specially patched pppd daemon.  The patch to
+  pppd, along with binaries of a patched pppd package can be found at:
+  http://www.math.uwaterloo.ca/~mostrows
  
 Wireless LAN (non-hamradio)
 CONFIG_NET_RADIO
@@ -9850,7 +9858,7 @@ CONFIG_USB_MDC800
   Say Y here if you want to connect this type of still camera to
   your computer's USB port. This driver can be used with gphoto 0.4.3
   and higher (look at http://www.gphoto.org ).
-  To use it create a device node with "mknod /dev/mustek c 10 171" and
+  To use it create a device node with "mknod /dev/mustek c 180 32" and
   configure it in your software.
 
   This code is also available as a module ( = code which can be
@@ -10314,6 +10322,15 @@ CONFIG_DEVFS_FS
 
   If unsure, say N.
 
+Enable automatic mounting at boot
+CONFIG_DEVFS_MOUNT
+  This option appears if you have CONFIG_DEVFS_FS enabled. Setting
+  this to 'Y' will make the kernel automatically mount devfs onto /dev
+  when the system is booted, before the init thread is started.
+  You can override this with the "devfs=nomount" boot option.
+
+  If unsure, say N.
+
 Debug devfs
 CONFIG_DEVFS_DEBUG
   If you say Y here, then the /dev file system code will generate
@@ -10444,6 +10461,8 @@ CONFIG_NTFS_RW
   damaged. Also, make sure to run chkdsk from within Microsoft
   Windows NT after having performed any writes to a NTFS partition
   from Linux to detect any problems as early as possible.
+  Please note that write support is limited to Windows NT4 and
+  earlier versions.
 
   If unsure, say N.
 

@@ -1889,7 +1889,7 @@ static int rh_submit_urb(struct urb *urb)
 			OK(len);
 		case 0x03:	/* string descriptors */
 			len = usb_root_hub_string (wValue & 0xff,
-				uhci->io_addr, "UHCI",
+				uhci->io_addr, "UHCI-alt",
 				data, wLength);
 			if (len > 0) {
 				OK (min (leni, len));
@@ -1929,9 +1929,10 @@ static int rh_unlink_urb(struct urb *urb)
 {
 	struct uhci *uhci = (struct uhci *)urb->dev->bus->hcpriv;
 
-	uhci->rh.send = 0;
-	del_timer(&uhci->rh.rh_int_timer);
-
+	if (uhci->rh.urb == urb) {
+		uhci->rh.send = 0;
+		del_timer(&uhci->rh.rh_int_timer);
+	}
 	return 0;
 }
 /*-------------------------------------------------------------------*/
@@ -2182,7 +2183,7 @@ static struct uhci *alloc_uhci(unsigned int io_addr, unsigned int io_size)
 	 * us a reasonable dynamic range for irq latencies.
 	 */
 	for (i = 0; i < 1024; i++) {
-		struct uhci_td *irq = &uhci->skel_int2_td;
+		struct uhci_td *irq = &uhci->skel_int1_td;
 
 		if (i & 1) {
 			irq++;
@@ -2357,10 +2358,14 @@ static int found_uhci(struct pci_dev *dev)
 
 static int handle_pm_event(struct pm_dev *dev, pm_request_t rqst, void *data)
 {
+	struct uhci *uhci = dev->data;
 	switch (rqst) {
 	case PM_SUSPEND:
+		reset_hc(uhci);
 		break;
 	case PM_RESUME:
+		reset_hc(uhci);
+		start_hc(uhci);
 		break;
 	}
 	return 0;

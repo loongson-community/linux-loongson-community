@@ -3,7 +3,7 @@
  *
  *  This source is covered by the GNU GPL, the same as all kernel sources.
  *
- *  Version:	$Id: inetpeer.c,v 1.1 2000/01/06 00:41:55 davem Exp $
+ *  Version:	$Id: inetpeer.c,v 1.2 2000/05/03 06:37:06 davem Exp $
  *
  *  Authors:	Andrey V. Savochkin <saw@msu.ru>
  */
@@ -94,7 +94,7 @@ spinlock_t inet_peer_unused_lock = SPIN_LOCK_UNLOCKED;
 
 static void peer_check_expire(unsigned long dummy);
 static struct timer_list peer_periodic_timer =
-	{ NULL, NULL, 0, 0, &peer_check_expire };
+	{ { NULL, NULL }, 0, 0, &peer_check_expire };
 int inet_peer_gc_mintime = 10 * HZ,
     inet_peer_gc_maxtime = 120 * HZ;
 

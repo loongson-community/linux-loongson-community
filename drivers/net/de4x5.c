@@ -4356,12 +4356,11 @@ srom_command(u_int command, u_long addr)
 static void
 srom_address(u_int command, u_long addr, u_char offset)
 {
-    int i;
-    char a;
+    int i, a;
     
-    a = (char)(offset << 2);
+    a = offset << 2;
     for (i=0; i<6; i++, a <<= 1) {
-	srom_latch(command | ((a < 0) ? DT_IN : 0), addr);
+	srom_latch(command | ((a & 0x80) ? DT_IN : 0), addr);
     }
     de4x5_us_delay(1);
     
@@ -5904,13 +5903,12 @@ insert_device(struct net_device *dev, u_long iobase, int (*init)(struct net_devi
 {
     struct net_device *new;
 
-    new = (struct net_device *)kmalloc(sizeof(struct net_device)+8, GFP_KERNEL);
+    new = (struct net_device *)kmalloc(sizeof(struct net_device), GFP_KERNEL);
     if (new == NULL) {
 	printk("de4x5.c: Device not initialised, insufficient memory\n");
 	return NULL;
     } else {
-	memset((char *)new, 0, sizeof(struct net_device)+8);
-	new->name = (char *)(new + 1);
+	memset((char *)new, 0, sizeof(struct net_device));
 	new->base_addr = iobase;       /* assign the io address */
 	new->init = init;              /* initialisation routine */
     }
