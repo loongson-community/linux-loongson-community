@@ -132,6 +132,8 @@ static struct pccard_operations au1000_pcmcia_operations = {
 #endif
 };
 
+static spinlock_t pcmcia_lock = SPIN_LOCK_UNLOCKED;
+
 static int __init au1000_pcmcia_driver_init(void)
 {
 	servinfo_t info;
@@ -584,8 +586,7 @@ au1000_pcmcia_set_mem_map(unsigned int sock, struct pccard_mem_map *map)
 		}
 	}
 
-	save_flags(flags);
-	cli();
+	spin_lock_irqsave(&pcmcia_lock, flags);
 	start=map->sys_start;
 
 	if(map->sys_stop==0)
@@ -602,7 +603,7 @@ au1000_pcmcia_set_mem_map(unsigned int sock, struct pccard_mem_map *map)
 
 	map->sys_stop=map->sys_start+(map->sys_stop-start);
 	pcmcia_socket[sock].mem_map[map->map]=*map;
-	restore_flags(flags);
+	spin_unlock_irqrestore(&pcmcia_lock, flags);
 	DEBUG(3, "set_mem_map %d start %x stop %x card_start %x\n", 
 			map->map, map->sys_start, map->sys_stop, 
 			map->card_start);

@@ -57,6 +57,8 @@ extern void startup_match20_interrupt(void);
 static unsigned long last_pc0, last_match20;
 #endif
 
+static spinlock_t time_lock = SPIN_LOCK_UNLOCKED;
+
 static inline void ack_r4ktimer(unsigned long newval)
 {
 	write_32bit_cp0_register(CP0_COMPARE, newval);
@@ -166,7 +168,7 @@ unsigned long cal_r4koff(void)
 	int trim_divide = 16;
 	unsigned long flags;
 
-	local_irq_save(flags);
+	spin_lock_irqsave(&time_lock, flags);
 
 	counter = au_readl(SYS_COUNTER_CNTRL);
 	au_writel(counter | SYS_CNTRL_EN1, SYS_COUNTER_CNTRL);
@@ -194,7 +196,7 @@ unsigned long cal_r4koff(void)
 	cpu_speed = count * 2;
 	mips_counter_frequency = count;
 	set_au1000_uart_baud_base(((cpu_speed) / 4) / 16);
-	local_irq_restore(flags);
+	spin_unlock_irqrestore(&time_lock, flags);
 	return (cpu_speed / HZ);
 }
 

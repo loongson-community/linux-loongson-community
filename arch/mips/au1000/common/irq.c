@@ -97,6 +97,7 @@ extern void __init init_generic_irq(void);
 extern void counter0_irq(int irq, void *dev_id, struct pt_regs *regs);
 #endif
 
+static spinlock_t irq_lock = SPIN_LOCK_UNLOCKED;
 
 static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 {
@@ -297,7 +298,7 @@ unsigned long save_local_and_disable(int controller)
 	int i;
 	unsigned long flags, mask;
 
-	local_irq_save(flags);
+	spin_lock_irqsave(&irq_lock, flags);
 	if (controller) {
 		mask = au_readl(IC1_MASKSET);
 		for (i=32; i<64; i++) {
@@ -310,7 +311,7 @@ unsigned long save_local_and_disable(int controller)
 			local_disable_irq(i);
 		}
 	}
-	local_irq_restore(flags);
+	spin_unlock_irqrestore(&irq_lock, flags);
 
 	return mask;
 }
@@ -320,7 +321,7 @@ void restore_local_and_enable(int controller, unsigned long mask)
 	int i;
 	unsigned long flags, new_mask;
 
-	local_irq_save(flags);
+	spin_lock_irqsave(&irq_lock, flags);
 	for (i=0; i<32; i++) {
 		if (mask & (1<<i)) {
 			if (controller)
@@ -334,7 +335,7 @@ void restore_local_and_enable(int controller, unsigned long mask)
 	else
 		new_mask = au_readl(IC0_MASKSET);
 
-	local_irq_restore(flags);
+	spin_unlock_irqrestore(&irq_lock, flags);
 }
 
 

@@ -75,6 +75,8 @@ static char version[] __devinitdata =
 
 #define RUN_AT(x) (jiffies + (x))
 
+static spinlock_t ir_lock = SPIN_LOCK_UNLOCKED;
+
 /*
  * IrDA peripheral bug. You have to read the register
  * twice to get the right value.
@@ -703,8 +705,7 @@ au1k_irda_set_speed(struct net_device *dev, int speed)
 	if (speed == aup->speed)
 		return ret;
 
-	save_flags(flags);
-	cli();
+	spin_lock_irqsave(&ir_lock, flags);
 
 	/* disable PHY first */
 	writel(read_ir_reg(IR_ENABLE) & ~0x8000, IR_ENABLE);
@@ -805,7 +806,7 @@ au1k_irda_set_speed(struct net_device *dev, int speed)
 			printk(KERN_INFO "%s RX enabled\n", dev->name);
 	}
 
-	restore_flags(flags);
+	spin_unlock_irqrestore(&ir_lock, flags);
 	return ret;
 }
 
