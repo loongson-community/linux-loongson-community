@@ -1961,120 +1961,53 @@ out:
  *    flush.
  * 3) In KSEG1, no flush necessary.
  */
-static void r4k_flush_page_to_ram_s16d16i16(struct page * page)
+static void r4k_flush_page_to_ram_s16d16i16(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache16_page(addr);
-	}
+	blast_scache16_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s32d16i16(struct page * page)
+static void r4k_flush_page_to_ram_s32d16i16(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache32_page(addr);
-	}
+	blast_scache32_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s64d16i16(struct page * page)
+static void r4k_flush_page_to_ram_s64d16i16(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache64_page(addr);
-	}
+	blast_scache64_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s128d16i16(struct page * page)
+static void r4k_flush_page_to_ram_s128d16i16(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache128_page(addr);
-	}
+	blast_scache128_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s32d32i32(struct page * page)
+static void r4k_flush_page_to_ram_s32d32i32(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache32_page(addr);
-	}
+	blast_scache32_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s64d32i32(struct page * page)
+static void r4k_flush_page_to_ram_s64d32i32(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache64_page(addr);
-	}
+	blast_scache64_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s128d32i32(struct page * page)
+static void r4k_flush_page_to_ram_s128d32i32(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_scache128_page(addr);
-	}
+	blast_scache128_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_d16i16(struct page * page)
+static void r4k_flush_page_to_ram_d16i16(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-		unsigned long flags;
-
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		__save_and_cli(flags);
-		blast_dcache16_page(addr);
-		__restore_flags(flags);
-	}
+	blast_dcache16_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_d32i32(struct page * page)
+static void r4k_flush_page_to_ram_d32i32(struct page *page)
 {
-	unsigned long addr = page_address(page) & PAGE_MASK;
+	unsigned long flags;
 
-	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
-		unsigned long flags;
-
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		__save_and_cli(flags);
-		blast_dcache32_page(addr);
-		__restore_flags(flags);
-	}
+	__save_and_cli(flags);			/* For R4600 v1.7 bug.  */
+	blast_dcache32_page(page_address(page));
+	__restore_flags(flags);
 }
 
 /*
