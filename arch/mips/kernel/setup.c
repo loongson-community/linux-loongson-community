@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.23 2000/03/02 02:36:50 ralf Exp $
+/* $Id: setup.c,v 1.24 2000/03/06 11:14:23 raiko Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -39,6 +39,7 @@
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
+#include <asm/cpu.h>
 #ifdef CONFIG_SGI_IP22
 #include <asm/sgialib.h>
 #endif
@@ -118,6 +119,99 @@ unsigned long mips_io_port_base;
  * for the processor.
  */
 unsigned long isa_slot_offset;
+
+extern int prom_init(int argc, char **argv, char **envp);
+extern void sgi_sysinit(void);
+extern void SetUpBootInfo(void);
+extern void loadmmu(void);
+extern asmlinkage void start_kernel(void);
+
+static inline void cpu_probe(void)
+{
+	unsigned int prid = read_32bit_cp0_register(CP0_PRID);
+	switch(prid & 0xff00) {
+	case PRID_IMP_R2000:
+		mips_cputype = CPU_R2000;
+		break;
+	case PRID_IMP_R3000:
+		if((prid & 0xff) == PRID_REV_R3000A)
+			mips_cputype = CPU_R3000A;
+		else
+			 mips_cputype = CPU_R3000;
+		break;
+	case PRID_IMP_R4000:
+		if((prid & 0xff) == PRID_REV_R4400)
+			mips_cputype = CPU_R4400SC;
+		else
+			mips_cputype = CPU_R4000SC;
+		break;
+	case PRID_IMP_R4600:
+		mips_cputype = CPU_R4600;
+		break;
+	case PRID_IMP_R4650:
+		mips_cputype = CPU_R4650;
+		break;
+	case PRID_IMP_R4700:
+		mips_cputype = CPU_R4700;
+		break;
+	case PRID_IMP_R5000:
+		mips_cputype = CPU_R5000;
+		break;
+	case PRID_IMP_NEVADA:
+		mips_cputype = CPU_NEVADA;
+		break;
+	case PRID_IMP_R6000:
+		mips_cputype = CPU_R6000;
+		break;
+	case PRID_IMP_R6000A:
+		mips_cputype = CPU_R6000A;
+		break;
+	case PRID_IMP_R8000:
+		mips_cputype = CPU_R8000;
+		break;
+	case PRID_IMP_R10000:
+		mips_cputype = CPU_R10000;
+		break;
+	default:
+		mips_cputype = CPU_UNKNOWN;
+	}
+}
+
+asmlinkage void __init init_arch(int argc, char **argv, char **envp)
+{
+	unsigned int s;
+
+	/* Determine which MIPS variant we are running on. */
+	cpu_probe();
+
+	prom_init(argc, argv, envp);
+#ifdef CONFIG_SGI_IP22
+	sgi_sysinit();
+#endif
+#ifdef CONFIG_COBALT_MICRO_SERVER
+	SetUpBootInfo();
+#endif
+
+	/*
+	 * Determine the mmu/cache attached to this machine,
+	 * then flush the tlb and caches.  On the r4xx0
+	 * variants this also sets CP0_WIRED to zero.
+	 */
+	loadmmu();
+
+	/* Disable coprocessors */
+	s = read_32bit_cp0_register(CP0_STATUS);
+	s &= ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX);
+	s |= ST0_CU0;
+	write_32bit_cp0_register(CP0_STATUS, s);
+
+	/*
+	 * Main should never return here, but
+	 * just in case, we know what happens.
+	 */
+	for(;;)
+		start_kernel();
+}
 
 static void __init default_irq_setup(void)
 {
