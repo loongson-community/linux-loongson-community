@@ -12,6 +12,7 @@
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
+#include <linux/spinlock.h>
 #include <asm/mipsregs.h>
 #include <asm/jazz.h>
 #include <asm/io.h>
@@ -26,6 +27,8 @@
 #define CONF_DEBUG_VDMA 0
 
 static unsigned long vdma_pagetable_start;
+
+static spinlock_t vdma_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  * Debug stuff
@@ -105,7 +108,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 		return VDMA_ERROR;	/* invalid physical address */
 	}
 
-	local_irq_save(flags);		/* Really should be a spinlock */
+	spin_lock_irqsave(&vdma_lock, flags);
 	/*
 	 * Find free chunk
 	 */
@@ -115,7 +118,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 		while (entry[first].owner != VDMA_PAGE_EMPTY &&
 		       first < VDMA_PGTBL_ENTRIES) first++;
 		if (first + pages > VDMA_PGTBL_ENTRIES) {	/* nothing free */
-			local_irq_restore(flags);
+			spin_unlock_irqrestore(&vdma_lock, flags);
 			return VDMA_ERROR;
 		}
 
@@ -146,8 +149,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 	r4030_write_reg32(JAZZ_R4030_TRSTBL_INV, 0);
 
 	if (vdma_debug > 1)
-		printk
-		    ("vdma_alloc: Allocated %d pages starting from %08lx\n",
+		printk("vdma_alloc: Allocated %d pages starting from %08lx\n",
 		     pages, laddr);
 
 	if (vdma_debug > 2) {
@@ -163,7 +165,8 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 		printk("\n");
 	}
 
-	local_irq_restore(flags);
+	spin_unlock_irqrestore(&vdma_lock, flags);
+
 	return laddr;
 }
 
