@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_timer.c,v 1.3 1997/08/11 04:37:09 ralf Exp $
+ * $Id: indy_timer.c,v 1.4 1997/12/01 17:57:38 ralf Exp $
  */
 
 #include <linux/errno.h>
@@ -101,10 +101,18 @@ static long last_rtc_update = 0;
 
 void indy_timer_interrupt(struct pt_regs *regs)
 {
+	unsigned long count;
 	int irq = 7;
 
 	/* Ack timer and compute new compare. */
-	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
+	count = read_32bit_cp0_register(CP0_COUNT);
+	if ((count - r4k_cur) >= r4k_offset) {
+		printk("missed heartbeat: r4k_cur[0x%lx] count[0x%lx]\n",
+		       r4k_cur, count);
+		r4k_cur = count + r4k_offset;
+	}
+        else
+            r4k_cur += r4k_offset;
 	ack_r4ktimer(r4k_cur);
 	kstat.interrupts[irq]++;
 	do_timer(regs);
@@ -123,8 +131,8 @@ void indy_timer_interrupt(struct pt_regs *regs)
 	    last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
 }
 
-static inline unsigned long dosample(volatile unsigned char *tcwp,
-				     volatile unsigned char *tc2p)
+static unsigned long dosample(volatile unsigned char *tcwp,
+                              volatile unsigned char *tc2p)
 {
 	unsigned long ct0, ct1;
 	unsigned char msb, lsb;
@@ -138,16 +146,12 @@ static inline unsigned long dosample(volatile unsigned char *tcwp,
 	ct0 = read_32bit_cp0_register(CP0_COUNT);
 
 	/* Latch and spin until top byte of counter2 is zero */
-	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CLAT);
-	ct1 = read_32bit_cp0_register(CP0_COUNT);
-	lsb = *tc2p;
-	msb = *tc2p;
-	while(msb) {
+	do {
 		*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CLAT);
-		ct1 = read_32bit_cp0_register(CP0_COUNT);
 		lsb = *tc2p;
 		msb = *tc2p;
-	}
+		ct1 = read_32bit_cp0_register(CP0_COUNT);
+	} while(msb);
 
 	/* Stop the counter. */
 	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MSWST);
@@ -254,11 +258,9 @@ void indy_timer_init(void)
 	tc2p = &p->tcnt2;
 
 	printk("calculating r4koff... ");
-	r4k_offset = dosample(tcwp, tc2p);  /* First sample. */
-	dosample(tcwp, tc2p);               /* Eat one... */
-	r4k_offset += dosample(tcwp, tc2p); /* Second sample. */
-	r4k_offset = (r4k_offset >> 1);     /* Get average. */
-	r4k_offset = HZ * r4k_offset;       /* Multiply by HZ */
+	dosample(tcwp, tc2p);			/* First sample. */
+	dosample(tcwp, tc2p);			/* Eat one.	*/
+	r4k_offset = dosample(tcwp, tc2p);	/* Second sample. */
 
 	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
 
