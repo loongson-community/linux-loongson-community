@@ -694,7 +694,7 @@ int sgiseeq_probe(struct net_device *dev)
 	char *ep;
 
 	if (initialized)	/* Already initialized? */
-		return 0;
+		return 1;
 	initialized++;
 
 	/* First get the ethernet address of the onboard interface from ARCS.
