@@ -623,6 +623,8 @@ static inline void set_pagemask(unsigned long val)
 
 #if defined(CONFIG_64BIT_PHYS_ADDR) && !defined(CONFIG_CPU_MIPS32)
 
+#include <asm/system.h>
+
 /*
  * These versions are only needed for systems with more than 38 bits of
  * physical address space.
