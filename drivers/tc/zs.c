@@ -214,10 +214,6 @@ static void probe_sccs(void);
 static void change_speed(struct dec_serial *info);
 static void rs_wait_until_sent(struct tty_struct *tty, int timeout);
 
-#ifndef MIN
-#define MIN(a,b)	((a) < (b) ? (a) : (b))
-#endif
-
 /*
  * tmp_buf is used as a temporary buffer by serial_write.  We need to
  * lock it in case the copy_from_user blocks while swapping in a page,
@@ -936,7 +932,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 	save_flags(flags);
 	while (1) {
 		cli();
-		c = MIN(count, MIN(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
+		c = min(count, min(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
 				   SERIAL_XMIT_SIZE - info->xmit_head));
 		if (c <= 0)
 			break;
@@ -944,7 +940,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 		if (from_user) {
 			down(&tmp_buf_sem);
 			copy_from_user(tmp_buf, buf, c);
-			c = MIN(c, MIN(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
+			c = min(c, min(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
 				       SERIAL_XMIT_SIZE - info->xmit_head));
 			memcpy(info->xmit_buf + info->xmit_head, tmp_buf, c);
 			up(&tmp_buf_sem);
@@ -1271,36 +1267,36 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 	}
 
 	switch (cmd) {
-		case TIOCGSERIAL:
-			error = verify_area(VERIFY_WRITE, (void *) arg,
-						sizeof(struct serial_struct));
-			if (error)
-				return error;
-			return get_serial_info(info,
-					       (struct serial_struct *) arg);
-		case TIOCSSERIAL:
-			return set_serial_info(info,
-					       (struct serial_struct *) arg);
-		case TIOCSERGETLSR: /* Get line status register */
-			error = verify_area(VERIFY_WRITE, (void *) arg,
-				sizeof(unsigned int));
-			if (error)
-				return error;
-			else
-			    return get_lsr_info(info, (unsigned int *) arg);
+	case TIOCGSERIAL:
+		error = verify_area(VERIFY_WRITE, (void *)arg,
+				    sizeof(struct serial_struct));
+		if (error)
+			return error;
+		return get_serial_info(info, (struct serial_struct *)arg);
 
-		case TIOCSERGSTRUCT:
-			error = verify_area(VERIFY_WRITE, (void *) arg,
-						sizeof(struct dec_serial));
-			if (error)
-				return error;
-			copy_from_user((struct dec_serial *) arg,
-				       info, sizeof(struct dec_serial));
-			return 0;
+	case TIOCSSERIAL:
+		return set_serial_info(info, (struct serial_struct *)arg);
 
-		default:
-			return -ENOIOCTLCMD;
-		}
+	case TIOCSERGETLSR:			/* Get line status register */
+		error = verify_area(VERIFY_WRITE, (void *)arg,
+				    sizeof(unsigned int));
+		if (error)
+			return error;
+		else
+			return get_lsr_info(info, (unsigned int *)arg);
+
+	case TIOCSERGSTRUCT:
+		error = verify_area(VERIFY_WRITE, (void *)arg,
+				    sizeof(struct dec_serial));
+		if (error)
+			return error;
+		copy_from_user((struct dec_serial *)arg, info,
+			       sizeof(struct dec_serial));
+		return 0;
+
+	default:
+		return -ENOIOCTLCMD;
+	}
 	return 0;
 }
 
@@ -1417,7 +1413,8 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 {
 	struct dec_serial *info = (struct dec_serial *) tty->driver_data;
-	unsigned long orig_jiffies, char_time;
+	unsigned long orig_jiffies;
+	int char_time;
 
 	if (serial_paranoia_check(info, tty->name, "rs_wait_until_sent"))
 		return;
@@ -1433,7 +1430,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 	if (char_time == 0)
 		char_time = 1;
 	if (timeout)
-		char_time = MIN(char_time, timeout);
+		char_time = min(char_time, timeout);
 	while ((read_zsreg(info->zs_channel, 1) & Tx_BUF_EMP) == 0) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule_timeout(char_time);
