@@ -252,7 +252,7 @@ extern inline void pte_init(unsigned long page)
 
 	bp = pte_val(BAD_PAGE);
  	p = (unsigned long *) page;
-	end = p + PTRS_PER_PTE;
+	end = p + (2 * PTRS_PER_PTE);
 
 	while (p < end) {
 		p[0] = p[1] = p[2] = p[3] =
@@ -348,6 +348,7 @@ void __init paging_init(void)
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
 	pmd_init((unsigned long)invalid_pmd_table);
+	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * 2 * PTRS_PER_PTE);
 
 	max_dma =  virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;
