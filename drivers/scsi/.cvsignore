@@ -1,5 +1,2 @@
 .depend
 .*.flags
-aic7xxx_asm
-aic7xxx_seq.h
-53c700-mem.c
