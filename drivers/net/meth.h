@@ -108,8 +108,9 @@ typedef union rx_status_vector {
 
 typedef struct rx_packet {
 	rx_status_vector status;
-	u64 pad[4]; /* For whatever reason, there needs to be 4 double-word offset */
-	char buf[METH_RX_BUFF_SIZE-sizeof(rx_status_vector)-sizeof(u64)];/* data */
+        u64 pad[3]; /* For whatever reason, there needs to be 4 double-word offset */
+        u16 pad2;
+	char buf[METH_RX_BUFF_SIZE-sizeof(rx_status_vector)-3*sizeof(u64)-sizeof(u16)];/* data */
 } rx_packet;
 
 typedef struct meth_regs {
@@ -239,13 +240,13 @@ typedef struct meth_regs {
 #define METH_INT_RX_UNDERFLOW	BIT(6)	/* 0: No interrupt pending, 1: FIFO was empty, packet could not be queued */
 #define METH_INT_RX_OVERFLOW		BIT(7)	/* 0: No interrupt pending, 1: DMA FIFO Overflow, DMA stopped, FATAL */
 
-						/* Bits 8 through 12 alias of RX read-pointer */
+#define METH_INT_RX_RPTR_MASK 0x0001F00		/* Bits 8 through 12 alias of RX read-pointer */
 
 						/* Bits 13 through 15 are always 0. */
 
-#define METH_INT_RPTR_MASK 0x1FF0000	/* Bits 16 through 24 alias of TX read-pointer */
+#define METH_INT_TX_RPTR_MASK 0x1FF0000	        /* Bits 16 through 24 alias of TX read-pointer */
 
-						/* Bits 25 through 29 are the starting seq number for the message at the */
+#define METH_INT_SEQ_MASK    0x2E000000	        /* Bits 25 through 29 are the starting seq number for the message at the */
 						/* top of the queue */
 
 #define METH_ERRORS ( \
