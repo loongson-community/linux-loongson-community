@@ -949,6 +949,7 @@ extern asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
 static inline int
 get_fd_set32(unsigned long n, unsigned long *fdset, u32 *ufdset)
 {
+#ifdef __MIPSEB__
 	if (ufdset) {
 		unsigned long odd;
 
@@ -975,6 +976,9 @@ get_fd_set32(unsigned long n, unsigned long *fdset, u32 *ufdset)
 		memset(fdset, 0, ((n + 1) & ~1)*sizeof(u32));
 	}
 	return 0;
+#else
+	<<Bomb - little endian support must define this>>
+#endif
 }
 
 static inline void
