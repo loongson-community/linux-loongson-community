@@ -94,11 +94,11 @@ void __init ip22_setup(void)
 	 */
 	ctype = ArcGetEnvironmentVariable("console");
 	if (ctype && *ctype == 'd') {
-		char p[16];
+		static char con[16];
 		char *dbaud = ArcGetEnvironmentVariable("dbaud");
-		sprintf(p, "ttyS%c,%s", *(ctype + 1) == '2' ? '1' : '0',
-					dbaud ? dbaud : "9600");
-		console_setup(p);
+		sprintf(con, "ttyS%c,%s", *(ctype + 1) == '2' ? '1' : '0',
+					  dbaud ? dbaud : "9600");
+		console_setup(con);
 	} else if (!ctype || *ctype != 'g') {
 		/* Use ARC if we don't want serial ('d') or Newport ('g'). */
 		prom_flags |= PROM_FLAG_USE_AS_CONSOLE;
