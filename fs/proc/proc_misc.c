@@ -45,7 +45,7 @@
  * have a way to deal with that gracefully. Right now I used straightforward
  * wrappers, but this needs further analysis wrt potential overflows.
  */
-extern int get_cpuinfo(char *);
+extern int get_cpuinfo(char *, char **, off_t, int);
 extern int get_hardware_list(char *);
 extern int get_stram_list(char *);
 #ifdef CONFIG_DEBUG_MALLOC
@@ -216,12 +216,8 @@ static int version_read_proc(char *page, char **start, off_t off,
 static int cpuinfo_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
 {
-	int len = get_cpuinfo(page);
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
+	int len = get_cpuinfo(page, start, off, count);
+	if (len < count) *eof = 1;
 	return len;
 }
 
