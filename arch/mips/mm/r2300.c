@@ -20,13 +20,6 @@
 #include <asm/io.h>
 #include <asm/wbflush.h>
 
-/*
- * According to the paper written by D. Miller about Linux cache & TLB
- * flush implementation, DMA/Driver coherence should be done at the 
- * driver layer.  Thus, normally, we don't need flush dcache for R3000.
- * Define this if driver does not handle cache consistency during DMA ops.
- */
-
 /* Primary cache parameters. */
 static int icache_size, dcache_size; /* Size in bytes */
 /* the linesizes are usually fixed on R3000s */
@@ -387,16 +380,13 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 #ifdef DEBUG_CACHE
 	printk("csigtramp[%08lx]", addr);
 #endif
-	/*
-	 * I am assuming an 8 Byte cacheline here. HK
-	 */
-	addr &= ~7;
 
 	save_and_cli(flags);
 
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
 
 	asm ( 	"sb\t$0,0x000(%0)\n\t"
+		"sb\t$0,0x004(%0)\n\t"
 		"sb\t$0,0x008(%0)\n\t"
 		: : "r" (addr) );
 
