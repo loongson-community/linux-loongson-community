@@ -30,7 +30,7 @@
  * Offset to the current process status flags, the first 32 bytes of the
  * stack are not used.
  */
-#define ST_OFF (THREAD_SIZE - 32 - PT_SIZE + PT_STATUS)
+#define ST_OFF (_THREAD_SIZE - 32 - PT_SIZE + PT_STATUS)
 
 /*
  * FPU context is saved iff the process has used it's FPU in the current
@@ -86,7 +86,7 @@ LEAF(resume)
 	move	$28, a2
 	cpu_restore_nonscratch a1
 
-	addiu	t1, $28, THREAD_SIZE-32
+	addiu	t1, $28, _THREAD_SIZE - 32
 	sw	t1, kernelsp
 
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
