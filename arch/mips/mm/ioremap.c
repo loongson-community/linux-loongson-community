@@ -111,9 +111,10 @@ static int remap_area_pages(unsigned long address, phys_t phys_addr,
 
 void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 {
-	void * addr;
 	struct vm_struct * area;
-	unsigned long offset, last_addr;
+	unsigned long offset;
+	phys_t last_addr;
+	void * addr;
 
 	/* Don't allow wraparound or zero size */
 	last_addr = phys_addr + size - 1;
