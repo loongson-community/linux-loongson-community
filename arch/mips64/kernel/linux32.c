@@ -941,6 +941,156 @@ extern asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
 	return sys_llseek(fd, offset_high, offset_low, result, origin);
 }
 
+struct iovec32 { unsigned int iov_base; int iov_len; };
+
+typedef ssize_t (*IO_fn_t)(struct file *, char *, size_t, loff_t *);
+
+static long
+do_readv_writev32(int type, struct file *file, const struct iovec32 *vector,
+		  u32 count)
+{
+	unsigned long tot_len;
+	struct iovec iovstack[UIO_FASTIOV];
+	struct iovec *iov=iovstack, *ivp;
+	struct inode *inode;
+	long retval, i;
+	IO_fn_t fn;
+
+	/* First get the "struct iovec" from user memory and
+	 * verify all the pointers
+	 */
+	if (!count)
+		return 0;
+	if(verify_area(VERIFY_READ, vector, sizeof(struct iovec32)*count))
+		return -EFAULT;
+	if (count > UIO_MAXIOV)
+		return -EINVAL;
+	if (count > UIO_FASTIOV) {
+		iov = kmalloc(count*sizeof(struct iovec), GFP_KERNEL);
+		if (!iov)
+			return -ENOMEM;
+	}
+
+	tot_len = 0;
+	i = count;
+	ivp = iov;
+	while(i > 0) {
+		u32 len;
+		u32 buf;
+
+		__get_user(len, &vector->iov_len);
+		__get_user(buf, &vector->iov_base);
+		tot_len += len;
+		ivp->iov_base = (void *)A(buf);
+		ivp->iov_len = (__kernel_size_t) len;
+		vector++;
+		ivp++;
+		i--;
+	}
+
+	inode = file->f_dentry->d_inode;
+	/* VERIFY_WRITE actually means a read, as we write to user space */
+	retval = locks_verify_area((type == VERIFY_WRITE
+				    ? FLOCK_VERIFY_READ : FLOCK_VERIFY_WRITE),
+				   inode, file, file->f_pos, tot_len);
+	if (retval) {
+		if (iov != iovstack)
+			kfree(iov);
+		return retval;
+	}
+
+	/* Then do the actual IO.  Note that sockets need to be handled
+	 * specially as they have atomicity guarantees and can handle
+	 * iovec's natively
+	 */
+	if (inode->i_sock) {
+		int err;
+		err = sock_readv_writev(type, inode, file, iov, count, tot_len);
+		if (iov != iovstack)
+			kfree(iov);
+		return err;
+	}
+
+	if (!file->f_op) {
+		if (iov != iovstack)
+			kfree(iov);
+		return -EINVAL;
+	}
+	/* VERIFY_WRITE actually means a read, as we write to user space */
+	fn = file->f_op->read;
+	if (type == VERIFY_READ)
+		fn = (IO_fn_t) file->f_op->write;		
+	ivp = iov;
+	while (count > 0) {
+		void * base;
+		int len, nr;
+
+		base = ivp->iov_base;
+		len = ivp->iov_len;
+		ivp++;
+		count--;
+		nr = fn(file, base, len, &file->f_pos);
+		if (nr < 0) {
+			if (retval)
+				break;
+			retval = nr;
+			break;
+		}
+		retval += nr;
+		if (nr != len)
+			break;
+	}
+	if (iov != iovstack)
+		kfree(iov);
+	return retval;
+}
+
+asmlinkage long
+sys32_readv(int fd, struct iovec32 *vector, u32 count)
+{
+	struct file *file;
+	long ret = -EBADF;
+
+	lock_kernel();
+	file = fget(fd);
+	if(!file)
+		goto bad_file;
+
+	if(!(file->f_mode & 1))
+		goto out;
+
+	ret = do_readv_writev32(VERIFY_WRITE, file,
+				vector, count);
+out:
+	fput(file);
+bad_file:
+	unlock_kernel();
+	return ret;
+}
+
+asmlinkage long
+sys32_writev(int fd, struct iovec32 *vector, u32 count)
+{
+	struct file *file;
+	int ret = -EBADF;
+
+	lock_kernel();
+	file = fget(fd);
+	if(!file)
+		goto bad_file;
+
+	if(!(file->f_mode & 2))
+		goto out;
+
+	ret = do_readv_writev32(VERIFY_READ, file,
+				vector, count);
+out:
+	fput(file);
+bad_file:
+	unlock_kernel();
+	return ret;
+}
+
 /*
  * Ooo, nasty.  We need here to frob 32-bit unsigned longs to
  * 64-bit unsigned longs.
@@ -1142,10 +1292,11 @@ sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp)
 	struct timespec t;
 	int ret;
 	mm_segment_t old_fs = get_fs ();
-	
+
 	if (get_user (t.tv_sec, &rqtp->tv_sec) ||
 	    __get_user (t.tv_nsec, &rqtp->tv_nsec))
 		return -EFAULT;
+	
 	set_fs (KERNEL_DS);
 	ret = sys_nanosleep(&t, rmtp ? &t : NULL);
 	set_fs (old_fs);
