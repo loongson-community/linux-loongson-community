@@ -35,7 +35,6 @@
 #include <asm/sn/arch.h>
 #include <asm/sn/hub.h>
 #include <asm/sn/intr.h>
-#include <asm/sn/intr_public.h>
 
 #undef DEBUG_IRQ
 #ifdef DEBUG_IRQ

@@ -22,7 +22,6 @@
 
 #ifdef CONFIG_SGI_IP27
 #include <asm/sn/types.h>
-#include <asm/sn/intr_public.h>
 #endif
 
 /*
