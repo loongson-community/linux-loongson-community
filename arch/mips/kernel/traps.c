@@ -65,7 +65,6 @@ extern int fpu_emulator_cop1Handler(int, struct pt_regs *);
 static char *cpu_names[] = CPU_NAMES;
 
 char watch_available = 0;
-char dedicated_iv_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
 void (*dbe_board_handler)(struct pt_regs *regs);
@@ -660,21 +659,6 @@ static inline void watch_init(void)
 }
 
 /*
- * Some MIPS CPUs have a dedicated interrupt vector which reduces the
- * interrupt processing overhead.  Use it where available.
- */
-static inline void setup_dedicated_int(void)
-{
-	extern void except_vec4(void);
-
-	if(mips_cpu.options & MIPS_CPU_DIVEC) {
-		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
-		set_cp0_cause(CAUSEF_IV);
-		dedicated_iv_available = 1;
-	}
-}
-
-/*
  * Some MIPS CPUs can enable/disable for cache parity detection, but does
  * it different ways.
  */
@@ -740,7 +724,8 @@ void *set_except_vector(int n, void *addr)
 	unsigned handler = (unsigned long) addr;
 	unsigned old_handler = exception_handlers[n];
 	exception_handlers[n] = handler;
-	if (n == 0 && dedicated_iv_available) {
+
+	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
 		flush_icache_range(KSEG0+0x200, KSEG0 + 0x204);
@@ -763,6 +748,7 @@ void __init trap_init(void)
 	extern char except_vec1_generic, except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec_ejtag_debug;
+	extern char except_vec4;
 	unsigned long i;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
@@ -790,7 +776,14 @@ void __init trap_init(void)
 	 * interrupt vector.
 	 */
 	watch_init();
-	setup_dedicated_int();
+	/*
+	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
+	 * interrupt processing overhead.  Use it where available.
+	 */
+	if (mips_cpu.options & MIPS_CPU_DIVEC) {
+		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
+		set_cp0_cause(CAUSEF_IV);
+	}
 
 	/*
 	 * Some CPUs can enable/disable for cache parity detection, but does
