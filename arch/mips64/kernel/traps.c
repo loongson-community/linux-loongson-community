@@ -767,18 +767,12 @@ void __init trap_init(void)
 	if (mips_cpu.options & MIPS_CPU_MCHECK)
 		set_except_vector(24, handle_mcheck);
 
-	/*
-	 * Handling the following exceptions depends mostly of the cpu type
-	 */
-	if ((mips_cpu.options & MIPS_CPU_4KEX)
-	    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
-		/* Cache error vector already set above.  */
-
-		if (mips_cpu.options & MIPS_CPU_VCE) {
-			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
-			       0x80);
-		}
-	}
+	if (mips_cpu.options & MIPS_CPU_VCE)
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
+	else if (mips_cpu.options & MIPS_CPU_4KEX)
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
+	else
+		memcpy((void *)(KSEG0 + 0x080), &except_vec3_generic, 0x80);
 
 	if (mips_cpu.cputype == CPU_R6000 || mips_cpu.cputype == CPU_R6000A) {
 		/*
