@@ -735,8 +735,14 @@ asmlinkage void do_watch(struct pt_regs *regs)
 asmlinkage void do_mcheck(struct pt_regs *regs)
 {
 	show_regs(regs);
-	panic("Caught Machine Check exception - probably caused by multiple "
-	      "matching entries in the TLB.");
+	dump_tlb_all();
+	/*
+	 * Some chips may have other causes of machine check (e.g. SB1
+	 * graduation timer)
+	 */
+	panic("Caught Machine Check exception - %scaused by multiple "
+	      "matching entries in the TLB.",
+	      (regs->cp0_status & ST0_TS) ? "" : "not ");
 }
 
 asmlinkage void do_reserved(struct pt_regs *regs)
