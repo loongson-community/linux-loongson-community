@@ -50,7 +50,7 @@ The suggested device naming scheme is:
 /dev/cciss/c1d1p3		Controller 1, disk 1, partition 3
 
 SCSI tape drive and medium changer support
------------------------------------------- Documentation/cciss.txt     
+------------------------------------------
 
 SCSI sequential access devices and medium changer devices are supported and 
 appropriate device nodes are automatically created.  (e.g.  
@@ -82,7 +82,7 @@ detected, the SCSI core will not be engaged by the action of the above
 script.
 
 Hot plug support for SCSI tape drives
-------------------------------------- Documentation/cciss.txt     
+-------------------------------------
 
 Hot plugging of SCSI tape drives is supported, with some caveats.
 The cciss driver must be informed that changes to the SCSI bus

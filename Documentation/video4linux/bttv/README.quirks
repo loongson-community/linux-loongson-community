@@ -15,10 +15,10 @@ HTH,
 
   Gerd
 
----------------------------- Documentation/video4linux/bttv/README.quirks here --------------------------   
+---------------------------- cut here --------------------------
 
 Normal PCI Mode
---------------- Documentation/video4linux/bttv/README.quirks     
+---------------
 
 The PCI REQ signal is the logical-or of the incoming function requests.
 The inter-nal GNT[0:1] signals are gated asynchronously with GNT and
@@ -35,7 +35,7 @@ tolerate.
 
 
 430FX Compatibility Mode
------------------------- Documentation/video4linux/bttv/README.quirks     
+------------------------
 
 When using the 430FX PCI, the following rules will ensure
 compatibility: 
@@ -67,7 +67,7 @@ asynchronously until GNT is again asserted.
 
 
 Interfacing with Non-PCI 2.1 Compliant Core Logic
-------------------------------------------------- Documentation/video4linux/bttv/README.quirks     
+-------------------------------------------------
 
 A small percentage of core logic devices may start a bus transaction
 during the same cycle that GNT is de-asserted. This is non PCI 2.1

@@ -1,5 +1,5 @@
 Module options
--------------- drivers/char/mwave/README     
+--------------
 
 The mwave module takes the following options.  Note that these options
 are not saved by the BIOS and so do not persist after unload and reload.
@@ -39,7 +39,7 @@ Example to enable the 3780i DSP using ttyS1 resources:
   insmod mwave mwave_3780i_irq=10 mwave_3780i_io=0x0130 mwave_uart_irq=3 mwave_uart_io=0x2f8
 
 Accessing the driver
--------------------- drivers/char/mwave/README     
+--------------------
 
 You must also create a node for the driver.  Without devfs:
   mkdir -p /dev/modems

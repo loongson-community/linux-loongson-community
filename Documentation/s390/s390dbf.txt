@@ -364,7 +364,7 @@ Example:
 5
 
 Flushing debug areas
--------------------- Documentation/s390/s390dbf.txt     
+--------------------
 Debug areas can be flushed with piping the number of the desired
 area (0...n) to the proc file "flush". When using "-" all debug areas
 are flushed.

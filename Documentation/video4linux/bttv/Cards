@@ -2,7 +2,7 @@ Suppported cards:
 
 
 Bt848/Bt848a/Bt849/Bt878/Bt879 cards
------------------------------------- Documentation/video4linux/bttv/Cards     
+------------------------------------
 
 All cards with Bt848/Bt848a/Bt849/Bt878/Bt879 and normal Composite/S-VHS inputs
 are supported.
@@ -17,7 +17,7 @@ EEPROMs, teletext decoders ...
 
 
 MATRIX Vision
-------------- Documentation/video4linux/bttv/Cards     
+-------------
 
 MV-Delta
 - Bt848A
@@ -37,7 +37,7 @@ Bt848a/Bt849 single crytal operation support possible!!!
 
 
 Miro/Pinnacle PCTV
------------------- Documentation/video4linux/bttv/Cards     
+------------------
 
 - Bt848 
   some (all??) come with 2 crystals for PAL/SECAM and NTSC 
@@ -57,7 +57,7 @@ in 1997!
 
 
 Hauppauge Win/TV pci
--------------------- Documentation/video4linux/bttv/Cards     
+--------------------
 
 There are many different versions of the Hauppauge cards with different 
 tuners (TV+Radio ...), teletext decoders.
@@ -88,7 +88,7 @@ e.g.:
 
 
 CPH-Series (CPH050, ...)
------------------------- Documentation/video4linux/bttv/Cards     
+------------------------
 Developed by TelSignal(?), OEMed by many vendors (Askey, Typhoon, 
   Anubis, Dynalink)
 
@@ -128,7 +128,7 @@ Developed by TelSignal(?), OEMed by many vendors (Askey, Typhoon,
   Other OEM often call these "Tview", "TView99" or else.
 
 Lifeview Flyvideo Series:
-------------------------- Documentation/video4linux/bttv/Cards     
+-------------------------
   The naming of these series differs in time and space.
 
   Identifying:
@@ -153,7 +153,7 @@ Lifeview Flyvideo Series:
 
 
 Typhoon TV card series:
------------------------ Documentation/video4linux/bttv/Cards     
+-----------------------
   These can be CPH, Flyvideo, Pixelview or KNC1 series.
   Typhoon is the brand of Anubis.
   Model 50680 got re-used, some model no. had different contents over time.
@@ -175,16 +175,16 @@ Typhoon TV card series:
 
 
 Guillemot
---------- Documentation/video4linux/bttv/Cards     
+---------
   Maxi TV Video 2 = LR50 Rev.Q (FI1216MF, PAL BG+SECAM)
   Maxi TV Video 3 = CPH064 (PAL BG + SECAM)
 
 Mentor
------- Documentation/video4linux/bttv/Cards     
+------
   Mentor TV card ("55-878TV-U1") = Pixelview 878TV(Rev.3F) (w/FM w/Remote)
 
 Prolink
-------- Documentation/video4linux/bttv/Cards     
+-------
    Pixelview Play TV Pro:
      PV-BT878P+rev.9B (Play TV Pro w/FM w/NICAM)
      PV-BT878P+rev.8X 
@@ -197,14 +197,14 @@ Prolink
      PV-BT848P+
 
 Dynalink
--------- Documentation/video4linux/bttv/Cards     
+--------
    These are CPH series.
 
 Phoebemicro
------------ Documentation/video4linux/bttv/Cards     
+-----------
    TV Master    = CPH030 or CPH060
    TV Master FM = CPH050
 
 Genius/Kye
----------- Documentation/video4linux/bttv/Cards     
+----------
    Video Wonder/Genius Internet Video Kit = LR37 Rev.C

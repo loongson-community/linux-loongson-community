@@ -94,7 +94,7 @@ If anyone needs any more specific info, let me know. I haven't had time
 to implement support myself yet, and with the way things are going, might
 not have time for a while..
 
----end drivers/net/wireless/orinoco_plx.c mail---    
+---end of mail---
 
   Bus  0, device   4, function  0:
     Network controller: Unknown vendor Unknown device (rev 2).

@@ -742,7 +742,6 @@ found:
 		guess = "Standard PC (1900)";
 #endif
 	}
-
 	if (guess)
 		printk(KERN_INFO "rtc: %s epoch (%lu) detected\n", guess, epoch);
 #endif

@@ -95,7 +95,7 @@ you allocated, call the corresponding release_*_region and free the
 interrupt.
 
 Handling Interrupts
-------------------- drivers/scsi/README.53c700     
+-------------------
 
 In general, you should just plumb the card's interrupt line in with 
 
@@ -109,7 +109,7 @@ you have a card with more than one chip on it and you can read a
 register to tell which set of chips wants the interrupt.
 
 Settable NCR_700_Host_Parameters
--------------------------------- drivers/scsi/README.53c700     
+--------------------------------
 
 The following are a list of the user settable parameters:
 

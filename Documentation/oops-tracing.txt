@@ -203,7 +203,7 @@ Fargo, ND  58122
 Phone: 701-234-7556
 
 
---------------------------------------------------------------------------- Documentation/oops-tracing.txt     
+---------------------------------------------------------------------------
 Tainted kernels:
 
 Some oops reports contain the string 'Tainted: ' after the program
