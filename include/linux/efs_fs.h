@@ -1,13 +1,17 @@
 /*
- * efs.h
+ * efs_fs.h
  *
  * Copyright (c) 1999 Al Smith
  *
  * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#ifndef __EFS_H__
-#define __EFS_H__
+#ifndef __EFS_FS_H__
+#define __EFS_FS_H__
+
+#define VERSION "0.97"
+
+static const char cprt[] = "EFS: version "VERSION" - (c) 1999 Al Smith <Al.Smith@aeschi.ch.eu.org>";
 
 #include <linux/stat.h>
 #include <linux/sched.h>
@@ -25,10 +29,11 @@
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
 
-#include "efs_vh.h"
-#include "efs_super.h"
-#include "efs_inode.h"
-#include "efs_dir.h"
+#define	EFS_BLOCKSIZE		512
+#define	EFS_BLOCKSIZE_BITS	9
+
+#include <linux/efs_fs_i.h>
+#include <linux/efs_dir.h>
 
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -37,13 +42,19 @@
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #endif
 
-/* private inode storage */
-struct efs_in_info {
-	int		numextents;
-	int		lastextent;
-
-	efs_extent	extents[EFS_DIRECTEXTENTS];
+/* efs superblock information in memory */
+struct efs_spb {
+	int32_t	fs_magic;	/* superblock magic number */
+	int32_t	fs_start;	/* first block of filesystem */
+	int32_t	first_block;	/* first data block in filesystem */
+	int32_t	total_blocks;	/* total number of blocks in filesystem */
+	int32_t	group_size;	/* # of blocks a group consists of */ 
+	int32_t	data_free;	/* # of free data blocks */
+	int32_t	inode_free;	/* # of free inodes */
+	short	inode_blocks;	/* # of blocks used for inodes in every grp */
+	short	total_groups;	/* # of groups */
 };
+
 
 extern struct inode_operations efs_dir_inode_operations;
 extern struct inode_operations efs_file_inode_operations;
@@ -61,5 +72,7 @@ extern efs_block_t efs_read_block(struct inode *, efs_block_t);
 extern int efs_lookup(struct inode *, struct dentry *);
 extern int efs_bmap(struct inode *, int);
 
-#endif /* __EFS_H__ */
+extern int init_efs_fs(void);
+
+#endif /* __EFS_FS_H__ */
 

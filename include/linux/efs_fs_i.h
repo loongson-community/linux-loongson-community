@@ -1,65 +1,31 @@
 /*
- * efs_ino.h
+ * efs_fs_i.h
  *
  * Copyright (c) 1999 Al Smith
  *
  * Portions derived from IRIX header files (c) 1988 Silicon Graphics
  */
 
-#ifndef	__EFS_INO_
-#define	__EFS_INO_
+#ifndef	__EFS_FS_I_H__
+#define	__EFS_FS_I_H__
 
 typedef	int32_t		efs_block_t;
 typedef uint32_t	efs_ino_t;
 
-/* this is very icky */
-union extent1 {
-#ifdef __LITTLE_ENDIAN
-	struct s1 {
-		unsigned int	ex_bn:24;	/* basic block # */
-		unsigned int	ex_magic:8;	/* magic # (zero) */
-	} s;
-#else
-#ifdef __BIG_ENDIAN
-	struct s1 {
-		unsigned int	ex_magic:8;	/* magic # (zero) */
-		unsigned int	ex_bn:24;	/* basic block # */
-	} s;
-#else
-#error system endianness is undefined
-#endif
-#endif
-	unsigned long l;
-} extent1;
-
-union extent2 {
-#ifdef __LITTLE_ENDIAN
-	struct s2 {
-		unsigned int	ex_offset:24; /* logical bb offset into file */
-		unsigned int	ex_length:8;  /* numblocks in this extent */
-	} s;
-#else
-#ifdef __BIG_ENDIAN
-	struct s2 {
-		unsigned int	ex_length:8;  /* numblocks in this extent */
-		unsigned int	ex_offset:24; /* logical bb offset into file */
-	} s;
-#else
-#error system endianness is undefined
-#endif
-#endif
-	unsigned long l;
-} extent2;
+#define	EFS_DIRECTEXTENTS	12
 
 /*
  * layout of an extent, in memory and on disk. 8 bytes exactly
  */
-typedef struct	extent {
-	union extent1 u1;
-	union extent2 u2;
+typedef union extent_u {
+	struct extent_s {
+		unsigned int	ex_magic:8;	/* magic # (zero) */
+		unsigned int	ex_bn:24;	/* basic block */
+		unsigned int	ex_length:8;	/* numblocks in this extent */
+		unsigned int	ex_offset:24;	/* logical offset into file */
+	} cooked;
+	unsigned char	raw[8];
 } efs_extent;
-
-#define	EFS_DIRECTEXTENTS	12
 
 /*
  * extent based filesystem inode as it appears on disk.  The efs inode
@@ -84,5 +50,13 @@ struct	efs_dinode {
 	} di_u;
 };
 
-#endif	/* __EFS_INO_ */
+/* efs inode storage in memory */
+struct efs_inode_info {
+	int		numextents;
+	int		lastextent;
+
+	efs_extent	extents[EFS_DIRECTEXTENTS];
+};
+
+#endif	/* __EFS_FS_I_H__ */
 
