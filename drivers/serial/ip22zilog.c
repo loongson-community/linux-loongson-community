@@ -1100,28 +1100,19 @@ static struct console ip22zilog_console = {
 	.index	=	-1,
 	.data	=	&ip22zilog_reg,
 };
-#define IP22ZILOG_CONSOLE	(&ip22zilog_console)
-
-static int __init ip22zilog_console_init(void)
-{
-	register_console(&ip22zilog_console);
-	return 0;
-}
-#else /* CONFIG_SERIAL_IP22_ZILOG_CONSOLE */
-#define IP22ZILOG_CONSOLE		(NULL)
-#define ip22zilog_console_init()	do { } while (0)
-#endif
+#endif /* CONFIG_SERIAL_IP22_ZILOG_CONSOLE */
 
 static struct uart_driver ip22zilog_reg = {
 	.owner		= THIS_MODULE,
 	.driver_name	= "serial",
-	.devfs_name	= "tty/",
+	.devfs_name	= "tts/",
 	.dev_name	= "ttyS",
 	.major		= TTY_MAJOR,
 	.minor		= 64,
 	.nr		= NUM_CHANNELS,
-	.cons		= IP22ZILOG_CONSOLE,
-
+#ifdef CONFIG_SERIAL_IP22_ZILOG_CONSOLE
+	.cons		= &ip22zilog_console,
+#endif
 };
 
 static void __init ip22zilog_prepare(void)
@@ -1254,7 +1245,6 @@ static int __init ip22zilog_init(void)
 	/* IP22 Zilog setup is hard coded, no probing to do.  */
 	ip22zilog_alloc_tables();
 	ip22zilog_ports_init();
-	ip22zilog_console_init();
 
 	return 0;
 }
