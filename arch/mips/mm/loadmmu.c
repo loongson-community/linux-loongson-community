@@ -119,6 +119,7 @@ void __init loadmmu(void)
 #endif
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
+	case CPU_R12000:
 		ld_mmu_andes();
 		r4k_tlb_init();
 		break;

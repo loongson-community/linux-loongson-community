@@ -75,6 +75,7 @@ void __init load_mmu(void)
 	} else switch(mips_cpu.cputype) {
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
+	case CPU_R12000:
 		printk(KERN_INFO "Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
 		break;
