@@ -77,10 +77,10 @@ int kstack_depth_to_print = 24;
  * This routine abuses get_user()/put_user() to reference pointers
  * with at least a bit of error checking ...
  */
-void show_stack(unsigned int *sp)
+void show_stack(unsigned long *sp)
 {
 	int i;
-	unsigned int *stack;
+	unsigned long *stack;
 
 	stack = sp;
 	i = 0;
@@ -94,22 +94,22 @@ void show_stack(unsigned int *sp)
 			break;
 		}
 
-		printk(" %08lx", stackdata);
+		printk(" %016lx", stackdata);
 
 		if (++i > 40) {
 			printk(" ...");
 			break;
 		}
 
-		if (i % 8 == 0)
+		if (i % 4 == 0)
 			printk("\n      ");
 	}
 }
 
-void show_trace(unsigned int *sp)
+void show_trace(unsigned long *sp)
 {
 	int i;
-	unsigned int *stack;
+	unsigned long *stack;
 	unsigned long kernel_start, kernel_end;
 	unsigned long module_start, module_end;
 	extern char _stext, _etext;
@@ -144,7 +144,7 @@ void show_trace(unsigned int *sp)
 		if ((addr >= kernel_start && addr < kernel_end) ||
 		    (addr >= module_start && addr < module_end)) { 
 
-			printk(" [<%08lx>]", addr);
+			printk(" [<%016lx>]", addr);
 			if (++i > 40) {
 				printk(" ...");
 				break;
@@ -160,12 +160,12 @@ void show_code(unsigned int *pc)
 	printk("\nCode:");
 
 	for(i = -3 ; i < 6 ; i++) {
-		unsigned long insn;
+		unsigned int insn;
 		if (__get_user(insn, pc + i)) {
 			printk(" (Bad address in epc)\n");
 			break;
 		}
-		printk("%c%08lx%c",(i?' ':'<'),insn,(i?' ':'>'));
+		printk("%c%08x%c",(i?' ':'<'),insn,(i?' ':'>'));
 	}
 }
 
@@ -182,8 +182,8 @@ void die(const char * str, struct pt_regs * regs, unsigned long err)
 	show_regs(regs);
 	printk("Process %s (pid: %ld, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
-	show_stack((unsigned int *) regs->regs[29]);
-	show_trace((unsigned int *) regs->regs[29]);
+	show_stack((unsigned long *) regs->regs[29]);
+	show_trace((unsigned long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
 	spin_unlock_irq(&die_lock);
