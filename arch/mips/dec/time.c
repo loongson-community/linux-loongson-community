@@ -495,7 +495,7 @@ void (*board_time_init) (struct irqaction * irq);
 
 void __init time_init(void)
 {
-	unsigned int year, mon, day, hour, min, sec;
+	unsigned int year, mon, day, hour, min, sec, real_year;
 	int i;
 
 	/* The Linux interpretation of the CMOS clock register contents:
