@@ -262,18 +262,23 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 		if (copy_from_user (&req, (void *) arg, sizeof (req)))
 			return -EFAULT;
 		/* Do not allow to attach to another region if it has been already attached */
-		if (shmiqs [minor].mapped)
+		if (shmiqs [minor].mapped){
+			printk ("SHMIQ:The thingie is already mapped\n");
 			return -EINVAL;
+		}
 
 		vaddr = (unsigned long) req.user_vaddr;
 		vma = find_vma (current->mm, vaddr);
-		if (!vma)
+		if (!vma){
+			printk ("SHMIQ: could not find %x the vma\n", vaddr);
 			return -EINVAL;
+		}
 		s = req.arg * sizeof (struct shmqevent) + sizeof (struct sharedMemoryInputQueue);
 		v = sys_munmap (vaddr, s);
 		do_mmap (filp, vaddr, s, PROT_READ | PROT_WRITE, MAP_PRIVATE|MAP_FIXED, 0);
 		shmiqs [minor].events = req.arg;
 		shmiqs [minor].mapped = 1;
+		return 0;
 	}
 	}
 	return -EINVAL;

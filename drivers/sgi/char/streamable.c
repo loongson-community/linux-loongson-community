@@ -47,6 +47,7 @@ get_sioc (struct strioctl *sioc, unsigned long arg)
 	return 0;
 }
 
+/* /dev/gfx device */
 static int
 sgi_gfx_open (struct inode *inode, struct file *file)
 {
@@ -65,9 +66,31 @@ static int
 sgi_gfx_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	printk ("GFX: ioctl 0x%x %ld called\n", cmd, arg);
+	return 0;
 	return -EINVAL;
 }
 
+struct file_operations sgi_gfx_fops = {
+	NULL,			/* llseek */
+	NULL,			/* read */
+	NULL,			/* write */
+	NULL,			/* readdir */
+	NULL,			/* poll */
+	sgi_gfx_ioctl,		/* ioctl */
+	NULL,			/* mmap */
+	sgi_gfx_open,		/* open */
+	sgi_gfx_close,		/* release */
+	NULL,			/* fsync */
+	NULL,			/* check_media_change */
+	NULL,			/* revalidate */
+	NULL			/* lock */
+};
+ 
+static struct miscdevice dev_gfx = {
+	SGI_GFX_MINOR, "sgi-gfx", &sgi_gfx_fops
+};
+
+/* /dev/input/keyboard streams device */
 static idevDesc sgi_kbd_desc = {
         "keyboard",             /* devName */
         "KEYBOARD",             /* devType */
@@ -160,27 +183,6 @@ kbd_forward_char (int ch)
 	shmiq_push_event (&ev);
 }
 
-struct file_operations sgi_gfx_fops = {
-	NULL,			/* llseek */
-	NULL,			/* read */
-	NULL,			/* write */
-	NULL,			/* readdir */
-	NULL,			/* poll */
-	sgi_gfx_ioctl,		/* ioctl */
-	NULL,			/* mmap */
-	sgi_gfx_open,		/* open */
-	sgi_gfx_close,		/* release */
-	NULL,			/* fsync */
-	NULL,			/* check_media_change */
-	NULL,			/* revalidate */
-	NULL			/* lock */
-};
- 
-/* /dev/gfx */
-static struct miscdevice dev_gfx = {
-	SGI_GFX_MINOR, "sgi-gfx", &sgi_gfx_fops
-};
-
 static int
 sgi_keyb_open (struct inode *inode, struct file *file)
 {
@@ -204,9 +206,149 @@ struct file_operations sgi_keyb_fops = {
 	NULL			/* lock */
 };
 
-/* /dev/input/keyboard */
 static struct miscdevice dev_input_keyboard = {
 	SGI_STREAMS_KEYBOARD, "streams-keyboard", &sgi_keyb_fops
+};
+
+/* /dev/input/mouse streams device */
+#define MOUSE_VALUATORS 2
+static idevDesc sgi_mouse_desc = {
+        "mouse",                /* devName */
+        "MOUSE",                /* devType */
+        3,                      /* nButtons */
+        MOUSE_VALUATORS,	/* nValuators */
+        0,                      /* nLEDs */
+        0,                      /* nStrDpys */
+        0,                      /* nIntDpys */
+        0,                      /* nBells */
+	0			/* flags */
+};
+
+static idevValuatorDesc mouse_default_valuator = {
+	200,			/* hwMinRes */
+        200,			/* hwMaxRes */
+        0,			/* hwMinVal */
+        65000,			/* hwMaxVal */
+        IDEV_EITHER,		/* possibleModes */
+        IDEV_ABSOLUTE,		/* default mode */
+        200,			/* resolution */
+        0,			/* minVal */
+        65000			/* maxVal */
+};
+
+static int mouse_opened;
+static idevValuatorDesc mouse_valuators [MOUSE_VALUATORS];
+	
+int
+sgi_mouse_open (struct inode *inode, struct file *file)
+{
+	int i;
+	
+	if (mouse_opened)
+		return -EBUSY;
+	
+	mouse_opened = 1;
+	for (i = 0; i < MOUSE_VALUATORS; i++)
+		mouse_valuators [i] = mouse_default_valuator;
+	return 0;
+}
+
+static int
+sgi_mouse_close (struct inode *inode, struct file *filp)
+{
+	mouse_opened = 0;
+	return 0;
+}
+
+static int
+sgi_mouse_sioc (idevInfo *dinfo, int cmd, int size, char *data, int *found)
+{
+	*found = 1;
+
+	switch (cmd){
+	case IDEVINITDEVICE:
+		return 0;
+			
+	case IDEVGETDEVICEDESC:
+		if (size >= sizeof (idevDesc)){
+			if (copy_to_user (data, &sgi_mouse_desc, sizeof (sgi_mouse_desc)))
+				return -EFAULT;
+			return 0;
+		}
+		return -EINVAL;
+
+	case IDEVGETVALUATORDESC: {
+		idevGetSetValDesc request, *ureq = (idevGetSetValDesc *) data;
+		
+		if (size < sizeof (idevGetSetValDesc))
+			return -EINVAL;
+
+		if (copy_from_user (&request, data, sizeof (request)))
+			return -EFAULT;
+		if (request.valNum >= MOUSE_VALUATORS)
+			return -EINVAL;
+		if (copy_to_user ((void *)&ureq->desc, 
+				  (void *)&mouse_valuators [request.valNum],
+				  sizeof (idevValuatorDesc)))
+			return -EFAULT;
+		return 0;
+	}
+	}
+	*found = 0;
+	return -EINVAL;
+}
+
+static int
+sgi_mouse_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+{
+	struct strioctl sioc;
+	int    f, v;
+
+	/* IRIX calls I_PUSH on the opened device, go figure */
+	switch (cmd){
+	case I_PUSH:
+		return 0;
+
+	case I_STR:
+		v = get_sioc (&sioc, arg);
+		if (v)
+			return v;
+		
+		/* Why like this?  Because this is a sample piece of code
+		 * that can be copied into other drivers and shows how to
+		 * call a stock IRIX xxx_wioctl routine
+		 *
+		 * The NULL is supposed to be a idevInfo, right now we
+		 * do not support this in our kernel.  
+		 */
+		return sgi_mouse_sioc (NULL, sioc.ic_cmd, sioc.ic_len, sioc.ic_dp, &f);
+		
+	case SHMIQ_ON:
+	case SHMIQ_OFF:
+		return 0;
+	}
+	return 0;
+}
+
+struct file_operations sgi_mouse_fops = {
+	NULL,			/* llseek */
+	NULL,			/* read */
+	NULL,			/* write */
+	NULL,			/* readdir */
+	NULL,			/* poll */
+	sgi_mouse_ioctl,	/* ioctl */
+	NULL,			/* mmap */
+	sgi_mouse_open,		/* open */
+	sgi_mouse_close,	/* release */
+	NULL,			/* fsync */
+	NULL,			/* check_media_change */
+	NULL,			/* revalidate */
+	NULL			/* lock */
+};
+
+/* /dev/input/mouse */
+static struct miscdevice dev_input_mouse = {
+	SGI_STREAMS_KEYBOARD, "streams-mouse", &sgi_mouse_fops
 };
 
 void
@@ -217,4 +359,5 @@ streamable_init (void)
 	
 	misc_register (&dev_gfx);
 	misc_register (&dev_input_keyboard);
+	misc_register (&dev_input_mouse);
 }
