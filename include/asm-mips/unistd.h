@@ -1015,7 +1015,7 @@
 #define __NR_ptrace			(__NR_Linux +  26)
 #define __NR_alarm			(__NR_Linux +  27)
 #define __NR_oldfstat			(__NR_Linux +  28)
-#define __NR_unused29			(__NR_Linux +  29)
+#define __NR_pause			(__NR_Linux +  29)
 #define __NR_utime			(__NR_Linux +  30)
 #define __NR_stty			(__NR_Linux +  31)
 #define __NR_gtty			(__NR_Linux +  32)
