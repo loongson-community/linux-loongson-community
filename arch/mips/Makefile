@@ -158,7 +158,7 @@ endif
 # Orion Board
 #
 ifdef CONFIG_ORION
-LIBS          += arch/mips/orion/orionkern.a
+CORE_FILES    += arch/mips/orion/orion.o
 SUBDIRS       += arch/mips/orion
 LINKSCRIPT    = arch/mips/orion/ld.script.orion
 endif
