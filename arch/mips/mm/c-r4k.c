@@ -118,7 +118,7 @@ static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (cpu_contexT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
