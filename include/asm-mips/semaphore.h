@@ -1,23 +1,21 @@
 /*
- * SMP- and interrupt-safe semaphores..
- *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * (C) Copyright 1996  Linus Torvalds
- * (C) Copyright 1998, 99, 2000, 01  Ralf Baechle
- * (C) Copyright 1999, 2000  Silicon Graphics, Inc.
- * Copyright (C) 2000, 01 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 1996  Linus Torvalds
+ * Copyright (C) 1998, 99, 2000, 01  Ralf Baechle
+ * Copyright (C) 1999, 2000, 01  Silicon Graphics, Inc.
+ * Copyright (C) 2000, 01 MIPS Technologies, Inc.
  */
 #ifndef _ASM_SEMAPHORE_H
 #define _ASM_SEMAPHORE_H
 
+#include <linux/config.h>
 #include <asm/system.h>
 #include <asm/atomic.h>
 #include <linux/spinlock.h>
 #include <linux/wait.h>
-#include <linux/config.h>
 #include <linux/rwsem.h>
 
 struct semaphore {
@@ -130,8 +128,7 @@ static inline int down_trylock(struct semaphore * sem)
  * down_trylock returns 0 on success, 1 if we failed to get the lock.
  *
  * We must manipulate count and waking simultaneously and atomically.
- * Here, we do this by using lld/scd on the pair of 32-bit words.  This
- * won't work on MIPS32 platforms, however, and must be rewritten.
+ * Here, we do this by using lld/scd on the pair of 32-bit words.
  *
  * Pseudocode:
  *
@@ -166,12 +163,12 @@ static inline int down_trylock(struct semaphore * sem)
 	"sll\t%2, %1, 0\n\t"
 	"blez\t%2, 1f\n\t"
 	"daddiu\t%1, %1, -1\n\t"
-	"b\t2f\n\t"
-	"1:\tdaddu\t%1, %1, %3\n"
+	"b\t2f\n"
+	"1:\tdaddu\t%1, %1, %3\n\t"
 	"li\t%0, 1\n"
 	"2:\tscd\t%1, %4\n\t"
 	"beqz\t%1, 0b\n\t"
-	".set	mips0"
+	".set\tmips0"
 	: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
 	: "m"(*sem)
 	: "memory");

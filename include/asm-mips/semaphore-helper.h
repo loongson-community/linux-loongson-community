@@ -3,8 +3,8 @@
  *
  * Copyright (C) 1996 Linus Torvalds
  * Copyright (C) 1999 Andrea Arcangeli
- * Copyright (C) 1999 Ralf Baechle
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1999, 2001, 2002 Ralf Baechle
+ * Copyright (C) 1999, 2001 Silicon Graphics, Inc.
  * Copyright (C) 2000 MIPS Technologies, Inc.
  */
 #ifndef _ASM_SEMAPHORE_HELPER_H
@@ -38,7 +38,7 @@ static inline int waking_non_zero(struct semaphore *sem)
 	"beqz\t%0, 1b\n"
 	"2:"
 	: "=r" (ret), "=r" (tmp), "+m" (sem->waking)
-	: "0"(0));
+	: "0" (0));
 
 	return ret;
 }
@@ -103,7 +103,7 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 	long ret, tmp;
 
 	__asm__ __volatile__(
-	".set\tpush\n\t"
+	".set\tpush\t\t\t# waking_non_zero_interruptible\n\t"
 	".set\tmips3\n\t"
 	".set\tnoat\n"
 	"0:\tlld\t%1, %2\n\t"
