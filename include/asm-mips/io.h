@@ -130,16 +130,16 @@ extern inline void * bus_to_virt(unsigned long address)
  */
 extern unsigned long isa_slot_offset;
 
-extern void * __ioremap(unsigned long offset, unsigned long size);
+extern void * __ioremap(unsigned long offset, unsigned long size, unsigned long flags);
 
 extern inline void *ioremap(unsigned long offset, unsigned long size)
 {
-	return __ioremap(offset, size);
+	return __ioremap(offset, size, _CACHE_UNCACHED);
 }
 
 extern inline void *ioremap_nocache(unsigned long offset, unsigned long size)
 {
-	return __ioremap(offset, size);
+	return __ioremap(offset, size, _CACHE_UNCACHED);
 }
 
 extern void iounmap(void *addr);
