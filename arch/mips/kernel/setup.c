@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.11 1999/01/03 17:50:52 ralf Exp $
+/* $Id: setup.c,v 1.12 1999/02/06 03:57:41 adevries Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -114,14 +114,6 @@ extern char empty_zero_page[PAGE_SIZE];
  * This is set up by the setup-routine at boot-time
  */
 #define PARAM	empty_zero_page
-#if 0
-#define ORIG_ROOT_DEV (*(unsigned short *) (PARAM+0x1FC))
-#define AUX_DEVICE_INFO (*(unsigned char *) (PARAM+0x1FF))
-#endif
-#define LOADER_TYPE (*(unsigned char *) (PARAM+0x210))
-#define KERNEL_START (*(unsigned long *) (PARAM+0x214))
-#define INITRD_START (*(unsigned long *) (PARAM+0x218))
-#define INITRD_SIZE (*(unsigned long *) (PARAM+0x21c))
 
 static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];
@@ -154,6 +146,10 @@ __initfunc(void setup_arch(char **cmdline_p,
            unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
 	unsigned long memory_end;
+#ifdef CONFIG_BLK_DEV_INITRD
+	unsigned long tmp;
+	unsigned long *initrd_header;
+#endif
 	void cobalt_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
@@ -220,15 +216,21 @@ __initfunc(void setup_arch(char **cmdline_p,
 	*memory_end_p = memory_end;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	if (LOADER_TYPE) {
-		initrd_start = INITRD_START;
-		initrd_end = INITRD_START+INITRD_SIZE;
+	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
+	if (tmp < (unsigned long)&_end)
+		tmp += PAGE_SIZE;
+	initrd_header = (unsigned long *)tmp;
+	if (initrd_header[0] == 0x494E5244) {
+		initrd_start = (unsigned long)&initrd_header[2];
+		initrd_end = initrd_start + initrd_header[1];
+		initrd_below_start_ok = 1;
 		if (initrd_end > memory_end) {
 			printk("initrd extends beyond end of memory "
 			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
 			       initrd_end,memory_end);
-		initrd_start = 0;
-		}
+			initrd_start = 0;
+		} else
+			*memory_start_p = initrd_end;
 	}
 #endif
 }
