@@ -434,11 +434,6 @@ source drivers/media/Config.in
 if [ "$CONFIG_DECSTATION" = "y" ]; then
    mainmenu_option next_comment
    comment 'DECStation Character devices'
-
-   bool 'Virtual terminal' CONFIG_VT
-   if [ "$CONFIG_VT" = "y" ]; then
-      bool 'Support for console on virtual terminal' CONFIG_VT_CONSOLE
-   fi
    tristate 'Standard/generic (dumb) serial support' CONFIG_SERIAL
    if [ "$CONFIG_SERIAL" = "y" ]; then
       bool 'DZ11 Serial Support' CONFIG_DZ

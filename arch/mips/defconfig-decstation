@@ -381,7 +381,6 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 # DECStation Character devices
 #
-# CONFIG_VT is not set
 CONFIG_SERIAL=y
 # CONFIG_DZ is not set
 CONFIG_ZS=y
