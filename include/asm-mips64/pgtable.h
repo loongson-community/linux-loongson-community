@@ -1,11 +1,10 @@
-/* $Id: pgtable.h,v 1.14 2000/03/02 02:37:13 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1999 by Ralf Baechle at alii
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1994 - 2000 by Ralf Baechle at alii
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PGTABLE_H
 #define _ASM_PGTABLE_H
@@ -44,7 +43,7 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
 
 #define flush_icache_range(start, end)	flush_cache_all()
-#define flush_icache_page(start, page)	do { } while(0)
+#define flush_icache_page(vma, page)	flush_cache_page(vma, page)
 
 
 /* Basically we have the same two-level (which is the logical three level
