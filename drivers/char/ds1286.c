@@ -98,7 +98,6 @@ static ssize_t ds1286_read(struct file *file, char *buf,
 static int ds1286_ioctl(struct inode *inode, struct file *file,
                         unsigned int cmd, unsigned long arg)
 {
-
 	struct rtc_time wtime;
 
 	switch (cmd) {
