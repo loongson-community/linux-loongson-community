@@ -404,9 +404,6 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 	w0 = rxb->w0;
 
 	while (w0 & ERXBUF_V) {
-		ioc3->eisr = EISR_RXTIMERINT;		/* Ack */
-		ioc3->eisr;				/* Flush */
-
 		err = rxb->err;				/* It's valid ...  */
 		if (err & ERXBUF_GOODPKT) {
 			len = (w0 >> ERXBUF_BYTECNT_SHIFT) & 0x7ff;
@@ -476,18 +473,16 @@ ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 
 	spin_lock(&ip->ioc3_lock);
 	etcir = ioc3->etcir;
+
 	tx_entry = (etcir >> 7) & 127;
 	o_entry = ip->tx_ci;
 	packets = 0;
 	bytes = 0;
 
 	while (o_entry != tx_entry) {
-		ioc3->eisr = EISR_TXEXPLICIT;		/* Ack */
-		ioc3->eisr;				/* Flush */
-
 		packets++;
-		bytes += skb->len;
 		skb = ip->tx_skbs[o_entry];
+		bytes += skb->len;
 		dev_kfree_skb_irq(skb);
 		ip->tx_skbs[o_entry] = NULL;
 
@@ -511,7 +506,9 @@ ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 /*
  * Deal with fatal IOC3 errors.  For now let's panic.  This condition might
  * be caused by a hard or software problems, so we should try to recover
- * more gracefully if this ever happens.
+ * more gracefully if this ever happens.  In theory we might be flooded
+ * with such error interrupts if something really goes wrong, so we might
+ * also consider to take the interface down.
  */
 static void
 ioc3_error(struct net_device *dev, struct ioc3_private *ip,
@@ -519,12 +516,19 @@ ioc3_error(struct net_device *dev, struct ioc3_private *ip,
 {
 	if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR)) {
 		if (eisr & EISR_RXMEMERR) {
-			panic("%s: RX PCI error.\n", dev->name);
+			printk(KERN_ERR "%s: RX PCI error.\n", dev->name);
 		}
 		if (eisr & EISR_TXMEMERR) {
-			panic("%s: TX PCI error.\n", dev->name);
+			printk(KERN_ERR "%s: TX PCI error.\n", dev->name);
 		}
 	}
+
+	ioc3_stop(dev);
+	ioc3_clean_tx_ring(dev->priv);
+	ioc3_init(dev);
+
+	dev->trans_start = jiffies;
+	netif_wake_queue(dev);
 }
 
 /* The interrupt handler does all of the Rx thread work and cleans up
@@ -534,29 +538,23 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	struct net_device *dev = (struct net_device *)_dev;
 	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
-	u32 eisr, eier;
+	const u32 enabled = EISR_RXTIMERINT | EISR_TXEXPLICIT |
+	                    EISR_RXMEMERR | EISR_TXMEMERR;
+	u32 eisr;
 
-	ip = dev->priv;
+	eisr = ioc3->eisr & enabled;
+	while (eisr) {
+		ioc3->eisr = eisr;
+		ioc3->eisr;				/* Flush */
 
-	eier = ioc3->eier;				/* Disable eth ints */
-	ioc3->eier = 0;
-	eisr = ioc3->eisr;
-	__sti();
-
-	if (eisr & EISR_RXTIMERINT) {
-		ioc3_rx(dev, ip, ioc3);
+		if (eisr & EISR_RXTIMERINT)
+			ioc3_rx(dev, ip, ioc3);
+		if (eisr & EISR_TXEXPLICIT)
+			ioc3_tx(dev, ip, ioc3);
+		if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR))
+			ioc3_error(dev, ip, ioc3, eisr);
+		eisr = ioc3->eisr & enabled;
 	}
-	if (eisr & EISR_TXEXPLICIT) {
-		ioc3_tx(dev, ip, ioc3);
-	}
-	if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR)) {
-		ioc3_error(dev, ip, ioc3, eisr);
-	}
-
-	__cli();
-	ioc3->eier = eier;
-
-	return;
 }
 
 /* One day this will do the autonegotiation.  */
@@ -610,7 +608,6 @@ int ioc3_mii_init(struct net_device *dev, struct ioc3_private *ip,
 	return 0;
 }
 
-/* To do: For reinit of the ring we have to cleanup old skbs first ... */
 static void
 ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
 	        struct ioc3 *ioc3)
