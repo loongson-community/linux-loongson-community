@@ -53,11 +53,6 @@ static void fixup_resource(int r_num, struct pci_dev *dev) ;
 static unsigned long virt_io_addr;
 #endif
 
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-	/* will need to fixup IO resources */
-}
-
 /*
  * Ralf: This isn't a fixup but yet necessary, so I didn't delete the code.
  * Anyway, pcibios_fixup is NOT called anymore so this means Au1x00 PCI
