@@ -13,7 +13,7 @@
 struct serial_struct {
 	int	type;
 	int	line;
-	unsigned int	port;
+	int	port;
 	int	irq;
 	int	flags;
 	int	xmit_fifo_size;

@@ -50,11 +50,11 @@ NORET_TYPE void panic(const char * fmt, ...)
 	else
 		sys_sync();
 
+	unblank_console();
+
 #ifdef __SMP__
 	smp_send_stop();
 #endif
-
-	unblank_console();
 
 	notifier_call_chain(&panic_notifier_list, 0, NULL);
 
@@ -85,4 +85,3 @@ NORET_TYPE void panic(const char * fmt, ...)
 		CHECK_EMERGENCY_SYNC
 	}
 }
-

@@ -459,12 +459,8 @@ static void scan_scsis (struct Scsi_Host *shpnt,
 
 
   /* Make sure we have something that is valid for DMA purposes */
-#ifndef CONFIG_SGI
   scsi_result = ( ( !shpnt->unchecked_isa_dma )
                  ? &scsi_result0[0] : scsi_init_malloc (512, GFP_DMA));
-#else
-  scsi_result = (scsi_init_malloc (512, GFP_DMA));
-#endif
 
   if (scsi_result == NULL) 
   {
