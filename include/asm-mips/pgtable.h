@@ -212,7 +212,7 @@ extern unsigned long zero_page_mask;
 #define BAD_PAGETABLE __bad_pagetable()
 #define BAD_PAGE __bad_page()
 #define ZERO_PAGE(vaddr) \
-	(mem_map + MAP_NR(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
+	(virt_to_page(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR			(8*sizeof(unsigned long))
@@ -237,11 +237,6 @@ extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-extern inline unsigned long pte_page(pte_t pte)
-{
-	return PAGE_OFFSET + (pte_val(pte) & PAGE_MASK);
-}
-
 extern inline unsigned long pmd_page(pmd_t pmd)
 {
 	return pmd_val(pmd);
@@ -304,12 +299,11 @@ extern inline int pgd_present(pgd_t pgd)	{ return 1; }
 extern inline void pgd_clear(pgd_t *pgdp)	{ }
 
 /*
- * Permanent address of a page.  On MIPS64 we never have highmem, so this
+ * Permanent address of a page.  On MIPS we never have highmem, so this
  * is simple.
  */
 #define page_address(page)	((page)->virtual)
-#define pte_pagenr(x)		((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
-#define pte_page(x)		(mem_map+pte_pagenr(x))
+#define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
 
 /*
  * The following only work if pte_present() is true.

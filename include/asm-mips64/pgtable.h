@@ -241,7 +241,7 @@ extern unsigned long zero_page_mask;
 #define BAD_PMDTABLE __bad_pmd_table()
 #define BAD_PAGE __bad_page()
 #define ZERO_PAGE(vaddr) \
-	(mem_map + MAP_NR(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
+	(virt_to_page(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR			(8*sizeof(unsigned long))
@@ -354,13 +354,13 @@ extern inline void pgd_clear(pgd_t *pgdp)
  */
 #define page_address(page)	((page)->virtual)
 #ifndef CONFIG_DISCONTIGMEM
-#define pte_pagenr(x)		((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+#define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
 #else
-#define pte_pagenr(x) \
+#define mips64_pte_pagenr(x) \
 	(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID(pte_val(x))) + \
 	PLAT_NODE_DATA_LOCALNR(pte_val(x), PHYSADDR_TO_NID(pte_val(x))))
-#endif
 #define pte_page(x)		(mem_map+pte_pagenr(x))
+#endif
 
 /*
  * The following only work if pte_present() is true.
