@@ -120,7 +120,7 @@ void __init prom_meminit(void)
 		unsigned long base, size;
 		long type;
 
-		base = __pa(p->base << PAGE_SHIFT);	/* Fix up from KSEG0 */
+		base = p->base << PAGE_SHIFT;		/* Fix up from KSEG0 */
 		size = p->pages << PAGE_SHIFT;
 		type = prom_memtype_classify(p->type);
 
