@@ -104,8 +104,8 @@ void sb1250_timer_interrupt(struct pt_regs *regs)
 
 	kstat_cpu(cpu).irqs[irq]++;
 	/* Reset the timer */
-	__raw_writeq(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
-	      KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));
+	____raw_writeq(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
+		       KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));
 
 	/*
 	 * CPU 0 handles the global timer interrupt job
