@@ -108,9 +108,9 @@ void vr41xx_disable_giuint(int pin)
 void vr41xx_clear_giuint(int pin)
 {
 	if (pin < 16)
-		write_giuint(GIUINTSTATL, (u16)1 << pin);
+		write_giuint((u16)1 << pin, GIUINTSTATL);
 	else
-		write_giuint(GIUINTSTATH, (u16)1 << (pin - 16));
+		write_giuint((u16)1 << (pin - 16), GIUINTSTATH);
 }
 
 void vr41xx_set_irq_trigger(int pin, int trigger, int hold)
