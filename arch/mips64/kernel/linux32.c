@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.13 2000/03/18 09:02:17 ulfc Exp $
+/* $Id: linux32.c,v 1.14 2000/03/23 00:30:53 ulfc Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -627,6 +627,20 @@ sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
 	set_fs (old_fs);
 	return ret;
 }
+
+struct statfs32 {
+	int	f_type;
+	int	f_bsize;
+	int	f_frsize;
+	int	f_blocks;
+	int	f_bfree;
+	int	f_files;
+	int	f_ffree;
+	int	f_bavail;
+	__kernel_fsid_t32	f_fsid;
+	int	f_namelen;
+	int	f_spare[6];
+};
 
 static inline int
 put_statfs (struct statfs32 *ubuf, struct statfs *kbuf)
