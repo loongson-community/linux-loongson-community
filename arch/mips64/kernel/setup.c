@@ -280,6 +280,7 @@ static inline void bootmem_init(void)
 	start_pfn = PFN_UP(CPHYSADDR(&_end));
 #endif	/* CONFIG_BLK_DEV_INITRD */
 
+#ifndef CONFIG_SGI_IP27
 	/* Find the highest page frame number we have available.  */
 	max_pfn = 0;
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
@@ -344,6 +345,7 @@ static inline void bootmem_init(void)
 
 	/* Reserve the bootmap memory.  */
 	reserve_bootmem(PFN_PHYS(start_pfn), bootmap_size);
+#endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* Board specific code should have set up initrd_start and initrd_end */
