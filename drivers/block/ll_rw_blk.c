@@ -787,8 +787,8 @@ __initfunc(int blk_dev_init(void))
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();
 #else
-#if !defined(CONFIG_SGI) && !defined (__mc68000__) && !defined(CONFIG_PMAC) \
-    && !defined(__sparc__) && !defined(CONFIG_APUS) \
+#if !defined(CONFIG_SGI_IP22) && !defined (__mc68000__) && \
+    !defined(CONFIG_PMAC) && !defined(__sparc__) && !defined(CONFIG_APUS) \
     && !defined(CONFIG_DECSTATION) && !defined(CONFIG_BAGET_MIPS)
 	outb_p(0xc, 0x3f2);
 #endif

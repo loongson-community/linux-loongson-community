@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.18 1999/04/05 01:30:49 ulfc Exp $
+/* $Id: mips_ksyms.c,v 1.19 1999/04/11 18:37:55 harald Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -99,7 +99,7 @@ EXPORT_SYMBOL(vdma_free);
 EXPORT_SYMBOL(vdma_log2phys);
 #endif
 
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 EXPORT_SYMBOL(hpc3c0);
 #endif
 

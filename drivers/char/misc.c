@@ -281,7 +281,7 @@ int __init misc_init(void)
 #ifdef CONFIG_SGI_NEWPORT_GFX
 	gfx_register ();
 #endif
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 	streamable_init ();
 #endif
 	if (register_chrdev(MISC_MAJOR,"misc",&misc_fops)) {

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.18 1999/06/21 22:16:10 ralf Exp $
+# $Id: Makefile,v 1.19 1999/08/18 23:37:42 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -108,7 +108,7 @@ LIBS          += arch/mips/arc/arclib.a
 LOADADDR      += 0x80080000
 endif
 
-ifdef CONFIG_SGI
+ifdef CONFIG_SGI_IP22
 LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/arc/arclib.a
 SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
 #

@@ -137,7 +137,7 @@ if [ "$CONFIG_VIDEO_DEV" != "n" ]; then
     dep_tristate 'Colour QuickCam Video For Linux (EXPERIMENTAL)' CONFIG_VIDEO_CQCAM $CONFIG_VIDEO_DEV $CONFIG_PARPORT
   fi
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-    if [ "$CONFIG_SGI" = "y" ]; then
+    if [ "$CONFIG_SGI_IP22" = "y" ]; then
       dep_tristate 'SGI Vino Video For Linux (EXPERIMENTAL)' CONFIG_VIDEO_VINO $CONFIG_VIDEO_DEV
     fi
   fi

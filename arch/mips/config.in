@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.28 1999/08/13 17:07:25 harald Exp $
+# $Id: config.in,v 1.29 1999/08/18 23:37:42 ralf Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -19,7 +19,7 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
-bool 'Support for SGI workstations' CONFIG_SGI
+bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 
 #
@@ -122,7 +122,7 @@ bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 
-if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
+if [ "$CONFIG_SGI_IP22" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
   tristate 'Parallel port support' CONFIG_PARPORT
 fi
 endmenu
@@ -167,7 +167,7 @@ comment 'SCSI support'
 tristate 'SCSI support' CONFIG_SCSI
 
 if [ "$CONFIG_SCSI" != "n" ]; then
-	if [ "$CONFIG_SGI" = "y" -o "$CONFIG_DECSTATION" = "y" ]; then
+	if [ "$CONFIG_SGI_IP22" = "y" -o "$CONFIG_DECSTATION" = "y" ]; then
 		comment 'SCSI support type (disk, tape, CDrom)'
 
 		dep_tristate 'SCSI disk support' CONFIG_BLK_DEV_SD $CONFIG_SCSI
@@ -183,7 +183,7 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 
 		#mainmenu_option next_comment
 		comment 'SCSI low-level drivers'
-		if [ "$CONFIG_SGI" = "y" ]; then
+		if [ "$CONFIG_SGI_IP22" = "y" ]; then
 		dep_tristate 'SGI wd93 Scsi Driver' CONFIG_SCSI_SGIWD93 $CONFIG_SCSI
 	else
 			if [ "$CONFIG_TC" = "y" ]; then
@@ -203,7 +203,7 @@ if [ "$CONFIG_NET" = "y" ]; then
 
   bool 'Network device support' CONFIG_NETDEVICES
   if [ "$CONFIG_NETDEVICES" = "y" ]; then
-    if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
+    if [ "$CONFIG_SGI_IP22" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
 	source drivers/net/Config.in
     else
 	tristate 'Dummy net driver support' CONFIG_DUMMY
@@ -216,7 +216,7 @@ if [ "$CONFIG_NET" = "y" ]; then
 	if [ ! "$CONFIG_PPP" = "n" ]; then
 	  comment 'CCP compressors for PPP are only built as modules.'
 	fi
-        if [ "$CONFIG_SGI" = "y" ]; then
+        if [ "$CONFIG_SGI_IP22" = "y" ]; then
 	bool 'SGI Seeq ethernet controller support' CONFIG_SGISEEQ
     fi
 	if [ "$CONFIG_DECSTATION" = "y" ]; then
@@ -231,7 +231,7 @@ if [ "$CONFIG_NET" = "y" ]; then
   endmenu
 fi
 
-if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
+if [ "$CONFIG_SGI_IP22" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
   source drivers/net/hamradio/Config.in
 
 
@@ -268,7 +268,7 @@ else
     bool 'Support for console on virtual terminal' CONFIG_VT_CONSOLE
   fi
   tristate 'Standard/generic (dumb) serial support' CONFIG_SERIAL
-  if [ "$CONFIG_SGI" = "y" ]; then
+  if [ "$CONFIG_SGI_IP22" = "y" ]; then
     bool 'SGI PROM Console Support' CONFIG_SGI_PROM_CONSOLE
   fi
   if [ "$CONFIG_SERIAL" = "y" ]; then
@@ -295,7 +295,7 @@ source fs/Config.in
 if [ "$CONFIG_VT" = "y" ]; then
   mainmenu_option next_comment
   comment 'Console drivers'
-  if [ "$CONFIG_SGI" = "y" ]; then
+  if [ "$CONFIG_SGI_IP22" = "y" ]; then
     tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
     if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
       define_bool CONFIG_DUMMY_CONSOLE y
@@ -321,7 +321,7 @@ if [ "$CONFIG_DECSTATION" != "y" ]; then
   endmenu
 fi
 
-if [ "$CONFIG_SGI" = "y" ]; then
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
   source drivers/sgi/Config.in
 fi
 

@@ -1206,7 +1206,7 @@ CONFIG_DESKSTATION_RPC44
   This is a machine with a R4400 100 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux
   on the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://lena.fnet.fr/ (To browse the WWW, you need to
+  http://www.linux.sgi.comm/ (To browse the WWW, you need to
   have access to a machine on the Internet that has a program like
   lynx or netscape).
 
@@ -1215,7 +1215,7 @@ CONFIG_ACER_PICA_61
   This is a machine with a R4400 133/150 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux on
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://lena.fnet.fr/ (To browse the WWW, you need to have access to
+  http://www.linux.sgi.comm/ (To browse the WWW, you need to have access to
   a machine on the Internet that has a program like lynx or netscape).
 
 Support for Algorithmics P4032
@@ -1269,7 +1269,7 @@ CONFIG_MIPS_MAGNUM_4000
   This is a machine with a R4000 100 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux on
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://lena.fnet.fr/ (To browse the WWW, you need to have access to
+  http://www.linux.sgi.comm/ (To browse the WWW, you need to have access to
   a machine on the Internet that has a program like lynx or netscape).
 
 Support for Olivetti M700
@@ -1277,8 +1277,13 @@ CONFIG_OLIVETTI_M700
   This is a machine with a R4000 100 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux on
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://lena.fnet.fr/ (To browse the WWW, you need to have access to
+  http://www.linux.sgi.com/ (To browse the WWW, you need to have access to
   a machine on the Internet that has a program like lynx or netscape).
+
+Support for SGI IP22
+  This are the SGI Indy, Challenge S and Indigo2, as well as certain OEM
+  variants like the Tandem CMN B006S.  To compile a Linux kernel that
+  runs on these, say Y here.
 
 MIPS JAZZ onboard SONIC Ethernet support
 CONFIG_MIPS_JAZZ_SONIC
@@ -11780,7 +11785,7 @@ CONFIG_USB_ACM
 # LocalWords:  PMAX MILO Alphas Multia Tseng linuxelf endian mipsel mips drv HT
 # LocalWords:  kerneld callouts AdvanSys advansys Admin WDT DataStor EP verden
 # LocalWords:  wdt hdb hdc bugfix SiS vlb Acculogic CSA DTC dtc Holtek ht QDI
-# LocalWords:  QD qd UMC umc ALI ali lena fnet fr azstarnet cdr fb MDA ps esdi
+# LocalWords:  QD qd UMC umc ALI ali www.linux.sgi.comm azstarnet cdr fb MDA ps esdi
 # LocalWords:  Avanti XL AlphaStations Jensen DECpc AXPpci UDB Cabriolet MCA RC
 # LocalWords:  AlphaPC mca AOUT OUTput PPro sipx gwdg lo nwe FourPort Boca unm
 # LocalWords:  Keepalive linefill RELCOM keepalive analogue CDR conf CDI INIT

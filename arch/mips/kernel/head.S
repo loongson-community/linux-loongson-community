@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.12 1999/07/26 19:42:40 harald Exp $
+/* $Id: head.S,v 1.13 1999/08/18 23:37:43 ralf Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -427,7 +427,7 @@ probe_done:
 
 	jal	prom_init /* prom_init(argc, argv, envp); */
 	 nop
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 	jal	sgi_sysinit
 	 nop
 #endif

@@ -1,9 +1,13 @@
 /* $Id$
- * sgialib.h: SGI ARCS firmware interface library for the Linux kernel.
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * SGI ARCS firmware interface library for the Linux kernel.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
-
 #ifndef _ASM_SGIALIB_H
 #define _ASM_SGIALIB_H
 

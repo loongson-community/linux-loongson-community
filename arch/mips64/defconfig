@@ -10,7 +10,7 @@
 #
 # Machine selection
 #
-CONFIG_SGI=y
+CONFIG_SGI_IP22=y
 
 #
 # CPU selection

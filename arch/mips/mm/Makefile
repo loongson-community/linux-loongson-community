@@ -26,7 +26,7 @@ ifdef CONFIG_CPU_R6000
 O_OBJS   += r6000.o
 endif
 
-ifdef CONFIG_SGI
+ifdef CONFIG_SGI_IP22
 O_OBJS   += umap.o
 endif
 

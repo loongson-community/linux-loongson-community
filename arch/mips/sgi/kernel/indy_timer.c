@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.11 1999/01/04 16:03:56 ralf Exp $
+/* $Id: indy_timer.c,v 1.12 1999/06/13 16:30:36 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -107,11 +107,13 @@ void indy_timer_interrupt(struct pt_regs *regs)
 	if ((time_status & STA_UNSYNC) == 0 &&
 	    xtime.tv_sec > last_rtc_update + 660 &&
 	    xtime.tv_usec >= 500000 - (tick >> 1) &&
-	    xtime.tv_usec <= 500000 + (tick >> 1))
-	  if (set_rtc_mmss(xtime.tv_sec) == 0)
-	    last_rtc_update = xtime.tv_sec;
-	  else
-	    last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
+	    xtime.tv_usec <= 500000 + (tick >> 1)) {
+		if (set_rtc_mmss(xtime.tv_sec) == 0)
+			last_rtc_update = xtime.tv_sec;
+		else
+			/* do it again in 60 s */
+			last_rtc_update = xtime.tv_sec - 600;
+	}
 }
 
 static unsigned long dosample(volatile unsigned char *tcwp,

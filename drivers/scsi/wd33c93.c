@@ -1359,7 +1359,7 @@ uchar sr;
    hostdata = (struct WD33C93_hostdata *)instance->hostdata;
    regp = hostdata->regp;
 
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 {
 int busycount = 0;
 extern void sgiwd93_reset(uchar*);

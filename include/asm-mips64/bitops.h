@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: bitops.h,v 1.2 1999/08/19 22:56:34 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,8 +19,9 @@
 #include <asm/mipsregs.h>
 #endif
 
-/* This gets exported to userland, so we need to have a MIPS I versions
- * as well ...
+/*
+ * This gets exported to userland, so we need to have a MIPS I versions
+ * as well.  Userland always get the non-thread / signal safe variants.
  */
 
 #ifndef __KERNEL__

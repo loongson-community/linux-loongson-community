@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.1 1999/08/18 23:37:47 ralf Exp $
+/* $Id: init.c,v 1.2 1999/08/19 22:56:32 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -31,7 +31,7 @@
 #include <asm/jazzdma.h>
 #include <asm/system.h>
 #include <asm/pgtable.h>
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 #include <asm/sgialib.h>
 #endif
 #include <asm/mmu_context.h>

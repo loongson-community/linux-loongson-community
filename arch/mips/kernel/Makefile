@@ -35,7 +35,7 @@ endif
 #
 # SGIs have very different interrupt/timer hardware.
 #
-ifndef CONFIG_SGI
+ifndef CONFIG_SGI_IP22
   ifndef CONFIG_DECSTATION
     ifndef CONFIG_BAGET_MIPS
       O_OBJS += irq.o time.o

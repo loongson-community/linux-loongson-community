@@ -89,7 +89,7 @@ unsigned int video_scan_lines;
  */
 
 #if defined(__i386__) || defined(__alpha__) || defined(__powerpc__) \
-    || (defined(__mips__) && !defined(CONFIG_SGI))
+    || (defined(__mips__) && !defined(CONFIG_SGI_IP22))
 
 static void
 kd_nosound(unsigned long ignored)

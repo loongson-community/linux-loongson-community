@@ -1,4 +1,4 @@
-/* $Id: bootinfo.h,v 1.6 1999/01/04 16:09:20 ralf Exp $
+/* $Id: bootinfo.h,v 1.7 1999/04/12 18:59:14 harald Exp $
  *
  * bootinfo.h -- Definition of the Linux/MIPS boot information structure
  *
@@ -161,7 +161,7 @@ typedef struct mips_arc_DisplayInfo {	/* video adapter information */
 	unsigned short lines;
 } mips_arc_DisplayInfo;
 
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 /* screen info will dissapear... soon */
 //#define DEFAULT_SCREEN_INFO {0, 0, 0, 0, 0, 158, 0, 0, 0, 62, 0, 16}
 #define DEFAULT_SCREEN_INFO {0, 0, 0, 0, 0, 160, 0, 0, 0, 64, 0, 16}

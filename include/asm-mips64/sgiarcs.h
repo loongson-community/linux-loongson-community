@@ -1,8 +1,14 @@
-/* $Id$
+/* $Id: sgiarcs.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
  *
- * SGI ARCS firmware interface defines.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * ARC firmware interface defines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_SGIARCS_H
 #define _ASM_SGIARCS_H
@@ -364,5 +370,112 @@ struct linux_smonblock {
 	unsigned long   stab;              /* Symbol table. */
 	int             smax;              /* Max # of symbols. */
 };
+
+#define __arc_clobbers							\
+	"$2","$3","$4","$5","$6","$7","$8","$9","$10","$11",		\
+	"$12","$13","$14","$15","$16","$24","25","$31"
+
+#define ARC_CALL0(dest)							\
+({	long __res;							\
+	unsigned long __vec = (unsigned long) romvec->dest;		\
+	__asm__ __volatile__(						\
+	"dsubu\t$29, 32\n\t"						\
+	"jalr\t%1\n\t"							\
+	"daddu\t$29, 32\n\t"						\
+	"move\t%0, $2"							\
+	: "=r" (__res), "=r" (__vec)					\
+	: "1" (__vec)							\
+	: __arc_clobbers);						\
+	(unsigned long) __res;						\
+})
+
+#define ARC_CALL1(dest,a1)						\
+({	long __res;							\
+	register signed int __a1 __asm__("$4") = (int) (long) (a1);	\
+	unsigned long __vec = (unsigned long) romvec->dest;		\
+	__asm__ __volatile__(						\
+	"dsubu\t$29, 32\n\t"						\
+	"jalr\t%1\n\t"							\
+	"daddu\t$29, 32\n\t"						\
+	"move\t%0, $2"							\
+	: "=r" (__res), "=r" (__vec)					\
+	: "1" (__vec), "r" (__a1)					\
+	: __arc_clobbers);						\
+	(unsigned long) __res;						\
+})
+
+#define ARC_CALL2(dest,a1,a2)						\
+({	long __res;							\
+	register signed int __a1 __asm__("$4") = (int) (long) (a1);	\
+	register signed int __a2 __asm__("$5") = (int) (long) (a2);	\
+	unsigned long __vec = (unsigned long) romvec->dest;		\
+	__asm__ __volatile__(						\
+	"dsubu\t$29, 32\n\t"						\
+	"jalr\t%1\n\t"							\
+	"daddu\t$29, 32\n\t"						\
+	"move\t%0, $2"							\
+	: "=r" (__res), "=r" (__vec)					\
+	: "1" (__vec), "r" (__a1), "r" (__a2)				\
+	: __arc_clobbers);						\
+	__res;								\
+})
+
+#define ARC_CALL3(dest,a1,a2,a3)					\
+({	long __res;							\
+	register signed int __a1 __asm__("$4") = (int) (long) (a1);	\
+	register signed int __a2 __asm__("$5") = (int) (long) (a2);	\
+	register signed int __a3 __asm__("$6") = (int) (long) (a3);	\
+	unsigned long __vec = (unsigned long) romvec->dest;		\
+	__asm__ __volatile__(						\
+	"dsubu\t$29, 32\n\t"						\
+	"jalr\t%1\n\t"							\
+	"daddu\t$29, 32\n\t"						\
+	"move\t%0, $2"							\
+	: "=r" (__res), "=r" (__vec)					\
+	: "1" (__vec), "r" (__a1), "r" (__a2), "r" (__a3)		\
+	: __arc_clobbers);						\
+	__res;								\
+})
+
+#define ARC_CALL4(dest,a1,a2,a3,a4)					\
+({	long __res;							\
+	register signed int __a1 __asm__("$4") = (int) (long) (a1);	\
+	register signed int __a2 __asm__("$5") = (int) (long) (a2);	\
+	register signed int __a3 __asm__("$6") = (int) (long) (a3);	\
+	register signed int __a4 __asm__("$7") = (int) (long) (a4);	\
+	unsigned long __vec = (unsigned long) romvec->dest;		\
+	__asm__ __volatile__(						\
+	"dsubu\t$29, 32\n\t"						\
+	"jalr\t%1\n\t"							\
+	"daddu\t$29, 32\n\t"						\
+	"move\t%0, $2"							\
+	: "=r" (__res), "=r" (__vec)					\
+	: "1" (__vec), "r" (__a1), "r" (__a2), "r" (__a3), 		\
+	  "r" (__a4)							\
+	: __arc_clobbers);						\
+	__res;								\
+})
+
+#define ARC_CALL5(dest,a1,a2,a3,a4,a5)					\
+({	long __res;							\
+	register signed int __a1 __asm__("$4") = (int) (long) (a1);	\
+	register signed int __a2 __asm__("$5") = (int) (long) (a2);	\
+	register signed int __a3 __asm__("$6") = (int) (long) (a3);	\
+	register signed int __a4 __asm__("$7") = (int) (long) (a4);	\
+	register signed int __a5 = (a5);				\
+	unsigned long __vec = (unsigned long) romvec->dest;		\
+	__asm__ __volatile__(						\
+	"dsubu\t$29, 32\n\t"						\
+	"sw\t%6, 16($29)\n\t"						\
+	"jalr\t%1\n\t"							\
+	"daddu\t$29, 32\n\t"						\
+	"move\t%0, $2"							\
+	: "=r" (__res), "=r" (__vec)					\
+	: "1" (__vec),							\
+	  "r" (__a1), "r" (__a2), "r" (__a3), "r" (__a4),		\
+	  "r" (__a5)							\
+	: __arc_clobbers);						\
+	__res;								\
+})
 
 #endif /* _ASM_SGIARCS_H */

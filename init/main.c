@@ -27,7 +27,7 @@
 #include <asm/io.h>
 #include <asm/bugs.h>
 
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 #include <asm/sgialib.h>
 #endif
 

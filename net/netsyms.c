@@ -490,8 +490,10 @@ EXPORT_SYMBOL(init_hippi_dev);
 EXPORT_SYMBOL(unregister_hipdev);
 #endif
 
+#ifdef CONFIG_INET
 EXPORT_SYMBOL(sysctl_wmem_max);
 EXPORT_SYMBOL(sysctl_rmem_max);
+#endif
 
 #if defined(CONFIG_ATALK) || defined(CONFIG_ATALK_MODULE) 
 #include<linux/if_ltalk.h>

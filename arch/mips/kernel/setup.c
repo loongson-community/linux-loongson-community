@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.15 1999/05/01 22:40:37 ralf Exp $
+/* $Id: setup.c,v 1.16 1999/06/17 13:25:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -40,7 +40,7 @@
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
 #include <asm/sgialib.h>
 #endif
 
@@ -193,7 +193,8 @@ __initfunc(void setup_arch(char **cmdline_p,
 		jazz_setup();
 		break;
 #endif
-#ifdef CONFIG_SGI
+#ifdef CONFIG_SGI_IP22
+	/* As of now this is only IP22.  */
 	case MACH_GROUP_SGI:
 		sgi_setup();
 		break;

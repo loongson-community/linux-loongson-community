@@ -163,7 +163,7 @@ ifdef CONFIG_PNP
 DRIVERS := $(DRIVERS) drivers/pnp/pnp.a
 endif
 
-ifdef CONFIG_SGI
+ifdef CONFIG_SGI_IP22
 DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
 endif
 

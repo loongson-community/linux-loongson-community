@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile,v 1.1 1999/08/18 23:37:46 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -34,8 +34,7 @@ endif
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
 CFLAGS		+= -mabi=64 -G 0 -mno-abicalls -fno-pic -pipe
-LINKFLAGS	+= -G 0
-LINKFLAGS	= -static # -N
+LINKFLAGS	+= -G 0 -static # -N
 MODFLAGS	+= -mlong-calls
 
 ifdef CONFIG_REMOTE_DEBUG
@@ -67,41 +66,34 @@ endif
 #
 # Board-dependent options and extra files
 #
-ifdef CONFIG_IP22
-LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/arc/arclib.a
-SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
+ifdef CONFIG_SGI_IP22
+LIBS          += arch/mips64/sgi-ip22/sgikern.a arch/mips64/arc/arclib.a
+SUBDIRS       += arch/mips64/sgi-ip22 arch/mips64/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
 # 0x88002000 for production kernels.  Note that the value must be
 # 8kb aligned or the handling of the current variable will break.
 #
 LOADADDR      += 0x88002000
-HOSTCC        = cc
 endif
 
 #
-# Choosing incompatible machines durings configuration will result in
-# error messages during linking.  Select a default linkscript if
-# none has been choosen above.
+# Some machines like the Indy need 32-bit ELF binaries for booting purposes.
+# Other need ECOFF, so we build a 32-bit ELF binary for them which we then
+# convert to ECOFF using elf2ecoff.
 #
-ifndef LINKSCRIPT
-ifndef CONFIG_CPU_LITTLE_ENDIAN
-LINKSCRIPT    = arch/mips/ld.script.big
-else
-LINKSCRIPT    = arch/mips/ld.script.little
-endif
-endif
-LINKFLAGS     += -T $(word 1,$(LINKSCRIPT))
-
-ifdef LOADADDR
-LINKFLAGS     += -Ttext $(word 1,$(LOADADDR))
+ifdef CONFIG_BOOT_ELF32
+CFLAGS += -Wa,-32
+LINKFLAGS += -T arch/mips64/ld.script.elf32
 endif
 
-HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
+LINKFLAGS += -Ttext $(LOADADDR)
 
-SUBDIRS := $(addprefix arch/mips/, tools) $(SUBDIRS) $(addprefix arch/mips/, kernel mm lib)
-CORE_FILES := arch/mips/kernel/kernel.o arch/mips/mm/mm.o $(CORE_FILES)
-LIBS := arch/mips/lib/lib.a $(LIBS)
+HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
+
+SUBDIRS := $(addprefix arch/mips64/, tools) $(SUBDIRS) $(addprefix arch/mips64/, kernel mm lib)
+CORE_FILES := arch/mips64/kernel/kernel.o arch/mips64/mm/mm.o $(CORE_FILES)
+LIBS := arch/mips64/lib/lib.a $(LIBS)
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 

@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile,v 1.1 1999/08/18 23:37:47 ralf Exp $
 #
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
@@ -6,7 +6,7 @@
 O_TARGET := mm.o
 O_OBJS	 := extable.o init.o fault.o r4xx0.o tfp.o andes.o loadmmu.o
 
-ifdef CONFIG_SGI
+ifdef CONFIG_SGI_IP22
 O_OBJS   += umap.o
 endif
 

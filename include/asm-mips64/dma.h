@@ -84,7 +84,7 @@
  * Deskstations or Acer PICA but not the much more versatile DMA logic used
  * for the local devices on Acer PICA or Magnums.
  */
-#ifndef CONFIG_SGI
+#ifndef CONFIG_SGI_IP22
 #define MAX_DMA_ADDRESS		(PAGE_OFFSET + 0x01000000)
 #else
 #define MAX_DMA_ADDRESS		(~0UL)

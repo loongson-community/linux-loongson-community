@@ -1,4 +1,4 @@
-# $Id$
+# $Id: config.in,v 1.1 1999/08/18 23:37:46 ralf Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -12,18 +12,27 @@ endmenu
 
 mainmenu_option next_comment
 comment 'Machine selection'
-bool 'Support for SGI workstations' CONFIG_SGI
+bool 'Support for SGI IP22' CONFIG_SGI_IP22
 endmenu
+
+#
+# Select some configuration options automatically for certain systems
+#
+unset CONFIG_BOOT_ELF32
+
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
+  define_bool CONFIG_BOOT_ELF32 y
+fi
 
 mainmenu_option next_comment
 comment 'CPU selection'
 
-choice 'CPU type' \
-	" R4300 CONFIG_CPU_R4300	\
-	 R4x00 CONFIG_CPU_R4X00	\
-	 R5000 CONFIG_CPU_R5000	\
-	 R56x0 CONFIG_CPU_NEVADA \
-	 R8000 CONFIG_CPU_R8000	\
+choice 'CPU type'				\
+	"R4300 CONFIG_CPU_R4300			\
+	 R4x00 CONFIG_CPU_R4X00			\
+	 R5000 CONFIG_CPU_R5000			\
+	 R56x0 CONFIG_CPU_NEVADA		\
+	 R8000 CONFIG_CPU_R8000			\
 	 R10000 CONFIG_CPU_R10000" R4x00
 endmenu
 
@@ -32,13 +41,6 @@ comment 'General setup'
 
 bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 
-#
-# XXX Binary compatibility stuff.  Not for now ...
-#
-#if [ "$CONFIG_CPU_LITTLE_ENDIAN" = "n" ]; then
-#  define_bool CONFIG_BINFMT_IRIX y
-#  define_bool CONFIG_FORWARD_KEYBOARD y
-#fi
 define_bool CONFIG_BINFMT_AOUT n
 define_bool CONFIG_BINFMT_ELF y
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
@@ -123,7 +125,7 @@ if [ "$CONFIG_VT" = "y" ]; then
   mainmenu_option next_comment
   comment 'Console drivers'
   # XXX cleanup
-  if [ "$CONFIG_SGI" = "y" ]; then
+  if [ "$CONFIG_SGI_IP22" = "y" ]; then
     tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
     if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
       define_bool CONFIG_DUMMY_CONSOLE y
@@ -141,7 +143,7 @@ source drivers/sound/Config.in
 fi
 endmenu
 
-if [ "$CONFIG_SGI" = "y" ]; then
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
   source drivers/sgi/Config.in
 fi
 
