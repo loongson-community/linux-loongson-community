@@ -39,23 +39,6 @@ static unsigned int dcache_assoc;
 static unsigned int icache_sets;
 static unsigned int dcache_sets;
 
-void pgd_init(unsigned long page)
-{
-	unsigned long *p = (unsigned long *) page;
-	int i;
-
-	for (i = 0; i < USER_PTRS_PER_PGD; i+=8) {
-		p[i + 0] = (unsigned long) invalid_pte_table;
-		p[i + 1] = (unsigned long) invalid_pte_table;
-		p[i + 2] = (unsigned long) invalid_pte_table;
-		p[i + 3] = (unsigned long) invalid_pte_table;
-		p[i + 4] = (unsigned long) invalid_pte_table;
-		p[i + 5] = (unsigned long) invalid_pte_table;
-		p[i + 6] = (unsigned long) invalid_pte_table;
-		p[i + 7] = (unsigned long) invalid_pte_table;
-	}
-}
-
 /*
  * The dcache is fully coherent to the system, with one
  * big caveat:  the instruction stream.  In other words,
@@ -90,7 +73,7 @@ static void local_sb1___flush_cache_all(void)
 		".set mips4                 \n"
 		"     move   $1, %2         \n" /* Start at index 0 */
 		"1:   cache  %3, 0($1)      \n" /* WB/Invalidate this index */
-		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+		"     daddiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
 		"      addu   $1, $1, %0    \n" /* Next address */
 		".set pop                   \n"
@@ -115,7 +98,7 @@ static void local_sb1___flush_cache_all(void)
 		".set mips4                 \n"
 		"     move   $1, %2         \n" /* Start at index 0 */
 		"1:   cache  %3, 0($1)       \n" /* Invalidate this index */
-		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+		"     daddiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
 		"      addu   $1, $1, %0    \n" /* Next address */
 		".set pop                   \n"
@@ -370,7 +353,7 @@ static void sb1_flush_icache_all(void)
 		".set mips4                 \n"
 		"     move   $1, %2         \n" /* Start at index 0 */
 		"1:   cache  %3, 0($1)      \n" /* Invalidate this index */
-		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+		"     daddiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
 		"      addu   $1, $1, %0    \n" /* Next address */
 		".set pop                   \n"
