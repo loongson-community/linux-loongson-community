@@ -86,6 +86,9 @@ EARLY_PCI_OP(write, byte, u8)
 EARLY_PCI_OP(write, word, u16)
 EARLY_PCI_OP(write, dword, u32)
 
+static struct resource *io_resource_inuse;
+static struct resource *mem_resource_inuse;
+
 static u32 pciauto_lower_iospc;
 static u32 pciauto_upper_iospc;
 
@@ -129,6 +132,7 @@ pciauto_setup_bars(struct pci_channel *hose,
 		if (!(bar_response & 0xffff0000))
 			bar_response |= 0xffff0000;
 
+retry:
 		/* Check the BAR type and set our address mask */
 		if (bar_response & PCI_BASE_ADDRESS_SPACE) {
 			addr_mask = PCI_BASE_ADDRESS_IO_MASK;
@@ -146,11 +150,39 @@ pciauto_setup_bars(struct pci_channel *hose,
 			DBG("        Mem");
 		}
 
+
 		/* Calculate requested size */
 		bar_size = ~(bar_response & addr_mask) + 1;
 
 		/* Allocate a base address */
 		bar_value = ((*lower_limit - 1) & ~(bar_size - 1)) + bar_size;
+
+		if ((bar_value + bar_size) > *upper_limit) {
+			if (bar_response & PCI_BASE_ADDRESS_SPACE) {
+				if (io_resource_inuse->child) {
+					io_resource_inuse = 
+						io_resource_inuse->child;
+					pciauto_lower_iospc = 
+						io_resource_inuse->start;
+					pciauto_upper_iospc = 
+						io_resource_inuse->end + 1;
+					goto retry;
+				}
+
+			} else {
+				if (mem_resource_inuse->child) {
+					mem_resource_inuse = 
+						mem_resource_inuse->child;
+					pciauto_lower_memspc = 
+						mem_resource_inuse->start;
+					pciauto_upper_memspc = 
+						mem_resource_inuse->end + 1;
+					goto retry;
+				}
+			}
+			DBG(" unavailable -- skipping\n");
+			continue;
+		}
 
 		/* Write it out and update our limit */
 		early_write_config_dword(hose, top_bus, current_bus, pci_devfn,
@@ -346,13 +378,17 @@ int __init
 pciauto_assign_resources(int busno, struct pci_channel *hose)
 {
 	/* setup resource limits */
-	pciauto_lower_iospc = hose->io_resource->start;
-	pciauto_upper_iospc = hose->io_resource->end + 1;
-	pciauto_lower_memspc = hose->mem_resource->start;
-	pciauto_upper_memspc = hose->mem_resource->end + 1;
+	io_resource_inuse = hose->io_resource;
+	mem_resource_inuse = hose->mem_resource;
+
+	pciauto_lower_iospc = io_resource_inuse->start;
+	pciauto_upper_iospc = io_resource_inuse->end + 1;
+	pciauto_lower_memspc = mem_resource_inuse->start;
+	pciauto_upper_memspc = mem_resource_inuse->end + 1;
 	DBG("Autoconfig PCI channel 0x%p\n", hose);
-	DBG("Scanning bus %.2x, I/O 0x%.8x, Mem 0x%.8x\n",
-		busno, pciauto_lower_iospc, pciauto_lower_memspc);
+	DBG("Scanning bus %.2x, I/O 0x%.8x:0x%.8x, Mem 0x%.8x:0x%.8x\n",
+		busno, pciauto_lower_iospc, pciauto_upper_iospc, 
+		pciauto_lower_memspc, pciauto_upper_memspc);
 
 	return pciauto_bus_scan(hose, busno, busno);
 }
