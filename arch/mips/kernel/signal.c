@@ -488,6 +488,9 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 {
 	struct k_sigaction *ka = &current->sighand->action[sig-1];
 
+	/* Always make any pending restarted system calls return -EINTR */
+	current_thread_info()->restart_block.fn = do_no_restart_syscall;
+
 	switch(regs->regs[0]) {
 	case ERESTART_RESTARTBLOCK:
 		current_thread_info()->restart_block.fn = do_no_restart_syscall;
