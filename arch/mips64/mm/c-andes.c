@@ -17,8 +17,6 @@
 #include <asm/system.h>
 #include <asm/mmu_context.h>
 
-static int scache_lsz64;
-
 extern void andes_clear_page(void * page);
 extern void andes_copy_page(void * to, void * from);
 
@@ -53,6 +51,29 @@ static void andes___flush_cache_all(void)
 	andes_flush_cache_l2();
 }
 
+static void andes_flush_cache_mm(struct mm_struct *mm)
+{
+}
+
+static void andes_flush_cache_range(struct mm_struct *mm, unsigned long start,
+        unsigned long end)
+{
+}
+
+static void andes_flush_cache_page(struct vm_area_struct *vma,
+        unsigned long page)
+{
+}
+
+static void andes_flush_dcache_page(struct page * page)
+{
+}
+
+static void andes_flush_icache_range(unsigned long start, unsigned long end)
+{
+	andes_flush_cache_l1();
+}
+
 /*
  * Tricky ...  Because we don't know the virtual address we've got the choice
  * of either invalidating the entire primary and secondary caches or
@@ -60,12 +81,18 @@ static void andes___flush_cache_all(void)
  * secondary cache will result in any entries in the primary caches also
  * getting invalidated.
  */
-void andes_flush_icache_page(unsigned long page)
+void andes_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
-	if (scache_lsz64)
-		blast_scache64_page(page);
+	unsigned long addr;
+
+	if (!((vma)->vm_flags & VM_EXEC))
+		return;
+
+	addr = (unsigned long) phys_to_virt(page_to_phys(page));
+	if (sc_lsize() == 64)
+		blast_scache64_page(addr);
 	else
-		blast_scache128_page(page);
+		blast_scache128_page(addr);
 }
 
 static void andes_flush_cache_sigtramp(unsigned long addr)
@@ -99,14 +126,17 @@ void __init ld_mmu_andes(void)
 
 	_flush_cache_all = andes_flush_cache_all;
 	___flush_cache_all = andes___flush_cache_all;
-	_flush_cache_l1 = andes_flush_cache_l1;
-	_flush_cache_l2 = andes_flush_cache_l2;
+	_flush_cache_mm = andes_flush_cache_mm;
+	_flush_cache_range = andes_flush_cache_range;
+	_flush_cache_page = andes_flush_cache_page;
+	_flush_dcache_page = andes_flush_dcache_page;
+	_flush_icache_range = andes_flush_icache_range;
+	_flush_icache_page = andes_flush_icache_page;
+
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
 
-	if (sc_lsize() == 64)
-		scache_lsz64 = 1;
-	else
-		scache_lsz64 = 0;
+	_flush_cache_l1 = andes_flush_cache_l1;
+	_flush_cache_l2 = andes_flush_cache_l2;
 
 	flush_cache_l1();
 }

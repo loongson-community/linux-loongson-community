@@ -21,9 +21,13 @@
  *  - flush_cache_page(mm, vmaddr) flushes a single page
  *  - flush_cache_range(vma, start, end) flushes a range of pages
  *  - flush_page_to_ram(page) write back kernel page to ram
+ *  - flush_icache_range(start, end) flush a range of instructions
+ *  - flush_dcache_page(pg) flushes(wback&invalidates) a page for dcache
+ *  - flush_icache_page(vma, pg) flushes(invalidates) a page for icache
  */
 extern void (*_flush_cache_all)(void);
 extern void (*___flush_cache_all)(void);
+
 extern void (*_flush_cache_mm)(struct mm_struct *mm);
 extern void (*_flush_cache_range)(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end);
@@ -36,33 +40,6 @@ extern void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page)
 #define flush_cache_all()		_flush_cache_all()
 #define __flush_cache_all()		___flush_cache_all()
 
-#ifdef CONFIG_CPU_R10000
-/*
- * Since the r10k handles VCEs in hardware, most of the flush cache
- * routines are not needed. Only the icache on a processor is not
- * coherent with the dcache of the _same_ processor, so we must flush
- * the icache so that it does not contain stale contents of physical
- * memory. No flushes are needed for dma coherency, since the o200s
- * are io coherent. The only place where we might be overoptimizing
- * out icache flushes are from mprotect (when PROT_EXEC is added).
- */
-extern void andes_flush_icache_page(unsigned long);
-#define flush_cache_mm(mm)			do { } while(0)
-#define flush_cache_range(vma,start,end)	do { } while(0)
-#define flush_cache_page(vma,page)		do { } while(0)
-#define flush_dcache_page(page)			do { } while(0)
-#define flush_page_to_ram(page)			do { } while(0)
-#define flush_icache_range(start, end)		_flush_cache_l1()
-#define flush_icache_user_range(vma, page, addr, len)	\
-	flush_icache_page((vma), (page))
-#define flush_icache_page(vma, page)					\
-do {									\
-	if ((vma)->vm_flags & VM_EXEC)					\
-		andes_flush_icache_page(page_address(page));		\
-} while (0)
-
-#else
-
 #define flush_cache_mm(mm)		_flush_cache_mm(mm)
 #define flush_cache_range(vma,start,end) _flush_cache_range(vma,start,end)
 #define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
@@ -73,8 +50,10 @@ do {									\
 	 flush_icache_page((vma), (page))
 #define flush_icache_page(vma, page)	_flush_icache_page(vma, page)
 
-#endif /* !CONFIG_CPU_R10000 */
-
+/*
+ * This one is optional because currently virtually indexed, virtually
+ * tagged instruction caches are rare on MIPS.
+ */
 #ifdef CONFIG_VTAG_ICACHE
 #define flush_icache_all()		_flush_icache_all()
 #else
@@ -86,10 +65,15 @@ do {									\
  * flush_cache_l2 is needed only during initialization.
  */
 extern void (*_flush_cache_sigtramp)(unsigned long addr);
+
+#define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
+
+/*
+ * These were introduced for the sake of the Origin port and will go away.
+ */
 extern void (*_flush_cache_l2)(void);
 extern void (*_flush_cache_l1)(void);
 
-#define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
 #define flush_cache_l2()		_flush_cache_l2()
 #define flush_cache_l1()		_flush_cache_l1()
 
