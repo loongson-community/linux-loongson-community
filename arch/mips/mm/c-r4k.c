@@ -1134,7 +1134,7 @@ void __init ld_mmu_r4xx0(void)
 	/*
 	 * Some MIPS32 and MIPS64 processors have physically indexed caches.
 	 * This code supports virtually indexed processors and will be
-	 * unnecessarily unefficient on physically indexed processors.
+	 * unnecessarily inefficient on physically indexed processors.
 	 */
 	shm_align_mask = max_t( unsigned long,
 				c->dcache.sets * c->dcache.linesz - 1,
