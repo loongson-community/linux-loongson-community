@@ -192,19 +192,12 @@ void ip27_do_irq_mask1(struct pt_regs *regs)
 	if (!pend1)
 		return;
 
-	/* Prevent any of the picked intrs from recursing */
-	LOCAL_HUB_S(pi_int_mask1, mask1 & ~pend1);
-
 	swlevel = ms1bit(pend1);
 	/* "map" swlevel to irq */
 	irq = si->level_to_irq[swlevel];
 	LOCAL_HUB_CLR_INTR(swlevel);
 	do_IRQ(irq, regs);
-	/* clear bit in pend1 */
-	pend1 ^= 1UL << swlevel;
 
-	/* Now allow the set of serviced intrs again */
-	LOCAL_HUB_S(pi_int_mask1, mask1);
 	LOCAL_HUB_L(PI_INT_PEND1);
 }
 
