@@ -22,15 +22,6 @@ config I2C
 	  This I2C support can also be built as a module.  If so, the module
 	  will be called i2c-core.
 
-config I2C_MAX1617
-	tristate "MAX1617 Temperature Sensor"
-	depends on I2C_ALGO_SIBYTE
-	help
-	  This builds a simple polling driver for the Maxim 1617
-	  temperature sensor.  Currently the device is only supported
-	  on a SiByte I2C adapter, and the driver prints status
-	  updates to the system log.
-
 config I2C_CHARDEV
 	tristate "I2C device interface"
 	depends on I2C

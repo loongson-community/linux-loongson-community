@@ -199,7 +199,8 @@ static DEVICE_ATTR(die_code, S_IRUGO, show_die_code, NULL);
 
 static int adm1021_attach_adapter(struct i2c_adapter *adapter)
 {
-	if (!(adapter->class & I2C_CLASS_HWMON))
+	if (!(adapter->class & I2C_CLASS_HWMON) &&
+	    (adapter->id != (I2C_ALGO_SIBYTE | I2C_HW_SIBYTE)))
 		return 0;
 	return i2c_detect(adapter, &addr_data, adm1021_detect);
 }
