@@ -397,3 +397,10 @@ void __global_restore_flags(unsigned long flags)
 }
 
 EXPORT_SYMBOL(flush_tlb_page);
+EXPORT_SYMBOL(cpu_data);
+EXPORT_SYMBOL(synchronize_irq);
+EXPORT_SYMBOL(kernel_flag);
+EXPORT_SYMBOL(__global_sti);
+EXPORT_SYMBOL(__global_cli);
+EXPORT_SYMBOL(__global_save_flags);
+EXPORT_SYMBOL(__global_restore_flags);
