@@ -39,11 +39,10 @@ struct cpuinfo_mips {
 /*
  * System setup and hardware flags..
  */
-extern void (*cpu_wait)(void);	/* only available on R4[26]00 and R3081 */
+extern void (*cpu_wait)(void);
 extern void r3081_wait(void);
 extern void r39xx_wait(void);
 extern void r4k_wait(void);
-extern char cyclecounter_available;	/* only available from R4000 upwards. */
 
 extern struct cpuinfo_mips cpu_data[];
 extern unsigned int vced_count, vcei_count;

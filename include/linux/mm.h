@@ -43,7 +43,8 @@ extern struct list_head inactive_list;
 struct vm_area_struct {
 	struct mm_struct * vm_mm;	/* The address space we belong to. */
 	unsigned long vm_start;		/* Our start address within vm_mm. */
-	unsigned long vm_end;		/* Our end address within vm_mm. */
+	unsigned long vm_end;		/* The first byte after our end address
+					   within vm_mm. */
 
 	/* linked list of VM areas per task, sorted by address */
 	struct vm_area_struct *vm_next;
@@ -271,8 +272,8 @@ typedef struct page {
 #define PG_uptodate		 3
 #define PG_dirty		 4
 #define PG_unused		 5
-#define PG_active		 6
-#define PG_inactive		 7
+#define PG_lru			 6
+#define PG_active		 7
 #define PG_slab			 8
 #define PG_skip			10
 #define PG_highmem		11
@@ -320,14 +321,10 @@ extern void FASTCALL(set_page_dirty(struct page *));
 #define PageActive(page)	test_bit(PG_active, &(page)->flags)
 #define SetPageActive(page)	set_bit(PG_active, &(page)->flags)
 #define ClearPageActive(page)	clear_bit(PG_active, &(page)->flags)
-#define TestandSetPageActive(page)	test_and_set_bit(PG_active, &(page)->flags)
-#define TestandClearPageActive(page)	test_and_clear_bit(PG_active, &(page)->flags)
 
-#define PageInactive(page)	test_bit(PG_inactive, &(page)->flags)
-#define SetPageInactive(page)	set_bit(PG_inactive, &(page)->flags)
-#define ClearPageInactive(page)	clear_bit(PG_inactive, &(page)->flags)
-#define TestandSetPageInactive(page)	test_and_set_bit(PG_inactive, &(page)->flags)
-#define TestandClearPageInactive(page)	test_and_clear_bit(PG_inactive, &(page)->flags)
+#define PageLRU(page)		test_bit(PG_lru, &(page)->flags)
+#define TestSetPageLRU(page)	test_and_set_bit(PG_lru, &(page)->flags)
+#define TestClearPageLRU(page)	test_and_clear_bit(PG_lru, &(page)->flags)
 
 #ifdef CONFIG_HIGHMEM
 #define PageHighMem(page)		test_bit(PG_highmem, &(page)->flags)
@@ -419,6 +416,7 @@ extern int ptrace_writedata(struct task_struct *tsk, char * src, unsigned long d
 extern int ptrace_attach(struct task_struct *tsk);
 extern int ptrace_detach(struct task_struct *, unsigned int);
 extern void ptrace_disable(struct task_struct *);
+extern int ptrace_check_attach(struct task_struct *task, int kill);
 
 /*
  * On a two-level page table, this ends up being trivial. Thus the

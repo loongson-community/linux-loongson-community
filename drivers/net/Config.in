@@ -34,12 +34,12 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
    fi
    if [ "$CONFIG_PPC" = "y" ]; then
-      tristate '  MACE (Power Mac ethernet) support' CONFIG_MACE
+      dep_tristate '  MACE (Power Mac ethernet) support' CONFIG_MACE $CONFIG_ALL_PPC
       if [ "$CONFIG_MACE" != "n" ]; then
         bool '    Use AAUI port instead of TP by default' CONFIG_MACE_AAUI_PORT
       fi
-      tristate '  BMAC (G3 ethernet) support' CONFIG_BMAC
-      tristate '  GMAC (G4/iBook ethernet) support' CONFIG_GMAC
+      dep_tristate '  BMAC (G3 ethernet) support' CONFIG_BMAC $CONFIG_ALL_PPC
+      dep_tristate '  GMAC (G4/iBook ethernet) support' CONFIG_GMAC $CONFIG_ALL_PPC
       tristate '  National DP83902AV (Oak ethernet) support' CONFIG_OAKNET
    fi
    if [ "$CONFIG_ZORRO" = "y" ]; then
@@ -195,6 +195,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
          tristate '    TI ThunderLAN support' CONFIG_TLAN
       fi
       dep_tristate '    VIA Rhine support' CONFIG_VIA_RHINE $CONFIG_PCI
+      dep_mbool '      Use MMIO instead of PIO (EXPERIMENTAL)' CONFIG_VIA_RHINE_MMIO $CONFIG_VIA_RHINE $CONFIG_EXPERIMENTAL
       dep_tristate '    Winbond W89c840 Ethernet support' CONFIG_WINBOND_840 $CONFIG_PCI
       if [ "$CONFIG_OBSOLETE" = "y" ]; then
 	 dep_bool '    Zenith Z-Note support (EXPERIMENTAL)' CONFIG_ZNET $CONFIG_ISA
@@ -283,6 +284,9 @@ if [ ! "$CONFIG_PPP" = "n" ]; then
    dep_tristate '  PPP BSD-Compress compression' CONFIG_PPP_BSDCOMP $CONFIG_PPP
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
       dep_tristate '  PPP over Ethernet (EXPERIMENTAL)' CONFIG_PPPOE $CONFIG_PPP
+   fi
+   if [ ! "$CONFIG_ATM" = "n" ]; then
+      dep_tristate '  PPP over ATM (EXPERIMENTAL)' CONFIG_PPPOATM $CONFIG_PPP
    fi
 fi
 

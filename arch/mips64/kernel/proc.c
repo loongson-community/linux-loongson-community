@@ -1,74 +1,94 @@
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
+ *  linux/arch/mips/kernel/proc.c
  *
- * Copyright (C) 1995, 1996, 1999, 2001 Ralf Baechle
- * Copyright (C) 2001 MIPS Technologies, Inc.
+ *  Copyright (C) 1995, 1996, 2001  Ralf Baechle
+ *  Copyright (C) 2001  MIPS Technologies, Inc.
  */
+#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/smp.h>
+#include <linux/seq_file.h>
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/processor.h>
 #include <asm/watch.h>
 
-extern unsigned long unaligned_instructions;
 unsigned int vced_count, vcei_count;
 
-/*
- * BUFFER is PAGE_SIZE bytes long.
- *
- * Currently /proc/cpuinfo is being abused to print data about the
- * number of date/instruction cacheflushes.
- */
-int get_cpuinfo(char *buffer)
-{
-	char fmt [64];
-	size_t len;
+#ifndef CONFIG_CPU_HAS_LLSC
+unsigned long ll_ops, sc_ops;
+#endif
 
-	len = sprintf(buffer, "cpu\t\t\t: MIPS\n");
-#if 0
-	len += sprintf(buffer + len, "cpu model\t\t: %s V%d.%d\n",
-	               cpu_name[mips_cpu.cputype <= CPU_LAST ?
-	                        mips_cpu.cputype :
-	                        CPU_UNKNOWN],
-	               (version >> 4) & 0x0f,
-	               version & 0x0f);
-	len += sprintf(buffer + len, "system type\t\t: %s %s\n",
-		       mach_group_names[mips_machgroup],
-		       mach_group_to_name[mips_machgroup][mips_machtype]);
+static const char *cpu_name[] = CPU_NAMES;
+
+static int show_cpuinfo(struct seq_file *m, void *v)
+{
+	unsigned int version = mips_cpu.processor_id;
+	unsigned int fp_vers = mips_cpu.fpu_id;
+	unsigned long n = (unsigned long) v - 1;
+	char fmt [64];
+
+#ifdef CONFIG_SMP
+	if (!(cpu_online_map & (1<<n)))
+		return 0;
 #endif
-	len += sprintf(buffer + len, "BogoMIPS\t\t: %lu.%02lu\n",
-		       (loops_per_jiffy + 2500) / (500000/HZ),
-	               ((loops_per_jiffy + 2500) / (5000/HZ)) % 100);
-	len += sprintf(buffer + len, "Number of cpus\t\t: %d\n", smp_num_cpus);
-#if defined (__MIPSEB__)
-	len += sprintf(buffer + len, "byteorder\t\t: big endian\n");
-#endif
-#if defined (__MIPSEL__)
-	len += sprintf(buffer + len, "byteorder\t\t: little endian\n");
-#endif
-	len += sprintf(buffer + len, "unaligned accesses\t: %lu\n",
-		       unaligned_instructions);
-	len += sprintf(buffer + len, "wait instruction\t: %s\n",
-	               wait_available ? "yes" : "no");
-	len += sprintf(buffer + len, "microsecond timers\t: %s\n",
-	               cyclecounter_available ? "yes" : "no");
-	len += sprintf(buffer + len, "extra interrupt vector\t: %s\n",
-	               dedicated_iv_available ? "yes" : "no");
-	len += sprintf(buffer + len, "hardware watchpoint\t: %s\n",
-	               watch_available ? "yes" : "no");
+
+	seq_printf(m, "processor\t\t: %d\n", n);
+	sprintf(fmt, "cpu model\t\t: %%s V%%d.%%d%s\n",
+	        (mips_cpu.options & MIPS_CPU_FPU) ? "  FPU V%d.%d" : "");
+	seq_printf(m, fmt, cpu_name[mips_cpu.cputype <= CPU_LAST ?
+	                            mips_cpu.cputype : CPU_UNKNOWN],
+	                           (version >> 4) & 0x0f, version & 0x0f,
+	                           (fp_vers >> 4) & 0x0f, fp_vers & 0x0f);
+	seq_printf(m, "BogoMIPS\t\t: %lu.%02lu\n",
+	              (loops_per_jiffy + 2500) / (500000/HZ),
+	              ((loops_per_jiffy + 2500) / (5000/HZ)) % 100);
+	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
+	seq_printf(m, "microsecond timers\t: %s\n",
+	              (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
+	seq_printf(m, "extra interrupt vector\t: %s\n",
+	              (mips_cpu.options & MIPS_CPU_DIVEC) ? "yes" : "no");
+	seq_printf(m, "hardware watchpoint\t: %s\n",
+	              watch_available ? "yes" : "no");
 
 	sprintf(fmt, "VCE%%c exceptions\t\t: %s\n",
-	        vce_available ? "%d" : "not available");
-	len += sprintf(buffer + len, fmt, 'D', vced_count);
-	len += sprintf(buffer + len, fmt, 'I', vcei_count);
+	        (mips_cpu.options & MIPS_CPU_VCE) ? "%d" : "not available");
+	seq_printf(m, fmt, 'D', vced_count);
+	seq_printf(m, fmt, 'I', vcei_count);
 
-	return len;
+#ifndef CONFIG_CPU_HAS_LLSC
+	seq_printf(m, "ll emulations\t\t: %lu\n", ll_ops);
+	seq_printf(m, "sc emulations\t\t: %lu\n", sc_ops);
+#endif
+
+	return 0;
 }
+
+static void *c_start(struct seq_file *m, loff_t *pos)
+{
+	unsigned long i = *pos;
+
+	return i < NR_CPUS ? (void *) (i + 1) : NULL;
+}
+
+static void *c_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	++*pos;
+	return c_start(m, pos);
+}
+
+static void c_stop(struct seq_file *m, void *v)
+{
+}
+
+struct seq_operations cpuinfo_op = {
+	start:	c_start,
+	next:	c_next,
+	stop:	c_stop,
+	show:	show_cpuinfo,
+};
 
 void init_irq_proc(void)
 {

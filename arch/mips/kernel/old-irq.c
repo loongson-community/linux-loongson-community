@@ -403,3 +403,6 @@ void __init init_IRQ(void)
 	/* i8259_init(); */
 	irq_setup();
 }
+
+EXPORT_SYMBOL(free_irq);
+EXPORT_SYMBOL(request_irq);

@@ -35,6 +35,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/smp_lock.h>
+#include <linux/seq_file.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -49,20 +50,12 @@
  * have a way to deal with that gracefully. Right now I used straightforward
  * wrappers, but this needs further analysis wrt potential overflows.
  */
-extern int get_cpuinfo(char *);
-extern int get_hardware_list(char *);
-extern int get_stram_list(char *);
-#ifdef CONFIG_DEBUG_MALLOC
-extern int get_malloc(char * buffer);
-#endif
 #ifdef CONFIG_MODULES
 extern int get_module_list(char *);
-extern int get_ksyms_list(char *, char **, off_t, int);
 #endif
 extern int get_device_list(char *);
 extern int get_partition_list(char *, char **, off_t, int);
 extern int get_filesystem_list(char *);
-extern int get_filesystem_info(char *);
 extern int get_exec_domain_list(char *);
 extern int get_irq_list(char *);
 extern int get_dma_list(char *);
@@ -209,39 +202,17 @@ static int version_read_proc(char *page, char **start, off_t off,
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
 
-static int cpuinfo_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
+extern struct seq_operations cpuinfo_op;
+static int cpuinfo_open(struct inode *inode, struct file *file)
 {
-	int len = get_cpuinfo(page);
-	return proc_calc_metrics(page, start, off, count, eof, len);
+	return seq_open(file, &cpuinfo_op);
 }
-
-#ifdef CONFIG_PROC_HARDWARE
-static int hardware_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{
-	int len = get_hardware_list(page);
-	return proc_calc_metrics(page, start, off, count, eof, len);
-}
-#endif
-
-#ifdef CONFIG_STRAM_PROC
-static int stram_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{
-	int len = get_stram_list(page);
-	return proc_calc_metrics(page, start, off, count, eof, len);
-}
-#endif
-
-#ifdef CONFIG_DEBUG_MALLOC
-static int malloc_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{
-	int len = get_malloc(page);
-	return proc_calc_metrics(page, start, off, count, eof, len);
-}
-#endif
+static struct file_operations proc_cpuinfo_operations = {
+	open:		cpuinfo_open,
+	read:		seq_read,
+	llseek:		seq_lseek,
+	release:	seq_release,
+};
 
 #ifdef CONFIG_MODULES
 static int modules_read_proc(char *page, char **start, off_t off,
@@ -251,13 +222,17 @@ static int modules_read_proc(char *page, char **start, off_t off,
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
 
-static int ksyms_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
+extern struct seq_operations ksyms_op;
+static int ksyms_open(struct inode *inode, struct file *file)
 {
-	int len = get_ksyms_list(page, start, off, count);
-	if (len < count) *eof = 1;
-	return len;
+	return seq_open(file, &ksyms_op);
 }
+static struct file_operations proc_ksyms_operations = {
+	open:		ksyms_open,
+	read:		seq_read,
+	llseek:		seq_lseek,
+	release:	seq_release,
+};
 #endif
 
 static int kstat_read_proc(char *page, char **start, off_t off,
@@ -414,13 +389,6 @@ static int locks_read_proc(char *page, char **start, off_t off,
 	return len;
 }
 
-static int mounts_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{
-	int len = get_filesystem_info(page);
-	return proc_calc_metrics(page, start, off, count, eof, len);
-}
-
 static int execdomains_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
 {
@@ -505,7 +473,27 @@ static struct file_operations proc_profile_operations = {
 	write:		write_profile,
 };
 
+extern struct seq_operations mounts_op;
+static int mounts_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &mounts_op);
+}
+static struct file_operations proc_mounts_operations = {
+	open:		mounts_open,
+	read:		seq_read,
+	llseek:		seq_lseek,
+	release:	seq_release,
+};
+
 struct proc_dir_entry *proc_root_kcore;
+
+static void create_seq_entry(char *name, mode_t mode, struct file_operations *f)
+{
+	struct proc_dir_entry *entry;
+	entry = create_proc_entry(name, mode, NULL);
+	if (entry)
+		entry->proc_fops = f;
+}
 
 void __init proc_misc_init(void)
 {
@@ -518,19 +506,8 @@ void __init proc_misc_init(void)
 		{"uptime",	uptime_read_proc},
 		{"meminfo",	meminfo_read_proc},
 		{"version",	version_read_proc},
-		{"cpuinfo",	cpuinfo_read_proc},
-#ifdef CONFIG_PROC_HARDWARE
-		{"hardware",	hardware_read_proc},
-#endif
-#ifdef CONFIG_STRAM_PROC
-		{"stram",	stram_read_proc},
-#endif
-#ifdef CONFIG_DEBUG_MALLOC
-		{"malloc",	malloc_read_proc},
-#endif
 #ifdef CONFIG_MODULES
 		{"modules",	modules_read_proc},
-		{"ksyms",	ksyms_read_proc},
 #endif
 		{"stat",	kstat_read_proc},
 		{"devices",	devices_read_proc},
@@ -546,7 +523,6 @@ void __init proc_misc_init(void)
 		{"rtc",		ds1286_read_proc},
 #endif
 		{"locks",	locks_read_proc},
-		{"mounts",	mounts_read_proc},
 		{"swaps",	swaps_read_proc},
 		{"iomem",	memory_read_proc},
 		{"execdomains",	execdomains_read_proc},
@@ -559,6 +535,11 @@ void __init proc_misc_init(void)
 	entry = create_proc_entry("kmsg", S_IRUSR, &proc_root);
 	if (entry)
 		entry->proc_fops = &proc_kmsg_operations;
+	create_seq_entry("mounts", 0, &proc_mounts_operations);
+	create_seq_entry("cpuinfo", 0, &proc_cpuinfo_operations);
+#ifdef CONFIG_MODULES
+	create_seq_entry("ksyms", 0, &proc_ksyms_operations);
+#endif
 	proc_root_kcore = create_proc_entry("kcore", S_IRUSR, NULL);
 	if (proc_root_kcore) {
 		proc_root_kcore->proc_fops = &proc_kcore_operations;

@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.151 2001/10/25 18:48:03 davem Exp $
+/* $Id: pgtable.h,v 1.152 2001/11/12 09:43:39 davem Exp $
  * pgtable.h: SpitFire page table operations.
  *
  * Copyright 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -343,5 +343,10 @@ extern unsigned long get_fb_unmapped_area(struct file *filp, unsigned long, unsi
 #define HAVE_ARCH_FB_UNMAPPED_AREA
 
 #endif /* !(__ASSEMBLY__) */
+
+/*
+ * No page table caches to initialise
+ */
+#define pgtable_cache_init()	do { } while (0)
 
 #endif /* !(_SPARC64_PGTABLE_H) */

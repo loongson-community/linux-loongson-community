@@ -50,8 +50,6 @@ static char *cpu_names[] = CPU_NAMES;
 
 char watch_available = 0;
 char dedicated_iv_available = 0;
-char vce_available = 0;
-char mips4_available = 0;
 
 int kstack_depth_to_print = 24;
 
@@ -144,6 +142,12 @@ void show_trace(unsigned long *sp)
 		}
 	}
 }
+
+void show_trace_task(struct task_struct *tsk)
+{
+	show_trace((unsigned long *)tsk->thread.reg29);
+}
+
 
 void show_code(unsigned int *pc)
 {
@@ -438,23 +442,6 @@ static inline void watch_init(unsigned long cputype)
 	}
 }
 
-/*
- * Some MIPS CPUs have a dedicated interrupt vector which reduces the
- * interrupt processing overhead.  Use it where available.
- * FIXME: more CPUs than just the Nevada have this feature.
- */
-static inline void setup_dedicated_int(void)
-{
-	extern void except_vec4(void);
-
-	switch(mips_cpu.cputype) {
-	case CPU_NEVADA:
-		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
-		set_cp0_cause(CAUSEF_IV);
-		dedicated_iv_available = 1;
-	}
-}
-
 unsigned long exception_handlers[32];
 
 /*
@@ -466,23 +453,10 @@ void set_except_vector(int n, void *addr)
 {
 	unsigned long handler = (unsigned long) addr;
 	exception_handlers[n] = handler;
-	if (n == 0 && dedicated_iv_available) {
+	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
 		flush_icache_range(KSEG0+0x200, KSEG0 + 0x204);
-	}
-}
-
-static inline void mips4_setup(void)
-{
-	switch (mips_cpu.cputype) {
-	case CPU_R5000:
-	case CPU_R5000A:
-	case CPU_NEVADA:
-	case CPU_R8000:
-	case CPU_R10000:
-		mips4_available = 1;
-		set_cp0_status(ST0_XX);
 	}
 }
 
@@ -501,6 +475,7 @@ void __init trap_init(void)
 	extern char except_vec1_r10k;
 	extern char except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
+	extern char except_vec4;
 	extern void bus_error_init(void);
 	unsigned long i;
 
@@ -522,8 +497,16 @@ void __init trap_init(void)
 	 * interrupt vector.
 	 */
 	watch_init(mips_cpu.cputype);
-	setup_dedicated_int();
-	mips4_setup();
+
+	/*
+	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
+	 * interrupt processing overhead.  Use it where available.
+	 */
+	if (mips_cpu.options & MIPS_CPU_DIVEC) {
+		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
+		set_cp0_cause(CAUSEF_IV);
+	}
+
 	go_64();		/* In memoriam C128 ;-)  */
 
 	if (mips_cpu.options & MIPS_CPU_MCHECK)
@@ -539,15 +522,12 @@ void __init trap_init(void)
 		 * should get some special optimizations.
 		 */
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		set_cp0_status(ST0_XX);
 		goto r4k;
 
 	case CPU_R4000MC:
 	case CPU_R4400MC:
 	case CPU_R4000SC:
 	case CPU_R4400SC:
-		vce_available = 1;
-		/* Fall through ...  */
 	case CPU_R4000PC:
 	case CPU_R4400PC:
 	case CPU_R4200:
@@ -563,7 +543,7 @@ r4k:
 		/* Cache error vector  */
 		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
 
-		if (vce_available) {
+		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
 			       0x180);
 		} else {
@@ -598,6 +578,9 @@ r4k:
 		panic("Unknown CPU type");
 	}
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
+
+	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
+		set_cp0_status(ST0_XX);
 
 	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
 	current->active_mm = &init_mm;

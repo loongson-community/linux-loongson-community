@@ -491,9 +491,9 @@ smp_boot_one_cpu(int cpuid, int cpunum)
 		panic("idle process is init_task for CPU %d", cpuid);
 
 	idle->processor = cpuid;
+	idle->cpus_runnable = 1 << cpuid; /* we schedule the first task manually */
 	__cpu_logical_map[cpunum] = cpuid;
 	__cpu_number_map[cpuid] = cpunum;
-	idle->has_cpu = 1; /* we schedule the first task manually */
  
 	del_from_runqueue(idle);
 	unhash_process(idle);
@@ -1091,16 +1091,7 @@ flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	}
 }
 
-int
-smp_info(char *buffer)
-{
-	return sprintf(buffer,
-		       "cpus active\t\t: %d\n"
-		       "cpu active mask\t\t: %016lx\n",
-		       smp_num_cpus, cpu_present_mask);
-}
-
-#if DEBUG_SPINLOCK
+#ifdef CONFIG_DEBUG_SPINLOCK
 void
 spin_unlock(spinlock_t * lock)
 {
@@ -1190,9 +1181,9 @@ debug_spin_trylock(spinlock_t * lock, const char *base_file, int line_no)
 	}
 	return ret;
 }
-#endif /* DEBUG_SPINLOCK */
+#endif /* CONFIG_DEBUG_SPINLOCK */
 
-#if DEBUG_RWLOCK
+#ifdef CONFIG_DEBUG_RWLOCK
 void write_lock(rwlock_t * lock)
 {
 	long regx, regy;
@@ -1270,4 +1261,4 @@ void read_lock(rwlock_t * lock)
 		goto try_again;
 	}
 }
-#endif /* DEBUG_RWLOCK */
+#endif /* CONFIG_DEBUG_RWLOCK */

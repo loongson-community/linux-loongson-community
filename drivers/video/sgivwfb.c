@@ -660,6 +660,7 @@ static int sgivwfb_set_var(struct fb_var_screeninfo *var, int con,
 
   /* XXX FIXME - should try to pick best refresh rate */
   /* for now, pick closest dot-clock within 3MHz*/
+#error "Floating point not allowed in kernel"  
   req_dot = (int)((1.0e3/1.0e6) / (1.0e-12 * (float)var->pixclock));
   printk(KERN_INFO "sgivwfb: requested pixclock=%d ps (%d KHz)\n", var->pixclock,
 	 req_dot);
@@ -862,7 +863,7 @@ int __init sgivwfb_setup(char *options)
   if (!options || !*options)
     return 0;
 
-  while (this_opt = strsep(&options, ",")) {
+  while ((this_opt = strsep(&options, ",")) != NULL) {
     if (!strncmp(this_opt, "font:", 5))
       strcpy(fb_info.fontname, this_opt+5);
   }
@@ -954,6 +955,8 @@ static void sgivwfbcon_blank(int blank, struct fb_info *info)
 }
 
 #ifdef MODULE
+MODULE_LICENSE("GPL");
+
 int init_module(void)
 {
   return sgivwfb_init();

@@ -13,6 +13,7 @@
 #include <linux/sched.h>
 #include <linux/mmzone.h>	/* for numnodes */
 #include <linux/mm.h>
+#include <asm/cpu.h>
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
 #include <asm/sn/types.h>
@@ -377,7 +378,7 @@ void per_cpu_init(void)
 	set_cp0_status(SRB_DEV0 | SRB_DEV1);
 	if (is_slave) {
 		clear_cp0_status(ST0_BEV);
-		if (mips4_available)
+		if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
 			set_cp0_status(ST0_XX);
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX);
 		sti();
@@ -497,7 +498,7 @@ void allowboot(void)
 			alloc_cpupda(cpu, num_cpus);
 			del_from_runqueue(p);
 			p->processor = num_cpus;
-			p->has_cpu = 1; /* we schedule the first task manually */
+			p->cpus_runnable = 1 << num_cpus; /* we schedule the first task manually */
 			unhash_process(p);
 			/* Attach to the address space of init_task. */
 			atomic_inc(&init_mm.mm_count);

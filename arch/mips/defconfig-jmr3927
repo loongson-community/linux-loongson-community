@@ -95,6 +95,7 @@ CONFIG_NET=y
 # CONFIG_PCI_NAMES is not set
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
+# CONFIG_HOTPLUG_PCI is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -267,6 +268,7 @@ CONFIG_TC35815=y
 # CONFIG_SUNDANCE is not set
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
+# CONFIG_VIA_RHINE_MMIO is not set
 # CONFIG_WINBOND_840 is not set
 # CONFIG_LAN_SAA9730 is not set
 # CONFIG_NET_POCKET is not set
@@ -411,11 +413,15 @@ CONFIG_TXX927_SERIAL_CONSOLE=y
 # CONFIG_AUTOFS4_FS is not set
 # CONFIG_REISERFS_FS is not set
 # CONFIG_REISERFS_CHECK is not set
+# CONFIG_REISERFS_PROC_INFO is not set
 # CONFIG_ADFS_FS is not set
 # CONFIG_ADFS_FS_RW is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
 # CONFIG_BFS_FS is not set
+# CONFIG_EXT3_FS is not set
+# CONFIG_JBD is not set
+# CONFIG_JBD_DEBUG is not set
 # CONFIG_FAT_FS is not set
 # CONFIG_MSDOS_FS is not set
 # CONFIG_UMSDOS_FS is not set
@@ -453,6 +459,7 @@ CONFIG_PROC_FS=y
 # Network File Systems
 #
 # CONFIG_CODA_FS is not set
+# CONFIG_INTERMEZZO_FS is not set
 CONFIG_NFS_FS=y
 # CONFIG_NFS_V3 is not set
 CONFIG_ROOT_NFS=y

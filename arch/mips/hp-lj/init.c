@@ -39,7 +39,7 @@ int __init prom_init(int argc, char ** argv, char **envp)
 		get_reserved_buffer_size(), (ulong)get_reserved_buffer());
 
 	printk("Detected %s ASIC\n", GetAsicName());
-	mips_machgroup  = MACH_GROUP_HP_LASERJET;
+	mips_machgroup  = MACH_GROUP_HP_LJ;
 	mips_machtype   = MACH_UNKNOWN;
 
 	strcpy(arcs_cmdline, CommandLine+strlen(Delimiter));

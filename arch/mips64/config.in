@@ -117,6 +117,9 @@ choice 'CPU type'				\
 	 SB1   CONFIG_CPU_SB1" R4x00
 endmenu
 
+define_bool CONFIG_CPU_HAS_LLSC y
+define_bool CONFIG_CPU_HAS_LLDSCD y
+
 mainmenu_option next_comment
 comment 'General setup'
 
@@ -137,8 +140,10 @@ bool 'Support for hot-pluggable devices' CONFIG_HOTPLUG
 
 if [ "$CONFIG_HOTPLUG" = "y" ] ; then
    source drivers/pcmcia/Config.in
+   source drivers/hotplug/Config.in
 else
    define_bool CONFIG_PCMCIA n
+   define_bool CONFIG_HOTPLUG_PCI n
 fi
 
 bool 'System V IPC' CONFIG_SYSVIPC

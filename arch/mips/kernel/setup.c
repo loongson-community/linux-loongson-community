@@ -209,9 +209,11 @@ static inline int cpu_has_fpu(void)
 }
 
 /* declaration of the global struct */
-struct mips_cpu mips_cpu = {PRID_IMP_UNKNOWN, FPIR_IMP_NONE, CPU_UNKNOWN,
-			    0, 0, 0,
-			    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
+struct mips_cpu mips_cpu = {
+    processor_id:	PRID_IMP_UNKNOWN,
+    fpu_id:		FPIR_IMP_NONE,
+    cputype:		CPU_UNKNOWN
+};
 
 /* Shortcut for assembler access to mips_cpu.options */
 int *cpuoptions = &mips_cpu.options;
@@ -796,7 +798,7 @@ void __init setup_arch(char **cmdline_p)
 		break;
 #endif
 #ifdef CONFIG_HP_LASERJET
-        case MACH_GROUP_HP_LASERJET:
+        case MACH_GROUP_HP_LJ:
                 hp_setup();
                 break;
 #endif

@@ -86,11 +86,10 @@ struct cpuinfo_mips {
  * System setup and hardware flags..
  * XXX: Should go into mips_cpuinfo.
  */
-extern char wait_available;		/* only available on R4[26]00 */
-extern char cyclecounter_available;	/* only available from R4000 upwards. */
-extern char dedicated_iv_available;	/* some embedded MIPS like Nevada */
-extern char vce_available;		/* Supports VCED / VCEI exceptions */
-extern char mips4_available;		/* CPU has MIPS IV ISA or better */
+extern void (*cpu_wait)(void);
+extern void r3081_wait(void);
+extern void r39xx_wait(void);
+extern void r4k_wait(void);
 
 extern unsigned int vced_count, vcei_count;
 extern struct cpuinfo_mips cpu_data[];

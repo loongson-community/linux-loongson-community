@@ -107,6 +107,7 @@
  */
 struct mips_cpu {
 	unsigned int processor_id;
+	unsigned int fpu_id;
 	unsigned int cputype;
 	int isa_level;
 	int options;

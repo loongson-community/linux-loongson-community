@@ -12,6 +12,8 @@
 #define PCIBIOS_MIN_IO		0UL
 #define PCIBIOS_MIN_MEM		0UL
 
+#define PCI_IRQ_NONE		0xffffffff
+
 extern inline void pcibios_set_master(struct pci_dev *dev)
 {
 	/* No special bus mastering setup handling */
@@ -112,6 +114,8 @@ extern inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 {
 	return 1;
 }
+
+#define pci_dac_dma_supported(dev, mask)	(0)
 
 /* Return the index of the PCI controller for device PDEV. */
 #define pci_controller_num(PDEV)	(0)

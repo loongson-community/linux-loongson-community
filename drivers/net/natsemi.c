@@ -1,6 +1,7 @@
 /* natsemi.c: A Linux PCI Ethernet driver for the NatSemi DP8381x series. */
 /*
 	Written/copyright 1999-2001 by Donald Becker.
+	Portions copyright (c) 2001 Sun Microsystems (thockin@sun.com)
 
 	This software may be used and distributed according to the terms of
 	the GNU General Public License (GPL), incorporated herein by reference.
@@ -95,6 +96,12 @@
 		* MDIO Cleanup (Tim Hockin)
 		* Reformat register offsets/bits (jgarzik)
 
+	version 1.0.12:
+		* ETHTOOL_* further support (Tim Hockin)
+
+	version 1.0.13:
+		* ETHTOOL_[GS]EEPROM support (Tim Hockin)
+
 	TODO:
 	* big endian support with CFG:BEM instead of cpu_to_le32
 	* support for an external PHY
@@ -102,7 +109,7 @@
 */
 
 #define DRV_NAME	"natsemi"
-#define DRV_VERSION	"1.07+LK1.0.11"
+#define DRV_VERSION	"1.07+LK1.0.13"
 #define DRV_RELDATE	"Oct 19, 2001"
 
 /* Updated to recommendations in pci-skeleton v2.03. */
@@ -162,6 +169,14 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
 #define NATSEMI_HW_TIMEOUT	400
 #define NATSEMI_TIMER_FREQ	3*HZ
+#define NATSEMI_PG0_NREGS	64
+#define NATSEMI_RFDR_NREGS	8
+#define NATSEMI_PG1_NREGS	4
+#define NATSEMI_NREGS		(NATSEMI_PG0_NREGS + NATSEMI_RFDR_NREGS + \
+				 NATSEMI_PG1_NREGS)
+#define NATSEMI_REGS_VER	1 /* v1 added RFDR registers */
+#define NATSEMI_REGS_SIZE	(NATSEMI_NREGS * sizeof(u32))
+#define NATSEMI_EEPROM_SIZE	24 /* 12 16-bit values */
 
 #define PKT_BUF_SZ		1536 /* Size of each temporary Rx buffer. */
 
@@ -647,6 +662,8 @@ static int netdev_get_ecmd(struct net_device *dev, struct ethtool_cmd *ecmd);
 static int netdev_set_ecmd(struct net_device *dev, struct ethtool_cmd *ecmd);
 static void enable_wol_mode(struct net_device *dev, int enable_intr);
 static int netdev_close(struct net_device *dev);
+static int netdev_get_regs(struct net_device *dev, u8 *buf);
+static int netdev_get_eeprom(struct net_device *dev, u8 *buf);
 
 
 static int __devinit natsemi_probe1 (struct pci_dev *pdev,
@@ -789,7 +806,7 @@ static int __devinit natsemi_probe1 (struct pci_dev *pdev,
 			   chip_config & CfgAnegFull ? "full" : "half");
 	}
 	printk(KERN_INFO "%s: Transceiver status 0x%4.4x advertising %4.4x.\n",
-		   dev->name, (int)mdio_read(dev, 1, MII_BMSR), 
+		   dev->name, mdio_read(dev, 1, MII_BMSR), 
 		   np->advertising);
 
 	/* save the silicon revision for later querying */
@@ -1647,8 +1664,12 @@ static void netdev_error(struct net_device *dev, int intr_status)
 		printk(KERN_NOTICE "%s: Link wake-up event %8.8x\n",
 			   dev->name, wol_status);
 	}
-	if (intr_status & RxStatusFIFOOver && debug) {
-		printk(KERN_NOTICE "%s: Rx status FIFO overrun\n", dev->name);
+	if (intr_status & RxStatusFIFOOver) {
+		if (debug >= 2) {
+			printk(KERN_NOTICE "%s: Rx status FIFO overrun\n", 
+				dev->name);
+		}
+		np->stats.rx_fifo_errors++;
 	}
 	/* Hmmmmm, it's not clear how to recover from PCI faults. */
 	if (intr_status & IntrPCIErr) {
@@ -1794,22 +1815,29 @@ static void set_rx_mode(struct net_device *dev)
 static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
 {
 	struct netdev_private *np = dev->priv;
-	struct ethtool_cmd ecmd;
-		
-	if (copy_from_user(&ecmd, useraddr, sizeof(ecmd)))
+	u32 cmd;
+	
+	if (get_user(cmd, (u32 *)useraddr))
 		return -EFAULT;
 
-        switch (ecmd.cmd) {
+        switch (cmd) {
+	/* get driver info */
         case ETHTOOL_GDRVINFO: {
 		struct ethtool_drvinfo info = {ETHTOOL_GDRVINFO};
-		strcpy(info.driver, DRV_NAME);
-		strcpy(info.version, DRV_VERSION);
-		strcpy(info.bus_info, np->pci_dev->slot_name);
+		strncpy(info.driver, DRV_NAME, ETHTOOL_BUSINFO_LEN);
+		strncpy(info.version, DRV_VERSION, ETHTOOL_BUSINFO_LEN);
+		info.fw_version[0] = '\0';
+		strncpy(info.bus_info, np->pci_dev->slot_name, 
+			ETHTOOL_BUSINFO_LEN);
+		info.eedump_len = NATSEMI_EEPROM_SIZE;
+		info.regdump_len = NATSEMI_REGS_SIZE;
 		if (copy_to_user(useraddr, &info, sizeof(info)))
 			return -EFAULT;
 		return 0;
 	}
+	/* get settings */
 	case ETHTOOL_GSET: {
+		struct ethtool_cmd ecmd = { ETHTOOL_GSET };
 		spin_lock_irq(&np->lock);
 		netdev_get_ecmd(dev, &ecmd);
 		spin_unlock_irq(&np->lock);
@@ -1817,7 +1845,9 @@ static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
 			return -EFAULT;
 		return 0;
 	}
+	/* set settings */
 	case ETHTOOL_SSET: {
+		struct ethtool_cmd ecmd;
 		int r;
 		if (copy_from_user(&ecmd, useraddr, sizeof(ecmd)))
 			return -EFAULT;
@@ -1826,6 +1856,7 @@ static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
 		spin_unlock_irq(&np->lock);
 		return r;
 	}
+	/* get wake-on-lan */
 	case ETHTOOL_GWOL: {
 		struct ethtool_wolinfo wol = {ETHTOOL_GWOL};
 		spin_lock_irq(&np->lock);
@@ -1836,6 +1867,7 @@ static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
 			return -EFAULT;
 		return 0;
 	}
+	/* set wake-on-lan */
 	case ETHTOOL_SWOL: {
 		struct ethtool_wolinfo wol;
 		int r;
@@ -1846,6 +1878,99 @@ static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
 		r = netdev_set_sopass(dev, wol.sopass);
 		spin_unlock_irq(&np->lock);
 		return r;
+	}
+	/* get registers */
+	case ETHTOOL_GREGS: {
+		struct ethtool_regs regs;
+		u8 regbuf[NATSEMI_REGS_SIZE];
+		int r;
+
+		if (copy_from_user(&regs, useraddr, sizeof(regs)))
+			return -EFAULT;
+		
+		if (regs.len > NATSEMI_REGS_SIZE) {
+			regs.len = NATSEMI_REGS_SIZE;
+		}
+		regs.version = NATSEMI_REGS_VER;
+		if (copy_to_user(useraddr, &regs, sizeof(regs)))
+			return -EFAULT;
+
+		useraddr += offsetof(struct ethtool_regs, data);
+
+		spin_lock_irq(&np->lock);
+		r = netdev_get_regs(dev, regbuf);
+		spin_unlock_irq(&np->lock);
+
+		if (r)
+			return r;
+		if (copy_to_user(useraddr, regbuf, regs.len))
+			return -EFAULT;
+		return 0;
+	}
+	/* get message-level */
+	case ETHTOOL_GMSGLVL: {
+		struct ethtool_value edata = {ETHTOOL_GMSGLVL};
+		edata.data = debug;
+		if (copy_to_user(useraddr, &edata, sizeof(edata)))
+			return -EFAULT;
+		return 0;
+	}
+	/* set message-level */
+	case ETHTOOL_SMSGLVL: {
+		struct ethtool_value edata;
+		if (copy_from_user(&edata, useraddr, sizeof(edata)))
+			return -EFAULT;
+		debug = edata.data;
+		return 0;
+	}
+	/* restart autonegotiation */
+	case ETHTOOL_NWAY_RST: {
+		int tmp;
+		int r = -EINVAL;
+		/* if autoneg is off, it's an error */
+		tmp = mdio_read(dev, 1, MII_BMCR);
+		if (tmp & BMCR_ANENABLE) {
+			tmp |= (BMCR_ANRESTART);
+			mdio_write(dev, 1, MII_BMCR, tmp);
+			r = 0;
+		}
+		return r;
+	}
+	/* get link status */
+	case ETHTOOL_GLINK: {
+		struct ethtool_value edata = {ETHTOOL_GLINK};
+		edata.data = (mdio_read(dev, 1, MII_BMSR)&BMSR_LSTATUS) ? 1:0;
+		if (copy_to_user(useraddr, &edata, sizeof(edata)))
+			return -EFAULT;
+		return 0;
+	}
+	/* get EEPROM */
+	case ETHTOOL_GEEPROM: {
+		struct ethtool_eeprom eeprom;
+		u8 eebuf[NATSEMI_EEPROM_SIZE];
+		int r;
+
+		if (copy_from_user(&eeprom, useraddr, sizeof(eeprom)))
+			return -EFAULT;
+		
+		if ((eeprom.offset+eeprom.len) > NATSEMI_EEPROM_SIZE) {
+			eeprom.len = NATSEMI_EEPROM_SIZE-eeprom.offset;
+		}
+		eeprom.magic = PCI_VENDOR_ID_NS | (PCI_DEVICE_ID_NS_83815<<16);
+		if (copy_to_user(useraddr, &eeprom, sizeof(eeprom)))
+			return -EFAULT;
+
+		useraddr += offsetof(struct ethtool_eeprom, data);
+
+		spin_lock_irq(&np->lock);
+		r = netdev_get_eeprom(dev, eebuf);
+		spin_unlock_irq(&np->lock);
+
+		if (r)
+			return r;
+		if (copy_to_user(useraddr, eebuf+eeprom.offset, eeprom.len))
+			return -EFAULT;
+		return 0;
 	}
 
         }
@@ -2081,6 +2206,69 @@ static int netdev_set_ecmd(struct net_device *dev, struct ethtool_cmd *ecmd)
 			np->full_duplex = 0;
 		}
 		mdio_write(dev, 1, MII_BMCR, tmp);
+	}
+	return 0;
+}
+
+static int netdev_get_regs(struct net_device *dev, u8 *buf)
+{
+	int i;
+	int j;
+	u32 rfcr;
+	u32 *rbuf = (u32 *)buf;
+	
+	/* read all of page 0 of registers */
+	for (i = 0; i < NATSEMI_PG0_NREGS; i++) {
+		rbuf[i] = readl(dev->base_addr + i*4);
+	}
+
+	/* read only the 'magic' registers from page 1 */
+	writew(1, dev->base_addr + PGSEL);
+	rbuf[i++] = readw(dev->base_addr + PMDCSR);
+	rbuf[i++] = readw(dev->base_addr + TSTDAT);
+	rbuf[i++] = readw(dev->base_addr + DSPCFG);
+	rbuf[i++] = readw(dev->base_addr + SDCFG);
+	writew(0, dev->base_addr + PGSEL);
+
+	/* read RFCR indexed registers */
+	rfcr = readl(dev->base_addr + RxFilterAddr);
+	for (j = 0; j < NATSEMI_RFDR_NREGS; j++) {
+		writel(j*2, dev->base_addr + RxFilterAddr);
+		rbuf[i++] = readw(dev->base_addr + RxFilterData);
+	}
+	writel(rfcr, dev->base_addr + RxFilterAddr);
+
+	/* the interrupt status is clear-on-read - see if we missed any */
+	if (rbuf[4] & rbuf[5]) {
+		printk(KERN_WARNING 
+			"%s: shoot, we dropped an interrupt (0x%x)\n", 
+			dev->name, rbuf[4] & rbuf[5]);
+	}
+
+	return 0;
+}
+
+#define SWAP_BITS(x)	( (((x) & 0x0001) << 15) | (((x) & 0x0002) << 13) \
+			| (((x) & 0x0004) << 11) | (((x) & 0x0008) << 9)  \
+			| (((x) & 0x0010) << 7)  | (((x) & 0x0020) << 5)  \
+			| (((x) & 0x0040) << 3)  | (((x) & 0x0080) << 1)  \
+			| (((x) & 0x0100) >> 1)  | (((x) & 0x0200) >> 3)  \
+			| (((x) & 0x0400) >> 5)  | (((x) & 0x0800) >> 7)  \
+			| (((x) & 0x1000) >> 9)  | (((x) & 0x2000) >> 11) \
+			| (((x) & 0x4000) >> 13) | (((x) & 0x8000) >> 15) )
+
+static int netdev_get_eeprom(struct net_device *dev, u8 *buf)
+{
+	int i;
+	u16 *ebuf = (u16 *)buf;
+
+	/* eeprom_read reads 16 bits, and indexes by 16 bits */
+	for (i = 0; i < NATSEMI_EEPROM_SIZE/2; i++) {
+		ebuf[i] = eeprom_read(dev->base_addr, i);
+		/* The EEPROM itself stores data bit-swapped, but eeprom_read 
+		 * reads it back "sanely". So we swap it back here in order to
+		 * present it to userland as it is stored. */
+		ebuf[i] = SWAP_BITS(ebuf[i]);
 	}
 	return 0;
 }

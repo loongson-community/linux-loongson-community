@@ -201,6 +201,12 @@ P:	Dave Gilbert
 M:	linux@treblig.org
 S:	Maintained
 
+ARM/SHARK MACHINE SUPPORT
+P:	Alexander Schulz
+M:	alex@shark-linux.de
+W:	http://www.shark-linux.de/shark.html
+S:	Maintained
+
 ARM/STRONGARM110 PORT
 P:	Russell King
 M:	rmk@arm.linux.org.uk
@@ -529,6 +535,12 @@ M:	Remy.Card@linux.org
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
+EXT3 FILE SYSTEM
+P:	Remy Card, Stephen Tweedie
+M:	sct@redhat.com, akpm@zip.com.au, adilger@turbolinux.com
+L:	ext3-users@redhat.com
+S:	Maintained
+
 FARSYNC SYNCHRONOUS DRIVER
 P:	Bob Dunlop
 M:	rjd@xyzzy.clara.co.uk
@@ -757,6 +769,13 @@ INTEL IA32 MICROCODE UPDATE SUPPORT
 P:	Tigran Aivazian
 M:	tigran@veritas.com
 S:	Maintained
+
+INTERMEZZO FILE SYSTEM
+P:	Peter J. Braam
+M:      braam@clusterfs.com
+W:      http://www.inter-mezzo.org/
+L:      intermezzo-discuss@lists.sourceforge.net
+S:      Maintained
 
 IP MASQUERADING:
 P:	Juanjo Ciarlante
@@ -1025,7 +1044,7 @@ S:	Maintained
 
 NETWORK DEVICE DRIVERS
 P:	Andrew Morton
-M:	andrewm@uow.edu.au
+M:	akpm@zip.com.au
 P:	Jeff Garzik
 M:	jgarzik@mandrakesoft.com
 L:	linux-net@vger.kernel.org
@@ -1155,6 +1174,17 @@ M:	mj@ucw.cz
 L:	linux-kernel@vger.kernel.org
 S:	Odd Fixes
 
+PCI HOTPLUG CORE
+P:	Greg Kroah-Hartman
+M:	greg@kroah.com
+M:	gregkh@us.ibm.com
+S:	Supported
+
+PCI HOTPLUG COMPAQ DRIVER
+P:	Greg Kroah-Hartman
+M:	greg@kroah.com
+S:	Maintained
+
 PCMCIA SUBSYSTEM
 P:	David Hinds
 M:	dhinds@zen.stanford.edu
@@ -1187,6 +1217,11 @@ PPP PROTOCOL DRIVERS AND COMPRESSORS
 P:	Paul Mackerras
 M:	paulus@samba.org
 L:	linux-ppp@vger.kernel.org
+S:	Maintained
+
+PPP OVER ATM (RFC 2364)
+P:	Mitchell Blank Jr
+M:	mitch@sfgoth.com
 S:	Maintained
 
 PPP OVER ETHERNET
@@ -1413,8 +1448,8 @@ L:	linux-video@atrey.karlin.mff.cuni.cz
 S:	Maintained
 
 SYSV FILESYSTEM
-P:	Krzysztof G. Baranowski
-M:	kgb@manjak.knm.org.pl
+P:	Christoph Hellwig
+M:	hch@caldera.de
 S:	Maintained
 
 TLAN NETWORK DRIVER

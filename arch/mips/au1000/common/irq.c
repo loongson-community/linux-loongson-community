@@ -84,7 +84,6 @@ static inline void mask_and_ack_fall_edge_irq(unsigned int irq_nr);
 inline void local_enable_irq(unsigned int irq_nr);
 inline void local_disable_irq(unsigned int irq_nr);
 
-volatile unsigned long irq_err_count;
 extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
 extern void __init init_generic_irq(void);
 

@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.107 2001/08/06 13:16:37 davem Exp $ */
+/* $Id: pgtable.h,v 1.109 2001/11/13 00:49:32 davem Exp $ */
 #ifndef _SPARC_PGTABLE_H
 #define _SPARC_PGTABLE_H
 
@@ -358,7 +358,8 @@ BTFIXUPDEF_CALL(void, set_pte, pte_t *, pte_t)
 
 #define set_pte(ptep,pteval) BTFIXUP_CALL(set_pte)(ptep,pteval)
 
-BTFIXUPDEF_CALL(int, mmu_info, char *)
+struct seq_file;
+BTFIXUPDEF_CALL(void, mmu_info, struct seq_file *)
 
 #define mmu_info(p) BTFIXUP_CALL(mmu_info)(p)
 
@@ -453,5 +454,10 @@ extern int io_remap_page_range(unsigned long from, unsigned long to,
 
 /* We provide our own get_unmapped_area to cope with VA holes for userland */
 #define HAVE_ARCH_UNMAPPED_AREA
+
+/*
+ * No page table caches to initialise
+ */
+#define pgtable_cache_init()	do { } while (0)
 
 #endif /* !(_SPARC_PGTABLE_H) */

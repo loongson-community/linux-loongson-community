@@ -12,9 +12,7 @@
    
    Authors: 	Arjan van de Ven <arjanv@redhat.com>
    		
-   
-
-
+   Based on work done by Søren Schmidt for FreeBSD  
 
 */
 
@@ -54,6 +52,12 @@ static struct disk_dev devlist[]= {
 	{IDE2_MAJOR, 64,  -1 },
 	{IDE3_MAJOR,  0,  -1 },
 	{IDE3_MAJOR, 64,  -1 },
+	{IDE4_MAJOR,  0,  -1 },
+	{IDE4_MAJOR, 64,  -1 },
+	{IDE5_MAJOR,  0,  -1 },
+	{IDE5_MAJOR, 64,  -1 },
+	{IDE6_MAJOR,  0,  -1 },
+	{IDE6_MAJOR, 64,  -1 },
 };
 
 
@@ -96,9 +100,7 @@ static struct pdcraid raid[16];
 static int pdcraid_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	unsigned int minor;
-   	unsigned long sectors,*larg;
-
-	
+   	unsigned long sectors;
 
 	if (!inode || !inode->i_rdev) 
 		return -EINVAL;
@@ -279,10 +281,6 @@ static int pdcraid0_make_request (request_queue_t *q, int rw, struct buffer_head
 	 * Let the main block layer submit the IO and resolve recursion:
 	 */
 	return 1;
-
- outerr:
-	buffer_IO_error(bh);
-	return 0;
 }
 
 static int pdcraid1_write_request(request_queue_t *q, int rw, struct buffer_head * bh)
@@ -547,17 +545,10 @@ static void __init fill_cutoff(int device)
 			   
 static __init int pdcraid_init_one(int device,int raidlevel)
 {
-	request_queue_t *q;
-	int i,count;
+	int i, count;
 
-	probedisk(0, device, raidlevel);
-	probedisk(1, device, raidlevel);
-	probedisk(2, device, raidlevel);
-	probedisk(3, device, raidlevel);
-	probedisk(4, device, raidlevel);
-	probedisk(5, device, raidlevel);
-	probedisk(6, device, raidlevel);
-	probedisk(7, device, raidlevel);
+	for (i=0; i<14; i++)
+		probedisk(i, device, raidlevel);
 	
 	if (raidlevel==0)
 		fill_cutoff(device);
@@ -585,10 +576,9 @@ static __init int pdcraid_init_one(int device,int raidlevel)
 
 static __init int pdcraid_init(void)
 {
-	int i,retval,device,count=0;
+	int retval, device, count = 0;
 
 	do {
-	
 		cookie = 0;
 		device=ataraid_get_device(&pdcraid0_ops);
 		if (device<0)

@@ -220,7 +220,7 @@ void show_trace(unsigned int *sp)
 	unsigned long module_start, module_end;
 	extern char _stext, _etext;
 
-	stack = sp ? sp : (unsigned int *)&sp;
+	stack = sp ? sp : (unsigned int *) &sp;
 	i = 0;
 
 	kernel_start = (unsigned long) &_stext;

@@ -38,8 +38,8 @@ asmlinkage int cpu_idle(void)
 	current->counter = -100;
 	while (1) {
 		while (!current->need_resched)
-			if (wait_available)
-				__asm__("wait");
+			if (cpu_wait)
+				(*cpu_wait)();
 		schedule();
 		check_pgt_cache();
 	}

@@ -51,9 +51,11 @@ static int	ahc_linux_pci_dev_probe(struct pci_dev *pdev,
 					const struct pci_device_id *ent);
 static int	ahc_linux_pci_reserve_io_region(struct ahc_softc *ahc,
 						u_long *base);
+#ifdef MMAPIO
 static int	ahc_linux_pci_reserve_mem_region(struct ahc_softc *ahc,
 						 u_long *bus_addr,
 						 uint8_t **maddr);
+#endif /* MMAPIO */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
 static void	ahc_linux_pci_dev_remove(struct pci_dev *pdev);
 
@@ -89,7 +91,7 @@ ahc_linux_pci_dev_remove(struct pci_dev *pdev)
 	 * the free directly, but check our
 	 * list for extra sanity.
 	 */
-	ahc = (struct ahc_softc *)pdev->driver_data;
+	ahc = pci_get_drvdata(pdev);
 	TAILQ_FOREACH(list_ahc, &ahc_tailq, links) {
 		if (list_ahc == ahc) {
 			ahc_free(ahc);
@@ -176,7 +178,7 @@ ahc_linux_pci_dev_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		return (-error);
 	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
-	pdev->driver_data = ahc;
+	pci_set_drvdata(pdev, ahc);
 	if (aic7xxx_detect_complete)
 		ahc_linux_register_host(ahc, aic7xxx_driver_template);
 #endif
@@ -236,6 +238,7 @@ ahc_linux_pci_reserve_io_region(struct ahc_softc *ahc, u_long *base)
 	return (0);
 }
 
+#ifdef MMAPIO
 static int
 ahc_linux_pci_reserve_mem_region(struct ahc_softc *ahc,
 				 u_long *bus_addr,
@@ -274,6 +277,7 @@ ahc_linux_pci_reserve_mem_region(struct ahc_softc *ahc,
 		error = ENOMEM;
 	return (error);
 }
+#endif /* MMAPIO */
 
 int
 ahc_pci_map_registers(struct ahc_softc *ahc)

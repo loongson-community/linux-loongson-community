@@ -234,7 +234,8 @@ struct hid_usage {
 	unsigned  hid;			/* hid usage code */
 	__u16     code;			/* input driver code */
 	__u8      type;			/* input driver type */
-	__u8	  hat;			/* hat switch fun */
+	__s8	  hat_min;		/* hat switch fun */
+	__s8	  hat_max;		/* ditto */
 };
 
 struct hid_field {
@@ -362,7 +363,7 @@ void hidinput_disconnect(struct hid_device *);
 
 #endif
 
-#define IS_INPUT_APPLICATION(a) ((a >= 0x00010000) && (a <= 0x00010008))
+#define IS_INPUT_APPLICATION(a) (((a >= 0x00010000) && (a <= 0x00010008)) || (a == 0x00010080) || ( a == 0x000c0001))
 
 int hid_open(struct hid_device *);
 void hid_close(struct hid_device *);

@@ -52,6 +52,7 @@ CONFIG_NET=y
 CONFIG_PCI_NAMES=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
+# CONFIG_HOTPLUG_PCI is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -206,6 +207,7 @@ CONFIG_SCSI_LOGGING=y
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
 # CONFIG_SCSI_NCR53C7xx is not set
+# CONFIG_SCSI_SYM53C8XX_2 is not set
 # CONFIG_SCSI_NCR53C8XX is not set
 # CONFIG_SCSI_SYM53C8XX is not set
 # CONFIG_SCSI_PAS16 is not set
@@ -374,11 +376,15 @@ CONFIG_AUTOFS_FS=y
 # CONFIG_AUTOFS4_FS is not set
 # CONFIG_REISERFS_FS is not set
 # CONFIG_REISERFS_CHECK is not set
+# CONFIG_REISERFS_PROC_INFO is not set
 # CONFIG_ADFS_FS is not set
 # CONFIG_ADFS_FS_RW is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
 # CONFIG_BFS_FS is not set
+# CONFIG_EXT3_FS is not set
+# CONFIG_JBD is not set
+# CONFIG_JBD_DEBUG is not set
 # CONFIG_FAT_FS is not set
 # CONFIG_MSDOS_FS is not set
 # CONFIG_UMSDOS_FS is not set
@@ -416,6 +422,7 @@ CONFIG_EXT2_FS=y
 # Network File Systems
 #
 # CONFIG_CODA_FS is not set
+# CONFIG_INTERMEZZO_FS is not set
 CONFIG_NFS_FS=y
 CONFIG_NFS_V3=y
 CONFIG_ROOT_NFS=y

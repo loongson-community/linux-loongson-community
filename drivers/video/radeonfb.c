@@ -642,7 +642,9 @@ int __init radeonfb_setup (char *options)
         if (!options || !*options)
                 return 0;
  
-	while (this_opt = strsep (&options, ",")) {
+	while ((this_opt = strsep (&options, ",")) != NULL) {
+		if (!*this_opt)
+			continue;
                 if (!strncmp (this_opt, "font:", 5)) {
                         char *p;
                         int i;
@@ -889,7 +891,7 @@ static int radeonfb_pci_register (struct pci_dev *pdev,
 		rinfo->palette[i].blue = default_blu[j];
 	}
 
-	pdev->driver_data = rinfo;
+	pci_set_drvdata(pdev, rinfo);
 
 	if (register_framebuffer ((struct fb_info *) rinfo) < 0) {
 		printk ("radeonfb: could not register framebuffer\n");
@@ -930,7 +932,7 @@ static int radeonfb_pci_register (struct pci_dev *pdev,
 
 static void __devexit radeonfb_pci_unregister (struct pci_dev *pdev)
 {
-        struct radeonfb_info *rinfo = pdev->driver_data;
+        struct radeonfb_info *rinfo = pci_get_drvdata(pdev);
  
         if (!rinfo)
                 return;

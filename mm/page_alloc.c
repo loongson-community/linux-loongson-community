@@ -27,7 +27,7 @@ struct list_head active_list;
 pg_data_t *pgdat_list;
 
 static char *zone_names[MAX_NR_ZONES] = { "DMA", "Normal", "HighMem" };
-static int zone_balance_ratio[MAX_NR_ZONES] __initdata = { 32, 128, 128, };
+static int zone_balance_ratio[MAX_NR_ZONES] __initdata = { 128, 128, 128, };
 static int zone_balance_min[MAX_NR_ZONES] __initdata = { 20 , 20, 20, };
 static int zone_balance_max[MAX_NR_ZONES] __initdata = { 255 , 255, 255, };
 
@@ -80,9 +80,9 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 		BUG();
 	if (PageLocked(page))
 		BUG();
-	if (PageActive(page))
+	if (PageLRU(page))
 		BUG();
-	if (PageInactive(page))
+	if (PageActive(page))
 		BUG();
 	page->flags &= ~((1<<PG_referenced) | (1<<PG_dirty));
 
@@ -203,7 +203,10 @@ static struct page * rmqueue(zone_t *zone, unsigned int order)
 			set_page_count(page, 1);
 			if (BAD_RANGE(zone,page))
 				BUG();
-			DEBUG_LRU_PAGE(page);
+			if (PageLRU(page))
+				BUG();
+			if (PageActive(page))
+				BUG();
 			return page;	
 		}
 		curr_order++;
@@ -268,9 +271,9 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
 						BUG();
 					if (PageLocked(page))
 						BUG();
-					if (PageActive(page))
+					if (PageLRU(page))
 						BUG();
-					if (PageInactive(page))
+					if (PageActive(page))
 						BUG();
 					if (PageDirty(page))
 						BUG();
@@ -296,29 +299,26 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
 	return page;
 }
 
-static inline unsigned long zone_free_pages(zone_t * zone, unsigned int order)
-{
-	long free = zone->free_pages - (1UL << order);
-	return free >= 0 ? free : 0;
-}
-
 /*
  * This is the 'heart' of the zoned buddy allocator:
  */
 struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_t *zonelist)
 {
+	unsigned long min;
 	zone_t **zone, * classzone;
 	struct page * page;
 	int freed;
 
 	zone = zonelist->zones;
 	classzone = *zone;
+	min = 1UL << order;
 	for (;;) {
 		zone_t *z = *(zone++);
 		if (!z)
 			break;
 
-		if (zone_free_pages(z, order) > z->pages_low) {
+		min += z->pages_low;
+		if (z->free_pages > min) {
 			page = rmqueue(z, order);
 			if (page)
 				return page;
@@ -331,16 +331,18 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 		wake_up_interruptible(&kswapd_wait);
 
 	zone = zonelist->zones;
+	min = 1UL << order;
 	for (;;) {
-		unsigned long min;
+		unsigned long local_min;
 		zone_t *z = *(zone++);
 		if (!z)
 			break;
 
-		min = z->pages_min;
+		local_min = z->pages_min;
 		if (!(gfp_mask & __GFP_WAIT))
-			min >>= 2;
-		if (zone_free_pages(z, order) > min) {
+			local_min >>= 2;
+		min += local_min;
+		if (z->free_pages > min) {
 			page = rmqueue(z, order);
 			if (page)
 				return page;
@@ -373,12 +375,14 @@ rebalance:
 		return page;
 
 	zone = zonelist->zones;
+	min = 1UL << order;
 	for (;;) {
 		zone_t *z = *(zone++);
 		if (!z)
 			break;
 
-		if (zone_free_pages(z, order) > z->pages_min) {
+		min += z->pages_min;
+		if (z->free_pages > min) {
 			page = rmqueue(z, order);
 			if (page)
 				return page;
@@ -425,7 +429,7 @@ unsigned long get_zeroed_page(unsigned int gfp_mask)
 void page_cache_release(struct page *page)
 {
 	if (!PageReserved(page) && put_page_testzero(page)) {
-		if (PageActive(page) || PageInactive(page))
+		if (PageLRU(page))
 			lru_cache_del(page);
 		__free_pages_ok(page, 0);
 	}

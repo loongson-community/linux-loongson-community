@@ -2,7 +2,7 @@
  * Kernel support for the ptrace() and syscall tracing interfaces.
  *
  * Copyright (C) 1999-2001 Hewlett-Packard Co
- * Copyright (C) 1999-2001 David Mosberger-Tang <davidm@hpl.hp.com>
+ *	David Mosberger-Tang <davidm@hpl.hp.com>
  *
  * Derived from the x86 and Alpha versions.  Most of the code in here
  * could actually be factored into a common set of routines.
@@ -794,11 +794,14 @@ access_uarea (struct task_struct *child, unsigned long addr, unsigned long *data
  *
  * Make sure the single step bit is not set.
  */
-void ptrace_disable(struct task_struct *child)
+void
+ptrace_disable (struct task_struct *child)
 {
+	struct ia64_psr *child_psr = ia64_psr(ia64_task_regs(child));
+
 	/* make sure the single step/take-branch tra bits are not set: */
-	ia64_psr(pt)->ss = 0;
-	ia64_psr(pt)->tb = 0;
+	child_psr->ss = 0;
+	child_psr->tb = 0;
 
 	/* Turn off flag indicating that the KRBS is sync'd with child's VM: */
 	child->thread.flags &= ~IA64_THREAD_KRBS_SYNCED;
@@ -809,7 +812,7 @@ sys_ptrace (long request, pid_t pid, unsigned long addr, unsigned long data,
 	    long arg4, long arg5, long arg6, long arg7, long stack)
 {
 	struct pt_regs *pt, *regs = (struct pt_regs *) &stack;
-	unsigned long flags, urbs_end;
+	unsigned long urbs_end;
 	struct task_struct *child;
 	struct switch_stack *sw;
 	long ret;
@@ -843,16 +846,9 @@ sys_ptrace (long request, pid_t pid, unsigned long addr, unsigned long data,
 		ret = ptrace_attach(child);
 		goto out_tsk;
 	}
-	ret = -ESRCH;
-	if (!(child->ptrace & PT_PTRACED))
-		goto out_tsk;
 
-	if (child->state != TASK_STOPPED) {
-		if (request != PTRACE_KILL)
-			goto out_tsk;
-	}
-
-	if (child->p_pptr != current)
+	ret = ptrace_check_attach(child, request == PTRACE_KILL);
+	if (ret < 0)
 		goto out_tsk;
 
 	pt = ia64_task_regs(child);
@@ -925,7 +921,7 @@ sys_ptrace (long request, pid_t pid, unsigned long addr, unsigned long data,
 			child->ptrace &= ~PT_TRACESYS;
 		child->exit_code = data;
 
-		/* make sure the single step/take-branch tra bits are not set: */
+		/* make sure the single step/taken-branch trap bits are not set: */
 		ia64_psr(pt)->ss = 0;
 		ia64_psr(pt)->tb = 0;
 

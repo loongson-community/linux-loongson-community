@@ -66,7 +66,7 @@ static LIST_HEAD(anon_hash_chain); /* for inodes with NULL i_sb */
  * NOTE! You also have to own the lock if you change
  * the i_state of an inode while it is in use..
  */
-spinlock_t inode_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t inode_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  * Statistics gathering..
@@ -404,6 +404,8 @@ static void try_to_sync_unused_inodes(void * arg)
 	spin_lock(&sb_lock);
 	sb = sb_entry(super_blocks.next);
 	for (; nr_inodes && sb != sb_entry(&super_blocks); sb = sb_entry(sb->s_list.next)) {
+		if (list_empty(&sb->s_dirty))
+			continue;
 		spin_unlock(&sb_lock);
 		nr_inodes = try_to_sync_unused_list(&sb->s_dirty, nr_inodes);
 		spin_lock(&sb_lock);
@@ -569,8 +571,7 @@ static int invalidate_list(struct list_head *head, struct super_block * sb, stru
 			continue;
 		invalidate_inode_buffers(inode);
 		if (!atomic_read(&inode->i_count)) {
-			list_del(&inode->i_hash);
-			INIT_LIST_HEAD(&inode->i_hash);
+			list_del_init(&inode->i_hash);
 			list_del(&inode->i_list);
 			list_add(&inode->i_list, dispose);
 			inode->i_state |= I_FREEING;
@@ -678,11 +679,11 @@ void prune_icache(int goal)
 		entry = entry->prev;
 		inode = INODE(tmp);
 		if (inode->i_state & (I_FREEING|I_CLEAR|I_LOCK))
-			BUG();
+			continue;
 		if (!CAN_UNUSE(inode))
 			continue;
 		if (atomic_read(&inode->i_count))
-			BUG();
+			continue;
 		list_del(tmp);
 		list_del(&inode->i_hash);
 		INIT_LIST_HEAD(&inode->i_hash);
@@ -957,8 +958,6 @@ struct inode *igrab(struct inode *inode)
 		 */
 		inode = NULL;
 	spin_unlock(&inode_lock);
-	if (inode)
-		wait_on_inode(inode);
 	return inode;
 }
 
@@ -1029,13 +1028,14 @@ void remove_inode_hash(struct inode *inode)
 void iput(struct inode *inode)
 {
 	if (inode) {
+		struct super_block *sb = inode->i_sb;
 		struct super_operations *op = NULL;
 
 		if (inode->i_state == I_CLEAR)
 			BUG();
 
-		if (inode->i_sb && inode->i_sb->s_op)
-			op = inode->i_sb->s_op;
+		if (sb && sb->s_op)
+			op = sb->s_op;
 		if (op && op->put_inode)
 			op->put_inode(inode);
 
@@ -1065,7 +1065,7 @@ void iput(struct inode *inode)
 			if (inode->i_state != I_CLEAR)
 				BUG();
 		} else {
-			if (!list_empty(&inode->i_hash)) {
+			if (!list_empty(&inode->i_hash) && sb && sb->s_root) {
 				if (!(inode->i_state & (I_DIRTY|I_LOCK))) {
 					list_del(&inode->i_list);
 					list_add(&inode->i_list, &inode_unused);
@@ -1074,9 +1074,8 @@ void iput(struct inode *inode)
 				spin_unlock(&inode_lock);
 				return;
 			} else {
-				/* magic nfs path */
-				list_del(&inode->i_list);
-				INIT_LIST_HEAD(&inode->i_list);
+				list_del_init(&inode->i_list);
+				list_del_init(&inode->i_hash);
 				inode->i_state|=I_FREEING;
 				inodes_stat.nr_inodes--;
 				spin_unlock(&inode_lock);
@@ -1210,9 +1209,9 @@ void remove_dquot_ref(struct super_block *sb, short type)
 
 	if (!sb->dq_op)
 		return;	/* nothing to do */
-
 	/* We have to be protected against other CPUs */
-	spin_lock(&inode_lock);
+	lock_kernel();		/* This lock is for quota code */
+	spin_lock(&inode_lock);	/* This lock is for inodes code */
  
 	list_for_each(act_head, &inode_in_use) {
 		inode = list_entry(act_head, struct inode, i_list);
@@ -1235,6 +1234,7 @@ void remove_dquot_ref(struct super_block *sb, short type)
 			remove_inode_dquot_ref(inode, type, &tofree_head);
 	}
 	spin_unlock(&inode_lock);
+	unlock_kernel();
 
 	put_dquot_list(&tofree_head);
 }

@@ -41,7 +41,7 @@ void ptrace_disable(struct task_struct *child)
 asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 {
 	struct task_struct *child;
-	int res;
+	int ret;
 	extern void save_fp(struct task_struct *);
 
 	lock_kernel();
@@ -53,15 +53,15 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	if (request == PTRACE_TRACEME) {
 		/* are we already being traced? */
 		if (current->ptrace & PT_PTRACED) {
-			res = -EPERM;
+			ret = -EPERM;
 			goto out;
 		}
 		/* set the ptrace bit in the process flags. */
 		current->ptrace |= PT_PTRACED;
-		res = 0;
+		ret = 0;
 		goto out;
 	}
-	res = -ESRCH;
+	ret = -ESRCH;
 	read_lock(&tasklist_lock);
 	child = find_task_by_pid(pid);
 	if (child)
@@ -70,23 +70,19 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	if (!child)
 		goto out;
 
-	res = -EPERM;
+	ret = -EPERM;
 	if (pid == 1)		/* you may not mess with init */
 		goto out;
 
 	if (request == PTRACE_ATTACH) {
-		res = ptrace_attach(child);
+		ret = ptrace_attach(child);
 		goto out_tsk;
 	}
-	res = -ESRCH;
-	if (!(child->ptrace & PT_PTRACED))
+
+	ret = ptrace_check_attach(child, request == PTRACE_KILL);
+	if (ret < 0)
 		goto out_tsk;
-	if (child->state != TASK_STOPPED) {
-		if (request != PTRACE_KILL)
-			goto out_tsk;
-	}
-	if (child->p_pptr != current)
-		goto out_tsk;
+
 	switch (request) {
 	case PTRACE_PEEKTEXT: /* read word at location addr. */ 
 	case PTRACE_PEEKDATA: {
@@ -94,10 +90,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		int copied;
 
 		copied = access_process_vm(child, addr, &tmp, sizeof(tmp), 0);
-		res = -EIO;
+		ret = -EIO;
 		if (copied != sizeof(tmp))
 			break;
-		res = put_user(tmp,(unsigned long *) data);
+		ret = put_user(tmp,(unsigned long *) data);
 
 		goto out;
 		}
@@ -185,25 +181,25 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		}
 		default:
 			tmp = 0;
-			res = -EIO;
+			ret = -EIO;
 			goto out;
 		}
-		res = put_user(tmp, (unsigned long *) data);
+		ret = put_user(tmp, (unsigned long *) data);
 		goto out;
 		}
 
 	case PTRACE_POKETEXT: /* write the word at location addr. */
 	case PTRACE_POKEDATA:
-		res = 0;
+		ret = 0;
 		if (access_process_vm(child, addr, &data, sizeof(data), 1)
 		    == sizeof(data))
 			break;
-		res = -EIO;
+		ret = -EIO;
 		goto out;
 
 	case PTRACE_POKEUSR: {
 		struct pt_regs *regs;
-		res = 0;
+		ret = 0;
 		regs = (struct pt_regs *) ((unsigned long) child +
 		       KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
 
@@ -269,7 +265,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			break;
 		default:
 			/* The rest are not allowed. */
-			res = -EIO;
+			ret = -EIO;
 			break;
 		}
 		break;
@@ -277,7 +273,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 	case PTRACE_SYSCALL: /* continue and stop at next (return from) syscall */
 	case PTRACE_CONT: { /* restart after signal. */
-		res = -EIO;
+		ret = -EIO;
 		if ((unsigned long) data > _NSIG)
 			break;
 		if (request == PTRACE_SYSCALL)
@@ -286,7 +282,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			child->ptrace &= ~PT_TRACESYS;
 		child->exit_code = data;
 		wake_up_process(child);
-		res = 0;
+		ret = 0;
 		break;
 		}
 
@@ -296,7 +292,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	 * exit.
 	 */
 	case PTRACE_KILL:
-		res = 0;
+		ret = 0;
 		if (child->state == TASK_ZOMBIE)	/* already dead */
 			break;
 		child->exit_code = SIGKILL;
@@ -304,7 +300,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		break;
 
 	case PTRACE_DETACH: /* detach a process that was attached. */
-		res = ptrace_detach(child, data);
+		ret = ptrace_detach(child, data);
 		break;
 
 	case PTRACE_SETOPTIONS:
@@ -312,18 +308,18 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			child->ptrace |= PT_TRACESYSGOOD;
 		else
 			child->ptrace &= ~PT_TRACESYSGOOD;
-		res = 0;
+		ret = 0;
 		break;
 
 	default:
-		res = -EIO;
+		ret = -EIO;
 		goto out;
 	}
 out_tsk:
 	free_task_struct(child);
 out:
 	unlock_kernel();
-	return res;
+	return ret;
 }
 
 asmlinkage void syscall_trace(void)

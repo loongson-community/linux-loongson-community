@@ -116,21 +116,21 @@
 #define PCI_SEC_LATENCY_TIMER	0x1b	/* Latency timer for secondary interface */
 #define PCI_IO_BASE		0x1c	/* I/O range behind the bridge */
 #define PCI_IO_LIMIT		0x1d
-#define  PCI_IO_RANGE_TYPE_MASK	0x0f	/* I/O bridging type */
+#define  PCI_IO_RANGE_TYPE_MASK	0x0fUL	/* I/O bridging type */
 #define  PCI_IO_RANGE_TYPE_16	0x00
 #define  PCI_IO_RANGE_TYPE_32	0x01
-#define  PCI_IO_RANGE_MASK	~0x0f
+#define  PCI_IO_RANGE_MASK	(~0x0fUL)
 #define PCI_SEC_STATUS		0x1e	/* Secondary status register, only bit 14 used */
 #define PCI_MEMORY_BASE		0x20	/* Memory range behind */
 #define PCI_MEMORY_LIMIT	0x22
-#define  PCI_MEMORY_RANGE_TYPE_MASK 0x0f
-#define  PCI_MEMORY_RANGE_MASK	~0x0f
+#define  PCI_MEMORY_RANGE_TYPE_MASK 0x0fUL
+#define  PCI_MEMORY_RANGE_MASK	(~0x0fUL)
 #define PCI_PREF_MEMORY_BASE	0x24	/* Prefetchable memory range behind */
 #define PCI_PREF_MEMORY_LIMIT	0x26
-#define  PCI_PREF_RANGE_TYPE_MASK 0x0f
+#define  PCI_PREF_RANGE_TYPE_MASK 0x0fUL
 #define  PCI_PREF_RANGE_TYPE_32	0x00
 #define  PCI_PREF_RANGE_TYPE_64	0x01
-#define  PCI_PREF_RANGE_MASK	~0x0f
+#define  PCI_PREF_RANGE_MASK	(~0x0fUL)
 #define PCI_PREF_BASE_UPPER32	0x28	/* Upper half of prefetchable memory range */
 #define PCI_PREF_LIMIT_UPPER32	0x2c
 #define PCI_IO_BASE_UPPER16	0x30	/* Upper half of I/O addresses */
@@ -168,7 +168,7 @@
 #define PCI_CB_IO_BASE_1_HI	0x36
 #define PCI_CB_IO_LIMIT_1	0x38
 #define PCI_CB_IO_LIMIT_1_HI	0x3a
-#define  PCI_CB_IO_RANGE_MASK	~0x03
+#define  PCI_CB_IO_RANGE_MASK	(~0x03UL)
 /* 0x3c-0x3d are same as for htype 0 */
 #define PCI_CB_BRIDGE_CONTROL	0x3e
 #define  PCI_CB_BRIDGE_CTL_PARITY	0x01	/* Similar to standard bridge control register */
@@ -402,7 +402,7 @@ struct pci_dev {
 #define PCI_BRIDGE_RESOURCES 7
 #define PCI_NUM_RESOURCES 11
   
-#define PCI_REGION_FLAG_MASK 0x0f	/* These bits of resource flags tell us the PCI region flags */
+#define PCI_REGION_FLAG_MASK 0x0fU	/* These bits of resource flags tell us the PCI region flags */
 
 struct pci_bus {
 	struct list_head node;		/* node in list of buses */
@@ -532,6 +532,8 @@ struct pci_bus *pci_alloc_primary_bus(int bus);
 struct pci_dev *pci_scan_slot(struct pci_dev *temp);
 int pci_proc_attach_device(struct pci_dev *dev);
 int pci_proc_detach_device(struct pci_dev *dev);
+int pci_proc_attach_bus(struct pci_bus *bus);
+int pci_proc_detach_bus(struct pci_bus *bus);
 void pci_name_device(struct pci_dev *dev);
 char *pci_class_name(u32 class);
 void pci_read_bridge_bases(struct pci_bus *child);
@@ -589,6 +591,9 @@ void pci_insert_device(struct pci_dev *, struct pci_bus *);
 void pci_remove_device(struct pci_dev *);
 struct pci_driver *pci_dev_driver(const struct pci_dev *);
 const struct pci_device_id *pci_match_device(const struct pci_device_id *ids, const struct pci_dev *dev);
+void pci_announce_device_to_drivers(struct pci_dev *);
+unsigned int pci_do_scan_bus(struct pci_bus *bus);
+struct pci_bus * pci_add_new_bus(struct pci_bus *parent, struct pci_dev *dev, int busnr);
 
 /* kmem_cache style wrapper around pci_alloc_consistent() */
 struct pci_pool *pci_pool_create (const char *name, struct pci_dev *dev,

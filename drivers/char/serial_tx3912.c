@@ -14,7 +14,7 @@
 #include <linux/tty.h>
 #include <linux/major.h>
 #include <linux/console.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/serial.h>
 #include <asm/io.h>

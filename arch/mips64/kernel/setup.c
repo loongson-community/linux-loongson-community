@@ -28,10 +28,9 @@
 #include <linux/blk.h>
 #endif
 
-#include <asm/asm.h>
 #include <asm/bootinfo.h>
-#include <asm/cachectl.h>
 #include <asm/cpu.h>
+#include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
 #include <asm/pgalloc.h>
@@ -39,6 +38,15 @@
 #ifndef CONFIG_SMP
 struct cpuinfo_mips cpu_data[1];
 #endif
+
+/*
+ * Not all of the MIPS CPUs have the "wait" instruction available. Moreover,
+ * the implementation of the "wait" feature differs between CPU families. This
+ * points to the function that implements CPU specific wait. 
+ * The wait instruction stops the pipeline and reduces the power consumption of
+ * the CPU very much.
+ */
+void (*cpu_wait)(void) = NULL;
 
 #ifdef CONFIG_VT
 struct screen_info screen_info;
@@ -50,11 +58,6 @@ struct screen_info screen_info;
  * pipeline and reduces the power consumption of the CPU very much.
  */
 char wait_available;
-
-/*
- * Do we have a cyclecounter available?
- */
-char cyclecounter_available;
 
 /*
  * Set if box has EISA slots.
@@ -103,13 +106,27 @@ static inline void check_wait(void)
 {
 	printk("Checking for 'wait' instruction... ");
 	switch(mips_cpu.cputype) {
+	case CPU_R3081:
+	case CPU_R3081E:
+		cpu_wait = r3081_wait;
+		printk(" available.\n");
+		break;
+	case CPU_TX3927:
+	case CPU_TX39XX:
+		cpu_wait = r39xx_wait;
+		printk(" available.\n");
+		break;
 	case CPU_R4200: 
-	case CPU_R4300: 
+/*	case CPU_R4300: */
 	case CPU_R4600: 
+	case CPU_R4640: 
+	case CPU_R4650: 
 	case CPU_R4700: 
 	case CPU_R5000: 
 	case CPU_NEVADA:
-		wait_available = 1;
+	case CPU_RM7000:
+	case CPU_TX49XX:
+		cpu_wait = r4k_wait;
 		printk(" available.\n");
 		break;
 	default:
@@ -146,8 +163,11 @@ static inline int cpu_has_confreg(void)
 }
 
 /* declaration of the global struct */
-struct mips_cpu mips_cpu = {PRID_IMP_UNKNOWN, CPU_UNKNOWN, 0, 0, 0,
-                            {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
+struct mips_cpu mips_cpu = {
+    processor_id:	PRID_IMP_UNKNOWN,
+    fpu_id:		FPIR_IMP_NONE,
+    cputype:		CPU_UNKNOWN
+};
 
 #define R4K_OPTS (MIPS_CPU_TLB | MIPS_CPU_4KEX | MIPS_CPU_4KTLB \
                 | MIPS_CPU_COUNTER | MIPS_CPU_CACHE_CDEX)
@@ -478,3 +498,29 @@ void __init setup_arch(char **cmdline_p)
 
 	paging_init();
 }
+
+void r3081_wait(void) 
+{
+	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
+	write_32bit_cp0_register(CP0_CONF, cfg|CONF_HALT);
+}
+
+void r39xx_wait(void)
+{
+	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
+	write_32bit_cp0_register(CP0_CONF, cfg|TX39_CONF_HALT);
+}
+
+void r4k_wait(void)
+{
+	__asm__(".set\tmips3\n\t"
+		"wait\n\t"
+		".set\tmips0");
+}
+
+int __init fpu_disable(char *s)
+{
+	mips_cpu.options &= ~MIPS_CPU_FPU;
+	return 1;
+}
+__setup("nofpu", fpu_disable);

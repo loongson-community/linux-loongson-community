@@ -2,13 +2,19 @@
 #define _ASM_IA64_SCATTERLIST_H
 
 /*
- * Copyright (C) 1998, 1999 Hewlett-Packard Co
- * Copyright (C) 1998, 1999 David Mosberger-Tang <davidm@hpl.hp.com>
+ * Copyright (C) 1998, 1999, 2001 Hewlett-Packard Co
+ *	David Mosberger-Tang <davidm@hpl.hp.com>
  */
 
 struct scatterlist {
-	char *address;		/* location data is to be transferred to */
-	char *orig_address;	/* Save away the original buffer address (used by pci-dma.c) */
+	/* This will disappear in 2.5.x: */
+	char *address;		/* location data is to be transferred to, NULL for highmem page */
+	char *orig_address;	/* for use by swiotlb */
+
+	/* These two are only valid if ADDRESS member of this struct is NULL.  */
+	struct page *page;
+	unsigned int offset;
+
 	unsigned int length;	/* buffer length */
 };
 

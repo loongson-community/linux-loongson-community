@@ -32,7 +32,7 @@
 #define MACH_GROUP_TOSHIBA     17 /* Toshiba Reference Systems TSBREF         */
 #define MACH_GROUP_ALCHEMY     18 /* Alchemy Semi Eval Boards*/
 #define MACH_GROUP_NEC_VR41XX  19 /* NEC Vr41xx based boards/gadgets          */
-#define MACH_GROUP_HP_LASERJET 20 /* Hewlett Packard LaserJet */
+#define MACH_GROUP_HP_LJ	20 /* Hewlett Packard LaserJet */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
 	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \

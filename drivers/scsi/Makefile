@@ -87,6 +87,10 @@ obj-$(CONFIG_SCSI_T128)		+= t128.o
 obj-$(CONFIG_SCSI_DMX3191D)	+= dmx3191d.o
 obj-$(CONFIG_SCSI_DTC3280)	+= dtc.o
 obj-$(CONFIG_SCSI_NCR53C7xx)	+= 53c7,8xx.o 
+subdir-$(CONFIG_SCSI_SYM53C8XX_2)	+= sym53c8xx_2
+ifeq ($(CONFIG_SCSI_SYM53C8XX_2),y)
+  obj-$(CONFIG_SCSI_SYM53C8XX_2)	+= sym53c8xx_2/sym53c8xx.o
+endif
 obj-$(CONFIG_SCSI_SYM53C8XX)	+= sym53c8xx.o 
 obj-$(CONFIG_SCSI_NCR53C8XX)	+= ncr53c8xx.o 
 obj-$(CONFIG_SCSI_EATA_DMA)	+= eata_dma.o
@@ -170,6 +174,8 @@ cpqfc.o: $(cpqfc-objs)
 	rm fake8.c
 
 53c8xx_u.h: 53c8xx_d.h
+
+53c7,8xx.o: 53c8xx_u.h
 
 53c7xx_d.h: 53c7xx.scr script_asm.pl
 	ln -sf 53c7xx.scr fake7.c

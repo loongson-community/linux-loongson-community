@@ -310,6 +310,7 @@
 #define  STATUSF_IP15		(1   << 7)
 #define ST0_CH			0x00040000
 #define ST0_SR			0x00100000
+#define ST0_TS			0x00200000
 #define ST0_BEV			0x00400000
 #define ST0_RE			0x02000000
 #define ST0_FR			0x04000000
