@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.24 2000/03/06 11:14:23 raiko Exp $
+/* $Id: setup.c,v 1.25 2000/03/06 14:39:33 raiko Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -120,7 +120,6 @@ unsigned long mips_io_port_base;
  */
 unsigned long isa_slot_offset;
 
-extern int prom_init(int argc, char **argv, char **envp);
 extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);
 extern void loadmmu(void);
@@ -177,14 +176,29 @@ static inline void cpu_probe(void)
 	}
 }
 
+/*
+ * I know this is ugly, but... HK
+ */
+#ifdef CONFIG_DECSTATION
+extern int prom_init(int, char **, unsigned long, int *);
+
+asmlinkage void __init init_arch(int argc, char **argv, unsigned long magic, int *prom_vec)
+#else
+extern int prom_init(int, char **, char **);
+
 asmlinkage void __init init_arch(int argc, char **argv, char **envp)
+#endif
 {
 	unsigned int s;
 
 	/* Determine which MIPS variant we are running on. */
 	cpu_probe();
 
+#ifdef CONFIG_DECSTATION
+	prom_init(argc, argv, magic, prom_vec);
+#else
 	prom_init(argc, argv, envp);
+#endif
 #ifdef CONFIG_SGI_IP22
 	sgi_sysinit();
 #endif
