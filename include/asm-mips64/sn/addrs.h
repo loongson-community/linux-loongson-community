@@ -4,8 +4,6 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Derived from IRIX <sys/SN/addrs.h>.
- *
  * Copyright (C) 1992 - 1997, 1999 Silicon Graphics, Inc.
  * Copyright (C) 1999 by Ralf Baechle
  */
@@ -20,10 +18,25 @@
 #include <asm/reg.h>
 #include <asm/sn/kldir.h>
 
+#if defined(CONFIG_SGI_IO)
+#if defined(CONFIG_SGI_IP27)
+#include <asm/sn/sn0/addrs.h>
+#elif defined(CONFIG_SGI_IP35)
+#include <asm/sn/sn1/addrs.h>
+#endif
+#endif	/* CONFIG_SGI_IO */
+
+
 #if _LANGUAGE_C
 
+#if defined(CONFIG_SGI_IO)	/* FIXME */
+#define PS_UINT_CAST		(__psunsigned_t)
+#define UINT64_CAST		(__uint64_t)
+#else	/* CONFIG_SGI_IO */
 #define PS_UINT_CAST		(unsigned long)
 #define UINT64_CAST		(unsigned long)
+#endif	/* CONFIG_SGI_IO */
+
 #define HUBREG_CAST		(volatile hubreg_t *)
 
 #elif _LANGUAGE_ASSEMBLY
@@ -36,7 +49,11 @@
 
 
 #define NASID_GET_META(_n)	((_n) >> NASID_LOCAL_BITS)
+#ifdef CONFIG_SGI_IP27
 #define NASID_GET_LOCAL(_n)	((_n) & 0xf)
+#elif defined CONFIG_SGI_IP35
+#define NASID_GET_LOCAL(_n)	((_n) & 0x7f)
+#endif
 #define NASID_MAKE(_m, _l)	(((_m) << NASID_LOCAL_BITS) | (_l))
 
 #define NODE_ADDRSPACE_MASK	(NODE_ADDRSPACE_SIZE - 1)
@@ -128,6 +145,7 @@
  * The bottom of ualias space is flipped depending on whether you're
  * processor 0 or 1 within a node.
  */
+#ifdef CONFIG_SGI_IP27
 #define UALIAS_FLIP_BASE	UALIAS_BASE
 #define UALIAS_FLIP_SIZE	0x20000
 #define UALIAS_FLIP_BIT		0x10000
@@ -137,6 +155,17 @@
 #define LBOOT_BASE		(HSPEC_BASE + 0x10000000)
 #define LBOOT_SIZE		0x10000000
 #define LBOOT_LIMIT		(LBOOT_BASE + LBOOT_SIZE)
+#define LBOOT_STRIDE		0		/* IP27 has only one CPU PROM */
+
+#elif defined CONFIG_SGI_IP35
+#define LREG_BASE		(HSPEC_BASE + 0x10000000)
+#define LREG_SIZE		0x8000000  /* 128 MB */
+#define LREG_LIMIT		(LREG_BASE + LREG_SIZE)
+#define LBOOT_BASE		(LREG_LIMIT)
+#define LBOOT_SIZE		0x8000000   /* 128 MB */
+#define LBOOT_LIMIT		(LBOOT_BASE + LBOOT_SIZE)
+#define LBOOT_STRIDE		0x2000000    /* two PROMs, on 32M boundaries */
+#endif
 
 #define	HUB_REGISTER_WIDGET	1
 #define IALIAS_BASE		NODE_SWIN_BASE(0, HUB_REGISTER_WIDGET)
@@ -147,9 +176,23 @@
 /*
  * Macro for referring to Hub's RBOOT space
  */
+
+#ifdef CONFIG_SGI_IP27
 #define RBOOT_SIZE		0x10000000	/* 256 Megabytes */
 #define NODE_RBOOT_BASE(_n)	(NODE_HSPEC_BASE(_n) + 0x30000000)
 #define NODE_RBOOT_LIMIT(_n)	(NODE_RBOOT_BASE(_n) + RBOOT_SIZE)
+
+#elif defined CONFIG_SGI_IP35
+
+#define NODE_LREG_BASE(_n)	(NODE_HSPEC_BASE(_n) + 0x30000000)
+#define NODE_LREG_LIMIT(_n)	(NODE_LREG_BASE(_n) + LREG_SIZE)
+#define RREG_BASE(_n)		(NODE_LREG_BASE(_n))
+#define RREG_LIMIT(_n)		(NODE_LREG_LIMIT(_n))
+#define RBOOT_SIZE		0x8000000	/* 128 Megabytes */
+#define NODE_RBOOT_BASE(_n)	(NODE_HSPEC_BASE(_n) + 0x38000000)
+#define NODE_RBOOT_LIMIT(_n)	(NODE_RBOOT_BASE(_n) + RBOOT_SIZE)
+
+#endif
 
 /*
  * Macros for referring the Hub's back door space
@@ -162,14 +205,18 @@
  *   BDDIR_ENTRY_HI returns the address of the high double-word of the entry.
  *   BDPRT_ENTRY    returns the address of the double-word protection entry
  *                  corresponding to the page containing the physical address.
+ *   BDPRT_ENTRY_S  Stores the value into the protection entry.
+ *   BDPRT_ENTRY_L  Load the value from the protection entry.
  *   BDECC_ENTRY    returns the address of the ECC byte corresponding to a
  *                  double-word at a specified physical address.
+ *   BDECC_ENTRY_H  returns the address of the two ECC bytes corresponding to a
+ *                  quad-word at a specified physical address.
  */
 #define NODE_BDOOR_BASE(_n)	(NODE_HSPEC_BASE(_n) + (NODE_ADDRSPACE_SIZE/2))
 
 #define NODE_BDECC_BASE(_n)	(NODE_BDOOR_BASE(_n))
 #define NODE_BDDIR_BASE(_n)	(NODE_BDOOR_BASE(_n) + (NODE_ADDRSPACE_SIZE/4))
-
+#ifdef CONFIG_SGI_IP27
 #define BDDIR_ENTRY_LO(_pa)	((HSPEC_BASE +				      \
 				  NODE_ADDRSPACE_SIZE * 3 / 4 +		      \
 				  0x200)				    | \
@@ -189,6 +236,9 @@
 				 UINT64_CAST (_pa)	 & NASID_MASK	    | \
 				 UINT64_CAST (_pa) >> 2 & BDDIR_UPPER_MASK  | \
 				 (_rgn) << 3)
+#define BDPRT_ENTRY_ADDR(_pa,_rgn) (BDPRT_ENTRY((_pa),(_rgn)))
+#define BDPRT_ENTRY_S(_pa,_rgn,_val) (*(__psunsigned_t *)BDPRT_ENTRY((_pa),(_rgn))=(_val))
+#define BDPRT_ENTRY_L(_pa,_rgn)	(*(__psunsigned_t *)BDPRT_ENTRY((_pa),(_rgn)))
 
 #define BDECC_ENTRY(_pa)	((HSPEC_BASE +				      \
 				  NODE_ADDRSPACE_SIZE / 2)		    | \
@@ -214,6 +264,146 @@
 				 (UINT64_CAST (_ba) & BDECC_UPPER_MASK)<<2  | \
 				 (UINT64_CAST (_ba) & 3) << 3)
 
+#elif defined CONFIG_SGI_IP35
+/*
+ * Bedrock's directory entries are a single word:  no low/high
+ */
+
+#define BDDIR_ENTRY(_pa)	(HSPEC_BASE +				      \
+				  NODE_ADDRSPACE_SIZE * 7 / 8  		    | \
+				 UINT64_CAST (_pa)	& NASID_MASK	    | \
+				 UINT64_CAST (_pa) >> 3 & BDDIR_UPPER_MASK)
+
+#ifdef BRINGUP
+        /* minimize source changes by mapping *_LO() & *_HI()   */
+#define BDDIR_ENTRY_LO(_pa)     BDDIR_ENTRY(_pa)
+#define BDDIR_ENTRY_HI(_pa)     BDDIR_ENTRY(_pa)
+#endif /* BRINGUP */
+
+#define BDDIR_PAGE_MASK		(BDDIR_UPPER_MASK & 0x7ffff << 11)
+#define BDDIR_PAGE_BASE_MASK	(UINT64_CAST 0xfffffffffffff800)
+
+#ifdef _LANGUAGE_C
+
+#define BDPRT_ENTRY_ADDR(_pa, _rgn)      ((__uint64_t *) ( (HSPEC_BASE +       \
+                                 NODE_ADDRSPACE_SIZE * 7 / 8 + 0x408)       | \
+                                (UINT64_CAST (_pa)      & NASID_MASK)        | \
+                                (UINT64_CAST (_pa) >> 3 & BDDIR_PAGE_MASK)   | \
+                                (UINT64_CAST (_pa) >> 3 & 0x3 << 4)          | \
+                                ((_rgn) & 0x1e) << 5))
+
+static __inline __uint64_t BDPRT_ENTRY_L(paddr_t pa,__uint32_t rgn) {
+	__uint64_t word=*BDPRT_ENTRY_ADDR(pa,rgn);
+
+	if(rgn&0x20)			/*If the region is > 32, move it down*/
+		word = word >> 32;
+	if(rgn&0x1)			/*If the region is odd, get that part */
+		word = word >> 16;
+	word = word & 0xffff;		/*Get the 16 bits we are interested in*/
+
+	return word;
+}
+
+static __inline void BDPRT_ENTRY_S(paddr_t pa,__uint32_t rgn,__uint64_t val) {
+        __uint64_t *addr=(__uint64_t *)BDPRT_ENTRY_ADDR(pa,rgn);
+        __uint64_t word,mask;
+
+        word=*addr;
+	mask=0;
+	if(rgn&0x1) {
+		mask|=0x0000ffff0000ffff;
+		val=val<<16;
+	}
+	else
+		mask|=0xffff0000ffff0000;
+	if(rgn&0x20) {
+		mask|=0x00000000ffffffff;
+		val=val<<32;
+	}
+	else
+		mask|=0xffffffff00000000;
+	word &= mask;
+	word |= val;
+
+	*(addr++)=word;
+	addr++;
+        *(addr++)=word;
+        addr++;
+        *(addr++)=word;
+        addr++;
+        *addr=word;
+}
+#endif	/*_LANGUAGE_C*/
+
+#define BDCNT_ENTRY(_pa)	(HSPEC_BASE +				      \
+				  NODE_ADDRSPACE_SIZE * 7 / 8 + 0x8    	    | \
+				 UINT64_CAST (_pa)	& NASID_MASK	    | \
+				 UINT64_CAST (_pa) >> 3 & BDDIR_PAGE_MASK   | \
+				 UINT64_CAST (_pa) >> 3 & 0x3 << 4)
+
+
+#ifdef    BRINGUP
+  /* little endian packing of ecc bytes requires a swizzle */ 
+  /* this is problemmatic for memory_init_ecc              */
+#endif /* BRINGUP */
+#define BDECC_ENTRY(_pa)	(HSPEC_BASE +				      \
+				  NODE_ADDRSPACE_SIZE * 5 / 8 		    | \
+				 UINT64_CAST (_pa)	& NASID_MASK	    | \
+				 UINT64_CAST (_pa) >> 3 & BDECC_UPPER_MASK    \
+				   		        ^ 0x7ULL)
+
+#define BDECC_SCRUB(_pa)	(HSPEC_BASE +				      \
+				  NODE_ADDRSPACE_SIZE / 2 		    | \
+				 UINT64_CAST (_pa)	& NASID_MASK	    | \
+				 UINT64_CAST (_pa) >> 3 & BDECC_UPPER_MASK    \
+				   		        ^ 0x7ULL)
+
+  /* address for Halfword backdoor ecc access. Note that   */
+  /* ecc bytes are packed in little endian order           */
+#define BDECC_ENTRY_H(_pa)	(HSPEC_BASE +                                 \
+				  NODE_ADDRSPACE_SIZE * 5 / 8		    | \
+				 UINT64_CAST (_pa)	 & NASID_MASK	    | \
+				 UINT64_CAST (_pa) >> 3 & BDECC_UPPER_MASK    \
+				   		        ^ 0x6ULL)
+
+/*
+ * Macro to convert a back door directory, protection, page counter, or ecc
+ * address into the raw physical address of the associated cache line
+ * or protection page.
+ */
+
+#define BDDIR_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK            | \
+				 (UINT64_CAST (_ba) & BDDIR_UPPER_MASK) << 3)
+
+#ifdef BRINGUP
+/*
+ * This can't be done since there are 4 entries per address so you'd end up
+ * mapping back to 4 different physical addrs.
+ */
+  
+#define BDPRT_TO_MEM(_ba) 	(UINT64_CAST  (_ba) & NASID_MASK	    | \
+				 (UINT64_CAST (_ba) & BDDIR_PAGE_MASK) << 3 | \
+				 (UINT64_CAST (_ba) & 0x3 << 4) << 3)
+#endif
+
+#define BDCNT_TO_MEM(_ba) 	(UINT64_CAST  (_ba) & NASID_MASK	    | \
+				 (UINT64_CAST (_ba) & BDDIR_PAGE_MASK) << 3 | \
+				 (UINT64_CAST (_ba) & 0x3 << 4) << 3)
+
+#define BDECC_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK	    | \
+				 ((UINT64_CAST (_ba) ^ 0x7ULL)                \
+				                    & BDECC_UPPER_MASK) << 3 )
+
+#define BDECC_H_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK	    | \
+				 ((UINT64_CAST (_ba) ^ 0x6ULL)                \
+				                    & BDECC_UPPER_MASK) << 3 )
+
+#define BDADDR_IS_DIR(_ba)	((UINT64_CAST  (_ba) & 0x8) == 0)
+#define BDADDR_IS_PRT(_ba)	((UINT64_CAST  (_ba) & 0x408) == 0x408)
+#define BDADDR_IS_CNT(_ba)	((UINT64_CAST  (_ba) & 0x8) == 0x8)
+
+#endif /* CONFIG_SGI_IP35 */
+
 
 /*
  * The following macros produce the correct base virtual address for
@@ -230,6 +420,10 @@
 #define LOCAL_HUB(_x)		(HUBREG_CAST (IALIAS_BASE + (_x)))
 #define REMOTE_HUB(_n, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
 					      0x800000 + (_x)))
+#ifdef CONFIG_SGI_IP35
+#define LOCAL_HSPEC(_x)		(HUBREG_CAST (LREG_BASE + (_x)))
+#define REMOTE_HSPEC(_n, _x)		(HUBREG_CAST (RREG_BASE(_n) + (_x)))
+#endif /* CONFIG_SGI_IP35 */
 
 #endif /* _STANDALONE */
 
@@ -244,6 +438,14 @@
 #define LOCAL_HUB_ADDR(_x)	(HUBREG_CAST (IALIAS_BASE + (_x)))
 #define REMOTE_HUB_ADDR(_n, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
 					      0x800000 + (_x)))
+#ifdef CONFIG_SGI_IP27
+#define REMOTE_HUB_PI_ADDR(_n, _sn, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
+					      0x800000 + (_x)))
+#elif CONFIG_SGI_IP35
+#define REMOTE_HUB_PI_ADDR(_n, _sn, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
+#define LOCAL_HSPEC_ADDR(_x)		(HUBREG_CAST (LREG_BASE + (_x)))
+#define REMOTE_HSPEC_ADDR(_n, _x)	(HUBREG_CAST (RREG_BASE(_n) + (_x)))
+#endif /* CONFIG_SGI_IP35 */
 
 #if _LANGUAGE_C
 
@@ -254,6 +456,15 @@
 #define LOCAL_HUB_S(_r, _d)		HUB_S(LOCAL_HUB_ADDR(_r), (_d))
 #define REMOTE_HUB_L(_n, _r)		HUB_L(REMOTE_HUB_ADDR((_n), (_r)))
 #define REMOTE_HUB_S(_n, _r, _d)	HUB_S(REMOTE_HUB_ADDR((_n), (_r)), (_d))
+#define REMOTE_HUB_PI_L(_n, _sn, _r)	HUB_L(REMOTE_HUB_PI_ADDR((_n), (_sn), (_r)))
+#define REMOTE_HUB_PI_S(_n, _sn, _r, _d) HUB_S(REMOTE_HUB_PI_ADDR((_n), (_sn), (_r)), (_d))
+
+#ifdef CONFIG_SGI_IP35
+#define LOCAL_HSPEC_L(_r)	     HUB_L(LOCAL_HSPEC_ADDR(_r))
+#define LOCAL_HSPEC_S(_r, _d)	     HUB_S(LOCAL_HSPEC_ADDR(_r), (_d))
+#define REMOTE_HSPEC_L(_n, _r)	     HUB_L(REMOTE_HSPEC_ADDR((_n), (_r)))
+#define REMOTE_HSPEC_S(_n, _r, _d)   HUB_S(REMOTE_HSPEC_ADDR((_n), (_r)), (_d))
+#endif /* CONFIG_SGI_IP35 */
 
 #endif /* _LANGUAGE_C */
 
@@ -383,7 +594,11 @@
 /* loading symmon 4k below UNIX. the arcs loader needs the topaddr for a
  * relocatable program
  */
-#ifdef SN0XXL
+#if defined(CONFIG_SGI_IP35)
+/* update master.d/sn1_elspec.dbg, SN1/addrs.h/DEBUGUNIX_ADDR, and
+ * DBGLOADADDR in symmon's Makefile when changing this */
+#define UNIX_DEBUG_LOADADDR     0x310000
+#elif defined(SN0XXL)
 #define UNIX_DEBUG_LOADADDR     0x360000
 #else
 #define	UNIX_DEBUG_LOADADDR	0x300000
@@ -420,9 +635,9 @@
 #define	KERN_XP_ADDR(nasid)	KLD_KERN_XP(nasid)->pointer
 #define	KERN_XP_SIZE(nasid)	KLD_KERN_XP(nasid)->size
 
+#define GPDA_ADDR(nasid)	TO_NODE_CAC(nasid, GPDA_OFFSET)
+
 #endif /* _LANGUAGE_C */
 
-/* Fixme for SN1 */
-#include <asm/sn/sn0/addrs.h>
 
 #endif /* _ASM_SN_ADDRS_H */

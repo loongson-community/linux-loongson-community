@@ -1,19 +1,14 @@
-/**************************************************************************
- *                                                                        *
- *               Copyright (C) 1992-1997, Silicon Graphics, Inc.          *
- *                                                                        *
- *  These coded instructions, statements, and computer programs  contain  *
- *  unpublished  proprietary  information of Silicon Graphics, Inc., and  *
- *  are protected by Federal copyright law.  They  may  not be disclosed  *
- *  to  third  parties  or copied or duplicated in any form, in whole or  *
- *  in part, without the prior written consent of Silicon Graphics, Inc.  *
- *                                                                        *
- **************************************************************************/
-
-#ifndef __SYS_SN_LAUNCH_H__
-#define __SYS_SN_LAUNCH_H__
-
-#ident "$Revision: 1.10 $"
+/* $Id$
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1992 - 1997, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 2000 by Colin Ngam
+ */
+#ifndef _ASM_SN_LAUNCH_H
+#define _ASM_SN_LAUNCH_H
 
 #include <linux/config.h>
 #include <asm/sn/types.h>
@@ -35,7 +30,14 @@
  */
 
 #define LAUNCH_MAGIC		0xaddbead2addbead3
+#ifdef CONFIG_SGI_IP27
 #define LAUNCH_SIZEOF		0x100
+#define LAUNCH_PADSZ		0xa0
+#elif defined(CONFIG_SGI_IP35)
+/* IP35 puts four launch structures in the space IP27 used for two */
+#define LAUNCH_SIZEOF		0x80
+#define LAUNCH_PADSZ		0x30
+#endif
 
 #define LAUNCH_OFF_MAGIC	0x00	/* Struct offsets for assembly      */
 #define LAUNCH_OFF_BUSY		0x08
@@ -83,10 +85,9 @@ typedef struct launch_s {
 } launch_t;
 
 /*
- * PROM entry points for launch routines are determined by IP27prom/start.s
+ * PROM entry points for launch routines are determined by IPxxprom/start.s
  */
 
-#ifdef CONFIG_SGI_IP27
 #define LAUNCH_SLAVE	(*(void (*)(int nasid, int cpu, \
 				    launch_proc_t call_addr, \
 				    u64 call_parm, \
@@ -106,29 +107,6 @@ typedef struct launch_s {
 #define LAUNCH_FLASH	(*(void (*)(void)) \
 			 IP27PROM_FLASHLEDS)
 
-#else	/* if defined (SN1) */
-
-#define LAUNCH_SLAVE	(*(void (*)(int nasid, int cpu, \
-				    launch_proc_t call_addr, \
-				    __int64_t call_parm, \
-				    void *stack_addr, \
-				    void *gp_addr)) \
-			 IP33PROM_LAUNCHSLAVE)
-
-#define LAUNCH_WAIT	(*(void (*)(int nasid, int cpu, int timeout_msec)) \
-			 IP33PROM_WAITSLAVE)
-
-#define LAUNCH_POLL	(*(launch_state_t (*)(int nasid, int cpu)) \
-			 IP33PROM_POLLSLAVE)
-
-#define LAUNCH_LOOP	(*(void (*)(void)) \
-			 IP33PROM_SLAVELOOP)
-
-#define LAUNCH_FLASH	(*(void (*)(void)) \
-			 IP33PROM_FLASHLEDS)
-
-#endif
-
 #ifdef _STANDALONE
 
 launch_t       *launch_get(int nasid, int cpu);
@@ -146,4 +124,4 @@ launch_state_t	launch_poll(int nasid, int cpu);
 
 #endif /* _LANGUAGE_C */
 
-#endif /* __SYS_SN_LAUNCH_H__ */
+#endif /* _ASM_SN_LAUNCH_H */
