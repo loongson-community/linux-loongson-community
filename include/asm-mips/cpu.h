@@ -38,7 +38,8 @@
  * be examined.  These are valid when 23:16 == PRID_COMP_LEGACY
  */
 #define PRID_IMP_R2000		0x0100
-#define PRID_IMP_AU1000	0x0100
+#define PRID_IMP_AU1_REV1	0x0100
+#define PRID_IMP_AU1_REV2	0x0200
 #define PRID_IMP_R3000		0x0200		/* Same as R2000A  */
 #define PRID_IMP_R6000		0x0300		/* Same as R3000A  */
 #define PRID_IMP_R4000		0x0400

@@ -311,7 +311,10 @@ static inline void cpu_probe(void)
 		case PRID_IMP_4KSC:
 			mips_cpu.cputype = CPU_4KSC;
 cpu_4kc:
-			/* Why do we set all these options by default, THEN query them?? */
+			/*
+			 * Why do we set all these options by default, THEN
+			 * query them??
+			 */
 			mips_cpu.cputype = MIPS_CPU_ISA_M32;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
@@ -346,11 +349,10 @@ cpu_4kc:
 			break;
 		}		
 		break;
-#endif
 	case PRID_COMP_ALCHEMY:
 		switch (mips_cpu.processor_id & 0xff00) {
-#ifdef CONFIG_CPU_MIPS32
-		case PRID_IMP_AU1000:
+		case PRID_IMP_AU1_REV1:
+		case PRID_IMP_AU1_REV2:
 			mips_cpu.cputype = CPU_AU1000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
@@ -365,7 +367,7 @@ cpu_4kc:
 				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 			break;
-#endif
+#endif /* CONFIG_CPU_MIPS32 */
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
