@@ -27,6 +27,10 @@
 #include <linux/auto_fs.h>
 #include <linux/ext2_fs.h>
 #include <linux/raid/md_u.h>
+#include <scsi/scsi.h>
+#undef __KERNEL__		/* This file was born to be ugly ...  */
+#include <scsi/scsi_ioctl.h>
+#define __KERNEL__
 #include <asm/types.h>
 #include <asm/uaccess.h>
 
@@ -619,6 +623,7 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_DEFAULT(FIONBIO),
 	IOCTL32_DEFAULT(FIONREAD),
 
+	/* Big K */
 	IOCTL32_DEFAULT(PIO_FONT),
 	IOCTL32_DEFAULT(GIO_FONT),
 	IOCTL32_DEFAULT(KDSIGACCEPT),
@@ -650,6 +655,17 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_DEFAULT(PIO_FONTRESET),
 	IOCTL32_DEFAULT(PIO_UNIMAPCLR),
 
+	/* Big S */
+	IOCTL32_DEFAULT(SCSI_IOCTL_GET_IDLUN),
+	IOCTL32_DEFAULT(SCSI_IOCTL_DOORLOCK),
+	IOCTL32_DEFAULT(SCSI_IOCTL_DOORUNLOCK),
+	IOCTL32_DEFAULT(SCSI_IOCTL_TEST_UNIT_READY),
+	IOCTL32_DEFAULT(SCSI_IOCTL_TAGGED_ENABLE),
+	IOCTL32_DEFAULT(SCSI_IOCTL_TAGGED_DISABLE),
+	IOCTL32_DEFAULT(SCSI_IOCTL_GET_BUS_NUMBER),
+	IOCTL32_DEFAULT(SCSI_IOCTL_SEND_COMMAND),
+
+	/* Big V */
 	IOCTL32_DEFAULT(VT_SETMODE),
 	IOCTL32_DEFAULT(VT_GETMODE),
 	IOCTL32_DEFAULT(VT_GETSTATE),
