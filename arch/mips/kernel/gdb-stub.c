@@ -12,7 +12,7 @@
  *
  *  Copyright (C) 1995 Andreas Busse
  *
- * $Id: gdb-stub.c,v 1.3 1997/07/29 03:10:57 ralf Exp $
+ * $Id: gdb-stub.c,v 1.4 1997/09/01 21:00:01 marks Exp $
  */
 
 /*
@@ -77,6 +77,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/gdb-stub.h>
+#include <asm/inst.h>
 
 /*
  * external low-level support routines
@@ -456,10 +457,12 @@ void show_gdbregs(struct gdb_regs * regs)
  *
  * This is where we save the original instructions.
  */
-static struct {
+static struct gdb_bp_save {
 	unsigned int addr;
         unsigned int val;
 } step_bp[2];
+
+#define BP 0x0000000d  /* break opcode */
 
 /*
  * Set breakpoint instructions for single stepping.
@@ -469,8 +472,6 @@ static void single_step(struct gdb_regs *regs)
 	union mips_instruction insn;
 	unsigned int targ;
 	int is_branch, is_cond, i;
-
-#define BP 0x0000000d
 
 	targ = regs->cp0_epc;
 	insn.word = *(unsigned int *)targ;
@@ -550,6 +551,22 @@ static void single_step(struct gdb_regs *regs)
 }
 
 /*
+ *  If asynchronously interrupted by gdb, then we need to set a breakpoint
+ *  at the interrupted instruction so that we wind up stopped with a 
+ *  reasonable stack frame.
+ */
+static struct gdb_bp_save async_bp;
+
+void set_async_breakpoint(unsigned int epc)
+{
+	async_bp.addr = epc;
+	async_bp.val  = *(unsigned *)epc;
+	*(unsigned *)epc = BP;
+	flush_cache_all();
+}
+
+
+/*
  * This function does all command processing for interfacing to gdb.  It
  * returns 1 if you should skip the instruction at the trap address, 0
  * otherwise.
@@ -602,6 +619,16 @@ void handle_exception (struct gdb_regs *regs)
 			*(unsigned *)step_bp[1].addr = step_bp[1].val;
 			step_bp[1].addr = 0;
 		}
+	}
+
+	/*
+	 * If we were interrupted asynchronously by gdb, then a
+	 * breakpoint was set at the EPC of the interrupt so
+	 * that we'd wind up here with an interesting stack frame.
+	 */
+	if (async_bp.addr) {
+		*(unsigned *)async_bp.addr = async_bp.val;
+		async_bp.addr = 0;
 	}
 
 	stack = (long *)regs->reg29;			/* stack ptr */
