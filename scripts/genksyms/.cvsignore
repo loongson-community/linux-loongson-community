@@ -1,7 +1,6 @@
 .*.d
 .*.o
 .*.cmd
-.*.ver
 genksyms
 keywords.c
 lex.c

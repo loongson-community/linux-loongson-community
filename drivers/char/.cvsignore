@@ -1,5 +1,7 @@
 .*.d
 .*.cmd
+*.ko
+*.mod.c
 conmakehash
 consolemap_deftbl.c
 defkeymap.c
