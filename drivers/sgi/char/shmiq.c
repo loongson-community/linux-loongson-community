@@ -270,7 +270,7 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 		vaddr = (unsigned long) req.user_vaddr;
 		vma = find_vma (current->mm, vaddr);
 		if (!vma){
-			printk ("SHMIQ: could not find %x the vma\n", vaddr);
+			printk ("SHMIQ: could not find %lx the vma\n", vaddr);
 			return -EINVAL;
 		}
 		s = req.arg * sizeof (struct shmqevent) + sizeof (struct sharedMemoryInputQueue);
@@ -305,9 +305,9 @@ static struct vm_operations_struct qcntl_mmap = {
 };
 
 static int
-shmiq_qcntl_mmap (struct inode *inode, struct file *filp, struct vm_area_struct *vma)
+shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 {
-	int           minor = MINOR (inode->i_rdev), error;
+	int           minor = MINOR (file->f_dentry->d_inode->i_rdev), error;
 	unsigned int  size;
 	unsigned long mem, start;
 	
@@ -394,12 +394,12 @@ shmiq_qcntl_open (struct inode *inode, struct file *filp)
 }
 
 static int
-shmiq_qcntl_fasync (struct inode *inode, struct file *filp, int on)
+shmiq_qcntl_fasync (struct file *file, int on)
 {
 	int retval;
-	int minor = MINOR (inode->i_rdev);
+	int minor = MINOR (file->f_dentry->d_inode->i_rdev);
 
-	retval = fasync_helper (inode, filp, on, &shmiqs [minor].fasync);
+	retval = fasync_helper (file, on, &shmiqs [minor].fasync);
 	if (retval < 0)
 		return retval;
 	return 0;
@@ -422,7 +422,7 @@ shmiq_qcntl_close (struct inode *inode, struct file *filp)
 		return -EINVAL;
 
 	lock_kernel ();
-	shmiq_qcntl_fasync (inode, filp, 0);
+	shmiq_qcntl_fasync (filp, 0);
 	shmiqs [minor].opened      = 0;
 	shmiqs [minor].mapped      = 0;
 	shmiqs [minor].events      = 0;

@@ -64,7 +64,7 @@ sgi_usemaclone_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	struct irix_usema *usema = file->private_data;
 	int retval;
 	
-	printk("[%s:%d] wants ioctl 0x%xd (arg 0x%xd)",
+	printk("[%s:%d] wants ioctl 0x%xd (arg 0x%lx)",
 	       current->comm, current->pid, cmd, arg);
 
 	switch(cmd) {
@@ -105,9 +105,9 @@ sgi_usemaclone_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		printk("UIOC*BLOCK: putting process %d to sleep on usema %p",
 		       current->pid, usema);
 		if (cmd == UIOCNOIBLOCK)
-			interruptible_sleep_on(usema->proc_list);
+			interruptible_sleep_on(&usema->proc_list);
 		else
-			sleep_on(usema->proc_list);
+			sleep_on(&usema->proc_list);
 		return 0;
 	}
 	case UIOCAUNBLOCK:	/* XXX make `async' */
@@ -125,7 +125,7 @@ sgi_usemaclone_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 		printk("[%s:%d] releasing usema %p",
 		       current->comm, current->pid, usema);
-		wake_up(usema->proc_list);
+		wake_up(&usema->proc_list);
 		return 0;
 	}
 	}

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.9 1997/12/01 16:17:58 ralf Exp $
+ * $Id: r4xx0.c,v 1.9 1997/12/01 17:57:36 ralf Exp $
  *
  * To do:
  *
@@ -2095,7 +2095,7 @@ static inline void r4k_flush_tlb_all(void)
 	set_entrylo1(0);
 	BARRIER;
 
-	entry = 0;
+	entry = get_wired();
 
 	/* Blast 'em all away. */
 	while(entry < NTLB_ENTRIES) {
@@ -2360,6 +2360,37 @@ static void r4k_show_regs(struct pt_regs * regs)
 	/* Saved cp0 registers. */
 	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
 	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
+}
+			
+static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+				      unsigned long entryhi, unsigned long pagemask)
+{
+        unsigned long flags;
+        unsigned long wired;
+        unsigned long old_pagemask;
+        unsigned long old_ctx;
+
+        save_and_cli(flags);
+        /* Save old context and create impossible VPN2 value */
+        old_ctx = (get_entryhi() & 0xff);
+        old_pagemask = get_pagemask();
+        wired = get_wired();
+        set_wired (wired + 1);
+        set_index (wired);
+        BARRIER;    
+        set_pagemask (pagemask);
+        set_entryhi(entryhi);
+        set_entrylo0(entrylo0);
+        set_entrylo1(entrylo1);
+        BARRIER;    
+        tlb_write_indexed();
+        BARRIER;    
+    
+        set_entryhi(old_ctx);
+        BARRIER;    
+        set_pagemask (old_pagemask);
+        flush_tlb_all();    
+        restore_flags(flags);
 }
 
 /* Detect and size the various r4k caches. */

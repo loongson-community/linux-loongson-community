@@ -950,7 +950,9 @@ __initfunc(asmlinkage void start_kernel(void))
 		initrd_start = 0;
 	}
 #endif
+#ifdef CONFIG_BINFMT_IRIX
 	init_inventory ();
+#endif
 	mem_init(memory_start,memory_end);
 	kmem_cache_sizes_init();
 #ifdef CONFIG_PROC_FS
