@@ -49,7 +49,6 @@ static int	fine_mode;
 static int maxcpus;
 static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
 static cnodemask_t hub_init_mask;
-static atomic_t numstarted = ATOMIC_INIT(1);
 static int router_distance;
 nasid_t master_nasid = INVALID_NASID;
 
@@ -82,98 +81,7 @@ static int is_fine_dirmode(void)
 		>> NSRI_REGIONSIZE_SHFT) & REGIONSIZE_FINE);
 }
 
-static nasid_t get_actual_nasid(lboard_t *brd)
-{
-	klhub_t *hub;
-
-	if (!brd)
-		return INVALID_NASID;
-
-	/* find out if we are a completely disabled brd. */
-	hub  = (klhub_t *)find_first_component(brd, KLSTRUCT_HUB);
-	if (!hub)
-		return INVALID_NASID;
-	if (!(hub->hub_info.flags & KLINFO_ENABLE))	/* disabled node brd */
-		return hub->hub_info.physid;
-	else
-		return brd->brd_nasid;
-}
-
-static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
-{
-	static int tot_cpus_found = 0;
-	lboard_t *brd;
-	klcpu_t *acpu;
-	int cpus_found = 0;
-	cpuid_t cpuid;
-
-	brd = find_lboard((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_IP27);
-
-	do {
-		acpu = (klcpu_t *)find_first_component(brd, KLSTRUCT_CPU);
-		while (acpu) {
-			cpuid = acpu->cpu_info.virtid;
-			/* cnode is not valid for completely disabled brds */
-			if (get_actual_nasid(brd) == brd->brd_nasid)
-				cpuid_to_compact_node[cpuid] = cnode;
-			if (cpuid > highest)
-				highest = cpuid;
-			/* Only let it join in if it's marked enabled */
-			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
-			    (tot_cpus_found != NR_CPUS)) {
-				cpu_set(cpuid, phys_cpu_present_map);
-				alloc_cpupda(cpuid, cpus_found);
-				cpus_found++;
-				tot_cpus_found++;
-			}
-			acpu = (klcpu_t *)find_component(brd, (klinfo_t *)acpu,
-								KLSTRUCT_CPU);
-		}
-		brd = KLCF_NEXT(brd);
-		if (!brd)
-			break;
-
-		brd = find_lboard(brd, KLTYPE_IP27);
-	} while (brd);
-
-	return highest;
-}
-
-static cpuid_t cpu_node_probe(void)
-{
-	int i, highest = 0;
-	gda_t *gdap = GDA;
-
-	/*
-	 * Initialize the arrays to invalid nodeid (-1)
-	 */
-	for (i = 0; i < MAX_COMPACT_NODES; i++)
-		compact_to_nasid_node[i] = INVALID_NASID;
-	for (i = 0; i < MAX_NASIDS; i++)
-		nasid_to_compact_node[i] = INVALID_CNODEID;
-	for (i = 0; i < MAXCPUS; i++)
-		cpuid_to_compact_node[i] = INVALID_CNODEID;
-
-	numnodes = 0;
-	for (i = 0; i < MAX_COMPACT_NODES; i++) {
-		nasid_t nasid = gdap->g_nasidtable[i];
-		if (nasid == INVALID_NASID)
-			break;
-		compact_to_nasid_node[i] = nasid;
-		nasid_to_compact_node[nasid] = i;
-		numnodes++;
-		highest = do_cpumask(i, nasid, highest);
-	}
-
-	/*
-	 * Cpus are numbered in order of cnodes. Currently, disabled
-	 * cpus are not numbered.
-	 */
-
-	return highest + 1;
-}
-
-static void per_hub_init(cnodeid_t cnode)
+void per_hub_init(cnodeid_t cnode)
 {
 	extern void pcibr_setup(cnodeid_t);
 	cnodemask_t	done;
@@ -220,34 +128,6 @@ static void per_hub_init(cnodeid_t cnode)
 #endif
 	}
 	spin_unlock(&hub_mask_lock);
-}
-
-void prom_init_secondary(void)
-{
-	static int is_slave = 0;
-	int cpu = smp_processor_id();
-	cnodeid_t cnode = get_compact_nodeid();
-
-#if 0
-	intr_init();
-#endif
-	clear_c0_status(ST0_IM);
-	per_hub_init(cnode);
-	cpu_time_init();
-	if (smp_processor_id())	/* master can't do this early, no kmalloc */
-		install_cpuintr(cpu);
-	/* Install our NMI handler if symmon hasn't installed one. */
-	install_cpu_nmi_handler(cputoslice(cpu));
-#if 0
-	install_tlbintr(cpu);
-#endif
-	set_c0_status(SRB_DEV0 | SRB_DEV1);
-	if (is_slave) {
-		local_irq_enable();
-		atomic_inc(&numstarted);
-	} else {
-		is_slave = 1;
-	}
 }
 
 cnodeid_t get_compact_nodeid(void)
@@ -452,13 +332,6 @@ void mlreset(void)
 
 	master_nasid = get_nasid();
 	fine_mode = is_fine_dirmode();
-
-	/*
-	 * Probe for all CPUs - this creates the cpumask and
-	 * sets up the mapping tables.
-	 */
-	maxcpus = cpu_node_probe();
-	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 
 	init_topology_matrix();
 	dump_topology();

@@ -18,6 +18,9 @@
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/hubpi.h>
 #include <asm/sn/sn0/hubio.h>
+#include <asm/sn/sn0/ip27.h>
+
+static atomic_t numstarted = ATOMIC_INIT(1);
 
 /*
  * Takes as first input the PROM assigned cpu id, and the kernel
@@ -110,6 +113,29 @@ void __init prom_boot_secondary(int cpu, struct task_struct *idle)
 	LAUNCH_SLAVE(cputonasid(cpu),cputoslice(cpu),
 		(launch_proc_t)MAPPED_KERN_RW_TO_K0(smp_bootstrap),
 		0, (void *) sp, (void *) gp);
+}
+
+void prom_init_secondary(void)
+{
+	int cpu = smp_processor_id();
+	cnodeid_t cnode = get_compact_nodeid();
+
+#if 0
+	intr_init();
+#endif
+	clear_c0_status(ST0_IM);
+	per_hub_init(cnode);
+	cpu_time_init();
+	if (smp_processor_id())	/* master can't do this early, no kmalloc */
+		install_cpuintr(cpu);
+	/* Install our NMI handler if symmon hasn't installed one. */
+	install_cpu_nmi_handler(cputoslice(cpu));
+#if 0
+	install_tlbintr(cpu);
+#endif
+	set_c0_status(SRB_DEV0 | SRB_DEV1);
+	local_irq_enable();
+	atomic_inc(&numstarted);
 }
 
 /* XXXKW implement prom_init_secondary() and prom_smp_finish to share
