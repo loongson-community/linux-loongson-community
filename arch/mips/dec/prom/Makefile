@@ -13,17 +13,8 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-OBJS  = init.o memory.o cmdline.o identify.o locore.o
+L_TARGET  = rexlib.a
 
-all: 	rexlib.a
-
-rexlib.a: $(OBJS)
-	$(AR) rcs rexlib.a $(OBJS)
-	sync
-
-locore.o: locore.S
-
-dep:
-	$(CPP) $(CPPFLAGS) -M *.c > .depend
+obj-y +=  init.o memory.o cmdline.o identify.o locore.o
 
 include $(TOPDIR)/Rules.make

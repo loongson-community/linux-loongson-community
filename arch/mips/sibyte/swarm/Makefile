@@ -32,8 +32,5 @@ sbswarm.a: $(OBJS-y)
 	$(AR) rcs sbswarm.a $^
 	rm -f l3proc.o l3proc.bin
 
-dep:
-	$(CPP) $(CPPFLAGS) -M *.c > .depend
-
 include $(TOPDIR)/Rules.make
 

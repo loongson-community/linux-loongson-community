@@ -16,22 +16,11 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: ite.o
-
 O_TARGET := ite.o
 
 obj-y := init.o 
 
-ifdef CONFIG_PCI
-obj-y += pci_fixup.o
-endif
-
-ifdef CONFIG_BLK_DEV_INITRD
-obj-y += le_ramdisk.o
-endif
-
-
-dep:
-	$(CPP) -M *.c > .depend
+obj-$(CONFIG_PCI) += pci_fixup.o
+obj-$(CONFIG_BLK_DEV_INITRD) += le_ramdisk.o
 
 include $(TOPDIR)/Rules.make

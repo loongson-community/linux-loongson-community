@@ -59,8 +59,7 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	    bool '      Embed root filesystem ramdisk into the kernel' CONFIG_EMBEDDED_RAMDISK 
 	    if [ "$CONFIG_EMBEDDED_RAMDISK" = "y" ]; then
                choice '      Ramdisk Image to use for root filesystem' \
-	         "Ikos-tiny                   CONFIG_SIBYTE_RAMDISK_IKOS \
-                  Simple-init                 CONFIG_SIBYTE_RAMDISK_SIMPLE_INIT \
+	         "Simple-init                 CONFIG_SIBYTE_RAMDISK_SIMPLE_INIT \
                   General                     CONFIG_SIBYTE_RAMDISK_GENERAL     \
                   Promice-console             CONFIG_SIBYTE_RAMDISK_PROMICE_CONSOLE\
                   N+I-demo                    CONFIG_SIBYTE_RAMDISK_NIDEMO\
