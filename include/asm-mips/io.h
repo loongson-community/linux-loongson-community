@@ -12,6 +12,7 @@
 #define _ASM_IO_H
 
 #include <linux/config.h>
+#include <linux/pagemap.h>
 #include <asm/addrspace.h>
 #include <asm/byteorder.h>
 
