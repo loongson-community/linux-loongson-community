@@ -629,6 +629,7 @@ static void __init probe_pcache(void)
 {
 	struct cpuinfo_mips *c = &current_cpu_data;
 	unsigned int config = read_c0_config();
+	unsigned int prid = read_c0_prid();
 	unsigned long config1;
 	unsigned int lsize;
 
@@ -637,38 +638,38 @@ static void __init probe_pcache(void)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
-		icache_size = 1 << (12 + ((config >> 9) & 7));
-		c->icache.linesz = 16 << ((config >> 5) & 1);
+		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 2;
 		c->icache.waybit = ffs(icache_size/2) - 1;
 
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 2;
 		c->dcache.waybit= ffs(dcache_size/2) - 1;
 		break;
 
 	case CPU_R5432:
 	case CPU_R5500:
-		icache_size = 1 << (12 + ((config >> 9) & 7));
-		c->icache.linesz = 16 << ((config >> 5) & 1);
+		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 2;
 		c->icache.waybit= 0;
 
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 2;
 		c->dcache.waybit = 0;
 		break;
 
 	case CPU_TX49XX:
-		icache_size = 1 << (12 + ((config >> 9) & 7));
-		c->icache.linesz = 16 << ((config >> 5) & 1);
+		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 4;
 		c->icache.waybit= 0;
 
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 4;
 		c->dcache.waybit = 0;
 		break;
@@ -679,25 +680,25 @@ static void __init probe_pcache(void)
 	case CPU_R4400PC:
 	case CPU_R4400SC:
 	case CPU_R4400MC:
-		icache_size = 1 << (12 + ((config >> 9) & 7));
-		c->icache.linesz = 16 << ((config >> 5) & 1);
+		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 1;
 		c->icache.waybit = 0; 	/* doesn't matter */
 
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 1;
 		c->dcache.waybit = 0;	/* does not matter */
 		break;
 
 	case CPU_VR4131:
-		icache_size = 1 << (10 + ((config >> 9) & 7));
-		c->icache.linesz = 16 << ((config >> 5) & 1);
+		icache_size = 1 << (10 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 2;
 		c->icache.waybit = ffs(icache_size/2) - 1;
 
-		dcache_size = 1 << (10 + ((config >> 6) & 7));
-		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		dcache_size = 1 << (10 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 2;
 		c->dcache.waybit = ffs(dcache_size/2) - 1;
 		break;
@@ -708,19 +709,19 @@ static void __init probe_pcache(void)
 	case CPU_VR4122:
 	case CPU_VR4181:
 	case CPU_VR4181A:
-		icache_size = 1 << (10 + ((config >> 9) & 7));
-		c->icache.linesz = 16 << ((config >> 5) & 1);
+		icache_size = 1 << (10 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 1;
 		c->icache.waybit = 0; 	/* doesn't matter */
 
-		dcache_size = 1 << (10 + ((config >> 6) & 7));
-		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		dcache_size = 1 << (10 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 1;
 		c->dcache.waybit = 0;	/* does not matter */
 		break;
 
 	default:
-		if (!(config & 0x80000000))
+		if (!(config & MIPS_CONF_M))
 			panic("Don't know how to probe P-caches on this cpu.");
 
 		/*
@@ -761,16 +762,17 @@ static void __init probe_pcache(void)
 	}
 
 	/*
-	 * Processor configuration sanity check for the R4000SC V2.2
-	 * erratum #5.  With pagesizes larger than 32kb there is no possibility
+	 * Processor configuration sanity check for the R4000SC erratum
+	 * #5.  With page sizes larger than 32kB there is no possibility
 	 * to get a VCE exception anymore so we don't care about this
-	 * missconfiguration.  The case is rather theoretical anway; presumably
-	 * no vendor is shipping his hardware in the "bad" configuration.
+	 * misconfiguration.  The case is rather theoretical anyway;
+	 * presumably no vendor is shipping his hardware in the "bad"
+	 * configuration.
 	 */
-	if (PAGE_SIZE <= 0x8000 && read_c0_prid() == 0x0422 &&
-	    (read_c0_config() & CONF_SC) &&
-	     c->icache.linesz != 16)
-		panic("Impropper processor configuration detected");
+	if ((prid & 0xff00) == PRID_IMP_R4000 && (prid & 0xff) < 0x40 &&
+	    !(config & CONF_SC) && c->icache.linesz != 16 &&
+	    PAGE_SIZE <= 0x8000)
+		panic("Improper R4000SC processor configuration detected");
 
 	/* compute a couple of other cache variables */
 	icache_way_size = icache_size / c->icache.ways;
@@ -798,12 +800,12 @@ static void __init probe_pcache(void)
 		break;
 	}
 
-	printk("Primary instruction cache %ldkb, %s, %s, linesize %d bytes\n",
+	printk("Primary instruction cache %ldkB, %s, %s, linesize %d bytes.\n",
 	       icache_size >> 10,
 	       cpu_has_vtag_icache ? "virtually tagged" : "physically tagged",
 	       way_string[c->icache.ways], c->icache.linesz);
 
-	printk("Primary data cache %ldkb %s, linesize %d bytes\n",
+	printk("Primary data cache %ldkB %s, linesize %d bytes.\n",
 	       dcache_size >> 10, way_string[c->dcache.ways], c->dcache.linesz);
 }
 
@@ -820,10 +822,10 @@ static int __init probe_scache(void)
 	unsigned int config = read_c0_config();
 	int tmp;
 
-	if ((config >> 17) & 1)
+	if (config & CONF_SC)
 		return 0;
 
-	sc_lsize = 16 << ((config >> 22) & 3);
+	sc_lsize = 16 << ((config & R4K_CONF_SB) >> 22);
 
 	begin = (unsigned long) &stext;
 	begin &= ~((4 * 1024 * 1024) - 1);
@@ -863,7 +865,7 @@ static int __init probe_scache(void)
 	}
 	local_irq_restore(flags);
 	addr -= begin;
-	printk("Secondary cache sized at %ldK, linesize %ld bytes.\n",
+	printk("Secondary cache sized at %ldkB, linesize %ld bytes.\n",
 	       addr >> 10, sc_lsize);
 	scache_size = addr;
 

@@ -69,7 +69,7 @@ static void r5k_sc_enable(void)
         unsigned long flags;
 
 	local_irq_save(flags);
-	change_c0_config(CONF_SE, CONF_SE);
+	change_c0_config(R5K_CONF_SE, R5K_CONF_SE);
 	blast_r5000_scache();
 	local_irq_restore(flags);
 }
@@ -80,7 +80,7 @@ static void r5k_sc_disable(void)
 
 	local_irq_save(flags);
 	blast_r5000_scache();
-	change_c0_config(CONF_SE, 0);
+	change_c0_config(R5K_CONF_SE, 0);
 	local_irq_restore(flags);
 }
 
@@ -88,12 +88,12 @@ static inline int __init r5k_sc_probe(void)
 {
 	unsigned long config = read_c0_config();
 
-	if(config & CONF_SC)
+	if (config & CONF_SC)
 		return(0);
 
-	scache_size = (512*1024) << ((config >> 20)&3);
+	scache_size = (512 * 1024) << ((config & R5K_CONF_SS) >> 20);
 
-	printk("R5000 SCACHE size %ldK, linesize 32 bytes.\n",
+	printk("R5000 SCACHE size %ldkB, linesize 32 bytes.\n",
 			scache_size >> 10);
 
 	return 1;

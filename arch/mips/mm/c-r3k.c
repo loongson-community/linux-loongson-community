@@ -7,6 +7,7 @@
  * Tx39XX R4k style caches added. HK
  * Copyright (C) 1998, 1999, 2000 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
+ * Copyright (C) 2001  Maciej W. Rozycki
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -99,7 +100,6 @@ static void __init r3k_probe_cache(void)
 	dcache_size = r3k_cache_size(ST0_ISC);
 	if (dcache_size)
 		dcache_lsize = r3k_cache_lsize(ST0_ISC);
-
 
 	icache_size = r3k_cache_size(ST0_ISC|ST0_SWC);
 	if (icache_size)
@@ -337,8 +337,8 @@ void __init ld_mmu_r23000(void)
 
 	_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
 
-	printk("Primary instruction cache %dkb, linesize %d bytes\n",
-		(int) (icache_size >> 10), (int) icache_lsize);
-	printk("Primary data cache %dkb, linesize %d bytes\n",
-		(int) (dcache_size >> 10), (int) dcache_lsize);
+	printk("Primary instruction cache %ldkB, linesize %ld bytes.\n",
+		icache_size >> 10, icache_lsize);
+	printk("Primary data cache %ldkB, linesize %ld bytes.\n",
+		dcache_size >> 10, dcache_lsize);
 }

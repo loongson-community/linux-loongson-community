@@ -128,7 +128,7 @@
  * E the exception enable
  * S the sticky/flag bit
 */
-#define FPU_CSR_ALL_X 0x0003f000
+#define FPU_CSR_ALL_X   0x0003f000
 #define FPU_CSR_UNI_X   0x00020000
 #define FPU_CSR_INV_X   0x00010000
 #define FPU_CSR_DIV_X   0x00008000
@@ -373,8 +373,9 @@
 #define  CAUSEF_BD		(_ULCAST_(1)   << 31)
 
 /*
- * Bits in the coprozessor 0 config register.
+ * Bits in the coprocessor 0 config register.
  */
+/* Generic bits.  */
 #define CONF_CM_CACHABLE_NO_WA		0
 #define CONF_CM_CACHABLE_WA		1
 #define CONF_CM_UNCACHED		2
@@ -384,21 +385,72 @@
 #define CONF_CM_CACHABLE_CUW		6
 #define CONF_CM_CACHABLE_ACCELERATED	7
 #define CONF_CM_CMASK			7
+#define CONF_BE			(_ULCAST_(1) << 15)
+
+/* Bits common to various processors.  */
 #define CONF_CU			(_ULCAST_(1) <<  3)
 #define CONF_DB			(_ULCAST_(1) <<  4)
 #define CONF_IB			(_ULCAST_(1) <<  5)
-#define CONF_SE			(_ULCAST_(1) << 12)
+#define CONF_DC			(_ULCAST_(7) <<  6)
+#define CONF_IC			(_ULCAST_(7) <<  9)
+#define CONF_EB			(_ULCAST_(1) << 13)
+#define CONF_EM			(_ULCAST_(1) << 14)
+#define CONF_SM			(_ULCAST_(1) << 16)
 #define CONF_SC			(_ULCAST_(1) << 17)
-#define CONF_AC			(_ULCAST_(1) << 23)
-#define CONF_HALT		(_ULCAST_(1) << 25)
+#define CONF_EW			(_ULCAST_(3) << 18)
+#define CONF_EP			(_ULCAST_(15)<< 24)
+#define CONF_EC			(_ULCAST_(7) << 28)
+#define CONF_CM			(_ULCAST_(1) << 31)
 
-/*
- * Bits in the TX49 coprozessor 0 config register.
- */
+/* Bits specific to the R4xx0.  */
+#define R4K_CONF_SW		(_ULCAST_(1) << 20)
+#define R4K_CONF_SS		(_ULCAST_(1) << 21)
+#define R4K_CONF_SB		(_ULCAST_(3) << 22)
+
+/* Bits specific to the R5000.  */
+#define R5K_CONF_SE		(_ULCAST_(1) << 12)
+#define R5K_CONF_SS		(_ULCAST_(3) << 20)
+
+/* Bits specific to the R10000.  */
+#define R10K_CONF_DN		(_ULCAST_(3) <<  3)
+#define R10K_CONF_CT		(_ULCAST_(1) <<  5)
+#define R10K_CONF_PE		(_ULCAST_(1) <<  6)
+#define R10K_CONF_PM		(_ULCAST_(3) <<  7)
+#define R10K_CONF_EC		(_ULCAST_(15)<<  9)
+#define R10K_CONF_SB		(_ULCAST_(1) << 13)
+#define R10K_CONF_SK		(_ULCAST_(1) << 14)
+#define R10K_CONF_SS		(_ULCAST_(7) << 16)
+#define R10K_CONF_SC		(_ULCAST_(7) << 19)
+#define R10K_CONF_DC		(_ULCAST_(7) << 26)
+#define R10K_CONF_IC		(_ULCAST_(7) << 29)
+
+/* Bits specific to the VR41xx.  */
+#define VR41_CONF_CS		(_ULCAST_(1) << 12)
+#define VR41_CONF_M16		(_ULCAST_(1) << 20)
+#define VR41_CONF_AD		(_ULCAST_(1) << 23)
+
+/* Bits specific to the R30xx.  */
+#define R30XX_CONF_FDM		(_ULCAST_(1) << 19)
+#define R30XX_CONF_REV		(_ULCAST_(1) << 22)
+#define R30XX_CONF_AC		(_ULCAST_(1) << 23)
+#define R30XX_CONF_RF		(_ULCAST_(1) << 24)
+#define R30XX_CONF_HALT		(_ULCAST_(1) << 25)
+#define R30XX_CONF_FPINT	(_ULCAST_(7) << 26)
+#define R30XX_CONF_DBR		(_ULCAST_(1) << 29)
+#define R30XX_CONF_SB		(_ULCAST_(1) << 30)
+#define R30XX_CONF_LOCK		(_ULCAST_(1) << 31)
+
+/* Bits specific to the TX49.  */
 #define TX49_CONF_DC		(_ULCAST_(1) << 16)
 #define TX49_CONF_IC		(_ULCAST_(1) << 17)  /* conflict with CONF_SC */
 #define TX49_CONF_HALT		(_ULCAST_(1) << 18)
 #define TX49_CONF_CWFON		(_ULCAST_(1) << 27)
+
+/* Bits specific to the MIPS32/64 PRA.  */
+#define MIPS_CONF_MT		(_ULCAST_(7) <<  7)
+#define MIPS_CONF_AR		(_ULCAST_(7) << 10)
+#define MIPS_CONF_AT		(_ULCAST_(3) << 13)
+#define MIPS_CONF_M		(_ULCAST_(1) << 31)
 
 /*
  * R10000 performance counter definitions.

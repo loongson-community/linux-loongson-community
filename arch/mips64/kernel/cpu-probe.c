@@ -35,7 +35,7 @@ void (*cpu_wait)(void) = NULL;
 static void r3081_wait(void)
 {
 	unsigned long cfg = read_c0_conf();
-	write_c0_conf(cfg | CONF_HALT);
+	write_c0_conf(cfg | R30XX_CONF_HALT);
 }
 
 static void r39xx_wait(void)
@@ -346,7 +346,7 @@ static inline int cpu_has_confreg(void)
 	unsigned long cfg = read_c0_conf();
 
 	size1 = r3k_cache_size(ST0_ISC);
-	write_c0_conf(cfg ^ CONF_AC);
+	write_c0_conf(cfg ^ R30XX_CONF_AC);
 	size2 = r3k_cache_size(ST0_ISC);
 	write_c0_conf(cfg);
 	return size1 != size2;
