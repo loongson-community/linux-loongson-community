@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.16 1998/09/19 19:16:14 ralf Exp $
+/* $Id: setup.c,v 1.17 1998/09/20 21:12:19 tsbogend Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -47,6 +47,8 @@ extern void jazz_machine_power_off(void);
 
 extern struct ide_ops std_ide_ops;
 extern struct rtc_ops jazz_rtc_ops;
+extern struct fd_ops *fd_ops;
+extern struct fd_ops jazz_fd_ops;
 
 void (*board_time_init)(struct irqaction *irq);
 
@@ -54,7 +56,7 @@ __initfunc(static void jazz_time_init(struct irqaction *irq))
 {
         /* set the clock to 100 Hz */
         r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
-        setup_x86_irq(0, irq);
+        setup_x86_irq(JAZZ_TIMER_IRQ, irq);
 }
 
 __initfunc(static void jazz_irq_setup(void))
@@ -79,32 +81,6 @@ __initfunc(static void jazz_irq_setup(void))
 
 __initfunc(void jazz_setup(void))
 {
-    tag *atag;
-
-    /*
-     * we just check if a tag_screen_info can be gathered
-     * in setup_arch(), if yes we don't proceed futher...
-     */
-    atag = bi_TagFind(tag_screen_info);
-    if (!atag) {
-	/*
-	 * If no, we try to find the tag_arc_displayinfo which is
-	 * always created by Milo for an ARC box (for now Milo only
-	 * works on ARC boxes :) -Stoned.
-	 */
-	atag = bi_TagFind(tag_arcdisplayinfo);
-	if (atag) {
-	    screen_info.orig_x = 
-		((mips_arc_DisplayInfo*)TAGVALPTR(atag))->cursor_x;
-	    screen_info.orig_y = 
-		((mips_arc_DisplayInfo*)TAGVALPTR(atag))->cursor_y;
-	    screen_info.orig_video_cols  = 
-		((mips_arc_DisplayInfo*)TAGVALPTR(atag))->columns;
-	    screen_info.orig_video_lines  = 
-		((mips_arc_DisplayInfo*)TAGVALPTR(atag))->lines;
-	}
-    }
-
 	add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
 	add_wired_entry (0x02400017, 0x02440017, 0xe2000000, PM_16M);
 	add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
@@ -129,4 +105,5 @@ __initfunc(void jazz_setup(void))
 #endif
 	conswitchp = &dummy_con;
 	rtc_ops = &jazz_rtc_ops;
+    	fd_ops = &jazz_fd_ops;
 }
