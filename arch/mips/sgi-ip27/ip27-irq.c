@@ -82,6 +82,7 @@ static inline int alloc_level(int cpu, int irq)
 		panic("Cpu %d flooded with devices\n", cpu);
 
 	__set_bit(level, si->irq_alloc_mask);
+	si->level_to_irq[level] = irq;
 
 	return level;
 }
