@@ -167,11 +167,11 @@ void ip27_do_irq(struct pt_regs *regs)
 	/* copied from Irix intpend0() */
 	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) & 
 				(mask0 = LOCAL_HUB_L(pi_int_mask0))) != 0) {
+		pend0 &= mask0;
 		do {
 			swlevel = ms1bit(pend0);
 			LOCAL_HUB_S(pi_int_mask0, mask0 & ~(1 << swlevel));
-			LOCAL_HUB_S(PI_INT_PEND_MOD, swlevel);
-			LOCAL_HUB_L(pi_int_mask0);		/* Flush */
+			LOCAL_HUB_CLR_INTR(swlevel);
 			/* "map" swlevel to irq */
 			irq = SWLEVEL_TO_IRQ(swlevel);
 			do_IRQ(irq, regs);
@@ -693,18 +693,43 @@ void install_cpuintr(cpuid_t cpu)
 {
 	int irq;
 	extern void smp_call_function_interrupt(void);
+	static int done = 0;
 
+	/*
+	 * This is a hack till we have a pernode irqlist. Currently,
+	 * just have the master cpu set up the handlers for the per
+	 * cpu irqs.
+	 */
+
+#ifdef CONFIG_SMP
+#if (CPUS_PER_NODE == 2)
 	irq = CPU_RESCHED_A_IRQ + cputoslice(cpu);
 	intr_connect_level(cpu, IRQ_TO_SWLEVEL(irq));
-	if (request_irq(irq, handle_resched_intr, SA_SHIRQ, "resched", 0))
+	if (done == 0)
+	if (request_irq(irq, handle_resched_intr, 0, "resched", 0))
 		panic("intercpu intr unconnectible\n");
-#ifdef CONFIG_SMP
 	irq = CPU_CALL_A_IRQ + cputoslice(cpu);
 	intr_connect_level(cpu, IRQ_TO_SWLEVEL(irq));
-	if (request_irq(irq, smp_call_function_interrupt, SA_SHIRQ,
+	if (done == 0)
+	if (request_irq(irq, smp_call_function_interrupt, 0,
 						"callfunc", 0))
 		panic("intercpu intr unconnectible\n");
-#endif
+	/* HACK STARTS */
+	if (done)
+		return;
+	irq = CPU_RESCHED_A_IRQ + cputoslice(cpu) + 1;
+	if (request_irq(irq, handle_resched_intr, 0, "resched", 0))
+		panic("intercpu intr unconnectible\n");
+	irq = CPU_CALL_A_IRQ + cputoslice(cpu) + 1;
+	if (request_irq(irq, smp_call_function_interrupt, 0,
+						"callfunc", 0))
+		panic("intercpu intr unconnectible\n");
+	done = 1;
+	/* HACK ENDS */
+#else /* CPUS_PER_NODE */
+	<< Bomb!  Must redefine this for more than 2 CPUS. >>
+#endif /* CPUS_PER_NODE */
+#endif /* CONFIG_SMP */
 }
 
 void install_tlbintr(cpuid_t cpu)
