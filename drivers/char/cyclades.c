@@ -677,14 +677,6 @@ static char rcsid[] =
 #include <linux/stat.h>
 #include <linux/proc_fs.h>
 
-#ifdef CONFIG_COBALT_27
-#include <asm/page.h>
-#include <asm/pgtable.h>
-
-#define	CACHED_TO_UNCACHED(x)	(((unsigned long)(x) & \
-				  (unsigned long)0x1fffffff) + KSEG1)
-#endif
-
 #define cy_put_user	put_user
 
 static unsigned long 
