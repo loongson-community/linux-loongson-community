@@ -9,8 +9,6 @@
 #ifndef _ASM_PTRACE_H
 #define _ASM_PTRACE_H
 
-#include <linux/types.h>
-
 /* 0 - 31 are integer registers, 32 - 63 are fp registers.  */
 #define FPR_BASE	32
 #define PC		64
