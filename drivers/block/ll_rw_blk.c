@@ -830,10 +830,10 @@ int __init blk_dev_init(void)
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();
 #else
-#if !defined(CONFIG_SGI_IP22) && !defined (__mc68000__) && \
-    !defined(CONFIG_PPC) && !defined(__sparc__) && !defined(CONFIG_APUS) \
-    && !defined(CONFIG_DECSTATION) && !defined(CONFIG_BAGET_MIPS) \
-    && !defined(__sh__)
+#if !defined(CONFIG_SGI_IP22) && !defined(CONFIG_SGI_IP27) && \
+    !defined (__mc68000__) && !defined(CONFIG_PPC) && !defined(__sparc__) && \
+    !defined(CONFIG_APUS) && !defined(CONFIG_DECSTATION) && \
+    !defined(CONFIG_BAGET_MIPS) && !defined(__sh__)
 	outb_p(0xc, 0x3f2);
 #endif
 #endif
