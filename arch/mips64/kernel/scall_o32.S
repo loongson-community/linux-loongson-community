@@ -383,7 +383,7 @@ illegal_syscall:
 	sys	sys_send	4
 	sys	sys_sendmsg	3
 	sys	sys_sendto	6			/* 4180 */
-	sys	sys_setsockopt	5
+	sys	sys32_setsockopt	5
 	sys	sys_shutdown	2
 	sys	sys_socket	3
 	sys	sys_socketpair	4
