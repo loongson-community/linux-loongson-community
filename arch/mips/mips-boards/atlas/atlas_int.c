@@ -186,12 +186,10 @@ void free_irq(unsigned int irq, void *dev_id)
 	kfree(action);
 }
 
-
 void __init init_IRQ(void)
 {
 	irq_setup();
 }
-
 
 void atlas_hw0_irqdispatch(struct pt_regs *regs)
 {
