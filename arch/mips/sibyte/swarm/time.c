@@ -40,8 +40,6 @@
 static unsigned long long sec_bias = 0;
 static unsigned int usec_bias = 0;
 
-extern rwlock_t xtime_lock;
-
 /* Xicor 1241 definitions */
 
 /*
@@ -239,9 +237,9 @@ void __init swarm_time_init(void)
 	} else {
 		if (status & X1241REG_SR_RTCF)
 			printk("x1241: battery failed -- time is probably wrong\n");
-		write_lock_irqsave (&xtime_lock, flags);
+		write_seqlock_irqsave(&xtime_lock, flags);
 		xtime.tv_sec = get_swarm_time();
 		xtime.tv_nsec = 0;
-		write_unlock_irqrestore(&xtime_lock, flags);
+		write_sequnlock_irqrestore(&xtime_lock, flags);
 	}
 }

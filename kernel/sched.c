@@ -213,7 +213,7 @@ __init void node_nr_running_init(void)
 	int i;
 
 	for (i = 0; i < NR_CPUS; i++)
-		cpu_rq(i)->node_nr_running = &node_nr_running[__cpu_to_node(i)];
+		cpu_rq(i)->node_nr_running = &node_nr_running[cpu_to_node(i)];
 }
 
 #else /* !CONFIG_NUMA */
@@ -438,6 +438,7 @@ void kick_if_running(task_t * p)
 /***
  * try_to_wake_up - wake up a thread
  * @p: the to-be-woken-up thread
+ * @state: the mask of task states that can be woken
  * @sync: do a synchronous wakeup?
  *
  * Put it on the run-queue if it's not already there. The "current"
@@ -448,7 +449,7 @@ void kick_if_running(task_t * p)
  *
  * returns failure only if the task is already active.
  */
-static int try_to_wake_up(task_t * p, int sync)
+static int try_to_wake_up(task_t * p, unsigned int state, int sync)
 {
 	unsigned long flags;
 	int success = 0;
@@ -458,28 +459,30 @@ static int try_to_wake_up(task_t * p, int sync)
 repeat_lock_task:
 	rq = task_rq_lock(p, &flags);
 	old_state = p->state;
-	if (!p->array) {
-		/*
-		 * Fast-migrate the task if it's not running or runnable
-		 * currently. Do not violate hard affinity.
-		 */
-		if (unlikely(sync && !task_running(rq, p) &&
-			(task_cpu(p) != smp_processor_id()) &&
-			(p->cpus_allowed & (1UL << smp_processor_id())))) {
+	if (old_state & state) {
+		if (!p->array) {
+			/*
+			 * Fast-migrate the task if it's not running or runnable
+			 * currently. Do not violate hard affinity.
+			 */
+			if (unlikely(sync && !task_running(rq, p) &&
+				(task_cpu(p) != smp_processor_id()) &&
+				(p->cpus_allowed & (1UL << smp_processor_id())))) {
 
-			set_task_cpu(p, smp_processor_id());
-			task_rq_unlock(rq, &flags);
-			goto repeat_lock_task;
+				set_task_cpu(p, smp_processor_id());
+				task_rq_unlock(rq, &flags);
+				goto repeat_lock_task;
+			}
+			if (old_state == TASK_UNINTERRUPTIBLE)
+				rq->nr_uninterruptible--;
+			activate_task(p, rq);
+	
+			if (p->prio < rq->curr->prio)
+				resched_task(rq->curr);
+			success = 1;
 		}
-		if (old_state == TASK_UNINTERRUPTIBLE)
-			rq->nr_uninterruptible--;
-		activate_task(p, rq);
-
-		if (p->prio < rq->curr->prio)
-			resched_task(rq->curr);
-		success = 1;
+		p->state = TASK_RUNNING;
 	}
-	p->state = TASK_RUNNING;
 	task_rq_unlock(rq, &flags);
 
 	return success;
@@ -487,7 +490,12 @@ repeat_lock_task:
 
 int wake_up_process(task_t * p)
 {
-	return try_to_wake_up(p, 0);
+	return try_to_wake_up(p, TASK_STOPPED | TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE, 0);
+}
+
+int wake_up_state(task_t *p, unsigned int state)
+{
+	return try_to_wake_up(p, state, 0);
 }
 
 /*
@@ -715,7 +723,7 @@ static int sched_best_cpu(struct task_struct *p)
 	}
 
 	minload = 10000000;
-	cpumask = __node_to_cpu_mask(node);
+	cpumask = node_to_cpumask(node);
 	for (i = 0; i < NR_CPUS; ++i) {
 		if (!(cpumask & (1UL << i)))
 			continue;
@@ -767,7 +775,7 @@ static int find_busiest_node(int this_node)
 
 static inline unsigned long cpus_to_balance(int this_cpu, runqueue_t *this_rq)
 {
-	int this_node = __cpu_to_node(this_cpu);
+	int this_node = cpu_to_node(this_cpu);
 	/*
 	 * Avoid rebalancing between nodes too often.
 	 * We rebalance globally once every NODE_BALANCE_RATE load balances.
@@ -776,9 +784,9 @@ static inline unsigned long cpus_to_balance(int this_cpu, runqueue_t *this_rq)
 		int node = find_busiest_node(this_node);
 		this_rq->nr_balanced = 0;
 		if (node >= 0)
-			return (__node_to_cpu_mask(node) | (1UL << this_cpu));
+			return (node_to_cpumask(node) | (1UL << this_cpu));
 	}
-	return __node_to_cpu_mask(this_node);
+	return node_to_cpumask(this_node);
 }
 
 #else /* !CONFIG_NUMA */
@@ -1263,7 +1271,7 @@ need_resched:
 int default_wake_function(wait_queue_t *curr, unsigned mode, int sync)
 {
 	task_t *p = curr->task;
-	return ((p->state & mode) && try_to_wake_up(p, sync));
+	return try_to_wake_up(p, mode, sync);
 }
 
 /*
@@ -2037,7 +2045,7 @@ static void show_task(task_t * p)
 	unsigned long free = 0;
 	task_t *relative;
 	int state;
-	static const char * stat_nam[] = { "R", "S", "D", "Z", "T", "W" };
+	static const char * stat_nam[] = { "R", "S", "D", "T", "Z", "W" };
 
 	printk("%-13.13s ", p->comm);
 	state = p->state ? __ffs(p->state) + 1 : 0;
@@ -2057,7 +2065,7 @@ static void show_task(task_t * p)
 		printk(" %016lx ", thread_saved_pc(p));
 #endif
 	{
-		unsigned long * n = (unsigned long *) (p+1);
+		unsigned long * n = (unsigned long *) (p->thread_info+1);
 		while (!*n)
 			n++;
 		free = (unsigned long) n - (unsigned long)(p+1);
@@ -2422,7 +2430,7 @@ void __init sched_init(void)
 	rq->curr = current;
 	rq->idle = current;
 	set_task_cpu(current, smp_processor_id());
-	wake_up_process(current);
+	wake_up_forked_process(current);
 
 	init_timers();
 
@@ -2469,15 +2477,12 @@ void __preempt_spin_lock(spinlock_t *lock)
 		_raw_spin_lock(lock);
 		return;
 	}
-
-	while (!_raw_spin_trylock(lock)) {
-		if (need_resched()) {
-			preempt_enable_no_resched();
-			__cond_resched();
-			preempt_disable();
-		}
-		cpu_relax();
-	}
+	do {
+		preempt_enable();
+		while (spin_is_locked(lock))
+			cpu_relax();
+		preempt_disable();
+	} while (!_raw_spin_trylock(lock));
 }
 
 void __preempt_write_lock(rwlock_t *lock)
@@ -2487,13 +2492,11 @@ void __preempt_write_lock(rwlock_t *lock)
 		return;
 	}
 
-	while (!_raw_write_trylock(lock)) {
-		if (need_resched()) {
-			preempt_enable_no_resched();
-			__cond_resched();
-			preempt_disable();
-		}
-		cpu_relax();
-	}
+	do {
+		preempt_enable();
+		while (rwlock_is_locked(lock))
+			cpu_relax();
+		preempt_disable();
+	} while (!_raw_write_trylock(lock));
 }
 #endif

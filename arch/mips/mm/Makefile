@@ -2,7 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-export-objs			+= ioremap.o loadmmu.o
 obj-y				+= cache.o extable.o init.o ioremap.o fault.o \
 				   pgtable.o loadmmu.o
 

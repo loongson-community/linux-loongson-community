@@ -1021,16 +1021,7 @@ asmlinkage long sys_setsid(void)
 		goto out;
 
 	current->leader = 1;
-	if (current->session != current->pid) {
-		detach_pid(current, PIDTYPE_SID);
-		current->session = current->pid;
-		attach_pid(current, PIDTYPE_SID, current->pid);
-	}
-	if (current->pgrp != current->pid) {
-		detach_pid(current, PIDTYPE_PGID);
-		current->pgrp = current->pid;
-		attach_pid(current, PIDTYPE_PGID, current->pid);
-	}
+	__set_special_pids(current->pid, current->pid);
 	current->tty = NULL;
 	current->tty_old_pgrp = 0;
 	err = current->pgrp;
@@ -1317,7 +1308,7 @@ asmlinkage long sys_umask(int mask)
 asmlinkage long sys_prctl(int option, unsigned long arg2, unsigned long arg3,
 			  unsigned long arg4, unsigned long arg5)
 {
-	int error = 0;
+	int error;
 	int sig;
 
 	error = security_task_prctl(option, arg2, arg3, arg4, arg5);

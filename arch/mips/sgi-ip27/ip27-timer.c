@@ -10,6 +10,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
 #include <linux/param.h>
+#include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/mm.h>
 #include <linux/bcd.h>
@@ -42,7 +43,6 @@
 static unsigned long ct_cur[NR_CPUS];	/* What counter should be at next timer irq */
 static long last_rtc_update;		/* Last time the rtc clock got updated */
 
-extern rwlock_t xtime_lock;
 extern volatile unsigned long wall_jiffies;
 
 
@@ -97,7 +97,7 @@ void rt_timer_interrupt(struct pt_regs *regs)
 	int irq = 9;				/* XXX Assign number */
 
 	irq_enter();
-	write_lock(&xtime_lock);
+	write_seqlock(&xtime_lock);
 
 again:
 	LOCAL_HUB_S(cpuA ? PI_RT_PEND_A : PI_RT_PEND_B, 0);	/* Ack  */
@@ -136,7 +136,7 @@ again:
 		}
         }
 
-	write_unlock(&xtime_lock);
+	write_sequnlock(&xtime_lock);
 	irq_exit();
 
 	if (softirq_pending(cpu))

@@ -1,5 +1,5 @@
 /*
- * ng1hw.h: Tweaks the newport.h structures and definations to be compatible
+ * ng1hw.h: Tweaks the newport.h structures and definitions to be compatible
  * 	    with IRIX.  Quite ugly, but it works.
  *
  * Copyright (C) 1999 Ulf Carlsson (ulfc@thepuffingroup.com)

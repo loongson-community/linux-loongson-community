@@ -39,6 +39,7 @@
 
 #include <linux/interrupt.h>
 #include <linux/mc146818rtc.h>
+#include <linux/time.h>
 #include <linux/timex.h>
 
 #include <asm/mips-boards/generic.h>

@@ -367,3 +367,4 @@ sys_call_table:
 	PTR	sys_set_tid_address
 	PTR	sys_restart_syscall
 	PTR	sys_semtimedop
+	PTR	sys_fadvise64			/* 5215 */

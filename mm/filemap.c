@@ -259,9 +259,10 @@ void wait_on_page_bit(struct page *page, int bit_nr)
 
 	do {
 		prepare_to_wait(waitqueue, &wait, TASK_UNINTERRUPTIBLE);
-		sync_page(page);
-		if (test_bit(bit_nr, &page->flags))
+		if (test_bit(bit_nr, &page->flags)) {
+			sync_page(page);
 			io_schedule();
+		}
 	} while (test_bit(bit_nr, &page->flags));
 	finish_wait(waitqueue, &wait);
 }
@@ -326,9 +327,10 @@ void __lock_page(struct page *page)
 
 	while (TestSetPageLocked(page)) {
 		prepare_to_wait(wqh, &wait, TASK_UNINTERRUPTIBLE);
-		sync_page(page);
-		if (PageLocked(page))
+		if (PageLocked(page)) {
+			sync_page(page);
 			io_schedule();
+		}
 	}
 	finish_wait(wqh, &wait);
 }
@@ -1306,11 +1308,13 @@ int generic_file_mmap(struct file * file, struct vm_area_struct * vma)
 	return 0;
 }
 
+/*
+ * This is for filesystems which do not implement ->writepage.
+ */
 int generic_file_readonly_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_WRITE))
+	if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_MAYWRITE))
 		return -EINVAL;
-	vma->vm_flags &= ~VM_MAYWRITE;
 	return generic_file_mmap(file, vma);
 }
 #else
@@ -1553,7 +1557,7 @@ generic_file_aio_write_nolock(struct kiocb *iocb, const struct iovec *iov,
 	struct page	*page;
 	struct page	*cached_page = NULL;
 	ssize_t		written;
-	int		err;
+	ssize_t		err;
 	size_t		bytes;
 	struct pagevec	lru_pvec;
 	const struct iovec *cur_iov = iov; /* current iovec */
@@ -1813,7 +1817,7 @@ ssize_t generic_file_aio_write(struct kiocb *iocb, const char *buf,
 {
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_dentry->d_inode->i_mapping->host;
-	int err;
+	ssize_t err;
 	struct iovec local_iov = { .iov_base = (void *)buf, .iov_len = count };
 
 	BUG_ON(iocb->ki_pos != pos);
@@ -1832,7 +1836,7 @@ ssize_t generic_file_write(struct file *file, const char *buf,
 			   size_t count, loff_t *ppos)
 {
 	struct inode	*inode = file->f_dentry->d_inode->i_mapping->host;
-	int		err;
+	ssize_t		err;
 	struct iovec local_iov = { .iov_base = (void *)buf, .iov_len = count };
 
 	down(&inode->i_sem);

@@ -556,6 +556,8 @@ out:	jr	ra
 	sys	sys_epoll_wait		3		/* 4250 */
 	sys	sys_remap_file_pages	5
 	sys	sys_set_tid_address	1
+	sys	sys_restart_syscall	0
+	sys	sys_fadvise64		6
 	.endm
 
 	.macro	sys function, nargs

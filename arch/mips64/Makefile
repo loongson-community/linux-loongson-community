@@ -7,8 +7,7 @@
 #
 # This file is included by the global makefile so that you can add your own
 # architecture-specific flags and dependencies. Remember to do have actions
-# for "archclean" and "archdep" for cleaning up and making dependencies for
-# this architecture
+# for "archclean" cleaning up for this architecture.
 #
 
 #
@@ -232,7 +231,7 @@ CFLAGS		+= $(cflags-y)
 LDFLAGS		+= --oformat $(32bit-bfd)
 LDFLAGS_BLOB	:= --format binary --oformat $(64bit-bfd)
 
-HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
+head-y := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
 libs-y		+= arch/mips64/lib/
 core-y		+= arch/mips64/kernel/ arch/mips64/mm/ arch/mips/math-emu/

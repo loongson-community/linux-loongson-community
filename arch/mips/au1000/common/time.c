@@ -1,12 +1,9 @@
 /*
- *
  * Copyright (C) 2001 MontaVista Software, ppopov@mvista.com
  * Copied and modified Carsten Langgaard's time.c
  *
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -21,16 +18,13 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * Setting up the clock on the MIPS boards.
- *
  */
-
 #include <linux/types.h>
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
+#include <linux/time.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 
@@ -51,7 +45,6 @@ unsigned long missed_heart_beats = 0;
 
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
-extern rwlock_t xtime_lock;
 extern unsigned int mips_counter_frequency;
 
 /* Cycle counter value at the previous timer interrupt.. */

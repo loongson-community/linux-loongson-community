@@ -57,11 +57,11 @@ asmlinkage int sys_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
 
-	spin_lock_irq(&current->sig->siglock);
+	spin_lock_irq(&current->sighand->siglock);
 	saveset = current->blocked;
 	current->blocked = newset;
         recalc_sigpending();
-	spin_unlock_irq(&current->sig->siglock);
+	spin_unlock_irq(&current->sighand->siglock);
 
 	regs.regs[2] = EINTR;
 	regs.regs[7] = 1;
@@ -140,10 +140,10 @@ asmlinkage void sys_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 		goto badframe;
 
 	sigdelsetmask(&set, ~_BLOCKABLE);
-	spin_lock_irq(&current->sig->siglock);
+	spin_lock_irq(&current->sighand->siglock);
 	current->blocked = set;
 	recalc_sigpending();
-	spin_unlock_irq(&current->sig->siglock);
+	spin_unlock_irq(&current->sighand->siglock);
 
 	if (restore_sigcontext(&regs, &frame->rs_uc.uc_mcontext))
 		goto badframe;
@@ -309,7 +309,7 @@ give_sigsegv:
 static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	sigset_t *oldset, struct pt_regs *regs)
 {
-	struct k_sigaction *ka = &current->sig->action[sig-1];
+	struct k_sigaction *ka = &current->sighand->action[sig-1];
 
 	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:
@@ -333,11 +333,11 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	if (ka->sa.sa_flags & SA_ONESHOT)
 		ka->sa.sa_handler = SIG_DFL;
 	if (!(ka->sa.sa_flags & SA_NODEFER)) {
-		spin_lock_irq(&current->sig->siglock);
+		spin_lock_irq(&current->sighand->siglock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
 		sigaddset(&current->blocked,sig);
 		recalc_sigpending();
-		spin_unlock_irq(&current->sig->siglock);
+		spin_unlock_irq(&current->sighand->siglock);
 	}
 }
 

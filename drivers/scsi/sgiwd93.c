@@ -105,8 +105,8 @@ void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
 
 static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 {
-	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)cmd->host->hostdata;
-	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) cmd->host->base;
+	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)cmd->device->host->hostdata;
+	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) cmd->device->host->base;
 	struct hpc_chunk *hcp = (struct hpc_chunk *) hdata->dma_bounce_buffer;
 
 #ifdef DEBUG_DMA
@@ -161,7 +161,7 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 	if (!SCpnt)
 		return;
 
-	hregs = (struct hpc3_scsiregs *) SCpnt->host->base;
+	hregs = (struct hpc3_scsiregs *) SCpnt->device->host->base;
 
 #ifdef DEBUG_DMA
 	printk("dma_stop: status<%d> ", status);

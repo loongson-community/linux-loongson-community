@@ -4,8 +4,6 @@
 
 EXTRA_TARGETS	:= head.o init_task.o
 
-export-objs	= irq.o mips64_ksyms.o setup.o pci-dma.o smp.o time.o
-
 obj-y		:= branch.o cpu-probe.o entry.o irq.o proc.o process.o \
 		   ptrace.o r4k_cache.o r4k_fpu.o r4k_genex.o r4k_switch.o \
 		   reset.o scall_64.o semaphore.o setup.o signal.o syscall.o \

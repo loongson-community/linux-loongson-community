@@ -3,8 +3,6 @@
 # under Linux.
 #
 
-export-objs := utils.o
-
 obj-y   := init.o setup.o irq.o int-handler.o pci.o utils.o asic.o
 
 obj-$(CONFIG_KGDB) += gdb_hook.o

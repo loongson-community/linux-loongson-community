@@ -1,3 +1,5 @@
 .*.d
+.*.o
 lk201-map.c
 .*.cmd
+.*.ver

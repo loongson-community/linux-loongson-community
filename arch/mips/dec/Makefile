@@ -2,8 +2,6 @@
 # Makefile for the DECstation family specific parts of the kernel
 #
 
-export-objs	:= rtc-dec.o setup.o wbflush.o
-
 obj-y		:= ecc-berr.o int-handler.o ioasic-irq.o kn02-irq.o reset.o \
 		   rtc-dec.o setup.o time.o
 

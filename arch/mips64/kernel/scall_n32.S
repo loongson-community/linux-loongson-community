@@ -329,3 +329,4 @@ EXPORT(sysn32_call_table)
 	PTR	sys_set_tid_address
 	PTR	sys_restart_syscall
 	PTR	sys_semtimedop			/* 6215 */
+	PTR	sys_fadvise64

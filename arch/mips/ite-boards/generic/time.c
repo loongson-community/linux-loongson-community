@@ -27,6 +27,7 @@
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
 #include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/spinlock.h>
 #include <linux/mc146818rtc.h>
 

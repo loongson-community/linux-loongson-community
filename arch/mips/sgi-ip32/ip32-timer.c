@@ -30,7 +30,6 @@
 #include <asm/irq.h>
 
 extern volatile unsigned long wall_jiffies;
-extern rwlock_t xtime_lock;
 
 u32 cc_interval;
 
@@ -219,10 +218,10 @@ void __init ip32_time_init(void)
 		epoch = 1952;
 	year += epoch;
 
-	write_lock_irq (&xtime_lock);
+	write_seqlock_irq(&xtime_lock);
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);
 	xtime.tv_nsec = 0;
-	write_unlock_irq (&xtime_lock);
+	write_sequnlock_irq(&xtime_lock);
 
 	write_c0_count(0);
 	irq0.handler = cc_timer_interrupt;

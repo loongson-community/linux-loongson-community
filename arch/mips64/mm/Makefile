@@ -2,7 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-export-objs			:= loadmmu.o
 obj-y				:= cache.o extable.o init.o fault.o loadmmu.o \
 				   pgtable.o tlbex-r4k.o
 

@@ -267,3 +267,5 @@ SYS(sys_epoll_ctl, 4)
 SYS(sys_epoll_wait, 3)				/* 4250 */
 SYS(sys_remap_file_pages, 5)
 SYS(sys_set_tid_address, 1)
+SYS(sys_restart_syscall, 0)			/* XXX */
+SYS(sys_fadvise64, 6)

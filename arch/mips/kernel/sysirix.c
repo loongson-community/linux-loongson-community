@@ -15,6 +15,7 @@
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/errno.h>
+#include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/times.h>
 #include <linux/elf.h>
@@ -619,21 +620,19 @@ asmlinkage int irix_getgid(struct pt_regs *regs)
 	return current->gid;
 }
 
-extern rwlock_t xtime_lock;
-
 asmlinkage int irix_stime(int value)
 {
 	if (!capable(CAP_SYS_TIME))
 		return -EPERM;
 
-	write_lock_irq(&xtime_lock);
+	write_seqlock_irq(&xtime_lock);
 	xtime.tv_sec = value;
 	xtime.tv_nsec = 0;
 	time_adjust = 0;			/* stop active adjtime() */
 	time_status |= STA_UNSYNC;
 	time_maxerror = NTP_PHASE_LIMIT;
 	time_esterror = NTP_PHASE_LIMIT;
-	write_unlock_irq(&xtime_lock);
+	write_sequnlock_irq(&xtime_lock);
 
 	return 0;
 }
@@ -1056,16 +1055,17 @@ asmlinkage int irix_sgikopt(char *istring, char *ostring, int len)
 asmlinkage int irix_gettimeofday(struct timeval *tv)
 {
 	time_t sec;
-	long nsec;
+	long nsec, seq;
 	int err;
 
 	if (verify_area(VERIFY_WRITE, tv, sizeof(struct timeval)))
 		return -EFAULT;
 
-	read_lock_irq(&xtime_lock);
-	sec = xtime.tv_sec;
-	nsec = xtime.tv_nsec;
-	read_unlock_irq(&xtime_lock);
+	do {
+		seq = read_seqbegin(&xtime_lock);
+		sec = xtime.tv_sec;
+		nsec = xtime.tv_nsec;
+	} while (read_seqretry(&xtime_lock, seq));
 
 	err = __put_user(sec, &tv->tv_sec);
 	err |= __put_user((nsec / 1000), &tv->tv_usec);

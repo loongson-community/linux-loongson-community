@@ -10,8 +10,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-export-objs	= prom.o clocks.o power.o usbdev.o
-
 obj-y := prom.o int-handler.o dma.o irq.o puts.o time.o reset.o \
 	clocks.o power.o
 
