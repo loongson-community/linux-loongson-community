@@ -33,7 +33,6 @@ extern void ja_setup_console(void);
 
 struct callvectors *debug_vectors;
 
-extern unsigned long marvell_base;
 extern unsigned long cpu_clock;
 
 const char *get_system_type(void)
