@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.12 2000/03/18 07:38:32 ulfc Exp $
+/* $Id: linux32.c,v 1.13 2000/03/18 09:02:17 ulfc Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -148,6 +148,8 @@ asmlinkage int sys32_newfstat(unsigned int fd, struct stat32 * statbuf)
 }
 asmlinkage int sys_mmap2(void) {return 0;}
 
+asmlinkage long sys_truncate(const char * path, unsigned long length);
+
 asmlinkage int sys_truncate64(const char *path, unsigned long high,
 			      unsigned long low)
 {
@@ -155,6 +157,8 @@ asmlinkage int sys_truncate64(const char *path, unsigned long high,
 		return -EINVAL;
 	return sys_truncate(path, (high << 32) | low);
 }
+
+asmlinkage long sys_ftruncate(unsigned int fd, unsigned long length);
 
 asmlinkage int sys_ftruncate64(unsigned int fd, unsigned long high,
 			       unsigned long low)
@@ -164,19 +168,25 @@ asmlinkage int sys_ftruncate64(unsigned int fd, unsigned long high,
 	return sys_ftruncate(fd, (high << 32) | low);
 }
 
+asmlinkage long sys_newstat(char * filename, struct stat * statbuf);
+
 asmlinkage int sys_stat64(char * filename, struct stat *statbuf)
 {
 	return sys_newstat(filename, statbuf);
 }
+
+asmlinkage long sys_newlstat(char * filename, struct stat * statbuf);
 
 asmlinkage int sys_lstat64(char * filename, struct stat *statbuf)
 {
 	return sys_newlstat(filename, statbuf);
 }
 
+asmlinkage long sys_newfstat(unsigned int fd, struct stat * statbuf);
+
 asmlinkage int sys_fstat64(unsigned int fd, struct stat *statbuf)
 {
-	return sys_fstat(fd, statbuf);
+	return sys_newfstat(fd, statbuf);
 }
 
 #if 0
@@ -362,22 +372,24 @@ out:
 static int
 nargs(unsigned int arg, char **ap)
 {
-	char *ptr; 
-	int n, err;
+	char *ptr;
+	int n;
 
 	n = 0;
-	for (ptr++; ptr; ) {
-		if ((err = get_user(ptr, (int *)arg)))
-			return(err);
+	do {
+		/* egcs is stupid */
+		if (!access_ok(VERIFY_READ, arg, sizeof (unsigned int)))
+			return -EFAULT;
+		__get_user((long)ptr,(int *)A(arg));
 		if (ap)
 			*ap++ = ptr;
 		arg += sizeof(unsigned int);
 		n++;
-	}
+	} while (ptr);
 	return(n - 1);
 }
 
-asmlinkage long
+asmlinkage int 
 sys32_execve(abi64_no_regargs, struct pt_regs regs)
 {
 	extern asmlinkage int sys_execve(abi64_no_regargs, struct pt_regs regs);
@@ -402,14 +414,14 @@ sys32_execve(abi64_no_regargs, struct pt_regs regs)
 	down(&current->mm->mmap_sem);
 	lock_kernel();
 
-	av = do_mmap_pgoff(0, NULL, len,
-		PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0);
+	av = (char **) do_mmap_pgoff(0, 0, len, PROT_READ | PROT_WRITE,
+				     MAP_PRIVATE | MAP_ANONYMOUS, 0);
 
 	unlock_kernel();
 	up(&current->mm->mmap_sem);
 
 	if (IS_ERR(av))
-		return(av);
+		return((long) av);
 	ae = av + na + 1;
 	av[na] = (char *)0;
 	ae[ne] = (char *)0;
@@ -423,7 +435,7 @@ sys32_execve(abi64_no_regargs, struct pt_regs regs)
 	r = do_execve(filename, av, ae, &regs);
 	putname(filename);
 	if (IS_ERR(r))
-		sys_munmap(av, len);
+		sys_munmap((unsigned long)av, len);
 	return(r);
 }
 #endif
@@ -455,18 +467,22 @@ xlate_dirent(void *dirent64, void *dirent32, long n)
 	return;
 }
 
+asmlinkage long sys_getdents(unsigned int fd, void * dirent, unsigned int count);
+
 asmlinkage long
 sys32_getdents(unsigned int fd, void * dirent32, unsigned int count)
 {
 	long n;
 	void *dirent64;
 
-	dirent64 = (unsigned long)(dirent32 + (sizeof(long) - 1)) & ~(sizeof(long) - 1);
+	dirent64 = (void *)((unsigned long)(dirent32 + (sizeof(long) - 1)) & ~(sizeof(long) - 1));
 	if ((n = sys_getdents(fd, dirent64, count - (dirent64 - dirent32))) < 0)
 		return(n);
 	xlate_dirent(dirent64, dirent32, n);
 	return(n);
 }
+
+asmlinkage int old_readdir(unsigned int fd, void * dirent, unsigned int count);
 
 asmlinkage int
 sys32_readdir(unsigned int fd, void * dirent32, unsigned int count)
@@ -570,7 +586,7 @@ struct rlimit32 {
 	int	rlim_max;
 };
 
-extern asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim);
+extern asmlinkage int sys_old_getrlimit(unsigned int resource, struct rlimit *rlim);
 
 asmlinkage int
 sys32_getrlimit(unsigned int resource, struct rlimit32 *rlim)
@@ -611,3 +627,56 @@ sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
 	set_fs (old_fs);
 	return ret;
 }
+
+static inline int
+put_statfs (struct statfs32 *ubuf, struct statfs *kbuf)
+{
+	int err;
+	
+	err = put_user (kbuf->f_type, &ubuf->f_type);
+	err |= __put_user (kbuf->f_bsize, &ubuf->f_bsize);
+	err |= __put_user (kbuf->f_blocks, &ubuf->f_blocks);
+	err |= __put_user (kbuf->f_bfree, &ubuf->f_bfree);
+	err |= __put_user (kbuf->f_bavail, &ubuf->f_bavail);
+	err |= __put_user (kbuf->f_files, &ubuf->f_files);
+	err |= __put_user (kbuf->f_ffree, &ubuf->f_ffree);
+	err |= __put_user (kbuf->f_namelen, &ubuf->f_namelen);
+	err |= __put_user (kbuf->f_fsid.val[0], &ubuf->f_fsid.val[0]);
+	err |= __put_user (kbuf->f_fsid.val[1], &ubuf->f_fsid.val[1]);
+	return err;
+}
+
+extern asmlinkage int sys_statfs(const char * path, struct statfs * buf);
+
+asmlinkage int
+sys32_statfs(const char * path, struct statfs32 *buf)
+{
+	int ret;
+	struct statfs s;
+	mm_segment_t old_fs = get_fs();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_statfs((const char *)path, &s);
+	set_fs (old_fs);
+	if (put_statfs(buf, &s))
+		return -EFAULT;
+	return ret;
+}
+
+extern asmlinkage int sys_fstatfs(unsigned int fd, struct statfs * buf);
+
+asmlinkage int
+sys32_fstatfs(unsigned int fd, struct statfs32 *buf)
+{
+	int ret;
+	struct statfs s;
+	mm_segment_t old_fs = get_fs();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_fstatfs(fd, &s);
+	set_fs (old_fs);
+	if (put_statfs(buf, &s))
+		return -EFAULT;
+	return ret;
+}
+
