@@ -51,7 +51,7 @@
 /*
  * Function to poll the MDIO 
  */
-static int titan_ge_mdio_poll()
+static int titan_ge_mdio_poll(void)
 {
 	int	i, val;
 
