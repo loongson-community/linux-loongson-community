@@ -426,8 +426,7 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
  * least know the kernel address of the page so we can flush it
  * selectivly.
  */
-static void r4k_flush_icache_page(struct vm_area_struct *vma,
-	struct page *page)
+static void r4k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
 	/*
 	 * If there's no context yet, or the page isn't executable, no icache
