@@ -1301,21 +1301,19 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		}
 		desc->cmd = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_D0V | w0);
 		desc->bufcnt = cpu_to_be32(len);
-	} else if ((data ^ (data + len)) & 0x4000) {
-		unsigned long b2, s1, s2;
-
-		b2 = (data | 0x3fffUL) + 1UL;
-		s1 = b2 - data;
-		s2 = data + len - b2;
+	} else if ((data ^ (data + len - 1)) & 0x4000) {
+		unsigned long b2 = (data | 0x3fffUL) + 1UL;
+		unsigned long s1 = b2 - data;
+		unsigned long s2 = data + len - b2;
 
 		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE |
 		                           ETXD_B1V | ETXD_B2V | w0);
-		desc->bufcnt = cpu_to_be32((s1 << ETXD_B1CNT_SHIFT)
-		                           | (s2 << ETXD_B2CNT_SHIFT));
+		desc->bufcnt = cpu_to_be32((s1 << ETXD_B1CNT_SHIFT) |
+		                           (s2 << ETXD_B2CNT_SHIFT));
 		desc->p1     = cpu_to_be64((0xa5UL << 56) |
                                            (data & TO_PHYS_MASK));
 		desc->p2     = cpu_to_be64((0xa5UL << 56) |
-		                           (data & TO_PHYS_MASK));
+		                           (b2 & TO_PHYS_MASK));
 	} else {
 		/* Normal sized packet that doesn't cross a page boundary. */
 		desc->cmd = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_B1V | w0);
