@@ -37,7 +37,7 @@ tracesys_exit:
 
 EXPORT(ret_from_irq)
 EXPORT(ret_from_exception)
-		lw	t0, PT_STATUS(sp)	# returning to kernel mode?
+		ld	t0, PT_STATUS(sp)	# returning to kernel mode?
 		andi	t0, t0, KU_USER
 		bnez	t0, ret_from_sys_call
 		j	restore_all
