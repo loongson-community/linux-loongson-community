@@ -15,12 +15,13 @@
  * be examined.
  */
 #define PRID_IMP_R2000		0x0100
-#define PRID_IMP_R3000		0x0200
-#define PRID_IMP_R6000		0x0300
+#define PRID_IMP_R3000		0x0200		/* Same as R2000A  */
+#define PRID_IMP_R6000		0x0300		/* Same as R3000A  */
 #define PRID_IMP_R4000		0x0400
 #define PRID_IMP_R6000A		0x0600
 #define PRID_IMP_R10000		0x0900
 #define PRID_IMP_R4300		0x0b00
+#define PRID_IMP_R12000		0x0e00
 #define PRID_IMP_R8000		0x1000
 #define PRID_IMP_R4600		0x2000
 #define PRID_IMP_R4700		0x2100
