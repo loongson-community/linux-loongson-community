@@ -406,26 +406,169 @@ config SIBYTE_SB1xxx_SOC
 	depends on EXPERIMENTAL
 
 choice
-	prompt "BCM1xxx SOC Type"
+	prompt "BCM1xxx SOC-based board"
 	depends on SIBYTE_SB1xxx_SOC
-	default SIBYTE_SB1250
+	default SIBYTE_SWARM
+	help
+	  Enable support for boards based on the SiByte line of SOCs
+	  from Broadcom.  There are configurations for the known
+	  evaluation boards, or you can choose "Other" and add your
+	  own board support code.
 
-config SIBYTE_SB1250
-	bool "BCM1250"
+config SIBYTE_SWARM
+	bool "BCM91250A-SWARM"
+
+config SIBYTE_SENTOSA
+	bool "BCM91250E-Sentosa"
+
+config SIBYTE_RHONE
+	bool "BCM91125E-Rhone"
+
+config SIBYTE_CARMEL
+	bool "BCM91120x-Carmel"
+
+config SIBYTE_PTSWARM
+	bool "BCM91250PT-PTSWARM"
+
+config SIBYTE_LITTLESUR
+	bool "BCM91250C2-LittleSur"
+
+config SIBYTE_CRHINE
+	bool "BCM91120C-CRhone"
+
+config SIBYTE_CRHONE
+	bool "BCM91125C-CRhone"
+
+config SIBYTE_UNKNOWN
+	bool "Other"
 
 endchoice
+
+config SIBYTE_BOARD
+	bool
+	depends on SIBYTE_SB1xxx_SOC && !SIBYTE_UNKNOWN
+	default y
+
+choice
+	prompt "BCM1xxx SOC Type"
+	depends on SIBYTE_UNKNOWN
+	default SIBYTE_UNK_SB1250
+	help
+	  Since you haven't chosen a known evaluation board from
+	  Broadcom, you must explicitly pick the SOC this kernel is
+	  targetted for.
+
+config SIBYTE_UNK_BCM1250
+	bool "BCM1250"
+
+config SIBYTE_UNK_BCM1120
+	bool "BCM1120"
+
+config SIBYTE_UNK_BCM1125
+	bool "BCM1125"
+
+config SIBYTE_UNK_BCM1125H
+	bool "BCM1125H"
+
+endchoice
+
+config SIBYTE_SB1250
+	bool
+	depends on SIBYTE_SWARM || SIBYTE_SENTOSA || SIBYTE_LITTLESUR || SIBYTE_PTSWARM || SIBYTE_UNK_BCM1250
+	default y
+
+config SIBYTE_BCM1120
+	bool
+	depends on SIBYTE_CRHINE || SIBYTE_CARMEL || SIBYTE_UNK_BCM1120
+	default y
+
+config SIBYTE_BCM1125
+	bool
+	depends on SIBYTE_UNK_BCM1125
+	default y
+
+config SIBYTE_BCM1125H
+	bool
+	depends on SIBYTE_CRHONE || SIBYTE_RHONE || SIBYTE_UNK_BCM1125H
+	default y
+
+config SIBYTE_BCM112X
+	bool
+	depends on SIBYTE_BCM1120 || SIBYTE_BCM1125 || SIBYTE_BCM1125H
+	default y
+
+choice
+	prompt "SiByte SOC Stepping"
+	depends on SIBYTE_SB1xxx_SOC
+
+config CPU_SB1_PASS_1
+	bool "1250 Pass1"
+	depends on SIBYTE_SB1250
+
+config CPU_SB1_PASS_2_1250
+	bool "1250 An"
+	depends on SIBYTE_SB1250
+	help
+	  Also called BCM1250 Pass 2
+
+config CPU_SB1_PASS_2_2
+	bool "1250 Bn"
+	depends on SIBYTE_SB1250
+	help
+	  Also called BCM1250 Pass 2.2
+
+config CPU_SB1_PASS_4
+	bool "1250 Cn"
+	depends on SIBYTE_SB1250
+	help
+	  Also called BCM1250 Pass 3
+
+config CPU_SB1_PASS_2_112x
+	bool "112x Hybrid"
+	depends on SIBYTE_BCM112X
+
+config CPU_SB1_PASS_3
+	bool "112x An"
+	depends on SIBYTE_BCM112X
+
+endchoice
+
+config CPU_SB1_PASS_2
+	bool
+	depends on CPU_SB1_PASS_2_1250 || CPU_SB1_PASS_2_112x
+	default y
+
+config SIBYTE_HAS_PCI
+	bool
+	depends on SIBYTE_SB1250 || SIBYTE_BCM1125 || SIBYTE_BCM1125H
+	default y
+
+config SIBYTE_HAS_LDT
+	bool
+	depends on PCI && (SIBYTE_SB1250 || SIBYTE_BCM1125H)
+	default y
 
 config SIMULATION
 	bool "Running under simulation"
 	depends on SIBYTE_SB1xxx_SOC
+	help
+	  Build a kernel suitable for running under the GDB simulator.
+	  Primarily adjusts the kernel's notion of time.
 
 config SIBYTE_CFE
 	bool "Booting from CFE"
 	depends on SIBYTE_SB1xxx_SOC
+	help
+	  Make use of the CFE API for enumerating available memory,
+	  controlling secondary CPUs, and possibly console output.
 
 config SIBYTE_CFE_CONSOLE
 	bool "Use firmware console"
 	depends on SIBYTE_CFE
+	help
+	  Use the CFE API's console write routines during boot.  Other console
+	  options (VT console, sb1250 duart console, etc.) should not be
+	  configured.
 
 config SIBYTE_STANDALONE
 	bool
@@ -434,12 +577,15 @@ config SIBYTE_STANDALONE
 
 config SIBYTE_STANDALONE_RAM_SIZE
 	int "Memory size (in megabytes)"
-	depends on SIBYTE_SB1xxx_SOC && !SIBYTE_CFE
+	depends on SIBYTE_STANDALONE
 	default "32"
 
 config SIBYTE_BUS_WATCHER
-        bool "Support for Bus Watcher statistics"
+	bool "Support for Bus Watcher statistics"
 	depends on SIBYTE_SB1xxx_SOC
+	help
+	  Handle and keep statistics on the bus error interrupts (COR_ECC,
+	  BAD_ECC, IO_BUS).
 
 config SIBYTE_SB1250_PROF
 	bool "Support for SB1/SOC profiling - SB1/SCD perf counters"
@@ -448,15 +594,6 @@ config SIBYTE_SB1250_PROF
 config SIBYTE_TBPROF
 	bool "Support for ZBbus profiling"
 	depends on SIBYTE_SB1xxx_SOC
-
-config SIBYTE_SWARM
-	bool "Support for SWARM board"
-	depends on SIBYTE_SB1250
-
-config SIBYTE_BOARD
-	bool
-	depends on SIBYTE_SWARM
-	default y
 
 config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
@@ -531,7 +668,7 @@ config NONCOHERENT_IO
 	bool
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || NEC_EAGLE || NEC_OSPREY || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MIPS_SEAD || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_ATLAS || LASAT || MIPS_ITE8172 || IBM_WORKPAD || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || DECSTATION || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || CASIO_E55 || ACER_PICA_61 || TANBAC_TB0226 || TANBAC_TB0229
 	default y if ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || NEC_EAGLE || NEC_OSPREY || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_SEAD || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_ATLAS || LASAT || MIPS_ITE8172 || IBM_WORKPAD || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || DECSTATION || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || CASIO_E55 || ACER_PICA_61 || TANBAC_TB0226 || TANBAC_TB0229
-	default n if (SIBYTE_SB1250 || SGI_IP27)
+	default n if (SIBYTE_SB1xxx_SOC || SGI_IP27)
 
 config CPU_LITTLE_ENDIAN
 	bool "Generate little endian code"
@@ -554,7 +691,7 @@ config VR41XX_TIME_C
 
 config DUMMY_KEYB
 	bool
-	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1250 || NEC_EAGLE || NEC_OSPREY || DDB5477 || IBM_WORKPAD || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
+	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1xxx_SOC || NEC_EAGLE || NEC_OSPREY || DDB5477 || IBM_WORKPAD || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
 	default y
 
 config VR41XX_COMMON
@@ -588,12 +725,7 @@ config NEW_PCI
 
 config SWAP_IO_SPACE
 	bool
-	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SIBYTE_SB1250 || SGI_IP22 || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || MIPS_EV96100 || MIPS_PB1100 || MIPS_PB1000
-	default y
-
-config SIBYTE_HAS_LDT
-	bool
-	depends on SIBYTE_SB1xxx_SOC && PCI
+	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SIBYTE_SB1xxx_SOC || SGI_IP22 || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || MIPS_EV96100 || MIPS_PB1100 || MIPS_PB1000
 	default y
 
 config AU1000_USB_DEVICE
@@ -631,7 +763,7 @@ config IT8712
 
 config BOOT_ELF32
 	bool
-	depends on DECSTATION || MIPS_ATLAS || MIPS_MALTA || SIBYTE_SB1250 || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
+	depends on DECSTATION || MIPS_ATLAS || MIPS_MALTA || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
 	default y
 
 config L1_CACHE_SHIFT
@@ -862,22 +994,6 @@ config VTAG_ICACHE
 	bool "Support for Virtual Tagged I-cache" if CPU_MIPS64 || CPU_MIPS32
 	default y if CPU_SB1
 
-choice
-	prompt "SB1 Pass"
-	depends on CPU_SB1
-	default CPU_SB1_PASS_1
-
-config CPU_SB1_PASS_1
-	bool "Pass1"
-
-config CPU_SB1_PASS_2
-	bool "Pass2"
-
-config CPU_SB1_PASS_2_2
-	bool "Pass2.2"
-
-endchoice
-
 config SB1_PASS_1_WORKAROUNDS
 	bool
 	depends on CPU_SB1_PASS_1
@@ -888,19 +1004,10 @@ config SB1_PASS_2_WORKAROUNDS
 	depends on CPU_SB1 && (CPU_SB1_PASS_2_2 || CPU_SB1_PASS_2)
 	default y
 
-# Avoid prefetches on Pass 2 (before 2.2)
-# XXXKW for now, let 2.2 use same WORKAROUNDS flag as pre-2.2
-config SB1_CACHE_ERROR
-	bool "Support for SB1 Cache Error handler"
-	depends on CPU_SB1
-
-config SB1_CERR_IGNORE_RECOVERABLE
-	bool "Ignore recoverable cache errors"
-	depends on SB1_CACHE_ERROR
-
-config SB1_CERR_SPIN
-	bool "Spin instead of running handler"
-	depends on SB1_CACHE_ERROR
+config SB1_PASS_2_1_WORKAROUNDS
+	bool
+	depends on CPU_SB1 && CPU_SB1_PASS_2
+	default y
 
 config 64BIT_PHYS_ADDR
 	bool "Support for 64-bit physical address space"
@@ -966,7 +1073,7 @@ config HIGHMEM
 
 config SMP
 	bool "Multi-Processing support"
-	depends on SIBYTE_SB1xxx_SOC && SIBYTE_SB1250 && !SIBYTE_STANDALONE || SGI_IP27
+	depends on (SIBYTE_SB1250 && !SIBYTE_STANDALONE) || SGI_IP27
 	---help---
 	  This enables support for systems with more than one CPU. If you have
 	  a system with only one CPU, like most personal computers, say N. If
@@ -1019,6 +1126,13 @@ config DEBUG_INFO
 	  Say Y here only if you plan to use gdb to debug the kernel.
 	  If you don't debug the kernel, you can say N.
 
+config SB1XXX_CORELIS
+	bool "Corelis Debugger"
+	depends on SIBYTE_SB1xxx_SOC && DEBUG_INFO
+	help
+	  Select compile flags that produce code that can be processed by the
+	  Corelis mksym utility and UDB Emulator.
+
 config DEBUG_SPINLOCK_SLEEP
 	bool "Sleep-inside-spinlock checking"
 	help
@@ -1049,7 +1163,7 @@ menu "Bus options (PCI, PCMCIA, EISA, ISA, TC)"
 
 config PCI
 	bool "Support for PCI controller"
-	depends on MIPS_DB1000 || DDB5074 || DDB5476 || DDB5477 || HP_LASERJET || LASAT || MIPS_IVR || MIPS_ATLAS || MIPS_COBALT || MIPS_EV64120 || MIPS_EV96100 || MIPS_ITE8172 || MIPS_MALTA || MOMENCO_OCELOT || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MIPS_PB1000 || MIPS_PB1100 || MIPS_PB1500 || NEC_EAGLE || SGI_IP27 || SGI_IP32 || SIBYTE_SB1250 || SNI_RM200_PCI || TANBAC_TB0226 || TANBAC_TB0229 || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || VICTOR_MPC30X || ZAO_CAPCELLA
+	depends on MIPS_DB1000 || DDB5074 || DDB5476 || DDB5477 || HP_LASERJET || LASAT || MIPS_IVR || MIPS_ATLAS || MIPS_COBALT || MIPS_EV64120 || MIPS_EV96100 || MIPS_ITE8172 || MIPS_MALTA || MOMENCO_OCELOT || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MIPS_PB1000 || MIPS_PB1100 || MIPS_PB1500 || NEC_EAGLE || SGI_IP27 || SGI_IP32 || SIBYTE_HAS_PCI || SNI_RM200_PCI || TANBAC_TB0226 || TANBAC_TB0229 || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || VICTOR_MPC30X || ZAO_CAPCELLA
 	help
 	  Find out whether you have a PCI motherboard. PCI is the name of a
 	  bus system, i.e. the way the CPU talks to the other stuff inside
