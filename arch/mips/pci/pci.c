@@ -227,8 +227,7 @@ void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 	if (!dev) {
 		bus->resource[0] = hose->io_resource;
 		bus->resource[1] = hose->mem_resource;
-	}
-	if (pci_probe_only &&
+	} else if (pci_probe_only &&
 		   (dev->class >> 8) == PCI_CLASS_BRIDGE_PCI) {
 		pci_read_bridge_bases(bus);
 		pcibios_fixup_device_resources(dev, bus);
