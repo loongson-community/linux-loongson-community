@@ -35,6 +35,7 @@ obj-$(CONFIG_CPU_R6000)		+= r6000_fpu.o r4k_switch.o
 
 obj-$(CONFIG_SMP)		+= smp.o
 
+obj-$(CONFIG_NO_ISA)		+= dma-no-isa.o
 obj-$(CONFIG_I8259)		+= i8259.o
 obj-$(CONFIG_IRQ_CPU)		+= irq_cpu.o
 obj-$(CONFIG_IRQ_CPU_RM7K)	+= irq-rm7000.o
