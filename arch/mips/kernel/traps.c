@@ -833,6 +833,8 @@ void __init trap_init(void)
 	unsigned long i;
 	int dummy;
 
+	per_cpu_trap_init();
+
 	/* Copy the generic exception handler code to it's final destination. */
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
@@ -861,10 +863,7 @@ void __init trap_init(void)
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (mips_cpu.options & MIPS_CPU_DIVEC) {
-		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
-		set_cp0_cause(CAUSEF_IV);
-	}
+	memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
 
 	/*
 	 * Some CPUs can enable/disable for cache parity detection, but does
@@ -995,6 +994,5 @@ void __init trap_init(void)
 	current->active_mm = &init_mm;
 
 	/* XXX Must be done for all CPUs  */
-	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
 	TLBMISS_HANDLER_SETUP();
 }
