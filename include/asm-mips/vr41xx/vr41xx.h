@@ -7,6 +7,7 @@
  * Copyright (C) 2001, 2002 Paul Mundt
  * Copyright (C) 2002 MontaVista Software, Inc.
  * Copyright (C) 2002 TimeSys Corp.
+ * Copyright (C) 2003 Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -45,6 +46,8 @@
  * Bus Control Uint
  */
 extern void vr41xx_bcu_init(void);
+extern unsigned long vr41xx_get_vtclock_frequency(void);
+extern unsigned long vr41xx_get_tclock_frequency(void);
 
 /*
  * Clock Mask Unit
@@ -90,6 +93,8 @@ enum {
 /* RFU */
 #define POWER_IRQ		SYSINT1_IRQ(1)
 /* RFU */
+#define ELAPSEDTIME_IRQ		SYSINT1_IRQ(3)
+/* RFU */
 #define GIUINT_CASCADE_IRQ	SYSINT1_IRQ(8)
 #define SIU_IRQ			SYSINT1_IRQ(9)
 /* RFU */
@@ -119,6 +124,18 @@ enum {
 
 extern void (*board_irq_init)(void);
 extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
+
+/*
+ * RTC
+ */
+extern void vr41xx_set_rtclong1_cycle(uint32_t cycles);
+extern uint32_t vr41xx_read_rtclong1_counter(void);
+
+extern void vr41xx_set_rtclong2_cycle(uint32_t cycles);
+extern uint32_t vr41xx_read_rtclong2_counter(void);
+
+extern void vr41xx_set_tclock_cycle(uint32_t cycles);
+extern uint32_t vr41xx_read_tclock_counter(void);
 
 /*
  * Gegeral-Purpose I/O Unit
