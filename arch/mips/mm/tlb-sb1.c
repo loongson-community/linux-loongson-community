@@ -17,16 +17,11 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
-
-/*
- * sb1250.c: MMU and cache operations for the SB1250
- */
-
 #include <asm/mmu_context.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
-/* These are probed at ld_mmu time */
+extern char except_vec0_r4000[];
 
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
@@ -304,6 +299,6 @@ void sb1_tlb_init(void)
 	 */
 	sb1_sanitize_tlb();
 
-	/* Turn on caching in kseg0 */
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_COW);
+	memcpy((void *)KSEG0, except_vec0_r4000, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }
