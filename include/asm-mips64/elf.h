@@ -43,8 +43,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 									\
 	if (__h->e_machine != EM_MIPS)					\
 		__res = 0;						\
-	if ((__h->e_ident[EI_CLASS] == ELFCLASS32) &&			\
-	    ((__h->e_flags & EF_MIPS_ABI2) == 0))			\
+	if (__h->e_ident[EI_CLASS] == ELFCLASS32) 			\
 		__res = 0;						\
 									\
 	__res;								\
