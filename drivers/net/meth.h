@@ -16,7 +16,7 @@
 
 /* version dependencies have been confined to a separate file */
 
-#define SGI_MFE		(MACE_BASE+MACE_ENET)
+#define SGI_MFE		(MACE_BASE_OFFSET+MACE_ENET)
 /*		(0xBF280000)*/
 
 /* Tunable parameters */

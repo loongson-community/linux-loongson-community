@@ -319,7 +319,6 @@ int meth_open(struct net_device *dev)
 	meth_private *priv=dev->priv;
 	volatile meth_regs *regs=priv->regs;
 	int ret;
-
 	/* Initialize the hardware */
 	if((ret=meth_reset(dev)) < 0)
 	        return ret;
@@ -493,7 +492,6 @@ void meth_tx_cleanup(struct net_device* dev, int int_status)
 	meth_private *priv=dev->priv;
 	tx_packet* status;
 	struct sk_buff *skb;
-	unsigned long flags;
 	int rptr=(int_status&TX_INFO_RPTR)>>16;
 
 	spin_lock(&priv->meth_lock);
@@ -544,7 +542,6 @@ static void meth_error(struct net_device* dev, u32 status)
 	if (status & (METH_INT_RX_OVERFLOW))
 		printk(KERN_WARNING "meth: Rx overflow\n");
 	if (status & (METH_INT_RX_UNDERFLOW)) {
-		unsigned long flags;
 		printk(KERN_WARNING "meth: Rx underflow\n");
 		spin_lock(&priv->meth_lock);
 		priv->regs->int_flags=METH_INT_RX_UNDERFLOW;
@@ -807,8 +804,8 @@ int meth_init(struct net_device *dev)
 	 * should be returned if no device found.  No resource should be
 	 * grabbed: this is done on open(). 
 	 */
-	priv->regs=(meth_regs*)SGI_MFE;
-	dev->base_addr=SGI_MFE;
+	priv->regs=(meth_regs*)ioremap(SGI_MFE,0x100);
+	dev->base_addr=priv->regs;
 	priv->phy_addr = -1; /* No phy is known yet... */
 
 	printk("SGI O2 Fast Ethernet rev. %ld\n", priv->regs->mac_ctrl >> 29);
