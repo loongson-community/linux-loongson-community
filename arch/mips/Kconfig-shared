@@ -2,7 +2,6 @@ mainmenu "Linux/MIPS Kernel Configuration"
 
 source "init/Kconfig"
 
-
 menu "Machine selection"
 
 config ACER_PICA_61
@@ -489,9 +488,9 @@ config NONCOHERENT_IO
 	default n if (SIBYTE_SB1250 || SGI_IP27)
 
 config CPU_LITTLE_ENDIAN
-	bool
-	depends on ZAO_CAPCELLA || VICTOR_MPC30X || IBM_WORKPAD || CASIO_E55
-	default y
+	bool "Generate little endian code" if !DECSTATION && !DDB5074 && !NINO && !MIPS_COBALT
+	default y if CASIO_E55 || DDB5074 || DECSTATION || IBM_WORKPAD || MIPS_COBALT || NINO || VICTOR_MPC30X || ZAO_CAPCELLA
+	default n if SGI_IP22 || SGI_IP27 || SGI_IP32
 	help
 	  Some MIPS machines can be configured for either little or big endian
 	  byte order. These modes require different kernels. Say Y if your
@@ -951,11 +950,6 @@ config PREEMPT
 	  be preempted even if it is in kernel mode executing a system call.
 	  This allows applications to run more reliably even when the system is
 	  under load.
-
-config CPU_LITTLE_ENDIAN
-	bool "Generate little endian code" if !DECSTATION && !DDB5074 && !NINO && !MIPS_COBALT
-	default y if DECSTATION || DDB5074 || NINO || MIPS_COBALT
-	default n if SGI_IP22 || SGI_IP27 || SGI_IP32
 
 config RTC_DS1742
 	bool "DS1742 BRAM/RTC support"
