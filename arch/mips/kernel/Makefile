@@ -9,7 +9,7 @@ obj-y		+= cpu-probe.o branch.o entry.o genex.o irq.o process.o \
 		   time.o traps.o unaligned.o
 
 ifdef CONFIG_MODULES
-obj-y				+= mips_ksyms.o
+obj-y				+= mips_ksyms.o module.o
 obj-$(CONFIG_MIPS32)		+= module-elf32.o
 obj-$(CONFIG_MIPS64)		+= module-elf64.o
 endif
