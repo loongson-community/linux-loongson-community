@@ -58,7 +58,7 @@
 extern asmlinkage void titan_handle_int(void);
 extern void jaguar_mailbox_irq(struct pt_regs *);
 
-/* 
+/*
  * Handle hypertransport & SMP interrupts. The interrupt lines are scarce.
  * For interprocessor interrupts, the best thing to do is to use the INTMSG
  * register. We use the same external interrupt line, i.e. INTB3 and monitor
@@ -66,15 +66,15 @@ extern void jaguar_mailbox_irq(struct pt_regs *);
  */
 asmlinkage void ll_ht_smp_irq_handler(int irq, struct pt_regs *regs)
 {
-        u32 status = OCD_READ(RM9000x2_OCD_INTP0STATUS4);
+	u32 status = OCD_READ(RM9000x2_OCD_INTP0STATUS4);
 
 	/* Ack all the bits that correspond to the interrupt sources */
 	if (status != 0)
-	        OCD_WRITE(RM9000x2_OCD_INTP0STATUS4, IRQ_ACK_BITS);
+		OCD_WRITE(RM9000x2_OCD_INTP0STATUS4, IRQ_ACK_BITS);
 
 	status = OCD_READ(RM9000x2_OCD_INTP1STATUS4);
 	if (status != 0)
-                OCD_WRITE(RM9000x2_OCD_INTP1STATUS4, IRQ_ACK_BITS);
+		OCD_WRITE(RM9000x2_OCD_INTP1STATUS4, IRQ_ACK_BITS);
 
 #ifdef CONFIG_HT_LEVEL_TRIGGER
 	/*
