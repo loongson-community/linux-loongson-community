@@ -1804,11 +1804,13 @@ asmlinkage int sys32_personality(unsigned long personality)
 
 /* ustat compatibility */
 struct ustat32 {
-	__kernel_daddr_t32	f_tfree;
-	__kernel_ino_t32	f_tinode;
-	char			f_fname[6];
-	char			f_fpack[6];
+	compat_daddr_t	f_tfree;
+	compat_ino_t	f_tinode;
+	char		f_fname[6];
+	char		f_fpack[6];
 };
+
+extern asmlinkage long sys_ustat(dev_t dev, struct ustat * ubuf);
 
 asmlinkage int sys32_ustat(dev_t dev, struct ustat32 * ubuf32)
 {
@@ -1825,8 +1827,8 @@ asmlinkage int sys32_ustat(dev_t dev, struct ustat32 * ubuf32)
 		goto out;
 
         memset(&tmp32,0,sizeof(struct ustat32));
-        tmp32.f_tfree = tmp.f_bfree;
-        tmp32.f_tinode = tmp.f_ffree;
+        tmp32.f_tfree = tmp.f_tfree;
+        tmp32.f_tinode = tmp.f_tinode;
 
         err = copy_to_user(ubuf32,&tmp32,sizeof(struct ustat32)) ? -EFAULT : 0;
 
