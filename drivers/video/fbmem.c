@@ -256,11 +256,38 @@ static struct {
 #ifdef CONFIG_FB_SIS
 	{ "sisfb", sisfb_init, sisfb_setup },
 #endif
-#ifdef CONFIG_FB_VOODOO1
-	{ "sstfb", sstfb_init, sstfb_setup },
+#ifdef CONFIG_FB_TRIDENT
+	{ "tridentfb", tridentfb_init, tridentfb_setup },
 #endif
-#ifdef CONFIG_FB_KYRO
-	{ "kyrofb", kyrofb_init, kyrofb_setup },
+#ifdef CONFIG_FB_I810
+	{ "i810fb", i810fb_init, i810fb_setup },
+#endif	
+#ifdef CONFIG_FB_STI
+	{ "stifb", stifb_init, stifb_setup },
+#endif
+#ifdef CONFIG_FB_FFB
+	{ "ffb", ffb_init, ffb_setup },
+#endif
+#ifdef CONFIG_FB_CG6
+	{ "cg6fb", cg6_init, cg6_setup },
+#endif
+#ifdef CONFIG_FB_CG3
+	{ "cg3fb", cg3_init, cg3_setup },
+#endif
+#ifdef CONFIG_FB_BW2
+	{ "bw2fb", bw2_init, bw2_setup },
+#endif
+#ifdef CONFIG_FB_CG14
+	{ "cg14fb", cg14_init, cg14_setup },
+#endif
+#ifdef CONFIG_FB_P9100
+	{ "p9100fb", p9100_init, p9100_setup },
+#endif
+#ifdef CONFIG_FB_TCX
+	{ "tcxfb", tcx_init, tcx_setup },
+#endif
+#ifdef CONFIG_FB_LEO
+	{ "leofb", leo_init, leo_setup },
 #endif
 
 	/*
@@ -351,7 +378,12 @@ static struct {
 #ifdef CONFIG_FB_AU1100
 	{ "au1100fb", au1100fb_init, au1100fb_setup },
 #endif 
-
+#ifdef CONFIG_FB_VOODOO1
+	{ "sstfb", sstfb_init, sstfb_setup },
+#endif
+#ifdef CONFIG_FB_KYRO
+	{ "kyrofb", kyrofb_init, kyrofb_setup },
+#endif
 
 	/*
 	 * Generic drivers that don't use resource management (yet)
@@ -360,39 +392,6 @@ static struct {
 #ifdef CONFIG_FB_VGA16
 	{ "vga16fb", vga16fb_init, vga16fb_setup },
 #endif 
-#ifdef CONFIG_FB_TRIDENT
-	{ "tridentfb", tridentfb_init, tridentfb_setup },
-#endif
-#ifdef CONFIG_FB_I810
-	{ "i810fb", i810fb_init, i810fb_setup },
-#endif	
-#ifdef CONFIG_FB_STI
-	{ "stifb", stifb_init, stifb_setup },
-#endif
-#ifdef CONFIG_FB_FFB
-	{ "ffb", ffb_init, ffb_setup },
-#endif
-#ifdef CONFIG_FB_CG6
-	{ "cg6fb", cg6_init, cg6_setup },
-#endif
-#ifdef CONFIG_FB_CG3
-	{ "cg3fb", cg3_init, cg3_setup },
-#endif
-#ifdef CONFIG_FB_BW2
-	{ "bw2fb", bw2_init, bw2_setup },
-#endif
-#ifdef CONFIG_FB_CG14
-	{ "cg14fb", cg14_init, cg14_setup },
-#endif
-#ifdef CONFIG_FB_P9100
-	{ "p9100fb", p9100_init, p9100_setup },
-#endif
-#ifdef CONFIG_FB_TCX
-	{ "tcxfb", tcx_init, tcx_setup },
-#endif
-#ifdef CONFIG_FB_LEO
-	{ "leofb", leo_init, leo_setup },
-#endif
 
 #ifdef CONFIG_GSP_RESOLVER
 	/* Not a real frame buffer device... */
