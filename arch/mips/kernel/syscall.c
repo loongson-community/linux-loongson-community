@@ -299,7 +299,7 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 	case SEMOP:
 		return sys_semtimedop (first, (struct sembuf *)ptr, second,
 		                       NULL);
-	case SEMOP:
+	case SEMTIMEDOP:
 		return sys_semtimedop (first, (struct sembuf *)ptr, second,
 		                       (const struct timespec __user *)fifth);
 	case SEMGET:
