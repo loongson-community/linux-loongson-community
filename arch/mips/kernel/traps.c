@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.12 1998/06/30 00:21:53 ralf Exp $
+/* $Id: traps.c,v 1.13 1998/07/10 01:14:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -226,6 +226,9 @@ int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
  */
 void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
+	unsigned long pc;
+	unsigned int insn;
+
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
 		fpe_handler(regs, fcr31);
@@ -246,13 +249,22 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 				: "r" (fcr31));
 			goto out;
 		}
-		printk("Unimplemented exception at 0x%08lx in %s.\n",
-		       regs->cp0_epc, current->comm);
+		pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
+		if (get_user(insn, (unsigned int *)pc)) {
+			/* XXX Can this happen?  */
+			force_sig(SIGSEGV, current);
+		}
+
+		printk(KERN_DEBUG "Unimplemented exception for insn %08x at 0x%08lx in %s.\n",
+		       insn, regs->cp0_epc, current->comm);
+		simfp(insn);
 	}
 
 	if (compute_return_epc(regs))
 		goto out;
-	force_sig(SIGFPE, current);
+	//force_sig(SIGFPE, current);
+	printk(KERN_DEBUG "Should send SIGFPE to %s\n", current->comm);
+
 out:
 	unlock_kernel();
 }
