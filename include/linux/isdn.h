@@ -22,8 +22,8 @@
  *
  */
 
-#ifndef isdn_h
-#define isdn_h
+#ifndef __ISDN_H__
+#define __ISDN_H__
 
 #include <linux/ioctl.h>
 
