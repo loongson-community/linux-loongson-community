@@ -172,8 +172,10 @@
  *  corresponding size.  For example, if PCI_IO_SIZE is 16MB, then
  *  PCI_IO_BASE must be aligned along 16MB boundary.
  */
+
+/* the actual ram size is detected at run-time */
 #define	DDB_SDRAM_BASE		0x00000000
-#define	DDB_SDRAM_SIZE		0x08000000	/* 128MB, for sure? */
+#define	DDB_MAX_SDRAM_SIZE	0x08000000	/* less than 128MB */
 
 #define	DDB_PCI0_MEM_BASE	0x08000000
 #define	DDB_PCI0_MEM_SIZE	0x08000000	/* 128 MB */
@@ -226,12 +228,17 @@ extern void ll_vrc5477_irq_disable(int vrc5477_irq);
 /* 
  * debug routines
  */
-#if defined(CONFIG_LL_DEBUG)
+#if defined(CONFIG_DEBUG)
 extern void vrc5477_show_pdar_regs(void);
 extern void vrc5477_show_pci_regs(void);
 extern void vrc5477_show_bar_regs(void);
 extern void vrc5477_show_int_regs(void);
 extern void vrc5477_show_all_regs(void);
 #endif
+
+/*
+ * RAM size
+ */
+extern int board_ram_size;
 
 #endif /* __ASM_DDB5XXX_DDB5477_H */

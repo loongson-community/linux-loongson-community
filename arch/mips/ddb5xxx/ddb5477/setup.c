@@ -24,6 +24,7 @@
 #include <linux/ioport.h>
 #include <linux/param.h>	/* for HZ */
 
+#include <asm/bootinfo.h>
 #include <asm/addrspace.h>
 #include <asm/time.h>
 #include <asm/bcache.h>
@@ -34,6 +35,7 @@
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
+#include "lcd44780.h"
 
 
 // #define	USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
@@ -86,7 +88,11 @@ static void __init ddb_time_init(void)
 #endif
 
 	/* we have ds1396 RTC chip */
-	rtc_ds1386_init(KSEG1ADDR(DDB_LCS1_BASE));
+	if (mips_machtype == MACH_NEC_ROCKHOPPER) {
+		rtc_ds1386_init(KSEG1ADDR(DDB_LCS2_BASE));
+	} else {
+		rtc_ds1386_init(KSEG1ADDR(DDB_LCS1_BASE));
+	}
 }
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
@@ -141,6 +147,10 @@ void __init ddb_setup(void)
 	/* Reboot on panic */
 	panic_timeout = 180;
 
+#ifdef CONFIG_FB
+	conswitchp = &dummy_con;
+#endif
+
 	/* initialize board - we don't trust the loader */
 	ddb5477_board_init();
 
@@ -149,7 +159,6 @@ void __init ddb_setup(void)
 	initrd_start = (unsigned long)&__rd_start;
 	initrd_end = (unsigned long)&__rd_end;
 #endif
-
 }
 
 void __init bus_error_init(void)
@@ -162,18 +171,32 @@ static void __init ddb5477_board_init(void)
 
 	/* SDRAM should have been set */
 	db_assert(ddb_in32(DDB_SDRAM0) == 
-		    ddb_calc_pdar(DDB_SDRAM_BASE, DDB_SDRAM_SIZE, 32, 0, 1));
+		    ddb_calc_pdar(DDB_SDRAM_BASE, board_ram_size, 32, 0, 1));
 
 	/* SDRAM1 should be turned off.  What is this for anyway ? */
 	db_assert( (ddb_in32(DDB_SDRAM1) & 0xf) == 0);
 
-	/* Set LDCSs */
-	/* flash */
+	/* Setup local bus. */
+
+	/* Flash U12 PDAR and timing. */
 	ddb_set_pdar(DDB_LCS0, DDB_LCS0_BASE, DDB_LCS0_SIZE, 16, 0, 0);
-	/* misc */
-	ddb_set_pdar(DDB_LCS1, DDB_LCS1_BASE, DDB_LCS1_SIZE, 8, 0, 0);
-	/* mezzanie (?) */
-	ddb_set_pdar(DDB_LCS2, DDB_LCS2_BASE, DDB_LCS2_SIZE, 16, 0, 0);
+	ddb_out32(DDB_LCST0, 0x00090842);
+
+	/* We need to setup LCS1 and LCS2 differently based on the
+	   board_version */
+	if (mips_machtype == MACH_NEC_ROCKHOPPER) {
+		/* Flash U13 PDAR and timing. */
+		ddb_set_pdar(DDB_LCS1, DDB_LCS1_BASE, DDB_LCS1_SIZE, 16, 0, 0);
+		ddb_out32(DDB_LCST1, 0x00090842);
+
+		/* EPLD (NVRAM, switch, LCD, and mezzanie). */
+		ddb_set_pdar(DDB_LCS2, DDB_LCS2_BASE, DDB_LCS2_SIZE, 8, 0, 0);
+	} else {
+		/* misc */
+		ddb_set_pdar(DDB_LCS1, DDB_LCS1_BASE, DDB_LCS1_SIZE, 8, 0, 0);
+		/* mezzanie (?) */
+		ddb_set_pdar(DDB_LCS2, DDB_LCS2_BASE, DDB_LCS2_SIZE, 16, 0, 0);
+	}
 
 	/* verify VRC5477 base addr */
 	db_assert(ddb_in32(DDB_VRC5477) == 
@@ -245,4 +268,10 @@ static void __init ddb5477_board_init(void)
 	/* For dual-function pins, make them all non-GPIO */
 	ddb_out32(DDB_GIUFUNSEL, 0x0);
 	// ddb_out32(DDB_GIUFUNSEL, 0xfe0fcfff);  /* NEC recommanded value */
+
+	if (mips_machtype == MACH_NEC_ROCKHOPPER) {
+		printk("lcd44780: initializing\n");
+		lcd44780_init();
+		lcd44780_puts("Linux/MIPS rolls");
+	}
 }
