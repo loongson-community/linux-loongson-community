@@ -137,7 +137,4 @@ fi
 if [ "$CONFIG_MIPS_JAZZ" = "y" ]; then
   bool 'MIPS JAZZ FAS216 SCSI support' CONFIG_JAZZ_ESP
 fi
-if [ "$CONFIG_MIPS_JAZZ" = "y" ]; then
-    bool 'MIPS JAZZ FAS216 SCSI support' CONFIG_JAZZ_ESP
-fi
 endmenu
