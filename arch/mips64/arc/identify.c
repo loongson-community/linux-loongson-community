@@ -42,7 +42,7 @@ string_to_mach(const char *s)
 {
 	int i;
     
-	for (i = 0; i < sizeof (mach_table); i++) {
+	for (i = 0; i < (sizeof (mach_table) / sizeof (mach_table[0])); i++) {
 		if(!strcmp(s, mach_table[i].name))
 			return &mach_table[i];
 	}
