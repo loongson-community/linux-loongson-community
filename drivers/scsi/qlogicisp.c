@@ -49,7 +49,6 @@
 
 #define USE_NVRAM_DEFAULTS	0
 
-
 /*  Macros used for debugging */
 
 #define DEBUG_ISP1020		0
@@ -161,8 +160,8 @@ struct {
 #define MBOX3		0x76	/* mailbox 3 */
 #define MBOX4		0x78	/* mailbox 4 */
 #define MBOX5		0x7a	/* mailbox 5 */
-#define MBOX6		0x7c	/* mailbox 6 */
-#define MBOX7		0x7e	/* mailbox 7 */
+#define MBOX6           0x7c    /* mailbox 6 */
+#define MBOX7           0x7e    /* mailbox 7 */
 
 /* mailbox command complete status codes */
 #define MBOX_COMMAND_COMPLETE		0x4000
@@ -181,12 +180,12 @@ struct {
 #define EXECUTION_TIMEOUT_RESET		0x8006
 
 #ifdef CONFIG_QL_ISP_A64 
-#define IOCB_SEGS			2
-#define CONTINUATION_SEGS		5
-#define MAX_CONTINUATION_ENTRIES	254
+#define IOCB_SEGS                       2
+#define CONTINUATION_SEGS               5
+#define MAX_CONTINUATION_ENTRIES        254
 #else
-#define IOCB_SEGS			4
-#define CONTINUATION_SEGS		7
+#define IOCB_SEGS                       4
+#define CONTINUATION_SEGS               7
 #endif /* CONFIG_QL_ISP_A64 */
 
 struct Entry_header {
@@ -198,8 +197,8 @@ struct Entry_header {
 
 /* entry header type commands */
 #ifdef CONFIG_QL_ISP_A64
-#define ENTRY_COMMAND		9
-#define ENTRY_CONTINUATION	0xa
+#define ENTRY_COMMAND           9
+#define ENTRY_CONTINUATION      0xa
 #else
 #define ENTRY_COMMAND		1
 #define ENTRY_CONTINUATION	2
@@ -218,7 +217,7 @@ struct Entry_header {
 struct dataseg {
 	u_int			d_base;
 #ifdef CONFIG_QL_ISP_A64
-	u_int			d_base_hi;
+	u_int                   d_base_hi;
 #endif
 	u_int			d_count;
 };
@@ -235,8 +234,8 @@ struct Command_Entry {
 	u_short			segment_cnt;
 	u_char			cdb[12];
 #ifdef CONFIG_QL_ISP_A64
-	u_int			rsvd1;
-	u_int			rsvd2;
+	u_int                   rsvd1;
+	u_int                   rsvd2;
 #endif
 	struct dataseg		dataseg[IOCB_SEGS];
 };
@@ -559,6 +558,11 @@ struct dev_param {
  */
 #define RES_QUEUE_LEN		((QLOGICISP_REQ_QUEUE_LEN + 1) / 8 - 1)
 #define QUEUE_ENTRY_LEN		64
+#define QSIZE(entries)  (((entries) + 1) * QUEUE_ENTRY_LEN)
+
+struct isp_queue_entry {
+	char __opaque[QUEUE_ENTRY_LEN];
+};
 
 struct isp1020_hostdata {
 	u_long	memaddr;
@@ -567,6 +571,9 @@ struct isp1020_hostdata {
 	struct	dev_param dev_param[MAX_TARGETS];
 	struct	pci_dev *pci_dev;
 	
+	struct isp_queue_entry *res_cpu; /* CPU-side address of response queue. */
+	struct isp_queue_entry *req_cpu; /* CPU-size address of request queue. */
+
 	/* result and request queues (shared with isp1020): */
 	u_int	req_in_ptr;		/* index of next request slot */
 	u_int	res_out_ptr;		/* index of next result slot */
@@ -574,13 +581,15 @@ struct isp1020_hostdata {
 	/* this is here so the queues are nicely aligned */
 	long	send_marker;		/* do we need to send a marker? */
 
-	char	res[RES_QUEUE_LEN+1][QUEUE_ENTRY_LEN];
-	char	req[QLOGICISP_REQ_QUEUE_LEN+1][QUEUE_ENTRY_LEN];
-#ifdef CONFIG_QL_ISP_A64
-	int 	next;
-	unsigned long handle_info[QLOGICISP_REQ_QUEUE_LEN + 1];
-	dma_addr_t	dma_handle[QLOGICISP_REQ_QUEUE_LEN + 1]; /* save dma handle for later freeing */
-#endif
+	/* The cmd->handle has a fixed size, and is only 32-bits.  We
+	 * need to take care to handle 64-bit systems correctly thus what
+	 * we actually place in cmd->handle is an index to the following
+	 * table.  Kudos to Matt Jacob for the technique.  -DaveM
+	 */
+	Scsi_Cmnd *cmd_slots[QLOGICISP_REQ_QUEUE_LEN + 1];
+
+	dma_addr_t res_dma;	/* PCI side view of response queue */
+	dma_addr_t req_dma;	/* PCI side view of request queue */
 };
 
 /* queue length's _must_ be power of two: */
@@ -612,55 +621,6 @@ static void	isp1020_print_scsi_cmd(Scsi_Cmnd *);
 #if DEBUG_ISP1020_INTR
 static void	isp1020_print_status_entry(struct Status_Entry *);
 #endif
-
-static inline void set_dbase(struct dataseg *ds, unsigned long vaddr, struct isp1020_hostdata *h, size_t size, struct scatterlist *sg, int direction)
-{
-#ifdef CONFIG_QL_ISP_A64
-	dma_addr_t busaddr;
-	if (sg)
-		busaddr = sg_dma_address(sg);
-	else  {
-		busaddr = pci_map_single(h->pci_dev, (void *)vaddr, size, direction);
-		/*
-	 	 * save mapped address in dma_handle for later freeing
-		 * (only need this for map_single, since map_sg takes
-		 * the sg pointer for freeing resources)
-	 	 * NOTE: CONFIG_QL_ISP_A64 must be true!!
-	 	 */
-		if (h->next == (QLOGICISP_REQ_QUEUE_LEN + 1))
-                	h->next = 0;
-		h->dma_handle[h->next] = busaddr;
-	}
-	ds->d_base = cpu_to_le32((u_int) (busaddr));
-	ds->d_base_hi = cpu_to_le32((u_int) (busaddr >> 32));
-#else
-	unsigned long busaddr = virt_to_bus(vaddr);
-	ds->d_base = cpu_to_le32((u_int) (busaddr));
-#endif /* CONFIG_QL_ISP_A64 */
-}
-
-
-static inline unsigned int get_handle(Scsi_Cmnd *cmd, struct isp1020_hostdata *h)
-{
-#ifdef CONFIG_QL_ISP_A64 
-	if (h->next == (QLOGICISP_REQ_QUEUE_LEN + 1))
-		h->next = 0;
-	h->handle_info[h->next] = (unsigned long)cmd;
-	h->next++;
-	return(h->next - 1);
-#else
-	return(cpu_to_le32((u_int) virt_to_bus(cmd)));
-#endif
-}
-
-static inline Scsi_Cmnd *get_info(int handle, struct isp1020_hostdata *h)
-{
-#ifdef CONFIG_QL_ISP_A64 
-	return((Scsi_Cmnd *)(h->handle_info[handle]));
-#else
-	return((Scsi_Cmnd *) bus_to_virt(le32_to_cpu(handle)));
-#endif
-}
 
 /* memaddr should be used to determine if memmapped port i/o is being used
  * non-null memaddr == mmap'd
@@ -721,10 +681,8 @@ int isp1020_detect(Scsi_Host_Template *tmpt)
 
 		hostdata->pci_dev = pdev;
 
-		if (isp1020_init(host)) {
-			scsi_unregister(host);
-			continue;
-		}
+		if (isp1020_init(host))
+			goto fail_and_unregister;
 		
 		if (isp1020_reset_hardware(host)
 #if USE_NVRAM_DEFAULTS
@@ -735,8 +693,7 @@ int isp1020_detect(Scsi_Host_Template *tmpt)
 		    || isp1020_load_parameters(host)) {
 			iounmap((void *)hostdata->memaddr);
 			release_region(host->io_port, 0xff);
-			scsi_unregister(host);
-			continue;
+			goto fail_and_unregister;
 		}
 
 		host->this_id = hostdata->host_param.initiator_scsi_id;
@@ -748,8 +705,7 @@ int isp1020_detect(Scsi_Host_Template *tmpt)
 			       host->irq);
 			iounmap((void *)hostdata->memaddr);
 			release_region(host->io_port, 0xff);
-			scsi_unregister(host);
-			continue;
+			goto fail_and_unregister;
 		}
 
 		isp_outw(0x0, host, PCI_SEMAPHORE);
@@ -757,6 +713,20 @@ int isp1020_detect(Scsi_Host_Template *tmpt)
 		isp1020_enable_irqs(host);
 
 		hosts++;
+		continue;
+
+	fail_and_unregister:
+		if (hostdata->res_cpu)
+			pci_free_consistent(hostdata->pci_dev,
+					    QSIZE(RES_QUEUE_LEN),
+					    hostdata->res_cpu,
+					    hostdata->res_dma);
+		if (hostdata->req_cpu)
+			pci_free_consistent(hostdata->pci_dev,
+					    QSIZE(QLOGICISP_REQ_QUEUE_LEN),
+					    hostdata->req_cpu,
+					    hostdata->req_dma);
+		scsi_unregister(host);
 	}
 
 	LEAVE("isp1020_detect");
@@ -814,7 +784,7 @@ const char *isp1020_info(struct Scsi_Host *host)
  */
 int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 {
-	int i, sg_count, n, num_free;
+	int i, n, num_free;
 	u_int in_ptr, out_ptr;
 	struct dataseg * ds;
 	struct scatterlist *sg;
@@ -822,6 +792,7 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 	struct Continuation_Entry *cont;
 	struct Scsi_Host *host;
 	struct isp1020_hostdata *hostdata;
+	dma_addr_t	dma_addr;
 
 	ENTER("isp1020_queuecommand");
 
@@ -837,7 +808,7 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 	DEBUG(printk("qlogicisp : request queue depth %d\n",
 		     REQ_QUEUE_DEPTH(in_ptr, out_ptr)));
 
-	cmd = (struct Command_Entry *) &hostdata->req[in_ptr][0];
+	cmd = (struct Command_Entry *) &hostdata->req_cpu[in_ptr];
 	in_ptr = (in_ptr + 1) & QLOGICISP_REQ_QUEUE_LEN;
 	if (in_ptr == out_ptr) {
 		printk("qlogicisp : request queue overflow\n");
@@ -865,7 +836,7 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 			printk("qlogicisp : request queue overflow\n");
 			return 1;
 		}
-		cmd = (struct Command_Entry *) &hostdata->req[in_ptr][0];
+		cmd = (struct Command_Entry *) &hostdata->req_cpu[in_ptr];
 		in_ptr = (in_ptr + 1) & QLOGICISP_REQ_QUEUE_LEN;
 	}
 
@@ -876,7 +847,6 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 	cmd->hdr.entry_type = ENTRY_COMMAND;
 	cmd->hdr.entry_cnt = 1;
 
-	cmd->handle = get_handle(Cmnd, hostdata);
 	cmd->target_lun = Cmnd->lun;
 	cmd->target_id = Cmnd->target;
 	cmd->cdb_length = cpu_to_le16(Cmnd->cmd_len);
@@ -886,21 +856,27 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 	memcpy(cmd->cdb, Cmnd->cmnd, Cmnd->cmd_len);
 
 	if (Cmnd->use_sg) {
-		cmd->segment_cnt = cpu_to_le16(sg_count = Cmnd->use_sg);
+		int sg_count;
+
 		sg = (struct scatterlist *) Cmnd->request_buffer;
-		pci_map_sg(hostdata->pci_dev, sg, sg_count, PCI_DMA_BIDIRECTIONAL);
-		/* scsi_to_pci_dma_dir(Cmnd->sc_data_direction));*/
 		ds = cmd->dataseg;
+
+		sg_count = pci_map_sg(hostdata->pci_dev, sg, Cmnd->use_sg,
+				      scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+
+		cmd->segment_cnt = cpu_to_le16(sg_count);
 
 		/* fill in first four sg entries: */
 		n = sg_count;
 		if (n > IOCB_SEGS)
 			n = IOCB_SEGS;
 		for (i = 0; i < n; i++) {
-			set_dbase(&ds[i], (unsigned long)(sg->address),
-			hostdata, sg->length, sg, 
-			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-			ds[i].d_count = cpu_to_le32(sg->length);
+			dma_addr = sg_dma_address(sg);
+			ds[i].d_base  = cpu_to_le32((u32) dma_addr);
+#ifdef CONFIG_QL_ISP_A64
+			ds[i].d_base_hi = cpu_to_le32((u32) (dma_addr>>32));
+#endif /* CONFIG_QL_ISP_A64 */
+			ds[i].d_count = cpu_to_le32(sg_dma_len(sg));
 			++sg;
 		}
 		sg_count -= IOCB_SEGS;
@@ -908,7 +884,7 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 		while (sg_count > 0) {
 			++cmd->hdr.entry_cnt;
 			cont = (struct Continuation_Entry *)
-				&hostdata->req[in_ptr][0];
+				&hostdata->req_cpu[in_ptr];
 			in_ptr = (in_ptr + 1) & QLOGICISP_REQ_QUEUE_LEN;
 			if (in_ptr == out_ptr) {
 				printk("isp1020: unexpected request queue "
@@ -928,27 +904,45 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 			if (n > CONTINUATION_SEGS)
 				n = CONTINUATION_SEGS;
 			for (i = 0; i < n; ++i) {
-				set_dbase(&ds[i], (unsigned long)(sg->address),
-				hostdata, sg->length, sg, 
-				scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-				ds[i].d_count = cpu_to_le32(sg->length);
+				dma_addr = sg_dma_address(sg);
+				ds[i].d_base = cpu_to_le32((u32) dma_addr);
+#ifdef CONFIG_QL_ISP_A64
+				ds[i].d_base_hi = cpu_to_le32((u32) (dma_addr>>32));
+#endif /* CONFIG_QL_ISP_A64 */
+				ds[i].d_count = cpu_to_le32(sg_dma_len(sg));
 				++sg;
 			}
 			sg_count -= n;
 		}
-	} else {
+	} else if (Cmnd->request_bufflen) {
+		/*Cmnd->SCp.ptr = (char *)(unsigned long)*/
+		dma_addr = pci_map_single(hostdata->pci_dev,
+				       Cmnd->request_buffer,
+				       Cmnd->request_bufflen,
+				       scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+		Cmnd->SCp.ptr = (char *)(unsigned long) dma_addr;
+
+		cmd->dataseg[0].d_base =
+			cpu_to_le32((u32) dma_addr);
+#ifdef CONFIG_QL_ISP_A64
+		cmd->dataseg[0].d_base_hi =
+			cpu_to_le32((u32) (dma_addr>>32));
+#endif /* CONFIG_QL_ISP_A64 */
 		cmd->dataseg[0].d_count =
-			cpu_to_le32((u_int) Cmnd->request_bufflen);
+			cpu_to_le32((u32)Cmnd->request_bufflen);
 		cmd->segment_cnt = cpu_to_le16(1);
-		/*
-		 * map a dma address only if we really transfer data
-	 	 */
-		if (cmd->dataseg[0].d_count)
-			set_dbase(&cmd->dataseg[0], 
-			(unsigned long)(Cmnd->request_buffer),
-			hostdata, ((u_int) Cmnd->request_bufflen), NULL, 
-			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+	} else {
+		cmd->dataseg[0].d_base = 0;
+#ifdef CONFIG_QL_ISP_A64
+		cmd->dataseg[0].d_base_hi = 0;
+#endif /* CONFIG_QL_ISP_A64 */
+		cmd->dataseg[0].d_count = 0;
+		cmd->segment_cnt = cpu_to_le16(1); /* Shouldn't this be 0? */
 	}
+
+	/* Committed, record Scsi_Cmd so we can find it later. */
+	cmd->handle = in_ptr;
+	hostdata->cmd_slots[in_ptr] = Cmnd;
 
 	isp_outw(in_ptr, host, MBOX4);
 	hostdata->req_in_ptr = in_ptr;
@@ -1024,10 +1018,14 @@ void isp1020_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 			  QUEUE_DEPTH(in_ptr, out_ptr, RES_QUEUE_LEN)));
 
 	while (out_ptr != in_ptr) {
-		sts = (struct Status_Entry *) &hostdata->res[out_ptr][0];
+		u_int cmd_slot;
+
+		sts = (struct Status_Entry *) &hostdata->res_cpu[out_ptr];
 		out_ptr = (out_ptr + 1) & RES_QUEUE_LEN;
 
-		Cmnd = get_info(sts->handle, hostdata);
+		cmd_slot = sts->handle;
+		Cmnd = hostdata->cmd_slots[cmd_slot];
+		hostdata->cmd_slots[cmd_slot] = NULL;
 
 		TRACE("done", out_ptr, Cmnd);
 
@@ -1047,25 +1045,21 @@ void isp1020_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 		else
 			Cmnd->result = DID_ERROR << 16;
 
-#ifdef CONFIG_QL_ISP_A64
-		/*
-		 * we declared dma_handle only for CONFIG_QL_ISP_A64
-		 * that's why we need the macro def here
-		 */
 		if (Cmnd->use_sg)
-			pci_unmap_sg(hostdata->pci_dev, 
-			(struct scatterlist *)Cmnd->request_buffer, 
-			Cmnd->use_sg, 
-			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-		/*
-		 * we mapped an address only for nonzero transfer lengths
-		 */
+			pci_unmap_sg(hostdata->pci_dev,
+				     (struct scatterlist *)Cmnd->buffer,
+				     Cmnd->use_sg,
+				     scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
 		else if (Cmnd->request_bufflen)
-			pci_unmap_single(hostdata->pci_dev, 
-			hostdata->dma_handle[sts->handle],
-			((u_int) Cmnd->request_bufflen),  
-			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-#endif /* CONFIG_QL_ISP_A64 */
+			pci_unmap_single(hostdata->pci_dev,
+#ifdef CONFIG_QL_ISP_A64
+					 (dma_addr_t)((long)Cmnd->SCp.ptr),
+#else
+					 (u32)((long)Cmnd->SCp.ptr),
+#endif
+					 Cmnd->request_bufflen,
+					 scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+
 		isp_outw(out_ptr, host, MBOX5);
 		(*Cmnd->scsi_done)(Cmnd);
 	}
@@ -1169,19 +1163,25 @@ int isp1020_abort(Scsi_Cmnd *Cmnd)
 	struct Scsi_Host *host;
 	struct isp1020_hostdata *hostdata;
 	int return_status = SCSI_ABORT_SUCCESS;
-	u_int cmdaddr = virt_to_bus(Cmnd);
+	u_int cmd_cookie;
+	int i;
 
 	ENTER("isp1020_abort");
 
 	host = Cmnd->host;
 	hostdata = (struct isp1020_hostdata *) host->hostdata;
 
+	for (i = 0; i < QLOGICISP_REQ_QUEUE_LEN + 1; i++)
+		if (hostdata->cmd_slots[i] == Cmnd)
+			break;
+	cmd_cookie = i;
+
 	isp1020_disable_irqs(host);
 
 	param[0] = MBOX_ABORT;
 	param[1] = (((u_short) Cmnd->target) << 8) | Cmnd->lun;
-	param[2] = cmdaddr >> 16;
-	param[3] = cmdaddr & 0xffff;
+	param[2] = cmd_cookie >> 16;
+	param[3] = cmd_cookie & 0xffff;
 
 	isp1020_mbox_command(host, param);
 
@@ -1450,6 +1450,26 @@ static int isp1020_init(struct Scsi_Host *sh)
 	sh->irq = irq;
 	sh->max_id = MAX_TARGETS;
 	sh->max_lun = MAX_LUNS;
+
+	hostdata->res_cpu = pci_alloc_consistent(hostdata->pci_dev,
+						 QSIZE(RES_QUEUE_LEN),
+						 &hostdata->res_dma);
+	if (hostdata->res_cpu == NULL) {
+		printk("qlogicisp : can't allocate response queue\n");
+		return 1;
+	}
+
+	hostdata->req_cpu = pci_alloc_consistent(hostdata->pci_dev,
+						 QSIZE(QLOGICISP_REQ_QUEUE_LEN),
+						 &hostdata->req_dma);
+	if (hostdata->req_cpu == NULL) {
+		pci_free_consistent(hostdata->pci_dev,
+				    QSIZE(RES_QUEUE_LEN),
+				    hostdata->res_cpu,
+				    hostdata->res_dma);
+		printk("qlogicisp : can't allocate request queue\n");
+		return 1;
+	}
 
 	LEAVE("isp1020_init");
 
@@ -1810,25 +1830,22 @@ static int isp1020_load_parameters(struct Scsi_Host *host)
 		}
 	}
 
+	queue_addr = hostdata->res_dma;
 #ifdef CONFIG_QL_ISP_A64
-	queue_addr = (u_long) virt_to_bus(&hostdata->res[0][0]);
 	param[0] = MBOX_CMD_INIT_RESPONSE_QUEUE_64;
 #else
-	queue_addr = (u_int) virt_to_bus(&hostdata->res[0][0]);
-
 	param[0] = MBOX_INIT_RES_QUEUE;
 #endif
-
 	param[1] = RES_QUEUE_LEN + 1;
 	param[2] = (u_short) (queue_addr >> 16);
 	param[3] = (u_short) (queue_addr & 0xffff);
 	param[4] = 0;
 	param[5] = 0;
-
 #ifdef CONFIG_QL_ISP_A64
 	param[6] = (u_short) (queue_addr >> 48);
 	param[7] = (u_short) (queue_addr >> 32);
 #endif
+
 	isp1020_mbox_command(host, param);
 
 	if (param[0] != MBOX_COMMAND_COMPLETE) {
@@ -1837,15 +1854,12 @@ static int isp1020_load_parameters(struct Scsi_Host *host)
 		return 1;
 	}
 
+	queue_addr = hostdata->req_dma;
 #ifdef CONFIG_QL_ISP_A64
-	queue_addr = (u_long) virt_to_bus(&hostdata->req[0][0]);
 	param[0] = MBOX_CMD_INIT_REQUEST_QUEUE_64;
 #else
-	queue_addr = (u_int) virt_to_bus(&hostdata->req[0][0]);
-
 	param[0] = MBOX_INIT_REQ_QUEUE;
 #endif
-
 	param[1] = QLOGICISP_REQ_QUEUE_LEN + 1;
 	param[2] = (u_short) (queue_addr >> 16);
 	param[3] = (u_short) (queue_addr & 0xffff);
@@ -1856,6 +1870,7 @@ static int isp1020_load_parameters(struct Scsi_Host *host)
 	param[6] = (u_short) (queue_addr >> 48);
 	param[7] = (u_short) (queue_addr >> 32);
 #endif
+
 	isp1020_mbox_command(host, param);
 
 	if (param[0] != MBOX_COMMAND_COMPLETE) {
