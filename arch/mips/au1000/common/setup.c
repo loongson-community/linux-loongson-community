@@ -3,6 +3,8 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
+ * Updates to 2.6, Pete Popov, Embedded Alley Solutions, Inc.
+ *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
  *  Free Software Foundation;  either version 2 of the  License, or (at your
@@ -168,22 +170,37 @@ static int __init au1x00_setup(void)
 
 early_initcall(au1x00_setup);
 
-#if defined(CONFIG_64BIT_PHYS_ADDR) && (defined(CONFIG_SOC_AU1500) || defined(CONFIG_SOC_AU1550))
-/* This routine should be valid for all Au1500 based boards */
+#if defined(CONFIG_64BIT_PHYS_ADDR)
+/* This routine should be valid for all Au1x based boards */
 phys_t fixup_bigphys_addr(phys_t phys_addr, phys_t size)
 {
-	u32 pci_start = (u32)Au1500_PCI_MEM_START;
-	u32 pci_end = (u32)Au1500_PCI_MEM_END;
+	u32 start, end;
 
 	/* Don't fixup 36 bit addresses */
 	if ((phys_addr >> 32) != 0) return phys_addr;
 
+#ifdef CONFIG_PCI
+	start = (u32)Au1500_PCI_MEM_START;
+	end = (u32)Au1500_PCI_MEM_END;
 	/* check for pci memory window */
-	if ((phys_addr >= pci_start) && ((phys_addr + size) < pci_end)) {
-		return (phys_t)((phys_addr - pci_start) +
-				     Au1500_PCI_MEM_START);
+	if ((phys_addr >= start) && ((phys_addr + size) < end)) {
+		return (phys_t)((phys_addr - start) + Au1500_PCI_MEM_START);
 	}
-	else 
-		return phys_addr;
+#endif
+
+	/* All Au1x SOCs have a pcmcia controller */
+	/* We setup our 32 bit pseudo addresses to be equal to the
+	 * 36 bit addr >> 4, to make it easier to check the address
+	 * and fix it.
+	 * The Au1x socket 0 phys attribute address is 0xF 4000 0000.
+	 * The pseudo address we use is 0xF400 0000. Any address over
+	 * 0xF400 0000 is a pcmcia pseudo address.
+	 */
+	if ((phys_addr >= 0xF4000000) && (phys_addr < 0xFFFFFFFF)) {
+		return (phys_t)(phys_addr << 4);
+	}
+
+	/* default nop */
+	return phys_addr;
 }
 #endif
