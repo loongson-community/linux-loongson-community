@@ -36,7 +36,7 @@
  *                              nop
  *                              cache       Hit_Writeback_Invalidate_D
  */
-#define R4600_V1_HIT_DCACHE_WAR
+#define R4600_V1_HIT_CACHEOP_WAR
 
 
 /*

@@ -48,11 +48,76 @@ static struct bcache_ops no_sc_ops = {
 
 struct bcache_ops *bcops = &no_sc_ops;
 
+#if defined(R4600_V1_HIT_CACHEOP_WAR) || defined(R4600_V2_HIT_CACHEOP_WAR)
+#define R4600_HIT_CACHEOP_WAR_DECL					\
+	unsigned int prid = read_c0_prid() & 0xfff0;			\
+	unsigned long flags
+#else
+#define R4600_HIT_CACHEOP_WAR_DECL
+#endif
+
+#ifdef R4600_V1_HIT_CACHEOP_WAR
+#define R4600_V1_HIT_CACHEOP_WAR_PROLOG					\
+do {									\
+	if (prid == 0x2010) {			/* R4600 V1.7 */	\
+		local_irq_save(flags);					\
+		__asm__ __volatile__("nop;nop;nop;nop");		\
+	}								\
+} while (0)
+#define R4600_V1_HIT_CACHEOP_WAR_EPILOG					\
+do {									\
+	if (prid == 0x2010) 			/* R4600 V1.7 */	\
+		local_irq_restore(flags);				\
+} while (0)
+
+#else
+
+#define R4600_V1_HIT_CACHEOP_WAR_DECL
+#define R4600_V1_HIT_CACHEOP_WAR_PROLOG	do { } while (0)
+#define R4600_V1_HIT_CACHEOP_WAR_EPILOG	do { } while (0)
+
+#endif
+
+#ifdef R4600_V2_HIT_CACHEOP_WAR
+
+#define R4600_V2_HIT_CACHEOP_WAR_PROLOG					\
+do {									\
+	if (prid == 0x2020) {			/* R4600 V2.0 */	\
+		local_irq_save(flags);					\
+		*(volatile unsigned long *)KSEG1;			\
+	}								\
+} while (0)
+#define R4600_V2_HIT_CACHEOP_WAR_EPILOG					\
+do {									\
+	if (prid == 0x2020) 			/* R4600 V2.0 */	\
+		local_irq_restore(flags);				\
+} while (0)
+
+#else
+
+#define R4600_V2_HIT_CACHEOP_WAR_DECL
+#define R4600_V2_HIT_CACHEOP_WAR_PROLOG	do { } while (0)
+#define R4600_V2_HIT_CACHEOP_WAR_EPILOG	do { } while (0)
+
+#endif
+
+#define R4600_HIT_CACHEOP_WAR_PROLOG					\
+do {									\
+	R4600_V1_HIT_CACHEOP_WAR_PROLOG;				\
+	R4600_V2_HIT_CACHEOP_WAR_PROLOG;				\
+} while (0)
+
+#define R4600_HIT_CACHEOP_WAR_EPILOG					\
+do {									\
+	R4600_V1_HIT_CACHEOP_WAR_EPILOG;				\
+	R4600_V2_HIT_CACHEOP_WAR_EPILOG;				\
+} while (0)
+
 static void r4k_blast_dcache_page(unsigned long addr)
 {
+	R4600_HIT_CACHEOP_WAR_DECL;
 	static void *l = &&init;
 	unsigned long dc_lsize;
-	unsigned int prid;
 
 	goto *l;
 
@@ -61,31 +126,15 @@ dc_16:
 	return;
 
 dc_32:
+	R4600_HIT_CACHEOP_WAR_PROLOG;
 	blast_dcache32_page(addr);
+	R4600_HIT_CACHEOP_WAR_EPILOG;
 	return;
-
-dc_32_r4600:
-	{
-#ifdef R4600_V1_HIT_DCACHE_WAR
-	unsigned long flags;
-
-	local_irq_save(flags);
-	__asm__ __volatile__("nop;nop;nop;nop");
-#endif
-	blast_dcache32_page(addr);
-#ifdef R4600_V1_HIT_DCACHE_WAR
-	local_irq_restore(flags);
-#endif
-	return;
-	}
 
 init:
-	prid = read_c0_prid() & 0xfff0;
 	dc_lsize = current_cpu_data.dcache.linesz;
 
-	if (prid == 0x2010)			/* R4600 V1.7 */
-		l = &&dc_32_r4600;
-	else if (dc_lsize == 16)
+	if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
 		l = &&dc_32;
@@ -495,14 +544,9 @@ static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 		r4k_flush_pcache_all();
 	} else {
 		unsigned long dc_lsize = current_cpu_data.dcache.linesz;
-#ifdef R4600_V2_HIT_CACHEOP_WAR
-		unsigned long flags;
+		R4600_HIT_CACHEOP_WAR_DECL;
 
-		/* Workaround for R4600 bug.  See comment in <asm/war>. */
-		local_irq_save(flags);
-		*(volatile unsigned long *)KSEG1;
-#endif
-
+		R4600_HIT_CACHEOP_WAR_PROLOG;
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size - 1) & ~(dc_lsize - 1);
 		while (1) {
@@ -511,9 +555,7 @@ static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 				break;
 			a += dc_lsize;
 		}
-#ifdef R4600_V2_HIT_CACHEOP_WAR
-		local_irq_restore(flags);
-#endif
+		R4600_HIT_CACHEOP_WAR_EPILOG;
 	}
 
 	bc_wback_inv(addr, size);
@@ -546,14 +588,9 @@ static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 		r4k_flush_pcache_all();
 	} else {
 		unsigned long dc_lsize = current_cpu_data.dcache.linesz;
-#ifdef R4600_V2_HIT_CACHEOP_WAR
-		unsigned long flags;
+		R4600_HIT_CACHEOP_WAR_DECL;
 
-		/* Workaround for R4600 bug.  See comment in <asm/war>. */
-		local_irq_save(flags);
-		*(volatile unsigned long *)KSEG1;
-#endif
-
+		R4600_HIT_CACHEOP_WAR_PROLOG;
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size - 1) & ~(dc_lsize - 1);
 		while (1) {
@@ -562,9 +599,7 @@ static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 				break;
 			a += dc_lsize;
 		}
-#ifdef R4600_V2_HIT_CACHEOP_WAR
-		local_irq_restore(flags);
-#endif
+		R4600_HIT_CACHEOP_WAR_EPILOG;
 	}
 
 	bc_inv(addr, size);
@@ -598,40 +633,12 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
-#ifdef R4600_V1_HIT_DCACHE_WAR
-	unsigned long flags;
+	R4600_HIT_CACHEOP_WAR_DECL;
 
-	local_irq_save(flags);
-	__asm__ __volatile__("nop;nop;nop;nop");
-#endif
-
+	R4600_HIT_CACHEOP_WAR_PROLOG;
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
-
-#ifdef R4600_V1_HIT_DCACHE_WAR
-	local_irq_restore(flags);
-#endif
-}
-
-static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
-{
-	unsigned long ic_lsize = current_cpu_data.icache.linesz;
-	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
-#ifdef R4600_V2_HIT_CACHEOP_WAR
-	unsigned long flags;
-
-	local_irq_save(flags);
-
-	/* Clear internal cache refill buffer */
-	*(volatile unsigned int *)KSEG1;
-#endif
-
-	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
-	protected_flush_icache_line(addr & ~(ic_lsize - 1));
-
-#ifdef R4600_V2_HIT_CACHEOP_WAR
-	local_irq_restore(flags);
-#endif
+	R4600_HIT_CACHEOP_WAR_EPILOG;
 }
 
 static void r4k_flush_icache_all(void)
@@ -1049,9 +1056,6 @@ void __init ld_mmu_r4xx0(void)
 	     PAGE_SIZE - 1);
 
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
-	if ((read_c0_prid() & 0xfff0) == 0x2020) {
-		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
-	}
 	_flush_icache_all = r4k_flush_icache_all;
 	flush_data_cache_page = r4k_flush_data_cache_page;
 	flush_icache_range = r4k_flush_icache_range;	/* Ouch */
