@@ -115,11 +115,6 @@ static void pci0WriteConfigReg(unsigned int offset,
 		__GT_WRITE(GT_PCI0_CFGDATA_OFS, data);
 }
 
-void __init pcibios_fixup_bus(struct pci_bus *c)
-{
-	gt64120_board_pcibios_fixup_bus(c);
-}
-
 extern struct pci_ops gt64120_pci_ops;
 
 void __init pcibios_init(void)

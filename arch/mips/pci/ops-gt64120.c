@@ -82,8 +82,7 @@ static int gt64120_pcibios_config_access(unsigned char access_type,
 	/* Check for master or target abort */
 	intr = GT_READ(GT_INTRCAUSE_OFS);
 
-	if (intr & (GT_INTRCAUSE_MASABORT0_BIT |
-		    GT_INTRCAUSE_TARABORT0_BIT)) {
+	if (intr & (GT_INTRCAUSE_MASABORT0_BIT | GT_INTRCAUSE_TARABORT0_BIT)) {
 		/* Error occurred */
 
 		/* Clear bits */

@@ -748,6 +748,11 @@ config MIPS_GT64120
 	depends on MIPS_EV64120 || MIPS_EV96100 || LASAT || MIPS_ATLAS || MIPS_MALTA || MOMENCO_OCELOT
 	default y
 
+config MIPS_MV64340
+	bool
+	depends on MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT_C
+	default y
+
 config ITE_BOARD_GEN
 	bool
 	depends on MIPS_IVR || MIPS_ITE8172

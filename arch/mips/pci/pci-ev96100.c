@@ -1,6 +1,10 @@
 /*
- * Copyright 2002 Momentum Computer
- * Author: Matthew Dharm <mdharm@momenco.com>
+ * Copyright 2000 MontaVista Software Inc.
+ * Author: MontaVista Software, Inc.
+ *         	ppopov@mvista.com or source@mvista.com
+ *
+ * Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -25,37 +29,35 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
-#include <linux/slab.h>
-#include <asm/pci.h>
-#include <asm/io.h>
-#include <asm/mv64340.h>
-
 #include <linux/init.h>
 
-/*
- * These functions and structures provide the BIOS scan and mapping of the PCI
- * devices.
- */
+#include <asm/pci_channel.h>
 
-void mv64340_board_pcibios_fixup_bus(struct pci_bus *c);
-
-struct pci_fixup pcibios_fixups[] = {
-	{0}
+static struct resource pci_io_resource = {
+	.name	= "io pci IO space",
+	.start	= 0x10000000,
+	.end	= 0x11ffffff,
+	.flags	= IORESOURCE_IO
 };
 
-void __init pcibios_fixup_bus(struct pci_bus *c)
+static struct resource pci_mem_resource = {
+	.name	= "ext pci memory space",
+	.start	= 0x12000000,
+	.end	= 0x13ffffff,
+	.flags	= IORESOURCE_MEM
+};
+
+extern struct pci_ops gt96100_pci_ops;
+
+struct pci_controller ev96100_controller = {
+	.pci_ops	= &gt96100_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+};
+
+static void ev96100_pci_init(void)
 {
-	mv64340_board_pcibios_fixup_bus(c);
+	register_pci_controller(&ev96100_controller);
 }
 
-void __init pcibios_init(void)
-{
-	/* Reset PCI I/O and PCI MEM values */
-	ioport_resource.start = 0xe0000000;
-	ioport_resource.end = 0xe0000000 + 0x20000000 - 1;
-	iomem_resource.start = 0xc0000000;
-	iomem_resource.end = 0xc0000000 + 0x20000000 - 1;
-
-	pci_scan_bus(0, &mv64340_pci_ops, NULL);
-	pci_scan_bus(1, &mv64340_pci_ops, NULL);
-}
+arch_initcall(ev96100_pci_init);

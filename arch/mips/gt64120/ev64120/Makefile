@@ -6,8 +6,6 @@
 # Makefile for the Galileo EV64120 board.
 #
 
-obj-y			+= serialGT.o int-handler.o promcon.o reset.o setup.o \
-			   irq.o
-obj-$(CONFIG_PCI)	+= fixup-ev64120.o
+obj-y	+= int-handler.o irq.o promcon.o reset.o serialGT.o setup.o
 
-int-handler.o: int-handler.S
+EXTRA_AFLAGS := $(CFLAGS)

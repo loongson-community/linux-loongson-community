@@ -40,8 +40,6 @@
  * devices.
  */
 
-#define MAX_PCI_DEVS 10
-
 void gt64240_board_pcibios_fixup_bus(struct pci_bus *c);
 
 /*  Functions to implement "pci ops"  */

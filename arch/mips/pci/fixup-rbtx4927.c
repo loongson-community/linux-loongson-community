@@ -149,99 +149,6 @@ int tx4927_pci66_check(void)
 }
 #endif
 
-#ifdef DEBUG
-void do_it(u32 offset, u32 reg)
-{
-	volatile u32 a1;
-	volatile u32 a2;
-	volatile u32 v1;
-	volatile u32 v2;
-
-	a1 = 0xff1f0000 + offset + reg;
-	a2 = a1 + 4;
-
-	v1 = *(volatile u32 *) a1;
-	v2 = *(volatile u32 *) a2;
-
-	if (v1)
-		printk("TX4927 0x%08x 0x%08x\n", a1, v1);
-	if (v2)
-		printk("TX4927 0x%08x 0x%08x\n", a2, v2);
-}
-
-void do_it1(u32 base, u32 r)
-{
-	do_it(base, r);
-}
-
-void do_it2(u32 base, u32 start, u32 stop)
-{
-	u32 r;
-
-	for (r = start; r <= stop; r += 8) {
-		do_it(base, r);
-	}
-}
-void dump_config(void)
-{
-	unsigned long id;
-	unsigned long j;
-	struct pci_dev *dev;
-
-	printk("----------------------pci\n");
-	pci_for_each_dev(dev) {
-		for (j = 0; j < 64; j++) {
-			pci_read_config_dword(dev, j * 4, &id);
-			if (id == 0)
-				continue;
-			printk
-			    ("dev 0x%02x 0x%02x:0x%02x -- 0x%02x-0x%02x 0x%08x\n",
-			     dev->devfn, PCI_SLOT(dev->devfn),
-			     PCI_FUNC(dev->devfn), (j * 4) + 3, (j * 4),
-			     id);
-		}
-		printk("dev 0x%02x \n", dev->devfn);
-	}
-	printk("----------------------sdram\n");
-	do_it2(0x8000, 0x00, 0x18);
-	do_it1(0x8000, 0x40);
-	do_it1(0x8000, 0x58);
-	printk("----------------------ebus\n");
-	do_it2(0x9000, 0x00, 0x38);
-	printk("----------------------ecc\n");
-	do_it2(0xa000, 0x00, 0x08);
-	printk("----------------------dmac\n");
-	do_it2(0xb000, 0x00, 0xf8);
-	/* b1xx */
-	printk("----------------------pci\n");
-	/* d */
-	printk("----------------------cfg\n");
-	do_it2(0xe000, 0x00, 0x20);
-	do_it1(0xe000, 0x30);
-	do_it1(0xe000, 0x48);
-	printk("----------------------timers\n");
-	do_it2(0xf000, 0x00, 0xf0);
-	do_it2(0xf100, 0x00, 0xf0);
-	do_it2(0xf200, 0x00, 0xf0);
-	printk("----------------------serial\n");
-	do_it2(0xf300, 0x00, 0x20);
-	do_it2(0xf400, 0x00, 0x20);
-	printk("----------------------parallel\n");
-	do_it2(0xf500, 0x00, 0x0c);
-	printk("----------------------pic\n");
-	do_it2(0xf500, 0x10, 0x24);
-	do_it2(0xf600, 0x00, 0x2c);
-	do_it1(0xf600, 0x40);
-	do_it1(0xf600, 0x60);
-	do_it1(0xf600, 0x80);
-	do_it1(0xf600, 0xa0);
-	printk("----------------------aclink\n");
-	do_it2(0xf700, 0x00, 0xfc);
-	printk("----------------------done\n");
-}
-#endif
-
-
 void __init pcibios_fixup_irqs(void)
 {
 	unsigned char pin;
@@ -250,11 +157,9 @@ void __init pcibios_fixup_irqs(void)
 	unsigned int id;
 
 #ifdef  TX4927_SUPPORT_PCI_66
-	{
-		if (tx4927_pci66_check()) {
-			tx4927_pci66_setup();
-			tx4927_pci_setup();	/* Reinitialize PCIC */
-		}
+	if (tx4927_pci66_check()) {
+		tx4927_pci66_setup();
+		tx4927_pci_setup();	/* Reinitialize PCIC */
 	}
 #endif
 
@@ -315,5 +220,4 @@ void __init pcibios_fixup_irqs(void)
 		       PCI_FUNC(dev->devfn), irq);
 
 	}
-
 }

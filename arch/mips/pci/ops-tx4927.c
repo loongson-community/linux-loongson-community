@@ -69,9 +69,8 @@ struct pci_controller tx4927_controller = {
 	.mem_resource	= &pci_mem_resource,
 };
 
-static int
-mkaddr(unsigned char bus, unsigned char dev_fn, unsigned char where,
-       int *flagsp)
+static int mkaddr(unsigned char bus, unsigned char dev_fn,
+	unsigned char where, int *flagsp)
 {
 	if (bus > 0) {
 		/* Type 1 configuration */
@@ -104,7 +103,6 @@ static int check_abort(int flags)
 						<< 16);
 		tx4927_pcicptr->pcimask |= PCI_STATUS_REC_MASTER_ABORT;
 		code = PCIBIOS_DEVICE_NOT_FOUND;
-		//      printk("returning PCIBIOS_DEVICE_NOT_FOUND\n");
 	}
 	return code;
 }
@@ -145,7 +143,6 @@ static int tx4927_pcibios_read_config_byte(struct pci_dev *dev,
 	retval = check_abort(flags);
 	if (retval == PCIBIOS_DEVICE_NOT_FOUND)
 		*val = 0xff;
-//printk("CFG R1 0x%02x 0x%02x 0x%08x\n", dev->devfn, where, *val );
 	return retval;
 }
 
@@ -184,7 +181,6 @@ static int tx4927_pcibios_read_config_word(struct pci_dev *dev,
 	retval = check_abort(flags);
 	if (retval == PCIBIOS_DEVICE_NOT_FOUND)
 		*val = 0xffff;
-//printk("CFG R2 0x%02x 0x%02x 0x%08x\n", dev->devfn, where, *val );
 	return retval;
 }
 
@@ -216,7 +212,6 @@ static int tx4927_pcibios_read_config_dword(struct pci_dev *dev,
 	if (retval == PCIBIOS_DEVICE_NOT_FOUND)
 		*val = 0xffffffff;
 
-//printk("CFG R4 0x%02x 0x%02x 0x%08x\n", dev->devfn, where, *val );
 	return retval;
 }
 
@@ -244,7 +239,6 @@ static int tx4927_pcibios_write_config_byte(struct pci_dev *dev,
 	*(volatile u8 *) ((ulong) & tx4927_pcicptr->
 			  g2pcfgdata | (where & 3)) = val;
 #endif
-//printk("CFG W1 0x%02x 0x%02x 0x%08x\n", dev->devfn, where, val );
 	return check_abort(flags);
 }
 
@@ -275,7 +269,6 @@ static int tx4927_pcibios_write_config_word(struct pci_dev *dev,
 	*(volatile u16 *) ((ulong) & tx4927_pcicptr->
 			   g2pcfgdata | (where & 3)) = val;
 #endif
-//printk("CFG W2 0x%02x 0x%02x 0x%08x\n", dev->devfn, where, val );
 	return check_abort(flags);
 }
 
@@ -300,7 +293,6 @@ static int tx4927_pcibios_write_config_dword(struct pci_dev *dev,
 	if (mkaddr(bus, dev->devfn, where, &flags))
 		return -1;
 	tx4927_pcicptr->g2pcfgdata = val;
-//printk("CFG W4 0x%02x 0x%02x 0x%08x\n", dev->devfn, where, val );
 	return check_abort(flags);
 }
 

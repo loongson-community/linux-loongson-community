@@ -14,7 +14,7 @@ int pci_range_ck(unsigned char bus, unsigned char dev)
  * in order to give an interrupt number for each PCI device starting
  * from IRQ 20. It does also enables master for each device.
  */
-void __init gt64120_board_pcibios_fixup_bus(struct pci_bus *bus)
+void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 {
 	unsigned int irq = 20;
 	struct pci_bus *current_bus = bus;
