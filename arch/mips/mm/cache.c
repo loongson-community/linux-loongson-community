@@ -16,6 +16,13 @@
 #include <asm/processor.h>
 #include <asm/cpu.h>
 
+/*
+ * Memory functions.  Not a cache function per se but actual implementations
+ * use all sort of cache tricks for performance sake.
+ */
+void (*_clear_page)(void * page);
+void (*_copy_page)(void * to, void * from);
+
 /* Cache operations. */
 void (*flush_cache_all)(void);
 void (*__flush_cache_all)(void);
