@@ -419,8 +419,8 @@ edd_show_info_flags(struct edd_device *edev, char *buf, size_t count,
 		return 0;
 	}
 
-	if (info->params.info_flags & EDD_INFO_DMA_BOUNDRY_ERROR_TRANSPARENT)
-		p += snprintf(p, left, "DMA boundry error transparent\n");
+	if (info->params.info_flags & EDD_INFO_DMA_BOUNDARY_ERROR_TRANSPARENT)
+		p += snprintf(p, left, "DMA boundary error transparent\n");
 	if (info->params.info_flags & EDD_INFO_GEOMETRY_VALID)
 		p += snprintf(p, left, "geometry valid\n");
 	if (info->params.info_flags & EDD_INFO_REMOVABLE)
@@ -597,11 +597,13 @@ static struct edd_attribute * edd_attrs[] = {
 	NULL,
 };
 
-static struct subsystem edd_subsys = {
-	.kobj	= { .name = "edd" },
+static struct kobj_type ktype_edd = {
 	.sysfs_ops	= &edd_attr_ops,
 	.default_attrs	= def_attrs,
 };
+
+static decl_subsys(edd,&ktype_edd);
+
 
 
 /**
@@ -793,7 +795,7 @@ edd_device_register(struct edd_device *edev, int i)
 	edd_dev_set_info(edev, &edd[i]);
 	snprintf(edev->kobj.name, EDD_DEVICE_NAME_SIZE, "int13_dev%02x",
 		 edd[i].device);
-	edev->kobj.subsys = &edd_subsys;
+	kobj_set_kset_s(edev,edd_subsys);
 	error = kobject_register(&edev->kobj);
 	if (!error)
 		populate_dir(edev);

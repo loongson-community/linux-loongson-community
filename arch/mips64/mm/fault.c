@@ -21,6 +21,7 @@
 #include <linux/smp_lock.h>
 #include <linux/version.h>
 #include <linux/vt_kern.h>		/* For unblank_screen() */
+#include <linux/module.h>
 
 #include <asm/branch.h>
 #include <asm/hardirq.h>
@@ -37,26 +38,6 @@
  * Macro for exception fixup code to access integer registers.
  */
 #define dpf_reg(r) (regs->regs[r])
-
-asmlinkage void dodebug(abi64_no_regargs, struct pt_regs regs)
-{
-	printk(KERN_DEBUG "Got syscall %ld, cpu %d proc %s:%d epc 0x%lx\n",
-	       regs.regs[2], smp_processor_id(), current->comm, current->pid,
-	       regs.cp0_epc);
-}
-
-asmlinkage void dodebug2(abi64_no_regargs, struct pt_regs regs)
-{
-	unsigned long retaddr;
-
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		"add %0,$0,$31\n\t"
-		".set reorder"
-		: "=r" (retaddr));
-	printk(KERN_DEBUG "Got exception 0x%lx at 0x%lx\n", retaddr,
-	       regs.cp0_epc);
-}
 
 /*
  * Unlock any spinlocks which will prevent us from getting the out
@@ -94,12 +75,12 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	unsigned long fixup;
+	const struct exception_table_entry *fixup;
 	siginfo_t info;
 
 #if 0
 	printk("Cpu%d[%s:%d:%08lx:%ld:%08lx]\n", smp_processor_id(),
-		current->comm, current->pid, address, write, regs->cp0_epc);
+	       current->comm, current->pid, address, write, regs->cp0_epc);
 #endif
 
 	/*
@@ -178,6 +159,7 @@ survive:
 bad_area:
 	up_read(&mm->mmap_sem);
 
+	/* User mode accesses just cause a SIGSEGV */
 	if (user_mode(regs)) {
 		tsk->thread.cp0_badvaddr = address;
 		tsk->thread.error_code = write;
@@ -200,12 +182,11 @@ bad_area:
 
 no_context:
 	/* Are we prepared to handle this kernel fault?  */
-	fixup = search_exception_table(exception_epc(regs));
+	fixup = search_exception_tables(exception_epc(regs));
 	if (fixup) {
-		long new_epc;
+		unsigned long new_epc = fixup->nextinsn;
 
 		tsk->thread.cp0_baduaddr = address;
-		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
 		if (development_version)
 			printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
 			       tsk->comm, regs->cp0_epc, new_epc);
@@ -236,7 +217,7 @@ out_of_memory:
 		down_read(&mm->mmap_sem);
 		goto survive;
 	}
-	printk(KERN_NOTICE "VM: killing process %s\n", tsk->comm);
+	printk("VM: killing process %s\n", tsk->comm);
 	if (user_mode(regs))
 		do_exit(SIGKILL);
 	goto no_context;

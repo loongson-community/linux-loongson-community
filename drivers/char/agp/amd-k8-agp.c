@@ -8,13 +8,17 @@
  * removed now).
  */ 
 
+/*
+ * On x86-64 the AGP driver needs to be initialized early by the IOMMU 
+ * code.  When you use this driver as a template for a new K8 AGP bridge
+ * driver don't forget to change arch/x86_64/kernel/pci-gart.c too -AK.
+ */
+
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/init.h>
 #include <linux/agp_backend.h>
 #include "agp.h"
-
-extern int agp_memory_reserved;
 
 static u_int64_t pci_read64 (struct pci_dev *dev, int reg)
 {
@@ -48,22 +52,18 @@ static void pci_write64 (struct pci_dev *dev, int reg, u64 value)
 static int x86_64_insert_memory(agp_memory * mem, off_t pg_start, int type)
 {
 	int i, j, num_entries;
-	void *temp;
 	long tmp;
 	u32 pte;
 	u64 addr;
 
-	temp = agp_bridge.current_size;
-
-	num_entries = A_SIZE_32(temp)->num_entries;
-
-	num_entries -= agp_memory_reserved>>PAGE_SHIFT;
+	num_entries = agp_num_entries();
 
 	if (type != 0 || mem->type != 0)
 		return -EINVAL;
 
 	/* Make sure we can fit the range in the gatt table. */
-	if ((pg_start + mem->page_count) > num_entries)
+	/* FIXME: could wrap */
+	if (((unsigned long)pg_start + mem->page_count) > num_entries)
 		return -EINVAL;
 
 	j = pg_start;
@@ -81,7 +81,7 @@ static int x86_64_insert_memory(agp_memory * mem, off_t pg_start, int type)
 	}
 
 	for (i = 0, j = pg_start; i < mem->page_count; i++, j++) {
-		addr = mem->memory[i];
+		addr = agp_bridge.mask_memory(mem->memory[i], mem->type);
 
 		tmp = addr;
 		BUG_ON(tmp & 0xffffff0000000ffc);
@@ -446,7 +446,6 @@ static void agp_x86_64_agp_enable(u32 mode)
 static int __init amd_8151_setup (struct pci_dev *pdev)
 {
 	agp_bridge.masks = amd_8151_masks;
-	agp_bridge.num_of_masks = 1;
 	agp_bridge.aperture_sizes = (void *) amd_8151_sizes;
 	agp_bridge.size_type = U32_APER_SIZE;
 	agp_bridge.num_aperture_sizes = 7;
@@ -512,7 +511,8 @@ static struct __initdata pci_driver agp_amdk8_pci_driver = {
 	.probe		= agp_amdk8_probe,
 };
 
-static int __init agp_amdk8_init(void)
+/* Not static due to IOMMU code calling it early. */
+int __init agp_amdk8_init(void)
 {
 	int ret_val;
 
@@ -531,8 +531,12 @@ static void __exit agp_amdk8_cleanup(void)
 	pci_unregister_driver(&agp_amdk8_pci_driver);
 }
 
+/* On x86-64 the PCI driver needs to initialize this driver early
+   for the IOMMU, so it has to be called via a backdoor. */
+#ifndef CONFIG_GART_IOMMU
 module_init(agp_amdk8_init);
 module_exit(agp_amdk8_cleanup);
+#endif
 
 MODULE_AUTHOR("Dave Jones <davej@codemonkey.org.uk>");
 MODULE_LICENSE("GPL and additional rights");

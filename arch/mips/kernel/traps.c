@@ -70,49 +70,6 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
 #define MODULE_RANGE (8*1024*1024)
 
 /*
- * If the address is either in the .text section of the
- * kernel, or in the vmalloc'ed module regions, it *may* 
- * be the address of a calling routine
- */
-
-#ifdef CONFIG_MODULES
-
-/* FIXME: Accessed without a lock --RR */
-extern struct list_head modules;
-
-static inline int kernel_text_address(unsigned long addr)
-{
-	int retval = 0;
-	struct module *mod;
-
-	if (addr >= (unsigned long) &_stext &&
-	    addr <= (unsigned long) &_etext)
-		return 1;
-
-	list_for_each_entry(mod, &modules, list) {
-		/* mod_bound tests for addr being inside the vmalloc'ed
-		 * module area. Of course it'd be better to test only
-		 * for the .text subset... */
-		if (mod_bound((void *)addr, 0, mod)) {
-			retval = 1;
-			break;
-		}
-	}
-
-	return retval;
-}
-
-#else
-
-static inline int kernel_text_address(unsigned long addr)
-{
-	return (addr >= (unsigned long) &_stext &&
-		addr <= (unsigned long) &_etext);
-}
-
-#endif
-
-/*
  * This routine abuses get_user()/put_user() to reference pointers
  * with at least a bit of error checking ...
  */
@@ -280,64 +237,15 @@ void __declare_dbe_table(void)
 	);
 }
 
-static inline unsigned long
-search_one_table(const struct exception_table_entry *first,
-		 const struct exception_table_entry *last,
-		 unsigned long value)
-{
-	const struct exception_table_entry *mid;
-	long diff;
-
-	while (first < last) {
-		mid = (last - first) / 2 + first;
-		diff = mid->insn - value;
-		if (diff < 0)
-			first = mid + 1;
-		else
-			last = mid;
-	}
-	return (first == last && first->insn == value) ? first->nextinsn : 0;
-}
-
-static inline unsigned long
-search_dbe_table(unsigned long addr)
-{
-	unsigned long ret = 0;
-
-#ifndef CONFIG_MODULES
-	/* There is only the kernel to search.  */
-	ret = search_one_table(__start___dbe_table, __stop___dbe_table-1, addr);
-	return ret;
-#else
-	unsigned long flags;
-	struct mod_arch_specific * ap;
-	struct module *mod;
-
-	/* The kernel is the last "module" -- no need to treat it special.  */
-	spin_lock_irqsave(&modlist_lock, flags);
-	list_for_each_entry(mod, &modules, list) {
-		ap = &mod->arch;
-		if (ap->dbe_table_start == ap->dbe_table_end)
-			continue;
-		ret = search_one_table(ap->dbe_table_start,
-		                       ap->dbe_table_end - 1, addr);
-		if (ret)
-			break;
-	}
-	spin_unlock_irqrestore(&modlist_lock, flags);
-	return ret;
-#endif
-}
-
 asmlinkage void do_be(struct pt_regs *regs)
 {
-	unsigned long new_epc;
-	unsigned long fixup = 0;
+	const struct exception_table_entry *fixup = NULL;
 	int data = regs->cp0_cause & 4;
 	int action = MIPS_BE_FATAL;
 
+	/* XXX For now.  Fixme, this searches the wrong table ...  */
 	if (data && !user_mode(regs))
-		fixup = search_dbe_table(regs->cp0_epc);
+		fixup = search_exception_tables(regs->cp0_epc);
 
 	if (fixup)
 		action = MIPS_BE_FIXUP;
@@ -350,9 +258,7 @@ asmlinkage void do_be(struct pt_regs *regs)
 		return;
 	case MIPS_BE_FIXUP:
 		if (fixup) {
-			new_epc = fixup_exception(dpf_reg, fixup,
-						  regs->cp0_epc);
-			regs->cp0_epc = new_epc;
+			regs->cp0_epc = fixup->nextinsn;
 			return;
 		}
 		break;

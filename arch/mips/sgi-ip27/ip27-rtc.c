@@ -228,9 +228,10 @@ static int __init rtc_init(void)
 		printk(KERN_ERR "rtc: cannot register misc device.\n");
 		return -ENODEV;
 	}
-	if (!create_proc_read_entry ("rtc", 0, NULL, rtc_read_proc, NULL)) {
+	if (!create_proc_read_entry ("driver/rtc", 0, NULL, rtc_read_proc, NULL)) {
 		printk(KERN_ERR "rtc: cannot create /proc/rtc.\n");
 		misc_deregister(&rtc_dev);
+		return -ENOENT;
 	}
 
 	rtc_freq = 1024;

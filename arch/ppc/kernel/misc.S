@@ -136,7 +136,6 @@ _GLOBAL(identify_cpu)
  * r3 = data offset (not changed)
  */
 _GLOBAL(do_cpu_ftr_fixups)
-#ifndef CONFIG_PPC_ISERIES
 	/* Get CPU 0 features */
 	addis	r6,r3,cur_cpu_spec@ha
 	addi	r6,r6,cur_cpu_spec@l
@@ -180,16 +179,15 @@ _GLOBAL(do_cpu_ftr_fixups)
 	sync			/* additional sync needed on g4 */
 	isync
 	b	1b
-#else /* CONFIG_PPC_ISERIES */
-	blr
-#endif /* CONFIG_PPC_ISERIES */
 
 /*
  * call_setup_cpu - call the setup_cpu function for this cpu
  * r3 = data offset, r24 = cpu number
  *
- * Don't change register layout, the setup function may rely
- * on r5 containing a relocated pointer to the current cpu spec.
+ * Setup function is called with:
+ *   r3 = data offset
+ *   r4 = CPU number
+ *   r5 = ptr to CPU spec (relocated)
  */
 _GLOBAL(call_setup_cpu)
 	addis	r5,r3,cur_cpu_spec@ha
@@ -200,10 +198,9 @@ _GLOBAL(call_setup_cpu)
 	lwz	r6,CPU_SPEC_SETUP(r5)
 	add	r6,r6,r3
 	mtctr	r6
-	mr	r3,r24
+	mr	r4,r24
 	bctr
 
-#ifndef CONFIG_PPC_ISERIES	/* iSeries version is in iSeries_misc.S */
 /* void local_save_flags_ptr(unsigned long *flags) */
 _GLOBAL(local_save_flags_ptr)
 	mfmsr	r4
@@ -331,7 +328,6 @@ _GLOBAL(local_irq_enable)
 	nop
 	nop
 _GLOBAL(local_irq_enable_end)
-#endif /* CONFIG_PPC_ISERIES */
 
 /*
  * complement mask on the msr then "or" some values on.
@@ -352,18 +348,9 @@ _GLOBAL(_nmask_and_or_msr)
  */
 _GLOBAL(_tlbia)
 #if defined(CONFIG_40x)
-	/* This needs to be coordinated with other pinning functions since
-	 * we don't keep a memory location of number of entries to reduce
-	 * cache pollution during these operations.
-	 */
-	lis	r3, 0
-	sync
-1:
-	tlbwe	r3, r3, TLB_TAG		/* just ensure V is clear */
-	addi	r3, r3, 1		/*   so r3 works fine for that */
-	cmpwi	0, r3, 61		/* reserve last two entries */
-	ble	1b
-	isync
+	sync			/* Flush to memory before changing mapping */
+	tlbia
+	isync			/* Flush shadow TLB */
 #else /* ! defined(CONFIG_40x) */
 #if defined(CONFIG_SMP)
 	rlwinm	r8,r1,0,0,18
@@ -485,7 +472,6 @@ _GLOBAL(flush_instruction_cache)
 	isync
 	blr
 
-#ifndef CONFIG_PPC_ISERIES	/* iSeries version is in iSeries_misc.S */
 /*
  * Write any modified data cache blocks out to memory
  * and invalidate the corresponding instruction cache blocks.
@@ -749,7 +735,6 @@ _GLOBAL(copy_page)
 #endif
 	bdnz	1b
 	blr
-#endif /* CONFIG_PPC_ISERIES */
 
 /*
  * void atomic_clear_mask(atomic_t mask, atomic_t *addr)

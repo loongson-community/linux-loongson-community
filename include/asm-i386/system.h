@@ -12,7 +12,8 @@ struct task_struct;	/* one of the stranger aspects of C forward declarations.. *
 extern void FASTCALL(__switch_to(struct task_struct *prev, struct task_struct *next));
 
 #define switch_to(prev,next,last) do {					\
-	asm volatile("pushl %%esi\n\t"					\
+	asm volatile("pushfl\n\t"					\
+		     "pushl %%esi\n\t"					\
 		     "pushl %%edi\n\t"					\
 		     "pushl %%ebp\n\t"					\
 		     "movl %%esp,%0\n\t"	/* save ESP */		\
@@ -24,6 +25,7 @@ extern void FASTCALL(__switch_to(struct task_struct *prev, struct task_struct *n
 		     "popl %%ebp\n\t"					\
 		     "popl %%edi\n\t"					\
 		     "popl %%esi\n\t"					\
+		     "popfl\n\t"					\
 		     :"=m" (prev->thread.esp),"=m" (prev->thread.eip)	\
 		     :"m" (next->thread.esp),"m" (next->thread.eip),	\
 		      "a" (prev), "d" (next));				\
@@ -93,6 +95,12 @@ static inline unsigned long _get_base(char * addr)
 		".long 1b,3b\n"			\
 		".previous"			\
 		: :"m" (*(unsigned int *)&(value)))
+
+/*
+ * Save a segment register away
+ */
+#define savesegment(seg, value) \
+	asm volatile("movl %%" #seg ",%0":"=m" (*(int *)&(value)))
 
 /*
  * Clear and set 'TS' bit respectively

@@ -274,12 +274,6 @@ void release_thread(struct task_struct *dead_task)
 	release_x86_irqs(dead_task);
 }
 
-/*
- * Save a segment.
- */
-#define savesegment(seg,value) \
-	asm volatile("movl %%" #seg ",%0":"=m" (*(int *)&(value)))
-
 int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 	unsigned long unused,
 	struct task_struct * p, struct pt_regs * regs)
@@ -561,7 +555,7 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	if (error == 0) {
 		current->ptrace &= ~PT_DTRACE;
 		/* Make sure we don't return using sysenter.. */
-		set_thread_flag(TIF_SIGPENDING);
+		set_thread_flag(TIF_IRET);
 	}
 	putname(filename);
 out:

@@ -10,16 +10,22 @@
 typedef u32		compat_size_t;
 typedef s32		compat_ssize_t;
 typedef s32		compat_time_t;
-typedef s32		compat_suseconds_t;
 typedef s32		compat_clock_t;
 typedef s32		compat_pid_t;
 typedef u16		compat_uid_t;
 typedef u16		compat_gid_t;
+typedef u32		compat_uid32_t;
+typedef u32		compat_gid32_t;
 typedef u16		compat_mode_t;
 typedef u32		compat_ino_t;
 typedef u16		compat_dev_t;
 typedef s32		compat_off_t;
+typedef s64		compat_loff_t;
 typedef u16		compat_nlink_t;
+typedef u16		compat_ipc_pid_t;
+typedef s32		compat_daddr_t;
+typedef u32		compat_caddr_t;
+typedef __kernel_fsid_t	compat_fsid_t;
 
 struct compat_timespec {
 	compat_time_t	tv_sec;
@@ -52,6 +58,14 @@ struct compat_stat {
 	u32		st_ctime_nsec;
 	u32		__unused4;
 	u32		__unused5;
+};
+
+struct compat_flock {
+	short		l_type;
+	short		l_whence;
+	compat_off_t	l_start;
+	compat_off_t	l_len;
+	compat_pid_t	l_pid;
 };
 
 #endif /* _ASM_X86_64_COMPAT_H */

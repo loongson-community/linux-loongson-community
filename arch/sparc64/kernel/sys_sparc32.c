@@ -53,6 +53,7 @@
 #include <linux/security.h>
 #include <linux/compat.h>
 #include <linux/vfs.h>
+#include <linux/netfilter_ipv4/ip_tables.h>
 
 #include <asm/types.h>
 #include <asm/ipc.h>
@@ -290,11 +291,11 @@ struct msgbuf32 { s32 mtype; char mtext[1]; };
 struct ipc_perm32
 {
 	key_t    	  key;
-        __kernel_uid_t32  uid;
-        __kernel_gid_t32  gid;
-        __kernel_uid_t32  cuid;
-        __kernel_gid_t32  cgid;
-        __kernel_mode_t32 mode;
+        compat_uid_t  uid;
+        compat_gid_t  gid;
+        compat_uid_t  cuid;
+        compat_gid_t  cgid;
+        compat_mode_t mode;
         unsigned short  seq;
 };
 
@@ -333,8 +334,8 @@ struct msqid_ds32
         unsigned short msg_cbytes;
         unsigned short msg_qnum;  
         unsigned short msg_qbytes;
-        __kernel_ipc_pid_t32 msg_lspid;
-        __kernel_ipc_pid_t32 msg_lrpid;
+        compat_ipc_pid_t msg_lspid;
+        compat_ipc_pid_t msg_lrpid;
 };
 
 struct msqid64_ds32 {
@@ -348,8 +349,8 @@ struct msqid64_ds32 {
 	unsigned int  msg_cbytes;
 	unsigned int  msg_qnum;
 	unsigned int  msg_qbytes;
-	__kernel_pid_t32 msg_lspid;
-	__kernel_pid_t32 msg_lrpid;
+	compat_pid_t msg_lspid;
+	compat_pid_t msg_lrpid;
 	unsigned int  __unused1;
 	unsigned int  __unused2;
 };
@@ -361,8 +362,8 @@ struct shmid_ds32 {
 	compat_time_t         shm_atime;
 	compat_time_t         shm_dtime;
 	compat_time_t         shm_ctime;
-	__kernel_ipc_pid_t32    shm_cpid; 
-	__kernel_ipc_pid_t32    shm_lpid; 
+	compat_ipc_pid_t    shm_cpid; 
+	compat_ipc_pid_t    shm_lpid; 
 	unsigned short          shm_nattch;
 };
 
@@ -375,8 +376,8 @@ struct shmid64_ds32 {
 	unsigned int		__pad3;
 	compat_time_t  	shm_ctime;
 	compat_size_t	shm_segsz;
-	__kernel_pid_t32	shm_cpid;
-	__kernel_pid_t32	shm_lpid;
+	compat_pid_t	shm_cpid;
+	compat_pid_t	shm_lpid;
 	unsigned int		shm_nattch;
 	unsigned int		__unused1;
 	unsigned int		__unused2;
@@ -804,30 +805,6 @@ out:
 	return err;
 }
 
-static inline int get_flock(struct flock *kfl, struct flock32 *ufl)
-{
-	int err;
-	
-	err = get_user(kfl->l_type, &ufl->l_type);
-	err |= __get_user(kfl->l_whence, &ufl->l_whence);
-	err |= __get_user(kfl->l_start, &ufl->l_start);
-	err |= __get_user(kfl->l_len, &ufl->l_len);
-	err |= __get_user(kfl->l_pid, &ufl->l_pid);
-	return err;
-}
-
-static inline int put_flock(struct flock *kfl, struct flock32 *ufl)
-{
-	int err;
-	
-	err = __put_user(kfl->l_type, &ufl->l_type);
-	err |= __put_user(kfl->l_whence, &ufl->l_whence);
-	err |= __put_user(kfl->l_start, &ufl->l_start);
-	err |= __put_user(kfl->l_len, &ufl->l_len);
-	err |= __put_user(kfl->l_pid, &ufl->l_pid);
-	return err;
-}
-
 extern asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
 
 asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
@@ -841,13 +818,13 @@ asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg
 			mm_segment_t old_fs;
 			long ret;
 			
-			if (get_flock(&f, (struct flock32 *)arg))
+			if (get_compat_flock(&f, (struct compat_flock *)arg))
 				return -EFAULT;
 			old_fs = get_fs(); set_fs (KERNEL_DS);
 			ret = sys_fcntl(fd, cmd, (unsigned long)&f);
 			set_fs (old_fs);
 			if (ret) return ret;
-			if (put_flock(&f, (struct flock32 *)arg))
+			if (put_compat_flock(&f, (struct compat_flock *)arg))
 				return -EFAULT;
 			return 0;
 		}
@@ -1402,6 +1379,9 @@ int cp_compat_stat(struct kstat *stat, struct compat_stat *statbuf)
 {
 	int err;
 
+	if (stat->size > MAX_NON_LFS)
+		return -EOVERFLOW;
+
 	err  = put_user(stat->dev, &statbuf->st_dev);
 	err |= put_user(stat->ino, &statbuf->st_ino);
 	err |= put_user(stat->mode, &statbuf->st_mode);
@@ -1409,8 +1389,6 @@ int cp_compat_stat(struct kstat *stat, struct compat_stat *statbuf)
 	err |= put_user(high2lowuid(stat->uid), &statbuf->st_uid);
 	err |= put_user(high2lowgid(stat->gid), &statbuf->st_gid);
 	err |= put_user(stat->rdev, &statbuf->st_rdev);
-	if (stat->size > MAX_NON_LFS)
-		return -EOVERFLOW;
 	err |= put_user(stat->size, &statbuf->st_size);
 	err |= put_user(stat->atime.tv_sec, &statbuf->st_atime);
 	err |= put_user(0, &statbuf->__unused1);
@@ -1436,16 +1414,16 @@ asmlinkage int sys32_sysfs(int option, u32 arg1, u32 arg2)
 struct ncp_mount_data32_v3 {
         int version;
         unsigned int ncp_fd;
-        __kernel_uid_t32 mounted_uid;
-        __kernel_pid_t32 wdog_pid;
+        compat_uid_t mounted_uid;
+        compat_pid_t wdog_pid;
         unsigned char mounted_vol[NCP_VOLNAME_LEN + 1];
         unsigned int time_out;
         unsigned int retry_count;
         unsigned int flags;
-        __kernel_uid_t32 uid;
-        __kernel_gid_t32 gid;
-        __kernel_mode_t32 file_mode;
-        __kernel_mode_t32 dir_mode;
+        compat_uid_t uid;
+        compat_gid_t gid;
+        compat_mode_t file_mode;
+        compat_mode_t dir_mode;
 };
 
 struct ncp_mount_data32_v4 {
@@ -1516,11 +1494,11 @@ static void *do_ncp_super_data_conv(void *raw_data)
 
 struct smb_mount_data32 {
         int version;
-        __kernel_uid_t32 mounted_uid;
-        __kernel_uid_t32 uid;
-        __kernel_gid_t32 gid;
-        __kernel_mode_t32 file_mode;
-        __kernel_mode_t32 dir_mode;
+        compat_uid_t mounted_uid;
+        compat_uid_t uid;
+        compat_gid_t gid;
+        compat_mode_t file_mode;
+        compat_mode_t dir_mode;
 };
 
 static void *do_smb_super_data_conv(void *raw_data)
@@ -1680,7 +1658,7 @@ static int put_rusage (struct rusage32 *ru, struct rusage *r)
 	return err;
 }
 
-asmlinkage int sys32_wait4(__kernel_pid_t32 pid, unsigned int *stat_addr, int options, struct rusage32 *ru)
+asmlinkage int sys32_wait4(compat_pid_t pid, unsigned int *stat_addr, int options, struct rusage32 *ru)
 {
 	if (!ru)
 		return sys_wait4(pid, stat_addr, options, NULL);
@@ -1742,7 +1720,7 @@ asmlinkage int sys32_sysinfo(struct sysinfo32 *info)
 
 extern asmlinkage int sys_sched_rr_get_interval(pid_t pid, struct timespec *interval);
 
-asmlinkage int sys32_sched_rr_get_interval(__kernel_pid_t32 pid, struct compat_timespec *interval)
+asmlinkage int sys32_sched_rr_get_interval(compat_pid_t pid, struct compat_timespec *interval)
 {
 	struct timespec t;
 	int ret;
@@ -2550,6 +2528,78 @@ out:
 extern asmlinkage int sys_setsockopt(int fd, int level, int optname,
 				     char *optval, int optlen);
 
+static int do_netfilter_replace(int fd, int level, int optname,
+				char *optval, int optlen)
+{
+	struct ipt_replace32 {
+		char name[IPT_TABLE_MAXNAMELEN];
+		__u32 valid_hooks;
+		__u32 num_entries;
+		__u32 size;
+		__u32 hook_entry[NF_IP_NUMHOOKS];
+		__u32 underflow[NF_IP_NUMHOOKS];
+		__u32 num_counters;
+		__u32 counters;
+		struct ipt_entry entries[0];
+	} *repl32 = (struct ipt_replace32 *)optval;
+	struct ipt_replace *krepl;
+	struct ipt_counters *counters32;
+	__u32 origsize;
+	unsigned int kreplsize, kcountersize;
+	mm_segment_t old_fs;
+	int ret;
+
+	if (optlen < sizeof(repl32))
+		return -EINVAL;
+
+	if (copy_from_user(&origsize,
+			&repl32->size,
+			sizeof(origsize)))
+		return -EFAULT;
+
+	kreplsize = sizeof(*krepl) + origsize;
+	kcountersize = krepl->num_counters * sizeof(struct ipt_counters);
+
+	/* Hack: Causes ipchains to give correct error msg --RR */
+	if (optlen != kreplsize)
+		return -ENOPROTOOPT;
+
+	krepl = (struct ipt_replace *)kmalloc(kreplsize, GFP_KERNEL);
+	if (krepl == NULL)
+		return -ENOMEM;
+
+	if (copy_from_user(krepl, optval, kreplsize)) {
+		kfree(krepl);
+		return -EFAULT;
+	}
+
+	counters32 = (struct ipt_counters *)AA(
+		((struct ipt_replace32 *)krepl)->counters);
+
+	kcountersize = krepl->num_counters * sizeof(struct ipt_counters);
+	krepl->counters = (struct ipt_counters *)kmalloc(
+					kcountersize, GFP_KERNEL);
+	if (krepl->counters == NULL) {
+		kfree(krepl);
+		return -ENOMEM;
+	}
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = sys_setsockopt(fd, level, optname,
+			     (char *)krepl, kreplsize);
+	set_fs(old_fs);
+
+	if (ret == 0 &&
+		copy_to_user(counters32, krepl->counters, kcountersize))
+			ret = -EFAULT;
+
+	kfree(krepl->counters);
+	kfree(krepl);
+
+	return ret;
+}
+
 static int do_set_attach_filter(int fd, int level, int optname,
 				char *optval, int optlen)
 {
@@ -2643,6 +2693,9 @@ static int do_set_sock_timeout(int fd, int level, int optname, char *optval, int
 asmlinkage int sys32_setsockopt(int fd, int level, int optname,
 				char *optval, int optlen)
 {
+	if (optname == IPT_SO_SET_REPLACE)
+		return do_netfilter_replace(fd, level, optname,
+					    optval, optlen);
 	if (optname == SO_ATTACH_FILTER)
 		return do_set_attach_filter(fd, level, optname,
 					    optval, optlen);
@@ -3051,27 +3104,27 @@ struct nfsctl_client32 {
 struct nfsctl_export32 {
 	s8			ex32_client[NFSCLNT_IDMAX+1];
 	s8			ex32_path[NFS_MAXPATHLEN+1];
-	__kernel_dev_t32	ex32_dev;
-	__kernel_ino_t32	ex32_ino;
+	compat_dev_t	ex32_dev;
+	compat_ino_t	ex32_ino;
 	s32			ex32_flags;
-	__kernel_uid_t32	ex32_anon_uid;
-	__kernel_gid_t32	ex32_anon_gid;
+	compat_uid_t	ex32_anon_uid;
+	compat_gid_t	ex32_anon_gid;
 };
 
 struct nfsctl_uidmap32 {
 	u32			ug32_ident;   /* char * */
-	__kernel_uid_t32	ug32_uidbase;
+	compat_uid_t	ug32_uidbase;
 	s32			ug32_uidlen;
 	u32			ug32_udimap;  /* uid_t * */
-	__kernel_uid_t32	ug32_gidbase;
+	compat_uid_t	ug32_gidbase;
 	s32			ug32_gidlen;
 	u32			ug32_gdimap;  /* gid_t * */
 };
 
 struct nfsctl_fhparm32 {
 	struct sockaddr		gf32_addr;
-	__kernel_dev_t32	gf32_dev;
-	__kernel_ino_t32	gf32_ino;
+	compat_dev_t	gf32_dev;
+	compat_ino_t	gf32_ino;
 	s32			gf32_version;
 };
 
@@ -3200,7 +3253,7 @@ static int nfs_uud32_trans(struct nfsctl_arg *karg, struct nfsctl_arg32 *arg32)
 		return -ENOMEM;
 	for(i = 0; i < karg->ca_umap.ug_uidlen; i++)
 		err |= __get_user(karg->ca_umap.ug_udimap[i],
-			      &(((__kernel_uid_t32 *)A(uaddr))[i]));
+			      &(((compat_uid_t *)A(uaddr))[i]));
 	err |= __get_user(karg->ca_umap.ug_gidbase,
 		      &arg32->ca32_umap.ug32_gidbase);
 	err |= __get_user(karg->ca_umap.ug_uidlen,
@@ -3214,7 +3267,7 @@ static int nfs_uud32_trans(struct nfsctl_arg *karg, struct nfsctl_arg32 *arg32)
 		return -ENOMEM;
 	for(i = 0; i < karg->ca_umap.ug_gidlen; i++)
 		err |= __get_user(karg->ca_umap.ug_gdimap[i],
-			      &(((__kernel_gid_t32 *)A(uaddr))[i]));
+			      &(((compat_gid_t *)A(uaddr))[i]));
 
 	return (err ? -EFAULT : 0);
 }
@@ -3506,7 +3559,7 @@ asmlinkage compat_ssize_t sys32_readahead(int fd, u32 offhi, u32 offlo, s32 coun
 
 extern asmlinkage ssize_t sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 
-asmlinkage int sys32_sendfile(int out_fd, int in_fd, __kernel_off_t32 *offset, s32 count)
+asmlinkage int sys32_sendfile(int out_fd, int in_fd, compat_off_t *offset, s32 count)
 {
 	mm_segment_t old_fs = get_fs();
 	int ret;
@@ -3527,7 +3580,7 @@ asmlinkage int sys32_sendfile(int out_fd, int in_fd, __kernel_off_t32 *offset, s
 
 extern asmlinkage ssize_t sys_sendfile64(int out_fd, int in_fd, loff_t *offset, size_t count);
 
-asmlinkage int sys32_sendfile64(int out_fd, int in_fd, __kernel_loff_t32 *offset, s32 count)
+asmlinkage int sys32_sendfile64(int out_fd, int in_fd, compat_loff_t *offset, s32 count)
 {
 	mm_segment_t old_fs = get_fs();
 	int ret;
@@ -3761,7 +3814,7 @@ asmlinkage long sys32_sysctl(struct __sysctl_args32 *args)
 extern asmlinkage int sys_sched_setaffinity(pid_t pid, unsigned int len,
 					    unsigned long *user_mask_ptr);
 
-asmlinkage int sys32_sched_setaffinity(__kernel_pid_t32 pid, unsigned int len,
+asmlinkage int sys32_sched_setaffinity(compat_pid_t pid, unsigned int len,
 				       u32 *user_mask_ptr)
 {
 	unsigned long kernel_mask;
@@ -3785,7 +3838,7 @@ asmlinkage int sys32_sched_setaffinity(__kernel_pid_t32 pid, unsigned int len,
 extern asmlinkage int sys_sched_getaffinity(pid_t pid, unsigned int len,
 					    unsigned long *user_mask_ptr);
 
-asmlinkage int sys32_sched_getaffinity(__kernel_pid_t32 pid, unsigned int len,
+asmlinkage int sys32_sched_getaffinity(compat_pid_t pid, unsigned int len,
 				       u32 *user_mask_ptr)
 {
 	unsigned long kernel_mask;

@@ -70,9 +70,9 @@ long module_init_size(const Elf32_Ehdr *hdr,
 	return module->init_size;
 }
 
-int module_frob_arch_sections(const Elf_Ehdr *hdr,
-			      const Elf_Shdr *sechdrs,
-			      const char *secstrings,
+int module_frob_arch_sections(Elf_Ehdr *hdr,
+			      Elf_Shdr *sechdrs,
+			      char *secstrings,
 			      struct module *mod)
 {
 	return 0;

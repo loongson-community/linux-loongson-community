@@ -13,10 +13,16 @@ CONFIG_EXPERIMENTAL=y
 #
 # General setup
 #
-CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
+# CONFIG_LOG_BUF_SHIFT_17 is not set
+# CONFIG_LOG_BUF_SHIFT_16 is not set
+# CONFIG_LOG_BUF_SHIFT_15 is not set
+CONFIG_LOG_BUF_SHIFT_14=y
+# CONFIG_LOG_BUF_SHIFT_13 is not set
+# CONFIG_LOG_BUF_SHIFT_12 is not set
+CONFIG_LOG_BUF_SHIFT=14
 
 #
 # Loadable module support
@@ -105,6 +111,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_PCI_LEGACY_PROC=y
 # CONFIG_PCI_NAMES is not set
 CONFIG_MMU=y
 CONFIG_SWAP=y
@@ -174,6 +181,11 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_I2O is not set
 
 #
+# Networking support
+#
+CONFIG_NET=y
+
+#
 # Networking options
 #
 CONFIG_PACKET=y
@@ -227,10 +239,6 @@ CONFIG_IPV6_SCTP__=y
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-
-#
-# Network device support
-#
 CONFIG_NETDEVICES=y
 
 #
@@ -250,8 +258,6 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
-# CONFIG_NET_VENDOR_SMC is not set
-# CONFIG_NET_VENDOR_RACAL is not set
 
 #
 # Tulip family network device support
@@ -260,6 +266,7 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_HP100 is not set
 CONFIG_NET_PCI=y
 CONFIG_PCNET32=y
+# CONFIG_AMD8111_ETH is not set
 # CONFIG_ADAPTEC_STARFIRE is not set
 # CONFIG_B44 is not set
 # CONFIG_TC35815 is not set
@@ -277,7 +284,6 @@ CONFIG_PCNET32=y
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_LAN_SAA9730 is not set
-# CONFIG_NET_POCKET is not set
 
 #
 # Ethernet (1000 Mbit)
@@ -304,7 +310,6 @@ CONFIG_PCNET32=y
 #
 # Token Ring devices (depends on LLC=y)
 #
-# CONFIG_NET_FC is not set
 # CONFIG_RCPCI is not set
 # CONFIG_SHAPER is not set
 

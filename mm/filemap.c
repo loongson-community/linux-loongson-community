@@ -202,28 +202,31 @@ restart:
  *
  * This function does not add the page to the LRU.  The caller must do that.
  */
-int add_to_page_cache(struct page *page,
-		struct address_space *mapping, pgoff_t offset)
+int add_to_page_cache(struct page *page, struct address_space *mapping,
+		pgoff_t offset, int gfp_mask)
 {
-	int error;
+	int error = radix_tree_preload(gfp_mask & ~__GFP_HIGHMEM);
 
-	page_cache_get(page);
-	write_lock(&mapping->page_lock);
-	error = radix_tree_insert(&mapping->page_tree, offset, page);
-	if (!error) {
-		SetPageLocked(page);
-		___add_to_page_cache(page, mapping, offset);
-	} else {
-		page_cache_release(page);
+	if (error == 0) {
+		page_cache_get(page);
+		write_lock(&mapping->page_lock);
+		error = radix_tree_insert(&mapping->page_tree, offset, page);
+		if (!error) {
+			SetPageLocked(page);
+			___add_to_page_cache(page, mapping, offset);
+		} else {
+			page_cache_release(page);
+		}
+		write_unlock(&mapping->page_lock);
+		radix_tree_preload_end();
 	}
-	write_unlock(&mapping->page_lock);
 	return error;
 }
 
-int add_to_page_cache_lru(struct page *page,
-		struct address_space *mapping, pgoff_t offset)
+int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
+				pgoff_t offset, int gfp_mask)
 {
-	int ret = add_to_page_cache(page, mapping, offset);
+	int ret = add_to_page_cache(page, mapping, offset, gfp_mask);
 	if (ret == 0)
 		lru_cache_add(page);
 	return ret;
@@ -432,7 +435,8 @@ repeat:
 			if (!cached_page)
 				return NULL;
 		}
-		err = add_to_page_cache_lru(cached_page, mapping, index);
+		err = add_to_page_cache_lru(cached_page, mapping,
+					index, gfp_mask);
 		if (!err) {
 			page = cached_page;
 			cached_page = NULL;
@@ -488,6 +492,7 @@ struct page *
 grab_cache_page_nowait(struct address_space *mapping, unsigned long index)
 {
 	struct page *page = find_get_page(mapping, index);
+	int gfp_mask;
 
 	if (page) {
 		if (!TestSetPageLocked(page))
@@ -495,8 +500,9 @@ grab_cache_page_nowait(struct address_space *mapping, unsigned long index)
 		page_cache_release(page);
 		return NULL;
 	}
-	page = alloc_pages(mapping->gfp_mask & ~__GFP_FS, 0);
-	if (page && add_to_page_cache_lru(page, mapping, index)) {
+	gfp_mask = mapping->gfp_mask & ~__GFP_FS;
+	page = alloc_pages(gfp_mask, 0);
+	if (page && add_to_page_cache_lru(page, mapping, index, gfp_mask)) {
 		page_cache_release(page);
 		page = NULL;
 	}
@@ -648,7 +654,8 @@ no_cached_page:
 				break;
 			}
 		}
-		error = add_to_page_cache_lru(cached_page, mapping, index);
+		error = add_to_page_cache_lru(cached_page, mapping,
+						index, GFP_KERNEL);
 		if (error) {
 			if (error == -EEXIST)
 				goto find_page;
@@ -798,8 +805,10 @@ __generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 				nr_segs = iov_shorten((struct iovec *)iov,
 							nr_segs, count);
 			}
-			retval = generic_file_direct_IO(READ, filp,
+			retval = generic_file_direct_IO(READ, iocb,
 					iov, pos, nr_segs);
+			if (retval >= 0 && !is_sync_kiocb(iocb))
+				retval = -EIOCBQUEUED;
 			if (retval > 0)
 				*ppos = pos + retval;
 		}
@@ -940,7 +949,7 @@ static int page_cache_read(struct file * file, unsigned long offset)
 	if (!page)
 		return -ENOMEM;
 
-	error = add_to_page_cache_lru(page, mapping, offset);
+	error = add_to_page_cache_lru(page, mapping, offset, GFP_KERNEL);
 	if (!error) {
 		error = mapping->a_ops->readpage(file, page);
 		page_cache_release(page);
@@ -1327,7 +1336,8 @@ repeat:
 			if (!cached_page)
 				return ERR_PTR(-ENOMEM);
 		}
-		err = add_to_page_cache_lru(cached_page, mapping, index);
+		err = add_to_page_cache_lru(cached_page, mapping,
+					index, GFP_KERNEL);
 		if (err == -EEXIST)
 			goto repeat;
 		if (err < 0) {
@@ -1406,7 +1416,8 @@ repeat:
 			if (!*cached_page)
 				return NULL;
 		}
-		err = add_to_page_cache(*cached_page, mapping, index);
+		err = add_to_page_cache(*cached_page, mapping,
+					index, GFP_KERNEL);
 		if (err == -EEXIST)
 			goto repeat;
 		if (err == 0) {
@@ -1523,9 +1534,10 @@ filemap_set_next_iovec(const struct iovec **iovp, size_t *basep, size_t bytes)
  *							okir@monad.swb.de
  */
 ssize_t
-generic_file_write_nolock(struct file *file, const struct iovec *iov,
+generic_file_aio_write_nolock(struct kiocb *iocb, const struct iovec *iov,
 				unsigned long nr_segs, loff_t *ppos)
 {
+	struct file *file = iocb->ki_filp;
 	struct address_space * mapping = file->f_dentry->d_inode->i_mapping;
 	struct address_space_operations *a_ops = mapping->a_ops;
 	size_t ocount;		/* original count */
@@ -1665,7 +1677,7 @@ generic_file_write_nolock(struct file *file, const struct iovec *iov,
 		if (count != ocount)
 			nr_segs = iov_shorten((struct iovec *)iov,
 						nr_segs, count);
-		written = generic_file_direct_IO(WRITE, file,
+		written = generic_file_direct_IO(WRITE, iocb,
 					iov, pos, nr_segs);
 		if (written > 0) {
 			loff_t end = pos + written;
@@ -1681,6 +1693,8 @@ generic_file_write_nolock(struct file *file, const struct iovec *iov,
 		 */
 		if (written >= 0 && file->f_flags & O_SYNC)
 			status = generic_osync_inode(inode, OSYNC_METADATA);
+		if (written >= 0 && !is_sync_kiocb(iocb))
+			written = -EIOCBQUEUED;
 		goto out_status;
 	}
 
@@ -1777,12 +1791,39 @@ out:
 	return err;
 }
 
+ssize_t
+generic_file_write_nolock(struct file *file, const struct iovec *iov,
+				unsigned long nr_segs, loff_t *ppos)
+{
+	struct kiocb kiocb;
+	ssize_t ret;
+
+	init_sync_kiocb(&kiocb, file);
+	ret = generic_file_aio_write_nolock(&kiocb, iov, nr_segs, ppos);
+	if (-EIOCBQUEUED == ret)
+		ret = wait_on_sync_kiocb(&kiocb);
+	return ret;
+}
+
 ssize_t generic_file_aio_write(struct kiocb *iocb, const char *buf,
 			       size_t count, loff_t pos)
 {
-	return generic_file_write(iocb->ki_filp, buf, count, &iocb->ki_pos);
+	struct file *file = iocb->ki_filp;
+	struct inode *inode = file->f_dentry->d_inode->i_mapping->host;
+	int err;
+	struct iovec local_iov = { .iov_base = (void *)buf, .iov_len = count };
+
+	BUG_ON(iocb->ki_pos != pos);
+
+	down(&inode->i_sem);
+	err = generic_file_aio_write_nolock(iocb, &local_iov, 1, 
+						&iocb->ki_pos);
+	up(&inode->i_sem);
+
+	return err;
 }
 EXPORT_SYMBOL(generic_file_aio_write);
+EXPORT_SYMBOL(generic_file_aio_write_nolock);
 
 ssize_t generic_file_write(struct file *file, const char *buf,
 			   size_t count, loff_t *ppos)
@@ -1821,4 +1862,27 @@ ssize_t generic_file_writev(struct file *file, const struct iovec *iov,
 	ret = generic_file_write_nolock(file, iov, nr_segs, ppos);
 	up(&inode->i_sem);
 	return ret;
+}
+
+ssize_t
+generic_file_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
+	loff_t offset, unsigned long nr_segs)
+{
+	struct file *file = iocb->ki_filp;
+	struct address_space *mapping = file->f_dentry->d_inode->i_mapping;
+	ssize_t retval;
+
+	if (mapping->nrpages) {
+		retval = filemap_fdatawrite(mapping);
+		if (retval == 0)
+			retval = filemap_fdatawait(mapping);
+		if (retval)
+			goto out;
+	}
+
+	retval = mapping->a_ops->direct_IO(rw, iocb, iov, offset, nr_segs);
+	if (rw == WRITE && mapping->nrpages)
+		invalidate_inode_pages2(mapping);
+out:
+	return retval;
 }

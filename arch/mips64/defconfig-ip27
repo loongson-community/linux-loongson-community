@@ -13,10 +13,16 @@ CONFIG_MIPS64=y
 #
 # General setup
 #
-CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
+# CONFIG_LOG_BUF_SHIFT_17 is not set
+# CONFIG_LOG_BUF_SHIFT_16 is not set
+CONFIG_LOG_BUF_SHIFT_15=y
+# CONFIG_LOG_BUF_SHIFT_14 is not set
+# CONFIG_LOG_BUF_SHIFT_13 is not set
+# CONFIG_LOG_BUF_SHIFT_12 is not set
+CONFIG_LOG_BUF_SHIFT=15
 
 #
 # Loadable module support
@@ -98,6 +104,7 @@ CONFIG_NR_CPUS=4
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_PCI_LEGACY_PROC=y
 CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
 CONFIG_SWAP=y
@@ -223,6 +230,11 @@ CONFIG_SCSI_QLOGIC_ISP=y
 # CONFIG_I2O is not set
 
 #
+# Networking support
+#
+CONFIG_NET=y
+
+#
 # Networking options
 #
 CONFIG_PACKET=y
@@ -261,10 +273,6 @@ CONFIG_XFRM_USER=y
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-
-#
-# Network device support
-#
 CONFIG_NETDEVICES=y
 
 #
@@ -284,8 +292,6 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
-# CONFIG_NET_VENDOR_SMC is not set
-# CONFIG_NET_VENDOR_RACAL is not set
 
 #
 # Tulip family network device support
@@ -293,7 +299,6 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_PCI is not set
-# CONFIG_NET_POCKET is not set
 
 #
 # Ethernet (1000 Mbit)

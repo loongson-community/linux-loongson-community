@@ -97,7 +97,8 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 	unsigned long **regptr, unsigned long *newvalue)
 {
 	union mips_instruction insn;
-	unsigned long value, fixup;
+	unsigned long value;
+	const struct exception_table_entry *fixup;
 	unsigned int res;
 
 	regs->regs[0] = 0;
@@ -468,10 +469,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 
 fault:
 	/* Did we have an exception handler installed? */
-	fixup = search_exception_table(exception_epc(regs));
+	fixup = search_exception_tables(exception_epc(regs));
 	if (fixup) {
-		long new_epc;
-		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
+		unsigned long new_epc = fixup->nextinsn;
 		printk(KERN_DEBUG "%s: Forwarding exception at [<%lx>] (%lx)\n",
 		       current->comm, regs->cp0_epc, new_epc);
 		regs->cp0_epc = new_epc;

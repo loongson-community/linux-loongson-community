@@ -55,10 +55,6 @@
 #endif
 #define MAX_LOW_MEM	CONFIG_LOWMEM_SIZE
 
-#ifdef CONFIG_PPC_ISERIES
-extern void create_virtual_bus_tce_table(void);
-#endif
-
 mmu_gather_t mmu_gathers[NR_CPUS];
 
 unsigned long total_memory;
@@ -475,10 +471,6 @@ void __init mem_init(void)
 		printk(KERN_INFO "AGP special page: 0x%08lx\n", agp_special_page);
 #endif /* defined(CONFIG_ALL_PPC) */
 
-#ifdef CONFIG_PPC_ISERIES
-	create_virtual_bus_tce_table();
-#endif /* CONFIG_PPC_ISERIES */
-
 	/* Make sure all our pagetable pages have page->mapping
 	   and page->index set correctly. */
 	for (addr = KERNELBASE; addr != 0; addr += PGDIR_SIZE) {
@@ -609,7 +601,10 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 		struct page *page = pfn_to_page(pfn);
 		if (!PageReserved(page)
 		    && !test_bit(PG_arch_1, &page->flags)) {
-			__flush_dcache_icache((void *) address);
+			if (vma->vm_mm == current->active_mm)
+				__flush_dcache_icache((void *) address);
+			else
+				__flush_dcache_icache_phys(pfn << PAGE_SHIFT);
 			set_bit(PG_arch_1, &page->flags);
 		}
 	}

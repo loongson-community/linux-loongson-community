@@ -87,8 +87,9 @@ int printk_address(unsigned long address)
 	const char *symname;
 	char *modname;
 	char *delim = ":"; 
+	char namebuf[128];
 
-	symname = kallsyms_lookup(address, &symsize, &offset, &modname); 
+	symname = kallsyms_lookup(address, &symsize, &offset, &modname, namebuf); 
 	if (!symname) 
 		return printk("[<%016lx>]", address);
 	if (!modname) 
@@ -101,44 +102,6 @@ int printk_address(unsigned long address)
 { 
 	return printk("[<%016lx>]", address);
 } 
-#endif
-
-
-#ifdef CONFIG_MODULES
-
-/* FIXME: Accessed without a lock --RR */
-extern struct list_head modules;
-
-static inline int kernel_text_address(unsigned long addr)
-{
-   int retval = 0;
-   struct module *mod;
-
-   if (addr >= (unsigned long) &_stext &&
-       addr <= (unsigned long) &_etext)
-       return 1;
-
-   list_for_each_entry(mod, &modules, list) { 	
-       /* mod_bound tests for addr being inside the vmalloc'ed
-        * module area. Of course it'd be better to test only
-        * for the .text subset... */
-       if (mod_bound((void *)addr, 0, mod)) {
-           retval = 1;
-           break;
-       }
-   }
-
-   return retval;
-}
-
-#else
-
-static inline int kernel_text_address(unsigned long addr)
-{
-   return (addr >= (unsigned long) &_stext &&
-       addr <= (unsigned long) &_etext);
-}
-
 #endif
 
 static inline unsigned long *in_exception_stack(int cpu, unsigned long stack) 
@@ -434,7 +397,8 @@ static void do_trap(int trapnr, int signr, char *str,
 
 	/* kernel trap */ 
 	{	     
-		unsigned long fixup = search_exception_table(regs->rip);
+		const struct exception_table_entry *fixup;
+		fixup = search_exception_tables(regs->rip);
 		if (fixup) {
 			extern int exception_trace; 
 			if (exception_trace)
@@ -442,7 +406,7 @@ static void do_trap(int trapnr, int signr, char *str,
 	             "%s: fixed kernel exception at %lx err:%ld\n",
 	             current->comm, regs->rip, error_code);
 		
-			regs->rip = fixup;
+			regs->rip = fixup->fixup;
 		} else	
 			die(str, regs, error_code);
 		return;
@@ -486,8 +450,6 @@ asmlinkage void do_int3(struct pt_regs * regs, long error_code)
 	do_trap(3, SIGTRAP, "int3", regs, error_code, NULL);
 }
 
-extern void dump_pagetable(unsigned long);
-
 asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 {
 #ifdef CONFIG_CHECKING
@@ -516,13 +478,12 @@ asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 
 	/* kernel gp */
 	{
-		unsigned long fixup;
-		fixup = search_exception_table(regs->rip);
+		const struct exception_table_entry *fixup;
+		fixup = search_exception_tables(regs->rip);
 		if (fixup) {
-			regs->rip = fixup;
+			regs->rip = fixup->fixup;
 			return;
 		}
-//		dump_pagetable(regs->rip); 
 		die("general protection fault", regs, error_code);
 	}
 }

@@ -13,10 +13,16 @@ CONFIG_EXPERIMENTAL=y
 #
 # General setup
 #
-# CONFIG_NET is not set
 # CONFIG_SYSVIPC is not set
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
+# CONFIG_LOG_BUF_SHIFT_17 is not set
+# CONFIG_LOG_BUF_SHIFT_16 is not set
+# CONFIG_LOG_BUF_SHIFT_15 is not set
+CONFIG_LOG_BUF_SHIFT_14=y
+# CONFIG_LOG_BUF_SHIFT_13 is not set
+# CONFIG_LOG_BUF_SHIFT_12 is not set
+CONFIG_LOG_BUF_SHIFT=14
 
 #
 # Loadable module support
@@ -101,6 +107,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_PCI_LEGACY_PROC=y
 CONFIG_MMU=y
 CONFIG_SWAP=y
 # CONFIG_HOTPLUG is not set
@@ -165,6 +172,11 @@ CONFIG_EMBEDDED_RAMDISK_IMAGE="ramdisk.gz"
 # I2O device support
 #
 # CONFIG_I2O is not set
+
+#
+# Networking support
+#
+# CONFIG_NET is not set
 
 #
 # Amateur Radio support

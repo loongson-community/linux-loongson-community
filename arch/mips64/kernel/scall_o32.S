@@ -403,23 +403,23 @@ out:	jr	ra
 	sys	sys_setpriority	3
 	sys	sys_ni_syscall	0
 	sys	sys32_statfs	2
-	sys	sys32_fstatfs	2			/* 4100 */
-	sys	sys_ni_syscall	0	/* sys_ioperm */
+	sys	sys32_fstatfs	2		/* 4100 */
+	sys	sys_ni_syscall	0		/* sys_ioperm */
 	sys	sys_socketcall	2
 	sys	sys_syslog	3
 	sys	compat_sys_setitimer	3
-	sys	compat_sys_getitimer	2			/* 4105 */
-	sys	sys32_newstat	2
-	sys	sys32_newlstat	2
-	sys	sys32_newfstat	2
-	sys	sys_ni_syscall	0	/* was sys_uname */
-	sys	sys_ni_syscall	0	/* sys_ioperm  *//* 4110 */
-	sys	sys_vhangup	0
-	sys	sys_ni_syscall	0	/* was sys_idle	 */
-	sys	sys_ni_syscall	0	/* sys_vm86 */
-	sys	sys32_wait4	4
-	sys	sys_swapoff	1			/* 4115 */
-	sys	sys32_sysinfo	1
+	sys	compat_sys_getitimer	2	/* 4105 */
+	sys	compat_sys_newstat	2
+	sys	compat_sys_newlstat	2
+	sys	compat_sys_newfstat	2
+	sys	sys_ni_syscall		0	/* was sys_uname */
+	sys	sys_ni_syscall		0	/* sys_ioperm  *//* 4110 */
+	sys	sys_vhangup		0
+	sys	sys_ni_syscall		0	/* was sys_idle	 */
+	sys	sys_ni_syscall		0	/* sys_vm86 */
+	sys	sys32_wait4		4
+	sys	sys_swapoff		1	/* 4115 */
+	sys	sys32_sysinfo		1
 	sys	sys32_ipc		6
 	sys	sys_fsync	1
 	sys	sys32_sigreturn	0

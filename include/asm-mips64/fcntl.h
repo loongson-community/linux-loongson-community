@@ -84,17 +84,6 @@ typedef struct flock {
 	__kernel_pid_t l_pid;
 } flock_t;
 
-struct flock32 {				/* for 32-bit compat code */
-	short	l_type;
-	short	l_whence;
-	__kernel_off_t32 l_start;
-	__kernel_off_t32 l_len;
-	__s32	l_sysid;
-	__kernel_pid_t32 l_pid;
-	short	__unused;
-	__s32	pad[4];
-};
-
 #ifdef __KERNEL__
 #define flock64		flock
 #endif

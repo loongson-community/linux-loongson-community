@@ -8,7 +8,6 @@
  *  rewritten by Paul Mackerras.
  *    Copyright (C) 1996 Paul Mackerras.
  *  MPC8xx modifications Copyright (C) 1997 Dan Malek (dmalek@jlc.net).
- *  Adaptations for iSeries Lpar by Mike Corrigan & Dave Boutcher
  *
  *  This file contains the system call entry code, context switch
  *  code, and exception/interrupt return code for PowerPC.
@@ -31,14 +30,10 @@
 #include <asm/thread_info.h>
 #include <asm/ppc_asm.h>
 #include <asm/offsets.h>
-#ifdef	CONFIG_PPC_ISERIES
-#include "iSeries_asm.h"
-#endif /* CONFIG_PPC_ISERIES */
 
 #undef SHOW_SYSCALLS
 #undef SHOW_SYSCALLS_TASK
 
-#ifndef CONFIG_PPC_ISERIES	/* iSeries version is in iSeries_head.S */
 /*
  * This code finishes saving the registers to the exception frame
  * and jumps to the appropriate handler for the exception, turning
@@ -67,7 +62,21 @@ transfer_to_handler:
 	addi	r11,r1,STACK_FRAME_OVERHEAD
 	stw	r11,PT_REGS(r12)
 	b	3f
-2:	/* if from kernel, check for stack overflow */
+2:	/* if from kernel, check interrupted DOZE/NAP mode and
+         * check for stack overflow
+         */
+#ifdef CONFIG_6xx
+	mfspr	r11,SPRN_HID0
+	mtcr	r11
+BEGIN_FTR_SECTION
+	bt-	8,power_save_6xx_restore	/* Check DOZE */
+END_FTR_SECTION_IFSET(CPU_FTR_CAN_DOZE)
+BEGIN_FTR_SECTION
+	bt-	9,power_save_6xx_restore	/* Check NAP */
+END_FTR_SECTION_IFSET(CPU_FTR_CAN_NAP)
+#endif /* CONFIG_6xx */
+	.globl transfer_to_handler_cont
+transfer_to_handler_cont:
 	lwz	r11,THREAD_INFO-THREAD(r12)
 	cmplw	r1,r11			/* if r1 <= current->thread_info */
 	ble-	stack_ovf		/* then the kernel stack overflowed */
@@ -101,7 +110,6 @@ stack_ovf:
 	mtspr	SRR1,r10
 	SYNC
 	RFI
-#endif /* CONFIG_PPC_ISERIES */
 
 /*
  * Handle a system call.
@@ -370,8 +378,7 @@ ppc_clone:
  * On entry, r3 points to the THREAD for the current task, r4
  * points to the THREAD for the new task.
  *
- * This routine is always called with interrupts disabled
- * (soft disabled for iSeries).
+ * This routine is always called with interrupts disabled.
  *
  * Note: there are two ways to get to the "going out" portion
  * of this code; either by coming in via the entry (_switch)

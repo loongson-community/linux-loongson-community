@@ -1,5 +1,5 @@
 /*
- * AGPGART module version 1.0
+ * AGPGART driver.
  * Copyright (C) 2002 Dave Jones.
  * Copyright (C) 1999 Jeff Hartmann.
  * Copyright (C) 1999 Precision Insight, Inc.
@@ -110,7 +110,6 @@ void agp_free_memory(agp_memory * curr)
 	}
 	if (curr->page_count != 0) {
 		for (i = 0; i < curr->page_count; i++) {
-			curr->memory[i] &= ~(0x00000fff);
 			agp_bridge.agp_destroy_page(phys_to_virt(curr->memory[i]));
 		}
 	}
@@ -158,7 +157,7 @@ agp_memory *agp_allocate_memory(size_t page_count, u32 type)
 			agp_free_memory(new);
 			return NULL;
 		}
-		new->memory[i] = agp_bridge.mask_memory(virt_to_phys(addr), type);
+		new->memory[i] = virt_to_phys(addr);
 		new->page_count++;
 	}
 
@@ -203,13 +202,44 @@ static int agp_return_size(void)
 	return current_size;
 }
 
+int agp_num_entries(void)
+{
+	int num_entries;
+	void *temp;
+
+	temp = agp_bridge.current_size;
+
+	switch (agp_bridge.size_type) {
+	case U8_APER_SIZE:
+		num_entries = A_SIZE_8(temp)->num_entries;
+		break;
+	case U16_APER_SIZE:
+		num_entries = A_SIZE_16(temp)->num_entries;
+		break;
+	case U32_APER_SIZE:
+		num_entries = A_SIZE_32(temp)->num_entries;
+		break;
+	case LVL2_APER_SIZE:
+		num_entries = A_SIZE_LVL2(temp)->num_entries;
+		break;
+	case FIXED_APER_SIZE:
+		num_entries = A_SIZE_FIX(temp)->num_entries;
+		break;
+	default:
+		num_entries = 0;
+		break;
+	}
+
+	num_entries -= agp_memory_reserved>>PAGE_SHIFT;
+	if (num_entries<0)
+		num_entries = 0;
+	return num_entries;
+}
+
 /* Routine to copy over information structure */
 
 int agp_copy_info(agp_kern_info * info)
 {
-	unsigned long page_mask = 0;
-	int i;
-
 	memset(info, 0, sizeof(agp_kern_info));
 	if (agp_bridge.type == NOT_SUPPORTED) {
 		info->chipset = agp_bridge.type;
@@ -225,11 +255,7 @@ int agp_copy_info(agp_kern_info * info)
 	info->max_memory = agp_bridge.max_memory_agp;
 	info->current_memory = atomic_read(&agp_bridge.current_memory_agp);
 	info->cant_use_aperture = agp_bridge.cant_use_aperture;
-
-	for(i = 0; i < agp_bridge.num_of_masks; i++)
-		page_mask |= agp_bridge.mask_memory(page_mask, i);
-
-	info->page_mask = ~page_mask;
+	info->page_mask = ~0UL;
 	return 0;
 }
 
@@ -469,7 +495,7 @@ int agp_generic_create_gatt_table(void)
 	for (page = virt_to_page(table); page <= virt_to_page(table_end); page++)
 		SetPageReserved(page);
 
-	agp_bridge.gatt_table_real = (unsigned long *) table;
+	agp_bridge.gatt_table_real = (u32 *) table;
 	agp_gatt_table = (void *)table; 
 	CACHE_FLUSH();
 	agp_bridge.gatt_table = ioremap_nocache(virt_to_phys(table),
@@ -486,6 +512,7 @@ int agp_generic_create_gatt_table(void)
 	}
 	agp_bridge.gatt_bus_addr = virt_to_phys(agp_bridge.gatt_table_real);
 
+	/* AK: bogus, should encode addresses > 4GB */
 	for (i = 0; i < num_entries; i++)
 		agp_bridge.gatt_table[i] = (unsigned long) agp_bridge.scratch_page;
 
@@ -586,6 +613,7 @@ int agp_generic_insert_memory(agp_memory * mem, off_t pg_start, int type)
 		return -EINVAL;
 	}
 
+	/* AK: could wrap */
 	if ((pg_start + mem->page_count) > num_entries)
 		return -EINVAL;
 
@@ -604,7 +632,8 @@ int agp_generic_insert_memory(agp_memory * mem, off_t pg_start, int type)
 	}
 
 	for (i = 0, j = pg_start; i < mem->page_count; i++, j++)
-		agp_bridge.gatt_table[j] = mem->memory[i];
+		agp_bridge.gatt_table[j] =
+				agp_bridge.mask_memory(mem->memory[i], mem->type);
 
 	agp_bridge.tlb_flush(mem);
 	return 0;
@@ -618,6 +647,8 @@ int agp_generic_remove_memory(agp_memory * mem, off_t pg_start, int type)
 		/* The generic routines know nothing of memory types */
 		return -EINVAL;
 	}
+
+	/* AK: bogus, should encode addresses > 4GB */
 	for (i = pg_start; i < (mem->page_count + pg_start); i++) {
 		agp_bridge.gatt_table[i] =
 		    (unsigned long) agp_bridge.scratch_page;
@@ -712,4 +743,6 @@ EXPORT_SYMBOL(agp_generic_remove_memory);
 EXPORT_SYMBOL(agp_generic_alloc_by_type);
 EXPORT_SYMBOL(agp_generic_free_by_type);
 EXPORT_SYMBOL(global_cache_flush);
+
+EXPORT_SYMBOL_GPL(agp_num_entries);
 

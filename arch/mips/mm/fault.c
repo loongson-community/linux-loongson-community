@@ -20,6 +20,7 @@
 #include <linux/smp_lock.h>
 #include <linux/version.h>
 #include <linux/vt_kern.h>		/* For unblank_screen() */
+#include <linux/module.h>
 
 #include <asm/branch.h>
 #include <asm/hardirq.h>
@@ -28,6 +29,7 @@
 #include <asm/softirq.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/ptrace.h>
 
 #define development_version (LINUX_VERSION_CODE & 0x100)
 
@@ -72,8 +74,13 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	unsigned long fixup;
+	const struct exception_table_entry *fixup;
 	siginfo_t info;
+
+#if 0
+	printk("Cpu%d[%s:%d:%08lx:%ld:%08lx]\n", smp_processor_id(),
+	       current->comm, current->pid, address, write, regs->cp0_epc);
+#endif
 
 	/*
 	 * We fault-in kernel-space virtual memory on-demand. The
@@ -94,10 +101,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	 */
 	if (in_atomic() || !mm)
 		goto no_context;
-#if 0
-	printk("[%s:%d:%08lx:%ld:%08lx]\n", current->comm, current->pid,
-	       address, write, regs->cp0_epc);
-#endif
+
 	down_read(&mm->mmap_sem);
 	vma = find_vma(mm, address);
 	if (!vma)
@@ -177,12 +181,11 @@ bad_area:
 
 no_context:
 	/* Are we prepared to handle this kernel fault?  */
-	fixup = search_exception_table(exception_epc(regs));
+	fixup = search_exception_tables(exception_epc(regs));
 	if (fixup) {
-		long new_epc;
+		unsigned long new_epc = fixup->nextinsn;
 
 		tsk->thread.cp0_baduaddr = address;
-		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
 		if (development_version)
 			printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
 			       tsk->comm, regs->cp0_epc, new_epc);
@@ -194,11 +197,13 @@ no_context:
 	 * Oops. The kernel tried to access some bad page. We'll have to
 	 * terminate things with extreme prejudice.
 	 */
+
+	bust_spinlocks(1);
+
 	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
 	       address, regs->cp0_epc, regs->regs[31]);
 	die("Oops", regs);
-	/* Game over.  */
 
 /*
  * We ran out of memory, or some other thing happened to us that made

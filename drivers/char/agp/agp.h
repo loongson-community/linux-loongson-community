@@ -1,5 +1,6 @@
 /*
- * AGPGART module version 0.99
+ * AGPGART module
+ * Copyright (C) 2002 Dave Jones
  * Copyright (C) 1999 Jeff Hartmann
  * Copyright (C) 1999 Precision Insight, Inc.
  * Copyright (C) 1999 Xi Graphics, Inc.
@@ -46,6 +47,7 @@ void agp_generic_destroy_page(void *addr);
 int agp_generic_suspend(void);
 void agp_generic_resume(void);
 void agp_free_key(int key);
+int agp_num_entries(void);
 
 #define PFX "agpgart: "
 
@@ -128,9 +130,10 @@ struct agp_bridge_data {
 	void *dev_private_data;
 	struct pci_dev *dev;
 	struct gatt_mask *masks;
-	unsigned long *gatt_table;
-	unsigned long *gatt_table_real;
+	u32 *gatt_table;
+	u32 *gatt_table_real;
 	unsigned long scratch_page;
+	unsigned long scratch_page_real;
 	unsigned long gart_bus_addr;
 	unsigned long gatt_bus_addr;
 	u32 mode;
@@ -143,7 +146,6 @@ struct agp_bridge_data {
 	int needs_scratch_page;
 	int aperture_size_idx;
 	int num_aperture_sizes;
-	int num_of_masks;
 	int capndx;
 	int cant_use_aperture;
 
@@ -292,6 +294,9 @@ struct agp_bridge_data {
 #define VIA_ATTBASE	0x88
 
 /* VIA KT400 */
+#define VIA_AGP3_GARTCTRL	0x90
+#define VIA_AGP3_APSIZE	0x94
+#define VIA_AGP3_ATTBASE	0x98
 #define VIA_AGPSEL	0xfd
 
 /* SiS registers */

@@ -331,12 +331,6 @@ extern int (*console_blank_hook)(int);
 #define DEFAULT_BOUNCE_INTERVAL		(3 * HZ)
 
 /*
- * Save a segment register away
- */
-#define savesegment(seg, where) \
-		__asm__ __volatile__("movl %%" #seg ",%0" : "=m" (where))
-
-/*
  * Maximum number of events stored
  */
 #define APM_MAX_EVENTS		20
@@ -724,7 +718,7 @@ static u8 apm_bios_call_simple(u32 func, u32 ebx_in, u32 ecx_in, u32 *eax)
  *	same format.
  */
 
-static int __init apm_driver_version(u_short *val)
+static int apm_driver_version(u_short *val)
 {
 	u32	eax;
 

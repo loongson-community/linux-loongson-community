@@ -6,10 +6,6 @@ config MMU
 	bool
 	default y
 
-config SWAP
-	bool
-	default y
-
 config UID16
 	bool
 
@@ -28,7 +24,6 @@ config HAVE_DEC_LOCK
 mainmenu "Linux/PowerPC Kernel Configuration"
 
 source "init/Kconfig"
-
 
 menu "Platform support"
 
@@ -77,15 +72,9 @@ config POWER3
 config 8xx
 	bool "8xx"
 
-config PPC_ISERIES
-	bool "iSeries"
-
 endchoice
 
-config 4xx
-	bool
-	depends on 40x
-	default y
+source arch/ppc/platforms/4xx/Kconfig
 
 config 8260
 	bool "MPC8260 CPM Support"
@@ -105,7 +94,7 @@ config GENERIC_ISA_DMA
 
 config PPC64BRIDGE
 	bool
-	depends on PPC_ISERIES || POWER3
+	depends on POWER3
 	default y
 
 config ALL_PPC
@@ -143,25 +132,6 @@ config SERIAL_CONSOLE
 	bool
 	depends on 8xx || 8260
 	default y
-	---help---
-	  If you say Y here, it will be possible to use a serial port as the
-	  system console (the system console is the device which receives all
-	  kernel messages and warnings and which allows logins in single user
-	  mode). This could be useful if some terminal or printer is connected
-	  to that serial port.
-
-	  Even if you say Y here, the currently visible virtual console
-	  (/dev/tty0) will still be used as the system console by default, but
-	  you can alter that using a kernel command line option such as
-	  "console=ttyS1". (Try "man bootparam" or see the documentation of
-	  your boot loader (lilo or loadlin) about how to pass options to the
-	  kernel at boot time.)
-
-	  If you don't have a graphics card installed and you say Y here, the
-	  kernel will automatically use the first serial line, /dev/ttyS0, as
-	  system console.
-
-	  If unsure, say N.
 
 choice
 	prompt "Machine Type"
@@ -216,56 +186,9 @@ config WILLOW_1
 
 endchoice
 
-choice
-	prompt "Machine Type"
-	depends on 40x
-	default WALNUT
-
-config ASH
-	bool "Ash"
-
-config CEDER
-	bool "Ceder"
-
-config CPCI405
-	bool "CPCI405"
-
-config EP405
-	bool "EP405/EP405PC"
-
-config OAK
-	bool "Oak"
-	help
-	  Select Oak if you have an IBM 403GCX "Oak" Evaluation Board.
-
-	  Select Walnut if you have an IBM 405GP "Walnut" Evaluation Board.
-
-	  More information on these boards is available at:
-	  <http://www.chips.ibm.com/products/powerpc/tools/evk_pn.html#GCX>.
-
-config REDWOOD_4
-	bool "Redwood-4"
-
-config REDWOOD_5
-	bool "Redwood-5"
-
-config TIVO
-	bool "Tivo"
-
-config WALNUT
-	bool "Walnut"
-	help
-	  Select Walnut if you have an IBM 405GP "Walnut" Evaluation Board.
-
-endchoice
-
-config EP405PC
-	bool "EP405PC Support"
-	depends on EP405
-
 config NOT_COHERENT_CACHE
 	bool
-	depends on 40x || 8xx
+	depends on 4xx || 8xx
 	default y
 
 choice
@@ -497,6 +420,10 @@ config TQM8xxL
 	depends on 8xx && (TQM823L || TQM850L || FPS850L || TQM855L || TQM860L || SM850)
 	default y
 
+config EMBEDDEDBOOT
+	bool
+	depends on 8xx || 8260
+	default y
 choice
 	prompt "Machine Type"
 	depends on 6xx && !8260
@@ -739,87 +666,7 @@ config MATH_EMULATION
 	  here.  Saying Y here will not hurt performance (on any machine) but
 	  will increase the size of the kernel.
 
-# It's often necessary to know the specific 4xx processor type.
-# Fortunately, it is impled (so far) from the board type, so we
-# don't need to ask more redundant questions.
-config NP405H
-	bool
-	depends on ASH
-	default y
-
-config TREEBOOT
-	bool
-	depends on 40x && (WALNUT || REDWOOD_5 || REDWOOD_4 || OAK || TIVO || CEDER || ASH)
-	default y
-
-config IBM405_ERR77
-	bool
-	depends on 40x && (WALNUT || REDWOOD_5 || REDWOOD_4 || EP405 || CPCI405 || CEDER || ASH)
-	default y
-
-config IBM_OCP
-	bool
-	depends on 40x && (WALNUT || REDWOOD_5 || REDWOOD_4 || EP405 || CPCI405 || CEDER || ASH)
-	default y
-
-config NP405L
-	bool
-	depends on CEDER
-	default y
-
-config BIOS_FIXUP
-	bool
-	depends on 40x && (WALNUT || EP405 || CEDER)
-	default y
-
-config 405GP
-	bool
-	depends on 40x && (WALNUT || EP405 || CPCI405)
-	default y
-
-config EMBEDDEDBOOT
-	bool
-	depends on 8xx || 8260 || 40x && EP405
-	default y
-
-config 403GCX
-	bool
-	depends on 40x && (OAK || TIVO)
-	default y
-
-config STB03xxx
-	bool
-	depends on 40x && (REDWOOD_5 || REDWOOD_4)
-	default y
-
-config 405_DMA
-	bool "Blue Logic DMA"
-	depends on 40x
-
-config PM
-	bool "Power Management support (EXPERIMENTAL)"
-	depends on 40x && EXPERIMENTAL
-
-choice
-	prompt "TTYS0 device and default console"
-	depends on 40x
-	default UART0_TTYS0
-
-config UART0_TTYS0
-	bool "UART0"
-
-config UART0_TTYS1
-	bool "UART1"
-
-endchoice
-
-config IBM405_ERR51
-	bool
-	depends on 40x
-	default y
-
 endmenu
-
 
 menu "General setup"
 
@@ -855,8 +702,7 @@ config MCA
 
 config PCI
 	bool "PCI support" if 4xx || 8260
-	default y if !4xx && !8260 && !8xx && !APUS && !PPC_ISERIES
-	default PCI_ISERIES if !4xx && !8260 && !8xx && !APUS && PPC_ISERIES
+	default y if !4xx && !8260 && !8xx && !APUS
 	default PCI_PERMEDIA if !4xx && !8260 && !8xx && APUS
 	default PCI_QSPAN if !4xx && !8260 && 8xx
 	help
@@ -879,10 +725,6 @@ config PCI_QSPAN
 config PCI_PERMEDIA
 	bool "PCI for Permedia2"
 	depends on !4xx && !8xx && APUS
-
-config PCI_ISERIES
-	bool "IBM iSeries Native I/O Support"
-	depends on !4xx && !8260 && !8xx && !APUS && PPC_ISERIES
 
 # only elf supported, a.out is not -- Cort
 config KCORE_ELF
@@ -977,7 +819,7 @@ config PPC601_SYNC_FIX
 
 config PROC_DEVICETREE
 	bool "Support for Open Firmware device tree in /proc"
-	depends on ALL_PPC
+	depends on ALL_PPC && PROC_FS
 	help
 	  This option adds a device-tree directory under /proc which contains
 	  an image of the device tree that the kernel copies from Open
@@ -985,7 +827,7 @@ config PROC_DEVICETREE
 
 config PPC_RTAS
 	bool "Support for RTAS (RunTime Abstraction Services) in /proc"
-	depends on ALL_PPC
+	depends on ALL_PPC && PROC_FS
 	---help---
 	  When you use this option, you will be able to use RTAS from
 	  userspace.
@@ -1030,7 +872,7 @@ config PREP_RESIDUAL
 
 config PROC_PREPRESIDUAL
 	bool "Support for reading of PReP Residual Data in /proc"
-	depends on PREP_RESIDUAL
+	depends on PREP_RESIDUAL && PROC_FS
 	help
 	  Enabling this option will create a /proc/residual file which allows
 	  you to get at the residual data on PReP systems.  You will need a tool
@@ -1218,13 +1060,7 @@ config HIGHMEM_START_BOOL
 	  Say N here unless you know what you are doing.
 
 config HIGHMEM_START
-	hex "Virtual start address of high memory pool"
-	depends on HIGHMEM_START_BOOL
-	default "0xfe000000"
-
-config HIGHMEM_START
-	hex
-	depends on !HIGHMEM_START_BOOL
+	hex "Virtual start address of high memory pool" if HIGHMEM_START_BOOL
 	default "0xfe000000"
 
 config LOWMEM_SIZE_BOOL
@@ -1240,13 +1076,7 @@ config LOWMEM_SIZE_BOOL
 	  Say N here unless you know what you are doing.
 
 config LOWMEM_SIZE
-	hex "Maximum low memory size (in bytes)"
-	depends on LOWMEM_SIZE_BOOL
-	default "0x20000000"
-
-config LOWMEM_SIZE
-	hex
-	depends on !LOWMEM_SIZE_BOOL
+	hex "Maximum low memory size (in bytes)" if LOWMEM_SIZE_BOOL
 	default "0x20000000"
 
 config KERNEL_START_BOOL
@@ -1261,13 +1091,7 @@ config KERNEL_START_BOOL
 	  Say N here unless you know what you are doing.
 
 config KERNEL_START
-	hex "Virtual address of kernel base"
-	depends on KERNEL_START_BOOL
-	default "0xc0000000"
-
-config KERNEL_START
-	hex
-	depends on !KERNEL_START_BOOL
+	hex "Virtual address of kernel base" if KERNEL_START_BOOL
 	default "0xc0000000"
 
 config TASK_SIZE_BOOL
@@ -1281,18 +1105,8 @@ config TASK_SIZE_BOOL
 	  Say N here unless you know what you are doing.
 
 config TASK_SIZE
-	hex "Size of user task space"
-	depends on TASK_SIZE_BOOL
+	hex "Size of user task space" if TASK_SIZE_BOOL
 	default "0x80000000"
-
-config TASK_SIZE
-	hex
-	depends on !TASK_SIZE_BOOL
-	default "0x80000000"
-
-config PIN_TLB
-	bool "Pinned Kernel TLBs (860 ONLY)"
-	depends on ADVANCED_OPTIONS && 8xx
 
 config BOOT_LOAD_BOOL
 	bool "Set the boot link/load address"
@@ -1305,20 +1119,28 @@ config BOOT_LOAD_BOOL
 	  Say N here unless you know what you are doing.
 
 config BOOT_LOAD
-	hex "Link/load address for booting"
-	depends on BOOT_LOAD_BOOL
-	default "0x00400000"
-
-# If we don't have a custom load, we define one here depending.
-config BOOT_LOAD
-	hex
-	depends on !BOOT_LOAD_BOOL && (40x || 8xx || 8260)
-	default "0x00400000"
-
-config BOOT_LOAD
-	hex
-	depends on !BOOT_LOAD_BOOL
+	hex "Link/load address for booting" if BOOT_LOAD_BOOL
+	default "0x00400000" if 40x || 8xx || 8260
 	default "0x00800000"
+
+config PIN_TLB
+	bool "Pinned Kernel TLBs (860 ONLY)"
+	depends on ADVANCED_OPTIONS && 8xx
+
+config SWAP
+	bool "Enable support for swap"
+	depends on ADVANCED_OPTIONS
+	help
+	  This option allows you to turn off support for swapfiles in
+	  the kernel.  This can be useful if you know that your system
+	  will never have swap.
+
+	  Say Y here unless you know what you are doing.
+
+config SWAP
+	bool
+	depends on !ADVANCED_OPTIONS
+	default y
 
 endmenu
 
@@ -1415,47 +1237,6 @@ source "drivers/message/i2o/Kconfig"
 
 source "net/Kconfig"
 
-
-menu "Network device support"
-	depends on NET
-
-config NETDEVICES
-	bool "Network device support"
-	---help---
-	  You can say N here if you don't intend to connect your Linux box to
-	  any other computer at all or if all your connections will be over a
-	  telephone line with a modem either via UUCP (UUCP is a protocol to
-	  forward mail and news between unix hosts over telephone lines; read
-	  the UUCP-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>) or dialing up a shell
-	  account or a BBS, even using term (term is a program which gives you
-	  almost full Internet connectivity if you have a regular dial up
-	  shell account on some Internet connected Unix computer. Read
-	  <http://www.bart.nl/~patrickr/term-howto/Term-HOWTO.html>).
-
-	  You'll have to say Y if your computer contains a network card that
-	  you want to use under Linux (make sure you know its name because you
-	  will be asked for it and read the Ethernet-HOWTO (especially if you
-	  plan to use more than one network card under Linux)) or if you want
-	  to use SLIP (Serial Line Internet Protocol is the protocol used to
-	  send Internet traffic over telephone lines or null modem cables) or
-	  CSLIP (compressed SLIP) or PPP (Point to Point Protocol, a better
-	  and newer replacement for SLIP) or PLIP (Parallel Line Internet
-	  Protocol is mainly used to create a mini network by connecting the
-	  parallel ports of two local machines) or AX.25/KISS (protocol for
-	  sending Internet traffic over amateur radio links).
-
-	  Make sure to read the NET-3-HOWTO. Eventually, you will have to read
-	  Olaf Kirch's excellent and free book "Network Administrator's
-	  Guide", to be found in <http://www.linuxdoc.org/docs.html#guide>. If
-	  unsure, say Y.
-
-source "drivers/net/Kconfig"
-
-source "drivers/atm/Kconfig"
-
-endmenu
-
 source "net/ax25/Kconfig"
 
 source "net/irda/Kconfig"
@@ -1464,78 +1245,7 @@ source "drivers/isdn/Kconfig"
 
 source "drivers/video/Kconfig"
 
-menu "iSeries device drivers"
-	depends on PPC_ISERIES
-
-config VIOCONS
-	tristate "iSeries Virtual Console Support"
-
-config VIODASD
-	tristate "iSeries Virtual I/O disk support"
-
-config VIODASD_IDE
-	bool "iSeries Virtual disk IDE emulation"
-	depends on VIODASD
-
-config VIOCD
-	tristate "iSeries Virtual I/O CD support"
-
-config VIOCD_AZTECH
-	bool "iSeries Virtual CD Aztech emulation"
-	depends on VIOCD
-
-config VIOTAPE
-	tristate "iSeries Virtual Tape Support"
-
-config VETH
-	tristate "iSeries Virtual Ethernet driver support"
-
-config VIOPATH
-	bool
-	depends on VIOCONS || VIODASD || VIOTAPE || VIOCD
-	default y
-
-config CD_NO_IDESCSI
-	bool
-	depends on VIOCD=y
-	default y
-	---help---
-	  If you have a CD-ROM drive that is neither SCSI nor IDE/ATAPI, say Y
-	  here, otherwise N. Read the CD-ROM-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
-
-	  Note that the answer to this question doesn't directly affect the
-	  kernel: saying N will just cause the configurator to skip all
-	  the questions about these CD-ROM drives. If you are unsure what you
-	  have, say Y and find out whether you have one of the following
-	  drives.
-
-	  For each of these drivers, a file Documentation/cdrom/{driver_name}
-	  exists. Especially in cases where you do not know exactly which kind
-	  of drive you have you should read there. Most of these drivers use a
-	  file drivers/cdrom/{driver_name}.h where you can define your
-	  interface parameters and switch some internal goodies.
-
-	  All these CD-ROM drivers are also usable as a module ( = code which
-	  can be inserted in and removed from the running kernel whenever you
-	  want). If you want to compile them as module, say M instead of Y and
-	  read <file:Documentation/modules.txt>.
-
-	  If you want to use any of these CD-ROM drivers, you also have to
-	  answer Y or M to "ISO 9660 CD-ROM file system support" below (this
-	  answer will get "defaulted" for you if you enable any of the Linux
-	  CD-ROM drivers).
-
-config BLK_DEV_IDECD
-	tristate
-	depends on VIOCD=y
-	default y
-
-endmenu
-
-
 menu "Old CD-ROM drivers (not SCSI, not IDE)"
-	depends on !PPC_ISERIES
 
 config CD_NO_IDESCSI
 	bool "Support non-SCSI/IDE/ATAPI CDROM drives"
@@ -1795,10 +1505,23 @@ config DEBUG_SPINLOCK
 config DEBUG_HIGHMEM
 	bool "Highmem debugging"
 	depends on DEBUG_KERNEL && HIGHMEM
+	help
+	  This options enables additional error checking for high memory
+	  systems.  Disable for production systems.
 
 config KALLSYMS
 	bool "Load all symbols for debugging/kksymoops"
+	help
+	  Say Y here to let the kernel print out symbolic crash information and
+	  symbolic stack backtraces. This increases the size of the kernel
+	  somewhat, as all symbols have to be loaded into the kernel image.
+
+config DEBUG_SPINLOCK_SLEEP
+	bool "Sleep-inside-spinlock checking"
 	depends on DEBUG_KERNEL
+	help
+	  If you say Y here, various routines which may sleep will become very
+	  noisy if they are called with a spinlock held.	
 
 config KGDB
 	bool "Include kgdb kernel debugger"
@@ -1866,9 +1589,13 @@ config SERIAL_TEXT_DEBUG
 	bool "Support for early boot texts over serial port"
 	depends on 4xx || GT64260 || LOPEC || MCPN765 || PPLUS || PRPMC800 || SANDPOINT || ZX4500
 
+config OCP
+	bool
+	depends on IBM_OCP
+	default y
+	
 endmenu
 
 source "security/Kconfig"
 
 source "crypto/Kconfig"
-

@@ -92,39 +92,6 @@ int cp_compat_stat(struct kstat *stat, struct compat_stat *statbuf)
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
-asmlinkage int sys32_newstat(char * filename, struct compat_stat *statbuf)
-{
-	struct kstat stat;
-	int error = vfs_stat(filename, &stat);
-
-	if (!error)
-		error = cp_compat_stat(&stat, statbuf);
-
-	return error;
-}
-
-asmlinkage int sys32_newlstat(char * filename, struct compat_stat *statbuf)
-{
-	struct kstat stat;
-	int error = vfs_lstat(filename, &stat);
-
-	if (!error)
-		error = cp_compat_stat(&stat, statbuf);
-
-	return error;
-}
-
-asmlinkage long sys32_newfstat(unsigned int fd, struct compat_stat * statbuf)
-{
-	struct kstat stat;
-	int error = vfs_fstat(fd, &stat);
-
-	if (!error)
-		error = cp_compat_stat(&stat, statbuf);
-
-	return error;
-}
-
 asmlinkage unsigned long
 sys32_mmap2(unsigned long addr, size_t len, unsigned long prot,
          unsigned long flags, unsigned long fd, unsigned long pgoff)
@@ -1272,39 +1239,6 @@ asmlinkage int sys32_setsockopt(int fd, int level, int optname,
 	return sys_setsockopt(fd, level, optname, optval, optlen);
 }
 
-static inline int get_flock(struct flock *kfl, struct flock32 *ufl)
-{
-	int err;
-
-	if (!access_ok(VERIFY_READ, ufl, sizeof(*ufl)))
-		return -EFAULT;
-
-	err = __get_user(kfl->l_type, &ufl->l_type);
-	err |= __get_user(kfl->l_whence, &ufl->l_whence);
-	err |= __get_user(kfl->l_start, &ufl->l_start);
-	err |= __get_user(kfl->l_len, &ufl->l_len);
-	err |= __get_user(kfl->l_pid, &ufl->l_pid);
-
-	return err;
-}
-
-static inline int put_flock(struct flock *kfl, struct flock32 *ufl)
-{
-	int err;
-
-	if (!access_ok(VERIFY_WRITE, ufl, sizeof(*ufl)))
-		return -EFAULT;
-
-	err = __put_user(kfl->l_type, &ufl->l_type);
-	err |= __put_user(kfl->l_whence, &ufl->l_whence);
-	err |= __put_user(kfl->l_start, &ufl->l_start);
-	err |= __put_user(kfl->l_len, &ufl->l_len);
-	err |= __put_user(0, &ufl->l_sysid);
-	err |= __put_user(kfl->l_pid, &ufl->l_pid);
-
-	return err;
-}
-
 extern asmlinkage long
 sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
 
@@ -1320,12 +1254,12 @@ sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
 			mm_segment_t old_fs;
 			long ret;
 
-			if (get_flock(&f, (struct flock32 *)arg))
+			if (get_compat_flock(&f, (struct compat_flock *)arg))
 				return -EFAULT;
 			old_fs = get_fs(); set_fs (KERNEL_DS);
 			ret = sys_fcntl(fd, cmd, (unsigned long)&f);
 			set_fs (old_fs);
-			if (put_flock(&f, (struct flock32 *)arg))
+			if (put_compat_flock(&f, (struct compat_flock *)arg))
 				return -EFAULT;
 			return ret;
 		}

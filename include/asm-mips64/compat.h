@@ -13,6 +13,22 @@ typedef s32		compat_time_t;
 typedef s32		compat_clock_t;
 typedef s32		compat_suseconds_t;
 
+typedef s32		compat_pid_t;
+typedef s32		compat_uid_t;
+typedef s32		compat_gid_t;
+typedef u32		compat_mode_t;
+typedef u32		compat_ino_t;
+typedef u32		compat_dev_t;
+typedef s32		compat_off_t;
+typedef s64		compat_loff_t;
+typedef u32		compat_nlink_t;
+typedef s32		compat_ipc_pid_t;
+typedef s32		compat_daddr_t;
+typedef s32		compat_caddr_t;
+typedef struct {
+	s32	val[2];
+} compat_fsid_t;
+
 struct compat_timespec {
 	compat_time_t	tv_sec;
 	s32		tv_nsec;
@@ -24,26 +40,37 @@ struct compat_timeval {
 };
 
 struct compat_stat {
-	__kernel_dev_t32	st_dev;
-	int			st_pad1[3];
-	__kernel_ino_t32	st_ino;
-	__kernel_mode_t32	st_mode;
-	__kernel_nlink_t32	st_nlink;
-	__kernel_uid_t32	st_uid;
-	__kernel_gid_t32	st_gid;
-	__kernel_dev_t32	st_rdev;
-	int			st_pad2[2];
-	__kernel_off_t32	st_size;
-	int			st_pad3;
-	compat_time_t		st_atime;
-	int			st_atime_nsec;
-	compat_time_t		st_mtime;
-	int			st_mtime_nsec;
-	compat_time_t		st_ctime;
-	int			st_ctime_nsec;
-	int			st_blksize;
-	int			st_blocks;
-	int			st_pad4[14];
+	compat_dev_t	st_dev;
+	s32		st_pad1[3];
+	compat_ino_t	st_ino;
+	compat_mode_t	st_mode;
+	compat_nlink_t	st_nlink;
+	compat_uid_t	st_uid;
+	compat_gid_t	st_gid;
+	compat_dev_t	st_rdev;
+	s32		st_pad2[2];
+	compat_off_t	st_size;
+	s32		st_pad3;
+	compat_time_t	st_atime;
+	s32		st_atime_nsec;
+	compat_time_t	st_mtime;
+	s32		st_mtime_nsec;
+	compat_time_t	st_ctime;
+	s32		st_ctime_nsec;
+	s32		st_blksize;
+	s32		st_blocks;
+	s32		st_pad4[14];
+};
+
+struct compat_flock {
+	short		l_type;
+	short		l_whence;
+	compat_off_t	l_start;
+	compat_off_t	l_len;
+	s32		l_sysid;
+	compat_pid_t	l_pid;
+	short		__unused;
+	s32	pad[4];
 };
 
 #endif /* _ASM_COMPAT_H */

@@ -13,7 +13,7 @@ endif
 HEAD-y				:= head.o
 HEAD-$(CONFIG_40x)		:= head_4xx.o
 HEAD-$(CONFIG_8xx)		:= head_8xx.o
-HEAD-$(CONFIG_PPC_ISERIES)	:= iSeries_head.o
+HEAD-$(CONFIG_6xx)		+= idle_6xx.o
 
 EXTRA_TARGETS	:= $(HEAD-y)
 
@@ -23,13 +23,10 @@ obj-y				:= entry.o traps.o irq.o idle.o time.o misc.o \
 					process.o signal.o ptrace.o align.o \
 					semaphore.o syscalls.o setup.o \
 					cputable.o ppc_htab.o
-obj-$(CONFIG_6xx)		+= l2cr.o ppc6xx_idle.o
-obj-$(CONFIG_ALL_PPC)		+= ppc6xx_idle.o
+obj-$(CONFIG_6xx)		+= l2cr.o
 obj-$(CONFIG_MODULES)		+= module.o ppc_ksyms.o
 obj-$(CONFIG_PCI)		+= pci.o 
-ifneq ($(CONFIG_PPC_ISERIES),y)
 obj-$(CONFIG_PCI)		+= pci-dma.o
-endif
 obj-$(CONFIG_KGDB)		+= ppc-stub.o
 obj-$(CONFIG_SMP)		+= smp.o
 obj-$(CONFIG_TAU)		+= temp.o
@@ -38,7 +35,6 @@ ifneq ($(CONFIG_MATH_EMULATION),n)
 obj-y				+= softemu8xx.o
 endif
 endif
-obj-$(CONFIG_PPC_ISERIES)	+= iSeries_misc.o
 
 find_name : find_name.c
 	$(HOSTCC) $(HOSTCFLAGS) -o find_name find_name.c

@@ -833,30 +833,6 @@ out:
 	return err;
 }
 
-static inline int get_flock(struct flock *kfl, struct flock32 *ufl)
-{
-	int err;
-	
-	err = get_user(kfl->l_type, &ufl->l_type);
-	err |= __get_user(kfl->l_whence, &ufl->l_whence);
-	err |= __get_user(kfl->l_start, &ufl->l_start);
-	err |= __get_user(kfl->l_len, &ufl->l_len);
-	err |= __get_user(kfl->l_pid, &ufl->l_pid);
-	return err;
-}
-
-static inline int put_flock(struct flock *kfl, struct flock32 *ufl)
-{
-	int err;
-	
-	err = __put_user(kfl->l_type, &ufl->l_type);
-	err |= __put_user(kfl->l_whence, &ufl->l_whence);
-	err |= __put_user(kfl->l_start, &ufl->l_start);
-	err |= __put_user(kfl->l_len, &ufl->l_len);
-	err |= __put_user(kfl->l_pid, &ufl->l_pid);
-	return err;
-}
-
 extern asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
 
 asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
@@ -868,7 +844,7 @@ asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg
 			mm_segment_t old_fs;
 			long ret;
 			
-			if(get_flock(&f, (struct flock32 *)A(arg)))
+			if(get_compat_flock(&f, (struct compat_flock *)A(arg)))
 				return -EFAULT;
 			old_fs = get_fs(); set_fs (KERNEL_DS);
 			ret = sys_fcntl(fd, cmd, (unsigned long)&f);
@@ -877,7 +853,7 @@ asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg
 			if (f.l_start >= 0x7fffffffUL ||
 			    f.l_start + f.l_len >= 0x7fffffffUL)
 				return -EOVERFLOW;
-			if(put_flock(&f, (struct flock32 *)A(arg)))
+			if(put_compat_flock(&f, (struct compat_flock *)A(arg)))
 				return -EFAULT;
 			return 0;
 		}
@@ -888,7 +864,7 @@ asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg
 			mm_segment_t old_fs;
 			long ret;
 			
-			if(get_flock(&f, (struct flock32 *)A(arg)))
+			if(get_compat_flock(&f, (struct compat_flock *)A(arg)))
 				return -EFAULT;
 			old_fs = get_fs(); set_fs (KERNEL_DS);
 			ret = sys_fcntl(fd, cmd, (unsigned long)&f);
@@ -1695,8 +1671,7 @@ asmlinkage int sys32_sched_rr_get_interval(compat_pid_t pid,
 	set_fs (KERNEL_DS);
 	ret = sys_sched_rr_get_interval(pid, &t);
 	set_fs (old_fs);
-	if (put_user (t.tv_sec, &interval->tv_sec) ||
-	    __put_user (t.tv_nsec, &interval->tv_nsec))
+	if (put_compat_timespec(&t, interval))
 		return -EFAULT;
 	return ret;
 }
@@ -1830,8 +1805,7 @@ sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 	signotset(&these);
 
 	if (uts) {
-		if (get_user (ts.tv_sec, &uts->tv_sec) ||
-		    get_user (ts.tv_nsec, &uts->tv_nsec))
+		if (get_compat_timespec(&ts, uts))
 			return -EINVAL;
 		if (ts.tv_nsec >= 1000000000L || ts.tv_nsec < 0
 		    || ts.tv_sec < 0)
@@ -4173,13 +4147,12 @@ sys32_futex(void *uaddr, int op, int val,
 	mm_segment_t old_fs;
 	int ret;
 
-	if (get_user (tmp.tv_sec,  &timeout32->tv_sec)  ||
-	    get_user (tmp.tv_nsec, &timeout32->tv_nsec))
+	if (timeout32 && get_compat_timespec(&tmp, timeout32))
 		return -EINVAL;
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	ret = sys_futex(uaddr, op, val, &tmp);
+	ret = sys_futex(uaddr, op, val, timeout32 ? &tmp : NULL);
 	set_fs(old_fs);
 
 	return ret;

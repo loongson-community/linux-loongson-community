@@ -13,10 +13,16 @@ CONFIG_EXPERIMENTAL=y
 #
 # General setup
 #
-CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
+# CONFIG_LOG_BUF_SHIFT_17 is not set
+# CONFIG_LOG_BUF_SHIFT_16 is not set
+# CONFIG_LOG_BUF_SHIFT_15 is not set
+CONFIG_LOG_BUF_SHIFT_14=y
+# CONFIG_LOG_BUF_SHIFT_13 is not set
+# CONFIG_LOG_BUF_SHIFT_12 is not set
+CONFIG_LOG_BUF_SHIFT=14
 
 #
 # Loadable module support
@@ -96,6 +102,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_PCI_LEGACY_PROC=y
 CONFIG_TC=y
 CONFIG_MMU=y
 CONFIG_SWAP=y
@@ -204,6 +211,11 @@ CONFIG_SCSI_DECNCR=y
 # CONFIG_I2O is not set
 
 #
+# Networking support
+#
+CONFIG_NET=y
+
+#
 # Networking options
 #
 CONFIG_PACKET=y
@@ -257,16 +269,7 @@ CONFIG_IPV6_SCTP__=y
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-
-#
-# Network device support
-#
 CONFIG_NETDEVICES=y
-
-#
-# ARCnet devices
-#
-# CONFIG_ARCNET is not set
 # CONFIG_DUMMY is not set
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
@@ -277,17 +280,11 @@ CONFIG_NETDEVICES=y
 # Ethernet (10 or 100Mbit)
 #
 CONFIG_NET_ETHERNET=y
-# CONFIG_NET_VENDOR_3COM is not set
-# CONFIG_NET_VENDOR_SMC is not set
-# CONFIG_NET_VENDOR_RACAL is not set
-# CONFIG_NET_POCKET is not set
 CONFIG_DECLANCE=y
 
 #
 # Ethernet (1000 Mbit)
 #
-# CONFIG_FDDI is not set
-# CONFIG_HIPPI is not set
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
 
@@ -299,7 +296,6 @@ CONFIG_DECLANCE=y
 #
 # Token Ring devices (depends on LLC=y)
 #
-# CONFIG_NET_FC is not set
 # CONFIG_SHAPER is not set
 
 #
