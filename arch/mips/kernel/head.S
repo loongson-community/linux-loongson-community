@@ -183,22 +183,17 @@ NESTED(smp_bootstrap, 16, sp)
 	.data
 	.align	PAGE_SHIFT
 
-#ifdef CONFIG_MIPS32
-	/*
-	 * Here we only have a two-level pagetable structure ...
-	 */
-	page	swapper_pg_dir, _PGD_ORDER
-	page	invalid_pte_table, _PTE_ORDER
-#endif
-#ifdef CONFIG_MIPS64
 	/*
 	 * ... but on 64-bit we've got three-level pagetables with a
 	 * slightly different layout ...
 	 */
 	page	swapper_pg_dir, _PGD_ORDER
+#ifdef CONFIG_MIPS64
 	page	invalid_pmd_table, _PMD_ORDER
+#endif
 	page	invalid_pte_table, _PTE_ORDER
 
+#ifdef CONFIG_MIPS64
 	/*
 	 * 64-bit kernel mappings are really screwed up ...
 	 */
