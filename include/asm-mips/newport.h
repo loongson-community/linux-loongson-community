@@ -1,4 +1,4 @@
-/* $Id: newport.h,v 1.1 1998/08/19 21:58:12 ralf Exp $
+/* $Id: newport.h,v 1.3 1999/07/04 01:10:23 ulfc Exp $
  *
  * newport.h: Defines and register layout for NEWPORT graphics
  *            hardware.
@@ -389,7 +389,7 @@ extern inline void newport_vc2_set(struct newport_regs *regs, unsigned char vc2i
 {
 	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W3 |
 			   NPORT_DMODE_ECINC | VC2_PROTOCOL);
-	regs->set.dcbdata0.all = (vc2ireg << 24) | (val << 8);
+	regs->set.dcbdata0.byword = (vc2ireg << 24) | (val << 8);
 }
 
 extern inline unsigned short newport_vc2_get(struct newport_regs *regs,
@@ -397,10 +397,10 @@ extern inline unsigned short newport_vc2_get(struct newport_regs *regs,
 {
 	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W1 |
 			   NPORT_DMODE_ECINC | VC2_PROTOCOL);
-	regs->set.dcbdata0.bytes.b3 = vc2ireg;
+	regs->set.dcbdata0.bybytes.b3 = vc2ireg;
 	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_IREG | NPORT_DMODE_W2 |
 			   NPORT_DMODE_ECINC | VC2_PROTOCOL);
-	return regs->set.dcbdata0.hwords.s1;
+	return regs->set.dcbdata0.byshort.s1;
 }
 
 /* VC2 Control register bits */
@@ -432,7 +432,7 @@ static inline void newport_cmap_setaddr(struct newport_regs *regs,
 	regs->set.dcbmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
 			   NPORT_DMODE_SENDIAN | NPORT_DMODE_ECINC |
 			   NCMAP_REGADDR_AREG | NPORT_DMODE_W2);
-	regs->set.dcbdata0.hwords.s1 = addr;
+	regs->set.dcbdata0.byshort.s1 = addr;
 	regs->set.dcbmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
 			   NCMAP_REGADDR_PBUF | NPORT_DMODE_W3);
 }
@@ -442,7 +442,7 @@ static inline void newport_cmap_setrgb(struct newport_regs *regs,
 				       unsigned char green,
 				       unsigned char blue)
 {
-	regs->set.dcbdata0.all =
+	regs->set.dcbdata0.byword =
 		(red << 24) |
 		(green << 16) |
 		(blue << 8);
@@ -455,7 +455,7 @@ static inline int newport_wait(void)
 	int i = 0;
 
 	while(i < BUSY_TIMEOUT)
-		if(!(npregs->cset.stat & NPORT_STAT_GBUSY))
+		if(!(npregs->cset.status & NPORT_STAT_GBUSY))
 			break;
 	if(i == BUSY_TIMEOUT)
 		return 1;
@@ -467,7 +467,7 @@ static inline int newport_bfwait(void)
 	int i = 0;
 
 	while(i < BUSY_TIMEOUT)
-		if(!(npregs->cset.stat & NPORT_STAT_BBUSY))
+		if(!(npregs->cset.status & NPORT_STAT_BBUSY))
 			break;
 	if(i == BUSY_TIMEOUT)
 		return 1;
@@ -566,7 +566,7 @@ xmap9FIFOWait (struct newport_regs *rex)
 		DCB_DATAWIDTH_1 | R_DCB_XMAP9_PROTOCOL;
         newport_bfwait ();
 	
-        while ((rex->set.dcbdata0.bytes.b3 & 3) != XM9_FIFO_EMPTY)
+        while ((rex->set.dcbdata0.bybytes.b3 & 3) != XM9_FIFO_EMPTY)
 		;
 }
 
@@ -582,7 +582,7 @@ xmap9SetModeReg (struct newport_regs *rex, unsigned int modereg, unsigned int da
         else
             rex->set.dcbmode = DCB_XMAP_ALL | XM9_CRS_MODE_REG_DATA |
                         DCB_DATAWIDTH_4 | WAYSLOW_DCB_XMAP9_PROTOCOL; 
-        rex->set.dcbdata0.all = ((modereg) << 24) | (data24 & 0xffffff);
+        rex->set.dcbdata0.byword = ((modereg) << 24) | (data24 & 0xffffff);
 }
 
 #define BT445_PROTOCOL		DCB_CYCLES(1,1,3)
