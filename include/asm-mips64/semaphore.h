@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.3 1999/10/20 18:10:32 ralf Exp $
+/* $Id: semaphore.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -16,8 +16,13 @@
 #include <linux/wait.h>
 
 struct semaphore {
+#ifdef __MIPSEB__
 	atomic_t count;
 	atomic_t waking;
+#else
+	atomic_t waking;
+	atomic_t count;
+#endif
 	wait_queue_head_t wait;
 #if WAITQUEUE_DEBUG
 	long __magic;
@@ -31,9 +36,15 @@ struct semaphore {
 # define __SEM_DEBUG_INIT(name)
 #endif
 
+#ifdef __MIPSEB__
 #define __SEMAPHORE_INITIALIZER(name,count) \
 { ATOMIC_INIT(count), ATOMIC_INIT(0), __WAIT_QUEUE_HEAD_INITIALIZER((name).wait) \
 	__SEM_DEBUG_INIT(name) }
+#else
+#define __SEMAPHORE_INITIALIZER(name,count) \
+{ ATOMIC_INIT(0), ATOMIC_INIT(count), __WAIT_QUEUE_HEAD_INITIALIZER((name).wait) \
+	__SEM_DEBUG_INIT(name) }
+#endif
 
 #define __MUTEX_INITIALIZER(name) \
 	__SEMAPHORE_INITIALIZER(name,1)
@@ -118,7 +129,7 @@ extern inline int down_trylock(struct semaphore * sem)
 #if WAITQUEUE_DEBUG
 	CHECK_MAGIC(sem->__magic);
 #endif
-#ifdef __MIPSEB__
+
 	__asm__ __volatile__("
 			.set	mips3
 
@@ -142,41 +153,6 @@ extern inline int down_trylock(struct semaphore * sem)
 		: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
 		: "m"(*sem)
 		: "memory");
-
-#elif defined(__MIPSEL__)
-
-	__asm__ __volatile__("
-			.set	mips3
-
-		0:	lld	%1, %4
-			li	%0, 0
-			sll	%2, %1, 0
-			addiu	%2, %2, -1
-			bgez	%2, 2f
-			bltz	%1, 1f
-			dsll32	%2, %2, 0
-			dsrl32  %2, %2, 0
-			dli	%3, 0x0000000100000000
-			dsubu	%1, %3
-			b	2f
-		1:
-			li	%0, 1
-			b	3f
-		2:
-			dsrl32	%1, %1, 0
-			dsll32	%1, %1, 0
-			or	%1, %1, %2
-		3:
-			scd	%1, %4
-			beqz	%1, 0b
-
-			.set	mips0"
-		: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
-		: "m"(*sem)
-		: "memory");
-#else
-#error "MIPS but neither __MIPSEL__ nor __MIPSEB__"
-#endif
 
 	return ret;
 }
