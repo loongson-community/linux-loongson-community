@@ -129,9 +129,8 @@ static inline int find_level(cpuid_t *cpunum, int irq)
 				return(j);
 			}
 	}
-	printk("Could not identify cpu/level for irq %d\n", irq);
-	while(1);
-	return(-1);
+
+	panic("Could not identify cpu/level for irq %d\n", irq);
 }
 
 /*
