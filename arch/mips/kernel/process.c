@@ -1,10 +1,9 @@
-/* $Id: process.c,v 1.18 2000/01/29 01:41:59 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1999 by Ralf Baechle and others.
+ * Copyright (C) 1994 - 2000 by Ralf Baechle and others.
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #include <linux/errno.h>
@@ -194,18 +193,47 @@ extern void scheduling_functions_end_here(void);
 #define first_sched	((unsigned long) scheduling_functions_start_here)
 #define last_sched	((unsigned long) scheduling_functions_end_here)
 
+/* get_wchan - a maintenance nightmare ...  */
 unsigned long get_wchan(struct task_struct *p)
 {
-	unsigned long schedule_frame;
-	unsigned long pc;
+	unsigned long frame, pc;
 
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
 	pc = thread_saved_pc(&p->thread);
+	if (pc < first_sched || pc >= last_sched) {
+		return pc;
+	}
+
+	if (pc >= (unsigned long) sleep_on_timeout)
+		goto schedule_timeout_caller;
+	if (pc >= (unsigned long) sleep_on)
+		goto schedule_caller;
+	if (pc >= (unsigned long) interruptible_sleep_on_timeout)
+		goto schedule_timeout_caller;
+	if (pc >= (unsigned long)interruptible_sleep_on)
+		goto schedule_caller;
+	goto schedule_timeout_caller;
+
+schedule_caller:
+	frame = ((unsigned long *)p->thread.reg30)[9];
+	pc    = ((unsigned long *)frame)[11];
+	return pc;
+
+schedule_timeout_caller:
+	/* Must be schedule_timeout ...  */
+	pc    = ((unsigned long *)p->thread.reg30)[10];
+	frame = ((unsigned long *)p->thread.reg30)[9];
+
+	/* The schedule_timeout frame ...  */
+	pc    = ((unsigned long *)frame)[14];
+	frame = ((unsigned long *)frame)[13];
+
 	if (pc >= first_sched && pc < last_sched) {
-		schedule_frame = ((unsigned long *)p->thread.reg30)[9];
-		return ((unsigned long *)schedule_frame)[11];
+		/* schedule_timeout called by interruptible_sleep_on_timeout */
+		pc    = ((unsigned long *)frame)[11];
+		frame = ((unsigned long *)frame)[10];
 	}
 
 	return pc;
