@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 96, 97, 98, 99, 2000 by Ralf Baechle
+ * Copyright (C) 1995, 96, 97, 98, 99, 2000, 2001, 2002 by Ralf Baechle
  */
 
 /*
@@ -20,7 +20,7 @@ SYS(sys_fork, 0)
 SYS(sys_read, 3)
 SYS(sys_write, 3)
 SYS(sys_open, 3)				/* 4005 */
-SYS(sys_close, 3)
+SYS(sys_close, 1)
 SYS(sys_waitpid, 3)
 SYS(sys_creat, 2)
 SYS(sys_link, 2)
