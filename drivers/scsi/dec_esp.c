@@ -207,7 +207,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 				scsi_dma_int, SA_INTERRUPT,
 				"ncr53c94 dma", esp->ehost))
 			goto err_free_irq_err;
- 
+
 	}
 
 	if (TURBOCHANNEL) {

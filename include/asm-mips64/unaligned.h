@@ -55,7 +55,7 @@ static inline unsigned long __ldw_u(const unsigned short * __addr)
 }
 
 /*
- * Store quad ununaligned.
+ * Store quad unaligned.
  */
 static inline void __stq_u(unsigned long __val, unsigned long * __addr)
 {
@@ -65,7 +65,7 @@ static inline void __stq_u(unsigned long __val, unsigned long * __addr)
 }
 
 /*
- * Store long ununaligned.
+ * Store long unaligned.
  */
 static inline void __stl_u(unsigned long __val, unsigned int * __addr)
 {
@@ -75,7 +75,7 @@ static inline void __stl_u(unsigned long __val, unsigned int * __addr)
 }
 
 /*
- * Store word ununaligned.
+ * Store word unaligned.
  */
 static inline void __stw_u(unsigned long __val, unsigned short * __addr)
 {
