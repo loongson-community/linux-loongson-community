@@ -628,10 +628,12 @@ static ssize_t tty_read(struct file * file, char * buf, size_t count,
 			return -ERESTARTSYS;
 		}
 #endif
+	lock_kernel();
 	if (tty->ldisc.read)
 		i = (tty->ldisc.read)(tty,file,buf,count);
 	else
 		i = -EIO;
+	unlock_kernel();
 	if (i > 0)
 		inode->i_atime = CURRENT_TIME;
 	return i;
@@ -658,7 +660,9 @@ static inline ssize_t do_tty_write(
 		unsigned long size = PAGE_SIZE*2;
 		if (size > count)
 			size = count;
+		lock_kernel();
 		ret = write(tty, file, buf, size);
+		unlock_kernel();
 		if (ret <= 0)
 			break;
 		written += ret;
@@ -2034,11 +2038,7 @@ long __init console_init(long kmem_start, long kmem_end)
 	memcpy(tty_std_termios.c_cc, INIT_C_CC, NCCS);
 	tty_std_termios.c_iflag = ICRNL | IXON;
 	tty_std_termios.c_oflag = OPOST | ONLCR;
-#if CONFIG_COBALT_SERIAL
-	tty_std_termios.c_cflag = B115200 | CS8 | CREAD | HUPCL;
-#else
 	tty_std_termios.c_cflag = B38400 | CS8 | CREAD | HUPCL;
-#endif
 	tty_std_termios.c_lflag = ISIG | ICANON | ECHO | ECHOE | ECHOK |
 		ECHOCTL | ECHOKE | IEXTEN;
 
@@ -2131,9 +2131,7 @@ __initfunc(int tty_init(void))
 	if (tty_register_driver(&dev_console_driver))
 		panic("Couldn't register /dev/tty0 driver\n");
 
-#ifndef CONFIG_COBALT_MICRO_SERVER
 	kbd_init();
-#endif
 #endif
 #ifdef CONFIG_ESPSERIAL  /* init ESP before rs, so rs doesn't see the port */
 	espserial_init();

@@ -17,6 +17,7 @@
 #include <linux/locks.h>
 #include <linux/mm.h>
 #include <linux/init.h>
+#include <linux/smp_lock.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -322,8 +323,6 @@ void add_request(struct blk_dev_struct * dev, struct request * req)
 	spin_lock_irqsave(&io_request_lock,flags);
 	current_request = get_queue(req->rq_dev);
 
-	if (req->bh)
-		mark_buffer_clean(req->bh);
 	if (!(tmp = *current_request)) {
 		*current_request = req;
 		if (dev->current_request != &dev->plug)
@@ -385,12 +384,17 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	count = bh->b_size >> 9;
 	sector = bh->b_rsector;
 
-	/* Uhhuh.. Nasty dead-lock possible here.. */
-	if (buffer_locked(bh))
-		return;
-	/* Maybe the above fixes it, and maybe it doesn't boot. Life is interesting */
+	/* We'd better have a real physical mapping! */
+	if (!buffer_mapped(bh))
+		BUG();
 
-	lock_buffer(bh);
+	/* It had better not be a new buffer by the time we see it */
+	if (buffer_new(bh))
+		BUG();
+
+	/* Only one thread can actually submit the I/O. */
+	if (test_and_set_bit(BH_Lock, &bh->b_state))
+		return;
 
 	if (blk_size[major]) {
 		unsigned long maxsector = (blk_size[major][MINOR(bh->b_rdev)] << 1) + 1;
@@ -425,9 +429,11 @@ void make_request(int major,int rw, struct buffer_head * bh)
 			rw_ahead = 1;
 			rw = WRITE;	/* drop into WRITE */
 		case WRITE:
-			if (!buffer_dirty(bh))   /* Hmmph! Nothing to write */
-				goto end_io;
-			/* We don't allow the write-requests to fill up the
+			if (!test_and_clear_bit(BH_Dirty, &bh->b_state))
+				goto end_io;	/* Hmmph! Nothing to write */
+			refile_buffer(bh);
+			/*
+			 * We don't allow the write-requests to fill up the
 			 * queue completely:  we want some room for reads,
 			 * as they take precedence. The last third of the
 			 * requests are only for reads.
@@ -528,7 +534,6 @@ void make_request(int major,int rw, struct buffer_head * bh)
 			} else
 				continue;
 
-			mark_buffer_clean(bh);
 			spin_unlock_irqrestore(&io_request_lock,flags);
 		    	return;
 
@@ -605,7 +610,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
 	for (i = 0; i < nr; i++) {
 		if (bh[i]->b_size != correct_size) {
 			printk(KERN_NOTICE "ll_rw_block: device %s: "
-			       "only %d-char blocks implemented (%lu)\n",
+			       "only %d-char blocks implemented (%u)\n",
 			       kdevname(bh[0]->b_dev),
 			       correct_size, bh[i]->b_size);
 			goto sorry;

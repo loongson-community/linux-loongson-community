@@ -196,7 +196,7 @@ asmlinkage int sunos_brk(unsigned long brk)
 	 * simple, it hopefully works in most obvious cases.. Easy to
 	 * fool it, but this should catch most mistakes.
 	 */
-	freepages = buffermem >> PAGE_SHIFT;
+	freepages = atomic_read(&buffermem) >> PAGE_SHIFT;
 	freepages += atomic_read(&page_cache_size);
 	freepages >>= 1;
 	freepages += nr_free_pages;

@@ -99,12 +99,14 @@ struct inode_operations umsdos_file_inode_operations =
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	generic_readpage,	/* readpage */
+	fat_bmap,		/* get_block */
+	block_read_full_page,	/* readpage */
 	NULL,			/* writepage */
-	fat_bmap,		/* bmap */
+	NULL,			/* flushpage */
 	UMSDOS_truncate,	/* truncate */
 	NULL,			/* permission */
-	fat_smap		/* smap */
+	fat_smap,		/* smap */
+	NULL			/* revalidate */
 };
 
 /* For other with larger and unaligned file system */
@@ -137,12 +139,14 @@ struct inode_operations umsdos_file_inode_operations_no_bmap =
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow link */
+	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* bmap */
+	NULL,			/* flushpage */
 	UMSDOS_truncate,	/* truncate */
 	NULL,			/* permission */
 	NULL,			/* smap */
+	NULL			/* revalidate */
 };
 
 /* For other with larger and unaligned file system with readpage */
@@ -175,10 +179,12 @@ struct inode_operations umsdos_file_inode_operations_readpage =
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow link */
+	NULL,			/* get_block */
 	fat_readpage,		/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* bmap */
+	NULL,			/* flushpage */
 	UMSDOS_truncate,	/* truncate */
 	NULL,			/* permission */
 	NULL,			/* smap */
+	NULL			/* revalidate */
 };

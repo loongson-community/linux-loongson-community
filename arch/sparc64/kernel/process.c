@@ -392,7 +392,7 @@ void show_thread(struct thread_struct *tss)
 	}
 
 	printk("flags:             0x%08x\n", tss->flags);
-	printk("current_ds:        0x%016lx\n", tss->current_ds.seg);
+	printk("current_ds:        0x%x\n", tss->current_ds.seg);
 }
 
 /* Free current thread data structures etc.. */

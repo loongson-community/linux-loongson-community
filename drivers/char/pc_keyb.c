@@ -782,7 +782,7 @@ static void aux_write_ack(int val)
 
 	spin_lock_irqsave(&kbd_controller_lock, flags);
 	kb_wait();
-	kbd_write_cmd(KBD_CCMD_WRITE_MOUSE);
+	kbd_write_command(KBD_CCMD_WRITE_MOUSE);
 	kb_wait();
 	kbd_write_output(val);
 	/* we expect an ACK in response. */

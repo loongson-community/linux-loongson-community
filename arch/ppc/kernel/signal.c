@@ -455,6 +455,7 @@ int do_signal(sigset_t *oldset, struct pt_regs *regs)
 			default:
 				lock_kernel();
 				sigaddset(&current->signal, signr);
+				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;
 				do_exit(exit_code);
 				/* NOTREACHED */

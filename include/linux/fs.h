@@ -188,51 +188,50 @@ typedef char buffer_block[BLOCK_SIZE];
 #define BH_Dirty	1	/* 1 if the buffer is dirty */
 #define BH_Lock		2	/* 1 if the buffer is locked */
 #define BH_Req		3	/* 0 if the buffer has been invalidated */
+#define BH_Mapped	4	/* 1 if the buffer has a disk mapping */
+#define BH_New		5	/* 1 if the buffer is new and not yet written out */
 #define BH_Protected	6	/* 1 if the buffer is protected */
+
 /*
  * Try to keep the most commonly used fields in single cache lines (16
  * bytes) to improve performance.  This ordering should be
  * particularly beneficial on 32-bit processors.
  * 
  * We use the first 16 bytes for the data which is used in searches
- * over the block hash lists (ie. getblk(), find_buffer() and
- * friends).
+ * over the block hash lists (ie. getblk() and friends).
  * 
  * The second 16 bytes we use for lru buffer scans, as used by
  * sync_buffers() and refill_freelist().  -- sct
  */
 struct buffer_head {
 	/* First cache line: */
-	struct buffer_head * b_next;	/* Hash queue list */
+	struct buffer_head *b_next;	/* Hash queue list */
 	unsigned long b_blocknr;	/* block number */
-	unsigned long b_size;		/* block size */
+	unsigned short b_size;		/* block size */
+	unsigned short b_list;		/* List that this buffer appears */
 	kdev_t b_dev;			/* device (B_FREE = free) */
+
+	atomic_t b_count;		/* users using this block */
 	kdev_t b_rdev;			/* Real device */
-	unsigned long b_rsector;	/* Real buffer location on disk */
-	struct buffer_head * b_this_page;	/* circular list of buffers in one page */
 	unsigned long b_state;		/* buffer state bitmap (see above) */
-	struct buffer_head * b_next_free;
-	unsigned int b_count;		/* users using this block */
+	unsigned long b_flushtime;	/* Time when (dirty) buffer should be written */
 
-	/* Non-performance-critical data follows. */
-	char * b_data;			/* pointer to data block (1024 bytes) */
-	unsigned int b_list;		/* List that this buffer appears */
-	unsigned long b_flushtime;	/* Time when this (dirty) buffer
-					 * should be written */
-	wait_queue_head_t b_wait;
-	struct buffer_head ** b_pprev;		/* doubly linked list of hash-queue */
-	struct buffer_head * b_prev_free;	/* doubly linked list of buffers */
-	struct buffer_head * b_reqnext;		/* request queue */
+	struct buffer_head *b_next_free;/* lru/free list linkage */
+	struct buffer_head *b_prev_free;/* doubly linked list of buffers */
+	struct buffer_head *b_this_page;/* circular list of buffers in one page */
+	struct buffer_head *b_reqnext;	/* request queue */
 
-	/*
-	 * I/O completion
-	 */
-	void (*b_end_io)(struct buffer_head *bh, int uptodate);
+	struct buffer_head **b_pprev;	/* doubly linked list of hash-queue */
+	char *b_data;			/* pointer to data block (1024 bytes) */
+	void (*b_end_io)(struct buffer_head *bh, int uptodate); /* I/O completion */
 	void *b_dev_id;
+
+	unsigned long b_rsector;	/* Real buffer location on disk */
+	wait_queue_head_t b_wait;
 };
 
 typedef void (bh_end_io_t)(struct buffer_head *bh, int uptodate);
-void init_buffer(struct buffer_head *, kdev_t, int, bh_end_io_t *, void *);
+void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 
 #define __buffer_state(bh, state)	(((bh)->b_state & (1UL << BH_##state)) != 0)
 
@@ -240,6 +239,8 @@ void init_buffer(struct buffer_head *, kdev_t, int, bh_end_io_t *, void *);
 #define buffer_dirty(bh)	__buffer_state(bh,Dirty)
 #define buffer_locked(bh)	__buffer_state(bh,Lock)
 #define buffer_req(bh)		__buffer_state(bh,Req)
+#define buffer_mapped(bh)	__buffer_state(bh,Mapped)
+#define buffer_new(bh)		__buffer_state(bh,New)
 #define buffer_protected(bh)	__buffer_state(bh,Protected)
 
 #define buffer_page(bh)		(mem_map + MAP_NR((bh)->b_data))
@@ -402,9 +403,10 @@ struct file {
 	struct file		*f_next, **f_pprev;
 	struct dentry		*f_dentry;
 	struct file_operations	*f_op;
+	atomic_t		f_count;
+	unsigned int 		f_flags;
 	mode_t			f_mode;
 	loff_t			f_pos;
-	unsigned int 		f_count, f_flags;
 	unsigned long 		f_reada, f_ramax, f_raend, f_ralen, f_rawin;
 	struct fown_struct	f_owner;
 	unsigned int		f_uid, f_gid;
@@ -598,13 +600,19 @@ struct inode_operations {
 	struct dentry * (*follow_link) (struct dentry *, struct dentry *, unsigned int);
 	/*
 	 * the order of these functions within the VFS template has been
-	 * changed because SMP locking has changed: from now on all bmap,
+	 * changed because SMP locking has changed: from now on all get_block,
 	 * readpage, writepage and flushpage functions are supposed to do
 	 * whatever locking they need to get proper SMP operation - for
 	 * now in most cases this means a lock/unlock_kernel at entry/exit.
 	 * [The new order is also slightly more logical :)]
 	 */
-	int (*bmap) (struct inode *,int);
+	/*
+	 * Generic block allocator exported by the lowlevel fs. All metadata
+	 * details are handled by the lowlevel fs, all 'logical data content'
+	 * details are handled by the highlevel block layer.
+	 */
+	int (*get_block) (struct inode *, long, struct buffer_head *, int);
+
 	int (*readpage) (struct file *, struct page *);
 	int (*writepage) (struct file *, struct page *);
 	int (*flushpage) (struct inode *, struct page *, unsigned long);
@@ -741,23 +749,38 @@ extern struct file *inuse_filps;
 extern int try_to_free_buffers(struct page *);
 extern void refile_buffer(struct buffer_head * buf);
 
-extern int buffermem;
+extern atomic_t buffermem;
 
 #define BUF_CLEAN	0
 #define BUF_LOCKED	1	/* Buffers scheduled for write */
 #define BUF_DIRTY	2	/* Dirty buffers, not yet scheduled for write */
 #define NR_LIST		3
 
-void mark_buffer_uptodate(struct buffer_head *, int);
+/*
+ * This is called by bh->b_end_io() handlers when I/O has completed.
+ */
+extern inline void mark_buffer_uptodate(struct buffer_head * bh, int on)
+{
+	if (on)
+		set_bit(BH_Uptodate, &bh->b_state);
+	else
+		clear_bit(BH_Uptodate, &bh->b_state);
+}
+
+#define atomic_set_buffer_clean(bh) test_and_clear_bit(BH_Dirty, &(bh)->b_state)
+
+extern inline void __mark_buffer_clean(struct buffer_head *bh)
+{
+	refile_buffer(bh);
+}
 
 extern inline void mark_buffer_clean(struct buffer_head * bh)
 {
-	if (test_and_clear_bit(BH_Dirty, &bh->b_state))
-		refile_buffer(bh);
+	if (atomic_set_buffer_clean(bh))
+		__mark_buffer_clean(bh);
 }
 
 extern void FASTCALL(__mark_buffer_dirty(struct buffer_head *bh, int flag));
-extern void FASTCALL(__atomic_mark_buffer_dirty(struct buffer_head *bh, int flag));
 
 #define atomic_set_buffer_dirty(bh) test_and_set_bit(BH_Dirty, &(bh)->b_state)
 
@@ -766,20 +789,6 @@ extern inline void mark_buffer_dirty(struct buffer_head * bh, int flag)
 	if (!atomic_set_buffer_dirty(bh))
 		__mark_buffer_dirty(bh, flag);
 }
-
-/*
- * SMP-safe version of the above - does synchronization with
- * other users of buffer-cache data structures.
- *
- * since we test-set the dirty bit in a CPU-atomic way we also
- * have optimized the common 'redirtying' case away completely.
- */
-extern inline void atomic_mark_buffer_dirty(struct buffer_head * bh, int flag)
-{
-	if (!atomic_set_buffer_dirty(bh))
-		__atomic_mark_buffer_dirty(bh, flag);
-}
-
 
 extern void balance_dirty(kdev_t);
 extern int check_disk_change(kdev_t);
@@ -847,7 +856,6 @@ extern void remove_inode_hash(struct inode *);
 extern struct file * get_empty_filp(void);
 extern struct buffer_head * get_hash_table(kdev_t, int, int);
 extern struct buffer_head * getblk(kdev_t, int, int);
-extern struct buffer_head * find_buffer(kdev_t, int, int);
 extern void ll_rw_block(int, int, struct buffer_head * bh[]);
 extern int is_read_only(kdev_t);
 extern void __brelse(struct buffer_head *);
@@ -869,13 +877,12 @@ extern struct buffer_head * breada(kdev_t, int, int, unsigned int, unsigned int)
 
 extern int brw_page(int, struct page *, kdev_t, int [], int, int);
 
-typedef long (*writepage_t)(struct file *, struct page *, unsigned long, unsigned long, const char *);
-typedef int (*fs_getblock_t)(struct inode *, long, int, int *, int *);
+typedef int (*writepage_t)(struct file *, struct page *, unsigned long, unsigned long, const char *);
 
 /* Generic buffer handling for block filesystems.. */
 extern int block_read_full_page(struct file *, struct page *);
-extern int block_write_full_page (struct file *, struct page *, fs_getblock_t);
-extern int block_write_partial_page (struct file *, struct page *, unsigned long, unsigned long, const char *, fs_getblock_t);
+extern int block_write_full_page (struct file *, struct page *);
+extern int block_write_partial_page (struct file *, struct page *, unsigned long, unsigned long, const char *);
 extern int block_flushpage(struct inode *, struct page *, unsigned long);
 
 extern int generic_file_mmap(struct file *, struct vm_area_struct *);
@@ -889,7 +896,6 @@ unsigned long generate_cluster(kdev_t, int b[], int);
 unsigned long generate_cluster_swab32(kdev_t, int b[], int);
 extern kdev_t ROOT_DEV;
 
-extern void show_buffers(void);
 extern void mount_root(void);
 
 #ifdef CONFIG_BLK_DEV_INITRD

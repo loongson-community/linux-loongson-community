@@ -306,6 +306,7 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	p->tss.fpscr = current->tss.fpscr;
 	childregs->msr &= ~MSR_FP;
 
+	p->processor = 0;
 #ifdef __SMP__
 	p->last_processor = NO_PROC_ID;
 #endif /* __SMP__ */

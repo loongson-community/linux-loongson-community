@@ -654,9 +654,9 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 		struct sockaddr_in * usin = (struct sockaddr_in*)msg->msg_name;
 		if (msg->msg_namelen < sizeof(*usin))
 			return(-EINVAL);
-		if (usin->sin_family != AF_INET) {
+		if (usin->sin_family != AF_INET)
 			return -EINVAL;
-		}
+
 		ufh.daddr = usin->sin_addr.s_addr;
 		ufh.uh.dest = usin->sin_port;
 		if (ufh.uh.dest == 0)

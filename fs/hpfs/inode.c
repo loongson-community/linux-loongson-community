@@ -11,7 +11,7 @@
 static const struct file_operations hpfs_file_ops =
 {
 	NULL,				/* lseek - default */
-	hpfs_file_read,			/* read */
+	generic_file_read,		/* read */
 	hpfs_file_write,		/* write */
 	NULL,				/* readdir - bad */
 	NULL,				/* poll - default */
@@ -41,11 +41,13 @@ static const struct inode_operations hpfs_file_iops =
 	NULL,				/* rename */
 	NULL,				/* readlink */
 	NULL,				/* follow_link */
-	generic_readpage,		/* readpage */
-	NULL,				/* writepage */
 	(int (*)(struct inode *, int))
-	&hpfs_bmap,			/* bmap */
-	&hpfs_truncate,			/* truncate */
+#warning Someone needs to code up hpfs_get_block properly... -DaveM
+	&hpfs_bmap,			/* get_block */
+	block_read_full_page,		/* readpage */
+	hpfs_writepage,			/* writepage */
+	block_flushpage,		/* flushpage */
+	hpfs_truncate,			/* truncate */
 	NULL,				/* permission */
 	NULL,				/* smap */
 	NULL,				/* revalidate */
@@ -84,13 +86,14 @@ static const struct inode_operations hpfs_dir_iops =
 	hpfs_rename,			/* rename */
 	NULL,				/* readlink */
 	NULL,				/* follow_link */
+	NULL,				/* get_block */
 	NULL,				/* readpage */
 	NULL,				/* writepage */
-	NULL,				/* bmap */
+	NULL,				/* flushpage */
 	NULL,				/* truncate */
 	NULL,				/* permission */
 	NULL,				/* smap */
-	NULL,				/* revalidate */
+	NULL				/* revalidate */
 };
 
 const struct inode_operations hpfs_symlink_iops =
@@ -107,13 +110,14 @@ const struct inode_operations hpfs_symlink_iops =
 	NULL,				/* rename */
 	hpfs_readlink,			/* readlink */
 	hpfs_follow_link,		/* follow_link */
+	NULL,				/* get_block */
 	NULL,				/* readpage */
 	NULL,				/* writepage */
-	NULL,				/* bmap */
+	NULL,				/* flushpage */
 	NULL,				/* truncate */
 	NULL,				/* permission */
 	NULL,				/* smap */
-	NULL,				/* revalidate */
+	NULL				/* revalidate */
 };
 
 
@@ -125,7 +129,6 @@ void hpfs_read_inode(struct inode *i)
 	unsigned char *ea;
 	int ea_size;
 	i->i_op = 0;
-	/*i->i_hpfs_sem = MUTEX;*/
 	init_MUTEX(&i->i_hpfs_sem);
 	i->i_uid = sb->s_hpfs_uid;
 	i->i_gid = sb->s_hpfs_gid;

@@ -231,7 +231,7 @@ void write_inode_now(struct inode *inode)
 void clear_inode(struct inode *inode)
 {
 	if (inode->i_nrpages)
-		truncate_inode_pages(inode, 0);
+		BUG();
 	wait_on_inode(inode);
 	if (IS_QUOTAINIT(inode))
 		DQUOT_DROP(inode);
@@ -261,6 +261,8 @@ static void dispose_list(struct list_head * head)
 		if (tmp == head)
 			break;
 		inode = list_entry(tmp, struct inode, i_list);
+		if (inode->i_nrpages)
+			truncate_inode_pages(inode, 0);
 		clear_inode(inode);
 		count++;
 	}
@@ -735,6 +737,8 @@ void iput(struct inode *inode)
 				if (op && op->delete_inode) {
 					void (*delete)(struct inode *) = op->delete_inode;
 					spin_unlock(&inode_lock);
+					if (inode->i_nrpages)
+						truncate_inode_pages(inode, 0);
 					delete(inode);
 					spin_lock(&inode_lock);
 				}
@@ -778,8 +782,14 @@ kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
 
 int bmap(struct inode * inode, int block)
 {
-	if (inode->i_op && inode->i_op->bmap)
-		return inode->i_op->bmap(inode, block);
+	struct buffer_head tmp;
+
+	if (inode->i_op && inode->i_op->get_block) {
+		tmp.b_state = 0;
+		tmp.b_blocknr = 0;
+		inode->i_op->get_block(inode, block, &tmp, 0);
+		return tmp.b_blocknr;
+	}
 	return 0;
 }
 

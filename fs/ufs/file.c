@@ -87,49 +87,23 @@ static inline void remove_suid(struct inode *inode)
 	}
 }
 
-static int ufs_writepage (struct file *file, struct page *page)
-{
-	struct dentry *dentry = file->f_dentry;
-	struct inode *inode = dentry->d_inode;
-	unsigned long block;
-	int *p, nr[PAGE_SIZE/512];
-	int i, err, created;
-	struct buffer_head *bh;
-
-	i = PAGE_SIZE >> inode->i_sb->s_blocksize_bits;
-	block = page->offset >> inode->i_sb->s_blocksize_bits;
-	p = nr;
-	bh = page->buffers;
-	do {
-		if (bh && bh->b_blocknr)
-			*p = bh->b_blocknr;
-		else
-			*p = ufs_getfrag_block(inode, block, 1, &err, &created);
-		if (!*p)
-			return -EIO;
-		i--;
-		block++;
-		p++;
-		if (bh)
-			bh = bh->b_this_page;
-	} while (i > 0);
-
-	brw_page(WRITE, page, inode->i_dev, nr, inode->i_sb->s_blocksize, 1);
-	return 0;
-}
-
-static long ufs_write_one_page(struct file *file, struct page *page, unsigned long offset, unsigned long bytes, const char *buf)
-{
-	return block_write_one_page(file, page, offset, bytes, buf, ufs_getfrag_block);
-}
-
 /*
  * Write to a file (through the page cache).
  */
 static ssize_t
 ufs_file_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 {
-	return generic_file_write(file, buf, count, ppos, ufs_write_one_page);
+	ssize_t retval;
+
+	retval = generic_file_write(file, buf, count,
+				    ppos, block_write_partial_page);
+	if (retval > 0) {
+		struct inode *inode = file->f_dentry->d_inode;
+		remove_suid(inode);
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		mark_inode_dirty(inode);
+	}
+	return retval;
 }
 
 /*
@@ -176,12 +150,12 @@ struct inode_operations ufs_file_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	generic_readpage,	/* readpage */
-	ufs_writepage,		/* writepage */
-	ufs_bmap,		/* bmap */
+	ufs_getfrag_block,	/* get_block */
+	block_read_full_page,	/* readpage */
+	block_write_full_page,	/* writepage */
+	block_flushpage,	/* flushpage */
 	ufs_truncate,		/* truncate */
 	NULL, 			/* permission */
 	NULL,			/* smap */
-	NULL,			/* revalidate */
-	block_flushpage,	/* flushpage */
+	NULL			/* revalidate */
 };

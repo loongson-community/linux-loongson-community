@@ -72,10 +72,6 @@ void __init binfmt_setup(void)
 	init_aout32_binfmt();
 #endif
 
-#ifdef CONFIG_BINFMT_JAVA
-	init_java_binfmt();
-#endif
-
 #ifdef CONFIG_BINFMT_EM86
 	init_em86_binfmt();
 #endif
@@ -324,7 +320,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 /*
  * Read in the complete executable. This is used for "-N" files
  * that aren't on a block boundary, and for files on filesystems
- * without bmap support.
+ * without get_block support.
  */
 int read_exec(struct dentry *dentry, unsigned long offset,
 	char * addr, unsigned long count, int to_kmem)
@@ -804,7 +800,6 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 	bprm.dentry = dentry;
 	bprm.filename = filename;
 	bprm.sh_bang = 0;
-	bprm.java = 0;
 	bprm.loader = 0;
 	bprm.exec = 0;
 	if ((bprm.argc = count(argv)) < 0) {

@@ -126,17 +126,9 @@ void timer_interrupt(struct pt_regs * regs)
 	smp_local_timer_interrupt(regs);
 #endif		
 
-#ifdef CONFIG_APUS
-	{
-		extern void apus_heartbeat (void);
-		apus_heartbeat ();
-	}
-#endif
-#if defined(CONFIG_ALL_PPC) || defined(CONFIG_CHRP)
-	if ( _machine == _MACH_chrp )
-		chrp_event_scan();
-#endif	
-
+	if ( ppc_md.heartbeat && !ppc_md.heartbeat_count--)
+		ppc_md.heartbeat();
+	
 	hardirq_exit(cpu);
 }
 

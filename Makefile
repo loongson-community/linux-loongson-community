@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 8
+SUBLEVEL = 9
 EXTRAVERSION =
 
 ARCH = mips
@@ -404,8 +404,6 @@ sums:
 dep-files: scripts/mkdep archdep include/linux/version.h
 	scripts/mkdep init/*.c > .depend
 	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | env -i PATH="$(PATH)" HPATH="$(HPATH)" xargs scripts/mkdep > .hdepend
-#	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
-# let this be made through the fastdep rule in Rules.make
 	$(MAKE) $(patsubst %,_sfdep_%,$(SUBDIRS)) _FASTDEP_ALL_SUB_DIRS="$(SUBDIRS)"
 
 MODVERFILE :=

@@ -111,13 +111,14 @@
 #define UFS_MOUNT_ONERROR_UMOUNT	0x00000004
 #define UFS_MOUNT_ONERROR_REPAIR	0x00000008
 
-#define UFS_MOUNT_UFSTYPE		0x000003F0
+#define UFS_MOUNT_UFSTYPE		0x000007F0
 #define UFS_MOUNT_UFSTYPE_OLD		0x00000010
 #define UFS_MOUNT_UFSTYPE_44BSD		0x00000020
 #define UFS_MOUNT_UFSTYPE_SUN		0x00000040
 #define UFS_MOUNT_UFSTYPE_NEXTSTEP	0x00000080
-#define UFS_MOUNT_UFSTYPE_OPENSTEP	0x00000100
-#define UFS_MOUNT_UFSTYPE_SUNx86	0x00000200
+#define UFS_MOUNT_UFSTYPE_NEXTSTEP_CD	0x00000100
+#define UFS_MOUNT_UFSTYPE_OPENSTEP	0x00000200
+#define UFS_MOUNT_UFSTYPE_SUNx86	0x00000400
 
 #define ufs_clear_opt(o,opt)	o &= ~UFS_MOUNT_##opt
 #define ufs_set_opt(o,opt)	o |= UFS_MOUNT_##opt
@@ -529,7 +530,7 @@ extern void ufs_free_inode (struct inode *inode);
 extern struct inode * ufs_new_inode (const struct inode *, int, int *);
 
 /* inode.c */
-extern int ufs_bmap (struct inode *, int);
+extern int ufs_frag_map (struct inode *, int);
 extern void ufs_read_inode (struct inode *);
 extern void ufs_put_inode (struct inode *);
 extern void ufs_write_inode (struct inode *);
@@ -537,7 +538,7 @@ extern int ufs_sync_inode (struct inode *);
 extern void ufs_write_inode (struct inode *);
 extern void ufs_delete_inode (struct inode *);
 extern struct buffer_head * ufs_getfrag (struct inode *, unsigned, int, int *);
-extern int ufs_getfrag_block (struct inode *, long, int, int *, int *);
+extern int ufs_getfrag_block (struct inode *, long, struct buffer_head *, int);
 extern struct buffer_head * ufs_bread (struct inode *, unsigned, int, int *);
 
 /* namei.c */

@@ -206,6 +206,7 @@ EXPORT_SYMBOL(die_if_kernel);
 
 /* Kernel thread creation. */
 EXPORT_SYMBOL(kernel_thread);
+EXPORT_SYMBOL(init_mm);
 
 /* prom symbols */
 EXPORT_SYMBOL(idprom);

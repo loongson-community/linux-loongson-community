@@ -47,13 +47,13 @@ struct inode_operations coda_file_inode_operations = {
 	NULL,		        /* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* get_block */
 	coda_readpage,    	/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* bmap */
+	NULL,			/* flushpage */
 	NULL,			/* truncate */
         coda_permission,        /* permission */
 	NULL,                   /* smap */
-	NULL,                   /* update page */
         coda_revalidate_inode   /* revalidate */
 };
 
@@ -101,7 +101,7 @@ static int coda_readpage(struct file * coda_file, struct page * page)
         CDEBUG(D_INODE, "coda ino: %ld, cached ino %ld, page offset: %lx\n", 
 	       coda_inode->i_ino, cii->c_ovp->i_ino, page->offset);
 
-        generic_readpage(&cont_file, page);
+        block_read_full_page(&cont_file, page);
         EXIT;
         return 0;
 }
@@ -256,7 +256,7 @@ void coda_prepare_openfile(struct inode *i, struct file *coda_file,
         cont_file->f_pos = coda_file->f_pos;
         cont_file->f_mode = coda_file->f_mode;
         cont_file->f_flags = coda_file->f_flags;
-        cont_file->f_count  = coda_file->f_count;
+        atomic_set(&cont_file->f_count, atomic_read(&coda_file->f_count));
         cont_file->f_owner  = coda_file->f_owner;
 	cont_file->f_op = cont_inode->i_op->default_file_ops;
 	cont_file->f_dentry = cont_dentry;

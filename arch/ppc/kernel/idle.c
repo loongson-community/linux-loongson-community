@@ -298,7 +298,7 @@ void power_save(void)
 	case 7:			/* 603ev */
 	case 8:			/* 750 */
 		save_flags(msr);
-		cli();
+		__cli();
 		if (!current->need_resched) {
 			asm("mfspr %0,1008" : "=r" (hid0) :);
 			hid0 &= ~(HID0_NAP | HID0_SLEEP | HID0_DOZE);

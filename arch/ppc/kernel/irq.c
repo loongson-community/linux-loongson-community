@@ -189,6 +189,12 @@ void free_irq(unsigned int irq, void *dev_id)
 	request_irq(irq, NULL, 0, NULL, dev_id);
 }
 
+/* XXX should implement irq disable depth like on intel */
+void disable_irq_nosync(unsigned int irq_nr)
+{
+	mask_irq(irq_nr);
+}
+
 void disable_irq(unsigned int irq_nr)
 {
 	mask_irq(irq_nr);

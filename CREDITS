@@ -983,18 +983,20 @@ N: Niels Kristian Bech Jensen
 E: nkbj@image.dk
 W: http://www.image.dk/~nkbj
 D: 4.4BSD and NeXTstep filesystem support in the old ufs.
-D: Openstep filesystem support in the new ufs.
+D: Openstep filesystem and NeXTstep CDROM support in the new ufs.
 D: Danish HOWTO, Linux+FreeBSD mini-HOWTO.
 S: Dr. Holsts Vej 34, lejl. 164
 S: DK-8230 Åbyhøj
 S: Denmark
 
-N: Andrzej Krzysztofowicz
-E: ankry@green.mif.pg.gda.pl
+N: Andrzej M. Krzysztofowicz
+E: ankry@mif.pg.gda.pl
+D: XT disk driver
 D: Aladdin 1533/1543(C) chipset IDE
 D: PIIX chipset IDE
-S: Faculty of Applied Phys. & Math.
-S: Technical University of Gdansk
+S: ul. Matemblewska 1B/10
+S: 80-283 Gdansk
+S: Poland
 
 N: Michael K. Johnson
 E: johnsonm@redhat.com

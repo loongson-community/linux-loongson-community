@@ -254,7 +254,6 @@ void show_mem(void)
 	printk("%d pages shared\n",shared);
 	printk("%d pages swap cached\n",cached);
 	printk("%d pages in page table cache\n",(int)pgtable_cache_size);
-	show_buffers();
 #ifdef CONFIG_NET
 	show_net_buffers();
 #endif
@@ -265,12 +264,15 @@ void show_mem(void)
 #endif /* __SMP__ */
 	printk("\n");
 	for_each_task(p)
-	{	
+	{
 		printk("%-8.8s %3d %3d %8ld %8ld %8ld %c%08lx %08lx ",
 		       p->comm,p->pid,
-		       atomic_read(&p->mm->count),p->mm->context,
-		       p->mm->context<<4, p->tss.last_syscall,
-		       user_mode(p->tss.regs) ? 'u' : 'k', p->tss.regs->nip,
+		       (p->mm)?atomic_read(&p->mm->count):0,
+		       (p->mm)?p->mm->context:0,
+		       (p->mm)?(p->mm->context<<4):0,
+		       p->tss.last_syscall,
+		       (p->tss.regs)?user_mode(p->tss.regs) ? 'u' : 'k' : '?',
+		       (p->tss.regs)?p->tss.regs->nip:0,
 		       (ulong)p);
 		{
 			int iscur = 0;
@@ -282,7 +284,7 @@ void show_mem(void)
 				iscur = 1;
 				printk("current");
 			}
-#else		
+#else
 			if ( p == current )
 			{
 				iscur = 1;
@@ -309,7 +311,7 @@ void si_meminfo(struct sysinfo *val)
 	val->totalram = 0;
 	val->sharedram = 0;
 	val->freeram = nr_free_pages << PAGE_SHIFT;
-	val->bufferram = buffermem;
+	val->bufferram = atomic_read(&buffermem);
 	while (i-- > 0)  {
 		if (PageReserved(mem_map+i))
 			continue;
@@ -346,6 +348,13 @@ __ioremap(unsigned long addr, unsigned long size, unsigned long flags)
 	size = PAGE_ALIGN(addr + size) - p;
 
 	/*
+	 * If the address lies within the first 16 MB, assume it's in ISA
+	 * memory space
+	 */
+	if (p < 16*1024*1024)
+	    p += _ISA_MEM_BASE;
+
+	/*
 	 * Don't allow anybody to remap normal RAM that we're using.
 	 * mem_init() sets high_memory so only do the check after that.
 	 */
@@ -371,7 +380,7 @@ __ioremap(unsigned long addr, unsigned long size, unsigned long flags)
 	 * same virt address (and this is contiguous).
 	 *  -- Cort
 	 */
-	if ( (v = p_mapped_by_bats(addr)) /*&& p_mapped_by_bats(addr+(size-1))*/ )
+	if ( (v = p_mapped_by_bats(p)) /*&& p_mapped_by_bats(p+size-1)*/ )
 		goto out;
 #endif /* CONFIG_8xx */
 	

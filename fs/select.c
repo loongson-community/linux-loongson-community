@@ -64,9 +64,9 @@ void __pollwait(struct file * filp, wait_queue_head_t * wait_address, poll_table
 		if (p->nr < __MAX_POLL_TABLE_ENTRIES) {
 			struct poll_table_entry * entry;
 ok_table:
-		 	entry = p->entry + p->nr;
-		 	entry->filp = filp;
-		 	filp->f_count++;
+			entry = p->entry + p->nr;
+			entry->filp = filp;
+			atomic_inc(&filp->f_count);
 			entry->wait_address = wait_address;
 			init_waitqueue_entry(&entry->wait, current);
 			add_wait_queue(wait_address,&entry->wait);
@@ -181,17 +181,13 @@ int do_select(int n, fd_set_bits *fds, long *timeout)
 			off = i / __NFDBITS;
 			if (!(bit & BITS(fds, off)))
 				continue;
-			/*
-			 * The poll_wait routine will increment f_count if
-			 * the file is added to the wait table, so we don't
-			 * need to increment it now.
-			 */
-			file = fcheck(i);
+			file = fget(i);
 			mask = POLLNVAL;
 			if (file) {
 				mask = DEFAULT_POLLMASK;
 				if (file->f_op && file->f_op->poll)
 					mask = file->f_op->poll(file, wait);
+				fput(file);
 			}
 			if ((mask & POLLIN_SET) && ISSET(bit, __IN(fds,off))) {
 				SET(bit, __RES_IN(fds,off));
@@ -347,14 +343,14 @@ static int do_poll(unsigned int nfds, struct pollfd *fds, poll_table *wait,
 			mask = 0;
 			fd = fdpnt->fd;
 			if (fd >= 0) {
-				/* poll_wait increments f_count if needed */
-				struct file * file = fcheck(fd);
+				struct file * file = fget(fd);
 				mask = POLLNVAL;
 				if (file != NULL) {
 					mask = DEFAULT_POLLMASK;
 					if (file->f_op && file->f_op->poll)
 						mask = file->f_op->poll(file, wait);
 					mask &= fdpnt->events | POLLERR | POLLHUP;
+					fput(file);
 				}
 				if (mask) {
 					wait = NULL;
