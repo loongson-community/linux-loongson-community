@@ -104,6 +104,13 @@ if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
    bool 'Enable Smart Card Reader 1 Support ' CONFIG_IT8172_SCR1
 fi
+if [ "$CONFIG_MIPS_IVR" = "y" ]; then
+   bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
+   if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
+     define_bool CONFIG_IT8172_CIR y
+   fi
+   bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
+fi
 bool 'Unix98 PTY support' CONFIG_UNIX98_PTYS
 if [ "$CONFIG_UNIX98_PTYS" = "y" ]; then
    int 'Maximum number of Unix98 PTYs in use (0-2048)' CONFIG_UNIX98_PTY_COUNT 256

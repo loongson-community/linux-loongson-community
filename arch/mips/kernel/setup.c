@@ -656,6 +656,7 @@ void __init setup_arch(char **cmdline_p)
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
 	void nec_osprey_setup(void);
+ 	void it8172_setup(void);
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn, first_usable_pfn;

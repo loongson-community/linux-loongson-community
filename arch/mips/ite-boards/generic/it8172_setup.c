@@ -69,6 +69,14 @@ extern void it8172_restart(char *command);
 extern void it8172_halt(void);
 extern void it8172_power_off(void);
 
+extern void (*board_time_init)(void);
+extern void (*board_timer_setup)(struct irqaction *irq);
+extern unsigned long (*rtc_get_time)(void);
+extern int (*rtc_set_time)(unsigned long);
+extern void it8172_time_init(void);
+extern void it8172_timer_setup(struct irqaction *irq);
+extern unsigned long it8172_rtc_get_time(void);
+
 #ifdef CONFIG_IT8172_REVC
 struct {
     struct resource ram;
@@ -115,6 +123,7 @@ void __init it8172_setup(void)
 {
 	unsigned short dsr;
 	char *argptr;
+	u32 it_ver;
 
 	argptr = prom_getcmdline();
 #ifdef CONFIG_SERIAL_CONSOLE
@@ -126,6 +135,11 @@ void __init it8172_setup(void)
 
 	clear_cp0_status(ST0_FR);
 	rtc_ops = &it8172_rtc_ops;
+
+	board_time_init = it8172_time_init;
+	board_timer_setup = it8172_timer_setup;
+	rtc_get_time = it8172_rtc_get_time;
+	//rtc_set_time = it8172_rtc_set_time;
 
 	_machine_restart = it8172_restart;
 	_machine_halt = it8172_halt;

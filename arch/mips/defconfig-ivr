@@ -30,9 +30,8 @@ CONFIG_EXPERIMENTAL=y
 # CONFIG_OLIVETTI_M700 is not set
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SNI_RM200_PCI is not set
-CONFIG_MIPS_ITE8172=y
-# CONFIG_IT8172_REVC is not set
-# CONFIG_MIPS_IVR is not set
+# CONFIG_MIPS_ITE8172 is not set
+CONFIG_MIPS_IVR=y
 # CONFIG_MIPS_PB1000 is not set
 # CONFIG_HP_LASERJET is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
@@ -40,7 +39,6 @@ CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 CONFIG_PCI=y
-CONFIG_IT8712=y
 CONFIG_PC_KEYB=y
 CONFIG_NEW_PCI=y
 CONFIG_NONCOHERENT_IO=y
@@ -102,67 +100,7 @@ CONFIG_SYSCTL=y
 #
 # Memory Technology Devices (MTD)
 #
-CONFIG_MTD=y
-# CONFIG_MTD_DEBUG is not set
-# CONFIG_MTD_PARTITIONS is not set
-# CONFIG_MTD_REDBOOT_PARTS is not set
-
-#
-# User Modules And Translation Layers
-#
-CONFIG_MTD_CHAR=y
-# CONFIG_MTD_BLOCK is not set
-# CONFIG_MTD_BLOCK_RO is not set
-# CONFIG_FTL is not set
-# CONFIG_NFTL is not set
-
-#
-# RAM/ROM/Flash chip drivers
-#
-CONFIG_MTD_CFI=y
-# CONFIG_MTD_JEDECPROBE is not set
-CONFIG_MTD_GEN_PROBE=y
-# CONFIG_MTD_CFI_ADV_OPTIONS is not set
-CONFIG_MTD_CFI_INTELEXT=y
-# CONFIG_MTD_CFI_AMDSTD is not set
-# CONFIG_MTD_RAM is not set
-# CONFIG_MTD_ROM is not set
-# CONFIG_MTD_ABSENT is not set
-# CONFIG_MTD_OBSOLETE_CHIPS is not set
-# CONFIG_MTD_AMDSTD is not set
-# CONFIG_MTD_SHARP is not set
-# CONFIG_MTD_JEDEC is not set
-
-#
-# Mapping drivers for chip access
-#
-CONFIG_MTD_PHYSMAP=y
-CONFIG_MTD_PHYSMAP_START=8000000
-CONFIG_MTD_PHYSMAP_LEN=2000000
-CONFIG_MTD_PHYSMAP_BUSWIDTH=4
-# CONFIG_MTD_CSTM_MIPS_IXX is not set
-# CONFIG_MTD_OCELOT is not set
-
-#
-# Self-contained MTD device drivers
-#
-# CONFIG_MTD_PMC551 is not set
-# CONFIG_MTD_SLRAM is not set
-# CONFIG_MTD_MTDRAM is not set
-# CONFIG_MTD_BLKMTD is not set
-
-#
-# Disk-On-Chip Device Drivers
-#
-# CONFIG_MTD_DOC1000 is not set
-# CONFIG_MTD_DOC2000 is not set
-# CONFIG_MTD_DOC2001 is not set
-# CONFIG_MTD_DOCPROBE is not set
-
-#
-# NAND Flash Device Drivers
-#
-# CONFIG_MTD_NAND is not set
+# CONFIG_MTD is not set
 
 #
 # Parallel port support
@@ -178,7 +116,7 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
-CONFIG_BLK_DEV_LOOP=y
+# CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
 # CONFIG_BLK_DEV_INITRD is not set
@@ -202,7 +140,7 @@ CONFIG_PACKET=y
 CONFIG_PACKET_MMAP=y
 # CONFIG_NETLINK is not set
 # CONFIG_NETFILTER is not set
-# CONFIG_FILTER is not set
+CONFIG_FILTER=y
 CONFIG_UNIX=y
 CONFIG_INET=y
 # CONFIG_IP_MULTICAST is not set
@@ -288,7 +226,7 @@ CONFIG_BLK_DEV_IDEDISK=y
 # CONFIG_BLK_DEV_ISAPNP is not set
 # CONFIG_BLK_DEV_RZ1000 is not set
 CONFIG_BLK_DEV_IDEPCI=y
-CONFIG_IDEPCI_SHARE_IRQ=y
+# CONFIG_IDEPCI_SHARE_IRQ is not set
 CONFIG_BLK_DEV_IDEDMA_PCI=y
 CONFIG_BLK_DEV_ADMA=y
 # CONFIG_BLK_DEV_OFFBOARD is not set
@@ -322,18 +260,7 @@ CONFIG_IT8172_TUNING=y
 # CONFIG_BLK_DEV_SLC90E66 is not set
 # CONFIG_BLK_DEV_TRM290 is not set
 # CONFIG_BLK_DEV_VIA82CXXX is not set
-CONFIG_IDE_CHIPSETS=y
-
-#
-# Note: most of these also require special kernel boot parameters
-#
-# CONFIG_BLK_DEV_4DRIVES is not set
-# CONFIG_BLK_DEV_ALI14XX is not set
-# CONFIG_BLK_DEV_DTC2278 is not set
-# CONFIG_BLK_DEV_HT6560B is not set
-# CONFIG_BLK_DEV_PDC4030 is not set
-# CONFIG_BLK_DEV_QD65XX is not set
-# CONFIG_BLK_DEV_UMC8672 is not set
+# CONFIG_IDE_CHIPSETS is not set
 CONFIG_IDEDMA_AUTO=y
 # CONFIG_IDEDMA_IVB is not set
 # CONFIG_DMA_NONPCI is not set
@@ -476,15 +403,15 @@ CONFIG_8139TOO=y
 #
 # Character devices
 #
-# CONFIG_VT is not set
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
 CONFIG_SERIAL=y
 CONFIG_SERIAL_CONSOLE=y
 # CONFIG_SERIAL_EXTENDED is not set
 # CONFIG_SERIAL_NONSTANDARD is not set
-# CONFIG_QTRONIX_KEYBOARD is not set
-CONFIG_PC_KEYB=y
+CONFIG_QTRONIX_KEYBOARD=y
+CONFIG_IT8172_CIR=y
 # CONFIG_IT8172_SCR0 is not set
-# CONFIG_IT8172_SCR1 is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
 
@@ -503,14 +430,36 @@ CONFIG_UNIX98_PTY_COUNT=256
 # Joysticks
 #
 # CONFIG_INPUT_GAMEPORT is not set
+# CONFIG_INPUT_NS558 is not set
+# CONFIG_INPUT_LIGHTNING is not set
+# CONFIG_INPUT_PCIGAME is not set
+# CONFIG_INPUT_CS461X is not set
+# CONFIG_INPUT_EMU10K1 is not set
+# CONFIG_INPUT_SERIO is not set
+# CONFIG_INPUT_SERPORT is not set
 
 #
-# Input core support is needed for gameports
+# Joysticks
 #
-
-#
-# Input core support is needed for joysticks
-#
+# CONFIG_INPUT_ANALOG is not set
+# CONFIG_INPUT_A3D is not set
+# CONFIG_INPUT_ADI is not set
+# CONFIG_INPUT_COBRA is not set
+# CONFIG_INPUT_GF2K is not set
+# CONFIG_INPUT_GRIP is not set
+# CONFIG_INPUT_INTERACT is not set
+# CONFIG_INPUT_TMDC is not set
+# CONFIG_INPUT_SIDEWINDER is not set
+# CONFIG_INPUT_IFORCE_USB is not set
+# CONFIG_INPUT_IFORCE_232 is not set
+# CONFIG_INPUT_WARRIOR is not set
+# CONFIG_INPUT_MAGELLAN is not set
+# CONFIG_INPUT_SPACEORB is not set
+# CONFIG_INPUT_SPACEBALL is not set
+# CONFIG_INPUT_STINGER is not set
+# CONFIG_INPUT_DB9 is not set
+# CONFIG_INPUT_GAMECON is not set
+# CONFIG_INPUT_TURBOGRAFX is not set
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -530,7 +479,6 @@ CONFIG_RTC=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
-# CONFIG_ITE_GPIO is not set
 
 #
 # Multimedia devices
@@ -616,43 +564,40 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_NLS is not set
 
 #
+# Console drivers
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+
+#
+# Frame-buffer support
+#
+# CONFIG_FB is not set
+
+#
 # Sound
 #
-CONFIG_SOUND=y
-# CONFIG_SOUND_BT878 is not set
-# CONFIG_SOUND_CMPCI is not set
-# CONFIG_SOUND_EMU10K1 is not set
-# CONFIG_MIDI_EMU10K1 is not set
-# CONFIG_SOUND_FUSION is not set
-# CONFIG_SOUND_CS4281 is not set
-# CONFIG_SOUND_ES1370 is not set
-# CONFIG_SOUND_ES1371 is not set
-# CONFIG_SOUND_ESSSOLO1 is not set
-# CONFIG_SOUND_MAESTRO is not set
-# CONFIG_SOUND_MAESTRO3 is not set
-# CONFIG_SOUND_ICH is not set
-# CONFIG_SOUND_RME96XX is not set
-# CONFIG_SOUND_SONICVIBES is not set
-CONFIG_SOUND_IT8172=y
-# CONFIG_SOUND_TRIDENT is not set
-# CONFIG_SOUND_MSNDCLAS is not set
-# CONFIG_SOUND_MSNDPIN is not set
-# CONFIG_SOUND_VIA82CXXX is not set
-# CONFIG_MIDI_VIA82CXXX is not set
-# CONFIG_SOUND_OSS is not set
-# CONFIG_SOUND_TVMIXER is not set
+# CONFIG_SOUND is not set
 
 #
 # USB support
 #
-# CONFIG_USB is not set
+CONFIG_USB=y
+# CONFIG_USB_DEBUG is not set
+
+#
+# Miscellaneous USB options
+#
+# CONFIG_USB_DEVICEFS is not set
+# CONFIG_USB_BANDWIDTH is not set
+# CONFIG_USB_LONG_TIMEOUT is not set
 
 #
 # USB Controllers
 #
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
-# CONFIG_USB_OHCI is not set
+CONFIG_USB_OHCI=y
 
 #
 # USB Device Class drivers
@@ -674,10 +619,9 @@ CONFIG_SOUND_IT8172=y
 #
 # USB Human Interface Devices (HID)
 #
-
-#
-#   Input core support is needed for USB HID
-#
+CONFIG_USB_HID=y
+# CONFIG_USB_HIDDEV is not set
+# CONFIG_USB_WACOM is not set
 
 #
 # USB Imaging devices
@@ -747,9 +691,11 @@ CONFIG_SOUND_IT8172=y
 #
 # Input core support
 #
-# CONFIG_INPUT is not set
-# CONFIG_INPUT_KEYBDEV is not set
-# CONFIG_INPUT_MOUSEDEV is not set
+CONFIG_INPUT=y
+CONFIG_INPUT_KEYBDEV=y
+CONFIG_INPUT_MOUSEDEV=y
+CONFIG_INPUT_MOUSEDEV_SCREEN_X=1024
+CONFIG_INPUT_MOUSEDEV_SCREEN_Y=768
 # CONFIG_INPUT_JOYDEV is not set
 # CONFIG_INPUT_EVDEV is not set
 

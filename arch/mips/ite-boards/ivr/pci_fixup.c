@@ -74,13 +74,14 @@ void __init pcibios_fixup_irqs(void)
 		switch (slot) {
 			case 0x01:
 			    /*
-			     * Internal device 1 is actually 7 different internal
-			     * devices on the IT8172G (a multi-function device).
+			     * Internal device 1 is actually 7 different 
+			     * internal devices on the IT8172G (multi-function 
+			     * device).
 			     */
 			    if (func < 7)
 				dev->irq = internal_func_irqs[func];
 			    break;
-			case 0x11:
+			case 0x11:   // Realtek RTL-8139
 				switch (pin) {
 					case 0: /* pin A, hardware bug */
 					case 1: /* pin A */
@@ -101,7 +102,28 @@ void __init pcibios_fixup_irqs(void)
 
 				}
 				break;
-			case 0x13:
+			case 0x12:   // ivr slot
+				switch (pin) {
+				case 0: /* pin A, hardware bug */
+				case 1: /* pin A */
+					dev->irq = IT8172_PCI_INTB_IRQ;
+					break;
+				case 2: /* pin B */
+					dev->irq = IT8172_PCI_INTB_IRQ;
+					break;
+				case 3: /* pin C */
+					dev->irq = IT8172_PCI_INTC_IRQ;
+					break;
+				case 4: /* pin D */
+					dev->irq = IT8172_PCI_INTD_IRQ;
+					break;
+				default:
+					dev->irq = 0xff; 
+					break;
+
+				}
+				break;
+			case 0x13:   // expansion slot
 				switch (pin) {
 					case 0: /* pin A, hardware bug */
 					case 1: /* pin A */
@@ -123,7 +145,7 @@ void __init pcibios_fixup_irqs(void)
 				}
 				break;
 			default:
-				return;
+				break;
 		}
 #ifdef DEBUG
 		printk("irq fixup: slot %d, int line %d, int number %d\n",

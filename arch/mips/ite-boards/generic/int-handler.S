@@ -27,7 +27,7 @@ NESTED(it8172_IRQ, PT_SIZE, sp)
         andi    a0, t0, CAUSEF_IP7
         beq     a0, zero, 1f
         move    a0, sp
-        jal     mips_timer_interrupt
+        jal     local_timer_interrupt
 	j	ret_from_irq
         nop
         

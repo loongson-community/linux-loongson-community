@@ -241,6 +241,8 @@ if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_IT8172_CIR y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_NEW_TIME_C y
 fi
 if [ "$CONFIG_MIPS_IVR" = "y" ]; then
    define_bool CONFIG_PCI y
@@ -249,6 +251,8 @@ if [ "$CONFIG_MIPS_IVR" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_IT8172_CIR y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_NEW_TIME_C y
 fi
 if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
    define_bool CONFIG_MIPS_AU1000 y

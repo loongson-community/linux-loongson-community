@@ -50,7 +50,7 @@ static void it8172_tune_drive (ide_drive_t *drive, byte pio);
 #if defined(CONFIG_BLK_DEV_IDEDMA) && defined(CONFIG_IT8172_TUNING)
 static byte it8172_dma_2_pio (byte xfer_rate);
 static int it8172_tune_chipset (ide_drive_t *drive, byte speed);
-static int it8172_config_drive_for_dma (ide_drive_t *drive);
+static int it8172_config_chipset_for_dma (ide_drive_t *drive);
 static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive);
 #endif
 unsigned int __init pci_init_it8172 (struct pci_dev *dev, const char *name);
@@ -60,38 +60,44 @@ void __init ide_init_it8172 (ide_hwif_t *hwif);
 static void it8172_tune_drive (ide_drive_t *drive, byte pio)
 {
     unsigned long flags;
-    u16 master_data;
-    u32 slave_data;
+    u16 drive_enables;
+    u32 drive_timing;
     int is_slave	= (&HWIF(drive)->drives[1] == drive);
-    int master_port	= 0x40;
-    int slave_port      = 0x44;
     
-    pio = ide_get_best_pio_mode(drive, pio, 5, NULL);
-    pci_read_config_word(HWIF(drive)->pci_dev, master_port, &master_data);
-    pci_read_config_dword(HWIF(drive)->pci_dev, slave_port, &slave_data);
+    pio = ide_get_best_pio_mode(drive, pio, 4, NULL);
+    pci_read_config_word(HWIF(drive)->pci_dev, 0x40, &drive_enables);
+    pci_read_config_dword(HWIF(drive)->pci_dev, 0x44, &drive_timing);
 
     /*
      * FIX! The DIOR/DIOW pulse width and recovery times in port 0x44
      * are being left at the default values of 8 PCI clocks (242 nsec
      * for a 33 MHz clock). These can be safely shortened at higher
-     * PIO modes.
+     * PIO modes. The DIOR/DIOW pulse width and recovery times only
+     * apply to PIO modes, not to the DMA modes.
      */
     
+    /*
+     * Enable port 0x44. The IT8172G spec is confused; it calls
+     * this register the "Slave IDE Timing Register", but in fact,
+     * it controls timing for both master and slave drives.
+     */
+    drive_enables |= 0x4000;
+
     if (is_slave) {
-	master_data |= 0x4000;
+	drive_enables &= 0xc006;
 	if (pio > 1)
-	    /* enable PPE and IE */
-	    master_data |= 0x0060;
+	    /* enable prefetch and IORDY sample-point */
+	    drive_enables |= 0x0060;
     } else {
-	master_data &= 0xc060;
+	drive_enables &= 0xc060;
 	if (pio > 1)
-	    /* enable PPE and IE */
-	    master_data |= 0x0006;
+	    /* enable prefetch and IORDY sample-point */
+	    drive_enables |= 0x0006;
     }
 
     save_flags(flags);
     cli();
-    pci_write_config_word(HWIF(drive)->pci_dev, master_port, master_data);
+    pci_write_config_word(HWIF(drive)->pci_dev, 0x40, drive_enables);
     restore_flags(flags);
 }
 
@@ -160,6 +166,7 @@ static int it8172_tune_chipset (ide_drive_t *drive, byte speed)
     case XFER_UDMA_0:	u_speed = 0 << (drive->dn * 4); break;
     case XFER_MW_DMA_2:
     case XFER_MW_DMA_1:
+    case XFER_MW_DMA_0:
     case XFER_SW_DMA_2:	break;
     default:		return -1;
     }
@@ -182,7 +189,7 @@ static int it8172_tune_chipset (ide_drive_t *drive, byte speed)
     return err;
 }
 
-static int it8172_config_drive_for_dma (ide_drive_t *drive)
+static int it8172_config_chipset_for_dma (ide_drive_t *drive)
 {
     struct hd_driveid *id = drive->id;
     byte speed;
@@ -201,10 +208,12 @@ static int it8172_config_drive_for_dma (ide_drive_t *drive)
 	speed = XFER_MW_DMA_2;
     } else if (id->dma_mword & 0x0002) {
 	speed = XFER_MW_DMA_1;
+    } else if (id->dma_mword & 0x0001) {
+	speed = XFER_MW_DMA_0;
     } else if (id->dma_1word & 0x0004) {
 	speed = XFER_SW_DMA_2;
     } else {
-	speed = XFER_PIO_0 + ide_get_best_pio_mode(drive, 255, 5, NULL);
+	speed = XFER_PIO_0 + ide_get_best_pio_mode(drive, 255, 4, NULL);
     }
 
     (void) it8172_tune_chipset(drive, speed);
@@ -220,7 +229,7 @@ static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 {
     switch (func) {
     case ide_dma_check:
-	return ide_dmaproc((ide_dma_action_t)it8172_config_drive_for_dma(drive),
+	return ide_dmaproc((ide_dma_action_t)it8172_config_chipset_for_dma(drive),
 			   drive);
     default :
 	break;

@@ -102,12 +102,10 @@
 #define IT8172_PMER_NMI_IRQ      (IT8172_NMI_IRQ_BASE + 4)
 #define IT8172_POWER_NMI_IRQ     (IT8172_NMI_IRQ_BASE + 5)
 
+#define IT8172_LAST_IRQ          (IT8172_POWER_NMI_IRQ)
 /* Finally, let's move over here the mips cpu timer interrupt.
- * This is more or less strictly for statistics.
  */
-#define MIPS_CPU_TIMER_IRQ       (IT8172_NMI_IRQ_BASE + 6)
-
-#define IT8172_INT_END           MIPS_CPU_TIMER_IRQ
+#define MIPS_CPU_TIMER_IRQ       (NR_IRQS-1)
 
 /* 
  * IT8172 Interrupt Controller Registers
