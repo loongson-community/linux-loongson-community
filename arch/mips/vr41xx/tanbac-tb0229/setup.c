@@ -25,7 +25,6 @@
 
 #include <asm/io.h>
 #include <asm/pci_channel.h>
-#include <asm/reboot.h>
 #include <asm/vr41xx/tb0229.h>
 
 #ifdef CONFIG_PCI
@@ -95,10 +94,6 @@ static int tanbac_tb0229_setup(void)
 
 #ifdef CONFIG_PCI
 	vr41xx_pciu_init(&pci_address_map);
-#endif
-
-#ifdef CONFIG_TANBAC_TB0219
-	_machine_restart = tanbac_tb0229_restart;
 #endif
 
 	return 0;
