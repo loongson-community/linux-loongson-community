@@ -115,14 +115,14 @@
 #define H2I_DMA_PORT_EN_AESRX	0x02		/* AES receiver DMA port */
 #define H2I_DMA_PORT_EN_AESTX	0x04		/* AES transmitter DMA port */
 #define H2I_DMA_PORT_EN_CODECTX	0x08		/* CODEC transmit DMA port */
-#define H2I_DMA_PORT_EN_CODECRX	0x10		/* CODEC receive DMA port */
+#define H2I_DMA_PORT_EN_CODECR	0x10		/* CODEC receive DMA port */
 
 #define H2I_DMA_END		0x9108 		/* global dma endian select */
 #define H2I_DMA_END_SY_IN	0x01		/* Synth_in DMA port */
 #define H2I_DMA_END_AESRX	0x02		/* AES receiver DMA port */
 #define H2I_DMA_END_AESTX	0x04		/* AES transmitter DMA port */
 #define H2I_DMA_END_CODECTX	0x08		/* CODEC transmit DMA port */
-#define H2I_DMA_END_CODECRX	0x10		/* CODEC receive DMA port */
+#define H2I_DMA_END_CODECR	0x10		/* CODEC receive DMA port */
 						/* 0=b_end 1=l_end */
 
 #define H2I_DMA_DRV		0x910C  	/* global PBUS DMA enable */
@@ -130,9 +130,10 @@
 #define H2I_SYNTH_C		0x1104		/* Synth DMA control */
 
 #define H2I_AESRX_C		0x1204	 	/* AES RX dma control */
-#define H2I_AESRX_C_TS_EN	0x20		/* timestamp enable */
-#define H2I_AESRX_C_TS_FMT	0x40		/* timestamp format */
-#define H2I_AESRX_C_NAUDIO	0x80		/* PBUS DMA data format */
+
+#define H2I_C_TS_EN		0x20		/* Timestamp enable */
+#define H2I_C_TS_FRMT		0x40		/* Timestamp format */
+#define H2I_C_NAUDIO		0x80		/* Sign extend */
 
 /* AESRX CTL, 16 bit */
 
@@ -142,13 +143,12 @@
 #define H2I_AESTX_C_DATAT_SHIFT	8		/* 1=mono 2=stereo (3=quad) */
 #define H2I_AESTX_C_DATAT_M	0x300
 
-/* CODEC registers. Specification calls them DAC_CTRL and ADC_CTRL, but this
- * is braindamaged. It doesn't explain their meaning. */
+/* CODEC registers */
 
-#define H2I_CODEC_A_C1		0x1404 		/* CODEC_A DMA control, 16 bit */
-#define H2I_CODEC_A_C2		0x1408		/* CODEC_A DMA control, 32 bit */
-#define H2I_CODEC_B_C1		0x1504 		/* CODEC_B DMA control, 16 bit */
-#define H2I_CODEC_B_C2		0x1508		/* CODEC_B DMA control, 32 bit */
+#define H2I_DAC_C1		0x1404 		/* DAC DMA control, 16 bit */
+#define H2I_DAC_C2		0x1408		/* DAC DMA control, 32 bit */
+#define H2I_ADC_C1		0x1504 		/* ADC DMA control, 16 bit */
+#define H2I_ADC_C2		0x1508		/* ADC DMA control, 32 bit */
 
 /* Bits in CTL1 register */
 
@@ -284,11 +284,7 @@ typedef struct stru_hal2_pbus hal2_pbus_t;
 struct stru_hal2_pbus {
 	struct hpc3_pbus_dmacregs *pbus;
 	int pbusnr;
-	unsigned int fifobeg;
-	unsigned int fifoend;
-	unsigned int highwater;
-
-	unsigned long ctrl;		/* Current state of pbus->pbdma_ctrl */
+	unsigned int ctrl;		/* Current state of pbus->pbdma_ctrl */
 };
 
 typedef struct stru_hal2_binfo hal2_binfo_t;
