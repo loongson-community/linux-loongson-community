@@ -33,7 +33,7 @@ endif
 # machines may also.  Since BFD is incredibly buggy with respect to
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
-CFLAGS		+= $(TOPDIR)/include/asm/gcc $(CFLAGS)
+CFLAGS		+= -I $(TOPDIR)/include/asm/gcc $(CFLAGS)
 CFLAGS		+= -mabi=64 -G 0 -mno-abicalls -fno-pic -Wa,--trap -pipe
 LINKFLAGS	+= -G 0 -static # -N
 MODFLAGS	+= -mlong-calls
