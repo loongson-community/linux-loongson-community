@@ -76,9 +76,6 @@ struct pt_regs {
 #ifndef _LANGUAGE_ASSEMBLY
 #define instruction_pointer(regs) ((regs)->cp0_epc)
 
-extern void (*_show_regs)(struct pt_regs *);
-#define show_regs(regs)	_show_regs(regs)
-
 #endif /* !(_LANGUAGE_ASSEMBLY__) */
 
 #endif

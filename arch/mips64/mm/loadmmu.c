@@ -45,8 +45,6 @@ void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 void (*update_mmu_cache)(struct vm_area_struct * vma,
 			 unsigned long address, pte_t pte);
 
-void (*_show_regs)(struct pt_regs *);
-
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);

@@ -2081,35 +2081,6 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 }
 #endif
 
-static void r4k_show_regs(struct pt_regs *regs)
-{
-	/* Saved main processor registers. */
-	printk("$0      : %016lx %016lx %016lx %016lx\n",
-	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
-	printk("$4      : %016lx %016lx %016lx %016lx\n",
-               regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	printk("$8      : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
-	printk("$12     : %016lx %016lx %016lx %016lx\n",
-               regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
-	printk("$16     : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
-	printk("$20     : %016lx %016lx %016lx %016lx\n",
-               regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
-	printk("$24     : %016lx %016lx\n",
-	       regs->regs[24], regs->regs[25]);
-	printk("$28     : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
-	printk("Hi      : %016lx\n", regs->hi);
-	printk("Lo      : %016lx\n", regs->lo);
-
-	/* Saved cp0 registers. */
-	printk("epc     : %016lx    %s\nbadvaddr: %016lx\n",
-	       regs->cp0_epc, print_tainted(), regs->cp0_badvaddr);
-	printk("Status  : %08x\nCause   : %08x\n",
-	       (unsigned int) regs->cp0_status, (unsigned int) regs->cp0_cause);
-}
-
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
@@ -2389,8 +2360,6 @@ void __init ld_mmu_r4xx0(void)
 	_flush_cache_l2 = r4k_flush_cache_l2;
 
 	update_mmu_cache = r4k_update_mmu_cache;
-
-	_show_regs = r4k_show_regs;
 
 	flush_cache_l1();
 

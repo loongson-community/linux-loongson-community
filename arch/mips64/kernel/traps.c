@@ -589,7 +589,6 @@ void set_except_vector(int n, void *addr)
 {
 	unsigned long handler = (unsigned long) addr;
 	exception_handlers[n] = handler;
-
 	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
@@ -663,7 +662,7 @@ void __init trap_init(void)
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_cp0_status(0xf000);
 		set_cp0_status(0xc00);
-		goto nocache;
+		break;
 
 	case CPU_R10000:
 	case CPU_R4000MC:
@@ -677,9 +676,7 @@ void __init trap_init(void)
 	case CPU_R4600:
 	case CPU_R5000:
 	case CPU_NEVADA:
-		/* Cache error vector  */
-		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
-nocache:
+r4k:
 		/* Debug TLB refill handler.  */
 		memcpy((void *)KSEG0, &except_vec0, 0x80);
 		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
@@ -689,10 +686,10 @@ nocache:
 
 		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
-			       0x80);
+			       0x180);
 		} else {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-			       0x80);
+			       0x100);
 		}
 
 		set_except_vector(1, __xtlb_mod);
