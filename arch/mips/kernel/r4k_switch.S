@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.3 1998/04/05 11:23:52 ralf Exp $
+/* $Id: r4k_switch.S,v 1.4 1998/07/16 19:10:02 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -41,8 +41,14 @@
 	CPU_RESTORE_NONSCRATCH($28)
 	addiu	t0, $28, KERNEL_STACK_SIZE-32
 	sw	t0, kernelsp
-	lw	a3, TASK_MM($28)
+	mfc0	t1, CP0_STATUS		/* Do we really need this? */
+	li	a3, 0xff00
+	and	t1, a3
 	lw	a2, THREAD_STATUS($28)
+	nor	a3, $0, a3
+	and	a2, a3
+	lw	a3, TASK_MM($28)
+	or	a2, t1
 	lw	a3, MM_CONTEXT(a3)
 	mtc0	a2, CP0_STATUS
 	andi	a3, a3, 0xff
