@@ -1,5 +1,4 @@
-/* $Id: ip27-pci-dma.c,v 1.1 2000/02/16 21:22:00 ralf Exp $
- *
+/*
  * Dynamic DMA mapping support.
  *
  * On the Origin there is dynamic DMA address translation for all PCI DMA.

@@ -1,5 +1,4 @@
-/* $Id: sgiseeq.c,v 1.17 2000/03/27 23:02:57 ralf Exp $
- *
+/*
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)

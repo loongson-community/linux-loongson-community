@@ -1,5 +1,4 @@
-/* $Id$
- *
+/*
  * Copyright (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
