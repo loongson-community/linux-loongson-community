@@ -5,7 +5,6 @@
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Copyright (C) 1999 - 2001 Kanoj Sarcar
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/errno.h>
@@ -440,36 +439,6 @@ void __init init_IRQ(void)
 		irq_desc[i].handler	= &bridge_irq_type;
 	}
 }
-
-#ifdef CONFIG_SMP
-
-void core_send_ipi(int destid, unsigned int action)
-{
-	int irq;
-
-	switch (action) {
-	case SMP_RESCHEDULE_YOURSELF:
-		irq = CPU_RESCHED_A_IRQ;
-		break;
-	case SMP_CALL_FUNCTION:
-		irq = CPU_CALL_A_IRQ;
-		break;
-	default:
-		panic("sendintr");
-	}
-
-	irq += cputoslice(destid);
-
-	/*
-	 * Convert the compact hub number to the NASID to get the correct
-	 * part of the address space.  Then set the interrupt bit associated
-	 * with the CPU we want to send the interrupt to.
-	 */
-	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)),
-	                     FAST_IRQ_TO_LEVEL(irq));
-}
-
-#endif
 
 void install_ipi(void)
 {

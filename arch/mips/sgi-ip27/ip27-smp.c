@@ -200,3 +200,28 @@ void __init prom_cpus_done(void)
 void prom_smp_finish(void)
 {
 }
+
+void core_send_ipi(int destid, unsigned int action)
+{
+	int irq;
+
+	switch (action) {
+	case SMP_RESCHEDULE_YOURSELF:
+		irq = CPU_RESCHED_A_IRQ;
+		break;
+	case SMP_CALL_FUNCTION:
+		irq = CPU_CALL_A_IRQ;
+		break;
+	default:
+		panic("sendintr");
+	}
+
+	irq += cputoslice(destid);
+
+	/*
+	 * Convert the compact hub number to the NASID to get the correct
+	 * part of the address space.  Then set the interrupt bit associated
+	 * with the CPU we want to send the interrupt to.
+	 */
+	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)), irq);
+}
