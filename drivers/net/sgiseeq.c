@@ -71,12 +71,12 @@ static char *sgiseeqstr = "SGI Seeq8003";
 
 struct sgiseeq_rx_desc {
 	struct hpc_dma_desc rdma;
-	signed long buf_vaddr;
+	signed int buf_vaddr;
 };
 
 struct sgiseeq_tx_desc {
 	struct hpc_dma_desc tdma;
-	signed long buf_vaddr;
+	signed int buf_vaddr;
 };
 
 /* Warning: This structure is layed out in a certain way because
@@ -87,7 +87,7 @@ struct sgiseeq_init_block { /* Note the name ;-) */
 	/* Ptrs to the descriptors in KSEG1 uncached space. */
 	struct sgiseeq_rx_desc *rx_desc;
 	struct sgiseeq_tx_desc *tx_desc;
-	unsigned int _padding[32 - sizeof (void*)/2]; /* Pad out to largest cache line size. */
+	unsigned int _padding[30]; /* Pad out to largest cache line size. */
 
 	struct sgiseeq_rx_desc rxvector[SEEQ_RX_BUFFERS];
 	struct sgiseeq_tx_desc txvector[SEEQ_TX_BUFFERS];
