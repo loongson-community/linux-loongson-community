@@ -63,7 +63,7 @@ static void atlas_saa9730_base_fixup (struct pci_dev *pdev)
 #endif
 
 
-struct pci_fixup pcibios_fixups[] __initdata = {
+struct pci_fixup pcibios_fixups[] = {
 #ifdef CONFIG_KGDB
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_PHILIPS, PCI_DEVICE_ID_PHILIPS_SAA9730,
 	 atlas_saa9730_base_fixup},

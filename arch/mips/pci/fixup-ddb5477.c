@@ -69,7 +69,7 @@ static void ddb5477_amd_lance_fixup(struct pci_dev *dev)
 	outw(temp, ioaddr + PCNET32_WIO_BDP);
 }
 
-struct pci_fixup pcibios_fixups[] __initdata = {
+struct pci_fixup pcibios_fixups[] = {
 	{ PCI_FIXUP_FINAL, PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M1533,
 	  ddb5477_fixup },
 	{ PCI_FIXUP_FINAL, PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M1535,

@@ -103,6 +103,6 @@ int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 return irq_tab_alchemy[slot][pin];
 }
 
-struct pci_fixup pcibios_fixups[] __initdata = {
+struct pci_fixup pcibios_fixups[] = {
 { 0 }
 };

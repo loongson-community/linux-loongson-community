@@ -96,7 +96,7 @@ static void __init malta_piix_func1_fixup(struct pci_dev *pdev)
 	}
 }
 
-struct pci_fixup pcibios_fixups[] __initdata = {
+struct pci_fixup pcibios_fixups[] = {
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371AB_0,
 	 malta_piix_func0_fixup},
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371AB,
