@@ -8,11 +8,16 @@
 #include <asm/page.h>
 #include <mmzone.h>
 
-extern unsigned long max_low_pfn;
-
 #define kvaddr_to_nid(kvaddr)	pa_to_nid(__pa(kvaddr))
 #define pfn_to_nid(pfn)		pa_to_nid((pfn) << PAGE_SHIFT)
-#define pfn_valid(pfn)		((pfn) < max_low_pfn)
+
+#define pfn_valid(pfn)						\
+({								\
+ 	unsigned long __pfn = (pfn);				\
+ 	int __n = pfn_to_nid(__pfn);				\
+	((__n >= 0) ? (__pfn < NODE_DATA(__n)->node_start_pfn +	\
+		       NODE_DATA(__n)->node_spanned_pages) : 0);\
+})
 
 #define pfn_to_page(pfn)					\
 ({								\
