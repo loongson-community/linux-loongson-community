@@ -29,7 +29,7 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 	if (ret != NULL) {
 		memset(ret, 0, size);
 		dma_cache_wback_inv((unsigned long) ret, size);
-		*dma_handle = virt_to_bus(ret);
+		*dma_handle = KDM_TO_PHYS(ret);
 	}
 	return ret;
 }
@@ -37,5 +37,46 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 void pci_free_consistent(struct pci_dev *hwdev, size_t size,
 			 void *vaddr, dma_addr_t dma_handle)
 {
-	free_pages((unsigned long) vaddr, get_order(size));
+	free_pages((unsigned long) PHYS_TO_K0(vaddr), get_order(size));
 }
+
+
+/*
+dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr, size_t size,
+                                 int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+	
+}
+void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
+                             size_t size, int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+}
+int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nents,
+                      int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+}
+void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg,
+                         int nents, int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+}
+void pci_dma_sync_single(struct pci_dev *hwdev, dma_addr_t dma_handle,
+                                size_t size, int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+}
+void pci_dma_sync_sg(struct pci_dev *hwdev, struct scatterlist *sg,
+                            int nelems, int direction)
+{
+	if (direction == PCI_DMA_NONE)
+		BUG();
+}
+*/

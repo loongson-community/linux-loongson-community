@@ -436,3 +436,7 @@ void macepci_error (int irq, void *dev, struct pt_regs *regs) {
 			       & ~MACEPCI_ERROR_INTERRUPT_TEST);
 	}
 }
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 0;
+}

@@ -18,7 +18,7 @@ O_TARGET := ip32-kern.a
 all: ip32-kern.a ip32-irq-glue.o
 
 obj-y	+= ip32-irq.o ip32-rtc.o ip32-setup.o ip32-irq-glue.o \
-	 ip32-berr.o ip32-timer.o crime.o
+	 ip32-berr.o ip32-timer.o crime.o ip32-reset.o
 
 ifdef CONFIG_PCI
 obj-y   += ip32-pci.o ip32-pci-dma.o

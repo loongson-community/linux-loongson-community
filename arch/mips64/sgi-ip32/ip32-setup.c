@@ -25,8 +25,11 @@
 extern struct rtc_ops ip32_rtc_ops;
 extern u32 cc_interval;
 
+unsigned long mips_io_port_base = UNCACHEDADDR (MACEPCI_HI_IO);;
+
+
 void __init ip32_init (int argc, char **argv, char **envp) {
-	arc_meminit ();
+	prom_meminit ();
 }
 
 void __init ip32_setup(void)
