@@ -203,26 +203,19 @@
 
 struct hal2_ctl_regs {
 	u32 _unused0[4];
-	u16 _isr;
-	volatile u16 isr;		/* 0x10 Status Register */
+	volatile u32 isr;		/* 0x10 Status Register */
 	u32 _unused1[3];
-	u16 _rev;
-	volatile u16 rev;		/* 0x20 Revision Register */
+	volatile u32 rev;		/* 0x20 Revision Register */
 	u32 _unused2[3];
-	u16 _iar;
-	volatile u16 iar;		/* 0x30 Indirect Address Register */
+	volatile u32 iar;		/* 0x30 Indirect Address Register */
 	u32 _unused3[3];
-	u16 _idr0;
-	volatile u16 idr0;		/* 0x40 Indirect Data Register 0 */
+	volatile u32 idr0;		/* 0x40 Indirect Data Register 0 */
 	u32 _unused4[3];
-	u16 _idr1;
-	volatile u16 idr1;		/* 0x50 Indirect Data Register 1 */
+	volatile u32 idr1;		/* 0x50 Indirect Data Register 1 */
 	u32 _unused5[3];
-	u16 _idr2;
-	volatile u16 idr2;		/* 0x60 Indirect Data Register 2 */
+	volatile u32 idr2;		/* 0x60 Indirect Data Register 2 */
 	u32 _unused6[3];
-	u16 _idr3;
-	volatile u16 idr3;		/* 0x70 Indirect Data Register 3 */
+	volatile u32 idr3;		/* 0x70 Indirect Data Register 3 */
 };
 
 struct hal2_aes_regs {
@@ -250,70 +243,6 @@ struct hal2_syn_regs {
 	volatile u32 dhigh;		/* DOC Data high */
 	volatile u32 irq;		/* IRQ Status */
 	volatile u32 dram;		/* DRAM Access */
-};
-
-/* driver specific structures */
-
-struct hal2_pbus {
-	struct hpc3_pbus_dmacregs *pbus;
-	int pbusnr;
-	unsigned int ctrl;		/* Current state of pbus->pbdma_ctrl */
-};
-
-struct hal2_buf;
-struct hal2_binfo {
-	volatile struct hpc_dma_desc desc;
-	struct hal2_buf *next;		/* pointer to next buffer */
-	int cnt;			/* bytes in buffer */
-};
-#define H2_BUFFER_SIZE	(PAGE_SIZE - \
-		((sizeof(struct hal2_binfo) - 1) / 8 + 1) * 8)
-struct hal2_buf {
-	struct hal2_binfo info;
-	u8 data[H2_BUFFER_SIZE] __attribute__((aligned(8)));
-};
-
-struct hal2_codec {
-	struct hal2_buf *head;
-	struct hal2_buf *tail; 
-	struct hal2_pbus pbus;
-	unsigned int format;		/* Audio data format */
-	int voices;			/* mono/stereo */
-	unsigned int sample_rate;
-	unsigned int master;		/* Master frequency */
-	unsigned short mod;		/* MOD value */
-	unsigned short inc;		/* INC value */
-
-	wait_queue_head_t dma_wait;
-	spinlock_t lock;
-	struct semaphore sem;
-
-	int usecount;			/* recording and playback are 
-					 * independent */
-};
-
-#define H2_MIX_OUTPUT_ATT	0
-#define H2_MIX_INPUT_GAIN	1
-#define H2_MIXERS		2
-struct hal2_mixer {
-	int modcnt;
-	unsigned int master;
-	unsigned int volume[H2_MIXERS];
-};
-
-struct hal2_card {
-	int dev_dsp;			/* audio device */
-	int dev_mixer;			/* mixer device */
-	int dev_midi;			/* midi device */
-	
-	struct hal2_ctl_regs *ctl_regs;	/* HAL2 ctl registers */
-	struct hal2_aes_regs *aes_regs;	/* HAL2 aes registers */
-	struct hal2_vol_regs *vol_regs;	/* HAL2 vol registers */
-	struct hal2_syn_regs *syn_regs;	/* HAL2 syn registers */
-
-	struct hal2_codec dac;
-	struct hal2_codec adc;
-	struct hal2_mixer mixer;
 };
 
 #endif	/* __HAL2_H */

@@ -21,9 +21,7 @@
  *  /dev/dsp    standard dsp device, (mostly) OSS compatible
  *  /dev/mixer	standard mixer device, (mostly) OSS compatible
  *
- *  TODO: 4 channel mode?
  */
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/sched.h>
@@ -31,10 +29,11 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/interrupt.h>
+#include <linux/dma-mapping.h>
 #include <linux/sound.h>
 #include <linux/soundcard.h>
+
 #include <asm/io.h>
-#include <asm/uaccess.h>
 #include <asm/sgi/hpc3.h>
 #include <asm/sgi/ip22.h>
 
@@ -52,15 +51,83 @@
 #define DEBUG_MIX(args...)
 #endif
 
+/*
+ * Before touching these look how it works. It is a bit unusual I know,
+ * but it helps to keep things simple. This driver is considered complete
+ * and I won't add any new features although hardware has many cool
+ * capabilities.
+ * (Historical note: HAL2 driver was first written by Ulf Carlsson - ALSA
+ * 0.3 running with 2.2.x kernel. Then ALSA changed completely and it
+ * seemed easier to me to write OSS driver from scratch - this one. Now
+ * when ALSA is official part of 2.6 kernel it's time to write ALSA driver
+ * using (hopefully) final version of ALSA interface)
+ */
+#define H2_BLOCK_SIZE	1024
+#define H2_ADC_BUFSIZE	8192
+#define H2_DAC_BUFSIZE	16834
+
+struct hal2_pbus {
+	struct hpc3_pbus_dmacregs *pbus;
+	int pbusnr;
+	unsigned int ctrl;		/* Current state of pbus->pbdma_ctrl */
+};
+
+struct hal2_desc {
+	struct hpc_dma_desc desc;
+	u32 cnt;			/* don't touch, it is also padding */
+};
+
+struct hal2_codec {
+	unsigned char *buffer;
+	struct hal2_desc *desc;
+	int desc_count;
+	int tail, head;			/* tail index, head index */
+	struct hal2_pbus pbus;
+	unsigned int format;		/* Audio data format */
+	int voices;			/* mono/stereo */
+	unsigned int sample_rate;
+	unsigned int master;		/* Master frequency */
+	unsigned short mod;		/* MOD value */
+	unsigned short inc;		/* INC value */
+
+	wait_queue_head_t dma_wait;
+	spinlock_t lock;
+	struct semaphore sem;
+
+	int usecount;			/* recording and playback are 
+					 * independent */
+};
+
+#define H2_MIX_OUTPUT_ATT	0
+#define H2_MIX_INPUT_GAIN	1
+#define H2_MIXERS		2
+struct hal2_mixer {
+	int modcnt;
+	unsigned int master;
+	unsigned int volume[H2_MIXERS];
+};
+
+struct hal2_card {
+	int dev_dsp;			/* audio device */
+	int dev_mixer;			/* mixer device */
+	int dev_midi;			/* midi device */
+	
+	struct hal2_ctl_regs *ctl_regs;	/* HAL2 ctl registers */
+	struct hal2_aes_regs *aes_regs;	/* HAL2 aes registers */
+	struct hal2_vol_regs *vol_regs;	/* HAL2 vol registers */
+	struct hal2_syn_regs *syn_regs;	/* HAL2 syn registers */
+
+	struct hal2_codec dac;
+	struct hal2_codec adc;
+	struct hal2_mixer mixer;
+};
+
 #define H2_INDIRECT_WAIT(regs)	while (regs->isr & H2_ISR_TSTATUS);
 
 #define H2_READ_ADDR(addr)	(addr | (1<<7))
 #define H2_WRITE_ADDR(addr)	(addr)
 
 static char *hal2str = "HAL2";
-static int msmix = 0;
-static int ibufs = 4;
-static int obufs = 8;
 
 /* 
  * I doubt anyone has a machine with two HAL2 cards. It's possible to
@@ -112,10 +179,10 @@ static u32 hal2_i_look32(struct hal2_card *hal2, u16 addr)
 
 	regs->iar = H2_READ_ADDR(addr);
 	H2_INDIRECT_WAIT(regs);
-	ret = regs->idr0;
+	ret = regs->idr0 & 0xffff;
 	regs->iar = H2_READ_ADDR(addr | 0x1);
 	H2_INDIRECT_WAIT(regs);
-	ret |= regs->idr0 << 16;
+	ret |= (regs->idr0 & 0xffff) << 16;
 	return ret;
 }
 
@@ -149,7 +216,7 @@ static void hal2_i_setbit16(struct hal2_card *hal2, u16 addr, u16 bit)
 
 	regs->iar = H2_READ_ADDR(addr);
 	H2_INDIRECT_WAIT(regs);
-	regs->idr0 = regs->idr0 | bit;
+	regs->idr0 = (regs->idr0 & 0xffff) | bit;
 	regs->idr1 = 0;
 	regs->idr2 = 0;
 	regs->idr3 = 0;
@@ -164,7 +231,7 @@ static void hal2_i_setbit32(struct hal2_card *hal2, u16 addr, u32 bit)
 
 	regs->iar = H2_READ_ADDR(addr);
 	H2_INDIRECT_WAIT(regs);
-	tmp = regs->idr0 | (regs->idr1 << 16) | bit;
+	tmp = (regs->idr0 & 0xffff) | (regs->idr1 << 16) | bit;
 	regs->idr0 = tmp & 0xffff;
 	regs->idr1 = tmp >> 16;
 	regs->idr2 = 0;
@@ -179,7 +246,7 @@ static void hal2_i_clearbit16(struct hal2_card *hal2, u16 addr, u16 bit)
 
 	regs->iar = H2_READ_ADDR(addr);
 	H2_INDIRECT_WAIT(regs);
-	regs->idr0 = regs->idr0 & ~bit;
+	regs->idr0 = (regs->idr0 & 0xffff) & ~bit;
 	regs->idr1 = 0;
 	regs->idr2 = 0;
 	regs->idr3 = 0;
@@ -195,7 +262,7 @@ static void hal2_i_clearbit32(struct hal2_card *hal2, u16 addr, u32 bit)
 
 	regs->iar = H2_READ_ADDR(addr);
 	H2_INDIRECT_WAIT(regs);
-	tmp = (regs->idr0 | (regs->idr1 << 16)) & ~bit;
+	tmp = ((regs->idr0 & 0xffff) | (regs->idr1 << 16)) & ~bit;
 	regs->idr0 = tmp & 0xffff;
 	regs->idr1 = tmp >> 16;
 	regs->idr2 = 0;
@@ -251,24 +318,33 @@ static struct hal2_card* hal2_mixer_find_card(int minor)
 	return NULL;
 }
 
+static void hal2_inc_head(struct hal2_codec *codec)
+{
+	codec->head++;
+	if (codec->head == codec->desc_count)
+		codec->head = 0;
+}
+
+static void hal2_inc_tail(struct hal2_codec *codec)
+{
+	codec->tail++;
+	if (codec->tail == codec->desc_count)
+		codec->tail = 0;
+}
 
 static void hal2_dac_interrupt(struct hal2_codec *dac)
 {
 	int running;
 
 	spin_lock(&dac->lock);
-
 	/* if tail buffer contains zero samples DMA stream was already
 	 * stopped */
-	running = dac->tail->info.cnt;
-	dac->tail->info.cnt = 0;
-	dac->tail->info.desc.cntinfo = HPCDMA_XIE | HPCDMA_EOX;
-	dma_cache_wback_inv((unsigned long) dac->tail,
-			    sizeof(struct hpc_dma_desc));
+	running = dac->desc[dac->tail].cnt;
+	dac->desc[dac->tail].cnt = 0;
+	dac->desc[dac->tail].desc.cntinfo = HPCDMA_XIE | HPCDMA_EOX;
 	/* we just proccessed empty buffer, don't update tail pointer */
 	if (running)
-		dac->tail = dac->tail->info.next;
-
+		hal2_inc_tail(dac);
 	spin_unlock(&dac->lock);
 
 	wake_up(&dac->dma_wait);
@@ -279,20 +355,14 @@ static void hal2_adc_interrupt(struct hal2_codec *adc)
 	int running;
 
 	spin_lock(&adc->lock);
-
 	/* if head buffer contains nonzero samples DMA stream was already
 	 * stopped */
-	running = !adc->head->info.cnt;
-	adc->head->info.cnt = H2_BUFFER_SIZE;
-	adc->head->info.desc.cntinfo = HPCDMA_XIE | HPCDMA_EOX;
-	dma_cache_wback_inv((unsigned long) adc->head,
-			    sizeof(struct hpc_dma_desc));
+	running = !adc->desc[adc->head].cnt;
+	adc->desc[adc->head].cnt = H2_BLOCK_SIZE;
+	adc->desc[adc->head].desc.cntinfo = HPCDMA_XIE | HPCDMA_EOR;
 	/* we just proccessed empty buffer, don't update head pointer */
-	if (running) {
-		dma_cache_inv((unsigned long) adc->head->data, H2_BUFFER_SIZE);
-		adc->head = adc->head->info.next;
-	}
-
+	if (running)
+		hal2_inc_head(adc);
 	spin_unlock(&adc->lock);
 
 	wake_up(&adc->dma_wait);
@@ -312,7 +382,6 @@ static irqreturn_t hal2_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		hal2_adc_interrupt(&hal2->adc);
 		ret = IRQ_HANDLED;
 	}
-
 	return ret;
 }
 
@@ -379,13 +448,11 @@ static void hal2_setup_dac(struct hal2_card *hal2)
 	 * endian. The information is written later, on the start call.
 	 */
 	sample_size = 2 * hal2->dac.voices;
-
 	/* Fifo should be set to hold exactly four samples. Highwater mark
 	 * should be set to two samples. */
 	highwater = (sample_size * 2) >> 1;	/* halfwords */
 	fifobeg = 0;				/* playback is first */
 	fifoend = (sample_size * 4) >> 3;	/* doublewords */
-
 	pbus->ctrl = HPC3_PDMACTRL_RT | HPC3_PDMACTRL_LD |
 		     (highwater << 8) | (fifobeg << 16) | (fifoend << 24) |
 		     (hal2->dac.format & AFMT_S16_LE ? HPC3_PDMACTRL_SEL : 0);
@@ -415,11 +482,9 @@ static void hal2_setup_adc(struct hal2_card *hal2)
 	DEBUG("hal2_setup_adc\n");
 
 	sample_size = 2 * hal2->adc.voices;
-
 	highwater = (sample_size * 2) >> 1;		/* halfwords */
 	fifobeg = (4 * 4) >> 3;				/* record is second */
 	fifoend = (4 * 4 + sample_size * 4) >> 3;	/* doublewords */
-
 	pbus->ctrl = HPC3_PDMACTRL_RT | HPC3_PDMACTRL_RCV | HPC3_PDMACTRL_LD | 
 		     (highwater << 8) | (fifobeg << 16) | (fifoend << 24) |
 		     (hal2->adc.format & AFMT_S16_LE ? HPC3_PDMACTRL_SEL : 0);
@@ -440,124 +505,118 @@ static void hal2_setup_adc(struct hal2_card *hal2)
 			| (hal2->adc.voices << H2I_C1_DATAT_SHIFT));
 }
 
+static dma_addr_t hal2_desc_addr(struct hal2_codec *codec, int i)
+{
+	if (--i < 0)
+		i = codec->desc_count - 1;
+	return codec->desc[i].desc.pnext;
+}
+
 static void hal2_start_dac(struct hal2_card *hal2)
 {
-	struct hal2_pbus *pbus = &hal2->dac.pbus;
+	struct hal2_codec *dac = &hal2->dac;
+	struct hal2_pbus *pbus = &dac->pbus;
 
-	DEBUG("hal2_start_dac\n");
-	
-	pbus->pbus->pbdma_dptr = PHYSADDR(hal2->dac.tail);
+	pbus->pbus->pbdma_dptr = hal2_desc_addr(dac, dac->tail);
 	pbus->pbus->pbdma_ctrl = pbus->ctrl | HPC3_PDMACTRL_ACT;
-
 	/* enable DAC */
 	hal2_i_setbit16(hal2, H2I_DMA_PORT_EN, H2I_DMA_PORT_EN_CODECTX);
 }
 
 static void hal2_start_adc(struct hal2_card *hal2)
 {
-	struct hal2_pbus *pbus = &hal2->adc.pbus;
+	struct hal2_codec *adc = &hal2->adc;
+	struct hal2_pbus *pbus = &adc->pbus;
 
-	DEBUG("hal2_start_adc\n");
-	
-	pbus->pbus->pbdma_dptr = PHYSADDR(hal2->adc.head);
+	pbus->pbus->pbdma_dptr = hal2_desc_addr(adc, adc->head);
 	pbus->pbus->pbdma_ctrl = pbus->ctrl | HPC3_PDMACTRL_ACT;
-	
 	/* enable ADC */
 	hal2_i_setbit16(hal2, H2I_DMA_PORT_EN, H2I_DMA_PORT_EN_CODECR);
 }
 
 static inline void hal2_stop_dac(struct hal2_card *hal2)
 {
-	DEBUG("hal2_stop_dac\n");
-	
 	hal2->dac.pbus.pbus->pbdma_ctrl = HPC3_PDMACTRL_LD;
 	/* The HAL2 itself may remain enabled safely */
 }
 
 static inline void hal2_stop_adc(struct hal2_card *hal2)
 {
-	DEBUG("hal2_stop_adc\n");
-	
 	hal2->adc.pbus.pbus->pbdma_ctrl = HPC3_PDMACTRL_LD;
 }
 
-#define hal2_alloc_dac_dmabuf(hal2)	hal2_alloc_dmabuf(hal2, 1)
-#define hal2_alloc_adc_dmabuf(hal2)	hal2_alloc_dmabuf(hal2, 0)
-static int hal2_alloc_dmabuf(struct hal2_card *hal2, int is_dac)
+static int hal2_alloc_dmabuf(struct hal2_codec *codec, int size,
+			     int count, int cntinfo, int dir)
 {
-	int buffers, cntinfo;
-	struct hal2_buf *buf, *prev;
-	struct hal2_codec *codec;
+	struct hal2_desc *desc, *dma_addr;
+	int i;
 
-	if (is_dac) {
-		codec = &hal2->dac;
-		buffers = obufs;
-		cntinfo = HPCDMA_XIE | HPCDMA_EOX;
-	} else {
-		codec = &hal2->adc;
-		buffers = ibufs;
-		cntinfo = HPCDMA_XIE | H2_BUFFER_SIZE;
-	}
-	
-	DEBUG("allocating %d DMA buffers.\n", buffers);
-	
-	buf = (struct hal2_buf *)get_zeroed_page(GFP_KERNEL);
-	if (!buf)
+	DEBUG("allocating %dk DMA buffer.\n", size / 1024);
+
+	codec->buffer = (unsigned char *)__get_free_pages(GFP_KERNEL | GFP_DMA,
+							  get_order(size));
+	if (!codec->buffer)
 		return -ENOMEM;
-	codec->head = buf;
-	codec->tail = buf;
-	
-	while (--buffers) {
-		buf->info.desc.pbuf = PHYSADDR(&buf->data);
-		buf->info.desc.cntinfo = cntinfo;
-		buf->info.cnt = 0;
-		prev = buf;
-		buf = (struct hal2_buf *)get_zeroed_page(GFP_KERNEL);
-		if (!buf) {
-			printk(KERN_ERR
-			       "HAL2: Not enough memory for DMA buffer.\n");
-			buf = codec->head;
-			while (buf) {
-				prev = buf;
-				free_page((unsigned long) buf);
-				buf = prev->info.next;
-			}
-			return -ENOMEM;
-		}
-		prev->info.next = buf;
-		prev->info.desc.pnext = PHYSADDR(buf);
-		/* The PBUS can prolly not read this stuff when it's in
-		 * the cache so we have to flush it back to main memory */
-		dma_cache_wback_inv((unsigned long) prev, PAGE_SIZE);
+	desc = dma_alloc_coherent(NULL, count * sizeof(struct hal2_desc),
+				  (dma_addr_t *)&dma_addr, GFP_KERNEL);
+	if (!desc) {
+		free_pages((unsigned long)codec->buffer, get_order(size));
+		return -ENOMEM;
 	}
-	buf->info.desc.pbuf = PHYSADDR(&buf->data);
-	buf->info.desc.cntinfo = cntinfo;
-	buf->info.cnt = 0;
-	buf->info.next = codec->head;
-	buf->info.desc.pnext = PHYSADDR(codec->head);
-	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
-	
+	codec->desc = desc;
+	for (i = 0; i < count; i++) {
+		desc->desc.pbuf = dma_map_single(NULL,
+			(void *)(codec->buffer + i * H2_BLOCK_SIZE),
+			H2_BLOCK_SIZE, dir);
+		desc->desc.cntinfo = cntinfo;
+		desc->desc.pnext = (i == count - 1) ?
+				   (u32)dma_addr : (u32)(dma_addr + i + 1);
+		desc->cnt = 0;
+		desc++;
+	}
+	codec->desc_count = count;
+	codec->head = codec->tail = 0;
 	return 0;
 }
 
-#define hal2_free_dac_dmabuf(hal2)	hal2_free_dmabuf(hal2, 1)
-#define hal2_free_adc_dmabuf(hal2)	hal2_free_dmabuf(hal2, 0)
-static void hal2_free_dmabuf(struct hal2_card *hal2, int is_dac)
+static int hal2_alloc_dac_dmabuf(struct hal2_codec *codec)
 {
-	struct hal2_buf *buf, *next;
-	struct hal2_codec *codec = (is_dac) ? &hal2->dac : &hal2->adc;
+	return hal2_alloc_dmabuf(codec, H2_DAC_BUFSIZE,
+				 H2_DAC_BUFSIZE / H2_BLOCK_SIZE,
+				 HPCDMA_XIE | HPCDMA_EOX,
+				 DMA_TO_DEVICE);
+}
 
-	if (!codec->head)
-		return;
-	
-	buf = codec->head->info.next;
-	codec->head->info.next = NULL;
-	while (buf) {
-		next = buf->info.next;
-		free_page((unsigned long) buf);
-		buf = next;
-	}
-	codec->head = codec->tail = NULL;
+static int hal2_alloc_adc_dmabuf(struct hal2_codec *codec)
+{
+	return hal2_alloc_dmabuf(codec, H2_ADC_BUFSIZE, 
+				 H2_ADC_BUFSIZE / H2_BLOCK_SIZE,
+				 HPCDMA_XIE | H2_BLOCK_SIZE,
+				 DMA_TO_DEVICE);
+}
+
+static void hal2_free_dmabuf(struct hal2_codec *codec, int size, int dir)
+{
+	dma_addr_t dma_addr;
+	int i;
+
+	dma_addr = codec->desc[codec->desc_count - 1].desc.pnext;
+	for (i = 0; i < codec->desc_count; i++)
+		dma_unmap_single(NULL, codec->desc[i].desc.pbuf,
+				 H2_BLOCK_SIZE, dir);
+	dma_free_coherent(NULL, codec->desc_count * sizeof(struct hal2_desc),
+			  (void *)codec->desc, dma_addr);
+	free_pages((unsigned long)codec->buffer, get_order(size));
+}
+
+static void hal2_free_dac_dmabuf(struct hal2_codec *codec)
+{
+	return hal2_free_dmabuf(codec, H2_DAC_BUFSIZE, DMA_TO_DEVICE);
+}
+
+static void hal2_free_adc_dmabuf(struct hal2_codec *codec)
+{
+	return hal2_free_dmabuf(codec, H2_ADC_BUFSIZE, DMA_FROM_DEVICE);
 }
 
 /* 
@@ -568,43 +627,36 @@ static int hal2_get_buffer(struct hal2_card *hal2, char *buffer, int count)
 {
 	unsigned long flags;
 	int size, ret = 0;
+	unsigned char *buf;
+	struct hal2_desc *tail;
 	struct hal2_codec *adc = &hal2->adc;
-
-	spin_lock_irqsave(&adc->lock, flags);
 
 	DEBUG("getting %d bytes ", count);
 
+	spin_lock_irqsave(&adc->lock, flags);
+	tail = &adc->desc[adc->tail];
 	/* enable DMA stream if there are no data */
-	if (!(adc->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) &&
-	    adc->tail->info.cnt == 0)
+	if (!tail->cnt && !(adc->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT))
 		hal2_start_adc(hal2);
-
-	while (adc->tail->info.cnt > 0 && count > 0) {
-		size = min(adc->tail->info.cnt, count);
+	while (tail->cnt > 0 && count > 0) {
+		size = min((int)tail->cnt, count);
+		buf = &adc->buffer[(adc->tail + 1) * H2_BLOCK_SIZE - tail->cnt];
 		spin_unlock_irqrestore(&adc->lock, flags);
-
-		if (copy_to_user(buffer,
-				 &adc->tail->data[H2_BUFFER_SIZE -
-				 		  adc->tail->info.cnt],
-				 size)) {
+		dma_sync_single(NULL, tail->desc.pbuf, size, DMA_FROM_DEVICE);
+		if (copy_to_user(buffer, buf, size)) {
 			ret = -EFAULT;
 			goto out;
 		}
-
 		spin_lock_irqsave(&adc->lock, flags);
-
-		adc->tail->info.cnt -= size;
+		tail->cnt -= size;
 		/* buffer is empty, update tail pointer */
-		if (adc->tail->info.cnt == 0) {
-			adc->tail->info.desc.cntinfo = HPCDMA_XIE |
-						       H2_BUFFER_SIZE;
-			dma_cache_wback_inv((unsigned long) adc->tail,
-					    sizeof(struct hpc_dma_desc));
-			adc->tail = adc->tail->info.next;
+		if (tail->cnt == 0) {
+			tail->desc.cntinfo = HPCDMA_XIE | H2_BLOCK_SIZE;
+			hal2_inc_tail(adc);
+			tail = &adc->desc[adc->tail];
 			/* enable DMA stream again if needed */
 			if (!(adc->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT))
 				hal2_start_adc(hal2);
-
 		}
 		buffer += size;
 		ret += size;
@@ -626,37 +678,37 @@ out:
 static int hal2_add_buffer(struct hal2_card *hal2, char *buffer, int count)
 {
 	unsigned long flags;
+	unsigned char *buf;
 	int size, ret = 0;
+	struct hal2_desc *head;
 	struct hal2_codec *dac = &hal2->dac;
-
-	spin_lock_irqsave(&dac->lock, flags);
 
 	DEBUG("adding %d bytes ", count);
 
-	while (dac->head->info.cnt == 0 && count > 0) {
-		size = min((int)H2_BUFFER_SIZE, count);
+	spin_lock_irqsave(&dac->lock, flags);
+	head = &dac->desc[dac->head];
+	while (head->cnt == 0 && count > 0) {
+		size = min((int)H2_BLOCK_SIZE, count);
+		buf = &dac->buffer[dac->head * H2_BLOCK_SIZE];
 		spin_unlock_irqrestore(&dac->lock, flags);
-
-		if (copy_from_user(dac->head->data, buffer, size)) {
+		if (copy_from_user(buf, buffer, size)) {
 			ret = -EFAULT;
 			goto out;
 		}
+		dma_sync_single(NULL, head->desc.pbuf, size, DMA_TO_DEVICE);
 		spin_lock_irqsave(&dac->lock, flags);
-
-		dac->head->info.desc.cntinfo = size | HPCDMA_XIE;
-		dac->head->info.cnt = size;
-		dma_cache_wback_inv((unsigned long) dac->head, 
-				    size + PAGE_SIZE - H2_BUFFER_SIZE);
+		head->desc.cntinfo = size | HPCDMA_XIE;
+		head->cnt = size;
 		buffer += size;
 		ret += size;
 		count -= size;
-		dac->head = dac->head->info.next;
+		hal2_inc_head(dac);
+		head = &dac->desc[dac->head];
 
 		DEBUG("(%d) ", size);
 	}
 	if (!(dac->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) && ret > 0)
 		hal2_start_dac(hal2);
-
 	spin_unlock_irqrestore(&dac->lock, flags);
 out:
 	DEBUG("\n");
@@ -668,19 +720,17 @@ out:
 #define hal2_reset_adc_pointer(hal2)	hal2_reset_pointer(hal2, 0)
 static void hal2_reset_pointer(struct hal2_card *hal2, int is_dac)
 {
+	int i;
 	struct hal2_codec *codec = (is_dac) ? &hal2->dac : &hal2->adc;
 
 	DEBUG("hal2_reset_pointer\n");
 
-	codec->tail = codec->head;
-	do {
-		codec->tail->info.desc.cntinfo = HPCDMA_XIE | (is_dac) ? 
-						 HPCDMA_EOX : H2_BUFFER_SIZE;
-		codec->tail->info.cnt = 0;
-		dma_cache_wback_inv((unsigned long) codec->tail, 
-				    sizeof(struct hpc_dma_desc));
-		codec->tail = codec->tail->info.next;
-	} while (codec->tail != codec->head);
+	for (i = 0; i < codec->desc_count; i++) {
+		codec->desc[i].cnt = 0;
+		codec->desc[i].desc.cntinfo = HPCDMA_XIE | (is_dac) ?
+					      HPCDMA_EOX : H2_BLOCK_SIZE;
+	}
+	codec->head = codec->tail = 0;
 }
 
 static int hal2_sync_dac(struct hal2_card *hal2)
@@ -688,21 +738,18 @@ static int hal2_sync_dac(struct hal2_card *hal2)
 	DECLARE_WAITQUEUE(wait, current);
 	struct hal2_codec *dac = &hal2->dac;
 	int ret = 0;
-	signed long timeout = 1000 * H2_BUFFER_SIZE * 2 * dac->voices *
+	unsigned long flags;
+	signed long timeout = 1000 * H2_BLOCK_SIZE * 2 * dac->voices *
 			      HZ / dac->sample_rate / 900;
-
-	down(&dac->sem);
 
 	while (dac->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) {
 		add_wait_queue(&dac->dma_wait, &wait);
 		set_current_state(TASK_INTERRUPTIBLE);
-		if (!schedule_timeout(timeout))
-			/* We may get bogus timeout when system is 
-			 * heavily loaded */
-			if (dac->tail->info.cnt) {
-				printk(KERN_NOTICE "HAL2: timeout...\n");
-				ret = -ETIME;
-			}
+		schedule_timeout(timeout);
+		spin_lock_irqsave(&dac->lock, flags);
+		if (dac->desc[dac->tail].cnt)
+			ret = -ETIME;
+		spin_unlock_irqrestore(&dac->lock, flags);
 		if (signal_pending(current))
 			ret = -ERESTARTSYS;
 		if (ret) {
@@ -711,8 +758,6 @@ static int hal2_sync_dac(struct hal2_card *hal2)
 		}
 		remove_wait_queue(&dac->dma_wait, &wait);
 	}
-
-	up(&dac->sem);
 
 	return ret;
 }
@@ -1048,52 +1093,45 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		return 0;
 
 	case SNDCTL_DSP_GETOSPACE: {
-		unsigned long flags;
 		audio_buf_info info;
-		struct hal2_buf *buf;
+		int i;
+		unsigned long flags;
 		struct hal2_codec *dac = &hal2->dac;
 
 		if (!(file->f_mode & FMODE_WRITE))
 			return -EINVAL;
-
-		spin_lock_irqsave(&dac->lock, flags);
 		info.fragments = 0;
-		buf = dac->head;
-		while (buf->info.cnt == 0 && buf != dac->tail) {
-			info.fragments++;
-			buf = buf->info.next;
-		}
+		spin_lock_irqsave(&dac->lock, flags);
+		for (i = 0; i < dac->desc_count; i++)
+			if (dac->desc[i].cnt == 0)
+				info.fragments++;
 		spin_unlock_irqrestore(&dac->lock, flags);
-
-		info.fragstotal = obufs;
-		info.fragsize = H2_BUFFER_SIZE;
+		info.fragstotal = dac->desc_count;
+		info.fragsize = H2_BLOCK_SIZE;
                 info.bytes = info.fragsize * info.fragments;
 
 		return copy_to_user((void *)arg, &info, sizeof(info)) ? -EFAULT : 0;
 	}
 
 	case SNDCTL_DSP_GETISPACE: {
-		unsigned long flags;
 		audio_buf_info info;
-		struct hal2_buf *buf;
+		int i;
+		unsigned long flags;
 		struct hal2_codec *adc = &hal2->adc;
 
 		if (!(file->f_mode & FMODE_READ))
 			return -EINVAL;
-
-		spin_lock_irqsave(&adc->lock, flags);
 		info.fragments = 0;
 		info.bytes = 0;
-		buf = adc->tail;
-		while (buf->info.cnt > 0 && buf != adc->head) {
-			info.fragments++;
-			info.bytes += buf->info.cnt;
-			buf = buf->info.next;
-		}
+		spin_lock_irqsave(&adc->lock, flags);
+		for (i = 0; i < adc->desc_count; i++)
+			if (adc->desc[i].cnt > 0) {
+				info.fragments++;
+				info.bytes += adc->desc[i].cnt;
+			}
 		spin_unlock_irqrestore(&adc->lock, flags);
-
-		info.fragstotal = ibufs;
-		info.fragsize = H2_BUFFER_SIZE;
+		info.fragstotal = adc->desc_count;
+		info.fragsize = H2_BLOCK_SIZE;
 
 		return copy_to_user((void *)arg, &info, sizeof(info)) ? -EFAULT : 0;
 	}
@@ -1103,7 +1141,7 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		return 0;
 
 	case SNDCTL_DSP_GETBLKSIZE:
-		return put_user(H2_BUFFER_SIZE, (int *)arg);
+		return put_user(H2_BLOCK_SIZE, (int *)arg);
 
 	case SNDCTL_DSP_SETFRAGMENT:
 		return 0;
@@ -1125,8 +1163,7 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		return put_user(val, (int *)arg);
 
 	case SOUND_PCM_READ_BITS:
-		val = 16;
-		return put_user(val, (int *)arg);
+		return put_user(16, (int *)arg);
 	}
 
 	return hal2_mixer_ioctl(hal2, cmd, arg);
@@ -1139,21 +1176,21 @@ static ssize_t hal2_read(struct file *file, char *buffer,
 	struct hal2_card *hal2 = (struct hal2_card *) file->private_data;
 	struct hal2_codec *adc = &hal2->adc;
 
-	if (count == 0)
+	if (!count)
 		return 0;
 	if (ppos != &file->f_pos)
 		return -ESPIPE;
-
-	down(&adc->sem);
-
+	if (down_interruptible(&adc->sem))
+		return -EINTR;
 	if (file->f_flags & O_NONBLOCK) {
 		err = hal2_get_buffer(hal2, buffer, count);
 		err = err == 0 ? -EAGAIN : err;
 	} else {
 		do {
 			/* ~10% longer */
-			signed long timeout = 1000 * H2_BUFFER_SIZE *
+			signed long timeout = 1000 * H2_BLOCK_SIZE *
 				2 * adc->voices * HZ / adc->sample_rate / 900;
+			unsigned long flags;
 			DECLARE_WAITQUEUE(wait, current);
 			ssize_t cnt = 0;
 
@@ -1167,26 +1204,21 @@ static ssize_t hal2_read(struct file *file, char *buffer,
 			if (count > 0 && err >= 0) {
 				add_wait_queue(&adc->dma_wait, &wait);
 				set_current_state(TASK_INTERRUPTIBLE);
-				/* Well, it is possible, that interrupt already
-				 * arrived. Hmm, shit happens, we have one more
-				 * buffer filled ;) */
-				if (!schedule_timeout(timeout))
-					/* We may get bogus timeout when system
-					 * is heavily loaded */
-					if (!adc->tail->info.cnt) {
-						printk(KERN_NOTICE
-						       "HAL2: timeout...\n");
-						hal2_stop_adc(hal2);
-						hal2_reset_adc_pointer(hal2);
-						err = -EAGAIN;
-					}
+				schedule_timeout(timeout);
+				spin_lock_irqsave(&adc->lock, flags);
+				if (!adc->desc[adc->tail].cnt)
+					err = -EAGAIN;
+				spin_unlock_irqrestore(&adc->lock, flags);
 				if (signal_pending(current))
 					err = -ERESTARTSYS;
 				remove_wait_queue(&adc->dma_wait, &wait);
+				if (err < 0) {
+					hal2_stop_adc(hal2);
+					hal2_reset_adc_pointer(hal2);
+				}
 			}
 		} while (count > 0 && err >= 0);
 	}
-
 	up(&adc->sem);
 
 	return err;
@@ -1200,21 +1232,21 @@ static ssize_t hal2_write(struct file *file, const char *buffer,
 	struct hal2_card *hal2 = (struct hal2_card *) file->private_data;
 	struct hal2_codec *dac = &hal2->dac;
 
-	if (count == 0)
+	if (!count)
 		return 0;
 	if (ppos != &file->f_pos)
 		return -ESPIPE;
-
-	down(&dac->sem);
-
+	if (down_interruptible(&dac->sem))
+		return -EINTR;
 	if (file->f_flags & O_NONBLOCK) {
 		err = hal2_add_buffer(hal2, buf, count);
 		err = err == 0 ? -EAGAIN : err;
 	} else {
 		do {
 			/* ~10% longer */
-			signed long timeout = 1000 * H2_BUFFER_SIZE *
+			signed long timeout = 1000 * H2_BLOCK_SIZE *
 				2 * dac->voices * HZ / dac->sample_rate / 900;
+			unsigned long flags;
 			DECLARE_WAITQUEUE(wait, current);
 			ssize_t cnt = 0;
 
@@ -1228,26 +1260,21 @@ static ssize_t hal2_write(struct file *file, const char *buffer,
 			if (count > 0 && err >= 0) {
 				add_wait_queue(&dac->dma_wait, &wait);
 				set_current_state(TASK_INTERRUPTIBLE);
-				/* Well, it is possible, that interrupt already
-				 * arrived. Hmm, shit happens, we have one more
-				 * buffer free ;) */
-				if (!schedule_timeout(timeout))
-					/* We may get bogus timeout when system
-					 * is heavily loaded */
-					if (dac->head->info.cnt) {
-						printk(KERN_NOTICE
-						       "HAL2: timeout...\n");
-						hal2_stop_dac(hal2);
-						hal2_reset_dac_pointer(hal2);
-						err = -EAGAIN;
-					}
+				schedule_timeout(timeout);
+				spin_lock_irqsave(&dac->lock, flags);
+				if (dac->desc[dac->head].cnt)
+					err = -EAGAIN;
+				spin_unlock_irqrestore(&dac->lock, flags);
 				if (signal_pending(current))
 					err = -ERESTARTSYS;
 				remove_wait_queue(&dac->dma_wait, &wait);
+				if (err < 0) {
+					hal2_stop_dac(hal2);
+					hal2_reset_dac_pointer(hal2);
+				}
 			}
 		} while (count > 0 && err >= 0);
 	}
-
 	up(&dac->sem);
 
 	return err;
@@ -1264,7 +1291,7 @@ static unsigned int hal2_poll(struct file *file, struct poll_table_struct *wait)
 
 		poll_wait(file, &hal2->adc.dma_wait, wait);
 		spin_lock_irqsave(&adc->lock, flags);
-		if (adc->tail->info.cnt > 0)
+		if (adc->desc[adc->tail].cnt > 0)
 			mask |= POLLIN;
 		spin_unlock_irqrestore(&adc->lock, flags);
 	}
@@ -1274,7 +1301,7 @@ static unsigned int hal2_poll(struct file *file, struct poll_table_struct *wait)
 
 		poll_wait(file, &dac->dma_wait, wait);
 		spin_lock_irqsave(&dac->lock, flags);
-		if (dac->head->info.cnt == 0)
+		if (dac->desc[dac->head].cnt == 0)
 			mask |= POLLOUT;
 		spin_unlock_irqrestore(&dac->lock, flags);
 	}
@@ -1287,49 +1314,40 @@ static int hal2_open(struct inode *inode, struct file *file)
 	int err;
 	struct hal2_card *hal2 = hal2_dsp_find_card(iminor(inode));
 
-	DEBUG("opening audio device.\n");
-
 	if (!hal2)
 		return -ENODEV;
-
 	file->private_data = hal2;
-
 	if (file->f_mode & FMODE_READ) {
-		if (hal2->adc.usecount)
-			return -EBUSY;
+		struct hal2_codec *adc = &hal2->adc;
 
+		if (adc->usecount)
+			return -EBUSY;
 		/* OSS spec wanted us to use 8 bit, 8 kHz mono by default,
 		 * but HAL2 can't do 8bit audio */
-		hal2->adc.format = AFMT_S16_BE;
-		hal2->adc.voices = 1;
-		hal2->adc.sample_rate = hal2_compute_rate(&hal2->adc, 8000);
+		adc->format = AFMT_S16_BE;
+		adc->voices = 1;
+		adc->sample_rate = hal2_compute_rate(adc, 8000);
 		hal2_set_adc_rate(hal2);
-
-		/* alloc DMA buffers */
-		err = hal2_alloc_adc_dmabuf(hal2);
+		err = hal2_alloc_adc_dmabuf(adc);
 		if (err)
 			return err;
 		hal2_setup_adc(hal2);
-
-		hal2->adc.usecount++;
+		adc->usecount++;
 	}
-
 	if (file->f_mode & FMODE_WRITE) {
-		if (hal2->dac.usecount)
+		struct hal2_codec *dac = &hal2->dac;
+
+		if (dac->usecount)
 			return -EBUSY;
-
-		hal2->dac.format = AFMT_S16_BE;
-		hal2->dac.voices = 1;
-		hal2->dac.sample_rate = hal2_compute_rate(&hal2->dac, 8000);
+		dac->format = AFMT_S16_BE;
+		dac->voices = 1;
+		dac->sample_rate = hal2_compute_rate(dac, 8000);
 		hal2_set_dac_rate(hal2);
-
-		/* alloc DMA buffers */
-		err = hal2_alloc_dac_dmabuf(hal2);
+		err = hal2_alloc_dac_dmabuf(dac);
 		if (err)
 			return err;
 		hal2_setup_dac(hal2);
-		
-		hal2->dac.usecount++;
+		dac->usecount++;
 	}
 
 	return 0;
@@ -1340,15 +1358,22 @@ static int hal2_release(struct inode *inode, struct file *file)
 	struct hal2_card *hal2 = (struct hal2_card *) file->private_data;
 
 	if (file->f_mode & FMODE_READ) {
-		hal2_stop_adc(hal2);
-		hal2_free_adc_dmabuf(hal2);
-		hal2->adc.usecount--;
-	}
+		struct hal2_codec *adc = &hal2->adc;
 
+		down(&adc->sem);
+		hal2_stop_adc(hal2);
+		hal2_free_adc_dmabuf(adc);
+		adc->usecount--;
+		up(&adc->sem);
+	}
 	if (file->f_mode & FMODE_WRITE) {
+		struct hal2_codec *dac = &hal2->dac;
+
+		down(&dac->sem);
 		hal2_sync_dac(hal2);
-		hal2_free_dac_dmabuf(hal2);
-		hal2->dac.usecount--;
+		hal2_free_dac_dmabuf(dac);
+		dac->usecount--;
+		up(&dac->sem);
 	}
 
 	return 0;
@@ -1373,45 +1398,14 @@ static struct file_operations hal2_mixer_fops = {
 	.release	= hal2_release_mixdev,
 };
 
-static int hal2_request_irq(struct hal2_card *hal2, int irq)
+static void hal2_init_codec(struct hal2_codec *codec, struct hpc3_regs *hpc3,
+			    int index)
 {
-	unsigned long flags;
-	int ret = 0;
-
-	local_irq_save(flags);
-	if (request_irq(irq, hal2_interrupt, SA_SHIRQ, hal2str, hal2)) {
-		printk(KERN_ERR "HAL2: Can't get irq %d\n", irq);
-		ret = -EAGAIN;
-	}
-	local_irq_restore(flags);
-	return ret;
-}
-
-static int hal2_alloc_resources(struct hal2_card *hal2, struct hpc3_regs *hpc3)
-{
-	struct hal2_pbus *pbus;
-
-	pbus = &hal2->dac.pbus;
-	pbus->pbusnr = 0;
-	pbus->pbus = &hpc3->pbdma[pbus->pbusnr];
-
-	pbus = &hal2->adc.pbus;
-	pbus->pbusnr = 1;
-	pbus->pbus = &hpc3->pbdma[pbus->pbusnr];
-
-	return hal2_request_irq(hal2, SGI_HPCDMA_IRQ);
-}
-
-static void hal2_init_codec(struct hal2_codec *codec)
-{
+	codec->pbus.pbusnr = index;
+	codec->pbus.pbus = &hpc3->pbdma[index];
 	init_waitqueue_head(&codec->dma_wait);
 	init_MUTEX(&codec->sem);
 	spin_lock_init(&codec->lock);
-}
-
-static void hal2_free_resources(struct hal2_card *hal2)
-{
-	free_irq(SGI_HPCDMA_IRQ, hal2);
 }
 
 static int hal2_detect(struct hal2_card *hal2)
@@ -1421,16 +1415,12 @@ static int hal2_detect(struct hal2_card *hal2)
 
 	/* reset HAL2 */
 	hal2_isr_write(hal2, 0);
-
 	/* release reset */
 	hal2_isr_write(hal2, H2_ISR_GLOBAL_RESET_N | H2_ISR_CODEC_RESET_N);
 
 	hal2_i_write16(hal2, H2I_RELAY_C, H2I_RELAY_C_STATE); 
-
-	if ((rev = hal2_rev_look(hal2)) & H2_REV_AUDIO_PRESENT) {
-		DEBUG("HAL2: no device detected, rev: 0x%04hx\n", rev);
+	if ((rev = hal2_rev_look(hal2)) & H2_REV_AUDIO_PRESENT)
 		return -ENODEV;
-	}
 
 	board = (rev & H2_REV_BOARD_M) >> 12;
 	major = (rev & H2_REV_MAJOR_CHIP_M) >> 4;
@@ -1459,27 +1449,11 @@ static int hal2_init_card(struct hal2_card **phal2, struct hpc3_regs *hpc3)
 
 	if (hal2_detect(hal2) < 0) {
 		ret = -ENODEV;
-		goto fail1;
+		goto free_card;
 	}
 
-	hal2_init_codec(&hal2->dac);
-	hal2_init_codec(&hal2->adc);
-
-	ret = hal2_alloc_resources(hal2, hpc3);
-	if (ret)
-		goto fail1;
-
-	hal2->dev_dsp = register_sound_dsp(&hal2_audio_fops, -1);
-	if (hal2->dev_dsp < 0) {
-		ret = hal2->dev_dsp;
-		goto fail2;
-	}
-
-	hal2->dev_mixer = register_sound_mixer(&hal2_mixer_fops, -1);
-	if (hal2->dev_mixer < 0) {
-		ret = hal2->dev_mixer;
-		goto fail3;
-	}
+	hal2_init_codec(&hal2->dac, hpc3, 0);
+	hal2_init_codec(&hal2->adc, hpc3, 1);
 
 	/* 
 	 * All DMA channel interfaces in HAL2 are designed to operate with
@@ -1507,15 +1481,34 @@ static int hal2_init_card(struct hal2_card **phal2, struct hpc3_regs *hpc3)
 	hpc3->pbus_dmacfg[hal2->dac.pbus.pbusnr][0] = 0x8208844;
 	hpc3->pbus_dmacfg[hal2->adc.pbus.pbusnr][0] = 0x8208844;
 
+	if (request_irq(SGI_HPCDMA_IRQ, hal2_interrupt, SA_SHIRQ,
+			hal2str, hal2)) {
+		printk(KERN_ERR "HAL2: Can't get irq %d\n", SGI_HPCDMA_IRQ);
+		ret = -EAGAIN;
+		goto free_card;
+	}
+
+	hal2->dev_dsp = register_sound_dsp(&hal2_audio_fops, -1);
+	if (hal2->dev_dsp < 0) {
+		ret = hal2->dev_dsp;
+		goto free_irq;
+	}
+
+	hal2->dev_mixer = register_sound_mixer(&hal2_mixer_fops, -1);
+	if (hal2->dev_mixer < 0) {
+		ret = hal2->dev_mixer;
+		goto unregister_dsp;
+	}
+
 	hal2_init_mixer(hal2);
 
 	*phal2 = hal2;
 	return 0;
-fail3:
+unregister_dsp:
 	unregister_sound_dsp(hal2->dev_dsp);
-fail2:
-	hal2_free_resources(hal2);
-fail1:
+free_irq:
+	free_irq(SGI_HPCDMA_IRQ, hal2);
+free_card:
 	kfree(hal2);
 
 	return ret;
@@ -1524,8 +1517,8 @@ fail1:
 extern void (*indy_volume_button)(int);
 
 /* 
- * We are assuming only one HAL2 card. If you ever meet machine with more than
- * one, tell immediately about it to someone. Preferably to me. --ladis
+ * Assuming only one HAL2 card. Mail me if you ever meet machine with
+ * more than one.
  */
 static int __init init_hal2(void)
 {
@@ -1533,17 +1526,6 @@ static int __init init_hal2(void)
 
 	for (i = 0; i < MAXCARDS; i++)
 		hal2_card[i] = NULL;
-
-	/* adjust input and output buffer count to some reasonable value */
-	if (ibufs < 2)
-		ibufs = 2;
-	else if (ibufs > 16)
-		ibufs = 16;
-
-	if (obufs < 2)
-		obufs = 2;
-	else if (obufs > 64)
-		obufs = 64;
 
 	error = hal2_init_card(&hal2_card[0], hpc3c0);
 	
@@ -1564,7 +1546,7 @@ static void __exit exit_hal2(void)
 	
 	for (i = 0; i < MAXCARDS; i++)
 		if (hal2_card[i]) {
-			hal2_free_resources(hal2_card[i]);
+			free_irq(SGI_HPCDMA_IRQ, hal2_card[i]);
 			unregister_sound_dsp(hal2_card[i]->dev_dsp);
 			unregister_sound_mixer(hal2_card[i]->dev_mixer);
 			kfree(hal2_card[i]);
@@ -1573,31 +1555,6 @@ static void __exit exit_hal2(void)
 
 module_init(init_hal2);
 module_exit(exit_hal2);
-
-#ifndef MODULE
-static int __init setup_hal2(char *str)
-{
-        /* enable main mixer control, input buffers, output buffers */
-	int ints[3];
-	
-	str = get_options(str, ARRAY_SIZE(ints), ints);
-	
-	msmix = ints[1];
-	ibufs = ints[2];
-	obufs = ints[3];
-
-	return 1;
-}
-
-__setup("hal2=", setup_hal2);	
-#endif
-
-MODULE_PARM(msmix, "i");
-MODULE_PARM(ibufs, "i");
-MODULE_PARM(obufs, "i");
-MODULE_PARM_DESC(msmix, "Enables master volume mixer");
-MODULE_PARM_DESC(ibufs, "Number of (page sized) input buffers");
-MODULE_PARM_DESC(obufs, "Number of (page sized) output buffers");
 
 MODULE_DESCRIPTION("OSS compatible driver for SGI HAL2 audio");
 MODULE_AUTHOR("Ladislav Michl");
