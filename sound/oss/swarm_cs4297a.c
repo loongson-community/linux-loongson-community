@@ -89,7 +89,6 @@
 #include <asm/sibyte/sb1250.h>
 
 struct cs4297a_state;
-EXPORT_NO_SYMBOLS;
 
 static void stop_dac(struct cs4297a_state *s);
 static void stop_adc(struct cs4297a_state *s);
@@ -1241,8 +1240,9 @@ static int mixer_ioctl(struct cs4297a_state *s, unsigned int cmd,
 	}
 	if (cmd == SOUND_MIXER_INFO) {
 		mixer_info info;
-		strncpy(info.id, "CS4297a", sizeof(info.id));
-		strncpy(info.name, "Crystal CS4297a", sizeof(info.name));
+		memset(&info, 0, sizeof(info));
+		strlcpy(info.id, "CS4297a", sizeof(info.id));
+		strlcpy(info.name, "Crystal CS4297a", sizeof(info.name));
 		info.modify_counter = s->mix.modcnt;
 		if (copy_to_user((void *) arg, &info, sizeof(info)))
 			return -EFAULT;
@@ -1250,8 +1250,9 @@ static int mixer_ioctl(struct cs4297a_state *s, unsigned int cmd,
 	}
 	if (cmd == SOUND_OLD_MIXER_INFO) {
 		_old_mixer_info info;
-		strncpy(info.id, "CS4297a", sizeof(info.id));
-		strncpy(info.name, "Crystal CS4297a", sizeof(info.name));
+		memset(&info, 0, sizeof(info));
+		strlcpy(info.id, "CS4297a", sizeof(info.id));
+		strlcpy(info.name, "Crystal CS4297a", sizeof(info.name));
 		if (copy_to_user((void *) arg, &info, sizeof(info)))
 			return -EFAULT;
 		return 0;
