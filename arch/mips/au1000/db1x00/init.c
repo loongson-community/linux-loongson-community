@@ -1,8 +1,9 @@
 /*
- * BRIEF MODULE DESCRIPTION
- *	Pb1100 specific pci support.
  *
- * Copyright 2002 MontaVista Software Inc.
+ * BRIEF MODULE DESCRIPTION
+ *	PB1000 board setup
+ *
+ * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -26,32 +27,47 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
 
-#ifdef CONFIG_PCI
-
-#include <linux/types.h>
-#include <linux/pci.h>
-#include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/mm.h>
+#include <linux/sched.h>
+#include <linux/bootmem.h>
+#include <asm/addrspace.h>
+#include <asm/bootinfo.h>
+#include <linux/config.h>
+#include <linux/string.h>
+#include <linux/kernel.h>
+#include <linux/sched.h>
 
-#include <asm/au1000.h>
-#include <asm/pb1100.h>
-#include <asm/pci_channel.h>
+int prom_argc;
+char **prom_argv, **prom_envp;
+extern void  __init prom_init_cmdline(void);
+extern char *prom_getenv(char *envname);
 
-#define PCI_ACCESS_READ  0
-#define PCI_ACCESS_WRITE 1
+const char *get_system_type(void)
+{
+	return "Alchemy Db1000";
+}
 
-#undef DEBUG
-#ifdef 	DEBUG
-#define	DBG(x...)	printk(x)
-#else
-#define	DBG(x...)
-#endif
+int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+{
+	unsigned char *memsize_str;
+	unsigned long memsize;
 
-struct pci_channel mips_pci_channels[] = {
-	{(struct pci_ops *) NULL, (struct resource *) NULL,
-	 (struct resource *) NULL, (int) NULL, (int) NULL}
-};
+	prom_argc = argc;
+	prom_argv = argv;
+	prom_envp = envp;
 
-#endif /* CONFIG_PCI */
+	mips_machgroup = MACH_GROUP_ALCHEMY;
+	mips_machtype = MACH_DB1000;	/* set the platform # */   
+	prom_init_cmdline();
+
+	memsize_str = prom_getenv("memsize");
+	if (!memsize_str) {
+		memsize = 0x04000000;
+	} else {
+		memsize = simple_strtol(memsize_str, NULL, 0);
+	}
+	add_memory_region(0, memsize, BOOT_MEM_RAM);
+	return 0;
+}

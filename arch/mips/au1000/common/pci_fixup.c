@@ -2,7 +2,7 @@
  * BRIEF MODULE DESCRIPTION
  *	Board specific pci fixups.
  *
- * Copyright 2001,2002 MontaVista Software Inc.
+ * Copyright 2001-2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -36,7 +36,10 @@
 #include <linux/init.h>
 
 #include <asm/au1000.h>
-#include <asm/pb1500.h>
+//#include <asm/pb1500.h>
+#ifdef CONFIG_MIPS_PB1000
+#include <asm/pb1000.h>
+#endif
 
 #undef	DEBUG
 #ifdef 	DEBUG
@@ -46,7 +49,9 @@
 #endif
 
 static void fixup_resource(int r_num, struct pci_dev *dev) ;
+#ifdef CONFIG_SOC_AU1500
 static unsigned long virt_io_addr;
+#endif
 
 void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
@@ -55,10 +60,11 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 
 void __init pcibios_fixup(void)
 {
+#ifdef CONFIG_SOC_AU1500
 	int i;
 	struct pci_dev *dev;
-
-	virt_io_addr = (unsigned long)ioremap(Au1500_PCI_IO_START,
+	
+	virt_io_addr = (unsigned long)ioremap(Au1500_PCI_IO_START, 
 			Au1500_PCI_IO_END - Au1500_PCI_IO_START + 1);
 
 	if (!virt_io_addr) {
@@ -66,17 +72,27 @@ void __init pcibios_fixup(void)
 		return;
 	}
 
-	pci_for_each_dev(dev) {
-		for (i=0; i < DEVICE_COUNT_RESOURCE; i++) {
-			if (dev->resource[i].start) {
-				fixup_resource(i, dev);
-			}
-		}
-	}
+	set_io_port_base(virt_io_addr);
+#endif
+
+#ifdef CONFIG_MIPS_PB1000 /* This is truly board specific */
+	unsigned long pci_mem_start = (unsigned long) PCI_MEM_START;
+
+	au_writel(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
+	au_writel(0, SDRAM_MBAR);        // set mbar to 0
+	au_writel(0x2, SDRAM_CMD);       // enable memory accesses
+	au_sync_delay(1);
+
+	// set extend byte to mbar of ext slot
+	au_writel(((pci_mem_start >> 24) & 0xff) |
+	       (1 << 8 | 1 << 9 | 1 << 10 | 1 << 27), PCI_BRIDGE_CONFIG);
+	DBG("Set bridge config to %x\n", au_readl(PCI_BRIDGE_CONFIG));
+#endif
 }
 
 void __init pcibios_fixup_irqs(void)
 {
+#ifdef CONFIG_SOC_AU1500
 	unsigned int slot, func;
 	unsigned char pin;
 	struct pci_dev *dev;
@@ -97,23 +113,14 @@ void __init pcibios_fixup_irqs(void)
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
 		DBG("slot %d irq %d\n", slot, dev->irq);
 	}
+#endif
 }
 unsigned int pcibios_assign_all_busses(void)
 {
 	return 0;
 }
 
-static void fixup_resource(int r_num, struct pci_dev *dev)
+static void fixup_resource(int r_num, struct pci_dev *dev) 
 {
-	unsigned long start, size, new_start;
-
-	if (dev->resource[r_num].flags & IORESOURCE_IO) {
-		start = dev->resource[r_num].start;
-		size = dev->resource[r_num].end - start;
-		new_start = virt_io_addr + (start - Au1500_PCI_IO_START);
-		dev->resource[r_num].start = new_start;
-		dev->resource[r_num].end = new_start + size;
-	}
 }
-
 #endif
