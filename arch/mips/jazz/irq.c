@@ -19,11 +19,9 @@ extern asmlinkage void jazz_handle_int(void);
 
 static spinlock_t r4030_lock = SPIN_LOCK_UNLOCKED;
 
-extern asmlinkage void sni_rm200_pci_handle_int(void);
-
 static void enable_r4030_irq(unsigned int irq)
 {
-	unsigned int mask = 1 << (irq - JAZZ_IE_PARALLEL);
+	unsigned int mask = 1 << (irq - JAZZ_PARALLEL_IRQ);
 	unsigned long flags;
 
 	spin_lock_irqsave(&r4030_lock, flags);
@@ -42,7 +40,7 @@ static unsigned int startup_r4030_irq(unsigned int irq)
 
 void disable_r4030_irq(unsigned int irq)
 {
-	unsigned int mask = ~(1 << (irq - JAZZ_IE_PARALLEL));
+	unsigned int mask = ~(1 << (irq - JAZZ_PARALLEL_IRQ));
 	unsigned long flags;
 
 	spin_lock_irqsave(&r4030_lock, flags);
