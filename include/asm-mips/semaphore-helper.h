@@ -9,6 +9,8 @@
 #ifndef __ASM_MIPS_SEMAPHORE_HELPER_H
 #define __ASM_MIPS_SEMAPHORE_HELPER_H
 
+#include <linux/config.h>
+
 /*
  * These two _must_ execute atomically wrt each other.
  */
@@ -17,7 +19,7 @@ static inline void wake_one_more(struct semaphore * sem)
 	atomic_inc(&sem->waking);
 }
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if !defined(CONFIG_CPU_HAS_LLSC)
 
 /*
  * It doesn't make sense, IMHO, to endlessly turn interrupts off and on again.

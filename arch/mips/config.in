@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.93 1999/05/14 22:36:58 cort Exp $
+# $Id: config.in,v 1.27 1999/06/17 13:25:44 ralf Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -49,7 +49,8 @@ endmenu
 mainmenu_option next_comment
 comment 'CPU selection'
 
-choice 'CPU type' \
+if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
+    choice 'CPU core' \
 	"R3000 CONFIG_CPU_R3000	\
 	 R6000 CONFIG_CPU_R6000	\
 	 R4300 CONFIG_CPU_R4300	\
@@ -58,6 +59,34 @@ choice 'CPU type' \
 	 R56x0 CONFIG_CPU_NEVADA \
 	 R8000 CONFIG_CPU_R8000	\
 	 R10000 CONFIG_CPU_R10000" R4x00
+
+    bool '  ll/sc Instructions available' CONFIG_CPU_HAS_LLSC
+    bool '  Writeback Buffer available' CONFIG_CPU_HAS_WB
+else
+    choice 'CPU type' \
+	"R3000 CONFIG_CPU_R3000	\
+	 R6000 CONFIG_CPU_R6000	\
+	 R4300 CONFIG_CPU_R4300	\
+	 R4x00 CONFIG_CPU_R4X00	\
+	 R5000 CONFIG_CPU_R5000	\
+	 R56x0 CONFIG_CPU_NEVADA \
+	 R8000 CONFIG_CPU_R8000	\
+	 R10000 CONFIG_CPU_R10000 \
+         Advanced CONFIG_CPU_ADVANCED" R4x00
+
+    if [ "$CONFIG_CPU_R3000" = "y" ]; then
+        if [ "$CONFIG_DECSTATION" = "y" ]; then
+            define_bool CONFIG_CPU_HAS_LLSC n
+            define_bool CONFIG_CPU_HAS_WB y
+        else
+            define_bool CONFIG_CPU_HAS_LLSC n
+            define_bool CONFIG_CPU_HAS_WB n
+        fi
+    else
+        define_bool CONFIG_CPU_HAS_LLSC y
+        define_bool CONFIG_CPU_HAS_WB n
+    fi
+fi
 endmenu
 
 mainmenu_option next_comment
@@ -83,6 +112,7 @@ if [ "$CONFIG_CPU_LITTLE_ENDIAN" = "n" ]; then
   define_bool CONFIG_BINFMT_IRIX y
   define_bool CONFIG_FORWARD_KEYBOARD y
 fi
+
 define_bool CONFIG_BINFMT_AOUT n
 define_bool CONFIG_BINFMT_ELF y
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC

@@ -11,12 +11,12 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: atomic.h,v 1.5 1998/03/04 09:51:21 ralf Exp $
+ * $Id: atomic.h,v 1.6 1999/07/26 19:42:42 harald Exp $
  */
 #ifndef __ASM_MIPS_ATOMIC_H
 #define __ASM_MIPS_ATOMIC_H
 
-#include <asm/sgidefs.h>
+#include <linux/config.h>
 
 #ifdef __SMP__
 typedef struct { volatile int counter; } atomic_t;
@@ -30,7 +30,7 @@ typedef struct { int counter; } atomic_t;
 #define atomic_read(v)	((v)->counter)
 #define atomic_set(v,i)	((v)->counter = (i))
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if !defined(CONFIG_CPU_HAS_LLSC)
 
 #include <asm/system.h>
 
@@ -101,10 +101,8 @@ extern __inline__ void atomic_clear_mask(unsigned long mask, unsigned long * v)
         return;
 }
 
-#endif
+#else
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS2) || (_MIPS_ISA == _MIPS_ISA_MIPS3) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS4) || (_MIPS_ISA == _MIPS_ISA_MIPS5)
 /*
  * ... while for MIPS II and better we can use ll/sc instruction.  This
  * implementation is SMP safe ...

@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.8 1999/02/15 02:22:13 ralf Exp $
+/* $Id: system.h,v 1.14 1999/08/09 19:43:18 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,7 +10,7 @@
 #ifndef __ASM_MIPS_SYSTEM_H
 #define __ASM_MIPS_SYSTEM_H
 
-#include <asm/sgidefs.h>
+#include <linux/config.h>
 #include <linux/kernel.h>
 
 extern __inline__ void
@@ -159,8 +159,7 @@ do { \
  */
 extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 {
-#if (_MIPS_ISA == _MIPS_ISA_MIPS2) || (_MIPS_ISA == _MIPS_ISA_MIPS3) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS4) || (_MIPS_ISA == _MIPS_ISA_MIPS5)
+#if defined(CONFIG_CPU_HAS_LLSC)
 	unsigned long dummy;
 
 	__asm__ __volatile__(

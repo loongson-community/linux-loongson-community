@@ -7,14 +7,14 @@
  *
  * Copyright (c) 1998 Harald Koerfgen
  *
- * $Id: $
+ * $Id: wbflush.h,v 1.1 1999/07/26 19:46:00 harald Exp $
  */
 #ifndef __ASM_MIPS_WBFLUSH_H
 #define __ASM_MIPS_WBFLUSH_H
 
-#include <asm/sgidefs.h>
+#include <linux/config.h>
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if defined(CONFIG_CPU_HAS_WB)
 /*
  * R2000 or R3000
  */

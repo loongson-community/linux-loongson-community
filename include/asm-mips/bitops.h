@@ -17,6 +17,7 @@
 
 #include <asm/sgidefs.h>
 #include <asm/system.h>
+#include <linux/config.h>
 
 /*
  * Only disable interrupt for kernel mode stuff to keep usermode stuff
@@ -52,8 +53,7 @@ extern __inline__ int find_first_zero_bit (void *addr, unsigned size);
 extern __inline__ int find_next_zero_bit (void * addr, int size, int offset);
 extern __inline__ unsigned long ffz(unsigned long word);
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS2) || (_MIPS_ISA == _MIPS_ISA_MIPS3) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS4) || (_MIPS_ISA == _MIPS_ISA_MIPS5)
+#if defined(CONFIG_CPU_HAS_LLSC)
 
 /*
  * These functions for MIPS ISA > 1 are interrupt and SMP proof and

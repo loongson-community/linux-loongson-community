@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.7 1999/06/22 22:12:59 tsbogend Exp $
+/* $Id: semaphore.h,v 1.8 1999/07/26 19:42:44 harald Exp $
  *
  * SMP- and interrupt-safe semaphores..
  *
@@ -16,6 +16,7 @@
 #include <asm/atomic.h>
 #include <asm/spinlock.h>
 #include <linux/wait.h>
+#include <linux/config.h>
 
 struct semaphore {
 	atomic_t count;
@@ -92,7 +93,7 @@ extern inline int down_interruptible(struct semaphore * sem)
 	return ret;
 }
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if !defined(CONFIG_CPU_HAS_LLSC)
 
 extern inline int down_trylock(struct semaphore * sem)
 {

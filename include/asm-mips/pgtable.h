@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.20 1999/07/22 01:58:28 ralf Exp $
+/* $Id: pgtable.h,v 1.22 1999/08/09 19:43:17 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -16,6 +16,7 @@
 
 #include <linux/linkage.h>
 #include <asm/cachectl.h>
+#include <linux/config.h>
 
 /* Cache flushing:
  *
@@ -111,7 +112,7 @@ extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define _PAGE_ACCESSED              (1<<3)  /* implemented in software */
 #define _PAGE_MODIFIED              (1<<4)  /* implemented in software */
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if defined(CONFIG_CPU_R3000)
 
 #define _PAGE_GLOBAL                (1<<8)
 #define _PAGE_VALID                 (1<<9)

@@ -3,13 +3,14 @@
  *
  *  Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Paul M. Antoine.
  *
- * $Id: stackframe.h,v 1.8 1999/05/01 10:08:19 harald Exp $
+ * $Id: stackframe.h,v 1.9 1999/07/26 19:42:44 harald Exp $
  */
 #ifndef __ASM_MIPS_STACKFRAME_H
 #define __ASM_MIPS_STACKFRAME_H
 
 #include <asm/asm.h>
 #include <asm/offset.h>
+#include <linux/config.h>
 
 #define SAVE_AT                                          \
 		sw	$1, PT_R1(sp)
@@ -128,7 +129,7 @@
 		lw	$23, PT_R23(sp);                 \
 		lw	$30, PT_R30(sp)
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if defined(CONFIG_CPU_R3000)
 
 #define RESTORE_SOME                                     \
 		.set	push;                            \

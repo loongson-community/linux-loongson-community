@@ -5,14 +5,14 @@
  *
  * Copyright (c) 1998 Harald Koerfgen
  *
- * $Id: $
+ * $Id: isadep.h,v 1.1 1999/07/26 19:46:00 harald Exp $
  */
-#include <asm/sgidefs.h>
+#include <linux/config.h>
 
 #ifndef __ASM_MIPS_ISADEP_H
 #define __ASM_MIPS_ISADEP_H
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if defined(CONFIG_CPU_R3000)
 /*
  * R2000 or R3000
  */
@@ -26,16 +26,12 @@
 
 #else
 /*
- * R6000 or higher
- */
-
-/*
  * kernel or user mode?
  */
 #define KU_MASK 0x18
 #define	KU_USER 0x10
 #define KU_KERN 0x00
 
-#endif /* (_MIPS_ISA == _MIPS_ISA_MIPS1) */
+#endif
 
 #endif /* __ASM_MIPS_ISADEP_H */

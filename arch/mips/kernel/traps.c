@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.21 1999/06/23 22:15:57 ralf Exp $
+/* $Id: traps.c,v 1.23 1999/08/09 19:43:15 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -74,7 +74,7 @@ int kstack_depth_to_print = 24;
  */
 #define MODULE_RANGE (8*1024*1024)
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if !defined(CONFIG_CPU_HAS_LLSC)
 /*
  * This stuff is needed for the userland ll-sc emulation for R2300
  */
@@ -362,7 +362,7 @@ void do_tr(struct pt_regs *regs)
 	force_sig(SIGTRAP, current);
 }
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if !defined(CONFIG_CPU_HAS_LLSC)
 
 /*
  * userland emulation for R2300 CPUs

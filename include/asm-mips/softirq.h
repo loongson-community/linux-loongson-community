@@ -1,4 +1,4 @@
-/* $Id: softirq.h,v 1.6 1999/06/17 13:30:38 ralf Exp $
+/* $Id: softirq.h,v 1.7 1999/07/26 19:42:44 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -8,6 +8,8 @@
  */
 #ifndef __ASM_MIPS_SOFTIRQ_H
 #define __ASM_MIPS_SOFTIRQ_H
+
+#include <linux/config.h>
 
 /* The locking mechanism for base handlers, to prevent re-entrancy,
  * is entirely private to an implementation, it should not be
@@ -28,7 +30,7 @@ extern unsigned int local_bh_count[NR_CPUS];
 
 #define get_active_bhs()	(bh_mask & bh_active)
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1)
+#if defined(CONFIG_CPU_R3000)
 
 #define clear_active_bhs(x)     atomic_clear_mask((x),&bh_active)
 

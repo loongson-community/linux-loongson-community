@@ -1,4 +1,4 @@
-/* $Id: string.h,v 1.9 1998/08/25 09:22:02 ralf Exp $
+/* $Id: string.h,v 1.10 1999/04/11 18:37:56 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -8,6 +8,8 @@
  */
 #ifndef __ASM_MIPS_STRING_H
 #define __ASM_MIPS_STRING_H
+
+#include <linux/config.h>
 
 #define __HAVE_ARCH_STRCPY
 extern __inline__ char *strcpy(char *__dest, __const__ char *__src)
@@ -74,7 +76,7 @@ extern __inline__ int strcmp(__const__ char *__cs, __const__ char *__ct)
 	"addiu\t%1,1\n\t"
 	"bnez\t%2,1b\n\t"
 	"lbu\t%2,(%0)\n\t"
-#if _MIPS_ISA == _MIPS_ISA_MIPS1
+#if defined(CONFIG_CPU_R3000)
 	"nop\n\t"
 #endif
 	"move\t%2,$1\n"
