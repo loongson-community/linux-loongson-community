@@ -457,9 +457,7 @@ fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    mainmenu_option next_comment
    comment 'SGI Character devices'
-   bool 'Virtual terminal' CONFIG_VT
    if [ "$CONFIG_VT" = "y" ]; then
-      bool 'Support for console on virtual terminal' CONFIG_VT_CONSOLE
       tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
       if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
 	 define_bool CONFIG_DUMMY_CONSOLE y
