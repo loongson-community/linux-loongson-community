@@ -1,4 +1,4 @@
-/* $Id: irixioctl.c,v 1.4 1998/03/04 09:51:21 ralf Exp $
+/* $Id: irixioctl.c,v 1.5 1999/02/01 01:28:55 ralf Exp $
  * irixioctl.c: A fucking mess...
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -11,6 +11,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/tty.h>
+#include <linux/file.h>
 
 #include <asm/uaccess.h>
 #include <asm/ioctl.h>

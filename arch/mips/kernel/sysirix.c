@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.13 1999/01/03 17:50:52 ralf Exp $
+/* $Id: sysirix.c,v 1.14 1999/02/01 01:28:56 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -2068,7 +2068,7 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 #endif
 	error = count - buf.count;
 
-outf_f:
+out_f:
 	fput(file);
 out:
 	unlock_kernel();
