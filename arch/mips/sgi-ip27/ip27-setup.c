@@ -228,7 +228,7 @@ void __init pcibr_setup(cnodeid_t nid)
 
 	switch (partnum) {
 	case BRIDGE_WIDGET_PART_NUM:
-		bridge_probe(0, 0x8, 0xa);
+		bridge_probe(nasid, 0x8, 0xa);
 		break;
 	case XBOW_WIDGET_PART_NUM:
 	case XXBOW_WIDGET_PART_NUM:
