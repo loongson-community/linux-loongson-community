@@ -134,7 +134,8 @@ static inline void build_cdex(void)
 {
 	union mips_instruction mi;
 
-	if (has_scache && !(store_offset & (cpu_scache_line_size() - 1))) {
+	if (cpu_has_cache_cdex_s &&
+	    !(store_offset & (cpu_scache_line_size() - 1))) {
 
 		mi.c_format.opcode     = cache_op;
 		mi.c_format.rs         = 4;	/* $a0 */
@@ -215,7 +216,7 @@ static inline void build_store_reg(int reg)
 			build_dst_pref(pref_offset_copy);
 		else
 			build_dst_pref(pref_offset_clear);
-	else if (cpu_has_cache_cdex)
+	else if (cpu_has_cache_cdex_p)
 		build_cdex();
 
 	__build_store_reg(reg);

@@ -44,8 +44,11 @@
 #ifndef cpu_has_vce
 #define cpu_has_vce		(cpu_data[0].options & MIPS_CPU_VCE)
 #endif
-#ifndef cpu_has_cache_cdex
-#define cpu_has_cache_cdex	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX)
+#ifndef cpu_has_cache_cdex_p
+#define cpu_has_cache_cdex_p	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX_P)
+#endif
+#ifndef cpu_has_cache_cdex_s
+#define cpu_has_cache_cdex_s	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX_S)
 #endif
 #ifndef cpu_has_prefetch
 #define cpu_has_prefetch	(cpu_data[0].options & MIPS_CPU_PREFETCH)
