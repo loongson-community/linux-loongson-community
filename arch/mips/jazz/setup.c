@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.18 1998/10/18 13:19:46 tsbogend Exp $
+/* $Id: setup.c,v 1.19 1999/01/03 17:50:48 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -105,8 +105,5 @@ __initfunc(void jazz_setup(void))
 	conswitchp = &dummy_con;
 	rtc_ops = &jazz_rtc_ops;
 	kbd_ops = &jazz_kbd_ops;
-#ifdef CONFIG_PSMOUSE
-	aux_device_present = 0xaa;
-#endif
 	fd_ops = &jazz_fd_ops;
 }
