@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2001,2002 Broadcom Corporation
+ * Copyright (C) 2001,2002,2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,10 +37,12 @@
 #include <linux/mm.h>
 #include <linux/console.h>
 
+#include <asm/io.h>
+
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_scd.h>
-#include <asm/io.h>
+#include <asm/sibyte/board.h>
 
 /*
  * Macros for calculating offsets into config space given a device
@@ -170,7 +172,7 @@ struct pci_ops sb1250_pci_ops = {
 };
 
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	uint32_t cmdreg;
 	uint64_t reg;
@@ -181,7 +183,7 @@ void __init pcibios_init(void)
 	/*
 	 * See if the PCI bus has been configured by the firmware.
 	 */
-	reg = *((volatile uint64_t *) KSEG1ADDR(A_SCD_SYSTEM_CFG));
+	reg = *((volatile uint64_t *) IOADDR(A_SCD_SYSTEM_CFG));
 	if (!(reg & M_SYS_PCI_HOST)) {
 		sb1250_bus_status |= PCI_DEVICE_MODE;
 	} else {
@@ -193,7 +195,7 @@ void __init pcibios_init(void)
 			printk
 			    ("PCI: Skipping PCI probe.  Bus is not initialized.\n");
 			iounmap(cfg_space);
-			return;
+			return 0;
 		}
 		sb1250_bus_status |= PCI_BUS_ENABLED;
 	}
@@ -242,7 +244,10 @@ void __init pcibios_init(void)
 #ifdef CONFIG_VGA_CONSOLE
 	take_over_console(&vga_con, 0, MAX_NR_CONSOLES - 1, 1);
 #endif
+	return 0;
 }
+
+subsys_initcall(pcibios_init);
 
 int pcibios_enable_device(struct pci_dev *dev, int mask)
 {
