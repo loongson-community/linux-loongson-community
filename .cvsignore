@@ -3,6 +3,7 @@
 .config
 .depend
 .hdepend
+.tmpdepend
 .version
 System.map
 vmlinux

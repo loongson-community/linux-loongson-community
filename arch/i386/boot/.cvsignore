@@ -1,0 +1,4 @@
+*.s
+bootsect
+setup
+zImage

@@ -2,3 +2,4 @@ autoconf.h
 version.h
 compile.h
 modules
+modversions.h
