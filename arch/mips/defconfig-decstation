@@ -370,6 +370,7 @@ CONFIG_SERIAL_8250_CONSOLE=y
 #
 # Non-8250 serial port support
 #
+# CONFIG_SERIAL_DEC is not set
 CONFIG_SERIAL_CORE=y
 CONFIG_SERIAL_CORE_CONSOLE=y
 CONFIG_UNIX98_PTYS=y
@@ -404,14 +405,6 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
-
-#
-# DECStation Character devices
-#
-CONFIG_DEC_SERIAL=y
-# CONFIG_DZ is not set
-CONFIG_ZS=y
-CONFIG_DEC_SERIAL_CONSOLE=y
 
 #
 # Multimedia devices
