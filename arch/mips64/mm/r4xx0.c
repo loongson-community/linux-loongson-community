@@ -330,7 +330,7 @@ static void r4k_clear_page_s128(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		: (page)
+		: "=r" (page)
 		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
 		: "memory");
 }
@@ -1907,7 +1907,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-static void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				unsigned long end)
 {
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
@@ -1957,7 +1957,7 @@ static void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-static void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) != 0) {
 		unsigned long flags;
