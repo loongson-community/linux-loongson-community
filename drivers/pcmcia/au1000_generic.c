@@ -51,22 +51,15 @@
 #include <asm/mach-au1x00/au1000.h>
 #include "au1000_generic.h"
 
-#ifdef DEBUG
-static int pc_debug;
-
-module_param(pc_debug, int, 0644);
-
-#define debug(lvl,fmt) do {			\
-	if (pc_debug > (lvl))			\
-		printk(KERN_DEBUG fmt);		\
-} while (0)
-#else
-#define debug(lvl,fmt) do { } while (0)
-#endif
-
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Pete Popov, MontaVista Software <ppopov@mvista.com>");
 MODULE_DESCRIPTION("Linux PCMCIA Card Services: Au1x00 Socket Controller");
+
+#if 0
+#define debug(x,args...) printk(KERN_DEBUG "%s: " x, __func__ , ##args)
+#else
+#define debug(x,args...)
+#endif
 
 #define MAP_SIZE 0x100000
 extern struct au1000_pcmcia_socket au1000_pcmcia_socket[];
@@ -139,8 +132,7 @@ au1x00_pcmcia_config_skt(struct au1000_pcmcia_socket *skt, socket_state_t *state
 	}
 
 	if (ret < 0)
-		printk(KERN_ERR "au1x00_pcmcia: unable to configure "
-		       "socket %d\n", skt->nr);
+		printk(KERN_ERR "%s: unable to configure socket %d\n", __FUNCTION__, skt->nr);
 
 	return ret;
 }
@@ -157,7 +149,7 @@ static int au1x00_pcmcia_sock_init(struct pcmcia_socket *sock)
 {
 	struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-	debug(2, "%s(): initializing socket %u\n", __FUNCTION__, skt->nr);
+	printk(KERN_DEBUG, "%s initializing socket %u\n", __FUNCTION__, skt->nr);
 
 	skt->ops->socket_init(skt);
 	return 0;
@@ -320,7 +312,7 @@ au1x00_pcmcia_set_io_map(struct pcmcia_socket *sock, struct pccard_io_map *map)
 	unsigned int speed;
 
 	if(map->map>=MAX_IO_WIN){
-		printk(KERN_ERR "%s(): map (%d) out of range\n", 
+		printk(KERN_ERR, "%smap (%d) out of range\n",
 				__FUNCTION__, map->map);
 		return -1;
 	}
@@ -344,7 +336,7 @@ au1x00_pcmcia_set_mem_map(struct pcmcia_socket *sock, struct pccard_mem_map *map
 	unsigned short speed = map->speed;
 
 	if(map->map>=MAX_WIN){
-		printk(KERN_ERR "%s(): map (%d) out of range\n", 
+		printk(KERN_ERR, "%s map (%d) out of range\n", 
 				__FUNCTION__, map->map);
 		return -1;
 	}

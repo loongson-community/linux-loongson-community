@@ -44,12 +44,15 @@
 
 #include "au1000_generic.h"
 
-#ifdef PCMCIA_DEBUG
-static int pc_debug;
+#if 0
+#define debug(x,args...) printk(KERN_DEBUG "%s: " x, __func__ , ##args)
+#else
+#define debug(x,args...)
 #endif
 
 static BCSR * const bcsr = (BCSR *)0xAE000000;
 struct au1000_pcmcia_socket au1000_pcmcia_socket[PCMCIA_NUM_SOCKS];
+extern int au1x00_pcmcia_socket_probe(struct device *, struct pcmcia_low_level *, int, int);
 
 static int db1x00_pcmcia_hw_init(struct au1000_pcmcia_socket *skt)
 {
@@ -88,7 +91,7 @@ db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state
 	}
 
 	if (inserted) 
-		DEBUG(4, "db1x00 socket %d: inserted %d, vs %d pcmcia %x\n", 
+		debug(4, "db1x00 socket %d: inserted %d, vs %d pcmcia %x\n", 
 				skt->nr, inserted, vs, bcsr->pcmcia);
 
 	if (inserted) {
@@ -138,7 +141,7 @@ db1x00_pcmcia_configure_socket(struct au1000_pcmcia_socket *skt, struct socket_s
 	u16 pwr;
 	int sock = skt->nr;
 
-	DEBUG(4, "config_skt %d Vcc %dV Vpp %dV, reset %d\n", 
+	debug(4, "config_skt %d Vcc %dV Vpp %dV, reset %d\n", 
 			sock, state->Vcc, state->Vpp, 
 			state->flags & SS_RESET);
 
