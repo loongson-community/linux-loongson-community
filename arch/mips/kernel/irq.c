@@ -28,7 +28,6 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/sni.h>
 #include <asm/nile4.h>
 
 /*
