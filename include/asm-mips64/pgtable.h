@@ -377,13 +377,6 @@ static inline pgprot_t pgprot_noncached(pgprot_t _prot)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-#ifndef CONFIG_DISCONTIGMEM
-#define PAGE_TO_PA(page)	((page - mem_map) << PAGE_SHIFT)
-#else
-#define PAGE_TO_PA(page) \
-		(( ((page)-(page)->zone->zone_mem_map) + \
-		   (page)->zone->zone_start_pfn) << PAGE_SHIFT)
-#endif
 #define mk_pte(page, pgprot)	pfn_pte(page_to_pfn(page), (pgprot))
 
 static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
