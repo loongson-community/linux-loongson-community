@@ -107,16 +107,6 @@ static int tx4927_pcibios_read_config(struct pci_bus *bus, unsigned int devfn, i
         dev = PCI_SLOT(devfn);
         func = PCI_FUNC(devfn);
 
-	if (size == 2) {
-		if (where & 1)
-	                return PCIBIOS_BAD_REGISTER_NUMBER;
-	}
-
-	if (size == 4) {
-		if (where & 3)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-	}
-
 	/* check if the bus is top-level */
 	if (bus->parent != NULL) {
 		busno = bus->number;
@@ -165,16 +155,6 @@ static int tx4927_pcibios_write_config(struct pci_bus *bus, unsigned int devfn, 
 	busno = bus->number;
         dev = PCI_SLOT(devfn);
         func = PCI_FUNC(devfn);
-
-	if (size == 1) {
-		if (where & 1)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-	}
-
-	if (size == 4) {
-		if (where & 3)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-	}
 
 	/* check if the bus is top-level */
 	if (bus->parent != NULL) {
