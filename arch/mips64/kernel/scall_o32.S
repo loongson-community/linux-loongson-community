@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.11 2000/03/17 22:42:13 kanoj Exp $
+/* $Id: scall_o32.S,v 1.12 2000/03/18 09:02:17 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -35,7 +35,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	SAVE_SOME
 	STI
 	.set	at
-#if 1
+#if 0
  SAVE_ALL
  ld	a1, PT_R2(sp)
  PRINT("Got syscall %d\n")
