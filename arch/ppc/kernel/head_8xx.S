@@ -1,7 +1,8 @@
 /*
+ * BK Id: SCCS/s.head_8xx.S 1.11 05/21/01 11:50:00 paulus
+ */
+/*
  *  arch/ppc/kernel/except_8xx.S
- *
- *  $Id: head_8xx.S,v 1.4 1999/09/18 18:43:19 dmalek Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -30,13 +31,6 @@
 #include <asm/mmu.h>
 #include <asm/cache.h>
 #include <asm/pgtable.h>
-	
-/* XXX need definitions here for 16 byte cachelines on some/all 8xx
-   -- paulus */
-CACHELINE_BYTES = 32
-LG_CACHELINE_BYTES = 5
-CACHELINE_MASK = 0x1f
-CACHELINE_WORDS = 8
 
 	.text
 	.globl	_stext
@@ -685,8 +679,6 @@ transfer_to_handler:
 	mflr	r23
 	andi.	r24,r23,0x3f00		/* get vector offset */
 	stw	r24,TRAP(r21)
-	li	r22,RESULT
-	stwcx.	r22,r22,r21		/* to clear the reservation */
 	li	r22,0
 	stw	r22,RESULT(r21)
 	mtspr	SPRG2,r22		/* r1 is now kernel sp */
@@ -757,7 +749,7 @@ relocate_kernel:
 copy_and_flush:
 	addi	r5,r5,-4
 	addi	r6,r6,-4
-4:	li	r0,CACHELINE_WORDS
+4:	li	r0,CACHE_LINE_SIZE/4
 	mtctr	r0
 3:	addi	r6,r6,4			/* copy a cache line */
 	lwzx	r0,r6,r4

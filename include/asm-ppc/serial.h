@@ -1,9 +1,18 @@
 /*
+ * BK Id: SCCS/s.serial.h 1.12 05/17/01 18:14:25 cort
+ */
+/*
  * include/asm-ppc/serial.h
  */
 
 #ifdef __KERNEL__
 #include <linux/config.h>
+
+#ifdef CONFIG_GEMINI
+#include <asm/gemini_serial.h>
+#elif defined(CONFIG_4xx)
+#include <asm/ppc4xx_serial.h>
+#else
 
 /*
  * This assumes you have a 1.8432 MHz clock for your UART.
@@ -123,4 +132,5 @@
 	HUB6_SERIAL_PORT_DFNS		\
 	MCA_SERIAL_PORT_DFNS
 
+#endif /* !CONFIG_GEMINI and others */
 #endif /* __KERNEL__ */

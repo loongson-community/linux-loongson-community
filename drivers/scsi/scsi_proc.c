@@ -104,7 +104,11 @@ static int proc_scsi_write(struct file * file, const char * buf,
 
 	if (!(page = (char *) __get_free_page(GFP_KERNEL)))
 		return -ENOMEM;
-	copy_from_user(page, buf, count);
+	if(copy_from_user(page, buf, count))
+	{
+		free_page((ulong) page);
+		return -EFAULT;
+	}
 
 	if (hpnt->hostt->proc_info == NULL)
 		ret = -ENOSYS;

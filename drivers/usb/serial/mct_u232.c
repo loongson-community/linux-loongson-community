@@ -24,6 +24,17 @@
  *   Basic tests have been performed with minicom/zmodem transfers and
  *   modem dialing under Linux 2.4.0-test10 (for me it works fine).
  *
+ * 04-May-2001 Stelian Pop
+ *   - Set the maximum bulk output size for Sitecom U232-P25 model to 16 bytes
+ *     instead of the device reported 32 (using 32 bytes causes many data
+ *     loss, Windows driver uses 16 too).
+ *
+ * 02-May-2001 Stelian Pop
+ *   - Fixed the baud calculation for Sitecom U232-P25 model
+ *
+ * 08-Apr-2001 gb
+ *   - Identify version on module load.
+ *
  * 06-Jan-2001 Cornel Ciocirlan 
  *   - Added support for Sitecom U232-P25 model (Product Id 0x0230)
  *   - Added support for D-Link DU-H3SP USB BAY (Product Id 0x0200)
@@ -64,6 +75,13 @@
 #include "usb-serial.h"
 #include "mct_u232.h"
 
+
+/*
+ * Version Information
+ */
+#define DRIVER_VERSION "v1.0.0"
+#define DRIVER_AUTHOR "Wolfgang Grandegger <wolfgang@ces.ch>"
+#define DRIVER_DESC "Magic Control Technology USB-RS232 converter driver"
 
 /*
  * Some not properly written applications do not handle the return code of
@@ -218,11 +236,31 @@ struct mct_u232_private {
 
 #define WDR_TIMEOUT (HZ * 5 ) /* default urb timeout */
 
+static int mct_u232_calculate_baud_rate(struct usb_serial *serial, int value) {
+	if (serial->dev->descriptor.idProduct == MCT_U232_SITECOM_PID) {
+		switch (value) {
+			case    300: return 0x01;
+			case    600: return 0x02; /* this one not tested */
+			case   1200: return 0x03;
+			case   2400: return 0x04;
+			case   4800: return 0x06;
+			case   9600: return 0x08;
+			case  19200: return 0x09;
+			case  38400: return 0x0a;
+			case  57600: return 0x0b;
+			case 115200: return 0x0c;
+			default:     return -1; /* normally not reached */
+		}
+	}
+	else
+		return MCT_U232_BAUD_RATE(value);
+}
+
 static int mct_u232_set_baud_rate(struct usb_serial *serial, int value)
 {
 	unsigned int divisor;
         int rc;
-	divisor = MCT_U232_BAUD_RATE(value);
+	divisor = mct_u232_calculate_baud_rate(serial, value);
         rc = usb_control_msg(serial->dev, usb_sndctrlpipe(serial->dev, 0),
                              MCT_U232_SET_BAUD_RATE_REQUEST,
 			     MCT_U232_SET_REQUEST_TYPE,
@@ -230,7 +268,7 @@ static int mct_u232_set_baud_rate(struct usb_serial *serial, int value)
 			     WDR_TIMEOUT);
 	if (rc < 0)
 		err("Set BAUD RATE %d failed (error = %d)", value, rc);
-	dbg("set_baud_rate: 0x%x", divisor);
+	dbg("set_baud_rate: value: %d, divisor: 0x%x", value, divisor);
         return rc;
 } /* mct_u232_set_baud_rate */
 
@@ -366,6 +404,14 @@ static int  mct_u232_open (struct usb_serial_port *port, struct file *filp)
 
 	if (!port->active) {
 		port->active = 1;
+
+		/* Compensate for a hardware bug: although the Sitecom U232-P25
+		 * device reports a maximum output packet size of 32 bytes,
+		 * it seems to be able to accept only 16 bytes (and that's what
+		 * SniffUSB says too...)
+		 */
+		if (serial->dev->descriptor.idProduct == MCT_U232_SITECOM_PID)
+			port->bulk_out_size = 16;
 
 		/* Do a defined restart: the normal serial device seems to 
 		 * always turn on DTR and RTS here, so do the same. I'm not
@@ -824,7 +870,8 @@ static int __init mct_u232_init (void)
 	usb_serial_register (&mct_u232_device);
 	usb_serial_register (&mct_u232_sitecom_device);
 	usb_serial_register (&mct_u232_du_h3sp_device);
-	
+	info(DRIVER_VERSION " " DRIVER_AUTHOR);
+	info(DRIVER_DESC);
 	return 0;
 }
 
@@ -840,8 +887,8 @@ static void __exit mct_u232_exit (void)
 module_init (mct_u232_init);
 module_exit(mct_u232_exit);
 
-MODULE_AUTHOR("Wolfgang Grandegger <wolfgang@ces.ch>");
-MODULE_DESCRIPTION("Magic Control Technology USB-RS232 converter driver");
+MODULE_AUTHOR( DRIVER_AUTHOR );
+MODULE_DESCRIPTION( DRIVER_DESC );
 
 #ifdef FIX_WRITE_RETURN_CODE_PROBLEM
 MODULE_PARM(write_blocking, "i");

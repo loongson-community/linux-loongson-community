@@ -8,7 +8,7 @@ obj-m           :=
 obj-n           :=
 obj-            :=
 
-mod-subdirs     := appletalk arcnet fc irda tokenring pcmcia wan
+mod-subdirs     := appletalk arcnet fc irda tokenring pcmcia wireless wan
 
 O_TARGET := net.o
 
@@ -30,6 +30,7 @@ ifeq ($(CONFIG_ISDN_PPP),y)
 endif
 
 subdir-$(CONFIG_NET_PCMCIA) += pcmcia
+subdir-$(CONFIG_NET_RADIO) += wireless
 subdir-$(CONFIG_TULIP) += tulip
 subdir-$(CONFIG_IRDA) += irda
 subdir-$(CONFIG_TR) += tokenring
@@ -75,6 +76,7 @@ obj-$(CONFIG_YELLOWFIN) += yellowfin.o
 obj-$(CONFIG_ACENIC) += acenic.o
 obj-$(CONFIG_NATSEMI) += natsemi.o
 obj-$(CONFIG_STNIC) += stnic.o 8390.o
+obj-$(CONFIG_FEALNX) += fealnx.o
 
 ifeq ($(CONFIG_SK98LIN),y)
 obj-y += sk98lin/sk98lin.o

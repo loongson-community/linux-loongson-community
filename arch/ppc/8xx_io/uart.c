@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.uart.c 1.10 05/17/01 18:14:20 cort
+ */
+/*
  *  UART driver for MPC860 CPM SCC or SMC
  *  Copyright (c) 1997 Dan Malek (dmalek@jlc.net)
  *
@@ -55,17 +58,17 @@ extern int  kgdb_output_string (const char* s, unsigned int count);
 */
 # ifndef CONFIG_SERIAL_CONSOLE_PORT
 #  ifdef CONFIG_SCC3_ENET
-#   ifdef CONFIG_8xx_CONS_SMC2
+#   ifdef CONFIG_CONS_SMC2
 #    define CONFIG_SERIAL_CONSOLE_PORT	0	/* Console on SMC2 is 1st port */
 #   else
 #    error "Can't use SMC1 for console with Ethernet on SCC3"
 #   endif
 #  else	/* ! CONFIG_SCC3_ENET */
-#   ifdef CONFIG_8xx_CONS_SMC2			/* Console on SMC2 */
+#   ifdef CONFIG_CONS_SMC2			/* Console on SMC2 */
 #    define CONFIG_SERIAL_CONSOLE_PORT	1
 #   else					/* Console on SMC1 */
 #    define CONFIG_SERIAL_CONSOLE_PORT	0
-#   endif /* CONFIG_8xx_CONS_SMC2 */
+#   endif /* CONFIG_CONS_SMC2 */
 #  endif  /* CONFIG_SCC3_ENET */
 # endif	  /* CONFIG_SERIAL_CONSOLE_PORT */
 #endif	  /* CONFIG_SERIAL_CONSOLE */
@@ -134,15 +137,15 @@ static struct serial_state rs_table[] = {
   	{ 0,     0, PROFF_SMC1, CPMVEC_SMC1,   0,    0 },    /* SMC1 ttyS0 */
 #endif
 #if !defined(CONFIG_USB_MPC8xx) && !defined(CONFIG_USB_CLIENT_MPC8xx)
-# ifdef CONFIG_8xxSMC2
+# ifdef CONFIG_SMC2_UART
   	{ 0,     0, PROFF_SMC2, CPMVEC_SMC2,   0,    1 },    /* SMC2 ttyS1 */
 # endif
-# ifdef CONFIG_8xxSCC
+# ifdef CONFIG_USE_SCC_IO
   	{ 0,     0, PROFF_SCC2, CPMVEC_SCC2,   0,    (NUM_IS_SCC | 1) },    /* SCC2 ttyS2 */
   	{ 0,     0, PROFF_SCC3, CPMVEC_SCC3,   0,    (NUM_IS_SCC | 2) },    /* SCC3 ttyS3 */
 # endif
   #else /* CONFIG_USB_xxx */
-# ifdef CONFIG_8xxSCC
+# ifdef CONFIG_USE_SCC_IO
   	{ 0,     0, PROFF_SCC3, CPMVEC_SCC3,   0,    (NUM_IS_SCC | 2) },    /* SCC3 ttyS3 */
 # endif
 #endif	/* CONFIG_USB_xxx */
@@ -2533,7 +2536,7 @@ int __init rs_8xx_init(void)
 
 	/* Configure SCC2, SCC3, and SCC4 instead of port A parallel I/O.
 	 */
-#ifdef CONFIG_8xxSCC
+#ifdef CONFIG_USE_SCC_IO
 #ifndef CONFIG_MBX
 	/* The "standard" configuration through the 860.
 	*/
@@ -2747,7 +2750,7 @@ int __init rs_8xx_init(void)
 				 * parallel I/O.  On 823/850 these are on
 				 * port A for SMC2.
 				 */
-#ifndef CONFIG_8xx_ALTSMC2
+#ifndef CONFIG_ALTSMC2
 				iobits = 0xc0 << (idx * 4);
 				cp->cp_pbpar |= iobits;
 				cp->cp_pbdir &= ~iobits;

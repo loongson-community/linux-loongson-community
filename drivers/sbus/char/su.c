@@ -1,4 +1,4 @@
-/* $Id: su.c,v 1.47 2001/04/18 21:06:15 davem Exp $
+/* $Id: su.c,v 1.50 2001/05/16 08:37:03 davem Exp $
  * su.c: Small serial driver for keyboard/mouse interface on sparc32/PCI
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -75,6 +75,9 @@ do {									\
 #include <asm/oplib.h>
 #include <asm/io.h>
 #include <asm/ebus.h>
+#ifdef CONFIG_SPARC64
+#include <asm/isa.h>
+#endif
 #include <asm/irq.h>
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
@@ -1411,6 +1414,41 @@ su_unthrottle(struct tty_struct * tty)
  */
 
 /*
+ * get_serial_info - handle TIOCGSERIAL ioctl()
+ *
+ * Purpose: Return standard serial struct information about
+ *          a serial port handled by this driver.
+ *
+ * Added:   11-May-2001 Lars Kellogg-Stedman <lars@larsshack.org>
+ */
+static int get_serial_info(struct su_struct * info,
+			   struct serial_struct * retinfo)
+{
+	struct serial_struct	tmp;
+
+	if (!retinfo)
+		return -EFAULT;
+	memset(&tmp, 0, sizeof(tmp));
+
+	tmp.type		= info->type;
+	tmp.line		= info->line;
+	tmp.port		= info->port;
+	tmp.irq			= info->irq;
+	tmp.flags		= info->flags;
+	tmp.xmit_fifo_size	= info->xmit_fifo_size;
+	tmp.baud_base		= info->baud_base;
+	tmp.close_delay		= info->close_delay;
+	tmp.closing_wait	= info->closing_wait;
+	tmp.custom_divisor	= info->custom_divisor;
+	tmp.hub6		= 0;
+
+	if (copy_to_user(retinfo,&tmp,sizeof(*retinfo)))
+		return -EFAULT;
+
+	return 0;
+}
+
+/*
  * get_lsr_info - get line status register info
  *
  * Purpose: Let user call ioctl() to get info when the UART physically
@@ -1567,6 +1605,9 @@ su_ioctl(struct tty_struct *tty, struct file * file,
 		case TIOCMBIC:
 		case TIOCMSET:
 			return set_modem_info(info, cmd, (unsigned int *) arg);
+
+		case TIOCGSERIAL:
+			return get_serial_info(info, (struct serial_struct *)arg);
 
 		case TIOCSERGETLSR: /* Get line status register */
 			return get_lsr_info(info, (unsigned int *) arg);
@@ -2220,7 +2261,7 @@ done:
  */
 static __inline__ void __init show_su_version(void)
 {
-	char *revision = "$Revision: 1.47 $";
+	char *revision = "$Revision: 1.50 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
@@ -2243,6 +2284,10 @@ autoconfig(struct su_struct *info)
 	unsigned char status1, status2, scratch, scratch2;
 	struct linux_ebus_device *dev = 0;
 	struct linux_ebus *ebus;
+#ifdef CONFIG_SPARC64
+	struct isa_bridge *isa_br;
+	struct isa_device *isa_dev;
+#endif
 #ifndef __sparc_v9__
 	struct linux_prom_registers reg0;
 #endif
@@ -2263,6 +2308,18 @@ autoconfig(struct su_struct *info)
 			}
 		}
 	}
+
+#ifdef CONFIG_SPARC64
+	for_each_isa(isa_br) {
+		for_each_isadev(isa_dev, isa_br) {
+			if (isa_dev->prom_node == info->port_node) {
+				info->port = isa_dev->resource.start;
+				info->irq = isa_dev->irq;
+				goto ebus_done;
+			}
+		}
+	}
+#endif
 
 #ifdef __sparc_v9__
 	/*

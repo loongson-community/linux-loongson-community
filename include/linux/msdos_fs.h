@@ -54,8 +54,7 @@
 #define SCAN_NOTANY  3  /* test name, then use SCAN_HID or SCAN_NOTHID */
 
 #define DELETED_FLAG 0xe5 /* marks file as deleted when in name[0] */
-#define IS_FREE(n) (!*(n) || *(const unsigned char *) (n) == DELETED_FLAG || \
-  *(const unsigned char *) (n) == FD_FILL_BYTE)
+#define IS_FREE(n) (!*(n) || *(const unsigned char *) (n) == DELETED_FLAG)
 
 #define MSDOS_VALID_MODE (S_IFREG | S_IFDIR | S_IRWXU | S_IRWXG | S_IRWXO)
 	/* valid file mode bits */
@@ -76,6 +75,11 @@
 #define EOF_FAT32 0xFFFFFF8
 #define EOF_FAT(s) (MSDOS_SB(s)->fat_bits == 32 ? EOF_FAT32 : \
 	MSDOS_SB(s)->fat_bits == 16 ? EOF_FAT16 : EOF_FAT12)
+
+#define FAT_FSINFO_SIG1		0x41615252
+#define FAT_FSINFO_SIG2		0x61417272
+#define IS_FSINFO(x)		(CF_LE_L((x)->signature1) == FAT_FSINFO_SIG1	 \
+				 && CF_LE_L((x)->signature2) == FAT_FSINFO_SIG2)
 
 /*
  * Inode flags
@@ -128,8 +132,9 @@ struct fat_boot_sector {
 };
 
 struct fat_boot_fsinfo {
-	__u32   reserved1;	/* Nothing as far as I can tell */
-	__u32   signature;	/* 0x61417272L */
+	__u32   signature1;	/* 0x61417272L */
+	__u32   reserved1[120];	/* Nothing as far as I can tell */
+	__u32   signature2;	/* 0x61417272L */
 	__u32   free_clusters;	/* Free cluster count.  -1 if unknown */
 	__u32   next_cluster;	/* Most recently allocated cluster.
 				 * Unused under Linux. */
@@ -209,7 +214,7 @@ static __inline__ int fat_get_entry(struct inode *dir,loff_t *pos,
 {
 	/* Fast stuff first */
 	if (*bh && *de &&
-	    	(*de - (struct msdos_dir_entry *)(*bh)->b_data) < MSDOS_DPB-1) {
+	    (*de - (struct msdos_dir_entry *)(*bh)->b_data) < MSDOS_SB(dir->i_sb)->dir_per_block - 1) {
 		*pos += sizeof(struct msdos_dir_entry);
 		(*de)++;
 		(*ino)++;

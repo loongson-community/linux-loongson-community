@@ -423,7 +423,7 @@ static int ioc3_mii_init(struct ioc3_private *ip);
 
 static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 {
-	struct ioc3_private *ip = (struct ioc3_private *) dev->priv;
+	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
 
 	ip->stats.collisions += (ioc3->etcdc & ETCDC_COLLCNT_MASK);
@@ -1323,15 +1323,13 @@ static inline void ioc3_stop(struct ioc3_private *ip)
 static int
 ioc3_open(struct net_device *dev)
 {
-	struct ioc3_private *ip;
+	struct ioc3_private *ip = dev->priv;
 
 	if (request_irq(dev->irq, ioc3_interrupt, SA_SHIRQ, ioc3_str, dev)) {
 		printk(KERN_ERR "%s: Can't get irq %d\n", dev->name, dev->irq);
 
 		return -EAGAIN;
 	}
-
-	ip = (struct ioc3_private *) dev->priv;
 
 	ip->ehar_h = 0;
 	ip->ehar_l = 0;
@@ -1661,7 +1659,7 @@ ioc3_hash(const unsigned char *addr)
 /* We provide both the mii-tools and the ethtool ioctls.  */
 static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	struct ioc3_private *ip = (struct ioc3_private *) dev->priv;
+	struct ioc3_private *ip = dev->priv;
 	struct ethtool_cmd *ep_user = (struct ethtool_cmd *) rq->ifr_data;
 	u16 *data = (u16 *)&rq->ifr_data;
 	struct ioc3 *ioc3 = ip->regs;

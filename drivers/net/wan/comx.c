@@ -621,9 +621,20 @@ static int comx_write_proc(struct file *file, const char *buffer, u_long count,
 
 	if (!(page = (char *)__get_free_page(GFP_KERNEL))) return -ENOMEM;
 
-	copy_from_user(page, buffer, count);
+	if(copy_from_user(page, buffer, count))
+	{
+		count = -EFAULT;
+		goto out;
+	}
 
-	if (*(page + count - 1) == '\n') *(page + count - 1) = 0;
+	if (page[count-1] == '\n')
+		page[count-1] = '\0';
+	else if (count < PAGE_SIZE)
+		page[count] = '\0';
+	else if (page[count]) {
+		count = -EINVAL;
+		goto out;
+	}
 
 	if (strcmp(entry->name, FILENAME_DEBUG) == 0) {
 		int i;
@@ -764,7 +775,7 @@ static int comx_write_proc(struct file *file, const char *buffer, u_long count,
 			}
 		}
 	}
-
+out:
 	free_page((unsigned long)page);
 	return count;
 }

@@ -9,127 +9,88 @@
 # Adapted for PowerPC by Gary Thomas
 # modified by Cort (cort@cs.nmt.edu)
 #
+
 .c.s:
 	$(CC) $(CFLAGS) -S -o $*.s $<
 .s.o:
 	$(AS) -o $*.o $<
 .c.o:
-	$(CC) $(CFLAGS)  -DINITRD_OFFSET=$(IOFF) -DINITRD_SIZE=$(ISZ) -DZIMAGE_OFFSET=$(ZOFF) -DZIMAGE_SIZE=$(ZSZ) -D__BOOTER__ -c -o $*.o $<
+	$(CC) $(CFLAGS) -c -o $*.o $<
 .S.s:
 	$(CPP) $(AFLAGS) -traditional -o $*.o $<
 .S.o:
 	$(CC) $(AFLAGS) -traditional -c -o $*.o $<
 
-ZOFF = 0
-ZSZ = 0
-IOFF = 0
-ISZ = 0
-
-ifeq ($(CONFIG_SMP),y)
-TFTPIMAGE=/tftpboot/zImage.prep.smp$(MSIZE)
-else
-TFTPIMAGE=/tftpboot/zImage.prep$(MSIZE)
-endif
-
-ifeq ($(CONFIG_PPC64BRIDGE),y)
-MSIZE=.64
-else
-MSIZE=
-endif
-
-ZLINKFLAGS = -T ../vmlinux.lds -Ttext 0x00800000
-
 GZIP_FLAGS = -v9f
 
-OBJECTS := head.o misc.o ../coffboot/zlib.o
-CFLAGS = $(CPPFLAGS) -O2 -DSTDC_HEADERS -fno-builtin
+CFLAGS	:= $(CPPFLAGS) -O2 -DSTDC_HEADERS -fno-builtin -D__BOOTER__ \
+		-I$(TOPDIR)/arch/$(ARCH)/boot/include
+AFLAGS	+= -D__BOOTER__
 OBJCOPY_ARGS = -O elf32-powerpc
 
-OBJECTS += vreset.o kbd.o of1275.o
-ifeq ($(CONFIG_SERIAL_CONSOLE),y)
-OBJECTS += ns16550.o
+ifeq ($(CONFIG_SMP),y)
+TFTPSIMAGE=/tftpboot/sImage.smp
+else
+TFTPSIMAGE=/tftpboot/sImage
 endif
 
-all:	zImage
 
-zvmlinux.initrd: zvmlinux
-	$(LD) $(ZLINKFLAGS) -o zvmlinux.initrd.tmp $(OBJECTS)
-	$(OBJCOPY) $(OBJCOPY_ARGS) -R .comment \
-		--add-section=initrd=ramdisk.image.gz \
-		--add-section=image=../coffboot/vmlinux.gz \
-		zvmlinux.initrd.tmp zvmlinux.initrd
-	$(CC) $(CFLAGS) -DINITRD_OFFSET=`sh offset $(OBJDUMP) zvmlinux.initrd initrd` \
-		-DINITRD_SIZE=`sh size $(OBJDUMP) zvmlinux.initrd initrd` \
-		-DZIMAGE_OFFSET=`sh offset $(OBJDUMP) zvmlinux.initrd image` \
-		-DZIMAGE_SIZE=`sh size $(OBJDUMP) zvmlinux.initrd image` \
-		-D__BOOTER__ \
-		-c -o misc.o misc.c
-	$(LD) $(ZLINKFLAGS) -o zvmlinux.initrd.tmp $(OBJECTS)
-	$(OBJCOPY) $(OBJCOPY_ARGS) -R .comment \
-		--add-section=initrd=ramdisk.image.gz \
-		--add-section=image=../coffboot/vmlinux.gz \
-		zvmlinux.initrd.tmp $@
-	rm zvmlinux.initrd.tmp
+lib/zlib.a:
+	$(MAKE) -C lib
 
-zImage: zvmlinux mkprep
+images/vmlinux.gz: $(TOPDIR)/vmlinux
+	$(MAKE) -C images vmlinux.gz
+
+# Since gemini doesn't need/have it's own directory, we do znetboot* here
+ifdef CONFIG_GEMINI
+BOOT_TARGETS = zImage zImage.initrd
+else
+BOOT_TARGETS = zImage zImage.initrd znetboot znetboot.initrd
+endif
+
+# We go into the utils dir by hand to ensure HOSTCC builds
+$(BOOT_TARGETS): sImage vmapus lib/zlib.a images/vmlinux.gz
+ifneq ("xx$(CONFIG_8260)$(CONFIG_8xx)","xx")
+	$(MAKE) -C mbx $@
+endif
 ifdef CONFIG_ALL_PPC
-	./mkprep -pbp zvmlinux zImage
+	$(MAKE) -C utils addnote piggyback mknote hack-coff mkprep
+	$(MAKE) -C chrp $@
+	$(MAKE) -C pmac $@
+	$(MAKE) -C prep $@
 endif
+ifdef CONFIG_4xx
+	$(MAKE) -C tree $@
+endif
+
+sImage: $(TOPDIR)/vmlinux
+ifdef CONFIG_GEMINI
+	$(OBJCOPY) -I elf32-powerpc -O binary $(TOPDIR)/vmlinux images/sImage
+endif
+
+vmapus: $(TOPDIR)/vmlinux
 ifdef CONFIG_APUS
-	$(STRIP) ../../../vmlinux -o vmapus
-	gzip $(GZIP_FLAGS) vmapus
+	$(STRIP) $(TOPDIR)/vmlinux -o images/vmapus
+	gzip $(GZIP_FLAGS) images/vmapus
 endif
 
-zImage.initrd: zvmlinux.initrd mkprep
-ifdef CONFIG_ALL_PPC
-	./mkprep -pbp zvmlinux.initrd zImage.initrd
-endif
-
-zvmlinux: $(OBJECTS) ../coffboot/vmlinux.gz
-#
-# build the boot loader image and then compute the offset into it
-# for the kernel image
-#
-	$(LD) $(ZLINKFLAGS) -o zvmlinux.tmp $(OBJECTS)
-	$(OBJCOPY) $(OBJCOPY_ARGS) -R .comment --add-section=image=../coffboot/vmlinux.gz \
-		zvmlinux.tmp $@
-#
-# then with the offset rebuild the bootloader so we know where the kernel is
-#
-	$(CC) $(CFLAGS) -DINITRD_OFFSET=0 -DINITRD_SIZE=0 \
-		-DZIMAGE_OFFSET=`sh offset $(OBJDUMP) zvmlinux image` \
-		-DZIMAGE_SIZE=`sh size $(OBJDUMP) zvmlinux image` \
-		-D__BOOTER__ \
-		-c -o misc.o misc.c
-	$(LD) $(ZLINKFLAGS) -o zvmlinux.tmp $(OBJECTS)
-	$(OBJCOPY) $(OBJCOPY_ARGS) -R .comment --add-section=image=../coffboot/vmlinux.gz \
-		zvmlinux.tmp $@
-	rm zvmlinux.tmp
-
-floppy: $(TOPDIR)/vmlinux zImage
-	dd if=zImage of=/dev/fd0H1440 bs=64b
-
-mkprep : mkprep.c
-	$(HOSTCC) -o mkprep mkprep.c
-
+ifdef CONFIG_GEMINI
 znetboot : zImage
-ifdef CONFIG_ALL_PPC
-	cp zImage $(TFTPIMAGE)
+	cp images/sImage $(TFTPSIMAGE)
 endif
 
-znetboot.initrd : zImage.initrd
-	cp zImage.initrd $(TFTPIMAGE)
-
+# Do the dirs
 clean:
-	rm -f vmlinux* zvmlinux* mkprep zImage*
-
-fastdep:
-	$(TOPDIR)/scripts/mkdep *.[Sch] > .depend
+	$(MAKE) -C images clean
+	$(MAKE) -C tree clean
+	$(MAKE) -C utils clean
 
 dep:
-	$(CPP) $(CPPFLAGS) -M *.S *.c > .depend
+	$(MAKE) -C mbx fastdep
+	$(MAKE) -C chrp fastdep
+	$(MAKE) -C common fastdep
+	$(MAKE) -C pmac fastdep
+	$(MAKE) -C prep fastdep
+	$(MAKE) -C common fastdep
 
-# just here to match coffboot/Makefile
-vmlinux.coff:
-
-vmlinux.coff.initrd:
+include $(TOPDIR)/Rules.make

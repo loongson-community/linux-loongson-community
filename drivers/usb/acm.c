@@ -55,6 +55,13 @@
 #include <linux/usb.h>
 
 /*
+ * Version Information
+ */
+#define DRIVER_VERSION "v0.18"
+#define DRIVER_AUTHOR "Armin Fuerst, Pavel Machek, Johannes Erdfelt, Vojtech Pavlik"
+#define DRIVER_DESC "USB Abstract Control Model driver for USB modems and ISDN adapters"
+
+/*
  * CMSPAR, some architectures can't have space and mark parity.
  */
 
@@ -233,8 +240,14 @@ static void acm_read_bulk(struct urb *urb)
 		dbg("nonzero read bulk status received: %d", urb->status);
 
 	if (!urb->status & !acm->throttle)  {
-		for (i = 0; i < urb->actual_length && !acm->throttle; i++)
+		for (i = 0; i < urb->actual_length && !acm->throttle; i++) {
+			/* if we insert more than TTY_FLIPBUF_SIZE characters,
+			 * we drop them. */
+			if (tty->flip.count >= TTY_FLIPBUF_SIZE) {
+				tty_flip_buffer_push(tty);
+			}
 			tty_insert_flip_char(tty, data[i], 0);
+		}
 		tty_flip_buffer_push(tty);
 	}
 
@@ -303,6 +316,10 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 		dbg("usb_submit_urb(read bulk) failed");
 
 	acm_set_control(acm, acm->ctrlout = ACM_CTRL_DTR | ACM_CTRL_RTS);
+
+	/* force low_latency on so that our tty_push actually forces the data through, 
+	   otherwise it is scheduled, and with high data rates data can get lost. */
+	tty->low_latency = 1;
 
 	return 0;
 }
@@ -692,6 +709,9 @@ static int __init acm_init(void)
 		return -1;
 	}
 
+	info(DRIVER_VERSION " " DRIVER_AUTHOR);
+	info(DRIVER_DESC);
+
 	return 0;
 }
 
@@ -704,5 +724,6 @@ static void __exit acm_exit(void)
 module_init(acm_init);
 module_exit(acm_exit);
 
-MODULE_AUTHOR("Armin Fuerst, Pavel Machek, Johannes Erdfelt, Vojtech Pavlik");
-MODULE_DESCRIPTION("USB Abstract Control Model driver for USB modems and ISDN adapters");
+MODULE_AUTHOR( DRIVER_AUTHOR );
+MODULE_DESCRIPTION( DRIVER_DESC );
+

@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.open_pic.c 1.20 05/17/01 18:14:21 cort
+ */
+/*
  *  arch/ppc/kernel/open_pic.c -- OpenPIC Interrupt Handling
  *
  *  Copyright (C) 1997 Geert Uytterhoeven
@@ -775,11 +778,17 @@ static void openpic_ipi_action(int cpl, void *dev_id, struct pt_regs *regs)
 int
 openpic_get_irq(struct pt_regs *regs)
 {
+/*
+ * Clean up needed. -VAL
+ */
+#ifndef CONFIG_GEMINI
 	extern int i8259_irq(int cpu);
-
+#endif
 	int irq = openpic_irq();
 
 	/* Management of the cascade should be moved out of here */
+
+	/* Yep - because openpic !=> i8259, for one thing. -VAL */
         if (open_pic_irq_offset && irq == open_pic_irq_offset)
         {
                 /*
@@ -787,8 +796,10 @@ openpic_get_irq(struct pt_regs *regs)
                  */
 		if ( chrp_int_ack_special )
 			irq = *chrp_int_ack_special;
+#ifndef CONFIG_GEMINI
 		else
 			irq = i8259_irq( smp_processor_id() );
+#endif
 		openpic_eoi();
         }
 	if (irq == OPENPIC_VEC_SPURIOUS + open_pic_irq_offset) {

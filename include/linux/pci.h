@@ -201,13 +201,21 @@
 
 /* Power Management Registers */
 
+#define PCI_PM_PMC              2       /* PM Capabilities Register */
 #define  PCI_PM_CAP_VER_MASK	0x0007	/* Version */
 #define  PCI_PM_CAP_PME_CLOCK	0x0008	/* PME clock required */
-#define  PCI_PM_CAP_AUX_POWER	0x0010	/* Auxilliary power support */
+#define  PCI_PM_CAP_RESERVED    0x0010  /* Reserved field */
 #define  PCI_PM_CAP_DSI		0x0020	/* Device specific initialization */
+#define  PCI_PM_CAP_AUX_POWER	0x01C0	/* Auxilliary power support mask */
 #define  PCI_PM_CAP_D1		0x0200	/* D1 power state support */
 #define  PCI_PM_CAP_D2		0x0400	/* D2 power state support */
 #define  PCI_PM_CAP_PME		0x0800	/* PME pin supported */
+#define  PCI_PM_CAP_PME_MASK    0xF800  /* PME Mask of all supported states */
+#define  PCI_PM_CAP_PME_D0      0x0800  /* PME# from D0 */
+#define  PCI_PM_CAP_PME_D1      0x1000  /* PME# from D1 */
+#define  PCI_PM_CAP_PME_D2      0x2000  /* PME# from D2 */
+#define  PCI_PM_CAP_PME_D3      0x4000  /* PME# from D3 (hot) */
+#define  PCI_PM_CAP_PME_D3cold  0x8000  /* PME# from D3 (cold) */
 #define PCI_PM_CTRL		4	/* PM control and status register */
 #define  PCI_PM_CTRL_STATE_MASK	0x0003	/* Current power state (D0 to D3) */
 #define  PCI_PM_CTRL_PME_ENABLE	0x0100	/* PME pin enable */
@@ -279,6 +287,13 @@
 #define PCI_SLOT(devfn)		(((devfn) >> 3) & 0x1f)
 #define PCI_FUNC(devfn)		((devfn) & 0x07)
 
+/* Ioctls for /proc/bus/pci/X/Y nodes. */
+#define PCIIOC_BASE		('P' << 24 | 'C' << 16 | 'I' << 8)
+#define PCIIOC_CONTROLLER	(PCIIOC_BASE | 0x00)	/* Get controller for PCI device. */
+#define PCIIOC_MMAP_IS_IO	(PCIIOC_BASE | 0x01)	/* Set mmap state to I/O space. */
+#define PCIIOC_MMAP_IS_MEM	(PCIIOC_BASE | 0x02)	/* Set mmap state to MEM space. */
+#define PCIIOC_WRITE_COMBINE	(PCIIOC_BASE | 0x03)	/* Enable/disable write-combining. */
+
 #ifdef __KERNEL__
 
 #include <linux/types.h>
@@ -286,6 +301,12 @@
 #include <linux/ioport.h>
 #include <linux/list.h>
 #include <linux/errno.h>
+
+/* File state for mmap()s on /proc/bus/pci/X/Y */
+enum pci_mmap_state {
+	pci_mmap_io,
+	pci_mmap_mem
+};
 
 /* This defines the direction arg to the DMA mapping routines. */
 #define PCI_DMA_BIDIRECTIONAL	0
@@ -302,8 +323,6 @@
 
 #define pci_present pcibios_present
 
-#define pci_for_each_dev(dev) \
-	for(dev = pci_dev_g(pci_devices.next); dev != pci_dev_g(&pci_devices); dev = pci_dev_g(dev->global_list.next))
 
 #define pci_for_each_dev_reverse(dev) \
 	for(dev = pci_dev_g(pci_devices.prev); dev != pci_dev_g(&pci_devices); dev = pci_dev_g(dev->global_list.prev))
@@ -460,6 +479,9 @@ struct pci_driver {
 /* these external functions are only available when PCI support is enabled */
 #ifdef CONFIG_PCI
 
+#define pci_for_each_dev(dev) \
+	for(dev = pci_dev_g(pci_devices.next); dev != pci_dev_g(&pci_devices); dev = pci_dev_g(dev->global_list.next))
+
 void pcibios_init(void);
 void pcibios_fixup_bus(struct pci_bus *);
 int pcibios_enable_device(struct pci_dev *);
@@ -611,6 +633,10 @@ static inline int pci_register_driver(struct pci_driver *drv) { return 0;}
 static inline void pci_unregister_driver(struct pci_driver *drv) { }
 static inline int scsi_to_pci_dma_dir(unsigned char scsi_dir) { return scsi_dir; }
 static inline int pci_find_capability (struct pci_dev *dev, int cap) {return 0; }
+static inline const struct pci_device_id *pci_match_device(const struct pci_device_id *ids, const struct pci_dev *dev) { return NULL; }
+
+#define pci_for_each_dev(dev) \
+	for(dev = NULL; 0; )
 
 #else
 

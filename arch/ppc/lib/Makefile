@@ -1,9 +1,10 @@
+# BK Id: SCCS/s.Makefile 1.7 05/17/01 18:14:22 cort
+#
 #
 # Makefile for ppc-specific library files..
 #
 
-.S.o:
-	$(CC) $(AFLAGS) -c $< -o $*.o
+USE_STANDARD_AS_RULE	:= true
 
 O_TARGET		:= lib.o
 

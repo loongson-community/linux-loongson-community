@@ -104,7 +104,7 @@ Scsi_Cmnd *last_cmnd;
 const unsigned char scsi_command_size[8] =
 {
 	6, 10, 10, 12,
-	16, 12, 10, 10
+	12, 12, 10, 10
 };
 static unsigned long serial_number;
 static Scsi_Cmnd *scsi_bh_queue_head;
@@ -843,7 +843,7 @@ void scsi_do_req(Scsi_Request * SRpnt, const void *cmnd,
 	 */
 	scsi_insert_special_req(SRpnt, 0);
 
-	SCSI_LOG_MLQUEUE(3, printk("Leaving scsi_do_cmd()\n"));
+	SCSI_LOG_MLQUEUE(3, printk("Leaving scsi_do_req()\n"));
 }
  
 /*
@@ -929,7 +929,7 @@ void scsi_init_cmd_from_req(Scsi_Cmnd * SCpnt, Scsi_Request * SRpnt)
 	SCpnt->abort_reason = 0;
 	SCpnt->result = 0;
 
-	SCSI_LOG_MLQUEUE(3, printk("Leaving scsi_do_cmd()\n"));
+	SCSI_LOG_MLQUEUE(3, printk("Leaving scsi_init_cmd_from_req()\n"));
 }
 
 /*
@@ -1572,6 +1572,11 @@ static int proc_scsi_gen_write(struct file * file, const char * buf,
 	copy_from_user(buffer, buf, length);
 
 	err = -EINVAL;
+	if (length < PAGE_SIZE)
+		buffer[length] ='\0';
+	else if (buffer[length])
+		goto out;
+
 	if (length < 11 || strncmp("scsi", buffer, 4))
 		goto out;
 

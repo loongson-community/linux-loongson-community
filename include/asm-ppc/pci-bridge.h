@@ -1,3 +1,6 @@
+/*
+ * BK Id: SCCS/s.pci-bridge.h 1.11 05/21/01 01:31:30 cort
+ */
 #ifdef __KERNEL__
 #ifndef _ASM_PCI_BRIDGE_H
 #define _ASM_PCI_BRIDGE_H
@@ -27,10 +30,16 @@ extern struct pci_controller* pci_bus_to_hose(int bus);
 extern struct pci_controller*
 pci_find_hose_for_OF_device(struct device_node* node);
 
+/* Fill up host controller resources from the OF node */
+extern void
+pci_process_bridge_OF_ranges(struct pci_controller *hose,
+			   struct device_node *dev, int primary);
+
 /*
  * Structure of a PCI controller (host bridge)
  */
 struct pci_controller {
+	int index;			/* used for pci_controller_num */
 	struct pci_controller *next;
         struct pci_bus *bus;
 	void *arch_data;

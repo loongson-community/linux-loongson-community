@@ -282,6 +282,39 @@ struct file_system_type *get_fs_type(const char *name)
 
 static LIST_HEAD(vfsmntlist);
 
+struct vfsmount *alloc_vfsmnt(void)
+{
+	struct vfsmount *mnt = kmalloc(sizeof(struct vfsmount), GFP_KERNEL); 
+	if (mnt) {
+		memset(mnt, 0, sizeof(struct vfsmount));
+		atomic_set(&mnt->mnt_count,1);
+		INIT_LIST_HEAD(&mnt->mnt_clash);
+		INIT_LIST_HEAD(&mnt->mnt_child);
+		INIT_LIST_HEAD(&mnt->mnt_mounts);
+		INIT_LIST_HEAD(&mnt->mnt_list);
+		mnt->mnt_owner = current->uid;
+	}
+	return mnt;
+}
+
+static void detach_mnt(struct vfsmount *mnt, struct nameidata *old_nd)
+{
+	old_nd->dentry = mnt->mnt_mountpoint;
+	old_nd->mnt = mnt->mnt_parent;
+	mnt->mnt_parent = mnt;
+	mnt->mnt_mountpoint = mnt->mnt_root;
+	list_del_init(&mnt->mnt_child);
+	list_del_init(&mnt->mnt_clash);
+}
+
+static void attach_mnt(struct vfsmount *mnt, struct nameidata *nd)
+{
+	mnt->mnt_parent = mntget(nd->mnt);
+	mnt->mnt_mountpoint = dget(nd->dentry);
+	list_add(&mnt->mnt_clash, &nd->dentry->d_vfsmnt);
+	list_add(&mnt->mnt_child, &nd->mnt->mnt_mounts);
+}
+
 /**
  *	add_vfsmnt - add a new mount node
  *	@nd: location of mountpoint or %NULL if we want a root node
@@ -296,13 +329,6 @@ static LIST_HEAD(vfsmntlist);
  *	Potential reason for failure (aside of trivial lack of memory) is a
  *	deleted mountpoint. Caller must hold ->i_zombie on mountpoint
  *	dentry (if any).
- *
- *	Node is marked as MNT_VISIBLE (visible in /proc/mounts) unless both
- *	@nd and @devname are %NULL. It works since we pass non-%NULL @devname
- *	when we are mounting root and kern_mount() filesystems are deviceless.
- *	If we will get a kern_mount() filesystem with nontrivial @devname we
- *	will have to pass the visibility flag explicitly, so if we will add
- *	support for such beasts we'll have to change prototype.
  */
 
 static struct vfsmount *add_vfsmnt(struct nameidata *nd,
@@ -313,13 +339,9 @@ static struct vfsmount *add_vfsmnt(struct nameidata *nd,
 	struct super_block *sb = root->d_inode->i_sb;
 	char *name;
 
-	mnt = kmalloc(sizeof(struct vfsmount), GFP_KERNEL);
+	mnt = alloc_vfsmnt();
 	if (!mnt)
 		goto out;
-	memset(mnt, 0, sizeof(struct vfsmount));
-
-	if (nd || dev_name)
-		mnt->mnt_flags = MNT_VISIBLE;
 
 	/* It may be NULL, but who cares? */
 	if (dev_name) {
@@ -329,28 +351,24 @@ static struct vfsmount *add_vfsmnt(struct nameidata *nd,
 			mnt->mnt_devname = name;
 		}
 	}
-	mnt->mnt_owner = current->uid;
-	atomic_set(&mnt->mnt_count,1);
 	mnt->mnt_sb = sb;
 
 	spin_lock(&dcache_lock);
 	if (nd && !IS_ROOT(nd->dentry) && d_unhashed(nd->dentry))
 		goto fail;
 	mnt->mnt_root = dget(root);
-	mnt->mnt_mountpoint = nd ? dget(nd->dentry) : dget(root);
-	mnt->mnt_parent = nd ? mntget(nd->mnt) : mnt;
 
 	if (nd) {
-		list_add(&mnt->mnt_child, &nd->mnt->mnt_mounts);
-		list_add(&mnt->mnt_clash, &nd->dentry->d_vfsmnt);
+		attach_mnt(mnt, nd);
 	} else {
-		INIT_LIST_HEAD(&mnt->mnt_child);
-		INIT_LIST_HEAD(&mnt->mnt_clash);
+		mnt->mnt_mountpoint = mnt->mnt_root;
+		mnt->mnt_parent = mnt;
 	}
-	INIT_LIST_HEAD(&mnt->mnt_mounts);
 	list_add(&mnt->mnt_instances, &sb->s_mounts);
 	list_add(&mnt->mnt_list, vfsmntlist.prev);
 	spin_unlock(&dcache_lock);
+	if (sb->s_type->fs_flags & FS_SINGLE)
+		get_filesystem(sb->s_type);
 out:
 	return mnt;
 fail:
@@ -362,12 +380,10 @@ fail:
 }
 
 static void move_vfsmnt(struct vfsmount *mnt,
-			struct dentry *mountpoint,
-			struct vfsmount *parent,
+			struct nameidata *nd, 
 			const char *dev_name)
 {
-	struct dentry *old_mountpoint;
-	struct vfsmount *old_parent;
+	struct nameidata parent_nd;
 	char *new_devname = NULL;
 
 	if (dev_name) {
@@ -377,56 +393,35 @@ static void move_vfsmnt(struct vfsmount *mnt,
 	}
 
 	spin_lock(&dcache_lock);
-	old_mountpoint = mnt->mnt_mountpoint;
-	old_parent = mnt->mnt_parent;
+	detach_mnt(mnt, &parent_nd);
+	attach_mnt(mnt, nd);
 
-	/* flip names */
 	if (new_devname) {
 		if (mnt->mnt_devname)
 			kfree(mnt->mnt_devname);
 		mnt->mnt_devname = new_devname;
 	}
-
-	/* flip the linkage */
-	mnt->mnt_mountpoint = dget(mountpoint);
-	mnt->mnt_parent = parent ? mntget(parent) : mnt;
-	list_del(&mnt->mnt_clash);
-	list_del(&mnt->mnt_child);
-	if (parent) {
-		list_add(&mnt->mnt_child, &parent->mnt_mounts);
-		list_add(&mnt->mnt_clash, &mountpoint->d_vfsmnt);
-	} else {
-		INIT_LIST_HEAD(&mnt->mnt_child);
-		INIT_LIST_HEAD(&mnt->mnt_clash);
-	}
 	spin_unlock(&dcache_lock);
 
 	/* put the old stuff */
-	dput(old_mountpoint);
-	if (old_parent != mnt)
-		mntput(old_parent);
+	if (parent_nd.mnt != mnt)
+		path_release(&parent_nd);
 }
 
-/*
- * Called with spinlock held, releases it.
- */
-static void remove_vfsmnt(struct vfsmount *mnt)
-{
-	/* First of all, remove it from all lists */
-	list_del(&mnt->mnt_instances);
-	list_del(&mnt->mnt_clash);
-	list_del(&mnt->mnt_list);
-	list_del(&mnt->mnt_child);
-	spin_unlock(&dcache_lock);
-	/* Now we can work safely */
-	if (mnt->mnt_parent != mnt)
-		mntput(mnt->mnt_parent);
+static void kill_super(struct super_block *);
 
-	dput(mnt->mnt_mountpoint);
+void __mntput(struct vfsmount *mnt)
+{
+	struct super_block *sb = mnt->mnt_sb;
+
 	dput(mnt->mnt_root);
+	spin_lock(&dcache_lock);
+	list_del(&mnt->mnt_instances);
+	spin_unlock(&dcache_lock);
 	if (mnt->mnt_devname)
 		kfree(mnt->mnt_devname);
 	kfree(mnt);
+	kill_super(sb);
 }
 
 
@@ -506,8 +501,6 @@ int get_filesystem_info( char *buf )
 
 	for (p = vfsmntlist.next; p != &vfsmntlist; p = p->next) {
 		struct vfsmount *tmp = list_entry(p, struct vfsmount, mnt_list);
-		if (!(tmp->mnt_flags & MNT_VISIBLE))
-			continue;
 		path = d_path(tmp->mnt_root, tmp, buffer, PAGE_SIZE);
 		if (!path)
 			continue;
@@ -580,30 +573,7 @@ int get_filesystem_info( char *buf )
 #undef MANGLE
 #undef FREEROOM
 }
-
-/**
- *	__wait_on_super	- wait on a superblock
- *	@sb: superblock to wait on
- *
- *	Waits for a superblock to become unlocked and then returns. It does
- *	not take the lock. This is an internal function. See wait_on_super().
- */
  
-void __wait_on_super(struct super_block * sb)
-{
-	DECLARE_WAITQUEUE(wait, current);
-
-	add_wait_queue(&sb->s_wait, &wait);
-repeat:
-	set_current_state(TASK_UNINTERRUPTIBLE);
-	if (sb->s_lock) {
-		schedule();
-		goto repeat;
-	}
-	remove_wait_queue(&sb->s_wait, &wait);
-	current->state = TASK_RUNNING;
-}
-
 /*
  * Note: check the dirty flag before waiting, so we don't
  * hold up the sync while mounting a device. (The newly
@@ -648,7 +618,9 @@ restart:
 	s = sb_entry(super_blocks.next);
 	while (s != sb_entry(&super_blocks))
 		if (s->s_dev == dev) {
-			wait_on_super(s);
+			/* Yes, it sucks. As soon as we get refcounting... */
+			lock_super(s);
+			unlock_super(s);
 			if (s->s_dev == dev)
 				return s;
 			goto restart;
@@ -700,9 +672,7 @@ static struct super_block *get_empty_super(void)
 	     s  = sb_entry(s->s_list.next)) {
 		if (s->s_dev)
 			continue;
-		if (!s->s_lock)
-			return s;
-		printk("VFS: empty superblock %p locked!\n", s);
+		return s;
 	}
 	/* Need a new one... */
 	if (nr_super_blocks >= max_super_blocks)
@@ -714,10 +684,14 @@ static struct super_block *get_empty_super(void)
 		INIT_LIST_HEAD(&s->s_dirty);
 		INIT_LIST_HEAD(&s->s_locked_inodes);
 		list_add (&s->s_list, super_blocks.prev);
-		init_waitqueue_head(&s->s_wait);
 		INIT_LIST_HEAD(&s->s_files);
 		INIT_LIST_HEAD(&s->s_mounts);
 		init_rwsem(&s->s_umount);
+		sema_init(&s->s_lock, 1);
+		sema_init(&s->s_vfs_rename_sem,1);
+		sema_init(&s->s_nfsd_free_path_sem,1);
+		sema_init(&s->s_dquot.dqio_sem, 1);
+		sema_init(&s->s_dquot.dqoff_sem, 1);
 	}
 	return s;
 }
@@ -734,11 +708,7 @@ static struct super_block * read_super(kdev_t dev, struct block_device *bdev,
 	s->s_bdev = bdev;
 	s->s_flags = flags;
 	s->s_dirt = 0;
-	sema_init(&s->s_vfs_rename_sem,1);
-	sema_init(&s->s_nfsd_free_path_sem,1);
 	s->s_type = type;
-	sema_init(&s->s_dquot.dqio_sem, 1);
-	sema_init(&s->s_dquot.dqoff_sem, 1);
 	s->s_dquot.flags = 0;
 	s->s_maxbytes = MAX_NON_LFS;
 	lock_super(s);
@@ -884,12 +854,11 @@ static struct super_block *get_sb_single(struct file_system_type *fs_type,
 	sb = fs_type->kern_mnt->mnt_sb;
 	if (!sb)
 		BUG();
-	get_filesystem(fs_type);
 	do_remount_sb(sb, flags, data);
 	return sb;
 }
 
-static void kill_super(struct super_block *sb, int umount_root)
+static void kill_super(struct super_block *sb)
 {
 	struct block_device *bdev;
 	kdev_t dev;
@@ -897,6 +866,12 @@ static void kill_super(struct super_block *sb, int umount_root)
 	struct file_system_type *fs = sb->s_type;
 	struct super_operations *sop = sb->s_op;
 
+	spin_lock(&dcache_lock);
+	if (!list_empty(&sb->s_mounts)) {
+		spin_unlock(&dcache_lock);
+		return;
+	}
+	spin_unlock(&dcache_lock);
 	down_write(&sb->s_umount);
 	sb->s_root = NULL;
 	/* Need to clean after the sucker */
@@ -927,12 +902,6 @@ static void kill_super(struct super_block *sb, int umount_root)
 	sb->s_type = NULL;
 	unlock_super(sb);
 	up_write(&sb->s_umount);
-	if (umount_root) {
-		/* special: the old device driver is going to be
-		   a ramdisk and the point of this call is to free its
-		   protected memory (even if dirty). */
-		destroy_buffers(dev);
-	}
 	if (bdev) {
 		blkdev_put(bdev, BDEV_FS);
 		bdput(bdev);
@@ -976,33 +945,33 @@ static int do_remount_sb(struct super_block *sb, int flags, char *data)
 
 struct vfsmount *kern_mount(struct file_system_type *type)
 {
-	kdev_t dev = get_unnamed_dev();
 	struct super_block *sb;
-	struct vfsmount *mnt;
-	if (!dev)
+	struct vfsmount *mnt = alloc_vfsmnt();
+	kdev_t dev;
+
+	if (!mnt)
+		return ERR_PTR(-ENOMEM);
+
+	dev = get_unnamed_dev();
+	if (!dev) {
+		kfree(mnt);
 		return ERR_PTR(-EMFILE);
+	}
 	sb = read_super(dev, NULL, type, 0, NULL, 0);
 	if (!sb) {
 		put_unnamed_dev(dev);
+		kfree(mnt);
 		return ERR_PTR(-EINVAL);
 	}
-	mnt = add_vfsmnt(NULL, sb->s_root, NULL);
-	if (!mnt) {
-		kill_super(sb, 0);
-		return ERR_PTR(-ENOMEM);
-	}
+	mnt->mnt_sb = sb;
+	mnt->mnt_root = dget(sb->s_root);
+	mnt->mnt_mountpoint = mnt->mnt_root;
+	mnt->mnt_parent = mnt;
+	spin_lock(&dcache_lock);
+	list_add(&mnt->mnt_instances, &sb->s_mounts);
+	spin_unlock(&dcache_lock);
 	type->kern_mnt = mnt;
 	return mnt;
-}
-
-/* Call only after unregister_filesystem() - it's a final cleanup */
-
-void kern_umount(struct vfsmount *mnt)
-{
-	struct super_block *sb = mnt->mnt_sb;
-	spin_lock(&dcache_lock);
-	remove_vfsmnt(mnt);
-	kill_super(sb, 0);
 }
 
 /*
@@ -1017,9 +986,10 @@ int may_umount(struct vfsmount *mnt)
 	return 0;
 }
 
-static int do_umount(struct vfsmount *mnt, int umount_root, int flags)
+static int do_umount(struct vfsmount *mnt, int flags)
 {
 	struct super_block * sb = mnt->mnt_sb;
+	struct nameidata parent_nd;
 
 	/*
 	 * No sense to grab the lock for this test, but test itself looks
@@ -1031,12 +1001,11 @@ static int do_umount(struct vfsmount *mnt, int umount_root, int flags)
 	 * /reboot - static binary that would close all descriptors and
 	 * call reboot(9). Then init(8) could umount root and exec /reboot.
 	 */
-	if (mnt == current->fs->rootmnt && !umount_root) {
+	if (mnt == current->fs->rootmnt) {
 		/*
 		 * Special case for "unmounting" root ...
 		 * we just try to remount it readonly.
 		 */
-		mntput(mnt);
 		return do_remount("/", MS_RDONLY, NULL);
 	}
 
@@ -1045,14 +1014,16 @@ static int do_umount(struct vfsmount *mnt, int umount_root, int flags)
 	if (mnt->mnt_instances.next != mnt->mnt_instances.prev) {
 		if (atomic_read(&mnt->mnt_count) > 2) {
 			spin_unlock(&dcache_lock);
-			mntput(mnt);
 			return -EBUSY;
 		}
 		if (sb->s_type->fs_flags & FS_SINGLE)
 			put_filesystem(sb->s_type);
-		/* We hold two references, so mntput() is safe */
+		detach_mnt(mnt, &parent_nd);
+		list_del(&mnt->mnt_list);
+		spin_unlock(&dcache_lock);
 		mntput(mnt);
-		remove_vfsmnt(mnt);
+		if (parent_nd.mnt != mnt)
+			path_release(&parent_nd);
 		return 0;
 	}
 	spin_unlock(&dcache_lock);
@@ -1084,15 +1055,16 @@ static int do_umount(struct vfsmount *mnt, int umount_root, int flags)
 	spin_lock(&dcache_lock);
 	if (atomic_read(&mnt->mnt_count) > 2) {
 		spin_unlock(&dcache_lock);
-		mntput(mnt);
 		return -EBUSY;
 	}
 
 	/* OK, that's the point of no return */
+	detach_mnt(mnt, &parent_nd);
+	list_del(&mnt->mnt_list);
+	spin_unlock(&dcache_lock);
 	mntput(mnt);
-	remove_vfsmnt(mnt);
-
-	kill_super(sb, umount_root);
+	if (parent_nd.mnt != mnt)
+		path_release(&parent_nd);
 	return 0;
 }
 
@@ -1110,7 +1082,6 @@ asmlinkage long sys_umount(char * name, int flags)
 	char *kname;
 	int retval;
 
-	lock_kernel();
 	kname = getname(name);
 	retval = PTR_ERR(kname);
 	if (IS_ERR(kname))
@@ -1129,16 +1100,16 @@ asmlinkage long sys_umount(char * name, int flags)
 	if (!capable(CAP_SYS_ADMIN) && current->uid!=nd.mnt->mnt_owner)
 		goto dput_and_out;
 
-	dput(nd.dentry);
-	/* puts nd.mnt */
 	down(&mount_sem);
-	retval = do_umount(nd.mnt, 0, flags);
+	lock_kernel();
+	retval = do_umount(nd.mnt, flags);
+	unlock_kernel();
+	path_release(&nd);
 	up(&mount_sem);
 	goto out;
 dput_and_out:
 	path_release(&nd);
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -1195,8 +1166,6 @@ static int do_loopback(char *old_name, char *new_name)
 		goto out2;
 
 	err = -ENOMEM;
-	if (old_nd.mnt->mnt_sb->s_type->fs_flags & FS_SINGLE)
-		get_filesystem(old_nd.mnt->mnt_sb->s_type);
 		
 	down(&mount_sem);
 	/* there we go */
@@ -1207,8 +1176,6 @@ static int do_loopback(char *old_name, char *new_name)
 		err = 0;
 	up(&new_nd.dentry->d_inode->i_zombie);
 	up(&mount_sem);
-	if (err && old_nd.mnt->mnt_sb->s_type->fs_flags & FS_SINGLE)
-		put_filesystem(old_nd.mnt->mnt_sb->s_type);
 out2:
 	path_release(&new_nd);
 out1:
@@ -1288,12 +1255,18 @@ static int copy_mount_options (const void *data, unsigned long *where)
 }
 
 /*
- * Flags is a 32-bit value that allows up to 32 non-fs dependent flags to
+ * Flags is a 32-bit value that allows up to 31 non-fs dependent flags to
  * be given to the mount() call (ie: read-only, no-dev, no-suid etc).
  *
  * data is a (void *) that can point to any structure up to
  * PAGE_SIZE-1 bytes, which can contain arbitrary fs-dependent
  * information (or be NULL).
+ *
+ * Pre-0.97 versions of mount() didn't have a flags word.
+ * When the flags word was introduced its top half was required
+ * to have the magic value 0xC0ED, and this remained so until 2.4.0-test9.
+ * Therefore, if this magic number is present, it carries no information
+ * and must be discarded.
  */
 long do_mount(char * dev_name, char * dir_name, char *type_page,
 		  unsigned long flags, void *data_page)
@@ -1303,6 +1276,10 @@ long do_mount(char * dev_name, char * dir_name, char *type_page,
 	struct vfsmount *mnt = NULL;
 	struct super_block *sb;
 	int retval = 0;
+
+	/* Discard magic */
+	if ((flags & MS_MGC_MSK) == MS_MGC_VAL)
+		flags &= ~MS_MGC_MSK;
 
 	/* Basic sanity checks */
 
@@ -1389,10 +1366,7 @@ fs_out:
 	return retval;
 
 fail:
-	if (fstype->fs_flags & FS_SINGLE)
-		put_filesystem(fstype);
-	if (list_empty(&sb->s_mounts))
-		kill_super(sb, 0);
+	kill_super(sb);
 	goto unlock_out;
 }
 
@@ -1631,8 +1605,9 @@ static void chroot_fs_refs(struct dentry *old_root,
  *  - we don't move root/cwd if they are not at the root (reason: if something
  *    cared enough to change them, it's probably wrong to force them elsewhere)
  *  - it's okay to pick a root that isn't the root of a file system, e.g.
- *    /nfs/my_root where /nfs is the mount point. Better avoid creating
- *    unreachable mount points this way, though.
+ *    /nfs/my_root where /nfs is the mount point. It must be a mountpoint,
+ *    though, so you may need to say mount --bind /nfs/my_root /nfs/my_root
+ *    first.
  */
 
 asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
@@ -1640,7 +1615,7 @@ asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 	struct dentry *root;
 	struct vfsmount *root_mnt;
 	struct vfsmount *tmp;
-	struct nameidata new_nd, old_nd;
+	struct nameidata new_nd, old_nd, parent_nd, root_parent;
 	char *name;
 	int error;
 
@@ -1688,6 +1663,10 @@ asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 	if (new_nd.mnt == root_mnt || old_nd.mnt == root_mnt)
 		goto out2; /* loop */
 	error = -EINVAL;
+	if (root_mnt->mnt_root != root)
+		goto out2;
+	if (new_nd.mnt->mnt_root != new_nd.dentry)
+		goto out2; /* not a mountpoint */
 	tmp = old_nd.mnt; /* make sure we can reach put_old from new_root */
 	spin_lock(&dcache_lock);
 	if (tmp != new_nd.mnt) {
@@ -1702,12 +1681,18 @@ asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 			goto out3;
 	} else if (!is_subdir(old_nd.dentry, new_nd.dentry))
 		goto out3;
+	detach_mnt(new_nd.mnt, &parent_nd);
+	detach_mnt(root_mnt, &root_parent);
+	attach_mnt(root_mnt, &old_nd);
+	if (root_parent.mnt != root_mnt)
+		attach_mnt(new_nd.mnt, &root_parent);
 	spin_unlock(&dcache_lock);
-
-	move_vfsmnt(new_nd.mnt, new_nd.dentry, NULL, NULL);
-	move_vfsmnt(root_mnt, old_nd.dentry, old_nd.mnt, NULL);
 	chroot_fs_refs(root,root_mnt,new_nd.dentry,new_nd.mnt);
 	error = 0;
+	if (root_parent.mnt != root_mnt)
+		path_release(&root_parent);
+	if (parent_nd.mnt != new_nd.mnt)
+		path_release(&parent_nd);
 out2:
 	up(&old_nd.dentry->d_inode->i_zombie);
 	up(&mount_sem);
@@ -1742,10 +1727,9 @@ int __init change_root(kdev_t new_root_dev,const char *put_old)
 	if (!error) {
 		if (devfs_nd.mnt->mnt_sb->s_magic == DEVFS_SUPER_MAGIC &&
 		    devfs_nd.dentry == devfs_nd.mnt->mnt_root) {
-			dput(devfs_nd.dentry);
 			down(&mount_sem);
-			/* puts devfs_nd.mnt */
-			do_umount(devfs_nd.mnt, 0, 0);
+			do_umount(devfs_nd.mnt, 0);
+			path_release(&devfs_nd);
 			up(&mount_sem);
 		} else 
 			path_release(&devfs_nd);
@@ -1766,18 +1750,26 @@ int __init change_root(kdev_t new_root_dev,const char *put_old)
 		error = path_walk(put_old, &nd);
 	if (error) {
 		int blivet;
+		struct block_device *ramdisk = old_rootmnt->mnt_sb->s_bdev;
 
+		blivet = blkdev_get(ramdisk, FMODE_READ, 0, BDEV_FS);
 		printk(KERN_NOTICE "Trying to unmount old root ... ");
-		blivet = do_umount(old_rootmnt, 1, 0);
 		if (!blivet) {
-			printk("okay\n");
-			return 0;
+			blivet = do_umount(old_rootmnt, 0);
+			mntput(old_rootmnt);
+			if (!blivet) {
+				ioctl_by_bdev(ramdisk, BLKFLSBUF, 0);
+				printk("okay\n");
+				error = 0;
+			}
+			blkdev_put(ramdisk, BDEV_FS);
 		}
-		printk(KERN_ERR "error %d\n", blivet);
+		if (blivet)
+			printk(KERN_ERR "error %d\n", blivet);
 		return error;
 	}
 	/* FIXME: we should hold i_zombie on nd.dentry */
-	move_vfsmnt(old_rootmnt, nd.dentry, nd.mnt, "/dev/root.old");
+	move_vfsmnt(old_rootmnt, &nd, "/dev/root.old");
 	mntput(old_rootmnt);
 	path_release(&nd);
 	return 0;

@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.prep_time.c 1.7 05/17/01 18:14:22 cort
+ */
+/*
  *  linux/arch/i386/kernel/time.c
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
@@ -30,6 +33,8 @@
 
 #include <asm/time.h>
 
+extern spinlock_t rtc_lock;
+
 /*
  * The motorola uses the m48t18 rtc (includes DS1643) whose registers
  * are at a higher end of nvram (1ff8-1fff) than the ibm mc146818
@@ -55,6 +60,7 @@ int mc146818_set_rtc_time(unsigned long nowtime)
 	unsigned char save_control, save_freq_select;
 	struct rtc_time tm;
 
+	spin_lock(&rtc_lock);
 	to_tm(nowtime, &tm);
 
 	/* tell the clock it's being set */
@@ -92,6 +98,7 @@ int mc146818_set_rtc_time(unsigned long nowtime)
 	 */
 	CMOS_WRITE(save_control,     RTC_CONTROL);
 	CMOS_WRITE(save_freq_select, RTC_FREQ_SELECT);
+	spin_unlock(&rtc_lock);
 
 	return 0;
 }
@@ -149,7 +156,7 @@ int mk48t59_set_rtc_time(unsigned long nowtime)
 	unsigned char save_control;
 	struct rtc_time tm;
 
-
+	spin_lock(&rtc_lock);
 	to_tm(nowtime, &tm);
 
 	/* tell the clock it's being written */
@@ -175,6 +182,7 @@ int mk48t59_set_rtc_time(unsigned long nowtime)
 	
 	/* Turn off the write bit. */
 	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA, save_control);
+	spin_unlock(&rtc_lock);
 
 	return 0;
 }

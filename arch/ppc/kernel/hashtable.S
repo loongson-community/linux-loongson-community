@@ -1,7 +1,8 @@
 /*
+ * BK Id: SCCS/s.hashtable.S 1.11 05/17/01 18:14:21 cort
+ */
+/*
  *  arch/ppc/kernel/hashtable.S
- *
- *  $Id: hashtable.S,v 1.6 1999/10/08 01:56:15 paulus Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -27,7 +28,6 @@
 #include <asm/processor.h>
 #include <asm/page.h>
 #include <linux/config.h>
-#include "mol.h"
 
 /*
  * Load a PTE into the hash table, if possible.
@@ -609,11 +609,6 @@ _GLOBAL(flush_hash_segments)
  * flush_hash_page(unsigned context, unsigned long va)
  */
 _GLOBAL(flush_hash_page)
-#ifdef CONFIG_MOL
-	mflr    r10
-	MOL_HOOK_MMU(10, r6)
-	mtlr    r10
-#endif
 	lis	r6,Hash@ha
 	lwz	r6,Hash@l(r6)		/* hash table base */
 	cmpwi	0,r6,0			/* hash table in use? */

@@ -1,3 +1,6 @@
+/*
+ * BK Id: SCCS/s.pci.h 1.12 05/21/01 01:31:30 cort
+ */
 #ifndef __PPC_PCI_H
 #define __PPC_PCI_H
 #ifdef __KERNEL__
@@ -109,6 +112,16 @@ extern inline int pci_dma_supported(struct pci_dev *hwdev, dma_addr_t mask)
 {
 	return 1;
 }
+
+/* Return the index of the PCI controller for device PDEV. */
+extern int pci_controller_num(struct pci_dev *pdev);
+
+/* Map a range of PCI memory or I/O space for a device into user space */
+int pci_mmap_page_range(struct pci_dev *pdev, struct vm_area_struct *vma,
+			enum pci_mmap_state mmap_state, int write_combine);
+
+/* Tell drivers/pci/proc.c that we have pci_mmap_page_range() */
+#define HAVE_PCI_MMAP	1
 
 #define sg_dma_address(sg)	(virt_to_bus((sg)->address))
 #define sg_dma_len(sg)		((sg)->length)

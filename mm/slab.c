@@ -1492,20 +1492,20 @@ void * kmem_cache_alloc (kmem_cache_t *cachep, int flags)
  * @flags: the type of memory to allocate.
  *
  * kmalloc is the normal method of allocating memory
- * in the kernel.  The @flags argument may be one of:
+ * in the kernel.
  *
- * %GFP_BUFFER - XXX
+ * The @flags argument may be one of:
  *
- * %GFP_ATOMIC - allocation will not sleep.  Use inside interrupt handlers.
+ * %GFP_USER - Allocate memory on behalf of user.  May sleep.
  *
- * %GFP_USER - allocate memory on behalf of user.  May sleep.
+ * %GFP_KERNEL - Allocate normal kernel ram.  May sleep.
  *
- * %GFP_KERNEL - allocate normal kernel ram.  May sleep.
+ * %GFP_ATOMIC - Allocation will not sleep.  Use inside interrupt handlers.
  *
- * %GFP_NFS - has a slightly lower probability of sleeping than %GFP_KERNEL.
- * Don't use unless you're in the NFS code.
- *
- * %GFP_KSWAPD - Don't use unless you're modifying kswapd.
+ * Additionally, the %GFP_DMA flag may be set to indicate the memory
+ * must be suitable for DMA.  This can mean different things on different
+ * platforms.  For example, on i386, it means that the memory must come
+ * from the first 16MB.
  */
 void * kmalloc (size_t size, int flags)
 {
@@ -1958,7 +1958,7 @@ int slabinfo_write_proc (struct file *file, const char *buffer,
 				unsigned long count, void *data)
 {
 #ifdef CONFIG_SMP
-	char kbuf[MAX_SLABINFO_WRITE], *tmp;
+	char kbuf[MAX_SLABINFO_WRITE+1], *tmp;
 	int limit, batchcount, res;
 	struct list_head *p;
 	
@@ -1966,6 +1966,7 @@ int slabinfo_write_proc (struct file *file, const char *buffer,
 		return -EINVAL;
 	if (copy_from_user(&kbuf, buffer, count))
 		return -EFAULT;
+	kbuf[MAX_SLABINFO_WRITE] = '\0'; 
 
 	tmp = strchr(kbuf, ' ');
 	if (!tmp)

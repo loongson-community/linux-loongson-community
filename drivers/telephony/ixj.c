@@ -4434,7 +4434,8 @@ static int ixj_build_cadence(IXJ *j, IXJ_CADENCE * cp)
 	lcp = kmalloc(sizeof(IXJ_CADENCE), GFP_KERNEL);
 	if (lcp == NULL)
 		return -ENOMEM;
-	if (copy_from_user(lcp, (char *) cp, sizeof(IXJ_CADENCE)))
+	if (copy_from_user(lcp, (char *) cp, sizeof(IXJ_CADENCE)) ||
+	    (unsigned)lcp->elements_used >= ~0U/sizeof(IXJ_CADENCE) )
 	{
 		kfree(lcp);
 		return -EFAULT;
@@ -4475,7 +4476,7 @@ static int ixj_build_filter_cadence(IXJ *j, IXJ_FILTER_CADENCE * cp)
 {
 	IXJ_FILTER_CADENCE *lcp;
 
-	lcp = kmalloc(sizeof(IXJ_CADENCE), GFP_KERNEL);
+	lcp = kmalloc(sizeof(IXJ_FILTER_CADENCE), GFP_KERNEL);
 	if (lcp == NULL)
 		return -ENOMEM;
 	if (copy_from_user(lcp, (char *) cp, sizeof(IXJ_FILTER_CADENCE)))

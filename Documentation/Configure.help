@@ -4170,22 +4170,6 @@ CONFIG_IPV6
 
   It is safe to say N here for now.
 
-IPv6: enable EUI-64 token format
-CONFIG_IPV6_EUI64
-  6bone, the network of computers using the IPv6 protocol, is moving
-  to a new aggregatable address format and a new link local address
-  assignment (EUI-64). Say Y if your site has upgraded already, or
-  has started to upgrade.
-
-IPv6: disable provider based addresses
-CONFIG_IPV6_NO_PB
-  Linux tries to operate correctly when your site has moved to EUI-64
-  only partially. Unfortunately, the two address formats (old:
-  "provider based" and new: "aggregatable") are incompatible. Say Y if
-  your site finished the upgrade to EUI-64, and/or you encountered
-  some problems caused by the presence of two link-local addresses on
-  an interface.
-
 IPv6: routing messages via old netlink
 CONFIG_IPV6_NETLINK
   You can say Y here to receive routing messages from the IPv6 code
@@ -5635,7 +5619,7 @@ CONFIG_AIC7XXX_CMDS_PER_DEVICE
   Default: 253
 
 Initial Bus Reset Settle Delay
-CONFIG_AIC7XXX_RESET_DELAY
+CONFIG_AIC7XXX_RESET_DELAY_MS
   The number of milliseconds to delay after an initial bus reset.
   The bus settle delay following all error recovery actions is
   dictated by the SCSI layer and is not affected by this value.
@@ -7188,7 +7172,7 @@ CONFIG_PPPOE
 
   This driver requires a specially patched pppd daemon.  The patch to
   pppd, along with binaries of a patched pppd package can be found at:
-  http://www.math.uwaterloo.ca/~mostrows
+  http://www.shoshin.uwaterloo.ca/~mostrows
  
 Wireless LAN (non-hamradio)
 CONFIG_NET_RADIO
@@ -10933,6 +10917,35 @@ CONFIG_USB_OV511
   The module will be called ov511.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
+Philips webcam support
+CONFIG_USB_PWC
+  Say Y or M here if you want to use one of these Philips USB webcams:
+  PCA645, PCA646, PCVC675, PCVC680, PCVC690, PCVC730, PCVC740, or 
+  the Askey VC010. The PCA635, PCVC665 and PCVC720 are not 
+  supported by this driver and never will be.
+
+  This driver has an optional plugin, which is distributed as a 
+  binary module only. It contains code that allow you to use 
+  higher resolutions and framerates but may not be distributed
+  as source. But even without this plugin you can these cams 
+  for most applications.
+
+  See Documentation/usb/philips.txt for more information and 
+  installation instructions.
+
+  The built-in microphone is enabled by selecting USB Audio support.
+
+  This driver uses the Video For Linux API. You must say Y or M to
+  "Video For Linux" (under Character Devices) to use this driver.
+  Information on this API and pointers to "v4l" programs may be found
+  on the WWW at http://roadrunner.swansea.uk.linux.org/v4l.shtml .
+
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called pwc.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
+
 USB ADMtek Pegasus-based ethernet device support
 CONFIG_USB_PEGASUS
   Say Y if you want to use your USB ethernet device. Supported
@@ -11489,6 +11502,16 @@ CONFIG_UMSDOS_FS
   (the one containing the directory /) cannot be a module, so saying M
   could be dangerous. If unsure, say N.
 
+PReP residual data support
+CONFIG_PREP_RESIDUAL
+  Some PReP systems have residual data passed to the kernel by the
+  firmware.  This allows detection of memory size, devices present and
+  other useful pieces of information.  Sometimes this information is not
+  present or incorrect.
+
+  Unless you expect to boot on a PReP system, there is not need to select
+  yes.
+
 /proc file system support
 CONFIG_PROC_FS
   This is a virtual file system providing information about the status
@@ -11655,6 +11678,23 @@ CONFIG_HPFS_FS
   This file system is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module is called hpfs.o. If you want to compile it as a module,
+  say M here and read Documentation/modules.txt. If unsure, say N.
+
+FreeVxFS file system support (VERITAS VxFS(TM) compatible)
+CONFIG_VXFS_FS
+  FreeVxFS is a filesystem driver that support the VERITAS VxFS(TM)
+  filesystem format.  VERITAS VxFS(TM) is the standard filesystem
+  of SCO UnixWare (and possibly others) and optionally available
+  for Sunsoft Solaris, HP-UX and many other operating systems.
+  Currently only readonly access is supported.
+
+  NOTE:	the filesystem type as used by mount(1), mount(2) and fstab(5)
+	is 'vxfs' as it describes the filesystem format, not the
+	actual driver.
+
+  This file system is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module is called freevxfs.o. If you want to compile it as a module,
   say M here and read Documentation/modules.txt. If unsure, say N.
 
 NTFS support (read only)
@@ -12081,10 +12121,7 @@ CONFIG_SMB_NLS_DEFAULT
   The nls settings can be changed at mount time, if your smbmount
   supports that, using the codepage and iocharset parameters.
 
-  Currently no smbmount distributed with samba supports this, it is
-  assumed future versions will. In the meantime you can get an
-  unofficial patch for samba 2.0.7 from:
-  http://www.hojdpunkten.ac.se/054/samba/index.html
+  smbmount from samba 2.2.0 or later supports this.
 
 nls support setting
 CONFIG_SMB_NLS_REMOTE
@@ -12096,10 +12133,7 @@ CONFIG_SMB_NLS_REMOTE
   The nls settings can be changed at mount time, if your smbmount
   supports that, using the codepage and iocharset parameters.
 
-  Currently no smbmount distributed with samba supports this, it is
-  assumed future versions will. In the meantime you can get an
-  unofficial patch for samba 2.0.7 from:
-  http://www.hojdpunkten.ac.se/054/samba/index.html
+  smbmount from samba 2.2.0 or later supports this.
 
 Coda file system support (advanced network fs)
 CONFIG_CODA_FS
@@ -13203,6 +13237,14 @@ CONFIG_MS_BUSMOUSE
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. The module will be
   called msbusmouse.o. 
+
+Apple Desktop Bus support
+CONFIG_ADB
+  Apple Desktop Bus (ADB) support is for support of devices which
+  are connected to the to an ADB port.  ADB devices tend to have
+  4 pins.  If you have an Apple Macintosh prior to the iMac, or a
+  "Blue and White G3", you probably want to say Y here.  Otherwise
+  say N.
 
 Apple Desktop Bus mouse support
 CONFIG_ADBMOUSE
@@ -16257,22 +16299,45 @@ CONFIG_DIO
 Processor Type
 CONFIG_6xx
   There are four types of PowerPC chips supported. The more common
-  types (601, 603, 604, 740, 750), the Motorola embedded versions
-  (821, 823, 850, 855, 860), the IBM embedded versions (403 and
+  types (601, 603, 604, 740, 750, 7400), the Motorola embedded versions
+  (821, 823, 850, 855, 860, 8260), the IBM embedded versions (403 and
   405) and the high end 64 bit Power processors (Power 3, Power 4).
-  Unless you are building a kernel for one of the embedded
-  processor systems, or a 64 bit IBM RS/6000, choose 6xx.  Note that
-  the kernel runs in 32-bit mode even on 64-bit chips.
+  Unless you are building a kernel for one of the embedded processor 
+  systems, or a 64 bit IBM RS/6000, choose 6xx.  Note that the kernel 
+  runs in 32-bit mode even on 64-bit chips.  Also note that because
+  the 82xx family has a 603e core, specific support for that chipset
+  is asked later on.
+
+Motorola MPC8260 CPM support
+CONFIG_8260
+   The MPC8260 CPM (Communications Processor Module) is a typically
+   embedded CPU made by Motorola.  Selecting this option means that
+   you wish to build a kernel for a machine with specifically an 8260
+   for a CPU.
+
+   If in doubt, say N.
+
+Workarounds for PPC601 bugs
+CONFIG_PPC601_SYNC_FIX
+  Some versions of the PPC601 (the first PowerPC chip) have bugs which
+  mean that extra synchronization instructions are required near certain
+  instructions, typically those that make major changes to the CPU state.
+  These extra instructions reduce performance slightly.  If you say N
+  here, these extra instructions will not be included, resulting in a
+  kernel which will run faster but may not run at all on some systems
+  with the PPC601 chip.
+
+  If in doubt, say Y here.
 
 Machine Type
-CONFIG_PMAC
+CONFIG_ALL_PPC
   Linux currently supports several different kinds of PowerPC-based
   machines: Apple Power Macintoshes and clones (such as the Motorola
   Starmax series), PReP (PowerPC Reference Platform) machines such as
-  the Motorola PowerStack, Amiga Power-Up systems (APUS), CHRP and the
-  embedded MBX boards from Motorola. Currently, a single kernel binary
-  only supports one type or the other. However, there is very early
-  work on support for CHRP, PReP and PowerMac's from a single binary.
+  the Motorola PowerStack, CHRP (Common Hardware Reference Platform), 
+  the embedded MBX boards from Motorola and many others. Currently, 
+  the default option is to build a kernel which works on the first 
+  three.  Support for other machines is currently incomplete.
 
 Power management support for PowerBooks
 CONFIG_PMAC_PBOOK
@@ -16332,6 +16397,37 @@ CONFIG_PROC_DEVICETREE
   an image of the device tree that the kernel copies from Open
   Firmware. If unsure, say Y here.
 
+RTAS proc interface
+CONFIG_PPC_RTAS
+  When you use this option, you will be able to use RTAS from
+  userspace. 
+  
+  RTAS stands for RunTime Abstraction Services and should
+  provide a portable way to access and set system information. This is
+  commonly used on RS/6000 (pSeries) computers. 
+  
+  You can access RTAS via the special proc filesystem entry rtas.
+  Don't confuse this rtas entry with the one in /proc/device-tree/rtas
+  which is readonly.
+  
+  If you don't know if you can use RTAS look into
+  /proc/device-tree/rtas. If there are some entries, it is very likely
+  that you will be able to use RTAS.
+
+  You can do cool things with rtas. To print out information about
+  various sensors in the system, just do a 
+
+    $ cat /proc/rtas/sensors 
+
+  or if you power off your machine at night but want it running when
+  you enter your office at 7:45 am, do a
+
+    # date -d 'tomorrow 7:30' +%s > /proc/rtas/poweron
+
+  and shutdown.
+
+  If unsure, say Y
+
 MESH (Power Mac internal SCSI) support
 CONFIG_SCSI_MESH
   Many Power Macintoshes and clones have a MESH (Macintosh Enhanced
@@ -16375,6 +16471,16 @@ CONFIG_MACE
   which can be inserted in and removed from the running kernel
   whenever you want). If you want to compile it as a module, say M
   here and read Documentation/modules.txt.
+
+Use AAUI port instead of TP by default
+CONFIG_MACE_AAUI_PORT
+  Some Apple machines (notably the Apple Network Server) which use the
+  MACE ethernet chip have an Apple AUI port (small 15-pin connector),
+  instead of an 8-pin RJ45 connector for twisted-pair ethernet.  Say
+  Y here if you have such a machine.  If unsure, say N.
+  The driver will default to AAUI on ANS anyway, and if you use it as
+  a module, you can provide the port_aaui=0|1 to force the driver
+  setting.
 
 BMAC (G3 ethernet) support
 CONFIG_BMAC

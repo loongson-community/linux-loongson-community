@@ -46,6 +46,7 @@
  * 12 Aug, 2000 .. add some real locking, remove an Oops
  * 10 Oct, 2000 .. usb_device_id table created. 
  * 01 Nov, 2000 .. usb_device_id support added by Adam J. Richter
+ * 08 Apr, 2001 .. Identify version on module load. gb
  *
  * Thanks to:  the folk who've provided USB product IDs, sent in
  * patches, and shared their successes!
@@ -70,6 +71,13 @@
 #endif
 #include <linux/usb.h>
 
+
+/*
+ * Version Information
+ */
+#define DRIVER_VERSION "v1.0.0"
+#define DRIVER_AUTHOR "David Brownell, <dbrownell@users.sourceforge.net>"
+#define DRIVER_DESC "USB Camera Driver for Kodak DC-2xx series cameras"
 
 
 /* current USB framework handles max of 16 USB devices per driver */
@@ -328,8 +336,9 @@ static int camera_release (struct inode *inode, struct file *file)
 	if (!camera->dev) {
 		minor_data [subminor] = NULL;
 		kfree (camera);
-	}
-	up (&camera->sem);
+	} else
+		up (&camera->sem);
+	
 	up (&state_table_mutex);
 
 	dbg ("close #%d", subminor); 
@@ -389,7 +398,6 @@ camera_probe (struct usb_device *dev, unsigned int ifnum, const struct usb_devic
 	}
 	if (i >= MAX_CAMERAS) {
 		info ("Ignoring additional USB Camera");
-		up (&state_table_mutex);
 		goto bye;
 	}
 
@@ -397,7 +405,6 @@ camera_probe (struct usb_device *dev, unsigned int ifnum, const struct usb_devic
 	camera = minor_data [i] = kmalloc (sizeof *camera, GFP_KERNEL);
 	if (!camera) {
 		err ("no memory!");
-		up (&state_table_mutex);
 		goto bye;
 	}
 
@@ -464,13 +471,15 @@ static void camera_disconnect(struct usb_device *dev, void *ptr)
 	if (!camera->buf) {
 		minor_data [subminor] = NULL;
 		kfree (camera);
+		camera = NULL;
 	} else
 		camera->dev = NULL;
 
 	info ("USB Camera #%d disconnected", subminor);
 	usb_dec_dev_use (dev);
 
-	up (&camera->sem);
+	if (camera != NULL)
+		up (&camera->sem);
 	up (&state_table_mutex);
 }
 
@@ -490,6 +499,8 @@ int __init usb_dc2xx_init(void)
 {
  	if (usb_register (&camera_driver) < 0)
  		return -1;
+	info(DRIVER_VERSION " " DRIVER_AUTHOR);
+	info(DRIVER_DESC);
 	return 0;
 }
 
@@ -498,9 +509,9 @@ void __exit usb_dc2xx_cleanup(void)
 	usb_deregister (&camera_driver);
 }
 
-
-MODULE_AUTHOR("David Brownell, <dbrownell@users.sourceforge.net>");
-MODULE_DESCRIPTION("USB Camera Driver for Kodak DC-2xx series cameras");
-
 module_init (usb_dc2xx_init);
 module_exit (usb_dc2xx_cleanup);
+
+MODULE_AUTHOR( DRIVER_AUTHOR );
+MODULE_DESCRIPTION( DRIVER_DESC );
+

@@ -5,7 +5,7 @@
  *
  *		IPv4 Forwarding Information Base: FIB frontend.
  *
- * Version:	$Id: fib_frontend.c,v 1.21 1999/12/15 22:39:07 davem Exp $
+ * Version:	$Id: fib_frontend.c,v 1.24 2001/05/13 18:14:46 davem Exp $
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
@@ -587,13 +587,13 @@ static int fib_inetaddr_event(struct notifier_block *this, unsigned long event, 
 		rt_cache_flush(-1);
 		break;
 	case NETDEV_DOWN:
+		fib_del_ifaddr(ifa);
 		if (ifa->ifa_dev && ifa->ifa_dev->ifa_list == NULL) {
 			/* Last address was deleted from this interface.
 			   Disable IP.
 			 */
 			fib_disable_ip(ifa->ifa_dev->dev, 1);
 		} else {
-			fib_del_ifaddr(ifa);
 			rt_cache_flush(-1);
 		}
 		break;
@@ -634,15 +634,11 @@ static int fib_netdev_event(struct notifier_block *this, unsigned long event, vo
 }
 
 struct notifier_block fib_inetaddr_notifier = {
-	fib_inetaddr_event,
-	NULL,
-	0
+	notifier_call:	fib_inetaddr_event,
 };
 
 struct notifier_block fib_netdev_notifier = {
-	fib_netdev_event,
-	NULL,
-	0
+	notifier_call:	fib_netdev_event,
 };
 
 void __init ip_fib_init(void)

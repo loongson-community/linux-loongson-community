@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.cia.c 1.7 05/21/01 00:48:24 cort
+ */
+/*
  *  linux/arch/m68k/amiga/cia.c - CIA support
  *
  *  Copyright (C) 1996 Roman Zippel
@@ -27,18 +30,17 @@ struct ciabase {
 	u_short int_mask;
 	int handler_irq, cia_irq, server_irq;
 	char *name;
-	struct irq_server server;
 	irq_handler_t irq_list[CIA_IRQS];
 } ciaa_base = {
 	&ciaa, 0, 0, IF_PORTS,
 	IRQ_AMIGA_AUTO_2, IRQ_AMIGA_CIAA,
 	IRQ_AMIGA_PORTS,
-	"CIAA handler", {0, 0}
+	"CIAA handler"
 }, ciab_base = {
 	&ciab, 0, 0, IF_EXTER,
 	IRQ_AMIGA_AUTO_6, IRQ_AMIGA_CIAB,
 	IRQ_AMIGA_EXTER,
-	"CIAB handler", {0, 0}
+	"CIAB handler"
 };
 
 #define CIA_SET_BASE_ADJUST_IRQ(base, irq)	\
@@ -197,7 +199,7 @@ static void cia_handler(int irq, void *dev_id, struct pt_regs *fp)
 		}
 		ints >>= 1;
 	}
-	amiga_do_irq_list(base->server_irq, fp, &base->server);
+	amiga_do_irq_list(base->server_irq, fp);
 }
 
 void __init cia_init_IRQ(struct ciabase *base)

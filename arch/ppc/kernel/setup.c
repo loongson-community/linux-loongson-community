@@ -1,5 +1,7 @@
 /*
- * $Id: setup.c,v 1.160 1999/10/08 01:56:38 paulus Exp $
+ * BK Id: SCCS/s.setup.c 1.32 05/23/01 00:38:42 cort
+ */
+/*
  * Common prep/pmac/chrp boot and setup code.
  */
 
@@ -73,6 +75,16 @@ extern void apus_init(unsigned long r3,
                       unsigned long r6,
                       unsigned long r7);
 
+extern void gemini_init(unsigned long r3,
+                      unsigned long r4,
+                      unsigned long r5,
+                      unsigned long r6,
+                      unsigned long r7);
+
+
+extern void bootx_init(unsigned long r4, unsigned long phys);
+extern unsigned long reloc_offset(void);
+
 #ifdef CONFIG_XMON
 extern void xmon_map_scc(void);
 #endif
@@ -80,23 +92,16 @@ extern void xmon_map_scc(void);
 extern boot_infos_t *boot_infos;
 char saved_command_line[256];
 unsigned char aux_device_present;
-struct int_control_struct int_control =
-{
-	__no_use_cli,
-	__no_use_sti,
-	__no_use_restore_flags,
-	__no_use_save_flags
-};
 struct ide_machdep_calls ppc_ide_md;
 int parse_bootinfo(void);
 
 unsigned long ISA_DMA_THRESHOLD;
 unsigned long DMA_MODE_READ, DMA_MODE_WRITE;
 
-#ifndef CONFIG_MACH_SPECIFIC
+#ifdef CONFIG_ALL_PPC
 int _machine = 0;
 int have_of = 0;
-#endif /* CONFIG_MACH_SPECIFIC */
+#endif /* CONFIG_ALL_PPC */
 
 #ifdef CONFIG_MAGIC_SYSRQ
 unsigned long SYSRQ_KEY;
@@ -412,7 +417,7 @@ int get_cpuinfo(char *buffer)
 	return len;
 }
 
-#ifndef CONFIG_MACH_SPECIFIC
+#ifdef CONFIG_ALL_PPC
 void __init
 intuit_machine_type(void)
 {
@@ -434,7 +439,80 @@ intuit_machine_type(void)
 		}
 	}
 }
-#endif /* CONFIG_MACH_SPECIFIC */
+#endif /* CONFIG_ALL_PPC */
+
+#ifdef CONFIG_6xx
+/*
+ * We're called here very early in the boot.  We determine the machine
+ * type and call the appropriate low-level setup functions.
+ *  -- Cort <cort@fsmlabs.com>
+ */
+__init
+unsigned long
+early_init(int r3, int r4, int r5)
+{
+	extern char __bss_start, _end;
+ 	unsigned long phys;
+	unsigned long offset = reloc_offset();
+	unsigned long local_have_of = 1, local_machine;
+	struct bi_record *rec;
+	
+ 	/* Default */
+ 	phys = offset + KERNELBASE;
+	
+#if defined(CONFIG_APUS)
+	return phys;
+#endif	
+	
+	/* First zero the BSS -- use memset, some arches don't have
+	 * caches on yet */
+	memset_io(PTRRELOC(&__bss_start),0 , &_end - &__bss_start);
+
+#if defined(CONFIG_ALL_PPC) || defined(CONFIG_GEMINI)
+	/* If we came here from BootX, clear the screen,
+	 * set up some pointers and return. */
+#if defined(CONFIG_ALL_PPC)	
+	if ((r3 == 0x426f6f58) && (r5 == 0)) {
+		bootx_init(r4, phys);
+		return phys;
+	}
+#endif
+
+	/* check if we're prep, return if we are */
+	if ( *(unsigned long *)(0) == 0xdeadc0de )
+		return phys;
+	
+	/*
+	 * See if we have any bootloader info passed along.  If we do,
+	 * get the machine type and find out if we have OF.
+	 *
+	 * The strategy here is to assume that we want to call prom_init()
+	 * unless the bootinfo data passed to us tell us that we don't
+	 * have OF.
+	 * -- Cort <cort@fsmlabs.com>
+	 */
+	rec = (struct bi_record *)_ALIGN((ulong)PTRRELOC(&__bss_start)+(1<<20)-1,(1<<20));
+	if ( rec->tag == BI_FIRST )
+	{
+		for ( ; rec->tag != BI_LAST ;
+		      rec = (struct bi_record *)((ulong)rec + rec->size) )
+		{
+			ulong *data = rec->data;
+			if ( rec->tag == BI_MACHTYPE )
+			{
+				local_machine = data[0];
+				local_have_of = data[1];
+			}
+		}
+	}
+
+	if ( local_have_of )
+		phys = prom_init( r3, r4, (prom_entry)r5);
+#endif	
+	
+	return phys;
+}
+#endif /* CONFIG_6xx */
 
 /*
  * Find out what kind of machine we're on and save any data we need
@@ -448,36 +526,26 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 
 	if ( ppc_md.progress ) ppc_md.progress("id mach(): start", 0x100);
 	
-#if !defined(CONFIG_4xx) && !defined(CONFIG_8xx) && !defined(CONFIG_8260)
-#ifndef CONFIG_MACH_SPECIFIC
+#ifdef CONFIG_ALL_PPC
 	/* if we didn't get any bootinfo telling us what we are... */
 	if ( _machine == 0 )
 	{
-		/* boot loader will tell us if we're APUS */
-		if ( r3 == 0x61707573 )
-		{
-			_machine = _MACH_apus;
-			r3 = 0;
-		}
 		/* prep boot loader tells us if we're prep or not */
-		else if ( *(unsigned long *)(KERNELBASE) == (0xdeadc0de) )
+		if ( *(unsigned long *)(KERNELBASE) == (0xdeadc0de) )
 		{
 			_machine = _MACH_prep;
 		} else
 			have_of = 1;
 	}
-#endif /* CONFIG_MACH_SPECIFIC */
 
 	if ( have_of )
 	{
 		/* prom_init has already been called from __start */
 		if (boot_infos)
 			relocate_nodes();
-#ifndef CONFIG_MACH_SPECIFIC
 		/* we need to set _machine before calling finish_device_tree */
 		if (_machine == 0)
 			intuit_machine_type();
-#endif /* CONFIG_MACH_SPECIFIC */
 		finish_device_tree();
 		/*
 		 * If we were booted via quik, r3 points to the physical
@@ -489,13 +557,12 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 		 * are used for initrd_start and initrd_size,
 		 * otherwise they contain 0xdeadbeef.  
 		 */
-		cmd_line[0] = 0;
 		if (r3 >= 0x4000 && r3 < 0x800000 && r4 == 0) {
 			strncpy(cmd_line, (char *)r3 + KERNELBASE,
 				sizeof(cmd_line));
 		} else if (boot_infos != 0) {
 			/* booted by BootX - check for ramdisk */
-			if (boot_infos->kernelParamsOffset != 0)
+ 			if (boot_infos->kernelParamsOffset != 0)
 				strncpy(cmd_line, (char *) boot_infos
 					+ boot_infos->kernelParamsOffset,
 					sizeof(cmd_line));
@@ -526,13 +593,17 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 			chosen = find_devices("chosen");
 			if (chosen != NULL) {
 				p = get_property(chosen, "bootargs", NULL);
-				if (p != NULL)
+				if (p && *p) {
+					cmd_line[0] = 0;
 					strncpy(cmd_line, p, sizeof(cmd_line));
+				}
 			}
 		}
 		cmd_line[sizeof(cmd_line) - 1] = 0;
 	}
+#endif /* CONFIG_ALL_PPC */
 
+#if defined(CONFIG_ALL_PPC)
 	switch (_machine)
 	{
 	case _MACH_Pmac:
@@ -544,22 +615,14 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 	case _MACH_chrp:
                 chrp_init(r3, r4, r5, r6, r7);
 		break;
-#ifdef CONFIG_APUS
-	case _MACH_apus:
-                apus_init(r3, r4, r5, r6, r7);
-		break;
-#endif
 	default:
 		printk("Unknown machine type in identify_machine!\n");
 	}
-
-	/* Check for nobats option (used in mapin_ram). */
-	if (strstr(cmd_line, "nobats")) {
-		extern int __map_without_bats;
-		__map_without_bats = 1;
-	}
-#else
-#if defined(CONFIG_4xx)
+#elif defined(CONFIG_APUS)
+	apus_init(r3, r4, r5, r6, r7);
+#elif defined(CONFIG_GEMINI)
+	gemini_init(r3, r4, r5, r6, r7);
+#elif defined(CONFIG_4xx)
 	oak_init(r3, r4, r5, r6, r7);
 #elif defined(CONFIG_8xx)
         m8xx_init(r3, r4, r5, r6, r7);
@@ -567,8 +630,15 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
         m8260_init(r3, r4, r5, r6, r7);
 #else
 #error "No board type has been defined for identify_machine()!"
-#endif /* CONFIG_4xx */
-#endif /* !CONFIG_4xx && !CONFIG_8xx */
+#endif
+
+#if !defined(CONFIG_4xx) && !defined(CONFIG_8xx) && !defined(CONFIG_8260)
+	/* Check for nobats option (used in mapin_ram). */
+	if (strstr(cmd_line, "nobats")) {
+		extern int __map_without_bats;
+		__map_without_bats = 1;
+	}
+#endif /* !CONFIG_4xx && !CONFIG_8xx && !CONFIG_8260 */
 
 	/* Look for mem= option on command line */
 	if (strstr(cmd_line, "mem=")) {
@@ -639,12 +709,12 @@ int parse_bootinfo(void)
 			initrd_end = data[0] + rec->size;
 			break;
 #endif /* CONFIG_BLK_DEV_INITRD */
-#ifndef CONFIG_MACH_SPECIFIC
+#ifdef CONFIG_ALL_PPC
 		case BI_MACHTYPE:
 			_machine = data[0];
 			have_of = data[1];
 			break;
-#endif /* CONFIG_MACH_SPECIFIC */
+#endif /* CONFIG_ALL_PPC */
 		}
 	}
 

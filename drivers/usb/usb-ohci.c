@@ -12,6 +12,7 @@
  * 
  * History:
  * 
+ * 2001/04/08 Identify version on module load gb
  * 2001/03/24 td/ed hashing to remove bus_to_virt (Steve Longerbeam);
  	pci_map_single (db)
  * 2001/03/21 td and dev/ed allocation uses new pci_pool API (db)
@@ -84,6 +85,13 @@
 #endif
 #endif
 
+
+/*
+ * Version Information
+ */
+#define DRIVER_VERSION "v5.2"
+#define DRIVER_AUTHOR "Roman Weissgaerber <weissg@vienna.at>, David Brownell"
+#define DRIVER_DESC "USB OHCI Host Controller Driver"
 
 /* For initializing controller (mask in an HCFS mode too) */
 #define	OHCI_CONTROL_INIT \
@@ -597,12 +605,14 @@ static int sohci_submit_urb (urb_t * urb)
 	urb_priv->length = size;
 	urb_priv->ed = ed;	
 
-	/* allocate the TDs */
+	/* allocate the TDs (updating hash chains) */
+	spin_lock_irqsave (&usb_ed_lock, flags);
 	for (i = 0; i < size; i++) { 
-		urb_priv->td[i] = td_alloc (ohci, mem_flags);
+		urb_priv->td[i] = td_alloc (ohci, SLAB_ATOMIC);
 		if (!urb_priv->td[i]) {
 			urb_priv->length = i;
 			urb_free_priv (ohci, urb_priv);
+			spin_unlock_irqrestore (&usb_ed_lock, flags);
 			usb_dec_dev_use (urb->dev);	
 			return -ENOMEM;
 		}
@@ -610,6 +620,7 @@ static int sohci_submit_urb (urb_t * urb)
 
 	if (ed->state == ED_NEW || (ed->state & ED_DEL)) {
 		urb_free_priv (ohci, urb_priv);
+		spin_unlock_irqrestore (&usb_ed_lock, flags);
 		usb_dec_dev_use (urb->dev);	
 		return -EINVAL;
 	}
@@ -631,6 +642,7 @@ static int sohci_submit_urb (urb_t * urb)
 			}
 			if (bustime < 0) {
 				urb_free_priv (ohci, urb_priv);
+				spin_unlock_irqrestore (&usb_ed_lock, flags);
 				usb_dec_dev_use (urb->dev);	
 				return bustime;
 			}
@@ -640,7 +652,6 @@ static int sohci_submit_urb (urb_t * urb)
 #endif
 	}
 
-	spin_lock_irqsave (&usb_ed_lock, flags);
 	urb->actual_length = 0;
 	urb->hcpriv = urb_priv;
 	urb->status = USB_ST_URB_PENDING;
@@ -1182,7 +1193,7 @@ static ed_t * ep_add_ed (
 	if (ed->state == ED_NEW) {
 		ed->hwINFO = cpu_to_le32 (OHCI_ED_SKIP); /* skip ed */
   		/* dummy td; end of td list for ed */
-		td = td_alloc (ohci, mem_flags);
+		td = td_alloc (ohci, SLAB_ATOMIC);
 		/* hash the ed for later reverse mapping */
  		if (!td || !hash_add_ed (ohci, (ed_t *)ed)) {
 			/* out of memory */
@@ -2248,6 +2259,7 @@ static void hc_interrupt (int irq, void * __ohci, struct pt_regs * r)
 		// Count and limit the retries though; either hardware or
 		// software errors can go forever...
 #endif
+		hc_reset (ohci);
 	}
   
 	if (ints & OHCI_INTR_WDH) {
@@ -2261,6 +2273,7 @@ static void hc_interrupt (int irq, void * __ohci, struct pt_regs * r)
 		writel (OHCI_INTR_SO, &regs->intrenable); 	 
 	}
 
+	// FIXME:  this assumes SOF (1/ms) interrupts don't get lost...
 	if (ints & OHCI_INTR_SF) { 
 		unsigned int frame = le16_to_cpu (ohci->hcca->frame_no) & 1;
 		writel (OHCI_INTR_SF, &regs->intrdisable);	
@@ -2504,6 +2517,11 @@ ohci_pci_probe (struct pci_dev *dev, const struct pci_device_id *id)
 
 	if (pci_enable_device(dev) < 0)
 		return -ENODEV;
+
+        if (!dev->irq) {
+        	err("found OHCI device with no IRQ assigned. check BIOS settings!");
+   	        return -ENODEV;
+        }
 	
 	/* we read its hardware registers as memory */
 	mem_resource = pci_resource_start(dev, 0);
@@ -2756,6 +2774,8 @@ static int __init ohci_hcd_init (void)
 #ifdef CONFIG_PMAC_PBOOK
 	pmu_register_sleep_notifier (&ohci_sleep_notifier);
 #endif  
+	info(DRIVER_VERSION " " DRIVER_AUTHOR);
+	info(DRIVER_DESC);
 	return ret;
 }
 
@@ -2773,5 +2793,5 @@ module_init (ohci_hcd_init);
 module_exit (ohci_hcd_cleanup);
 
 
-MODULE_AUTHOR ("Roman Weissgaerber <weissg@vienna.at>, David Brownell");
-MODULE_DESCRIPTION ("USB OHCI Host Controller Driver");
+MODULE_AUTHOR( DRIVER_AUTHOR );
+MODULE_DESCRIPTION( DRIVER_DESC );

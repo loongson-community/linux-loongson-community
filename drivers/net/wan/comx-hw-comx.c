@@ -1044,10 +1044,20 @@ static int comxhw_write_proc(struct file *file, const char *buffer,
 		if (!(page = (char *)__get_free_page(GFP_KERNEL))) {
 			return -ENOMEM;
 		}
-		copy_from_user(page, buffer, count = (min(count, PAGE_SIZE)));
-		if (*(page + count - 1) == '\n') {
-			*(page + count - 1) = 0;
+		if(copy_from_user(page, buffer, count = (min(count, PAGE_SIZE))))
+		{
+			count = -EFAULT;
+			goto out;
 		}
+		if (page[count-1] == '\n')
+			page[count-1] = '\0';
+		else if (count < PAGE_SIZE)
+			page[count] = '\0';
+		else if (page[count]) {
+ 			count = -EINVAL;
+			goto out;
+		}
+		page[count]=0;	/* Null terminate */
 	} else {
 		byte *tmp;
 
@@ -1140,7 +1150,7 @@ static int comxhw_write_proc(struct file *file, const char *buffer,
 			hw->clock = kbps ? COMX_CLOCK_CONST/kbps : 0;
 		}
 	}
-
+out:
 	free_page((unsigned long)page);
 	return count;
 }

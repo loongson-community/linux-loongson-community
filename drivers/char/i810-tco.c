@@ -181,8 +181,10 @@ static int i810tco_release (struct inode *inode, struct file *file)
 	/*
 	 *      Shut off the timer.
 	 */
+#ifdef CONFIG_WATCHDOG_NOWAYOUT
 	tco_timer_stop ();
 	timer_alive = 0;
+#endif	
 	return 0;
 }
 
@@ -213,7 +215,7 @@ static int i810tco_ioctl (struct inode *inode, struct file *file,
 	};
 	switch (cmd) {
 	default:
-		return -ENOIOCTLCMD;
+		return -ENOTTY;
 	case WDIOC_GETSUPPORT:
 		if (copy_to_user
 		    ((struct watchdog_info *) arg, &ident, sizeof (ident)))

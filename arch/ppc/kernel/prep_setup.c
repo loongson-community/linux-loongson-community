@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.prep_setup.c 1.20 05/21/01 09:19:50 trini
+ */
+/*
  *  linux/arch/ppc/kernel/setup.c
  *
  *  Copyright (C) 1995  Linus Torvalds
@@ -102,6 +105,17 @@ extern PTE *Hash, *Hash_end;
 extern unsigned long Hash_size, Hash_mask;
 extern int probingmem;
 extern unsigned long loops_per_jiffy;
+
+#ifdef CONFIG_BLK_DEV_RAM
+extern int rd_doload;		/* 1 = load ramdisk, 0 = don't load */
+extern int rd_prompt;		/* 1 = prompt for ramdisk, 0 = don't prompt */
+extern int rd_image_start;	/* starting block # of image */
+#endif
+
+#ifdef CONFIG_SOUND_MODULE
+EXPORT_SYMBOL(ppc_cs4232_dma);
+EXPORT_SYMBOL(ppc_cs4232_dma2);
+#endif
 
 int __prep
 prep_get_cpuinfo(char *buffer)
@@ -246,7 +260,16 @@ prep_setup_arch(void)
 	case _PREP_Motorola:
 		/* Enable L2.  Assume we don't need to flush -- Cort*/
 		*(unsigned char *)(0x8000081c) |= 3;
-		ROOT_DEV = to_kdev_t(0x0802); /* sda2 */
+#ifdef CONFIG_BLK_DEV_INITRD
+		if (initrd_start)
+			ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0); /* /dev/ram */
+		else
+#endif
+#ifdef CONFIG_ROOT_NFS
+			ROOT_DEV = to_kdev_t(0x00ff); /* /dev/nfs */
+#else
+			ROOT_DEV = to_kdev_t(0x0802); /* /dev/sda2 */
+#endif
 		break;
 	}
 
@@ -313,6 +336,8 @@ prep_setup_arch(void)
 	vgacon_remap_base = 0xf0000000;
 	/*vgacon_remap_base = ioremap(0xc0000000, 0xba000);*/
         conswitchp = &vga_con;
+#elif defined(CONFIG_DUMMY_CONSOLE)
+	conswitchp = &dummy_con;
 #endif
 }
 
@@ -504,8 +529,8 @@ prep_direct_restart(char *cmd)
 	__cli();
 
 	__asm__ __volatile__("\n\
-	mtspr   26, %1  /* SRR0 */
-	mtspr   27, %0  /* SRR1 */
+	mtspr   26, %1  /* SRR0 */	\n\
+	mtspr   27, %0  /* SRR1 */	\n\
 	rfi"
 	:
 	: "r" (defaultmsr), "r" (jumpaddr));
@@ -575,7 +600,7 @@ prep_irq_cannonicalize(u_int irq)
 
 #if 0
 void __prep
-prep_do_IRQ(struct pt_regs *regs, int cpu, int isfake)
+prep_do_IRQ(struct pt_regs *regs, int cpu)
 {
         int irq;
 
@@ -691,6 +716,35 @@ prep_ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port, ide_ioreg_t ctrl
 }
 #endif
 
+/*
+ * This finds the amount of physical ram and does necessary
+ * setup for prep.  This is pretty architecture specific so
+ * this will likely stay separate from the pmac.
+ * -- Cort
+ */
+unsigned long __init prep_find_end_of_memory(void)
+{
+	unsigned long total;
+#ifdef CONFIG_PREP_RESIDUAL	
+	total = res->TotalMemory;
+#else
+	total = 0;
+#endif	
+
+	if (total == 0 )
+	{
+		/*
+		 * I need a way to probe the amount of memory if the residual
+		 * data doesn't contain it. -- Cort
+		 */
+		printk("Ramsize from residual data was 0 -- Probing for value\n");
+		total = 0x02000000;
+		printk("Ramsize default to be %ldM\n", total>>20);
+	}
+
+	return (total);
+}
+
 unsigned long *MotSave_SmpIar;
 unsigned char *MotSave_CpusState[2];
 
@@ -730,6 +784,14 @@ prep_init(unsigned long r3, unsigned long r4, unsigned long r5,
 	}
 #endif
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	if ( r4 )
+	{
+		initrd_start = r4 + KERNELBASE;
+		initrd_end = r5 + KERNELBASE;
+	}
+#endif /* CONFIG_BLK_DEV_INITRD */
+
 	/* Copy cmd_line parameters */
 	if ( r6)
 	{
@@ -750,7 +812,8 @@ prep_init(unsigned long r3, unsigned long r4, unsigned long r5,
 	{
 		if ( !strncmp(res->VitalProductData.PrintableModel,"IBM",3) )
 			_prep_type = _PREP_IBM;
-		_prep_type = _PREP_Motorola;
+		else
+			_prep_type = _PREP_Motorola;
 	}
 	else /* assume motorola if no residual (netboot?) */
 #endif	  
@@ -784,6 +847,8 @@ prep_init(unsigned long r3, unsigned long r4, unsigned long r5,
 		ppc_md.time_init      = mk48t59_init;
 	}
 
+	ppc_md.find_end_of_memory = prep_find_end_of_memory;
+
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
         ppc_ide_md.insw = prep_ide_insw;
         ppc_ide_md.outsw = prep_ide_outsw;
@@ -810,8 +875,3 @@ prep_init(unsigned long r3, unsigned long r4, unsigned long r5,
 #endif
 #endif
 }
-
-#ifdef CONFIG_SOUND_MODULE
-EXPORT_SYMBOL(ppc_cs4232_dma);
-EXPORT_SYMBOL(ppc_cs4232_dma2);
-#endif

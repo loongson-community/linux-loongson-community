@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.prom.h 1.11 05/18/01 08:18:10 patch
+ */
+/*
  * Definitions for talking to the Open Firmware PROM on
  * Power Macintosh computers.
  *
@@ -15,7 +18,7 @@ typedef void *ihandle;
 
 extern char *prom_display_paths[];
 extern unsigned int prom_num_displays;
-#ifndef CONFIG_MACH_SPECIFIC
+#ifdef CONFIG_ALL_PPC
 extern int have_of;
 #endif
 
@@ -33,13 +36,6 @@ struct interrupt_info {
 struct reg_property {
 	unsigned int address;
 	unsigned int size;
-};
-
-struct translation_property {
-	unsigned int virt;
-	unsigned int size;
-	unsigned int phys;
-	unsigned int flags;
 };
 
 struct property {
@@ -64,6 +60,10 @@ struct device_node {
 	struct	device_node *sibling;
 	struct	device_node *next;	/* next device of same type */
 	struct	device_node *allnext;	/* next in list of all nodes */
+#if 0 /* Don't change this structure for now or you'll break BootX ! */
+	int	n_addr_cells;
+	int	n_size_cells;
+#endif	
 };
 
 struct prom_args;
@@ -88,6 +88,8 @@ extern unsigned char *get_property(struct device_node *node, const char *name,
 				   int *lenp);
 extern void prom_add_property(struct device_node* np, struct property* prop);
 extern void prom_get_irq_senses(unsigned char *, int, int);
+extern int prom_n_addr_cells(struct device_node* np);
+extern int prom_n_size_cells(struct device_node* np);
 
 extern void print_properties(struct device_node *node);
 extern int call_rtas(const char *service, int nargs, int nret,

@@ -12,8 +12,6 @@
 #define _LINUX_MOUNT_H
 #ifdef __KERNEL__
 
-#define MNT_VISIBLE	1
-
 struct vfsmount
 {
 	struct dentry *mnt_mountpoint;	/* dentry of mountpoint */
@@ -39,11 +37,13 @@ static inline struct vfsmount *mntget(struct vfsmount *mnt)
 	return mnt;
 }
 
+extern void __mntput(struct vfsmount *mnt);
+
 static inline void mntput(struct vfsmount *mnt)
 {
 	if (mnt) {
 		if (atomic_dec_and_test(&mnt->mnt_count))
-			BUG();
+			__mntput(mnt);
 	}
 }
 

@@ -1,7 +1,7 @@
 /*
  *	Linux NET3:	IP/IP protocol decoder. 
  *
- *	Version: $Id: ipip.c,v 1.45 2001/04/19 22:32:55 davem Exp $
+ *	Version: $Id: ipip.c,v 1.46 2001/05/17 04:12:18 davem Exp $
  *
  *	Authors:
  *		Sam Lantinga (slouken@cs.ucdavis.edu)  02/01/95
@@ -244,6 +244,7 @@ struct ip_tunnel * ipip_tunnel_locate(struct ip_tunnel_parm *parms, int create)
 	dev->init = ipip_tunnel_init;
 	dev->features |= NETIF_F_DYNALLOC;
 	memcpy(&nt->parms, parms, sizeof(*parms));
+	nt->parms.name[IFNAMSIZ-1] = '\0';
 	strcpy(dev->name, nt->parms.name);
 	if (dev->name[0] == 0) {
 		int i;

@@ -595,7 +595,7 @@ check_if_enabled:
 		if (IDE_PCI_DEVID_EQ(d->devid, DEVID_PDC20265))
 		{
 			printk(KERN_INFO "ide: Found promise 20265 in RAID mode.\n");
-			if(dev->bus->self->vendor == PCI_VENDOR_ID_INTEL &&
+			if(dev->bus->self && dev->bus->self->vendor == PCI_VENDOR_ID_INTEL &&
 				dev->bus->self->device == PCI_DEVICE_ID_INTEL_I960)
 			{
 				printk(KERN_INFO "ide: Skipping Promise PDC20265 attached to I2O RAID controller.\n");
@@ -722,7 +722,8 @@ check_if_enabled:
 				/*
  	 			 * Set up BM-DMA capability (PnP BIOS should have done this)
  	 			 */
-				hwif->autodma = 0;	/* default DMA off if we had to configure it here */
+		    		if (!IDE_PCI_DEVID_EQ(d->devid, DEVID_CS5530))
+					hwif->autodma = 0;	/* default DMA off if we had to configure it here */
 				(void) pci_write_config_word(dev, PCI_COMMAND, pcicmd | PCI_COMMAND_MASTER);
 				if (pci_read_config_word(dev, PCI_COMMAND, &pcicmd) || !(pcicmd & PCI_COMMAND_MASTER)) {
 					printk("%s: %s error updating PCICMD\n", hwif->name, d->name);

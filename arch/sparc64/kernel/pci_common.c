@@ -1,4 +1,4 @@
-/* $Id: pci_common.c,v 1.14 2001/02/28 03:28:55 davem Exp $
+/* $Id: pci_common.c,v 1.18 2001/05/18 23:06:35 davem Exp $
  * pci_common.c: PCI controller common support.
  *
  * Copyright (C) 1999 David S. Miller (davem@redhat.com)
@@ -9,6 +9,29 @@
 #include <linux/init.h>
 
 #include <asm/pbm.h>
+
+/* Fix self device of BUS and hook it into BUS->self.
+ * The pci_scan_bus does not do this for the host bridge.
+ */
+void __init pci_fixup_host_bridge_self(struct pci_bus *pbus)
+{
+	struct list_head *walk = &pbus->devices;
+
+	walk = walk->next;
+	while (walk != &pbus->devices) {
+		struct pci_dev *pdev = pci_dev_b(walk);
+
+		if (pdev->class >> 8 == PCI_CLASS_BRIDGE_HOST) {
+			pbus->self = pdev;
+			return;
+		}
+
+		walk = walk->next;
+	}
+
+	prom_printf("PCI: Critical error, cannot find host bridge PDEV.\n");
+	prom_halt();
+}
 
 /* Find the OBP PROM device tree node for a PCI device.
  * Return zero if not found.
@@ -29,7 +52,10 @@ static int __init find_device_prom_node(struct pci_pbm_info *pbm,
 	 */
 	if ((pdev->bus->number == pbm->pci_bus->number) && (pdev->devfn == 0) &&
 	    (pdev->vendor == PCI_VENDOR_ID_SUN) &&
-	    (pdev->device == PCI_DEVICE_ID_SUN_PBM)) {
+	    (pdev->device == PCI_DEVICE_ID_SUN_PBM ||
+	     pdev->device == PCI_DEVICE_ID_SUN_SCHIZO ||
+	     pdev->device == PCI_DEVICE_ID_SUN_SABRE ||
+	     pdev->device == PCI_DEVICE_ID_SUN_HUMMINGBIRD)) {
 		*nregs = 0;
 		return bus_prom_node;
 	}
@@ -474,14 +500,20 @@ void __init pci_assign_unassigned(struct pci_pbm_info *pbm,
 
 static int __init pci_intmap_match(struct pci_dev *pdev, unsigned int *interrupt)
 {
+	struct linux_prom_pci_intmap bridge_local_intmap[PROM_PCIIMAP_MAX], *intmap;
+	struct linux_prom_pci_intmask bridge_local_intmask, *intmask;
 	struct pcidev_cookie *dev_pcp = pdev->sysdata;
 	struct pci_pbm_info *pbm = dev_pcp->pbm;
 	struct linux_prom_pci_registers *pregs = dev_pcp->prom_regs;
 	unsigned int hi, mid, lo, irq;
-	int i;
+	int i, num_intmap;
 
 	if (pbm->num_pbm_intmap == 0)
 		return 0;
+
+	intmap = &pbm->pbm_intmap[0];
+	intmask = &pbm->pbm_intmask;
+	num_intmap = pbm->num_pbm_intmap;
 
 	/* If we are underneath a PCI bridge, use PROM register
 	 * property of the parent bridge which is closest to
@@ -490,7 +522,7 @@ static int __init pci_intmap_match(struct pci_dev *pdev, unsigned int *interrupt
 	if (pdev->bus->number != pbm->pci_first_busno) {
 		struct pcidev_cookie *bus_pcp;
 		struct pci_dev *pwalk;
-		int offset;
+		int offset, plen;
 
 		pwalk = pdev->bus->self;
 		while (pwalk->bus &&
@@ -498,6 +530,27 @@ static int __init pci_intmap_match(struct pci_dev *pdev, unsigned int *interrupt
 			pwalk = pwalk->bus->self;
 
 		bus_pcp = pwalk->sysdata;
+
+		/* But if the PCI bridge has it's own interrupt map
+		 * and mask properties, use that and the device regs.
+		 */
+		plen = prom_getproperty(bus_pcp->prom_node, "interrupt-map",
+					(char *) &bridge_local_intmap[0],
+					sizeof(bridge_local_intmap));
+		if (plen != -1) {
+			intmap = &bridge_local_intmap[0];
+			num_intmap = plen / sizeof(struct linux_prom_pci_intmap);
+			plen = prom_getproperty(bus_pcp->prom_node, "interrupt-map-mask",
+						(char *) &bridge_local_intmask,
+						sizeof(bridge_local_intmask));
+			if (plen == -1) {
+				prom_printf("pbm_intmap_match: Bridge has intmap but "
+					    "no intmask.\n");
+				prom_halt();
+			}
+			goto check_intmap;
+		}
+
 		pregs = bus_pcp->prom_regs;
 
 		offset = prom_getint(dev_pcp->prom_node,
@@ -518,17 +571,18 @@ static int __init pci_intmap_match(struct pci_dev *pdev, unsigned int *interrupt
 		}
 	}
 
-	hi   = pregs->phys_hi & pbm->pbm_intmask.phys_hi;
-	mid  = pregs->phys_mid & pbm->pbm_intmask.phys_mid;
-	lo   = pregs->phys_lo & pbm->pbm_intmask.phys_lo;
-	irq  = *interrupt & pbm->pbm_intmask.interrupt;
+check_intmap:
+	hi   = pregs->phys_hi & intmask->phys_hi;
+	mid  = pregs->phys_mid & intmask->phys_mid;
+	lo   = pregs->phys_lo & intmask->phys_lo;
+	irq  = *interrupt & intmask->interrupt;
 
-	for (i = 0; i < pbm->num_pbm_intmap; i++) {
-		if (pbm->pbm_intmap[i].phys_hi  == hi	&&
-		    pbm->pbm_intmap[i].phys_mid == mid	&&
-		    pbm->pbm_intmap[i].phys_lo  == lo	&&
-		    pbm->pbm_intmap[i].interrupt == irq) {
-			*interrupt = pbm->pbm_intmap[i].cinterrupt;
+	for (i = 0; i < num_intmap; i++) {
+		if (intmap[i].phys_hi  == hi	&&
+		    intmap[i].phys_mid == mid	&&
+		    intmap[i].phys_lo  == lo	&&
+		    intmap[i].interrupt == irq) {
+			*interrupt = intmap[i].cinterrupt;
 			return 1;
 		}
 	}

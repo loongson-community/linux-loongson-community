@@ -1,5 +1,4 @@
-/* $Id: pci.h,v 1.10 2000/03/23 02:26:00 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -220,6 +219,9 @@ extern inline int pci_dma_supported(struct pci_dev *hwdev, dma_addr_t mask)
 	return 1;
 }
 
+
+/* Return the index of the PCI controller for device. */
+#define pci_controller_num(pdev)	(0)
 
 /*
  * These macros should be used after a pci_map_sg call has been done

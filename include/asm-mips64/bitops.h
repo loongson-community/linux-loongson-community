@@ -115,6 +115,22 @@ change_bit(unsigned long nr, volatile void *addr)
 }
 
 /*
+ * __change_bit - Toggle a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike change_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
+extern __inline__ void __change_bit(int nr, volatile void * addr)
+{
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 6);
+
+	*m ^= 1UL << (nr & 0x3f);
+}
+
+/*
  * test_and_set_bit - Set a bit and return its old value
  * @nr: Bit to set
  * @addr: Address to count from
@@ -248,6 +264,28 @@ test_and_change_bit(unsigned long nr, volatile void *addr)
 	return res != 0;
 }
 
+/*
+ * __test_and_change_bit - Change a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
+extern __inline__ int
+__test_and_change_bit(int nr, volatile void * addr)
+{
+	unsigned long mask, retval;
+	unsigned long *a = (unsigned long *) addr;
+
+	a += (nr >> 6);
+	mask = 1UL << (nr & 0x3f);
+	retval = ((mask & *a) != 0);
+	*a ^= mask;
+
+	return retval;
+}
 /*
  * test_bit - Determine whether a bit is set
  * @nr: bit number to test

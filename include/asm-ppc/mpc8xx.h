@@ -1,3 +1,6 @@
+/*
+ * BK Id: SCCS/s.mpc8xx.h 1.10 05/17/01 18:14:25 cort
+ */
 
 /* This is the single file included by all MPC8xx build options.
  * Since there are many different boards and no standard configuration,
@@ -63,11 +66,14 @@
 #define PCI_DRAM_OFFSET 0
 #endif
 #else
+#if !defined(_IO_BASE)  /* defined in board specific header */
 #define _IO_BASE        0
+#endif
 #define _ISA_MEM_BASE   0
 #define PCI_DRAM_OFFSET 0
 #endif
 
+#ifndef __ASSEMBLY__
 extern unsigned long isa_io_base;
 extern unsigned long isa_mem_base;
 extern unsigned long pci_dram_offset;
@@ -82,6 +88,7 @@ extern int request_8xxirq(unsigned int irq,
 		       unsigned long flags, 
 		       const char *device,
 		       void *dev_id);
+#endif /* !__ASSEMBLY__ */
 #endif /* CONFIG_8xx */
 #endif
 #endif /* __KERNEL__ */

@@ -84,8 +84,15 @@ extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
 		: "r" (__val));
 }
 
-/* 
- * The main single-value unaligned transfer routines.
+/*
+ * get_unaligned - get value from possibly mis-aligned location
+ * @ptr: pointer to value
+ *
+ * This macro should be used for accessing values larger in size than 
+ * single bytes at locations that are expected to be improperly aligned, 
+ * e.g. retrieving a u16 value from a location not u16-aligned.
+ *
+ * Note that unaligned accesses can be very expensive on some architectures.
  */
 #define get_unaligned(ptr)						\
 ({									\
@@ -112,6 +119,17 @@ extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
 	__val;								\
 })
 
+/*
+ * put_unaligned - put value to a possibly mis-aligned location
+ * @val: value to place
+ * @ptr: pointer to location
+ *
+ * This macro should be used for placing values larger in size than 
+ * single bytes at locations that are expected to be improperly aligned, 
+ * e.g. writing a u16 value to a location not u16-aligned.
+ *
+ * Note that unaligned accesses can be very expensive on some architectures.
+ */
 #define put_unaligned(val,ptr)						\
 do {									\
 	switch (sizeof(*(ptr))) {					\

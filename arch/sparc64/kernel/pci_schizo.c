@@ -1,4 +1,4 @@
-/* $Id: pci_schizo.c,v 1.14 2001/04/17 01:19:23 davem Exp $
+/* $Id: pci_schizo.c,v 1.16 2001/05/15 08:54:30 davem Exp $
  * pci_schizo.c: SCHIZO specific PCI controller support.
  *
  * Copyright (C) 2001 David S. Miller (davem@redhat.com)
@@ -1328,9 +1328,23 @@ static void __init pbm_config_busmastering(struct pci_pbm_info *pbm)
 static void __init pbm_scan_bus(struct pci_controller_info *p,
 				struct pci_pbm_info *pbm)
 {
+	struct pcidev_cookie *cookie = kmalloc(sizeof(*cookie), GFP_KERNEL);
+
+	if (!cookie) {
+		prom_printf("SCHIZO: Critical allocation failure.\n");
+		prom_halt();
+	}
+
+	/* All we care about is the PBM. */
+	memset(cookie, 0, sizeof(*cookie));
+	cookie->pbm = pbm;
+
 	pbm->pci_bus = pci_scan_bus(pbm->pci_first_busno,
 				    p->pci_ops,
 				    pbm);
+	pci_fixup_host_bridge_self(pbm->pci_bus);
+	pbm->pci_bus->self->sysdata = cookie;
+
 	pci_fill_in_pbm_cookies(pbm->pci_bus, pbm, pbm->prom_node);
 	pci_record_assignments(pbm, pbm->pci_bus);
 	pci_assign_unassigned(pbm, pbm->pci_bus);
@@ -1709,7 +1723,7 @@ static void schizo_controller_hwinit(struct pci_controller_info *p)
 	schizo_write(pbm_b_base + 0x2000UL, tmp);
 }
 
-void __init schizo_init(int node)
+void __init schizo_init(int node, char *model_name)
 {
 	struct linux_prom64_registers pr_regs[3];
 	struct pci_controller_info *p;
@@ -1761,6 +1775,7 @@ void __init schizo_init(int node)
 
 	p->portid = portid;
 	p->index = pci_num_controllers++;
+	p->pbms_same_domain = 0;
 	p->scan_bus = schizo_scan_bus;
 	p->irq_build = schizo_irq_build;
 	p->base_address_update = schizo_base_address_update;

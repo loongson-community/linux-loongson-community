@@ -94,7 +94,6 @@ extern void sbus_init(void);
 extern void ppc_init(void);
 extern void sysctl_init(void);
 extern void signals_init(void);
-extern void bdev_init(void);
 extern int init_pcmcia_ds(void);
 extern void net_notifier_init(void);
 
@@ -108,9 +107,6 @@ extern void ecard_init(void);
 
 #if defined(CONFIG_SYSVIPC)
 extern void ipc_init(void);
-#endif
-#if defined(CONFIG_QUOTA)
-extern void dquot_init_hash(void);
 #endif
 
 /*
@@ -565,9 +561,6 @@ asmlinkage void __init start_kernel(void)
 #endif
 	mem_init();
 	kmem_cache_sizes_init();
-#ifdef CONFIG_PROC_FS
-	proc_root_init();
-#endif
 	mempages = num_physpages;
 
 	fork_init(mempages);
@@ -579,13 +572,11 @@ asmlinkage void __init start_kernel(void)
 	ccwcache_init();
 #endif
 	signals_init();
-	bdev_init();
-	inode_init(mempages);
+#ifdef CONFIG_PROC_FS
+	proc_root_init();
+#endif
 #if defined(CONFIG_SYSVIPC)
 	ipc_init();
-#endif
-#if defined(CONFIG_QUOTA)
-	dquot_init_hash();
 #endif
 	check_bugs();
 	printk("POSIX conformance testing by UNIFIX\n");
@@ -642,9 +633,6 @@ static void __init do_initcalls(void)
  */
 static void __init do_basic_setup(void)
 {
-#ifdef CONFIG_BLK_DEV_INITRD
-	int real_root_mountflags;
-#endif
 
 	/*
 	 * Tell the world that we're going to be the grim
@@ -711,21 +699,42 @@ static void __init do_basic_setup(void)
 	/* Networking initialization needs a process context */ 
 	sock_init();
 
-#ifdef CONFIG_BLK_DEV_INITRD
-	real_root_dev = ROOT_DEV;
-	real_root_mountflags = root_mountflags;
-	if (initrd_start && mount_initrd) root_mountflags &= ~MS_RDONLY;
-	else mount_initrd =0;
-#endif
-
 	start_context_thread();
 	do_initcalls();
 
 #ifdef CONFIG_IRDA
+	irda_proto_init();
 	irda_device_init(); /* Must be done after protocol initialization */
 #endif
 #ifdef CONFIG_PCMCIA
 	init_pcmcia_ds();		/* Do this last */
+#endif
+}
+
+extern void rd_load(void);
+extern void initrd_load(void);
+
+/*
+ * Prepare the namespace - decide what/where to mount, load ramdisks, etc.
+ */
+static void prepare_namespace(void)
+{
+#ifdef CONFIG_BLK_DEV_INITRD
+	int real_root_mountflags = root_mountflags;
+	if (!initrd_start)
+		mount_initrd = 0;
+	if (mount_initrd)
+		root_mountflags &= ~MS_RDONLY;
+	real_root_dev = ROOT_DEV;
+#endif
+
+#ifdef CONFIG_BLK_DEV_RAM
+#ifdef CONFIG_BLK_DEV_INITRD
+	if (mount_initrd)
+		initrd_load();
+	else
+#endif
+	rd_load();
 #endif
 
 	/* Mount the root filesystem.. */
@@ -758,6 +767,8 @@ static int init(void * unused)
 {
 	lock_kernel();
 	do_basic_setup();
+
+	prepare_namespace();
 
 	/*
 	 * Ok, we have completed the initial bootup, and

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_input.c,v 1.228 2001/04/20 20:46:19 davem Exp $
+ * Version:	$Id: tcp_input.c,v 1.231 2001/05/22 05:15:16 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -2527,11 +2527,11 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 	int eaten = -1;
 
+	if (TCP_SKB_CB(skb)->seq == TCP_SKB_CB(skb)->end_seq)
+		goto drop;
+
 	th = skb->h.th;
 	__skb_pull(skb, th->doff*4);
-
-        if (skb->len == 0 && !th->fin)
-		goto drop;
 
 	TCP_ECN_accept_cwr(tp, skb);
 
@@ -3711,8 +3711,12 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		queued = tcp_rcv_synsent_state_process(sk, skb, th, len);
 		if (queued >= 0)
 			return queued;
-		queued = 0;
-		goto step6;
+
+		/* Do step6 onward by hand. */
+		tcp_urg(sk, skb, th);
+		__kfree_skb(skb);
+		tcp_data_snd_check(sk);
+		return 0;
 	}
 
 	if (tcp_fast_parse_options(skb, th, tp) && tp->saw_tstamp &&
@@ -3853,7 +3857,6 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 	} else
 		goto discard;
 
-step6:
 	/* step 6: check the URG bit */
 	tcp_urg(sk, skb, th);
 

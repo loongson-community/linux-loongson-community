@@ -298,7 +298,7 @@ static void raid1_shrink_buffers (raid1_conf_t *conf)
 	md_spin_unlock_irq(&conf->device_lock);
 }
 
-static int raid1_map (mddev_t *mddev, kdev_t *rdev, unsigned long size)
+static int raid1_map (mddev_t *mddev, kdev_t *rdev)
 {
 	raid1_conf_t *conf = mddev_to_conf(mddev);
 	int i, disks = MD_SB_DISKS;
@@ -388,7 +388,7 @@ void raid1_end_request (struct buffer_head *bh, int uptodate)
 	 * this branch is our 'one mirror IO has finished' event handler:
 	 */
 	if (!uptodate)
-		md_error (mddev_to_kdev(r1_bh->mddev), bh->b_dev);
+		md_error (r1_bh->mddev, bh->b_dev);
 	else
 		/*
 		 * Set R1BH_Uptodate in our master buffer_head, so that
@@ -602,7 +602,7 @@ static int raid1_make_request (mddev_t *mddev, int rw,
 
 		bh_req = &r1_bh->bh_req;
 		memcpy(bh_req, bh, sizeof(*bh));
-		bh_req->b_blocknr = bh->b_rsector / sectors;
+		bh_req->b_blocknr = bh->b_rsector;
 		bh_req->b_dev = mirror->dev;
 		bh_req->b_rdev = mirror->dev;
 	/*	bh_req->b_rsector = bh->n_rsector; */
@@ -646,7 +646,7 @@ static int raid1_make_request (mddev_t *mddev, int rw,
  	/*
  	 * prepare mirrored mbh (fields ordered for max mem throughput):
  	 */
-		mbh->b_blocknr    = bh->b_rsector / sectors;
+		mbh->b_blocknr    = bh->b_rsector;
 		mbh->b_dev        = conf->mirrors[i].dev;
 		mbh->b_rdev	  = conf->mirrors[i].dev;
 		mbh->b_rsector	  = bh->b_rsector;
@@ -832,6 +832,7 @@ static int raid1_diskop(mddev_t *mddev, mdp_disk_t **d, int state)
 	struct mirror_info *tmp, *sdisk, *fdisk, *rdisk, *adisk;
 	mdp_super_t *sb = mddev->sb;
 	mdp_disk_t *failed_desc, *spare_desc, *added_desc;
+	mdk_rdev_t *spare_rdev, *failed_rdev;
 
 	print_raid1_conf(conf);
 	md_spin_lock_irq(&conf->device_lock);
@@ -989,6 +990,16 @@ static int raid1_diskop(mddev_t *mddev, mdp_disk_t **d, int state)
 		/*
 		 * do the switch finally
 		 */
+		spare_rdev = find_rdev_nr(mddev, spare_desc->number);
+		failed_rdev = find_rdev_nr(mddev, failed_desc->number);
+
+		/* There must be a spare_rdev, but there may not be a
+		 * failed_rdev.  That slot might be empty...
+		 */
+		spare_rdev->desc_nr = failed_desc->number;
+		if (failed_rdev)
+			failed_rdev->desc_nr = spare_desc->number;
+		
 		xchg_values(*spare_desc, *failed_desc);
 		xchg_values(*fdisk, *sdisk);
 
@@ -1127,7 +1138,6 @@ static void raid1d (void *data)
 				int disks = MD_SB_DISKS;
 				struct buffer_head *bhl, *mbh;
 				raid1_conf_t *conf;
-				int sectors = bh->b_size >> 9;
 				
 				conf = mddev_to_conf(mddev);
 				bhl = raid1_alloc_bh(conf, conf->raid_disks); /* don't really need this many */
@@ -1157,7 +1167,7 @@ static void raid1d (void *data)
 					mbh->b_blocknr    = bh->b_blocknr;
 					mbh->b_dev        = conf->mirrors[i].dev;
 					mbh->b_rdev	  = conf->mirrors[i].dev;
-					mbh->b_rsector	  = bh->b_blocknr * sectors;
+					mbh->b_rsector	  = bh->b_blocknr;
 					mbh->b_state      = (1<<BH_Req) | (1<<BH_Dirty) |
 						(1<<BH_Mapped) | (1<<BH_Lock);
 					atomic_set(&mbh->b_count, 1);
@@ -1184,14 +1194,15 @@ static void raid1d (void *data)
 				}
 			} else {
 				dev = bh->b_dev;
-				raid1_map (mddev, &bh->b_dev, bh->b_size >> 9);
+				raid1_map (mddev, &bh->b_dev);
 				if (bh->b_dev == dev) {
 					printk (IO_ERROR, partition_name(bh->b_dev), bh->b_blocknr);
-					md_done_sync(mddev, bh->b_size>>10, 0);
+					md_done_sync(mddev, bh->b_size>>9, 0);
 				} else {
 					printk (REDIRECT_SECTOR,
 						partition_name(bh->b_dev), bh->b_blocknr);
 					bh->b_rdev = bh->b_dev;
+					bh->b_rsector = bh->b_blocknr; 
 					generic_make_request(READ, bh);
 				}
 			}
@@ -1200,8 +1211,7 @@ static void raid1d (void *data)
 		case READ:
 		case READA:
 			dev = bh->b_dev;
-		
-			raid1_map (mddev, &bh->b_dev, bh->b_size >> 9);
+			raid1_map (mddev, &bh->b_dev);
 			if (bh->b_dev == dev) {
 				printk (IO_ERROR, partition_name(bh->b_dev), bh->b_blocknr);
 				raid1_end_bh_io(r1_bh, 0);
@@ -1209,6 +1219,7 @@ static void raid1d (void *data)
 				printk (REDIRECT_SECTOR,
 					partition_name(bh->b_dev), bh->b_blocknr);
 				bh->b_rdev = bh->b_dev;
+				bh->b_rsector = bh->b_blocknr;
 				generic_make_request (r1_bh->cmd, bh);
 			}
 			break;
@@ -1294,7 +1305,7 @@ static void raid1syncd (void *data)
  * issue suitable write requests
  */
 
-static int raid1_sync_request (mddev_t *mddev, unsigned long block_nr)
+static int raid1_sync_request (mddev_t *mddev, unsigned long sector_nr)
 {
 	raid1_conf_t *conf = mddev_to_conf(mddev);
 	struct mirror_info *mirror;
@@ -1302,9 +1313,10 @@ static int raid1_sync_request (mddev_t *mddev, unsigned long block_nr)
 	struct buffer_head *bh;
 	int bsize;
 	int disk;
+	int block_nr;
 
 	spin_lock_irq(&conf->segment_lock);
-	if (!block_nr) {
+	if (!sector_nr) {
 		/* initialize ...*/
 		int buffs;
 		conf->start_active = 0;
@@ -1324,9 +1336,9 @@ static int raid1_sync_request (mddev_t *mddev, unsigned long block_nr)
 		if (conf->cnt_ready || conf->cnt_active)
 			MD_BUG();
 	}
-	while ((block_nr<<1) >= conf->start_pending) {
+	while (sector_nr >= conf->start_pending) {
 		PRINTK("wait .. sect=%lu start_active=%d ready=%d pending=%d future=%d, cnt_done=%d active=%d ready=%d pending=%d future=%d\n",
-			block_nr<<1, conf->start_active, conf->start_ready, conf->start_pending, conf->start_future,
+			sector_nr, conf->start_active, conf->start_ready, conf->start_pending, conf->start_future,
 			conf->cnt_done, conf->cnt_active, conf->cnt_ready, conf->cnt_pending, conf->cnt_future);
 		wait_event_lock_irq(conf->wait_done,
 					!conf->cnt_active,
@@ -1372,11 +1384,11 @@ static int raid1_sync_request (mddev_t *mddev, unsigned long block_nr)
 	r1_bh->cmd = SPECIAL;
 	bh = &r1_bh->bh_req;
 
-	bh->b_blocknr = block_nr;
-	bsize = 1024;
-	while (!(bh->b_blocknr & 1) && bsize < PAGE_SIZE
-			&& (bh->b_blocknr+2)*(bsize>>10) < mddev->sb->size) {
-		bh->b_blocknr >>= 1;
+	block_nr = sector_nr;
+	bsize = 512;
+	while (!(block_nr & 1) && bsize < PAGE_SIZE
+			&& (block_nr+2)*(bsize>>9) < (mddev->sb->size *2)) {
+		block_nr >>= 1;
 		bsize <<= 1;
 	}
 	bh->b_size = bsize;
@@ -1392,13 +1404,14 @@ static int raid1_sync_request (mddev_t *mddev, unsigned long block_nr)
 		BUG();
 	bh->b_end_io = end_sync_read;
 	bh->b_private = r1_bh;
-	bh->b_rsector = block_nr<<1;
+	bh->b_blocknr = sector_nr;
+	bh->b_rsector = sector_nr;
 	init_waitqueue_head(&bh->b_wait);
 
 	generic_make_request(READ, bh);
 	md_sync_acct(bh->b_dev, bh->b_size/512);
 
-	return (bsize >> 10);
+	return (bsize >> 9);
 
 nomem:
 	raid1_shrink_buffers(conf);
@@ -1415,7 +1428,7 @@ static void end_sync_read(struct buffer_head *bh, int uptodate)
 	 * We don't do much here, just schedule handling by raid1d
 	 */
 	if (!uptodate)
-		md_error (mddev_to_kdev(r1_bh->mddev), bh->b_dev);
+		md_error (r1_bh->mddev, bh->b_dev);
 	else
 		set_bit(R1BH_Uptodate, &r1_bh->state);
 	raid1_reschedule_retry(r1_bh);
@@ -1426,78 +1439,15 @@ static void end_sync_write(struct buffer_head *bh, int uptodate)
  	struct raid1_bh * r1_bh = (struct raid1_bh *)(bh->b_private);
 	
 	if (!uptodate)
- 		md_error (mddev_to_kdev(r1_bh->mddev), bh->b_dev);
+ 		md_error (r1_bh->mddev, bh->b_dev);
 	if (atomic_dec_and_test(&r1_bh->remaining)) {
 		mddev_t *mddev = r1_bh->mddev;
- 		unsigned long sect = bh->b_blocknr * (bh->b_size>>9);
+ 		unsigned long sect = bh->b_blocknr;
 		int size = bh->b_size;
 		raid1_free_buf(r1_bh);
 		sync_request_done(sect, mddev_to_conf(mddev));
-		md_done_sync(mddev,size>>10, uptodate);
+		md_done_sync(mddev,size>>9, uptodate);
 	}
-}
-
-/*
- * This will catch the scenario in which one of the mirrors was
- * mounted as a normal device rather than as a part of a raid set.
- *
- * check_consistency is very personality-dependent, eg. RAID5 cannot
- * do this check, it uses another method.
- */
-static int __check_consistency (mddev_t *mddev, int row)
-{
-	raid1_conf_t *conf = mddev_to_conf(mddev);
-	int disks = MD_SB_DISKS;
-	kdev_t dev;
-	struct buffer_head *bh = NULL;
-	int i, rc = 0;
-	char *buffer = NULL;
-
-	for (i = 0; i < disks; i++) {
-		printk("(checking disk %d)\n",i);
-		if (!conf->mirrors[i].operational)
-			continue;
-		printk("(really checking disk %d)\n",i);
-		dev = conf->mirrors[i].dev;
-		set_blocksize(dev, 4096);
-		if ((bh = bread(dev, row / 4, 4096)) == NULL)
-			break;
-		if (!buffer) {
-			buffer = (char *) __get_free_page(GFP_KERNEL);
-			if (!buffer)
-				break;
-			memcpy(buffer, bh->b_data, 4096);
-		} else if (memcmp(buffer, bh->b_data, 4096)) {
-			rc = 1;
-			break;
-		}
-		bforget(bh);
-		fsync_dev(dev);
-		invalidate_buffers(dev);
-		bh = NULL;
-	}
-	if (buffer)
-		free_page((unsigned long) buffer);
-	if (bh) {
-		dev = bh->b_dev;
-		bforget(bh);
-		fsync_dev(dev);
-		invalidate_buffers(dev);
-	}
-	return rc;
-}
-
-static int check_consistency (mddev_t *mddev)
-{
-	if (__check_consistency(mddev, 0))
-/*
- * we do not do this currently, as it's perfectly possible to
- * have an inconsistent array when it's freshly created. Only
- * newly written data has to be consistent.
- */
-		return 0;
-
-	return 0;
 }
 
 #define INVALID_LEVEL KERN_WARNING \
@@ -1529,9 +1479,6 @@ static int check_consistency (mddev_t *mddev)
 
 #define NONE_OPERATIONAL KERN_ERR \
 "raid1: no operational mirrors for md%d\n"
-
-#define RUNNING_CKRAID KERN_ERR \
-"raid1: detected mirror differences -- running resync\n"
 
 #define ARRAY_IS_ACTIVE KERN_INFO \
 "raid1: raid set md%d active with %d out of %d mirrors\n"
@@ -1714,17 +1661,6 @@ static int raid1_run (mddev_t *mddev)
 		start_recovery = 1;
 	}
 
-	if (!start_recovery && (sb->state & (1 << MD_SB_CLEAN))) {
-		/*
-		 * we do sanity checks even if the device says
-		 * it's clean ...
-		 */
-		if (check_consistency(mddev)) {
-			printk(RUNNING_CKRAID);
-			sb->state &= ~(1 << MD_SB_CLEAN);
-		}
-	}
-
 	{
 		const char * name = "raid1d";
 
@@ -1794,7 +1730,6 @@ out:
 #undef OPERATIONAL
 #undef SPARE
 #undef NONE_OPERATIONAL
-#undef RUNNING_CKRAID
 #undef ARRAY_IS_ACTIVE
 
 static int raid1_stop_resync (mddev_t *mddev)

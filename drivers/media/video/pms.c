@@ -41,6 +41,7 @@ struct pms_device
 	struct video_picture picture;
 	int height;
 	int width;
+	struct semaphore lock;
 };
 
 struct i2c_info
@@ -64,6 +65,7 @@ static int standard 		= 0;	/* 0 - auto 1 - ntsc 2 - pal 3 - secam */
 static int io_port		=	0x250;
 static int data_port		=	0x251;
 static int mem_base		=	0xC8000;
+static int video_nr             =       -1;
 
 	
 
@@ -738,8 +740,10 @@ static int pms_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 				return -EFAULT;
 			if(v<0 || v>3)
 				return -EINVAL;
+			down(&pd->lock);		
 			pms_videosource(v&1);
 			pms_vcrinput(v>>1);
+			up(&pd->lock);
 			return 0;
 		}
 		case VIDIOCGTUNER:
@@ -779,6 +783,7 @@ static int pms_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 				return -EFAULT;
 			if(v.tuner)
 				return -EINVAL;
+			down(&pd->lock);
 			switch(v.mode)
 			{
 				case VIDEO_MODE_AUTO:
@@ -802,8 +807,10 @@ static int pms_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 					pms_format(2);
 					break;
 				default:
+					up(&pd->lock);
 					return -EINVAL;
 			}
+			up(&pd->lock);
 			return 0;
 		}
 		case VIDIOCGPICT:
@@ -827,10 +834,12 @@ static int pms_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			 *	Now load the card.
 			 */
 
+			down(&pd->lock);
 			pms_brightness(p.brightness>>8);
 			pms_hue(p.hue>>8);
 			pms_colour(p.colour>>8);
 			pms_contrast(p.contrast>>8);	
+			up(&pd->lock);
 			return 0;
 		}
 		case VIDIOCSWIN:
@@ -848,8 +857,9 @@ static int pms_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 				return -EINVAL;
 			pd->width=vw.width;
 			pd->height=vw.height;
+			down(&pd->lock);
 			pms_resolution(pd->width, pd->height);
-			/* Ok we figured out what to use from our wide choice */
+			up(&pd->lock);			/* Ok we figured out what to use from our wide choice */
 			return 0;
 		}
 		case VIDIOCGWIN:
@@ -892,8 +902,9 @@ static long pms_read(struct video_device *v, char *buf, unsigned long count,  in
 	struct pms_device *pd=(struct pms_device *)v;
 	int len;
 	
-	/* FIXME: semaphore this */
+	down(&pd->lock);
 	len=pms_capture(pd, buf, (pd->picture.depth==16)?0:1,count);
+	up(&pd->lock);
 	return len;
 }
 
@@ -1036,15 +1047,17 @@ static int __init init_pms_cards(void)
 		return -ENODEV;
 	}
 	memcpy(&pms_device, &pms_template, sizeof(pms_template));
+	init_MUTEX(&pms_device.lock);
 	pms_device.height=240;
 	pms_device.width=320;
 	pms_swsense(75);
 	pms_resolution(320,240);
-	return video_register_device((struct video_device *)&pms_device, VFL_TYPE_GRABBER);
+	return video_register_device((struct video_device *)&pms_device, VFL_TYPE_GRABBER, video_nr);
 }
 
 MODULE_PARM(io_port,"i");
 MODULE_PARM(mem_base,"i");
+MODULE_PARM(video_nr,"i");
 
 static void __exit shutdown_mediavision(void)
 {

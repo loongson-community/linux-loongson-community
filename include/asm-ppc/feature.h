@@ -1,4 +1,7 @@
 /*
+ * BK Id: SCCS/s.feature.h 1.9 05/17/01 18:14:24 cort
+ */
+/*
  * Definitions for accessing the Feature Control Register (FCR)
  * on Power Macintoshes and similar machines.  The FCR lets us
  * enable/disable, reset, and power up/down various peripherals.
@@ -75,25 +78,32 @@ extern void	feature_init(void);
 
 
 /*
- * Additional functions related to Core99 machines
+ * Additional functions related to Core99 machines. We should extend the
+ * feature mecanism to make those fit into it. For now, they are still
+ * separate functions.
  */
 extern void	feature_set_gmac_power(struct device_node* device, int power);
 
 	/* use constants in KeyLargo.h for the reset parameter */
-extern void	feature_set_gmac_phy_reset(struct device_node* device, int reset);
+extern void	feature_gmac_phy_reset(struct device_node* device);
 
 extern void	feature_set_usb_power(struct device_node* device, int power);
 
 extern void 	feature_set_firewire_power(struct device_node* device, int power);
+extern void 	feature_set_firewire_cable_power(struct device_node* device, int power);
 
-extern void	feature_core99_kick_cpu1(void);
+extern void	feature_set_airport_power(struct device_node* device, int power);
+
+extern void	feature_core99_kick_cpu(int cpu_nr);
 
 /*
- * Sleep related functions. At term, they should be high-priority notifiers
+ * Sleep related functions. At term, they should be high-priority notifiers,
+ * but this would require some changes to the current sleep scheme that won't
+ * be done in 2.4.
  */
 extern void	feature_prepare_for_sleep(void);
-
 extern void	feature_wake_up(void);
+extern int	feature_can_sleep(void);
 
 #endif /* __ASM_PPC_FEATURE_H */
 #endif /* __KERNEL__ */

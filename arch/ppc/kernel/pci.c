@@ -1,5 +1,7 @@
 /*
- * $Id: pci.c,v 1.64 1999/09/17 18:01:53 cort Exp $
+ * BK Id: SCCS/s.pci.c 1.21 05/21/01 01:31:30 cort
+ */
+/*
  * Common pmac/prep/chrp pci routines. -- Cort
  */
 
@@ -385,6 +387,8 @@ pcibios_enable_resources(struct pci_dev *dev)
 	return 0;
 }
 
+static int next_controller_index;
+
 struct pci_controller * __init
 pcibios_alloc_controller(void)
 {
@@ -396,9 +400,15 @@ pcibios_alloc_controller(void)
 	*hose_tail = hose;
 	hose_tail = &hose->next;
 
+	hose->index = next_controller_index++;
+
 	return hose;
 }
 
+#ifdef CONFIG_ALL_PPC
+/*
+ * Functions below are used on OpenFirmware machines.
+ */
 static void
 make_one_node_map(struct device_node* node, u8 pci_bus)
 {
@@ -579,6 +589,95 @@ pci_device_from_OF_node(struct device_node* node, u8* bus, u8* devfn)
 }
 
 void __init
+pci_process_bridge_OF_ranges(struct pci_controller *hose,
+			   struct device_node *dev, int primary)
+{
+	unsigned int *ranges, *prev;
+	int rlen = 0;
+	int memno = 0;
+	struct resource *res;
+	int np, na = prom_n_addr_cells(dev);
+	np = na + 5;
+
+	/* First we try to merge ranges to fix a problem with some pmacs
+	 * that can have more than 3 ranges, fortunately using contiguous
+	 * addresses -- BenH
+	 */
+	ranges = (unsigned int *) get_property(dev, "ranges", &rlen);
+	prev = NULL;
+	while ((rlen -= np * sizeof(unsigned int)) >= 0) {
+		if (prev) {
+			if (prev[0] == ranges[0] && prev[1] == ranges[1] &&
+				(prev[2] + prev[na+4]) == ranges[2] &&
+				(prev[na+2] + prev[na+4]) == ranges[na+2]) {
+				prev[na+4] += ranges[na+4];
+				ranges[0] = 0;
+				ranges += np;
+				continue;
+			}
+		}
+		prev = ranges;
+		ranges += np;
+	}
+
+	/*
+	 * The ranges property is laid out as an array of elements,
+	 * each of which comprises:
+	 *   cells 0 - 2:	a PCI address
+	 *   cells 3 or 3+4:	a CPU physical address
+	 *			(size depending on dev->n_addr_cells)
+	 *   cells 4+5 or 5+6:	the size of the range
+	 */
+	rlen = 0;
+	hose->io_base_phys = 0;
+	ranges = (unsigned int *) get_property(dev, "ranges", &rlen);
+	while ((rlen -= np * sizeof(unsigned int)) >= 0) {
+		res = NULL;
+		switch (ranges[0] >> 24) {
+		case 1:		/* I/O space */
+			if (ranges[2] != 0)
+				break;
+			hose->io_base_phys = ranges[na+2];
+			hose->io_base_virt = ioremap(ranges[na+2], ranges[na+4]);
+			if (primary)
+				isa_io_base = (unsigned long) hose->io_base_virt;
+			res = &hose->io_resource;
+			res->flags = IORESOURCE_IO;
+			res->start = ranges[2];
+			break;
+		case 2:		/* memory space */
+			memno = 0;
+			if (ranges[1] == 0 && ranges[2] == 0
+			    && ranges[na+4] <= (16 << 20)) {
+				/* 1st 16MB, i.e. ISA memory area */
+				if (primary)
+					isa_mem_base = ranges[na+2];
+				memno = 1;
+			}
+			while (memno < 3 && hose->mem_resources[memno].flags)
+				++memno;
+			if (memno == 0)
+				hose->pci_mem_offset = ranges[na+2] - ranges[2];
+			if (memno < 3) {
+				res = &hose->mem_resources[memno];
+				res->flags = IORESOURCE_MEM;
+				res->start = ranges[na+2];
+			}
+			break;
+		}
+		if (res != NULL) {
+			res->name = dev->full_name;
+			res->end = res->start + ranges[na+4] - 1;
+			res->parent = NULL;
+			res->sibling = NULL;
+			res->child = NULL;
+		}
+		ranges += np;
+	}
+}
+#endif /* CONFIG_ALL_PPC */
+
+void __init
 pcibios_init(void)
 {
 	struct pci_controller *hose;
@@ -632,9 +731,6 @@ pcibios_init(void)
 	/* OF fails to initialize IDE controllers on macs
 	 * (and maybe other machines)
 	 * 
-	 * This late fixup is done here since I want it to happen after
-	 * resource assignement, and there's no "late-init" arch hook
-	 * 
 	 * Ideally, this should be moved to the IDE layer, but we need
 	 * to check specifically with Andre Hedrick how to do it cleanly
 	 * since the common IDE code seem to care about the fact that the
@@ -651,6 +747,9 @@ pcibios_init(void)
 		}
 	}
 #endif /* CONFIG_BLK_DEV_IDE */
+
+	if (ppc_md.pcibios_after_init)
+		ppc_md.pcibios_after_init();
 }
 
 int __init
@@ -802,6 +901,143 @@ pci_resource_to_bus(struct pci_dev *pdev, struct resource *res)
 	/* We may want to do something with IOs here... */
 	return res->start;
 #endif	
+}
+
+/*
+ * Return the index of the PCI controller for device pdev.
+ */
+int pci_controller_num(struct pci_dev *dev)
+{
+	struct pci_controller *hose = (struct pci_controller *) dev->sysdata;
+
+	return hose->index;
+}
+
+/*
+ * Platform support for /proc/bus/pci/X/Y mmap()s,
+ * modelled on the sparc64 implementation by Dave Miller.
+ *  -- paulus.
+ */
+
+/*
+ * Adjust vm_pgoff of VMA such that it is the physical page offset
+ * corresponding to the 32-bit pci bus offset for DEV requested by the user.
+ *
+ * Basically, the user finds the base address for his device which he wishes
+ * to mmap.  They read the 32-bit value from the config space base register,
+ * add whatever PAGE_SIZE multiple offset they wish, and feed this into the
+ * offset parameter of mmap on /proc/bus/pci/XXX for that device.
+ *
+ * Returns negative error code on failure, zero on success.
+ */
+static __inline__ int
+__pci_mmap_make_offset(struct pci_dev *dev, struct vm_area_struct *vma,
+		       enum pci_mmap_state mmap_state)
+{
+	struct pci_controller *hose = (struct pci_controller *) dev->sysdata;
+	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
+	unsigned long io_offset = 0;
+	int i, res_bit;
+
+	if (hose == 0)
+		return -EINVAL;		/* should never happen */
+
+	/* If memory, add on the PCI bridge address offset */
+	if (mmap_state == pci_mmap_mem) {
+		offset += hose->pci_mem_offset;
+		res_bit = IORESOURCE_MEM;
+	} else {
+		io_offset = (unsigned long)hose->io_base_virt - isa_io_base;
+		offset += io_offset;
+		res_bit = IORESOURCE_IO;
+	}
+
+	/*
+	 * Check that the offset requested corresponds to one of the
+	 * resources of the device.
+	 */
+	for (i = 0; i <= PCI_ROM_RESOURCE; i++) {
+		struct resource *rp = &dev->resource[i];
+		int flags = rp->flags;
+
+		/* treat ROM as memory (should be already) */
+		if (i == PCI_ROM_RESOURCE)
+			flags |= IORESOURCE_MEM;
+
+		/* Active and same type? */
+		if ((flags & res_bit) == 0)
+			continue;
+
+		/* In the range of this resource? */
+		if (offset < (rp->start & PAGE_MASK) || offset > rp->end)
+			continue;
+
+		/* found it! construct the final physical address */
+		if (mmap_state == pci_mmap_io)
+			offset += hose->io_base_phys - io_offset;
+
+		vma->vm_pgoff = offset >> PAGE_SHIFT;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+/*
+ * Set vm_flags of VMA, as appropriate for this architecture, for a pci device
+ * mapping.
+ */
+static __inline__ void
+__pci_mmap_set_flags(struct pci_dev *dev, struct vm_area_struct *vma,
+		     enum pci_mmap_state mmap_state)
+{
+	vma->vm_flags |= VM_SHM | VM_LOCKED | VM_IO;
+}
+
+/*
+ * Set vm_page_prot of VMA, as appropriate for this architecture, for a pci
+ * device mapping.
+ */
+static __inline__ void
+__pci_mmap_set_pgprot(struct pci_dev *dev, struct vm_area_struct *vma,
+		      enum pci_mmap_state mmap_state, int write_combine)
+{
+	int prot = pgprot_val(vma->vm_page_prot);
+
+	/* XXX would be nice to have a way to ask for write-through */
+	prot |= _PAGE_NO_CACHE;
+	if (!write_combine)
+		prot |= _PAGE_GUARDED;
+	vma->vm_page_prot = __pgprot(prot);
+}
+
+/*
+ * Perform the actual remap of the pages for a PCI device mapping, as
+ * appropriate for this architecture.  The region in the process to map
+ * is described by vm_start and vm_end members of VMA, the base physical
+ * address is found in vm_pgoff.
+ * The pci device structure is provided so that architectures may make mapping
+ * decisions on a per-device or per-bus basis.
+ *
+ * Returns a negative error code on failure, zero on success.
+ */
+int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
+			enum pci_mmap_state mmap_state,
+			int write_combine)
+{
+	int ret;
+
+	ret = __pci_mmap_make_offset(dev, vma, mmap_state);
+	if (ret < 0)
+		return ret;
+
+	__pci_mmap_set_flags(dev, vma, mmap_state);
+	__pci_mmap_set_pgprot(dev, vma, mmap_state, write_combine);
+
+	ret = remap_page_range(vma->vm_start, vma->vm_pgoff << PAGE_SHIFT,
+			       vma->vm_end - vma->vm_start, vma->vm_page_prot);
+
+	return ret;
 }
 
 /* Obsolete functions. Should be removed once the symbios driver

@@ -132,12 +132,28 @@ change_bit(int nr, volatile void *addr)
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0, %1\t\t# change_bit\n\t"
+		"1:\tll\t%0, %1\t\t# __change_bit\n\t"
 		"xor\t%0, %2\n\t"
 		"sc\t%0, %1\n\t"
 		"beqz\t%0, 1b"
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (1UL << (nr & 0x1f)), "m" (*m));
+}
+
+/*
+ * __change_bit - Toggle a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike change_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
+extern __inline__ void __change_bit(int nr, volatile void * addr)
+{
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 5);
+
+	*m ^= 1UL << (nr & 31);
 }
 
 /*
@@ -272,6 +288,28 @@ test_and_change_bit(int nr, volatile void *addr)
 	return res != 0;
 }
 
+/*
+ * __test_and_change_bit - Change a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
+extern __inline__ int __test_and_change_bit(int nr, volatile void * addr)
+{
+	int	mask, retval;
+	volatile int	*a = addr;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	retval = (mask & *a) != 0;
+	*a ^= ~mask;
+
+	return retval;
+}
+
 #else /* MIPS I */
 
 /*
@@ -359,6 +397,22 @@ extern __inline__ void change_bit(int nr, volatile void * addr)
 	__bi_save_and_cli(flags);
 	*a ^= mask;
 	__bi_restore_flags(flags);
+}
+
+/*
+ * __change_bit - Toggle a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike change_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
+extern __inline__ void __change_bit(int nr, volatile void * addr)
+{
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 5);
+
+	*m ^= 1UL << (nr & 31);
 }
 
 /*
@@ -473,6 +527,28 @@ extern __inline__ int test_and_change_bit(int nr, volatile void * addr)
 	retval = (mask & *a) != 0;
 	*a ^= mask;
 	__bi_restore_flags(flags);
+
+	return retval;
+}
+
+/*
+ * __test_and_change_bit - Change a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
+extern __inline__ int __test_and_change_bit(int nr, volatile void * addr)
+{
+	int	mask, retval;
+	volatile int	*a = addr;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	retval = (mask & *a) != 0;
+	*a ^= ~mask;
 
 	return retval;
 }

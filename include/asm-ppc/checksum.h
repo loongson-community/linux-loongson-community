@@ -1,3 +1,6 @@
+/*
+ * BK Id: SCCS/s.checksum.h 1.8 05/17/01 18:14:24 cort
+ */
 #ifdef __KERNEL__
 #ifndef _PPC_CHECKSUM_H
 #define _PPC_CHECKSUM_H
@@ -83,11 +86,11 @@ static inline unsigned long csum_tcpudp_nofold(unsigned long saddr,
 						   unsigned short proto,
 						   unsigned int sum) 
 {
-    __asm__("
-	addc %0,%0,%1
-	adde %0,%0,%2
-	adde %0,%0,%3
-	addze %0,%0
+    __asm__("\n\
+	addc %0,%0,%1 \n\
+	adde %0,%0,%2 \n\
+	adde %0,%0,%3 \n\
+	addze %0,%0 \n\
 	"
 	: "=r" (sum)
 	: "r" (daddr), "r"(saddr), "r"((proto<<16)+len), "0"(sum));

@@ -2441,5 +2441,7 @@ module_exit(irda_proto_cleanup);
  
 MODULE_AUTHOR("Dag Brattli <dagb@cs.uit.no>");
 MODULE_DESCRIPTION("The Linux IrDA Protocol Subsystem"); 
+#ifdef CONFIG_IRDA_DEBUG
 MODULE_PARM(irda_debug, "1l");
+#endif
 #endif /* MODULE */

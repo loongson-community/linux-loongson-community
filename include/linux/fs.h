@@ -121,6 +121,12 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define MS_RMT_MASK	(MS_RDONLY|MS_NOSUID|MS_NODEV|MS_NOEXEC|\
 			MS_SYNCHRONOUS|MS_MANDLOCK|MS_NOATIME|MS_NODIRATIME)
 
+/*
+ * Old magic mount flag and mask
+ */
+#define MS_MGC_VAL 0xC0ED0000
+#define MS_MGC_MSK 0xffff0000
+
 /* Inode flags - they have nothing to superblock flags now */
 
 #define S_SYNC		1	/* Writes are synced at once */
@@ -378,6 +384,14 @@ struct address_space {
 	int			gfp_mask;	/* how to allocate the pages */
 };
 
+struct char_device {
+	struct list_head	hash;
+	atomic_t		count;
+	dev_t			dev;
+	atomic_t		openers;
+	struct semaphore	sem;
+};
+
 struct block_device {
 	struct list_head	bd_hash;
 	atomic_t		bd_count;
@@ -420,8 +434,10 @@ struct inode {
 	struct address_space	*i_mapping;
 	struct address_space	i_data;	
 	struct dquot		*i_dquot[MAXQUOTAS];
+	/* These three should probably be a union */
 	struct pipe_inode_info	*i_pipe;
 	struct block_device	*i_bdev;
+	struct char_device	*i_cdev;
 
 	unsigned long		i_dnotify_mask; /* Directory notify events */
 	struct dnotify_struct	*i_dnotify; /* for directory notifications */
@@ -646,7 +662,6 @@ struct super_block {
 	kdev_t			s_dev;
 	unsigned long		s_blocksize;
 	unsigned char		s_blocksize_bits;
-	unsigned char		s_lock;
 	unsigned char		s_dirt;
 	unsigned long long	s_maxbytes;	/* Max file size */
 	struct file_system_type	*s_type;
@@ -656,7 +671,7 @@ struct super_block {
 	unsigned long		s_magic;
 	struct dentry		*s_root;
 	struct rw_semaphore	s_umount;
-	wait_queue_head_t	s_wait;
+	struct semaphore	s_lock;
 
 	struct list_head	s_dirty;	/* dirty inodes */
 	struct list_head	s_locked_inodes;/* inodes being synced */
@@ -893,10 +908,10 @@ do {	\
 extern int register_filesystem(struct file_system_type *);
 extern int unregister_filesystem(struct file_system_type *);
 extern struct vfsmount *kern_mount(struct file_system_type *);
-extern void kern_umount(struct vfsmount *);
 extern int may_umount(struct vfsmount *);
 extern long do_mount(char *, char *, char *, unsigned long, void *);
 
+#define kern_umount mntput
 
 extern int vfs_statfs(struct super_block *, struct statfs *);
 
@@ -977,6 +992,8 @@ extern int register_blkdev(unsigned int, const char *, struct block_device_opera
 extern int unregister_blkdev(unsigned int, const char *);
 extern struct block_device *bdget(dev_t);
 extern void bdput(struct block_device *);
+extern struct char_device *cdget(dev_t);
+extern void cdput(struct char_device *);
 extern int blkdev_open(struct inode *, struct file *);
 extern struct file_operations def_blk_fops;
 extern struct file_operations def_fifo_fops;
@@ -1086,6 +1103,7 @@ static inline void mark_buffer_dirty_inode(struct buffer_head *bh, struct inode 
 extern void balance_dirty(kdev_t);
 extern int check_disk_change(kdev_t);
 extern int invalidate_inodes(struct super_block *);
+extern int invalidate_device(kdev_t, int);
 extern void invalidate_inode_pages(struct inode *);
 extern void invalidate_inode_buffers(struct inode *);
 #define invalidate_buffers(dev)	__invalidate_buffers((dev), 0)
@@ -1198,7 +1216,7 @@ extern int path_walk(const char *, struct nameidata *);
 extern void path_release(struct nameidata *);
 extern int follow_down(struct vfsmount **, struct dentry **);
 extern int follow_up(struct vfsmount **, struct dentry **);
-extern struct dentry * lookup_one(const char *, struct dentry *);
+extern struct dentry * lookup_one_len(const char *, struct dentry *, int);
 extern struct dentry * lookup_hash(struct qstr *, struct dentry *);
 #define user_path_walk(name,nd)	 __user_walk(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, nd)
 #define user_path_walk_link(name,nd) __user_walk(name, LOOKUP_POSITIVE, nd)
@@ -1272,6 +1290,7 @@ int generic_block_bmap(struct address_space *, long, get_block_t *);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
 int block_truncate_page(struct address_space *, loff_t, get_block_t *);
 
+extern int waitfor_one_page(struct page*);
 extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
@@ -1294,6 +1313,15 @@ extern int dcache_readdir(struct file *, void *, filldir_t);
 extern struct file_system_type *get_fs_type(const char *name);
 extern struct super_block *get_super(kdev_t);
 extern void put_super(kdev_t);
+static inline int is_mounted(kdev_t dev)
+{
+	struct super_block *sb = get_super(dev);
+	if (sb) {
+		/* drop_super(sb); will go here */
+		return 1;
+	}
+	return 0;
+}
 unsigned long generate_cluster(kdev_t, int b[], int);
 unsigned long generate_cluster_swab32(kdev_t, int b[], int);
 extern kdev_t ROOT_DEV;

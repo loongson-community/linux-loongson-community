@@ -626,7 +626,7 @@ int inode_has_buffers(struct inode *inode)
    to do in order to release the ramdisk memory is to destroy dirty buffers.
 
    These are two special cases. Normal usage imply the device driver
-   to issue a sync on the device (without waiting I/O completation) and
+   to issue a sync on the device (without waiting I/O completion) and
    then an invalidate_buffers call that doesn't trash dirty buffers. */
 void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 {
@@ -760,7 +760,12 @@ static void refill_freelist(int size)
 	balance_dirty(NODEV);
 	if (free_shortage())
 		page_launder(GFP_BUFFER, 0);
-	grow_buffers(size);
+	if (!grow_buffers(size)) {
+		wakeup_bdflush(1);
+		current->policy |= SCHED_YIELD;
+		__set_current_state(TASK_RUNNING);
+		schedule();
+	}
 }
 
 void init_buffer(struct buffer_head *bh, bh_end_io_t *handler, void *private)
@@ -1025,16 +1030,16 @@ repeat:
 	write_unlock(&hash_table_lock);
 	spin_unlock(&lru_list_lock);
 	refill_freelist(size);
+	/* FIXME: getblk should fail if there's no enough memory */
 	goto repeat;
 }
 
 /* -1 -> no need to flush
     0 -> async flush
-    1 -> sync flush (wait for I/O completation) */
+    1 -> sync flush (wait for I/O completion) */
 int balance_dirty_state(kdev_t dev)
 {
 	unsigned long dirty, tot, hard_dirty_limit, soft_dirty_limit;
-	int shortage;
 
 	dirty = size_buffers_type[BUF_DIRTY] >> PAGE_SHIFT;
 	tot = nr_free_buffer_pages();
@@ -1049,16 +1054,6 @@ int balance_dirty_state(kdev_t dev)
 			return 1;
 		return 0;
 	}
-
-	/*
-	 * If we are about to get low on free pages and
-	 * cleaning the inactive_dirty pages would help
-	 * fix this, wake up bdflush.
-	 */
-	shortage = free_shortage();
-	if (shortage && nr_inactive_dirty_pages > shortage &&
-			nr_inactive_dirty_pages > freepages.high)
-		return 0;
 
 	return -1;
 }
@@ -1430,6 +1425,7 @@ static void create_empty_buffers(struct page *page, kdev_t dev, unsigned long bl
 {
 	struct buffer_head *bh, *head, *tail;
 
+	/* FIXME: create_buffers should fail if there's no enough memory */
 	head = create_buffers(page, blocksize, 1);
 	if (page->buffers)
 		BUG();
@@ -2352,11 +2348,9 @@ cleaned_buffers_try_again:
 	spin_lock(&free_list[index].lock);
 	tmp = bh;
 	do {
-		struct buffer_head *p = tmp;
-
-		tmp = tmp->b_this_page;
-		if (buffer_busy(p))
+		if (buffer_busy(tmp))
 			goto busy_buffer_page;
+		tmp = tmp->b_this_page;
 	} while (tmp != bh);
 
 	spin_lock(&unused_list_lock);
@@ -2578,16 +2572,15 @@ static int flush_dirty_buffers(int check_flushtime)
 	return flushed;
 }
 
-struct task_struct *bdflush_tsk = 0;
+DECLARE_WAIT_QUEUE_HEAD(bdflush_wait);
 
 void wakeup_bdflush(int block)
 {
-	if (current != bdflush_tsk) {
-		wake_up_process(bdflush_tsk);
+	if (waitqueue_active(&bdflush_wait))
+		wake_up_interruptible(&bdflush_wait);
 
-		if (block)
-			flush_dirty_buffers(0);
-	}
+	if (block)
+		flush_dirty_buffers(0);
 }
 
 /* 
@@ -2688,7 +2681,6 @@ int bdflush(void *sem)
 	tsk->session = 1;
 	tsk->pgrp = 1;
 	strcpy(tsk->comm, "bdflush");
-	bdflush_tsk = tsk;
 
 	/* avoid getting signals */
 	spin_lock_irq(&tsk->sigmask_lock);
@@ -2703,22 +2695,16 @@ int bdflush(void *sem)
 		CHECK_EMERGENCY_SYNC
 
 		flushed = flush_dirty_buffers(0);
-		if (free_shortage())
-			flushed += page_launder(GFP_KERNEL, 0);
 
 		/*
 		 * If there are still a lot of dirty buffers around,
 		 * skip the sleep and flush some more. Otherwise, we
 		 * go to sleep waiting a wakeup.
 		 */
-		set_current_state(TASK_INTERRUPTIBLE);
 		if (!flushed || balance_dirty_state(NODEV) < 0) {
 			run_task_queue(&tq_disk);
-			schedule();
+			interruptible_sleep_on(&bdflush_wait);
 		}
-		/* Remember to mark us as running otherwise
-		   the next schedule will block. */
-		__set_current_state(TASK_RUNNING);
 	}
 }
 

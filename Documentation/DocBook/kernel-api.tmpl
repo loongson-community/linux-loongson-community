@@ -41,8 +41,9 @@
 !Iinclude/linux/init.h
      </sect1>
 
-     <sect1><title>Atomics</title>
+     <sect1><title>Atomic and pointer manipulation</title>
 !Iinclude/asm-i386/atomic.h
+!Iinclude/asm-i386/unaligned.h
      </sect1>
 
      <sect1><title>Delaying, scheduling, and timer routines</title>
@@ -140,8 +141,13 @@
   </chapter>
 
   <chapter id="modload">
-     <title>Module Loading</title>
+     <title>Module Support</title>
+     <sect1><title>Module Loading</title>
 !Ekernel/kmod.c
+     </sect1>
+     <sect1><title>Inter Module support</title>
+!Ekernel/module.c
+     </sect1>
   </chapter>
 
   <chapter id="hardware">

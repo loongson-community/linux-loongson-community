@@ -588,9 +588,12 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 
 	icount = &info->state->icount;
 	do {
+		if (tty->flip.count >= TTY_FLIPBUF_SIZE) {
+			tty->flip.tqueue.routine((void *) tty);
+			if (tty->flip.count >= TTY_FLIPBUF_SIZE)
+				return;		// if TTY_DONT_FLIP is set
+		}
 		ch = serial_inp(info, UART_RX);
-		if (tty->flip.count >= TTY_FLIPBUF_SIZE)
-			goto ignore_char;
 		*tty->flip.char_buf_ptr = ch;
 		icount->rx++;
 		
@@ -680,7 +683,9 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 			tty->flip.flag_buf_ptr++;
 			tty->flip.char_buf_ptr++;
 		}
+#if defined(CONFIG_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 	ignore_char:
+#endif
 		*status = serial_inp(info, UART_LSR);
 	} while ((*status & UART_LSR_DR) && (max_count-- > 0));
 #if (LINUX_VERSION_CODE > 131394) /* 2.1.66 */

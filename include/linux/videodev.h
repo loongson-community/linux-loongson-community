@@ -33,9 +33,8 @@ struct video_device
 	devfs_handle_t devfs_handle;
 };
 
-extern int videodev_init(void);
 #define VIDEO_MAJOR	81
-extern int video_register_device(struct video_device *, int type);
+extern int video_register_device(struct video_device *, int type, int nr);
 
 #define VFL_TYPE_GRABBER	0
 #define VFL_TYPE_VBI		1
@@ -374,7 +373,8 @@ struct video_code
 #define VID_HARDWARE_OV511	27	
 #define VID_HARDWARE_ZR356700	28	/* Zoran 36700 series */
 #define VID_HARDWARE_W9966	29
-
+#define VID_HARDWARE_SE401	30	/* SE401 USB webcams */
+#define VID_HARDWARE_PWC	31	/* Philips webcams */
 
 /*
  *	Initialiser list

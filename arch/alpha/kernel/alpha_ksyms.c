@@ -188,6 +188,7 @@ EXPORT_SYMBOL(synchronize_irq);
 EXPORT_SYMBOL(flush_tlb_all);
 EXPORT_SYMBOL(flush_tlb_mm);
 EXPORT_SYMBOL(flush_tlb_range);
+EXPORT_SYMBOL(flush_tlb_page);
 EXPORT_SYMBOL(smp_imb);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(__cpu_number_map);
@@ -206,6 +207,7 @@ EXPORT_SYMBOL(debug_spin_trylock);
 EXPORT_SYMBOL(write_lock);
 EXPORT_SYMBOL(read_lock);
 #endif
+EXPORT_SYMBOL(cpu_present_mask);
 #endif /* CONFIG_SMP */
 
 EXPORT_SYMBOL(rtc_lock);
@@ -229,6 +231,6 @@ EXPORT_SYMBOL_NOVERS(__remq);
 EXPORT_SYMBOL_NOVERS(__remqu);
 EXPORT_SYMBOL_NOVERS(memcpy);
 EXPORT_SYMBOL_NOVERS(memset);
+EXPORT_SYMBOL_NOVERS(memchr);
 
 EXPORT_SYMBOL(get_wchan);
-EXPORT_SYMBOL(flush_tlb_page);

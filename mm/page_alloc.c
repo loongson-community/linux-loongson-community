@@ -53,7 +53,7 @@ struct list_head inactive_dirty_list;
 /*
  * Temporary debugging check.
  */
-#define BAD_RANGE(zone,x) (((zone) != (x)->zone) || (((x)-mem_map) < (zone)->offset) || (((x)-mem_map) >= (zone)->offset+(zone)->size))
+#define BAD_RANGE(zone,x) (((zone) != (x)->zone) || (((x)-mem_map) < (zone)->zone_start_mapnr) || (((x)-mem_map) >= (zone)->zone_start_mapnr+(zone)->size))
 
 /*
  * Buddy system. Hairy. You really aren't expected to understand this
@@ -94,7 +94,7 @@ static void __free_pages_ok (struct page *page, unsigned long order)
 	zone = page->zone;
 
 	mask = (~0UL) << order;
-	base = mem_map + zone->offset;
+	base = zone->zone_mem_map;
 	page_idx = page - base;
 	if (page_idx & ~mask)
 		BUG();
@@ -111,7 +111,7 @@ static void __free_pages_ok (struct page *page, unsigned long order)
 
 		if (area >= zone->free_area + MAX_ORDER)
 			BUG();
-		if (!test_and_change_bit(index, area->map))
+		if (!__test_and_change_bit(index, area->map))
 			/*
 			 * the buddy page is still allocated.
 			 */
@@ -146,7 +146,7 @@ static void __free_pages_ok (struct page *page, unsigned long order)
 }
 
 #define MARK_USED(index, order, area) \
-	change_bit((index) >> (1+(order)), (area)->map)
+	__change_bit((index) >> (1+(order)), (area)->map)
 
 static inline struct page * expand (zone_t *zone, struct page *page,
 	 unsigned long index, int low, int high, free_area_t * area)
@@ -190,8 +190,9 @@ static struct page * rmqueue(zone_t *zone, unsigned long order)
 			if (BAD_RANGE(zone,page))
 				BUG();
 			memlist_del(curr);
-			index = (page - mem_map) - zone->offset;
-			MARK_USED(index, curr_order, area);
+			index = page - zone->zone_mem_map;
+			if (curr_order != MAX_ORDER-1)
+				MARK_USED(index, curr_order, area);
 			zone->free_pages -= 1 << order;
 
 			page = expand(zone, page, index, order, curr_order, area);
@@ -250,10 +251,10 @@ static struct page * __alloc_pages_limit(zonelist_t *zonelist,
 				water_mark = z->pages_high;
 		}
 
-		if (z->free_pages + z->inactive_clean_pages > water_mark) {
+		if (z->free_pages + z->inactive_clean_pages >= water_mark) {
 			struct page *page = NULL;
 			/* If possible, reclaim a page directly. */
-			if (direct_reclaim && z->free_pages < z->pages_min + 8)
+			if (direct_reclaim)
 				page = reclaim_page(z);
 			/* If that fails, fall back to rmqueue. */
 			if (!page)
@@ -297,21 +298,6 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 	 */
 	if (order == 0 && (gfp_mask & __GFP_WAIT))
 		direct_reclaim = 1;
-
-	/*
-	 * If we are about to get low on free pages and we also have
-	 * an inactive page shortage, wake up kswapd.
-	 */
-	if (inactive_shortage() > inactive_target / 2 && free_shortage())
-		wakeup_kswapd();
-	/*
-	 * If we are about to get low on free pages and cleaning
-	 * the inactive_dirty pages would fix the situation,
-	 * wake up bdflush.
-	 */
-	else if (free_shortage() && nr_inactive_dirty_pages > free_shortage()
-			&& nr_inactive_dirty_pages >= freepages.high)
-		wakeup_bdflush(0);
 
 try_again:
 	/*
@@ -743,7 +729,10 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 	unsigned long i, j;
 	unsigned long map_size;
 	unsigned long totalpages, offset, realtotalpages;
-	unsigned int cumulative = 0;
+	const unsigned long zone_required_alignment = 1UL << (MAX_ORDER-1);
+
+	if (zone_start_paddr & ~PAGE_MASK)
+		BUG();
 
 	totalpages = 0;
 	for (i = 0; i < MAX_NR_ZONES; i++) {
@@ -812,8 +801,6 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 		if (!size)
 			continue;
 
-		zone->offset = offset;
-		cumulative += size;
 		mask = (realsize / zone_balance_ratio[j]);
 		if (mask < zone_balance_min[j])
 			mask = zone_balance_min[j];
@@ -840,28 +827,34 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 		zone->zone_start_mapnr = offset;
 		zone->zone_start_paddr = zone_start_paddr;
 
+		if ((zone_start_paddr >> PAGE_SHIFT) & (zone_required_alignment-1))
+			printk("BUG: wrong zone alignment, it will crash\n");
+
 		for (i = 0; i < size; i++) {
 			struct page *page = mem_map + offset + i;
 			page->zone = zone;
-			if (j != ZONE_HIGHMEM) {
+			if (j != ZONE_HIGHMEM)
 				page->virtual = __va(zone_start_paddr);
-				zone_start_paddr += PAGE_SIZE;
-			}
+			zone_start_paddr += PAGE_SIZE;
 		}
 
 		offset += size;
 		mask = -1;
-		for (i = 0; i < MAX_ORDER; i++) {
+		for (i = 0; ; i++) {
 			unsigned long bitmap_size;
 
 			memlist_init(&zone->free_area[i].free_list);
+			if (i == MAX_ORDER-1) {
+				zone->free_area[i].map = NULL;
+				break;
+			}
 			mask += mask;
 			size = (size + ~mask) & mask;
-			bitmap_size = size >> i;
+			bitmap_size = size >> (i+1);
 			bitmap_size = (bitmap_size + 7) >> 3;
 			bitmap_size = LONG_ALIGN(bitmap_size);
 			zone->free_area[i].map = 
-			  (unsigned int *) alloc_bootmem_node(pgdat, bitmap_size);
+			  (unsigned long *) alloc_bootmem_node(pgdat, bitmap_size);
 		}
 	}
 	build_zonelists(pgdat);

@@ -156,6 +156,7 @@ static struct dentry *nfsd_iget(struct super_block *sb, unsigned long ino, __u32
 		result = list_entry(lp,struct dentry, d_alias);
 		if (! (result->d_flags & DCACHE_NFSD_DISCONNECTED)) {
 			dget_locked(result);
+			result->d_vfs_flags |= DCACHE_REFERENCED;
 			spin_unlock(&dcache_lock);
 			iput(inode);
 			return result;
@@ -244,6 +245,11 @@ struct dentry *nfsd_findparent(struct dentry *child)
 	 */
 	pdentry = child->d_inode->i_op->lookup(child->d_inode, tdentry);
 	d_drop(tdentry); /* we never want ".." hashed */
+	if (!pdentry && tdentry->d_inode == NULL) {
+		/* File system cannot find ".." ... sad but possible */
+		dput(tdentry);
+		pdentry = ERR_PTR(-EINVAL);
+	}
 	if (!pdentry) {
 		/* I don't want to return a ".." dentry.
 		 * I would prefer to return an unconnected "IS_ROOT" dentry,
@@ -407,7 +413,7 @@ find_fh_dentry(struct super_block *sb, ino_t ino, int generation, ino_t dirino, 
 				d_drop(result);
 				dput(result);
 				result = tmp;
-				/* If !found, then this is really wierd, but it shouldn't hurt */
+				/* If !found, then this is really weird, but it shouldn't hurt */
 			}
 		}
 	} else {

@@ -221,6 +221,14 @@ S: ul. Koscielna 12a
 S: 62-300 Wrzesnia
 S: Poland
 
+N: Fred Barnes
+E: frmb2@ukc.ac.uk
+D: Various parport/ppdev hacks and fixes
+S: Computing Lab, The University
+S: Canterbury, KENT
+S: CT2 7NF
+S: England
+
 N: Paul Barton-Davis
 E: pbd@op.net
 D: Driver for WaveFront soundcards (Turtle Beach Maui, Tropez, Tropez+)
@@ -1111,8 +1119,10 @@ S: 65183 Wiesbaden
 S: Germany
 
 N: Christoph Hellwig
-E: chhellwig@gmx.net
-D: Sound/OSS hacking
+E: hch@caldera.de
+E: hch@infradead.org
+D: misc driver & makefile hacking
+D: freevxfs driver
 S: Triftstraﬂe 26
 S: 38644 Goslar
 S: Germany
@@ -1663,6 +1673,7 @@ S: Ecole Nationale Superieure des Telecommunications, Paris
 N: Jamie Lokier
 E: jamie@imbolc.ucc.ie
 D: Reboot-through-BIOS for broken 486 motherboards
+D: Some parport fixes
 S: 11 Goodson Walk
 S: Marston
 S: Oxford
@@ -1869,10 +1880,13 @@ S: Germany
 
 N: Arnaldo Carvalho de Melo
 E: acme@conectiva.com.br
-W: http://www.conectiva.com.br/~acme
+E: acme@gnu.org
+W: http://bazar.conectiva.com.br/~acme
+W: http://advogato.org/person/acme
+P: 1024D/9224DF01 D5DF E3BB E3C8 BCBB F8AD  841A B6AB 4681 9224 DF01
 D: wanrouter hacking
-D: USB hacking
-D: miscellaneous Makefile & Config.in fixes
+D: misc Makefile, Config.in, drivers and network stacks fixes
+D: IPX Maintainer
 D: Cyclom 2X synchronous card driver
 D: i18n for minicom, net-tools, util-linux, fetchmail, etc
 S: Conectiva S.A.
@@ -2880,7 +2894,7 @@ S: Carrollton, TX 75010
 S: USA
 
 N: Tim Waugh
-E: tim@cyberelk.demon.co.uk
+E: tim@cyberelk.net
 D: Co-architect of the parallel-port sharing system
 S: 17 Curling Vale
 S: GUILDFORD
@@ -3011,8 +3025,8 @@ N: Jonathan Woithe
 E: jwoithe@physics.adelaide.edu.au
 W: http://www.physics.adelaide.edu.au/~jwoithe
 D: ALS-007 sound card extensions to Sound Blaster driver
-S: 4/36 Trevelyan St
-S: Wayville SA 5034
+S: 20 Jordan St
+S: Valley View, SA 5093
 S: Australia
 
 N: Clifford Wolf

@@ -1,5 +1,7 @@
 /*
- * $Id: prep_pci.c,v 1.40 1999/09/17 17:23:05 cort Exp $
+ * BK Id: SCCS/s.prep_pci.c 1.18 05/17/01 18:14:22 cort
+ */
+/*
  * PReP pci functions.
  * Originally by Gary Thomas
  * rewritten and updated by Cort Dougan (cort@cs.nmt.edu)
@@ -437,8 +439,8 @@ static char ibm8xx_pci_IRQ_map[23] __prepdata = {
 
 static char ibm8xx_pci_IRQ_routes[] __prepdata = {
         0,      /* Line 0 - unused */
-        13,     /* Line 1 */
-        10,     /* Line 2 */
+        15,     /* Line 1 */
+        15,     /* Line 2 */
         15,     /* Line 3 */
         15,     /* Line 4 */
 };
