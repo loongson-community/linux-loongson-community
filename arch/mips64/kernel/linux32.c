@@ -15,6 +15,7 @@
 #include <linux/resource.h>
 #include <linux/highmem.h>
 #include <linux/time.h>
+#include <linux/times.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
 #include <linux/skbuff.h>
@@ -33,9 +34,10 @@
 #include <net/sock.h>
 #include <net/scm.h>
 
-#include <asm/uaccess.h>
-#include <asm/mman.h>
 #include <asm/ipc.h>
+#include <asm/uaccess.h>
+#include <asm/mmu_context.h>
+#include <asm/mman.h>
 
 /* Use this to get at 32-bit user passed pointers. */
 /* A() macro should be used for places where you e.g.
@@ -190,7 +192,6 @@ asmlinkage int sys32_utime(char * filename, struct utimbuf32 *times)
 	return ret;
 }
 
-#if 0
 /*
  * count32() counts the number of arguments/envelopes
  */
@@ -282,44 +283,57 @@ int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 	return 0;
 }
 
-
 /*
- * sys_execve32() executes a new program.
+ * sys32_execve() executes a new program.
  */
-int do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
+static inline int 
+do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 {
 	struct linux_binprm bprm;
-	struct dentry * dentry;
+	struct file * file;
 	int retval;
 	int i;
 
-	bprm.p = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
-	memset(bprm.page, 0, MAX_ARG_PAGES*sizeof(bprm.page[0]));
+	file = open_exec(filename);
 
-	dentry = open_namei(filename, 0, 0);
-	retval = PTR_ERR(dentry);
-	if (IS_ERR(dentry))
+	retval = PTR_ERR(file);
+	if (IS_ERR(file))
 		return retval;
 
-	bprm.dentry = dentry;
+	bprm.p = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
+	memset(bprm.page, 0, MAX_ARG_PAGES * sizeof(bprm.page[0]));
+
+	bprm.file = file;
 	bprm.filename = filename;
 	bprm.sh_bang = 0;
 	bprm.loader = 0;
 	bprm.exec = 0;
-	if ((bprm.argc = count32(argv, bprm.p / sizeof(u32))) < 0) {
-		dput(dentry);
-		return bprm.argc;
-	}
+	bprm.security = NULL;
+	bprm.mm = mm_alloc();
+	retval = -ENOMEM;
+	if (!bprm.mm) 
+		goto out_file;
 
-	if ((bprm.envc = count32(envp, bprm.p / sizeof(u32))) < 0) {
-		dput(dentry);
-		return bprm.envc;
-	}
+	retval = init_new_context(current, bprm.mm);
+	if (retval < 0)
+		goto out_mm;
+
+	bprm.argc = count32(argv, bprm.p / sizeof(u32));
+	if ((retval = bprm.argc) < 0)
+		goto out_mm;
+
+	bprm.envc = count32(envp, bprm.p / sizeof(u32));
+	if ((retval = bprm.envc) < 0)
+		goto out_mm;
+
+	retval = security_ops->bprm_alloc_security(&bprm);
+	if (retval) 
+		goto out;
 
 	retval = prepare_binprm(&bprm);
 	if (retval < 0)
 		goto out;
-
+	
 	retval = copy_strings_kernel(1, &bprm.filename, &bprm);
 	if (retval < 0)
 		goto out;
@@ -333,22 +347,32 @@ int do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	if (retval < 0)
 		goto out;
 
-	retval = search_binary_handler(&bprm,regs);
-	if (retval >= 0)
+	retval = search_binary_handler(&bprm, regs);
+	if (retval >= 0) {
 		/* execve success */
+		security_ops->bprm_free_security(&bprm);
 		return retval;
+	}
 
 out:
 	/* Something went wrong, return the inode and free the argument pages*/
-	if (bprm.dentry)
-		dput(bprm.dentry);
+	for (i = 0 ; i < MAX_ARG_PAGES ; i++) {
+		struct page * page = bprm.page[i];
+		if (page)
+			__free_page(page);
+	}
 
-	/* Assumes that free_page() can take a NULL argument. */
-	/* I hope this is ok for all architectures */
-	for (i = 0 ; i < MAX_ARG_PAGES ; i++)
-		if (bprm.page[i])
-			__free_page(bprm.page[i]);
+	if (bprm.security)
+		security_ops->bprm_free_security(&bprm);
 
+out_mm:
+	mmdrop(bprm.mm);
+
+out_file:
+	if (bprm.file) {
+		allow_write_access(bprm.file);
+		fput(bprm.file);
+	}
 	return retval;
 }
 
@@ -372,87 +396,6 @@ asmlinkage int sys32_execve(abi64_no_regargs, struct pt_regs regs)
 out:
 	return error;
 }
-#else
-static int nargs(unsigned int arg, char **ap)
-{
-	char *ptr;
-	int n, ret;
-
-	if (!arg)
-		return 0;
-
-	n = 0;
-	do {
-		/* egcs is stupid */
-		if (!access_ok(VERIFY_READ, arg, sizeof (unsigned int)))
-			return -EFAULT;
-		if (IS_ERR(ret = __get_user((long)ptr,(int *)A(arg))))
-			return ret;
-		if (ap)		/* no access_ok needed, we allocated */
-			if (IS_ERR(ret = __put_user(ptr, ap++)))
-				return ret;
-		arg += sizeof(unsigned int);
-		n++;
-	} while (ptr);
-
-	return n - 1;
-}
-
-asmlinkage int
-sys32_execve(abi64_no_regargs, struct pt_regs regs)
-{
-	extern asmlinkage int sys_execve(abi64_no_regargs, struct pt_regs regs);
-	extern asmlinkage long sys_munmap(unsigned long addr, size_t len);
-	unsigned int argv = (unsigned int)regs.regs[5];
-	unsigned int envp = (unsigned int)regs.regs[6];
-	char **av, **ae;
-	int na, ne, r, len;
-	char * filename;
-
-	na = nargs(argv, NULL);
-	if (IS_ERR(na))
-		return(na);
-	ne = nargs(envp, NULL);
-	if (IS_ERR(ne))
-		return(ne);
-	len = (na + ne + 2) * sizeof(*av);
-	/*
-	 *  kmalloc won't work because the `sys_exec' code will attempt
-	 *  to do a `get_user' on the arg list and `get_user' will fail
-	 *  on a kernel address (simplifies `get_user').  Instead we
-	 *  do an mmap to get a user address.  Note that since a successful
-	 *  `execve' frees all current memory we only have to do an
-	 *  `munmap' if the `execve' failes.
-	 */
-	down_write(&current->mm->mmap_sem);
-	av = (char **) do_mmap_pgoff(0, 0, len, PROT_READ | PROT_WRITE,
-				     MAP_PRIVATE | MAP_ANONYMOUS, 0);
-	up_write(&current->mm->mmap_sem);
-
-	if (IS_ERR(av))
-		return (long) av;
-	ae = av + na + 1;
-	if (IS_ERR(r = __put_user(0, (av + na))))
-		goto out;
-	if (IS_ERR(r = __put_user(0, (ae + ne))))
-		goto out;
-	if (IS_ERR(r = nargs(argv, av)))
-		goto out;
-	if (IS_ERR(r = nargs(envp, ae)))
-		goto out;
-	filename = getname((char *) (long)regs.regs[4]);
-	r = PTR_ERR(filename);
-	if (IS_ERR(filename))
-		goto out;
-
-	r = do_execve(filename, av, ae, &regs);
-	putname(filename);
-	if (IS_ERR(r))
-out:
-		sys_munmap((unsigned long)av, len);
-	return(r);
-}
-#endif
 
 struct dirent32 {
 	unsigned int	d_ino;
@@ -2789,20 +2732,33 @@ asmlinkage int sys32_recvmsg(int fd, struct msghdr32 *user_msg, unsigned int use
 
 	sock = sockfd_lookup(fd, &err);
 	if (sock != NULL) {
-		struct scm_cookie scm;
+		struct sock_iocb *si;
+		struct kiocb iocb;
 
 		if (sock->file->f_flags & O_NONBLOCK)
 			user_flags |= MSG_DONTWAIT;
-		memset(&scm, 0, sizeof(scm));
-		err = sock->ops->recvmsg(sock, &kern_msg, total_len,
-					 user_flags, &scm);
+
+		init_sync_kiocb(&iocb, NULL);
+		si = kiocb_to_siocb(&iocb);
+		si->sock = sock;
+		si->scm = &si->async_scm;
+		si->msg = &kern_msg;
+		si->size = total_len;
+		si->flags = user_flags;
+		memset(si->scm, 0, sizeof(*si->scm));
+
+		err = sock->ops->recvmsg(&iocb, sock, &kern_msg, total_len,
+					 user_flags, si->scm);
+		if (-EIOCBQUEUED == err)
+			err = wait_on_sync_kiocb(&iocb);
+
 		if(err >= 0) {
 			len = err;
 			if(!kern_msg.msg_control) {
-				if(sock->passcred || scm.fp)
+				if(sock->passcred || si->scm->fp)
 					kern_msg.msg_flags |= MSG_CTRUNC;
-				if(scm.fp)
-					__scm_destroy(&scm);
+				if(si->scm->fp)
+					__scm_destroy(si->scm);
 			} else {
 				/* If recvmsg processing itself placed some
 				 * control messages into user space, it's is
@@ -2816,15 +2772,16 @@ asmlinkage int sys32_recvmsg(int fd, struct msghdr32 *user_msg, unsigned int use
 				if(sock->passcred)
 					put_cmsg32(&kern_msg,
 						   SOL_SOCKET, SCM_CREDENTIALS,
-						   sizeof(scm.creds), &scm.creds);
-				if(scm.fp != NULL)
-					scm_detach_fds32(&kern_msg, &scm);
+						   sizeof(si->scm->creds),
+						   &si->scm->creds);
+				if(si->scm->fp != NULL)
+					scm_detach_fds32(&kern_msg, si->scm);
 			}
 		}
 		sockfd_put(sock);
 	}
 
-	if(uaddr != NULL && kern_msg.msg_namelen && err >= 0)
+	if(uaddr != NULL && err >= 0)
 		err = move_addr_to_user(addr, kern_msg.msg_namelen, uaddr, uaddr_len);
 	if(cmsg_ptr != 0 && err >= 0) {
 		unsigned long ucmsg_ptr = ((unsigned long)kern_msg.msg_control);

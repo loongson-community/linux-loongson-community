@@ -22,6 +22,7 @@
 #include <linux/if_ppp.h>
 #include <linux/if_pppox.h>
 #include <linux/cdrom.h>
+#include <linux/blkdev.h>
 #include <linux/loop.h>
 #include <linux/vt.h>
 #include <linux/kd.h>
@@ -35,6 +36,7 @@
 #include <linux/auto_fs4.h>
 #include <linux/ext2_fs.h>
 #include <linux/raid/md_u.h>
+#include <linux/vmalloc.h>
 
 #include <scsi/scsi.h>
 #undef __KERNEL__		/* This file was born to be ugly ...  */
@@ -43,8 +45,10 @@
 #include <scsi/sg.h>
 
 #include <asm/ioctls.h>
+#include <asm/module.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
+#include <asm/ptrace.h>
 
 #include <linux/rtc.h>
 
@@ -238,18 +242,14 @@ out:
 	return err;
 }
 
-static __inline__ void *alloc_user_space(long len)
+static inline void *alloc_user_space(struct pt_regs *regs, long len)
 {
-	struct pt_regs *regs = current_thread_info()->kregs;
-	unsigned long usp = regs->u_regs[UREG_I6];
+	unsigned long sp = regs->regs[29];
 
-	if (!(test_thread_flag(TIF_32BIT)))
-		usp += STACK_BIAS;
-
-	return (void *) (usp - len);
+	return (void *) (sp - len);
 }
 
-static int siocdevprivate_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+static int siocdevprivate_ioctl(struct pt_regs *regs, unsigned int fd, unsigned int cmd, unsigned long arg)
 {
 	struct ifreq *u_ifreq64;
 	struct ifreq32 *u_ifreq32 = (struct ifreq32 *) arg;
@@ -264,7 +264,7 @@ static int siocdevprivate_ioctl(unsigned int fd, unsigned int cmd, unsigned long
 		return -EFAULT;
 	data64 = (void *) A(data32);
 
-	u_ifreq64 = alloc_user_space(sizeof(*u_ifreq64));
+	u_ifreq64 = alloc_user_space(regs, sizeof(*u_ifreq64));
 
 	/* Don't check these user accesses, just let that get trapped
 	 * in the ioctl handler instead.
@@ -615,13 +615,14 @@ static int ioc_settimeout(unsigned int fd, unsigned int cmd, unsigned long arg)
 
 struct ioctl_trans {
 	unsigned int cmd;
-	int (*function)(unsigned int, unsigned int, unsigned long);
+	int (*handler)(unsigned int, unsigned int, unsigned long,
+	               struct file *);
 	struct ioctl_trans *next;
 };
 
-#define COMPATIBLE_IOCTL(cmd)		{ cmd, (void *) sys_ioctl, 0 }
-#define HANDLE_IOCTL(cmd, handler)	{ cmd, (void *) handler, 0 }
-#define IOCTL_TABLE_START		static struct ioctl_trans ioctl32_handler_table[] = {
+#define COMPATIBLE_IOCTL(cmd)		{ cmd, (void *) sys_ioctl, 0 },
+#define HANDLE_IOCTL(cmd, handler)	{ cmd, (void *) handler, 0 },
+#define IOCTL_TABLE_START		static struct ioctl_trans ioctl_translations[] = {
 #define IOCTL_TABLE_END };
 
 IOCTL_TABLE_START
@@ -884,7 +885,7 @@ HANDLE_IOCTL(EXT2_IOC32_SETFLAGS, do_ext2_ioctl)
 HANDLE_IOCTL(EXT2_IOC32_GETVERSION, do_ext2_ioctl)
 HANDLE_IOCTL(EXT2_IOC32_SETVERSION, do_ext2_ioctl)
 
-HANDLE_IOCTL(HDIO_GETGEO, hdio_getgeo),	/* hdreg.h ioctls  */
+HANDLE_IOCTL(HDIO_GETGEO, hdio_getgeo)		/* hdreg.h ioctls  */
 HANDLE_IOCTL(HDIO_GET_UNMASKINTR, hdio_ioctl_trans)
 HANDLE_IOCTL(HDIO_GET_MULTCOUNT, hdio_ioctl_trans)
 // HDIO_OBSOLETE_IDENTITY
@@ -906,7 +907,7 @@ COMPATIBLE_IOCTL(HDIO_SET_DMA)
 COMPATIBLE_IOCTL(HDIO_SET_PIO_MODE)
 COMPATIBLE_IOCTL(HDIO_SET_NICE)
 
-COMPATIBLE_IOCTL(BLKROSET),			/* fs.h ioctls  */
+COMPATIBLE_IOCTL(BLKROSET)			/* fs.h ioctls  */
 COMPATIBLE_IOCTL(BLKROGET)
 COMPATIBLE_IOCTL(BLKRRPART)
 HANDLE_IOCTL(BLKGETSIZE, w_long)
@@ -949,7 +950,7 @@ COMPATIBLE_IOCTL(STOP_ARRAY_RO)
 COMPATIBLE_IOCTL(RESTART_ARRAY_RW)
 #endif /* CONFIG_MD */
 
-COMPATIBLE_IOCTL(MTIOCTOP),			/* mtio.h ioctls  */
+COMPATIBLE_IOCTL(MTIOCTOP)			/* mtio.h ioctls  */
 HANDLE_IOCTL(MTIOCGET32, mt_ioctl_trans)
 HANDLE_IOCTL(MTIOCPOS32, mt_ioctl_trans)
 HANDLE_IOCTL(MTIOCGETCONFIG32, mt_ioctl_trans)
@@ -961,7 +962,7 @@ HANDLE_IOCTL(MTIOCSETCONFIG32, mt_ioctl_trans)
 // MTIOCFTFORMAT
 // MTIOCFTCMD
 
-COMPATIBLE_IOCTL(AUTOFS_IOC_READY),		/* auto_fs.h ioctls */
+COMPATIBLE_IOCTL(AUTOFS_IOC_READY)		/* auto_fs.h ioctls */
 COMPATIBLE_IOCTL(AUTOFS_IOC_FAIL)
 COMPATIBLE_IOCTL(AUTOFS_IOC_CATATONIC)
 COMPATIBLE_IOCTL(AUTOFS_IOC_PROTOVER)
@@ -970,8 +971,8 @@ COMPATIBLE_IOCTL(AUTOFS_IOC_EXPIRE)
 COMPATIBLE_IOCTL(AUTOFS_IOC_EXPIRE_MULTI)
 
 /* Little p (/dev/rtc, /dev/envctrl, etc.) */
-COMPATIBLE_IOCTL(_IOR('p', 20, int[7])), /* RTCGET */
-COMPATIBLE_IOCTL(_IOW('p', 21, int[7])), /* RTCSET */
+COMPATIBLE_IOCTL(_IOR('p', 20, int[7]))		/* RTCGET */
+COMPATIBLE_IOCTL(_IOW('p', 21, int[7]))		/* RTCSET */
 COMPATIBLE_IOCTL(RTC_AIE_ON)
 COMPATIBLE_IOCTL(RTC_AIE_OFF)
 COMPATIBLE_IOCTL(RTC_UIE_ON)
@@ -988,10 +989,10 @@ COMPATIBLE_IOCTL(RTC_WKALM_SET)
 COMPATIBLE_IOCTL(RTC_WKALM_RD)
 IOCTL_TABLE_END
 
-#define NR_HANDLE_IOCTLS	(sizeof(ioctl32_handler_table) /	\
-				 sizeof(ioctl32_handler_table[0]))
+#define NR_IOCTL_TRANS		(sizeof(ioctl_translations) /	\
+				 sizeof(ioctl_translations[0]))
 
-struct ioctl32_hash_table *ioctl32_hash_table[1024];
+struct ioctl_trans *ioctl32_hash_table[1024];
 
 static inline unsigned long ioctl32_hash(unsigned long cmd)
 {
@@ -1017,11 +1018,12 @@ static void ioctl32_insert_translation(struct ioctl_trans *trans)
 
 static int __init init_sys32_ioctl(void)
 {
+	struct ioctl_trans *end = ioctl_translations + NR_IOCTL_TRANS;
 	int i;
-	extern struct ioctl_trans ioctl_translations[], ioctl_translations_end[];
 
-	for (i = 0; &ioctl_translations[i] < &ioctl_translations_end[0]; i++)
+	for (i = 0; &ioctl_translations[i] < end; i++) {
 		ioctl32_insert_translation(&ioctl_translations[i]);
+	}
 	return 0;
 }
 
@@ -1031,7 +1033,7 @@ static struct ioctl_trans *additional_ioctls;
 
 /* Always call these with kernel lock held! */
 
-int register_ioctl32_conversion(unsigned int cmd, int (*handler)(unsigned int, unsigned int, unsigned long, struct file *))
+int register_ioctl32_conversion(unsigned int cmd, int (*handler)(unsigned int, unsigned int, unsigned long, ...))
 {
 	int i;
 	if (!additional_ioctls) {
@@ -1047,9 +1049,9 @@ int register_ioctl32_conversion(unsigned int cmd, int (*handler)(unsigned int, u
 		return -ENOMEM;
 	additional_ioctls[i].cmd = cmd;
 	if (!handler)
-		additional_ioctls[i].handler = sys_ioctl;
+		additional_ioctls[i].handler = (void *) sys_ioctl;
 	else
-		additional_ioctls[i].handler = handler;
+		additional_ioctls[i].handler = (void *) handler;
 	ioctl32_insert_translation(&additional_ioctls[i]);
 	return 0;
 }
@@ -1081,8 +1083,18 @@ int unregister_ioctl32_conversion(unsigned int cmd)
 	return -EINVAL;
 }
 
-asmlinkage int sys32_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+/*
+ * Actually the prototype is
+ *
+ *     asmlinkage int sys32_ioctl(unsigned int fd, unsigned int cmd,
+ *                                unsigned long arg)
+ *
+ * but we need the register pointer ...
+ */
+asmlinkage int sys32_ioctl(abi64_no_regargs, struct pt_regs regs)
 {
+	unsigned int fd = regs.regs[4], cmd = regs.regs[5];
+	unsigned long arg = regs.regs[6];
 	struct file * filp;
 	int error = -EBADF;
 	int (*handler)(unsigned int, unsigned int, unsigned long, struct file * filp);
@@ -1106,7 +1118,7 @@ asmlinkage int sys32_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 		error = handler(fd, cmd, arg, filp);
 	} else if (cmd >= SIOCDEVPRIVATE &&
 		   cmd <= (SIOCDEVPRIVATE + 15)) {
-		error = siocdevprivate_ioctl(fd, cmd, arg);
+		error = siocdevprivate_ioctl(&regs, fd, cmd, arg);
 	} else {
 		static int count;
 		if (++count <= 20)
