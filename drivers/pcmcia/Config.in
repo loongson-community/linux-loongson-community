@@ -26,7 +26,7 @@ if [ "$CONFIG_PCMCIA" != "n" ]; then
    if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
       dep_tristate '  Au1x00 pcmcia support' CONFIG_PCMCIA_AU1000 $CONFIG_PCMCIA 
       if [ "$CONFIG_PCMCIA_AU1000" != "n" ]; then
-        dep_bool '  Pb1x00 board support' CONFIG_PCMCIA_PB1X00
+        dep_tristate '  Pb1x00 board support' CONFIG_PCMCIA_PB1X00
       fi
    fi
 fi
