@@ -606,7 +606,7 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	 * problems with this code. I suspect locking of some sort,
 	 * but for now we'll have to disable IRIX support.
 	 */
-#ifdef 1
+#if 1
 	goto out;
 #endif
 
