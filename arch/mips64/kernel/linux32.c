@@ -2004,7 +2004,7 @@ do_sys32_shmctl (int first, int second, void *uptr)
 		break;
 
 	default:
-		err = - EINVAL;
+		err = -ENOSYS;
 		break;
 	}
 
