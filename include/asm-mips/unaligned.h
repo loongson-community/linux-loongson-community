@@ -117,7 +117,7 @@ extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
 	__val;								\
 })
 
-#define put_unaligned(x,ptr)						\
+#define put_unaligned(val,ptr)						\
 do {									\
 	switch (sizeof(*(ptr))) {					\
 	case 1:								\
