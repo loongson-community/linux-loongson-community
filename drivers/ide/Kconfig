@@ -852,9 +852,8 @@ config BLK_DEV_IDEDMA_PMAC_AUTO
 	  Apple machines.
 
 config BLK_DEV_IDE_SWARM
-	bool
+	bool "IDE for Sibyte evaluation boards"
 	depends on SIBYTE_SB1xxx_SOC
-	default y
 
 config BLK_DEV_IDE_ICSIDE
 	tristate "ICS IDE interface support"
