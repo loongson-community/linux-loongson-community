@@ -722,7 +722,6 @@ static int ioc3_mii_init(struct ioc3_private *ip)
 	int ioc3_phy_workaround = 1;
 	u16 word;
 
-	spin_lock_irq(&ip->ioc3_lock);
 	for (i = 0; i < 32; i++) {
 		word = ioc3_mdio_read(dev, i, MII_PHYSID1);
 
@@ -749,8 +748,6 @@ static int ioc3_mii_init(struct ioc3_private *ip)
 	add_timer(&ip->ioc3_timer);
 
 out:
-	spin_unlock_irq(&ip->ioc3_lock);
-
 	return res;
 }
 
@@ -1173,7 +1170,9 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	if (err)
 		goto out_stop;
 
+	spin_lock_irq(&ip->ioc3_lock);
 	mii_check_media(&ip->mii, 1, 1);
+	spin_unlock_irq(&ip->ioc3_lock);
 
 	sw_physid1 = ioc3_mdio_read(dev, ip->mii.phy_id, MII_PHYSID1);
 	sw_physid2 = ioc3_mdio_read(dev, ip->mii.phy_id, MII_PHYSID2);
