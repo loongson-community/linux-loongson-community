@@ -52,6 +52,16 @@ ifdef CONFIG_CROSSCOMPILE
 CROSS_COMPILE		:= $(tool-prefix)
 endif
 
+CHECKFLAGS-y				+= -D__linux__ -D__mips__
+CHECKFLAGS-$(CONFIG_MIPS32)		+= -D_MIPS_SZLONG=32 \
+					   -D__PTRDIFF_TYPE__=int
+CHECKFLAGS-$(CONFIG_MIPS64)		+= -D_MIPS_SZLONG=64 \
+					   -D__PTRDIFF_TYPE__="long int"
+CHECKFLAGS-$(CONFIG_CPU_BIG_ENDIAN)	+= -D__MIPSEL__
+CHECKFLAGS-$(CONFIG_CPU_LITTLE_ENDIAN)	+= -D__MIPSEL__
+
+CHECKFLAGS				= $(CHECKFLAGS-y)
+
 ifdef CONFIG_BUILD_ELF64
 gas-abi			= 64
 ld-emul			= $(64bit-emul)
