@@ -27,6 +27,9 @@
  * 10-Nov-2001 Wolfgang Grandegger
  *   - Fixed an endianess problem with the baudrate selection for PowerPC.
  *
+ * 06-Dec-2001 Martin Hamilton <martinh@gnu.org>
+ *	Added support for the Belkin F5U109 DB9 adaptor
+ *
  * 30-May-2001 Greg Kroah-Hartman
  *	switched from using spinlock to a semaphore, which fixes lots of problems.
  *
@@ -133,33 +136,16 @@ static __devinitdata struct usb_device_id id_table_combined [] = {
 	{ USB_DEVICE(MCT_U232_VID, MCT_U232_PID) },
 	{ USB_DEVICE(MCT_U232_VID, MCT_U232_SITECOM_PID) },
 	{ USB_DEVICE(MCT_U232_VID, MCT_U232_DU_H3SP_PID) },
+	{ USB_DEVICE(MCT_U232_BELKIN_F5U109_VID, MCT_U232_BELKIN_F5U109_PID) },
 	{ }		/* Terminating entry */
-};
-
-static __devinitdata struct usb_device_id mct_u232_table [] = {
-        { USB_DEVICE(MCT_U232_VID, MCT_U232_PID) },
-        { }                        /* Terminating entry */
-};
-
-static __devinitdata struct usb_device_id mct_u232_sitecom_table [] = {
-        { USB_DEVICE(MCT_U232_VID, MCT_U232_SITECOM_PID) },
-        { }                        /* Terminating entry */
-};
-
-static __devinitdata struct usb_device_id mct_u232_du_h3sp_table [] = {
-        { USB_DEVICE(MCT_U232_VID, MCT_U232_DU_H3SP_PID) },
-        { }                        /* Terminating entry */
 };
 
 MODULE_DEVICE_TABLE (usb, id_table_combined);
 
 
-struct usb_serial_device_type mct_u232_device = {
+static struct usb_serial_device_type mct_u232_device = {
 	name:		     "Magic Control Technology USB-RS232",
-	id_table:	     mct_u232_table,
-	needs_interrupt_in:  MUST_HAVE,	 /* 2 interrupt-in endpoints */
-	needs_bulk_in:	     MUST_HAVE_NOT,   /* no bulk-in endpoint */
-	needs_bulk_out:	     MUST_HAVE,	      /* 1 bulk-out endpoint */
+	id_table:	     id_table_combined,
 	num_interrupt_in:    2,
 	num_bulk_in:	     0,
 	num_bulk_out:	     1,
@@ -177,56 +163,6 @@ struct usb_serial_device_type mct_u232_device = {
 	startup:	     mct_u232_startup,
 	shutdown:	     mct_u232_shutdown,
 };
-
-struct usb_serial_device_type mct_u232_sitecom_device = {
-	name:		     "MCT/Sitecom USB-RS232",
-	id_table:	     mct_u232_sitecom_table,
-	needs_interrupt_in:  MUST_HAVE,	 /* 2 interrupt-in endpoints */
-	needs_bulk_in:	     MUST_HAVE_NOT,   /* no bulk-in endpoint */
-	needs_bulk_out:	     MUST_HAVE,	      /* 1 bulk-out endpoint */
-	num_interrupt_in:    2,
-	num_bulk_in:	     0,
-	num_bulk_out:	     1,
-	num_ports:	     1,
-	open:		     mct_u232_open,
-	close:		     mct_u232_close,
-#ifdef FIX_WRITE_RETURN_CODE_PROBLEM
-	write:		     mct_u232_write,
-	write_bulk_callback: mct_u232_write_bulk_callback,
-#endif
-	read_int_callback:   mct_u232_read_int_callback,
-	ioctl:		     mct_u232_ioctl,
-	set_termios:	     mct_u232_set_termios,
-	break_ctl:	     mct_u232_break_ctl,
-	startup:	     mct_u232_startup,
-	shutdown:	     mct_u232_shutdown,
-};
-
-struct usb_serial_device_type mct_u232_du_h3sp_device = {
-        name:                "MCT/D-Link DU-H3SP USB BAY",
-        id_table:            mct_u232_du_h3sp_table,
-        needs_interrupt_in:  MUST_HAVE,  /* 2 interrupt-in endpoints */
-        needs_bulk_in:       MUST_HAVE_NOT,   /* no bulk-in endpoint */
-        needs_bulk_out:      MUST_HAVE,       /* 1 bulk-out endpoint */
-        num_interrupt_in:    2,
-        num_bulk_in:         0,
-        num_bulk_out:        1,
-        num_ports:           1,
-        open:                mct_u232_open,
-        close:               mct_u232_close,
-#ifdef FIX_WRITE_RETURN_CODE_PROBLEM
-        write:               mct_u232_write,
-        write_bulk_callback: mct_u232_write_bulk_callback,
-#endif
-        read_int_callback:   mct_u232_read_int_callback,
-        ioctl:               mct_u232_ioctl,
-        set_termios:         mct_u232_set_termios,
-        break_ctl:           mct_u232_break_ctl,
-        startup:             mct_u232_startup,
-        shutdown:            mct_u232_shutdown,
-};
-
-
 
 
 struct mct_u232_private {
@@ -243,7 +179,8 @@ struct mct_u232_private {
 #define WDR_TIMEOUT (HZ * 5 ) /* default urb timeout */
 
 static int mct_u232_calculate_baud_rate(struct usb_serial *serial, int value) {
-	if (serial->dev->descriptor.idProduct == MCT_U232_SITECOM_PID) {
+	if (serial->dev->descriptor.idProduct == MCT_U232_SITECOM_PID
+	  || serial->dev->descriptor.idProduct == MCT_U232_BELKIN_F5U109_PID) {
 		switch (value) {
 			case    300: return 0x01;
 			case    600: return 0x02; /* this one not tested */
@@ -408,9 +345,7 @@ static int  mct_u232_open (struct usb_serial_port *port, struct file *filp)
 	++port->open_count;
 	MOD_INC_USE_COUNT;
 
-	if (!port->active) {
-		port->active = 1;
-
+	if (port->open_count == 1) {
 		/* Compensate for a hardware bug: although the Sitecom U232-P25
 		 * device reports a maximum output packet size of 32 bytes,
 		 * it seems to be able to accept only 16 bytes (and that's what
@@ -484,7 +419,7 @@ static void mct_u232_close (struct usb_serial_port *port, struct file *filp)
 			usb_unlink_urb (port->read_urb);
 			usb_unlink_urb (port->interrupt_in_urb);
 		}
-		port->active = 0;
+		port->open_count = 0;
 	}
 	
 	up (&port->sem);
@@ -880,9 +815,7 @@ static int mct_u232_ioctl (struct usb_serial_port *port, struct file * file,
 static int __init mct_u232_init (void)
 {
 	usb_serial_register (&mct_u232_device);
-	usb_serial_register (&mct_u232_sitecom_device);
-	usb_serial_register (&mct_u232_du_h3sp_device);
-	info(DRIVER_VERSION ":" DRIVER_DESC);
+	info(DRIVER_DESC " " DRIVER_VERSION);
 	return 0;
 }
 
@@ -890,8 +823,6 @@ static int __init mct_u232_init (void)
 static void __exit mct_u232_exit (void)
 {
 	usb_serial_deregister (&mct_u232_device);
-	usb_serial_deregister (&mct_u232_sitecom_device);
-	usb_serial_deregister (&mct_u232_du_h3sp_device);
 }
 
 

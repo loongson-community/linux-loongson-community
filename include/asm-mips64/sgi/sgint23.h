@@ -6,101 +6,129 @@
  * sgint23.h: Defines for the SGI INT2 and INT3 chipsets.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 98, 1999, 2000  Ralf Baechle
+ * Copyright (C) 1997, 98, 1999, 2000 Ralf Baechle
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - INT2 corrections
+ * Copyright (C) 2001 Ladislav Michl (ladis@psi.cz)
  */
 #ifndef _ASM_SGI_SGINT23_H
 #define _ASM_SGI_SGINT23_H
 
 /* These are the virtual IRQ numbers, we divide all IRQ's into
  * 'spaces', the 'space' determines where and how to enable/disable
- * that particular IRQ on an SGI machine.  Add new 'spaces' as new
- * IRQ hardware is supported.
+ * that particular IRQ on an SGI machine. HPC DMA and MC DMA interrups
+ * are not supported this way. Driver is supposed to allocate HPC/MC 
+ * interrupt as shareable and then look to proper status bit (see
+ * HAL2 driver). This will prevent many complications, trust me ;-) 
+ *	--ladis
  */
-#define SGINT_LOCAL0   0   /* INDY has 8 local0 irq levels */
-#define SGINT_LOCAL1   8   /* INDY has 8 local1 irq levels */
-#define SGINT_LOCAL2   16  /* INDY has 8 local2 vectored irq levels */
-#define SGINT_LOCAL3   24  /* INDY has 8 local3 vectored irq levels */
-#define SGINT_GIO      32  /* INDY has 9 GIO irq levels */
-#define SGINT_HPCDMA   41  /* INDY has 11 HPCDMA irq _sources_ */
-#define SGINT_END      52  /* End of 'spaces' */
+#define SGINT_CPU	 0	/* MIPS CPU define 8 interrupt sources */
+#define SGINT_LOCAL0	 8	/* INDY has 8 local0 irq levels */
+#define SGINT_LOCAL1	16	/* INDY has 8 local1 irq levels */
+#define SGINT_LOCAL2	24	/* INDY has 8 local2 vectored irq levels */
+#define SGINT_LOCAL3	32	/* INDY has 8 local3 vectored irq levels */
+#define SGINT_END	40	/* End of 'spaces' */
 
 /*
  * Individual interrupt definitions for the INDY and Indigo2
  */
-#define SGI_WD93_0_IRQ		SGINT_LOCAL0 + 1	/* 1st onboard WD93 */
-#define SGI_WD93_1_IRQ		SGINT_LOCAL0 + 2	/* 2nd onboard WD93 */
-#define SGI_ENET_IRQ		SGINT_LOCAL0 + 3	/* onboard ethernet */
 
-#define SGI_PANEL_IRQ		SGINT_LOCAL1 + 1	/* front panel */
-#define SGI_VINO_IRQ		SGINT_LOCAL1 + 6	/* Indy VINO */
+#define SGI_SOFT_0_IRQ	SGINT_CPU + 0
+#define SGI_SOFT_1_IRQ	SGINT_CPU + 1
+#define SGI_LOCAL_0_IRQ	SGINT_CPU + 2
+#define SGI_LOCAL_1_IRQ	SGINT_CPU + 3
+#define SGI_8254_0_IRQ	SGINT_CPU + 4
+#define SGI_8254_1_IRQ	SGINT_CPU + 5
+#define SGI_BUSERR_IRQ	SGINT_CPU + 6
+#define SGI_TIMER_IRQ	SGINT_CPU + 7
 
-#define SGI_EISA_IRQ		SGINT_LOCAL2 + 3	/* EISA interrupts */
-#define SGI_KEYBOARD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
-#define SGI_SERIAL_IRQ		SGINT_LOCAL2 + 5	/* onboard serial */
+#define SGI_FIFO_IRQ	SGINT_LOCAL0 + 0	/* FIFO full */
+#define SGI_GIO_0_IRQ	SGI_FIFO_IRQ		/* GIO-0 */	
+#define SGI_WD93_0_IRQ	SGINT_LOCAL0 + 1	/* 1st onboard WD93 */
+#define SGI_WD93_1_IRQ	SGINT_LOCAL0 + 2	/* 2nd onboard WD93 */
+#define SGI_ENET_IRQ	SGINT_LOCAL0 + 3	/* onboard ethernet */
+#define SGI_MCDMA_IRQ	SGINT_LOCAL0 + 4	/* MC DMA done */
+#define SGI_PARPORT_IRQ	SGINT_LOCAL0 + 5	/* Parallel port */
+#define SGI_GIO_1_IRQ	SGINT_LOCAL0 + 6	/* GE / GIO-1 / 2nd-HPC */
+#define SGI_MAP_0_IRQ	SGINT_LOCAL0 + 7	/* Mappable interrupt 0 */
+
+#define SGI_GPL0_IRQ	SGINT_LOCAL1 + 0	/* General Purpose LOCAL1_N<0> */
+#define SGI_PANEL_IRQ	SGINT_LOCAL1 + 1	/* front panel */
+#define SGI_GPL2_IRQ	SGINT_LOCAL1 + 2	/* General Purpose LOCAL1_N<2> */
+#define SGI_MAP_1_IRQ	SGINT_LOCAL1 + 3	/* Mappable interrupt 1 */
+#define SGI_HPCDMA_IRQ	SGINT_LOCAL1 + 4	/* HPC DMA done */
+#define SGI_ACFAIL_IRQ	SGINT_LOCAL1 + 5	/* AC fail */
+#define SGI_VINO_IRQ	SGINT_LOCAL1 + 6	/* Indy VINO */
+#define SGI_GIO_2_IRQ	SGINT_LOCAL1 + 7	/* Vert retrace / GIO-2 */
+
+/* Mapped interrupts. These interrupts may be mapped to either 0, or 1
+ * We map them to 0 */
+#define SGI_VERT_IRQ	SGINT_LOCAL2 + 0	/* INT3: newport vertical status */
+#define SGI_EISA_IRQ	SGINT_LOCAL2 + 3	/* EISA interrupts */
+#define SGI_KEYBD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
+#define SGI_SERIAL_IRQ	SGINT_LOCAL2 + 5	/* onboard serial */
 
 /* INT2 occupies HPC PBUS slot 4, INT3 uses slot 6. */
-#define SGI_INT2_BASE 0x1fbd9000 /* physical */
-#define SGI_INT3_BASE 0x1fbd9880 /* physical */
+#define SGI_INT2_BASE	0x1fbd9000	/* physical */
+#define SGI_INT3_BASE	0x1fbd9880	/* physical */
 
 struct sgi_ioc_ints {
 #ifdef __MIPSEB__
 	unsigned char _unused0[3];
-	volatile unsigned char istat0;    /* Interrupt status zero */
+	volatile unsigned char istat0;	/* Interrupt status zero */
 #else
-	volatile unsigned char istat0;    /* Interrupt status zero */
+	volatile unsigned char istat0;	/* Interrupt status zero */
 	unsigned char _unused0[3];
 #endif
-#define ISTAT0_FFULL           0x01
-#define ISTAT0_SCSI0           0x02
-#define ISTAT0_SCSI1           0x04
-#define ISTAT0_ENET            0x08
-#define ISTAT0_GFXDMA          0x10
-#define ISTAT0_LPR             0x20
-#define ISTAT0_HPC2            0x40
-#define ISTAT0_LIO2            0x80
-
+#define ISTAT0_FFULL	0x01
+#define ISTAT0_SCSI0	0x02
+#define ISTAT0_SCSI1	0x04
+#define ISTAT0_ENET	0x08
+#define ISTAT0_GFXDMA	0x10
+#define ISTAT0_LPR	0x20
+#define ISTAT0_HPC2	0x40
+#define ISTAT0_LIO2	0x80
+	
 #ifdef __MIPSEB__
 	unsigned char _unused1[3];
-	volatile unsigned char imask0;    /* Interrupt mask zero */
+	volatile unsigned char imask0;	/* Interrupt mask zero */
 	unsigned char _unused2[3];
-	volatile unsigned char istat1;    /* Interrupt status one */
+	volatile unsigned char istat1;	/* Interrupt status one */
 #else
-	volatile unsigned char imask0;    /* Interrupt mask zero */
+	volatile unsigned char imask0;	/* Interrupt mask zero */
 	unsigned char _unused1[3];
-	volatile unsigned char istat1;    /* Interrupt status one */
+	volatile unsigned char istat1;	/* Interrupt status one */
 	unsigned char _unused2[3];
 #endif
-#define ISTAT1_ISDNI           0x01
-#define ISTAT1_PWR             0x02
-#define ISTAT1_ISDNH           0x04
-#define ISTAT1_LIO3            0x08
-#define ISTAT1_HPC3            0x10
-#define ISTAT1_AFAIL           0x20
-#define ISTAT1_VIDEO           0x40
-#define ISTAT1_GIO2            0x80
-
+#define ISTAT1_ISDNI	0x01
+#define ISTAT1_PWR	0x02
+#define ISTAT1_ISDNH	0x04
+#define ISTAT1_LIO3	0x08
+#define ISTAT1_HPC3	0x10
+#define ISTAT1_AFAIL	0x20
+#define ISTAT1_VIDEO	0x40
+#define ISTAT1_GIO2	0x80
+	
 #ifdef __MIPSEB__
 	unsigned char _unused3[3];
-	volatile unsigned char imask1;    /* Interrupt mask one */
+	volatile unsigned char imask1;		/* Interrupt mask one */
 	unsigned char _unused4[3];
-	volatile unsigned char vmeistat;  /* VME interrupt status */
+	volatile unsigned char vmeistat;	/* VME interrupt status */
 	unsigned char _unused5[3];
-	volatile unsigned char cmeimask0; /* VME interrupt mask zero */
+	volatile unsigned char cmeimask0;	/* VME interrupt mask zero */
 	unsigned char _unused6[3];
-	volatile unsigned char cmeimask1; /* VME interrupt mask one */
+	volatile unsigned char cmeimask1;	/* VME interrupt mask one */
 	unsigned char _unused7[3];
-	volatile unsigned char cmepol;    /* VME polarity */
+	volatile unsigned char cmepol;		/* VME polarity */
 #else
-	volatile unsigned char imask1;    /* Interrupt mask one */
+	volatile unsigned char imask1;		/* Interrupt mask one */
 	unsigned char _unused3[3];
-	volatile unsigned char vmeistat;  /* VME interrupt status */
+	volatile unsigned char vmeistat;	/* VME interrupt status */
 	unsigned char _unused4[3];
-	volatile unsigned char cmeimask0; /* VME interrupt mask zero */
+	volatile unsigned char cmeimask0;	/* VME interrupt mask zero */
 	unsigned char _unused5[3];
-	volatile unsigned char cmeimask1; /* VME interrupt mask one */
+	volatile unsigned char cmeimask1;	/* VME interrupt mask one */
 	unsigned char _unused6[3];
-	volatile unsigned char cmepol;    /* VME polarity */
+	volatile unsigned char cmepol;		/* VME polarity */
 	unsigned char _unused7[3];
 #endif
 };
@@ -108,21 +136,21 @@ struct sgi_ioc_ints {
 struct sgi_ioc_timers {
 #ifdef __MIPSEB__
 	unsigned char _unused0[3];
-	volatile unsigned char tcnt0;  /* counter 0 */
+	volatile unsigned char tcnt0;	/* counter 0 */
 	unsigned char _unused1[3];
-	volatile unsigned char tcnt1;  /* counter 1 */
+	volatile unsigned char tcnt1;	/* counter 1 */
 	unsigned char _unused2[3];
-	volatile unsigned char tcnt2;  /* counter 2 */
+	volatile unsigned char tcnt2;	/* counter 2 */
 	unsigned char _unused3[3];
-	volatile unsigned char tcword; /* control word */
+	volatile unsigned char tcword;	/* control word */
 #else
-	volatile unsigned char tcnt0;  /* counter 0 */
+	volatile unsigned char tcnt0;	/* counter 0 */
 	unsigned char _unused0[3];
-	volatile unsigned char tcnt1;  /* counter 1 */
+	volatile unsigned char tcnt1;	/* counter 1 */
 	unsigned char _unused1[3];
-	volatile unsigned char tcnt2;  /* counter 2 */
+	volatile unsigned char tcnt2;	/* counter 2 */
 	unsigned char _unused2[3];
-	volatile unsigned char tcword; /* control word */
+	volatile unsigned char tcword;	/* control word */
 	unsigned char _unused3[3];
 #endif
 };
@@ -155,23 +183,23 @@ struct sgi_ioc_timers {
 struct sgi_int2_regs {
 	struct sgi_ioc_ints ints;
 
-	volatile u32 ledbits; 		  /* LED control bits */
-#define INT2_LED_TXCLK         0x01       /* GPI to TXCLK enable */
-#define INT2_LED_SERSLCT0      0x02       /* serial port0: 0=apple 1=pc */
-#define INT2_LED_SERSLCT1      0x04       /* serial port1: 0=apple 1=pc */
-#define INT2_LED_CHEAPER       0x08       /* 0=cheapernet 1=ethernet */
-#define INT2_LED_POWEROFF      0x10       /* Power-off request, active high */
+	volatile u32 ledbits;		/* LED control bits */
+#define INT2_LED_TXCLK		0x01	/* GPI to TXCLK enable */
+#define INT2_LED_SERSLCT0	0x02	/* serial port0: 0=apple 1=pc */
+#define INT2_LED_SERSLCT1	0x04	/* serial port1: 0=apple 1=pc */
+#define INT2_LED_CHEAPER	0x08	/* 0=cheapernet 1=ethernet */
+#define INT2_LED_POWEROFF	0x10	/* Power-off request, active high */
 
 #ifdef __MIPSEB__
 	unsigned char _unused0[3];
-	volatile unsigned char tclear;    /* Timer clear strobe address */
+	volatile unsigned char tclear;	/* Timer clear strobe address */
 #else
-	volatile unsigned char tclear;    /* Timer clear strobe address */
+	volatile unsigned char tclear;	/* Timer clear strobe address */
 	unsigned char _unused0[3];
 #endif
-#define INT2_TCLEAR_T0CLR      0x1        /* Clear timer0 IRQ */
-#define INT2_TCLEAR_T1CLR      0x2        /* Clear timer1 IRQ */
-/* I am guessing there are only two unused registers here 
+#define INT2_TCLEAR_T0CLR	0x1	/* Clear timer0 IRQ */
+#define INT2_TCLEAR_T1CLR	0x2	/* Clear timer1 IRQ */
+/* I am guesing there are only two unused registers here 
  * but I could be wrong...			- andrewb
  */
 /*	u32 _unused[3]; */
@@ -184,12 +212,12 @@ struct sgi_int3_regs {
 
 #ifdef __MIPSEB__
 	unsigned char _unused0[3];
-	volatile unsigned char tclear;		/* Timer clear strobe address */
+	volatile unsigned char tclear;	/* Timer clear strobe address */
 #else
-	volatile unsigned char tclear;		/* Timer clear strobe address */
+	volatile unsigned char tclear;	/* Timer clear strobe address */
 	unsigned char _unused0[3];
 #endif
-	volatile u32 estatus;			/* Error status reg */
+	volatile u32 estatus;		/* Error status reg */
 	u32 _unused1[2];
 	struct sgi_ioc_timers timers;
 };
@@ -199,7 +227,5 @@ extern struct sgi_int3_regs *sgi_i3regs;
 extern struct sgi_ioc_ints *ioc_icontrol;
 extern struct sgi_ioc_timers *ioc_timers;
 extern volatile unsigned char *ioc_tclear;
-
-extern void indy_timer_init(void);
 
 #endif /* _ASM_SGI_SGINT23_H */

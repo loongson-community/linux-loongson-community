@@ -12,6 +12,8 @@
 #include <linux/mc146818rtc.h>
 #include <linux/param.h>
 #include <linux/init.h>
+
+#include <asm/time.h>
 #include <asm/mipsregs.h>
 #include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
@@ -22,8 +24,6 @@
 
 extern struct rtc_ops ip32_rtc_ops;
 extern u32 cc_interval;
-
-unsigned long mips_io_port_base = UNCACHEDADDR (MACEPCI_HI_IO);;
 
 #ifdef CONFIG_SGI_O2MACE_ETH
 
@@ -57,6 +57,8 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 }
 #endif
 
+extern void ip32_time_init(void);
+
 void __init ip32_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
@@ -64,6 +66,8 @@ void __init ip32_setup(void)
 #endif
 	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
 	TLBMISS_HANDLER_SETUP ();
+
+	mips_io_port_base = UNCACHEDADDR(MACEPCI_HI_IO);;
 
 #ifdef CONFIG_SERIAL_CONSOLE
 	ctype = ArcGetEnvironmentVariable("console");
@@ -86,6 +90,7 @@ void __init ip32_setup(void)
 #endif
 
 	rtc_ops = &ip32_rtc_ops;
+	board_time_init = ip32_time_init;
 
 	crime_init ();
 }

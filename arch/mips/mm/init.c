@@ -25,9 +25,7 @@
 #include <linux/highmem.h>
 #include <linux/swap.h>
 #include <linux/swapctl.h>
-#ifdef CONFIG_BLK_DEV_INITRD
 #include <linux/blk.h>
-#endif
 
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
@@ -37,9 +35,6 @@
 #include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
-#ifdef CONFIG_SGI_IP22
-#include <asm/sgialib.h>
-#endif
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
 

@@ -98,6 +98,13 @@ static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];
 extern char arcs_cmdline[CL_SIZE];
 
+/*
+ * mips_io_port_base is the begin of the address space to which x86 style
+ * I/O ports are mapped.
+ */
+const unsigned long mips_io_port_base = -1;
+EXPORT_SYMBOL(mips_io_port_base);
+
 extern void ip22_setup(void);
 extern void ip27_setup(void);
 extern void ip32_setup(void);

@@ -734,7 +734,6 @@ int isp2x00_detect(Scsi_Host_Template * tmpt)
  			scsi_set_pci_device(host, pdev);
 			host->max_id = QLOGICFC_MAX_ID + 1;
 			host->max_lun = QLOGICFC_MAX_LUN;
-			host->hostt->use_new_eh_code = 1;
 			hostdata = (struct isp2x00_hostdata *) host->hostdata;
 
 			memset(hostdata, 0, sizeof(struct isp2x00_hostdata));
@@ -1376,7 +1375,7 @@ static void redo_port_db(unsigned long arg)
 	hostdata->explore_timer.data = 0;
 	del_timer(&hostdata->explore_timer);
 
-	spin_lock_irqsave(&io_request_lock, flags);
+	spin_lock_irqsave(&host->host_lock, flags);
 
 	if (hostdata->adapter_state & AS_REDO_FABRIC_PORTDB || hostdata->adapter_state & AS_REDO_LOOP_PORTDB) {
 		isp2x00_make_portdb(host);
@@ -1423,7 +1422,7 @@ static void redo_port_db(unsigned long arg)
 		hostdata->adapter_state = AS_LOOP_GOOD;
 	}
 
-	spin_unlock_irqrestore(&io_request_lock, flags);
+	spin_unlock_irqrestore(&host->host_lock, flags);
 
 }
 
@@ -1431,11 +1430,12 @@ static void redo_port_db(unsigned long arg)
 
 void do_isp2x00_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
+	struct Scsi_Host *host = dev_id;
 	unsigned long flags;
 
-	spin_lock_irqsave(&io_request_lock, flags);
+	spin_lock_irqsave(&host->host_lock, flags);
 	isp2x00_intr_handler(irq, dev_id, regs);
-	spin_unlock_irqrestore(&io_request_lock, flags);
+	spin_unlock_irqrestore(&host->host_lock, flags);
 }
 
 void isp2x00_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
@@ -2042,10 +2042,7 @@ static int isp2x00_init(struct Scsi_Host *sh)
 		return 1;
 	}
 
-	if (!(command & PCI_COMMAND_MASTER)) {
-		printk("qlogicfc%d : bus mastering is disabled\n", hostdata->host_id);
-		return 1;
-	}
+	pci_set_master(pdev);
 	if (revision != ISP2100_REV_ID1 && revision != ISP2100_REV_ID3 && revision != ISP2200_REV_ID5)
 		printk("qlogicfc%d : new isp2x00 revision ID (%d)\n", hostdata->host_id,  revision);
 

@@ -70,14 +70,14 @@ static inline unsigned long read_wd33c93_count(const wd33c93_regs regs)
 	return value;
 }
 
-/* XXX woof! */
 static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
+	struct Scsi_Host * host = (struct Scsi_Host *) dev_id;
 	unsigned long flags;
 
-	spin_lock_irqsave(&io_request_lock, flags);
-	wd33c93_intr((struct Scsi_Host *) dev_id);
-	spin_unlock_irqrestore(&io_request_lock, flags);
+	spin_lock_irqsave(&host->host_lock, flags);
+	wd33c93_intr(host);
+	spin_unlock_irqrestore(&host->host_lock, flags);
 }
 
 #undef DEBUG_DMA

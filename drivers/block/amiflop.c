@@ -174,6 +174,8 @@ static int writepending;
 static int writefromint;
 static char *raw_buf;
 
+static spinlock_t amiflop_lock = SPIN_LOCK_UNLOCKED;
+
 #define RAW_BUF_SIZE 30000  /* size of raw disk data */
 
 /*
@@ -1855,7 +1857,7 @@ int __init amiga_floppy_init(void)
 	post_write_timer.data = 0;
 	post_write_timer.function = post_write;
   
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST, &amiflop_lock);
 	blksize_size[MAJOR_NR] = floppy_blocksizes;
 	blk_size[MAJOR_NR] = floppy_sizes;
 
@@ -1895,10 +1897,9 @@ void cleanup_module(void)
 	free_irq(IRQ_AMIGA_DSKBLK, NULL);
 	custom.dmacon = DMAF_DISK; /* disable DMA */
 	amiga_chip_free(raw_buf);
-	blk_size[MAJOR_NR] = NULL;
-	blksize_size[MAJOR_NR] = NULL;
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	release_mem_region(CUSTOM_PHYSADDR+0x20, 8);
 	unregister_blkdev(MAJOR_NR, "fd");
+	blk_clear(MAJOR_NR);
 }
 #endif

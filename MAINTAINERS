@@ -148,8 +148,8 @@ S:	Supported
 ACPI
 P:	Andy Grover
 M:	andrew.grover@intel.com
-L:	acpi@phobos.fs.tum.de
-W:	http://phobos.fs.tum.de/acpi/index.html
+L:	acpi-devel@lists.sourceforge.net
+W:	http://sf.net/projects/acpi/
 S:	Maintained
 
 AD1816 SOUND DRIVER
@@ -283,6 +283,14 @@ P:	Cirrus Logic Corporation (kernel 2.2 driver)
 M:	Cirrus Logic Corporation, Thomas Woller <twoller@crystal.cirrus.com>
 P:	Nils Faerber (port to kernel 2.4)
 M:	Nils Faerber <nils@kernelconcepts.de>
+S:	Maintained
+
+CODA FILE SYSTEM
+P:	Jan Harkes
+M:	jaharkes@cs.cmu.edu
+M:	coda@cs.cmu.edu
+L:	codalist@coda.cs.cmu.edu
+W:	http://www.coda.cs.cmu.edu/
 S:	Maintained
 
 COMPAQ FIBRE CHANNEL 64-bit/66MHz PCI non-intelligent HBA
@@ -1667,8 +1675,8 @@ S:	Maintained
 W:	http://misc.nu/hugh/keyspan/
 
 USB SUBSYSTEM
-P:	Johannes Erdfelt
-M:	johannes@erdfelt.com
+P:	Greg Kroah-Hartman
+M:	greg@kroah.com
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 W:	http://www.linux-usb.org
@@ -1691,10 +1699,8 @@ S:	Maintained
 
 VIA 82Cxxx AUDIO DRIVER
 P:	Jeff Garzik
-M:	jgarzik@mandrakesoft.com
 L:	linux-via@gtf.org
-W:	http://sourceforge.net/projects/gkernel/
-S:	Maintained
+S:	Odd fixes
 
 USB DIAMOND RIO500 DRIVER
 P:	Cesar Miquel

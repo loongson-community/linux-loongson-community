@@ -3,9 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Reset an IP22.
- *
- * Copyright (C) 1997, 1998, 1999, 2001 by Ralf Baechle
+ * Copyright (C) 1997, 1998, 2001 by Ralf Baechle
  */
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -14,6 +12,8 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
+#include <asm/reboot.h>
+#include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/sgihpc.h>
 #include <asm/sgi/sgint23.h>
@@ -34,36 +34,38 @@
 static unsigned char sgi_volume;
 
 static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
-static int shuting_down, has_paniced;
+static int shuting_down = 0, has_paniced = 0, setup_done = 0;
 
-void machine_restart(char *command) __attribute__((noreturn));
-void machine_halt(void) __attribute__((noreturn));
-void machine_power_off(void) __attribute__((noreturn));
+static void sgi_machine_restart(char *command) __attribute__((noreturn));
+static void sgi_machine_halt(void) __attribute__((noreturn));
+static void sgi_machine_power_off(void) __attribute__((noreturn));
 
 /* XXX How to pass the reboot command to the firmware??? */
-void machine_restart(char *command)
+static void sgi_machine_restart(char *command)
 {
 	if (shuting_down)
-		machine_power_off();
+		sgi_machine_power_off();
 	ArcReboot();
 }
 
-void machine_halt(void)
+static void sgi_machine_halt(void)
 {
 	if (shuting_down)
-		machine_power_off();
+		sgi_machine_power_off();
 	ArcEnterInteractiveMode();
 }
 
-void machine_power_off(void)
+static void sgi_machine_power_off(void)
 {
-	struct indy_clock *clock = (struct indy_clock *)INDY_CLOCK_REGS;
-
+	unsigned char val;
+	
 	cli();
 
-	clock->cmd |= 0x08;	/* Disable watchdog */
-	clock->whsec = 0;
-	clock->wsec = 0;
+	/* Disable watchdog */
+	val = CMOS_READ(RTC_CMD);
+	CMOS_WRITE(val|RTC_WAM, RTC_CMD);
+	CMOS_WRITE(0, RTC_WSEC);
+	CMOS_WRITE(0, RTC_WHSEC);
 
 	while(1) {
 		hpc3mregs->panel=0xfe;
@@ -71,18 +73,18 @@ void machine_power_off(void)
 
 		/* If we're still running, we probably got sent an alarm
 		   interrupt.  Read the flag to clear it.  */
-		clock->halarm;
+		val = CMOS_READ(RTC_HOURS_ALARM);
 	}
 }
 
 static void power_timeout(unsigned long data)
 {
-	machine_power_off();
+	sgi_machine_power_off();
 }
 
 static void blink_timeout(unsigned long data)
 {
-	/* XXX Fix this for Fullhouse  */
+	/* XXX fix this for fullhouse  */
 	sgi_hpc_write1 ^= (HPC3_WRITE1_LC0OFF|HPC3_WRITE1_LC1OFF);
 	hpc3mregs->write1 = sgi_hpc_write1;
 
@@ -104,7 +106,7 @@ static void debounce(unsigned long data)
 	if (has_paniced)
 		ArcReboot();
 
-	enable_irq(9);
+	enable_irq(SGI_PANEL_IRQ);
 }
 
 static inline void power_button(void)
@@ -114,7 +116,7 @@ static inline void power_button(void)
 
 	if (shuting_down || kill_proc(1, SIGINT, 1)) {
 		/* No init process or button pressed twice.  */
-		machine_power_off();
+		sgi_machine_power_off();
 	}
 
 	shuting_down = 1;
@@ -127,7 +129,7 @@ static inline void power_button(void)
 	add_timer(&power_timer);
 }
 
-void inline ip22_volume_set(unsigned char volume)
+void inline sgi_volume_set(unsigned char volume)
 {
 	sgi_volume = volume;
 
@@ -135,7 +137,7 @@ void inline ip22_volume_set(unsigned char volume)
 	hpc3c0->pbus_extregs[2][1] = sgi_volume;
 }
 
-void inline ip22_volume_get(unsigned char *volume)
+void inline sgi_volume_get(unsigned char *volume)
 {
 	*volume = sgi_volume;
 }
@@ -178,17 +180,17 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned int buttons;
 
 	buttons = hpc3mregs->panel;
-	hpc3mregs->panel = 3; /* power_interrupt | power_supply_on */
+	hpc3mregs->panel = 0x03;	/* power_interrupt | power_supply_on */
 
 	if (ioc_icontrol->istat1 & 2) { /* Wait until interrupt goes away */
-		disable_irq(9);
+		disable_irq(SGI_PANEL_IRQ);
 		init_timer(&debounce_timer);
 		debounce_timer.function = debounce;
 		debounce_timer.expires = jiffies + 5;
 		add_timer(&debounce_timer);
 	}
 
-	if (!(buttons & 2))		/* Power button was pressed */
+	if (!(buttons & 0x02))		/* Power button was pressed */
 		power_button();
 	if (!(buttons & 0x40)) {	/* Volume up button was pressed */
 		init_timer(&volume_timer);
@@ -223,15 +225,17 @@ static struct notifier_block panic_block = {
 	0
 };
 
-void ip22_reboot_setup(void)
+void indy_reboot_setup(void)
 {
-	static int setup_done;
-
 	if (setup_done)
 		return;
 	setup_done = 1;
 
-	request_irq(9, panel_int, 0, "Front Panel", NULL);
+	_machine_restart = sgi_machine_restart;
+	_machine_halt = sgi_machine_halt;
+	_machine_power_off = sgi_machine_power_off;
+
+	request_irq(SGI_PANEL_IRQ, panel_int, 0, "Front Panel", NULL);
 	init_timer(&blink_timer);
 	blink_timer.function = blink_timeout;
 	notifier_chain_register(&panic_notifier_list, &panic_block);

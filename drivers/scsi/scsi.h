@@ -386,15 +386,6 @@ extern const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE];
 #define ASKED_FOR_SENSE 0x20
 #define SYNC_RESET      0x40
 
-#if defined(__mc68000__) || defined(CONFIG_APUS)
-#include <asm/pgtable.h>
-#define CONTIGUOUS_BUFFERS(X,Y) \
-	(virt_to_phys((X)->b_data+(X)->b_size-1)+1==virt_to_phys((Y)->b_data))
-#else
-#define CONTIGUOUS_BUFFERS(X,Y) ((X->b_data+X->b_size) == Y->b_data)
-#endif
-
-
 /*
  * This is the crap from the old error handling code.  We have it in a special
  * place so that we can more easily delete it later on.
@@ -448,6 +439,12 @@ extern int  scsi_partsize(struct buffer_head *bh, unsigned long capacity,
                     unsigned int *secs);
 
 /*
+ * sg list allocations
+ */
+struct scatterlist *scsi_alloc_sgtable(Scsi_Cmnd *SCpnt, int gfp_mask);
+void scsi_free_sgtable(struct scatterlist *sgl, int index);
+
+/*
  * Prototypes for functions in scsi_dma.c
  */
 void scsi_resize_dma_pool(void);
@@ -458,8 +455,8 @@ int scsi_free(void *, unsigned int);
 /*
  * Prototypes for functions in scsi_merge.c
  */
-extern void recount_segments(Scsi_Cmnd * SCpnt);
-extern void initialize_merge_fn(Scsi_Device * SDpnt);
+extern void scsi_initialize_merge_fn(Scsi_Device *SDpnt);
+extern int scsi_init_io(Scsi_Cmnd *SCpnt);
 
 /*
  * Prototypes for functions in scsi_queue.c
@@ -564,8 +561,6 @@ struct scsi_device {
 	request_queue_t request_queue;
         atomic_t                device_active; /* commands checked out for device */
 	volatile unsigned short device_busy;	/* commands actually active on low-level */
-	int (*scsi_init_io_fn) (Scsi_Cmnd *);	/* Used to initialize
-						   new request */
 	Scsi_Cmnd *device_queue;	/* queue of SCSI Command structures */
 
 /* public: */

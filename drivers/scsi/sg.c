@@ -336,9 +336,7 @@ static int sg_release(struct inode * inode, struct file * filp)
     Sg_device * sdp;
     Sg_fd * sfp;
 
-    lock_kernel();
     if ((! (sfp = (Sg_fd *)filp->private_data)) || (! (sdp = sfp->parentdp))) {
-	unlock_kernel();
         return -ENXIO;
     }
     SCSI_LOG_TIMEOUT(3, printk("sg_release: dev=%d\n", MINOR(sdp->i_rdev)));
@@ -352,7 +350,6 @@ static int sg_release(struct inode * inode, struct file * filp)
 	sdp->exclude = 0;
 	wake_up_interruptible(&sdp->o_excl_wait);
     }
-    unlock_kernel();
     return 0;
 }
 
@@ -2283,9 +2280,8 @@ static char * sg_low_malloc(int rqSz, int lowDma, int mem_src, int * retSzp)
             rqSz = num_sect * SG_SECTOR_SZ;
         }
         while (num_sect > 0) {
-            if ((num_sect <= sg_pool_secs_avail) &&
-                (scsi_dma_free_sectors > (SG_LOW_POOL_THRESHHOLD + num_sect))) {
-                resp = scsi_malloc(rqSz);
+            if ((num_sect <= sg_pool_secs_avail)) {
+                resp = kmalloc(rqSz, page_mask);
                 if (resp) {
                     if (retSzp) *retSzp = rqSz;
                     sg_pool_secs_avail -= num_sect;
@@ -2377,7 +2373,7 @@ static void sg_low_free(char * buff, int size, int mem_src)
 	{
 	    int num_sect = size / SG_SECTOR_SZ;
 
-	    scsi_free(buff, size);
+	    kfree(buff);
 	    sg_pool_secs_avail += num_sect;
 	}
 	break;
@@ -2684,9 +2680,8 @@ static int sg_proc_debug_info(char * buffer, int * len, off_t * begin,
     max_dev = sg_last_dev();
     PRINT_PROC("dev_max(currently)=%d max_active_device=%d (origin 1)\n",
 	       sg_template.dev_max, max_dev);
-    PRINT_PROC(" scsi_dma_free_sectors=%u sg_pool_secs_aval=%d "
-	       "def_reserved_size=%d\n",
-	       scsi_dma_free_sectors, sg_pool_secs_avail, sg_big_buff);
+    PRINT_PROC(" sg_pool_secs_aval=%d def_reserved_size=%d\n",
+	       sg_pool_secs_avail, sg_big_buff);
     for (j = 0; j < max_dev; ++j) {
 	if ((sdp = sg_get_dev(j))) {
 	    Sg_fd * fp;

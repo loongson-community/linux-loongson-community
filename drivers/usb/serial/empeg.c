@@ -113,12 +113,9 @@ static __devinitdata struct usb_device_id id_table [] = {
 
 MODULE_DEVICE_TABLE (usb, id_table);
 
-struct usb_serial_device_type empeg_device = {
+static struct usb_serial_device_type empeg_device = {
 	name:			"Empeg",
 	id_table:		id_table,
-	needs_interrupt_in:	MUST_HAVE_NOT,	/* must not have an interrupt in endpoint */
-	needs_bulk_in:		MUST_HAVE,	/* must have a bulk in endpoint */
-	needs_bulk_out:		MUST_HAVE,	/* must have a bulk out endpoint */
 	num_interrupt_in:	0,
 	num_bulk_in:		1,
 	num_bulk_out:		1,
@@ -164,12 +161,11 @@ static int empeg_open (struct usb_serial_port *port, struct file *filp)
 	++port->open_count;
 	MOD_INC_USE_COUNT;
 
-	if (!port->active) {
+	if (port->open_count == 1) {
 
 		/* Force default termio settings */
 		empeg_set_termios (port, NULL) ;
 
-		port->active = 1;
 		bytes_in = 0;
 		bytes_out = 0;
 
@@ -221,7 +217,6 @@ static void empeg_close (struct usb_serial_port *port, struct file * filp)
 			/* shutdown our bulk read */
 			usb_unlink_urb (port->read_urb);
 		}
-		port->active = 0;
 		port->open_count = 0;
 	}
 

@@ -382,7 +382,7 @@ static void usb_d_out_complete(struct urb *urb)
 	test_and_clear_bit(buf_nr, &d_out->busy);
 
 	if (urb->status < 0) {
-		if (urb->status != USB_ST_URB_KILLED) {
+		if (urb->status != -ENOENT) {
 			WARN("urb status %d",urb->status);
 			if (d_out->busy == 0) {
 				st5481_usb_pipe_reset(adapter, EP_D_OUT | USB_DIR_OUT, fifo_reseted, adapter);
@@ -673,7 +673,7 @@ static int __devinit st5481_setup_d_out(struct st5481_adapter *adapter)
 				      usb_d_out_complete, adapter);
 }
 
-static void __devexit st5481_release_d_out(struct st5481_adapter *adapter)
+static void st5481_release_d_out(struct st5481_adapter *adapter)
 {
 	struct st5481_d_out *d_out = &adapter->d_out;
 
@@ -723,7 +723,7 @@ int __devinit st5481_setup_d(struct st5481_adapter *adapter)
 	return retval;
 }
 
-void __devexit st5481_release_d(struct st5481_adapter *adapter)
+void st5481_release_d(struct st5481_adapter *adapter)
 {
 	DBG(2,"");
 

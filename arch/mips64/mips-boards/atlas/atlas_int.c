@@ -1,6 +1,6 @@
 /*
  * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
  * ########################################################################
  *
@@ -33,21 +33,13 @@
 #include <asm/irq.h>
 #include <asm/mips-boards/atlas.h>
 #include <asm/mips-boards/atlasint.h>
-#ifdef CONFIG_REMOTE_DEBUG
-#include <asm/gdb-stub.h>
-#endif
+
 
 struct atlas_ictrl_regs *atlas_hw0_icregs
 	= (struct atlas_ictrl_regs *)ATLAS_ICTRL_REGS_BASE;
 
 extern asmlinkage void mipsIRQ(void);
 extern void do_IRQ(int irq, struct pt_regs *regs);
-
-#if 0
-#define DEBUG_INT(x...) printk(x)
-#else
-#define DEBUG_INT(x...)
-#endif
 
 void disable_atlas_irq(unsigned int irq_nr)
 {
@@ -86,52 +78,6 @@ static struct hw_interrupt_type atlas_irq_type = {
 	NULL
 };
 
-int request_irq(unsigned int irq, 
-		void (*handler)(int, void *, struct pt_regs *),
-		unsigned long irqflags, 
-		const char * devname,
-		void *dev_id)
-{  
-        struct irqaction *action;
-
-	DEBUG_INT("request_irq: irq=%d, devname = %s\n", irq, devname);
-
-        if (irq >= ATLASINT_END)
-	        return -EINVAL;
-	if (!handler)
-	        return -EINVAL;
-
-	action = (struct irqaction *)kmalloc(sizeof(struct irqaction), GFP_KERNEL);
-	if(!action)
-	        return -ENOMEM;
-
-	action->handler = handler;
-	action->flags = irqflags;
-	action->mask = 0;
-	action->name = devname;
-	action->dev_id = dev_id;
-	action->next = 0;
-	irq_desc[irq].action = action;
-	enable_atlas_irq(irq);
-
-	return 0;
-}
-
-void free_irq(unsigned int irq, void *dev_id)
-{
-	struct irqaction *action;
-
-	if (irq >= ATLASINT_END) {
-		printk("Trying to free IRQ%d\n",irq);
-		return;
-	}
-
-	action = irq_desc[irq].action;
-	irq_desc[irq].action = NULL;
-	disable_atlas_irq(irq);
-	kfree(action);
-}
-
 static inline int ls1bit32(unsigned int x)
 {
 	int b = 31, s;
@@ -160,11 +106,9 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	irq = ls1bit32(int_status);
 	action = irq_desc[irq].action;
 
-	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
-
 	/* if action == NULL, then we don't have a handler for the irq */
 	if (action == NULL) {
-	        printk("No handler for hw0 irq: %i\n", irq);
+		printk("No handler for hw0 irq: %i\n", irq);
 		atomic_inc(&irq_err_count);
 		return;
 	}
@@ -176,22 +120,6 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 
 	return;		
 }
-
-unsigned long probe_irq_on (void)
-{
-	return 0;
-}
-
-
-int probe_irq_off (unsigned long irqs)
-{
-	return 0;
-}
-
-#ifdef CONFIG_REMOTE_DEBUG
-extern void breakpoint(void);
-extern int remote_debug;
-#endif
 
 void __init init_IRQ(void)
 {
@@ -212,11 +140,4 @@ void __init init_IRQ(void)
 		irq_desc[i].depth	= 1;
 		irq_desc[i].handler	= &atlas_irq_type;
 	}
-
-#ifdef CONFIG_REMOTE_DEBUG
-	if (remote_debug) {
-		set_debug_traps();
-		breakpoint();
-	}
-#endif
 }

@@ -47,7 +47,7 @@ atomic_t page_cache_size = ATOMIC_INIT(0);
 unsigned int page_hash_bits;
 struct page **page_hash_table;
 
-spinlock_t pagecache_lock ____cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
+spinlock_t pagecache_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 /*
  * NOTE: to avoid deadlocking you must never acquire the pagemap_lru_lock 
  *	with the pagecache_lock held.
@@ -57,7 +57,7 @@ spinlock_t pagecache_lock ____cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
  *		pagemap_lru_lock ->
  *			pagecache_lock
  */
-spinlock_t pagemap_lru_lock ____cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
+spinlock_t pagemap_lru_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 
 #define CLUSTER_PAGES		(1 << page_cluster)
 #define CLUSTER_OFFSET(x)	(((x) >> page_cluster) << page_cluster)
@@ -935,7 +935,6 @@ struct page * find_or_create_page(struct address_space *mapping, unsigned long i
 	spin_unlock(&pagecache_lock);
 	if (!page) {
 		struct page *newpage = alloc_page(gfp_mask);
-		page = ERR_PTR(-ENOMEM);
 		if (newpage) {
 			spin_lock(&pagecache_lock);
 			page = __find_lock_page_helper(mapping, index, *hash);
@@ -1486,8 +1485,8 @@ static ssize_t generic_file_direct_IO(int rw, struct file * filp, char * buf, si
 	ssize_t retval;
 	int new_iobuf, chunk_size, blocksize_mask, blocksize, blocksize_bits, iosize, progress;
 	struct kiobuf * iobuf;
-	struct inode * inode = filp->f_dentry->d_inode;
-	struct address_space * mapping = inode->i_mapping;
+	struct address_space * mapping = filp->f_dentry->d_inode->i_mapping;
+	struct inode * inode = mapping->host;
 
 	new_iobuf = 0;
 	iobuf = filp->f_iobuf;
@@ -2848,7 +2847,7 @@ generic_file_write(struct file *file,const char *buf,size_t count, loff_t *ppos)
 	unsigned long	limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
 	loff_t		pos;
 	struct page	*page, *cached_page;
-	unsigned long	written;
+	ssize_t		written;
 	long		status = 0;
 	int		err;
 	unsigned	bytes;

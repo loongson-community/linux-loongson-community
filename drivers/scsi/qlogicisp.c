@@ -970,11 +970,12 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 
 void do_isp1020_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
+	struct Scsi_Host *host = dev_id;
 	unsigned long flags;
 
-	spin_lock_irqsave(&io_request_lock, flags);
+	spin_lock_irqsave(&host->host_lock, flags);
 	isp1020_intr_handler(irq, dev_id, regs);
-	spin_unlock_irqrestore(&io_request_lock, flags);
+	spin_unlock_irqrestore(&host->host_lock, flags);
 }
 
 void isp1020_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
@@ -1403,11 +1404,6 @@ static int isp1020_init(struct Scsi_Host *sh)
 	command &= ~PCI_COMMAND_MEMORY; 
 #endif
 
-	if (!(command & PCI_COMMAND_MASTER)) {
-		printk("qlogicisp : bus mastering is disabled\n");
-		return 1;
-	}
-
 	sh->io_port = io_base;
 
 	if (!request_region(sh->io_port, 0xff, "qlogicisp")) {
@@ -1471,6 +1467,8 @@ static int isp1020_init(struct Scsi_Host *sh)
 		printk("qlogicisp : can't allocate request queue\n");
 		goto out_unmap;
 	}
+
+	pci_set_master(pdev);
 
 	LEAVE("isp1020_init");
 

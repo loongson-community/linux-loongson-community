@@ -173,12 +173,9 @@ static void ftdi_sio_break_ctl		(struct usb_serial_port *port, int break_state )
 /* Should rename most ftdi_sio's to ftdi_ now since there are two devices 
    which share common code */ 
 
-struct usb_serial_device_type ftdi_sio_device = {
+static struct usb_serial_device_type ftdi_sio_device = {
 	name:			"FTDI SIO",
 	id_table:		id_table_sio,
-	needs_interrupt_in:	MUST_HAVE_NOT,
-	needs_bulk_in:		MUST_HAVE,
-	needs_bulk_out:		MUST_HAVE,
 	num_interrupt_in:	0,
 	num_bulk_in:		1,
 	num_bulk_out:		1,
@@ -196,12 +193,9 @@ struct usb_serial_device_type ftdi_sio_device = {
         shutdown:               ftdi_sio_shutdown,
 };
 
-struct usb_serial_device_type ftdi_8U232AM_device = {
+static struct usb_serial_device_type ftdi_8U232AM_device = {
 	name:			"FTDI 8U232AM",
 	id_table:		id_table_8U232AM,
-	needs_interrupt_in:	DONT_CARE,
-	needs_bulk_in:		MUST_HAVE,
-	needs_bulk_out:		MUST_HAVE,
 	num_interrupt_in:	0,
 	num_bulk_in:		1,
 	num_bulk_out:		1,
@@ -327,9 +321,7 @@ static int  ftdi_sio_open (struct usb_serial_port *port, struct file *filp)
 	MOD_INC_USE_COUNT;
 	++port->open_count;
 
-	if (!port->active){
-		port->active = 1;
-
+	if (port->open_count == 1){
 		/* This will push the characters through immediately rather 
 		   than queue a task to deliver them */
 		port->tty->low_latency = 1;
@@ -410,7 +402,6 @@ static void ftdi_sio_close (struct usb_serial_port *port, struct file *filp)
 			usb_unlink_urb (port->write_urb);
 			usb_unlink_urb (port->read_urb);
 		}
-		port->active = 0;
 		port->open_count = 0;
 	} else {  
 		/* Send a HUP if necessary */
@@ -660,7 +651,7 @@ static void ftdi_sio_read_bulk_callback (struct urb *urb)
 } /* ftdi_sio_serial_read_bulk_callback */
 
 
-__u16 translate_baudrate_to_ftdi(unsigned int cflag, ftdi_type_t ftdi_type) 
+static __u16 translate_baudrate_to_ftdi(unsigned int cflag, ftdi_type_t ftdi_type) 
 { /* translate_baudrate_to_ftdi */
 	
 	__u16 urb_value = ftdi_sio_b9600;

@@ -280,16 +280,11 @@ typedef struct	SHT
     unsigned use_clustering:1;
 
     /*
-     * True if this driver uses the new error handling code.  This flag is
-     * really only temporary until all of the other drivers get converted
-     * to use the new error handling code.
-     */
-    unsigned use_new_eh_code:1;
-
-    /*
      * True for emulated SCSI host adapters (e.g. ATAPI)
      */
     unsigned emulated:1;
+
+    unsigned highmem_io:1;
 
     /*
      * Name of proc directory
@@ -317,6 +312,7 @@ struct Scsi_Host
     struct Scsi_Host      * next;
     Scsi_Device           * host_queue;
 
+    spinlock_t		  host_lock;
 
     struct task_struct    * ehandler;  /* Error recovery thread. */
     struct semaphore      * eh_wait;   /* The error recovery thread waits on
@@ -337,7 +333,6 @@ struct Scsi_Host
     unsigned short host_no;  /* Used for IOCTL_GET_IDLUN, /proc/scsi et al. */
     int resetting; /* if set, it means that last_reset is a valid value */
     unsigned long last_reset;
-
 
     /*
      *	These three parameters can be used to allow for wide scsi,
@@ -390,6 +385,7 @@ struct Scsi_Host
     unsigned in_recovery:1;
     unsigned unchecked_isa_dma:1;
     unsigned use_clustering:1;
+    unsigned highmem_io:1;
     /*
      * True if this host was loaded as a loadable module
      */

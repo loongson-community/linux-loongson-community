@@ -166,6 +166,8 @@ static int pd_drive_count;
 
 #include <asm/uaccess.h>
 
+static spinlock_t pd_lock = SPIN_LOCK_UNLOCKED;
+
 #ifndef MODULE
 
 #include "setup.h"
@@ -287,7 +289,6 @@ static void pd_eject( int unit);
 static struct hd_struct pd_hd[PD_DEVS];
 static int pd_sizes[PD_DEVS];
 static int pd_blocksizes[PD_DEVS];
-static int pd_maxsectors[PD_DEVS];
 
 #define PD_NAMELEN	8
 
@@ -330,7 +331,6 @@ static int pd_run;			/* sectors in current cluster */
 static int pd_cmd;			/* current command READ/WRITE */
 static int pd_unit;			/* unit of current request */
 static int pd_dev;			/* minor of current request */
-static int pd_poffs;			/* partition offset of current minor */
 static char * pd_buf;                   /* buffer for request in progress */
 
 static DECLARE_WAIT_QUEUE_HEAD(pd_wait_open);
@@ -396,7 +396,8 @@ int pd_init (void)
                 return -1;
         }
 	q = BLK_DEFAULT_QUEUE(MAJOR_NR);
-	blk_init_queue(q, DEVICE_REQUEST);
+	blk_init_queue(q, DEVICE_REQUEST, &pd_lock);
+	blk_queue_max_sectors(q, cluster);
         read_ahead[MAJOR_NR] = 8;       /* 8 sector (4kB) read ahead */
         
 	pd_gendisk.major = major;
@@ -405,9 +406,6 @@ int pd_init (void)
 
 	for(i=0;i<PD_DEVS;i++) pd_blocksizes[i] = 1024;
 	blksize_size[MAJOR_NR] = pd_blocksizes;
-
-	for(i=0;i<PD_DEVS;i++) pd_maxsectors[i] = cluster;
-	max_sectors[MAJOR_NR] = pd_maxsectors;
 
 	printk("%s: %s version %s, major %d, cluster %d, nice %d\n",
 		name,name,PD_VERSION,major,cluster,nice);
@@ -444,41 +442,41 @@ static int pd_open (struct inode *inode, struct file *file)
 
 static int pd_ioctl(struct inode *inode,struct file *file,
                     unsigned int cmd, unsigned long arg)
+{
+	struct hd_geometry *geo = (struct hd_geometry *) arg;
+	int err, unit;
 
-{       struct hd_geometry *geo = (struct hd_geometry *) arg;
-        int dev, err, unit;
-
-        if ((!inode) || (!inode->i_rdev)) return -EINVAL;
-        dev = MINOR(inode->i_rdev);
+	if (!inode || !inode->i_rdev)
+		return -EINVAL;
 	unit = DEVICE_NR(inode->i_rdev);
-        if (dev >= PD_DEVS) return -EINVAL;
-	if (!PD.present) return -ENODEV;
+	if (!PD.present)
+		return -ENODEV;
 
-        switch (cmd) {
+	switch (cmd) {
 	    case CDROMEJECT:
 		if (PD.access == 1) pd_eject(unit);
 		return 0;
-            case HDIO_GETGEO:
-                if (!geo) return -EINVAL;
-                err = verify_area(VERIFY_WRITE,geo,sizeof(*geo));
-                if (err) return err;
+	    case HDIO_GETGEO:
+		if (!geo) return -EINVAL;
+		err = verify_area(VERIFY_WRITE,geo,sizeof(*geo));
+		if (err) return err;
 
 		if (PD.alt_geom) {
-                    put_user(PD.capacity/(PD_LOG_HEADS*PD_LOG_SECTS), 
+		    put_user(PD.capacity/(PD_LOG_HEADS*PD_LOG_SECTS), 
 		    		(short *) &geo->cylinders);
-                    put_user(PD_LOG_HEADS, (char *) &geo->heads);
-                    put_user(PD_LOG_SECTS, (char *) &geo->sectors);
+		    put_user(PD_LOG_HEADS, (char *) &geo->heads);
+		    put_user(PD_LOG_SECTS, (char *) &geo->sectors);
 		} else {
-                    put_user(PD.cylinders, (short *) &geo->cylinders);
-                    put_user(PD.heads, (char *) &geo->heads);
-                    put_user(PD.sectors, (char *) &geo->sectors);
+		    put_user(PD.cylinders, (short *) &geo->cylinders);
+		    put_user(PD.heads, (char *) &geo->heads);
+		    put_user(PD.sectors, (char *) &geo->sectors);
 		}
-                put_user(pd_hd[dev].start_sect,(long *)&geo->start);
-                return 0;
-            case BLKRRPART:
+		put_user(get_start_sect(inode->i_rdev), (long *)&geo->start);
+		return 0;
+	    case BLKRRPART:
 		if (!capable(CAP_SYS_ADMIN))
 			return -EACCES;
-                return pd_revalidate(inode->i_rdev);
+		return pd_revalidate(inode->i_rdev);
 	    case BLKGETSIZE:
 	    case BLKGETSIZE64:
 	    case BLKROSET:
@@ -488,9 +486,9 @@ static int pd_ioctl(struct inode *inode,struct file *file,
 	    case BLKFLSBUF:
 	    case BLKPG:
 		return blk_ioctl(inode->i_rdev, cmd, arg);
-            default:
-                return -EINVAL;
-        }
+	    default:
+		return -EINVAL;
+	}
 }
 
 static int pd_release (struct inode *inode, struct file *file)
@@ -526,36 +524,32 @@ static int pd_check_media( kdev_t dev)
 }
 
 static int pd_revalidate(kdev_t dev)
+{
+	int unit, res;
+	long flags;
 
-{       int p, unit, minor;
-        long flags;
+	unit = DEVICE_NR(dev);
+	if ((unit >= PD_UNITS) || !PD.present)
+		return -ENODEV;
 
-        unit = DEVICE_NR(dev);
-        if ((unit >= PD_UNITS) || (!PD.present)) return -ENODEV;
+	save_flags(flags);
+	cli(); 
+	if (PD.access > 1) {
+		restore_flags(flags);
+		return -EBUSY;
+	}
+	pd_valid = 0;
+	restore_flags(flags);   
 
-        save_flags(flags);
-        cli(); 
-        if (PD.access > 1) {
-                restore_flags(flags);
-                return -EBUSY;
-        }
-        pd_valid = 0;
-        restore_flags(flags);   
+	res = wipe_partitions(dev);
 
-        for (p=(PD_PARTNS-1);p>=0;p--) {
-		minor = p + unit*PD_PARTNS;
-                invalidate_device(MKDEV(MAJOR_NR, minor), 1);
-                pd_hd[minor].start_sect = 0;
-                pd_hd[minor].nr_sects = 0;
-        }
+	if (res == 0 && pd_identify(unit))
+		grok_partitions(dev, PD.capacity);
 
-	if (pd_identify(unit))
-		grok_partitions(&pd_gendisk,unit,1<<PD_BITS,PD.capacity);
-
-        pd_valid = 1;
-        wake_up(&pd_wait_open);
-
-        return 0;
+	pd_valid = 1;
+	wake_up(&pd_wait_open);
+ 
+        return res;
 }
 
 #ifdef MODULE
@@ -580,15 +574,13 @@ void    cleanup_module(void)
 {
 	int unit;
 
-        devfs_unregister_blkdev(MAJOR_NR,name);
+	devfs_unregister_blkdev(MAJOR_NR, name);
 	del_gendisk(&pd_gendisk);
 
-	for (unit=0;unit<PD_UNITS;unit++) 
-	   if (PD.present) pi_release(PI);
-
-	max_sectors[MAJOR_NR] = NULL;
+	for (unit=0; unit<PD_UNITS; unit++) 
+		if (PD.present)
+			pi_release(PI);
 }
-
 #endif
 
 #define	WR(c,r,v)	pi_write_regr(PI,c,r,v)
@@ -848,8 +840,7 @@ static int pd_ready( void )
 }
 
 static void do_pd_request (request_queue_t * q)
-
-{       struct buffer_head * bh;
+{
 	int	unit;
 
         if (pd_busy) return;
@@ -863,17 +854,13 @@ repeat:
         pd_run = CURRENT->nr_sectors;
         pd_count = CURRENT->current_nr_sectors;
 
-	bh = CURRENT->bh;
-
         if ((pd_dev >= PD_DEVS) || 
 	    ((pd_block+pd_count) > pd_hd[pd_dev].nr_sects)) {
                 end_request(0);
                 goto repeat;
         }
 
-	pd_cmd = CURRENT->cmd;
-	pd_poffs = pd_hd[pd_dev].start_sect;
-        pd_block += pd_poffs;
+	pd_cmd = rq_data_dir(CURRENT);
         pd_buf = CURRENT->buffer;
         pd_retries = 0;
 
@@ -890,25 +877,25 @@ static void pd_next_buf( int unit )
 
 {	long	saved_flags;
 
-	spin_lock_irqsave(&io_request_lock,saved_flags);
+	spin_lock_irqsave(&pd_lock,saved_flags);
 	end_request(1);
-	if (!pd_run) {  spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	if (!pd_run) {  spin_unlock_irqrestore(&pd_lock,saved_flags);
 			return; 
 	}
 	
 /* paranoia */
 
 	if (QUEUE_EMPTY ||
-	    (CURRENT->cmd != pd_cmd) ||
+	    (rq_data_dir(CURRENT) != pd_cmd) ||
 	    (MINOR(CURRENT->rq_dev) != pd_dev) ||
 	    (CURRENT->rq_status == RQ_INACTIVE) ||
-	    (CURRENT->sector+pd_poffs != pd_block)) 
+	    (CURRENT->sector != pd_block)) 
 		printk("%s: OUCH: request list changed unexpectedly\n",
 			PD.name);
 
 	pd_count = CURRENT->current_nr_sectors;
 	pd_buf = CURRENT->buffer;
-	spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	spin_unlock_irqrestore(&pd_lock,saved_flags);
 }
 
 static void do_pd_read( void )
@@ -931,11 +918,11 @@ static void do_pd_read_start( void )
                         pi_do_claimed(PI,do_pd_read_start);
 			return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pd_lock,saved_flags);
                 end_request(0);
                 pd_busy = 0;
 		do_pd_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pd_lock,saved_flags);
                 return;
         }
         pd_ide_command(unit,IDE_READ,pd_block,pd_run);
@@ -955,11 +942,11 @@ static void do_pd_read_drq( void )
                         pi_do_claimed(PI,do_pd_read_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pd_lock,saved_flags);
                 end_request(0);
                 pd_busy = 0;
 		do_pd_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pd_lock,saved_flags);
                 return;
             }
             pi_read_block(PI,pd_buf,512);
@@ -970,11 +957,11 @@ static void do_pd_read_drq( void )
 	    if (!pd_count) pd_next_buf(unit);
         }
         pi_disconnect(PI);
-	spin_lock_irqsave(&io_request_lock,saved_flags);
+	spin_lock_irqsave(&pd_lock,saved_flags);
         end_request(1);
         pd_busy = 0;
 	do_pd_request(NULL);
-	spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	spin_unlock_irqrestore(&pd_lock,saved_flags);
 }
 
 static void do_pd_write( void )
@@ -997,11 +984,11 @@ static void do_pd_write_start( void )
 			pi_do_claimed(PI,do_pd_write_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pd_lock,saved_flags);
                 end_request(0);
                 pd_busy = 0;
 		do_pd_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pd_lock,saved_flags);
                 return;
         }
         pd_ide_command(unit,IDE_WRITE,pd_block,pd_run);
@@ -1013,11 +1000,11 @@ static void do_pd_write_start( void )
                         pi_do_claimed(PI,do_pd_write_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pd_lock,saved_flags);
                 end_request(0);
                 pd_busy = 0;
 		do_pd_request(NULL);
-                spin_unlock_irqrestore(&io_request_lock,saved_flags);
+                spin_unlock_irqrestore(&pd_lock,saved_flags);
 		return;
             }
             pi_write_block(PI,pd_buf,512);
@@ -1042,19 +1029,19 @@ static void do_pd_write_done( void )
                         pi_do_claimed(PI,do_pd_write_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pd_lock,saved_flags);
                 end_request(0);
                 pd_busy = 0;
 		do_pd_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pd_lock,saved_flags);
                 return;
         }
         pi_disconnect(PI);
-	spin_lock_irqsave(&io_request_lock,saved_flags);
+	spin_lock_irqsave(&pd_lock,saved_flags);
         end_request(1);
         pd_busy = 0;
 	do_pd_request(NULL);
-	spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	spin_unlock_irqrestore(&pd_lock,saved_flags);
 }
 
 /* end of pd.c */

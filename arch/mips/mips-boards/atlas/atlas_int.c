@@ -116,9 +116,9 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
 
 	/* if action == NULL, then we don't have a handler for the irq */
-	if ( action == NULL ) {
+	if (action == NULL) {
 		printk("No handler for hw0 irq: %i\n", irq);
-		irq_err_count++;
+		atomic_inc(&irq_err_count);
 		return;
 	}
 

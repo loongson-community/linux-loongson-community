@@ -118,9 +118,6 @@ static void pl2303_shutdown (struct usb_serial *serial);
 static struct usb_serial_device_type pl2303_device = {
 	name:			"PL-2303",
 	id_table:		id_table,
-	needs_interrupt_in:	DONT_CARE,		/* this device must have an interrupt in endpoint */
-	needs_bulk_in:		MUST_HAVE,		/* this device must have a bulk in endpoint */
-	needs_bulk_out:		MUST_HAVE,		/* this device must have a bulk out endpoint */
 	num_interrupt_in:	NUM_DONT_CARE,
 	num_bulk_in:		1,
 	num_bulk_out:		1,
@@ -374,9 +371,7 @@ static int pl2303_open (struct usb_serial_port *port, struct file *filp)
 	++port->open_count;
 	MOD_INC_USE_COUNT;
 
-	if (!port->active) {
-		port->active = 1;
-
+	if (port->open_count == 1) {
 #define FISH(a,b,c,d)									\
 		result=usb_control_msg(serial->dev, usb_rcvctrlpipe(serial->dev,0),	\
 				       b, a, c, d, buf, 1, 100);			\
@@ -481,8 +476,6 @@ static void pl2303_close (struct usb_serial_port *port, struct file *filp)
 				     "(interrupt_in_urb) failed with reason: %d",
 				     result);
 		}
-
-		port->active = 0;
 		port->open_count = 0;
 	}
 
@@ -651,7 +644,7 @@ static void pl2303_read_bulk_callback (struct urb *urb)
 
 	if (urb->status) {
 		dbg (__FUNCTION__ " - urb->status = %d", urb->status);
-		if (!port->active) {
+		if (!port->open_count) {
 			dbg (__FUNCTION__ " - port is closed, exiting.");
 			return;
 		}
@@ -683,7 +676,7 @@ static void pl2303_read_bulk_callback (struct urb *urb)
 	}
 
 	/* Schedule the next read _if_ we are still open */
-	if (port->active) {
+	if (port->open_count) {
 		urb->dev = serial->dev;
 		result = usb_submit_urb(urb);
 		if (result)

@@ -77,7 +77,6 @@ tapeblock_setup(tape_info_t* ti) {
     blksize_size[tapeblock_major][ti->blk_minor]=2048; // blocks are 2k by default.
     hardsect_size[tapeblock_major][ti->blk_minor]=512;
     blk_init_queue (&ti->request_queue, tape_request_fn); 
-    blk_queue_headactive (&ti->request_queue, 0); 
 #ifdef CONFIG_DEVFS_FS
     tapeblock_mkdevfstree(ti);
 #endif
@@ -366,12 +365,14 @@ do_tape_request (request_queue_t * queue) {
 static void
 run_tapeblock_exec_IO (tape_info_t* ti) {
     long flags_390irq,flags_ior;
-    spin_lock_irqsave (&io_request_lock, flags_ior);
+    request_queue_t *q = &tape->request_queue;
+
+    spin_lock_irqsave (&q->queue_lock, flags_ior);
     s390irq_spin_lock_irqsave(ti->devinfo.irq,flags_390irq);
     atomic_set(&ti->bh_scheduled,0);
     tapeblock_exec_IO(ti);
     s390irq_spin_unlock_irqrestore(ti->devinfo.irq,flags_390irq);
-    spin_unlock_irqrestore (&io_request_lock, flags_ior);
+    spin_unlock_irqrestore (&q->queue_lock, flags_ior);
 }
 
 void

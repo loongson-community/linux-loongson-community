@@ -1,5 +1,7 @@
+#include <linux/pagemap.h>
+
 /*
- * add_partition adds a partitions details to the devices partition
+ * add_gd_partition adds a partitions details to the devices partition
  * description.
  */
 void add_gd_partition(struct gendisk *hd, int minor, int start, int size);

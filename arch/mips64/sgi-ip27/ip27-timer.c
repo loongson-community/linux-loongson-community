@@ -12,6 +12,7 @@
 #include <linux/timex.h>
 #include <linux/mm.h>		
 
+#include <asm/time.h>
 #include <asm/pgtable.h>
 #include <asm/sgialib.h>
 #include <asm/sn/ioc3.h>
@@ -140,55 +141,11 @@ again:
 		do_softirq();
 }
 
-unsigned long inline do_gettimeoffset(void)
+unsigned long ip27_do_gettimeoffset(void)
 {
 	unsigned long ct_cur1;
 	ct_cur1 = REMOTE_HUB_L(cputonasid(0), PI_RT_COUNT) + CYCLES_PER_JIFFY;
 	return (ct_cur1 - ct_cur[0]) * NSEC_PER_CYCLE / 1000;
-}
-
-void do_gettimeofday(struct timeval *tv)
-{
-	unsigned long flags;
-	unsigned long usec, sec;
-
-	read_lock_irqsave(&xtime_lock, flags);
-	usec = do_gettimeoffset();
-	{
-		unsigned long lost = jiffies - wall_jiffies;
-		if (lost)
-			usec += lost * (1000000 / HZ);
-	}
-	sec = xtime.tv_sec;
-	usec += xtime.tv_usec;
-	read_unlock_irqrestore(&xtime_lock, flags);
-
-	while (usec >= 1000000) {
-		usec -= 1000000;
-		sec++;
-	}
-
-	tv->tv_sec = sec;
-	tv->tv_usec = usec;
-}
-
-void do_settimeofday(struct timeval *tv)
-{
-	write_lock_irq(&xtime_lock);
-	tv->tv_usec -= do_gettimeoffset();
-	tv->tv_usec -= (jiffies - wall_jiffies) * (1000000 / HZ);
-
-	while (tv->tv_usec < 0) {
-		tv->tv_usec += 1000000;
-		tv->tv_sec--;
-	}
-
-	xtime = *tv;
-	time_adjust = 0;		/* stop active adjtime() */
-	time_status |= STA_UNSYNC;
-	time_maxerror = NTP_PHASE_LIMIT;
-	time_esterror = NTP_PHASE_LIMIT;
-	write_unlock_irq(&xtime_lock);
 }
 
 /* Includes for ioc3_init().  */
@@ -229,10 +186,12 @@ static __init unsigned long get_m48t35_time(void)
         return mktime(year, month, date, hour, min, sec);
 }
 
-void __init time_init(void)
+void __init ip27_time_init(void)
 {
 	xtime.tv_sec = get_m48t35_time();
 	xtime.tv_usec = 0;
+
+	do_gettimeoffset = ip27_do_gettimeoffset;
 }
 
 void __init cpu_time_init(void)

@@ -41,7 +41,7 @@ static const char *version =
 #include <linux/ptrace.h>
 #include <linux/ioport.h>
 #include <linux/in.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
@@ -57,7 +57,6 @@ static const char *version =
 #include <linux/pci.h>
 #include <linux/proc_fs.h>
 #include <asm/byteorder.h>
-
 
 /*
  * The name of the card. Is used for messages and in the requests for

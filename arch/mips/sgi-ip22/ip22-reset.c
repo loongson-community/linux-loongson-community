@@ -45,7 +45,7 @@ static void sgi_machine_restart(char *command)
 {
 	if (shuting_down)
 		sgi_machine_power_off();
-	prom_reboot();
+	ArcReboot();
 }
 
 static void sgi_machine_halt(void)
@@ -104,7 +104,7 @@ static void debounce(unsigned long data)
 	}
 
 	if (has_paniced)
-		prom_reboot();
+		ArcReboot();
 
 	enable_irq(SGI_PANEL_IRQ);
 }

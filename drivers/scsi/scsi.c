@@ -55,6 +55,7 @@
 #include <linux/init.h>
 #include <linux/smp_lock.h>
 #include <linux/completion.h>
+#include <linux/mempool.h>
 
 #define __KERNEL_SYSCALLS__
 
@@ -82,6 +83,18 @@ struct proc_dir_entry *proc_scsi;
 static int scsi_proc_info(char *buffer, char **start, off_t offset, int length);
 static void scsi_dump_status(int level);
 #endif
+
+#define SG_MEMPOOL_NR		5
+#define SG_MEMPOOL_SIZE		32
+
+struct scsi_host_sg_pool {
+	int size;
+	kmem_cache_t *slab;
+	mempool_t *pool;
+};
+
+static const int scsi_host_sg_pool_sizes[SG_MEMPOOL_NR] = { 8, 16, 32, 64, MAX_PHYS_SEGMENTS };
+struct scsi_host_sg_pool scsi_sg_pools[SG_MEMPOOL_NR];
 
 /*
    static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/scsi.c,v 1.38 1997/01/19 23:07:18 davem Exp $";
@@ -151,14 +164,6 @@ extern void scsi_times_out(Scsi_Cmnd * SCpnt);
 void scsi_build_commandblocks(Scsi_Device * SDpnt);
 
 /*
- * These are the interface to the old error handling code.  It should go away
- * someday soon.
- */
-extern void scsi_old_done(Scsi_Cmnd * SCpnt);
-extern void scsi_old_times_out(Scsi_Cmnd * SCpnt);
-
-
-/*
  * Function:    scsi_initialize_queue()
  *
  * Purpose:     Selects queue handler function for a device.
@@ -186,10 +191,25 @@ extern void scsi_old_times_out(Scsi_Cmnd * SCpnt);
  *              handler in the list - ultimately they call scsi_request_fn
  *              to do the dirty deed.
  */
-void  scsi_initialize_queue(Scsi_Device * SDpnt, struct Scsi_Host * SHpnt) {
-	blk_init_queue(&SDpnt->request_queue, scsi_request_fn);
-        blk_queue_headactive(&SDpnt->request_queue, 0);
-        SDpnt->request_queue.queuedata = (void *) SDpnt;
+void  scsi_initialize_queue(Scsi_Device * SDpnt, struct Scsi_Host * SHpnt)
+{
+	request_queue_t *q = &SDpnt->request_queue;
+
+	blk_init_queue(q, scsi_request_fn, &SHpnt->host_lock);
+	q->queuedata = (void *) SDpnt;
+
+	/* Hardware imposed limit. */
+	blk_queue_max_hw_segments(q, SHpnt->sg_tablesize);
+
+	/*
+	 * When we remove scsi_malloc soonish, this can die too
+	 */
+	blk_queue_max_phys_segments(q, PAGE_SIZE / sizeof(struct scatterlist));
+
+	blk_queue_max_sectors(q, SHpnt->max_sectors);
+
+	if (!SHpnt->use_clustering)
+		clear_bit(QUEUE_FLAG_CLUSTER, &q->queue_flags);
 }
 
 #ifdef MODULE
@@ -227,9 +247,8 @@ static void scsi_wait_done(Scsi_Cmnd * SCpnt)
 	req = &SCpnt->request;
 	req->rq_status = RQ_SCSI_DONE;	/* Busy, but indicate request done */
 
-	if (req->waiting != NULL) {
+	if (req->waiting)
 		complete(req->waiting);
-	}
 }
 
 /*
@@ -620,8 +639,6 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 	unsigned long flags = 0;
 	unsigned long timeout;
 
-	ASSERT_LOCK(&io_request_lock, 0);
-
 #if DEBUG
 	unsigned long *ret = 0;
 #ifdef __mips__
@@ -632,6 +649,8 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 #endif
 
 	host = SCpnt->host;
+
+	ASSERT_LOCK(&host->host_lock, 0);
 
 	/* Assign a unique nonzero serial_number. */
 	if (++serial_number == 0)
@@ -660,12 +679,8 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 			mdelay(1 + 999 / HZ);
 		host->resetting = 0;
 	}
-	if (host->hostt->use_new_eh_code) {
-		scsi_add_timer(SCpnt, SCpnt->timeout_per_command, scsi_times_out);
-	} else {
-		scsi_add_timer(SCpnt, SCpnt->timeout_per_command,
-			       scsi_old_times_out);
-	}
+
+	scsi_add_timer(SCpnt, SCpnt->timeout_per_command, scsi_times_out);
 
 	/*
 	 * We will use a queued command if possible, otherwise we will emulate the
@@ -682,59 +697,37 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 		SCSI_LOG_MLQUEUE(3, printk("queuecommand : routine at %p\n",
 					   host->hostt->queuecommand));
 		/*
-		 * Use the old error handling code if we haven't converted the driver
-		 * to use the new one yet.  Note - only the new queuecommand variant
-		 * passes a meaningful return value.
+		 * Before we queue this command, check if the command
+		 * length exceeds what the host adapter can handle.
 		 */
-		if (host->hostt->use_new_eh_code) {
-			/*
-			 * Before we queue this command, check if the command
-			 * length exceeds what the host adapter can handle.
-			 */
-			if (CDB_SIZE(SCpnt) <= SCpnt->host->max_cmd_len) {
-				spin_lock_irqsave(&io_request_lock, flags);
-				rtn = host->hostt->queuecommand(SCpnt, scsi_done);
-				spin_unlock_irqrestore(&io_request_lock, flags);
-				if (rtn != 0) {
-					scsi_delete_timer(SCpnt);
-					scsi_mlqueue_insert(SCpnt, SCSI_MLQUEUE_HOST_BUSY);
-					SCSI_LOG_MLQUEUE(3, printk("queuecommand : request rejected\n"));                                
-				}
-			} else {
-				SCSI_LOG_MLQUEUE(3, printk("queuecommand : command too long.\n"));
-				SCpnt->result = (DID_ABORT << 16);
-				spin_lock_irqsave(&io_request_lock, flags);
-				scsi_done(SCpnt);
-				spin_unlock_irqrestore(&io_request_lock, flags);
-				rtn = 1;
+		if (CDB_SIZE(SCpnt) <= SCpnt->host->max_cmd_len) {
+			spin_lock_irqsave(&host->host_lock, flags);
+			rtn = host->hostt->queuecommand(SCpnt, scsi_done);
+			spin_unlock_irqrestore(&host->host_lock, flags);
+			if (rtn != 0) {
+				scsi_delete_timer(SCpnt);
+				scsi_mlqueue_insert(SCpnt, SCSI_MLQUEUE_HOST_BUSY);
+				SCSI_LOG_MLQUEUE(3,
+				   printk("queuecommand : request rejected\n"));                                
 			}
 		} else {
-			/*
-			 * Before we queue this command, check if the command
-			 * length exceeds what the host adapter can handle.
-			 */
-			if (CDB_SIZE(SCpnt) <= SCpnt->host->max_cmd_len) {
-				spin_lock_irqsave(&io_request_lock, flags);
-				host->hostt->queuecommand(SCpnt, scsi_old_done);
-				spin_unlock_irqrestore(&io_request_lock, flags);
-			} else {
-				SCSI_LOG_MLQUEUE(3, printk("queuecommand : command too long.\n"));
-				SCpnt->result = (DID_ABORT << 16);
-				spin_lock_irqsave(&io_request_lock, flags);
-				scsi_old_done(SCpnt);
-				spin_unlock_irqrestore(&io_request_lock, flags);
-				rtn = 1;
-			}
+			SCSI_LOG_MLQUEUE(3,
+				printk("queuecommand : command too long.\n"));
+			SCpnt->result = (DID_ABORT << 16);
+			spin_lock_irqsave(&host->host_lock, flags);
+			scsi_done(SCpnt);
+			spin_unlock_irqrestore(&host->host_lock, flags);
+			rtn = 1;
 		}
 	} else {
 		int temp;
 
 		SCSI_LOG_MLQUEUE(3, printk("command() :  routine at %p\n", host->hostt->command));
-                spin_lock_irqsave(&io_request_lock, flags);
+                spin_lock_irqsave(&host->host_lock, flags);
 		temp = host->hostt->command(SCpnt);
 		SCpnt->result = temp;
 #ifdef DEBUG_DELAY
-                spin_unlock_irqrestore(&io_request_lock, flags);
+                spin_unlock_irqrestore(&host->host_lock, flags);
 		clock = jiffies + 4 * HZ;
 		while (time_before(jiffies, clock)) {
 			barrier();
@@ -742,14 +735,10 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 		}
 		printk("done(host = %d, result = %04x) : routine at %p\n",
 		       host->host_no, temp, host->hostt->command);
-                spin_lock_irqsave(&io_request_lock, flags);
+                spin_lock_irqsave(&host->host_lock, flags);
 #endif
-		if (host->hostt->use_new_eh_code) {
-			scsi_done(SCpnt);
-		} else {
-			scsi_old_done(SCpnt);
-		}
-                spin_unlock_irqrestore(&io_request_lock, flags);
+		scsi_done(SCpnt);
+                spin_unlock_irqrestore(&host->host_lock, flags);
 	}
 	SCSI_LOG_MLQUEUE(3, printk("leaving scsi_dispatch_cmnd()\n"));
 	return rtn;
@@ -769,11 +758,13 @@ void scsi_wait_req (Scsi_Request * SRpnt, const void *cmnd ,
  		  int timeout, int retries)
 {
 	DECLARE_COMPLETION(wait);
+	request_queue_t *q = &SRpnt->sr_device->request_queue;
 	
 	SRpnt->sr_request.waiting = &wait;
 	SRpnt->sr_request.rq_status = RQ_SCSI_BUSY;
 	scsi_do_req (SRpnt, (void *) cmnd,
 		buffer, bufflen, scsi_wait_done, timeout, retries);
+	generic_unplug_device(q);
 	wait_for_completion(&wait);
 	SRpnt->sr_request.waiting = NULL;
 	if( SRpnt->sr_command != NULL )
@@ -817,7 +808,7 @@ void scsi_do_req(Scsi_Request * SRpnt, const void *cmnd,
 	Scsi_Device * SDpnt = SRpnt->sr_device;
 	struct Scsi_Host *host = SDpnt->host;
 
-	ASSERT_LOCK(&io_request_lock, 0);
+	ASSERT_LOCK(&host->host_lock, 0);
 
 	SCSI_LOG_MLQUEUE(4,
 			 {
@@ -914,7 +905,7 @@ void scsi_init_cmd_from_req(Scsi_Cmnd * SCpnt, Scsi_Request * SRpnt)
 {
 	struct Scsi_Host *host = SCpnt->host;
 
-	ASSERT_LOCK(&io_request_lock, 0);
+	ASSERT_LOCK(&host->host_lock, 0);
 
 	SCpnt->owner = SCSI_OWNER_MIDLEVEL;
 	SRpnt->sr_command = SCpnt;
@@ -1004,7 +995,7 @@ void scsi_do_cmd(Scsi_Cmnd * SCpnt, const void *cmnd,
 {
 	struct Scsi_Host *host = SCpnt->host;
 
-	ASSERT_LOCK(&io_request_lock, 0);
+	ASSERT_LOCK(&host->host_lock, 0);
 
 	SCpnt->pid = scsi_pid++;
 	SCpnt->owner = SCSI_OWNER_MIDLEVEL;
@@ -1355,10 +1346,10 @@ void scsi_finish_command(Scsi_Cmnd * SCpnt)
 	Scsi_Request * SRpnt;
 	unsigned long flags;
 
-	ASSERT_LOCK(&io_request_lock, 0);
-
 	host = SCpnt->host;
 	device = SCpnt->device;
+
+	ASSERT_LOCK(&host->host_lock, 0);
 
         /*
          * We need to protect the decrement, as otherwise a race condition
@@ -1367,10 +1358,10 @@ void scsi_finish_command(Scsi_Cmnd * SCpnt)
          * one execution context, but the device and host structures are
          * shared.
          */
-	spin_lock_irqsave(&io_request_lock, flags);
+	spin_lock_irqsave(&host->host_lock, flags);
 	host->host_busy--;	/* Indicate that we are free */
 	device->device_busy--;	/* Decrement device usage counter. */
-	spin_unlock_irqrestore(&io_request_lock, flags);
+	spin_unlock_irqrestore(&host->host_lock, flags);
 
         /*
          * Clear the flags which say that the device/host is no longer
@@ -1858,7 +1849,6 @@ static int scsi_register_host(Scsi_Host_Template * tpnt)
 	Scsi_Device *SDpnt;
 	struct Scsi_Device_Template *sdtpnt;
 	const char *name;
-	unsigned long flags;
 	int out_of_space = 0;
 
 	if (tpnt->next || !tpnt->detect)
@@ -1868,7 +1858,7 @@ static int scsi_register_host(Scsi_Host_Template * tpnt)
 
 	/* If max_sectors isn't set, default to max */
 	if (!tpnt->max_sectors)
-		tpnt->max_sectors = MAX_SECTORS;
+		tpnt->max_sectors = 1024;
 
 	pcount = next_scsi_host;
 
@@ -1876,18 +1866,12 @@ static int scsi_register_host(Scsi_Host_Template * tpnt)
 
 	/* The detect routine must carefully spinunlock/spinlock if 
 	   it enables interrupts, since all interrupt handlers do 
-	   spinlock as well.
-	   All lame drivers are going to fail due to the following 
-	   spinlock. For the time beeing let's use it only for drivers 
-	   using the new scsi code. NOTE: the detect routine could
-	   redefine the value tpnt->use_new_eh_code. (DB, 13 May 1998) */
+	   spinlock as well.  */
 
-	if (tpnt->use_new_eh_code) {
-		spin_lock_irqsave(&io_request_lock, flags);
-		tpnt->present = tpnt->detect(tpnt);
-		spin_unlock_irqrestore(&io_request_lock, flags);
-	} else
-		tpnt->present = tpnt->detect(tpnt);
+	/*
+	 * detect should do its own locking
+	 */
+	tpnt->present = tpnt->detect(tpnt);
 
 	if (tpnt->present) {
 		if (pcount == next_scsi_host) {
@@ -1921,7 +1905,7 @@ static int scsi_register_host(Scsi_Host_Template * tpnt)
 		 * handle error correction.
 		 */
 		for (shpnt = scsi_hostlist; shpnt; shpnt = shpnt->next) {
-			if (shpnt->hostt == tpnt && shpnt->hostt->use_new_eh_code) {
+			if (shpnt->hostt == tpnt) {
 				DECLARE_MUTEX_LOCKED(sem);
 
 				shpnt->eh_notify = &sem;
@@ -1982,13 +1966,6 @@ static int scsi_register_host(Scsi_Host_Template * tpnt)
 					}
 				}
 		}
-
-		/*
-		 * Now that we have all of the devices, resize the DMA pool,
-		 * as required.  */
-		if (!out_of_space)
-			scsi_resize_dma_pool();
-
 
 		/* This does any final handling that is required. */
 		for (sdtpnt = scsi_devicelist; sdtpnt; sdtpnt = sdtpnt->next) {
@@ -2129,7 +2106,6 @@ static int scsi_unregister_host(Scsi_Host_Template * tpnt)
 	 */
 	for (shpnt = scsi_hostlist; shpnt; shpnt = shpnt->next) {
 		if (shpnt->hostt == tpnt
-		    && shpnt->hostt->use_new_eh_code
 		    && shpnt->ehandler != NULL) {
 			DECLARE_MUTEX_LOCKED(sem);
 
@@ -2188,14 +2164,6 @@ static int scsi_unregister_host(Scsi_Host_Template * tpnt)
 			scsi_unregister(shpnt);
 		tpnt->present--;
 	}
-
-	/*
-	 * If there are absolutely no more hosts left, it is safe
-	 * to completely nuke the DMA pool.  The resize operation will
-	 * do the right thing and free everything.
-	 */
-	if (!scsi_hosts)
-		scsi_resize_dma_pool();
 
 	if (pcount0 != next_scsi_host)
 		printk(KERN_INFO "scsi : %d host%s left.\n", next_scsi_host,
@@ -2297,8 +2265,6 @@ static int scsi_register_device_module(struct Scsi_Device_Template *tpnt)
 	 */
 	if (tpnt->finish && tpnt->nr_dev)
 		(*tpnt->finish) ();
-	if (!out_of_space)
-		scsi_resize_dma_pool();
 	MOD_INC_USE_COUNT;
 
 	if (out_of_space) {
@@ -2564,16 +2530,81 @@ int __init scsi_setup(char *str)
 __setup("scsihosts=", scsi_setup);
 #endif
 
+static void *scsi_pool_alloc(int gfp_mask, void *data)
+{
+	return kmem_cache_alloc(data, gfp_mask);
+}
+
+static void scsi_pool_free(void *ptr, void *data)
+{
+	kmem_cache_free(data, ptr);
+}
+
+struct scatterlist *scsi_alloc_sgtable(Scsi_Cmnd *SCpnt, int gfp_mask)
+{
+	struct scsi_host_sg_pool *sgp;
+	struct scatterlist *sgl;
+
+	BUG_ON(!SCpnt->use_sg);
+
+	switch (SCpnt->use_sg) {
+		case 1 ... 8			: SCpnt->sglist_len = 0; break;
+		case 9 ... 16			: SCpnt->sglist_len = 1; break;
+		case 17 ... 32			: SCpnt->sglist_len = 2; break;
+		case 33 ... 64			: SCpnt->sglist_len = 3; break;
+		case 65 ... MAX_PHYS_SEGMENTS	: SCpnt->sglist_len = 4; break;
+		default: return NULL;
+	}
+
+	sgp = scsi_sg_pools + SCpnt->sglist_len;
+
+	sgl = mempool_alloc(sgp->pool, gfp_mask);
+	if (sgl) {
+		memset(sgl, 0, sgp->size);
+		return sgl;
+	}
+
+	return sgl;
+}
+
+void scsi_free_sgtable(struct scatterlist *sgl, int index)
+{
+	struct scsi_host_sg_pool *sgp = scsi_sg_pools + index;
+
+	if (unlikely(index > SG_MEMPOOL_NR)) {
+		printk("scsi_free_sgtable: mempool %d\n", index);
+		BUG();
+	}
+
+	mempool_free(sgl, sgp->pool);
+}
+
 static int __init init_scsi(void)
 {
 	struct proc_dir_entry *generic;
+	char name[16];
+	int i;
 
 	printk(KERN_INFO "SCSI subsystem driver " REVISION "\n");
 
-        if( scsi_init_minimal_dma_pool() != 0 )
-        {
-                return 1;
-        }
+	/*
+	 * setup sg memory pools
+	 */
+	for (i = 0; i < SG_MEMPOOL_NR; i++) {
+		struct scsi_host_sg_pool *sgp = scsi_sg_pools + i;
+		int size = scsi_host_sg_pool_sizes[i] * sizeof(struct scatterlist);
+
+		snprintf(name, sizeof(name) - 1, "sgpool-%d", scsi_host_sg_pool_sizes[i]);
+		sgp->slab = kmem_cache_create(name, size, 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+		if (!sgp->slab)
+			panic("SCSI: can't init sg slab\n");
+
+		sgp->pool = mempool_create(SG_MEMPOOL_SIZE, scsi_pool_alloc, scsi_pool_free, sgp->slab);
+		if (!sgp->pool)
+			panic("SCSI: can't init sg mempool\n");
+
+		sgp->size = size;
+	}
 
 	/*
 	 * This makes /proc/scsi and /proc/scsi/scsi visible.
@@ -2609,6 +2640,7 @@ static int __init init_scsi(void)
 static void __exit exit_scsi(void)
 {
 	Scsi_Host_Name *shn, *shn2 = NULL;
+	int i;
 
 	remove_bh(SCSI_BH);
 
@@ -2629,11 +2661,13 @@ static void __exit exit_scsi(void)
 	remove_proc_entry ("scsi", 0);
 #endif
 	
-	/*
-	 * Free up the DMA pool.
-	 */
-	scsi_resize_dma_pool();
-
+	for (i = 0; i < SG_MEMPOOL_NR; i++) {
+		struct scsi_host_sg_pool *sgp = scsi_sg_pools + i;
+		mempool_destroy(sgp->pool);
+		kmem_cache_destroy(sgp->slab);
+		sgp->pool = NULL;
+		sgp->slab = NULL;
+	}
 }
 
 module_init(init_scsi);

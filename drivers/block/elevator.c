@@ -18,48 +18,70 @@
  * Removed tests for max-bomb-segments, which was breaking elvtune
  *  when run without -bN
  *
+ * Jens:
+ * - Rework again to work with bio instead of buffer_heads
+ * - loose bi_dev comparisons, partition handling is right now
+ * - completely modularize elevator setup and teardown
+ *
  */
-
+#include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/blk.h>
+#include <linux/config.h>
 #include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/init.h>
+#include <linux/compiler.h>
+
 #include <asm/uaccess.h>
 
 /*
- * This is a bit tricky. It's given that bh and rq are for the same
+ * This is a bit tricky. It's given that bio and rq are for the same
  * device, but the next request might of course not be. Run through
  * the tests below to check if we want to insert here if we can't merge
- * bh into an existing request
+ * bio into an existing request
  */
-inline int bh_rq_in_between(struct buffer_head *bh, struct request *rq,
-			    struct list_head *head)
+inline int bio_rq_in_between(struct bio *bio, struct request *rq,
+			     struct list_head *head)
 {
 	struct list_head *next;
 	struct request *next_rq;
 
-	next = rq->queue.next;
+	/*
+	 * if .next is a valid request
+	 */
+	next = rq->queuelist.next;
 	if (next == head)
 		return 0;
 
-	/*
-	 * if the device is different (usually on a different partition),
-	 * just check if bh is after rq
-	 */
-	next_rq = blkdev_entry_to_request(next);
-	if (next_rq->rq_dev != rq->rq_dev)
-		return bh->b_rsector > rq->sector;
+	next_rq = list_entry(next, struct request, queuelist);
+
+	BUG_ON(next_rq->flags & REQ_STARTED);
 
 	/*
-	 * ok, rq, next_rq and bh are on the same device. if bh is in between
+	 * not a sector based request
+	 */
+	if (!(next_rq->flags & REQ_CMD))
+		return 0;
+
+	/*
+	 * if the device is different (not a normal case) just check if
+	 * bio is after rq
+	 */
+	if (next_rq->rq_dev != rq->rq_dev)
+		return bio->bi_sector > rq->sector;
+
+	/*
+	 * ok, rq, next_rq and bio are on the same device. if bio is in between
 	 * the two, this is the sweet spot
 	 */
-	if (bh->b_rsector < next_rq->sector && bh->b_rsector > rq->sector)
+	if (bio->bi_sector < next_rq->sector && bio->bi_sector > rq->sector)
 		return 1;
 
 	/*
-	 * next_rq is ordered wrt rq, but bh is not in between the two
+	 * next_rq is ordered wrt rq, but bio is not in between the two
 	 */
 	if (next_rq->sector > rq->sector)
 		return 0;
@@ -68,47 +90,77 @@ inline int bh_rq_in_between(struct buffer_head *bh, struct request *rq,
 	 * next_rq and rq not ordered, if we happen to be either before
 	 * next_rq or after rq insert here anyway
 	 */
-	if (bh->b_rsector > rq->sector || bh->b_rsector < next_rq->sector)
+	if (bio->bi_sector > rq->sector || bio->bi_sector < next_rq->sector)
 		return 1;
 
 	return 0;
 }
 
+/*
+ * can we safely merge with this request?
+ */
+inline int elv_rq_merge_ok(struct request *rq, struct bio *bio)
+{
+	if (!(rq->flags & REQ_CMD))
+		return 0;
+
+	/*
+	 * different data direction or already started, don't merge
+	 */
+	if (bio_data_dir(bio) != rq_data_dir(rq))
+		return 0;
+	if (rq->flags & REQ_NOMERGE)
+		return 0;
+
+	/*
+	 * same device and no special stuff set, merge is ok
+	 */
+	if (rq->rq_dev == bio->bi_dev && !rq->waiting && !rq->special)
+		return 1;
+
+	return 0;
+}
 
 int elevator_linus_merge(request_queue_t *q, struct request **req,
-			 struct list_head * head,
-			 struct buffer_head *bh, int rw,
-			 int max_sectors)
+			 struct list_head *head, struct bio *bio)
 {
+	unsigned int count = bio_sectors(bio);
 	struct list_head *entry = &q->queue_head;
-	unsigned int count = bh->b_size >> 9, ret = ELEVATOR_NO_MERGE;
+	int ret = ELEVATOR_NO_MERGE;
+	struct request *__rq;
 
+	entry = &q->queue_head;
 	while ((entry = entry->prev) != head) {
-		struct request *__rq = blkdev_entry_to_request(entry);
+		__rq = list_entry_rq(entry);
+
+		prefetch(list_entry_rq(entry->prev));
 
 		/*
 		 * simply "aging" of requests in queue
 		 */
 		if (__rq->elevator_sequence-- <= 0)
 			break;
+		if (__rq->flags & (REQ_BARRIER | REQ_STARTED))
+			break;
+		if (!(__rq->flags & REQ_CMD))
+			continue;
 
-		if (__rq->waiting)
-			continue;
-		if (__rq->rq_dev != bh->b_rdev)
-			continue;
-		if (!*req && bh_rq_in_between(bh, __rq, &q->queue_head))
+		if (!*req && bio_rq_in_between(bio, __rq, &q->queue_head))
 			*req = __rq;
-		if (__rq->cmd != rw)
+		if (!elv_rq_merge_ok(__rq, bio))
 			continue;
-		if (__rq->nr_sectors + count > max_sectors)
-			continue;
+
 		if (__rq->elevator_sequence < count)
 			break;
-		if (__rq->sector + __rq->nr_sectors == bh->b_rsector) {
+
+		/*
+		 * we can merge and sequence is ok, check if it's possible
+		 */
+		if (__rq->sector + __rq->nr_sectors == bio->bi_sector) {
 			ret = ELEVATOR_BACK_MERGE;
 			*req = __rq;
 			break;
-		} else if (__rq->sector - count == bh->b_rsector) {
+		} else if (__rq->sector - count == bio->bi_sector) {
 			ret = ELEVATOR_FRONT_MERGE;
 			__rq->elevator_sequence -= count;
 			*req = __rq;
@@ -121,13 +173,18 @@ int elevator_linus_merge(request_queue_t *q, struct request **req,
 
 void elevator_linus_merge_cleanup(request_queue_t *q, struct request *req, int count)
 {
-	struct list_head *entry = &req->queue, *head = &q->queue_head;
+	struct list_head *entry;
+
+	BUG_ON(req->q != q);
 
 	/*
 	 * second pass scan of requests that got passed over, if any
 	 */
-	while ((entry = entry->next) != head) {
-		struct request *tmp = blkdev_entry_to_request(entry);
+	entry = &req->queuelist;
+	while ((entry = entry->next) != &q->queue_head) {
+		struct request *tmp;
+		prefetch(list_entry_rq(entry->next));
+		tmp = list_entry_rq(entry);
 		tmp->elevator_sequence -= count;
 	}
 }
@@ -138,42 +195,66 @@ void elevator_linus_merge_req(struct request *req, struct request *next)
 		req->elevator_sequence = next->elevator_sequence;
 }
 
+void elv_add_request_fn(request_queue_t *q, struct request *rq,
+			       struct list_head *insert_here)
+{
+	list_add(&rq->queuelist, insert_here);
+}
+
+struct request *elv_next_request_fn(request_queue_t *q)
+{
+	if (!blk_queue_empty(q))
+		return list_entry(q->queue_head.next, struct request, queuelist);
+
+	return NULL;
+}
+
+int elv_linus_init(request_queue_t *q, elevator_t *e)
+{
+	return 0;
+}
+
+void elv_linus_exit(request_queue_t *q, elevator_t *e)
+{
+}
+
 /*
  * See if we can find a request that this buffer can be coalesced with.
  */
 int elevator_noop_merge(request_queue_t *q, struct request **req,
-			struct list_head * head,
-			struct buffer_head *bh, int rw,
-			int max_sectors)
+			struct list_head *head, struct bio *bio)
 {
-	struct list_head *entry;
-	unsigned int count = bh->b_size >> 9;
-
-	if (list_empty(&q->queue_head))
-		return ELEVATOR_NO_MERGE;
+	unsigned int count = bio_sectors(bio);
+	struct list_head *entry = &q->queue_head;
+	struct request *__rq;
 
 	entry = &q->queue_head;
 	while ((entry = entry->prev) != head) {
-		struct request *__rq = blkdev_entry_to_request(entry);
+		__rq = list_entry_rq(entry);
 
-		if (__rq->cmd != rw)
+		prefetch(list_entry_rq(entry->prev));
+
+		if (__rq->flags & (REQ_BARRIER | REQ_STARTED))
+			break;
+
+		if (!(__rq->flags & REQ_CMD))
 			continue;
-		if (__rq->rq_dev != bh->b_rdev)
+
+		if (!elv_rq_merge_ok(__rq, bio))
 			continue;
-		if (__rq->nr_sectors + count > max_sectors)
-			continue;
-		if (__rq->waiting)
-			continue;
-		if (__rq->sector + __rq->nr_sectors == bh->b_rsector) {
+
+		/*
+		 * we can merge and sequence is ok, check if it's possible
+		 */
+		if (__rq->sector + __rq->nr_sectors == bio->bi_sector) {
 			*req = __rq;
 			return ELEVATOR_BACK_MERGE;
-		} else if (__rq->sector - count == bh->b_rsector) {
+		} else if (__rq->sector - count == bio->bi_sector) {
 			*req = __rq;
 			return ELEVATOR_FRONT_MERGE;
 		}
 	}
 
-	*req = blkdev_entry_to_request(q->queue_head.prev);
 	return ELEVATOR_NO_MERGE;
 }
 
@@ -181,42 +262,27 @@ void elevator_noop_merge_cleanup(request_queue_t *q, struct request *req, int co
 
 void elevator_noop_merge_req(struct request *req, struct request *next) {}
 
-int blkelvget_ioctl(elevator_t * elevator, blkelv_ioctl_arg_t * arg)
+int elevator_init(request_queue_t *q, elevator_t *e, elevator_t type)
 {
-	blkelv_ioctl_arg_t output;
+	*e = type;
 
-	output.queue_ID			= elevator->queue_ID;
-	output.read_latency		= elevator->read_latency;
-	output.write_latency		= elevator->write_latency;
-	output.max_bomb_segments	= 0;
+	INIT_LIST_HEAD(&q->queue_head);
 
-	if (copy_to_user(arg, &output, sizeof(blkelv_ioctl_arg_t)))
-		return -EFAULT;
+	if (e->elevator_init_fn)
+		return e->elevator_init_fn(q, e);
 
 	return 0;
 }
 
-int blkelvset_ioctl(elevator_t * elevator, const blkelv_ioctl_arg_t * arg)
+void elevator_exit(request_queue_t *q, elevator_t *e)
 {
-	blkelv_ioctl_arg_t input;
+	if (e->elevator_exit_fn)
+		e->elevator_exit_fn(q, e);
+}
 
-	if (copy_from_user(&input, arg, sizeof(blkelv_ioctl_arg_t)))
-		return -EFAULT;
-
-	if (input.read_latency < 0)
-		return -EINVAL;
-	if (input.write_latency < 0)
-		return -EINVAL;
-
-	elevator->read_latency		= input.read_latency;
-	elevator->write_latency		= input.write_latency;
+int elevator_global_init(void)
+{
 	return 0;
 }
 
-void elevator_init(elevator_t * elevator, elevator_t type)
-{
-	static unsigned int queue_ID;
-
-	*elevator = type;
-	elevator->queue_ID = queue_ID++;
-}
+module_init(elevator_global_init);

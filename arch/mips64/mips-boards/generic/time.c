@@ -22,7 +22,6 @@
  * Setting up the clock on the MIPS boards.
  *
  */
-
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
@@ -244,34 +243,6 @@ static unsigned long __init get_mips_time(void)
 	return mktime(year, mon, day, hour, min, sec);
 }
 
-void __init time_init(void)
-{
-        unsigned int est_freq, flags;
-
-        /* Set Data mode - binary. */ 
-        CMOS_WRITE(CMOS_READ(RTC_CONTROL) | RTC_DM_BINARY, RTC_CONTROL);
-
-	printk("calculating r4koff... ");
-	r4k_offset = cal_r4koff();
-	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
-
-	est_freq = 2*r4k_offset*HZ;	
-	est_freq += 5000;    /* round */
-	est_freq -= est_freq%10000;
-	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
-	       (est_freq%1000000)*100/1000000);
-	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
-
-	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
-	change_cp0_status(ST0_IM, ALLINTS);
-
-	/* Read time from the RTC chipset. */
-	write_lock_irqsave (&xtime_lock, flags);
-	xtime.tv_sec = get_mips_time();
-	xtime.tv_usec = 0;
-	write_unlock_irqrestore(&xtime_lock, flags);
-}
-
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
@@ -349,50 +320,30 @@ static unsigned long do_fast_gettimeoffset(void)
 	return res;
 }
 
-void do_gettimeofday(struct timeval *tv)
+void __init mips_time_init(void)
 {
-	unsigned int flags;
+	unsigned int est_freq, flags;
 
-	read_lock_irqsave (&xtime_lock, flags);
-	*tv = xtime;
-	tv->tv_usec += do_fast_gettimeoffset();
+	/* Set Data mode - binary. */ 
+	CMOS_WRITE(CMOS_READ(RTC_CONTROL) | RTC_DM_BINARY, RTC_CONTROL);
 
-	/*
-	 * xtime is atomically updated in timer_bh. jiffies - wall_jiffies
-	 * is nonzero if the timer bottom half hasnt executed yet.
-	 */
-	if (jiffies - wall_jiffies)
-		tv->tv_usec += USECS_PER_JIFFY;
+	printk("calculating r4koff... ");
+	r4k_offset = cal_r4koff();
+	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
 
-	read_unlock_irqrestore (&xtime_lock, flags);
+	est_freq = 2*r4k_offset*HZ;	
+	est_freq += 5000;    /* round */
+	est_freq -= est_freq%10000;
+	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
+	       (est_freq%1000000)*100/1000000);
+	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 
-	if (tv->tv_usec >= 1000000) {
-		tv->tv_usec -= 1000000;
-		tv->tv_sec++;
-	}
-}
+	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
+	change_cp0_status(ST0_IM, ALLINTS);
 
-void do_settimeofday(struct timeval *tv)
-{
-	write_lock_irq (&xtime_lock);
-
-	/* This is revolting. We need to set the xtime.tv_usec correctly.
-	 * However, the value in this location is is value at the last tick.
-	 * Discover what correction gettimeofday would have done, and then
-	 * undo it!
-	 */
-	tv->tv_usec -= do_fast_gettimeoffset();
-
-	if (tv->tv_usec < 0) {
-		tv->tv_usec += 1000000;
-		tv->tv_sec--;
-	}
-
-	xtime = *tv;
-	time_adjust = 0;		/* stop active adjtime() */
-	time_status |= STA_UNSYNC;
-	time_maxerror = NTP_PHASE_LIMIT;
-	time_esterror = NTP_PHASE_LIMIT;
-
-	write_unlock_irq (&xtime_lock);
+	/* Read time from the RTC chipset. */
+	write_lock_irqsave (&xtime_lock, flags);
+	xtime.tv_sec = get_mips_time();
+	xtime.tv_usec = 0;
+	write_unlock_irqrestore(&xtime_lock, flags);
 }

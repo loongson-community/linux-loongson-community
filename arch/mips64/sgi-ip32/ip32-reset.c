@@ -6,19 +6,29 @@
  * Copyright (C) 2001 Keith M Wesolowski
  * Copyright (C) 2001 Paul Mundt
  */
+#include <linux/init.h>
+
+#include <asm/reboot.h>
 #include <asm/sgialib.h>
 
-void machine_restart(char *cmd)
+static void ip32_machine_restart(char *cmd)
 {
 	ArcReboot();
 }
 
-void machine_halt(void)
+static inline void ip32_machine_halt(void)
 {
 	ArcEnterInteractiveMode();
 }
 
-void machine_power_off(void)
+static void ip32_machine_power_off(void)
 {
-	machine_halt();
+	ip32_machine_halt();
+}
+
+void __init ip32_reboot_setup(void)
+{
+	_machine_restart = ip32_machine_restart;
+	_machine_halt = ip32_machine_halt;
+	_machine_power_off = ip32_machine_power_off;
 }

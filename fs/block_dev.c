@@ -102,7 +102,7 @@ int set_blocksize(kdev_t dev, int size)
 	return 0;
 }
 
-static int blkdev_get_block(struct inode * inode, long iblock, struct buffer_head * bh, int create)
+static int blkdev_get_block(struct inode * inode, sector_t iblock, struct buffer_head * bh, int create)
 {
 	if (iblock >= max_block(inode->i_rdev))
 		return -EIO;
@@ -234,7 +234,7 @@ static struct vfsmount *bd_mnt;
 #define HASH_SIZE	(1UL << HASH_BITS)
 #define HASH_MASK	(HASH_SIZE-1)
 static struct list_head bdev_hashtable[HASH_SIZE];
-static spinlock_t bdev_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t bdev_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 static kmem_cache_t * bdev_cachep;
 
 #define alloc_bdev() \
@@ -324,6 +324,7 @@ struct block_device *bdget(dev_t dev)
 			new_bdev->bd_dev = dev;
 			new_bdev->bd_op = NULL;
 			new_bdev->bd_inode = inode;
+			inode->i_mode = S_IFBLK;
 			inode->i_rdev = kdev;
 			inode->i_dev = kdev;
 			inode->i_bdev = new_bdev;

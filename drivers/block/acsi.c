@@ -253,6 +253,8 @@ static int				CurrentNReq;
 static int				CurrentNSect;
 static char				*CurrentBuffer;
 
+static spinlock_t			acsi_lock = SPIN_LOCK_UNLOCKED;
+
 
 #define SET_TIMER()	mod_timer(&acsi_timer, jiffies + ACSI_TIMEOUT)
 #define CLEAR_TIMER()	del_timer(&acsi_timer)
@@ -1011,7 +1013,6 @@ static void redo_acsi_request( void )
 		goto repeat;
 	}
 	
-	block += acsi_part[dev].start_sect;
 	target = acsi_info[DEVICE_NR(dev)].target;
 	lun    = acsi_info[DEVICE_NR(dev)].lun;
 
@@ -1123,7 +1124,7 @@ static int acsi_ioctl( struct inode *inode, struct file *file,
 	    put_user( 64, &geo->heads );
 	    put_user( 32, &geo->sectors );
 	    put_user( acsi_info[dev].size >> 11, &geo->cylinders );
-		put_user( acsi_part[MINOR(inode->i_rdev)].start_sect, &geo->start );
+		put_user(get_start_sect(inode->i_rdev), &geo->start);
 		return 0;
 	  }
 		
@@ -1785,7 +1786,7 @@ int acsi_init( void )
 	phys_acsi_buffer = virt_to_phys( acsi_buffer );
 	STramMask = ATARIHW_PRESENT(EXTD_DMA) ? 0x00000000 : 0xff000000;
 	
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST, &acsi_lock);
 	read_ahead[MAJOR_NR] = 8;		/* 8 sector (4kB) read-ahead */
 	add_gendisk(&acsi_gendisk);
 
@@ -1852,7 +1853,7 @@ static int revalidate_acsidisk( int dev, int maxusage )
 {
 	int device;
 	struct gendisk * gdev;
-	int max_p, start, i;
+	int res;
 	struct acsi_info_struct *aip;
 	
 	device = DEVICE_NR(MINOR(dev));
@@ -1867,16 +1868,7 @@ static int revalidate_acsidisk( int dev, int maxusage )
 	DEVICE_BUSY = 1;
 	sti();
 
-	max_p = gdev->max_p;
-	start = device << gdev->minor_shift;
-
-	for( i = max_p - 1; i >= 0 ; i-- ) {
-		if (gdev->part[start + i].nr_sects != 0) {
-			invalidate_device(MKDEV(MAJOR_NR, start + i), 1);
-			gdev->part[start + i].nr_sects = 0;
-		}
-		gdev->part[start+i].start_sect = 0;
-	};
+	res = wipe_partitions(dev);
 
 	stdma_lock( NULL, NULL );
 
@@ -1891,12 +1883,13 @@ static int revalidate_acsidisk( int dev, int maxusage )
 
 	ENABLE_IRQ();
 	stdma_release();
-	
-	grok_partitions(gdev, device, (aip->type==HARDDISK)?1<<4:1, aip->size);
+
+	if (!res)
+		grok_partitions(dev, aip->size);
 
 	DEVICE_BUSY = 0;
 	wake_up(&busy_wait);
-	return 0;
+	return res;
 }
 
 

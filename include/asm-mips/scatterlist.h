@@ -4,6 +4,7 @@
 struct scatterlist {
 	char * address;		/* Location data is to be transferred to */
 	struct page * page;	/* Location for highmem page, if any */
+	unsigned int offset;
 	unsigned int length;
 	__u32 dvma_address;
 };

@@ -12,9 +12,9 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
-#include <asm/irq.h>
 #include <linux/in6.h>
 #include <linux/pci.h>
+#include <linux/tty.h>
 #include <linux/ide.h>
 
 #include <asm/bootinfo.h>

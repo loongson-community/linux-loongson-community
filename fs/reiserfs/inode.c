@@ -390,7 +390,7 @@ finished:
 
 // this is called to create file map. So, _get_block_create_0 will not
 // read direct item
-int reiserfs_bmap (struct inode * inode, long block,
+int reiserfs_bmap (struct inode * inode, sector_t block,
 		   struct buffer_head * bh_result, int create)
 {
     if (!file_capable (inode, block))
@@ -420,7 +420,7 @@ int reiserfs_bmap (struct inode * inode, long block,
 ** don't want to send create == GET_BLOCK_NO_HOLE to reiserfs_get_block, 
 ** don't use this function.
 */
-static int reiserfs_get_block_create_0 (struct inode * inode, long block,
+static int reiserfs_get_block_create_0 (struct inode * inode, sector_t block,
 			struct buffer_head * bh_result, int create) {
     return reiserfs_get_block(inode, block, bh_result, GET_BLOCK_NO_HOLE) ;
 }
@@ -511,7 +511,7 @@ static inline int _allocate_block(struct reiserfs_transaction_handle *th,
 // determine which parts are derivative, if any, understanding that
 // there are only so many ways to code to a given interface.
 //
-int reiserfs_get_block (struct inode * inode, long block,
+int reiserfs_get_block (struct inode * inode, sector_t block,
 			struct buffer_head * bh_result, int create)
 {
     int repeat, retval;

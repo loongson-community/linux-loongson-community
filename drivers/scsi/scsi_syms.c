@@ -33,8 +33,6 @@
  */
 EXPORT_SYMBOL(scsi_register_module);
 EXPORT_SYMBOL(scsi_unregister_module);
-EXPORT_SYMBOL(scsi_free);
-EXPORT_SYMBOL(scsi_malloc);
 EXPORT_SYMBOL(scsi_register);
 EXPORT_SYMBOL(scsi_unregister);
 EXPORT_SYMBOL(scsicam_bios_param);
@@ -48,13 +46,10 @@ EXPORT_SYMBOL(print_sense);
 EXPORT_SYMBOL(print_req_sense);
 EXPORT_SYMBOL(print_msg);
 EXPORT_SYMBOL(print_status);
-EXPORT_SYMBOL(scsi_dma_free_sectors);
 EXPORT_SYMBOL(kernel_scsi_ioctl);
-EXPORT_SYMBOL(scsi_need_isa_buffer);
 EXPORT_SYMBOL(scsi_release_command);
 EXPORT_SYMBOL(print_Scsi_Cmnd);
 EXPORT_SYMBOL(scsi_block_when_processing_errors);
-EXPORT_SYMBOL(scsi_mark_host_reset);
 EXPORT_SYMBOL(scsi_ioctl_send_command);
 #if defined(CONFIG_SCSI_LOGGING)	/* { */
 EXPORT_SYMBOL(scsi_logging_level);

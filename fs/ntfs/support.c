@@ -150,7 +150,7 @@ int ntfs_read_mft_record(ntfs_volume *vol, int mftno, char *buf)
 		 * now as we just can't handle some on disk structures
 		 * this way. (AIA) */
 		printk(KERN_WARNING "NTFS: Invalid MFT record for 0x%x\n", mftno);
-		return -EINVAL;
+		return -EIO;
 	}
 	ntfs_debug(DEBUG_OTHER, "read_mft_record: Done 0x%x\n", mftno);
 	return 0;
@@ -169,7 +169,7 @@ int ntfs_getput_clusters(ntfs_volume *vol, int cluster, ntfs_size_t start_offs,
 		   buf->do_read ? "get" : "put", cluster, start_offs, length);
 	to_copy = vol->cluster_size - start_offs;
 	while (length) {
-		if (!(bh = bread(sb->s_dev, cluster, vol->cluster_size))) {
+		if (!(bh = sb_bread(sb, cluster))) {
 			ntfs_debug(DEBUG_OTHER, "%s failed\n",
 				   buf->do_read ? "Reading" : "Writing");
 			error = -EIO;

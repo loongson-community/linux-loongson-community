@@ -47,7 +47,7 @@ static inline void pcibios_penalize_isa_irq(int irq)
 #include <linux/string.h>
 #include <asm/io.h>
 
-#if (defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476))
+#if defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476)
 #undef PCIBIOS_MIN_IO
 #undef PCIBIOS_MIN_MEM
 #define PCIBIOS_MIN_IO		0x0100000
@@ -55,6 +55,13 @@ static inline void pcibios_penalize_isa_irq(int irq)
 #endif
 
 struct pci_dev;
+
+/*
+ * The PCI address space does equal the physical memory address space.  The
+ * networking and block device layers use this boolean for bounce buffer
+ * decisions.
+ */
+#define PCI_DMA_BUS_IS_PHYS	(1)
 
 /*
  * Allocate and map kernel buffer using consistent mode DMA for a device.

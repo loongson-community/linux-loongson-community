@@ -62,6 +62,8 @@ static u64 nbd_bytesizes[MAX_NBD];
 static struct nbd_device nbd_dev[MAX_NBD];
 static devfs_handle_t devfs_handle;
 
+static spinlock_t nbd_lock = SPIN_LOCK_UNLOCKED;
+
 #define DEBUG( s )
 /* #define DEBUG( s ) printk( s ) 
  */
@@ -149,30 +151,41 @@ static int nbd_xmit(int send, struct socket *sock, char *buf, int size, int msg_
 
 void nbd_send_req(struct socket *sock, struct request *req)
 {
-	int result;
+	int result, rw, i, flags;
 	struct nbd_request request;
 	unsigned long size = req->nr_sectors << 9;
 
 	DEBUG("NBD: sending control, ");
 	request.magic = htonl(NBD_REQUEST_MAGIC);
-	request.type = htonl(req->cmd);
+	request.type = htonl(req->flags);
 	request.from = cpu_to_be64( (u64) req->sector << 9);
 	request.len = htonl(size);
 	memcpy(request.handle, &req, sizeof(req));
 
-	result = nbd_xmit(1, sock, (char *) &request, sizeof(request), req->cmd == WRITE ? MSG_MORE : 0);
+	rw = rq_data_dir(req);
+
+	result = nbd_xmit(1, sock, (char *) &request, sizeof(request), rw & WRITE ? MSG_MORE : 0);
 	if (result <= 0)
 		FAIL("Sendmsg failed for control.");
 
-	if (req->cmd == WRITE) {
-		struct buffer_head *bh = req->bh;
-		DEBUG("data, ");
-		do {
-			result = nbd_xmit(1, sock, bh->b_data, bh->b_size, bh->b_reqnext == NULL ? 0 : MSG_MORE);
-			if (result <= 0)
-				FAIL("Send data failed.");
-			bh = bh->b_reqnext;
-		} while(bh);
+	if (rw & WRITE) {
+		struct bio *bio;
+		/*
+		 * we are really probing at internals to determine
+		 * whether to set MSG_MORE or not...
+		 */
+		rq_for_each_bio(bio, req) {
+			struct bio_vec *bvec;
+			bio_for_each_segment(bvec, bio, i) {
+				flags = 0;
+				if ((i < (bio->bi_vcnt - 1)) || bio->bi_next)
+					flags = MSG_MORE;
+				DEBUG("data, ");
+				result = nbd_xmit(1, sock, page_address(bvec->bv_page) + bvec->bv_offset, bvec->bv_len, flags);
+				if (result <= 0)
+					FAIL("Send data failed.");
+			}
+		}
 	}
 	return;
 
@@ -204,15 +217,15 @@ struct request *nbd_read_stat(struct nbd_device *lo)
 		HARDFAIL("Not enough magic.");
 	if (ntohl(reply.error))
 		FAIL("Other side returned error.");
-	if (req->cmd == READ) {
-		struct buffer_head *bh = req->bh;
+	if (rq_data_dir(req) == READ) {
+		struct bio *bio = req->bio;
 		DEBUG("data, ");
 		do {
-			result = nbd_xmit(0, lo->sock, bh->b_data, bh->b_size, MSG_WAITALL);
+			result = nbd_xmit(0, lo->sock, bio_data(bio), bio->bi_size, MSG_WAITALL);
 			if (result <= 0)
 				HARDFAIL("Recv data failed.");
-			bh = bh->b_reqnext;
-		} while(bh);
+			bio = bio->bi_next;
+		} while(bio);
 	}
 	DEBUG("done.\n");
 	return req;
@@ -250,7 +263,7 @@ void nbd_do_it(struct nbd_device *lo)
 			goto out;
 		}
 #endif
-		list_del(&req->queue);
+		blkdev_dequeue_request(req);
 		up (&lo->queue_lock);
 		
 		nbd_end_request(req);
@@ -285,7 +298,7 @@ void nbd_clear_que(struct nbd_device *lo)
 		}
 #endif
 		req->errors++;
-		list_del(&req->queue);
+		blkdev_dequeue_request(req);
 		up(&lo->queue_lock);
 
 		nbd_end_request(req);
@@ -321,10 +334,13 @@ static void do_nbd_request(request_queue_t * q)
 		if (dev >= MAX_NBD)
 			FAIL("Minor too big.");		/* Probably can not happen */
 #endif
+		if (!(req->flags & REQ_CMD))
+			goto error_out;
+
 		lo = &nbd_dev[dev];
 		if (!lo->file)
 			FAIL("Request when not-ready.");
-		if ((req->cmd == WRITE) && (lo->flags & NBD_READ_ONLY))
+		if ((rq_data_dir(req) == WRITE) && (lo->flags & NBD_READ_ONLY))
 			FAIL("Write on read-only");
 #ifdef PARANOIA
 		if (lo->magic != LO_MAGIC)
@@ -333,22 +349,22 @@ static void do_nbd_request(request_queue_t * q)
 #endif
 		req->errors = 0;
 		blkdev_dequeue_request(req);
-		spin_unlock_irq(&io_request_lock);
+		spin_unlock_irq(q->queue_lock);
 
 		down (&lo->queue_lock);
-		list_add(&req->queue, &lo->queue_head);
+		list_add(&req->queuelist, &lo->queue_head);
 		nbd_send_req(lo->sock, req);	/* Why does this block?         */
 		up (&lo->queue_lock);
 
-		spin_lock_irq(&io_request_lock);
+		spin_lock_irq(q->queue_lock);
 		continue;
 
 	      error_out:
 		req->errors++;
 		blkdev_dequeue_request(req);
-		spin_unlock(&io_request_lock);
+		spin_unlock(q->queue_lock);
 		nbd_end_request(req);
-		spin_lock(&io_request_lock);
+		spin_lock(q->queue_lock);
 	}
 	return;
 }
@@ -374,7 +390,7 @@ static int nbd_ioctl(struct inode *inode, struct file *file,
 	switch (cmd) {
 	case NBD_DISCONNECT:
 	        printk("NBD_DISCONNECT\n") ;
-                sreq.cmd=2 ; /* shutdown command */
+		sreq.flags = REQ_SPECIAL; /* FIXME: interpet as shutdown cmd */
                 if (!lo->sock) return -EINVAL ;
                 nbd_send_req(lo->sock,&sreq) ;
                 return 0 ;
@@ -501,8 +517,7 @@ static int __init nbd_init(void)
 #endif
 	blksize_size[MAJOR_NR] = nbd_blksizes;
 	blk_size[MAJOR_NR] = nbd_sizes;
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), do_nbd_request);
-	blk_queue_headactive(BLK_DEFAULT_QUEUE(MAJOR_NR), 0);
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), do_nbd_request, &nbd_lock);
 	for (i = 0; i < MAX_NBD; i++) {
 		nbd_dev[i].refcnt = 0;
 		nbd_dev[i].file = NULL;

@@ -3,7 +3,7 @@
 
 #include <linux/fs.h>
 #include <linux/config.h>
-#include <linux/locks.h>
+#include <linux/spinlock.h>
 #include <linux/kdev_t.h>
 #include <linux/types.h>
 
@@ -46,14 +46,6 @@
 #define DEVFS_SPECIAL_BLK     1
 
 typedef struct devfs_entry * devfs_handle_t;
-
-
-#ifdef CONFIG_BLK_DEV_INITRD
-#  define ROOT_DEVICE_NAME ((real_root_dev ==ROOT_DEV) ? root_device_name:NULL)
-#else
-#  define ROOT_DEVICE_NAME root_device_name
-#endif
-
 
 #ifdef CONFIG_DEVFS_FS
 

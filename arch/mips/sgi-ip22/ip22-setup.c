@@ -12,6 +12,7 @@
 #include <linux/types.h>
 #include <linux/console.h>
 #include <linux/sched.h>
+#include <linux/tty.h>
 #include <linux/pc_keyb.h>
 
 #include <asm/addrspace.h>
@@ -118,7 +119,7 @@ struct kbd_ops sgi_kbd_ops = {
 	sgi_read_status
 };
 
-void __init sgi_setup(void)
+void __init ip22_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;

@@ -14,6 +14,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/mtio.h>
+#include <linux/tty.h>
 #include <linux/init.h>
 #include <linux/file.h>
 #include <linux/vt.h>
@@ -31,6 +32,8 @@
 #undef __KERNEL__		/* This file was born to be ugly ...  */
 #include <scsi/scsi_ioctl.h>
 #define __KERNEL__
+
+#include <asm/ioctls.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
 

@@ -13,15 +13,16 @@
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
+#include <linux/time.h>
 
 #include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/time.h>
 #include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/sgint23.h>
+#include <asm/time.h>
 
 /*
  * note that mktime uses month from 1 to 12 while to_tm

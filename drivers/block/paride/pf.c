@@ -164,6 +164,8 @@ static int pf_drive_count;
 
 #include <asm/uaccess.h>
 
+static spinlock_t pf_spin_lock;
+
 #ifndef MODULE
 
 #include "setup.h"
@@ -340,56 +342,6 @@ void pf_init_units( void )
         }
 } 
 
-static inline int pf_new_segment(request_queue_t *q, struct request *req, int max_segments)
-{
-	if (max_segments > cluster)
-		max_segments = cluster;
-
-	if (req->nr_segments < max_segments) {
-		req->nr_segments++;
-		return 1;
-	}
-	return 0;
-}
-
-static int pf_back_merge_fn(request_queue_t *q, struct request *req, 
-			    struct buffer_head *bh, int max_segments)
-{
-	if (req->bhtail->b_data + req->bhtail->b_size == bh->b_data)
-		return 1;
-	return pf_new_segment(q, req, max_segments);
-}
-
-static int pf_front_merge_fn(request_queue_t *q, struct request *req, 
-			     struct buffer_head *bh, int max_segments)
-{
-	if (bh->b_data + bh->b_size == req->bh->b_data)
-		return 1;
-	return pf_new_segment(q, req, max_segments);
-}
-
-static int pf_merge_requests_fn(request_queue_t *q, struct request *req,
-				struct request *next, int max_segments)
-{
-	int total_segments = req->nr_segments + next->nr_segments;
-	int same_segment;
-
-	if (max_segments > cluster)
-		max_segments = cluster;
-
-	same_segment = 0;
-	if (req->bhtail->b_data + req->bhtail->b_size == next->bh->b_data) {
-		total_segments--;
-		same_segment = 1;
-	}
-    
-	if (total_segments > max_segments)
-		return 0;
-
-	req->nr_segments = total_segments;
-	return 1;
-}
-
 int pf_init (void)      /* preliminary initialisation */
 
 {       int i;
@@ -408,10 +360,9 @@ int pf_init (void)      /* preliminary initialisation */
                 return -1;
         }
 	q = BLK_DEFAULT_QUEUE(MAJOR_NR);
-	blk_init_queue(q, DEVICE_REQUEST);
-	q->back_merge_fn = pf_back_merge_fn;
-	q->front_merge_fn = pf_front_merge_fn;
-	q->merge_requests_fn = pf_merge_requests_fn;
+	blk_init_queue(q, DEVICE_REQUEST, &pf_spin_lock);
+	blk_queue_max_phys_segments(q, cluster);
+	blk_queue_max_hw_segments(q, cluster);
         read_ahead[MAJOR_NR] = 8;       /* 8 sector (4kB) read ahead */
         
 	for (i=0;i<PF_UNITS;i++) pf_blocksizes[i] = 1024;
@@ -458,7 +409,7 @@ static int pf_ioctl(struct inode *inode,struct file *file,
 		if (PF.access == 1) {
 			pf_eject(unit);
 			return 0;
-			}
+		}
 	    case HDIO_GETGEO:
                 if (!geo) return -EINVAL;
                 err = verify_area(VERIFY_WRITE,geo,sizeof(*geo));
@@ -893,8 +844,7 @@ static int pf_ready( void )
 }
 
 static void do_pf_request (request_queue_t * q)
-
-{       struct buffer_head * bh;
+{
 	int unit;
 
         if (pf_busy) return;
@@ -907,14 +857,12 @@ repeat:
         pf_run = CURRENT->nr_sectors;
         pf_count = CURRENT->current_nr_sectors;
 
-	bh = CURRENT->bh;
-
         if ((pf_unit >= PF_UNITS) || (pf_block+pf_count > PF.capacity)) {
                 end_request(0);
                 goto repeat;
         }
 
-	pf_cmd = CURRENT->cmd;
+	pf_cmd = rq_data_dir(CURRENT);
         pf_buf = CURRENT->buffer;
         pf_retries = 0;
 
@@ -931,16 +879,16 @@ static void pf_next_buf( int unit )
 
 {	long	saved_flags;
 
-	spin_lock_irqsave(&io_request_lock,saved_flags);
+	spin_lock_irqsave(&pf_spin_lock,saved_flags);
 	end_request(1);
-	if (!pf_run) { spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	if (!pf_run) { spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
 		       return; 
 	}
 	
 /* paranoia */
 
 	if (QUEUE_EMPTY ||
-	    (CURRENT->cmd != pf_cmd) ||
+	    (rq_data_dir(CURRENT) != pf_cmd) ||
 	    (DEVICE_NR(CURRENT->rq_dev) != pf_unit) ||
 	    (CURRENT->rq_status == RQ_INACTIVE) ||
 	    (CURRENT->sector != pf_block)) 
@@ -949,7 +897,7 @@ static void pf_next_buf( int unit )
 
 	pf_count = CURRENT->current_nr_sectors;
 	pf_buf = CURRENT->buffer;
-	spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
 }
 
 static void do_pf_read( void )
@@ -973,11 +921,11 @@ static void do_pf_read_start( void )
                         pi_do_claimed(PI,do_pf_read_start);
 			return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pf_spin_lock,saved_flags);
                 end_request(0);
                 pf_busy = 0;
 		do_pf_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
                 return;
         }
 	pf_mask = STAT_DRQ;
@@ -999,11 +947,11 @@ static void do_pf_read_drq( void )
                         pi_do_claimed(PI,do_pf_read_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pf_spin_lock,saved_flags);
                 end_request(0);
                 pf_busy = 0;
 		do_pf_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
                 return;
             }
             pi_read_block(PI,pf_buf,512);
@@ -1014,11 +962,11 @@ static void do_pf_read_drq( void )
 	    if (!pf_count) pf_next_buf(unit);
         }
         pi_disconnect(PI);
-	spin_lock_irqsave(&io_request_lock,saved_flags); 
+	spin_lock_irqsave(&pf_spin_lock,saved_flags); 
         end_request(1);
         pf_busy = 0;
 	do_pf_request(NULL);
-	spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
 }
 
 static void do_pf_write( void )
@@ -1040,11 +988,11 @@ static void do_pf_write_start( void )
                         pi_do_claimed(PI,do_pf_write_start);
 			return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pf_spin_lock,saved_flags);
                 end_request(0);
                 pf_busy = 0;
 		do_pf_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
                 return;
         }
 
@@ -1057,11 +1005,11 @@ static void do_pf_write_start( void )
                         pi_do_claimed(PI,do_pf_write_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pf_spin_lock,saved_flags);
                 end_request(0);
                 pf_busy = 0;
 		do_pf_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
                 return;
             }
             pi_write_block(PI,pf_buf,512);
@@ -1087,19 +1035,19 @@ static void do_pf_write_done( void )
 			pi_do_claimed(PI,do_pf_write_start);
                         return;
                 }
-		spin_lock_irqsave(&io_request_lock,saved_flags);
+		spin_lock_irqsave(&pf_spin_lock,saved_flags);
                 end_request(0);
                 pf_busy = 0;
 		do_pf_request(NULL);
-		spin_unlock_irqrestore(&io_request_lock,saved_flags);
+		spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
                 return;
         }
         pi_disconnect(PI);
-	spin_lock_irqsave(&io_request_lock,saved_flags);
+	spin_lock_irqsave(&pf_spin_lock,saved_flags);
         end_request(1);
         pf_busy = 0;
 	do_pf_request(NULL);
-	spin_unlock_irqrestore(&io_request_lock,saved_flags);
+	spin_unlock_irqrestore(&pf_spin_lock,saved_flags);
 }
 
 /* end of pf.c */

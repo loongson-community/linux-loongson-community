@@ -13,7 +13,7 @@ int eata2x_abort(Scsi_Cmnd *);
 int eata2x_reset(Scsi_Cmnd *);
 int eata2x_biosparam(Disk *, kdev_t, int *);
 
-#define EATA_VERSION "6.05.00"
+#define EATA_VERSION "7.00.00"
 
 #define EATA {                                                               \
                 name:              "EATA/DMA 2.0x rev. " EATA_VERSION " ",   \
@@ -30,7 +30,6 @@ int eata2x_biosparam(Disk *, kdev_t, int *);
                 this_id:                 7,                                  \
                 unchecked_isa_dma:       1,                                  \
                 use_clustering:          ENABLE_CLUSTERING,                  \
-                use_new_eh_code:         1    /* Enable new error code */    \
              }
 
 #endif

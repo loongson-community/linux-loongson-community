@@ -130,7 +130,7 @@ static void usb_ctrl_complete(struct urb *urb)
 	struct ctrl_msg *ctrl_msg;
 	
 	if (urb->status < 0) {
-		if (urb->status != USB_ST_URB_KILLED) {
+		if (urb->status != -ENOENT) {
 			WARN("urb status %d",urb->status);
 		} else {
 			DBG(1,"urb killed");
@@ -184,7 +184,7 @@ static void usb_int_complete(struct urb *urb)
 	int j;
 
 	if (urb->status < 0) {
-		if (urb->status != USB_ST_URB_KILLED) {
+		if (urb->status != -ENOENT) {
 			WARN("urb status %d",urb->status);
 			urb->actual_length = 0;
 		} else {
@@ -307,7 +307,7 @@ int __devinit st5481_setup_usb(struct st5481_adapter *adapter)
  * Release buffers and URBs for the interrupt and control
  * endpoint.
  */
-void __devexit st5481_release_usb(struct st5481_adapter *adapter)
+void st5481_release_usb(struct st5481_adapter *adapter)
 {
 	struct st5481_intr *intr = &adapter->intr;
 	struct st5481_ctrl *ctrl = &adapter->ctrl;
@@ -443,7 +443,7 @@ st5481_setup_isocpipes(struct urb* urb[2], struct usb_device *dev,
 	return retval;
 }
 
-void __devexit st5481_release_isocpipes(struct urb* urb[2])
+void st5481_release_isocpipes(struct urb* urb[2])
 {
 	int j;
 
@@ -470,7 +470,7 @@ static void usb_in_complete(struct urb *urb)
 	int len, count, status;
 
 	if (urb->status < 0) {
-		if (urb->status != USB_ST_URB_KILLED) {
+		if (urb->status != -ENOENT) {
 			WARN("urb status %d",urb->status);
 		} else {
 			DBG(1,"urb killed");
@@ -547,7 +547,7 @@ int __devinit st5481_setup_in(struct st5481_in *in)
 	return retval;
 }
 
-void __devexit st5481_release_in(struct st5481_in *in)
+void st5481_release_in(struct st5481_in *in)
 {
 	DBG(2,"");
 

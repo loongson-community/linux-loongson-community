@@ -121,7 +121,8 @@ static unsigned int xd_bases[] __initdata =
 static struct hd_struct xd_struct[XD_MAXDRIVES << 6];
 static int xd_sizes[XD_MAXDRIVES << 6], xd_access[XD_MAXDRIVES];
 static int xd_blocksizes[XD_MAXDRIVES << 6];
-static int xd_maxsect[XD_MAXDRIVES << 6];
+
+static spinlock_t xd_lock = SPIN_LOCK_UNLOCKED;
 
 extern struct block_device_operations xd_fops;
 
@@ -171,7 +172,7 @@ int __init xd_init (void)
 		return -1;
 	}
 	devfs_handle = devfs_mk_dir (NULL, xd_gendisk.major_name, NULL);
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST, &xd_lock);
 	read_ahead[MAJOR_NR] = 8;	/* 8 sector (4kB) read ahead */
 	add_gendisk(&xd_gendisk);
 	xd_geninit();
@@ -246,8 +247,7 @@ static void __init xd_geninit (void)
 	}
 
 	/* xd_maxsectors depends on controller - so set after detection */
-	for(i=0; i<(XD_MAXDRIVES << 6); i++) xd_maxsect[i] = xd_maxsectors;
-	max_sectors[MAJOR_NR] = xd_maxsect;
+	blk_queue_max_sectors(BLK_DEFAULT_QUEUE(MAJOR_NR), xd_maxsectors);
 
 	for (i = 0; i < xd_drives; i++) {
 		xd_valid[i] = 1;
@@ -257,7 +257,6 @@ static void __init xd_geninit (void)
 	}
 
 	xd_gendisk.nr_real = xd_drives;
-
 }
 
 /* xd_open: open a device */
@@ -292,14 +291,14 @@ static void do_xd_request (request_queue_t * q)
 		if (CURRENT_DEV < xd_drives
 		    && CURRENT->sector + CURRENT->nr_sectors
 		         <= xd_struct[MINOR(CURRENT->rq_dev)].nr_sects) {
-			block = CURRENT->sector + xd_struct[MINOR(CURRENT->rq_dev)].start_sect;
+			block = CURRENT->sector;
 			count = CURRENT->nr_sectors;
 
-			switch (CURRENT->cmd) {
+			switch (rq_data_dir(CURRENT)) {
 				case READ:
 				case WRITE:
 					for (retry = 0; (retry < XD_RETRIES) && !code; retry++)
-						code = xd_readwrite(CURRENT->cmd,CURRENT_DEV,CURRENT->buffer,block,count);
+						code = xd_readwrite(rq_data_dir(CURRENT),CURRENT_DEV,CURRENT->buffer,block,count);
 					break;
 				default:
 					printk("do_xd_request: unknown request\n");
@@ -329,7 +328,7 @@ static int xd_ioctl (struct inode *inode,struct file *file,u_int cmd,u_long arg)
 			g.heads = xd_info[dev].heads;
 			g.sectors = xd_info[dev].sectors;
 			g.cylinders = xd_info[dev].cylinders;
-			g.start = xd_struct[MINOR(inode->i_rdev)].start_sect;
+			g.start = get_start_sect(inode->i_rdev);
 			return copy_to_user(geometry, &g, sizeof g) ? -EFAULT : 0;
 		}
 		case HDIO_SET_DMA:
@@ -337,7 +336,8 @@ static int xd_ioctl (struct inode *inode,struct file *file,u_int cmd,u_long arg)
 			if (xdc_busy) return -EBUSY;
 			nodma = !arg;
 			if (nodma && xd_dma_buffer) {
-				xd_dma_mem_free((unsigned long)xd_dma_buffer, xd_maxsectors * 0x200);
+				xd_dma_mem_free((unsigned long)xd_dma_buffer,
+						xd_maxsectors * 0x200);
 				xd_dma_buffer = 0;
 			}
 			return 0;
@@ -378,11 +378,9 @@ static int xd_release (struct inode *inode, struct file *file)
 static int xd_reread_partitions(kdev_t dev)
 {
 	int target;
-	int start;
-	int partition;
+	int res;
 	
 	target = DEVICE_NR(dev);
- 	start = target << xd_gendisk.minor_shift;
 
 	cli();
 	xd_valid[target] = (xd_access[target] != 1);
@@ -390,20 +388,16 @@ static int xd_reread_partitions(kdev_t dev)
 	if (xd_valid[target])
 		return -EBUSY;
 
-	for (partition = xd_gendisk.max_p - 1; partition >= 0; partition--) {
-		int minor = (start | partition);
-		invalidate_device(MKDEV(MAJOR_NR, minor), 1);
-		xd_gendisk.part[minor].start_sect = 0;
-		xd_gendisk.part[minor].nr_sects = 0;
-	};
-
-	grok_partitions(&xd_gendisk, target, 1<<6,
-			xd_info[target].heads * xd_info[target].cylinders * xd_info[target].sectors);
+	res = wipe_partitions(dev);
+	if (!res)
+		grok_partitions(dev, xd_info[target].heads
+				* xd_info[target].cylinders
+				* xd_info[target].sectors);
 
 	xd_valid[target] = 1;
 	wake_up(&xd_wait_open);
 
-	return 0;
+	return res;
 }
 
 /* xd_readwrite: handle a read/write request */
@@ -1105,12 +1099,9 @@ MODULE_LICENSE("GPL");
 
 static void xd_done (void)
 {
-	blksize_size[MAJOR_NR] = NULL;
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
-	blk_size[MAJOR_NR] = NULL;
-	hardsect_size[MAJOR_NR] = NULL;
-	read_ahead[MAJOR_NR] = 0;
 	del_gendisk(&xd_gendisk);
+	blk_clear(MAJOR_NR);
 	release_region(xd_iobase,4);
 }
 

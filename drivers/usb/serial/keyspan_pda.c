@@ -172,10 +172,6 @@ static __devinitdata struct usb_device_id id_table_fake [] = {
 #ifdef XIRCOM
 static __devinitdata struct usb_device_id id_table_fake_xircom [] = {
         { USB_DEVICE(XIRCOM_VENDOR_ID, XIRCOM_FAKE_ID) },
-        { }                                             
-};
-
-static __devinitdata struct usb_device_id id_table_fake_entregra [] = {
         { USB_DEVICE(ENTREGRA_VENDOR_ID, ENTREGRA_FAKE_ID) },
         { }                                             
 };
@@ -679,9 +675,7 @@ static int keyspan_pda_open (struct usb_serial_port *port, struct file *filp)
 	MOD_INC_USE_COUNT;
 	++port->open_count;
 
-	if (!port->active) {
-		port->active = 1;
- 
+	if (port->open_count == 1) {
 		/* find out how much room is in the Tx ring */
 		rc = usb_control_msg(serial->dev, usb_rcvctrlpipe(serial->dev, 0),
 				     6, /* write_room */
@@ -727,7 +721,6 @@ static int keyspan_pda_open (struct usb_serial_port *port, struct file *filp)
 	return rc;
 error:
 	--port->open_count;
-	port->active = 0;
 	MOD_DEC_USE_COUNT;
 	up (&port->sem);
 	return rc;
@@ -752,7 +745,6 @@ static void keyspan_pda_close(struct usb_serial_port *port, struct file *filp)
 			usb_unlink_urb (port->write_urb);
 			usb_unlink_urb (port->interrupt_in_urb);
 		}
-		port->active = 0;
 		port->open_count = 0;
 	}
 
@@ -843,9 +835,6 @@ static void keyspan_pda_shutdown (struct usb_serial *serial)
 static struct usb_serial_device_type keyspan_pda_fake_device = {
 	name:			"Keyspan PDA - (prerenumeration)",
 	id_table:		id_table_fake,
-	needs_interrupt_in:	DONT_CARE,
-	needs_bulk_in:		DONT_CARE,
-	needs_bulk_out:		DONT_CARE,
 	num_interrupt_in:	NUM_DONT_CARE,
 	num_bulk_in:		NUM_DONT_CARE,
 	num_bulk_out:		NUM_DONT_CARE,
@@ -856,24 +845,8 @@ static struct usb_serial_device_type keyspan_pda_fake_device = {
 
 #ifdef XIRCOM
 static struct usb_serial_device_type xircom_pgs_fake_device = {
-        name:                   "Xircom PGS - (prerenumeration)",
+        name:                   "Xircom / Entregra PGS - (prerenumeration)",
         id_table:               id_table_fake_xircom,
-        needs_interrupt_in:     DONT_CARE,
-        needs_bulk_in:          DONT_CARE,
-        needs_bulk_out:         DONT_CARE,
-        num_interrupt_in:       NUM_DONT_CARE,
-        num_bulk_in:            NUM_DONT_CARE,
-        num_bulk_out:           NUM_DONT_CARE,
-        num_ports:              1,
-        startup:                keyspan_pda_fake_startup,
-};
-
-static struct usb_serial_device_type entregra_pgs_fake_device = {
-        name:                   "Entregra PGS - (prerenumeration)",
-        id_table:               id_table_fake_entregra,
-        needs_interrupt_in:     DONT_CARE,
-        needs_bulk_in:          DONT_CARE,
-        needs_bulk_out:         DONT_CARE,
         num_interrupt_in:       NUM_DONT_CARE,
         num_bulk_in:            NUM_DONT_CARE,
         num_bulk_out:           NUM_DONT_CARE,
@@ -885,9 +858,6 @@ static struct usb_serial_device_type entregra_pgs_fake_device = {
 static struct usb_serial_device_type keyspan_pda_device = {
 	name:			"Keyspan PDA",
 	id_table:		id_table_std,
-	needs_interrupt_in:	MUST_HAVE,
-	needs_bulk_in:		DONT_CARE,
-	needs_bulk_out:		MUST_HAVE,
 	num_interrupt_in:	1,
 	num_bulk_in:		0,
 	num_bulk_out:		1,
@@ -917,7 +887,6 @@ static int __init keyspan_pda_init (void)
 #endif
 #ifdef XIRCOM
 	usb_serial_register (&xircom_pgs_fake_device);
-	usb_serial_register (&entregra_pgs_fake_device);
 #endif
 	info(DRIVER_DESC " " DRIVER_VERSION);
 	return 0;
@@ -931,7 +900,6 @@ static void __exit keyspan_pda_exit (void)
 	usb_serial_deregister (&keyspan_pda_fake_device);
 #endif
 #ifdef XIRCOM
-	usb_serial_deregister (&entregra_pgs_fake_device);
 	usb_serial_deregister (&xircom_pgs_fake_device);
 #endif
 }

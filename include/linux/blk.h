@@ -5,78 +5,29 @@
 #include <linux/locks.h>
 #include <linux/config.h>
 #include <linux/spinlock.h>
+#include <linux/compiler.h>
 
 /*
- * Spinlock for protecting the request queue which
- * is mucked around with in interrupts on potentially
- * multiple CPU's..
+ * get rid of this next...
  */
-extern spinlock_t io_request_lock;
-
-/*
- * Initialization functions.
- */
-extern int isp16_init(void);
-extern int cdu31a_init(void);
-extern int acsi_init(void);
-extern int mcd_init(void);
-extern int mcdx_init(void);
-extern int sbpcd_init(void);
-extern int aztcd_init(void);
-extern int sony535_init(void);
-extern int gscd_init(void);
-extern int cm206_init(void);
-extern int optcd_init(void);
-extern int sjcd_init(void);
-extern int cdi_init(void);
-extern int hd_init(void);
 extern int ide_init(void);
-extern int xd_init(void);
-extern int mfm_init(void);
-extern int loop_init(void);
-extern int md_init(void);
-extern int ap_init(void);
-extern int ddv_init(void);
-extern int z2_init(void);
-extern int swim3_init(void);
-extern int swimiop_init(void);
-extern int amiga_floppy_init(void);
-extern int atari_floppy_init(void);
-extern int ez_init(void);
-extern int bpcd_init(void);
-extern int ps2esdi_init(void);
-extern int jsfd_init(void);
-extern int viodasd_init(void);
-extern int viocd_init(void);
-
-#if defined(CONFIG_ARCH_S390)
-extern int dasd_init(void);
-extern int xpram_init(void);
-extern int tapeblock_init(void);
-#endif /* CONFIG_ARCH_S390 */
 
 extern void set_device_ro(kdev_t dev,int flag);
-void add_blkdev_randomness(int major);
+extern void add_blkdev_randomness(int major);
 
-extern int floppy_init(void);
-extern void rd_load(void);
-extern int rd_init(void);
-extern int rd_doload;		/* 1 = load ramdisk, 0 = don't load */
-extern int rd_prompt;		/* 1 = prompt for ramdisk, 0 = don't prompt */
-extern int rd_image_start;	/* starting block # of image */
-
-#ifdef CONFIG_BLK_DEV_INITRD
+//#ifdef CONFIG_BLK_DEV_INITRD
 
 #define INITRD_MINOR 250 /* shouldn't collide with /dev/ram* too soon ... */
 
 extern unsigned long initrd_start,initrd_end;
 extern int mount_initrd; /* zero if initrd should not be mounted */
 extern int initrd_below_start_ok; /* 1 if it is not an error if initrd_start < memory_start */
+extern int rd_doload;		/* 1 = load ramdisk, 0 = don't load */
+extern int rd_prompt;		/* 1 = prompt for ramdisk, 0 = don't prompt */
+extern int rd_image_start;	/* starting block # of image */
 void initrd_init(void);
 
-#endif
-
-		 
+//#endif
 /*
  * end_request() and friends. Must be called with the request queue spinlock
  * acquired. All functions called within end_request() _must_be_ atomic.
@@ -87,14 +38,61 @@ void initrd_init(void);
  * code duplication in drivers.
  */
 
-static inline void blkdev_dequeue_request(struct request * req)
+extern int end_that_request_first(struct request *, int, int);
+extern void end_that_request_last(struct request *);
+
+static inline void blkdev_dequeue_request(struct request *req)
 {
-	list_del(&req->queue);
+	list_del(&req->queuelist);
 }
 
-int end_that_request_first(struct request *req, int uptodate, char *name);
-void end_that_request_last(struct request *req);
+#define __elv_next_request(q)	(q)->elevator.elevator_next_req_fn((q))
 
+extern inline struct request *elv_next_request(request_queue_t *q)
+{
+	struct request *rq;
+
+	while ((rq = __elv_next_request(q))) {
+		rq->flags |= REQ_STARTED;
+
+		if ((rq->flags & REQ_DONTPREP) || !q->prep_rq_fn)
+			break;
+
+		/*
+		 * all ok, break and return it
+		 */
+		if (!q->prep_rq_fn(q, rq))
+			break;
+
+		/*
+		 * prep said no-go, kill it
+		 */
+		blkdev_dequeue_request(rq);
+		if (end_that_request_first(rq, 0, rq->nr_sectors))
+			BUG();
+
+		end_that_request_last(rq);
+	}
+
+	return rq;
+}
+
+#define __elv_add_request_core(q, rq, where, plug)			\
+	do {								\
+		if ((plug))						\
+			blk_plug_device((q));				\
+		(q)->elevator.elevator_add_req_fn((q), (rq), (where));	\
+	} while (0)
+
+#define __elv_add_request(q, rq, back, p) do {				      \
+	if ((back))							      \
+		__elv_add_request_core((q), (rq), (q)->queue_head.prev, (p)); \
+	else								      \
+		__elv_add_request_core((q), (rq), &(q)->queue_head, 0);	      \
+} while (0)
+
+#define elv_add_request(q, rq, back) __elv_add_request((q), (rq), (back), 1)
+	
 #if defined(MAJOR_NR) || defined(IDE_DRIVER)
 
 #undef DEVICE_ON
@@ -338,11 +336,15 @@ static void floppy_off(unsigned int nr);
 #if !defined(IDE_DRIVER)
 
 #ifndef CURRENT
-#define CURRENT blkdev_entry_next_request(&blk_dev[MAJOR_NR].request_queue.queue_head)
+#define CURRENT elv_next_request(&blk_dev[MAJOR_NR].request_queue)
+#endif
+#ifndef QUEUE
+#define QUEUE (&blk_dev[MAJOR_NR].request_queue)
 #endif
 #ifndef QUEUE_EMPTY
-#define QUEUE_EMPTY list_empty(&blk_dev[MAJOR_NR].request_queue.queue_head)
+#define QUEUE_EMPTY blk_queue_empty(QUEUE)
 #endif
+
 
 #ifndef DEVICE_NAME
 #define DEVICE_NAME "unknown"
@@ -366,17 +368,15 @@ static void (DEVICE_REQUEST)(request_queue_t *);
 #define CLEAR_INTR
 #endif
 
-#define INIT_REQUEST \
-	if (QUEUE_EMPTY) {\
-		CLEAR_INTR; \
-		return; \
-	} \
-	if (MAJOR(CURRENT->rq_dev) != MAJOR_NR) \
-		panic(DEVICE_NAME ": request list destroyed"); \
-	if (CURRENT->bh) { \
-		if (!buffer_locked(CURRENT->bh)) \
-			panic(DEVICE_NAME ": block not locked"); \
-	}
+#define INIT_REQUEST						\
+	if (QUEUE_EMPTY) {					\
+		CLEAR_INTR;					\
+		return;						\
+	}							\
+	if (MAJOR(CURRENT->rq_dev) != MAJOR_NR) 		\
+		panic(DEVICE_NAME ": request list destroyed");	\
+	if (!CURRENT->bio)					\
+		panic(DEVICE_NAME ": no bio");			\
 
 #endif /* !defined(IDE_DRIVER) */
 
@@ -385,10 +385,11 @@ static void (DEVICE_REQUEST)(request_queue_t *);
 
 #if ! SCSI_BLK_MAJOR(MAJOR_NR) && (MAJOR_NR != COMPAQ_SMART2_MAJOR)
 
-static inline void end_request(int uptodate) {
+static inline void end_request(int uptodate)
+{
 	struct request *req = CURRENT;
 
-	if (end_that_request_first(req, uptodate, DEVICE_NAME))
+	if (end_that_request_first(req, uptodate, CURRENT->hard_cur_sectors))
 		return;
 
 #ifndef DEVICE_NO_RANDOM

@@ -87,12 +87,9 @@ static __devinitdata struct usb_device_id id_table [] = {
 MODULE_DEVICE_TABLE (usb, id_table);
 
 
-struct usb_serial_device_type zyxel_omninet_device = {
+static struct usb_serial_device_type zyxel_omninet_device = {
 	name:			"ZyXEL - omni.net lcd plus usb",
 	id_table:		id_table,
-	needs_interrupt_in:	MUST_HAVE,
-	needs_bulk_in:		MUST_HAVE,
-	needs_bulk_out:		MUST_HAVE,
 	num_interrupt_in:	1,
 	num_bulk_in:		1,
 	num_bulk_out:		2,
@@ -164,14 +161,11 @@ static int omninet_open (struct usb_serial_port *port, struct file *filp)
 	MOD_INC_USE_COUNT;
 	++port->open_count;
 
-	if (!port->active) {
-		port->active = 1;
-
+	if (port->open_count == 1) {
 		od = kmalloc( sizeof(struct omninet_data), GFP_KERNEL );
 		if( !od ) {
 			err(__FUNCTION__"- kmalloc(%Zd) failed.", sizeof(struct omninet_data));
-			--port->open_count;
-			port->active = 0;
+			port->open_count = 0;
 			up (&port->sem);
 			MOD_DEC_USE_COUNT;
 			return -ENOMEM;
@@ -222,7 +216,6 @@ static void omninet_close (struct usb_serial_port *port, struct file * filp)
 			usb_unlink_urb (port->read_urb);
 		}
 
-		port->active = 0;
 		port->open_count = 0;
 		od = (struct omninet_data *)port->private;
 		if (od)

@@ -235,14 +235,14 @@ static inline void idescsi_transform_pc2 (ide_drive_t *drive, idescsi_pc_t *pc)
 		kfree(atapi_buf);
 }
 
-static inline void idescsi_free_bh (struct buffer_head *bh)
+static inline void idescsi_free_bio (struct bio *bio)
 {
-	struct buffer_head *bhp;
+	struct bio *bhp;
 
-	while (bh) {
-		bhp = bh;
-		bh = bh->b_reqnext;
-		kfree (bhp);
+	while (bio) {
+		bhp = bio;
+		bio = bio->bi_next;
+		bio_put(bhp);
 	}
 }
 
@@ -261,12 +261,13 @@ static void idescsi_end_request (byte uptodate, ide_hwgroup_t *hwgroup)
 	ide_drive_t *drive = hwgroup->drive;
 	idescsi_scsi_t *scsi = drive->driver_data;
 	struct request *rq = hwgroup->rq;
-	idescsi_pc_t *pc = (idescsi_pc_t *) rq->buffer;
+	idescsi_pc_t *pc = (idescsi_pc_t *) rq->special;
 	int log = test_bit(IDESCSI_LOG_CMD, &scsi->log);
+	struct Scsi_Host *host;
 	u8 *scsi_buf;
 	unsigned long flags;
 
-	if (rq->cmd != IDESCSI_PC_RQ) {
+	if (!(rq->flags & REQ_SPECIAL)) {
 		ide_end_request (uptodate, hwgroup);
 		return;
 	}
@@ -291,10 +292,11 @@ static void idescsi_end_request (byte uptodate, ide_hwgroup_t *hwgroup)
 			} else printk("\n");
 		}
 	}
-	spin_lock_irqsave(&io_request_lock,flags);	
+	host = pc->scsi_cmd->host;
+	spin_lock_irqsave(&host->host_lock, flags);
 	pc->done(pc->scsi_cmd);
-	spin_unlock_irqrestore(&io_request_lock,flags);
-	idescsi_free_bh (rq->bh);
+	spin_unlock_irqrestore(&host->host_lock, flags);
+	idescsi_free_bio (rq->bio);
 	kfree(pc); kfree(rq);
 	scsi->pc = NULL;
 }
@@ -427,7 +429,7 @@ static ide_startstop_t idescsi_issue_pc (ide_drive_t *drive, idescsi_pc_t *pc)
 	pc->current_position=pc->buffer;
 	bcount = IDE_MIN (pc->request_transfer, 63 * 1024);		/* Request to transfer the entire buffer at once */
 
-	if (drive->using_dma && rq->bh)
+	if (drive->using_dma && rq->bio)
 		dma_ok=!HWIF(drive)->dmaproc(test_bit (PC_WRITING, &pc->flags) ? ide_dma_write : ide_dma_read, drive);
 
 	SELECT_DRIVE(HWIF(drive), drive);
@@ -461,10 +463,10 @@ static ide_startstop_t idescsi_do_request (ide_drive_t *drive, struct request *r
 	printk (KERN_INFO "sector: %ld, nr_sectors: %ld, current_nr_sectors: %ld\n",rq->sector,rq->nr_sectors,rq->current_nr_sectors);
 #endif /* IDESCSI_DEBUG_LOG */
 
-	if (rq->cmd == IDESCSI_PC_RQ) {
-		return idescsi_issue_pc (drive, (idescsi_pc_t *) rq->buffer);
+	if (rq->flags & REQ_SPECIAL) {
+		return idescsi_issue_pc (drive, (idescsi_pc_t *) rq->special);
 	}
-	printk (KERN_ERR "ide-scsi: %s: unsupported command in request queue (%x)\n", drive->name, rq->cmd);
+	blk_dump_rq_flags(rq, "ide-scsi: unsup command");
 	idescsi_end_request (0,HWGROUP (drive));
 	return ide_stopped;
 }
@@ -653,25 +655,26 @@ int idescsi_ioctl (Scsi_Device *dev, int cmd, void *arg)
 	return -EINVAL;
 }
 
-static inline struct buffer_head *idescsi_kmalloc_bh (int count)
+static inline struct bio *idescsi_kmalloc_bio (int count)
 {
-	struct buffer_head *bh, *bhp, *first_bh;
+	struct bio *bh, *bhp, *first_bh;
 
-	if ((first_bh = bhp = bh = kmalloc (sizeof(struct buffer_head), GFP_ATOMIC)) == NULL)
+	if ((first_bh = bhp = bh = bio_alloc(GFP_ATOMIC, 1)) == NULL)
 		goto abort;
-	memset (bh, 0, sizeof (struct buffer_head));
-	bh->b_reqnext = NULL;
+	bio_init(bh);
+	bh->bi_vcnt = 1;
 	while (--count) {
-		if ((bh = kmalloc (sizeof(struct buffer_head), GFP_ATOMIC)) == NULL)
+		if ((bh = bio_alloc(GFP_ATOMIC, 1)) == NULL)
 			goto abort;
-		memset (bh, 0, sizeof (struct buffer_head));
-		bhp->b_reqnext = bh;
+		bio_init(bh);
+		bh->bi_vcnt = 1;
+		bhp->bi_next = bh;
 		bhp = bh;
-		bh->b_reqnext = NULL;
+		bh->bi_next = NULL;
 	}
 	return first_bh;
 abort:
-	idescsi_free_bh (first_bh);
+	idescsi_free_bio (first_bh);
 	return NULL;
 }
 
@@ -689,9 +692,9 @@ static inline int idescsi_set_direction (idescsi_pc_t *pc)
 	}
 }
 
-static inline struct buffer_head *idescsi_dma_bh (ide_drive_t *drive, idescsi_pc_t *pc)
+static inline struct bio *idescsi_dma_bio(ide_drive_t *drive, idescsi_pc_t *pc)
 {
-	struct buffer_head *bh = NULL, *first_bh = NULL;
+	struct bio *bh = NULL, *first_bh = NULL;
 	int segments = pc->scsi_cmd->use_sg;
 	struct scatterlist *sg = pc->scsi_cmd->request_buffer;
 
@@ -700,25 +703,43 @@ static inline struct buffer_head *idescsi_dma_bh (ide_drive_t *drive, idescsi_pc
 	if (idescsi_set_direction(pc))
 		return NULL;
 	if (segments) {
-		if ((first_bh = bh = idescsi_kmalloc_bh (segments)) == NULL)
+		if ((first_bh = bh = idescsi_kmalloc_bio (segments)) == NULL)
 			return NULL;
 #if IDESCSI_DEBUG_LOG
 		printk ("ide-scsi: %s: building DMA table, %d segments, %dkB total\n", drive->name, segments, pc->request_transfer >> 10);
 #endif /* IDESCSI_DEBUG_LOG */
 		while (segments--) {
-			bh->b_data = sg->address;
-			bh->b_size = sg->length;
-			bh = bh->b_reqnext;
+			struct page *page = sg->page;
+			int offset = sg->offset;
+
+			if (!page) {
+				BUG_ON(!sg->address);
+				page = virt_to_page(sg->address);
+				offset = (unsigned long) sg->address & ~PAGE_MASK;
+			}
+				
+			bh->bi_io_vec[0].bv_page = page;
+			bh->bi_io_vec[0].bv_len = sg->length;
+			bh->bi_io_vec[0].bv_offset = offset;
+			bh->bi_size = sg->length;
+			bh = bh->bi_next;
+			/*
+			 * just until scsi_merge is fixed up...
+			 */
+			BUG_ON(PageHighMem(page));
+			sg->address = page_address(page) + offset;
 			sg++;
 		}
 	} else {
-		if ((first_bh = bh = idescsi_kmalloc_bh (1)) == NULL)
+		if ((first_bh = bh = idescsi_kmalloc_bio (1)) == NULL)
 			return NULL;
 #if IDESCSI_DEBUG_LOG
 		printk ("ide-scsi: %s: building DMA table for a single buffer (%dkB)\n", drive->name, pc->request_transfer >> 10);
 #endif /* IDESCSI_DEBUG_LOG */
-		bh->b_data = pc->scsi_cmd->request_buffer;
-		bh->b_size = pc->request_transfer;
+		bh->bi_io_vec[0].bv_page = virt_to_page(pc->scsi_cmd->request_buffer);
+		bh->bi_io_vec[0].bv_len = pc->request_transfer;
+		bh->bi_io_vec[0].bv_offset = (unsigned long) pc->scsi_cmd->request_buffer & ~PAGE_MASK;
+		bh->bi_size = pc->request_transfer;
 	}
 	return first_bh;
 }
@@ -782,12 +803,12 @@ int idescsi_queue (Scsi_Cmnd *cmd, void (*done)(Scsi_Cmnd *))
 	}
 
 	ide_init_drive_cmd (rq);
-	rq->buffer = (char *) pc;
-	rq->bh = idescsi_dma_bh (drive, pc);
-	rq->cmd = IDESCSI_PC_RQ;
-	spin_unlock(&io_request_lock);
+	rq->special = (char *) pc;
+	rq->bio = idescsi_dma_bio (drive, pc);
+	rq->flags = REQ_SPECIAL;
+	spin_unlock(&cmd->host->host_lock);
 	(void) ide_do_drive_cmd (drive, rq, ide_end);
-	spin_lock_irq(&io_request_lock);
+	spin_lock_irq(&cmd->host->host_lock);
 	return 0;
 abort:
 	if (pc) kfree (pc);

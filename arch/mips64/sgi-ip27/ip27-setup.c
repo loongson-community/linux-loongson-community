@@ -14,6 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/smp.h>
+
 #include <asm/io.h>
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
@@ -21,6 +22,7 @@
 #include <asm/sn/sn0/hubio.h>
 #include <asm/sn/klconfig.h>
 #include <asm/sn/ioc3.h>
+#include <asm/time.h>
 #include <asm/mipsregs.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/sn_private.h>
@@ -39,8 +41,6 @@
 #else
 #define DBG(x...)
 #endif
-
-unsigned long mips_io_port_base = IO_BASE;
 
 /*
  * get_nasid() returns the physical node id number of the caller.
@@ -275,6 +275,7 @@ void __init pcibr_setup(cnodeid_t nid)
 }
 
 extern void ip27_setup_console(void);
+extern void ip27_time_init(void);
 
 void __init ip27_setup(void)
 {
@@ -307,4 +308,7 @@ void __init ip27_setup(void)
 	ioc3_sio_init();
 	ioc3_eth_init();
 	per_cpu_init();
+
+	mips_io_port_base = IO_BASE;
+	board_time_init = ip27_time_init;
 }

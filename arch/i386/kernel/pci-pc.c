@@ -458,7 +458,7 @@ static unsigned long bios32_service(unsigned long service)
 	unsigned long flags;
 
 	__save_flags(flags); __cli();
-	__asm__("lcall (%%edi); cld"
+	__asm__("lcall *(%%edi); cld"
 		: "=a" (return_code),
 		  "=b" (address),
 		  "=c" (length),
@@ -499,7 +499,7 @@ static int __devinit check_pcibios(void)
 
 		__save_flags(flags); __cli();
 		__asm__(
-			"lcall (%%edi); cld\n\t"
+			"lcall *(%%edi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -544,7 +544,7 @@ static int __devinit pci_bios_find_device (unsigned short vendor, unsigned short
 	unsigned short bx;
 	unsigned short ret;
 
-	__asm__("lcall (%%edi); cld\n\t"
+	__asm__("lcall *(%%edi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -573,7 +573,7 @@ static int pci_bios_read (int seg, int bus, int dev, int fn, int reg, int len, u
 
 	switch (len) {
 	case 1:
-		__asm__("lcall (%%esi); cld\n\t"
+		__asm__("lcall *(%%esi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -585,7 +585,7 @@ static int pci_bios_read (int seg, int bus, int dev, int fn, int reg, int len, u
 			  "S" (&pci_indirect));
 		break;
 	case 2:
-		__asm__("lcall (%%esi); cld\n\t"
+		__asm__("lcall *(%%esi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -597,7 +597,7 @@ static int pci_bios_read (int seg, int bus, int dev, int fn, int reg, int len, u
 			  "S" (&pci_indirect));
 		break;
 	case 4:
-		__asm__("lcall (%%esi); cld\n\t"
+		__asm__("lcall *(%%esi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -628,7 +628,7 @@ static int pci_bios_write (int seg, int bus, int dev, int fn, int reg, int len, 
 
 	switch (len) {
 	case 1:
-		__asm__("lcall (%%esi); cld\n\t"
+		__asm__("lcall *(%%esi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -640,7 +640,7 @@ static int pci_bios_write (int seg, int bus, int dev, int fn, int reg, int len, 
 			  "S" (&pci_indirect));
 		break;
 	case 2:
-		__asm__("lcall (%%esi); cld\n\t"
+		__asm__("lcall *(%%esi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -652,7 +652,7 @@ static int pci_bios_write (int seg, int bus, int dev, int fn, int reg, int len, 
 			  "S" (&pci_indirect));
 		break;
 	case 4:
-		__asm__("lcall (%%esi); cld\n\t"
+		__asm__("lcall *(%%esi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -875,7 +875,7 @@ struct irq_routing_table * __devinit pcibios_get_irq_routing_table(void)
 	__asm__("push %%es\n\t"
 		"push %%ds\n\t"
 		"pop  %%es\n\t"
-		"lcall (%%esi); cld\n\t"
+		"lcall *(%%esi); cld\n\t"
 		"pop %%es\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -908,7 +908,7 @@ int pcibios_set_irq_routing(struct pci_dev *dev, int pin, int irq)
 {
 	int ret;
 
-	__asm__("lcall (%%esi); cld\n\t"
+	__asm__("lcall *(%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -1114,17 +1114,26 @@ static void __devinit pci_fixup_piix4_acpi(struct pci_dev *d)
  * But it does seem to fix some unspecified problem
  * with 'movntq' copies on Athlons.
  *
- * VIA 8363 chipset:
- *  - bit 7 at offset 0x55: Debug (RW)
+ * VIA 8363,8622,8361 Northbridges:
+ *  - bits  5, 6, 7 at offset 0x55 need to be turned off
+ * VIA 8367 (KT266x) Northbridges:
+ *  - bits  5, 6, 7 at offset 0x95 need to be turned off
  */
 static void __init pci_fixup_via_athlon_bug(struct pci_dev *d)
 {
 	u8 v;
-	pci_read_config_byte(d, 0x55, &v);
-	if (v & 0x80) {
+	int where = 0x55;
+
+	if (d->device == PCI_DEVICE_ID_VIA_8367_0) {
+  	        where = 0x95; /* the memory write queue timer register is 
+                                 different for the kt266x's: 0x95 not 0x55 */
+	}
+
+        pci_read_config_byte(d, where, &v);
+	if (v & 0xe0) {
 		printk("Trying to stomp on Athlon bug...\n");
-		v &= 0x7f; /* clear bit 55.7 */
-		pci_write_config_byte(d, 0x55, v);
+		v &= 0x1f; /* clear bits 5, 6, 7 */
+		pci_write_config_byte(d, where, v);
 	}
 }
 
@@ -1138,6 +1147,9 @@ struct pci_fixup pcibios_fixups[] = {
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5598,		pci_fixup_latency },
  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82371AB_3,	pci_fixup_piix4_acpi },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_8363_0,	pci_fixup_via_athlon_bug },
+	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_8622,	        pci_fixup_via_athlon_bug },
+	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_8361,	        pci_fixup_via_athlon_bug },
+	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_8367_0,	pci_fixup_via_athlon_bug },
 	{ 0 }
 };
 

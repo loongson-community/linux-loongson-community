@@ -50,6 +50,13 @@ static inline void pcibios_penalize_isa_irq(int irq)
 struct pci_dev;
 
 /*
+ * The PCI address space does equal the physical memory address space.  The
+ * networking and block device layers use this boolean for bounce buffer
+ * decisions.
+ */
+#define PCI_DMA_BUS_IS_PHYS	(1)
+
+/*
  * Allocate and map kernel buffer using consistent mode DMA for a device.
  * hwdev should be valid struct pci_dev pointer for PCI devices,
  * NULL for PCI-like buses (ISA, EISA).

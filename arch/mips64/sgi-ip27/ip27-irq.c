@@ -68,6 +68,8 @@ unsigned char num_bridges;	/* number of bridges in the system */
  */
 
 extern asmlinkage void ip27_irq(void);
+extern void do_IRQ(int irq, struct pt_regs *regs);
+
 extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
 int intr_connect_level(int cpu, int bit);
 int intr_disconnect_level(int cpu, int bit);
@@ -122,67 +124,20 @@ static inline int find_level(cpuid_t *cpunum, int irq)
 	return(-1);
 }
 
-
-void disable_irq(unsigned int irq_nr)
-{
-	panic("disable_irq() called ...");
-}
-
-void enable_irq(unsigned int irq_nr)
-{
-	panic("enable_irq() called ...");
-}
-
-/* This is stupid for an Origin which can have thousands of IRQs ...  */
-static struct irqaction *irq_action[NR_IRQS];
-
-/*
- * do_IRQ handles all normal device IRQ's (the special SMP cross-CPU interrupts
- * have their own specific handlers).
- */
-static void do_IRQ(cpuid_t thiscpu, int irq, struct pt_regs * regs)
-{
-	struct irqaction *action;
-	int do_random;
-
-	irq_enter(thiscpu, irq);
-	kstat.irqs[thiscpu][irq]++;
-
-	action = *(irq + irq_action);
-	if (action) {
-		if (!(action->flags & SA_INTERRUPT))
-			__sti();
-		do_random = 0;
-        	do {
-			do_random |= action->flags;
-			action->handler(irq, action->dev_id, regs);
-			action = action->next;
-        	} while (action);
-		if (do_random & SA_SAMPLE_RANDOM)
-			add_interrupt_randomness(irq);
-		__cli();
-	}
-	irq_exit(thiscpu, irq);
-
-	if (softirq_pending(thiscpu))
-		do_softirq();
-}
-
 /*
  * Find first bit set
  */
 static int ms1bit(unsigned long x)
 {
-	int	b;
+	int b = 0, s;
 
-	if (x >> 32) 	b = 32, x >>= 32;
-	else		b  =  0;
-	if (x >> 16)	b += 16, x >>= 16;
-	if (x >>  8)	b +=  8, x >>=  8;
-	if (x >>  4)	b +=  4, x >>=  4;
-	if (x >>  2)	b +=  2, x >>=  2;
+	s = 16; if (x >> 16 == 0) s = 0; b += s; x >>= s;
+	s =  8; if (x >>  8 == 0) s = 0; b += s; x >>= s;
+	s =  4; if (x >>  4 == 0) s = 0; b += s; x >>= s;
+	s =  2; if (x >>  2 == 0) s = 0; b += s; x >>= s;
+	s =  1; if (x >>  1 == 0) s = 0; b += s;
 
-	return b + (int) (x >> 1);
+	return b;
 }
 
 /*
@@ -216,7 +171,7 @@ void ip27_do_irq(struct pt_regs *regs)
 				LOCAL_HUB_CLR_INTR(swlevel);
 				/* "map" swlevel to irq */
 				irq = LEVEL_TO_IRQ(thiscpu, swlevel);
-				do_IRQ(thiscpu, irq, regs);
+				do_IRQ(irq, regs);
 				/* clear bit in pend0 */
 				pend0 ^= 1ULL << swlevel;
 			} while(pend0);
@@ -229,13 +184,16 @@ void ip27_do_irq(struct pt_regs *regs)
 
 
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
-static unsigned int bridge_startup(unsigned int irq)
+static unsigned int startup_bridge_irq(unsigned int irq)
 {
 	bridgereg_t device;
 	bridge_t *bridge;
 	int pin, swlevel;
 	cpuid_t cpu;
 	nasid_t master = NASID_FROM_PCI_IRQ(irq);
+
+	if (irq < BASE_PCI_IRQ)
+		return 0;
 
         bridge = (bridge_t *) NODE_SWIN_BASE(master, WID_FROM_PCI_IRQ(irq));
 	pin = SLOT_FROM_PCI_IRQ(irq);
@@ -269,11 +227,14 @@ static unsigned int bridge_startup(unsigned int irq)
 }
 
 /* Shutdown one of the (PCI ...) IRQs routes over a bridge.  */
-static unsigned int bridge_shutdown(unsigned int irq)
+static unsigned int shutdown_bridge_irq(unsigned int irq)
 {
 	bridge_t *bridge;
 	int pin, swlevel;
 	cpuid_t cpu;
+
+	if (irq < BASE_PCI_IRQ)
+		return 0;
 
 	bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
 	                                     WID_FROM_PCI_IRQ(irq));
@@ -294,6 +255,37 @@ static unsigned int bridge_shutdown(unsigned int irq)
 	return 0;       /* Never anything pending.  */
 }
 
+static inline void enable_bridge_irq(unsigned int irq)
+{
+	/* All the braindamage happens magically for us in ip27_do_irq */
+}
+
+static void disable_bridge_irq(unsigned int irq)
+{
+	/* All the braindamage happens magically for us in ip27_do_irq */
+}
+
+static void mask_and_ack_bridge_irq(unsigned int irq)
+{
+	/* All the braindamage happens magically for us in ip27_do_irq */
+}
+
+static void end_bridge_irq (unsigned int irq)
+{
+	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
+		enable_bridge_irq(irq);
+}
+
+static struct hw_interrupt_type bridge_irq_type = {
+	"bridge",
+	startup_bridge_irq,
+	shutdown_bridge_irq,
+	enable_bridge_irq,
+	disable_bridge_irq,
+	mask_and_ack_bridge_irq,
+	end_bridge_irq
+};
+
 void irq_debug(void)
 {
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
@@ -304,117 +296,21 @@ void irq_debug(void)
 	printk("PI_INT_MASK0_A = 0x%lx\n", LOCAL_HUB_L(PI_INT_MASK0_A));
 }
 
-int setup_irq(unsigned int irq, struct irqaction *new)
-{
-	int shared = 0;
-	struct irqaction *old, **p;
-	unsigned long flags;
-
-	DBG("setup_irq: 0x%x\n", irq);
-	if (irq >= NR_IRQS) {
-		printk("IRQ array overflow %d\n", irq);
-		while(1);
-	}
-	if (new->flags & SA_SAMPLE_RANDOM)
-		rand_initialize_irq(irq);
-
-	save_and_cli(flags);
-	p = irq_action + irq;
-	if ((old = *p) != NULL) {
-		/* Can't share interrupts unless both agree to */
-		if (!(old->flags & new->flags & SA_SHIRQ)) {
-			restore_flags(flags);
-			return -EBUSY;
-		}
-
-		/* Add new interrupt at end of irq queue */
-		do {
-			p = &old->next;
-			old = *p;
-		} while (old);
-		shared = 1;
-	}
-
-	*p = new;
-
-	if ((!shared) && (irq >= BASE_PCI_IRQ)) {
-		bridge_startup(irq);
-	}
-	restore_flags(flags);
-
-	return 0;
-}
-
-int request_irq(unsigned int irq, 
-		void (*handler)(int, void *, struct pt_regs *),
-		unsigned long irqflags, const char * devname, void *dev_id)
-{
-	int retval;
-	struct irqaction *action;
-
-	DBG("request_irq(): irq= 0x%x\n", irq);
-	if (!handler)
-		return -EINVAL;
-
-	action = (struct irqaction *)kmalloc(sizeof(*action), GFP_KERNEL);
-	if (!action)
-		return -ENOMEM;
-
-	action->handler = handler;
-	action->flags = irqflags;
-	action->mask = 0;
-	action->name = devname;
-	action->next = NULL;
-	action->dev_id = dev_id;
-
-	DBG("request_irq(): %s  devid= 0x%x\n", devname, dev_id);
-	retval = setup_irq(irq, action);
-	DBG("request_irq(): retval= %d\n", retval);
-	if (retval)
-		kfree(action);
-	return retval;
-}
-
-void free_irq(unsigned int irq, void *dev_id)
-{
-	struct irqaction * action, **p;
-	unsigned long flags;
-
-	if (irq >= NR_IRQS) {
-		printk("Trying to free IRQ%d\n", irq);
-		return;
-	}
-	for (p = irq + irq_action; (action = *p) != NULL; p = &action->next) {
-		if (action->dev_id != dev_id)
-			continue;
-
-		/* Found it - now free it */
-		save_and_cli(flags);
-		*p = action->next;
-		if (irq >= BASE_PCI_IRQ)
-			bridge_shutdown(irq);
-		restore_flags(flags);
-		kfree(action);
-		return;
-	}
-	printk("Trying to free free IRQ%d\n",irq);
-}
-
-/* Useless ISA nonsense.  */
-unsigned long probe_irq_on (void)
-{
-	panic("probe_irq_on called!");
-	return 0;
-}
-
-int probe_irq_off (unsigned long irqs)
-{
-	return 0;
-}
-
 void __init init_IRQ(void)
 {
+	int i;
+
 	set_except_vector(0, ip27_irq);
+
+	/*
+	 * Right now the bridge irq is our kitchen sink interrupt type
+	 */
+	for (i = 0; i <= NR_IRQS; i++) {
+		irq_desc[i].status	= IRQ_DISABLED;
+		irq_desc[i].action	= 0;
+		irq_desc[i].depth	= 1;
+		irq_desc[i].handler	= &bridge_irq_type;
+	}
 }
 
 /*
@@ -498,7 +394,7 @@ void core_send_ipi(int destid, unsigned int action)
 	int irq;
 
 #if (CPUS_PER_NODE == 2)
-	switch (status) {
+	switch (action) {
 		case SMP_RESCHEDULE_YOURSELF:
 			irq = CPU_RESCHED_A_IRQ;
 			break;

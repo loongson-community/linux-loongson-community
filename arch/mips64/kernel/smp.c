@@ -82,7 +82,7 @@ void __init smp_commence(void)
  */
 void smp_send_reschedule(int cpu)
 {
-	sendintr(cpu, SMP_RESCHEDULE_YOURSELF);
+	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
 }
 
 /* Not really SMP stuff ... */
@@ -181,12 +181,6 @@ void smp_send_stop(void)
 {
 	smp_call_function(stop_this_cpu, NULL, 1, 0);
 	smp_num_cpus = 1;
-}
-
-/* Not really SMP stuff ... */
-int setup_profiling_timer(unsigned int multiplier)
-{
-	return 0;
 }
 
 static void flush_tlb_all_ipi(void *info)

@@ -707,7 +707,17 @@ void prune_icache(int goal)
 	if (goal)
 		schedule_task(&unused_inodes_flush_task);
 }
-
+/*
+ * This is called from kswapd when we think we need some
+ * more memory, but aren't really sure how much. So we
+ * carefully try to free a _bit_ of our icache, but not
+ * too much.
+ *
+ * Priority:
+ *   1 - very urgent: shrink everything
+ *  ...
+ *   6 - base-level: try to shrink a bit.
+ */
 int shrink_icache_memory(int priority, int gfp_mask)
 {
 	int count = 0;
@@ -1065,24 +1075,27 @@ void iput(struct inode *inode)
 			if (inode->i_state != I_CLEAR)
 				BUG();
 		} else {
-			if (!list_empty(&inode->i_hash) && sb && sb->s_root) {
+			if (!list_empty(&inode->i_hash)) {
 				if (!(inode->i_state & (I_DIRTY|I_LOCK))) {
 					list_del(&inode->i_list);
 					list_add(&inode->i_list, &inode_unused);
 				}
 				inodes_stat.nr_unused++;
 				spin_unlock(&inode_lock);
-				return;
-			} else {
-				list_del_init(&inode->i_list);
+				if (!sb || sb->s_flags & MS_ACTIVE)
+					return;
+				write_inode_now(inode, 1);
+				spin_lock(&inode_lock);
+				inodes_stat.nr_unused--;
 				list_del_init(&inode->i_hash);
-				inode->i_state|=I_FREEING;
-				inodes_stat.nr_inodes--;
-				spin_unlock(&inode_lock);
-				if (inode->i_data.nrpages)
-					truncate_inode_pages(&inode->i_data, 0);
-				clear_inode(inode);
 			}
+			list_del_init(&inode->i_list);
+			inode->i_state|=I_FREEING;
+			inodes_stat.nr_inodes--;
+			spin_unlock(&inode_lock);
+			if (inode->i_data.nrpages)
+				truncate_inode_pages(&inode->i_data, 0);
+			clear_inode(inode);
 		}
 		destroy_inode(inode);
 	}
@@ -1173,6 +1186,16 @@ void __init inode_init(unsigned long mempages)
 	unused_inodes_flush_task.routine = try_to_sync_unused_inodes;
 }
 
+static inline void do_atime_update(struct inode *inode)
+{
+	unsigned long time = CURRENT_TIME;
+	if (inode->i_atime != time) {
+		inode->i_atime = time;
+		mark_inode_dirty_sync(inode);
+	}
+}
+
+
 /**
  *	update_atime	-	update the access time
  *	@inode: inode accessed
@@ -1187,8 +1210,7 @@ void update_atime (struct inode *inode)
 	if ( IS_NOATIME (inode) ) return;
 	if ( IS_NODIRATIME (inode) && S_ISDIR (inode->i_mode) ) return;
 	if ( IS_RDONLY (inode) ) return;
-	inode->i_atime = CURRENT_TIME;
-	mark_inode_dirty_sync (inode);
+	do_atime_update(inode);
 }   /*  End Function update_atime  */
 
 

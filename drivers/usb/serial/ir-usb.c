@@ -93,9 +93,6 @@ MODULE_DEVICE_TABLE (usb, id_table);
 struct usb_serial_device_type ir_device = {
 	name:			"IR Dongle",
 	id_table:		id_table,
-	needs_interrupt_in:	MUST_HAVE,
-	needs_bulk_in:		MUST_HAVE,
-	needs_bulk_out:		MUST_HAVE,
 	num_interrupt_in:	1,
 	num_bulk_in:		1,
 	num_bulk_out:		1,
@@ -209,9 +206,7 @@ static int ir_open (struct usb_serial_port *port, struct file *filp)
 	++port->open_count;
 	MOD_INC_USE_COUNT;
 	
-	if (!port->active) {
-		port->active = 1;
-
+	if (port->open_count == 1) {
 		if (buffer_size) {
 			/* override the default buffer sizes */
 			buffer = kmalloc (buffer_size, GFP_KERNEL);
@@ -271,7 +266,6 @@ static void ir_close (struct usb_serial_port *port, struct file * filp)
 			/* shutdown our bulk read */
 			usb_unlink_urb (port->read_urb);
 		}
-		port->active = 0;
 		port->open_count = 0;
 
 	}

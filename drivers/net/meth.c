@@ -33,7 +33,7 @@
 #include <linux/sched.h>
 #include <linux/kernel.h> /* printk() */
 #include <linux/delay.h>
-#include <linux/malloc.h> /* kmalloc() */
+#include <linux/slab.h>
 #include <linux/errno.h>  /* error codes */
 #include <linux/types.h>  /* size_t */
 #include <linux/interrupt.h> /* mark_bh */

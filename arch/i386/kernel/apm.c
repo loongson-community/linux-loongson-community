@@ -387,6 +387,7 @@ static int			broken_psr;
 static DECLARE_WAIT_QUEUE_HEAD(apm_waitqueue);
 static DECLARE_WAIT_QUEUE_HEAD(apm_suspend_waitqueue);
 static struct apm_user *	user_list;
+static spinlock_t		user_list_lock = SPIN_LOCK_UNLOCKED;
 
 static char			driver_version[] = "1.15";	/* no spaces */
 
@@ -526,7 +527,7 @@ static u8 apm_bios_call(u32 func, u32 ebx_in, u32 ecx_in,
 	__asm__ __volatile__(APM_DO_ZERO_SEGS
 		"pushl %%edi\n\t"
 		"pushl %%ebp\n\t"
-		"lcall %%cs:" SYMBOL_NAME_STR(apm_bios_entry) "\n\t"
+		"lcall *%%cs:" SYMBOL_NAME_STR(apm_bios_entry) "\n\t"
 		"setc %%al\n\t"
 		"popl %%ebp\n\t"
 		"popl %%edi\n\t"
@@ -573,7 +574,7 @@ static u8 apm_bios_call_simple(u32 func, u32 ebx_in, u32 ecx_in, u32 *eax)
 		__asm__ __volatile__(APM_DO_ZERO_SEGS
 			"pushl %%edi\n\t"
 			"pushl %%ebp\n\t"
-			"lcall %%cs:" SYMBOL_NAME_STR(apm_bios_entry) "\n\t"
+			"lcall *%%cs:" SYMBOL_NAME_STR(apm_bios_entry) "\n\t"
 			"setc %%bl\n\t"
 			"popl %%ebp\n\t"
 			"popl %%edi\n\t"
@@ -1053,8 +1054,9 @@ static void queue_event(apm_event_t event, struct apm_user *sender)
 {
 	struct apm_user *	as;
 
+	spin_lock(&user_list_lock);
 	if (user_list == NULL)
-		return;
+		goto out;
 	for (as = user_list; as != NULL; as = as->next) {
 		if ((as == sender) || (!as->reader))
 			continue;
@@ -1084,6 +1086,8 @@ static void queue_event(apm_event_t event, struct apm_user *sender)
 		}
 	}
 	wake_up_interruptible(&apm_waitqueue);
+out:
+	spin_unlock(&user_list_lock);
 }
 
 static void set_time(void)
@@ -1179,10 +1183,12 @@ static int suspend(void)
 	send_event(APM_NORMAL_RESUME);
 	sti();
 	queue_event(APM_NORMAL_RESUME, NULL);
+	spin_lock(&user_list_lock);
 	for (as = user_list; as != NULL; as = as->next) {
 		as->suspend_wait = 0;
 		as->suspend_result = ((err == APM_SUCCESS) ? 0 : -EIO);
 	}
+	spin_unlock(&user_list_lock);
 	ignore_normal_resume = 1;
 	wake_up_interruptible(&apm_suspend_waitqueue);
 	return err;
@@ -1519,7 +1525,6 @@ static int do_release(struct inode * inode, struct file * filp)
 	if (check_apm_user(as, "release"))
 		return 0;
 	filp->private_data = NULL;
-	lock_kernel();
 	if (as->standbys_pending > 0) {
 		standbys_pending -= as->standbys_pending;
 		if (standbys_pending <= 0)
@@ -1530,6 +1535,7 @@ static int do_release(struct inode * inode, struct file * filp)
 		if (suspends_pending <= 0)
 			(void) suspend();
 	}
+  	spin_lock(&user_list_lock);
 	if (user_list == as)
 		user_list = as->next;
 	else {
@@ -1544,7 +1550,7 @@ static int do_release(struct inode * inode, struct file * filp)
 		else
 			as1->next = as->next;
 	}
-	unlock_kernel();
+	spin_unlock(&user_list_lock);
 	kfree(as);
 	return 0;
 }
@@ -1573,8 +1579,10 @@ static int do_open(struct inode * inode, struct file * filp)
 	as->suser = capable(CAP_SYS_ADMIN);
 	as->writer = (filp->f_mode & FMODE_WRITE) == FMODE_WRITE;
 	as->reader = (filp->f_mode & FMODE_READ) == FMODE_READ;
+	spin_lock(&user_list_lock);
 	as->next = user_list;
 	user_list = as;
+	spin_unlock(&user_list_lock);
 	filp->private_data = as;
 	return 0;
 }

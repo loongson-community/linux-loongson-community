@@ -1,13 +1,8 @@
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
- *
- * SGI IP22 specific setup.
+ * ip22-setup.c: SGI specific setup, including init of the feature struct.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 1998, 1999 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 1999 Silcon Graphics, Inc.
+ * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -17,63 +12,76 @@
 #include <linux/types.h>
 #include <linux/console.h>
 #include <linux/sched.h>
-#include <linux/mc146818rtc.h>
-#include <linux/pc_keyb.h>
 #include <linux/tty.h>
+#include <linux/pc_keyb.h>
 
 #include <asm/addrspace.h>
-#include <asm/mmu_context.h>
 #include <asm/bcache.h>
 #include <asm/keyboard.h>
 #include <asm/irq.h>
+#include <asm/reboot.h>
+#include <asm/ds1286.h>
 #include <asm/sgialib.h>
-#include <asm/sgi/sgi.h>
 #include <asm/sgi/sgimc.h>
 #include <asm/sgi/sgihpc.h>
 #include <asm/sgi/sgint23.h>
+#include <asm/time.h>
+#include <asm/gdb-stub.h>
+
+#ifdef CONFIG_REMOTE_DEBUG
+extern void rs_kgdb_hook(int);
+extern void breakpoint(void);
+static int remote_debug = 0;
+#endif
+
+#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_ARC_CONSOLE)
+extern void console_setup(char *);
+#endif
+
+extern void sgitime_init(void);
 
 extern struct rtc_ops indy_rtc_ops;
-extern void ip22_reboot_setup(void);
-extern void ip22_volume_set(unsigned char);
+extern void indy_reboot_setup(void);
+extern void sgi_volume_set(unsigned char);
 
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 
-static void ip22_request_region(void)
+static void sgi_request_region(void)
 {
 	/* No I/O ports are being used on the Indy.  */
 }
 
-static int ip22_request_irq(void (*handler)(int, void *, struct pt_regs *))
+static int sgi_request_irq(void (*handler)(int, void *, struct pt_regs *))
 {
 	/* Dirty hack, this get's called as a callback from the keyboard
 	   driver.  We piggyback the initialization of the front panel
 	   button handling on it even though they're technically not
 	   related with the keyboard driver in any way.  Doing it from
 	   indy_setup wouldn't work since kmalloc isn't initialized yet.  */
-	ip22_reboot_setup();
+	indy_reboot_setup();
 
-	return request_irq(SGI_KEYBOARD_IRQ, handler, 0, "keyboard", NULL);
+	return request_irq(SGI_KEYBD_IRQ, handler, 0, "keyboard", NULL);
 }
 
-static int ip22_aux_request_irq(void (*handler)(int, void *, struct pt_regs *))
+static int sgi_aux_request_irq(void (*handler)(int, void *, struct pt_regs *))
 {
 	/* Nothing to do, interrupt is shared with the keyboard hw  */
 	return 0;
 }
 
-static void ip22_aux_free_irq(void)
+static void sgi_aux_free_irq(void)
 {
 	/* Nothing to do, interrupt is shared with the keyboard hw  */
 }
 
-static unsigned char ip22_read_input(void)
+static unsigned char sgi_read_input(void)
 {
 	return sgi_kh->data;
 }
 
-static void ip22_write_output(unsigned char val)
+static void sgi_write_output(unsigned char val)
 {
 	int status;
 
@@ -83,7 +91,7 @@ static void ip22_write_output(unsigned char val)
 	sgi_kh->data = val;
 }
 
-static void ip22_write_command(unsigned char val)
+static void sgi_write_command(unsigned char val)
 {
 	int status;
 
@@ -93,41 +101,33 @@ static void ip22_write_command(unsigned char val)
 	sgi_kh->command = val;
 }
 
-static unsigned char ip22_read_status(void)
+static unsigned char sgi_read_status(void)
 {
 	return sgi_kh->command;
 }
 
 struct kbd_ops sgi_kbd_ops = {
-	kbd_request_region:	ip22_request_region,
-	kbd_request_irq:	ip22_request_irq,
+	sgi_request_region,
+	sgi_request_irq,
 
-	aux_request_irq:	ip22_aux_request_irq,
-	aux_free_irq:		ip22_aux_free_irq,
+	sgi_aux_request_irq,
+	sgi_aux_free_irq,
 
-	kbd_read_input:		ip22_read_input,
-	kbd_write_output:	ip22_write_output,
-	kbd_write_command:	ip22_write_command,
-	kbd_read_status:	ip22_read_status
+	sgi_read_input,
+	sgi_write_output,
+	sgi_write_command,
+	sgi_read_status
 };
-
-int __init page_is_ram(unsigned long pagenr)
-{
-	if ((pagenr<<PAGE_SHIFT) < 0x2000UL)
-		return 1;
-	if ((pagenr<<PAGE_SHIFT) > 0x08002000)
-		return 1;
-	return 0;
-}
 
 void __init ip22_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
 #endif
-	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
-	TLBMISS_HANDLER_SETUP();
-
+#ifdef CONFIG_REMOTE_DEBUG
+	char *kgdb_ttyd;
+#endif
+	sgitime_init();
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the
 	 * boardID and whether this is a Guiness or a FullHouse machine.
@@ -153,12 +153,33 @@ void __init ip22_setup(void)
 			console_setup ("ttyS0");
 	}
 #endif
+
+#ifdef CONFIG_REMOTE_DEBUG
+	kgdb_ttyd = prom_getcmdline();
+	if ((kgdb_ttyd = strstr(kgdb_ttyd, "kgdb=ttyd")) != NULL) {
+		int line;
+		kgdb_ttyd += strlen("kgdb=ttyd");
+		if (*kgdb_ttyd != '1' && *kgdb_ttyd != '2')
+			printk("KGDB: Uknown serial line /dev/ttyd%c, "
+			       "falling back to /dev/ttyd1\n", *kgdb_ttyd);
+		line = *kgdb_ttyd == '2' ? 0 : 1;
+		printk("KGDB: Using serial line /dev/ttyd%d for session\n",
+		       line ? 1 : 2);
+		rs_kgdb_hook(line);
+
+		printk("KGDB: Using serial line /dev/ttyd%d for session, "
+			    "please connect your debugger\n", line ? 1 : 2);
+
+		remote_debug = 1;
+		/* Breakpoints and stuff are in sgi_irq_setup() */
+	}
+#endif
+
 #ifdef CONFIG_ARC_CONSOLE
 	console_setup("ttyS0");
 #endif
-
-	ip22_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"),
-	                              NULL, 10));
+ 
+	sgi_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"), NULL, 10));
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
@@ -179,12 +200,10 @@ void __init ip22_setup(void)
 	conswitchp = &dummy_con;
 #endif
 #endif
+
 	rtc_ops = &indy_rtc_ops;
 	kbd_ops = &sgi_kbd_ops;
 #ifdef CONFIG_PSMOUSE
 	aux_device_present = 0xaa;
-#endif
-#ifdef CONFIG_VIDEO_VINO
-	init_vino();
 #endif
 }

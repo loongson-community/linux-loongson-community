@@ -665,7 +665,7 @@ void __init setup_arch(char **cmdline_p)
 	void deskstation_setup(void);
 	void jazz_setup(void);
 	void sni_rm200_pci_setup(void);
-	void sgi_setup(void);
+	void ip22_setup(void);
         void ev96100_setup(void);
 	void malta_setup(void);
 	void ikos_setup(void);
@@ -733,7 +733,7 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_SGI_IP22
 	/* As of now this is only IP22.  */
 	case MACH_GROUP_SGI:
-		sgi_setup();
+		ip22_setup();
 		break;
 #endif
 #ifdef CONFIG_SNI_RM200_PCI

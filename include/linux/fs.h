@@ -74,6 +74,8 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define FMODE_READ 1
 #define FMODE_WRITE 2
 
+#define RW_MASK		1
+#define RWA_MASK	2
 #define READ 0
 #define WRITE 1
 #define READA 2		/* read-ahead  - don't block if no resources */
@@ -108,8 +110,10 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define MS_NOATIME	1024	/* Do not update access times. */
 #define MS_NODIRATIME	2048	/* Do not update directory access times */
 #define MS_BIND		4096
+#define MS_MOVE		8192
 #define MS_REC		16384
 #define MS_VERBOSE	32768
+#define MS_ACTIVE	(1<<30)
 #define MS_NOUSER	(1<<31)
 
 /*
@@ -237,28 +241,24 @@ enum bh_state_bits {
 struct buffer_head {
 	/* First cache line: */
 	struct buffer_head *b_next;	/* Hash queue list */
-	unsigned long b_blocknr;	/* block number */
+	sector_t b_blocknr;		/* block number */
 	unsigned short b_size;		/* block size */
 	unsigned short b_list;		/* List that this buffer appears */
 	kdev_t b_dev;			/* device (B_FREE = free) */
 
 	atomic_t b_count;		/* users using this block */
-	kdev_t b_rdev;			/* Real device */
 	unsigned long b_state;		/* buffer state bitmap (see above) */
 	unsigned long b_flushtime;	/* Time when (dirty) buffer should be written */
 
 	struct buffer_head *b_next_free;/* lru/free list linkage */
 	struct buffer_head *b_prev_free;/* doubly linked list of buffers */
 	struct buffer_head *b_this_page;/* circular list of buffers in one page */
-	struct buffer_head *b_reqnext;	/* request queue */
-
 	struct buffer_head **b_pprev;	/* doubly linked list of hash-queue */
 	char * b_data;			/* pointer to data block */
 	struct page *b_page;		/* the page this bh is mapped to */
 	void (*b_end_io)(struct buffer_head *bh, int uptodate); /* I/O completion */
  	void *b_private;		/* reserved for b_end_io */
 
-	unsigned long b_rsector;	/* Real buffer location on disk */
 	wait_queue_head_t b_wait;
 
 	struct inode *	     b_inode;
@@ -853,6 +853,8 @@ struct inode_operations {
 	int (*getattr) (struct dentry *, struct iattr *);
 };
 
+struct seq_file;
+
 /*
  * NOTE: write_inode, delete_inode, clear_inode, put_inode can be called
  * without the big kernel lock held in all filesystems.
@@ -904,6 +906,7 @@ struct super_operations {
 	 */
 	struct dentry * (*fh_to_dentry)(struct super_block *sb, __u32 *fh, int len, int fhtype, int parent);
 	int (*dentry_to_fh)(struct dentry *, __u32 *fh, int *lenp, int need_parent);
+	int (*show_options)(struct seq_file *, struct vfsmount *);
 };
 
 /* Inode state bits.. */
@@ -1169,11 +1172,24 @@ static inline void mark_buffer_async(struct buffer_head * bh, int on)
 static inline void buffer_IO_error(struct buffer_head * bh)
 {
 	mark_buffer_clean(bh);
+
 	/*
-	 * b_end_io has to clear the BH_Uptodate bitflag in the error case!
+	 * b_end_io has to clear the BH_Uptodate bitflag in the read error
+	 * case, however buffer contents are not necessarily bad if a
+	 * write fails
 	 */
-	bh->b_end_io(bh, 0);
+	bh->b_end_io(bh, test_bit(BH_Uptodate, &bh->b_state));
 }
+
+/*
+ * return READ, READA, or WRITE
+ */
+#define bio_rw(bio)		((bio)->bi_rw & (RW_MASK | RWA_MASK))
+
+/*
+ * return data direction, READ or WRITE
+ */
+#define bio_data_dir(bio)	((bio)->bi_rw & 1)
 
 extern void buffer_insert_inode_queue(struct buffer_head *, struct inode *);
 static inline void mark_buffer_dirty_inode(struct buffer_head *bh, struct inode *inode)
@@ -1342,10 +1358,12 @@ extern void insert_inode_hash(struct inode *);
 extern void remove_inode_hash(struct inode *);
 extern struct file * get_empty_filp(void);
 extern void file_move(struct file *f, struct list_head *list);
-extern struct buffer_head * get_hash_table(kdev_t, int, int);
-extern struct buffer_head * getblk(kdev_t, int, int);
+extern struct buffer_head * get_hash_table(kdev_t, sector_t, int);
+extern struct buffer_head * getblk(kdev_t, sector_t, int);
 extern void ll_rw_block(int, int, struct buffer_head * bh[]);
-extern void submit_bh(int, struct buffer_head *);
+extern int submit_bh(int, struct buffer_head *);
+struct bio;
+extern int submit_bio(int, struct bio *);
 extern int is_read_only(kdev_t);
 extern void __brelse(struct buffer_head *);
 static inline void brelse(struct buffer_head *buf)
@@ -1361,13 +1379,25 @@ static inline void bforget(struct buffer_head *buf)
 }
 extern int set_blocksize(kdev_t, int);
 extern struct buffer_head * bread(kdev_t, int, int);
+static inline struct buffer_head * sb_bread(struct super_block *sb, int block)
+{
+	return bread(sb->s_dev, block, sb->s_blocksize);
+}
+static inline struct buffer_head * sb_getblk(struct super_block *sb, int block)
+{
+	return getblk(sb->s_dev, block, sb->s_blocksize);
+}
+static inline struct buffer_head * sb_get_hash_table(struct super_block *sb, int block)
+{
+	return get_hash_table(sb->s_dev, block, sb->s_blocksize);
+}
 extern void wakeup_bdflush(void);
 extern void put_unused_buffer_head(struct buffer_head * bh);
 extern struct buffer_head * get_unused_buffer_head(int async);
 
-extern int brw_page(int, struct page *, kdev_t, int [], int);
+extern int brw_page(int, struct page *, kdev_t, sector_t [], int);
 
-typedef int (get_block_t)(struct inode*,long,struct buffer_head*,int);
+typedef int (get_block_t)(struct inode*,sector_t,struct buffer_head*,int);
 
 /* Generic buffer handling for block filesystems.. */
 extern int try_to_release_page(struct page * page, int gfp_mask);
@@ -1383,7 +1413,7 @@ extern int cont_prepare_write(struct page*, unsigned, unsigned, get_block_t*,
 extern int block_commit_write(struct page *page, unsigned from, unsigned to);
 extern int block_sync_page(struct page *);
 
-int generic_block_bmap(struct address_space *, long, get_block_t *);
+sector_t generic_block_bmap(struct address_space *, sector_t, get_block_t *);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
 int block_truncate_page(struct address_space *, loff_t, get_block_t *);
 extern int generic_direct_IO(int, struct inode *, struct kiobuf *, unsigned long, int, get_block_t *);
@@ -1429,11 +1459,9 @@ extern char root_device_name[];
 
 
 extern void show_buffers(void);
-extern void mount_root(void);
 
 #ifdef CONFIG_BLK_DEV_INITRD
 extern unsigned int real_root_dev;
-extern int change_root(kdev_t, const char *);
 #endif
 
 extern ssize_t char_read(struct file *, char *, size_t, loff_t *);

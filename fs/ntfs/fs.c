@@ -303,10 +303,8 @@ static int ntfs_readdir(struct file* filp, void *dirent, filldir_t filldir)
 	ntfs_debug(DEBUG_OTHER, __FUNCTION__ "(): After ntfs_getdir_unsorted()"
 			" calls, f_pos 0x%Lx.\n", filp->f_pos);
 	if (!err) {
-#ifdef DEBUG
-		if (cb.ph != 0x7fff || cb.pl)
-			BUG();
 done:
+#ifdef DEBUG
 		if (!cb.ret_code)
 			ntfs_debug(DEBUG_OTHER, __FUNCTION__ "(): EOD, f_pos "
 					"0x%Lx, returning 0.\n", filp->f_pos);
@@ -314,8 +312,6 @@ done:
 			ntfs_debug(DEBUG_OTHER, __FUNCTION__ "(): filldir "
 					"returned %i, returning 0, f_pos "
 					"0x%Lx.\n", cb.ret_code, filp->f_pos);
-#else
-done:
 #endif
 		return 0;
 	}
@@ -1027,8 +1023,9 @@ struct super_block *ntfs_read_super(struct super_block *sb, void *options,
 		ntfs_error("Unable to set blocksize %d.\n", blocksize);
 		goto ntfs_read_super_vol;
 	}
+	sb->s_blocksize = blocksize;
 	/* Read the super block (boot block). */
-	if (!(bh = bread(sb->s_dev, 0, blocksize))) {
+	if (!(bh = sb_bread(sb, 0))) {
 		ntfs_error("Reading super block failed\n");
 		goto ntfs_read_super_unl;
 	}
@@ -1075,8 +1072,7 @@ struct super_block *ntfs_read_super(struct super_block *sb, void *options,
 	if (to_read < 1)
 		to_read = 1;
 	for (i = 0; i < to_read; i++) {
-		if (!(bh = bread(sb->s_dev, vol->mft_lcn + i,
-							  vol->cluster_size))) {
+		if (!(bh = sb_bread(sb, vol->mft_lcn + i))) {
 			ntfs_error("Could not read $Mft record 0\n");
 			goto ntfs_read_super_mft;
 		}

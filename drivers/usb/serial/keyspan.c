@@ -176,7 +176,7 @@ struct keyspan_port_private {
 
 
 /* Functions used by new usb-serial code. */
-int keyspan_init (void)
+static int __init keyspan_init (void)
 {
 	usb_serial_register (&keyspan_usa18x_pre_device);
 	usb_serial_register (&keyspan_usa19_pre_device);
@@ -201,7 +201,7 @@ int keyspan_init (void)
 	return 0;
 }
 
-void keyspan_exit (void)
+static void __exit keyspan_exit (void)
 {
 	usb_serial_deregister (&keyspan_usa18x_pre_device);
 	usb_serial_deregister (&keyspan_usa19_pre_device);
@@ -468,7 +468,7 @@ static void	usa2x_outdat_callback(struct urb *urb)
 	p_priv = (struct keyspan_port_private *)(port->private);
 	dbg (__FUNCTION__ " urb %d\n", urb == p_priv->out_urbs[1]); 
 
-	if (port->active) {
+	if (port->open_count) {
 		queue_task(&port->tqueue, &tq_immediate);
 		mark_bh(IMMEDIATE_BH);
 	}
@@ -880,9 +880,8 @@ static int keyspan_open (struct usb_serial_port *port, struct file *filp)
 	MOD_INC_USE_COUNT;
 
 	down (&port->sem);
+	already_active = port->open_count;
 	++port->open_count;
-	already_active = port->active;
-	port->active = 1;
 	up (&port->sem);
 
 	if (already_active)
@@ -948,18 +947,15 @@ static void keyspan_close(struct usb_serial_port *port, struct file *filp)
 	down (&port->sem);
 
 	if (--port->open_count <= 0) {
-		if (port->active) {
-			if (serial->dev) {
-				/* Stop reading/writing urbs */
-				stop_urb(p_priv->inack_urb);
-				stop_urb(p_priv->outcont_urb);
-				for (i = 0; i < 2; i++) {
-					stop_urb(p_priv->in_urbs[i]);
-					stop_urb(p_priv->out_urbs[i]);
-				}
+		if (serial->dev) {
+			/* Stop reading/writing urbs */
+			stop_urb(p_priv->inack_urb);
+			stop_urb(p_priv->outcont_urb);
+			for (i = 0; i < 2; i++) {
+				stop_urb(p_priv->in_urbs[i]);
+				stop_urb(p_priv->out_urbs[i]);
 			}
 		}
-		port->active = 0;
 		port->open_count = 0;
 		port->tty = 0;
 	}
@@ -1089,7 +1085,7 @@ static urb_t *keyspan_setup_urb(struct usb_serial *serial, int endpoint,
 	return urb;
 }
 
-struct callbacks {
+static struct callbacks {
 	void	(*instat_callback)(urb_t *);
 	void	(*glocont_callback)(urb_t *);
 	void	(*indat_callback)(urb_t *);

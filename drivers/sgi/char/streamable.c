@@ -1,16 +1,14 @@
-/* $Id: streamable.c,v 1.10 2000/02/05 06:47:30 ralf Exp $
- *
+/*
  * streamable.c: streamable devices. /dev/gfx
  * (C) 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
  *
  * Major 10 is the streams clone device.  The IRIX Xsgi server just
  * opens /dev/gfx and closes it inmediately.
- *
  */
-
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
+#include <linux/tty.h>
 #include <linux/kbd_kern.h>
 #include <linux/vt_kern.h>
 #include <linux/smp_lock.h>
@@ -221,9 +219,7 @@ sgi_mouse_open (struct inode *inode, struct file *file)
 static int
 sgi_mouse_close (struct inode *inode, struct file *filp)
 {
-	lock_kernel();
 	mouse_opened = 0;
-	unlock_kernel();
 	return 0;
 }
 

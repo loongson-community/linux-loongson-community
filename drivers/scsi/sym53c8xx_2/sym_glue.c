@@ -138,18 +138,11 @@ spinlock_t sym53c8xx_lock = SPIN_LOCK_UNLOCKED;
 #define	SYM_LOCK_DRIVER(flags)    spin_lock_irqsave(&sym53c8xx_lock, flags)
 #define	SYM_UNLOCK_DRIVER(flags)  spin_unlock_irqrestore(&sym53c8xx_lock,flags)
 
-#define SYM_INIT_LOCK_HCB(np)     spin_lock_init(&np->s.smp_lock);
-#define	SYM_LOCK_HCB(np, flags)   spin_lock_irqsave(&np->s.smp_lock, flags)
-#define	SYM_UNLOCK_HCB(np, flags) spin_unlock_irqrestore(&np->s.smp_lock, flags)
-
-#define	SYM_LOCK_SCSI(np, flags) \
-		spin_lock_irqsave(&io_request_lock, flags)
-#define	SYM_UNLOCK_SCSI(np, flags) \
-		spin_unlock_irqrestore(&io_request_lock, flags)
-
-/* Ugly, but will make things easier if this locking will ever disappear */
-#define	SYM_LOCK_SCSI_NOSAVE(np)	spin_lock_irq(&io_request_lock)
-#define	SYM_UNLOCK_SCSI_NORESTORE(np)	spin_unlock_irq(&io_request_lock)
+#define SYM_INIT_LOCK_HCB(np)		spin_lock_init(&np->s.host->host_lock);
+#define	SYM_LOCK_HCB(np, flags)		\
+			spin_lock_irqsave(&np->s.host->host_lock, flags)
+#define	SYM_UNLOCK_HCB(np, flags)	\
+			spin_unlock_irqrestore(&np->s.host->host_lock, flags)
 
 /*
  *  These simple macros limit expression involving 
@@ -654,11 +647,14 @@ static int sym_scatter(hcb_p np, ccb_p cp, Scsi_Cmnd *cmd)
 
 	if (!use_sg)
 		segment = sym_scatter_no_sglist(np, cp, cmd);
-	else if (use_sg > SYM_CONF_MAX_SG)
-		segment = -1;
 	else if ((use_sg = map_scsi_sg_data(np, cmd)) > 0) {
 		struct scatterlist *scatter = (struct scatterlist *)cmd->buffer;
 		struct sym_tblmove *data;
+
+		if (use_sg > SYM_CONF_MAX_SG) {
+			unmap_scsi_data(np, cmd);
+			return -1;
+		}
 
 		data = &cp->phys.data[SYM_CONF_MAX_SG - use_sg];
 
@@ -966,14 +962,18 @@ int sym53c8xx_queue_command (Scsi_Cmnd *cmd, void (*done)(Scsi_Cmnd *))
 {
 	hcb_p  np  = SYM_SOFTC_PTR(cmd);
 	ucmd_p ucp = SYM_UCMD_PTR(cmd);
-	u_long flags;
 	int sts = 0;
+#if 0
+	u_long flags;
+#endif
 
 	cmd->scsi_done     = done;
 	cmd->host_scribble = NULL;
 	memset(ucp, 0, sizeof(*ucp));
 
+#if 0
 	SYM_LOCK_HCB(np, flags);
+#endif
 
 	/*
 	 *  Shorten our settle_time if needed for 
@@ -999,7 +999,9 @@ int sym53c8xx_queue_command (Scsi_Cmnd *cmd, void (*done)(Scsi_Cmnd *))
 		sym_insque_tail(&ucp->link_cmdq, &np->s.wait_cmdq);
 	}
 out:
+#if 0
 	SYM_UNLOCK_HCB(np, flags);
+#endif
 
 	return 0;
 }
@@ -1010,21 +1012,21 @@ out:
 static void sym53c8xx_intr(int irq, void *dev_id, struct pt_regs * regs)
 {
 	unsigned long flags;
-	unsigned long flags1;
 	hcb_p np = (hcb_p) dev_id;
 
 	if (DEBUG_FLAGS & DEBUG_TINY) printf_debug ("[");
 
-	SYM_LOCK_SCSI(np, flags1);
 	SYM_LOCK_HCB(np, flags);
 
 	sym_interrupt(np);
 
+	/*
+	 * push queue walk-through to tasklet
+	 */
 	if (!sym_que_empty(&np->s.wait_cmdq) && !np->s.settle_time_valid)
 		sym_requeue_awaiting_cmds(np);
 
 	SYM_UNLOCK_HCB(np, flags);
-	SYM_UNLOCK_SCSI(np, flags1);
 
 	if (DEBUG_FLAGS & DEBUG_TINY) printf_debug ("]\n");
 }
@@ -1036,9 +1038,7 @@ static void sym53c8xx_timer(unsigned long npref)
 {
 	hcb_p np = (hcb_p) npref;
 	unsigned long flags;
-	unsigned long flags1;
 
-	SYM_LOCK_SCSI(np, flags1);
 	SYM_LOCK_HCB(np, flags);
 
 	sym_timer(np);
@@ -1047,7 +1047,6 @@ static void sym53c8xx_timer(unsigned long npref)
 		sym_requeue_awaiting_cmds(np);
 
 	SYM_UNLOCK_HCB(np, flags);
-	SYM_UNLOCK_SCSI(np, flags1);
 }
 
 
@@ -1209,9 +1208,7 @@ finish:
 		ep->timer.data = (u_long)cmd;
 		ep->timed_out = 1;	/* Be pessimistic for once :) */
 		add_timer(&ep->timer);
-		SYM_UNLOCK_SCSI_NORESTORE(np);
 		down(&ep->sem);
-		SYM_LOCK_SCSI_NOSAVE(np);
 		if (ep->timed_out)
 			sts = -2;
 	}
@@ -1975,6 +1972,7 @@ sym_attach (Scsi_Host_Template *tpnt, int unit, sym_device *dev)
 		goto attach_failed;
 #endif
 	host_data->ncb = np;
+	np->s.host = instance;
 
 	SYM_INIT_LOCK_HCB(np);
 
@@ -2140,6 +2138,7 @@ sym_attach (Scsi_Host_Template *tpnt, int unit, sym_device *dev)
 	instance->max_cmd_len	= 16;
 #endif
 	instance->select_queue_depths = sym53c8xx_select_queue_depths;
+	instance->highmem_io	= 1;
 
 	SYM_UNLOCK_HCB(np, flags);
 
@@ -2456,8 +2455,8 @@ sym53c8xx_pci_init(Scsi_Host_Template *tpnt, pcidev_t pdev, sym_device *device)
 	u_char pci_fix_up = SYM_SETUP_PCI_FIX_UP;
 	u_char revision;
 	u_int irq;
-	u_long base, base_2, io_port; 
-	u_long base_c, base_2_c; 
+	u_long base, base_2, base_io; 
+	u_long base_c, base_2_c, io_port; 
 	int i;
 	sym_chip *chip;
 
@@ -2474,7 +2473,7 @@ sym53c8xx_pci_init(Scsi_Host_Template *tpnt, pcidev_t pdev, sym_device *device)
 	device_id = PciDeviceId(pdev);
 	irq	  = PciIrqLine(pdev);
 
-	i = pci_get_base_address(pdev, 0, &io_port);
+	i = pci_get_base_address(pdev, 0, &base_io);
 	io_port = pci_get_base_cookie(pdev, 0);
 
 	base_c = pci_get_base_cookie(pdev, i);
@@ -2492,9 +2491,9 @@ sym53c8xx_pci_init(Scsi_Host_Template *tpnt, pcidev_t pdev, sym_device *device)
 	/*
 	 *  If user excluded this chip, donnot initialize it.
 	 */
-	if (io_port) {
+	if (base_io) {
 		for (i = 0 ; i < 8 ; i++) {
-			if (sym_driver_setup.excludes[i] == io_port)
+			if (sym_driver_setup.excludes[i] == base_io)
 				return -1;
 		}
 	}

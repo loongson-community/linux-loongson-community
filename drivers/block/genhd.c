@@ -28,14 +28,8 @@ static rwlock_t gendisk_lock;
 
 /*
  * Global kernel list of partitioning information.
- *
- * XXX: you should _never_ access this directly.
- *	the only reason this is exported is source compatiblity.
  */
-/*static*/ struct gendisk *gendisk_head;
-
-EXPORT_SYMBOL(gendisk_head);
-
+static struct gendisk *gendisk_head;
 
 /**
  * add_gendisk - add partitioning information to kernel list
@@ -123,6 +117,30 @@ get_gendisk(kdev_t dev)
 EXPORT_SYMBOL(get_gendisk);
 
 
+unsigned long
+get_start_sect(kdev_t dev)
+{
+	struct gendisk *gp;
+
+	gp = get_gendisk(dev);
+	if (gp)
+		return gp->part[MINOR(dev)].start_sect;
+	return 0;
+}
+
+EXPORT_SYMBOL(get_start_sect);
+
+unsigned long
+get_nr_sects(kdev_t dev)
+{
+	struct gendisk *gp;
+
+	gp = get_gendisk(dev);
+	if (gp)
+		return gp->part[MINOR(dev)].nr_sects;
+	return 0;
+}
+
 #ifdef CONFIG_PROC_FS
 int
 get_partition_list(char *page, char **start, off_t offset, int count)
@@ -165,7 +183,6 @@ extern int blk_dev_init(void);
 extern int fusion_init(void);
 #endif
 extern int net_dev_init(void);
-extern void console_map_init(void);
 extern int soc_probe(void);
 extern int atmdev_init(void);
 extern int i2o_init(void);
@@ -194,9 +211,6 @@ int __init device_init(void)
 #endif
 #ifdef CONFIG_ATM
 	(void) atmdev_init();
-#endif
-#ifdef CONFIG_VT
-	console_map_init();
 #endif
 	return 0;
 }

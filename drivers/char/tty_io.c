@@ -102,10 +102,6 @@
 
 #include <linux/kmod.h>
 
-#ifdef CONFIG_VT
-extern void con_init_devfs (void);
-#endif
-
 #define CONSOLE_DEV MKDEV(TTY_MAJOR,0)
 #define TTY_DEV MKDEV(TTYAUX_MAJOR,0)
 #define SYSCONS_DEV MKDEV(TTYAUX_MAJOR,1)
@@ -2254,6 +2250,8 @@ static struct tty_driver dev_tty_driver, dev_syscons_driver;
 static struct tty_driver dev_ptmx_driver;
 #endif
 #ifdef CONFIG_VT
+extern void con_init_devfs (void);
+extern void console_map_init(void);
 static struct tty_driver dev_console_driver;
 #endif
 
@@ -2325,7 +2323,9 @@ void __init tty_init(void)
 	if (tty_register_driver(&dev_console_driver))
 		panic("Couldn't register /dev/tty0 driver\n");
 
+	vcs_init();
 	kbd_init();
+	console_map_init();
 #endif
 
 #ifdef CONFIG_ESPSERIAL  /* init ESP before rs, so rs doesn't see the port */
@@ -2371,9 +2371,6 @@ void __init tty_init(void)
 #ifdef CONFIG_MOXA_INTELLIO
 	moxa_init();
 #endif	
-#ifdef CONFIG_VT
-	vcs_init();
-#endif
 #ifdef CONFIG_TN3270
 	tub3270_init();
 #endif

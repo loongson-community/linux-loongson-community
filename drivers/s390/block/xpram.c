@@ -1041,7 +1041,6 @@ int xpram_init(void)
 #elif (XPRAM_VERSION == 24)
 	q = BLK_DEFAULT_QUEUE (major);
 	blk_init_queue (q, xpram_request);
-	blk_queue_headactive (BLK_DEFAULT_QUEUE (major), 0);
 #endif /* V22/V24 */
 	read_ahead[major] = xpram_rahead;
 
@@ -1213,8 +1212,7 @@ void cleanup_module(void)
 {
 	int i;
 
-				/* first of all, flush it all and reset all the data structures */
-
+	/* first of all, flush it all and reset all the data structures */
 
 	for (i=0; i<xpram_devs; i++)
 		fsync_dev(MKDEV(xpram_major, i)); /* flush the devices */
@@ -1222,13 +1220,10 @@ void cleanup_module(void)
 #if (XPRAM_VERSION == 22)
 	blk_dev[major].request_fn = NULL;
 #endif /* V22 */
-	read_ahead[major] = 0;
-	blk_size[major] = NULL;
 	kfree(blksize_size[major]);
-	blksize_size[major] = NULL;
 	kfree(hardsect_size[major]);
-	hardsect_size[major] = NULL;
 	kfree(xpram_offsets);
+	blk_clear(major);
 
 				/* finally, the usual cleanup */
 #if (XPRAM_VERSION == 22)
