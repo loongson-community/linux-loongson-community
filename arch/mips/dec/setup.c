@@ -47,6 +47,11 @@ extern void dec_intr_halt(int irq, void *dev_id, struct pt_regs *regs);
 
 extern asmlinkage void decstation_handle_int(void);
 
+#ifdef CONFIG_BLK_DEV_INITRD
+extern unsigned long initrd_start, initrd_end;
+extern void * __rd_start, * __rd_end;
+#endif
+
 spinlock_t ioasic_ssr_lock;
 
 volatile u32 *ioasic_base;
@@ -130,6 +135,11 @@ extern void dec_timer_setup(struct irqaction *);
 
 static void __init decstation_setup(void)
 {
+#ifdef CONFIG_BLK_DEV_INITRD
+       ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+       initrd_start = (unsigned long)&__rd_start;
+       initrd_end = (unsigned long)&__rd_end;
+#endif
 	board_be_init = dec_be_init;
 	board_time_init = dec_time_init;
 	board_timer_setup = dec_timer_setup;
