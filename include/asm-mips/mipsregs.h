@@ -36,6 +36,7 @@
 #define CP0_CONTEXT $4
 #define CP0_PAGEMASK $5
 #define CP0_WIRED $6
+#define CP0_INFO $7
 #define CP0_BADVADDR $8
 #define CP0_COUNT $9
 #define CP0_ENTRYHI $10
