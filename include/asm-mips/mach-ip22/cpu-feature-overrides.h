@@ -26,8 +26,4 @@
 #define cpu_has_64bits		1
 #define cpu_has_64bit_addresses	1
 
-#define cpu_dcache_line_size()	32
-#define cpu_icache_line_size()	64
-#define cpu_scache_line_size()	128
-
 #endif /* __ASM_MACH_IP22_CPU_FEATURE_OVERRIDES_H */
