@@ -237,6 +237,9 @@ else
     bool 'Support for console on virtual terminal' CONFIG_VT_CONSOLE
   fi
   tristate 'Standard/generic (dumb) serial support' CONFIG_SERIAL
+  if [ "$CONFIG_SGI" = "y" ]; then
+    bool 'SGI PROM Console Support' CONFIG_SGI_PROM_CONSOLE
+  fi
   if [ "$CONFIG_SERIAL" = "y" ]; then
     bool 'DZ11 Serial Support' CONFIG_DZ
     if [ "$CONFIG_TC" = "y" ]; then
@@ -287,7 +290,6 @@ if [ "$CONFIG_DECSTATION" != "y" ]; then
 fi
 
 if [ "$CONFIG_SGI" = "y" ]; then
-  bool 'SGI PROM Console Support' CONFIG_SGI_PROM_CONSOLE
   source drivers/sgi/Config.in
 fi
 
