@@ -141,6 +141,8 @@ static unsigned int bridge_startup(unsigned int irq)
 	switch (irq) {
 	case IOC3_SERIAL_INT:	pin = 3; break;
 	case IOC3_ETH_INT:	pin = 2; break;
+	case SCSI1_INT:		pin = 1; break;
+	case SCSI0_INT:		pin = 0; break;
 	default:		panic("bridge_startup: whoops?");
 	}
 
@@ -167,6 +169,8 @@ static unsigned int bridge_shutdown(unsigned int irq)
 	switch (irq) {
 	case IOC3_SERIAL_INT:	pin = 3; break;
 	case IOC3_ETH_INT:	pin = 2; break;
+	case SCSI1_INT:		pin = 1; break;
+	case SCSI0_INT:		pin = 0; break;
 	default:		panic("bridge_startup: whoops?");
 	}
 
@@ -248,7 +252,7 @@ int request_irq(unsigned int irq,
 	int retval;
 	struct irqaction *action;
 
-	if (irq < 8 > irq > 9)
+	if (irq > 9)
 		return -EINVAL;
 	if (!handler)
 		return -EINVAL;
@@ -276,7 +280,7 @@ void free_irq(unsigned int irq, void *dev_id)
 	struct irqaction * action, **p;
 	unsigned long flags;
 
-	if (irq < 8 > irq > 9) {
+	if (irq > 9) {
 		printk("Trying to free IRQ%d\n", irq);
 		return;
 	}

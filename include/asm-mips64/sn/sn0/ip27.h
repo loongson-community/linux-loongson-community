@@ -87,5 +87,7 @@
 
 #define IOC3_SERIAL_INT		8
 #define IOC3_ETH_INT		9
+#define SCSI1_INT		1
+#define SCSI0_INT		0
 
 #endif /* _ASM_SN_SN0_IP27_H */
