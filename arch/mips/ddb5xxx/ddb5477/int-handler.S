@@ -17,9 +17,6 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 
-/* this value should be the same to the one in include/asm/ddb5xxx/ddb5477.h */
-#define	DDB_LED		0xbd010000
-
 /*
  * first level interrupt dispatcher for ocelot board -
  * We check for the timer first, then check PCI ints A and D.
@@ -60,20 +57,6 @@ ll_vrc5477_irq:
 	j	ret_from_irq
 
 ll_cputimer_irq:
-#if defined(CONFIG_LL_DEBUG)
-	/* we trigger software interrupt 0 */
-	mfc0	t0, CP0_CAUSE
-	ori	t0, t0, C_SW0
-	mtc0	t0, CP0_CAUSE
-	nop
-	/* we also set the LED here so when heartbeat stops we know 
-         * intr still happens. */
-	la	t0, jiffies
-	lw	t1, 0(t0)
-	srl	t1, t1, 4
-	andi	t1, t1, 0xf
-	sb	t1,  DDB_LED
-#endif
 	li	a0, 7
 	move	a1, sp
 	jal	do_IRQ

@@ -75,11 +75,6 @@ extern void vrc5477_irq_init(u32 base);
 extern void mips_cpu_irq_init(u32 base);
 extern asmlinkage void ddb5477_handle_int(void);
 
-#if defined(CONFIG_LL_DEBUG)
-extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
-extern struct irqaction heartbeat_irqaction;
-#endif
-
 void
 ddb5477_irq_setup(void)
 {
@@ -133,10 +128,6 @@ ddb5477_irq_setup(void)
 
 	/* hook up the first-level interrupt handler */
 	set_except_vector(0, ddb5477_handle_int);
-
-#if defined(CONFIG_LL_DEBUG)
-	setup_irq(0, &heartbeat_irqaction);
-#endif
 }
 
 /*

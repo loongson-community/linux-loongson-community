@@ -18,7 +18,6 @@
 #include <linux/interrupt.h>
 #include <linux/signal.h>		/* SA_INTERRUPT */
 
-#include "debug.h"
 #include <asm/mipsregs.h>
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -137,38 +136,27 @@ void vrc5477_show_pci_regs(void)
         jsun_show_regs("PCI regs", pci_regs);
 }
 
+static Register lb_regs[] = {
+        {"DDB_LCNFG", DDB_BASE + DDB_LCNFG},
+        {"DDB_LCST0", DDB_BASE + DDB_LCST0},
+        {"DDB_LCST1", DDB_BASE + DDB_LCST1},
+        {"DDB_LCST2", DDB_BASE + DDB_LCST2},
+        {"DDB_ERRADR", DDB_BASE + DDB_ERRADR},
+        {"DDB_ERRCS", DDB_BASE + DDB_ERRCS},
+        {"DDB_BTM", DDB_BASE + DDB_BTM},
+        {"DDB_BCST", DDB_BASE + DDB_BCST},
+        {NULL, 0x0}
+};
+void vrc5477_show_lb_regs(void)
+{
+        jsun_show_regs("Local Bus regs", lb_regs);
+}
+
 void vrc5477_show_all_regs(void)
 {
 	vrc5477_show_pdar_regs();
 	vrc5477_show_pci_regs();
 	vrc5477_show_bar_regs();
 	vrc5477_show_int_regs();
+	vrc5477_show_lb_regs();
 }
-
-/* 
- * We provide heartbeat interrupt handler.
- * The interrupt comes from soft interrupt 0, which in turn is triggered
- * cpu timer interrupt.  We display the heartbeat to LED.
- *
- * If heartbeat runs fine, we know interrupt works and no infinite looping
- * of interrupt handling (because soft interrupt has the lowest priority).
- */
-static void heartbeat_interrupt(int irq, void *dev_id, struct pt_regs *regs)
-{
-	static int count1=0;
-	static int count2=0;
-
-	if (++count1 == 10) {
-		count1 = 0;
-		count2++;
-	}
-	*(unsigned char*)(DDB_LED + 0xa0000000)= (unsigned char)count2;
-}
-
-struct irqaction heartbeat_irqaction = {
-	heartbeat_interrupt,
-	SA_INTERRUPT,
-	0,
-	"heartbeat",
-	NULL,
-	NULL};    
