@@ -287,4 +287,24 @@ config INDYDOG
 	tristate "Indy/I2 Hardware Watchdog"
 	depends on WATCHDOG && SGI_IP22
 
+config W83877F_WDT
+	tristate "W83877F Computer Watchdog"
+	depends on WATCHDOG
+
+config SC520_WDT
+	tristate "AMD Elan SC520 processor Watchdog"
+	depends on WATCHDOG
+
+config ALIM7101_WDT
+	tristate "ALi M7101 PMU Computer Watchdog"
+	depends on WATCHDOG
+
+config SC1200_WDT
+	tristate "National Semiconductor PC87307/PC97307 (ala SC1200) Watchdog"
+	depends on WATCHDOG
+
+config WAFER_WDT
+	tristate "ICP Wafer 5823 Single Board Computer Watchdog"
+	depends on WATCHDOG
+
 endmenu

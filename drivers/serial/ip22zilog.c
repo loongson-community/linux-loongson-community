@@ -4,7 +4,7 @@
  * Driver for Zilog serial chips found on SGI workstations and
  * servers.  This driver could actually be made more generic.
  *
- * This is based on the drivers/serial/sunzilog.c code as of 2.5.46 and the
+ * This is based on the drivers/serial/sunzilog.c code as of 2.5.56 and the
  * old drivers/sgi/char/sgiserial.c code which itself is based of the original
  * drivers/sbus/char/zs.c code.  A lot of code has been simply moved over
  * directly from there but much has been rewritten.  Credits therefore go out
@@ -833,26 +833,27 @@ ip22zilog_convert_to_zs(struct uart_ip22zilog_port *up, unsigned int cflag,
 
 /* The port lock is not held.  */
 static void
-ip22zilog_change_speed(struct uart_port *port, unsigned int cflag,
-		      unsigned int iflag, unsigned int quot)
+ip22zilog_set_termios(struct uart_port *port, struct termios *termios,
+		      struct termios *old)
 {
 	struct uart_ip22zilog_port *up = (struct uart_ip22zilog_port *) port;
 	unsigned long flags;
 	int baud, brg;
 
+	baud = uart_get_baud_rate(port, termios, old, 1200, 76800);
+
 	spin_lock_irqsave(&up->port.lock, flags);
 
-	baud = (ZS_CLOCK / (quot * 16));
 	brg = BPS_TO_BRG(baud, ZS_CLOCK / ZS_CLOCK_DIVISOR);
 
-	ip22zilog_convert_to_zs(up, cflag, iflag, brg);
+	ip22zilog_convert_to_zs(up, termios->c_cflag, termios->c_iflag, brg);
 
-	if (UART_ENABLE_MS(&up->port, cflag))
+	if (UART_ENABLE_MS(&up->port, termios->c_cflag))
 		up->flags |= IP22ZILOG_FLAG_MODEM_STATUS;
 	else
 		up->flags &= ~IP22ZILOG_FLAG_MODEM_STATUS;
 
-	up->cflag = cflag;
+	up->cflag = termios->c_cflag;
 
 	ip22zilog_maybe_update_regs(up, ZILOG_CHANNEL_FROM_PORT(port));
 
@@ -898,7 +899,7 @@ static struct uart_ops ip22zilog_pops = {
 	.break_ctl	=	ip22zilog_break_ctl,
 	.startup	=	ip22zilog_startup,
 	.shutdown	=	ip22zilog_shutdown,
-	.change_speed	=	ip22zilog_change_speed,
+	.set_termios	=	ip22zilog_set_termios,
 	.type		=	ip22zilog_type,
 	.release_port	=	ip22zilog_release_port,
 	.request_port	=	ip22zilog_request_port,
@@ -1199,8 +1200,9 @@ static void __init ip22zilog_init_hw(void)
 		} else {
 			/* Normal serial TTY. */
 			up->parity_mask = 0xff;
-			up->curregs[R3] = RxENAB;
-			up->curregs[R5] = TxENAB;
+			up->curregs[R4] = PAR_EVEN | X16CLK | SB1;
+			up->curregs[R3] = RxENAB | Rx8;
+			up->curregs[R5] = TxENAB | Tx8;
 			up->curregs[R9] = NV | MIE;
 			up->curregs[R10] = NRZ;
 			up->curregs[R11] = TCBR | RCBR;
