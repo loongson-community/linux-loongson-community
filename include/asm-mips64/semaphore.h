@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.4 1999/12/09 11:01:42 ralf Exp $
+/* $Id: semaphore.h,v 1.5 2000/02/18 00:24:49 ralf Exp $
  *
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -213,7 +213,8 @@ struct rw_semaphore {
 #endif
 
 #define __RWSEM_INITIALIZER(name,count)					\
-	{ (count), 0, __WAIT_QUEUE_HEAD_INITIALIZER((name).wait),	\
+	{ ATOMIC_INIT(count), 0,					\
+	  __WAIT_QUEUE_HEAD_INITIALIZER((name).wait),			\
 	  __WAIT_QUEUE_HEAD_INITIALIZER((name).write_bias_wait)		\
 	  __SEM_DEBUG_INIT(name) __RWSEM_DEBUG_INIT }
 
