@@ -154,11 +154,9 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_WAN is not set
 
 #
-# PCMCIA network devices
+# PCMCIA network device support
 #
-# CONFIG_PCMCIA_PCNET is not set
-# CONFIG_PCMCIA_3C589 is not set
-# CONFIG_PCMCIA_RAYCS is not set
+# CONFIG_NET_PCMCIA is not set
 
 #
 # Amateur Radio support
