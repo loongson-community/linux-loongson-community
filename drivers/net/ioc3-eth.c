@@ -67,11 +67,16 @@
 #include <asm/sn/sn0/ip27.h>
 #include <asm/pci/bridge.h>
 
-/* 32 RX buffers.  This is tunable in the range of 16 <= x < 512.  */
+/*
+ * 32 RX buffers.  This is tunable in the range of 16 <= x < 512.  The
+ * value must be a power of two.
+ */
 #define RX_BUFFS 64
 
-/* Private ioctls that de facto are well known and used for examply
-   by mii-tool.  */
+/*
+ * Private ioctls that de facto are well known and used for examply
+ * by mii-tool.
+ */
 #define SIOCGMIIPHY (SIOCDEVPRIVATE)	/* Read from current PHY */
 #define SIOCGMIIREG (SIOCDEVPRIVATE+1)	/* Read any PHY register */
 #define SIOCSMIIREG (SIOCDEVPRIVATE+2)	/* Write any PHY register */
@@ -883,10 +888,11 @@ ioc3_close(struct net_device *dev)
 	return 0;
 }
 
-static int ioc3_pci_init(struct pci_dev *pdev)
+static int __devinit ioc3_probe(struct pci_dev *pdev,
+	                        const struct pci_device_id *ent)
 {
 	u16 mii0, mii_status, mii2, mii3, mii4;
-	struct net_device *dev = NULL;	// XXX
+	struct net_device *dev = NULL;
 	struct ioc3_private *ip;
 	struct ioc3 *ioc3;
 	unsigned long ioc3_base, ioc3_size;
@@ -977,32 +983,32 @@ out_free:
 	return err;
 }
 
-static int __init ioc3_probe(void)
+static void __devexit eepro100_remove_one (struct pci_dev *pdev)
 {
-	static int called;
-	int cards = 0;
+	/* Later ... */
+}
 
-	if (called)
-		return -ENODEV;
-	called = 1;
+static struct pci_device_id ioc3_pci_tbl[] __devinitdata = {
+	{ PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3, PCI_ANY_ID, PCI_ANY_ID },
+	{ 0 }
+};
+MODULE_DEVICE_TABLE(pci, ioc3_pci_tbl);
 
-	if (pci_present()) {
-		struct pci_dev *pdev = NULL;
+static struct pci_driver ioc3_driver = {
+	name:		"ioc3-eth",
+	id_table:	ioc3_pci_tbl,
+	probe:		ioc3_probe,
+	/* remove:		ioc3_remove_one, */
+};
 
-		while ((pdev = pci_find_device(PCI_VENDOR_ID_SGI,
-		                               PCI_DEVICE_ID_SGI_IOC3, pdev))) {
-			if (ioc3_pci_init(pdev))
-				return -ENOMEM;
-			cards++;
-		}
-	}
-
-	return cards ? -ENODEV : 0;
+static int __init ioc3_init_module(void)
+{
+	return pci_module_init(&ioc3_driver);
 }
 
 static void __exit ioc3_cleanup_module(void)
 {
-	/* Later, when we really support modules.  */
+	pci_unregister_driver(&ioc3_driver);
 }
 
 static int
@@ -1203,5 +1209,5 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 MODULE_AUTHOR("Ralf Baechle <ralf@oss.sgi.com>");
 MODULE_DESCRIPTION("SGI IOC3 Ethernet driver");
 
-module_init(ioc3_probe);
+module_init(ioc3_init_module);
 module_exit(ioc3_cleanup_module);
