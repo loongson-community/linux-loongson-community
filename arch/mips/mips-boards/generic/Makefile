@@ -18,11 +18,10 @@
 # Makefile for the MIPS boards generic routines under Linux.
 #
 
-obj-y				:= mipsIRQ.o reset.o display.o init.o \
-				   memory.o printf.o cmdline.o
+obj-y				:= mipsIRQ.o reset.o display.o init.o memory.o \
+				   printf.o cmdline.o
 obj-$(CONFIG_MIPS_ATLAS)	+= time.o
 obj-$(CONFIG_MIPS_MALTA)	+= time.o
-obj-$(CONFIG_PCI)		+= pci.o
 obj-$(CONFIG_KGDB)		+= gdb_hook.o
 
 EXTRA_AFLAGS := $(CFLAGS)

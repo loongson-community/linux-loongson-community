@@ -7,6 +7,6 @@
 #
 
 obj-y		:= serialGT.o int-handler.o promcon.o reset.o setup.o irq.o \
-		   irq-handler.o i2o.o pci_bios.o
+		   irq-handler.o
 
 EXTRA_AFLAGS := $(CFLAGS)
