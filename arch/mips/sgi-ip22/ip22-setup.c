@@ -133,9 +133,7 @@ struct kbd_ops sgi_kbd_ops = {
 
 void __init ip22_setup(void)
 {
-#ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
-#endif
 #ifdef CONFIG_REMOTE_DEBUG
 	char *kgdb_ttyd;
 #endif
