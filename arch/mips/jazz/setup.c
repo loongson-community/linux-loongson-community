@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.12 1998/08/17 13:57:42 ralf Exp $
+/* $Id: setup.c,v 1.13 1998/08/25 09:14:37 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -15,6 +15,9 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/mm.h>
+#include <linux/console.h>
+#include <linux/fb.h>
+#include <linux/mc146818rtc.h>
 #include <asm/bootinfo.h>
 #include <asm/keyboard.h>
 #include <asm/ide.h>
@@ -124,6 +127,6 @@ __initfunc(void jazz_setup(void))
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
 #endif
-
+	conswitchp = &fb_con;
 	rtc_ops = &jazz_rtc_ops;
 }
