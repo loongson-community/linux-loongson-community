@@ -85,6 +85,7 @@
 
 /* Sanity hazzard ...  Below all the Origin hacks are following.  */
 
+#define QLOGICFC_SLOT5          5
 #define IOC3_SERIAL_INT		8
 #define IOC3_ETH_INT		9
 #define SCSI1_INT		1
