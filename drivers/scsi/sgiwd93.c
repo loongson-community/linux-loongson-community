@@ -5,7 +5,7 @@
  *
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.10 1999/03/24 00:04:11 tsbogend Exp $
+ * $Id: sgiwd93.c,v 1.11 1999/03/25 22:41:20 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -266,6 +266,7 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 
 	sgiwd93_host = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
 	sgiwd93_host->base = (unsigned char *) hregs;
+	sgiwd93_host->irq = 1;
 
 	buf = (uchar *) get_free_page(GFP_KERNEL);
 	init_hpc_chain(buf);
