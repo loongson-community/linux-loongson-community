@@ -25,6 +25,8 @@
 #ifdef CONFIG_MTD
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/physmap.h>
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/map.h>
 #endif
 
 #include <asm/cpu.h>
@@ -161,13 +163,13 @@ static int __init malta_setup(void)
 			}
 		}
 		else
-			panic ("Hardware DMA cache coherency not supported\n");
+			panic("Hardware DMA cache coherency not supported");
 
 #endif
 	}
 #ifdef CONFIG_DMA_COHERENT
 	else {
-		panic ("Hardware DMA cache coherency not supported\n");
+		panic("Hardware DMA cache coherency not supported");
 	}
 #endif
 
