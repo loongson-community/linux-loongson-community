@@ -72,7 +72,7 @@ EXPORT(o32_syscall_exit)
 	LONG_L	a2, TI_FLAGS($28)	# current->work
 	li	t0, _TIF_ALLWORK_MASK
 	and	t0, a2, t0
-	bnez	a2, o32_syscall_exit_work
+	bnez	t0, o32_syscall_exit_work
 
 	RESTORE_SOME
 	RESTORE_SP_AND_RET
