@@ -244,21 +244,6 @@ extern unsigned long zero_page_mask;
 #define ZERO_PAGE(vaddr) \
 	(virt_to_page(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
 
-/* number of bits that fit into a memory pointer */
-#define BITS_PER_PTR			(8*sizeof(unsigned long))
-
-/* to align the pointer to a pointer address */
-#define PTR_MASK			(~(sizeof(void*)-1))
-
-/*
- * sizeof(void*) == (1 << SIZEOF_PTR_LOG2)
- */
-#define SIZEOF_PTR_LOG2			3
-
-/* to find an entry in a page-table */
-#define PAGE_PTR(address) \
-((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
-
 extern pte_t invalid_pte_table[PAGE_SIZE/sizeof(pte_t)];
 extern pte_t empty_bad_page_table[PAGE_SIZE/sizeof(pte_t)];
 extern pmd_t invalid_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
