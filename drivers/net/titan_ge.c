@@ -115,18 +115,18 @@ static int titan_ge_return_tx_desc(titan_ge_port_info *, int);
  * to be done only once for all the ports. This flag controls
  * that
  */
-unsigned long config_done;
+static unsigned long config_done;
 
 /*
  * One time out of memory flag
  */
-unsigned int oom_flag;
+static unsigned int oom_flag;
 
 #ifdef TITAN_RX_NAPI
 static int titan_ge_poll(struct net_device *netdev, int *budget);
 #endif
 
-int titan_ge_receive_queue(struct net_device *, unsigned int);
+static int titan_ge_receive_queue(struct net_device *, unsigned int);
 
 /* MAC Address */
 extern unsigned char titan_ge_mac_addr_base[6];
@@ -1460,7 +1460,7 @@ static int titan_ge_slowpath(struct sk_buff *skb,
 /*
  * Receive the packets and send it to the kernel. 
  */
-int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
+static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	unsigned int port_num = titan_ge_eth->port_num;
