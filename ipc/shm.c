@@ -71,7 +71,9 @@ static int shm_tot; /* total number of shared memory pages */
 void __init shm_init (void)
 {
 	ipc_init_ids(&shm_ids, 1);
+#ifdef CONFIG_PROC_FS
 	create_proc_read_entry("sysvipc/shm", 0, 0, sysvipc_shm_read_proc, NULL);
+#endif
 }
 
 static inline int shm_checkid(struct shmid_kernel *s, int id)
