@@ -61,7 +61,7 @@
 
 char e1000_driver_name[] = "e1000";
 char e1000_driver_string[] = "Intel(R) PRO/1000 Network Driver";
-char e1000_driver_version[] = "5.0.43-k2";
+char e1000_driver_version[] = "5.0.43-k3";
 char e1000_copyright[] = "Copyright (c) 1999-2003 Intel Corporation.";
 
 /* e1000_pci_tbl - PCI Device ID Table
@@ -154,7 +154,7 @@ static int e1000_set_mac(struct net_device *netdev, void *p);
 static void e1000_update_stats(struct e1000_adapter *adapter);
 static inline void e1000_irq_disable(struct e1000_adapter *adapter);
 static inline void e1000_irq_enable(struct e1000_adapter *adapter);
-static void e1000_intr(int irq, void *data, struct pt_regs *regs);
+static irqreturn_t e1000_intr(int irq, void *data, struct pt_regs *regs);
 #ifdef CONFIG_E1000_NAPI
 static int e1000_clean(struct net_device *netdev, int *budget);
 static boolean_t e1000_clean_rx_irq(struct e1000_adapter *adapter,
@@ -455,9 +455,11 @@ e1000_probe(struct pci_dev *pdev,
 		netdev->features = NETIF_F_SG;
 	}
 
+#ifdef NETIF_F_TSO
 	if((adapter->hw.mac_type >= e1000_82544) &&
 	   (adapter->hw.mac_type != e1000_82547))
 		netdev->features |= NETIF_F_TSO;
+#endif
 
 	if(pci_using_dac)
 		netdev->features |= NETIF_F_HIGHDMA;
@@ -1434,6 +1436,7 @@ e1000_watchdog(unsigned long data)
 static inline boolean_t
 e1000_tso(struct e1000_adapter *adapter, struct sk_buff *skb, int tx_flags)
 {
+#ifdef NETIF_F_TSO
 	struct e1000_context_desc *context_desc;
 	int i;
 	uint8_t ipcss, ipcso, tucss, tucso, hdr_len;
@@ -1477,6 +1480,7 @@ e1000_tso(struct e1000_adapter *adapter, struct sk_buff *skb, int tx_flags)
 
 		return TRUE;
 	}
+#endif
 
 	return FALSE;
 }
@@ -1520,7 +1524,9 @@ e1000_tx_map(struct e1000_adapter *adapter, struct sk_buff *skb)
 	struct e1000_desc_ring *tx_ring = &adapter->tx_ring;
 	int len = skb->len, offset = 0, size, count = 0, i;
 
+#ifdef NETIF_F_TSO
 	int tso = skb_shinfo(skb)->tso_size;
+#endif
 	int nr_frags = skb_shinfo(skb)->nr_frags;
 	int f;
 	len -= skb->data_len;
@@ -1529,10 +1535,12 @@ e1000_tx_map(struct e1000_adapter *adapter, struct sk_buff *skb)
 
 	while(len) {
 		size = min(len, E1000_MAX_DATA_PER_TXD);
+#ifdef NETIF_F_TSO
 		/* Workaround for premature desc write-backs
 		 * in TSO mode.  Append 4-byte sentinel desc */
 		if(tso && !nr_frags && size == len && size > 4)
 			size -= 4;
+#endif
 		tx_ring->buffer_info[i].length = size;
 		tx_ring->buffer_info[i].dma =
 			pci_map_single(adapter->pdev,
@@ -1556,10 +1564,12 @@ e1000_tx_map(struct e1000_adapter *adapter, struct sk_buff *skb)
 
 		while(len) {
 			size = min(len, E1000_MAX_DATA_PER_TXD);
+#ifdef NETIF_F_TSO
 			/* Workaround for premature desc write-backs
 			 * in TSO mode.  Append 4-byte sentinel desc */
 			if(tso && f == (nr_frags-1) && size == len && size > 4)
 				size -= 4;
+#endif
 			tx_ring->buffer_info[i].length = size;
 			tx_ring->buffer_info[i].dma =
 				pci_map_page(adapter->pdev,
@@ -1981,7 +1991,7 @@ e1000_irq_enable(struct e1000_adapter *adapter)
  * @pt_regs: CPU registers structure
  **/
 
-static void
+static irqreturn_t
 e1000_intr(int irq, void *data, struct pt_regs *regs)
 {
 	struct net_device *netdev = data;
@@ -1992,7 +2002,7 @@ e1000_intr(int irq, void *data, struct pt_regs *regs)
 #endif
 
 	if(!icr)
-		return;  /* Not our interrupt */
+		return IRQ_NONE;  /* Not our interrupt */
 
 	if(icr & (E1000_ICR_RXSEQ | E1000_ICR_LSC)) {
 		adapter->hw.get_link_status = 1;
@@ -2016,6 +2026,7 @@ e1000_intr(int irq, void *data, struct pt_regs *regs)
 		   !e1000_clean_tx_irq(adapter))
 			break;
 #endif
+	return IRQ_HANDLED;
 }
 
 #ifdef CONFIG_E1000_NAPI

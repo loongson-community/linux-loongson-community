@@ -266,7 +266,7 @@ static int scc_send_packet(struct sk_buff *skb, struct net_device *dev);
 static struct net_device_stats *scc_get_stats(struct net_device *dev);
 static int scc_set_mac_address(struct net_device *dev, void *sa);
 
-static void scc_isr(int irq, void *dev_id, struct pt_regs * regs);
+static irqreturn_t scc_isr(int irq, void *dev_id, struct pt_regs * regs);
 static inline void z8530_isr(struct scc_info *info);
 static void rx_isr(struct scc_priv *priv);
 static void special_condition(struct scc_priv *priv, int rc);
@@ -674,7 +674,7 @@ static int read_scc(struct scc_priv *priv, int reg) {
     if (reg) outb_p(reg, priv->scc_cmd);
     return inb_p(priv->scc_cmd);
   default:
-    spin_lock_irqsave(&priv->register_lock, flags);
+    spin_lock_irqsave(priv->register_lock, flags);
     outb_p(0, priv->card_base + PI_DREQ_MASK);
     if (reg) outb_p(reg, priv->scc_cmd);
     rc = inb_p(priv->scc_cmd);
@@ -949,7 +949,7 @@ static int scc_set_mac_address(struct net_device *dev, void *sa) {
 }
 
 
-static void scc_isr(int irq, void *dev_id, struct pt_regs * regs) {
+static irqreturn_t scc_isr(int irq, void *dev_id, struct pt_regs * regs) {
   struct scc_info *info = dev_id;
 
   spin_lock(info->priv[0].register_lock);
@@ -981,6 +981,7 @@ static void scc_isr(int irq, void *dev_id, struct pt_regs * regs) {
     }
   } else z8530_isr(info);
   spin_unlock(info->priv[0].register_lock);
+  return IRQ_HANDLED;
 }
 
 

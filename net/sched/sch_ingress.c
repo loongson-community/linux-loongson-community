@@ -45,7 +45,7 @@
 
 /* Thanks to Doron Oz for this hack
 */
-static int nf_registered = 0; 
+static int nf_registered; 
 
 struct ingress_qdisc_data {
 	struct Qdisc		*q;
@@ -237,13 +237,12 @@ used on the egress (might slow things for an iota)
 }
 
 /* after ipt_filter */
-static struct nf_hook_ops ing_ops =
-{
-	{ NULL, NULL},
-	ing_hook,
-	PF_INET,
-	NF_IP_PRE_ROUTING,
-	NF_IP_PRI_FILTER + 1
+static struct nf_hook_ops ing_ops = {
+	.hook           = ing_hook,
+	.owner		= THIS_MODULE,
+	.pf             = PF_INET,
+	.hooknum        = NF_IP_PRE_ROUTING,
+	.priority       = NF_IP_PRI_FILTER + 1,
 };
 
 int ingress_init(struct Qdisc *sch,struct rtattr *opt)
@@ -254,7 +253,7 @@ int ingress_init(struct Qdisc *sch,struct rtattr *opt)
 		if (nf_register_hook(&ing_ops) < 0) {
 			printk("ingress qdisc registration error \n");
 			goto error;
-			}
+		}
 		nf_registered++;
 	}
 
@@ -262,7 +261,6 @@ int ingress_init(struct Qdisc *sch,struct rtattr *opt)
 	memset(p, 0, sizeof(*p));
 	p->filter_list = NULL;
 	p->q = &noop_qdisc;
-	MOD_INC_USE_COUNT;
 	return 0;
 error:
 	return -EINVAL;
@@ -308,9 +306,6 @@ static void ingress_destroy(struct Qdisc *sch)
 /* for future use */
 	qdisc_destroy(p->q);
 #endif
- 
-	MOD_DEC_USE_COUNT;
-
 }
 
 
@@ -329,41 +324,35 @@ rtattr_failure:
 	return -1;
 }
 
-static struct Qdisc_class_ops ingress_class_ops =
-{
-	.graft		= ingress_graft,
-	.leaf		= ingress_leaf,
-	.get		= ingress_get,
-	.put		= ingress_put,
-	.change		= ingress_change,
-	.delete		= NULL,
-	.walk		= ingress_walk,
-
-	.tcf_chain	= ingress_find_tcf,
-	.bind_tcf	= ingress_bind_filter,
-	.unbind_tcf	= ingress_put,
-
-	.dump		= NULL,
+static struct Qdisc_class_ops ingress_class_ops = {
+	.graft		=	ingress_graft,
+	.leaf		=	ingress_leaf,
+	.get		=	ingress_get,
+	.put		=	ingress_put,
+	.change		=	ingress_change,
+	.delete		=	NULL,
+	.walk		=	ingress_walk,
+	.tcf_chain	=	ingress_find_tcf,
+	.bind_tcf	=	ingress_bind_filter,
+	.unbind_tcf	=	ingress_put,
+	.dump		=	NULL,
 };
 
-struct Qdisc_ops ingress_qdisc_ops =
-{
-	.next		= NULL,
-	.cl_ops		= &ingress_class_ops,
-	.id		= "ingress",
-	.priv_size	= sizeof(struct ingress_qdisc_data),
-
-	.enqueue	= ingress_enqueue,
-	.dequeue	= ingress_dequeue,
-	.requeue	= ingress_requeue,
-	.drop		= ingress_drop,
-
-	.init		= ingress_init,
-	.reset		= ingress_reset,
-	.destroy	= ingress_destroy,
-	.change		= NULL,
-
-	.dump		= ingress_dump,
+struct Qdisc_ops ingress_qdisc_ops = {
+	.next		=	NULL,
+	.cl_ops		=	&ingress_class_ops,
+	.id		=	"ingress",
+	.priv_size	=	sizeof(struct ingress_qdisc_data),
+	.enqueue	=	ingress_enqueue,
+	.dequeue	=	ingress_dequeue,
+	.requeue	=	ingress_requeue,
+	.drop		=	ingress_drop,
+	.init		=	ingress_init,
+	.reset		=	ingress_reset,
+	.destroy	=	ingress_destroy,
+	.change		=	NULL,
+	.dump		=	ingress_dump,
+	.owner		=	THIS_MODULE,
 };
 
 

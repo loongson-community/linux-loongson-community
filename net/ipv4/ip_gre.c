@@ -159,7 +159,7 @@ static struct ip_tunnel *tunnels[4][HASH_SIZE];
 
 static rwlock_t ipgre_lock = RW_LOCK_UNLOCKED;
 
-/* Given src, dst and key, find approriate for input tunnel. */
+/* Given src, dst and key, find appropriate for input tunnel. */
 
 static struct ip_tunnel * ipgre_tunnel_lookup(u32 remote, u32 local, u32 key)
 {
@@ -777,9 +777,6 @@ static int ipgre_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 		skb->dst->ops->update_pmtu(skb->dst, mtu);
 
 	if (skb->protocol == htons(ETH_P_IP)) {
-		if (skb->dst)
-			skb->dst->ops->update_pmtu(skb->dst, mtu);
-
 		df |= (old_iph->frag_off&htons(IP_DF));
 
 		if ((old_iph->frag_off&htons(IP_DF)) &&

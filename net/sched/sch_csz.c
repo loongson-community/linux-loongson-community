@@ -184,7 +184,7 @@
 	procedure for solving these equations.
 	See procedure csz_update(), that is a generalization of
 	the algorithm from S. Keshav's thesis Chapter 3
-	"Efficient Implementation of Fair Queeing".
+	"Efficient Implementation of Fair Queuing".
 
 	NOTES.
 
@@ -624,7 +624,7 @@ static __inline__ int csz_enough_tokens(struct csz_sched_data *q,
 
 	toks = -toks;
 
-	/* Remeber, that we should start watchdog */
+	/* Remember, that we should start watchdog */
 	if (toks < q->wd_expires)
 		q->wd_expires = toks;
 
@@ -708,11 +708,9 @@ csz_dequeue(struct Qdisc* sch)
 	 */
 	if (q->wd_expires) {
 		unsigned long delay = PSCHED_US2JIFFIE(q->wd_expires);
-		del_timer(&q->wd_timer);
 		if (delay == 0)
 			delay = 1;
-		q->wd_timer.expires = jiffies + delay;
-		add_timer(&q->wd_timer);
+		mod_timer(&q->wd_timer, jiffies + delay);
 		sch->stats.overlimits++;
 	}
 #endif
@@ -756,8 +754,6 @@ csz_destroy(struct Qdisc* sch)
 		q->filter_list = tp->next;
 		tp->ops->destroy(tp);
 	}
-
-	MOD_DEC_USE_COUNT;
 }
 
 static int csz_init(struct Qdisc *sch, struct rtattr *opt)
@@ -799,7 +795,6 @@ static int csz_init(struct Qdisc *sch, struct rtattr *opt)
 	q->wd_timer.data = (unsigned long)sch;
 	q->wd_timer.function = csz_watchdog;
 #endif
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -1018,42 +1013,35 @@ static struct tcf_proto ** csz_find_tcf(struct Qdisc *sch, unsigned long cl)
 	return &q->filter_list;
 }
 
-struct Qdisc_class_ops csz_class_ops =
-{
-	.graft		= csz_graft,
-	.leaf		= csz_leaf,
-
-	.get		= csz_get,
-	.put		= csz_put,
-	.change		= csz_change,
-	.delete		= csz_delete,
-	.walk		= csz_walk,
-
-	.tcf_chain	= csz_find_tcf,
-	.bind_tcf	= csz_bind,
-	.unbind_tcf	= csz_put,
-
-	.dump		= csz_dump_class,
+struct Qdisc_class_ops csz_class_ops = {
+	.graft		=	csz_graft,
+	.leaf		=	csz_leaf,
+	.get		=	csz_get,
+	.put		=	csz_put,
+	.change		=	csz_change,
+	.delete		=	csz_delete,
+	.walk		=	csz_walk,
+	.tcf_chain	=	csz_find_tcf,
+	.bind_tcf	=	csz_bind,
+	.unbind_tcf	=	csz_put,
+	.dump		=	csz_dump_class,
 };
 
-struct Qdisc_ops csz_qdisc_ops =
-{
-	.next		= NULL,
-	.cl_ops		= &csz_class_ops,
-	.id		= "csz",
-	.priv_size	= sizeof(struct csz_sched_data),
-
-	.enqueue	= csz_enqueue,
-	.dequeue	= csz_dequeue,
-	.requeue	= NULL,
-	.drop		= NULL,
-
-	.init		= csz_init,
-	.reset		= csz_reset,
-	.destroy	= csz_destroy,
-	.change		= NULL,
-
-	.dump		= csz_dump,
+struct Qdisc_ops csz_qdisc_ops = {
+	.next		=	NULL,
+	.cl_ops		=	&csz_class_ops,
+	.id		=	"csz",
+	.priv_size	=	sizeof(struct csz_sched_data),
+	.enqueue	=	csz_enqueue,
+	.dequeue	=	csz_dequeue,
+	.requeue	=	NULL,
+	.drop		=	NULL,
+	.init		=	csz_init,
+	.reset		=	csz_reset,
+	.destroy	=	csz_destroy,
+	.change		=	NULL,
+	.dump		=	csz_dump,
+	.owner		=	THIS_MODULE,
 };
 
 

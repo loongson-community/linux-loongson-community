@@ -21,6 +21,8 @@
 #define _IEEE1394_NODEMGR_H
 
 #include <linux/device.h>
+#include "ieee1394_core.h"
+#include "ieee1394_hotplug.h"
 
 #define CONFIG_ROM_BUS_INFO_LENGTH(q)		((q) >> 24)
 #define CONFIG_ROM_BUS_CRC_LENGTH(q)		(((q) >> 16) & 0xff)
@@ -55,6 +57,7 @@
 #define CONFIG_ROM_MODEL_ID			0x17
 #define CONFIG_ROM_NODE_CAPABILITES		0x0C
 #define CONFIG_ROM_UNIT_DIRECTORY		0xd1
+#define CONFIG_ROM_LOGICAL_UNIT_DIRECTORY	0xd4
 #define CONFIG_ROM_SPECIFIER_ID			0x12 
 #define CONFIG_ROM_UNIT_SW_VERSION		0x13
 #define CONFIG_ROM_DESCRIPTOR_LEAF		0x81
@@ -78,11 +81,6 @@ struct bus_options {
 	u16	max_rec;	/* Maximum packet size node can receive */
 };
 
-enum {
-	DEV_CLASS_NODE,
-	DEV_CLASS_UNIT_DIRECTORY,
-	DEV_CLASS_HOST,
-};
 
 #define UNIT_DIRECTORY_VENDOR_ID	0x01
 #define UNIT_DIRECTORY_MODEL_ID		0x02
@@ -137,8 +135,7 @@ struct node_entry {
 	const char *vendor_name;
 	const char *vendor_oui;
 
-	u32 capabilities;	
-
+	u32 capabilities;
 	struct hpsb_tlabel_pool *tpool;
 
 	struct device device;
@@ -146,6 +143,34 @@ struct node_entry {
 	/* XXX Must be last in the struct! */
 	quadlet_t quadlets[0];
 };
+
+struct hpsb_protocol_driver {
+	/* The name of the driver, e.g. SBP2 or IP1394 */
+	const char *name;
+
+	/*
+	 * The device id table describing the protocols and/or devices
+	 * supported by this driver.  This is used by the nodemgr to
+	 * decide if a driver could support a given node, but the
+	 * probe function below can implement further protocol
+	 * dependent or vendor dependent checking.
+	 */
+	struct ieee1394_device_id *id_table;
+
+	/*
+	 * The update function is called when the node has just
+	 * survived a bus reset, i.e. it is still present on the bus.
+	 * However, it may be necessary to reestablish the connection
+	 * or login into the node again, depending on the protocol.
+	 */
+	void (*update)(struct unit_directory *ud);
+
+	/* Our LDM structure */
+	struct device_driver driver;
+};
+
+int hpsb_register_protocol(struct hpsb_protocol_driver *driver);
+void hpsb_unregister_protocol(struct hpsb_protocol_driver *driver);
 
 static inline int hpsb_node_entry_valid(struct node_entry *ne)
 {
@@ -162,10 +187,6 @@ struct node_entry *hpsb_guid_get_entry(u64 guid);
 /* Same as above, but use the nodeid to get an node entry. This is not
  * fool-proof by itself, since the nodeid can change.  */
 struct node_entry *hpsb_nodeid_get_entry(struct hpsb_host *host, nodeid_t nodeid);
-
-/* Same as above except that it will not block waiting for the nodemgr
- * serialize semaphore.  */
-struct node_entry *hpsb_check_nodeid(struct hpsb_host *host, nodeid_t nodeid);
 
 /*
  * If the entry refers to a local host, this function will return the pointer

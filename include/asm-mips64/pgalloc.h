@@ -47,7 +47,8 @@ static inline pte_t *pte_alloc_one_kernel(struct mm_struct *mm,
 	pte_t *pte;
 
 	do {
-		pte = (pte_t *) __get_free_pages(GFP_KERNEL, PTE_ORDER);
+		pte = (pte_t *) __get_free_pages(GFP_KERNEL|__GFP_REPEAT,
+		                                 PTE_ORDER);
 		if (pte)
 			clear_page(pte);
 		else {
@@ -95,7 +96,7 @@ static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long address)
 {
 	pmd_t *pmd;
 
-	pmd = (pmd_t *) __get_free_pages(GFP_KERNEL, PMD_ORDER);
+	pmd = (pmd_t *) __get_free_pages(GFP_KERNEL|__GFP_REPEAT, PMD_ORDER);
 	if (pmd)
 		pmd_init((unsigned long)pmd, (unsigned long)invalid_pte_table);
 	return pmd;

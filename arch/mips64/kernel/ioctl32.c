@@ -11,36 +11,45 @@
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/compat.h>
+#include <linux/ioctl32.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/if.h>
 #include <linux/mm.h>
 #include <linux/mtio.h>
+#include <linux/auto_fs.h>
+#include <linux/auto_fs4.h>
+#include <linux/devfs_fs.h>
 #include <linux/tty.h>
 #include <linux/init.h>
-#include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/file.h>
+#include <linux/fd.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
 #include <linux/if_pppox.h>
+#include <linux/if_tun.h>
 #include <linux/cdrom.h>
 #include <linux/blkdev.h>
 #include <linux/loop.h>
 #include <linux/fb.h>
 #include <linux/vt.h>
 #include <linux/kd.h>
+#include <linux/ext2_fs.h>
+#include <linux/videodev.h>
 #include <linux/netdevice.h>
+#include <linux/raw.h>
+#include <linux/smb_fs.h>
+#include <linux/ncp_fs.h>
 #include <linux/route.h>
 #include <linux/hdreg.h>
+#include <linux/raid/md.h>
 #include <linux/blkpg.h>
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
-#include <linux/auto_fs.h>
-#include <linux/auto_fs4.h>
-#include <linux/ext2_fs.h>
-#include <linux/raid/md_u.h>
+#include <linux/rtc.h>
+#include <linux/pci.h>
 #include <linux/dm-ioctl.h>
-#include <linux/vmalloc.h>
 
 #include <scsi/scsi.h>
 #undef __KERNEL__		/* This file was born to be ugly ...  */
@@ -48,13 +57,38 @@
 #define __KERNEL__
 #include <scsi/sg.h>
 
+#include <linux/ethtool.h>
+#include <linux/mii.h>
+#include <linux/if_bonding.h>
+#include <linux/watchdog.h>
+
 #include <asm/ioctls.h>
 #include <asm/module.h>
-#include <asm/types.h>
-#include <asm/uaccess.h>
-#include <asm/ptrace.h>
+#include <linux/soundcard.h>
+#include <linux/lp.h>
 
-#include <linux/rtc.h>
+#include <linux/atm.h>
+#include <linux/atmarp.h>
+#include <linux/atmclip.h>
+#include <linux/atmdev.h>
+#include <linux/atmioc.h>
+#include <linux/atmlec.h>
+#include <linux/atmmpc.h>
+#include <linux/atmsvc.h>
+#include <linux/atm_tcp.h>
+#include <linux/sonet.h>
+#include <linux/atm_suni.h>
+#include <linux/mtd/mtd.h>
+
+#include <net/bluetooth/bluetooth.h>
+#include <net/bluetooth/hci.h>
+#include <net/bluetooth/rfcomm.h>
+
+#include <linux/usb.h>
+#include <linux/usbdevice_fs.h>
+#include <linux/nbd.h>
+#include <linux/random.h>
+#include <linux/filter.h>
 
 #ifdef CONFIG_SIBYTE_TBPROF
 #include <asm/sibyte/trace_prof.h>
@@ -405,14 +439,16 @@ out:
 	return err;
 }
 
-static inline void *alloc_user_space(struct pt_regs *regs, long len)
+static inline void *alloc_user_space(long len)
 {
-	unsigned long sp = regs->regs[29];
+	unsigned long sp = (unsigned long) current_thread_info() +
+			    KERNEL_STACK_SIZE - 32;
 
 	return (void *) (sp - len);
 }
 
-static int siocdevprivate_ioctl(struct pt_regs *regs, unsigned int fd, unsigned int cmd, unsigned long arg)
+int siocdevprivate_ioctl(struct pt_regs *regs, unsigned int fd,
+	unsigned int cmd, unsigned long arg)
 {
 	struct ifreq *u_ifreq64;
 	struct ifreq32 *u_ifreq32 = (struct ifreq32 *) arg;
@@ -427,7 +463,7 @@ static int siocdevprivate_ioctl(struct pt_regs *regs, unsigned int fd, unsigned 
 		return -EFAULT;
 	data64 = (void *) A(data32);
 
-	u_ifreq64 = alloc_user_space(regs, sizeof(*u_ifreq64));
+	u_ifreq64 = alloc_user_space(sizeof(*u_ifreq64));
 
 	/* Don't check these user accesses, just let that get trapped
 	 * in the ioctl handler instead.
@@ -776,19 +812,18 @@ static int ioc_settimeout(unsigned int fd, unsigned int cmd, unsigned long arg)
 	return rw_long(fd, AUTOFS_IOC_SETTIMEOUT, arg);
 }
 
-struct ioctl_trans {
-	unsigned int cmd;
-	int (*handler)(unsigned int, unsigned int, unsigned long,
-	               struct file *);
-	struct ioctl_trans *next;
-};
+typedef int (* ioctl32_handler_t)(unsigned int, unsigned int, unsigned long, struct file *);
+                                                                                
+#define COMPATIBLE_IOCTL(cmd)		HANDLE_IOCTL((cmd),sys_ioctl)
+#define HANDLE_IOCTL(cmd,handler)	{ (cmd), (ioctl32_handler_t)(handler), NULL },
+#define IOCTL_TABLE_START \
+	struct ioctl_trans ioctl_start[] = {
+#define IOCTL_TABLE_END \
+	}; struct ioctl_trans ioctl_end[0];
 
-#define COMPATIBLE_IOCTL(cmd)		{ cmd, (void *) sys_ioctl, 0 },
-#define HANDLE_IOCTL(cmd, handler)	{ cmd, (void *) handler, 0 },
-#define IOCTL_TABLE_START		static struct ioctl_trans ioctl_translations[] = {
-#define IOCTL_TABLE_END };
 
 IOCTL_TABLE_START
+#include <linux/compat_ioctl.h>
 COMPATIBLE_IOCTL(TCGETA)
 COMPATIBLE_IOCTL(TCSETA)
 COMPATIBLE_IOCTL(TCSETAW)
@@ -1182,145 +1217,3 @@ IOCTL_TABLE_END
 
 #define NR_IOCTL_TRANS		(sizeof(ioctl_translations) /	\
 				 sizeof(ioctl_translations[0]))
-
-struct ioctl_trans *ioctl32_hash_table[1024];
-
-static inline unsigned long ioctl32_hash(unsigned long cmd)
-{
-	return ((cmd >> 6) ^ (cmd >> 4) ^ cmd) & 0x3ff;
-}
-
-static void ioctl32_insert_translation(struct ioctl_trans *trans)
-{
-	unsigned long hash;
-	struct ioctl_trans *t;
-
-	hash = ioctl32_hash (trans->cmd);
-	if (!ioctl32_hash_table[hash])
-		ioctl32_hash_table[hash] = trans;
-	else {
-		t = ioctl32_hash_table[hash];
-		while (t->next)
-			t = (struct ioctl_trans *)t->next;
-		trans->next = 0;
-		t->next = trans;
-	}
-}
-
-static int __init init_sys32_ioctl(void)
-{
-	struct ioctl_trans *end = ioctl_translations + NR_IOCTL_TRANS;
-	int i;
-
-	for (i = 0; &ioctl_translations[i] < end; i++) {
-		ioctl32_insert_translation(&ioctl_translations[i]);
-	}
-	return 0;
-}
-
-__initcall(init_sys32_ioctl);
-
-static struct ioctl_trans *additional_ioctls;
-
-/* Always call these with kernel lock held! */
-
-int register_ioctl32_conversion(unsigned int cmd, int (*handler)(unsigned int, unsigned int, unsigned long, ...))
-{
-	int i;
-	if (!additional_ioctls) {
-		additional_ioctls = module_map(PAGE_SIZE);
-		if (!additional_ioctls)
-			return -ENOMEM;
-		memset(additional_ioctls, 0, PAGE_SIZE);
-	}
-	for (i = 0; i < PAGE_SIZE/sizeof(struct ioctl_trans); i++)
-		if (!additional_ioctls[i].cmd)
-			break;
-	if (i == PAGE_SIZE/sizeof(struct ioctl_trans))
-		return -ENOMEM;
-	additional_ioctls[i].cmd = cmd;
-	if (!handler)
-		additional_ioctls[i].handler = (void *) sys_ioctl;
-	else
-		additional_ioctls[i].handler = (void *) handler;
-	ioctl32_insert_translation(&additional_ioctls[i]);
-	return 0;
-}
-
-int unregister_ioctl32_conversion(unsigned int cmd)
-{
-	unsigned long hash = ioctl32_hash(cmd);
-	struct ioctl_trans *t, *t1;
-
-	t = ioctl32_hash_table[hash];
-	if (!t) return -EINVAL;
-	if (t->cmd == cmd && t >= additional_ioctls &&
-	    (unsigned long)t < ((unsigned long)additional_ioctls) + PAGE_SIZE) {
-		ioctl32_hash_table[hash] = t->next;
-		t->cmd = 0;
-		t->next = 0;
-		return 0;
-	} else while (t->next) {
-		t1 = t->next;
-		if (t1->cmd == cmd && t1 >= additional_ioctls &&
-		    (unsigned long)t1 < ((unsigned long)additional_ioctls) + PAGE_SIZE) {
-			t->next = t1->next;
-			t1->cmd = 0;
-			t1->next = 0;
-			return 0;
-		}
-		t = t1;
-	}
-	return -EINVAL;
-}
-
-/*
- * Actually the prototype is
- *
- *     asmlinkage int sys32_ioctl(unsigned int fd, unsigned int cmd,
- *                                unsigned long arg)
- *
- * but we need the register pointer ...
- */
-asmlinkage int sys32_ioctl(abi64_no_regargs, struct pt_regs regs)
-{
-	unsigned int fd = regs.regs[4], cmd = regs.regs[5];
-	unsigned long arg = regs.regs[6];
-	struct file * filp;
-	int error = -EBADF;
-	int (*handler)(unsigned int, unsigned int, unsigned long, struct file * filp);
-	struct ioctl_trans *t;
-
-	filp = fget(fd);
-	if(!filp)
-		goto out2;
-
-	if (!filp->f_op || !filp->f_op->ioctl) {
-		error = sys_ioctl (fd, cmd, arg);
-		goto out;
-	}
-
-	t = ioctl32_hash_table [ioctl32_hash (cmd)];
-
-	while (t && t->cmd != cmd)
-		t = t->next;
-	if (t) {
-		handler = t->handler;
-		error = handler(fd, cmd, arg, filp);
-	} else if (cmd >= SIOCDEVPRIVATE &&
-		   cmd <= (SIOCDEVPRIVATE + 15)) {
-		error = siocdevprivate_ioctl(&regs, fd, cmd, arg);
-	} else {
-		static int count;
-		if (++count <= 20)
-			printk("sys32_ioctl(%s:%d): Unknown cmd fd(%d) "
-			       "cmd(%08x) arg(%08x)\n",
-			       current->comm, current->pid,
-			       (int)fd, (unsigned int)cmd, (unsigned int)arg);
-		error = -EINVAL;
-	}
-out:
-	fput(filp);
-out2:
-	return error;
-}

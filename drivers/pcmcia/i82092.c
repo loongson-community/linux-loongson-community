@@ -44,12 +44,14 @@ MODULE_DEVICE_TABLE(pci, i82092aa_pci_ids);
 
 static int i82092aa_socket_suspend (struct pci_dev *dev, u32 state)
 {
-	return pcmcia_socket_dev_suspend(&dev->dev, state, 0);
+	struct pcmcia_socket_class_data *cls_d = pci_get_drvdata(dev);
+	return pcmcia_socket_dev_suspend(cls_d, state, 0);
 }
 
 static int i82092aa_socket_resume (struct pci_dev *dev)
 {
-	return pcmcia_socket_dev_resume(&dev->dev, RESUME_RESTORE_STATE);
+	struct pcmcia_socket_class_data *cls_d = pci_get_drvdata(dev);
+	return pcmcia_socket_dev_resume(cls_d, RESUME_RESTORE_STATE);
 }
 
 static struct pci_driver i82092aa_pci_drv = {
@@ -59,9 +61,6 @@ static struct pci_driver i82092aa_pci_drv = {
 	.remove         = __devexit_p(i82092aa_pci_remove),
 	.suspend        = i82092aa_socket_suspend,
 	.resume         = i82092aa_socket_resume,
-	.driver		= {
-		.devclass = &pcmcia_socket_class,
-	},
 };
 
 
@@ -176,7 +175,12 @@ static int __init i82092aa_pci_probe(struct pci_dev *dev, const struct pci_devic
 	memset(cls_d, 0, sizeof(*cls_d));
 	cls_d->nsock = socket_count;
 	cls_d->ops = &i82092aa_operations;
-	dev->dev.class_data = cls_d;
+	pci_set_drvdata(dev, &cls_d);
+	cls_d->class_dev.class = &pcmcia_socket_class;
+	cls_d->class_dev.dev = &dev->dev;
+	strncpy(cls_d->class_dev.class_id, dev->dev.name, BUS_ID_SIZE);
+	class_set_devdata(&cls_d->class_dev, cls_d);
+	class_device_register(&cls_d->class_dev);
 
 	leave("i82092aa_pci_probe");
 	return 0;
@@ -192,11 +196,16 @@ err_out_disable:
 
 static void __devexit i82092aa_pci_remove(struct pci_dev *dev)
 {
+	struct pcmcia_socket_class_data *cls_d = pci_get_drvdata(dev);
+
 	enter("i82092aa_pci_remove");
 	
 	free_irq(dev->irq, i82092aa_interrupt);
-	if (dev->dev.class_data)
-		kfree(dev->dev.class_data);
+
+	if (cls_d) {
+		class_device_unregister(&cls_d->class_dev);
+		kfree(cls_d);
+	}
 
 	leave("i82092aa_pci_remove");
 }
@@ -219,6 +228,7 @@ static unsigned char indirect_read(int socket, unsigned short reg)
 	return val;
 }
 
+#if 0
 static unsigned short indirect_read16(int socket, unsigned short reg)
 {
 	unsigned short int port;
@@ -235,6 +245,7 @@ static unsigned short indirect_read16(int socket, unsigned short reg)
 	spin_unlock_irqrestore(&port_lock,flags);
 	return tmp;
 }
+#endif
 
 static void indirect_write(int socket, unsigned short reg, unsigned char value)
 {
@@ -334,11 +345,12 @@ static void i82092aa_bh(void *dummy)
 static DECLARE_WORK(i82092aa_task, i82092aa_bh, NULL);
         
 
-static void i82092aa_interrupt(int irq, void *dev, struct pt_regs *regs)
+static irqreturn_t i82092aa_interrupt(int irq, void *dev, struct pt_regs *regs)
 {
 	int i;
 	int loopcount = 0;
-	
+	int handled = 0;
+
 	unsigned int events, active=0;
 	
 /*	enter("i82092aa_interrupt");*/
@@ -362,6 +374,7 @@ static void i82092aa_interrupt(int irq, void *dev, struct pt_regs *regs)
 			if ((csc==0) ||  /* no events on this socket */
 			   (sockets[i].handler==NULL)) /* no way to handle events */
 			   	continue;
+			handled = 1;
 			events = 0;
 			 
 			if (csc & I365_CSC_DETECT) {
@@ -390,7 +403,7 @@ static void i82092aa_interrupt(int irq, void *dev, struct pt_regs *regs)
 			break;				
 		
 	}
-	
+	return IRQ_RETVAL(handled);
 /*	leave("i82092aa_interrupt");*/
 }
 

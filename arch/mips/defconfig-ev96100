@@ -143,6 +143,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
 
 #
 # ATA/ATAPI/MFM/RLL support
@@ -241,6 +242,10 @@ CONFIG_MIPS_GT96100ETH=y
 
 #
 # Ethernet (1000 Mbit)
+#
+
+#
+# Ethernet (10000 Mbit)
 #
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set

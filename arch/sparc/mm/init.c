@@ -18,9 +18,7 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
-#ifdef CONFIG_BLK_DEV_INITRD
-#include <linux/blk.h>
-#endif
+#include <linux/initrd.h>
 #include <linux/init.h>
 #include <linux/highmem.h>
 #include <linux/bootmem.h>
@@ -89,8 +87,6 @@ void show_mem(void)
 #endif	
 #endif
 }
-
-extern pgprot_t protection_map[16];
 
 void __init sparc_context_init(int numctx)
 {

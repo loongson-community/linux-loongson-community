@@ -63,8 +63,6 @@ static void pfkey_sock_destruct(struct sock *sk)
 	kfree(pfkey_sk(sk));
 
 	atomic_dec(&pfkey_socks_nr);
-
-	MOD_DEC_USE_COUNT;
 }
 
 static void pfkey_table_grab(void)
@@ -150,15 +148,14 @@ static int pfkey_create(struct socket *sock, int protocol)
 	if (protocol != PF_KEY_V2)
 		return -EPROTONOSUPPORT;
 
-	MOD_INC_USE_COUNT;
-
 	err = -ENOMEM;
 	sk = sk_alloc(PF_KEY, GFP_KERNEL, 1, NULL);
 	if (sk == NULL)
 		goto out;
-
+	
 	sock->ops = &pfkey_ops;
 	sock_init_data(sock, sk);
+	sk_set_owner(sk, THIS_MODULE);
 
 	err = -ENOMEM;
 	pfk = pfkey_sk(sk) = kmalloc(sizeof(*pfk), GFP_KERNEL);
@@ -176,9 +173,7 @@ static int pfkey_create(struct socket *sock, int protocol)
 	pfkey_insert(sk);
 
 	return 0;
-
 out:
-	MOD_DEC_USE_COUNT;
 	return err;
 }
 
@@ -2767,7 +2762,7 @@ out:
 
 static struct proto_ops pfkey_ops = {
 	.family		=	PF_KEY,
-
+	.owner		=	THIS_MODULE,
 	/* Operations that make no sense on pfkey sockets. */
 	.bind		=	sock_no_bind,
 	.connect	=	sock_no_connect,
@@ -2792,6 +2787,7 @@ static struct proto_ops pfkey_ops = {
 static struct net_proto_family pfkey_family_ops = {
 	.family	=	PF_KEY,
 	.create	=	pfkey_create,
+	.owner	=	THIS_MODULE,
 };
 
 #ifdef CONFIG_PROC_FS

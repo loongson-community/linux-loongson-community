@@ -62,11 +62,6 @@
 
 /*
   Define the pci dma mask supported by DAC960 V1 and V2 Firmware Controlers
-
-  For now set the V2 mask to only 32 bits.  The controller IS capable
-  of doing 64 bit dma.  But I have yet to find out whether this needs to
-  be explicitely enabled in the controller, or of the controller adapts
-  automatically.
  */
 
 #define DAC690_V1_PciDmaMask	0xffffffff
@@ -2234,7 +2229,7 @@ typedef wait_queue_head_t WaitQueue_T;
 struct DAC960_privdata {
 	DAC960_HardwareType_T	HardwareType;
 	DAC960_FirmwareType_T	FirmwareType;
-	void (*InterruptHandler)(int, void *, Registers_T *);
+	irqreturn_t (*InterruptHandler)(int, void *, Registers_T *);
 	unsigned int		MemoryWindowSize;
 };
 
@@ -2369,7 +2364,7 @@ typedef struct DAC960_Controller
   unsigned short MaxBlocksPerCommand;
   unsigned short ControllerScatterGatherLimit;
   unsigned short DriverScatterGatherLimit;
-  unsigned int ControllerUsageCount;
+  u64		BounceBufferLimit;
   unsigned int CombinedStatusBufferLength;
   unsigned int InitialStatusLength;
   unsigned int CurrentStatusLength;
@@ -2401,7 +2396,6 @@ typedef struct DAC960_Controller
   DAC960_Command_T InitialCommand;
   DAC960_Command_T *Commands[DAC960_MaxDriverQueueDepth];
   PROC_DirectoryEntry_T *ControllerProcEntry;
-  unsigned int LogicalDriveUsageCount[DAC960_MaxLogicalDrives];
   boolean LogicalDriveInitiallyAccessible[DAC960_MaxLogicalDrives];
   void (*QueueCommand)(DAC960_Command_T *Command);
   boolean (*ReadControllerConfiguration)(struct DAC960_Controller *);
@@ -4237,18 +4231,15 @@ static void DAC960_FinalizeController(DAC960_Controller_T *);
 static void DAC960_V1_QueueReadWriteCommand(DAC960_Command_T *);
 static void DAC960_V2_QueueReadWriteCommand(DAC960_Command_T *); 
 static void DAC960_RequestFunction(RequestQueue_T *);
-static void DAC960_BA_InterruptHandler(int, void *, Registers_T *);
-static void DAC960_LP_InterruptHandler(int, void *, Registers_T *);
-static void DAC960_LA_InterruptHandler(int, void *, Registers_T *);
-static void DAC960_PG_InterruptHandler(int, void *, Registers_T *);
-static void DAC960_PD_InterruptHandler(int, void *, Registers_T *);
-static void DAC960_P_InterruptHandler(int, void *, Registers_T *);
+static irqreturn_t DAC960_BA_InterruptHandler(int, void *, Registers_T *);
+static irqreturn_t DAC960_LP_InterruptHandler(int, void *, Registers_T *);
+static irqreturn_t DAC960_LA_InterruptHandler(int, void *, Registers_T *);
+static irqreturn_t DAC960_PG_InterruptHandler(int, void *, Registers_T *);
+static irqreturn_t DAC960_PD_InterruptHandler(int, void *, Registers_T *);
+static irqreturn_t DAC960_P_InterruptHandler(int, void *, Registers_T *);
 static void DAC960_V1_QueueMonitoringCommand(DAC960_Command_T *);
 static void DAC960_V2_QueueMonitoringCommand(DAC960_Command_T *);
 static void DAC960_MonitoringTimerFunction(unsigned long);
-static int DAC960_Open(Inode_T *, File_T *);
-static int DAC960_Release(Inode_T *, File_T *);
-static int DAC960_IOCTL(Inode_T *, File_T *, unsigned int, unsigned long);
 static int DAC960_UserIOCTL(Inode_T *, File_T *, unsigned int, unsigned long);
 static void DAC960_Message(DAC960_MessageLevel_T, unsigned char *,
 			   DAC960_Controller_T *, ...);

@@ -161,8 +161,6 @@ static int hci_sock_release(struct socket *sock)
 	skb_queue_purge(&sk->write_queue);
 
 	sock_put(sk);
-
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -555,6 +553,7 @@ int hci_sock_getsockopt(struct socket *sock, int level, int optname, char *optva
 
 struct proto_ops hci_sock_ops = {
 	.family =	PF_BLUETOOTH,
+	.owner =	THIS_MODULE,
 	.release =	hci_sock_release,
 	.bind =		hci_sock_bind,
 	.getname =	hci_sock_getname,
@@ -591,8 +590,6 @@ static int hci_sock_create(struct socket *sock, int protocol)
 	sk->state   = BT_OPEN;
 
 	bt_sock_link(&hci_sk_list, sk);
-
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 

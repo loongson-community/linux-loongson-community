@@ -69,8 +69,6 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/wanrouter.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <linux/if_bridge.h>
 #include <linux/init.h>
 #include <linux/poll.h>
@@ -506,8 +504,13 @@ struct file_operations bad_sock_fops = {
  
 void sock_release(struct socket *sock)
 {
-	if (sock->ops) 
+	if (sock->ops) {
+		struct module *owner = sock->ops->owner;
+
 		sock->ops->release(sock);
+		sock->ops = NULL;
+		module_put(owner);
+	}
 
 	if (sock->fasync_list)
 		printk(KERN_ERR "sock_release: fasync list not empty!\n");
@@ -1058,18 +1061,40 @@ int sock_create(int family, int type, int protocol, struct socket **res)
 
 	sock->type  = type;
 
-	if ((i = net_families[family]->create(sock, protocol)) < 0) 
-	{
-		sock_release(sock);
-		goto out;
-	}
+	/*
+	 * We will call the ->create function, that possibly is in a loadable
+	 * module, so we have to bump that loadable module refcnt first.
+	 */
+	i = -EAFNOSUPPORT;
+	if (!try_module_get(net_families[family]->owner))
+		goto out_release;
 
+	if ((i = net_families[family]->create(sock, protocol)) < 0)
+		goto out_module_put;
+	/*
+	 * Now to bump the refcnt of the [loadable] module that owns this
+	 * socket at sock_release time we decrement its refcnt.
+	 */
+	if (!try_module_get(sock->ops->owner)) {
+		sock->ops = NULL;
+		goto out_module_put;
+	}
+	/*
+	 * Now that we're done with the ->create function, the [loadable]
+	 * module can have its refcnt decremented
+	 */
+	module_put(net_families[family]->owner);
 	*res = sock;
 	security_socket_post_create(sock, family, type, protocol);
 
 out:
 	net_family_read_unlock();
 	return i;
+out_module_put:
+	module_put(net_families[family]->owner);
+out_release:
+	sock_release(sock);
+	goto out;
 }
 
 asmlinkage long sys_socket(int family, int type, int protocol)
@@ -1251,24 +1276,30 @@ asmlinkage long sys_accept(int fd, struct sockaddr *upeer_sockaddr, int *upeer_a
 	if (err)
 		goto out_release;
 
+	/*
+	 * We don't need try_module_get here, as the listening socket (sock)
+	 * has the protocol module (sock->ops->owner) held.
+	 */
+	__module_get(sock->ops->owner);
+
 	err = sock->ops->accept(sock, newsock, sock->file->f_flags);
 	if (err < 0)
-		goto out_release;
+		goto out_module_put;
 
 	if (upeer_sockaddr) {
 		if(newsock->ops->getname(newsock, (struct sockaddr *)address, &len, 2)<0) {
 			err = -ECONNABORTED;
-			goto out_release;
+			goto out_module_put;
 		}
 		err = move_addr_to_user(address, len, upeer_sockaddr, upeer_addrlen);
 		if (err < 0)
-			goto out_release;
+			goto out_module_put;
 	}
 
 	/* File flags are not inherited via accept() unlike another OSes. */
 
 	if ((err = sock_map_fd(newsock)) < 0)
-		goto out_release;
+		goto out_module_put;
 
 	security_socket_post_accept(sock, newsock);
 
@@ -1276,7 +1307,8 @@ out_put:
 	sockfd_put(sock);
 out:
 	return err;
-
+out_module_put:
+	module_put(sock->ops->owner);
 out_release:
 	sock_release(newsock);
 	goto out_put;
@@ -1944,17 +1976,6 @@ void __init sock_init(void)
 	 *  do_initcalls is run.  
 	 */
 
-
-	/*
-	 * The netlink device handler may be needed early.
-	 */
-
-#ifdef CONFIG_NET
-	rtnetlink_init();
-#endif
-#ifdef CONFIG_NETLINK_DEV
-	init_netlink();
-#endif
 #ifdef CONFIG_NETFILTER
 	netfilter_init();
 #endif

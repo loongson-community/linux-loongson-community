@@ -1039,7 +1039,7 @@ static void l2cap_chan_ready(struct sock *sk)
 		sk->state = BT_CONNECTED;
 		sk->state_change(sk);
 	} else {
-		/* Incomming channel.
+		/* Incoming channel.
 		 * Wake up socket sleeping on accept.
 		 */
 		parent->data_ready(parent, 0);
@@ -1788,7 +1788,7 @@ static int l2cap_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 type)
 		if (sk->state != BT_LISTEN)
 			continue;
 
-		if (!bacmp(&bt_sk(sk)->src, bdaddr)) {
+		if (!bacmp(&bt_sk(sk)->src, &hdev->bdaddr)) {
 			lm1 |= (HCI_LM_ACCEPT | l2cap_pi(sk)->link_mode);
 			exact++;
 		} else if (!bacmp(&bt_sk(sk)->src, BDADDR_ANY))
@@ -2084,6 +2084,7 @@ static void __exit l2cap_proc_cleanup(void)
 
 static struct proto_ops l2cap_sock_ops = {
 	.family  =      PF_BLUETOOTH,
+	.owner   =	THIS_MODULE,
 	.release =      l2cap_sock_release,
 	.bind    =      l2cap_sock_bind,
 	.connect =      l2cap_sock_connect,
@@ -2104,6 +2105,7 @@ static struct proto_ops l2cap_sock_ops = {
 static struct net_proto_family l2cap_sock_family_ops = {
 	.family =       PF_BLUETOOTH,
 	.create	=       l2cap_sock_create,
+	.owner	=	THIS_MODULE,
 };
 
 static struct hci_proto l2cap_hci_proto = {

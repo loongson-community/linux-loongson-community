@@ -154,6 +154,7 @@ CONFIG_BLK_DEV_FD=y
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
 
 #
 # ATA/ATAPI/MFM/RLL support
@@ -228,6 +229,7 @@ CONFIG_SCSI_SYM53C8XX_MAX_TAGS=64
 # CONFIG_SCSI_QLOGIC_FC is not set
 # CONFIG_SCSI_QLOGIC_1280 is not set
 # CONFIG_SCSI_SYM53C416 is not set
+# CONFIG_SCSI_DC395x is not set
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
@@ -385,6 +387,11 @@ CONFIG_PCNET32=y
 # CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
+
+#
+# Ethernet (10000 Mbit)
+#
+# CONFIG_IXGB is not set
 # CONFIG_FDDI is not set
 # CONFIG_HIPPI is not set
 # CONFIG_PPP is not set

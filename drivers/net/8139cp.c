@@ -658,7 +658,8 @@ rx_next:
 	cp->rx_tail = rx_tail;
 }
 
-static void cp_interrupt (int irq, void *dev_instance, struct pt_regs *regs)
+static irqreturn_t
+cp_interrupt (int irq, void *dev_instance, struct pt_regs *regs)
 {
 	struct net_device *dev = dev_instance;
 	struct cp_private *cp = dev->priv;
@@ -666,7 +667,7 @@ static void cp_interrupt (int irq, void *dev_instance, struct pt_regs *regs)
 
 	status = cpr16(IntrStatus);
 	if (!status || (status == 0xFFFF))
-		return;
+		return IRQ_NONE;
 
 	if (netif_msg_intr(cp))
 		printk(KERN_DEBUG "%s: intr, status %04x cmd %02x cpcmd %04x\n",
@@ -693,6 +694,7 @@ static void cp_interrupt (int irq, void *dev_instance, struct pt_regs *regs)
 	}
 
 	spin_unlock(&cp->lock);
+	return IRQ_HANDLED;
 }
 
 static void cp_tx (struct cp_private *cp)
@@ -1777,7 +1779,6 @@ static int __devinit cp_init_one (struct pci_dev *pdev,
 	long pciaddr;
 	unsigned int addr_len, i;
 	u8 pci_rev, cache_size;
-	u16 pci_command;
 	unsigned int board_type = (unsigned int) ent->driver_data;
 
 #ifndef MODULE
@@ -1935,12 +1936,8 @@ static int __devinit cp_init_one (struct pci_dev *pdev,
 	}
 
 	/* enable busmastering and memory-write-invalidate */
-	pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
-	if (!(pci_command & PCI_COMMAND_INVALIDATE)) {
-		pci_command |= PCI_COMMAND_INVALIDATE;
-		pci_write_config_word(pdev, PCI_COMMAND, pci_command);
-	}
 	pci_set_master(pdev);
+	pci_set_mwi(pdev);
 
 	if (cp->wol_enabled) cp_set_d3_state (cp);
 

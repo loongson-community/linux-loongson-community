@@ -290,7 +290,7 @@ static void sbmac_channel_stop(struct sbmac_softc *s);
 static sbmac_state_t sbmac_set_channel_state(struct sbmac_softc *,sbmac_state_t);
 static void sbmac_promiscuous_mode(struct sbmac_softc *sc,int onoff);
 static uint64_t sbmac_addr2reg(unsigned char *ptr);
-static void sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs);
+static irqreturn_t sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs);
 static int sbmac_start_tx(struct sk_buff *skb, struct net_device *dev);
 static void sbmac_setmulti(struct sbmac_softc *sc);
 static int sbmac_init(struct net_device *dev, int idx);
@@ -2077,12 +2077,13 @@ static int sbmac_set_duplex(struct sbmac_softc *s,sbmac_duplex_t duplex,sbmac_fc
  *  Return value:
  *  	   nothing
  ********************************************************************* */
-static void sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs)
+static irqreturn_t sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs)
 {
 	struct net_device *dev = (struct net_device *) dev_instance;
 	struct sbmac_softc *sc = (struct sbmac_softc *) (dev->priv);
 	uint64_t isr;
-	
+	int handled = 0;
+
 	for (;;) {
 		
 		/*
@@ -2094,6 +2095,8 @@ static void sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs)
 		
 		if (isr == 0)
 			break;
+
+		handled = 1;
 		
 		/*
 		 * Transmits on channel 0
@@ -2128,6 +2131,7 @@ static void sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs)
 			sbdma_rx_process(sc,&(sc->sbm_rxdma));
 		}
 	}
+	return IRQ_RETVAL(handled);
 }
 
 

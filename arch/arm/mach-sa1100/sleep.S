@@ -54,7 +54,7 @@ ENTRY(sa1100_cpu_suspend)
 	str	r0, [r1]
 
 	@ clean data cache and invalidate WB
-	bl	cpu_sa1100_cache_clean_invalidate_all
+	bl	v4wb_flush_kern_cache_all
 
 	@ disable clock switching
 	mcr	p15, 0, r1, c15, c2, 2
@@ -171,7 +171,7 @@ sa1110_sdram_controller_fix:
  *       This is to allow sleep_save_sp to be accessed with a relative load
  *       while we can't rely on any MMU translation.  We could have put
  *       sleep_save_sp in the .text section as well, but some setups might
- *       insist on it to be truely read-only.
+ *       insist on it to be truly read-only.
  */
 
 	.data

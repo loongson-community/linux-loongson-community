@@ -65,16 +65,6 @@
  * (wavelan modem or i82593)
  */
 
-/*------------------------------------------------------------------*/
-/*
- * Wrapper for reporting error to cardservices
- */
-static void cs_error(client_handle_t handle, int func, int ret)
-{
-    error_info_t err = { func, ret };
-    CardServices(ReportError, handle, &err);
-}
-
 #ifdef STRUCT_CHECK
 /*------------------------------------------------------------------*/
 /*
@@ -5020,7 +5010,6 @@ wavelan_open(device *	dev)
 
   /* Mark the device as used */
   link->open++;
-  MOD_INC_USE_COUNT;
 
 #ifdef WAVELAN_ROAMING
   if(do_roaming)
@@ -5065,7 +5054,6 @@ wavelan_close(device *	dev)
 #endif	/* WAVELAN_ROAMING */
 
   link->open--;
-  MOD_DEC_USE_COUNT;
 
   /* If the card is still present */
   if(netif_running(dev))
@@ -5186,6 +5174,7 @@ wavelan_attach(void)
   ether_setup(dev);
 
   /* wavelan NET3 callbacks */
+  SET_MODULE_OWNER(dev);
   dev->open = &wavelan_open;
   dev->stop = &wavelan_close;
   dev->hard_start_xmit = &wavelan_packet_xmit;

@@ -149,6 +149,7 @@ CONFIG_BINFMT_IRIX=y
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
 
 #
 # ATA/ATAPI/MFM/RLL support
@@ -292,6 +293,10 @@ CONFIG_SGISEEQ=y
 
 #
 # Ethernet (1000 Mbit)
+#
+
+#
+# Ethernet (10000 Mbit)
 #
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set

@@ -6,6 +6,7 @@
  * Page table allocation/freeing primitives for 32-bit ARM processors.
  */
 #include <asm/cacheflush.h>
+#include <asm/tlbflush.h>
 #include "pgtable.h"
 
 /*
@@ -27,17 +28,9 @@
 static inline pte_t *
 pte_alloc_one_kernel(struct mm_struct *mm, unsigned long addr)
 {
-	int count = 0;
 	pte_t *pte;
 
-	do {
-		pte = (pte_t *)__get_free_page(GFP_KERNEL);
-		if (!pte) {
-			current->state = TASK_UNINTERRUPTIBLE;
-			schedule_timeout(HZ);
-		}
-	} while (!pte && (count++ < 10));
-
+	pte = (pte_t *)__get_free_page(GFP_KERNEL|__GFP_REPEAT);
 	if (pte) {
 		clear_page(pte);
 		clean_dcache_area(pte, sizeof(pte_t) * PTRS_PER_PTE);
@@ -51,16 +44,8 @@ static inline struct page *
 pte_alloc_one(struct mm_struct *mm, unsigned long addr)
 {
 	struct page *pte;
-	int count = 0;
 
-	do {
-		pte = alloc_pages(GFP_KERNEL, 0);
-		if (!pte) {
-			current->state = TASK_UNINTERRUPTIBLE;
-			schedule_timeout(HZ);
-		}
-	} while (!pte && (count++ < 10));
-
+	pte = alloc_pages(GFP_KERNEL|__GFP_REPEAT, 0);
 	if (pte) {
 		void *page = page_address(pte);
 		clear_page(page);
@@ -108,7 +93,7 @@ pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmdp, pte_t *ptep)
 	pmdval = __pa(pte_ptr) | _PAGE_KERNEL_TABLE;
 	pmdp[0] = __pmd(pmdval);
 	pmdp[1] = __pmd(pmdval + 256 * sizeof(pte_t));
-	cpu_flush_pmd(pmdp);
+	flush_pmd_entry(pmdp);
 }
 
 static inline void
@@ -121,5 +106,5 @@ pmd_populate(struct mm_struct *mm, pmd_t *pmdp, struct page *ptep)
 	pmdval = page_to_pfn(ptep) << PAGE_SHIFT | _PAGE_USER_TABLE;
 	pmdp[0] = __pmd(pmdval);
 	pmdp[1] = __pmd(pmdval + 256 * sizeof(pte_t));
-	cpu_flush_pmd(pmdp);
+	flush_pmd_entry(pmdp);
 }

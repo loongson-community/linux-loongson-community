@@ -1,7 +1,10 @@
 /*
  * USB ViCam WebCam driver
  * Copyright (c) 2002 Joe Burks (jburks@wavicle.org),
- *                    John Tyner (jtyner@cs.ucr.edu)
+ *                    Christopher L Cheney (ccheney@cheney.cx),
+ *                    Pavel Machek (pavel@suse.cz),
+ *                    John Tyner (jtyner@cs.ucr.edu),
+ *                    Monroe Williams (monroe@pobox.com)
  *
  * Supports 3COM HomeConnect PC Digital WebCam
  *
@@ -32,7 +35,6 @@
  */
 
 #include <linux/kernel.h>
-#include <linux/wrapper.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/videodev.h>
@@ -379,7 +381,7 @@ static void *rvmalloc(unsigned long size)
 	memset(mem, 0, size); /* Clear the ram out, no junk to the user */
 	adr = (unsigned long) mem;
 	while (size > 0) {
-		mem_map_reserve(vmalloc_to_page((void *)adr));
+		SetPageReserved(vmalloc_to_page((void *)adr));
 		adr += PAGE_SIZE;
 		size -= PAGE_SIZE;
 	}
@@ -396,7 +398,7 @@ static void rvfree(void *mem, unsigned long size)
 
 	adr = (unsigned long) mem;
 	while ((long) size > 0) {
-		mem_map_unreserve(vmalloc_to_page((void *)adr));
+		ClearPageReserved(vmalloc_to_page((void *)adr));
 		adr += PAGE_SIZE;
 		size -= PAGE_SIZE;
 	}

@@ -154,8 +154,8 @@ static int set_scc_power(struct mac_serial * info, int state);
 static int setup_scc(struct mac_serial * info);
 static void dbdma_reset(volatile struct dbdma_regs *dma);
 static void dbdma_flush(volatile struct dbdma_regs *dma);
-static void rs_txdma_irq(int irq, void *dev_id, struct pt_regs *regs);
-static void rs_rxdma_irq(int irq, void *dev_id, struct pt_regs *regs);
+static irqreturn_t rs_txdma_irq(int irq, void *dev_id, struct pt_regs *regs);
+static irqreturn_t rs_rxdma_irq(int irq, void *dev_id, struct pt_regs *regs);
 static void dma_init(struct mac_serial * info);
 static void rxdma_start(struct mac_serial * info, int current);
 static void rxdma_to_tty(struct mac_serial * info);
@@ -183,20 +183,20 @@ static DECLARE_MUTEX(tmp_buf_sem);
 
 static inline int __pmac
 serial_paranoia_check(struct mac_serial *info,
-		      kdev_t device, const char *routine)
+		      char *name, const char *routine)
 {
 #ifdef SERIAL_PARANOIA_CHECK
 	static const char badmagic[] = KERN_WARNING
-		"Warning: bad magic number for serial struct (%d, %d) in %s\n";
+		"Warning: bad magic number for serial struct %s in %s\n";
 	static const char badinfo[] = KERN_WARNING
-		"Warning: null mac_serial for (%d, %d) in %s\n";
+		"Warning: null mac_serial for %s in %s\n";
 
 	if (!info) {
-		printk(badinfo, major(device), minor(device), routine);
+		printk(badinfo, name, routine);
 		return 1;
 	}
 	if (info->magic != SERIAL_MAGIC) {
-		printk(badmagic, major(device), minor(device), routine);
+		printk(badmagic, name, routine);
 		return 1;
 	}
 #endif
@@ -558,18 +558,19 @@ static _INLINE_ void receive_special_dma(struct mac_serial *info)
 /*
  * This is the serial driver's generic interrupt routine
  */
-static void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
+static irqreturn_t rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct mac_serial *info = (struct mac_serial *) dev_id;
 	unsigned char zs_intreg;
 	int shift;
 	unsigned long flags;
+	int handled = 0;
 
 	if (!(info->flags & ZILOG_INITIALIZED)) {
 		printk(KERN_WARNING "rs_interrupt: irq %d, port not "
 				    "initialized\n", irq);
 		disable_irq(irq);
-		return;
+		return IRQ_NONE;
 	}
 
 	/* NOTE: The read register 3, which holds the irq status,
@@ -595,6 +596,7 @@ static void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 
 		if ((zs_intreg & CHAN_IRQMASK) == 0)
 			break;
+		handled = 1;
 
 		if (zs_intreg & CHBRxIP) {
 			/* If we are doing DMA, we only ask for interrupts
@@ -610,30 +612,32 @@ static void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 			status_handle(info);
 	}
 	spin_unlock_irqrestore(&info->lock, flags);
+	return IRQ_RETVAL(handled);
 }
 
 /* Transmit DMA interrupt - not used at present */
-static void rs_txdma_irq(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t rs_txdma_irq(int irq, void *dev_id, struct pt_regs *regs)
 {
+	return IRQ_HANDLED;
 }
 
 /*
  * Receive DMA interrupt.
  */
-static void rs_rxdma_irq(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t rs_rxdma_irq(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct mac_serial *info = (struct mac_serial *) dev_id;
 	volatile struct dbdma_cmd *cd;
 
 	if (!info->dma_initted)
-		return;
+		return IRQ_NONE;
 	spin_lock(&info->rx_dma_lock);
 	/* First, confirm that this interrupt is, indeed, coming */
 	/* from Rx DMA */
 	cd = info->rx_cmds[info->rx_cbuf] + 2;
 	if ((in_le16(&cd->xfer_status) & (RUN | ACTIVE)) != (RUN | ACTIVE)) {
 		spin_unlock(&info->rx_dma_lock);
-		return;
+		return IRQ_NONE;
 	}
 	if (info->rx_fbuf != RX_NO_FBUF) {
 		info->rx_cbuf = info->rx_fbuf;
@@ -643,6 +647,7 @@ static void rs_rxdma_irq(int irq, void *dev_id, struct pt_regs *regs)
 			info->rx_fbuf = RX_NO_FBUF;
 	}
 	spin_unlock(&info->rx_dma_lock);
+	return IRQ_HANDLED;
 }
 
 /*
@@ -667,7 +672,7 @@ static void rs_stop(struct tty_struct *tty)
 	       tty->ldisc.chars_in_buffer(tty));
 #endif
 
-	if (serial_paranoia_check(info, tty->device, "rs_stop"))
+	if (serial_paranoia_check(info, tty->name, "rs_stop"))
 		return;
 
 #if 0
@@ -691,7 +696,7 @@ static void rs_start(struct tty_struct *tty)
 	       tty->ldisc.chars_in_buffer(tty));
 #endif
 
-	if (serial_paranoia_check(info, tty->device, "rs_start"))
+	if (serial_paranoia_check(info, tty->name, "rs_start"))
 		return;
 
 	spin_lock_irqsave(&info->lock, flags);
@@ -1459,7 +1464,7 @@ static void rs_flush_chars(struct tty_struct *tty)
 	struct mac_serial *info = (struct mac_serial *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_flush_chars"))
+	if (serial_paranoia_check(info, tty->name, "rs_flush_chars"))
 		return;
 
 	spin_lock_irqsave(&info->lock, flags);
@@ -1477,7 +1482,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 	struct mac_serial *info = (struct mac_serial *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_write"))
+	if (serial_paranoia_check(info, tty->name, "rs_write"))
 		return 0;
 
 	if (!tty || !info->xmit_buf || !tmp_buf)
@@ -1544,7 +1549,7 @@ static int rs_write_room(struct tty_struct *tty)
 	struct mac_serial *info = (struct mac_serial *)tty->driver_data;
 	int	ret;
 
-	if (serial_paranoia_check(info, tty->device, "rs_write_room"))
+	if (serial_paranoia_check(info, tty->name, "rs_write_room"))
 		return 0;
 	ret = SERIAL_XMIT_SIZE - info->xmit_cnt - 1;
 	if (ret < 0)
@@ -1556,7 +1561,7 @@ static int rs_chars_in_buffer(struct tty_struct *tty)
 {
 	struct mac_serial *info = (struct mac_serial *)tty->driver_data;
 
-	if (serial_paranoia_check(info, tty->device, "rs_chars_in_buffer"))
+	if (serial_paranoia_check(info, tty->name, "rs_chars_in_buffer"))
 		return 0;
 	return info->xmit_cnt;
 }
@@ -1566,7 +1571,7 @@ static void rs_flush_buffer(struct tty_struct *tty)
 	struct mac_serial *info = (struct mac_serial *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_flush_buffer"))
+	if (serial_paranoia_check(info, tty->name, "rs_flush_buffer"))
 		return;
 	spin_lock_irqsave(&info->lock, flags);
 	info->xmit_cnt = info->xmit_head = info->xmit_tail = 0;
@@ -1593,7 +1598,7 @@ static void rs_throttle(struct tty_struct * tty)
 	printk(KERN_DEBUG "throttle %ld....\n",tty->ldisc.chars_in_buffer(tty));
 #endif
 
-	if (serial_paranoia_check(info, tty->device, "rs_throttle"))
+	if (serial_paranoia_check(info, tty->name, "rs_throttle"))
 		return;
 
 	if (I_IXOFF(tty)) {
@@ -1647,7 +1652,7 @@ static void rs_unthrottle(struct tty_struct * tty)
 			tty->ldisc.chars_in_buffer(tty));
 #endif
 
-	if (serial_paranoia_check(info, tty->device, "rs_unthrottle"))
+	if (serial_paranoia_check(info, tty->name, "rs_unthrottle"))
 		return;
 
 	if (I_IXOFF(tty)) {
@@ -1833,7 +1838,7 @@ static void rs_break(struct tty_struct *tty, int break_state)
 	struct mac_serial *info = (struct mac_serial *) tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_break"))
+	if (serial_paranoia_check(info, tty->name, "rs_break"))
 		return;
 
 	spin_lock_irqsave(&info->lock, flags);
@@ -1854,7 +1859,7 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 	if (info->kgdb_channel)
 		return -ENODEV;
 #endif
-	if (serial_paranoia_check(info, tty->device, "rs_ioctl"))
+	if (serial_paranoia_check(info, tty->name, "rs_ioctl"))
 		return -ENODEV;
 
 	if ((cmd != TIOCGSERIAL) && (cmd != TIOCSSERIAL) &&
@@ -1921,7 +1926,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	struct mac_serial * info = (struct mac_serial *)tty->driver_data;
 	unsigned long flags;
 
-	if (!info || serial_paranoia_check(info, tty->device, "rs_close"))
+	if (!info || serial_paranoia_check(info, tty->name, "rs_close"))
 		return;
 
 	spin_lock_irqsave(&info->lock, flags);
@@ -2003,8 +2008,8 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	   specific irqs */
 	spin_unlock_irqrestore(&info->lock, flags);
 
-	if (tty->driver.flush_buffer)
-		tty->driver.flush_buffer(tty);
+	if (tty->driver->flush_buffer)
+		tty->driver->flush_buffer(tty);
 	if (tty->ldisc.flush_buffer)
 		tty->ldisc.flush_buffer(tty);
 	tty->closing = 0;
@@ -2032,7 +2037,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 	struct mac_serial *info = (struct mac_serial *) tty->driver_data;
 	unsigned long orig_jiffies, char_time;
 
-	if (serial_paranoia_check(info, tty->device, "rs_wait_until_sent"))
+	if (serial_paranoia_check(info, tty->name, "rs_wait_until_sent"))
 		return;
 
 /*	printk("rs_wait_until_sent, timeout:%d, tty_stopped:%d, tx_stopped:%d\n",
@@ -2078,7 +2083,7 @@ static void rs_hangup(struct tty_struct *tty)
 {
 	struct mac_serial * info = (struct mac_serial *)tty->driver_data;
 
-	if (serial_paranoia_check(info, tty->device, "rs_hangup"))
+	if (serial_paranoia_check(info, tty->name, "rs_hangup"))
 		return;
 
 	rs_flush_buffer(tty);
@@ -2120,7 +2125,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 	 * If this is a callout device, then just make sure the normal
 	 * device isn't being used.
 	 */
-	if (tty->driver.subtype == SERIAL_TYPE_CALLOUT) {
+	if (tty->driver->subtype == SERIAL_TYPE_CALLOUT) {
 		if (info->flags & ZILOG_NORMAL_ACTIVE)
 			return -EBUSY;
 		if ((info->flags & ZILOG_CALLOUT_ACTIVE) &&
@@ -2229,7 +2234,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	unsigned long		page;
 
 	MOD_INC_USE_COUNT;
-	line = minor(tty->device) - tty->driver.minor_start;
+	line = tty->index;
 	if ((line < 0) || (line >= zs_channels_found)) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
@@ -2242,10 +2247,10 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 		return -ENODEV;
 	}
 #endif
-	if (serial_paranoia_check(info, tty->device, "rs_open"))
+	if (serial_paranoia_check(info, tty->name, "rs_open"))
 		return -ENODEV;
-	OPNDBG("rs_open %s%d, count = %d, tty=%p\n", tty->driver.name,
-	       info->line, info->count, tty);
+	OPNDBG("rs_open %s, count = %d, tty=%p\n", tty->name,
+	       info->count, tty);
 
 	info->count++;
 	tty->driver_data = info;
@@ -2292,7 +2297,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	}
 
 	if ((info->count == 1) && (info->flags & ZILOG_SPLIT_TERMIOS)) {
-		if (tty->driver.subtype == SERIAL_TYPE_NORMAL)
+		if (tty->driver->subtype == SERIAL_TYPE_NORMAL)
 			*tty->termios = info->normal_termios;
 		else 
 			*tty->termios = info->callout_termios;
@@ -2309,7 +2314,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	info->session = current->session;
 	info->pgrp = current->pgrp;
 
-	OPNDBG("rs_open ttyS%d successful...\n", info->line);
+	OPNDBG("rs_open %s successful...\n", tty->name);
 	return 0;
 }
 
@@ -2607,7 +2612,7 @@ no_dma:
 	serial_driver.magic = TTY_DRIVER_MAGIC;
 	serial_driver.driver_name = "macserial";
 #ifdef CONFIG_DEVFS_FS
-	serial_driver.name = "tts/%d";
+	serial_driver.name = "tts/";
 #else
 	serial_driver.name = "ttyS";
 #endif /* CONFIG_DEVFS_FS */
@@ -2650,7 +2655,7 @@ no_dma:
 	 */
 	callout_driver = serial_driver;
 #ifdef CONFIG_DEVFS_FS
-	callout_driver.name = "cua/%d";
+	callout_driver.name = "cua/";
 #else
 	callout_driver.name = "cua";
 #endif /* CONFIG_DEVFS_FS */
@@ -2660,9 +2665,9 @@ no_dma:
 	callout_driver.proc_entry = 0;
 
 	if (tty_register_driver(&serial_driver))
-		panic("Couldn't register serial driver\n");
+		printk(KERN_ERR "Error: couldn't register serial driver\n");
 	if (tty_register_driver(&callout_driver))
-		panic("Couldn't register callout driver\n");
+		printk(KERN_ERR "Error: couldn't register callout driver\n");
 
 	for (channel = 0; channel < zs_channels_found; ++channel) {
 #ifdef CONFIG_KGDB
@@ -2835,9 +2840,11 @@ static void serial_console_write(struct console *co, const char *s,
 	/* Don't disable the transmitter. */
 }
 
-static kdev_t serial_console_device(struct console *c)
+extern struct tty_driver serial_driver;
+static struct tty_driver *serial_console_device(struct console *c, int *index)
 {
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
+	*index = c->index;
+	return &serial_driver;
 }
 
 /*

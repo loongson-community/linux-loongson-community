@@ -195,7 +195,7 @@ static struct termios *serial_termios_locked[NR_PORTS];
 
 #if defined(MODULE) && defined(SERIAL_DEBUG_MCOUNT)
 #define DBG_CNT(s) printk("(%s): [%x] refc=%d, serc=%d, ttyc=%d -> %s\n", \
- cdevname(tty->device), (info->flags), serial_refcount,info->count,tty->count,s)
+ tty->name, (info->flags), serial_refcount,info->count,tty->count,s)
 #else
 #define DBG_CNT(s)
 #endif
@@ -219,7 +219,7 @@ static struct semaphore tmp_buf_sem = MUTEX;
 static spinlock_t serial_lock = SPIN_LOCK_UNLOCKED;
 
 static inline int serial_paranoia_check(struct async_struct *info,
-					kdev_t device, const char *routine)
+					char *name, const char *routine)
 {
 #ifdef SERIAL_PARANOIA_CHECK
 	static const char *badmagic =
@@ -228,11 +228,11 @@ static inline int serial_paranoia_check(struct async_struct *info,
 		"Warning: null async_struct for (%s) in %s\n";
 
 	if (!info) {
-		printk(badinfo, cdevname(device), routine);
+		printk(badinfo, name, routine);
 		return 1;
 	}
 	if (info->magic != SERIAL_MAGIC) {
-		printk(badmagic, cdevname(device), routine);
+		printk(badmagic, name, routine);
 		return 1;
 	}
 #endif
@@ -273,7 +273,7 @@ static void rs_stop(struct tty_struct *tty)
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_stop"))
+	if (serial_paranoia_check(info, tty->name, "rs_stop"))
 		return;
 
 	spin_lock_irqsave(&serial_lock, flags);
@@ -289,7 +289,7 @@ static void rs_start(struct tty_struct *tty)
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_start"))
+	if (serial_paranoia_check(info, tty->name, "rs_start"))
 		return;
 
 	spin_lock_irqsave(&serial_lock, flags);
@@ -1150,7 +1150,7 @@ static void rs_put_char(struct tty_struct *tty, unsigned char ch)
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_put_char"))
+	if (serial_paranoia_check(info, tty->name, "rs_put_char"))
 		return;
 
 	if (!tty || !info->xmit.buf)
@@ -1174,7 +1174,7 @@ static void rs_flush_chars(struct tty_struct *tty)
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_flush_chars"))
+	if (serial_paranoia_check(info, tty->name, "rs_flush_chars"))
 		return;
 
 	if (info->xmit.head == info->xmit.tail
@@ -1196,7 +1196,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_write"))
+	if (serial_paranoia_check(info, tty->name, "rs_write"))
 		return 0;
 
 	if (!tty || !info->xmit.buf || !tmp_buf)
@@ -1270,7 +1270,7 @@ static int rs_write_room(struct tty_struct *tty)
 {
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 
-	if (serial_paranoia_check(info, tty->device, "rs_write_room"))
+	if (serial_paranoia_check(info, tty->name, "rs_write_room"))
 		return 0;
 	return CIRC_SPACE(info->xmit.head, info->xmit.tail, SERIAL_XMIT_SIZE);
 }
@@ -1279,7 +1279,7 @@ static int rs_chars_in_buffer(struct tty_struct *tty)
 {
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 
-	if (serial_paranoia_check(info, tty->device, "rs_chars_in_buffer"))
+	if (serial_paranoia_check(info, tty->name, "rs_chars_in_buffer"))
 		return 0;
 	return CIRC_CNT(info->xmit.head, info->xmit.tail, SERIAL_XMIT_SIZE);
 }
@@ -1289,7 +1289,7 @@ static void rs_flush_buffer(struct tty_struct *tty)
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_flush_buffer"))
+	if (serial_paranoia_check(info, tty->name, "rs_flush_buffer"))
 		return;
 	spin_lock_irqsave(&serial_lock, flags);
 	info->xmit.head = info->xmit.tail = 0;
@@ -1311,7 +1311,7 @@ static void rs_send_xchar(struct tty_struct *tty, char ch)
 {
 	struct async_struct *info = (struct async_struct *)tty->driver_data;
 
-	if (serial_paranoia_check(info, tty->device, "rs_send_char"))
+	if (serial_paranoia_check(info, tty->name, "rs_send_char"))
 		return;
 
 	info->x_char = ch;
@@ -1341,7 +1341,7 @@ static void rs_throttle(struct tty_struct * tty)
 	       tty->ldisc.chars_in_buffer(tty));
 #endif
 
-	if (serial_paranoia_check(info, tty->device, "rs_throttle"))
+	if (serial_paranoia_check(info, tty->name, "rs_throttle"))
 		return;
 
 	if (I_IXOFF(tty))
@@ -1366,7 +1366,7 @@ static void rs_unthrottle(struct tty_struct * tty)
 	       tty->ldisc.chars_in_buffer(tty));
 #endif
 
-	if (serial_paranoia_check(info, tty->device, "rs_unthrottle"))
+	if (serial_paranoia_check(info, tty->name, "rs_unthrottle"))
 		return;
 
 	if (I_IXOFF(tty)) {
@@ -1457,7 +1457,7 @@ static int set_serial_info(struct async_struct * info,
 		goto check_and_exit;
 	}
 
-	new_serial.irq = irq_cannonicalize(new_serial.irq);
+	new_serial.irq = irq_canonicalize(new_serial.irq);
 
 	if ((new_serial.irq >= NR_IRQS) || (new_serial.irq < 0) ||
 	    (new_serial.baud_base < 9600)|| (new_serial.type < PORT_UNKNOWN) ||
@@ -1703,7 +1703,7 @@ static void rs_break(struct tty_struct *tty, int break_state)
 	struct async_struct * info = (struct async_struct *)tty->driver_data;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_break"))
+	if (serial_paranoia_check(info, tty->name, "rs_break"))
 		return;
 
 	if (!CONFIGURED_SERIAL_PORT(info))
@@ -1726,7 +1726,7 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 	struct serial_icounter_struct icount;
 	unsigned long flags;
 
-	if (serial_paranoia_check(info, tty->device, "rs_ioctl"))
+	if (serial_paranoia_check(info, tty->name, "rs_ioctl"))
 		return -ENODEV;
 
 	if ((cmd != TIOCGSERIAL) && (cmd != TIOCSSERIAL) &&
@@ -1893,7 +1893,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	struct serial_state *state;
 	unsigned long flags;
 
-	if (!info || serial_paranoia_check(info, tty->device, "rs_close"))
+	if (!info || serial_paranoia_check(info, tty->name, "rs_close"))
 		return;
 
 	state = info->state;
@@ -1968,8 +1968,8 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 		rs_wait_until_sent(tty, info->timeout);
 	}
 	shutdown(info);
-	if (tty->driver.flush_buffer)
-		tty->driver.flush_buffer(tty);
+	if (tty->driver->flush_buffer)
+		tty->driver->flush_buffer(tty);
 	if (tty->ldisc.flush_buffer)
 		tty->ldisc.flush_buffer(tty);
 	tty->closing = 0;
@@ -1997,7 +1997,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 	unsigned long orig_jiffies, char_time;
 	int lsr;
 
-	if (serial_paranoia_check(info, tty->device, "rs_wait_until_sent"))
+	if (serial_paranoia_check(info, tty->name, "rs_wait_until_sent"))
 		return;
 
 	if (info->state->type == PORT_UNKNOWN)
@@ -2061,7 +2061,7 @@ static void rs_hangup(struct tty_struct *tty)
 	struct async_struct * info = (struct async_struct *)tty->driver_data;
 	struct serial_state *state = info->state;
 
-	if (serial_paranoia_check(info, tty->device, "rs_hangup"))
+	if (serial_paranoia_check(info, tty->name, "rs_hangup"))
 		return;
 
 	state = info->state;
@@ -2111,7 +2111,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 	 * If this is a callout device, then just make sure the normal
 	 * device isn't being used.
 	 */
-	if (tty->driver.subtype == SERIAL_TYPE_CALLOUT) {
+	if (tty->driver->subtype == SERIAL_TYPE_CALLOUT) {
 		if (info->flags & ASYNC_NORMAL_ACTIVE)
 			return -EBUSY;
 		if ((info->flags & ASYNC_CALLOUT_ACTIVE) &&
@@ -2270,7 +2270,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	unsigned long		page;
 
 	MOD_INC_USE_COUNT;
-	line = MINOR(tty->device) - tty->driver.minor_start;
+	line = tty->index;
 	if ((line < 0) || (line >= NR_PORTS)) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
@@ -2282,14 +2282,13 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	}
 	tty->driver_data = info;
 	info->tty = tty;
-	if (serial_paranoia_check(info, tty->device, "rs_open")) {
+	if (serial_paranoia_check(info, tty->name, "rs_open")) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
 	}
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("rs_open %s%d, count = %d\n", tty->driver.name, info->line,
-	       info->state->count);
+	printk("rs_open %s, count = %d\n", tty->name, info->state->count);
 #endif
 	info->tty->low_latency = (info->flags & ASYNC_LOW_LATENCY) ? 1 : 0;
 
@@ -2342,7 +2341,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 
 	if ((info->state->count == 1) &&
 	    (info->flags & ASYNC_SPLIT_TERMIOS)) {
-		if (tty->driver.subtype == SERIAL_TYPE_NORMAL)
+		if (tty->driver->subtype == SERIAL_TYPE_NORMAL)
 			*tty->termios = info->state->normal_termios;
 		else
 			*tty->termios = info->state->callout_termios;
@@ -2359,7 +2358,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	info->pgrp = current->pgrp;
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("rs_open ttys%d successful...", info->line);
+	printk("rs_open %s successful...", tty->name);
 #endif
 	return 0;
 }
@@ -2595,7 +2594,7 @@ static int __init rs_init(void)
 	serial_driver.magic = TTY_DRIVER_MAGIC;
 	serial_driver.driver_name = "serial";
 #if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
-	serial_driver.name = "tts/%d";
+	serial_driver.name = "tts/";
 #else
 	serial_driver.name = "ttyS";
 #endif
@@ -2639,7 +2638,7 @@ static int __init rs_init(void)
 	 */
 	callout_driver = serial_driver;
 #if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
-	callout_driver.name = "cua/%d";
+	callout_driver.name = "cua/";
 #else
 	callout_driver.name = "cua";
 #endif
@@ -2668,7 +2667,7 @@ static int __init rs_init(void)
 		state->icount.rx = state->icount.tx = 0;
 		state->icount.frame = state->icount.parity = 0;
 		state->icount.overrun = state->icount.brk = 0;
-		state->irq = irq_cannonicalize(state->irq);
+		state->irq = irq_canonicalize(state->irq);
 		if (state->hub6)
 			state->io_type = SERIAL_IO_HUB6;
 		if (state->port && check_region(state->port,8)) {
@@ -2688,10 +2687,8 @@ static int __init rs_init(void)
 		       (state->flags & ASYNC_FOURPORT) ? " FourPort" : "",
 		       state->port, state->irq,
 		       uart_config[state->type].name);
-		tty_register_device(&serial_driver,
-				   serial_driver.minor_start + state->line);
-		tty_register_device(&callout_driver,
-				   callout_driver.minor_start + state->line);
+		tty_register_device(&serial_driver, state->line);
+		tty_register_device(&callout_driver, state->line);
 	}
 	return 0;
 }
@@ -2807,10 +2804,8 @@ void unregister_serial(int line)
 	/* These will be hidden, because they are devices that will no longer
 	 * be available to the system. (ie, PCMCIA modems, once ejected)
 	 */
-	tty_unregister_device(&serial_driver,
-			     serial_driver.minor_start + state->line);
-	tty_unregister_device(&callout_driver,
-			     callout_driver.minor_start + state->line);
+	tty_unregister_device(&serial_driver, state->line);
+	tty_unregister_device(&callout_driver, state->line);
 	spin_unlock_irqrestore(&serial_lock, flags);
 }
 
@@ -2957,9 +2952,10 @@ static int serial_console_wait_key(struct console *co)
 	return c;
 }
 
-static kdev_t serial_console_device(struct console *c)
+static struct tty_driver *serial_console_device(struct console *c, int *index)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
+	*index = c->index - SERIAL_DEV_OFFSET;
+	return &serial_driver;
 }
 
 /*

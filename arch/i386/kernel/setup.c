@@ -29,9 +29,7 @@
 #include <linux/ioport.h>
 #include <linux/acpi.h>
 #include <linux/apm_bios.h>
-#ifdef CONFIG_BLK_DEV_RAM
-#include <linux/blk.h>
-#endif
+#include <linux/initrd.h>
 #include <linux/bootmem.h>
 #include <linux/seq_file.h>
 #include <linux/console.h>
@@ -796,6 +794,113 @@ static void __init register_memory(unsigned long max_low_pfn)
 	if (low_mem_size > pci_mem_start)
 		pci_mem_start = low_mem_size;
 }
+
+/* Use inline assembly to define this because the nops are defined 
+   as inline assembly strings in the include files and we cannot 
+   get them easily into strings. */
+asm("intelnops: " 
+    GENERIC_NOP1 GENERIC_NOP2 GENERIC_NOP3 GENERIC_NOP4 GENERIC_NOP5 GENERIC_NOP6
+    GENERIC_NOP7 GENERIC_NOP8); 
+asm("k8nops: " 
+    K8_NOP1 K8_NOP2 K8_NOP3 K8_NOP4 K8_NOP5 K8_NOP6
+    K8_NOP7 K8_NOP8); 
+asm("k7nops: " 
+    K7_NOP1 K7_NOP2 K7_NOP3 K7_NOP4 K7_NOP5 K7_NOP6
+    K7_NOP7 K7_NOP8); 
+    
+extern unsigned char intelnops[], k8nops[], k7nops[];
+static unsigned char *intel_nops[ASM_NOP_MAX+1] = { 
+     NULL,
+     intelnops,
+     intelnops + 1,
+     intelnops + 1 + 2,
+     intelnops + 1 + 2 + 3,
+     intelnops + 1 + 2 + 3 + 4,
+     intelnops + 1 + 2 + 3 + 4 + 5,
+     intelnops + 1 + 2 + 3 + 4 + 5 + 6,
+     intelnops + 1 + 2 + 3 + 4 + 5 + 6 + 7,
+}; 
+static unsigned char *k8_nops[ASM_NOP_MAX+1] = { 
+     NULL,
+     k8nops,
+     k8nops + 1,
+     k8nops + 1 + 2,
+     k8nops + 1 + 2 + 3,
+     k8nops + 1 + 2 + 3 + 4,
+     k8nops + 1 + 2 + 3 + 4 + 5,
+     k8nops + 1 + 2 + 3 + 4 + 5 + 6,
+     k8nops + 1 + 2 + 3 + 4 + 5 + 6 + 7,
+}; 
+static unsigned char *k7_nops[ASM_NOP_MAX+1] = { 
+     NULL,
+     k7nops,
+     k7nops + 1,
+     k7nops + 1 + 2,
+     k7nops + 1 + 2 + 3,
+     k7nops + 1 + 2 + 3 + 4,
+     k7nops + 1 + 2 + 3 + 4 + 5,
+     k7nops + 1 + 2 + 3 + 4 + 5 + 6,
+     k7nops + 1 + 2 + 3 + 4 + 5 + 6 + 7,
+}; 
+static struct nop { 
+     int cpuid; 
+     unsigned char **noptable; 
+} noptypes[] = { 
+     { X86_FEATURE_K8, k8_nops }, 
+     { X86_FEATURE_K7, k7_nops }, 
+     { -1, 0 }
+}; 
+
+/* Replace instructions with better alternatives for this CPU type.
+
+   This runs before SMP is initialized to avoid SMP problems with
+   self modifying code. This implies that assymetric systems where
+   APs have less capabilities than the boot processor are not handled. 
+   In this case boot with "noreplacement". */ 
+void apply_alternatives(void *start, void *end) 
+{ 
+	struct alt_instr *a; 
+	int diff, i, k;
+        unsigned char **noptable = intel_nops; 
+	for (i = 0; noptypes[i].cpuid >= 0; i++) { 
+		if (boot_cpu_has(noptypes[i].cpuid)) { 
+			noptable = noptypes[i].noptable;
+			break;
+		}
+	} 
+	for (a = start; (void *)a < end; a++) { 
+		if (!boot_cpu_has(a->cpuid))
+			continue;
+		BUG_ON(a->replacementlen > a->instrlen); 
+		memcpy(a->instr, a->replacement, a->replacementlen); 
+		diff = a->instrlen - a->replacementlen; 
+		/* Pad the rest with nops */
+		for (i = a->replacementlen; diff > 0; diff -= k, i += k) {
+			k = diff;
+			if (k > ASM_NOP_MAX)
+				k = ASM_NOP_MAX;
+			memcpy(a->instr + i, noptable[k], k); 
+		} 
+	}
+} 
+
+static int no_replacement __initdata = 0; 
+ 
+void __init alternative_instructions(void)
+{
+	extern struct alt_instr __alt_instructions[], __alt_instructions_end[];
+	if (no_replacement) 
+		return;
+	apply_alternatives(__alt_instructions, __alt_instructions_end);
+}
+
+static int __init noreplacement_setup(char *s)
+{ 
+     no_replacement = 1; 
+     return 0; 
+} 
+
+__setup("noreplacement", noreplacement_setup); 
 
 void __init setup_arch(char **cmdline_p)
 {

@@ -35,7 +35,6 @@
 #include <pcmcia/cistpl.h>
 #include <pcmcia/cisreg.h>
 #include <pcmcia/ds.h>
-#include <pcmcia/bus_ops.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -144,14 +143,6 @@ orinoco_cs_hard_reset(struct orinoco_private *priv)
 /********************************************************************/
 /* PCMCIA stuff     						    */
 /********************************************************************/
-
-static void
-cs_error(client_handle_t handle, int func, int ret)
-{
-	error_info_t err = { func, ret };
-	CardServices(ReportError, handle, &err);
-}
-
 
 /* Remove zombie instances (card removed, detach pending) */
 static void

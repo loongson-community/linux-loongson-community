@@ -193,14 +193,6 @@ static void flush_stale_links(void)
     }
 }
 
-/*====================================================================*/
-
-static void cs_error(client_handle_t handle, int func, int ret)
-{
-    error_info_t err = { func, ret };
-    CardServices(ReportError, handle, &err);
-}
-
 /*======================================================================
 
     tc589_attach() creates an "instance" of the driver, allocating
@@ -249,6 +241,7 @@ static dev_link_t *tc589_attach(void)
     link->conf.Present = PRESENT_OPTION;
     
     /* The EL3-specific entries in the device structure. */
+    SET_MODULE_OWNER(dev);
     dev->hard_start_xmit = &el3_start_xmit;
     dev->set_config = &el3_config;
     dev->get_stats = &el3_get_stats;
@@ -740,7 +733,6 @@ static int el3_open(struct net_device *dev)
 	return -ENODEV;
 
     link->open++;
-    MOD_INC_USE_COUNT;
     netif_start_queue(dev);
     
     tc589_reset(dev);
@@ -1148,33 +1140,29 @@ static int el3_close(struct net_device *dev)
     if (link->state & DEV_STALE_CONFIG)
 	mod_timer(&link->release, jiffies + HZ/20);
     
-    MOD_DEC_USE_COUNT;
-    
     return 0;
 }
 
-/*====================================================================*/
+static struct pcmcia_driver tc589_driver = {
+	.owner		= THIS_MODULE,
+	.drv		= {
+		.name	= "3c589_cs",
+	},
+	.attach		= tc589_attach,
+	.detach		= tc589_detach,
+};
 
-static int __init init_3c589_cs(void)
+static int __init init_tc589(void)
 {
-    servinfo_t serv;
-    DEBUG(0, "%s\n", version);
-    CardServices(GetCardServicesInfo, &serv);
-    if (serv.Revision != CS_RELEASE_CODE) {
-	printk(KERN_ERR "3c589_cs: Card Services release does not match!\n");
-	return -1;
-    }
-    register_pccard_driver(&dev_info, &tc589_attach, &tc589_detach);
-    return 0;
+	return pcmcia_register_driver(&tc589_driver);
 }
 
-static void __exit exit_3c589_cs(void)
+static void __exit exit_tc589(void)
 {
-    DEBUG(0, "3c589_cs: unloading\n");
-    unregister_pccard_driver(&dev_info);
-    while (dev_list != NULL)
-	tc589_detach(dev_list);
+	pcmcia_unregister_driver(&tc589_driver);
+	while (dev_list != NULL)
+		tc589_detach(dev_list);
 }
 
-module_init(init_3c589_cs);
-module_exit(exit_3c589_cs);
+module_init(init_tc589);
+module_exit(exit_tc589);

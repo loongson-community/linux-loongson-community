@@ -134,10 +134,13 @@ struct pppox_opt {
 
 #define pppox_sk(__sk) ((struct pppox_opt *)(__sk)->protinfo)
 
+struct module;
+
 struct pppox_proto {
-	int (*create)(struct socket *sock);
-	int (*ioctl)(struct socket *sock, unsigned int cmd,
-		     unsigned long arg);
+	int		(*create)(struct socket *sock);
+	int		(*ioctl)(struct socket *sock, unsigned int cmd,
+				 unsigned long arg);
+	struct module	*owner;
 };
 
 extern int register_pppox_proto(int proto_num, struct pppox_proto *pp);

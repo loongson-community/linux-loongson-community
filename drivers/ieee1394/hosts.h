@@ -4,6 +4,7 @@
 #include <linux/device.h>
 #include <linux/wait.h>
 #include <linux/list.h>
+#include <linux/workqueue.h>
 #include <asm/semaphore.h>
 
 #include "ieee1394_types.h"
@@ -32,7 +33,7 @@ struct hpsb_host {
 
         struct list_head pending_packets;
         spinlock_t pending_pkt_lock;
-        struct hpsb_queue_struct timeout_tq;
+        struct work_struct timeout_tq;
 
         unsigned char iso_listen_count[64];
 
@@ -65,6 +66,8 @@ struct hpsb_host {
         struct hpsb_host_driver *driver;
 
 	struct pci_dev *pdev;
+
+	int id;
 
 	struct device device;
 };

@@ -413,10 +413,6 @@ static int rs_open(struct tty_struct * tty, struct file * filp)
 		return -EIO;
 	}
 
-	if (minor(tty->device) - tty->driver.minor_start) {
-		return -ENODEV;
-	}
-
 	rs_dprintk(TX3912_UART_DEBUG_OPEN, "Serial opening...\n");
 
 	tty->driver_data = rs_port;
@@ -450,7 +446,7 @@ static int rs_open(struct tty_struct * tty, struct file * filp)
 
 	if((rs_port->gs.count == 1) &&
 		(rs_port->gs.flags & ASYNC_SPLIT_TERMIOS)) {
-		if (tty->driver.subtype == SERIAL_TYPE_NORMAL)
+		if (tty->driver->subtype == SERIAL_TYPE_NORMAL)
 			*tty->termios = rs_port->gs.normal_termios;
 		else 
 			*tty->termios = rs_port->gs.callout_termios;
@@ -765,9 +761,10 @@ static void serial_console_write(struct console *co, const char *s,
     	}
 }
 
-static kdev_t serial_console_device(struct console *c)
+static struct tty_driver *serial_console_device(struct console *c, int *index)
 {
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
+	*index = c->index;
+	return &rs_driver;
 }
 
 static __init int serial_console_setup(struct console *co, char *options)

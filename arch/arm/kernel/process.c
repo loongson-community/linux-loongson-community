@@ -2,7 +2,7 @@
  *  linux/arch/arm/kernel/process.c
  *
  *  Copyright (C) 1996-2000 Russell King - Converted to ARM.
- *  Origional Copyright (C) 1995  Linus Torvalds
+ *  Original Copyright (C) 1995  Linus Torvalds
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -418,7 +418,7 @@ unsigned long get_wchan(struct task_struct *p)
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
-	stack_page = 4096 + (unsigned long)p;
+	stack_page = 4096 + (unsigned long)p->thread_info;
 	fp = thread_saved_fp(p);
 	do {
 		if (fp < stack_page || fp > 4092+stack_page)

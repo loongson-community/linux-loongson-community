@@ -92,6 +92,7 @@ extern struct notifier_block sctp_inetaddr_notifier;
 void sctp_v6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 		 int type, int code, int offset, __u32 info)
 {
+	struct inet6_dev *idev;
 	struct ipv6hdr *iph = (struct ipv6hdr *)skb->data;
 	struct sctphdr *sh = (struct sctphdr *)(skb->data + offset);
 	struct sock *sk;
@@ -101,6 +102,8 @@ void sctp_v6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	struct ipv6_pinfo *np;
 	char *saveip, *savesctp;
 	int err;
+
+	idev = in6_dev_get(skb->dev);
 
 	/* Fix up skb to look at the embedded net header. */
 	saveip = skb->nh.raw;
@@ -112,8 +115,8 @@ void sctp_v6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	skb->nh.raw = saveip;
 	skb->h.raw = savesctp;
 	if (!sk) {
-		ICMP6_INC_STATS_BH(Icmp6InErrors);
-		return;
+		ICMP6_INC_STATS_BH(idev, Icmp6InErrors);
+		goto out;
 	}
 
 	/* Warning:  The sock lock is held.  Remember to call 
@@ -139,6 +142,9 @@ void sctp_v6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 
 out_unlock:
 	sctp_err_finish(sk, ep, asoc);
+out:
+	if (likely(idev != NULL))
+		in6_dev_put(idev);
 }
 
 /* Based on tcp_v6_xmit() in tcp_ipv6.c. */
@@ -502,6 +508,7 @@ struct sock *sctp_v6_create_accept_sk(struct sock *sk,
 		goto out;
 
 	sock_init_data(NULL, newsk);
+	sk_set_owner(newsk, THIS_MODULE);
 
 	newsk->type = SOCK_STREAM;
 
@@ -743,6 +750,7 @@ static int sctp_inet6_supported_addrs(const struct sctp_opt *opt,
 
 static struct proto_ops inet6_seqpacket_ops = {
 	.family     = PF_INET6,
+	.owner      = THIS_MODULE,
 	.release    = inet6_release,
 	.bind       = inet6_bind,
 	.connect    = inet_dgram_connect,
@@ -836,10 +844,10 @@ int sctp_v6_init(void)
 	inet6_register_protosw(&sctpv6_seqpacket_protosw);
 	inet6_register_protosw(&sctpv6_stream_protosw);
 
-	/* Register the SCTP specfic PF_INET6 functions. */
+	/* Register the SCTP specific PF_INET6 functions. */
 	sctp_register_pf(&sctp_pf_inet6_specific, PF_INET6);
 
-	/* Register the SCTP specfic AF_INET6 functions. */
+	/* Register the SCTP specific AF_INET6 functions. */
 	sctp_register_af(&sctp_ipv6_specific);
 
 	/* Register notifier for inet6 address additions/deletions. */

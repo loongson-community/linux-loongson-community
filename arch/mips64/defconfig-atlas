@@ -276,6 +276,10 @@ CONFIG_NET_ETHERNET=y
 #
 # Ethernet (1000 Mbit)
 #
+
+#
+# Ethernet (10000 Mbit)
+#
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
 

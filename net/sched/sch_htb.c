@@ -765,7 +765,7 @@ static void htb_rate_timer(unsigned long arg)
 #endif
 
 /**
- * htb_charge_class - charges ammount "bytes" to leaf and ancestors
+ * htb_charge_class - charges amount "bytes" to leaf and ancestors
  *
  * Routine assumes that packet "bytes" long was dequeued from leaf cl
  * borrowing from "level". It accounts bytes to ceil leaky bucket for
@@ -975,9 +975,7 @@ static void htb_delay_by(struct Qdisc *sch,long delay)
 			printk(KERN_INFO "HTB delay %ld > 5sec\n", delay);
 		delay = 5*HZ;
 	}
-	del_timer(&q->timer);
-	q->timer.expires = jiffies + delay;
-	add_timer(&q->timer);
+	mod_timer(&q->timer, jiffies + delay);
 	sch->flags |= TCQ_F_THROTTLED;
 	sch->stats.overlimits++;
 	HTB_DBG(3,1,"htb_deq t_delay=%ld\n",delay);
@@ -1167,7 +1165,6 @@ static int htb_init(struct Qdisc *sch, struct rtattr *opt)
 		q->rate2quantum = 1;
 	q->defcls = gopt->defcls;
 
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -1352,7 +1349,6 @@ static void htb_destroy(struct Qdisc* sch)
 
 	htb_destroy_filters(&q->filter_list);
 	__skb_queue_purge(&q->direct_queue);
-	MOD_DEC_USE_COUNT;
 }
 
 static int htb_delete(struct Qdisc *sch, unsigned long arg)
@@ -1588,41 +1584,35 @@ static void htb_walk(struct Qdisc *sch, struct qdisc_walker *arg)
 	}
 }
 
-static struct Qdisc_class_ops htb_class_ops =
-{
-    htb_graft,
-    htb_leaf,
-    htb_get,
-    htb_put,
-    htb_change_class,
-    htb_delete,
-    htb_walk,
-
-    htb_find_tcf,
-    htb_bind_filter,
-    htb_unbind_filter,
-
-    htb_dump_class,
+static struct Qdisc_class_ops htb_class_ops = {
+	.graft		=	htb_graft,
+	.leaf		=	htb_leaf,
+	.get		=	htb_get,
+	.put		=	htb_put,
+	.change		=	htb_change_class,
+	.delete		=	htb_delete,
+	.walk		=	htb_walk,
+	.tcf_chain	=	htb_find_tcf,
+	.bind_tcf	=	htb_bind_filter,
+	.unbind_tcf	=	htb_unbind_filter,
+	.dump		=	htb_dump_class,
 };
 
-struct Qdisc_ops htb_qdisc_ops =
-{
-    NULL,
-    &htb_class_ops,
-    "htb",
-    sizeof(struct htb_sched),
-
-    htb_enqueue,
-    htb_dequeue,
-    htb_requeue,
-    htb_drop,
-
-    htb_init,
-    htb_reset,
-    htb_destroy,
-    NULL /* htb_change */,
-
-    htb_dump,
+struct Qdisc_ops htb_qdisc_ops = {
+	.next		=	NULL,
+	.cl_ops		=	&htb_class_ops,
+	.id		=	"htb",
+	.priv_size	=	sizeof(struct htb_sched),
+	.enqueue	=	htb_enqueue,
+	.dequeue	=	htb_dequeue,
+	.requeue	=	htb_requeue,
+	.drop		=	htb_drop,
+	.init		=	htb_init,
+	.reset		=	htb_reset,
+	.destroy	=	htb_destroy,
+	.change		=	NULL /* htb_change */,
+	.dump		=	htb_dump,
+	.owner		=	THIS_MODULE,
 };
 
 #ifdef MODULE

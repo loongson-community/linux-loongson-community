@@ -179,7 +179,7 @@ static const unsigned char days_in_mo[] =
  *	(See ./arch/XXXX/kernel/time.c for the set_rtc_mmss() function.)
  */
 
-static void rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/*
 	 *	Can be an alarm interrupt, update complete interrupt,
@@ -206,6 +206,8 @@ static void rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	wake_up_interruptible(&rtc_wait);	
 
 	kill_fasync (&rtc_async_queue, SIGIO, POLL_IN);
+
+	return IRQ_HANDLED;
 }
 #endif
 

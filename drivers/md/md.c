@@ -1046,12 +1046,9 @@ static int lock_rdev(mdk_rdev_t *rdev, dev_t dev)
 	int err = 0;
 	struct block_device *bdev;
 
-	bdev = bdget(dev);
-	if (!bdev)
-		return -ENOMEM;
-	err = blkdev_get(bdev, FMODE_READ|FMODE_WRITE, 0, BDEV_RAW);
-	if (err)
-		return err;
+	bdev = open_by_devnum(dev, FMODE_READ|FMODE_WRITE, BDEV_RAW);
+	if (IS_ERR(bdev))
+		return PTR_ERR(bdev);
 	err = bd_claim(bdev, rdev);
 	if (err) {
 		blkdev_put(bdev, BDEV_RAW);
@@ -1687,7 +1684,7 @@ static int do_md_stop(mddev_t * mddev, int ro)
 
 		del_timer_sync(&mddev->safemode_timer);
 
-		invalidate_device(mk_kdev(disk->major, disk->first_minor), 1);
+		invalidate_partition(disk, 0);
 
 		if (ro) {
 			err  = -ENXIO;
@@ -3486,11 +3483,11 @@ int __init md_init(void)
 	devfs_mk_dir("md");
 	blk_register_region(MKDEV(MAJOR_NR, 0), MAX_MD_DEVS, THIS_MODULE,
 				md_probe, NULL, NULL);
+
 	for (minor=0; minor < MAX_MD_DEVS; ++minor) {
-		char name[16];
-		sprintf(name, "md/%d", minor);
-		devfs_register(NULL, name, DEVFS_FL_DEFAULT, MAJOR_NR, minor,
-			       S_IFBLK | S_IRUSR | S_IWUSR, &md_fops, NULL);
+		devfs_mk_bdev(MKDEV(MAJOR_NR, minor),
+				S_IFBLK|S_IRUSR|S_IWUSR,
+				"md/%d", minor);
 	}
 
 	register_reboot_notifier(&md_notifier);

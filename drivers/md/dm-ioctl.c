@@ -14,6 +14,7 @@
 #include <linux/wait.h>
 #include <linux/blk.h>
 #include <linux/slab.h>
+#include <linux/devfs_fs_kernel.h>
 
 #include <asm/uaccess.h>
 
@@ -174,16 +175,10 @@ static void free_cell(struct hash_cell *hc)
 static int register_with_devfs(struct hash_cell *hc)
 {
 	struct gendisk *disk = dm_disk(hc->md);
-	char *name = kmalloc(DM_NAME_LEN + strlen(DM_DIR) + 1, GFP_KERNEL);
-	if (!name) {
-		return -ENOMEM;
-	}
 
-	sprintf(name, DM_DIR "/%s", hc->name);
-	devfs_register(NULL, name, 0, disk->major, disk->first_minor,
+	devfs_mk_bdev(MKDEV(disk->major, disk->first_minor),
 		       S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP,
-		       &dm_blk_dops, NULL);
-	kfree(name);
+		       DM_DIR "/%s", hc->name);
 	return 0;
 }
 
@@ -455,11 +450,11 @@ static int __info(struct mapped_device *md, struct dm_ioctl *param)
 	if (dm_suspended(md))
 		param->flags |= DM_SUSPEND_FLAG;
 
-	param->dev = MKDEV(disk->major, disk->first_minor);
-	bdev = bdget(param->dev);
+	bdev = bdget_disk(disk, 0);
 	if (!bdev)
 		return -ENXIO;
 
+	param->dev = bdev->bd_dev;
 	param->open_count = bdev->bd_openers;
 	bdput(bdev);
 
@@ -1089,9 +1084,10 @@ static struct file_operations _ctl_fops = {
 };
 
 static struct miscdevice _dm_misc = {
-	.minor = MISC_DYNAMIC_MINOR,
-	.name  = DM_NAME,
-	.fops  = &_ctl_fops
+	.minor		= MISC_DYNAMIC_MINOR,
+	.name		= DM_NAME,
+	.devfs_name	= "mapper/control",
+	.fops		= &_ctl_fops
 };
 
 /*
@@ -1112,18 +1108,12 @@ int __init dm_interface_init(void)
 		return r;
 	}
 
-	r = devfs_mk_symlink(DM_DIR "/control", "../misc/" DM_NAME);
-	if (r) {
-		DMERR("devfs_mk_symlink failed for control device");
-		goto failed;
-	}
 	DMINFO("%d.%d.%d%s initialised: %s", DM_VERSION_MAJOR,
 	       DM_VERSION_MINOR, DM_VERSION_PATCHLEVEL, DM_VERSION_EXTRA,
 	       DM_DRIVER_EMAIL);
 	return 0;
 
       failed:
-	devfs_remove(DM_DIR "/control");
 	if (misc_deregister(&_dm_misc) < 0)
 		DMERR("misc_deregister failed for control device");
 	dm_hash_exit();
@@ -1132,7 +1122,6 @@ int __init dm_interface_init(void)
 
 void dm_interface_exit(void)
 {
-	devfs_remove(DM_DIR "/control");
 	if (misc_deregister(&_dm_misc) < 0)
 		DMERR("misc_deregister failed for control device");
 	dm_hash_exit();

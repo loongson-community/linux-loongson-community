@@ -353,14 +353,6 @@ static inline short get_int16(u_char* staddr)
     return readw(staddr);
 }
 
-/**************************************************************************/
-
-static void cs_error(client_handle_t handle, int func, int ret)
-{
-    error_info_t err = { func, ret };
-    CardServices(ReportError, handle, &err);
-}
-
 /* 
  * Wait until the WOC (Write Operation Complete) bit in the 
  * ASR (Adapter Status Register) is asserted. 
@@ -495,6 +487,7 @@ static dev_link_t *netwave_attach(void)
     spin_lock_init(&priv->spinlock);
 
     /* Netwave specific entries in the device structure */
+    SET_MODULE_OWNER(dev);
     dev->hard_start_xmit = &netwave_start_xmit;
     dev->set_config = &netwave_config;
     dev->get_stats  = &netwave_get_stats;
@@ -1727,7 +1720,6 @@ static int netwave_open(struct net_device *dev) {
 	return -ENODEV;
 
     link->open++;
-    MOD_INC_USE_COUNT;
 
     netif_start_queue(dev);
     netwave_reset(dev);
@@ -1746,7 +1738,6 @@ static int netwave_close(struct net_device *dev) {
     if (link->state & DEV_STALE_CONFIG)
 	mod_timer(&link->release, jiffies + HZ/20);
 	
-    MOD_DEC_USE_COUNT;
     return 0;
 }
 

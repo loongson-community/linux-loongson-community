@@ -154,11 +154,9 @@ void __dst_free(struct dst_entry * dst)
 	dst->next = dst_garbage_list;
 	dst_garbage_list = dst;
 	if (dst_gc_timer_inc > DST_GC_INC) {
-		del_timer(&dst_gc_timer);
 		dst_gc_timer_inc = DST_GC_INC;
 		dst_gc_timer_expires = DST_GC_MIN;
-		dst_gc_timer.expires = jiffies + dst_gc_timer_expires;
-		add_timer(&dst_gc_timer);
+		mod_timer(&dst_gc_timer, jiffies + dst_gc_timer_expires);
 	}
 	spin_unlock_bh(&dst_lock);
 }
@@ -252,9 +250,7 @@ static int dst_dev_event(struct notifier_block *this, unsigned long event, void 
 }
 
 struct notifier_block dst_dev_notifier = {
-	dst_dev_event,
-	NULL,
-	0
+	.notifier_call	= dst_dev_event,
 };
 
 void __init dst_init(void)

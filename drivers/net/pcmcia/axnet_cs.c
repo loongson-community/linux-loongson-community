@@ -98,7 +98,7 @@ static int axnet_event(event_t event, int priority,
 static int axnet_open(struct net_device *dev);
 static int axnet_close(struct net_device *dev);
 static int axnet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
-static void ei_irq_wrapper(int irq, void *dev_id, struct pt_regs *regs);
+static irqreturn_t ei_irq_wrapper(int irq, void *dev_id, struct pt_regs *regs);
 static void ei_watchdog(u_long arg);
 static void axnet_reset_8390(struct net_device *dev);
 
@@ -122,7 +122,7 @@ static int axdev_init(struct net_device *dev);
 static void AX88190_init(struct net_device *dev, int startp);
 static int ax_open(struct net_device *dev);
 static int ax_close(struct net_device *dev);
-static void ax_interrupt(int irq, void *dev_id, struct pt_regs *regs);
+static irqreturn_t ax_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
 /*====================================================================*/
 
@@ -155,14 +155,6 @@ static void flush_stale_links(void)
 	if (link->state & DEV_STALE_LINK)
 	    axnet_detach(link);
     }
-}
-
-/*====================================================================*/
-
-static void cs_error(client_handle_t handle, int func, int ret)
-{
-    error_info_t err = { func, ret };
-    CardServices(ReportError, handle, &err);
 }
 
 /*======================================================================
@@ -687,7 +679,6 @@ static int axnet_open(struct net_device *dev)
 	return -ENODEV;
 
     link->open++;
-    MOD_INC_USE_COUNT;
 
     request_irq(dev->irq, ei_irq_wrapper, SA_SHIRQ, dev_info, dev);
 
@@ -718,8 +709,6 @@ static int axnet_close(struct net_device *dev)
     del_timer(&info->watchdog);
     if (link->state & DEV_STALE_CONFIG)
 	mod_timer(&link->release, jiffies + HZ/20);
-
-    MOD_DEC_USE_COUNT;
 
     return 0;
 } /* axnet_close */
@@ -757,11 +746,11 @@ static void axnet_reset_8390(struct net_device *dev)
 
 /*====================================================================*/
 
-static void ei_irq_wrapper(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t ei_irq_wrapper(int irq, void *dev_id, struct pt_regs *regs)
 {
     axnet_dev_t *info = dev_id;
     info->stale = 0;
-    ax_interrupt(irq, dev_id, regs);
+    return ax_interrupt(irq, dev_id, regs);
 }
 
 static void ei_watchdog(u_long arg)
@@ -933,28 +922,25 @@ static void block_output(struct net_device *dev, int count,
     outsw(nic_base + AXNET_DATAPORT, buf, count>>1);
 }
 
-/*====================================================================*/
+static struct pcmcia_driver axnet_cs_driver = {
+	.owner		= THIS_MODULE,
+	.drv		= {
+		.name	= "axnet_cs",
+	},
+	.attach		= axnet_attach,
+	.detach		= axnet_detach,
+};
 
 static int __init init_axnet_cs(void)
 {
-    servinfo_t serv;
-    DEBUG(0, "%s\n", version);
-    CardServices(GetCardServicesInfo, &serv);
-    if (serv.Revision != CS_RELEASE_CODE) {
-	printk(KERN_NOTICE "axnet_cs: Card Services release "
-	       "does not match!\n");
-	return -EINVAL;
-    }
-    register_pccard_driver(&dev_info, &axnet_attach, &axnet_detach);
-    return 0;
+	return pcmcia_register_driver(&axnet_cs_driver);
 }
 
 static void __exit exit_axnet_cs(void)
 {
-    DEBUG(0, "axnet_cs: unloading\n");
-    unregister_pccard_driver(&dev_info);
-    while (dev_list != NULL)
-	axnet_detach(dev_list);
+	pcmcia_unregister_driver(&axnet_cs_driver);
+	while (dev_list != NULL)
+		axnet_detach(dev_list);
 }
 
 module_init(init_axnet_cs);
@@ -1345,17 +1331,18 @@ static int ei_start_xmit(struct sk_buff *skb, struct net_device *dev)
  * needed.
  */
 
-static void ax_interrupt(int irq, void *dev_id, struct pt_regs * regs)
+static irqreturn_t ax_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct net_device *dev = dev_id;
 	long e8390_base;
 	int interrupts, nr_serviced = 0, i;
 	struct ei_device *ei_local;
-    
+    	int handled = 0;
+
 	if (dev == NULL) 
 	{
 		printk ("net_interrupt(): irq %d for unknown device.\n", irq);
-		return;
+		return IRQ_NONE;
 	}
     
 	e8390_base = dev->base_addr;
@@ -1378,7 +1365,7 @@ static void ax_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 			   inb_p(e8390_base + EN0_IMR));
 #endif
 		spin_unlock(&ei_local->page_lock);
-		return;
+		return IRQ_NONE;
 	}
     
 	if (ei_debug > 3)
@@ -1399,6 +1386,8 @@ static void ax_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 			interrupts = 0;
 			break;
 		}
+		handled = 1;
+
 		/* AX88190 bug fix. */
 		outb_p(interrupts, e8390_base + EN0_ISR);
 		for (i = 0; i < 10; i++) {
@@ -1430,6 +1419,7 @@ static void ax_interrupt(int irq, void *dev_id, struct pt_regs * regs)
     
 	if (interrupts && ei_debug) 
 	{
+		handled = 1;
 		if (nr_serviced >= MAX_SERVICE) 
 		{
 			/* 0xFF is valid for a card removal */
@@ -1448,7 +1438,7 @@ static void ax_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	outb_p(ENISR_ALL, e8390_base + EN0_IMR);
 
 	spin_unlock(&ei_local->page_lock);
-	return;
+	return IRQ_RETVAL(handled);
 }
 
 /**
@@ -1842,6 +1832,8 @@ static int axdev_init(struct net_device *dev)
 	if (ei_debug > 1)
 		printk(version_8390);
     
+	SET_MODULE_OWNER(dev);
+
 	if (dev->priv == NULL) 
 	{
 		struct ei_device *ei_local;

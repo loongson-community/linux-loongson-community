@@ -44,7 +44,7 @@
 	         Management Models for Packet Networks",
 		 IEEE/ACM Transactions on Networking, Vol.3, No.4, 1995
 
-	         [2] Sally Floyd, "Notes on CBQ and Guaranted Service", 1995
+	         [2] Sally Floyd, "Notes on CBQ and Guaranteed Service", 1995
 
 	         [3] Sally Floyd, "Notes on Class-Based Queueing: Setting
 		 Parameters", 1996
@@ -106,7 +106,7 @@ struct cbq_class
 	u32			defmap;
 
 	/* Link-sharing scheduler parameters */
-	long			maxidle;	/* Class paramters: see below. */
+	long			maxidle;	/* Class parameters: see below. */
 	long			offtime;
 	long			minidle;
 	u32			avpkt;
@@ -998,7 +998,7 @@ cbq_dequeue(struct Qdisc *sch)
 	if (q->tx_class) {
 		psched_tdiff_t incr2;
 		/* Time integrator. We calculate EOS time
-		   by adding expected packet transmittion time.
+		   by adding expected packet transmission time.
 		   If real time is greater, we warp artificial clock,
 		   so that:
 
@@ -1056,11 +1056,9 @@ cbq_dequeue(struct Qdisc *sch)
 		sch->stats.overlimits++;
 		if (q->wd_expires && !netif_queue_stopped(sch->dev)) {
 			long delay = PSCHED_US2JIFFIE(q->wd_expires);
-			del_timer(&q->wd_timer);
 			if (delay <= 0)
 				delay = 1;
-			q->wd_timer.expires = jiffies + delay;
-			add_timer(&q->wd_timer);
+			mod_timer(&q->wd_timer, jiffies + delay);
 			sch->flags |= TCQ_F_THROTTLED;
 		}
 	}
@@ -1411,11 +1409,8 @@ static int cbq_init(struct Qdisc *sch, struct rtattr *opt)
 
 	r = RTA_DATA(tb[TCA_CBQ_RATE-1]);
 
-	MOD_INC_USE_COUNT;
-	if ((q->link.R_tab = qdisc_get_rtab(r, tb[TCA_CBQ_RTAB-1])) == NULL) {
-		MOD_DEC_USE_COUNT;
+	if ((q->link.R_tab = qdisc_get_rtab(r, tb[TCA_CBQ_RTAB-1])) == NULL)
 		return -EINVAL;
-	}
 
 	q->link.refcnt = 1;
 	q->link.sibling = &q->link;
@@ -1749,7 +1744,6 @@ cbq_destroy(struct Qdisc* sch)
 	}
 
 	qdisc_put_rtab(q->link.R_tab);
-	MOD_DEC_USE_COUNT;
 }
 
 static void cbq_put(struct Qdisc *sch, unsigned long arg)
@@ -2064,41 +2058,35 @@ static void cbq_walk(struct Qdisc *sch, struct qdisc_walker *arg)
 	}
 }
 
-static struct Qdisc_class_ops cbq_class_ops =
-{
-	.graft		= cbq_graft,
-	.leaf		= cbq_leaf,
-	.get		= cbq_get,
-	.put		= cbq_put,
-	.change		= cbq_change_class,
-	.delete		= cbq_delete,
-	.walk		= cbq_walk,
-
-	.tcf_chain	= cbq_find_tcf,
-	.bind_tcf	= cbq_bind_filter,
-	.unbind_tcf	= cbq_unbind_filter,
-
-	.dump		= cbq_dump_class,
+static struct Qdisc_class_ops cbq_class_ops = {
+	.graft		=	cbq_graft,
+	.leaf		=	cbq_leaf,
+	.get		=	cbq_get,
+	.put		=	cbq_put,
+	.change		=	cbq_change_class,
+	.delete		=	cbq_delete,
+	.walk		=	cbq_walk,
+	.tcf_chain	=	cbq_find_tcf,
+	.bind_tcf	=	cbq_bind_filter,
+	.unbind_tcf	=	cbq_unbind_filter,
+	.dump		=	cbq_dump_class,
 };
 
-struct Qdisc_ops cbq_qdisc_ops =
-{
-	.next		= NULL,
-	.cl_ops		= &cbq_class_ops,
-	.id		= "cbq",
-	.priv_size	= sizeof(struct cbq_sched_data),
-
-	.enqueue	= cbq_enqueue,
-	.dequeue	= cbq_dequeue,
-	.requeue	= cbq_requeue,
-	.drop		= cbq_drop,
-
-	.init		= cbq_init,
-	.reset		= cbq_reset,
-	.destroy	= cbq_destroy,
-	.change		= NULL,
-
-	.dump		= cbq_dump,
+struct Qdisc_ops cbq_qdisc_ops = {
+	.next		=	NULL,
+	.cl_ops		=	&cbq_class_ops,
+	.id		=	"cbq",
+	.priv_size	=	sizeof(struct cbq_sched_data),
+	.enqueue	=	cbq_enqueue,
+	.dequeue	=	cbq_dequeue,
+	.requeue	=	cbq_requeue,
+	.drop		=	cbq_drop,
+	.init		=	cbq_init,
+	.reset		=	cbq_reset,
+	.destroy	=	cbq_destroy,
+	.change		=	NULL,
+	.dump		=	cbq_dump,
+	.owner		=	THIS_MODULE,
 };
 
 #ifdef MODULE

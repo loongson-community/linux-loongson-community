@@ -12,7 +12,7 @@ config NETDEVICES
 	  telephone line with a modem either via UUCP (UUCP is a protocol to
 	  forward mail and news between unix hosts over telephone lines; read
 	  the UUCP-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>) or dialing up a shell
+	  <http://www.tldp.org/docs.html#howto>) or dialing up a shell
 	  account or a BBS, even using term (term is a program which gives you
 	  almost full Internet connectivity if you have a regular dial up
 	  shell account on some Internet connected Unix computer. Read
@@ -32,7 +32,7 @@ config NETDEVICES
 
 	  Make sure to read the NET-3-HOWTO. Eventually, you will have to read
 	  Olaf Kirch's excellent and free book "Network Administrator's
-	  Guide", to be found in <http://www.linuxdoc.org/docs.html#guide>. If
+	  Guide", to be found in <http://www.tldp.org/docs.html#guide>. If
 	  unsure, say Y.
 
 if NETDEVICES
@@ -51,7 +51,7 @@ config DUMMY
 	  thing often comes in handy, the default is Y. It won't enlarge your
 	  kernel either. What a deal. Read about it in the Network
 	  Administrator's Guide, available from
-	  <http://www.linuxdoc.org/docs.html#guide>.
+	  <http://www.tldp.org/docs.html#guide>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -98,7 +98,7 @@ config EQUALIZER
 	  Say Y if you want this and read
 	  <file:Documentation/networking/eql.txt>.  You may also want to read
 	  section 6.2 of the NET-3-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -206,7 +206,7 @@ config NET_ETHERNET
 	  If your Linux machine will be connected to an Ethernet and you have
 	  an Ethernet network interface card (NIC) installed in your computer,
 	  say Y here and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>. You will then also have
+	  <http://www.tldp.org/docs.html#howto>. You will then also have
 	  to say Y to the driver for your particular NIC.
 
 	  Note that the answer to this question won't directly affect the
@@ -357,7 +357,7 @@ config MAC8390
 	  If you want to include a driver to support Nubus or LC-PDS
 	  Ethernet cards using an NS8390 chipset or its equivalent, say Y
 	  and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 config MAC89x0
 	tristate "Macintosh CS89x0 based ethernet cards"
@@ -366,7 +366,7 @@ config MAC89x0
 	  Support for CS89x0 chipset based Ethernet cards.  If you have a
 	  Nubus or LC-PDS network (Ethernet) card of this type, say Y and
 	  read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -382,7 +382,7 @@ config MACSONIC
 	  the onboard Ethernet in many Quadras as well as some LC-PDS,
 	  a few Nubus and all known Comm Slot Ethernet cards.  If you have
 	  one of these say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -397,7 +397,7 @@ config MACMACE
 	  Support for the onboard AMD 79C940 MACE Ethernet controller used in
 	  the 660AV and 840AV Macintosh.  If you have one of these Macintoshes
 	  say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 config MVME147_NET
 	tristate "MVME147 (Lance) Ethernet support"
@@ -516,7 +516,7 @@ config SGI_IOC3_ETH
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 config SGI_O2MACE_ETH
 	tristate "SGI O2 MACE Fast Ethernet support"
@@ -599,7 +599,7 @@ config NET_VENDOR_3COM
 	help
 	  If you have a network (Ethernet) card belonging to this class, say Y
 	  and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -612,7 +612,7 @@ config EL1
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.  Also, consider buying a
+	  <http://www.tldp.org/docs.html#howto>.  Also, consider buying a
 	  new card, since the 3c501 is slow, broken, and obsolete: you will
 	  have problems.  Some people suggest to ping ("man ping") a nearby
 	  machine every minute ("man cron") when using this card.
@@ -629,7 +629,7 @@ config EL2
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -644,7 +644,7 @@ config ELPLUS
 	  Information about this network (Ethernet) card can be found in
 	  <file:Documentation/networking/3c505.txt>.  If you have a card of
 	  this type, say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -658,7 +658,7 @@ config EL16
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -672,7 +672,7 @@ config EL3
 	---help---
 	  If you have a network (Ethernet) card belonging to the 3Com
 	  EtherLinkIII series, say Y and read the Ethernet-HOWTO, available
-	  from <http://www.linuxdoc.org/docs.html#howto>.
+	  from <http://www.tldp.org/docs.html#howto>.
 
 	  If your card is not working you may need to use the DOS
 	  setup disk to disable Plug & Play mode, and to select the default
@@ -690,7 +690,7 @@ config 3C515
 	help
 	  If you have a 3Com ISA EtherLink XL "Corkscrew" 3c515 Fast Ethernet
 	  network card, say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -704,7 +704,7 @@ config ELMC
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -718,7 +718,7 @@ config ELMC_II
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -740,7 +740,7 @@ config VORTEX
 	  "Hurricane" (3c555/3cSOHO)                           PCI
 
 	  If you have such a card, say Y and read the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>. More
+	  available from <http://www.tldp.org/docs.html#howto>. More
 	  specific information is in
 	  <file:Documentation/networking/vortex.txt> and in the comments at
 	  the beginning of <file:drivers/net/3c59x.c>.
@@ -762,7 +762,7 @@ config TYPHOON
 
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -776,7 +776,7 @@ config LANCE
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>. Some LinkSys cards are
+	  <http://www.tldp.org/docs.html#howto>. Some LinkSys cards are
 	  of this type.
 
 	  If you want to compile this driver as a module ( = code which can be
@@ -790,7 +790,7 @@ config NET_VENDOR_SMC
 	help
 	  If you have a network (Ethernet) card belonging to this class, say Y
 	  and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -803,7 +803,7 @@ config WD80x3
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -817,7 +817,7 @@ config ULTRAMCA
 	help
 	  If you have a network (Ethernet) card of this type and are running
 	  an MCA based system (PS/2), say Y and read the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>.
+	  available from <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -831,7 +831,7 @@ config ULTRA
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  Important: There have been many reports that, with some motherboards
 	  mixing an SMC Ultra and an Adaptec AHA154x SCSI card (or compatible,
@@ -852,7 +852,7 @@ config ULTRA32
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -869,7 +869,7 @@ config SMC9194
 	  another SMC9192/9194 based chipset.  Say Y if you want it compiled
 	  into the kernel, and read the file
 	  <file:Documentation/networking/smc9.txt> and the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>.
+	  available from <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -883,7 +883,7 @@ config NET_VENDOR_RACAL
 	help
 	  If you have a network (Ethernet) card belonging to this class, such
 	  as the NI5010, NI5210 or NI6210, say Y and read the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>.
+	  available from <http://www.tldp.org/docs.html#howto>.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -896,7 +896,7 @@ config NI5010
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>. Note that this is still
+	  <http://www.tldp.org/docs.html#howto>. Note that this is still
 	  experimental code.
 
 	  This driver is also available as a module ( = code which can be
@@ -911,7 +911,7 @@ config NI52
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -925,7 +925,7 @@ config NI65
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -941,7 +941,7 @@ config AT1700
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -956,7 +956,7 @@ config DEPCA
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto> as well as
+	  <http://www.tldp.org/docs.html#howto> as well as
 	  <file:drivers/net/depca.c>.
 
 	  If you want to compile this as a module ( = code which can be
@@ -972,7 +972,7 @@ config HP100
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -988,7 +988,7 @@ config NET_ISA
 	  bus system (that's the way the cards talks to the other components
 	  of your computer) is ISA (as opposed to EISA, VLB or PCI), say Y.
 	  Make sure you know the name of your card. Read the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>.
+	  available from <http://www.tldp.org/docs.html#howto>.
 
 	  If unsure, say Y.
 
@@ -1003,7 +1003,7 @@ config E2100
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1019,7 +1019,7 @@ config EWRK3
 	  cards. If this is for you, say Y and read
 	  <file:Documentation/networking/ewrk3.txt> in the kernel source as
 	  well as the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -1033,7 +1033,7 @@ config EEXPRESS
 	---help---
 	  If you have an EtherExpress16 network (Ethernet) card, say Y and
 	  read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.  Note that the Intel
+	  <http://www.tldp.org/docs.html#howto>.  Note that the Intel
 	  EtherExpress16 card used to be regarded as a very poor choice
 	  because the driver was very unreliable. We now have a new driver
 	  that should do better.
@@ -1052,7 +1052,7 @@ config EEXPRESS_PRO
 	  driver supports intel i82595{FX,TX} based boards. Note however
 	  that the EtherExpress PRO/100 Ethernet card has its own separate
 	  driver.  Please read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1066,7 +1066,7 @@ config FMV18X
 	---help---
 	  If you have a Fujitsu FMV-181/182/183/184 network (Ethernet) card,
 	  say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you use an FMV-183 or FMV-184 and it is not working, you may need
 	  to disable Plug & Play mode of the card.
@@ -1083,7 +1083,7 @@ config HPLAN_PLUS
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1097,7 +1097,7 @@ config HPLAN
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1119,7 +1119,7 @@ config ETH16I
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1133,7 +1133,7 @@ config NE2000
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.  Many Ethernet cards
+	  <http://www.tldp.org/docs.html#howto>.  Many Ethernet cards
 	  without a specific driver are compatible with NE2000.
 
 	  If you have a PCI NE2000 card however, say N here and Y to "PCI
@@ -1156,7 +1156,7 @@ config ZNET
 	  (Ethernet) card, and this is the Linux driver for it. Note that the
 	  IBM Thinkpad 300 is compatible with the Z-Note and is also supported
 	  by this driver. Read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 config SEEQ8005
 	tristate "SEEQ8005 support (EXPERIMENTAL)"
@@ -1164,7 +1164,7 @@ config SEEQ8005
 	help
 	  This is a driver for the SEEQ 8005 network (Ethernet) card.  If this
 	  is for you, read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -1178,7 +1178,7 @@ config SK_G16
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 config NET_CBUS
 	bool "NEC PC-9800 C-bus cards"
@@ -1252,7 +1252,7 @@ config NE2_MCA
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1282,7 +1282,7 @@ config NET_PCI
 	help
 	  This is another class of network cards which attach directly to the
 	  bus. If you have one of those, say Y and read the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>.
+	  available from <http://www.tldp.org/docs.html#howto>.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -1296,7 +1296,7 @@ config PCNET32
 	help
 	  If you have a PCnet32 or PCnetPCI based network (Ethernet) card,
 	  answer Y here and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1310,7 +1310,7 @@ config AMD8111_ETH
 	help
 	  If you have an AMD 8111-based PCI lance ethernet card,
 	  answer Y here and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1350,7 +1350,7 @@ config AC3200
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1364,7 +1364,7 @@ config APRICOT
 	help
 	  If you have a network (Ethernet) controller of this type, say Y and
 	  read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -1378,7 +1378,7 @@ config B44
 	help
 	  If you have a network (Ethernet) controller of this type, say Y and
 	  read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -1393,7 +1393,7 @@ config CS89x0
 	  Support for CS89x0 chipset based Ethernet cards. If you have a
 	  network (Ethernet) card of this type, say Y and read the
 	  Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto> as well as
+	  <http://www.tldp.org/docs.html#howto> as well as
 	  <file:Documentation/networking/cs89x0.txt>.
 
 	  If you want to compile this as a module ( = code which can be
@@ -1414,7 +1414,7 @@ config DGRS
 	  PCI/EISA Ethernet switch cards. These include the SE-4 and the SE-6
 	  models.  If you have a network card of this type, say Y and read the
 	  Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.  More specific
+	  <http://www.tldp.org/docs.html#howto>.  More specific
 	  information is contained in <file:Documentation/networking/dgrs.txt>.
 
 	  This driver is also available as a module ( = code which can be
@@ -1429,7 +1429,7 @@ config EEPRO100
 	help
 	  If you have an Intel EtherExpress PRO/100 PCI network (Ethernet)
 	  card, say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1531,7 +1531,7 @@ config LNE390
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1565,7 +1565,7 @@ config NE2K_PCI
 	  with ISA NE2000 cards (they have their own driver, "NE2000/NE1000
 	  support" below). If you have a PCI NE2000 network (Ethernet) card,
 	  say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver also works for the following NE2000 clone cards:
 	  RealTek RTL-8029  Winbond 89C940  Compex RL2000  KTI ET32P2
@@ -1584,7 +1584,7 @@ config NE3210
 	---help---
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.  Note that this driver
+	  <http://www.tldp.org/docs.html#howto>.  Note that this driver
 	  will NOT WORK for NE3200 cards as they are completely different.
 
 	  This driver is also available as a module ( = code which can be
@@ -1599,7 +1599,7 @@ config ES3210
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  This driver is also available as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want).
@@ -1614,7 +1614,7 @@ config 8139CP
 	  This is a driver for the Fast Ethernet PCI network cards based on
 	  the RTL8139C+ chips. If you have one of those, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this driver as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -1629,7 +1629,7 @@ config 8139TOO
 	  the RTL8139 chips. If you have one of those, say Y and read
 	  <file:Documentation/networking/8139too.txt> as well as the
 	  Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this driver as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -1683,7 +1683,7 @@ config SIS900
 	  the SiS 900 and SiS 7016 chips. The SiS 900 core is also embedded in
 	  SiS 630 and SiS 540 chipsets.  If you have one of those, say Y and
 	  read the Ethernet-HOWTO, available at
-	  <http://www.linuxdoc.org/docs.html#howto>.  Please read
+	  <http://www.tldp.org/docs.html#howto>.  Please read
 	  <file:Documentation/networking/sis900.txt> and comments at the
 	  beginning of <file:drivers/net/sis900.c> for more information.
 
@@ -1729,7 +1729,7 @@ config TLAN
 	  If you have a PCI Ethernet network card based on the ThunderLAN chip
 	  which is supported by this driver, say Y and read the
 	  Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  Devices currently supported by this driver are Compaq Netelligent,
 	  Compaq NetFlex and Olicom cards.  Please read the file
@@ -1785,7 +1785,7 @@ config NET_POCKET
 	  Cute little network (Ethernet) devices which attach to the parallel
 	  port ("pocket adapters"), commonly used with laptops. If you have
 	  one of those, say Y and read the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to plug a network (or some other) card into the PCMCIA
 	  (or PC-card) slot of your laptop instead (PCMCIA is the standard for
@@ -1807,7 +1807,7 @@ config ATP
 	---help---
 	  This is a network (Ethernet) device which attaches to your parallel
 	  port. Read <file:drivers/net/atp.c> as well as the Ethernet-HOWTO,
-	  available from <http://www.linuxdoc.org/docs.html#howto>, if you
+	  available from <http://www.tldp.org/docs.html#howto>, if you
 	  want to use this.  If you intend to use this driver, you should have
 	  said N to the "Parallel printer support", because the two drivers
 	  don't like each other.
@@ -1824,7 +1824,7 @@ config DE600
 	  This is a network (Ethernet) device which attaches to your parallel
 	  port. Read <file:Documentation/networking/DLINK.txt> as well as the
 	  Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>, if you want to use
+	  <http://www.tldp.org/docs.html#howto>, if you want to use
 	  this. It is possible to have several devices share a single parallel
 	  port and it is safe to compile the corresponding drivers into the
 	  kernel.
@@ -1842,7 +1842,7 @@ config DE620
 	  This is a network (Ethernet) device which attaches to your parallel
 	  port. Read <file:Documentation/networking/DLINK.txt> as well as the
 	  Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>, if you want to use
+	  <http://www.tldp.org/docs.html#howto>, if you want to use
 	  this. It is possible to have several devices share a single parallel
 	  port and it is safe to compile the corresponding drivers into the
 	  kernel.
@@ -1988,8 +1988,8 @@ config E1000
 	  as <file:Documentation/networking/net-modules.txt>.
 
 config E1000_NAPI
-	bool "Use Rx Polling (NAPI) (EXPERIMENTAL)"
-	depends on E1000 && EXPERIMENTAL
+	bool "Use Rx Polling (NAPI)"
+	depends on E1000
 
 config MYRI_SBUS
 	tristate "MyriCOM Gigabit Ethernet support"
@@ -2018,7 +2018,7 @@ config HAMACHI
 	help
 	  If you have a Gigabit Ethernet card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you want to compile this as a module ( = code which can be
 	  inserted in and removed from the running kernel whenever you want),
@@ -2092,6 +2092,50 @@ config TIGON3
 	  recommended.  The module will be called tg3.
 
 endmenu
+
+#
+#	10 Gigabit Ethernet
+#
+
+menu "Ethernet (10000 Mbit)"
+	depends on NETDEVICES
+
+config IXGB
+	tristate "Intel(R) PRO/10GbE support"
+	depends on PCI
+	---help---
+	  This driver supports Intel(R) PRO/10GbE family of
+	  adapters, which includes:
+
+	  Controller  Adapter Name                           Board IDs
+	  ----------  ------------                           ---------
+	  82597EX     Intel(R) PRO/10GbE LR Server Adapter   A82505-xxx
+
+	  For more information on how to identify your adapter, go to the
+	  Adapter & Driver ID Guide at:
+
+	  <http://support.intel.com/support/network/adapter/pro100/21397.htm>
+
+	  For general information and support, go to the Intel support
+	  website at:
+
+	  <http://support.intel.com>
+
+	  More specific information on configuring the driver is in 
+	  <file:Documentation/networking/ixgb.txt>.
+
+	  This driver is also available as a module ( = code which can be
+	  inserted in and removed from the running kernel whenever you want).
+	  The module will be called ixgb.  If you want to compile it as a
+	  module, say M here and read <file:Documentation/modules.txt> as well
+	  as <file:Documentation/networking/net-modules.txt>.
+
+config IXGB_NAPI
+	bool "Use Rx Polling (NAPI) (EXPERIMENTAL)"
+	depends on IXGB && EXPERIMENTAL
+
+endmenu
+
 
 config VETH
 	tristate "iSeries Virtual Ethernet driver support"
@@ -2209,7 +2253,7 @@ config PLIP
 
 	  If you want to use PLIP, say Y and read the PLIP mini-HOWTO as well
 	  as the NET-3-HOWTO, both available from
-	  <http://www.linuxdoc.org/docs.html#howto>.  Note that the PLIP
+	  <http://www.tldp.org/docs.html#howto>.  Note that the PLIP
 	  protocol has been changed and this PLIP driver won't work together
 	  with the PLIP support in Linux versions 1.0.x.  This option enlarges
 	  your kernel by about 8 KB.
@@ -2233,7 +2277,7 @@ config PPP
 
 	  To use PPP, you need an additional program called pppd as described
 	  in the PPP-HOWTO, available at
-	  <http://www.linuxdoc.org/docs.html#howto>.  Make sure that you have
+	  <http://www.tldp.org/docs.html#howto>.  Make sure that you have
 	  the version of pppd recommended in <file:Documentation/Changes>.
 	  The PPP option enlarges your kernel by about 16 KB.
 
@@ -2385,7 +2429,7 @@ config SLIP
 	  allows you to use SLIP over a regular dial up shell connection. If
 	  you plan to use SLiRP, make sure to say Y to CSLIP, below. The
 	  NET-3-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>, explains how to
+	  <http://www.tldp.org/docs.html#howto>, explains how to
 	  configure SLIP. Note that you don't need this option if you just
 	  want to run term (term is a program which gives you almost full
 	  Internet connectivity if you have a regular dial up shell account on
@@ -2411,7 +2455,7 @@ config SLIP_COMPRESSED
 	  <ftp://ibiblio.org/pub/Linux/system/network/serial/>) which
 	  allows you to use SLIP over a regular dial up shell connection, you
 	  definitely want to say Y here. The NET-3-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>, explains how to configure
+	  <http://www.tldp.org/docs.html#howto>, explains how to configure
 	  CSLIP. This won't enlarge your kernel.
 
 config SLIP_SMART

@@ -403,13 +403,6 @@ flush_stale_links(void)
     }
 }
 
-static void
-cs_error(client_handle_t handle, int func, int ret)
-{
-    error_info_t err = { func, ret };
-    CardServices(ReportError, handle, &err);
-}
-
 static int
 get_tuple_data(int fn, client_handle_t handle, tuple_t *tuple)
 {
@@ -646,6 +639,7 @@ xirc2ps_attach(void)
     link->irq.Instance = dev;
 
     /* Fill in card specific entries */
+    SET_MODULE_OWNER(dev);
     dev->hard_start_xmit = &do_start_xmit;
     dev->set_config = &do_config;
     dev->get_stats = &do_get_stats;
@@ -1714,7 +1708,6 @@ do_open(struct net_device *dev)
 
     /* okay */
     link->open++;
-    MOD_INC_USE_COUNT;
 
     netif_start_queue(dev);
     do_reset(dev,1);
@@ -2066,40 +2059,35 @@ do_stop(struct net_device *dev)
     if (link->state & DEV_STALE_CONFIG)
 	mod_timer(&link->release, jiffies + HZ/20);
 
-    MOD_DEC_USE_COUNT;
-
     return 0;
 }
+
+static struct pcmcia_driver xirc2ps_cs_driver = {
+	.owner		= THIS_MODULE,
+	.drv		= {
+		.name	= "xirc2ps_cs",
+	},
+	.attach		= xirc2ps_attach,
+	.detach		= xirc2ps_detach,
+};
 
 static int __init
 init_xirc2ps_cs(void)
 {
-    servinfo_t serv;
-
-    printk(KERN_INFO "%s\n", version);
-    if (lockup_hack)
-	printk(KINF_XIRC "lockup hack is enabled\n");
-    CardServices(GetCardServicesInfo, &serv);
-    if (serv.Revision != CS_RELEASE_CODE) {
-	printk(KNOT_XIRC "Card Services release does not match!\n");
-	return -1;
-    }
-    DEBUG(0, "pc_debug=%d\n", pc_debug);
-    register_pccard_driver(&dev_info, &xirc2ps_attach, &xirc2ps_detach);
-    return 0;
+	return pcmcia_register_driver(&xirc2ps_cs_driver);
 }
 
 static void __exit
 exit_xirc2ps_cs(void)
 {
-    DEBUG(0, "unloading\n");
-    unregister_pccard_driver(&dev_info);
-    while (dev_list) {
-	if (dev_list->state & DEV_CONFIG)
-	    xirc2ps_release((u_long)dev_list);
-	if (dev_list)	/* xirc2ps_release() might already have detached... */
-	    xirc2ps_detach(dev_list);
-    }
+	pcmcia_unregister_driver(&xirc2ps_cs_driver);
+
+	while (dev_list) {
+		if (dev_list->state & DEV_CONFIG)
+			xirc2ps_release((u_long)dev_list);
+		if (dev_list)	/* xirc2ps_release() might already have detached... */
+			xirc2ps_detach(dev_list);
+	}
 }
 
 module_init(init_xirc2ps_cs);

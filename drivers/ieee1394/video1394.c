@@ -39,7 +39,6 @@
 #include <linux/devfs_fs_kernel.h>
 #include <linux/bitops.h>
 #include <linux/types.h>
-#include <linux/wrapper.h>
 #include <linux/vmalloc.h>
 #include <linux/timex.h>
 #include <linux/mm.h>
@@ -48,11 +47,12 @@
 
 #include "ieee1394.h"
 #include "ieee1394_types.h"
-#include "ieee1394_hotplug.h"
+#include "nodemgr.h"
 #include "hosts.h"
 #include "ieee1394_core.h"
 #include "highlevel.h"
 #include "video1394.h"
+#include "nodemgr.h"
 #include "dma.h"
 
 #include "ohci1394.h"
@@ -65,14 +65,6 @@
 
 #ifndef vmalloc_32
 #define vmalloc_32(x) vmalloc(x)
-#endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,3))
-#define remap_page_range_1394(vma, start, addr, size, prot) \
-	remap_page_range(start, addr, size, prot)
-#else
-#define remap_page_range_1394(vma, start, addr, size, prot) \
-	remap_page_range(vma, start, addr, size, prot)
 #endif
 
 struct it_dma_prg {
@@ -155,8 +147,7 @@ printk(level "video1394_%d: " fmt "\n" , card , ## args)
 void wakeup_dma_ir_ctx(unsigned long l);
 void wakeup_dma_it_ctx(unsigned long l);
 
-static struct hpsb_highlevel *hl_handle = NULL;
-
+static struct hpsb_highlevel video1394_highlevel;
 
 static int free_dma_iso_ctx(struct dma_iso_ctx *d)
 {
@@ -496,11 +487,7 @@ void wakeup_dma_ir_ctx(unsigned long l)
 		if (d->ir_prg[i][d->nb_cmd-1].status & cpu_to_le32(0xFFFF0000)) {
 			reset_ir_status(d, i);
 			d->buffer_status[i] = VIDEO1394_BUFFER_READY;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,18)
-			get_fast_time(&d->buffer_time[i]);
-#else
 			do_gettimeofday(&d->buffer_time[i]);
-#endif
 		}
 	}
 
@@ -1005,6 +992,8 @@ static int video1394_ioctl(struct inode *inode, struct file *file,
 		struct video1394_queue_variable qv;
 		struct dma_iso_ctx *d;
 
+		qv.packet_sizes = NULL;
+
 		if(copy_from_user(&v, (void *)arg, sizeof(v)))
 			return -EFAULT;
 
@@ -1017,12 +1006,22 @@ static int video1394_ioctl(struct inode *inode, struct file *file,
 		}
 		
 		if (d->flags & VIDEO1394_VARIABLE_PACKET_SIZE) {
+			unsigned int *psizes;
+			int buf_size = d->nb_cmd * sizeof(unsigned int);
+
 			if (copy_from_user(&qv, (void *)arg, sizeof(qv))) 
 				return -EFAULT;
-			if (!access_ok(VERIFY_READ, qv.packet_sizes, 
-				       d->nb_cmd * sizeof(unsigned int))) {
+
+			psizes = kmalloc(buf_size, GFP_KERNEL);
+			if (!psizes)
+				return -ENOMEM;
+
+			if (copy_from_user(psizes, qv.packet_sizes, buf_size)) {
+				kfree(psizes);
 				return -EFAULT;
 			}
+
+			qv.packet_sizes = psizes;
 		}
 
 		spin_lock_irqsave(&d->lock,flags);
@@ -1031,6 +1030,8 @@ static int video1394_ioctl(struct inode *inode, struct file *file,
 			PRINT(KERN_ERR, ohci->id, 
 			      "Buffer %d is already used",v.buffer);
 			spin_unlock_irqrestore(&d->lock,flags);
+			if (qv.packet_sizes)
+				kfree(qv.packet_sizes);
 			return -EFAULT;
 		}
 		
@@ -1084,6 +1085,10 @@ static int video1394_ioctl(struct inode *inode, struct file *file,
 				reg_write(ohci, d->ctrlSet, 0x1000);
 			}
 		}
+
+		if (qv.packet_sizes)
+			kfree(qv.packet_sizes);
+
 		return 0;
 		
 	}
@@ -1164,7 +1169,7 @@ static int video1394_open(struct inode *inode, struct file *file)
 	struct ti_ohci *ohci;
 	struct file_ctx *ctx;
 
-	ohci = hpsb_get_hostinfo_bykey(hl_handle, i);
+	ohci = hpsb_get_hostinfo_bykey(&video1394_highlevel, i);
         if (ohci == NULL)
                 return -EIO;
 
@@ -1249,7 +1254,7 @@ static struct hpsb_protocol_driver video1394_driver = {
 };
 
 
-static void video1394_add_host (struct hpsb_host *host, struct hpsb_highlevel *hl)
+static void video1394_add_host (struct hpsb_host *host)
 {
 	struct ti_ohci *ohci;
 	char name[16];
@@ -1261,13 +1266,13 @@ static void video1394_add_host (struct hpsb_host *host, struct hpsb_highlevel *h
 
 	ohci = (struct ti_ohci *)host->hostdata;
 
-	if (!hpsb_create_hostinfo(hl, host, 0)) {
+	if (!hpsb_create_hostinfo(&video1394_highlevel, host, 0)) {
 		PRINT(KERN_ERR, ohci->id, "Cannot allocate hostinfo");
 		return;
 	}
 
-	hpsb_set_hostinfo(hl, host, ohci);
-	hpsb_set_hostinfo_key(hl, host, ohci->id);
+	hpsb_set_hostinfo(&video1394_highlevel, host, ohci);
+	hpsb_set_hostinfo_key(&video1394_highlevel, host, ohci->id);
 
 	sprintf(name, "%s/%d", VIDEO1394_DRIVER_NAME, ohci->id);
 	minor = IEEE1394_MINOR_BLOCK_VIDEO1394 * 16 + ohci->id;
@@ -1280,7 +1285,7 @@ static void video1394_add_host (struct hpsb_host *host, struct hpsb_highlevel *h
 
 static void video1394_remove_host (struct hpsb_host *host)
 {
-	struct ti_ohci *ohci = hpsb_get_hostinfo(hl_handle, host);
+	struct ti_ohci *ohci = hpsb_get_hostinfo(&video1394_highlevel, host);
 
 	if (ohci)
 		devfs_remove("%s/%d", VIDEO1394_DRIVER_NAME, ohci->id);
@@ -1289,7 +1294,8 @@ static void video1394_remove_host (struct hpsb_host *host)
 }
 
 
-static struct hpsb_highlevel_ops hl_ops = {
+static struct hpsb_highlevel video1394_highlevel = {
+	.name =		VIDEO1394_DRIVER_NAME,
 	.add_host =	video1394_add_host,
 	.remove_host =	video1394_remove_host,
 };
@@ -1428,7 +1434,7 @@ static void __exit video1394_exit_module (void)
 
 	hpsb_unregister_protocol(&video1394_driver);
 
-	hpsb_unregister_highlevel (hl_handle);
+	hpsb_unregister_highlevel(&video1394_highlevel);
 
 	devfs_remove(VIDEO1394_DRIVER_NAME);
 	ieee1394_unregister_chardev(IEEE1394_MINOR_BLOCK_VIDEO1394);
@@ -1449,13 +1455,7 @@ static int __init video1394_init_module (void)
 
 	devfs_mk_dir(VIDEO1394_DRIVER_NAME);
 
-	hl_handle = hpsb_register_highlevel (VIDEO1394_DRIVER_NAME, &hl_ops);
-	if (hl_handle == NULL) {
-		PRINT_G(KERN_ERR, "No more memory for driver\n");
-		devfs_remove(VIDEO1394_DRIVER_NAME);
-		ieee1394_unregister_chardev(IEEE1394_MINOR_BLOCK_VIDEO1394);
-		return -ENOMEM;
-	}
+	hpsb_register_highlevel(&video1394_highlevel);
 
 	hpsb_register_protocol(&video1394_driver);
 

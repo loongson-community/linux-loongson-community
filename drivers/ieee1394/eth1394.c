@@ -56,6 +56,7 @@
 #include <linux/tcp.h>
 #include <linux/skbuff.h>
 #include <linux/bitops.h>
+#include <linux/workqueue.h>
 #include <asm/delay.h>
 #include <asm/semaphore.h>
 #include <net/arp.h>
@@ -78,14 +79,14 @@
 	printk(KERN_ERR fmt, ## args)
 
 static char version[] __devinitdata =
-	"$Rev: 886 $ Ben Collins <bcollins@debian.org>";
+	"$Rev: 918 $ Ben Collins <bcollins@debian.org>";
 
 /* Our ieee1394 highlevel driver */
 #define ETHER1394_DRIVER_NAME "ether1394"
 
 static kmem_cache_t *packet_task_cache;
-static struct hpsb_highlevel *hl_handle = NULL;
 
+static struct hpsb_highlevel eth1394_highlevel;
 
 /* Use common.lf to determine header len */
 static int hdr_type_len[] = {
@@ -318,7 +319,7 @@ static int ether1394_init_dev (struct net_device *dev)
  * when the module is installed. This is where we add all of our ethernet
  * devices. One for each host.
  */
-static void ether1394_add_host (struct hpsb_host *host, struct hpsb_highlevel *hl)
+static void ether1394_add_host (struct hpsb_host *host)
 {
 	struct host_info *hi = NULL;
 	struct net_device *dev = NULL;
@@ -340,8 +341,9 @@ static void ether1394_add_host (struct hpsb_host *host, struct hpsb_highlevel *h
 	priv = (struct eth1394_priv *)dev->priv;
 
 	priv->host = host;
+	spin_lock_init(&priv->lock);
 
-	hi = hpsb_create_hostinfo(hl, host, sizeof(*hi));
+	hi = hpsb_create_hostinfo(&eth1394_highlevel, host, sizeof(*hi));
 
 	if (hi == NULL)
 		goto out;
@@ -372,7 +374,7 @@ out:
 	if (dev != NULL)
 		kfree (dev);
 	if (hi)
-		hpsb_destroy_hostinfo(hl, host);
+		hpsb_destroy_hostinfo(&eth1394_highlevel, host);
 
 	ETH1394_PRINT_G (KERN_ERR, "Out of memory\n");
 
@@ -382,7 +384,7 @@ out:
 /* Remove a card from our list */
 static void ether1394_remove_host (struct hpsb_host *host)
 {
-	struct host_info *hi = hpsb_get_hostinfo(hl_handle, host);
+	struct host_info *hi = hpsb_get_hostinfo(&eth1394_highlevel, host);
 
 	if (hi != NULL) {
 		struct eth1394_priv *priv = (struct eth1394_priv *)hi->dev->priv;
@@ -400,7 +402,7 @@ static void ether1394_remove_host (struct hpsb_host *host)
 /* A reset has just arisen */
 static void ether1394_host_reset (struct hpsb_host *host)
 {
-	struct host_info *hi = hpsb_get_hostinfo(hl_handle, host);
+	struct host_info *hi = hpsb_get_hostinfo(&eth1394_highlevel, host);
 	struct net_device *dev;
 
 	/* This can happen for hosts that we don't use */
@@ -517,7 +519,7 @@ static int ether1394_write (struct hpsb_host *host, int srcid, int destid,
 	struct sk_buff *skb;
 	char *buf = (char *)data;
 	unsigned long flags;
-	struct host_info *hi = hpsb_get_hostinfo(hl_handle, host);
+	struct host_info *hi = hpsb_get_hostinfo(&eth1394_highlevel, host);
 	struct net_device *dev;
 	struct eth1394_priv *priv;
 
@@ -589,7 +591,7 @@ static void ether1394_iso(struct hpsb_iso *iso)
 	quadlet_t *data;
 	char *buf;
 	unsigned long flags;
-	struct host_info *hi = hpsb_get_hostinfo(hl_handle, iso->host);
+	struct host_info *hi = hpsb_get_hostinfo(&eth1394_highlevel, iso->host);
 	struct net_device *dev;
 	struct eth1394_priv *priv;
 	unsigned int len;
@@ -852,8 +854,8 @@ static int ether1394_tx (struct sk_buff *skb, struct net_device *dev)
 	ptask->dest_node = dest_node;
 	/* TODO: When 2.4 is out of the way, give each of our ethernet
 	 * dev's a workqueue to handle these.  */
-	HPSB_INIT_WORK(&ptask->tq, hpsb_write_sched, ptask);
-	hpsb_schedule_work(&ptask->tq);
+	INIT_WORK(&ptask->tq, hpsb_write_sched, ptask);
+	schedule_work(&ptask->tq);
 
 	return 0;
 fail:
@@ -878,7 +880,8 @@ static struct hpsb_address_ops addr_ops = {
 };
 
 /* Ieee1394 highlevel driver functions */
-static struct hpsb_highlevel_ops hl_ops = {
+static struct hpsb_highlevel eth1394_highlevel = {
+	.name =		ETHER1394_DRIVER_NAME,
 	.add_host =	ether1394_add_host,
 	.remove_host =	ether1394_remove_host,
 	.host_reset =	ether1394_host_reset,
@@ -890,14 +893,9 @@ static int __init ether1394_init_module (void)
 					      0, 0, NULL, NULL);
 
 	/* Register ourselves as a highlevel driver */
-	hl_handle = hpsb_register_highlevel (ETHER1394_DRIVER_NAME, &hl_ops);
+	hpsb_register_highlevel(&eth1394_highlevel);
 
-	if (hl_handle == NULL) {
-		ETH1394_PRINT_G (KERN_ERR, "No more memory for driver\n");
-		return -ENOMEM;
-	}
-
-	hpsb_register_addrspace (hl_handle, &addr_ops, ETHER1394_REGION_ADDR,
+	hpsb_register_addrspace(&eth1394_highlevel, &addr_ops, ETHER1394_REGION_ADDR,
 				 ETHER1394_REGION_ADDR_END);
 
 	return 0;
@@ -905,7 +903,7 @@ static int __init ether1394_init_module (void)
 
 static void __exit ether1394_exit_module (void)
 {
-	hpsb_unregister_highlevel (hl_handle);
+	hpsb_unregister_highlevel(&eth1394_highlevel);
 	kmem_cache_destroy(packet_task_cache);
 }
 

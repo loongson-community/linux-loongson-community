@@ -223,9 +223,9 @@ int netdev_nit;
  *
  *	BEWARE!!! Protocol handlers, mangling input packets,
  *	MUST BE last in hash buckets and checking protocol handlers
- *	MUST start from promiscous ptype_all chain in net_bh.
+ *	MUST start from promiscuous ptype_all chain in net_bh.
  *	It is true now, do not change it.
- *	Explantion follows: if protocol handler, mangling packet, will
+ *	Explanation follows: if protocol handler, mangling packet, will
  *	be the first on list, it is not able to sense, that packet
  *	is cloned and should be copied-on-write, so that it will
  *	change it and subsequent readers will get broken packet.
@@ -1434,7 +1434,7 @@ static void net_tx_action(struct softirq_action *h)
 }
 
 #if defined(CONFIG_BRIDGE) || defined (CONFIG_BRIDGE_MODULE)
-int (*br_handle_frame_hook)(struct sk_buff *skb) = NULL;
+int (*br_handle_frame_hook)(struct sk_buff *skb);
 
 static __inline__ int handle_bridge(struct sk_buff *skb,
 				     struct packet_type *pt_prev)
@@ -1789,7 +1789,7 @@ static __inline__ struct net_device *dev_get_idx(struct seq_file *seq,
 	struct net_device *dev;
 	loff_t i;
 
-	for (i = 0, dev = dev_base; dev && i < pos; dev = dev->next);
+	for (i = 0, dev = dev_base; dev && i < pos; ++i, dev = dev->next);
 
 	return i == pos ? dev : NULL;
 }
@@ -1797,11 +1797,12 @@ static __inline__ struct net_device *dev_get_idx(struct seq_file *seq,
 void *dev_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	read_lock(&dev_base_lock);
-	return *pos ? dev_get_idx(seq, *pos) : (void *)1;
+	return *pos ? dev_get_idx(seq, *pos - 1) : (void *)1;
 }
 
 void *dev_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
+	++*pos;
 	return v == (void *)1 ? dev_base : ((struct net_device *)v)->next;
 }
 
@@ -1843,11 +1844,11 @@ static void dev_seq_printf_stats(struct seq_file *seq, struct net_device *dev)
 static int dev_seq_show(struct seq_file *seq, void *v)
 {
 	if (v == (void *)1)
-		seq_printf(seq, "Inter-|   Receive                            "
-				"                    |  Transmit\n"
-				" face |bytes    packets errs drop fifo frame "
-				"compressed multicast|bytes    packets errs "
-				"drop fifo colls carrier compressed\n");
+		seq_puts(seq, "Inter-|   Receive                            "
+			      "                    |  Transmit\n"
+			      " face |bytes    packets errs drop fifo frame "
+			      "compressed multicast|bytes    packets errs "
+			      "drop fifo colls carrier compressed\n");
 	else
 		dev_seq_printf_stats(seq, v);
 	return 0;
@@ -2582,6 +2583,16 @@ int register_netdevice(struct net_device *dev)
 	if ((ret = kobject_register(&dev->kobj)))
 		goto out_err;
 	
+	/* Fix illegal SG+CSUM combinations. */
+	if ((dev->features & NETIF_F_SG) &&
+	    !(dev->features & (NETIF_F_IP_CSUM |
+			       NETIF_F_NO_CSUM |
+			       NETIF_F_HW_CSUM))) {
+		printk("%s: Dropping NETIF_F_SG since no checksum feature.\n",
+		       dev->name);
+		dev->features &= ~NETIF_F_SG;
+	}
+
 	/*
 	 *	nil rebuild_header routine,
 	 *	that should be never called and used as just bug trap.

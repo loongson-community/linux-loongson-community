@@ -16,6 +16,7 @@
 #include <linux/list.h>
 #include <linux/init.h>
 #include <linux/slab.h>
+#include <linux/workqueue.h>
 
 #include "ieee1394_types.h"
 #include "hosts.h"
@@ -140,7 +141,7 @@ struct hpsb_host *hpsb_alloc_host(struct hpsb_host_driver *drv, size_t extra)
 
 	atomic_set(&h->generation, 0);
 
-	HPSB_INIT_WORK(&h->timeout_tq, (void (*)(void*))abort_timedouts, h);
+	INIT_WORK(&h->timeout_tq, (void (*)(void*))abort_timedouts, h);
 
         h->topology_map = h->csr.topology_map + 3;
         h->speed_map = (u8 *)(h->csr.speed_map + 2);
@@ -148,9 +149,36 @@ struct hpsb_host *hpsb_alloc_host(struct hpsb_host_driver *drv, size_t extra)
 	return h;
 }
 
+static int alloc_hostnum(void)
+{
+	int hostnum = 0;
+
+	while (1) {
+		struct list_head *lh;
+		int found = 0;
+
+		list_for_each(lh, &hpsb_hosts) {
+			struct hpsb_host *host = list_entry(lh, struct hpsb_host, host_list);
+
+			if (host->id == hostnum) {
+				found = 1;
+				break;
+			}
+		}
+
+		if (!found)
+			return hostnum;
+
+		hostnum++;
+	}
+
+	return 0;
+}
+
 void hpsb_add_host(struct hpsb_host *host)
 {
 	down(&hpsb_hosts_lock);
+	host->id = alloc_hostnum();
         list_add_tail(&host->host_list, &hpsb_hosts);
 	up(&hpsb_hosts_lock);
 

@@ -68,8 +68,6 @@ void ax25_free_cb(ax25_cb *ax25)
 	}
 
 	kfree(ax25);
-
-	MOD_DEC_USE_COUNT;
 }
 
 static void ax25_free_sock(struct sock *sk)
@@ -507,8 +505,6 @@ ax25_cb *ax25_create_cb(void)
 	if ((ax25 = kmalloc(sizeof(*ax25), GFP_ATOMIC)) == NULL)
 		return NULL;
 
-	MOD_INC_USE_COUNT;
-
 	memset(ax25, 0x00, sizeof(*ax25));
 
 	skb_queue_head_init(&ax25->write_queue);
@@ -849,6 +845,7 @@ int ax25_create(struct socket *sock, int protocol)
 	}
 
 	sock_init_data(sock, sk);
+	sk_set_owner(sk, THIS_MODULE);
 
 	sk->destruct = ax25_free_sock;
 	sock->ops    = &ax25_proto_ops;
@@ -884,6 +881,7 @@ struct sock *ax25_make_new(struct sock *osk, struct ax25_dev *ax25_dev)
 	}
 
 	sock_init_data(NULL, sk);
+	sk_set_owner(sk, THIS_MODULE);
 
 	sk->destruct = ax25_free_sock;
 	sk->type     = osk->type;
@@ -1912,11 +1910,12 @@ static int ax25_get_info(char *buffer, char **start, off_t offset, int length)
 static struct net_proto_family ax25_family_ops = {
 	.family =	PF_AX25,
 	.create =	ax25_create,
+	.owner	=	THIS_MODULE,
 };
 
 static struct proto_ops ax25_proto_ops = {
 	.family =	PF_AX25,
-
+	.owner =	THIS_MODULE,
 	.release =	ax25_release,
 	.bind =		ax25_bind,
 	.connect =	ax25_connect,

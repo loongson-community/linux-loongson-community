@@ -380,7 +380,7 @@ static sctp_scope_t sctp_v4_scope(union sctp_addr *addr)
 
 /* Returns a valid dst cache entry for the given source and destination ip
  * addresses. If an association is passed, trys to get a dst entry with a
- * source adddress that matches an address in the bind address list.
+ * source address that matches an address in the bind address list.
  */
 struct dst_entry *sctp_v4_get_dst(struct sctp_association *asoc,
 				  union sctp_addr *daddr,
@@ -499,6 +499,7 @@ struct sock *sctp_v4_create_accept_sk(struct sock *sk,
 		goto out;
 
 	sock_init_data(NULL, newsk);
+	sk_set_owner(newsk, THIS_MODULE);
 
 	newsk->type = SOCK_STREAM;
 
@@ -748,6 +749,7 @@ struct notifier_block sctp_inetaddr_notifier = {
 /* Socket operations.  */
 struct proto_ops inet_seqpacket_ops = {
 	.family      = PF_INET,
+	.owner       = THIS_MODULE,
 	.release     = inet_release,       /* Needs to be wrapped... */
 	.bind        = inet_bind,
 	.connect     = inet_dgram_connect,

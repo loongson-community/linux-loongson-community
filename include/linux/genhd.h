@@ -15,6 +15,7 @@
 #include <linux/device.h>
 #include <linux/smp.h>
 #include <linux/string.h>
+#include <linux/fs.h>
 
 enum {
 /* These three have identical behaviour; use the second one if DOS FDISK gets
@@ -55,16 +56,12 @@ struct partition {
 } __attribute__((packed));
 
 #ifdef __KERNEL__
-#include <linux/devfs_fs_kernel.h>	/* we don't need any devfs crap
-					   here, but some of the implicitly
-					   included headers.   will clean
-					   this mess up later.	--hch */
 struct hd_struct {
 	sector_t start_sect;
 	sector_t nr_sects;
 	struct kobject kobj;
 	unsigned reads, read_sectors, writes, write_sectors;
-	int policy;
+	int policy, partno;
 };
 
 #define GENHD_FL_REMOVABLE  1
@@ -89,7 +86,7 @@ struct gendisk {
 	int minor_shift;		/* number of times minor is shifted to
 					   get real minor */
 	char disk_name[16];		/* name of major driver */
-	struct hd_struct *part;		/* [indexed by minor] */
+	struct hd_struct **part;	/* [indexed by minor] */
 	struct block_device_operations *fops;
 	struct request_queue *queue;
 	void *private_data;
@@ -193,6 +190,14 @@ extern void add_disk(struct gendisk *disk);
 extern void del_gendisk(struct gendisk *gp);
 extern void unlink_gendisk(struct gendisk *gp);
 extern struct gendisk *get_gendisk(dev_t dev, int *part);
+
+extern void set_device_ro(struct block_device *bdev, int flag);
+extern void set_disk_ro(struct gendisk *disk, int flag);
+
+/* drivers/char/random.c */
+extern void add_disk_randomness(struct gendisk *disk);
+extern void rand_initialize_disk(struct gendisk *disk);
+
 static inline sector_t get_start_sect(struct block_device *bdev)
 {
 	return bdev->bd_offset;
@@ -369,6 +374,11 @@ extern void blk_register_region(dev_t dev, unsigned long range,
 			int (*lock)(dev_t, void *),
 			void *data);
 extern void blk_unregister_region(dev_t dev, unsigned long range);
+
+static inline struct block_device *bdget_disk(struct gendisk *disk, int index)
+{
+	return bdget(MKDEV(disk->major, disk->first_minor) + index);
+}
 
 #endif
 

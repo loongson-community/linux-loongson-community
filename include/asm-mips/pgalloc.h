@@ -46,7 +46,7 @@ static inline pte_t *pte_alloc_one_kernel(struct mm_struct *mm,
 	pte_t *pte;
 
 	do {
-		pte = (pte_t *) __get_free_page(GFP_KERNEL);
+		pte = (pte_t *) __get_free_page(GFP_KERNEL|__GFP_REPEAT);
 		if (pte)
 			clear_page(pte);
 		else {

@@ -38,7 +38,8 @@ static void register_irq_proc (unsigned int irq);
  * Special irq handlers.
  */
 
-void no_action(int cpl, void *dev_id, struct pt_regs *regs) { }
+irqreturn_t no_action(int cpl, void *dev_id, struct pt_regs *regs)
+{ return IRQ_NONE; }
 
 /*
  * Generic no controller code
@@ -360,7 +361,7 @@ out:
  */
 
 int request_irq(unsigned int irq,
-		void (*handler)(int, void *, struct pt_regs *),
+		irqreturn_t (*handler)(int, void *, struct pt_regs *),
 		unsigned long irqflags,
 		const char * devname,
 		void *dev_id)

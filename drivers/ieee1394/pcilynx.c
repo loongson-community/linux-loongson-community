@@ -42,6 +42,7 @@
 #include <linux/pci.h>
 #include <linux/fs.h>
 #include <linux/poll.h>
+#include <linux/kdev_t.h>
 #include <asm/byteorder.h>
 #include <asm/atomic.h>
 #include <asm/io.h>
@@ -1163,7 +1164,7 @@ static ssize_t mem_write(struct file *file, const char *buffer, size_t count,
  ********************************************************/
 
 
-static void lynx_irq_handler(int irq, void *dev_id,
+static irqreturn_t lynx_irq_handler(int irq, void *dev_id,
                              struct pt_regs *regs_are_unused)
 {
         struct ti_lynx *lynx = (struct ti_lynx *)dev_id;
@@ -1174,7 +1175,8 @@ static void lynx_irq_handler(int irq, void *dev_id,
         linkint = reg_read(lynx, LINK_INT_STATUS);
         intmask = reg_read(lynx, PCI_INT_STATUS);
 
-        if (!(intmask & PCI_INT_INT_PEND)) return;
+        if (!(intmask & PCI_INT_INT_PEND))
+		return IRQ_NONE;
 
         PRINTD(KERN_DEBUG, lynx->id, "interrupt: 0x%08x / 0x%08x", intmask,
                linkint);
@@ -1390,6 +1392,8 @@ static void lynx_irq_handler(int irq, void *dev_id,
 
                 run_pcl(lynx, lynx->rcv_pcl_start, CHANNEL_ASYNC_RCV);
         }
+
+	return IRQ_HANDLED;
 }
 
 
@@ -1893,7 +1897,7 @@ static struct pci_driver lynx_pci_driver = {
         .name =     PCILYNX_DRIVER_NAME,
         .id_table = pci_table,
         .probe =    add_card,
-        .remove =   __devexit_p(remove_card),
+        .remove =   remove_card,
 };
 
 static struct hpsb_host_driver lynx_driver = {

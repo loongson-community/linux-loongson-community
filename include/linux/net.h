@@ -89,9 +89,11 @@ struct page;
 struct kiocb;
 struct sockaddr;
 struct msghdr;
+struct module;
 
 struct proto_ops {
 	int		family;
+	struct module	*owner;
 	int		(*release)   (struct socket *sock);
 	int		(*bind)	     (struct socket *sock,
 				      struct sockaddr *umyaddr,
@@ -128,13 +130,14 @@ struct proto_ops {
 };
 
 struct net_proto_family {
-	int	family;
-	int	(*create)(struct socket *sock, int protocol);
+	int		family;
+	int		(*create)(struct socket *sock, int protocol);
 	/* These are counters for the number of different methods of
 	   each we support */
-	short	authentication;
-	short	encryption;
-	short	encrypt_net;
+	short		authentication;
+	short		encryption;
+	short		encrypt_net;
+	struct module	*owner;
 };
 
 struct iovec;
@@ -221,7 +224,7 @@ SOCKCALL_WRAP(name, mmap, (struct file *file, struct socket *sock, struct vm_are
 	      \
 static struct proto_ops name##_ops = {			\
 	.family		= fam,				\
-							\
+	.owner		= THIS_MODULE,			\
 	.release	= __lock_##name##_release,	\
 	.bind		= __lock_##name##_bind,		\
 	.connect	= __lock_##name##_connect,	\

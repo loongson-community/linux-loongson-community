@@ -235,6 +235,7 @@ static int netlink_create(struct socket *sock, int protocol)
 		return -ENOMEM;
 
 	sock_init_data(sock,sk);
+	sk_set_owner(sk, THIS_MODULE);
 
 	nlk = nlk_sk(sk) = kmalloc(sizeof(*nlk), GFP_KERNEL);
 	if (!nlk) {
@@ -1030,7 +1031,7 @@ int netlink_unregister_notifier(struct notifier_block *nb)
                 
 struct proto_ops netlink_ops = {
 	.family =	PF_NETLINK,
-
+	.owner =	THIS_MODULE,
 	.release =	netlink_release,
 	.bind =		netlink_bind,
 	.connect =	netlink_connect,
@@ -1052,6 +1053,7 @@ struct proto_ops netlink_ops = {
 struct net_proto_family netlink_family_ops = {
 	.family = PF_NETLINK,
 	.create = netlink_create,
+	.owner	= THIS_MODULE,	/* for consistency 8) */
 };
 
 static int __init netlink_proto_init(void)
@@ -1066,6 +1068,11 @@ static int __init netlink_proto_init(void)
 #ifdef CONFIG_PROC_FS
 	create_proc_read_entry("net/netlink", 0, 0, netlink_read_proc, NULL);
 #endif
+	/* The netlink device handler may be needed early. */ 
+	rtnetlink_init();
+#ifdef CONFIG_NETLINK_DEV
+	init_netlink();
+#endif
 	return 0;
 }
 
@@ -1075,7 +1082,7 @@ static void __exit netlink_proto_exit(void)
        remove_proc_entry("net/netlink", NULL);
 }
 
-module_init(netlink_proto_init);
+subsys_initcall(netlink_proto_init);
 module_exit(netlink_proto_exit);
 
 MODULE_LICENSE("GPL");

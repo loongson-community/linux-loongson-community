@@ -111,7 +111,7 @@ MODULE_PARM(cycle_time, "i");
 
 /*====================================================================*/
 
-static void tcic_interrupt(int irq, void *dev, struct pt_regs *regs);
+static irqreturn_t tcic_interrupt(int irq, void *dev, struct pt_regs *regs);
 static void tcic_timer(u_long data);
 static struct pccard_operations tcic_operations;
 
@@ -229,9 +229,10 @@ static int to_cycles(int ns)
 
 static volatile u_int irq_hits;
 
-static void __init tcic_irq_count(int irq, void *dev, struct pt_regs *regs)
+static irqreturn_t __init tcic_irq_count(int irq, void *dev, struct pt_regs *regs)
 {
     irq_hits++;
+    return IRQ_HANDLED;
 }
 
 static u_int __init try_irq(int irq)
@@ -378,9 +379,8 @@ static struct pcmcia_socket_class_data tcic_data = {
 static struct device_driver tcic_driver = {
 	.name = "tcic-pcmcia",
 	.bus = &platform_bus_type,
-	.devclass = &pcmcia_socket_class,
-	.suspend = pcmcia_socket_dev_suspend,
-	.resume = pcmcia_socket_dev_resume,
+/*	.suspend = pcmcia_socket_dev_suspend,	FIXME?	*/
+/*	.resume = pcmcia_socket_dev_resume,	FIXME?	*/
 };
 
 static struct platform_device tcic_device = {
@@ -389,6 +389,10 @@ static struct platform_device tcic_device = {
 	.dev = {
 		.name = "tcic-pcmcia",
 	},
+};
+
+static struct class_device tcic_class_data = {
+	.class = &pcmcia_socket_class,
 };
 
 static int __init init_tcic(void)
@@ -521,9 +525,12 @@ static int __init init_tcic(void)
     tcic_interrupt(0, NULL, NULL);
 
     tcic_data.nsock = sockets;
-    tcic_device.dev.class_data = &tcic_data;
-
+    tcic_class_data.dev = &tcic_device.dev;
+    tcic_class_data.class_data = &tcic_data;
+    strncpy(tcic_class_data.class_id, "tcic-pcmcia", BUS_ID_SIZE);
+    
     platform_device_register(&tcic_device);
+    class_device_register(&tcic_class_data);
 
     return 0;
     
@@ -539,6 +546,7 @@ static void __exit exit_tcic(void)
 	free_irq(cs_irq, tcic_interrupt);
     }
     release_region(tcic_base, 16);
+    class_device_unregister(&tcic_class_data);
     platform_device_unregister(&tcic_device);
     driver_unregister(&tcic_driver);
 } /* exit_tcic */
@@ -565,7 +573,7 @@ static void tcic_bh(void *dummy)
 
 static DECLARE_WORK(tcic_task, tcic_bh, NULL);
 
-static void tcic_interrupt(int irq, void *dev, struct pt_regs *regs)
+static irqreturn_t tcic_interrupt(int irq, void *dev, struct pt_regs *regs)
 {
     int i, quick = 0;
     u_char latch, sstat;
@@ -575,7 +583,7 @@ static void tcic_interrupt(int irq, void *dev, struct pt_regs *regs)
 
     if (active) {
 	printk(KERN_NOTICE "tcic: reentered interrupt handler!\n");
-	return;
+	return IRQ_NONE;
     } else
 	active = 1;
 
@@ -620,7 +628,7 @@ static void tcic_interrupt(int irq, void *dev, struct pt_regs *regs)
     active = 0;
     
     DEBUG(2, "tcic: interrupt done\n");
-    
+    return IRQ_HANDLED;
 } /* tcic_interrupt */
 
 static void tcic_timer(u_long data)

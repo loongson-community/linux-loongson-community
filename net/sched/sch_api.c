@@ -16,6 +16,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -138,21 +139,19 @@ static rwlock_t qdisc_mod_lock = RW_LOCK_UNLOCKED;
 
 /* The list of all installed queueing disciplines. */
 
-static struct Qdisc_ops *qdisc_base = NULL;
+static struct Qdisc_ops *qdisc_base;
 
 /* Register/uregister queueing discipline */
 
 int register_qdisc(struct Qdisc_ops *qops)
 {
 	struct Qdisc_ops *q, **qp;
+	int rc = -EEXIST;
 
 	write_lock(&qdisc_mod_lock);
-	for (qp = &qdisc_base; (q=*qp)!=NULL; qp = &q->next) {
-		if (strcmp(qops->id, q->id) == 0) {
-			write_unlock(&qdisc_mod_lock);
-			return -EEXIST;
-		}
-	}
+	for (qp = &qdisc_base; (q = *qp) != NULL; qp = &q->next)
+		if (!strcmp(qops->id, q->id))
+			goto out;
 
 	if (qops->enqueue == NULL)
 		qops->enqueue = noop_qdisc_ops.enqueue;
@@ -163,8 +162,10 @@ int register_qdisc(struct Qdisc_ops *qops)
 
 	qops->next = NULL;
 	*qp = qops;
+	rc = 0;
+out:
 	write_unlock(&qdisc_mod_lock);
-	return 0;
+	return rc;
 }
 
 int unregister_qdisc(struct Qdisc_ops *qops)
@@ -447,6 +448,10 @@ qdisc_create(struct net_device *dev, u32 handle, struct rtattr **tca, int *errp)
         else
                 sch->handle = handle;
 
+	err = -EBUSY;
+	if (!try_module_get(ops->owner))
+		goto err_out;
+
 	if (!ops->init || (err = ops->init(sch, tca[TCA_OPTIONS-1])) == 0) {
 		write_lock(&qdisc_tree_lock);
 		sch->next = dev->qdisc_list;
@@ -458,6 +463,7 @@ qdisc_create(struct net_device *dev, u32 handle, struct rtattr **tca, int *errp)
 #endif
 		return sch;
 	}
+	module_put(ops->owner);
 
 err_out:
 	*errp = err;

@@ -734,7 +734,6 @@ struct ff_effect {
  * In-kernel definitions.
  */
 
-#include <linux/devfs_fs_kernel.h>
 #include <linux/fs.h>
 #include <linux/timer.h>
 
@@ -895,8 +894,8 @@ void input_close_device(struct input_handle *);
 int input_accept_process(struct input_handle *handle, struct file *file);
 int input_flush_device(struct input_handle* handle, struct file* file);
 
-devfs_handle_t input_register_minor(char *name, int minor, int minor_base);
-void input_unregister_minor(devfs_handle_t handle);
+/* will go away once devfs_register gets sanitized */
+void input_register_minor(char *name, int minor, int minor_base);
 
 void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value);
 
@@ -909,7 +908,7 @@ void input_event(struct input_dev *dev, unsigned int type, unsigned int code, in
 #define input_regs(a,b)		do { (a)->regs = (b); } while (0)
 #define input_sync(a)		do { input_event(a, EV_SYN, SYN_REPORT, 0); (a)->regs = NULL; } while (0)
 
-extern struct device_class input_devclass;
+extern struct class input_class;
 
 #endif
 #endif

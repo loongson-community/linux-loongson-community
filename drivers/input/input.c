@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/poll.h>
 #include <linux/device.h>
+#include <linux/devfs_fs_kernel.h>
 
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
@@ -32,13 +33,12 @@ EXPORT_SYMBOL(input_unregister_device);
 EXPORT_SYMBOL(input_register_handler);
 EXPORT_SYMBOL(input_unregister_handler);
 EXPORT_SYMBOL(input_register_minor);
-EXPORT_SYMBOL(input_unregister_minor);
 EXPORT_SYMBOL(input_open_device);
 EXPORT_SYMBOL(input_close_device);
 EXPORT_SYMBOL(input_accept_process);
 EXPORT_SYMBOL(input_flush_device);
 EXPORT_SYMBOL(input_event);
-EXPORT_SYMBOL(input_devclass);
+EXPORT_SYMBOL(input_class);
 
 #define INPUT_MAJOR	13
 #define INPUT_DEVICES	256
@@ -47,7 +47,6 @@ static LIST_HEAD(input_dev_list);
 static LIST_HEAD(input_handler_list);
 
 static struct input_handler *input_table[8];
-static devfs_handle_t input_devfs_handle;
 
 #ifdef CONFIG_PROC_FS
 static struct proc_dir_entry *proc_bus_input_dir;
@@ -542,20 +541,13 @@ static struct file_operations input_fops = {
 	.open = input_open_file,
 };
 
-devfs_handle_t input_register_minor(char *name, int minor, int minor_base)
+void input_register_minor(char *name, int minor, int minor_base)
 {
 	char devfs_name[16];
+
 	sprintf(devfs_name, name, minor);
-
-	return devfs_register(NULL, devfs_name, 0,
-			INPUT_MAJOR, minor + minor_base,
-			S_IFCHR|S_IRUGO|S_IWUSR,
-			&input_fops, NULL);
-}
-
-void input_unregister_minor(devfs_handle_t handle)
-{
-	devfs_unregister(handle);
+	devfs_register(NULL, devfs_name, 0, INPUT_MAJOR, minor_base + minor,
+			S_IFCHR|S_IRUGO|S_IWUSR, &input_fops, NULL);
 }
 
 #ifdef CONFIG_PROC_FS
@@ -675,7 +667,7 @@ static int input_handlers_read(char *buf, char **start, off_t pos, int count, in
 
 #endif
 
-struct device_class input_devclass = {
+struct class input_class = {
 	.name		= "input",
 };
 
@@ -683,7 +675,7 @@ static int __init input_init(void)
 {
 	struct proc_dir_entry *entry;
 
-	devclass_register(&input_devclass);
+	class_register(&input_class);
 
 #ifdef CONFIG_PROC_FS
 	proc_bus_input_dir = proc_mkdir("input", proc_bus);
@@ -699,8 +691,7 @@ static int __init input_init(void)
 		return -EBUSY;
 	}
 
-	input_devfs_handle = devfs_mk_dir("input");
-
+	devfs_mk_dir("input");
 	return 0;
 }
 
@@ -711,10 +702,10 @@ static void __exit input_exit(void)
 	remove_proc_entry("handlers", proc_bus_input_dir);
 	remove_proc_entry("input", proc_bus);
 #endif
-	devfs_unregister(input_devfs_handle);
+	devfs_remove("input");
         if (unregister_chrdev(INPUT_MAJOR, "input"))
                 printk(KERN_ERR "input: can't unregister char major %d", INPUT_MAJOR);
-	devclass_unregister(&input_devclass);
+	class_unregister(&input_class);
 }
 
 subsys_initcall(input_init);

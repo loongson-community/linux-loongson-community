@@ -33,11 +33,11 @@
 #define SYNC_INIT 1
 #endif
 
-int sysctl_tcp_tw_recycle = 0;
+int sysctl_tcp_tw_recycle;
 int sysctl_tcp_max_tw_buckets = NR_FILE*2;
 
 int sysctl_tcp_syncookies = SYNC_INIT; 
-int sysctl_tcp_abort_on_overflow = 0;
+int sysctl_tcp_abort_on_overflow;
 
 static __inline__ int tcp_in_window(u32 seq, u32 end_seq, u32 s_win, u32 e_win)
 {
@@ -50,7 +50,7 @@ static __inline__ int tcp_in_window(u32 seq, u32 end_seq, u32 s_win, u32 e_win)
 
 /* New-style handling of TIME_WAIT sockets. */
 
-int tcp_tw_count = 0;
+int tcp_tw_count;
 
 
 /* Must be called with locally disabled BHs. */
@@ -967,6 +967,7 @@ struct sock *tcp_check_req(struct sock *sk,struct sk_buff *skb,
 	if (child == NULL)
 		goto listen_overflow;
 
+	sk_set_owner(child, sk->owner);
 	tcp_synq_unlink(tp, req, prev);
 	tcp_synq_removed(sk, req);
 

@@ -17,12 +17,12 @@
 #define NR_IRQS 128		/* Largest number of ints of all machines.  */
 
 #ifdef CONFIG_I8259
-static inline int irq_cannonicalize(int irq)
+static inline int irq_canonicalize(int irq)
 {
 	return ((irq == 2) ? 9 : irq);
 }
 #else
-#define irq_cannonicalize(irq) (irq)	/* Sane hardware, sane code ... */
+#define irq_canonicalize(irq) (irq)	/* Sane hardware, sane code ... */
 #endif
 
 extern void disable_irq(unsigned int);

@@ -228,25 +228,6 @@ typedef unsigned char	byte;	/* used everywhere */
 #define PRD_ENTRIES     (PAGE_SIZE / (2 * PRD_BYTES))
 
 /*
- * Our Physical Region Descriptor (PRD) table should be large enough
- * to handle the biggest I/O request we are likely to see.  Since requests
- * can have no more than 256 sectors, and since the typical blocksize is
- * two or more sectors, we could get by with a limit of 128 entries here for
- * the usual worst case.  Most requests seem to include some contiguous blocks,
- * further reducing the number of table entries required.
- *
- * The driver reverts to PIO mode for individual requests that exceed
- * this limit (possible with 512 byte blocksizes, eg. MSDOS f/s), so handling
- * 100% of all crazy scenarios here is not necessary.
- *
- * As it turns out though, we must allocate a full 4KB page for this,
- * so the two PRD tables (ide0 & ide1) will each get half of that,
- * allowing each to have about 256 entries (8 bytes each) from this.
- */
-#define PRD_BYTES	8
-#define PRD_ENTRIES	(PAGE_SIZE / (2 * PRD_BYTES))
-
-/*
  * Some more useful definitions
  */
 #define IDE_MAJOR_NAME	"hd"	/* the same for all i/f; see also genhd.c */
@@ -1245,7 +1226,6 @@ extern int noautodma;
  * We need blk.h, but we replace its end_request by our own version.
  */
 #define IDE_DRIVER		/* Toggle some magic bits in blk.h */
-#define LOCAL_END_REQUEST	/* Don't generate end_request in blk.h */
 #include <linux/blk.h>
 
 extern int ide_end_request (ide_drive_t *drive, int uptodate, int nrsecs);
@@ -1428,6 +1408,8 @@ typedef struct pkt_task_s {
 	void			*special;
 } pkt_task_t;
 
+extern inline u32 ide_read_24(ide_drive_t *);
+
 extern inline void SELECT_DRIVE(ide_drive_t *);
 extern inline void SELECT_INTERRUPT(ide_drive_t *);
 extern inline void SELECT_MASK(ide_drive_t *, int);
@@ -1568,7 +1550,7 @@ extern void ide_stall_queue(ide_drive_t *drive, unsigned long timeout);
 
 extern int ide_spin_wait_hwgroup(ide_drive_t *);
 extern void ide_timer_expiry(unsigned long);
-extern void ide_intr(int irq, void *dev_id, struct pt_regs *regs);
+extern irqreturn_t ide_intr(int irq, void *dev_id, struct pt_regs *regs);
 extern void do_ide_request(request_queue_t *);
 extern void ide_init_subdrivers(void);
 

@@ -967,7 +967,7 @@ config SMP
 
 	  See also the <file:Documentation/smp.tex>,
 	  <file:Documentation/smp.txt> and the SMP-HOWTO available at
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you don't know what to do here, say N.
 
@@ -1038,7 +1038,7 @@ config PCI
 	  say Y, otherwise N.
 
 	  The PCI-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>, contains valuable
+	  <http://www.tldp.org/docs.html#howto>, contains valuable
 	  information about which PCI hardware does work under Linux and which
 	  doesn't.
 
@@ -1172,7 +1172,7 @@ config BINFMT_ELF
 	  want to say Y here.
 
 	  Information about ELF is contained in the ELF HOWTO available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  If you find that after upgrading from Linux kernel 1.2 and saying Y
 	  here, you still can't run any ELF binaries (they just crash), then
@@ -1236,7 +1236,7 @@ config BINFMT_MISC
 	  programs that need an interpreter to run like Java, Python or
 	  Emacs-Lisp. It's also useful if you often run DOS executables under
 	  the Linux DOS emulator DOSEMU (read the DOSEMU-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>). Once you have
+	  <http://www.tldp.org/docs.html#howto>). Once you have
 	  registered such a binary class with the kernel, you can start one of
 	  those programs simply by typing in its name at a shell prompt; Linux
 	  will automatically feed it to the correct interpreter.
@@ -1375,7 +1375,7 @@ config CD_NO_IDESCSI
 	---help---
 	  If you have a CD-ROM drive that is neither SCSI nor IDE/ATAPI, say Y
 	  here, otherwise N. Read the CD-ROM-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>.
+	  <http://www.tldp.org/docs.html#howto>.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -1448,7 +1448,7 @@ config SOUND
 	  interrupt and DMA channel), because you will be asked for it.
 
 	  You want to read the Sound-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>. General information about
+	  <http://www.tldp.org/docs.html#howto>. General information about
 	  the modular sound system is contained in the files
 	  <file:Documentation/sound/Introduction>.  The file
 	  <file:Documentation/sound/README.OSS> contains some slightly

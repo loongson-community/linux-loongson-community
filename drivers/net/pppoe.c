@@ -471,16 +471,15 @@ struct packet_type pppoed_ptype = {
 
 /***********************************************************************
  *
- * Really kill the socket. (Called from sock_put if refcnt == 0.)
+ * Really kill the socket. (Called from pppox_sk_free if refcnt == 0.)
  *
  **********************************************************************/
-void pppoe_sock_destruct(struct sock *sk)
+static void pppoe_sk_free(struct sock *sk)
 {
 	struct pppox_opt *po = pppox_sk(sk);
 
 	if (po)
 		kfree(po);
-	MOD_DEC_USE_COUNT;
 }
 
 
@@ -495,26 +494,21 @@ static int pppoe_create(struct socket *sock)
 	struct sock *sk;
 	struct pppox_opt *po;
 
-	MOD_INC_USE_COUNT;
-
 	sk = sk_alloc(PF_PPPOX, GFP_KERNEL, 1, NULL);
 	if (!sk)
-		goto decmod;
+		goto out;
 
 	sock_init_data(sock, sk);
-
+	sk_set_owner(sk, THIS_MODULE);
 	sock->state = SS_UNCONNECTED;
 	sock->ops   = &pppoe_ops;
 
-	sk->protocol = PX_PROTO_OE;
-	sk->family = PF_PPPOX;
-
 	sk->backlog_rcv = pppoe_rcv_core;
-	sk->next = NULL;
-	sk->pprev = NULL;
 	sk->state = PPPOX_NONE;
 	sk->type = SOCK_STREAM;
-	sk->destruct = pppoe_sock_destruct;
+	sk->family   = PF_PPPOX;
+	sk->protocol = PX_PROTO_OE;
+	sk->destruct = pppoe_sk_free;
 
 	po = pppox_sk(sk) = kmalloc(sizeof(*po), GFP_KERNEL);
 	if (!po)
@@ -522,10 +516,8 @@ static int pppoe_create(struct socket *sock)
 	memset(po, 0, sizeof(*po));
 	po->sk = sk;
 	error = 0;
-	sock->sk = sk;
 out:	return error;
 frees:	sk_free(sk);
-decmod:	MOD_DEC_USE_COUNT;
 	goto out;
 }
 
@@ -1075,8 +1067,11 @@ static struct file_operations pppoe_seq_fops = {
 };
 #endif /* CONFIG_PROC_FS */
 
+/* ->ioctl are set at pppox_create */
+
 struct proto_ops pppoe_ops = {
     .family		= AF_PPPOX,
+    .owner		= THIS_MODULE,
     .release		= pppoe_release,
     .bind		= sock_no_bind,
     .connect		= pppoe_connect,
@@ -1084,7 +1079,6 @@ struct proto_ops pppoe_ops = {
     .accept		= sock_no_accept,
     .getname		= pppoe_getname,
     .poll		= datagram_poll,
-    .ioctl		= pppoe_ioctl,
     .listen		= sock_no_listen,
     .shutdown		= sock_no_shutdown,
     .setsockopt		= sock_no_setsockopt,
@@ -1096,7 +1090,8 @@ struct proto_ops pppoe_ops = {
 
 struct pppox_proto pppoe_proto = {
     .create	= pppoe_create,
-    .ioctl	= pppoe_ioctl
+    .ioctl	= pppoe_ioctl,
+    .owner	= THIS_MODULE,
 };
 
 
