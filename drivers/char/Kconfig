@@ -860,6 +860,13 @@ config SGI_IP27_RTC
 	  via the file /proc/rtc and its behaviour is set by various ioctls on
 	  /dev/rtc.
 
+config COBALT_LCD
+	bool "Support for Cobalt LCD"
+	depends on MIPS_COBALT
+	help
+	  This option enables support for the LCD display and buttons found
+	  on Cobalt systems through a misc device.
+
 config H8
 	bool "Tadpole ANA H8 Support (OBSOLETE)"
 	depends on OBSOLETE && ALPHA_BOOK1

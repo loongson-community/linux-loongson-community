@@ -14,8 +14,8 @@
 
 // function headers
 
-int dqpoll( volatile unsigned long, volatile unsigned char );
-int timeout( volatile unsigned long );
+static int dqpoll(volatile unsigned long, volatile unsigned char );
+static int timeout(volatile unsigned long);
 
 #define LCD_CHARS_PER_LINE 40
 #define FLASH_SIZE 524288

@@ -609,7 +609,7 @@ static struct miscdevice lcd_dev = {
 	&lcd_fops
 };
 
-int lcd_init(void)
+static int lcd_init(void)
 {
 	unsigned long data;
 
@@ -633,6 +633,10 @@ int lcd_init(void)
 	return 0;
 }
 
+static void __exit lcd_exit(void)
+{
+	misc_deregister(&lcd_dev);
+}
 
 //
 // Function: dqpoll
@@ -645,7 +649,7 @@ int lcd_init(void)
 //
 //
 
-int dqpoll(volatile unsigned long address, volatile unsigned char data)
+static int dqpoll(volatile unsigned long address, volatile unsigned char data)
 {
 	volatile unsigned char dq7;
 
@@ -653,7 +657,6 @@ int dqpoll(volatile unsigned long address, volatile unsigned char data)
 
 	return ((READ_FLASH(address) & 0x80) == dq7);
 }
-
 
 //
 // Function: timeout
@@ -666,7 +669,13 @@ int dqpoll(volatile unsigned long address, volatile unsigned char data)
 //
 // Out: 0 = not timed out, 1 = timed out
 
-int timeout(volatile unsigned long address)
+static int timeout(volatile unsigned long address)
 {
 	return (READ_FLASH(address) & 0x20) == 0x20;
 }
+
+module_init(lcd_init);
+module_exit(lcd_exit);
+                                                                                
+MODULE_AUTHOR("Andrew Bose");
+MODULE_LICENSE("GPL");
