@@ -91,6 +91,7 @@ unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 struct boot_mem_map boot_mem_map;
 
 unsigned char aux_device_present;
+
 extern char _ftext, _etext, _fdata, _edata, _end;
 
 static char command_line[CL_SIZE] = { 0, };
@@ -103,10 +104,6 @@ extern char arcs_cmdline[CL_SIZE];
  */
 const unsigned long mips_io_port_base = -1;
 EXPORT_SYMBOL(mips_io_port_base);
-
-extern void ip22_setup(void);
-extern void ip27_setup(void);
-extern void ip32_setup(void);
 
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped
@@ -420,6 +417,12 @@ static inline void resource_init(void)
 
 void __init setup_arch(char **cmdline_p)
 {
+	extern void ip22_setup(void);
+	extern void ip27_setup(void);
+	extern void ip32_setup(void);
+	extern void swarm_setup(void);
+	extern void malta_setup(void);
+
 #ifdef CONFIG_SGI_IP22
 	ip22_setup();
 #endif
