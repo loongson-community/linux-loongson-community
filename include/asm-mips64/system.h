@@ -17,17 +17,23 @@
 
 #include <linux/kernel.h>
 
-static inline void __sti(void)
+__asm__ (
+	".macro\t__sti\n\t"
+	".set\tpush\n\t"
+	".set\treorder\n\t"
+	".set\tnoat\n\t"
+	"mfc0\t$1,$12\n\t"
+	"ori\t$1,0x1f\n\t"
+	"xori\t$1,0x1e\n\t"
+	"mtc0\t$1,$12\n\t"
+	".set\tpop\n\t"
+	".endm");
+
+extern __inline__ void
+__sti(void)
 {
 	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		"mfc0\t$1,$12\n\t"
-		"ori\t$1,0x1f\n\t"
-		"xori\t$1,0x1e\n\t"
-		"mtc0\t$1,$12\n\t"
-		".set\tat\n\t"
-		".set\treorder"
+		"__sti"
 		: /* no outputs */
 		: /* no inputs */
 		: "memory");
@@ -40,67 +46,90 @@ static inline void __sti(void)
  * R4000/R4400 need three nops, the R4600 two nops and the R10000 needs
  * no nops at all.
  */
-static inline void __cli(void)
+__asm__ (
+	".macro\t__cli\n\t"
+	".set\tpush\n\t"
+	".set\treorder\n\t"
+	".set\tnoat\n\t"
+	"mfc0\t$1,$12\n\t"
+	"ori\t$1,1\n\t"
+	"xori\t$1,1\n\t"
+	".set\tnoreorder\n\t"
+	"mtc0\t$1,$12\n\t"
+	"nop\n\t"
+	"nop\n\t"
+	"nop\n\t"
+	".set\tpop\n\t"
+	".endm");
+
+extern __inline__ void
+__cli(void)
 {
 	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		"mfc0\t$1,$12\n\t"
-		"ori\t$1,1\n\t"
-		"xori\t$1,1\n\t"
-		"mtc0\t$1,$12\n\t"
-		"nop\n\t"
-		"nop\n\t"
-		"nop\n\t"
-		".set\tat\n\t"
-		".set\treorder"
+		"__cli"
 		: /* no outputs */
 		: /* no inputs */
 		: "memory");
 }
 
+__asm__ (
+	".macro\t__save_flags flags\n\t"
+	".set\tpush\n\t"
+	".set\treorder\n\t"
+	"mfc0\t\\flags, $12\n\t"
+	".set\tpop\n\t"
+	".endm");
+
 #define __save_flags(x)							\
 __asm__ __volatile__(							\
-	".set\tnoreorder\n\t"						\
-	"mfc0\t%0,$12\n\t"						\
-	".set\treorder"							\
+	"__save_flags %0"						\
 	: "=r" (x))
+
+__asm__ (
+	".macro\t__save_and_cli result\n\t"
+	".set\tpush\n\t"
+	".set\treorder\n\t"
+	".set\tnoat\n\t"
+	"mfc0\t\\result, $12\n\t"
+	"ori\t$1, \\result, 1\n\t"
+	"xori\t$1, 1\n\t"
+	".set\tnoreorder\n\t"
+	"mtc0\t$1, $12\n\t"
+	"nop\n\t"
+	"nop\n\t"
+	"nop\n\t"
+	".set\tpop\n\t"	
+	".endm");
 
 #define __save_and_cli(x)						\
 __asm__ __volatile__(							\
-	".set\tnoreorder\n\t"						\
-	".set\tnoat\n\t"						\
-	"mfc0\t%0,$12\n\t"						\
-	"ori\t$1,%0,1\n\t"						\
-	"xori\t$1,1\n\t"						\
-	"mtc0\t$1,$12\n\t"						\
-	"nop\n\t"							\
-	"nop\n\t"							\
-	"nop\n\t"							\
-	".set\tat\n\t"							\
-	".set\treorder"							\
+	"__save_and_cli\t%0"						\
 	: "=r" (x)							\
 	: /* no inputs */						\
 	: "memory")
+
+__asm__(".macro\t__restore_flags flags\n\t"
+	".set\tnoreorder\n\t"
+	".set\tnoat\n\t"
+	"mfc0\t$1, $12\n\t"
+	"andi\t\\flags, 1\n\t"
+	"ori\t$1, 1\n\t"
+	"xori\t$1, 1\n\t"
+	"or\t\\flags, $1\n\t"
+	"mtc0\t\\flags, $12\n\t"
+	"nop\n\t"
+	"nop\n\t"
+	"nop\n\t"
+	".set\tat\n\t"
+	".set\treorder\n\t"
+	".endm");
 
 #define __restore_flags(flags)						\
 do {									\
 	unsigned long __tmp1;						\
 									\
 	__asm__ __volatile__(						\
-		".set\tnoreorder\t\t\t# __restore_flags\n\t"		\
-		".set\tnoat\n\t"					\
-		"mfc0\t$1, $12\n\t"					\
-		"andi\t%0, 1\n\t"					\
-		"ori\t$1, 1\n\t"					\
-		"xori\t$1, 1\n\t"					\
-		"or\t%0, $1\n\t"					\
-		"mtc0\t%0, $12\n\t"					\
-		"nop\n\t"						\
-		"nop\n\t"						\
-		"nop\n\t"						\
-		".set\tat\n\t"						\
-		".set\treorder"						\
+		"__restore_flags\t%0"					\
 		: "=r" (__tmp1)						\
 		: "0" (flags)						\
 		: "memory");						\
