@@ -36,12 +36,6 @@
 #include <asm/sibyte/sb1250_scd.h>
 #include <asm/sibyte/sb1250.h>
 
-/* Sanity check.  We're an sb1250, with 2 SB1 cores on die; we'd better have configured for 
-   an sb1 cpu */
-#ifndef CONFIG_CPU_SB1
-#error "Sb1250 requires configuration of SB1 cpu"
-#endif
-
 /*
  *  These are the routines that handle all the low level interrupt stuff. 
  *  Actions handled here are: initialization of the interrupt map, 
@@ -203,6 +197,10 @@ int setup_irq(unsigned int irq, struct irqaction * new)
 		desc->handler->startup(irq);
 	}
 	spin_unlock_irqrestore(&desc->lock,flags);
+
+	if ((irq >= 56) && (irq <= 59))
+		sb1250_unmask_irq(0,irq);
+
 	return 0;
 }
 
@@ -228,7 +226,6 @@ int setup_irq(unsigned int irq, struct irqaction * new)
  */
 void __init init_IRQ(void)
 {
-
 	unsigned int i;
 	u64 tmp;
 	/* Default everything to IP2 */
@@ -237,10 +234,16 @@ void __init init_IRQ(void)
 		IMR_REG(1, i) = K_INT_MAP_I0;
 	}
 
-	/* Map general purpose timer 0 to IP[4] on cpu 0.  This is the system timer */
+	/*
+	 * Map general purpose timer 0 to IP[4] on cpu 0.  This is the system
+	 * timer
+	 */
 	IMR_REG(0, K_INT_TIMER_0) = K_INT_MAP_I2;
 
-	/* Map the high 16 bits of the mailbox registers to IP[3], for inter-cpu messages */
+	/*
+	 * Map the high 16 bits of the mailbox registers to IP[3], for
+	 *inter-cpu messages
+	 */
 	IMR_REG(0, K_INT_MBOX_0) = K_INT_MAP_I1;
 	IMR_REG(1, K_INT_MBOX_0) = K_INT_MAP_I1;
 
@@ -308,8 +311,7 @@ int request_irq(unsigned int irq,
 	retval = setup_irq(irq, action);
 	if (retval) {
 		kfree(action);
-	}
-	else {
+	} else {
 	    if ((irq >= 56) && (irq <= 59)) {
 		sb1250_unmask_irq(0,irq);
 		}
