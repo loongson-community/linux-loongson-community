@@ -6,13 +6,8 @@
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 1998, 1999, 2000 Ralf Baechle ralf@gnu.org
- *
- * To do:
- *
- *  - this code is a overbloated pig
- *  - many of the bug workarounds are not efficient at all, but at
- *    least they are functional ...
+ * Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -20,9 +15,9 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 
+#include <asm/bcache.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
-#include <asm/bcache.h>
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -31,16 +26,14 @@
 #include <asm/war.h>
 
 /* Primary cache parameters. */
-static int icache_size, dcache_size; /* Size in bytes */
-static int ic_lsize, dc_lsize;       /* LineSize in bytes */
+static unsigned long icache_size, dcache_size; /* Size in bytes */
+static unsigned long ic_lsize, dc_lsize;       /* LineSize in bytes */
 
 /* Secondary cache (if present) parameters. */
 static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
 
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
-
-#undef DEBUG_CACHE
 
 /*
  * Dummy cache handling routines for machines without boardcaches
@@ -125,16 +118,14 @@ static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s16d16i16();
 		} else {
 			pgd_t *pgd;
@@ -146,7 +137,7 @@ static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
 				pmd = pmd_offset(pgd, start);
 				pte = pte_offset(pmd, start);
 
-				if(pte_val(*pte) & _PAGE_VALID)
+				if (pte_val(*pte) & _PAGE_VALID)
 					blast_scache16_page(start);
 				start += PAGE_SIZE;
 			}
@@ -159,16 +150,14 @@ static void r4k_flush_cache_range_s32d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s32d16i16();
 		} else {
 			pgd_t *pgd;
@@ -194,16 +183,14 @@ static void r4k_flush_cache_range_s64d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if(vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s64d16i16();
 		} else {
 			pgd_t *pgd;
@@ -229,16 +216,14 @@ static void r4k_flush_cache_range_s128d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s128d16i16();
 		} else {
 			pgd_t *pgd;
@@ -264,16 +249,14 @@ static void r4k_flush_cache_range_s32d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s32d32i32();
 		} else {
 			pgd_t *pgd;
@@ -298,16 +281,14 @@ static void r4k_flush_cache_range_s64d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s64d32i32();
 		} else {
 			pgd_t *pgd;
@@ -333,16 +314,14 @@ static void r4k_flush_cache_range_s128d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
 	vma = find_vma(mm, start);
 	if (vma) {
-		if (mm->context != current->active_mm->context) {
+		if (CPU_CONTEXT(smp_processor_id(), mm) !=
+		    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s128d32i32();
 		} else {
 			pgd_t *pgd;
@@ -367,10 +346,7 @@ static void r4k_flush_cache_range_d16i16(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		blast_dcache16(); blast_icache16();
 	}
 }
@@ -380,10 +356,7 @@ static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		blast_dcache32(); blast_icache32();
 	}
 }
@@ -395,90 +368,63 @@ static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
  */
 static void r4k_flush_cache_mm_s16d16i16(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s16d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s32d16i16(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s32d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s64d16i16(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s64d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s128d16i16(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s128d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s32d32i32(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s32d32i32();
 	}
 }
 
 static void r4k_flush_cache_mm_s64d32i32(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s64d32i32();
 	}
 }
 
 static void r4k_flush_cache_mm_s128d32i32(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s128d32i32();
 	}
 }
 
 static void r4k_flush_cache_mm_d16i16(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_d32i32(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_d32i32();
 	}
 }
@@ -495,12 +441,9 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -519,7 +462,8 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -543,12 +487,9 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -566,7 +507,8 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -590,12 +532,9 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -613,7 +552,8 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -637,12 +577,9 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -660,7 +597,8 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -684,12 +622,9 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -707,7 +642,8 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -731,12 +667,9 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -755,7 +688,8 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -779,12 +713,9 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -803,7 +734,8 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
+	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/* Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
 		 */
@@ -826,12 +758,9 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -873,12 +802,9 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -921,12 +847,9 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -957,15 +880,6 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 	}
 }
 
-/* If the addresses passed to these routines are valid, they are
- * either:
- *
- * 1) In KSEG0, so we can do a direct flush of the page.
- * 2) In KSEG2, and since every process can translate those
- *    addresses all the time in kernel mode we can do a direct
- *    flush.
- * 3) In KSEG1, no flush necessary.
- */
 static void r4k_flush_page_to_ram_s16(struct page *page)
 {
 	blast_scache16_page((unsigned long)page_address(page));
@@ -1010,18 +924,17 @@ static void r4k_flush_page_to_ram_d32_r4600(struct page *page)
 #endif
 }
 
-static void
-r4k_flush_icache_page_s(struct vm_area_struct *vma, struct page *page)
+static void r4k_flush_icache_range(unsigned long start, unsigned long end)
+{
+	flush_cache_all();
+}
+
+static void r4k_flush_icache_page_s(struct vm_area_struct *vma,
+	struct page *page)
 {
 	/*
 	 * We did an scache flush therefore PI is already clean.
 	 */
-}
-
-static void
-r4k_flush_icache_range(unsigned long start, unsigned long end)
-{
-	flush_cache_all();
 }
 
 /*
@@ -1029,8 +942,8 @@ r4k_flush_icache_range(unsigned long start, unsigned long end)
  * know the virtual address, so we have to blast away the whole icache
  * which is significantly more expensive than the real thing.
  */
-static void
-r4k_flush_icache_page_p(struct vm_area_struct *vma, struct page *page)
+static void r4k_flush_icache_page_p(struct vm_area_struct *vma,
+	struct page *page)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
@@ -1038,8 +951,7 @@ r4k_flush_icache_page_p(struct vm_area_struct *vma, struct page *page)
 	flush_cache_all();
 }
 
-static void
-r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
+static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 	unsigned int flags;
@@ -1067,8 +979,7 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	bc_wback_inv(addr, size);
 }
 
-static void
-r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
+static void r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 
@@ -1086,8 +997,7 @@ r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 	}
 }
 
-static void
-r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
+static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 	unsigned int flags;
@@ -1096,7 +1006,7 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 		flush_cache_all();
 	} else {
 #ifdef R4600_V2_HIT_CACHEOP_WAR
-		/* Workaround for R4600 bug.  See comment above. */
+		/* Workaround for R4600 bug.  See comment in <asm/war>. */
 		__save_and_cli(flags);
 		*(volatile unsigned long *)KSEG1;
 #endif
@@ -1116,8 +1026,7 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	bc_inv(addr, size);
 }
 
-static void
-r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
+static void r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 
@@ -1148,8 +1057,10 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 	__save_and_cli(flags);
 	__asm__ __volatile__("nop;nop;nop;nop");
 #endif
+
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
+
 #ifdef R4600_V1_HIT_DCACHE_WAR
 	__restore_flags(flags);
 #endif
@@ -1157,9 +1068,9 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 
 static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 {
+#ifdef R4600_V2_HIT_CACHEOP_WAR
 	unsigned int flags;
 
-#ifdef R4600_V2_HIT_CACHEOP_WAR
 	__save_and_cli(flags);
 
 	/* Clear internal cache refill buffer */
@@ -1174,56 +1085,55 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #endif
 }
 
-/* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
-        switch (mips_cpu.cputype) {
-        case CPU_VR41XX:
-        case CPU_VR4111:
-        case CPU_VR4121:
-        case CPU_VR4122:
-        case CPU_VR4131:
-        case CPU_VR4181:
-        case CPU_VR4181A:
-                icache_size = 1 << (10 + ((config >> 9) & 7));
-                break;
-        default:
-                icache_size = 1 << (12 + ((config >> 9) & 7));
-                break;
-        }
+	switch (mips_cpu.cputype) {
+	case CPU_VR41XX:
+	case CPU_VR4111:
+	case CPU_VR4121:
+	case CPU_VR4122:
+	case CPU_VR4131:
+	case CPU_VR4181:
+	case CPU_VR4181A:
+		icache_size = 1 << (10 + ((config >> 9) & 7));
+		break;
+	default:
+		icache_size = 1 << (12 + ((config >> 9) & 7));
+		break;
+	}
 	ic_lsize = 16 << ((config >> 5) & 1);
 
-	printk("Primary instruction cache %dkb, linesize %d bytes.\n",
+	printk("Primary instruction cache %dkb, linesize %ld bytes.\n",
 	       icache_size >> 10, ic_lsize);
 }
 
 static void __init probe_dcache(unsigned long config)
 {
-        switch (mips_cpu.cputype) {
-        case CPU_VR41XX:
-        case CPU_VR4111:
-        case CPU_VR4121:
-        case CPU_VR4122:
-        case CPU_VR4131:
-        case CPU_VR4181:
-        case CPU_VR4181A:
-                dcache_size = 1 << (10 + ((config >> 6) & 7));
-                break;
-        default:
-                dcache_size = 1 << (12 + ((config >> 6) & 7));
-                break;
-        }
+	switch (mips_cpu.cputype) {
+	case CPU_VR41XX:
+	case CPU_VR4111:
+	case CPU_VR4121:
+	case CPU_VR4122:
+	case CPU_VR4131:
+	case CPU_VR4181:
+	case CPU_VR4181A:
+		dcache_size = 1 << (10 + ((config >> 6) & 7));
+		break;
+	default:
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		break;
+	}
 	dc_lsize = 16 << ((config >> 4) & 1);
 
-	printk("Primary data cache %dkb, linesize %d bytes.\n",
+	printk("Primary data cache %dkb, linesize %ld bytes.\n",
 	       dcache_size >> 10, dc_lsize);
 }
 
-
-/* If you even _breathe_ on this function, look at the gcc output
- * and make sure it does not pop things on and off the stack for
- * the cache sizing loop that executes in KSEG1 space or else
- * you will crash and burn badly.  You have been warned.
+/*
+ * If you even _breathe_ on this function, look at the gcc output and make sure
+ * it does not pop things on and off the stack for the cache sizing loop that
+ * executes in KSEG1 space or else you will crash and burn badly.  You have
+ * been warned.
  */
 static int __init probe_scache(unsigned long config)
 {
@@ -1254,14 +1164,15 @@ static int __init probe_scache(unsigned long config)
 	begin &= ~((4 * 1024 * 1024) - 1);
 	end = begin + (4 * 1024 * 1024);
 
-	/* This is such a bitch, you'd think they would make it
-	 * easy to do this.  Away you daemons of stupidity!
+	/*
+	 * This is such a bitch, you'd think they would make it easy to do
+	 * this.  Away you daemons of stupidity!
 	 */
 	__save_and_cli(flags);
 
 	/* Fill each size-multiple cache line with a valid tag. */
 	pow2 = (64 * 1024);
-	for(addr = begin; addr < end; addr = (begin + pow2)) {
+	for (addr = begin; addr < end; addr = (begin + pow2)) {
 		unsigned long *p = (unsigned long *) addr;
 		__asm__ __volatile__("nop" : : "r" (*p)); /* whee... */
 		pow2 <<= 1;
@@ -1271,33 +1182,17 @@ static int __init probe_scache(unsigned long config)
 	set_taglo(0);
 	set_taghi(0);
 	__asm__ __volatile__("nop; nop; nop; nop;"); /* avoid the hazard */
-	__asm__ __volatile__("\n\t.set noreorder\n\t"
-			     ".set mips3\n\t"
-			     "cache 8, (%0)\n\t"
-			     ".set mips0\n\t"
-			     ".set reorder\n\t" : : "r" (begin));
-	__asm__ __volatile__("\n\t.set noreorder\n\t"
-			     ".set mips3\n\t"
-			     "cache 9, (%0)\n\t"
-			     ".set mips0\n\t"
-			     ".set reorder\n\t" : : "r" (begin));
-	__asm__ __volatile__("\n\t.set noreorder\n\t"
-			     ".set mips3\n\t"
-			     "cache 11, (%0)\n\t"
-			     ".set mips0\n\t"
-			     ".set reorder\n\t" : : "r" (begin));
+	cache_op(Index_Store_Tag_I, begin);
+	cache_op(Index_Store_Tag_D, begin);
+	cache_op(Index_Store_Tag_SD, begin);
 
 	/* Now search for the wrap around point. */
 	pow2 = (128 * 1024);
 	tmp = 0;
-	for(addr = (begin + (128 * 1024)); addr < (end); addr = (begin + pow2)) {
-		__asm__ __volatile__("\n\t.set noreorder\n\t"
-				     ".set mips3\n\t"
-				     "cache 7, (%0)\n\t"
-				     ".set mips0\n\t"
-				     ".set reorder\n\t" : : "r" (addr));
+	for (addr = begin + (128 * 1024); addr < end; addr = begin + pow2) {
+		cache_op(Index_Load_Tag_SD, begin);
 		__asm__ __volatile__("nop; nop; nop; nop;"); /* hazard... */
-		if(!get_taglo())
+		if (!get_taglo())
 			break;
 		pow2 <<= 1;
 	}
@@ -1355,9 +1250,9 @@ static void __init setup_noscache_funcs(void)
 
 static void __init setup_scache_funcs(void)
 {
-	switch(sc_lsize) {
+	switch (sc_lsize) {
 	case 16:
-		switch(dc_lsize) {
+		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s16d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
@@ -1372,7 +1267,7 @@ static void __init setup_scache_funcs(void)
 		_copy_page = r4k_copy_page_s16;
 		break;
 	case 32:
-		switch(dc_lsize) {
+		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s32d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
@@ -1391,7 +1286,7 @@ static void __init setup_scache_funcs(void)
 		_copy_page = r4k_copy_page_s32;
 		break;
 	case 64:
-		switch(dc_lsize) {
+		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s64d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
@@ -1410,7 +1305,7 @@ static void __init setup_scache_funcs(void)
 		_copy_page = r4k_copy_page_s64;
 		break;
 	case 128:
-		switch(dc_lsize) {
+		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s128d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
@@ -1437,6 +1332,7 @@ static void __init setup_scache_funcs(void)
 }
 
 typedef int (*probe_func_t)(unsigned long);
+extern int r5k_sc_init(void);
 
 static inline void __init setup_scache(unsigned int config)
 {
@@ -1463,8 +1359,6 @@ static inline void __init setup_scache(unsigned int config)
 	default:
 			setup_scache_funcs();
 	}
-
-
 }
 
 void __init ld_mmu_r4xx0(void)

@@ -15,7 +15,7 @@
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 #include <asm/exception.h>
-#include <asm/r4kcacheops.h>
+#include <asm/cacheops.h>
 
 	BUILD_HANDLER adel ade ade silent		/* #4  */
 	BUILD_HANDLER ades ade ade silent		/* #5  */

@@ -1,14 +1,14 @@
 /*
+ * Cache operations for the cache instruction.
+ *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Cache operations for the cache instruction.
- *
- * (C) Copyright 1996, 1997, 1999 by Ralf Baechle
+ * (C) Copyright 1996, 1997, 2002 by Ralf Baechle
  */
-#ifndef	_ASM_R4kCACHEOPS_H
-#define	_ASM_R4kCACHEOPS_H
+#ifndef	__ASM_CACHEOPS_H
+#define	__ASM_CACHEOPS_H
 
 /*
  * Cache Operations
@@ -45,4 +45,4 @@
 #define Hit_Set_Virtual_SI	0x1e
 #define Hit_Set_Virtual_SD	0x1f
 
-#endif	/* _ASM_R4kCACHEOPS_H */
+#endif	/* __ASM_CACHEOPS_H */

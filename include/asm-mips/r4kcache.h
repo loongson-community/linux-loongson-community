@@ -1,118 +1,67 @@
 /*
- * r4kcache.h: Inline assembly cache operations.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Inline assembly cache operations.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * FIXME: Handle split L2 caches.
+ * Copyright (C) 1997 - 2002 Ralf Baechle (ralf@gnu.org)
  */
-#ifndef _MIPS_R4KCACHE_H
-#define _MIPS_R4KCACHE_H
+#ifndef __ASM_R4KCACHE_H
+#define __ASM_R4KCACHE_H
 
 #include <asm/asm.h>
 #include <asm/cacheops.h>
 
+#define cache_op(op,addr)						\
+	__asm__ __volatile__(						\
+	"	.set	noreorder		\n"			\
+	"	.set	mips3\n\t		\n"			\
+	"	cache	%0, (%1)		\n"			\
+	"	.set	mips0			\n"			\
+	"	.set	reorder"					\
+	:								\
+	: "i" (op), "r" (addr))
+
 static inline void flush_icache_line_indexed(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Index_Invalidate_I));
+	cache_op(Index_Invalidate_I, addr);
 }
 
 static inline void flush_dcache_line_indexed(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Index_Writeback_Inv_D));
+	cache_op(Index_Writeback_Inv_D, addr);
 }
 
 static inline void flush_scache_line_indexed(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Index_Writeback_Inv_SD));
+	cache_op(Index_Writeback_Inv_SD, addr);
 }
 
 static inline void flush_icache_line(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Hit_Invalidate_I));
+	cache_op(Hit_Invalidate_I, addr);
 }
 
 static inline void flush_dcache_line(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Hit_Writeback_Inv_D));
+	cache_op(Hit_Writeback_Inv_D, addr);
 }
 
 static inline void invalidate_dcache_line(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Hit_Invalidate_D));
+	cache_op(Hit_Invalidate_D, addr);
 }
 
 static inline void invalidate_scache_line(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Hit_Invalidate_SD));
+	cache_op(Hit_Invalidate_SD, addr);
 }
 
 static inline void flush_scache_line(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Hit_Writeback_Inv_SD));
+	cache_op(Hit_Writeback_Inv_SD, addr);
 }
 
 /*
@@ -123,15 +72,14 @@ static inline void protected_flush_icache_line(unsigned long addr)
 	__asm__ __volatile__(
 		".set noreorder\n\t"
 		".set mips3\n"
-		"1:\tcache %1,(%0)\n"
+		"1:\tcache %0,(%1)\n"
 		"2:\t.set mips0\n\t"
 		".set reorder\n\t"
 		".section\t__ex_table,\"a\"\n\t"
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "r" (addr),
-		  "i" (Hit_Invalidate_I));
+		: "i" (Hit_Invalidate_I), "i" (Hit_Invalidate_I));
 }
 
 static inline void protected_writeback_dcache_line(unsigned long addr)
@@ -139,15 +87,14 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 	__asm__ __volatile__(
 		".set noreorder\n\t"
 		".set mips3\n"
-		"1:\tcache %1,(%0)\n"
+		"1:\tcache %0,(%1)\n"
 		"2:\t.set mips0\n\t"
 		".set reorder\n\t"
 		".section\t__ex_table,\"a\"\n\t"
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "r" (addr),
-		  "i" (Hit_Writeback_D));
+		: "i" (Hit_Invalidate_I), "i" (Hit_Invalidate_I));
 }
 
 #define cache16_unroll32(base,op)				\
@@ -181,7 +128,7 @@ static inline void blast_dcache16(void)
 	unsigned long start = KSEG0;
 	unsigned long end = (start + dcache_size);
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Index_Writeback_Inv_D);
 		start += 0x200;
 	}
@@ -193,7 +140,7 @@ static inline void blast_dcache16_wayLSB(void)
 	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
 	int way;
 
-	while(start < end) {
+	while (start < end) {
 		/* LSB of VA select the way */
 		for (way = 0; way < mips_cpu.dcache.ways; way++)
 			cache16_unroll32(start|way,Index_Writeback_Inv_D);
@@ -206,7 +153,7 @@ static inline void blast_dcache16_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Hit_Writeback_Inv_D);
 		start += 0x200;
 	}
@@ -217,7 +164,7 @@ static inline void blast_dcache16_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Index_Writeback_Inv_D);
 		start += 0x200;
 	}
@@ -229,7 +176,7 @@ static inline void blast_dcache16_page_indexed_wayLSB(unsigned long page)
 	unsigned long end = (start + PAGE_SIZE);
 	int way;
 
-	while(start < end) {
+	while (start < end) {
 		/* LSB of VA select the way */
 		for (way = 0; way < mips_cpu.dcache.ways; way++)
 			cache16_unroll32(start|way,Index_Writeback_Inv_D);
@@ -242,7 +189,7 @@ static inline void blast_icache16(void)
 	unsigned long start = KSEG0;
 	unsigned long end = (start + icache_size);
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Index_Invalidate_I);
 		start += 0x200;
 	}
@@ -254,7 +201,7 @@ static inline void blast_icache16_wayLSB(void)
 	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
 	int way;
 
-	while(start < end) {
+	while (start < end) {
 		/* LSB of VA select the way */
 		for (way = 0; way < mips_cpu.icache.ways; way++)
 			cache16_unroll32(start|way,Index_Invalidate_I);
@@ -267,7 +214,7 @@ static inline void blast_icache16_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Hit_Invalidate_I);
 		start += 0x200;
 	}
@@ -278,7 +225,7 @@ static inline void blast_icache16_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Index_Invalidate_I);
 		start += 0x200;
 	}
@@ -289,7 +236,7 @@ static inline void blast_scache16(void)
 	unsigned long start = KSEG0;
 	unsigned long end = KSEG0 + scache_size;
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x200;
 	}
@@ -300,7 +247,7 @@ static inline void blast_scache16_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x200;
 	}
@@ -311,7 +258,7 @@ static inline void blast_scache16_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while(start < end) {
+	while (start < end) {
 		cache16_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x200;
 	}
@@ -348,7 +295,7 @@ static inline void blast_dcache32(void)
 	unsigned long start = KSEG0;
 	unsigned long end = (start + dcache_size);
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Index_Writeback_Inv_D);
 		start += 0x400;
 	}
@@ -360,7 +307,7 @@ static inline void blast_dcache32_wayLSB(void)
 	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
 	int way;
 
-	while(start < end) {
+	while (start < end) {
 		/* LSB of VA select the way */
 		for (way = 0; way < mips_cpu.dcache.ways; way++)
 			cache32_unroll32(start|way,Index_Writeback_Inv_D);
@@ -391,7 +338,7 @@ static inline void blast_dcache32_page(unsigned long page)
 	*(volatile unsigned long *)KSEG1;
 
 	__asm__ __volatile__("nop;nop;nop;nop");
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Hit_Writeback_Inv_D);
 		start += 0x400;
 	}
@@ -402,7 +349,7 @@ static inline void blast_dcache32_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Index_Writeback_Inv_D);
 		start += 0x400;
 	}
@@ -414,7 +361,7 @@ static inline void blast_dcache32_page_indexed_wayLSB(unsigned long page)
 	unsigned long end = (start + PAGE_SIZE);
 	int way;
 
-	while(start < end) {
+	while (start < end) {
 		/* LSB of VA select the way */
 		for (way = 0; way < mips_cpu.dcache.ways; way++)
 			cache32_unroll32(start|way,Index_Writeback_Inv_D);
@@ -427,7 +374,7 @@ static inline void blast_icache32(void)
 	unsigned long start = KSEG0;
 	unsigned long end = (start + icache_size);
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Index_Invalidate_I);
 		start += 0x400;
 	}
@@ -439,7 +386,7 @@ static inline void blast_icache32_wayLSB(void)
 	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
 	int way;
 
-	while(start < end) {
+	while (start < end) {
 		/* LSB of VA select the way */
 		for (way = 0; way < mips_cpu.icache.ways; way++)
 			cache32_unroll32(start|way,Index_Invalidate_I);
@@ -452,7 +399,7 @@ static inline void blast_icache32_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Hit_Invalidate_I);
 		start += 0x400;
 	}
@@ -463,7 +410,7 @@ static inline void blast_icache32_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Index_Invalidate_I);
 		start += 0x400;
 	}
@@ -474,7 +421,7 @@ static inline void blast_scache32(void)
 	unsigned long start = KSEG0;
 	unsigned long end = KSEG0 + scache_size;
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x400;
 	}
@@ -485,7 +432,7 @@ static inline void blast_scache32_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x400;
 	}
@@ -496,7 +443,7 @@ static inline void blast_scache32_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while(start < end) {
+	while (start < end) {
 		cache32_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x400;
 	}
@@ -533,7 +480,7 @@ static inline void blast_scache64(void)
 	unsigned long start = KSEG0;
 	unsigned long end = KSEG0 + scache_size;
 
-	while(start < end) {
+	while (start < end) {
 		cache64_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x800;
 	}
@@ -544,7 +491,7 @@ static inline void blast_scache64_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while(start < end) {
+	while (start < end) {
 		cache64_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x800;
 	}
@@ -555,7 +502,7 @@ static inline void blast_scache64_page_indexed(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while(start < end) {
+	while (start < end) {
 		cache64_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x800;
 	}
@@ -592,7 +539,7 @@ static inline void blast_scache128(void)
 	unsigned long start = KSEG0;
 	unsigned long end = KSEG0 + scache_size;
 
-	while(start < end) {
+	while (start < end) {
 		cache128_unroll32(start,Index_Writeback_Inv_SD);
 		start += 0x1000;
 	}
@@ -608,4 +555,4 @@ static inline void blast_scache128_page_indexed(unsigned long page)
 	cache128_unroll32(page,Index_Writeback_Inv_SD);
 }
 
-#endif /* !(_MIPS_R4KCACHE_H) */
+#endif /* __ASM_R4KCACHE_H */

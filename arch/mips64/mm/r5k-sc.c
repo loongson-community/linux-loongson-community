@@ -9,11 +9,11 @@
 
 #include <asm/mipsregs.h>
 #include <asm/bcache.h>
+#include <asm/cacheops.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/mmu_context.h>
-#include <asm/r4kcacheops.h>
 
 /* Secondary cache size in bytes, if present.  */
 static unsigned long scache_size;

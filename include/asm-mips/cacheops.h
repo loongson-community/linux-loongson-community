@@ -5,10 +5,10 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * (C) Copyright 1996, 1997 by Ralf Baechle
+ * (C) Copyright 1996, 1997, 2002 by Ralf Baechle
  */
-#ifndef	__ASM_MIPS_CACHEOPS_H
-#define	__ASM_MIPS_CACHEOPS_H
+#ifndef	__ASM_CACHEOPS_H
+#define	__ASM_CACHEOPS_H
 
 /*
  * Cache Operations
@@ -45,4 +45,4 @@
 #define Hit_Set_Virtual_SI	0x1e
 #define Hit_Set_Virtual_SD	0x1f
 
-#endif	/* __ASM_MIPS_CACHEOPS_H */
+#endif	/* __ASM_CACHEOPS_H */
