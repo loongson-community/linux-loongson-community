@@ -29,17 +29,6 @@
 
 static unsigned long icache_size, dcache_size, scache_size;
 
-extern void andes_clear_page(void * page);
-extern void r4k_clear_page32_d16(void * page);
-extern void r4k_clear_page32_d32(void * page);
-extern void r4k_clear_page_d16(void * page);
-extern void r4k_clear_page_d32(void * page);
-extern void r4k_clear_page_r4600_v1(void * page);
-extern void r4k_clear_page_r4600_v2(void * page);
-extern void r4k_clear_page_s16(void * page);
-extern void r4k_clear_page_s32(void * page);
-extern void r4k_clear_page_s64(void * page);
-extern void r4k_clear_page_s128(void * page);
 extern void andes_copy_page(void * to, void * from);
 extern void r4k_copy_page_d16(void * to, void * from);
 extern void r4k_copy_page_d32(void * to, void * from);
@@ -789,6 +778,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 2;
 		c->dcache.waybit= ffs(dcache_size/2) - 1;
+
+		c->options |= MIPS_CPU_CACHE_CDEX;
 		break;
 
 	case CPU_R5432:
@@ -802,6 +793,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 2;
 		c->dcache.waybit = 0;
+
+		c->options |= MIPS_CPU_CACHE_CDEX;
 		break;
 
 	case CPU_TX49XX:
@@ -814,6 +807,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 4;
 		c->dcache.waybit = 0;
+
+		c->options |= MIPS_CPU_CACHE_CDEX;
 		break;
 
 	case CPU_R4000PC:
@@ -832,6 +827,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 1;
 		c->dcache.waybit = 0;	/* does not matter */
+
+		c->options |= MIPS_CPU_CACHE_CDEX;
 		break;
 
 	case CPU_R10000:
@@ -845,6 +842,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 32;
 		c->dcache.ways = 2;
 		c->dcache.waybit = 0;
+
+		c->options |= MIPS_CPU_PREFETCH;
 		break;
 
 	case CPU_VR4133:
@@ -859,6 +858,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 2;
 		c->dcache.waybit = ffs(dcache_size/2) - 1;
+
+		c->options |= MIPS_CPU_CACHE_CDEX;
 		break;
 
 	case CPU_VR41XX:
@@ -876,6 +877,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 1;
 		c->dcache.waybit = 0;	/* does not matter */
+
+		c->options |= MIPS_CPU_CACHE_CDEX;
 		break;
 
 	case CPU_RM7000:
@@ -891,6 +894,8 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 4;
 		c->dcache.waybit = ffs(dcache_size / c->dcache.ways) - 1;
+
+		c->options |= MIPS_CPU_CACHE_CDEX | MIPS_CPU_PREFETCH;
 		break;
 
 	default:
@@ -934,6 +939,8 @@ static void __init probe_pcache(void)
 		              c->dcache.ways *
 		              c->dcache.linesz;
 		c->dcache.waybit = ffs(dcache_size/c->dcache.ways) - 1;
+
+		c->options |= MIPS_CPU_PREFETCH;
 		break;
 	}
 
@@ -1060,28 +1067,17 @@ static void __init setup_noscache_funcs(void)
 
 	switch (current_cpu_data.dcache.linesz) {
 	case 16:
-		if (cpu_has_64bits)
-			_clear_page = r4k_clear_page_d16;
-		else
-			_clear_page = r4k_clear_page32_d16;
 		_copy_page = r4k_copy_page_d16;
 
 		break;
 	case 32:
 		prid = read_c0_prid() & 0xfff0;
-		if (prid == 0x2010) {			/* R4600 V1.7 */
-			_clear_page = r4k_clear_page_r4600_v1;
+		if (prid == 0x2010)			/* R4600 V1.7 */
 			_copy_page = r4k_copy_page_r4600_v1;
-		} else if (prid == 0x2020) {		/* R4600 V2.0 */
-			_clear_page = r4k_clear_page_r4600_v2;
+		else if (prid == 0x2020)		/* R4600 V2.0 */
 			_copy_page = r4k_copy_page_r4600_v2;
-		} else {
-			if (cpu_has_64bits)
-				_clear_page = r4k_clear_page_d32;
-			else
-				_clear_page = r4k_clear_page32_d32;
+		else
 			_copy_page = r4k_copy_page_d32;
-		}
 		break;
 	}
 }
@@ -1094,26 +1090,21 @@ static void __init setup_scache_funcs(void)
 		panic("Invalid primary cache configuration detected");
 
 	if (c->cputype == CPU_R10000 || c->cputype == CPU_R12000) {
-		_clear_page = andes_clear_page;
 		_copy_page = andes_copy_page;
 		return;
 	}
 
 	switch (c->scache.linesz) {
 	case 16:
-		_clear_page = r4k_clear_page_s16;
 		_copy_page = r4k_copy_page_s16;
 		break;
 	case 32:
-		_clear_page = r4k_clear_page_s32;
 		_copy_page = r4k_copy_page_s32;
 		break;
 	case 64:
-		_clear_page = r4k_clear_page_s64;
 		_copy_page = r4k_copy_page_s64;
 		break;
 	case 128:
-		_clear_page = r4k_clear_page_s128;
 		_copy_page = r4k_copy_page_s128;
 		break;
 	}
@@ -1223,6 +1214,7 @@ static inline void coherency_setup(void)
 
 void __init ld_mmu_r4xx0(void)
 {
+	extern void build_clear_page(void);
 	extern char except_vec2_generic;
 	struct cpuinfo_mips *c = &current_cpu_data;
 
@@ -1265,4 +1257,6 @@ void __init ld_mmu_r4xx0(void)
 #endif
 
 	__flush_cache_all();
+
+	build_clear_page();
 }

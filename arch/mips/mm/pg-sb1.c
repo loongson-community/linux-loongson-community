@@ -22,6 +22,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/smp.h>
 
@@ -38,8 +39,11 @@
 #define SB1_PREF_STORE_STREAMED_HINT "5"
 #endif
 
-/* These are the functions hooked by the memory management function pointers */
-void sb1_clear_page(void *page)
+#ifdef CONFIG_SIBYTE_DMA_PAGEOPS
+static inline void clear_page_cpu(void *page)
+#else
+void clear_page(void *page)
+#endif
 {
 	unsigned char *addr = (unsigned char *) page;
 	unsigned char *end = addr + PAGE_SIZE;
@@ -77,6 +81,9 @@ void sb1_clear_page(void *page)
 	} while (addr != end);
 }
 
+#endif /* CONFIG_SIBYTE_DMA_PAGEOPS */
+
+/* This function hooked by the memory management function pointers */
 void sb1_copy_page(void *to, void *from)
 {
 	unsigned char *src = from;
@@ -164,13 +171,13 @@ void sb1_dma_init(void)
 		     IOADDR(A_DM_REGISTER(cpu, R_DM_DSCR_BASE)));
 }
 
-void sb1_clear_page_dma(void *page)
+void clear_page(void *page)
 {
 	int cpu = smp_processor_id();
 
 	/* if the page is above Kseg0, use old way */
 	if (KSEGX(page) != CAC_BASE)
-		return sb1_clear_page(page);
+		return clear_page_cpu(page);
 
 	page_descr[cpu].dscr_a = PHYSADDR(page) | M_DM_DSCRA_ZERO_MEM | M_DM_DSCRA_L2C_DEST | M_DM_DSCRA_INTERRUPT;
 	page_descr[cpu].dscr_b = V_DM_DSCRB_SRC_LENGTH(PAGE_SIZE);
@@ -209,3 +216,5 @@ void sb1_copy_page_dma(void *to, void *from)
 }
 
 #endif
+
+EXPORT_SYMBOL(clear_page);

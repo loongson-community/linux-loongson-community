@@ -210,5 +210,6 @@
 #define MIPS_CPU_NOFPUEX	0x00004000 /* no FPU exception */
 #define MIPS_CPU_LLSC		0x00008000 /* CPU has ll/sc instructions */
 #define MIPS_CPU_SUBSET_CACHES	0x00010000 /* P-cache subset enforced */
+#define MIPS_CPU_PREFETCH	0x00020000 /* CPU has usable prefetch */
 
 #endif /* _ASM_CPU_H */

@@ -28,7 +28,6 @@ static unsigned long icache_size, dcache_size;		/* Size in bytes */
 
 #include <asm/r4kcache.h>
 
-extern void r3k_clear_page(void * page);
 extern void r3k_copy_page(void * to, void * from);
 
 extern int r3k_have_wired_reg;	/* in r3k-tlb.c */
@@ -412,7 +411,6 @@ void __init ld_mmu_tx39(void)
 {
 	unsigned long config;
 
-	_clear_page = r3k_clear_page;
 	_copy_page = r3k_copy_page;
 
 	config = read_c0_conf();

@@ -21,10 +21,7 @@
  * Memory functions.  Not a cache function per se but actual implementations
  * use all sort of cache tricks for performance sake.
  */
-void (*_clear_page)(void * page);
 void (*_copy_page)(void * to, void * from);
-
-EXPORT_SYMBOL(_clear_page);
 
 /* Cache operations. */
 void (*flush_cache_all)(void);

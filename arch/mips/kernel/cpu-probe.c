@@ -163,7 +163,7 @@ static inline int __cpu_has_fpu(void)
 }
 
 #define R4K_OPTS (MIPS_CPU_TLB | MIPS_CPU_4KEX | MIPS_CPU_4KTLB \
-		| MIPS_CPU_COUNTER | MIPS_CPU_CACHE_CDEX)
+		| MIPS_CPU_COUNTER)
 
 static inline void cpu_probe_legacy(struct cpuinfo_mips *c)
 {

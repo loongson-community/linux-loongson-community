@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2001 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 2001, 2003 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/sched.h>
+#include <linux/module.h>
 #include <linux/mm.h>
 
 /* page functions */
-void r3k_clear_page(void * page)
+void clear_page(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -27,6 +28,8 @@ void r3k_clear_page(void * page)
 		: "0" (page), "I" (PAGE_SIZE)
 		: "memory");
 }
+
+EXPORT_SYMBOL(copy_page);
 
 void r3k_copy_page(void * to, void * from)
 {

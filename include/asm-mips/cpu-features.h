@@ -47,6 +47,9 @@
 #ifndef cpu_has_cache_cdex
 #define cpu_has_cache_cdex	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX)
 #endif
+#ifndef cpu_has_prefetch
+#define cpu_has_prefetch	(cpu_data[0].options & MIPS_CPU_PREFETCH)
+#endif
 #ifndef cpu_has_mcheck
 #define cpu_has_mcheck		(cpu_data[0].options & MIPS_CPU_MCHECK)
 #endif
