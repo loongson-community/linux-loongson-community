@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.4 1997/08/06 19:15:08 miguel Exp $
+/* $Id: sysirix.c,v 1.5 1997/08/10 22:24:11 shaver Exp $
  * sysirix.c: IRIX system call emulation.
  *
  * Copyright (C) 1996 David S. Miller
@@ -25,6 +25,7 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
+#include <asm/sgialib.h>
 
 /* 2,300 lines of complete and utter shit coming up... */
 
@@ -48,10 +49,10 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		error = PAGE_SIZE;
 		break;
 	case MP_NPROCS:
-	  	error = NPROCS;
+	  	error = NR_CPUS;
 		break;
 	case MP_NAPROCS:
-		error = NPROCS;
+		error = NR_CPUS;
 		break;
 	default:
 		printk("SYSMP[%s:%d]: Unsupported opcode %d\n",
@@ -300,6 +301,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
                 char *name = (char *) regs->regs[base+5];
                 char *buf = (char *) regs->regs[base+6];
                 char *value;
+		return -EINVAL;	/* til I fix it */
                 retval = verify_area(VERIFY_WRITE, buf, 128);
                 if (retval)
                         break;
@@ -316,8 +318,9 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 
         case SGI_SETNVRAM: {
                 char *name = (char *) regs->regs[base+5];
-                char *buf = (char *) regs->regs[base+6];
-                retval = prom_setenv(name, buf);
+                char *value = (char *) regs->regs[base+6];
+		return -EINVAL;	/* til I fix it */
+                retval = prom_setenv(name, value);
 		/* XXX make sure retval conforms to syssgi(2) */
 		printk("[%s:%d] setnvram(\"%s\", \"%s\"): retval %d",
 		       current->comm, current->pid,
