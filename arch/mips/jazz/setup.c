@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.11 1998/06/25 20:19:15 ralf Exp $
+/* $Id: setup.c,v 1.11 1998/06/30 00:21:48 ralf Exp $
  *
  * Setup pointers to hardware dependant routines.
  *
@@ -15,6 +15,7 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/mm.h>
+#include <linux/mc146818rtc.h>
 #include <asm/bootinfo.h>
 #include <asm/keyboard.h>
 #include <asm/ide.h>
