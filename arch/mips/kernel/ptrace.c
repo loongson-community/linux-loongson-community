@@ -279,14 +279,13 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		res = 0;
 		break;
 
-	case PTRACE_SETOPTIONS: {
+	case PTRACE_SETOPTIONS:
 		if (data & PTRACE_O_TRACESYSGOOD)
 			child->ptrace |= PT_TRACESYSGOOD;
 		else
 			child->ptrace &= ~PT_TRACESYSGOOD;
-		ret = 0;
+		res = 0;
 		break;
-	}
 
 	default:
 		res = -EIO;
