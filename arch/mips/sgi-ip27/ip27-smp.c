@@ -23,7 +23,6 @@
 #include <asm/sn/sn0/ip27.h>
 
 static atomic_t numstarted = ATOMIC_INIT(1);
-static int maxcpus;
 
 /*
  * Takes as first input the PROM assigned cpu id, and the kernel
@@ -96,7 +95,7 @@ static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
 	return highest;
 }
 
-static cpuid_t cpu_node_probe(void)
+void cpu_node_probe(void)
 {
 	int i, highest = 0;
 	gda_t *gdap = GDA;
@@ -122,22 +121,11 @@ static cpuid_t cpu_node_probe(void)
 		highest = do_cpumask(i, nasid, highest);
 	}
 
-	/*
-	 * Cpus are numbered in order of cnodes. Currently, disabled
-	 * cpus are not numbered.
-	 */
-
-	return highest + 1;
+	printk("Discovered %d cpus on %d nodes\n", highest + 1, numnodes);
 }
 
 void __init prom_build_cpu_map(void)
 {
-	/*
-	 * Probe for all CPUs - this creates the cpumask and
-	 * sets up the mapping tables.
-	 */
-	maxcpus = cpu_node_probe();
-	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 }
 
 static void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend,

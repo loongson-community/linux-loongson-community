@@ -332,6 +332,14 @@ void mlreset(void)
 	master_nasid = get_nasid();
 	fine_mode = is_fine_dirmode();
 
+	/*
+	 * Probe for all CPUs - this creates the cpumask and sets up the
+	 * mapping tables.  We need to do this as early as possible.
+	 */
+#ifdef CONFIG_SMP
+	cpu_node_probe();
+#endif
+
 	init_topology_matrix();
 	dump_topology();
 
