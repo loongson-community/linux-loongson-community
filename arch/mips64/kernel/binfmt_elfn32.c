@@ -99,6 +99,8 @@ struct elf_prpsinfo32
 #define elf_caddr_t	u32
 #define init_elf_binfmt init_elfn32_binfmt
 
+#define ELF_CORE_EFLAGS EF_MIPS_ABI2
+
 #undef CONFIG_BINFMT_ELF
 #ifdef CONFIG_BINFMT_ELF32
 #define CONFIG_BINFMT_ELF CONFIG_BINFMT_ELF32
