@@ -1,6 +1,6 @@
 /*
  * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 1999, 2000 MIPS Technologies, Inc.  All rights reserved.
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -51,9 +51,8 @@
 #define PCI_CFG_TYPE1_DEV_SHF           11
 #define PCI_CFG_TYPE1_BUS_SHF           16
 
-static int
-mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
-                           unsigned char where, u32 *data)
+static int mips_pcibios_config_access(unsigned char access_type,
+	struct pci_dev *dev, unsigned char where, u32 *data)
 {
 	unsigned char bus = dev->bus->number;
 	unsigned char dev_fn = dev->devfn;
@@ -263,8 +262,8 @@ mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
  * We can't address 8 and 16 bit words directly.  Instead we have to
  * read/write a 32bit word and mask/modify the data we actually want.
  */
-static int
-mips_pcibios_read_config_byte (struct pci_dev *dev, int where, u8 *val)
+static int mips_pcibios_read_config_byte (struct pci_dev *dev, int where,
+	u8 *val)
 {
 	u32 data = 0;
 
@@ -276,9 +275,8 @@ mips_pcibios_read_config_byte (struct pci_dev *dev, int where, u8 *val)
 	return PCIBIOS_SUCCESSFUL;
 }
 
-
-static int
-mips_pcibios_read_config_word (struct pci_dev *dev, int where, u16 *val)
+static int mips_pcibios_read_config_word (struct pci_dev *dev, int where,
+	u16 *val)
 {
 	u32 data = 0;
 
@@ -293,8 +291,8 @@ mips_pcibios_read_config_word (struct pci_dev *dev, int where, u16 *val)
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int
-mips_pcibios_read_config_dword (struct pci_dev *dev, int where, u32 *val)
+static int mips_pcibios_read_config_dword (struct pci_dev *dev, int where,
+	u32 *val)
 {
 	u32 data = 0;
 
@@ -309,9 +307,8 @@ mips_pcibios_read_config_dword (struct pci_dev *dev, int where, u32 *val)
 	return PCIBIOS_SUCCESSFUL;
 }
 
-
-static int
-mips_pcibios_write_config_byte (struct pci_dev *dev, int where, u8 val)
+static int mips_pcibios_write_config_byte (struct pci_dev *dev, int where,
+	u8 val)
 {
 	u32 data = 0;
 
@@ -327,8 +324,8 @@ mips_pcibios_write_config_byte (struct pci_dev *dev, int where, u8 val)
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int
-mips_pcibios_write_config_word (struct pci_dev *dev, int where, u16 val)
+static int mips_pcibios_write_config_word (struct pci_dev *dev, int where,
+	u16 val)
 {
         u32 data = 0;
 
@@ -348,8 +345,8 @@ mips_pcibios_write_config_word (struct pci_dev *dev, int where, u16 val)
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int
-mips_pcibios_write_config_dword(struct pci_dev *dev, int where, u32 val)
+static int mips_pcibios_write_config_dword(struct pci_dev *dev, int where,
+	u32 val)
 {
 	if (where & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
@@ -499,7 +496,7 @@ void __init pcibios_init(void)
 
 subsys_initcall(pcibios_init);
 
-int __init pcibios_enable_device(struct pci_dev *dev)
+int pcibios_enable_device(struct pci_dev *dev)
 {
 	/* Not needed, since we enable all devices at startup.  */
 	return 0;
@@ -510,8 +507,7 @@ void pcibios_align_resource(void *data, struct resource *res,
 {
 }
 
-char * __init
-pcibios_setup(char *str)
+char * __init pcibios_setup(char *str)
 {
 	/* Nothing to do for now.  */
 
@@ -544,7 +540,7 @@ void __devinit pcibios_fixup_bus(struct pci_bus *b)
 	pci_read_bridge_bases(b);
 }
 
-unsigned __init int pcibios_assign_all_busses(void)
+unsigned int pcibios_assign_all_busses(void)
 {
 	return 1;
 }
