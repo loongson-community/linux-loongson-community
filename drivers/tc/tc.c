@@ -8,20 +8,22 @@
  * for more details.
  *
  * Copyright (c) Harald Koerfgen, 1998
+ * Copyright (c) 2001  Maciej W. Rozycki
  */
 #include <linux/string.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+
 #include <asm/addrspace.h>
 #include <asm/errno.h>
 #include <asm/dec/machtype.h>
 #include <asm/dec/tcinfo.h>
 #include <asm/dec/tcmodule.h>
 #include <asm/dec/interrupts.h>
-
+#include <asm/paccess.h>
 #include <asm/ptrace.h>
-#include <linux/kernel.h>
-#include <linux/module.h>
 
 #define TC_DEBUG
 
@@ -32,7 +34,6 @@ static tcinfo *info;
 
 unsigned long system_base;
 
-extern void (*dbe_board_handler)(struct pt_regs *regs);
 extern unsigned long *(*rex_slot_address)(int);
 extern void *(*rex_gettcinfo)(void);
 
@@ -93,78 +94,83 @@ unsigned long get_tc_speed(void)
 /*
  * Probing for TURBOchannel modules
  */
-static void __init my_dbe_handler(struct pt_regs *regs)
-{
-	regs->cp0_epc += 4;
-}
-
 static void __init tc_probe(unsigned long startaddr, unsigned long size, int max_slot)
 {
-	int i, slot;
+	int i, slot, err;
 	long offset;
+	unsigned char pattern[4];
 	unsigned char *module;
-	void (*old_be_handler)(struct pt_regs *regs);
 
-	/* Install our exception handler temporarily */
-
-	old_be_handler = dbe_board_handler;
-	dbe_board_handler = my_dbe_handler;
 	for (slot = 0; slot <= max_slot; slot++) {
 		module = (char *)(startaddr + slot * size);
-		offset = -1;
-		if (module[OLDCARD + TC_PATTERN0] == 0x55 && module[OLDCARD + TC_PATTERN1] == 0x00
-		  && module[OLDCARD + TC_PATTERN2] == 0xaa && module[OLDCARD + TC_PATTERN3] == 0xff)
-			offset = OLDCARD;
-		if (module[TC_PATTERN0] == 0x55 && module[TC_PATTERN1] == 0x00
-		  && module[TC_PATTERN2] == 0xaa && module[TC_PATTERN3] == 0xff)
-			offset = 0;
 
-		if (offset != -1) {
-			tc_bus[slot].base_addr = (unsigned long)module;
-			for(i = 0; i < 8; i++) {
-				tc_bus[slot].firmware[i] = module[TC_FIRM_VER + offset + 4 * i];
-				tc_bus[slot].vendor[i] = module[TC_VENDOR + offset + 4 * i];
-				tc_bus[slot].name[i] = module[TC_MODULE + offset + 4 * i];
-			}
-			tc_bus[slot].firmware[8] = 0;
-			tc_bus[slot].vendor[8] = 0;
-			tc_bus[slot].name[8] = 0;
-			/*
-			 * Looks unneccesary, but we may change
-			 * TC? in the future
-			 */
-			switch (slot) {
-			case 0:
-				tc_bus[slot].interrupt =
-					dec_interrupt[DEC_IRQ_TC0];
-				break;
-			case 1:
-				tc_bus[slot].interrupt =
-					dec_interrupt[DEC_IRQ_TC1];
-				break;
-			case 2:
-				tc_bus[slot].interrupt =
-					dec_interrupt[DEC_IRQ_TC2];
-				break;
-			/*
-			 * Yuck! DS5000/200 onboard devices
-			 */
-			case 5:
-				tc_bus[slot].interrupt =
-					dec_interrupt[DEC_IRQ_TC5];
-				break;
-			case 6:
-				tc_bus[slot].interrupt =
-					dec_interrupt[DEC_IRQ_TC6];
-				break;
-			default:
-				tc_bus[slot].interrupt = -1;
-				break;
-			}	
+		offset = OLDCARD;
+
+		err = 0;
+		err |= get_dbe(pattern[0], module + OLDCARD + TC_PATTERN0);
+		err |= get_dbe(pattern[1], module + OLDCARD + TC_PATTERN1);
+		err |= get_dbe(pattern[2], module + OLDCARD + TC_PATTERN2);
+		err |= get_dbe(pattern[3], module + OLDCARD + TC_PATTERN3);
+		if (err)
+			continue;
+
+		if (pattern[0] != 0x55 || pattern[1] != 0x00 ||
+		    pattern[2] != 0xaa || pattern[3] != 0xff) {
+			offset = NEWCARD;
+
+			err = 0;
+			err |= get_dbe(pattern[0], module + TC_PATTERN0);
+			err |= get_dbe(pattern[1], module + TC_PATTERN1);
+			err |= get_dbe(pattern[2], module + TC_PATTERN2);
+			err |= get_dbe(pattern[3], module + TC_PATTERN3);
+			if (err)
+				continue;
+		}
+
+		if (pattern[0] != 0x55 || pattern[1] != 0x00 ||
+		    pattern[2] != 0xaa || pattern[3] != 0xff)
+			continue;
+
+		tc_bus[slot].base_addr = (unsigned long)module;
+		for(i = 0; i < 8; i++) {
+			tc_bus[slot].firmware[i] =
+				module[TC_FIRM_VER + offset + 4 * i];
+			tc_bus[slot].vendor[i] =
+				module[TC_VENDOR + offset + 4 * i];
+			tc_bus[slot].name[i] =
+				module[TC_MODULE + offset + 4 * i];
+		}
+		tc_bus[slot].firmware[8] = 0;
+		tc_bus[slot].vendor[8] = 0;
+		tc_bus[slot].name[8] = 0;
+		/*
+		 * Looks unneccesary, but we may change
+		 * TC? in the future
+		 */
+		switch (slot) {
+		case 0:
+			tc_bus[slot].interrupt = dec_interrupt[DEC_IRQ_TC0];
+			break;
+		case 1:
+			tc_bus[slot].interrupt = dec_interrupt[DEC_IRQ_TC1];
+			break;
+		case 2:
+			tc_bus[slot].interrupt = dec_interrupt[DEC_IRQ_TC2];
+			break;
+		/*
+		 * Yuck! DS5000/200 onboard devices
+		 */
+		case 5:
+			tc_bus[slot].interrupt = dec_interrupt[DEC_IRQ_TC5];
+			break;
+		case 6:
+			tc_bus[slot].interrupt = dec_interrupt[DEC_IRQ_TC6];
+			break;
+		default:
+			tc_bus[slot].interrupt = -1;
+			break;
 		}
 	}
-
-	dbe_board_handler = old_be_handler;
 }
 
 /*

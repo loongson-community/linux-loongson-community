@@ -15,10 +15,11 @@
  *
  * Jan.1998 Harald Koerfgen
  */
-#ifndef __ASM_DEC_TCMOULE_H
-#define __ASM_DEC_TCMOULE_H
+#ifndef __ASM_DEC_TCMODULE_H
+#define __ASM_DEC_TCMODULE_H
  
 #define OLDCARD 0x3c0000
+#define NEWCARD 0x000000
 
 #define TC_ROM_WIDTH	0x3e0
 #define TC_ROM_STRIDE	0x3e4
@@ -35,4 +36,4 @@
 #define TC_FLAGS	0x470
 #define TC_ROM_OBJECTS	0x480
 
-#endif /* __ASM_DEC_TCMOULE_H */
+#endif /* __ASM_DEC_TCMODULE_H */
