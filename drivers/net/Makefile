@@ -800,10 +800,10 @@ else
 endif
 
 ifeq ($(CONFIG_MIPS_JAZZ_SONIC),y)
-L_OBJS += sonic.o
+L_OBJS += jazzsonic.o
 else
   ifeq ($(CONFIG_MIPS_JAZZ_SONIC),m)
-  M_OBJS += sonic.o
+  M_OBJS += jazzsonic.o
   endif
 endif
 
