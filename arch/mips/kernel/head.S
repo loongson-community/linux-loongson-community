@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.13 1999/08/18 23:37:43 ralf Exp $
+/* $Id: head.S,v 1.14 1999/08/20 21:59:02 ralf Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -341,23 +341,25 @@ handle_vced:
  li k1, -4
  and k0, k1
 	mtc0	zero, CP0_TAGLO
- //	nop;nop
 	cache	Index_Store_Tag_D,(k0)
- //	nop;nop
 	cache	Hit_Writeback_Inv_SD,(k0)
+#ifdef CONFIG_PROC_FS
 	lui	k0, %hi(vced_count)
 	lw	k1, %lo(vced_count)(k0)
 	addiu	k1, 1
 	sw	k1, %lo(vced_count)(k0)
+#endif
 	eret
 
 handle_vcei:
 	mfc0	k0, CP0_BADVADDR
 	cache	Hit_Writeback_Inv_SD,(k0)		# also cleans pi
+#ifdef CONFIG_PROC_FS
 	lui	k0, %hi(vcei_count)
 	lw	k1, %lo(vcei_count)(k0)
 	addiu	k1, 1
 	sw	k1, %lo(vcei_count)(k0)
+#endif
 	eret
 
 	END(except_vec3_r4000)
