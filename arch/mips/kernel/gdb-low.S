@@ -39,6 +39,7 @@
 		add	k1,k1,k0
 		lw	k0,%lo(saved_vectors)(k1)
 		jr	k0
+		nop
 1:
 		move	k0,sp
 		subu	sp,k1,GDB_FR_SIZE
