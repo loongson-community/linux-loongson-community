@@ -80,48 +80,13 @@
 #define MV64340_RX_COAL 100
 #endif
 
-/* Private data structure used for ethernet device */
-struct mv64340_eth_priv {
-	unsigned int port_num;
-	struct net_device_stats stats;
-	spinlock_t lock;
-	/* Size of Tx Ring per queue */
-	unsigned int tx_ring_size;
-	/* Ammont of SKBs outstanding on Tx queue */
-	unsigned int tx_ring_skbs;
-	/* Size of Rx Ring per queue */
-	unsigned int rx_ring_size;
-	/* Ammount of SKBs allocated to Rx Ring per queue */
-	unsigned int rx_ring_skbs;
 
-	/*
-	 * rx_task used to fill RX ring out of bottom half context 
-	 */
-	struct tq_struct rx_task;
-
-	/* 
-	 * Used in case RX Ring is empty, which can be caused when 
-	 * system does not have resources (skb's) 
-	 */
-	struct timer_list timeout;
-	long rx_task_busy __attribute__ ((aligned(SMP_CACHE_BYTES)));
-	unsigned rx_timer_flag;
-
-	u32 rx_int_coal;
-	u32 tx_int_coal;
-};
+/*
+ * The second part is the low level driver of the gigE ethernet ports.   *
+ */
 
 
-/*************************************************************************
-**************************************************************************
-**************************************************************************
-*  The second part is the low level driver of the gigE ethernet ports.   *
-**************************************************************************
-**************************************************************************
-*************************************************************************/
-
-
-/********************************************************************************
+/*
  * Header File for : MV-643xx network interface header 
  *
  * DESCRIPTION:
@@ -131,11 +96,7 @@ struct mv64340_eth_priv {
  * DEPENDENCIES:
  *       None.
  *
- *******************************************************************************/
-
-typedef enum _bool { false, true } bool;
-
-/* defines  */
+ */
 
 /* Default port configuration value */
 #define PORT_CONFIG_VALUE                       \
@@ -463,12 +424,6 @@ typedef enum _bool { false, true } bool;
 
 /* typedefs */
 
-typedef enum _eth_port {
-	ETH_0 = 0,
-	ETH_1 = 1,
-	ETH_2 = 2
-} ETH_PORT;
-
 typedef enum _eth_func_ret_status {
 	ETH_OK,			/* Returned as expected.                    */
 	ETH_ERROR,		/* Fundamental error.                       */
@@ -539,8 +494,8 @@ typedef struct _pkt_info {
 
 /* Ethernet port specific infomation */
 
-typedef struct _eth_port_ctrl {
-	ETH_PORT port_num;		/* User Ethernet port number */
+struct eth_port_info {
+	int	 port_num;		/* User Ethernet port number */
 	u8	port_mac_addr[6];	/* User defined port MAC address. */
 	u32	port_config;		/* User port configuration value */
 	u32	port_config_extend;	/* User port config extend value */
@@ -549,11 +504,8 @@ typedef struct _eth_port_ctrl {
 	u32	port_tx_queue_command;	/* Port active Tx queues summary */
 	u32	port_rx_queue_command;	/* Port active Rx queues summary */
 
-	/* User scratch pad for user specific data structures */
-	void*	port_private;
-
-	bool	rx_resource_err;	/* Rx ring resource error flag */
-	bool	tx_resource_err;	/* Tx ring resource error flag */
+	int	rx_resource_err;	/* Rx ring resource error flag */
+	int	tx_resource_err;	/* Tx ring resource error flag */
 
 	/* Tx/Rx rings managment indexes fields. For driver use */
 
@@ -579,62 +531,85 @@ typedef struct _eth_port_ctrl {
 	unsigned int tx_desc_area_size;
 	struct sk_buff* tx_skb[MV64340_TX_QUEUE_SIZE];
 	struct tq_struct tx_timeout_task;
-} ETH_PORT_INFO;
 
+	/*
+	 * Former struct mv64340_eth_priv members start here
+	 */
+	struct net_device_stats stats;
+	spinlock_t lock;
+	/* Size of Tx Ring per queue */
+	unsigned int tx_ring_size;
+	/* Ammont of SKBs outstanding on Tx queue */
+	unsigned int tx_ring_skbs;
+	/* Size of Rx Ring per queue */
+	unsigned int rx_ring_size;
+	/* Ammount of SKBs allocated to Rx Ring per queue */
+	unsigned int rx_ring_skbs;
+
+	/*
+	 * rx_task used to fill RX ring out of bottom half context 
+	 */
+	struct tq_struct rx_task;
+
+	/* 
+	 * Used in case RX Ring is empty, which can be caused when 
+	 * system does not have resources (skb's) 
+	 */
+	struct timer_list timeout;
+	long rx_task_busy __attribute__ ((aligned(SMP_CACHE_BYTES)));
+	unsigned rx_timer_flag;
+
+	u32 rx_int_coal;
+	u32 tx_int_coal;
+};
 
 /* ethernet.h API list */
 
 /* Port operation control routines */
-static void eth_port_init(ETH_PORT_INFO * p_eth_port_ctrl);
-static void eth_port_reset(ETH_PORT eth_port_num);
-static bool eth_port_start(ETH_PORT_INFO * p_eth_port_ctrl);
+static void eth_port_init(struct eth_port_info * p_eth_port_ctrl);
+static void eth_port_reset(unsigned int eth_port_num);
+static int eth_port_start(struct eth_port_info * p_eth_port_ctrl);
 
-static void ethernet_set_config_reg(ETH_PORT eth_port_num,
+static void ethernet_set_config_reg(unsigned int eth_port_num,
 				    unsigned int value);
-static unsigned int ethernet_get_config_reg(ETH_PORT eth_port_num);
-
-/* Interrupt Coalesting functions */
-static unsigned int eth_port_set_rx_coal(ETH_PORT, unsigned int,
-					 unsigned int);
-static unsigned int eth_port_set_tx_coal(ETH_PORT, unsigned int,
-					 unsigned int);
+static unsigned int ethernet_get_config_reg(unsigned int eth_port_num);
 
 /* Port MAC address routines */
-static void eth_port_uc_addr_set(ETH_PORT eth_port_num,
+static void eth_port_uc_addr_set(unsigned int eth_port_num,
 				 unsigned char *p_addr);
 
 /* PHY and MIB routines */
-static bool ethernet_phy_reset(ETH_PORT eth_port_num);
+static int ethernet_phy_reset(unsigned int eth_port_num);
 
-static bool eth_port_write_smi_reg(ETH_PORT eth_port_num,
+static int eth_port_write_smi_reg(unsigned int eth_port_num,
 				   unsigned int phy_reg,
 				   unsigned int value);
 
-static bool eth_port_read_smi_reg(ETH_PORT eth_port_num,
+static int eth_port_read_smi_reg(unsigned int eth_port_num,
 				  unsigned int phy_reg,
 				  unsigned int *value);
 
-static void eth_clear_mib_counters(ETH_PORT eth_port_num);
+static void eth_clear_mib_counters(unsigned int eth_port_num);
 
 /* Port data flow control routines */
-static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
+static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
 					 PKT_INFO * p_pkt_info);
-static ETH_FUNC_RET_STATUS eth_tx_return_desc(ETH_PORT_INFO *
+static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct eth_port_info *
 					      p_eth_port_ctrl,
 					      PKT_INFO * p_pkt_info);
-static ETH_FUNC_RET_STATUS eth_port_receive(ETH_PORT_INFO *
+static ETH_FUNC_RET_STATUS eth_port_receive(struct eth_port_info *
 					    p_eth_port_ctrl,
 					    PKT_INFO * p_pkt_info);
-static ETH_FUNC_RET_STATUS eth_rx_return_buff(ETH_PORT_INFO *
+static ETH_FUNC_RET_STATUS eth_rx_return_buff(struct eth_port_info *
 					      p_eth_port_ctrl,
 					      PKT_INFO * p_pkt_info);
 
 
-static bool ether_init_tx_desc_ring(ETH_PORT_INFO * p_eth_port_ctrl,
+static int ether_init_tx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
 				    int tx_desc_num,
 				    unsigned long tx_desc_base_addr);
 
-static bool ether_init_rx_desc_ring(ETH_PORT_INFO * p_eth_port_ctrl,
+static int ether_init_rx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
 				    int rx_desc_num,
 				    int rx_buff_size,
 				    unsigned long rx_desc_base_addr,
