@@ -342,7 +342,7 @@ static void __init pci_fixup_isp1020(struct pci_dev *d)
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
 	unsigned short command;
 
-	d->resource[0].start |= ((unsigned long) (bc->nasid) << 32);
+	d->resource[0].start |= (unsigned long) bc->nasid << 32;
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", pci_name(d));
 
 	/*
