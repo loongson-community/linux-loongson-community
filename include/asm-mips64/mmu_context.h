@@ -36,11 +36,7 @@ extern unsigned long pgd_current[];
 #define ASID_INC	0x1
 #define ASID_MASK	0xff
 
-#ifdef CONFIG_SMP
 #define cpu_context(cpu, mm)	((mm)->context[cpu])
-#else
-#define cpu_context(cpu, mm)	((mm)->context)
-#endif
 #define cpu_asid(cpu, mm)	(cpu_context((cpu), (mm)) & ASID_MASK)
 #define asid_cache(cpu)		(cpu_data[cpu].asid_cache)
 
@@ -76,18 +72,11 @@ get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 static inline int
 init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
-#ifdef CONFIG_SMP
-	mm->context = kmalloc(NR_CPUS * sizeof(unsigned long), GFP_KERNEL);
-	/*
- 	 * Init the "context" values so that a tlbpid allocation
-	 * happens on the first switch.
- 	 */
-	if (mm->context == 0)
-		return -ENOMEM;
-	memset(mm->context, 0, NR_CPUS * sizeof(unsigned long));
-#else
-	mm->context = 0;
-#endif
+	int i;
+
+	for (i = 0; i < num_online_cpus(); i++)
+		cpu_context(i, mm) = 0;
+
 	return 0;
 }
 
@@ -108,10 +97,6 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
  */
 static inline void destroy_context(struct mm_struct *mm)
 {
-#ifdef CONFIG_SMP
-	if (mm->context)
-		kfree(mm->context);
-#endif
 }
 
 /*
