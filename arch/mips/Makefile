@@ -107,6 +107,16 @@ CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
 SUBDIRS		+=arch/mips/math-emu
 
 #
+# ramdisk/initrd support
+# You need a compressed ramdisk image, named ramdisk.gz in
+# arch/mips/ramdisk
+#
+ifdef CONFIG_BLK_DEV_INITRD
+CORE_FILES	+= arch/mips/ramdisk/ramdisk.o
+SUBDIRS		+= arch/mips/ramdisk
+endif
+
+#
 # Board-dependent options and extra files
 #
 ifdef CONFIG_ALGOR_P4032
