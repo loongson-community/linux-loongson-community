@@ -138,20 +138,22 @@ asmlinkage void sb1_cache_error(void)
 	spin_lock(&in_cacheerr);
 	printk("Cache error exception on CPU %x:\n",
 	       (read_32bit_cp0_register(CP0_PRID) >> 25) & 0x7);
+
 	__asm__ __volatile__ (
-		".set push\n\t"
-		".set mips64\n\t"
-		".set noat\n\t"
-		"mfc0   %0, $26, 0\n\t"
-		"mfc0   %1, $27, 0\n\t"
-		"mfc0   %2, $27, 1\n\t"
-		"dmfc0  $1, $27, 3\n\t"
-		"dsrl32 %3, $1, 0 \n\t"
-		"sll    %4, $1, 0 \n\t"
-		"mfc0   %5, $30\n\t"
-		".set pop\n"
-		: "=r" (errctl), "=r" (cerr_i), "=r" (cerr_d),
-		  "=r" (dpahi), "=r" (dpalo), "=r" (eepc));
+	"	.set	push\n\t"
+	"	.set	mips3\t\t\t# .set	mips64\n\t"
+	"	.set	noat\n\t"
+	"	mfc0	%0, $26\n\t"
+	"	mfc0	%1, $27\n\t"
+	"	.word	0x4001d801; move %2, $1\t# mfc0	%2, $27, 1\n\t"
+	"	.word	0x4021D803\t\t\t# dmfc0	$1, $27, 3\n\t"
+	"	dsrl32	%3, $1, 0 \n\t"
+	"	sll	%4, $1, 0 \n\t"
+	"	mfc0	%5, $30\n\t"
+	"	.set	pop"
+	: "=r" (errctl), "=r" (cerr_i), "=r" (cerr_d),
+	  "=r" (dpahi), "=r" (dpalo), "=r" (eepc));
+
 	cerr_dpa = (((uint64_t)dpahi) << 32) | dpalo;
 	printk(" cp0_errorepc ==   %08x\n", eepc);
 	printk(" cp0_errctl   ==   %08x", errctl);
@@ -270,19 +272,19 @@ static uint32_t extract_ic(unsigned short addr, int data)
 	for (way = 0; way < 4; way++) {
 		/* Index-load-tag-I */
 		__asm__ __volatile__ (
-			".set push        \n\t"
-			".set noreorder   \n\t"
-			".set mips64      \n\t"
-			".set noat        \n\t"
-			"cache  4, 0(%3)  \n\t"
-			"mfc0   %0, $29, 0\n\t"
-			"dmfc0  $1, $28, 0\n\t"
-			"dsrl32 %1, $1, 0 \n\t"
-			"sll    %2, $1, 0 \n\t"
-			".set pop         \n"
-			: "=r" (taghi), "=r" (taglohi),
-			  "=r" (taglolo)
-			: "r" ((way << 13) | addr));
+		"	.set	push		\n\t"
+		"	.set	noreorder	\n\t"
+		"	.set	mips3\t\t\t# .set	mips64\n\t"
+		"	.set	noat		\n\t"
+		"	cache	4, 0(%3)	\n\t"
+		"	mfc0	%0, $29		\n\t"
+		"	dmfc0	$1, $28		\n\t"
+		"	dsrl32	%1, $1, 0	\n\t"
+		"	sll	%2, $1, 0	\n\t"
+		"	.set	pop"
+		: "=r" (taghi), "=r" (taglohi), "=r" (taglolo)
+		: "r" ((way << 13) | addr));
+
 		taglo = ((unsigned long long)taglohi << 32) | taglolo;
 		if (way == 0) {
 			lru = (taghi >> 14) & 0xff;
@@ -325,19 +327,18 @@ static uint32_t extract_ic(unsigned short addr, int data)
 			for (offset = 0; offset < 4; offset++) {
 				/* Index-load-data-I */
 				__asm__ __volatile__ (
-					".set push        \n\t"
-					".set noreorder   \n\t"
-					".set mips64      \n\t"
-					".set noat        \n\t"
-					"cache  6, 0(%3)  \n\t"
-					"mfc0   %0, $29, 1\n\t"
-					"dmfc0  $1, $28, 1\n\t"
-					"dsrl32 %1, $1, 0 \n\t"
-					"sll    %2, $1, 0 \n\t"
-					".set pop         \n"
-					: "=r" (datahi), "=r" (insta),
-					  "=r" (instb)
-					: "r" ((way << 13) | addr | (offset << 3)));
+				"	.set	push\n\t"
+				"	.set	noreorder\n\t"
+				"	.set	mips3\t\t\t# .set mips64\n\t"
+				"	.set	noat\n\t"
+				"	cache  6, 0(%3)  \n\t"
+				"	.word	0x4001E801; move %0, $1\t\t\t# mfc0   %0, $29, 1\n\t"
+				"	.word	0x4021E001\t\t\t# dmfc0  $1, $28, 1\n\t"
+				"	dsrl32 %1, $1, 0 \n\t"
+				"	sll    %2, $1, 0 \n\t"
+				"	.set	pop         \n"
+				: "=r" (datahi), "=r" (insta), "=r" (instb)
+				: "r" ((way << 13) | addr | (offset << 3)));
 				predecode = (datahi >> 8) & 0xff;
 				if (((datahi >> 16) & 1) != (uint32_t)range_parity(predecode, 7, 0)) {
 					printk("   ** bad parity in predecode\n");
@@ -423,21 +424,19 @@ static uint32_t extract_dc(unsigned short addr, int data)
 
 	printk("Dcache index 0x%04x  ", addr);
 	for (way = 0; way < 4; way++) {
-		/* Index-load-tag-D */
 		__asm__ __volatile__ (
-			".set push        \n\t"
-			".set noreorder   \n\t"
-			".set mips64      \n\t"
-			".set noat        \n\t"
-			"cache  5, 0(%3)  \n\t"
-			"mfc0   %0, $29, 2\n\t"
-			"dmfc0  $1, $28, 2\n\t"
-			"dsrl32 %1, $1, 0 \n\t"
-			"sll    %2, $1, 0 \n\t"
-			".set pop         \n"
-			: "=r" (taghi), "=r" (taglohi),
-			  "=r" (taglolo)
-			: "r" ((way << 13) | addr));
+		"	.set	push\n\t"
+		"	.set	noreorder\n\t"
+		"	.set	mips3\t\t\t# .set	mips64\n\t"
+		"	.set	noat\n\t"
+		"	cache	5, 0(%3)\n\t"	/* Index-load-tag-D */
+		"	.word	0x4001E802; move %0, $1\t\t# mfc0 %0, $29, 2\n\t"
+		"	.word	0x4021E002\t\t\t# dmfc0	$1, $28, 2\n\t"
+		"	dsrl32	%1, $1, 0\n\t"
+		"	sll	%2, $1, 0\n\t"
+		"	.set	pop"
+		: "=r" (taghi), "=r" (taglohi), "=r" (taglolo)
+		: "r" ((way << 13) | addr));
 
 		taglo = ((unsigned long long)taglohi << 32) | taglolo;
 		pa = (taglo & 0xFFFFFFE000) | addr;
@@ -476,19 +475,18 @@ static uint32_t extract_dc(unsigned short addr, int data)
 			for (offset = 0; offset < 4; offset++) {
 				/* Index-load-data-D */
 				__asm__ __volatile__ (
-					".set push        \n\t"
-					".set noreorder   \n\t"
-					".set mips64      \n\t"
-					".set noat        \n\t"
-					"cache  7, 0(%3)  \n\t"
-					"mfc0   %0, $29, 3\n\t"
-					"dmfc0  $1, $28, 3\n\t"
-					"dsrl32 %1, $1, 0 \n\t"
-					"sll    %2, $1, 0 \n\t"
-					".set pop         \n"
-					: "=r" (datahi), "=r" (datalohi),
-					"=r" (datalolo)
-					: "r" ((way << 13) | addr | (offset << 3)));
+				"	.set	push\n\t"
+				"	.set	noreorder\n\t"
+				"	.set	mips3\t\t\t# .set	mips64\n\t"
+				"	.set	noat\n\t"
+				"	cache	7, 0(%3)\n\t" /* Index-load-data-D */
+				"	.word	0x4001E803; move %0, $1\t# mfc0	%0, $29, 3\n\t"
+				"	.word	0x4021E003\t\t\t# dmfc0	$1, $28, 3\n\t"
+				"	dsrl32	%1, $1, 0 \n\t"
+				"	sll	%2, $1, 0 \n\t"
+				"	.set	pop"
+				: "=r" (datahi), "=r" (datalohi), "=r" (datalolo)
+				: "r" ((way << 13) | addr | (offset << 3)));
 				datalo = ((unsigned long long)datalohi << 32) | datalolo;
 				ecc = dc_ecc(datalo);
 				if (ecc != datahi) {
