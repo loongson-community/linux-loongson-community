@@ -384,4 +384,6 @@ symbol		=	value
 #define MTC0	dmtc0
 #endif
 
+#define SSNOP	sll zero, zero, 1
+
 #endif /* __ASM_ASM_H */
