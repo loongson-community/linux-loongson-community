@@ -321,7 +321,7 @@ struct device *dev_alloc(const char *name, int *err)
 
 void dev_load(const char *name)
 {
-	if(!dev_get(name) && suser())
+	if(!dev_get(name) && capable(CAP_SYS_MODULE))
 		request_module(name);
 }
 
@@ -1591,7 +1591,7 @@ int dev_ioctl(unsigned int cmd, void *arg)
 		case SIOCDELMULTI:
 		case SIOCSIFHWBROADCAST:
 		case SIOCSIFTXQLEN:
-			if (!suser())
+			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
 			dev_load(ifr.ifr_name);
 			rtnl_lock();
@@ -1764,6 +1764,9 @@ extern int baycom_init(void);
 extern int lapbeth_init(void);
 extern void arcnet_init(void);
 extern void ip_auto_config(void);
+#ifdef CONFIG_8xx
+extern int cpm_enet_init(void);
+#endif /* CONFIG_8xx */
 
 #ifdef CONFIG_PROC_FS
 static struct proc_dir_entry proc_net_dev = {
@@ -1845,6 +1848,9 @@ __initfunc(int net_dev_init(void))
 #endif
 #if defined(CONFIG_ARCNET)
 	arcnet_init();
+#endif
+#if defined(CONFIG_8xx)
+        cpm_enet_init();
 #endif
 	/*
 	 *	SLHC if present needs attaching so other people see it

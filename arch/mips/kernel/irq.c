@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.10 1998/05/07 02:57:17 ralf Exp $
+/* $Id: irq.c,v 1.11 1998/05/07 23:43:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -27,7 +27,6 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/vector.h>
 
 unsigned char cache_21 = 0xff;
 unsigned char cache_A1 = 0xff;

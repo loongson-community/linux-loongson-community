@@ -522,8 +522,13 @@ static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		unsigned char scancode;
 
 		/* mouse data? */
-		if (status & kbd_read_mask & KBD_STAT_MOUSE_OBF)
+		if (status & kbd_read_mask & KBD_STAT_MOUSE_OBF) {
+#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
+			scancode = kbd_read_input();
+			aux_interrupt(status, scancode);
+#endif
 			break;
+		}
 
 		scancode = kbd_read_input();
 		if ((status & KBD_STAT_OBF) && do_acknowledge(scancode))

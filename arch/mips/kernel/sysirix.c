@@ -1,10 +1,9 @@
-/*
+/* $Id: sysirix.c,v 1.10 1998/03/17 22:07:37 ralf Exp $
+ *
  * sysirix.c: IRIX system call emulation.
  *
  * Copyright (C) 1996 David S. Miller
  * Copyright (C) 1997 Miguel de Icaza
- *
- * $Id: sysirix.c,v 1.9 1997/12/16 05:34:38 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -124,7 +123,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 		       current->comm, current->pid, (unsigned long) value);
 		if(value > RLIM_INFINITY)
 			value = RLIM_INFINITY;
-		if(suser()) {
+		if(capable(CAP_SYS_ADMIN)) {
 			current->rlim[RLIMIT_STACK].rlim_max =
 				current->rlim[RLIMIT_STACK].rlim_cur = value;
 			error = value;
@@ -620,7 +619,7 @@ asmlinkage int irix_stime(int value)
 	int ret;
 
 	lock_kernel();
-	if(!suser()) {
+	if(!capable(CAP_SYS_TIME)) {
 		ret = -EPERM;
 		goto out;
 	}

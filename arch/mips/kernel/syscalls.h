@@ -1,13 +1,12 @@
-/*
+/* $Id: syscalls.h,v 1.12 1998/05/07 02:57:18 ralf Exp $
+ *
  * List of Linux/MIPS syscalls.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996 by Ralf Baechle
- *
- * $Id: syscalls.h,v 1.11 1998/03/17 22:07:37 ralf Exp $
+ * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
  */
 
 /*
@@ -222,3 +221,5 @@ SYS(sys_pread, 4)				/* 4200 */
 SYS(sys_pwrite, 4)
 SYS(sys_chown, 3)
 SYS(sys_getcwd, 2)
+SYS(sys_capget, 2)
+SYS(sys_capset, 2)				/* 4205 */

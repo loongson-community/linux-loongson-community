@@ -58,7 +58,7 @@ extern void rw_swap_page_nocache(int, unsigned long, char *);
 
 /* linux/mm/page_alloc.c */
 extern void swap_in(struct task_struct *, struct vm_area_struct *,
-		    pte_t *, unsigned long, int);
+		    unsigned long, pte_t *, unsigned long, int);
 
 
 /* linux/mm/swap_state.c */
@@ -66,8 +66,8 @@ extern void show_swap_cache_info(void);
 extern int add_to_swap_cache(struct page *, unsigned long);
 extern void swap_duplicate(unsigned long);
 extern void swap_after_unlock_page (unsigned long entry);
-extern struct page * read_swap_cache_async(unsigned long, int);
-#define read_swap_cache(entry) read_swap_cache_async(entry, 1);
+extern struct page * read_swap_cache_async(unsigned long, unsigned long, int);
+#define read_swap_cache(entry, addr) read_swap_cache_async(entry, addr, 1);
 
 /* linux/mm/swapfile.c */
 extern unsigned int nr_swapfiles;

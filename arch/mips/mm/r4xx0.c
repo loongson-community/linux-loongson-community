@@ -1,9 +1,9 @@
-/*
+/* $Id: r4xx0.c,v 1.17 1998/05/04 09:12:55 ralf Exp $
+ *
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: r4xx0.c,v 1.23 1998/04/04 14:02:54 ralf Exp $
+ * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  *
  * To do:
  *
@@ -2465,8 +2465,8 @@ static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 /* Detect and size the various r4k caches. */
 __initfunc(static void probe_icache(unsigned long config))
 {
-	icache_size = 1 << (12 + ((config >> 6) & 7));
-	ic_lsize = 16 << ((config >> 4) & 1);
+	icache_size = 1 << (12 + ((config >> 9) & 7));
+	ic_lsize = 16 << ((config >> 5) & 1);
 
 	printk("Primary instruction cache %dkb, linesize %d bytes)\n",
 	       icache_size >> 10, ic_lsize);
@@ -2711,7 +2711,6 @@ static int r4k_user_mode(struct pt_regs *regs)
 {
 	return (regs->cp0_status & ST0_KSU) == KSU_USER;
 }
-
 
 __initfunc(void ld_mmu_r4xx0(void))
 {

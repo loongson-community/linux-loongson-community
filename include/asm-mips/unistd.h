@@ -1,11 +1,12 @@
-/*
+/* $Id: unistd.h,v 1.13 1998/05/07 15:21:41 ralf Exp $
+ *
  * This file contains the system call numbers.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
  *
  * Changed system calls macros _syscall5 - _syscall7 to push args 5 to 7 onto
  * the stack. Robin Farine for ACN S.A, Copyright (C) 1996 by ACN S.A
@@ -1191,11 +1192,13 @@
 #define __NR_pwrite			(__NR_Linux + 201)
 #define __NR_chown			(__NR_Linux + 202)
 #define __NR_getcwd			(__NR_Linux + 203)
+#define __NR_capget			(__NR_Linux + 204)
+#define __NR_capset			(__NR_Linux + 205)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		203
+#define __NR_Linux_syscalls		205
 
 #ifndef __LANGUAGE_ASSEMBLY__
 

@@ -77,10 +77,6 @@ __initfunc(void binfmt_setup(void))
 	init_elf_binfmt();
 #endif
 
-#ifdef CONFIG_BINFMT_IRIX
-	init_irix_binfmt();
-#endif
-
 #ifdef CONFIG_BINFMT_ELF32
 	init_elf32_binfmt();
 #endif
@@ -289,16 +285,18 @@ unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
 		p -= len;
 		pos = p;
 		while (len) {
-			char *pag;
+			char *pag = (char *) page[pos/PAGE_SIZE];
 			int offset, bytes_to_copy;
 
 			offset = pos % PAGE_SIZE;
-			if (!(pag = (char *) page[pos/PAGE_SIZE]) &&
-			    !(pag = (char *) page[pos/PAGE_SIZE] =
-			      (unsigned long *) get_free_page(GFP_USER))) {
-				if (from_kmem==2)
-					set_fs(old_fs);
-				return 0;
+			if(!pag) {
+				pag = (char *) page[pos/PAGE_SIZE] = get_user_page(pos);
+				if(!pag) {
+					if(from_kmem == 2)
+						set_fs(old_fs);
+					return 0;
+				}
+				clear_page(pag);
 			}
 			bytes_to_copy = PAGE_SIZE - offset;
 			if (bytes_to_copy > len)
@@ -423,6 +421,7 @@ static int exec_mmap(void)
 	retval = new_page_tables(current);
 	if (retval)
 		goto fail_restore;
+	activate_context(current);
 	up(&mm->mmap_sem);
 	mmput(old_mm);
 	return 0;

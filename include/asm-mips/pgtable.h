@@ -170,13 +170,13 @@ extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 extern pte_t __bad_page(void);
 extern pte_t *__bad_pagetable(void);
 
-extern unsigned long __zero_page(void);
-
-extern unsigned long empty_zero_page[1024];
+extern unsigned long empty_zero_page;
+extern unsigned long zero_page_mask;
 
 #define BAD_PAGETABLE __bad_pagetable()
 #define BAD_PAGE __bad_page()
-#define ZERO_PAGE ((unsigned long)empty_zero_page)
+#define ZERO_PAGE(__vaddr) \
+	(empty_zero_page + (((unsigned long)(__vaddr)) & zero_page_mask))
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR			(8*sizeof(unsigned long))

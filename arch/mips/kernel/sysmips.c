@@ -1,13 +1,12 @@
-/*
+/* $Id: sysmips.c,v 1.4 1997/12/01 17:57:32 ralf Exp $
+ *
  * MIPS specific syscalls
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
- *
- * $Id: sysmips.c,v 1.3 1997/07/18 06:26:02 ralf Exp $
+ * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
  */
 #include <linux/errno.h>
 #include <linux/linkage.h>
@@ -58,7 +57,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 	{
 	case SETNAME:
 		retval = -EPERM;
-		if (!suser())
+		if (!capable(CAP_SYS_ADMIN))
 			goto out;
 
 		name = (char *) arg1;

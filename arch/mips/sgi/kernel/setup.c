@@ -1,16 +1,19 @@
-/* $Id: setup.c,v 1.8 1998/05/06 02:46:46 ralf Exp $
+/* $Id: setup.c,v 1.9 1998/05/07 02:57:21 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/mc146818rtc.h>
 
 #include <asm/addrspace.h>
 #include <asm/bcache.h>
 #include <asm/keyboard.h>
+#include <asm/irq.h>
 #include <asm/reboot.h>
 #include <asm/vector.h>
 #include <asm/sgialib.h>
@@ -25,8 +28,7 @@ extern void sgi_machine_restart(char *command);
 extern void sgi_machine_halt(void);
 extern void sgi_machine_power_off(void);
 
-struct feature sgi_feature = {
-};
+extern struct rtc_ops indy_rtc_ops;
 
 static volatile struct hpc_keyb *sgi_kh = (struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64);
 
@@ -80,7 +82,6 @@ __initfunc(void sgi_setup(void))
 	char *ctype;
 
 	irq_setup = sgi_irq_setup;
-	feature = &sgi_feature;
 	keyboard_setup = sgi_keyboard_setup;
 
 	_machine_restart = sgi_machine_restart;
@@ -117,4 +118,6 @@ __initfunc(void sgi_setup(void))
 			prom_imode();
 		}
 	}
+
+	rtc_ops = &indy_rtc_ops;
 }

@@ -455,17 +455,20 @@ static inline int do_try_to_free_page(int gfp_mask)
 	switch (state) {
 		do {
 		case 0:
-			state = 1;
 			if (shrink_mmap(i, gfp_mask))
 				return 1;
+			state = 1;
 		case 1:
-			state = 2;
 			if ((gfp_mask & __GFP_IO) && shm_swap(i, gfp_mask))
 				return 1;
-		default:
-			state = 0;
+			state = 2;
+		case 2:
 			if (swap_out(i, gfp_mask))
 				return 1;
+			state = 3;
+		case 3:
+			shrink_dcache_memory(i, gfp_mask);
+			state = 0;
 		i--;
 		} while ((i - stop) >= 0);
 	}
@@ -545,30 +548,28 @@ int kswapd(void *unused)
 		schedule();
 		swapstats.wakeups++;
 
-		/* This will gently shrink the dcache.. */
-		shrink_dcache_memory();
-	
 		/*
 		 * Do the background pageout: be
 		 * more aggressive if we're really
 		 * low on free memory.
 		 *
-		 * The number of tries is 512 divided by an
-		 * 'urgency factor'. In practice this will mean
-		 * a value of 512 / 8 = 64 pages at a time,
-		 * giving 64 * 4 (times/sec) * 4k (pagesize) =
-		 * 1 MB/s in lowest-priority background
-		 * paging. This number rises to 8 MB/s when the
-		 * priority is highest (but then we'll be woken
-		 * up more often and the rate will be even higher).
-		 * -- Should make this sysctl tunable...
+		 * We try page_daemon.tries_base times, divided by
+		 * an 'urgency factor'. In practice this will mean
+		 * a value of pager_daemon.tries_base / 8 or 4 = 64
+		 * or 128 pages at a time.
+		 * This gives us 64 (or 128) * 4k * 4 (times/sec) =
+		 * 1 (or 2) MB/s swapping bandwidth in low-priority
+		 * background paging. This number rises to 8 MB/s
+		 * when the priority is highest (but then we'll be
+		 * woken up more often and the rate will be even
+		 * higher).
 		 */
-		tries = (512) >> free_memory_available(3);
+		tries = pager_daemon.tries_base >> free_memory_available(3);
 	
 		while (tries--) {
 			int gfp_mask;
 
-			if (++tried > SWAP_CLUSTER_MAX && free_memory_available(0))
+			if (++tried > pager_daemon.tries_min && free_memory_available(0))
 				break;
 			gfp_mask = __GFP_IO;
 			try_to_free_page(gfp_mask);
@@ -576,7 +577,7 @@ int kswapd(void *unused)
 			 * Syncing large chunks is faster than swapping
 			 * synchronously (less head movement). -- Rik.
 			 */
-			if (atomic_read(&nr_async_pages) >= SWAP_CLUSTER_MAX)
+			if (atomic_read(&nr_async_pages) >= pager_daemon.swap_cluster)
 				run_task_queue(&tq_disk);
 
 		}

@@ -289,7 +289,7 @@ static unsigned long try_to_read_ahead(struct file * file,
 	offset &= PAGE_MASK;
 	switch (page_cache) {
 	case 0:
-		page_cache = __get_free_page(GFP_KERNEL);
+		page_cache = get_user_page(offset);
 		if (!page_cache)
 			break;
 	default:
@@ -703,7 +703,7 @@ no_cached_page:
 		 * page..
 		 */
 		if (!page_cache) {
-			page_cache = __get_free_page(GFP_KERNEL);
+			page_cache = get_user_page(pos & PAGE_MASK);
 			/*
 			 * That could have slept, so go around to the
 			 * very beginning..
@@ -813,7 +813,7 @@ found_page:
 	 * extra page -- better to overlap the allocation with the I/O.
 	 */
 	if (no_share && !new_page) {
-		new_page = __get_free_page(GFP_KERNEL);
+		new_page = get_user_page(address);
 		if (!new_page)
 			goto failure;
 	}
@@ -850,7 +850,7 @@ success:
 	return new_page;
 
 no_cached_page:
-	new_page = __get_free_page(GFP_KERNEL);
+	new_page = get_user_page(address);
 	if (!new_page)
 		goto no_page;
 
@@ -878,7 +878,8 @@ no_cached_page:
 	 * Do a very limited read-ahead if appropriate
 	 */
 	if (PageLocked(page))
-		new_page = try_to_read_ahead(file, offset + PAGE_SIZE, 0);
+		new_page = try_to_read_ahead(file, offset + PAGE_SIZE,
+		                             get_user_page(address + PAGE_SIZE));
 	goto found_page;
 
 page_locked_wait:
@@ -1360,7 +1361,7 @@ generic_file_write(struct file *file, const char *buf,
 		hash = page_hash(inode, pgpos);
 		if (!(page = __find_page(inode, pgpos, *hash))) {
 			if (!page_cache) {
-				page_cache = __get_free_page(GFP_KERNEL);
+				page_cache = get_user_page(pgpos);
 				if (page_cache)
 					continue;
 				status = -ENOMEM;

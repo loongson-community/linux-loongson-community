@@ -1,11 +1,10 @@
-/*
+/* $Id: setup.c,v 1.7 1998/05/04 09:12:50 ralf Exp $
+ *
  *  linux/arch/mips/kernel/setup.c
  *
  *  Copyright (C) 1995  Linus Torvalds
- *  Copyright (C) 1995, 1996  Ralf Baechle
+ *  Copyright (C) 1995, 1996, 1997, 1998  Ralf Baechle
  *  Copyright (C) 1996  Stoned Elipot
- *
- * $Id: setup.c,v 1.6 1997/12/16 05:34:37 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -37,23 +36,11 @@
 #include <asm/cachectl.h>
 #include <asm/ide.h>
 #include <asm/io.h>
-#include <asm/vector.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
 #ifdef CONFIG_SGI
 #include <asm/sgialib.h>
 #endif
-
-/*
- * How to handle the machine's features
- */
-struct feature *feature;
-
-/*
- * What to do to keep the caches consistent with memory
- * We don't use the normal cacheflush routine to keep Tyne caches happier.
- */
-void (*fd_cacheflush)(const void *addr, size_t size);
 
 /*
  * Not all of the MIPS CPUs have the "wait" instruction available.  This
@@ -88,10 +75,18 @@ int EISA_bus = 0;
 struct drive_info_struct drive_info = DEFAULT_DRIVE_INFO;
 struct screen_info screen_info = DEFAULT_SCREEN_INFO;
 
+#ifdef CONFIG_BLK_DEV_FD
+extern struct fd_ops no_fd_ops;
+struct fd_ops *fd_ops;
+#endif
+
 #ifdef CONFIG_BLK_DEV_IDE
 extern struct ide_ops no_ide_ops;
 struct ide_ops *ide_ops;
 #endif
+
+extern struct rtc_ops no_rtc_ops;
+struct rtc_ops *rtc_ops;
 
 /*
  * setup informations
@@ -150,10 +145,6 @@ __initfunc(static void default_irq_setup(void))
 	panic("Unknown machtype in init_IRQ");
 }
 
-__initfunc(static void default_fd_cacheflush(const void *addr, size_t size))
-{
-}
-
 __initfunc(void setup_arch(char **cmdline_p,
            unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
@@ -179,10 +170,16 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 	/* Save defaults for configuration dependand routines.  */
 	irq_setup = default_irq_setup;
-	fd_cacheflush = default_fd_cacheflush;
+
+#ifdef CONFIG_BLK_DEV_FD
+	fd_ops = &no_fd_ops;
+#endif
+
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &no_ide_ops;
 #endif
+
+	rtc_ops = &no_rtc_ops;
 
 	switch(mips_machgroup)
 	{

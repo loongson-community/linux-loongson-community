@@ -323,7 +323,7 @@ static int try_to_unuse(unsigned int type)
 		/* Get a page for the entry, using the existing swap
                    cache page if there is one.  Otherwise, get a clean
                    page and read the swap into it. */
-		page_map = read_swap_cache(entry);
+		page_map = read_swap_cache(entry, 0);
 		if (!page_map)
 			return -ENOMEM;
 		page = page_address(page_map);
@@ -356,7 +356,7 @@ asmlinkage int sys_swapoff(const char * specialfile)
 	int err = -EPERM;
 	
 	lock_kernel();
-	if (!suser())
+	if (!capable(CAP_SYS_ADMIN))
 		goto out;
 
 	dentry = namei(specialfile);
@@ -491,7 +491,7 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	static int least_priority = 0;
 
 	lock_kernel();
-	if (!suser())
+	if (!capable(CAP_SYS_ADMIN))
 		goto out;
 	memset(&filp, 0, sizeof(filp));
 	p = swap_info;

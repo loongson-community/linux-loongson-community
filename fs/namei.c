@@ -43,17 +43,24 @@
  *
  * The new code replaces the old recursive symlink resolution with
  * an iterative one (in case of non-nested symlink chains).  It does
- * this by looking up the symlink name from the particular filesystem,
- * and then follows this name as if it were a user-supplied one.  This
- * is done solely in the VFS level, such that <fs>_follow_link() is not
- * used any more and could be removed in future.  As a side effect,
- * dir_namei(), _namei() and follow_link() are now replaced with a single
- * function lookup_dentry() that can handle all the special cases of the former
- * code.
+ * this with calls to <fs>_follow_link().
+ * As a side effect, dir_namei(), _namei() and follow_link() are now 
+ * replaced with a single function lookup_dentry() that can handle all 
+ * the special cases of the former code.
  *
  * With the new dcache, the pathname is stored at each inode, at least as
  * long as the refcount of the inode is positive.  As a side effect, the
  * size of the dcache depends on the inode cache and thus is dynamic.
+ *
+ * [29-Apr-1998 C. Scott Ananian] Updated above description of symlink
+ * resolution to correspond with current state of the code.
+ *
+ * Note that the symlink resolution is not *completely* iterative.
+ * There is still a significant amount of tail- and mid- recursion in
+ * the algorithm.  Also, note that <fs>_readlink() is not used in
+ * lookup_dentry(): lookup_dentry() on the result of <fs>_readlink()
+ * may return different results than <fs>_follow_link().  Many virtual
+ * filesystems (including /proc) exhibit this behavior.
  */
 
 /* [24-Feb-97 T. Schoebel-Theuer] Side effects caused by new implementation:
@@ -191,8 +198,13 @@ int permission(struct inode * inode,int mask)
 		mode >>= 6;
 	else if (in_group_p(inode->i_gid))
 		mode >>= 3;
-	if (((mode & mask & 0007) == mask) || fsuser())
+	if (((mode & mask & S_IRWXO) == mask) || capable(CAP_DAC_OVERRIDE))
 		return 0;
+	/* read and search access */
+	if ((mask == S_IROTH) ||
+	    (S_ISDIR(mode)  && !(mask & ~(S_IROTH | S_IXOTH))))
+		if (capable(CAP_DAC_READ_SEARCH))
+			return 0;
 	return -EACCES;
 }
 
@@ -699,7 +711,7 @@ asmlinkage int sys_mknod(const char * filename, int mode, dev_t dev)
 
 	lock_kernel();
 	error = -EPERM;
-	if (S_ISDIR(mode) || (!S_ISFIFO(mode) && !fsuser()))
+	if (S_ISDIR(mode) || (!S_ISFIFO(mode) && !capable(CAP_SYS_ADMIN)))
 		goto out;
 	error = -EINVAL;
 	switch (mode & S_IFMT) {

@@ -1,10 +1,10 @@
-/*
+/* $Id: indy_int.c,v 1.8 1998/05/07 02:57:20 ralf Exp $
+ *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: indy_int.c,v 1.7 1998/04/05 11:23:58 ralf Exp $
+ * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -27,7 +27,6 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/vector.h>
 
 #include <asm/ptrace.h>
 #include <asm/processor.h>

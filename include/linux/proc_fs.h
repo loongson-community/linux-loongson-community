@@ -51,6 +51,7 @@ enum root_directory_inos {
 	PROC_PPC_HTAB,
 	PROC_SOUND,
 	PROC_MTRR, /* whether enabled or not */
+	PROC_FS
 };
 
 enum pid_directory_inos {
@@ -204,6 +205,19 @@ enum bus_directory_inos {
 	PROC_BUS_PCI = PROC_MCA_LAST,
 	PROC_BUS_PCI_DEVICES,
 	PROC_BUS_LAST
+};
+
+enum fs_directory_inos {
+	PROC_FS_CODA = PROC_MCA_LAST,
+	PROC_FS_LAST
+};
+
+enum fs_coda_directory_inos {
+	PROC_VFS_STATS = PROC_MCA_LAST,
+	PROC_UPCALL_STATS,
+	PROC_PERMISSION_STATS,
+	PROC_CACHE_INV_STATS,
+	PROC_CODA_FS_LAST
 };
 
 /* Finally, the dynamically allocatable proc entries are reserved: */
@@ -366,7 +380,6 @@ extern struct inode_operations proc_dir_inode_operations;
 extern struct inode_operations proc_file_inode_operations;
 extern struct inode_operations proc_net_inode_operations;
 extern struct inode_operations proc_netdir_inode_operations;
-extern struct inode_operations proc_scsi_inode_operations;
 extern struct inode_operations proc_openprom_inode_operations;
 extern struct inode_operations proc_mem_inode_operations;
 extern struct inode_operations proc_sys_inode_operations;
@@ -382,8 +395,6 @@ extern struct inode_operations proc_ringbuf_inode_operations;
 #endif
 extern struct inode_operations proc_omirr_inode_operations;
 extern struct inode_operations proc_ppc_htab_inode_operations;
-
-#endif
 
 /*
  * generic.c
@@ -403,3 +414,5 @@ extern void proc_tty_unregister_driver(struct tty_driver *driver);
  * proc_devtree.c
  */
 extern void proc_device_tree_init(void);
+
+#endif /* _LINUX_PROC_FS_H */

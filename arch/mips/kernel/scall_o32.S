@@ -1,13 +1,10 @@
-/*
- * arch/mips/kernel/scall_o32.S
+/* $Id: scall_o32.S,v 1.4 1998/06/25 20:01:01 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1997, 1998 by Ralf Baechle
- *
- * $Id: scall_o32.S,v 1.3 1998/03/26 07:39:10 ralf Exp $
  */
 #include <asm/asm.h>
 #include <linux/errno.h>
@@ -104,9 +101,13 @@ trace_a_syscall:
 	SAVE_STATIC
 	sw	t2,PT_R1(sp)
 	jal	syscall_trace
-	sw	t2,PT_R1(sp)
+	lw	t2,PT_R1(sp)
 
-	jalr	t2			# Do The Real Thing (TM)
+	lw	a0, PT_R4(sp)		# Restore argument registers
+	lw	a1, PT_R5(sp)
+	lw	a2, PT_R6(sp)
+	lw	a3, PT_R7(sp)
+	jalr	t2
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0

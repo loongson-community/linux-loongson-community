@@ -1,14 +1,11 @@
-/*
- * arch/mips/kernel/traps.c
+/* $Id: traps.c,v 1.14 1998/05/28 03:17:56 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
+ * Copyright 1994, 1995, 1996, 1997, 1998 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
- *
- * $Id: traps.c,v 1.13 1998/04/04 13:59:39 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -20,7 +17,6 @@
 #include <asm/branch.h>
 #include <asm/cachectl.h>
 #include <asm/jazz.h>
-#include <asm/vector.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/bootinfo.h>

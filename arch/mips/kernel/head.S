@@ -1,14 +1,12 @@
-/*
- *  arch/mips/kernel/head.S
+/* $Id: head.S,v 1.7 1998/03/27 04:47:54 ralf Exp $
  *
  *  Copyright (C) 1994, 1995 Waldorf Electronics, 1996 Paul M. Antoine
  *  Written by Ralf Baechle and Andreas Busse
+ *  Copyright (C) 1996, 1997, 1998 Ralf Baechle
  *  Modified for DECStation and hence R3000 support by Paul M. Antoine
  *  Further modifications by David S. Miller
  *
  *  Head.S contains the MIPS exception handler and startup code.
- *
- * $Id: head.S,v 1.11 1998/03/22 20:43:43 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/tasks.h>
@@ -779,32 +777,35 @@ map0_sni_rm200_pci:
 		.word  	0			# no. wired TLB entries
 		.word	0			# dummy
 
-			.text
+/*
+ * This buffer is reserved for the use of the cache error handler.
+ */
+		.data
+		EXPORT(cache_error_buffer)
+		.fill	32*4,1,0
 
-			.org	0x1000
-			EXPORT(swapper_pg_dir)
+EXPORT(kernelsp)
+		PTR	0
+		.text
 
-			.org	0x2000
-			EXPORT(empty_bad_page)
+		.org	0x1000
+EXPORT(swapper_pg_dir)
 
-			.org	0x3000
-			EXPORT(empty_bad_page_table)
+		.org	0x2000
+EXPORT(empty_bad_page)
 
-			.org	0x4000
-			EXPORT(empty_zero_page)
+		.org	0x3000
+EXPORT(empty_bad_page_table)
 
-			.org	0x5000
-			EXPORT(invalid_pte_table)
+		.org	0x4000
+EXPORT(invalid_pte_table)
 
-			.org	0x6000
-
-			/*
-			 * init_task_union follows here in the .text segment.
-			 * Keep this aligned to a 8kb boundary!
-			 */
-			.data
-			EXPORT(cache_error_buffer)
-			.fill	32*4,1,0
-
-			EXPORT(kernelsp)
-			PTR	0
+		.org	0x5000
+/* XXX This label is required to keep GAS trying to be too clever ...
+   Bug?  */
+dummy:
+/*
+ * Align to 8kb boundary for init_task_union which follows in the
+ * .text segment.
+ */
+		.align	13

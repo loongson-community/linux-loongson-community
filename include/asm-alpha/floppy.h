@@ -33,8 +33,6 @@
 					            "floppy", NULL)
 #define fd_free_irq(irq)		free_irq(irq,  NULL);
 
-#define fd_cacheflush(addr,size)	/* nothing */
-
 __inline__ void virtual_dma_init(void)
 {
 	/* Nothing to do on an Alpha */

@@ -219,7 +219,7 @@ void free_page_and_swap_cache(unsigned long addr)
 		delete_from_swap_cache(page);
 	}
 	
-	free_page(addr);
+	free_user_page(page, addr);
 }
 
 
@@ -256,7 +256,7 @@ static struct page * lookup_swap_cache(unsigned long entry)
  * only doing readahead, so don't worry if the page is already locked.
  */
 
-struct page * read_swap_cache_async(unsigned long entry, int wait)
+struct page * read_swap_cache_async(unsigned long entry, unsigned long addr, int wait)
 {
 	struct page *found_page, *new_page = 0;
 	unsigned long new_page_addr = 0;
@@ -276,7 +276,7 @@ repeat:
 	/* The entry is not present.  Lock down a new page, add it to
 	 * the swap cache and read its contents. */
 	if (!new_page) {
-		new_page_addr = __get_free_page(GFP_KERNEL);
+		new_page_addr = get_user_page(addr);
 		if (!new_page_addr)
 			return 0;	/* Out of memory */
 		new_page = mem_map + MAP_NR(new_page_addr);

@@ -1,15 +1,15 @@
-/*
+/* $Id: pcimt_scache.c,v 1.1 1998/03/04 08:47:29 ralf Exp $
+ *
  * arch/mips/sni/pcimt_scache.c
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1997 by Ralf Baechle
- *
- * $Id: pcimt_scache.c,v 1.1 1997/12/20 13:13:40 ralf Exp $
+ * Copyright (c) 1997, 1998 by Ralf Baechle
  */
 #include <linux/init.h>
+#include <linux/kernel.h>
 #include <asm/bcache.h>
 #include <asm/sni.h>
 

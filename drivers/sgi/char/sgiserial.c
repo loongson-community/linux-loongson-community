@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: sgiserial.c,v 1.8 1998/04/05 11:24:34 ralf Exp $
+ * $Id: sgiserial.c,v 1.9 1998/05/04 09:12:59 ralf Exp $
  */
 
 #include <linux/config.h> /* for CONFIG_REMOTE_DEBUG */
@@ -1218,7 +1218,7 @@ static int set_serial_info(struct sgi_serial * info,
 	copy_from_user(&new_serial,new_info,sizeof(new_serial));
 	old_info = *info;
 
-	if (!suser()) {
+	if (!capable(CAP_SYS_ADMIN)) {
 		if ((new_serial.baud_base != info->baud_base) ||
 		    (new_serial.type != info->type) ||
 		    (new_serial.close_delay != info->close_delay) ||

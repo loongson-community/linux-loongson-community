@@ -1,4 +1,4 @@
-/* $Id: ide.h,v 1.3 1998/05/03 21:46:15 ralf Exp $
+/* $Id: ide.h,v 1.3 1998/05/07 03:02:49 ralf Exp $
  *
  *  linux/include/asm-mips/ide.h
  *
@@ -20,7 +20,7 @@ typedef unsigned short ide_ioreg_t;
 #define MAX_HWIFS	6
 #endif
 
-#define ide_sti()	sti()
+#define ide__sti()	__sti()
 
 struct ide_ops {
 	int (*ide_default_irq)(ide_ioreg_t base);

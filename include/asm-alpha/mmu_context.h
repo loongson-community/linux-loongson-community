@@ -109,8 +109,24 @@ extern inline void get_mmu_context(struct task_struct *p)
 #endif
 }
 
-#define init_new_context(mm)	do { } while(0)
+extern inline void init_new_context(struct mm_struct *mm)
+{
+	mm->context = 0;
+}
+
 #define destroy_context(mm)	do { } while(0)
+
+/*
+ * After we have set current->mm to a new value, this activates
+ * the context for the new mm so we see the new mappings.
+ * Ideally this would be an extern inline function, but reload_context
+ * is declared in pgtable.h, which includes this file. :-(
+ */
+#define activate_context(tsk)		\
+	do {				\
+		get_mmu_context(tsk);	\
+		reload_context(tsk);	\
+	} while (0)
 
 #endif
 

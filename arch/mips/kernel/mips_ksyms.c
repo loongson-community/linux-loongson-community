@@ -1,13 +1,12 @@
-/*
+/* $Id: mips_ksyms.c,v 1.7 1998/05/04 09:12:49 ralf Exp $
+ *
  * Export MIPS-specific functions needed for loadable modules.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997 by Ralf Baechle
- *
- * $Id: mips_ksyms.c,v 1.6 1998/03/18 17:18:12 ralf Exp $
+ * Copyright (C) 1996, 1997, 1998 by Ralf Baechle
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -61,7 +60,6 @@ EXPORT_SYMBOL(csum_partial_copy);
  * Functions to control caches.
  */
 EXPORT_SYMBOL(flush_page_to_ram);
-EXPORT_SYMBOL(fd_cacheflush);
 EXPORT_SYMBOL(flush_cache_all);
 
 /*
