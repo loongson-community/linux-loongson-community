@@ -113,19 +113,12 @@ void __init malta_setup(void)
 	enable_dma(4);
 
 #ifdef CONFIG_SERIAL_CONSOLE
-        argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "console=ttyS0")) == NULL) 
-	{
-	        int i=0;
-	        char *s = prom_getenv("modetty0");
-		while(s[i] >= '0' && s[i] <= '9')
-			i++;
-		strcpy(serial_console, "ttyS0,");
-		strncpy(serial_console + 6, s, i);
-		prom_printf("Config serial console: %s\n", serial_console);
-	        console_setup(serial_console, NULL);
+	argptr = prom_getcmdline();
+	if ((argptr = strstr(argptr, "console=")) == NULL) {
+		argptr = prom_getcmdline();
+		strcat(argptr, " console=ttyS0,38400");
 	}
-#endif	  
+#endif
 
 #ifdef CONFIG_REMOTE_DEBUG
 	argptr = prom_getcmdline();
