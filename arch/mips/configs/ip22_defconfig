@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 02:58:59 2004
+# Mon Dec 27 06:11:43 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -627,7 +627,6 @@ CONFIG_SGI_DS1286=m
 #
 # Ftape, the floppy tape device driver
 #
-# CONFIG_AGP is not set
 # CONFIG_DRM is not set
 CONFIG_RAW_DRIVER=m
 CONFIG_MAX_RAW_DEVS=256

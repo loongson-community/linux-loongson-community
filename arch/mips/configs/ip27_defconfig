@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10
-# Mon Dec 27 02:59:00 2004
+# Mon Dec 27 06:11:43 2004
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
@@ -562,7 +562,6 @@ CONFIG_SGI_IP27_RTC=y
 #
 # Ftape, the floppy tape device driver
 #
-# CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
 
