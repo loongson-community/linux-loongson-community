@@ -144,6 +144,23 @@
 #define	DDB_PCIARB1_H	0x06ec	/* PCI1 Arbitration-H */
 
 /*
+ * Local Bus
+ */
+#define DDB_LCST0	0x0110  /* LB Chip Select Timing 0 */
+#define DDB_LCST1	0x0118  /* LB Chip Select Timing 1 */
+#undef DDB_LCST2
+#define DDB_LCST2	0x0120  /* LB Chip Select Timing 2 */
+#undef DDB_LCST3
+#undef DDB_LCST4
+#undef DDB_LCST5
+#undef DDB_LCST6
+#undef DDB_LCST7
+#undef DDB_LCST8
+#define DDB_ERRADR	0x0150  /* Error Address Register */
+#define DDB_ERRCS       0x0160
+#define DDB_BTM		0x0170  /* Boot Time Mode value */
+
+/*
  * MISC registers
  */
 #define DDB_GIUFUNSEL	0x4040  /* select dual-func pins */
