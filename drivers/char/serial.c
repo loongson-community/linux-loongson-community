@@ -4209,9 +4209,10 @@ static struct pci_board pci_boards[] __initdata = {
 	{	PCI_VENDOR_ID_ROCKWELL, 0x1004,
 		0x1048, 0x1500, 
 		SPCI_FL_BASE1, 1, 115200 },
-#if 0			/* No definition for PCI_DEVICE_ID_NEC_NILE4 */
+#ifdef CONFIG_DDB5074
 	/*
 	 * NEC Vrc-5074 (Nile 4) builtin UART.
+	 * Conditionally compiled in since this is a motherboard device.
 	 */
 	{	PCI_VENDOR_ID_NEC, PCI_DEVICE_ID_NEC_NILE4,
 		PCI_ANY_ID, PCI_ANY_ID,

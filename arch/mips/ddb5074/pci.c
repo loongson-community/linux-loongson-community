@@ -168,8 +168,29 @@ struct pci_ops nile4_pci_ops = {
     nile4_pci_write_config_dword
 };
 
+struct {
+    struct resource ram;
+    struct resource flash;
+    struct resource isa_io;
+    struct resource pci_io;
+    struct resource isa_mem;
+    struct resource pci_mem;
+    struct resource nile4;
+    struct resource boot;
+} ddb5074_resources = {
+    { "RAM", 0x00000000, 0x03ffffff,
+      IORESOURCE_MEM | PCI_BASE_ADDRESS_MEM_TYPE_64 },
+    { "Flash ROM", 0x04000000, 0x043fffff },
+    { "Nile4 ISA I/O", 0x06000000, 0x060fffff },
+    { "Nile4 PCI I/O", 0x06100000, 0x07ffffff },
+    { "Nile4 ISA mem", 0x08000000, 0x08ffffff, IORESOURCE_MEM },
+    { "Nile4 PCI mem", 0x09000000, 0x0fffffff, IORESOURCE_MEM },
+    { "Nile4 ctrl", 0x1fa00000, 0x1fbfffff,
+      IORESOURCE_MEM | PCI_BASE_ADDRESS_MEM_TYPE_64 },
+    { "Boot ROM", 0x1fc00000, 0x1fffffff }
+};
 
-static void __init ddb5074_preassign_resources(void)
+static void __init ddb5074_pci_fixup(void)
 {
     struct pci_dev *dev;
 
@@ -177,19 +198,24 @@ static void __init ddb5074_preassign_resources(void)
 	if (dev->vendor == PCI_VENDOR_ID_NEC &&
 	    dev->device == PCI_DEVICE_ID_NEC_NILE4) {
 	    /*
-	     *  Fixup so the serial driver can use the UART
+	     *  The first 64-bit PCI base register should point to the Nile4
+	     *  control registers. Unfortunately this isn't the case, so we fix
+	     *  it ourselves. This allows the serial driver to find the UART.
 	     */
-	    dev->resource[0].start = PHYSADDR(NILE4_BASE);
-	    dev->resource[0].end = dev->resource[0].start+NILE4_SIZE-1;
-	    dev->resource[0].flags = IORESOURCE_MEM |
-				     PCI_BASE_ADDRESS_MEM_TYPE_64;
-	    pci_claim_resource(dev, 0);
+	    dev->resource[0] = ddb5074_resources.nile4;
+	    request_resource(&iomem_resource, &dev->resource[0]);
 	    /*
-	     *  Leave resource[2] (physical memory) alone
+	     *  The second 64-bit PCI base register points to the first memory
+	     *  bank. Unfortunately the address is wrong, so we fix it (again).
 	     */
-	    pci_claim_resource(dev, 2);
+	    dev->resource[2] = ddb5074_resources.ram;
+	    request_resource(&iomem_resource, &dev->resource[2]);
 	} else if (dev->vendor == PCI_VENDOR_ID_AL &&
 		   dev->device == PCI_DEVICE_ID_AL_M7101) {
+	    /*
+	     *  It's nice to have the LEDs on the GPIO pins available for
+	     *  debugging
+	     */
 	    extern struct pci_dev *pci_pmu;
 	    u8 t8;
 
@@ -249,8 +275,16 @@ void __init pcibios_init(void)
     printk("PCI: Probing PCI hardware\n");
     ioport_resource.end = 0x1ffffff;		/*  32 MB */
     iomem_resource.end = 0x1fffffff;		/* 512 MB */
+    /* `ram' and `nile4' are requested through the Nile4 pci_dev */
+    request_resource(&iomem_resource, &ddb5074_resources.flash);
+    request_resource(&iomem_resource, &ddb5074_resources.isa_io);
+    request_resource(&iomem_resource, &ddb5074_resources.pci_io);
+    request_resource(&iomem_resource, &ddb5074_resources.isa_mem);
+    request_resource(&iomem_resource, &ddb5074_resources.pci_mem);
+    request_resource(&iomem_resource, &ddb5074_resources.boot);
+
     pci_scan_bus(0, &nile4_pci_ops, NULL);
-    ddb5074_preassign_resources();
+    ddb5074_pci_fixup();
     pci_assign_unassigned_resources();
     pci_set_bus_ranges();
     pcibios_fixup_irqs();
@@ -258,6 +292,7 @@ void __init pcibios_init(void)
 
 void __init pcibios_fixup_bus(struct pci_bus *bus)
 {
+    bus->resource[1] = &ddb5074_resources.pci_mem;
 }
 
 char *pcibios_setup (char *str)
