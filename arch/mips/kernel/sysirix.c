@@ -904,6 +904,25 @@ asmlinkage int irix_socket(int family, int type, int protocol)
 	return sys_socket(family, type, protocol);
 }
 
+asmlinkage int irix_getdomainname(char *name, int len)
+{
+	int error;
+
+	error = verify_area(VERIFY_WRITE, name, len);
+	if (error)
+		return error;
+
+	down_read(&uts_sem);
+	if (len > __NEW_UTS_LEN)
+		len = __NEW_UTS_LEN;
+	error = 0;
+	if (copy_to_user(name, system_utsname.domainname, len))
+		error = -EFAULT;
+	up_read(&uts_sem);
+
+	return error;
+}
+
 asmlinkage unsigned long irix_getpagesize(void)
 {
 	return PAGE_SIZE;

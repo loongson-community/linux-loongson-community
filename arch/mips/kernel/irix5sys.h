@@ -130,7 +130,7 @@
 	sys	irix_socket	3	/* 1107  socket()	       V*/
 	sys	sys_gethostname	2	/* 1108  sys_gethostname()    ?V*/
 	sys	sys_sethostname	2	/* 1109  sethostname()	      ?V*/
-	sys	sys_getdomainname 2	/* 1110  sys_getdomainname()  ?V*/
+	sys	irix_getdomainname 2	/* 1110  sys_getdomainname()  ?V*/
 	sys	sys_setdomainname 2	/* 1111  setdomainname()      ?V*/
 	sys	sys_truncate	2	/* 1112  truncate()	       V*/
 	sys	sys_ftruncate	2	/* 1113  ftruncate()	       V*/
