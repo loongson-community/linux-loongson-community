@@ -616,11 +616,11 @@ endif
 ifdef CONFIG_MAPPED_KERNEL
 vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --remove-section=.reginfo \
-		--change-addresses=0xbfffffff40000000 $< $@
+		--change-addresses=0xc000000080000000 $< $@
 else
 vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --remove-section=.reginfo \
-		--change-addresses=0xa7ffffff80000000 $< $@
+		--change-addresses=0xa800000080000000 $< $@
 endif
 
 makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)
