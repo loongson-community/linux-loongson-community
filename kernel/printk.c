@@ -116,7 +116,7 @@ static int console_may_schedule;
 /*
  *	Setup a list of consoles. Called from init/main.c
  */
-int __init console_setup(char *str)
+static int __init console_setup(char *str)
 {
 	char name[sizeof(console_cmdline[0].name)];
 	char *s, *options;
