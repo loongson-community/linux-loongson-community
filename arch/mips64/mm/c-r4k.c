@@ -515,7 +515,7 @@ static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= dcache_size) {
-		r4k_flush_pcache_all();
+		r4k_blast_dcache();
 	} else {
 		unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 		R4600_HIT_CACHEOP_WAR_DECL;
@@ -540,7 +540,7 @@ static void r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= scache_size) {
-		r4k_flush_scache_all();
+		r4k_blast_scache();
 		return;
 	}
 
@@ -559,7 +559,7 @@ static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= dcache_size) {
-		r4k_flush_pcache_all();
+		r4k_blast_dcache();
 	} else {
 		unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 		R4600_HIT_CACHEOP_WAR_DECL;
@@ -584,7 +584,7 @@ static void r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= scache_size) {
-		r4k_flush_scache_all();
+		r4k_blast_scache();
 		return;
 	}
 
