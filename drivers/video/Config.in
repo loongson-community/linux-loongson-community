@@ -146,6 +146,25 @@ if [ "$CONFIG_FB" = "y" ]; then
 	 tristate '  NeoMagic display support (EXPERIMENTAL)' CONFIG_FB_NEOMAGIC
 	 tristate '  3Dfx Banshee/Voodoo3 display support (EXPERIMENTAL)' CONFIG_FB_3DFX
 	 tristate '  3Dfx Voodoo Graphics (sst1) support (EXPERIMENTAL)' CONFIG_FB_VOODOO1
+	 if [ "$CONFIG_MIPS" = "y" ]; then
+	   tristate '  Epson SED1356 framebuffer support' CONFIG_FB_E1356
+	   if [ "$CONFIG_MIPS_PB1000" = "y" -a "$CONFIG_FB_E1356" != "n" ]; then
+	     bool '    Use CRT on Pb1000 (J65)' CONFIG_PB1000_CRT
+	     bool '    Use Compsite NTSC on Pb1000 (J63)' CONFIG_PB1000_NTSC
+	     bool '    Use TFT Panel on Pb1000 (J64)' CONFIG_PB1000_TFT
+	   fi
+           if [ "$CONFIG_MIPS_PB1500" = "y" -a "$CONFIG_FB_E1356" != "n" ]; then
+	     bool '    Use CRT on Pb1500 ' CONFIG_PB1500_CRT
+	     bool '    Use TFT Panel on Pb1500 ' CONFIG_PB1500_TFT
+           fi
+           if [ "$CONFIG_MIPS_PB1100" = "y" -a "$CONFIG_FB_E1356" != "n" ]; then
+	     bool '    Use CRT on Pb1100 ' CONFIG_PB1500_CRT
+	     bool '    Use TFT Panel on Pb1100 ' CONFIG_PB1500_TFT
+           fi
+           if [ "$CONFIG_MIPS_PB1100" = "y" ]; then
+	     bool '    Au1100 LCD Driver' CONFIG_FB_AU1100
+           fi
+	 fi
       fi
    fi
    if [ "$ARCH" = "sparc" -o "$ARCH" = "sparc64" ]; then
