@@ -18,8 +18,8 @@
 
 /*
  * Warning on the terminology - Linux calls an uncached area coherent;
- * MIPS * terminology considers calls memory areas with hardware
- * maintained coherency coherent.
+ * MIPS terminology calls memory areas with hardware maintained coherency
+ * coherent.
  */
 
 void *dma_alloc_noncoherent(struct device *dev, size_t size,
