@@ -20,6 +20,8 @@
 #include <asm/stackframe.h>
 #include <asm/unistd.h>
 
+#define DEBUG_MIPS64 1
+
 /* This duplicates the definition from <linux/sched.h> */
 #define PF_TRACESYS	0x00000020	/* tracing system calls */
 
@@ -208,7 +210,7 @@ illegal_syscall:
 	sys	sys_read	3
 	sys	sys_write	3
 	sys	sys_open	3			/* 4005 */
-	sys	sys_close	3
+	sys	sys_close	1
 	sys	sys_waitpid	3
 	sys	sys_creat	2
 	sys	sys_link	2
@@ -367,8 +369,8 @@ illegal_syscall:
 	sys	sys_sched_yield	0
 	sys	sys_sched_get_priority_max 1
 	sys	sys_sched_get_priority_min 1
-	sys	sys_sched_rr_get_interval 2		/* 4165 */
-	sys	sys_nanosleep	2
+	sys	sys32_sched_rr_get_interval 2		/* 4165 */
+	sys	sys32_nanosleep	2
 	sys	sys_mremap	4
 	sys	sys_accept	3
 	sys	sys_bind	3

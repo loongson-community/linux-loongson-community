@@ -1105,3 +1105,54 @@ out:
 out_nofds:
 	return ret;
 }
+
+
+
+struct timespec32 {
+	int 	tv_sec;
+	int	tv_nsec;
+};
+
+extern asmlinkage int sys_sched_rr_get_interval(pid_t pid,
+						struct timespec *interval);
+
+asmlinkage int
+sys32_sched_rr_get_interval(__kernel_pid_t32 pid, struct timespec32 *interval)
+{
+	struct timespec t;
+	int ret;
+	mm_segment_t old_fs = get_fs ();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_sched_rr_get_interval(pid, &t);
+	set_fs (old_fs);
+	if (put_user (t.tv_sec, &interval->tv_sec) ||
+	    __put_user (t.tv_nsec, &interval->tv_nsec))
+		return -EFAULT;
+	return ret;
+}
+
+
+extern asmlinkage int sys_nanosleep(struct timespec *rqtp,
+				    struct timespec *rmtp); 
+
+asmlinkage int
+sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp)
+{
+	struct timespec t;
+	int ret;
+	mm_segment_t old_fs = get_fs ();
+	
+	if (get_user (t.tv_sec, &rqtp->tv_sec) ||
+	    __get_user (t.tv_nsec, &rqtp->tv_nsec))
+		return -EFAULT;
+	set_fs (KERNEL_DS);
+	ret = sys_nanosleep(&t, rmtp ? &t : NULL);
+	set_fs (old_fs);
+	if (rmtp && ret == -EINTR) {
+		if (__put_user (t.tv_sec, &rmtp->tv_sec) ||
+	    	    __put_user (t.tv_nsec, &rmtp->tv_nsec))
+			return -EFAULT;
+	}
+	return ret;
+}
