@@ -1511,22 +1511,11 @@ int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 		}
 #endif
 		skb = (struct sk_buff *) packet.skb;
-		/*
-		 * This chip is wierd. Does not have a byte level offset
-		 * to fix the IP header alignment issue. Now, do an extra
-		 * copy only if the custom pattern is not present
-		 */
+
 		skb_put(skb, packet.len);
 
-		/* Check to make sure this is the custom packet */
-		if (*(skb->data) == 0x0) {
-			skb_reserve(skb, 2);
-			skb->protocol = eth_type_trans(skb, netdev);
-			netif_receive_skb(skb);
-		}
-		else 	
-			if (titan_ge_slowpath(skb, &packet, netdev) < 0) 
-				goto out_next;
+		if (titan_ge_slowpath(skb, &packet, netdev) < 0) 
+			goto out_next;
 #ifdef CONFIG_NET_FASTROUTE
 gone:
 #endif
