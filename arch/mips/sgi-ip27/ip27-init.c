@@ -6,7 +6,6 @@
  * Copyright (C) 2000 - 2001 by Kanoj Sarcar (kanoj@sgi.com)
  * Copyright (C) 2000 - 2001 by Silicon Graphics, Inc.
  */
-
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -201,7 +200,7 @@ void mlreset(void)
 	 * Probe for all CPUs - this creates the cpumask and
 	 * sets up the mapping tables.
 	 */
-	cpu_clear(boot_cpumask);
+	cpus_clear(boot_cpumask);
 	maxcpus = cpu_node_probe(&boot_cpumask, &numnodes);
 	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 
