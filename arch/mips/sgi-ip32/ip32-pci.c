@@ -28,15 +28,15 @@
  * 4  N/C
  */
 
-#define chkslot(dev)							\
-do {									\
-	if ((dev)->bus->number > 0 || PCI_SLOT ((dev)->devfn) < 1	\
-	    || PCI_SLOT ((dev)->devfn) > 3)				\
-		return PCIBIOS_DEVICE_NOT_FOUND;			\
+#define chkslot(_bus,_devfn)					\
+do {							        \
+	if ((_bus)->number > 0 || PCI_SLOT (_devfn) < 1	\
+	    || PCI_SLOT (_devfn) > 3)			        \
+		return PCIBIOS_DEVICE_NOT_FOUND;		\
 } while (0)
 
-#define mkaddr(dev, where) \
-((((dev)->devfn & 0xffUL) << 8) | ((where) & 0xfcUL))
+#define mkaddr(_devfn, where) \
+((((_devfn) & 0xffUL) << 8) | ((where) & 0xfcUL))
 
 void macepci_error (int irq, void *dev, struct pt_regs *regs);
 
@@ -46,28 +46,28 @@ static int macepci_read_config(struct pci_bus *bus, unsigned int devfn,
 	switch (size) {
 	case 1:
 		*val = 0xff;
-		chkslot (dev);
-		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		chkslot (bus,devfn);
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (devfn, where));
 		*val = mace_read_8 (MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL));
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 2:
 		*val = 0xffff;
-		chkslot (dev);
+		chkslot (bus,devfn);
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
- 		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+ 		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (devfn, where));
 		*val = mace_read_16 (MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL));
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 4:
 		*val = 0xffffffff;
-		chkslot (dev);
+		chkslot (bus,devfn);
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (devfn, where));
 		*val = mace_read_32 (MACEPCI_CONFIG_DATA);
 
 		return PCIBIOS_SUCCESSFUL;
@@ -79,26 +79,26 @@ static int macepci_write_config(struct pci_bus *bus, unsigned int devfn,
 {
 	switch (size) {
 	case 1:
-		chkslot (dev);
-		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		chkslot (bus,devfn);
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (devfn, where));
 		mace_write_8 (MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL), val);
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 2:
-		chkslot (dev);
+		chkslot (bus,devfn);
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (devfn, where));
 		mace_write_16 (MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL), val);
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 4:
-		chkslot (dev);
+		chkslot (bus,devfn);
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (devfn, where));
 		mace_write_32 (MACEPCI_CONFIG_DATA, val);
 
 		return PCIBIOS_SUCCESSFUL;
@@ -264,7 +264,7 @@ subsys_initcall(pcibios_init);
  */
 static int __devinit macepci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	chkslot (dev);
+	chkslot (dev->bus,dev->devfn);
 	if (pin == 0)
 		pin = 1;
 	switch (slot) {
@@ -328,7 +328,7 @@ static u8 __init macepci_swizzle(struct pci_dev *dev, u8 *pinp)
 }
 
 /* All devices are enabled during initialization. */
-int pcibios_enable_device(struct pci_dev *dev, int mask, int mask)
+int pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	return PCIBIOS_SUCCESSFUL;
 }
