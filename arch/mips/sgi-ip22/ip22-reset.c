@@ -3,10 +3,10 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1997, 1998, 2001 by Ralf Baechle
+ * Copyright (C) 1997, 1998, 2001, 2003 by Ralf Baechle
  */
-
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
@@ -165,7 +165,7 @@ static inline void volume_down_button(unsigned long data)
 	}
 }
 
-static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t panel_int(int irq, void *dev_id, struct pt_regs *regs)
 {
 	unsigned int buttons;
 
@@ -182,13 +182,15 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 	}
 
 	/* Power button was pressed 
+	 *
 	 * ioc.ps page 22: "The Panel Register is called Power Control by Full
 	 * House. Only lowest 2 bits are used. Guiness uses upper four bits
 	 * for volume control". This is not true, all bits are pulled high
-	 * on fullhouse */
+	 * on fullhouse
+	 */
 	if (ip22_is_fullhouse() || !(buttons & SGIOC_PANEL_POWERINTR)) {
 		power_button();
-		return;
+		return IRQ_HANDLED;
 	}
 	/* TODO: mute/unmute */
 	/* Volume up button was pressed */
@@ -205,6 +207,8 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 		volume_timer.expires = jiffies + 1;
 		add_timer(&volume_timer);
 	}
+
+	return IRQ_HANDLED;
 }
 
 static int panic_event(struct notifier_block *this, unsigned long event,
