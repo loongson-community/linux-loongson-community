@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.16 1998/10/14 23:40:44 ralf Exp $
+/* $Id: traps.c,v 1.17 1998/10/31 13:18:43 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -202,17 +202,16 @@ static void default_be_board_handler(struct pt_regs *regs)
 	 * Assume it would be too dangerous to continue ...
 	 */
 	force_sig(SIGBUS, current);
+show_regs(regs); while(1);
 }
 
 void do_ibe(struct pt_regs *regs)
 {
-show_regs(regs); while(1);
 	ibe_board_handler(regs);
 }
 
 void do_dbe(struct pt_regs *regs)
 {
-show_regs(regs); while(1);
 	dbe_board_handler(regs);
 }
 

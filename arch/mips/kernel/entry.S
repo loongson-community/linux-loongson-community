@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.12 1998/09/19 19:16:15 ralf Exp $
+ * $Id: entry.S,v 1.13 1998/10/14 23:40:43 ralf Exp $
  */
 
 /*
@@ -146,7 +146,7 @@ EXPORT(exception_count_##exception);                                    \
 		BUILD_HANDLER(adel,ade,ade,silent)		/* #4  */
 		BUILD_HANDLER(ades,ade,ade,silent)		/* #5  */
 		BUILD_HANDLER(ibe,ibe,cli,verbose)		/* #6  */
-		BUILD_HANDLER(dbe,dbe,cli,verbose)		/* #7  */
+		BUILD_HANDLER(dbe,dbe,cli,silent)		/* #7  */
 		BUILD_HANDLER(bp,bp,sti,silent)			/* #9  */
 		BUILD_HANDLER(ri,ri,sti,silent)			/* #10 */
 		BUILD_HANDLER(cpu,cpu,sti,silent)		/* #11 */
