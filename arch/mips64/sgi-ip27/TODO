@@ -1,0 +1,3 @@
+1. Need to figure out why we need the "reallydo" hack in ip27-pci.c.
+2. Need to figure out how to do scatter gather, specifically for the
+Qlogic driver.
