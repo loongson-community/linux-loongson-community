@@ -33,4 +33,6 @@ extern void enable_irq(unsigned int);
 /* Machine specific interrupt initialization  */
 extern void (*irq_setup)(void);
 
+extern void init_generic_irq(void);
+
 #endif /* _ASM_IRQ_H */
