@@ -151,7 +151,7 @@ static void tx49_flush_cache_page(struct vm_area_struct *vma,
 	 * If the page isn't marked valid, the page cannot possibly be
 	 * in the cache.
 	 */
-	if (!(pte_val(*ptep) & _PAGE_VALID))
+	if (!(pte_val(*ptep) & _PAGE_PRESENT))
 		return;
 
 	/*
@@ -160,7 +160,7 @@ static void tx49_flush_cache_page(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm == current->active_mm) {
+	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
 		tx49_blast_dcache_page(page);
 		if (exec)
 			tx49_blast_icache_page(page);
