@@ -89,7 +89,8 @@ void output_task_defines(void)
 	offset("#define TASK_NICE          ", struct task_struct, nice);
 	offset("#define TASK_MM            ", struct task_struct, mm);
 	offset("#define TASK_PID           ", struct task_struct, pid);
-	size("#define TASK_STRUCT_SIZE   ", struct task_struct);
+	size(  "#define TASK_STRUCT_SIZE   ", struct task_struct);
+	constant("#define PT_TRACESYS        ", PT_TRACESYS);
 	linefeed;
 }
 
@@ -155,6 +156,43 @@ void output_sc_defines(void)
 	offset("#define SC_CAUSE      ", struct sigcontext, sc_cause);
 	offset("#define SC_BADVADDR   ", struct sigcontext, sc_badvaddr);
 	linefeed;
+}
+
+void output_signal_defined(void)
+{
+	text("/* Linux signal numbers. */");
+	constant("#define _SIGHUP     ", SIGHUP);
+	constant("#define _SIGINT     ", SIGINT);
+	constant("#define _SIGQUIT    ", SIGQUIT);
+	constant("#define _SIGILL     ", SIGILL);
+	constant("#define _SIGTRAP    ", SIGTRAP);
+	constant("#define _SIGIOT     ", SIGIOT);
+	constant("#define _SIGABRT    ", SIGABRT);
+	constant("#define _SIGEMT     ", SIGEMT);
+	constant("#define _SIGFPE     ", SIGFPE);
+	constant("#define _SIGKILL    ", SIGKILL);
+	constant("#define _SIGBUS     ", SIGBUS);
+	constant("#define _SIGSEGV    ", SIGSEGV);
+	constant("#define _SIGSYS     ", SIGSYS);
+	constant("#define _SIGPIPE    ", SIGPIPE);
+	constant("#define _SIGALRM    ", SIGALRM);
+	constant("#define _SIGTERM    ", SIGTERM);
+	constant("#define _SIGUSR1    ", SIGUSR1);
+	constant("#define _SIGUSR2    ", SIGUSR2);
+	constant("#define _SIGCHLD    ", SIGCHLD);
+	constant("#define _SIGPWR     ", SIGPWR);
+	constant("#define _SIGWINCH   ", SIGWINCH);
+	constant("#define _SIGURG     ", SIGURG);
+	constant("#define _SIGIO      ", SIGIO);
+	constant("#define _SIGSTOP    ", SIGSTOP);
+	constant("#define _SIGTSTP    ", SIGTSTP);
+	constant("#define _SIGCONT    ", SIGCONT);
+	constant("#define _SIGTTIN    ", SIGTTIN);
+	constant("#define _SIGTTOU    ", SIGTTOU);
+	constant("#define _SIGVTALRM  ", SIGVTALRM);
+	constant("#define _SIGPROF    ", SIGPROF);
+	constant("#define _SIGXCPU    ", SIGXCPU);
+	constant("#define _SIGXFSZ    ", SIGXFSZ);
 }
 
 text("#endif /* !(_MIPS_OFFSET_H) */");
