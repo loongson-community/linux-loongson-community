@@ -218,6 +218,37 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 }
 
 /*
+ * This one is only used for pages with the global bit set so we don't care
+ * much about the ASID.
+ */
+void local_flush_tlb_one(unsigned long page)
+{
+	unsigned long flags;
+	int oldpid, idx;
+
+	local_irq_save(flags);
+	page &= (PAGE_MASK << 1);
+	oldpid = read_c0_entryhi() & 0xff;
+	write_c0_entryhi(page);
+	BARRIER;
+	tlb_probe();
+	BARRIER;
+	idx = read_c0_index();
+	write_c0_entrylo0(0);
+	write_c0_entrylo1(0);
+	if (idx >= 0) {
+		/* Make sure all entries differ. */
+		write_c0_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		BARRIER;
+		tlb_write_indexed();
+	}
+	BARRIER;
+	write_c0_entryhi(oldpid);
+
+	local_irq_restore(flags);
+}
+
+/*
  * Updates the TLB with the new pte(s).
  */
 void __update_tlb(struct vm_area_struct * vma, unsigned long address, pte_t pte)

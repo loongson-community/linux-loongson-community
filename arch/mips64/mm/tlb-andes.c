@@ -27,10 +27,6 @@ void local_flush_tlb_all(void)
 	unsigned long old_ctx;
 	unsigned long entry;
 
-#ifdef DEBUG_TLB
-	printk("[tlball]");
-#endif
-
 	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
 	old_ctx = read_c0_entryhi() & ASID_MASK;
@@ -54,9 +50,6 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	int cpu = smp_processor_id();
 	if (cpu_context(cpu, mm) != 0) {
-#ifdef DEBUG_TLB
-		printk("[tlbmm<%d>]", mm->context);
-#endif
 		drop_mmu_context(mm,cpu);
 	}
 }
@@ -71,10 +64,6 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		unsigned long flags;
 		int size;
 
-#ifdef DEBUG_TLB
-		printk("[tlbrange<%02x,%08lx,%08lx>]",
-		       (mm->context & ASID_MASK), start, end);
-#endif
 		local_irq_save(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
@@ -151,9 +140,6 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		unsigned long flags;
 		int oldpid, newpid, idx;
 
-#ifdef DEBUG_TLB
-		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
-#endif
 		newpid = (cpu_context(smp_processor_id(), vma->vm_mm) &
 			  ASID_MASK);
 		page &= (PAGE_MASK << 1);
@@ -173,6 +159,33 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		write_c0_entryhi(oldpid);
 		local_irq_restore(flags);
 	}
+}
+
+/*
+ * This one is only used for pages with the global bit set so we don't care
+ * much about the ASID.
+ */
+void local_flush_tlb_one(unsigned long page)
+{
+	unsigned long flags;
+	int oldpid, idx;
+
+	local_irq_save(flags);
+	page &= (PAGE_MASK << 1);
+	oldpid = read_c0_entryhi() & 0xff;
+	write_c0_entryhi(page);
+	tlb_probe();
+	idx = read_c0_index();
+	write_c0_entrylo0(0);
+	write_c0_entrylo1(0);
+	if (idx >= 0) {
+		/* Make sure all entries differ. */
+		write_c0_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		tlb_write_indexed();
+	}
+	write_c0_entryhi(oldpid);
+
+	local_irq_restore(flags);
 }
 
 /* XXX Simplify this.  On the R10000 writing a TLB entry for an virtual

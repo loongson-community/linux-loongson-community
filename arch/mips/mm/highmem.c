@@ -75,7 +75,7 @@ void kunmap_atomic(void *kvaddr, enum km_type type)
 	 * this pte without first remap it
 	 */
 	pte_clear(kmap_pte-idx);
-	__flush_tlb_one(vaddr);
+	local_flush_tlb_one(vaddr);
 #endif
 
 	dec_preempt_count();
