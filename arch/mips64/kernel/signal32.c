@@ -17,6 +17,7 @@
 #include <linux/wait.h>
 #include <linux/ptrace.h>
 #include <linux/unistd.h>
+#include <linux/compat.h>
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
@@ -56,7 +57,7 @@ struct sigaction32 {
 /* IRIX compatible stack_t  */
 typedef struct sigaltstack32 {
 	s32 ss_sp;
-	__kernel_size_t32 ss_size;
+	compat_size_t ss_size;
 	int ss_flags;
 } stack32_t;
 
@@ -813,13 +814,8 @@ asmlinkage int sys32_rt_sigpending(sigset32_t *uset, unsigned int sigsetsize)
 	return ret;
 }
 
-struct timespec32 {
-	int	tv_sec;
-	int	tv_nsec;
-};
-
 asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
-	struct timespec32 *uts, __kernel_size_t32 sigsetsize)
+	struct compat_timespec *uts, compat_time_t sigsetsize)
 {
 	int ret, sig;
 	sigset_t these;

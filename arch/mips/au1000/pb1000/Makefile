@@ -15,5 +15,3 @@ USE_STANDARD_AS_RULE := true
 O_TARGET := pb1000.o
 
 obj-y := init.o setup.o
-
-include $(TOPDIR)/Rules.make

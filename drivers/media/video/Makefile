@@ -38,5 +38,3 @@ obj-$(CONFIG_VIDEO_MEYE) += meye.o
 obj-$(CONFIG_VIDEO_SAA7134) += saa7134/ tuner.o tda9887.o video-buf.o
 obj-$(CONFIG_VIDEO_SWARM_7114H) += swarm_saa7114h.o
 obj-$(CONFIG_TUNER_3036) += tuner-3036.o
-
-include $(TOPDIR)/Rules.make

@@ -333,7 +333,7 @@ out:	jr	ra
 	sys	sys_alarm	1
 	sys	sys_ni_syscall	0			/* was sys_fstat */
 	sys	sys_pause	0
-	sys	sys32_utime	2			/* 4030 */
+	sys	compat_sys_utime	2			/* 4030 */
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0
 	sys	sys_access	2
@@ -346,7 +346,7 @@ out:	jr	ra
 	sys	sys_rmdir	1			/* 4040 */
 	sys	sys_dup		1
 	sys	sys_pipe	0
-	sys	sys32_times	1
+	sys	compat_sys_times	1
 	sys	sys_ni_syscall	0
 	sys	sys_brk		1			/* 4045 */
 	sys	sys_setgid	1
@@ -407,8 +407,8 @@ out:	jr	ra
 	sys	sys_ni_syscall	0	/* sys_ioperm */
 	sys	sys_socketcall	2
 	sys	sys_syslog	3
-	sys	sys32_setitimer	3
-	sys	sys32_getitimer	2			/* 4105 */
+	sys	compat_sys_setitimer	3
+	sys	compat_sys_getitimer	2			/* 4105 */
 	sys	sys32_newstat	2
 	sys	sys32_newlstat	2
 	sys	sys32_newfstat	2
@@ -469,7 +469,7 @@ out:	jr	ra
 	sys	sys_sched_get_priority_max 1
 	sys	sys_sched_get_priority_min 1
 	sys	sys32_sched_rr_get_interval 2		/* 4165 */
-	sys	sys32_nanosleep	2
+	sys	compat_sys_nanosleep	2
 	sys	sys_mremap	4
 	sys	sys_accept	3
 	sys	sys_bind	3

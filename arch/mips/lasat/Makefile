@@ -14,7 +14,5 @@ obj-$(CONFIG_PICVUE_PROC) += picvue_proc.o
 
 obj-$(CONFIG_PCI) += pci.o
 
-include $(TOPDIR)/Rules.make
-
 clean:
 	make -C image clean

@@ -18,5 +18,3 @@
 O_TARGET := db1x00.o
 
 obj-y := init.o setup.o
-
-include $(TOPDIR)/Rules.make

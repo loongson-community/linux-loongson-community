@@ -24,5 +24,3 @@ obj-$(CONFIG_SH_WDT) += shwdt.o
 obj-$(CONFIG_EUROTECH_WDT) += eurotechwdt.o
 obj-$(CONFIG_SOFT_WATCHDOG) += softdog.o
 obj-$(CONFIG_INDYDOG) += indydog.o
-
-include $(TOPDIR)/Rules.make

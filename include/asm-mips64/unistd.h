@@ -495,11 +495,12 @@
 #define __NR_rt_sigreturn		(__NR_Linux + 211)
 #define __NR_set_tid_address		(__NR_Linux + 212)
 #define __NR_restart_syscall		(__NR_Linux + 213)
+#define __NR_semtimedop			(__NR_Linux + 214)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		213
+#define __NR_Linux_syscalls		214
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -720,11 +721,12 @@
 #define __NR_N32_fcntl64		(__NR_N32_Linux + 212)
 #define __NR_N32_set_tid_address	(__NR_N32_Linux + 213)
 #define __NR_N32_restart_syscall	(__NR_N32_Linux + 214)
+#define __NR_N32_semtimedop		(__NR_N32_Linux + 215)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		214
+#define __NR_N32_Linux_syscalls		215
 
 #ifndef __ASSEMBLY__
 

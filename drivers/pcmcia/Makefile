@@ -53,5 +53,3 @@ sa1100_cs-objs-$(CONFIG_SA1100_TRIZEPS)		+= sa1100_trizeps.o
 sa1100_cs-objs-$(CONFIG_SA1100_XP860)		+= sa1100_xp860.o sa1111_generic.o
 sa1100_cs-objs-$(CONFIG_SA1100_YOPY)		+= sa1100_yopy.o
 sa1100_cs-objs					:= $(sa1100_cs-objs-y)
-
-include $(TOPDIR)/Rules.make

@@ -30,5 +30,3 @@ obj-$(CONFIG_PROC_FS)			+= ide-proc.o
 endif
 
 obj-$(CONFIG_BLK_DEV_IDE)		+= legacy/ ppc/ arm/ mips/
-
-include $(TOPDIR)/Rules.make

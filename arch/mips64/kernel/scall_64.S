@@ -365,3 +365,5 @@ sys_call_table:
 	PTR	sys_remap_file_pages		/* 5210 */
 	PTR	sys_rt_sigreturn
 	PTR	sys_set_tid_address
+	PTR	sys_restart_syscall
+	PTR	sys_semtimedop

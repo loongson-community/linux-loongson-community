@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Module Name: nsinit - namespace initialization
- *              $Revision: 52 $
+ *              $Revision: 54 $
  *
  *****************************************************************************/
 
@@ -278,7 +278,7 @@ acpi_ns_init_one_object (
 	/* Print a dot for each object unless we are going to print the entire pathname */
 
 	if (!(acpi_dbg_level & ACPI_LV_INIT_NAMES)) {
-		acpi_os_printf (".");
+		ACPI_DEBUG_PRINT_RAW ((ACPI_DB_INIT, "."));
 	}
 
 	/*
@@ -321,7 +321,7 @@ acpi_ns_init_one_device (
 
 
 	if ((acpi_dbg_level <= ACPI_LV_ALL_EXCEPTIONS) && (!(acpi_dbg_level & ACPI_LV_INFO))) {
-		acpi_os_printf (".");
+		ACPI_DEBUG_PRINT_RAW ((ACPI_DB_INIT, "."));
 	}
 
 	info->device_count++;
@@ -373,7 +373,7 @@ acpi_ns_init_one_device (
 			/* Ignore error and move on to next device */
 
 	#ifdef ACPI_DEBUG_OUTPUT
-			NATIVE_CHAR *scope_name = acpi_ns_get_external_pathname (obj_handle);
+			char        *scope_name = acpi_ns_get_external_pathname (obj_handle);
 
 			ACPI_DEBUG_PRINT ((ACPI_DB_WARN, "%s._INI failed: %s\n",
 					scope_name, acpi_format_exception (status)));

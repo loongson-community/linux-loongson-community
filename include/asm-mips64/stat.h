@@ -11,64 +11,41 @@
 
 #include <linux/types.h>
 
-struct stat32 {
-	__kernel_dev_t32    st_dev;
-	int		    st_pad1[3];
-	__kernel_ino_t32    st_ino;
-	__kernel_mode_t32   st_mode;
-	__kernel_nlink_t32  st_nlink;
-	__kernel_uid_t32    st_uid;
-	__kernel_gid_t32    st_gid;
-	__kernel_dev_t32    st_rdev;
-	int		    st_pad2[2];
-	__kernel_off_t32    st_size;
-	int		    st_pad3;
-	__kernel_time_t32   st_atime;
-	int		    st_atime_nsec;
-	__kernel_time_t32   st_mtime;
-	int		    st_mtime_nsec;
-	__kernel_time_t32   st_ctime;
-	int		    st_ctime_nsec;
-	int		    st_blksize;
-	int		    st_blocks;
-	int		    st_pad4[14];
-};
-
 /* The memory layout is the same as of struct stat64 of the 32-bit kernel.  */
 struct stat {
-	dev_t		st_dev;
-	unsigned int	st_pad0[3];	/* Reserved for st_dev expansion  */
+	dev_t			st_dev;
+	unsigned int		st_pad0[3]; /* Reserved for st_dev expansion */
 
-	unsigned long	st_ino;
+	unsigned long		st_ino;
 
-	mode_t		st_mode;
-	nlink_t		st_nlink;
+	mode_t			st_mode;
+	nlink_t			st_nlink;
 
-	uid_t		st_uid;
-	gid_t		st_gid;
+	uid_t			st_uid;
+	gid_t			st_gid;
 
-	dev_t		st_rdev;
-	unsigned int	st_pad1[3];	/* Reserved for st_rdev expansion  */
+	dev_t			st_rdev;
+	unsigned int		st_pad1[3]; /* Reserved for st_rdev expansion */
 
-	off_t		st_size;
+	off_t			st_size;
 
 	/*
 	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
 	 * but we don't have it under Linux.
 	 */
-	unsigned int	st_atime;
-	unsigned int	st_atime_nsec;
+	unsigned int		st_atime;
+	unsigned int		st_atime_nsec;
 
-	unsigned int	st_mtime;
-	unsigned int	st_mtime_nsec;
+	unsigned int		st_mtime;
+	unsigned int		st_mtime_nsec;
 
-	unsigned int	st_ctime;
-	unsigned int	st_ctime_nsec;
+	unsigned int		st_ctime;
+	unsigned int		st_ctime_nsec;
 
-	unsigned int	st_blksize;
-	unsigned int	st_pad2;
+	unsigned int		st_blksize;
+	unsigned int		st_pad2;
 
-	unsigned long	st_blocks;
+	unsigned long		st_blocks;
 };
 
 #define STAT_HAVE_NSEC 1

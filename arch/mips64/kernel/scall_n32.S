@@ -147,9 +147,9 @@ EXPORT(sysn32_call_table)
 	PTR	sys_dup
 	PTR	sys_dup2
 	PTR	sys_pause
-	PTR	sys32_nanosleep
-	PTR	sys32_getitimer			/* 6035 */
-	PTR	sys32_setitimer
+	PTR	compat_sys_nanosleep
+	PTR	compat_sys_getitimer		/* 6035 */
+	PTR	compat_sys_setitimer
 	PTR	sys_alarm
 	PTR	sys_getpid
 	PTR	sys32_sendfile
@@ -211,7 +211,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys32_getrlimit			/* 6095 */
 	PTR	sys32_getrusage
 	PTR	sys32_sysinfo
-	PTR	sys32_times
+	PTR	compat_sys_times
 	PTR	sys_ptrace
 	PTR	sys_getuid			/* 6100 */
 	PTR	sys_syslog
@@ -243,7 +243,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys32_rt_sigqueueinfo
 	PTR	sys32_rt_sigsuspend
 	PTR	sys32_sigaltstack
-	PTR	sys32_utime			/* 6130 */
+	PTR	compat_sys_utime		/* 6130 */
 	PTR	sys_mknod
 	PTR	sys32_personality
 	PTR	sys_ustat
@@ -327,3 +327,5 @@ EXPORT(sysn32_call_table)
 	PTR	sys_ni_syscall
 	PTR	sys_fcntl
 	PTR	sys_set_tid_address
+	PTR	sys_restart_syscall
+	PTR	sys_semtimedop			/* 6215 */
