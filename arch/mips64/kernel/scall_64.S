@@ -165,8 +165,8 @@ sys_call_table:
 	PTR	sys_rt_sigaction
 	PTR	sys_rt_sigprocmask
 	PTR	sys_ioctl			/* 5015 */
-	PTR	sys_pread
-	PTR	sys_pwrite
+	PTR	sys_pread64
+	PTR	sys_pwrite64
 	PTR	sys_readv
 	PTR	sys_writev
 	PTR	sys_access			/* 5020 */

@@ -114,8 +114,8 @@ EXPORT(sysn32_call_table)
 	PTR	sys32_rt_sigaction
 	PTR	sys32_rt_sigprocmask
 	PTR	sys32_ioctl			/* 6015 */
-	PTR	sys_pread
-	PTR	sys_pwrite
+	PTR	sys_pread64
+	PTR	sys_pwrite64
 	PTR	sys32_readv
 	PTR	sys32_writev
 	PTR	sys_access			/* 6020 */

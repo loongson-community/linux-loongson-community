@@ -214,8 +214,8 @@ SYS(sys_rt_sigpending, 2)
 SYS(sys_rt_sigtimedwait, 4)
 SYS(sys_rt_sigqueueinfo, 3)
 SYS(sys_rt_sigsuspend, 0)
-SYS(sys_pread, 6)				/* 4200 */
-SYS(sys_pwrite, 6)
+SYS(sys_pread64, 6)				/* 4200 */
+SYS(sys_pwrite64, 6)
 SYS(sys_chown, 3)
 SYS(sys_getcwd, 2)
 SYS(sys_capget, 2)

@@ -252,7 +252,7 @@ unsigned long get_wchan(struct task_struct *p);
 #define KSTK_EIP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_epc)))
 #define KSTK_ESP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(regs[29])))
 
-#define cpu_relax()	do { } while (0)
+#define cpu_relax()	barrier()
 
 #endif /* !__ASSEMBLY__ */
 #endif /* __KERNEL__ */

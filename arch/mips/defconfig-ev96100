@@ -210,7 +210,6 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_INET_ECN is not set
 # CONFIG_SYN_COOKIES is not set
 # CONFIG_IPV6 is not set
-# CONFIG_KHTTPD is not set
 # CONFIG_ATM is not set
 # CONFIG_VLAN_8021Q is not set
 
@@ -481,6 +480,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_RAW_DRIVER is not set
 
 #
 # File systems

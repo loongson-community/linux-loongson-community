@@ -497,6 +497,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+# CONFIG_RAW_DRIVER is not set
 
 #
 # File systems
