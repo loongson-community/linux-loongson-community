@@ -44,7 +44,7 @@ static int gt64120_pcibios_config_access(unsigned char access_type,
 	u32 intr;
 
 	if ((busnum == 0) && (PCI_SLOT(devfn) == 0))
-		/* MIPS Core boards have Galileo connected as device 0
+		/* Galileo itself is devfn 0, don't move it around */
 		return -1;
 
 	if ((busnum == 0) && (devfn >= PCI_DEVFN(31, 0)))
