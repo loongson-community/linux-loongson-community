@@ -205,7 +205,7 @@ extern unsigned long zero_page_mask;
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
-extern pte_t invalid_pte_table[PAGE_SIZE/sizeof(pte_t)];
+extern pte_t invalid_pte_table[2*PAGE_SIZE/sizeof(pte_t)];
 extern pmd_t invalid_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
 
 /*

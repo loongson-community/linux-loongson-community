@@ -12,3 +12,5 @@ being invoked on all nodes in ip27-memory.c.
 7. Too many CLIs in the locore handlers.
 8. Too many do_page_faults invoked - investigate.
 9. start_thread must turn off UX64 ... and define tlb_refill_debug.
+10. Need a bad pmd table, bad pte table. __bad_pmd_table/__bad_pagetable
+does not agree with pgd_bad/pmd_bad.

@@ -273,7 +273,6 @@ void __init paging_init(void)
 
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
-	pgd_init((unsigned long)swapper_pg_dir + PAGE_SIZE / 2);
 	pmd_init((unsigned long)invalid_pmd_table);
 
 	for (node = 0; node < numnodes; node++) {
