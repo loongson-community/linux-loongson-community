@@ -254,7 +254,6 @@
 #define CPU_TX39XX		43
 #define CPU_LAST		43
 
-
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \

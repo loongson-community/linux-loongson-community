@@ -194,7 +194,6 @@ int *cpuoptions = &mips_cpu.options;
 
 static inline void cpu_probe(void)
 {
-
 #ifdef CONFIG_CPU_MIPS32
 	unsigned long config1;
 #endif
