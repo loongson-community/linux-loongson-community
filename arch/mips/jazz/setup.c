@@ -11,6 +11,7 @@
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/mm.h>
 #include <asm/bootinfo.h>
 #include <asm/keyboard.h>
 #include <asm/irq.h>
@@ -19,6 +20,7 @@
 #include <asm/reboot.h>
 #include <asm/vector.h>
 #include <asm/io.h>
+#include <asm/pgtable.h>
 
 /*
  * Initial irq handlers.
@@ -95,6 +97,10 @@ __initfunc(void jazz_setup(void))
 		((mips_arc_DisplayInfo*)TAGVALPTR(atag))->lines;
 	}
     }
+
+        add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
+        add_wired_entry (0x02400017, 0x02440017, 0xe2000000, PM_16M);
+        add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
 
 	irq_setup = jazz_irq_setup;
 	fd_cacheflush = jazz_fd_cacheflush;
