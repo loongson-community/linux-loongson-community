@@ -3,18 +3,17 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
- *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1997, 98, 99, 2000, 01, 02, 03 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 2000 Kanoj Sarcar (kanoj@sgi.com)
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 
+#include <asm/cacheops.h>
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -22,10 +21,6 @@
 #include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
 #include <asm/cpu.h>
-
-#include <asm/cacheops.h>
-
-#undef DEBUG_CACHE
 
 /*
  * Zero an entire page.  Basically a simple unrolled loop should do the
@@ -299,6 +294,34 @@ void r4k_clear_page_s128(void * page)
 		".set\treorder"
 		: "=r" (page)
 		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
+		: "memory");
+}
+
+/*
+ * This version has been tuned on an Origin.  For other machines the arguments
+ * of the pref instructin may have to be tuned differently.
+ */
+void andes_clear_page(void * page)
+{
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"daddiu\t$1,%0,%2\n"
+		"1:\tpref 7,512(%0)\n\t"
+		"sd\t$0,(%0)\n\t"
+		"sd\t$0,8(%0)\n\t"
+		"sd\t$0,16(%0)\n\t"
+		"sd\t$0,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"sd\t$0,-32(%0)\n\t"
+		"sd\t$0,-24(%0)\n\t"
+		"sd\t$0,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sd\t$0,-8(%0)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE)
 		: "memory");
 }
 
@@ -640,4 +663,44 @@ void r4k_copy_page_s128(void * to, void * from)
 		:"0" (to), "1" (from),
 		 "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_SD));
+}
+
+/*
+ * This version has been tuned on an Origin.  For other machines the arguments
+ * of the pref instructin may have to be tuned differently.
+ */
+void andes_copy_page(void * to, void * from)
+{
+	unsigned long dummy1, dummy2, reg1, reg2, reg3, reg4;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"daddiu\t$1,%0,%8\n"
+		"1:\tpref\t0,2*128(%1)\n\t"
+		"pref\t1,2*128(%0)\n\t"
+		"ld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"ld\t%4,16(%1)\n\t"
+		"ld\t%5,24(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"sd\t%4,16(%0)\n\t"
+		"sd\t%5,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"daddiu\t%1,64\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"ld\t%4,-16(%1)\n\t"
+		"ld\t%5,-8(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"sd\t%4,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		" sd\t%5,-8(%0)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2),
+		 "=&r" (reg3), "=&r" (reg4)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE));
 }

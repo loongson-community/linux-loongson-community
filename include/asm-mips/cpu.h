@@ -196,5 +196,6 @@
 #define MIPS_CPU_EJTAG		0x00002000 /* EJTAG exception */
 #define MIPS_CPU_NOFPUEX	0x00004000 /* no FPU exception */
 #define MIPS_CPU_LLSC		0x00008000 /* CPU has ll/sc instructions */
+#define MIPS_CPU_SUBSET_CACHES	0x00010000 /* P-cache subset enforced */
 
 #endif /* _ASM_CPU_H */

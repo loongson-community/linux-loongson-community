@@ -82,6 +82,12 @@ static inline void protected_flush_icache_line(unsigned long addr)
 		: "i" (Hit_Invalidate_I), "r" (addr));
 }
 
+/*
+ * R10000 / R12000 hazard - these processors don't support the Hit_Writeback_D
+ * cacheop so we use Hit_Writeback_Inv_D which is supported by all R4000-style
+ * caches.  We're talking about one cacheline unnecessarily getting invalidated
+ * here so the penaltiy isn't overly hard.
+ */
 static inline void protected_writeback_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
@@ -94,7 +100,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "i" (Hit_Writeback_D), "r" (addr));
+		: "i" (Hit_Writeback_Inv_D), "r" (addr));
 }
 
 /*
@@ -212,12 +218,15 @@ static inline void blast_icache16_page_indexed(unsigned long page)
 static inline void blast_scache16(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = KSEG0 + scache_size;
+	unsigned long end = start + scache_way_size;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways << 
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache16_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x200;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x200)
+			cache16_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 static inline void blast_scache16_page(unsigned long page)
@@ -234,12 +243,15 @@ static inline void blast_scache16_page(unsigned long page)
 static inline void blast_scache16_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = page + PAGE_SIZE;
+	unsigned long end = start + PAGE_SIZE;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways <<
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache16_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x200;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x200) 
+			cache16_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 #define cache32_unroll32(base,op)				\
@@ -282,30 +294,11 @@ static inline void blast_dcache32(void)
 			cache32_unroll32(addr|ws,Index_Writeback_Inv_D);
 }
 
-
-/*
- * Call this function only with interrupts disabled or R4600 V2.0 may blow
- * up on you.
- *
- * R4600 v2.0 bug: "The CACHE instructions Hit_Writeback_Inv_D,
- * Hit_Writeback_D, Hit_Invalidate_D and Create_Dirty_Excl_D will only
- * operate correctly if the internal data cache refill buffer is empty.  These
- * CACHE instructions should be separated from any potential data cache miss
- * by a load instruction to an uncached address to empty the response buffer."
- * (Revision 2.0 device errata from IDT available on http://www.idt.com/
- * in .pdf format.)
- */
 static inline void blast_dcache32_page(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = start + PAGE_SIZE;
 
-	/*
-	 * Sigh ... workaround for R4600 v1.7 bug.  Explanation see above.
-	 */
-	*(volatile unsigned long *)KSEG1;
-
-	__asm__ __volatile__("nop;nop;nop;nop");
 	while (start < end) {
 		cache32_unroll32(start,Hit_Writeback_Inv_D);
 		start += 0x400;
@@ -368,12 +361,15 @@ static inline void blast_icache32_page_indexed(unsigned long page)
 static inline void blast_scache32(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = KSEG0 + scache_size;
+	unsigned long end = start + scache_way_size;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways << 
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache32_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x400;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x400)
+			cache32_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 static inline void blast_scache32_page(unsigned long page)
@@ -390,12 +386,15 @@ static inline void blast_scache32_page(unsigned long page)
 static inline void blast_scache32_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = page + PAGE_SIZE;
+	unsigned long end = start + PAGE_SIZE;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways <<
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache32_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x400;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x400) 
+			cache32_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 #define cache64_unroll32(base,op)				\
@@ -424,15 +423,57 @@ static inline void blast_scache32_page_indexed(unsigned long page)
 		: "r" (base),					\
 		  "i" (op));
 
+static inline void blast_icache64(void)
+{
+	unsigned long start = KSEG0;
+	unsigned long end = start + icache_way_size;
+	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
+	unsigned long ws_end = current_cpu_data.icache.ways <<
+	                       current_cpu_data.icache.waybit;
+	unsigned long ws, addr;
+
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x800) 
+			cache64_unroll32(addr|ws,Index_Invalidate_I);
+}
+
+static inline void blast_icache64_page(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = start + PAGE_SIZE;
+
+	while (start < end) {
+		cache64_unroll32(start,Hit_Invalidate_I);
+		start += 0x800;
+	}
+}
+
+static inline void blast_icache64_page_indexed(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = start + PAGE_SIZE;
+	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
+	unsigned long ws_end = current_cpu_data.icache.ways <<
+	                       current_cpu_data.icache.waybit;
+	unsigned long ws, addr;
+
+	for (ws = 0; ws < ws_end; ws += ws_inc)
+		for (addr = start; addr < end; addr += 0x800) 
+			cache64_unroll32(addr|ws,Index_Invalidate_I);
+}
+
 static inline void blast_scache64(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = KSEG0 + scache_size;
+	unsigned long end = start + scache_way_size;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways << 
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache64_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x800;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x800)
+			cache64_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 static inline void blast_scache64_page(unsigned long page)
@@ -449,12 +490,15 @@ static inline void blast_scache64_page(unsigned long page)
 static inline void blast_scache64_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = page + PAGE_SIZE;
+	unsigned long end = start + PAGE_SIZE;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways <<
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache64_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x800;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x800) 
+			cache64_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 #define cache128_unroll32(base,op)				\
@@ -486,22 +530,40 @@ static inline void blast_scache64_page_indexed(unsigned long page)
 static inline void blast_scache128(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = KSEG0 + scache_size;
+	unsigned long end = start + scache_way_size;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways << 
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
 
-	while (start < end) {
-		cache128_unroll32(start,Index_Writeback_Inv_SD);
-		start += 0x1000;
-	}
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x1000)
+			cache128_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 static inline void blast_scache128_page(unsigned long page)
 {
-	cache128_unroll32(page,Hit_Writeback_Inv_SD);
+	unsigned long start = page;
+	unsigned long end = page + PAGE_SIZE;
+
+	while (start < end) {
+		cache128_unroll32(start,Hit_Writeback_Inv_SD);
+		start += 0x1000;
+	}
 }
 
 static inline void blast_scache128_page_indexed(unsigned long page)
 {
-	cache128_unroll32(page,Index_Writeback_Inv_SD);
+	unsigned long start = page;
+	unsigned long end = start + PAGE_SIZE;
+	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
+	unsigned long ws_end = current_cpu_data.scache.ways <<
+	                       current_cpu_data.scache.waybit;
+	unsigned long ws, addr;
+
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x1000) 
+			cache128_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
 #endif /* __ASM_R4KCACHE_H */

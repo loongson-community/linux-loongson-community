@@ -99,7 +99,7 @@ void __init load_mmu(void)
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 	case CPU_R12000:
-		ld_mmu_andes();
+		ld_mmu_r4xx0();
 		andes_tlb_init();
 		break;
 #endif

@@ -23,7 +23,6 @@
 #endif
 
 	.text
-	.set	mips3
 	.set	noat
 
 /*
@@ -40,6 +39,7 @@
  */
 
 LEAF(r4k_clear_page32_d16)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sw	zero, (a0)
@@ -57,6 +57,7 @@ LEAF(r4k_clear_page32_d16)
 	END(r4k_clear_page32_d16)
 
 LEAF(r4k_clear_page32_d32)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sw	zero, (a0)
@@ -73,6 +74,7 @@ LEAF(r4k_clear_page32_d32)
 	END(r4k_clear_page32_d32)
 
 LEAF(r4k_clear_page_d16)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sd	zero, (a0)
@@ -92,6 +94,7 @@ LEAF(r4k_clear_page_d16)
 	END(r4k_clear_page_d16)
 
 LEAF(r4k_clear_page_d32)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sd	zero, (a0)
@@ -137,6 +140,7 @@ LEAF(r4k_clear_page_d32)
  */
 
 LEAF(r4k_clear_page_r4600_v1)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	nop
 	nop
@@ -161,6 +165,7 @@ LEAF(r4k_clear_page_r4600_v1)
 	END(r4k_clear_page_r4600_v1)
 
 LEAF(r4k_clear_page_r4600_v2)
+	.set	mips3
 	mfc0	a1, CP0_STATUS
 	ori	AT, a1, 1
 	xori	AT, 1
@@ -212,6 +217,7 @@ LEAF(r4k_clear_page_r4600_v2)
  */
 
 LEAF(r4k_clear_page_s16)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
@@ -231,6 +237,7 @@ LEAF(r4k_clear_page_s16)
 	END(r4k_clear_page_s16)
 
 LEAF(r4k_clear_page_s32)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
@@ -248,6 +255,7 @@ LEAF(r4k_clear_page_s32)
 	END(r4k_clear_page_s32)
 
 LEAF(r4k_clear_page_s64)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
@@ -264,6 +272,7 @@ LEAF(r4k_clear_page_s64)
 	END(r4k_clear_page_s64)
 
 LEAF(r4k_clear_page_s128)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
@@ -288,11 +297,35 @@ LEAF(r4k_clear_page_s128)
 	END(r4k_clear_page_s128)
 
 /*
+ * This is suboptimal for 32-bit kernels; we assume that R10000 is only used
+ * with 64-bit kernels.  The prefetch offsets have been experimentally tuned
+ * an Origin 200.
+ */
+LEAF(andes_clear_page)
+	.set		mips4
+	LONG_ADDIU	AT, a0, _PAGE_SIZE
+1:	pref		7, 512(a0)
+	sd		zero, 0*SZREG(a0)
+	sd		zero, 1*SZREG(a0)
+	sd		zero, 2*SZREG(a0)
+	sd		zero, 3*SZREG(a0)
+	LONG_ADDIU	a0, a0, 8*SZREG
+	sd		zero, -4*SZREG(a0)
+	sd		zero, -3*SZREG(a0)
+	sd		zero, -2*SZREG(a0)
+	sd		zero, -1*SZREG(a0)
+	bne		AT, a0, 1b
+	j		ra
+	END(andes_clear_page)
+	.set		mips0
+
+/*
  * This is still inefficient.  We only can do better if we know the
  * virtual address where the copy will be accessed.
  */
 
 LEAF(r4k_copy_page_d16)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	lw	a3, (a1)
@@ -337,6 +370,7 @@ LEAF(r4k_copy_page_d16)
 	END(r4k_copy_page_d16)
 
 LEAF(r4k_copy_page_d32)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	lw	a3, (a1)
@@ -383,6 +417,7 @@ LEAF(r4k_copy_page_d32)
  */
 
 LEAF(r4k_copy_page_r4600_v1)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	nop
 	nop
@@ -433,6 +468,7 @@ LEAF(r4k_copy_page_r4600_v1)
 	END(r4k_copy_page_r4600_v1)
 
 LEAF(r4k_copy_page_r4600_v2)
+	.set	mips3
 	mfc0	v1, CP0_STATUS
 	ori	AT, v1, 1
 	xori	AT, 1
@@ -506,6 +542,7 @@ LEAF(r4k_copy_page_r4600_v2)
  */
 
 LEAF(r4k_copy_page_s16)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
@@ -550,6 +587,7 @@ LEAF(r4k_copy_page_s16)
 	END(r4k_copy_page_s16)
 
 LEAF(r4k_copy_page_s32)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
@@ -592,6 +630,7 @@ LEAF(r4k_copy_page_s32)
 	END(r4k_copy_page_s32)
 
 LEAF(r4k_copy_page_s64)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
@@ -633,6 +672,7 @@ LEAF(r4k_copy_page_s64)
 	END(r4k_copy_page_s64)
 
 LEAF(r4k_copy_page_s128)
+	.set	mips3
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
@@ -705,8 +745,48 @@ LEAF(r4k_copy_page_s128)
 	jr	ra
 	END(r4k_copy_page_s128)
 
+
+	.text
+	.set	mips4
+	.set	noat
+
+
+/*
+ * This is suboptimal for 32-bit kernels; we assume that R10000 is only used
+ * with 64-bit kernels.  The prefetch offsets have been experimentally tuned
+ * an Origin 200.
+ */
+LEAF(andes_copy_page)
+	.set		mips4
+	LONG_ADDIU	AT, a0, _PAGE_SIZE
+1:	pref		0, 2*128(a1)
+	pref		1, 2*128(a0)
+	LONG_L		a3, 0*SZREG(a1)
+	LONG_L		a2, 1*SZREG(a1)
+	LONG_L		v1, 2*SZREG(a1)
+	LONG_L		v0, 3*SZREG(a1)
+	LONG_S		a3, 0*SZREG(a0)
+	LONG_S		a2, 1*SZREG(a0)
+	LONG_S		v1, 2*SZREG(a0)
+	LONG_S		v0, 3*SZREG(a0)
+	LONG_ADDIU	a0, a0, 8*SZREG
+	LONG_ADDIU	a1, a1, 8*SZREG
+	LONG_L		a3, -4*SZREG(a1)
+	LONG_L		a2, -3*SZREG(a1)
+	LONG_L		v1, -2*SZREG(a1)
+	LONG_L		v0, -1*SZREG(a1)
+	LONG_S		a3, -4*SZREG(a0)
+	LONG_S		a2, -3*SZREG(a0)
+	LONG_S		v1, -2*SZREG(a0)
+	LONG_S		v0, -1*SZREG(a0)
+	bne		AT, a0,1b
+	j		ra
+	END(andes_copy_page)
+	.set		mips0
+
 /* This one still needs to receive cache optimizations  */
 LEAF(pgd_init)
+	.set	mips0
 	addiu	AT, a0, PGD_SIZE / 2
 	la	v0, invalid_pte_table
 1:	sw	v0, (a0)
