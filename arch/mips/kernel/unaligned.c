@@ -96,6 +96,8 @@
 #define STR(x)  __STR(x)
 #define __STR(x)  #x
 
+typedef unsigned long register_t;
+
 /*
  * User code may only access USEG; kernel code may access the
  * entire address space.
@@ -104,11 +106,11 @@
 	if ((long)(~(pc) & ((a) | ((a)+(s)))) < 0)      \
 		goto sigbus;
 
-static __inline__ void
+static inline void
 emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long pc)
 {
 	union mips_instruction insn;
-	__register_t value;
+	register_t value;
 
 	regs->regs[0] = 0;
 	/*
@@ -369,7 +371,7 @@ sigbus:
 
 unsigned long unaligned_instructions;
 
-static __inline__ void
+static inline void
 fix_ade(struct pt_regs *regs, unsigned long pc)
 {
 	/*
@@ -400,8 +402,8 @@ fix_ade(struct pt_regs *regs, unsigned long pc)
 asmlinkage void
 do_ade(struct pt_regs *regs)
 {
-	__register_t pc = regs->cp0_epc;
-	__register_t badvaddr __attribute__ ((unused)) = regs->cp0_badvaddr;
+	register_t pc = regs->cp0_epc;
+	register_t badvaddr __attribute__ ((unused)) = regs->cp0_badvaddr;
 	char *adels;
 
 	adels = (((regs->cp0_cause & CAUSEF_EXCCODE) >>
@@ -426,7 +428,7 @@ do_ade(struct pt_regs *regs)
 
 #ifdef CONF_LOG_UNALIGNED_ACCESSES
 	if (current->tss.mflags & MF_LOGADE) {
-		__register_t logpc = pc;
+		register_t logpc = pc;
 		if (regs->cp0_cause & CAUSEF_BD)
 			logpc += 4;
 #ifdef __mips64

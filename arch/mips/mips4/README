@@ -1,3 +1,0 @@
-This directory contains the start of the R8000/R10000 specific part.  I
-tried to support this CPU as good as possible without a machine and
-without detailed documentation.

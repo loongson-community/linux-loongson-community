@@ -6,14 +6,12 @@
  * Copyright (C) 1993 by Nigel Gamble (added interrupt code)
  * Copyright (C) 1994 by Alan Cox (Modularised it)
  * LPCAREFUL, LPABORT, LPGETSTATUS added by Chris Metcalf, metcalf@lcs.mit.edu
- * Mips JAZZ support by Andreas Busse, andy@waldorf-gmbh.de
  * Statistics and support for slow printers by Rob Janssen, rob@knoware.nl
  * "lp=" command line parameters added by Grant Guenther, grant@torque.net
  */
 
 #include <linux/module.h>
 
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/major.h>
@@ -27,9 +25,6 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
-#ifdef CONFIG_MIPS_JAZZ
-# include <asm/jazz.h>
-#endif
 
 /* the BIOS manuals say there can be up to 4 lpt devices
  * but I have not seen a board where the 4th address is listed
@@ -38,13 +33,6 @@
  * if you have more than 3 printers, remember to increase LP_NO
  */
 struct lp_struct lp_table[] = {
-#ifdef CONFIG_MIPS_JAZZ
-	{ JAZZ_PARALLEL_BASE,
-	         0, 0, LP_INIT_CHAR, LP_INIT_TIME, LP_INIT_WAIT, NULL, NULL, 0, 0, 0, {0} },
-#else	
-	{ 0x3bc, 0, 0, LP_INIT_CHAR, LP_INIT_TIME, LP_INIT_WAIT, NULL, NULL, 0, 0, 0, {0} },
-	{ 0x3bc, 0, 0, LP_INIT_CHAR, LP_INIT_TIME, LP_INIT_WAIT, NULL, NULL, 0, 0, 0, {0} },
-#endif	
 	{ 0x3bc, 0, 0, LP_INIT_CHAR, LP_INIT_TIME, LP_INIT_WAIT, NULL, NULL, 0, 0, 0, {0} },
 	{ 0x378, 0, 0, LP_INIT_CHAR, LP_INIT_TIME, LP_INIT_WAIT, NULL, NULL, 0, 0, 0, {0} },
 	{ 0x278, 0, 0, LP_INIT_CHAR, LP_INIT_TIME, LP_INIT_WAIT, NULL, NULL, 0, 0, 0, {0} },
@@ -68,31 +56,6 @@ struct lp_struct lp_table[] = {
 
 #undef LP_DEBUG
 
-#ifdef CONFIG_MIPS_JAZZ
-static inline unsigned int lp_in(unsigned int port)
-{
-/* printk("lp_in: port>>24 = %08x, JAZZ_LOCAL_IO_SPACE >> 24 = %08x\n",
-       port >> 24,JAZZ_LOCAL_IO_SPACE >> 24); */
-    if (port >= JAZZ_LOCAL_IO_SPACE)
-        return (*(volatile unsigned char *)port);
-    else
-        return inb_p(port);
-}
-
-static inline void lp_out(unsigned char value, unsigned int port)
-{
-/* printk("lp_out: port>>24 = %08x, JAZZ_LOCAL_IO_SPACE >> 24 = %08x\n",
-       port >> 24,JAZZ_LOCAL_IO_SPACE >> 24); */
-    if (port >= JAZZ_LOCAL_IO_SPACE)
-        *(volatile unsigned char *)port = value;
-    else
-        outb(value, port);
-}
-#else
-#define lp_in(port)          inb_p(port)
-#define lp_out(port,value)   outb_p(port,value)
-#endif
-
 static int lp_reset(int minor)
 {
 	outb_p(LP_PSELECP, LP_C(minor));
@@ -100,10 +63,6 @@ static int lp_reset(int minor)
 	outb_p(LP_PSELECP | LP_PINITP, LP_C(minor));
 	return LP_S(minor);
 }
-
-#ifdef LP_DEBUG
-static int lp_max_count = 1;
-#endif
 
 static inline int lp_char_polled(char lpchar, int minor)
 {
@@ -122,17 +81,17 @@ static inline int lp_char_polled(char lpchar, int minor)
 		return 0;
 		/* we timed out, and the character was /not/ printed */
 	}
-	lp_out(lpchar, LP_B(minor));
+	outb_p(lpchar, LP_B(minor));
 	stats = &LP_STAT(minor);
 	stats->chars++;
 	/* must wait before taking strobe high, and after taking strobe
 	   low, according spec.  Some printers need it, others don't. */
 	while(wait != LP_WAIT(minor)) wait++;
 	/* control port takes strobe high */
-	lp_out(( LP_PSELECP | LP_PINITP | LP_PSTROBE ), ( LP_C( minor )));
+	outb_p(( LP_PSELECP | LP_PINITP | LP_PSTROBE ), ( LP_C( minor )));
 	while(wait) wait--;
 	/* take strobe low */
-	lp_out(( LP_PSELECP | LP_PINITP ), ( LP_C( minor )));
+	outb_p(( LP_PSELECP | LP_PINITP ), ( LP_C( minor )));
 	/* update waittime statistics */
 	if (count > stats->maxwait) {
 #ifdef LP_DEBUG
@@ -189,11 +148,6 @@ static inline int lp_char_interrupt(char lpchar, int minor)
 	return 0;
 }
 
-#ifdef LP_DEBUG
-	unsigned int lp_total_chars = 0;
-	unsigned int lp_last_call = 0;
-#endif
-
 static void lp_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct lp_struct *lp = &lp_table[0];
@@ -244,18 +198,18 @@ static inline int lp_write_interrupt(unsigned int minor, const char * buf, int c
 				}
 				LP_STAT(minor).sleeps++;
 				cli();
-				lp_out((LP_PSELECP|LP_PINITP|LP_PINTEN), (LP_C(minor)));
+				outb_p((LP_PSELECP|LP_PINITP|LP_PINTEN), (LP_C(minor)));
 				status = LP_S(minor);
 				if ((!(status & LP_PACK) || (status & LP_PBUSY))
 				  && LP_CAREFUL_READY(minor, status)) {
-					lp_out((LP_PSELECP|LP_PINITP), (LP_C(minor)));
+					outb_p((LP_PSELECP|LP_PINITP), (LP_C(minor)));
 					sti();
 					continue;
 				}
 				lp_table[minor].runchars=0;
 				current->timeout = jiffies + LP_TIMEOUT_INTERRUPT;
 				interruptible_sleep_on(&lp->lp_wait_q);
-				lp_out((LP_PSELECP|LP_PINITP), (LP_C(minor)));
+				outb_p((LP_PSELECP|LP_PINITP), (LP_C(minor)));
 				sti();
 				if (current->signal & ~current->blocked) {
 					if (total_bytes_written + bytes_written)

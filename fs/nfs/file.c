@@ -118,7 +118,7 @@ static long nfs_file_write(struct inode *inode, struct file *file,
 	}
 	if (!S_ISREG(inode->i_mode)) {
 		printk("nfs_file_write: write to non-file, mode %07o\n",
-		       (unsigned int) inode->i_mode);
+			(unsigned int) inode->i_mode);
 		return -EINVAL;
 	}
 	if (count == 0)

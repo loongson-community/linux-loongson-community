@@ -36,7 +36,7 @@ static const char *version = "lance32.c:v0.10 28.4.96 tsbogend@bigbug.franken.de
 #include <linux/bios32.h>
 #include <asm/bitops.h>
 #ifdef __mips__
-#include <asm/cache.h>
+#include <asm/pgtable.h>
 #include <asm/bootinfo.h>
 static unsigned long lance_base;
 extern unsigned long port_base;
@@ -180,7 +180,7 @@ void lance32_probe1(struct device *dev, char *chipname, int pci_irq_line)
 	 * have negative impact on the performance due to drivers not being
 	 * aware of the CPU performance impact of GFP_DMA memory ...
 	 */
-	cacheflush(lp, sizeof(*lp)+15, CF_DCACHE|CF_ALL);
+	flush_cache_all();
 	lp = KSEG1ADDR(lp);
 	lance_base = port_base;
 	if (mips_machgroup == MACH_GROUP_SNI_RM
@@ -567,8 +567,7 @@ lance32_start_xmit(struct sk_buff *skb, struct device *dev)
         lp->tx_ring[entry].status = 0x8300;
 
 #ifdef __mips__
-	cacheflush((void *)skb->data,
-	               (skb->len < ETH_ZLEN) ? ETH_ZLEN : skb->len, CF_DCACHE|CF_ALL);
+	flush_cache_all();
 #endif
 
 	lp->cur_tx++;

@@ -16,6 +16,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/processor.h>
+#include <asm/sni.h>
 #include <asm/vector.h>
 
 /*
@@ -93,7 +94,7 @@ sni_rm200_pci_setup(void)
 	irq_setup = sni_irq_setup;
 	fd_cacheflush = sni_fd_cacheflush;	// Will go away
 	feature = &sni_rm200_pci_feature;
-	port_base = PORT_BASE_SNI;
+	port_base = SNI_PORT_BASE;
 	isa_slot_offset = 0xb0000000;
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");

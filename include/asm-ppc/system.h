@@ -73,9 +73,4 @@ extern inline void * xchg_ptr(void * m, void * val)
 	return (void *) xchg_u32(m, (unsigned long) val);
 }
 
-/*
- * Reset the machine.
- */
-extern void hard_reset_now(void);
-
 #endif

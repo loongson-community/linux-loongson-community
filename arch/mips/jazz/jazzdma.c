@@ -11,7 +11,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/errno.h>
-#include <asm/cache.h>
+#include <linux/mm.h>
 #include <asm/mipsregs.h>
 #include <asm/mipsconfig.h>
 #include <asm/jazz.h>
@@ -19,6 +19,7 @@
 #include <asm/uaccess.h>
 #include <asm/dma.h>
 #include <asm/jazzdma.h>
+#include <asm/pgtable.h>
 
 /*
  * Set this to one to enable additional vdma debug code.
@@ -41,8 +42,7 @@ static int debuglvl = 3;
  * entries to be unused. Using this method will at least
  * allow some early device driver operations to work.
  */
-static __inline__ void
-vdma_pgtbl_init(void)
+static inline void vdma_pgtbl_init(void)
 {
     int i;
     unsigned long paddr = 0;
@@ -69,7 +69,7 @@ unsigned long vdma_init(unsigned long memory_start, unsigned long memory_end)
      */
     vdma_pagetable_start = KSEG1ADDR((memory_start + 4095) & ~4095);
     vdma_pagetable_end = vdma_pagetable_start + VDMA_PGTBL_SIZE;
-    cacheflush(vdma_pagetable_start, VDMA_PGTBL_SIZE, CF_DCACHE|CF_ALL);
+    flush_cache_all();
 
     /*
      * Clear the R4030 translation table

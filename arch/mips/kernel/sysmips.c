@@ -15,10 +15,9 @@
 #include <linux/utsname.h>
 
 #include <asm/cachectl.h>
-#include <asm/cache.h>
-#include <asm/ipc.h>
-#include <asm/uaccess.h>
+#include <asm/pgtable.h>
 #include <asm/sysmips.h>
+#include <asm/uaccess.h>
 
 static inline size_t
 strnlen_user(const char *s, size_t count)
@@ -26,12 +25,35 @@ strnlen_user(const char *s, size_t count)
 	return strnlen(s, count);
 }
 
+/*
+ * How long a hostname can we get from user space?
+ *  -EFAULT if invalid area or too long
+ *  0 if ok
+ *  >0 EFAULT after xx bytes
+ */
+static inline int
+get_max_hostname(unsigned long address)
+{
+	struct vm_area_struct * vma;
+
+	vma = find_vma(current->mm, address);
+	if (!vma || vma->vm_start > address || !(vma->vm_flags & VM_READ))
+		return -EFAULT;
+	address = vma->vm_end - address;
+	if (address > PAGE_SIZE)
+		return 0;
+	if (vma->vm_next && vma->vm_next->vm_start == vma->vm_end &&
+	   (vma->vm_next->vm_flags & VM_READ))
+		return 0;
+	return address;
+}
+
 asmlinkage int
 sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 {
 	int	*p;
 	char	*name;
-	int	flags, tmp, len, retval;
+	int	flags, tmp, len, retval = -EINVAL;
 
 	switch(cmd)
 	{
@@ -39,68 +61,37 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		if (!suser())
 			return -EPERM;
 		name = (char *) arg1;
+		len = get_max_hostname((unsigned long)name);
+		if (retval < 0)
+			return len;
 		len = strnlen_user(name, retval);
-		if (len < 0)
-			retval = len;
-			break;
 		if (len == 0 || len > __NEW_UTS_LEN)
-			retval = -EINVAL;
-			break;
+			return -EINVAL;
 		copy_from_user(system_utsname.nodename, name, len);
 		system_utsname.nodename[len] = '\0';
 		return 0;
-
 	case MIPS_ATOMIC_SET:
-		/* This is broken in case of page faults and SMP ...
-		   Risc/OS fauls after maximum 20 tries with EAGAIN.  */
 		p = (int *) arg1;
 		retval = verify_area(VERIFY_WRITE, p, sizeof(*p));
-		if (retval)
-			return retval;
+		if(retval)
+			return -EINVAL;
 		save_flags(flags);
 		cli();
 		retval = *p;
 		*p = arg2;
 		restore_flags(flags);
-		break;
-
+		return retval;
 	case MIPS_FIXADE:
 		tmp = current->tss.mflags & ~3;
 		current->tss.mflags = tmp | (arg1 & 3);
 		retval = 0;
 		break;
-
 	case FLUSH_CACHE:
-		cacheflush(0, ~0, CF_BCACHE|CF_ALL);
-		break;
-
-	case MIPS_RDNVRAM:
-		retval = -EIO;
-		break;
-
-	default:
-		retval = -EINVAL;
+		flush_cache_all();
 		break;
 	}
 
 	return retval;
-}
-
-asmlinkage int
-sys_cacheflush(void *addr, int nbytes, int cache)
-{
-	unsigned int rw;
-	int ok;
-
-	if ((cache & ~(DCACHE | ICACHE)) != 0)
-		return -EINVAL;
-	rw = (cache & DCACHE) ? VERIFY_WRITE : VERIFY_READ;
-	if (!access_ok(rw, addr, nbytes))
-		return -EFAULT;
-
-	cacheflush((unsigned long)addr, (unsigned long)nbytes, cache|CF_ALL);
-
-	return 0;
 }
 
 /*
@@ -110,4 +101,37 @@ asmlinkage int
 sys_cachectl(char *addr, int nbytes, int op)
 {
 	return -ENOSYS;
+}
+
+/* For emulation of various binary types, and their shared libs,
+ * we need this.
+ */
+
+extern int do_open_namei(const char *pathname, int flag, int mode,
+			 struct inode **res_inode, struct inode *base);
+
+/* Only one at this time. */
+#define IRIX32_EMUL "/usr/gnemul/irix"
+
+int open_namei(const char *pathname, int flag, int mode,
+	       struct inode **res_inode, struct inode *base)
+{
+	if(!base && (current->personality == PER_IRIX32) &&
+	   *pathname == '/') {
+		struct inode *emul_ino;
+		const char *p = pathname;
+		char *emul_path = IRIX32_EMUL;
+		int v;
+
+		while (*p == '/')
+			p++;
+
+		if(do_open_namei (emul_path, flag, mode, &emul_ino, NULL) >= 0 &&
+		   emul_ino) {
+			v = do_open_namei (p, flag, mode, res_inode, emul_ino);
+			if(v >= 0)
+				return v;
+		}
+	}
+	return do_open_namei (pathname, flag, mode, res_inode, base);
 }

@@ -298,9 +298,4 @@ extern struct desc_struct default_ldt;
 void disable_hlt(void);
 void enable_hlt(void);
 
-/*
- * Reset the machine.
- */
-extern void hard_reset_now(void);
-
 #endif

@@ -75,6 +75,7 @@ extern int tc59x_probe(struct device *);
 extern int dgrs_probe(struct device *);
 extern int smc_init( struct device * );
 extern int sparc_lance_probe(struct device *);
+extern int sgiseeq_probe(struct device *);
 extern int atarilance_probe(struct device *);
 extern int a2065_probe(struct device *);
 extern int ariadne_probe(struct device *);
@@ -84,7 +85,6 @@ extern int hydra_probe(struct device *);
 extern int atp_init(struct device *);
 extern int de600_probe(struct device *);
 extern int de620_probe(struct device *);
-extern int acn_net_probe(struct device *);
 
 static int
 ethif_probe(struct device *dev)
@@ -215,12 +215,12 @@ ethif_probe(struct device *dev)
 #ifdef CONFIG_SUNLANCE
 	&& sparc_lance_probe(dev)
 #endif
+#ifdef CONFIG_SGISEEQ
+	&& sgiseeq_probe(dev)
+#endif
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	&& sonic_probe(dev)
 #endif	
-#ifdef CONFIG_ACN_MIPS_BOARD
-       && acn_net_probe(dev)
-#endif
 	&& 1 ) {
 	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */
     }

@@ -145,9 +145,4 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int siz
 }
 #endif
 
-/*
- * Reset the machine.
- */
-extern void hard_reset_now(void);
-
 #endif /* _M68K_SYSTEM_H */

@@ -118,6 +118,9 @@ static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 		if (!mm)
 			return -1;
 		*mm = *current->mm;
+#ifdef __mips__
+		mm->context = 0;
+#endif
 		mm->count = 1;
 		mm->def_flags = 0;
 		tsk->mm = mm;

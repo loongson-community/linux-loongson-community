@@ -13,7 +13,7 @@
 
 all: deskstation.o
 O_TARGET := deskstation.o
-O_OBJS	 := hw-access.o int-handler.o setup.o
+O_OBJS	 := hw-access.o int-handler.o reset.o setup.o
 
 int-handler.o: int-handler.S
 

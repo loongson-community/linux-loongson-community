@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
  * Some useful macros for MIPS assembler code
  *
@@ -129,23 +129,6 @@ symbol		=	value
 		.data;                                  \
 1:		.asciz	string;                         \
 		.text
-
-/*
- * Return from exception
- */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
-#define ERET rfe
-#endif
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS5)
-#define ERET                                            \
-		eret;                                   \
-		nop;                                    \
-		nop;                                    \
-		nop;                                    \
-		nop;                                    \
-		nop
-#endif
 
 /*
  * MIPS IV pref instruction.

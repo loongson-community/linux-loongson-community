@@ -41,17 +41,6 @@
 -----------------------------------------------------------------------
 */
 
-#include <linux/config.h>
-
-#if defined(CONFIG_ACER_PICA_61)
-#include <asm/bootinfo.h>
-/*
- * The video control ports are mapped at virtual address
- * 0xe0200000 for the onboard S3 card
- */
-#define PORT_BASE video_port_base
-unsigned long video_port_base;
-#endif
 #include <asm/io.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>

@@ -172,11 +172,6 @@ static __inline__ unsigned long __xchg(unsigned long x, volatile void * ptr, int
 	return x;
 }
 
-/*
- * Reset the machine.
- */
-extern void hard_reset_now(void);
-
 #endif /* __ASSEMBLY__ */
 
 #endif

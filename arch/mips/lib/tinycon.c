@@ -33,12 +33,10 @@ extern struct screen_info screen_info;
 void init_console(void)
 {
   size_x = 80;
-  // size_y = 50;
   size_y = 25;
   cursor_x = 0;
   cursor_y = 0;
 
-  // vram_addr = (unsigned short *)0xe10b8000;
   vram_addr = (unsigned short *)0xb00b8000;
   
   console_needs_init = 0;
@@ -131,3 +129,5 @@ void print_string(const unsigned char *str)
 	break;
       }
 }
+
+/* end of file */

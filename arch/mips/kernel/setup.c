@@ -26,12 +26,15 @@
 
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
-#include <asm/cache.h>
+#include <asm/cachectl.h>
 #include <asm/io.h>
 #include <asm/vector.h>
-#include <asm/uaccess.h>
+#include <asm/segment.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#endif
 
 /*
  * How to handle the machine's features
@@ -83,11 +86,12 @@ struct screen_info screen_info = DEFAULT_SCREEN_INFO;
  */
 unsigned long mips_memory_upper = KSEG0; /* this is set by kernel_entry() */
 unsigned long mips_cputype = CPU_UNKNOWN;
-unsigned long mips_machtype = MACH_UNKNOWN; /* this is set by bi_EarlySnarf() */
-unsigned long mips_machgroup = MACH_GROUP_UNKNOWN; /* this is set by bi_EarlySnarf() */
-unsigned long mips_tlb_entries = 48; /* this is set by bi_EarlySnarf() */
+unsigned long mips_machtype = MACH_UNKNOWN;
+unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
+unsigned long mips_tlb_entries = 48; /* Guess which CPU I've got :) */
 unsigned long mips_vram_base = KSEG0;
 
+unsigned char aux_device_present;
 extern int root_mountflags;
 extern int _end;
 
@@ -97,7 +101,12 @@ extern char empty_zero_page[PAGE_SIZE];
  * This is set up by the setup-routine at boot-time
  */
 #define PARAM	empty_zero_page
+#if 0
+#define ORIG_ROOT_DEV (*(unsigned short *) (PARAM+0x1FC))
+#define AUX_DEVICE_INFO (*(unsigned char *) (PARAM+0x1FF))
+#endif
 #define LOADER_TYPE (*(unsigned char *) (PARAM+0x210))
+#define KERNEL_START (*(unsigned long *) (PARAM+0x214))
 #define INITRD_START (*(unsigned long *) (PARAM+0x218))
 #define INITRD_SIZE (*(unsigned long *) (PARAM+0x21c))
 
@@ -110,6 +119,12 @@ static char command_line[CL_SIZE] = { 0, };
  */
 void (*irq_setup)(void);
 
+/*
+ * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
+ * for the processor.
+ */
+unsigned long isa_slot_offset;
+
 static void default_irq_setup(void)
 {
 	panic("Unknown machtype in init_IRQ");
@@ -117,69 +132,6 @@ static void default_irq_setup(void)
 
 static void default_fd_cacheflush(const void *addr, size_t size)
 {
-}
-
-static asmlinkage void
-default_cacheflush(unsigned long addr, unsigned long nbytes, unsigned int flags)
-{
-	/*
-	 * Someone didn't set his cacheflush() handler ...
-	 */
-	panic("default_cacheflush() called.\n");
-}
-asmlinkage void (*cacheflush)(unsigned long addr, unsigned long nbytes, unsigned int flags) = default_cacheflush;
-
-static __inline__ void
-cpu_init(void)
-{
-	asmlinkage void handle_reserved(void);
-	void mips1_cpu_init(void);
-	void mips2_cpu_init(void);
-	void mips3_cpu_init(void);
-	void mips4_cpu_init(void);
-	int i;
-
-	/*
-	 * Setup default vectors
-	 */
-	for (i=0;i<=31;i++)
-		set_except_vector(i, handle_reserved);
-
-	switch(mips_cputype) {
-#ifdef CONFIG_CPU_R3000
-	case CPU_R2000: case CPU_R3000: case CPU_R3000A: case CPU_R3041:
-	case CPU_R3051: case CPU_R3052: case CPU_R3081: case CPU_R3081E:
-		mips1_cpu_init();
-		break;
-#endif
-#ifdef CONFIG_CPU_R6000
-	case CPU_R6000: case CPU_R6000A:
-		mips2_cpu_init();
-		break;
-#endif
-#ifdef CONFIG_CPU_R4X00
-	case CPU_R4000MC: case CPU_R4400MC: case CPU_R4000SC:
-	case CPU_R4400SC: case CPU_R4000PC: case CPU_R4400PC:
-	case CPU_R4200: case CPU_R4300:   /* case CPU_R4640: */
-	case CPU_R4600: case CPU_R4700:
-		mips3_cpu_init();
-		break;
-#endif
-#ifdef CONFIG_CPU_R8000
-	case CPU_R8000: case CPU_R5000:
-		printk("Detected unsupported CPU type %s.\n",
-		       cpu_names[mips_cputype]);
-		panic("Can't handle CPU");
-		break;
-#endif
-#ifdef CONFIG_CPU_R10000
-	case CPU_R10000:
-		mips4_cpu_init();
-#endif
-	case CPU_UNKNOWN:
-	default:
-		panic("Unknown or unsupported CPU type");
-	}
 }
 
 void setup_arch(char **cmdline_p,
@@ -191,14 +143,16 @@ void setup_arch(char **cmdline_p,
 	void deskstation_setup(void);
 	void jazz_setup(void);
 	void sni_rm200_pci_setup(void);
+	void sgi_setup(void);
 
 	/* Perhaps a lot of tags are not getting 'snarfed' - */
 	/* please help yourself */
 
-	atag = bi_TagFind(tag_cputype);
-	memcpy(&mips_cputype, TAGVALPTR(atag), atag->size);
+	atag = bi_TagFind(tag_machtype);
+	memcpy(&mips_machtype, TAGVALPTR(atag), atag->size);
 
-	cpu_init();
+	atag = bi_TagFind(tag_machgroup);
+	memcpy(&mips_machgroup, TAGVALPTR(atag), atag->size);
 
 	atag = bi_TagFind(tag_vram_base);
 	memcpy(&mips_vram_base, TAGVALPTR(atag), atag->size);
@@ -226,6 +180,11 @@ void setup_arch(char **cmdline_p,
 		jazz_setup();
 		break;
 #endif
+#ifdef CONFIG_SGI
+	case MACH_GROUP_SGI:
+		sgi_setup();
+		break;
+#endif
 #ifdef CONFIG_SNI_RM200_PCI
 	case MACH_GROUP_SNI_RM:
 		sni_rm200_pci_setup();
@@ -237,6 +196,9 @@ void setup_arch(char **cmdline_p,
 
 	atag = bi_TagFind(tag_drive_info);
 	memcpy(&drive_info, TAGVALPTR(atag), atag->size);
+#if 0
+	aux_device_present = AUX_DEVICE_INFO;
+#endif
 
 	memory_end = mips_memory_upper;
 	/*
@@ -245,7 +207,7 @@ void setup_arch(char **cmdline_p,
 	 * of one cache line at the end of memory unused to make shure we
 	 * don't catch this type of bus errors.
 	 */
-	memory_end -= 32;
+	memory_end -= 128;
 	memory_end &= PAGE_MASK;
 
 #ifdef CONFIG_BLK_DEV_RAM
@@ -253,23 +215,14 @@ void setup_arch(char **cmdline_p,
 	rd_prompt = ((RAMDISK_FLAGS & RAMDISK_PROMPT_FLAG) != 0);
 	rd_doload = ((RAMDISK_FLAGS & RAMDISK_LOAD_FLAG) != 0);
 #endif
-#ifdef CONFIG_MAX_16M
-	/*
-	 * There is a quite large number of different PC chipset based boards
-	 * available and so I include this option here just in case ...
-	 */
-	if (memory_end > PAGE_OFFSET + 16*1024*1024)
-		memory_end = PAGE_OFFSET + 16*1024*1024;
-#endif
 
-	atag= bi_TagFind(tag_screen_info);
+	atag = bi_TagFind(tag_mount_root_rdonly);
 	if (atag)
-	    memcpy(&screen_info, TAGVALPTR(atag), atag->size);
+	  root_mountflags |= MS_RDONLY;
 
 	atag = bi_TagFind(tag_command_line);
 	if (atag)
-	  memcpy(&command_line, TAGVALPTR(atag), atag->size);	  
-	printk("Command line: '%s'\n", command_line);
+		memcpy(&command_line, TAGVALPTR(atag), atag->size);	  
 
 	memcpy(saved_command_line, command_line, CL_SIZE);
 	saved_command_line[CL_SIZE-1] = '\0';
@@ -280,8 +233,8 @@ void setup_arch(char **cmdline_p,
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (LOADER_TYPE) {
-		initrd_start = INITRD_START ? INITRD_START + PAGE_OFFSET : 0;
-		initrd_end = initrd_start+INITRD_SIZE;
+		initrd_start = INITRD_START;
+		initrd_end = INITRD_START+INITRD_SIZE;
 		if (initrd_end > memory_end) {
 			printk("initrd extends beyond end of memory "
 			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",

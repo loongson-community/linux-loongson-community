@@ -307,8 +307,8 @@ extern inline unsigned int r4030_write_reg32(unsigned addr, unsigned val)
 
 #endif /* !LANGUAGE_ASSEMBLY__ */
 
-#define JAZZ_FDC_BASE 0xe0003000
-
-#define JAZZ_RTC_BASE 0xe0004000
+#define JAZZ_FDC_BASE	0xe0003000
+#define JAZZ_RTC_BASE	0xe0004000
+#define JAZZ_PORT_BASE	0xe2000000
 
 #endif /* __ASM_MIPS_JAZZ_H */

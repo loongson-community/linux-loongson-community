@@ -16,10 +16,8 @@
  * 11-11-96: SAK should now work in the raw mode (Martin Mares)
  */
 
-#define DISABLE_KBD_DURING_INTERRUPTS 0
-
+#include <linux/config.h>
 #include <linux/kbdcntrlr.h>
-#include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/tty.h>
@@ -47,7 +45,6 @@ static int send_data(unsigned char data);
 
 #define SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
-#define KBD_REPORT_ERR
 #define KBD_REPORT_UNKN
 /* #define KBD_IS_FOCUS_9000 */
 
@@ -332,6 +329,10 @@ int getkeycode(unsigned int scancode)
 	    e0_keys[scancode - 128];
 }
 
+#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
+extern void aux_interrupt(unsigned char status, unsigned char data);
+#endif
+
 #if DISABLE_KBD_DURING_INTERRUPTS
 #define disable_keyboard()	do { send_cmd(0xAD); kb_wait(); } while (0)
 #define enable_keyboard()	send_cmd(0xAE)
@@ -583,8 +584,13 @@ static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		unsigned char scancode;
 
 		/* mouse data? */
-		if (status & kbd_read_mask & 0x20)
+		if (status & kbd_read_mask & 0x20) {
+#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
+			scancode = kbd_inb(0x60);
+			aux_interrupt(status, scancode);
+#endif
 			break;
+		}
 
 		scancode = kbd_inb(0x60);
 		if (status & 0x01)

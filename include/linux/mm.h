@@ -222,20 +222,6 @@ typedef struct page {
 extern mem_map_t * mem_map;
 
 /*
- * Free area management
- */
-
-#define NR_MEM_LISTS 6
-
-struct mem_list {
-	struct mem_list * next;
-	struct mem_list * prev;
-};
-
-extern struct mem_list free_area_list[NR_MEM_LISTS];
-extern unsigned int * free_area_map[NR_MEM_LISTS];
-
-/*
  * This is timing-critical - most of the time in getting a new page
  * goes to clearing the page. If you want a page without the clearing
  * overhead, just use __get_free_page() directly..

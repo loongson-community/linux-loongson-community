@@ -12,7 +12,8 @@
 #ifndef __ASM_MIPS_DMA_H
 #define __ASM_MIPS_DMA_H
 
-#include <asm/io.h>		/* need byte IO */
+#include <linux/config.h>
+#include <asm/io.h>			/* need byte IO */
 
 
 #ifdef HAVE_REALLY_SLOW_DMA_CONTROLLER
@@ -79,7 +80,11 @@
  * Deskstations or Acer PICA but not the much more versatile DMA logic used
  * for the local devices on Acer PICA or Magnums.
  */
+#ifndef CONFIG_SGI
 #define MAX_DMA_ADDRESS		(PAGE_OFFSET + 0x01000000)
+#else
+#define MAX_DMA_ADDRESS		(~0UL)
+#endif
 
 /* 8237 DMA controllers */
 #define IO_DMA1_BASE	0x00	/* 8 bit slave DMA, channels 0..3 */

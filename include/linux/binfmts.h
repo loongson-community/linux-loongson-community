@@ -48,6 +48,7 @@ extern int read_exec(struct inode *inode, unsigned long offset,
 extern int open_inode(struct inode * inode, int mode);
 
 extern int init_elf_binfmt(void);
+extern int init_irix_binfmt(void);
 extern int init_aout_binfmt(void);
 extern int init_script_binfmt(void);
 extern int init_java_binfmt(void);

@@ -25,23 +25,6 @@
 #endif
 
 /*
- * Assigned values for the product ID register.  In order to detect a
- * certain CPU type exactly eventually additional registers may need to
- * be examined.
- */
-#define PRID_R3000A 0x02
-#define PRID_R4000 0x04
-#define PRID_R4400 0x04
-#define PRID_R4300 0x0b
-#define PRID_R4600 0x20
-#define PRID_R4700 0x21
-#define PRID_R4640 0x22
-#define PRID_R4650 0x22
-#define PRID_R5000 0x23
-#define PRID_SONIC 0x24
-#define PRID_R10000 0x09
-
-/*
  * Coprocessor 0 register names
  */
 #define CP0_INDEX $0
@@ -125,6 +108,9 @@
         : "=r" (__res));                                        \
         __res;})
 
+/*
+ * For now use this only with interrupts disabled!
+ */
 #define read_64bit_cp0_register(source)                         \
 ({ int __res;                                                   \
         __asm__ __volatile__(                                   \
@@ -233,52 +219,51 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 /*
  * Bitfields in the R4xx0 cp0 status register
  */
-#define ST0_IE			(1   <<  0)
-#define ST0_EXL			(1   <<  1)
-#define ST0_ERL			(1   <<  2)
-#define ST0_KSU			(3   <<  3)
-#  define KSU_USER		(2  <<   3)
-#  define KSU_SUPERVISOR	(1  <<   3)
-#  define KSU_KERNEL		(0  <<   3)
-#define ST0_UX			(1   <<  5)
-#define ST0_SX			(1   <<  6)
-#define ST0_KX 			(1   <<  7)
+#define ST0_IE			0x00000001
+#define ST0_EXL			0x00000002
+#define ST0_ERL			0x00000004
+#define ST0_KSU			0x00000018
+#  define KSU_USER		0x00000010
+#  define KSU_SUPERVISOR	0x00000008
+#  define KSU_KERNEL		0x00000000
+#define ST0_UX			0x00000020
+#define ST0_SX			0x00000040
+#define ST0_KX 			0x00000080
 
 /*
  * Bitfields in the R[23]000 cp0 status register.
  */
-#define ST0_IEC			(1   <<  0)
-#define ST0_KUC			(1   <<  1)
-#define ST0_IEP			(1   <<  2)
-#define ST0_KUP			(1   <<  3)
-#define ST0_IEO			(1   <<  4)
-#define ST0_KUO			(1   <<  5)
+#define ST0_KUC			0x00000001
+#define ST0_IEP			0x00000002
+#define ST0_KUP			0x00000004
+#define ST0_IEO			0x00000008
+#define ST0_KUO			0x00000010
 /* bits 6 & 7 are reserved on R[23]000 */
 
 /*
  * Bits specific to the R4640/R4650
  */
-#define ST0_UM			<1   <<  4)
-#define ST0_IL			(1   << 23)
-#define ST0_DL			(1   << 24)
+#define ST0_UM                 <1   <<  4)
+#define ST0_IL                 (1   << 23)
+#define ST0_DL                 (1   << 24)
 
 /*
  * Status register bits available in all MIPS CPUs.
  */
-#define ST0_IM			(255 <<  8)
-#define ST0_DE			(1   << 16)
-#define ST0_CE			(1   << 17)
-#define ST0_CH			(1   << 18)
-#define ST0_SR			(1   << 20)
-#define ST0_BEV			(1   << 22)
-#define ST0_RE			(1   << 25)
-#define ST0_FR			(1   << 26)
-#define ST0_CU			(15  << 28)
-#define ST0_CU0			(1   << 28)
-#define ST0_CU1			(1   << 29)
-#define ST0_CU2			(1   << 30)
-#define ST0_CU3			(1   << 31)
-#define ST0_XX			(1   << 31)	/* MIPS IV naming */
+#define ST0_IM			0x0000ff00
+#define ST0_DE			0x00010000
+#define ST0_CE			0x00020000
+#define ST0_CH			0x00040000
+#define ST0_SR			0x00100000
+#define ST0_BEV			0x00400000
+#define ST0_RE			0x02000000
+#define ST0_FR			0x04000000
+#define ST0_CU			0xf0000000
+#define ST0_CU0			0x10000000
+#define ST0_CU1			0x20000000
+#define ST0_CU2			0x40000000
+#define ST0_CU3			0x80000000
+#define ST0_XX			0x80000000	/* MIPS IV naming */
 
 /*
  * Bitfields and bit numbers in the coprocessor 0 cause register.
@@ -313,9 +298,9 @@ BUILD_SET_CP0(cause,CP0_CAUSE)
 /*
  * Bits in the coprozessor 0 config register.
  */
-#define CONFIG_DB		(1<<4)
-#define CONFIG_IB		(1<<5)
-#define CONFIG_SC		(1<<17)
+#define CONFIG_DB		(1 <<  4)
+#define CONFIG_IB		(1 <<  5)
+#define CONFIG_SC		(1 << 17)
 
 /*
  * R10000 performance counter definitions.

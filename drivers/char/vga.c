@@ -52,6 +52,8 @@
 
 #ifdef __mips__
 #include <asm/bootinfo.h>
+#include <asm/deskstation.h>
+#include <asm/sni.h>
 /*
  * The video control ports are mapped at virtual address
  * 0xe0200000 for the onboard S3 card
@@ -61,7 +63,6 @@ unsigned long video_port_base;
 #endif
 
 #include <asm/io.h>
-#include <asm/slots.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
@@ -186,7 +187,7 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 	    && mips_machtype == MACH_SNI_RM200_PCI)
 	{
 		can_do_color = 1;
-		video_port_base = PORT_BASE_SNI;
+		video_port_base = SNI_PORT_BASE;
 		video_port_reg	= 0x3d4;
 		video_port_val	= 0x3d5;
 		video_type = VIDEO_TYPE_SNI_RM;
@@ -208,8 +209,9 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 	if (mips_machgroup == MACH_GROUP_ARC
 	    && mips_machtype == MACH_DESKSTATION_RPC44)
 	{
+		/* XXX */
 		can_do_color = 1;
-		video_port_base = PORT_BASE_RPC44;
+		video_port_base = RPC44_PORT_BASE;
 		video_port_reg	= 0x3d4;
 		video_port_val	= 0x3d5;
 		video_type = VIDEO_TYPE_VGAC;
@@ -224,26 +226,24 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 		 * the normal port address range.
 		 */
 	}
-	/* else */ /* I specifically want to use the following code... */
-
-#define VGA_CAN_DO_64KB	/* KLUDGE To get the address right below */
+	else
 #endif
 	if (ORIG_VIDEO_MODE == 7)	/* Is this a monochrome display? */
 	{
-		video_mem_base = SLOTSPACE + 0xb0000;
+		video_mem_base = 0xb0000;
 		video_port_reg = 0x3b4;
 		video_port_val = 0x3b5;
 		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10)
 		{
 			video_type = VIDEO_TYPE_EGAM;
-			video_mem_term = SLOTSPACE + 0xb8000;
+			video_mem_term = 0xb8000;
 			*display_desc = "EGA+";
 			request_region(0x3b0,16,"ega");
 		}
 		else
 		{
 			video_type = VIDEO_TYPE_MDA;
-			video_mem_term = SLOTSPACE + 0xb2000;
+			video_mem_term = 0xb2000;
 			*display_desc = "*MDA";
 			request_region(0x3b0,12,"mda");
 			request_region(0x3bf, 1,"mda");
@@ -252,14 +252,14 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 	else				/* If not, it is color. */
 	{
 		can_do_color = 1;
-		video_mem_term = SLOTSPACE + 0xb8000;
+		video_mem_term = 0xb8000;
 		video_port_reg	= 0x3d4;
 		video_port_val	= 0x3d5;
 		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10)
 		{
 			int i ;
 
-			video_mem_term = SLOTSPACE + 0xc0000;
+			video_mem_term = 0xc0000;
 
 			if (!ORIG_VIDEO_ISVGA) {
 				video_type = VIDEO_TYPE_EGAC;
@@ -277,8 +277,8 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 				 * controllers (it seems like setting MM=01
 				 * and COE=1 isn't necessarily a good idea)
 				 */
-				video_mem_base = SLOTSPACE + 0xa0000;
-				video_mem_term = SLOTSPACE + 0xb0000;
+				video_mem_base = 0xa0000;
+				video_mem_term = 0xb0000;
 				outb_p (6, 0x3ce) ;
 				outb_p (6, 0x3cf) ;
 #endif
@@ -310,7 +310,7 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 		else
 		{
 			video_type = VIDEO_TYPE_CGA;
-			video_mem_term = SLOTSPACE + 0xba000;
+			video_mem_term = 0xba000;
 			*display_desc = "*CGA";
 			request_region(0x3d4,2,"cga");
 		}
@@ -386,10 +386,10 @@ set_scrmem(int currcons, long offset)
  * (sizif@botik.yaroslavl.su).
  */
 
-#define colourmap ((char *)(SLOTSPACE + 0xa0000))
+#define colourmap ((char *)(0xa0000))
 /* Pauline Middelink <middelin@polyware.iaf.nl> reports that we
    should use 0xA0000 for the bwmap as well.. */
-#define blackwmap ((char *)(SLOTSPACE + 0xa0000))
+#define blackwmap ((char *)(0xa0000))
 #define cmapsz 8192
 #define attrib_port (0x3c0)
 #define seq_port_reg (0x3c4)

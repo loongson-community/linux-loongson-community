@@ -35,7 +35,6 @@
  *
  * 4/25/96 : Made ramdisk size a parameter (default is now 4MB) 
  *		- Chad Page
- * 7/23/96 :  Support for systems without PC-style consoles - <dfrick@dial.eunet.ch>
  */
 
 #include <linux/config.h>
@@ -521,11 +520,9 @@ void rd_load()
 #ifdef CONFIG_BLK_DEV_FD
 		floppy_eject();
 #endif
-#ifndef CONFIG_SERIAL_ONLY_CONSOLE
 		printk(KERN_NOTICE
 		       "VFS: Insert root floppy disk to be loaded into ramdisk and press ENTER\n");
 		wait_for_keypress();
-#endif
 	}
 
 	rd_load_image(ROOT_DEV,rd_image_start);

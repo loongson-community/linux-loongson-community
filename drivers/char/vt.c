@@ -187,7 +187,12 @@ _kd_mksound(unsigned int hz, unsigned int ticks)
 	return;
 }
 
+#ifdef CONFIG_SGI
+void _kd_nullsound(unsigned int hz, unsigned int ticks) { }
+void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_nullsound;
+#else
 void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_mksound;
+#endif
 	
 /*
  * We handle the console-specific ioctl's here.  We allow the

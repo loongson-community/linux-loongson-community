@@ -33,10 +33,10 @@ static const char *version =
 #include <linux/malloc.h>
 #include <linux/string.h>
 #include <linux/delay.h>
-#include <asm/cache.h>
 #include <asm/bootinfo.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
+#include <asm/pgtable.h>
 #include <asm/segment.h>
 #include <asm/io.h>
 #include <asm/dma.h>
@@ -269,7 +269,7 @@ sonic_probe1(struct device *dev, unsigned int base_addr, unsigned int irq)
 	
 	/* now convert pointer to KSEG1 pointer */
 	lp->rba = (char *)KSEG1ADDR(lp->rba);
-	cacheflush (lp, sizeof(*lp), CF_DCACHE|CF_ALL);	
+	flush_cache_all();
 	dev->priv = (struct sonic_local *)KSEG1ADDR(lp);
     }
 
@@ -422,7 +422,7 @@ static int sonic_send_packet(struct sk_buff *skb, struct device *dev)
     lp->tx_skb[entry] = skb;
     
     length = (skb->len < ETH_ZLEN) ? ETH_ZLEN : skb->len;
-    cacheflush((void *)skb->data, length, CF_DCACHE|CF_ALL);
+    flush_cache_all();
     
     /*
      * Setup the transmit descriptor and issue the transmit command.

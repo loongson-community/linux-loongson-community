@@ -37,6 +37,8 @@
 
 #include <linux/elf.h>
 
+#undef DEBUG_ELF
+
 static int load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs);
 static int load_elf_library(int fd);
 extern int dump_fpu (struct pt_regs *, elf_fpregset_t *);
@@ -62,6 +64,27 @@ static struct linux_binfmt elf_format = {
 	NULL, &mod_use_count_, load_elf_binary, load_elf_library, elf_core_dump
 #endif
 };
+
+#ifdef DEBUG_ELF
+/* Debugging routines. */
+static void print_elf_p_type(Elf32_Word p_type)
+{
+	int i = (int) p_type;
+
+	switch(i) {
+	case PT_NULL: printk("<PT_NULL> "); break;
+	case PT_LOAD: printk("<PT_LOAD> "); break;
+	case PT_DYNAMIC: printk("<PT_DYNAMIC> "); break;
+	case PT_INTERP: printk("<PT_INTERP> "); break;
+	case PT_NOTE: printk("<PT_NOTE> "); break;
+	case PT_SHLIB: printk("<PT_SHLIB> "); break;
+	case PT_PHDR: printk("<PT_PHDR> "); break;
+	case PT_LOPROC: printk("<PT_LOPROC/REGINFO> "); break;
+	case PT_HIPROC: printk("<PT_HIPROC> "); break;
+	default: printk("<whee %08lx> ", (unsigned long) i); break;
+	}
+}
+#endif /* (DEBUG_ELF) */
 
 static void set_brk(unsigned long start, unsigned long end)
 {
@@ -99,11 +122,23 @@ unsigned long * create_elf_tables(char *p, int argc, int envc,
 {
 	char **argv, **envp;
 	unsigned long *sp;
+#ifdef __mips__
+	unsigned long * csp;
+#endif
 
 	/*
 	 * Force 16 byte alignment here for generality.
 	 */
 	sp = (unsigned long *) (~15UL & (unsigned long) p);
+#ifdef __mips__
+	/* Make sure we will be aligned properly at the end of this. */
+	csp = sp;
+	csp -= exec ? DLINFO_ITEMS*2 : 2;
+	csp -= envc + 1;
+	csp -= argc+1;
+	if (!(((unsigned long) csp) & 4))
+	    sp--;
+#endif
 
 	/*
 	 * Put the ELF interpreter info on the stack
@@ -171,7 +206,7 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	struct file * file;
 	struct elf_phdr *elf_phdata  =  NULL;
 	struct elf_phdr *eppnt;
-	unsigned long load_addr, load_off;
+	unsigned long load_addr;
 	int load_addr_set = 0;
 	int elf_exec_fileno;
 	int retval;
@@ -181,14 +216,21 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	
 	elf_bss = 0;
 	last_bss = 0;
-	error = load_off = load_addr = 0;
+	error = load_addr = 0;
 	
+#ifdef DEBUG_ELF
+	printk("[load_elf_interp] ");
+#endif
+
 	/* First of all, some simple consistency checks */
 	if ((interp_elf_ex->e_type != ET_EXEC && 
 	    interp_elf_ex->e_type != ET_DYN) || 
 	   !elf_check_arch(interp_elf_ex->e_machine) ||
 	   (!interpreter_inode->i_op ||
 	    !interpreter_inode->i_op->default_file_ops->mmap)){
+#ifdef DEBUG_ELF
+		printk("bad e_type %d ", interp_elf_ex->e_type);
+#endif
 		return ~0UL;
 	}
 	
@@ -253,7 +295,7 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	    }
 	    
 	    error = do_mmap(file, 
-			    ELF_PAGESTART(vaddr) + load_off,
+			    load_addr + ELF_PAGESTART(vaddr),
 			    eppnt->p_filesz + ELF_PAGEOFFSET(eppnt->p_vaddr),
 			    elf_prot,
 			    elf_type,
@@ -266,24 +308,21 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	      return ~0UL;
 	    }
 
-	    if (!load_addr_set && interp_elf_ex->e_type == ET_DYN) {
-	      load_off = error - ELF_PAGESTART(vaddr);
-	      load_addr = error;
-	      load_addr_set = 1;
-	    }
+	    if (!load_addr && interp_elf_ex->e_type == ET_DYN)
+	      load_addr = (vaddr & 0xfffff000) - error;
 
 	    /*
 	     * Find the end of the file  mapping for this phdr, and keep
 	     * track of the largest address we see for this.
 	     */
-	    k = load_off + eppnt->p_vaddr + eppnt->p_filesz;
+	    k = load_addr + eppnt->p_vaddr + eppnt->p_filesz;
 	    if (k > elf_bss) elf_bss = k;
 
 	    /*
 	     * Do the same thing for the memory mapping - between
 	     * elf_bss and last_bss is the bss section.
 	     */
-	    k = load_off + eppnt->p_memsz + eppnt->p_vaddr;
+	    k = load_addr + eppnt->p_memsz + eppnt->p_vaddr;
 	    if (k > last_bss) last_bss = k;
 	  }
 	
@@ -308,7 +347,7 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	kfree(elf_phdata);
 
 	*interp_load_addr = load_addr;
-	return ((unsigned long) interp_elf_ex->e_entry) + load_off;
+	return ((unsigned long) interp_elf_ex->e_entry) + load_addr;
 }
 
 static unsigned long load_aout_interp(struct exec * interp_ex,
@@ -405,8 +444,13 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		return -ENOEXEC;
 	}
 	
+#ifdef __mips__
+	/* IRIX binaries handled elsewhere. */
+	if(elf_ex.e_flags & EF_MIPS_ARCH)
+		return -ENOEXEC;
+#endif
+
 	/* Now read in all of the header information */
-	
 	elf_phdata = (struct elf_phdr *) kmalloc(elf_ex.e_phentsize * 
 						 elf_ex.e_phnum, GFP_KERNEL);
 	if (elf_phdata == NULL) {
@@ -475,8 +519,13 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 #if 0
 			printk("Using ELF interpreter %s\n", elf_interpreter);
 #endif
-			if (retval >= 0)
-				retval = knamei(elf_interpreter, &interpreter_inode);
+			if (retval >= 0) {
+				old_fs = get_fs(); /* This could probably be optimized */
+				set_fs(get_ds());
+				retval = open_namei(elf_interpreter, 0, 0,
+						    &interpreter_inode, NULL);
+				set_fs(old_fs);
+			}
 
 			if (retval >= 0)
 				retval = read_exec(interpreter_inode,0,bprm->buf,128, 1);
@@ -529,7 +578,7 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		  sprintf(passed_fileno, "%d", elf_exec_fileno);
 		  passed_p = passed_fileno;
 		
-		  if (elf_interpreter) {
+		  if(elf_interpreter) {
 		    bprm->p = copy_strings(1,&passed_p,bprm->page,bprm->p,2);
 		    bprm->argc++;
 		  }
@@ -677,7 +726,7 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 
 	padzero(elf_bss);
 
-#if 0
+#ifdef DEBUG_ELF
 	printk("(start_brk) %x\n" , current->mm->start_brk);
 	printk("(end_code) %x\n" , current->mm->end_code);
 	printk("(start_code) %x\n" , current->mm->start_code);

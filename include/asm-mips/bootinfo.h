@@ -11,16 +11,41 @@
 #ifndef __ASM_MIPS_BOOTINFO_H
 #define __ASM_MIPS_BOOTINFO_H
 
+/* XXX */
+#include <linux/config.h>
+
+#if 0
 /*
- * Valid machgroup values
+ * Valid machtype values
+ * FIXME: note that we really need a hierarchy for this stuff, as there are 
+ * several models of DECStation (for example). PMA
  */
-#define MACH_GROUP_UNKNOWN      0 /* whatever...                              */
-#define MACH_GROUP_JAZZ     	1 /* Acer Pica 61, Mips Magnum 4000, Olivetti */
-				  /* M700-10                                  */
-#define MACH_GROUP_DEC          2 /* Digital                                  */
-#define MACH_GROUP_ARC          3 /* Deskstation Tyne, rpc44, possibly other  */ 
-#define MACH_GROUP_SNI_RM       4 /* Siemens Nixdorf RM series                */
+#define MACH_UNKNOWN		0	/* whatever...                   */
+#define MACH_DESKSTATION_RPC44	1	/* Deskstation rPC44             */
+#define MACH_DESKSTATION_TYNE	2	/* Deskstation Tyne              */
+#define MACH_ACER_PICA_61	3	/* Acer PICA-61 (PICA1)          */
+#define MACH_MIPS_MAGNUM_4000	4	/* Mips Magnum 4000 "RC4030"     */
+#define MACH_OLIVETTI_M700	4	/* almost a clone ...            */
+#define MACH_DECSTATION		5	/* DECStation 5000/2x for now    */
+#define MACH_SNI_RM200_PCI	6	/* RM200/RM300/RM400 PCI series  */
+#define MACH_SGI_INDY		7	/* R4?K and R5K Indy workstaions */
+#define MACH_LAST		7
+
+#define MACH_NAMES {"unknown", "Deskstation rPC44", "Deskstation Tyne", \
+	"Acer PICA 61", "Mips Magnum 4000", "DECStation", "RM200 PCI", \
+        "SGI INDY" }
+#endif
+
+/*
+ * Values for machgroup
+ */
+#define MACH_GROUP_UNKNOWN      0 /* whatever... */
+#define MACH_GROUP_JAZZ     	1 /* Jazz                                     */
+#define MACH_GROUP_DEC          2 /* Digital Equipment                        */
+#define MACH_GROUP_ARC		3 /* Wreckstation Tyne, rPC44, possibly other */
+#define MACH_GROUP_SNI_RM	4 /* Siemens Nixdorf RM series                */
 #define MACH_GROUP_ACN		5
+#define MACH_GROUP_SGI          6 /* Silicon Graphics workstations and servers */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN" }
 
@@ -58,18 +83,23 @@
 #define GROUP_ARC_NAMES { "Deskstation rPC44", "Deskstation Tyne" }
 
 /*
- *  Valid machtype for group SNI_RM
+ * Valid machtype for group SNI_RM
  */
 #define MACH_SNI_RM200_PCI	0	/* RM200/RM300/RM400 PCI series */
 
 #define GROUP_SNI_RM_NAMES { "RM200 PCI" }
 
 /*
- *  Valid machtype for group SNI_RM
+ * Valid machtype for group ACN
  */
-#define MACH_ACN_MIPS_BOARD    0       /* ACN MIPS single board        */
+#define MACH_ACN_MIPS_BOARD	0       /* ACN MIPS single board        */
 
 #define GROUP_ACN_NAMES { "ACN" }
+
+/*
+ * Valid machtype for group SGI
+ */
+#define MACH_SGI_INDY		0	/* R4?K and R5K Indy workstaions */
 
 /*
  * Valid cputype values
@@ -101,7 +131,7 @@
 #define CPU_R5000		24
 #define CPU_R5000A		25
 #define CPU_R4640		26
-#define CPU_LAST                26
+#define CPU_LAST                27
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
@@ -123,12 +153,11 @@ struct drive_info_struct {
 
 /* This is the same as in Milo but renamed for the sake of kernel's */
 /* namespace */
-typedef struct mips_arc_DisplayInfo	/* video adapter information */
-{
-  unsigned short cursor_x;
-  unsigned short cursor_y;
-  unsigned short columns;
-  unsigned short lines;
+typedef struct mips_arc_DisplayInfo {	/* video adapter information */
+	unsigned short cursor_x;
+	unsigned short cursor_y;
+	unsigned short columns;
+	unsigned short lines;
 } mips_arc_DisplayInfo;
 
 /*
@@ -136,8 +165,6 @@ typedef struct mips_arc_DisplayInfo	/* video adapter information */
  *
  * Add new tags only at the end of the enum; *never* remove any tags
  * or you'll break compatibility!
- * Which compatibility ? compatibility consideration lead to
- * MS-DOG :) -Stoned
  */
 enum bi_tag {
  	/*
@@ -191,8 +218,7 @@ enum bi_tag {
  	/*
  	 * Boot flags for the kernel
  	 */
-	tag_mount_root_rdonly,		/* No longer used; use "ro" command
-					   line argument instead.  */
+	tag_mount_root_rdonly,
 	tag_drive_info,
  
  	/*
@@ -216,7 +242,6 @@ enum bi_tag {
 	 * tag to pass a complete struct screen_info
 	 */
 	tag_screen_info
-
 };
 
 /* struct defining a tag */
@@ -242,7 +267,9 @@ typedef struct {
 #define DRVINFOSIZE (sizeof(struct drive_info_struct))
 #define CMDLINESIZE (sizeof(char[CL_SIZE])
 
-/* For tag readers aka the kernel */
+/*
+ * For tag readers aka the kernel
+ */
 tag *bi_TagFind(enum bi_tag type);
 void bi_EarlySnarf(void);
 
@@ -252,10 +279,21 @@ int bi_TagAdd(enum bi_tag type, unsigned long size, void *data);
 int bi_TagAddList(tag_def* taglist);
 void bi_TagWalk(void); 
 
+
+#ifdef CONFIG_SGI
+
+/* screen info will dissapear... soon */
+#define DEFAULT_SCREEN_INFO {0, 0, {0, 0, }, 0, 0, 158, 0, 0, 0, 62, 0, 16}
+
+#else
+
 /* default values for screen_info variable */
 #define DEFAULT_SCREEN_INFO {0, 0, {0, }, 52, 3, 80, 4626, 3, 9, 50}
 /* default values for drive info */
 #define DEFAULT_DRIVE_INFO { {0,}}
+
+#endif
+
 
 /*
  * These are the kernel variables initialized from

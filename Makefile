@@ -24,23 +24,21 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 TOPDIR	:= $(shell if [ "$$PWD" != "" ]; then echo $$PWD; else pwd; fi)
 
 HPATH   	= $(TOPDIR)/include
-FINDHPATH	= $(HPATH)/asm $(HPATH)/linux $(HPATH)/scsi $(HPATH)/net
 
-HOSTCC  	=gcc
-HOSTCFLAGS	=-O2 -fomit-frame-pointer
+HOSTCC  	= gcc
+HOSTCFLAGS	= -O2 -fomit-frame-pointer
 
 CROSS_COMPILE 	=
 
 AS	=$(CROSS_COMPILE)as
 LD	=$(CROSS_COMPILE)ld
 CC	=$(CROSS_COMPILE)gcc -D__KERNEL__ -I$(HPATH)
-CPP	=$(CC) -E $(CFLAGS)
+CPP	=$(CC) -E
 AR	=$(CROSS_COMPILE)ar
 NM	=$(CROSS_COMPILE)nm
 STRIP	=$(CROSS_COMPILE)strip
-RANLIB	=$(CROSS_COMPILE)ranlib
 OBJCOPY	=$(CROSS_COMPILE)objcopy
-OBJDUMP	=$(CROSS_COMPILE)objdump
+OBJDUMP =$(CROSS_COMPILE)objdump
 MAKE	=make
 
 all:	do-it-all
@@ -149,6 +147,10 @@ ifdef CONFIG_SBUS
 DRIVERS := $(DRIVERS) drivers/sbus/sbus.a
 endif
 
+ifdef CONFIG_SGI
+DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
+endif
+
 include arch/$(ARCH)/Makefile
 
 ifdef SMP
@@ -179,7 +181,7 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 		$(FILESYSTEMS) \
 		$(DRIVERS) \
 		$(LIBS) -o vmlinux
-	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)\|\(\$$\)' | sort > System.map
+	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | sort > System.map
 
 symlinks:
 	rm -f include/asm

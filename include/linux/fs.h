@@ -616,18 +616,7 @@ extern int fsync_dev(kdev_t dev);
 extern void sync_supers(kdev_t dev);
 extern int bmap(struct inode * inode,int block);
 extern int notify_change(struct inode *, struct iattr *);
-extern int _namei(const char * pathname, struct inode * base,
-                  int follow_links, struct inode ** res_inode);
 extern int namei(const char * pathname, struct inode ** res_inode);
-/*
- * knamei() is the same as namei() except that it doesn't attempt
- * to copy the pathname from userspace to kernelspace.  So it
- * can be used for names in kernelspace.
- */
-extern inline int knamei(const char *pathname, struct inode **res_inode)
-{
-	return _namei(pathname, NULL, 1, res_inode);
-}
 extern int lnamei(const char * pathname, struct inode ** res_inode);
 extern int permission(struct inode * inode,int mask);
 extern int get_write_access(struct inode *inode);

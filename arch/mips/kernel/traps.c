@@ -4,22 +4,35 @@
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
- *
- * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
- * Copyright (C) 1994, 1995, 1996 by Paul M. Antoine
  */
+
+/*
+ * 'traps.c' handles hardware traps and faults after we have saved some
+ * state in 'asm.s'. Currently mostly a debugging-aid, will be extended
+ * to mainly kill the offending process (probably by giving it a signal,
+ * but possibly by killing it outright if necessary).
+ *
+ * FIXME: This is the place for a fpu emulator.
+ *
+ * Modified for R3000 by Paul M. Antoine, 1995, 1996
+ */
+#include <linux/config.h>
 #include <linux/mm.h>
 
 #include <asm/branch.h>
-#include <asm/cache.h>
+#include <asm/cachectl.h>
 #include <asm/jazz.h>
 #include <asm/vector.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/bootinfo.h>
-#include <asm/sgidefs.h>
-#include <asm/uaccess.h>
 #include <asm/watch.h>
+#include <asm/system.h>
+#include <asm/uaccess.h>
+
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#endif
 
 #undef CONF_DEBUG_EXCEPTIONS
 
@@ -38,9 +51,12 @@ extern asmlinkage void deskstation_rpc44_handle_int(void);
 extern asmlinkage void deskstation_tyne_handle_int(void);
 extern asmlinkage void mips_magnum_4000_handle_int(void);
 
-extern asmlinkage void handle_mod(void);
-extern asmlinkage void handle_tlbl(void);
-extern asmlinkage void handle_tlbs(void);
+extern asmlinkage void r4k_handle_mod(void);
+extern asmlinkage void r2300_handle_mod(void);
+extern asmlinkage void r4k_handle_tlbl(void);
+extern asmlinkage void r2300_handle_tlbl(void);
+extern asmlinkage void r4k_handle_tlbs(void);
+extern asmlinkage void r2300_handle_tlbs(void);
 extern asmlinkage void handle_adel(void);
 extern asmlinkage void handle_ades(void);
 extern asmlinkage void handle_ibe(void);
@@ -51,11 +67,15 @@ extern asmlinkage void handle_ri(void);
 extern asmlinkage void handle_cpu(void);
 extern asmlinkage void handle_ov(void);
 extern asmlinkage void handle_tr(void);
+extern asmlinkage void handle_vcei(void);
 extern asmlinkage void handle_fpe(void);
+extern asmlinkage void handle_vced(void);
 extern asmlinkage void handle_watch(void);
+extern asmlinkage void handle_reserved(void);
 
-char *cpu_names[] = CPU_NAMES;
+static char *cpu_names[] = CPU_NAMES;
 
+unsigned long page_colour_mask;
 unsigned int watch_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
@@ -82,6 +102,7 @@ void die_if_kernel(char * str, struct pt_regs * regs, long err)
 
 	/*
 	 * Just return if in user mode.
+	 * XXX
 	 */
 #if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
 	if (!((regs)->cp0_status & 0x4))
@@ -208,25 +229,26 @@ void do_fpe(struct pt_regs *regs, unsigned int fcr31)
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 {
-	unsigned int *addr;
+	unsigned int *epc;
 
-	addr = (unsigned int *) (unsigned long) regs->cp0_epc;
+	epc = (unsigned int *) (unsigned long) regs->cp0_epc;
 	if (regs->cp0_cause & CAUSEF_BD)
-		addr += 4;
+		epc += 4;
 
-	if (get_user(*opcode, addr)) {
+	if (verify_area(VERIFY_READ, epc, 4)) {
 		force_sig(SIGSEGV, current);
-		return -EFAULT;
+		return 1;
 	}
+	*opcode = *epc;
 
 	return 0;
 }
 
-static __inline__ void
+static inline void
 do_bp_and_tr(struct pt_regs *regs, char *exc, unsigned int trapcode)
 {
 	/*
-	 * (A quick test says that IRIX 5.3 sends SIGTRAP for all break
+	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
 	 * insns, even for break codes that indicate arithmetic failures.
 	 * Wiered ...)
 	 */
@@ -234,8 +256,6 @@ do_bp_and_tr(struct pt_regs *regs, char *exc, unsigned int trapcode)
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
-	if (compute_return_epc(regs))
-		return;
 }
 
 void do_bp(struct pt_regs *regs)
@@ -247,11 +267,17 @@ void do_bp(struct pt_regs *regs)
 	 * code starts left to bit 16 instead to bit 6 in the opcode.
 	 * Gas is bug-compatible ...
 	 */
+#ifdef CONF_DEBUG_EXCEPTIONS
+	printk("BREAKPOINT at %08lx\n", regs->cp0_epc);
+#endif
 	if (get_insn_opcode(regs, &opcode))
 		return;
 	bcode = ((opcode >> 16) & ((1 << 20) - 1));
 
 	do_bp_and_tr(regs, "bp", bcode);
+
+	if (compute_return_epc(regs))
+		return;
 }
 
 void do_tr(struct pt_regs *regs)
@@ -265,16 +291,13 @@ void do_tr(struct pt_regs *regs)
 	do_bp_and_tr(regs, "tr", bcode);
 }
 
-/*
- * TODO: add emulation of higher ISAs' instruction.  In particular
- * interest in MUL, MAD MADU has been expressed such that R4640/R4650
- * code can be run on other MIPS CPUs.
- */
 void do_ri(struct pt_regs *regs)
 {
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
+	printk("[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
+	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
 	if (compute_return_epc(regs))
 		return;
 	force_sig(SIGILL, current);
@@ -285,11 +308,11 @@ void do_cpu(struct pt_regs *regs)
 	unsigned int cpid;
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
-	if (cpid == 1) {
+	if (cpid == 1)
+	{
 		regs->cp0_status |= ST0_CU1;
 		return;
 	}
-
 	force_sig(SIGILL, current);
 }
 
@@ -349,8 +372,49 @@ static void watch_init(unsigned long cputype)
 	}
 }
 
+typedef asmlinkage int (*syscall_t)(void *a0,...);
+asmlinkage int (*do_syscalls)(struct pt_regs *regs, syscall_t fun, int narg);
+extern asmlinkage int r4k_do_syscalls(struct pt_regs *regs,
+				      syscall_t fun, int narg);
+extern asmlinkage int r2300_do_syscalls(struct pt_regs *regs,
+					syscall_t fun, int narg);
+
+asmlinkage void (*save_fp_context)(struct sigcontext *sc);
+extern asmlinkage void r4k_save_fp_context(struct sigcontext *sc);
+extern asmlinkage void r2300_save_fp_context(struct sigcontext *sc);
+extern asmlinkage void r6000_save_fp_context(struct sigcontext *sc);
+
+asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
+extern asmlinkage void r4k_restore_fp_context(struct sigcontext *sc);
+extern asmlinkage void r2300_restore_fp_context(struct sigcontext *sc);
+extern asmlinkage void r6000_restore_fp_context(struct sigcontext *sc);
+
+extern asmlinkage void r4xx0_resume(void *tsk);
+extern asmlinkage void r2300_resume(void *tsk);
+
 void trap_init(void)
 {
+	extern char except_vec0_r4000, except_vec0_r4600, except_vec0_r2300;
+	extern char except_vec1_generic, except_vec2_generic;
+	extern char except_vec3_generic, except_vec3_r4000;
+	unsigned long i;
+
+	if(mips_machtype == MACH_MIPS_MAGNUM_4000 ||
+	   mips_machtype == MACH_DESKSTATION_RPC44 ||
+	   mips_machtype == MACH_SNI_RM200_PCI)
+		EISA_bus = 1;
+
+	/* Copy the generic exception handler code to it's final destination. */
+	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
+	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
+
+	/*
+	 * Setup default vectors
+	 */
+	for(i = 0; i <= 31; i++)
+		set_except_vector(i, handle_reserved);
+
 	/*
 	 * Only some CPUs have the watch exception.
 	 */
@@ -368,21 +432,55 @@ void trap_init(void)
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
 		set_cp0_status(ST0_XX, ST0_XX);
 		/*
+		 * Actually this mask stands for only 16k cache.  This is
+		 * correct since the R10000 has multiple ways in it's cache.
+		 */
+		page_colour_mask = 0x3000;
+		/*
 		 * The R10k might even work for Linux/MIPS - but we're paranoid
 		 * and refuse to run until this is tested on real silicon
 		 */
 		panic("CPU too expensive - making holiday in the ANDES!");
 		break;
+	case CPU_R4000MC:
+	case CPU_R4400MC:
+	case CPU_R4000SC:
+	case CPU_R4400SC:
+		/* XXX The following won't work because we _cannot_
+		 * XXX perform any load/store before the VCE handler.
+		 */
+		set_except_vector(14, handle_vcei);
+		set_except_vector(31, handle_vced);
+	case CPU_R4000PC:
+	case CPU_R4400PC:
+	case CPU_R4200:
+     /* case CPU_R4300: */
+     /* case CPU_R4640: */
+	case CPU_R4600:
+        case CPU_R5000:
+		if(mips_cputype != CPU_R4600)
+			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
+		else
+			memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
 
-	case CPU_R4000MC: case CPU_R4400MC: case CPU_R4000SC:
-	case CPU_R4400SC: case CPU_R4000PC: case CPU_R4400PC:
-	case CPU_R4200: /*case CPU_R4300:   case CPU_R4640: */
-	case CPU_R4600: case CPU_R4700:
-		set_except_vector(1, handle_mod);
-		set_except_vector(2, handle_tlbl);
-		set_except_vector(3, handle_tlbs);
+		/*
+		 * The idea is that this special r4000 general exception
+		 * vector will check for VCE exceptions before calling
+		 * out of the exception array.  XXX TODO
+		 */
+		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
+
+		do_syscalls = r4k_do_syscalls;
+		save_fp_context = r4k_save_fp_context;
+		restore_fp_context = r4k_restore_fp_context;
+		resume = r4xx0_resume;
+		set_except_vector(1, r4k_handle_mod);
+		set_except_vector(2, r4k_handle_tlbl);
+		set_except_vector(3, r4k_handle_tlbs);
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
+
 		/*
 		 * The following two are signaled by onboard hardware and
 		 * should get board specific handlers to get maximum
@@ -398,11 +496,22 @@ void trap_init(void)
 		set_except_vector(12, handle_ov);
 		set_except_vector(13, handle_tr);
 		set_except_vector(15, handle_fpe);
-		break;
 
-	case CPU_R6000: case CPU_R6000A:
+		/*
+		 * Compute mask for page_colour().  This is based on the
+		 * size of the data cache.
+		 */
+		i = read_32bit_cp0_register(CP0_CONFIG);
+		i = (i >> 26) & 7;
+		page_colour_mask = 1 << (12 + i);
+		break;
+	case CPU_R6000:
+	case CPU_R6000A:
+		save_fp_context = r6000_save_fp_context;
+		restore_fp_context = r6000_restore_fp_context;
 #if 0
-		/* The R6000 is the only R-series CPU that features a machine
+		/*
+		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and
 		 * unaligned ldc1/sdc1 exception.  The handlers have not been
 		 * written yet.  Well, anyway there is no R6000 machine on the
@@ -411,22 +520,20 @@ void trap_init(void)
 		set_except_vector(14, handle_mc);
 		set_except_vector(15, handle_ndc);
 #endif
-	case CPU_R2000: case CPU_R3000: case CPU_R3000A: case CPU_R3041:
-	case CPU_R3051: case CPU_R3052: case CPU_R3081: case CPU_R3081E:
-		/*
-		 * Clear BEV, we are ready to handle exceptions using
-		 * the in-RAM dispatchers. This will not be useful on all
-		 * machines, but it can't hurt (the worst that can happen is
-		 * that BEV is already 0).
-		 */
-		set_cp0_status(ST0_BEV,0);
-
+	case CPU_R2000:
+	case CPU_R3000:
+	case CPU_R3000A:
 		/*
 		 * Actually don't know about these, but let's guess - PMA
 		 */
-		set_except_vector(1, handle_mod);
-		set_except_vector(2, handle_tlbl);
-		set_except_vector(3, handle_tlbs);
+		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
+		do_syscalls = r2300_do_syscalls;
+		save_fp_context = r2300_save_fp_context;
+		restore_fp_context = r2300_restore_fp_context;
+		resume = r2300_resume;
+		set_except_vector(1, r2300_handle_mod);
+		set_except_vector(2, r2300_handle_tlbl);
+		set_except_vector(3, r2300_handle_tlbs);
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
 		/*
@@ -446,9 +553,27 @@ void trap_init(void)
 		set_except_vector(12, handle_ov);
 		set_except_vector(13, handle_tr);
 		set_except_vector(15, handle_fpe);
-		break;
 
-	case CPU_R8000: case CPU_R5000:
+		/*
+		 * Compute mask for page_colour().  This is based on the
+		 * size of the data cache.  Does the size of the icache
+		 * need to be accounted for?
+		 *
+		 * FIXME: is any of this necessary for the R3000, which
+		 *        doesn't have a config register?
+		 *        (No, the R2000, R3000 family has a physical indexed
+		 *        cache and doesn't need this braindamage.)
+		i = read_32bit_cp0_register(CP0_CONFIG);
+		i = (i >> 26) & 7;
+		page_colour_mask = 1 << (12 + i);
+		 */
+		break;
+	case CPU_R3041:
+	case CPU_R3051:
+	case CPU_R3052:
+	case CPU_R3081:
+	case CPU_R3081E:
+	case CPU_R8000:
 		printk("Detected unsupported CPU type %s.\n",
 			cpu_names[mips_cputype]);
 		panic("Can't handle CPU");
@@ -456,6 +581,7 @@ void trap_init(void)
 
 	case CPU_UNKNOWN:
 	default:
-		panic("Unsupported CPU type");
+		panic("Unknown CPU type");
 	}
+	flush_cache_all();
 }

@@ -9,6 +9,7 @@
  * though it does not yet currently fully support the DECStation,
  * or R3000 - PMA.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -23,42 +24,47 @@
 #include <linux/a.out.h>
 
 #include <asm/bootinfo.h>
-#include <asm/cache.h>
-#include <asm/uaccess.h>
+#include <asm/segment.h>
 #include <asm/pgtable.h>
-#include <asm/sgidefs.h>
 #include <asm/system.h>
 #include <asm/mipsregs.h>
 #include <asm/processor.h>
 #include <asm/stackframe.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
+#include <asm/elf.h>
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#endif
+
+int active_ds = USER_DS;
 
 asmlinkage void ret_from_sys_call(void);
 
 /*
- * Free current thread data structures etc..
+ * Do necessary setup to start up a newly executed thread.
  */
+void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
+{
+	/* New thread looses kernel privileges. */
+	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;
+	regs->cp0_epc = pc;
+	regs->regs[29] = sp;
+	current->tss.current_ds = USER_DS;
+}
+
 void exit_thread(void)
 {
-	/*
-	 * Nothing to do
-	 */
 }
 
 void flush_thread(void)
 {
-	/*
-	 * Nothing to do
-	 */
 }
 
 void release_thread(struct task_struct *dead_task)
 {
-	/*
-	 * Nothing to do
-	 */
 }
-  
+
 void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
                  struct task_struct * p, struct pt_regs * regs)
 {
@@ -66,80 +72,66 @@ void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	long childksp;
 
 	childksp = p->kernel_stack_page + KERNEL_STACK_SIZE - 8;
-	/*
-	 * set up new TSS
-	 */
+
+	/* set up new TSS. */
 	childregs = ((struct pt_regs *) (p->kernel_stack_page + PAGE_SIZE)) - 1;
 	*childregs = *regs;
-	childregs->regs[2] = (__register_t) 0;	/* Child gets zero as return value */
-	childregs->regs[7] = (__register_t) 0;	/* Clear error flag */
-	regs->regs[2] = (__register_t) p->pid;
-	if (childregs->cp0_status & ST0_CU0)
-		childregs->regs[29] = (__register_t) childksp;
-	else
-		childregs->regs[29] = (__register_t) usp;
+	childregs->regs[7] = 0;	/* Clear error flag */
+	if(current->personality == PER_LINUX) {
+		childregs->regs[2] = 0;	/* Child gets zero as return value */
+		regs->regs[2] = p->pid;
+	} else {
+		/* Under IRIX things are a little different. */
+		childregs->regs[2] = 0;
+		childregs->regs[3] = 1;
+		regs->regs[2] = p->pid;
+		regs->regs[3] = 0;
+	}
+	if (childregs->cp0_status & ST0_CU0) {
+		childregs->regs[29] = childksp;
+		p->tss.current_ds = KERNEL_DS;
+	} else {
+		childregs->regs[29] = usp;
+		p->tss.current_ds = USER_DS;
+	}
 	p->tss.ksp = childksp;
-	p->tss.reg29 = (__register_t)(long) childregs;	/* new sp */
-	p->tss.reg31 = (__register_t) ret_from_sys_call;
-
-	/*
-	 * Copy thread specific flags.
-	 */
-	p->tss.mflags = p->tss.mflags;
+	p->tss.reg29 = (unsigned long) childregs;
+	p->tss.reg31 = (unsigned long) ret_from_sys_call;
 
 	/*
 	 * New tasks loose permission to use the fpu. This accelerates context
 	 * switching for most programs since they don't use the fpu.
 	 */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
 	p->tss.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
-	                    ~(ST0_CU3|ST0_CU2|ST0_CU1);
-#endif
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-	p->tss.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
-	                    ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU|ST0_ERL|ST0_EXL);
-#endif
+                            ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU|ST0_ERL|ST0_EXL);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
+	p->mm->context = 0;
 }
 
-/*
- * Do necessary setup to start up a newly executed thread.
- */
-extern void (*switch_to_user_mode)(struct pt_regs *regs);
-
-void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
+/* Fill in the fpu structure for a core dump.. */
+int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
 {
-	set_fs(USER_DS);
-	regs->cp0_epc = (__register_t) pc;
-	/*
-	 * New thread loses kernel privileges.
+	/* We actually store the FPU info in the task->tss
+	 * area.
 	 */
-	switch_to_user_mode(regs);
-	regs->regs[29] = (__register_t) sp;
-	regs->regs[31] = 0;
+	if(regs->cp0_status & ST0_CU1) {
+		memcpy(r, &current->tss.fpu, sizeof(current->tss.fpu));
+		return 1;
+	}
+	return 0; /* Task didn't use the fpu at all. */
 }
 
-/*
- * fill in the fpu structure for a core dump..
- *
- * Actually this is "int dump_fpu (struct pt_regs * regs, struct user *fpu)"
- */
-int dump_fpu (int shutup_the_gcc_warning_about_elf_fpregset_t)
+/* Fill in the user structure for a core dump.. */
+void dump_thread(struct pt_regs *regs, struct user *dump)
 {
-	int fpvalid = 0;
-	/*
-	 * To do...
-	 */
-
-	return fpvalid;
-}
-
-/*
- * fill in the user structure for a core dump..
- */
-void dump_thread(struct pt_regs * regs, struct user * dump)
-{
-	/*
-	 * To do...
-	 */
+	dump->magic = CMAGIC;
+	dump->start_code  = current->mm->start_code;
+	dump->start_data  = current->mm->start_data;
+	dump->start_stack = regs->regs[29] & ~(PAGE_SIZE - 1);
+	dump->u_tsize = (current->mm->end_code - dump->start_code) >> PAGE_SHIFT;
+	dump->u_dsize = (current->mm->brk + (PAGE_SIZE - 1) - dump->start_data) >> PAGE_SHIFT;
+	dump->u_ssize =
+		(current->mm->start_stack - dump->start_stack + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	memcpy(&dump->regs[0], regs, sizeof(struct pt_regs));
+	memcpy(&dump->regs[EF_SIZE/4], &current->tss.fpu, sizeof(current->tss.fpu));
 }

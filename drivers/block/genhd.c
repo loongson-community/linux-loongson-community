@@ -15,8 +15,6 @@
  *
  *  More flexible handling of extended partitions - aeb, 950831
  *
- *  Support for systems without PC-style consoles - <dfrick@dial.eunet.ch>, 960+ *
- *
  *  Check partition table on IDE disks for common CHS translations
  */
 
@@ -39,9 +37,9 @@
  */
 #include <asm/unaligned.h>
 
-#define SYS_IND(p)    get_unaligned(&p->sys_ind)
-#define NR_SECTS(p)   get_unaligned(&p->nr_sects)
-#define START_SECT(p) get_unaligned(&p->start_sect)
+#define SYS_IND(p)	get_unaligned(&p->sys_ind)
+#define NR_SECTS(p)	get_unaligned(&p->nr_sects)
+#define START_SECT(p)	get_unaligned(&p->start_sect)
 
 
 struct gendisk *gendisk_head = NULL;
@@ -245,7 +243,6 @@ static int msdos_partition(struct gendisk *hd, kdev_t dev, unsigned long first_s
 {
 	int i, minor = current_minor;
 	struct buffer_head *bh;
-	struct partition ptable[4];
 	struct partition *p;
 	unsigned char *data;
 	int mask = (1 << hd->minor_shift) - 1;
@@ -270,8 +267,7 @@ check_table:
 		brelse(bh);
 		return 0;
 	}
-	memcpy(ptable, (struct partition *)(data + 0x1be), sizeof(struct partition) * 4);
-	p = ptable;
+	p = (struct partition *) (0x1be + data);
 
 #ifdef CONFIG_BLK_DEV_IDE
 	if (!tested_for_xlate++) {	/* Do this only once per disk */
@@ -378,7 +374,7 @@ check_table:
 	 *  Check for old-style Disk Manager partition table
 	 */
 	if (*(unsigned short *) (data+0xfc) == 0x55AA) {
-		p = ptable;
+		p = (struct partition *) (0x1be + data);
 		for (i = 4 ; i < 16 ; i++, current_minor++) {
 			p--;
 			if ((current_minor & mask) == 0)
@@ -556,6 +552,74 @@ static int sun_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sec
 
 #endif /* CONFIG_SUN_PARTITION */
 
+#ifdef CONFIG_SGI_PARTITION
+
+static int sgi_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector)
+{
+	int i, csum;
+	unsigned int *ui;
+	struct buffer_head *bh;
+	struct sgi_disklabel {
+		int magic_mushroom;         /* Big fat spliff... */
+		short root_part_num;        /* Root partition number */
+		short swap_part_num;        /* Swap partition number */
+		char boot_file[16];         /* Name of boot file for ARCS */
+		unsigned char _unused0[48]; /* Device parameter useless crapola.. */
+		struct sgi_volume {
+			char name[8];       /* Name of volume */
+			int  block_num;     /* Logical block number */
+			int  num_bytes;     /* How big, in bytes */
+		} volume[15];
+		struct sgi_partition {
+			int num_blocks;     /* Size in logical blocks */
+			int first_block;    /* First logical block */
+			int type;           /* Type of this partition */
+		} partitions[16];
+		int csum;                   /* Disk label checksum */
+		int _unused1;               /* Padding */
+	} *label;
+	struct sgi_partition *p;
+#define SGI_LABEL_MAGIC 0x0be5a941
+
+	if(!(bh = bread(dev, 0, 1024))) {
+		printk("Dev %s: unable to read partition table\n", kdevname(dev));
+		return -1;
+	}
+	label = (struct sgi_disklabel *) bh->b_data;
+	p = &label->partitions[0];
+	if(label->magic_mushroom != SGI_LABEL_MAGIC) {
+		printk("Dev %s SGI disklabel: bad magic %08x\n",
+		       kdevname(dev), label->magic_mushroom);
+		brelse(bh);
+		return 0;
+	}
+	ui = ((unsigned int *) (label + 1)) - 1;
+	for(csum = 0; ui >= ((unsigned int *) label);)
+		csum += *ui--;
+	if(csum) {
+		printk("Dev %s SGI disklabel: csum bad, label corrupted\n",
+		       kdevname(dev));
+		brelse(bh);
+		return 0;
+	}
+	/* All SGI disk labels have 16 partitions, disks under Linux only
+	 * have 15 minor's.  Luckily there are always a few zero length
+	 * partitions which we don't care about so we never overflow the
+	 * current_minor.
+	 */
+	for(i = 0; i < 16; i++, p++) {
+		if(!(p->num_blocks))
+			continue;
+		add_partition(hd, current_minor, p->first_block, p->num_blocks);
+		current_minor++;
+	}
+	printk("\n");
+	brelse(bh);
+	return 1;
+}
+
+#endif
+
 #ifdef CONFIG_AMIGA_PARTITION
 #include <asm/byteorder.h>
 #include <linux/affs_hardblocks.h>
@@ -675,6 +739,10 @@ static void check_partition(struct gendisk *hd, kdev_t dev)
 	if(amiga_partition(hd, dev, first_sector))
 		return;
 #endif
+#ifdef CONFIG_SGI_PARTITION
+	if(sgi_partition(hd, dev, first_sector))
+		return;
+#endif
 	printk(" unknown partition table\n");
 }
 
@@ -746,9 +814,7 @@ void device_setup(void)
 #ifdef CONFIG_INET
 	net_dev_init();
 #endif
-#ifndef CONFIG_SERIAL_ONLY_CONSOLE
 	console_map_init();
-#endif
 
 	for (p = gendisk_head ; p ; p=p->next) {
 		setup_dev(p);

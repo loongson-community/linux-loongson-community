@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
  * Changed system calls macros _syscall5 - _syscall7 to push args 5 to 7 onto
  * the stack. Robin Farine for ACN S.A, Copyright (C) 1996 by ACN S.A
@@ -15,9 +15,8 @@
 
 /*
  * The syscalls 0 - 3999 are reserved for a down to the root syscall
- * compatibility with RISC/os and IRIX.  None of these syscalls has yet been
- * implemented.  We'll see how to deal with the various "real" BSD variants
- * like Ultrix, NetBSD ...
+ * compatibility with RISC/os and IRIX.  We'll see how to deal with the
+ * various "real" BSD variants like Ultrix, NetBSD ...
  */
 
 /*

@@ -31,7 +31,6 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/miscdevice.h>
-#include <asm/system.h>
 
 #define WATCHDOG_MINOR	130
 #define TIMER_MARGIN	60		/* (secs) Default is 1 minute */
@@ -52,6 +51,7 @@ static int timer_alive = 0;
  
 static void watchdog_fire(unsigned long data)
 {
+	extern void hard_reset_now(void);
 #ifdef ONLY_TESTING
 		printk(KERN_CRIT "SOFTDOG: Would Reboot.\n");
 #else

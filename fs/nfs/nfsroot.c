@@ -72,7 +72,6 @@
 #include <linux/fcntl.h>
 
 #include <asm/param.h>
-#include <asm/segment.h>
 #include <linux/utsname.h>
 #include <linux/in.h>
 #include <linux/if.h>

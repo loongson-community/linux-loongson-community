@@ -10,7 +10,25 @@
 #ifndef __ASM_MIPS_BITOPS_H
 #define __ASM_MIPS_BITOPS_H
 
+#ifdef __KERNEL__
+
 #include <asm/sgidefs.h>
+#include <asm/system.h>
+
+/*
+ * Only disable interrupt for kernel mode stuff to keep usermode stuff
+ * that dares to use kernel include files alive.
+ */
+#define __flags unsigned long flags
+#define __cli() cli()
+#define __save_flags(x) save_flags(x)
+#define __restore_flags(x) restore_flags(x)
+#else
+#define __flags
+#define __cli()
+#define __save_flags(x)
+#define __restore_flags(x)
+#endif /* __KERNEL__ */
 
 /*
  * Note that the bit operations are defined on arrays of 32 bit sized
@@ -21,7 +39,9 @@ extern __inline__ int set_bit(int nr, void *addr);
 extern __inline__ int clear_bit(int nr, void *addr);
 extern __inline__ int change_bit(int nr, void *addr);
 extern __inline__ int test_bit(int nr, const void *addr);
+#ifndef __MIPSEB__
 extern __inline__ int find_first_zero_bit (void *addr, unsigned size);
+#endif
 extern __inline__ int find_next_zero_bit (void * addr, int size, int offset);
 extern __inline__ unsigned long ffz(unsigned long word);
 
@@ -46,8 +66,7 @@ extern __inline__ int set_bit(int nr, void *addr)
 	do {
 		mw = load_linked(addr);
 		retval = (mask & mw) != 0;
-		}
-	while (!store_conditional(addr, mw|mask));
+	} while (!store_conditional(addr, mw|mask));
 
 	return retval;
 }
@@ -76,36 +95,12 @@ extern __inline__ int change_bit(int nr, void *addr)
 	do {
 		mw = load_linked(addr);
 		retval = (mask & mw) != 0;
-		}
-	while (!store_conditional(addr, mw ^ mask));
+	} while (!store_conditional(addr, mw ^ mask));
 
 	return retval;
 }
 
 #else /* MIPS I */
-
-#ifdef __KERNEL__
-/*
- * These functions are only used for MIPS ISA 1 CPUs.  Since I don't
- * believe that someone ever will run Linux/SMP on such a beast I don't
- * worry about making them SMP proof.
- */
-#include <asm/system.h>
-
-/*
- * Only disable interrupt for kernel mode stuff to keep usermode stuff
- * that dares to use kernel include files alive.
- */
-#define __flags unsigned long flags
-#define __cli() cli()
-#define __save_flags(x) save_flags(x)
-#define __restore_flags(x) restore_flags(x)
-#else
-#define __flags
-#define __cli()
-#define __save_flags(x)
-#define __restore_flags(x)
-#endif /* __KERNEL__ */
 
 extern __inline__ int set_bit(int nr, void * addr)
 {
@@ -169,6 +164,10 @@ extern __inline__ int test_bit(int nr, const void *addr)
 {
 	return ((1UL << (nr & 31)) & (((const unsigned int *) addr)[nr >> 5])) != 0;
 }
+
+#ifndef __MIPSEB__
+
+/* Little endian versions. */
 
 extern __inline__ int find_first_zero_bit (void *addr, unsigned size)
 {
@@ -259,6 +258,8 @@ extern __inline__ int find_next_zero_bit (void * addr, int size, int offset)
 	return offset + set + res;
 }
 
+#endif /* !(__MIPSEB__) */
+
 /*
  * ffz = Find First Zero in word. Undefined if no zero exists,
  * so code should check against ~0UL first..
@@ -287,17 +288,167 @@ extern __inline__ unsigned long ffz(unsigned long word)
 	return __res;
 }
 
-#ifdef __KERNEL__
 #ifdef __MIPSEB__
-#error "Aieee...  fix these sources for big endian machines"
-#endif /* __MIPSEB__ */
+/* For now I steal the Sparc C versions, no need for speed, just need to
+ * get it working.
+ */
+/* find_next_zero_bit() finds the first zero bit in a bit string of length
+ * 'size' bits, starting the search at bit 'offset'. This is largely based
+ * on Linus's ALPHA routines, which are pretty portable BTW.
+ */
 
-#define ext2_set_bit                 set_bit
-#define ext2_clear_bit               clear_bit
-#define ext2_test_bit                test_bit
-#define ext2_find_first_zero_bit     find_first_zero_bit
-#define ext2_find_next_zero_bit      find_next_zero_bit
+extern __inline__ int find_next_zero_bit(void *addr, int size, int offset)
+{
+	unsigned long *p = ((unsigned long *) addr) + (offset >> 5);
+	unsigned long result = offset & ~31UL;
+	unsigned long tmp;
 
-#endif /* __KERNEL__ */
+	if (offset >= size)
+		return size;
+	size -= result;
+	offset &= 31UL;
+	if (offset) {
+		tmp = *(p++);
+		tmp |= ~0UL >> (32-offset);
+		if (size < 32)
+			goto found_first;
+		if (~tmp)
+			goto found_middle;
+		size -= 32;
+		result += 32;
+	}
+	while (size & ~31UL) {
+		if (~(tmp = *(p++)))
+			goto found_middle;
+		result += 32;
+		size -= 32;
+	}
+	if (!size)
+		return result;
+	tmp = *p;
+
+found_first:
+	tmp |= ~0UL << size;
+found_middle:
+	return result + ffz(tmp);
+}
+
+/* Linus sez that gcc can optimize the following correctly, we'll see if this
+ * holds on the Sparc as it does for the ALPHA.
+ */
+
+#define find_first_zero_bit(addr, size) \
+        find_next_zero_bit((addr), (size), 0)
+
+#endif /* (__MIPSEB__) */
+
+/* Now for the ext2 filesystem bit operations and helper routines. */
+
+#ifdef __MIPSEB__
+extern __inline__ int ext2_set_bit(int nr,void * addr)
+{
+	int		mask, retval, flags;
+	unsigned char	*ADDR = (unsigned char *) addr;
+
+	ADDR += nr >> 3;
+	mask = 1 << (nr & 0x07);
+	save_flags(flags); cli();
+	retval = (mask & *ADDR) != 0;
+	*ADDR |= mask;
+	restore_flags(flags);
+	return retval;
+}
+
+extern __inline__ int ext2_clear_bit(int nr, void * addr)
+{
+	int		mask, retval, flags;
+	unsigned char	*ADDR = (unsigned char *) addr;
+
+	ADDR += nr >> 3;
+	mask = 1 << (nr & 0x07);
+	save_flags(flags); cli();
+	retval = (mask & *ADDR) != 0;
+	*ADDR &= ~mask;
+	restore_flags(flags);
+	return retval;
+}
+
+extern __inline__ int ext2_test_bit(int nr, const void * addr)
+{
+	int			mask;
+	const unsigned char	*ADDR = (const unsigned char *) addr;
+
+	ADDR += nr >> 3;
+	mask = 1 << (nr & 0x07);
+	return ((mask & *ADDR) != 0);
+}
+
+#define ext2_find_first_zero_bit(addr, size) \
+        ext2_find_next_zero_bit((addr), (size), 0)
+
+static __inline__ unsigned long __swab32(unsigned long val)
+{
+	return ((val>>24)|((val>>8)&0xff00)|((val<<8)&0xff0000)|(val<<24));
+}
+
+extern __inline__ unsigned long ext2_find_next_zero_bit(void *addr, unsigned long size, unsigned long offset)
+{
+	unsigned long *p = ((unsigned long *) addr) + (offset >> 5);
+	unsigned long result = offset & ~31UL;
+	unsigned long tmp;
+
+	if (offset >= size)
+		return size;
+	size -= result;
+	offset &= 31UL;
+	if(offset) {
+		/* We hold the little endian value in tmp, but then the
+		 * shift is illegal. So we could keep a big endian value
+		 * in tmp, like this:
+		 *
+		 * tmp = __swab32(*(p++));
+		 * tmp |= ~0UL >> (32-offset);
+		 *
+		 * but this would decrease preformance, so we change the
+		 * shift:
+		 */
+		tmp = *(p++);
+		tmp |= __swab32(~0UL >> (32-offset));
+		if(size < 32)
+			goto found_first;
+		if(~tmp)
+			goto found_middle;
+		size -= 32;
+		result += 32;
+	}
+	while(size & ~31UL) {
+		if(~(tmp = *(p++)))
+			goto found_middle;
+		result += 32;
+		size -= 32;
+	}
+	if(!size)
+		return result;
+	tmp = *p;
+
+found_first:
+	/* tmp is little endian, so we would have to swab the shift,
+	 * see above. But then we have to swab tmp below for ffz, so
+	 * we might as well do this here.
+	 */
+	return result + ffz(__swab32(tmp) | (~0UL << size));
+found_middle:
+	return result + ffz(__swab32(tmp));
+}
+#else /* !(__MIPSEB__) */
+
+/* Native ext2 byte ordering, just collapse using defines. */
+#define ext2_set_bit(nr, addr) set_bit((nr), (addr))
+#define ext2_clear_bit(nr, addr) clear_bit((nr), (addr))
+#define ext2_test_bit(nr, addr) test_bit((nr), (addr))
+#define ext2_find_first_zero_bit(addr, size) find_first_zero_bit((addr), (size))
+#define ext2_find_next_zero_bit(addr, size, offset) \
+                find_next_zero_bit((addr), (size), (offset))
+#endif
 
 #endif /* __ASM_MIPS_BITOPS_H */

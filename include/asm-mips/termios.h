@@ -61,11 +61,12 @@ struct termio {
 #ifdef __KERNEL__
 /*
  *	intr=^C		quit=^\		erase=del	kill=^U
- *	eof=^D		eol=time=\0	eol2=\0		swtc=\0
+ *	vmin=\1		vtime=\0	eol2=\0		swtc=\0
  *	start=^Q	stop=^S		susp=^Z		vdsusp=
  *	reprint=^R	discard=^U	werase=^W	lnext=^V
+ *	eof=^D		eol=\0
  */
-#define INIT_C_CC "\003\034\177\025\004\0\0\0\021\023\032\0\022\017\027\026"
+#define INIT_C_CC "\003\034\177\025\1\0\0\0\021\023\032\0\022\017\027\026\004\0"
 #endif
 
 /* modem lines */

@@ -21,23 +21,32 @@
 #endif
 
 #include <asm/bootinfo.h>
-#include <asm/cache.h>
+#include <asm/cachectl.h>
 #include <asm/dma.h>
 #include <asm/jazzdma.h>
 #include <asm/vector.h>
 #include <asm/system.h>
-#include <asm/uaccess.h>
+#include <asm/segment.h>
 #include <asm/pgtable.h>
-#include <asm/page.h>
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#endif
 
 extern void deskstation_tyne_dma_init(void);
 extern void show_net_buffers(void);
+
+asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
+{
+	/* XXX Just get it working for now... */
+	flush_cache_all();
+	return 0;
+}
 
 /*
  * BAD_PAGE is the page that is used for page faults when linux
  * is out-of-memory. Older versions of linux just did a
  * do_exit(), but using this instead means there is less risk
- * for a process dying in kernel mode, possibly leaving an inode
+ * for a process dying in kernel mode, possibly leaving a inode
  * unused etc..
  *
  * BAD_PAGETABLE is the accompanying page-table: it is initialized
@@ -56,7 +65,6 @@ pte_t * __bad_pagetable(void)
 #endif
 
 	page = (unsigned long) empty_bad_page_table;
-	page = page_to_ptp(page);
 	/*
 	 * As long as we only save the low 32 bit of the 64 bit wide
 	 * R4000 registers on interrupt we cannot use 64 bit memory accesses
@@ -104,13 +112,59 @@ pte_t * __bad_pagetable(void)
 	return (pte_t *)page;
 }
 
+static inline void
+__zeropage(unsigned long page)
+{
+	unsigned long dummy1, dummy2;
+
+#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
+        /*
+         * Use 64bit code even for Linux/MIPS 32bit on R4000
+         */
+	__asm__ __volatile__(
+		".set\tnoreorder\n"
+		".set\tnoat\n\t"
+		".set\tmips3\n"
+		"1:\tsd\t$0,(%0)\n\t"
+		"subu\t%1,1\n\t"
+		"bnez\t%1,1b\n\t"
+		"addiu\t%0,8\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n"
+		".set\treorder"
+		:"=r" (dummy1),
+		 "=r" (dummy2)
+		:"0" (page),
+		 "1" (PAGE_SIZE/8));
+#else /* (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2) */
+	__asm__ __volatile__(
+		".set\tnoreorder\n"
+		"1:\tsw\t$0,(%0)\n\t"
+		"subu\t%1,1\n\t"
+		"bnez\t%1,1b\n\t"
+		"addiu\t%0,4\n\t"
+		".set\treorder"
+		:"=r" (dummy1),
+		 "=r" (dummy2)
+		:"0" (page),
+		 "1" (PAGE_SIZE/4));
+#endif
+}
+
+static inline void
+zeropage(unsigned long page)
+{
+	flush_page_to_ram(page);
+	sync_mem();
+	__zeropage(page);
+}
+
 pte_t __bad_page(void)
 {
 	extern char empty_bad_page[PAGE_SIZE];
 	unsigned long page = (unsigned long)empty_bad_page;
 
-	clear_page(page_to_ptp(page));
-	cacheflush(page, PAGE_SIZE, CF_DCACHE|CF_VIRTUAL);
+	zeropage(page);
 	return pte_mkdirty(mk_pte(page, PAGE_SHARED));
 }
 
@@ -146,8 +200,7 @@ extern unsigned long free_area_init(unsigned long, unsigned long);
 
 unsigned long paging_init(unsigned long start_mem, unsigned long end_mem)
 {
-	mips_cache_init();
-	pgd_init((unsigned long)swapper_pg_dir - (PT_OFFSET - PAGE_OFFSET));
+	pgd_init((unsigned long)swapper_pg_dir);
 	return free_area_init(start_mem, end_mem);
 }
 
@@ -156,7 +209,7 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 	int codepages = 0;
 	int datapages = 0;
 	unsigned long tmp;
-	extern int _etext;
+	extern int _etext, _ftext;
 
 #ifdef CONFIG_MIPS_JAZZ
 	if (mips_machgroup == MACH_GROUP_JAZZ)
@@ -177,9 +230,10 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 		clear_bit(PG_reserved, &mem_map[tmp].flags);
 
 	/*
-	 * For rPC44 we've reserved some memory too much.  Free the memory
-	 * from PAGE_SIZE to PAGE_OFFSET + 0xa0000 again.  We don't free the
-	 * lowest page where the exception handlers will reside.
+	 * For rPC44 and RM200 we've reserved some memory too much.  Free
+	 * the memory from PAGE_SIZE to PAGE_OFFSET + 0xa0000 again.  We
+	 * don't free the lowest page where the exception handlers will
+	 * reside.
 	 */
 	if (mips_machgroup ==  MACH_GROUP_ARC &&
 	    mips_machtype == MACH_DESKSTATION_RPC44)
@@ -187,10 +241,15 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 		    tmp < MAP_NR(PAGE_OFFSET + 0xa000); tmp++)
 			clear_bit(PG_reserved, &mem_map[tmp].flags);
 
-#ifdef CONFIG_DESKSTATION_TYNE
-	if (mips_machtype == MACH_DESKSTATION_TYNE)
-		deskstation_tyne_dma_init();
+
+#ifdef CONFIG_SGI
+	prom_fixup_mem_map(start_mem, high_memory);
 #endif
+
+#ifdef CONFIG_DESKSTATION_TYNE
+	deskstation_tyne_dma_init();
+#endif
+
 	for (tmp = PAGE_OFFSET; tmp < end_mem; tmp += PAGE_SIZE) {
 		/*
 		 * This is only for PC-style DMA.  The onboard DMA
@@ -200,9 +259,11 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 		if (tmp >= MAX_DMA_ADDRESS)
 			clear_bit(PG_DMA, &mem_map[MAP_NR(tmp)].flags);
 		if (PageReserved(mem_map+MAP_NR(tmp))) {
-			if (tmp < (unsigned long) &_etext)
+			if ((tmp < (unsigned long) &_etext) &&
+			    (tmp >= (unsigned long) &_ftext))
 				codepages++;
-			else if (tmp < start_mem)
+			else if ((tmp < start_mem) &&
+				 (tmp > (unsigned long) &_etext))
 				datapages++;
 			continue;
 		}

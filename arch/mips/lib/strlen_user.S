@@ -23,7 +23,7 @@ LEAF(__strlen_user)
 		LONG_ADDIU	a0,1
 		bnez		t0,1b
 		jr		ra
-		END(strlen_user)
+		END(__strlen_user)
 
 		.section	__ex_table,"a"
 		PTR		1b,fault

@@ -1,6 +1,9 @@
-/* $Id: callc.c,v 1.13 1996/06/24 17:15:55 fritz Exp $
+/* $Id: callc.c,v 1.2 1996/07/04 22:46:21 dm Exp $
  *
  * $Log: callc.c,v $
+ * Revision 1.2  1996/07/04 22:46:21  dm
+ * Merge to 2.0.1
+ *
  * Revision 1.13  1996/06/24 17:15:55  fritz
  * corrected return code of teles_writebuf()
  *

@@ -382,7 +382,7 @@ CONFIG_ACER_PICA_61
   lynx, netscape or Mosaic).
 
 Support for DECstation
-CONFIG_MIPS_DECSTATION
+CONFIG_DECSTATION
   The DECStation 3100 (with a MIPS R2000 series CPU) and DECStation
   5000/xxx (MIPS R3000 series CPU) are also sometimes labeled
   PMAX. They often run the Ultrix operating system. To compile a Linux

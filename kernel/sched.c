@@ -126,7 +126,8 @@ static inline void add_to_runqueue(struct task_struct * p)
 	init_task.prev_run = p;
 #ifdef __SMP__
 	/* this is safe only if called with cli()*/
-	while(set_bit(31,&smp_process_available))
+	while(set_bit(31,&smp_process_available));
+#if 0	
 	{
 		while(test_bit(31,&smp_process_available))
 		{
@@ -137,6 +138,7 @@ static inline void add_to_runqueue(struct task_struct * p)
 			}
 		}
 	}
+#endif	
 	smp_process_available++;
 	clear_bit(31,&smp_process_available);
 	if ((0!=p->pid) && smp_threads_ready)
@@ -410,11 +412,6 @@ asmlinkage void schedule(void)
 scheduling_in_interrupt:
 	printk("Aiee: scheduling in interrupt %p\n",
 		return_address());
-/*
- * System is probably fucked up anyway beyond a save landing; prevent
- * messages on the screen from scrolling away.
- */
-while(1);
 }
 
 #ifndef __alpha__
@@ -488,7 +485,7 @@ void wake_up_interruptible(struct wait_queue **q)
 	return;
 bad:
 	printk("wait_queue is bad (eip = %p)\n",
-		__builtin_return_address(0));
+		return_address());
 	printk("        q = %p\n",q);
 	printk("       *q = %p\n",*q);
 }

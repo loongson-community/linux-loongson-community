@@ -30,8 +30,10 @@
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
 
-#define get_fs()        (current->tss.segment)
-#define set_fs(x)       (current->tss.segment=(x))
+extern int active_ds;
+
+#define get_fs()        active_ds
+#define set_fs(x)       (active_ds=(x))
 
 static inline unsigned long get_ds(void)
 {

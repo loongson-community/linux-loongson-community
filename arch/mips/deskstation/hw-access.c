@@ -13,15 +13,16 @@
 #include <linux/linkage.h>
 #include <linux/types.h>
 #include <asm/bootinfo.h>
-#include <asm/cache.h>
+#include <asm/cachectl.h>
 #include <asm/dma.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/mc146818rtc.h>
 #include <asm/vector.h>
 
 extern int FLOPPY_IRQ;
 extern int FLOPPY_DMA;
+
+asmlinkage extern void deskstation_handle_int(void);
 
 /*
  * How to access the FDC's registers.
@@ -110,24 +111,21 @@ fd_disable_irq(void)
 void
 deskstation_fd_cacheflush(const void *addr, size_t size)
 {
-	cacheflush(addr, size, CF_DCACHE|CF_ALL);
+	flush_cache_all();
 }
 
 /*
- * RTC stuff (This is a guess on how Deskstation handles this ...)
+ * RTC stuff
  */
-static unsigned char
-rtc_read_data(unsigned long addr)
+static unsigned char *
+rtc_read_data()
 {
-	outb_p(addr, RTC_PORT(0));
-	return inb_p(RTC_PORT(1));
+	return 0;
 }
 
 static void
-rtc_write_data(unsigned char data, unsigned long addr)
+rtc_write_data(unsigned char data)
 {
-	outb_p(addr, RTC_PORT(0));
-	outb_p(data, RTC_PORT(1));
 }
 
 /*

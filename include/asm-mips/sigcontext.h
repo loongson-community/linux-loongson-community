@@ -18,6 +18,7 @@
 #endif
 
 #if defined(__LANGUAGE_C__) || \
+    defined(_LANGUAGE_C) || \
     defined(__LANGUAGE_C_PLUS_PLUS__) || \
     defined(__LANGUAGE_OBJECTIVE_C__)
 

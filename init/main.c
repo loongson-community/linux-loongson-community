@@ -39,6 +39,9 @@
 
 #include <stdarg.h>
 
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#endif
 
 /*
  * Versions of gcc older than that listed below may actually compile
@@ -48,10 +51,6 @@
  */
 #if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 6)
 #error sorry, your GCC is too old. It builds incorrect kernels.
-#endif
-
-#ifdef CONFIG_MIPS_JAZZ
-#include <asm/jazz.h>
 #endif
 
 extern char _stext, _etext;
@@ -193,6 +192,8 @@ extern void ipc_init(void);
 #ifdef CONFIG_REMOTE_DEBUG
 #include <asm/gdb-stub.h>
 #endif
+
+extern int serial_console;
 
 /*
  * Boot command-line arguments
@@ -419,7 +420,7 @@ struct {
 	{ "atascsi=", atari_scsi_setup },
 #endif
 #if defined(CONFIG_A3000_SCSI) || defined(CONFIG_A2091_SCSI) \
-	    || defined(CONFIG_GVP11_SCSI)
+	    || defined(CONFIG_GVP11_SCSI) || defined(CONFIG_SCSI_SGIWD93)
 	{ "wd33c93=", wd33c93_setup },
 #endif
 #if defined(CONFIG_GVP11_SCSI)
@@ -827,7 +828,7 @@ asmlinkage void start_kernel(void)
 	memory_start = console_init(memory_start,memory_end);
 #ifdef CONFIG_REMOTE_DEBUG
 	set_debug_traps();
-/*	breakpoint();	*/	/* execute a BREAK insn */
+	/* breakpoint(); */	/* execute a BREAK insn */
 #endif	
 #ifdef CONFIG_PCI
 	memory_start = pci_init(memory_start,memory_end);
@@ -905,7 +906,13 @@ static int do_shell(void * shell)
 
 	close(0);close(1);close(2);
 	setsid();
-	(void) open("/dev/tty1",O_RDWR,0);
+	if (serial_console == 1) {
+		(void) open("/dev/ttyS0",O_RDWR,0);
+	} else if (serial_console == 2) {
+		(void) open("/dev/ttyS1",O_RDWR,0);
+	} else {
+		(void) open("/dev/tty1",O_RDWR,0);
+	}
 	(void) dup(0);
 	(void) dup(0);
 	argv[0] = shell;
@@ -921,6 +928,17 @@ static int do_linuxrc(void * shell)
 	close(0);close(1);close(2);
 	setsid();
 	(void) open("/dev/tty1",O_RDWR,0);
+
+	/*
+	 *      This keeps serial console MUCH cleaner, but does assume
+	 *      the console driver checks there really is a video device
+	 *      attached (Sparc effectively does).
+	 */
+
+	if ((open("/dev/tty1",O_RDWR,0) < 0) &&
+	    (open("/dev/ttyS0",O_RDWR,0) < 0))
+		printk("Unable to open an initial console.\n");
+
 	(void) dup(0);
 	(void) dup(0);
 	return execve(shell, argv, envp_init);
@@ -992,17 +1010,14 @@ static int init(void * unused)
 		}
 	}
 #endif
-	
-	/*
-	 *	This keeps serial console MUCH cleaner, but does assume
-	 *	the console driver checks there really is a video device
-	 *	attached (Sparc effectively does).
-	 */
 
-	if ((open("/dev/tty1",O_RDWR,0) < 0) &&
-	    (open("/dev/ttyS0",O_RDWR,0) < 0))
-		printk("Unable to open an initial console.\n");
-			
+        if (serial_console == 1) {
+                (void) open("/dev/cua0",O_RDWR,0);
+	} else if(serial_console == 2) {
+		(void) open("/dev/cua1",O_RDWR,0);
+        } else {
+                (void) open("/dev/tty1",O_RDWR,0);
+        }
 	(void) dup(0);
 	(void) dup(0);
 

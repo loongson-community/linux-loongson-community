@@ -64,7 +64,7 @@
 #undef USE_STATIC_SCSI_MEMORY
 
 /*
-static const char RCSid[] = "$Header: /usr/src/linux/kernel/blk_drv/scsi/RCS/scsi.c,v 1.5 1993/09/24 12:45:18 drew Exp drew $";
+static const char RCSid[] = "$Header: /export/home0/cvs/linux/drivers/scsi/scsi.c,v 1.8 1996/08/07 02:54:28 dm Exp $";
 */
 
 
@@ -416,8 +416,12 @@ static void scan_scsis (struct Scsi_Host *shpnt, unchar hardcoded,
 
 
   /* Make sure we have something that is valid for DMA purposes */
+#ifndef CONFIG_SGI
   scsi_result = ( ( !shpnt->unchecked_isa_dma )
                  ? &scsi_result0[0] : scsi_init_malloc (512, GFP_DMA));
+#else
+  scsi_result = (scsi_init_malloc (512, GFP_DMA));
+#endif
 
   if (scsi_result == NULL) {
     printk ("Unable to obtain scsi_result buffer\n");

@@ -151,6 +151,7 @@ static int use_virtual_dma=0; /* virtual DMA for Intel */
 static unsigned short virtual_dma_port=0x3f0;
 void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs);
 static int set_dor(int fdc, char mask, char data);
+static inline int __get_order(unsigned long size);
 #include <asm/floppy.h>
 
 
@@ -169,6 +170,20 @@ static int set_dor(int fdc, char mask, char data);
 #endif
 
 /* Dma Memory related stuff */
+
+/* Pure 2^n version of get_order */
+static inline int __get_order(unsigned long size)
+{
+	int order;
+
+	size = (size-1) >> (PAGE_SHIFT-1);
+	order = -1;
+	do {
+		size >>= 1;
+		order++;
+	} while (size);
+	return order;
+}
 
 #ifndef fd_dma_mem_free
 #define fd_dma_mem_free(addr, size) free_pages(addr, __get_order(size))
@@ -1207,6 +1222,7 @@ static void fdc_specify(void)
 		/*DPRINT("FIFO enabled\n");*/
 	}
 
+#ifndef __sparc__
 	switch (raw_cmd->rate & 0x03) {
 		case 3:
 			dtr = 1000;
@@ -1261,6 +1277,7 @@ static void fdc_specify(void)
 		output_byte(FDCS->spec1 = spec1);
 		output_byte(FDCS->spec2 = spec2);
 	}
+#endif
 } /* fdc_specify */
 
 /* Set the FDC's data transfer rate on behalf of the specified drive.
@@ -1534,7 +1551,8 @@ static void seek_floppy(void)
 		    (raw_cmd->flags & FD_RAW_NEED_SEEK))
 			track = raw_cmd->track;
 		else {
-			setup_rw_floppy(); return;
+			setup_rw_floppy();
+			return;
 		}
 	}
 
@@ -1661,9 +1679,9 @@ void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	}
 	if (handler) {
 		if(intr_count >= 2)
-			schedule_bh( (void *)(void *) handler);
+				schedule_bh( (void *)(void *) handler);
 		else
-			handler();
+				handler();
 	} else
 		FDCS->reset = 1;
 	is_alive("normal interrupt end");
@@ -1709,7 +1727,7 @@ static void reset_fdc(void)
 	/* Irrelevant for systems with true DMA (i386).          */
 	fd_disable_dma();
 
-	if (FDCS->version >= FDC_82077)
+	if (FDCS->version >= FDC_82072A)
 		fd_outb(0x80 | (FDCS->dtr &3), FD_STATUS);
 	else {
 		fd_outb(FDCS->dor & ~0x04, FD_DOR);
@@ -2748,8 +2766,7 @@ static void process_fd_request(void)
 static void do_fd_request(void)
 {
 	if(usage_count == 0) {
-		printk("warning: usage count=0, CURRENT=%p exiting\n", CURRENT);
-		printk("sect=%ld cmd=%d\n", CURRENT->sector, CURRENT->cmd);
+		printk("warning: usage count=0, CURRENT=%p exiting\n", CURRENT);+               printk("sect=%ld cmd=%d\n", CURRENT->sector, CURRENT->cmd);
 		return;
 	}
 	sti();

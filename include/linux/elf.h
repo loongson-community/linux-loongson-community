@@ -56,18 +56,6 @@ typedef unsigned long	Elf32_Word;
 #define EM_SPARC64     11   /* SPARC v9 (not official) 64-bit */
 #define EM_PARISC      15
 
-#define EM_MIPS		8	/* MIPS R3000 (officially, big-endian only) */
-
-#define EM_MIPS_RS4_BE 10	/* MIPS R4000 big-endian */
-
-#define EM_SPARC64     11	/* SPARC v9 (not official) 64-bit */
-
-#define EM_PARISC      15	/* HPPA */
-
-#define EM_SPARC32PLUS 18	/* Sun's "v8plus" */
-
-#define EM_PPC	       20	/* PowerPC */
-
 /*
  * This is an interim value that we will use until the committee comes
  * up with a final number.

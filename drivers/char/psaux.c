@@ -36,6 +36,7 @@
 
 #include <linux/module.h>
  
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -49,6 +50,10 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
+#ifdef CONFIG_SGI
+#include <asm/segment.h>
+#include <asm/sgihpc.h>
+#endif
 
 #include <linux/config.h>
 
@@ -92,6 +97,58 @@
 # define AUX_IRQ	12
 #endif
 #define AUX_BUF_SIZE	2048
+
+#ifdef CONFIG_SGI
+extern volatile struct hpc_keyb *kh; /* see keyboard.c */
+
+extern __inline__ int
+ps2_inb_p(unsigned short port)
+{
+	int result;
+
+	if(port == AUX_INPUT_PORT)
+		result = kh->data;
+	else if(port == AUX_STATUS)
+		result = kh->command;
+	return result;
+}
+
+extern __inline__ int
+ps2_inb(unsigned short port)
+{
+	int result;
+
+	if(port == AUX_INPUT_PORT)
+		result = kh->data;
+	else if(port == AUX_STATUS)
+		result = kh->command;
+
+	return result;
+}
+
+extern __inline__ void
+ps2_outb_p(unsigned char data, unsigned short port)
+{
+	if(port == AUX_OUTPUT_PORT)
+		kh->data = data;
+	else if(port == AUX_COMMAND)
+		kh->command = data;
+}
+
+extern __inline__ void
+ps2_outb(unsigned char data, unsigned short port)
+{
+	if(port == AUX_OUTPUT_PORT)
+		kh->data = data;
+	else if(port == AUX_COMMAND)
+		kh->command = data;
+}
+#else
+#define ps2_inb_p inb_p
+#define ps2_inb inb
+#define ps2_outb_p outb_p
+#define ps2_outb outb
+#endif
 
 /* 82C710 definitions */
 
@@ -146,9 +203,9 @@ static int probe_qp(void);
 static void aux_write_dev(int val)
 {
 	poll_aux_status();
-	outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);	/* write magic cookie */
+	ps2_outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);	/* write magic cookie */
 	poll_aux_status();
-	outb_p(val,AUX_OUTPUT_PORT);		/* write data */
+	ps2_outb_p(val,AUX_OUTPUT_PORT);		/* write data */
 }
 
 /*
@@ -158,16 +215,16 @@ static void aux_write_dev(int val)
 static int aux_write_ack(int val)
 {
 	int retries = 0;
+ 
+	poll_aux_status_nosleep();
+	ps2_outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
+	poll_aux_status_nosleep();
+	ps2_outb_p(val,AUX_OUTPUT_PORT);
+	poll_aux_status_nosleep();
 
-	poll_aux_status_nosleep();
-	outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
-	poll_aux_status_nosleep();
-	outb_p(val,AUX_OUTPUT_PORT);
-	poll_aux_status_nosleep();
-
-	if ((inb(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
+	if ((ps2_inb(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
 	{
-		return (inb(AUX_INPUT_PORT));
+		return (ps2_inb(AUX_INPUT_PORT));
 	}
 	return 0;
 }
@@ -180,11 +237,10 @@ static int aux_write_ack(int val)
 static void aux_write_cmd(int val)
 {
 	poll_aux_status();
-	outb_p(AUX_CMD_WRITE,AUX_COMMAND);
+	ps2_outb_p(AUX_CMD_WRITE,AUX_COMMAND);
 	poll_aux_status();
-	outb_p(val,AUX_OUTPUT_PORT);
+	ps2_outb_p(val,AUX_OUTPUT_PORT);
 }
-
 
 static unsigned int get_from_queue(void)
 {
@@ -211,16 +267,16 @@ static inline int queue_empty(void)
  * Interrupt from the auxiliary device: a character
  * is waiting in the keyboard/aux controller.
  */
-
+#ifndef CONFIG_SGI
 static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 {
 	int head = queue->head;
 	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
 
-	if ((inb(AUX_STATUS) & AUX_OBUF_FULL) != AUX_OBUF_FULL)
+	if ((ps2_inb(AUX_STATUS) & AUX_OBUF_FULL) != AUX_OBUF_FULL)
 		return;
 
-	add_mouse_randomness(queue->buf[head] = inb(AUX_INPUT_PORT));
+	add_mouse_randomness(queue->buf[head] = ps2_inb(AUX_INPUT_PORT));
 	if (head != maxhead) {
 		head++;
 		head &= AUX_BUF_SIZE-1;
@@ -231,6 +287,33 @@ static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 		kill_fasync(queue->fasync, SIGIO);
 	wake_up_interruptible(&queue->proc_list);
 }
+#else
+/* On the SGI we export this routine because the keyboard chirps at
+ * the same interrupt level.  The status and data bytes are passed
+ * directly to us if the keyboard interrupt service routine detects
+ * that the keyboard is not the cause of the interrupt, see keyboard.c
+ * for details.
+ */
+void aux_interrupt(unsigned char status, unsigned char data)
+{
+	int head = queue->head;
+	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
+
+	if ((status & AUX_OBUF_FULL) != AUX_OBUF_FULL)
+		return;
+
+	add_mouse_randomness(queue->buf[head] = data);
+	if (head != maxhead) {
+		head++;
+		head &= AUX_BUF_SIZE-1;
+	}
+	queue->head = head;
+	aux_ready = 1;
+	if (queue->fasync)
+		kill_fasync(queue->fasync, SIGIO);
+	wake_up_interruptible(&queue->proc_list);
+}
+#endif
 
 /*
  * Interrupt handler for the 82C710 mouse port. A character
@@ -266,11 +349,13 @@ static void release_aux(struct inode * inode, struct file * file)
 	disable_bh(KEYBOARD_BH);
 	aux_write_cmd(AUX_INTS_OFF);		/* disable controller ints */
 	poll_aux_status();
-	outb_p(AUX_DISABLE,AUX_COMMAND);      	/* Disable Aux device */
-	poll_aux_status();
+	ps2_outb_p(AUX_DISABLE,AUX_COMMAND);      	/* Disable Aux device */
+ 	poll_aux_status();
 	/* reenable kbd bh */
 	enable_bh(KEYBOARD_BH);
+#ifndef CONFIG_SGI
 	free_irq(AUX_IRQ, NULL);
+#endif
 	MOD_DEC_USE_COUNT;
 }
 
@@ -319,22 +404,22 @@ static int open_aux(struct inode * inode, struct file * file)
 		return -EBUSY;
 	}
 	queue->head = queue->tail = 0;		/* Flush input queue */
+#ifndef CONFIG_SGI
 	if (request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)) {
 		aux_count--;
 		return -EBUSY;
 	}
+#endif
 	MOD_INC_USE_COUNT;
 	/* disable kbd bh to avoid mixing of cmd bytes */
 	disable_bh(KEYBOARD_BH);
 	poll_aux_status();
-	outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
+	ps2_outb_p(AUX_ENABLE,AUX_COMMAND);	/* Enable Aux */
 	aux_write_dev(AUX_ENABLE_DEV);		/* enable aux device */
 	aux_write_cmd(AUX_INTS_ON);		/* enable controller ints */
 	poll_aux_status();
-	/* reenable kbd bh */
-	enable_bh(KEYBOARD_BH);
-
 	aux_ready = 0;
+	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -403,7 +488,7 @@ static long write_aux(struct inode * inode, struct file * file,
 			char c;
 			if (!poll_aux_status())
 				break;
-			outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
+			ps2_outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
 			if (!poll_aux_status())
 				break;
 			get_user(c, buffer++);
@@ -534,7 +619,11 @@ int psaux_init(void)
 		psaux_fops.release = release_qp;
 	} else
 #endif
+#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
+	if(1) {
+#else
 	if (aux_device_present == 0xaa) {
+#endif
 		printk(KERN_INFO "PS/2 auxiliary pointing device detected -- driver installed.\n");
 	 	aux_present = 1;
 		kbd_read_mask = AUX_OBUF_FULL;
@@ -548,7 +637,7 @@ int psaux_init(void)
 	queue->proc_list = NULL;
 	if (!qp_found) {
 #if defined INITIALIZE_DEVICE
-		outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
+		ps2_outb_p(AUX_ENABLE,AUX_COMMAND);	/* Enable Aux */
 		aux_write_ack(AUX_SET_SAMPLE);
 		aux_write_ack(100);			/* 100 samples/sec */
 		aux_write_ack(AUX_SET_RES);
@@ -556,11 +645,11 @@ int psaux_init(void)
 		aux_write_ack(AUX_SET_SCALE21);		/* 2:1 scaling */
 		poll_aux_status_nosleep();
 #endif /* INITIALIZE_DEVICE */
-		outb_p(AUX_DISABLE,AUX_COMMAND);   /* Disable Aux device */
+		ps2_outb_p(AUX_DISABLE,AUX_COMMAND);       /* Disable Aux device */
 		poll_aux_status_nosleep();
-		outb_p(AUX_CMD_WRITE,AUX_COMMAND);
-		poll_aux_status_nosleep();             /* Disable interrupts */
-		outb_p(AUX_INTS_OFF, AUX_OUTPUT_PORT); /*  on the controller */
+		ps2_outb_p(AUX_CMD_WRITE,AUX_COMMAND);
+		poll_aux_status_nosleep();                 /* Disable interrupts */
+		ps2_outb_p(AUX_INTS_OFF, AUX_OUTPUT_PORT); /*  on the controller */
 	}
 	return 0;
 }
@@ -582,9 +671,9 @@ static int poll_aux_status(void)
 {
 	int retries=0;
 
-	while ((inb(AUX_STATUS)&0x03) && retries < MAX_RETRIES) {
- 		if ((inb_p(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
-			inb_p(AUX_INPUT_PORT);
+	while ((ps2_inb(AUX_STATUS)&0x03) && retries < MAX_RETRIES) {
+ 		if ((ps2_inb_p(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
+			ps2_inb_p(AUX_INPUT_PORT);
 		current->state = TASK_INTERRUPTIBLE;
 		current->timeout = jiffies + (5*HZ + 99) / 100;
 		schedule();
@@ -597,9 +686,9 @@ static int poll_aux_status_nosleep(void)
 {
 	int retries = 0;
 
-	while ((inb(AUX_STATUS)&0x03) && retries < 1000000) {
- 		if ((inb_p(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
-			inb_p(AUX_INPUT_PORT);
+	while ((ps2_inb(AUX_STATUS)&0x03) && retries < 1000000) {
+ 		if ((ps2_inb_p(AUX_STATUS) & AUX_OBUF_FULL) == AUX_OBUF_FULL)
+			ps2_inb_p(AUX_INPUT_PORT);
 		retries++;
 	}
 	return !(retries == 1000000);

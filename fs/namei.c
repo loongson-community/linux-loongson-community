@@ -240,8 +240,8 @@ static int dir_namei(const char *pathname, int *namelen, const char **name,
 	return 0;
 }
 
-int _namei(const char * pathname, struct inode * base,
-           int follow_links, struct inode ** res_inode)
+static int _namei(const char * pathname, struct inode * base,
+                  int follow_links, struct inode ** res_inode)
 {
 	const char *basename;
 	int namelen,error;
@@ -313,8 +313,13 @@ int namei(const char *pathname, struct inode **res_inode)
  * which is a lot more logical, and also allows the "no perm" needed
  * for symlinks (where the permissions are checked later).
  */
+#ifdef __mips__
+int do_open_namei(const char * pathname, int flag, int mode,
+		  struct inode ** res_inode, struct inode * base)
+#else
 int open_namei(const char * pathname, int flag, int mode,
                struct inode ** res_inode, struct inode * base)
+#endif
 {
 	const char * basename;
 	int namelen,error;

@@ -11,12 +11,14 @@
 #include <linux/kernel.h>
 #include <linux/linkage.h>
 #include <linux/types.h>
+#include <linux/mm.h>
 #include <asm/bootinfo.h>
-#include <asm/cache.h>
+#include <asm/cachectl.h>
 #include <asm/dma.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/mc146818rtc.h>
+#include <asm/pgtable.h>
 #include <asm/vector.h>
 
 extern int FLOPPY_IRQ;
@@ -109,7 +111,7 @@ fd_disable_irq(void)
 void
 sni_fd_cacheflush(const void *addr, size_t size)
 {
-	cacheflush((unsigned long)addr, (unsigned long)size, CF_DCACHE|CF_ALL);
+	flush_cache_all();
 }
 
 /*

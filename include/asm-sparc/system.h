@@ -242,9 +242,4 @@ static __inline__ unsigned long __xchg(unsigned long x, __volatile__ void * ptr,
 
 #endif /* __ASSEMBLY__ */
 
-/*
- * Reset the machine.
- */
-extern void hard_reset_now(void);
-
 #endif /* !(__SPARC_SYSTEM_H) */

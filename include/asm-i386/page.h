@@ -53,20 +53,6 @@ typedef unsigned long pgprot_t;
 
 #endif
 
-/*
- * We special-case the C-O-W ZERO_PAGE, because it's such
- * a common occurrence (no need to read the page to know
- * that it's zero - better for the cache and memory subsystem).
- */
-extern inline inline void copy_page(unsigned long from, unsigned long to)
-{
-	if (from == ZERO_PAGE) {
-		memset((void *) to, 0, PAGE_SIZE);
-		return;
-	}
-	memcpy((void *) to, (void *) from, PAGE_SIZE);
-}
-
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 

@@ -17,8 +17,6 @@
 #ifndef _LINUX_TCP_H
 #define _LINUX_TCP_H
 
-#include <asm/byteorder.h>
-
 #include <linux/types.h>
 #include <asm/byteorder.h>
 

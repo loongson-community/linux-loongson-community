@@ -3,10 +3,12 @@
 
 #ifndef _STRUCT_TIMESPEC
 #define _STRUCT_TIMESPEC
+#ifdef __KERNEL__
 struct timespec {
 	long	tv_sec;		/* seconds */
 	long	tv_nsec;	/* nanoseconds */
 };
+#endif /* (__KERNEL__) */
 #endif /* _STRUCT_TIMESPEC */
 
 struct timeval {
@@ -28,11 +30,13 @@ void get_fast_time(struct timeval *tv);
 void (*do_get_fast_time)(struct timeval *);
 #endif
 
+#ifdef __KERNEL__
 #define FD_SETSIZE		__FD_SETSIZE
 #define FD_SET(fd,fdsetp)	__FD_SET(fd,fdsetp)
 #define FD_CLR(fd,fdsetp)	__FD_CLR(fd,fdsetp)
 #define FD_ISSET(fd,fdsetp)	__FD_ISSET(fd,fdsetp)
 #define FD_ZERO(fdsetp)		__FD_ZERO(fdsetp)
+#endif
 
 /*
  * Names of the interval timers, and structure

@@ -19,10 +19,10 @@
 
 #define STRICT_MM_TYPECHECKS
 
+#ifndef __LANGUAGE_ASSEMBLY__
+
 extern void (*clear_page)(unsigned long page);
 extern void (*copy_page)(unsigned long to, unsigned long from);
-
-#ifndef __LANGUAGE_ASSEMBLY__
 
 #ifdef STRICT_MM_TYPECHECKS
 /*
@@ -69,46 +69,16 @@ typedef unsigned long pgprot_t;
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
-/* This handles the memory map */
-#if 0
 /*
- * Kernel with 64 bit address space.
- * We handle pages at XKPHYS + 0x1800000000000000 (cachable, noncoherent)
- * Pagetables are at  XKPHYS + 0x1000000000000000 (uncached)
- */
-#define PAGE_OFFSET	0x9800000000000000UL
-#define PT_OFFSET	0x9000000000000000UL
-#define MAP_MASK        0x07ffffffffffffffUL
-#else /* !defined (__mips64) */
-/*
- * Kernel with 32 bit address space.
- * We handle pages at KSEG0 (cachable, noncoherent)
- * Pagetables are at  KSEG1 (uncached)
+ * This handles the memory map.
+ * We handle pages at KSEG0 for kernels with 32 bit address space.
  */
 #define PAGE_OFFSET	0x80000000UL
-#define PT_OFFSET	0xa0000000UL
+#define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
+#define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
 #define MAP_MASK        0x1fffffffUL
-#endif /* !defined (__mips64) */
-
-/*
- * __pa breaks when applied to a pagetable pointer on >= R4000.
- */
-#define __pa(x)			((unsigned long) (x) - PAGE_OFFSET)
-#define __va(x)			((void *)((unsigned long) (x) + PAGE_OFFSET))
-
 #define MAP_NR(addr)	((((unsigned long)(addr)) & MAP_MASK) >> PAGE_SHIFT)
 
-#ifndef __LANGUAGE_ASSEMBLY__
-
-extern unsigned long page_colour_mask;
-
-extern inline unsigned long
-page_colour(unsigned long page)
-{
-	return page & page_colour_mask;
-}
-
-#endif /* defined (__LANGUAGE_ASSEMBLY__) */
 #endif /* defined (__KERNEL__) */
 
 #endif /* __ASM_MIPS_PAGE_H */

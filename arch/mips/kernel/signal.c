@@ -4,6 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  */
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/kernel.h>
@@ -15,20 +16,8 @@
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
+#include <asm/pgtable.h>
 #include <asm/uaccess.h>
-#include <asm/cache.h>
-#include <asm/mipsconfig.h>
-#include <asm/sgidefs.h>
-
-/*
- * Linux/MIPS misstreats the SA_NOMASK flag for signal handlers.
- * Actually this is a bug in libc that was made visible by the POSIX.1
- * changes in Linux/MIPS 2.0.1.  To keep old binaries alive enable
- * this define but note that this is just a hack with sideeffects, not a
- * perfect compatibility mode.  This will go away, so rebuild your
- * executables with libc 960709 or newer.
- */
-#define CONF_NOMASK_BUG_COMPAT
 
 #define _S(nr) (1<<((nr)-1))
 
@@ -36,21 +25,19 @@
 
 asmlinkage int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options);
 asmlinkage int do_signal(unsigned long oldmask, struct pt_regs *regs);
-
-asmlinkage void (*save_fp_context)(struct sigcontext *sc);
+extern asmlinkage void (*save_fp_context)(struct sigcontext *sc);
 extern asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
 
 asmlinkage int sys_sigprocmask(int how, sigset_t *set, sigset_t *oset)
 {
 	k_sigset_t new_set, old_set = current->blocked;
+	int error;
 
 	if (set) {
-		if (!access_ok(VERIFY_READ, set, sizeof(sigset_t)))
-			return -EFAULT;
-
-		__get_user(new_set, to_k_sigset_t(set));
-		new_set &= _BLOCKABLE;
-
+		error = verify_area(VERIFY_READ, set, sizeof(sigset_t));
+		if (error)
+			return error;
+		new_set = *to_k_sigset_t(set) & _BLOCKABLE;
 		switch (how) {
 		case SIG_BLOCK:
 			current->blocked |= new_set;
@@ -73,14 +60,14 @@ asmlinkage int sys_sigprocmask(int how, sigset_t *set, sigset_t *oset)
 		}
 	}
 	if (oset) {
-		if(!access_ok(VERIFY_WRITE, oset, sizeof(sigset_t)))
-			return -EFAULT;
-		__put_user(old_set, &oset->__sigbits[0]);
-		__put_user(0, &oset->__sigbits[1]);
-		__put_user(0, &oset->__sigbits[2]);
-		__put_user(0, &oset->__sigbits[3]);
+		error = verify_area(VERIFY_WRITE, oset, sizeof(sigset_t));
+		if (error)
+			return error;
+		put_user(old_set, &oset->__sigbits[0]);
+		put_user(0, &oset->__sigbits[1]);
+		put_user(0, &oset->__sigbits[2]);
+		put_user(0, &oset->__sigbits[3]);
 	}
-
 	return 0;
 }
 
@@ -95,17 +82,15 @@ asmlinkage int sys_sigsuspend(struct pt_regs *regs)
 
 	mask = current->blocked;
 	uset = (sigset_t *)(long) regs->regs[4];
-	if (!access_ok(VERIFY_READ, uset, sizeof(sigset_t)))
+	if (verify_area(VERIFY_READ, uset, sizeof(sigset_t)))
 		return -EFAULT;
-
-	__get_user(kset, to_k_sigset_t(uset));
-
+	kset = *to_k_sigset_t(uset);
 	current->blocked = kset & _BLOCKABLE;
 	regs->regs[2] = -EINTR;
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
-		if (do_signal(mask, regs))
+		if (do_signal(mask,regs))
 			return -EINTR;
 	}
 
@@ -129,11 +114,7 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 
 	current->blocked = context->sc_sigset.__sigbits[0] & _BLOCKABLE;
 	regs->cp0_epc = context->sc_pc;
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
-	for(i = 31;i >= 0;i--)
-		__get_user(regs->regs[i], &context->sc_regs[i]);
-#endif
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
+
 	/*
 	 * We only allow user processes in 64bit mode (n32, 64 bit ABI) to
 	 * restore the upper half of registers.
@@ -146,7 +127,7 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 			__get_user(regs->regs[i], &context->sc_regs[i]);
 			regs->regs[i] = (int) regs->regs[i];
 		}
-#endif
+
 	__get_user(regs->hi, &context->sc_mdhi);
 	__get_user(regs->lo, &context->sc_mdlo);
 	restore_fp_context(context);
@@ -159,7 +140,8 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	asm(	"move\t$29,%0\n\t"
+	asm __volatile__(
+		"move\t$29,%0\n\t"
 		"j\tret_from_sys_call"
 		:/* no outputs */
 		:"r" (regs));
@@ -184,7 +166,7 @@ badframe:
  * when the signal handler is returned.
  *
  * The signal handler will be called with ra pointing to code1 (see below) and
- * signal number and pointer to the saved sigcontext as the two parameters.
+ * one parameters in a0 (signum).
  *
  *     usp ->  [unused]                         ; first free word on stack
  *             arg save space                   ; 16/32 bytes arg. save space
@@ -217,17 +199,11 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	frame = (struct sc *) (long) regs->regs[29];
 	frame--;
 
-	/*
-	 * We realign the stack to an adequate boundary for the architecture.
-         * The assignment to sc had to be moved over the if to prevent
-         * GCC from throwing warnings.
-	 */
-	frame  = (struct sc *)((unsigned long)frame & ALMASK);
-	sc = &frame->scc;
-	if (!access_ok(VERIFY_WRITE, frame, sizeof (struct sc))) {
+	/* We realign the stack to an adequate boundary for the architecture. */
+	if (verify_area(VERIFY_WRITE, frame, sizeof (struct sc)))
 		do_exit(SIGSEGV);
-		return;
-	}
+	frame = (struct sc *)((unsigned long)frame & ALMASK);
+	sc = &frame->scc;
 
 	/*
 	 * Set up the return code ...
@@ -238,81 +214,74 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	 *         syscall
 	 *         .set    reorder
 	 */
-	__put_user(0x27bd0000 + scc_offset,     &frame->code[0]);
+	__put_user(0x27bd0000 + scc_offset, &frame->code[0]);
 	__put_user(0x24020000 + __NR_sigreturn, &frame->code[1]);
-	__put_user(0x0000000c,                  &frame->code[2]);
+	__put_user(0x0000000c, &frame->code[2]);
 
 	/*
 	 * Flush caches so that the instructions will be correctly executed.
 	 */
-	cacheflush((unsigned long)frame->code, sizeof (frame->code),
-                   CF_BCACHE|CF_ALL);
+	flush_cache_sigtramp((unsigned long) frame->code);
 
 	/*
 	 * Set up the "normal" sigcontext
 	 */
-	sc->sc_pc = regs->cp0_epc;			/* Program counter */
-	sc->sc_status = regs->cp0_status;		/* Status register */
+	__put_user(regs->cp0_epc, &sc->sc_pc);
+	__put_user(regs->cp0_status, &sc->sc_status);	/* Status register */
 	for(i = 31;i >= 0;i--)
 		__put_user(regs->regs[i], &sc->sc_regs[i]);
 	save_fp_context(sc);
 	__put_user(regs->hi, &sc->sc_mdhi);
 	__put_user(regs->lo, &sc->sc_mdlo);
 	__put_user(regs->cp0_cause, &sc->sc_cause);
-	__put_user((regs->cp0_status & ST0_CU0) != 0, &sc->sc_ownedfp);
+	__put_user((regs->cp0_status & ST0_CU1) != 0, &sc->sc_ownedfp);
 	__put_user(oldmask, &sc->sc_sigset.__sigbits[0]);
 	__put_user(0, &sc->sc_sigset.__sigbits[1]);
 	__put_user(0, &sc->sc_sigset.__sigbits[2]);
 	__put_user(0, &sc->sc_sigset.__sigbits[3]);
 
-	regs->regs[4] = signr;				/* Args for handler */
-	regs->regs[5] = (long) frame;			/* Ptr to sigcontext */
+	regs->regs[4] = signr;				/* Arguments for handler */
+	regs->regs[5] = 0;				/* For now. */
+	regs->regs[6] = (long) frame;			/* Pointer to sigcontext */
 	regs->regs[29] = (unsigned long) frame;		/* Stack pointer */
 	regs->regs[31] = (unsigned long) frame->code;	/* Return address */
-	regs->cp0_epc = regs->regs[25]			/* "return" to the first handler */
-	              = (unsigned long) sa->sa_handler;
+	regs->cp0_epc = (unsigned long) sa->sa_handler;	/* "return" to the first handler */
+	regs->regs[25] = regs->cp0_epc;			/* PIC shit... */
 }
 
-/*
- * OK, we're invoking a handler
- */	
-static inline void
-handle_signal(unsigned long signr, struct sigaction *sa,
-              unsigned long oldmask, struct pt_regs * regs)
+static inline void handle_signal(unsigned long signr, struct sigaction *sa,
+	unsigned long oldmask, struct pt_regs * regs)
 {
-	/* are we from a failed system call? */
-	if (regs->orig_reg2 >= 0 && regs->regs[7]) {
-		/* If so, check system call restarting.. */
-		switch (regs->regs[2]) {
-			case ERESTARTNOHAND:
-				regs->regs[2] = EINTR;
-				break;
-
-			case ERESTARTSYS:
-				if (!(sa->sa_flags & SA_RESTART)) {
-					regs->regs[2] = EINTR;
-					break;
-				}
-			/* fallthrough */
-			case ERESTARTNOINTR:
-				regs->regs[7] = regs->orig_reg7;
-				regs->cp0_epc -= 8;
-		}
-	}
-
-	/* set up the stack frame */
 	setup_frame(sa, regs, signr, oldmask);
 
 	if (sa->sa_flags & SA_ONESHOT)
 		sa->sa_handler = NULL;
-#ifdef CONF_NOMASK_BUG_COMPAT
-	current->blocked |= *to_k_sigset_t(&sa->sa_mask);
-#else
 	if (!(sa->sa_flags & SA_NOMASK))
-		current->blocked |= (*to_k_sigset_t(&sa->sa_mask) |
-		                     _S(signr)) & _BLOCKABLE;
-#endif
+		current->blocked |=
+			((*to_k_sigset_t(&sa->sa_mask) | _S(signr)) & _BLOCKABLE);
 }
+
+static inline void syscall_restart(unsigned long r0, unsigned long or2,
+				   unsigned long or7, struct pt_regs *regs,
+				   struct sigaction *sa)
+{
+	switch(r0) {
+	case ERESTARTNOHAND:
+	no_system_call_restart:
+		regs->regs[0] = regs->regs[2] = EINTR;
+		break;
+	case ERESTARTSYS:
+		if(!(sa->sa_flags & SA_RESTART))
+			goto no_system_call_restart;
+	/* fallthrough */
+	case ERESTARTNOINTR:
+		regs->regs[0] = regs->regs[2] = or2;
+		regs->regs[7] = or7;
+		regs->cp0_epc -= 8;
+	}
+}
+
+extern int do_irix_signal(unsigned long oldmask, struct pt_regs *regs);
 
 /*
  * Note that 'init' is a special process: it doesn't get signals it doesn't
@@ -326,9 +295,14 @@ handle_signal(unsigned long signr, struct sigaction *sa,
 asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 {
 	unsigned long mask = ~current->blocked;
-	unsigned long signr;
+	unsigned long signr, r0 = regs->regs[0];
+	unsigned long r7 = regs->orig_reg7;
 	struct sigaction * sa;
 
+#ifdef CONFIG_BINFMT_IRIX
+	if(current->personality != PER_LINUX)
+		return do_irix_signal(oldmask, regs);
+#endif
 	while ((signr = current->signal & mask)) {
 		signr = ffz(~signr);
 		clear_bit(signr, &current->signal);
@@ -365,10 +339,7 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			case SIGCONT: case SIGCHLD: case SIGWINCH:
 				continue;
 
-			case SIGTSTP: case SIGTTIN: case SIGTTOU:
-				if (is_orphaned_pgrp(current->pgrp))
-					continue;
-			case SIGSTOP:
+			case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
 				if (current->flags & PF_PTRACED)
 					continue;
 				current->state = TASK_STOPPED;
@@ -380,8 +351,7 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				continue;
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
-			case SIGABRT: case SIGFPE: case SIGSEGV:
-			case SIGBUS:
+			case SIGIOT: case SIGFPE: case SIGSEGV: case SIGBUS:
 				if (current->binfmt && current->binfmt->core_dump) {
 					if (current->binfmt->core_dump(signr, regs))
 						signr |= 0x80;
@@ -393,19 +363,39 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				do_exit(signr);
 			}
 		}
+		/*
+		 * OK, we're invoking a handler
+		 */
+#if 0
+		printk("[%s:%d] send sig1: r0[%08lx] r7[%08lx] reg[2]=%08lx\n",
+		       current->comm, current->pid, r0, r7, regs->regs[2]);
+#endif
+		if(r0)
+			syscall_restart(r0, regs->orig_reg2,
+					r7, regs, sa);
+#if 0
+		printk("send sig2: r0[%08lx] r7[%08lx] reg[2]=%08lx\n",
+		       r0, r7, regs->regs[2]);
+#endif
 		handle_signal(signr, sa, oldmask, regs);
 		return 1;
 	}
-
-	/* Did we come from a system call? */
-	if (regs->orig_reg2 >= 0) {
-		/* Restart the system call - no handlers present */
-		if (regs->regs[2] == -ERESTARTNOHAND ||
-		    regs->regs[2] == -ERESTARTSYS ||
-		    regs->regs[2] == -ERESTARTNOINTR) {
-			regs->regs[2] = regs->orig_reg2;
-			regs->cp0_epc -= 8;
-		}
+	/*
+	 * Who's code doesn't conform to the restartable syscall convention
+	 * dies here!!!  The li instruction, a single machine instruction,
+	 * must directly be followed by the syscall instruction.
+	 */
+#if 0
+	printk("[%s:%d] send sig3: r0[%08lx] r7[%08lx] reg[2]=%08lx\n",
+	       current->comm, current->pid, r0, r7, regs->regs[2]);
+#endif
+	if (r0 &&
+	    (regs->regs[2] == ERESTARTNOHAND ||
+	     regs->regs[2] == ERESTARTSYS ||
+	     regs->regs[2] == ERESTARTNOINTR)) {
+		regs->regs[0] = regs->regs[2] = regs->orig_reg2;
+		regs->regs[7] = r7;
+		regs->cp0_epc -= 8;
 	}
 	return 0;
 }
@@ -417,5 +407,5 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
  */
 asmlinkage unsigned long sys_signal(int signum, __sighandler_t handler)
 {
-        return -ENOSYS;
+	return -ENOSYS;
 }

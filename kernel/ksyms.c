@@ -81,6 +81,8 @@ extern int sys_tz;
 extern int request_dma(unsigned int dmanr, char * deviceID);
 extern void free_dma(unsigned int dmanr);
 
+extern void hard_reset_now(void);
+
 struct symbol_table symbol_table = {
 #include <linux/symtab_begin.h>
 #ifdef MODVERSIONS

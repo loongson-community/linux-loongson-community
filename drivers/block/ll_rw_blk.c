@@ -3,7 +3,6 @@
  *
  * Copyright (C) 1991, 1992 Linus Torvalds
  * Copyright (C) 1994,      Karl Keyte: Added support for disk statistics
- * Copyright (C) 1996,      ACN S.A: Added support for flash devices
  */
 
 /*
@@ -650,10 +649,9 @@ int blk_dev_init(void)
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();
 #else
+#ifndef CONFIG_SGI
 	outb_p(0xc, 0x3f2);
 #endif
-#ifdef CONFIG_ACN_MIPS_BOARD
-	flash_devs_init();
 #endif
 #ifdef CONFIG_CDU31A
 	cdu31a_init();

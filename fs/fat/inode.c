@@ -3,8 +3,6 @@
  *
  *  Written 1992,1993 by Werner Almesberger
  *  VFAT extensions by Gordon Chaffee, merged with msdos fs by Henrik Storner
- *
- * 3 May 1996  Fixed alignment problems for RISC architectures.
  */
 
 #define __NO_VERSION__
@@ -246,7 +244,6 @@ struct super_block *fat_read_super(struct super_block *sb,void *data, int silent
 #define ROUND_TO_MULTIPLE(n,m) ((n) && (m) ? (n)+(m)-1-((n)-1)%(m) : 0)
     /* don't divide by zero */
 
-	logical_sector_size = b->sector_size[0] | (b->sector_size[1] << 8);
 	logical_sector_size =
 		CF_LE_W(get_unaligned((unsigned short *) &b->sector_size));
 	sector_mult = logical_sector_size >> SECTOR_BITS;
@@ -261,9 +258,6 @@ struct super_block *fat_read_super(struct super_block *sb,void *data, int silent
 	MSDOS_SB(sb)->data_start = MSDOS_SB(sb)->dir_start+ROUND_TO_MULTIPLE((
 	    MSDOS_SB(sb)->dir_entries << MSDOS_DIR_BITS) >> SECTOR_BITS,
 	    sector_mult);
-	data_sectors = ((b->sectors[0] | (b->sectors[1] << 8)) ?
-	    (b->sectors[0] | (b->sectors[1] << 8)) :
-	    CF_LE_L(b->total_sect))*sector_mult-MSDOS_SB(sb)->data_start;
 	data_sectors = CF_LE_W(get_unaligned((unsigned short *) &b->sectors));
 	if (!data_sectors) {
 		data_sectors = CF_LE_L(b->total_sect);
@@ -304,7 +298,7 @@ struct super_block *fat_read_super(struct super_block *sb,void *data, int silent
 		       MSDOS_SB(sb)->fats,MSDOS_SB(sb)->fat_start,MSDOS_SB(sb)->fat_length,
 		       MSDOS_SB(sb)->dir_start,MSDOS_SB(sb)->dir_entries,
 		       MSDOS_SB(sb)->data_start,
-		       (b->sectors[0] | (b->sectors[1] << 8)),
+		       CF_LE_W(*(unsigned short *) &b->sectors),
 		       (unsigned long)b->total_sect,logical_sector_size);
 		printk ("Transaction block size = %d\n",blksize);
 	}

@@ -34,7 +34,7 @@ mkboot: mkboot.c
 	$(HOSTCC) -o $@ $^
 
 zdisk:	zImage
-	mcopy -n zImage a:vmlinux
+	mcopy -o zImage a:vmlinux
 
 dep:
 	$(CPP) -M *.[cS] > .depend

@@ -12,6 +12,8 @@
 
 #define KEYBOARD_IRQ 1
 
+#define KBD_REPORT_ERR
+
 #define kbd_inb_p(port) inb_p(port)
 #define kbd_inb(port) inb(port)
 #define kbd_outb_p(data,port) outb_p(data,port)

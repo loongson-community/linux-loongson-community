@@ -105,7 +105,9 @@
 #include <linux/apm_bios.h>
 #endif
 
-#ifdef __mips__
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#elif defined(CONFIG_ACER_PICA_61)
 #include <asm/bootinfo.h>
 /*
  * The video control ports are mapped at virtual address
@@ -129,6 +131,8 @@ unsigned long video_port_base;
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
 #endif
+
+int serial_console;
 
 struct tty_driver console_driver;
 static int console_refcount;
@@ -165,6 +169,9 @@ extern void set_palette(void);
 extern unsigned long con_type_init(unsigned long, const char **);
 extern int set_get_cmap(unsigned char *, int);
 extern int set_get_font(unsigned char *, int, int);
+#ifdef CONFIG_SGI
+extern void rs_cons_hook(int chip, int out, int channel);
+#endif
 
 /* Description of the hardware situation */
 unsigned char	video_type;		/* Type of display being used	*/
@@ -597,7 +604,7 @@ static void set_origin(int currcons)
 {
 	if (video_type != VIDEO_TYPE_EGAC && video_type != VIDEO_TYPE_VGAC &&
 	    video_type != VIDEO_TYPE_EGAM && video_type != VIDEO_TYPE_PICA_S3 &&
-	    video_type != VIDEO_TYPE_SNI_RM)
+	    video_type != VIDEO_TYPE_SNI_RM && video_type != VIDEO_TYPE_SGI)
 		return;
 	if (currcons != fg_console || console_blanked || vcmode == KD_GRAPHICS)
 		return;
@@ -629,7 +636,7 @@ void scrup(int currcons, unsigned int t, unsigned int b)
 		/*
 		 * Is the end of the area to scroll outside of the video RAM?
 		 * If so, just do normal softscroll.  The second part of the
-		 * expression is important for some non-Intel architectures.
+		 * condition is important for some non-Intel architectures.
 		 */
 		if (scr_end > video_mem_end || scr_end < video_mem_base) {
 			unsigned short * d = (unsigned short *) video_mem_start;
@@ -898,7 +905,7 @@ static void csi_m(int currcons)
 				toggle_meta = 0;
 				break;
 			case 11: /* ANSI X3.64-1979 (SCO-ish?)
-				  * Select first alternate font, lets
+				  * Select first alternate font, let's
 				  * chars < 32 be displayed as ROM chars.
 				  */
 				translate = set_translate(IBMPC_MAP);
@@ -2053,6 +2060,17 @@ unsigned long con_init(unsigned long kmem_start)
 	int orig_x = ORIG_X;
 	int orig_y = ORIG_Y;
 
+#ifdef CONFIG_SGI
+	if (serial_console) {
+		fg_console = 0;
+
+		rs_cons_hook(0, 0, serial_console);
+		rs_cons_hook(0, 1, serial_console);
+
+		return kmem_start;
+	}
+#endif
+
 	memset(&console_driver, 0, sizeof(struct tty_driver));
 	console_driver.magic = TTY_DRIVER_MAGIC;
 	console_driver.name = "tty";
@@ -2099,7 +2117,7 @@ unsigned long con_init(unsigned long kmem_start)
 	    || video_type == VIDEO_TYPE_VGAC
 	    || video_type == VIDEO_TYPE_EGAM
 	    || video_type == VIDEO_TYPE_PICA_S3
-	    || video_type == VIDEO_TYPE_SNI_RM));
+	    || video_type == VIDEO_TYPE_SNI_RM ));
 	has_wrapped = 0 ;
 
 	/* Due to kmalloc roundup allocating statically is more efficient -
@@ -2139,7 +2157,8 @@ unsigned long con_init(unsigned long kmem_start)
 
 	printable = 1;
 	if ( video_type == VIDEO_TYPE_VGAC || video_type == VIDEO_TYPE_EGAC
-	    || video_type == VIDEO_TYPE_EGAM || video_type == VIDEO_TYPE_TGAC )
+	    || video_type == VIDEO_TYPE_EGAM || video_type == VIDEO_TYPE_TGAC
+	     || video_type == VIDEO_TYPE_SGI )
 	{
 		default_font_height = video_font_height = ORIG_VIDEO_POINTS;
 		/* This may be suboptimal but is a safe bet - go with it */

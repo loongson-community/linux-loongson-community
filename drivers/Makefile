@@ -9,7 +9,7 @@
 
 SUB_DIRS     := block char net #streams
 MOD_SUB_DIRS := $(SUB_DIRS)
-ALL_SUB_DIRS := $(SUB_DIRS) pci sbus scsi sound cdrom isdn
+ALL_SUB_DIRS := $(SUB_DIRS) pci sbus sgi scsi sound cdrom isdn
 
 ifdef CONFIG_PCI
 SUB_DIRS += pci
@@ -17,6 +17,10 @@ endif
 
 ifdef CONFIG_SBUS
 SUB_DIRS += sbus
+endif
+
+ifdef CONFIG_SGI
+SUB_DIRS += sgi
 endif
 
 # If CONFIG_SCSI is set, the core of scsi support will be added to the kernel,

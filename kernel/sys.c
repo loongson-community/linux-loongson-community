@@ -27,7 +27,6 @@
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#include <asm/system.h>
 
 /*
  * this indicates whether you can reboot with ctrl-alt-del: the default is yes

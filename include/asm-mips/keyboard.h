@@ -9,6 +9,7 @@
 #define __ASM_MIPS_KEYBOARD_H
 
 #include <linux/config.h>
+#include <linux/delay.h>
 
 /*
  * The default IO slowdown is doing 'inb()'s from 0x61, which should be
@@ -19,13 +20,30 @@
 #define REALLY_SLOW_IO
 #define SLOW_IO_BY_JUMPING
 #include <asm/io.h>
+
+#ifdef CONFIG_SGI
+#include <asm/segment.h>
+#include <asm/sgihpc.h>
+#endif
 #include <asm/bootinfo.h>
 #include <asm/jazz.h>
 
-/*
- * Not true for Jazz machines, we cheat a bit for 'em.
- */
+#ifdef CONFIG_SGI
+#define KEYBOARD_IRQ 20
+#else
+/* Not true for Jazz machines, we cheat a bit for 'em. */
 #define KEYBOARD_IRQ 1
+#endif
+
+#ifdef CONFIG_SGI
+#define DISABLE_KBD_DURING_INTERRUPTS 1
+#else
+#define DISABLE_KBD_DURING_INTERRUPTS 0
+#endif
+
+#ifndef CONFIG_SGI
+#define KBD_REPORT_ERR
+#endif
 
 static int initialize_kbd(void);
 
@@ -34,13 +52,21 @@ int (*kbd_inb)(unsigned short port);
 void (*kbd_outb_p)(unsigned char data, unsigned short port);
 void (*kbd_outb)(unsigned char data, unsigned short port);
 
-#ifdef CONFIG_MIPS_JAZZ
+#if defined(CONFIG_MIPS_JAZZ) || defined(CONFIG_SGI)
 /*
  * We want the full initialization for the keyboard controller.
  */
-#define INIT_KBD
 
+/* XXX Define both and ...  */
+#ifdef CONFIG_MIPS_JAZZ
+#define INIT_KBD	/* full initialization for the keyboard controller. */
 static volatile keyboard_hardware *kh = (void *) JAZZ_KEYBOARD_ADDRESS;
+#endif
+
+#ifdef CONFIG_SGI
+#define INIT_KBD	/* full initialization for the keyboard controller. */
+volatile struct hpc_keyb *kh = (struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64);
+#endif
 
 static int
 jazz_kbd_inb_p(unsigned short port)
@@ -51,7 +77,9 @@ jazz_kbd_inb_p(unsigned short port)
 		result = kh->data;
 	else /* Must be KBD_STATUS_REG */
 		result = kh->command;
+#ifndef CONFIG_SGI
 	inb(0x80);
+#endif
 
 	return result;
 }
@@ -76,7 +104,9 @@ jazz_kbd_outb_p(unsigned char data, unsigned short port)
 		kh->data = data;
 	else if(port == KBD_CNTL_REG)
 		kh->command = data;
+#ifndef CONFIG_SGI
 	inb(0x80);
+#endif
 }
 
 static void

@@ -14,9 +14,24 @@
 all:	kernel.o head.o
 EXTRA_ASFLAGS = -mips3 -mcpu=r4000
 O_TARGET := kernel.o
-O_OBJS	:= branch.o process.o signal.o entry.o traps.o irq.o ptrace.o vm86.o \
-	   ioport.o setup.o syscall.o sysmips.o time.o bios32.o ipc.o ksyms.o \
-	   unaligned.o tags.o
+O_OBJS	:= branch.o process.o signal.o entry.o traps.o ptrace.o vm86.o \
+	   ioport.o setup.o syscall.o sysmips.o bios32.o ipc.o ksyms.o \
+	   r4k_switch.o r4k_misc.o r4k_scall.o r4k_fpu.o r2300_switch.o \
+	   r2300_misc.o r2300_scall.o r2300_fpu.o r6000_fpu.o unaligned.o
+
+#
+# SGI's have very different interrupt/timer hardware.
+#
+ifndef CONFIG_SGI
+O_OBJS += irq.o time.o
+endif
+
+#
+# Do we want to be able to execute IRIX elf binaries?
+#
+ifdef CONFIG_BINFMT_IRIX
+O_OBJS += irixelf.o irixioctl.o irixsig.o sysirix.o
+endif
 
 #
 # Kernel debugging
@@ -43,8 +58,26 @@ O_OBJS := $(sort $(O_OBJS))
 all: kernel.o head.o
 
 entry.o: entry.S
-exception.o: exception.S
+
 head.o: head.S
+
+#r4k_switch.o: r4k_switch.S
+#
+#r4k_misc.o: r4k_misc.S
+#
+#r4k_scall.o: r4k_scall.S
+#
+#r4k_fpu.o: r4k_fpu.S
+#
+#r2300_switch.o: r2300_switch.S
+#
+#r2300_misc.o: r2300_misc.S
+#
+#r2300_scall.o: r2300_scall.S
+#
+#r2300_fpu.o: r2300_fpu.S
+#
+#r6000_fpu.o: r6000_fpu.S
 
 clean:
 

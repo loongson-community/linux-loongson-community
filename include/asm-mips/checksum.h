@@ -148,7 +148,13 @@ static inline unsigned short int csum_tcpudp_magic(unsigned long saddr,
 	nor	%0,$0,%0
 	.set	at"
 	: "=r" (sum)
-	: "0" (daddr), "r"(saddr), "r"((ntohs(len)<<16)+proto*256), "r"(sum)
+	: "0" (daddr), "r"(saddr),
+#ifdef __MIPSEL__
+	    "r" ((ntohs(len)<<16)+proto*256),
+#else
+	    "r" (((proto)<<16)+len),
+#endif
+	    "r"(sum)
 	: "$1");
 
 	return (unsigned short)sum;
@@ -185,7 +191,7 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 						     unsigned short proto,
 						     unsigned int sum) 
 {
-        __asm__("
+	__asm__("
 		.set	noreorder
 		.set	noat
 		addu	%0,%5		# proto (long in network byte order)
@@ -234,13 +240,12 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 		addu	%0,%1
 		sltu	$1,%0,$1
 		.set	noat
-		.set	noreorder
-                "
-                : "=r" (sum),
+		.set	noreorder"
+		: "=r" (sum),
 		  "=r" (proto)
-                : "r" (saddr),
+		: "r" (saddr),
 		  "r" (daddr),
-                  "0" (htonl((__u32) (len))),
+		  "0" (htonl((__u32) (len))),
 		  "1" (htonl(proto)),
 		  "r"(sum)
 		: "$1");

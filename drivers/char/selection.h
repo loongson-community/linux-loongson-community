@@ -101,6 +101,33 @@ static inline unsigned short scr_readw(unsigned short * addr)
 {
 	return *addr;
 }
+#elif defined (CONFIG_SGI)
+#include "vt_kern.h"
+#include <linux/kd.h>
+extern void newport_blitc(unsigned short, unsigned long);
+extern void memsetw(void * s, unsigned short c, unsigned int count);
+extern void memcpyw(unsigned short *to, unsigned short *from, unsigned int count);
+extern unsigned long video_mem_term;
+
+static inline void scr_writew(unsigned short val, unsigned short * addr)
+{
+	/* always deposit the char/attr, then see if it was to "screen" mem.
+	 * if so, then render the char/attr onto the real screen.
+	 */
+	if(*addr != val) {
+		*addr = val;
+		if ((unsigned long)addr < video_mem_term &&
+		    (unsigned long)addr >= video_mem_base &&
+		    vt_cons [fg_console]->vc_mode == KD_TEXT)
+	                newport_blitc(val, (unsigned long) addr);
+        }
+}
+
+static inline unsigned short scr_readw(unsigned short * addr)
+{
+	return *addr;
+}
+
 #elif defined (CONFIG_VIDEO_G364) /* The G364 cards: same as above. */
 
 extern void g364_blitc(unsigned short, unsigned long);
@@ -137,12 +164,12 @@ static inline void scr_writew(unsigned short val, unsigned short * addr)
                 	g364_blitc(val, (unsigned long) addr); /* B&W faster */
 		else
                 	g364_blitc_colour(val, (unsigned long) addr);
-        }
+	}
 }
 
 static inline unsigned short scr_readw(unsigned short * addr)
 {
-        return *addr;
+	return *addr;
 }
 #else /* CONFIG_VIDEO_G364 */
 
@@ -151,7 +178,7 @@ static inline unsigned short scr_readw(unsigned short * addr)
  *
  */ 
 
-#include <asm/io.h> 
+#include <asm/io.h>
 
 /*
  * NOTE: "(long) addr < 0" tests for an Alpha kernel virtual address; this
@@ -190,6 +217,7 @@ static inline unsigned short scr_readw(unsigned short * addr)
 
 #endif /* CONFIG_TGA_CONSOLE */
 
+#ifndef CONFIG_SGI
 static inline void memsetw(void * s, unsigned short c, unsigned int count)
 {
 	unsigned short * addr = (unsigned short *) s;
@@ -210,3 +238,4 @@ static inline void memcpyw(unsigned short *to, unsigned short *from,
 		scr_writew(scr_readw(from++), to++);
 	}
 }
+#endif /* CONFIG_SUN_CONSOLE */

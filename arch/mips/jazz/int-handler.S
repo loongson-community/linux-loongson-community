@@ -22,10 +22,10 @@
  */
 		.set	noreorder
 
-		NESTED(jazz_handle_int, FR_SIZE, ra)
+		NESTED(jazz_handle_int, PT_SIZE, ra)
 		.set	noat
 		SAVE_ALL
-		REG_S	sp,FR_ORIG_REG2(sp)
+		REG_S	sp,PT_OR2(sp)
 		CLI
 		.set	at
 
@@ -89,7 +89,7 @@ ll_local_dev:	lbu	t0,JAZZ_IO_IRQ_SOURCE
  * whistles and bells and we're aware of the problem.
  */
 ll_isa_irq:	lw	a0,JAZZ_EISA_IRQ_ACK
-		lui	s0,%hi(PORT_BASE_JAZZ)
+		lui	s0,%hi(JAZZ_PORT_BASE)
 		li	s1,1
 		andi	t0,a0,8				# which pic?
 		bnez	t0,ack_second
@@ -98,17 +98,17 @@ ll_isa_irq:	lw	a0,JAZZ_EISA_IRQ_ACK
 		/*
 		 * Acknowledge first pic
 		 */
-		lb	t2,%lo(PORT_BASE_JAZZ)+0x21(s0)
+		lb	t2,%lo(JAZZ_PORT_BASE)+0x21(s0)
 		lui	s4,%hi(cache_21)
 		lb	t0,%lo(cache_21)(s4)
 		sllv	s1,s1,a0
 		or	t0,s1
 		sb	t0,%lo(cache_21)(s4)
-		sb	t0,%lo(PORT_BASE_JAZZ)+0x21(s0)
+		sb	t0,%lo(JAZZ_PORT_BASE)+0x21(s0)
 		lui	s3,%hi(intr_count)
 		lw	t0,%lo(intr_count)(s3)
 		li	t2,0x20
-		sb	t2,%lo(PORT_BASE_JAZZ)+0x20(s0)
+		sb	t2,%lo(JAZZ_PORT_BASE)+0x20(s0)
 		/*
 		 * Now call the real handler
 		 */
@@ -123,7 +123,7 @@ ll_isa_irq:	lw	a0,JAZZ_EISA_IRQ_ACK
 		/*
 		 * Unblock first pic
 		 */
-		lbu	a0,%lo(PORT_BASE_JAZZ)+0x21(s0)
+		lbu	a0,%lo(JAZZ_PORT_BASE)+0x21(s0)
 		lb	a0,%lo(cache_21)(s4)
 		subu	t0,1
 		sw	t0,%lo(intr_count)(s3)
@@ -131,24 +131,24 @@ ll_isa_irq:	lw	a0,JAZZ_EISA_IRQ_ACK
 		and	a0,s1
 		sb	a0,%lo(cache_21)(s4)
 		jr	v0
-		sb	a0,%lo(PORT_BASE_JAZZ)+0x21(s0)	# delay slot
+		sb	a0,%lo(JAZZ_PORT_BASE)+0x21(s0)	# delay slot
 
 		.align	5
 ack_second:	/*
 		 * Acknowledge second pic
 		 */
-		lbu	t2,%lo(PORT_BASE_JAZZ)+0xa1(s0)
+		lbu	t2,%lo(JAZZ_PORT_BASE)+0xa1(s0)
 		lui	s4,%hi(cache_A1)
 		lb	t3,%lo(cache_A1)(s4)
 		sllv	s1,s1,a0
 		or	t3,s1
 		sb	t3,%lo(cache_A1)(s4)
-		sb	t3,%lo(PORT_BASE_JAZZ)+0xa1(s0)
+		sb	t3,%lo(JAZZ_PORT_BASE)+0xa1(s0)
 		li	t3,0x20
-		sb	t3,%lo(PORT_BASE_JAZZ)+0xa0(s0)
+		sb	t3,%lo(JAZZ_PORT_BASE)+0xa0(s0)
 		lui	s3,%hi(intr_count)
 		lw	t0,%lo(intr_count)(s3)
-		sb	t3,%lo(PORT_BASE_JAZZ)+0x20(s0)
+		sb	t3,%lo(JAZZ_PORT_BASE)+0x20(s0)
 		/*
 		 * Now call the real handler
 		 */
@@ -165,7 +165,7 @@ ack_second:	/*
 		/*
 		 * Unblock second pic
 		 */
-		lb	a0,%lo(PORT_BASE_JAZZ)+0xa1(s0)
+		lb	a0,%lo(JAZZ_PORT_BASE)+0xa1(s0)
 		lb	a0,%lo(cache_A1)(s4)
 		subu	t0,1
 		sw	t0,%lo(intr_count)(s3)
@@ -173,7 +173,7 @@ ack_second:	/*
 		and	a0,s1
 		sb	a0,%lo(cache_A1)(s4)
 		jr	v0
-		sb	a0,%lo(PORT_BASE_JAZZ)+0xa1(s0)	# delay slot
+		sb	a0,%lo(JAZZ_PORT_BASE)+0xa1(s0)	# delay slot
 
 /*
  * Hmm...  This is not just a plain PC clone so the question is

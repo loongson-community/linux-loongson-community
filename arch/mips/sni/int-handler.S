@@ -12,21 +12,22 @@
 #include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
+#include <asm/sni.h>
 #include <asm/stackframe.h>
 
 		.text
 		.set	noreorder
 		.set	noat
 		.align	5
-		NESTED(sni_rm200_pci_handle_int, FR_SIZE, sp)
+		NESTED(sni_rm200_pci_handle_int, PT_SIZE, sp)
 		SAVE_ALL
-		REG_S	sp,FR_ORIG_REG2(sp)
+		REG_S	sp,PT_OR2(sp)
 		CLI
 		.set	at
-		lui	s0,%hi(PORT_BASE_SNI)
+		lui	s0,%hi(SNI_PORT_BASE)
 		li	a0,0x0f
-		sb	a0,%lo(PORT_BASE_SNI+0x20)(s0)	# poll command
-		lb	a0,%lo(PORT_BASE_SNI+0x20)(s0)	# read result
+		sb	a0,%lo(SNI_PORT_BASE+0x20)(s0)	# poll command
+		lb	a0,%lo(SNI_PORT_BASE+0x20)(s0)	# read result
 		bgtz	a0,poll_second
 		andi	a0,7
 		beq	a0,2,poll_second		# cascade?
@@ -34,17 +35,17 @@
 		/*
 		 * Acknowledge first pic
 		 */
-		lb	t2,%lo(PORT_BASE_SNI+0x21)(s0)
+		lb	t2,%lo(SNI_PORT_BASE+0x21)(s0)
 		lui	s4,%hi(cache_21)
 		lb	t0,%lo(cache_21)(s4)
 		sllv	s1,s1,a0
 		or	t0,s1
 		sb	t0,%lo(cache_21)(s4)
-		sb	t0,%lo(PORT_BASE_SNI+0x21)(s0)
+		sb	t0,%lo(SNI_PORT_BASE+0x21)(s0)
 		lui	s3,%hi(intr_count)
 		lw	s7,%lo(intr_count)(s3)
 		li	t2,0x20
-		sb	t2,%lo(PORT_BASE_SNI+0x20)(s0)
+		sb	t2,%lo(SNI_PORT_BASE+0x20)(s0)
 		/*
 		 * Now call the real handler
 		 */
@@ -59,38 +60,38 @@
 		/*
 		 * Unblock first pic
 		 */
-		lbu	t1,%lo(PORT_BASE_SNI+0x21)(s0)
+		lbu	t1,%lo(SNI_PORT_BASE+0x21)(s0)
 		lb	t1,%lo(cache_21)(s4)
 		nor	s1,zero,s1
 		and	t1,s1
 		sb	t1,%lo(cache_21)(s4)
 		jr	v0
-		sb	t1,%lo(PORT_BASE_SNI+0x21)(s0)	# delay slot
+		sb	t1,%lo(SNI_PORT_BASE+0x21)(s0)	# delay slot
 
 		/*
 		 * Cascade interrupt from second PIC
 		 */
 		.align	5
 poll_second:	li	a0,0x0f
-		sb	a0,%lo(PORT_BASE_SNI+0xa0)(s0)	# poll command
-		lb	a0,%lo(PORT_BASE_SNI+0xa0)(s0)	# read result
+		sb	a0,%lo(SNI_PORT_BASE+0xa0)(s0)	# poll command
+		lb	a0,%lo(SNI_PORT_BASE+0xa0)(s0)	# read result
 		bgtz	a0,3f
 		andi	a0,7
 		/*
 		 * Acknowledge second pic
 		 */
-		lbu	t2,%lo(PORT_BASE_SNI+0xa1)(s0)
+		lbu	t2,%lo(SNI_PORT_BASE+0xa1)(s0)
 		lui	s4,%hi(cache_A1)
 		lb	t3,%lo(cache_A1)(s4)
 		sllv	s1,s1,a0
 		or	t3,s1
 		sb	t3,%lo(cache_A1)(s4)
-		sb	t3,%lo(PORT_BASE_SNI+0xa1)(s0)
+		sb	t3,%lo(SNI_PORT_BASE+0xa1)(s0)
 		li	t3,0x20
-		sb	t3,%lo(PORT_BASE_SNI+0xa0)(s0)
+		sb	t3,%lo(SNI_PORT_BASE+0xa0)(s0)
 		lui	s3,%hi(intr_count)
 		lw	s7,%lo(intr_count)(s3)
-		sb	t3,%lo(PORT_BASE_SNI+0x20)(s0)
+		sb	t3,%lo(SNI_PORT_BASE+0x20)(s0)
 		/*
 		 * Now call the real handler
 		 */
@@ -106,14 +107,14 @@ poll_second:	li	a0,0x0f
 		/*
 		 * Unblock second pic
 		 */
-		lb	t1,%lo(PORT_BASE_SNI+0xa1)(s0)
+		lb	t1,%lo(SNI_PORT_BASE+0xa1)(s0)
 		lb	t1,%lo(cache_A1)(s4)
 		subu	t0,1
 		nor	s1,zero,s1
 		and	t1,t1,s1
 		sb	t1,%lo(cache_A1)(s4)
 		jr	v0
-		sb	t1,%lo(PORT_BASE_SNI+0xa1)(s0)	# delay slot
+		sb	t1,%lo(SNI_PORT_BASE+0xa1)(s0)	# delay slot
 
 /*
  * FIXME:  This is definatly wrong but I'll have to do it this way

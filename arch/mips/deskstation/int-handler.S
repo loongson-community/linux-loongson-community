@@ -15,9 +15,9 @@
 		.set	noreorder
 		.set	noat
 		.align	5
-		NESTED(deskstation_handle_int, FR_SIZE, sp)
+		NESTED(deskstation_handle_int, PT_SIZE, sp)
 		SAVE_ALL
-		REG_S	sp,FR_ORIG_REG2(sp)
+		REG_S	sp,PT_OR2(sp)
 		CLI
 		.set	at
 		lui	s0,%hi(PORT_BASE)

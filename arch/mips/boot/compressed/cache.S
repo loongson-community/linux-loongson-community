@@ -18,18 +18,13 @@
 #include <asm/asm.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
-#include <asm/uaccess.h>
-
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS5)
+#include <asm/segment.h>
 
 /*
  * Some bits in the config register
  */
 #define CONFIG_IB       (1<<5)
 #define CONFIG_DB       (1<<4)
-
-#define CACHEBLOCKS 32
 
  /*
   * Flush instruction/data caches
@@ -45,14 +40,16 @@
 		.set	noreorder
 		LEAF(cacheflush)
 		andi	t1,a2,DCACHE
+
 		beqz	t1,do_icache
-		li	t0,KSEG0		# delay slot
+		 li	t0,KSEG0
 
 		/*
 		 * Writeback data cache, even lines
 		 */
-		li	t1,CACHEBLOCKS-1
-1:		cache	Index_Writeback_Inv_D,0(t0)
+		li	t1,CACHELINES-1
+1:
+		cache	Index_Writeback_Inv_D,0(t0)
 		cache	Index_Writeback_Inv_D,32(t0)
 		cache	Index_Writeback_Inv_D,64(t0)
 		cache	Index_Writeback_Inv_D,96(t0)
@@ -69,8 +66,9 @@
 		cache	Index_Writeback_Inv_D,448(t0)
 		cache	Index_Writeback_Inv_D,480(t0)
 		addiu	t0,512
+
 		bnez	t1,1b
-		subu	t1,1
+		 subu	t1,1
 
 		/*
 		 * Writeback data cache, odd lines
@@ -79,8 +77,9 @@
 		mfc0	t1,CP0_CONFIG
 		andi	t1,CONFIG_IB
 		bnez	t1,do_icache
-		li	t1,CACHEBLOCKS-1
-1:		cache	Index_Writeback_Inv_D,16(t0)
+		 li	t1,CACHELINES-1
+1:
+		cache	Index_Writeback_Inv_D,16(t0)
 		cache	Index_Writeback_Inv_D,48(t0)
 		cache	Index_Writeback_Inv_D,80(t0)
 		cache	Index_Writeback_Inv_D,112(t0)
@@ -97,18 +96,21 @@
 		cache	Index_Writeback_Inv_D,464(t0)
 		cache	Index_Writeback_Inv_D,496(t0)
 		addiu	t0,512
-		bnez	t1,1b
-		subu	t1,1
 
-do_icache:	andi	t1,a2,ICACHE
+		bnez	t1,1b
+		 subu	t1,1
+
+do_icache:
+		andi	t1,a2,ICACHE
 		beqz	t1,done
+		 lui	t0,0x8000
 
 		/*
 		 * Flush instruction cache, even lines
 		 */
-		lui	t0,0x8000
-		li	t1,CACHEBLOCKS-1
-1: 		cache	Index_Invalidate_I,0(t0)	
+		li	t1,CACHELINES-1
+1:
+		cache	Index_Invalidate_I,0(t0)	
 		cache	Index_Invalidate_I,32(t0)
 		cache	Index_Invalidate_I,64(t0)
 		cache	Index_Invalidate_I,96(t0)
@@ -125,8 +127,9 @@ do_icache:	andi	t1,a2,ICACHE
 		cache	Index_Invalidate_I,448(t0)
 		cache	Index_Invalidate_I,480(t0)
 		addiu	t0,512
+
 		bnez	t1,1b
-		subu	t1,1
+		 subu	t1,1
 
 		/*
 		 * Flush instruction cache, even lines
@@ -135,8 +138,10 @@ do_icache:	andi	t1,a2,ICACHE
 		mfc0	t1,CP0_CONFIG
 		andi	t1,CONFIG_DB
 		bnez	t1,done
-		li	t1,CACHEBLOCKS-1
-1:		cache	Index_Invalidate_I,16(t0)
+		 li	t1,CACHELINES-1
+
+1:
+		cache	Index_Invalidate_I,16(t0)
 		cache	Index_Invalidate_I,48(t0)
 		cache	Index_Invalidate_I,80(t0)
 		cache	Index_Invalidate_I,112(t0)
@@ -153,13 +158,11 @@ do_icache:	andi	t1,a2,ICACHE
 		cache	Index_Invalidate_I,464(t0)
 		cache	Index_Invalidate_I,496(t0)
 		addiu	t0,512
+
 		bnez	t1,1b
-		subu	t1,1
+		 subu	t1,1
 
-done:		j	ra
-		nop
+done:
+		j	ra
+		 nop
 		END(sys_cacheflush)
-
-#else
-#error "No R3000 cacheflushing implemented yet!"
-#endif

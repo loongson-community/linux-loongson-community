@@ -1,7 +1,7 @@
 /*
  *  arch/mips/mm/fault.c
  *
- *  Copyright (C) 1995, 1996 by Ralf Baechle
+ *  Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  */
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -14,12 +14,14 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 
-#include <asm/cache.h>
+#include <asm/pgtable.h>
+#include <asm/mmu_context.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
-#include <asm/pgtable.h>
 
 extern void die_if_kernel(char *, struct pt_regs *, long);
+
+unsigned long asid_cache = ASID_FIRST_VERSION;
 
 /*
  * Macro for exception fixup code to access integer registers.
@@ -31,9 +33,8 @@ extern void die_if_kernel(char *, struct pt_regs *, long);
  * and the problem, and then passes it off to one of the appropriate
  * routines.
  */
-asmlinkage void
-do_page_fault(struct pt_regs *regs, unsigned long writeaccess,
-              unsigned long address)
+asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long writeaccess,
+			      unsigned long address)
 {
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
@@ -41,9 +42,8 @@ do_page_fault(struct pt_regs *regs, unsigned long writeaccess,
 	unsigned long fixup;
 
 #if 0
-	printk("do_page_fault() #1: %s %08lx (epc == %08lx, ra == %08lx)\n",
-	       writeaccess ? "writeaccess to" : "readaccess from",
-	       address, regs->cp0_epc, regs->regs[31]);
+	printk("[%s:%d:%08lx:%ld:%08lx]", current->comm, current->pid,
+	       address, writeaccess, regs->cp0_epc);
 #endif
 	down(&mm->mmap_sem);
 	vma = find_vma(mm, address);
@@ -70,7 +70,7 @@ good_area:
 	handle_mm_fault(vma, address, writeaccess);
 	up(&mm->mmap_sem);
 
-        return;
+	return;
 
 /*
  * Something tried to access memory that isn't in our memory map..
@@ -89,6 +89,7 @@ bad_area:
 		regs->cp0_epc = new_epc;
 		return;
 	}
+
 	if (user_mode(regs)) {
 		tsk->tss.cp0_badvaddr = address;
 		tsk->tss.error_code = writeaccess;
@@ -101,6 +102,9 @@ bad_area:
 		       (unsigned long) regs->cp0_epc,
 		       (unsigned long) regs->regs[31]);
 #endif
+
+		current->tss.cp0_badvaddr = address;
+		current->tss.error_code = writeaccess;
 		force_sig(SIGSEGV, tsk);
 		return;
 	}
@@ -109,11 +113,7 @@ bad_area:
 	 * terminate things with extreme prejudice.
 	 */
 	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
-#ifdef __mips64
-	       "address %08lx, epc == %08Lx\n", address, regs->cp0_epc);
-#else
-	       "address %08lx, epc == %016lx\n", address, regs->cp0_epc);
-#endif
+	       "address %08lx, epc == %08lx\n", address, regs->cp0_epc);
 	die_if_kernel("Oops", regs, writeaccess);
 	do_exit(SIGKILL);
 }

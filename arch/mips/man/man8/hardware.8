@@ -20,7 +20,7 @@
 .\" Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139,
 .\" USA.
 .\"
-.TH HARDWARE 8 "29 May 96" "Linux" "Supported hardware"
+.TH HARDWARE 8 "12 May 96" "Linux" "Supported hardware"
 
 .SH ABSTRACT
 This file contains information about the status of hardware support
@@ -29,14 +29,14 @@ of the various ports of Linux/MIPS.
 .TP
 .B "Acer PICA 61"
 	Supported; the onboard S3 graphics is fully supported in the
-	text mode as well as the parallel port and the floppy (buggy).  There
-	are no drivers available yet for the onboard Ethernet interface and
-	SCSI controller.  However 35c03 Ethernet cards are working in PIO mode
-	after disabeling the shared memory detection code, IDE harddisk and
-	CD ROM have been successfully tested as well as NE2000 Ethernet cards
-	and the DPT PM2041W ISA SCSI hostadapter (drivers EATA-DMA and
-	EATA-PIO).  In general all drivers that do PIO via ports are supposed
-	to work.
+	text mode as well as the onboard Ethernet interface, the parallel
+	port and the floppy (buggy).  There is no drivers available yet for
+	the onboard SCSI controller.  However 35c03 Ethernet cards are
+	working in PIO mode after disabeling the shared memory detection code,
+	IDE harddisk and CD ROM have been successfully tested as well as
+	NE2000 Ethernet cards and the DPT PM2041W ISA SCSI hostadapter
+	(drivers EATA-DMA and EATA-PIO).  In general all drivers that do PIO
+	via ports are supposed to work.
 .TP
 .B "Mips Magnum 4000"
 	Same status as Acer PICA 61; additionally the serial interface is
@@ -56,12 +56,12 @@ of the various ports of Linux/MIPS.
 
 .TP
 .B "SNI RM 200"
-	Current status is that the ARC bootloader Milo is now also working
-	on the unusually bahaving SNI ARC BIOS 4.05 (which is supposed to
-	be the current version as of this writing); the kernel itself
-	supports the builtin VGA card and floppy controller. It boots via
-	an ISA NE2000 card from NFS; ISA DPT hostadapters have also
-	successfully been tested.  Other SNI hardware isn't supported yet.
+	This port has just started (10 May 1996).  Current status is that
+	the ARC bootloader Milo is now also working on the (buggy) SNI
+	ARC BIOS 4.05 (which is supposed to be the current version as of
+	this writing); the kernel itself supports the builtin VGA card and
+	and boots via an ISA NE2000 card from NFS.  Other SNI hardware
+	isn't supported yet.
 
 .TP
 .B "Deskstation Tyne"
@@ -77,11 +77,10 @@ of the various ports of Linux/MIPS.
 
 .TP
 .B "SGI"
-	There is currently no port to SGI hardware; a port is about to
-	start.  Due to the resources SGI is willing to invest in this
-	project this port will probably advance rather fast and help to
-	improve Linux/MIPS in general so stay tuned.  According to SGI
-	also support of SMP machines is planned.
+	The SGI port was started at the end of May 1996 but has stalled
+	later in the year.  Works have now been restarted.  Currenly
+	the port supports only Indy machines and has a complete set of
+	drivers.
 
 .TP
 .B "DECstation"

@@ -11,15 +11,9 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-include ../../../.config
-
 all: sni.o
 O_TARGET := sni.o
 O_OBJS	 := hw-access.o int-handler.o reset.o setup.o
-
-ifdef CONFIG_PCI
-O_OBJS += bios32.o
-endif
 
 int-handler.o: int-handler.S
 

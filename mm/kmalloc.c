@@ -20,9 +20,6 @@
 
 #include <asm/system.h>
 #include <asm/dma.h>
-#ifdef __mips__
-#include <asm/sgidefs.h>
-#endif
 
 /* Define this if you want slow routines that try to trip errors */
 #undef SADISTIC_KMALLOC
@@ -95,51 +92,10 @@ struct size_descriptor {
 /*
  * For now it is unsafe to allocate bucket sizes between n and
  * n-sizeof(page_descriptor) where n is PAGE_SIZE * any power of two
+ *
+ * The blocksize and sizes arrays _must_ match!
  */
-#if PAGE_SIZE == 4096 && defined (__mips__) && \
-	((_MIPS_ISA == _MIPS_ISA_MIPS2) || \
-	 (_MIPS_ISA == _MIPS_ISA_MIPS3) || \
-	 (_MIPS_ISA == _MIPS_ISA_MIPS4))
-static const unsigned int blocksize[] = {
-	/*
-	 * For MIPS II we need this hacked descriptor table to get
-	 * doubleword alignment.  Otherwise the scheduler and other code
-	 * that use doublewords will bomb.
-	 */
-	32,
-	64,
-	128,
-	248,
-	504,
-	1016,
-	2040,
-	4096 - 16,
-	8192 - 16,
-	16384 - 16,
-	32768 - 16,
-	65536 - 16,
-	131072 - 16,
-	0
-};
-
-static struct size_descriptor sizes[] =
-{
-	{NULL, NULL, 127, 0, 0, 0, 0, 0},
-	{NULL, NULL, 63, 0, 0, 0, 0, 0},
-	{NULL, NULL, 31, 0, 0, 0, 0, 0},
-	{NULL, NULL, 16, 0, 0, 0, 0, 0},
-	{NULL, NULL, 8, 0, 0, 0, 0, 0},
-	{NULL, NULL, 4, 0, 0, 0, 0, 0},
-	{NULL, NULL, 2, 0, 0, 0, 0, 0},
-	{NULL, NULL, 1, 0, 0, 0, 0, 0},
-	{NULL, NULL, 1, 0, 0, 0, 0, 1},
-	{NULL, NULL, 1, 0, 0, 0, 0, 2},
-	{NULL, NULL, 1, 0, 0, 0, 0, 3},
-	{NULL, NULL, 1, 0, 0, 0, 0, 4},
-	{NULL, NULL, 1, 0, 0, 0, 0, 5},
-	{NULL, NULL, 0, 0, 0, 0, 0, 0}
-};
-#elif PAGE_SIZE == 4096
+#if PAGE_SIZE == 4096
 static const unsigned int blocksize[] = {
 	32,
 	64,
@@ -189,7 +145,7 @@ static const unsigned int blocksize[] = {
 	65536 - 32,
 	131072 - 32,
 	262144 - 32,
- 	0
+	0
 };
 
 struct size_descriptor sizes[] =
@@ -216,29 +172,6 @@ struct size_descriptor sizes[] =
 #define NBLOCKS(order)          (sizes[order].nblocks)
 #define BLOCKSIZE(order)        (blocksize[order])
 #define AREASIZE(order)		(PAGE_SIZE<<(sizes[order].gfporder))
-  
-
-long kmalloc_init(long start_mem, long end_mem)
-{
-	int order;
-
-/*
- * Check the static info array. Things will blow up terribly if it's
- * incorrect. This is a late "compile time" check.....
- */
-	for (order = 0; BLOCKSIZE(order); order++) {
-		if ((NBLOCKS(order) * BLOCKSIZE(order) + sizeof(struct page_descriptor)) >
-		    AREASIZE(order)) {
-			printk("Cannot use %d bytes out of %d in order = %d block mallocs\n",
-			       (int) (NBLOCKS(order) * BLOCKSIZE(order) +
-				      sizeof(struct page_descriptor)),
-			        (int) AREASIZE(order),
-			       BLOCKSIZE(order));
-			panic("This only happens if someone messes with kmalloc");
-		}
-	}
-	return start_mem;
-}
 
 /*
  * Create a small cache of page allocations: this helps a bit with
@@ -267,6 +200,29 @@ static inline void free_kmalloc_pages(struct page_descriptor * page,
 	}
 	free_pages((unsigned long) page, order);
 }
+
+long kmalloc_init(long start_mem, long end_mem)
+{
+	int order;
+
+/*
+ * Check the static info array. Things will blow up terribly if it's
+ * incorrect. This is a late "compile time" check.....
+ */
+	for (order = 0; BLOCKSIZE(order); order++) {
+		if ((NBLOCKS(order) * BLOCKSIZE(order) + sizeof(struct page_descriptor)) >
+		    AREASIZE(order)) {
+			printk("Cannot use %d bytes out of %d in order = %d block mallocs\n",
+			       (int) (NBLOCKS(order) * BLOCKSIZE(order) +
+				      sizeof(struct page_descriptor)),
+			        (int) AREASIZE(order),
+			       BLOCKSIZE(order));
+			panic("This only happens if someone messes with kmalloc");
+		}
+	}
+	return start_mem;
+}
+
 
 /*
  * Ugh, this is ugly, but we want the default case to run

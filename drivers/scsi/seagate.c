@@ -49,7 +49,6 @@
 #include <linux/module.h>
 
 #include <asm/io.h>
-#include <asm/slot.h>
 #include <asm/system.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -100,7 +99,7 @@ static int incommand;			/*
 						in some command phase.
 					*/
 
-static unsigned int base_address = 0;	/*
+static const void *base_address = NULL;	/*
 						Where the card ROM starts,
 						used to calculate memory mapped
 						register location.
@@ -109,7 +108,7 @@ static unsigned int base_address = 0;	/*
 static volatile int abort_confirm = 0;
 #endif
 
-static unsigned int st0x_cr_sr;		/*
+static volatile void *st0x_cr_sr;       /*
 						control register write,
 						status register read.
 						256 bytes in length.
@@ -120,7 +119,7 @@ static unsigned int st0x_cr_sr;		/*
 					*/
 
 
-static unsigned int st0x_dr;		/*
+static volatile void *st0x_dr;         /*
 						data register, read write
 						256 bytes in length.
 					*/
@@ -134,31 +133,31 @@ static unsigned char controller_type = 0; /* set to SEAGATE for ST0x boards or F
 static unsigned char irq = IRQ;
 			
 #define retcode(result) (((result) << 16) | (message << 8) | status) 			
-#define STATUS (readb(st0x_cr_sr))
+#define STATUS (*(volatile unsigned char *) st0x_cr_sr)
 #define CONTROL STATUS 
-#define DATA (readb(st0x_dr))
+#define DATA (*(volatile unsigned char *) st0x_dr)
 
 void st0x_setup (char *str, int *ints) {
     controller_type = SEAGATE;
-    base_address = ints[1];
+    base_address = (void *) ints[1];
     irq = ints[2];
 }
 
 void tmc8xx_setup (char *str, int *ints) {
     controller_type = FD;
-    base_address = ints[1];
+    base_address = (void *) ints[1];
     irq = ints[2];
 }
     
 
 #ifndef OVERRIDE		
-static unsigned int seagate_bases[] = {
-	0xc8000, 0xca000, 0xcc000,
-	0xce000, 0xdc000, 0xde000
+static const char *  seagate_bases[] = {
+	(char *) 0xc8000, (char *) 0xca000, (char *) 0xcc000,
+	(char *) 0xce000, (char *) 0xdc000, (char *) 0xde000
 };
 
 typedef struct {
-	const unsigned char *signature ;
+	const char *signature ;
 	unsigned offset;
 	unsigned length;
 	unsigned char type;
@@ -308,7 +307,7 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
 
 	if (!controller_type) {
 #ifdef OVERRIDE
-	base_address = OVERRIDE;
+	base_address = (void *) OVERRIDE;
 
 /* CONTROLLER is used to override controller (SEAGATE or FD). PM: 07/01/93 */
 #ifdef CONTROLLER
@@ -331,11 +330,12 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
  * space for the on-board RAM instead.
  */
 
-	for (i = 0; i < (sizeof (seagate_bases) / sizeof (unsigned int)); ++i)
+	for (i = 0; i < (sizeof (seagate_bases) / sizeof (char  * )); ++i)
 		for (j = 0; !base_address && j < NUM_SIGNATURES; ++j)
-		if (check_signature(seagate_bases[i] + signatures[j].offset,
-		    signatures[j].signature, signatures[j].length)) {
-			base_address = seagate_bases[i];
+		if (!memcmp ((const void *) (seagate_bases[i] +
+		    signatures[j].offset), (const void *) signatures[j].signature,
+		    signatures[j].length)) {
+			base_address = (const void *) seagate_bases[i];
 			controller_type = signatures[j].type;
 		}
 #endif /* OVERRIDE */
@@ -346,8 +346,8 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
 
 	if (base_address)
 		{
-		st0x_cr_sr = base_address + (controller_type == SEAGATE ? 0x1a00 : 0x1c00); 
-		st0x_dr = st0x_cr_sr + 0x200;
+		st0x_cr_sr =(void *) (((const unsigned char *) base_address) + (controller_type == SEAGATE ? 0x1a00 : 0x1c00)); 
+		st0x_dr = (void *) (((const unsigned char *) base_address ) + (controller_type == SEAGATE ? 0x1c00 : 0x1e00));
 #ifdef DEBUG
 		printk("%s detected. Base address = %x, cr = %x, dr = %x\n", tpnt->name, base_address, st0x_cr_sr, st0x_dr);
 #endif
@@ -364,7 +364,7 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
 			return 0;
 		}
 		instance->irq = irq;
-		instance->io_port = base_address;
+		instance->io_port = (unsigned int) base_address;
 #ifdef SLOW_HANDSHAKE
 		borken_init();
 #endif
@@ -402,7 +402,7 @@ const char *seagate_st0x_info(struct Scsi_Host * shpnt) {
       static char buffer[64];
 	sprintf(buffer, "%s at irq %d, address 0x%05X", 
 		(controller_type == SEAGATE) ? ST0X_ID_STR : FD_ID_STR,
-		irq, base_address);
+		irq, (unsigned int)base_address);
 	return buffer;
 }
 
@@ -1091,7 +1091,6 @@ if (fast && transfersize && !(len % transfersize) && (len >= transfersize)
 	       SCint->transfersize, len, data);
 #endif
 
-#warning This no longer works: rewrite in C and use readbwl/writebwl
 	__asm__("
 	cld;
 "
@@ -1128,7 +1127,6 @@ if (fast && transfersize && !(len % transfersize) && (len >= transfersize)
  * 	We loop as long as we are in a data out phase, there is data to send, 
  *	and BSY is still active.
  */
-#warning This no longer works: rewrite in C and use readbwl/writebwl
 		__asm__ (
 
 /*
@@ -1219,7 +1217,6 @@ if (fast && transfersize && !(len % transfersize) && (len >= transfersize)
 	       "         len = %d, data = %08x\n", hostno, SCint->underflow, 
 	       SCint->transfersize, len, data);
 #endif
-#warning This no longer works: rewrite in C and use readbwl/writebwl
 	__asm__("
 	cld;
 "
@@ -1268,7 +1265,6 @@ if (fast && transfersize && !(len % transfersize) && (len >= transfersize)
  * 	and BSY is still active
  */
  
-#warning This no longer works: rewrite in C and use readbwl/writebwl
 			__asm__ (
 /*
 	Local variables : 
@@ -1634,14 +1630,13 @@ int seagate_st0x_reset (Scsi_Cmnd * SCpnt, unsigned int reset_flags)
 	return SCSI_RESET_WAKEUP;
 	}
 
-#include <asm/uaccess.h>
+#include <asm/segment.h>
 #include "sd.h"
 #include <scsi/scsi_ioctl.h>
 
 int seagate_st0x_biosparam(Disk * disk, kdev_t dev, int* ip) {
-  unsigned char buf[256 + sizeof (Scsi_Ioctl_Command)], cmd[6], *data, *page;
-  Scsi_Ioctl_Command *sic = (Scsi_Ioctl_Command *) buf;
-  int result, formatted_sectors, total_sectors;
+  unsigned char buf[256 + sizeof(int) * 2], cmd[6], *data, *page;
+  int *sizes, result, formatted_sectors, total_sectors;
   int cylinders, heads, sectors;
   int capacity;
 
@@ -1653,7 +1648,8 @@ int seagate_st0x_biosparam(Disk * disk, kdev_t dev, int* ip) {
   if (disk->device->scsi_level < 2) 
 	return -1;
 
-  data = sic->data;
+  sizes = (int *) buf;
+  data = (unsigned char *) (sizes + 2);
 
   cmd[0] = MODE_SENSE;
   cmd[1] = (disk->device->lun << 5) & 0xe5;
@@ -1667,12 +1663,12 @@ int seagate_st0x_biosparam(Disk * disk, kdev_t dev, int* ip) {
  * 24 bytes for each mode page.
  */
 
-  sic->inlen = 0;
-  sic->outlen = 256;
+  sizes[0] = 0;
+  sizes[1] = 256;
 
   memcpy (data, cmd, 6);
 
-  if (!(result = kernel_scsi_ioctl (disk->device, SCSI_IOCTL_SEND_COMMAND, sic))) {
+  if (!(result = kernel_scsi_ioctl (disk->device, SCSI_IOCTL_SEND_COMMAND, (void *) buf))) {
 /*
  * The mode page lies beyond the MODE SENSE header, with length 4, and 
  * the BLOCK DESCRIPTOR, with length header[3].
@@ -1685,7 +1681,7 @@ int seagate_st0x_biosparam(Disk * disk, kdev_t dev, int* ip) {
     cmd[2] = 0x03; /* Read page 3, format page current values */
     memcpy (data, cmd, 6);
 
-    if (!(result = kernel_scsi_ioctl (disk->device, SCSI_IOCTL_SEND_COMMAND, sic))) {
+    if (!(result = kernel_scsi_ioctl (disk->device, SCSI_IOCTL_SEND_COMMAND, (void *) buf))) {
       page = data + 4 + data[3];
       sectors = (page[10] << 8) | page[11];	
 

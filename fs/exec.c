@@ -67,6 +67,10 @@ void binfmt_setup(void)
 	init_elf_binfmt();
 #endif
 
+#ifdef CONFIG_BINFMT_IRIX
+	init_irix_binfmt();
+#endif
+
 #ifdef CONFIG_BINFMT_AOUT
 	init_aout_binfmt();
 #endif
@@ -399,7 +403,7 @@ static inline void flush_old_signals(struct signal_struct *sig)
 	struct sigaction * sa = sig->action;
 
 	for (i=32 ; i != 0 ; i--) {
-		u_sigemptyset(&current->sig->action[i].sa_mask);
+		u_sigemptyset(&sa->sa_mask);
 		sa->sa_flags = 0;
 		if (sa->sa_handler != SIG_IGN)
 			sa->sa_handler = NULL;
@@ -454,8 +458,9 @@ void flush_old_exec(struct linux_binprm * bprm)
 	if (bprm->e_uid != current->euid || bprm->e_gid != current->egid || 
 	    permission(bprm->inode,MAY_READ))
 		current->dumpable = 0;
-	flush_old_signals(current->sig);
-	flush_old_files(current->files);
+
+ 	flush_old_signals(current->sig);
+ 	flush_old_files(current->files);
 }
 
 /* 

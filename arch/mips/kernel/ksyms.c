@@ -8,8 +8,8 @@
  * Copyright (C) 1996 by Ralf Baechle
  */
 #include <linux/module.h>
+#include <linux/string.h>
 #include <linux/mm.h>
-#include <asm/cache.h>
 #include <asm/dma.h>
 #include <asm/floppy.h>
 #include <asm/io.h>
@@ -20,12 +20,13 @@ static struct symbol_table arch_symbol_table = {
 	/*
 	 * String functions
 	 */
-	X(__generic_memset_b),
-	X(__generic_memset_dw),
+	X(memset),
+	X(memcpy),
+	X(memmove),
+	X(bcopy),
 	/*
 	 * Functions to control caches.
 	 */
-	X(cacheflush),
 	X(fd_cacheflush),
 	/*
 	 * Base address of ports for Intel style I/O.

@@ -1,0 +1,10 @@
+!core
+.config
+.depend
+.hdepend
+.version
+System.map
+vmlinux
+modules
+nohup.out
+

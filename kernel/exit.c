@@ -475,6 +475,9 @@ static inline void __exit_mm(struct task_struct * tsk)
 	if (mm != &init_mm) {
 		flush_cache_mm(mm);
 		flush_tlb_mm(mm);
+#ifdef __mips__
+		mm->context = 0;
+#endif
 		tsk->mm = &init_mm;
 		tsk->swappable = 0;
 		SET_PAGE_DIR(tsk, swapper_pg_dir);
@@ -712,12 +715,3 @@ asmlinkage int sys_waitpid(pid_t pid,unsigned int * stat_addr, int options)
 }
 
 #endif
-
-/*
- * sys_wait() has been added for compatibility. wait() should be
- * implemented by calling sys_wait4() from libc.a.
- */
-asmlinkage int sys_wait(unsigned int * stat_addr)
-{
-	return sys_wait4(-1, stat_addr, 0, NULL);
-}

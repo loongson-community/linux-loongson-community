@@ -107,8 +107,6 @@ typedef unsigned long pgprot_t;
 
 #endif
 
-#define copy_page(from,to) memcpy((void *) to, (void *) from, PAGE_SIZE)
-
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr)		(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 

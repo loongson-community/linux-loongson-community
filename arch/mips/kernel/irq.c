@@ -11,6 +11,7 @@
  *
  * Mips support by Ralf Baechle and Andreas Busse
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
@@ -30,6 +31,9 @@
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 #include <asm/vector.h>
+#ifdef CONFIG_SGI
+#include <asm/sgialib.h>
+#endif
 
 unsigned char cache_21 = 0xff;
 unsigned char cache_A1 = 0xff;
@@ -88,10 +92,9 @@ void enable_irq(unsigned int irq_nr)
 }
 
 /*
- * Low-level interrupt handlers: first the timer interrupt, then the
- * general, then the fast and finally the bad interrupt handler.
+ * Pointers to the low-level handlers: first the general ones, then the
+ * fast ones, then the bad ones.
  */
-extern void timer_interrupt(void);
 extern void interrupt(void);
 extern void fast_interrupt(void);
 extern void bad_interrupt(void);
@@ -112,7 +115,7 @@ int get_irq_list(char *buf)
 		action = irq_action[i];
 		if (!action) 
 			continue;
-		len += sprintf(buf+len, "%2d: %8u %c %s",
+		len += sprintf(buf+len, "%2d: %8d %c %s",
 			i, kstat.interrupts[i],
 			(action->flags & SA_INTERRUPT) ? '+' : ' ',
 			action->name);
@@ -136,16 +139,18 @@ int get_irq_list(char *buf)
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
 	struct irqaction * action = *(irq + irq_action);
-	int do_random = 0;
-
 	kstat.interrupts[irq]++;
+#ifdef CONFIG_SGI
+	prom_printf("Got irq %d, press a key.", irq);
+	prom_getchar();
+	romvec->imode();
+#endif
         while (action) {
-		do_random |= action->flags;
+		if (action->flags & SA_SAMPLE_RANDOM)
+			add_interrupt_randomness(irq);
 		action->handler(irq, action->dev_id, regs);
 		action = action->next;
         }
-	if (do_random & SA_SAMPLE_RANDOM)
-		add_interrupt_randomness(irq);
 }
 
 /*
@@ -156,16 +161,14 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 asmlinkage void do_fast_IRQ(int irq)
 {
 	struct irqaction * action = *(irq + irq_action);
-	int do_random = 0;
 
 	kstat.interrupts[irq]++;
         while (action) {
-		do_random |= action->flags;
+		if (action->flags & SA_SAMPLE_RANDOM)
+			add_interrupt_randomness(irq);
 		action->handler(irq, action->dev_id, NULL);
 		action = action->next;
         }
-	if (do_random & SA_SAMPLE_RANDOM)
-		add_interrupt_randomness(irq);
 }
 
 /*
@@ -209,10 +212,7 @@ int setup_x86_irq(int irq, struct irqaction * new)
 		if (new->flags & SA_INTERRUPT)
 			set_int_vector(irq,fast_interrupt);
 		else
-			if (irq == 0)
-				set_int_vector(irq,timer_interrupt);
-			else
-				set_int_vector(irq,interrupt);
+			set_int_vector(irq,interrupt);
 		unmask_irq(irq);
 	}
 	restore_flags(flags);
@@ -307,7 +307,7 @@ int probe_irq_off (unsigned long irqs)
 
 	irqmask = (((unsigned int)cache_A1)<<8) | (unsigned int)cache_21;
 #ifdef DEBUG
-	printk("probe_irq_off: irqs=0x%04lx irqmask=0x%04x\n", irqs, irqmask);
+	printk("probe_irq_off: irqs=0x%04x irqmask=0x%04x\n", irqs, irqmask);
 #endif
 	irqs &= irqmask;
 	if (!irqs)

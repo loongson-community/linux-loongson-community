@@ -28,8 +28,9 @@
 		or	a0,a1
 		mtc0	a0,CP0_WATCHLO
 		sw	a0,watch_savelo
+
 		jr	ra
-		mtc0	zero,CP0_WATCHHI
+		 mtc0	zero,CP0_WATCHHI
 		END(__watch_set)
 
 /*
@@ -38,7 +39,7 @@
  */
 		LEAF(__watch_clear)
 		jr	ra
-		mtc0	zero,CP0_WATCHLO
+		 mtc0	zero,CP0_WATCHLO
 		END(__watch_clear)
 
 /*
@@ -47,8 +48,9 @@
  */
 		LEAF(__watch_reenable)
 		lw	t0,watch_savelo
+
 		jr	ra
-		mtc0	t0,CP0_WATCHLO
+		 mtc0	t0,CP0_WATCHLO
 		END(__watch_reenable)
 
 /*
@@ -69,7 +71,7 @@ watch_savelo:	.word	0
  */
 		LEAF(get_sp)
 		jr	ra
-		move	v0,sp
+		 move	v0,sp
 		END(get_sp)
 
 /*
@@ -78,7 +80,7 @@ watch_savelo:	.word	0
  */
 		LEAF(get_ra)
 		jr	ra
-		move	v0,ra
+		 move	v0,ra
 		END(get_ra)
 
 /*
@@ -87,7 +89,7 @@ watch_savelo:	.word	0
  */
 		LEAF(get_status)
 		jr	ra
-		mfc0	v0,CP0_STATUS
+		 mfc0	v0,CP0_STATUS
 		END(get_status)
 
 /*
@@ -101,8 +103,9 @@ watch_savelo:	.word	0
 		move		a1,sp
 		PRINT("$sp == %08lx\n")
 		REG_L		ra,4*SZREG(sp)
+
 		jr		ra
-		PTR_ADDU	sp,((5*SZREG)+ALSZ)&ALMASK
+		 PTR_ADDU	sp,((5*SZREG)+ALSZ)&ALMASK
 		END(print_sp)
 
 /*
@@ -116,6 +119,7 @@ watch_savelo:	.word	0
 		mfc0		a1,CP0_STATUS
 		PRINT("cp0_status == %08lx\n")
 		REG_L		ra,4*SZREG(sp)
+
 		jr		ra
-		PTR_ADDU	sp,((5*SZREG)+ALSZ)&ALMASK
+		 PTR_ADDU	sp,((5*SZREG)+ALSZ)&ALMASK
 		END(print_st)

@@ -28,16 +28,18 @@
 		la	t0,_edata
 		la	t1,_end
 		sw	zero,(t0)
-1:		addiu	t0,4
+1:
+		addiu	t0,4
+
 		bnel	t0,t1,1b
-		sw	zero,(t0)
+		 sw	zero,(t0)
 		END(kernel_entry)
 
 		/*
 		 * Do the decompression, and jump to the new kernel..
 		 */
 		jal	C_LABEL(decompress_kernel)
-		nop
+		 nop
 
 		/*
 		 * Flush caches
@@ -49,4 +51,4 @@
 		 */
 		la	t0,KSEG0
 		jr	t0
-		nop
+		 nop

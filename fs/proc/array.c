@@ -408,9 +408,6 @@ static int get_arg(int pid, char * buffer)
 	return get_array(p, (*p)->mm->arg_start, (*p)->mm->arg_end, buffer);
 }
 
-#ifdef __mips__
-extern unsigned long (*get_wchan)(struct task_struct *p);
-#else
 static unsigned long get_wchan(struct task_struct *p)
 {
 	if (!p || p == current || p->state == TASK_RUNNING)
@@ -456,11 +453,25 @@ static unsigned long get_wchan(struct task_struct *p)
 	    }
 	    return pc;
 	}
+#elif defined(__mips__)
+	/*
+	 * The same comment as on the Alpha applies here, too ...
+	 */
+	{
+		unsigned long schedule_frame;
+		unsigned long pc;
+
+		pc = thread_saved_pc(&p->tss);
+		if (pc >= (unsigned long) interruptible_sleep_on && pc < (unsigned long) add_timer) {
+			schedule_frame = ((unsigned long *)(long)p->tss.reg30)[15];
+			return (unsigned long)((unsigned long *)schedule_frame)[11];
+		}
+		return pc;
+	}
 #endif
 
 	return 0;
 }
-#endif
 
 #if defined(__i386__)
 # define KSTK_EIP(tsk)	(((unsigned long *)tsk->kernel_stack_page)[1019])

@@ -1,16 +1,15 @@
 /*
  * include/asm-mips/processor.h
  *
- * Copyright (C) 1994, 1995 by Waldorf Electronics
- * Copyright (C) 1995, 1996 by Ralf Baechle
+ * Copyright (C) 1994  Waldorf Electronics
+ * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
 
-#include <asm/sgidefs.h>
-
 #if !defined (__LANGUAGE_ASSEMBLY__)
+#include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/reg.h>
 #include <asm/system.h>
@@ -25,18 +24,25 @@ extern unsigned long event;
 
 /*
  * Bus types (default is ISA, but people can check others with these..)
- * There are no Microchannel MIPS machines.
+ * MCA_bus hardcoded to 0 for now.
  *
  * This needs to be extended since MIPS systems are being delivered with
  * numerous different types of bus systems.
  */
 extern int EISA_bus;
 #define MCA_bus 0
+#define MCA_bus__is_a_macro /* for versions in ksyms.c */
+
+/*
+ * MIPS has no problems with write protection
+ */
+#define wp_works_ok 1
+#define wp_works_ok__is_a_macro /* for versions in ksyms.c */
 
 /*
  * User space process size: 2GB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.  TASK_SIZE
- * for a 64 bit kernel is expandable to 8192PB, of which the current MIPS
+ * for a 64 bit kernel expandable to 8192EB, of which the current MIPS
  * implementations will "only" be able to use 1TB ...
  */
 #define TASK_SIZE	(0x80000000UL)
@@ -58,7 +64,7 @@ struct mips_fpu_hard_struct {
  */
 struct mips_fpu_soft_struct {
 	long	dummy;
-	};
+};
 
 union mips_fpu_union {
         struct mips_fpu_hard_struct hard;
@@ -73,62 +79,32 @@ union mips_fpu_union {
  * If you change thread_struct remember to change the #defines below too!
  */
 struct thread_struct {
-        /*
-         * saved main processor registers
-         */
-        __register_t   reg16, reg17, reg18, reg19, reg20, reg21, reg22, reg23;
-        __register_t                               reg28, reg29, reg30, reg31;
-	/*
-	 * saved cp0 stuff
-	 */
-	unsigned int cp0_status;
-	/*
-	 * saved fpu/fpu emulator stuff
-	 */
-	union mips_fpu_union fpu;
-	/*
-	 * Other stuff associated with the thread
-	 */
-	long cp0_badvaddr;
+        /* Saved main processor registers. */
+        unsigned long reg16 __attribute__ ((aligned (8)));
+	unsigned long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
+        unsigned long reg28, reg29, reg30, reg31;
+
+	/* Saved cp0 stuff. */
+	unsigned long cp0_status;
+
+	/* Saved fpu/fpu emulator stuff. */
+	union mips_fpu_union fpu __attribute__ ((aligned (8)));
+
+	/* Other stuff associated with the thread. */
+	unsigned long cp0_badvaddr;
 	unsigned long error_code;
 	unsigned long trap_no;
-	long ksp;			/* Top of kernel stack   */
-	long pg_dir;			/* L1 page table pointer */
+	unsigned long ksp;			/* Top of kernel stack   */
+	unsigned long pg_dir;                   /* used in tlb refill    */
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
 	unsigned long mflags;
-	unsigned long segment;
+	int current_ds;
+	unsigned long irix_trampoline;  /* Wheee... */
+	unsigned long irix_oldctx;
 };
 
 #endif /* !defined (__LANGUAGE_ASSEMBLY__) */
-
-/*
- * If you change the #defines remember to change thread_struct above too!
- */
-#define TOFF_REG16		0
-#define TOFF_REG17		(TOFF_REG16+SZREG)
-#define TOFF_REG18		(TOFF_REG17+SZREG)
-#define TOFF_REG19		(TOFF_REG18+SZREG)
-#define TOFF_REG20		(TOFF_REG19+SZREG)
-#define TOFF_REG21		(TOFF_REG20+SZREG)
-#define TOFF_REG22		(TOFF_REG21+SZREG)
-#define TOFF_REG23		(TOFF_REG22+SZREG)
-#define TOFF_REG28		(TOFF_REG23+SZREG)
-#define TOFF_REG29		(TOFF_REG28+SZREG)
-#define TOFF_REG30		(TOFF_REG29+SZREG)
-#define TOFF_REG31		(TOFF_REG30+SZREG)
-#define TOFF_CP0_STATUS		(TOFF_REG31+SZREG)
-/*
- * Pad for 8 byte boundary!
- */
-#define TOFF_FPU		(((TOFF_CP0_STATUS+SZREG)+(8-1))&~(8-1))
-#define TOFF_CP0_BADVADDR	(TOFF_FPU+264)
-#define TOFF_ERROR_CODE		(TOFF_CP0_BADVADDR+4)
-#define TOFF_TRAP_NO		(TOFF_ERROR_CODE+4)
-#define TOFF_KSP		(TOFF_TRAP_NO+4)
-#define TOFF_PG_DIR		(TOFF_KSP+4)
-#define TOFF_MFLAGS		(TOFF_PG_DIR+4)
-#define TOFF_EX			(TOFF_PG_MFLAGS+4)
 
 #define INIT_MMAP { &init_mm, KSEG0, KSEG1, PAGE_SHARED, \
                     VM_READ | VM_WRITE | VM_EXEC }
@@ -151,46 +127,39 @@ struct thread_struct {
 	 * Other stuff associated with the process \
 	 */ \
 	0, 0, 0, sizeof(init_kernel_stack) + (unsigned long)init_kernel_stack - 8, \
-	(unsigned long) swapper_pg_dir - PT_OFFSET, \
+	(unsigned long) swapper_pg_dir, \
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \
-	MF_FIXADE, \
-	KERNEL_DS \
+	MF_FIXADE, 0, 0, 0 \
 }
 
-/*
- * Paul, please check if 4kb stack are sufficient for the R3000.  With 4kb
- * I never had a stack overflows on 32 bit R4000 kernels but the almost
- * completly 64bit R4000 kernels from 1.3.63 on need more stack even in
- * trivial situations.
- */
+#ifdef __KERNEL__
+
 #define KERNEL_STACK_SIZE 8192
 
 #if !defined (__LANGUAGE_ASSEMBLY__)
-extern unsigned long alloc_kernel_stack(void);
-extern void free_kernel_stack(unsigned long stack);
-
 /*
  * Return saved PC of a blocked thread.
  */
-extern unsigned long (*thread_saved_pc)(struct thread_struct *t);
+extern inline unsigned long thread_saved_pc(struct thread_struct *t)
+{
+	return ((struct pt_regs *)(long)t->reg29)->cp0_epc;
+}
 
 /*
  * Do necessary setup to start up a newly executed thread.
  */
 extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
 
+#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
+
 /*
  * Does the process account for user or for system time?
  */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
-#define USES_USER_TIME(regs) (!((regs)->cp0_status & 0x4))
-#endif
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS5)
 #define USES_USER_TIME(regs) (!((regs)->cp0_status & 0x18))
-#endif
+
+#endif /* __KERNEL__ */
 
 /*
  * Return_address is a replacement for __builtin_return_address(count)
@@ -215,6 +184,5 @@ extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long 
  */
 #define return_address() NULL
 #endif
-#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
 
 #endif /* __ASM_MIPS_PROCESSOR_H */

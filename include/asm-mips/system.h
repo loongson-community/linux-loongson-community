@@ -5,18 +5,15 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996 by Ralf Baechle, Paul M. Antoine
+ * Copyright (C) 1994, 1995 by Ralf Baechle
+ * Modified further for R[236]000 by Paul M. Antoine, 1996
  */
 #ifndef __ASM_MIPS_SYSTEM_H
 #define __ASM_MIPS_SYSTEM_H
 
-#include <linux/linkage.h>
 #include <asm/sgidefs.h>
+#include <linux/kernel.h>
 
-/*
- * sti/cli/save_flags use a memory clobber to make shure GCC doesn't
- * move memory references around calls to these functions.
- */
 extern __inline__ void
 sti(void)
 {
@@ -24,20 +21,22 @@ sti(void)
 	".set\tnoreorder\n\t"
 	".set\tnoat\n\t"
 	"mfc0\t$1,$12\n\t"
-	"ori\t$1,1\n\t"
+	"ori\t$1,0x1f\n\t"
+	"xori\t$1,0x1e\n\t"
 	"mtc0\t$1,$12\n\t"
 	".set\tat\n\t"
 	".set\treorder"
 	: /* no outputs */
 	: /* no inputs */
-	: "$1","memory");
+	: "$1", "memory");
 }
 
 /*
- * For cli() we have to make shure that the new c0_status value has
- * really arrived in the status register at the end of the inline
- * function using worst case scheduling.  The worst case is the R4000
- * which needs three nops.
+ * For cli() we have to insert nops to make shure that the new value
+ * has actually arrived in the status register before the end of this
+ * macro.
+ * R4000/R4400 need three nops, the R4600 two nops and the R10000 needs
+ * no nops at all.
  */
 extern __inline__ void
 cli(void)
@@ -56,7 +55,7 @@ cli(void)
 	".set\treorder"
 	: /* no outputs */
 	: /* no inputs */
-	: "$1","memory");
+	: "$1", "memory");
 }
 
 #define save_flags(x)                    \
@@ -83,8 +82,6 @@ restore_flags(int flags)
 	: "memory");
 }
 
-#if (_MIPS_ISA == _MIPS_ISA_MIPS2) || (_MIPS_ISA == _MIPS_ISA_MIPS3) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS4) || (_MIPS_ISA == _MIPS_ISA_MIPS5)
 #define sync_mem()                       \
 __asm__ __volatile__(                    \
 	".set\tnoreorder\n\t"            \
@@ -93,37 +90,24 @@ __asm__ __volatile__(                    \
         : /* no output */                \
 	: /* no input */                 \
 	: "memory")
-#else
-/*
- * FIXME: Don't really know what to do here for the R[236]000's.
- *        Should probably bfc0 until write buffer is empty? - PMA
- *        Not shure if wb flushing is really required but sounds reasonable.
- *        The code below does this for R2000/R3000. - Ralf
- */
-#define sync_mem()                       \
-__asm__ __volatile__(                    \
-	".set\tnoreorder\n\t"            \
-	"nop;nop;nop;nop;\n"             \
-	"1:\tbc0f\t1b\n\t"               \
-	"nop\n\t"                        \
-	".set\treorder"                  \
-        : /* no output */                \
-	: /* no input */                 \
-	: "memory")
-#endif
 
+#if !defined (__LANGUAGE_ASSEMBLY__)
 /*
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
-struct task_struct;
-asmlinkage void resume(struct task_struct *tsk, int offset);
+extern asmlinkage void (*resume)(void *tsk);
+#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
 
 /*
  * FIXME: resume() assumes current == prev
  */
-#define switch_to(prev,next)                                    \
-	resume(next, ((int)(&((struct task_struct *)0)->tss)));
+#define switch_to(prev,next) \
+do { \
+	prev->tss.current_ds = active_ds; \
+        active_ds = next->tss.current_ds; \
+        resume(next); \
+} while(0)
 
 /*
  * The 8 and 16 bit variants have to disable interrupts temporarily.

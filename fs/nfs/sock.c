@@ -102,9 +102,17 @@ nfs_rpc_doio(struct nfs_server *server, struct rpc_ioreq *req, int async)
 				break;
 			}
 			if (!major_timeout_seen) {
+#if defined(CONFIG_SGISEEQ) && 1
+				extern void sgiseeq_dump_rings(void);
+				extern void sgiseeq_my_reset(void);
+#endif
 				printk("NFS server %s not responding, "
 					"still trying.\n", server->hostname);
 				major_timeout_seen = 1;
+#if defined(CONFIG_SGISEEQ) && 1
+				sgiseeq_dump_rings();
+				sgiseeq_my_reset();
+#endif
 			}
 			if ((timeout.to_initval <<= 1) >= maxtimeo) {
 				timeout.to_initval = maxtimeo;

@@ -12,6 +12,8 @@
 
 #define KEYBOARD_IRQ 1
 
+#define KBD_REPORT_ERR
+
 static int initialize_kbd(void);
 
 #define kbd_inb_p(port) inb_p(port)

@@ -45,7 +45,7 @@ pgprot_t protection_map[16] = {
  * Check that a process has enough memory to allocate a
  * new virtual mapping.
  */
-static inline int vm_enough_memory(long pages)
+int vm_enough_memory(long pages)
 {
 	/*
 	 * stupid algorithm to decide if we have enough memory: while

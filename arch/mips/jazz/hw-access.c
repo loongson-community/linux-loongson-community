@@ -10,11 +10,12 @@
 #include <linux/delay.h>
 #include <linux/linkage.h>
 #include <linux/types.h>
+#include <linux/mm.h>
 #include <asm/addrspace.h>
-#include <asm/cache.h>
 #include <asm/vector.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>
+#include <asm/pgtable.h>
 #include <asm/mc146818rtc.h>
 
 static unsigned char
@@ -102,7 +103,7 @@ fd_disable_irq(void)
 void
 jazz_fd_cacheflush(const void *addr, size_t size)
 {
-	cacheflush((unsigned long)addr, size, CF_DCACHE|CF_ALL);
+	flush_cache_all();
 }
 
 static unsigned char

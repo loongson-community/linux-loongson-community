@@ -12,7 +12,7 @@
 #include "gzip.h"
 #include "lzw.h"
 
-#include <asm/uaccess.h>
+#include <asm/segment.h>
 
 /*
  * These are set up by the setup-routine at boot-time:

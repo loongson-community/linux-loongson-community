@@ -65,14 +65,7 @@
 #define	ENOANO		53	/* No anode */
 #define	EBADRQC		54	/* Invalid request code */
 #define	EBADSLT		55	/* Invalid slot */
-#if 0
 #define	EDEADLOCK	56	/* File locking deadlock error */
-#else
-/*
- * This needs to be fixed - DEADLOCK should be 45.
- */
-#define EDEADLOCK	EDEADLK	/* File locking deadlock error */
-#endif
 #define	EBFONT		59	/* Bad font file format */
 #define	ENOSTR		60	/* Device not a stream */
 #define	ENODATA		61	/* No data available */

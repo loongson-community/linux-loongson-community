@@ -10,12 +10,12 @@
 #include <linux/string.h>
 
 #include <asm/bootinfo.h>
-#include <asm/cache.h>
+#include <asm/cachectl.h>
 #include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/uaccess.h>
+#include <asm/segment.h>
 
 void
 dump_tlb(int first, int last)

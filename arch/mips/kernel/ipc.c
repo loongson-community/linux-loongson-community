@@ -5,13 +5,15 @@
  * have a non-standard calling sequence on the Linux/MIPS
  * platform.
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/sem.h>
 #include <linux/msg.h>
 #include <linux/shm.h>
+
+#include <asm/ipc.h>
+#include <asm/uaccess.h>
 
 /*
  * sys_ipc() is the de-multiplexer for the SysV IPC calls..
@@ -20,7 +22,6 @@
  */
 asmlinkage int sys_ipc (uint call, int first, int second, int third, void *ptr, long fifth)
 {
-#ifdef CONFIG_SYSVIPC
 	int version;
 
 	version = call >> 16; /* hack for backward compatibility */
@@ -39,7 +40,7 @@ asmlinkage int sys_ipc (uint call, int first, int second, int third, void *ptr, 
 				return -EINVAL;
 			if ((err = verify_area (VERIFY_READ, ptr, sizeof(long))))
 				return err;
-			get_from_user(fourth.__pad, ptr);
+			get_user(fourth.__pad, (void **) ptr);
 			return sys_semctl (first, second, third, fourth);
 			}
 		default:
@@ -59,8 +60,7 @@ asmlinkage int sys_ipc (uint call, int first, int second, int third, void *ptr, 
 					return -EINVAL;
 				if ((err = verify_area (VERIFY_READ, ptr, sizeof(tmp))))
 					return err;
-				memcpy_fromfs (&tmp,(struct ipc_kludge *) ptr,
-					       sizeof (tmp));
+				copy_from_user(&tmp,(struct ipc_kludge *) ptr, sizeof (tmp));
 				return sys_msgrcv (first, tmp.msgp, second, tmp.msgtyp, third);
 				}
 			case 1: default:
@@ -103,7 +103,4 @@ asmlinkage int sys_ipc (uint call, int first, int second, int third, void *ptr, 
 			return -EINVAL;
 		}
 	return -EINVAL;
-#else /* CONFIG_SYSVIPC */
-	return -ENOSYS;
-#endif /* CONFIG_SYSVIPC */
 }

@@ -1,6 +1,9 @@
-/* $Id: buffers.c,v 1.3 1996/05/31 00:56:53 fritz Exp $
+/* $Id: buffers.c,v 1.2 1996/07/04 22:46:20 dm Exp $
  *
  * $Log: buffers.c,v $
+ * Revision 1.2  1996/07/04 22:46:20  dm
+ * Merge to 2.0.1
+ *
  * Revision 1.3  1996/05/31 00:56:53  fritz
  * removed cli() from BufPoolAdd, since it is called
  * with interrupts off anyway.

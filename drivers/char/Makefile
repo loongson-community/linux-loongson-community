@@ -26,7 +26,9 @@ L_OBJS   := tty_io.o n_tty.o console.o \
 
 ifeq ($(CONFIG_SERIAL),y)
   ifndef CONFIG_SUN_SERIAL
-  LX_OBJS += serial.o
+    ifndef CONFIG_SGI_SERIAL
+      LX_OBJS += serial.o
+    endif
   endif
 else
   ifeq ($(CONFIG_SERIAL),m)
@@ -201,7 +203,9 @@ L_OBJS += tga.o
 else
  ifndef CONFIG_SUN_CONSOLE
   ifndef CONFIG_VIDEO_G364
-  L_OBJS += vga.o vesa_blank.o
+    ifndef CONFIG_SGI
+    L_OBJS += vga.o vesa_blank.o
+    endif
   endif
  endif
 endif

@@ -118,8 +118,6 @@ typedef unsigned long iopgprot_t;
 
 #endif
 
-#define copy_page(from,to) memcpy((void *) to, (void *) from, PAGE_SIZE)
-
 extern unsigned long sparc_unmapped_base;
 
 #define TASK_UNMAPPED_BASE	(sparc_unmapped_base)

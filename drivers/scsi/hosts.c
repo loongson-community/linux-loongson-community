@@ -165,13 +165,17 @@
 #include "esp.h"
 #endif
 
+#ifdef CONFIG_SCSI_SGIWD93
+#include "sgiwd93.h"
+#endif
+
 #ifdef CONFIG_SCSI_DEBUG
 #include "scsi_debug.h"
 #endif
 
 
 /*
-static const char RCSid[] = "$Header: /usr/src/linux-1.3.95/drivers/scsi/RCS/hosts.c,v 1.7 1996/04/25 22:21:56 root Exp root $";
+static const char RCSid[] = "$Header: /export/home0/cvs/linux/drivers/scsi/hosts.c,v 1.5 1996/08/12 11:11:54 dm Exp $";
 */
 
 /*
@@ -302,6 +306,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_SUNESP
     SCSI_SPARC_ESP,
+#endif
+#ifdef CONFIG_SCSI_SGIWD93
+    SGIWD93_SCSI,
 #endif
 #ifdef CONFIG_SCSI_DEBUG
     SCSI_DEBUG,

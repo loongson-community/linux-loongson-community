@@ -381,7 +381,7 @@ main(argc, argv)
 		fprintf(stderr, "Fix mkboot: sizeof(Elf32_Addr) != 4\n");
 		exit(1);
 	}
-	
+
 	if (argc != 3)
 		usage(argv[0]);
 
@@ -597,7 +597,6 @@ main(argc, argv)
 	put_word(ahdr + 8, 0);			/* data size */
 	put_word(ahdr + 12, bss);		/* bss size */
 	put_word(ahdr + 16, 2 * 12);		/* size of symbol table */
-// put_word(ahdr + 16, 0);		/* size of symbol table */
 	put_word(ahdr + 20, entry);		/* base address */
 	put_word(ahdr + 24, 0);			/* size of text relocations */
 	put_word(ahdr + 28, 0);			/* size of data relocations */
