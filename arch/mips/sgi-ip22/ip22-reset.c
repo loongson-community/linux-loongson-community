@@ -36,7 +36,10 @@
 #define PANIC_FREQ		(HZ / 8)
 
 static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
-static int shuting_down = 0, has_paniced = 0;
+
+#define MACHINE_PANICED		1
+#define MACHINE_SHUTTING_DOWN	2
+static int machine_state = 0;
 
 static void sgi_machine_restart(char *command) __attribute__((noreturn));
 static void sgi_machine_halt(void) __attribute__((noreturn));
@@ -45,14 +48,14 @@ static void sgi_machine_power_off(void) __attribute__((noreturn));
 /* XXX How to pass the reboot command to the firmware??? */
 static void sgi_machine_restart(char *command)
 {
-	if (shuting_down)
+	if (machine_state & MACHINE_SHUTTING_DOWN)
 		sgi_machine_power_off();
 	ArcReboot();
 }
 
 static void sgi_machine_halt(void)
 {
-	if (shuting_down)
+	if (machine_state & MACHINE_SHUTTING_DOWN)
 		sgi_machine_power_off();
 	ArcEnterInteractiveMode();
 }
@@ -108,7 +111,7 @@ static void debounce(unsigned long data)
 		return;
 	}
 
-	if (has_paniced)
+	if (machine_state & MACHINE_PANICED)
 		ArcReboot();
 
 	enable_irq(SGI_PANEL_IRQ);
@@ -116,15 +119,15 @@ static void debounce(unsigned long data)
 
 static inline void power_button(void)
 {
-	if (has_paniced)
+	if (machine_state & MACHINE_PANICED)
 		return;
 
-	if (shuting_down || kill_proc(1, SIGINT, 1)) {
+	if ((machine_state & MACHINE_SHUTTING_DOWN) || kill_proc(1,SIGINT,1)) {
 		/* No init process or button pressed twice.  */
 		sgi_machine_power_off();
 	}
 
-	shuting_down = 1;
+	machine_state |= MACHINE_SHUTTING_DOWN;
 	blink_timer.data = POWERDOWN_FREQ;
 	blink_timeout(POWERDOWN_FREQ);
 
@@ -201,9 +204,9 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 static int panic_event(struct notifier_block *this, unsigned long event,
                       void *ptr)
 {
-	if (has_paniced)
+	if (machine_state & MACHINE_PANICED)
 		return NOTIFY_DONE;
-	has_paniced = 1;
+	machine_state |= MACHINE_PANICED;
 
 	blink_timer.data = PANIC_FREQ;
 	blink_timeout(PANIC_FREQ);
@@ -215,7 +218,7 @@ static struct notifier_block panic_block = {
 	.notifier_call	= panic_event,
 };
 
-static __init int indy_reboot_setup(void)
+static int __init reboot_setup(void)
 {
 	_machine_restart = sgi_machine_restart;
 	_machine_halt = sgi_machine_halt;
@@ -229,4 +232,4 @@ static __init int indy_reboot_setup(void)
 	return 0;
 }
 
-subsys_initcall(indy_reboot_setup);
+subsys_initcall(reboot_setup);
