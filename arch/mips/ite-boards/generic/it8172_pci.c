@@ -50,22 +50,39 @@
 #define DBG(x...)
 #endif
 
+static struct resource pci_mem_resource_1;
+
 static struct resource pci_io_resource = {
 	"io pci IO space", 
 	0x14000000,
 	0x17FFFFFF,
-	IORESOURCE_IO};
+	IORESOURCE_IO
+};
 
-static struct resource pci_mem_resource = {
-	"ext pci memory space", 
+static struct resource pci_mem_resource_0 = {
+	"ext pci memory space 0/1", 
 	0x0C000000,
-	0x0FFFFFFF,
-	IORESOURCE_MEM};
+	0x13FFFFFF,
+	IORESOURCE_MEM,
+	&pci_mem_resource_0,
+	NULL,
+	&pci_mem_resource_1
+};
+
+static struct resource pci_mem_resource_1 = {
+	"ext pci memory space 2/3", 
+	0x1A000000,
+	0x1FBFFFFF,
+	IORESOURCE_MEM,
+	&pci_mem_resource_0,
+	NULL,
+	NULL
+};
 
 extern struct pci_ops it8172_pci_ops;
 
 struct pci_channel mips_pci_channels[] = {
-	{ &it8172_pci_ops, &pci_io_resource, &pci_mem_resource, 0, 0xff },
+	{ &it8172_pci_ops, &pci_io_resource, &pci_mem_resource_0, 0, 0xff },
 	{ NULL, NULL, NULL, NULL, NULL}
 };
 
