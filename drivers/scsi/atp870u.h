@@ -1,13 +1,10 @@
 #ifndef _ATP870U_H
 
-/* $Id$
- *
+/* $Id: atp870u.h,v 1.0 1997/05/07 15:09:00 root Exp root $
+
  * Header file for the ACARD 870U/W driver for Linux
  *
- * $Log$
- * Revision 1.2  2000/01/26 20:23:40  ralf
- * Merge with Linux 2.3.23, part 1.
- *
+ * $Log: atp870u.h,v $
  * Revision 1.0  1997/05/07  15:09:00  root
  * Initial revision
  *

@@ -39,7 +39,7 @@ struct proc_dir_entry proc_scsi_atp870u =
 void mydlyu(unsigned int);
 
 /*
- *   static const char RCSid[] = "$Header$";
+ *   static const char RCSid[] = "$Header: /usr/src/linux/kernel/blk_drv/scsi/RCS/atp870u.c,v 1.0 1997/05/07 15:22:00 root Exp root $";
  */
 
 static unsigned char admaxu = 1, host_idu[2], chip_veru[2], scam_on[2], global_map[2];
