@@ -216,7 +216,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       bool '  SGI Seeq ethernet controller support' CONFIG_SGISEEQ
    fi
    if [ "$CONFIG_DECSTATION" = "y" ]; then
-      bool '  DEC LANCE ethernet controller support' CONFIG_DECLANCE
+      tristate '  DEC LANCE ethernet controller support' CONFIG_DECLANCE
    fi
    if [ "$CONFIG_BAGET_MIPS" = "y" ]; then
       tristate '  Baget AMD LANCE support' CONFIG_BAGETLANCE

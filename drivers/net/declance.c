@@ -5,6 +5,8 @@
  *
  *      adopted from sunlance.c by Richard van den Berg
  *
+ *      Copyright (C) 2002  Maciej W. Rozycki
+ *
  *      additional sources:
  *      - PMAD-AA TURBOchannel Ethernet Module Functional Specification,
  *        Revision 1.2
@@ -16,32 +18,55 @@
  *      v0.002: Removed most sparc stuff, left only some module and dma stuff.
  *
  *      v0.003: Enhanced base address calculation from proposals by
- *      Harald Koerfgen and Thomas Riemer.
+ *              Harald Koerfgen and Thomas Riemer.
  *
  *      v0.004: lance-regs is pointing at the right addresses, added prom
- *      check. First start of address mapping and DMA.
+ *              check. First start of address mapping and DMA.
  *
- *      v0.005: started to play around with LANCE-DMA. This driver will not work
- *      for non IOASIC lances. HK
+ *      v0.005: started to play around with LANCE-DMA. This driver will not
+ *              work for non IOASIC lances. HK
  *
- *      v0.006: added pointer arrays to lance_private and setup routine for them
- *      in dec_lance_init. HK
+ *      v0.006: added pointer arrays to lance_private and setup routine for
+ *              them in dec_lance_init. HK
  *
- *      v0.007: Big shit. The LANCE seems to use a different DMA mechanism to access
- *      the init block. This looks like one (short) word at a time, but the smallest
- *      amount the IOASIC can transfer is a (long) word. So we have a 2-2 padding here.
- *      Changed lance_init_block accordingly. The 16-16 padding for the buffers
- *      seems to be correct. HK
+ *      v0.007: Big shit. The LANCE seems to use a different DMA mechanism to
+ *              access the init block. This looks like one (short) word at a
+ *              time, but the smallest amount the IOASIC can transfer is a
+ *              (long) word. So we have a 2-2 padding here. Changed
+ *              lance_init_block accordingly. The 16-16 padding for the buffers
+ *              seems to be correct. HK
  *
- *     v0.008 - mods to make PMAX_LANCE work. 01/09/1999 triemer
+ *      v0.008: mods to make PMAX_LANCE work. 01/09/1999 triemer
+ *
+ *      v0.009: Module support fixes, multiple interfaces support, various
+ *              bits. macro
  */
 
-#undef DEBUG_DRIVER
+#include <linux/config.h>
+#include <linux/delay.h>
+#include <linux/errno.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+#include <linux/stddef.h>
+#include <linux/string.h>
 
-static char *version =
-"declance.c: v0.008 by Linux Mips DECstation task force\n";
+#include <asm/addrspace.h>
+#include <asm/dec/interrupts.h>
+#include <asm/dec/ioasic_addrs.h>
+#include <asm/dec/kn01.h>
+#include <asm/dec/machtype.h>
+#include <asm/dec/tc.h>
+#include <asm/wbflush.h>
 
-static char *lancestr = "lance";
+static char version[] __devinitdata =
+"declance.c: v0.009 by Linux MIPS DECstation task force\n";
+
+MODULE_AUTHOR("Linux MIPS DECstation task force");
+MODULE_DESCRIPTION("DEC LANCE (DECstation onboard, PMAD-xx) driver");
+MODULE_LICENSE("GPL");
 
 /*
  * card types
@@ -50,43 +75,10 @@ static char *lancestr = "lance";
 #define PMAD_LANCE 2
 #define PMAX_LANCE 3
 
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/netdevice.h>
-
-#include <asm/dec/interrupts.h>
-#include <asm/dec/ioasic_ints.h>
-#include <asm/dec/ioasic_addrs.h>
-#include <asm/dec/machtype.h>
-#include <asm/dec/tc.h>
-#include <asm/dec/kn01.h>
-#include <asm/wbflush.h>
-#include <asm/addrspace.h>
-
-#include <linux/config.h>
-#include <linux/errno.h>
-#include <linux/hdreg.h>
-#include <linux/ioport.h>
-#include <linux/sched.h>
-#include <linux/mm.h>
-#include <linux/stddef.h>
-#include <linux/string.h>
-#include <linux/unistd.h>
-#include <linux/ptrace.h>
-#include <linux/slab.h>
-#include <linux/user.h>
-#include <linux/utsname.h>
-#include <linux/a.out.h>
-#include <linux/tty.h>
-#include <linux/delay.h>
-#include <asm/io.h>
-#include <linux/etherdevice.h>
-
 #ifndef CONFIG_TC
 unsigned long system_base;
 unsigned long dmaptr;
 #endif
-static int type;
 
 #define CRC_POLYNOMIAL_BE 0x04c11db7UL	/* Ethernet CRC, big endian */
 #define CRC_POLYNOMIAL_LE 0xedb88320UL	/* Ethernet CRC, little endian */
@@ -164,8 +156,6 @@ static int type;
 #define TX_BUFF_SIZE            PKT_BUF_SZ
 
 #undef TEST_HITS
-#define DEBUG_DRIVER 1
-
 #define ZERO 0
 
 /* The DS2000/3000 have a linear 64 KB buffer.
@@ -183,26 +173,26 @@ static int type;
  */
 
 struct lance_rx_desc {
-	unsigned short rmd0;	/* low address of packet */
+	unsigned short rmd0;		/* low address of packet */
 	short gap0;
 	unsigned char rmd1_hadr;	/* high address of packet */
 	unsigned char rmd1_bits;	/* descriptor bits */
 	short gap1;
-	short length;		/* This length is 2s complement (negative)!
-				   * Buffer length
-				 */
+	short length;			/* 2s complement (negative!)
+					   of buffer length */
 	short gap2;
-	unsigned short mblength;	/* This is the actual number of bytes received */
+	unsigned short mblength;	/* actual number of bytes received */
 	short gap3;
 };
 
 struct lance_tx_desc {
-	unsigned short tmd0;	/* low address of packet */
+	unsigned short tmd0;		/* low address of packet */
 	short gap0;
 	unsigned char tmd1_hadr;	/* high address of packet */
 	unsigned char tmd1_bits;	/* descriptor bits */
 	short gap1;
-	short length;		/* Length is 2s complement (negative)! */
+	short length;			/* 2s complement (negative!)
+					   of buffer length */
 	short gap2;
 	unsigned short misc;
 	short gap3;
@@ -211,28 +201,26 @@ struct lance_tx_desc {
 
 /* First part of the LANCE initialization block, described in databook. */
 struct lance_init_block {
-	unsigned short mode;	/* Pre-set mode (reg. 15) */
+	unsigned short mode;		/* pre-set mode (reg. 15) */
 	short gap0;
 
-	unsigned char phys_addr[12];	/* Physical ethernet address
-					   * only 0, 1, 4, 5, 8, 9 are valid
-					   * 2, 3, 6, 7, 10, 11 are gaps
-					 */
-	unsigned short filter[8];	/* Multicast filter.
-					   * only 0, 2, 4, 6 are valid
-					   * 1, 3, 5, 7 are gaps
-					 */
+	unsigned char phys_addr[12];	/* physical ethernet address
+					   only 0, 1, 4, 5, 8, 9 are valid
+					   2, 3, 6, 7, 10, 11 are gaps */
+	unsigned short filter[8];	/* multicast filter
+					   only 0, 2, 4, 6 are valid
+					   1, 3, 5, 7 are gaps */
 
 	/* Receive and transmit ring base, along with extra bits. */
-	unsigned short rx_ptr;	/* receive descriptor addr */
+	unsigned short rx_ptr;		/* receive descriptor addr */
 	short gap1;
-	unsigned short rx_len;	/* receive len and high addr */
+	unsigned short rx_len;		/* receive len and high addr */
 	short gap2;
-	unsigned short tx_ptr;	/* transmit descriptor addr */
+	unsigned short tx_ptr;		/* transmit descriptor addr */
 	short gap3;
-	unsigned short tx_len;	/* transmit len and high addr */
+	unsigned short tx_len;		/* transmit len and high addr */
 	short gap4;
-	char gap5[16];
+	short gap5[8];
 
 	/* The buffer descriptors */
 	struct lance_rx_desc brx_ring[RX_RING_SIZE];
@@ -251,7 +239,9 @@ struct lance_init_block {
 #define LANCE_ADDR(x) (PHYSADDR(x) >> 1)
 
 struct lance_private {
-	char *name;
+	struct net_device *next;
+	int type;
+	int slot;
 	int dma_irq;
 	volatile struct lance_regs *ll;
 	volatile struct lance_init_block *init_block;
@@ -266,8 +256,6 @@ struct lance_private {
 
 	unsigned short busmaster_regval;
 
-	struct net_device *dev;	/* Backpointer        */
-	struct lance_private *next_module;
 	struct timer_list       multicast_timer;
 
 	/* Pointers to the ring buffers as seen from the CPU */
@@ -297,11 +285,7 @@ struct lance_regs {
 
 int dec_lance_debug = 2;
 
-/*
-   #ifdef MODULE
-   static struct lance_private *root_lance_dev = NULL;
-   #endif
- */
+static struct net_device *root_lance_dev;
 
 static inline void writereg(volatile unsigned short *regptr, short value)
 {
@@ -335,7 +319,7 @@ static void load_csrs(struct lance_private *lp)
  * Our specialized copy routines
  *
  */
-void cp_to_buf(void *to, const void *from, __kernel_size_t len)
+void cp_to_buf(const int type, void *to, const void *from, int len)
 {
 	unsigned short *tp, *fp, clen;
 	unsigned char *rtp, *rfp;
@@ -389,7 +373,7 @@ void cp_to_buf(void *to, const void *from, __kernel_size_t len)
 	wbflush();
 }
 
-void cp_from_buf(void *to, unsigned char *from, int len)
+void cp_from_buf(const int type, void *to, const void *from, int len)
 {
 	unsigned short *tp, *fp, clen;
 	unsigned char *rtp, *rfp;
@@ -556,21 +540,20 @@ static int lance_rx(struct net_device *dev)
 
 #ifdef TEST_HITS
 	{
-	int i;
+		int i;
 
-	printk("[");
-	for (i = 0; i < RX_RING_SIZE; i++) {
-		if (i == lp->rx_new)
-			printk("%s",
-			       ib->brx_ring[i].rmd1_bits & LE_R1_OWN ? "_" : "X");
-		else
-			printk("%s",
-			       ib->brx_ring[i].rmd1_bits & LE_R1_OWN ? "." : "1");
-	}
-	printk("]");
+		printk("[");
+		for (i = 0; i < RX_RING_SIZE; i++) {
+			if (i == lp->rx_new)
+				printk("%s", ib->brx_ring[i].rmd1_bits &
+					     LE_R1_OWN ? "_" : "X");
+			else
+				printk("%s", ib->brx_ring[i].rmd1_bits &
+					     LE_R1_OWN ? "." : "1");
+		}
+		printk("]");
 	}
 #endif
-
 
 	for (rd = &ib->brx_ring[lp->rx_new];
 	     !((bits = rd->rmd1_bits) & LE_R1_OWN);
@@ -613,8 +596,8 @@ static int lance_rx(struct net_device *dev)
 			skb_reserve(skb, 2);	/* 16 byte align */
 			skb_put(skb, len);	/* make room */
 
-			cp_from_buf(skb->data,
-				 (char *) lp->rx_buf_ptr_cpu[lp->rx_new],
+			cp_from_buf(lp->type, skb->data,
+				    (char *)lp->rx_buf_ptr_cpu[lp->rx_new],
 				    len);
 
 			skb->protocol = eth_type_trans(skb, dev);
@@ -800,7 +783,7 @@ static int lance_open(struct net_device *dev)
 	netif_start_queue(dev);
 
 	/* Associate IRQ with lance_interrupt */
-	if (request_irq(dev->irq, &lance_interrupt, 0, lp->name, dev)) {
+	if (request_irq(dev->irq, &lance_interrupt, 0, "lance", dev)) {
 		printk("lance: Can't get irq %d\n", dev->irq);
 		return -EAGAIN;
 	}
@@ -888,7 +871,8 @@ static int lance_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	ib->btx_ring[entry].length = (-len);
 	ib->btx_ring[entry].misc = 0;
 
-	cp_to_buf((char *) lp->tx_buf_ptr_cpu[entry], skb->data, skblen);
+	cp_to_buf(lp->type, (char *)lp->tx_buf_ptr_cpu[entry], skb->data,
+		  skblen);
 
 	/* Clear the slack of the packet, do I need this? */
 	/* For a firewall its a good idea - AC */
@@ -1015,7 +999,7 @@ static void lance_set_multicast_retry(unsigned long _opaque)
 	lance_set_multicast(dev);
 }
 
-static int __init dec_lance_init(struct net_device *dev, const int type)
+static int __init dec_lance_init(const int type, const int slot)
 {
 	static unsigned version_printed;
 	struct net_device *dev;
@@ -1027,21 +1011,25 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 
 #ifndef CONFIG_TC
 	system_base = KN01_LANCE_BASE;
-#else
-	int slot;
 #endif
 
 	if (dec_lance_debug && version_printed++ == 0)
 		printk(version);
 
-	dev = init_etherdev(0, sizeof(struct lance_private));
+	dev = init_etherdev(NULL, sizeof(struct lance_private));
 	if (!dev)
 		return -ENOMEM;
+	SET_MODULE_OWNER(dev);
 
-	/* init_etherdev ensures the data structures used by the LANCE are aligned. */
+	/*
+	 * init_etherdev ensures the data structures used by the LANCE
+	 * are aligned.
+	 */
 	lp = (struct lance_private *) dev->priv;
 	spin_lock_init(&lp->lock);
 
+	lp->type = type;
+	lp->slot = slot;
 	switch (type) {
 #ifdef CONFIG_TC
 	case ASIC_LANCE:
@@ -1055,40 +1043,45 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 		dev->mem_end = dev->mem_start + 0x00020000;
 		dev->irq = dec_interrupt[DEC_IRQ_LANCE];
 		esar_base = system_base + ESAR;
-	
+
 		/* Workaround crash with booting KN04 2.1k from Disk */
-		memset(dev->mem_start, 0, dev->mem_end - dev->mem_start);
+		memset((void *)dev->mem_start, 0,
+		       dev->mem_end - dev->mem_start);
 
 		/*
 		 * setup the pointer arrays, this sucks [tm] :-(
 		 */
 		for (i = 0; i < RX_RING_SIZE; i++) {
-			lp->rx_buf_ptr_cpu[i] = (char *) (dev->mem_start + BUF_OFFSET_CPU
-						 + 2 * i * RX_BUFF_SIZE);
-			lp->rx_buf_ptr_lnc[i] = (char *) (BUF_OFFSET_LNC
-						     + i * RX_BUFF_SIZE);
+			lp->rx_buf_ptr_cpu[i] =
+				(char *)(dev->mem_start + BUF_OFFSET_CPU +
+					 2 * i * RX_BUFF_SIZE);
+			lp->rx_buf_ptr_lnc[i] =
+				(char *)(BUF_OFFSET_LNC + i * RX_BUFF_SIZE);
 		}
 		for (i = 0; i < TX_RING_SIZE; i++) {
-			lp->tx_buf_ptr_cpu[i] = (char *) (dev->mem_start + BUF_OFFSET_CPU
-					+ 2 * RX_RING_SIZE * RX_BUFF_SIZE
-						 + 2 * i * TX_BUFF_SIZE);
-			lp->tx_buf_ptr_lnc[i] = (char *) (BUF_OFFSET_LNC
-					    + RX_RING_SIZE * RX_BUFF_SIZE
-						     + i * TX_BUFF_SIZE);
+			lp->tx_buf_ptr_cpu[i] =
+				(char *)(dev->mem_start + BUF_OFFSET_CPU +
+					 2 * RX_RING_SIZE * RX_BUFF_SIZE +
+					 2 * i * TX_BUFF_SIZE);
+			lp->tx_buf_ptr_lnc[i] =
+				(char *)(BUF_OFFSET_LNC +
+					 RX_RING_SIZE * RX_BUFF_SIZE +
+					 i * TX_BUFF_SIZE);
 		}
 
 		/*
 		 * setup and enable IOASIC LANCE DMA
 		 */
 		lp->dma_irq = dec_interrupt[DEC_IRQ_LANCE_MERR];
-		lp->dma_ptr_reg = (unsigned long *) (system_base + IOCTL + LANCE_DMA_P);
+		lp->dma_ptr_reg = (unsigned long *)(system_base +
+						    IOCTL + LANCE_DMA_P);
 		*(lp->dma_ptr_reg) = PHYSADDR(dev->mem_start) << 3;
-		*(unsigned long *) (system_base + IOCTL + SSR) |= (1 << 16);
-		wbflush();
+		*(unsigned long *)(system_base + IOCTL + SSR) |= (1 << 16);
 
+		wbflush();
 		break;
+
 	case PMAD_LANCE:
-		slot = search_tc_card("PMAD-AA");
 		claim_tc_card(slot);
 
 		dev->mem_start = get_tc_base_addr(slot);
@@ -1096,38 +1089,58 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 		dev->irq = get_tc_irq_nr(slot);
 		esar_base = dev->mem_start + 0x1c0002;
 		lp->dma_irq = -1;
+
+		for (i = 0; i < RX_RING_SIZE; i++) {
+			lp->rx_buf_ptr_cpu[i] =
+				(char *)(dev->mem_start + BUF_OFFSET_CPU +
+					 i * RX_BUFF_SIZE);
+			lp->rx_buf_ptr_lnc[i] =
+				(char *)(BUF_OFFSET_LNC + i * RX_BUFF_SIZE);
+		}
+		for (i = 0; i < TX_RING_SIZE; i++) {
+			lp->tx_buf_ptr_cpu[i] =
+				(char *)(dev->mem_start + BUF_OFFSET_CPU +
+					 RX_RING_SIZE * RX_BUFF_SIZE +
+					 i * TX_BUFF_SIZE);
+			lp->tx_buf_ptr_lnc[i] =
+				(char *)(BUF_OFFSET_LNC +
+					 RX_RING_SIZE * RX_BUFF_SIZE +
+					 i * TX_BUFF_SIZE);
+		}
+
 		break;
 #endif
+
 	case PMAX_LANCE:
 		dev->irq = dec_interrupt[DEC_IRQ_LANCE];
 		dev->base_addr = KN01_LANCE_BASE;
 		dev->mem_start = KN01_LANCE_BASE + 0x01000000;
 		esar_base = KN01_RTC_BASE + 1;
+		lp->dma_irq = -1;
+
 		/*
 		 * setup the pointer arrays, this sucks [tm] :-(
 		 */
 		for (i = 0; i < RX_RING_SIZE; i++) {
 			lp->rx_buf_ptr_cpu[i] =
-			    (char *) (dev->mem_start + BUF_OFFSET_CPU
-				      + 2 * i * RX_BUFF_SIZE);
-
+				(char *)(dev->mem_start + BUF_OFFSET_CPU +
+					 2 * i * RX_BUFF_SIZE);
 			lp->rx_buf_ptr_lnc[i] =
-			    (char *) (BUF_OFFSET_LNC
-				      + i * RX_BUFF_SIZE);
-
+				(char *)(BUF_OFFSET_LNC + i * RX_BUFF_SIZE);
 		}
 		for (i = 0; i < TX_RING_SIZE; i++) {
 			lp->tx_buf_ptr_cpu[i] =
-			    (char *) (dev->mem_start + BUF_OFFSET_CPU
-				      + 2 * RX_RING_SIZE * RX_BUFF_SIZE
-				      + 2 * i * TX_BUFF_SIZE);
-			lp->tx_buf_ptr_lnc[i] = (char *) (BUF_OFFSET_LNC
-					    + RX_RING_SIZE * RX_BUFF_SIZE
-						     + i * TX_BUFF_SIZE);
-
+				(char *)(dev->mem_start + BUF_OFFSET_CPU +
+					 2 * RX_RING_SIZE * RX_BUFF_SIZE +
+					 2 * i * TX_BUFF_SIZE);
+			lp->tx_buf_ptr_lnc[i] =
+				(char *)(BUF_OFFSET_LNC +
+					 RX_RING_SIZE * RX_BUFF_SIZE +
+					 i * TX_BUFF_SIZE);
 		}
-		lp->dma_irq = -1;
+
 		break;
+
 	default:
 		printk("declance_init called with unknown type\n");
 		ret = -ENODEV;
@@ -1157,6 +1170,9 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 		}
 	}
 
+	lp->next = root_lance_dev;
+	root_lance_dev = dev;
+
 	/* Copy the ethernet address to the device structure, later to the
 	 * lance initialization block so the lance gets it every time it's
 	 * (re)initialized.
@@ -1179,7 +1195,6 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 
 	printk(" irq = %d\n", dev->irq);
 
-	lp->dev = dev;
 	dev->open = &lance_open;
 	dev->stop = &lance_close;
 	dev->hard_start_xmit = &lance_start_xmit;
@@ -1191,16 +1206,12 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 	/* lp->ll is the location of the registers for lance card */
 	lp->ll = ll;
 
-	lp->name = lancestr;
-
 	/* busmaster_regval (CSR3) should be zero according to the PMAD-AA
 	 * specification.
 	 */
 	lp->busmaster_regval = 0;
 
 	dev->dma = 0;
-
-	ether_setup(dev);
 
 	/* We cannot sleep if the chip is busy during a
 	 * multicast list update event, because such events
@@ -1211,11 +1222,6 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 	lp->multicast_timer.data = (unsigned long) dev;
 	lp->multicast_timer.function = &lance_set_multicast_retry;
 
-#ifdef MODULE
-	dev->ifindex = dev_new_index();
-	lp->next_module = root_lance_dev;
-	root_lance_dev = lp;
-#endif
 	return 0;
 
 err_out:
@@ -1228,61 +1234,51 @@ err_out:
 /* Find all the lance cards on the system and initialize them */
 static int __init dec_lance_probe(void)
 {
-	struct net_device *dev = NULL;
-	static int called;
+	int count = 0;
 
-#ifdef MODULE
-	root_lance_dev = NULL;
-#endif
-
-
+	/* Scan slots for PMAD-AA cards first. */
 #ifdef CONFIG_TC
-	int slot = -1;
-
 	if (TURBOCHANNEL) {
-		if (IOASIC && !called) {
-			called = 1;
-			type = ASIC_LANCE;
-		} else {
-			if ((slot = search_tc_card("PMAD-AA")) >= 0) {
-				type = PMAD_LANCE;
-			} else {
-				return -ENODEV;
-			}
+		int slot;
+
+		while ((slot = search_tc_card("PMAD-AA")) >= 0) {
+			if (dec_lance_init(PMAD_LANCE, slot) < 0)
+				break;
+			count++;
 		}
-	} else {
-		if (!called) {
-			called = 1;
-			type = PMAX_LANCE;
-		} else {
-			return -ENODEV;
-		}
-	}
-#else
-	if (!called && !TURBOCHANNEL) {
-		called = 1;
-		type = PMAX_LANCE;
-	} else {
-		return -ENODEV;
 	}
 #endif
 
-	return dec_lance_init(dev, type);
+	/* Then handle onboard devices. */
+	if (dec_interrupt[DEC_IRQ_LANCE] >= 0) {
+		if (dec_interrupt[DEC_IRQ_LANCE_MERR] >= 0) {
+#ifdef CONFIG_TC
+			if (dec_lance_init(ASIC_LANCE, -1) >= 0)
+				count++;
+#endif
+		} else if (!TURBOCHANNEL) {
+			if (dec_lance_init(PMAX_LANCE, -1) >= 0)
+				count++;
+		}
+	}
+
+	return (count > 0) ? 0 : -ENODEV;
 }
 
 static void __exit dec_lance_cleanup(void)
 {
-#ifdef MODULE
-   struct lance_private *lp;
+	while (root_lance_dev) {
+		struct net_device *dev = root_lance_dev;
+		struct lance_private *lp = (struct lance_private *)dev->priv;
 
-   while (root_lance_dev) {
-   lp = root_lance_dev->next_module;
-
-   unregister_netdev(root_lance_dev->dev);
-   kfree(root_lance_dev->dev);
-   root_lance_dev = lp;
-   }
-#endif /* MODULE */
+#ifdef CONFIG_TC
+		if (lp->slot >= 0)
+			release_tc_card(lp->slot);
+#endif
+		root_lance_dev = lp->next;
+		unregister_netdev(dev);
+		kfree(dev);
+	}
 }
 
 module_init(dec_lance_probe);

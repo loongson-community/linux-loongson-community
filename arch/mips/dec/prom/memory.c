@@ -116,7 +116,7 @@ void __init prom_free_prom_memory (void)
 	 * the first page reserved for the exception handlers.
 	 */
 
-#ifdef CONFIG_DECLANCE
+#if defined(CONFIG_DECLANCE) || defined(CONFIG_DECLANCE_MODULE)
 	/*
 	 * Leave 128 KB reserved for Lance memory for
 	 * IOASIC DECstations.
