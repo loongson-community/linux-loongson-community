@@ -15,7 +15,7 @@ O_TARGET := nino.o
 
 all: nino.o
 
-obj-y	 := int-handler.o setup.o irq.o time.o reset.o rtc.o prom.o power.o wbflush.o
+obj-y	 := int-handler.o setup.o irq.o time.o reset.o rtc.o prom.o power.o
 
 int-handler.o: int-handler.S
 

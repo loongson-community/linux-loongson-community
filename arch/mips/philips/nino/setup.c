@@ -117,6 +117,4 @@ void __init nino_setup(void)
 #endif
 
 	rtc_ops = &nino_rtc_ops;
-
-	wbflush_setup();
 }

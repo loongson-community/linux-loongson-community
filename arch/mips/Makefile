@@ -51,9 +51,6 @@ endif
 ifdef CONFIG_CPU_R3000
 GCCFLAGS	+= -mcpu=r3000 -mips1
 endif
-ifdef CONFIG_CPU_R3912
-GCCFLAGS	+= -mcpu=r3000 -mips1
-endif
 ifdef CONFIG_CPU_R6000
 GCCFLAGS	+= -mcpu=r6000 -mips2 -Wa,--trap
 endif
