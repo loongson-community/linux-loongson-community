@@ -60,8 +60,9 @@ char * __init prom_getcmdline(void)
 	return &(arcs_cmdline[0]);
 }
 
-void prom_free_prom_memory (void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }
 
 void  __init prom_init_cmdline(void)

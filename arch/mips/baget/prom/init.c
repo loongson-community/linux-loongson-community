@@ -28,6 +28,7 @@ void __init prom_init(unsigned int mem_upper)
 	add_memory_region(0, mem_upper, BOOT_MEM_RAM);
 }
 
-void prom_free_prom_memory (void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }

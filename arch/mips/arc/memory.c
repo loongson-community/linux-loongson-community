@@ -141,7 +141,7 @@ void __init prom_meminit(void)
 	}
 }
 
-void __init prom_free_prom_memory(void)
+unsigned long __init prom_free_prom_memory(void)
 {
 	unsigned long freed = 0;
 	unsigned long addr;
@@ -165,4 +165,6 @@ void __init prom_free_prom_memory(void)
 		}
 	}
 	printk(KERN_INFO "Freeing prom memory: %ldkb freed\n", freed >> 10);
+
+	return freed;
 }

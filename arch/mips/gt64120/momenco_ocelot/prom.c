@@ -74,8 +74,9 @@ void __init prom_init(int argc, char **arg, char** env, struct callvectors *cv)
 	add_memory_region(0, 64 << 20, BOOT_MEM_RAM);
 }
 
-void __init prom_free_prom_memory(void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }
 
 void __init prom_fixup_mem_map(unsigned long start, unsigned long end)

@@ -48,6 +48,7 @@ int __init prom_init(int argc, char ** argv, char **envp)
 }
 
 
-void prom_free_prom_memory (void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }

@@ -44,6 +44,7 @@ void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
 	mips_machtype = MACH_CASIO_E55;
 }
 
-void __init prom_free_prom_memory (void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }

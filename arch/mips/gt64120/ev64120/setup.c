@@ -69,8 +69,9 @@ char arcs_cmdline[CL_SIZE] = {
 	"ip=192.168.1.211:192.168.1.1:::gt::"
 };
 
-void prom_free_prom_memory(void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }
 
 static unsigned char galileo_rtc_read_data(unsigned long addr)

@@ -280,13 +280,13 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-extern void prom_free_prom_memory(void);
+extern unsigned long prom_free_prom_memory(void);
 
 void free_initmem(void)
 {
-	unsigned long addr, page;
+	unsigned long addr, page, freed;
 
-	prom_free_prom_memory();
+	freed = prom_free_prom_memory();
 
 	addr = (unsigned long) &__init_begin;
 	while (addr < (unsigned long) &__init_end) {
@@ -295,8 +295,9 @@ void free_initmem(void)
 		set_page_count(virt_to_page(page), 1);
 		free_page(page);
 		totalram_pages++;
+		freed += PAGE_SIZE;
 		addr += PAGE_SIZE;
 	}
 	printk(KERN_INFO "Freeing unused kernel memory: %ldk freed\n",
-	       (unsigned long) (__init_end - __init_begin) >> 10);
+	       freed >> 10);
 }

@@ -153,7 +153,11 @@ int get_ethernet_addr(char *ethernet_addr)
 	return 0;
 }
 
-void prom_free_prom_memory (void) {}
+unsigned long __init prom_free_prom_memory(void)
+{
+	return 0;
+}
+
 EXPORT_SYMBOL(prom_getcmdline);
 EXPORT_SYMBOL(get_ethernet_addr);
 EXPORT_SYMBOL(str2eaddr);

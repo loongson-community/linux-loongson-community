@@ -70,8 +70,9 @@ void __init prom_init(int argc, const char **arg)
 #endif
 }
 
-void __init prom_free_prom_memory(void)
+unsigned long __init prom_free_prom_memory(void)
 {
+	return 0;
 }
 
 #if defined(CONFIG_DDB5477)

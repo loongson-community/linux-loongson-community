@@ -348,9 +348,10 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	return 0;
 }
 
-void prom_free_prom_memory(void)
+unsigned long __init prom_free_prom_memory(void)
 {
 	/* Not sure what I'm supposed to do here.  Nothing, I think */
+	return 0;
 }
 
 void prom_putchar(char c)
