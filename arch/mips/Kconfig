@@ -19,6 +19,11 @@ config MIPS32
 	depends on MIPS64 = 'n'
 	default y
 
+# Horrible source of confusion.  Die, die, die ...
+config EMBEDDED
+	bool
+	default y
+
 mainmenu "Linux/MIPS Kernel Configuration"
 
 source "init/Kconfig"
