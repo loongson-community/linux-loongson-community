@@ -11,6 +11,7 @@
 #ifndef __ASM_CRIME_H__
 #define __ASM_CRIME_H__
 
+#include <asm/types.h>
 #include <asm/addrspace.h>
 
 /*
@@ -179,11 +180,9 @@ static inline void crime_write_64 (unsigned long __offset, u64 __val) {
  * macros for CRIME memory bank control registers.
  */
 #define CRIME_MEM_BANK_CONTROL(__bank)		(0x00000208 + ((__bank) << 3))
-#define CRIME_MEM_BANK_CONTROL_MSK		0x11f /* 9 bits 7:5 reserved */
+#define CRIME_MEM_BANK_CONTROL_MASK		0x11f /* 9 bits 7:5 reserved */
 #define CRIME_MEM_BANK_CONTROL_ADDR		0x01f
 #define CRIME_MEM_BANK_CONTROL_SDRAM_SIZE	0x100
-#define CRIME_MEM_BANK_CONTROL_BANK_TO_ADDR(__bank) \
-	(((__bank) & CRIME_MEM_BANK_CONTROL_ADDR) << 25)
 
 #define CRIME_MEM_REFRESH_COUNTER	(0x00000248)
 #define CRIME_MEM_REFRESH_COUNTER_MASK	0x7ff	/* 11-bit register */
@@ -206,8 +205,10 @@ static inline void crime_write_64 (unsigned long __offset, u64 __val) {
 #define CRIME_MEM_ERROR_SOFT_ERR	0x00100000
 #define CRIME_MEM_ERROR_HARD_ERR	0x00200000
 #define CRIME_MEM_ERROR_MULTIPLE	0x00400000
+#define CRIME_MEM_ERROR_ECC		0x01800000
 #define CRIME_MEM_ERROR_MEM_ECC_RD	0x00800000
 #define CRIME_MEM_ERROR_MEM_ECC_RMW	0x01000000
+#define CRIME_MEM_ERROR_INV		0x0e000000
 #define CRIME_MEM_ERROR_INV_MEM_ADDR_RD	0x02000000
 #define CRIME_MEM_ERROR_INV_MEM_ADDR_WR	0x04000000
 #define CRIME_MEM_ERROR_INV_MEM_ADDR_RMW	0x08000000
