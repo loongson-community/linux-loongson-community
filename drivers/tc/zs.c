@@ -6,7 +6,7 @@
  *
  * DECstation changes
  * Copyright (C) 1998-2000 Harald Koerfgen
- * Copyright (C) 2000, 2001, 2002  Maciej W. Rozycki <macro@ds2.pg.gda.pl>
+ * Copyright (C) 2000, 2001, 2002, 2003  Maciej W. Rozycki
  *
  * For the rest of the code the original Copyright applies:
  * Copyright (C) 1996 Paul Mackerras (Paul.Mackerras@cs.anu.edu.au)
@@ -114,8 +114,8 @@ static struct zs_parms *zs_parms;
 
 #ifdef CONFIG_DECSTATION
 static struct zs_parms ds_parms = {
-	scc0 : SCC0,
-	scc1 : SCC1,
+	scc0 : IOASIC_SCC0,
+	scc1 : IOASIC_SCC1,
 	channel_a_offset : 1,
 	channel_b_offset : 9,
 	irq0 : -1,

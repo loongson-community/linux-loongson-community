@@ -2,7 +2,7 @@
  * identify.c: machine identification code.
  *
  * Copyright (C) 1998 Harald Koerfgen and Paul M. Antoine
- * Copyright (C) 2002  Maciej W. Rozycki
+ * Copyright (C) 2002, 2003  Maciej W. Rozycki
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -59,7 +59,7 @@ const char *get_system_type(void)
 /*
  * Setup essential system-specific memory addresses.  We need them
  * early.  Semantically the functions belong to prom/init.c, but they
- * are compact enough we want them inlined. -- macro
+ * are compact enough we want them inlined. --macro
  */
 static inline void prom_init_kn01(void)
 {
@@ -79,17 +79,10 @@ static inline void prom_init_kn02(void)
 	dec_kn_slot_size = KN02_SLOT_SIZE;
 }
 
-static inline void prom_init_kn02ba(void)
+static inline void prom_init_kn02xa(void)
 {
-	ioasic_base = (void *)KN02BA_IOASIC_BASE;
-	dec_rtc_base = (void *)KN02BA_RTC_BASE;
-	dec_kn_slot_size = IOASIC_SLOT_SIZE;
-}
-
-static inline void prom_init_kn02ca(void)
-{
-	ioasic_base = (void *)KN02CA_IOASIC_BASE;
-	dec_rtc_base = (void *)KN02CA_RTC_BASE;
+	ioasic_base = (void *)KN02XA_IOASIC_BASE;
+	dec_rtc_base = (void *)KN02XA_RTC_BASE;
 	dec_kn_slot_size = IOASIC_SLOT_SIZE;
 }
 
@@ -143,17 +136,17 @@ void __init prom_identify_arch(u32 magic)
 		break;
 	case DS5000_1XX:	/* DS5000/100 3min */
 		mips_machtype = MACH_DS5000_1XX;
-		prom_init_kn02ba();
+		prom_init_kn02xa();
 		break;
 	case DS5000_2X0:	/* DS5000/240 3max+ or DS5900 bigmax */
 		mips_machtype = MACH_DS5000_2X0;
 		prom_init_kn03();
-		if (!(ioasic_read(SIR) & KN03_IO_INR_3MAXP))
+		if (!(ioasic_read(IO_REG_SIR) & KN03_IO_INR_3MAXP))
 			mips_machtype = MACH_DS5900;
 		break;
 	case DS5000_XX:	/* Personal DS5000/2x */
 		mips_machtype = MACH_DS5000_XX;
-		prom_init_kn02ca();
+		prom_init_kn02xa();
 		break;
 	case DS5800:		/* DS5800 Isis */
 		mips_machtype = MACH_DS5800;

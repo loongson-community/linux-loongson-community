@@ -2,7 +2,7 @@
  *  linux/arch/mips/dec/time.c
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
- *  Copyright (C) 2000  Maciej W. Rozycki
+ *  Copyright (C) 2000, 2003  Maciej W. Rozycki
  *
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
@@ -142,7 +142,7 @@ static unsigned long do_ioasic_gettimeoffset(void)
 		}
 	}
 	/* Get last timer tick in absolute kernel time */
-	count = ioasic_read(FCTR);
+	count = ioasic_read(IO_REG_FCTR);
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -412,7 +412,7 @@ static void ioasic_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * The free-running counter is 32 bit which is good for about
 	 * 2 minutes, 50 seconds at possible count rates of upto 25MHz.
 	 */
-	count = ioasic_read(FCTR);
+	count = ioasic_read(IO_REG_FCTR);
 	timerhi += (count < timerlo);	/* Wrap around */
 	timerlo = count;
 
@@ -422,15 +422,18 @@ static void ioasic_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		 * update the timer[hi]/[lo] to make do_fast_gettimeoffset()
 		 * quotient calc still valid. -arca
 		 */
-		ioasic_write(FCTR, 0);
+		ioasic_write(IO_REG_FCTR, 0);
 		timerhi = timerlo = 0;
 	}
 
 	timer_interrupt(irq, dev_id, regs);
 }
 
-struct irqaction irq0 = {timer_interrupt, SA_INTERRUPT, 0,
-			 "timer", NULL, NULL};
+struct irqaction irq0 = {
+	.handler = timer_interrupt,
+	.flags = SA_INTERRUPT,
+	.name = "timer",
+};
 
 void __init time_init(void)
 {
@@ -483,7 +486,7 @@ void __init time_init(void)
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;
 	} else if (IOASIC) {
-		ioasic_write(FCTR, 0);
+		ioasic_write(IO_REG_FCTR, 0);
 		do_gettimeoffset = do_ioasic_gettimeoffset;
 		irq0.handler = ioasic_timer_interrupt;
         }

@@ -5,7 +5,7 @@
  *
  *      adopted from sunlance.c by Richard van den Berg
  *
- *      Copyright (C) 2002  Maciej W. Rozycki
+ *      Copyright (C) 2002, 2003  Maciej W. Rozycki
  *
  *      additional sources:
  *      - PMAD-AA TURBOchannel Ethernet Module Functional Specification,
@@ -801,7 +801,8 @@ static int lance_open(struct net_device *dev)
 
 		fast_mb();
 		/* Enable I/O ASIC LANCE DMA.  */
-		ioasic_write(SSR, ioasic_read(SSR) | LANCE_DMA_EN);
+		ioasic_write(IO_REG_SSR,
+			     ioasic_read(IO_REG_SSR) | IO_SSR_LANCE_DMA_EN);
 
 		fast_mb();
 		spin_unlock_irqrestore(&ioasic_ssr_lock, flags);
@@ -836,7 +837,8 @@ static int lance_close(struct net_device *dev)
 
 		fast_mb();
 		/* Disable I/O ASIC LANCE DMA.  */
-		ioasic_write(SSR, ioasic_read(SSR) & ~LANCE_DMA_EN);
+		ioasic_write(IO_REG_SSR,
+			     ioasic_read(IO_REG_SSR) & ~IO_SSR_LANCE_DMA_EN);
 
 		fast_iob();
 		spin_unlock_irqrestore(&ioasic_ssr_lock, flags);
@@ -1045,7 +1047,7 @@ static int __init dec_lance_init(const int type, const int slot)
 	switch (type) {
 #ifdef CONFIG_TC
 	case ASIC_LANCE:
-		dev->base_addr = system_base + LANCE;
+		dev->base_addr = system_base + IOASIC_LANCE;
 
 		/* buffer space for the on-board LANCE shared memory */
 		/*
@@ -1054,7 +1056,7 @@ static int __init dec_lance_init(const int type, const int slot)
 		dev->mem_start = KSEG1ADDR(0x00020000);
 		dev->mem_end = dev->mem_start + 0x00020000;
 		dev->irq = dec_interrupt[DEC_IRQ_LANCE];
-		esar_base = system_base + ESAR;
+		esar_base = system_base + IOASIC_ESAR;
 
 		/* Workaround crash with booting KN04 2.1k from Disk */
 		memset((void *)dev->mem_start, 0,
@@ -1083,7 +1085,8 @@ static int __init dec_lance_init(const int type, const int slot)
 
 		/* Setup I/O ASIC LANCE DMA.  */
 		lp->dma_irq = dec_interrupt[DEC_IRQ_LANCE_MERR];
-		ioasic_write(LANCE_DMA_P, PHYSADDR(dev->mem_start) << 3);
+		ioasic_write(IO_REG_LANCE_DMA_P,
+			     PHYSADDR(dev->mem_start) << 3);
 
 		break;
 

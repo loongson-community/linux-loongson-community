@@ -6,7 +6,7 @@
  * for more details.
  *
  * Copyright (C) 1998 Harald Koerfgen
- * Copyright (C) 2000, 2001, 2002  Maciej W. Rozycki
+ * Copyright (C) 2000, 2001, 2002, 2003  Maciej W. Rozycki
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -85,13 +85,27 @@ int_ptr asic_mask_nr_tbl[DEC_MAX_ASIC_INTS][2] = {
 };
 int cpu_fpu_mask = DEC_CPU_IRQ_MASK(DEC_CPU_INR_FPU);
 
-static struct irqaction ioirq = {NULL, 0, 0, "cascade", NULL, NULL};
-static struct irqaction fpuirq = {NULL, 0, 0, "fpu", NULL, NULL};
+static struct irqaction ioirq = {
+	.handler = no_action,
+	.name = "cascade",
+};
+static struct irqaction fpuirq = {
+	.handler = no_action,
+	.name = "fpu",
+};
 
-static struct irqaction haltirq = {dec_intr_halt, 0, 0, "halt", NULL, NULL};
+static struct irqaction busirq = {
+	.flags = SA_INTERRUPT,
+	.name = "bus error",
+};
+
+static struct irqaction haltirq = {
+	.handler = dec_intr_halt,
+	.name = "halt",
+};
 
 
-void (*board_time_init) (struct irqaction * irq);
+void (*board_time_init)(struct irqaction *irq);
 
 
 /*
@@ -155,7 +169,7 @@ static int kn01_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_HALT]		= -1,
 	[DEC_IRQ_ISDN]		= -1,
 	[DEC_IRQ_LANCE]		= DEC_CPU_IRQ_NR(KN01_CPU_INR_LANCE),
-	[DEC_IRQ_MEMORY]	= DEC_CPU_IRQ_NR(KN01_CPU_INR_MEMORY),
+	[DEC_IRQ_BUS]		= DEC_CPU_IRQ_NR(KN01_CPU_INR_BUS),
 	[DEC_IRQ_PSU]		= -1,
 	[DEC_IRQ_RTC]		= DEC_CPU_IRQ_NR(KN01_CPU_INR_RTC),
 	[DEC_IRQ_SCC0]		= -1,
@@ -189,8 +203,8 @@ static int kn01_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn01_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_MEMORY) },
-		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_BUS) },
+		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_BUS) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_RTC) },
 		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_RTC) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_DZ11) },
@@ -232,7 +246,7 @@ static int kn230_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_HALT]		= DEC_CPU_IRQ_NR(KN230_CPU_INR_HALT),
 	[DEC_IRQ_ISDN]		= -1,
 	[DEC_IRQ_LANCE]		= DEC_CPU_IRQ_NR(KN230_CPU_INR_LANCE),
-	[DEC_IRQ_MEMORY]	= DEC_CPU_IRQ_NR(KN230_CPU_INR_MEMORY),
+	[DEC_IRQ_BUS]		= DEC_CPU_IRQ_NR(KN230_CPU_INR_BUS),
 	[DEC_IRQ_PSU]		= -1,
 	[DEC_IRQ_RTC]		= DEC_CPU_IRQ_NR(KN230_CPU_INR_RTC),
 	[DEC_IRQ_SCC0]		= -1,
@@ -266,8 +280,8 @@ static int kn230_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn230_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_MEMORY) },
-		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_BUS) },
+		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_BUS) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_RTC) },
 		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_RTC) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_DZ11) },
@@ -307,7 +321,7 @@ static int kn02_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_HALT]		= -1,
 	[DEC_IRQ_ISDN]		= -1,
 	[DEC_IRQ_LANCE]		= KN02_IRQ_NR(KN02_CSR_INR_LANCE),
-	[DEC_IRQ_MEMORY]	= DEC_CPU_IRQ_NR(KN02_CPU_INR_MEMORY),
+	[DEC_IRQ_BUS]		= DEC_CPU_IRQ_NR(KN02_CPU_INR_BUS),
 	[DEC_IRQ_PSU]		= -1,
 	[DEC_IRQ_RTC]		= DEC_CPU_IRQ_NR(KN02_CPU_INR_RTC),
 	[DEC_IRQ_SCC0]		= -1,
@@ -341,8 +355,8 @@ static int kn02_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn02_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_MEMORY) },
-		{ .i = DEC_CPU_IRQ_NR(KN02_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_BUS) },
+		{ .i = DEC_CPU_IRQ_NR(KN02_CPU_INR_BUS) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_RTC) },
 		{ .i = DEC_CPU_IRQ_NR(KN02_CPU_INR_RTC) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_CASCADE) },
@@ -404,7 +418,7 @@ static int kn02ba_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_HALT]		= DEC_CPU_IRQ_NR(KN02BA_CPU_INR_HALT),
 	[DEC_IRQ_ISDN]		= -1,
 	[DEC_IRQ_LANCE]		= IO_IRQ_NR(KN02BA_IO_INR_LANCE),
-	[DEC_IRQ_MEMORY]	= IO_IRQ_NR(KN02BA_IO_INR_MEMORY),
+	[DEC_IRQ_BUS]		= IO_IRQ_NR(KN02BA_IO_INR_BUS),
 	[DEC_IRQ_PSU]		= IO_IRQ_NR(KN02BA_IO_INR_PSU),
 	[DEC_IRQ_RTC]		= IO_IRQ_NR(KN02BA_IO_INR_RTC),
 	[DEC_IRQ_SCC0]		= IO_IRQ_NR(KN02BA_IO_INR_SCC0),
@@ -451,8 +465,8 @@ static int_ptr kn02ba_cpu_mask_nr_tbl[][2] __initdata = {
 };
 
 static int_ptr kn02ba_asic_mask_nr_tbl[][2] __initdata = {
-	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_MEMORY) },
-		{ .i = IO_IRQ_NR(KN02BA_IO_INR_MEMORY) } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_BUS) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_BUS) } },
 	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_RTC) },
 		{ .i = IO_IRQ_NR(KN02BA_IO_INR_RTC) } },
 	{ { .i = IO_IRQ_DMA },
@@ -505,7 +519,7 @@ static int kn02ca_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_HALT]		= DEC_CPU_IRQ_NR(KN02CA_CPU_INR_HALT),
 	[DEC_IRQ_ISDN]		= IO_IRQ_NR(KN02CA_IO_INR_ISDN),
 	[DEC_IRQ_LANCE]		= IO_IRQ_NR(KN02CA_IO_INR_LANCE),
-	[DEC_IRQ_MEMORY]	= DEC_CPU_IRQ_NR(KN02CA_CPU_INR_MEMORY),
+	[DEC_IRQ_BUS]		= DEC_CPU_IRQ_NR(KN02CA_CPU_INR_BUS),
 	[DEC_IRQ_PSU]		= -1,
 	[DEC_IRQ_RTC]		= DEC_CPU_IRQ_NR(KN02CA_CPU_INR_RTC),
 	[DEC_IRQ_SCC0]		= IO_IRQ_NR(KN02CA_IO_INR_SCC0),
@@ -539,8 +553,8 @@ static int kn02ca_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn02ca_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_MEMORY) },
-		{ .i = DEC_CPU_IRQ_NR(KN02CA_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_BUS) },
+		{ .i = DEC_CPU_IRQ_NR(KN02CA_CPU_INR_BUS) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_RTC) },
 		{ .i = DEC_CPU_IRQ_NR(KN02CA_CPU_INR_RTC) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_CASCADE) },
@@ -589,7 +603,7 @@ void __init dec_init_kn02ca(void)
 /*
  * Machine-specific initialisation for KN03, aka DS5000/240,
  * aka 3max+ and DS5900, aka BIGmax.  Also applies to KN05, aka
- * DS5000/260, aka 4max+ and DS5900-260.
+ * DS5000/260, aka 4max+ and DS5900/260.
  */
 static int kn03_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_CASCADE]	= DEC_CPU_IRQ_NR(KN03_CPU_INR_CASCADE),
@@ -602,7 +616,7 @@ static int kn03_interrupt[DEC_NR_INTS] __initdata = {
 	[DEC_IRQ_HALT]		= DEC_CPU_IRQ_NR(KN03_CPU_INR_HALT),
 	[DEC_IRQ_ISDN]		= -1,
 	[DEC_IRQ_LANCE]		= IO_IRQ_NR(KN03_IO_INR_LANCE),
-	[DEC_IRQ_MEMORY]	= DEC_CPU_IRQ_NR(KN03_CPU_INR_MEMORY),
+	[DEC_IRQ_BUS]		= DEC_CPU_IRQ_NR(KN03_CPU_INR_BUS),
 	[DEC_IRQ_PSU]		= IO_IRQ_NR(KN03_IO_INR_PSU),
 	[DEC_IRQ_RTC]		= DEC_CPU_IRQ_NR(KN03_CPU_INR_RTC),
 	[DEC_IRQ_SCC0]		= IO_IRQ_NR(KN03_IO_INR_SCC0),
@@ -636,8 +650,8 @@ static int kn03_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn03_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_MEMORY) },
-		{ .i = DEC_CPU_IRQ_NR(KN03_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_BUS) },
+		{ .i = DEC_CPU_IRQ_NR(KN03_CPU_INR_BUS) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_RTC) },
 		{ .i = DEC_CPU_IRQ_NR(KN03_CPU_INR_RTC) } },
 	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_CASCADE) },
