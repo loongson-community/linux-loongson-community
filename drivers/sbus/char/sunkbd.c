@@ -79,11 +79,6 @@ extern void scrollfront(int);
 
 struct l1a_kbd_state l1a_state = { 0, 0 };
 
-/* Dummy function for now, we need it to link.  -DaveM */
-void kbd_reset_setup(char *str, int *ints)
-{
-}
-
 #ifndef CONFIG_PCI
 DECLARE_WAIT_QUEUE_HEAD(keypress_wait);
 #endif
@@ -1217,7 +1212,7 @@ static void sunkbd_kd_mksound(unsigned int hz, unsigned int ticks)
 
 extern void (*kd_mksound)(unsigned int hz, unsigned int ticks);
 
-__initfunc(int sun_kbd_init(void))
+int __init sun_kbd_init(void)
 {
 	int i, opt_node;
 	struct kbd_struct kbd0;
@@ -1305,7 +1300,7 @@ kbd_read (struct file *f, char *buffer, size_t count, loff_t *ppos)
 	p = buffer;
 	for (; p < end && kbd_head != kbd_tail;){
 #ifdef CONFIG_SPARC32_COMPAT
-		if (current->tss.flags & SPARC_FLAG_32BIT) {
+		if (current->thread.flags & SPARC_FLAG_32BIT) {
 			copy_to_user_ret((Firm_event *)p, &kbd_queue [kbd_tail], 
 					 sizeof(Firm_event)-sizeof(struct timeval), -EFAULT);
 			p += sizeof(Firm_event)-sizeof(struct timeval);
@@ -1507,7 +1502,7 @@ file_operations kbd_fops =
 	NULL,			/* revalidate */
 };
 
-__initfunc(void keyboard_zsinit(void (*put_char)(unsigned char)))
+void __init keyboard_zsinit(void (*put_char)(unsigned char))
 {
 	int timeout = 0;
 

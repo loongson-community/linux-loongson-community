@@ -1,7 +1,6 @@
 #ifndef __ALPHA_PYXIS__H__
 #define __ALPHA_PYXIS__H__
 
-#include <linux/config.h>
 #include <linux/types.h>
 #include <asm/compiler.h>
 
@@ -34,19 +33,17 @@
 **------------------------------------------------------------------------*/
 
 
-/* CIA ADDRESS BIT DEFINITIONS
+/* PYXIS ADDRESS BIT DEFINITIONS
  *
- *  3 3 3 3|3 3 3 3|3 3 2 2|2 2 2 2|2 2 2 2|1 1 1 1|1 1 1 1|1 1 
- *  9 8 7 6|5 4 3 2|1 0 9 8|7 6 5 4|3 2 1 0|9 8 7 6|5 4 3 2|1 0 9 8|7 6 5 4|3 2 1 0
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |1| | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |0|0|0|
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ 
- *  |                                                                        \_/ \_/
- *  |                                                                         |   |
- *  +-- IO space, not cached.                                   Byte Enable --+   |
- *                                                              Transfer Length --+
- *
- *
+ *  3333 3333 3322 2222 2222 1111 1111 11
+ *  9876 5432 1098 7654 3210 9876 5432 1098 7654 3210
+ *  ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+ *  1                                             000
+ *  ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+ *  |						  |\|
+ *  |                               Byte Enable --+ |
+ *  |                             Transfer Length --+
+ *  +-- IO space, not cached
  *
  *   Byte      Transfer
  *   Enable    Length    Transfer  Byte    Address
@@ -74,16 +71,19 @@
 #define PYXIS_MEM_R2_MASK 0x07ffffff  /* SPARSE Mem region 2 mask is 27 bits */
 #define PYXIS_MEM_R3_MASK 0x03ffffff  /* SPARSE Mem region 3 mask is 26 bits */
 
-#define PYXIS_DMA_WIN_BASE_DEFAULT	(1024*1024*1024)
-#define PYXIS_DMA_WIN_SIZE_DEFAULT	(1024*1024*1024)
+#define PYXIS_DMA_WIN_BASE		(1UL*1024*1024*1024)
+#define PYXIS_DMA_WIN_SIZE		(2UL*1024*1024*1024)
 
-#if defined(CONFIG_ALPHA_GENERIC) || defined(CONFIG_ALPHA_SRM_SETUP)
-#define PYXIS_DMA_WIN_BASE		alpha_mv.dma_win_base
-#define PYXIS_DMA_WIN_SIZE		alpha_mv.dma_win_size
-#else
-#define PYXIS_DMA_WIN_BASE		PYXIS_DMA_WIN_BASE_DEFAULT
-#define PYXIS_DMA_WIN_SIZE		PYXIS_DMA_WIN_SIZE_DEFAULT
-#endif
+/* Window 0 at 1GB size 1GB mapping 0 */
+#define PYXIS_DMA_WIN0_BASE_DEFAULT	(1UL*1024*1024*1024)
+#define PYXIS_DMA_WIN0_SIZE_DEFAULT	(1UL*1024*1024*1024)
+#define PYXIS_DMA_WIN0_TRAN_DEFAULT	(0UL)
+
+/* Window 0 at 2GB size 1GB mapping 1GB */
+#define PYXIS_DMA_WIN1_BASE_DEFAULT	(2UL*1024*1024*1024)
+#define PYXIS_DMA_WIN1_SIZE_DEFAULT	(1UL*1024*1024*1024)
+#define PYXIS_DMA_WIN1_TRAN_DEFAULT	(1UL*1024*1024*1024)
+
 
 /*
  *  General Registers
@@ -203,47 +203,47 @@
  * Data structure for handling PYXIS machine checks:
  */
 struct el_PYXIS_sysdata_mcheck {
-    u_long      coma_gcr;                       
-    u_long      coma_edsr;                      
-    u_long      coma_ter;                       
-    u_long      coma_elar;                      
-    u_long      coma_ehar;                      
-    u_long      coma_ldlr;                      
-    u_long      coma_ldhr;                      
-    u_long      coma_base0;                     
-    u_long      coma_base1;                     
-    u_long      coma_base2;                     
-    u_long      coma_cnfg0;                     
-    u_long      coma_cnfg1;                     
-    u_long      coma_cnfg2;                     
-    u_long      epic_dcsr;                      
-    u_long      epic_pear;                      
-    u_long      epic_sear;                      
-    u_long      epic_tbr1;                      
-    u_long      epic_tbr2;                      
-    u_long      epic_pbr1;                      
-    u_long      epic_pbr2;                      
-    u_long      epic_pmr1;                      
-    u_long      epic_pmr2;                      
-    u_long      epic_harx1;                     
-    u_long      epic_harx2;                     
-    u_long      epic_pmlt;                      
-    u_long      epic_tag0;                      
-    u_long      epic_tag1;                      
-    u_long      epic_tag2;                      
-    u_long      epic_tag3;                      
-    u_long      epic_tag4;                      
-    u_long      epic_tag5;                      
-    u_long      epic_tag6;                      
-    u_long      epic_tag7;                      
-    u_long      epic_data0;                     
-    u_long      epic_data1;                     
-    u_long      epic_data2;                     
-    u_long      epic_data3;                     
-    u_long      epic_data4;                     
-    u_long      epic_data5;                     
-    u_long      epic_data6;                     
-    u_long      epic_data7;                     
+    u_long      coma_gcr;
+    u_long      coma_edsr;
+    u_long      coma_ter;
+    u_long      coma_elar;
+    u_long      coma_ehar;
+    u_long      coma_ldlr;
+    u_long      coma_ldhr;
+    u_long      coma_base0;
+    u_long      coma_base1;
+    u_long      coma_base2;
+    u_long      coma_cnfg0;
+    u_long      coma_cnfg1;
+    u_long      coma_cnfg2;
+    u_long      epic_dcsr;
+    u_long      epic_pear;
+    u_long      epic_sear;
+    u_long      epic_tbr1;
+    u_long      epic_tbr2;
+    u_long      epic_pbr1;
+    u_long      epic_pbr2;
+    u_long      epic_pmr1;
+    u_long      epic_pmr2;
+    u_long      epic_harx1;
+    u_long      epic_harx2;
+    u_long      epic_pmlt;
+    u_long      epic_tag0;
+    u_long      epic_tag1;
+    u_long      epic_tag2;
+    u_long      epic_tag3;
+    u_long      epic_tag4;
+    u_long      epic_tag5;
+    u_long      epic_tag6;
+    u_long      epic_tag7;
+    u_long      epic_data0;
+    u_long      epic_data1;
+    u_long      epic_data2;
+    u_long      epic_data3;
+    u_long      epic_data4;
+    u_long      epic_data5;
+    u_long      epic_data6;
+    u_long      epic_data7;
 };
 
 
@@ -285,77 +285,40 @@ __EXTERN_INLINE void * pyxis_bus_to_virt(unsigned long address)
 #define vuip	volatile unsigned int *
 #define vulp	volatile unsigned long *
 
-__EXTERN_INLINE unsigned int pyxis_bw_inb(unsigned long addr)
+__EXTERN_INLINE unsigned int pyxis_inb(unsigned long addr)
 {
+	/* ??? I wish I could get rid of this.  But there's no ioremap
+	   equivalent for I/O space.  PCI I/O can be forced into the
+	   PYXIS I/O region, but that doesn't take care of legacy ISA crap.  */
+
 	return __kernel_ldbu(*(vucp)(addr+PYXIS_BW_IO));
 }
 
-__EXTERN_INLINE void pyxis_bw_outb(unsigned char b, unsigned long addr)
+__EXTERN_INLINE void pyxis_outb(unsigned char b, unsigned long addr)
 {
 	__kernel_stb(b, *(vucp)(addr+PYXIS_BW_IO));
 	mb();
 }
 
-__EXTERN_INLINE unsigned int pyxis_bw_inw(unsigned long addr)
+__EXTERN_INLINE unsigned int pyxis_inw(unsigned long addr)
 {
 	return __kernel_ldwu(*(vusp)(addr+PYXIS_BW_IO));
 }
 
-__EXTERN_INLINE void pyxis_bw_outw(unsigned short b, unsigned long addr)
+__EXTERN_INLINE void pyxis_outw(unsigned short b, unsigned long addr)
 {
 	__kernel_stw(b, *(vusp)(addr+PYXIS_BW_IO));
 	mb();
 }
 
-__EXTERN_INLINE unsigned int pyxis_bw_inl(unsigned long addr)
+__EXTERN_INLINE unsigned int pyxis_inl(unsigned long addr)
 {
 	return *(vuip)(addr+PYXIS_BW_IO);
 }
 
-__EXTERN_INLINE void pyxis_bw_outl(unsigned int b, unsigned long addr)
-{
-	*(vuip)(addr+PYXIS_BW_IO) = b;
-	mb();
-}
-
-__EXTERN_INLINE unsigned int pyxis_inb(unsigned long addr)
-{
-	long result = *(vip) ((addr << 5) + PYXIS_IO + 0x00);
-	return __kernel_extbl(result, addr & 3);
-}
-
-__EXTERN_INLINE void pyxis_outb(unsigned char b, unsigned long addr)
-{
-	unsigned long w;
-
-	w = __kernel_insbl(b, addr & 3);
-	*(vuip) ((addr << 5) + PYXIS_IO + 0x00) = w;
-	mb();
-}
-
-__EXTERN_INLINE unsigned int pyxis_inw(unsigned long addr)
-{
-	long result = *(vip) ((addr << 5) + PYXIS_IO + 0x08);
-	return __kernel_extwl(result, addr & 3);
-}
-
-__EXTERN_INLINE void pyxis_outw(unsigned short b, unsigned long addr)
-{
-	unsigned long w;
-
-	w = __kernel_inswl(b, addr & 3);
-	*(vuip) ((addr << 5) + PYXIS_IO + 0x08) = w;
-	mb();
-}
-
-__EXTERN_INLINE unsigned int pyxis_inl(unsigned long addr)
-{
-	return *(vuip) ((addr << 5) + PYXIS_IO + 0x18);
-}
-
 __EXTERN_INLINE void pyxis_outl(unsigned int b, unsigned long addr)
 {
-	*(vuip) ((addr << 5) + PYXIS_IO + 0x18) = b;
+	*(vuip)(addr+PYXIS_BW_IO) = b;
 	mb();
 }
 
@@ -363,8 +326,8 @@ __EXTERN_INLINE void pyxis_outl(unsigned int b, unsigned long addr)
 /*
  * Memory functions.  64-bit and 32-bit accesses are done through
  * dense memory space, everything else through sparse space.
- * 
- * For reading and writing 8 and 16 bit quantities we need to 
+ *
+ * For reading and writing 8 and 16 bit quantities we need to
  * go through one of the three sparse address mapping regions
  * and use the HAE_MEM CSR to provide some bits of the address.
  * The following few routines use only sparse address region 1
@@ -373,10 +336,10 @@ __EXTERN_INLINE void pyxis_outl(unsigned int b, unsigned long addr)
  * See p 6-17 of the specification but it looks something like this:
  *
  * 21164 Address:
- * 
- *          3         2         1                                                               
+ *
+ *          3         2         1
  * 9876543210987654321098765432109876543210
- * 1ZZZZ0.PCI.QW.Address............BBLL                 
+ * 1ZZZZ0.PCI.QW.Address............BBLL
  *
  * ZZ = SBZ
  * BB = Byte offset
@@ -384,201 +347,62 @@ __EXTERN_INLINE void pyxis_outl(unsigned int b, unsigned long addr)
  *
  * PCI Address:
  *
- * 3         2         1                                                               
+ * 3         2         1
  * 10987654321098765432109876543210
  * HHH....PCI.QW.Address........ 00
  *
  * HHH = 31:29 HAE_MEM CSR
- * 
+ *
  */
-
-__EXTERN_INLINE unsigned long pyxis_bw_readb(unsigned long addr)
-{
-	return __kernel_ldbu(*(vucp)(addr+PYXIS_BW_MEM));
-}
-
-__EXTERN_INLINE unsigned long pyxis_bw_readw(unsigned long addr)
-{
-	return __kernel_ldwu(*(vusp)(addr+PYXIS_BW_MEM));
-}
-
-__EXTERN_INLINE unsigned long pyxis_bw_readl(unsigned long addr)
-{
-	return *(vuip)(addr+PYXIS_BW_MEM);
-}
-
-__EXTERN_INLINE unsigned long pyxis_bw_readq(unsigned long addr)
-{
-	return *(vulp)(addr+PYXIS_BW_MEM);
-}
-
-__EXTERN_INLINE void pyxis_bw_writeb(unsigned char b, unsigned long addr)
-{
-	__kernel_stb(b, *(vucp)(addr+PYXIS_BW_MEM));
-	mb();
-}
-
-__EXTERN_INLINE void pyxis_bw_writew(unsigned short b, unsigned long addr)
-{
-	__kernel_stw(b, *(vusp)(addr+PYXIS_BW_MEM));
-	mb();
-}
-
-__EXTERN_INLINE void pyxis_bw_writel(unsigned int b, unsigned long addr)
-{
-	*(vuip)(addr+PYXIS_BW_MEM) = b;
-}
-
-__EXTERN_INLINE void pyxis_bw_writeq(unsigned long b, unsigned long addr)
-{
-	*(vulp)(addr+PYXIS_BW_MEM) = b;
-}
-
-__EXTERN_INLINE unsigned long pyxis_srm_base(unsigned long addr)
-{
-	unsigned long mask, base;
-
-	if (addr >= alpha_mv.sm_base_r1
-	    && addr <= alpha_mv.sm_base_r1 + PYXIS_MEM_R1_MASK) {
-		mask = PYXIS_MEM_R1_MASK;
-		base = PYXIS_SPARSE_MEM;
-	}
-	else if (addr >= alpha_mv.sm_base_r2
-		 && addr <= alpha_mv.sm_base_r2 + PYXIS_MEM_R2_MASK) {
-		mask = PYXIS_MEM_R2_MASK;
-		base = PYXIS_SPARSE_MEM_R2;
-	}
-	else if (addr >= alpha_mv.sm_base_r3
-		 && addr <= alpha_mv.sm_base_r3 + PYXIS_MEM_R3_MASK) {
-		mask = PYXIS_MEM_R3_MASK;
-		base = PYXIS_SPARSE_MEM_R3;
-	}
-	else
-	{
-#if 0
-	  printk("pyxis: address 0x%lx not covered by HAE\n", addr);
-#endif
-	  return 0;
-	}
-
-	return ((addr & mask) << 5) + base;
-}
-
-__EXTERN_INLINE unsigned long pyxis_srm_readb(unsigned long addr)
-{
-	unsigned long result, work;
-
-	if ((work = pyxis_srm_base(addr)) == 0)
-		return 0xff;
-	work += 0x00;	/* add transfer length */
-
-	result = *(vip) work;
-	return __kernel_extbl(result, addr & 3);
-}
-
-__EXTERN_INLINE unsigned long pyxis_srm_readw(unsigned long addr)
-{
-	unsigned long result, work;
-
-	if ((work = pyxis_srm_base(addr)) == 0)
-		return 0xffff;
-	work += 0x08;	/* add transfer length */
-
-	result = *(vip) work;
-	return __kernel_extwl(result, addr & 3);
-}
-
-__EXTERN_INLINE void pyxis_srm_writeb(unsigned char b, unsigned long addr)
-{
-	unsigned long work = pyxis_srm_base(addr);
-	if (work) {
-		work += 0x00;	/* add transfer length */
-		*(vuip) work = b * 0x01010101;
-	}
-}
-
-__EXTERN_INLINE void pyxis_srm_writew(unsigned short b, unsigned long addr)
-{
-	unsigned long work = pyxis_srm_base(addr);
-	if (work) {
-		work += 0x08;	/* add transfer length */
-		*(vuip) work = b * 0x00010001;
-	}
-}
 
 __EXTERN_INLINE unsigned long pyxis_readb(unsigned long addr)
 {
-	unsigned long result, msb, work, temp;
-
-	msb = addr & 0xE0000000UL;
-	temp = addr & PYXIS_MEM_R1_MASK ;
-	set_hae(msb);
-
-	work = ((temp << 5) + PYXIS_SPARSE_MEM + 0x00);
-	result = *(vip) work;
-	return __kernel_extbl(result, addr & 3);
+	return __kernel_ldbu(*(vucp)addr);
 }
 
 __EXTERN_INLINE unsigned long pyxis_readw(unsigned long addr)
 {
-	unsigned long result, msb, work, temp;
-
-	msb = addr & 0xE0000000UL;
-	temp = addr & PYXIS_MEM_R1_MASK ;
-	set_hae(msb);
-
-	work = ((temp << 5) + PYXIS_SPARSE_MEM + 0x08);
-	result = *(vip) work;
-	return __kernel_extwl(result, addr & 3);
-}
-
-__EXTERN_INLINE void pyxis_writeb(unsigned char b, unsigned long addr)
-{
-        unsigned long msb ; 
-
-	msb = addr & 0xE0000000 ;
-	addr &= PYXIS_MEM_R1_MASK ;
-	set_hae(msb);
-
-	*(vuip) ((addr << 5) + PYXIS_SPARSE_MEM + 0x00) = b * 0x01010101;
-}
-
-__EXTERN_INLINE void pyxis_writew(unsigned short b, unsigned long addr)
-{
-        unsigned long msb ; 
-
-	msb = addr & 0xE0000000 ;
-	addr &= PYXIS_MEM_R1_MASK ;
-	set_hae(msb);
-
-	*(vuip) ((addr << 5) + PYXIS_SPARSE_MEM + 0x08) = b * 0x00010001;
+	return __kernel_ldwu(*(vusp)addr);
 }
 
 __EXTERN_INLINE unsigned long pyxis_readl(unsigned long addr)
 {
-	return *(vuip) (addr + PYXIS_DENSE_MEM);
+	return *(vuip)addr;
 }
 
 __EXTERN_INLINE unsigned long pyxis_readq(unsigned long addr)
 {
-	return *(vulp) (addr + PYXIS_DENSE_MEM);
+	return *(vulp)addr;
+}
+
+__EXTERN_INLINE void pyxis_writeb(unsigned char b, unsigned long addr)
+{
+	__kernel_stb(b, *(vucp)addr);
+}
+
+__EXTERN_INLINE void pyxis_writew(unsigned short b, unsigned long addr)
+{
+	__kernel_stw(b, *(vusp)addr);
 }
 
 __EXTERN_INLINE void pyxis_writel(unsigned int b, unsigned long addr)
 {
-	*(vuip) (addr + PYXIS_DENSE_MEM) = b;
+	*(vuip)addr = b;
 }
 
 __EXTERN_INLINE void pyxis_writeq(unsigned long b, unsigned long addr)
 {
-	*(vulp) (addr + PYXIS_DENSE_MEM) = b;
+	*(vulp)addr = b;
 }
 
-/* Find the DENSE memory area for a given bus address.  */
-
-__EXTERN_INLINE unsigned long pyxis_dense_mem(unsigned long addr)
+__EXTERN_INLINE unsigned long pyxis_ioremap(unsigned long addr)
 {
-	return PYXIS_DENSE_MEM;
+	return addr + PYXIS_BW_MEM;
+}
+
+__EXTERN_INLINE int pyxis_is_ioaddr(unsigned long addr)
+{
+	return addr >= IDENT_ADDR + 0x8740000000UL;
 }
 
 #undef vucp
@@ -592,69 +416,37 @@ __EXTERN_INLINE unsigned long pyxis_dense_mem(unsigned long addr)
 #define virt_to_bus	pyxis_virt_to_bus
 #define bus_to_virt	pyxis_bus_to_virt
 
-#if defined(BWIO_ENABLED) && !defined(CONFIG_ALPHA_RUFFIAN)
-# define __inb		pyxis_bw_inb
-# define __inw		pyxis_bw_inw
-# define __inl		pyxis_bw_inl
-# define __outb		pyxis_bw_outb
-# define __outw		pyxis_bw_outw
-# define __outl		pyxis_bw_outl
-# define __readb	pyxis_bw_readb
-# define __readw	pyxis_bw_readw
-# define __writeb	pyxis_bw_writeb
-# define __writew	pyxis_bw_writew
-# define __readl	pyxis_bw_readl
-# define __readq	pyxis_bw_readq
-# define __writel	pyxis_bw_writel
-# define __writeq	pyxis_bw_writeq
-#else
-# define __inb		pyxis_inb
-# define __inw		pyxis_inw
-# define __inl		pyxis_inl
-# define __outb		pyxis_outb
-# define __outw		pyxis_outw
-# define __outl		pyxis_outl
-# ifdef CONFIG_ALPHA_SRM_SETUP
-#  define __readb	pyxis_srm_readb
-#  define __readw	pyxis_srm_readw
-#  define __writeb	pyxis_srm_writeb
-#  define __writew	pyxis_srm_writew
-# else
-#  define __readb	pyxis_readb
-#  define __readw	pyxis_readw
-#  define __writeb	pyxis_writeb
-#  define __writew	pyxis_writew
-# endif
-# define __readl	pyxis_readl
-# define __readq	pyxis_readq
-# define __writel	pyxis_writel
-# define __writeq	pyxis_writeq
-#endif /* BWIO */
+#define __inb		pyxis_inb
+#define __inw		pyxis_inw
+#define __inl		pyxis_inl
+#define __outb		pyxis_outb
+#define __outw		pyxis_outw
+#define __outl		pyxis_outl
+#define __readb		pyxis_readb
+#define __readw		pyxis_readw
+#define __writeb	pyxis_writeb
+#define __writew	pyxis_writew
+#define __readl		pyxis_readl
+#define __readq		pyxis_readq
+#define __writel	pyxis_writel
+#define __writeq	pyxis_writeq
+#define __ioremap	pyxis_ioremap
+#define __is_ioaddr	pyxis_is_ioaddr
 
-#define dense_mem	pyxis_dense_mem
-
-#if defined(BWIO_ENABLED) && !defined(CONFIG_ALPHA_RUFFIAN)
-# define inb(port) __inb((port))
-# define inw(port) __inw((port))
-# define inl(port) __inl((port))
-# define outb(x, port) __outb((x),(port))
-# define outw(x, port) __outw((x),(port))
-# define outl(x, port) __outl((x),(port))
-# define readb(addr) __readb((addr))
-# define readw(addr) __readw((addr))
-# define writeb(b, addr) __writeb((b),(addr))
-# define writew(b, addr) __writew((b),(addr))
-#else
-# define inb(port) \
-  (__builtin_constant_p((port))?__inb(port):_inb(port))
-# define outb(x, port) \
-  (__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
-#endif /* BWIO */
-
-#define readl(a)	__readl((unsigned long)(a))
-#define readq(a)	__readq((unsigned long)(a))
-#define writel(v,a)	__writel((v),(unsigned long)(a))
-#define writeq(v,a)	__writeq((v),(unsigned long)(a))
+#define inb(port)		__inb((port))
+#define inw(port)		__inw((port))
+#define inl(port)		__inl((port))
+#define outb(x, port)		__outb((x),(port))
+#define outw(x, port)		__outw((x),(port))
+#define outl(x, port)		__outl((x),(port))
+#define __raw_readb(addr)	__readb((addr))
+#define __raw_readw(addr)	__readw((addr))
+#define __raw_writeb(b, addr)	__writeb((b),(addr))
+#define __raw_writew(b, addr)	__writew((b),(addr))
+#define __raw_readl(a)		__readl((unsigned long)(a))
+#define __raw_readq(a)		__readq((unsigned long)(a))
+#define __raw_writel(v,a)	__writel((v),(unsigned long)(a))
+#define __raw_writeq(v,a)	__writeq((v),(unsigned long)(a))
 
 #endif /* __WANT_IO_DEF */
 

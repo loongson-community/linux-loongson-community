@@ -1,4 +1,4 @@
-/* $Id: nosun4c.c,v 1.1 1998/03/09 14:04:16 jj Exp $
+/* $Id: nosun4c.c,v 1.2 1999/08/31 06:54:36 davem Exp $
  * nosun4c.c: This file is a bunch of dummies for SMP compiles, 
  *         so that it does not need sun4c and avoid ifdefs.
  *
@@ -23,19 +23,19 @@ struct sun4c_mmu_ring sun4c_kfree_ring;
 unsigned long sun4c_kernel_faults;
 unsigned long *sun4c_memerr_reg;
 
-__initfunc(static void should_not_happen(void))
+static void __init should_not_happen(void)
 {
 	prom_printf(shouldnothappen);
 	prom_halt();
 }
 
-__initfunc(unsigned long sun4c_paging_init(unsigned long start_mem, unsigned long end_mem))
+unsigned long __init sun4c_paging_init(unsigned long start_mem, unsigned long end_mem)
 {
 	should_not_happen();
 	return 0;
 }
 
-__initfunc(void ld_mmu_sun4c(void))
+void __init ld_mmu_sun4c(void)
 {
 	should_not_happen();
 }
@@ -66,12 +66,12 @@ void sun4c_update_mmu_cache(struct vm_area_struct *vma, unsigned long address, p
 {
 }
 
-__initfunc(void sun4c_probe_vac(void))
+void __init sun4c_probe_vac(void)
 {
 	should_not_happen();
 }
 
-__initfunc(void sun4c_probe_memerr_reg(void))
+void __init sun4c_probe_memerr_reg(void)
 {
 	should_not_happen();
 }

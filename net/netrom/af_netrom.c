@@ -147,7 +147,7 @@ static void nr_remove_socket(struct sock *sk)
 /*
  *	Kill all bound sockets on a dropped device.
  */
-static void nr_kill_by_device(struct device *dev)
+static void nr_kill_by_device(struct net_device *dev)
 {
 	struct sock *s;
 
@@ -162,7 +162,7 @@ static void nr_kill_by_device(struct device *dev)
  */
 static int nr_device_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	struct device *dev = (struct device *)ptr;
+	struct net_device *dev = (struct net_device *)ptr;
 
 	if (event != NETDEV_DOWN)
 		return NOTIFY_DONE;
@@ -545,7 +545,7 @@ static struct sock *nr_make_new(struct sock *osk)
 	return sk;
 }
 
-static int nr_release(struct socket *sock, struct socket *peer)
+static int nr_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
@@ -591,7 +591,7 @@ static int nr_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sock *sk = sock->sk;
 	struct full_sockaddr_ax25 *addr = (struct full_sockaddr_ax25 *)uaddr;
-	struct device *dev;
+	struct net_device *dev;
 	ax25_address *user, *source;
 
 	if (sk->zapped == 0)
@@ -647,7 +647,7 @@ static int nr_connect(struct socket *sock, struct sockaddr *uaddr,
 	struct sock *sk = sock->sk;
 	struct sockaddr_ax25 *addr = (struct sockaddr_ax25 *)uaddr;
 	ax25_address *user, *source = NULL;
-	struct device *dev;
+	struct net_device *dev;
 
 	if (sk->state == TCP_ESTABLISHED && sock->state == SS_CONNECTING) {
 		sock->state = SS_CONNECTED;
@@ -747,11 +747,6 @@ static int nr_accept(struct socket *sock, struct socket *newsock, int flags)
 	struct sock *newsk;
 	struct sk_buff *skb;
 
-	if (newsock->sk != NULL)
-		nr_destroy_socket(newsock->sk);
-
-	newsock->sk = NULL;
-
 	if ((sk = sock->sk) == NULL)
 		return -EINVAL;
 
@@ -818,7 +813,7 @@ static int nr_getname(struct socket *sock, struct sockaddr *uaddr,
 	return 0;
 }
 
-int nr_rx_frame(struct sk_buff *skb, struct device *dev)
+int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 {
 	struct sock *sk;
 	struct sock *make;	
@@ -1105,10 +1100,6 @@ static int nr_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	return copied;
 }
 
-static int nr_shutdown(struct socket *sk, int how)
-{
-	return -EOPNOTSUPP;
-}
 
 static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
@@ -1175,7 +1166,7 @@ static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 static int nr_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	struct sock *s;
-	struct device *dev;
+	struct net_device *dev;
 	const char *devname;
 	int len = 0;
 	off_t pos = 0;
@@ -1248,10 +1239,9 @@ static struct net_proto_family nr_family_ops =
 	nr_create
 };
 
-static struct proto_ops nr_proto_ops = {
+static struct proto_ops SOCKOPS_WRAPPED(nr_proto_ops) = {
 	PF_NETROM,
 
-	sock_no_dup,
 	nr_release,
 	nr_bind,
 	nr_connect,
@@ -1261,13 +1251,17 @@ static struct proto_ops nr_proto_ops = {
 	datagram_poll,
 	nr_ioctl,
 	nr_listen,
-	nr_shutdown,
+	sock_no_shutdown,
 	nr_setsockopt,
 	nr_getsockopt,
 	sock_no_fcntl,
 	nr_sendmsg,
-	nr_recvmsg
+	nr_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(nr_proto, PF_NETROM);
 
 static struct notifier_block nr_dev_notifier = {
 	nr_device_event,
@@ -1295,18 +1289,18 @@ static struct proc_dir_entry proc_net_nr_nodes = {
 };
 #endif	
 
-static struct device *dev_nr;
+static struct net_device *dev_nr;
 
-__initfunc(void nr_proto_init(struct net_proto *pro))
+void __init nr_proto_init(struct net_proto *pro)
 {
 	int i;
 
-	if ((dev_nr = kmalloc(nr_ndevs * sizeof(struct device), GFP_KERNEL)) == NULL) {
+	if ((dev_nr = kmalloc(nr_ndevs * sizeof(struct net_device), GFP_KERNEL)) == NULL) {
 		printk(KERN_ERR "NET/ROM: nr_proto_init - unable to allocate device structure\n");
 		return;
 	}
 
-	memset(dev_nr, 0x00, nr_ndevs * sizeof(struct device));
+	memset(dev_nr, 0x00, nr_ndevs * sizeof(struct net_device));
 
 	for (i = 0; i < nr_ndevs; i++) {
 		dev_nr[i].name = kmalloc(20, GFP_KERNEL);

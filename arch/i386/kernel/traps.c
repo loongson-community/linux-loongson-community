@@ -20,6 +20,7 @@
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/spinlock.h>
 
 #ifdef CONFIG_MCA
 #include <linux/mca.h>
@@ -29,7 +30,6 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#include <asm/spinlock.h>
 #include <asm/atomic.h>
 #include <asm/debugreg.h>
 #include <asm/desc.h>
@@ -42,12 +42,14 @@
 #include <asm/lithium.h>
 #endif
 
-#include "irq.h"
+#include <linux/irq.h>
 
 asmlinkage int system_call(void);
 asmlinkage void lcall7(void);
+asmlinkage void lcall27(void);
 
-struct desc_struct default_ldt = { 0, 0 };
+struct desc_struct default_ldt[] = { { 0, 0 }, { 0, 0 }, { 0, 0 },
+		{ 0, 0 }, { 0, 0 } };
 
 /*
  * The IDT has to be page-aligned to simplify the Pentium
@@ -65,10 +67,10 @@ static inline void console_verbose(void)
 #define DO_ERROR(trapnr, signr, str, name, tsk) \
 asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
 { \
-	tsk->tss.error_code = error_code; \
-	tsk->tss.trap_no = trapnr; \
-	force_sig(signr, tsk); \
+	tsk->thread.error_code = error_code; \
+	tsk->thread.trap_no = trapnr; \
 	die_if_no_fixup(str,regs,error_code); \
+	force_sig(signr, tsk); \
 }
 
 #define DO_VM86_ERROR(trapnr, signr, str, name, tsk) \
@@ -80,8 +82,8 @@ asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
 			goto out; \
 		/* else fall through */ \
 	} \
-	tsk->tss.error_code = error_code; \
-	tsk->tss.trap_no = trapnr; \
+	tsk->thread.error_code = error_code; \
+	tsk->thread.trap_no = trapnr; \
 	force_sig(signr, tsk); \
 	die_if_kernel(str,regs,error_code); \
 out: \
@@ -143,10 +145,8 @@ static void show_registers(struct pt_regs *regs)
 		regs->esi, regs->edi, regs->ebp, esp);
 	printk("ds: %04x   es: %04x   ss: %04x\n",
 		regs->xds & 0xffff, regs->xes & 0xffff, ss);
-	store_TR(i);
-	printk("Process %s (pid: %d, process nr: %d, stackpage=%08lx)",
-		current->comm, current->pid, 0xffff & i, 4096+(unsigned long)current);
-
+	printk("Process %s (pid: %d, stackpage=%08lx)",
+		current->comm, current->pid, 4096+(unsigned long)current);
 	/*
 	 * When in-kernel, we also print out the stack and code at the
 	 * time of the fault..
@@ -201,6 +201,9 @@ void die(const char * str, struct pt_regs * regs, long err)
 	spin_lock_irq(&die_lock);
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_registers(regs);
+
+spin_lock_irq(&die_lock);
+
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
@@ -249,8 +252,8 @@ asmlinkage void cache_flush_denied(struct pt_regs * regs, long error_code)
 		return;
 	}
 	die_if_kernel("cache flush denied",regs,error_code);
-	current->tss.error_code = error_code;
-	current->tss.trap_no = 19;
+	current->thread.error_code = error_code;
+	current->thread.trap_no = 19;
 	force_sig(SIGSEGV, current);
 }
 
@@ -262,8 +265,8 @@ asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 	if (!(regs->xcs & 3))
 		goto gp_in_kernel;
 
-	current->tss.error_code = error_code;
-	current->tss.trap_no = 13;
+	current->thread.error_code = error_code;
+	current->thread.trap_no = 13;
 	force_sig(SIGSEGV, current);
 	return;
 
@@ -354,10 +357,16 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 	unsigned int condition;
 	struct task_struct *tsk = current;
 
+	__asm__ __volatile__("movl %%db6,%0" : "=r" (condition));
+
+	/* Mask out spurious debug traps due to lazy DR7 setting */
+	if (condition & (DR_TRAP0|DR_TRAP1|DR_TRAP2|DR_TRAP3)) {
+		if (!tsk->thread.debugreg[7])
+			goto clear_dr7;
+	}
+
 	if (regs->eflags & VM_MASK)
 		goto debug_vm86;
-
-	__asm__ __volatile__("movl %%db6,%0" : "=r" (condition));
 
 	/* Mask out spurious TF errors due to lazy TF clearing */
 	if (condition & DR_STEP) {
@@ -374,19 +383,13 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 			goto clear_TF;
 	}
 
-	/* Mast out spurious debug traps due to lazy DR7 setting */
-	if (condition & (DR_TRAP0|DR_TRAP1|DR_TRAP2|DR_TRAP3)) {
-		if (!tsk->tss.debugreg[7])
-			goto clear_dr7;
-	}
-
 	/* If this is a kernel mode trap, we need to reset db7 to allow us to continue sanely */
 	if ((regs->xcs & 3) == 0)
 		goto clear_dr7;
 
 	/* Ok, finally something we can handle */
-	tsk->tss.trap_no = 1;
-	tsk->tss.error_code = error_code;
+	tsk->thread.trap_no = 1;
+	tsk->thread.error_code = error_code;
 	force_sig(SIGTRAP, tsk);
 	return;
 
@@ -422,8 +425,8 @@ void math_error(void)
 	 */
 	task = current;
 	save_fpu(task);
-	task->tss.trap_no = 16;
-	task->tss.error_code = 0;
+	task->thread.trap_no = 16;
+	task->thread.error_code = 0;
 	force_sig(SIGFPE, task);
 }
 
@@ -453,7 +456,7 @@ asmlinkage void math_state_restore(struct pt_regs regs)
 {
 	__asm__ __volatile__("clts");		/* Allow maths ops (or we recurse) */
 	if(current->used_math)
-		__asm__("frstor %0": :"m" (current->tss.i387));
+		__asm__("frstor %0": :"m" (current->thread.i387));
 	else
 	{
 		/*
@@ -479,13 +482,14 @@ asmlinkage void math_emulate(long arg)
 
 #endif /* CONFIG_MATH_EMULATION */
 
-__initfunc(void trap_init_f00f_bug(void))
+void __init trap_init_f00f_bug(void)
 {
 	unsigned long page;
 	pgd_t * pgd;
 	pmd_t * pmd;
 	pte_t * pte;
 
+return;
 	/*
 	 * Allocate a new page in virtual address space, 
 	 * move the IDT into it and write protect this page.
@@ -570,12 +574,12 @@ __asm__ __volatile__ ("movw %3,0(%2)\n\t" \
 
 void set_tss_desc(unsigned int n, void *addr)
 {
-	_set_tssldt_desc(gdt_table+FIRST_TSS_ENTRY+(n<<1), (int)addr, 235, 0x89);
+	_set_tssldt_desc(gdt_table+__TSS(n), (int)addr, 235, 0x89);
 }
 
 void set_ldt_desc(unsigned int n, void *addr, unsigned int size)
 {
-	_set_tssldt_desc(gdt_table+FIRST_LDT_ENTRY+(n<<1), (int)addr, ((size << 3) - 1), 0x82);
+	_set_tssldt_desc(gdt_table+__LDT(n), (int)addr, ((size << 3)-1), 0x82);
 }
 
 #ifdef CONFIG_X86_VISWS_APIC
@@ -672,7 +676,7 @@ void __init trap_init(void)
 {
 	if (readl(0x0FFFD9) == 'E' + ('I'<<8) + ('S'<<16) + ('A'<<24))
 		EISA_bus = 1;
-	set_call_gate(&default_ldt,lcall7);
+
 	set_trap_gate(0,&divide_error);
 	set_trap_gate(1,&debug);
 	set_trap_gate(2,&nmi);
@@ -693,14 +697,22 @@ void __init trap_init(void)
 	set_trap_gate(17,&alignment_check);
 	set_system_gate(SYSCALL_VECTOR,&system_call);
 
-	/* set up GDT task & ldt entries */
-	set_tss_desc(0, &init_task.tss);
-	set_ldt_desc(0, &default_ldt, 1);
+	/*
+	 * default LDT is a single-entry callgate to lcall7 for iBCS
+	 * and a callgate to lcall27 for Solaris/x86 binaries
+	 */
+	set_call_gate(&default_ldt[0],lcall7);
+	set_call_gate(&default_ldt[4],lcall27);
 
-	/* Clear NT, so that we won't have troubles with that later on */
-	__asm__("pushfl ; andl $0xffffbfff,(%esp) ; popfl");
-	load_TR(0);
-	load_ldt(0);
+	/*
+	 * on SMP we do not yet know which CPU is on which TSS,
+	 * so we delay this until smp_init(). (the CPU is already
+	 * in a reasonable state, otherwise we wouldnt have gotten so far :)
+	 */
+#ifndef __SMP__
+	cpu_init();
+#endif
+
 #ifdef CONFIG_X86_VISWS_APIC
 	superio_init();
 	lithium_init();

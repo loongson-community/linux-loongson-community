@@ -1,4 +1,4 @@
-/* $Id: debuglocks.c,v 1.7 1999/04/21 02:26:58 anton Exp $
+/* $Id: debuglocks.c,v 1.10 1999/09/10 10:40:36 davem Exp $
  * debuglocks.c: Debugging versions of SMP locking primitives.
  *
  * Copyright (C) 1997 David S. Miller (davem@caip.rutgers.edu)
@@ -7,10 +7,10 @@
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/tasks.h>	/* For NR_CPUS */
+#include <linux/threads.h>	/* For NR_CPUS */
+#include <linux/spinlock.h>
 #include <asm/psr.h>
 #include <asm/system.h>
-#include <asm/spinlock.h>
 
 /* To enable this code, just define SPIN_LOCK_DEBUG in asm/spinlock.h */
 #ifdef SPIN_LOCK_DEBUG
@@ -53,7 +53,7 @@ static inline void show_write(char *str, rwlock_t *lock, unsigned long caller)
 		lock, cpu, caller, lock->owner_pc & ~3, lock->owner_pc & 3);
 
 	for(i = 0; i < NR_CPUS; i++)
-		printk(" reader[i]=%08lx", lock->reader_pc[i]);
+		printk(" reader[%d]=%08lx", i, lock->reader_pc[i]);
 
 	printk("\n");
 }

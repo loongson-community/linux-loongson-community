@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.80 1999/05/27 04:52:40 davem Exp $ */
+/* $Id: pgtable.h,v 1.82 1999/09/10 10:44:21 davem Exp $ */
 #ifndef _SPARC_PGTABLE_H
 #define _SPARC_PGTABLE_H
 
@@ -11,6 +11,7 @@
 
 #include <linux/mm.h>
 #include <linux/config.h>
+#include <linux/spinlock.h>
 #include <asm/asi.h>
 #ifdef CONFIG_SUN4
 #include <asm/pgtsun4.h>
@@ -22,7 +23,6 @@
 #include <asm/oplib.h>
 #include <asm/sbus.h>
 #include <asm/btfixup.h>
-#include <asm/spinlock.h>
 
 extern void load_mmu(void);
 extern int io_remap_page_range(unsigned long from, unsigned long to,

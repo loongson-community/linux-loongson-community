@@ -43,9 +43,9 @@
 #include <linux/sched.h>
 #include <linux/stat.h>
 #include <linux/pci.h>
+#include <linux/spinlock.h>
 #include <asm/dma.h>
 #include <asm/io.h>
-#include <asm/spinlock.h>
 #include <asm/system.h>
 #include "scsi.h"
 #include "hosts.h"
@@ -781,14 +781,12 @@ static int BusLogic_InitializeMultiMasterProbeInfo(BusLogic_HostAdapter_T
       unsigned char Bus = PCI_Device->bus->number;
       unsigned char Device = PCI_Device->devfn >> 3;
       unsigned int IRQ_Channel = PCI_Device->irq;
-      unsigned long BaseAddress0 = PCI_Device->base_address[0];
-      unsigned long BaseAddress1 = PCI_Device->base_address[1];
-      BusLogic_IO_Address_T IO_Address =
-	BaseAddress0 & PCI_BASE_ADDRESS_IO_MASK;
-      BusLogic_PCI_Address_T PCI_Address =
-	BaseAddress1 & PCI_BASE_ADDRESS_MEM_MASK;
-      if ((BaseAddress0 & PCI_BASE_ADDRESS_SPACE)
-	  != PCI_BASE_ADDRESS_SPACE_IO)
+      unsigned long BaseAddress0 = PCI_Device->resource[0].start;
+      unsigned long BaseAddress1 = PCI_Device->resource[1].start;
+      BusLogic_IO_Address_T IO_Address = BaseAddress0;
+      BusLogic_PCI_Address_T PCI_Address = BaseAddress1;
+      
+      if (!(PCI_Device->resource[0].flags & PCI_BASE_ADDRESS_SPACE_IO))
 	{
 	  BusLogic_Error("BusLogic: Base Address0 0x%X not I/O for "
 			 "MultiMaster Host Adapter\n", NULL, BaseAddress0);
@@ -796,8 +794,7 @@ static int BusLogic_InitializeMultiMasterProbeInfo(BusLogic_HostAdapter_T
 			 NULL, Bus, Device, IO_Address);
 	  continue;
 	}
-      if ((BaseAddress1 & PCI_BASE_ADDRESS_SPACE)
-	  != PCI_BASE_ADDRESS_SPACE_MEMORY)
+      if (PCI_Device->resource[1].flags & PCI_BASE_ADDRESS_SPACE_IO)
 	{
 	  BusLogic_Error("BusLogic: Base Address1 0x%X not Memory for "
 			 "MultiMaster Host Adapter\n", NULL, BaseAddress1);
@@ -986,8 +983,8 @@ static int BusLogic_InitializeMultiMasterProbeInfo(BusLogic_HostAdapter_T
       unsigned char Bus = PCI_Device->bus->number;
       unsigned char Device = PCI_Device->devfn >> 3;
       unsigned int IRQ_Channel = PCI_Device->irq;
-      BusLogic_IO_Address_T IO_Address =
-	PCI_Device->base_address[0] & PCI_BASE_ADDRESS_IO_MASK;
+      BusLogic_IO_Address_T IO_Address = PCI_Device->resource[0].start;
+
       if (IO_Address == 0 || IRQ_Channel == 0) continue;
       for (i = 0; i < BusLogic_ProbeInfoCount; i++)
 	{
@@ -1030,15 +1027,12 @@ static int BusLogic_InitializeFlashPointProbeInfo(BusLogic_HostAdapter_T
       unsigned char Bus = PCI_Device->bus->number;
       unsigned char Device = PCI_Device->devfn >> 3;
       unsigned int IRQ_Channel = PCI_Device->irq;
-      unsigned long BaseAddress0 = PCI_Device->base_address[0];
-      unsigned long BaseAddress1 = PCI_Device->base_address[1];
-      BusLogic_IO_Address_T IO_Address =
-	BaseAddress0 & PCI_BASE_ADDRESS_IO_MASK;
-      BusLogic_PCI_Address_T PCI_Address =
-	BaseAddress1 & PCI_BASE_ADDRESS_MEM_MASK;
+      unsigned long BaseAddress0 = PCI_Device->resource[0].start;
+      unsigned long BaseAddress1 = PCI_Device->resource[1].start;
+      BusLogic_IO_Address_T IO_Address = BaseAddress0;
+      BusLogic_PCI_Address_T PCI_Address = BaseAddress1;
 #ifndef CONFIG_SCSI_OMIT_FLASHPOINT
-      if ((BaseAddress0 & PCI_BASE_ADDRESS_SPACE)
-	  != PCI_BASE_ADDRESS_SPACE_IO)
+      if (!(PCI_Device->resource[0].flags & PCI_BASE_ADDRESS_SPACE_IO))
 	{
 	  BusLogic_Error("BusLogic: Base Address0 0x%X not I/O for "
 			 "FlashPoint Host Adapter\n", NULL, BaseAddress0);
@@ -1046,8 +1040,7 @@ static int BusLogic_InitializeFlashPointProbeInfo(BusLogic_HostAdapter_T
 			 NULL, Bus, Device, IO_Address);
 	  continue;
 	}
-      if ((BaseAddress1 & PCI_BASE_ADDRESS_SPACE)
-	  != PCI_BASE_ADDRESS_SPACE_MEMORY)
+      if (PCI_Device->resource[1].flags & PCI_BASE_ADDRESS_SPACE_IO)
 	{
 	  BusLogic_Error("BusLogic: Base Address1 0x%X not Memory for "
 			 "FlashPoint Host Adapter\n", NULL, BaseAddress1);

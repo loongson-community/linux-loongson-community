@@ -6,7 +6,7 @@
  * Status:	  Experimental.
  * Author:	  Dag Brattli <dagb@cs.uit.no>
  * Created at:	  Sun Aug  3 13:49:59 1997
- * Modified at:   Tue Jun  1 10:02:42 1999
+ * Modified at:   Tue Aug 31 13:54:27 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * Sources:	  serial.c by Linus Torvalds 
  * 
@@ -47,11 +47,11 @@
 #include <linux/serial_reg.h>
 #include <linux/errno.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
-#include <asm/spinlock.h>
 
 #include <net/irda/irda.h>
 #include <net/irda/irmod.h>
@@ -79,9 +79,9 @@ static void irport_write_wakeup(struct irda_device *idev);
 static int  irport_write(int iobase, int fifo_size, __u8 *buf, int len);
 static void irport_receive(struct irda_device *idev);
 
-static int  irport_net_init(struct device *dev);
-static int  irport_net_open(struct device *dev);
-static int  irport_net_close(struct device *dev);
+static int  irport_net_init(struct net_device *dev);
+static int  irport_net_open(struct net_device *dev);
+static int  irport_net_close(struct net_device *dev);
 static int  irport_is_receiving(struct irda_device *idev);
 static void irport_set_dtr_rts(struct irda_device *idev, int dtr, int rts);
 static int  irport_raw_write(struct irda_device *idev, __u8 *buf, int len);
@@ -272,7 +272,7 @@ int irport_probe(int iobase)
  *    Set speed of IrDA port to specified baudrate
  *
  */
-void irport_change_speed(struct irda_device *idev, int speed)
+void irport_change_speed(struct irda_device *idev, __u32 speed)
 {
 	unsigned long flags;
 	int iobase; 
@@ -280,7 +280,7 @@ void irport_change_speed(struct irda_device *idev, int speed)
 	int lcr;    /* Line control reg */
 	int divisor;
 
-	DEBUG(0, __FUNCTION__ "(), Setting speed to: %d\n", speed);
+	DEBUG(2, __FUNCTION__ "(), Setting speed to: %d\n", speed);
 
 	ASSERT(idev != NULL, return;);
 	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return;);
@@ -319,7 +319,7 @@ void irport_change_speed(struct irda_device *idev, int speed)
 	outb(fcr,		  iobase+UART_FCR); /* Enable FIFO's */
 
 	/* Turn on interrups */
-	outb(UART_IER_RLSI|UART_IER_RDI|UART_IER_THRI, iobase+UART_IER);
+	outb(/*UART_IER_RLSI|*/UART_IER_RDI/*|UART_IER_THRI*/, iobase+UART_IER);
 
 	spin_unlock_irqrestore(&idev->lock, flags);
 }
@@ -375,7 +375,7 @@ static void irport_write_wakeup(struct irda_device *idev)
 		outb(fcr, iobase+UART_FCR);
 
 		/* Turn on receive interrupts */
-		outb(UART_IER_RLSI|UART_IER_RDI, iobase+UART_IER); 
+		outb(/* UART_IER_RLSI| */UART_IER_RDI, iobase+UART_IER);
 	}
 }
 
@@ -413,7 +413,7 @@ static int irport_write(int iobase, int fifo_size, __u8 *buf, int len)
  *    waits until the next transmitt interrupt, and continues until the
  *    frame is transmited.
  */
-int irport_hard_xmit(struct sk_buff *skb, struct device *dev)
+int irport_hard_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct irda_device *idev;
 	unsigned long flags;
@@ -432,7 +432,7 @@ int irport_hard_xmit(struct sk_buff *skb, struct device *dev)
 	/* Lock transmit buffer */
 	if (irda_lock((void *) &dev->tbusy) == FALSE) {
 		int tickssofar = jiffies - dev->trans_start;
-		if (tickssofar < 5)
+		if ((tickssofar < 5) || !dev->start)
 			return -EBUSY;
 
 		WARNING("%s: transmit timed out\n", dev->name);
@@ -443,7 +443,7 @@ int irport_hard_xmit(struct sk_buff *skb, struct device *dev)
 	}
 
 	spin_lock_irqsave(&idev->lock, flags);
-	
+
 	/* Init tx buffer */
 	idev->tx_buff.data = idev->tx_buff.head;
 
@@ -465,15 +465,15 @@ int irport_hard_xmit(struct sk_buff *skb, struct device *dev)
 }
         
 /*
- * Function irport_receive (void)
+ * Function irport_receive (idev)
  *
  *    Receive one frame from the infrared port
  *
  */
 static void irport_receive(struct irda_device *idev) 
 {
-	int iobase;
 	int boguscount = 0;
+	int iobase;
 
 	ASSERT(idev != NULL, return;);
 
@@ -488,7 +488,7 @@ static void irport_receive(struct irda_device *idev)
 
 		/* Make sure we don't stay here to long */
 		if (boguscount++ > 32) {
-			DEBUG(0,__FUNCTION__ "(), breaking!\n");
+			DEBUG(2,__FUNCTION__ "(), breaking!\n");
 			break;
 		}
 	} while (inb(iobase+UART_LSR) & UART_LSR_DR);	
@@ -527,12 +527,11 @@ void irport_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 		switch (iir) {
 		case UART_IIR_RLSI:
-			DEBUG(0, __FUNCTION__ "(), RLSI\n");
+			DEBUG(2, __FUNCTION__ "(), RLSI\n");
 			break;
 		case UART_IIR_RDI:
-			if (lsr & UART_LSR_DR)
-				/* Receive interrupt */
-				irport_receive(idev);
+			/* Receive interrupt */
+			irport_receive(idev);
 			break;
 		case UART_IIR_THRI:
 			if (lsr & UART_LSR_THRE)
@@ -545,7 +544,7 @@ void irport_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		} 
 		
 		/* Make sure we don't stay here to long */
-		if (boguscount++ > 32)
+		if (boguscount++ > 100)
 			break;
 
  	        iir = inb(iobase + UART_IIR) & UART_IIR_ID;
@@ -555,7 +554,7 @@ void irport_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	spin_unlock(&idev->lock);
 }
 
-static int irport_net_init(struct device *dev)
+static int irport_net_init(struct net_device *dev)
 {
 	/* Set up to be a normal IrDA network device driver */
 	irda_device_setup(dev);
@@ -571,7 +570,7 @@ static int irport_net_init(struct device *dev)
  *    
  *
  */
-static int irport_net_open(struct device *dev)
+static int irport_net_open(struct net_device *dev)
 {
 	struct irda_device *idev;
 	int iobase;
@@ -586,17 +585,13 @@ static int irport_net_open(struct device *dev)
 		return -EAGAIN;
 
 	irport_start(idev, iobase);
-
-	MOD_INC_USE_COUNT;
-
-	/* Ready to play! */
-	dev->tbusy = 0;
-	dev->interrupt = 0;
-	dev->start = 1;
+	irda_device_net_open(dev);
 
 	/* Change speed to make sure dongles follow us again */
 	if (idev->change_speed)
 		idev->change_speed(idev, 9600);
+
+	MOD_INC_USE_COUNT;
 
 	return 0;
 }
@@ -607,22 +602,22 @@ static int irport_net_open(struct device *dev)
  *    
  *
  */
-static int irport_net_close(struct device *dev)
+static int irport_net_close(struct net_device *dev)
 {
 	struct irda_device *idev;
 	int iobase;
 
+	DEBUG(4, __FUNCTION__ "()\n");
+
 	ASSERT(dev != NULL, return -1;);
 	idev = (struct irda_device *) dev->priv;
 
-	DEBUG(4, __FUNCTION__ "()\n");
+	ASSERT(idev != NULL, return -1;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return -1;)
 
 	iobase = idev->io.iobase2;
 
-	/* Stop device */
-	dev->tbusy = 1;
-	dev->start = 0;
-
+	irda_device_net_close(dev);
 	irport_stop(idev, iobase);
 
 	free_irq(idev->io.irq2, idev);
@@ -664,7 +659,7 @@ static int irport_is_receiving(struct irda_device *idev)
 }
 
 /*
- * Function irtty_set_dtr_rts (tty, dtr, rts)
+ * Function irport_set_dtr_rts (tty, dtr, rts)
  *
  *    This function can be used by dongles etc. to set or reset the status
  *    of the dtr and rts lines

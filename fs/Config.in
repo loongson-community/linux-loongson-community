@@ -31,6 +31,11 @@ else
   define_bool CONFIG_JOLIET n
 fi
 
+tristate 'UDF filesystem support' CONFIG_UDF_FS
+if [ "$CONFIG_UDF_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool '   UDF read-write support (EXPERIMENTAL)' CONFIG_UDF_RW
+fi
+
 tristate 'Minix fs support' CONFIG_MINIX_FS
 tristate 'NTFS filesystem support (read only)' CONFIG_NTFS_FS
 if [ "$CONFIG_NTFS_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -71,11 +76,10 @@ if [ "$CONFIG_INET" = "y" ]; then
   if [ "$CONFIG_NFS_FS" = "y" -a "$CONFIG_IP_PNP" = "y" ]; then
     bool '   Root file system on NFS' CONFIG_ROOT_NFS
   fi
-  if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-    tristate 'NFS server support' CONFIG_NFSD
-    if [ "$CONFIG_NFSD" != "n" ]; then
-      bool '   Emulate SUN NFS server' CONFIG_NFSD_SUN
-    fi
+  # considering that RedHat-6.0 ships with this on, I guess it's not really experimental
+  tristate 'NFS server support' CONFIG_NFSD
+  if [ "$CONFIG_NFSD" != "n" ]; then
+    bool '   Emulate SUN NFS server' CONFIG_NFSD_SUN
   fi
   if [ "$CONFIG_NFS_FS" = "y" -o "$CONFIG_NFSD" = "y" ]; then
     define_bool CONFIG_SUNRPC y
@@ -103,24 +107,7 @@ fi
 
 mainmenu_option next_comment
 comment 'Partition Types'
-
-bool 'BSD disklabel (BSD partition tables) support' CONFIG_BSD_DISKLABEL
-bool 'Macintosh partition map support' CONFIG_MAC_PARTITION
-bool 'OSF partition table support' CONFIG_OSF_PARTITION
-bool 'SMD disklabel (Sun partition tables) support' CONFIG_SMD_DISKLABEL
-bool 'Solaris (x86) partition table support' CONFIG_SOLARIS_X86_PARTITION
-bool 'SGI disklabel support' CONFIG_SGI_DISKLABEL
-if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-  bool 'Ultrix partition table support (experimental)' CONFIG_ULTRIX_PARTITION
-  bool 'Unixware slices support (EXPERIMENTAL)' CONFIG_UNIXWARE_DISKLABEL
-fi
-
+source fs/partitions/Config.in
 endmenu
-
-if [ "$CONFIG_AFFS_FS" != "n" ]; then
-  define_bool CONFIG_AMIGA_PARTITION y
-fi
-
 source fs/nls/Config.in
-
 endmenu

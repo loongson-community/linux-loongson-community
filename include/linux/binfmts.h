@@ -38,7 +38,8 @@ struct linux_binfmt {
 	struct module *module;
 	int (*load_binary)(struct linux_binprm *, struct  pt_regs * regs);
 	int (*load_shlib)(int fd);
-	int (*core_dump)(long signr, struct pt_regs * regs);
+	int (*core_dump)(long signr, struct pt_regs * regs, struct file * file);
+	unsigned long min_coredump;	/* minimal dump size */
 };
 
 extern int register_binfmt(struct linux_binfmt *);
@@ -49,15 +50,6 @@ extern int read_exec(struct dentry *, unsigned long offset,
 
 extern int open_dentry(struct dentry *, int mode);
 
-extern int init_elf_binfmt(void);
-extern int init_elf32_binfmt(void);
-extern int init_irix_binfmt(void);
-extern int init_aout_binfmt(void);
-extern int init_aout32_binfmt(void);
-extern int init_script_binfmt(void);
-extern int init_em86_binfmt(void);
-extern int init_misc_binfmt(void);
-
 extern int prepare_binprm(struct linux_binprm *);
 extern void remove_arg_zero(struct linux_binprm *);
 extern int search_binary_handler(struct linux_binprm *,struct pt_regs *);
@@ -66,6 +58,7 @@ extern int setup_arg_pages(struct linux_binprm * bprm);
 extern int copy_strings(int argc,char ** argv,struct linux_binprm *bprm); 
 extern int copy_strings_kernel(int argc,char ** argv,struct linux_binprm *bprm);
 extern void compute_creds(struct linux_binprm *binprm);
+extern int do_coredump(long signr, struct pt_regs * regs);
 
 
 #if 0

@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.1 1999/08/18 23:37:47 ralf Exp $
+/* $Id: fault.c,v 1.2 1999/09/28 22:25:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -110,8 +110,8 @@ bad_area:
 	up(&mm->mmap_sem);
 
 	if (user_mode(regs)) {
-		tsk->tss.cp0_badvaddr = address;
-		tsk->tss.error_code = write;
+		tsk->thread.cp0_badvaddr = address;
+		tsk->thread.error_code = write;
 #if 0
 		printk("do_page_fault() #2: sending SIGSEGV to %s for illegal %s\n"
 		       "%08lx (epc == %08lx, ra == %08lx)\n",
@@ -131,7 +131,7 @@ no_context:
 	if (fixup) {
 		long new_epc;
 
-		tsk->tss.cp0_baduaddr = address;
+		tsk->thread.cp0_baduaddr = address;
 		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
 		if (development_version)
 			printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
@@ -168,7 +168,7 @@ do_sigbus:
 	 * Send a sigbus, regardless of whether we were in kernel
 	 * or user mode.
 	 */
-	tsk->tss.cp0_badvaddr = address;
+	tsk->thread.cp0_badvaddr = address;
 	force_sig(SIGBUS, tsk);
 
 	/* Kernel mode? Handle exceptions or die */

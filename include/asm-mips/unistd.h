@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.14 1999/04/01 23:24:00 ulfc Exp $
+/* $Id: unistd.h,v 1.15 1999/09/28 22:27:18 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1419,7 +1419,6 @@ return -1; \
  * some others too.
  */
 #define __NR__exit __NR_exit
-static inline _syscall0(int,idle)
 static inline _syscall0(int,sync)
 static inline _syscall0(pid_t,setsid)
 static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)

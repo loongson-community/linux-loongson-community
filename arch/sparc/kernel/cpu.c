@@ -7,7 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/smp.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 #include <asm/oplib.h>
 #include <asm/page.h>
 #include <asm/head.h>
@@ -123,7 +123,7 @@ char *sparc_fpu_type[NR_CPUS] = { 0 };
 
 unsigned int fsr_storage;
 
-__initfunc(void cpu_probe(void))
+void __init cpu_probe(void)
 {
 	int psr_impl, psr_vers, fpu_vers;
 	int i, cpuid, psr;

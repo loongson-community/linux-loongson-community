@@ -1,5 +1,5 @@
 /*
- * $Id: totalmp.c,v 1.5 1998/08/26 13:58:50 cort Exp $
+ * $Id: totalmp.c,v 1.6 1999/08/31 06:54:10 davem Exp $
  *
  * Support for Total Impact's TotalMP PowerPC accelerator board.
  *
@@ -25,7 +25,7 @@ extern void totalmp_init(void);
 
 extern inline void openpic_writefield(volatile u_int *addr, u_int mask,
 				      u_int field);
-__initfunc(void totalmp_init(void))
+void __init totalmp_init(void)
 {
 	struct pci_dev *dev;
 	u32 val;

@@ -63,8 +63,7 @@
 #define ACSI_MAJOR	28
 #define AZTECH_CDROM_MAJOR 29
 #define GRAPHDEV_MAJOR	29	/* SparcLinux & Linux/68k /dev/fb */
-#define SHMIQ_MAJOR	85	/* Linux/MIPS, SGI /dev/shmiq */
-#define USEMA_MAJOR	86	/* Linux/MIPS, SGI /dev/usema */
+#define SHMIQ_MAJOR	85	/* Linux/mips, SGI /dev/shmiq */
 #define CM206_CDROM_MAJOR 32
 #define IDE2_MAJOR	33
 #define IDE3_MAJOR	34
@@ -76,6 +75,7 @@
 #define DDV_MAJOR       39   /* AP1000 DDV block device */
 #define NBD_MAJOR	43   /* Network block device	*/
 #define RISCOM8_NORMAL_MAJOR 48
+#define DAC960_MAJOR	48	/* 48..55 */
 #define RISCOM8_CALLOUT_MAJOR 49
 #define MKISS_MAJOR	55
 #define DSP56K_MAJOR    55   /* DSP56001 processor device */
@@ -112,8 +112,12 @@
 
 #define IDE6_MAJOR	88
 #define IDE7_MAJOR	89
+#define IDE8_MAJOR	90
+#define IDE9_MAJOR	91
 
 #define AURORA_MAJOR 79
+
+#define RAW_MAJOR	162
 
 #define UNIX98_PTY_MASTER_MAJOR	128
 #define UNIX98_PTY_MAJOR_COUNT	8

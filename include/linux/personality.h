@@ -27,9 +27,11 @@
 #define PER_IRIX32              (0x0009 | STICKY_TIMEOUTS) /* IRIX5 32-bit     */
 #define PER_IRIXN32             (0x000a | STICKY_TIMEOUTS) /* IRIX6 new 32-bit */
 #define PER_IRIX64              (0x000b | STICKY_TIMEOUTS) /* IRIX6 64-bit     */
+#define PER_RISCOS		(0x000c)
+#define PER_SOLARIS		(0x000d | STICKY_TIMEOUTS)
 
 /* Prototype for an lcall7 syscall handler. */
-typedef void (*lcall7_func)(struct pt_regs *);
+typedef void (*lcall7_func)(int, struct pt_regs *);
 
 
 /* Description of an execution domain - personality range supported,
@@ -52,6 +54,6 @@ extern struct exec_domain default_exec_domain;
 extern struct exec_domain *lookup_exec_domain(unsigned long personality);
 extern int register_exec_domain(struct exec_domain *it);
 extern int unregister_exec_domain(struct exec_domain *it);
-asmlinkage int sys_personality(unsigned long personality);
+asmlinkage long sys_personality(unsigned long personality);
 
 #endif /* _PERSONALITY_H */

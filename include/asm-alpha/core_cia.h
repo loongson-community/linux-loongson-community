@@ -1,7 +1,9 @@
 #ifndef __ALPHA_CIA__H__
 #define __ALPHA_CIA__H__
 
-#include <linux/config.h>
+/* Define to experiment with fitting everything into one 512MB HAE window.  */
+#define CIA_ONE_HAE_WINDOW 1
+
 #include <linux/types.h>
 #include <asm/compiler.h>
 
@@ -11,7 +13,7 @@
  *
  * This file is based on:
  *
- * DECchip 21171 Core Logic Chipset 
+ * DECchip 21171 Core Logic Chipset
  * Technical Reference Manual
  *
  * EC-QE18B-TE
@@ -39,17 +41,15 @@
 
 /* CIA ADDRESS BIT DEFINITIONS
  *
- *  3 3 3 3|3 3 3 3|3 3 2 2|2 2 2 2|2 2 2 2|1 1 1 1|1 1 1 1|1 1 
- *  9 8 7 6|5 4 3 2|1 0 9 8|7 6 5 4|3 2 1 0|9 8 7 6|5 4 3 2|1 0 9 8|7 6 5 4|3 2 1 0
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |1| | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |0|0|0|
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ 
- *  |                                                                        \_/ \_/
- *  |                                                                         |   |
- *  +-- IO space, not cached.                                   Byte Enable --+   |
- *                                                              Transfer Length --+
- *
- *
+ *  3333 3333 3322 2222 2222 1111 1111 11
+ *  9876 5432 1098 7654 3210 9876 5432 1098 7654 3210
+ *  ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+ *  1                                             000
+ *  ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+ *  |                                             |\|
+ *  |                               Byte Enable --+ |
+ *  |                             Transfer Length --+
+ *  +-- IO space, not cached
  *
  *   Byte      Transfer
  *   Enable    Length    Transfer  Byte    Address
@@ -77,16 +77,19 @@
 #define CIA_MEM_R2_MASK 0x07ffffff  /* SPARSE Mem region 2 mask is 27 bits */
 #define CIA_MEM_R3_MASK 0x03ffffff  /* SPARSE Mem region 3 mask is 26 bits */
 
-#define CIA_DMA_WIN_BASE_DEFAULT	(1024*1024*1024)
-#define CIA_DMA_WIN_SIZE_DEFAULT	(1024*1024*1024)
+#define CIA_DMA_WIN_BASE		(1UL*1024*1024*1024)
+#define CIA_DMA_WIN_SIZE		(2UL*1024*1024*1024)
 
-#if defined(CONFIG_ALPHA_GENERIC) || defined(CONFIG_ALPHA_SRM_SETUP)
-#define CIA_DMA_WIN_BASE		alpha_mv.dma_win_base
-#define CIA_DMA_WIN_SIZE		alpha_mv.dma_win_size
-#else
-#define CIA_DMA_WIN_BASE		CIA_DMA_WIN_SIZE_DEFAULT
-#define CIA_DMA_WIN_SIZE		CIA_DMA_WIN_SIZE_DEFAULT
-#endif
+/* Window 0 at 1GB size 1GB mapping to 0.  */
+#define CIA_DMA_WIN0_BASE_DEFAULT      (1UL*1024*1024*1024)
+#define CIA_DMA_WIN0_SIZE_DEFAULT      (1UL*1024*1024*1024)
+#define CIA_DMA_WIN0_TRAN_DEFAULT      (0UL)
+
+/* Window 1 at 2GB size 1GB mapping to 1GB.  */
+#define CIA_DMA_WIN1_BASE_DEFAULT      (2UL*1024*1024*1024)
+#define CIA_DMA_WIN1_SIZE_DEFAULT      (1UL*1024*1024*1024)
+#define CIA_DMA_WIN1_TRAN_DEFAULT      (1UL*1024*1024*1024)
+
 
 /*
  * 21171-CA Control and Status Registers (p4-1)
@@ -207,7 +210,9 @@
 #define CIA_IOC_STAT0_P_NBR_SHIFT	13
 #define CIA_IOC_STAT0_P_NBR_MASK	0x7ffff
 
+#if !CIA_ONE_HAE_WINDOW
 #define CIA_HAE_ADDRESS	                CIA_IOC_HAE_MEM
+#endif
 
 /*
  * Data structure for handling CIA machine checks.
@@ -239,47 +244,47 @@ struct el_CIA_procdata {
 
 /* System-specific info.  */
 struct el_CIA_sysdata_mcheck {
-	unsigned long      coma_gcr;                       
-	unsigned long      coma_edsr;                      
-	unsigned long      coma_ter;                       
-	unsigned long      coma_elar;                      
-	unsigned long      coma_ehar;                      
-	unsigned long      coma_ldlr;                      
-	unsigned long      coma_ldhr;                      
-	unsigned long      coma_base0;                     
-	unsigned long      coma_base1;                     
-	unsigned long      coma_base2;                     
-	unsigned long      coma_cnfg0;                     
-	unsigned long      coma_cnfg1;                     
-	unsigned long      coma_cnfg2;                     
-	unsigned long      epic_dcsr;                      
-	unsigned long      epic_pear;                      
-	unsigned long      epic_sear;                      
-	unsigned long      epic_tbr1;                      
-	unsigned long      epic_tbr2;                      
-	unsigned long      epic_pbr1;                      
-	unsigned long      epic_pbr2;                      
-	unsigned long      epic_pmr1;                      
-	unsigned long      epic_pmr2;                      
-	unsigned long      epic_harx1;                     
-	unsigned long      epic_harx2;                     
-	unsigned long      epic_pmlt;                      
-	unsigned long      epic_tag0;                      
-	unsigned long      epic_tag1;                      
-	unsigned long      epic_tag2;                      
-	unsigned long      epic_tag3;                      
-	unsigned long      epic_tag4;                      
-	unsigned long      epic_tag5;                      
-	unsigned long      epic_tag6;                      
-	unsigned long      epic_tag7;                      
-	unsigned long      epic_data0;                     
-	unsigned long      epic_data1;                     
-	unsigned long      epic_data2;                     
-	unsigned long      epic_data3;                     
-	unsigned long      epic_data4;                     
-	unsigned long      epic_data5;                     
-	unsigned long      epic_data6;                     
-	unsigned long      epic_data7;                     
+	unsigned long      coma_gcr;
+	unsigned long      coma_edsr;
+	unsigned long      coma_ter;
+	unsigned long      coma_elar;
+	unsigned long      coma_ehar;
+	unsigned long      coma_ldlr;
+	unsigned long      coma_ldhr;
+	unsigned long      coma_base0;
+	unsigned long      coma_base1;
+	unsigned long      coma_base2;
+	unsigned long      coma_cnfg0;
+	unsigned long      coma_cnfg1;
+	unsigned long      coma_cnfg2;
+	unsigned long      epic_dcsr;
+	unsigned long      epic_pear;
+	unsigned long      epic_sear;
+	unsigned long      epic_tbr1;
+	unsigned long      epic_tbr2;
+	unsigned long      epic_pbr1;
+	unsigned long      epic_pbr2;
+	unsigned long      epic_pmr1;
+	unsigned long      epic_pmr2;
+	unsigned long      epic_harx1;
+	unsigned long      epic_harx2;
+	unsigned long      epic_pmlt;
+	unsigned long      epic_tag0;
+	unsigned long      epic_tag1;
+	unsigned long      epic_tag2;
+	unsigned long      epic_tag3;
+	unsigned long      epic_tag4;
+	unsigned long      epic_tag5;
+	unsigned long      epic_tag6;
+	unsigned long      epic_tag7;
+	unsigned long      epic_data0;
+	unsigned long      epic_data1;
+	unsigned long      epic_data2;
+	unsigned long      epic_data3;
+	unsigned long      epic_data4;
+	unsigned long      epic_data5;
+	unsigned long      epic_data6;
+	unsigned long      epic_data7;
 };
 
 
@@ -360,8 +365,8 @@ __EXTERN_INLINE void cia_outl(unsigned int b, unsigned long addr)
 /*
  * Memory functions.  64-bit and 32-bit accesses are done through
  * dense memory space, everything else through sparse space.
- * 
- * For reading and writing 8 and 16 bit quantities we need to 
+ *
+ * For reading and writing 8 and 16 bit quantities we need to
  * go through one of the three sparse address mapping regions
  * and use the HAE_MEM CSR to provide some bits of the address.
  * The following few routines use only sparse address region 1
@@ -370,10 +375,10 @@ __EXTERN_INLINE void cia_outl(unsigned int b, unsigned long addr)
  * See p 6-17 of the specification but it looks something like this:
  *
  * 21164 Address:
- * 
- *          3         2         1                                                               
+ *
+ *          3         2         1
  * 9876543210987654321098765432109876543210
- * 1ZZZZ0.PCI.QW.Address............BBLL                 
+ * 1ZZZZ0.PCI.QW.Address............BBLL
  *
  * ZZ = SBZ
  * BB = Byte offset
@@ -381,95 +386,26 @@ __EXTERN_INLINE void cia_outl(unsigned int b, unsigned long addr)
  *
  * PCI Address:
  *
- * 3         2         1                                                               
+ * 3         2         1
  * 10987654321098765432109876543210
  * HHH....PCI.QW.Address........ 00
  *
  * HHH = 31:29 HAE_MEM CSR
- * 
+ *
  */
-
-__EXTERN_INLINE unsigned long cia_srm_base(unsigned long addr)
-{
-	unsigned long mask, base;
-
-	if (addr >= alpha_mv.sm_base_r1
-	    && addr <= alpha_mv.sm_base_r1 + CIA_MEM_R1_MASK) {
-		mask = CIA_MEM_R1_MASK;
-		base = CIA_SPARSE_MEM;
-	}
-	else if (addr >= alpha_mv.sm_base_r2
-		 && addr <= alpha_mv.sm_base_r2 + CIA_MEM_R2_MASK) {
-		mask = CIA_MEM_R2_MASK;
-		base = CIA_SPARSE_MEM_R2;
-	}
-	else if (addr >= alpha_mv.sm_base_r3
-		 && addr <= alpha_mv.sm_base_r3 + CIA_MEM_R3_MASK) {
-		mask = CIA_MEM_R3_MASK;
-		base = CIA_SPARSE_MEM_R3;
-	}
-	else
-	{
-#if 0
-		printk("cia: address 0x%lx not covered by HAE\n", addr);
-#endif
-		return 0;
-	}
-
-	return ((addr & mask) << 5) + base;
-}
-
-__EXTERN_INLINE unsigned long cia_srm_readb(unsigned long addr)
-{
-	unsigned long result, work;
-
-	if ((work = cia_srm_base(addr)) == 0)
-		return 0xff;
-	work += 0x00;	/* add transfer length */
-
-	result = *(vip) work;
-	return __kernel_extbl(result, addr & 3);
-}
-
-__EXTERN_INLINE unsigned long cia_srm_readw(unsigned long addr)
-{
-	unsigned long result, work;
-
-	if ((work = cia_srm_base(addr)) == 0)
-		return 0xffff;
-	work += 0x08;	/* add transfer length */
-
-	result = *(vip) work;
-	return __kernel_extwl(result, addr & 3);
-}
-
-__EXTERN_INLINE void cia_srm_writeb(unsigned char b, unsigned long addr)
-{
-	unsigned long work = cia_srm_base(addr), w;
-	if (work) {
-		work += 0x00;	/* add transfer length */
-		w = __kernel_insbl(b, addr & 3);
-		*(vuip) work = w;
-	}
-}
-
-__EXTERN_INLINE void cia_srm_writew(unsigned short b, unsigned long addr)
-{
-	unsigned long work = cia_srm_base(addr), w;
-	if (work) {
-		work += 0x08;	/* add transfer length */
-		w = __kernel_inswl(b, addr & 3);
-		*(vuip) work = w;
-	}
-}
 
 __EXTERN_INLINE unsigned long cia_readb(unsigned long addr)
 {
-	unsigned long result, msb;
+	unsigned long result;
 
+#if !CIA_ONE_HAE_WINDOW
+	unsigned long msb;
+	/* Note that CIA_DENSE_MEM has no bits not masked in these
+	   operations, so we don't have to subtract it back out.  */
 	msb = addr & 0xE0000000;
-	addr &= CIA_MEM_R1_MASK;
 	set_hae(msb);
+#endif
+	addr &= CIA_MEM_R1_MASK;
 
 	result = *(vip) ((addr << 5) + CIA_SPARSE_MEM + 0x00);
 	return __kernel_extbl(result, addr & 3);
@@ -477,11 +413,16 @@ __EXTERN_INLINE unsigned long cia_readb(unsigned long addr)
 
 __EXTERN_INLINE unsigned long cia_readw(unsigned long addr)
 {
-	unsigned long result, msb;
+	unsigned long result;
 
+#if !CIA_ONE_HAE_WINDOW
+	unsigned long msb;
+	/* Note that CIA_DENSE_MEM has no bits not masked in these
+	   operations, so we don't have to subtract it back out.  */
 	msb = addr & 0xE0000000;
-	addr &= CIA_MEM_R1_MASK;
 	set_hae(msb);
+#endif
+	addr &= CIA_MEM_R1_MASK;
 
 	result = *(vip) ((addr << 5) + CIA_SPARSE_MEM + 0x08);
 	return __kernel_extwl(result, addr & 3);
@@ -489,11 +430,16 @@ __EXTERN_INLINE unsigned long cia_readw(unsigned long addr)
 
 __EXTERN_INLINE void cia_writeb(unsigned char b, unsigned long addr)
 {
-        unsigned long msb, w; 
+	unsigned long w;
 
+#if !CIA_ONE_HAE_WINDOW
+	unsigned long msb;
+	/* Note that CIA_DENSE_MEM has no bits not masked in these
+	   operations, so we don't have to subtract it back out.  */
 	msb = addr & 0xE0000000;
-	addr &= CIA_MEM_R1_MASK;
 	set_hae(msb);
+#endif
+	addr &= CIA_MEM_R1_MASK;
 
 	w = __kernel_insbl(b, addr & 3);
 	*(vuip) ((addr << 5) + CIA_SPARSE_MEM + 0x00) = w;
@@ -501,11 +447,16 @@ __EXTERN_INLINE void cia_writeb(unsigned char b, unsigned long addr)
 
 __EXTERN_INLINE void cia_writew(unsigned short b, unsigned long addr)
 {
-        unsigned long msb, w; 
+	unsigned long w;
 
+#if !CIA_ONE_HAE_WINDOW
+	unsigned long msb;
+	/* Note that CIA_DENSE_MEM has no bits not masked in these
+	   operations, so we don't have to subtract it back out.  */
 	msb = addr & 0xE0000000;
-	addr &= CIA_MEM_R1_MASK;
 	set_hae(msb);
+#endif
+	addr &= CIA_MEM_R1_MASK;
 
 	w = __kernel_inswl(b, addr & 3);
 	*(vuip) ((addr << 5) + CIA_SPARSE_MEM + 0x08) = w;
@@ -513,29 +464,32 @@ __EXTERN_INLINE void cia_writew(unsigned short b, unsigned long addr)
 
 __EXTERN_INLINE unsigned long cia_readl(unsigned long addr)
 {
-	return *(vuip) (addr + CIA_DENSE_MEM);
+	return *(vuip)addr;
 }
 
 __EXTERN_INLINE unsigned long cia_readq(unsigned long addr)
 {
-	return *(vulp) (addr + CIA_DENSE_MEM);
+	return *(vulp)addr;
 }
 
 __EXTERN_INLINE void cia_writel(unsigned int b, unsigned long addr)
 {
-	*(vuip) (addr + CIA_DENSE_MEM) = b;
+	*(vuip)addr = b;
 }
 
 __EXTERN_INLINE void cia_writeq(unsigned long b, unsigned long addr)
 {
-	*(vulp) (addr + CIA_DENSE_MEM) = b;
+	*(vulp)addr = b;
 }
 
-/* Find the DENSE memory area for a given bus address.  */
-
-__EXTERN_INLINE unsigned long cia_dense_mem(unsigned long addr)
+__EXTERN_INLINE unsigned long cia_ioremap(unsigned long addr)
 {
-	return CIA_DENSE_MEM;
+	return addr + CIA_DENSE_MEM;
+}
+
+__EXTERN_INLINE int cia_is_ioaddr(unsigned long addr)
+{
+	return addr >= IDENT_ADDR + 0x8000000000UL;
 }
 
 #undef vip
@@ -553,41 +507,26 @@ __EXTERN_INLINE unsigned long cia_dense_mem(unsigned long addr)
 #define __outw		cia_outw
 #define __outl		cia_outl
 
-#ifdef CONFIG_ALPHA_SRM_SETUP
-#define __readb		cia_srm_readb
-#define __readw		cia_srm_readw
-#define __writeb	cia_srm_writeb
-#define __writew	cia_srm_writew
-#else
 #define __readb		cia_readb
 #define __readw		cia_readw
 #define __writeb	cia_writeb
 #define __writew	cia_writew
-#endif
-
 #define __readl		cia_readl
 #define __readq		cia_readq
 #define __writel	cia_writel
 #define __writeq	cia_writeq
-#define dense_mem	cia_dense_mem
+#define __ioremap	cia_ioremap
+#define __is_ioaddr	cia_is_ioaddr
 
 #define inb(port) \
-(__builtin_constant_p((port))?__inb(port):_inb(port))
+  (__builtin_constant_p((port))?__inb(port):_inb(port))
 #define outb(x, port) \
-(__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
+  (__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
 
-#define inw(port) \
-(__builtin_constant_p((port))?__inw(port):_inw(port))
-#define outw(x, port) \
-(__builtin_constant_p((port))?__outw((x),(port)):_outw((x),(port)))
-
-#define inl(port)	__inl(port)
-#define outl(x,port)	__outl((x),(port))
-
-#define readl(a)	__readl((unsigned long)(a))
-#define readq(a)	__readq((unsigned long)(a))
-#define writel(v,a)	__writel((v),(unsigned long)(a))
-#define writeq(v,a)	__writeq((v),(unsigned long)(a))
+#define __raw_readl(a)		__readl((unsigned long)(a))
+#define __raw_readq(a)		__readq((unsigned long)(a))
+#define __raw_writel(v,a)	__writel((v),(unsigned long)(a))
+#define __raw_writeq(v,a)	__writeq((v),(unsigned long)(a))
 
 #endif /* __WANT_IO_DEF */
 

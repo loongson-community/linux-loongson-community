@@ -9,6 +9,7 @@
 struct task_struct;	/* one of the stranger aspects of C forward declarations.. */
 extern void FASTCALL(__switch_to(struct task_struct *prev, struct task_struct *next));
 
+#define prepare_to_switch()	do { } while(0)
 #define switch_to(prev,next,last) do {					\
 	asm volatile("pushl %%esi\n\t"					\
 		     "pushl %%edi\n\t"					\
@@ -22,9 +23,9 @@ extern void FASTCALL(__switch_to(struct task_struct *prev, struct task_struct *n
 		     "popl %%ebp\n\t"					\
 		     "popl %%edi\n\t"					\
 		     "popl %%esi\n\t"					\
-		     :"=m" (prev->tss.esp),"=m" (prev->tss.eip),	\
+		     :"=m" (prev->thread.esp),"=m" (prev->thread.eip),	\
 		      "=b" (last)					\
-		     :"m" (next->tss.esp),"m" (next->tss.eip),		\
+		     :"m" (next->thread.esp),"m" (next->thread.eip),	\
 		      "a" (prev), "d" (next),				\
 		      "b" (prev));					\
 } while (0)
@@ -129,24 +130,26 @@ struct __xchg_dummy { unsigned long a[100]; };
 
 /*
  * Note: no "lock" prefix even on SMP: xchg always implies lock anyway
+ * Note 2: xchg has side effect, so that attribute volatile is necessary,
+ *	  but generally the primitive is invalid, *ptr is output argument. --ANK
  */
-static inline unsigned long __xchg(unsigned long x, void * ptr, int size)
+static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int size)
 {
 	switch (size) {
 		case 1:
-			__asm__("xchgb %b0,%1"
+			__asm__ __volatile__("xchgb %b0,%1"
 				:"=q" (x)
 				:"m" (*__xg(ptr)), "0" (x)
 				:"memory");
 			break;
 		case 2:
-			__asm__("xchgw %w0,%1"
+			__asm__ __volatile__("xchgw %w0,%1"
 				:"=r" (x)
 				:"m" (*__xg(ptr)), "0" (x)
 				:"memory");
 			break;
 		case 4:
-			__asm__("xchgl %0,%1"
+			__asm__ __volatile__("xchgl %0,%1"
 				:"=r" (x)
 				:"m" (*__xg(ptr)), "0" (x)
 				:"memory");
@@ -172,14 +175,15 @@ static inline unsigned long __xchg(unsigned long x, void * ptr, int size)
 #define mb() 	__asm__ __volatile__ ("lock; addl $0,0(%%esp)": : :"memory")
 #define rmb()	mb()
 #define wmb()	__asm__ __volatile__ ("": : :"memory")
+#define set_rmb(var, value) do { xchg(&var, value); } while (0)
+#define set_mb(var, value) set_rmb(var, value)
+#define set_wmb(var, value) do { var = value; wmb(); } while (0)
 
 /* interrupt control.. */
-#define __sti() __asm__ __volatile__ ("sti": : :"memory")
-#define __cli() __asm__ __volatile__ ("cli": : :"memory")
-#define __save_flags(x) \
-__asm__ __volatile__("pushfl ; popl %0":"=g" (x): /* no input */ :"memory")
-#define __restore_flags(x) \
-__asm__ __volatile__("pushl %0 ; popfl": /* no output */ :"g" (x):"memory")
+#define __save_flags(x)		__asm__ __volatile__("pushfl ; popl %0":"=g" (x): /* no input */ :"memory")
+#define __restore_flags(x) 	__asm__ __volatile__("pushl %0 ; popfl": /* no output */ :"g" (x):"memory")
+#define __cli() 		__asm__ __volatile__("cli": : :"memory")
+#define __sti()			__asm__ __volatile__("sti": : :"memory")
 
 /* For spinlocks etc */
 #define local_irq_save(x)	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=g" (x): /* no input */ :"memory")

@@ -192,7 +192,7 @@ static void hpfb_encode_fix(struct fb_fix_screeninfo *fix,
 	/*
 	 * X works, but screen wraps ... 
 	 */
-	fix->smem_start=(char *)fb_start;
+	fix->smem_start=fb_start;
 	fix->smem_len=fb_size;
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	fix->visual = FB_VISUAL_PSEUDOCOLOR;
@@ -301,7 +301,7 @@ static struct fb_ops hpfb_ops = {
 #define TOPCAT_FBOMSB	0x5d
 #define TOPCAT_FBOLSB	0x5f
 
-__initfunc(int hpfb_init_one(unsigned long base))
+int __init hpfb_init_one(unsigned long base)
 {
 	unsigned long fboff;
 
@@ -384,7 +384,7 @@ __initfunc(int hpfb_init_one(unsigned long base))
  * Initialise the framebuffer
  */
 
-__initfunc(unsigned long hpfb_init(unsigned long mem_start))
+int __init hpfb_init(void)
 {
 	unsigned int sid;
 
@@ -421,9 +421,10 @@ __initfunc(unsigned long hpfb_init(unsigned long mem_start))
 		}
 	}
 
-	return mem_start;
+	return 0;
 }
 
-__initfunc(void hpfb_setup(char *options, int *ints))
+int __init hpfb_setup(char *options)
 {
+	return 0;
 }

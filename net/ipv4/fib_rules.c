@@ -5,7 +5,7 @@
  *
  *		IPv4 Forwarding Information Base: policy rules.
  *
- * Version:	$Id: fib_rules.c,v 1.11 1999/06/09 10:10:47 davem Exp $
+ * Version:	$Id: fib_rules.c,v 1.14 1999/08/31 07:03:29 davem Exp $
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
@@ -52,6 +52,7 @@
 struct fib_rule
 {
 	struct fib_rule *r_next;
+	atomic_t	r_clntref;
 	u32		r_preference;
 	unsigned char	r_table;
 	unsigned char	r_action;
@@ -72,11 +73,12 @@ struct fib_rule
 	__u32		r_tclassid;
 #endif
 	char		r_ifname[IFNAMSIZ];
+	int		r_dead;
 };
 
-static struct fib_rule default_rule = { NULL, 0x7FFF, RT_TABLE_DEFAULT, RTN_UNICAST, };
-static struct fib_rule main_rule = { &default_rule, 0x7FFE, RT_TABLE_MAIN, RTN_UNICAST, };
-static struct fib_rule local_rule = { &main_rule, 0, RT_TABLE_LOCAL, RTN_UNICAST, };
+static struct fib_rule default_rule = { NULL, ATOMIC_INIT(2), 0x7FFF, RT_TABLE_DEFAULT, RTN_UNICAST, };
+static struct fib_rule main_rule = { &default_rule, ATOMIC_INIT(2), 0x7FFE, RT_TABLE_MAIN, RTN_UNICAST, };
+static struct fib_rule local_rule = { &main_rule, ATOMIC_INIT(2), 0, RT_TABLE_LOCAL, RTN_UNICAST, };
 
 static struct fib_rule *fib_rules = &local_rule;
 static rwlock_t fib_rules_lock = RW_LOCK_UNLOCKED;
@@ -107,9 +109,9 @@ int inet_rtm_delrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 
 			write_lock_bh(&fib_rules_lock);
 			*rp = r->r_next;
+			r->r_dead = 1;
 			write_unlock_bh(&fib_rules_lock);
-			if (r != &default_rule && r != &main_rule)
-				kfree(r);
+			fib_rule_put(r);
 			err = 0;
 			break;
 		}
@@ -129,6 +131,15 @@ static struct fib_table *fib_empty_table(void)
 	return NULL;
 }
 
+void fib_rule_put(struct fib_rule *r)
+{
+	if (atomic_dec_and_test(&r->r_clntref)) {
+		if (r->r_dead)
+			kfree(r);
+		else
+			printk("Freeing alive rule %p\n", r);
+	}
+}
 
 int inet_rtm_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 {
@@ -179,11 +190,11 @@ int inet_rtm_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 		memcpy(&new_r->r_preference, RTA_DATA(rta[RTA_PRIORITY-1]), 4);
 	new_r->r_table = table_id;
 	if (rta[RTA_IIF-1]) {
-		struct device *dev;
+		struct net_device *dev;
 		memcpy(new_r->r_ifname, RTA_DATA(rta[RTA_IIF-1]), IFNAMSIZ);
 		new_r->r_ifname[IFNAMSIZ-1] = 0;
 		new_r->r_ifindex = -1;
-		dev = dev_get(new_r->r_ifname);
+		dev = __dev_get_by_name(new_r->r_ifname);
 		if (dev)
 			new_r->r_ifindex = dev->ifindex;
 	}
@@ -209,6 +220,7 @@ int inet_rtm_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	}
 
 	new_r->r_next = r;
+	atomic_inc(&new_r->r_clntref);
 	write_lock_bh(&fib_rules_lock);
 	*rp = new_r;
 	write_unlock_bh(&fib_rules_lock);
@@ -251,7 +263,7 @@ u32 fib_rules_tclass(struct fib_result *res)
 #endif
 
 
-static void fib_rules_detach(struct device *dev)
+static void fib_rules_detach(struct net_device *dev)
 {
 	struct fib_rule *r;
 
@@ -264,7 +276,7 @@ static void fib_rules_detach(struct device *dev)
 	}
 }
 
-static void fib_rules_attach(struct device *dev)
+static void fib_rules_attach(struct net_device *dev)
 {
 	struct fib_rule *r;
 
@@ -322,8 +334,9 @@ FRprintk("tb %d r %d ", r->r_table, r->r_action);
 			continue;
 		err = tb->tb_lookup(tb, key, res);
 		if (err == 0) {
-FRprintk("ok\n");
 			res->r = policy;
+			if (policy)
+				atomic_inc(&policy->r_clntref);
 			read_unlock(&fib_rules_lock);
 			return 0;
 		}
@@ -349,7 +362,7 @@ void fib_select_default(const struct rt_key *key, struct fib_result *res)
 
 static int fib_rules_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	struct device *dev = ptr;
+	struct net_device *dev = ptr;
 
 	if (event == NETDEV_UNREGISTER)
 		fib_rules_detach(dev);
@@ -435,7 +448,7 @@ int inet_dump_rules(struct sk_buff *skb, struct netlink_callback *cb)
 
 #endif /* CONFIG_RTNETLINK */
 
-__initfunc(void fib_rules_init(void))
+void __init fib_rules_init(void)
 {
 	register_netdevice_notifier(&fib_rules_notifier);
 }

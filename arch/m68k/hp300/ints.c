@@ -15,13 +15,13 @@
 #include <linux/sched.h>
 #include <linux/kernel_stat.h>
 #include <linux/interrupt.h>
+#include <linux/spinlock.h>
 #include <asm/machdep.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <asm/system.h>
 #include <asm/traps.h>
 #include <asm/ptrace.h>
-#include <asm/spinlock.h>
 #include "ints.h"
 
 /* Each ipl has a linked list of interrupt service routines.
@@ -153,7 +153,7 @@ int hp300_get_irq_list(char *buf)
 	return 0;
 }
 
-__initfunc(void hp300_init_IRQ(void))
+void __init hp300_init_IRQ(void)
 {
 	spin_lock_init(&irqlist_lock);
 }

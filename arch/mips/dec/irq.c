@@ -4,7 +4,7 @@
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
  *
- * $Id: irq.c,v 1.2 1999/01/17 03:49:41 ralf Exp $
+ * $Id: irq.c,v 1.3 1999/04/11 17:06:16 harald Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -263,7 +263,7 @@ int probe_irq_off(unsigned long irqs)
     return 0;
 }
 
-__initfunc(void init_IRQ(void))
+void __init init_IRQ(void)
 {
     irq_setup();
 }

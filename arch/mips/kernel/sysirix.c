@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.19 1999/06/13 16:30:33 ralf Exp $
+/* $Id: sysirix.c,v 1.20 1999/06/17 13:25:48 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -33,6 +33,8 @@
 #include <asm/inventory.h>
 
 /* 2,526 lines of complete and utter shit coming up... */
+
+extern int max_threads;
 
 /* The sysmp commands supported thus far. */
 #define MP_NPROCS       	1 /* # processor in complex */
@@ -100,7 +102,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	case PR_MAXPROCS:
 		printk("irix_prctl[%s:%ld]: Wants PR_MAXPROCS\n",
 		       current->comm, current->pid);
-		error = NR_TASKS;
+		error = max_threads;
 		break;
 
 	case PR_ISBLOCKED: {
@@ -113,7 +115,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 			error = -ESRCH;
 			break;
 		}
-		error = (task->next_run ? 0 : 1);
+		error = (task->run_list.next != NULL);
 		/* Can _your_ OS find this out that fast? */ 
 		break;
 	}
@@ -359,7 +361,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 			retval = (MAX_ARG_PAGES >> 4); /* XXX estimate... */
 			goto out;
 		case 2:
-			retval = NR_TASKS;
+			retval = max_threads;
 			goto out;
 		case 3:
 			retval = HZ;

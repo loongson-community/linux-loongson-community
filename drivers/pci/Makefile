@@ -23,15 +23,8 @@ endif
 
 ifdef CONFIG_PROC_FS
 L_OBJS   += proc.o
-ifdef CONFIG_PCI_OLD_PROC
-L_OBJS   += oldproc.o
-endif
 endif
 
-ifdef CONFIG_PCI_QUIRKS
-L_OBJS   += quirks.o
-endif
-
-L_OBJS   += compat.o
+L_OBJS   += compat.o quirks.o names.o syscall.o setup.o
 
 include $(TOPDIR)/Rules.make

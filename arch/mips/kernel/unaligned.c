@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1998 by Ralf Baechle
  *
- * $Id: unaligned.c,v 1.4 1998/08/25 09:14:44 ralf Exp $
+ * $Id: unaligned.c,v 1.5 1999/05/01 22:40:39 ralf Exp $
  *
  * This file contains exception handler for address error exception with the
  * special capability to execute faulting instructions in software.  The
@@ -398,7 +398,7 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
 	if (compute_return_epc(regs))
 		return;
-	if ((current->tss.mflags & MF_FIXADE) == 0)
+	if ((current->thread.mflags & MF_FIXADE) == 0)
 		goto sigbus;
 
 	emulate_load_store_insn(regs, regs->cp0_badvaddr, pc);

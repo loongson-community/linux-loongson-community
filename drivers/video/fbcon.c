@@ -215,7 +215,7 @@ static int fbcon_show_logo(void);
 
 #ifdef CONFIG_MAC
 /*
- * On the Macintoy, there may or may not be a working VBL int. We need to prob
+ * On the Macintoy, there may or may not be a working VBL int. We need to probe
  */
 static int vbl_detected = 0;
 
@@ -246,7 +246,7 @@ static void cursor_timer_handler(unsigned long dev_addr)
 
 struct display_switch fbcon_dummy;
 
-/* NOTE: fbcon cannot be __initfunc: it may be called from take_over_console later */
+/* NOTE: fbcon cannot be __init: it may be called from take_over_console later */
 
 static const char *fbcon_startup(void)
 {
@@ -1951,7 +1951,7 @@ static inline unsigned safe_shift(unsigned d,int n)
     return n<0 ? d>>-n : d<<n;
 }
 
-__initfunc(static int fbcon_show_logo( void ))
+static int __init fbcon_show_logo( void )
 {
     struct display *p = &fb_display[fg_console]; /* draw to vt in foreground */
     int depth = p->var.bits_per_pixel;

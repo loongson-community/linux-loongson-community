@@ -70,7 +70,6 @@
 #include <linux/ioport.h>
 #include <linux/malloc.h>
 #include <linux/in.h>
-#include <linux/bios32.h>
 #include <linux/pci.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
@@ -79,7 +78,10 @@
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <asm/pgtable.h>
-#include <asm/spinlock.h>
+#ifdef __mips__
+#include <asm/cachectl.h>
+#include <linux/spinlock.h>
+#endif
 #include <linux/blk.h>
 #include "scsi.h"
 #include "sd.h"
@@ -270,11 +272,7 @@ void eata_int_handler(int irq, void *dev_id, struct pt_regs * regs)
 	    
 	    sp = &SD(sh)->sp;
 #ifdef __mips__
-	    /*
-	     * We flush too much, this should be something like:
-	     * cacheflush_before_dma((unsigned long)sp, sizeof(struct eata_sp));
-	     */
-	    flush_cache_all();
+            sys_cacheflush(sp, sizeof(struct eata_sp), 2);
 #endif
 	    ccb = sp->ccb;
 	    
@@ -407,8 +405,7 @@ inline int eata_send_command(u32 addr, u32 base, u8 command)
 	if (--loop == 0)
 	    return(FALSE);
 
-
-    if(addr != NULL)
+    if(addr != (u32) NULL)
         addr = virt_to_bus((void *)addr);
 
     /*
@@ -419,15 +416,15 @@ inline int eata_send_command(u32 addr, u32 base, u8 command)
 
     /* And now the address in nice little byte chunks */
 #ifdef __LITTLE_ENDIAN
-    outb( addr & 0x000000ff,      base + HA_WDMAADDR);
-    outb((addr & 0x0000ff00) >> 8,  base + HA_WDMAADDR + 1);
-    outb((addr & 0x00ff0000) >> 16, base + HA_WDMAADDR + 2);
-    outb((addr & 0xff000000) >> 24, base + HA_WDMAADDR + 3);
+    outb(addr,       base + HA_WDMAADDR);
+    outb(addr >> 8,  base + HA_WDMAADDR + 1);
+    outb(addr >> 16, base + HA_WDMAADDR + 2);
+    outb(addr >> 24, base + HA_WDMAADDR + 3);
 #else
-    outb((addr & 0xff000000) >> 24, base + HA_WDMAADDR);
-    outb((addr & 0x00ff0000) >> 16, base + HA_WDMAADDR + 1);
-    outb((addr & 0x0000ff00) >> 8,  base + HA_WDMAADDR + 2);
-    outb((addr & 0x000000ff),       base + HA_WDMAADDR + 3);
+    outb(addr >> 24, base + HA_WDMAADDR);
+    outb(addr >> 16, base + HA_WDMAADDR + 1);
+    outb(addr >> 8,  base + HA_WDMAADDR + 2);
+    outb(addr,       base + HA_WDMAADDR + 3);
 #endif
     outb(command, base + HA_WCOMMAND);
     return(TRUE);
@@ -447,23 +444,23 @@ inline int eata_send_immediate(u32 base, u32 addr, u8 ifc, u8 code, u8 code2)
     outb(0x0, base + HA_WDMAADDR - 1);
     if(addr){
 #ifdef __LITTLE_ENDIAN
-        outb( addr & 0x000000ff,        base + HA_WDMAADDR);
-      outb((addr & 0x0000ff00) >> 8,  base + HA_WDMAADDR + 1);
-      outb((addr & 0x00ff0000) >> 16, base + HA_WDMAADDR + 2);
-      outb((addr & 0xff000000) >> 24, base + HA_WDMAADDR + 3);
+        outb(addr,       base + HA_WDMAADDR);
+	outb(addr >> 8,  base + HA_WDMAADDR + 1);
+	outb(addr >> 16, base + HA_WDMAADDR + 2);
+	outb(addr >> 24, base + HA_WDMAADDR + 3);
 #else
-      outb((addr & 0xff000000) >> 24, base + HA_WDMAADDR);
-      outb((addr & 0x00ff0000) >> 16, base + HA_WDMAADDR + 1);
-      outb((addr & 0x0000ff00) >> 8,  base + HA_WDMAADDR + 2);
-      outb((addr & 0x000000ff),       base + HA_WDMAADDR + 3);
+        outb(addr >> 24, base + HA_WDMAADDR);
+	outb(addr >> 16, base + HA_WDMAADDR + 1);
+	outb(addr >> 8,  base + HA_WDMAADDR + 2);
+	outb(addr,       base + HA_WDMAADDR + 3);
 #endif
     } else {
-      outb(0x0, base + HA_WDMAADDR);
-      outb(0x0, base + HA_WDMAADDR + 1);
-      outb(code2, base + HA_WCODE2);
-      outb(code,  base + HA_WCODE);
+        outb(0x0, base + HA_WDMAADDR);
+        outb(0x0, base + HA_WDMAADDR + 1);
+ 	outb(code2, base + HA_WCODE2);
+	outb(code,  base + HA_WCODE);
     }
-
+    
     outb(ifc, base + HA_WIFC);
     outb(EATA_CMD_IMMEDIATE, base + HA_WCOMMAND);
     return(TRUE);
@@ -478,7 +475,7 @@ int eata_queue(Scsi_Cmnd * cmd, void (* done) (Scsi_Cmnd *))
     struct eata_ccb *ccb;
     struct scatterlist *sl;
 
-
+    
     save_flags(flags);
     cli();
 
@@ -501,6 +498,7 @@ int eata_queue(Scsi_Cmnd * cmd, void (* done) (Scsi_Cmnd *))
         DBG(DBG_REQSENSE, printk(KERN_DEBUG "Tried to REQUEST SENSE\n"));
 	cmd->result = DID_OK << 16;
 	done(cmd);
+
 	return(0);
     }
 
@@ -622,13 +620,14 @@ int eata_queue(Scsi_Cmnd * cmd, void (* done) (Scsi_Cmnd *))
     return(0);
 }
 
+
 int eata_abort(Scsi_Cmnd * cmd)
 {
     ulong loop = HZ / 2;
     ulong flags;
     int x;
     struct Scsi_Host *sh;
-
+ 
     save_flags(flags);
     cli();
 
@@ -733,14 +732,14 @@ int eata_reset(Scsi_Cmnd * cmd, unsigned int resetflags)
 
 	sp = HD(cmd)->ccb[x].cmd;
 	HD(cmd)->ccb[x].status = RESET;
-
+	
 	if (sp == NULL)
 	    panic("eata_reset: slot %d, sp==NULL.\n", x);
 
 	printk("eata_reset: slot %d in reset, pid %ld.\n", x, sp->pid);
 
-        DBG(DBG_ABNORM && DBG_DELAY, DELAY(1));
-
+	DBG(DBG_ABNORM && DBG_DELAY, DELAY(1));
+	
 	if (sp == cmd)
 	    success = TRUE;
     }
@@ -748,22 +747,22 @@ int eata_reset(Scsi_Cmnd * cmd, unsigned int resetflags)
     /* hard reset the HBA  */
     inb((u32) (cmd->host->base) + HA_RSTATUS);	/* This might cause trouble */
     eata_send_command(0, (u32) cmd->host->base, EATA_CMD_RESET);
-
-    HD(cmd)->state = RESET;
     
+    HD(cmd)->state = RESET;
+
     DBG(DBG_ABNORM, printk("eata_reset: board reset done, enabling "
 			   "interrupts.\n"));
-    
+
     DELAY(2); /* In theorie we should get interrupts and set free all
 	       * used queueslots */
-
+    
     DBG(DBG_ABNORM, printk("eata_reset: interrupts disabled again.\n"));
     DBG(DBG_ABNORM && DBG_DELAY, DELAY(1));
     
     for (x = 0; x < cmd->host->can_queue; x++) {
 	
-	/* Skip slots already set free by interrupt and those that
-	 * are still LOCKED from the last reset */
+	/* Skip slots already set free by interrupt and those that 
+         * are still LOCKED from the last reset */
 	if (HD(cmd)->ccb[x].status != RESET)
 	    continue;
 	
@@ -901,7 +900,6 @@ int check_blink_state(long base)
     u32 state = 0x12345678;
     u32 oldstate = 0;
 
-return(FALSE);
     blinkindicator = htonl(0x54504442);
     while ((loops--) && (state != oldstate)) {
 	oldstate = state;
@@ -976,7 +974,7 @@ char * get_board_data(u32 base, u32 irq, u32 id)
     
     if ((fake_int_result & HA_SERROR) || time_after(jiffies, i)){
 	printk(KERN_WARNING "eata_dma: trying to reset HBA at %x to clear "
-	       "possible blink state\n", base);
+	       "possible blink state\n", base); 
 	/* hard reset the HBA  */
 	inb((u32) (base) + HA_RSTATUS);
 	eata_send_command(0, base, EATA_CMD_RESET);
@@ -985,7 +983,8 @@ char * get_board_data(u32 base, u32 irq, u32 id)
     } else
 	return (buff);
 }
-    
+
+
 int get_conf_PIO(u32 base, struct get_conf *buf)
 {
     ulong loop = R_LIMIT;
@@ -1145,9 +1144,6 @@ short register_HBA(u32 base, struct get_conf *gc, Scsi_Host_Template * tpnt,
 	    else
 		printk(KERN_WARNING "HBA at %#.4x does not react on INQUIRY. "
 		       "Sorry.\n", base);
-	    if (gc->DMA_valid) 
-		free_dma(dma_channel);
-	    reg_IRQ[gc->IRQ]--;
 	    if (gc->DMA_valid) 
 		free_dma(dma_channel);
 	    reg_IRQ[gc->IRQ]--;
@@ -1407,116 +1403,64 @@ void find_ISA(struct get_conf *buf, Scsi_Host_Template * tpnt)
 
 void find_PCI(struct get_conf *buf, Scsi_Host_Template * tpnt)
 {
-
 #ifndef CONFIG_PCI
     printk("eata_dma: kernel PCI support not enabled. Skipping scan for PCI HBAs.\n");
 #else
-    
-    u8 pci_bus, pci_device_fn;
-    static s16 pci_index = 0;	/* Device index to PCI BIOS calls */
-    u32 base = 0;
-    u16 com_adr;
-    u16 rev_device;
-    u32 error, i, x;
+    struct pci_dev *dev; 
+    u32 base, x;
     u8 pal1, pal2, pal3;
 
-    if (pci_present()) {
-	for (i = 0; i <= MAXPCI; ++i, ++pci_index) {
-	    if (pcibios_find_device(PCI_VENDOR_ID_DPT, PCI_DEVICE_ID_DPT, 
-				    pci_index, &pci_bus, &pci_device_fn))
-		break;
+    for(dev=NULL; dev = pci_find_device(PCI_VENDOR_ID_DPT, PCI_DEVICE_ID_DPT, dev);) {
 	    DBG(DBG_PROBE && DBG_PCI, 
-		printk("eata_dma: find_PCI, HBA at bus %d, device %d,"
-		       " function %d, index %d\n", (s32)pci_bus, 
-		       (s32)((pci_device_fn & 0xf8) >> 3),
-		       (s32)(pci_device_fn & 7), pci_index));
-	    
-	    if (!(error = pcibios_read_config_word(pci_bus, pci_device_fn, 
-				       PCI_CLASS_DEVICE, &rev_device))) {
-		if (rev_device == PCI_CLASS_STORAGE_SCSI) {
-		    if (!(error = pcibios_read_config_word(pci_bus, 
-					       pci_device_fn, PCI_COMMAND, 
-					       (u16 *) & com_adr))) {
-			if (!((com_adr & PCI_COMMAND_IO) && 
-			      (com_adr & PCI_COMMAND_MASTER))) {
-			    printk("eata_dma: find_PCI, HBA has IO or"
-				   " BUSMASTER mode disabled\n");
-			    continue;
-			}
-		    } else
-			printk("eata_dma: find_PCI, error %x while reading "
-			       "PCI_COMMAND\n", error);
-		} else
-		    printk("eata_dma: find_PCI, DEVICECLASSID %x didn't match\n", 
-			   rev_device);
-	    } else {
-		printk("eata_dma: find_PCI, error %x while reading "
-		       "PCI_CLASS_BASE\n", 
-		       error);
+		printk("eata_dma: find_PCI, HBA at %s\n", dev->name));
+	    pci_set_master(dev);
+	    base = dev->resource[0].flags;
+	    if (!(base & PCI_BASE_ADDRESS_SPACE_IO)) {
+		printk("eata_dma: invalid base address of device %s\n", dev->name);
 		continue;
 	    }
-	    
-	    if (!(error = pcibios_read_config_dword(pci_bus, pci_device_fn,
-				       PCI_BASE_ADDRESS_0, (int *) &base))){
-		
-		/* Check if the address is valid */
-		if (base & 0x01) {
-		    base &= 0xfffffffe;
-                    /* EISA tag there ? */
-		    pal1 = inb(base);
-		    pal2 = inb(base + 1);
-		    pal3 = inb(base + 2);
-		    if (((pal1 == DPT_ID1) && (pal2 == DPT_ID2)) ||
-			((pal1 == NEC_ID1) && (pal2 == NEC_ID2) && 
-			 (pal3 == NEC_ID3)) ||
-			((pal1 == ATT_ID1) && (pal2 == ATT_ID2) && 
-			 (pal3 == ATT_ID3)))
-			base += 0x08;
-		    else
-			base += 0x10;   /* Now, THIS is the real address */
-
-		    if (base != 0x1f8) {
-			/* We didn't find it in the primary search */
-			if (get_conf_PIO(base, buf) == TRUE) {
-
-			    /* OK. We made it till here, so we can go now  
-			     * and register it. We  only have to check and 
-			     * eventually remove it from the EISA and ISA list 
-			     */
-			    DBG(DBG_PCI, printk("Registering PCI HBA\n"));
-			    register_HBA(base, buf, tpnt, IS_PCI);
-			    
-			    if (base < 0x1000) {
-				for (x = 0; x < MAXISA; ++x) {
-				    if (ISAbases[x] == base) {
-					ISAbases[x] = 0;
-					break;
-				    }
-				}
-			    } else if ((base & 0x0fff) == 0x0c88) 
-				EISAbases[(base >> 12) & 0x0f] = 0;
-			    continue;  /* break; */
-			} 
-#if CHECK_BLINK
-			else if (check_blink_state(base) == TRUE) {
-			    printk("eata_dma: HBA is in BLINK state.\n"
-				   "Consult your HBAs manual to correct this.\n");
+	    base = dev->resource[0].start;
+            /* EISA tag there ? */
+	    pal1 = inb(base);
+	    pal2 = inb(base + 1);
+	    pal3 = inb(base + 2);
+	    if (((pal1 == DPT_ID1) && (pal2 == DPT_ID2)) ||
+		((pal1 == NEC_ID1) && (pal2 == NEC_ID2) && 
+		(pal3 == NEC_ID3)) ||
+		((pal1 == ATT_ID1) && (pal2 == ATT_ID2) && 
+		(pal3 == ATT_ID3)))
+		base += 0x08;
+	    else
+		base += 0x10;   /* Now, THIS is the real address */
+	    if (base != 0x1f8) {
+		/* We didn't find it in the primary search */
+		if (get_conf_PIO(base, buf) == TRUE) {
+		    /* OK. We made it till here, so we can go now  
+		     * and register it. We only have to check and 
+		     * eventually remove it from the EISA and ISA list 
+		     */
+		    DBG(DBG_PCI, printk("Registering PCI HBA\n"));
+		    register_HBA(base, buf, tpnt, IS_PCI);
+		    
+		    if (base < 0x1000) {
+			for (x = 0; x < MAXISA; ++x) {
+			    if (ISAbases[x] == base) {
+				ISAbases[x] = 0;
+				break;
+			    }
 			}
-#endif
-		    }
+		    } else if ((base & 0x0fff) == 0x0c88) 
+			EISAbases[(base >> 12) & 0x0f] = 0;
+		} 
+#if CHECK_BLINK
+		else if (check_blink_state(base) == TRUE) {
+		    printk("eata_dma: HBA is in BLINK state.\n"
+			   "Consult your HBAs manual to correct this.\n");
 		}
-	    } else {
-		printk("eata_dma: error %x while reading "
-		       "PCI_BASE_ADDRESS_0\n", error);
+#endif
 	    }
 	}
-    } else {
-	printk("eata_dma: No BIOS32 extensions present. This driver release "
-	       "still depends on it.\n"
-	       "	  Skipping scan for PCI HBAs. \n");
-    }
 #endif /* #ifndef CONFIG_PCI */
-    return;
 }
 
 int eata_detect(Scsi_Host_Template * tpnt)
@@ -1524,7 +1468,7 @@ int eata_detect(Scsi_Host_Template * tpnt)
     struct Scsi_Host *HBA_ptr;
     struct get_conf gc;
     int i;
-
+    
     DBG((DBG_PROBE && DBG_DELAY) || DPT_DEBUG,
 	printk("Using lots of delays to let you read the debugging output\n"));
 

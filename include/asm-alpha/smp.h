@@ -1,11 +1,25 @@
 #ifndef __ASM_SMP_H
 #define __ASM_SMP_H
 
+#include <asm/pal.h>
+
+/* HACK: Cabrio WHAMI return value is bogus if more than 8 bits used.. :-( */
+
+static __inline__ unsigned char
+__hard_smp_processor_id(void)
+{
+	register unsigned char __r0 __asm__("$0");
+	__asm__ __volatile__(
+		"call_pal %1 #whami"
+		: "=r"(__r0)
+		:"i" (PAL_whami)
+		: "$1", "$22", "$23", "$24", "$25");
+	return __r0;
+}
+
 #ifdef __SMP__
 
-#include <linux/tasks.h>
-#include <asm/init.h>
-#include <asm/pal.h>
+#include <linux/threads.h>
 
 struct cpuinfo_alpha {
 	unsigned long loops_per_sec;
@@ -16,7 +30,11 @@ struct cpuinfo_alpha {
 	unsigned long ipi_count;
 	unsigned long prof_multiplier;
 	unsigned long prof_counter;
-} __cacheline_aligned;
+	int irq_count, bh_count;
+	unsigned char mcheck_expected;
+	unsigned char mcheck_taken;
+	unsigned char mcheck_extra;
+} __attribute__((aligned(64)));
 
 extern struct cpuinfo_alpha cpu_data[NR_CPUS];
 
@@ -30,19 +48,7 @@ extern int cpu_number_map[NR_CPUS];
 extern int __cpu_logical_map[NR_CPUS];
 #define cpu_logical_map(cpu)  __cpu_logical_map[cpu]
 
-/* HACK: Cabrio WHAMI return value is bogus if more than 8 bits used.. :-( */
-
-static __inline__ unsigned char hard_smp_processor_id(void)
-{
-	register unsigned char __r0 __asm__("$0");
-	__asm__ __volatile__(
-		"call_pal %1 #whami"
-		: "=r"(__r0)
-		:"i" (PAL_whami)
-		: "$1", "$22", "$23", "$24", "$25");
-	return __r0;
-}
-
+#define hard_smp_processor_id()	__hard_smp_processor_id()
 #define smp_processor_id()	(current->processor)
 
 #endif /* __SMP__ */

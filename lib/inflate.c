@@ -1,16 +1,17 @@
-#ifndef DEBG
 #define DEBG(x)
-#endif
-#ifndef DEBG1
 #define DEBG1(x)
-#endif
-
 /* inflate.c -- Not copyrighted 1992 by Mark Adler
    version c10p1, 10 January 1993 */
 
 /* 
  * Adapted for booting Linux by Hannu Savolainen 1993
  * based on gzip-1.0.3 
+ *
+ * Nicolas Pitre <nico@visuaide.com>, 1999/04/14 :
+ *   Little mods for all variable to reside either into rodata or bss segments
+ *   by marking constant variables with 'const' and initializing all the others
+ *   at run-time only.  This allows for the kernel uncompressor to run
+ *   directly from Flash or ROM memory on embeded systems.
  */
 
 /*
@@ -137,8 +138,8 @@ struct huft {
 
 
 /* Function prototypes */
-STATIC int huft_build OF((unsigned *, unsigned, unsigned, const ush *, const ush *,
-                   struct huft **, int *));
+STATIC int huft_build OF((unsigned *, unsigned, unsigned, 
+		const ush *, const ush *, struct huft **, int *));
 STATIC int huft_free OF((struct huft *));
 STATIC int inflate_codes OF((struct huft *, struct huft *, int, int));
 STATIC int inflate_stored OF((void));
@@ -1007,7 +1008,7 @@ STATIC int inflate()
  **********************************************************************/
 
 static ulg crc_32_tab[256];
-static ulg crc; /* shift register contents */
+static ulg crc;		/* initialized in makecrc() so it'll reside in bss */
 #define CRC_VALUE (crc ^ 0xffffffffL)
 
 /*
@@ -1026,7 +1027,7 @@ makecrc(void)
   int k;                /* byte being shifted into crc apparatus */
 
   /* terms of polynomial defining this crc (except x^32): */
-  static int p[] = {0,1,2,4,5,7,8,10,11,12,16,22,23,26};
+  static const int p[] = {0,1,2,4,5,7,8,10,11,12,16,22,23,26};
 
   /* Make exclusive-or pattern from polynomial */
   e = 0;
@@ -1046,6 +1047,9 @@ makecrc(void)
     }
     crc_32_tab[i] = c;
   }
+
+  /* this is initialized here so this code could reside in ROM */
+  crc = (ulg)0xffffffffL; /* shift register contents */
 }
 
 /* gzip flag byte */
@@ -1069,7 +1073,6 @@ static int gunzip(void)
     ulg orig_len = 0;       /* original uncompressed length */
     int res;
 
-    crc = (ulg)0xffffffffL;
     magic[0] = (unsigned char)get_byte();
     magic[1] = (unsigned char)get_byte();
     method = (unsigned char)get_byte();

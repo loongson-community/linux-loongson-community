@@ -1046,7 +1046,7 @@ static inline void happy_meal_clean_rings(struct happy_meal *hp)
 static void happy_meal_init_rings(struct happy_meal *hp, int from_irq)
 {
 	struct hmeal_init_block *hb = hp->happy_block;
-	struct device *dev = hp->dev;
+	struct net_device *dev = hp->dev;
 	int i, gfp_flags = GFP_KERNEL;
 
 	if(from_irq || in_interrupt())
@@ -1841,7 +1841,7 @@ static inline void sun4c_happy_meal_tx(struct happy_meal *hp)
  * ring when we cannot get a new skb and give them all back to the happy meal,
  * maybe things will be "happier" now.
  */
-static inline void happy_meal_rx(struct happy_meal *hp, struct device *dev,
+static inline void happy_meal_rx(struct happy_meal *hp, struct net_device *dev,
 				 struct hmeal_gregs *gregs)
 {
 	struct happy_meal_rxd *rxbase = &hp->happy_block->happy_meal_rxd[0];
@@ -1947,7 +1947,7 @@ static inline void happy_meal_rx(struct happy_meal *hp, struct device *dev,
 }
 
 #ifdef CONFIG_PCI
-static inline void pci_happy_meal_rx(struct happy_meal *hp, struct device *dev,
+static inline void pci_happy_meal_rx(struct happy_meal *hp, struct net_device *dev,
 				     struct hmeal_gregs *gregs)
 {
 	struct happy_meal_rxd *rxbase = &hp->happy_block->happy_meal_rxd[0];
@@ -2067,7 +2067,7 @@ static inline void pci_happy_meal_rx(struct happy_meal *hp, struct device *dev,
 #endif
 
 #ifndef __sparc_v9__
-static inline void sun4c_happy_meal_rx(struct happy_meal *hp, struct device *dev,
+static inline void sun4c_happy_meal_rx(struct happy_meal *hp, struct net_device *dev,
 				       struct hmeal_gregs *gregs)
 {
 	struct happy_meal_rxd *rxbase = &hp->happy_block->happy_meal_rxd[0];
@@ -2130,7 +2130,7 @@ static inline void sun4c_happy_meal_rx(struct happy_meal *hp, struct device *dev
 	RXD((">"));
 }
 
-static inline void sun4d_happy_meal_rx(struct happy_meal *hp, struct device *dev,
+static inline void sun4d_happy_meal_rx(struct happy_meal *hp, struct net_device *dev,
 				       struct hmeal_gregs *gregs)
 {
 	struct happy_meal_rxd *rxbase = &hp->happy_block->happy_meal_rxd[0];
@@ -2242,7 +2242,7 @@ static inline void sun4d_happy_meal_rx(struct happy_meal *hp, struct device *dev
 
 static void happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct device *dev            = (struct device *) dev_id;
+	struct net_device *dev            = (struct net_device *) dev_id;
 	struct happy_meal *hp         = (struct happy_meal *) dev->priv;
 	struct hmeal_gregs *gregs     = hp->gregs;
 	struct hmeal_tcvregs *tregs   = hp->tcvregs;
@@ -2287,7 +2287,7 @@ static void happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 #ifdef CONFIG_PCI
 static void pci_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct device *dev            = (struct device *) dev_id;
+	struct net_device *dev            = (struct net_device *) dev_id;
 	struct happy_meal *hp         = (struct happy_meal *) dev->priv;
 	struct hmeal_gregs *gregs     = hp->gregs;
 	struct hmeal_tcvregs *tregs   = hp->tcvregs;
@@ -2333,7 +2333,7 @@ static void pci_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs
 #ifndef __sparc_v9__
 static void sun4c_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct device *dev            = (struct device *) dev_id;
+	struct net_device *dev            = (struct net_device *) dev_id;
 	struct happy_meal *hp         = (struct happy_meal *) dev->priv;
 	struct hmeal_gregs *gregs     = hp->gregs;
 	struct hmeal_tcvregs *tregs   = hp->tcvregs;
@@ -2377,7 +2377,7 @@ static void sun4c_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *re
 
 static void sun4d_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct device *dev            = (struct device *) dev_id;
+	struct net_device *dev            = (struct net_device *) dev_id;
 	struct happy_meal *hp         = (struct happy_meal *) dev->priv;
 	struct hmeal_gregs *gregs     = hp->gregs;
 	struct hmeal_tcvregs *tregs   = hp->tcvregs;
@@ -2426,20 +2426,49 @@ static void quattro_sbus_interrupt(int irq, void *cookie, struct pt_regs *ptregs
 	int i;
 
 	for(i = 0; i < 4; i++) {
-		struct device *hdev = qp->happy_meals[i];
-		struct happy_meal *hp = (struct happy_meal *) hdev->priv;
-		volatile u32 *sreg = qp->irq_status[i];
+		struct net_device *dev = qp->happy_meals[i];
+		struct happy_meal *hp = (struct happy_meal *) dev->priv;
+		struct hmeal_gregs *gregs = hp->gregs;
+		struct hmeal_tcvregs *tregs = hp->tcvregs;
+		unsigned int happy_status = hme_read32(hp, &gregs->stat);
 
-		if(sreg &&
-		   (hme_read32(hp, sreg) & (GREG_STAT_ERRORS |
-					    GREG_STAT_MIFIRQ |
-					    GREG_STAT_TXALL  |
-					    GREG_STAT_RXTOHOST)) != 0)
-			qp->handler(irq, hdev, ptregs);
+		HMD(("quattro_interrupt: status=%08x ",happy_status));
+
+		dev->interrupt=1;
+
+		if(happy_status & GREG_STAT_ERRORS) {
+			HMD(("ERRORS "));
+			if(happy_meal_is_not_so_happy(hp, gregs, happy_status)) {
+				dev->interrupt=0;
+				break;
+			}
+		}
+
+		if(happy_status & GREG_STAT_MIFIRQ) {
+			HMD(("MIFIRQ "));
+			happy_meal_mif_interrupt(hp, gregs, tregs);
+		}
+
+		if(happy_status & GREG_STAT_TXALL) {
+			HMD(("TXALL "));
+			happy_meal_tx(hp);
+		}
+
+		if(happy_status & GREG_STAT_RXTOHOST) {
+			HMD(("RXTOHOST "));
+			happy_meal_rx(hp, dev, gregs);
+		}
+
+		if(dev->tbusy && (TX_BUFFS_AVAIL(hp) >= 0)) {
+			hp->dev->tbusy = 0;
+			mark_bh(NET_BH);
+		}
+		dev->interrupt=0;
 	}
+	HMD(("done\n"));
 }
 
-static int happy_meal_open(struct device *dev)
+static int happy_meal_open(struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	int res;
@@ -2499,7 +2528,7 @@ after_request_irq:
 	return res;
 }
 
-static int happy_meal_close(struct device *dev)
+static int happy_meal_close(struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 
@@ -2530,7 +2559,7 @@ static int happy_meal_close(struct device *dev)
 #define SXD(x)
 #endif
 
-static int happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
+static int happy_meal_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	int len, entry;
@@ -2593,7 +2622,7 @@ static int happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 }
 
 #ifdef CONFIG_PCI
-static int pci_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
+static int pci_happy_meal_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	int len, entry;
@@ -2647,7 +2676,7 @@ static int pci_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 #endif
 
 #ifndef __sparc_v9__
-static int sun4c_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
+static int sun4c_happy_meal_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	struct hmeal_buffers *hbufs = hp->sun4c_buffers;
@@ -2703,7 +2732,7 @@ static int sun4c_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 	return 0;
 }
 
-static int sun4d_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
+static int sun4d_happy_meal_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	int len, entry;
@@ -2756,7 +2785,7 @@ static int sun4d_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 }
 #endif
 
-static struct net_device_stats *happy_meal_get_stats(struct device *dev)
+static struct net_device_stats *happy_meal_get_stats(struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 
@@ -2764,7 +2793,7 @@ static struct net_device_stats *happy_meal_get_stats(struct device *dev)
 	return &hp->net_stats;
 }
 
-static void happy_meal_set_multicast(struct device *dev)
+static void happy_meal_set_multicast(struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	struct hmeal_bigmacregs *bregs = hp->bigmacregs;
@@ -2822,7 +2851,7 @@ static void happy_meal_set_multicast(struct device *dev)
 }
 
 /* Ethtool support... */
-static int happy_meal_ioctl(struct device *dev,
+static int happy_meal_ioctl(struct net_device *dev,
 			    struct ifreq *rq, int cmd)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
@@ -2947,8 +2976,11 @@ static struct quattro * __init quattro_sbus_find(struct linux_sbus_device *goal_
 	struct linux_sbus_device *sdev;
 	struct quattro *qp;
 
+	if(qfe_sbus_list == NULL)
+		goto found;
+
 	for(qp = qfe_sbus_list; qp != NULL; qp = qp->next) {
-		for(sdev = qp->quattro_sbus_dev->child;
+		for(sdev = qp->quattro_sbus_dev;
 		    sdev != NULL;
 		    sdev = sdev->next) {
 			if(sdev == goal_sdev)
@@ -2980,7 +3012,7 @@ found:
 			qp->happy_meals[i] = NULL;
 		}
 		qp->handler = NULL;
-		qp->quattro_sbus_dev = sdev;
+		qp->quattro_sbus_dev = goal_sdev;
 #ifdef CONFIG_PCI
 		qp->quattro_pci_dev = NULL;
 #endif
@@ -3037,7 +3069,7 @@ static void __init quattro_sbus_register_irqs(void)
 #ifndef __sparc_v9__
 		if(sparc_cpu_model == sun4c)
 			qp->handler = sun4c_happy_meal_interrupt;
-		else if(sparc_cpu_model == sun4c)
+		else if(sparc_cpu_model == sun4d)
 			qp->handler = sun4d_happy_meal_interrupt;
 		else
 #endif
@@ -3061,7 +3093,7 @@ static void __init quattro_sbus_register_irqs(void)
 
 static unsigned hme_version_printed = 0;
 
-static int __init happy_meal_ether_init(struct device *dev, struct linux_sbus_device *sdev, int is_qfe)
+static int __init happy_meal_ether_init(struct net_device *dev, struct linux_sbus_device *sdev, int is_qfe)
 {
 	struct quattro *qp = NULL;
 	struct happy_meal *hp;
@@ -3088,7 +3120,7 @@ static int __init happy_meal_ether_init(struct device *dev, struct linux_sbus_de
 		printk(version);
 
 	if(qfe_slot != -1)
-		printk("%s: Quattro HME slot %d (SBUS) 10/100baseT Ethernet",
+		printk("%s: Quattro HME slot %d (SBUS) 10/100baseT Ethernet ",
 		       dev->name, qfe_slot);
 	else
 		printk("%s: HAPPY MEAL (SBUS) 10/100baseT Ethernet ",
@@ -3097,10 +3129,14 @@ static int __init happy_meal_ether_init(struct device *dev, struct linux_sbus_de
 	dev->base_addr = (long) sdev;
 
 	/* XXX Check for local-mac-address property on Quattro... -DaveM */
+	/* Quattro local-mac-address... */
+	if(qfe_slot != -1 && prom_getproplen(sdev->prom_node,"local-mac-address")==6)
+		prom_getproperty(sdev->prom_node,"local-mac-address",dev->dev_addr,6);
+	else
+		memcpy(dev->dev_addr,idprom->id_ethaddr,6);
 	for(i = 0; i < 6; i++)
 		printk("%2.2x%c",
-		       dev->dev_addr[i] = idprom->id_ethaddr[i],
-		       i == 5 ? ' ' : ':');
+		       dev->dev_addr[i], i == 5 ? ' ' : ':');
 	printk("\n");
 
 	hp = (struct happy_meal *) dev->priv;
@@ -3250,7 +3286,7 @@ static int __init happy_meal_ether_init(struct device *dev, struct linux_sbus_de
 }
 
 #ifdef CONFIG_PCI
-static int __init happy_meal_pci_init(struct device *dev, struct pci_dev *pdev)
+static int __init happy_meal_pci_init(struct net_device *dev, struct pci_dev *pdev)
 {
 	struct quattro *qp = NULL;
 	struct pcidev_cookie *pcp;
@@ -3324,12 +3360,11 @@ static int __init happy_meal_pci_init(struct device *dev, struct pci_dev *pdev)
 		qp->happy_meals[qfe_slot] = dev;
 	}		
 
-	hpreg_base = pdev->base_address[0];
-	if((hpreg_base & PCI_BASE_ADDRESS_SPACE) != PCI_BASE_ADDRESS_SPACE_MEMORY) {
+	hpreg_base = pdev->resource[0].start;
+	if ((pdev->resource[0].flags & IORESOURCE_IO) != 0) {
 		printk("happymeal(PCI): Cannot find proper PCI device base address.\n");
 		return ENODEV;
 	}
-	hpreg_base &= PCI_BASE_ADDRESS_MEM_MASK;
 
 	if (qfe_slot != -1 && prom_getproplen(node, "local-mac-address") == 6)
 		prom_getproperty(node, "local-mac-address", dev->dev_addr, 6);
@@ -3424,7 +3459,7 @@ static int __init happy_meal_pci_init(struct device *dev, struct pci_dev *pdev)
 }
 #endif
 
-int __init happy_meal_probe(struct device *dev)
+int __init happy_meal_probe(struct net_device *dev)
 {
 	struct linux_sbus *bus;
 	struct linux_sbus_device *sdev = 0;

@@ -18,7 +18,7 @@
  */
 #include <linux/config.h>
 #include <linux/delay.h>
-#include <asm/init.h>
+#include <linux/init.h>
 
 #include "sound_config.h"
 #include "sound_firmware.h"
@@ -116,7 +116,8 @@ static void sb_intr (sb_devc *devc)
 
 #if defined(CONFIG_MIDI)&& defined(CONFIG_UART401)
 		if (src & 4)						/* MPU401 interrupt */
-			uart401intr(devc->irq, devc->midi_irq_cookie, NULL);
+			if(devc->midi_irq_cookie)
+				uart401intr(devc->irq, devc->midi_irq_cookie, NULL);
 #endif
 
 		if (!(src & 3))
@@ -897,7 +898,7 @@ void sb_dsp_unload(struct address_info *hw_config, int sbmpu)
 		}
 		if (!(devc->caps & SB_NO_AUDIO && devc->caps & SB_NO_MIDI))
 		{
-			if (devc->irq > 0);
+			if (devc->irq > 0)
 				free_irq(devc->irq, devc);
 
 			sound_unload_mixerdev(devc->my_mixerdev);
@@ -1215,7 +1216,17 @@ int probe_sbmpu(struct address_info *hw_config)
 	last_devc = 0;
 
 	if (hw_config->io_base <= 0)
+	{
+		/* The real vibra16 is fine about this, but we have to go
+		   wipe up after Cyrix again */
+		   	   
+		if(devc->model == MDL_SB16 && devc->minor >= 12)
+		{
+			unsigned char   bits = sb_getmixer(devc, 0x84) & ~0x06;
+			sb_setmixer(devc, 0x84, bits | 0x02);		/* Disable MPU */
+		}
 		return 0;
+	}
 
 #if defined(CONFIG_SOUND_MPU401)
 	if (devc->model == MDL_ESS)

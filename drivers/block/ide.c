@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/block/ide.c	Version 6.19  January 29, 1999
+ *  linux/drivers/block/ide.c		Version 6.20	July 10, 1999
  *
  *  Copyright (C) 1994-1998  Linus Torvalds & authors (see below)
  */
@@ -39,7 +39,7 @@
  *  October, 1994 -- Complete line-by-line overhaul for linux 1.1.x, by:
  *
  *	Mark Lord	(mlord@pobox.com)		(IDE Perf.Pkg)
- *	Delman Lee	(delman@mipg.upenn.edu)		("Mr. atdisk2")
+ *	Delman Lee	(delman@ieee.org)		("Mr. atdisk2")
  *	Scott Snyder	(snyder@fnald0.fnal.gov)	(ATAPI IDE cd-rom)
  *
  *  This was a rewrite of just about everything from hd.c, though some original
@@ -93,19 +93,28 @@
  * Version 6.17		fix for newest EZ-Drive problem
  * Version 6.18		default unpartitioned-disk translation now "BIOS LBA"
  * Version 6.19		Re-design for a UNIFORM driver for all platforms,
- *			model based on suggestions from Russell King and
- *			Geert Uytterhoeven
+ *			  model based on suggestions from Russell King and
+ *			  Geert Uytterhoeven
  *			Promise DC4030VL now supported.
+ *			add support for ide6/ide7
  *			delay_50ms() changed to ide_delay_50ms() and exported.
+ * Version 6.20		Added/Fixed Generic ATA-66 support and hwif detection.
+ *			Added hdx=flash to allow for second flash disk
+ *			  detection w/o the hang loop.
+ *			Added support for ide8/ide9
+ *			Added idex=ata66 for the quirky chipsets that are
+ *			  ATA-66 compliant, but have yet to determine a method
+ *			  of verification of the 80c cable presence.
+ *			  Specifically Promise's PDC20262 chipset.
  *
- *  Some additional driver compile-time options are in ide.h
+ *  Some additional driver compile-time options are in ./include/linux/ide.h
  *
  *  To do, in likely order of completion:
  *	- modify kernel to obtain BIOS geometry for drives on 2nd/3rd/4th i/f
 */
 
-#define	REVISION	"Revision: 6.19"
-#define	VERSION		"Id: ide.c 6.19 1999/01/29"
+#define	REVISION	"Revision: 6.20"
+#define	VERSION		"Id: ide.c 6.20 1999/07/10"
 
 #undef REALLY_SLOW_IO		/* most systems can safely undef this */
 
@@ -144,7 +153,11 @@
 extern byte fifoconfig;           /* defined in via82c586.c used by ide_setup()*/
 #endif
 
-static const byte	ide_hwif_to_major[] = {IDE0_MAJOR, IDE1_MAJOR, IDE2_MAJOR, IDE3_MAJOR, IDE4_MAJOR, IDE5_MAJOR, IDE6_MAJOR, IDE7_MAJOR };
+static const byte	ide_hwif_to_major[] = { IDE0_MAJOR, IDE1_MAJOR,
+						IDE2_MAJOR, IDE3_MAJOR,
+						IDE4_MAJOR, IDE5_MAJOR,
+						IDE6_MAJOR, IDE7_MAJOR,
+						IDE8_MAJOR, IDE9_MAJOR };
 
 static int	idebus_parameter; /* holds the "idebus=" parameter */
 static int	system_bus_speed; /* holds what we think is VESA/PCI bus speed */
@@ -421,8 +434,8 @@ void ide_output_data (ide_drive_t *drive, void *buffer, unsigned int wcount)
 void atapi_input_bytes (ide_drive_t *drive, void *buffer, unsigned int bytecount)
 {
 	++bytecount;
-#ifdef CONFIG_ATARI
-	if (MACH_IS_ATARI) {
+#if defined(CONFIG_ATARI) || defined(CONFIG_Q40)
+	if (MACH_IS_ATARI || MACH_IS_Q40) {
 		/* Atari has a byte-swapped IDE interface */
 		insw_swapw(IDE_DATA_REG, buffer, bytecount / 2);
 		return;
@@ -436,8 +449,8 @@ void atapi_input_bytes (ide_drive_t *drive, void *buffer, unsigned int bytecount
 void atapi_output_bytes (ide_drive_t *drive, void *buffer, unsigned int bytecount)
 {
 	++bytecount;
-#ifdef CONFIG_ATARI
-	if (MACH_IS_ATARI) {
+#if defined(CONFIG_ATARI) || defined(CONFIG_Q40)
+	if (MACH_IS_ATARI || MACH_IS_Q40) {
 		/* Atari has a byte-swapped IDE interface */
 		outsw_swapw(IDE_DATA_REG, buffer, bytecount / 2);
 		return;
@@ -1187,7 +1200,9 @@ static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags
 			return;
 		}
 		hwif = HWIF(drive);
-		if (hwgroup->hwif->sharing_irq && hwif != hwgroup->hwif) /* set nIEN for previous hwif */
+		if (hwgroup->hwif->sharing_irq && hwif != hwgroup->hwif &&
+		    hwif->io_ports[IDE_CONTROL_OFFSET])
+			/* set nIEN for previous hwif */
 			OUT_BYTE(hwgroup->drive->ctl|2, hwgroup->hwif->io_ports[IDE_CONTROL_OFFSET]);
 		hwgroup->hwif = hwif;
 		hwgroup->drive = drive;
@@ -1308,6 +1323,20 @@ void do_ide7_request (void)
 }
 #endif /* MAX_HWIFS > 7 */
 
+#if MAX_HWIFS > 8
+void do_ide8_request (void)
+{
+	unlock_do_hwgroup_request (ide_hwifs[8].hwgroup);
+}
+#endif /* MAX_HWIFS > 8 */
+
+#if MAX_HWIFS > 9
+void do_ide9_request (void)
+{
+	unlock_do_hwgroup_request (ide_hwifs[9].hwgroup);
+}
+#endif /* MAX_HWIFS > 9 */
+
 static void start_next_request (ide_hwgroup_t *hwgroup, int masked_irq)
 {
 	unsigned long	flags;
@@ -1347,6 +1376,7 @@ void ide_timer_expiry (unsigned long data)
 		handler(drive);
 	} else if (drive_is_ready(drive)) {
 		printk("%s: lost interrupt\n", drive->name);
+		(void) hwgroup->hwif->dmaproc(ide_dma_lostirq, drive);
 		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		handler(drive);
 	} else {
@@ -1357,6 +1387,7 @@ void ide_timer_expiry (unsigned long data)
 	 *  need something here for HPT34X.......AMH
 	 *  irq timeout: status=0x58 { DriveReady SeekComplete DataRequest }
 	 */
+			(void) hwgroup->hwif->dmaproc(ide_dma_timeout, drive);
 		}
 		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		ide_error(drive, "irq timeout", GET_STAT());
@@ -1957,7 +1988,7 @@ int ide_register_hw (hw_regs_t *hw, ide_hwif_t **hwifp)
 		}
 		for (index = 0; index < MAX_HWIFS; ++index) {
 			hwif = &ide_hwifs[index];
-			if ((!hwif->present && !initializing) ||
+			if ((!hwif->present && !hwif->mate && !initializing) ||
 			    (!hwif->hw.io_ports[IDE_DATA_OFFSET] && initializing))
 				goto found;
 		}
@@ -2248,7 +2279,8 @@ int ide_config_drive_speed (ide_drive_t *drive, byte speed)
 	 * this point (lost interrupt).
 	 */
 	SELECT_DRIVE(HWIF(drive), drive);
-	OUT_BYTE(drive->ctl | 2, IDE_CONTROL_REG);
+	if (IDE_CONTROL_REG)
+	    OUT_BYTE(drive->ctl | 2, IDE_CONTROL_REG);
 	OUT_BYTE(speed, IDE_NSECTOR_REG);
 	OUT_BYTE(SETFEATURES_XFER, IDE_FEATURE_REG);
 	OUT_BYTE(WIN_SETFEATURES, IDE_COMMAND_REG);
@@ -2524,7 +2556,7 @@ char *ide_xfer_verbose (byte xfer_rate) {
  * stridx() returns the offset of c within s,
  * or -1 if c is '\0' or not found within s.
  */
-__initfunc(static int stridx (const char *s, char c))
+static int __init stridx (const char *s, char c)
 {
 	char *i = strchr(s, c);
 	return (i && c) ? i - s : -1;
@@ -2542,7 +2574,7 @@ __initfunc(static int stridx (const char *s, char c))
  *     and base16 is allowed when prefixed with "0x".
  * 4. otherwise, zero is returned.
  */
-__initfunc(static int match_parm (char *s, const char *keywords[], int vals[], int max_vals))
+static int __init match_parm (char *s, const char *keywords[], int vals[], int max_vals)
 {
 	static const char *decimal = "0123456789";
 	static const char *hex = "0123456789abcdef";
@@ -2641,6 +2673,10 @@ __initfunc(static int match_parm (char *s, const char *keywords[], int vals[], i
  * "idex=four"		: four drives on idex and ide(x^1) share same ports
  * "idex=reset"		: reset interface before first use
  * "idex=dma"		: enable DMA by default on both drives if possible
+ * "idex=ata66"		: informs the interface that it has an 80c cable
+ *				for chipsets that are ATA-66 capable, but
+ *				the ablity to bit test for detection is
+ *				currently unknown.
  *
  * "splitfifo=betweenChan"
  *			: FIFO Configuration of VIA 82c586(<nothing>,"A"or"B").
@@ -2668,8 +2704,9 @@ __initfunc(static int match_parm (char *s, const char *keywords[], int vals[], i
  * "ide0=ali14xx"	: probe/support ali14xx chipsets (ALI M1439, M1443, M1445)
  * "ide0=umc8672"	: probe/support umc8672 chipsets
  * "idex=dc4030"	: probe/support Promise DC4030VL interface
+ * "ide=doubler"	: probe/support IDE doublers on Amiga
  */
-__initfunc(void ide_setup (char *s))
+void __init ide_setup (char *s)
 {
 	int i, vals[3];
 	ide_hwif_t *hwif;
@@ -2828,9 +2865,12 @@ __initfunc(void ide_setup (char *s))
 	if (s[3] >= '0' && s[3] <= max_hwif) {
 		/*
 		 * Be VERY CAREFUL changing this: note hardcoded indexes below
+		 * -8,-9,-10 : are reserved for future idex calls to ease the hardcoding.
 		 */
-		const char *ide_words[] = {"noprobe", "serialize", "autotune", "noautotune", "reset", "dma", "four",
-			"qd6580", "ht6560b", "cmd640_vlb", "dtc2278", "umc8672", "ali14xx", "dc4030", NULL};
+		const char *ide_words[] = {
+			"noprobe", "serialize", "autotune", "noautotune", "reset", "dma", "ata66",
+			"minus8", "minus9", "minus10",
+			"four", "qd6580", "ht6560b", "cmd640_vlb", "dtc2278", "umc8672", "ali14xx", "dc4030", NULL };
 		hw = s[3] - '0';
 		hwif = &ide_hwifs[hw];
 		i = match_parm(&s[4], ide_words, vals, 3);
@@ -2838,19 +2878,19 @@ __initfunc(void ide_setup (char *s))
 		/*
 		 * Cryptic check to ensure chipset not already set for hwif:
 		 */
-		if (i > 0 || i <= -7) {			/* is parameter a chipset name? */
+		if (i > 0 || i <= -11) {			/* is parameter a chipset name? */
 			if (hwif->chipset != ide_unknown)
 				goto bad_option;	/* chipset already specified */
-			if (i <= -7 && i != -14 && hw != 0)
+			if (i <= -11 && i != -18 && hw != 0)
 				goto bad_hwif;		/* chipset drivers are for "ide0=" only */
-			if (i <= -7 && i != -14 && ide_hwifs[hw+1].chipset != ide_unknown)
+			if (i <= -11 && i != -18 && ide_hwifs[hw+1].chipset != ide_unknown)
 				goto bad_option;	/* chipset for 2nd port already specified */
 			printk("\n");
 		}
 
 		switch (i) {
 #ifdef CONFIG_BLK_DEV_PDC4030
-			case -14: /* "dc4030" */
+			case -18: /* "dc4030" */
 			{
 				extern void init_pdc4030(void);
 				init_pdc4030();
@@ -2858,7 +2898,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_PDC4030 */
 #ifdef CONFIG_BLK_DEV_ALI14XX
-			case -13: /* "ali14xx" */
+			case -17: /* "ali14xx" */
 			{
 				extern void init_ali14xx (void);
 				init_ali14xx();
@@ -2866,7 +2906,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_ALI14XX */
 #ifdef CONFIG_BLK_DEV_UMC8672
-			case -12: /* "umc8672" */
+			case -16: /* "umc8672" */
 			{
 				extern void init_umc8672 (void);
 				init_umc8672();
@@ -2874,7 +2914,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_UMC8672 */
 #ifdef CONFIG_BLK_DEV_DTC2278
-			case -11: /* "dtc2278" */
+			case -15: /* "dtc2278" */
 			{
 				extern void init_dtc2278 (void);
 				init_dtc2278();
@@ -2882,7 +2922,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_DTC2278 */
 #ifdef CONFIG_BLK_DEV_CMD640
-			case -10: /* "cmd640_vlb" */
+			case -14: /* "cmd640_vlb" */
 			{
 				extern int cmd640_vlb; /* flag for cmd640.c */
 				cmd640_vlb = 1;
@@ -2890,7 +2930,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_CMD640 */
 #ifdef CONFIG_BLK_DEV_HT6560B
-			case -9: /* "ht6560b" */
+			case -13: /* "ht6560b" */
 			{
 				extern void init_ht6560b (void);
 				init_ht6560b();
@@ -2898,7 +2938,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_HT6560B */
 #if CONFIG_BLK_DEV_QD6580
-			case -8: /* "qd6580" */
+			case -12: /* "qd6580" */
 			{
 				extern void init_qd6580 (void);
 				init_qd6580();
@@ -2906,7 +2946,7 @@ __initfunc(void ide_setup (char *s))
 			}
 #endif /* CONFIG_BLK_DEV_QD6580 */
 #ifdef CONFIG_BLK_DEV_4DRIVES
-			case -7: /* "four" drives on one set of ports */
+			case -11: /* "four" drives on one set of ports */
 			{
 				ide_hwif_t *mate = &ide_hwifs[hw^1];
 				mate->drives[0].select.all ^= 0x20;
@@ -2917,6 +2957,18 @@ __initfunc(void ide_setup (char *s))
 				goto do_serialize;
 			}
 #endif /* CONFIG_BLK_DEV_4DRIVES */
+			case -10: /* minus10 */
+			case -9: /* minus9 */
+			case -8: /* minus8 */
+				goto bad_option;
+			case -7: /* ata66 */
+#ifdef CONFIG_BLK_DEV_IDEPCI
+				hwif->udma_four = 1;
+				goto done;
+#else /* !CONFIG_BLK_DEV_IDEPCI */
+				hwif->udma_four = 0;
+				goto bad_hwif;
+#endif /* CONFIG_BLK_DEV_IDEPCI */
 			case -6: /* dma */
 				hwif->autodma = 1;
 				goto done;
@@ -3080,7 +3132,7 @@ int ide_xlate_1024 (kdev_t i_rdev, int xparm, const char *msg)
 /*
  * probe_for_hwifs() finds/initializes "known" IDE interfaces
  */
-__initfunc(static void probe_for_hwifs (void))
+static void __init probe_for_hwifs (void)
 {
 #ifdef CONFIG_PCI
 	if (pci_present())
@@ -3154,7 +3206,7 @@ __initfunc(static void probe_for_hwifs (void))
 #endif /* CONFIG_BLK_DEV_BUDDHA */
 }
 
-__initfunc(void ide_init_builtin_drivers (void))
+void __init ide_init_builtin_drivers (void)
 {
 	/*
 	 * Probe for special PCI and other "known" interface chipsets
@@ -3425,6 +3477,12 @@ EXPORT_SYMBOL(do_ide6_request);
 #if MAX_HWIFS > 7
 EXPORT_SYMBOL(do_ide7_request);
 #endif /* MAX_HWIFS > 7 */
+#if MAX_HWIFS > 8
+EXPORT_SYMBOL(do_ide8_request);
+#endif /* MAX_HWIFS > 8 */
+#if MAX_HWIFS > 9
+EXPORT_SYMBOL(do_ide9_request);
+#endif /* MAX_HWIFS > 9 */
 
 /*
  * Driver module
@@ -3469,7 +3527,7 @@ EXPORT_SYMBOL(ide_setup_ports);
 /*
  * This is gets invoked once during initialization, to set *everything* up
  */
-__initfunc(int ide_init (void))
+int __init ide_init (void)
 {
 	static char banner_printed = 0;
 
@@ -3491,7 +3549,7 @@ __initfunc(int ide_init (void))
 char *options = NULL;
 MODULE_PARM(options,"s");
 
-__initfunc(static void parse_options (char *line))
+static void __init parse_options (char *line)
 {
 	char *next = line;
 

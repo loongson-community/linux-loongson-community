@@ -16,7 +16,8 @@
  *      console device I strongly recommend to use only one.
  */
 
-#include <asm/init.h>
+#include <linux/config.h>
+#include <linux/init.h>
 #include <asm/dec/machtype.h>
 
 #ifdef CONFIG_ZS
@@ -44,7 +45,7 @@ extern long dz_serial_console_init(long, long);
 
 #ifdef CONFIG_SERIAL
 
-__initfunc(int rs_init(void))
+int __init rs_init(void)
 {
 
 #if defined(CONFIG_ZS) && defined(CONFIG_DZ)
@@ -72,7 +73,7 @@ __initfunc(int rs_init(void))
 /* serial_console_init handles the special case of starting
  *   up the console on the serial port
  */
-__initfunc(long serial_console_init(long kmem_start, long kmem_end))
+long __init serial_console_init(long kmem_start, long kmem_end)
 {
 #if defined(CONFIG_ZS) && defined(CONFIG_DZ)
     if (IOASIC)

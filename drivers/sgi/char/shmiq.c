@@ -1,4 +1,4 @@
-/* $Id: shmiq.c,v 1.12 1999/06/17 13:29:04 ralf Exp $
+/* $Id: shmiq.c,v 1.13 1999/09/28 22:26:59 ralf Exp $
  *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -214,6 +214,8 @@ shmiq_ioctl (struct inode *inode, struct file *f, unsigned int cmd, unsigned lon
 			goto bad_file;
 
 		v = shmiq_manage_file (file);
+		if (v<0)
+			fput(file);
 		return v;
 
 		/*
@@ -239,7 +241,7 @@ bad_file:
 	return -EBADF;
 }
 
-extern int sys_munmap(unsigned long addr, size_t len);
+extern long sys_munmap(unsigned long addr, size_t len);
 
 static int
 qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg, int minor)

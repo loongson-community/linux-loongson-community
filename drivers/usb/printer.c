@@ -16,8 +16,7 @@
 #include <linux/init.h>
 #include <linux/malloc.h>
 #include <linux/lp.h>
-
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 #include "usb.h"
 
@@ -161,8 +160,13 @@ static ssize_t write_printer(struct file * file,
 	unsigned long copy_size;
 	unsigned long bytes_written = 0;
 	unsigned long partial;
-	int result;
+	int result = USB_ST_NOERROR;
 	int maxretry;
+	int endpoint_num;
+	struct usb_interface_descriptor *interface;
+	
+	interface = p->pusb_dev->config->interface->altsetting;
+	endpoint_num = (interface->endpoint[1].bEndpointAddress & 0x0f);
 
 	do {
 		char *obuf = p->obuf;
@@ -179,7 +183,8 @@ static ssize_t write_printer(struct file * file,
 				return bytes_written ? bytes_written : -EINTR;
 			}
 			result = p->pusb_dev->bus->op->bulk_msg(p->pusb_dev,
-					 usb_sndbulkpipe(p->pusb_dev, 1), obuf, thistime, &partial);
+					 usb_sndbulkpipe(p->pusb_dev, endpoint_num),
+					 obuf, thistime, &partial);
 			if (partial) {
 				obuf += partial;
 				thistime -= partial;
@@ -218,6 +223,11 @@ static ssize_t read_printer(struct file * file,
 	char buf[64];
 	unsigned long partial;
 	int result;
+	int endpoint_num;
+	struct usb_interface_descriptor *interface;
+	
+	interface = p->pusb_dev->config->interface->altsetting;
+	endpoint_num = (interface->endpoint[0].bEndpointAddress & 0x0f);
 
 	if (p->noinput)
 		return -EINVAL;
@@ -232,7 +242,8 @@ static ssize_t read_printer(struct file * file,
 		this_read = (count > sizeof(buf)) ? sizeof(buf) : count;
 
 		result = p->pusb_dev->bus->op->bulk_msg(p->pusb_dev,
-			  usb_rcvbulkpipe(p->pusb_dev, 2), buf, this_read, &partial);
+			  usb_rcvbulkpipe(p->pusb_dev, endpoint_num),
+			  buf, this_read, &partial);
 
 		/* unlike writes, we don't retry a NAK, just stop now */
 		if (!result & partial)
@@ -241,7 +252,7 @@ static ssize_t read_printer(struct file * file,
 			return -EIO;
 
 		if (this_read) {
-			if (copy_to_user(buffer, p->obuf, this_read))
+			if (copy_to_user(buffer, buf, this_read))
 				return -EFAULT;
 			count -= this_read;
 			read_count += this_read;
@@ -266,7 +277,7 @@ static int printer_probe(struct usb_device *dev)
 		return -1;
 	}
 
-	interface = dev->config->altsetting->interface;
+	interface = &dev->config[0].interface[0].altsetting[0];
 
 	/* Lets be paranoid (for the moment)*/
 	if (interface->bInterfaceClass != 7 ||
@@ -276,10 +287,10 @@ static int printer_probe(struct usb_device *dev)
 		return -1;
 	}
 
-	if (interface->endpoint[0].bEndpointAddress != 0x01 ||
+	if ((interface->endpoint[0].bEndpointAddress & 0xf0) != 0x00 ||
 	    interface->endpoint[0].bmAttributes != 0x02 ||
 	    (interface->bNumEndpoints > 1 && (
-		    interface->endpoint[1].bEndpointAddress != 0x82 ||
+		    (interface->endpoint[1].bEndpointAddress & 0xf0) != 0x80 ||
 		    interface->endpoint[1].bmAttributes != 0x02))) {
 		return -1;
 	}
@@ -318,7 +329,7 @@ static int printer_probe(struct usb_device *dev)
 	}
 
         if (usb_set_configuration(dev, dev->config[0].bConfigurationValue)) {
-		printk(KERN_INFO "  Failed to set configuration\n");
+		printk(KERN_INFO "  Failed usb_set_configuration: printer\n");
 		return -1;
 	}
 #if 0
@@ -414,8 +425,6 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	unsigned int offset;
-
 	usb_deregister(&printer_driver);
 	unregister_chrdev(mymajor, "usblp");
 }

@@ -1,15 +1,16 @@
-/* $Id: hardirq.h,v 1.3 1998/08/25 09:21:56 ralf Exp $
+/* $Id: hardirq.h,v 1.4 1998/09/19 19:19:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1997, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#ifndef __ASM_MIPS_HARDIRQ_H
-#define __ASM_MIPS_HARDIRQ_H
+#ifndef _ASM_HARDIRQ_H
+#define _ASM_HARDIRQ_H
 
-#include <linux/tasks.h>
+#include <linux/threads.h>
 
 extern unsigned int local_irq_count[NR_CPUS];
 
@@ -35,4 +36,4 @@ extern unsigned int local_irq_count[NR_CPUS];
 #error No habla MIPS SMP
 
 #endif /* __SMP__ */
-#endif /* __ASM_MIPS_HARDIRQ_H */
+#endif /* _ASM_HARDIRQ_H */

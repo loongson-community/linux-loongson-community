@@ -42,6 +42,10 @@
  * Alan Cox	     :  security fixes.
  *			<Alan.Cox@linux.org>
  *
+ * Al Viro           :  safe handling of mm_struct
+ *
+ * Gerhard Wichert   :  added BIGMEM support
+ * Siemens AG           <Gerhard.Wichert@pdb.siemens.de>
  */
 
 #include <linux/types.h>
@@ -76,6 +80,11 @@ int get_malloc(char * buffer);
 #endif
 
 
+static int open_kcore(struct inode * inode, struct file * filp)
+{
+	return capable(CAP_SYS_RAWIO) ? 0 : -EPERM;
+}
+
 static ssize_t read_core(struct file * file, char * buf,
 			 size_t count, loff_t *ppos)
 {
@@ -93,6 +102,9 @@ static ssize_t read_core(struct file * file, char * buf,
 	memset(&dump, 0, sizeof(struct user));
 	dump.magic = CMAGIC;
 	dump.u_dsize = max_mapnr;
+#if defined (__i386__)
+	dump.start_code = PAGE_OFFSET;
+#endif
 #ifdef __alpha__
 	dump.start_data = PAGE_OFFSET;
 #endif
@@ -137,6 +149,12 @@ static ssize_t read_core(struct file * file, char * buf,
 static struct file_operations proc_kcore_operations = {
 	NULL,           /* lseek */
 	read_core,
+	NULL,		/* write */
+	NULL,		/* readdir */
+	NULL,		/* poll */
+	NULL,		/* ioctl */
+	NULL,		/* mmap */
+	open_kcore
 };
 
 struct inode_operations proc_kcore_inode_operations = {
@@ -223,7 +241,7 @@ static int get_loadavg(char * buffer)
 		LOAD_INT(a), LOAD_FRAC(a),
 		LOAD_INT(b), LOAD_FRAC(b),
 		LOAD_INT(c), LOAD_FRAC(c),
-		nr_running, nr_tasks, last_pid);
+		nr_running, nr_threads, last_pid);
 }
 
 static int get_kstat(char * buffer)
@@ -231,9 +249,8 @@ static int get_kstat(char * buffer)
 	int i, len;
 	unsigned sum = 0;
 	extern unsigned long total_forks;
-	unsigned long ticks;
+	unsigned long jif = HZ_TO_STD(jiffies);
 
-	ticks = HZ_TO_STD(jiffies) * smp_num_cpus;
 	for (i = 0 ; i < NR_IRQS ; i++)
 		sum += kstat_irqs(i);
 
@@ -243,14 +260,14 @@ static int get_kstat(char * buffer)
 		kstat.cpu_user,
 		kstat.cpu_nice,
 		kstat.cpu_system,
-		jiffies*smp_num_cpus - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system));
+		jif*smp_num_cpus - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
 	for (i = 0 ; i < smp_num_cpus; i++)
 		len += sprintf(buffer + len, "cpu%d %u %u %u %lu\n",
 			i,
 			kstat.per_cpu_user[cpu_logical_map(i)],
 			kstat.per_cpu_nice[cpu_logical_map(i)],
 			kstat.per_cpu_system[cpu_logical_map(i)],
-			jiffies - (  kstat.per_cpu_user[cpu_logical_map(i)] \
+			jif - (  kstat.per_cpu_user[cpu_logical_map(i)] \
 			           + kstat.per_cpu_nice[cpu_logical_map(i)] \
 			           + kstat.per_cpu_system[cpu_logical_map(i)]));
 	len += sprintf(buffer + len,
@@ -276,7 +293,7 @@ static int get_kstat(char * buffer)
 		HZ_TO_STD(kstat.cpu_user),
 		HZ_TO_STD(kstat.cpu_nice),
 		HZ_TO_STD(kstat.cpu_system),
-		ticks - HZ_TO_STD(kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
+		jif*smp_num_cpus - HZ_TO_STD(kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
 #endif
 		kstat.dk_drive[0], kstat.dk_drive[1],
 		kstat.dk_drive[2], kstat.dk_drive[3],
@@ -300,7 +317,7 @@ static int get_kstat(char * buffer)
 		"btime %lu\n"
 		"processes %lu\n",
 		kstat.context_swtch,
-		xtime.tv_sec - jiffies / HZ,
+		xtime.tv_sec - jif / HZ,
 		total_forks);
 	return len;
 }
@@ -312,7 +329,7 @@ static int get_uptime(char * buffer)
 	unsigned long idle;
 
 	uptime = jiffies;
-	idle = task[0]->times.tms_utime + task[0]->times.tms_stime;
+	idle = init_tasks[0]->times.tms_utime + init_tasks[0]->times.tms_stime;
 
 	/* The formula for the fraction parts really is ((t * 100) / HZ) % 100, but
 	   that would overflow about every five days at HZ == 100.
@@ -348,7 +365,7 @@ static int get_meminfo(char * buffer)
 	len = sprintf(buffer, "        total:    used:    free:  shared: buffers:  cached:\n"
 		"Mem:  %8lu %8lu %8lu %8lu %8lu %8lu\n"
 		"Swap: %8lu %8lu %8lu\n",
-		i.totalram, i.totalram-i.freeram, i.freeram, i.sharedram, i.bufferram, atomic_read(&page_cache_size)*PAGE_SIZE,
+		i.totalram, i.totalram-i.freeram, i.freeram, i.sharedram, i.bufferram, (unsigned long) atomic_read(&page_cache_size)*PAGE_SIZE,
 		i.totalswap, i.totalswap-i.freeswap, i.freeswap);
 	/*
 	 * Tagged format, for easy grepping and expansion. The above will go away
@@ -360,6 +377,8 @@ static int get_meminfo(char * buffer)
 		"MemShared: %8lu kB\n"
 		"Buffers:   %8lu kB\n"
 		"Cached:    %8u kB\n"
+		"BigTotal:  %8lu kB\n"
+		"BigFree:   %8lu kB\n"
 		"SwapTotal: %8lu kB\n"
 		"SwapFree:  %8lu kB\n",
 		i.totalram >> 10,
@@ -367,6 +386,8 @@ static int get_meminfo(char * buffer)
 		i.sharedram >> 10,
 		i.bufferram >> 10,
 		atomic_read(&page_cache_size) << (PAGE_SHIFT - 10),
+		i.totalbig >> 10,
+		i.freebig >> 10,
 		i.totalswap >> 10,
 		i.freeswap >> 10);
 }
@@ -386,21 +407,15 @@ static int get_cmdline(char * buffer)
 	return sprintf(buffer, "%s\n", saved_command_line);
 }
 
-static unsigned long get_phys_addr(struct task_struct * p, unsigned long ptr)
+static unsigned long get_phys_addr(struct mm_struct * mm, unsigned long ptr)
 {
 	pgd_t *page_dir;
 	pmd_t *page_middle;
 	pte_t pte;
 
-	if (!p || !p->mm || ptr >= TASK_SIZE)
+	if (ptr >= TASK_SIZE)
 		return 0;
-	/* Check for NULL pgd .. shouldn't happen! */
-	if (!p->mm->pgd) {
-		printk("get_phys_addr: pid %d has NULL pgd!\n", p->pid);
-		return 0;
-	}
-
-	page_dir = pgd_offset(p->mm,ptr);
+	page_dir = pgd_offset(mm,ptr);
 	if (pgd_none(*page_dir))
 		return 0;
 	if (pgd_bad(*page_dir)) {
@@ -422,7 +437,9 @@ static unsigned long get_phys_addr(struct task_struct * p, unsigned long ptr)
 	return pte_page(pte) + (ptr & ~PAGE_MASK);
 }
 
-static int get_array(struct task_struct *p, unsigned long start, unsigned long end, char * buffer)
+#include <linux/bigmem.h>
+
+static int get_array(struct mm_struct *mm, unsigned long start, unsigned long end, char * buffer)
 {
 	unsigned long addr;
 	int size = 0, result = 0;
@@ -431,49 +448,68 @@ static int get_array(struct task_struct *p, unsigned long start, unsigned long e
 	if (start >= end)
 		return result;
 	for (;;) {
-		addr = get_phys_addr(p, start);
+		addr = get_phys_addr(mm, start);
 		if (!addr)
 			return result;
+		addr = kmap(addr, KM_READ);
 		do {
 			c = *(char *) addr;
 			if (!c)
 				result = size;
 			if (size < PAGE_SIZE)
 				buffer[size++] = c;
-			else
+			else {
+				kunmap(addr, KM_READ);
 				return result;
+			}
 			addr++;
 			start++;
-			if (!c && start >= end)
+			if (!c && start >= end) {
+				kunmap(addr, KM_READ);
 				return result;
+			}
 		} while (addr & ~PAGE_MASK);
+		kunmap(addr, KM_READ);
 	}
 	return result;
 }
 
-static int get_env(int pid, char * buffer)
+static struct mm_struct *get_mm(int pid)
 {
 	struct task_struct *p;
+	struct mm_struct *mm = NULL;
 	
 	read_lock(&tasklist_lock);
 	p = find_task_by_pid(pid);
-	read_unlock(&tasklist_lock);	/* FIXME!! This should be done after the last use */
+	if (p)
+		mm = p->mm;
+	if (mm)
+		atomic_inc(&mm->mm_users);
+	read_unlock(&tasklist_lock);
+	return mm;
+}
 
-	if (!p || !p->mm)
-		return 0;
-	return get_array(p, p->mm->env_start, p->mm->env_end, buffer);
+
+static int get_env(int pid, char * buffer)
+{
+	struct mm_struct *mm = get_mm(pid);
+	int res = 0;
+	if (mm) {
+		res = get_array(mm, mm->env_start, mm->env_end, buffer);
+		mmput(mm);
+	}
+	return res;
 }
 
 static int get_arg(int pid, char * buffer)
 {
-	struct task_struct *p;
-
-	read_lock(&tasklist_lock);
-	p = find_task_by_pid(pid);
-	read_unlock(&tasklist_lock);	/* FIXME!! This should be done after the last use */
-	if (!p || !p->mm)
-		return 0;
-	return get_array(p, p->mm->arg_start, p->mm->arg_end, buffer);
+	struct mm_struct *mm = get_mm(pid);
+	int res = 0;
+	if (mm) {
+		res = get_array(mm, mm->arg_start, mm->arg_end, buffer);
+		mmput(mm);
+	}
+	return res;
 }
 
 /*
@@ -495,13 +531,13 @@ static unsigned long get_wchan(struct task_struct *p)
 		int count = 0;
 
 		stack_page = (unsigned long)p;
-		esp = p->tss.esp;
-		if (!stack_page || esp < stack_page || esp >= 8188+stack_page)
+		esp = p->thread.esp;
+		if (!stack_page || esp < stack_page || esp > 8188+stack_page)
 			return 0;
 		/* include/asm-i386/system.h:switch_to() pushes ebp last. */
 		ebp = *(unsigned long *) esp;
 		do {
-			if (ebp < stack_page || ebp >= 8188+stack_page)
+			if (ebp < stack_page || ebp > 8184+stack_page)
 				return 0;
 			eip = *(unsigned long *) (ebp+4);
 			if (eip < first_sched || eip >= last_sched)
@@ -523,9 +559,9 @@ static unsigned long get_wchan(struct task_struct *p)
 	    unsigned long schedule_frame;
 	    unsigned long pc;
 
-	    pc = thread_saved_pc(&p->tss);
+	    pc = thread_saved_pc(&p->thread);
 	    if (pc >= first_sched && pc < last_sched) {
-		schedule_frame = ((unsigned long *)p->tss.ksp)[6];
+		schedule_frame = ((unsigned long *)p->thread.ksp)[6];
 		return ((unsigned long *)schedule_frame)[12];
 	    }
 	    return pc;
@@ -538,9 +574,9 @@ static unsigned long get_wchan(struct task_struct *p)
 		unsigned long schedule_frame;
 		unsigned long pc;
 
-		pc = thread_saved_pc(&p->tss);
+		pc = thread_saved_pc(&p->thread);
 		if (pc >= (unsigned long) interruptible_sleep_on && pc < (unsigned long) add_timer) {
-			schedule_frame = ((unsigned long *)(long)p->tss.reg30)[16];
+			schedule_frame = ((unsigned long *)(long)p->thread.reg30)[16];
 			return (unsigned long)((unsigned long *)schedule_frame)[11];
 		}
 		return pc;
@@ -552,7 +588,7 @@ static unsigned long get_wchan(struct task_struct *p)
 	    int count = 0;
 
 	    stack_page = (unsigned long)p;
-	    fp = ((struct switch_stack *)p->tss.ksp)->a6;
+	    fp = ((struct switch_stack *)p->thread.ksp)->a6;
 	    do {
 		    if (fp < stack_page+sizeof(struct task_struct) ||
 			fp >= 8184+stack_page)
@@ -570,7 +606,7 @@ static unsigned long get_wchan(struct task_struct *p)
 		unsigned long stack_page = (unsigned long) p;
 		int count = 0;
 
-		sp = p->tss.ksp;
+		sp = p->thread.ksp;
 		do {
 			sp = *(unsigned long *)sp;
 			if (sp < stack_page || sp >= stack_page + 8188)
@@ -609,7 +645,7 @@ static unsigned long get_wchan(struct task_struct *p)
 #ifdef __sparc_v9__
 		bias = STACK_BIAS;
 #endif
-		fp = p->tss.ksp + bias;
+		fp = p->thread.ksp + bias;
 		do {
 			/* Bogus frame pointer? */
 			if (fp < (task_base + sizeof(struct task_struct)) ||
@@ -638,7 +674,7 @@ static unsigned long get_wchan(struct task_struct *p)
 				 + (long)&((struct pt_regs *)0)->reg)
 # define KSTK_EIP(tsk) \
     (*(unsigned long *)(PT_REG(pc) + PAGE_SIZE + (unsigned long)(tsk)))
-# define KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->tss.usp)
+# define KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->thread.usp)
 #elif defined(__arm__)
 # define KSTK_EIP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1022])
 # define KSTK_ESP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1020])
@@ -646,26 +682,29 @@ static unsigned long get_wchan(struct task_struct *p)
 #define	KSTK_EIP(tsk)	\
     ({			\
 	unsigned long eip = 0;	 \
-	if ((tsk)->tss.esp0 > PAGE_SIZE && \
-	    MAP_NR((tsk)->tss.esp0) < max_mapnr) \
-	      eip = ((struct pt_regs *) (tsk)->tss.esp0)->pc;	 \
+	if ((tsk)->thread.esp0 > PAGE_SIZE && \
+	    MAP_NR((tsk)->thread.esp0) < max_mapnr) \
+	      eip = ((struct pt_regs *) (tsk)->thread.esp0)->pc; \
 	eip; })
-#define	KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->tss.usp)
+#define	KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->thread.usp)
 #elif defined(__powerpc__)
-#define KSTK_EIP(tsk)	((tsk)->tss.regs->nip)
-#define KSTK_ESP(tsk)	((tsk)->tss.regs->gpr[1])
+#define KSTK_EIP(tsk)	((tsk)->thread.regs->nip)
+#define KSTK_ESP(tsk)	((tsk)->thread.regs->gpr[1])
 #elif defined (__sparc_v9__)
-# define KSTK_EIP(tsk)  ((tsk)->tss.kregs->tpc)
-# define KSTK_ESP(tsk)  ((tsk)->tss.kregs->u_regs[UREG_FP])
+# define KSTK_EIP(tsk)  ((tsk)->thread.kregs->tpc)
+# define KSTK_ESP(tsk)  ((tsk)->thread.kregs->u_regs[UREG_FP])
 #elif defined(__sparc__)
-# define KSTK_EIP(tsk)  ((tsk)->tss.kregs->pc)
-# define KSTK_ESP(tsk)  ((tsk)->tss.kregs->u_regs[UREG_FP])
+# define KSTK_EIP(tsk)  ((tsk)->thread.kregs->pc)
+# define KSTK_ESP(tsk)  ((tsk)->thread.kregs->u_regs[UREG_FP])
 #elif defined(__mips__)
 # define PT_REG(reg)		((long)&((struct pt_regs *)0)->reg \
 				 - sizeof(struct pt_regs))
 #define KSTK_TOS(tsk) ((unsigned long)(tsk) + KERNEL_STACK_SIZE - 32)
 # define KSTK_EIP(tsk)	(*(unsigned long *)(KSTK_TOS(tsk) + PT_REG(cp0_epc)))
 # define KSTK_ESP(tsk)	(*(unsigned long *)(KSTK_TOS(tsk) + PT_REG(regs[29])))
+#elif defined(__sh__)
+# define KSTK_EIP(tsk)  ((tsk)->thread.pc)
+# define KSTK_ESP(tsk)  ((tsk)->thread.sp)
 #endif
 
 /* Gcc optimizes away "strlen(x)" for constant x */
@@ -747,11 +786,13 @@ static inline char * task_state(struct task_struct *p, char *buffer)
 		"PPid:\t%d\n"
 		"Uid:\t%d\t%d\t%d\t%d\n"
 		"Gid:\t%d\t%d\t%d\t%d\n"
+		"FDSize:\t%d\n"
 		"Groups:\t",
 		get_task_state(p),
 		p->pid, p->p_pptr->pid,
 		p->uid, p->euid, p->suid, p->fsuid,
-		p->gid, p->egid, p->sgid, p->fsgid);
+		p->gid, p->egid, p->sgid, p->fsgid,
+		p->files ? p->files->max_fds : 0);
 
 	for (g = 0; g < p->ngroups; g++)
 		buffer += sprintf(buffer, "%d ", p->groups[g]);
@@ -760,46 +801,44 @@ static inline char * task_state(struct task_struct *p, char *buffer)
 	return buffer;
 }
 
-static inline char * task_mem(struct task_struct *p, char *buffer)
+static inline char * task_mem(struct mm_struct *mm, char *buffer)
 {
-	struct mm_struct * mm = p->mm;
+	struct vm_area_struct * vma;
+	unsigned long data = 0, stack = 0;
+	unsigned long exec = 0, lib = 0;
 
-	if (mm && mm != &init_mm) {
-		struct vm_area_struct * vma = mm->mmap;
-		unsigned long data = 0, stack = 0;
-		unsigned long exec = 0, lib = 0;
-
-		for (vma = mm->mmap; vma; vma = vma->vm_next) {
-			unsigned long len = (vma->vm_end - vma->vm_start) >> 10;
-			if (!vma->vm_file) {
-				data += len;
-				if (vma->vm_flags & VM_GROWSDOWN)
-					stack += len;
+	down(&mm->mmap_sem);
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		unsigned long len = (vma->vm_end - vma->vm_start) >> 10;
+		if (!vma->vm_file) {
+			data += len;
+			if (vma->vm_flags & VM_GROWSDOWN)
+				stack += len;
+			continue;
+		}
+		if (vma->vm_flags & VM_WRITE)
+			continue;
+		if (vma->vm_flags & VM_EXEC) {
+			exec += len;
+			if (vma->vm_flags & VM_EXECUTABLE)
 				continue;
-			}
-			if (vma->vm_flags & VM_WRITE)
-				continue;
-			if (vma->vm_flags & VM_EXEC) {
-				exec += len;
-				if (vma->vm_flags & VM_EXECUTABLE)
-					continue;
-				lib += len;
-			}
-		}	
-		buffer += sprintf(buffer,
-			"VmSize:\t%8lu kB\n"
-			"VmLck:\t%8lu kB\n"
-			"VmRSS:\t%8lu kB\n"
-			"VmData:\t%8lu kB\n"
-			"VmStk:\t%8lu kB\n"
-			"VmExe:\t%8lu kB\n"
-			"VmLib:\t%8lu kB\n",
-			mm->total_vm << (PAGE_SHIFT-10),
-			mm->locked_vm << (PAGE_SHIFT-10),
-			mm->rss << (PAGE_SHIFT-10),
-			data - stack, stack,
-			exec - lib, lib);
+			lib += len;
+		}
 	}
+	buffer += sprintf(buffer,
+		"VmSize:\t%8lu kB\n"
+		"VmLck:\t%8lu kB\n"
+		"VmRSS:\t%8lu kB\n"
+		"VmData:\t%8lu kB\n"
+		"VmStk:\t%8lu kB\n"
+		"VmExe:\t%8lu kB\n"
+		"VmLib:\t%8lu kB\n",
+		mm->total_vm << (PAGE_SHIFT-10),
+		mm->locked_vm << (PAGE_SHIFT-10),
+		mm->rss << (PAGE_SHIFT-10),
+		data - stack, stack,
+		exec - lib, lib);
+	up(&mm->mmap_sem);
 	return buffer;
 }
 
@@ -860,44 +899,61 @@ static int get_status(int pid, char * buffer)
 {
 	char * orig = buffer;
 	struct task_struct *tsk;
+	struct mm_struct *mm = NULL;
 
 	read_lock(&tasklist_lock);
 	tsk = find_task_by_pid(pid);
+	if (tsk)
+		mm = tsk->mm;
+	if (mm)
+		atomic_inc(&mm->mm_users);
 	read_unlock(&tasklist_lock);	/* FIXME!! This should be done after the last use */
 	if (!tsk)
 		return 0;
 	buffer = task_name(tsk, buffer);
 	buffer = task_state(tsk, buffer);
-	buffer = task_mem(tsk, buffer);
+	if (mm)
+		buffer = task_mem(mm, buffer);
 	buffer = task_sig(tsk, buffer);
 	buffer = task_cap(tsk, buffer);
+	if (mm)
+		mmput(mm);
 	return buffer - orig;
 }
 
 static int get_stat(int pid, char * buffer)
 {
 	struct task_struct *tsk;
+	struct mm_struct *mm = NULL;
 	unsigned long vsize, eip, esp, wchan;
 	long priority, nice;
 	int tty_pgrp;
 	sigset_t sigign, sigcatch;
 	char state;
+	int res;
 
 	read_lock(&tasklist_lock);
 	tsk = find_task_by_pid(pid);
+	if (tsk)
+		mm = tsk->mm;
+	if (mm)
+		atomic_inc(&mm->mm_users);
 	read_unlock(&tasklist_lock);	/* FIXME!! This should be done after the last use */
 	if (!tsk)
 		return 0;
 	state = *get_task_state(tsk);
 	vsize = eip = esp = 0;
-	if (tsk->mm && tsk->mm != &init_mm) {
-		struct vm_area_struct *vma = tsk->mm->mmap;
+	if (mm) {
+		struct vm_area_struct *vma;
+		down(&mm->mmap_sem);
+		vma = mm->mmap;
 		while (vma) {
 			vsize += vma->vm_end - vma->vm_start;
 			vma = vma->vm_next;
 		}
 		eip = KSTK_EIP(tsk);
 		esp = KSTK_ESP(tsk);
+		up(&mm->mmap_sem);
 	}
 
 	wchan = get_wchan(tsk);
@@ -916,7 +972,7 @@ static int get_stat(int pid, char * buffer)
 	nice = tsk->priority;
 	nice = 20 - (nice * 20 + DEF_PRIORITY / 2) / DEF_PRIORITY;
 
-	return sprintf(buffer,"%d (%s) %c %d %d %d %d %d %lu %lu \
+	res = sprintf(buffer,"%d (%s) %c %d %d %d %d %d %lu %lu \
 %lu %lu %lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %ld %lu %lu %lu %lu %lu \
 %lu %lu %lu %lu %lu %lu %lu %lu %d %d\n",
 		pid,
@@ -942,11 +998,11 @@ static int get_stat(int pid, char * buffer)
 		tsk->it_real_value,
 		tsk->start_time,
 		vsize,
-		tsk->mm ? tsk->mm->rss : 0, /* you might want to shift this left 3 */
+		mm ? mm->rss : 0, /* you might want to shift this left 3 */
 		tsk->rlim ? tsk->rlim[RLIMIT_RSS].rlim_cur : 0,
-		tsk->mm ? tsk->mm->start_code : 0,
-		tsk->mm ? tsk->mm->end_code : 0,
-		tsk->mm ? tsk->mm->start_stack : 0,
+		mm ? mm->start_code : 0,
+		mm ? mm->end_code : 0,
+		mm ? mm->start_stack : 0,
 		esp,
 		eip,
 		/* The signal information here is obsolete.
@@ -962,6 +1018,9 @@ static int get_stat(int pid, char * buffer)
 		tsk->cnswap,
 		tsk->exit_signal,
 		tsk->processor);
+	if (mm)
+		mmput(mm);
+	return res;
 }
 		
 static inline void statm_pte_range(pmd_t * pmd, unsigned long address, unsigned long size,
@@ -1039,19 +1098,15 @@ static void statm_pgd_range(pgd_t * pgd, unsigned long address, unsigned long en
 
 static int get_statm(int pid, char * buffer)
 {
-	struct task_struct *tsk;
+	struct mm_struct *mm = get_mm(pid);
 	int size=0, resident=0, share=0, trs=0, lrs=0, drs=0, dt=0;
 
-	read_lock(&tasklist_lock);
-	tsk = find_task_by_pid(pid);
-	read_unlock(&tasklist_lock);	/* FIXME!! This should be done after the last use */
-	if (!tsk)
-		return 0;
-	if (tsk->mm && tsk->mm != &init_mm) {
-		struct vm_area_struct * vma = tsk->mm->mmap;
-
+	if (mm) {
+		struct vm_area_struct * vma;
+		down(&mm->mmap_sem);
+		vma = mm->mmap;
 		while (vma) {
-			pgd_t *pgd = pgd_offset(tsk->mm, vma->vm_start);
+			pgd_t *pgd = pgd_offset(mm, vma->vm_start);
 			int pages = 0, shared = 0, dirty = 0, total = 0;
 
 			statm_pgd_range(pgd, vma->vm_start, vma->vm_end, &pages, &shared, &dirty, &total);
@@ -1069,6 +1124,8 @@ static int get_statm(int pid, char * buffer)
 				drs += pages;
 			vma = vma->vm_next;
 		}
+		up(&mm->mmap_sem);
+		mmput(mm);
 	}
 	return sprintf(buffer,"%d %d %d %d %d %d %d\n",
 		       size, resident, share, trs, lrs, drs, dt);
@@ -1133,11 +1190,11 @@ static ssize_t read_maps (int pid, struct file * file, char * buf,
 	if (!p)
 		goto freepage_out;
 
-	if (!p->mm || p->mm == &init_mm || count == 0)
+	if (!p->mm || count == 0)
 		goto getlen_out;
 
 	/* Check whether the mmaps could change if we sleep */
-	volatile_task = (p != current || atomic_read(&p->mm->count) > 1);
+	volatile_task = (p != current || atomic_read(&p->mm->mm_users) > 1);
 
 	/* decode f_pos */
 	lineno = *ppos >> MAPS_LINE_SHIFT;
@@ -1296,7 +1353,7 @@ static long get_root_array(char * page, int type, char **start,
 		case PROC_MEMINFO:
 			return get_meminfo(page);
 
-#ifdef CONFIG_PCI_OLD_PROC
+#ifdef CONFIG_PCI
 	        case PROC_PCI:
 			return get_pci_list(page);
 #endif
@@ -1404,8 +1461,6 @@ static int process_unauthorized(int type, int pid)
 		ok = p->dumpable;
 		if(!cap_issubset(p->cap_permitted, current->cap_permitted))
 			ok=0;			
-		if(!p->mm)	/* Scooby scooby doo where are you ? */
-			p=NULL;
 	}
 		
 	read_unlock(&tasklist_lock);
@@ -1413,8 +1468,7 @@ static int process_unauthorized(int type, int pid)
 	if (!p)
 		return 1;
 
-	switch(type)
-	{
+	switch(type) {
 		case PROC_PID_STATUS:
 		case PROC_PID_STATM:
 		case PROC_PID_STAT:
@@ -1481,8 +1535,7 @@ static ssize_t array_read(struct file * file, char * buf,
 	start = NULL;
 	dp = (struct proc_dir_entry *) inode->u.generic_ip;
 	
-	if (pid && process_unauthorized(type, pid))
-	{
+	if (pid && process_unauthorized(type, pid)) {
 		free_page(page);
 		return -EIO;
 	}

@@ -15,7 +15,6 @@
  */
 
 #include <linux/config.h>
-#include <stdarg.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -132,7 +131,7 @@ static int mvme16x_get_hardware_list(char *buffer)
 #define PccSCCTICR	0x1e
 #define PccSCCRICR	0x1f
 
-__initfunc(void config_mvme16x(void))
+void __init config_mvme16x(void)
 {
     p_bdid p = (p_bdid)mvme_bdid_ptr;
     char id[40];

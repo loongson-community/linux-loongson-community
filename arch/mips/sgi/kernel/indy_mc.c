@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - Indigo2 changes
  *
- * $Id: indy_mc.c,v 1.3 1998/05/04 09:12:57 ralf Exp $
+ * $Id: indy_mc.c,v 1.4 1999/05/07 22:34:32 ulfc Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -47,7 +47,7 @@ static inline char *mconfig_string(unsigned long val)
 	};
 }
 
-__initfunc(void sgimc_init(void))
+void __init sgimc_init(void)
 {
 	unsigned long tmpreg;
 

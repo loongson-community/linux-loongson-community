@@ -100,6 +100,19 @@
  *                     Guenter Geiger <geiger@epy.co.at>
  *    15.06.99   0.23  Fix bad allocation bug.
  *                     Thanks to Deti Fliegl <fliegl@in.tum.de>
+ *    28.06.99   0.24  Add pci_set_master
+ *    02.08.99   0.25  Added workaround for the "phantom write" bug first
+ *                     documented by Dave Sharpless from Anchor Games
+ *    03.08.99   0.26  adapt to Linus' new __setup/__initcall
+ *                     added kernel command line option "es1370=joystick[,lineout[,micbias]]"
+ *                     removed CONFIG_SOUND_ES1370_JOYPORT_BOOT kludge
+ *    12.08.99   0.27  module_init/__setup fixes
+ *    19.08.99   0.28  SOUND_MIXER_IMIX fixes, reported by Gianluca <gialluca@mail.tiscalinet.it>
+ *    31.08.99   0.29  add spin_lock_init
+ *                     __initlocaldata to fix gcc 2.7.x problems
+ *                     replaced current->state = x with set_current_state(x)
+ *    03.09.99   0.30  change read semantics for MIDI to match
+ *                     OSS more closely; remove possible wakeup race
  *
  * some important things missing in Ensoniq documentation:
  *
@@ -122,7 +135,6 @@
 
 /*****************************************************************************/
       
-#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -137,7 +149,7 @@
 #include <asm/dma.h>
 #include <linux/init.h>
 #include <linux/poll.h>
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <asm/uaccess.h>
 #include <asm/hardirq.h>
 
@@ -174,12 +186,14 @@
 #define ES1370_REG_DAC2_SCOUNT    0x28
 #define ES1370_REG_ADC_SCOUNT     0x2c
 
-#define ES1370_REG_DAC1_FRAMEADR  0xc30
-#define ES1370_REG_DAC1_FRAMECNT  0xc34
-#define ES1370_REG_DAC2_FRAMEADR  0xc38
-#define ES1370_REG_DAC2_FRAMECNT  0xc3c
-#define ES1370_REG_ADC_FRAMEADR   0xd30
-#define ES1370_REG_ADC_FRAMECNT   0xd34
+#define ES1370_REG_DAC1_FRAMEADR    0xc30
+#define ES1370_REG_DAC1_FRAMECNT    0xc34
+#define ES1370_REG_DAC2_FRAMEADR    0xc38
+#define ES1370_REG_DAC2_FRAMECNT    0xc3c
+#define ES1370_REG_ADC_FRAMEADR     0xd30
+#define ES1370_REG_ADC_FRAMECNT     0xd34
+#define ES1370_REG_PHANTOM_FRAMEADR 0xd38
+#define ES1370_REG_PHANTOM_FRAMECNT 0xd3c
 
 #define ES1370_FMT_U8_MONO     0
 #define ES1370_FMT_U8_STEREO   1
@@ -358,6 +372,13 @@ struct es1370_state {
 /* --------------------------------------------------------------------- */
 
 static struct es1370_state *devs = NULL;
+
+/*
+ * The following buffer is used to point the phantom write channel to,
+ * so that it cannot wreak havoc. The attribute makes sure it doesn't
+ * cross a page boundary and ensures dword alignment for the DMA engine
+ */
+static unsigned char bugbuf[16] __attribute__ ((aligned (16)));
 
 /* --------------------------------------------------------------------- */
 
@@ -778,10 +799,36 @@ static const struct {
 	[SOUND_MIXER_OGAIN]  = { 9, 0xf, 0x0, 0, 0x0000, 1 }    /* mono out */
 };
 
+static void set_recsrc(struct es1370_state *s, unsigned int val)
+{
+	unsigned int i, j;
+
+	for (j = i = 0; i < SOUND_MIXER_NRDEVICES; i++) {
+		if (!(val & (1 << i)))
+			continue;
+		if (!mixtable[i].recmask) {
+			val &= ~(1 << i);
+			continue;
+		}
+		j |= mixtable[i].recmask;
+	}
+	s->mix.recsrc = val;
+	wrcodec(s, 0x12, j & 0xd5);
+	wrcodec(s, 0x13, j & 0xaa);
+	wrcodec(s, 0x14, (j >> 8) & 0x17);
+	wrcodec(s, 0x15, (j >> 8) & 0x0f);
+	i = (j & 0x37f) | ((j << 1) & 0x3000) | 0xc60;
+	if (!s->mix.imix) {
+		i &= 0xff60;  /* mute record and line monitor */
+	}
+	wrcodec(s, 0x10, i);
+	wrcodec(s, 0x11, i >> 8);
+}
+
 static int mixer_ioctl(struct es1370_state *s, unsigned int cmd, unsigned long arg)
 {
 	unsigned long flags;
-	int i, val, j;
+	int i, val;
 	unsigned char l, r, rl, rr;
 
 	VALIDATE_STATE(s);
@@ -886,34 +933,13 @@ static int mixer_ioctl(struct es1370_state *s, unsigned int cmd, unsigned long a
 	switch (_IOC_NR(cmd)) {
 
 	case SOUND_MIXER_IMIX:
-		if (arg == 0) 
-			return -EFAULT;
-		get_user_ret(s->mix.imix,(int *)arg, -EFAULT);
-		val = s->mix.recsrc;
-		/* fall through */
+		get_user_ret(s->mix.imix, (int *)arg, -EFAULT);
+		set_recsrc(s, s->mix.recsrc);
+		return 0;
 
 	case SOUND_MIXER_RECSRC: /* Arg contains a bit for each recording source */
 		get_user_ret(val, (int *)arg, -EFAULT);
-		for (j = i = 0; i < SOUND_MIXER_NRDEVICES; i++) {
-			if (!(val & (1 << i)))
-				continue;
-			if (!mixtable[i].recmask) {
-				val &= ~(1 << i);
-				continue;
-			}
-			j |= mixtable[i].recmask;
-		}
-		s->mix.recsrc = val;
-		wrcodec(s, 0x12, j & 0xd5);
-		wrcodec(s, 0x13, j & 0xaa);
-		wrcodec(s, 0x14, (j >> 8) & 0x17);
-		wrcodec(s, 0x15, (j >> 8) & 0x0f);
-		i = (j & 0x37f) | ((j << 1) & 0x3000) | 0xc60;
-		if (!s->mix.imix) {
-		     i &= 0xff60;  /* mute record and line monitor */
-		}
-		wrcodec(s, 0x10, i);
-		wrcodec(s, 0x11, i >> 8);
+		set_recsrc(s, val);
 		return 0;
 
 	default:
@@ -1038,7 +1064,7 @@ static int drain_dac1(struct es1370_state *s, int nonblock)
 	
 	if (s->dma_dac1.mapped || !s->dma_dac1.ready)
 		return 0;
-        current->state = TASK_INTERRUPTIBLE;
+        __set_current_state(TASK_INTERRUPTIBLE);
         add_wait_queue(&s->dma_dac1.wait, &wait);
         for (;;) {
                 spin_lock_irqsave(&s->lock, flags);
@@ -1050,16 +1076,17 @@ static int drain_dac1(struct es1370_state *s, int nonblock)
                         break;
                 if (nonblock) {
                         remove_wait_queue(&s->dma_dac1.wait, &wait);
-                        current->state = TASK_RUNNING;
+                        set_current_state(TASK_RUNNING);
                         return -EBUSY;
                 }
-		tmo = (count * HZ) / dac1_samplerate[(s->ctrl & CTRL_WTSRSEL) >> CTRL_SH_WTSRSEL];
+		tmo = 3 * HZ * (count + s->dma_dac1.fragsize) / 2
+			/ dac1_samplerate[(s->ctrl & CTRL_WTSRSEL) >> CTRL_SH_WTSRSEL];
 		tmo >>= sample_shift[(s->sctrl & SCTRL_P1FMT) >> SCTRL_SH_P1FMT];
-		if (!schedule_timeout(tmo ? : 1) && tmo)
+		if (!schedule_timeout(tmo + 1))
 			DBG(printk(KERN_DEBUG "es1370: dma timed out??\n");)
         }
         remove_wait_queue(&s->dma_dac1.wait, &wait);
-        current->state = TASK_RUNNING;
+        set_current_state(TASK_RUNNING);
         if (signal_pending(current))
                 return -ERESTARTSYS;
         return 0;
@@ -1073,7 +1100,7 @@ static int drain_dac2(struct es1370_state *s, int nonblock)
 
 	if (s->dma_dac2.mapped || !s->dma_dac2.ready)
 		return 0;
-        current->state = TASK_INTERRUPTIBLE;
+        __set_current_state(TASK_INTERRUPTIBLE);
         add_wait_queue(&s->dma_dac2.wait, &wait);
         for (;;) {
                 spin_lock_irqsave(&s->lock, flags);
@@ -1085,16 +1112,17 @@ static int drain_dac2(struct es1370_state *s, int nonblock)
                         break;
                 if (nonblock) {
                         remove_wait_queue(&s->dma_dac2.wait, &wait);
-                        current->state = TASK_RUNNING;
+                        set_current_state(TASK_RUNNING);
                         return -EBUSY;
                 }
-		tmo = (count * HZ) / DAC2_DIVTOSR((s->ctrl & CTRL_PCLKDIV) >> CTRL_SH_PCLKDIV);
+		tmo = 3 * HZ * (count + s->dma_dac2.fragsize) / 2
+			/ DAC2_DIVTOSR((s->ctrl & CTRL_PCLKDIV) >> CTRL_SH_PCLKDIV);
 		tmo >>= sample_shift[(s->sctrl & SCTRL_P2FMT) >> SCTRL_SH_P2FMT];
-		if (!schedule_timeout(tmo ? : 1) && tmo)
+		if (!schedule_timeout(tmo + 1))
 			DBG(printk(KERN_DEBUG "es1370: dma timed out??\n");)
         }
         remove_wait_queue(&s->dma_dac2.wait, &wait);
-        current->state = TASK_RUNNING;
+        set_current_state(TASK_RUNNING);
         if (signal_pending(current))
                 return -ERESTARTSYS;
         return 0;
@@ -2048,6 +2076,7 @@ static /*const*/ struct file_operations es1370_dac_fops = {
 static ssize_t es1370_midi_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
 {
 	struct es1370_state *s = (struct es1370_state *)file->private_data;
+	DECLARE_WAITQUEUE(wait, current);
 	ssize_t ret;
 	unsigned long flags;
 	unsigned ptr;
@@ -2058,7 +2087,10 @@ static ssize_t es1370_midi_read(struct file *file, char *buffer, size_t count, l
 		return -ESPIPE;
 	if (!access_ok(VERIFY_WRITE, buffer, count))
 		return -EFAULT;
+	if (count == 0)
+		return 0;
 	ret = 0;
+        add_wait_queue(&s->midi.iwait, &wait);
 	while (count > 0) {
 		spin_lock_irqsave(&s->lock, flags);
 		ptr = s->midi.ird;
@@ -2069,15 +2101,25 @@ static ssize_t es1370_midi_read(struct file *file, char *buffer, size_t count, l
 		if (cnt > count)
 			cnt = count;
 		if (cnt <= 0) {
-			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EAGAIN;
-			interruptible_sleep_on(&s->midi.iwait);
-			if (signal_pending(current))
-				return ret ? ret : -ERESTARTSYS;
+			if (file->f_flags & O_NONBLOCK) {
+				if (!ret)
+					ret = -EAGAIN;
+				break;
+			}
+			__set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			if (signal_pending(current)) {
+				if (!ret)
+					ret = -ERESTARTSYS;
+				break;
+			}
 			continue;
 		}
-		if (copy_to_user(buffer, s->midi.ibuf + ptr, cnt))
-			return ret ? ret : -EFAULT;
+		if (copy_to_user(buffer, s->midi.ibuf + ptr, cnt)) {
+			if (!ret)
+				ret = -EFAULT;
+			break;
+		}
 		ptr = (ptr + cnt) % MIDIINBUF;
 		spin_lock_irqsave(&s->lock, flags);
 		s->midi.ird = ptr;
@@ -2086,13 +2128,17 @@ static ssize_t es1370_midi_read(struct file *file, char *buffer, size_t count, l
 		count -= cnt;
 		buffer += cnt;
 		ret += cnt;
+		break;
 	}
+	__set_current_state(TASK_RUNNING);
+        remove_wait_queue(&s->midi.iwait, &wait);
 	return ret;
 }
 
 static ssize_t es1370_midi_write(struct file *file, const char *buffer, size_t count, loff_t *ppos)
 {
 	struct es1370_state *s = (struct es1370_state *)file->private_data;
+	DECLARE_WAITQUEUE(wait, current);
 	ssize_t ret;
 	unsigned long flags;
 	unsigned ptr;
@@ -2103,7 +2149,10 @@ static ssize_t es1370_midi_write(struct file *file, const char *buffer, size_t c
 		return -ESPIPE;
 	if (!access_ok(VERIFY_READ, buffer, count))
 		return -EFAULT;
+	if (count == 0)
+		return 0;
 	ret = 0;
+        add_wait_queue(&s->midi.owait, &wait);
 	while (count > 0) {
 		spin_lock_irqsave(&s->lock, flags);
 		ptr = s->midi.owr;
@@ -2116,15 +2165,25 @@ static ssize_t es1370_midi_write(struct file *file, const char *buffer, size_t c
 		if (cnt > count)
 			cnt = count;
 		if (cnt <= 0) {
-			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EAGAIN;
-			interruptible_sleep_on(&s->midi.owait);
-			if (signal_pending(current))
-				return ret ? ret : -ERESTARTSYS;
+			if (file->f_flags & O_NONBLOCK) {
+				if (!ret)
+					ret = -EAGAIN;
+				break;
+			}
+			__set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			if (signal_pending(current)) {
+				if (!ret)
+					ret = -ERESTARTSYS;
+				break;
+			}
 			continue;
 		}
-		if (copy_from_user(s->midi.obuf + ptr, buffer, cnt))
-			return ret ? ret : -EFAULT;
+		if (copy_from_user(s->midi.obuf + ptr, buffer, cnt)) {
+			if (!ret)
+				ret = -EFAULT;
+			break;
+		}
 		ptr = (ptr + cnt) % MIDIOUTBUF;
 		spin_lock_irqsave(&s->lock, flags);
 		s->midi.owr = ptr;
@@ -2137,6 +2196,8 @@ static ssize_t es1370_midi_write(struct file *file, const char *buffer, size_t c
 		es1370_handle_midi(s);
 		spin_unlock_irqrestore(&s->lock, flags);
 	}
+	__set_current_state(TASK_RUNNING);
+        remove_wait_queue(&s->midi.owait, &wait);
 	return ret;
 }
 
@@ -2223,7 +2284,7 @@ static int es1370_midi_release(struct inode *inode, struct file *file)
 	VALIDATE_STATE(s);
 
 	if (file->f_mode & FMODE_WRITE) {
-		current->state = TASK_INTERRUPTIBLE;
+		__set_current_state(TASK_INTERRUPTIBLE);
 		add_wait_queue(&s->midi.owait, &wait);
 		for (;;) {
 			spin_lock_irqsave(&s->lock, flags);
@@ -2235,7 +2296,7 @@ static int es1370_midi_release(struct inode *inode, struct file *file)
 				break;
 			if (file->f_flags & O_NONBLOCK) {
 				remove_wait_queue(&s->midi.owait, &wait);
-				current->state = TASK_RUNNING;
+				set_current_state(TASK_RUNNING);
 				return -EBUSY;
 			}
 			tmo = (count * HZ) / 3100;
@@ -2243,7 +2304,7 @@ static int es1370_midi_release(struct inode *inode, struct file *file)
 				DBG(printk(KERN_DEBUG "es1370: midi timed out??\n");)
 		}
 		remove_wait_queue(&s->midi.owait, &wait);
-		current->state = TASK_RUNNING;
+		set_current_state(TASK_RUNNING);
 	}
 	down(&s->open_sem);
 	s->open_mode &= (~(file->f_mode << FMODE_MIDI_SHIFT)) & (FMODE_MIDI_READ|FMODE_MIDI_WRITE);
@@ -2281,13 +2342,20 @@ static /*const*/ struct file_operations es1370_midi_fops = {
 
 /* maximum number of devices */
 #define NR_DEVICE 5
-#ifdef CONFIG_SOUND_ES1370_JOYPORT_BOOT
-static int joystick[NR_DEVICE] = { 1, 0, };
-#else
+
 static int joystick[NR_DEVICE] = { 0, };
-#endif
 static int lineout[NR_DEVICE] = { 0, };
 static int micbias[NR_DEVICE] = { 0, };
+
+MODULE_PARM(joystick, "1-" __MODULE_STRING(NR_DEVICE) "i");
+MODULE_PARM_DESC(joystick, "if 1 enables joystick interface (still need separate driver)");
+MODULE_PARM(lineout, "1-" __MODULE_STRING(NR_DEVICE) "i");
+MODULE_PARM_DESC(lineout, "if 1 the LINE input is converted to LINE out");
+MODULE_PARM(micbias, "1-" __MODULE_STRING(NR_DEVICE) "i");
+MODULE_PARM_DESC(micbias, "sets the +5V bias for an electret microphone");
+
+MODULE_AUTHOR("Thomas M. Sailer, sailer@ife.ee.ethz.ch, hb9jnx@hb9w.che.eu");
+MODULE_DESCRIPTION("ES1370 AudioPCI Driver");
 
 /* --------------------------------------------------------------------- */
 
@@ -2307,11 +2375,12 @@ static struct initvol {
 	{ SOUND_MIXER_WRITE_OGAIN, 0x4040 }
 };
 
-#ifdef MODULE
-int __init init_module(void)
-#else
-int __init init_es1370(void)
-#endif
+#define RSRCISIOREGION(dev,num) ((dev)->resource[(num)].start != 0 && \
+				 ((dev)->resource[(num)].flags & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_IO)
+#define RSRCADDRESS(dev,num) ((dev)->resource[(num)].start)
+
+
+static int __init init_es1370(void)
 {
 	struct es1370_state *s;
 	struct pci_dev *pcidev = NULL;
@@ -2320,11 +2389,10 @@ int __init init_es1370(void)
 
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk(KERN_INFO "es1370: version v0.23 time " __TIME__ " " __DATE__ "\n");
+	printk(KERN_INFO "es1370: version v0.29 time " __TIME__ " " __DATE__ "\n");
 	while (index < NR_DEVICE && 
 	       (pcidev = pci_find_device(PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_ES1370, pcidev))) {
-		if (pcidev->base_address[0] == 0 || 
-		    (pcidev->base_address[0] & PCI_BASE_ADDRESS_SPACE) != PCI_BASE_ADDRESS_SPACE_IO)
+		if (!RSRCISIOREGION(pcidev, 0))
 			continue;
 		if (pcidev->irq == 0) 
 			continue;
@@ -2340,8 +2408,9 @@ int __init init_es1370(void)
 		init_waitqueue_head(&s->midi.iwait);
 		init_waitqueue_head(&s->midi.owait);
 		init_MUTEX(&s->open_sem);
+		spin_lock_init(&s->lock);
 		s->magic = ES1370_MAGIC;
-		s->io = pcidev->base_address[0] & PCI_BASE_ADDRESS_IO_MASK;
+		s->io = RSRCADDRESS(pcidev, 0);
 		s->irq = pcidev->irq;
 		if (check_region(s->io, ES1370_EXTENT)) {
 			printk(KERN_ERR "es1370: io ports %#lx-%#lx in use\n", s->io, s->io+ES1370_EXTENT-1);
@@ -2384,6 +2453,11 @@ int __init init_es1370(void)
 		/* initialize the chips */
 		outl(s->ctrl, s->io+ES1370_REG_CONTROL);
 		outl(s->sctrl, s->io+ES1370_REG_SERIAL_CONTROL);
+		/* point phantom write channel to "bugbuf" */
+		outl((ES1370_REG_PHANTOM_FRAMEADR >> 8) & 15, s->io+ES1370_REG_MEMPAGE);
+		outl(virt_to_bus(bugbuf), s->io+(ES1370_REG_PHANTOM_FRAMEADR & 0xff));
+		outl(0, s->io+(ES1370_REG_PHANTOM_FRAMECNT & 0xff));
+		pci_set_master(pcidev);  /* enable bus mastering */
 		wrcodec(s, 0x16, 3); /* no RST, PD */
 		wrcodec(s, 0x17, 0); /* CODEC ADC and CODEC DAC use {LR,B}CLK2 and run off the LRCLK2 PLL; program DAC_SYNC=0!!  */
 		wrcodec(s, 0x18, 0); /* recording source is mixer */
@@ -2423,21 +2497,7 @@ int __init init_es1370(void)
 	return 0;
 }
 
-/* --------------------------------------------------------------------- */
-
-#ifdef MODULE
-
-MODULE_PARM(joystick, "1-" __MODULE_STRING(NR_DEVICE) "i");
-MODULE_PARM_DESC(joystick, "if 1 enables joystick interface (still need separate driver)");
-MODULE_PARM(lineout, "1-" __MODULE_STRING(NR_DEVICE) "i");
-MODULE_PARM_DESC(lineout, "if 1 the LINE input is converted to LINE out");
-MODULE_PARM(micbias, "1-" __MODULE_STRING(NR_DEVICE) "i");
-MODULE_PARM_DESC(micbias, "sets the +5V bias for an electret microphone");
-
-MODULE_AUTHOR("Thomas M. Sailer, sailer@ife.ee.ethz.ch, hb9jnx@hb9w.che.eu");
-MODULE_DESCRIPTION("ES1370 AudioPCI Driver");
-
-void cleanup_module(void)
+static void __exit cleanup_es1370(void)
 {
 	struct es1370_state *s;
 
@@ -2456,5 +2516,33 @@ void cleanup_module(void)
 	}
 	printk(KERN_INFO "es1370: unloading\n");
 }
+
+module_init(init_es1370);
+module_exit(cleanup_es1370);
+
+/* --------------------------------------------------------------------- */
+
+#ifndef MODULE
+
+/* format is: es1370=[joystick[,lineout[,micbias]]] */
+
+static int __init es1370_setup(char *str)
+{
+	static unsigned __initlocaldata nr_dev = 0;
+
+	if (nr_dev >= NR_DEVICE)
+		return 0;
+
+	(void)
+	(   (get_option(&str,&joystick[nr_dev]) == 2)
+	 && (get_option(&str,&lineout [nr_dev]) == 2)
+	 &&  get_option(&str,&micbias [nr_dev])
+	);
+
+	nr_dev++;
+	return 1;
+}
+
+__setup("es1370=", es1370_setup);
 
 #endif /* MODULE */

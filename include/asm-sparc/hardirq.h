@@ -7,7 +7,7 @@
 #ifndef __SPARC_HARDIRQ_H
 #define __SPARC_HARDIRQ_H
 
-#include <linux/tasks.h>
+#include <linux/threads.h>
 
 #ifndef __SMP__
 extern unsigned int local_irq_count;
@@ -29,7 +29,7 @@ extern unsigned int local_irq_count;
 #else
 
 #include <asm/atomic.h>
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <asm/system.h>
 #include <asm/smp.h>
 

@@ -1,4 +1,4 @@
-/* $Id: ioctl32.c,v 1.63 1999/06/09 04:56:14 davem Exp $
+/* $Id: ioctl32.c,v 1.68 1999/09/10 05:59:25 davem Exp $
  * ioctl32.c: Conversion between 32bit and 64bit native ioctls.
  *
  * Copyright (C) 1997  Jakub Jelinek  (jj@sunsite.mff.cuni.cz)
@@ -38,6 +38,7 @@
 #include <linux/ext2_fs.h>
 #include <linux/videodev.h>
 #include <linux/netdevice.h>
+#include <linux/raw.h>
 
 #include <scsi/scsi.h>
 /* Ugly hack. */
@@ -409,6 +410,7 @@ struct ifreq32 {
                 int     ifru_mtu;
                 struct  ifmap32 ifru_map;
                 char    ifru_slave[IFNAMSIZ];   /* Just fits the size */
+		char	ifru_newname[IFNAMSIZ];
                 __kernel_caddr_t32 ifru_data;
         } ifr_ifru;
 };
@@ -420,7 +422,7 @@ struct ifconf32 {
 
 static int dev_ifname32(unsigned int fd, unsigned long arg)
 {
-	struct device *dev;
+	struct net_device *dev;
 	struct ifreq32 ifr32;
 	int err;
 
@@ -430,6 +432,8 @@ static int dev_ifname32(unsigned int fd, unsigned long arg)
 	dev = dev_get_by_index(ifr32.ifr_ifindex);
 	if (!dev)
 		return -ENODEV;
+
+	strcpy(ifr32.ifr_name, dev->name);
 
 	err = copy_to_user((struct ifreq32 *)arg, &ifr32, sizeof(struct ifreq32));
 	return (err ? -EFAULT : 0);
@@ -570,7 +574,7 @@ static inline int dev_ifsioc(unsigned int fd, unsigned int cmd, unsigned long ar
 			if(cmd == SIOCETHTOOL)
 				len = sizeof(struct ethtool_cmd);
 			if(cmd == SIOCGPPPVER)
-				len = strlen(PPP_VERSION) + 1;
+				len = strlen((char *)ifr.ifr_data) + 1;
 			else if(cmd == SIOCGPPPCSTATS)
 				len = sizeof(struct ppp_comp_stats);
 			else
@@ -2366,6 +2370,10 @@ asmlinkage int sys32_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 	case AUTOFS_IOC_PROTOVER:
 	case AUTOFS_IOC_EXPIRE:
 	
+	/* Raw devices */
+	case RAW_SETBIND:
+	case RAW_GETBIND:
+
 		error = sys_ioctl (fd, cmd, arg);
 		goto out;
 

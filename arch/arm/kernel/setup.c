@@ -1,7 +1,7 @@
 /*
  *  linux/arch/arm/kernel/setup.c
  *
- *  Copyright (C) 1995-1998 Russell King
+ *  Copyright (C) 1995-1999 Russell King
  */
 
 /*
@@ -38,29 +38,15 @@
 #include <asm/setup.h>
 #include <asm/system.h>
 
-/* Work out which CPUs to support */
-#ifdef CONFIG_ARCH_ACORN
-#define SUPPORT_CPU_ARM6
-#define SUPPORT_CPU_ARM7
-#define SUPPORT_CPU_SA110
-#else
-#define SUPPORT_CPU_SA110
-#endif
-#ifdef CONFIG_CPU_ARM6
-#define SUPPORT_CPU_ARM6
-#endif
-#ifdef CONFIG_CPU_ARM7
-#define SUPPORT_CPU_ARM7
-#endif
-#ifdef CONFIG_CPU_SA110
-#define SUPPORT_CPU_SA110
-#endif
-
 #define MEM_SIZE	(16*1024*1024)
 #define COMMAND_LINE_SIZE 256
 
 #ifndef CONFIG_CMDLINE
 #define CONFIG_CMDLINE ""
+#endif
+
+#ifndef PARAMS_BASE
+#define PARAMS_BASE NULL
 #endif
 
 extern void reboot_setup(char *str, int *ints);
@@ -76,71 +62,32 @@ struct screen_info screen_info = {
  orig_video_isVGA:	1,
  orig_video_points:	8
 };
-struct processor processor;
+
+extern int root_mountflags;
+extern int _etext, _edata, _end;
+
 unsigned char aux_device_present;
 
-extern const struct processor arm2_processor_functions;
-extern const struct processor arm250_processor_functions;
-extern const struct processor arm3_processor_functions;
-extern const struct processor arm6_processor_functions;
-extern const struct processor arm7_processor_functions;
-extern const struct processor sa110_processor_functions;
-
-char elf_platform[ELF_PLATFORM_SIZE];
-
-const struct armversions armidlist[] = {
-  /*-- Match -- --- Mask -- -- Manu --  Processor  uname -m   --- ELF STUFF ---
-	--- processor asm funcs --- */
-#if defined(CONFIG_CPU_26)
-  /* ARM2 fake ident */
-  { 0x41560200, 0xfffffff0, "ARM/VLSI",	"arm2"	 , "armv1"  , "v1", 0,
-	&arm2_processor_functions   },
-  /* ARM250 fake ident */
-  { 0x41560250, 0xfffffff0, "ARM/VLSI",	"arm250" , "armv2"  , "v2", HWCAP_SWP,
-	&arm250_processor_functions },
-  /* ARM3 processors */
-  { 0x41560300, 0xfffffff0, "ARM/VLSI",	"arm3"	 , "armv2"  , "v2", HWCAP_SWP,
-	&arm3_processor_functions   },
-#elif defined(CONFIG_CPU_32)
-#ifdef SUPPORT_CPU_ARM6
-  /* ARM6 */
-  { 0x41560600, 0xfffffff0, "ARM/VLSI",	"arm6"	 , "armv3"  , "v3", HWCAP_SWP,
-	&arm6_processor_functions   },
-  /* ARM610 */
-  { 0x41560610, 0xfffffff0, "ARM/VLSI",	"arm610" , "armv3"  , "v3", HWCAP_SWP,
-	&arm6_processor_functions   },
-#endif
-#ifdef SUPPORT_CPU_ARM7
-  /* ARM7's have a strange numbering */
-  { 0x41007000, 0xffffff00, "ARM/VLSI",	"arm7"	 , "armv3"  , "v3", HWCAP_SWP,
-	&arm7_processor_functions   },
-  /* ARM710 IDs are non-standard */
-  { 0x41007100, 0xfff8ff00, "ARM/VLSI",	"arm710" , "armv3"  , "v3", HWCAP_SWP,
-	&arm7_processor_functions   },
-#endif
-#ifdef SUPPORT_CPU_SA110
-#ifdef CONFIG_ARCH_RPC
-  /* Acorn RiscPC's can't handle ARMv4 half-word instructions */
-  { 0x4401a100, 0xfffffff0, "Intel",	"sa110"	 , "armv4"  , "v4", HWCAP_SWP,
-	&sa110_processor_functions  },
-#else
-  { 0x4401a100, 0xfffffff0, "Intel",	"sa110"	 , "armv4"  , "v4", HWCAP_SWP|HWCAP_HALF,
-	&sa110_processor_functions  },
-#endif
-#endif
-#endif
-  { 0x00000000, 0x00000000, "***", "unknown", "unknown", "**", 0, NULL }
-};
+         char elf_platform[ELF_PLATFORM_SIZE];
+unsigned int  elf_hwcap;
 
 /*
  * From head-armv.S
  */
 unsigned int processor_id;
 unsigned int __machine_arch_type;
-int armidindex;
+#ifdef MULTI_CPU
+struct processor processor;
+#endif
+#ifdef CONFIG_ARCH_ACORN
+int memc_ctrl_reg;
+int number_mfm_drives;
+unsigned int vram_size;
+#endif
 
-extern int root_mountflags;
-extern int _etext, _edata, _end;
+static struct proc_info_item proc_info;
+static union { char c[4]; unsigned long l; } endian_test __initdata = { { 'l', '?', '?', 'b' } };
+#define ENDIANNESS ((char)endian_test.l)
 
 /*-------------------------------------------------------------------------
  * Early initialisation routines for various configurable items in the
@@ -152,8 +99,8 @@ extern int _etext, _edata, _end;
  * initial ram disk
  */
 #ifdef CONFIG_BLK_DEV_INITRD
-__initfunc(static void
-check_initrd(unsigned long mem_start, unsigned long mem_end))
+static void __init
+check_initrd(unsigned long mem_start, unsigned long mem_end)
 {
 	if (initrd_end > mem_end) {
 		printk ("initrd extends beyond end of memory "
@@ -167,8 +114,8 @@ check_initrd(unsigned long mem_start, unsigned long mem_end))
 #define check_initrd(ms,me)
 #endif
 
-__initfunc(void
-setup_processor(void))
+void __init
+setup_processor(void)
 {
 	armidindex = 0;
 
@@ -187,8 +134,8 @@ static char default_command_line[COMMAND_LINE_SIZE] __initdata = CONFIG_CMDLINE;
 static char command_line[COMMAND_LINE_SIZE] = { 0, };
        char saved_command_line[COMMAND_LINE_SIZE];
 
-__initfunc(static void
-setup_mem(char *cmd_line, unsigned long *mem_start, unsigned long *mem_sz))
+static void __init
+setup_mem(char *cmd_line, unsigned long *mem_start, unsigned long *mem_sz)
 {
 	char c = ' ', *to = command_line;
 	int len = 0;
@@ -233,8 +180,8 @@ setup_mem(char *cmd_line, unsigned long *mem_start, unsigned long *mem_sz))
 		*to = '\0';
 }
 
-__initfunc(static void
-setup_ram(int doload, int prompt, int image_start))
+static void __init
+setup_ram(int doload, int prompt, int image_start)
 {
 #ifdef CONFIG_BLK_DEV_RAM
 	extern int rd_doload;
@@ -250,8 +197,8 @@ setup_ram(int doload, int prompt, int image_start))
 /*
  * initial ram disk
  */
-__initfunc(static void
-setup_initrd(unsigned int start, unsigned int size))
+static void __init
+setup_initrd(unsigned int start, unsigned int size)
 {
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (start) {
@@ -277,8 +224,8 @@ unsigned int vram_size;
 static union { char c[4]; unsigned long l; } endian_test __initdata = { { 'l', '?', '?', 'b' } };
 #define ENDIANNESS ((char)endian_test.l)
 
-__initfunc(void
-setup_arch(char **cmdline_p, unsigned long * memory_start_p, unsigned long * memory_end_p))
+void __init
+setup_arch(char **cmdline_p, unsigned long * memory_start_p, unsigned long * memory_end_p)
 {
 	struct param_struct *params = (struct param_struct *)PARAMS_BASE;
 	static unsigned char smptrap;
@@ -297,10 +244,10 @@ setup_arch(char **cmdline_p, unsigned long * memory_start_p, unsigned long * mem
 
 	setup_processor();
 
-	init_task.mm->start_code = TASK_SIZE;
-	init_task.mm->end_code	 = TASK_SIZE + (unsigned long) &_etext;
-	init_task.mm->end_data	 = TASK_SIZE + (unsigned long) &_edata;
-	init_task.mm->brk	 = TASK_SIZE + (unsigned long) &_end;
+	init_mm.start_code = TASK_SIZE;
+	init_mm.end_code   = TASK_SIZE + (unsigned long) &_etext;
+	init_mm.end_data   = TASK_SIZE + (unsigned long) &_edata;
+	init_mm.brk	   = TASK_SIZE + (unsigned long) &_end;
 
 	/*
 	 * Add your machine dependencies here
@@ -309,7 +256,13 @@ setup_arch(char **cmdline_p, unsigned long * memory_start_p, unsigned long * mem
 	case MACH_TYPE_EBSA110:
 		/* EBSA110 locks if we execute 'wait for interrupt' */
 		disable_hlt();
-		params = NULL;
+		if (params && params->u1.s.page_size != 4096)
+			params = NULL;
+		break;
+
+	case MACH_TYPE_RISCPC:
+		/* RiscPC can't handle half-word loads and stores */
+		elf_hwcap &= ~HWCAP_HALF;
 		break;
 
 	case MACH_TYPE_EBSA285:
@@ -415,7 +368,7 @@ setup_arch(char **cmdline_p, unsigned long * memory_start_p, unsigned long * mem
 
 		from = params->commandline;
 	} else {
-		ROOT_DEV	  = 0x00ff;
+		ROOT_DEV	  = to_kdev_t(0x00ff);
 
 		setup_ram(1, 1, 0);
 		setup_initrd(0, 0);
@@ -441,9 +394,6 @@ setup_arch(char **cmdline_p, unsigned long * memory_start_p, unsigned long * mem
 
 	check_initrd(*memory_start_p, memory_end);
 
-	sprintf(system_utsname.machine, "%s%c", armidlist[armidindex].arch_vsn, ENDIANNESS);
-	sprintf(elf_platform, "%s%c", armidlist[armidindex].elf_vsn, ENDIANNESS);
-
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
 	conswitchp = &vga_con;
@@ -462,7 +412,7 @@ static const char *machine_desc[] = {
 	"unknown",
 	"Nexus-FTV/PCI",
 	"EBSA285",
-	"Corel-NetWinder",
+	"Rebel-NetWinder",
 	"Chalice-CATS",
 	"unknown-TBOX",
 	"co-EBSA285",
@@ -476,12 +426,13 @@ int get_cpuinfo(char * buffer)
 	int len;
 
 	len = sprintf(buffer,
-		"Processor\t: %s %s rev %d\n"
+		"Processor\t: %s %s rev %d (%s)\n"
 		"BogoMips\t: %lu.%02lu\n"
 		"Hardware\t: %s\n",
-		armidlist[armidindex].manu,
-		armidlist[armidindex].name,
+		proc_info.manufacturer,
+		proc_info.cpu_name,
 		(int)processor_id & 15,
+		elf_platform,
 		(loops_per_sec+2500) / 500000,
 		((loops_per_sec+2500) / 5000) % 100,
 		machine_desc[machine_arch_type]);

@@ -5,7 +5,7 @@
  *
  * Miguel de Icaza, 1997.
  *
- * $Id: irixinv.c,v 1.2 1997/12/06 23:52:04 ralf Exp $
+ * $Id: irixinv.c,v 1.3 1998/04/05 11:23:51 ralf Exp $
  */
 #include <linux/mm.h>
 #include <linux/init.h>
@@ -53,7 +53,7 @@ dump_inventory_to_user (void *userbuf, int size)
 	return inventory_items * sizeof (inventory_t);
 }
 
-__initfunc(void init_inventory (void))
+void __init init_inventory (void)
 {
 	/* gross hack while we put the right bits all over the kernel
 	 * most likely this will not let just anyone run the X server

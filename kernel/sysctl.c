@@ -8,7 +8,10 @@
  * Added kernel/java-{interpreter,appletviewer}, 96/5/10, Mike Shaver.
  * Dynamic registration fixes, Stephen Tweedie.
  * Added kswapd-interval, ctrl-alt-del, printk stuff, 1/8/97, Chris Horn.
- * Made sysctl support optional via CONFIG_SYSCTL, 1/10/97, Chris Horn.
+ * Made sysctl support optional via CONFIG_SYSCTL, 1/10/97, Chris
+ *  Horn.
+ * Added proc_doulongvec_ms_jiffies_minmax, 09/08/99, Carlos H. Bauer.
+ * Added proc_doulongvec_minmax, 09/08/99, Carlos H. Bauer.
  */
 
 #include <linux/config.h>
@@ -18,8 +21,10 @@
 #include <linux/proc_fs.h>
 #include <linux/ctype.h>
 #include <linux/utsname.h>
+#include <linux/capability.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
+#include <linux/sysrq.h>
 
 #include <asm/uaccess.h>
 
@@ -34,6 +39,7 @@ extern int panic_timeout;
 extern int console_loglevel, C_A_D;
 extern int bdf_prm[], bdflush_min[], bdflush_max[];
 extern int sysctl_overcommit_memory;
+extern int max_threads;
 extern int nr_queued_signals, max_queued_signals;
 
 #ifdef CONFIG_KMOD
@@ -80,6 +86,7 @@ static ctl_table proc_table[];
 static ctl_table fs_table[];
 static ctl_table debug_table[];
 static ctl_table dev_table[];
+extern ctl_table random_table[];
 
 
 /* /proc declarations: */
@@ -165,6 +172,8 @@ static ctl_table kern_table[] = {
 	 0644, NULL, &proc_doutsstring, &sysctl_string},
 	{KERN_PANIC, "panic", &panic_timeout, sizeof(int),
 	 0644, NULL, &proc_dointvec},
+	{KERN_CAP_BSET, "cap-bound", &cap_bset, sizeof(kernel_cap_t),
+	 0600, NULL, &proc_dointvec_bset},
 #ifdef CONFIG_BLK_DEV_INITRD
 	{KERN_REALROOTDEV, "real-root-dev", &real_root_dev, sizeof(int),
 	 0644, NULL, &proc_dointvec},
@@ -207,6 +216,13 @@ static ctl_table kern_table[] = {
 	{KERN_SHMMAX, "shmmax", &shmmax, sizeof (int),
 	 0644, NULL, &proc_dointvec},
 #endif
+#ifdef CONFIG_MAGIC_SYSRQ
+	{KERN_SYSRQ, "sysrq", &sysrq_enabled, sizeof (int),
+	 0644, NULL, &proc_dointvec},
+#endif	 
+	{KERN_MAX_THREADS, "threads-max", &max_threads, sizeof(int),
+	 0644, NULL, &proc_dointvec},
+	{KERN_RANDOM, "random", NULL, 0, 0555, random_table},
 	{0}
 };
 
@@ -309,7 +325,7 @@ int do_sysctl (int *name, int nlen,
 	return -ENOTDIR;
 }
 
-extern asmlinkage int sys_sysctl(struct __sysctl_args *args)
+extern asmlinkage long sys_sysctl(struct __sysctl_args *args)
 {
 	struct __sysctl_args tmp;
 	int error;
@@ -679,8 +695,13 @@ static int proc_doutsstring(ctl_table *table, int write, struct file *filp,
 	return r;
 }
 
+#define OP_SET	0
+#define OP_AND	1
+#define OP_OR	2
+#define OP_MAX	3
+#define OP_MIN	4
 static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
-		  void *buffer, size_t *lenp, int conv)
+		  void *buffer, size_t *lenp, int conv, int op)
 {
 	int *i, vleft, first=1, len, left, neg, val;
 	#define TMPBUFLEN 20
@@ -731,7 +752,17 @@ static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
 				val = -val;
 			buffer += len;
 			left -= len;
-			*i = val;
+			switch(op) {
+			case OP_SET:	*i = val; break;
+			case OP_AND:	*i &= val; break;
+			case OP_OR:	*i |= val; break;
+			case OP_MAX:	if(*i < val)
+						*i = val;
+					break;
+			case OP_MIN:	if(*i > val)
+						*i = val;
+					break;
+			}
 		} else {
 			p = buf;
 			if (!first)
@@ -773,8 +804,20 @@ static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
 int proc_dointvec(ctl_table *table, int write, struct file *filp,
 		     void *buffer, size_t *lenp)
 {
-    return do_proc_dointvec(table,write,filp,buffer,lenp,1);
+    return do_proc_dointvec(table,write,filp,buffer,lenp,1,OP_SET);
 }
+
+/*
+ *	init may raise the set.
+ */
+ 
+int proc_dointvec_bset(ctl_table *table, int write, struct file *filp,
+			void *buffer, size_t *lenp)
+{
+	return do_proc_dointvec(table,write,filp,buffer,lenp,1,
+		(current->pid == 1) ? OP_SET : OP_AND);
+}
+
 
 int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 		  void *buffer, size_t *lenp)
@@ -874,11 +917,136 @@ int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 	return 0;
 }
 
+
+/*
+ * an unsigned long function version
+ */
+
+static int do_proc_doulongvec_minmax(ctl_table *table, int write,
+				     struct file *filp,
+				     void *buffer, size_t *lenp,
+				     unsigned long convmul,
+				     unsigned long convdiv)
+{
+#define TMPBUFLEN 20
+	unsigned long *i, *min, *max, val;
+	int vleft, first=1, len, left, neg;
+	char buf[TMPBUFLEN], *p;
+	
+	if (!table->data || !table->maxlen || !*lenp ||
+	    (filp->f_pos && !write)) {
+		*lenp = 0;
+		return 0;
+	}
+	
+	i = (unsigned long *) table->data;
+	min = (unsigned long *) table->extra1;
+	max = (unsigned long *) table->extra2;
+	vleft = table->maxlen / sizeof(unsigned long);
+	left = *lenp;
+	
+	for (; left && vleft--; i++, first=0) {
+		if (write) {
+			while (left) {
+				char c;
+				if(get_user(c, (char *) buffer))
+					return -EFAULT;
+				if (!isspace(c))
+					break;
+				left--;
+				((char *) buffer)++;
+			}
+			if (!left)
+				break;
+			neg = 0;
+			len = left;
+			if (len > TMPBUFLEN-1)
+				len = TMPBUFLEN-1;
+			if(copy_from_user(buf, buffer, len))
+				return -EFAULT;
+			buf[len] = 0;
+			p = buf;
+			if (*p == '-' && left > 1) {
+				neg = 1;
+				left--, p++;
+			}
+			if (*p < '0' || *p > '9')
+				break;
+			val = simple_strtoul(p, &p, 0) * convmul / convdiv ;
+			len = p-buf;
+			if ((len < left) && *p && !isspace(*p))
+				break;
+			if (neg)
+				val = -val;
+			buffer += len;
+			left -= len;
+
+			if(neg)
+				continue;
+			if (min && val < *min++)
+				continue;
+			if (max && val > *max++)
+				continue;
+			*i = val;
+		} else {
+			p = buf;
+			if (!first)
+				*p++ = '\t';
+			sprintf(p, "%lu", convdiv * (*i) / convmul);
+			len = strlen(buf);
+			if (len > left)
+				len = left;
+			if(copy_to_user(buffer, buf, len))
+				return -EFAULT;
+			left -= len;
+			buffer += len;
+		}
+	}
+
+	if (!write && !first && left) {
+		if(put_user('\n', (char *) buffer))
+			return -EFAULT;
+		left--, buffer++;
+	}
+	if (write) {
+		p = (char *) buffer;
+		while (left) {
+			char c;
+			if(get_user(c, p++))
+				return -EFAULT;
+			if (!isspace(c))
+				break;
+			left--;
+		}
+	}
+	if (write && first)
+		return -EINVAL;
+	*lenp -= left;
+	filp->f_pos += *lenp;
+	return 0;
+#undef TMPBUFLEN
+}
+
+int proc_doulongvec_minmax(ctl_table *table, int write, struct file *filp,
+			   void *buffer, size_t *lenp)
+{
+    return do_proc_doulongvec_minmax(table, write, filp, buffer, lenp, 1l, 1l);
+}
+
+int proc_doulongvec_ms_jiffies_minmax(ctl_table *table, int write,
+				      struct file *filp,
+				      void *buffer, size_t *lenp)
+{
+    return do_proc_doulongvec_minmax(table, write, filp, buffer,
+				     lenp, HZ, 1000l);
+}
+
+
 /* Like proc_dointvec, but converts seconds to jiffies */
 int proc_dointvec_jiffies(ctl_table *table, int write, struct file *filp,
 			  void *buffer, size_t *lenp)
 {
-    return do_proc_dointvec(table,write,filp,buffer,lenp,HZ);
+    return do_proc_dointvec(table,write,filp,buffer,lenp,HZ,OP_SET);
 }
 
 #else /* CONFIG_PROC_FS */
@@ -912,6 +1080,20 @@ int proc_dointvec_jiffies(ctl_table *table, int write, struct file *filp,
 {
 	return -ENOSYS;
 }
+
+int proc_doulongvec_minmax(ctl_table *table, int write, struct file *filp,
+		    void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
+int proc_doulongvec_ms_jiffies_minmax(ctl_table *table, int write,
+				      struct file *filp,
+				      void *buffer, size_t *lenp)
+{
+    return -ENOSYS;
+}
+
 
 #endif /* CONFIG_PROC_FS */
 
@@ -997,6 +1179,34 @@ int sysctl_intvec(ctl_table *table, int *name, int nlen,
 	return 0;
 }
 
+/* Strategy function to convert jiffies to seconds */ 
+int sysctl_jiffies(ctl_table *table, int *name, int nlen,
+		void *oldval, size_t *oldlenp,
+		void *newval, size_t newlen, void **context)
+{
+	if (oldval) {
+		size_t olen;
+		if (oldlenp) { 
+			if (get_user(olen, oldlenp))
+				return -EFAULT;
+			if (olen!=sizeof(int))
+				return -EINVAL; 
+		}
+		if (put_user(*(int *)(table->data) / HZ, (int *)oldval) || 
+		    (oldlenp && put_user(sizeof(int),oldlenp)))
+			return -EFAULT;
+	}
+	if (newval && newlen) { 
+		int new;
+		if (newlen != sizeof(int))
+			return -EINVAL; 
+		if (get_user(new, (int *)newval))
+			return -EFAULT;
+		*(int *)(table->data) = new*HZ; 
+	}
+	return 1;
+}
+
 int do_string (
 	void *oldval, size_t *oldlenp, void *newval, size_t newlen,
 	int rdwr, char *data, size_t max)
@@ -1073,7 +1283,7 @@ int do_struct (
 #else /* CONFIG_SYSCTL */
 
 
-extern asmlinkage int sys_sysctl(struct __sysctl_args *args)
+extern asmlinkage long sys_sysctl(struct __sysctl_args *args)
 {
 	return -ENOSYS;
 }
@@ -1111,9 +1321,22 @@ int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 }
 
 int proc_dointvec_jiffies(ctl_table *table, int write, struct file *filp,
+			  void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
+int proc_doulongvec_minmax(ctl_table *table, int write, struct file *filp,
 		    void *buffer, size_t *lenp)
 {
 	return -ENOSYS;
+}
+
+int proc_doulongvec_ms_jiffies_minmax(ctl_table *table, int write,
+				      struct file *filp,
+				      void *buffer, size_t *lenp)
+{
+    return -ENOSYS;
 }
 
 struct ctl_table_header * register_sysctl_table(ctl_table * table, 

@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.18 1999/09/18 20:48:03 harald Exp $
+/* $Id: setup.c,v 1.19 1999/09/28 22:25:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -126,13 +126,13 @@ unsigned long mips_io_port_base;
  */
 unsigned long isa_slot_offset;
 
-__initfunc(static void default_irq_setup(void))
+static void __init default_irq_setup(void)
 {
 	panic("Unknown machtype in init_IRQ");
 }
 
-__initfunc(void setup_arch(char **cmdline_p,
-           unsigned long * memory_start_p, unsigned long * memory_end_p))
+void __init setup_arch(char **cmdline_p,
+           unsigned long * memory_start_p, unsigned long * memory_end_p)
 {
 	unsigned long memory_end;
 #ifdef CONFIG_BLK_DEV_INITRD

@@ -37,10 +37,12 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
      tristate '  Stallion EC8/64, ONboard, Brumby support' CONFIG_ISTALLION
    fi
    tristate 'SDL RISCom/8 card support' CONFIG_RISCOM8
+   tristate 'Computone IntelliPort Plus serial support' CONFIG_COMPUTONE
    tristate 'Specialix IO8+ card support' CONFIG_SPECIALIX
    if [ "$CONFIG_SPECIALIX" != "n" ]; then
      bool 'Specialix DTR/RTS pin is RTS' CONFIG_SPECIALIX_RTSCTS
    fi 
+   tristate 'Specialix SX (and SI) card support' CONFIG_SX
    tristate 'Hayes ESP serial port support' CONFIG_ESPSERIAL
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	dep_tristate 'Multi-Tech multiport card support' CONFIG_ISI m
@@ -60,18 +62,25 @@ if [ "$CONFIG_PARPORT" != "n" ]; then
   dep_tristate 'Support for user-space parallel port device drivers' CONFIG_PPDEV $CONFIG_PARPORT
 fi
 
-bool 'Mouse Support (not serial mice)' CONFIG_MOUSE
-if [ "$CONFIG_MOUSE" = "y" ]; then
-	mainmenu_option next_comment
-	comment 'Mice'
-	tristate 'ATIXL busmouse support' CONFIG_ATIXL_BUSMOUSE
-	tristate 'Logitech busmouse support' CONFIG_BUSMOUSE
-	tristate 'Microsoft busmouse support' CONFIG_MS_BUSMOUSE
+mainmenu_option next_comment
+comment 'Mice'
+tristate 'Bus Mouse Support' CONFIG_BUSMOUSE
+if [ "$CONFIG_BUSMOUSE" != "n" ]; then
+  dep_tristate 'ATIXL busmouse support' CONFIG_ATIXL_BUSMOUSE $CONFIG_BUSMOUSE
+  dep_tristate 'Logitech busmouse support' CONFIG_LOGIBUSMOUSE $CONFIG_BUSMOUSE
+  dep_tristate 'Microsoft busmouse support' CONFIG_MS_BUSMOUSE $CONFIG_BUSMOUSE
+  if [ "$CONFIG_PPC" = "y" ] ; then
+    dep_tristate 'Apple Desktop Bus mouse support' CONFIG_ADBMOUSE $CONFIG_BUSMOUSE
+  fi
+fi
+
+tristate 'Mouse Support (not serial and bus mice)' CONFIG_MOUSE
+if [ "$CONFIG_MOUSE" != "n" ]; then
 	bool 'PS/2 mouse (aka "auxiliary device") support' CONFIG_PSMOUSE
 	tristate 'C&T 82C710 mouse port support (as on TI Travelmate)' CONFIG_82C710_MOUSE
 	tristate 'PC110 digitizer pad support' CONFIG_PC110_PAD
-	endmenu
 fi
+endmenu
 
 tristate 'QIC-02 tape support' CONFIG_QIC02_TAPE
 if [ "$CONFIG_QIC02_TAPE" != "n" ]; then
@@ -85,7 +94,6 @@ if [ "$CONFIG_QIC02_TAPE" != "n" ]; then
   fi
   dep_tristate 'Zoran ZR36057/36060 support' CONFIG_VIDEO_ZORAN $CONFIG_VIDEO_DEV
   dep_tristate ' Include support for Iomega Buz' CONFIG_VIDEO_BUZ $CONFIG_VIDEO_ZORAN
-  dep_tristate '  Include support for LML33' CONFIG_VIDEO_LML33 $CONFIG_VIDEO_ZORAN
 fi
 
 bool 'Watchdog Timer Support'	CONFIG_WATCHDOG
@@ -191,6 +199,9 @@ endmenu
 
 tristate 'Double Talk PC internal speech card support' CONFIG_DTLK
 
+tristate 'Siemens R3964 line discipline' CONFIG_R3964
+tristate 'Applicom intelligent fieldbus card support' CONFIG_APPLICOM
+
 mainmenu_option next_comment
 comment 'Ftape, the floppy tape device driver'
 tristate 'Ftape (QIC-80/Travan) support' CONFIG_FTAPE
@@ -198,5 +209,12 @@ if [ "$CONFIG_FTAPE" != "n" ]; then
   source drivers/char/ftape/Config.in
 fi
 endmenu
+
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool 'Direct Rendering Manager (XFree86 DRI support)' CONFIG_DRM
+  if [ "$CONFIG_DRM" = "y" ]; then
+    dep_tristate '   3dlabs GMX 2000' CONFIG_DRM_GAMMA m
+  fi
+fi
 
 endmenu

@@ -5,6 +5,7 @@
  *
  */
 
+#include <asm/segment.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <linux/types.h>
@@ -50,10 +51,11 @@ static void dst_run_gc(unsigned long dummy)
 		return;
 	}
 
+
 	del_timer(&dst_gc_timer);
 	dstp = &dst_garbage_list;
 	while ((dst = *dstp) != NULL) {
-		if (atomic_read(&dst->use)) {
+		if (atomic_read(&dst->__refcnt)) {
 			dstp = &dst->next;
 			delayed++;
 			continue;
@@ -91,7 +93,7 @@ static int dst_blackhole(struct sk_buff *skb)
 	return 0;
 }
 
-void * dst_alloc(int size, struct dst_ops * ops)
+void * dst_alloc(struct dst_ops * ops)
 {
 	struct dst_entry * dst;
 
@@ -99,12 +101,11 @@ void * dst_alloc(int size, struct dst_ops * ops)
 		if (ops->gc())
 			return NULL;
 	}
-	dst = kmalloc(size, GFP_ATOMIC);
+	dst = kmem_cache_alloc(ops->kmem_cachep, SLAB_ATOMIC);
 	if (!dst)
 		return NULL;
-	memset(dst, 0, size);
+	memset(dst, 0, ops->entry_size);
 	dst->ops = ops;
-	atomic_set(&dst->refcnt, 0);
 	dst->lastuse = jiffies;
 	dst->input = dst_discard;
 	dst->output = dst_blackhole;
@@ -123,7 +124,6 @@ void __dst_free(struct dst_entry * dst)
 	if (dst->dev == NULL || !(dst->dev->flags&IFF_UP)) {
 		dst->input = dst_discard;
 		dst->output = dst_blackhole;
-		dst->dev = &loopback_dev;
 	}
 	dst->obsolete = 2;
 	dst->next = dst_garbage_list;
@@ -157,13 +157,15 @@ void dst_destroy(struct dst_entry * dst)
 
 	if (dst->ops->destroy)
 		dst->ops->destroy(dst);
+	if (dst->dev)
+		dev_put(dst->dev);
 	atomic_dec(&dst_total);
-	kfree(dst);
+	kmem_cache_free(dst->ops->kmem_cachep, dst);
 }
 
 static int dst_dev_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	struct device *dev = ptr;
+	struct net_device *dev = ptr;
 	struct dst_entry *dst;
 
 	switch (event) {
@@ -172,9 +174,27 @@ static int dst_dev_event(struct notifier_block *this, unsigned long event, void 
 		spin_lock_bh(&dst_lock);
 		for (dst = dst_garbage_list; dst; dst = dst->next) {
 			if (dst->dev == dev) {
-				dst->input = dst_discard;
-				dst->output = dst_blackhole;
-				dst->dev = &loopback_dev;
+				/* Dirty hack. We did it in 2.2 (in __dst_free),
+				   we have _very_ good reasons not to repeat
+				   this mistake in 2.3, but we have no choice
+				   now. _It_ _is_ _explicit_ _deliberate_
+				   _race_ _condition_.
+				 */
+				if (event!=NETDEV_DOWN && !dev->new_style &&
+				    dst->output == dst_blackhole) {
+					dst->dev = &loopback_dev;
+					dev_put(dev);
+					dev_hold(&loopback_dev);
+					dst->output = dst_discard;
+					if (dst->neighbour && dst->neighbour->dev == dev) {
+						dst->neighbour->dev = &loopback_dev;
+						dev_put(dev);
+						dev_hold(&loopback_dev);
+					}
+				} else {
+					dst->input = dst_discard;
+					dst->output = dst_blackhole;
+				}
 			}
 		}
 		spin_unlock_bh(&dst_lock);
@@ -189,7 +209,7 @@ struct notifier_block dst_dev_notifier = {
 	0
 };
 
-__initfunc(void dst_init(void))
+void __init dst_init(void)
 {
 	register_netdevice_notifier(&dst_dev_notifier);
 }

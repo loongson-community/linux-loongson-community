@@ -2,7 +2,11 @@
  * UHCI-specific debugging code. Invaluable when something
  * goes wrong, but don't get in my face.
  *
+ * Kernel visible pointers are surrounded in []'s and bus
+ * visible pointers are surrounded in ()'s
+ *
  * (C) Copyright 1999 Linus Torvalds
+ * (C) Copyright 1999 Johannes Erdfelt
  */
 
 #include <linux/kernel.h>
@@ -10,65 +14,66 @@
 
 #include "uhci.h"
 
-void show_td(struct uhci_td * td)
+void uhci_show_td(struct uhci_td * td)
 {
 	char *spid;
 
 	printk("%08x ", td->link);
-	printk("%se%d %s%s%s%s%s%s%s%s%s%sLength=%x ",
-		((td->status >> 29) & 1) ? "SPD " : "",
+	printk("e%d %s%s%s%s%s%s%s%s%s%sLength=%x ",
 		((td->status >> 27) & 3),
-		((td->status >> 26) & 1) ? "LS " : "",
-		((td->status >> 25) & 1) ? "IOS " : "",
-		((td->status >> 24) & 1) ? "IOC " : "",
-		((td->status >> 23) & 1) ? "Active " : "",
-		((td->status >> 22) & 1) ? "Stalled " : "",
-		((td->status >> 21) & 1) ? "DataBufErr " : "",
-		((td->status >> 20) & 1) ? "Babble " : "",
-		((td->status >> 19) & 1) ? "NAK " : "",
-		((td->status >> 18) & 1) ? "CRC/Timeo " : "",
-		((td->status >> 17) & 1) ? "BitStuff " : "",
+		(td->status & TD_CTRL_SPD) ?      "SPD " : "",
+		(td->status & TD_CTRL_LS) ?       "LS " : "",
+		(td->status & TD_CTRL_IOC) ?      "IOC " : "",
+		(td->status & TD_CTRL_ACTIVE) ?   "Active " : "",
+		(td->status & TD_CTRL_STALLED) ?  "Stalled " : "",
+		(td->status & TD_CTRL_DBUFERR) ?  "DataBufErr " : "",
+		(td->status & TD_CTRL_BABBLE) ?   "Babble " : "",
+		(td->status & TD_CTRL_NAK) ?      "NAK " : "",
+		(td->status & TD_CTRL_CRCTIMEO) ? "CRC/Timeo " : "",
+		(td->status & TD_CTRL_BITSTUFF) ? "BitStuff " : "",
 		td->status & 0x7ff);
+
 	switch (td->info & 0xff) {
-	case 0x2d:
-		spid = "SETUP";
-		break;
-	case 0xe1:
-		spid = "OUT";
-		break;
-	case 0x69:
-		spid = "IN";
-		break;
-	default:
-		spid = "?";
-		break;
+		case USB_PID_SETUP:
+			spid = "SETUP";
+			break;
+		case USB_PID_OUT:
+			spid = "OUT";
+			break;
+		case USB_PID_IN:
+			spid = "IN";
+			break;
+		default:
+			spid = "?";
+			break;
 	}
-	printk("MaxLen=%x %sEndPt=%x Dev=%x, PID=%x(%s) ",
+
+	printk("MaxLen=%x DT%d EndPt=%x Dev=%x, PID=%x(%s) ",
 		td->info >> 21,
-		 ((td->info >> 19) & 1) ? "DT " : "",
-		 (td->info >> 15) & 15,
-		 (td->info >> 8) & 127,
-		 (td->info & 0xff),
-		 spid);
+		((td->info >> 19) & 1),
+		(td->info >> 15) & 15,
+		(td->info >> 8) & 127,
+		(td->info & 0xff),
+		spid);
 	printk("(buf=%08x)\n", td->buffer);
 }
 
-static void show_sc(int port, unsigned short status)
+static void uhci_show_sc(int port, unsigned short status)
 {
 	printk("  stat%d     =     %04x   %s%s%s%s%s%s%s%s\n",
 		port,
 		status,
-		(status & (1 << 12)) ? " PortSuspend" : "",
-		(status & (1 << 9)) ? " PortReset" : "",
-		(status & (1 << 8)) ? " LowSpeed" : "",
-		(status & 0x40) ? " ResumeDetect" : "",
-		(status & 0x08) ? " EnableChange" : "",
-		(status & 0x04) ? " PortEnabled" : "",
-		(status & 0x02) ? " ConnectChange" : "",
-		(status & 0x01) ? " PortConnected" : "");
+		(status & USBPORTSC_SUSP) ? "PortSuspend " : "",
+		(status & USBPORTSC_PR) ?   "PortReset " : "",
+		(status & USBPORTSC_LSDA) ? "LowSpeed " : "",
+		(status & USBPORTSC_RD) ?   "ResumeDetect " : "",
+		(status & USBPORTSC_PEC) ?  "EnableChange " : "",
+		(status & USBPORTSC_PE) ?   "PortEnabled " : "",
+		(status & USBPORTSC_CSC) ?  "ConnectChange " : "",
+		(status & USBPORTSC_CCS) ?  "PortConnected " : "");
 }
 
-void show_status(struct uhci *uhci)
+void uhci_show_status(struct uhci *uhci)
 {
 	unsigned int io_addr = uhci->io_addr;
 	unsigned short usbcmd, usbstat, usbint, usbfrnum;
@@ -87,99 +92,117 @@ void show_status(struct uhci *uhci)
 
 	printk("  usbcmd    =     %04x   %s%s%s%s%s%s%s%s\n",
 		usbcmd,
-		(usbcmd & 0x80) ? " Maxp64" : " Maxp32",
-		(usbcmd & 0x40) ? " CF" : "",
-		(usbcmd & 0x20) ? " SWDBG" : "",
-		(usbcmd & 0x10) ? " FGR" : "",
-		(usbcmd & 0x08) ? " EGSM" : "",
-		(usbcmd & 0x04) ? " GRESET" : "",
-		(usbcmd & 0x02) ? " HCRESET" : "",
-		(usbcmd & 0x01) ? " RS" : "");
+		(usbcmd & USBCMD_MAXP) ?    "Maxp64 " : "Maxp32 ",
+		(usbcmd & USBCMD_CF) ?      "CF " : "",
+		(usbcmd & USBCMD_SWDBG) ?   "SWDBG " : "",
+		(usbcmd & USBCMD_FGR) ?     "FGR " : "",
+		(usbcmd & USBCMD_EGSM) ?    "EGSM " : "",
+		(usbcmd & USBCMD_GRESET) ?  "GRESET " : "",
+		(usbcmd & USBCMD_HCRESET) ? "HCRESET " : "",
+		(usbcmd & USBCMD_RS) ?      "RS " : "");
 
 	printk("  usbstat   =     %04x   %s%s%s%s%s%s\n",
 		usbstat,
-		(usbstat & 0x20) ? " HCHalted" : "",
-		(usbstat & 0x10) ? " HostControllerProcessError" : "",
-		(usbstat & 0x08) ? " HostSystemError" : "",
-		(usbstat & 0x04) ? " ResumeDetect" : "",
-		(usbstat & 0x02) ? " USBError" : "",
-		(usbstat & 0x01) ? " USBINT" : "");
+		(usbstat & USBSTS_HCH) ?    "HCHalted " : "",
+		(usbstat & USBSTS_HCPE) ?   "HostControllerProcessError " : "",
+		(usbstat & USBSTS_HSE) ?    "HostSystemError " : "",
+		(usbstat & USBSTS_RD) ?     "ResumeDetect " : "",
+		(usbstat & USBSTS_ERROR) ?  "USBError " : "",
+		(usbstat & USBSTS_USBINT) ? "USBINT " : "");
 
 	printk("  usbint    =     %04x\n", usbint);
-	printk("  usbfrnum  =   (%d)%03x\n", (usbfrnum >> 10) & 1, 0xfff & (4*(unsigned int)usbfrnum));
+	printk("  usbfrnum  =   (%d)%03x\n", (usbfrnum >> 10) & 1,
+		0xfff & (4*(unsigned int)usbfrnum));
 	printk("  flbaseadd = %08x\n", flbaseadd);
 	printk("  sof       =       %02x\n", sof);
-	show_sc(1, portsc1);
-	show_sc(2, portsc2);
+	uhci_show_sc(1, portsc1);
+	uhci_show_sc(2, portsc2);
 }
 
 #define uhci_link_to_qh(x) ((struct uhci_qh *) uhci_link_to_td(x))
 
-struct uhci_td * uhci_link_to_td(unsigned int link)
+struct uhci_td *uhci_link_to_td(unsigned int link)
 {
-	if (link & 1)
+	if (link & UHCI_PTR_TERM)
 		return NULL;
 
-	return bus_to_virt(link & ~15);
+	return bus_to_virt(link & ~UHCI_PTR_BITS);
 }
 
-void show_queue(struct uhci_qh *qh)
+void uhci_show_queue(struct uhci_qh *qh)
 {
-	struct uhci_td *td;
-	int i = 0;
+	struct uhci_td *td, *first;
+	int i = 0, count = 1000;
 
-#if 0
-	printk("    link = %p, element = %p\n", qh->link, qh->element);
-#endif
-	if(!(qh->element & ~0xF)) {
-		printk("    td 0 = NULL\n");
+	if (qh->element & UHCI_PTR_QH)
+		printk("      Element points to QH (bug?)\n");
+
+	if (qh->element & UHCI_PTR_DEPTH)
+		printk("      Depth traverse\n");
+
+	if (qh->element & UHCI_PTR_TERM)
+		printk("      Terminate\n");
+
+	if (!(qh->element & ~UHCI_PTR_BITS)) {
+		printk("      td 0: [NULL]\n");
 		return;
 	}
 
-	for(td = uhci_link_to_td(qh->element); td; 
-	    td = uhci_link_to_td(td->link)) {
-		printk("    td %d = %p\n", i++, td);
-		printk("    ");
-		show_td(td);
+	if (qh->first)
+		first = qh->first;
+	else
+		first = uhci_link_to_td(qh->element);
+
+	/* Make sure it doesn't runaway */
+	for (td = first; td && count > 0; 
+	     td = uhci_link_to_td(td->link), --count) {
+		printk("      td %d: [%p]\n", i++, td);
+		printk("      ");
+		uhci_show_td(td);
+
+		if (td == uhci_link_to_td(td->link)) {
+			printk(KERN_ERR "td links to itself!\n");
+			break;
+		}
 	}
 }
 
-int is_skeleton_qh(struct uhci *uhci, struct uhci_qh *qh)
+static int uhci_is_skeleton_qh(struct uhci *uhci, struct uhci_qh *qh)
 {
 	int j;
-	struct uhci_device * root_hub=usb_to_uhci(uhci->bus->root_hub);
-	for (j = 0; j < UHCI_MAXQH; j++)
-		if (qh == root_hub->qh + j)
+
+	for (j = 0; j < UHCI_NUM_SKELQH; j++)
+		if (qh == uhci->skelqh + j)
 			return 1;
 
 	return 0;
 }
 
-static const char *qh_names[] = {"isochronous", "interrupt2", "interrupt4",
-				 "interrupt8", "interrupt16", "interrupt32",
-				 "interrupt64", "interrupt128", "interrupt256",
-				 "control", "bulk0", "bulk1", "bulk2", "bulk3",
-				 "unused", "unused"};
+static const char *qh_names[] = {"interrupt2", "interrupt4", "interrupt8",
+				 "interrupt16", "interrupt32", "interrupt64",
+				 "interrupt128", "interrupt256", "control",
+				 "bulk"};
 
-void show_queues(struct uhci *uhci)
+void uhci_show_queues(struct uhci *uhci)
 {
 	int i;
 	struct uhci_qh *qh;
-	struct uhci_device * root_hub=usb_to_uhci(uhci->bus->root_hub);
 
-	for (i = 0; i < UHCI_MAXQH; ++i) {
-		printk("  %s:\n", qh_names[i]);
-#if 0
-		printk("  qh #%d, %p\n", i, virt_to_bus(root_hub->qh + i));
-		show_queue(uhci->root_hub->qh + i);
-#endif
+	for (i = 0; i < UHCI_NUM_SKELQH; ++i) {
+		printk("  %s: [%p] (%08X) (%08X)\n", qh_names[i],
+			&uhci->skelqh[i],
+			uhci->skelqh[i].link, uhci->skelqh[i].element);
 
-		qh = uhci_link_to_qh(root_hub->qh[i].link);
+		qh = uhci_link_to_qh(uhci->skelqh[i].link);
 		for (; qh; qh = uhci_link_to_qh(qh->link)) {
-			if (is_skeleton_qh(uhci, qh))
+			if (uhci_is_skeleton_qh(uhci, qh))
 				break;
 
-			show_queue(qh);
+			printk("    [%p] (%08X) (%08x)\n",
+				qh, qh->link, qh->element);
+
+			uhci_show_queue(qh);
 		}
 	}
 }
+

@@ -1,7 +1,6 @@
 #ifndef __ALPHA_LCA__H__
 #define __ALPHA_LCA__H__
 
-#include <linux/config.h>
 #include <asm/system.h>
 #include <asm/compiler.h>
 
@@ -56,16 +55,9 @@
  * ugh).
  */
 
-#define LCA_DMA_WIN_BASE_DEFAULT	(1024*1024*1024)
-#define LCA_DMA_WIN_SIZE_DEFAULT	(1024*1024*1024)
+#define LCA_DMA_WIN_BASE	(1UL*1024*1024*1024)
+#define LCA_DMA_WIN_SIZE	(1UL*1024*1024*1024)
 
-#if defined(CONFIG_ALPHA_GENERIC) || defined(CONFIG_ALPHA_SRM_SETUP)
-#define LCA_DMA_WIN_BASE		alpha_mv.dma_win_base
-#define LCA_DMA_WIN_SIZE		alpha_mv.dma_win_size
-#else
-#define LCA_DMA_WIN_BASE		LCA_DMA_WIN_BASE_DEFAULT
-#define LCA_DMA_WIN_SIZE		LCA_DMA_WIN_SIZE_DEFAULT
-#endif
 
 /*
  * Memory Controller registers:
@@ -305,6 +297,7 @@ __EXTERN_INLINE unsigned long lca_readb(unsigned long addr)
 {
 	unsigned long result, msb;
 
+	addr -= LCA_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -318,6 +311,7 @@ __EXTERN_INLINE unsigned long lca_readw(unsigned long addr)
 {
 	unsigned long result, msb;
 
+	addr -= LCA_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -329,12 +323,12 @@ __EXTERN_INLINE unsigned long lca_readw(unsigned long addr)
 
 __EXTERN_INLINE unsigned long lca_readl(unsigned long addr)
 {
-	return *(vuip) (addr + LCA_DENSE_MEM);
+	return *(vuip)addr;
 }
 
 __EXTERN_INLINE unsigned long lca_readq(unsigned long addr)
 {
-	return *(vulp) (addr + LCA_DENSE_MEM);
+	return *(vulp)addr;
 }
 
 __EXTERN_INLINE void lca_writeb(unsigned char b, unsigned long addr)
@@ -342,6 +336,7 @@ __EXTERN_INLINE void lca_writeb(unsigned char b, unsigned long addr)
 	unsigned long msb;
 	unsigned long w;
 
+	addr -= LCA_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -356,6 +351,7 @@ __EXTERN_INLINE void lca_writew(unsigned short b, unsigned long addr)
 	unsigned long msb;
 	unsigned long w;
 
+	addr -= LCA_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -367,19 +363,22 @@ __EXTERN_INLINE void lca_writew(unsigned short b, unsigned long addr)
 
 __EXTERN_INLINE void lca_writel(unsigned int b, unsigned long addr)
 {
-	*(vuip) (addr + LCA_DENSE_MEM) = b;
+	*(vuip)addr = b;
 }
 
 __EXTERN_INLINE void lca_writeq(unsigned long b, unsigned long addr)
 {
-	*(vulp) (addr + LCA_DENSE_MEM) = b;
+	*(vulp)addr = b;
 }
 
-/* Find the DENSE memory area for a given bus address.  */
-
-__EXTERN_INLINE unsigned long lca_dense_mem(unsigned long addr)
+__EXTERN_INLINE unsigned long lca_ioremap(unsigned long addr)
 {
-	return LCA_DENSE_MEM;
+	return addr + LCA_DENSE_MEM;
+}
+
+__EXTERN_INLINE int lca_is_ioaddr(unsigned long addr)
+{
+	return addr >= IDENT_ADDR + 0x120000000UL;
 }
 
 #undef vip
@@ -404,18 +403,18 @@ __EXTERN_INLINE unsigned long lca_dense_mem(unsigned long addr)
 #define __readq		lca_readq
 #define __writel	lca_writel
 #define __writeq	lca_writeq
-#define dense_mem	lca_dense_mem
+#define __ioremap	lca_ioremap
+#define __is_ioaddr	lca_is_ioaddr
 
 #define inb(port) \
-(__builtin_constant_p((port))?__inb(port):_inb(port))
-
+  (__builtin_constant_p((port))?__inb(port):_inb(port))
 #define outb(x, port) \
-(__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
+  (__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
 
-#define readl(a)	__readl((unsigned long)(a))
-#define readq(a)	__readq((unsigned long)(a))
-#define writel(v,a)	__writel((v),(unsigned long)(a))
-#define writeq(v,a)	__writeq((v),(unsigned long)(a))
+#define __raw_readl(a)		__readl((unsigned long)(a))
+#define __raw_readq(a)		__readq((unsigned long)(a))
+#define __raw_writel(v,a)	__writel((v),(unsigned long)(a))
+#define __raw_writeq(v,a)	__writeq((v),(unsigned long)(a))
 
 #endif /* __WANT_IO_DEF */
 

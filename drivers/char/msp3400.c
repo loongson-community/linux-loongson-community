@@ -795,9 +795,8 @@ static int msp3410d_thread(void *data)
 		UNLOCK_I2C_BUS(msp->bus);
 
 		/* wait 1 sec */
-		current->state = TASK_INTERRUPTIBLE;
-		current->timeout = jiffies + HZ;
-		schedule();
+		__set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(HZ);
 		if (signal_pending(current))
 			goto done;
 		if (msp->restart) {
@@ -992,16 +991,16 @@ msp3400c_mixer_llseek(struct file *file, loff_t offset, int origin)
 }
 
 static /*const*/ struct file_operations msp3400c_mixer_fops = {
-        &msp3400c_mixer_llseek,
+        msp3400c_mixer_llseek,
         NULL,  /* read */
         NULL,  /* write */
         NULL,  /* readdir */
         NULL,  /* poll */
-        &msp3400c_mixer_ioctl,
+        msp3400c_mixer_ioctl,
         NULL,  /* mmap */
-        &msp3400c_mixer_open,
+        msp3400c_mixer_open,
 	NULL,
-        &msp3400c_mixer_release,
+        msp3400c_mixer_release,
         NULL,  /* fsync */
         NULL,  /* fasync */
         NULL,  /* check_media_change */

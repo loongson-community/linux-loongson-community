@@ -39,6 +39,10 @@
 #define FB_AUX_TEXT_MGA_STEP16	3	/* MGA Millenium I: text, attr, 14 reserved bytes */
 #define FB_AUX_TEXT_MGA_STEP8	4	/* other MGAs:      text, attr,  6 reserved bytes */
 
+#define FB_AUX_VGA_PLANES_VGA4		0	/* 16 color planes (EGA/VGA) */
+#define FB_AUX_VGA_PLANES_CFB4		1	/* CFB4 in planes (VGA) */
+#define FB_AUX_VGA_PLANES_CFB8		2	/* CFB8 in planes (VGA) */
+
 #define FB_VISUAL_MONO01		0	/* Monochr. 1=Black 0=White */
 #define FB_VISUAL_MONO10		1	/* Monochr. 1=White 0=Black */
 #define FB_VISUAL_TRUECOLOR		2	/* True color	*/
@@ -69,13 +73,17 @@
 #define FB_ACCEL_MATROX_MGAG100	20	/* Matrox G100 (Productiva G100) */
 #define FB_ACCEL_MATROX_MGAG200	21	/* Matrox G200 (Myst, Mill, ...) */
 #define FB_ACCEL_SUN_CG14	22	/* Sun cgfourteen		 */
-#define FB_ACCEL_SUN_BWTWO	23	/* Sun bwtwo			 */
-#define FB_ACCEL_SUN_CGTHREE	24	/* Sun cgthree			 */
-#define FB_ACCEL_SUN_TCX	25	/* Sun tcx			 */
+#define FB_ACCEL_SUN_BWTWO	23	/* Sun bwtwo			*/
+#define FB_ACCEL_SUN_CGTHREE	24	/* Sun cgthree			*/
+#define FB_ACCEL_SUN_TCX	25	/* Sun tcx			*/
+#define FB_ACCEL_MATROX_MGAG400	26	/* Matrox G400			*/
+#define FB_ACCEL_NV3		27	/* nVidia RIVA 128              */
+#define FB_ACCEL_NV4		28	/* nVidia RIVA TNT		*/
+#define FB_ACCEL_NV5		29	/* nVidia RIVA TNT2		*/
 
 struct fb_fix_screeninfo {
 	char id[16];			/* identification string eg "TT Builtin" */
-	char *smem_start;		/* Start of frame buffer mem */
+	unsigned long smem_start;	/* Start of frame buffer mem */
 					/* (physical address) */
 	__u32 smem_len;			/* Length of frame buffer mem */
 	__u32 type;			/* see FB_TYPE_*		*/
@@ -85,7 +93,7 @@ struct fb_fix_screeninfo {
 	__u16 ypanstep;			/* zero if no hardware panning  */
 	__u16 ywrapstep;		/* zero if no hardware ywrap    */
 	__u32 line_length;		/* length of a line in bytes    */
-	char *mmio_start;		/* Start of Memory Mapped I/O   */
+	unsigned long mmio_start;	/* Start of Memory Mapped I/O   */
 					/* (physical address) */
 	__u32 mmio_len;			/* Length of Memory Mapped I/O  */
 	__u32 accel;			/* Type of acceleration available */
@@ -199,6 +207,7 @@ struct fb_monspecs {
 #ifdef __KERNEL__
 
 #include <linux/fs.h>
+#include <linux/init.h>
 
 
 struct fb_info;
@@ -395,12 +404,6 @@ extern int fbgen_switch(int con, struct fb_info *info);
 extern void fbgen_blank(int blank, struct fb_info *info);
 
 
-struct fb_videomode {
-    const char *name;
-    struct fb_var_screeninfo var;
-};
-
-
 /* drivers/char/fbmem.c */
 extern int register_framebuffer(struct fb_info *fb_info);
 extern int unregister_framebuffer(const struct fb_info *fb_info);
@@ -436,6 +439,30 @@ extern void fb_invert_cmaps(void);
 #define VESA_VSYNC_SUSPEND	1
 #define VESA_HSYNC_SUSPEND	2
 #define VESA_POWERDOWN		3
+
+
+struct fb_videomode {
+    const char *name;	/* optional */
+    u32 refresh;	/* optional */
+    u32 xres;
+    u32 yres;
+    u32 pixclock;
+    u32 left_margin;
+    u32 right_margin;
+    u32 upper_margin;
+    u32 lower_margin;
+    u32 hsync_len;
+    u32 vsync_len;
+    u32 sync;
+    u32 vmode;
+};
+
+extern int __init fb_find_mode(struct fb_var_screeninfo *var,
+			       struct fb_info *info, const char *mode_option,
+			       const struct fb_videomode *db,
+			       unsigned int dbsize,
+			       const struct fb_videomode *default_mode,
+			       unsigned int default_bpp);
 
 #endif /* __KERNEL__ */
 

@@ -259,20 +259,22 @@ repeat:
 	}
 	if (metadata) {
 		result = getblk (inode->i_dev, tmp, blocksize);
-		if (*p) {
-			ext2_free_blocks (inode, tmp, 1);
-			brelse (result);
-			goto repeat;
-		}
 		memset(result->b_data, 0, blocksize);
 		mark_buffer_uptodate(result, 1);
 		mark_buffer_dirty(result, 1);
+		if (*p) {
+			ext2_free_blocks (inode, tmp, 1);
+			bforget (result);
+			goto repeat;
+		}
 	} else {
 		if (*p) {
 			/*
 			 * Nobody is allowed to change block allocation
 			 * state from under us:
 			 */
+			ext2_error (inode->i_sb, "block_getblk",
+				    "data block filled under us");
 			BUG();
 			ext2_free_blocks (inode, tmp, 1);
 			goto repeat;
@@ -366,22 +368,28 @@ repeat:
 		goto out;
 	if (metadata) {
 		result = getblk (bh->b_dev, tmp, blocksize);
-		if (*p) {
-			ext2_free_blocks (inode, tmp, 1);
-			brelse (result);
-			goto repeat;
-		}
 		memset(result->b_data, 0, inode->i_sb->s_blocksize);
 		mark_buffer_uptodate(result, 1);
 		mark_buffer_dirty(result, 1);
+		if (*p) {
+			ext2_free_blocks (inode, tmp, 1);
+			bforget (result);
+			goto repeat;
+		}
 	} else {
+		if (*p) {
+			/*
+			 * Nobody is allowed to change block allocation
+			 * state from under us:
+			 */
+			ext2_error (inode->i_sb, "block_getblk",
+				    "data block filled under us");
+			BUG();
+			ext2_free_blocks (inode, tmp, 1);
+			goto repeat;
+		}
 		*phys = tmp;
 		*new = 1;
-	}
-	if (*p) {
-		ext2_free_blocks (inode, tmp, 1);
-		brelse (result);
-		goto repeat;
 	}
 	*p = le32_to_cpu(tmp);
 	mark_buffer_dirty(bh, 1);
@@ -848,10 +856,11 @@ int ext2_notify_change(struct dentry *dentry, struct iattr *iattr)
 	unsigned int	flags;
 	
 	retval = -EPERM;
-	if ((iattr->ia_attr_flags &
-	     (ATTR_FLAG_APPEND | ATTR_FLAG_IMMUTABLE)) ^
-	    (inode->u.ext2_i.i_flags &
-	     (EXT2_APPEND_FL | EXT2_IMMUTABLE_FL))) {
+	if (iattr->ia_valid & ATTR_ATTR_FLAG &&
+	    ((!(iattr->ia_attr_flags & ATTR_FLAG_APPEND) !=
+	      !(inode->u.ext2_i.i_flags & EXT2_APPEND_FL)) ||
+	     (!(iattr->ia_attr_flags & ATTR_FLAG_IMMUTABLE) !=
+	      !(inode->u.ext2_i.i_flags & EXT2_IMMUTABLE_FL)))) {
 		if (!capable(CAP_LINUX_IMMUTABLE))
 			goto out;
 	} else if ((current->fsuid != inode->i_uid) && !capable(CAP_FOWNER))

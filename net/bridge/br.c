@@ -39,6 +39,8 @@
  *	Alan Cox:	Merged Jean-Rene's stuff, reformatted stuff a bit
  *			so blame me first if its broken ;)
  *
+ *	Robert Pintarelli:	fixed bug in bpdu time values
+ *	
  *	Todo:
  *		Don't bring up devices automatically. Start ports disabled
  *	and use a netlink notifier so a daemon can maintain the bridge
@@ -133,12 +135,12 @@ static int hold_timer_expired(int port_no);
 static int br_device_event(struct notifier_block *dnot, unsigned long event, void *ptr);
 static void br_tick(unsigned long arg);
 static int br_forward(struct sk_buff *skb, int port);	/* 3.7 */
-static int br_port_cost(struct device *dev);	/* 4.10.2 */
+static int br_port_cost(struct net_device *dev);	/* 4.10.2 */
 static void br_bpdu(struct sk_buff *skb, int port); /* consumes skb */
 static int br_cmp(unsigned int *a, unsigned int *b);
 static int send_tcn_bpdu(int port_no, Tcn_bpdu *bpdu);
 static int send_config_bpdu(int port_no, Config_bpdu *config_bpdu);
-static int find_port(struct device *dev);
+static int find_port(struct net_device *dev);
 static void br_add_local_mac(unsigned char *mac);
 static int br_flood(struct sk_buff *skb, int port);
 static int br_drop(struct sk_buff *skb);
@@ -284,13 +286,13 @@ static void transmit_config(int port_no)	  /* (4.6.1)	 */
 			config_bpdu.message_age = Zero;	/* (4.6.1.3.2(5)) */
 		} else {
 			config_bpdu.message_age
-				= message_age_timer[bridge_info.root_port].value
-				+ Message_age_increment;	/* (4.6.1.3.2(6)) */
+				= (message_age_timer[bridge_info.root_port].value
+				+ Message_age_increment) << 8;	/* (4.6.1.3.2(6)) */
 		}
 
-		config_bpdu.max_age = bridge_info.max_age;/* (4.6.1.3.2(7)) */
-		config_bpdu.hello_time = bridge_info.hello_time;
-		config_bpdu.forward_delay = bridge_info.forward_delay;
+		config_bpdu.max_age = bridge_info.max_age << 8;/* (4.6.1.3.2(7)) */
+		config_bpdu.hello_time = bridge_info.hello_time << 8;
+		config_bpdu.forward_delay = bridge_info.forward_delay << 8;
 		config_bpdu.top_change_ack = 
 			port_info[port_no].top_change_ack;
 							/* (4.6.1.3.2(8)) */
@@ -363,10 +365,10 @@ static void record_config_information(int port_no, Config_bpdu *config)	  /* (4.
 
 static void record_config_timeout_values(Config_bpdu *config)		  /* (4.6.3)	 */
 {
-	bridge_info.max_age = config->max_age;	  /* (4.6.3.3)	 */
-	bridge_info.hello_time = config->hello_time;
-	bridge_info.forward_delay = config->forward_delay;
-	bridge_info.top_change = config->top_change;
+	bridge_info.max_age = config->max_age >> 8;	  /* (4.6.3.3)	 */
+	bridge_info.hello_time = config->hello_time >> 8;
+	bridge_info.forward_delay = config->forward_delay >> 8;
+	bridge_info.top_change = config->top_change >> 8;
 }
 
 static void config_bpdu_generation(void)
@@ -837,7 +839,7 @@ struct proc_dir_entry proc_net_bridge= {
 	br_tree_get_info
 };
 #endif
-__initfunc(void br_init(void))
+void __init br_init(void)
 {						  /* (4.8.1)	 */
 	int port_no;
 
@@ -1175,7 +1177,7 @@ static int hold_timer_expired(int port_no)
 static struct sk_buff *alloc_bridge_skb(int port_no, int pdu_size, char *pdu_name)
 {
 	struct sk_buff *skb;
-	struct device *dev = port_info[port_no].dev;
+	struct net_device *dev = port_info[port_no].dev;
 	struct ethhdr *eth;
 	int size = dev->hard_header_len + BRIDGE_LLC1_HS + pdu_size;
 	unsigned char *llc_buffer;
@@ -1297,7 +1299,7 @@ static int send_tcn_bpdu(int port_no, Tcn_bpdu *bpdu)
 
 static int br_device_event(struct notifier_block *unused, unsigned long event, void *ptr)
 {
-	struct device *dev = ptr;
+	struct net_device *dev = ptr;
 	int i;
 
 	/* check for loopback devices */
@@ -1838,7 +1840,7 @@ static int br_flood(struct sk_buff *skb, int port)
 	return(0);
 }
 
-static int find_port(struct device *dev)
+static int find_port(struct net_device *dev)
 {
 	int i;
 
@@ -1853,7 +1855,7 @@ static int find_port(struct device *dev)
  *	10,100,1Gbit ethernet.
  */
  
-static int br_port_cost(struct device *dev)	/* 4.10.2 */
+static int br_port_cost(struct net_device *dev)	/* 4.10.2 */
 {
 	if (strncmp(dev->name, "lec", 3) == 0)	/* ATM Lan Emulation (LANE) */
 		return(7);                      /* 155 Mbs */

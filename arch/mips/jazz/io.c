@@ -8,9 +8,9 @@
  * Copyright (C) 1997 by Ralf Baechle.
  */
 #include <linux/string.h>
+#include <linux/spinlock.h>
 #include <asm/addrspace.h>
 #include <asm/system.h>
-#include <asm/spinlock.h>
 #include <asm/jazz.h>
 
 /*

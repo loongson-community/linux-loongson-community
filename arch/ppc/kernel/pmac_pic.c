@@ -3,6 +3,8 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
+
+#include <asm/init.h>
 #include <asm/io.h>
 #include <asm/smp.h>
 #include <asm/prom.h>
@@ -290,8 +292,8 @@ static void __init pmac_fix_gatwick_interrupts(struct device_node *gw, int irq_b
 	}
 }
 
-__initfunc(void
-pmac_pic_init(void))
+void __init
+pmac_pic_init(void)
 {
         int i;
         struct device_node *irqctrler;

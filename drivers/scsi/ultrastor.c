@@ -134,10 +134,10 @@
 #include <linux/kernel.h>
 #include <linux/ioport.h>
 #include <linux/proc_fs.h>
+#include <linux/spinlock.h>
 #include <asm/io.h>
 #include <asm/bitops.h>
 #include <asm/system.h>
-#include <asm/spinlock.h>
 #include <asm/dma.h>
 
 #define ULTRASTOR_PRIVATE	/* Get the private stuff from ultrastor.h */
@@ -161,8 +161,6 @@ struct proc_dir_entry proc_scsi_ultrastor = {
 #endif
 
 #define VERSION "1.12"
-
-#define ARRAY_SIZE(arr) (sizeof (arr) / sizeof (arr)[0])
 
 #define PACKED		__attribute__((packed))
 #define ALIGNED(x)	__attribute__((aligned(x)))

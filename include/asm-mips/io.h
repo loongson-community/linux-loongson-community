@@ -1,5 +1,15 @@
-#ifndef __ASM_MIPS_IO_H
-#define __ASM_MIPS_IO_H
+/* $Id$
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1994, 1995 Waldorf GmbH
+ * Copyright (C) 1994 - 1999 Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
+ */
+#ifndef _ASM_IO_H
+#define _ASM_IO_H
 
 /*
  * Slowdown I/O port space accesses for antique hardware.
@@ -146,10 +156,16 @@ extern inline void iounmap(void *addr)
 #define readb(addr) (*(volatile unsigned char *) (0xa0000000 + (unsigned long)(addr)))
 #define readw(addr) (*(volatile unsigned short *) (0xa0000000 + (unsigned long)(addr)))
 #define readl(addr) (*(volatile unsigned int *) (0xa0000000 + (unsigned long)(addr)))
+#define __raw_readb readb
+#define __raw_readw readw
+#define __raw_readl readl
 
 #define writeb(b,addr) (*(volatile unsigned char *) (0xa0000000 + (unsigned long)(addr)) = (b))
 #define writew(b,addr) (*(volatile unsigned short *) (0xa0000000 + (unsigned long)(addr)) = (b))
 #define writel(b,addr) (*(volatile unsigned int *) (0xa0000000 + (unsigned long)(addr)) = (b))
+#define __raw_writeb writeb
+#define __raw_writew writew
+#define __raw_writel writel
 
 #define memset_io(a,b,c)	memset((void *)(0xa0000000 + (unsigned long)a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(0xa0000000 + (unsigned long)(b)),(c))
@@ -398,4 +414,4 @@ extern void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
 extern void (*dma_cache_wback)(unsigned long start, unsigned long size);
 extern void (*dma_cache_inv)(unsigned long start, unsigned long size);
 
-#endif /* __ASM_MIPS_IO_H */
+#endif /* _ASM_IO_H */

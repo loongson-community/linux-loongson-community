@@ -33,7 +33,7 @@
 
 #ifdef CONFIG_BLK_DEV_IDEPCI
 
-__initfunc(void ide_init_rz1000 (ide_hwif_t *hwif))	/* called from ide-pci.c */
+void __init ide_init_rz1000 (ide_hwif_t *hwif)	/* called from ide-pci.c */
 {
 	unsigned short reg;
 	struct pci_dev *dev = hwif->pci_dev;
@@ -53,7 +53,7 @@ __initfunc(void ide_init_rz1000 (ide_hwif_t *hwif))	/* called from ide-pci.c */
 
 #else
 
-__initfunc(static void init_rz1000 (struct pci_dev *dev, const char *name))
+static void __init init_rz1000 (struct pci_dev *dev, const char *name)
 {
 	unsigned short reg, h;
 
@@ -83,13 +83,13 @@ __initfunc(static void init_rz1000 (struct pci_dev *dev, const char *name))
 	}
 }
 
-__initfunc(void ide_probe_for_rz100x (void))	/* called from ide.c */
+void __init ide_probe_for_rz100x (void)	/* called from ide.c */
 {
 	struct pci_dev *dev = NULL;
 
-	while (dev = pci_find_device(PCI_VENDOR_ID_PCTECH, PCI_DEVICE_ID_PCTECH_RZ1000, dev))
+	while ((dev = pci_find_device(PCI_VENDOR_ID_PCTECH, PCI_DEVICE_ID_PCTECH_RZ1000, dev))!=NULL)
 		init_rz1000 (dev, "RZ1000");
-	while (dev = pci_find_device(PCI_VENDOR_ID_PCTECH, PCI_DEVICE_ID_PCTECH_RZ1001, dev))
+	while ((dev = pci_find_device(PCI_VENDOR_ID_PCTECH, PCI_DEVICE_ID_PCTECH_RZ1001, dev))!=NULL)
 		init_rz1000 (dev, "RZ1001");
 }
 

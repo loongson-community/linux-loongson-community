@@ -11,8 +11,8 @@ SUB_DIRS     :=
 MOD_SUB_DIRS := $(SUB_DIRS)
 ALL_SUB_DIRS := $(SUB_DIRS)
 
-L_TARGET := hamradio.a
-L_OBJS   := 
+O_TARGET := hamradio.o
+O_OBJS   := 
 M_OBJS   :=
 MOD_LIST_NAME := HAM_MODULES
 
@@ -22,7 +22,7 @@ CONFIG_HDLCDRV_BUILTIN :=
 CONFIG_HDLCDRV_MODULE  :=
 
 ifeq ($(CONFIG_DMASCC),y)
-L_OBJS += dmascc.o
+O_OBJS += dmascc.o
 else
   ifeq ($(CONFIG_DMASCC),m)
   M_OBJS += dmascc.o
@@ -30,7 +30,7 @@ else
 endif
 
 ifeq ($(CONFIG_SCC),y)
-L_OBJS += scc.o
+O_OBJS += scc.o
 else
   ifeq ($(CONFIG_SCC),m)
   M_OBJS += scc.o
@@ -38,7 +38,7 @@ else
 endif
 
 ifeq ($(CONFIG_MKISS),y)
-L_OBJS += mkiss.o
+O_OBJS += mkiss.o
 else
   ifeq ($(CONFIG_MKISS),m)
   M_OBJS += mkiss.o
@@ -46,15 +46,23 @@ else
 endif
 
 ifeq ($(CONFIG_6PACK),y)
-L_OBJS += 6pack.o
+O_OBJS += 6pack.o
 else
   ifeq ($(CONFIG_6PACK),m)
   M_OBJS += 6pack.o
   endif
 endif
 
+ifeq ($(CONFIG_YAM),y)
+O_OBJS += yam.o
+else
+  ifeq ($(CONFIG_YAM),m)
+  M_OBJS += yam.o
+  endif
+endif
+
 ifeq ($(CONFIG_PI),y)
-L_OBJS += pi2.o
+O_OBJS += pi2.o
 else
   ifeq ($(CONFIG_PI),m)
   M_OBJS += pi2.o
@@ -62,7 +70,7 @@ else
 endif
 
 ifeq ($(CONFIG_PT),y)
-L_OBJS += pt.o
+O_OBJS += pt.o
 else
   ifeq ($(CONFIG_PT),m)
   M_OBJS += pt.o
@@ -70,7 +78,7 @@ else
 endif
 
 ifeq ($(CONFIG_BPQETHER),y)
-L_OBJS += bpqether.o
+O_OBJS += bpqether.o
 else
   ifeq ($(CONFIG_BPQETHER),m)
   M_OBJS += bpqether.o
@@ -78,7 +86,7 @@ else
 endif
 
 ifeq ($(CONFIG_BAYCOM_SER_FDX),y)
-L_OBJS += baycom_ser_fdx.o
+O_OBJS += baycom_ser_fdx.o
 CONFIG_HDLCDRV_BUILTIN = y
 else
   ifeq ($(CONFIG_BAYCOM_SER_FDX),m)
@@ -88,7 +96,7 @@ else
 endif
 
 ifeq ($(CONFIG_BAYCOM_SER_HDX),y)
-L_OBJS += baycom_ser_hdx.o
+O_OBJS += baycom_ser_hdx.o
 CONFIG_HDLCDRV_BUILTIN = y
 else
   ifeq ($(CONFIG_BAYCOM_SER_HDX),m)
@@ -98,7 +106,7 @@ else
 endif
 
 ifeq ($(CONFIG_BAYCOM_PAR),y)
-L_OBJS += baycom_par.o
+O_OBJS += baycom_par.o
 CONFIG_HDLCDRV_BUILTIN = y
 else
   ifeq ($(CONFIG_BAYCOM_PAR),m)
@@ -108,7 +116,7 @@ else
 endif
 
 ifeq ($(CONFIG_BAYCOM_EPP),y)
-L_OBJS += baycom_epp.o
+O_OBJS += baycom_epp.o
 CONFIG_HDLCDRV_BUILTIN = y
 else
   ifeq ($(CONFIG_BAYCOM_EPP),m)
@@ -120,7 +128,7 @@ endif
 ifeq ($(CONFIG_SOUNDMODEM),y)
 ALL_SUB_DIRS += soundmodem
 SUB_DIRS += soundmodem
-L_OBJS += soundmodem/soundmodem.o
+O_OBJS += soundmodem/soundmodem.o
 CONFIG_HDLCDRV_BUILTIN = y
 else
   ifeq ($(CONFIG_SOUNDMODEM),m)
@@ -133,7 +141,7 @@ endif
 # If anything built-in uses the hdlcdrv, then build it into the kernel also.
 # If not, but a module uses it, build as a module.
 ifdef CONFIG_HDLCDRV_BUILTIN
-LX_OBJS += hdlcdrv.o
+OX_OBJS += hdlcdrv.o
 else
   ifdef CONFIG_HDLCDRV_MODULE
   MX_OBJS += hdlcdrv.o

@@ -1,4 +1,4 @@
-/* $Id: vino.c,v 1.3 1999/02/09 23:54:24 ulfc Exp $
+/* $Id: vino.c,v 1.4 1999/02/09 23:59:36 ulfc Exp $
  * drivers/char/vino.c
  *
  * (incomplete) Driver for the Vino Video input system found in SGI Indys.
@@ -9,7 +9,6 @@
  * some more code.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/types.h>
@@ -241,7 +240,7 @@ static struct video_device vino_dev = {
 	0
 };
 
-__initfunc(int init_vino(struct video_device *dev))
+int __init init_vino(struct video_device *dev)
 {
 	int err;
 

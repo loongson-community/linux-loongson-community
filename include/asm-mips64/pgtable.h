@@ -199,9 +199,6 @@ extern unsigned long zero_page_mask;
 
 extern void (*load_pgd)(unsigned long pg_dir);
 
-/* to set the page-dir */
-#define SET_PAGE_DIR(tsk,pgdir) (tsk)->tss.pg_dir = ((unsigned long) (pgdir))
-
 extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
 
 /*

@@ -18,6 +18,9 @@
  *        1-Jan-97
  *  Modified by Bjorn L. Thordarson and Einar Thor Einarsson
  *        Recognize that DMA0 is valid DMA channel -- 13-Jul-98
+ *  Modified by Chris Faulhaber	<jedgar@fxp.org>
+ *        Added module command-line options
+ *        19-Jul-99
  */
 
 #include <linux/module.h>
@@ -30,9 +33,9 @@
 #include <linux/sched.h>
 #include <linux/proc_fs.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 #include <asm/dma.h>
 #include <asm/system.h>
-#include <asm/spinlock.h>
 #include <asm/io.h>
 #include <linux/blk.h>
 #include "scsi.h"
@@ -84,7 +87,7 @@ static int setup_dmaspeed[MAXBOARDS] = {-1,-1};
 static char *setup_str[MAXBOARDS] = {(char *)NULL,(char *)NULL};
 
 /*
- * LILO params:  aha1542=<PORTBASE>[,<BUSON>,<BUSOFF>[,<DMASPEED>]]
+ * LILO/Module params:  aha1542=<PORTBASE>[,<BUSON>,<BUSOFF>[,<DMASPEED>]]
  *
  * Where:  <PORTBASE> is any of the valid AHA addresses:
  *			0x130, 0x134, 0x230, 0x234, 0x330, 0x334
@@ -99,6 +102,11 @@ static char *setup_str[MAXBOARDS] = {(char *)NULL,(char *)NULL};
  *		    Valid values: 5, 6, 7, 8, 10 (MB/s)
  *		    Factory default is 5 MB/s.
  */
+
+#if defined(MODULE)
+int aha1542[] = { 0x330, 11, 4, -1 };
+MODULE_PARM(aha1542, "1-4i");
+#endif
 
 #define BIOS_TRANSLATION_1632 0  /* Used by some old 1542A boards */
 #define BIOS_TRANSLATION_6432 1 /* Default case these days */
@@ -474,7 +482,10 @@ static void aha1542_intr_handle(int irq, void *dev_id, struct pt_regs *regs)
       }
       
       my_done = SCtmp->scsi_done;
-      if (SCtmp->host_scribble) scsi_free(SCtmp->host_scribble, 512);
+      if (SCtmp->host_scribble) {
+	  scsi_free(SCtmp->host_scribble, 512);
+	  SCtmp->host_scribble = 0;
+      }
       
       /* Fetch the sense data, and tuck it away, in the required slot.  The
 	 Adaptec automatically fetches it, and there is no guarantee that
@@ -548,15 +559,18 @@ int aha1542_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
       done(SCpnt); return 0;});
     
     if(*cmd == REQUEST_SENSE){
-#ifndef DEBUG
-      if (bufflen != sizeof(SCpnt->sense_buffer)) {
-	printk("Wrong buffer length supplied for request sense (%d)\n",bufflen);
-      };
+      /* Don't do the command - we have the sense data already */
+#if 0
+      /* scsi_request_sense() provides a buffer of size 256,
+	 so there is no reason to expect equality */
+      if (bufflen != sizeof(SCpnt->sense_buffer))
+	printk("aha1542: Wrong buffer length supplied "
+	       "for request sense (%d)\n", bufflen);
 #endif
       SCpnt->result = 0;
       done(SCpnt); 
       return 0;
-    };
+    }
 
 #ifdef DEBUG
     if (*cmd == READ_10 || *cmd == WRITE_10)
@@ -823,7 +837,8 @@ static int aha1542_mbenable(int base)
      mbenable_cmd[1]=0;
      mbenable_cmd[2]=mbenable_result[1];
 
-     if(mbenable_result[1] & 0x03) retval = BIOS_TRANSLATION_25563;
+     if((mbenable_result[0] & 0x08) && (mbenable_result[1] & 0x03))
+       retval = BIOS_TRANSLATION_25563;
 
      aha1542_out(base,mbenable_cmd,3);
      WAIT(INTRFLAGS(base),INTRMASK,HACC,0);
@@ -877,7 +892,7 @@ static int aha1542_query(int base_io, int * transl)
 }
 
 /* called from init/main.c */
-__initfunc(void aha1542_setup( char *str, int *ints))
+void __init aha1542_setup( char *str, int *ints)
 {
     const char *ahausage = "aha1542: usage: aha1542=<PORTBASE>[,<BUSON>,<BUSOFF>[,<DMASPEED>]]\n";
     static int setup_idx = 0;
@@ -953,6 +968,33 @@ int aha1542_detect(Scsi_Host_Template * tpnt)
     DEB(printk("aha1542_detect: \n"));
 
     tpnt->proc_dir = &proc_scsi_aha1542;
+
+#ifdef MODULE
+    bases[0]        = aha1542[0];              
+    setup_buson[0]  = aha1542[1];              
+    setup_busoff[0] = aha1542[2];              
+    {                                          
+      int atbt = -1;                           
+      switch (aha1542[3]) {                    
+        case 5:                                
+            atbt = 0x00;                       
+            break;                             
+        case 6:                                
+            atbt = 0x04;                       
+            break;                             
+        case 7:                                
+            atbt = 0x01;                       
+            break;                             
+        case 8:                                
+            atbt = 0x02;                       
+            break;                             
+        case 10:                               
+            atbt = 0x03;                       
+            break;                             
+      };                                       
+    setup_dmaspeed[0] = atbt;                  
+    }
+#endif
 
     for(indx = 0; indx < sizeof(bases)/sizeof(bases[0]); indx++)
 	    if(bases[indx] != 0 && !check_region(bases[indx], 4)) { 

@@ -1,4 +1,4 @@
-/* $Id: icn.c,v 1.56 1999/04/12 13:15:07 fritz Exp $
+/* $Id: icn.c,v 1.59 1999/08/28 22:10:55 keil Exp $
 
  * ISDN low-level module for the ICN active ISDN-Card.
  *
@@ -19,6 +19,15 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * $Log: icn.c,v $
+ * Revision 1.59  1999/08/28 22:10:55  keil
+ * __setup function should be static
+ *
+ * Revision 1.58  1999/08/25 16:44:17  keil
+ * Support for new __setup function
+ *
+ * Revision 1.57  1999/07/06 16:15:30  detabc
+ * remove unused messages
+ *
  * Revision 1.56  1999/04/12 13:15:07  fritz
  * Fixed a cast.
  *
@@ -38,10 +47,6 @@
  *
  * Revision 1.51  1998/03/07 22:29:55  fritz
  * Adapted Detlef's chenges for 2.1.
- *
- * Revision 1.50  1998/03/07 17:41:54  detabc
- * add d-channel connect and disconnect support statcallback
- * from icn low-level to link->level
  *
  * Revision 1.49  1998/02/13 11:14:15  keil
  * change for 2.1.86 (removing FREE_READ/FREE_WRITE from [dev]_kfree_skb()
@@ -233,7 +238,7 @@
 #undef MAP_DEBUG
 
 static char
-*revision = "$Revision: 1.56 $";
+*revision = "$Revision: 1.59 $";
 
 static int icn_addcard(int, char *, char *);
 
@@ -1847,13 +1852,25 @@ icn_addcard(int port, char *id1, char *id2)
 #ifdef MODULE
 #define icn_init init_module
 #else
+#ifdef COMPAT_HAS_NEW_SETUP
+#include <linux/init.h>
+static int __init
+icn_setup(char *line)
+{
+	char *p, *str;
+	int	ints[3];
+	static char sid[20];
+	static char sid2[20];
+
+	str = get_options(line, 2, ints);
+#else
 void
 icn_setup(char *str, int *ints)
 {
 	char *p;
 	static char sid[20];
 	static char sid2[20];
-
+#endif
 	if (ints[0])
 		portbase = ints[1];
 	if (ints[0] > 1)
@@ -1867,8 +1884,14 @@ icn_setup(char *str, int *ints)
 			icn_id2 = sid2;
 		}
 	}
+#ifdef COMPAT_HAS_NEW_SETUP
+	return(1);
+}
+__setup("icn=", icn_setup);
+#else
 }
 #endif
+#endif /* MODULES */
 
 int
 icn_init(void)

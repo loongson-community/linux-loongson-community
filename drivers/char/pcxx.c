@@ -79,6 +79,7 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
+#include <asm/semaphore.h>
 
 #define VERSION 	"1.6.1"
 
@@ -356,7 +357,7 @@ static int pcxx_waitcarrier(struct tty_struct *tty,struct file *filp,struct chan
 			memoff(info);
 		}
 		sti();
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		if(tty_hung_up_p(filp) || (info->asyncflags & ASYNC_INITIALIZED) == 0) {
 			if(info->asyncflags & ASYNC_HUP_NOTIFY)
 				retval = -EAGAIN;
@@ -894,7 +895,7 @@ static void pcxe_flush_chars(struct tty_struct *tty)
  * Driver setup function when linked into the kernel to optionally parse multible
  * "digi="-lines and initialize the driver at boot time. No probing.
  */
-__initfunc(void pcxx_setup(char *str, int *ints))
+void __init pcxx_setup(char *str, int *ints)
 {
 
 	struct board_info board;
@@ -1085,7 +1086,7 @@ __initfunc(void pcxx_setup(char *str, int *ints))
  * function to initialize the driver with the given parameters, which are either
  * the default values from this file or the parameters given at boot.
  */
-__initfunc(int pcxe_init(void))
+int __init pcxe_init(void)
 {
 	ulong memory_seg=0, memory_size=0;
 	int lowwater, enabled_cards=0, i, crd, shrinkmem=0, topwin = 0xff00L, botwin=0x100L;
@@ -1588,8 +1589,8 @@ load_fep:
 			ch->blocked_open = 0;
 			ch->callout_termios = pcxe_callout.init_termios;
 			ch->normal_termios = pcxe_driver.init_termios;
-			ch->open_wait = 0;
-			ch->close_wait = 0;
+			init_waitqueue_head(ch->open_wait);
+			init_waitqueue_head(ch->close_wait);
 			ch->asyncflags = 0;
 		}
 

@@ -47,9 +47,9 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 OBJCOPY_ARGS = -O elf32-powerpc
 
 OBJECTS += vreset.o kbd.o of1275.o
- ifeq ($(CONFIG_SERIAL_CONSOLE),y)
-  OBJECTS += ns16550.o
- endif
+ifeq ($(CONFIG_SERIAL_CONSOLE),y)
+OBJECTS += ns16550.o
+endif
 
 all:	zImage
 
@@ -71,8 +71,14 @@ zvmlinux.initrd: zvmlinux
 		zvmlinux.initrd.tmp $@
 	rm zvmlinux.initrd.tmp
 
-zImage: zvmlinux mkprep
+zImage: zvmlinux mkprep sImage
 	./mkprep -pbp zvmlinux zImage
+
+sImage: ../../../vmlinux
+ifdef CONFIG_GEMINI
+	$(OBJCOPY) -I elf32-powerpc -O binary ../../../vmlinux sImage
+else
+endif
 
 zImage.initrd: zvmlinux.initrd mkprep
 	./mkprep -pbp zvmlinux.initrd zImage.initrd
@@ -105,6 +111,9 @@ mkprep : mkprep.c
 
 znetboot : zImage
 	cp zImage $(TFTPIMAGE)
+ifdef CONFIG_GEMINI
+	cp sImage /tftpboot/
+endif
 
 znetboot.initrd : zImage.initrd
 	cp zImage.initrd $(TFTPIMAGE)

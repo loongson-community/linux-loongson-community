@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 10
+SUBLEVEL = 19
 EXTRAVERSION =
 
 ARCH = mips
@@ -89,6 +89,9 @@ SVGA_MODE=	-DSVGA_MODE=NORMAL_VGA
 
 CFLAGS = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 
+# use '-fno-strict-aliasing', but only if the compiler can take it
+CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
+
 ifdef CONFIG_SMP
 CFLAGS += -D__SMP__
 AFLAGS += -D__SMP__
@@ -108,8 +111,9 @@ CORE_FILES	=kernel/kernel.o mm/mm.o fs/fs.o ipc/ipc.o
 FILESYSTEMS	=fs/filesystems.a
 NETWORKS	=net/network.a
 DRIVERS		=drivers/block/block.a \
-		 drivers/char/char.a \
-	         drivers/misc/misc.a
+		 drivers/char/char.o \
+		 drivers/misc/misc.o \
+	         drivers/parport/parport.a
 LIBS		=$(TOPDIR)/lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc lib
 
@@ -123,6 +127,10 @@ endif
 
 DRIVERS := $(DRIVERS) drivers/net/net.a
 
+ifdef CONFIG_ATM
+DRIVERS := $(DRIVERS) drivers/atm/atm.a
+endif
+
 ifeq ($(CONFIG_SCSI),y)
 DRIVERS := $(DRIVERS) drivers/scsi/scsi.a
 endif
@@ -132,11 +140,19 @@ DRIVERS := $(DRIVERS) drivers/cdrom/cdrom.a
 endif
 
 ifeq ($(CONFIG_SOUND),y)
-DRIVERS := $(DRIVERS) drivers/sound/sound.a
+DRIVERS := $(DRIVERS) drivers/sound/sounddrivers.o
 endif
 
 ifdef CONFIG_PCI
 DRIVERS := $(DRIVERS) drivers/pci/pci.a
+endif
+
+ifeq ($(CONFIG_PCMCIA),y)
+DRIVERS := $(DRIVERS) drivers/pcmcia/pcmcia.o
+endif
+
+ifeq ($(CONFIG_PCMCIA_NETCARD),y)
+DRIVERS := $(DRIVERS) drivers/net/pcmcia/pcmcia_net.o
 endif
 
 ifdef CONFIG_DIO
@@ -159,7 +175,7 @@ ifdef CONFIG_PPC
 DRIVERS := $(DRIVERS) drivers/macintosh/macintosh.a
 endif
 
-ifdef CONFIG_PNP
+ifeq ($(CONFIG_PNP),y)
 DRIVERS := $(DRIVERS) drivers/pnp/pnp.a
 endif
 
@@ -176,7 +192,7 @@ DRIVERS := $(DRIVERS) drivers/block/paride/paride.a
 endif
 
 ifdef CONFIG_HAMRADIO
-DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.a
+DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.o
 endif
 
 ifeq ($(CONFIG_TC),y)
@@ -322,6 +338,7 @@ modules_install:
 	if [ -f NET_MODULES   ]; then inst_mod NET_MODULES   net;   fi; \
 	if [ -f IPV4_MODULES  ]; then inst_mod IPV4_MODULES  ipv4;  fi; \
 	if [ -f IPV6_MODULES  ]; then inst_mod IPV6_MODULES  ipv6;  fi; \
+	if [ -f ATM_MODULES   ]; then inst_mod ATM_MODULES   atm;   fi; \
 	if [ -f SCSI_MODULES  ]; then inst_mod SCSI_MODULES  scsi;  fi; \
 	if [ -f FS_MODULES    ]; then inst_mod FS_MODULES    fs;    fi; \
 	if [ -f NLS_MODULES   ]; then inst_mod NLS_MODULES   fs;    fi; \
@@ -331,6 +348,8 @@ modules_install:
 	if [ -f VIDEO_MODULES ]; then inst_mod VIDEO_MODULES video; fi; \
 	if [ -f FC4_MODULES   ]; then inst_mod FC4_MODULES   fc4;   fi; \
 	if [ -f IRDA_MODULES  ]; then inst_mod IRDA_MODULES  net;   fi; \
+	if [ -f USB_MODULES   ]; then inst_mod USB_MODULES   usb;   fi; \
+	if [ -f PCMCIA_MODULES ]; then inst_mod PCMCIA_MODULES pcmcia; fi; \
 	\
 	ls *.o > $$MODLIB/.allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 $$MODLIB/.allmods - > $$MODLIB/.misc; \
@@ -352,14 +371,16 @@ endif
 
 clean:	archclean
 	rm -f kernel/ksyms.lst include/linux/compile.h
-	rm -f core `find . -name '*.[oas]' ! -regex '.*lxdialog/.*' -print`
+	find . -name '*.[oas]' -type f -print | grep -v lxdialog/ | xargs rm -f
 	rm -f core `find . -type f -name 'core' -print`
-	rm -f core `find . -name '.*.flags' -print`
+	rm -f core `find . -type f -name '.*.flags' -print`
 	rm -f vmlinux System.map
 	rm -f .tmp*
 	rm -f drivers/char/consolemap_deftbl.c drivers/video/promcon_tbl.c
 	rm -f drivers/char/conmakehash
 	rm -f drivers/sound/bin2hex drivers/sound/hex2hex
+	rm -f net/khttpd/make_times_h
+	rm -f net/khttpd/times.h
 	if [ -d modules ]; then \
 		rm -f core `find modules/ -type f -print`; \
 	fi
@@ -379,8 +400,8 @@ mrproper: clean archmrproper
 	rm -f .menuconfig.log
 	rm -f include/asm
 	rm -rf include/config
-	rm -f .depend `find . -name .depend -print`
-	rm -f core `find . -size 0 -print`
+	rm -f .depend `find . -type f -name .depend -print`
+	rm -f core `find . -type f -size 0 -print`
 	rm -f .hdepend scripts/mkdep scripts/split-include
 	rm -f $(TOPDIR)/include/linux/modversions.h
 	rm -rf $(TOPDIR)/include/linux/modules

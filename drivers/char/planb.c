@@ -383,7 +383,7 @@ static void __planb_wait(struct planb *pb)
 
 	add_wait_queue(&pb->lockq, &wait);
 repeat:
-	current->state = TASK_UNINTERRUPTIBLE;
+	set_current_state(TASK_UNINTERRUPTIBLE);
 	if (pb->lock) {
 		schedule();
 		goto repeat;
@@ -1533,7 +1533,8 @@ static int planb_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 
 			DEBUG("PlanB: IOCTL VIDIOCSFBUF\n");
 
-                        if (!capable(CAP_SYS_ADMIN))
+                        if (!capable(CAP_SYS_ADMIN)
+			|| !capable(CAP_SYS_RAWIO))
                                 return -EPERM;
                         if (copy_from_user(&v, arg,sizeof(v)))
                                 return -EFAULT;
@@ -2359,7 +2360,7 @@ static void release_planb(void)
 int init_module(void)
 {
 #else
-__initfunc(int init_planbs(struct video_init *unused))
+int __init init_planbs(struct video_init *unused)
 {
 #endif
 	int i;

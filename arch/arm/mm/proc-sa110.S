@@ -1,13 +1,14 @@
 /*
- * linux/arch/arm/mm/sa110.S: MMU functions for SA110
+ * linux/arch/arm/mm/proc-sa110.S: MMU functions for SA110
  *
- * (C) 1997 Russell King
+ * (C) 1997-1999 Russell King
  *
  * These are the low level assembler for performing cache and TLB
  * functions on the sa110.
  */
 #include <linux/linkage.h>
 #include <asm/assembler.h>
+#include <asm/procinfo.h>
 #include <asm/hardware.h>
 #include "../lib/constants.h"
 
@@ -25,9 +26,9 @@ Lclean_switch:	.long	0
  * Purpose : Flush all cache lines
  */
 		.align	5
-_sa110_flush_cache_all:					@ preserves r0
+ENTRY(cpu_sa110_flush_cache_all)			@ preserves r0
 		mov	r2, #1
-_sa110_flush_cache_all_r2:
+cpu_sa110_flush_cache_all_r2:
 		ldr	r3, =Lclean_switch
 		ldr	ip, =FLUSH_BASE
 		ldr	r1, [r3]
@@ -53,10 +54,10 @@ _sa110_flush_cache_all_r2:
  * Purpose : clean & flush all cache lines associated with this area of memory
  */
 		.align	5
-_sa110_flush_cache_area:
+ENTRY(cpu_sa110_flush_cache_area)
 		sub	r3, r1, r0
 		cmp	r3, #MAX_AREA_SIZE
-		bgt	_sa110_flush_cache_all_r2
+		bgt	cpu_sa110_flush_cache_all_r2
 1:		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 		mcr	p15, 0, r0, c7, c6, 1		@ flush D entry
 		add	r0, r0, #32
@@ -78,11 +79,11 @@ _sa110_flush_cache_area:
  *	     written out to memory (for DMA)
  */
 		.align	5
-_sa110_cache_wback_area:
+ENTRY(cpu_sa110_cache_wback_area)
 		sub	r3, r1, r0
 		cmp	r3, #MAX_AREA_SIZE
 		mov	r2, #0
-		bgt	_sa110_flush_cache_all_r2
+		bgt	cpu_sa110_flush_cache_all_r2
 		bic	r0, r0, #31
 1:		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 		add	r0, r0, #32
@@ -103,7 +104,7 @@ _sa110_cache_wback_area:
  *	     start and/or end address are not cache aligned.
  */
 		.align	5
-_sa110_cache_purge_area:
+ENTRY(cpu_sa110_cache_purge_area)
 		tst	r0, #31
 		bic	r0, r0, #31
 		mcrne	p15, 0, r0, c7, c10, 1		@ clean D entry
@@ -121,7 +122,7 @@ _sa110_cache_purge_area:
  * Purpose : clean & flush an entry
  */
 		.align	5
-_sa110_flush_cache_entry:
+ENTRY(cpu_sa110_flush_cache_entry)
 		mov	r1, #0
 		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 		mcr	p15, 0, r1, c7, c10, 4		@ drain WB
@@ -134,7 +135,7 @@ _sa110_flush_cache_entry:
  * Purpose : Ensure that physical memory reflects cache at this location
  *	     for page table purposes.
  */
-_sa110_clean_cache_area:
+ENTRY(cpu_sa110_clean_cache_area)
 1:		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry	 (drain is done by TLB fns)
 		add	r0, r0, #32
 		subs	r1, r1, #32
@@ -143,25 +144,24 @@ _sa110_clean_cache_area:
 
 /*
  * Function: sa110_flush_ram_page (unsigned long page)
- * Params  : address	Area start address
- *	   : size	size of area
- *	   : flags	b0 = I cache as well
- * Purpose : clean & flush all cache lines associated with this area of memory
+ * Params  : page	Area start address
+ * Purpose : clean all cache lines associated with this area of memory
  */
 		.align	5
-_sa110_flush_ram_page:
+ENTRY(cpu_sa110_flush_ram_page)
 		mov	r1, #4096
 1:		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
-		mcr	p15, 0, r0, c7, c6, 1		@ flush D entry
 		add	r0, r0, #32
 		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
-		mcr	p15, 0, r0, c7, c6, 1		@ flush D entry
 		add	r0, r0, #32
-		subs	r1, r1, #64
+		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
+		add	r0, r0, #32
+		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
+		add	r0, r0, #32
+		subs	r1, r1, #128
 		bne	1b
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c10, 4		@ drain WB
-		mcr	p15, 0, r0, c7, c5, 0		@ flush I cache
 		mov	pc, lr
 
 /*
@@ -169,7 +169,7 @@ _sa110_flush_ram_page:
  * Purpose : flush all TLB entries in all caches
  */
 		.align	5
-_sa110_flush_tlb_all:
+ENTRY(cpu_sa110_flush_tlb_all)
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c10, 4		@ drain WB
 		mcr	p15, 0, r0, c8, c7, 0		@ flush I & D tlbs
@@ -179,11 +179,11 @@ _sa110_flush_tlb_all:
  * Function: sa110_flush_tlb_area (unsigned long address, unsigned long end, int flags)
  * Params  : address	Area start address
  *	   : end	Area end address
- *	   : flags	b0 = I cache as well
+ *	   : flags	b0 = I-TLB as well
  * Purpose : flush a TLB entry
  */
 		.align	5
-_sa110_flush_tlb_area:
+ENTRY(cpu_sa110_flush_tlb_area)
 		mov	r3, #0
 		mcr	p15, 0, r3, c7, c10, 4		@ drain WB
 1:		cmp	r0, r1
@@ -198,7 +198,7 @@ _sa110_flush_tlb_area:
 		mov	pc, lr
 
 		.align	5
-_sa110_flush_icache_area:
+ENTRY(cpu_sa110_flush_icache_area)
 1:		mcr	p15, 0, r0, c7, c10, 1		@ Clean D entry
 		add	r0, r0, #32
 		subs	r1, r1, #32
@@ -207,40 +207,35 @@ _sa110_flush_icache_area:
 		mcr	p15, 0, r0, c7, c10, 4		@ drain WB
 		mcr	p15, 0, r0, c7, c5, 0		@ flush I cache
 		mov	pc, lr
+
 /*
- * Function: sa110_switch_to (struct task_struct *prev, struct task_struct *next)
- * Params  : prev	Old task structure
- *	   : next	New task structure for process to run
- * Returns : prev
- * Purpose : Perform a task switch, saving the old processes state, and restoring
- *	     the new.
- * Notes   : We don't fiddle with the FP registers here - we postpone this until
- *	     the new task actually uses FP.  This way, we don't swap FP for tasks
- *	     that do not require it.
+ * Function: sa110_data_abort ()
+ * Params  : r0 = address of aborted instruction
+ * Purpose : obtain information about current aborted instruction
+ * Returns : r0 = address of abort
+ *	   : r1 = FSR
+ *	   : r2 != 0 if writing
  */
 		.align	5
-_sa110_switch_to:
-		stmfd	sp!, {r4 - r9, fp, lr}		@ Store most regs on stack
-		mrs	ip, cpsr
-		stmfd	sp!, {ip}			@ Save cpsr_SVC
-		ldr	r2, [r0, #TSS_MEMMAP]		@ Get old page tables
-		str	sp, [r0, #TSS_SAVE]		@ Save sp_SVC
-		ldr	sp, [r1, #TSS_SAVE]		@ Get saved sp_SVC
-		ldr	r5, [r1, #TSK_ADDR_LIMIT]
-		ldr	r4, [r1, #TSS_MEMMAP]		@ Page table pointer
-		teq	r5, #0
-		moveq	r5, #DOM_KERNELDOMAIN
-		movne	r5, #DOM_USERDOMAIN
-		mcr	p15, 0, r5, c3, c0		@ Set segment
+ENTRY(cpu_sa110_data_abort)
+		ldr	r2, [r0]			@ read instruction causing problem
+		mrc	p15, 0, r0, c6, c0, 0		@ get FAR
+		mov	r2, r2, lsr #19			@ b1 = L
+		and	r3, r2, #0x69 << 2
+		and	r2, r2, #2
+		mrc	p15, 0, r1, c5, c0, 0		@ get FSR
+		and	r1, r1, #255
+		mov	pc, lr
+
+		.align	5
 /*
- * Flushing the cache is nightmarishly slow, so we take any excuse
- * to get out of it.  If the old page table is the same as the new,
- * this is a CLONE_VM relative of the old task and there is no need
- * to flush.  The overhead of the tests isn't even on the radar
- * compared to the cost of the flush itself.
+ * Function: sa110_set_pgd(unsigned long pgd_phys)
+ * Params  : pgd_phys	Physical address of page table
+ * Purpose : Perform a task switch, saving the old processes state, and restoring
+ *	     the new.
  */
-		teq	r4, r2
-		beq	2f
+		.align	5
+ENTRY(cpu_sa110_set_pgd)
 		ldr	r3, =Lclean_switch
 		ldr	r2, [r3]
 		ands	r2, r2, #1
@@ -255,29 +250,8 @@ _sa110_switch_to:
 		mov	r1, #0
 		mcr	p15, 0, r1, c7, c5, 0		@ flush I cache
 		mcr	p15, 0, r1, c7, c10, 4		@ drain WB
-		mcr	p15, 0, r4, c2, c0, 0		@ load page table pointer
+		mcr	p15, 0, r0, c2, c0, 0		@ load page table pointer
 		mcr	p15, 0, r1, c8, c7, 0		@ flush TLBs
-2:		ldmfd	sp!, {ip}
-		msr	spsr, ip			@ Save tasks CPSR into SPSR for this return
-		ldmfd	sp!, {r4 - r9, fp, pc}^		@ Load all regs saved previously
-
-/*
- * Function: sa110_data_abort ()
- * Params  : r0 = address of aborted instruction
- * Purpose : obtain information about current aborted instruction
- * Returns : r0 = address of abort
- *	   : r1 = FSR
- *	   : r2 != 0 if writing
- */
-		.align	5
-_sa110_data_abort:
-		ldr	r2, [r0]			@ read instruction causing problem
-		mrc	p15, 0, r0, c6, c0, 0		@ get FAR
-		mov	r2, r2, lsr #19			@ b1 = L
-		and	r3, r2, #0x69 << 2
-		and	r2, r2, #2
-		mrc	p15, 0, r1, c5, c0, 0		@ get FSR
-		and	r1, r1, #255
 		mov	pc, lr
 
 /*
@@ -287,7 +261,8 @@ _sa110_data_abort:
  * Purpose : Set a PMD and flush it out
  */
 		.align	5
-_sa110_set_pmd:	str	r1, [r0]
+ENTRY(cpu_sa110_set_pmd)
+		str	r1, [r0]
 		mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 		mcr	p15, 0, r0, c7, c10, 4		@ drain WB (TLB bypasses WB)
 		mov	pc, lr
@@ -299,7 +274,8 @@ _sa110_set_pmd:	str	r1, [r0]
  * Purpose : Set a PTE and flush it out
  */
 		.align	5
-_sa110_set_pte:	str	r1, [r0], #-1024		@ linux version
+ENTRY(cpu_sa110_set_pte)
+		str	r1, [r0], #-1024		@ linux version
 
 		eor	r1, r1, #LPTE_PRESENT | LPTE_YOUNG | LPTE_WRITE | LPTE_DIRTY
 
@@ -328,26 +304,27 @@ _sa110_set_pte:	str	r1, [r0], #-1024		@ linux version
  *	   : sa110_proc_fin (void)
  * Notes   : This processor does not require these
  */
-_sa110_check_bugs:
+ENTRY(cpu_sa110_check_bugs)
 		mrs	ip, cpsr
 		bic	ip, ip, #F_BIT
 		msr	cpsr, ip
 
-_sa110_proc_init:
-_sa110_proc_fin:
+ENTRY(cpu_sa110_proc_init)
+ENTRY(cpu_sa110_proc_fin)
 		mov	pc, lr
 
 /*
  * Function: sa110_reset
  * Notes   : This sets up everything for a reset
  */
-_sa110_reset:	mrs	r1, cpsr
+ENTRY(cpu_sa110_reset)
+		mrs	r1, cpsr
 		orr	r1, r1, #F_BIT | I_BIT
 		msr	cpsr, r1
 		stmfd	sp!, {r1, lr}
 		mov	r2, #1
-		bl	_sa110_flush_cache_all
-		bl	_sa110_flush_tlb_all
+		bl	cpu_sa110_flush_cache_all
+		bl	cpu_sa110_flush_tlb_all
 		mcr	p15, 0, ip, c7, c7, 0		@ flush I,D caches
 		mrc	p15, 0, r0, c1, c0, 0		@ ctrl register
 		bic	r0, r0, #0x1800
@@ -357,29 +334,60 @@ _sa110_reset:	mrs	r1, cpsr
  * Purpose : Function pointers used to access above functions - all calls
  *	     come through these
  */
-_sa110_name:	.ascii	"sa110\0"
+
+cpu_manu_name:	.asciz	"Intel"
+ENTRY(cpu_sa110_name)
+		.asciz	"sa110"
 		.align
 
+		.section ".text.init", #alloc, #execinstr
+
+		.type	sa110_processor_functions, #object
 ENTRY(sa110_processor_functions)
-		.word	_sa110_name			@  0
-		.word	_sa110_switch_to		@  4
-		.word	_sa110_data_abort		@  8
-		.word	_sa110_check_bugs		@ 12
-		.word	_sa110_proc_init		@ 16
-		.word	_sa110_proc_fin			@ 20
+		.word	cpu_sa110_data_abort
+		.word	cpu_sa110_check_bugs
+		.word	cpu_sa110_proc_init
+		.word	cpu_sa110_proc_fin
+		.word	cpu_sa110_flush_cache_all
+		.word	cpu_sa110_flush_cache_area
+		.word	cpu_sa110_flush_cache_entry
+		.word	cpu_sa110_clean_cache_area
+		.word	cpu_sa110_flush_ram_page
+		.word	cpu_sa110_flush_tlb_all
+		.word	cpu_sa110_flush_tlb_area
+		.word	cpu_sa110_set_pgd
+		.word	cpu_sa110_set_pmd
+		.word	cpu_sa110_set_pte
+		.word	cpu_sa110_reset
+		.word	cpu_sa110_flush_icache_area
+		.word	cpu_sa110_cache_wback_area
+		.word	cpu_sa110_cache_purge_area
 
-		.word	_sa110_flush_cache_all		@ 24
-		.word	_sa110_flush_cache_area		@ 28
-		.word	_sa110_flush_cache_entry	@ 32
-		.word	_sa110_clean_cache_area		@ 36
-		.word	_sa110_flush_ram_page		@ 40
-		.word	_sa110_flush_tlb_all		@ 44
-		.word	_sa110_flush_tlb_area		@ 48
+		.size	sa110_processor_functions, . - sa110_processor_functions
 
-		.word	_sa110_set_pmd			@ 52
-		.word	_sa110_set_pte			@ 56
-		.word	_sa110_reset			@ 60
-		.word	_sa110_flush_icache_area	@ 64
+		.type	cpu_sa110_info, #object
+cpu_sa110_info:
+		.long	cpu_manu_name
+		.long	cpu_sa110_name
+		.size	cpu_sa110_info, . - cpu_sa110_info
 
-		.word	_sa110_cache_wback_area		@ 68
-		.word	_sa110_cache_purge_area		@ 72
+		.type	cpu_arch_name, #object
+cpu_arch_name:	.asciz	"armv4"
+		.size	cpu_arch_name, . - cpu_arch_name
+
+		.type	cpu_elf_name, #object
+cpu_elf_name:	.asciz	"v4"
+		.size	cpu_elf_name, . - cpu_elf_name
+		.align
+
+		.section ".proc.info", #alloc, #execinstr
+		.type	__sa110_proc_info,#object
+__sa110_proc_info:
+		.long	0x4401a100
+		.long	0xfffffff0
+		.long	cpu_arch_name
+		.long	cpu_elf_name
+		.long	HWCAP_SWP | HWCAP_HALF
+		.long	cpu_sa110_info
+		.long	sa110_processor_functions
+		.size	__sa110_proc_info, . - __sa110_proc_info

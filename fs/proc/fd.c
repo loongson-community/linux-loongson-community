@@ -90,6 +90,7 @@ static struct dentry *proc_lookupfd(struct inode * dir, struct dentry * dentry)
 	fd = 0;
 	len = dentry->d_name.len;
 	name = dentry->d_name.name;
+	if (len > 1 && *name == '0') goto out;
 	while (len-- > 0) {
 		c = *name - '0';
 		name++;
@@ -133,7 +134,7 @@ out:
 static int proc_readfd(struct file * filp, void * dirent, filldir_t filldir)
 {
 	struct inode *inode = filp->f_dentry->d_inode;
-	struct task_struct * p, **tarrayp;
+	struct task_struct *p, *tmp;
 	unsigned int fd, pid, ino;
 	int retval;
 	char buf[NUMBUF];
@@ -157,7 +158,6 @@ static int proc_readfd(struct file * filp, void * dirent, filldir_t filldir)
 	p = find_task_by_pid(pid);
 	if (!p)
 		goto out_unlock;
-	tarrayp = p->tarray_ptr;
 
 	for (fd -= 2 ; p->files && fd < p->files->max_fds; fd++, filp->f_pos++)
 	{
@@ -182,8 +182,13 @@ static int proc_readfd(struct file * filp, void * dirent, filldir_t filldir)
 			goto out;
 
 		read_lock(&tasklist_lock);
-		/* filldir() might have slept, so we must re-validate "p" */
-		if (p != *tarrayp || p->pid != pid)
+		/*
+		 * filldir() might have slept, so we must
+		 * re-validate "p". This is fast enough due
+		 * to the pidhash
+		 */
+		tmp = find_task_by_pid(pid);
+		if (p != tmp)
 			break;
 	}
 out_unlock:

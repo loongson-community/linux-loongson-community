@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: irixsig.c,v 1.11 1999/06/17 13:25:46 ralf Exp $
+ * $Id: irixsig.c,v 1.12 1999/09/28 22:25:46 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -261,12 +261,8 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
-				lock_kernel();
-				if (current->binfmt
-				    && current->binfmt->core_dump
-				    && current->binfmt->core_dump(signr, regs))
+				if (do_coredump(signr, regs))
 					exit_code |= 0x80;
-				unlock_kernel();
 				/* FALLTHRU */
 
 			default:
@@ -338,10 +334,10 @@ irix_sigreturn(struct pt_regs *regs)
 	__get_user(regs->lo, &context->lo);
 
 	if ((umask & 1) && context->usedfp) {
-		fregs = (u64 *) &current->tss.fpu;
+		fregs = (u64 *) &current->thread.fpu;
 		for(i = 0; i < 32; i++)
 			fregs[i] = (u64) context->fpregs[i];
-		__get_user(current->tss.fpu.hard.control, &context->fpcsr);
+		__get_user(current->thread.fpu.hard.control, &context->fpcsr);
 	}
 
 	/* XXX do sigstack crapola here... XXX */
@@ -795,7 +791,7 @@ asmlinkage int irix_getcontext(struct pt_regs *regs)
 	error = verify_area(VERIFY_WRITE, ctx, sizeof(*ctx));
 	if(error)
 		goto out;
-	__put_user(current->tss.irix_oldctx, &ctx->link);
+	__put_user(current->thread.irix_oldctx, &ctx->link);
 
 	__copy_to_user(&ctx->sigmask, &current->blocked, sizeof(irix_sigset_t));
 
@@ -867,7 +863,7 @@ asmlinkage unsigned long irix_setcontext(struct pt_regs *regs)
 		/* XXX fpu context, blah... */
 		printk("Wheee, cannot restore FPU context yet...\n");
 	}
-	current->tss.irix_oldctx = ctx->link;
+	current->thread.irix_oldctx = ctx->link;
 	error = regs->regs[2];
 
 out:

@@ -46,16 +46,36 @@ static inline int scan_swap_map(struct swap_info_struct *si)
 		}
 	}
 	si->cluster_nr = SWAPFILE_CLUSTER;
+
+	/* try to find an empty (even not aligned) cluster. */
+	offset = si->lowest_bit;
+ check_next_cluster:
+	if (offset+SWAPFILE_CLUSTER-1 <= si->highest_bit)
+	{
+		int nr;
+		for (nr = offset; nr < offset+SWAPFILE_CLUSTER; nr++)
+			if (si->swap_map[nr])
+			{
+				offset = nr+1;
+				goto check_next_cluster;
+			}
+		/* We found a completly empty cluster, so start
+		 * using it.
+		 */
+		goto got_page;
+	}
+	/* No luck, so now go finegrined as usual. -Andrea */
 	for (offset = si->lowest_bit; offset <= si->highest_bit ; offset++) {
 		if (si->swap_map[offset])
 			continue;
-		si->lowest_bit = offset;
-got_page:
-		si->swap_map[offset] = 1;
-		nr_swap_pages--;
+	got_page:
+		if (offset == si->lowest_bit)
+			si->lowest_bit++;
 		if (offset == si->highest_bit)
 			si->highest_bit--;
-		si->cluster_next = offset;
+		si->swap_map[offset] = 1;
+		nr_swap_pages--;
+		si->cluster_next = offset+1;
 		return offset;
 	}
 	return 0;
@@ -81,12 +101,9 @@ unsigned long get_swap_page(void)
 				entry = SWP_ENTRY(type,offset);
 				type = swap_info[type].next;
 				if (type < 0 ||
-					p->prio != swap_info[type].prio) 
-				{
+					p->prio != swap_info[type].prio) {
 						swap_list.next = swap_list.head;
-				}
-				else
-				{
+				} else {
 					swap_list.next = type;
 				}
 				return entry;
@@ -126,15 +143,16 @@ void swap_free(unsigned long entry)
 	offset = SWP_OFFSET(entry);
 	if (offset >= p->max)
 		goto bad_offset;
-	if (offset < p->lowest_bit)
-		p->lowest_bit = offset;
-	if (offset > p->highest_bit)
-		p->highest_bit = offset;
 	if (!p->swap_map[offset])
 		goto bad_free;
 	if (p->swap_map[offset] < SWAP_MAP_MAX) {
-		if (!--p->swap_map[offset])
+		if (!--p->swap_map[offset]) {
+			if (offset < p->lowest_bit)
+				p->lowest_bit = offset;
+			if (offset > p->highest_bit)
+				p->highest_bit = offset;
 			nr_swap_pages++;
+		}
 	}
 #ifdef DEBUG_SWAP
 	printk("DebugVM: swap_free(entry %08lx, count now %d)\n",
@@ -155,6 +173,44 @@ bad_offset:
 bad_free:
 	printk("swap_free: swap-space map bad (entry %08lx)\n",entry);
 	goto out;
+}
+
+/* needs the big kernel lock */
+unsigned long acquire_swap_entry(struct page *page)
+{
+	struct swap_info_struct * p;
+	unsigned long offset, type;
+	unsigned long entry;
+
+	if (!test_bit(PG_swap_entry, &page->flags))
+		goto new_swap_entry;
+
+	/* We have the old entry in the page offset still */
+	entry = page->offset;
+	if (!entry)
+		goto new_swap_entry;
+	type = SWP_TYPE(entry);
+	if (type & SHM_SWP_TYPE)
+		goto new_swap_entry;
+	if (type >= nr_swapfiles)
+		goto new_swap_entry;
+	p = type + swap_info;
+	if ((p->flags & SWP_WRITEOK) != SWP_WRITEOK)
+		goto new_swap_entry;
+	offset = SWP_OFFSET(entry);
+	if (offset >= p->max)
+		goto new_swap_entry;
+	/* Has it been re-used for something else? */
+	if (p->swap_map[offset])
+		goto new_swap_entry;
+
+	/* We're cool, we can just use the old one */
+	p->swap_map[offset] = 1;
+	nr_swap_pages--;
+	return entry;
+
+new_swap_entry:
+	return get_swap_page();
 }
 
 /*
@@ -266,7 +322,7 @@ static void unuse_process(struct mm_struct * mm, unsigned long entry,
 	/*
 	 * Go through process' page directory.
 	 */
-	if (!mm || mm == &init_mm)
+	if (!mm)
 		return;
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		pgd_t * pgd = pgd_offset(mm, vma->vm_start);
@@ -340,7 +396,7 @@ static int try_to_unuse(unsigned int type)
 	return 0;
 }
 
-asmlinkage int sys_swapoff(const char * specialfile)
+asmlinkage long sys_swapoff(const char * specialfile)
 {
 	struct swap_info_struct * p = NULL;
 	struct dentry * dentry;
@@ -484,7 +540,7 @@ int is_swap_partition(kdev_t dev) {
  *
  * The swapon system call
  */
-asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
+asmlinkage long sys_swapon(const char * specialfile, int swap_flags)
 {
 	struct swap_info_struct * p;
 	struct dentry * swap_dentry;
@@ -495,7 +551,6 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	static int least_priority = 0;
 	union swap_header *swap_header = 0;
 	int swap_header_version;
-	int lock_map_size = PAGE_SIZE;
 	int nr_good_pages = 0;
 	unsigned long maxpages;
 	int swapfilesize;
@@ -661,8 +716,9 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 			else
 				p->swap_map[page] = SWAP_MAP_BAD;
 		}
-		nr_good_pages = swap_header->info.last_page - i;
-		lock_map_size = (p->max + 7) / 8;
+		nr_good_pages = swap_header->info.last_page -
+				swap_header->info.nr_badpages -
+				1 /* header page */;
 		if (error) 
 			goto bad_swap;
 	}

@@ -79,8 +79,8 @@ struct	mtget {
 	long	mt_gstat;	/* generic (device independent) status */
 	long	mt_erreg;	/* error register */
 	/* The next two fields are not always used */
-	__kernel_daddr_t	mt_fileno;	/* number of current file on tape */
-	__kernel_daddr_t	mt_blkno;	/* current block number */
+	__kernel_daddr_t mt_fileno;	/* number of current file on tape */
+	__kernel_daddr_t mt_blkno;	/* current block number */
 };
 
 

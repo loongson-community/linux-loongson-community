@@ -15,17 +15,41 @@
 
 #include <asm/segment.h>
 #include <asm/fpu.h>
+#include <asm/ptrace.h>
+
+extern inline unsigned long rdusp(void) {
+  	unsigned long usp;
+
+	__asm__ __volatile__("move %/usp,%0" : "=a" (usp));
+	return usp;
+}
+
+extern inline void wrusp(unsigned long usp) {
+	__asm__ __volatile__("move %0,%/usp" : : "a" (usp));
+}
 
 /*
  * User space process size: 3.75GB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.
  */
+#ifndef CONFIG_SUN3
 #define TASK_SIZE	(0xF0000000UL)
+#else
+#ifdef __ASSEMBLY__
+#define TASK_SIZE	(0x0E000000)
+#else
+#define TASK_SIZE	(0x0E000000UL)
+#endif
+#endif
 
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
+#ifndef CONFIG_SUN3
 #define TASK_UNMAPPED_BASE	0xC0000000UL
+#else
+#define TASK_UNMAPPED_BASE	0x0A000000UL
+#endif
 #define TASK_UNMAPPED_ALIGN(addr, off)	PAGE_ALIGN(addr)
 
 /*
@@ -53,7 +77,7 @@ struct thread_struct {
 
 #define INIT_MMAP { &init_mm, 0, 0x40000000, NULL, __pgprot(_PAGE_PRESENT|_PAGE_ACCESSED), VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
 
-#define INIT_TSS  { \
+#define INIT_THREAD  { \
 	sizeof(init_stack) + (unsigned long) init_stack, 0, \
 	PS_S, __KERNEL_DS, \
 	{0, 0}, 0, {0,}, {0, 0, 0}, {0,}, \
@@ -73,6 +97,9 @@ static inline void start_thread(struct pt_regs * regs, unsigned long pc,
 	wrusp(usp);
 }
 
+/* Forward declaration, a strange C thing */
+struct task_struct;
+
 /* Free all resources held by a thread. */
 static inline void release_thread(struct task_struct *dead_task)
 {
@@ -80,7 +107,7 @@ static inline void release_thread(struct task_struct *dead_task)
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
-#define copy_segments(nr, tsk, mm)	do { } while (0)
+#define copy_segments(tsk, mm)		do { } while (0)
 #define release_segments(mm)		do { } while (0)
 #define forget_segments()		do { } while (0)
 
@@ -107,6 +134,8 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 		return sw->retpc;
 }
 
+#define THREAD_SIZE (2*PAGE_SIZE)
+
 /* Allocation and freeing of basic task resources. */
 #define alloc_task_struct() \
 	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
@@ -114,15 +143,5 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)
-
-/*
- * Return_address is a replacement for __builtin_return_address(count)
- * which on certain architectures cannot reasonably be implemented in GCC
- * (MIPS, Alpha) or is unuseable with -fomit-frame-pointer (i386).
- * Note that __builtin_return_address(x>=1) is forbidden because the GCC
- * aborts compilation on some CPUs.  It's simply not possible to unwind
- * some CPU's stackframes.
- */
-#define return_address() __builtin_return_address(0)
 
 #endif

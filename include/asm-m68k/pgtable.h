@@ -6,7 +6,7 @@
 
 #ifndef __ASSEMBLY__
 #include <asm/processor.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 
 /*
  * This file contains the functions and defines necessary to modify and use
@@ -264,21 +264,6 @@ extern inline void flush_tlb_kernel_page(unsigned long addr)
 #define PTRS_PER_PGD	128
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
 
-/* the no. of pointers that fit on a page: this will go away */
-#define PTRS_PER_PAGE	(PAGE_SIZE/sizeof(void*))
-
-typedef pgd_t pgd_table[PTRS_PER_PGD];
-typedef pmd_t pmd_table[PTRS_PER_PMD];
-typedef pte_t pte_table[PTRS_PER_PTE];
-
-#define PGD_TABLES_PER_PAGE (PAGE_SIZE/sizeof(pgd_table))
-#define PMD_TABLES_PER_PAGE (PAGE_SIZE/sizeof(pmd_table))
-#define PTE_TABLES_PER_PAGE (PAGE_SIZE/sizeof(pte_table))
-
-typedef pgd_table pgd_tablepage[PGD_TABLES_PER_PAGE];
-typedef pmd_table pmd_tablepage[PMD_TABLES_PER_PAGE];
-typedef pte_table pte_tablepage[PTE_TABLES_PER_PAGE];
-
 /* Virtual address region for use by kernel_map() */
 #define	KMAP_START	0xd0000000
 #define	KMAP_END	0xf0000000
@@ -314,6 +299,14 @@ typedef pte_table pte_tablepage[PTE_TABLES_PER_PAGE];
 #define _PAGE_NOCACHE_S	0x040	/* 68040 no-cache mode, serialized */
 #define _PAGE_CACHE040	0x020	/* 68040 cache mode, cachable, copyback */
 #define _PAGE_CACHE040W	0x000	/* 68040 cache mode, cachable, write-through */
+
+/* Page protection values within PTE. */
+#define SUN3_PAGE_VALID     (0x80000000)
+#define SUN3_PAGE_WRITEABLE (0x40000000)
+#define SUN3_PAGE_SYSTEM    (0x20000000)
+#define SUN3_PAGE_NOCACHE   (0x10000000)
+#define SUN3_PAGE_ACCESSED  (0x02000000)
+#define SUN3_PAGE_MODIFIED  (0x01000000)
 
 #define _DESCTYPE_MASK	0x003
 
@@ -430,9 +423,9 @@ extern inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
 {
 	int i;
 	unsigned long ptbl;
-	ptbl = virt_to_phys(ptep);
-	for (i = 0; i < 16; i++, ptbl += sizeof(pte_table)/16)
-		pmdp->pmd[i] = _PAGE_TABLE | _PAGE_ACCESSED | ptbl;
+	ptbl = virt_to_phys(ptep) | _PAGE_TABLE | _PAGE_ACCESSED;
+	for (i = 0; i < 16; i++, ptbl += (sizeof(pte_t)*PTRS_PER_PTE/16))
+		pmdp->pmd[i] = ptbl;
 }
 
 extern inline void pgd_set(pgd_t * pgdp, pmd_t * pmdp)
@@ -498,42 +491,6 @@ extern inline pte_t pte_mknocache(pte_t pte)
 	return pte;
 }
 extern inline pte_t pte_mkcache(pte_t pte)	{ pte_val(pte) = (pte_val(pte) & _CACHEMASK040) | m68k_supervisor_cachemode; return pte; }
-
-/* to set the page-dir */
-extern inline void SET_PAGE_DIR(struct task_struct * tsk, pgd_t * pgdir)
-{
-	tsk->tss.crp[0] = 0x80000000 | _PAGE_TABLE;
-	tsk->tss.crp[1] = virt_to_phys(pgdir);
-	if (tsk == current) {
-		if (CPU_IS_040_OR_060)
-			__asm__ __volatile__ (".chip 68040\n\t"
-					      "pflushan\n\t"
-					      "movec %0,%%urp\n\t"
-					      ".chip 68k"
-					      : : "r" (tsk->tss.crp[1]));
-		else {
-			unsigned long tmp;
-			__asm__ __volatile__ ("movec  %%cacr,%0\n\t"
-					      "orw #0x0808,%0\n\t"
-					      "movec %0,%%cacr"
-					      : "=d" (tmp));
-			/* For a 030-only kernel, avoid flushing the whole
-			   ATC, we only need to flush the user entries.
-			   The 68851 does this by itself.  Avoid a runtime
-			   check here.  */
-			__asm__ __volatile__ (
-#ifdef CPU_M68030_ONLY
-					      ".chip 68030\n\t"
-					      "pmovefd %0,%%crp\n\t"
-					      ".chip 68k\n\t"
-					      "pflush #0,#4"
-#else
-					      "pmove %0,%%crp"
-#endif
-					      : : "m" (tsk->tss.crp[0]));
-		}
-	}
-}
 
 #define PAGE_DIR_OFFSET(tsk,address) pgd_offset((tsk),(address))
 
@@ -827,5 +784,7 @@ extern inline void update_mmu_cache(struct vm_area_struct * vma,
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define PageSkip(page)		(0)
 #define kern_addr_valid(addr)	(1)
+
+#define io_remap_page_range remap_page_range
 
 #endif /* _M68K_PGTABLE_H */

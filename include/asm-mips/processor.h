@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.18 1999/08/18 23:37:49 ralf Exp $
+/* $Id: processor.h,v 1.19 1999/09/28 22:27:17 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,6 +19,7 @@
 #define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
 #if !defined (_LANGUAGE_ASSEMBLY)
+#include <linux/threads.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/reg.h>
@@ -135,7 +136,6 @@ struct thread_struct {
 	unsigned long cp0_baduaddr;	/* Last kernel fault accessing USEG */
 	unsigned long error_code;
 	unsigned long trap_no;
-	unsigned long pg_dir;                   /* used in tlb refill    */
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
 	unsigned long mflags;
@@ -149,7 +149,7 @@ struct thread_struct {
 #define INIT_MMAP { &init_mm, KSEG0, KSEG1, NULL, PAGE_SHARED, \
                     VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
 
-#define INIT_TSS  { \
+#define INIT_THREAD  { \
         /* \
          * saved main processor registers \
          */ \
@@ -166,7 +166,7 @@ struct thread_struct {
 	/* \
 	 * Other stuff associated with the process \
 	 */ \
-	0, 0, 0, 0, (unsigned long) swapper_pg_dir, \
+	0, 0, 0, 0, \
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \
@@ -185,7 +185,7 @@ struct thread_struct {
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
 /* Copy and release all segment info associated with a VM */
-#define copy_segments(nr, p, mm) do { } while(0)
+#define copy_segments(p, mm) do { } while(0)
 #define release_segments(mm) do { } while(0)
 #define forget_segments()		do { } while (0)
 
@@ -211,13 +211,14 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;\
 	regs->cp0_epc = new_pc;						\
 	regs->regs[29] = new_sp;					\
-	current->tss.current_ds = USER_DS;				\
+	current->thread.current_ds = USER_DS;				\
 } while (0)
 
 /* Allocation and freeing of basic task resources. */
 /*
  * NOTE! The task struct and the stack go together
  */
+#define THREAD_SIZE (2*PAGE_SIZE)
 #define alloc_task_struct() \
 	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)	free_pages((unsigned long)(p),1)

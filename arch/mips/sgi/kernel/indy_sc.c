@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.9 1999/05/12 21:57:49 ulfc Exp $
+/* $Id: indy_sc.c,v 1.10 1999/09/28 22:25:49 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -150,7 +150,7 @@ static void indy_sc_disable(void)
         " : "=r" (tmp1), "=r" (tmp2), "=r" (tmp3));
 }
 
-__initfunc(static inline int indy_sc_probe(void))
+static inline int __init indy_sc_probe(void)
 {
 	volatile unsigned int *cpu_control;
 	unsigned short cmd = 0xc220;
@@ -219,7 +219,7 @@ struct bcache_ops indy_sc_ops = {
 	indy_sc_wback_invalidate
 };
 
-__initfunc(void indy_sc_init(void))
+void __init indy_sc_init(void)
 {
 	if (indy_sc_probe()) {
 		indy_sc_enable();

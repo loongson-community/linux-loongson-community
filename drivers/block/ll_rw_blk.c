@@ -26,6 +26,14 @@
 #include <linux/module.h>
 
 /*
+ * MAC Floppy IWM hooks
+ */
+
+#ifdef CONFIG_MAC_FLOPPY_IWM
+extern int mac_floppy_init(void);
+#endif
+
+/*
  * The request-struct contains all necessary data
  * to load a nr of sectors into memory
  */
@@ -109,11 +117,23 @@ int * max_readahead[MAX_BLKDEV] = { NULL, NULL, };
  */
 int * max_sectors[MAX_BLKDEV] = { NULL, NULL, };
 
+/*
+ * Max number of segments per request
+ */
+int * max_segments[MAX_BLKDEV] = { NULL, NULL, };
+
 static inline int get_max_sectors(kdev_t dev)
 {
 	if (!max_sectors[MAJOR(dev)])
 		return MAX_SECTORS;
 	return max_sectors[MAJOR(dev)][MINOR(dev)];
+}
+
+static inline int get_max_segments(kdev_t dev)
+{
+	if (!max_segments[MAJOR(dev)])
+		return MAX_SEGMENTS;
+	return max_segments[MAJOR(dev)][MINOR(dev)];
 }
 
 /*
@@ -286,30 +306,37 @@ static inline void drive_stat_acct(int cmd, unsigned long nr_sectors,
  * with the request-lists in peace. Thus it should be called with no spinlocks
  * held.
  *
- * By this point, req->cmd is always either READ/WRITE, never READA/WRITEA,
+ * By this point, req->cmd is always either READ/WRITE, never READA,
  * which is important for drive_stat_acct() above.
  */
 
 void add_request(struct blk_dev_struct * dev, struct request * req)
 {
+	int major = MAJOR(req->rq_dev);
+	int minor = MINOR(req->rq_dev);
 	struct request * tmp, **current_request;
 	short		 disk_index;
 	unsigned long flags;
 	int queue_new_request = 0;
 
-	switch (MAJOR(req->rq_dev)) {
+	switch (major) {
+		case DAC960_MAJOR+0:
+			disk_index = (minor & 0x00f8) >> 3;
+			if (disk_index < 4)
+				drive_stat_acct(req->cmd, req->nr_sectors, disk_index);
+			break;
 		case SCSI_DISK0_MAJOR:
-			disk_index = (MINOR(req->rq_dev) & 0x00f0) >> 4;
+			disk_index = (minor & 0x00f0) >> 4;
 			if (disk_index < 4)
 				drive_stat_acct(req->cmd, req->nr_sectors, disk_index);
 			break;
 		case IDE0_MAJOR:	/* same as HD_MAJOR */
 		case XT_DISK_MAJOR:
-			disk_index = (MINOR(req->rq_dev) & 0x0040) >> 6;
+			disk_index = (minor & 0x0040) >> 6;
 			drive_stat_acct(req->cmd, req->nr_sectors, disk_index);
 			break;
 		case IDE1_MAJOR:
-			disk_index = ((MINOR(req->rq_dev) & 0x0040) >> 6) + 2;
+			disk_index = ((minor & 0x0040) >> 6) + 2;
 			drive_stat_acct(req->cmd, req->nr_sectors, disk_index);
 		default:
 			break;
@@ -345,10 +372,12 @@ void add_request(struct blk_dev_struct * dev, struct request * req)
 	tmp->next = req;
 
 /* for SCSI devices, call request_fn unconditionally */
-	if (scsi_blk_major(MAJOR(req->rq_dev)))
+	if (scsi_blk_major(major))
 		queue_new_request = 1;
-	if (MAJOR(req->rq_dev) >= COMPAQ_SMART2_MAJOR+0 &&
-	    MAJOR(req->rq_dev) <= COMPAQ_SMART2_MAJOR+7)
+	if (major >= COMPAQ_SMART2_MAJOR+0 &&
+	    major <= COMPAQ_SMART2_MAJOR+7)
+		queue_new_request = 1;
+	if (major >= DAC960_MAJOR+0 && major <= DAC960_MAJOR+7)
 		queue_new_request = 1;
 out:
 	if (queue_new_request)
@@ -403,7 +432,7 @@ void make_request(int major,int rw, struct buffer_head * bh)
 		unsigned long maxsector = (blk_size[major][MINOR(bh->b_rdev)] << 1) + 1;
 
 		if (maxsector < count || maxsector - count < sector) {
-			bh->b_state &= (1 << BH_Lock);
+			bh->b_state &= (1 << BH_Lock) | (1 << BH_Mapped);
                         /* This may well happen - the kernel calls bread()
                            without checking the size of the device, e.g.,
                            when mounting a device. */
@@ -417,7 +446,7 @@ void make_request(int major,int rw, struct buffer_head * bh)
 		}
 	}
 
-	rw_ahead = 0;	/* normal case; gets changed below for READA/WRITEA */
+	rw_ahead = 0;	/* normal case; gets changed below for READA */
 	switch (rw) {
 		case READA:
 			rw_ahead = 1;
@@ -428,13 +457,14 @@ void make_request(int major,int rw, struct buffer_head * bh)
 			kstat.pgpgin++;
 			max_req = NR_REQUEST;	/* reads take precedence */
 			break;
-		case WRITEA:
-			rw_ahead = 1;
-			rw = WRITE;	/* drop into WRITE */
+		case WRITERAW:
+			rw = WRITE;
+			goto do_write;	/* Skip the buffer refile */
 		case WRITE:
 			if (!test_and_clear_bit(BH_Dirty, &bh->b_state))
 				goto end_io;	/* Hmmph! Nothing to write */
 			refile_buffer(bh);
+		do_write:
 			/*
 			 * We don't allow the write-requests to fill up the
 			 * queue completely:  we want some room for reads,
@@ -482,6 +512,8 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	     case IDE5_MAJOR:
 	     case IDE6_MAJOR:
 	     case IDE7_MAJOR:
+	     case IDE8_MAJOR:
+	     case IDE9_MAJOR:
 	     case ACSI_MAJOR:
 	     case MFM_ACORN_MAJOR:
 		/*
@@ -508,6 +540,14 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	     case SCSI_DISK6_MAJOR:
 	     case SCSI_DISK7_MAJOR:
 	     case SCSI_CDROM_MAJOR:
+	     case DAC960_MAJOR+0:
+	     case DAC960_MAJOR+1:
+	     case DAC960_MAJOR+2:
+	     case DAC960_MAJOR+3:
+	     case DAC960_MAJOR+4:
+	     case DAC960_MAJOR+5:
+	     case DAC960_MAJOR+6:
+	     case DAC960_MAJOR+7:
 	     case I2O_MAJOR:
 	     case COMPAQ_SMART2_MAJOR+0:
 	     case COMPAQ_SMART2_MAJOR+1:
@@ -592,13 +632,6 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
 	struct blk_dev_struct * dev;
 	int i;
 
-	/* Make sure that the first block contains something reasonable */
-	while (!*bh) {
-		bh++;
-		if (--nr <= 0)
-			return;
-	}
-
 	dev = NULL;
 	if ((major = MAJOR(bh[0]->b_dev)) < MAX_BLKDEV)
 		dev = blk_dev + major;
@@ -641,33 +674,29 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
 #endif
 	}
 
-	if ((rw == WRITE || rw == WRITEA) && is_read_only(bh[0]->b_dev)) {
+	if ((rw & WRITE) && is_read_only(bh[0]->b_dev)) {
 		printk(KERN_NOTICE "Can't write to read-only device %s\n",
 		       kdevname(bh[0]->b_dev));
 		goto sorry;
 	}
 
 	for (i = 0; i < nr; i++) {
-		if (bh[i]) {
-			set_bit(BH_Req, &bh[i]->b_state);
+		set_bit(BH_Req, &bh[i]->b_state);
 #ifdef CONFIG_BLK_DEV_MD
-			if (MAJOR(bh[i]->b_dev) == MD_MAJOR) {
-				md_make_request(MINOR (bh[i]->b_dev), rw, bh[i]);
-				continue;
-			}
-#endif
-			make_request(MAJOR(bh[i]->b_rdev), rw, bh[i]);
+		if (MAJOR(bh[i]->b_dev) == MD_MAJOR) {
+			md_make_request(MINOR (bh[i]->b_dev), rw, bh[i]);
+			continue;
 		}
+#endif
+		make_request(MAJOR(bh[i]->b_rdev), rw, bh[i]);
 	}
 	return;
 
       sorry:
 	for (i = 0; i < nr; i++) {
-		if (bh[i]) {
-			clear_bit(BH_Dirty, &bh[i]->b_state);
-			clear_bit(BH_Uptodate, &bh[i]->b_state);
-			bh[i]->b_end_io(bh[i], 0);
-		}
+		clear_bit(BH_Dirty, &bh[i]->b_state);
+		clear_bit(BH_Uptodate, &bh[i]->b_state);
+		bh[i]->b_end_io(bh[i], 0);
 	}
 	return;
 }
@@ -789,6 +818,9 @@ int __init blk_dev_init(void)
 #ifdef CONFIG_MAC_FLOPPY
 	swim3_init();
 #endif
+#ifdef CONFIG_BLK_DEV_SWIM_IOP
+	swimiop_init();
+#endif
 #ifdef CONFIG_AMIGA_FLOPPY
 	amiga_floppy_init();
 #endif
@@ -799,8 +831,9 @@ int __init blk_dev_init(void)
 	floppy_init();
 #else
 #if !defined(CONFIG_SGI_IP22) && !defined (__mc68000__) && \
-    !defined(CONFIG_PMAC) && !defined(__sparc__) && !defined(CONFIG_APUS) \
-    && !defined(CONFIG_DECSTATION) && !defined(CONFIG_BAGET_MIPS)
+    !defined(CONFIG_PPC) && !defined(__sparc__) && !defined(CONFIG_APUS) \
+    && !defined(CONFIG_DECSTATION) && !defined(CONFIG_BAGET_MIPS) \
+    && !defined(__sh__)
 	outb_p(0xc, 0x3f2);
 #endif
 #endif

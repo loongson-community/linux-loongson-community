@@ -17,6 +17,7 @@
 #include <linux/smp_lock.h>
 #include <linux/pagemap.h>
 #include <linux/init.h>
+#include <linux/bigmem.h>
 
 #include <asm/pgtable.h>
 
@@ -31,8 +32,7 @@
  * using a process that no longer actually exists (it might
  * have died while we slept).
  */
-static int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
-	unsigned long address, pte_t * page_table, int gfp_mask)
+static int try_to_swap_out(struct vm_area_struct* vma, unsigned long address, pte_t * page_table, int gfp_mask)
 {
 	pte_t pte;
 	unsigned long entry;
@@ -47,15 +47,12 @@ static int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
 		goto out_failed;
 
 	page = mem_map + MAP_NR(page_addr);
-	spin_lock(&tsk->mm->page_table_lock);
+	spin_lock(&vma->vm_mm->page_table_lock);
 	if (pte_val(pte) != pte_val(*page_table))
 		goto out_failed_unlock;
 
-	/*
-	 * Dont be too eager to get aging right if
-	 * memory is dangerously low.
-	 */
-	if (!low_on_memory && pte_young(pte)) {
+	/* Don't look at this pte if it's been accessed recently. */
+	if (pte_young(pte)) {
 		/*
 		 * Transfer the "accessed" bit from the page
 		 * tables to the global page map.
@@ -67,7 +64,8 @@ static int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
 
 	if (PageReserved(page)
 	    || PageLocked(page)
-	    || ((gfp_mask & __GFP_DMA) && !PageDMA(page)))
+	    || ((gfp_mask & __GFP_DMA) && !PageDMA(page))
+	    || (!(gfp_mask & __GFP_BIGMEM) && PageBIGMEM(page)))
 		goto out_failed_unlock;
 
 	/*
@@ -136,15 +134,16 @@ drop_pte:
 	 */
 	flush_cache_page(vma, address);
 	if (vma->vm_ops && vma->vm_ops->swapout) {
-		pid_t pid = tsk->pid;
+		int error;
 		pte_clear(page_table);
-		spin_unlock(&tsk->mm->page_table_lock);
+		spin_unlock(&vma->vm_mm->page_table_lock);
 		flush_tlb_page(vma, address);
 		vma->vm_mm->rss--;
-		
-		if (vma->vm_ops->swapout(vma, page))
-			kill_proc(pid, SIGBUS, 1);
-		goto out_free_success;
+		error = vma->vm_ops->swapout(vma, page);
+		if (!error)
+			goto out_free_success;
+		__free_page(page);
+		return error;
 	}
 
 	/*
@@ -153,14 +152,16 @@ drop_pte:
 	 * we have the swap cache set up to associate the
 	 * page with that swap entry.
 	 */
-	entry = get_swap_page();
+	entry = acquire_swap_entry(page);
 	if (!entry)
-		goto out_failed; /* No swap space left */
+		goto out_failed_unlock; /* No swap space left */
 		
+	if (!(page = prepare_bigmem_swapout(page)))
+		goto out_swap_free_unlock;
+
 	vma->vm_mm->rss--;
-	tsk->nswap++;
 	set_pte(page_table, __pte(entry));
-	spin_unlock(&tsk->mm->page_table_lock);
+	spin_unlock(&vma->vm_mm->page_table_lock);
 
 	flush_tlb_page(vma, address);
 	swap_duplicate(entry);	/* One for the process, one for the swap cache */
@@ -175,9 +176,14 @@ out_free_success:
 	__free_page(page);
 	return 1;
 out_failed_unlock:
-	spin_unlock(&tsk->mm->page_table_lock);
+	spin_unlock(&vma->vm_mm->page_table_lock);
 out_failed:
 	return 0;
+out_swap_free_unlock:
+	swap_free(entry);
+	spin_unlock(&vma->vm_mm->page_table_lock);
+	return 0;
+
 }
 
 /*
@@ -194,8 +200,7 @@ out_failed:
  * (C) 1993 Kai Petzke, wpp@marie.physik.tu-berlin.de
  */
 
-static inline int swap_out_pmd(struct task_struct * tsk, struct vm_area_struct * vma,
-	pmd_t *dir, unsigned long address, unsigned long end, int gfp_mask)
+static inline int swap_out_pmd(struct vm_area_struct * vma, pmd_t *dir, unsigned long address, unsigned long end, int gfp_mask)
 {
 	pte_t * pte;
 	unsigned long pmd_end;
@@ -216,8 +221,8 @@ static inline int swap_out_pmd(struct task_struct * tsk, struct vm_area_struct *
 
 	do {
 		int result;
-		tsk->mm->swap_address = address + PAGE_SIZE;
-		result = try_to_swap_out(tsk, vma, address, pte, gfp_mask);
+		vma->vm_mm->swap_address = address + PAGE_SIZE;
+		result = try_to_swap_out(vma, address, pte, gfp_mask);
 		if (result)
 			return result;
 		address += PAGE_SIZE;
@@ -226,8 +231,7 @@ static inline int swap_out_pmd(struct task_struct * tsk, struct vm_area_struct *
 	return 0;
 }
 
-static inline int swap_out_pgd(struct task_struct * tsk, struct vm_area_struct * vma,
-	pgd_t *dir, unsigned long address, unsigned long end, int gfp_mask)
+static inline int swap_out_pgd(struct vm_area_struct * vma, pgd_t *dir, unsigned long address, unsigned long end, int gfp_mask)
 {
 	pmd_t * pmd;
 	unsigned long pgd_end;
@@ -247,7 +251,7 @@ static inline int swap_out_pgd(struct task_struct * tsk, struct vm_area_struct *
 		end = pgd_end;
 	
 	do {
-		int result = swap_out_pmd(tsk, vma, pmd, address, end, gfp_mask);
+		int result = swap_out_pmd(vma, pmd, address, end, gfp_mask);
 		if (result)
 			return result;
 		address = (address + PMD_SIZE) & PMD_MASK;
@@ -256,8 +260,7 @@ static inline int swap_out_pgd(struct task_struct * tsk, struct vm_area_struct *
 	return 0;
 }
 
-static int swap_out_vma(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, int gfp_mask)
+static int swap_out_vma(struct vm_area_struct * vma, unsigned long address, int gfp_mask)
 {
 	pgd_t *pgdir;
 	unsigned long end;
@@ -266,11 +269,11 @@ static int swap_out_vma(struct task_struct * tsk, struct vm_area_struct * vma,
 	if (vma->vm_flags & VM_LOCKED)
 		return 0;
 
-	pgdir = pgd_offset(tsk->mm, address);
+	pgdir = pgd_offset(vma->vm_mm, address);
 
 	end = vma->vm_end;
 	while (address < end) {
-		int result = swap_out_pgd(tsk, vma, pgdir, address, end, gfp_mask);
+		int result = swap_out_pgd(vma, pgdir, address, end, gfp_mask);
 		if (result)
 			return result;
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
@@ -279,7 +282,7 @@ static int swap_out_vma(struct task_struct * tsk, struct vm_area_struct * vma,
 	return 0;
 }
 
-static int swap_out_process(struct task_struct * p, int gfp_mask)
+static int swap_out_mm(struct mm_struct * mm, int gfp_mask)
 {
 	unsigned long address;
 	struct vm_area_struct* vma;
@@ -287,18 +290,18 @@ static int swap_out_process(struct task_struct * p, int gfp_mask)
 	/*
 	 * Go through process' page directory.
 	 */
-	address = p->mm->swap_address;
+	address = mm->swap_address;
 
 	/*
 	 * Find the proper vm-area
 	 */
-	vma = find_vma(p->mm, address);
+	vma = find_vma(mm, address);
 	if (vma) {
 		if (address < vma->vm_start)
 			address = vma->vm_start;
 
 		for (;;) {
-			int result = swap_out_vma(p, vma, address, gfp_mask);
+			int result = swap_out_vma(vma, address, gfp_mask);
 			if (result)
 				return result;
 			vma = vma->vm_next;
@@ -309,8 +312,8 @@ static int swap_out_process(struct task_struct * p, int gfp_mask)
 	}
 
 	/* We didn't find anything for the process */
-	p->mm->swap_cnt = 0;
-	p->mm->swap_address = 0;
+	mm->swap_cnt = 0;
+	mm->swap_address = 0;
 	return 0;
 }
 
@@ -321,9 +324,11 @@ static int swap_out_process(struct task_struct * p, int gfp_mask)
  */
 static int swap_out(unsigned int priority, int gfp_mask)
 {
-	struct task_struct * p, * pbest;
-	int counter, assign, max_cnt;
+	struct task_struct * p;
+	int counter;
+	int __ret = 0;
 
+	lock_kernel();
 	/* 
 	 * We make one or two passes through the task list, indexed by 
 	 * assign = {0, 1}:
@@ -338,46 +343,61 @@ static int swap_out(unsigned int priority, int gfp_mask)
 	 * Think of swap_cnt as a "shadow rss" - it tells us which process
 	 * we want to page out (always try largest first).
 	 */
-	counter = nr_tasks / (priority+1);
+	counter = nr_threads / (priority+1);
 	if (counter < 1)
 		counter = 1;
-	if (counter > nr_tasks)
-		counter = nr_tasks;
+	if (counter > nr_threads)
+		counter = nr_threads;
 
 	for (; counter >= 0; counter--) {
-		assign = 0;
-		max_cnt = 0;
-		pbest = NULL;
+		int assign = 0;
+		int max_cnt = 0;
+		struct mm_struct *best = NULL;
+		int pid = 0;
 	select:
 		read_lock(&tasklist_lock);
 		p = init_task.next_task;
 		for (; p != &init_task; p = p->next_task) {
-			if (!p->swappable)
+			struct mm_struct *mm = p->mm;
+			if (!p->swappable || !mm)
 				continue;
-	 		if (p->mm->rss <= 0)
+	 		if (mm->rss <= 0)
 				continue;
 			/* Refresh swap_cnt? */
 			if (assign)
-				p->mm->swap_cnt = p->mm->rss;
-			if (p->mm->swap_cnt > max_cnt) {
-				max_cnt = p->mm->swap_cnt;
-				pbest = p;
+				mm->swap_cnt = mm->rss;
+			if (mm->swap_cnt > max_cnt) {
+				max_cnt = mm->swap_cnt;
+				best = mm;
+				pid = p->pid;
 			}
 		}
 		read_unlock(&tasklist_lock);
-		if (!pbest) {
+		if (!best) {
 			if (!assign) {
 				assign = 1;
 				goto select;
 			}
 			goto out;
-		}
+		} else {
+			int ret;
 
-		if (swap_out_process(pbest, gfp_mask))
-			return 1;
+			atomic_inc(&best->mm_count);
+			ret = swap_out_mm(best, gfp_mask);
+			mmdrop(best);
+
+			if (!ret)
+				continue;
+
+			if (ret < 0)
+				kill_proc(pid, SIGBUS, 1);
+			__ret = 1;
+			goto out;
+		}
 	}
 out:
-	return 0;
+	unlock_kernel();
+	return __ret;
 }
 
 /*
@@ -393,8 +413,6 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 {
 	int priority;
 	int count = SWAP_CLUSTER_MAX;
-
-	lock_kernel();
 
 	/* Always trim SLAB caches when memory gets low. */
 	kmem_cache_reap(gfp_mask);
@@ -423,30 +441,8 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 		shrink_dcache_memory(priority, gfp_mask);
 	} while (--priority >= 0);
 done:
-	unlock_kernel();
 
 	return priority >= 0;
-}
-
-/*
- * Before we start the kernel thread, print out the 
- * kswapd initialization message (otherwise the init message 
- * may be printed in the middle of another driver's init 
- * message).  It looks very bad when that happens.
- */
-void __init kswapd_setup(void)
-{
-       int i;
-       char *revision="$Revision: 1.5 $", *s, *e;
-
-       swap_setup();
-       
-       if ((s = strchr(revision, ':')) &&
-           (e = strchr(s, '$')))
-               s++, i = e - s;
-       else
-               s = revision, i = -1;
-       printk ("Starting kswapd v%.*s\n", i, s);
 }
 
 static struct task_struct *kswapd_process;
@@ -499,7 +495,9 @@ int kswapd(void *unused)
 		 * up on a more timely basis.
 		 */
 		do {
-			if (nr_free_pages >= freepages.high)
+			/* kswapd is critical to provide GFP_ATOMIC
+			   allocations (not GFP_BIGMEM ones). */
+			if (nr_free_pages - nr_free_bigpages >= freepages.high)
 				break;
 
 			if (!do_try_to_free_pages(GFP_KSWAPD))
@@ -535,4 +533,13 @@ int try_to_free_pages(unsigned int gfp_mask)
 		retval = do_try_to_free_pages(gfp_mask);
 	return retval;
 }
-	
+
+static int __init kswapd_init(void)
+{
+	printk("Starting kswapd v1.6\n");
+	swap_setup();
+	kernel_thread(kswapd, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
+	return 0;
+}
+
+module_init(kswapd_init)

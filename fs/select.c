@@ -106,7 +106,7 @@ static int max_select_fd(unsigned long n, fd_set_bits *fds)
 	/* handle last in-complete long-word first */
 	set = ~(~0UL << (n & (__NFDBITS-1)));
 	n /= __NFDBITS;
-	open_fds = current->files->open_fds.fds_bits+n;
+	open_fds = current->files->open_fds->fds_bits+n;
 	max = 0;
 	if (set) {
 		set &= BITS(fds, n);
@@ -174,7 +174,7 @@ int do_select(int n, fd_set_bits *fds, long *timeout)
 	n = retval;
 	retval = 0;
 	for (;;) {
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		for (i = 0 ; i < n; i++) {
 			unsigned long bit = BIT(i);
 			unsigned long mask;
@@ -237,7 +237,7 @@ out:
 #define MAX_SELECT_SECONDS \
 	((unsigned long) (MAX_SCHEDULE_TIMEOUT / HZ)-1)
 
-asmlinkage int
+asmlinkage long
 sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 {
 	fd_set_bits fds;
@@ -268,8 +268,8 @@ sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 	if (n < 0)
 		goto out_nofds;
 
-	if (n > KFDS_NR)
-		n = KFDS_NR;
+	if (n > current->files->max_fdset)
+		n = current->files->max_fdset;
 
 	/*
 	 * We need 6 bitmaps (in/out/ex for both incoming and outgoing),
@@ -337,7 +337,7 @@ static int do_poll(unsigned int nfds, struct pollfd *fds, poll_table *wait,
 		unsigned int j;
 		struct pollfd * fdpnt;
 
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		for (fdpnt = fds, j = 0; j < nfds; j++, fdpnt++) {
 			int fd;
 			unsigned int mask;
@@ -371,7 +371,7 @@ static int do_poll(unsigned int nfds, struct pollfd *fds, poll_table *wait,
 	return count;
 }
 
-asmlinkage int sys_poll(struct pollfd * ufds, unsigned int nfds, long timeout)
+asmlinkage long sys_poll(struct pollfd * ufds, unsigned int nfds, long timeout)
 {
 	int i, fdcount, err, size;
 	struct pollfd * fds, *fds1;
@@ -380,7 +380,7 @@ asmlinkage int sys_poll(struct pollfd * ufds, unsigned int nfds, long timeout)
 	lock_kernel();
 	/* Do a sanity check on nfds ... */
 	err = -EINVAL;
-	if (nfds > NR_OPEN)
+	if (nfds > current->files->max_fds)
 		goto out;
 
 	if (timeout) {

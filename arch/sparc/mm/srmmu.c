@@ -1,4 +1,4 @@
-/* $Id: srmmu.c,v 1.187 1999/04/28 17:00:45 davem Exp $
+/* $Id: srmmu.c,v 1.192 1999/09/10 10:40:40 davem Exp $
  * srmmu.c:  SRMMU specific routines for memory management.
  *
  * Copyright (C) 1995 David S. Miller  (davem@caip.rutgers.edu)
@@ -15,6 +15,7 @@
 #include <linux/pagemap.h>
 #include <linux/init.h>
 #include <linux/blk.h>
+#include <linux/spinlock.h>
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -32,7 +33,6 @@
 #include <asm/a.out.h>
 #include <asm/mmu_context.h>
 #include <asm/io-unit.h>
-#include <asm/spinlock.h>
 
 /* Now the cpu specific definitions. */
 #include <asm/viking.h>
@@ -114,6 +114,7 @@ static unsigned long srmmu_p2v_hash[SRMMU_HASHSZ];
 #define srmmu_ahashfn(addr)	((addr) >> 24)
 
 int viking_mxcc_present = 0;
+static spinlock_t srmmu_context_spinlock = SPIN_LOCK_UNLOCKED;
 
 /* Physical memory can be _very_ non-contiguous on the sun4m, especially
  * the SS10/20 class machines and with the latest openprom revisions.
@@ -203,7 +204,7 @@ static inline unsigned long srmmu_swap(unsigned long *addr, unsigned long value)
 #define PGSKIP_DEBUG(from,to) do { } while (0)
 #endif
 
-__initfunc(void srmmu_frob_mem_map(unsigned long start_mem))
+void __init srmmu_frob_mem_map(unsigned long start_mem)
 {
 	unsigned long bank_start, bank_end = 0;
 	unsigned long addr;
@@ -819,7 +820,9 @@ static inline void free_context(int context)
 static void srmmu_switch_to_context(struct task_struct *tsk)
 {
 	if(tsk->mm->context == NO_CONTEXT) {
+		spin_lock(&srmmu_context_spinlock);
 		alloc_context(tsk->mm);
+		spin_unlock(&srmmu_context_spinlock);
 		ctxd_set(&srmmu_context_table[tsk->mm->context], tsk->mm->pgd);
 	}
 	srmmu_set_context(tsk->mm->context);
@@ -827,7 +830,9 @@ static void srmmu_switch_to_context(struct task_struct *tsk)
 
 static void srmmu_init_new_context(struct mm_struct *mm)
 {
+	spin_lock(&srmmu_context_spinlock);
 	alloc_context(mm);
+	spin_unlock(&srmmu_context_spinlock);
 
 	flush_cache_mm(mm);
 	ctxd_set(&srmmu_context_table[mm->context], mm->pgd);
@@ -846,7 +851,7 @@ void srmmu_mapioaddr(unsigned long physaddr, unsigned long virt_addr, int bus_ty
 	unsigned long tmp;
 
 	physaddr &= PAGE_MASK;
-	pgdp = srmmu_pgd_offset(init_task.mm, virt_addr);
+	pgdp = srmmu_pgd_offset(&init_mm, virt_addr);
 	pmdp = pmd_offset(pgdp, virt_addr);
 	ptep = pte_offset(pmdp, virt_addr);
 	tmp = (physaddr >> 4) | SRMMU_ET_PTE;
@@ -871,7 +876,7 @@ void srmmu_unmapioaddr(unsigned long virt_addr)
 	pmd_t *pmdp;
 	pte_t *ptep;
 
-	pgdp = srmmu_pgd_offset(init_task.mm, virt_addr);
+	pgdp = srmmu_pgd_offset(&init_mm, virt_addr);
 	pmdp = pmd_offset(pgdp, virt_addr);
 	ptep = pte_offset(pmdp, virt_addr);
 
@@ -1398,7 +1403,9 @@ static void hypersparc_switch_to_context(struct task_struct *tsk)
 	if(tsk->mm->context == NO_CONTEXT) {
 		ctxd_t *ctxp;
 
+		spin_lock(&srmmu_context_spinlock);
 		alloc_context(tsk->mm);
+		spin_unlock(&srmmu_context_spinlock);
 		ctxp = &srmmu_context_table[tsk->mm->context];
 		srmmu_set_entry((pte_t *)ctxp, __pte((SRMMU_ET_PTD | (srmmu_v2p((unsigned long) tsk->mm->pgd) >> 4))));
 		hypersparc_flush_page_to_ram((unsigned long)ctxp);
@@ -1411,7 +1418,9 @@ static void hypersparc_init_new_context(struct mm_struct *mm)
 {
 	ctxd_t *ctxp;
 
+	spin_lock(&srmmu_context_spinlock);
 	alloc_context(mm);
+	spin_unlock(&srmmu_context_spinlock);
 
 	ctxp = &srmmu_context_table[mm->context];
 	srmmu_set_entry((pte_t *)ctxp, __pte((SRMMU_ET_PTD | (srmmu_v2p((unsigned long) mm->pgd) >> 4))));
@@ -1476,7 +1485,7 @@ static inline void srmmu_allocate_ptable_skeleton(unsigned long start, unsigned 
 	pte_t *ptep;
 
 	while(start < end) {
-		pgdp = srmmu_pgd_offset(init_task.mm, start);
+		pgdp = srmmu_pgd_offset(&init_mm, start);
 		if(srmmu_pgd_none(*pgdp)) {
 			pmdp = sparc_init_alloc(&mempool, SRMMU_PMD_TABLE_SIZE);
 			srmmu_early_pgd_set(pgdp, pmdp);
@@ -1494,7 +1503,7 @@ static inline void srmmu_allocate_ptable_skeleton(unsigned long start, unsigned 
  * looking at the prom's page table directly which is what most
  * other OS's do.  Yuck... this is much better.
  */
-__initfunc(void srmmu_inherit_prom_mappings(unsigned long start,unsigned long end))
+void __init srmmu_inherit_prom_mappings(unsigned long start,unsigned long end)
 {
 	pgd_t *pgdp;
 	pmd_t *pmdp;
@@ -1526,7 +1535,7 @@ __initfunc(void srmmu_inherit_prom_mappings(unsigned long start,unsigned long en
 				what = 2;
 		}
     
-		pgdp = srmmu_pgd_offset(init_task.mm, start);
+		pgdp = srmmu_pgd_offset(&init_mm, start);
 		if(what == 2) {
 			*pgdp = __pgd(prompte);
 			start += SRMMU_PGDIR_SIZE;
@@ -1562,7 +1571,7 @@ static int lots_of_ram __initdata = 0;
 static int srmmu_low_pa __initdata = 0;
 static unsigned long end_of_phys_memory __initdata = 0;
 
-__initfunc(void srmmu_end_memory(unsigned long memory_size, unsigned long *end_mem_p))
+void __init srmmu_end_memory(unsigned long memory_size, unsigned long *end_mem_p)
 {
 	unsigned int sum = 0;
 	unsigned long last = 0xff000000;
@@ -1624,9 +1633,9 @@ __initfunc(void srmmu_end_memory(unsigned long memory_size, unsigned long *end_m
 #define KERNEL_PTE(page_shifted) ((page_shifted)|SRMMU_CACHE|SRMMU_PRIV|SRMMU_VALID)
 
 /* Create a third-level SRMMU 16MB page mapping. */
-__initfunc(static void do_large_mapping(unsigned long vaddr, unsigned long phys_base))
+static void __init do_large_mapping(unsigned long vaddr, unsigned long phys_base)
 {
-	pgd_t *pgdp = srmmu_pgd_offset(init_task.mm, vaddr);
+	pgd_t *pgdp = srmmu_pgd_offset(&init_mm, vaddr);
 	unsigned long big_pte;
 
 	MKTRACE(("dlm[v<%08lx>-->p<%08lx>]", vaddr, phys_base));
@@ -1655,7 +1664,7 @@ static inline int find_in_spbanks(unsigned long phys_page)
  * array of char's, each member indicating if that spbank is mapped
  * yet or not.
  */
-__initfunc(static int find_free_spbank(char *taken_vector))
+static int __init find_free_spbank(char *taken_vector)
 {
 	int entry;
 
@@ -1669,7 +1678,7 @@ static unsigned long map_spbank_last_pa __initdata = 0xff000000;
 
 /* Map sp_bank entry SP_ENTRY, starting at virtual address VBASE.
  */
-__initfunc(static unsigned long map_spbank(unsigned long vbase, int sp_entry))
+static unsigned long __init map_spbank(unsigned long vbase, int sp_entry)
 {
 	unsigned long pstart = (sp_banks[sp_entry].base_addr & SRMMU_PGDIR_MASK);
 	unsigned long vstart = (vbase & SRMMU_PGDIR_MASK);
@@ -1840,7 +1849,7 @@ check_and_return:
 		}
 	}
 	MKTRACE(("success\n"));
-	init_task.mm->mmap->vm_start = page_offset = low_base;
+	init_mm.mmap->vm_start = page_offset = low_base;
 	stack_top = page_offset - PAGE_SIZE;
 	BTFIXUPSET_SETHI(page_offset, low_base);
 	BTFIXUPSET_SETHI(stack_top, page_offset - PAGE_SIZE);
@@ -1934,7 +1943,7 @@ extern int linux_num_cpus;
 
 void (*poke_srmmu)(void) __initdata = NULL;
 
-__initfunc(unsigned long srmmu_paging_init(unsigned long start_mem, unsigned long end_mem))
+unsigned long __init srmmu_paging_init(unsigned long start_mem, unsigned long end_mem)
 {
 	unsigned long ptables_start;
 	int i, cpunode;
@@ -2148,13 +2157,13 @@ static void hypersparc_destroy_context(struct mm_struct *mm)
 }
 
 /* Init various srmmu chip types. */
-__initfunc(static void srmmu_is_bad(void))
+static void __init srmmu_is_bad(void)
 {
 	prom_printf("Could not determine SRMMU chip type.\n");
 	prom_halt();
 }
 
-__initfunc(static void init_vac_layout(void))
+static void __init init_vac_layout(void)
 {
 	int nd, cache_lines;
 	char node_str[128];
@@ -2208,7 +2217,7 @@ __initfunc(static void init_vac_layout(void))
 	       (int)vac_cache_size, (int)vac_line_size);
 }
 
-__initfunc(static void poke_hypersparc(void))
+static void __init poke_hypersparc(void)
 {
 	volatile unsigned long clear;
 	unsigned long mreg = srmmu_get_mmureg();
@@ -2231,7 +2240,7 @@ __initfunc(static void poke_hypersparc(void))
 	clear = srmmu_get_fstatus();
 }
 
-__initfunc(static void init_hypersparc(void))
+static void __init init_hypersparc(void)
 {
 	srmmu_name = "ROSS HyperSparc";
 
@@ -2268,7 +2277,7 @@ __initfunc(static void init_hypersparc(void))
 	hypersparc_setup_blockops();
 }
 
-__initfunc(static void poke_cypress(void))
+static void __init poke_cypress(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 	unsigned long faddr, tagval;
@@ -2307,7 +2316,7 @@ __initfunc(static void poke_cypress(void))
 	srmmu_set_mmureg(mreg);
 }
 
-__initfunc(static void init_cypress_common(void))
+static void __init init_cypress_common(void)
 {
 	init_vac_layout();
 
@@ -2336,14 +2345,14 @@ __initfunc(static void init_cypress_common(void))
 	poke_srmmu = poke_cypress;
 }
 
-__initfunc(static void init_cypress_604(void))
+static void __init init_cypress_604(void)
 {
 	srmmu_name = "ROSS Cypress-604(UP)";
 	srmmu_modtype = Cypress;
 	init_cypress_common();
 }
 
-__initfunc(static void init_cypress_605(unsigned long mrev))
+static void __init init_cypress_605(unsigned long mrev)
 {
 	srmmu_name = "ROSS Cypress-605(MP)";
 	if(mrev == 0xe) {
@@ -2360,7 +2369,7 @@ __initfunc(static void init_cypress_605(unsigned long mrev))
 	init_cypress_common();
 }
 
-__initfunc(static void poke_swift(void))
+static void __init poke_swift(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 
@@ -2381,7 +2390,7 @@ __initfunc(static void poke_swift(void))
 }
 
 #define SWIFT_MASKID_ADDR  0x10003018
-__initfunc(static void init_swift(void))
+static void __init init_swift(void)
 {
 	unsigned long swift_rev;
 
@@ -2543,7 +2552,7 @@ static void turbosparc_flush_tlb_page(struct vm_area_struct *vma, unsigned long 
 }
 
 
-__initfunc(static void poke_turbosparc(void))
+static void __init poke_turbosparc(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 	unsigned long ccreg;
@@ -2583,7 +2592,7 @@ __initfunc(static void poke_turbosparc(void))
 	srmmu_set_mmureg(mreg);
 }
 
-__initfunc(static void init_turbosparc(void))
+static void __init init_turbosparc(void)
 {
 	srmmu_name = "Fujitsu TurboSparc";
 	srmmu_modtype = TurboSparc;
@@ -2607,7 +2616,7 @@ __initfunc(static void init_turbosparc(void))
 	poke_srmmu = poke_turbosparc;
 }
 
-__initfunc(static void poke_tsunami(void))
+static void __init poke_tsunami(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 
@@ -2618,7 +2627,7 @@ __initfunc(static void poke_tsunami(void))
 	srmmu_set_mmureg(mreg);
 }
 
-__initfunc(static void init_tsunami(void))
+static void __init init_tsunami(void)
 {
 	/* Tsunami's pretty sane, Sun and TI actually got it
 	 * somewhat right this time.  Fujitsu should have
@@ -2647,7 +2656,7 @@ __initfunc(static void init_tsunami(void))
 	poke_srmmu = poke_tsunami;
 }
 
-__initfunc(static void poke_viking(void))
+static void __init poke_viking(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 	static int smp_catch = 0;
@@ -2702,7 +2711,7 @@ __initfunc(static void poke_viking(void))
 #endif
 }
 
-__initfunc(static void init_viking(void))
+static void __init init_viking(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 
@@ -2767,7 +2776,7 @@ __initfunc(static void init_viking(void))
 }
 
 /* Probe for the srmmu chip version. */
-__initfunc(static void get_srmmu_type(void))
+static void __init get_srmmu_type(void)
 {
 	unsigned long mreg, psr;
 	unsigned long mod_typ, mod_rev, psr_typ, psr_vers;
@@ -2933,7 +2942,7 @@ extern unsigned long srmmu_fault;
 		*iaddr = SPARC_BRANCH((unsigned long) daddr, (unsigned long) iaddr); \
 	} while(0);
 
-__initfunc(static void patch_window_trap_handlers(void))
+static void __init patch_window_trap_handlers(void)
 {
 	unsigned long *iaddr, *daddr;
 	
@@ -2956,7 +2965,7 @@ static void smp_flush_page_for_dma(unsigned long page)
 #endif
 
 /* Load up routines and constants for sun4m and sun4d mmu */
-__initfunc(void ld_mmu_srmmu(void))
+void __init ld_mmu_srmmu(void)
 {
 	extern void ld_mmu_iommu(void);
 	extern void ld_mmu_iounit(void);

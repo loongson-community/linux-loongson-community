@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.2 1999/08/20 21:59:03 ralf Exp $
+# $Id: config.in,v 1.3 1999/08/21 22:19:13 ralf Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -90,6 +90,9 @@ if [ "$CONFIG_NET" = "y" ]; then
   bool 'Network device support' CONFIG_NETDEVICES
   if [ "$CONFIG_NETDEVICES" = "y" ]; then
     source drivers/net/Config.in
+      if [ "$CONFIG_ATM" = "y" ]; then
+        source drivers/atm/Config.in
+      fi
   fi
   endmenu
 fi

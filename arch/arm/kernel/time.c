@@ -76,6 +76,25 @@ unsigned long mktime(unsigned int year, unsigned int mon,
 		  )*60 + sec; /* finally seconds */
 }
 
+/*
+ * Handle profile stuff...
+ */
+static void do_profile(unsigned long pc)
+{
+	if (prof_buffer && current->pid) {
+		extern int _stext;
+
+		pc -= (unsigned long)&_stext;
+
+		pc >>= prof_shift;
+
+		if (pc >= prof_len)
+			pc = prof_len - 1;
+
+		prof_buffer[pc] += 1;
+	}
+}
+
 #include <asm/arch/time.h>
 
 static unsigned long do_gettimeoffset(void)
@@ -130,7 +149,7 @@ void do_settimeofday(struct timeval *tv)
 	sti();
 }
 
-__initfunc(void time_init(void))
+void __init time_init(void)
 {
 	xtime.tv_usec = 0;
 

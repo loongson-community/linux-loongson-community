@@ -16,11 +16,11 @@
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/spinlock.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#include <asm/spinlock.h>
 #include <asm/atomic.h>
 #include <asm/pgtable.h>
 
@@ -198,8 +198,8 @@ void bad_user_access_alignment(const void *ptr)
 {
 	printk(KERN_ERR "bad user access alignment: ptr = %p, pc = %p\n", ptr, 
 		__builtin_return_address(0));
-	current->tss.error_code = 0;
-	current->tss.trap_no = 11;
+	current->thread.error_code = 0;
+	current->thread.trap_no = 11;
 	force_sig(SIGBUS, current);
 /*	die_if_kernel("Oops - bad user access alignment", regs, mode);*/
 }
@@ -210,8 +210,8 @@ asmlinkage void do_undefinstr(int address, struct pt_regs *regs, int mode)
 	printk(KERN_INFO "%s (%d): undefined instruction: pc=%08lx\n",
 		current->comm, current->pid, instruction_pointer(regs));
 #endif
-	current->tss.error_code = 0;
-	current->tss.trap_no = 6;
+	current->thread.error_code = 0;
+	current->thread.trap_no = 6;
 	force_sig(SIGILL, current);
 	die_if_kernel("Oops - undefined instruction", regs, mode);
 }
@@ -222,8 +222,8 @@ asmlinkage void do_excpt(int address, struct pt_regs *regs, int mode)
 	printk(KERN_INFO "%s (%d): address exception: pc=%08lx\n",
 		current->comm, current->pid, instruction_pointer(regs));
 #endif
-	current->tss.error_code = 0;
-	current->tss.trap_no = 11;
+	current->thread.error_code = 0;
+	current->thread.trap_no = 11;
 	force_sig(SIGBUS, current);
 	die_if_kernel("Oops - address exception", regs, mode);
 }
@@ -292,9 +292,7 @@ asmlinkage int arm_syscall (int no, struct pt_regs *regs)
 	case 2:	/* sys_cacheflush */
 #ifdef CONFIG_CPU_32
 		/* r0 = start, r1 = length, r2 = flags */
-		processor.u.armv3v4._flush_cache_area(regs->ARM_r0,
-						      regs->ARM_r1,
-						      1);
+		cpu_flush_cache_area(regs->ARM_r0, regs->ARM_r1, 1);
 #endif
 		break;
 
@@ -367,7 +365,7 @@ asmlinkage void baddataabort(int code, unsigned long instr, struct pt_regs *regs
 	{
 		pgd_t *pgd;
 
-		printk ("current->tss.memmap = %08lX\n", current->tss.memmap);
+		printk ("current->thread.memmap = %08lX\n", current->thread.memmap);
 		pgd = pgd_offset(current->mm, addr);
 		printk ("*pgd = %08lx", pgd_val (*pgd));
 		if (!pgd_none (*pgd)) {
@@ -387,3 +385,9 @@ asmlinkage void baddataabort(int code, unsigned long instr, struct pt_regs *regs
 		code, regs->ARM_pc, instr, regs->ARM_lr, regs->ARM_sp);
 }
 #endif
+
+asmlinkage void __div0(void)
+{
+	printk("Awooga, division by zero in kernel.\n");
+	__backtrace();
+}

@@ -43,7 +43,7 @@
 #include <linux/if_ec.h>
 #include <net/udp.h>
 #include <net/ip.h>
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 static struct proto_ops econet_ops;
 static struct sock *econet_sklist;
@@ -89,7 +89,7 @@ struct ec_cb
 
 struct ec_device
 {
-	struct device *dev;		/* Real device structure */
+	struct net_device *dev;		/* Real device structure */
 	unsigned char station, net;	/* Econet protocol address */
 	struct ec_device *prev, *next;	/* Linked list */
 };
@@ -102,7 +102,7 @@ static spinlock_t edevlist_lock;
  *	Faster version of edev_get - call with IRQs off
  */
 
-static __inline__ struct ec_device *__edev_get(struct device *dev)
+static __inline__ struct ec_device *__edev_get(struct net_device *dev)
 {
 	struct ec_device *edev;
 	for (edev = edevlist; edev; edev = edev->next)
@@ -115,9 +115,11 @@ static __inline__ struct ec_device *__edev_get(struct device *dev)
 
 /*
  *	Find an Econet device given its `dev' pointer.  This is IRQ safe.
+ *
+ *	Against what is it safe? --ANK
  */
 
-static struct ec_device *edev_get(struct device *dev)
+static struct ec_device *edev_get(struct net_device *dev)
 {
 	struct ec_device *edev;
 	unsigned long flags;
@@ -270,7 +272,7 @@ static int econet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_ec *saddr=(struct sockaddr_ec *)msg->msg_name;
-	struct device *dev;
+	struct net_device *dev;
 	struct ec_addr addr;
 	struct ec_device *edev;
 	int err;
@@ -329,7 +331,7 @@ static int econet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	{
 		/* Real hardware Econet.  We're not worthy etc. */
 #ifdef CONFIG_ECONET_NATIVE
-		dev_lock_list();
+		atomic_inc(&dev->refcnt);
 		
 		skb = sock_alloc_send_skb(sk, len+dev->hard_header_len+15, 0, 
 					  msg->msg_flags & MSG_DONTWAIT, &err);
@@ -372,14 +374,15 @@ static int econet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		 *	Now send it
 		 */
 		
-		dev_unlock_list();
 		dev_queue_xmit(skb);
+		dev_put(dev);
 		return(len);
 
 	out_free:
 		kfree_skb(skb);
 	out_unlock:
-		dev_unlock_list();
+		if (dev)
+			dev_put(dev);
 #else
 		err = -EPROTOTYPE;
 #endif
@@ -402,9 +405,16 @@ static int econet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	   y.x maps to IP a.b.c.x.  This should be replaced with something
 	   more flexible and more aware of subnet masks.  */
 	{
-		struct in_device *idev = (struct in_device *)dev->ip_ptr;
-		unsigned long network = ntohl(idev->ifa_list->ifa_address) & 
-			0xffffff00;		/* !!! */
+		struct in_device *idev = in_dev_get(dev);
+		unsigned long network = 0;
+		if (idev) {
+			read_lock(&idev->lock);
+			if (idev->ifa_list)
+				network = ntohl(idev->ifa_list->ifa_address) & 
+					0xffffff00;		/* !!! */
+			read_unlock(&idev->lock);
+			in_dev_put(idev);
+		}
 		udpdest.sin_addr.s_addr = htonl(network | addr.station);
 	}
 
@@ -502,7 +512,7 @@ static void econet_destroy_timer(unsigned long data)
  *	Close an econet socket.
  */
 
-static int econet_release(struct socket *sock, struct socket *peersock)
+static int econet_release(struct socket *sock)
 {
 	struct sk_buff	*skb;
 	struct sock *sk = sock->sk;
@@ -591,7 +601,7 @@ static int ec_dev_ioctl(struct socket *sock, unsigned int cmd, void *arg)
 {
 	struct ifreq ifr;
 	struct ec_device *edev;
-	struct device *dev;
+	struct net_device *dev;
 	unsigned long flags;
 	struct sockaddr_ec *sec;
 
@@ -602,7 +612,7 @@ static int ec_dev_ioctl(struct socket *sock, unsigned int cmd, void *arg)
 	if (copy_from_user(&ifr, arg, sizeof(struct ifreq)))
 		return -EFAULT;
 
-	if ((dev = dev_get(ifr.ifr_name)) == NULL) 
+	if ((dev = dev_get_by_name(ifr.ifr_name)) == NULL) 
 		return -ENODEV;
 
 	sec = (struct sockaddr_ec *)&ifr.ifr_addr;
@@ -615,10 +625,19 @@ static int ec_dev_ioctl(struct socket *sock, unsigned int cmd, void *arg)
 		if (edev == NULL)
 		{
 			/* Magic up a new one. */
+			printk("Get fascist grenade!!!\n");
+			*(int*)0 = 0;
+			/* Note to author: please, remove this spinlock.
+			   You do not change edevlist from interrupts,
+			   so that such aggressive protection is redundant.
+
+			   BTW not all scans of edev_list are protected.
+			 */
 			edev = kmalloc(GFP_KERNEL, sizeof(struct ec_device));
 			if (edev == NULL) {
 				printk("af_ec: memory squeeze.\n");
 				spin_unlock_irqrestore(&edevlist_lock, flags);
+				dev_put(dev);
 				return -ENOMEM;
 			}
 			memset(edev, 0, sizeof(struct ec_device));
@@ -629,6 +648,7 @@ static int ec_dev_ioctl(struct socket *sock, unsigned int cmd, void *arg)
 		edev->station = sec->addr.station;
 		edev->net = sec->addr.net;
 		spin_unlock_irqrestore(&edevlist_lock, flags);
+		dev_put(dev);
 		return 0;
 
 	case SIOCGIFADDR:
@@ -637,6 +657,7 @@ static int ec_dev_ioctl(struct socket *sock, unsigned int cmd, void *arg)
 		if (edev == NULL)
 		{
 			spin_unlock_irqrestore(&edevlist_lock, flags);
+			dev_put(dev);
 			return -ENODEV;
 		}
 		memset(sec, 0, sizeof(struct sockaddr_ec));
@@ -644,11 +665,13 @@ static int ec_dev_ioctl(struct socket *sock, unsigned int cmd, void *arg)
 		sec->addr.net = edev->net;
 		sec->sec_family = AF_ECONET;
 		spin_unlock_irqrestore(&edevlist_lock, flags);
+		dev_put(dev);
 		if (copy_to_user(arg, &ifr, sizeof(struct ifreq)))
 			return -EFAULT;
 		return 0;
 	}
 
+	dev_put(dev);
 	return -EINVAL;
 }
 
@@ -722,10 +745,9 @@ static struct net_proto_family econet_family_ops = {
 	econet_create
 };
 
-static struct proto_ops econet_ops = {
+static struct proto_ops SOCKOPS_WRAPPED(econet_ops) = {
 	PF_ECONET,
 
-	sock_no_dup,
 	econet_release,
 	econet_bind,
 	sock_no_connect,
@@ -740,8 +762,12 @@ static struct proto_ops econet_ops = {
 	sock_no_getsockopt,
 	sock_no_fcntl,
 	econet_sendmsg,
-	econet_recvmsg
+	econet_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(econet, PF_ECONET);
 
 /*
  *	Find the listening socket, if any, for the given data.
@@ -982,7 +1008,7 @@ static void ab_cleanup(unsigned long h)
 	mod_timer(&ab_cleanup_timer, jiffies + (HZ*2));
 }
 
-__initfunc(static int aun_udp_initialise(void))
+static int __init aun_udp_initialise(void)
 {
 	int error;
 	struct sockaddr_in sin;
@@ -1030,7 +1056,7 @@ release:
 
 static int econet_notifier(struct notifier_block *this, unsigned long msg, void *data)
 {
-	struct device *dev = (struct device *)data;
+	struct net_device *dev = (struct net_device *)data;
 	struct ec_device *edev;
 	unsigned long flags;
 
@@ -1080,7 +1106,7 @@ void cleanup_module(void)
 
 int init_module(void)
 #else
-__initfunc(void econet_proto_init(struct net_proto *pro))
+void __init econet_proto_init(struct net_proto *pro)
 #endif
 {
 	spin_lock_init(&edevlist_lock);

@@ -155,6 +155,7 @@ struct pt_regs * kbd_pt_regs;
 
 #ifdef CONFIG_MAGIC_SYSRQ
 static int sysrq_pressed;
+int sysrq_enabled = 1;
 #endif
 
 /*
@@ -247,7 +248,7 @@ void handle_scancode(unsigned char scancode, int down)
 		sysrq_pressed = !up_flag;
 		return;
 	} else if (sysrq_pressed) {
-		if (!up_flag) {
+		if (!up_flag && sysrq_enabled) {
 			handle_sysrq(kbd_sysrq_xlate[keycode], kbd_pt_regs, kbd, tty);
 			return;
 		}
@@ -916,7 +917,7 @@ static void kbd_bh(void)
 	}
 }
 
-__initfunc(int kbd_init(void))
+int __init kbd_init(void)
 {
 	int i;
 	struct kbd_struct kbd0;

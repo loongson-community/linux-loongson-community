@@ -17,14 +17,6 @@
  *    extern int z; z = x * y;
  * }
  *
- * Depricated: you can surround the whole function declaration 
- * just before function body into __initfunc() macro, like:
- *
- * __initfunc (static void initme(int x, int y))
- * {
- *    extern int z; z = x * y;
- * }
- *
  * If the function has a prototype somewhere, you can also add
  * __init between closing brace of the prototype and semicolon:
  *
@@ -41,25 +33,79 @@
  * you should use __initlocaldata instead, due to a bug in GCC 2.7.
  */
 
-/*
- * Disable the __initfunc macros if a file that is a part of a
- * module attempts to use them. We do not want to interfere
- * with module linking.
- */
-
 #ifndef MODULE
-#include <asm/init.h>
+
+#ifndef __ASSEMBLY__
+
+/*
+ * Used for initialization calls..
+ */
+typedef int (*initcall_t)(void);
+
+extern initcall_t __initcall_start, __initcall_end;
+
+#define __initcall(fn)								\
+	static initcall_t __initcall_##fn __init_call = fn
+
+/*
+ * Used for kernel command line parameter setup
+ */
+struct kernel_param {
+	const char *str;
+	int (*setup_func)(char *);
+};
+
+extern struct kernel_param __setup_start, __setup_end;
+
+#define __setup(str, fn)								\
+	static char __setup_str_##fn[] __initdata = str;				\
+	static struct kernel_param __setup_##fn __initsetup = { __setup_str_##fn, fn }
+
+#endif /* __ASSEMBLY__ */
+
+/*
+ * Mark functions and data as being only used at initialization
+ * or exit time.
+ */
+#define __init		__attribute__ ((__section__ (".text.init")))
+#define __exit		__attribute__ ((unused, __section__(".text.init")))
+#define __initdata	__attribute__ ((__section__ (".data.init")))
+#define __exitdata	__attribute__ ((unused, __section__ (".data.init")))
+#define __initsetup	__attribute__ ((unused,__section__ (".setup.init")))
+#define __init_call	__attribute__ ((unused,__section__ (".initcall.init")))
+
+/* For assembly routines */
+#define __INIT		.section	".text.init","ax"
+#define __FINIT		.previous
+#define __INITDATA	.section	".data.init","aw"
+
+#define module_init(x)	__initcall(x);
+#define module_exit(x)	/* nothing */
+
 #else
+
 #define __init
+#define __exit
 #define __initdata
-#define __initfunc(__arginit) __arginit
+#define __exitdata
+#define __initcall
 /* For assembly routines */
 #define __INIT
 #define __FINIT
 #define __INITDATA
+
+/* Not sure what version aliases were introduced in, but certainly in 2.95.  */
+#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 95)
+#define module_init(x)	int init_module(void) __attribute__((alias(#x)));
+#define module_exit(x)	void cleanup_module(void) __attribute__((alias(#x)));
+#else
+#define module_init(x)	int init_module(void) { return x(); }
+#define module_exit(x)	void cleanup_module(void) { x(); }
 #endif
 
-#if __GNUC__ >= 2 && __GNUC_MINOR__ >= 8
+#endif
+
+#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
 #define __initlocaldata  __initdata
 #else
 #define __initlocaldata

@@ -125,7 +125,7 @@ static int tc_ctl_tfilter(struct sk_buff *skb, struct nlmsghdr *n, void *arg)
 	u32 prio = TC_H_MAJ(t->tcm_info);
 	u32 nprio = prio;
 	u32 parent = t->tcm_parent;
-	struct device *dev;
+	struct net_device *dev;
 	struct Qdisc  *q;
 	struct tcf_proto **back, **chain;
 	struct tcf_proto *tp = NULL;
@@ -145,7 +145,7 @@ static int tc_ctl_tfilter(struct sk_buff *skb, struct nlmsghdr *n, void *arg)
 	/* Find head of filter chain. */
 
 	/* Find link */
-	if ((dev = dev_get_by_index(t->tcm_ifindex)) == NULL)
+	if ((dev = __dev_get_by_index(t->tcm_ifindex)) == NULL)
 		return -ENODEV;
 
 	/* Find qdisc */
@@ -352,7 +352,7 @@ static int tc_dump_tfilter(struct sk_buff *skb, struct netlink_callback *cb)
 {
 	int t;
 	int s_t;
-	struct device *dev;
+	struct net_device *dev;
 	struct Qdisc *q;
 	struct tcf_proto *tp, **chain;
 	struct tcmsg *tcm = (struct tcmsg*)NLMSG_DATA(cb->nlh);
@@ -372,6 +372,7 @@ static int tc_dump_tfilter(struct sk_buff *skb, struct netlink_callback *cb)
 		q = qdisc_lookup(dev, TC_H_MAJ(tcm->tcm_parent));
 	if (q == NULL) {
 		read_unlock(&qdisc_tree_lock);
+		dev_put(dev);
 		return skb->len;
 	}
 	if ((cops = q->ops->cl_ops) == NULL)
@@ -425,13 +426,14 @@ errout:
 		cops->put(q, cl);
 
 	read_unlock(&qdisc_tree_lock);
+	dev_put(dev);
 	return skb->len;
 }
 
 #endif
 
 
-__initfunc(int tc_filter_init(void))
+int __init tc_filter_init(void)
 {
 #ifdef CONFIG_RTNETLINK
 	struct rtnetlink_link *link_p = rtnetlink_links[PF_UNSPEC];

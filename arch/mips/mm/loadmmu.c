@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.11 1999/08/09 19:43:16 harald Exp $
+ * $Id: loadmmu.c,v 1.12 1999/09/18 20:48:03 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -51,7 +51,7 @@ extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 #endif
 
-__initfunc(void loadmmu(void))
+void __init loadmmu(void)
 {
 	switch(mips_cputype) {
 #ifdef CONFIG_CPU_R3000

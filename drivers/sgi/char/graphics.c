@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.17 1999/08/19 22:56:32 ralf Exp $
+/* $Id: graphics.c,v 1.18 1999/09/28 22:26:59 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -324,13 +324,13 @@ static struct miscdevice dev_opengl = {
 };
 
 /* This is called later from the misc-init routine */
-__initfunc(void gfx_register (void))
+void __init gfx_register (void)
 {
 	misc_register (&dev_graphics);
 	misc_register (&dev_opengl);
 }
 
-__initfunc(void gfx_init (const char **name))
+void __init gfx_init (const char **name)
 {
 #if 0
 	struct console_ops *console;

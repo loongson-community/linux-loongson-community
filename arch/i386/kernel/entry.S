@@ -145,7 +145,30 @@ ENTRY(lcall7)
 	andl $-8192,%ebx	# GET_CURRENT
 	movl exec_domain(%ebx),%edx	# Get the execution domain
 	movl 4(%edx),%edx	# Get the lcall7 handler for the domain
+	pushl $0x7
 	call *%edx
+	addl $4, %esp
+	popl %eax
+	jmp ret_from_sys_call
+
+ENTRY(lcall27)
+	pushfl			# We get a different stack layout with call gates,
+	pushl %eax		# which has to be cleaned up later..
+	SAVE_ALL
+	movl EIP(%esp),%eax	# due to call gates, this is eflags, not eip..
+	movl CS(%esp),%edx	# this is eip..
+	movl EFLAGS(%esp),%ecx	# and this is cs..
+	movl %eax,EFLAGS(%esp)	#
+	movl %edx,EIP(%esp)	# Now we move them to their "normal" places
+	movl %ecx,CS(%esp)	#
+	movl %esp,%ebx
+	pushl %ebx
+	andl $-8192,%ebx	# GET_CURRENT
+	movl exec_domain(%ebx),%edx	# Get the execution domain
+	movl 4(%edx),%edx	# Get the lcall7 handler for the domain
+	pushl $0x27
+	call *%edx
+	addl $4, %esp
 	popl %eax
 	jmp ret_from_sys_call
 
@@ -153,11 +176,9 @@ ENTRY(lcall7)
 	ALIGN
 	.globl	ret_from_fork
 ret_from_fork:
-#ifdef __SMP__
 	pushl %ebx
 	call SYMBOL_NAME(schedule_tail)
 	addl $4, %esp
-#endif /* __SMP__ */
 	GET_CURRENT(%ebx)
 	jmp	ret_from_sys_call
 
@@ -483,7 +504,7 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_uname)
 	.long SYMBOL_NAME(sys_iopl)		/* 110 */
 	.long SYMBOL_NAME(sys_vhangup)
-	.long SYMBOL_NAME(sys_idle)
+	.long SYMBOL_NAME(sys_ni_syscall)	/* old "idle" system call */
 	.long SYMBOL_NAME(sys_vm86old)
 	.long SYMBOL_NAME(sys_wait4)
 	.long SYMBOL_NAME(sys_swapoff)		/* 115 */

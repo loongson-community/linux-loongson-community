@@ -1398,7 +1398,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 			} 
 		}
 		sti();
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (tty_hung_up_p(filp) ||
 		    !(port->flags & ASYNC_INITIALIZED)) {
 			if (port->flags & ASYNC_HUP_NOTIFY)
@@ -1755,7 +1755,7 @@ static int sx_get_modem_info(struct specialix_port * port, unsigned int *value)
 		          |/* ((status & MSVR_DSR) ? */ TIOCM_DSR /* : 0) */
 		          |   ((status & MSVR_CTS) ? TIOCM_CTS : 0);
 	}
-	put_user(result,(unsigned long *) value);
+	put_user(result,(unsigned int *) value);
 	return 0;
 }
 

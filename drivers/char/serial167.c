@@ -1500,7 +1500,7 @@ get_modem_info(struct cyclades_port * info, unsigned int *value)
             | ((status  & CyDCD) ? TIOCM_CAR : 0)
             | ((status  & CyDSR) ? TIOCM_DSR : 0)
             | ((status  & CyCTS) ? TIOCM_CTS : 0);
-    cy_put_user(result,(unsigned long *) value);
+    cy_put_user(result,(unsigned int *) value);
     return 0;
 } /* get_modem_info */
 
@@ -2094,7 +2094,7 @@ block_til_ready(struct tty_struct *tty, struct file * filp,
 #endif
 	    }
 	restore_flags(flags);
-	current->state = TASK_INTERRUPTIBLE;
+	set_current_state(TASK_INTERRUPTIBLE);
 	if (tty_hung_up_p(filp)
 	|| !(info->flags & ASYNC_INITIALIZED) ){
 	    if (info->flags & ASYNC_HUP_NOTIFY) {

@@ -11,12 +11,13 @@
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 
 #include <asm/ptrace.h>
 #include <asm/atomic.h>
@@ -27,7 +28,6 @@
 #include <asm/pgtable.h>
 #include <asm/oplib.h>
 #include <asm/atops.h>
-#include <asm/spinlock.h>
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
 #include <asm/sbus.h>
@@ -83,7 +83,7 @@ static void smp_setup_percpu_timer(void);
 extern void cpu_probe(void);
 extern void sun4d_distribute_irqs(void);
 
-__initfunc(void smp4d_callin(void))
+void __init smp4d_callin(void)
 {
 	int cpuid = hard_smp4d_processor_id();
 	extern spinlock_t sun4d_imsk_lock;
@@ -131,7 +131,7 @@ __initfunc(void smp4d_callin(void))
 	
 	current->mm->mmap->vm_page_prot = PAGE_SHARED;
 	current->mm->mmap->vm_start = PAGE_OFFSET;
-	current->mm->mmap->vm_end = init_task.mm->mmap->vm_end;
+	current->mm->mmap->vm_end = init_mm.mmap->vm_end;
 	
 	local_flush_cache_all();
 	local_flush_tlb_all();
@@ -161,7 +161,7 @@ extern unsigned long trapbase_cpu1[];
 extern unsigned long trapbase_cpu2[];
 extern unsigned long trapbase_cpu3[];
 
-__initfunc(void smp4d_boot_cpus(void))
+void __init smp4d_boot_cpus(void)
 {
 	int cpucount = 0;
 	int i = 0;
@@ -499,7 +499,7 @@ void smp4d_percpu_timer_interrupt(struct pt_regs *regs)
 
 extern unsigned int lvl14_resolution;
 
-__initfunc(static void smp_setup_percpu_timer(void))
+static void __init smp_setup_percpu_timer(void)
 {
 	int cpu = hard_smp4d_processor_id();
 
@@ -507,7 +507,7 @@ __initfunc(static void smp_setup_percpu_timer(void))
 	load_profile_irq(cpu, lvl14_resolution);
 }
 
-__initfunc(void smp4d_blackbox_id(unsigned *addr))
+void __init smp4d_blackbox_id(unsigned *addr)
 {
 	int rd = *addr & 0x3e000000;
 	
@@ -516,7 +516,7 @@ __initfunc(void smp4d_blackbox_id(unsigned *addr))
 	addr[2] = 0x01000000;    		/* nop */
 }
 
-__initfunc(void smp4d_blackbox_current(unsigned *addr))
+void __init smp4d_blackbox_current(unsigned *addr)
 {
 	/* We have a nice Linux current register :) */
 	int rd = addr[1] & 0x3e000000;
@@ -525,7 +525,7 @@ __initfunc(void smp4d_blackbox_current(unsigned *addr))
 	addr[1] = 0xc0800820 | rd;		/* lda [%g0] ASI_M_VIKING_TMP2, reg */
 }
 
-__initfunc(void sun4d_init_smp(void))
+void __init sun4d_init_smp(void)
 {
 	int i;
 	extern unsigned int patchme_store_new_current[];

@@ -5,7 +5,7 @@
  *
  *		IPv4 Forwarding Information Base: FIB frontend.
  *
- * Version:	$Id: fib_frontend.c,v 1.16 1999/06/09 10:10:42 davem Exp $
+ * Version:	$Id: fib_frontend.c,v 1.19 1999/08/31 07:03:23 davem Exp $
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
@@ -142,25 +142,37 @@ fib_get_procinfo(char *buffer, char **start, off_t offset, int length, int dummy
  *	Find the first device with a given source address.
  */
 
-struct device * ip_dev_find(u32 addr)
+struct net_device * ip_dev_find(u32 addr)
 {
 	struct rt_key key;
 	struct fib_result res;
+	struct net_device *dev = NULL;
 
 	memset(&key, 0, sizeof(key));
 	key.dst = addr;
+#ifdef CONFIG_IP_MULTIPLE_TABLES
+	res.r = NULL;
+#endif
 
-	if (!local_table || local_table->tb_lookup(local_table, &key, &res)
-	    || res.type != RTN_LOCAL)
+	if (!local_table || local_table->tb_lookup(local_table, &key, &res)) {
 		return NULL;
+	}
+	if (res.type != RTN_LOCAL)
+		goto out;
+	dev = FIB_RES_DEV(res);
+	if (dev)
+		atomic_inc(&dev->refcnt);
 
-	return FIB_RES_DEV(res);
+out:
+	fib_res_put(&res);
+	return dev;
 }
 
 unsigned inet_addr_type(u32 addr)
 {
 	struct rt_key		key;
 	struct fib_result	res;
+	unsigned ret = RTN_BROADCAST;
 
 	if (ZERONET(addr) || BADCLASS(addr))
 		return RTN_BROADCAST;
@@ -169,13 +181,18 @@ unsigned inet_addr_type(u32 addr)
 
 	memset(&key, 0, sizeof(key));
 	key.dst = addr;
-
+#ifdef CONFIG_IP_MULTIPLE_TABLES
+	res.r = NULL;
+#endif
+	
 	if (local_table) {
-		if (local_table->tb_lookup(local_table, &key, &res) == 0)
-			return res.type;
-		return RTN_UNICAST;
+		ret = RTN_UNICAST;
+		if (local_table->tb_lookup(local_table, &key, &res) == 0) {
+			ret = res.type;
+			fib_res_put(&res);
+		}
 	}
-	return RTN_BROADCAST;
+	return ret;
 }
 
 /* Given (packet source, input interface) and optional (dst, oif, tos):
@@ -187,11 +204,13 @@ unsigned inet_addr_type(u32 addr)
  */
 
 int fib_validate_source(u32 src, u32 dst, u8 tos, int oif,
-			struct device *dev, u32 *spec_dst, u32 *itag)
+			struct net_device *dev, u32 *spec_dst, u32 *itag)
 {
-	struct in_device *in_dev = dev->ip_ptr;
+	struct in_device *in_dev;
 	struct rt_key key;
 	struct fib_result res;
+	int no_addr, rpf;
+	int ret;
 
 	key.dst = src;
 	key.src = dst;
@@ -200,12 +219,22 @@ int fib_validate_source(u32 src, u32 dst, u8 tos, int oif,
 	key.iif = oif;
 	key.scope = RT_SCOPE_UNIVERSE;
 
+	no_addr = rpf = 0;
+	read_lock(&inetdev_lock);
+	in_dev = __in_dev_get(dev);
+	if (in_dev) {
+		no_addr = in_dev->ifa_list == NULL;
+		rpf = IN_DEV_RPFILTER(in_dev);
+	}
+	read_unlock(&inetdev_lock);
+
 	if (in_dev == NULL)
-		return -EINVAL;
+		goto e_inval;
+
 	if (fib_lookup(&key, &res))
 		goto last_resort;
 	if (res.type != RTN_UNICAST)
-		return -EINVAL;
+		goto e_inval_res;
 	*spec_dst = FIB_RES_PREFSRC(res);
 	if (itag)
 		fib_combine_itag(itag, &res);
@@ -214,25 +243,39 @@ int fib_validate_source(u32 src, u32 dst, u8 tos, int oif,
 #else
 	if (FIB_RES_DEV(res) == dev)
 #endif
-		return FIB_RES_NH(res).nh_scope >= RT_SCOPE_HOST;
-
-	if (in_dev->ifa_list == NULL)
-		goto last_resort;
-	if (IN_DEV_RPFILTER(in_dev))
-		return -EINVAL;
-	key.oif = dev->ifindex;
-	if (fib_lookup(&key, &res) == 0 && res.type == RTN_UNICAST) {
-		*spec_dst = FIB_RES_PREFSRC(res);
-		return FIB_RES_NH(res).nh_scope >= RT_SCOPE_HOST;
+	{
+		ret = FIB_RES_NH(res).nh_scope >= RT_SCOPE_HOST;
+		fib_res_put(&res);
+		return ret;
 	}
-	return 0;
+	fib_res_put(&res);
+	if (no_addr)
+		goto last_resort;
+	if (rpf)
+		goto e_inval;
+	key.oif = dev->ifindex;
+
+	ret = 0;
+	if (fib_lookup(&key, &res) == 0) {
+		if (res.type == RTN_UNICAST) {
+			*spec_dst = FIB_RES_PREFSRC(res);
+			ret = FIB_RES_NH(res).nh_scope >= RT_SCOPE_HOST;
+		}
+		fib_res_put(&res);
+	}
+	return ret;
 
 last_resort:
-	if (IN_DEV_RPFILTER(in_dev))
-		return -EINVAL;
+	if (rpf)
+		goto e_inval;
 	*spec_dst = inet_select_addr(dev, 0, RT_SCOPE_UNIVERSE);
 	*itag = 0;
 	return 0;
+
+e_inval_res:
+	fib_res_put(&res);
+e_inval:
+	return -EINVAL;
 }
 
 #ifndef CONFIG_IP_NOSIOCRT
@@ -421,7 +464,7 @@ static void fib_magic(int cmd, int type, u32 dst, int dst_len, struct in_ifaddr 
 static void fib_add_ifaddr(struct in_ifaddr *ifa)
 {
 	struct in_device *in_dev = ifa->ifa_dev;
-	struct device *dev = in_dev->dev;
+	struct net_device *dev = in_dev->dev;
 	struct in_ifaddr *prim = ifa;
 	u32 mask = ifa->ifa_mask;
 	u32 addr = ifa->ifa_local;
@@ -460,7 +503,7 @@ static void fib_add_ifaddr(struct in_ifaddr *ifa)
 static void fib_del_ifaddr(struct in_ifaddr *ifa)
 {
 	struct in_device *in_dev = ifa->ifa_dev;
-	struct device *dev = in_dev->dev;
+	struct net_device *dev = in_dev->dev;
 	struct in_ifaddr *ifa1;
 	struct in_ifaddr *prim = ifa;
 	u32 brd = ifa->ifa_address|~ifa->ifa_mask;
@@ -526,7 +569,7 @@ static void fib_del_ifaddr(struct in_ifaddr *ifa)
 #undef BRD1_OK
 }
 
-static void fib_disable_ip(struct device *dev, int force)
+static void fib_disable_ip(struct net_device *dev, int force)
 {
 	if (fib_sync_down(0, dev, force))
 		fib_flush();
@@ -560,8 +603,8 @@ static int fib_inetaddr_event(struct notifier_block *this, unsigned long event, 
 
 static int fib_netdev_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	struct device *dev = ptr;
-	struct in_device *in_dev = dev->ip_ptr;
+	struct net_device *dev = ptr;
+	struct in_device *in_dev = __in_dev_get(dev);
 
 	if (!in_dev)
 		return NOTIFY_DONE;
@@ -602,7 +645,7 @@ struct notifier_block fib_netdev_notifier = {
 	0
 };
 
-__initfunc(void ip_fib_init(void))
+void __init ip_fib_init(void)
 {
 #ifdef CONFIG_PROC_FS
 	proc_net_register(&(struct proc_dir_entry) {

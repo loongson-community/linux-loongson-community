@@ -99,7 +99,7 @@ static int s3trio_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Interface to the low level console driver
      */
 
-void s3triofb_init(void);
+int s3triofb_init(void);
 static int s3triofbcon_switch(int con, struct fb_info *info);
 static int s3triofbcon_updatevar(int con, struct fb_info *info);
 static void s3triofbcon_blank(int blank, struct fb_info *info);
@@ -288,7 +288,7 @@ static int s3trio_ioctl(struct inode *inode, struct file *file, u_int cmd,
     return -EINVAL;
 }
 
-__initfunc(void s3triofb_init(void))
+int __init s3triofb_init(void)
 {
 #ifdef __powerpc__
     /* We don't want to be called like this. */
@@ -296,9 +296,10 @@ __initfunc(void s3triofb_init(void))
 #else /* !__powerpc__ */
     /* To be merged with cybervision */
 #endif /* !__powerpc__ */
+	return 0;
 }
 
-__initfunc(void s3trio_resetaccel(void)) {
+void __init s3trio_resetaccel(void){
 
 
 #define EC01_ENH_ENB    0x0005
@@ -341,7 +342,7 @@ __initfunc(void s3trio_resetaccel(void)) {
 	outw( MF_PIX_CONTROL | MFA_SRC_FOREGR_MIX,  0xbee8);
 }
 
-__initfunc(int s3trio_init(struct device_node *dp)) {
+int __init s3trio_init(struct device_node *dp){
 
     u_char bus, dev;
     unsigned int t32;
@@ -402,7 +403,7 @@ __initfunc(int s3trio_init(struct device_node *dp)) {
      *  We heavily rely on OF for the moment. This needs fixing.
      */
 
-__initfunc(void s3triofb_init_of(struct device_node *dp))
+void __init s3triofb_init_of(struct device_node *dp)
 {
     int i, *pp, len;
     unsigned long address;
@@ -445,11 +446,11 @@ __initfunc(void s3triofb_init_of(struct device_node *dp))
     s3trio_init(dp);
     address = 0xc6000000;
     s3trio_base = ioremap(address,64*1024*1024);
-    fb_fix.smem_start = (char *)address;
+    fb_fix.smem_start = address;
     fb_fix.type = FB_TYPE_PACKED_PIXELS;
     fb_fix.type_aux = 0;
     fb_fix.accel = FB_ACCEL_S3_TRIO64;
-    fb_fix.mmio_start = (char *)address+0x1000000;
+    fb_fix.mmio_start = address+0x1000000;
     fb_fix.mmio_len = 0x1000000;
 
     fb_fix.xpanstep = 1;
@@ -721,9 +722,9 @@ static void do_install_cmap(int con, struct fb_info *info)
 		    s3trio_setcolreg, &fb_info);
 }
 
-void s3triofb_setup(char *options, int *ints) {
+int s3triofb_setup(char *options) {
 
-        return;
+        return 0;
 
 }
 

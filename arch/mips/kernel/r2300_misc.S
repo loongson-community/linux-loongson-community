@@ -1,4 +1,4 @@
-/* $Id: r2300_misc.S,v 1.5 1999/08/18 23:37:44 ralf Exp $
+/* $Id: r2300_misc.S,v 1.6 1999/09/27 11:13:47 raiko Exp $
  * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -41,7 +41,9 @@
 	mfc0	pte, CP0_BADVADDR; \
 	_GET_CURRENT(ptr); \
 	srl	pte, pte, 22; \
-	lw	ptr, THREAD_PGDIR(ptr); \
+	lw	ptr, TASK_MM(ptr); \
+	nop; \
+	lw	ptr, MM_PGD(ptr); \
 	sll	pte, pte, 2; \
 	addu	ptr, pte, ptr; \
 	mfc0	pte, CP0_CONTEXT; \

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.43 1999/01/02 16:45:53 davem Exp $
+# $Id: Makefile,v 1.46 1999/08/31 04:39:34 davem Exp $
 # Makefile for the linux kernel.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -20,7 +20,9 @@ O_OBJS   := process.o setup.o cpu.o idprom.o \
 	    traps.o devices.o auxio.o ioport.o \
 	    irq.o ptrace.o time.o sys_sparc.o signal.o \
 	    unaligned.o sys_sunos32.o sunos_ioctl32.o \
-	    central.o psycho.o starfire.o
+	    central.o pci.o pci_common.o pci_iommu.o \
+	    pci_psycho.o pci_sabre.o starfire.o semaphore.o \
+	    power.o
 OX_OBJS  := sparc64_ksyms.o
 
 ifdef CONFIG_PCI
@@ -61,12 +63,16 @@ endif
 check_asm: dummy
 	@echo "/* Automatically generated. Do not edit. */" > asm_offsets.h
 	@echo "#ifndef __ASM_OFFSETS_H__" >> asm_offsets.h
-	@echo "#define __ASM_OFFSETS_H__" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
-	@echo "#include <linux/config.h>" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
-	@echo "#ifndef CONFIG_SMP" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
+	@echo -e "#define __ASM_OFFSETS_H__\n" >> asm_offsets.h
+	@echo -e "#include <linux/config.h>\n" >> asm_offsets.h
+	@echo '#if defined(__KERNEL__) && !defined(__ASSEMBLY__)' >> asm_offsets.h
+	@if $(CC) -c -m64 -mcmodel=medlow -o /dev/null /dev/null >/dev/null 2>&1; then \
+		echo '# if !((__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8))' >> asm_offsets.h; \
+	 else \
+		echo '# if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)' >> asm_offsets.h; \
+	 fi
+	@echo -e "#  error Please issue 'make check_asm' in linux top-level directory first\n# endif\n#endif\n" >> asm_offsets.h
+	@echo -e "#ifndef CONFIG_SMP\n" >> asm_offsets.h
 	@echo "#include <linux/config.h>" > tmp.c
 	@echo "#undef CONFIG_SMP" >> tmp.c
 	@echo "#include <linux/sched.h>" >> tmp.c
@@ -92,11 +98,8 @@ check_asm: dummy
 	# </hack>
 	./check_asm >> asm_offsets.h
 	@rm -f check_asm check_asm.c
-	@echo "" >> asm_offsets.h
-	@echo "#else /* CONFIG_SMP */" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
-	@echo "#ifndef SPIN_LOCK_DEBUG" >>asm_offsets.h
-	@echo "" >> asm_offsets.h
+	@echo -e "\n#else /* CONFIG_SMP */\n" >> asm_offsets.h
+	@echo -e "#ifndef SPIN_LOCK_DEBUG\n" >>asm_offsets.h
 	@echo "#include <linux/config.h>" > tmp.c
 	@echo "#undef CONFIG_SMP" >> tmp.c
 	@echo "#define CONFIG_SMP 1" >> tmp.c
@@ -124,9 +127,7 @@ check_asm: dummy
 	# </hack>
 	./check_asm >> asm_offsets.h
 	@rm -f check_asm check_asm.c
-	@echo "" >> asm_offsets.h
-	@echo "#else /* SPIN_LOCK_DEBUG */" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
+	@echo -e "\n#else /* SPIN_LOCK_DEBUG */\n" >> asm_offsets.h
 	@echo "#include <linux/sched.h>" > tmp.c
 	$(CC) -D__SMP__ -DSPIN_LOCK_DEBUG -E tmp.c -o tmp.i
 	@echo "/* Automatically generated. Do not edit. */" > check_asm.c
@@ -151,10 +152,8 @@ check_asm: dummy
 	# </hack>
 	./check_asm >> asm_offsets.h
 	@rm -f check_asm check_asm.c
-	@echo "#endif /* SPIN_LOCK_DEBUG */" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
-	@echo "#endif /* CONFIG_SMP */" >> asm_offsets.h
-	@echo "" >> asm_offsets.h
+	@echo -e "#endif /* SPIN_LOCK_DEBUG */\n" >> asm_offsets.h
+	@echo -e "#endif /* CONFIG_SMP */\n" >> asm_offsets.h
 	@echo "#endif /* __ASM_OFFSETS_H__ */" >> asm_offsets.h
 	@if test -r $(HPATH)/asm/asm_offsets.h; then \
 	  if cmp -s asm_offsets.h $(HPATH)/asm/asm_offsets.h; then \

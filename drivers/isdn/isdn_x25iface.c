@@ -1,4 +1,4 @@
-/* $Id: isdn_x25iface.c,v 1.6 1999/01/27 22:53:19 he Exp $
+/* $Id: isdn_x25iface.c,v 1.7 1999/08/22 20:26:13 calle Exp $
  * stuff needed to support the Linux X.25 PLP code on top of devices that
  * can provide a lab_b service using the concap_proto mechanism.
  * This module supports a network interface wich provides lapb_sematics
@@ -10,6 +10,12 @@
  * goes to another -- device related -- concap_proto support source file.
  *
  * $Log: isdn_x25iface.c,v $
+ * Revision 1.7  1999/08/22 20:26:13  calle
+ * backported changes from kernel 2.3.14:
+ * - several #include "config.h" gone, others come.
+ * - "struct device" changed to "struct net_device" in 2.3.14, added a
+ *   define in isdn_compat.h for older kernel versions.
+ *
  * Revision 1.6  1999/01/27 22:53:19  he
  * minor updates (spellings, jiffies wrap around in isdn_tty)
  *
@@ -57,7 +63,7 @@ typedef struct isdn_x25iface_proto_data {
 void isdn_x25iface_proto_del( struct concap_proto * );
 int isdn_x25iface_proto_close( struct concap_proto * );
 int isdn_x25iface_proto_restart( struct concap_proto *,
-				 struct device *,
+				 struct net_device *,
 				 struct concap_device_ops *);
 int isdn_x25iface_xmit( struct concap_proto *, struct sk_buff * );
 int isdn_x25iface_receive( struct concap_proto *, struct sk_buff * );
@@ -175,7 +181,7 @@ void isdn_x25iface_proto_del(struct concap_proto *cprot){
 /* (re-)initialize the data structures for x25iface encapsulation
  */
 int isdn_x25iface_proto_restart(struct concap_proto *cprot,
-				struct device *ndev, 
+				struct net_device *ndev, 
 				struct concap_device_ops *dops)
 {
 	ix25_pdata_t * pda = cprot -> proto_data ;

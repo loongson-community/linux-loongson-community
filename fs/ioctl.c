@@ -48,7 +48,7 @@ static int file_ioctl(struct file *filp,unsigned int cmd,unsigned long arg)
 }
 
 
-asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+asmlinkage long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {	
 	struct file * filp;
 	unsigned int flag;
@@ -61,11 +61,11 @@ asmlinkage int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 	lock_kernel();
 	switch (cmd) {
 		case FIOCLEX:
-			FD_SET(fd, &current->files->close_on_exec);
+			FD_SET(fd, current->files->close_on_exec);
 			break;
 
 		case FIONCLEX:
-			FD_CLR(fd, &current->files->close_on_exec);
+			FD_CLR(fd, current->files->close_on_exec);
 			break;
 
 		case FIONBIO:

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1998 Harald Koerfgen
  *
- * $Id: $
+ * $Id: cmdline.c,v 1.1 1999/01/17 03:49:44 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -22,7 +22,7 @@ extern int (*prom_printf)(char *, ...);
 
 char arcs_cmdline[CL_SIZE];
 
-__initfunc(void prom_init_cmdline(int argc, char **argv, unsigned long magic))
+void __init prom_init_cmdline(int argc, char **argv, unsigned long magic)
 {
 	int start_arg, i;
 

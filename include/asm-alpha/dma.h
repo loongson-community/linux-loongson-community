@@ -19,8 +19,8 @@
 #define _ASM_DMA_H
 
 #include <linux/config.h>
+#include <linux/spinlock.h>
 #include <asm/io.h>
-#include <asm/spinlock.h>
 
 #define dma_outb	outb
 #define dma_inb		inb
@@ -346,10 +346,11 @@ extern int check_dma(unsigned int dmanr);
 
 /* From PCI */
 
-#ifdef CONFIG_PCI_QUIRKS
+#ifdef CONFIG_PCI
 extern int isa_dma_bridge_buggy;
 #else
 #define isa_dma_bridge_buggy 	(0)
 #endif
+
 
 #endif /* _ASM_DMA_H */

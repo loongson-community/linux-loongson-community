@@ -1,4 +1,4 @@
-/* $Id: socksys.c,v 1.8 1998/08/26 10:28:28 davem Exp $
+/* $Id: socksys.c,v 1.10 1999/08/31 06:55:08 davem Exp $
  * socksys.c: /dev/inet/ stuff for Solaris emulation.
  *
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -174,8 +174,8 @@ static struct file_operations socksys_fops = {
 	socksys_release,/* release */
 };
 
-__initfunc(int
-init_socksys(void))
+int __init
+init_socksys(void)
 {
 	int ret;
 	struct file * file;

@@ -44,7 +44,7 @@ extern void (*kd_mksound)(unsigned int hz, unsigned int ticks);
 
 static int irqmap_ebsa[] __initdata = { IRQ_IN1, IRQ_IN0, IRQ_PCI, IRQ_IN3 };
 
-__initfunc(static int ebsa_irqval(struct pci_dev *dev))
+static int __init ebsa_irqval(struct pci_dev *dev)
 {
 	unsigned char pin;
 	
@@ -59,7 +59,7 @@ __initfunc(static int ebsa_irqval(struct pci_dev *dev))
 #ifdef CONFIG_CATS
 static int irqmap_cats[] __initdata = { IRQ_PCI, IRQ_IN0, IRQ_IN1, IRQ_IN3 };
 
-__initfunc(static int cats_irqval(struct pci_dev *dev))
+static int __init cats_irqval(struct pci_dev *dev)
 {
 	if (dev->irq >= 128)
 		return 16 + (dev->irq & 0x1f);
@@ -80,7 +80,7 @@ __initfunc(static int cats_irqval(struct pci_dev *dev))
 }
 #endif
 
-__initfunc(void pcibios_fixup_ebsa285(struct pci_dev *dev))
+void __init pcibios_fixup_ebsa285(struct pci_dev *dev)
 {
 	/* Latency timer of 32 */
 	pci_write_config_byte(dev, PCI_LATENCY_TIMER, 32);
@@ -284,7 +284,7 @@ static struct irqaction irq_pci_error = {
 	irq_pci_err, SA_INTERRUPT, 0, "PCI error", NULL, NULL
 };
 
-__initfunc(void pcibios_init_ebsa285(void))
+void __init pcibios_init_ebsa285(void)
 {
 	setup_arm_irq(IRQ_PCI_ERR, &irq_pci_error);
 }
@@ -592,7 +592,7 @@ static inline void wb977_init_gpio(void)
 /*
  * Initialise the Winbond W83977F chip.
  */
-__initfunc(static void wb977_init(void))
+static void __init wb977_init(void)
 {
 	request_region(0x370, 2, "W83977AF configuration");
 
@@ -642,7 +642,7 @@ void __netwinder_text cpld_modify(int mask, int set)
 	gpio_modify_op(GPIO_IOLOAD, 0);
 }
 
-__initfunc(static void cpld_init(void))
+static void __init cpld_init(void)
 {
 	unsigned long flags;
 
@@ -662,7 +662,7 @@ static unsigned char rwa_unlock[] __initdata =
 #define dprintk printk
 #endif
 
-#define WRITE_RWA(r,v) do { outb((r), 0x279); outb((v), 0xa79); } while (0)
+#define WRITE_RWA(r,v) do { outb((r), 0x279); udelay(10); outb((v), 0xa79); } while (0)
 
 static inline void rwa010_unlock(void)
 {
@@ -671,8 +671,10 @@ static inline void rwa010_unlock(void)
 	WRITE_RWA(2, 2);
 	mdelay(10);
 
-	for (i = 0; i < sizeof(rwa_unlock); i++)
+	for (i = 0; i < sizeof(rwa_unlock); i++) {
 		outb(rwa_unlock[i], 0x279);
+		udelay(10);
+	}
 }
 
 static inline void rwa010_read_ident(void)
@@ -685,22 +687,22 @@ static inline void rwa010_read_ident(void)
 
 	outb(1, 0x279);
 
-	mdelay(10);
+	mdelay(1);
 
 	dprintk("Identifier: ");
 	for (i = 0; i < 9; i++) {
 		si[i] = 0;
 		for (j = 0; j < 8; j++) {
 			int bit;
-			mdelay(1);
+			udelay(250);
 			inb(0x203);
-			mdelay(1);
+			udelay(250);
 			bit = inb(0x203);
 			dprintk("%02X ", bit);
+			bit = (bit == 0xaa) ? 1 : 0;
 			si[i] |= bit << j;
 		}
-		mdelay(10);
-		dprintk("%02X ", si[i]);
+		dprintk("(%02X) ", si[i]);
 	}
 	dprintk("\n");
 }
@@ -842,7 +844,7 @@ static void rwa010_soundblaster_reset(void)
 	outb(1, 0x38b);
 }
 
-__initfunc(static void rwa010_init(void))
+static void __init rwa010_init(void)
 {
 	rwa010_unlock();
 	rwa010_read_ident();
@@ -866,8 +868,63 @@ EXPORT_SYMBOL(cpld_modify);
 #define DEFAULT_LEDS	GPIO_GREEN_LED
 #endif
 
-__initfunc(void hw_init(void))
+/*
+ * CATS stuff
+ */
+#ifdef CONFIG_CATS
+
+#define CONFIG_PORT	0x370
+#define INDEX_PORT	(CONFIG_PORT)
+#define DATA_PORT	(CONFIG_PORT + 1)
+
+static void __init cats_hw_init(void)
 {
+	/* Set Aladdin to CONFIGURE mode */
+	outb(0x51, CONFIG_PORT);
+	outb(0x23, CONFIG_PORT);
+
+	/* Select logical device 3 */
+	outb(0x07, INDEX_PORT);
+	outb(0x03, DATA_PORT);
+
+	/* Set parallel port to DMA channel 3, ECP+EPP1.9, 
+	   enable EPP timeout */
+	outb(0x74, INDEX_PORT);
+	outb(0x03, DATA_PORT);
+	
+	outb(0xf0, INDEX_PORT);
+	outb(0x0f, DATA_PORT);
+
+	outb(0xf1, INDEX_PORT);
+	outb(0x07, DATA_PORT);
+
+	/* Select logical device 4 */
+	outb(0x07, INDEX_PORT);
+	outb(0x04, DATA_PORT);
+
+	/* UART1 high speed mode */
+	outb(0xf0, INDEX_PORT);
+	outb(0x02, DATA_PORT);
+
+	/* Select logical device 5 */
+	outb(0x07, INDEX_PORT);
+	outb(0x05, DATA_PORT);
+
+	/* UART2 high speed mode */
+	outb(0xf0, INDEX_PORT);
+	outb(0x02, DATA_PORT);
+
+	/* Set Aladdin to RUN mode */
+	outb(0xbb, CONFIG_PORT);
+}
+
+#endif
+
+void __init hw_init(void)
+{
+	extern void register_isa_ports(unsigned int, unsigned int, 
+				       unsigned int);
+	register_isa_ports(DC21285_PCI_MEM, DC21285_PCI_IO, 0);
 #ifdef CONFIG_ARCH_NETWINDER
 	/*
 	 * this ought to have a better home...
@@ -887,6 +944,10 @@ __initfunc(void hw_init(void))
 		gpio_modify_op(GPIO_RED_LED|GPIO_GREEN_LED, DEFAULT_LEDS);
 		spin_unlock_irqrestore(&gpio_lock, flags);
 	}
+#endif
+#ifdef CONFIG_CATS
+	if (machine_is_cats())
+		cats_hw_init();
 #endif
 
 	leds_event(led_start);

@@ -9,7 +9,6 @@
  * This file handles the architecture-dependent parts of process handling..
  */
 
-#define __KERNEL_SYSCALLS__
 #include <stdarg.h>
 
 #include <linux/errno.h>
@@ -54,16 +53,15 @@ void enable_hlt(void)
 /*
  * The idle loop on an ARM...
  */
-asmlinkage int sys_idle(void)
+void cpu_idle(void)
 {
-	if (current->pid != 0)
-		return -EPERM;
-
 	/* endless idle loop with no priority at all */
+	init_idle();
+	current->priority = 0;
+	current->counter = -100;
 	while (1) {
 		if (!current->need_resched && !hlt_counter)
 			proc_idle();
-		current->policy = SCHED_YIELD;
 		schedule();
 #ifndef CONFIG_NO_PGT_CACHE
 		check_pgt_cache();
@@ -73,7 +71,7 @@ asmlinkage int sys_idle(void)
 
 static char reboot_mode = 'h';
 
-__initfunc(void reboot_setup(char *str, int *ints))
+void __init reboot_setup(char *str, int *ints)
 {
 	reboot_mode = str[0];
 }
@@ -207,10 +205,7 @@ void exit_thread(void)
 
 void flush_thread(void)
 {
-	int i;
-
-	for (i = 0; i < NR_DEBUGS; i++)
-		current->tss.debug[i] = 0;
+	memset(&current->thread.debug, 0, sizeof(current->thread.debug));
 	current->used_math = 0;
 	current->flags &= ~PF_USEDFPU;
 }
@@ -232,7 +227,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 
 	save = ((struct context_save_struct *)(childregs)) - 1;
 	init_thread_css(save);
-	p->tss.save = save;
+	p->thread.save = save;
 
 	return 0;
 }
@@ -245,7 +240,7 @@ int dump_fpu (struct pt_regs *regs, struct user_fp *fp)
 	int fpvalid = 0;
 
 	if (current->used_math)
-		memcpy (fp, &current->tss.fpstate.soft, sizeof (fp));
+		memcpy (fp, &current->thread.fpstate.soft, sizeof (fp));
 
 	return fpvalid;
 }
@@ -255,8 +250,6 @@ int dump_fpu (struct pt_regs *regs, struct user_fp *fp)
  */
 void dump_thread(struct pt_regs * regs, struct user * dump)
 {
-	int i;
-
 	dump->magic = CMAGIC;
 	dump->start_code = current->mm->start_code;
 	dump->start_stack = regs->ARM_sp & ~(PAGE_SIZE - 1);
@@ -265,8 +258,11 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 	dump->u_dsize = (current->mm->brk - current->mm->start_data + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	dump->u_ssize = 0;
 
-	for (i = 0; i < NR_DEBUGS; i++)
-		dump->u_debugreg[i] = current->tss.debug[i];  
+	dump->u_debugreg[0] = current->thread.debug.bp[0].address;
+	dump->u_debugreg[1] = current->thread.debug.bp[1].address;
+	dump->u_debugreg[2] = current->thread.debug.bp[0].insn;
+	dump->u_debugreg[3] = current->thread.debug.bp[1].insn;
+	dump->u_debugreg[4] = current->thread.debug.nsaved;
 
 	if (dump->start_stack < 0x04000000)
 		dump->u_ssize = (0x04000000 - dump->start_stack) >> PAGE_SHIFT;
@@ -285,7 +281,6 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
  */
 pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
-	extern int sys_exit(int) __attribute__((noreturn));
 	pid_t __ret;
 
 	__asm__ __volatile__(

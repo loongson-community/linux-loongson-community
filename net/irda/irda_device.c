@@ -1,12 +1,12 @@
 /*********************************************************************
  *                
  * Filename:      irda_device.c
- * Version:       0.5
+ * Version:       0.6
  * Description:   Abstract device driver layer and helper functions
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Wed Sep  2 20:22:08 1998
- * Modified at:   Tue Jun  1 09:05:13 1999
+ * Modified at:   Tue Sep 28 08:40:31 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * Modified at:   Fri May 28  3:11 CST 1999
  * Modified by:   Horst von Brand <vonbrand@sleipnir.valparaiso.cl>
@@ -36,12 +36,12 @@
 #include <linux/tty.h>
 #include <linux/kmod.h>
 #include <linux/wireless.h>
+#include <linux/spinlock.h>
 
 #include <asm/ioctls.h>
 #include <asm/segment.h>
 #include <asm/uaccess.h>
 #include <asm/dma.h>
-#include <asm/spinlock.h>
 
 #include <net/pkt_sched.h>
 
@@ -64,19 +64,19 @@ static hashbin_t *dongles = NULL;
 /* Netdevice functions */
 static int irda_device_net_rebuild_header(struct sk_buff *skb);
 static int irda_device_net_hard_header(struct sk_buff *skb, 
-				       struct device *dev,
+				       struct net_device *dev,
 				       unsigned short type, void *daddr, 
 				       void *saddr, unsigned len);
-static int irda_device_net_set_config(struct device *dev, struct ifmap *map);
-static int irda_device_net_change_mtu(struct device *dev, int new_mtu);
-static int irda_device_net_ioctl(struct device *dev, struct ifreq *rq,int cmd);
+static int irda_device_net_set_config(struct net_device *dev, struct ifmap *map);
+static int irda_device_net_change_mtu(struct net_device *dev, int new_mtu);
+static int irda_device_net_ioctl(struct net_device *dev, struct ifreq *rq,int cmd);
 #ifdef CONFIG_PROC_FS
 int irda_device_proc_read( char *buf, char **start, off_t offset, int len, 
 			   int unused);
 
 #endif /* CONFIG_PROC_FS */
 
-__initfunc(int irda_device_init( void))
+int __init irda_device_init( void)
 {
 	/* Allocate master array */
 	irda_device = hashbin_new( HB_LOCAL);
@@ -123,10 +123,12 @@ __initfunc(int irda_device_init( void))
 #ifdef CONFIG_GIRBIL_DONGLE
 	girbil_init();
 #endif
-#ifdef CONFIG_GIRBIL_DONGLE
+#ifdef CONFIG_LITELINK_DONGLE
 	litelink_init();
 #endif
-
+#ifdef CONFIG_AIRPORT_DONGLE
+ 	airport_init();
+#endif
 	return 0;
 }
 
@@ -153,18 +155,20 @@ int irda_device_open(struct irda_device *self, char *name, void *priv)
 
 	/* Allocate memory if needed */
 	if (self->rx_buff.truesize > 0) {
-		self->rx_buff.head = ( __u8 *) kmalloc(self->rx_buff.truesize,
-						       self->rx_buff.flags);
+		self->rx_buff.head = (__u8 *) kmalloc(self->rx_buff.truesize,
+						      self->rx_buff.flags);
 		if (self->rx_buff.head == NULL)
 			return -ENOMEM;
 
 		memset(self->rx_buff.head, 0, self->rx_buff.truesize);
 	}
 	if (self->tx_buff.truesize > 0) {
-		self->tx_buff.head = ( __u8 *) kmalloc(self->tx_buff.truesize, 
-						       self->tx_buff.flags);
-		if (self->tx_buff.head == NULL)
+		self->tx_buff.head = (__u8 *) kmalloc(self->tx_buff.truesize, 
+						      self->tx_buff.flags);
+		if (self->tx_buff.head == NULL) {
+			kfree(self->rx_buff.head);
 			return -ENOMEM;
+		}
 
 		memset(self->tx_buff.head, 0, self->tx_buff.truesize);
 	}
@@ -187,14 +191,15 @@ int irda_device_open(struct irda_device *self, char *name, void *priv)
 	/* Initialize IrDA net device */
 	do {
 		sprintf(self->name, "%s%d", "irda", i++);
-	} while (dev_get(self->name) != NULL);
+	} while (dev_get(self->name));
 	
 	self->netdev.name = self->name;
 	self->netdev.priv = (void *) self;
 	self->netdev.next = NULL;
-
-	if ((result = register_netdev(&self->netdev)) != 0) {
-		DEBUG(0, __FUNCTION__ "(), register_netdev() failed!\n");
+	
+	result = register_netdev(&self->netdev);
+	if (result) {
+		ERROR(__FUNCTION__ "(), register_netdev() failed!\n");
 		return -1;
 	}
 	
@@ -209,21 +214,9 @@ int irda_device_open(struct irda_device *self, char *name, void *priv)
 	
 	hashbin_insert(irda_device, (QUEUE *) self, (int) self, NULL);
 	
-	/* Open network device */
-	dev_open(&self->netdev);
-
 	MESSAGE("IrDA: Registered device %s\n", self->name);
 
-	irda_device_set_media_busy(self, FALSE);
-
-	/* 
-	 * Open new IrLAP layer instance, now that everything should be
-	 * initialized properly 
-	 */
-	self->irlap = irlap_open(self);
-        
-	/* It's now safe to initilize the saddr */
-	memcpy(self->netdev.dev_addr, &self->irlap->saddr, 4);
+	irda_device_set_media_busy(&self->netdev, FALSE);
 
 	return 0;
 }
@@ -243,8 +236,6 @@ void __irda_device_close(struct irda_device *self)
 
 	/* We do this test to know if the device has been registered at all */
 	if (self->netdev.type == ARPHRD_IRDA) {
-		dev_close(&self->netdev);
-		
 		/* Remove netdevice */
 		unregister_netdev(&self->netdev);
 	}
@@ -278,11 +269,6 @@ void irda_device_close(struct irda_device *self)
 	if (self->dongle)
 		self->dongle->close(self);
 
-	/* Stop and remove instance of IrLAP */
-	if (self->irlap)
-		irlap_close(self->irlap);
-	self->irlap = NULL;
-
 	hashbin_remove(irda_device, (int) self, NULL);
 
 	__irda_device_close(self);
@@ -294,9 +280,13 @@ void irda_device_close(struct irda_device *self)
  *    Called when we have detected that another station is transmiting
  *    in contention mode.
  */
-void irda_device_set_media_busy(struct irda_device *self, int status) 
+void irda_device_set_media_busy(struct net_device *dev, int status) 
 {
+	struct irda_device *self;
+
 	DEBUG(4, __FUNCTION__ "(%s)\n", status ? "TRUE" : "FALSE");
+
+	self = dev->priv;
 
 	ASSERT(self != NULL, return;);
 	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return;);
@@ -345,13 +335,15 @@ static void __irda_device_change_speed(struct irda_device *self, int speed)
 
 		if (n++ > 10) {
 			WARNING(__FUNCTION__ "(), breaking loop!\n");
-			break;
+			return;
 		}
 	}
 	
+	/* Change speed of dongle */
 	if (self->dongle)
 		self->dongle->change_speed(self, speed);
 	
+	/* Change speed of IrDA port */
 	if (self->change_speed) {
 		self->change_speed(self, speed);
 		
@@ -367,7 +359,7 @@ static void __irda_device_change_speed(struct irda_device *self, int speed)
  *    Change the speed of the currently used irda_device
  *
  */
-inline void irda_device_change_speed(struct irda_device *self, int speed)
+void irda_device_change_speed(struct irda_device *self, int speed)
 {
 	ASSERT(self != NULL, return;);
 	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return;);
@@ -377,16 +369,24 @@ inline void irda_device_change_speed(struct irda_device *self, int speed)
 				speed);
 }
 
-inline int irda_device_is_media_busy( struct irda_device *self)
+int irda_device_is_media_busy(struct net_device *dev)
 {
+	struct irda_device *self;
+	
+	self = dev->priv;
+
 	ASSERT(self != NULL, return FALSE;);
 	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return FALSE;);
 	
 	return self->media_busy;
 }
 
-inline int irda_device_is_receiving( struct irda_device *self)
+int irda_device_is_receiving(struct net_device *dev)
 {
+	struct irda_device *self;
+	
+	self = dev->priv;
+	
 	ASSERT(self != NULL, return FALSE;);
 	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return FALSE;);
 
@@ -396,15 +396,21 @@ inline int irda_device_is_receiving( struct irda_device *self)
 		return FALSE;
 }
 
-inline struct qos_info *irda_device_get_qos(struct irda_device *self)
+struct qos_info *irda_device_get_qos(struct net_device *dev)
 {
+	struct irda_device *self;
+
+	ASSERT(dev != NULL, return NULL;);
+
+	self = dev->priv;
+
 	ASSERT(self != NULL, return NULL;);
 	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return NULL;);
 
 	return &self->qos;
 }
 
-static struct enet_statistics *irda_device_get_stats( struct device *dev)
+static struct enet_statistics *irda_device_get_stats(struct net_device *dev)
 {
 	struct irda_device *priv = (struct irda_device *) dev->priv;
 
@@ -417,7 +423,7 @@ static struct enet_statistics *irda_device_get_stats( struct device *dev)
  *    This function should be used by low level device drivers in a similar way
  *    as ether_setup() is used by normal network device drivers
  */
-int irda_device_setup(struct device *dev) 
+int irda_device_setup(struct net_device *dev) 
 {
 	struct irda_device *self;
 
@@ -452,6 +458,57 @@ int irda_device_setup(struct device *dev)
 	return 0;
 }
 
+int irda_device_net_open(struct net_device *dev)
+{
+	struct irda_device *self;
+
+	ASSERT(dev != NULL, return -1;);
+
+	self = dev->priv;
+
+	ASSERT(self != NULL, return 0;);
+	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return -1;);
+
+	/* Ready to play! */
+	dev->tbusy = 0;
+	dev->interrupt = 0;
+	dev->start = 1;
+
+	/* 
+	 * Open new IrLAP layer instance, now that everything should be
+	 * initialized properly 
+	 */
+	self->irlap = irlap_open(dev);
+        
+	/* It's now safe to initilize the saddr */
+	memcpy(self->netdev.dev_addr, &self->irlap->saddr, 4);
+
+	return 0;
+}
+
+int irda_device_net_close(struct net_device *dev)
+{
+	struct irda_device *self;
+
+	ASSERT(dev != NULL, return -1;);
+
+	self = dev->priv;
+
+	ASSERT(self != NULL, return 0;);
+	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return -1;);
+	
+	/* Stop device */
+	dev->tbusy = 1;
+	dev->start = 0;
+
+	/* Stop and remove instance of IrLAP */
+	if (self->irlap)
+		irlap_close(self->irlap);
+	self->irlap = NULL;
+
+	return 0;
+}
+
 /*
  * Function irda_device_net_rebuild_header (buff, dev, dst, skb)
  *
@@ -465,7 +522,8 @@ static int irda_device_net_rebuild_header( struct sk_buff *skb)
 	return 0;
 }
 
-static int irda_device_net_hard_header(struct sk_buff *skb, struct device *dev,
+static int irda_device_net_hard_header(struct sk_buff *skb, 
+				       struct net_device *dev,
 				       unsigned short type, void *daddr, 
 				       void *saddr, unsigned len)
 {
@@ -478,23 +536,22 @@ static int irda_device_net_hard_header(struct sk_buff *skb, struct device *dev,
 	return 0;
 }
 
-static int irda_device_net_set_config( struct device *dev, struct ifmap *map)
+static int irda_device_net_set_config(struct net_device *dev, 
+				      struct ifmap *map)
 {
 	DEBUG( 0, __FUNCTION__ "()\n");
 
 	return 0;
 }
 
-static int irda_device_net_change_mtu( struct device *dev, int new_mtu)
+static int irda_device_net_change_mtu(struct net_device *dev, int new_mtu)
 {
      DEBUG( 0, __FUNCTION__ "()\n");
      
      return 0;  
 }
 
-
-#define SIOCSDONGLE     SIOCDEVPRIVATE
-static int irda_device_net_ioctl(struct device *dev, /* ioctl device */
+static int irda_device_net_ioctl(struct net_device *dev, /* ioctl device */
 				 struct ifreq *rq,   /* Data passed */
 				 int	cmd)	     /* Ioctl number */
 {
@@ -505,16 +562,14 @@ static int irda_device_net_ioctl(struct device *dev, /* ioctl device */
 #endif
 	struct irda_device *self;
 
-	DEBUG(4, __FUNCTION__ "()\n");
-
 	ASSERT(dev != NULL, return -1;);
 
-	self = (struct irda_device *) dev->priv;
+	self = dev->priv;
 
 	ASSERT(self != NULL, return -1;);
 	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return -1;);
 
-	DEBUG(0, "%s: ->irda_device_net_ioctl(cmd=0x%X)\n", dev->name, cmd);
+	DEBUG(0, __FUNCTION__ "(), %s, (cmd=0x%X)\n", dev->name, cmd);
 	
 	/* Disable interrupts & save flags */
 	save_flags(flags);
@@ -604,9 +659,15 @@ static int irda_device_net_ioctl(struct device *dev, /* ioctl device */
 #endif 
 		break;
 #endif
+	case SIOCSBANDWIDTH: /* Set bandwidth */
+		irda_device_change_speed(self, rq->ifr_bandwidth);
+		break;
 	case SIOCSDONGLE: /* Set dongle */
 		/* Initialize dongle */
 		irda_device_init_dongle(self, (int) rq->ifr_data);
+		break;
+	case SIOCSMEDIABUSY: /* Set media busy */
+		irda_device_set_media_busy(&self->netdev, TRUE);
 		break;
 	default:
 		ret = -EOPNOTSUPP;
@@ -618,7 +679,7 @@ static int irda_device_net_ioctl(struct device *dev, /* ioctl device */
 }
 
 /*
- * Function irda_device_transmit_finished (void)
+ * Function irda_device_txqueue_empty (irda_device)
  *
  *    Check if there is still some frames in the transmit queue for this
  *    device. Maybe we should use: q->q.qlen == 0.
@@ -671,6 +732,10 @@ void irda_device_init_dongle(struct irda_device *self, int type)
 	case LITELINK_DONGLE:
 		MESSAGE("IrDA: Initializing Litelink dongle!\n");
 		request_module("litelink");
+		break;
+	case AIRPORT_DONGLE:
+		MESSAGE("IrDA: Initializing Airport dongle!\n");
+		request_module("airport");
 		break;
 	default:
 		ERROR("Unknown dongle type!\n");
@@ -749,6 +814,31 @@ void irda_device_unregister_dongle(struct dongle *dongle)
 		return;
 	}
 	kfree(node);
+}
+
+/*
+ * Function irda_device_set_raw_mode (self, status)
+ *
+ *    
+ *
+ */
+int irda_device_set_raw_mode(struct irda_device* self, int status)
+{	
+	DEBUG(2, __FUNCTION__ "()\n");
+
+	ASSERT(self != NULL, return -1;);
+	ASSERT(self->magic == IRDA_DEVICE_MAGIC, return -1;);
+	
+	if (self->set_raw_mode == NULL) {
+		ERROR(__FUNCTION__ "(), set_raw_mode not impl. by "
+		      "device driver\n");
+		return -1;
+	}
+	
+	self->raw_mode = status;
+	self->set_raw_mode(self, status);
+	
+	return 0;
 }
 
 /*

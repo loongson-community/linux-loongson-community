@@ -205,7 +205,7 @@ static int fm2fb_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Interface to the low level console driver
      */
 
-void fm2fb_init(void);
+int fm2fb_init(void);
 static int fm2fbcon_switch(int con, struct fb_info *info);
 static int fm2fbcon_updatevar(int con, struct fb_info *info);
 static void fm2fbcon_blank(int blank, struct fb_info *info);
@@ -374,7 +374,7 @@ static int fm2fb_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Initialisation
      */
 
-__initfunc(void fm2fb_init(void))
+int __init fm2fb_init(void)
 {
     int key, is_fm;
     const struct ConfigDev *cd  = NULL;
@@ -383,10 +383,10 @@ __initfunc(void fm2fb_init(void))
 
     if (!(key = is_fm = zorro_find(ZORRO_PROD_BSC_FRAMEMASTER_II, 0, 0)) &&
 	!(key = zorro_find(ZORRO_PROD_HELFRICH_RAINBOW_II, 0, 0)))
-	return;
+	return -ENXIO;
     cd = zorro_get_board(key);
     if (!(board = (u_long)cd->cd_BoardAddr))
-	return;
+	return -ENXIO;
     zorro_config_board(key, 0);
 
     /* assigning memory to kernel space */
@@ -415,13 +415,13 @@ __initfunc(void fm2fb_init(void))
     fb_var = fb_var_modes[fm2fb_mode];
 
     strcpy(fb_fix.id, is_fm ? "FrameMaster II" : "Rainbow II");
-    fb_fix.smem_start = (char *)fm2fb_mem_phys;
+    fb_fix.smem_start = fm2fb_mem_phys;
     fb_fix.smem_len = FRAMEMASTER_REG;
     fb_fix.type = FB_TYPE_PACKED_PIXELS;
     fb_fix.type_aux = 0;
     fb_fix.visual = FB_VISUAL_TRUECOLOR;
     fb_fix.line_length = 768<<2;
-    fb_fix.mmio_start = (char *)fm2fb_reg_phys;
+    fb_fix.mmio_start = fm2fb_reg_phys;
     fb_fix.mmio_len = 8;
     fb_fix.accel = FB_ACCEL_NONE;
 
@@ -460,18 +460,19 @@ __initfunc(void fm2fb_init(void))
     fm2fb_set_var(&fb_var, -1, &fb_info);
 
     if (register_framebuffer(&fb_info) < 0)
-	return;
+	return -EINVAL;
 
     printk("fb%d: %s frame buffer device\n", GET_FB_IDX(fb_info.node),
 	   fb_fix.id);
+    return 0;
 }
 
-__initfunc(void fm2fb_setup(char *options, int *ints))
+int __init fm2fb_setup(char *options)
 {
     char *this_opt;
 
     if (!options || !*options)
-	return;
+	return 0;
 
     for (this_opt = strtok(options, ","); this_opt;
 	 this_opt = strtok(NULL, ",")) {
@@ -480,6 +481,7 @@ __initfunc(void fm2fb_setup(char *options, int *ints))
 	else if (!strncmp(this_opt, "ntsc", 4))
 	    fm2fb_mode = FM2FB_MODE_NTSC;
     }
+    return 0;
 }
 
 

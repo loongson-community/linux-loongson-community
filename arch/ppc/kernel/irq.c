@@ -1,5 +1,5 @@
 /*
- * $Id: irq.c,v 1.106 1999/05/25 21:16:04 cort Exp $
+ * $Id: irq.c,v 1.109 1999/09/05 11:56:31 paulus Exp $
  *
  *  arch/ppc/kernel/irq.c
  *
@@ -31,6 +31,7 @@
 
 #include <linux/ptrace.h>
 #include <linux/errno.h>
+#include <linux/threads.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>

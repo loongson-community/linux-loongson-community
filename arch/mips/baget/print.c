@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: print.c,v 1.1 1999/01/17 03:49:38 ralf Exp $
  *
  * print.c: Simple print fascility
  *
@@ -76,7 +76,7 @@ static __inline__ void puthex( int a )
         outs( s );
 }
 
-__initfunc(void balo_printf( char *f, ... )) 
+void __init balo_printf( char *f, ... )
 {
         int *arg = (int*)&f + 1;
         char c; 
@@ -111,7 +111,7 @@ __initfunc(void balo_printf( char *f, ... ))
         }
 }
 
-__initfunc(void balo_hungup(void))
+void __init balo_hungup(void)
 { 
         outs("Hunging up.\n");
         while(1); 

@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.44 1999/05/28 02:17:29 davem Exp $
+/*  $Id: setup.c,v 1.47 1999/08/31 06:54:55 davem Exp $
  *  linux/arch/sparc64/kernel/setup.c
  *
  *  Copyright (C) 1995,1996  David S. Miller (davem@caip.rutgers.edu)
@@ -135,17 +135,21 @@ int prom_callback(long *args)
 			 * Find process owning ctx, lookup mapping.
 			 */
 			struct task_struct *p;
+			struct mm_struct *mm = NULL;
 			pgd_t *pgdp;
 			pmd_t *pmdp;
 			pte_t *ptep;
 
-			for_each_task(p)
-				if (p->tss.ctx == ctx)
+			for_each_task(p) {
+				mm = p->mm;
+				if (CTX_HWBITS(mm->context) == ctx)
 					break;
-			if (p->tss.ctx != ctx)
+			}
+			if (!mm ||
+			    CTX_HWBITS(mm->context) != ctx)
 				goto done;
 
-			pgdp = pgd_offset(p->mm, va);
+			pgdp = pgd_offset(mm, va);
 			if (pgd_none(*pgdp))
 				goto done;
 			pmdp = pmd_offset(pgdp, va);
@@ -312,7 +316,7 @@ int obp_system_intr(void)
  * Process kernel command line switches that are specific to the
  * SPARC or that require special low-level processing.
  */
-__initfunc(static void process_switch(char c))
+static void __init process_switch(char c)
 {
 	switch (c) {
 	case 'd':
@@ -331,7 +335,7 @@ __initfunc(static void process_switch(char c))
 	}
 }
 
-__initfunc(static void boot_flags_init(char *commands))
+static void __init boot_flags_init(char *commands)
 {
 	while (*commands) {
 		/* Move to the start of the next "argument". */
@@ -434,8 +438,8 @@ static struct pt_regs fake_swapper_regs = { { 0, }, 0, 0, 0, 0 };
 
 extern struct consw sun_serial_con;
 
-__initfunc(void setup_arch(char **cmdline_p,
-	unsigned long * memory_start_p, unsigned long * memory_end_p))
+void __init setup_arch(char **cmdline_p,
+	unsigned long * memory_start_p, unsigned long * memory_end_p)
 {
 	extern int serial_console;  /* in console.c, of course */
 	unsigned long lowest_paddr, end_of_phys_memory = 0;
@@ -531,11 +535,10 @@ __initfunc(void setup_arch(char **cmdline_p,
 #endif	
 
 	/* Due to stack alignment restrictions and assumptions... */
-	init_task.mm->mmap->vm_page_prot = PAGE_SHARED;
-	init_task.mm->mmap->vm_start = PAGE_OFFSET;
-	init_task.mm->mmap->vm_end = *memory_end_p;
-	init_task.mm->context = (unsigned long) NO_CONTEXT;
-	init_task.tss.kregs = &fake_swapper_regs;
+	init_mm.mmap->vm_page_prot = PAGE_SHARED;
+	init_mm.mmap->vm_start = PAGE_OFFSET;
+	init_mm.mmap->vm_end = *memory_end_p;
+	init_task.thread.kregs = &fake_swapper_regs;
 
 #ifdef CONFIG_IP_PNP
 	if (!ic_set_manually) {

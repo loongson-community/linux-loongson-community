@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1998 Harald Koerfgen and Paul M. Antoine
  *
- * $Id: $
+ * $Id: identify.c,v 1.1 1999/01/17 03:49:44 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/config.h>
@@ -22,7 +22,7 @@ extern int (*rex_getsysid)(void);
 extern unsigned long mips_machgroup;
 extern unsigned long mips_machtype;
 
-__initfunc(void prom_identify_arch (unsigned int magic))
+void __init prom_identify_arch (unsigned int magic)
 {
 	unsigned char dec_cpunum, dec_firmrev, dec_etc;
 	int dec_systype;

@@ -1,8 +1,18 @@
 #ifndef _ASM_ALPHA_PARAM_H
 #define _ASM_ALPHA_PARAM_H
 
+/* ??? Gross.  I don't want to parameterize this, and supposedly the
+   hardware ignores reprogramming.  We also need userland buy-in to the 
+   change in HZ, since this is visible in the wait4 resources etc.  */
+
+#include <linux/config.h>
+
 #ifndef HZ
-# define HZ	1024
+# ifndef CONFIG_ALPHA_RAWHIDE
+#  define HZ	1024
+# else
+#  define HZ	1200
+# endif
 # define HZ_TO_STD(a) (a)
 #endif
 

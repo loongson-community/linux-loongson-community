@@ -5,7 +5,7 @@
  *      Code (mostly sleleton and comments) derived from DECstation IRQ
  *      handling.
  *
- * $Id: irq.c,v 1.2 1999/04/11 17:03:38 harald Exp $
+ * $Id: irq.c,v 1.3 1999/08/17 22:18:37 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -391,7 +391,7 @@ static void write_err_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 static struct irqaction irq0  = 
 { write_err_interrupt, SA_INTERRUPT, 0, "bus write error", NULL, NULL};
 
-__initfunc(void init_IRQ(void))
+void __init init_IRQ(void)
 {
 	irq_setup();
 

@@ -1,4 +1,4 @@
-/* $Id: tcxfb.c,v 1.7 1999/01/26 10:55:03 jj Exp $
+/* $Id: tcxfb.c,v 1.8 1999/08/10 15:56:26 davem Exp $
  * tcxfb.c: TCX 24/8bit frame buffer driver
  *
  * Copyright (C) 1996,1998 Jakub Jelinek (jj@ultra.linux.cz)
@@ -206,7 +206,7 @@ static void tcx_margins (struct fb_info_sbusfb *fb, struct display *p, int x_mar
 
 static char idstring[60] __initdata = { 0 };
 
-__initfunc(char *tcxfb_init(struct fb_info_sbusfb *fb))
+char __init *tcxfb_init(struct fb_info_sbusfb *fb)
 {
 	struct fb_fix_screeninfo *fix = &fb->fix;
 	struct display *disp = &fb->disp;

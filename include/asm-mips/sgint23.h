@@ -1,11 +1,12 @@
-/* $Id: sgint23.h,v 1.3 1999/05/07 22:35:37 ulfc Exp $
+/* $Id: sgint23.h,v 1.4 1999/08/11 20:26:49 andrewb Exp $
+ *
  * sgint23.h: Defines for the SGI INT2 and INT3 chipsets.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - INT2 corrections
  */
-#ifndef _MIPS_SGINT23_H
-#define _MIPS_SGINT23_H
+#ifndef _ASM_SGINT23_H
+#define _ASM_SGINT23_H
 
 /* These are the virtual IRQ numbers, we divide all IRQ's into
  * 'spaces', the 'space' determines where and how to enable/disable
@@ -19,6 +20,19 @@
 #define SGINT_GIO      32  /* INDY has 9 GIO irq levels */
 #define SGINT_HPCDMA   41  /* INDY has 11 HPCDMA irq _sources_ */
 #define SGINT_END      52  /* End of 'spaces' */
+
+/* Individual interrupt definitions for the INDY and Indigo2
+ */
+
+#define SGI_WD93_0_IRQ	SGINT_LOCAL0 + 1	/* 1st onboard WD93 */
+#define SGI_WD93_1_IRQ	SGINT_LOCAL0 + 2	/* 2nd onboard WD93 */
+#define SGI_ENET_IRQ	SGINT_LOCAL0 + 3	/* onboard ethernet */
+
+#define SGI_PANEL_IRQ	SGINT_LOCAL1 + 1	/* front panel */
+
+#define SGI_EISA_IRQ	SGINT_LOCAL2 + 3	/* EISA interrupts */
+#define SGI_KEYBOARD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
+#define SGI_SERIAL_IRQ	SGINT_LOCAL2 + 5	/* onboard serial */
 
 /* Individual interrupt definitions for the INDY and Indigo2
  */
@@ -197,4 +211,4 @@ extern volatile unsigned char *ioc_tclear;
 extern void sgint_init(void);
 extern void indy_timer_init(void);
 
-#endif /* !(_MIPS_SGINT23_H) */
+#endif /* !(_ASM_SGINT23_H) */

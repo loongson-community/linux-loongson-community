@@ -28,6 +28,7 @@
 #	endif
 #endif
 
+
 int usb_init(void)
 {
 #ifndef CONFIG_USB_MODULE
@@ -43,6 +44,9 @@ int usb_init(void)
 #	ifdef CONFIG_USB_MOUSE
 		usb_mouse_init();
 #	endif
+#       ifdef CONFIG_USB_HP_SCANNER
+                usb_hp_scanner_init();
+#       endif
 #	ifdef CONFIG_USB_KBD
 		usb_kbd_init();
 #	endif
@@ -65,6 +69,9 @@ int usb_init(void)
 		usb_scsi_init();
 #	endif
 #endif
+#ifdef CONFIG_USB_PROC
+	proc_usb_init ();
+#endif
 	return 0;
 }
 /*
@@ -72,6 +79,9 @@ int usb_init(void)
  */
 void cleanup_drivers(void)
 {
+#ifdef CONFIG_USB_PROC
+	proc_usb_cleanup ();
+#endif
 #ifndef MODULE
 #	ifdef CONFIG_USB_HUB
 		usb_hub_cleanup();
@@ -79,6 +89,9 @@ void cleanup_drivers(void)
 #	ifdef CONFIG_USB_MOUSE
         	usb_mouse_cleanup();
 #	endif
+#       ifdef CONFIG_USB_HP_SCANNER
+                usb_hp_scanner_cleanup();
+#       endif
 #endif
 }
 

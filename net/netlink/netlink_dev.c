@@ -106,7 +106,7 @@ static int netlink_open(struct inode * inode, struct file * file)
 	struct socket *sock;
 	struct sockaddr_nl nladdr;
 	int err;
-	
+
 	if (minor>=MAX_LINKS)
 		return -ENODEV;
 	if (open_map&(1<<minor))
@@ -114,22 +114,10 @@ static int netlink_open(struct inode * inode, struct file * file)
 
 	open_map |= (1<<minor);
 	MOD_INC_USE_COUNT;
-	
-	err = -EINVAL;
-	if (net_families[PF_NETLINK]==NULL)
-  		goto out;
 
-	err = -ENFILE;
-	if (!(sock = sock_alloc())) 
+	err = sock_create(PF_NETLINK, SOCK_RAW, minor, &sock);
+	if (err < 0)
 		goto out;
-
-	sock->type = SOCK_RAW;
-
-	if ((err = net_families[PF_NETLINK]->create(sock, minor)) < 0) 
-	{
-		sock_release(sock);
-		goto out;
-	}
 
 	memset(&nladdr, 0, sizeof(nladdr));
 	nladdr.nl_family = AF_NETLINK;
@@ -190,7 +178,7 @@ static struct file_operations netlink_fops = {
 	netlink_release
 };
 
-__initfunc(int init_netlink(void))
+int __init init_netlink(void)
 {
 	if (register_chrdev(NETLINK_MAJOR,"netlink", &netlink_fops)) {
 		printk(KERN_ERR "netlink: unable to get major %d\n", NETLINK_MAJOR);

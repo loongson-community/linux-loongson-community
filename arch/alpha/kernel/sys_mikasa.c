@@ -3,7 +3,7 @@
  *
  *	Copyright (C) 1995 David A Rusling
  *	Copyright (C) 1996 Jay A Estabrook
- *	Copyright (C) 1998 Richard Henderson
+ *	Copyright (C) 1998, 1999 Richard Henderson
  *
  * Code supporting the MIKASA (AlphaServer 1000).
  */
@@ -28,9 +28,9 @@
 #include <asm/core_cia.h>
 
 #include "proto.h"
-#include "irq.h"
-#include "bios32.h"
-#include "machvec.h"
+#include "irq_impl.h"
+#include "pci_impl.h"
+#include "machvec_impl.h"
 
 static void
 mikasa_update_irq_hw(unsigned long irq, unsigned long mask, int unmask_p)
@@ -120,7 +120,7 @@ mikasa_init_irq(void)
  */
 
 static int __init
-mikasa_map_irq(struct pci_dev *dev, int slot, int pin)
+mikasa_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	static char irq_tab[8][5] __initlocaldata = {
 		/*INT    INTA   INTB   INTC   INTD */
@@ -137,105 +137,35 @@ mikasa_map_irq(struct pci_dev *dev, int slot, int pin)
 	return COMMON_TABLE_LOOKUP;
 }
 
-static void __init
-mikasa_pci_fixup(void)
-{
-	layout_all_busses(EISA_DEFAULT_IO_BASE,APECS_AND_LCA_DEFAULT_MEM_BASE);
-	common_pci_fixup(mikasa_map_irq, common_swizzle);
-}
 
-static void __init
-mikasa_primo_pci_fixup(void)
-{
-	layout_all_busses(EISA_DEFAULT_IO_BASE, DEFAULT_MEM_BASE);
-	common_pci_fixup(mikasa_map_irq, common_swizzle);
-}
-
+#if defined(CONFIG_ALPHA_GENERIC) || !defined(CONFIG_ALPHA_PRIMO)
 static void
-mikasa_machine_check(unsigned long vector, unsigned long la_ptr,
-		     struct pt_regs * regs)
+mikasa_apecs_machine_check(unsigned long vector, unsigned long la_ptr,
+		           struct pt_regs * regs)
 {
 #define MCHK_NO_DEVSEL 0x205L
 #define MCHK_NO_TABT 0x204L
 
 	struct el_common *mchk_header;
-	struct el_apecs_procdata *mchk_procdata;
-	struct el_apecs_mikasa_sysdata_mcheck *mchk_sysdata;
-	unsigned long *ptr;
-	int i;
+	unsigned int code;
 
 	mchk_header = (struct el_common *)la_ptr;
 
-	mchk_procdata = (struct el_apecs_procdata *)
-		(la_ptr + mchk_header->proc_offset
-		 - sizeof(mchk_procdata->paltemp));
+	/* Clear the error before any reporting.  */
+	mb();
+	mb(); /* magic */
+	draina();
+	apecs_pci_clr_err();
+	wrmces(0x7);
+	mb();
 
-	mchk_sysdata = (struct el_apecs_mikasa_sysdata_mcheck *)
-		(la_ptr + mchk_header->sys_offset);
-
-#ifdef DEBUG
-	printk("mikasa_machine_check: vector=0x%lx la_ptr=0x%lx\n",
-	       vector, la_ptr);
-	printk("        pc=0x%lx size=0x%x procoffset=0x%x sysoffset 0x%x\n",
-	       regs->pc, mchk_header->size, mchk_header->proc_offset,
-	       mchk_header->sys_offset);
-	printk("mikasa_machine_check: expected %d DCSR 0x%lx PEAR 0x%lx\n",
-	       apecs_mcheck_expected, mchk_sysdata->epic_dcsr,
-	       mchk_sysdata->epic_pear);
-	ptr = (unsigned long *)la_ptr;
-	for (i = 0; i < mchk_header->size / sizeof(long); i += 2) {
-		printk(" +%lx %lx %lx\n", i*sizeof(long), ptr[i], ptr[i+1]);
-	}
-#endif
-
-	/*
-	 * Check if machine check is due to a badaddr() and if so,
-	 * ignore the machine check.
-	 */
-
-	if (apecs_mcheck_expected
-	    && ((unsigned int)mchk_header->code == MCHK_NO_DEVSEL
-		|| (unsigned int)mchk_header->code == MCHK_NO_TABT)) {
-		apecs_mcheck_expected = 0;
-		apecs_mcheck_taken = 1;
-		mb();
-		mb(); /* magic */
-		apecs_pci_clr_err();
-		wrmces(0x7);
-		mb();
-		draina();
-	}
-	else if (vector == 0x620 || vector == 0x630) {
-		/* Disable correctable from now on.  */
-		wrmces(0x1f);
-		mb();
-		draina();
-		printk("mikasa_machine_check: HW correctable (0x%lx)\n",
-		       vector);
-	}
-	else {
-		printk(KERN_CRIT "APECS machine check:\n");
-		printk(KERN_CRIT "  vector=0x%lx la_ptr=0x%lx\n",
-		       vector, la_ptr);
-		printk(KERN_CRIT
-		       "  pc=0x%lx size=0x%x procoffset=0x%x sysoffset 0x%x\n",
-		       regs->pc, mchk_header->size, mchk_header->proc_offset,
-		       mchk_header->sys_offset);
-		printk(KERN_CRIT "  expected %d DCSR 0x%lx PEAR 0x%lx\n",
-		       apecs_mcheck_expected, mchk_sysdata->epic_dcsr,
-		       mchk_sysdata->epic_pear);
-
-		ptr = (unsigned long *)la_ptr;
-		for (i = 0; i < mchk_header->size / sizeof(long); i += 2) {
-			printk(KERN_CRIT " +%lx %lx %lx\n",
-			       i*sizeof(long), ptr[i], ptr[i+1]);
-		}
-#if 0
-		/* doesn't work with MILO */
-		show_regs(regs);
-#endif
-	}
+	code = mchk_header->code;
+	process_mcheck_info(vector, la_ptr, regs, "MIKASA APECS",
+			    (mcheck_expected(0)
+			     && (code == MCHK_NO_DEVSEL
+			         || code == MCHK_NO_TABT)));
 }
+#endif
 
 
 /*
@@ -249,20 +179,24 @@ struct alpha_machine_vector mikasa_mv __initmv = {
 	DO_DEFAULT_RTC,
 	DO_APECS_IO,
 	DO_APECS_BUS,
-	machine_check:		mikasa_machine_check,
+	machine_check:		mikasa_apecs_machine_check,
 	max_dma_address:	ALPHA_MAX_DMA_ADDRESS,
+	min_io_address:		DEFAULT_IO_BASE,
+	min_mem_address:	APECS_AND_LCA_DEFAULT_MEM_BASE,
 
 	nr_irqs:		32,
 	irq_probe_mask:		_PROBE_MASK(32),
 	update_irq_hw:		mikasa_update_irq_hw,
-	ack_irq:		generic_ack_irq,
+	ack_irq:		common_ack_irq,
 	device_interrupt:	mikasa_device_interrupt,
 
 	init_arch:		apecs_init_arch,
 	init_irq:		mikasa_init_irq,
-	init_pit:		generic_init_pit,
-	pci_fixup:		mikasa_pci_fixup,
-	kill_arch:		generic_kill_arch,
+	init_pit:		common_init_pit,
+	init_pci:		common_init_pci,
+	kill_arch:		common_kill_arch,
+	pci_map_irq:		mikasa_map_irq,
+	pci_swizzle:		common_swizzle,
 };
 ALIAS_MV(mikasa)
 #endif
@@ -274,20 +208,24 @@ struct alpha_machine_vector mikasa_primo_mv __initmv = {
 	DO_DEFAULT_RTC,
 	DO_CIA_IO,
 	DO_CIA_BUS,
-	machine_check:		mikasa_machine_check,
+	machine_check:		cia_machine_check,
 	max_dma_address:	ALPHA_MAX_DMA_ADDRESS,
+	min_io_address:		DEFAULT_IO_BASE,
+	min_mem_address:	CIA_DEFAULT_MEM_BASE,
 
 	nr_irqs:		32,
 	irq_probe_mask:		_PROBE_MASK(32),
 	update_irq_hw:		mikasa_update_irq_hw,
-	ack_irq:		generic_ack_irq,
+	ack_irq:		common_ack_irq,
 	device_interrupt:	mikasa_device_interrupt,
 
 	init_arch:		cia_init_arch,
 	init_irq:		mikasa_init_irq,
-	init_pit:		generic_init_pit,
-	pci_fixup:		mikasa_primo_pci_fixup,
-	kill_arch:		generic_kill_arch,
+	init_pit:		common_init_pit,
+	init_pci:		common_init_pci,
+	kill_arch:		common_kill_arch,
+	pci_map_irq:		mikasa_map_irq,
+	pci_swizzle:		common_swizzle,
 };
 ALIAS_MV(mikasa_primo)
 #endif

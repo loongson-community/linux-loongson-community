@@ -33,7 +33,7 @@ struct cpu_fp_info linux_sparc_fpu[] = {
   { 0x22, 0x10, 0, "UltraSparc II integrated FPU"},
   { 0x17, 0x11, 0, "UltraSparc II integrated FPU"},
   { 0x17, 0x12, 0, "UltraSparc IIi integrated FPU"},
-  { 0x17, 0x13, 0, "UltraSparc III integrated FPU"},
+  { 0x17, 0x14, 0, "UltraSparc III integrated FPU"},
 };
 
 #define NSPARCFPU  (sizeof(linux_sparc_fpu)/sizeof(struct cpu_fp_info))
@@ -43,7 +43,7 @@ struct cpu_iu_info linux_sparc_chips[] = {
   { 0x22, 0x10, "TI UltraSparc II  (BlackBird)"},
   { 0x17, 0x11, "TI UltraSparc II  (BlackBird)"},
   { 0x17, 0x12, "TI UltraSparc IIi"},
-  { 0x17, 0x13, "TI UltraSparc III (Cheetah)"},  /* A guess... */
+  { 0x17, 0x14, "TI UltraSparc III (Cheetah)"},  /* A guess... */
 };
 
 #define NSPARCCHIPS  (sizeof(linux_sparc_chips)/sizeof(struct cpu_iu_info))
@@ -58,7 +58,7 @@ char *sparc_fpu_type[64] = { "fpu-oops", };
 
 unsigned int fsr_storage;
 
-__initfunc(void cpu_probe(void))
+void __init cpu_probe(void)
 {
 	int manuf, impl;
 	unsigned i, cpuid;

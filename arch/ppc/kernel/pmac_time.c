@@ -15,6 +15,8 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/init.h>
+
+#include <asm/init.h>
 #include <asm/adb.h>
 #include <asm/cuda.h>
 #include <asm/pmu.h>
@@ -91,7 +93,7 @@ int pmac_set_rtc_time(unsigned long nowtime)
  * Calibrate the decrementer register using VIA timer 1.
  * This is used both on powermacs and CHRP machines.
  */
-__initfunc(int via_calibrate_decr(void))
+int __init via_calibrate_decr(void)
 {
 	struct device_node *vias;
 	volatile unsigned char *via;
@@ -168,7 +170,7 @@ static struct notifier_block time_sleep_notifier = {
  * This was taken from the pmac time_init() when merging the prep/pmac
  * time functions.
  */
-__initfunc(void pmac_calibrate_decr(void))
+void __init pmac_calibrate_decr(void)
 {
 	struct device_node *cpu;
 	int freq, *fp, divisor;

@@ -19,27 +19,26 @@
  * Cache flushing...
  */
 #define flush_cache_all()						\
-	processor.u.armv3v4._flush_cache_all()
+	cpu_flush_cache_all()
 
 #define flush_cache_mm(_mm)						\
 	do {								\
 		if ((_mm) == current->mm)				\
-			processor.u.armv3v4._flush_cache_all();		\
+			cpu_flush_cache_all();				\
 	} while (0)
 
 #define flush_cache_range(_mm,_start,_end)				\
 	do {								\
 		if ((_mm) == current->mm)				\
-			processor.u.armv3v4._flush_cache_area		\
-				((_start), (_end), 1);			\
+			cpu_flush_cache_area((_start), (_end), 1);	\
 	} while (0)
 
 #define flush_cache_page(_vma,_vmaddr)					\
 	do {								\
 		if ((_vma)->vm_mm == current->mm)			\
-			processor.u.armv3v4._flush_cache_area		\
-				((_vmaddr), (_vmaddr) + PAGE_SIZE,	\
-				 ((_vma)->vm_flags & VM_EXEC) ? 1 : 0);	\
+			cpu_flush_cache_area((_vmaddr),			\
+				(_vmaddr) + PAGE_SIZE,			\
+				((_vma)->vm_flags & VM_EXEC) ? 1 : 0);	\
 	} while (0)
 
 #define clean_cache_range(_start,_end)					\
@@ -47,18 +46,18 @@
 		unsigned long _s, _sz;					\
 		_s = (unsigned long)_start;				\
 		_sz = (unsigned long)_end - _s;				\
-		processor.u.armv3v4._clean_cache_area(_s, _sz);		\
+		cpu_clean_cache_area(_s, _sz);				\
 	} while (0)
 
 #define clean_cache_area(_start,_size)					\
 	do {								\
 		unsigned long _s;					\
 		_s = (unsigned long)_start;				\
-		processor.u.armv3v4._clean_cache_area(_s, _size);	\
+		cpu_clean_cache_area(_s, _size);			\
 	} while (0)
 
 #define flush_icache_range(_start,_end)					\
-	processor.u.armv3v4._flush_icache_area((_start), (_end) - (_start))
+	cpu_flush_icache_area((_start), (_end) - (_start))
 
 /*
  * We don't have a MEMC chip...
@@ -73,7 +72,7 @@
  * in the cache for this page.  Is it necessary to invalidate the I-cache?
  */
 #define flush_page_to_ram(_page)					\
-	processor.u.armv3v4._flush_ram_page ((_page) & PAGE_MASK);
+	cpu_flush_ram_page((_page) & PAGE_MASK);
 
 /*
  * TLB flushing:
@@ -92,26 +91,24 @@
 #define flush_tlb() flush_tlb_all()
 
 #define flush_tlb_all()								\
-	processor.u.armv3v4._flush_tlb_all()
+	cpu_flush_tlb_all()
 
 #define flush_tlb_mm(_mm)							\
 	do {									\
 		if ((_mm) == current->mm)					\
-			processor.u.armv3v4._flush_tlb_all();			\
+			cpu_flush_tlb_all();					\
 	} while (0)
 
 #define flush_tlb_range(_mm,_start,_end)					\
 	do {									\
 		if ((_mm) == current->mm)					\
-			processor.u.armv3v4._flush_tlb_area			\
-				((_start), (_end), 1);				\
+			cpu_flush_tlb_area((_start), (_end), 1);		\
 	} while (0)
 
 #define flush_tlb_page(_vma,_vmaddr)						\
 	do {									\
 		if ((_vma)->vm_mm == current->mm)				\
-			processor.u.armv3v4._flush_tlb_area			\
-				((_vmaddr), (_vmaddr) + PAGE_SIZE,		\
+			cpu_flush_tlb_area((_vmaddr), (_vmaddr) + PAGE_SIZE,	\
 				 ((_vma)->vm_flags & VM_EXEC) ? 1 : 0);		\
 	} while (0)
 
@@ -220,25 +217,6 @@ do {								\
 } while (0)
 
 
-/*
- * The "pgd_xxx()" functions here are trivial for a folded two-level
- * setup: the pgd is never bad, and a pmd always exists (as it's folded
- * into the pgd entry)
- */
-#define pgd_none(pgd)		(0)
-#define pgd_bad(pgd)		(0)
-#define pgd_present(pgd)	(1)
-#define pgd_clear(pgdp)
-
-/* to find an entry in a kernel page-table-directory */
-#define pgd_offset_k(address) pgd_offset(&init_mm, address)
-
-/* to find an entry in a page-table-directory */
-extern __inline__ pgd_t * pgd_offset(struct mm_struct * mm, unsigned long address)
-{
-	return mm->pgd + (address >> PGDIR_SHIFT);
-}
-
 extern unsigned long get_page_2k(int priority);
 extern void free_page_2k(unsigned long page);
 
@@ -262,55 +240,6 @@ extern struct pgtable_cache_struct {
 #else
 #error Pgtable caches have to be per-CPU, so that no locking is needed.
 #endif
-
-extern pgd_t *get_pgd_slow(void);
-
-extern __inline__ pgd_t *get_pgd_fast(void)
-{
-	unsigned long *ret;
-
-	if((ret = pgd_quicklist) != NULL) {
-		pgd_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		clean_cache_area(ret, 4);
-		pgtable_cache_size--;
-	} else
-		ret = (unsigned long *)get_pgd_slow();
-	return (pgd_t *)ret;
-}
-
-extern __inline__ void free_pgd_fast(pgd_t *pgd)
-{
-	*(unsigned long *)pgd = (unsigned long) pgd_quicklist;
-	pgd_quicklist = (unsigned long *) pgd;
-	pgtable_cache_size++;
-}
-
-extern __inline__ void free_pgd_slow(pgd_t *pgd)
-{
-	free_pages((unsigned long) pgd, 2);
-}
-
-#define pgd_free(pgd)		free_pgd_fast(pgd)
-#define pgd_alloc()		get_pgd_fast()
-
-extern __inline__ void set_pgdir(unsigned long address, pgd_t entry)
-{
-	struct task_struct * p;
-	pgd_t *pgd;
-
-	read_lock(&tasklist_lock);
-	for_each_task(p) {
-		if (!p->mm)
-			continue;
-		*pgd_offset(p->mm,address) = entry;
-	}
-	read_unlock(&tasklist_lock);
-	for (pgd = (pgd_t *)pgd_quicklist; pgd; pgd = (pgd_t *)*(unsigned long *)pgd)
-		pgd[address >> PGDIR_SHIFT] = entry;
-}
-
-extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 
 /****************
 * PMD functions *
@@ -336,7 +265,7 @@ extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 #define pmd_bad(pmd)		(pmd_val(pmd) & 2)
 #define mk_user_pmd(ptep)	__mk_pmd(ptep, _PAGE_USER_TABLE)
 #define mk_kernel_pmd(ptep)	__mk_pmd(ptep, _PAGE_KERNEL_TABLE)
-#define set_pmd(pmdp,pmd)	processor.u.armv3v4._set_pmd(pmdp,pmd)
+#define set_pmd(pmdp,pmd)	cpu_set_pmd(pmdp,pmd)
 
 /* Find an entry in the second-level page table.. */
 #define pmd_offset(dir, address) ((pmd_t *)(dir))
@@ -406,7 +335,6 @@ extern __inline__ unsigned long pmd_page(pmd_t pmd)
 	return __phys_to_virt(ptr);
 }
 
-
 /****************
 * PTE functions *
 ****************/
@@ -443,7 +371,7 @@ extern __inline__ pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 	return pte;
 }
 
-#define set_pte(ptep, pte)	processor.u.armv3v4._set_pte(ptep,pte)
+#define set_pte(ptep, pte)	cpu_set_pte(ptep,pte)
 
 extern __inline__ unsigned long pte_page(pte_t pte)
 {
@@ -552,8 +480,6 @@ extern __inline__ void free_pte_slow(pte_t *pte)
 #define __S110  PAGE_SHARED
 #define __S111  PAGE_SHARED
 
-
-
 #define pte_present(pte)	(pte_val(pte) & L_PTE_PRESENT)
 
 /*
@@ -569,12 +495,12 @@ extern __inline__ void free_pte_slow(pte_t *pte)
 #define PTE_BIT_FUNC(fn,op)			\
 extern inline pte_t fn##(pte_t pte) { pte_val(pte) op##; return pte; }
 
-//PTE_BIT_FUNC(pte_rdprotect, &= ~L_PTE_USER);
+/*PTE_BIT_FUNC(pte_rdprotect, &= ~L_PTE_USER);*/
 PTE_BIT_FUNC(pte_wrprotect, &= ~L_PTE_WRITE);
 PTE_BIT_FUNC(pte_exprotect, &= ~L_PTE_EXEC);
 PTE_BIT_FUNC(pte_mkclean,   &= ~L_PTE_DIRTY);
 PTE_BIT_FUNC(pte_mkold,     &= ~L_PTE_YOUNG);
-//PTE_BIT_FUNC(pte_mkread,    |= L_PTE_USER);
+/*PTE_BIT_FUNC(pte_mkread,    |= L_PTE_USER);*/
 PTE_BIT_FUNC(pte_mkwrite,   |= L_PTE_WRITE);
 PTE_BIT_FUNC(pte_mkexec,    |= L_PTE_EXEC);
 PTE_BIT_FUNC(pte_mkdirty,   |= L_PTE_DIRTY);
@@ -629,6 +555,100 @@ extern __inline__ pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
 	}
 	return (pte_t *) pmd_page(*pmd) + address;
 }
+
+/*
+ * The "pgd_xxx()" functions here are trivial for a folded two-level
+ * setup: the pgd is never bad, and a pmd always exists (as it's folded
+ * into the pgd entry)
+ */
+#define pgd_none(pgd)		(0)
+#define pgd_bad(pgd)		(0)
+#define pgd_present(pgd)	(1)
+#define pgd_clear(pgdp)
+
+/* to find an entry in a kernel page-table-directory */
+#define pgd_offset_k(address) pgd_offset(&init_mm, address)
+
+/* used for quicklists */
+#define __pgd_next(pgd) (((unsigned long *)pgd)[1])
+
+/* to find an entry in a page-table-directory */
+extern __inline__ pgd_t * pgd_offset(struct mm_struct * mm, unsigned long address)
+{
+	return mm->pgd + (address >> PGDIR_SHIFT);
+}
+
+extern pgd_t *get_pgd_slow(void);
+
+extern __inline__ pgd_t *get_pgd_fast(void)
+{
+	unsigned long *ret;
+
+	if((ret = pgd_quicklist) != NULL) {
+		pgd_quicklist = (unsigned long *)__pgd_next(ret);
+		ret[1] = ret[2];
+		clean_cache_area(ret + 1, 4);
+		pgtable_cache_size--;
+	} else
+		ret = (unsigned long *)get_pgd_slow();
+	return (pgd_t *)ret;
+}
+
+extern __inline__ void free_pgd_fast(pgd_t *pgd)
+{
+	__pgd_next(pgd) = (unsigned long) pgd_quicklist;
+	pgd_quicklist = (unsigned long *) pgd;
+	pgtable_cache_size++;
+}
+
+extern __inline__ void free_pgd_slow(pgd_t *pgd)
+{
+	do {
+		if (pgd) { /* can pgd be NULL? */
+			pmd_t *pmd;
+			pte_t *pte;
+
+			/* pgd is never none and bad - it is
+			 * detected in the pmd macros.
+			 */
+			pmd = pmd_offset(pgd, 0);
+			if (pmd_none(*pmd))
+				break;
+			if (pmd_bad(*pmd)) {
+				printk("free_pgd_slow: bad directory entry %08lx\n", pmd_val(*pmd));
+				pmd_clear(pmd);
+				break;
+			}
+
+			pte = pte_offset(pmd, 0);
+			pmd_clear(pmd);
+			pte_free(pte);
+			pmd_free(pmd);
+		}
+	} while (0);
+	free_pages((unsigned long) pgd, 2);
+}
+
+#define pgd_free(pgd)		free_pgd_fast(pgd)
+#define pgd_alloc()		get_pgd_fast()
+
+extern __inline__ void set_pgdir(unsigned long address, pgd_t entry)
+{
+	struct task_struct * p;
+	pgd_t *pgd;
+
+	read_lock(&tasklist_lock);
+	for_each_task(p) {
+		if (!p->mm)
+			continue;
+		*pgd_offset(p->mm,address) = entry;
+	}
+	read_unlock(&tasklist_lock);
+	for (pgd = (pgd_t *)pgd_quicklist; pgd; pgd = (pgd_t *)__pgd_next(pgd))
+		pgd[address >> PGDIR_SHIFT] = entry;
+}
+
+extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 
 #define SWP_TYPE(entry) (((entry) >> 2) & 0x7f)
 #define SWP_OFFSET(entry) ((entry) >> 9)

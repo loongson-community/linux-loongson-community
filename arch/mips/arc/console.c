@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  * Compability with board caches, Ulf Carlsson
  *
- * $Id: console.c,v 1.1 1998/10/18 13:32:08 tsbogend Exp $
+ * $Id: console.c,v 1.2 1999/06/12 18:42:38 ulfc Exp $
  */
 #include <linux/init.h>
 #include <asm/sgialib.h>
@@ -22,7 +22,7 @@ extern struct bcache_ops *bcops;
 #ifdef CONFIG_SGI_PROM_CONSOLE
 void prom_putchar(char c)
 #else
-__initfunc(void prom_putchar(char c))
+void __init prom_putchar(char c)
 #endif
 {
 	long cnt;
@@ -36,7 +36,7 @@ __initfunc(void prom_putchar(char c))
 #ifdef CONFIG_SGI_PROM_CONSOLE
 char prom_getchar(void)
 #else
-__initfunc(char prom_getchar(void))
+char __init prom_getchar(void)
 #endif
 {
 	long cnt;

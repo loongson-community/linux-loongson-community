@@ -1,4 +1,4 @@
-/* $Id: time.c,v 1.2 1999/04/11 17:03:39 harald Exp $
+/* $Id: time.c,v 1.3 1999/08/17 22:18:37 ralf Exp $
  * time.c: Baget/MIPS specific time handling details
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
@@ -52,7 +52,7 @@ void static timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	}
 }
 
-__initfunc(static void timer_enable(void))
+static void __init timer_enable(void)
 {
 	unsigned char ss0cr0 = vic_inb(VIC_SS0CR0);
 	ss0cr0 &= ~VIC_SS0CR0_TIMER_FREQ_MASK;
@@ -66,7 +66,7 @@ __initfunc(static void timer_enable(void))
 static struct irqaction timer_irq  = 
 { timer_interrupt, SA_INTERRUPT, 0, "timer", NULL, NULL};
 
-__initfunc(void time_init(void))
+void __init time_init(void)
 {
 	if (setup_baget_irq(BAGET_VIC_TIMER_IRQ, &timer_irq) < 0)
 		printk("time_init: unable request irq for system timer\n");

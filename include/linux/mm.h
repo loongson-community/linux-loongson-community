@@ -6,6 +6,7 @@
 
 #ifdef __KERNEL__
 
+#include <linux/config.h>
 #include <linux/string.h>
 
 extern unsigned long max_mapnr;
@@ -56,7 +57,7 @@ struct vm_area_struct {
 	struct vm_operations_struct * vm_ops;
 	unsigned long vm_offset;
 	struct file * vm_file;
-	unsigned long vm_pte;			/* shared mem */
+	void * vm_private_data;		/* was vm_pte (shared mem) */
 };
 
 /*
@@ -125,10 +126,11 @@ typedef struct page {
 	struct page *next_hash;
 	atomic_t count;
 	unsigned long flags;	/* atomic flags, some possibly updated asynchronously */
+	struct list_head lru;
 	wait_queue_head_t wait;
 	struct page **pprev_hash;
 	struct buffer_head * buffers;
-	int owner; /* temporary debugging check */
+	void *owner; /* temporary debugging check */
 } mem_map_t;
 
 #define get_page(p) do { atomic_inc(&(p)->count); \
@@ -145,13 +147,13 @@ typedef struct page {
 #define PG_error		 1
 #define PG_referenced		 2
 #define PG_uptodate		 3
-#define PG_free_after		 4
 #define PG_decr_after		 5
-#define PG_free_swap_after	 6
 #define PG_DMA			 7
 #define PG_Slab			 8
 #define PG_swap_cache		 9
 #define PG_skip			10
+#define PG_swap_entry		11
+#define PG_BIGMEM		12
 				/* bits 21-30 unused */
 #define PG_reserved		31
 
@@ -167,11 +169,11 @@ typedef struct page {
 	do { int _ret = test_and_set_bit(PG_locked, &(page)->flags); \
 	if (_ret) PAGE_BUG(page); \
 	if (page->owner) PAGE_BUG(page); \
-	page->owner = (int)current; } while (0)
+	page->owner = current; } while (0)
 #define TryLockPage(page)	({ int _ret = test_and_set_bit(PG_locked, &(page)->flags); \
-				if (!_ret) page->owner = (int)current; _ret; })
+				if (!_ret) page->owner = current; _ret; })
 #define UnlockPage(page)	do { \
-					if (page->owner != (int)current) { \
+					if (page->owner != current) { \
 BUG(); } page->owner = 0; \
 if (!test_and_clear_bit(PG_locked, &(page)->flags)) { \
 			PAGE_BUG(page); } wake_up(&page->wait); } while (0)
@@ -179,9 +181,7 @@ if (!test_and_clear_bit(PG_locked, &(page)->flags)) { \
 #define SetPageError(page)	({ int _ret = test_and_set_bit(PG_error, &(page)->flags); _ret; })
 #define ClearPageError(page)	do { if (!test_and_clear_bit(PG_error, &(page)->flags)) BUG(); } while (0)
 #define PageReferenced(page)	(test_bit(PG_referenced, &(page)->flags))
-#define PageFreeAfter(page)	(test_bit(PG_free_after, &(page)->flags))
 #define PageDecrAfter(page)	(test_bit(PG_decr_after, &(page)->flags))
-#define PageSwapUnlockAfter(page) (test_bit(PG_free_swap_after, &(page)->flags))
 #define PageDMA(page)		(test_bit(PG_DMA, &(page)->flags))
 #define PageSlab(page)		(test_bit(PG_Slab, &(page)->flags))
 #define PageSwapCache(page)	(test_bit(PG_swap_cache, &(page)->flags))
@@ -198,6 +198,11 @@ if (!test_and_clear_bit(PG_locked, &(page)->flags)) { \
 
 #define PageTestandClearSwapCache(page)	\
 			(test_and_clear_bit(PG_swap_cache, &(page)->flags))
+#ifdef CONFIG_BIGMEM
+#define PageBIGMEM(page)	(test_bit(PG_BIGMEM, &(page)->flags))
+#else
+#define PageBIGMEM(page) 0 /* needed to optimize away at compile time */
+#endif
 
 /*
  * Various page->flags bits:
@@ -258,8 +263,6 @@ if (!test_and_clear_bit(PG_locked, &(page)->flags)) { \
  * PG_uptodate tells whether the page's contents is valid.
  * When a read completes, the page becomes uptodate, unless a disk I/O
  * error happened.
- * When a write completes, and PG_free_after is set, the page is
- * freed without any further delay.
  *
  * For choosing which pages to swap out, inode pages carry a
  * PG_referenced bit, which is set any time the system accesses
@@ -292,8 +295,6 @@ extern inline unsigned long get_free_page(int gfp_mask)
 	return page;
 }
 
-extern int low_on_memory;
-
 /* memory.c & swap.c*/
 
 #define free_page(addr) free_pages((addr),0)
@@ -304,9 +305,7 @@ extern void show_free_areas(void);
 extern unsigned long put_dirty_page(struct task_struct * tsk,unsigned long page,
 	unsigned long address);
 
-extern void free_page_tables(struct mm_struct * mm);
 extern void clear_page_tables(struct mm_struct *, unsigned long, int);
-extern int new_page_tables(struct task_struct * tsk);
 
 extern void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size);
 extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct vm_area_struct *vma);
@@ -328,6 +327,7 @@ extern void mem_init(unsigned long start_mem, unsigned long end_mem);
 extern void show_mem(void);
 extern void oom(struct task_struct * tsk);
 extern void si_meminfo(struct sysinfo * val);
+extern void swapin_readahead(unsigned long);
 
 /* mmap.c */
 extern void vma_init(void);
@@ -359,12 +359,18 @@ extern void put_cached_page(unsigned long);
 #define __GFP_HIGH	0x08
 #define __GFP_IO	0x10
 #define __GFP_SWAP	0x20
+#ifdef CONFIG_BIGMEM
+#define __GFP_BIGMEM	0x40
+#else
+#define __GFP_BIGMEM	0x0 /* noop */
+#endif
 
 #define __GFP_UNCACHED	0x40
 #define __GFP_DMA	0x80
 
 #define GFP_BUFFER	(__GFP_LOW | __GFP_WAIT)
 #define GFP_ATOMIC	(__GFP_HIGH)
+#define GFP_BIGUSER	(__GFP_LOW | __GFP_WAIT | __GFP_IO | __GFP_BIGMEM)
 #define GFP_USER	(__GFP_LOW | __GFP_WAIT | __GFP_IO)
 #define GFP_KERNEL	(__GFP_MED | __GFP_WAIT | __GFP_IO)
 #define GFP_NFS		(__GFP_HIGH | __GFP_WAIT | __GFP_IO)
@@ -383,7 +389,10 @@ extern void put_cached_page(unsigned long);
 
 #define GFP_DMA		__GFP_DMA
 
-#define GFP_LEVEL_MASK 0xf
+/* Flag - indicates that the buffer can be taken from big memory which is not
+   directly addressable by the kernel */
+
+#define GFP_BIGMEM	__GFP_BIGMEM
 
 /* vma is the first one with  address < vma->vm_end,
  * and even  address < vma->vm_start. Have to extend vma. */

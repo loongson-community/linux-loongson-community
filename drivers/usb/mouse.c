@@ -4,6 +4,12 @@
  *
  * Brad Keryan 4/3/1999
  *
+ * version 0.30? Paul Ashton 1999/08/19 - Fixed behaviour on mouse
+ * disconnect and suspend/resume. Added module parameter "force=1"
+ * to allow opening of the mouse driver before mouse has been plugged
+ * in (enables consistent XF86Config settings). Fixed module use count.
+ * Documented missing blocking/non-blocking read handling (not fixed).
+ * 
  * version 0.20: Linus rewrote read_mouse() to do PS/2 and do it
  * correctly. Events are added together, not queued, to keep the rodent sober.
  *
@@ -34,8 +40,7 @@
 #include <linux/init.h>
 #include <linux/malloc.h>
 #include <linux/module.h>
-
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 #include "usb.h"
 
@@ -49,21 +54,54 @@ struct mouse_state {
 	int present; /* this mouse is plugged in */
 	int active; /* someone is has this mouse's device open */
 	int ready; /* the mouse has changed state since the last read */
+	int suspended; /* mouse disconnected */
 	wait_queue_head_t wait; /* for polling */
 	struct fasync_struct *fasync;
 	/* later, add a list here to support multiple mice */
 	/* but we will also need a list of file pointers to identify it */
+
+	/* FIXME: move these to a per-mouse structure */
+	struct usb_device *dev;  /* host controller this mouse is on */
+	void* irq_handle;  /* host controller's IRQ transfer handle */
+	__u8 bEndpointAddress;  /* these are from the endpoint descriptor */
+	__u8 bInterval;		/* ...  used when calling usb_request_irq */
 };
 
 static struct mouse_state static_mouse_state;
 
 spinlock_t usb_mouse_lock = SPIN_LOCK_UNLOCKED;
 
+static int force=0; /* allow the USB mouse to be opened even if not there (yet) */
+MODULE_PARM(force,"i");
+
 static int mouse_irq(int state, void *__buffer, int len, void *dev_id)
 {
 	signed char *data = __buffer;
 	/* finding the mouse is easy when there's only one */
 	struct mouse_state *mouse = &static_mouse_state; 
+
+	if (state)
+		printk(KERN_DEBUG "%s(%d):state %d, bp %p, len %d, dp %p\n",
+			__FILE__, __LINE__, state, __buffer, len, dev_id);
+
+	/*
+	 * USB_ST_NOERROR is the normal case.
+	 * USB_ST_REMOVED occurs if mouse disconnected or suspend/resume
+	 * USB_ST_INTERNALERROR occurs if system suspended then mouse removed
+	 *    followed by resume. On UHCI could then occur every second
+	 * In both cases, suspend the mouse
+	 * On other states, ignore
+	 */
+	switch (state) {
+	case USB_ST_REMOVED:
+	case USB_ST_INTERNALERROR: 
+		printk(KERN_DEBUG "%s(%d): Suspending\n",
+			__FILE__, __LINE__);
+		mouse->suspended = 1;
+		return 0; /* disable */
+	case USB_ST_NOERROR: break;
+	default: return 1; /* ignore */
+	}	
 
 	/* if a mouse moves with no one listening, do we care? no */
 	if(!mouse->active)
@@ -103,21 +141,69 @@ static int release_mouse(struct inode * inode, struct file * file)
 	struct mouse_state *mouse = &static_mouse_state;
 
 	fasync_mouse(-1, file, 0);
-	if (--mouse->active)
-		return 0;
+
+	printk(KERN_DEBUG "%s(%d): MOD_DEC\n", __FILE__, __LINE__);
+	MOD_DEC_USE_COUNT;
+
+	if (--mouse->active == 0) {
+		mouse->suspended = 0;
+		/* stop polling the mouse while its not in use */
+	    	usb_release_irq(mouse->dev, mouse->irq_handle,
+				usb_rcvctrlpipe(mouse->dev, mouse->bEndpointAddress));
+		/* never keep a reference to a released IRQ! */
+		mouse->irq_handle = NULL;
+	}
+
 	return 0;
 }
 
 static int open_mouse(struct inode * inode, struct file * file)
 {
 	struct mouse_state *mouse = &static_mouse_state;
+	int ret;
 
+	printk(KERN_DEBUG "%s(%d): open_mouse\n", __FILE__, __LINE__);
+	/*
+	 * First open may fail since mouse_probe() may get called after this
+	 * if module load is in response to the open
+	 * mouse_probe() sets mouse->present. This open can be delayed by
+	 * specifying force=1 in module load
+	 * This helps if you want to insert the USB mouse after starting X
+	 */
 	if (!mouse->present)
-		return -EINVAL;
+	{
+		if (force) /* always load the driver even if no mouse (yet) */
+		{
+			printk(KERN_DEBUG "%s(%d): forced open\n",
+				__FILE__, __LINE__);
+			mouse->suspended = 1;
+		}
+		else
+			return -EINVAL;
+	}
+
+	/* prevent the driver from being unloaded while its in use */
+	printk(KERN_DEBUG "%s(%d): MOD_INC\n", __FILE__, __LINE__);
+	/* Increment use count even if already active */
+	MOD_INC_USE_COUNT;
+
 	if (mouse->active++)
 		return 0;
 	/* flush state */
 	mouse->buttons = mouse->dx = mouse->dy = mouse->dz = 0;
+
+	if (!mouse->present) /* only get here if force == 1 */
+		return 0;
+
+	/* start the usb controller's polling of the mouse */
+	ret = usb_request_irq(mouse->dev, usb_rcvctrlpipe(mouse->dev, mouse->bEndpointAddress),
+			mouse_irq, mouse->bInterval,
+			NULL, &mouse->irq_handle);
+	if (ret) {
+		printk (KERN_WARNING "usb-mouse: usb_request_irq failed (0x%x)\n", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -139,6 +225,10 @@ static ssize_t read_mouse(struct file * file, char * buffer, size_t count, loff_
 	static int state = 0;
 	struct mouse_state *mouse = &static_mouse_state;
 
+	/*
+	 * FIXME - Other mouse drivers handle blocking and nonblocking reads
+	 * differently here...
+	 */
 	if (count) {
 		mouse->ready = 0;
 		switch (state) {
@@ -238,6 +328,7 @@ static int mouse_probe(struct usb_device *dev)
 	struct usb_interface_descriptor *interface;
 	struct usb_endpoint_descriptor *endpoint;
 	struct mouse_state *mouse = &static_mouse_state;
+	int ret;
 
 	/* We don't handle multi-config mice */
 	if (dev->descriptor.bNumConfigurations != 1)
@@ -248,7 +339,7 @@ static int mouse_probe(struct usb_device *dev)
 		return -1;
 
 	/* Is it a mouse interface? */
-	interface = &dev->config[0].altsetting[0].interface[0];
+	interface = &dev->config[0].interface[0].altsetting[0];
 	if (interface->bInterfaceClass != 3)
 		return -1;
 	if (interface->bInterfaceSubClass != 1)
@@ -272,17 +363,49 @@ static int mouse_probe(struct usb_device *dev)
 
 	printk("USB mouse found\n");
 
-	usb_set_configuration(dev, dev->config[0].bConfigurationValue);
+	if (usb_set_configuration(dev, dev->config[0].bConfigurationValue)) {
+		printk (KERN_INFO " Failed usb_set_configuration: mouse\n");
+		return -1;
+	}
 
-	usb_request_irq(dev, usb_rcvctrlpipe(dev, endpoint->bEndpointAddress), mouse_irq, endpoint->bInterval, NULL);
+	/* these are used to request the irq when the mouse is opened */
+	mouse->dev = dev;
+	mouse->bEndpointAddress = endpoint->bEndpointAddress;
+	mouse->bInterval = endpoint->bInterval;
 
 	mouse->present = 1;
+
+	/* This appears to let USB mouse survive disconnection and */
+	/* APM suspend/resume */
+	if (mouse->suspended)
+	{
+		printk(KERN_DEBUG "%s(%d): mouse resume\n", __FILE__, __LINE__);
+		/* restart the usb controller's polling of the mouse */
+		ret = usb_request_irq(mouse->dev, usb_rcvctrlpipe(mouse->dev, mouse->bEndpointAddress),
+			mouse_irq, mouse->bInterval,
+			NULL, &mouse->irq_handle);
+		if (ret) {
+			printk (KERN_WARNING "usb-mouse: usb_request_irq failed (0x%x)\n", ret);
+			return ret;
+		}
+		mouse->suspended = 0;
+	}
+
 	return 0;
 }
 
 static void mouse_disconnect(struct usb_device *dev)
 {
 	struct mouse_state *mouse = &static_mouse_state;
+
+	/* stop the usb interrupt transfer */
+	if (mouse->present) {
+	    	usb_release_irq(mouse->dev, mouse->irq_handle,
+				usb_rcvctrlpipe(mouse->dev, mouse->bEndpointAddress));
+		/* never keep a reference to a released IRQ! */
+	}
+
+	mouse->irq_handle = NULL;
 
 	/* this might need work */
 	mouse->present = 0;
@@ -300,19 +423,30 @@ int usb_mouse_init(void)
 {
 	struct mouse_state *mouse = &static_mouse_state;
 
-	misc_register(&usb_mouse);
-
-	mouse->present = mouse->active = 0;
+	mouse->present = mouse->active = mouse->suspended = 0;
+	mouse->irq_handle = NULL;
 	init_waitqueue_head(&mouse->wait);
 	mouse->fasync = NULL;
 
+	misc_register(&usb_mouse);
+
 	usb_register(&mouse_driver);
-	printk(KERN_INFO "USB HID boot protocol mouse registered.\n");
+	printk(KERN_INFO "USB HID boot protocol mouse driver registered.\n");
 	return 0;
 }
 
 void usb_mouse_cleanup(void)
 {
+	struct mouse_state *mouse = &static_mouse_state;
+
+	/* stop the usb interrupt transfer */
+	if (mouse->present) {
+	    	usb_release_irq(mouse->dev, mouse->irq_handle,
+				usb_rcvctrlpipe(mouse->dev, mouse->bEndpointAddress));
+		/* never keep a reference to a released IRQ! */
+		mouse->irq_handle = NULL;
+	}
+
 	/* this, too, probably needs work */
 	usb_deregister(&mouse_driver);
 	misc_deregister(&usb_mouse);

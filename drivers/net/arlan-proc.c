@@ -1,16 +1,17 @@
 #include <linux/config.h>
 #include "arlan.h"
 
+#include <linux/sysctl.h>
+
 #ifdef CONFIG_PROC_FS
 
 
-#include <linux/sysctl.h>
 #include <linux/version.h>
 
-/* void enableReceive(struct device* dev);
+/* void enableReceive(struct net_device* dev);
 */
 
-static  int	arlan_command(struct device * dev, int command);
+static  int	arlan_command(struct net_device * dev, int command);
 
 
 #define ARLAN_STR_SIZE 	0x2ff0
@@ -58,7 +59,7 @@ static  int	arlan_command(struct device * dev, int command);
 }
 
 
-const char *arlan_diagnostic_info_string(struct device *dev)
+const char *arlan_diagnostic_info_string(struct net_device *dev)
 {
 
 	volatile struct arlan_shmem *arlan = ((struct arlan_private *) dev->priv)->card;
@@ -113,7 +114,7 @@ const char *arlan_diagnostic_info_string(struct device *dev)
 	  }
 };
 
-static const char *arlan_hardware_type_string(struct device *dev)
+static const char *arlan_hardware_type_string(struct net_device *dev)
 {
 	u_char hardwareType;
 	volatile struct arlan_shmem *arlan = ((struct arlan_private *) dev->priv)->card;
@@ -186,7 +187,7 @@ static const char *arlan_hardware_type_string(struct device *dev)
 	}
 }
 
-static void arlan_print_diagnostic_info(struct device *dev)
+static void arlan_print_diagnostic_info(struct net_device *dev)
 {
 	int i;
 	u_char diagnosticInfo;
@@ -251,7 +252,7 @@ static void arlan_print_diagnostic_info(struct device *dev)
 
 /******************************		TEST 	MEMORY	**************/
 
-static int arlan_hw_test_memory(struct device *dev)
+static int arlan_hw_test_memory(struct net_device *dev)
 {
 	u_char *ptr;
 	int i;
@@ -320,7 +321,7 @@ static int arlan_hw_test_memory(struct device *dev)
 }
 
 
-static int arlan_setup_card_by_book(struct device *dev)
+static int arlan_setup_card_by_book(struct net_device *dev)
 {
 	u_char irqLevel, configuredStatusFlag;
 	volatile struct arlan_shmem *arlan = ((struct arlan_private *) dev->priv)->card;
@@ -408,7 +409,7 @@ static int arlan_sysctl_info(ctl_table * ctl, int write, struct file *filp,
 	int i;
 	int retv, pos, devnum;
 	struct arlan_private *priva = NULL;
-	struct device *dev;
+	struct net_device *dev;
 	pos = 0;
 	if (write)
 	{
@@ -1001,6 +1002,12 @@ static ctl_table arlan_table[MAX_ARLANS + 1] =
 	{0}
 };
 #endif
+#else
+
+static ctl_table arlan_table[MAX_ARLANS + 1] =
+{
+	{0}
+};
 #endif
 
 static int mmtu = 1234;

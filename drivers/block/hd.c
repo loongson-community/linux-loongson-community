@@ -21,12 +21,12 @@
  *  Removed 99% of above. Use Mark's ide driver for those options.
  *  This is now a lightweight ST-506 driver. (Paul Gortmaker)
  *
+ *  Modified 1995 Russell King for ARM processor.
  */
   
 /* Uncomment the following if you want verbose error reports. */
 /* #define VERBOSE_ERRORS */
   
-#include <asm/irq.h>
 #include <linux/errno.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -40,6 +40,7 @@
 #include <linux/ioport.h>
 #include <linux/mc146818rtc.h> /* CMOS defines */
 #include <linux/init.h>
+#include <linux/blkpg.h>
 
 #define REALLY_SLOW_IO
 #include <asm/system.h>
@@ -48,6 +49,14 @@
 
 #define MAJOR_NR HD_MAJOR
 #include <linux/blk.h>
+
+#ifdef __arm__
+#undef  HD_IRQ
+#endif
+#include <asm/irq.h>
+#ifdef __arm__
+#define HD_IRQ IRQ_HARDDISK
+#endif
 
 static int revalidate_hddisk(kdev_t, int);
 
@@ -64,14 +73,14 @@ static int revalidate_hddisk(kdev_t, int);
 static void recal_intr(void);
 static void bad_rw_intr(void);
 
-static char recalibrate[MAX_HD] = { 0, };
-static char special_op[MAX_HD] = { 0, };
-static int access_count[MAX_HD] = {0, };
-static char busy[MAX_HD] = {0, };
+static char recalibrate[MAX_HD];
+static char special_op[MAX_HD];
+static int access_count[MAX_HD];
+static char busy[MAX_HD];
 static DECLARE_WAIT_QUEUE_HEAD(busy_wait);
 
-static int reset = 0;
-static int hd_error = 0;
+static int reset;
+static int hd_error;
 
 #define SUBSECTOR(block) (CURRENT->current_nr_sectors > 0)
 
@@ -86,13 +95,14 @@ struct hd_i_struct {
 static struct hd_i_struct hd_info[] = { HD_TYPE };
 static int NR_HD = ((sizeof (hd_info))/(sizeof (struct hd_i_struct)));
 #else
-static struct hd_i_struct hd_info[] = { {0,0,0,0,0,0},{0,0,0,0,0,0} };
-static int NR_HD = 0;
+static struct hd_i_struct hd_info[MAX_HD];
+static int NR_HD;
 #endif
 
-static struct hd_struct hd[MAX_HD<<6]={{0,0},};
-static int hd_sizes[MAX_HD<<6] = {0, };
-static int hd_blocksizes[MAX_HD<<6] = {0, };
+static struct hd_struct hd[MAX_HD<<6];
+static int hd_sizes[MAX_HD<<6];
+static int hd_blocksizes[MAX_HD<<6];
+static int hd_hardsectsizes[MAX_HD<<6];
 
 #if (HD_DELAY > 0)
 unsigned long last_req;
@@ -611,7 +621,7 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 					(long *) arg);
 
 		case BLKRRPART: /* Re-read partition tables */
-			if (!capable(CAP_SYS_ADMIN)) 
+			if (!capable(CAP_SYS_ADMIN))
 				return -EACCES;
 			return revalidate_hddisk(inode->i_rdev, 1);
 
@@ -746,6 +756,17 @@ static void hd_geninit(struct gendisk *ignored)
 		}
 	}
 #endif /* __i386__ */
+#ifdef __arm__
+	if (!NR_HD) {
+		/* We don't know anything about the drive.  This means
+		 * that you *MUST* specify the drive parameters to the
+		 * kernel yourself.
+		 */
+		printk("hd: no drives specified - use hd=cyl,head,sectors"
+			" on kernel command line\n");
+	}
+#endif
+
 	for (drive=0 ; drive < NR_HD ; drive++) {
 		hd[drive<<6].nr_sects = hd_info[drive].head *
 			hd_info[drive].sect * hd_info[drive].cyl;
@@ -764,9 +785,12 @@ static void hd_geninit(struct gendisk *ignored)
 	}
 	hd_gendisk.nr_real = NR_HD;
 
-	for(drive=0; drive < (MAX_HD << 6); drive++)
+	for(drive=0; drive < (MAX_HD << 6); drive++) {
 		hd_blocksizes[drive] = 1024;
+		hd_hardsectsizes[drive] = 512;
+	}
 	blksize_size[MAJOR_NR] = hd_blocksizes;
+	hardsect_size[MAJOR_NR] = hd_hardsectsizes;
 }
 
 static struct file_operations hd_fops = {

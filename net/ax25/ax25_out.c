@@ -50,7 +50,7 @@
 #include <linux/inet.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
-#include <linux/firewall.h>
+#include <linux/netfilter.h>
 #include <net/sock.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -58,7 +58,7 @@
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 
-ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, ax25_address *src, ax25_address *dest, ax25_digi *digi, struct device *dev)
+ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, ax25_address *src, ax25_address *dest, ax25_digi *digi, struct net_device *dev)
 {
 	ax25_dev *ax25_dev;
 	ax25_cb *ax25;
@@ -378,11 +378,6 @@ void ax25_transmit_buffer(ax25_cb *ax25, struct sk_buff *skb, int type)
 void ax25_queue_xmit(struct sk_buff *skb)
 {
 	unsigned char *ptr;
-
-	if (call_out_firewall(PF_AX25, skb->dev, skb->data, NULL, &skb) != FW_ACCEPT) {
-		kfree_skb(skb);
-		return;
-	}
 
 	skb->protocol = htons(ETH_P_AX25);
 	skb->dev      = ax25_fwd_dev(skb->dev);

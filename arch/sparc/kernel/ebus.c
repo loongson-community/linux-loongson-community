@@ -1,4 +1,4 @@
-/* $Id: ebus.c,v 1.3 1999/06/03 15:02:09 davem Exp $
+/* $Id: ebus.c,v 1.4 1999/08/31 06:54:19 davem Exp $
  * ebus.c: PCI to EBus bridge device.
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -57,8 +57,8 @@ static inline unsigned long ebus_alloc(size_t size)
 	return (unsigned long)kmalloc(size, GFP_ATOMIC);
 }
 
-__initfunc(void fill_ebus_child(int node, struct linux_prom_registers *preg,
-				struct linux_ebus_child *dev))
+void __init fill_ebus_child(int node, struct linux_prom_registers *preg,
+				struct linux_ebus_child *dev)
 {
 	int regs[PROMREG_MAX];
 	int irqs[PROMREG_MAX];
@@ -128,7 +128,7 @@ __initfunc(void fill_ebus_child(int node, struct linux_prom_registers *preg,
 #endif
 }
 
-__initfunc(void fill_ebus_device(int node, struct linux_ebus_device *dev))
+void __init fill_ebus_device(int node, struct linux_ebus_device *dev)
 {
 	struct linux_prom_registers regs[PROMREG_MAX];
 	struct linux_ebus_child *child;
@@ -255,7 +255,7 @@ __initfunc(void fill_ebus_device(int node, struct linux_ebus_device *dev))
 	}
 }
 
-__initfunc(void ebus_init(void))
+void __init ebus_init(void)
 {
 	struct linux_prom_pci_registers regs[PROMREG_MAX];
 	struct linux_pbm_info *pbm;

@@ -1,0 +1,14 @@
+#
+# PCMCIA bus subsystem configuration
+#
+mainmenu_option next_comment
+comment 'PCMCIA/Cardbus support'
+
+tristate 'PCMCIA/Cardbus support' CONFIG_PCMCIA
+if [ "$CONFIG_PCMCIA" != "n" ]; then
+   if [ "$CONFIG_PCI" != "n" ]; then
+      bool '  CardBus support' CONFIG_CARDBUS
+   fi
+fi
+
+endmenu

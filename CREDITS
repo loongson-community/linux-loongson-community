@@ -157,12 +157,6 @@ S: 633 South 550 East
 S: Provo, Utah 84606
 S: USA
 
-N: Paul Barton-Davis
-E: pbd@op.net
-D: Driver for WaveFront soundcards (Turtle Beach Maui, Tropez, Tropez+)
-D: Various bugfixes and changes to sound drivers
-S: USA 
-
 N: Krzysztof G. Baranowski
 E: kgb@manjak.knm.org.pl
 P: 1024/FA6F16D1 96 D1 1A CF 5F CA 69 EC  F9 4F 36 1F 6D 60 7B DA
@@ -174,11 +168,17 @@ S: ul. Koscielna 12a
 S: 62-300 Wrzesnia
 S: Poland
 
+N: Paul Barton-Davis
+E: pbd@op.net
+D: Driver for WaveFront soundcards (Turtle Beach Maui, Tropez, Tropez+)
+D: Various bugfixes and changes to sound drivers
+S: USA 
+
 N: Carlos Henrique Bauer
 E: chbauer@acm.org
-E: bauer@atlas.unisinos.tche.br
-D: A test for detection of EPP-1.7 and ECP/EPP parports.
+E: bauer@atlas.unisinos.br
 D: Some new sysctl entries for the parport driver.
+D: New sysctl function for handling unsigned longs
 S: Universidade do Vale do Rio dos Sinos - UNISINOS
 S: DSI/IDASI
 S: Av. Unisinos, 950
@@ -482,11 +482,11 @@ S: Warrendale, Pennsylvania 15086
 S: USA
 
 N: Alex deVries
-E: puffin@redhat.com
-D: Various SGI parts, bits of HAL2 and Newport
-S: 18 Bernier Terrace
-S: Kanata, Ontario
-S: K2L 2V@
+E: adevries@thepuffingroup.com
+D: Various SGI parts, bits of HAL2 and Newport, PA-RISC Linux.
+S: 41.5 William Street
+S: Ottawa, Ontario
+S: K1N 6Z9
 S: CANADA
 
 N: Eddie C. Dost
@@ -713,14 +713,11 @@ S: Woodbridge, Connecticut 06525
 S: USA
 
 N: Paul Gortmaker
-E: gpg109@rsphy1.anu.edu.au
-W: http://rsphy1.anu.edu.au/~gpg109
-D: Real Time Clock driver author.
-D: 8390 net driver hacker (ne2000, wd8013, smc-ultra, 3c503, etc.) 
-D: Ethernet-HOWTO and BootPrompt-HOWTO author.
-D: Added many new CONFIG options (modules, ramdisk, generic-serial, etc.)
-D: Implemented 1st "official" kernel thread (moved user bdflush to kflushd)
-D: Various other random hacks, patches and utilities.
+E: p_gortmaker@yahoo.com
+D: Author of RTC driver & several net drivers, Ethernet & BootPrompt Howto.
+D: Made support for modules, ramdisk, generic-serial, etc. optional.
+D: Transformed old user space bdflush into 1st kernel thread - kflushd.
+D: Many other patches, documentation files, mini kernels, utilities, ...
 
 N: John E. Gotts
 E: jgotts@engin.umich.edu
@@ -797,6 +794,10 @@ S: 77 Clarence Mews
 S: London SE16 1GD
 S: United Kingdom
 
+N: Kai Harrekilde-Petersen
+E: khp@olicom.dk
+D: Original author of the ftape-HOWTO, i82078 fdc detection code.
+
 N: Bart Hartgers
 E: bart@etpmod.phys.tue.nl
 D: MTRR emulation with Centaur MCRs
@@ -804,22 +805,21 @@ S: Gen Stedmanstraat 212
 S: 5623 HZ Eindhoven
 S: The Netherlands
 
-N: Kai Harrekilde-Petersen
-E: khp@olicom.dk
-D: Original author of the ftape-HOWTO, i82078 fdc detection code.
-
 N: Andrew Haylett
 E: ajh@primag.co.uk
 D: Selection mechanism
 
 N: Andre Hedrick
-E: hedrick@astro.dyer.vanderbilt.edu
+E: andre@suse.com
+D: Random SMP kernel hacker...
 D: Uniform Multi-Platform E-IDE driver
-D: Aladdin 1533/1543(C) chipset IDE
-D: HighPoint HPT343/5 chipset IDE
-D: PIIX chipset IDE
-D: Promise Ultra/33 chipset IDE
-D: Promise Ultra/66 chipset IDE
+D: Aladdin 1533/1543(C) chipset
+D: Active-Chipset maddness..........
+D: HighPoint HPT343/5 Ultra/33 & HPT366 Ultra/66 chipsets
+D: Intel PIIX chipset
+D: Promise PDC20246/20247 & PDC20262 chipsets
+D: SiS5513 Ultra/66/33 chipsets
+D: VIA 82C586/596/686 chipsets
 S: Nashville, TN
 S: USA
 
@@ -857,6 +857,14 @@ D: Organization of German Linux Conferences
 S: Danckelmannstr. 48
 S: 14059 Berlin
 S: Germany
+
+N: David Hinds
+E: dhinds@zen.stanford.edu
+W: http://hyper.stanford.edu/~dhinds
+D: PCMCIA and CardBus stuff, PCMCIA-HOWTO, PCMCIA client drivers
+S: 2019 W. Middlefield Rd #1
+S: Mountain View, CA  94043
+S: USA
 
 N: Michael Hipp
 E: hippm@informatik.uni-tuebingen.de
@@ -984,10 +992,6 @@ S: Na Orechovce 7
 S: 160 00 Praha 6
 S: Czech Republic
 
-N: Andreas S. Krebs
-E: akrebs@altavista.net
-D: CYPRESS CY82C693 chipset IDE, Digital's PC-Alpha 164SX boards
-
 N: Niels Kristian Bech Jensen
 E: nkbj@image.dk
 W: http://www.image.dk/~nkbj
@@ -997,15 +1001,6 @@ D: Danish HOWTO, Linux+FreeBSD mini-HOWTO.
 S: Dr. Holsts Vej 34, lejl. 164
 S: DK-8230 Åbyhøj
 S: Denmark
-
-N: Andrzej M. Krzysztofowicz
-E: ankry@mif.pg.gda.pl
-D: XT disk driver
-D: Aladdin 1533/1543(C) chipset IDE
-D: PIIX chipset IDE
-S: ul. Matemblewska 1B/10
-S: 80-283 Gdansk
-S: Poland
 
 N: Michael K. Johnson
 E: johnsonm@redhat.com
@@ -1020,6 +1015,16 @@ D: LP driver
 S: 201 Howell Street, Apartment 1C
 S: Chapel Hill, North Carolina 27514-4818
 S: USA
+
+N: Dave Jones
+E: dave@powertweak.com
+W: http://linux.powertweak.com
+D: Centaur/IDT Winchip/Winchip 2 tweaks
+D: Misc clean ups and other random hacking.
+S: 40, Heol Edward Lewis,
+S: Gelligaer, Hengoed,
+S: Mid Glamorgan, CF82 8EJ,
+S: Wales, United Kingdom
 
 N: Bernhard Kaindl
 E: bkaindl@netway.at
@@ -1043,12 +1048,12 @@ S: 602 00 Brno
 S: Czech Republic
 
 N: Fred N. van Kempen
-E: waltje@uwalt.nl.mugnet.org
+E: waltje@linux.com
 D: NET-2
 D: Drivers
 D: Kernel cleanups
-S: Hoefbladhof 27
-S: 2215 DV Voorhout
+S: Korte Heul 95
+S: 1403 ND  BUSSUM
 S: The Netherlands
 
 N: Karl Keyte
@@ -1150,6 +1155,10 @@ S: Markham, Ontario
 S: L3R 8B2
 S: Canada
 
+N: Andreas S. Krebs
+E: akrebs@altavista.net
+D: CYPRESS CY82C693 chipset IDE, Digital's PC-Alpha 164SX boards
+
 N: Russell Kroll
 E: rkroll@exploits.org
 W: http://www.exploits.org/
@@ -1157,6 +1166,15 @@ D: V4L Aztech radio card driver, mods to Aimslab driver
 S: Post Office Box 49458
 S: Colorado Springs, Colorado 80949-9458
 S: USA
+
+N: Andrzej M. Krzysztofowicz
+E: ankry@mif.pg.gda.pl
+D: XT disk driver
+D: Aladdin 1533/1543(C) chipset IDE
+D: PIIX chipset IDE
+S: ul. Matemblewska 1B/10
+S: 80-283 Gdansk
+S: Poland
 
 N: Gero Kuhlmann
 E: gero@gkminix.han.de
@@ -1249,10 +1267,14 @@ D: Busmaster driver for HP 10/100 Mbit Network Adapters
 S: University of Stuttgart, Germany and
 S: Ecole Nationale Superieure des Telecommunications, Paris
 
-N: Martin von Löwis
-E: loewis@informatik.hu-berlin.de
-D: script binary format
-D: NTFS driver
+N: Jamie Lokier
+E: jamie@imbolc.ucc.ie
+D: Reboot-through-BIOS for broken 486 motherboards
+S: 11 Goodson Walk
+S: Marston
+S: Oxford
+S: OX3 0HX
+S: United Kingdom
 
 N: Mark Lord
 E: mlord@pobox.com
@@ -1263,21 +1285,17 @@ S: 33 Ridgefield Cr
 S: Nepean, Ontario
 S: Canada K2H 6S3
 
-N: Jamie Lokier
-E: jamie@imbolc.ucc.ie
-D: Reboot-through-BIOS for broken 486 motherboards
-S: 11 Goodson Walk
-S: Marston
-S: Oxford
-S: OX3 0HX
-S: United Kingdom
-
 N: Warner Losh
 E: imp@village.org
 D: Linux/MIPS Deskstation support, Provided OI/OB for Linux
 S: 8786 Niwot Road
 S: Niwot, Colorado 80503
 S: USA
+
+N: Martin von Löwis
+E: loewis@informatik.hu-berlin.de
+D: script binary format
+D: NTFS driver
 
 N: H.J. Lu
 E: hjl@gnu.ai.mit.edu
@@ -1291,12 +1309,8 @@ S: Puistokaari 1 E 18
 S: 00200 Helsinki
 S: Finland
 
-N: Kai Mäkisara
-E: Kai.Makisara@metla.fi
-D: SCSI Tape Driver
-
 N: Hamish Macdonald
-E: hamish_macdonald@westendsys.com
+E: hamishm@lucent.com
 D: Linux/68k port
 S: 32 Clydesdale Avenue
 S: Kanata, Ontario
@@ -1338,6 +1352,10 @@ D: Program in DOSEMU
 S: PO BOX 220, HFX. CENTRAL
 S: Halifax, Nova Scotia
 S: Canada B3J 3C8
+
+N: Kai Mäkisara
+E: Kai.Makisara@metla.fi
+D: SCSI Tape Driver
 
 N: Martin Mares
 E: mj@atrey.karlin.mff.cuni.cz
@@ -1395,11 +1413,13 @@ N: Arnaldo Carvalho de Melo
 E: acme@conectiva.com.br
 W: http://www.conectiva.com.br/~acme
 D: wanrouter hacking
+D: USB hacking
+D: miscellaneous Makefile & Config.in fixes
 D: Cyclom 2X synchronous card driver
 D: i18n for minicom, net-tools, util-linux, fetchmail, etc
-S: Conectiva Informatica LTDA
+S: Conectiva Informática LTDA
 S: R. Prof. Rubens Elke Braga, 558 - Parolin
-S: 80220-320 Curitiba - Parana
+S: 80220-320 Curitiba - Paraná
 S: Brazil
 
 N: Michael Meskes
@@ -1496,19 +1516,19 @@ S: 30 White Tail Lane
 S: Lafayette, Indiana 47905
 S: USA
 
-N: Johan Myreen
-E: jem@iki.fi
-D: PS/2 mouse driver writer etc.
-S: Dragonvagen 1 A 13
-S: FIN-00330 Helsingfors
-S: Finland
-
 N: Trond Myklebust
 E: trond.myklebust@fys.uio.no
 D: current NFS client hacker.
 S: Dagaliveien 31e
 S: N-0391 Oslo
 S: Norway
+
+N: Johan Myreen
+E: jem@iki.fi
+D: PS/2 mouse driver writer etc.
+S: Dragonvagen 1 A 13
+S: FIN-00330 Helsingfors
+S: Finland
 
 N: Matija Nalis
 E: mnalis@jagor.srce.hr
@@ -1624,6 +1644,13 @@ S: Demonstratsii 8-382
 S: Tula 300000
 S: Russia
 
+N: Johnnie Peters
+E: jpeters@phx.mcd.mot.com
+D: Motorola PowerPC changes for PReP
+S: 2900 S. Diable Way
+S: Tempe, Arizona 85282
+S: USA
+
 N: Kirk Petersen
 E: kirk@speakeasy.org
 W: http://www.speakeasy.org/~kirk/
@@ -1720,12 +1747,13 @@ S: 75019 Paris
 S: France
 
 N: Rik van Riel
-E: H.H.vanRiel@humbolt.geo.uu.nl
-W: http://humbolt.geo.uu.nl/
-D: Maintainer of the mm-patches page (see www.linuxhq.com)
-D: Documentation/sysctl/*, kswapd fixes, random kernel hacker
-S: Vorenkampsweg 1
-S: NL-9488 TG  Zeijerveld
+E: riel@nl.linux.org
+W: http://www.nl.linux.org/~riel/
+D: Linux-MM site, Documentation/sysctl/*, swap/mm readaround
+D: clustering contributor, kswapd fixes, random kernel hacker,
+D: nl.linux.org maintainer, minor scheduler additions
+S: IJsselstraat 23a
+S: 9725 GA  Groningen
 S: The Netherlands
 
 N: William E. Roadcap
@@ -1813,13 +1841,6 @@ S: Dag Hammerskjolds v. 3E
 S: S-226 64 LUND
 S: Sweden
 
-N: Peter De Schrijver
-E: stud11@cc4.kuleuven.ac.be
-D: Mitsumi CD-ROM driver patches March version
-S: Molenbaan 29
-S: B2240 Zandhoven
-S: Belgium
-
 N: Henning P. Schmiedehausen
 E: hps@tanstaafl.de
 D: added PCI support to the serial driver
@@ -1828,6 +1849,13 @@ S: Buckenhof, Germany
 N: Michael Schmitz
 E:
 D: Macintosh IDE Driver
+
+N: Peter De Schrijver
+E: stud11@cc4.kuleuven.ac.be
+D: Mitsumi CD-ROM driver patches March version
+S: Molenbaan 29
+S: B2240 Zandhoven
+S: Belgium
 
 N: Martin Schulze
 E: joey@linux.de
@@ -1949,11 +1977,19 @@ S: Willowdale, Ontario
 S: Canada M2N 2Z1
 
 N: Adrian Sun
-E: asun@u.washington.edu
+E: asun@cobaltnet.com
 D: hfs support
 D: alpha rtc port, random appletalk fixes
 S: Department of Zoology, University of Washington
 S: Seattle, WA  98195-1800
+S: USA
+
+N: Corey Thomas
+E: corey@world.std.com
+W: http://world.std.com/~corey/index.html
+D: Raylink/WebGear wireless LAN device driver (ray_cs) author
+S: 145 Howard St.
+S: Northborough, MA 01532
 S: USA
 
 N: Tommy Thorn
@@ -1992,9 +2028,9 @@ W: http://lie-br.conectiva.com.br/~marcelo/
 D: Miscellaneous kernel hacker
 D: Cyclom 2X driver hacker
 D: linuxconf apache & proftpd module maintainer
-S: Conectiva Informatica LTDA
+S: Conectiva Informática LTDA
 S: R. Prof. Rubens Elke Braga, 558 - Parolin
-S: 80220-320 Curitiba - Parana
+S: 80220-320 Curitiba - Paraná
 S: Brazil
 
 N: Stefan Traby
@@ -2031,6 +2067,17 @@ D: Linux-Workshop Köln (aka LUG Cologne, Germany), Installfests
 S: Tacitusstr. 6
 S: D-50968 Köln
 
+N: Tsu-Sheng Tsao
+E: tsusheng@scf.usc.edu
+D: IGMP(Internet Group Management Protocol) version 2
+S: 2F 14 ALY 31 LN 166 SEC 1 SHIH-PEI RD
+S: Taipei 
+S: Taiwan 112
+S: Republic of China
+S: 24335 Delta Drive
+S: Diamond Bar, California 91765
+S: USA
+
 N: Theodore Ts'o
 E: tytso@mit.edu
 D: Random Linux hacker
@@ -2044,17 +2091,6 @@ D: Author of loopback device driver
 S: MIT Room E40-343
 S: 1 Amherst Street
 S: Cambridge, Massachusetts 02139
-S: USA
-
-N: Tsu-Sheng Tsao
-E: tsusheng@scf.usc.edu
-D: IGMP(Internet Group Management Protocol) version 2
-S: 2F 14 ALY 31 LN 166 SEC 1 SHIH-PEI RD
-S: Taipei 
-S: Taiwan 112
-S: Republic of China
-S: 24335 Delta Drive
-S: Diamond Bar, California 91765
 S: USA
 
 N: Simmule Turner
@@ -2096,7 +2132,7 @@ S: Toowong, QLD. 4066
 S: Australia
 
 N: Jeffrey A. Uphoff
-E: juphoff@nrao.edu
+E: juphoff@transmeta.com
 E: jeff.uphoff@linux.org
 P: 1024/9ED505C5 D7 BB CA AA 10 45 40 1B  16 19 0A C0 38 A0 3E CB
 D: Linux Security/Alert mailing lists' moderator/maintainer.
@@ -2104,9 +2140,9 @@ D: NSM (rpc.statd) developer.
 D: PAM S/Key module developer.
 D: 'dip' contributor.
 D: AIPS port, astronomical community support.
-S: National Radio Astronomy Observatory
-S: 520 Edgemont Road
-S: Charlottesville, Virginia 22903
+S: Transmeta Corporation
+S: 2540 Mission College Blvd.
+S: Santa Clara, CA 95054
 S: USA
 
 N: Matthias Urlichs
@@ -2188,20 +2224,29 @@ D: The Linux Support Team Erlangen
 
 N: David Weinehall
 E: tao@acc.umu.se
-D: NE/2-driver maintainer
+W: http://www.acc.umu.se/~tao/
+W: http://www.acc.umu.se/~mcalinux/
+D: Fixes for the NE/2-driver
 D: Miscellaneous MCA-support
+D: Cleanup of the Config-files
+S: Axtorpsvagen 40:20
+S: S-903 37  UMEA
+S: Sweden
 
 N: Matt Welsh
-E: mdw@sunsite.unc.edu
-D: Linux Documentation Project coordinator
-D: Author, _Running_Linux_ and I&GS guide
-D: Linuxdoc-SGML formatting system
+E: mdw@metalab.unc.edu
+W: http://www.cs.berkeley.edu/~mdw
+D: Original Linux Documentation Project coordinator
+D: Author, "Running Linux" (O'Reilly)
+D: Author, "Linux Installation and Getting Started" (LDP) and several HOWTOs
+D: Linuxdoc-SGML formatting system (now SGML-Tools)
+D: Device drivers for various high-speed network interfaces (Myrinet, ATM)
 D: Keithley DAS1200 device driver
-D: Maintainer of sunsite WWW and FTP, moderator c.o.l.answers
-S: Cornell University Computer Science Department
-S: Robotics and Vision Laboratory
-S: 4130 Upson Hall
-S: Ithaca, New York 14850
+D: Original maintainer of sunsite WWW and FTP sites
+D: Original moderator of c.o.l.announce and c.o.l.answers
+S: Computer Science Division
+S: UC Berkeley
+S: Berkeley, CA 94720-1776
 S: USA
 
 N: Greg Wettstein
@@ -2289,6 +2334,7 @@ N: Roger E. Wolff
 E: R.E.Wolff@BitWizard.nl
 D: Written kmalloc/kfree
 D: Written Specialix IO8+ driver
+D: Written Specialix SX driver
 S: van Bronckhorststraat 12
 S: 2612 XV Delft
 S: The Netherlands
@@ -2353,6 +2399,7 @@ N: Leonard N. Zubkoff
 E: lnz@dandelion.com
 W: http://www.dandelion.com/Linux/
 D: BusLogic SCSI driver
+D: Mylex DAC960 PCI RAID driver
 D: Miscellaneous kernel fixes
 S: 3078 Sulphur Spring Court
 S: San Jose, California 95148

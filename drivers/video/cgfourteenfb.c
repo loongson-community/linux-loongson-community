@@ -1,4 +1,4 @@
-/* $Id: cgfourteenfb.c,v 1.4 1999/01/26 10:55:03 jj Exp $
+/* $Id: cgfourteenfb.c,v 1.5 1999/08/10 15:56:02 davem Exp $
  * cgfourteenfb.c: CGfourteen frame buffer driver
  *
  * Copyright (C) 1996,1998 Jakub Jelinek (jj@ultra.linux.cz)
@@ -288,19 +288,19 @@ static int cg14_ioctl (struct fb_info_sbusfb *fb, unsigned int cmd, unsigned lon
 	return 0;
 }
 
-__initfunc(static unsigned long get_phys(unsigned long addr))
+static unsigned long __init get_phys(unsigned long addr)
 {
 	return __get_phys(addr);
 }
 
-__initfunc(static int get_iospace(unsigned long addr))
+static int __init get_iospace(unsigned long addr)
 {
 	return __get_iospace(addr);
 }
 
 static char idstring[60] __initdata = { 0 };
 
-__initfunc(char *cgfourteenfb_init(struct fb_info_sbusfb *fb))
+char __init *cgfourteenfb_init(struct fb_info_sbusfb *fb)
 {
 	struct fb_fix_screeninfo *fix = &fb->fix;
 	struct display *disp = &fb->disp;

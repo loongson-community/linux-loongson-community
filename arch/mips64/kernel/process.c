@@ -83,19 +83,19 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	if (childregs->cp0_status & ST0_CU0) {
 		childregs->regs[28] = (unsigned long) p;
 		childregs->regs[29] = childksp;
-		p->tss.current_ds = KERNEL_DS;
+		p->thread.current_ds = KERNEL_DS;
 	} else {
 		childregs->regs[29] = usp;
-		p->tss.current_ds = USER_DS;
+		p->thread.current_ds = USER_DS;
 	}
-	p->tss.reg29 = (unsigned long) childregs;
-	p->tss.reg31 = (unsigned long) ret_from_sys_call;
+	p->thread.reg29 = (unsigned long) childregs;
+	p->thread.reg31 = (unsigned long) ret_from_sys_call;
 
 	/*
 	 * New tasks loose permission to use the fpu. This accelerates context
 	 * switching for most programs since they don't use the fpu.
 	 */
-	p->tss.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
+	p->thread.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
                             ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
 	p->mm->context = 0;
@@ -106,11 +106,11 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 /* Fill in the fpu structure for a core dump.. */
 int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
 {
-	/* We actually store the FPU info in the task->tss
+	/* We actually store the FPU info in the task->thread
 	 * area.
 	 */
 	if(regs->cp0_status & ST0_CU1) {
-		memcpy(r, &current->tss.fpu, sizeof(current->tss.fpu));
+		memcpy(r, &current->thread.fpu, sizeof(current->thread.fpu));
 		return 1;
 	}
 	return 0; /* Task didn't use the fpu at all. */
@@ -128,7 +128,7 @@ void dump_thread(struct pt_regs *regs, struct user *dump)
 	dump->u_ssize =
 		(current->mm->start_stack - dump->start_stack + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	memcpy(&dump->regs[0], regs, sizeof(struct pt_regs));
-	memcpy(&dump->regs[EF_SIZE/4], &current->tss.fpu, sizeof(current->tss.fpu));
+	memcpy(&dump->regs[EF_SIZE/4], &current->thread.fpu, sizeof(current->thread.fpu));
 }
 
 /*

@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: memory.c,v 1.4 1999/03/18 23:29:19 tsbogend Exp $
+ * $Id: memory.c,v 1.5 1999/04/14 21:25:02 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -21,7 +21,7 @@
 
 /* #define DEBUG */
 
-__initfunc(struct linux_mdesc *prom_getmdesc(struct linux_mdesc *curr))
+struct linux_mdesc * __init prom_getmdesc(struct linux_mdesc *curr)
 {
 	return romvec->get_mdesc(curr);
 }
@@ -53,7 +53,7 @@ static char *arc_mtypes[8] = {
 
 static struct prom_pmemblock prom_pblocks[PROM_MAX_PMEMBLOCKS];
 
-__initfunc(struct prom_pmemblock *prom_getpblock_array(void))
+struct prom_pmemblock * __init prom_getpblock_array(void)
 {
 	return &prom_pblocks[0];
 }
@@ -90,7 +90,7 @@ static int __init prom_memtype_classify (union linux_memtypes type)
     }
 }
 
-__initfunc(static void prom_setup_memupper(void))
+static void __init prom_setup_memupper(void)
 {
 	struct prom_pmemblock *p, *highest;
 
@@ -107,7 +107,7 @@ __initfunc(static void prom_setup_memupper(void))
 #endif
 }
 
-__initfunc(void prom_meminit(void))
+void __init prom_meminit(void)
 {
 	struct linux_mdesc *p;
 	int totram;
@@ -163,7 +163,7 @@ __initfunc(void prom_meminit(void))
 }
 
 /* Called from mem_init() to fixup the mem_map page settings. */
-__initfunc(void prom_fixup_mem_map(unsigned long start, unsigned long end))
+void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
 {
 	struct prom_pmemblock *p;
 	int i, nents;

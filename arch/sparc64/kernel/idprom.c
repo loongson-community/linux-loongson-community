@@ -1,4 +1,4 @@
-/* $Id: idprom.c,v 1.2 1997/04/17 02:28:10 miguel Exp $
+/* $Id: idprom.c,v 1.3 1999/08/31 06:54:53 davem Exp $
  * idprom.c: Routines to load the idprom into kernel addresses and
  *           interpret the data contained within.
  *
@@ -16,7 +16,7 @@ struct idprom *idprom;
 static struct idprom idprom_buffer;
 
 /* Calculate the IDPROM checksum (xor of the data bytes). */
-__initfunc(static unsigned char calc_idprom_cksum(struct idprom *idprom))
+static unsigned char __init calc_idprom_cksum(struct idprom *idprom)
 {
 	unsigned char cksum, i, *ptr = (unsigned char *)idprom;
 
@@ -27,7 +27,7 @@ __initfunc(static unsigned char calc_idprom_cksum(struct idprom *idprom))
 }
 
 /* Create a local IDPROM copy and verify integrity. */
-__initfunc(void idprom_init(void))
+void __init idprom_init(void)
 {
 	prom_get_idprom((char *) &idprom_buffer, sizeof(idprom_buffer));
 

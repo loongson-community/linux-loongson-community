@@ -1,3 +1,4 @@
+# $Id$
 #
 # Makefile for the Linux/MIPS kernel.
 #
@@ -13,7 +14,7 @@ all:	kernel.o head.o init_task.o
 EXTRA_ASFLAGS = -mips3 -mcpu=r4000
 O_TARGET := kernel.o
 O_OBJS	:= branch.o process.o signal.o entry.o traps.o ptrace.o vm86.o \
-	   ioport.o pci.o reset.o setup.o syscall.o sysmips.o ipc.o \
+	   ioport.o reset.o semaphore.o setup.o syscall.o sysmips.o ipc.o \
 	   scall_o32.o softfp.o unaligned.o
 OX_OBJS := mips_ksyms.o
 

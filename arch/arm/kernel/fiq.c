@@ -53,15 +53,12 @@ static unsigned long no_fiq_insn;
 #ifdef CONFIG_CPU_32
 static inline void unprotect_page_0(void)
 {
-	__asm__ __volatile__("mcr	p15, 0, %0, c3, c0" :
-			: "r" (DOMAIN_USER_MANAGER |
-			       DOMAIN_KERNEL_CLIENT |
-			       DOMAIN_IO_CLIENT));
+	modify_domain(DOMAIN_USER, DOMAIN_MANAGER);
 }
 
 static inline void protect_page_0(void)
 {
-	set_fs(get_fs());
+	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
 }
 #else
 
@@ -216,7 +213,7 @@ void release_fiq(struct fiq_handler *f)
 	while (current_fiq->fiq_op(current_fiq->dev_id, 0));
 }
 
-__initfunc(void init_FIQ(void))
+void __init init_FIQ(void)
 {
 	no_fiq_insn = *(unsigned long *)FIQ_VECTOR;
 	set_fs(get_fs());

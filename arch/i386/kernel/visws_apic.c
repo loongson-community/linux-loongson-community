@@ -23,7 +23,6 @@
 #include <linux/malloc.h>
 #include <linux/random.h>
 #include <linux/smp.h>
-#include <linux/tasks.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 
@@ -103,7 +102,7 @@ static struct hw_interrupt_type cobalt_irq_type = {
 
 
 /*
- * Not an initfunc, needed by the reboot code
+ * Not an __init, needed by the reboot code
  */
 void init_pic_mode(void)
 {

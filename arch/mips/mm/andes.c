@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.6 1999/01/04 16:03:52 ralf Exp $
+/* $Id: andes.c,v 1.7 1999/08/09 19:43:16 harald Exp $
  *
  * andes.c: MMU and cache operations for the R10000 (ANDES).
  *
@@ -84,7 +84,7 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         /* XXX */
 }
 
-__initfunc(void ld_mmu_andes(void))
+void __init ld_mmu_andes(void)
 {
 	flush_cache_all = andes_flush_cache_all;
 	flush_cache_mm = andes_flush_cache_mm;

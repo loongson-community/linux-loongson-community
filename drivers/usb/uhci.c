@@ -2,6 +2,8 @@
  * Universal Host Controller Interface driver for USB.
  *
  * (C) Copyright 1999 Linus Torvalds
+ * (C) Copyright 1999 Johannes Erdfelt
+ * (C) Copyright 1999 Randy Dunlap
  *
  * Intel documents this fairly well, and as far as I know there
  * are no royalties or anything like that, but even so there are
@@ -21,6 +23,12 @@
 /* 4/4/1999 added data toggle for interrupt pipes -keryan */
 /* 5/16/1999 added global toggles for bulk and control */
 /* 6/25/1999 added fix for data toggles on bidirectional bulk endpoints */ 
+/*
+ * 1999-09-02: Thomas Sailer <sailer@ife.ee.ethz.ch>
+ *             Added explicit frame list manipulation routines
+ *             for inserting/removing iso td's to/from the frame list.
+ *             START_ABSOLUTE fixes
+ */
 
 #include <linux/config.h>
 #include <linux/module.h>
@@ -33,9 +41,9 @@
 #include <linux/smp_lock.h>
 #include <linux/errno.h>
 #include <linux/unistd.h>
+#include <linux/spinlock.h>
 
 #include <asm/uaccess.h>
-#include <asm/spinlock.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
@@ -54,99 +62,143 @@ static int uhci_debug = 1;
 
 static DECLARE_WAIT_QUEUE_HEAD(uhci_configure);
 
+static kmem_cache_t *uhci_td_cachep;
+static kmem_cache_t *uhci_qh_cachep;
+
+static LIST_HEAD(uhci_list);
+
+#define UHCI_DEBUG
+
+/*
+ * function prototypes
+ */
+
+static int uhci_get_current_frame_number (struct usb_device *usb_dev);
+
+static int uhci_init_isoc (struct usb_device *usb_dev,
+				unsigned int pipe,
+				int frame_count,
+				void *context,
+				struct usb_isoc_desc **isocdesc);
+
+static void uhci_free_isoc (struct usb_isoc_desc *isocdesc);
+
+static int uhci_run_isoc (struct usb_isoc_desc *isocdesc,
+				struct usb_isoc_desc *pr_isocdesc);
+
+static int uhci_kill_isoc (struct usb_isoc_desc *isocdesc);
+
 /*
  * Map status to standard result codes
+ *
+ * <status> is (td->status & 0xFE0000) [a.k.a. uhci_status_bits(td->status)
+ * <dir_out> is True for output TDs and False for input TDs.
  */
 static int uhci_map_status(int status, int dir_out)
 {
-    if (!status)
-    	    return USB_ST_NOERROR;
-    if (status & 0x02)				/* Bitstuff error*/
-    	    return USB_ST_BITSTUFF;
-    if (status & 0x04)	{			/* CRC/Timeout */
-	if (dir_out)
-    	    return USB_ST_NORESPONSE;
-	else
-	    return USB_ST_CRC;
-    }
-    if (status & 0x08)				/* NAK */
-    	    return USB_ST_TIMEOUT;
-    if (status & 0x10)				/* Babble */
-    	    return USB_ST_STALL;
-    if (status & 0x20)				/* Buffer error */
-    	    return USB_ST_BUFFERUNDERRUN;
-    if (status & 0x40)				/* Stalled */
-    	    return USB_ST_STALL;
-    if (status & 0x80)				/* Active */
-    	    return USB_ST_NOERROR;
-    return USB_ST_INTERNALERROR;
+	if (!status)
+		return USB_ST_NOERROR;
+	if (status & TD_CTRL_BITSTUFF)			/* Bitstuff error */
+		return USB_ST_BITSTUFF;
+	if (status & TD_CTRL_CRCTIMEO) {		/* CRC/Timeout */
+		if (dir_out)
+			return USB_ST_NORESPONSE;
+		else
+			return USB_ST_CRC;
+	}
+	if (status & TD_CTRL_NAK)			/* NAK */
+		return USB_ST_TIMEOUT;
+	if (status & TD_CTRL_BABBLE)			/* Babble */
+		return USB_ST_STALL;
+	if (status & TD_CTRL_DBUFERR)			/* Buffer error */
+		return USB_ST_BUFFERUNDERRUN;
+	if (status & TD_CTRL_STALLED)			/* Stalled */
+		return USB_ST_STALL;
+	if (status & TD_CTRL_ACTIVE)			/* Active */
+		return USB_ST_NOERROR;
+
+	return USB_ST_INTERNALERROR;
 }
 /*
  * Return the result of a TD..
  */
-static int uhci_td_result(struct uhci_device *dev, struct uhci_td *td, unsigned long *rval)
+static int uhci_td_result(struct uhci_device *dev, struct uhci_td *td, unsigned long *rval, int debug)
 {
 	unsigned int status;
-	struct uhci_td *tmp = td->first;
+	struct uhci_td *tmp;
+	int count = 1000;
 
-	if(rval)
+	if (rval)
 		*rval = 0;
 
-	/* locate the first failing td, if any */
+	/* Start at the TD first in the chain, if possible */
+	if (td->qh && td->qh->first)
+		tmp = td->qh->first;
+	else
+		tmp = td;
 
+	if (!tmp)
+		return USB_ST_INTERNALERROR;
+
+	/* Locate the first failing td, if any */
 	do {
-		status = (tmp->status >> 16) & 0xff;
+		status = uhci_status_bits(tmp->status);
+
 		if (status) {
-			/* must reset the toggle on first error */
-    			if (uhci_debug) {
-			    printk("Set toggle from %x rval %ld\n", (unsigned int)tmp, rval ? *rval : 0);
+			if (debug) {
+				/* Must reset the toggle on first error */
+    				if (uhci_debug) {
+					printk(KERN_DEBUG "Set toggle from %x rval %ld\n",
+						(unsigned int)tmp, rval ? *rval : 0);
+				}
+
+				usb_settoggle(dev->usb, uhci_endpoint(tmp->info),
+					uhci_packetout(tmp->info) ^ 1,
+					uhci_toggle(tmp->info));
+				break;
 			}
-			usb_settoggle(dev->usb, usb_pipeendpoint(tmp->info), usb_pipeout(tmp->info), (tmp->info >> 19) & 1);
-			break;
 		} else {
-		    if(rval)
-			*rval += (tmp->status & 0x3ff) + 1;
+			if (rval && ((tmp->info & 0xFF) == USB_PID_IN))
+				*rval += uhci_actual_length(tmp->status);
 		}
-		if ((tmp->link & 1) || (tmp->link & 2))
+
+		if ((tmp->link & UHCI_PTR_TERM) ||
+		    (tmp->link & UHCI_PTR_QH))
 			break;
-		tmp = bus_to_virt(tmp->link & ~0xF);
-	} while (1);
 
+		tmp = uhci_ptr_to_virt(tmp->link);
+	} while (--count);
 
-	if (!status)
+	if (!count) {
+		printk(KERN_ERR "runaway td's in uhci_td_result!\n");
+		/* Force debugging on */
+		debug = 1;
+	} else if (!status)
     		return USB_ST_NOERROR;
 
 	/* Some debugging code */
-	if (uhci_debug /* && (!usb_pipeendpoint(tmp->info) || !(status & 0x08))*/ ) {
-		int i = 10;
+	if (debug && uhci_debug) {
+		printk(KERN_DEBUG "uhci_td_result() failed with status %x\n",
+			status);
 
-		tmp = td->first;
-		printk("uhci_td_result() failed with status %x\n", status);
-		//show_status(dev->uhci);
-		do {
-			show_td(tmp);
-			if ((tmp->link & 1) || (tmp->link & 2))
-				break;
-			tmp = bus_to_virt(tmp->link & ~0xF);
-			if (!--i)
-				break;
-		} while (1);
+		/* Print the chain for debugging purposes */
+		if (td->qh)
+			uhci_show_queue(td->qh);
+		else
+			uhci_show_td(td);
 	}
 
-	if (status & 0x40) {
-	    /* endpoint has stalled - mark it halted */
-
-	    usb_endpoint_halt(dev->usb, usb_pipeendpoint(tmp->info));
-	    return USB_ST_STALL;
-
+	if (status & TD_CTRL_STALLED) {
+		/* endpoint has stalled - mark it halted */
+		usb_endpoint_halt(dev->usb, uhci_endpoint(tmp->info),
+	    			uhci_packetout(tmp->info));
+		return USB_ST_STALL;
 	}
 
-	if (status == 0x80) {
-	    /* still active */
-	    if (!rval)
+	if ((status == TD_CTRL_ACTIVE) && (!rval))
 		return USB_ST_DATAUNDERRUN;
-	}
-	return uhci_map_status(status, usb_pipeout(tmp->info));		
+
+	return uhci_map_status(status, uhci_packetout(tmp->info));
 }
 
 /*
@@ -163,7 +215,7 @@ static int uhci_td_result(struct uhci_device *dev, struct uhci_td *td, unsigned 
 static void uhci_insert_tds_in_qh(struct uhci_qh *qh, struct uhci_td *first, struct uhci_td *last)
 {
 	unsigned int link = qh->element;
-	unsigned int new = 4 | virt_to_bus(first);
+	unsigned int new = virt_to_bus(first) | UHCI_PTR_DEPTH;
 
 	for (;;) {
 		unsigned char success;
@@ -174,15 +226,20 @@ static void uhci_insert_tds_in_qh(struct uhci_qh *qh, struct uhci_td *first, str
 			:"=q" (success), "=a" (link)
 			:"m" (qh->element), "1" (link), "r" (new)
 			:"memory");
+
 		if (success) {
-			/* Was there a successor entry? Fix it's backpointer.. */
-			if ((link & 1) == 0) {
-				struct uhci_td *next = bus_to_virt(link & ~15);
+			/* Was there a successor entry? Fix it's backpointer */
+			if ((link & UHCI_PTR_TERM) == 0) {
+				struct uhci_td *next = uhci_ptr_to_virt(link);
 				next->backptr = &last->link;
 			}
 			break;
 		}
 	}
+
+	qh->first = first;
+	first->qh = qh;
+	last->qh = qh;
 }
 
 static inline void uhci_insert_td_in_qh(struct uhci_qh *qh, struct uhci_td *td)
@@ -193,23 +250,22 @@ static inline void uhci_insert_td_in_qh(struct uhci_qh *qh, struct uhci_td *td)
 static void uhci_insert_qh(struct uhci_qh *qh, struct uhci_qh *newqh)
 {
 	newqh->link = qh->link;
-	qh->link = virt_to_bus(newqh) | 2;
+	qh->link = virt_to_bus(newqh) | UHCI_PTR_QH;
 }
 
 static void uhci_remove_qh(struct uhci_qh *qh, struct uhci_qh *remqh)
 {
-	unsigned int remphys = virt_to_bus(remqh);
 	struct uhci_qh *lqh = qh;
 
-	while ((lqh->link & ~0xF) != remphys) {
-		if (lqh->link & 1)
+	while (uhci_ptr_to_virt(lqh->link) != remqh) {
+		if (lqh->link & UHCI_PTR_TERM)
 			break;
 
-		lqh = bus_to_virt(lqh->link & ~0xF);
+		lqh = uhci_ptr_to_virt(lqh->link);
 	}
 
-	if (lqh->link & 1) {
-		printk("couldn't find qh in chain!\n");
+	if (lqh->link & UHCI_PTR_TERM) {
+		printk(KERN_DEBUG "couldn't find qh in chain!\n");
 		return;
 	}
 
@@ -244,8 +300,8 @@ static void uhci_remove_td(struct uhci_td *td)
 	 * so we can always just look at that and fix up the backpointer
 	 * of any next element..
 	 */
-	if (!(link & 1)) {
-		struct uhci_td *next = bus_to_virt(link & ~15);
+	if (!(link & UHCI_PTR_TERM)) {
+		struct uhci_td *next = uhci_ptr_to_virt(link);
 		next->backptr = backptr;
 	}
 
@@ -260,62 +316,130 @@ static void uhci_remove_td(struct uhci_td *td)
 		:
 		:"r" (link), "m" (*backptr), "a" (me)
 		:"memory");
-}
 
-static struct uhci_qh *uhci_qh_allocate(struct uhci_device *dev)
-{
-	struct uhci_qh *qh;
-	int inuse;
-
-	qh = dev->qh;
-	for (; (inuse = test_and_set_bit(0, &qh->inuse)) != 0 && qh < &dev->qh[UHCI_MAXQH]; qh++)
-		;
-
-	if (!inuse)
-		return(qh);
-
-	printk("ran out of qh's for dev %p\n", dev);
-	return(NULL);
-}
-
-static void uhci_qh_deallocate(struct uhci_qh *qh)
-{
-//	if (qh->element != 1)
-//		printk("qh %p leaving dangling entries? (%X)\n", qh, qh->element);
-
-	qh->element = 1;
-	qh->link = 1;
-
-	clear_bit(0, &qh->inuse);
-}
-
-static struct uhci_td *uhci_td_allocate(struct uhci_device *dev)
-{
-	struct uhci_td *td;
-	int inuse;
-
-	td = dev->td;
-	for (; (inuse = test_and_set_bit(0, &td->inuse)) != 0 && td < &dev->td[UHCI_MAXTD]; td++)
-		;
-
-	if (!inuse) {
-    		td->inuse = 1;
-		return(td);
-	}
-
-	printk("ran out of td's for dev %p\n", dev);
-	return(NULL);
+	/* Reset it just in case */
+	td->link = UHCI_PTR_TERM;
 }
 
 /*
- * This MUST only be called when it has been removed from a QH already (or
- * the QH has been removed from the skeleton
+ * Only the USB core should call uhci_alloc_dev and uhci_free_dev
  */
-static void uhci_td_deallocate(struct uhci_td *td)
+static int uhci_alloc_dev(struct usb_device *usb_dev)
 {
-	td->link = 1;
+	struct uhci_device *dev;
 
-	clear_bit(0, &td->inuse);
+	/* Allocate the UHCI device private data */
+	dev = kmalloc(sizeof(*dev), GFP_KERNEL);
+	if (!dev)
+		return -1;
+
+	/* Initialize "dev" */
+	memset(dev, 0, sizeof(*dev));
+
+	usb_dev->hcpriv = dev;
+	dev->usb = usb_dev;
+	atomic_set(&dev->refcnt, 1);
+
+	if (usb_dev->parent)
+		dev->uhci = usb_to_uhci(usb_dev->parent)->uhci;
+
+	return 0;
+}
+
+static int uhci_free_dev(struct usb_device *usb_dev)
+{
+	struct uhci_device *dev = usb_to_uhci(usb_dev);
+
+	if (atomic_dec_and_test(&dev->refcnt))
+		kfree(dev);
+
+	return 0;
+}
+
+static void uhci_inc_dev_use(struct uhci_device *dev)
+{
+	atomic_inc(&dev->refcnt);
+}
+
+static void uhci_dec_dev_use(struct uhci_device *dev)
+{
+	uhci_free_dev(dev->usb);
+}
+
+static struct uhci_td *uhci_td_alloc(struct uhci_device *dev)
+{
+	struct uhci_td *td;
+
+	td = kmem_cache_alloc(uhci_td_cachep, SLAB_KERNEL);
+	if (!td)
+		return NULL;
+
+#ifdef UHCI_DEBUG
+	if ((__u32)td & UHCI_PTR_BITS)
+		printk("qh not 16 byte aligned!\n");
+#endif
+
+	td->link = UHCI_PTR_TERM;
+	td->buffer = 0;
+
+	td->backptr = NULL;
+	td->qh = NULL;
+	td->dev_id = NULL;
+	td->dev = dev;
+	td->flags = 0;
+	INIT_LIST_HEAD(&td->irq_list);
+	atomic_set(&td->refcnt, 1);
+
+	uhci_inc_dev_use(dev);
+
+	return td;
+}
+
+static void uhci_td_free(struct uhci_td *td)
+{
+	if (atomic_dec_and_test(&td->refcnt)) {
+		kmem_cache_free(uhci_td_cachep, td);
+
+		if (td->dev)
+			uhci_dec_dev_use(td->dev);
+	}
+}
+
+static struct uhci_qh *uhci_qh_alloc(struct uhci_device *dev)
+{
+	struct uhci_qh *qh;
+
+	qh = kmem_cache_alloc(uhci_qh_cachep, SLAB_KERNEL);
+	if (!qh)
+		return NULL;
+
+#ifdef UHCI_DEBUG
+	if ((__u32)qh & UHCI_PTR_BITS)
+		printk("qh not 16 byte aligned!\n");
+#endif
+
+	qh->element = UHCI_PTR_TERM;
+	qh->link = UHCI_PTR_TERM;
+
+	qh->dev = dev;
+	qh->skel = NULL;
+	qh->first = NULL;
+	init_waitqueue_head(&qh->wakeup);
+	atomic_set(&qh->refcnt, 1);
+
+	uhci_inc_dev_use(dev);
+
+	return qh;
+}
+
+static void uhci_qh_free(struct uhci_qh *qh)
+{
+	if (atomic_dec_and_test(&qh->refcnt)) {
+		kmem_cache_free(uhci_qh_cachep, qh);
+
+		if (qh->dev)
+			uhci_dec_dev_use(qh->dev);
+	}
 }
 
 /*
@@ -345,291 +469,549 @@ static void uhci_remove_irq_list(struct uhci_td *td)
 }
 
 /*
- * Request a interrupt handler..
+ * frame list manipulation. Used for Isochronous transfers.
+ * the list of (iso) TD's enqueued in a frame list entry
+ * is basically a doubly linked list with link being
+ * the forward pointer and backptr the backward ptr.
+ * the frame list entry itself doesn't have a back ptr
+ * (therefore the list is not circular), and the forward pointer
+ * stops at link entries having the UHCI_PTR_TERM or the UHCI_PTR_QH
+ * bit set. Maybe it could be extended to handle the QH's also,
+ * but it doesn't seem necessary right now.
+ * The layout looks as follows:
+ * frame list pointer -> iso td's (if any) -> 
+ * periodic interrupt td (if framelist 0) -> irq qh -> control qh -> bulk qh
  */
-static int uhci_request_irq(struct usb_device *usb_dev, unsigned int pipe, usb_device_irq handler, int period, void *dev_id)
+
+static spinlock_t framelist_lock = SPIN_LOCK_UNLOCKED;
+
+static void uhci_add_frame_list(struct uhci *uhci, struct uhci_td *td, unsigned framenum)
+{
+	unsigned long flags;
+	struct uhci_td *nexttd;
+
+	framenum %= UHCI_NUMFRAMES;
+	spin_lock_irqsave(&framelist_lock, flags);
+	td->backptr = &uhci->fl->frame[framenum];
+	td->link = uhci->fl->frame[framenum];
+	if (!(td->link & (UHCI_PTR_TERM | UHCI_PTR_QH))) {
+		nexttd = (struct uhci_td *)bus_to_virt(td->link & ~15);
+		nexttd->backptr = &td->link;
+	}
+	wmb();
+	uhci->fl->frame[framenum] = virt_to_bus(td);
+	spin_unlock_irqrestore(&framelist_lock, flags);
+}
+
+static void uhci_remove_frame_list(struct uhci *uhci, struct uhci_td *td)
+{
+	unsigned long flags;
+	struct uhci_td *nexttd;
+
+	if (!td->backptr)
+		return;
+	spin_lock_irqsave(&framelist_lock, flags);
+	*(td->backptr) = td->link;
+	if (!(td->link & (UHCI_PTR_TERM | UHCI_PTR_QH))) {
+		nexttd = (struct uhci_td *)bus_to_virt(td->link & ~15);
+		nexttd->backptr = td->backptr;
+	}
+	spin_unlock_irqrestore(&framelist_lock, flags);
+	td->backptr = NULL;
+	/*
+	 * attention: td->link might still be in use by the
+	 * hardware if the td is still active and the hardware
+	 * was processing it. So td->link should be preserved
+	 * until the frame number changes. Don't know what to do...
+	 * udelay(1000) doesn't sound nice, and schedule()
+	 * can't be used as this is called from within interrupt context.
+	 */
+	/* for now warn if there's a possible problem */
+	if (td->status & TD_CTRL_ACTIVE) {
+		unsigned frn = inw(uhci->io_addr + USBFRNUM);
+		__u32 link = uhci->fl->frame[frn % UHCI_NUMFRAMES];
+		if (!(link & (UHCI_PTR_TERM | UHCI_PTR_QH))) {
+			struct uhci_td *tdl = (struct uhci_td *)bus_to_virt(link & ~15);
+			for (;;) {
+				if (tdl == td) {
+					printk(KERN_WARNING "uhci_remove_frame_list: td possibly still in use!!\n");
+					break;
+				}
+				if (tdl->link & (UHCI_PTR_TERM | UHCI_PTR_QH))
+					break;
+				tdl = (struct uhci_td *)bus_to_virt(tdl->link & ~15);
+			}
+		}	
+	}
+}
+
+
+/*
+ * This function removes and disallocates all structures set up for a transfer.
+ * It takes the qh out of the skeleton, removes the tq and the td's.
+ * It only removes the associated interrupt handler if removeirq is set.
+ * The *td argument is any td in the list of td's.
+ */
+static void uhci_remove_transfer(struct uhci_td *td, char removeirq)
+{
+	int maxcount = 1000;
+	struct uhci_td *curtd;
+	unsigned int nextlink;
+
+	if (td->qh && td->qh->first)
+		curtd = td->qh->first;
+	else
+		curtd = td;
+
+	/* Remove it from the skeleton */
+	uhci_remove_qh(td->qh->skel, td->qh);
+	uhci_qh_free(td->qh);
+	do {
+		nextlink = curtd->link;
+
+		/* IOC? => remove handler */
+		if (removeirq && (td->status & TD_CTRL_IOC))
+			uhci_remove_irq_list(td);
+
+		uhci_remove_td(curtd);
+		uhci_td_free(curtd);
+		if (nextlink & UHCI_PTR_TERM)	/* Tail? */
+			break;
+
+		curtd = bus_to_virt(nextlink & ~UHCI_PTR_BITS);
+		if (!--maxcount) {
+			printk(KERN_ERR "runaway td's!?\n");
+			break;
+		}
+	} while (1);
+}
+
+/*
+ * Request a interrupt handler..
+ *
+ * Returns 0 (success) or negative (failure).
+ * Also returns/sets a "handle pointer" that release_irq can use to stop this
+ * interrupt.  (It's really a pointer to the TD).
+ */
+static int uhci_request_irq(struct usb_device *usb_dev, unsigned int pipe, usb_device_irq handler, int period, void *dev_id, void **handle)
 {
 	struct uhci_device *dev = usb_to_uhci(usb_dev);
-	struct uhci_device *root_hub=usb_to_uhci(dev->uhci->bus->root_hub);
-	struct uhci_td *td = uhci_td_allocate(dev);
-	struct uhci_qh *interrupt_qh = uhci_qh_allocate(dev);
-
+	struct uhci_td *td = uhci_td_alloc(dev);
+	struct uhci_qh *qh = uhci_qh_alloc(dev);
 	unsigned int destination, status;
 
+	if (!td || !qh) {
+		if (td)
+			uhci_td_free(td);
+		if (qh)
+			uhci_qh_free(qh);
+		return (-ENOMEM);
+	}
+
 	/* Destination: pipe destination with INPUT */
-	destination = (pipe & 0x0007ff00) | 0x69;
+	destination = (pipe & PIPE_DEVEP_MASK) | usb_packetid(pipe);
 
-	/* Status:    slow/fast,      Interrupt,   Active,    Short Packet Detect     Infinite Errors */
-	status = (pipe & (1 << 26)) | (1 << 24) | (1 << 23)   |   (1 << 29)       |    (0 << 27);
+	/* Infinite errors is 0, so no bits */
+	status = (pipe & TD_CTRL_LS) | TD_CTRL_IOC | TD_CTRL_ACTIVE | TD_CTRL_SPD;
 
-	if(interrupt_qh->element != 1)
-		printk("interrupt_qh->element = 0x%x\n", 
-		       interrupt_qh->element);
+	td->link = UHCI_PTR_TERM;		/* Terminate */
+	td->status = status;
+	td->info = destination | ((usb_maxpacket(usb_dev, pipe, usb_pipeout(pipe)) - 1) << 21) |
+		(usb_gettoggle(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe)) << TD_TOKEN_TOGGLE);
 
-	td->link = 1;
-	td->status = status;			/* In */
-	td->info = destination | (7 << 21) | (usb_gettoggle(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe)) << 19);	/* 8 bytes of data */
 	td->buffer = virt_to_bus(dev->data);
-	td->first = td;
-	td->qh = interrupt_qh;
-	td->dev = usb_dev;
+	td->qh = qh;
+	td->dev = dev;
 
 	/* if period 0, insert into fast q */
-
 	if (period == 0) {
-		td->inuse |= 2;
-		interrupt_qh->skel = &root_hub->skel_int2_qh;
+		td->flags |= UHCI_TD_REMOVE;
+		qh->skel = &dev->uhci->skel_int2_qh;
 	} else
-		interrupt_qh->skel = &root_hub->skel_int8_qh;
+		qh->skel = &dev->uhci->skel_int8_qh;
 
 	uhci_add_irq_list(dev->uhci, td, handler, dev_id);
 
-	uhci_insert_td_in_qh(interrupt_qh, td);
+	uhci_insert_td_in_qh(qh, td);
 
 	/* Add it into the skeleton */
-	uhci_insert_qh(interrupt_qh->skel, interrupt_qh);
+	uhci_insert_qh(qh->skel, qh);
+
+	*handle = (void *)td;
 	return 0;
 }
 
 /*
- * Remove running irq td from queues
+ * Release an interrupt handler previously allocated using
+ * uhci_request_irq.  This function does no validity checking, so make
+ * sure you're not releasing an already released handle as it may be
+ * in use by something else..
+ *
+ * This function can NOT be called from an interrupt.
  */
-
-static int uhci_remove_irq(struct usb_device *usb_dev, unsigned int pipe, usb_device_irq handler, int period, void *dev_id)
+int uhci_release_irq(struct usb_device *usb, void *handle)
 {
-    struct uhci_device *dev = usb_to_uhci(usb_dev);
-    struct uhci_device *root_hub=usb_to_uhci(dev->uhci->bus->root_hub);
-    struct uhci_td *td;
-    struct uhci_qh *interrupt_qh;
-    unsigned long flags;
-    struct list_head *head = &dev->uhci->interrupt_list;
-    struct list_head *tmp;
-
-    spin_lock_irqsave(&irqlist_lock, flags);
-
-    /* find the TD in the interrupt list */
-
-    tmp = head->next;
-    while (tmp != head) {
-	td = list_entry(tmp, struct uhci_td, irq_list);
-	if (td->dev_id == dev_id && td->completed == handler) {
-
-	    /* found the right one - let's remove it */
-
-	    /* notify removal */
-
-	    td->completed(USB_ST_REMOVED, NULL, 0, td->dev_id);
-
-	    /* this is DANGEROUS - not sure whether this is right */
-
-	    list_del(&td->irq_list);
-	    uhci_remove_td(td);
-	    interrupt_qh = td->qh;
-	    uhci_remove_qh(interrupt_qh->skel, interrupt_qh);
-	    uhci_td_deallocate(td);
-	    uhci_qh_deallocate(interrupt_qh);
-	    spin_unlock_irqrestore(&irqlist_lock, flags);
-	    return USB_ST_NOERROR;
-	}
-    }
-    spin_unlock_irqrestore(&irqlist_lock, flags);
-    return USB_ST_INTERNALERROR;
-}
-/*
- * Isochronous thread operations
- */
-
-int uhci_compress_isochronous(struct usb_device *usb_dev, void *_isodesc)
-{
-	struct uhci_iso_td *isodesc = (struct uhci_iso_td *)_isodesc;
-	char *data = isodesc->data;
-	int i, totlen = 0;
-
-	for (i = 0; i < isodesc->num; i++) {
-		char *cdata = bus_to_virt(isodesc->td[i].buffer & ~0xF);
-		int n = (isodesc->td[i].status + 1) & 0x7FF;
-
-		if ((cdata != data) && (n))
-			memmove(data, cdata, n);
-
-#if 0
-if (n && n != 960)
-	printk("underrun: %d %d\n", i, n);
-#endif
-if ((isodesc->td[i].status >> 16) & 0xFF)
-	printk("error: %d %X\n", i, (isodesc->td[i].status >> 16));
-
-		data += n;
-		totlen += n;
-	}
-
-	return totlen;
-}
-
-int uhci_unsched_isochronous(struct usb_device *usb_dev, void *_isodesc)
-{
-	struct uhci_device *dev = usb_to_uhci(usb_dev);
-	struct uhci *uhci = dev->uhci;
-	struct uhci_iso_td *isodesc = (struct uhci_iso_td *)_isodesc;
-	int i;
-
-	if ((isodesc->frame < 0) || (isodesc->frame > 1023))
-		return 1;
-
-	/* Remove from previous frames */
-	for (i = 0; i < isodesc->num; i++) {
-		/* Turn off Active and IOC bits */
-		isodesc->td[i].status &= ~(3 << 23);
-		uhci->fl->frame[(isodesc->frame + i) % 1024] = isodesc->td[i].link;
-	}
-
-	isodesc->frame = -1;
-
-	return 0;
-}
-	
-/* td points to the one td we allocated for isochronous transfers */
-int uhci_sched_isochronous(struct usb_device *usb_dev, void *_isodesc, void *_pisodesc)
-{
-	struct uhci_device *dev = usb_to_uhci(usb_dev);
-	struct uhci *uhci = dev->uhci;
-	struct uhci_iso_td *isodesc = (struct uhci_iso_td *)_isodesc;
-	struct uhci_iso_td *pisodesc = (struct uhci_iso_td *)_pisodesc;
-	int frame, i;
-
-	if (isodesc->frame != -1) {
-		printk("isoc queue not removed\n");
-		uhci_unsched_isochronous(usb_dev, isodesc);
-	}
-
-	/* Insert TD into list */
-	if (!pisodesc) {
-		frame = inw(uhci->io_addr + USBFRNUM) % 1024;
-		/* HACK: Start 2 frames from now */
-		frame = (frame + 2) % 1024;
-	} else
-		frame = (pisodesc->endframe + 1) % 1024;
-
-#if 0
-printk("scheduling first at frame %d\n", frame);
-#endif
-
-	for (i = 0; i < isodesc->num; i++) {
-		/* Active */
-		isodesc->td[i].status |= (1 << 23);
-		isodesc->td[i].backptr = &uhci->fl->frame[(frame + i) % 1024];
-		isodesc->td[i].link = uhci->fl->frame[(frame + i) % 1024];
-		uhci->fl->frame[(frame + i) % 1024] = virt_to_bus(&isodesc->td[i]);
-	}
-
-#if 0
-printk("last at frame %d\n", (frame + i - 1) % 1024);
-#endif
-
-	/* Interrupt */
-	isodesc->td[i - 1].status |= (1 << 24);
-
-	isodesc->frame = frame;
-	isodesc->endframe = (frame + isodesc->num - 1) % 1024;
-
-#if 0
-	return uhci_td_result(dev, td[num - 1]);
-#endif
-	return 0;
-}
-
-/*
- * Initialize isochronous queue
- */
-void *uhci_alloc_isochronous(struct usb_device *usb_dev, unsigned int pipe, void *data, int len, int maxsze, usb_device_irq completed, void *dev_id)
-{
-	struct uhci_device *dev = usb_to_uhci(usb_dev);
-	unsigned long destination, status;
 	struct uhci_td *td;
-	struct uhci_iso_td *isodesc;
+	struct uhci_qh *qh;
+
+	td = (struct uhci_td *)handle;
+	if (!td)
+		return USB_ST_INTERNALERROR;
+
+	/* Remove it from the internal irq_list */
+	uhci_remove_irq_list(td);
+
+	/* Remove the interrupt TD and QH */
+	uhci_remove_td(td);
+	qh = td->qh;
+	uhci_remove_qh(qh->skel, qh);
+
+	if (td->completed != NULL)
+		td->completed(USB_ST_REMOVED, NULL, 0, td->dev_id);
+
+	/* Free the TD and QH */
+	uhci_td_free(td);
+	uhci_qh_free(qh);
+
+	return USB_ST_NOERROR;
+} /* uhci_release_irq() */
+
+/*
+ * uhci_get_current_frame_number()
+ *
+ * returns the current frame number for a USB bus/controller.
+ */
+static int uhci_get_current_frame_number(struct usb_device *usb_dev)
+{
+       return inw (usb_to_uhci(usb_dev)->uhci->io_addr + USBFRNUM);
+}
+
+
+/*
+ * uhci_init_isoc()
+ *
+ * Allocates some data structures.
+ * Initializes parts of them from the function parameters.
+ *
+ * It does not associate any data/buffer pointers or
+ * driver (caller) callback functions with the allocated
+ * data structures.  Such associations are left until
+ * uhci_run_isoc().
+ *
+ * Returns 0 for success or negative value for error.
+ * Sets isocdesc before successful return.
+ */
+static int uhci_init_isoc (struct usb_device *usb_dev,
+				unsigned int pipe,
+				int frame_count,        /* bandwidth % = 100 * this / 1000 */
+				void *context,
+				struct usb_isoc_desc **isocdesc)
+{
+	struct usb_isoc_desc *id;
 	int i;
 
-	isodesc = kmalloc(sizeof(*isodesc), GFP_KERNEL);
-	if (!isodesc) {
-		printk("Couldn't allocate isodesc!\n");
-		return NULL;
-	}
-	memset(isodesc, 0, sizeof(*isodesc));
+	*isocdesc = NULL;
 
-	/* Carefully work around the non contiguous pages */
-	isodesc->num = (len / PAGE_SIZE) * (PAGE_SIZE / maxsze);
-	isodesc->td = kmalloc(sizeof(struct uhci_td) * isodesc->num, GFP_KERNEL);
-	isodesc->frame = isodesc->endframe = -1;
-	isodesc->data = data;
-	isodesc->maxsze = maxsze;
-	
-	if (!isodesc->td) {
-		printk("Couldn't allocate td's\n");
-		kfree(isodesc);
-		return NULL;
+	/* Check some parameters. */
+	if ((frame_count <= 0) || (frame_count > UHCI_NUMFRAMES)) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_init_isoc: invalid frame_count (%d)\n",
+			frame_count);
+#endif
+		return -EINVAL;
 	}
 
-	isodesc->frame = isodesc->endframe = -1;
+	if (!usb_pipeisoc (pipe)) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_init_isoc: NOT an Isoc. pipe\n");
+#endif
+		return -EINVAL;
+	}
+
+	id = kmalloc (sizeof (*id) +
+		(sizeof (struct isoc_frame_desc) * frame_count), GFP_KERNEL);
+	if (!id)
+		return -ENOMEM;
+
+	memset (id, 0, sizeof (*id) +
+		(sizeof (struct isoc_frame_desc) * frame_count));
+
+	id->td = kmalloc (sizeof (struct uhci_td) * frame_count, GFP_KERNEL);
+	if (!id->td) {
+		kfree (id);
+		return -ENOMEM;
+	}
+
+	memset (id->td, 0, sizeof (struct uhci_td) * frame_count);
+
+	for (i = 0; i < frame_count; i++)
+		INIT_LIST_HEAD(&((struct uhci_td *)(id->td))[i].irq_list);
+
+	id->frame_count = frame_count;
+	id->frame_size  = usb_maxpacket (usb_dev, pipe, usb_pipeout(pipe));
+		/* TBD: or make this a parameter to allow for frame_size
+		that is less than maxpacketsize */
+	id->start_frame = -1;
+	id->end_frame   = -1;
+	id->usb_dev     = usb_dev;
+	id->pipe        = pipe;
+	id->context     = context;
+
+	*isocdesc = id;
+	return 0;
+} /* end uhci_init_isoc */
+
+/*
+ * uhci_run_isoc()
+ *
+ * Associates data/buffer pointers/lengths and
+ * driver (caller) callback functions with the
+ * allocated Isoc. data structures and TDs.
+ *
+ * Then inserts the TDs into the USB controller frame list
+ * for its processing.
+ * And inserts the callback function into its TD.
+ *
+ * pr_isocdesc (previous Isoc. desc.) may be NULL.
+ * It is used only for chaining one list of TDs onto the
+ * end of the previous list of TDs.
+ *
+ * Returns 0 (success) or error code (negative value).
+ */
+static int uhci_run_isoc (struct usb_isoc_desc *isocdesc,
+				struct usb_isoc_desc *pr_isocdesc)
+{
+	struct uhci_device *dev = usb_to_uhci (isocdesc->usb_dev);
+	struct uhci *uhci = dev->uhci;
+	unsigned long   destination, status;
+	struct uhci_td  *td;
+	int             ix, cur_frame, pipeinput, frlen;
+	int             cb_frames = 0;
+	struct isoc_frame_desc *fd;
+	unsigned char   *bufptr;
+
+	if (!isocdesc->callback_fn) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_run_isoc: caller must have a callback function\n");
+#endif
+		return -EINVAL;
+	}
+
+	/* Check buffer size large enough for maxpacketsize * frame_count. */
+	if (isocdesc->buf_size < (isocdesc->frame_count * isocdesc->frame_size)) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_init_isoc: buf_size too small (%d < %d)\n",
+			isocdesc->buf_size, isocdesc->frame_count * isocdesc->frame_size);
+#endif
+		return -EINVAL;
+	}
+
+	/* Check buffer ptr for Null. */
+	if (!isocdesc->data) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_init_isoc: data ptr is null\n");
+#endif
+		return -EINVAL;
+	}
+
+#ifdef NEED_ALIGNMENT
+	/* Check data page alignment. */
+	if (((int)(isocdesc->data) & (PAGE_SIZE - 1)) != 0) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_init_isoc: buffer must be page-aligned (%p)\n",
+			isocdesc->data);
+#endif
+		return -EINVAL;
+	}
+#endif /* NEED_ALIGNMENT */
 
 	/*
-	 * Build the DATA TD's
+	 * Check start_type unless pr_isocdesc is used.
 	 */
-	i = 0;
-	do {
-		/* Build the TD for control status */
-		td = &isodesc->td[i];
+	if (!pr_isocdesc && (isocdesc->start_type > START_TYPE_MAX)) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_run_isoc: invalid start_type (%d)\n",
+			isocdesc->start_type);
+#endif
+		return -EINVAL;
+	}
 
-		/* The "pipe" thing contains the destination in bits 8--18 */
-		destination = (pipe & 0x0007ff00);
+	/*
+	 * Check start_frame for inside a valid range.
+	 * Only allow transfer requests to be made 1.000 second
+	 * into the future.
+	 */
+	cur_frame = uhci_get_current_frame_number (isocdesc->usb_dev);
 
-		if (usb_pipeout(pipe))
-			destination |= 0xE1;	/* OUT */
+	/* if not START_ASAP (i.e., RELATIVE or ABSOLUTE): */
+	if (!pr_isocdesc) {
+		if (isocdesc->start_type == START_RELATIVE) {
+			if ((isocdesc->start_frame < 0) || (isocdesc->start_frame > CAN_SCHEDULE_FRAMES)) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+				printk (KERN_DEBUG "uhci_init_isoc: bad start_frame value (%d)\n",
+					isocdesc->start_frame);
+#endif
+				return -EINVAL;
+			}
+		} /* end START_RELATIVE */
 		else
-			destination |= 0x69;	/* IN */
+  		if (isocdesc->start_type == START_ABSOLUTE) { /* within the scope of cur_frame */
+			ix = USB_WRAP_FRAMENR(isocdesc->start_frame - cur_frame);
+			if (ix < START_FRAME_FUDGE || /* too small */
+			    ix > CAN_SCHEDULE_FRAMES) { /* too large */
+#ifdef CONFIG_USB_DEBUG_ISOC
+					printk (KERN_DEBUG "uhci_init_isoc: bad start_frame value (%d,%d)\n",
+						isocdesc->start_frame, cur_frame);
+#endif
+					return -EINVAL;
+			}
+		} /* end START_ABSOLUTE */
+	} /* end not pr_isocdesc */
 
-		/* Status:    slow/fast,       Active,       Isochronous */
-		status = (pipe & (1 << 26)) | (1 << 23)   |   (1 << 25);
+	/*
+	 * Set the start/end frame numbers.
+	 */
+	if (pr_isocdesc) {
+		isocdesc->start_frame = pr_isocdesc->end_frame + 1;
+	} else if (isocdesc->start_type == START_RELATIVE) {
+		if (isocdesc->start_frame < START_FRAME_FUDGE)
+			isocdesc->start_frame = START_FRAME_FUDGE;
+		isocdesc->start_frame += cur_frame;
+	} else if (isocdesc->start_type == START_ASAP) {
+		isocdesc->start_frame = cur_frame + START_FRAME_FUDGE;
+	}
+
+	/* and see if start_frame needs any correction */
+	/* only wrap to USB frame numbers, the frame_list insertion routine
+	   takes care of the wrapping to the frame_list size */
+	isocdesc->start_frame = USB_WRAP_FRAMENR(isocdesc->start_frame);
+
+	/* and fix the end_frame value */
+	isocdesc->end_frame = USB_WRAP_FRAMENR(isocdesc->start_frame + isocdesc->frame_count - 1);
+
+	isocdesc->prev_completed_frame = -1;
+	isocdesc->cur_completed_frame  = -1;
+
+	destination = (isocdesc->pipe & PIPE_DEVEP_MASK) |
+		usb_packetid (isocdesc->pipe);
+	status = TD_CTRL_ACTIVE | TD_CTRL_IOS;  /* mark Isoc.; can't be low speed */
+	pipeinput = usb_pipein (isocdesc->pipe);
+	cur_frame = isocdesc->start_frame;
+	bufptr = isocdesc->data;
+
+	/*
+	 * Build the Data TDs.
+	 * TBD: Not using frame_spacing (Yet).  Defaults to 1 (every frame).
+	 * (frame_spacing is a way to request less bandwidth.)
+	 * This can also be done by using frame_length = 0 in the
+	 * frame_desc array, but this way won't take less bandwidth
+	 * allocation into account.
+	 */
+
+	if (isocdesc->frame_spacing <= 0)
+		isocdesc->frame_spacing = 1;
+
+	for (ix = 0, td = isocdesc->td, fd = isocdesc->frames;
+	     ix < isocdesc->frame_count; ix++, td++, fd++) {
+		frlen = fd->frame_length;
+		if (frlen > isocdesc->frame_size)
+			frlen = isocdesc->frame_size;
+
+#ifdef NOTDEF
+		td->info = destination |  /* use Actual len on OUT; max. on IN */
+			(pipeinput ? ((isocdesc->frame_size - 1) << 21)
+			: ((frlen - 1) << 21));
+#endif
+
+		td->dev_id = isocdesc;  /* can get dev_id or context from isocdesc */
+		td->status = status;
+		td->info   = destination | ((frlen - 1) << 21);
+		td->buffer = virt_to_bus (bufptr);
+		td->dev    = dev;
+		td->isoc_td_number = ix;        /* 0-based; does not wrap/overflow back to 0 */
+
+		if (isocdesc->callback_frames &&
+		    (++cb_frames >= isocdesc->callback_frames)) {
+			td->status |= TD_CTRL_IOC;
+			td->completed = isocdesc->callback_fn;
+			cb_frames = 0;
+			uhci_add_irq_list (dev->uhci, td, isocdesc->callback_fn, isocdesc->context);
+		}
+
+		bufptr += fd->frame_length;  /* or isocdesc->frame_size; */
 
 		/*
-		 * Build the TD for the control request
+		 * Insert the TD in the frame list.
 		 */
-		td->status = status;
-		td->info = destination | ((maxsze - 1) << 21);
-		td->buffer = virt_to_bus(data);
-		td->first = td;
-		td->backptr = NULL;
+		uhci_add_frame_list(uhci, td, cur_frame);
 
-		i++;
+		cur_frame = USB_WRAP_FRAMENR(cur_frame+1);
+	} /* end for ix */
 
-		data += maxsze;
+	/*
+	 * Add IOC on the last TD.
+	 */
+	td--;
+	if (!(td->status & TD_CTRL_IOC)) {
+		td->status |= TD_CTRL_IOC;
+		td->completed = isocdesc->callback_fn;
+		uhci_add_irq_list(dev->uhci, td, isocdesc->callback_fn, isocdesc->context); /* TBD: D.K. ??? */
+	}
+	return 0;
+} /* end uhci_run_isoc */
 
-		if (((int)data % PAGE_SIZE) + maxsze >= PAGE_SIZE)
-			data = (char *)(((int)data + maxsze) & ~(PAGE_SIZE - 1));
-		
-		len -= maxsze;
-	} while (i < isodesc->num);
-
-	/* IOC on the last TD */
-	td->status |= (1 << 24);
-	uhci_add_irq_list(dev->uhci, td, completed, dev_id);
-
-	return isodesc;
-}
-
-void uhci_delete_isochronous(struct usb_device *usb_dev, void *_isodesc)
+/*
+ * uhci_kill_isoc()
+ *
+ * Marks a TD list as Inactive and removes it from the Isoc.
+ * TD frame list.
+ *
+ * Does not free any memory resources.
+ *
+ * Returns 0 for success or negative value for error.
+ */
+static int uhci_kill_isoc (struct usb_isoc_desc *isocdesc)
 {
-	struct uhci_iso_td *isodesc = (struct uhci_iso_td *)_isodesc;
+	struct uhci_device *dev = usb_to_uhci (isocdesc->usb_dev);
+	struct uhci     *uhci = dev->uhci;
+	struct uhci_td  *td;
+	int             ix;
 
-	/* If it's still scheduled, unschedule them */
-	if (isodesc->frame)
-		uhci_unsched_isochronous(usb_dev, isodesc);
+	if (USB_WRAP_FRAMENR(isocdesc->start_frame) != isocdesc->start_frame) {
+#ifdef CONFIG_USB_DEBUG_ISOC
+		printk (KERN_DEBUG "uhci_kill_isoc: invalid start_frame (%d)\n",
+			isocdesc->start_frame);
+#endif
+		return -EINVAL;
+	}
 
-	/* Remove it from the IRQ list */
-	uhci_remove_irq_list(&isodesc->td[isodesc->num - 1]);
+	for (ix = 0, td = isocdesc->td; ix < isocdesc->frame_count; ix++, td++) {
+		uhci_remove_frame_list(uhci, td);
+		td->status &= ~(TD_CTRL_ACTIVE | TD_CTRL_IOC);
+	} /* end for ix */
 
-	kfree(isodesc->td);
-	kfree(isodesc);
-}
+	isocdesc->start_frame = -1;
+	return 0;
+} /* end uhci_kill_isoc */
+
+static void uhci_free_isoc (struct usb_isoc_desc *isocdesc)
+{
+	int i;
+
+	/* If still Active, kill it. */
+	if (isocdesc->start_frame >= 0)
+		uhci_kill_isoc(isocdesc);
+
+	/* Remove all td's from the IRQ list. */
+	for(i = 0; i < isocdesc->frame_count; i++)
+		uhci_remove_irq_list(((struct uhci_td *)(isocdesc->td))+i);
+
+	/* Free the associate memory. */
+	if (isocdesc->td)
+		kfree(isocdesc->td);
+
+	kfree(isocdesc);
+} /* end uhci_free_isoc */
 
 /*
  * Control thread operations: we just mark the last TD
@@ -639,11 +1021,16 @@ void uhci_delete_isochronous(struct usb_device *usb_dev, void *_isodesc)
  * We need to remove the TD from the lists (both interrupt
  * list and TD lists) by hand if something bad happens!
  */
-static DECLARE_WAIT_QUEUE_HEAD(control_wakeup);
 
-static int uhci_control_completed(int status, void *buffer, int len, void *dev_id)
+static int uhci_generic_completed(int status, void *buffer, int len, void *dev_id)
 {
-	wake_up(&control_wakeup);
+	wait_queue_head_t *wakeup = (wait_queue_head_t *)dev_id;
+
+	if (waitqueue_active(wakeup))
+		wake_up(wakeup);
+	else
+		printk("waitqueue empty!\n");
+
 	return 0;			/* Don't re-instate */
 }
 
@@ -651,64 +1038,34 @@ static int uhci_control_completed(int status, void *buffer, int len, void *dev_i
 static int uhci_run_control(struct uhci_device *dev, struct uhci_td *first, struct uhci_td *last)
 {
 	DECLARE_WAITQUEUE(wait, current);
-	struct uhci_qh *ctrl_qh = uhci_qh_allocate(dev);
-	struct uhci_td *curtd;
-	struct uhci_device *root_hub=usb_to_uhci(dev->uhci->bus->root_hub);
+	struct uhci_qh *qh = uhci_qh_alloc(dev);
+
+	if (!qh)
+		return -1;
+
 	current->state = TASK_UNINTERRUPTIBLE;
-	add_wait_queue(&control_wakeup, &wait);
+	add_wait_queue(&qh->wakeup, &wait);
 
-	uhci_add_irq_list(dev->uhci, last, uhci_control_completed, NULL);
+	uhci_add_irq_list(dev->uhci, last, uhci_generic_completed, &qh->wakeup);
 	
-	/* FIXME: This is kinda kludged */
-	/* Walk the TD list and update the QH pointer */
-	{
-	int maxcount = 100;
-
-	curtd = first;
-	do {
-		curtd->qh = ctrl_qh;
-		if (curtd->link & 1)
-			break;
-
-		curtd = bus_to_virt(curtd->link & ~0xF);
-		if (!--maxcount) {
-			printk("runaway tds!\n");
-			break;
-		}
-	} while (1);
-	}
-
-	uhci_insert_tds_in_qh(ctrl_qh, first, last);
+	uhci_insert_tds_in_qh(qh, first, last);
 
 	/* Add it into the skeleton */
-	uhci_insert_qh(&root_hub->skel_control_qh, ctrl_qh);
+	uhci_insert_qh(&dev->uhci->skel_control_qh, qh);
 
-//	control should be full here...	
-//	printk("control\n");
-//	show_status(dev->uhci);
-//	show_queues(dev->uhci);
+	schedule_timeout(HZ * 5);	/* 5 seconds */
 
-	schedule_timeout(HZ*5);
-
-//	control should be empty here...	
-//	show_status(dev->uhci);
-//	show_queues(dev->uhci);
-
-	remove_wait_queue(&control_wakeup, &wait);
+	remove_wait_queue(&qh->wakeup, &wait);
 
 	/* Clean up in case it failed.. */
 	uhci_remove_irq_list(last);
 
-#if 0
-	printk("Looking for tds [%p, %p]\n", dev->control_td, td);
-#endif
-
 	/* Remove it from the skeleton */
-	uhci_remove_qh(&root_hub->skel_control_qh, ctrl_qh);
+	uhci_remove_qh(&dev->uhci->skel_control_qh, qh);
 
-	uhci_qh_deallocate(ctrl_qh);
+	uhci_qh_free(qh);
 
-	return uhci_td_result(dev, last, NULL);
+	return uhci_td_result(dev, last, NULL, 1);
 }
 
 /*
@@ -731,25 +1088,32 @@ static int uhci_run_control(struct uhci_device *dev, struct uhci_td *first, stru
  * 29 TD's is a minimum of 232 bytes worth of control
  * information, that's just ridiculously high. Most
  * control messages have just a few bytes of data.
+ *
+ * 232 is not ridiculously high with many of the
+ * configurations on audio devices, etc. anyway,
+ * there is no restriction on length of transfers
+ * anymore
  */
-static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, void *cmd, void *data, int len)
+static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, devrequest *cmd, void *data, int len)
 {
 	struct uhci_device *dev = usb_to_uhci(usb_dev);
 	struct uhci_td *first, *td, *prevtd;
 	unsigned long destination, status;
-	int ret;
-	int maxsze = usb_maxpacket(usb_dev, pipe);
+	int ret, count;
+	int maxsze = usb_maxpacket(usb_dev, pipe, usb_pipeout(pipe));
+	__u32 nextlink;
+	unsigned long bytesrequested = len;
+	unsigned long bytesread = 0;
 
-	if (len > maxsze * 29)
-		printk("Warning, too much data for a control packet, crashing\n");
+	first = td = uhci_td_alloc(dev);
+	if (!td)
+		return -ENOMEM;
 
-	first = td = uhci_td_allocate(dev);
+	/* The "pipe" thing contains the destination in bits 8--18 */
+	destination = (pipe & PIPE_DEVEP_MASK) | USB_PID_SETUP;
 
-	/* The "pipe" thing contains the destination in bits 8--18, 0x2D is SETUP */
-	destination = (pipe & 0x0007ff00) | 0x2D;
-
-	/* Status:    slow/fast,       Active,    Short Packet Detect     Three Errors */
-	status = (pipe & (1 << 26)) | (1 << 23)   |   (1 << 29)       |    (3 << 27);
+	/* 3 errors */
+	status = (pipe & TD_CTRL_LS) | TD_CTRL_ACTIVE | TD_CTRL_SPD | (3 << 27);
 
 	/*
 	 * Build the TD for the control request
@@ -757,19 +1121,21 @@ static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, void 
 	td->status = status;				/* Try forever */
 	td->info = destination | (7 << 21);		/* 8 bytes of data */
 	td->buffer = virt_to_bus(cmd);
-	td->first = td;
 
 	/*
 	 * If direction is "send", change the frame from SETUP (0x2D)
-	 * to OUT (0xE1). Else change it from SETUP to IN (0x69)
+	 * to OUT (0xE1). Else change it from SETUP to IN (0x69).
 	 */
-	destination ^= (0x2D ^ 0x69);			/* SETUP -> IN */
+	destination ^= (USB_PID_SETUP ^ USB_PID_IN);		/* SETUP -> IN */
 	if (usb_pipeout(pipe))
-		destination ^= (0xE1 ^ 0x69);		/* IN -> OUT */
+		destination ^= (USB_PID_IN ^ USB_PID_OUT);	/* IN -> OUT */
 
 	prevtd = td;
-	td = uhci_td_allocate(dev);
-	prevtd->link = 4 | virt_to_bus(td);
+	td = uhci_td_alloc(dev);
+	if (!td)
+		return -ENOMEM;
+
+	prevtd->link = virt_to_bus(td) | UHCI_PTR_DEPTH;
 
 	/*
 	 * Build the DATA TD's
@@ -782,69 +1148,78 @@ static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, void 
 			pktsze = maxsze;
 
 		/* Alternate Data0/1 (start with Data1) */
-		destination ^= 1 << 19;
+		destination ^= 1 << TD_TOKEN_TOGGLE;
 	
 		td->status = status;					/* Status */
-		td->info = destination | ((pktsze-1) << 21);		/* pktsze bytes of data */
+		td->info = destination | ((pktsze - 1) << 21);		/* pktsze bytes of data */
 		td->buffer = virt_to_bus(data);
-		td->first = first;
 		td->backptr = &prevtd->link;
 
 		data += pktsze;
 		len -= pktsze;
 
 		prevtd = td;
-		td = uhci_td_allocate(dev);
-		prevtd->link = 4 | virt_to_bus(td);			/* Update previous TD */
-
+		td = uhci_td_alloc(dev);
+		if (!td)
+			return -ENOMEM;
+		prevtd->link = virt_to_bus(td) | UHCI_PTR_DEPTH;	/* Update previous TD */
 	}
 
 	/*
 	 * Build the final TD for control status 
 	 */
-	destination ^= (0xE1 ^ 0x69);			/* OUT -> IN */
-	destination |= 1 << 19;				/* End in Data1 */
+	/* It's only IN if the pipe is out AND we aren't expecting data */
+	destination &= ~0xFF;
+	if (usb_pipeout(pipe) | (bytesrequested == 0))
+		destination |= USB_PID_IN;
+	else
+		destination |= USB_PID_OUT;
 
-	td->backptr = &prevtd->link;
-	td->status = (status /* & ~(3 << 27) */) | (1 << 24);	/* no limit on final packet */
-	td->info = destination | (0x7ff << 21);		/* 0 bytes of data */
+	destination |= 1 << TD_TOKEN_TOGGLE;		/* End in Data1 */
+
+	td->status = status | TD_CTRL_IOC;			/* no limit on errors on final packet */
+	td->info = destination | (UHCI_NULL_DATA_SIZE << 21);	/* 0 bytes of data */
 	td->buffer = 0;
-	td->first = first;
-	td->link = 1;					/* Terminate */
-
+	td->backptr = &prevtd->link;
+	td->link = UHCI_PTR_TERM;			/* Terminate */
 
 	/* Start it up.. */
 	ret = uhci_run_control(dev, first, td);
 
-	{
-		int maxcount = 100;
-		struct uhci_td *curtd = first;
-		unsigned int nextlink;
+	count = 1000;
+	td = first;
+	do {
+		if (!uhci_status_bits(td->status) && ((td->info & 0xFF) ==
+		    USB_PID_IN))
+			bytesread += uhci_actual_length(td->status);
 
-		do {
-			nextlink = curtd->link;
-			uhci_remove_td(curtd);
-			uhci_td_deallocate(curtd);
-			if (nextlink & 1)	/* Tail? */
-				break;
+		nextlink = td->link;
+		uhci_remove_td(td);
+		uhci_td_free(td);
 
-			curtd = bus_to_virt(nextlink & ~0xF);
-			if (!--maxcount) {
-				printk("runaway td's!?\n");
-				break;
-			}
-		} while (1);
+		if (nextlink & UHCI_PTR_TERM)	/* Tail? */
+			break;
+
+		td = uhci_ptr_to_virt(nextlink);
+	} while (--count);
+
+	if (!count)
+		printk(KERN_ERR "runaway td's!?\n");
+
+	if (ret && (bytesread >= bytesrequested)) {
+		printk(KERN_DEBUG "Recovered sufficient data (asked for %ld, got %ld) from failed cmd\n",
+			bytesrequested, bytesread);
+		ret = 0;
 	}
 
 	if (uhci_debug && ret) {
-		__u8 *p = cmd;
+		__u8 *p = (__u8 *)cmd;
 
-		printk("Failed cmd - %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		printk(KERN_DEBUG "Failed cmd - %02X %02X %02X %02X %02X %02X %02X %02X\n",
 		       p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
 	}
 	return ret;
 }
-
 
 /*
  * Bulk thread operations: we just mark the last TD
@@ -854,76 +1229,38 @@ static int uhci_control_msg(struct usb_device *usb_dev, unsigned int pipe, void 
  * We need to remove the TD from the lists (both interrupt
  * list and TD lists) by hand if something bad happens!
  */
-static DECLARE_WAIT_QUEUE_HEAD(bulk_wakeup);
-
-static int uhci_bulk_completed(int status, void *buffer, int len, void *dev_id)
-{
-	wake_up(&bulk_wakeup);
-	return 0;			/* Don't re-instate */
-}
 
 /* td points to the last td in the list, which interrupts on completion */
 static int uhci_run_bulk(struct uhci_device *dev, struct uhci_td *first, struct uhci_td *last, unsigned long *rval)
 {
 	DECLARE_WAITQUEUE(wait, current);
-	struct uhci_qh *bulk_qh = uhci_qh_allocate(dev);
-	struct uhci_td *curtd;
-	struct uhci_device *root_hub=usb_to_uhci(dev->uhci->bus->root_hub);
+	struct uhci_qh *qh = uhci_qh_alloc(dev);
+
+	if (!qh)
+		return -ENOMEM;
 
 	current->state = TASK_UNINTERRUPTIBLE;
-	add_wait_queue(&bulk_wakeup, &wait);
+	add_wait_queue(&qh->wakeup, &wait);
 
-	uhci_add_irq_list(dev->uhci, last, uhci_bulk_completed, NULL);
+	uhci_add_irq_list(dev->uhci, last, uhci_generic_completed, &qh->wakeup);
 	
-	/* FIXME: This is kinda kludged */
-	/* Walk the TD list and update the QH pointer */
-	{
-	int maxcount = 100;
-
-	curtd = first;
-	do {
-		curtd->qh = bulk_qh;
-		if (curtd->link & 1)
-			break;
-
-		curtd = bus_to_virt(curtd->link & ~0xF);
-		if (!--maxcount) {
-			printk("runaway tds!\n");
-			break;
-		}
-	} while (1);
-	}
-
-	uhci_insert_tds_in_qh(bulk_qh, first, last);
+	uhci_insert_tds_in_qh(qh, first, last);
 
 	/* Add it into the skeleton */
-	uhci_insert_qh(&root_hub->skel_bulk0_qh, bulk_qh);
+	uhci_insert_qh(&dev->uhci->skel_bulk_qh, qh);
 
-//	now we're in the queue... but don't ask WHAT is in there ;-(
-//	printk("bulk\n");
-//	show_status(dev->uhci);
-//	show_queues(dev->uhci);
+	schedule_timeout(HZ * 5);	/* 5 seconds */
 
-	schedule_timeout(HZ*5);
-//	show_status(dev->uhci);
-//	show_queues(dev->uhci);
-
-	//show_queue(first->qh);
-	remove_wait_queue(&bulk_wakeup, &wait);
+	remove_wait_queue(&qh->wakeup, &wait);
 
 	/* Clean up in case it failed.. */
 	uhci_remove_irq_list(last);
 
-#if 0
-	printk("Looking for tds [%p, %p]\n", dev->control_td, td);
-#endif
+	uhci_remove_qh(&dev->uhci->skel_bulk_qh, qh);
 
-	/* Remove it from the skeleton */
-	uhci_remove_qh(&root_hub->skel_bulk0_qh, bulk_qh);
+	uhci_qh_free(qh);
 
-	uhci_qh_deallocate(bulk_qh);
-
-	return uhci_td_result(dev, last, rval);
+	return uhci_td_result(dev, last, rval, 1);
 }
 
 /*
@@ -934,13 +1271,6 @@ static int uhci_run_bulk(struct uhci_device *dev, struct uhci_td *first, struct 
  *
  * A bulk message is only built up from
  * the data phase
- *
- * The data phase can be an arbitrary number of TD's
- * although we currently had better not have more than
- * 31 TD's here.
- *
- * 31 TD's is a minimum of 248 bytes worth of bulk
- * information.
  */
 static int uhci_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *data, int len, unsigned long *rval)
 {
@@ -948,35 +1278,25 @@ static int uhci_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *da
 	struct uhci_td *first, *td, *prevtd;
 	unsigned long destination, status;
 	int ret;
-	int maxsze = usb_maxpacket(usb_dev, pipe);
+	int maxsze = usb_maxpacket(usb_dev, pipe, usb_pipeout(pipe));
 
-	if (usb_endpoint_halted(usb_dev, usb_pipeendpoint(pipe)) &&
-	    usb_clear_halt(usb_dev, usb_pipeendpoint(pipe) | (pipe & 0x80)))
+	if (usb_endpoint_halted(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe)) &&
+	    usb_clear_halt(usb_dev, usb_pipeendpoint(pipe) | (pipe & USB_DIR_IN)))
 		return USB_ST_STALL;
 
-	if (len > maxsze * 31)
-		printk("Warning, too much data for a bulk packet, crashing (%d/%d)\n", len, maxsze);
+	/* The "pipe" thing contains the destination in bits 8--18. */
+	destination = (pipe & PIPE_DEVEP_MASK) | usb_packetid (pipe);
 
-	/* The "pipe" thing contains the destination in bits 8--18, 0x69 is IN */
-	/*
-	  IS THIS NECCESARY? PERHAPS WE CAN JUST USE THE PIPE
-	  LOOK AT: usb_pipeout and the pipe bits
-	  I FORGOT WHAT IT EXACTLY DOES
-	*/
-	if (usb_pipeout(pipe)) {
-		destination = (pipe & 0x0007ff00) | 0xE1;
-	}
-	else {
-		destination = (pipe & 0x0007ff00) | 0x69;
-	}
-
-	/* Status:    slow/fast,       Active,    Short Packet Detect     Three Errors */
-	status = (pipe & (1 << 26)) | (1 << 23)   |   (1 << 29)       |    (3 << 27);
+	/* 3 errors */
+	status = (pipe & TD_CTRL_LS) | TD_CTRL_ACTIVE | TD_CTRL_SPD | (3 << 27);
 
 	/*
 	 * Build the TDs for the bulk request
 	 */
-        first = td = uhci_td_allocate(dev);
+        first = td = uhci_td_alloc(dev);
+	if (!td)
+		return -ENOMEM;
+
         prevtd = first; //This is fake, but at least it's not NULL
 	while (len > 0) {
 		/* Build the TD for control status */
@@ -987,25 +1307,29 @@ static int uhci_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *da
 
 		td->status = status;					/* Status */
 		td->info = destination | ((pktsze-1) << 21) |
-			 (usb_gettoggle(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe)) << 19); /* pktsze bytes of data */
+			(usb_gettoggle(usb_dev, usb_pipeendpoint(pipe),
+				usb_pipeout(pipe)) << TD_TOKEN_TOGGLE); /* pktsze bytes of data */
 		td->buffer = virt_to_bus(data);
 		td->backptr = &prevtd->link;
-		td->first = first;
 
 		data += maxsze;
 		len -= maxsze;
 
 		if (len > 0) {
 			prevtd = td;
-			td = uhci_td_allocate(dev);
-			prevtd->link = 4 | virt_to_bus(td);			/* Update previous TD */
+			td = uhci_td_alloc(dev);
+			if (!td)
+				return -ENOMEM;
+
+			prevtd->link = virt_to_bus(td) | UHCI_PTR_DEPTH;/* Update previous TD */
 		}
 
 		/* Alternate Data0/1 (start with Data0) */
 		usb_dotoggle(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe));
 	}
+
 	td->link = 1;				/* Terminate */
-	td->status |= (1 << 24);		/* IOC */
+	td->status |= TD_CTRL_IOC;
 
 	/* CHANGE DIRECTION HERE! SAVE IT SOMEWHERE IN THE ENDPOINT!!! */
 
@@ -1013,118 +1337,119 @@ static int uhci_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *da
 	ret = uhci_run_bulk(dev, first, td, rval);
 
 	{
-		int maxcount = 100;
+		int count = 100;
 		struct uhci_td *curtd = first;
 		unsigned int nextlink;
 
 		do {
 			nextlink = curtd->link;
 			uhci_remove_td(curtd);
-			uhci_td_deallocate(curtd);
-			if (nextlink & 1)	/* Tail? */
+			uhci_td_free(curtd);
+
+			if (nextlink & UHCI_PTR_TERM)	/* Tail? */
 				break;
 
-			curtd = bus_to_virt(nextlink & ~0xF);
-			if (!--maxcount) {
-				printk("runaway td's!?\n");
-				break;
-			}
-		} while (1);
+			curtd = uhci_ptr_to_virt(nextlink);
+		} while (--count);
+
+		if (!count)
+			printk(KERN_DEBUG "runaway td's!?\n");
 	}
 
 	return ret;
 }
 
-static struct usb_device *uhci_usb_allocate(struct usb_device *parent)
-{
-	struct usb_device *usb_dev;
-	struct uhci_device *dev;
-	int i;
-
-	usb_dev = kmalloc(sizeof(*usb_dev), GFP_KERNEL);
-	if (!usb_dev)
-		return NULL;
-
-	memset(usb_dev, 0, sizeof(*usb_dev));
-
-	dev = kmalloc(sizeof(*dev), GFP_KERNEL);
-	if (!dev) {
-		usb_destroy_configuration(usb_dev);
-		kfree(usb_dev);
-		return NULL;
-	}
-
-	/* Initialize "dev" */
-	memset(dev, 0, sizeof(*dev));
-
-	usb_dev->hcpriv = dev;
-	dev->usb = usb_dev;
-
-	usb_dev->parent = parent;
-
-	if (parent) {
-		usb_dev->bus = parent->bus;
-		dev->uhci = usb_to_uhci(parent)->uhci;
-	}
-
-	/* Reset the QH's and TD's */
-	for (i = 0; i < UHCI_MAXQH; i++) {
-		dev->qh[i].link = 1;
-		dev->qh[i].element = 1;
-		dev->qh[i].inuse = 0;
-	}
-
-	for (i = 0; i < UHCI_MAXTD; i++) {
-		dev->td[i].link = 1;
-		dev->td[i].inuse = 0;
-	}
-
-	return usb_dev;
-}
-
-static int uhci_usb_deallocate(struct usb_device *usb_dev)
+static void * uhci_request_bulk(struct usb_device *usb_dev, unsigned int pipe, usb_device_irq handler, void *data, int len, void *dev_id)
 {
 	struct uhci_device *dev = usb_to_uhci(usb_dev);
-	int i;
+	struct uhci *uhci = dev->uhci;
+	struct uhci_td *first, *td, *prevtd;
+	struct uhci_qh *bulk_qh = uhci_qh_alloc(dev);
+	unsigned long destination, status;
+	int maxsze = usb_maxpacket(usb_dev, pipe, usb_pipeout(pipe));
 
-	/* There are UHCI_MAXTD preallocated tds */
-	for (i = 0; i < UHCI_MAXTD; ++i) {
-		struct uhci_td *td = dev->td + i;
+	/* The "pipe" thing contains the destination in bits 8--18. */
+	destination = (pipe & PIPE_DEVEP_MASK) | usb_packetid(pipe);
 
-		if (td->inuse & 1) {
-			uhci_remove_td(td);
+	/* Infinite errors is 0 */
+	status = (pipe & TD_CTRL_LS) | TD_CTRL_ACTIVE | TD_CTRL_SPD;
 
-			/* And remove it from the irq list, if it's active */
-			if (td->status & (1 << 23))
-				td->status &= ~(1 << 23);
-#if 0
-				uhci_remove_irq_list(td);
-#endif
+	/* Build the TDs for the bulk request */
+	first = td = uhci_td_alloc(dev);
+	prevtd = td;
+	while (len > 0) {
+		/* Build the TD for control status */
+		int pktsze = len;
+
+		if (pktsze > maxsze)
+			pktsze = maxsze;
+
+		td->status = status;
+		td->info = destination | ((pktsze-1) << 21) |
+			(usb_gettoggle(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe)) << TD_TOKEN_TOGGLE); /* pktsze bytes of data */
+		td->buffer = virt_to_bus(data);
+		td->backptr = &prevtd->link;
+		td->qh = bulk_qh;
+		td->dev = dev;
+		data += pktsze;
+		len -= pktsze;
+
+		if (len > 0) {
+			prevtd = td;
+			td = uhci_td_alloc(dev);
+			prevtd->link = virt_to_bus(td) | UHCI_PTR_DEPTH;
 		}
+
+		/* Alternate Data0/1 */
+		usb_dotoggle(usb_dev, usb_pipeendpoint(pipe), usb_pipeout(pipe));
 	}
 
-	/* Remove the td from any queues */
-	for (i = 0; i < UHCI_MAXQH; ++i) {
-		struct uhci_qh *qh = dev->qh + i;
+	first->backptr = NULL;
+	td->link = 1;                           /* Terminate */
+	td->status = status | TD_CTRL_IOC;	/* IOC */
 
-		if (qh->inuse & 1)
-			uhci_remove_qh(qh->skel, qh);
-	}
+	uhci_add_irq_list(dev->uhci, td, handler, dev_id);
 
-	kfree(dev);
-	usb_destroy_configuration(usb_dev);
-	kfree(usb_dev);
+	uhci_insert_tds_in_qh(bulk_qh, first, td);
 
-	return 0;
+	bulk_qh->skel = &uhci->skel_bulk_qh;
+	uhci_insert_qh(&uhci->skel_bulk_qh, bulk_qh);
+
+	/* Return last td for removal */
+	return td;
+}
+
+/*
+ * Remove a handler from a pipe. This terminates the transfer.
+ * We have some assumptions here:
+ * There is only one queue using this pipe. (the one we remove)
+ * Any data that is in the queue is useless for us, we throw it away.
+ */
+static int uhci_terminate_bulk(struct usb_device *dev, void *first)
+{
+	/* none found? there is nothing to remove! */
+	if (!first)
+		return 0;
+
+	uhci_remove_transfer(first, 1);
+
+	return 1;
 }
 
 struct usb_operations uhci_device_operations = {
-	uhci_usb_allocate,
-	uhci_usb_deallocate,
+	uhci_alloc_dev,
+	uhci_free_dev,
 	uhci_control_msg,
 	uhci_bulk_msg,
 	uhci_request_irq,
-	uhci_remove_irq,
+	uhci_release_irq,
+	uhci_request_bulk,
+	uhci_terminate_bulk,
+	uhci_get_current_frame_number,
+	uhci_init_isoc,
+	uhci_free_isoc,
+	uhci_run_isoc,
+	uhci_kill_isoc
 };
 
 /*
@@ -1149,13 +1474,12 @@ static void uhci_reset_port(unsigned int port)
 	wait_ms(10);
 
 	status = inw(port);
-	if(!(status & USBPORTSC_PE)) {
+	if (!(status & USBPORTSC_PE)) {
 		outw(status | USBPORTSC_PE, port);	/* one more try at enabling port */
 		wait_ms(50);
 	}
 
 }
-
 
 /*
  * This gets called if the connect status on the root
@@ -1166,8 +1490,11 @@ static void uhci_connect_change(struct uhci *uhci, unsigned int port, unsigned i
 	struct usb_device *usb_dev;
 	struct uhci_device *dev;
 	unsigned short status;
-	struct uhci_device *root_hub=usb_to_uhci(uhci->bus->root_hub);
-	printk("uhci_connect_change: called for %d\n", nr);
+	struct uhci_device *root_hub = usb_to_uhci(uhci->bus->root_hub);
+
+#ifdef UHCI_DEBUG
+	printk(KERN_INFO "uhci_connect_change: called for %d\n", nr);
+#endif
 
 	/*
 	 * Even if the status says we're connected,
@@ -1191,10 +1518,11 @@ static void uhci_connect_change(struct uhci *uhci, unsigned int port, unsigned i
 	 * Ok, we got a new connection. Allocate a device to it,
 	 * and find out what it wants to do..
 	 */
-	usb_dev = uhci_usb_allocate(root_hub->usb);
+	usb_dev = usb_alloc_dev(root_hub->usb, root_hub->usb->bus);
+	if (!usb_dev)
+		return;
+	
 	dev = usb_dev->hcpriv;
-
-	dev->uhci = uhci;
 
 	usb_connect(usb_dev);
 
@@ -1211,7 +1539,13 @@ static void uhci_connect_change(struct uhci *uhci, unsigned int port, unsigned i
 	 * The rest is generic for any new USB attach, regardless of
 	 * hub type.
 	 */
-	usb_new_device(usb_dev);
+	if (usb_new_device(usb_dev)) {
+		unsigned short status = inw(port);
+
+		printk(KERN_INFO "uhci: disabling malfunctioning port %d\n",
+			nr + 1);
+		outw(status | USBPORTSC_PE, port);
+	}
 }
 
 /*
@@ -1221,7 +1555,7 @@ static void uhci_connect_change(struct uhci *uhci, unsigned int port, unsigned i
  */
 static void uhci_check_configuration(struct uhci *uhci)
 {
-	struct uhci_device * root_hub=usb_to_uhci(uhci->bus->root_hub);
+	struct uhci_device *root_hub = usb_to_uhci(uhci->bus->root_hub);
 	unsigned int io_addr = uhci->io_addr + USBPORTSC1;
 	int maxchild = root_hub->usb->maxchild;
 	int nr = 0;
@@ -1236,56 +1570,111 @@ static void uhci_check_configuration(struct uhci *uhci)
 	} while (nr < maxchild);
 }
 
+static int fixup_isoc_desc (struct uhci_td *td)
+{
+	struct usb_isoc_desc    *isocdesc = td->dev_id;
+	struct uhci_td          *prtd;
+	struct isoc_frame_desc  *frm;
+	int                     first_comp = isocdesc->cur_completed_frame + 1; /* 0-based */
+	int                     cur_comp = td->isoc_td_number;  /* 0-based */
+	int                     ix, fx;
+	int                     num_comp;
+
+	if (first_comp >= isocdesc->frame_count)
+		first_comp = 0;
+	num_comp = cur_comp - first_comp + 1;
+
+#ifdef CONFIG_USB_DEBUG_ISOC
+	printk ("fixup_isoc_desc.1: td = %p, id = %p, first_comp = %d, cur_comp = %d, num_comp = %d\n",
+			td, isocdesc, first_comp, cur_comp, num_comp);
+#endif
+
+	for (ix = 0, fx = first_comp, prtd = ((struct uhci_td *)(isocdesc->td))+first_comp, frm = &isocdesc->frames [first_comp];
+	    ix < num_comp; ix++) {
+		frm->frame_length = uhci_actual_length (prtd->status);
+		isocdesc->total_length += frm->frame_length;
+
+		if ((frm->frame_status = uhci_map_status (uhci_status_bits (prtd->status),
+		    uhci_packetout (prtd->info))))
+			isocdesc->error_count++;
+             
+		prtd++;
+		frm++;
+		if (++fx >= isocdesc->frame_count) {    /* wrap fx, prtd, and frm */
+			fx = 0;
+			prtd = isocdesc->td;
+			frm  = isocdesc->frames;
+		} /* end wrap */
+	} /* end for */
+
+	/*
+ 	 * Update some other fields for drivers.
+	 */
+	isocdesc->prev_completed_frame = isocdesc->cur_completed_frame;
+	isocdesc->cur_completed_frame  = cur_comp;
+	isocdesc->total_completed_frames += num_comp;   /* 1-based */
+
+#ifdef CONFIG_USB_DEBUG_ISOC
+	printk ("fixup_isoc_desc.2: total_comp_frames = %d, total_length = %d, error_count = %d\n",
+		isocdesc->total_completed_frames, isocdesc->total_length, isocdesc->error_count);
+#endif /* CONFIG_USB_DEBUG_ISOC */
+
+	return 0;
+}
+
 static void uhci_interrupt_notify(struct uhci *uhci)
 {
-	struct list_head *head = &uhci->interrupt_list;
-	struct list_head *tmp;
+	struct list_head *tmp, *head = &uhci->interrupt_list;
 	int status;
 
 	spin_lock(&irqlist_lock);
 	tmp = head->next;
 	while (tmp != head) {
 		struct uhci_td *td = list_entry(tmp, struct uhci_td, irq_list);
-		struct list_head *next;
+		unsigned long rval;
 
-		next = tmp->next;
+		tmp = tmp->next;
 
-		if (!((status = td->status) & (1 << 23)) ||  /* No longer active? */
-		    ((td->qh->element & ~15) && 
-		      !((status = uhci_link_to_td(td->qh->element)->status) & (1 <<23)) &&
-		      (status & 0x760000) /* is in error state (Stall, db, babble, timeout, bitstuff) */)) {	
-			/* remove from IRQ list */
-			__list_del(tmp->prev, next);
-			INIT_LIST_HEAD(tmp);
-			if (td->completed(uhci_map_status(status, 0), bus_to_virt(td->buffer), -1, td->dev_id)) {
-				list_add(&td->irq_list, &uhci->interrupt_list);
+		/* We're interested if there was an error or if the chain of */
+		/*  TD's completed successfully */
+		status = uhci_td_result(td->dev, td, &rval, 0);
 
-				if (!(td->status & (1 << 25))) {
-					struct uhci_qh *interrupt_qh = td->qh;
+		if ((status == USB_ST_NOERROR) && (td->status & TD_CTRL_ACTIVE))
+			continue;
 
-					usb_dotoggle(td->dev, usb_pipeendpoint(td->info), usb_pipeout(td->info));
-					td->info &= ~(1 << 19); /* clear data toggle */
-					td->info |= usb_gettoggle(td->dev, usb_pipeendpoint(td->info), usb_pipeout(td->info)) << 19; /* toggle between data0 and data1 */
-					td->status = (td->status & 0x2f000000) | (1 << 23) | (1 << 24);	/* active */
+		/* remove from IRQ list */
+		list_del(&td->irq_list);
+		INIT_LIST_HEAD(&td->irq_list);
 
-					/* Remove then readd? Is that necessary */
-					uhci_remove_td(td);
-					uhci_insert_td_in_qh(interrupt_qh, td);
-				}
-			} else if (td->inuse & 2) {
-				struct uhci_qh *interrupt_qh = td->qh;
-				/* marked for removal */
-				td->inuse &= ~2;
-				usb_dotoggle(td->dev, usb_pipeendpoint(td->info), usb_pipeout(td->info));
-				uhci_remove_qh(interrupt_qh->skel, interrupt_qh);
-				uhci_qh_deallocate(interrupt_qh);
-				uhci_td_deallocate(td);
-			}
-			/* If completed wants to not reactivate, then it's */
-			/* responsible for free'ing the TD's and QH's */
-			/* or another function (such as run_control) */
-		} 
-		tmp = next;
+		if (td->completed(status, bus_to_virt(td->buffer), rval,
+		    td->dev_id)) {
+			struct usb_device *usb_dev = td->dev->usb;
+
+			list_add(&td->irq_list, &uhci->interrupt_list);
+
+			usb_dotoggle(usb_dev, usb_pipeendpoint(td->info), usb_pipeout(td->info) ^ 1);
+			td->info &= ~(1 << 19); /* clear data toggle */
+			td->info |= usb_gettoggle(usb_dev, usb_pipeendpoint(td->info),
+				uhci_packetout(td->info)) << 19; /* toggle between data0 and data1 */
+			td->status = (td->status & 0x2F000000) | TD_CTRL_ACTIVE | TD_CTRL_IOC;
+			/* The HC only removes it when it completed */
+			/* successfully, so force remove and readd it */
+			uhci_remove_td(td);
+			uhci_insert_td_in_qh(td->qh, td);
+		} else if (td->flags & UHCI_TD_REMOVE) {
+			struct usb_device *usb_dev = td->dev->usb;
+
+			/* marked for removal */
+			td->flags &= ~UHCI_TD_REMOVE;
+			usb_dotoggle(usb_dev, usb_pipeendpoint(td->info), uhci_packetout(td->info));
+			uhci_remove_qh(td->qh->skel, td->qh);
+			uhci_qh_free(td->qh);
+			uhci_td_free(td);
+		}
+
+		/* If completed does not wants to reactivate, then */
+		/* it's responsible for free'ing the TD's and QH's */
+		/* or another function (such as run_control) */
 	}
 	spin_unlock(&irqlist_lock);
 }
@@ -1301,8 +1690,9 @@ static void uhci_interrupt_notify(struct uhci *uhci)
 static void uhci_root_hub_events(struct uhci *uhci, unsigned int io_addr)
 {
 	if (waitqueue_active(&uhci_configure)) {
-		struct uhci_device * root_hub=usb_to_uhci(uhci->bus->root_hub);
+		struct uhci_device *root_hub = usb_to_uhci(uhci->bus->root_hub);
 		int ports = root_hub->usb->maxchild;
+
 		io_addr += USBPORTSC1;
 		do {
 			if (inw(io_addr) & USBPORTSC_CSC) {
@@ -1321,13 +1711,13 @@ static void uhci_interrupt(int irq, void *__uhci, struct pt_regs *regs)
 	unsigned short status;
 
 	/*
-	 * Read the interrupt status, and write it back to clear the interrupt cause
+	 * Read the interrupt status, and write it back to clear the
+	 * interrupt cause
 	 */
 	status = inw(io_addr + USBSTS);
+	if (!status)	/* shared interrupt, not mine */
+		return;
 	outw(status, io_addr + USBSTS);
-
-//	if ((status & ~0x21) != 0)
-//		printk("interrupt: %X\n", status);
 
 	/* Walk the list of pending TD's to see which ones completed.. */
 	uhci_interrupt_notify(uhci);
@@ -1346,16 +1736,24 @@ static void uhci_interrupt(int irq, void *__uhci, struct pt_regs *regs)
 static void uhci_init_ticktd(struct uhci *uhci)
 {
 	struct uhci_device *dev = usb_to_uhci(uhci->bus->root_hub);
-	struct uhci_td *td = uhci_td_allocate(dev);
+	struct uhci_td *td = uhci_td_alloc(dev);
 
-	td->link = 1;
-	td->status = (1 << 24);					/* interrupt on completion */
-	td->info = (15 << 21) | 0x7f69;				/* (ignored) input packet, 16 bytes, device 127 */
+	if (!td) {
+		printk(KERN_ERR "unable to allocate ticktd\n");
+		return;
+	}
+
+	/* Don't clobber the frame */
+	td->link = uhci->fl->frame[0];
+	td->backptr = &uhci->fl->frame[0];
+	td->status = TD_CTRL_IOC;
+	td->info = (15 << 21) | (0x7f << 8) | USB_PID_IN;	/* (ignored) input packet, 16 bytes, device 127 */
 	td->buffer = 0;
-	td->first = td;
 	td->qh = NULL;
 
 	uhci->fl->frame[0] = virt_to_bus(td);
+
+	uhci->ticktd = td;
 }
 
 static void reset_hc(struct uhci *uhci)
@@ -1363,9 +1761,9 @@ static void reset_hc(struct uhci *uhci)
 	unsigned int io_addr = uhci->io_addr;
 
 	/* Global reset for 50ms */
-	outw(USBCMD_GRESET, io_addr+USBCMD);
+	outw(USBCMD_GRESET, io_addr + USBCMD);
 	wait_ms(50);
-	outw(0, io_addr+USBCMD);
+	outw(0, io_addr + USBCMD);
 	wait_ms(10);
 }
 
@@ -1385,13 +1783,15 @@ static void start_hc(struct uhci *uhci)
 	outw(USBCMD_HCRESET, io_addr + USBCMD);
 	while (inw(io_addr + USBCMD) & USBCMD_HCRESET) {
 		if (!--timeout) {
-			printk("USBCMD_HCRESET timed out!\n");
+			printk(KERN_ERR "USBCMD_HCRESET timed out!\n");
 			break;
 		}
 	}
 
-
+	/* Turn on all interrupts */
 	outw(USBINTR_TIMEOUT | USBINTR_RESUME | USBINTR_IOC | USBINTR_SP, io_addr + USBINTR);
+
+	/* Start at frame 0 */
 	outw(0, io_addr + USBFRNUM);
 	outl(virt_to_bus(uhci->fl), io_addr + USBFLBASEADD);
 
@@ -1416,10 +1816,13 @@ static void start_hc(struct uhci *uhci)
  * We could certainly have multiple queues of the same
  * type, and maybe we should. We could have per-device
  * queues, for example. We begin small.
+ *
+ * Queues are dynamically allocated for devices now,
+ * this code only sets up the skeleton queue
  */
-static struct uhci *alloc_uhci(unsigned int io_addr)
+static struct uhci *alloc_uhci(unsigned int io_addr, unsigned int io_size)
 {
-	int i;
+	int i, port;
 	struct uhci *uhci;
 	struct usb_bus *bus;
 	struct uhci_device *dev;
@@ -1433,6 +1836,7 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 
 	uhci->irq = -1;
 	uhci->io_addr = io_addr;
+	uhci->io_size = io_size;
 	INIT_LIST_HEAD(&uhci->interrupt_list);
 
 	/* We need exactly one page (per UHCI specs), how convenient */
@@ -1440,63 +1844,67 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 	if (!uhci->fl)
 		goto au_free_uhci;
 
-	bus = kmalloc(sizeof(*bus), GFP_KERNEL);
+	bus = usb_alloc_bus(&uhci_device_operations);
 	if (!bus)
 		goto au_free_fl;
 
-	memset(bus, 0, sizeof(*bus));
-
 	uhci->bus = bus;
 	bus->hcpriv = uhci;
-	bus->op = &uhci_device_operations;
 
 	/*
-	 * We allocate a 8kB area for the UHCI hub. The area
-	 * is described by the uhci_device structure, and basically
-	 * contains everything needed for normal operation.
-	 *
-	 * The first page is the actual device descriptor for the
-	 * hub.
-	 *
-	 * The second page is used for the frame list.
+ 	 * Allocate the root_hub
 	 */
-	usb = uhci_usb_allocate(NULL);
+	usb = usb_alloc_dev(NULL, bus);
 	if (!usb)
 		goto au_free_bus;
 
 	usb->bus = bus;
+
 	dev = usb_to_uhci(usb);
-	uhci->bus->root_hub=uhci_to_usb(dev);
+	dev->uhci = uhci;
+
+	uhci->bus->root_hub = uhci_to_usb(dev);
+
 	/* Initialize the root hub */
+
 	/* UHCI specs says devices must have 2 ports, but goes on to say */
 	/* they may have more but give no way to determine how many they */
 	/* have, so default to 2 */
-	usb->maxchild = 2;
+	/* According to the UHCI spec, Bit 7 is always set to 1. So we try */
+	/* to use this to our advantage */
+	for (port = 0; port < (io_size - 0x10) / 2; port++) {
+		unsigned int portstatus;
+
+		portstatus = inw(io_addr + 0x10 + (port * 2));
+		if (!(portstatus & 0x0080))
+			break;
+	}
+	printk(KERN_DEBUG "Detected %d ports\n", port);
+
+	/* This is experimental so anything less than 2 or greater than 8 is */
+	/*  something weird and we'll ignore it */
+	if (port < 2 || port > 8) {
+		printk(KERN_DEBUG "Port count misdetected, forcing to 2 ports\n");
+		port = 2;
+	}
+
+	usb->maxchild = port;
 	usb_init_root_hub(usb);
 
-	/*
-	 * Initialize the queues. They all start out empty,
-	 * linked to each other in the proper order.
-	 */
-	for (i = 1 ; i < 9; i++) {
-		dev->qh[i].link = 2 | virt_to_bus(&dev->skel_control_qh);
-		dev->qh[i].element = 1;
+	/* 8 Interrupt queues */
+	for (i = 0; i < 8; i++) {
+		struct uhci_qh *qh = &uhci->skelqh[i];
+
+		qh->link = virt_to_bus(&uhci->skel_control_qh) | UHCI_PTR_QH;
+		qh->element = UHCI_PTR_TERM;
 	}
-	
-	dev->skel_control_qh.link = 2 | virt_to_bus(&dev->skel_bulk0_qh);
-	dev->skel_control_qh.element = 1;
 
-	dev->skel_bulk0_qh.link = 2 | virt_to_bus(&dev->skel_bulk1_qh);
-	dev->skel_bulk0_qh.element = 1;
+	uhci->skel_control_qh.link = virt_to_bus(&uhci->skel_bulk_qh) |
+		UHCI_PTR_QH;
+	uhci->skel_control_qh.element = UHCI_PTR_TERM;
 
-	dev->skel_bulk1_qh.link = 2 | virt_to_bus(&dev->skel_bulk2_qh);
-	dev->skel_bulk1_qh.element = 1;
-
-	dev->skel_bulk2_qh.link = 2 | virt_to_bus(&dev->skel_bulk3_qh);
-	dev->skel_bulk2_qh.element = 1;
-
-	dev->skel_bulk3_qh.link = 1;
-	dev->skel_bulk3_qh.element = 1;
+	uhci->skel_bulk_qh.link = UHCI_PTR_TERM;
+	uhci->skel_bulk_qh.element = UHCI_PTR_TERM;
 
 	/*
 	 * Fill the frame list: make all entries point to
@@ -1507,7 +1915,7 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 	 * us a reasonable dynamic range for irq latencies.
 	 */
 	for (i = 0; i < 1024; i++) {
-		struct uhci_qh * irq = &dev->skel_int2_qh;
+		struct uhci_qh *irq = &uhci->skel_int2_qh;
 		if (i & 1) {
 			irq++;
 			if (i & 2) {
@@ -1529,7 +1937,7 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
 				}
 			}
 		}
-		uhci->fl->frame[i] =  2 | virt_to_bus(irq);
+		uhci->fl->frame[i] =  virt_to_bus(irq) | UHCI_PTR_QH;
 	}
 
 	return uhci;
@@ -1539,14 +1947,13 @@ static struct uhci *alloc_uhci(unsigned int io_addr)
  */
 
 au_free_bus:
-	kfree (bus);
+	usb_free_bus(bus);
 au_free_fl:
-	free_page ((unsigned long)uhci->fl);
+	free_page((unsigned long)uhci->fl);
 au_free_uhci:
-	kfree (uhci);
+	kfree(uhci);
 	return NULL;
 }
-
 
 /*
  * De-allocate all resources..
@@ -1558,51 +1965,44 @@ static void release_uhci(struct uhci *uhci)
 		uhci->irq = -1;
 	}
 
-#if 0
-	if (uhci->bus->root_hub) {
-		uhci_usb_deallocate(uhci_to_usb(uhci->bus->root_hub));
-		uhci->bus->root_hub = NULL;
+	if (uhci->ticktd) {
+		uhci_td_free(uhci->ticktd);
+		uhci->ticktd = NULL;
 	}
-#endif
 
 	if (uhci->fl) {
 		free_page((unsigned long)uhci->fl);
 		uhci->fl = NULL;
 	}
 
-	kfree(uhci->bus);
+	usb_free_bus(uhci->bus);
 	kfree(uhci);
 }
 
-static int uhci_control_thread(void * __uhci)
+static int uhci_control_thread(void *__uhci)
 {
 	struct uhci *uhci = (struct uhci *)__uhci;
-	struct uhci_device * root_hub =usb_to_uhci(uhci->bus->root_hub);
+
+	uhci->control_running = 1;
 
 	lock_kernel();
-	request_region(uhci->io_addr, 32, "usb-uhci");
 
 	/*
 	 * This thread doesn't need any user-level access,
 	 * so get rid of all our resources..
 	 */
-	printk("uhci_control_thread at %p\n", &uhci_control_thread);
 	exit_mm(current);
 	exit_files(current);
-	//exit_fs(current);
 
 	strcpy(current->comm, "uhci-control");
 
 	/*
 	 * Ok, all systems are go..
 	 */
-	start_hc(uhci);
-	usb_register_bus(uhci->bus);
-	for(;;) {
+	do {
 		siginfo_t info;
 		int unsigned long signr;
 
-		interruptible_sleep_on(&uhci_configure);
 #ifdef CONFIG_APM
 		if (apm_resume) {
 			apm_resume = 0;
@@ -1612,40 +2012,31 @@ static int uhci_control_thread(void * __uhci)
 #endif
 		uhci_check_configuration(uhci);
 
-		if(signal_pending(current)) {
+		interruptible_sleep_on(&uhci_configure);
+
+		if (signal_pending(current)) {
 			/* sending SIGUSR1 makes us print out some info */
 			spin_lock_irq(&current->sigmask_lock);
 			signr = dequeue_signal(&current->blocked, &info);
 			spin_unlock_irq(&current->sigmask_lock);
 
-			if(signr == SIGUSR1) {
-				printk("UHCI queue dump:\n");
-				show_queues(uhci);
+			if (signr == SIGUSR1) {
+				printk(KERN_DEBUG "UHCI queue dump:\n");
+				uhci_show_queues(uhci);
 			} else if (signr == SIGUSR2) {
-				printk("UHCI debug toggle\n");
 				uhci_debug = !uhci_debug;
-			} else {
+				printk(KERN_DEBUG "UHCI debug toggle = %x\n",
+					uhci_debug);
+			} else
 				break;
-			}
 		}
-	}
+	} while (uhci->control_continue);
 
-	{
-	int i;
-	if(root_hub)
-		for(i = 0; i < root_hub->usb->maxchild; i++)
-			usb_disconnect(root_hub->usb->children + i);
-	}
-
-	usb_deregister_bus(uhci->bus);
-
-	reset_hc(uhci);
-	release_region(uhci->io_addr, 32);
-
-	release_uhci(uhci);
+/*
 	MOD_DEC_USE_COUNT;
+*/
 
-	printk("uhci_control_thread exiting\n");
+	uhci->control_running = 0;
 
 	return 0;
 }	
@@ -1654,30 +2045,46 @@ static int uhci_control_thread(void * __uhci)
  * If we've successfully found a UHCI, now is the time to increment the
  * module usage count, start the control thread, and return success..
  */
-static int found_uhci(int irq, unsigned int io_addr)
+static int found_uhci(int irq, unsigned int io_addr, unsigned int io_size)
 {
 	int retval;
 	struct uhci *uhci;
 
-	uhci = alloc_uhci(io_addr);
+	uhci = alloc_uhci(io_addr, io_size);
 	if (!uhci)
 		return -ENOMEM;
 
+	INIT_LIST_HEAD(&uhci->uhci_list);
+	list_add(&uhci->uhci_list, &uhci_list);
+
+	request_region(uhci->io_addr, io_size, "usb-uhci");
+
 	reset_hc(uhci);
 
+	usb_register_bus(uhci->bus);
+	start_hc(uhci);
+
+	uhci->control_continue = 1;
+
 	retval = -EBUSY;
-	if (request_irq(irq, uhci_interrupt, SA_SHIRQ, "usb", uhci) == 0) {
+	if (request_irq(irq, uhci_interrupt, SA_SHIRQ, "uhci", uhci) == 0) {
 		int pid;
-		MOD_INC_USE_COUNT;
+
 		uhci->irq = irq;
 		pid = kernel_thread(uhci_control_thread, uhci,
 			CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
-		if (pid >= 0)
-			return 0;
+		if (pid >= 0) {
+			uhci->control_pid = pid;
 
-		MOD_DEC_USE_COUNT;
+			return(pid);
+		}
+
 		retval = pid;
 	}
+
+	reset_hc(uhci);
+	release_region(uhci->io_addr, uhci->io_size);
+
 	release_uhci(uhci);
 	return retval;
 }
@@ -1688,19 +2095,19 @@ static int start_uhci(struct pci_dev *dev)
 
 	/* Search for the IO base address.. */
 	for (i = 0; i < 6; i++) {
-		unsigned int io_addr = dev->base_address[i];
+		unsigned int io_addr = dev->resource[i].start;
+		unsigned int io_size =
+			dev->resource[i].end - dev->resource[i].start;
 
 		/* IO address? */
-		if (!(io_addr & 1))
+		if (!(dev->resource[i].flags & 1))
 			continue;
 
-		io_addr &= PCI_BASE_ADDRESS_IO_MASK;
-
 		/* Is it already in use? */
-		if (check_region(io_addr, 32))
+		if (check_region(io_addr, io_size))
 			break;
 
-		return found_uhci(dev->irq, io_addr);
+		return found_uhci(dev->irq, io_addr, io_size);
 	}
 	return -1;
 }
@@ -1736,22 +2143,37 @@ static int handle_apm_event(apm_event_t event)
 }
 #endif
 
-
 int uhci_init(void)
 {
 	int retval;
 	struct pci_dev *dev = NULL;
 	u8 type;
 
+	uhci_td_cachep = kmem_cache_create("uhci_td",
+		sizeof(struct uhci_td), 0,
+		SLAB_HWCACHE_ALIGN, NULL, NULL);
+
+	if (!uhci_td_cachep)
+		return -ENOMEM;
+
+	uhci_qh_cachep = kmem_cache_create("uhci_qh",
+		sizeof(struct uhci_qh), 0,
+		SLAB_HWCACHE_ALIGN, NULL, NULL);
+
+	if (!uhci_qh_cachep)
+		return -ENOMEM;
+
 	retval = -ENODEV;
 	for (;;) {
-		dev = pci_find_class(PCI_CLASS_SERIAL_USB<<8, dev);
+		dev = pci_find_class(PCI_CLASS_SERIAL_USB << 8, dev);
 		if (!dev)
 			break;
+
 		/* Is it UHCI */
 		pci_read_config_byte(dev, PCI_CLASS_PROG, &type);
-		if(type != 0)
+		if (type != 0)
 			continue;
+
 		/* Ok set it up */
 		retval = start_uhci(dev);
 		if (retval < 0)
@@ -1765,6 +2187,60 @@ int uhci_init(void)
 	return retval;
 }
 
+void uhci_cleanup(void)
+{
+	struct list_head *next, *tmp, *head = &uhci_list;
+	int ret, i;
+
+	tmp = head->next;
+	while (tmp != head) {
+		struct uhci *uhci = list_entry(tmp, struct uhci, uhci_list);
+		struct uhci_device *root_hub = usb_to_uhci(uhci->bus->root_hub);
+
+		next = tmp->next;
+
+		list_del(&uhci->uhci_list);
+		INIT_LIST_HEAD(&uhci->uhci_list);
+
+		/* Check if the process is still running */
+		ret = kill_proc(uhci->control_pid, 0, 1);
+		if (!ret) {
+			/* Try a maximum of 10 seconds */
+			int count = 10 * 100;
+
+			uhci->control_continue = 0;
+			wake_up(&uhci_configure);
+
+			while (uhci->control_running && --count) {
+				current->state = TASK_INTERRUPTIBLE;
+				schedule_timeout(1);
+			}
+
+			if (!count)
+				printk(KERN_ERR "uhci: giving up on killing uhci-control\n");
+		}
+
+		if (root_hub)
+			for (i = 0; i < root_hub->usb->maxchild; i++)
+				usb_disconnect(root_hub->usb->children + i);
+
+		usb_deregister_bus(uhci->bus);
+
+		reset_hc(uhci);
+		release_region(uhci->io_addr, uhci->io_size);
+
+		release_uhci(uhci);
+
+		tmp = next;
+	}
+
+	if (kmem_cache_destroy(uhci_qh_cachep))
+		printk(KERN_INFO "uhci: not all QH's were freed\n");
+
+	if (kmem_cache_destroy(uhci_td_cachep))
+		printk(KERN_INFO "uhci: not all TD's were freed\n");
+}
+
 #ifdef MODULE
 int init_module(void)
 {
@@ -1776,5 +2252,7 @@ void cleanup_module(void)
 #ifdef CONFIG_APM
 	apm_unregister_callback(&handle_apm_event);
 #endif
+	uhci_cleanup();
 }
 #endif //MODULE
+

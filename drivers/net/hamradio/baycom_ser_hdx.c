@@ -3,7 +3,7 @@
 /*
  *	baycom_ser_hdx.c  -- baycom ser12 halfduplex radio modem driver.
  *
- *	Copyright (C) 1997  Thomas Sailer (sailer@ife.ee.ethz.ch)
+ *	Copyright (C) 1996-1999  Thomas Sailer (sailer@ife.ee.ethz.ch)
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -37,7 +37,11 @@
  *
  *  Command line options (insmod command line)
  *
- *  mode     * enables software DCD.
+ *  mode     ser12    hardware DCD
+ *           ser12*   software DCD
+ *           ser12@   hardware/software DCD, i.e. no explicit DCD signal but hardware
+ *                    mutes audio input to the modem
+ *           ser12+   hardware DCD, inverted signal at DCD pin
  *  iobase   base address of the port; common values are 0x3f8, 0x2f8, 0x3e8, 0x2e8
  *  irq      interrupt line of the port; common values are 4,3
  *
@@ -49,56 +53,37 @@
  *   0.4  08.07.97  alternative ser12 decoding algorithm (uses delta CTS ints)
  *   0.5  11.11.97  ser12/par96 split into separate files
  *   0.6  14.04.98  cleanups
+ *   0.7  03.08.99  adapt to Linus' new __setup/__initcall
+ *   0.8  10.08.99  use module_init/module_exit
  */
 
 /*****************************************************************************/
 
+#include <linux/version.h>
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/sched.h>
-#include <linux/types.h>
-#include <linux/fcntl.h>
-#include <linux/interrupt.h>
 #include <linux/ioport.h>
-#include <linux/in.h>
 #include <linux/string.h>
 #include <linux/init.h>
 #include <asm/uaccess.h>
-#include <asm/system.h>
-#include <asm/bitops.h>
 #include <asm/io.h>
-#include <linux/delay.h>
-#include <linux/errno.h>
-#include <linux/netdevice.h>
 #include <linux/hdlcdrv.h>
 #include <linux/baycom.h>
-#include <linux/version.h>
 
 /* --------------------------------------------------------------------- */
 
 #define BAYCOM_DEBUG
 
-/*
- * modem options; bit mask
- */
-#define BAYCOM_OPTIONS_SOFTDCD  1
-
 /* --------------------------------------------------------------------- */
 
 static const char bc_drvname[] = "baycom_ser_hdx";
-static const char bc_drvinfo[] = KERN_INFO "baycom_ser_hdx: (C) 1997-1998 Thomas Sailer, HB9JNX/AE4WA\n"
-KERN_INFO "baycom_ser_hdx: version 0.6 compiled " __TIME__ " " __DATE__ "\n";
+static const char bc_drvinfo[] = KERN_INFO "baycom_ser_hdx: (C) 1996-1999 Thomas Sailer, HB9JNX/AE4WA\n"
+KERN_INFO "baycom_ser_hdx: version 0.7 compiled " __TIME__ " " __DATE__ "\n";
 
 /* --------------------------------------------------------------------- */
 
 #define NR_PORTS 4
 
-static struct device baycom_device[NR_PORTS];
-
-static struct {
-	char *mode;
-	int iobase, irq;
-} baycom_ports[NR_PORTS] = { { NULL, 0, 0 }, };
+static struct net_device baycom_device[NR_PORTS];
 
 /* --------------------------------------------------------------------- */
 
@@ -125,7 +110,7 @@ static struct {
 struct baycom_state {
 	struct hdlcdrv_state hdrv;
 
-	unsigned int options;
+	int opt_dcd;
 
 	struct modem_state {
 		short arb_divider;
@@ -184,7 +169,7 @@ static void inline baycom_int_freq(struct baycom_state *bc)
  * ===================== SER12 specific routines =========================
  */
 
-static void inline ser12_set_divisor(struct device *dev,
+static void inline ser12_set_divisor(struct net_device *dev,
 				     unsigned char divisor)
 {
 	outb(0x81, LCR(dev->base_addr));	/* DLAB = 1 */
@@ -210,12 +195,11 @@ static void inline ser12_set_divisor(struct device *dev,
 /*
  * must call the TX arbitrator every 10ms
  */
-#define SER12_ARB_DIVIDER(bc) ((bc->options & BAYCOM_OPTIONS_SOFTDCD) ? \
-			       36 : 24)
-#define SER12_DCD_INTERVAL(bc) ((bc->options & BAYCOM_OPTIONS_SOFTDCD) ? \
-				240 : 12)
+#define SER12_ARB_DIVIDER(bc)  (bc->opt_dcd ? 24 : 36)
+			       
+#define SER12_DCD_INTERVAL(bc) (bc->opt_dcd ? 12 : 240)
 
-static inline void ser12_tx(struct device *dev, struct baycom_state *bc)
+static inline void ser12_tx(struct net_device *dev, struct baycom_state *bc)
 {
 	/* one interrupt per channel bit */
 	ser12_set_divisor(dev, 12);
@@ -233,7 +217,7 @@ static inline void ser12_tx(struct device *dev, struct baycom_state *bc)
 
 /* --------------------------------------------------------------------- */
 
-static inline void ser12_rx(struct device *dev, struct baycom_state *bc)
+static inline void ser12_rx(struct net_device *dev, struct baycom_state *bc)
 {
 	unsigned char cur_s;
 	/*
@@ -245,7 +229,7 @@ static inline void ser12_rx(struct device *dev, struct baycom_state *bc)
 		(cur_s != bc->modem.ser12.last_sample);
 	bc->modem.ser12.last_sample = cur_s;
 	if(bc->modem.ser12.dcd_shreg & 1) {
-		if (bc->options & BAYCOM_OPTIONS_SOFTDCD) {
+		if (!bc->opt_dcd) {
 			unsigned int dcdspos, dcdsneg;
 
 			dcdspos = dcdsneg = 0;
@@ -271,7 +255,7 @@ static inline void ser12_rx(struct device *dev, struct baycom_state *bc)
 		bc->modem.ser12.dcd_time = SER12_DCD_INTERVAL(bc);
 	}
 	bc->modem.ser12.dcd_time--;
-	if (bc->options & BAYCOM_OPTIONS_SOFTDCD) {
+	if (!bc->opt_dcd) {
 		/*
 		 * PLL code for the improved software DCD algorithm
 		 */
@@ -375,9 +359,12 @@ static inline void ser12_rx(struct device *dev, struct baycom_state *bc)
 		bc->modem.shreg = 0x10000;
 	}
 	if(!bc->modem.ser12.dcd_time) {
-		hdlcdrv_setdcd(&bc->hdrv, (bc->modem.ser12.dcd_sum0 +
-					   bc->modem.ser12.dcd_sum1 +
-					   bc->modem.ser12.dcd_sum2) < 0);
+		if (bc->opt_dcd & 1) 
+			hdlcdrv_setdcd(&bc->hdrv, !((inb(MSR(dev->base_addr)) ^ bc->opt_dcd) & 0x80));
+		else
+			hdlcdrv_setdcd(&bc->hdrv, (bc->modem.ser12.dcd_sum0 +
+						   bc->modem.ser12.dcd_sum1 +
+						   bc->modem.ser12.dcd_sum2) < 0);
 		bc->modem.ser12.dcd_sum2 = bc->modem.ser12.dcd_sum1;
 		bc->modem.ser12.dcd_sum1 = bc->modem.ser12.dcd_sum0;
 		/* offset to ensure DCD off on silent input */
@@ -391,7 +378,7 @@ static inline void ser12_rx(struct device *dev, struct baycom_state *bc)
 
 static void ser12_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct device *dev = (struct device *)dev_id;
+	struct net_device *dev = (struct net_device *)dev_id;
 	struct baycom_state *bc = (struct baycom_state *)dev->priv;
 	unsigned char iir;
 
@@ -482,7 +469,7 @@ static enum uart ser12_check_uart(unsigned int iobase)
 
 /* --------------------------------------------------------------------- */
 
-static int ser12_open(struct device *dev)
+static int ser12_open(struct net_device *dev)
 {
 	struct baycom_state *bc = (struct baycom_state *)dev->priv;
 	enum uart u;
@@ -514,17 +501,16 @@ static int ser12_open(struct device *dev)
 	 * we get exactly (hopefully) 2 or 3 interrupts per radio symbol,
 	 * depending on the usage of the software DCD routine
 	 */
-	ser12_set_divisor(dev, (bc->options & BAYCOM_OPTIONS_SOFTDCD) ? 4 : 6);
-	printk(KERN_INFO "%s: ser12 at iobase 0x%lx irq %u options "
-	       "0x%x uart %s\n", bc_drvname, dev->base_addr, dev->irq,
-	       bc->options, uart_str[u]);
+	ser12_set_divisor(dev, bc->opt_dcd ? 6 : 4);
+	printk(KERN_INFO "%s: ser12 at iobase 0x%lx irq %u uart %s\n", 
+	       bc_drvname, dev->base_addr, dev->irq, uart_str[u]);
 	MOD_INC_USE_COUNT;
 	return 0;
 }
 
 /* --------------------------------------------------------------------- */
 
-static int ser12_close(struct device *dev)
+static int ser12_close(struct net_device *dev)
 {
 	struct baycom_state *bc = (struct baycom_state *)dev->priv;
 
@@ -550,7 +536,7 @@ static int ser12_close(struct device *dev)
 
 /* --------------------------------------------------------------------- */
 
-static int baycom_ioctl(struct device *dev, struct ifreq *ifr,
+static int baycom_ioctl(struct net_device *dev, struct ifreq *ifr,
 			struct hdlcdrv_ioctl *hi, int cmd);
 
 /* --------------------------------------------------------------------- */
@@ -567,13 +553,20 @@ static struct hdlcdrv_ops ser12_ops = {
 
 static int baycom_setmode(struct baycom_state *bc, const char *modestr)
 {
-	bc->options = !!strchr(modestr, '*');
+	if (strchr(modestr, '*'))
+		bc->opt_dcd = 0;
+	else if (strchr(modestr, '+'))
+		bc->opt_dcd = -1;
+	else if (strchr(modestr, '@'))
+		bc->opt_dcd = -2;
+	else
+		bc->opt_dcd = 1;
 	return 0;
 }
 
 /* --------------------------------------------------------------------- */
 
-static int baycom_ioctl(struct device *dev, struct ifreq *ifr,
+static int baycom_ioctl(struct net_device *dev, struct ifreq *ifr,
 			struct hdlcdrv_ioctl *hi, int cmd)
 {
 	struct baycom_state *bc;
@@ -597,8 +590,8 @@ static int baycom_ioctl(struct device *dev, struct ifreq *ifr,
 
 	case HDLCDRVCTL_GETMODE:
 		strcpy(hi->data.modename, "ser12");
-		if (bc->options & 1)
-			strcat(hi->data.modename, "*");
+		if (bc->opt_dcd <= 0)
+			strcat(hi->data.modename, (!bc->opt_dcd) ? "*" : (bc->opt_dcd == -2) ? "@" : "+");
 		if (copy_to_user(ifr->ifr_data, hi, sizeof(struct hdlcdrv_ioctl)))
 			return -EFAULT;
 		return 0;
@@ -643,7 +636,26 @@ static int baycom_ioctl(struct device *dev, struct ifreq *ifr,
 
 /* --------------------------------------------------------------------- */
 
-int __init baycom_ser_hdx_init(void)
+/*
+ * command line settable parameters
+ */
+static char *mode[NR_PORTS] = { "ser12*", };
+static int iobase[NR_PORTS] = { 0x3f8, };
+static int irq[NR_PORTS] = { 4, };
+
+MODULE_PARM(mode, "1-" __MODULE_STRING(NR_PORTS) "s");
+MODULE_PARM_DESC(mode, "baycom operating mode; * for software DCD");
+MODULE_PARM(iobase, "1-" __MODULE_STRING(NR_PORTS) "i");
+MODULE_PARM_DESC(iobase, "baycom io base address");
+MODULE_PARM(irq, "1-" __MODULE_STRING(NR_PORTS) "i");
+MODULE_PARM_DESC(irq, "baycom irq number");
+
+MODULE_AUTHOR("Thomas M. Sailer, sailer@ife.ee.ethz.ch, hb9jnx@hb9w.che.eu");
+MODULE_DESCRIPTION("Baycom ser12 half duplex amateur radio modem driver");
+
+/* --------------------------------------------------------------------- */
+
+static int __init init_baycomserhdx(void)
 {
 	int i, j, found = 0;
 	char set_hw = 1;
@@ -656,20 +668,18 @@ int __init baycom_ser_hdx_init(void)
 	 * register net devices
 	 */
 	for (i = 0; i < NR_PORTS; i++) {
-		struct device *dev = baycom_device+i;
+		struct net_device *dev = baycom_device+i;
 		sprintf(ifname, "bcsh%d", i);
 
-		if (!baycom_ports[i].mode)
+		if (!mode[i])
 			set_hw = 0;
 		if (!set_hw)
-			baycom_ports[i].iobase = baycom_ports[i].irq = 0;
-		j = hdlcdrv_register_hdlcdrv(dev, &ser12_ops,
-					     sizeof(struct baycom_state),
-					     ifname, baycom_ports[i].iobase,
-					     baycom_ports[i].irq, 0);
+			iobase[i] = irq[i] = 0;
+		j = hdlcdrv_register_hdlcdrv(dev, &ser12_ops, sizeof(struct baycom_state),
+					     ifname, iobase[i], irq[i], 0);
 		if (!j) {
 			bc = (struct baycom_state *)dev->priv;
-			if (set_hw && baycom_setmode(bc, baycom_ports[i].mode))
+			if (set_hw && baycom_setmode(bc, mode[i]))
 				set_hw = 0;
 			found++;
 		} else {
@@ -682,53 +692,12 @@ int __init baycom_ser_hdx_init(void)
 	return 0;
 }
 
-/* --------------------------------------------------------------------- */
-
-#ifdef MODULE
-
-/*
- * command line settable parameters
- */
-static char *mode[NR_PORTS] = { "ser12*", };
-static int iobase[NR_PORTS] = { 0x3f8, };
-static int irq[NR_PORTS] = { 4, };
-
-#if LINUX_VERSION_CODE >= 0x20115
-
-MODULE_PARM(mode, "1-" __MODULE_STRING(NR_PORTS) "s");
-MODULE_PARM_DESC(mode, "baycom operating mode; * for software DCD");
-MODULE_PARM(iobase, "1-" __MODULE_STRING(NR_PORTS) "i");
-MODULE_PARM_DESC(iobase, "baycom io base address");
-MODULE_PARM(irq, "1-" __MODULE_STRING(NR_PORTS) "i");
-MODULE_PARM_DESC(irq, "baycom irq number");
-
-MODULE_AUTHOR("Thomas M. Sailer, sailer@ife.ee.ethz.ch, hb9jnx@hb9w.che.eu");
-MODULE_DESCRIPTION("Baycom ser12 half duplex amateur radio modem driver");
-
-#endif
-
-int __init init_module(void)
-{
-	int i;
-
-	for (i = 0; (i < NR_PORTS) && (mode[i]); i++) {
-		baycom_ports[i].mode = mode[i];
-		baycom_ports[i].iobase = iobase[i];
-		baycom_ports[i].irq = irq[i];
-	}
-	if (i < NR_PORTS-1)
-		baycom_ports[i+1].mode = NULL;
-	return baycom_ser_hdx_init();
-}
-
-/* --------------------------------------------------------------------- */
-
-void cleanup_module(void)
+static void __exit cleanup_baycomserhdx(void)
 {
 	int i;
 
 	for(i = 0; i < NR_PORTS; i++) {
-		struct device *dev = baycom_device+i;
+		struct net_device *dev = baycom_device+i;
 		struct baycom_state *bc = (struct baycom_state *)dev->priv;
 
 		if (bc) {
@@ -741,30 +710,40 @@ void cleanup_module(void)
 	}
 }
 
-#else /* MODULE */
+module_init(init_baycomserhdx);
+module_exit(cleanup_baycomserhdx);
+
 /* --------------------------------------------------------------------- */
+
+#ifndef MODULE
+
 /*
- * format: baycom_ser_=io,irq,mode
- * mode: [*]
- * * indicates sofware DCD
+ * format: baycom_ser_hdx=io,irq,mode
+ * mode: ser12    hardware DCD
+ *       ser12*   software DCD
+ *       ser12@   hardware/software DCD, i.e. no explicit DCD signal but hardware
+ *                mutes audio input to the modem
+ *       ser12+   hardware DCD, inverted signal at DCD pin
  */
 
-void __init baycom_ser_hdx_setup(char *str, int *ints)
+static int __init baycom_ser_hdx_setup(char *str)
 {
-	int i;
+        static unsigned nr_dev = 0;
+	int ints[3];
 
-	for (i = 0; (i < NR_PORTS) && (baycom_ports[i].mode); i++);
-	if ((i >= NR_PORTS) || (ints[0] < 2)) {
-		printk(KERN_INFO "%s: too many or invalid interface "
-		       "specifications\n", bc_drvname);
-		return;
-	}
-	baycom_ports[i].mode = str;
-	baycom_ports[i].iobase = ints[1];
-	baycom_ports[i].irq = ints[2];
-	if (i < NR_PORTS-1)
-		baycom_ports[i+1].mode = NULL;
+        if (nr_dev >= NR_PORTS)
+                return 0;
+	str = get_options(str, 3, ints);
+	if (ints[0] < 2)
+		return 0;
+	mode[nr_dev] = str;
+	iobase[nr_dev] = ints[1];
+	irq[nr_dev] = ints[2];
+	nr_dev++;
+	return 1;
 }
+
+__setup("baycom_ser_hdx=", baycom_ser_hdx_setup);
 
 #endif /* MODULE */
 /* --------------------------------------------------------------------- */

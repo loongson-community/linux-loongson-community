@@ -35,6 +35,7 @@
 #define	ARPHRD_ARCNET	7		/* ARCnet			*/
 #define	ARPHRD_APPLETLK	8		/* APPLEtalk			*/
 #define ARPHRD_DLCI	15		/* Frame Relay DLCI		*/
+#define ARPHRD_ATM	19		/* ATM 				*/
 #define ARPHRD_METRICOM	23		/* Metricom STRIP (new IANA id)	*/
 
 /* Dummy types for non ARP hardware */
@@ -66,7 +67,7 @@
 #define ARPHRD_HIPPI	780		/* High Performance Parallel Interface */
 #define ARPHRD_ASH	781		/* Nexus 64Mbps Ash		*/
 #define ARPHRD_ECONET	782		/* Acorn Econet			*/
-#define ARPHRD_IRDA 	783		/* Linux/IR			*/
+#define ARPHRD_IRDA 	783		/* Linux-IrDA			*/
 /* ARP works differently on different FC media .. so  */
 #define ARPHRD_FCPP	784		/* Point to point fibrechanel	*/
 #define ARPHRD_FCAL	785		/* Fibrechannel arbitrated loop */
@@ -80,6 +81,9 @@
 #define	ARPOP_REPLY	2		/* ARP reply			*/
 #define	ARPOP_RREQUEST	3		/* RARP request			*/
 #define	ARPOP_RREPLY	4		/* RARP reply			*/
+#define	ARPOP_InREQUEST	8		/* InARP request		*/
+#define	ARPOP_InREPLY	9		/* InARP reply			*/
+#define	ARPOP_NAK	10		/* (ATM)ARP NAK			*/
 
 
 /* ARP ioctl request. */

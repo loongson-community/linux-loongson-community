@@ -40,15 +40,15 @@ extern int			ip6_route_add(struct in6_rtmsg *rtmsg);
 extern int			ip6_del_rt(struct rt6_info *);
 
 extern int			ip6_rt_addr_add(struct in6_addr *addr,
-						struct device *dev);
+						struct net_device *dev);
 
 extern int			ip6_rt_addr_del(struct in6_addr *addr,
-						struct device *dev);
+						struct net_device *dev);
 
 extern void			rt6_sndmsg(int type, struct in6_addr *dst,
 					   struct in6_addr *src,
 					   struct in6_addr *gw,
-					   struct device *dev, 
+					   struct net_device *dev, 
 					   int dstlen, int srclen,
 					   int metric, __u32 flags);
 
@@ -61,9 +61,9 @@ extern struct rt6_info		*rt6_lookup(struct in6_addr *daddr,
  *
  */
 extern struct rt6_info *	rt6_get_dflt_router(struct in6_addr *addr,
-						    struct device *dev);
+						    struct net_device *dev);
 extern struct rt6_info *	rt6_add_dflt_router(struct in6_addr *gwaddr,
-						    struct device *dev);
+						    struct net_device *dev);
 
 extern void			rt6_purge_dflt_routers(int lst_resort);
 
@@ -74,7 +74,7 @@ extern void			rt6_redirect(struct in6_addr *dest,
 
 extern void			rt6_pmtu_discovery(struct in6_addr *daddr,
 						   struct in6_addr *saddr,
-						   struct device *dev,
+						   struct net_device *dev,
 						   u32 pmtu);
 
 struct nlmsghdr;
@@ -84,8 +84,10 @@ extern int inet6_rtm_newroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *a
 extern int inet6_rtm_delroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg);
 extern int inet6_rtm_getroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg);
 
-extern void rt6_ifdown(struct device *dev);
-extern void rt6_mtu_change(struct device *dev, unsigned mtu);
+extern void rt6_ifdown(struct net_device *dev);
+extern void rt6_mtu_change(struct net_device *dev, unsigned mtu);
+
+extern rwlock_t rt6_lock;
 
 /*
  *	Store a destination cache entry in a socket
@@ -95,16 +97,14 @@ extern void rt6_mtu_change(struct device *dev, unsigned mtu);
 extern __inline__ void ip6_dst_store(struct sock *sk, struct dst_entry *dst,
 				     struct in6_addr *daddr)
 {
-	struct ipv6_pinfo *np;
-	struct rt6_info *rt;
+	struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
+	struct rt6_info *rt = (struct rt6_info *) dst;
 
-	np = &sk->net_pinfo.af_inet6;
-	dst_release(xchg(&sk->dst_cache,dst));
-
-	rt = (struct rt6_info *) dst;
-
+	write_lock(&sk->dst_lock);
+	__sk_dst_set(sk, dst);
 	np->daddr_cache = daddr;
 	np->dst_cookie = rt->rt6i_node ? rt->rt6i_node->fn_sernum : 0;
+	write_unlock(&sk->dst_lock);
 }
 
 #endif

@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.12 1999/05/07 22:34:32 ulfc Exp $
+/* $Id: indy_int.c,v 1.13 1999/06/12 17:26:15 ulfc Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -424,7 +424,7 @@ static int indy_irq_cannonicalize(int irq)
 	return irq;	/* Sane hardware, sane code ... */
 }
 
-__initfunc(void init_IRQ(void))
+void __init init_IRQ(void)
 {
 	irq_cannonicalize = indy_irq_cannonicalize;
 	irq_setup();
@@ -529,7 +529,7 @@ int probe_irq_off (unsigned long irqs)
 	return 0;
 }
 
-__initfunc(void sgint_init(void))
+void __init sgint_init(void)
 {
 	int i;
 

@@ -1,4 +1,4 @@
-/* $Id: misc.c,v 1.5 1998/08/25 09:14:50 ralf Exp $
+/* $Id: misc.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
  *
  * misc.c: Miscellaneous ARCS PROM routines.
  *
@@ -78,7 +78,7 @@ struct linux_sysid *prom_getsysid(void)
 	return romvec->get_sysid();
 }
 
-__initfunc(void prom_cacheflush(void))
+void __init prom_cacheflush(void)
 {
 	romvec->cache_flush();
 }

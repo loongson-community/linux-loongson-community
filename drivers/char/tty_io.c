@@ -125,10 +125,14 @@ static int tty_release(struct inode *, struct file *);
 int tty_ioctl(struct inode * inode, struct file * file,
 	      unsigned int cmd, unsigned long arg);
 static int tty_fasync(int fd, struct file * filp, int on);
+#ifdef CONFIG_SX
+extern int sx_init (void);
+#endif
 #ifdef CONFIG_8xx
 extern long console_8xx_init(long, long);
 extern int rs_8xx_init(void);
 #endif /* CONFIG_8xx */
+
 
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
@@ -1495,10 +1499,11 @@ static int tiocswinsz(struct tty_struct *tty, struct tty_struct *real_tty,
 	return 0;
 }
 
-static int tioccons(struct tty_struct *tty, struct tty_struct *real_tty)
+static int tioccons(struct inode *inode,
+	struct tty_struct *tty, struct tty_struct *real_tty)
 {
-	if (tty->driver.type == TTY_DRIVER_TYPE_CONSOLE ||
-	    tty->driver.type == TTY_DRIVER_TYPE_SYSCONS) {
+	if (inode->i_rdev == SYSCONS_DEV ||
+	    inode->i_rdev == CONSOLE_DEV) {
 		if (!suser())
 			return -EPERM;
 		redirect = NULL;
@@ -1627,7 +1632,7 @@ static int tiocsetd(struct tty_struct *tty, int *arg)
 
 static int send_break(struct tty_struct *tty, int duration)
 {
-	current->state = TASK_INTERRUPTIBLE;
+	set_current_state(TASK_INTERRUPTIBLE);
 
 	tty->driver.break_ctl(tty, -1);
 	if (!signal_pending(current))
@@ -1708,7 +1713,7 @@ int tty_ioctl(struct inode * inode, struct file * file,
 		case TIOCSWINSZ:
 			return tiocswinsz(tty, real_tty, (struct winsize *) arg);
 		case TIOCCONS:
-			return tioccons(tty, real_tty);
+			return tioccons(inode, tty, real_tty);
 		case FIONBIO:
 			return fionbio(file, (int *) arg);
 		case TIOCEXCL:
@@ -2080,7 +2085,7 @@ static struct tty_driver dev_console_driver;
  * Ok, now we can initialize the rest of the tty devices and can count
  * on memory allocations, interrupts etc..
  */
-__initfunc(int tty_init(void))
+int __init tty_init(void)
 {
 	if (sizeof(struct tty_struct) > PAGE_SIZE)
 		panic("size of tty structure > PAGE_SIZE!");
@@ -2148,6 +2153,9 @@ __initfunc(int tty_init(void))
 #ifdef CONFIG_SERIAL
 	rs_init();
 #endif
+#ifdef CONFIG_COMPUTONE
+	ip2_init();
+#endif
 #ifdef CONFIG_MAC_SERIAL
 	macserial_init();
 #endif
@@ -2177,6 +2185,9 @@ __initfunc(int tty_init(void))
 #endif
 #ifdef CONFIG_SPECIALIX
 	specialix_init();
+#endif
+#ifdef CONFIG_SX
+	sx_init();
 #endif
 #ifdef CONFIG_8xx
         rs_8xx_init();

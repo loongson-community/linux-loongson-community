@@ -168,7 +168,7 @@ static void x25_remove_socket(struct sock *sk)
 /*
  *	Kill all bound sockets on a dropped device.
  */
-static void x25_kill_by_device(struct device *dev)
+static void x25_kill_by_device(struct net_device *dev)
 {
 	struct sock *s;
 
@@ -183,7 +183,7 @@ static void x25_kill_by_device(struct device *dev)
  */
 static int x25_device_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	struct device *dev = (struct device *)ptr;
+	struct net_device *dev = (struct net_device *)ptr;
 
 	if (dev->type == ARPHRD_X25
 #if defined(CONFIG_LLC) || defined(CONFIG_LLC_MODULE)
@@ -522,7 +522,7 @@ static struct sock *x25_make_new(struct sock *osk)
 	return sk;
 }
 
-static int x25_release(struct socket *sock, struct socket *peer)
+static int x25_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
@@ -589,7 +589,7 @@ static int x25_connect(struct socket *sock, struct sockaddr *uaddr, int addr_len
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_x25 *addr = (struct sockaddr_x25 *)uaddr;
-	struct device *dev;
+	struct net_device *dev;
 
 	if (sk->state == TCP_ESTABLISHED && sock->state == SS_CONNECTING) {
 		sock->state = SS_CONNECTED;
@@ -679,11 +679,6 @@ static int x25_accept(struct socket *sock, struct socket *newsock, int flags)
 	struct sock *sk;
 	struct sock *newsk;
 	struct sk_buff *skb;
-
-	if (newsock->sk != NULL)
-		x25_destroy_socket(newsock->sk);
-
-	newsock->sk = NULL;
 
 	if ((sk = sock->sk) == NULL)
 		return -EINVAL;
@@ -1049,10 +1044,6 @@ static int x25_recvmsg(struct socket *sock, struct msghdr *msg, int size, int fl
 	return copied;
 }
 
-static int x25_shutdown(struct socket *sk, int how)
-{
-	return -EOPNOTSUPP;
-}
 
 static int x25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
@@ -1060,22 +1051,22 @@ static int x25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 		case TIOCOUTQ: {
-			long amount;
+			int amount;
 			amount = sk->sndbuf - atomic_read(&sk->wmem_alloc);
 			if (amount < 0)
 				amount = 0;
-			if (put_user(amount, (unsigned long *)arg))
+			if (put_user(amount, (unsigned int *)arg))
 				return -EFAULT;
 			return 0;
 		}
 
 		case TIOCINQ: {
 			struct sk_buff *skb;
-			long amount = 0L;
+			int amount = 0;
 			/* These two are safe on a single CPU system as only user tasks fiddle here */
 			if ((skb = skb_peek(&sk->receive_queue)) != NULL)
 				amount = skb->len;
-			if (put_user(amount, (unsigned long *)arg))
+			if (put_user(amount, (unsigned int *)arg))
 				return -EFAULT;
 			return 0;
 		}
@@ -1179,7 +1170,7 @@ static int x25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 static int x25_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	struct sock *s;
-	struct device *dev;
+	struct net_device *dev;
 	const char *devname;
 	int len = 0;
 	off_t pos = 0;
@@ -1239,10 +1230,9 @@ struct net_proto_family x25_family_ops = {
 	x25_create
 };
 
-static struct proto_ops x25_proto_ops = {
+static struct proto_ops SOCKOPS_WRAPPED(x25_proto_ops) = {
 	AF_X25,
 
-	sock_no_dup,
 	x25_release,
 	x25_bind,
 	x25_connect,
@@ -1252,13 +1242,18 @@ static struct proto_ops x25_proto_ops = {
 	datagram_poll,
 	x25_ioctl,
 	x25_listen,
-	x25_shutdown,
+	sock_no_shutdown,
 	x25_setsockopt,
 	x25_getsockopt,
 	sock_no_fcntl,
 	x25_sendmsg,
-	x25_recvmsg
+	x25_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(x25_proto, AF_X25);
+
 
 static struct packet_type x25_packet_type =
 {
@@ -1299,7 +1294,7 @@ static struct proc_dir_entry proc_net_x25_routes = {
 };
 #endif	
 
-__initfunc(void x25_proto_init(struct net_proto *pro))
+void __init x25_proto_init(struct net_proto *pro)
 {
 	sock_register(&x25_family_ops);
 
@@ -1328,7 +1323,7 @@ MODULE_DESCRIPTION("The X.25 Packet Layer network layer protocol");
 
 int init_module(void)
 {
-	struct device *dev;
+	struct net_device *dev;
 
 	x25_proto_init(NULL);
 

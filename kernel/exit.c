@@ -26,30 +26,20 @@ void release(struct task_struct * p)
 {
 	if (p != current) {
 #ifdef __SMP__
+		int has_cpu;
+
 		/*
-		 * Wait to make sure the process isn't active on any
-		 * other CPU
+		 * Wait to make sure the process isn't on the
+		 * runqueue (active on some other CPU still)
 		 */
-		for (;;)  {
-			int has_cpu;
+		do {
 			spin_lock_irq(&runqueue_lock);
 			has_cpu = p->has_cpu;
 			spin_unlock_irq(&runqueue_lock);
-			if (!has_cpu)
-				break;
-			do {
-				barrier();
-			} while (p->has_cpu);
-		}
+		} while (has_cpu);
 #endif
 		free_uid(p);
-		nr_tasks--;
-		add_free_taskslot(p->tarray_ptr);
-
-		write_lock_irq(&tasklist_lock);
-		unhash_pid(p);
-		REMOVE_LINKS(p);
-		write_unlock_irq(&tasklist_lock);
+		unhash_process(p);
 
 		release_thread(p);
 		current->cmin_flt += p->min_flt + p->cmin_flt;
@@ -159,11 +149,11 @@ static inline void close_files(struct files_struct * files)
 
 	j = 0;
 	for (;;) {
-		unsigned long set = files->open_fds.fds_bits[j];
+		unsigned long set;
 		i = j * __NFDBITS;
-		j++;
-		if (i >= files->max_fds)
+		if (i >= files->max_fdset || i >= files->max_fds)
 			break;
+		set = files->open_fds->fds_bits[j++];
 		while (set) {
 			if (set & 1) {
 				struct file * file = xchg(&files->fd[i], NULL);
@@ -186,12 +176,14 @@ static inline void __exit_files(struct task_struct *tsk)
 		if (atomic_dec_and_test(&files->count)) {
 			close_files(files);
 			/*
-			 * Free the fd array as appropriate ...
+			 * Free the fd and fdset arrays if we expanded them.
 			 */
-			if (NR_OPEN * sizeof(struct file *) == PAGE_SIZE)
-				free_page((unsigned long) files->fd);
-			else
-				kfree(files->fd);
+			if (files->fd != &files->fd_array[0])
+				free_fd_array(files->fd, files->max_fds);
+			if (files->max_fdset > __FD_SETSIZE) {
+				free_fdset(files->open_fds, files->max_fdset);
+				free_fdset(files->close_on_exec, files->max_fdset);
+			}
 			kmem_cache_free(files_cachep, files);
 		}
 	}
@@ -243,19 +235,44 @@ void exit_sighand(struct task_struct *tsk)
 	__exit_sighand(tsk);
 }
 
+/*
+ * We can use these to temporarily drop into
+ * "lazy TLB" mode and back.
+ */
+struct mm_struct * start_lazy_tlb(void)
+{
+	struct mm_struct *mm = current->mm;
+	current->mm = NULL;
+	/* active_mm is still 'mm' */
+	atomic_inc(&mm->mm_count);
+	return mm;
+}
+
+void end_lazy_tlb(struct mm_struct *mm)
+{
+	struct mm_struct *active_mm = current->active_mm;
+
+	current->mm = mm;
+	if (mm != active_mm) {
+		current->active_mm = mm;
+		activate_mm(active_mm, mm);
+	}
+	mmdrop(active_mm);
+}
+
+/*
+ * Turn us into a lazy TLB process if we
+ * aren't already..
+ */
 static inline void __exit_mm(struct task_struct * tsk)
 {
 	struct mm_struct * mm = tsk->mm;
 
-	/* Set us up to use the kernel mm state */
-	if (mm != &init_mm) {
-		flush_cache_mm(mm);
-		flush_tlb_mm(mm);
-		destroy_context(mm);
-		tsk->mm = &init_mm;
-		tsk->swappable = 0;
-		SET_PAGE_DIR(tsk, swapper_pg_dir);
+	if (mm) {
+		atomic_inc(&mm->mm_count);
 		mm_release();
+		if (mm != tsk->active_mm) BUG();
+		tsk->mm = NULL;
 		mmput(mm);
 	}
 }
@@ -395,12 +412,12 @@ fake_volatile:
 	goto fake_volatile;
 }
 
-asmlinkage int sys_exit(int error_code)
+asmlinkage long sys_exit(int error_code)
 {
 	do_exit((error_code&0xff)<<8);
 }
 
-asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct rusage * ru)
+asmlinkage long sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct rusage * ru)
 {
 	int flag, retval;
 	DECLARE_WAITQUEUE(wait, current);
@@ -488,13 +505,13 @@ end_wait4:
 	return retval;
 }
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(__ia64__)
 
 /*
  * sys_waitpid() remains for compatibility. waitpid() should be
  * implemented by calling sys_wait4() from libc.a.
  */
-asmlinkage int sys_waitpid(pid_t pid,unsigned int * stat_addr, int options)
+asmlinkage long sys_waitpid(pid_t pid,unsigned int * stat_addr, int options)
 {
 	return sys_wait4(pid, stat_addr, options, NULL);
 }

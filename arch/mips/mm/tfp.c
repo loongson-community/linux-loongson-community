@@ -1,4 +1,4 @@
-/* $Id: tfp.c,v 1.6 1999/01/04 16:03:55 ralf Exp $
+/* $Id: tfp.c,v 1.7 1999/08/09 19:43:17 harald Exp $
  *
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
@@ -88,7 +88,7 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         /* XXX */
 }
 
-__initfunc(void ld_mmu_tfp(void))
+void __init ld_mmu_tfp(void)
 {
 	flush_cache_all = tfp_flush_cache_all;
 	flush_cache_mm = tfp_flush_cache_mm;

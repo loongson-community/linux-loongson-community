@@ -74,15 +74,6 @@ extern void wait_for_keypress(void);
 #include <linux/blk.h>
 #include <linux/blkpg.h>
 
-/*
- * We use a block size of 512 bytes in comparision to BLOCK_SIZE
- * defined in include/linux/blk.h. This because of the finer
- * granularity for filling up a RAM disk.
- */
-#define RDBLK_SIZE_BITS		9
-#define RDBLK_SIZE		(1<<RDBLK_SIZE_BITS)
-
-
 /* The RAM disk size is now a parameter */
 #define NUM_RAMDISKS 16		/* This cannot be overridden (yet) */ 
 
@@ -114,8 +105,21 @@ static int rd_kbsize[NUM_RAMDISKS];		/* Size in blocks of 1024 bytes */
  * information). 
  */
 int rd_size = 4096;		/* Size of the RAM disks */
+/*
+ * It would be very desiderable to have a soft-blocksize (that in the case
+ * of the ramdisk driver is also the hardblocksize ;) of PAGE_SIZE because
+ * doing that we'll achieve a far better MM footprint. Using a rd_blocksize of
+ * BLOCK_SIZE in the worst case we'll make PAGE_SIZE/BLOCK_SIZE buffer-pages
+ * unfreeable. With a rd_blocksize of PAGE_SIZE instead we are sure that only
+ * 1 page will be protected. Depending on the size of the ramdisk you
+ * may want to change the ramdisk blocksize to achieve a better or worse MM
+ * behaviour. The default is still BLOCK_SIZE (needed by rd_load_image that
+ * supposes the filesystem in the image uses a BLOCK_SIZE blocksize).
+ */
+int rd_blocksize = BLOCK_SIZE;	/* Size of the RAM disks */
 
 #ifndef MODULE
+
 int rd_doload = 0;		/* 1 = load RAM disk, 0 = don't load */
 int rd_prompt = 1;		/* 1 = prompt for RAM disk, 0 = don't prompt */
 int rd_image_start = 0;		/* starting block # of image */
@@ -123,7 +127,52 @@ int rd_image_start = 0;		/* starting block # of image */
 unsigned long initrd_start,initrd_end;
 int mount_initrd = 1;		/* zero if initrd should not be mounted */
 int initrd_below_start_ok = 0;
+
+static int __init no_initrd(char *str)
+{
+	mount_initrd = 0;
+	return 1;
+}
+
+__setup("noinitrd", no_initrd);
+
 #endif
+
+static int __init ramdisk_start_setup(char *str)
+{
+	rd_image_start = simple_strtol(str,NULL,0);
+	return 1;
+}
+
+static int __init load_ramdisk(char *str)
+{
+	rd_doload = simple_strtol(str,NULL,0) & 3;
+	return 1;
+}
+
+static int __init prompt_ramdisk(char *str)
+{
+	rd_prompt = simple_strtol(str,NULL,0) & 1;
+	return 1;
+}
+
+static int __init ramdisk_size(char *str)
+{
+	rd_size = simple_strtol(str,NULL,0);
+	return 1;
+}
+
+static int __init ramdisk_size2(char *str)
+{
+	return ramdisk_size(str);
+}
+
+__setup("ramdisk_start=", ramdisk_start_setup);
+__setup("load_ramdisk=", load_ramdisk);
+__setup("prompt_ramdisk=", prompt_ramdisk);
+__setup("ramdisk=", ramdisk_size);
+__setup("ramdisk_size=", ramdisk_size2);
+
 #endif
 
 /*
@@ -138,9 +187,6 @@ static void rd_request(void)
 	unsigned long offset, len;
 
 repeat:
-	if (!CURRENT)
-		return;
-
 	INIT_REQUEST;
 	
 	minor = MINOR(CURRENT->rq_dev);
@@ -150,8 +196,8 @@ repeat:
 		goto repeat;
 	}
 	
-	offset = CURRENT->sector << RDBLK_SIZE_BITS;
-	len = CURRENT->current_nr_sectors << RDBLK_SIZE_BITS;
+	offset = CURRENT->sector << 9;
+	len = CURRENT->current_nr_sectors << 9;
 
 	if ((offset + len) > rd_length[minor]) {
 		end_request(0);
@@ -197,7 +243,7 @@ static int rd_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 
          	case BLKGETSIZE:   /* Return device size */
 			if (!arg)  return -EINVAL;
-			return put_user(rd_length[minor] >> RDBLK_SIZE_BITS, (long *) arg);
+			return put_user(rd_kbsize[minor] << 1, (long *) arg);
 
 		case BLKROSET:
 		case BLKROGET:
@@ -297,9 +343,17 @@ static struct file_operations fd_fops = {
 };
 
 /* This is the registration and initialization section of the RAM disk driver */
-__initfunc(int rd_init(void))
+int __init rd_init(void)
 {
 	int		i;
+
+	if (rd_blocksize > PAGE_SIZE || rd_blocksize < 512 ||
+	    (rd_blocksize & (rd_blocksize-1)))
+	{
+		printk("RAMDISK: wrong blocksize %d, reverting to defaults\n",
+		       rd_blocksize);
+		rd_blocksize = BLOCK_SIZE;
+	}
 
 	if (register_blkdev(MAJOR_NR, "ramdisk", &fd_fops)) {
 		printk("RAMDISK: Could not get major %d", MAJOR_NR);
@@ -310,18 +364,19 @@ __initfunc(int rd_init(void))
 
 	for (i = 0; i < NUM_RAMDISKS; i++) {
 		/* rd_size is given in kB */
-		rd_length[i] = (rd_size << BLOCK_SIZE_BITS);
-		rd_hardsec[i] = RDBLK_SIZE;
-		rd_blocksizes[i] = BLOCK_SIZE;
-		rd_kbsize[i] = (rd_length[i] >> BLOCK_SIZE_BITS);
+		rd_length[i] = rd_size << 10;
+		rd_hardsec[i] = rd_blocksize;
+		rd_blocksizes[i] = rd_blocksize;
+		rd_kbsize[i] = rd_size;
 	}
 
 	hardsect_size[MAJOR_NR] = rd_hardsec;		/* Size of the RAM disk blocks */
 	blksize_size[MAJOR_NR] = rd_blocksizes;		/* Avoid set_blocksize() check */
 	blk_size[MAJOR_NR] = rd_kbsize;			/* Size of the RAM disk in kB  */
 
-	printk("RAM disk driver initialized:  %d RAM disks of %dK size\n",
-							NUM_RAMDISKS, rd_size);
+	printk("RAMDISK driver initialized: "
+	       "%d RAM disks of %dK size %d blocksize\n",
+	       NUM_RAMDISKS, rd_size, rd_blocksize);
 
 	return 0;
 }
@@ -331,7 +386,9 @@ __initfunc(int rd_init(void))
 #ifdef MODULE
 
 MODULE_PARM     (rd_size, "1i");
-MODULE_PARM_DESC(rd_size, "Size of each RAM disk.");
+MODULE_PARM_DESC(rd_size, "Size of each RAM disk in kbytes.");
+MODULE_PARM     (rd_blocksize, "i");
+MODULE_PARM_DESC(rd_blocksize, "Blocksize of each RAM disk in bytes.");
 
 int init_module(void)
 {
@@ -370,8 +427,8 @@ void cleanup_module(void)
  *	romfs
  * 	gzip
  */
-__initfunc(int
-identify_ramdisk_image(kdev_t device, struct file *fp, int start_block))
+int __init 
+identify_ramdisk_image(kdev_t device, struct file *fp, int start_block)
 {
 	const int size = 512;
 	struct minix_super_block *minixsb;
@@ -463,7 +520,7 @@ done:
 /*
  * This routine loads in the RAM disk image.
  */
-__initfunc(static void rd_load_image(kdev_t device, int offset, int unit))
+static void __init rd_load_image(kdev_t device, int offset, int unit)
 {
  	struct inode inode, out_inode;
 	struct file infile, outfile;
@@ -518,9 +575,15 @@ __initfunc(static void rd_load_image(kdev_t device, int offset, int unit))
 		goto done;
 	}
 
-	if (nblocks > (rd_length[unit] >> RDBLK_SIZE_BITS)) {
+	/*
+	 * NOTE NOTE: nblocks suppose that the blocksize is BLOCK_SIZE, so
+	 * rd_load_image will work only with filesystem BLOCK_SIZE wide!
+	 * So make sure to use 1k blocksize while generating ext2fs
+	 * ramdisk-images.
+	 */
+	if (nblocks > (rd_length[unit] >> BLOCK_SIZE_BITS)) {
 		printk("RAMDISK: image too big! (%d/%ld blocks)\n",
-		       nblocks, rd_length[unit] >> RDBLK_SIZE_BITS);
+		       nblocks, rd_length[unit] >> BLOCK_SIZE_BITS);
 		goto done;
 	}
 		
@@ -585,7 +648,7 @@ done:
 }
 
 
-__initfunc(static void rd_load_disk(int n))
+static void __init rd_load_disk(int n)
 {
 #ifdef CONFIG_BLK_DEV_INITRD
 	extern kdev_t real_root_dev;
@@ -614,18 +677,18 @@ __initfunc(static void rd_load_disk(int n))
 
 }
 
-__initfunc(void rd_load(void))
+void __init rd_load(void)
 {
 	rd_load_disk(0);
 }
 
-__initfunc(void rd_load_secondary(void))
+void __init rd_load_secondary(void)
 {
 	rd_load_disk(1);
 }
 
 #ifdef CONFIG_BLK_DEV_INITRD
-__initfunc(void initrd_load(void))
+void __init initrd_load(void)
 {
 	rd_load_image(MKDEV(MAJOR_NR, INITRD_MINOR),rd_image_start,0);
 }
@@ -684,21 +747,21 @@ static void gzip_release(void **);
 
 #include "../../lib/inflate.c"
 
-__initfunc(static void *malloc(int size))
+static void __init *malloc(int size)
 {
 	return kmalloc(size, GFP_KERNEL);
 }
 
-__initfunc(static void free(void *where))
+static void __init free(void *where)
 {
 	kfree(where);
 }
 
-__initfunc(static void gzip_mark(void **ptr))
+static void __init gzip_mark(void **ptr)
 {
 }
 
-__initfunc(static void gzip_release(void **ptr))
+static void __init gzip_release(void **ptr)
 {
 }
 
@@ -707,7 +770,7 @@ __initfunc(static void gzip_release(void **ptr))
  * Fill the input buffer. This is called only when the buffer is empty
  * and at least one byte is really needed.
  */
-__initfunc(static int fill_inbuf(void))
+static int __init fill_inbuf(void)
 {
 	if (exit_code) return -1;
 	
@@ -724,7 +787,7 @@ __initfunc(static int fill_inbuf(void))
  * Write the output window window[0..outcnt-1] and update crc and bytes_out.
  * (Used for the decompressed data only.)
  */
-__initfunc(static void flush_window(void))
+static void __init flush_window(void)
 {
     ulg c = crc;         /* temporary variable */
     unsigned n;
@@ -741,14 +804,14 @@ __initfunc(static void flush_window(void))
     outcnt = 0;
 }
 
-__initfunc(static void error(char *x))
+static void __init error(char *x)
 {
 	printk(KERN_ERR "%s", x);
 	exit_code = 1;
 }
 
-__initfunc(static int
-crd_load(struct file * fp, struct file *outfp))
+static int __init 
+crd_load(struct file * fp, struct file *outfp)
 {
 	int result;
 

@@ -1,4 +1,4 @@
-/* $Id: timod.c,v 1.2 1999/05/12 11:11:55 davem Exp $
+/* $Id: timod.c,v 1.4 1999/09/01 08:07:47 davem Exp $
  * timod.c: timod emulation.
  *
  * Copyright (C) 1998 Patrik Rak (prak3264@ss1000.ms.mff.cuni.cz)
@@ -33,9 +33,7 @@ extern asmlinkage int sys32_ioctl(unsigned int fd, unsigned int cmd,
 	u32 arg);
 asmlinkage int solaris_ioctl(unsigned int fd, unsigned int cmd, u32 arg);
 
-#ifdef __SMP__
 spinlock_t timod_pagelock = SPIN_LOCK_UNLOCKED;
-#endif
 static char * page = NULL ;
 
 #ifndef DEBUG_SOLARIS_KMALLOC
@@ -679,7 +677,7 @@ int timod_getmsg(unsigned int fd, char *ctl_buf, int ctl_maxlen, s32 *ctl_len,
 		wait = &wait_table;
 		for(;;) {
 			SOLD("loop");
-			current->state = TASK_INTERRUPTIBLE;
+			set_current_state(TASK_INTERRUPTIBLE);
 			/* ! ( l<0 || ( l>=0 && ( ! pfirst || (flags == HIPRI && pri != HIPRI) ) ) ) */ 
 			/* ( ! l<0 && ! ( l>=0 && ( ! pfirst || (flags == HIPRI && pri != HIPRI) ) ) ) */ 
 			/* ( l>=0 && ( ! l>=0 || ! ( ! pfirst || (flags == HIPRI && pri != HIPRI) ) ) ) */ 

@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.9 1998/10/14 23:40:46 ralf Exp $
+/* $Id: sgiseeq.c,v 1.10 1999/08/11 20:26:50 andrewb Exp $
  *
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
@@ -135,7 +135,7 @@ static inline void seeq_go(struct sgiseeq_private *sp,
 	hregs->rx_ctrl = HPC3_ERXCTRL_ACTIVE;
 }
 
-static inline void seeq_load_eaddr(struct device *dev,
+static inline void seeq_load_eaddr(struct net_device *dev,
 				   volatile struct sgiseeq_regs *sregs)
 {
 	int i;
@@ -149,7 +149,7 @@ static inline void seeq_load_eaddr(struct device *dev,
 #define RCNTCFG_INIT  (HPCDMA_OWN | HPCDMA_EORP | HPCDMA_XIE)
 #define RCNTINFO_INIT (RCNTCFG_INIT | (PKT_BUF_SZ & HPCDMA_BCNT))
 
-static void seeq_init_ring(struct device *dev)
+static void seeq_init_ring(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = (struct sgiseeq_private *) dev->priv;
 	volatile struct sgiseeq_init_block *ib = &sp->srings;
@@ -197,7 +197,7 @@ static void seeq_init_ring(struct device *dev)
 
 #ifdef DEBUG
 static struct sgiseeq_private *gpriv;
-static struct device *gdev;
+static struct net_device *gdev;
 
 void sgiseeq_dump_rings(void)
 {
@@ -242,7 +242,7 @@ void sgiseeq_dump_rings(void)
 #define TSTAT_INIT_EDLC ((TSTAT_INIT_SEEQ) | SEEQ_TCMD_RB2)
 #define RDMACFG_INIT    (HPC3_ERXDCFG_FRXDC | HPC3_ERXDCFG_FEOP | HPC3_ERXDCFG_FIRQ)
 
-static void init_seeq(struct device *dev, struct sgiseeq_private *sp,
+static void init_seeq(struct net_device *dev, struct sgiseeq_private *sp,
 		      volatile struct sgiseeq_regs *sregs)
 {
 	volatile struct hpc3_ethregs *hregs = sp->hregs;
@@ -295,7 +295,7 @@ static inline void rx_maybe_restart(struct sgiseeq_private *sp,
 				!((rd)->rdma.cntinfo & HPCDMA_OWN); \
 				(rd) = &(sp)->srings.rx_desc[(sp)->rx_new])
 
-static inline void sgiseeq_rx(struct device *dev, struct sgiseeq_private *sp,
+static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp,
 			      volatile struct hpc3_ethregs *hregs,
 			      volatile struct sgiseeq_regs *sregs)
 {
@@ -372,7 +372,7 @@ static inline void kick_tx(struct sgiseeq_tx_desc *td,
 	}
 }
 
-static inline void sgiseeq_tx(struct device *dev, struct sgiseeq_private *sp,
+static inline void sgiseeq_tx(struct net_device *dev, struct sgiseeq_private *sp,
 			      volatile struct hpc3_ethregs *hregs,
 			      volatile struct sgiseeq_regs *sregs)
 {
@@ -413,7 +413,7 @@ static inline void sgiseeq_tx(struct device *dev, struct sgiseeq_private *sp,
 }
 
 static inline void tx_maybe_unbusy(struct sgiseeq_private *sp,
-				   struct device *dev)
+				   struct net_device *dev)
 {
 	if((TX_BUFFS_AVAIL(sp) >= 0) && dev->tbusy) {
 		dev->tbusy = 0;
@@ -423,7 +423,7 @@ static inline void tx_maybe_unbusy(struct sgiseeq_private *sp,
 
 static void sgiseeq_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	struct device *dev = (struct device *) dev_id;
+	struct net_device *dev = (struct net_device *) dev_id;
 	struct sgiseeq_private *sp = (struct sgiseeq_private *) dev->priv;
 	volatile struct hpc3_ethregs *hregs = sp->hregs;
 	volatile struct sgiseeq_regs *sregs = sp->sregs;
@@ -443,7 +443,7 @@ static void sgiseeq_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	dev->interrupt = 0;
 }
 
-static int sgiseeq_open(struct device *dev)
+static int sgiseeq_open(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = (struct sgiseeq_private *)dev->priv;
 	volatile struct sgiseeq_regs *sregs = sp->sregs;
@@ -465,7 +465,7 @@ static int sgiseeq_open(struct device *dev)
 	return 0;
 }
 
-static int sgiseeq_close(struct device *dev)
+static int sgiseeq_close(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = (struct sgiseeq_private *) dev->priv;
 	volatile struct sgiseeq_regs *sregs = sp->sregs;
@@ -481,7 +481,7 @@ static int sgiseeq_close(struct device *dev)
 	return 0;
 }
 
-static inline int sgiseeq_reset(struct device *dev)
+static inline int sgiseeq_reset(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = (struct sgiseeq_private *) dev->priv;
 	volatile struct sgiseeq_regs *sregs = sp->sregs;
@@ -503,7 +503,7 @@ void sgiseeq_my_reset(void)
 }
 
 static inline int verify_tx(struct sgiseeq_private *sp,
-			    struct device *dev,
+			    struct net_device *dev,
 			    struct sk_buff *skb)
 {
 	/* Are we bolixed? */
@@ -530,7 +530,7 @@ static inline int verify_tx(struct sgiseeq_private *sp,
 	return 0;
 }
 
-static int sgiseeq_start_xmit(struct sk_buff *skb, struct device *dev)
+static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct sgiseeq_private *sp = (struct sgiseeq_private *) dev->priv;
 	volatile struct hpc3_ethregs *hregs = sp->hregs;
@@ -586,14 +586,14 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct device *dev)
 	return 0;
 }
 
-static struct enet_statistics *sgiseeq_get_stats(struct device *dev)
+static struct enet_statistics *sgiseeq_get_stats(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = (struct sgiseeq_private *) dev->priv;
 
 	return &sp->stats;
 }
 
-static void sgiseeq_set_multicast(struct device *dev)
+static void sgiseeq_set_multicast(struct net_device *dev)
 {
 }
 
@@ -626,7 +626,7 @@ static char onboard_eth_addr[6];
 
 #define ALIGNED(x)  ((((unsigned long)(x)) + 0xf) & ~(0xf))
 
-int sgiseeq_init(struct device *dev, struct sgiseeq_regs *sregs,
+int sgiseeq_init(struct net_device *dev, struct sgiseeq_regs *sregs,
 		 struct hpc3_ethregs *hregs, int irq)
 {
 	static unsigned version_printed = 0;
@@ -722,7 +722,7 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 	}
 }
 
-int sgiseeq_probe(struct device *dev)
+int sgiseeq_probe(struct net_device *dev)
 {
 	static int initialized;
 	char *ep;

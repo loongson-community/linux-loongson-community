@@ -14,7 +14,7 @@
  */
 
 #include <asm/bootinfo.h>
-#include <asm/init.h>
+#include <linux/init.h>
 
 static void wbflush_kn01(void);
 static void wbflush_kn210(void);
@@ -23,7 +23,7 @@ static void wbflush_kn03(void);
 
 void (*__wbflush) (void);
 
-__initfunc(void wbflush_setup(void))
+void __init wbflush_setup(void)
 {
 	switch (mips_machtype) {
 	case MACH_DS23100:

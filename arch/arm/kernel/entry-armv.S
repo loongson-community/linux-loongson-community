@@ -16,6 +16,7 @@
 #include <asm/errno.h>
 #include <asm/hardware.h>
 #include <asm/arch/irqs.h>
+#include <asm/proc-fns.h>
 
 #include "../lib/constants.h"
 
@@ -244,6 +245,10 @@ irq_prio_ebsa110:
 		movne	\irqnr, #IRQ_PCI
 		bne	1001f
 
+		tst	\irqstat, #IRQ_MASK_DOORBELLHOST
+		movne	\irqnr, #IRQ_DOORBELLHOST
+		bne     1001f
+	
 		tst	\irqstat, #IRQ_MASK_I2OINPOST
 		movne	\irqnr, #IRQ_I2OINPOST
 		bne	1001f
@@ -449,9 +454,13 @@ __dabt_svc:	sub	sp, sp, #S_FRAME_SIZE
 		biceq	r0, r0, #I_BIT			@ previously
 		msreq	cpsr, r0
 		mov	r0, r2
+#ifdef MULTI_CPU
 		ldr	r2, .LCprocfns
 		mov	lr, pc
-		ldr	pc, [r2, #8]			@ call processor specific code
+		ldr	pc, [r2]			@ call processor specific code
+#else
+		bl	cpu_data_abort
+#endif
 		mov	r3, sp
 		bl	SYMBOL_NAME(do_DataAbort)
 		ldr	r0, [sp, #S_PSR]
@@ -503,7 +512,9 @@ __und_svc:	sub	sp, sp, #S_FRAME_SIZE
 .LCirq:		.word	__temp_irq
 .LCund:		.word	__temp_und
 .LCabt:		.word	__temp_abt
+#ifdef MULTI_CPU
 .LCprocfns:	.word	SYMBOL_NAME(processor)
+#endif
 .LCfp:		.word	SYMBOL_NAME(fp_enter)
 #ifdef CONFIG_ALIGNMENT_TRAP
 .LCswi:		.word	SYMBOL_NAME(cr_alignment)
@@ -536,9 +547,13 @@ __dabt_usr:	sub	sp, sp, #S_FRAME_SIZE		@ Allocate frame size in one go
 		mrs	r2, cpsr			@ Enable interrupts if they were
 		bic	r2, r2, #I_BIT			@ previously
 		msr	cpsr, r2
+#ifdef MULTI_CPU
 		ldr	r2, .LCprocfns
 		mov	lr, pc
-		ldr	pc, [r2, #8]			@ call processor specific code
+		ldr	pc, [r2]			@ call processor specific code
+#else
+		bl	cpu_data_abort
+#endif
 		mov	r3, sp
 		adrsvc	al, lr, ret_from_sys_call
 		b	SYMBOL_NAME(do_DataAbort)
@@ -650,6 +665,23 @@ __pabt_usr:	sub	sp, sp, #S_FRAME_SIZE		@ Allocate frame size in one go
 		add	sp, sp, #S_FRAME_SIZE
 		movs	pc, lr
 #endif
+
+/*
+ * Register switch for ARMv3 and ARMv4 processors
+ * r0 = previous, r1 = next, return previous.
+ * previous and next are guaranteed not to be the same.
+ */
+ENTRY(__switch_to)
+		stmfd	sp!, {r4 - sl, fp, lr}		@ Store most regs on stack
+		mrs	ip, cpsr
+		stmfd	sp!, {ip}			@ Save cpsr_SVC
+		ldr	r2, [r1, #TSS_DOMAIN]
+		str	sp, [r0, #TSS_SAVE]		@ Save sp_SVC
+		ldr	sp, [r1, #TSS_SAVE]		@ Get saved sp_SVC
+		mcr	p15, 0, r2, c3, c0		@ Set domain register
+		ldmfd	sp!, {ip}
+		msr	spsr, ip			@ Save tasks CPSR into SPSR for this return
+		ldmfd	sp!, {r4 - sl, fp, pc}^		@ Load all regs saved previously
 
 		.section ".text.init",#alloc,#execinstr
 /*

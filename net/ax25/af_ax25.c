@@ -125,7 +125,7 @@
 #include <linux/notifier.h>
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
-#include <linux/firewall.h>
+#include <linux/netfilter.h>
 #include <linux/sysctl.h>
 #include <linux/init.h>
 #include <net/ip.h>
@@ -188,7 +188,7 @@ static void ax25_remove_socket(ax25_cb *ax25)
 /*
  *	Kill all bound sockets on a dropped device.
  */
-static void ax25_kill_by_device(struct device *dev)
+static void ax25_kill_by_device(struct net_device *dev)
 {
 	ax25_dev *ax25_dev;
 	ax25_cb *s;
@@ -209,7 +209,7 @@ static void ax25_kill_by_device(struct device *dev)
  */
 static int ax25_device_event(struct notifier_block *this,unsigned long event, void *ptr)
 {
-	struct device *dev = (struct device *)ptr;
+	struct net_device *dev = (struct net_device *)ptr;
 
 	/* Reject non AX.25 devices */
 	if (dev->type != ARPHRD_AX25)
@@ -251,7 +251,7 @@ void ax25_insert_socket(ax25_cb *ax25)
  *	Find a socket that wants to accept the SABM we have just
  *	received.
  */
-struct sock *ax25_find_listener(ax25_address *addr, int digi, struct device *dev, int type)
+struct sock *ax25_find_listener(ax25_address *addr, int digi, struct net_device *dev, int type)
 {
 	unsigned long flags;
 	ax25_cb *s;
@@ -302,7 +302,7 @@ struct sock *ax25_find_socket(ax25_address *my_addr, ax25_address *dest_addr, in
  *	Find an AX.25 control block given both ends. It will only pick up
  *	floating AX.25 control blocks or non Raw socket bound control blocks.
  */
-ax25_cb *ax25_find_cb(ax25_address *src_addr, ax25_address *dest_addr, ax25_digi *digi, struct device *dev)
+ax25_cb *ax25_find_cb(ax25_address *src_addr, ax25_address *dest_addr, ax25_digi *digi, struct net_device *dev)
 {
 	ax25_cb *s;
 	unsigned long flags;
@@ -928,7 +928,7 @@ struct sock *ax25_make_new(struct sock *osk, struct ax25_dev *ax25_dev)
 	return sk;
 }
 
-static int ax25_release(struct socket *sock, struct socket *peer)
+static int ax25_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
@@ -1225,15 +1225,6 @@ static int ax25_accept(struct socket *sock, struct socket *newsock, int flags)
 
 	if (sock->state != SS_UNCONNECTED)
 		return -EINVAL;
-
-	/*
-	 * sys_accept has already allocated a struct sock. we need to free it, 
-	 * since we want to use the one provided by ax25_make_new.
-	 */
-	if (newsock->sk != NULL) {
-		sk_free(newsock->sk);
-		newsock->sk = NULL;
-	}
 
 	if ((sk = sock->sk) == NULL)
 		return -EINVAL;
@@ -1716,10 +1707,9 @@ static struct net_proto_family ax25_family_ops =
 	ax25_create
 };
 
-static struct proto_ops ax25_proto_ops = {
+static struct proto_ops SOCKOPS_WRAPPED(ax25_proto_ops) = {
 	PF_AX25,
 
-	sock_no_dup,
 	ax25_release,
 	ax25_bind,
 	ax25_connect,
@@ -1734,8 +1724,12 @@ static struct proto_ops ax25_proto_ops = {
 	ax25_getsockopt,
 	sock_no_fcntl,
 	ax25_sendmsg,
-	ax25_recvmsg
+	ax25_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(ax25_proto, PF_AX25);
 
 /*
  *	Called by socket.c on kernel start up
@@ -1793,7 +1787,7 @@ static struct proc_dir_entry proc_ax25_calls = {
 };
 #endif
 
-__initfunc(void ax25_proto_init(struct net_proto *pro))
+void __init ax25_proto_init(struct net_proto *pro)
 {
 	sock_register(&ax25_family_ops);
 	ax25_packet_type.type = htons(ETH_P_AX25);

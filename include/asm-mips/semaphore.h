@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.8 1999/07/26 19:42:44 harald Exp $
+/* $Id: semaphore.h,v 1.9 1999/08/13 17:07:27 harald Exp $
  *
  * SMP- and interrupt-safe semaphores..
  *
@@ -9,12 +9,12 @@
  * (C) Copyright 1996  Linus Torvalds
  * (C) Copyright 1998, 1999  Ralf Baechle
  */
-#ifndef __ASM_MIPS_SEMAPHORE_H
-#define __ASM_MIPS_SEMAPHORE_H
+#ifndef _ASM_SEMAPHORE_H
+#define _ASM_SEMAPHORE_H
 
 #include <asm/system.h>
 #include <asm/atomic.h>
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <linux/wait.h>
 #include <linux/config.h>
 
@@ -190,4 +190,4 @@ extern inline void up(struct semaphore * sem)
 		__up(sem);
 }
 
-#endif /* __ASM_MIPS_SEMAPHORE_H */
+#endif /* _ASM_SEMAPHORE_H */

@@ -641,6 +641,14 @@ struct proc_dir_entry proc_root_fs = {
 	NULL,
 	NULL, NULL
 };
+struct proc_dir_entry proc_root_driver = {
+        PROC_DRIVER, 6, "driver",
+        S_IFDIR | S_IRUGO | S_IXUGO, 2, 0, 0,
+        0, &proc_dir_inode_operations,
+	NULL, NULL,
+	NULL,
+	NULL, NULL
+};
 static struct proc_dir_entry proc_root_dma = {
 	PROC_DMA, 3, "dma",
 	S_IFREG | S_IRUGO, 1, 0, 0,
@@ -651,8 +659,8 @@ static struct proc_dir_entry proc_root_ioports = {
 	S_IFREG | S_IRUGO, 1, 0, 0,
 	0, &proc_array_inode_operations
 };
-static struct proc_dir_entry proc_root_memory = {
-	PROC_MEMORY, 6, "memory",
+static struct proc_dir_entry proc_root_iomem = {
+	PROC_MEMORY, 5, "iomem",
 	S_IFREG | S_IRUGO, 1, 0, 0,
 	0, &proc_array_inode_operations
 };
@@ -711,7 +719,7 @@ static struct proc_dir_entry proc_root_ppc_htab = {
 };
 #endif
 
-__initfunc(void proc_root_init(void))
+void __init proc_root_init(void)
 {
 	proc_base_init();
 	proc_register(&proc_root, &proc_root_loadavg);
@@ -745,13 +753,14 @@ __initfunc(void proc_root_init(void))
 #endif
 	proc_register(&proc_root, &proc_root_stat);
 	proc_register(&proc_root, &proc_root_devices);
+	proc_register(&proc_root, &proc_root_driver);
 	proc_register(&proc_root, &proc_root_partitions);
 	proc_register(&proc_root, &proc_root_interrupts);
 	proc_register(&proc_root, &proc_root_filesystems);
 	proc_register(&proc_root, &proc_root_fs);
 	proc_register(&proc_root, &proc_root_dma);
 	proc_register(&proc_root, &proc_root_ioports);
-	proc_register(&proc_root, &proc_root_memory);
+	proc_register(&proc_root, &proc_root_iomem);
 	proc_register(&proc_root, &proc_root_cmdline);
 #ifdef CONFIG_RTC
 	proc_register(&proc_root, &proc_root_rtc);
@@ -859,14 +868,29 @@ static struct dentry *proc_root_lookup(struct inode * dir, struct dentry * dentr
 	int len;
 
 	if (dir->i_ino == PROC_ROOT_INO) { /* check for safety... */
-		dir->i_nlink = proc_root.nlink;
+		extern unsigned long total_forks;
+		static int last_timestamp = 0;
 
-		read_lock(&tasklist_lock);
-		for_each_task(p) {
-			if (p->pid)
-				dir->i_nlink++;
+		/*
+		 * this one can be a serious 'ps' performance problem if
+		 * there are many threads running - thus we do 'lazy'
+		 * link-recalculation - we change it only if the number
+		 * of threads has increased.
+		 */
+		if (total_forks != last_timestamp) {
+			int nlink = proc_root.nlink;
+
+			read_lock(&tasklist_lock);
+			last_timestamp = total_forks;
+			for_each_task(p)
+				nlink++;
+			read_unlock(&tasklist_lock);
+			/*
+			 * subtract the # of idle threads which
+			 * do not show up in /proc:
+			 */
+			dir->i_nlink = nlink - smp_num_cpus;
 		}
-		read_unlock(&tasklist_lock);
 	}
 
 	if (!proc_lookup(dir, dentry))

@@ -8,7 +8,7 @@
 
 #define SIGCHLD 20
 
-#define NR_SYSCALLS 371
+#define NR_SYSCALLS 373
 
 /*
  * These offsets must match with alpha_mv in <asm/machvec.h>.
@@ -37,6 +37,8 @@
  * task flags (must match include/linux/sched.h):
  */
 #define	PF_PTRACED	0x00000010
+
+#define CLONE_VM        0x00000100 
 
 /*
  * This defines the normal kernel pt-regs layout.
@@ -225,21 +227,23 @@ kernel_clone:
 .end	kernel_clone
 
 /*
- * __kernel_thread(clone_flags, fn, arg)
+ * kernel_thread(fn, arg, clone_flags)
  */
 .align 3
-.globl	__kernel_thread
-.ent	__kernel_thread
-__kernel_thread:
+.globl	kernel_thread
+.ent	kernel_thread
+kernel_thread:
 	ldgp	$29,0($27)	/* we can be called from a module */
 	.frame $30, 4*8, $26
 	subq	$30,4*8,$30
 	stq	$10,16($30)
 	stq	$9,8($30)
+	lda	$0,CLONE_VM
 	stq	$26,0($30)
 	.prologue 1
-	mov	$17,$9		/* save fn */		
-	mov	$18,$10		/* save arg */
+	mov	$16,$9		/* save fn */		
+	mov	$17,$10		/* save arg */
+	or	$18,$0,$16	/* shuffle flags to front; add CLONE_VM.  */
 	bsr	$26,kernel_clone
 	bne	$20,1f		/* $20 is non-zero in child */
 	ldq	$26,0($30)
@@ -257,7 +261,7 @@ __kernel_thread:
 	mov	$0,$16
 	mov	$31,$26
 	jsr	$31,sys_exit
-.end	__kernel_thread
+.end	kernel_thread
 
 /*
  * __kernel_execve(path, argv, envp, regs)
@@ -1092,7 +1096,7 @@ sys_call_table:
 	.quad sys_munlockall
 	.quad sys_sysinfo
 	.quad sys_sysctl
-	.quad sys_idle				/* 320 */
+	.quad sys_ni_syscall			/* 320 */
 	.quad sys_oldumount
 	.quad sys_swapon
 	.quad sys_times
@@ -1143,3 +1147,5 @@ sys_call_table:
 	.quad sys_capget
 	.quad sys_capset
 	.quad sys_sendfile			/* 370 */
+	.quad sys_setresgid
+	.quad sys_getresgid

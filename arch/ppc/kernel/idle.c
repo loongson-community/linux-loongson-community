@@ -1,5 +1,5 @@
 /*
- * $Id: idle.c,v 1.62 1999/05/24 05:43:18 cort Exp $
+ * $Id: idle.c,v 1.66 1999/09/05 11:56:30 paulus Exp $
  *
  * Idle daemon for PowerPC.  Idle daemon will handle any action
  * that needs to be taken when the system becomes idle.
@@ -45,7 +45,7 @@ unsigned long zeropage_hits;  /* # zero'd pages request that we've done */
 unsigned long zeropage_calls; /* # zero'd pages request that've been made */
 unsigned long zerototal;      /* # pages zero'd over time */
 
-int idled(void *unused)
+int idled(void)
 {
 	/* endless loop with no priority at all */
 	current->priority = 0;
@@ -69,28 +69,14 @@ int idled(void *unused)
 	return 0;
 }
 
-#ifdef __SMP__
 /*
  * SMP entry into the idle task - calls the same thing as the
  * non-smp versions. -- Cort
  */
-int cpu_idle(void *unused)
+int cpu_idle()
 {
-	idled(unused);
+	idled();
 	return 0; 
-}
-#endif /* __SMP__ */
-
-/*
- * Syscall entry into the idle task. -- Cort
- */
-asmlinkage int sys_idle(void)
-{
-	if(current->pid != 0)
-		return -EPERM;
-
-	idled(NULL);
-	return 0; /* should never execute this but it makes gcc happy -- Cort */
 }
 
 /*
@@ -227,7 +213,7 @@ void zero_paged(void)
 		/*
 		 * Make the page no cache so we don't blow our cache with 0's
 		 */
-		pte = find_pte(init_task.mm, pageptr);
+		pte = find_pte(&init_mm, pageptr);
 		if ( !pte )
 		{
 			printk("pte NULL in zero_paged()\n");
@@ -235,7 +221,7 @@ void zero_paged(void)
 		}
 		
 		pte_uncache(*pte);
-		flush_tlb_page(find_vma(init_task.mm,pageptr),pageptr);
+		flush_tlb_page(find_vma(&init_mm,pageptr),pageptr);
 		/*
 		 * Important here to not take time away from real processes.
 		 */
@@ -260,7 +246,7 @@ void zero_paged(void)
 		
 		/* turn cache on for this page */
 		pte_cache(*pte);
-		flush_tlb_page(find_vma(init_task.mm,pageptr),pageptr);
+		flush_tlb_page(find_vma(&init_mm,pageptr),pageptr);
 		/* atomically add this page to the list */
 		asm (	"101:lwarx  %0,0,%1\n"  /* reserve zero_cache */
 			"    stw    %0,0(%2)\n" /* update *pageptr */

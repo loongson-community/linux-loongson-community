@@ -28,11 +28,13 @@ int panic_timeout = 0;
 
 struct notifier_block *panic_notifier_list = NULL;
 
-void __init panic_setup(char *str, int *ints)
+static int __init panic_setup(char *str)
 {
-	if (ints[0] == 1)
-		panic_timeout = ints[1];
+	panic_timeout = simple_strtoul(str, NULL, 0);
+	return 1;
 }
+
+__setup("panic=", panic_setup);
 
 NORET_TYPE void panic(const char * fmt, ...)
 {
@@ -43,7 +45,7 @@ NORET_TYPE void panic(const char * fmt, ...)
 	vsprintf(buf, fmt, args);
 	va_end(args);
 	printk(KERN_EMERG "Kernel panic: %s\n",buf);
-	if (current == task[0])
+	if (current == init_tasks[0])
 		printk(KERN_EMERG "In swapper task - not syncing\n");
 	else if (in_interrupt())
 		printk(KERN_EMERG "In interrupt handler - not syncing\n");

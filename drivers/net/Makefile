@@ -5,7 +5,7 @@
 
 SUB_DIRS     := 
 MOD_SUB_DIRS := $(SUB_DIRS)
-ALL_SUB_DIRS := $(SUB_DIRS) hamradio irda
+ALL_SUB_DIRS := $(SUB_DIRS) hamradio irda fc pcmcia
 
 L_TARGET := net.a
 L_OBJS   := auto_irq.o
@@ -28,6 +28,15 @@ CONFIG_85230_BUILTIN :=
 CONFIG_85230_MODULE  :=
 CONFIG_SYNCPPP_BUILTIN :=
 CONFIG_SYNCPPP_MODULE  :=
+
+ifeq ($(CONFIG_PCMCIA),y)
+  SUB_DIRS += pcmcia
+  MOD_SUB_DIRS += pcmcia
+else
+  ifeq ($(CONFIG_PCMCIA),m)
+    MOD_SUB_DIRS += pcmcia
+  endif
+endif
 
 ifeq ($(CONFIG_ISDN),y)
   ifeq ($(CONFIG_ISDN_PPP),y)
@@ -88,6 +97,14 @@ L_OBJS += ethertap.o
 else
   ifeq ($(CONFIG_ETHERTAP),m)
   M_OBJS += ethertap.o
+  endif
+endif
+
+ifeq ($(CONFIG_NET_SB1000),y)
+L_OBJS += sb1000.o
+else
+  ifeq ($(CONFIG_NET_SB1000),m)
+  M_OBJS += sb1000.o
   endif
 endif
 
@@ -302,16 +319,38 @@ endif
 # bsd_comp.o is *always* a module, for some documented reason
 # (licensing).
 ifeq ($(CONFIG_PPP),y)
-LX_OBJS += ppp.o
-M_OBJS += bsd_comp.o
+LX_OBJS += ppp_generic.o
 CONFIG_SLHC_BUILTIN = y
-CONFIG_PPPDEF_BUILTIN = y
+  ifeq ($(CONFIG_PPP_ASYNC),y)
+  LX_OBJS += ppp_async.o
+  else
+    ifeq ($(CONFIG_PPP_ASYNC),m)
+    MX_OBJS += ppp_async.o
+    endif
+  endif
+  ifeq ($(CONFIG_PPP_DEFLATE),y)
+  CONFIG_PPPDEF_BUILTIN = y
+  else
+    ifeq ($(CONFIG_PPP_DEFLATE),m)
+    CONFIG_PPPDEF_MODULE = y
+    endif
+  endif
+  ifeq ($(CONFIG_PPP_BSDCOMP),m)
+  M_OBJS += bsd_comp.o
+  endif
 else
   ifeq ($(CONFIG_PPP),m)
+  MX_OBJS += ppp_generic.o
   CONFIG_SLHC_MODULE = y
-  CONFIG_PPPDEF_MODULE = y
-  MX_OBJS += ppp.o
-  M_OBJS += bsd_comp.o
+    ifeq ($(CONFIG_PPP_ASYNC),m)
+    MX_OBJS += ppp_async.o
+    endif
+    ifeq ($(CONFIG_PPP_DEFLATE),m)
+    CONFIG_PPPDEF_MODULE = y
+    endif
+    ifeq ($(CONFIG_PPP_BSDCOMP),m)
+    M_OBJS += bsd_comp.o
+    endif
   endif
 endif
 
@@ -380,6 +419,10 @@ else
   ifeq ($(CONFIG_LANCE),m)
   M_OBJS += lance.o
   endif
+endif
+
+ifeq ($(CONFIG_SUN3LANCE),y)
+L_OBJS += sun3lance.o
 endif
 
 ifeq ($(CONFIG_PCNET32),y)
@@ -555,6 +598,14 @@ L_OBJS += rtl8139.o
 else
   ifeq ($(CONFIG_RTL8139),m)
   M_OBJS += rtl8139.o
+  endif
+endif
+
+ifeq ($(CONFIG_SIS900),y)
+L_OBJS += sis900.o
+else
+  ifeq ($(CONFIG_SIS900),m)
+  M_OBJS += sis900.o
   endif
 endif
 
@@ -845,13 +896,11 @@ endif
 
 # if anything built-in uses ppp_deflate, then build it into the kernel also.
 # If not, but a module uses it, build as a module.
-# ... NO!!!  ppp_deflate.o does not work as resident;
-# it works only as a module!
 ifdef CONFIG_PPPDEF_BUILTIN
-MX_OBJS += ppp_deflate.o
+L_OBJS += ppp_deflate.o
 else
   ifdef CONFIG_PPPDEF_MODULE
-  MX_OBJS += ppp_deflate.o
+  M_OBJS += ppp_deflate.o
   endif
 endif
 
@@ -884,6 +933,17 @@ else
   M_OBJS += hplance.o
   endif
 endif
+
+ifeq ($(CONFIG_MVME147_NET),y)
+L_OBJS += mvme147.o
+CONFIG_7990_BUILTIN = y
+else
+  ifeq ($(CONFIG_MVME147_NET),m)
+  CONFIG_7990_MODULE = y
+  M_OBJS += mvme147.o
+  endif
+endif
+
 # If we need generic LANCE support, either in the kernel or as a module,
 # build it in the appropriate way.
 ifdef CONFIG_7990_BUILTIN
@@ -1056,11 +1116,23 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_MACSONIC),y)
+L_OBJS += macsonic.o
+endif
+
 ifeq ($(CONFIG_BMAC),y)
 L_OBJS += bmac.o
 else
   ifeq ($(CONFIG_BMAC),m)
   M_OBJS += bmac.o
+  endif
+endif
+
+ifeq ($(CONFIG_ADAPTEC_STARFIRE),y)
+L_OBJS += starfire.o
+else
+  ifeq ($(CONFIG_ADAPTEC_STARFIRE),m)
+  M_OBJS += starfire.o
   endif
 endif
 
@@ -1101,6 +1173,15 @@ ifeq ($(CONFIG_CYCLADES_SYNC),y)
   endif
 endif
 
+ifeq ($(CONFIG_CYCLADES_SYNC),m)
+  MX_OBJS += cycx_drv.o
+  M_OBJS += cyclomx.o
+  CYCLOMX_OBJS = cycx_main.o
+  ifeq ($(CONFIG_CYCLOMX_X25),y)
+    CYCLOMX_OBJS += cycx_x25.o
+  endif
+endif
+
 ifeq ($(CONFIG_X25_ASY),y)
 L_OBJS += x25_asy.o
 else
@@ -1127,6 +1208,15 @@ MOD_IN_SUB_DIRS += irda
 else
   ifeq ($(CONFIG_IRDA),m)
   MOD_IN_SUB_DIRS += irda
+  endif
+endif
+
+ifeq ($(CONFIG_NET_FC),y)
+SUB_DIRS += fc
+MOD_IN_SUB_DIRS += fc
+else
+  ifeq ($(CONFIG_NET_FC),m)
+  MOD_IN_SUB_DIRS += fc
   endif
 endif
 

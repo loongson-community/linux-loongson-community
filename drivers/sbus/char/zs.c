@@ -1,4 +1,4 @@
-/* $Id: zs.c,v 1.42 1999/05/12 11:15:26 davem Exp $
+/* $Id: zs.c,v 1.45 1999/09/01 08:09:35 davem Exp $
  * zs.c: Zilog serial port driver for the Sparc.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -1711,7 +1711,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		if (!(info->flags & ZILOG_CALLOUT_ACTIVE))
 			zs_rtsdtr(info, 1);
 		sti();
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (tty_hung_up_p(filp) ||
 		    !(info->flags & ZILOG_INITIALIZED)) {
 #ifdef SERIAL_DEBUG_OPEN
@@ -1844,7 +1844,7 @@ int zs_open(struct tty_struct *tty, struct file * filp)
 
 static void show_serial_version(void)
 {
-	char *revision = "$Revision: 1.42 $";
+	char *revision = "$Revision: 1.45 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
@@ -1862,8 +1862,7 @@ static void show_serial_version(void)
  *       we have a special version for sun4u.
  */
 #ifdef __sparc_v9__
-__initfunc(static struct sun_zslayout *
-get_zs(int chip))
+static struct sun_zslayout * __init get_zs(int chip)
 {
 	unsigned int vaddr[2] = { 0, 0 };
 	unsigned long mapped_addr = 0;
@@ -1971,8 +1970,7 @@ get_zs(int chip))
 		return (struct sun_zslayout *) (unsigned long) vaddr[0];
 }
 #else /* !(__sparc_v9__) */
-__initfunc(static struct sun_zslayout *
-get_zs(int chip))
+static struct sun_zslayout * __init get_zs(int chip)
 {
 	struct linux_prom_irqs tmp_irq[2];
 	unsigned int paddr = 0;
@@ -2012,9 +2010,8 @@ get_zs(int chip))
 		/* Can use the prom for other machine types */
 		zsnode = prom_getchild(prom_root_node);
 		if (sparc_cpu_model == sun4d) {
-			int node;
 			int no = 0;
-			
+
 			tmpnode = zsnode;
 			zsnode = 0;
 			bbnode = 0;
@@ -2113,7 +2110,7 @@ void zs_change_mouse_baud(int newbaud)
 	write_zsreg(zs_soft[channel].zs_channel, R13, ((brg >> 8) & 0xff));
 }
 
-__initfunc(int zs_probe (unsigned long *memory_start))
+int __init zs_probe (unsigned long *memory_start)
 {
 	char *p;
 	int node;
@@ -2266,7 +2263,7 @@ static inline void zs_prepare(void)
 	restore_flags(flags);
 }
 
-__initfunc(int zs_init(void))
+int __init zs_init(void)
 {
 	int channel, brg, i;
 	unsigned long flags;
@@ -2535,8 +2532,7 @@ __initfunc(int zs_init(void))
  * for /dev/ttyb which is determined in setup_arch() from the
  * boot command line flags.
  */
-__initfunc(static void
-zs_kgdb_hook(int tty_num))
+static void __init zs_kgdb_hook(int tty_num)
 {
 	int chip = 0;
 
@@ -2648,8 +2644,7 @@ static kdev_t zs_console_device(struct console *con)
 	return MKDEV(TTY_MAJOR, 64 + con->index);
 }
 
-__initfunc(static int
-zs_console_setup(struct console *con, char *options))
+static int __init zs_console_setup(struct console *con, char *options)
 {
 	struct sun_serial *info;
 	int i, brg, baud;
@@ -2730,8 +2725,7 @@ static struct console zs_console = {
 	NULL
 };
 
-__initfunc(static int
-zs_console_init(void))
+static int __init zs_console_init(void)
 {
 	extern int con_is_present(void);
 

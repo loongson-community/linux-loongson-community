@@ -39,7 +39,6 @@
 #include <linux/fcntl.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
-#include <linux/firewall.h>
 #include <net/x25.h>
 
 static struct x25_neigh *x25_neigh_list = NULL;
@@ -224,11 +223,6 @@ void x25_transmit_clear_request(struct x25_neigh *neigh, unsigned int lci, unsig
 
 void x25_transmit_link(struct sk_buff *skb, struct x25_neigh *neigh)
 {
-	if (call_fw_firewall(PF_X25, skb->dev, skb->data, NULL, &skb) != FW_ACCEPT) {
-		kfree_skb(skb);
-		return;
-	}
-
 	switch (neigh->state) {
 		case X25_LINK_STATE_0:
 			skb_queue_tail(&neigh->queue, skb);
@@ -277,7 +271,7 @@ void x25_link_terminated(struct x25_neigh *neigh)
 /*
  *	Add a new device.
  */
-void x25_link_device_up(struct device *dev)
+void x25_link_device_up(struct net_device *dev)
 {
 	struct x25_neigh *x25_neigh;
 	unsigned long flags;
@@ -337,7 +331,7 @@ static void x25_remove_neigh(struct x25_neigh *x25_neigh)
 /*
  *	A device has been removed, remove its links.
  */
-void x25_link_device_down(struct device *dev)
+void x25_link_device_down(struct net_device *dev)
 {
 	struct x25_neigh *neigh, *x25_neigh = x25_neigh_list;
 
@@ -353,7 +347,7 @@ void x25_link_device_down(struct device *dev)
 /*
  *	Given a device, return the neighbour address.
  */
-struct x25_neigh *x25_get_neigh(struct device *dev)
+struct x25_neigh *x25_get_neigh(struct net_device *dev)
 {
 	struct x25_neigh *x25_neigh;
 
@@ -371,15 +365,18 @@ int x25_subscr_ioctl(unsigned int cmd, void *arg)
 {
 	struct x25_subscrip_struct x25_subscr;
 	struct x25_neigh *x25_neigh;
-	struct device *dev;
+	struct net_device *dev;
 
 	switch (cmd) {
 
 		case SIOCX25GSUBSCRIP:
 			if ((dev = x25_dev_get(x25_subscr.device)) == NULL)
 				return -EINVAL;
-			if ((x25_neigh = x25_get_neigh(dev)) == NULL)
+			if ((x25_neigh = x25_get_neigh(dev)) == NULL) {
+				dev_put(dev);
 				return -EINVAL;
+			}
+			dev_put(dev);
 			x25_subscr.extended = x25_neigh->extended;
 			if (copy_to_user(arg, &x25_subscr, sizeof(struct x25_subscrip_struct)))
 				return -EFAULT;
@@ -390,8 +387,11 @@ int x25_subscr_ioctl(unsigned int cmd, void *arg)
 				return -EFAULT;
 			if ((dev = x25_dev_get(x25_subscr.device)) == NULL)
 				return -EINVAL;
-			if ((x25_neigh = x25_get_neigh(dev)) == NULL)
+			if ((x25_neigh = x25_get_neigh(dev)) == NULL) {
+				dev_put(dev);
 				return -EINVAL;
+			}
+			dev_put(dev);
 			if (x25_subscr.extended != 0 && x25_subscr.extended != 1)
 				return -EINVAL;
 			x25_neigh->extended = x25_subscr.extended;

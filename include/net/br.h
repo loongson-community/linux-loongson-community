@@ -42,7 +42,7 @@
 
 /* broacast/multicast storm limitation. This per source. */
 #define MAX_MCAST_PER_PERIOD    4
-#define MCAST_HOLD_TIME		10	/* in jiffies unit (10ms increment) */
+#define MCAST_HOLD_TIME		(10*HZ/100)
 
 #define Default_path_cost 10
 
@@ -160,7 +160,7 @@ typedef struct {
 	unsigned short   designated_port;	  /* (4.5.5.7)	 */
 	unsigned int     top_change_ack;	  /* (4.5.5.8)	 */
 	unsigned int     config_pending;	  /* (4.5.5.9)	 */
-	struct device *dev;	
+	struct net_device *dev;	
 	struct fdb *fdb;	/* head of per port fdb chain */
 } Port_data;
 

@@ -1,4 +1,4 @@
-/* $Id: r6000.c,v 1.6 1999/01/04 16:03:54 ralf Exp $
+/* $Id: r6000.c,v 1.7 1999/08/09 19:43:16 harald Exp $
  *
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
@@ -164,7 +164,7 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         /* XXX */
 }
 
-__initfunc(void ld_mmu_r6000(void))
+void __init ld_mmu_r6000(void)
 {
 	flush_cache_all = r6000_flush_cache_all;
 	flush_cache_mm = r6000_flush_cache_mm;

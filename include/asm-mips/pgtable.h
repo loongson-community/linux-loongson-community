@@ -1,10 +1,11 @@
-/* $Id: pgtable.h,v 1.23 1999/08/13 17:07:27 harald Exp $
+/* $Id: pgtable.h,v 1.24 1999/08/18 23:37:49 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1998 by Ralf Baechle at alii
+ * Copyright (C) 1994 - 1999 by Ralf Baechle at alii
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PGTABLE_H
 #define _ASM_PGTABLE_H
@@ -220,9 +221,6 @@ extern unsigned long zero_page_mask;
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
 extern void load_pgd(unsigned long pg_dir);
-
-/* to set the page-dir */
-#define SET_PAGE_DIR(tsk,pgdir) (tsk)->tss.pg_dir = ((unsigned long) (pgdir))
 
 extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
 
@@ -568,7 +566,7 @@ extern inline void set_pgdir(unsigned long address, pgd_t entry)
 #ifdef __SMP__
 	int i;
 #endif	
-        
+
 	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (!p->mm)
@@ -863,5 +861,7 @@ extern inline void set_context(unsigned long val)
 }
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
+
+#define io_remap_page_range remap_page_range
 
 #endif /* _ASM_PGTABLE_H */

@@ -1,4 +1,4 @@
-/* $Id: namei.h,v 1.4 1998/12/08 20:52:03 ralf Exp $
+/* $Id: namei.h,v 1.4 1998/10/28 08:13:33 jj Exp $
  * linux/include/asm-ppc/namei.h
  * Adapted from linux/include/asm-alpha/namei.h
  *

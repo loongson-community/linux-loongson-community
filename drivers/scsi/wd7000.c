@@ -152,8 +152,8 @@
 #include <linux/string.h>
 #include <linux/sched.h>
 #include <linux/malloc.h>
+#include <linux/spinlock.h>
 #include <asm/system.h>
-#include <asm/spinlock.h>
 #include <asm/dma.h>
 #include <asm/io.h>
 #include <linux/ioport.h>
@@ -1561,19 +1561,16 @@ int wd7000_detect (Scsi_Host_Template *tpnt)
 			break;
 
 		if (i == pass) {
-#if (LINUX_VERSION_CODE < 0x020100)
-#else
 		    void *biosaddr = ioremap (wd7000_biosaddr[biosaddr_ptr] +
 			                      signatures[sig_ptr].ofs,
 					      signatures[sig_ptr].len);
-#endif
-		    short bios_match = memcmp ((char *) biosaddr, signatures[sig_ptr].sig,
+		    short bios_match=0;
+		    
+		    if(biosaddr)
+		    	bios_match = memcmp ((char *) biosaddr, signatures[sig_ptr].sig,
 			                       signatures[sig_ptr].len);
 
-#if (LINUX_VERSION_CODE < 0x020100)
-#else
 		    iounmap (biosaddr);
-#endif
 
 		    if (! bios_match)
 		        goto bios_matched;

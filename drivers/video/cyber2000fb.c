@@ -631,13 +631,15 @@ static void cyber2000fb_set_timing(struct fb_var_screeninfo *var)
 	cyber2000_outw(width, 0xbf218);
 	cyber2000_outb(b,     0xbf01c);
 
-{ int j;
+#if 0
+{ int j; i = 0;
  printk(KERN_DEBUG);
  for (j = 0; j < 19; j++) printk("%2d ", j); printk("\n"KERN_DEBUG);
  for (j = 0; j < 19; j++) printk("%02X ", crtc[j]); printk("\n"KERN_DEBUG);
  for (j = 0; j < 18; j++) printk("%02X ", cyber2000_res[i].crtc_regs[j]);
  printk("%02X\n", cyber2000_res[i].crtc_ofl);
 }
+#endif
 }
 
 static inline void
@@ -765,9 +767,9 @@ cyber2000fb_get_fix(struct fb_fix_screeninfo *fix, int con,
 	else
 		display = &global_disp;
 
-	fix->smem_start	 = (char *)current_par.screen_base_p;
+	fix->smem_start	 = current_par.screen_base_p;
 	fix->smem_len	 = current_par.screen_size;
-	fix->mmio_start	 = (char *)current_par.regs_base_p;
+	fix->mmio_start	 = current_par.regs_base_p;
 	fix->mmio_len	 = 0x000c0000;
 	fix->type	 = display->type;
 	fix->type_aux	 = display->type_aux;
@@ -1018,8 +1020,9 @@ static void cyber2000fb_blank(int blank, struct fb_info *fb_info)
 	}
 }
 
-__initfunc(void cyber2000fb_setup(char *options, int *ints))
+int __init cyber2000fb_setup(char *options)
 {
+	return 0;
 }
 
 static struct fb_ops cyber2000fb_ops =
@@ -1035,8 +1038,8 @@ static struct fb_ops cyber2000fb_ops =
 	cyber2000fb_ioctl
 };
 
-__initfunc(static void
-cyber2000fb_init_fbinfo(void))
+static void __init 
+cyber2000fb_init_fbinfo(void)
 {
 	static int first = 1;
 
@@ -1138,16 +1141,28 @@ cyber2000fb_init_fbinfo(void))
 /*
  *    Initialization
  */
-__initfunc(void cyber2000fb_init(void))
+int __init cyber2000fb_init(void)
 {
 	struct pci_dev *dev;
 	u_int h_sync, v_sync;
+	u_long base_p, base_v;
 
 	dev = pci_find_device(PCI_VENDOR_ID_INTERG, 0x2000, NULL);
 	if (!dev)
-		return;
+		return -ENXIO;
 
-	CyberRegs = bus_to_virt(dev->base_address[0]) + 0x00800000;/*FIXME*/
+	/* this should be done by PCI generic code */
+	base_p = 0x80000000 + dev->resource[0].start;
+
+	/*
+	 * This should be ioremap'd, thus:
+	 *
+	 * base_v = ioremap(dev->resource[0].start, dev->resource[0].end - dev->resource[0].start + 1);
+	 */
+	base_v = (u_long)bus_to_virt(dev->resource[0].start);
+
+	/*FIXME*/
+	CyberRegs = base_v + 0x00800000;
 
 	cyber2000_outb(0x18, 0x46e8);
 	cyber2000_outb(0x01, 0x102);
@@ -1156,10 +1171,10 @@ __initfunc(void cyber2000fb_init(void))
 	cyber2000fb_init_fbinfo();
 
 	current_par.currcon		= -1;
-	current_par.screen_base_p	= 0x80000000 + dev->base_address[0];
-	current_par.screen_base		= (u_int)bus_to_virt(dev->base_address[0]);
+	current_par.screen_base_p	= base_p;
+	current_par.screen_base		= base_v;
 	current_par.screen_size		= 0x00200000;
-	current_par.regs_base_p		= 0x80800000 + dev->base_address[0];
+	current_par.regs_base_p		= base_p + 0x00800000;
 
 	cyber2000fb_set_var(&init_var, -1, &fb_info);
 
@@ -1175,18 +1190,18 @@ __initfunc(void cyber2000fb_init(void))
 		h_sync / 1000, h_sync % 1000, v_sync);
 
 	if (register_framebuffer(&fb_info) < 0)
-		return;
+		return -EINVAL;
 
 	MOD_INC_USE_COUNT;	/* TODO: This driver cannot be unloaded yet */
+	return 0;
 }
 
 
 
 #ifdef MODULE
-int init_module(void)
+int __init init_module(void)
 {
-	cyber2000fb_init();
-	return 0;
+	return cyber2000fb_init();
 }
 
 void cleanup_module(void)

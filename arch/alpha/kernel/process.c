@@ -43,7 +43,7 @@
 #include <asm/fpu.h>
 
 #include "proto.h"
-#include "bios32.h"
+#include "pci_impl.h"
 
 /*
  * Initial task structure. Make this a per-architecture thing,
@@ -55,7 +55,6 @@
 unsigned long init_user_stack[1024] = { STACK_MAGIC, };
 static struct vm_area_struct init_mmap = INIT_MMAP;
 static struct fs_struct init_fs = INIT_FS;
-static struct file * init_fd_array[NR_OPEN] = { NULL, };
 static struct files_struct init_files = INIT_FILES;
 static struct signal_struct init_signals = INIT_SIGNALS;
 struct mm_struct init_mm = INIT_MM(init_mm);
@@ -75,9 +74,8 @@ sys_sethae(unsigned long hae, unsigned long a1, unsigned long a2,
 	return 0;
 }
 
-#ifdef __SMP__
 void
-cpu_idle(void *unused)
+cpu_idle(void)
 {
 	/* An endless idle loop with no priority at all.  */
 	current->priority = 0;
@@ -95,30 +93,9 @@ cpu_idle(void *unused)
 		}
 	}
 }
-#endif
-
-asmlinkage int
-sys_idle(void)
-{
-	if (current->pid != 0)
-		return -EPERM;
-
-	/* An endless idle loop with no priority at all.  */
-	current->priority = 0;
-	current->counter = -100;
-	init_idle();
-
-	while (1) {
-		/* FIXME -- EV6 and LCA45 know how to power down
-		   the CPU.  */
-
-		schedule();
-		check_pgt_cache();
-	}
-}
 
 void
-generic_kill_arch (int mode, char *restart_cmd)
+common_kill_arch (int mode, char *restart_cmd)
 {
 	/* The following currently only has any effect on SRM.  We should
 	   fix MILO to understand it.  Should be pretty easy.  Also we can
@@ -153,7 +130,7 @@ generic_kill_arch (int mode, char *restart_cmd)
 		cpup->flags = flags;					       
 		mb();						
 
-		reset_for_srm();
+		/* reset_for_srm(); */
 		set_hae(srm_hae);
 
 #ifdef CONFIG_DUMMY_CONSOLE
@@ -255,7 +232,7 @@ void flush_thread(void)
            that EV6 defines UNFD valid only with UNDZ, which we don't want
 	   for IEEE conformance -- so that disabled bit remains in software.  */
 
-	current->tss.flags &= ~IEEE_SW_MASK;
+	current->thread.flags &= ~IEEE_SW_MASK;
 	wrfpcr(FPCR_DYN_NORMAL | FPCR_INVD | FPCR_DZED | FPCR_OVFD | FPCR_INED);
 }
 
@@ -325,11 +302,10 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 #else
 	childstack->r26 = (unsigned long) ret_from_sys_call;
 #endif
-	p->tss.usp = usp;
-	p->tss.ksp = (unsigned long) childstack;
-	p->tss.pal_flags = 1;	/* set FEN, clear everything else */
-	p->tss.flags = current->tss.flags;
-	p->tss.mm_context = p->tss.asn = 0;
+	p->thread.usp = usp;
+	p->thread.ksp = (unsigned long) childstack;
+	p->thread.pal_flags = 1;	/* set FEN, clear everything else */
+	p->thread.flags = current->thread.flags;
 
 	return 0;
 }

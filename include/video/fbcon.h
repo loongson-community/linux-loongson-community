@@ -12,6 +12,7 @@
 #define _VIDEO_FBCON_H
 
 #include <linux/config.h>
+#include <linux/types.h>
 #include <linux/console_struct.h>
 #include <linux/vt_buffer.h>
 
@@ -507,6 +508,27 @@ static __inline__ void fast_memmove(char *dst, const char *src, size_t size)
 }
 
 #endif /* !i386 */
+
+#endif
+
+
+#if defined(__i386__) || defined(__alpha__)
+
+#define fb_readb __raw_readb
+#define fb_readw __raw_readw
+#define fb_readl __raw_readl
+#define fb_writeb __raw_writeb
+#define fb_writew __raw_writew
+#define fb_writel __raw_writel
+
+#else
+
+#define fb_readb(addr) (*(volatile u8 *) (addr))
+#define fb_readw(addr) (*(volatile u16 *) (addr))
+#define fb_readl(addr) (*(volatile u32 *) (addr))
+#define fb_writeb(b,addr) (*(volatile u8 *) (addr) = (b))
+#define fb_writew(b,addr) (*(volatile u16 *) (addr) = (b))
+#define fb_writel(b,addr) (*(volatile u32 *) (addr) = (b))
 
 #endif
 

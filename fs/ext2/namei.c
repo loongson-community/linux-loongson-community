@@ -618,7 +618,7 @@ int ext2_rmdir (struct inode * dir, struct dentry *dentry)
 	if (inode->i_nlink != 2)
 		ext2_warning (inode->i_sb, "ext2_rmdir",
 			      "empty directory has nlink!=2 (%d)",
-			      (int) inode->i_nlink);
+			      inode->i_nlink);
 	inode->i_version = ++event;
 	inode->i_nlink = 0;
 	inode->i_size = 0;
@@ -656,7 +656,7 @@ int ext2_unlink(struct inode * dir, struct dentry *dentry)
 	if (!inode->i_nlink) {
 		ext2_warning (inode->i_sb, "ext2_unlink",
 			      "Deleting nonexistent file (%lu), %d",
-			      inode->i_ino, (int) inode->i_nlink);
+			      inode->i_ino, inode->i_nlink);
 		inode->i_nlink = 1;
 	}
 	retval = ext2_delete_entry (de, bh);

@@ -293,7 +293,8 @@ struct i2o_handler i2o_scsi_handler=
 {
 	i2o_scsi_reply,
 	"I2O SCSI OSM",
-	0
+	0,
+	I2O_CLASS_SCSI_PERIPHERAL
 };
 
 static int i2o_find_lun(struct i2o_controller *c, struct i2o_device *d, int *target, int *lun)
@@ -316,7 +317,7 @@ static int i2o_find_lun(struct i2o_controller *c, struct i2o_device *d, int *tar
 	return 0;
 }
 
-static void i2o_scsi_init(struct i2o_controller *c, struct i2o_device *d, struct Scsi_Host *shpnt)
+void i2o_scsi_init(struct i2o_controller *c, struct i2o_device *d, struct Scsi_Host *shpnt)
 {
 	struct i2o_device *unit;
 	struct i2o_scsi_host *h =(struct i2o_scsi_host *)shpnt->hostdata;

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.17 1999/08/20 21:59:02 ralf Exp $
+/* $Id: init.c,v 1.18 1999/08/21 22:19:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -34,6 +34,8 @@
 #include <asm/sgialib.h>
 #endif
 #include <asm/mmu_context.h>
+
+static unsigned long totalram = 0;
 
 extern void show_net_buffers(void);
 
@@ -235,7 +237,7 @@ void show_mem(void)
 
 extern unsigned long free_area_init(unsigned long, unsigned long);
 
-__initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_mem))
+unsigned long __init paging_init(unsigned long start_mem, unsigned long end_mem)
 {
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
@@ -243,7 +245,7 @@ __initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_
 	return free_area_init(start_mem, end_mem);
 }
 
-__initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
+void __init mem_init(unsigned long start_mem, unsigned long end_mem)
 {
 	int codepages = 0;
 	int datapages = 0;
@@ -287,6 +289,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 		}
 		num_physpages++;
 		set_page_count(mem_map + MAP_NR(tmp), 1);
+		totalram += PAGE_SIZE;
 #ifdef CONFIG_BLK_DEV_INITRD
 		if (!initrd_start || (tmp < initrd_start || tmp >=
 		    initrd_end))
@@ -318,6 +321,7 @@ void free_initmem(void)
 		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
 		set_page_count(mem_map + MAP_NR(addr), 1);
 		free_page(addr);
+		totalram += PAGE_SIZE;
 	}
 	printk("Freeing unused kernel memory: %dk freed\n",
 	       (&__init_end - &__init_begin) >> 10);
@@ -325,22 +329,10 @@ void free_initmem(void)
 
 void si_meminfo(struct sysinfo *val)
 {
-	int i;
-
-	i = MAP_NR(high_memory);
-	val->totalram = 0;
+	val->totalram = totalram;
 	val->sharedram = 0;
 	val->freeram = nr_free_pages << PAGE_SHIFT;
 	val->bufferram = atomic_read(&buffermem);
-	while (i-- > 0)  {
-		if (PageReserved(mem_map+i))
-			continue;
-		val->totalram++;
-		if (!page_count(mem_map + i))
-			continue;
-		val->sharedram += page_count(mem_map + i) - 1;
-	}
-	val->totalram <<= PAGE_SHIFT;
-	val->sharedram <<= PAGE_SHIFT;
+
 	return;
 }

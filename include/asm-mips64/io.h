@@ -1,11 +1,12 @@
-/* $Id$
+/* $Id: io.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996, 1999 by Ralf Baechle
- * Copyright (C) 1999 by Silicon Graphics
+ * Copyright (C) 1994, 1995 Waldorf GmbH
+ * Copyright (C) 1994 - 1999 Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_IO_H
 #define _ASM_IO_H

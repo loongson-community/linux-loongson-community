@@ -15,8 +15,7 @@
 #include <linux/poll.h>
 #include <linux/init.h>
 #include <linux/malloc.h>
-
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 #include <linux/blk.h>
 #include "../scsi/scsi.h"
@@ -28,7 +27,7 @@
 
 void us_show_command(Scsi_Cmnd *srb)
 {
-    char *what;
+    char *what = NULL;
 
     switch (srb->cmnd[0]) {
     case TEST_UNIT_READY: what = "TEST_UNIT_READY"; break;

@@ -6,7 +6,7 @@
  * Status:        Experimental.
  * Author:        Thomas Davis (tadavis@jps.net)
  * Created at:    
- * Modified at:   Wed May 19 15:30:08 1999
+ * Modified at:   Wed Sep 22 07:47:19 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998-1999 Thomas Davis, All Rights Reserved.
@@ -52,27 +52,29 @@ static char *driver_name = "smc-ircc";
 
 #define CHIP_IO_EXTENT 8
 
-static unsigned int io[]  = { 0x2e8, 0x140, ~0, ~0 };
-static unsigned int io2[] = { 0x2f8, 0x3e8, 0, 0};
+static unsigned int io[]  = { 0x2e8, 0x140, 0x118, ~0 }; 
+static unsigned int io2[] = { 0x2f8, 0x3e8, 0x2e8, 0};
 
 static struct ircc_cb *dev_self[] = { NULL, NULL, NULL, NULL};
 
 /* Some prototypes */
 static int  ircc_open( int i, unsigned int iobase, unsigned int board_addr);
+#ifdef MODULE
 static int  ircc_close( struct irda_device *idev);
+#endif /* MODULE */
 static int  ircc_probe( int iobase, int board_addr);
 static int  ircc_dma_receive( struct irda_device *idev); 
 static int  ircc_dma_receive_complete(struct irda_device *idev, int iobase);
-static int  ircc_hard_xmit( struct sk_buff *skb, struct device *dev);
+static int  ircc_hard_xmit( struct sk_buff *skb, struct net_device *dev);
 static void ircc_dma_write( struct irda_device *idev, int iobase);
-static void ircc_change_speed( struct irda_device *idev, int baud);
+static void ircc_change_speed( struct irda_device *idev, __u32 speed);
 static void ircc_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void ircc_wait_until_sent( struct irda_device *idev);
 static int  ircc_is_receiving( struct irda_device *idev);
 
-static int  ircc_net_init( struct device *dev);
-static int  ircc_net_open( struct device *dev);
-static int  ircc_net_close( struct device *dev);
+static int  ircc_net_init( struct net_device *dev);
+static int  ircc_net_open( struct net_device *dev);
+static int  ircc_net_close( struct net_device *dev);
 
 static int ircc_debug=3;
 static int ircc_irq=255;
@@ -264,6 +266,7 @@ static int ircc_open( int i, unsigned int iobase, unsigned int iobase2)
  *    Close driver instance
  *
  */
+#ifdef MODULE
 static int ircc_close( struct irda_device *idev)
 {
 	int iobase;
@@ -304,6 +307,7 @@ static int ircc_close( struct irda_device *idev)
 	DEBUG( ircc_debug, "--> " __FUNCTION__ "\n");
 	return 0;
 }
+#endif /* MODULE */
 
 /*
  * Function ircc_probe (iobase, board_addr, irq, dma)
@@ -311,7 +315,7 @@ static int ircc_close( struct irda_device *idev)
  *    Returns non-negative on success.
  *
  */
-static int ircc_probe( int iobase, int iobase2) 
+static int ircc_probe(int iobase, int iobase2) 
 {
 	int version = 1;
 	int low, high, chip, config, dma, irq;
@@ -327,17 +331,17 @@ static int ircc_probe( int iobase, int iobase2)
 	irq = config >> 4 & 0x0f;
 	dma = config & 0x0f;
 
-	if (high == 0x10 && low == 0xb8 && chip == 0xf1) {
-		DEBUG(0, "SMC IrDA Controller found; version = %d, "
+        if (high == 0x10 && low == 0xb8 && (chip == 0xf1 || chip == 0xf2)) { 
+                DEBUG(0, "SMC IrDA Controller found; IrCC version %d.%d, "
 		      "port 0x%04x, dma %d, interrupt %d\n",
-		      version, iobase, dma, irq);
+                      chip & 0x0f, version, iobase, dma, irq);
 	} else {
 		return -1;
 	}
 
 	serial_out(iobase, UART_MASTER, 0);
 
-	DEBUG( ircc_debug, "--> " __FUNCTION__ "\n");
+	DEBUG(ircc_debug, "--> " __FUNCTION__ "\n");
 
 	return config;
 }
@@ -348,7 +352,7 @@ static int ircc_probe( int iobase, int iobase2)
  *    Change the speed of the device
  *
  */
-static void ircc_change_speed( struct irda_device *idev, int speed)
+static void ircc_change_speed( struct irda_device *idev, __u32 speed)
 {
 	struct ircc_cb *self;
 	int iobase, ir_mode, select, fast; 
@@ -448,7 +452,7 @@ static void ircc_change_speed( struct irda_device *idev, int speed)
  *    Transmit the frame!
  *
  */
-static int ircc_hard_xmit( struct sk_buff *skb, struct device *dev)
+static int ircc_hard_xmit( struct sk_buff *skb, struct net_device *dev)
 {
 	struct irda_device *idev;
 	int iobase;
@@ -798,7 +802,7 @@ static void ircc_wait_until_sent( struct irda_device *idev)
 
 	/* Just delay 60 ms */
 	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(6);
+	schedule_timeout(MSECS_TO_JIFFIES(60));
 
 	DEBUG( ircc_debug, "--> " __FUNCTION__ "\n");
 }
@@ -835,7 +839,7 @@ static int ircc_is_receiving( struct irda_device *idev)
  *    Initialize network device
  *
  */
-static int ircc_net_init( struct device *dev)
+static int ircc_net_init( struct net_device *dev)
 {
 	DEBUG(ircc_debug, __FUNCTION__ " -->\n");
 
@@ -855,7 +859,7 @@ static int ircc_net_init( struct device *dev)
  *    Start the device
  *
  */
-static int ircc_net_open( struct device *dev)
+static int ircc_net_open( struct net_device *dev)
 {
 	struct irda_device *idev;
 	int iobase;
@@ -884,9 +888,7 @@ static int ircc_net_open( struct device *dev)
 	}
 		
 	/* Ready to play! */
-	dev->tbusy = 0;
-	dev->interrupt = 0;
-	dev->start = 1;
+	irda_device_net_open(dev);
 
 	/* turn on interrupts */
 	
@@ -902,17 +904,13 @@ static int ircc_net_open( struct device *dev)
  *    Stop the device
  *
  */
-static int ircc_net_close(struct device *dev)
+static int ircc_net_close(struct net_device *dev)
 {
 	struct irda_device *idev;
 	int iobase;
 
 	DEBUG(ircc_debug, __FUNCTION__ " -->\n");
 	
-	/* Stop device */
-	dev->tbusy = 1;
-	dev->start = 0;
-
 	ASSERT( dev != NULL, return -1;);
 	idev = (struct irda_device *) dev->priv;
 	
@@ -920,6 +918,8 @@ static int ircc_net_close(struct device *dev)
 	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return 0;);
 	
 	iobase = idev->io.iobase;
+
+	irda_device_net_close(dev);
 
 	disable_dma( idev->io.dma);
 

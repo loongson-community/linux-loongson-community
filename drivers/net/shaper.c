@@ -51,14 +51,19 @@
  *		will render your machine defunct. Don't for now shape over
  *		PPP or SLIP therefore!
  *		This will be fixed in BETA4
- */
- 
-/*
- * bh_atomic() SMP races fixes and rewritten the locking code to be SMP safe
- * and irq-mask friendly. NOTE: we can't use start_bh_atomic() in kick_shaper()
- * because it's going to be recalled from an irq handler, and synchronize_bh()
- * is a nono if called from irq context.
+ *
+ * Update History :
+ *
+ *              bh_atomic() SMP races fixes and rewritten the locking code to
+ *              be SMP safe and irq-mask friendly.
+ *              NOTE: we can't use start_bh_atomic() in kick_shaper()
+ *              because it's going to be recalled from an irq handler,
+ *              and synchronize_bh() is a nono if called from irq context.
  *						1999  Andrea Arcangeli
+ *
+ *              Device statistics (tx_pakets, tx_bytes,
+ *              tx_drops: queue_over_time and collisions: max_queue_exceded)
+ *                               1999/06/18 Jordi Murgo <savage@apostols.org>
  */
  
 #include <linux/module.h>
@@ -228,18 +233,20 @@ static int shaper_qframe(struct shaper *shaper, struct sk_buff *skb)
 		/*
 		 *	Queue over time. Spill packet.
 		 */
-		if(skb->shapeclock-jiffies > SHAPER_LATENCY)
+		if(skb->shapeclock-jiffies > SHAPER_LATENCY) {
 			dev_kfree_skb(skb);
-		else
+			shaper->stats.tx_dropped++;
+		} else
 			skb_queue_tail(&shaper->sendq, skb);
 	}
 #endif 	
- 	if(sh_debug)
+	if(sh_debug)
  		printk("Frame queued.\n");
  	if(skb_queue_len(&shaper->sendq)>SHAPER_QLEN)
  	{
  		ptr=skb_dequeue(&shaper->sendq);
- 		dev_kfree_skb(ptr);
+                dev_kfree_skb(ptr);
+                shaper->stats.collisions++;
  	}
  	shaper_unlock(shaper);
  	return 0;
@@ -262,7 +269,11 @@ static void shaper_queue_xmit(struct shaper *shaper, struct sk_buff *skb)
 			printk("Kick new frame to %s, %d\n",
 				shaper->dev->name,newskb->priority);
 		dev_queue_xmit(newskb);
-		if(sh_debug)
+
+                shaper->stats.tx_bytes+=newskb->len;
+		shaper->stats.tx_packets++;
+
+                if(sh_debug)
 			printk("Kicked new frame out.\n");
 		dev_kfree_skb(skb);
 	}
@@ -367,7 +378,7 @@ static void shaper_flush(struct shaper *shaper)
  *	bind.
  */
 
-static int shaper_open(struct device *dev)
+static int shaper_open(struct net_device *dev)
 {
 	struct shaper *shaper=dev->priv;
 	
@@ -389,7 +400,7 @@ static int shaper_open(struct device *dev)
  *	Closing a shaper flushes the queues.
  */
  
-static int shaper_close(struct device *dev)
+static int shaper_close(struct net_device *dev)
 {
 	struct shaper *shaper=dev->priv;
 	shaper_flush(shaper);
@@ -407,18 +418,19 @@ static int shaper_close(struct device *dev)
  */
 
 
-static int shaper_start_xmit(struct sk_buff *skb, struct device *dev)
+static int shaper_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct shaper *sh=dev->priv;
 	return shaper_qframe(sh, skb);
 }
 
-static struct net_device_stats *shaper_get_stats(struct device *dev)
+static struct net_device_stats *shaper_get_stats(struct net_device *dev)
 {
-	return NULL;
+     	struct shaper *sh=dev->priv;
+	return &sh->stats;
 }
 
-static int shaper_header(struct sk_buff *skb, struct device *dev, 
+static int shaper_header(struct sk_buff *skb, struct net_device *dev, 
 	unsigned short type, void *daddr, void *saddr, unsigned len)
 {
 	struct shaper *sh=dev->priv;
@@ -434,7 +446,7 @@ static int shaper_header(struct sk_buff *skb, struct device *dev,
 static int shaper_rebuild_header(struct sk_buff *skb)
 {
 	struct shaper *sh=skb->dev->priv;
-	struct device *dev=skb->dev;
+	struct net_device *dev=skb->dev;
 	int v;
 	if(sh_debug)
 		printk("Shaper rebuild header\n");
@@ -448,7 +460,7 @@ static int shaper_rebuild_header(struct sk_buff *skb)
 static int shaper_cache(struct neighbour *neigh, struct hh_cache *hh)
 {
 	struct shaper *sh=neigh->dev->priv;
-	struct device *tmp;
+	struct net_device *tmp;
 	int ret;
 	if(sh_debug)
 		printk("Shaper header cache bind\n");
@@ -459,7 +471,7 @@ static int shaper_cache(struct neighbour *neigh, struct hh_cache *hh)
 	return ret;
 }
 
-static void shaper_cache_update(struct hh_cache *hh, struct device *dev,
+static void shaper_cache_update(struct hh_cache *hh, struct net_device *dev,
 	unsigned char *haddr)
 {
 	struct shaper *sh=dev->priv;
@@ -478,7 +490,7 @@ static int shaper_neigh_setup(struct neighbour *n)
 	return 0;
 }
 
-static int shaper_neigh_setup_dev(struct device *dev, struct neigh_parms *p)
+static int shaper_neigh_setup_dev(struct net_device *dev, struct neigh_parms *p)
 {
 	if (p->tbl->family == AF_INET) {
 		p->neigh_setup = shaper_neigh_setup;
@@ -488,7 +500,7 @@ static int shaper_neigh_setup_dev(struct device *dev, struct neigh_parms *p)
 	return 0;
 }
 
-static int shaper_attach(struct device *shdev, struct shaper *sh, struct device *dev)
+static int shaper_attach(struct net_device *shdev, struct shaper *sh, struct net_device *dev)
 {
 	sh->dev = dev;
 	sh->hard_start_xmit=dev->hard_start_xmit;
@@ -541,7 +553,7 @@ static int shaper_attach(struct device *shdev, struct shaper *sh, struct device 
 	return 0;
 }
 
-static int shaper_ioctl(struct device *dev,  struct ifreq *ifr, int cmd)
+static int shaper_ioctl(struct net_device *dev,  struct ifreq *ifr, int cmd)
 {
 	struct shaperconf *ss= (struct shaperconf *)&ifr->ifr_data;
 	struct shaper *sh=dev->priv;
@@ -549,7 +561,7 @@ static int shaper_ioctl(struct device *dev,  struct ifreq *ifr, int cmd)
 	{
 		case SHAPER_SET_DEV:
 		{
-			struct device *them=dev_get(ss->ss_name);
+			struct net_device *them=__dev_get_by_name(ss->ss_name);
 			if(them==NULL)
 				return -ENODEV;
 			if(sh->dev)
@@ -572,7 +584,7 @@ static int shaper_ioctl(struct device *dev,  struct ifreq *ifr, int cmd)
 	}
 }
 
-static struct shaper *shaper_alloc(struct device *dev)
+static struct shaper *shaper_alloc(struct net_device *dev)
 {
 	struct shaper *sh=kmalloc(sizeof(struct shaper), GFP_KERNEL);
 	if(sh==NULL)
@@ -590,7 +602,7 @@ static struct shaper *shaper_alloc(struct device *dev)
  *	Add a shaper device to the system
  */
  
-__initfunc(int shaper_probe(struct device *dev))
+int __init shaper_probe(struct net_device *dev)
 {
 	/*
 	 *	Set up the shaper.
@@ -643,7 +655,7 @@ __initfunc(int shaper_probe(struct device *dev))
 
 static char devicename[9];
 
-static struct device dev_shape = 
+static struct net_device dev_shape = 
 {
 	devicename,
 	0, 0, 0, 0,
@@ -665,7 +677,9 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	/*
+        struct shaper *sh=dev_shape.priv;
+
+        /*
 	 *	No need to check MOD_IN_USE, as sys_delete_module() checks.
 	 *	To be unloadable we must be closed and detached so we don't
 	 *	need to flush things.
@@ -674,16 +688,15 @@ void cleanup_module(void)
 	unregister_netdev(&dev_shape);
 
 	/*
-	 *	Free up the private structure, or leak memory :-) 
+	 *	Free up the private structure, or leak memory :-)
 	 */
-	 
-	kfree(dev_shape.priv);
+	kfree(sh);
 	dev_shape.priv = NULL;
 }
 
 #else
 
-static struct device dev_sh0 = 
+static struct net_device dev_sh0 = 
 {
 	"shaper0",
 	0, 0, 0, 0,
@@ -692,7 +705,7 @@ static struct device dev_sh0 =
 };
 
 
-static struct device dev_sh1 = 
+static struct net_device dev_sh1 = 
 {
 	"shaper1",
 	0, 0, 0, 0,
@@ -701,7 +714,7 @@ static struct device dev_sh1 =
 };
 
 
-static struct device dev_sh2 = 
+static struct net_device dev_sh2 = 
 {
 	"shaper2",
 	0, 0, 0, 0,
@@ -709,7 +722,7 @@ static struct device dev_sh2 =
 	0, 0, 0, NULL, shaper_probe 
 };
 
-static struct device dev_sh3 = 
+static struct net_device dev_sh3 = 
 {
 	"shaper3",
 	0, 0, 0, 0,

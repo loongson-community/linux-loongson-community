@@ -250,7 +250,7 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, i
 	 * FIXME! This could use version numbering or similar to
 	 * avoid unnecessary cache lookups.
 	 */
-	result = cached_lookup(parent, name, flags);
+	result = d_lookup(parent, name);
 	if (!result) {
 		struct dentry * dentry = d_alloc(parent, name);
 		result = ERR_PTR(-ENOMEM);
@@ -261,8 +261,19 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, i
 			else
 				result = dentry;
 		}
+		up(&dir->i_sem);
+		return result;
 	}
+
+	/*
+	 * Uhhuh! Nasty case: the cache was re-populated while
+	 * we waited on the semaphore. Need to revalidate, but
+	 * we're going to return this entry regardless (same
+	 * as if it was busy).
+	 */
 	up(&dir->i_sem);
+	if (result->d_op && result->d_op->d_revalidate)
+		result->d_op->d_revalidate(result, flags);
 	return result;
 }
 
@@ -838,7 +849,7 @@ exit_lock:
 	return retval;
 }
 
-asmlinkage int sys_mknod(const char * filename, int mode, dev_t dev)
+asmlinkage long sys_mknod(const char * filename, int mode, dev_t dev)
 {
 	int error;
 	char * tmp;
@@ -929,7 +940,7 @@ exit:
 	return error;
 }
 
-asmlinkage int sys_mkdir(const char * pathname, int mode)
+asmlinkage long sys_mkdir(const char * pathname, int mode)
 {
 	int error;
 	char * tmp;
@@ -1024,7 +1035,7 @@ exit:
 	return error;
 }
 
-asmlinkage int sys_rmdir(const char * pathname)
+asmlinkage long sys_rmdir(const char * pathname)
 {
 	int error;
 	char * tmp;
@@ -1077,7 +1088,7 @@ exit:
 	return error;
 }
 
-asmlinkage int sys_unlink(const char * pathname)
+asmlinkage long sys_unlink(const char * pathname)
 {
 	int error;
 	char * tmp;
@@ -1128,7 +1139,7 @@ exit:
 	return error;
 }
 
-asmlinkage int sys_symlink(const char * oldname, const char * newname)
+asmlinkage long sys_symlink(const char * oldname, const char * newname)
 {
 	int error;
 	char * from;
@@ -1216,7 +1227,7 @@ exit:
 	return error;
 }
 
-asmlinkage int sys_link(const char * oldname, const char * newname)
+asmlinkage long sys_link(const char * oldname, const char * newname)
 {
 	int error;
 	char * from;
@@ -1387,7 +1398,7 @@ exit:
 	return error;
 }
 
-asmlinkage int sys_rename(const char * oldname, const char * newname)
+asmlinkage long sys_rename(const char * oldname, const char * newname)
 {
 	int error;
 	char * from;

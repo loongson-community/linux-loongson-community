@@ -1,10 +1,11 @@
-/* $Id: process.c,v 1.14 1999/08/09 19:43:14 harald Exp $
+/* $Id: process.c,v 1.15 1999/09/28 22:25:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
+ * Copyright (C) 1994 - 1999 by Ralf Baechle and others.
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #include <linux/errno.h>
 #include <linux/sched.h>
@@ -29,6 +30,42 @@
 #include <asm/io.h>
 #include <asm/elf.h>
 #include <asm/isadep.h>
+
+asmlinkage int cpu_idle(void)
+{
+	unsigned long start_idle = 0;
+
+	if (current->pid != 0)
+		return -EPERM;
+
+	/* endless idle loop with no priority at all */
+	current->priority = 0;
+	current->counter = 0;
+	for (;;) {
+		/*
+		 * R4[36]00 have wait, R4[04]00 don't.
+		 * FIXME: We should save power by reducing the clock where
+		 *        possible.  Thiss will cut down the power consuption
+		 *        of R4200 systems to about 1/16th of normal, the
+		 *        same for logic clocked with the processor generated
+		 *        clocks.
+		 */
+		if (!start_idle) {
+			check_pgt_cache();
+			start_idle = jiffies;
+		}
+		if (wait_available && !current->need_resched)
+			__asm__(".set\tmips3\n\t"
+				"wait\n\t"
+				".set\tmips0");
+		run_task_queue(&tq_scheduler);
+		if (current->need_resched)
+			start_idle = 0;
+		schedule();
+	}
+
+	return 0;
+}
 
 struct task_struct *last_task_used_math = NULL;
 
@@ -84,22 +121,21 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	if (childregs->cp0_status & ST0_CU0) {
 		childregs->regs[28] = (unsigned long) p;
 		childregs->regs[29] = childksp;
-		p->tss.current_ds = KERNEL_DS;
+		p->thread.current_ds = KERNEL_DS;
 	} else {
 		childregs->regs[29] = usp;
-		p->tss.current_ds = USER_DS;
+		p->thread.current_ds = USER_DS;
 	}
-	p->tss.reg29 = (unsigned long) childregs;
-	p->tss.reg31 = (unsigned long) ret_from_sys_call;
+	p->thread.reg29 = (unsigned long) childregs;
+	p->thread.reg31 = (unsigned long) ret_from_sys_call;
 
 	/*
 	 * New tasks loose permission to use the fpu. This accelerates context
 	 * switching for most programs since they don't use the fpu.
 	 */
-	p->tss.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
+	p->thread.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
                             ~(ST0_CU3|ST0_CU2|ST0_CU1|KU_MASK);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
-	p->mm->context = 0;
 
 	return 0;
 }
@@ -107,11 +143,11 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 /* Fill in the fpu structure for a core dump.. */
 int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
 {
-	/* We actually store the FPU info in the task->tss
+	/* We actually store the FPU info in the task->thread
 	 * area.
 	 */
 	if(regs->cp0_status & ST0_CU1) {
-		memcpy(r, &current->tss.fpu, sizeof(current->tss.fpu));
+		memcpy(r, &current->thread.fpu, sizeof(current->thread.fpu));
 		return 1;
 	}
 	return 0; /* Task didn't use the fpu at all. */
@@ -129,7 +165,7 @@ void dump_thread(struct pt_regs *regs, struct user *dump)
 	dump->u_ssize =
 		(current->mm->start_stack - dump->start_stack + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	memcpy(&dump->regs[0], regs, sizeof(struct pt_regs));
-	memcpy(&dump->regs[EF_SIZE/4], &current->tss.fpu, sizeof(current->tss.fpu));
+	memcpy(&dump->regs[EF_SIZE/4], &current->thread.fpu, sizeof(current->thread.fpu));
 }
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.12 1999/06/13 16:30:36 ralf Exp $
+/* $Id: indy_timer.c,v 1.13 1999/08/20 21:59:03 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -178,7 +178,7 @@ static inline unsigned long mktime(unsigned int year, unsigned int mon,
 	  )*60 + sec; /* finally seconds */
 }
 
-__initfunc(static unsigned long get_indy_time(void))
+static unsigned long __init get_indy_time(void)
 {
 	struct indy_clock *clock = (struct indy_clock *)INDY_CLOCK_REGS;
 	unsigned int year, mon, day, hour, min, sec;
@@ -223,7 +223,7 @@ __initfunc(static unsigned long get_indy_time(void))
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
-__initfunc(void indy_timer_init(void))
+void __init indy_timer_init(void)
 {
 	struct sgi_ioc_timers *p;
 	volatile unsigned char *tcwp, *tc2p;

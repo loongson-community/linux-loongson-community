@@ -1826,7 +1826,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 				   serial_inp(info, UART_MCR) |
 				   (UART_MCR_DTR | UART_MCR_RTS));
 		sti();
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (tty_hung_up_p(filp) ||
 		    !(info->flags & ASYNC_INITIALIZED)) {
 #ifdef SERIAL_DO_RESTART
@@ -2243,7 +2243,7 @@ static struct console sercons = {
 /*
  *	Register console.
  */
-__initfunc (long console_8xx_init(long kmem_start, long kmem_end))
+long __init console_8xx_init(long kmem_start, long kmem_end)
 {
 	register_console(&sercons);
 	return kmem_start;
@@ -2254,7 +2254,7 @@ __initfunc (long console_8xx_init(long kmem_start, long kmem_end))
 /*
  * The serial driver boot-time initialization code!
  */
-__initfunc(int rs_8xx_init(void))
+int __init rs_8xx_init(void)
 {
 	struct serial_state * state;
 	ser_info_t	*info;
@@ -2596,7 +2596,7 @@ __initfunc(int rs_8xx_init(void))
 /* This must always be called before the rs_8xx_init() function, otherwise
  * it blows away the port control information.
 */
-__initfunc(static int serial_console_setup(struct console *co, char *options))
+static int __init serial_console_setup(struct console *co, char *options)
 {
 	struct		serial_state *ser;
 	uint		mem_addr, dp_addr;

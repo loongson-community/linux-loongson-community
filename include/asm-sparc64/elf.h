@@ -1,4 +1,4 @@
-/* $Id: elf.h,v 1.19 1999/06/11 13:26:04 jj Exp $ */
+/* $Id: elf.h,v 1.21 1999/08/04 07:04:23 jj Exp $ */
 #ifndef __ASM_SPARC64_ELF_H
 #define __ASM_SPARC64_ELF_H
 
@@ -48,7 +48,7 @@ typedef struct {
    that it will "exec", and that there is sufficient room for the brk.  */
 
 #ifndef ELF_ET_DYN_BASE
-#define ELF_ET_DYN_BASE         0x50000000000
+#define ELF_ET_DYN_BASE         0xfffff80000000000UL
 #endif
 
 
@@ -67,17 +67,30 @@ typedef struct {
 #define ELF_PLATFORM	(NULL)
 
 #ifdef __KERNEL__
-#define SET_PERSONALITY(ex, ibcs2)				\
-do {								\
-	if ((ex).e_ident[EI_CLASS] == ELFCLASS32)		\
-		current->tss.flags |= SPARC_FLAG_32BIT;		\
-	else							\
-		current->tss.flags &= ~SPARC_FLAG_32BIT;	\
-								\
-	if (ibcs2)						\
-		current->personality = PER_SVR4;		\
-	else if (current->personality != PER_LINUX32)		\
-		current->personality = PER_LINUX;		\
+#define SET_PERSONALITY(ex, ibcs2)			\
+do {	unsigned char flags = current->thread.flags;	\
+	if ((ex).e_ident[EI_CLASS] == ELFCLASS32)	\
+		flags |= SPARC_FLAG_32BIT;		\
+	else						\
+		flags &= ~SPARC_FLAG_32BIT;		\
+	if (flags != current->thread.flags) {		\
+		unsigned long pgd_cache = 0UL;		\
+		if (flags & SPARC_FLAG_32BIT)		\
+		  pgd_cache =				\
+		    pgd_val(current->mm->pgd[0])<<11UL;	\
+		__asm__ __volatile__(			\
+			"stxa\t%0, [%1] %2"		\
+			: /* no outputs */		\
+			: "r" (pgd_cache),		\
+			  "r" (TSB_REG),		\
+			  "i" (ASI_DMMU));		\
+		current->thread.flags = flags;		\
+	}						\
+							\
+	if (ibcs2)					\
+		current->personality = PER_SVR4;	\
+	else if (current->personality != PER_LINUX32)	\
+		current->personality = PER_LINUX;	\
 } while (0)
 #endif
 

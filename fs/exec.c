@@ -50,36 +50,6 @@
 
 static struct linux_binfmt *formats = (struct linux_binfmt *) NULL;
 
-void __init binfmt_setup(void)
-{
-#ifdef CONFIG_BINFMT_MISC
-	init_misc_binfmt();
-#endif
-
-#ifdef CONFIG_BINFMT_ELF
-	init_elf_binfmt();
-#endif
-
-#ifdef CONFIG_BINFMT_ELF32
-	init_elf32_binfmt();
-#endif
-
-#ifdef CONFIG_BINFMT_AOUT
-	init_aout_binfmt();
-#endif
-
-#ifdef CONFIG_BINFMT_AOUT32
-	init_aout32_binfmt();
-#endif
-
-#ifdef CONFIG_BINFMT_EM86
-	init_em86_binfmt();
-#endif
-
-	/* This cannot be configured out of the kernel */
-	init_script_binfmt();
-}
-
 int register_binfmt(struct linux_binfmt * fmt)
 {
 	struct linux_binfmt ** tmp = &formats;
@@ -98,7 +68,6 @@ int register_binfmt(struct linux_binfmt * fmt)
 	return 0;	
 }
 
-#ifdef CONFIG_MODULES
 int unregister_binfmt(struct linux_binfmt * fmt)
 {
 	struct linux_binfmt ** tmp = &formats;
@@ -112,7 +81,6 @@ int unregister_binfmt(struct linux_binfmt * fmt)
 	}
 	return -EINVAL;
 }
-#endif	/* CONFIG_MODULES */
 
 /* N.B. Error returns must be < 0 */
 int open_dentry(struct dentry * dentry, int mode)
@@ -167,7 +135,7 @@ out:
  *
  * Also note that we take the address to load from from the file itself.
  */
-asmlinkage int sys_uselib(const char * library)
+asmlinkage long sys_uselib(const char * library)
 {
 	int fd, retval;
 	struct file * file;
@@ -306,7 +274,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 		mpnt->vm_ops = NULL;
 		mpnt->vm_offset = 0;
 		mpnt->vm_file = NULL;
-		mpnt->vm_pte = 0;
+		mpnt->vm_private_data = NULL;
 		insert_vm_struct(current->mm, mpnt);
 		current->mm->total_vm = (mpnt->vm_end - mpnt->vm_start) >> PAGE_SHIFT;
 	} 
@@ -366,54 +334,33 @@ end_readexec:
 static int exec_mmap(void)
 {
 	struct mm_struct * mm, * old_mm;
-	int retval, nr;
 
-	if (atomic_read(&current->mm->count) == 1) {
-		flush_cache_mm(current->mm);
+	old_mm = current->mm;
+	if (old_mm && atomic_read(&old_mm->mm_users) == 1) {
+		flush_cache_mm(old_mm);
 		mm_release();
-		release_segments(current->mm);
-		exit_mmap(current->mm);
-		flush_tlb_mm(current->mm);
+		exit_mmap(old_mm);
+		flush_tlb_mm(old_mm);
 		return 0;
 	}
 
-	retval = -ENOMEM;
 	mm = mm_alloc();
-	if (!mm)
-		goto fail_nomem;
+	if (mm) {
+		struct mm_struct *active_mm = current->active_mm;
 
-	mm->cpu_vm_mask = (1UL << smp_processor_id());
-	mm->total_vm = 0;
-	mm->rss = 0;
-	/*
-	 * Make sure we have a private ldt if needed ...
-	 */
-	nr = current->tarray_ptr - &task[0]; 
-	copy_segments(nr, current, mm);
-
-	old_mm = current->mm;
-	current->mm = mm;
-	retval = new_page_tables(current);
-	if (retval)
-		goto fail_restore;
-	activate_context(current);
-	up(&mm->mmap_sem);
-	mm_release();
-	mmput(old_mm);
-	return 0;
-
-	/*
-	 * Failure ... restore the prior mm_struct.
-	 */
-fail_restore:
-	current->mm = old_mm;
-	/* restore the ldt for this task */
-	copy_segments(nr, current, NULL);
-	release_segments(mm);
-	kmem_cache_free(mm_cachep, mm);
-
-fail_nomem:
-	return retval;
+		current->mm = mm;
+		current->active_mm = mm;
+		activate_mm(active_mm, mm);
+		mm_release();
+		if (old_mm) {
+			if (active_mm != old_mm) BUG();
+			mmput(old_mm);
+			return 0;
+		}
+		mmdrop(active_mm);
+		return 0;
+	}
+	return -ENOMEM;
 }
 
 /*
@@ -468,9 +415,9 @@ static inline void flush_old_files(struct files_struct * files)
 		unsigned long set, i;
 
 		i = j * __NFDBITS;
-		if (i >= files->max_fds)
+		if (i >= files->max_fds || i >= files->max_fdset)
 			break;
-		set = xchg(&files->close_on_exec.fds_bits[j], 0);
+		set = xchg(&files->close_on_exec->fds_bits[j], 0);
 		j++;
 		for ( ; set ; i++,set >>= 1) {
 			if (set & 1)
@@ -632,7 +579,7 @@ int prepare_binprm(struct linux_binprm *bprm)
 	if (id_change || cap_raised) {
 		/* We can't suid-execute if we're sharing parts of the executable */
 		/* or if we're being traced (or if suid execs are not allowed)    */
-		/* (current->mm->count > 1 is ok, as we'll get a new mm anyway)   */
+		/* (current->mm->mm_users > 1 is ok, as we'll get a new mm anyway)   */
 		if (IS_NOSUID(inode)
 		    || must_not_trace_exec(current)
 		    || (atomic_read(&current->fs->count) > 1)
@@ -849,4 +796,55 @@ out:
 		free_page(bprm.page[i]);
 
 	return retval;
+}
+
+int do_coredump(long signr, struct pt_regs * regs)
+{
+	struct linux_binfmt * binfmt;
+	char corename[6+sizeof(current->comm)];
+	struct file * file;
+	struct dentry * dentry;
+	struct inode * inode;
+
+	lock_kernel();
+	binfmt = current->binfmt;
+	if (!binfmt || !binfmt->core_dump)
+		goto fail;
+	if (!current->dumpable || atomic_read(&current->mm->mm_users) != 1)
+		goto fail;
+	current->dumpable = 0;
+	if (current->rlim[RLIMIT_CORE].rlim_cur < binfmt->min_coredump)
+		goto fail;
+
+	memcpy(corename,"core.", 5);
+#if 0
+	memcpy(corename+5,current->comm,sizeof(current->comm));
+#else
+	corename[4] = '\0';
+#endif
+	file = filp_open(corename, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
+	if (IS_ERR(file))
+		goto fail;
+	dentry = file->f_dentry;
+	inode = dentry->d_inode;
+	if (inode->i_nlink > 1)
+		goto close_fail;	/* multiple links - don't dump */
+
+	if (!S_ISREG(inode->i_mode))
+		goto close_fail;
+	if (!inode->i_op || !inode->i_op->default_file_ops)
+		goto close_fail;
+	if (!file->f_op->write)
+		goto close_fail;
+	if (!binfmt->core_dump(signr, regs, file))
+		goto close_fail;
+	filp_close(file, NULL);
+	unlock_kernel();
+	return 1;
+
+close_fail:
+	filp_close(file, NULL);
+fail:
+	unlock_kernel();
+	return 0;
 }

@@ -68,8 +68,8 @@ unsigned long __phys_to_virt(unsigned long phys)
 	return phys + rambank[bank].phys_offset;
 }
 
-__initfunc(void
-init_dram_banks(struct param_struct *params))
+void __init
+init_dram_banks(struct param_struct *params)
 {
 	unsigned int bank;
 	unsigned int bytes = 0;
@@ -85,8 +85,6 @@ init_dram_banks(struct param_struct *params))
 
 	rambank[FIRST_VRAM_BANK].phys_offset = 0xd6000000;
 	rambank[FIRST_VRAM_BANK].virt_addr   = 0xd8000000;
-
-	current->tss.memmap = __virt_to_phys((unsigned long)swapper_pg_dir);
 }
 
 #define MAPPING \

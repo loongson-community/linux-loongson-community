@@ -6,12 +6,12 @@
  *	Copyright (c) 1997, 1998 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  */
 
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <linux/proc_fs.h>
 #include <linux/init.h>
+
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
 
@@ -47,8 +47,6 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 	struct proc_dir_entry *dp = ino->u.generic_ip;
 	struct pci_dev *dev = dp->data;
 	int pos = *ppos;
-	unsigned char bus = dev->bus->number;
-	unsigned char dfn = dev->devfn;
 	int cnt, size;
 
 	/*
@@ -77,7 +75,7 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 
 	if ((pos & 1) && cnt) {
 		unsigned char val;
-		pcibios_read_config_byte(bus, dfn, pos, &val);
+		pci_read_config_byte(dev, pos, &val);
 		__put_user(val, buf);
 		buf++;
 		pos++;
@@ -86,7 +84,7 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 
 	if ((pos & 3) && cnt > 2) {
 		unsigned short val;
-		pcibios_read_config_word(bus, dfn, pos, &val);
+		pci_read_config_word(dev, pos, &val);
 		__put_user(cpu_to_le16(val), (unsigned short *) buf);
 		buf += 2;
 		pos += 2;
@@ -95,7 +93,7 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 
 	while (cnt >= 4) {
 		unsigned int val;
-		pcibios_read_config_dword(bus, dfn, pos, &val);
+		pci_read_config_dword(dev, pos, &val);
 		__put_user(cpu_to_le32(val), (unsigned int *) buf);
 		buf += 4;
 		pos += 4;
@@ -104,7 +102,7 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 
 	if (cnt >= 2) {
 		unsigned short val;
-		pcibios_read_config_word(bus, dfn, pos, &val);
+		pci_read_config_word(dev, pos, &val);
 		__put_user(cpu_to_le16(val), (unsigned short *) buf);
 		buf += 2;
 		pos += 2;
@@ -113,7 +111,7 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 
 	if (cnt) {
 		unsigned char val;
-		pcibios_read_config_byte(bus, dfn, pos, &val);
+		pci_read_config_byte(dev, pos, &val);
 		__put_user(val, buf);
 		buf++;
 		pos++;
@@ -131,8 +129,6 @@ proc_bus_pci_write(struct file *file, const char *buf, size_t nbytes, loff_t *pp
 	struct proc_dir_entry *dp = ino->u.generic_ip;
 	struct pci_dev *dev = dp->data;
 	int pos = *ppos;
-	unsigned char bus = dev->bus->number;
-	unsigned char dfn = dev->devfn;
 	int cnt;
 
 	if (pos >= PCI_CFG_SPACE_SIZE)
@@ -149,7 +145,7 @@ proc_bus_pci_write(struct file *file, const char *buf, size_t nbytes, loff_t *pp
 	if ((pos & 1) && cnt) {
 		unsigned char val;
 		__get_user(val, buf);
-		pcibios_write_config_byte(bus, dfn, pos, val);
+		pci_write_config_byte(dev, pos, val);
 		buf++;
 		pos++;
 		cnt--;
@@ -158,7 +154,7 @@ proc_bus_pci_write(struct file *file, const char *buf, size_t nbytes, loff_t *pp
 	if ((pos & 3) && cnt > 2) {
 		unsigned short val;
 		__get_user(val, (unsigned short *) buf);
-		pcibios_write_config_word(bus, dfn, pos, le16_to_cpu(val));
+		pci_write_config_word(dev, pos, le16_to_cpu(val));
 		buf += 2;
 		pos += 2;
 		cnt -= 2;
@@ -167,7 +163,7 @@ proc_bus_pci_write(struct file *file, const char *buf, size_t nbytes, loff_t *pp
 	while (cnt >= 4) {
 		unsigned int val;
 		__get_user(val, (unsigned int *) buf);
-		pcibios_write_config_dword(bus, dfn, pos, le32_to_cpu(val));
+		pci_write_config_dword(dev, pos, le32_to_cpu(val));
 		buf += 4;
 		pos += 4;
 		cnt -= 4;
@@ -176,7 +172,7 @@ proc_bus_pci_write(struct file *file, const char *buf, size_t nbytes, loff_t *pp
 	if (cnt >= 2) {
 		unsigned short val;
 		__get_user(val, (unsigned short *) buf);
-		pcibios_write_config_word(bus, dfn, pos, le16_to_cpu(val));
+		pci_write_config_word(dev, pos, le16_to_cpu(val));
 		buf += 2;
 		pos += 2;
 		cnt -= 2;
@@ -185,7 +181,7 @@ proc_bus_pci_write(struct file *file, const char *buf, size_t nbytes, loff_t *pp
 	if (cnt) {
 		unsigned char val;
 		__get_user(val, buf);
-		pcibios_write_config_byte(bus, dfn, pos, val);
+		pci_write_config_byte(dev, pos, val);
 		buf++;
 		pos++;
 		cnt--;
@@ -232,6 +228,12 @@ static struct inode_operations proc_bus_pci_inode_operations = {
 	NULL			/* revalidate */
 };
 
+#if BITS_PER_LONG == 32
+#define LONG_FORMAT "\t%08lx"
+#else
+#define LONG_FORMAT "\t%16lx"
+#endif
+
 int
 get_pci_dev_info(char *buf, char **start, off_t pos, int count, int wr)
 {
@@ -247,21 +249,13 @@ get_pci_dev_info(char *buf, char **start, off_t pos, int count, int wr)
 			dev->vendor,
 			dev->device,
 			dev->irq);
-		for(i=0; i<6; i++)
-			len += sprintf(buf+len,
-#if BITS_PER_LONG == 32
-						"\t%08lx",
-#else
-						"\t%016lx",
-#endif
-					dev->base_address[i]);
-		len += sprintf(buf+len,
-#if BITS_PER_LONG == 32
-					"\t%08lx",
-#else
-					"\t%016lx",
-#endif
-			       dev->rom_address);
+		/* Here should be 7 and not PCI_NUM_RESOURCES as we need to preserve compatibility */
+		for(i=0; i<7; i++)
+			len += sprintf(buf+len, LONG_FORMAT,
+				       dev->resource[i].start | (dev->resource[i].flags & PCI_REGION_FLAG_MASK));
+		for(i=0; i<7; i++)
+			len += sprintf(buf+len, LONG_FORMAT, dev->resource[i].start < dev->resource[i].end ?
+				       dev->resource[i].end - dev->resource[i].start + 1 : 0);
 		buf[len++] = '\n';
 		at += len;
 		if (at >= pos) {
@@ -321,7 +315,7 @@ int pci_proc_detach_device(struct pci_dev *dev)
 	return 0;
 }
 
-__initfunc(void proc_bus_pci_add(struct pci_bus *bus))
+void __init proc_bus_pci_add(struct pci_bus *bus)
 {
 	while (bus) {
 		struct pci_dev *dev;
@@ -334,15 +328,219 @@ __initfunc(void proc_bus_pci_add(struct pci_bus *bus))
 	}
 }
 
-__initfunc(void pci_proc_init(void))
-{
-	if (!pci_present())
-		return;
-	proc_bus_pci_dir = create_proc_entry("pci", S_IFDIR, proc_bus);
-	proc_register(proc_bus_pci_dir, &proc_pci_devices);
-	proc_bus_pci_add(&pci_root);
+/*
+ *  Backward compatible /proc/pci interface.
+ */
 
-#ifdef CONFIG_PCI_OLD_PROC
-	proc_old_pci_init();
-#endif
+static const char *pci_strclass (unsigned int class)
+{
+	switch (class >> 8) {
+	      case PCI_CLASS_NOT_DEFINED:		return "Non-VGA device";
+	      case PCI_CLASS_NOT_DEFINED_VGA:		return "VGA compatible device";
+
+	      case PCI_CLASS_STORAGE_SCSI:		return "SCSI storage controller";
+	      case PCI_CLASS_STORAGE_IDE:		return "IDE interface";
+	      case PCI_CLASS_STORAGE_FLOPPY:		return "Floppy disk controller";
+	      case PCI_CLASS_STORAGE_IPI:		return "IPI bus controller";
+	      case PCI_CLASS_STORAGE_RAID:		return "RAID bus controller";
+	      case PCI_CLASS_STORAGE_OTHER:		return "Unknown mass storage controller";
+
+	      case PCI_CLASS_NETWORK_ETHERNET:		return "Ethernet controller";
+	      case PCI_CLASS_NETWORK_TOKEN_RING:	return "Token ring network controller";
+	      case PCI_CLASS_NETWORK_FDDI:		return "FDDI network controller";
+	      case PCI_CLASS_NETWORK_ATM:		return "ATM network controller";
+	      case PCI_CLASS_NETWORK_OTHER:		return "Network controller";
+
+	      case PCI_CLASS_DISPLAY_VGA:		return "VGA compatible controller";
+	      case PCI_CLASS_DISPLAY_XGA:		return "XGA compatible controller";
+	      case PCI_CLASS_DISPLAY_OTHER:		return "Display controller";
+
+	      case PCI_CLASS_MULTIMEDIA_VIDEO:		return "Multimedia video controller";
+	      case PCI_CLASS_MULTIMEDIA_AUDIO:		return "Multimedia audio controller";
+	      case PCI_CLASS_MULTIMEDIA_OTHER:		return "Multimedia controller";
+
+	      case PCI_CLASS_MEMORY_RAM:		return "RAM memory";
+	      case PCI_CLASS_MEMORY_FLASH:		return "FLASH memory";
+	      case PCI_CLASS_MEMORY_OTHER:		return "Memory";
+
+	      case PCI_CLASS_BRIDGE_HOST:		return "Host bridge";
+	      case PCI_CLASS_BRIDGE_ISA:		return "ISA bridge";
+	      case PCI_CLASS_BRIDGE_EISA:		return "EISA bridge";
+	      case PCI_CLASS_BRIDGE_MC:			return "MicroChannel bridge";
+	      case PCI_CLASS_BRIDGE_PCI:		return "PCI bridge";
+	      case PCI_CLASS_BRIDGE_PCMCIA:		return "PCMCIA bridge";
+	      case PCI_CLASS_BRIDGE_NUBUS:		return "NuBus bridge";
+	      case PCI_CLASS_BRIDGE_CARDBUS:		return "CardBus bridge";
+	      case PCI_CLASS_BRIDGE_OTHER:		return "Bridge";
+
+	      case PCI_CLASS_COMMUNICATION_SERIAL:	return "Serial controller";
+	      case PCI_CLASS_COMMUNICATION_PARALLEL:	return "Parallel controller";
+	      case PCI_CLASS_COMMUNICATION_OTHER:	return "Communication controller";
+
+	      case PCI_CLASS_SYSTEM_PIC:		return "PIC";
+	      case PCI_CLASS_SYSTEM_DMA:		return "DMA controller";
+	      case PCI_CLASS_SYSTEM_TIMER:		return "Timer";
+	      case PCI_CLASS_SYSTEM_RTC:		return "RTC";
+	      case PCI_CLASS_SYSTEM_OTHER:		return "System peripheral";
+
+	      case PCI_CLASS_INPUT_KEYBOARD:		return "Keyboard controller";
+	      case PCI_CLASS_INPUT_PEN:			return "Digitizer Pen";
+	      case PCI_CLASS_INPUT_MOUSE:		return "Mouse controller";
+	      case PCI_CLASS_INPUT_OTHER:		return "Input device controller";
+
+	      case PCI_CLASS_DOCKING_GENERIC:		return "Generic Docking Station";
+	      case PCI_CLASS_DOCKING_OTHER:		return "Docking Station";
+
+	      case PCI_CLASS_PROCESSOR_386:		return "386";
+	      case PCI_CLASS_PROCESSOR_486:		return "486";
+	      case PCI_CLASS_PROCESSOR_PENTIUM:		return "Pentium";
+	      case PCI_CLASS_PROCESSOR_ALPHA:		return "Alpha";
+	      case PCI_CLASS_PROCESSOR_POWERPC:		return "Power PC";
+	      case PCI_CLASS_PROCESSOR_CO:		return "Co-processor";
+
+	      case PCI_CLASS_SERIAL_FIREWIRE:		return "FireWire (IEEE 1394)";
+	      case PCI_CLASS_SERIAL_ACCESS:		return "ACCESS Bus";
+	      case PCI_CLASS_SERIAL_SSA:		return "SSA";
+	      case PCI_CLASS_SERIAL_USB:		return "USB Controller";
+	      case PCI_CLASS_SERIAL_FIBER:		return "Fiber Channel";
+
+	      case PCI_CLASS_HOT_SWAP_CONTROLLER:	return "Hot Swap Controller";
+
+	      default:					return "Unknown class";
+	}
 }
+
+/*
+ * Convert some of the configuration space registers of the device at
+ * address (bus,devfn) into a string (possibly several lines each).
+ * The configuration string is stored starting at buf[len].  If the
+ * string would exceed the size of the buffer (SIZE), 0 is returned.
+ */
+static int sprint_dev_config(struct pci_dev *dev, char *buf, int size)
+{
+	unsigned int class_rev;
+	unsigned char latency, min_gnt, max_lat;
+	int reg, len = 0;
+
+	pci_read_config_dword(dev, PCI_CLASS_REVISION, &class_rev);
+	pci_read_config_byte (dev, PCI_LATENCY_TIMER, &latency);
+	pci_read_config_byte (dev, PCI_MIN_GNT, &min_gnt);
+	pci_read_config_byte (dev, PCI_MAX_LAT, &max_lat);
+	if (len + 160 > size)
+		return -1;
+	len += sprintf(buf + len, "  Bus %2d, device %3d, function %2d:\n",
+		       dev->bus->number, PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn));
+	len += sprintf(buf + len, "    %s: %s (rev %d).\n",
+		       pci_strclass(class_rev >> 8),
+		       dev->name,
+		       class_rev & 0xff);
+
+	if (dev->irq) {
+		if (len + 40 > size)
+			return -1;
+		len += sprintf(buf + len, "      IRQ %d.\n", dev->irq);
+	}
+
+	if (latency || min_gnt || max_lat) {
+		if (len + 80 > size)
+			return -1;
+		len += sprintf(buf + len, "      Master Capable.  ");
+		if (latency)
+		  len += sprintf(buf + len, "Latency=%d.  ", latency);
+		else
+		  len += sprintf(buf + len, "No bursts.  ");
+		if (min_gnt)
+		  len += sprintf(buf + len, "Min Gnt=%d.", min_gnt);
+		if (max_lat)
+		  len += sprintf(buf + len, "Max Lat=%d.", max_lat);
+		len += sprintf(buf + len, "\n");
+	}
+
+	for (reg = 0; reg < 6; reg++) {
+		struct resource *res = dev->resource + reg;
+		unsigned long base, end, flags;
+
+		if (len + 40 > size)
+			return -1;
+		base = res->start;
+		end = res->end;
+		flags = res->flags;
+		if (!end)
+			continue;
+
+		if (flags & PCI_BASE_ADDRESS_SPACE_IO) {
+			len += sprintf(buf + len,
+				       "      I/O at 0x%lx [0x%lx].\n",
+				       base, end);
+		} else {
+			const char *pref, *type = "unknown";
+
+			if (flags & PCI_BASE_ADDRESS_MEM_PREFETCH)
+				pref = "P";
+			else
+				pref = "Non-p";
+			switch (flags & PCI_BASE_ADDRESS_MEM_TYPE_MASK) {
+			      case PCI_BASE_ADDRESS_MEM_TYPE_32:
+				type = "32 bit"; break;
+			      case PCI_BASE_ADDRESS_MEM_TYPE_1M:
+				type = "20 bit"; break;
+			      case PCI_BASE_ADDRESS_MEM_TYPE_64:
+				type = "64 bit"; break;
+			}
+			len += sprintf(buf + len,
+				       "      %srefetchable %s memory at "
+				       "0x%lx [0x%lx].\n", pref, type,
+				       base,
+				       end);
+		}
+	}
+
+	return len;
+}
+
+
+static struct proc_dir_entry proc_old_pci = {
+	PROC_PCI, 3, "pci",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_array_inode_operations
+};
+
+/*
+ * Return list of PCI devices as a character string for /proc/pci.
+ * BUF is a buffer that is PAGE_SIZE bytes long.
+ */
+int get_pci_list(char *buf)
+{
+	int nprinted, len, size;
+	struct pci_dev *dev;
+#	define MSG "\nwarning: page-size limit reached!\n"
+
+	/* reserve same for truncation warning message: */
+	size  = PAGE_SIZE - (strlen(MSG) + 1);
+	len   = sprintf(buf, "PCI devices found:\n");
+
+	for (dev = pci_devices; dev; dev = dev->next) {
+		nprinted = sprint_dev_config(dev, buf + len, size - len);
+		if (nprinted < 0) {
+			len += sprintf(buf + len, MSG);
+			proc_old_pci.size = len;
+			return len;
+		}
+		len += nprinted;
+	}
+	proc_old_pci.size = len;
+	return len;
+}
+
+static int __init pci_proc_init(void)
+{
+	if (pci_present()) {
+		proc_bus_pci_dir = create_proc_entry("pci", S_IFDIR, proc_bus);
+		proc_register(proc_bus_pci_dir, &proc_pci_devices);
+		proc_bus_pci_add(pci_root);
+		proc_register(&proc_root, &proc_old_pci);
+	}
+	return 0;
+}
+
+__initcall(pci_proc_init);

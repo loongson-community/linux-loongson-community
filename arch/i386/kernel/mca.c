@@ -210,7 +210,19 @@ static void mca_configure_adapter_status(int slot) {
 
 /*--------------------------------------------------------------------*/
 
-__initfunc(void mca_init(void))
+struct resource mca_standard_resources[] = {
+	{ "system control port B (MCA)", 0x60, 0x60 },
+	{ "arbitration (MCA)", 0x90, 0x90 },
+	{ "card Select Feedback (MCA)", 0x91, 0x91 },
+	{ "system Control port A (MCA)", 0x92, 0x92 },
+	{ "system board setup (MCA)", 0x94, 0x94 },
+	{ "POS (MCA)", 0x96, 0x97 },
+	{ "POS (MCA)", 0x100, 0x107 }
+};
+
+#define MCA_STANDARD_RESOURCES	(sizeof(mca_standard_resources)/sizeof(struct resource))
+
+void __init mca_init(void)
 {
 	unsigned int i, j;
 	unsigned long flags;
@@ -319,13 +331,8 @@ __initfunc(void mca_init(void))
 
 	restore_flags(flags);
 
-	request_region(0x60,0x01,"system control port B (MCA)");
-	request_region(0x90,0x01,"arbitration (MCA)");
-	request_region(0x91,0x01,"card Select Feedback (MCA)");
-	request_region(0x92,0x01,"system Control port A (MCA)");
-	request_region(0x94,0x01,"system board setup (MCA)");
-	request_region(0x96,0x02,"POS (MCA)");
-	request_region(0x100,0x08,"POS (MCA)");
+	for (i = 0; i < MCA_STANDARD_RESOURCES; i++)
+		request_resource(&ioport_resource, mca_standard_resources + i);
 
 #ifdef CONFIG_PROC_FS
 	mca_do_proc_init();
@@ -691,7 +698,7 @@ int get_mca_info(char *buf)
 
 /*--------------------------------------------------------------------*/
 
-__initfunc(void mca_do_proc_init(void))
+void __init mca_do_proc_init(void)
 {
 	int i;
 	struct proc_dir_entry* node = NULL;

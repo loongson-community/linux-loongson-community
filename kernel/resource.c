@@ -1,232 +1,293 @@
 /*
  *	linux/kernel/resource.c
  *
- * Copyright (C) 1995, 1999	Linus Torvalds
- *				David Hinds
+ * Copyright (C) 1999	Linus Torvalds
+ * Copyright (C) 1999	Martin Mares <mj@ucw.cz>
  *
- * Kernel resource management
- *
- * We now distinguish between claiming space for devices (using the
- * 'occupy' and 'vacate' calls), and associating a resource with a
- * device driver (with the 'request', 'release', and 'check' calls).
- * A resource can be claimed even if there is no associated driver
- * (by occupying with name=NULL).  Vacating a resource makes it
- * available for other dynamically configured devices.
+ * Arbitrary resource management.
  */
 
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
+#include <linux/malloc.h>
+#include <linux/spinlock.h>
 
-#define RSRC_TABLE_SIZE 128
+struct resource ioport_resource = { "PCI IO", 0x0000, 0xFFFF, IORESOURCE_IO };
+struct resource iomem_resource = { "PCI mem", 0x00000000, 0xFFFFFFFF, IORESOURCE_MEM };
 
-struct resource_entry {
-	u_long from, num;
-	const char *name;
-	struct resource_entry *next;
-};
-
-struct resource_entry res_list[] = {
-    { 0, 0, NULL, NULL }, /* IO */
-    { 0, 0, NULL, NULL }  /* mem */
-};
-
-static struct resource_entry rsrc_table[RSRC_TABLE_SIZE];
+static rwlock_t resource_lock = RW_LOCK_UNLOCKED;
 
 /*
  * This generates reports for /proc/ioports and /proc/memory
  */
-int get_resource_list(int class, char *buf)
+static char * do_resource_list(struct resource *entry, const char *fmt, int offset, char *buf, char *end)
 {
-	struct resource_entry *root = &res_list[class];
-	struct resource_entry *p;
-	int len = 0;
-	char *fmt = (class == RES_IO) ?
-		"%04lx-%04lx : %s\n" : "%08lx-%08lx : %s\n";
-	
-	for (p = root->next; (p) && (len < 4000); p = p->next)
-		len += sprintf(buf+len, fmt, p->from, p->from+p->num-1,
-			       (p->name ? p->name : "occupied"));
-	if (p)
-		len += sprintf(buf+len, "4K limit reached!\n");
-	return len;
+	if (offset < 0)
+		offset = 0;
+
+	while (entry) {
+		const char *name = entry->name;
+		unsigned long from, to;
+
+		if ((int) (end-buf) < 80)
+			return buf;
+
+		from = entry->start;
+		to = entry->end;
+		if (!name)
+			name = "<BAD>";
+
+		buf += sprintf(buf, fmt + offset, from, to, name);
+		if (entry->child)
+			buf = do_resource_list(entry->child, fmt, offset-2, buf, end);
+		entry = entry->sibling;
+	}
+
+	return buf;
+}
+
+int get_resource_list(struct resource *root, char *buf, int size)
+{
+	char *fmt;
+	int retval;
+
+	fmt = "        %08lx-%08lx : %s\n";
+	if (root == &ioport_resource)
+		fmt = "        %04lx-%04lx : %s\n";
+	read_lock(&resource_lock);
+	retval = do_resource_list(root->child, fmt, 8, buf, buf + size) - buf;
+	read_unlock(&resource_lock);
+	return retval;
+}	
+
+/* Return the conflict entry if you can't request it */
+static struct resource * __request_resource(struct resource *root, struct resource *new)
+{
+	unsigned long start = new->start;
+	unsigned long end = new->end;
+	struct resource *tmp, **p;
+
+	if (end < start)
+		return root;
+	if (start < root->start)
+		return root;
+	if (end > root->end)
+		return root;
+	p = &root->child;
+	for (;;) {
+		tmp = *p;
+		if (!tmp || tmp->start > end) {
+			new->sibling = tmp;
+			*p = new;
+			new->parent = root;
+			return NULL;
+		}
+		p = &tmp->sibling;
+		if (tmp->end < start)
+			continue;
+		return tmp;
+	}
+}
+
+int request_resource(struct resource *root, struct resource *new)
+{
+	struct resource *conflict;
+
+	write_lock(&resource_lock);
+	conflict = __request_resource(root, new);
+	write_unlock(&resource_lock);
+	return conflict ? -EBUSY : 0;
+}
+
+int release_resource(struct resource *old)
+{
+	struct resource *tmp, **p;
+
+	p = &old->parent->child;
+	for (;;) {
+		tmp = *p;
+		if (!tmp)
+			break;
+		if (tmp == old) {
+			*p = tmp->sibling;
+			old->parent = NULL;
+			return 0;
+		}
+		p = &tmp->sibling;
+	}
+	return -EINVAL;
 }
 
 /*
- * Basics: find a matching resource entry, or find an insertion point
+ * Find empty slot in the resource tree given range and alignment.
  */
-static struct resource_entry *
-find_match(struct resource_entry *root, u_long from, u_long num)
+static int find_resource(struct resource *root, struct resource *new,
+			 unsigned long size,
+			 unsigned long min, unsigned long max,
+			 unsigned long align)
 {
-	struct resource_entry *p;
-	for (p = root; p; p = p->next)
-		if ((p->from == from) && (p->num == num))
-			return p;
-	return NULL;
+	struct resource *this = root->child;
+	unsigned long start, end;
+
+	start = root->start;
+	for(;;) {
+		if (this)
+			end = this->start;
+		else
+			end = root->end;
+		if (start < min)
+			start = min;
+		if (end > max)
+			end = max;
+		start = (start + align - 1) & ~(align - 1);
+		if (start < end && end - start + 1 >= size) {
+			new->start = start;
+			new->end = start + size - 1;
+			return 0;
+		}
+		if (!this)
+			break;
+		start = this->end + 1;
+		this = this->sibling;
+	}
+	return -EBUSY;
 }
 
-static struct resource_entry *
-find_gap(struct resource_entry *root, u_long from, u_long num)
+/*
+ * Allocate empty slot in the resource tree given range and alignment.
+ */
+int allocate_resource(struct resource *root, struct resource *new,
+		      unsigned long size,
+		      unsigned long min, unsigned long max,
+		      unsigned long align)
 {
-	struct resource_entry *p;
-	if (from > from+num-1)
-		return NULL;
-	for (p = root; ; p = p->next) {
-		if ((p != root) && (p->from+p->num-1 >= from)) {
-			p = NULL;
+	int err;
+
+	write_lock(&resource_lock);
+	err = find_resource(root, new, size, min, max, align);
+	if (err >= 0 && __request_resource(root, new))
+		err = -EBUSY;
+	write_unlock(&resource_lock);
+	return err;
+}
+
+/*
+ * This is compatibility stuff for IO resources.
+ *
+ * Note how this, unlike the above, knows about
+ * the IO flag meanings (busy etc).
+ *
+ * Request-region creates a new busy region.
+ *
+ * Check-region returns non-zero if the area is already busy
+ *
+ * Release-region releases a matching busy region.
+ */
+struct resource * __request_region(struct resource *parent, unsigned long start, unsigned long n, const char *name)
+{
+	struct resource *res = kmalloc(sizeof(*res), GFP_KERNEL);
+
+	if (res) {
+		memset(res, 0, sizeof(*res));
+		res->name = name;
+		res->start = start;
+		res->end = start + n - 1;
+		res->flags = IORESOURCE_BUSY;
+
+		write_lock(&resource_lock);
+
+		for (;;) {
+			struct resource *conflict;
+
+			conflict = __request_resource(parent, res);
+			if (!conflict)
+				break;
+			if (conflict != parent) {
+				parent = conflict;
+				if (!(conflict->flags & IORESOURCE_BUSY))
+					continue;
+			}
+
+			/* Uhhuh, that didn't work out.. */
+			kfree(res);
+			res = NULL;
 			break;
 		}
-		if ((p->next == NULL) || (p->next->from > from+num-1))
-			break;
+		write_unlock(&resource_lock);
 	}
-	return p;
+	return res;
 }
 
-/*
- * Call this from a driver to assert ownership of a resource
- */
-void request_resource(int class, unsigned long from,
-		      unsigned long num, const char *name)
+int __check_region(struct resource *parent, unsigned long start, unsigned long n)
 {
-	struct resource_entry *root = &res_list[class];
-	struct resource_entry *p;
-	long flags;
-	int i;
+	struct resource * res;
 
-	p = find_match(root, from, num);
-	if (p) {
-		p->name = name;
-		return;
-	}
+	res = __request_region(parent, start, n, "check-region");
+	if (!res)
+		return -EBUSY;
 
-	save_flags(flags);
-	cli();
-	for (i = 0; i < RSRC_TABLE_SIZE; i++)
-		if (rsrc_table[i].num == 0)
+	release_resource(res);
+	kfree(res);
+	return 0;
+}
+
+void __release_region(struct resource *parent, unsigned long start, unsigned long n)
+{
+	struct resource **p;
+	unsigned long end;
+
+	p = &parent->child;
+	end = start + n - 1;
+
+	for (;;) {
+		struct resource *res = *p;
+
+		if (!res)
 			break;
-	if (i == RSRC_TABLE_SIZE)
-		printk("warning: resource table is full\n");
-	else {
-		p = find_gap(root, from, num);
-		if (p == NULL) {
-			restore_flags(flags);
+		if (res->start <= start && res->end >= end) {
+			if (!(res->flags & IORESOURCE_BUSY)) {
+				p = &res->child;
+				continue;
+			}
+			if (res->start != start || res->end != end)
+				break;
+			*p = res->sibling;
+			kfree(res);
 			return;
 		}
-		rsrc_table[i].name = name;
-		rsrc_table[i].from = from;
-		rsrc_table[i].num = num;
-		rsrc_table[i].next = p->next;
-		p->next = &rsrc_table[i];
+		p = &res->sibling;
 	}
-	restore_flags(flags);
-}
-
-/* 
- * Call these when a driver is unloaded but the device remains
- */
-void release_resource(int class, unsigned long from, unsigned long num)
-{
-	struct resource_entry *root = &res_list[class];
-	struct resource_entry *p;
-	p = find_match(root, from, num);
-	if (p) p->name = NULL;
+	printk("Trying to free nonexistent resource <%04lx-%04lx>\n", start, end);
 }
 
 /*
- * Call these to check a region for conflicts before probing
+ * Called from init/main.c to reserve IO ports.
  */
-int check_resource(int class, unsigned long from, unsigned long num)
+#define MAXRESERVE 4
+static int __init reserve_setup(char *str)
 {
-	struct resource_entry *root = &res_list[class];
-	struct resource_entry *p;
-	p = find_match(root, from, num);
-	if (p != NULL)
-		return (p->name != NULL) ? -EBUSY : 0;
-	return (find_gap(root, from, num) == NULL) ? -EBUSY : 0;
-}
+	int opt = 2, io_start, io_num;
+	static int reserved = 0;
+	static struct resource reserve[MAXRESERVE];
 
-/*
- * Call this to claim a resource for a piece of hardware
- */
-unsigned long occupy_resource(int class, unsigned long base,
-			      unsigned long end, unsigned long num,
-			      unsigned long align, const char *name)
-{
-	struct resource_entry *root = &res_list[class];
-	unsigned long from = 0, till;
-	unsigned long flags;
-	int i;
-	struct resource_entry *p, *q;
+    while (opt==2) {
+		int x = reserved;
 
-	if ((base > end-1) || (num > end - base))
-		return 0;
-
-	for (i = 0; i < RSRC_TABLE_SIZE; i++)
-		if (rsrc_table[i].num == 0)
-			break;
-	if (i == RSRC_TABLE_SIZE)
-		return 0;
-
-	save_flags(flags);
-	cli();
-	/* printk("occupy: search in %08lx[%08lx] ", base, end - base); */
-	for (p = root; p != NULL; p = q) {
-		q = p->next;
-		/* Find window in list */
-		from = (p->from+p->num + align-1) & ~(align-1);
-		till = (q == NULL) ? (0 - align) : q->from;
-		/* printk(" %08lx:%08lx", from, till); */
-		/* Clip window with base and end */
-		if (from < base) from = base;
-		if (till > end) till = end;
-		/* See if result is large enougth */
-		if ((from < till) && (from + num < till))
-			break;
-	}
-	/* printk("\r\n"); */
-	restore_flags(flags);
-
-	if (p == NULL)
-		return 0;
-
-	rsrc_table[i].name = name;
-	rsrc_table[i].from = from;
-	rsrc_table[i].num = num;
-	rsrc_table[i].next = p->next;
-	p->next = &rsrc_table[i];
-	return from;
-}
-
-/*
- * Call this when a resource becomes available for other hardware
- */
-void vacate_resource(int class, unsigned long from, unsigned long num)
-{
-	struct resource_entry *root = &res_list[class];
-	struct resource_entry *p, *q;
-	long flags;
-
-	save_flags(flags);
-	cli();
-	for (p = root; ; p = q) {
-		q = p->next;
-		if (q == NULL)
-			break;
-		if ((q->from == from) && (q->num == num)) {
-			q->num = 0;
-			p->next = q->next;
-			break;
+        if (get_option (&str, &io_start) != 2) break;
+        if (get_option (&str, &io_num)   == 0) break;
+		if (x < MAXRESERVE) {
+			struct resource *res = reserve + x;
+			res->name = "reserved";
+			res->start = io_start;
+			res->end = io_start + io_num - 1;
+			res->child = NULL;
+			if (request_resource(res->start >= 0x10000 ? &iomem_resource : &ioport_resource, res) == 0)
+				reserved = x+1;
 		}
 	}
-	restore_flags(flags);
+	return 1;
 }
 
-/* Called from init/main.c to reserve IO ports. */
-void __init reserve_setup(char *str, int *ints)
-{
-	int i;
-
-	for (i = 1; i < ints[0]; i += 2)
-		request_region(ints[i], ints[i+1], "reserved");
-}
+__setup("reserve=", reserve_setup);

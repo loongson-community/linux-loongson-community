@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.14 1999/08/09 19:43:18 harald Exp $
+/* $Id: system.h,v 1.15 1999/08/13 17:07:28 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -140,6 +140,15 @@ __asm__ __volatile__(					\
 #define rmb() mb()
 #define wmb() mb()
 
+#define set_mb(var, value) \
+do { var = value; mb(); } while (0)
+
+#define set_rmb(var, value) \
+do { var = value; rmb(); } while (0)
+
+#define set_wmb(var, value) \
+do { var = value; wmb(); } while (0)
+
 #if !defined (_LANGUAGE_ASSEMBLY)
 /*
  * switch_to(n) should switch tasks to task nr n, first
@@ -148,6 +157,7 @@ __asm__ __volatile__(					\
 extern asmlinkage void *resume(void *last, void *next);
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
+#define prepare_to_switch()	do { } while(0)
 #define switch_to(prev,next,last) \
 do { \
 	(last) = resume(prev, next); \

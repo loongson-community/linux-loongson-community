@@ -7,7 +7,7 @@ extern unsigned long event;
 
 #include <linux/binfmts.h>
 #include <linux/personality.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/times.h>
@@ -35,6 +35,7 @@ extern unsigned long event;
 #define CLONE_PID	0x00001000	/* set if pid shared */
 #define CLONE_PTRACE	0x00002000	/* set if we want to let tracing continue on the child too */
 #define CLONE_VFORK	0x00004000	/* set if the parent wants the child to wake it up on mm_release */
+#define CLONE_PARENT	0x00008000	/* set if we want to have the same parent as the cloner */
 
 /*
  * These are the constant used to fake the fixed-point load-average
@@ -63,7 +64,7 @@ extern unsigned long avenrun[];		/* Load averages */
 #define CT_TO_SECS(x)	((x) / HZ)
 #define CT_TO_USECS(x)	(((x) % HZ) * 1000000/HZ)
 
-extern int nr_running, nr_tasks;
+extern int nr_running, nr_threads;
 extern int last_pid;
 
 #include <linux/fs.h>
@@ -81,6 +82,26 @@ extern int last_pid;
 #define TASK_STOPPED		8
 #define TASK_SWAPPING		16
 #define TASK_EXCLUSIVE		32
+
+#define __set_task_state(tsk, state_value)		\
+	do { tsk->state = state_value; } while (0)
+#ifdef __SMP__
+#define set_task_state(tsk, state_value)		\
+	set_mb(tsk->state, state_value)
+#else
+#define set_task_state(tsk, state_value)		\
+	__set_task_state(tsk, state_value)
+#endif
+
+#define __set_current_state(state_value)			\
+	do { current->state = state_value; } while (0)
+#ifdef __SMP__
+#define set_current_state(state_value)		\
+	set_mb(current->state, state_value)
+#else
+#define set_current_state(state_value)		\
+	__set_current_state(state_value)
+#endif
 
 /*
  * Scheduling policies
@@ -105,7 +126,7 @@ struct sched_param {
 
 #ifdef __KERNEL__
 
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 /*
  * This serializes "schedule()" and also protects
@@ -119,11 +140,18 @@ extern spinlock_t runqueue_lock;
 extern void sched_init(void);
 extern void init_idle(void);
 extern void show_state(void);
+extern void cpu_init (void);
 extern void trap_init(void);
 
 #define	MAX_SCHEDULE_TIMEOUT	LONG_MAX
 extern signed long FASTCALL(schedule_timeout(signed long timeout));
 asmlinkage void schedule(void);
+
+/*
+ * The default fd array needs to be at least BITS_PER_LONG,
+ * as this is the granularity returned by copy_fdset().
+ */
+#define NR_OPEN_DEFAULT BITS_PER_LONG
 
 /*
  * Open file table structure
@@ -132,18 +160,28 @@ struct files_struct {
 	atomic_t count;
 	rwlock_t file_lock;
 	int max_fds;
+	int max_fdset;
+	int next_fd;
 	struct file ** fd;	/* current fd array */
-	fd_set close_on_exec;
-	fd_set open_fds;
+	fd_set *close_on_exec;
+	fd_set *open_fds;
+	fd_set close_on_exec_init;
+	fd_set open_fds_init;
+	struct file * fd_array[NR_OPEN_DEFAULT];
 };
 
 #define INIT_FILES { \
 	ATOMIC_INIT(1), \
 	RW_LOCK_UNLOCKED, \
-	NR_OPEN, \
-	&init_fd_array[0], \
+	NR_OPEN_DEFAULT, \
+	__FD_SETSIZE, \
+	0, \
+	&init_files.fd_array[0], \
+	&init_files.close_on_exec_init, \
+	&init_files.open_fds_init, \
 	{ { 0, } }, \
-	{ { 0, } } \
+	{ { 0, } }, \
+	{ NULL, } \
 }
 
 struct fs_struct {
@@ -169,7 +207,8 @@ struct mm_struct {
 	struct vm_area_struct * mmap_avl;	/* tree of VMAs */
 	struct vm_area_struct * mmap_cache;	/* last find_vma result */
 	pgd_t * pgd;
-	atomic_t count;
+	atomic_t mm_users;			/* How many users with user space? */
+	atomic_t mm_count;			/* How many references to "struct mm_struct" (users count as 1) */
 	int map_count;				/* number of VMAs */
 	struct semaphore mmap_sem;
 	spinlock_t page_table_lock;
@@ -192,7 +231,7 @@ struct mm_struct {
 #define INIT_MM(name) {					\
 		&init_mmap, NULL, NULL,			\
 		swapper_pg_dir, 			\
-		ATOMIC_INIT(1), 1,			\
+		ATOMIC_INIT(2), ATOMIC_INIT(1), 1,	\
 		__MUTEX_INITIALIZER(name.mmap_sem),	\
 		SPIN_LOCK_UNLOCKED,			\
 		0,					\
@@ -231,7 +270,7 @@ struct task_struct {
 						0-0xFFFFFFFF for kernel-thread
 					 */
 	struct exec_domain *exec_domain;
-	long need_resched;
+	volatile long need_resched;
 
 /* various fields */
 	long counter;
@@ -243,7 +282,7 @@ struct task_struct {
 	int last_processor;
 	int lock_depth;		/* Lock depth. We can context switch in and out of holding a syscall kernel lock... */	
 	struct task_struct *next_task, *prev_task;
-	struct task_struct *next_run,  *prev_run;
+	struct list_head run_list;
 
 /* task state */
 	struct linux_binfmt *binfmt;
@@ -269,9 +308,6 @@ struct task_struct {
 	/* PID hash table linkage. */
 	struct task_struct *pidhash_next;
 	struct task_struct **pidhash_pprev;
-
-	/* Pointer to task[] array linkage. */
-	struct task_struct **tarray_ptr;
 
 	wait_queue_head_t wait_chldexit;	/* for wait4() */
 	struct semaphore *vfork_sem;		/* for vfork() */
@@ -302,14 +338,15 @@ struct task_struct {
 /* ipc stuff */
 	struct sem_undo *semundo;
 	struct sem_queue *semsleeping;
-/* tss for this task */
-	struct thread_struct tss;
+/* CPU-specific state of this task */
+	struct thread_struct thread;
 /* filesystem information */
 	struct fs_struct *fs;
 /* open file information */
 	struct files_struct *files;
+
 /* memory management info */
-	struct mm_struct *mm;
+	struct mm_struct *mm, *active_mm;
 
 /* signal handlers */
 	spinlock_t sigmask_lock;	/* Protects signal and blocked */
@@ -355,13 +392,12 @@ struct task_struct {
 /* state etc */	{ 0,0,0,KERNEL_DS,&default_exec_domain,0, \
 /* counter */	DEF_PRIORITY,DEF_PRIORITY,0, \
 /* SMP */	0,0,0,-1, \
-/* schedlink */	&init_task,&init_task, &init_task, &init_task, \
+/* schedlink */	&init_task,&init_task, LIST_HEAD_INIT(init_task.run_list), \
 /* binfmt */	NULL, \
 /* ec,brk... */	0,0,0,0,0,0, \
 /* pid etc.. */	0,0,0,0,0, \
 /* proc links*/ &init_task,&init_task,NULL,NULL,NULL, \
 /* pidhash */	NULL, NULL, \
-/* tarray */	&task[0], \
 /* chld wait */	__WAIT_QUEUE_HEAD_INITIALIZER(name.wait_chldexit), NULL, \
 /* timeout */	SCHED_OTHER,0,0,0,0,0,0,0, \
 /* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
@@ -379,10 +415,10 @@ struct task_struct {
 /* comm */	"swapper", \
 /* fs info */	0,NULL, \
 /* ipc */	NULL, NULL, \
-/* tss */	INIT_TSS, \
+/* thread */	INIT_THREAD, \
 /* fs */	&init_fs, \
 /* files */	&init_files, \
-/* mm */	&init_mm, \
+/* mm */	NULL, &init_mm, \
 /* signals */	SPIN_LOCK_UNLOCKED, &init_signals, {{0}}, {{0}}, NULL, &init_task.sigqueue, 0, 0, \
 }
 
@@ -398,33 +434,10 @@ union task_union {
 extern union task_union init_task_union;
 
 extern struct   mm_struct init_mm;
-extern struct task_struct *task[NR_TASKS];
+extern struct task_struct *init_tasks[NR_CPUS];
 
-extern struct task_struct **tarray_freelist;
-extern spinlock_t taskslot_lock;
-
-extern __inline__ void add_free_taskslot(struct task_struct **t)
-{
-	spin_lock(&taskslot_lock);
-	*t = (struct task_struct *) tarray_freelist;
-	tarray_freelist = t;
-	spin_unlock(&taskslot_lock);
-}
-
-extern __inline__ struct task_struct **get_free_taskslot(void)
-{
-	struct task_struct **tslot;
-
-	spin_lock(&taskslot_lock);
-	if((tslot = tarray_freelist) != NULL)
-		tarray_freelist = (struct task_struct **) *tslot;
-	spin_unlock(&taskslot_lock);
-
-	return tslot;
-}
-
-/* PID hashing. */
-#define PIDHASH_SZ (NR_TASKS >> 2)
+/* PID hashing. (shouldnt this be dynamic?) */
+#define PIDHASH_SZ (4096 >> 2)
 extern struct task_struct *pidhash[PIDHASH_SZ];
 
 #define pid_hashfn(x)	((((x) >> 8) ^ (x)) & (PIDHASH_SZ - 1))
@@ -554,7 +567,7 @@ static inline int on_sig_stack(unsigned long sp)
 static inline int sas_ss_flags(unsigned long sp)
 {
 	return (current->sas_ss_size == 0 ? SS_DISABLE
-	       : on_sig_stack(sp) ? SS_ONSTACK : 0);
+		: on_sig_stack(sp) ? SS_ONSTACK : 0);
 }
 
 extern int request_irq(unsigned int,
@@ -618,13 +631,64 @@ extern inline int capable(int cap)
  * Routines for handling mm_structs
  */
 extern struct mm_struct * mm_alloc(void);
-static inline void mmget(struct mm_struct * mm)
+
+extern struct mm_struct * start_lazy_tlb(void);
+extern void end_lazy_tlb(struct mm_struct *mm);
+
+/* mmdrop drops the mm and the page tables */
+extern inline void FASTCALL(__mmdrop(struct mm_struct *));
+static inline void mmdrop(struct mm_struct * mm)
 {
-	atomic_inc(&mm->count);
+	if (atomic_dec_and_test(&mm->mm_count))
+		__mmdrop(mm);
 }
+
+/* mmput gets rid of the mappings and all user-space */
 extern void mmput(struct mm_struct *);
 /* Remove the current tasks stale references to the old mm_struct */
 extern void mm_release(void);
+
+/*
+ * Routines for handling the fd arrays
+ */
+extern struct file ** alloc_fd_array(int);
+extern int expand_fd_array(struct files_struct *, int nr);
+extern void free_fd_array(struct file **, int);
+
+extern fd_set *alloc_fdset(int);
+extern int expand_fdset(struct files_struct *, int nr);
+extern void free_fdset(fd_set *, int);
+
+/* Expand files.  Return <0 on error; 0 nothing done; 1 files expanded,
+ * we may have blocked. 
+ *
+ * Should be called with the files->file_lock spinlock held for write.
+ */
+static inline int expand_files(struct files_struct *files, int nr)
+{
+	int err, expand = 0;
+#ifdef FDSET_DEBUG	
+	printk (KERN_ERR __FUNCTION__ " %d: nr = %d\n", current->pid, nr);
+#endif
+	
+	if (nr >= files->max_fdset) {
+		expand = 1;
+		if ((err = expand_fdset(files, nr)))
+			goto out;
+	}
+	if (nr >= files->max_fds) {
+		expand = 1;
+		if ((err = expand_fd_array(files, nr)))
+			goto out;
+	}
+	err = expand;
+ out:
+#ifdef FDSET_DEBUG	
+	if (err)
+		printk (KERN_ERR __FUNCTION__ " %d: return %d\n", current->pid, err);
+#endif
+	return err;
+}
 
 extern int  copy_thread(int, unsigned long, unsigned long, struct task_struct *, struct pt_regs *);
 extern void flush_thread(void);
@@ -673,7 +737,7 @@ do {									\
 									\
 	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
-		current->state = TASK_UNINTERRUPTIBLE;			\
+		set_current_state(TASK_UNINTERRUPTIBLE);		\
 		if (condition)						\
 			break;						\
 		schedule();						\
@@ -696,7 +760,7 @@ do {									\
 									\
 	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
-		current->state = TASK_INTERRUPTIBLE;			\
+		set_current_state(TASK_INTERRUPTIBLE);			\
 		if (condition)						\
 			break;						\
 		if (!signal_pending(current)) {				\
@@ -742,6 +806,29 @@ do {									\
 
 #define for_each_task(p) \
 	for (p = &init_task ; (p = p->next_task) != &init_task ; )
+
+
+static inline void del_from_runqueue(struct task_struct * p)
+{
+	nr_running--;
+	list_del(&p->run_list);
+	p->run_list.next = NULL;
+}
+
+extern inline int task_on_runqueue(struct task_struct *p)
+{
+	return (p->run_list.next != NULL);
+}
+
+extern inline void unhash_process(struct task_struct *p)
+{
+	if (task_on_runqueue(p)) BUG();
+	nr_threads--;
+	write_lock_irq(&tasklist_lock);
+	unhash_pid(p);
+	REMOVE_LINKS(p);
+	write_unlock_irq(&tasklist_lock);
+}
 
 #endif /* __KERNEL__ */
 

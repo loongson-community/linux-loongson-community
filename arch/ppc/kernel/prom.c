@@ -1,5 +1,5 @@
 /*
- * $Id: prom.c,v 1.60 1999/05/25 01:42:41 cort Exp $
+ * $Id: prom.c,v 1.73 1999/09/05 11:56:32 paulus Exp $
  *
  * Procedures for interfacing to the Open Firmware PROM on
  * Power Macintosh computers.
@@ -16,7 +16,10 @@
 #include <linux/string.h>
 #include <linux/init.h>
 #include <linux/version.h>
-#include <asm/spinlock.h>
+#include <linux/threads.h>
+#include <linux/spinlock.h>
+
+#include <asm/init.h>
 #include <asm/prom.h>
 #include <asm/page.h>
 #include <asm/processor.h>
@@ -25,6 +28,7 @@
 #include <asm/smp.h>
 #include <asm/bootx.h>
 #include <asm/system.h>
+#include <asm/gemini.h>
 
 /*
  * Properties whose value is longer than this get excluded from our
@@ -257,6 +261,9 @@ prom_print(const char *msg)
 	}
 }
 
+unsigned long smp_ibm_chrp_hack __initdata = 0;
+unsigned long smp_chrp_cpu_nr __initdata = 1;
+
 /*
  * We enter here early on, when the Open Firmware prom is still
  * handling exceptions and the MMU hash table for us.
@@ -266,7 +273,7 @@ void
 prom_init(int r3, int r4, prom_entry pp)
 {
 #ifdef CONFIG_SMP	
-	int cpu = 0, i;
+	int i;
 	phandle node;
 	char type[16], *path;
 #endif	
@@ -275,6 +282,11 @@ prom_init(int r3, int r4, prom_entry pp)
 	unsigned long offset = reloc_offset();
 	int l;
 	char *p, *d;
+
+#ifdef CONFIG_GEMINI
+	gemini_prom_init();
+	return;
+#endif /* CONFIG_GEMINI */
 	
 	/* check if we're apus, return if we are */
 	if ( r3 == 0x61707573 )
@@ -502,8 +514,8 @@ prom_init(int r3, int r4, prom_entry pp)
 			return;
 		
 		/* copy the holding pattern code to someplace safe (8M) */
-		memcpy( (void *)(8<<20), RELOC(__secondary_hold), 0x10000 );
-		for (i = 8<<20; i < ((8<<20)+0x10000); i += 32)
+		memcpy( (void *)(8<<20), RELOC(__secondary_hold), 0x100 );
+		for (i = 8<<20; i < ((8<<20)+0x100); i += 32)
 		{
 			asm volatile("dcbf 0,%0" : : "r" (i) : "memory");
 			asm volatile("icbi 0,%0" : : "r" (i) : "memory");
@@ -524,17 +536,18 @@ prom_init(int r3, int r4, prom_entry pp)
 				    node, path, 255) < 0)
 			continue;
 		/* XXX: hack - don't start cpu 0, this cpu -- Cort */
-		if ( cpu++ == 0 )
+		if ( smp_chrp_cpu_nr++ == 0 )
 			continue;
+		RELOC(smp_ibm_chrp_hack) = 1;
 		prom_print(RELOC("starting cpu "));
 		prom_print(path);
 		*(unsigned long *)(0x4) = 0;
 		asm volatile("dcbf 0,%0": : "r" (0x4) : "memory");
-		call_prom(RELOC("start-cpu"), 3, 0, node, 8<<20, cpu-1);
+		call_prom(RELOC("start-cpu"), 3, 0, node, 8<<20, smp_chrp_cpu_nr-1);
 		for ( i = 0 ; (i < 10000) &&
 			      (*(ulong *)(0x4) == (ulong)0); i++ )
 			;
-		if (*(ulong *)(0x4) == (ulong)cpu-1 )
+		if (*(ulong *)(0x4) == (ulong)smp_chrp_cpu_nr-1 )
 			prom_print(RELOC("...ok\n"));
 		else
 			prom_print(RELOC("...failed\n"));
@@ -1296,8 +1309,6 @@ print_properties(struct device_node *np)
 }
 #endif
 
-spinlock_t rtas_lock = SPIN_LOCK_UNLOCKED;
-
 /* this can be called after setup -- Cort */
 __openfirmware
 int
@@ -1328,12 +1339,12 @@ call_rtas(const char *service, int nargs, int nret,
 	for (i = 0; i < nargs; ++i)
 		u.words[i+3] = va_arg(list, unsigned long);
 	va_end(list);
+
+	save_flags(s);
+	cli();
 	
-	s = _disable_interrupts();
-	spin_lock(&rtas_lock);
 	enter_rtas((void *)__pa(&u));
-	spin_unlock(&rtas_lock);
-	_enable_interrupts(s);
+	restore_flags(s);
 	if (nret > 1 && outputs != NULL)
 		for (i = 0; i < nret-1; ++i)
 			outputs[i] = u.words[i+nargs+4];

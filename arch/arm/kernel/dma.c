@@ -19,13 +19,13 @@
 #include <linux/malloc.h>
 #include <linux/mman.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 
 #include <asm/page.h>
 #include <asm/irq.h>
 #include <asm/hardware.h>
 #include <asm/io.h>
 #include <asm/dma.h>
-#include <asm/spinlock.h>
 
 
 /* A note on resource allocation:
@@ -221,7 +221,7 @@ EXPORT_SYMBOL(get_dma_residue);
 EXPORT_SYMBOL(set_dma_sg);
 EXPORT_SYMBOL(set_dma_speed);
 
-__initfunc(void init_dma(void))
+void __init init_dma(void)
 {
 	arch_dma_init(dma_chan);
 }

@@ -39,6 +39,8 @@ struct machdep_calls {
 	unsigned long	heartbeat_reset;
 	unsigned long	heartbeat_count;
 
+  	void		(*progress)(char *, unsigned short);
+
 	unsigned char 	(*nvram_read_val)(int addr);
 	void		(*nvram_write_val)(int addr, unsigned char val);
 
@@ -70,6 +72,8 @@ struct machdep_calls {
 	int (*pcibios_write_config_dword)(unsigned char bus,
 		unsigned char dev_fn, unsigned char offset, unsigned int val);
 	void (*pcibios_fixup)(void);
+struct pci_bus;	
+	void (*pcibios_fixup_bus)(struct pci_bus *);
 };
 
 extern struct machdep_calls ppc_md;
@@ -77,4 +81,20 @@ extern char cmd_line[512];
 
 extern void setup_pci_ptrs(void);
 
+#define BOOT_INFO_VER 0x1
+#define BOOT_INFO_MAGIC 0x05027800
+
+struct boot_info
+{
+	unsigned long magic_start;
+	char cmd_line[256];
+	char boot_loader[128];
+	int _machine;
+	unsigned long initrd_start, initrd_size;
+	unsigned long systemmap_start, systemmap_size;
+	unsigned long prom_entry;
+	char reserved[3680];	/* pad to 1 page */
+	unsigned long magic_end;
+};
+struct boot_info *binfo;
 #endif /* _PPC_MACHDEP_H */

@@ -641,7 +641,7 @@ EXPORT_SYMBOL(send_sig_info);
  * used by various programs)
  */
 
-asmlinkage int
+asmlinkage long
 sys_rt_sigprocmask(int how, sigset_t *set, sigset_t *oset, size_t sigsetsize)
 {
 	int error = -EINVAL;
@@ -697,7 +697,7 @@ out:
 	return error;
 }
 
-asmlinkage int
+asmlinkage long
 sys_rt_sigpending(sigset_t *set, size_t sigsetsize)
 {
 	int error = -EINVAL;
@@ -718,7 +718,7 @@ out:
 	return error;
 }
 
-asmlinkage int
+asmlinkage long
 sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo,
 		    const struct timespec *uts, size_t sigsetsize)
 {
@@ -788,7 +788,7 @@ sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo,
 	return ret;
 }
 
-asmlinkage int
+asmlinkage long
 sys_kill(int pid, int sig)
 {
 	struct siginfo info;
@@ -802,7 +802,7 @@ sys_kill(int pid, int sig)
 	return kill_something_info(sig, &info, pid);
 }
 
-asmlinkage int
+asmlinkage long
 sys_rt_sigqueueinfo(int pid, int sig, siginfo_t *uinfo)
 {
 	siginfo_t info;
@@ -948,7 +948,7 @@ out:
 #if !defined(__alpha__)
 /* Alpha has its own versions with special arguments.  */
 
-asmlinkage int
+asmlinkage long
 sys_sigprocmask(int how, old_sigset_t *set, old_sigset_t *oset)
 {
 	int error;
@@ -997,7 +997,7 @@ out:
 	return error;
 }
 
-asmlinkage int
+asmlinkage long
 sys_sigpending(old_sigset_t *set)
 {
 	int error;
@@ -1014,7 +1014,7 @@ sys_sigpending(old_sigset_t *set)
 }
 
 #ifndef __sparc__
-asmlinkage int
+asmlinkage long
 sys_rt_sigaction(int sig, const struct sigaction *act, struct sigaction *oact,
 		 size_t sigsetsize)
 {
@@ -1046,14 +1046,14 @@ out:
 /*
  * For backwards compatibility.  Functionality superseded by sigprocmask.
  */
-asmlinkage int
+asmlinkage long
 sys_sgetmask(void)
 {
 	/* SMP safe */
 	return current->blocked.sig[0];
 }
 
-asmlinkage int
+asmlinkage long
 sys_ssetmask(int newmask)
 {
 	int old;
@@ -1068,9 +1068,9 @@ sys_ssetmask(int newmask)
 
 	return old;
 }
-#endif /* !defined(__alpha__) && !defined(__ia64__) */
+#endif /* !defined(__alpha__) */
 
-#if !defined(__alpha__) && !defined(__mips__) && !defined(__ia64__)
+#if !defined(__alpha__) && !defined(__mips__)
 /*
  * For backwards compatibility.  Functionality superseded by sigaction.
  */
@@ -1087,4 +1087,4 @@ sys_signal(int sig, __sighandler_t handler)
 
 	return ret ? ret : (unsigned long)old_sa.sa.sa_handler;
 }
-#endif /* !defined(__alpha__) && !defined(__mips__) && !defined(__ia64__) */
+#endif /* !alpha && !__ia64__ && !defined(__mips__) */

@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.67 1999/05/01 09:17:37 davem Exp $
+# $Id: config.in,v 1.78 1999/09/06 01:17:28 davem Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -36,6 +36,7 @@ endmenu
 # Global things across all Sun machines.
 define_bool CONFIG_SBUS y
 define_bool CONFIG_SBUSCHAR y
+define_bool CONFIG_BUSMOUSE y
 define_bool CONFIG_SUN_MOUSE y
 define_bool CONFIG_SERIAL y
 define_bool CONFIG_SUN_SERIAL y
@@ -49,9 +50,6 @@ source drivers/sbus/char/Config.in
 source drivers/sbus/audio/Config.in
 
 tristate 'Openprom tree appears in /proc/openprom (EXPERIMENTAL)' CONFIG_SUN_OPENPROMFS
-if [ "$CONFIG_PCI" = "y" ]; then
-  bool 'Backward-compatible /proc/pci' CONFIG_PCI_OLD_PROC
-fi
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
@@ -66,10 +64,9 @@ tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'Solaris binary emulation' CONFIG_SOLARIS_EMUL
 fi
-
+source drivers/parport/Config.in
+dep_tristate '  Parallel printer support' CONFIG_PRINTER $CONFIG_PARPORT
 if [ "$CONFIG_PCI" = "y" ]; then
-  source drivers/misc/Config.in
-  dep_tristate '  Parallel printer support' CONFIG_PRINTER $CONFIG_PARPORT
   tristate 'SUNW,envctrl support' CONFIG_ENVCTRL
 fi
 endmenu
@@ -105,7 +102,8 @@ if [ "$CONFIG_PCI" = "y" ]; then
 	  dep_tristate '   SCSI emulation support' CONFIG_BLK_DEV_IDESCSI $CONFIG_BLK_DEV_IDE
 	  define_bool CONFIG_BLK_DEV_IDEPCI y
 	  define_bool CONFIG_BLK_DEV_IDEDMA y
-	  define_bool CONFIG_IDEDMA_PCI_AUTO y
+	  define_bool CONFIG_IDEDMA_AUTO y
+	  define_bool IDEDMA_NEW_DRIVE_LISTINGS y
 	  define_bool CONFIG_BLK_DEV_NS87415 y
 	  define_bool CONFIG_BLK_DEV_CMD646 y
 	fi
@@ -206,6 +204,10 @@ if [ "$CONFIG_NET" = "y" ]; then
 		if [ "$CONFIG_PCI" = "y" ]; then
 			tristate 'Generic DECchip & DIGITAL EtherWORKS PCI/EISA' CONFIG_DE4X5
 			tristate '3c590/3c900 series (592/595/597) "Vortex/Boomerang" support' CONFIG_VORTEX
+			tristate 'RealTek 8129/8139 (not 8019/8029!) support' CONFIG_RTL8139
+			tristate 'PCI NE2000 support' CONFIG_NE2K_PCI
+			tristate 'EtherExpressPro/100 support' CONFIG_EEXPRESS_PRO100
+			tristate 'Adaptec Starfire support' CONFIG_ADAPTEC_STARFIRE
 		fi
 #		bool 'FDDI driver support' CONFIG_FDDI
 #		if [ "$CONFIG_FDDI" = "y" ]; then

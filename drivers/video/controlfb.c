@@ -149,11 +149,11 @@ static int default_cmode = CMODE_NVRAM;
 /*
  * Exported functions
  */
-void control_init(void);
+int control_init(void);
 #ifdef CONFIG_FB_OF
 void control_of_init(struct device_node *dp);
 #endif
-void control_setup(char *options, int *ints);
+void control_setup(char *);
 
 static int read_control_sense(struct fb_info_control *p);
 static inline int control_vram_reqd(int video_mode, int color_mode);
@@ -185,13 +185,9 @@ static struct fb_ops controlfb_ops = {
 
 /********************  The functions for controlfb_ops ********************/
 
-#ifndef MODULE
-__openfirmware
-#endif
-
 /**********  Dummies for loading control as a module  **********/
 
-static int control_open(struct fb_info *info, int user)
+int control_open(struct fb_info *info, int user)
 {
 	MOD_INC_USE_COUNT;
 	return 0;
@@ -523,7 +519,7 @@ static void set_control_clock(unsigned char *params)
 }
 
 
-__initfunc(static void init_control(struct fb_info_control *p))
+static void __init init_control(struct fb_info_control *p)
 {
 	struct fb_par_control parstruct;
 	struct fb_par_control *par = &parstruct;
@@ -660,7 +656,7 @@ static void control_set_hardware(struct fb_info_control *p, struct fb_par_contro
 #endif /* CONFIG_FB_COMPAT_XPMAC */
 }
 
-__initfunc(void control_init(void))
+int __init control_init(void)
 {
 #ifndef CONFIG_FB_OF
 	struct device_node *dp;
@@ -669,9 +665,10 @@ __initfunc(void control_init(void))
 	if (dp != 0)
 		control_of_init(dp);
 #endif /* CONFIG_FB_OF */
+	return 0;
 }
 
-__initfunc(void control_of_init(struct device_node *dp))
+void __init control_of_init(struct device_node *dp)
 {
 	struct fb_info_control	*p;
 	unsigned long		addr, size;
@@ -720,9 +717,11 @@ __initfunc(void control_of_init(struct device_node *dp))
 	p->total_vram = (bank1 + bank2) * 0x200000;
 	/* If we don't have bank 1 installed, we hope we have bank 2 :-) */
 	p->control_use_bank2 = !bank1;
-	if (p->control_use_bank2)
+	if (p->control_use_bank2) {
 		p->frame_buffer += 0x600000;
-
+		p->frame_buffer_phys += 0x600000;
+	}
+	
 	init_control(p);
 }
 
@@ -998,7 +997,7 @@ static void control_par_to_fix(struct fb_par_control *par, struct fb_fix_screeni
 {
 	memset(fix, 0, sizeof(*fix));
 	strcpy(fix->id, "control");
-	fix->mmio_start = (char *)p->control_regs_phys;
+	fix->mmio_start = p->control_regs_phys;
 	fix->mmio_len = sizeof(struct control_regs);
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	
@@ -1010,7 +1009,7 @@ static void control_par_to_fix(struct fb_par_control *par, struct fb_fix_screeni
 		fix->xpanstep = 0;
 	*/
 
-	fix->smem_start = (void *)(p->frame_buffer_phys
+	fix->smem_start = (p->frame_buffer_phys
 		+ control_reg_init[par->vmode-1]->offset[par->cmode]);
 	fix->smem_len = p->total_vram - control_reg_init[par->vmode-1]->offset[par->cmode];
 	fix->visual = (par->cmode == CMODE_8) ?
@@ -1152,7 +1151,7 @@ static void control_init_info(struct fb_info *info, struct fb_info_control *p)
 }
 
 /* Parse user speficied options (`video=controlfb:') */
-__initfunc(void control_setup(char *options, int *ints))
+void __init control_setup(char *options)
 {
 	char *this_opt;
 

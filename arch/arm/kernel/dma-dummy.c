@@ -8,8 +8,7 @@
  */
 #include <linux/errno.h>
 #include <linux/init.h>
-
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 spinlock_t dma_spin_lock = SPIN_LOCK_UNLOCKED;
 
@@ -27,6 +26,6 @@ int get_dma_list(char *buf)
 	return 0;
 }
 
-__initfunc(void init_dma(void))
+void __init init_dma(void)
 {
 }

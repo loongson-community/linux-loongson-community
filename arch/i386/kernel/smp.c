@@ -42,7 +42,7 @@
 #include <asm/mtrr.h>
 #include <asm/msr.h>
 
-#include "irq.h"
+#include <linux/irq.h>
 
 #define JIFFIE_TIMEOUT 100
 
@@ -104,7 +104,7 @@ int smp_found_config=0;					/* Have we found an SMP box 				*/
 
 unsigned long cpu_present_map = 0;			/* Bitmask of physically existing CPUs 				*/
 unsigned long cpu_online_map = 0;			/* Bitmask of currently online CPUs 				*/
-int smp_num_cpus = 1;					/* Total count of live CPUs 				*/
+int smp_num_cpus = 0;					/* Total count of live CPUs 				*/
 int smp_threads_ready=0;				/* Set when the idlers are all forked 			*/
 volatile int cpu_number_map[NR_CPUS];			/* which CPU maps to which logical number		*/
 volatile int __cpu_logical_map[NR_CPUS];			/* which logical number maps to which CPU		*/
@@ -128,6 +128,8 @@ volatile unsigned long ipi_count;			/* Number of IPIs delivered				*/
 const char lk_lockmsg[] = "lock from interrupt context at %p\n"; 
 
 int mp_bus_id_to_type [MAX_MP_BUSSES] = { -1, };
+extern int nr_ioapics;
+extern struct mpc_config_ioapic mp_apics [MAX_IO_APICS];
 extern int mp_irq_entries;
 extern struct mpc_config_intsrc mp_irqs [MAX_IRQ_SOURCES];
 extern int mpc_default_type;
@@ -162,13 +164,21 @@ int skip_ioapic_setup = 0;				/* 1 if "noapic" boot option passed */
  *	SMP mode to <NUM>.
  */
 
-void __init smp_setup(char *str, int *ints)
+static int __init nosmp(char *str)
 {
-	if (ints && ints[0] > 0)
-		max_cpus = ints[1];
-	else
-		max_cpus = 0;
+	max_cpus = 0;
+	return 1;
 }
+
+__setup("nosmp", nosmp);
+
+static int __init maxcpus(char *str)
+{
+	get_option(&str, &max_cpus);
+	return 1;
+}
+
+__setup("maxcpus=", maxcpus);
 
 void ack_APIC_irq(void)
 {
@@ -225,6 +235,7 @@ static char *mpc_family(int family,int model)
 	return n;
 }
 
+
 /*
  *	Read the MPC
  */
@@ -257,12 +268,10 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 	}
 	memcpy(str,mpc->mpc_oem,8);
 	str[8]=0;
-	memcpy(ioapic_OEM_ID,str,9);
 	printk("OEM ID: %s ",str);
 	
 	memcpy(str,mpc->mpc_productid,12);
 	str[12]=0;
-	memcpy(ioapic_Product_ID,str,13);
 	printk("Product ID: %s ",str);
 
 	printk("APIC at: 0x%lX\n",mpc->mpc_lapic);
@@ -367,11 +376,9 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 					printk("I/O APIC #%d Version %d at 0x%lX.\n",
 						m->mpc_apicid,m->mpc_apicver,
 						m->mpc_apicaddr);
-					/*
-					 * we use the first one only currently
-					 */
-					if (ioapics == 1)
-						mp_ioapic_addr = m->mpc_apicaddr;
+					mp_apics [nr_ioapics] = *m;
+					if (++nr_ioapics > MAX_IO_APICS)
+						--nr_ioapics;
 				}
 				mpt+=sizeof(*m);
 				count+=sizeof(*m);
@@ -403,9 +410,9 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 			}
 		}
 	}
-	if (ioapics > 1)
+	if (ioapics > MAX_IO_APICS)
 	{
-		printk("Warning: Multiple IO-APICs not yet supported.\n");
+		printk("Warning: Max I/O APICs exceeded (max %d, found %d).\n", MAX_IO_APICS, ioapics);
 		printk("Warning: switching to non APIC mode.\n");
 		skip_ioapic_setup=1;
 	}
@@ -637,6 +644,8 @@ void __init init_smp_config (void)
 #endif
 }
 
+
+
 /*
  *	Trampoline 80x86 program as an array.
  */
@@ -722,7 +731,11 @@ void __init enable_local_APIC(void)
 
  	value = apic_read(APIC_SPIV);
  	value |= (1<<8);		/* Enable APIC (bit==1) */
+#if 0
  	value &= ~(1<<9);		/* Enable focus processor (bit==0) */
+#else
+	value |= (1<<9);		/* Disable focus processor (bit==1) */
+#endif
 	value |= 0xff;			/* Set spurious IRQ vector to 0xff */
  	apic_write(APIC_SPIV,value);
 
@@ -771,18 +784,22 @@ unsigned long __init init_smp_mappings(unsigned long memory_start)
 
 #ifdef CONFIG_X86_IO_APIC
 	{
-		unsigned long ioapic_phys;
+		unsigned long ioapic_phys, idx = FIX_IO_APIC_BASE_0;
+		int i;
 
-		if (smp_found_config) {
-			ioapic_phys = mp_ioapic_addr;
-		} else {
-			ioapic_phys = __pa(memory_start);
-			memset((void *)memory_start, 0, PAGE_SIZE);
-			memory_start += PAGE_SIZE;
+		for (i = 0; i < nr_ioapics; i++) {
+			if (smp_found_config) {
+				ioapic_phys = mp_apics[i].mpc_apicaddr;
+			} else {
+				ioapic_phys = __pa(memory_start);
+				memset((void *)memory_start, 0, PAGE_SIZE);
+				memory_start += PAGE_SIZE;
+			}
+			set_fixmap(idx,ioapic_phys);
+			printk("mapped IOAPIC to %08lx (%08lx)\n",
+					__fix_to_virt(idx), ioapic_phys);
+			idx++;
 		}
-		set_fixmap(FIX_IO_APIC_BASE,ioapic_phys);
-		printk("mapped IOAPIC to %08lx (%08lx)\n",
-				fix_to_virt(FIX_IO_APIC_BASE), ioapic_phys);
 	}
 #endif
 
@@ -870,7 +887,7 @@ void __init smp_callin(void)
 
 int cpucount = 0;
 
-extern int cpu_idle(void * unused);
+extern int cpu_idle(void);
 
 /*
  *	Activate a secondary processor.
@@ -882,10 +899,11 @@ int __init start_secondary(void *unused)
 	 * booting is too fragile that we want to limit the
 	 * things done here to the most necessary things.
 	 */
+	cpu_init();
 	smp_callin();
 	while (!atomic_read(&smp_commenced))
 		/* nothing */ ;
-	return cpu_idle(NULL);
+	return cpu_idle();
 }
 
 /*
@@ -896,15 +914,6 @@ int __init start_secondary(void *unused)
  */
 void __init initialize_secondary(void)
 {
-	struct thread_struct * p = &current->tss;
-
-	/*
-	 * Load up the LDT and the task register.
-	 */
-	asm volatile("lldt %%ax": :"a" (p->ldt));
-	asm volatile("ltr %%ax": :"a" (p->tr));
-	stts();
-
 	/*
 	 * We don't actually need to load the full TSS,
 	 * basically just the stack pointer and the eip.
@@ -914,13 +923,21 @@ void __init initialize_secondary(void)
 		"movl %0,%%esp\n\t"
 		"jmp *%1"
 		:
-		:"r" (p->esp),"r" (p->eip));
+		:"r" (current->thread.esp),"r" (current->thread.eip));
 }
 
 extern struct {
 	void * esp;
 	unsigned short ss;
 } stack_start;
+
+static int __init fork_by_hand(void)
+{
+	struct pt_regs regs;
+	/* don't care about the eip and regs settings since we'll never
+	   reschedule the forked task. */
+	return do_fork(CLONE_VM|CLONE_PID, 0, &regs);
+}
 
 static void __init do_boot_cpu(int i)
 {
@@ -931,13 +948,17 @@ static void __init do_boot_cpu(int i)
 	int timeout, num_starts, j;
 	unsigned long start_eip;
 
-	/*
-	 *	We need an idle process for each processor.
-	 */
-	kernel_thread(start_secondary, NULL, CLONE_PID);
 	cpucount++;
+	/* We can't use kernel_thread since we must _avoid_ to reschedule
+	   the child. */
+	if (fork_by_hand() < 0)
+		panic("failed fork for CPU %d", i);
 
-	idle = task[cpucount];
+	/*
+	 * We remove it from the pidhash and the runqueue
+	 * once we got the process:
+	 */
+	idle = init_task.prev_task;
 	if (!idle)
 		panic("No idle process for CPU %d", i);
 
@@ -945,7 +966,11 @@ static void __init do_boot_cpu(int i)
 	__cpu_logical_map[cpucount] = i;
 	cpu_number_map[i] = cpucount;
 	idle->has_cpu = 1; /* we schedule the first task manually */
-	idle->tss.eip = (unsigned long) start_secondary;
+	idle->thread.eip = (unsigned long) start_secondary;
+
+	del_from_runqueue(idle);
+	unhash_process(idle);
+	init_tasks[cpucount] = idle;
 
 	/* start_eip had better be page-aligned! */
 	start_eip = setup_trampoline();
@@ -1179,7 +1204,6 @@ void __init smp_boot_cpus(void)
 	/*  Must be done before other processors booted  */
 	mtrr_init_boot_cpu ();
 #endif
-	init_idle();
 	/*
 	 *	Initialize the logical to physical CPU number mapping
 	 *	and the per-CPU profiling counter/multiplier
@@ -1210,6 +1234,8 @@ void __init smp_boot_cpus(void)
 
 	cpu_number_map[boot_cpu_id] = 0;
 
+	init_idle();
+
 	/*
 	 * If we couldnt find an SMP configuration at boot time,
 	 * get out of here now!
@@ -1222,6 +1248,7 @@ void __init smp_boot_cpus(void)
 		io_apic_irqs = 0;
 #endif
 		cpu_online_map = cpu_present_map;
+		smp_num_cpus = 1;
 		goto smp_done;
 	}
 
@@ -1356,27 +1383,23 @@ void __init smp_boot_cpus(void)
 	 */
 
 	SMP_PRINTK(("Before bogomips.\n"));
-	if (cpucount==0)
-	{
+	if (!cpucount) {
 		printk(KERN_ERR "Error: only one processor found.\n");
 		cpu_online_map = (1<<hard_smp_processor_id());
-	}
-	else
-	{
-		unsigned long bogosum=0;
-		for(i=0;i<32;i++)
-		{
+	} else {
+		unsigned long bogosum = 0;
+		for(i = 0; i < 32; i++)
 			if (cpu_online_map&(1<<i))
 				bogosum+=cpu_data[i].loops_per_sec;
-		}
 		printk(KERN_INFO "Total of %d processors activated (%lu.%02lu BogoMIPS).\n",
 			cpucount+1,
 			(bogosum+2500)/500000,
 			((bogosum+2500)/5000)%100);
 		SMP_PRINTK(("Before bogocount - setting activated=1.\n"));
-		smp_activated=1;
-		smp_num_cpus=cpucount+1;
+		smp_activated = 1;
 	}
+	smp_num_cpus = cpucount + 1;
+
 	if (smp_b_stepping)
 		printk(KERN_WARNING "WARNING: SMP operation may be unreliable with B stepping processors.\n");
 	SMP_PRINTK(("Boot done.\n"));
@@ -1392,6 +1415,11 @@ void __init smp_boot_cpus(void)
 #endif
 
 smp_done:
+	/*
+	 * now we know the other CPUs have fired off and we know our
+	 * APIC ID, so we can go init the TSS and stuff:
+	 */
+	cpu_init();
 }
 
 
@@ -1571,8 +1599,7 @@ static inline void send_IPI_single(int dest, int vector)
  * bad as in the early days of SMP, so we might ease some of the
  * paranoia here.
  */
-
-void smp_flush_tlb(void)
+static void flush_tlb_others(unsigned int cpumask)
 {
 	int cpu = smp_processor_id();
 	int stuck;
@@ -1582,17 +1609,9 @@ void smp_flush_tlb(void)
 	 * it's important that we do not generate any APIC traffic
 	 * until the AP CPUs have booted up!
 	 */
-	if (cpu_online_map) {
-		/*
-		 * The assignment is safe because it's volatile so the
-		 * compiler cannot reorder it, because the i586 has
-		 * strict memory ordering and because only the kernel
-		 * lock holder may issue a tlb flush. If you break any
-		 * one of those three change this to an atomic bus
-		 * locked or.
-		 */
-
-		smp_invalidate_needed = cpu_online_map;
+	cpumask &= cpu_online_map;
+	if (cpumask) {
+		atomic_set_mask(cpumask, &smp_invalidate_needed);
 
 		/*
 		 * Processors spinning on some lock with IRQs disabled
@@ -1615,8 +1634,13 @@ void smp_flush_tlb(void)
 			/*
 			 * Take care of "crossing" invalidates
 			 */
-			if (test_bit(cpu, &smp_invalidate_needed))
-			clear_bit(cpu, &smp_invalidate_needed);
+			if (test_bit(cpu, &smp_invalidate_needed)) {
+				struct mm_struct *mm = current->mm;
+				clear_bit(cpu, &smp_invalidate_needed);
+				if (mm)
+					atomic_set_mask(1 << cpu, &mm->cpu_vm_mask);
+				local_flush_tlb();
+			}
 			--stuck;
 			if (!stuck) {
 				printk("stuck on TLB IPI wait (CPU#%d)\n",cpu);
@@ -1625,12 +1649,57 @@ void smp_flush_tlb(void)
 		}
 		__restore_flags(flags);
 	}
+}
 
-	/*
-	 *	Flush the local TLB
-	 */
+/*
+ *	Smarter SMP flushing macros. 
+ *		c/o Linus Torvalds.
+ *
+ *	These mean you can really definitely utterly forget about
+ *	writing to user space from interrupts. (Its not allowed anyway).
+ */	
+void flush_tlb_current_task(void)
+{
+	unsigned long vm_mask = 1 << current->processor;
+	struct mm_struct *mm = current->mm;
+	unsigned long cpu_mask = mm->cpu_vm_mask & ~vm_mask;
+
+	mm->cpu_vm_mask = vm_mask;
+	flush_tlb_others(cpu_mask);
 	local_flush_tlb();
+}
 
+void flush_tlb_mm(struct mm_struct * mm)
+{
+	unsigned long vm_mask = 1 << current->processor;
+	unsigned long cpu_mask = mm->cpu_vm_mask & ~vm_mask;
+
+	mm->cpu_vm_mask = 0;
+	if (current->active_mm == mm) {
+		mm->cpu_vm_mask = vm_mask;
+		local_flush_tlb();
+	}
+	flush_tlb_others(cpu_mask);
+}
+
+void flush_tlb_page(struct vm_area_struct * vma, unsigned long va)
+{
+	unsigned long vm_mask = 1 << current->processor;
+	struct mm_struct *mm = vma->vm_mm;
+	unsigned long cpu_mask = mm->cpu_vm_mask & ~vm_mask;
+
+	mm->cpu_vm_mask = 0;
+	if (current->active_mm == mm) {
+		__flush_tlb_one(va);
+		mm->cpu_vm_mask = vm_mask;
+	}
+	flush_tlb_others(cpu_mask);
+}
+
+void flush_tlb_all(void)
+{
+	flush_tlb_others(~(1 << current->processor));
+	local_flush_tlb();
 }
 
 
@@ -1853,13 +1922,24 @@ asmlinkage void smp_reschedule_interrupt(void)
 }
 
 /*
- * Invalidate call-back
+ * Invalidate call-back.
+ *
+ * Mark the CPU as a VM user if there is a active
+ * thread holding on to an mm at this time. This
+ * allows us to optimize CPU cross-calls even in the
+ * presense of lazy TLB handling.
  */
 asmlinkage void smp_invalidate_interrupt(void)
 {
-	if (test_and_clear_bit(smp_processor_id(), &smp_invalidate_needed))
-		local_flush_tlb();
+	struct task_struct *tsk = current;
+	unsigned int cpu = tsk->processor;
 
+	if (test_and_clear_bit(cpu, &smp_invalidate_needed)) {
+		struct mm_struct *mm = tsk->mm;
+		if (mm)
+			atomic_set_mask(1 << cpu, &mm->cpu_vm_mask);
+		local_flush_tlb();
+	}
 	ack_APIC_irq();
 
 }

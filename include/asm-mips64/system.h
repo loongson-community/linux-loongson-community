@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: system.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -135,6 +135,15 @@ __asm__ __volatile__(					\
 	: "memory")
 #define rmb() mb()
 #define wmb() mb()
+
+#define set_mb(var, value) \
+do { var = value; mb(); } while (0)
+
+#define set_rmb(var, value) \
+do { var = value; rmb(); } while (0)
+
+#define set_wmb(var, value) \
+do { var = value; wmb(); } while (0)
 
 #if !defined (_LANGUAGE_ASSEMBLY)
 /*

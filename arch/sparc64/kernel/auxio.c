@@ -22,7 +22,7 @@
 /* Probe and map in the Auxiliary I/O register */
 unsigned char *auxio_register;
 
-__initfunc(void auxio_probe(void))
+void __init auxio_probe(void)
 {
         struct linux_sbus *bus;
         struct linux_sbus_device *sdev = 0;
@@ -51,17 +51,7 @@ __initfunc(void auxio_probe(void))
 	ebus_done:
 
 		if (edev) {
-			if (check_region(edev->base_address[0],
-					 sizeof(unsigned int))) {
-				prom_printf("%s: Can't get region %lx, %d\n",
-					    __FUNCTION__, edev->base_address[0],
-					    sizeof(unsigned int));
-				prom_halt();
-			}
-			request_region(edev->base_address[0],
-				       sizeof(unsigned int), "LED auxio");
-
-			led_auxio = edev->base_address[0];
+			led_auxio = edev->resource[0].start;
 			outl(0x01, led_auxio);
 			return;
 		}

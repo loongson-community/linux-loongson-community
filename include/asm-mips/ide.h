@@ -1,4 +1,4 @@
-/* $Id: ide.h,v 1.4 1998/06/30 00:23:09 ralf Exp $
+/* $Id: ide.h,v 1.5 1999/06/17 13:30:36 ralf Exp $
  *
  *  linux/include/asm-mips/ide.h
  *
@@ -13,6 +13,8 @@
 #define __ASM_MIPS_IDE_H
 
 #ifdef __KERNEL__
+
+#include <linux/config.h>
 
 #ifndef MAX_HWIFS
 #define MAX_HWIFS	6
@@ -62,7 +64,7 @@ static __inline__ void ide_init_hwif_ports(hw_regs_t *hw,
  */
 static __inline__ void ide_init_default_hwifs(void)
 {
-#ifdef __DO_I_NEED_THIS
+#ifndef CONFIG_BLK_DEV_IDEPCI
 	hw_regs_t hw;
 	int index;
 
@@ -71,7 +73,7 @@ static __inline__ void ide_init_default_hwifs(void)
 		hw.irq = ide_default_irq(ide_default_io_base(index));
 		ide_register_hw(&hw, NULL);
 	}
-#endif /* __DO_I_NEED_THIS */
+#endif /* CONFIG_BLK_DEV_IDEPCI */
 }
 
 typedef union {

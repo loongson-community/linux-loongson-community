@@ -1,7 +1,7 @@
 /*
  *  linux/arch/ppc/kernel/signal.c
  *
- *  $Id: signal.c,v 1.24 1999/04/03 11:25:16 paulus Exp $
+ *  $Id: signal.c,v 1.27 1999/08/03 19:16:38 cort Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -227,7 +227,7 @@ int sys_sigreturn(struct pt_regs *regs)
 			| (saved_regs[PT_MSR] & MSR_USERCHANGE);
 		memcpy(regs, saved_regs, GP_REGS_SIZE);
 
-		if (copy_from_user(current->tss.fpr, &sr->fp_regs,
+		if (copy_from_user(current->thread.fpr, &sr->fp_regs,
 				   sizeof(sr->fp_regs)))
 			goto badframe;
 
@@ -269,7 +269,7 @@ setup_frame(struct pt_regs *regs, struct sigregs *frame,
 		if (regs->msr & MSR_FP)
 			giveup_fpu(current);
 	if (__copy_to_user(&frame->gp_regs, regs, GP_REGS_SIZE)
-	    || __copy_to_user(&frame->fp_regs, current->tss.fpr,
+	    || __copy_to_user(&frame->fp_regs, current->thread.fpr,
 			      ELF_NFPREG * sizeof(double))
 	    || __put_user(0x38007777UL, &frame->tramp[0])    /* li r0,0x7777 */
 	    || __put_user(0x44000002UL, &frame->tramp[1]))   /* sc */
@@ -444,12 +444,8 @@ int do_signal(sigset_t *oldset, struct pt_regs *regs)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
-				lock_kernel();
-				if (current->binfmt
-				    && current->binfmt->core_dump
-				    && current->binfmt->core_dump(signr, regs))
+				if (do_coredump(signr, regs))
 					exit_code |= 0x80;
-				unlock_kernel();
 				/* FALLTHRU */
 
 			default:

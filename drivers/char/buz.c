@@ -47,7 +47,7 @@
 #include <asm/segment.h>
 #include <linux/types.h>
 #include <linux/wrapper.h>
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 #include <linux/videodev.h>
 
@@ -374,13 +374,13 @@ static int i2c_getdataline(struct i2c_bus *bus)
 	return (btread(ZR36057_I2CBR) >> 1) & 1;
 }
 
-void attach_inform(struct i2c_bus *bus, int id)
+static void attach_inform(struct i2c_bus *bus, int id)
 {
 	DEBUG(struct zoran *zr = (struct zoran *) bus->data);
 	DEBUG(printk(BUZ_DEBUG "-%u: i2c attach %02x\n", zr->id, id));
 }
 
-void detach_inform(struct i2c_bus *bus, int id)
+static void detach_inform(struct i2c_bus *bus, int id)
 {
 	DEBUG(struct zoran *zr = (struct zoran *) bus->data);
 	DEBUG(printk(BUZ_DEBUG "-%u: i2c detach %02x\n", zr->id, id));
@@ -2650,7 +2650,8 @@ static int zoran_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 		{
 			struct video_buffer v;
 
-			if (!capable(CAP_SYS_ADMIN))
+			if (!capable(CAP_SYS_ADMIN)
+			|| !capable(CAP_SYS_RAWIO))
 				return -EPERM;
 
 			if (copy_from_user(&v, arg, sizeof(v)))
@@ -3219,7 +3220,7 @@ static int zr36057_init(int i)
 	}
 	/* i2c */
 	memcpy(&zr->i2c, &zoran_i2c_bus_template, sizeof(struct i2c_bus));
-	sprintf(zr->i2c.name, "zoran%u%u", zr->id);
+	sprintf(zr->i2c.name, "zoran%u", zr->id);
 	zr->i2c.data = zr;
 	if (i2c_register_bus(&zr->i2c) < 0) {
 		kfree((void *) zr->stat_com);
@@ -3327,7 +3328,7 @@ static int find_zr36057(void)
 
 		spin_lock_init(&zr->lock);
 
-		zr->zr36057_adr = zr->pci_dev->base_address[0] & PCI_BASE_ADDRESS_MEM_MASK;
+		zr->zr36057_adr = zr->pci_dev->resource[0].start;
 		pci_read_config_byte(zr->pci_dev, PCI_CLASS_REVISION, &zr->revision);
 		if (zr->revision < 2) {
 			printk(KERN_INFO "%s: Zoran ZR36057 (rev %d) irq: %d, memory: 0x%08x.\n",

@@ -1,4 +1,4 @@
-/* $Id: ptrace.c,v 1.16 1999/08/18 23:37:43 ralf Exp $
+/* $Id: ptrace.c,v 1.17 1999/09/28 22:25:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -143,7 +143,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 					disable_cp1();
 					last_task_used_math = NULL;
 				}
-				tmp = child->tss.fpu.hard.fp_regs[addr - 32];
+				tmp = child->thread.fpu.hard.fp_regs[addr - 32];
 			} else {
 				tmp = -1;	/* FP not yet used  */
 			}
@@ -164,7 +164,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			tmp = regs->lo;
 			break;
 		case FPC_CSR:
-			tmp = child->tss.fpu.hard.control;
+			tmp = child->thread.fpu.hard.control;
 			break;
 		case FPC_EIR: {	/* implementation / version register */
 			unsigned int flags;
@@ -215,11 +215,11 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				}
 			} else {
 				/* FP not yet used  */
-				memset(&child->tss.fpu.hard, ~0,
-				       sizeof(child->tss.fpu.hard));
-				child->tss.fpu.hard.control = 0;
+				memset(&child->thread.fpu.hard, ~0,
+				       sizeof(child->thread.fpu.hard));
+				child->thread.fpu.hard.control = 0;
 			}
-			fregs = child->tss.fpu.hard.fp_regs;
+			fregs = child->thread.fpu.hard.fp_regs;
 			fregs[addr - FPR_BASE] = data;
 			break;
 		}
@@ -233,7 +233,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			regs->lo = data;
 			break;
 		case FPC_CSR:
-			child->tss.fpu.hard.control = data;
+			child->thread.fpu.hard.control = data;
 			break;
 		default:
 			/* The rest are not allowed. */

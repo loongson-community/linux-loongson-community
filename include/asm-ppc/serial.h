@@ -7,6 +7,9 @@
 #ifdef CONFIG_APUS
 #include <asm-m68k/serial.h>
 #else
+#ifdef CONFIG_GEMINI
+#include <asm/gemini_serial.h>
+#else
 
 /*
  * This assumes you have a 1.8432 MHz clock for your UART.
@@ -16,6 +19,24 @@
  * megabits/second; but this requires the faster clock.
  */
 #define BASE_BAUD ( 1843200 / 16 )
+
+#ifdef CONFIG_PMAC
+/*
+ * Auto-probing will cause machine checks on powermacs.
+ */
+#define SERIAL_PORT_DFNS
+  
+#ifdef CONFIG_SERIAL_MANY_PORTS
+#define RS_TABLE_SIZE  64
+#else
+#define RS_TABLE_SIZE  4
+#endif
+
+#else
+#define SERIAL_PORT_DFNS
+/*
+ * PReP, CHRP, etc.
+ */
 
 /* Standard COM flags (except for COM4, because of the 8514 problem) */
 #ifdef CONFIG_SERIAL_DETECT_IRQ
@@ -120,4 +141,6 @@
 	HUB6_SERIAL_PORT_DFNS		\
 	MCA_SERIAL_PORT_DFNS
 
+#endif /* CONFIG_PMAC */
+#endif /* CONFIG_GEMINI */
 #endif /* CONFIG_APUS */

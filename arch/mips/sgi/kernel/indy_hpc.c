@@ -1,4 +1,4 @@
-/* $Id: indy_hpc.c,v 1.5 1998/08/25 09:14:48 ralf Exp $
+/* $Id: indy_hpc.c,v 1.6 1999/05/07 22:34:31 ulfc Exp $
  *
  * indy_hpc.c: Routines for generic manipulation of the HPC controllers.
  *
@@ -25,7 +25,7 @@ int sgi_has_ioc2 = 0;
 int sgi_guiness = 0;
 int sgi_boardid;
 
-__initfunc(void sgihpc_init(void))
+void __init sgihpc_init(void)
 {
 	unsigned long sid, crev, brev;
 

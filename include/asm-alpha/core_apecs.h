@@ -67,25 +67,17 @@
    make the AVANTI support pay for the limitations of the XL. It is true,
    however, that an XL kernel will run on an AVANTI without problems.
 */
-#define APECS_XL_DMA_WIN1_BASE		(64*1024*1024)
-#define APECS_XL_DMA_WIN1_SIZE		(64*1024*1024)
-#define APECS_XL_DMA_WIN1_SIZE_PARANOID	(48*1024*1024)
-#define APECS_XL_DMA_WIN2_BASE		(1024*1024*1024)
-#define APECS_XL_DMA_WIN2_SIZE		(1024*1024*1024)
+#define APECS_XL_DMA_WIN1_BASE		(64UL*1024*1024)
+#define APECS_XL_DMA_WIN1_SIZE		(64UL*1024*1024)
+#define APECS_XL_DMA_WIN1_SIZE_PARANOID	(48UL*1024*1024)
+#define APECS_XL_DMA_WIN2_BASE		(1UL*1024*1024*1024)
+#define APECS_XL_DMA_WIN2_SIZE		(1UL*1024*1024*1024)
 
 
 /* These are for normal APECS family machines, AVANTI/MUSTANG/EB64/PC64.  */
 
-#define APECS_DMA_WIN_BASE_DEFAULT	(1024*1024*1024)
-#define APECS_DMA_WIN_SIZE_DEFAULT	(1024*1024*1024)
-
-#if defined(CONFIG_ALPHA_GENERIC) || defined(CONFIG_ALPHA_SRM_SETUP)
-#define APECS_DMA_WIN_BASE		alpha_mv.dma_win_base
-#define APECS_DMA_WIN_SIZE		alpha_mv.dma_win_size
-#else
-#define APECS_DMA_WIN_BASE		APECS_DMA_WIN_BASE_DEFAULT
-#define APECS_DMA_WIN_SIZE		APECS_DMA_WIN_SIZE_DEFAULT
-#endif
+#define APECS_DMA_WIN_BASE		(1UL*1024*1024*1024)
+#define APECS_DMA_WIN_SIZE		(1UL*1024*1024*1024)
 
 
 /*
@@ -400,9 +392,9 @@ static inline unsigned long apecs_xl_virt_to_bus(void * address)
 {
 	unsigned long paddr = virt_to_phys(address);
 	if (paddr < APECS_XL_DMA_WIN1_SIZE_PARANOID)
-	  return paddr + APECS_XL_DMA_WIN1_BASE;
+		return paddr + APECS_XL_DMA_WIN1_BASE;
 	else
-	  return paddr + APECS_XL_DMA_WIN2_BASE; /* win 2 xlates to 0 also */
+		return paddr + APECS_XL_DMA_WIN2_BASE;
 }
 
 __EXTERN_INLINE void * apecs_bus_to_virt(unsigned long address)
@@ -426,12 +418,12 @@ static inline void * apecs_xl_bus_to_virt(unsigned long address)
 	 * detect null "pointers" (the NCR driver is much simpler if
 	 * NULL pointers are preserved).
 	 */
-        if (address < APECS_XL_DMA_WIN1_BASE)
-                return 0;
-        else if (address < (APECS_XL_DMA_WIN1_BASE + APECS_XL_DMA_WIN1_SIZE))
-                address -= APECS_XL_DMA_WIN1_BASE;
+	if (address < APECS_XL_DMA_WIN1_BASE)
+		return 0;
+	else if (address < (APECS_XL_DMA_WIN1_BASE + APECS_XL_DMA_WIN1_SIZE))
+		address -= APECS_XL_DMA_WIN1_BASE;
 	else /* should be more checking here, maybe? */
-                address -= APECS_XL_DMA_WIN2_BASE;
+		address -= APECS_XL_DMA_WIN2_BASE;
 	return phys_to_virt(address);
 }
 
@@ -501,6 +493,7 @@ __EXTERN_INLINE unsigned long apecs_readb(unsigned long addr)
 {
 	unsigned long result, msb;
 
+	addr -= APECS_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -514,6 +507,7 @@ __EXTERN_INLINE unsigned long apecs_readw(unsigned long addr)
 {
 	unsigned long result, msb;
 
+	addr -= APECS_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -525,18 +519,19 @@ __EXTERN_INLINE unsigned long apecs_readw(unsigned long addr)
 
 __EXTERN_INLINE unsigned long apecs_readl(unsigned long addr)
 {
-	return *(vuip) (addr + APECS_DENSE_MEM);
+	return *(vuip)addr;
 }
 
 __EXTERN_INLINE unsigned long apecs_readq(unsigned long addr)
 {
-	return *(vulp) (addr + APECS_DENSE_MEM);
+	return *(vulp)addr;
 }
 
 __EXTERN_INLINE void apecs_writeb(unsigned char b, unsigned long addr)
 {
 	unsigned long msb;
 
+	addr -= APECS_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -549,6 +544,7 @@ __EXTERN_INLINE void apecs_writew(unsigned short b, unsigned long addr)
 {
 	unsigned long msb;
 
+	addr -= APECS_DENSE_MEM;
 	if (addr >= (1UL << 24)) {
 		msb = addr & 0xf8000000;
 		addr -= msb;
@@ -559,19 +555,22 @@ __EXTERN_INLINE void apecs_writew(unsigned short b, unsigned long addr)
 
 __EXTERN_INLINE void apecs_writel(unsigned int b, unsigned long addr)
 {
-	*(vuip) (addr + APECS_DENSE_MEM) = b;
+	*(vuip)addr = b;
 }
 
 __EXTERN_INLINE void apecs_writeq(unsigned long b, unsigned long addr)
 {
-	*(vulp) (addr + APECS_DENSE_MEM) = b;
+	*(vulp)addr = b;
 }
 
-/* Find the DENSE memory area for a given bus address.  */
-
-__EXTERN_INLINE unsigned long apecs_dense_mem(unsigned long addr)
+__EXTERN_INLINE unsigned long apecs_ioremap(unsigned long addr)
 {
-	return APECS_DENSE_MEM;
+	return addr + APECS_DENSE_MEM;
+}
+
+__EXTERN_INLINE int apecs_is_ioaddr(unsigned long addr)
+{
+	return addr >= IDENT_ADDR + 0x180000000UL;
 }
 
 #undef vip
@@ -602,18 +601,18 @@ __EXTERN_INLINE unsigned long apecs_dense_mem(unsigned long addr)
 #define __writew	apecs_writew
 #define __writel	apecs_writel
 #define __writeq	apecs_writeq
-#define dense_mem	apecs_dense_mem
+#define __ioremap	apecs_ioremap
+#define __is_ioaddr	apecs_is_ioaddr
 
 #define inb(port) \
-(__builtin_constant_p((port))?__inb(port):_inb(port))
-
+  (__builtin_constant_p((port))?__inb(port):_inb(port))
 #define outb(x, port) \
-(__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
+  (__builtin_constant_p((port))?__outb((x),(port)):_outb((x),(port)))
 
-#define readl(a)	__readl((unsigned long)(a))
-#define readq(a)	__readq((unsigned long)(a))
-#define writel(v,a)	__writel((v),(unsigned long)(a))
-#define writeq(v,a)	__writeq((v),(unsigned long)(a))
+#define __raw_readl(a)		__readl((unsigned long)(a))
+#define __raw_readq(a)		__readq((unsigned long)(a))
+#define __raw_writel(v,a)	__writel((v),(unsigned long)(a))
+#define __raw_writeq(v,a)	__writeq((v),(unsigned long)(a))
 
 #endif /* __WANT_IO_DEF */
 

@@ -13,13 +13,10 @@
  * 	This driver is for PCnet32 and PCnetPCI based ethercards
  */
 
-static const char *version = "pcnet32.c:v1.21 31.3.99 tsbogend@alpha.franken.de\n";
+static const char *version = "pcnet32.c:v1.23ac 21.9.1999 tsbogend@alpha.franken.de\n";
 
 #include <linux/config.h>
 #include <linux/module.h>
-#ifdef MODVERSIONS
-#include <linux/modversions.h>
-#endif
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -44,13 +41,14 @@ static const char *version = "pcnet32.c:v1.21 31.3.99 tsbogend@alpha.franken.de\
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include <linux/spinlock.h>
 
 static unsigned int pcnet32_portlist[] __initdata = {0x300, 0x320, 0x340, 0x360, 0};
 
 static int pcnet32_debug = 1;
 
 #ifdef MODULE
-static struct device *pcnet32_dev = NULL;
+static struct net_device *pcnet32_dev = NULL;
 #endif
 
 static const int max_interrupt_work = 20;
@@ -154,6 +152,14 @@ static int full_duplex[MAX_UNITS] = {0, };
  *         rewritten PCI card detection
  *         added dwio mode to get driver working on some PPC machines
  * v1.21:  added mii selection and mii ioctl
+ * v1.22:  changed pci scanning code to make PPC people happy
+ *         fixed switching to 32bit mode in pcnet32_open() (thanks
+ *         to Michael Richard <mcr@solidum.com> for noticing this one)
+ *	   added sub vendor/device id matching (thanks again to 
+ *	   Michael Richard <mcr@solidum.com>)
+ *         added chip id for 79c973/975 (thanks to Zach Brown <zab@zabbo.net>)
+ * v1.23   fixed small bug, when manual selecting MII speed/duplex
+ * v1.23ac Added SMP spinlocking - Alan Cox <alan@redhat.com>
  */
 
 
@@ -189,6 +195,16 @@ static int full_duplex[MAX_UNITS] = {0, };
 #define PCNET32_DWIO_BDP	0x1C
 
 #define PCNET32_TOTAL_SIZE 0x20
+
+/* some PCI ids */
+#ifndef PCI_DEVICE_ID_AMD_LANCE
+#define PCI_VENDOR_ID_AMD	      0x1022
+#define PCI_DEVICE_ID_AMD_LANCE	      0x2000
+#endif
+#ifndef PCI_DEVICE_ID_AMD_PCNETHOME
+#define PCI_DEVICE_ID_AMD_PCNETHOME   0x2001
+#endif
+
 
 #define CRC_POLYNOMIAL_LE 0xedb88320UL  /* Ethernet CRC, little endian */
 
@@ -243,31 +259,32 @@ struct pcnet32_private {
     struct sk_buff *rx_skbuff[RX_RING_SIZE];
     struct pcnet32_access a;
     void *origmem;
-    int cur_rx, cur_tx;			/* The next free ring entry */
-    int dirty_rx, dirty_tx;		        /* The ring entries to be free()ed. */
+    spinlock_t lock;				/* Guard lock */
+    int cur_rx, cur_tx;				/* The next free ring entry */
+    int dirty_rx, dirty_tx;			/* The ring entries to be free()ed. */
     struct net_device_stats stats;
     char tx_full;
     int  options;
-    int  shared_irq:1,                      /* shared irq possible */
-         full_duplex:1,                     /* full duplex possible */
-         mii:1;                             /* mii port available */
+    int  shared_irq:1,                      	/* shared irq possible */
+         full_duplex:1,                     	/* full duplex possible */
+         mii:1;                             	/* mii port available */
 #ifdef MODULE
-    struct device *next;
+    struct net_device *next;
 #endif    
 };
 
-int  pcnet32_probe(struct device *);
-static int  pcnet32_probe1(struct device *, unsigned long, unsigned char, int, int);
-static int  pcnet32_open(struct device *);
-static int  pcnet32_init_ring(struct device *);
-static int  pcnet32_start_xmit(struct sk_buff *, struct device *);
-static int  pcnet32_rx(struct device *);
+int  pcnet32_probe(struct net_device *);
+static int  pcnet32_probe1(struct net_device *, unsigned long, unsigned char, int, int);
+static int  pcnet32_open(struct net_device *);
+static int  pcnet32_init_ring(struct net_device *);
+static int  pcnet32_start_xmit(struct sk_buff *, struct net_device *);
+static int  pcnet32_rx(struct net_device *);
 static void pcnet32_interrupt(int, void *, struct pt_regs *);
-static int  pcnet32_close(struct device *);
-static struct net_device_stats *pcnet32_get_stats(struct device *);
-static void pcnet32_set_multicast_list(struct device *);
+static int  pcnet32_close(struct net_device *);
+static struct net_device_stats *pcnet32_get_stats(struct net_device *);
+static void pcnet32_set_multicast_list(struct net_device *);
 #ifdef HAVE_PRIVATE_IOCTL
-static int  pcnet32_mii_ioctl(struct device *, struct ifreq *, int);
+static int  pcnet32_mii_ioctl(struct net_device *, struct ifreq *, int);
 #endif
 
 enum pci_flags_bit {
@@ -277,14 +294,19 @@ enum pci_flags_bit {
 
 struct pcnet32_pci_id_info {
     const char *name;
-    u16 vendor_id, device_id, device_id_mask, flags;
+    u16 vendor_id, device_id, svid, sdid, flags;
     int io_size;
-    int (*probe1) (struct device *, unsigned long, unsigned char, int, int);
+    int (*probe1) (struct net_device *, unsigned long, unsigned char, int, int);
 };
 
 static struct pcnet32_pci_id_info pcnet32_tbl[] = {
     { "AMD PCnetPCI series",
-	0x1022, 0x2000, 0xfffe, PCI_USES_IO|PCI_USES_MASTER, PCNET32_TOTAL_SIZE,
+	PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_LANCE, 0, 0,
+	PCI_USES_IO|PCI_USES_MASTER, PCNET32_TOTAL_SIZE,
+	pcnet32_probe1},
+    { "AMD PCnetHome series",
+	PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_PCNETHOME, 0, 0,
+	PCI_USES_IO|PCI_USES_MASTER, PCNET32_TOTAL_SIZE,
 	pcnet32_probe1},
     {0,}
 };
@@ -402,7 +424,7 @@ static struct pcnet32_access pcnet32_dwio = {
 
 
 
-int __init pcnet32_probe (struct device *dev)
+int __init pcnet32_probe (struct net_device *dev)
 {
     unsigned long ioaddr = dev ? dev->base_addr: 0;
     unsigned int  irq_line = dev ? dev->irq : 0;
@@ -423,34 +445,28 @@ int __init pcnet32_probe (struct device *dev)
     
 #if defined(CONFIG_PCI)
     if (pci_present()) {
-	struct pci_dev *pdev;
-	unsigned char pci_bus, pci_device_fn;
-	int pci_index;
+	struct pci_dev *pdev = NULL;
 	
 	printk("pcnet32.c: PCI bios is present, checking for devices...\n");
-	for (pci_index = 0; pci_index < 0xff; pci_index++) {
-	    u16 vendor, device, pci_command;
+	while ((pdev = pci_find_class (PCI_CLASS_NETWORK_ETHERNET<<8, pdev))) {
+	    u16 pci_command;
 	    int chip_idx;
+	    u16 sdid,svid;
 
-	    if (pcibios_find_class (PCI_CLASS_NETWORK_ETHERNET << 8,
-				    pci_index, &pci_bus, &pci_device_fn) != PCIBIOS_SUCCESSFUL)
-		break;
-	    
-	    pcibios_read_config_word(pci_bus, pci_device_fn, PCI_VENDOR_ID, &vendor);
-	    pcibios_read_config_word(pci_bus, pci_device_fn, PCI_DEVICE_ID, &device);
-
+	    pci_read_config_word(pdev, PCI_SUBSYSTEM_VENDOR_ID, &sdid);
+	    pci_read_config_word(pdev, PCI_SUBSYSTEM_ID, &svid);
 	    for (chip_idx = 0; pcnet32_tbl[chip_idx].vendor_id; chip_idx++)
-		if (vendor == pcnet32_tbl[chip_idx].vendor_id &&
-		    (device & pcnet32_tbl[chip_idx].device_id_mask) == pcnet32_tbl[chip_idx].device_id)
+		if ((pdev->vendor == pcnet32_tbl[chip_idx].vendor_id) &&
+		    (pdev->device == pcnet32_tbl[chip_idx].device_id) &&
+		    (pcnet32_tbl[chip_idx].svid == 0 || 
+		     (svid == pcnet32_tbl[chip_idx].svid)) &&
+		    (pcnet32_tbl[chip_idx].sdid == 0 || 
+		     (sdid == pcnet32_tbl[chip_idx].sdid)))
 		    break;
 	    if (pcnet32_tbl[chip_idx].vendor_id == 0)
 		continue;
 	    
-	    pdev = pci_find_slot(pci_bus, pci_device_fn);
-	    ioaddr = pdev->base_address[0] & PCI_BASE_ADDRESS_IO_MASK;
-#if defined(ADDR_64BITS) && defined(__alpha__)
-	    ioaddr |= ((long)pdev->base_address[1]) << 32;
-#endif
+	    ioaddr = pdev->resource[0].start;
 	    irq_line = pdev->irq;
 	    
 	    /* Avoid already found cards from previous pcnet32_probe() calls */
@@ -501,10 +517,10 @@ int __init pcnet32_probe (struct device *dev)
 
 /* pcnet32_probe1 */
 static int __init
-pcnet32_probe1(struct device *dev, unsigned long ioaddr, unsigned char irq_line, int shared, int card_idx)
+pcnet32_probe1(struct net_device *dev, unsigned long ioaddr, unsigned char irq_line, int shared, int card_idx)
 {
     struct pcnet32_private *lp;
-    int i,media,fdx = 0, mii = 0;
+    int i,media,fdx = 0, mii = 0, fset = 0;
     int chip_version;
     char *chipname;
     char *priv;
@@ -545,10 +561,14 @@ pcnet32_probe1(struct device *dev, unsigned long ioaddr, unsigned char irq_line,
 	break;
      case 0x2623:
 	chipname = "PCnet/FAST 79C971";
-	fdx = 1; mii = 1;
+	fdx = 1; mii = 1; fset = 1;
 	break;
      case 0x2624:
 	chipname = "PCnet/FAST+ 79C972";
+	fdx = 1; mii = 1; fset = 1;
+	break;
+     case 0x2625:
+	chipname = "PCnet/FAST III 79C973";
 	fdx = 1; mii = 1;
 	break;
      case 0x2626:
@@ -571,9 +591,25 @@ pcnet32_probe1(struct device *dev, unsigned long ioaddr, unsigned char irq_line,
 	    printk("pcnet32: pcnet32 media reset to %#x.\n",  media);
 	a->write_bcr (ioaddr, 49, media);
 	break;
+     case 0x2627:
+	chipname = "PCnet/FAST III 79C975";
+	fdx = 1; mii = 1;
      default:
 	printk("pcnet32: PCnet version %#x, no PCnet32 chip.\n",chip_version);
 	return ENODEV;
+    }
+
+    /*
+     *	On selected chips turn on the BCR18:NOUFLO bit. This stops transmit
+     *  starting until the packet is loaded. Strike one for reliability, lose
+     *  one for latency - although on PCI this isnt a big loss. Older chips 
+     *  have FIFO's smaller than a packet, so you can't do this.
+     */
+         
+    if(fset)
+    {
+    	a->write_bcr(ioaddr, 18, (a->read_bcr(ioaddr, 18) | 0x0800));
+	a->write_csr(ioaddr, 80, a->read_csr(ioaddr, 80) | 0x0c00);
     }
     
     dev = init_etherdev(dev, 0);
@@ -608,6 +644,9 @@ pcnet32_probe1(struct device *dev, unsigned long ioaddr, unsigned char irq_line,
 #endif
       
     memset(lp, 0, sizeof(*lp));
+    
+    spin_lock_init(&lp->lock);
+    
     dev->priv = lp;
     lp->name = chipname;
     lp->shared_irq = shared;
@@ -696,7 +735,7 @@ pcnet32_probe1(struct device *dev, unsigned long ioaddr, unsigned char irq_line,
 
 
 static int
-pcnet32_open(struct device *dev)
+pcnet32_open(struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     unsigned long ioaddr = dev->base_addr;
@@ -713,7 +752,7 @@ pcnet32_open(struct device *dev)
     lp->a.reset (ioaddr);
 
     /* switch pcnet32 to 32bit mode */
-    lp->a.write_csr (ioaddr, 20, 2);
+    lp->a.write_bcr (ioaddr, 20, 2);
 
     if (pcnet32_debug > 1)
 	printk("%s: pcnet32_open() irq %d tx/rx rings %#x/%#x init %#x.\n",
@@ -745,7 +784,7 @@ pcnet32_open(struct device *dev)
 	val |= 0x10;
     lp->a.write_csr (ioaddr, 124, val);
     
-    if (lp->mii & (lp->options & PORT_ASEL)) {
+    if (lp->mii & !(lp->options & PORT_ASEL)) {
 	val = lp->a.read_bcr (ioaddr, 32) & ~0x38; /* disable Auto Negotiation, set 10Mpbs, HD */
 	if (lp->options & PORT_FD)
 	    val |= 0x10;
@@ -804,7 +843,7 @@ pcnet32_open(struct device *dev)
  */
 
 static void 
-pcnet32_purge_tx_ring(struct device *dev)
+pcnet32_purge_tx_ring(struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     int i;
@@ -820,7 +859,7 @@ pcnet32_purge_tx_ring(struct device *dev)
 
 /* Initialize the PCNET32 Rx and Tx rings. */
 static int
-pcnet32_init_ring(struct device *dev)
+pcnet32_init_ring(struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     int i;
@@ -858,7 +897,7 @@ pcnet32_init_ring(struct device *dev)
 }
 
 static void
-pcnet32_restart(struct device *dev, unsigned int csr0_bits)
+pcnet32_restart(struct net_device *dev, unsigned int csr0_bits)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     unsigned long ioaddr = dev->base_addr;
@@ -879,7 +918,7 @@ pcnet32_restart(struct device *dev, unsigned int csr0_bits)
 }
 
 static int
-pcnet32_start_xmit(struct sk_buff *skb, struct device *dev)
+pcnet32_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     unsigned int ioaddr = dev->base_addr;
@@ -930,9 +969,7 @@ pcnet32_start_xmit(struct sk_buff *skb, struct device *dev)
 	return 1;
     }
 
-    save_flags (flags);
-    cli ();
-
+    spin_lock_irqsave(&lp->lock, flags);
     /* Fill in a Tx ring entry */
 
     /* Mask to ring buffer boundary. */
@@ -964,7 +1001,7 @@ pcnet32_start_xmit(struct sk_buff *skb, struct device *dev)
 	clear_bit (0, (void *)&dev->tbusy);
     else
 	lp->tx_full = 1;
-    restore_flags(flags);
+    spin_unlock_irqrestore(&lp->lock, flags);
     return 0;
 }
 
@@ -972,10 +1009,10 @@ pcnet32_start_xmit(struct sk_buff *skb, struct device *dev)
 static void
 pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
-    struct device *dev = (struct device *)dev_id;
+    struct net_device *dev = (struct net_device *)dev_id;
     struct pcnet32_private *lp;
     unsigned long ioaddr;
-    u16 csr0;
+    u16 csr0,rap;
     int boguscnt =  max_interrupt_work;
     int must_restart;
 
@@ -986,11 +1023,15 @@ pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 
     ioaddr = dev->base_addr;
     lp = (struct pcnet32_private *)dev->priv;
+    
+    spin_lock(&lp->lock);
+    
     if (dev->interrupt)
 	printk("%s: Re-entering the interrupt handler.\n", dev->name);
 
     dev->interrupt = 1;
 
+    rap = lp->a.read_rap(ioaddr);
     while ((csr0 = lp->a.read_csr (ioaddr, 0)) & 0x8600 && --boguscnt >= 0) {
 	/* Acknowledge all of the current interrupt sources ASAP. */
 	lp->a.write_csr (ioaddr, 0, csr0 & ~0x004f);
@@ -1092,17 +1133,20 @@ pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 
     /* Clear any other interrupt, and set interrupt enable. */
     lp->a.write_csr (ioaddr, 0, 0x7940);
-
+    lp->a.write_rap(ioaddr,rap);
+    
     if (pcnet32_debug > 4)
 	printk("%s: exiting interrupt, csr0=%#4.4x.\n",
 	       dev->name, lp->a.read_csr (ioaddr, 0));
 
     dev->interrupt = 0;
+    
+    spin_unlock(&lp->lock);
     return;
 }
 
 static int
-pcnet32_rx(struct device *dev)
+pcnet32_rx(struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     int entry = lp->cur_rx & RX_RING_MOD_MASK;
@@ -1195,7 +1239,7 @@ pcnet32_rx(struct device *dev)
 }
 
 static int
-pcnet32_close(struct device *dev)
+pcnet32_close(struct net_device *dev)
 {
     unsigned long ioaddr = dev->base_addr;
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
@@ -1241,25 +1285,24 @@ pcnet32_close(struct device *dev)
 }
 
 static struct net_device_stats *
-pcnet32_get_stats(struct device *dev)
+pcnet32_get_stats(struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;
     unsigned long ioaddr = dev->base_addr;
     u16 saved_addr;
     unsigned long flags;
 
-    save_flags(flags);
-    cli();
+    spin_lock_irqsave(&lp->lock, flags);
     saved_addr = lp->a.read_rap(ioaddr);
     lp->stats.rx_missed_errors = lp->a.read_csr (ioaddr, 112);
     lp->a.write_rap(ioaddr, saved_addr);
-    restore_flags(flags);
+    spin_unlock_irqrestore(&lp->lock, flags);
 
     return &lp->stats;
 }
 
 /* taken from the sunlance driver, which it took from the depca driver */
-static void pcnet32_load_multicast (struct device *dev)
+static void pcnet32_load_multicast (struct net_device *dev)
 {
     struct pcnet32_private *lp = (struct pcnet32_private *) dev->priv;
     volatile struct pcnet32_init_block *ib = &lp->init_block;
@@ -1311,7 +1354,7 @@ static void pcnet32_load_multicast (struct device *dev)
 /*
  * Set or clear the multicast filter for this adaptor.
  */
-static void pcnet32_set_multicast_list(struct device *dev)
+static void pcnet32_set_multicast_list(struct net_device *dev)
 {
     unsigned long ioaddr = dev->base_addr;
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;    
@@ -1331,7 +1374,7 @@ static void pcnet32_set_multicast_list(struct device *dev)
 }
 
 #ifdef HAVE_PRIVATE_IOCTL
-static int pcnet32_mii_ioctl(struct device *dev, struct ifreq *rq, int cmd)
+static int pcnet32_mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
     unsigned long ioaddr = dev->base_addr;
     struct pcnet32_private *lp = (struct pcnet32_private *)dev->priv;    
@@ -1387,7 +1430,7 @@ init_module(void)
 void
 cleanup_module(void)
 {
-    struct device *next_dev;
+    struct net_device *next_dev;
 
     /* No need to check MOD_IN_USE, as sys_delete_module() checks. */
     while (pcnet32_dev) {

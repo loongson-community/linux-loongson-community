@@ -4,22 +4,22 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: salone.c,v 1.2 1998/04/05 11:24:03 ralf Exp $
+ * $Id: salone.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <asm/sgialib.h>
 
-__initfunc(long prom_load(char *name, unsigned long end, unsigned long *pc, unsigned long *eaddr))
+long __init prom_load(char *name, unsigned long end, unsigned long *pc, unsigned long *eaddr)
 {
 	return romvec->load(name, end, pc, eaddr);
 }
 
-__initfunc(long prom_invoke(unsigned long pc, unsigned long sp, long argc, char **argv, char **envp))
+long __init prom_invoke(unsigned long pc, unsigned long sp, long argc, char **argv, char **envp)
 {
 	return romvec->invoke(pc, sp, argc, argv, envp);
 }
 
-__initfunc(long prom_exec(char *name, long argc, char **argv, char **envp))
+long __init prom_exec(char *name, long argc, char **argv, char **envp)
 {
 	return romvec->exec(name, argc, argv, envp);
 }

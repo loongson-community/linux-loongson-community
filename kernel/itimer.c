@@ -75,7 +75,7 @@ int do_getitimer(int which, struct itimerval *value)
 }
 
 /* SMP: Only we modify our itimer values. */
-asmlinkage int sys_getitimer(int which, struct itimerval *value)
+asmlinkage long sys_getitimer(int which, struct itimerval *value)
 {
 	int error = -EFAULT;
 	struct itimerval get_buffer;
@@ -149,15 +149,13 @@ int do_setitimer(int which, struct itimerval *value, struct itimerval *ovalue)
 /* SMP: Again, only we play with our itimers, and signals are SMP safe
  *      now so that is not an issue at all anymore.
  */
-asmlinkage int sys_setitimer(int which, struct itimerval *value,
-			     struct itimerval *ovalue)
+asmlinkage long sys_setitimer(int which, struct itimerval *value,
+			      struct itimerval *ovalue)
 {
 	struct itimerval set_buffer, get_buffer;
 	int error;
 
 	if (value) {
-		if(verify_area(VERIFY_READ, value, sizeof(*value)))
-			return -EFAULT;
 		if(copy_from_user(&set_buffer, value, sizeof(set_buffer)))
 			return -EFAULT;
 	} else

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: smplock.h,v 1.1 1998/08/25 09:22:02 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,7 +7,7 @@
  * Default SMP lock implementation
  */
 #include <linux/interrupt.h>
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 extern spinlock_t kernel_flag;
 

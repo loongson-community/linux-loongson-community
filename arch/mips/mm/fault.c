@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.11 1999/08/18 23:37:45 ralf Exp $
+/* $Id: fault.c,v 1.12 1999/09/28 22:25:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -55,7 +55,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	 * If we're in an interrupt or have no user
 	 * context, we must not take the fault..
 	 */
-	if (in_interrupt() || mm == &init_mm)
+	if (in_interrupt() || !mm)
 		goto no_context;
 #if 0
 	printk("[%s:%d:%08lx:%ld:%08lx]\n", current->comm, current->pid,
@@ -108,8 +108,8 @@ bad_area:
 	up(&mm->mmap_sem);
 
 	if (user_mode(regs)) {
-		tsk->tss.cp0_badvaddr = address;
-		tsk->tss.error_code = write;
+		tsk->thread.cp0_badvaddr = address;
+		tsk->thread.error_code = write;
 #if 0
 		printk("do_page_fault() #2: sending SIGSEGV to %s for illegal %s\n"
 		       "%08lx (epc == %08lx, ra == %08lx)\n",
@@ -129,7 +129,7 @@ no_context:
 	if (fixup) {
 		long new_epc;
 
-		tsk->tss.cp0_baduaddr = address;
+		tsk->thread.cp0_baduaddr = address;
 		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
 		if (development_version)
 			printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
@@ -166,7 +166,7 @@ do_sigbus:
 	 * Send a sigbus, regardless of whether we were in kernel
 	 * or user mode.
 	 */
-	tsk->tss.cp0_badvaddr = address;
+	tsk->thread.cp0_badvaddr = address;
 	force_sig(SIGBUS, tsk);
 
 	/* Kernel mode? Handle exceptions or die */

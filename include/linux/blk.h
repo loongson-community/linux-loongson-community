@@ -4,8 +4,7 @@
 #include <linux/blkdev.h>
 #include <linux/locks.h>
 #include <linux/config.h>
-
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 
 /*
  * Spinlock for protecting the request queue which
@@ -19,7 +18,7 @@ extern spinlock_t io_request_lock;
  * NOTE that writes may use only the low 2/3 of these: reads
  * take precedence.
  */
-#define NR_REQUEST	64
+#define NR_REQUEST	128
 
 /*
  * This is used in the elevator algorithm.  We don't prioritise reads
@@ -57,6 +56,7 @@ extern int ap_init(void);
 extern int ddv_init(void);
 extern int z2_init(void);
 extern int swim3_init(void);
+extern int swimiop_init(void);
 extern int amiga_floppy_init(void);
 extern int atari_floppy_init(void);
 extern int nbd_init(void);
@@ -86,6 +86,19 @@ void initrd_init(void);
 #endif
 
 		 
+/*
+ * end_request() and friends. Must be called with the request queue spinlock
+ * acquired. All functions called within end_request() _must_be_ atomic.
+ *
+ * Several drivers define their own end_request and call
+ * end_that_request_first() and end_that_request_last()
+ * for parts of the original function. This prevents
+ * code duplication in drivers.
+ */
+
+int end_that_request_first(struct request *req, int uptodate, char *name);
+void end_that_request_last(struct request *req);
+
 #if defined(MAJOR_NR) || defined(IDE_DRIVER)
 
 /*
@@ -333,24 +346,6 @@ static void floppy_off(unsigned int nr);
 #define DEVICE_ON(device)
 #define DEVICE_OFF(device)
 
-#elif (MAJOR_NR == MFM_ACORN_MAJOR)
-
-#define DEVICE_NAME "mfm disk"
-#define DEVICE_INTR do_mfm
-#define DEVICE_REQUEST do_mfm_request
-#define DEVICE_NR(device) (MINOR(device) >> 6)
-#define DEVICE_ON(device)
-#define DEVICE_OFF(device)
-
-#elif (MAJOR_NR == MFM_ACORN_MAJOR)
-
-#define DEVICE_NAME "mfm disk"
-#define DEVICE_INTR do_mfm
-#define DEVICE_REQUEST do_mfm_request
-#define DEVICE_NR(device) (MINOR(device) >> 6)
-#define DEVICE_ON(device)
-#define DEVICE_OFF(device)
-
 #elif (MAJOR_NR == NBD_MAJOR)
 
 #define DEVICE_NAME "nbd"
@@ -371,6 +366,15 @@ static void floppy_off(unsigned int nr);
 
 #define DEVICE_NAME "ida"
 #define DEVICE_INTR do_ida
+#define TIMEOUT_VALUE (25*HZ)
+#define DEVICE_REQUEST do_ida_request0
+#define DEVICE_NR(device) (MINOR(device) >> 4)
+#define DEVICE_ON(device)
+#define DEVICE_OFF(device)
+
+#elif (MAJOR_NR == COMPAQ_SMART2_MAJOR)
+
+#define DEVICE_NAME "ida"
 #define TIMEOUT_VALUE (25*HZ)
 #define DEVICE_REQUEST do_ida_request0
 #define DEVICE_NR(device) (MINOR(device) >> 4)
@@ -439,17 +443,6 @@ static void (DEVICE_REQUEST)(void);
 
 #endif /* !defined(IDE_DRIVER) */
 
-/*
- * end_request() and friends. Must be called with the request queue spinlock
- * acquired. All functions called within end_request() _must_be_ atomic.
- *
- * Several drivers define their own end_request and call end_that_request_first()
- * and end_that_request_last() for parts of the original function. This prevents
- * code duplication in drivers.
- */
-
-int end_that_request_first(struct request *req, int uptodate, char *name);
-void end_that_request_last(struct request *req);
 
 #ifndef LOCAL_END_REQUEST	/* If we have our own end_request, we do not want to include this mess */
 

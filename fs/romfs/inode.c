@@ -405,7 +405,7 @@ romfs_readpage(struct file * file, struct page * page)
 	buf = page_address(page);
 
 	/* hack? */
-	page->owner = (int)current;
+	page->owner = current;
 
 	offset = page->offset;
 	if (offset < inode->i_size) {
@@ -692,7 +692,7 @@ static struct file_system_type romfs_fs_type = {
 	NULL
 };
 
-__initfunc(int init_romfs_fs(void))
+int __init init_romfs_fs(void)
 {
 	return register_filesystem(&romfs_fs_type);
 }

@@ -22,6 +22,7 @@
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 
 #include "scsi.h"
 #include "hosts.h"
@@ -37,7 +38,6 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/idprom.h>
-#include <asm/spinlock.h>
 
 #define DEBUG_ESP
 /* #define DEBUG_ESP_HME */
@@ -671,9 +671,9 @@ static void esp_bootup_reset(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs
 	trash = eregs->esp_intrpt;
 }
 
-__initfunc(int detect_one_esp
+int __init detect_one_esp
 (Scsi_Host_Template *tpnt, struct linux_sbus_device *esp_dev, struct linux_sbus_device *espdma,
- struct linux_sbus *sbus, int id, int hme))
+ struct linux_sbus *sbus, int id, int hme)
 {
 	struct Sparc_ESP *esp, *elink;
 	struct Scsi_Host *esp_host;
@@ -1022,7 +1022,7 @@ esp_irq_acquired:
 
 #include <asm/sun4paddr.h>
 
-__initfunc(int esp_detect(Scsi_Host_Template *tpnt))
+int __init esp_detect(Scsi_Host_Template *tpnt)
 {
 	static struct linux_sbus_device esp_dev;
 	int esps_in_use = 0;
@@ -1044,7 +1044,7 @@ __initfunc(int esp_detect(Scsi_Host_Template *tpnt))
 
 #else /* !CONFIG_SUN4 */
 
-__initfunc(int esp_detect(Scsi_Host_Template *tpnt))
+int __init esp_detect(Scsi_Host_Template *tpnt)
 {
 	struct linux_sbus *sbus;
 	struct linux_sbus_device *esp_dev, *sbdev_iter;

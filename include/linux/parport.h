@@ -53,6 +53,7 @@ typedef enum {
 #define PARPORT_MODE_ECP	(1<<3) /* Hardware ECP. */
 #define PARPORT_MODE_COMPAT	(1<<4) /* Hardware 'printer protocol'. */
 #define PARPORT_MODE_DMA	(1<<5) /* Hardware can DMA. */
+#define PARPORT_MODE_SAFEININT	(1<<6) /* SPP registers accessible in IRQ. */
 
 /* IEEE1284 modes: 
    Nibble mode, byte mode, ECP, ECPRLE and EPP are their own
@@ -70,13 +71,22 @@ typedef enum {
 #define IEEE1284_MODE_EPPSWE            (1<<12) /* Software-emulated */
 #define IEEE1284_DEVICEID               (1<<2)  /* This is a flag */
 
+/* For the benefit of parport_read/write, you can use these with
+ * parport_negotiate to use address operations.  They have no effect
+ * other than to make parport_read/write use address transfers. */
+#define IEEE1284_ADDR			(1<<13)	/* This is a flag */
+#define IEEE1284_DATA			 0	/* So is this */
+
+/* Flags for block transfer operations. */
+#define PARPORT_EPP_FAST		(1<<0) /* Unreliable counts. */
+
 /* The rest is for the kernel only */
 #ifdef __KERNEL__
 
 #include <linux/wait.h>
+#include <linux/spinlock.h>
 #include <asm/system.h>
 #include <asm/ptrace.h>
-#include <asm/spinlock.h>
 #include <asm/semaphore.h>
 #include <linux/proc_fs.h>
 #include <linux/config.h>
@@ -138,15 +148,12 @@ struct parport_operations {
 	void (*data_reverse) (struct parport *);
 
 	/* For core parport code. */
-	void (*interrupt)(int, void *, struct pt_regs *); /* ? */
-
 	void (*init_state)(struct pardevice *, struct parport_state *);
 	void (*save_state)(struct parport *, struct parport_state *);
 	void (*restore_state)(struct parport *, struct parport_state *);
 
 	void (*inc_use_count)(void);
 	void (*dec_use_count)(void);
-	void (*fill_inode)(struct inode *inode, int fill); /* ? */
 
 	/* Block read/write */
 	size_t (*epp_write_data) (struct parport *port, const void *buf,
@@ -484,7 +491,8 @@ extern void dec_parport_count(void);
 extern void inc_parport_count(void);
 
 /* If PC hardware is the only type supported, we can optimise a bit.  */
-#if (defined(CONFIG_PARPORT_PC) || defined(CONFIG_PARPORT_PC_MODULE)) && !(defined(CONFIG_PARPORT_AX) || defined(CONFIG_PARPORT_AX_MODULE)) && !(defined(CONFIG_PARPORT_ARC) || defined(CONFIG_PARPORT_ARC_MODULE)) && !(defined(CONFIG_PARPORT_AMIGA) || defined(CONFIG_PARPORT_AMIGA_MODULE)) && !(defined(CONFIG_PARPORT_MFC3) || defined(CONFIG_PARPORT_MFC3_MODULE)) && !(defined(CONFIG_PARPORT_ATARI) || defined(CONFIG_PARPORT_ATARI_MODULE)) && !defined(CONFIG_PARPORT_OTHER)
+#if (defined(CONFIG_PARPORT_PC) || defined(CONFIG_PARPORT_PC_MODULE)) && !(defined(CONFIG_PARPORT_ARC) || defined(CONFIG_PARPORT_ARC_MODULE)) && !(defined(CONFIG_PARPORT_AMIGA) || defined(CONFIG_PARPORT_AMIGA_MODULE)) && !(defined(CONFIG_PARPORT_MFC3) || defined(CONFIG_PARPORT_MFC3_MODULE)) && !(defined(CONFIG_PARPORT_ATARI) || defined(CONFIG_PARPORT_ATARI_MODULE)) && !(defined(CONFIG_USB_USS720) || defined(CONFIG_USB_USS720_MODULE)) && !(defined(CONFIG_PARPORT_SUNBPP) || defined(CONFIG_PARPORT_SUNBPP_MODULE)) && !defined(CONFIG_PARPORT_OTHER)
+
 #undef PARPORT_NEED_GENERIC_OPS
 #include <linux/parport_pc.h>
 #define parport_write_data(p,x)            parport_pc_write_data(p,x)

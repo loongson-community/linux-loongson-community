@@ -21,6 +21,8 @@
 
 #define STACK_MAGIC	0xdeadbeef
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
 #define	KERN_EMERG	"<0>"	/* system is unusable			*/
 #define	KERN_ALERT	"<1>"	/* action must be taken immediately	*/
 #define	KERN_CRIT	"<2>"	/* critical conditions			*/
@@ -50,6 +52,8 @@ extern unsigned long simple_strtoul(const char *,char **,unsigned int);
 extern long simple_strtol(const char *,char **,unsigned int);
 extern int sprintf(char * buf, const char * fmt, ...);
 extern int vsprintf(char *buf, const char *, va_list);
+extern int get_option(char **str, int *pint);
+extern char *get_options(char *str, int nints, int *ints);
 
 extern int session_of_pgrp(int pgrp);
 
@@ -90,7 +94,9 @@ struct sysinfo {
 	unsigned long totalswap;	/* Total swap space size */
 	unsigned long freeswap;		/* swap space still available */
 	unsigned short procs;		/* Number of current processes */
-	char _f[22];			/* Pads structure to 64 bytes */
+	unsigned long totalbig;		/* Total big memory size */
+	unsigned long freebig;		/* Available big memory size */
+	char _f[20-2*sizeof(long)];	/* Padding: libc5 uses this.. */
 };
 
 #endif

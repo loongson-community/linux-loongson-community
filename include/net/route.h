@@ -38,11 +38,7 @@
 #define RTO_ONLINK	0x01
 #define RTO_TPROXY	0x80000000
 
-#ifdef CONFIG_IP_TRANSPARENT_PROXY
-#define RTO_CONN	RTO_TPROXY
-#else
 #define RTO_CONN	0
-#endif
 
 struct rt_key
 {
@@ -100,11 +96,11 @@ extern rwlock_t ip_rt_acct_lock;
 
 extern void		ip_rt_init(void);
 extern void		ip_rt_redirect(u32 old_gw, u32 dst, u32 new_gw,
-				       u32 src, u8 tos, struct device *dev);
+				       u32 src, u8 tos, struct net_device *dev);
 extern void		ip_rt_advice(struct rtable **rp, int advice);
 extern void		rt_cache_flush(int how);
 extern int		ip_route_output(struct rtable **, u32 dst, u32 src, u32 tos, int oif);
-extern int		ip_route_input(struct sk_buff*, u32 dst, u32 src, u8 tos, struct device *devin);
+extern int		ip_route_input(struct sk_buff*, u32 dst, u32 src, u8 tos, struct net_device *devin);
 extern unsigned short	ip_rt_frag_needed(struct iphdr *iph, unsigned short new_mtu);
 extern void		ip_rt_update_pmtu(struct dst_entry *dst, unsigned mtu);
 extern void		ip_rt_send_redirect(struct sk_buff *skb);

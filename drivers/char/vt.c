@@ -62,7 +62,7 @@ struct vt_struct *vt_cons[MAX_NR_CONSOLES];
 unsigned char keyboard_type = KB_101;
 
 #if !defined(__alpha__) && !defined(__mips__)
-asmlinkage int sys_ioperm(unsigned long from, unsigned long num, int on);
+asmlinkage long sys_ioperm(unsigned long from, unsigned long num, int on);
 #endif
 
 unsigned int video_font_height;
@@ -670,7 +670,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	case KDSIGACCEPT:
 	{
 		extern int spawnpid, spawnsig;
-		if (!perm)
+		if (!perm || !capable(CAP_KILL))
 		  return -EPERM;
 		if (arg < 1 || arg > _NSIG || arg == SIGKILL)
 		  return -EINVAL;
@@ -1113,7 +1113,7 @@ int vt_waitactive(int vt)
 
 	add_wait_queue(&vt_activate_queue, &wait);
 	for (;;) {
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		retval = 0;
 		if (vt == fg_console)
 			break;

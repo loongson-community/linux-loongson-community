@@ -33,15 +33,22 @@ SECTIONS
 
   .bss : { *(.bss) }		/* BSS */
 
-  _edata = .;			/* End of data section */
-
   . = ALIGN(16);
   .data.cacheline_aligned : { *(.data.cacheline_aligned) }
+
+  _edata = .;			/* End of data section */
 
   . = ALIGN(4096);		/* Init code and data */
   __init_begin = .;
   .text.init : { *(.text.init) }
   .data.init : { *(.data.init) }
+  . = ALIGN(16);
+  __setup_start = .;
+  .setup.init : { *(.setup.init) }
+  __setup_end = .;
+  __initcall_start = .;
+  .initcall.init : { *(.initcall.init) }
+  __initcall_end = .;
   . = ALIGN(8192);
   __init_end = .;
 

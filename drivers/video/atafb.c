@@ -2745,14 +2745,14 @@ atafb_blank(int blank, struct fb_info *info)
 		do_install_cmap(currcon, info);
 }
 
-__initfunc(void atafb_init(void))
+int __init atafb_init(void)
 {
 	int pad;
 	int detected_mode;
 	unsigned long mem_req;
 
 	if (!MACH_IS_ATARI)
-	        return;
+	        return -ENXIO;
 
 	do {
 #ifdef ATAFB_EXT
@@ -2828,9 +2828,12 @@ __initfunc(void atafb_init(void))
 		/* Map the video memory (physical address given) to somewhere
 		 * in the kernel address space.
 		 */
-		external_addr = ioremap_writethrough(external_addr, external_len);
+		external_addr =
+		  ioremap_writethrough((unsigned long)external_addr,
+				       external_len);
 		if (external_vgaiobase)
-			external_vgaiobase = ioremap(external_vgaiobase, 0x10000 );
+			external_vgaiobase =
+			  (unsigned long)ioremap(external_vgaiobase, 0x10000);
 		screen_base      =
 		real_screen_base = external_addr;
 		screen_len       = external_len & PAGE_MASK;
@@ -2855,7 +2858,7 @@ __initfunc(void atafb_init(void))
 	do_install_cmap(0, &fb_info);
 
 	if (register_framebuffer(&fb_info) < 0)
-		return;
+		return -EINVAL;
 
 	printk("Determined %dx%d, depth %d\n",
 	       disp.var.xres, disp.var.yres, disp.var.bits_per_pixel);
@@ -2868,6 +2871,8 @@ __initfunc(void atafb_init(void))
 
 	/* TODO: This driver cannot be unloaded yet */
 	MOD_INC_USE_COUNT;
+
+	return 0;
 }
 
 /* a strtok which returns empty strings, too */
@@ -2892,7 +2897,7 @@ static char * strtoke(char * s,const char * ct)
   return sbegin;
 }
 
-__initfunc(void atafb_setup( char *options, int *ints ))
+int __init atafb_setup( char *options )
 {
     char *this_opt;
     int temp;
@@ -2907,7 +2912,7 @@ __initfunc(void atafb_setup( char *options, int *ints ))
 	fb_info.fontname[0] = '\0';
 
     if (!options || !*options)
-		return;
+		return 0;
      
     for(this_opt=strtok(options,","); this_opt; this_opt=strtok(NULL,",")) {
 	if (!*this_opt) continue;
@@ -3069,7 +3074,7 @@ __initfunc(void atafb_setup( char *options, int *ints ))
 	external_yres  = yres;
 	external_depth = depth;
 	external_pmode = planes;
-	external_addr  = addr;
+	external_addr  = (void *)addr;
 	external_len   = len;
 		
 	if (external_card_type == IS_MV300)
@@ -3143,13 +3148,13 @@ __initfunc(void atafb_setup( char *options, int *ints ))
 	  user_invalid:
 		;
 	}
+	return 0;
 }
 
 #ifdef MODULE
 int init_module(void)
 {
-	atafb_init();
-	return 0;
+	return atafb_init();
 }
 
 void cleanup_module(void)

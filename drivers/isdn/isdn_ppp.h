@@ -1,4 +1,4 @@
-/* $Id: isdn_ppp.h,v 1.13 1998/03/22 18:50:50 hipp Exp $
+/* $Id: isdn_ppp.h,v 1.14 1999/08/22 20:26:10 calle Exp $
 
  * header for Linux ISDN subsystem, functions for synchronous PPP (linklevel).
  *
@@ -19,6 +19,12 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * $Log: isdn_ppp.h,v $
+ * Revision 1.14  1999/08/22 20:26:10  calle
+ * backported changes from kernel 2.3.14:
+ * - several #include "config.h" gone, others come.
+ * - "struct device" changed to "struct net_device" in 2.3.14, added a
+ *   define in isdn_compat.h for older kernel versions.
+ *
  * Revision 1.13  1998/03/22 18:50:50  hipp
  * Added BSD Compression for syncPPP .. UNTESTED at the moment
  *
@@ -78,9 +84,9 @@ extern int isdn_ppp_init(void);
 extern void isdn_ppp_cleanup(void);
 extern int isdn_ppp_free(isdn_net_local *);
 extern int isdn_ppp_bind(isdn_net_local *);
-extern int isdn_ppp_xmit(struct sk_buff *, struct device *);
+extern int isdn_ppp_xmit(struct sk_buff *, struct net_device *);
 extern void isdn_ppp_receive(isdn_net_dev *, isdn_net_local *, struct sk_buff *);
-extern int isdn_ppp_dev_ioctl(struct device *, struct ifreq *, int);
+extern int isdn_ppp_dev_ioctl(struct net_device *, struct ifreq *, int);
 extern unsigned int isdn_ppp_poll(struct file *, struct poll_table_struct *);
 extern int isdn_ppp_ioctl(int, struct file *, unsigned int, unsigned long);
 extern void isdn_ppp_release(int, struct file *);

@@ -7,7 +7,7 @@
  * Copyright (C) 1998 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  *
- * $Id: r2300.c,v 1.8 1999/04/11 17:13:56 harald Exp $
+ * $Id: r2300.c,v 1.10 1999/08/09 19:43:16 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -121,7 +121,7 @@ static void r2300_copy_page(unsigned long to, unsigned long from)
 		 "I" (PAGE_SIZE));
 }
 
-__initfunc(static unsigned long size_cache(unsigned long ca_flags))
+static unsigned long __init size_cache(unsigned long ca_flags)
 {
 	unsigned long flags, status, dummy, size;
 	volatile unsigned long *p;
@@ -155,13 +155,13 @@ __initfunc(static unsigned long size_cache(unsigned long ca_flags))
 	return size * sizeof(*p);
 }
 
-__initfunc(static void probe_dcache(void))
+static void __init probe_dcache(void)
 {
 	dcache.size = size_cache(dcache.ca_flags = ST0_DE);
 	printk("Data cache %dkb\n", dcache.size >> 10);
 }
 
-__initfunc(static void probe_icache(void))
+static void __init probe_icache(void)
 {
 	icache.size = size_cache(icache.ca_flags = ST0_DE|ST0_CE);
 	printk("Instruction cache %dkb\n", icache.size >> 10);
@@ -457,7 +457,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 #endif
 		save_and_cli(flags);
 		get_new_mmu_context(mm, asid_cache);
-	if(mm == current->mm)
+		if (mm == current->active_mm)
 			set_entryhi(mm->context & 0xfc0);
 		restore_flags(flags);
 	}
@@ -466,7 +466,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				  unsigned long end)
 {
-	if(mm->context != 0) {
+	if (mm->context != 0) {
 		unsigned long flags;
 		int size;
 
@@ -499,7 +499,7 @@ void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			set_entryhi(oldpid);
 		} else {
 			get_new_mmu_context(mm, asid_cache);
-	if(mm == current->mm)
+			if (mm == current->active_mm)
 				set_entryhi(mm->context & 0xfc0);
 		}
 		restore_flags(flags);
@@ -669,7 +669,7 @@ printk("r2300_add_wired_entry");
 	 */
 }
 
-__initfunc(void ld_mmu_r2300(void))
+void __init ld_mmu_r2300(void)
 {
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 

@@ -1,4 +1,4 @@
-/* $Id: loadmmu.c,v 1.50 1998/02/05 14:19:02 jj Exp $
+/* $Id: loadmmu.c,v 1.51 1999/08/31 06:54:35 davem Exp $
  * loadmmu.c:  This code loads up all the mm function pointers once the
  *             machine type has been determined.  It also sets the static
  *             mmu values such as PAGE_NONE, etc.
@@ -31,7 +31,7 @@ unsigned int pg_iobits;
 extern void ld_mmu_sun4c(void);
 extern void ld_mmu_srmmu(void);
 
-__initfunc(void load_mmu(void))
+void __init load_mmu(void)
 {
 	switch(sparc_cpu_model) {
 	case sun4c:

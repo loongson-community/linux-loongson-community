@@ -61,7 +61,7 @@ running, the suggested command should tell you.
 - Bash                   1.14.7                  ; bash -version
 - Ncpfs                  2.2.0                   ; ncpmount -v
 - Pcmcia-cs              3.0.7                   ; cardmgr -V
-- PPP                    2.3.5                   ; pppd --version
+- PPP                    2.3.9                   ; pppd --version
 - Util-linux             2.9i                    ; chsh -v
 
 Upgrade notes
@@ -238,13 +238,12 @@ are you need to upgrade to a more recent net-tools that understands the
 new /proc/net/dev format.  This will also provide support for new
 features like IPv6.
 
-   As of 2.1.102, the IP firewalling code has been replaced; ipfwadm
-will no longer work.  You need to obtain "ipchains," available from
-http://www.rustcorp.com/linux/ipchains/ , and use that instead of
-ipfwadm.
-
-   To use masq forwarding you will need to obtain "ipmasqadm,"
-available from http://juanjox.linuxhq.com/ .
+   The IP firewalling and NAT code has been replaced again.  The
+actual modules (including ipfwadm and ipchains backwards-compatibility
+modules) are currently distributed separately: see
+	http://antarctica.penguincomputing.com/~netfilter/
+	http://www.samba.org/netfilter/
+	http://netfilter.kernelnotes.org
 
    DHCP clients for 2.0 do not work with the new networking code in the
 2.2 kernel.  You will need to upgrade your dhcpcd / dhcpclient.
@@ -390,8 +389,8 @@ support utils to the latest release of pcmcia-cs.
 PPP
 ===
 
-   Due to changes in the routing code, those of you using PPP
-networking will need to upgrade your pppd.
+   Due to changes in the PPP driver and routing code, those of you
+using PPP networking will need to upgrade your pppd.
 
 iBCS
 ====
@@ -420,9 +419,16 @@ PCI utils
 =========
 
    Linux PCI utils are available; these include lspci, which displays
-the detailed information about your system's PCI devices which used to
-be in /proc/pci, and setpci, which allws you to read and write
-configuration registers on your PCI devices.
+detailed information about your system's PCI devices (much more than
+the basic things in /proc/pci), and setpci, which allows you to read
+and write PCI configuration registers of your devices.
+
+Powertweak
+==========
+
+   The PCI Bridge Optimization has been removed from the kernel. If you
+think your BIOS does a poor job when setting up your chipset, there
+is a utility called PowerTweak whose job is to tune chipset parameters.
 
 Xosview
 =======
@@ -689,8 +695,8 @@ ftp://metalab.unc.edu/pub/Linux/system/serial/setserial-2.15.tar.gz
 PPP
 ===
 
-The 2.3.5 release:
-ftp://cs.anu.edu.au/pub/software/ppp/ppp-2.3.5.tar.gz
+The 2.3.9 release:
+ftp://cs.anu.edu.au/pub/software/ppp/ppp-2.3.9.tar.gz
 
 IP Chains
 =========
@@ -735,9 +741,16 @@ http://www.cs.kuleuven.ac.be/~geert/bin/fbset-2.0-pre-19981104.tar.gz
 PCI utils
 =========
 
-The 1.09 release:
-ftp://atrey.karlin.mff.cuni.cz/pub/linux/pci/pciutils-1.09.tar.gz
-ftp://metalab.unc.edu/pub/Linux/hardware/pciutils-1.09.tar.gz
+The 2.0 release:
+ftp://atrey.karlin.mff.cuni.cz/pub/linux/pci/pciutils-2.0.tar.gz
+ftp://metalab.unc.edu/pub/Linux/hardware/pciutils-2.0.tar.gz
+
+Powertweak
+==========
+
+The 0.1.2 release:
+http://linux.powertweak.com/files/powertweak-0.1.2.tgz
+ftp://atrey.karlin.mff.cuni.cz/pub/linux/pci/powertweak/powertweak-0.1.2.tgz
 
 Tunelp
 ======

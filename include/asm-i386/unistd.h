@@ -196,7 +196,7 @@
 #define __NR_putpmsg		189	/* some people actually want streams */
 #define __NR_vfork		190
 
-/* user-visible error numbers are in the range -1 - -122: see <asm-i386/errno.h> */
+/* user-visible error numbers are in the range -1 - -124: see <asm-i386/errno.h> */
 
 #define __syscall_return(type, res) \
 do { \
@@ -287,7 +287,6 @@ __syscall_return(type,__res); \
  * some others too.
  */
 #define __NR__exit __NR_exit
-static inline _syscall0(int,idle)
 static inline _syscall0(int,pause)
 static inline _syscall0(int,sync)
 static inline _syscall0(pid_t,setsid)

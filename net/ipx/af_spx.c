@@ -36,10 +36,9 @@
 #include <asm/uaccess.h>
 #include <linux/uio.h>
 #include <linux/unistd.h>
-#include <linux/firewall.h>
 
 static struct proto_ops *ipx_operations;
-static struct proto_ops spx_operations;
+static struct proto_ops spx_ops;
 static __u16  connids;
 
 /* Functions needed for SPX connection start up */
@@ -96,7 +95,7 @@ static int spx_create(struct socket *sock, int protocol)
 	switch(sock->type)
         {
                 case SOCK_SEQPACKET:
-			sock->ops = &spx_operations;
+			sock->ops = &spx_ops;
 			break;
 		default:
 			sk_free(sk);
@@ -114,10 +113,6 @@ static int spx_create(struct socket *sock, int protocol)
 	return (0);
 }
 
-static int spx_shutdown(struct socket *sk,int how)
-{
-        return (-EOPNOTSUPP);
-}
 
 void spx_close_socket(struct sock *sk)
 {
@@ -149,7 +144,7 @@ void spx_destroy_socket(struct sock *sk)
 }
 
 /* Release an SPX socket */
-static int spx_release(struct socket *sock, struct socket *peer)
+static int spx_release(struct socket *sock)
 {
  	struct sock *sk = sock->sk;
 	struct spx_opt *pdata = &sk->tp_pinfo.af_spx;
@@ -185,10 +180,6 @@ static int spx_listen(struct socket *sock, int backlog)
         if(sk->zapped != 0)
                 return (-EAGAIN);
 
-        if((unsigned) backlog == 0)     /* BSDism */
-                backlog = 1;
-        if((unsigned) backlog > SOMAXCONN)
-                backlog = SOMAXCONN;
         sk->max_ack_backlog = backlog;
         if(sk->state != TCP_LISTEN)
         {
@@ -207,10 +198,6 @@ static int spx_accept(struct socket *sock, struct socket *newsock, int flags)
         struct sock *newsk;
         struct sk_buff *skb;
 	int err;
-
-	if(newsock->sk != NULL)
-		spx_destroy_socket(newsock->sk);
-        newsock->sk = NULL;
 
 	if(sock->sk == NULL)
 		return (-EINVAL);
@@ -847,9 +834,8 @@ static int spx_getsockopt(struct socket *sock, int level, int optname,
 	return (err);
 }
 
-static struct proto_ops spx_operations = {
+static struct proto_ops SOCKOPS_WRAPPED(spx_ops) = {
         PF_IPX,
-        sock_no_dup,
         spx_release,
         spx_bind,
         spx_connect,
@@ -859,13 +845,18 @@ static struct proto_ops spx_operations = {
         datagram_poll,  /* this does seqpacket too */
 	spx_ioctl,
         spx_listen,
-        spx_shutdown,
+        sock_no_shutdown,
 	spx_setsockopt,
 	spx_getsockopt,
         sock_no_fcntl,
         spx_sendmsg,
-        spx_recvmsg
+        spx_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(spx, PF_IPX);
+
 
 static struct net_proto_family spx_family_ops=
 {

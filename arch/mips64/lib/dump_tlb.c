@@ -103,9 +103,11 @@ dump_list_process(struct task_struct *t, void *address)
 
 	addr = (unsigned long) address;
 
-	printk("Addr              == %08lx\n", addr);
-	printk("tasks->tss.pg_dir == %08lx\n", (unsigned long) t->tss.pg_dir);
-	printk("tasks->mm.pgd     == %08lx\n", (unsigned long) t->mm->pgd);
+	printk("Addr                 == %08lx\n", addr);
+	printk("tasks->thread.pg_dir == %08lx\n",
+	       (unsigned long) t->thread.pg_dir);
+	printk("tasks->mm.pgd        == %08lx\n",
+	       (unsigned long) t->mm->pgd);
 
 	page_dir = pgd_offset(t->mm, 0);
 	printk("page_dir == %08lx\n", (unsigned long) page_dir);

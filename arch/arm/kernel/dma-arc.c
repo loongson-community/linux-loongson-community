@@ -15,8 +15,11 @@
 
 #include "dma.h"
 
+#define DEBUG
+
 int arch_request_dma(dmach_t channel, dma_t *dma, const char * dev_id)
 {
+  printk("arch_request_dma channel=%d F0=%d F1=%d\n",channel,DMA_VIRTUAL_FLOPPY0,DMA_VIRTUAL_FLOPPY1);
 	if (channel == DMA_VIRTUAL_FLOPPY0 ||
 	    channel == DMA_VIRTUAL_FLOPPY1)
 		return 0;
@@ -30,8 +33,9 @@ void arch_free_dma(dmach_t channel, dma_t *dma)
 
 void arch_enable_dma(dmach_t channel, dma_t *dma)
 {
+  printk("arch_enable_dma channel=%d F0=%d F1=%d\n",channel,DMA_VIRTUAL_FLOPPY0,DMA_VIRTUAL_FLOPPY1);
 	switch (channel) {
-#ifdef CONFIG_BLK_DEV_FD
+#ifdef CONFIG_BLK_DEV_FD1772
 	case DMA_VIRTUAL_FLOPPY0: { /* Data DMA */
 		switch (dma->dma_mode) {
 		case DMA_MODE_READ: /* read */
@@ -100,7 +104,7 @@ void arch_enable_dma(dmach_t channel, dma_t *dma)
 int arch_get_dma_residue(dmach_t channel, dma_t *dma)
 {
   switch (channel) {
-#ifdef CONFIG_BLK_DEV_FD
+#ifdef CONFIG_BLK_DEV_FD1772
     case DMA_VIRTUAL_FLOPPY0: { /* Data DMA */
         extern unsigned int fdc1772_bytestogo;
 
@@ -139,7 +143,7 @@ int arch_set_dma_speed(dmach_t channel, dma_t *dma, int cycle_ns)
 	return 0;
 }
 
-__initfunc(void arch_dma_init(dma_t *dma))
+void __init arch_dma_init(dma_t *dma)
 {
 	dma[DMA_VIRTUAL_FLOPPY0].dma_irq = 64;
 	dma[DMA_VIRTUAL_FLOPPY1].dma_irq = 65;

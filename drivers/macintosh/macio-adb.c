@@ -14,7 +14,7 @@
 #include <asm/hydra.h>
 #include <asm/irq.h>
 #include <asm/system.h>
-#include <asm/init.h>
+#include <linux/init.h>
 
 struct preg {
 	unsigned char r;
@@ -73,8 +73,6 @@ static struct adb_controller	macio_controller = {
 	macio_adb_reset_bus,
 	macio_adb_poll
 };
-
-__openfirmware
 
 void macio_adb_init(void)
 {

@@ -380,9 +380,7 @@ static char noaccel __initdata = 0;
 #if defined(CONFIG_PPC)
 static signed char init_vmode __initdata = -1, init_cmode __initdata = -1;
 #endif
-#ifdef MODULE
 static struct fb_info_imstt *fb_info_imstt_p[FB_MAX] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-#endif
 
 static struct imstt_regvals tvp_reg_init_2 = {
 	512,
@@ -967,8 +965,8 @@ out:
 	add_timer(&c->timer);
 }
 
-__initfunc(static void
-imstt_cursor_init (struct fb_info_imstt *p))
+static void __init 
+imstt_cursor_init (struct fb_info_imstt *p)
 {
 	struct imstt_cursor *c = &p->cursor;
 
@@ -1728,8 +1726,8 @@ imsttfbcon_blank (int blank, struct fb_info *info)
 	out_le32(&p->dc_regs[STGCTL], ctrl);
 }
 
-__initfunc(static void
-init_imstt(struct fb_info_imstt *p))
+static void __init 
+init_imstt(struct fb_info_imstt *p)
 {
 	__u32 i, tmp;
 	__u32 *ip, *end;
@@ -1799,10 +1797,10 @@ init_imstt(struct fb_info_imstt *p))
 	}
 
 	sprintf(p->fix.id, "IMS TT (%s)", p->ramdac == IBM ? "IBM" : "TVP");
-	p->fix.smem_start = (__u8 *)p->frame_buffer_phys;
+	p->fix.smem_start = p->frame_buffer_phys;
 	p->fix.smem_len = p->total_vram;
-	p->fix.mmio_start = (__u8 *)p->dc_regs_phys;
-	p->fix.mmio_len = 0x40000;
+	p->fix.mmio_start = p->dc_regs_phys;
+	p->fix.mmio_len = 0x1000;
 	p->fix.accel = FB_ACCEL_IMS_TWINTURBO;
 	p->fix.type = FB_TYPE_PACKED_PIXELS;
 	p->fix.visual = p->disp.var.bits_per_pixel == 8 ? FB_VISUAL_PSEUDOCOLOR
@@ -1853,9 +1851,7 @@ init_imstt(struct fb_info_imstt *p))
 	printk("fb%u: %s frame buffer; %uMB vram; chip version %u\n",
 		i, p->fix.id, p->total_vram >> 20, tmp);
 
-#ifdef MODULE
 	fb_info_imstt_p[i] = p;
-#endif
 #ifdef CONFIG_FB_COMPAT_XPMAC
 	strncpy(display_info.name, "IMS,tt128mb", sizeof(display_info.name));
 	display_info.fb_address = (__u32)p->frame_buffer_phys;
@@ -1868,8 +1864,8 @@ init_imstt(struct fb_info_imstt *p))
 }
 
 #if defined(CONFIG_FB_OF) && !defined(MODULE)
-__initfunc(void
-imsttfb_of_init(struct device_node *dp))
+void __init 
+imsttfb_of_init(struct device_node *dp)
 {
 	struct fb_info_imstt *p;
 	int i;
@@ -1912,9 +1908,10 @@ imsttfb_of_init(struct device_node *dp))
 }
 #endif
 
-__initfunc(void
-imsttfb_init(void))
+int __init 
+imsttfb_init(void)
 {
+	int i;
 #if defined(CONFIG_FB_OF) && !defined(MODULE)
 	/* We don't want to be called like this. */
 	/* We rely on Open Firmware (offb) instead. */
@@ -1935,13 +1932,13 @@ imsttfb_init(void))
 			pci_write_config_word(pdev, PCI_COMMAND, cmd);
 		}
 
-		addr = pdev->base_address[0] & PCI_BASE_ADDRESS_MEM_MASK;
+		addr = pdev->resource[0].start;
 		if (!addr)
 			continue;
 
 		p = kmalloc(sizeof(struct fb_info_imstt), GFP_ATOMIC);
 		if (!p)
-			return;
+			continue;
 		memset(p, 0, sizeof(struct fb_info_imstt));
 
 		printk("imsttfb: device=%04x\n", pdev->device);
@@ -1966,16 +1963,21 @@ imsttfb_init(void))
 		init_imstt(p);
 	}
 #endif /* CONFIG_PCI */
+	for (i = 0; i < FB_MAX; i++) {
+		if (fb_info_imstt_p[i])
+			return 0;
+	}
+	return -ENXIO;
 }
 
 #ifndef MODULE
-__initfunc(void
-imsttfb_setup(char *options, int *ints))
+int __init 
+imsttfb_setup(char *options)
 {
 	char *this_opt;
 
 	if (!options || !*options)
-		return;
+		return 0;
 
 	for (this_opt = strtok(options, ","); this_opt;
 	     this_opt = strtok(NULL, ",")) {
@@ -2020,25 +2022,16 @@ imsttfb_setup(char *options, int *ints))
 		}
 #endif
 	}
+	return 0;
 }
 
 #else /* MODULE */
 
-int
+int __init
 init_module (void)
 {
-	struct fb_info_imstt *p;
-	__u32 i;
 
-	imsttfb_init();
-
-	for (i = 0; i < FB_MAX; i++) {
-		p = fb_info_imstt_p[i];
-		if (p)
-			return 0;
-	}
-
-	return -ENXIO;
+	return imsttfb_init();
 }
 
 void

@@ -173,12 +173,12 @@ show_mem(void)
 
 extern unsigned long free_area_init(unsigned long, unsigned long);
 
-static inline struct thread_struct *
+static inline unsigned long
 load_PCB(struct thread_struct * pcb)
 {
 	register unsigned long sp __asm__("$30");
 	pcb->ksp = sp;
-	return __reload_tss(pcb);
+	return __reload_thread(pcb);
 }
 
 /*
@@ -192,7 +192,7 @@ paging_init(unsigned long start_mem, unsigned long end_mem)
 	unsigned long newptbr;
 	struct memclust_struct * cluster;
 	struct memdesc_struct * memdesc;
-	struct thread_struct *original_pcb_ptr;
+	unsigned long original_pcb_ptr;
 
 	/* initialize mem_map[] */
 	start_mem = free_area_init(start_mem, end_mem);
@@ -233,10 +233,10 @@ paging_init(unsigned long start_mem, unsigned long end_mem)
 	}
 
 	/* Also set up the real kernel PCB while we're at it.  */
-	init_task.tss.ptbr = newptbr;
-	init_task.tss.pal_flags = 1;	/* set FEN, clear everything else */
-	init_task.tss.flags = 0;
-	original_pcb_ptr = load_PCB(&init_task.tss);
+	init_task.thread.ptbr = newptbr;
+	init_task.thread.pal_flags = 1;	/* set FEN, clear everything else */
+	init_task.thread.flags = 0;
+	original_pcb_ptr = load_PCB(&init_task.thread);
 	tbia();
 
 	/* Save off the contents of the original PCB so that we can
@@ -246,11 +246,11 @@ paging_init(unsigned long start_mem, unsigned long end_mem)
 	   since KSEG values also happen to work, folks get confused.
 	   Check this here.  */
 
-	if ((unsigned long)original_pcb_ptr < PAGE_OFFSET) {
-		original_pcb_ptr = (struct thread_struct *)
-		  phys_to_virt((unsigned long) original_pcb_ptr);
+	if (original_pcb_ptr < PAGE_OFFSET) {
+		original_pcb_ptr = (unsigned long)
+			phys_to_virt(original_pcb_ptr);
 	}
-	original_pcb = *original_pcb_ptr;
+	original_pcb = *(struct thread_struct *) original_pcb_ptr;
 
 	return start_mem;
 }

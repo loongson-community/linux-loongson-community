@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.20 1999/08/04 14:54:04 ulfc Exp $
+/* $Id: irixelf.c,v 1.21 1999/09/28 22:25:46 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -45,15 +45,13 @@
 
 static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs);
 static int load_irix_library(int fd);
-static int irix_core_dump(long signr, struct pt_regs * regs);
+static int irix_core_dump(long signr, struct pt_regs * regs,
+                          struct file *file);
 extern int dump_fpu (elf_fpregset_t *);
 
 static struct linux_binfmt irix_format = {
-#ifndef MODULE
-	NULL, NULL, load_irix_binary, load_irix_library, irix_core_dump
-#else
-	NULL, &__this_module.usecount, load_irix_binary, load_irix_library, irix_core_dump
-#endif
+	NULL, THIS_MODULE, load_irix_binary, load_irix_library,
+	irix_core_dump, PAGE_SIZE
 };
 
 #ifndef elf_addr_t
@@ -739,9 +737,9 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 		if(retval) {
 			set_fs(old_fs);
 			printk("Unable to load IRIX ELF interpreter\n");
-			kfree(elf_phdata);
 			send_sig(SIGSEGV, current, 0);
-			return 0;
+			retval = 0;
+			goto out_free_file;
 		}
 	}
 
@@ -1089,9 +1087,11 @@ static int notesize(struct memelfnote *en)
 /* #define DEBUG */
 
 #define DUMP_WRITE(addr, nr)	\
-	do { if (!dump_write(file, (addr), (nr))) return 0; } while(0)
+	if (!dump_write(file, (addr), (nr))) \
+		goto end_coredump;
 #define DUMP_SEEK(off)	\
-	do { if (!dump_seek(file, (off))) return 0; } while(0)
+	if (!dump_seek(file, (off))) \
+		goto end_coredump;
 
 static int writenote(struct memelfnote *men, struct file *file)
 {
@@ -1109,30 +1109,30 @@ static int writenote(struct memelfnote *men, struct file *file)
 	DUMP_SEEK(roundup((unsigned long)file->f_pos, 4));	/* XXX */
 	
 	return 1;
+
+end_coredump:
+	return 0;
 }
 #undef DUMP_WRITE
 #undef DUMP_SEEK
 
 #define DUMP_WRITE(addr, nr)	\
 	if (!dump_write(file, (addr), (nr))) \
-		goto close_coredump;
+		goto end_coredump;
 #define DUMP_SEEK(off)	\
 	if (!dump_seek(file, (off))) \
-		goto close_coredump;
+		goto end_coredump;
+
 /* Actual dumper.
  *
  * This is a two-pass process; first we find the offsets of the bits,
  * and then they are actually written out.  If we run out of core limit
  * we just truncate.
  */
-static int irix_core_dump(long signr, struct pt_regs * regs)
+static int irix_core_dump(long signr, struct pt_regs * regs, struct file *file)
 {
 	int has_dumped = 0;
-	struct file *file;
-	struct dentry *dentry;
-	struct inode *inode;
 	mm_segment_t fs;
-	char corefile[6+sizeof(current->comm)];
 	int segs;
 	int i;
 	size_t size;
@@ -1145,10 +1145,6 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	struct elf_prstatus prstatus;	/* NT_PRSTATUS */
 	elf_fpregset_t fpu;		/* NT_PRFPREG */
 	struct elf_prpsinfo psinfo;	/* NT_PRPSINFO */
-	
-	if (!current->dumpable || limit < PAGE_SIZE)
-		return 0;
-	current->dumpable = 0;
 
 #ifndef CONFIG_BINFMT_IRIX
 	MOD_INC_USE_COUNT;
@@ -1180,7 +1176,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	elf.e_ident[EI_DATA] = ELFDATA2LSB;
 	elf.e_ident[EI_VERSION] = EV_CURRENT;
 	memset(elf.e_ident+EI_PAD, 0, EI_NIDENT-EI_PAD);
-	
+
 	elf.e_type = ET_CORE;
 	elf.e_machine = ELF_ARCH;
 	elf.e_version = EV_CURRENT;
@@ -1197,27 +1193,6 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	
 	fs = get_fs();
 	set_fs(KERNEL_DS);
-
-	memcpy(corefile,"core.", 5);
-#if 0
-	memcpy(corefile+5,current->comm,sizeof(current->comm));
-#else
-	corefile[4] = '\0';
-#endif
-	file = filp_open(corefile, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
-	if (IS_ERR(file))
-		goto end_coredump;
-	dentry = file->f_dentry;
-	inode = dentry->d_inode;
-	if (inode->i_nlink > 1)
-		goto close_coredump;	/* multiple links - don't dump */
-
-	if (!S_ISREG(inode->i_mode))
-		goto close_coredump;
-	if (!inode->i_op || !inode->i_op->default_file_ops)
-		goto close_coredump;
-	if (!file->f_op->write)
-		goto close_coredump;
 
 	has_dumped = 1;
 	current->flags |= PF_DUMPCORE;
@@ -1292,7 +1267,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	notes[2].type = NT_TASKSTRUCT;
 	notes[2].datasz = sizeof(*current);
 	notes[2].data = current;
-	
+
 	/* Try to dump the FPU. */
 	prstatus.pr_fpvalid = dump_fpu (&fpu);
 	if (!prstatus.pr_fpvalid) {
@@ -1303,7 +1278,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 		notes[3].datasz = sizeof(fpu);
 		notes[3].data = &fpu;
 	}
-	
+
 	/* Write notes phdr entry. */
 	{
 		struct elf_phdr phdr;
@@ -1355,7 +1330,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 
 	for(i = 0; i < numnote; i++)
 		if (!writenote(&notes[i], file))
-			goto close_coredump;
+			goto end_coredump;
 	
 	set_fs(fs);
 
@@ -1382,37 +1357,24 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 		       (off_t) file->f_pos, offset);
 	}
 
- close_coredump:
-	filp_close(file, NULL);
-
- end_coredump:
+end_coredump:
 	set_fs(fs);
-#ifndef CONFIG_BINFMT_ELF
+#ifndef CONFIG_BINFMT_IRIX
 	MOD_DEC_USE_COUNT;
 #endif
 	return has_dumped;
 }
 
-int __init init_irix_binfmt(void)
+static int __init init_irix_binfmt(void)
 {
 	return register_binfmt(&irix_format);
 }
 
-#ifdef MODULE
-
-int init_module(void)
-{
-	/* Install the COFF, ELF and XOUT loaders.
-	 * N.B. We *rely* on the table being the right size with the
-	 * right number of free slots...
-	 */
-	return init_irix_binfmt();
-}
-
-
-void cleanup_module( void)
+static void __exit cleanup_module(void)
 {
 	/* Remove the IRIX ELF loaders. */
 	unregister_binfmt(&irix_format);
 }
-#endif
+
+module_init(init_irix_binfmt)
+module_exit(exit_irix_binfmt)

@@ -36,8 +36,7 @@
 #include <linux/poll.h>
 #include <linux/init.h>
 #include <linux/malloc.h>
-
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <linux/smp_lock.h>
 
 #include <linux/blk.h>
@@ -92,6 +91,8 @@ struct us_data {
 	int			ip_wanted;		/* needed */
 	int			pid;			/* control thread */
 	struct semaphore      	*notify; 		/* wait for thread to begin */
+	void			*irq_handle;		/* for USB interrupt requests */
+	unsigned int		irqpipe;		/* remember pipe for release_irq */
 };
 
 /*
@@ -130,7 +131,7 @@ static struct usb_driver scsi_driver = {
 
 static int us_one_transfer(struct us_data *us, int pipe, char *buf, int length)
 {
-    int max_size = usb_maxpacket(us->pusb_dev, pipe) * 16;
+    int max_size = usb_maxpacket(us->pusb_dev, pipe, usb_pipeout(pipe)) * 16;
     int this_xfer;
     int result;
     unsigned long partial;
@@ -139,9 +140,19 @@ static int us_one_transfer(struct us_data *us, int pipe, char *buf, int length)
 	this_xfer = length > max_size ? max_size : length;
 	length -= this_xfer;
 	do {
-	    US_DEBUGP("Bulk xfer %x(%d)\n", (unsigned int)buf, this_xfer);
+	    /*US_DEBUGP("Bulk xfer %x(%d)\n", (unsigned int)buf, this_xfer);*/
 	    result = us->pusb_dev->bus->op->bulk_msg(us->pusb_dev, pipe, buf, 
 						    this_xfer, &partial);
+
+	    if (result != 0 || partial != this_xfer)
+		US_DEBUGP("bulk_msg returned %d xferred %lu/%d\n",
+			  result, partial, this_xfer);
+
+	    if (result == USB_ST_STALL) {
+		US_DEBUGP("clearing endpoing halt for pipe %x\n", pipe);
+		usb_clear_halt(us->pusb_dev,
+			       usb_pipeendpoint(pipe) | (pipe & 0x80));
+	    }
 
 	    /* we want to retry if the device reported NAK */
 	    if (result == USB_ST_TIMEOUT) {
@@ -171,28 +182,31 @@ static int us_one_transfer(struct us_data *us, int pipe, char *buf, int length)
     return 0;
 
 }
+
 static int us_transfer(Scsi_Cmnd *srb, int dir_in)
 {
     struct us_data *us = (struct us_data *)srb->host_scribble;
     int i;
     int result = -1;
+    unsigned int pipe = dir_in ? usb_rcvbulkpipe(us->pusb_dev, us->ep_in) :
+	    usb_sndbulkpipe(us->pusb_dev, us->ep_out);
 
     if (srb->use_sg) {
 	struct scatterlist *sg = (struct scatterlist *) srb->request_buffer;
 
 	for (i = 0; i < srb->use_sg; i++) {
-	    result = us_one_transfer(us, dir_in ? usb_rcvbulkpipe(us->pusb_dev, us->ep_in) :
-						  usb_sndbulkpipe(us->pusb_dev, us->ep_out),
-				     sg[i].address, sg[i].length);
+	    result = us_one_transfer(us, pipe, sg[i].address, sg[i].length);
 	    if (result)
 		break;
 	}
-	return result;
     }
     else
-	return us_one_transfer(us, dir_in ? usb_rcvbulkpipe(us->pusb_dev, us->ep_in) :
-					    usb_sndbulkpipe(us->pusb_dev, us->ep_out),
-			       srb->request_buffer, srb->request_bufflen);
+	result = us_one_transfer(us, pipe,
+				 srb->request_buffer, srb->request_bufflen);
+
+    if (result)
+	US_DEBUGP("us_transfer returning error %d\n", result);
+    return result;
 }
 
 static unsigned int us_transfer_length(Scsi_Cmnd *srb)
@@ -232,12 +246,13 @@ static int pop_CBI_irq(int state, void *buffer, int len, void *dev_id)
     struct us_data *us = (struct us_data *)dev_id;
 
     if (state != USB_ST_REMOVED) {
-	us->ip_data = *(__u16 *)buffer;
-	US_DEBUGP("Interrupt Status %x\n", us->ip_data);
+	us->ip_data = le16_to_cpup((__u16 *)buffer);
+	/* US_DEBUGP("Interrupt Status %x\n", us->ip_data); */
     }
-    if (us->ip_wanted)
+    if (us->ip_wanted) {
+	us->ip_wanted = 0;
 	wake_up(&us->ip_waitq);
-    us->ip_wanted = 0;
+    }
 
     /* we dont want another interrupt */
 
@@ -250,6 +265,7 @@ static int pop_CB_reset(struct us_data *us)
     devrequest dr;
     int result;
 
+    US_DEBUGP("pop_CB_reset\n");
     dr.requesttype = USB_TYPE_CLASS | USB_RT_INTERFACE;
     dr.request = US_CBI_ADSC;
     dr.value = 0;
@@ -262,12 +278,15 @@ static int pop_CB_reset(struct us_data *us)
 					usb_sndctrlpipe(us->pusb_dev,0),
 					&dr, cmd, 12);
 
-    usb_clear_halt(us->pusb_dev, us->ep_in | 0x80);
-    usb_clear_halt(us->pusb_dev, us->ep_out);
-
     /* long wait for reset */
 
     schedule_timeout(HZ*5);
+
+    US_DEBUGP("pop_CB_reset: clearing endpoint halt\n");
+    usb_clear_halt(us->pusb_dev, us->ep_in | 0x80);
+    usb_clear_halt(us->pusb_dev, us->ep_out);
+
+    US_DEBUGP("pop_CB_reset done\n");
     return 0;
 }
 
@@ -325,6 +344,7 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 		/* as per spec try a start command, wait and retry */
 
 		done_start++;
+		memset(cmd, 0, sizeof(cmd));
 		cmd[0] = START_STOP;
 		cmd[4] = 1;		/* start */
 		result = us->pusb_dev->bus->op->control_msg(us->pusb_dev, 
@@ -338,7 +358,7 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 	    result = us->pusb_dev->bus->op->control_msg(us->pusb_dev, 
 						  usb_sndctrlpipe(us->pusb_dev,0),
 						  &dr, srb->cmnd, srb->cmd_len);
-	if (result != USB_ST_STALL && result != USB_ST_TIMEOUT)
+	if (/*result != USB_ST_STALL &&*/ result != USB_ST_TIMEOUT)
 	    return result;
     }
     return result;
@@ -356,12 +376,13 @@ static int pop_CB_status(Scsi_Cmnd *srb)
     devrequest dr;
     int retry = 5;
 
+    US_DEBUGP("pop_CB_status, proto=%x\n", us->protocol);
     switch (us->protocol) {
     case US_PR_CB:
 	/* get from control */
 
 	while (retry--) {
-	    dr.requesttype = 0x80 | USB_TYPE_STANDARD | USB_RT_DEVICE;
+	    dr.requesttype = USB_DIR_IN | USB_TYPE_STANDARD | USB_RT_DEVICE;
 	    dr.request = USB_REQ_GET_STATUS;
 	    dr.index = 0;
 	    dr.value = 0;
@@ -389,13 +410,15 @@ static int pop_CB_status(Scsi_Cmnd *srb)
 
 	/* add interrupt transfer, marked for removal */
 	us->ip_wanted = 1;
-	result = us->pusb_dev->bus->op->request_irq(us->pusb_dev, 
-						    usb_rcvctrlpipe(us->pusb_dev, us->ep_int),
-						     pop_CBI_irq, 0, (void *)us);
+	us->irqpipe = usb_rcvctrlpipe(us->pusb_dev, us->ep_int);
+	result = us->pusb_dev->bus->op->request_irq(us->pusb_dev, us->irqpipe,
+						pop_CBI_irq, 0,
+						(void *)us, &us->irq_handle);
 	if (result) {
-	    US_DEBUGP("No interrupt for CBI %x\n", result);
+	    US_DEBUGP("usb_scsi: usb_request_irq failed (0x%x), No interrupt for CBI\n", result);
 	    return DID_ABORT << 16;
 	}
+
 	sleep_on(&us->ip_waitq);
 	if (us->ip_wanted) {
 	    US_DEBUGP("Did not get interrupt on CBI\n");
@@ -439,23 +462,26 @@ static int pop_CBI(Scsi_Cmnd *srb)
 	if (result == USB_ST_STALL || result == USB_ST_TIMEOUT)	{
 	    return (DID_OK << 16) | 2;
 	}
-	return DID_ABORT << 16;
+	return DID_ERROR << 16;
     }
 
     /* transfer the data */
 
     if (us_transfer_length(srb)) {
 	result = us_transfer(srb, US_DIRECTION(srb->cmnd[0]));
-	if (result && result != USB_ST_DATAUNDERRUN) {
+	if (result && result != USB_ST_DATAUNDERRUN && result != USB_ST_STALL) {
 	    US_DEBUGP("CBI  transfer %x\n", result);
-	    return DID_ABORT << 16;
-	} else if (result == USB_ST_DATAUNDERRUN) {
+	    return DID_ERROR << 16;
+	}
+#if 0
+	else if (result == USB_ST_DATAUNDERRUN) {
 	    return DID_OK << 16;
 	}
     } else {
 	if (!result) {
 	    return DID_OK << 16;
 	}
+#endif
     }
 
     /* get status */
@@ -624,13 +650,18 @@ static int us_release(struct Scsi_Host *psh)
     struct us_data *us = (struct us_data *)psh->hostdata[0];
     struct us_data *prev = (struct us_data *)&us_list;
 
+    if (us->irq_handle) {
+    	usb_release_irq(us->pusb_dev, us->irq_handle, us->irqpipe);
+	us->irq_handle = NULL;
+	us->irqpipe = 0;
+    }
     if (us->filter)
 	us->filter->release(us->fdata);
     if (us->pusb_dev)
 	usb_deregister(&scsi_driver);
 
     /* FIXME - leaves hanging host template copy */
-    /* (bacause scsi layer uses it after removal !!!) */
+    /* (because scsi layer uses it after removal !!!) */
     while(prev->next != us)
 	prev = prev->next;
     prev->next = us->next;
@@ -862,7 +893,7 @@ static int usbscsi_control_thread(void * __us)
 			us->srb->result = DID_OK << 16;
 		    else {
 			unsigned int savelen = us->srb->request_bufflen;
-			unsigned int saveallocation;
+			unsigned int saveallocation = 0;
 
 			switch (us->srb->cmnd[0]) {
 			case REQUEST_SENSE:
@@ -911,7 +942,7 @@ static int usbscsi_control_thread(void * __us)
 			if (savelen != us->srb->request_bufflen &&
 			    us->srb->result == (DID_OK << 16)) {
 			    unsigned char *p = (unsigned char *)us->srb->request_buffer;
-			    unsigned int length;
+			    unsigned int length = 0;
 
 			    /* set correct length and retry */
 			    switch (us->srb->cmnd[0]) {
@@ -947,6 +978,7 @@ static int usbscsi_control_thread(void * __us)
 			    US_DEBUGP("Old/New length = %d/%d\n", savelen, length);
 
 			    if (us->srb->request_bufflen != length) {
+			        US_DEBUGP("redoing cmd with len=%d\n", length);
 				us->srb->request_bufflen = length;
 				us->srb->result = us->pop(us->srb);
 			    }
@@ -957,6 +989,15 @@ static int usbscsi_control_thread(void * __us)
 			    case REQUEST_SENSE:
 			    case INQUIRY:
 			    case MODE_SENSE:
+				if (us->srb->use_sg == 0 && length > 0) {
+				    int i;
+				    printk(KERN_DEBUG "Data is");
+				    for (i = 0; i < 32 && i < length; ++i)
+					printk(" %.2x", ((unsigned char *)us->srb->request_buffer)[i]);
+				    if (i < length)
+					printk(" ...");
+				    printk("\n");
+				}
 				us->srb->cmnd[4] = saveallocation;
 				break;
 
@@ -969,6 +1010,7 @@ static int usbscsi_control_thread(void * __us)
 			}
 			/* force attention on first command */
 			if (!us->attention_done) {
+			    US_DEBUGP("forcing unit attention\n");
 			    if (us->srb->cmnd[0] == REQUEST_SENSE) {
 				if (us->srb->result == (DID_OK << 16)) {
 				    unsigned char *p = (unsigned char *)us->srb->request_buffer;
@@ -987,6 +1029,7 @@ static int usbscsi_control_thread(void * __us)
 			}
 		    }
 		}
+		US_DEBUGP("scsi cmd done, result=%x\n", us->srb->result);
 		us->srb->scsi_done(us->srb);
 		us->srb = NULL;
 		break;
@@ -1073,9 +1116,9 @@ static int scsi_probe(struct usb_device *dev)
 	    protocol = US_PR_CB;
 	    subclass = US_SC_8070;	/* an assumption */
 	} else if (dev->descriptor.bDeviceClass != 0 ||
-	    dev->config->altsetting->interface->bInterfaceClass != 8 ||
-	    dev->config->altsetting->interface->bInterfaceSubClass < US_SC_MIN ||
-	    dev->config->altsetting->interface->bInterfaceSubClass > US_SC_MAX) {
+	    dev->config[0].interface[0].altsetting[0].bInterfaceClass != 8 ||
+	    dev->config[0].interface[0].altsetting[0].bInterfaceSubClass < US_SC_MIN ||
+	    dev->config[0].interface[0].altsetting[0].bInterfaceSubClass > US_SC_MAX) {
 	    return -1;
 	}
 
@@ -1108,7 +1151,7 @@ static int scsi_probe(struct usb_device *dev)
 	memset(ss, 0, sizeof(struct us_data));
     }
 
-    interface = dev->config->altsetting->interface;
+    interface = &dev->config[0].interface[0].altsetting[0];
     ss->filter = filter;
     ss->fdata = fdata;
     ss->flags = flags;
@@ -1152,7 +1195,7 @@ static int scsi_probe(struct usb_device *dev)
 
     for (i = 0; i < interface->bNumEndpoints; i++) { 
 	    if (interface->endpoint[i].bmAttributes == 0x02) {
-		    if (interface->endpoint[i].bEndpointAddress & 0x80)
+		    if (interface->endpoint[i].bEndpointAddress & USB_DIR_IN)
 			    ss->ep_in = interface->endpoint[i].bEndpointAddress & 0x0f;
 		    else
 			    ss->ep_out = interface->endpoint[i].bEndpointAddress & 0x0f;
@@ -1245,6 +1288,7 @@ static int scsi_probe(struct usb_device *dev)
 	    dev->descriptor.idProduct == 0x0001) {
 	    devrequest dr;
 	    __u8 qstat[2];
+	    int result;
 
 	    /* shuttle E-USB */
 	    dr.requesttype = 0xC0;
@@ -1255,9 +1299,12 @@ static int scsi_probe(struct usb_device *dev)
 	    ss->pusb_dev->bus->op->control_msg(ss->pusb_dev, usb_rcvctrlpipe(dev,0), &dr, qstat, 2);
 	    US_DEBUGP("C0 status %x %x\n", qstat[0], qstat[1]);
 	    init_waitqueue_head(&ss->ip_waitq);
-	    ss->pusb_dev->bus->op->request_irq(ss->pusb_dev, 
-						usb_rcvctrlpipe(ss->pusb_dev, ss->ep_int),
-						pop_CBI_irq, 0, (void *)ss);
+	    ss->irqpipe = usb_rcvctrlpipe(ss->pusb_dev, ss->ep_int);
+	    result = ss->pusb_dev->bus->op->request_irq(ss->pusb_dev, ss->irqpipe,
+						pop_CBI_irq, 0,
+						(void *)ss, &ss->irq_handle);
+	    if (result)
+	    	return -1;
 	    interruptible_sleep_on_timeout(&ss->ip_waitq, HZ*5);
 
 	} else if (ss->protocol == US_PR_CBI)

@@ -112,7 +112,7 @@ static struct notifier_block chips_sleep_notifier = {
 /*
  * Exported functions
  */
-void chips_init(void);
+int chips_init(void);
 void chips_of_init(struct device_node *dp);
 
 static int chips_open(struct fb_info *info, int user);
@@ -525,7 +525,7 @@ static struct chips_init_reg chips_init_xr[] = {
 	{ 0xa8, 0x00 }
 };
 
-__initfunc(static void chips_hw_init(struct fb_info_chips *p))
+static void __init chips_hw_init(struct fb_info_chips *p)
 {
 	int i;
 
@@ -544,12 +544,12 @@ __initfunc(static void chips_hw_init(struct fb_info_chips *p))
 		write_fr(chips_init_fr[i].addr, chips_init_fr[i].data);
 }
 
-__initfunc(static void init_chips(struct fb_info_chips *p))
+static void __init init_chips(struct fb_info_chips *p)
 {
 	int i;
 
 	strcpy(p->fix.id, "C&T 65550");
-	p->fix.smem_start = (char *) p->frame_buffer_phys;
+	p->fix.smem_start = p->frame_buffer_phys;
 
 // FIXME: Assumes 1MB frame buffer, but 65550 supports 1MB or 2MB.
 // * "3500" PowerBook G3 (the original PB G3) has 2MB.
@@ -559,7 +559,7 @@ __initfunc(static void init_chips(struct fb_info_chips *p))
 // * 3400 has 1MB (I think).  Don't know if it's expandable.
 // -- Tim Seufert
 	p->fix.smem_len = 0x100000;	// 1MB
-	p->fix.mmio_start = (char *) p->io_base_phys;
+	p->fix.mmio_start = p->io_base_phys;
 	p->fix.type = FB_TYPE_PACKED_PIXELS;
 	p->fix.visual = FB_VISUAL_PSEUDOCOLOR;
 	p->fix.line_length = 800;
@@ -645,7 +645,7 @@ __initfunc(static void init_chips(struct fb_info_chips *p))
 	all_chips = p;
 }
 
-__initfunc(void chips_init(void))
+int __init chips_init(void)
 {
 #ifndef CONFIG_FB_OF
 	struct device_node *dp;
@@ -654,9 +654,10 @@ __initfunc(void chips_init(void))
 	if (dp != 0)
 		chips_of_init(dp);
 #endif /* CONFIG_FB_OF */
+	return 0;
 }
 
-__initfunc(void chips_of_init(struct device_node *dp))
+void __init chips_of_init(struct device_node *dp)
 {
 	struct fb_info_chips *p;
 	unsigned long addr;

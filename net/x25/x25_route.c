@@ -42,7 +42,6 @@
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/notifier.h>
-#include <linux/firewall.h>
 #include <net/x25.h>
 
 static struct x25_route *x25_route_list = NULL;
@@ -50,7 +49,7 @@ static struct x25_route *x25_route_list = NULL;
 /*
  *	Add a new route.
  */
-static int x25_add_route(x25_address *address, unsigned int sigdigits, struct device *dev)
+static int x25_add_route(x25_address *address, unsigned int sigdigits, struct net_device *dev)
 {
 	struct x25_route *x25_route;
 	unsigned long flags;
@@ -105,7 +104,7 @@ static void x25_remove_route(struct x25_route *x25_route)
 	restore_flags(flags);
 }
 
-static int x25_del_route(x25_address *address, unsigned int sigdigits, struct device *dev)
+static int x25_del_route(x25_address *address, unsigned int sigdigits, struct net_device *dev)
 {
 	struct x25_route *x25_route;
 
@@ -122,7 +121,7 @@ static int x25_del_route(x25_address *address, unsigned int sigdigits, struct de
 /*
  *	A device has been removed, remove its routes.
  */
-void x25_route_device_down(struct device *dev)
+void x25_route_device_down(struct net_device *dev)
 {
 	struct x25_route *route, *x25_route = x25_route_list;
 
@@ -138,11 +137,11 @@ void x25_route_device_down(struct device *dev)
 /*
  *	Check that the device given is a valid X.25 interface that is "up".
  */
-struct device *x25_dev_get(char *devname)
+struct net_device *x25_dev_get(char *devname)
 {
-	struct device *dev;
+	struct net_device *dev;
 
-	if ((dev = dev_get(devname)) == NULL)
+	if ((dev = dev_get_by_name(devname)) == NULL)
 		return NULL;
 
 	if ((dev->flags & IFF_UP) && (dev->type == ARPHRD_X25
@@ -152,13 +151,15 @@ struct device *x25_dev_get(char *devname)
 	   ))
 		return dev;
 
+	dev_put(dev);
+
 	return NULL;
 }
 
 /*
  *	Find a device given an X.25 address.
  */
-struct device *x25_get_route(x25_address *addr)
+struct net_device *x25_get_route(x25_address *addr)
 {
 	struct x25_route *route, *use = NULL;
 
@@ -182,7 +183,8 @@ struct device *x25_get_route(x25_address *addr)
 int x25_route_ioctl(unsigned int cmd, void *arg)
 {
 	struct x25_route_struct x25_route;
-	struct device *dev;
+	struct net_device *dev;
+	int err;
 
 	switch (cmd) {
 
@@ -193,7 +195,9 @@ int x25_route_ioctl(unsigned int cmd, void *arg)
 				return -EINVAL;
 			if ((dev = x25_dev_get(x25_route.device)) == NULL)
 				return -EINVAL;
-			return x25_add_route(&x25_route.address, x25_route.sigdigits, dev);
+			err = x25_add_route(&x25_route.address, x25_route.sigdigits, dev);
+			dev_put(dev);
+			return err;
 
 		case SIOCDELRT:
 			if (copy_from_user(&x25_route, arg, sizeof(struct x25_route_struct)))
@@ -202,7 +206,9 @@ int x25_route_ioctl(unsigned int cmd, void *arg)
 				return -EINVAL;
 			if ((dev = x25_dev_get(x25_route.device)) == NULL)
 				return -EINVAL;
-			return x25_del_route(&x25_route.address, x25_route.sigdigits, dev);
+			err = x25_del_route(&x25_route.address, x25_route.sigdigits, dev);
+			dev_put(dev);
+			return err;
 
 		default:
 			return -EINVAL;

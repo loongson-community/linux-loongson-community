@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.h,v 1.2 1996/06/15 03:42:50 dm Exp $
+/* $Id: sgiseeq.h,v 1.1 1997/06/09 08:34:32 ralf Exp $
  * sgiseeq.h: Defines for the Seeq8003 ethernet controller.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)

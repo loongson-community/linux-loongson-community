@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.21 1999/08/24 22:54:21 ralf Exp $
+/* $Id: signal.c,v 1.22 1999/09/28 22:25:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -619,12 +619,8 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
 			case SIGBUS:
-				lock_kernel();
-				if (current->binfmt
-				    && current->binfmt->core_dump
-				    && current->binfmt->core_dump(signr, regs))
+				if (do_coredump(signr, regs))
 					exit_code |= 0x80;
-				unlock_kernel();
 				/* FALLTHRU */
 
 			default:

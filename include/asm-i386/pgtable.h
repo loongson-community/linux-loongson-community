@@ -15,7 +15,9 @@
 #ifndef __ASSEMBLY__
 #include <asm/processor.h>
 #include <asm/fixmap.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
+
+extern pgd_t swapper_pg_dir[1024];
 
 /* Caches aren't brain-dead on the intel. */
 #define flush_cache_all()			do { } while (0)
@@ -56,21 +58,21 @@ __asm__ __volatile__("invlpg %0": :"m" (*(char *) addr))
 
 static inline void flush_tlb_mm(struct mm_struct *mm)
 {
-	if (mm == current->mm)
+	if (mm == current->active_mm)
 		__flush_tlb();
 }
 
 static inline void flush_tlb_page(struct vm_area_struct *vma,
 	unsigned long addr)
 {
-	if (vma->vm_mm == current->mm)
+	if (vma->vm_mm == current->active_mm)
 		__flush_tlb_one(addr);
 }
 
 static inline void flush_tlb_range(struct mm_struct *mm,
 	unsigned long start, unsigned long end)
 {
-	if (mm == current->mm)
+	if (mm == current->active_mm)
 		__flush_tlb();
 }
 
@@ -86,79 +88,19 @@ static inline void flush_tlb_range(struct mm_struct *mm,
 #define local_flush_tlb() \
 	__flush_tlb()
 
+extern void flush_tlb_all(void);
+extern void flush_tlb_current_task(void);
+extern void flush_tlb_mm(struct mm_struct *);
+extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
 
-#define CLEVER_SMP_INVALIDATE
-#ifdef CLEVER_SMP_INVALIDATE
+#define flush_tlb()	flush_tlb_current_task()
 
-/*
- *	Smarter SMP flushing macros. 
- *		c/o Linus Torvalds.
- *
- *	These mean you can really definitely utterly forget about
- *	writing to user space from interrupts. (Its not allowed anyway).
- */
- 
-static inline void flush_tlb_current_task(void)
-{
-	/* just one copy of this mm? */
-	if (atomic_read(&current->mm->count) == 1)
-		local_flush_tlb();	/* and that's us, so.. */
-	else
-		smp_flush_tlb();
-}
-
-#define flush_tlb() flush_tlb_current_task()
-
-#define flush_tlb_all() smp_flush_tlb()
-
-static inline void flush_tlb_mm(struct mm_struct * mm)
-{
-	if (mm == current->mm && atomic_read(&mm->count) == 1)
-		local_flush_tlb();
-	else
-		smp_flush_tlb();
-}
-
-static inline void flush_tlb_page(struct vm_area_struct * vma,
-	unsigned long va)
-{
-	if (vma->vm_mm == current->mm && atomic_read(&current->mm->count) == 1)
-		__flush_tlb_one(va);
-	else
-		smp_flush_tlb();
-}
-
-static inline void flush_tlb_range(struct mm_struct * mm,
-	unsigned long start, unsigned long end)
+static inline void flush_tlb_range(struct mm_struct * mm, unsigned long start, unsigned long end)
 {
 	flush_tlb_mm(mm);
 }
 
 
-#else
-
-#define flush_tlb() \
-	smp_flush_tlb()
-
-#define flush_tlb_all() flush_tlb()
-
-static inline void flush_tlb_mm(struct mm_struct *mm)
-{
-	flush_tlb();
-}
-
-static inline void flush_tlb_page(struct vm_area_struct *vma,
-	unsigned long addr)
-{
-	flush_tlb();
-}
-
-static inline void flush_tlb_range(struct mm_struct *mm,
-	unsigned long start, unsigned long end)
-{
-	flush_tlb();
-}
-#endif
 #endif
 #endif /* !__ASSEMBLY__ */
 
@@ -302,15 +244,6 @@ extern pte_t * __bad_pagetable(void);
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
-/* to set the page-dir */
-#define SET_PAGE_DIR(tsk,pgdir) \
-do { \
-	unsigned long __pgdir = __pa(pgdir); \
-	(tsk)->tss.cr3 = __pgdir; \
-	if ((tsk) == current) \
-		__asm__ __volatile__("movl %0,%%cr3": :"r" (__pgdir)); \
-} while (0)
-
 #define pte_none(x)	(!pte_val(x))
 #define pte_present(x)	(pte_val(x) & (_PAGE_PRESENT | _PAGE_PROTNONE))
 #define pte_clear(xp)	do { pte_val(*(xp)) = 0; } while (0)
@@ -401,13 +334,11 @@ extern inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
 
 extern __inline__ pgd_t *get_pgd_slow(void)
 {
-	pgd_t *ret = (pgd_t *)__get_free_page(GFP_KERNEL), *init;
+	pgd_t *ret = (pgd_t *)__get_free_page(GFP_KERNEL);
 
 	if (ret) {
-		init = pgd_offset(&init_mm, 0);
-		memset (ret, 0, USER_PTRS_PER_PGD * sizeof(pgd_t));
-		memcpy (ret + USER_PTRS_PER_PGD, init + USER_PTRS_PER_PGD,
-			(PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
+		memset(ret, 0, USER_PTRS_PER_PGD * sizeof(pgd_t));
+		memcpy(ret + USER_PTRS_PER_PGD, swapper_pg_dir + USER_PTRS_PER_PGD, (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
 	}
 	return ret;
 }
@@ -416,9 +347,9 @@ extern __inline__ pgd_t *get_pgd_fast(void)
 {
 	unsigned long *ret;
 
-	if((ret = pgd_quicklist) != NULL) {
+	if ((ret = pgd_quicklist) != NULL) {
 		pgd_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
+		ret[0] = 0;
 		pgtable_cache_size--;
 	} else
 		ret = (unsigned long *)get_pgd_slow();
@@ -481,9 +412,9 @@ extern __inline__ void free_pmd_slow(pmd_t *pmd)
 extern void __bad_pte(pmd_t *pmd);
 extern void __bad_pte_kernel(pmd_t *pmd);
 
-#define pte_free_kernel(pte)    free_pte_fast(pte)
-#define pte_free(pte)           free_pte_fast(pte)
-#define pgd_free(pgd)           free_pgd_fast(pgd)
+#define pte_free_kernel(pte)    free_pte_slow(pte)
+#define pte_free(pte)           free_pte_slow(pte)
+#define pgd_free(pgd)           free_pgd_slow(pgd)
 #define pgd_alloc()             get_pgd_fast()
 
 extern inline pte_t * pte_alloc_kernel(pmd_t * pmd, unsigned long address)
@@ -572,8 +503,6 @@ extern inline void set_pgdir(unsigned long address, pgd_t entry)
 #endif
 }
 
-extern pgd_t swapper_pg_dir[1024];
-
 /*
  * The i386 doesn't have any external MMU info: the kernel page
  * tables contain all the necessary information.
@@ -595,5 +524,7 @@ extern inline void update_mmu_cache(struct vm_area_struct * vma,
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define PageSkip(page)		(0)
 #define kern_addr_valid(addr)	(1)
+
+#define io_remap_page_range remap_page_range
 
 #endif /* _I386_PAGE_H */

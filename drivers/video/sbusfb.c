@@ -53,8 +53,8 @@
      *  Interface used by the world
      */
 
-void sbusfb_init(void);
-void sbusfb_setup(char *options, int *ints);
+int sbusfb_init(void);
+int sbusfb_setup(char*);
 
 static int currcon;
 static int defx_margin = -1, defy_margin = -1;
@@ -743,7 +743,7 @@ static int sbusfb_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Setup: parse used options
      */
 
-__initfunc(void sbusfb_setup(char *options, int *ints))
+int __init sbusfb_setup(char *options)
 {
 	char *p;
 	
@@ -775,6 +775,7 @@ __initfunc(void sbusfb_setup(char *options, int *ints))
 		if (*p != ',') break;
 		p++;
 	}
+	return 0;
 }
 
 static int sbusfbcon_switch(int con, struct fb_info *info)
@@ -960,8 +961,8 @@ void sbusfb_palette(int enter)
      
 extern void (*prom_palette)(int);
 
-__initfunc(static void sbusfb_init_fb(int node, int parent, int fbtype,
-				      struct linux_sbus_device *sbdp))
+static void __init sbusfb_init_fb(int node, int parent, int fbtype,
+				      struct linux_sbus_device *sbdp)
 {
 	struct fb_fix_screeninfo *fix;
 	struct fb_var_screeninfo *var;
@@ -1085,6 +1086,11 @@ sizechange:
 	case FBTYPE_MDICOLOR:
 		p = cgfourteenfb_init(fb); break;
 #endif
+#ifdef CONFIG_FB_P9100
+	case FBTYPE_P9100COLOR:
+		/* Temporary crock. For now we are a cg3 */
+		p = p9100fb_init(fb); type->fb_type = FBTYPE_SUN3COLOR; break;
+#endif
 	}
 	
 	if (!p) {
@@ -1128,7 +1134,7 @@ sizechange:
 		kfree(fb);
 		return;
 	}
-	printk("fb%d: %s\n", GET_FB_IDX(fb->info.node), p);
+	printk(KERN_INFO "fb%d: %s\n", GET_FB_IDX(fb->info.node), p);
 }
 
 static inline int known_card(char *name)
@@ -1148,10 +1154,12 @@ static inline int known_card(char *name)
 		return FBTYPE_SUN2BW;
 	if (!strcmp(name, "tcx"))
 		return FBTYPE_TCXCOLOR;
+	if (!strcmp(name, "p9100"))
+		return FBTYPE_P9100COLOR;
 	return FBTYPE_NOTYPE;
 }
 
-__initfunc(void sbusfb_init(void))
+int __init sbusfb_init(void)
 {
 	int type;
 	struct linux_sbus_device *sbdp;
@@ -1159,7 +1167,7 @@ __initfunc(void sbusfb_init(void))
 	char prom_name[40];
 	extern int con_is_present(void);
 	
-	if (!con_is_present()) return;
+	if (!con_is_present()) return -ENXIO;
 	
 #ifdef CONFIG_FB_CREATOR
 	{
@@ -1187,7 +1195,7 @@ __initfunc(void sbusfb_init(void))
 		}
 	}
 #endif
-	if (!SBus_chain) return;
+	if (!SBus_chain) return 0;
 	for_all_sbusdev(sbdp, sbus) {
 		type = known_card(sbdp->prom_name);
 		if (type == FBTYPE_NOTYPE) continue;
@@ -1199,4 +1207,5 @@ __initfunc(void sbusfb_init(void))
 				       sbdp->num_registers, sbdp);
 		sbusfb_init_fb(sbdp->prom_node, sbdp->my_bus->prom_node, type, sbdp);
 	}
+	return 0;
 }	

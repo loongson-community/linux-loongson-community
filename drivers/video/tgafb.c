@@ -125,7 +125,10 @@ const unsigned int bt463_cursor_source[4] = {
      *      fbcon should provide a general mechanism for doing something like this.
      */
 
-static struct fb_videomode tgafb_predefined[] __initdata = {
+static struct {
+    const char *name;
+    struct fb_var_screeninfo var;
+} tgafb_predefined[] __initdata = {
     { "640x480-60", {
 	640, 480, 640, 480, 0, 0, 0, 0,
 	{0, 8, 0}, {0, 8, 0}, {0, 8, 0}, {0, 0, 0},
@@ -287,8 +290,8 @@ static void tgafb_set_disp(const void *fb_par, struct display *disp,
 
 static int tgafb_open(struct fb_info *info, int user);
 static int tgafb_release(struct fb_info *info, int user);
-void tgafb_setup(char *options, int *ints);
-void tgafb_init(void);
+int tgafb_setup(char*);
+int tgafb_init(void);
 void tgafb_cleanup(struct fb_info *info);
 
 static void tgafb_set_pll(int f);
@@ -325,9 +328,9 @@ static int tgafb_encode_fix(struct fb_fix_screeninfo *fix, const void *fb_par,
 	fix->visual = FB_VISUAL_TRUECOLOR;
 
     fix->line_length = par->xres * (par->bits_per_pixel >> 3);
-    fix->smem_start = (char *)__pa(fb_info.tga_fb_base + dense_mem(fb_info.tga_fb_base));
+    fix->smem_start = fb_info.tga_fb_base;
     fix->smem_len = fix->line_length * par->yres;
-    fix->mmio_start = (char *)__pa(fb_info.tga_regs_base);
+    fix->mmio_start = fb_info.tga_regs_base;
     fix->mmio_len = 0x1000;		/* Is this sufficient? */
     fix->xpanstep = fix->ypanstep = fix->ywrapstep = 0;
     fix->accel = FB_ACCEL_DEC_TGA;
@@ -934,7 +937,7 @@ static int tgafb_blank(int blank, struct fb_info_gen *info)
 static void tgafb_set_disp(const void *fb_par, struct display *disp,
 	struct fb_info_gen *info)
 {
-    disp->screen_base = (char *)fb_info.tga_fb_base + dense_mem(fb_info.tga_fb_base);
+    disp->screen_base = ioremap(fb_info.tga_fb_base);
     switch (fb_info.tga_type) {
 #ifdef FBCON_HAS_CFB8
 	case 0: /* 8-plane */
@@ -996,7 +999,7 @@ static struct fb_ops tgafb_ops = {
      *  Setup
      */
 
-__initfunc(void tgafb_setup(char *options, int *ints)) {
+int __init tgafb_setup(char *options) {
     char *this_opt;
     int i;
     
@@ -1016,6 +1019,7 @@ __initfunc(void tgafb_setup(char *options, int *ints)) {
       		printk(KERN_ERR "tgafb: unknown parameter %s\n", this_opt);
     	    }
       	}
+    return 0;
 }
 
 
@@ -1023,16 +1027,16 @@ __initfunc(void tgafb_setup(char *options, int *ints)) {
      *  Initialisation
      */
 
-__initfunc(void tgafb_init(void))
+int __init tgafb_init(void)
 {
     struct pci_dev *pdev;
 
     pdev = pci_find_device(PCI_VENDOR_ID_DEC, PCI_DEVICE_ID_DEC_TGA, NULL);
     if (!pdev)
-	return;
-    fb_info.tga_mem_base = pdev->base_address[0] & PCI_BASE_ADDRESS_MEM_MASK;
+	return -ENXIO;
+    fb_info.tga_mem_base = pdev->resource[0].start;
 #ifdef DEBUG
-    printk("tgafb_init: mem_base 0x%x\n", fb_info.tga_mem_base);
+    printk(KERN_DEBUG "tgafb_init: mem_base 0x%x\n", fb_info.tga_mem_base);
 #endif /* DEBUG */
 
     fb_info.tga_type = (readl((unsigned long)fb_info.tga_mem_base) >> 12) & 0x0f;
@@ -1078,9 +1082,10 @@ __initfunc(void tgafb_init(void))
     fbgen_set_disp(-1, &fb_info.gen);
     fbgen_install_cmap(0, &fb_info.gen);
     if (register_framebuffer(&fb_info.gen.info) < 0)
-	return;
-    printk("fb%d: %s frame buffer device\n", GET_FB_IDX(fb_info.gen.info.node),
+	return -EINVAL;
+    printk(KERN_INFO "fb%d: %s frame buffer device\n", GET_FB_IDX(fb_info.gen.info.node),
 	fb_info.gen.info.modename);
+    return 0;
 }
 
 
@@ -1101,8 +1106,7 @@ void tgafb_cleanup(struct fb_info *info)
 #ifdef MODULE
 int init_module(void)
 {
-    tgafb_init();
-    return 0;
+    return tgafb_init();
 }
 
 void cleanup_module(void)

@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.8 1999/08/09 19:43:15 harald Exp $
+/* $Id: r4k_switch.S,v 1.9 1999/08/18 23:37:44 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,6 +7,7 @@
  * Copyright (C) 1994, 1995, 1996, 1998, 1999 by Ralf Baechle
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1994, 1995, 1996, by Andreas Busse
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
@@ -23,12 +24,12 @@
 
 #include <asm/asmmacro.h>
 
+	.set	mips3
+
 /*
- * task_struct *r4xx0_resume(task_struct *prev,
- *                           task_struct *next)
+ * task_struct *r4xx0_resume(task_struct *prev, task_struct *next)
  */
 	.set	noreorder
-	.set	mips3
 	.align	5
 	LEAF(resume)
 	mfc0	t1, CP0_STATUS
@@ -50,12 +51,8 @@
 	lw	a2, THREAD_STATUS($28)
 	nor	a3, $0, a3
 	and	a2, a3
-	lw	a3, TASK_MM($28)
 	or	a2, t1
-	lw	a3, MM_CONTEXT(a3)
 	mtc0	a2, CP0_STATUS
-	andi	a3, a3, 0xff
-	mtc0	a3, CP0_ENTRYHI
 	jr	ra
 	 move	v0, a0
 	END(resume)

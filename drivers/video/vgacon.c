@@ -116,7 +116,7 @@ static int	       vga_video_font_height;
 static unsigned int    vga_rolled_over = 0;
 
 
-void no_scroll(char *str, int *ints)
+static int __init no_scroll(char *str)
 {
 	/*
 	 * Disabling scrollback is required for the Braillex ib80-piezo
@@ -124,7 +124,10 @@ void no_scroll(char *str, int *ints)
 	 * Use the "no-scroll" bootflag.
 	 */
 	vga_hardscroll_user_enable = vga_hardscroll_enabled = 0;
+	return 1;
 }
+
+__setup("no-scroll", no_scroll);
 
 /*
  * By replacing the four outb_p with two back to back outw, we can reduce
@@ -159,11 +162,11 @@ static inline void write_vga(unsigned char reg, unsigned int val)
 	restore_flags(flags);
 }
 
-__initfunc(static const char *vgacon_startup(void))
+static const char __init *vgacon_startup(void)
 {
 	const char *display_desc = NULL;
 	u16 saved1, saved2;
-	u16 *p;
+	volatile u16 *p;
 
 	if (ORIG_VIDEO_ISVGA == VIDEO_TYPE_VLFB) {
 	no_vga:
@@ -186,18 +189,21 @@ __initfunc(static const char *vgacon_startup(void))
 		vga_video_port_val = 0x3b5;
 		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10)
 		{
+			static struct resource ega_console_resource = { "ega", 0x3B0, 0x3BF };
 			vga_video_type = VIDEO_TYPE_EGAM;
 			vga_vram_end = 0xb8000;
 			display_desc = "EGA+";
-			request_region(0x3b0,16,"ega");
+			request_resource(&ioport_resource, &ega_console_resource);
 		}
 		else
 		{
+			static struct resource mda1_console_resource = { "mda", 0x3B0, 0x3BB };
+			static struct resource mda2_console_resource = { "mda", 0x3BF, 0x3BF };
 			vga_video_type = VIDEO_TYPE_MDA;
 			vga_vram_end = 0xb2000;
 			display_desc = "*MDA";
-			request_region(0x3b0,12,"mda");
-			request_region(0x3bf, 1,"mda");
+			request_resource(&ioport_resource, &mda1_console_resource);
+			request_resource(&ioport_resource, &mda2_console_resource);
 			vga_video_font_height = 14;
 		}
 	}
@@ -214,13 +220,15 @@ __initfunc(static const char *vgacon_startup(void))
 			vga_vram_end = 0xc0000;
 
 			if (!ORIG_VIDEO_ISVGA) {
+				static struct resource ega_console_resource = { "ega", 0x3C0, 0x3DF };
 				vga_video_type = VIDEO_TYPE_EGAC;
 				display_desc = "EGA";
-				request_region(0x3c0,32,"ega");
+				request_resource(&ioport_resource, &ega_console_resource);
 			} else {
+				static struct resource vga_console_resource = { "vga+", 0x3C0, 0x3DF };
 				vga_video_type = VIDEO_TYPE_VGAC;
 				display_desc = "VGA+";
-				request_region(0x3c0,32,"vga+");
+				request_resource(&ioport_resource, &vga_console_resource);
 
 #ifdef VGA_CAN_DO_64KB
 				/*
@@ -261,13 +269,15 @@ __initfunc(static const char *vgacon_startup(void))
 		}
 		else
 		{
+			static struct resource cga_console_resource = { "cga", 0x3D4, 0x3D5 };
 			vga_video_type = VIDEO_TYPE_CGA;
 			vga_vram_end = 0xba000;
 			display_desc = "*CGA";
-			request_region(0x3d4,2,"cga");
+			request_resource(&ioport_resource, &cga_console_resource);
 			vga_video_font_height = 8;
 		}
 	}
+
 	vga_vram_base = VGA_MAP_MEM(vga_vram_base);
 	vga_vram_end = VGA_MAP_MEM(vga_vram_end);
 
@@ -275,7 +285,7 @@ __initfunc(static const char *vgacon_startup(void))
 	 *	Find out if there is a graphics card present.
 	 *	Are there smarter methods around?
 	 */
-	p = (u16 *)vga_vram_base;
+	p = (volatile u16 *)vga_vram_base;
 	saved1 = scr_readw(p);
 	saved2 = scr_readw(p + 1);
 	scr_writew(0xAA55, p);

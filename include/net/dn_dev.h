@@ -58,8 +58,6 @@ struct dn_ifaddr {
  * down() - Called to turn device off when it goes down
  * timer1() - Called when timer 1 goes off
  * timer3() - Called when timer 3 goes off
- * setsrc() - Called for each incomming frame to set previous hop info
- * neigh_setup() - Called to do device specific setup of neighbours
  * 
  * sysctl - Hook for sysctl things
  *
@@ -79,19 +77,17 @@ struct dn_dev_parms {
 	int priority;             /* Priority to be a router        */
 	char *name;               /* Name for sysctl                */
 	int ctl_name;             /* Index for sysctl               */
-	int  (*up)(struct device *);
-	void (*down)(struct device *);
-	void (*timer1)(struct device *);
-	void (*timer3)(struct device *);
-	int (*setsrc)(struct sk_buff *skb);
-	int (*neigh_setup)(struct neighbour *);
+	int  (*up)(struct net_device *);
+	void (*down)(struct net_device *);
+	void (*timer1)(struct net_device *);
+	void (*timer3)(struct net_device *);
 	void *sysctl;
 };
 
 
 struct dn_dev {
 	struct dn_ifaddr *ifa_list;
-	struct device *dev;
+	struct net_device *dev;
 	struct dn_dev_parms parms;
 	char use_long;
         struct timer_list timer;
@@ -169,12 +165,12 @@ extern void dn_dev_init_pkt(struct sk_buff *skb);
 extern void dn_dev_veri_pkt(struct sk_buff *skb);
 extern void dn_dev_hello(struct sk_buff *skb);
 
-extern void dn_dev_up(struct device *);
-extern void dn_dev_down(struct device *);
+extern void dn_dev_up(struct net_device *);
+extern void dn_dev_down(struct net_device *);
 
-extern struct device *decnet_default_device;
+extern struct net_device *decnet_default_device;
 
-static __inline__ int dn_dev_islocal(struct device *dev, dn_address addr)
+static __inline__ int dn_dev_islocal(struct net_device *dev, dn_address addr)
 {
 	struct dn_dev *dn_db = dev->dn_ptr;
 	struct dn_ifaddr *ifa;

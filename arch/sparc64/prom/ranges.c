@@ -1,4 +1,4 @@
-/* $Id: ranges.c,v 1.10 1998/03/24 05:54:29 ecd Exp $
+/* $Id: ranges.c,v 1.12 1999/08/31 06:55:05 davem Exp $
  * ranges.c: Handle ranges in newer proms for obio/sbus.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -87,11 +87,11 @@ void prom_apply_central_ranges(struct linux_central *central,
 				 central->num_central_ranges);
 }
 
-__initfunc(void prom_ranges_init(void))
+void __init prom_ranges_init(void)
 {
 }
 
-__initfunc(void prom_sbus_ranges_init(int iommund, struct linux_sbus *sbus))
+void __init prom_sbus_ranges_init(int iommund, struct linux_sbus *sbus)
 {
 	int success;
 	
@@ -103,7 +103,7 @@ __initfunc(void prom_sbus_ranges_init(int iommund, struct linux_sbus *sbus))
 		sbus->num_sbus_ranges = (success/sizeof(struct linux_prom_ranges));
 }
 
-__initfunc(void prom_central_ranges_init(int cnode, struct linux_central *central))
+void __init prom_central_ranges_init(int cnode, struct linux_central *central)
 {
 	int success;
 	
@@ -115,7 +115,7 @@ __initfunc(void prom_central_ranges_init(int cnode, struct linux_central *centra
 		central->num_central_ranges = (success/sizeof(struct linux_prom_ranges));
 }
 
-__initfunc(void prom_fhc_ranges_init(int fnode, struct linux_fhc *fhc))
+void __init prom_fhc_ranges_init(int fnode, struct linux_fhc *fhc)
 {
 	int success;
 	
@@ -128,7 +128,7 @@ __initfunc(void prom_fhc_ranges_init(int fnode, struct linux_fhc *fhc))
 }
 
 #ifdef CONFIG_PCI
-__initfunc(void prom_ebus_ranges_init(struct linux_ebus *ebus))
+void __init prom_ebus_ranges_init(struct linux_ebus *ebus)
 {
 	int success;
 
@@ -140,7 +140,7 @@ __initfunc(void prom_ebus_ranges_init(struct linux_ebus *ebus))
 		ebus->num_ebus_ranges = (success/sizeof(struct linux_prom_ebus_ranges));
 }
 
-__initfunc(void prom_ebus_intmap_init(struct linux_ebus *ebus))
+void __init prom_ebus_intmap_init(struct linux_ebus *ebus)
 {
 	int success;
 
@@ -156,40 +156,6 @@ __initfunc(void prom_ebus_intmap_init(struct linux_ebus *ebus))
 	success = prom_getproperty(ebus->prom_node, "interrupt-map-mask",
 				   (char *)&ebus->ebus_intmask,
 				   sizeof(ebus->ebus_intmask));
-	if (success == -1) {
-		prom_printf("%s: can't get interrupt-map-mask\n", __FUNCTION__);
-		prom_halt();
-	}
-}
-
-__initfunc(void prom_pbm_ranges_init(int pnode, struct linux_pbm_info *pbm))
-{
-	int success;
-
-	pbm->num_pbm_ranges = 0;
-	success = prom_getproperty(pnode, "ranges",
-				   (char *)&pbm->pbm_ranges,
-				   sizeof(pbm->pbm_ranges));
-	if(success != -1)
-		pbm->num_pbm_ranges = (success/sizeof(struct linux_prom_pci_ranges));
-}
-
-__initfunc(void prom_pbm_intmap_init(int pnode, struct linux_pbm_info *pbm))
-{
-	int success;
-
-	pbm->num_pbm_intmap = 0;
-	success = prom_getproperty(pnode, "interrupt-map",
-				   (char *)pbm->pbm_intmap,
-				   sizeof(pbm->pbm_intmap));
-	if (success == -1)
-		return;
-
-	pbm->num_pbm_intmap = (success/sizeof(struct linux_prom_pci_intmap));
-
-	success = prom_getproperty(pnode, "interrupt-map-mask",
-				   (char *)&pbm->pbm_intmask,
-				   sizeof(pbm->pbm_intmask));
 	if (success == -1) {
 		prom_printf("%s: can't get interrupt-map-mask\n", __FUNCTION__);
 		prom_halt();

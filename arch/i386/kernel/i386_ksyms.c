@@ -76,7 +76,6 @@ EXPORT_SYMBOL(strlen_user);
 #ifdef __SMP__
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(kernel_flag);
-EXPORT_SYMBOL(smp_invalidate_needed);
 EXPORT_SYMBOL(cpu_number_map);
 EXPORT_SYMBOL(__cpu_logical_map);
 EXPORT_SYMBOL(smp_num_cpus);
@@ -89,6 +88,7 @@ EXPORT_SYMBOL(synchronize_bh);
 EXPORT_SYMBOL(global_bh_count);
 EXPORT_SYMBOL(global_bh_lock);
 EXPORT_SYMBOL(global_irq_holder);
+EXPORT_SYMBOL(i386_bh_lock);
 EXPORT_SYMBOL(__global_cli);
 EXPORT_SYMBOL(__global_sti);
 EXPORT_SYMBOL(__global_save_flags);
@@ -111,6 +111,7 @@ EXPORT_SYMBOL(mca_isadapter);
 EXPORT_SYMBOL(mca_mark_as_used);
 EXPORT_SYMBOL(mca_mark_as_unused);
 EXPORT_SYMBOL(mca_find_unused_adapter);
+EXPORT_SYMBOL(mca_is_adapter_used);
 #endif
 
 #ifdef CONFIG_VT

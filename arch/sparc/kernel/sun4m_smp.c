@@ -7,12 +7,13 @@
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 
 #include <asm/ptrace.h>
 #include <asm/atomic.h>
@@ -23,7 +24,6 @@
 #include <asm/pgtable.h>
 #include <asm/oplib.h>
 #include <asm/atops.h>
-#include <asm/spinlock.h>
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
 
@@ -77,7 +77,7 @@ static inline unsigned long swap(volatile unsigned long *ptr, unsigned long val)
 static void smp_setup_percpu_timer(void);
 extern void cpu_probe(void);
 
-__initfunc(void smp4m_callin(void))
+void __init smp4m_callin(void)
 {
 	int cpuid = hard_smp_processor_id();
 
@@ -109,7 +109,7 @@ __initfunc(void smp4m_callin(void))
 			     : "memory" /* paranoid */);
 	current->mm->mmap->vm_page_prot = PAGE_SHARED;
 	current->mm->mmap->vm_start = PAGE_OFFSET;
-	current->mm->mmap->vm_end = init_task.mm->mmap->vm_end;
+	current->mm->mmap->vm_end = init_mm.mmap->vm_end;
 	
 	while(!smp_commenced)
 		barrier();
@@ -135,7 +135,7 @@ extern unsigned long trapbase_cpu1[];
 extern unsigned long trapbase_cpu2[];
 extern unsigned long trapbase_cpu3[];
 
-__initfunc(void smp4m_boot_cpus(void))
+void __init smp4m_boot_cpus(void)
 {
 	int cpucount = 0;
 	int i = 0;
@@ -479,7 +479,7 @@ void smp4m_percpu_timer_interrupt(struct pt_regs *regs)
 
 extern unsigned int lvl14_resolution;
 
-__initfunc(static void smp_setup_percpu_timer(void))
+static void __init smp_setup_percpu_timer(void)
 {
 	int cpu = smp_processor_id();
 
@@ -490,7 +490,7 @@ __initfunc(static void smp_setup_percpu_timer(void))
 		enable_pil_irq(14);
 }
 
-__initfunc(void smp4m_blackbox_id(unsigned *addr))
+void __init smp4m_blackbox_id(unsigned *addr)
 {
 	int rd = *addr & 0x3e000000;
 	int rs1 = rd >> 11;
@@ -500,7 +500,7 @@ __initfunc(void smp4m_blackbox_id(unsigned *addr))
 	addr[2] = 0x80082003 | rd | rs1;	/* and reg, 3, reg */
 }
 
-__initfunc(void smp4m_blackbox_current(unsigned *addr))
+void __init smp4m_blackbox_current(unsigned *addr)
 {
 	int rd = *addr & 0x3e000000;
 	int rs1 = rd >> 11;
@@ -510,7 +510,7 @@ __initfunc(void smp4m_blackbox_current(unsigned *addr))
 	addr[4] = 0x8008200c | rd | rs1;	/* and reg, 3, reg */
 }
 
-__initfunc(void sun4m_init_smp(void))
+void __init sun4m_init_smp(void)
 {
 	BTFIXUPSET_BLACKBOX(smp_processor_id, smp4m_blackbox_id);
 	BTFIXUPSET_BLACKBOX(load_current, smp4m_blackbox_current);

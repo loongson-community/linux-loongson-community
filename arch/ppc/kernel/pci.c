@@ -1,5 +1,5 @@
 /*
- * $Id: pci.c,v 1.54 1999/03/18 04:16:04 cort Exp $
+ * $Id: pci.c,v 1.60 1999/09/08 03:04:07 cort Exp $
  * Common pmac/prep/chrp pci routines. -- Cort
  */
 
@@ -22,58 +22,94 @@
 
 #include "pci.h"
 
+static void __init pcibios_claim_resources(struct pci_bus *);
+
 unsigned long isa_io_base     = 0;
 unsigned long isa_mem_base    = 0;
 unsigned long pci_dram_offset = 0;
 
-int pcibios_read_config_byte(unsigned char bus, unsigned char dev_fn,
-			     unsigned char offset, unsigned char *val)
+struct pci_fixup pcibios_fixups[] = {
+	{ 0 }
+};
+
+int generic_pcibios_read_byte(struct pci_dev *dev, int where, u8 *val)
 {
-	return ppc_md.pcibios_read_config_byte(bus,dev_fn,offset,val);
+	return ppc_md.pcibios_read_config_byte(dev->bus->number,dev->devfn,where,val);
 }
-int pcibios_read_config_word(unsigned char bus, unsigned char dev_fn,
-			     unsigned char offset, unsigned short *val)
+int generic_pcibios_read_word(struct pci_dev *dev, int where, u16 *val)
 {
-	return ppc_md.pcibios_read_config_word(bus,dev_fn,offset,val);
+	return ppc_md.pcibios_read_config_word(dev->bus->number,dev->devfn,where,val);
 }
-int pcibios_read_config_dword(unsigned char bus, unsigned char dev_fn,
-			      unsigned char offset, unsigned int *val)
+int generic_pcibios_read_dword(struct pci_dev *dev, int where, u32 *val)
 {
-	return ppc_md.pcibios_read_config_dword(bus,dev_fn,offset,val);
+	return ppc_md.pcibios_read_config_dword(dev->bus->number,dev->devfn,where,val);
 }
-int pcibios_write_config_byte(unsigned char bus, unsigned char dev_fn,
-			      unsigned char offset, unsigned char val)
+int generic_pcibios_write_byte(struct pci_dev *dev, int where, u8 val)
 {
-	return ppc_md.pcibios_write_config_byte(bus,dev_fn,offset,val);
+	return ppc_md.pcibios_write_config_byte(dev->bus->number,dev->devfn,where,val);
 }
-int pcibios_write_config_word(unsigned char bus, unsigned char dev_fn,
-			      unsigned char offset, unsigned short val)
+int generic_pcibios_write_word(struct pci_dev *dev, int where, u16 val)
 {
-	return ppc_md.pcibios_write_config_word(bus,dev_fn,offset,val);
+	return ppc_md.pcibios_write_config_word(dev->bus->number,dev->devfn,where,val);
 }
-int pcibios_write_config_dword(unsigned char bus, unsigned char dev_fn,
-			       unsigned char offset, unsigned int val)
+int generic_pcibios_write_dword(struct pci_dev *dev, int where, u32 val)
 {
-	return ppc_md.pcibios_write_config_dword(bus,dev_fn,offset,val);
+	return ppc_md.pcibios_write_config_dword(dev->bus->number,dev->devfn,where,val);
 }
 
-int pcibios_present(void)
+struct pci_ops generic_pci_ops = 
 {
-	return 1;
-}
+	generic_pcibios_read_byte,
+	generic_pcibios_read_word,
+	generic_pcibios_read_dword,
+	generic_pcibios_write_byte,
+	generic_pcibios_write_word,
+	generic_pcibios_write_dword
+};
 
 void __init pcibios_init(void)
 {
+	printk("PCI: Probing PCI hardware\n");
+	ioport_resource.end = ~0L;
+	pci_scan_bus(0, &generic_pci_ops, NULL);
+	pcibios_claim_resources(pci_root);
+	if ( ppc_md.pcibios_fixup )
+		ppc_md.pcibios_fixup();
 }
 
-
-void __init pcibios_fixup(void)
+static void __init pcibios_claim_resources(struct pci_bus *bus)
 {
-	ppc_md.pcibios_fixup();
+	struct pci_dev *dev;
+	int idx;
+
+	while (bus)
+	{
+		for (dev=bus->devices; dev; dev=dev->sibling)
+		{
+			for (idx = 0; idx < PCI_NUM_RESOURCES; idx++)
+			{
+				struct resource *r = &dev->resource[idx];
+				struct resource *pr;
+				if (!r->start)
+					continue;
+				pr = pci_find_parent_resource(dev, r);
+				if (!pr || request_resource(pr, r) < 0)
+				{
+					printk(KERN_ERR "PCI: Address space collision on region %d of device %s\n", idx, dev->name);
+					/* We probably should disable the region, shouldn't we? */
+				}
+			}
+		}
+		if (bus->children)
+			pcibios_claim_resources(bus->children);
+		bus = bus->next;
+	}
 }
 
 void __init pcibios_fixup_bus(struct pci_bus *bus)
 {
+	if ( ppc_md.pcibios_fixup_bus )
+		ppc_md.pcibios_fixup_bus(bus);
 }
 
 char __init *pcibios_setup(char *str)
@@ -105,3 +141,8 @@ void __init fix_intr(struct device_node *node, struct pci_dev *dev)
 	}
 }
 #endif
+
+int pcibios_assign_resource(struct pci_dev *pdev, int resource)
+{
+	return 0;
+}

@@ -36,6 +36,7 @@
 extern struct hwrpb_struct *hwrpb;
 extern void dump_thread(struct pt_regs *, struct user *);
 extern int dump_fpu(struct pt_regs *, elf_fpregset_t *);
+extern void ___delay(void);
 
 /* these are C runtime functions with special calling conventions: */
 extern void __divl (void);
@@ -48,8 +49,6 @@ extern void __divqu (void);
 extern void __remqu (void);
 
 EXPORT_SYMBOL(alpha_mv);
-EXPORT_SYMBOL(local_bh_count);
-EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(disable_irq_nosync);
@@ -107,7 +106,7 @@ EXPORT_SYMBOL(alpha_read_fp_reg);
 EXPORT_SYMBOL(alpha_write_fp_reg);
 
 /* In-kernel system calls.  */
-EXPORT_SYMBOL(__kernel_thread);
+EXPORT_SYMBOL(kernel_thread);
 EXPORT_SYMBOL(sys_open);
 EXPORT_SYMBOL(sys_dup);
 EXPORT_SYMBOL(sys_exit);
@@ -149,6 +148,11 @@ EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
 EXPORT_SYMBOL_NOVERS(__up_wakeup);
 
+/*
+ * This is called specially from __delay.
+ */
+EXPORT_SYMBOL_NOVERS(___delay);
+
 /* 
  * SMP-specific symbols.
  */
@@ -178,6 +182,9 @@ EXPORT_SYMBOL(debug_spin_trylock);
 EXPORT_SYMBOL(write_lock);
 EXPORT_SYMBOL(read_lock);
 #endif
+#else /* __SMP__ */
+EXPORT_SYMBOL(__local_bh_count);
+EXPORT_SYMBOL(__local_irq_count);
 #endif /* __SMP__ */
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.103 1999/07/04 04:35:51 davem Exp $
+/* $Id: fault.c,v 1.107 1999/08/14 03:51:46 anton Exp $
  * fault.c:  Page fault handlers for the Sparc.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -12,7 +12,7 @@
 #include <linux/types.h>
 #include <linux/ptrace.h>
 #include <linux/mman.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 #include <linux/kernel.h>
 #include <linux/signal.h>
 #include <linux/mm.h>
@@ -205,7 +205,7 @@ asmlinkage void do_sparc_fault(struct pt_regs *regs, int text_fault, int write,
 	 * If we're in an interrupt or have no user
 	 * context, we must not take the fault..
 	 */
-        if (in_interrupt() || mm == &init_mm)
+        if (in_interrupt() || !mm)
                 goto do_kernel_fault;
 
 	down(&mm->mmap_sem);
@@ -280,8 +280,8 @@ do_kernel_fault:
 		printk("Fault whee %s [%d]: segfaults at %08lx pc=%08lx\n",
 		       tsk->comm, tsk->pid, address, regs->pc);
 #endif
-		tsk->tss.sig_address = address;
-		tsk->tss.sig_desc = SUBSIG_NOMAPPING;
+		tsk->thread.sig_address = address;
+		tsk->thread.sig_desc = SUBSIG_NOMAPPING;
 		force_sig(SIGSEGV, tsk);
 		return;
 	}
@@ -290,8 +290,8 @@ do_kernel_fault:
 
 do_sigbus:
 	up(&mm->mmap_sem);
-	tsk->tss.sig_address = address;
-	tsk->tss.sig_desc = SUBSIG_MISCERROR;
+	tsk->thread.sig_address = address;
+	tsk->thread.sig_desc = SUBSIG_MISCERROR;
 	force_sig(SIGBUS, tsk);
 	if (! from_user)
 		goto do_kernel_fault;
@@ -382,12 +382,13 @@ inline void force_user_fault(unsigned long address, int write)
 	if(expand_stack(vma, address))
 		goto bad_area;
 good_area:
-	if(write)
+	if(write) {
 		if(!(vma->vm_flags & VM_WRITE))
 			goto bad_area;
-	else
+	} else {
 		if(!(vma->vm_flags & (VM_READ | VM_EXEC)))
 			goto bad_area;
+	}
 	if (!handle_mm_fault(current, vma, address, write))
 		goto do_sigbus;
 	up(&mm->mmap_sem);
@@ -398,15 +399,15 @@ bad_area:
 	printk("Window whee %s [%d]: segfaults at %08lx\n",
 	       tsk->comm, tsk->pid, address);
 #endif
-	tsk->tss.sig_address = address;
-	tsk->tss.sig_desc = SUBSIG_NOMAPPING;
+	tsk->thread.sig_address = address;
+	tsk->thread.sig_desc = SUBSIG_NOMAPPING;
 	send_sig(SIGSEGV, tsk, 1);
 	return;
 
 do_sigbus:
 	up(&mm->mmap_sem);
-	tsk->tss.sig_address = address;
-	tsk->tss.sig_desc = SUBSIG_MISCERROR;
+	tsk->thread.sig_address = address;
+	tsk->thread.sig_desc = SUBSIG_MISCERROR;
 	force_sig(SIGBUS, tsk);
 }
 
@@ -415,7 +416,7 @@ void window_overflow_fault(void)
 	unsigned long sp;
 
 	lock_kernel();
-	sp = current->tss.rwbuf_stkptrs[0];
+	sp = current->thread.rwbuf_stkptrs[0];
 	if(((sp + 0x38) & PAGE_MASK) != (sp & PAGE_MASK))
 		force_user_fault(sp + 0x38, 1);
 	force_user_fault(sp, 1);

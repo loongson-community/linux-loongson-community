@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1998 Harald Koerfgen, Frieder Streffer and Paul M. Antoine
  *
- * $Id: $
+ * $Id: memory.c,v 1.2 1999/04/11 17:06:17 harald Exp $
  */
 #include <asm/addrspace.h>
 #include <linux/init.h>
@@ -35,7 +35,7 @@ volatile unsigned long mem_err = 0;	/* So we know an error occured */
 
 #define CHUNK_SIZE 0x400000
 
-__initfunc(unsigned long pmax_get_memory_size(void))
+unsigned long __init pmax_get_memory_size(void)
 {
 	volatile unsigned char *memory_page, dummy;
 	char	old_handler[0x80];
@@ -63,7 +63,7 @@ __initfunc(unsigned long pmax_get_memory_size(void))
  * Use the REX prom calls to get hold of the memory bitmap, and thence
  * determine memory size.
  */
-__initfunc(unsigned long rex_get_memory_size(void))
+unsigned long __init rex_get_memory_size(void)
 {
 	int i, bitmap_size;
 	unsigned long mem_size = 0;
@@ -82,7 +82,7 @@ __initfunc(unsigned long rex_get_memory_size(void))
 	return (mem_size);
 }
 
-__initfunc(void prom_meminit(unsigned int magic))
+void __init prom_meminit(unsigned int magic)
 {
 	if (magic != REX_PROM_MAGIC)
 		mips_memory_upper = KSEG0 + pmax_get_memory_size();
@@ -95,7 +95,7 @@ __initfunc(void prom_meminit(unsigned int magic))
 }
 
 /* Called from mem_init() to fixup the mem_map page settings. */
-__initfunc(void prom_fixup_mem_map(unsigned long start, unsigned long end))
+void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
 {
 }
 

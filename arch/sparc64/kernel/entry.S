@@ -1,4 +1,4 @@
-/* $Id: entry.S,v 1.103 1999/05/08 03:00:21 davem Exp $
+/* $Id: entry.S,v 1.107 1999/08/31 19:25:29 davem Exp $
  * arch/sparc64/kernel/entry.S:  Sparc64 trap low-level entry points.
  *
  * Copyright (C) 1995,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -42,13 +42,13 @@ sparc64_vpte_patchme2:
 	/* This is trivial with the new code... */
 	.globl		do_fpdis
 do_fpdis:
-	ldub		[%g6 + AOFF_task_tss + AOFF_thread_fpsaved], %g5	! Load	Group
+	ldub		[%g6 + AOFF_task_thread + AOFF_thread_fpsaved], %g5	! Load	Group
 	sethi		%hi(TSTATE_PEF), %g4					! IEU0
 	wr		%g0, FPRS_FEF, %fprs					! LSU	Group+4bubbles
 	andcc		%g5, FPRS_FEF, %g0					! IEU1	Group
 	be,a,pt		%icc, 1f						! CTI
 	 clr		%g7							! IEU0
-	ldub		[%g6 + AOFF_task_tss + AOFF_thread_gsr], %g7		! Load	Group
+	ldub		[%g6 + AOFF_task_thread + AOFF_thread_gsr], %g7		! Load	Group
 1:	andcc		%g5, FPRS_DL, %g0					! IEU1
 	bne,pn		%icc, 2f						! CTI
 	 fzero		%f0							! FPA
@@ -157,7 +157,7 @@ fpdis_exit:
 	flush		%g6
 fpdis_exit2:
 	wr		%g7, 0, %gsr
-	ldx		[%g6 + AOFF_task_tss + AOFF_thread_xfsr], %fsr
+	ldx		[%g6 + AOFF_task_thread + AOFF_thread_xfsr], %fsr
 	rdpr		%tstate, %g3
 	or		%g3, %g4, %g3		! anal...
 	wrpr		%g3, %tstate
@@ -167,13 +167,13 @@ fpdis_exit2:
 	.globl		do_fptrap
 	.align		32
 do_fptrap:
-	ldub		[%g6 + AOFF_task_tss + AOFF_thread_fpsaved], %g3
-	stx		%fsr, [%g6 + AOFF_task_tss + AOFF_thread_xfsr]
+	ldub		[%g6 + AOFF_task_thread + AOFF_thread_fpsaved], %g3
+	stx		%fsr, [%g6 + AOFF_task_thread + AOFF_thread_xfsr]
 	rd		%fprs, %g1
 	or		%g3, %g1, %g3
-	stb		%g3, [%g6 + AOFF_task_tss + AOFF_thread_fpsaved]
+	stb		%g3, [%g6 + AOFF_task_thread + AOFF_thread_fpsaved]
 	rd		%gsr, %g3
-	stb		%g3, [%g6 + AOFF_task_tss + AOFF_thread_gsr]
+	stb		%g3, [%g6 + AOFF_task_thread + AOFF_thread_gsr]
 	mov		SECONDARY_CONTEXT, %g3
 	add		%g6, AOFF_task_fpregs, %g2
 	ldxa		[%g3] ASI_DMMU, %g5
@@ -478,6 +478,97 @@ __do_instruction_access_exception:
 	ba,pt		%xcc, rtrap
 	 clr		%l6
 
+	/* This is the trap handler entry point for ECC correctable
+	 * errors.  They are corrected, but we listen for the trap
+	 * so that the event can be logged.
+	 *
+	 * Disrupting errors are either:
+	 * 1) single-bit ECC errors during UDB reads to system
+	 *    memory
+	 * 2) data parity errors during write-back events
+	 *
+	 * As far as I can make out from the manual, the CEE trap
+	 * is only for correctable errors during memory read
+	 * accesses by the front-end of the processor.
+	 *
+	 * The code below is only for trap level 1 CEE events,
+	 * as it is the only situation where we can safely record
+	 * and log.  For trap level >1 we just clear the CE bit
+	 * in the AFSR and return.
+	 */
+
+	/* Our trap handling infrastructure allows us to preserve
+	 * two 64-bit values during etrap for arguments to
+	 * subsequent C code.  Therefore we encode the information
+	 * as follows:
+	 *
+	 * value 1) Full 64-bits of AFAR
+	 * value 2) Low 33-bits of AFSR, then bits 33-->42
+	 *          are UDBL error status and bits 43-->52
+	 *          are UDBH error status
+	 */
+	.align	64
+	.globl	cee_trap
+cee_trap:
+	ldxa	[%g0] ASI_AFSR, %g1		! Read AFSR
+	ldxa	[%g0] ASI_AFAR, %g2		! Read AFAR
+	sllx	%g1, 31, %g1			! Clear reserved bits
+	srlx	%g1, 31, %g1			! in AFSR
+
+	/* NOTE: UltraSparc-I/II have high and low UDB error
+	 *       registers, corresponding to the two UDB units
+	 *       present on those chips.  UltraSparc-IIi only
+	 *       has a single UDB, called "SDB" in the manual.
+	 *       For IIi the upper UDB register always reads
+	 *       as zero so for our purposes things will just
+	 *       work with the checks below.
+	 */
+	ldxa	[%g0] ASI_UDBL_ERROR_R, %g3	! Read UDB-Low error status
+	andcc	%g3, (1 << 8), %g4		! Check CE bit
+	sllx	%g3, (64 - 10), %g3		! Clear reserved bits
+	srlx	%g3, (64 - 10), %g3		! in UDB-Low error status
+
+	sllx	%g3, (33 + 0), %g3		! Shift up to encoding area
+	or	%g1, %g3, %g1			! Or it in
+	be,pn	%xcc, 1f			! Branch if CE bit was clear
+	 nop
+	stxa	%g4, [%g0] ASI_UDB_ERROR_W	! Clear CE sticky bit in UDBL
+	membar	#Sync				! Synchronize ASI stores
+1:	mov	0x18, %g5			! Addr of UDB-High error status
+	ldxa	[%g5] ASI_UDBH_ERROR_R, %g3	! Read it
+
+	andcc	%g3, (1 << 8), %g4		! Check CE bit
+	sllx	%g3, (64 - 10), %g3		! Clear reserved bits
+	srlx	%g3, (64 - 10), %g3		! in UDB-High error status
+	sllx	%g3, (33 + 10), %g3		! Shift up to encoding area
+	or	%g1, %g3, %g1			! Or it in
+	be,pn	%xcc, 1f			! Branch if CE bit was clear
+	 nop
+	nop
+
+	stxa	%g4, [%g5] ASI_UDB_ERROR_W	! Clear CE sticky bit in UDBH
+	membar	#Sync				! Synchronize ASI stores
+1:	mov	1, %g5				! AFSR CE bit is
+	sllx	%g5, 20, %g5			! bit 20
+	stxa	%g5, [%g0] ASI_AFSR		! Clear CE sticky bit in AFSR
+	membar	#Sync				! Synchronize ASI stores
+	sllx	%g2, (64 - 41), %g2		! Clear reserved bits
+	srlx	%g2, (64 - 41), %g2		! in latched AFAR
+
+	andn	%g2, 0x0f, %g2			! Finish resv bit clearing
+	mov	%g1, %g4			! Move AFSR+UDB* into save reg
+	mov	%g2, %g5			! Move AFAR into save reg
+	rdpr	%pil, %g2
+	wrpr	%g0, 15, %pil
+	ba,pt	%xcc, etrap_irq
+	 rd	%pc, %g7
+	mov	%l4, %o0
+
+	mov	%l5, %o1
+	call	cee_log
+	 add	%sp, STACK_BIAS + REGWIN_SZ, %o2
+	ba,a,pt	%xcc, rtrap_clr_l6
+
 	.globl		__do_privact
 __do_privact:
 	mov		TLB_SFSR, %g3
@@ -633,41 +724,28 @@ execve_merge:
 	jmpl		%g1, %g0
 	 add		%sp, STACK_BIAS + REGWIN_SZ, %o0
 
-	.globl	sys_pipe, sys_execve, sys_sigpause, sys_nis_syscall
+	.globl	sys_pipe, sys_sigpause, sys_nis_syscall
 	.globl	sys_sigsuspend, sys_rt_sigsuspend, sys32_rt_sigsuspend
-	.globl	sys_sigreturn, sys_rt_sigreturn
+	.globl	sys_rt_sigreturn
 	.globl	sys32_sigreturn, sys32_rt_sigreturn
 	.globl	sys32_execve, sys_ptrace
 	.globl	sys_sigaltstack, sys32_sigaltstack
 	.globl	sys32_sigstack
 	.align	32
-sys_pipe:	sethi		%hi(sparc_pipe), %g1
-		add		%sp, STACK_BIAS + REGWIN_SZ, %o0
-		jmpl		%g1 + %lo(sparc_pipe), %g0
-		 nop
-sys_nis_syscall:sethi		%hi(c_sys_nis_syscall), %g1
-		add		%sp, STACK_BIAS + REGWIN_SZ, %o0
-		jmpl		%g1 + %lo(c_sys_nis_syscall), %g0
-		 nop
-
+sys_pipe:	ba,pt		%xcc, sparc_pipe
+		 add		%sp, STACK_BIAS + REGWIN_SZ, %o0
+sys_nis_syscall:ba,pt		%xcc, c_sys_nis_syscall
+		 add		%sp, STACK_BIAS + REGWIN_SZ, %o0
 sys_memory_ordering:
-		sethi		%hi(sparc_memory_ordering), %g1
-		add		%sp, STACK_BIAS + REGWIN_SZ, %o1
-		jmpl		%g1 + %lo(sparc_memory_ordering), %g0
-		 nop
-sys_sigaltstack:sethi		%hi(do_sigaltstack), %g1
-		add		%i6, STACK_BIAS, %o2
-		jmpl		%g1 + %lo(do_sigaltstack), %g1
-		 nop
-sys32_sigstack:	sethi		%hi(do_sys32_sigstack), %g1
-		mov		%i6, %o2
-		jmpl		%g1 + %lo(do_sys32_sigstack), %g1
-		 nop
+		ba,pt		%xcc, sparc_memory_ordering
+		 add		%sp, STACK_BIAS + REGWIN_SZ, %o1
+sys_sigaltstack:ba,pt		%xcc, do_sigaltstack
+		 add		%i6, STACK_BIAS, %o2
+sys32_sigstack:	ba,pt		%xcc, do_sys32_sigstack
+		 mov		%i6, %o2
 sys32_sigaltstack:
-		sethi		%hi(do_sys32_sigaltstack), %g1
-		mov		%i6, %o2
-		jmpl		%g1 + %lo(do_sys32_sigaltstack), %g1
-		 nop
+		ba,pt		%xcc, do_sys32_sigaltstack
+		 mov		%i6, %o2
 
 		.align		32
 sys_sigsuspend:	add		%sp, STACK_BIAS + REGWIN_SZ, %o0
@@ -687,10 +765,6 @@ sys32_rt_sigsuspend: /* NOTE: %o0,%o1 have a correct value already */
 		/* NOTE: %o0 has a correct value already */
 sys_sigpause:	add		%sp, STACK_BIAS + REGWIN_SZ, %o1
 		call		do_sigpause
-		 add		%o7, 1f-.-4, %o7
-		nop
-sys_sigreturn:	add		%sp, STACK_BIAS + REGWIN_SZ, %o0
-		call		do_sigreturn
 		 add		%o7, 1f-.-4, %o7
 		nop
 sys32_sigreturn:
@@ -761,38 +835,30 @@ sys_clone:	flushw
 		ba,pt		%xcc, do_fork
 		 add		%sp, STACK_BIAS + REGWIN_SZ, %o2
 ret_from_syscall:
-		/* Clear SPARC_FLAG_NEWCHILD, switch_to leaves tss.flags in
+		/* Clear SPARC_FLAG_NEWCHILD, switch_to leaves thread.flags in
 		 * %o7 for us.  Check performance counter stuff too.
 		 */
-#ifdef __SMP__
-		andn		%o7, 0x100, %l0
+		andn		%o7, SPARC_FLAG_NEWCHILD, %l0
 		mov		%g5, %o0	/* 'prev' */
 		call		schedule_tail
-		 sth		%l0, [%g6 + AOFF_task_tss + AOFF_thread_flags]
-#else
-		andn		%o7, 0x100, %l0
-		sth		%l0, [%g6 + AOFF_task_tss + AOFF_thread_flags]
-#endif
-		andcc		%l0, 0x200, %g0
+		 stb		%l0, [%g6 + AOFF_task_thread + AOFF_thread_flags]
+		andcc		%l0, SPARC_FLAG_PERFCTR, %g0
 		be,pt		%icc, 1f
 		 nop
-		ldx		[%g6 + AOFF_task_tss + AOFF_thread_pcr_reg], %o7
+		ldx		[%g6 + AOFF_task_thread + AOFF_thread_pcr_reg], %o7
 		wr		%g0, %o7, %pcr
 		wr		%g0, %g0, %pic
 1:		b,pt		%xcc, ret_sys_call
 		 ldx		[%sp + STACK_BIAS + REGWIN_SZ + PT_V9_I0], %o0
 sparc_exit:	rdpr		%otherwin, %g1
-		rdpr		%pstate, %g2
-		wrpr		%g2, PSTATE_IE, %pstate
+		wrpr		%g0, (PSTATE_RMO | PSTATE_PEF | PSTATE_PRIV), %pstate
 		rdpr		%cansave, %g3
 		add		%g3, %g1, %g3
 		wrpr		%g3, 0x0, %cansave
 		wrpr		%g0, 0x0, %otherwin
-		wrpr		%g2, 0x0, %pstate
-		mov		%o7, %l5
-		sth		%g0, [%g6 + AOFF_task_tss + AOFF_thread_w_saved]
-		call		sys_exit
-		 mov		%l5, %o7
+		wrpr		%g0, (PSTATE_RMO | PSTATE_PEF | PSTATE_PRIV | PSTATE_IE), %pstate
+		ba,pt		%xcc, sys_exit
+		 stb		%g0, [%g6 + AOFF_task_thread + AOFF_thread_w_saved]
 
 linux_sparc_ni_syscall:
 	sethi		%hi(sys_ni_syscall), %l7

@@ -1,15 +1,14 @@
 /*
  *	linux/arch/alpha/kernel/core_t2.c
  *
- * Code common to all T2 core logic chips.
- *
  * Written by Jay A Estabrook (jestabro@amt.tay1.dec.com).
  * December 1996.
  *
  * based on CIA code by David A Rusling (david.rusling@reo.mts.dec.com)
  *
+ * Code common to all T2 core logic chips.
  */
-#include <linux/config.h>
+
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/pci.h>
@@ -18,6 +17,7 @@
 
 #include <asm/ptrace.h>
 #include <asm/system.h>
+#include <asm/pci.h>
 
 #define __EXTERN_INLINE
 #include <asm/io.h>
@@ -25,6 +25,8 @@
 #undef __EXTERN_INLINE
 
 #include "proto.h"
+#include "pci_impl.h"
+
 
 /*
  * NOTE: Herein lie back-to-back mb instructions.  They are magic. 
@@ -33,35 +35,16 @@
  */
 
 /*
- * Machine check reasons.  Defined according to PALcode sources
- * (osf.h and platform.h).
- */
-#define MCHK_K_TPERR		0x0080
-#define MCHK_K_TCPERR		0x0082
-#define MCHK_K_HERR		0x0084
-#define MCHK_K_ECC_C		0x0086
-#define MCHK_K_ECC_NC		0x0088
-#define MCHK_K_OS_BUGCHECK	0x008A
-#define MCHK_K_PAL_BUGCHECK	0x0090
-
-/*
  * BIOS32-style PCI interface:
  */
 
-#ifdef DEBUG_CONF
+#define DEBUG_CONFIG 0
+
+#if DEBUG_CONFIG
 # define DBG(args)	printk args
 #else
 # define DBG(args)
 #endif
-
-#ifdef DEBUG_MCHECK
-# define DBGMC(args)	printk args
-#else
-# define DBGMC(args)
-#endif
-
-static volatile unsigned int T2_mcheck_expected[NR_CPUS];
-static volatile unsigned int T2_mcheck_taken[NR_CPUS];
 
 
 /*
@@ -107,10 +90,12 @@ static volatile unsigned int T2_mcheck_taken[NR_CPUS];
  */
 
 static int
-mk_conf_addr(u8 bus, u8 device_fn, u8 where, unsigned long *pci_addr,
+mk_conf_addr(struct pci_dev *dev, int where, unsigned long *pci_addr,
 	     unsigned char *type1)
 {
 	unsigned long addr;
+	u8 bus = dev->bus->number;
+	u8 device_fn = dev->devfn;
 
 	DBG(("mk_conf_addr(bus=%d, dfn=0x%x, where=0x%x,"
 	     " addr=0x%lx, type1=0x%x)\n",
@@ -173,8 +158,8 @@ conf_read(unsigned long addr, unsigned char type1)
 	mb();
 	draina();
 
-	T2_mcheck_expected[cpu] = 1;
-	T2_mcheck_taken[cpu] = 0;
+	mcheck_expected(cpu) = 1;
+	mcheck_taken(cpu) = 0;
 	mb();
 
 	/* Access configuration space. */
@@ -182,12 +167,12 @@ conf_read(unsigned long addr, unsigned char type1)
 	mb();
 	mb();  /* magic */
 
-	if (T2_mcheck_taken[cpu]) {
-		T2_mcheck_taken[cpu] = 0;
+	if (mcheck_taken(cpu)) {
+		mcheck_taken(cpu) = 0;
 		value = 0xffffffffU;
 		mb();
 	}
-	T2_mcheck_expected[cpu] = 0;
+	mcheck_expected(cpu) = 0;
 	mb();
 
 	/* If Type1 access, must reset T2 CFG so normal IO space ops work.  */
@@ -233,7 +218,7 @@ conf_write(unsigned long addr, unsigned int value, unsigned char type1)
 	mb();
 	draina();
 
-	T2_mcheck_expected[cpu] = 1;
+	mcheck_expected(cpu) = 1;
 	mb();
 
 	/* Access configuration space.  */
@@ -241,7 +226,7 @@ conf_write(unsigned long addr, unsigned int value, unsigned char type1)
 	mb();
 	mb();  /* magic */
 
-	T2_mcheck_expected[cpu] = 0;
+	mcheck_expected(cpu) = 0;
 	mb();
 
 	/* If Type1 access, must reset T2 CFG so normal IO space ops work.  */
@@ -253,110 +238,99 @@ conf_write(unsigned long addr, unsigned int value, unsigned char type1)
 	__restore_flags(flags);
 }
 
-int
-t2_hose_read_config_byte (u8 bus, u8 device_fn, u8 where, u8 *value,
-			  struct linux_hose_info *hose)
+static int
+t2_read_config_byte(struct pci_dev *dev, int where, u8 *value)
 {
-	unsigned long addr = T2_CONF;
-	unsigned long pci_addr;
+	unsigned long addr, pci_addr;
 	unsigned char type1;
 
-	if (mk_conf_addr(bus, device_fn, where, &pci_addr, &type1))
+	if (mk_conf_addr(dev, where, &pci_addr, &type1))
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
-	addr |= (pci_addr << 5) + 0x00;
+	addr = (pci_addr << 5) + 0x00 + T2_CONF;
 	*value = conf_read(addr, type1) >> ((where & 3) * 8);
 	return PCIBIOS_SUCCESSFUL;
 }
 
-int 
-t2_hose_read_config_word (u8 bus, u8 device_fn, u8 where, u16 *value,
-			  struct linux_hose_info *hose)
+static int 
+t2_read_config_word(struct pci_dev *dev, int where, u16 *value)
 {
-	unsigned long addr = T2_CONF;
-	unsigned long pci_addr;
+	unsigned long addr, pci_addr;
 	unsigned char type1;
 
-	if (mk_conf_addr(bus, device_fn, where, &pci_addr, &type1))
+	if (mk_conf_addr(dev, where, &pci_addr, &type1))
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
-	addr |= (pci_addr << 5) + 0x08;
+	addr = (pci_addr << 5) + 0x08 + T2_CONF;
 	*value = conf_read(addr, type1) >> ((where & 3) * 8);
 	return PCIBIOS_SUCCESSFUL;
 }
 
-int 
-t2_hose_read_config_dword (u8 bus, u8 device_fn, u8 where, u32 *value,
-			   struct linux_hose_info *hose)
+static int 
+t2_read_config_dword(struct pci_dev *dev, int where, u32 *value)
 {
-	unsigned long addr = T2_CONF;
-	unsigned long pci_addr;
+	unsigned long addr, pci_addr;
 	unsigned char type1;
 
-	if (mk_conf_addr(bus, device_fn, where, &pci_addr, &type1))
+	if (mk_conf_addr(dev, where, &pci_addr, &type1))
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
-	addr |= (pci_addr << 5) + 0x18;
+	addr = (pci_addr << 5) + 0x18 + T2_CONF;
 	*value = conf_read(addr, type1);
 	return PCIBIOS_SUCCESSFUL;
 }
 
-int 
-t2_hose_write_config_byte (u8 bus, u8 device_fn, u8 where, u8 value,
-			   struct linux_hose_info *hose)
+static int 
+t2_write_config(struct pci_dev *dev, int where, u32 value, long mask)
 {
-	unsigned long addr = T2_CONF;
-	unsigned long pci_addr;
+	unsigned long addr, pci_addr;
 	unsigned char type1;
 
-	if (mk_conf_addr(bus, device_fn, where, &pci_addr, &type1))
+	if (mk_conf_addr(dev, where, &pci_addr, &type1))
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
-	addr |= (pci_addr << 5) + 0x00;
+	addr = (pci_addr << 5) + mask + T2_CONF;
 	conf_write(addr, value << ((where & 3) * 8), type1);
 	return PCIBIOS_SUCCESSFUL;
 }
 
-int
-t2_hose_write_config_word (u8 bus, u8 device_fn, u8 where, u16 value,
-			   struct linux_hose_info *hose)
+static int 
+t2_write_config_byte(struct pci_dev *dev, int where, u8 value)
 {
-	unsigned long addr = T2_CONF;
-	unsigned long pci_addr;
-	unsigned char type1;
-
-	if (mk_conf_addr(bus, device_fn, where, &pci_addr, &type1))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	addr |= (pci_addr << 5) + 0x08;
-	conf_write(addr, value << ((where & 3) * 8), type1);
-	return PCIBIOS_SUCCESSFUL;
+	return t2_write_config(dev, where, value, 0x00);
 }
 
-int 
-t2_hose_write_config_dword (u8 bus, u8 device_fn, u8 where, u32 value,
-			    struct linux_hose_info *hose)
+static int 
+t2_write_config_word(struct pci_dev *dev, int where, u16 value)
 {
-	unsigned long addr = T2_CONF;
-	unsigned long pci_addr;
-	unsigned char type1;
-
-	if (mk_conf_addr(bus, device_fn, where, &pci_addr, &type1))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	addr |= (pci_addr << 5) + 0x18;
-	conf_write(addr, value << ((where & 3) * 8), type1);
-	return PCIBIOS_SUCCESSFUL;
+	return t2_write_config(dev, where, value, 0x08);
 }
 
+static int 
+t2_write_config_dword(struct pci_dev *dev, int where, u32 value)
+{
+	return t2_write_config(dev, where, value, 0x18);
+}
+
+struct pci_ops t2_pci_ops = 
+{
+	read_byte:	t2_read_config_byte,
+	read_word:	t2_read_config_word,
+	read_dword:	t2_read_config_dword,
+	write_byte:	t2_write_config_byte,
+	write_word:	t2_write_config_word,
+	write_dword:	t2_write_config_dword
+};
+
 void __init
 t2_init_arch(unsigned long *mem_start, unsigned long *mem_end)
 {
+	struct pci_controler *hose;
 	unsigned int i;
 
 	for (i = 0; i < NR_CPUS; i++) {
-		T2_mcheck_expected[i] = 0;
-		T2_mcheck_taken[i] = 0;
+		mcheck_expected(i) = 0;
+		mcheck_taken(i) = 0;
 	}
 
 #if 0
@@ -383,125 +357,59 @@ t2_init_arch(unsigned long *mem_start, unsigned long *mem_end)
 	       *(vulp)T2_TBASE2);
 #endif
 
-	switch (alpha_use_srm_setup) 
-	{
-	default:
-#if defined(CONFIG_ALPHA_GENERIC) || defined(CONFIG_ALPHA_SRM_SETUP)
-		/* Check window 1 for enabled and mapped to 0.  */
-		if (((*(vulp)T2_WBASE1 & (3UL<<18)) == (2UL<<18))
-		    && (*(vulp)T2_TBASE1 == 0)) {
-			T2_DMA_WIN_BASE = *(vulp)T2_WBASE1 & 0xfff00000UL;
-			T2_DMA_WIN_SIZE = *(vulp)T2_WMASK1 & 0xfff00000UL;
-			T2_DMA_WIN_SIZE += 0x00100000UL;
-			/* DISABLE window 2!! ?? */
-#if 1
-			printk("t2_init: using Window 1 settings\n");
-			printk("t2_init: BASE 0x%lx MASK 0x%lx TRANS 0x%lx\n",
-			       *(vulp)T2_WBASE1,
-			       *(vulp)T2_WMASK1,
-			       *(vulp)T2_TBASE1);
+	/*
+	 * Set up the PCI->physical memory translation windows.
+	 * For now, window 2 is  disabled.  In the future, we may
+	 * want to use it to do scatter/gather DMA. 
+	 *
+	 * Window 1 goes at 1 GB and is 1 GB large.
+	 */
+
+	/* WARNING!! must correspond to the DMA_WIN params!!! */
+	*(vulp)T2_WBASE1 = 0x400807ffU;
+	*(vulp)T2_WMASK1 = 0x3ff00000U;
+	*(vulp)T2_TBASE1 = 0;
+
+	*(vulp)T2_WBASE2 = 0x0;
+	*(vulp)T2_HBASE = 0x0;
+
+	/* Zero HAE.  */
+	*(vulp)T2_HAE_1 = 0; mb();
+	*(vulp)T2_HAE_2 = 0; mb();
+	*(vulp)T2_HAE_3 = 0; mb();
+#if 0
+	*(vulp)T2_HAE_4 = 0; mb(); /* do not touch this */
 #endif
-			break;
-		}
-
-		/* Check window 2 for enabled and mapped to 0.  */
-		if (((*(vulp)T2_WBASE2 & (3UL<<18)) == (2UL<<18))
-		    && (*(vulp)T2_TBASE2 == 0)) {
-			T2_DMA_WIN_BASE = *(vulp)T2_WBASE2 & 0xfff00000UL;
-			T2_DMA_WIN_SIZE = *(vulp)T2_WMASK2 & 0xfff00000UL;
-			T2_DMA_WIN_SIZE += 0x00100000UL;
-			/* DISABLE window 1!! ?? */
-#if 1
-			printk("t2_init: using Window 2 settings\n");
-			printk("t2_init: BASE 0x%lx MASK 0x%lx TRANS 0x%lx\n",
-			       *(vulp)T2_WBASE2,
-			       *(vulp)T2_WMASK2,
-			       *(vulp)T2_TBASE2);
-#endif
-			break;
-		}
-
-		/* Otherwise, we must use our defaults.  */
-		T2_DMA_WIN_BASE = T2_DMA_WIN_BASE_DEFAULT;
-		T2_DMA_WIN_SIZE = T2_DMA_WIN_SIZE_DEFAULT;
-#endif
-	case 0:
-		/*
-		 * Set up the PCI->physical memory translation windows.
-		 * For now, window 2 is  disabled.  In the future, we may
-		 * want to use it to do scatter/gather DMA. 
-		 *
-		 * Window 1 goes at 1 GB and is 1 GB large.
-		 */
-
-		/* WARNING!! must correspond to the DMA_WIN params!!! */
-		*(vulp)T2_WBASE1 = 0x400807ffU;
-		*(vulp)T2_WMASK1 = 0x3ff00000U;
-		*(vulp)T2_TBASE1 = 0;
-
-		*(vulp)T2_WBASE2 = 0x0;
-		*(vulp)T2_HBASE = 0x0;
-		break;
-	}
 
 	/*
-	 * Sigh... For the SRM setup, unless we know apriori what the HAE
-	 * contents will be, we need to setup the arbitrary region bases
-	 * so we can test against the range of addresses and tailor the
-	 * region chosen for the SPARSE memory access.
-	 *
-	 * See include/asm-alpha/t2.h for the SPARSE mem read/write.
+	 * Create our single hose.
 	 */
-	if (alpha_use_srm_setup) {
-		unsigned long t2_hae_1 = *(vulp)T2_HAE_1;
 
-		alpha_mv.sm_base_r1 = (t2_hae_1 << 27) & 0xf8000000UL;
-
-		/*
-		 * Set the HAE cache, so that setup_arch() code
-		 * will use the SRM setting always. Our readb/writeb
-		 * code in .h expects never to have to change
-		 * the contents of the HAE.
-		 */
-		alpha_mv.hae_cache = t2_hae_1;
-
-		alpha_mv.mv_readb = t2_srm_readb;
-		alpha_mv.mv_readw = t2_srm_readw;
-		alpha_mv.mv_writeb = t2_srm_writeb;
-		alpha_mv.mv_writew = t2_srm_writew;
-	} else {
-		*(vulp)T2_HAE_1 = 0; mb();
-		*(vulp)T2_HAE_2 = 0; mb();
-		*(vulp)T2_HAE_3 = 0; mb();
-#if 0
-		*(vulp)T2_HAE_4 = 0; mb(); /* do not touch this */
-#endif
-	}
+	hose = alloc_pci_controler(mem_start);
+	hose->io_space = &ioport_resource;
+	hose->mem_space = &iomem_resource;
+	hose->config_space = T2_CONF;
+	hose->index = 0;
 }
 
 #define SIC_SEIC (1UL << 33)    /* System Event Clear */
 
-static int
-t2_clear_errors(void)
+static void
+t2_clear_errors(int cpu)
 {
-	unsigned int cpu = smp_processor_id();
-	static struct sable_cpu_csr *cpu_regs = NULL;
+	struct sable_cpu_csr *cpu_regs;
 
-	switch (cpu)
-	{
-	case 0: cpu_regs = (struct sable_cpu_csr *)T2_CPU0_BASE; break;
-	case 1: cpu_regs = (struct sable_cpu_csr *)T2_CPU1_BASE; break;
-	case 2: cpu_regs = (struct sable_cpu_csr *)T2_CPU2_BASE; break;
-	case 3: cpu_regs = (struct sable_cpu_csr *)T2_CPU3_BASE; break;
-	}
-
-	DBGMC(("???????? t2_clear_errors\n"));
-
+	cpu_regs = (struct sable_cpu_csr *)T2_CPU0_BASE;
+	if (cpu == 1)
+		cpu_regs = (struct sable_cpu_csr *)T2_CPU1_BASE;
+	if (cpu == 2)
+		cpu_regs = (struct sable_cpu_csr *)T2_CPU2_BASE;
+	if (cpu == 3)
+		cpu_regs = (struct sable_cpu_csr *)T2_CPU3_BASE;
+		
 	cpu_regs->sic &= ~SIC_SEIC;
 
-	/* 
-	 * clear CPU errors
-	 */
+	/* Clear CPU errors.  */
 	cpu_regs->bcce |= cpu_regs->bcce;
 	cpu_regs->cbe  |= cpu_regs->cbe;
 	cpu_regs->bcue |= cpu_regs->bcue;
@@ -512,116 +420,21 @@ t2_clear_errors(void)
 
 	mb();
 	mb();  /* magic */
-	return 0;
 }
 
 void
 t2_machine_check(unsigned long vector, unsigned long la_ptr,
 		 struct pt_regs * regs)
 {
-	struct el_t2_logout_header *mchk_header;
-	struct el_t2_procdata_mcheck *mchk_procdata;
-	struct el_t2_sysdata_mcheck *mchk_sysdata;
-	unsigned long * ptr;
-	const char * reason;
-	char buf[128];
-	long i;
-	unsigned int cpu = smp_processor_id();
+	int cpu = smp_processor_id();
 
-	DBGMC(("t2_machine_check: vector=0x%lx la_ptr=0x%lx\n",
-	       vector, la_ptr));
-
-	mchk_header = (struct el_t2_logout_header *)la_ptr;
-
-	DBGMC(("t2_machine_check: susoffset=0x%lx procoffset=0x%lx\n",
-	       mchk_header->elfl_sysoffset, mchk_header->elfl_procoffset));
-
-	mchk_sysdata = (struct el_t2_sysdata_mcheck *)
-		(la_ptr + mchk_header->elfl_sysoffset);
-	mchk_procdata = (struct el_t2_procdata_mcheck *)
-		(la_ptr + mchk_header->elfl_procoffset - sizeof(unsigned long)*32);
-
-	DBGMC(("         pc=0x%lx size=0x%x procoffset=0x%x sysoffset 0x%x\n",
-	       regs->pc, mchk_header->elfl_size, mchk_header->elfl_procoffset,
-	       mchk_header->elfl_sysoffset));
-	DBGMC(("t2_machine_check: expected %d\n", T2_mcheck_expected[cpu]));
-
-#ifdef DEBUG_DUMP
-	{
-		unsigned long *ptr;
-		int i;
-
-		ptr = (unsigned long *)la_ptr;
-		for (i = 0; i < mchk_header->elfl_size/sizeof(long); i += 2) {
-			printk(" +%lx %lx %lx\n", i*sizeof(long),
-			       ptr[i], ptr[i+1]);
-		}
-	}
-#endif /* DEBUG_DUMP */
-
-	/*
-	 * Check if machine check is due to a badaddr() and if so,
-	 * ignore the machine check.
-	 */
+	/* Clear the error before any reporting.  */
 	mb();
 	mb();  /* magic */
-	if (T2_mcheck_expected[cpu]) {
-		DBGMC(("T2 machine check expected\n"));
-		T2_mcheck_taken[cpu] = 1;
-		t2_clear_errors();
-		T2_mcheck_expected[cpu] = 0;
-		mb();
-		mb();  /* magic */
-		wrmces(rdmces()|1);/* ??? */
-		draina();
-		return;
-	}
-
-	switch ((unsigned int) mchk_header->elfl_error_type) {
-	case MCHK_K_TPERR:	reason = "tag parity error"; break;
-	case MCHK_K_TCPERR:	reason = "tag control parity error"; break;
-	case MCHK_K_HERR:	reason = "generic hard error"; break;
-	case MCHK_K_ECC_C:	reason = "correctable ECC error"; break;
-	case MCHK_K_ECC_NC:	reason = "uncorrectable ECC error"; break;
-	case MCHK_K_OS_BUGCHECK: reason = "OS-specific PAL bugcheck"; break;
-	case MCHK_K_PAL_BUGCHECK: reason = "callsys in kernel mode"; break;
-	case 0x96: reason = "i-cache read retryable error"; break;
-	case 0x98: reason = "processor detected hard error"; break;
-
-		/* System specific (these are for Alcor, at least): */
-	case 0x203: reason = "system detected uncorrectable ECC error"; break;
-	case 0x205: reason = "parity error detected by T2"; break;
-	case 0x207: reason = "non-existent memory error"; break;
-	case 0x209: reason = "PCI SERR detected"; break;
-	case 0x20b: reason = "PCI data parity error detected"; break;
-	case 0x20d: reason = "PCI address parity error detected"; break;
-	case 0x20f: reason = "PCI master abort error"; break;
-	case 0x211: reason = "PCI target abort error"; break;
-	case 0x213: reason = "scatter/gather PTE invalid error"; break;
-	case 0x215: reason = "flash ROM write error"; break;
-	case 0x217: reason = "IOA timeout detected"; break;
-	case 0x219: reason = "IOCHK#, EISA add-in board parity or other catastrophic error"; break;
-	case 0x21b: reason = "EISA fail-safe timer timeout"; break;
-	case 0x21d: reason = "EISA bus time-out"; break;
-	case 0x21f: reason = "EISA software generated NMI"; break;
-	case 0x221: reason = "unexpected ev5 IRQ[3] interrupt"; break;
-	default:
-		sprintf(buf, "reason for machine-check unknown (0x%x)",
-			(unsigned int) mchk_header->elfl_error_type);
-		reason = buf;
-		break;
-	}
-	wrmces(rdmces()|1);	/* reset machine check pending flag */
+	draina();
+	t2_clear_errors(cpu);
+	wrmces(rdmces()|1);	/* ??? */
 	mb();
 
-	printk(KERN_CRIT "  T2 machine check: %s%s\n",
-	       reason, mchk_header->elfl_retry ? " (retryable)" : "");
-
-	/* Dump the logout area to give all info.  */
-
-	ptr = (unsigned long *)la_ptr;
-	for (i = 0; i < mchk_header->elfl_size / sizeof(long); i += 2) {
-		printk(KERN_CRIT " +%8lx %016lx %016lx\n",
-		       i*sizeof(long), ptr[i], ptr[i+1]);
-	}
+	process_mcheck_info(vector, la_ptr, regs, "T2", mcheck_expected(cpu));
 }

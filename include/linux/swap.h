@@ -64,6 +64,8 @@ struct swap_info_struct {
 
 extern int nr_swap_pages;
 extern int nr_free_pages;
+extern int nr_lru_pages;
+extern struct list_head lru_cache;
 extern atomic_t nr_async_pages;
 extern struct inode swapper_inode;
 extern atomic_t page_cache_size;
@@ -85,7 +87,6 @@ extern int try_to_free_pages(unsigned int gfp_mask);
 
 /* linux/mm/page_io.c */
 extern void rw_swap_page(int, struct page *, int);
-extern void rw_swap_page_nocache(int, unsigned long, char *);
 extern void rw_swap_page_nolock(int, unsigned long, char *, int);
 extern void swap_after_unlock_page (unsigned long entry);
 
@@ -100,6 +101,8 @@ struct page * lookup_swap_cache(unsigned long);
 extern struct page * read_swap_cache_async(unsigned long, int);
 #define read_swap_cache(entry) read_swap_cache_async(entry, 1);
 extern int FASTCALL(swap_count(unsigned long));
+extern unsigned long acquire_swap_entry(struct page *page);
+
 /*
  * Make these inline later once they are working properly.
  */
@@ -119,8 +122,8 @@ struct swap_list_t {
 	int next;	/* swapfile to be used next */
 };
 extern struct swap_list_t swap_list;
-asmlinkage int sys_swapoff(const char *);
-asmlinkage int sys_swapon(const char *, int);
+asmlinkage long sys_swapoff(const char *);
+asmlinkage long sys_swapon(const char *, int);
 
 /*
  * vm_ops not present page codes for shared memory.
@@ -156,10 +159,29 @@ static inline int is_page_shared(struct page *page)
 	count = page_count(page);
 	if (PageSwapCache(page))
 		count += swap_count(page->offset) - 2;
-	if (PageFreeAfter(page))
-		count--;
 	return  count > 1;
 }
+
+extern spinlock_t pagemap_lru_lock;
+
+/*
+ * Helper macros for lru_pages handling.
+ */
+#define	lru_cache_add(page)			\
+do {						\
+	spin_lock(&pagemap_lru_lock);		\
+	list_add(&(page)->lru, &lru_cache);	\
+	nr_lru_pages++;				\
+	spin_unlock(&pagemap_lru_lock);		\
+} while (0)
+
+#define	lru_cache_del(page)			\
+do {						\
+	spin_lock(&pagemap_lru_lock);		\
+	list_del(&(page)->lru);			\
+	nr_lru_pages--;				\
+	spin_unlock(&pagemap_lru_lock);		\
+} while (0)
 
 #endif /* __KERNEL__*/
 

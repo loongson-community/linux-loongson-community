@@ -1,4 +1,4 @@
-/* $Id: ds1286.c,v 1.4 1999/06/17 13:29:03 ralf Exp $
+/* $Id: ds1286.c,v 1.5 1999/06/24 01:00:50 ulfc Exp $
  *
  *	Real Time Clock interface for Linux	
  *
@@ -37,11 +37,11 @@
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/rtc.h>
+#include <linux/spinlock.h>
 
 #include <asm/ds1286.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
-#include <asm/spinlock.h>
 #include <asm/system.h>
 
 #define DS1286_VERSION		"1.0"
@@ -390,7 +390,7 @@ static struct miscdevice ds1286_dev=
 	&ds1286_fops
 };
 
-__initfunc(int ds1286_init(void))
+int __init ds1286_init(void)
 {
 	printk(KERN_INFO "DS1286 Real Time Clock Driver v%s\n", DS1286_VERSION);
 	misc_register(&ds1286_dev);

@@ -1,4 +1,4 @@
-/* $Id: dma.h,v 1.13 1998/12/16 04:33:55 davem Exp $
+/* $Id: dma.h,v 1.16 1999/09/10 10:44:32 davem Exp $
  * include/asm-sparc64/dma.h
  *
  * Copyright 1996 (C) David S. Miller (davem@caip.rutgers.edu)
@@ -7,13 +7,14 @@
 #ifndef _ASM_SPARC64_DMA_H
 #define _ASM_SPARC64_DMA_H
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/spinlock.h>
 
 #include <asm/sbus.h>
 #include <asm/delay.h>
 #include <asm/oplib.h>
-#include <asm/spinlock.h>
 
 extern spinlock_t  dma_spin_lock;
 
@@ -187,5 +188,13 @@ extern void dvma_init(struct linux_sbus *);
 extern int get_dma_list(char *);
 extern int request_dma(unsigned int, __const__ char *);
 extern void free_dma(unsigned int);
+
+/* From PCI */
+
+#ifdef CONFIG_PCI
+extern int isa_dma_bridge_buggy;
+#else
+#define isa_dma_bridge_buggy 	(0)
+#endif
 
 #endif /* !(_ASM_SPARC64_DMA_H) */

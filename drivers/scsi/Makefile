@@ -18,7 +18,7 @@ CFLAGS_gdth.o    = # -DDEBUG_GDTH=2 -D__SERIAL__ -D__COM2__ -DGDTH_STATISTICS
 CFLAGS_seagate.o =   -DARBITRATE -DPARITY -DSEAGATE_USE_ASM
 
 .SUFFIXES:
-.SUFFIXES: .c .o .h .a
+.SUFFIXES: .c .o .h .a .S
 
 ifeq (${CFLAGS},)
 CFLAGS = -D__KERNEL__=1 \
@@ -241,12 +241,36 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_OKTAGON_SCSI),y)
+L_OBJS += NCR53C9x.o oktagon_esp.o oktagon_io.o
+else
+  ifeq ($(CONFIG_OKTAGON_SCSI),m)
+  M_OBJS += NCR53C9x.o oktagon_esp.o oktagon_io.o
+  endif
+endif
+
 ifeq ($(CONFIG_ATARI_SCSI),y)
 L_OBJS += atari_scsi.o
 else
   ifeq ($(CONFIG_ATARI_SCSI),m)
   M_OBJS += atari_scsi.o
   endif
+endif
+
+ifeq ($(CONFIG_MAC_SCSI_OLD),y)
+L_OBJS += mac_scsi.o
+else
+  ifeq ($(CONFIG_MAC_SCSI_OLD),m)
+  M_OBJS += mac_scsi.o
+  endif
+endif
+
+ifeq ($(CONFIG_SCSI_MAC_ESP),y)
+L_OBJS += mac_esp.o NCR53C9x.o
+else
+	ifeq ($(CONFIG_SCSI_MAC_ESP),m)
+	M_OBJS += mac_esp.o NCR53C9x.o
+	endif
 endif
 
 ifeq ($(CONFIG_SCSI_PPA),y)
@@ -343,6 +367,14 @@ L_OBJS += aic7xxx.o
 else
   ifeq ($(CONFIG_SCSI_AIC7XXX),m)
   M_OBJS += aic7xxx.o
+  endif
+endif
+
+ifeq ($(CONFIG_SCSI_IPS),y)
+L_OBJS += ips.o
+else
+  ifeq ($(CONFIG_SCSI_IPS),m)
+  M_OBJS += ips.o
   endif
 endif
 
@@ -627,6 +659,10 @@ ifeq ($(CONFIG_SCSI_DECNCR),y)
 L_OBJS += NCR53C9x.o dec_esp.o
 endif
 
+ifeq ($(CONFIG_SUN3X_ESP),y)
+L_OBJS += NCR53C9x.o sun3x_esp.o
+endif
+
 include $(TOPDIR)/Rules.make
 
 53c8xx_d.h: 53c7,8xx.scr script_asm.pl
@@ -647,8 +683,7 @@ include $(TOPDIR)/Rules.make
 
 53c7xx_u.h: 53c7xx_d.h
 
-53c7xx.o : 53c7xx_d.h 53c7xx.c
-	$(CC) $(CFLAGS) -c 53c7xx.c
+53c7xx.o : 53c7xx_d.h
 
 initio.o: ini9100u.c i91uscsi.c
 	$(CC) $(CFLAGS) -c ini9100u.c -o ini9100u.o

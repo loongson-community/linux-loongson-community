@@ -27,17 +27,19 @@ struct poll_table_struct;
 
 
 /*
- * It's silly to have NR_OPEN bigger than NR_FILE, but I'll fix
- * that later. Anyway, now the file code is no longer dependent
- * on bitmaps in unsigned longs, but uses the new fd_set structure..
+ * It's silly to have NR_OPEN bigger than NR_FILE, but you can change
+ * the file limit at runtime and only root can increase the per-process
+ * nr_file rlimit, so it's safe to set up a ridiculously high absolute
+ * upper limit on files-per-process.
  *
  * Some programs (notably those using select()) may have to be 
- * recompiled to take full advantage of the new limits..
+ * recompiled to take full advantage of the new limits..  
  */
 
 /* Fixed constants first: */
 #undef NR_OPEN
-#define NR_OPEN 1024
+#define NR_OPEN (1024*1024)	/* Absolute upper limit on fd num */
+#define INR_OPEN 1024		/* Initial setting for nfile rlimits */
 
 #define BLOCK_SIZE_BITS 10
 #define BLOCK_SIZE (1<<BLOCK_SIZE_BITS)
@@ -61,7 +63,8 @@ extern int max_super_blocks, nr_super_blocks;
 #define READ 0
 #define WRITE 1
 #define READA 2		/* read-ahead  - don't block if no resources */
-#define WRITEA 3	/* write-ahead - don't block if no resources */
+
+#define WRITERAW 5	/* raw write - don't play with buffer lists */
 
 #ifndef NULL
 #define NULL ((void *) 0)
@@ -228,6 +231,7 @@ struct buffer_head {
 
 	unsigned long b_rsector;	/* Real buffer location on disk */
 	wait_queue_head_t b_wait;
+	struct kiobuf * b_kiobuf;	/* kiobuf which owns this IO */
 };
 
 typedef void (bh_end_io_t)(struct buffer_head *bh, int uptodate);
@@ -265,6 +269,7 @@ void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 #include <linux/hfs_fs_i.h>
 #include <linux/adfs_fs_i.h>
 #include <linux/qnx4_fs_i.h>
+#include <linux/udf_fs_i.h>
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what
@@ -376,7 +381,8 @@ struct inode {
 		struct smb_inode_info		smbfs_i;
 		struct hfs_inode_info		hfs_i;
 		struct adfs_inode_info		adfs_i;
-		struct qnx4_inode_info		qnx4_i;	   
+		struct qnx4_inode_info		qnx4_i;
+		struct udf_inode_info		udf_i;
 		struct socket			socket_i;
 		void				*generic_ip;
 	} u;
@@ -506,6 +512,7 @@ extern int fasync_helper(int, struct file *, int, struct fasync_struct **);
 #include <linux/hfs_fs_sb.h>
 #include <linux/adfs_fs_sb.h>
 #include <linux/qnx4_fs_sb.h>
+#include <linux/udf_fs_sb.h>
 
 extern struct list_head super_blocks;
 
@@ -550,6 +557,7 @@ struct super_block {
 		struct hfs_sb_info	hfs_sb;
 		struct adfs_sb_info	adfs_sb;
 		struct qnx4_sb_info	qnx4_sb;
+		struct udf_sb_info	udf_sb;
 		void			*generic_sbp;
 	} u;
 	/*
@@ -702,8 +710,9 @@ extern inline int locks_verify_area(int read_write, struct inode *inode,
 
 /* fs/open.c */
 
-asmlinkage int sys_open(const char *, int, int);
-asmlinkage int sys_close(unsigned int);		/* yes, it's really unsigned */
+asmlinkage long sys_open(const char *, int, int);
+asmlinkage long sys_close(unsigned int);	/* yes, it's really unsigned */
+extern int do_close(unsigned int, int);		/* yes, it's really unsigned */
 extern int do_truncate(struct dentry *, unsigned long);
 extern int get_unused_fd(void);
 extern void put_unused_fd(unsigned int);
@@ -846,6 +855,25 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
 #define LOOKUP_SLASHOK		(4)
 #define LOOKUP_CONTINUE		(8)
 
+/*
+ * "descriptor" for what we're up to with a read for sendfile().
+ * This allows us to use the same read code yet
+ * have multiple different users of the data that
+ * we read from a file.
+ *
+ * The simplest case just copies the data to user
+ * mode.
+ */
+typedef struct {
+	size_t written;
+	size_t count;
+	char * buf;
+	int error;
+} read_descriptor_t;
+
+typedef int (*read_actor_t)(read_descriptor_t *, const char *, unsigned long);
+
+
 extern struct dentry * lookup_dentry(const char *, struct dentry *, unsigned int);
 extern struct dentry * __namei(const char *, unsigned int);
 
@@ -893,11 +921,13 @@ typedef int (*writepage_t)(struct file *, struct page *, unsigned long, unsigned
 extern int block_read_full_page(struct file *, struct page *);
 extern int block_write_full_page (struct file *, struct page *);
 extern int block_write_partial_page (struct file *, struct page *, unsigned long, unsigned long, const char *);
+extern int block_write_cont_page (struct file *, struct page *, unsigned long, unsigned long, const char *);
 extern int block_flushpage(struct inode *, struct page *, unsigned long);
 
 extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *, writepage_t);
+extern void do_generic_file_read(struct file * filp, loff_t *ppos, read_descriptor_t * desc, read_actor_t actor);
 
 
 extern struct super_block *get_super(kdev_t);

@@ -1,5 +1,5 @@
 /*
- * $Id: smp.c,v 1.52 1999/05/23 22:43:51 cort Exp $
+ * $Id: smp.c,v 1.62 1999/09/05 11:56:34 paulus Exp $
  *
  * Smp support for ppc.
  *
@@ -12,7 +12,6 @@
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/tasks.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/interrupt.h>
@@ -22,18 +21,19 @@
 #include <linux/unistd.h>
 #include <linux/init.h>
 #include <linux/openpic.h>
+#include <linux/spinlock.h>
 
 #include <asm/ptrace.h>
 #include <asm/atomic.h>
 #include <asm/irq.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/spinlock.h>
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
 #include <asm/init.h>
 #include <asm/io.h>
 #include <asm/prom.h>
+#include <asm/smp.h>
 
 #include "time.h"
 int first_cpu_booted = 0;
@@ -242,6 +242,7 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 void __init smp_boot_cpus(void)
 {
 	extern struct task_struct *current_set[NR_CPUS];
+	extern unsigned long smp_chrp_cpu_nr;
 	extern void __secondary_start_psurge(void);
 	extern void __secondary_start_chrp(void);
 	int i, cpu_nr;
@@ -252,15 +253,17 @@ void __init smp_boot_cpus(void)
 	/* let other processors know to not do certain initialization */
 	first_cpu_booted = 1;
 	smp_num_cpus = 1;
-	
+        smp_store_cpu_info(0);
+
 	/*
 	 * assume for now that the first cpu booted is
 	 * cpu 0, the master -- Cort
 	 */
 	cpu_callin_map[0] = 1;
-        smp_store_cpu_info(0);
         active_kernel_processor = 0;
 	current->processor = 0;
+
+	init_idle();
 
 	for (i = 0; i < NR_CPUS; i++) {
 		prof_counter[i] = 1;
@@ -286,9 +289,13 @@ void __init smp_boot_cpus(void)
 		cpu_nr = 2; 
 		break;
 	case _MACH_chrp:
+		/* openpic doesn't report # of cpus, just # possible -- Cort */
+#if 0		
 		cpu_nr = ((openpic_read(&OpenPIC->Global.Feature_Reporting0)
 				 & OPENPIC_FEATURE_LAST_PROCESSOR_MASK) >>
 				OPENPIC_FEATURE_LAST_PROCESSOR_SHIFT)+1;
+#endif
+		cpu_nr = smp_chrp_cpu_nr;
 		break;
 	}
 
@@ -299,12 +306,21 @@ void __init smp_boot_cpus(void)
 	for ( i = 1 ; i < cpu_nr; i++ )
 	{
 		int c;
+		struct pt_regs regs;
+		struct task_struct *idle;
 		
 		/* create a process for the processor */
-		kernel_thread(start_secondary, NULL, CLONE_PID);
-		p = task[i];
-		if ( !p )
-			panic("No idle task for secondary processor\n");
+		/* we don't care about the values in regs since we'll
+		   never reschedule the forked task. */
+		if (do_fork(CLONE_VM|CLONE_PID, 0, &regs) < 0)
+			panic("failed fork for CPU %d", i);
+		p = init_task.prev_task;
+		if (!p)
+			panic("No idle task for CPU %d", i);
+		del_from_runqueue(p);
+		unhash_process(p);
+		init_tasks[i] = p;
+
 		p->processor = i;
 		p->has_cpu = 1;
 		current_set[i] = p;
@@ -324,6 +340,7 @@ void __init smp_boot_cpus(void)
 			eieio();
 			/* interrupt secondary to begin executing code */
 			out_be32(PSURGE_INTR, ~0);
+			udelay(1);
 			out_be32(PSURGE_INTR, 0);
 			break;
 		case _MACH_chrp:
@@ -380,6 +397,7 @@ void __init smp_commence(void)
 	/*
 	 *	Lets the callin's below out of their loop.
 	 */
+	wmb();
 	smp_commenced = 1;
 }
 
@@ -389,8 +407,10 @@ void __init initialize_secondary(void)
 }
 
 /* Activate a secondary processor. */
-asmlinkage int __init start_secondary(void *unused)
+int __init start_secondary(void *unused)
 {
+	atomic_inc(&init_mm.mm_count);
+	current->active_mm = &init_mm;
 	smp_callin();
 	return cpu_idle(NULL);
 }
@@ -403,7 +423,7 @@ void __init smp_callin(void)
 #if 0
 	current->mm->mmap->vm_page_prot = PAGE_SHARED;
 	current->mm->mmap->vm_start = PAGE_OFFSET;
-	current->mm->mmap->vm_end = init_task.mm->mmap->vm_end;
+	current->mm->mmap->vm_end = init_mm.mmap->vm_end;
 #endif
 	cpu_callin_map[current->processor] = 1;
 	while(!smp_commenced)

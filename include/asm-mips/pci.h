@@ -1,42 +1,16 @@
-/* $Id: pci.h,v 1.4 1998/08/25 09:21:59 ralf Exp $
+/* $Id: pci.h,v 1.5 1999/01/04 16:09:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
- *
- * Declarations for the MIPS specific implementation of the PCI BIOS32 services.
  */
-#ifndef __ASM_MIPS_PCI_H
-#define __ASM_MIPS_PCI_H
+#ifndef _ASM_PCI_H
+#define _ASM_PCI_H
 
-struct pci_ops {
-	void (*pcibios_fixup) (void);
-	int (*pcibios_read_config_byte) (unsigned char bus,
-	                                 unsigned char dev_fn,
-	                                 unsigned char where,
-	                                 unsigned char *val);
-	int (*pcibios_read_config_word) (unsigned char bus,
-	                                 unsigned char dev_fn,
-	                                 unsigned char where,
-	                                 unsigned short *val);
-	int (*pcibios_read_config_dword) (unsigned char bus,
-	                                  unsigned char dev_fn,
-	                                  unsigned char where,
-	                                  unsigned int *val);
-	int (*pcibios_write_config_byte) (unsigned char bus,
-	                                  unsigned char dev_fn,
-	                                  unsigned char where,
-	                                  unsigned char val);
-	int (*pcibios_write_config_word) (unsigned char bus,
-	                                  unsigned char dev_fn,
-	                                  unsigned char where,
-	                                  unsigned short val);
-	int (*pcibios_write_config_dword) (unsigned char bus,
-	                                   unsigned char dev_fn,
-	                                   unsigned char where,
-	                                   unsigned int val);
-};
+/* Can be used to override the logic in pci_scan_bus for skipping
+   already-configured bus numbers - to be used for buggy BIOSes
+   or architectures with incomplete PCI setup by the loader */
 
-extern struct pci_ops *pci_ops;
+#define pcibios_assign_all_busses()	0
 
-#endif /* __ASM_MIPS_PCI_H */
+#endif /* _ASM_PCI_H */

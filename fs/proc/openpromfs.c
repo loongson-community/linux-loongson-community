@@ -1,4 +1,4 @@
-/* $Id: openpromfs.c,v 1.33 1999/04/28 11:57:33 davem Exp $
+/* $Id: openpromfs.c,v 1.36 1999/08/31 07:01:03 davem Exp $
  * openpromfs.c: /proc/openprom handling routines
  *
  * Copyright (C) 1996-1998 Jakub Jelinek  (jj@sunsite.mff.cuni.cz)
@@ -990,7 +990,7 @@ static int openpromfs_unlink (struct inode *dir, struct dentry *dentry)
 
 /* {{{ init section */
 #ifndef MODULE
-__initfunc(static int check_space (u16 n))
+static int __init check_space (u16 n)
 #else
 static int check_space (u16 n)
 #endif
@@ -1014,7 +1014,7 @@ static int check_space (u16 n)
 }
 
 #ifndef MODULE
-__initfunc(static u16 get_nodes (u16 parent, u32 node))
+static u16 __init get_nodes (u16 parent, u32 node)
 #else
 static u16 get_nodes (u16 parent, u32 node)
 #endif
@@ -1132,7 +1132,7 @@ void openpromfs_use (struct inode *inode, int inc)
 
 #ifndef MODULE
 #define RET(x)
-__initfunc(void openpromfs_init (void))
+void __init openpromfs_init (void)
 #else
 
 EXPORT_NO_SYMBOLS;

@@ -201,6 +201,28 @@
     19990512   Richard Gooch <rgooch@atnf.csiro.au>
 	       Minor cleanups.
   v1.35
+    19990707   Zoltan Boszormenyi <zboszor@mol.hu>
+               Check whether ARR3 is protected in cyrix_get_free_region()
+               and mtrr_del(). The code won't attempt to delete or change it
+               from now on if the BIOS protected ARR3. It silently skips ARR3
+               in cyrix_get_free_region() or returns with an error code from
+               mtrr_del().
+    19990711   Zoltan Boszormenyi <zboszor@mol.hu>
+               Reset some bits in the CCRs in cyrix_arr_init() to disable SMM
+               if ARR3 isn't protected. This is needed because if SMM is active
+               and ARR3 isn't protected then deleting and setting ARR3 again
+               may lock up the processor. With SMM entirely disabled, it does
+               not happen.
+    19990812   Zoltan Boszormenyi <zboszor@mol.hu>
+               Rearrange switch() statements so the driver accomodates to
+               the fact that the AMD Athlon handles its MTRRs the same way
+               as Intel does.
+    19990814   Zoltan Boszormenyi <zboszor@mol.hu>
+	       Double check for Intel in mtrr_add()'s big switch() because
+	       that revision check is only valid for Intel CPUs.
+    19990819   Alan Cox <alan@redhat.com>
+               Tested Zoltan's changes on a pre production Athlon - 100%
+               success.
 */
 #include <linux/types.h>
 #include <linux/errno.h>
@@ -235,7 +257,7 @@
 #include <asm/msr.h>
 
 #include <asm/hardirq.h>
-#include "irq.h"
+#include <linux/irq.h>
 
 #define MTRR_VERSION            "1.35 (19990512)"
 
@@ -309,6 +331,7 @@ struct set_mtrr_context
     unsigned long ccr3;
 };
 
+static int arr3_protected;
 
 /*  Put the processor into a state where MTRRs can be safely set  */
 static void set_mtrr_prepare (struct set_mtrr_context *ctxt)
@@ -321,6 +344,8 @@ static void set_mtrr_prepare (struct set_mtrr_context *ctxt)
     switch (boot_cpu_data.x86_vendor)
     {
       case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 >= 6) break; /* Athlon and post-Athlon CPUs */
+	/* else fall through */
       case X86_VENDOR_CENTAUR:
 	return;
 	/*break;*/
@@ -344,6 +369,7 @@ static void set_mtrr_prepare (struct set_mtrr_context *ctxt)
 
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
       case X86_VENDOR_INTEL:
 	/*  Disable MTRRs, and set the default type to uncached  */
 	rdmsr (MTRRdefType_MSR, ctxt->deftype_lo, ctxt->deftype_hi);
@@ -365,6 +391,8 @@ static void set_mtrr_done (struct set_mtrr_context *ctxt)
     switch (boot_cpu_data.x86_vendor)
     {
       case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 >= 6) break; /* Athlon and post-Athlon CPUs */
+	/* else fall through */
       case X86_VENDOR_CENTAUR:
 	__restore_flags (ctxt->flags);
 	return;
@@ -376,6 +404,7 @@ static void set_mtrr_done (struct set_mtrr_context *ctxt)
     /*  Restore MTRRdefType  */
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
       case X86_VENDOR_INTEL:
 	wrmsr (MTRRdefType_MSR, ctxt->deftype_lo, ctxt->deftype_hi);
 	break;
@@ -406,6 +435,9 @@ static unsigned int get_num_var_ranges (void)
 
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 < 6) return 2; /* pre-Athlon CPUs */
+	/* else fall through */
       case X86_VENDOR_INTEL:
 	rdmsr (MTRRcap_MSR, config, dummy);
 	return (config & 0xff);
@@ -415,9 +447,6 @@ static unsigned int get_num_var_ranges (void)
       case X86_VENDOR_CENTAUR:
         /*  and Centaur has 8 MCR's  */
 	return 8;
-	/*break;*/
-      case X86_VENDOR_AMD:
-	return 2;
 	/*break;*/
     }
     return 0;
@@ -430,12 +459,14 @@ static int have_wrcomb (void)
 
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 < 6) return 1; /* pre-Athlon CPUs */
+	/* else fall through */
       case X86_VENDOR_INTEL:
 	rdmsr (MTRRcap_MSR, config, dummy);
 	return (config & (1<<10));
 	/*break;*/
       case X86_VENDOR_CYRIX:
-      case X86_VENDOR_AMD:
       case X86_VENDOR_CENTAUR:
 	return 1;
 	/*break;*/
@@ -731,8 +762,8 @@ struct mtrr_var_range
 
 
 /*  Get the MSR pair relating to a var range  */
-__initfunc(static void get_mtrr_var_range (unsigned int index,
-					   struct mtrr_var_range *vr))
+static void __init get_mtrr_var_range (unsigned int index,
+					   struct mtrr_var_range *vr)
 {
     rdmsr (MTRRphysBase_MSR (index), vr->base_lo, vr->base_hi);
     rdmsr (MTRRphysMask_MSR (index), vr->mask_lo, vr->mask_hi);
@@ -741,8 +772,8 @@ __initfunc(static void get_mtrr_var_range (unsigned int index,
 
 /*  Set the MSR pair relating to a var range. Returns TRUE if
     changes are made  */
-__initfunc(static int set_mtrr_var_range_testing (unsigned int index,
-						  struct mtrr_var_range *vr))
+static int __init set_mtrr_var_range_testing (unsigned int index,
+						  struct mtrr_var_range *vr)
 {
     unsigned int lo, hi;
     int changed = FALSE;
@@ -764,7 +795,7 @@ __initfunc(static int set_mtrr_var_range_testing (unsigned int index,
     return changed;
 }   /*  End Function set_mtrr_var_range_testing  */
 
-__initfunc(static void get_fixed_ranges(mtrr_type *frs))
+static void __init get_fixed_ranges(mtrr_type *frs)
 {
     unsigned long *p = (unsigned long *)frs;
     int i;
@@ -777,7 +808,7 @@ __initfunc(static void get_fixed_ranges(mtrr_type *frs))
 	rdmsr(MTRRfix4K_C0000_MSR + i, p[6 + i*2], p[7 + i*2]);
 }   /*  End Function get_fixed_ranges  */
 
-__initfunc(static int set_fixed_ranges_testing(mtrr_type *frs))
+static int __init set_fixed_ranges_testing(mtrr_type *frs)
 {
     unsigned long *p = (unsigned long *)frs;
     int changed = FALSE;
@@ -819,7 +850,7 @@ struct mtrr_state
 
 
 /*  Grab all of the MTRR state for this CPU into *state  */
-__initfunc(static void get_mtrr_state(struct mtrr_state *state))
+static void __init get_mtrr_state(struct mtrr_state *state)
 {
     unsigned int nvrs, i;
     struct mtrr_var_range *vrs;
@@ -842,14 +873,14 @@ __initfunc(static void get_mtrr_state(struct mtrr_state *state))
 
 
 /*  Free resources associated with a struct mtrr_state  */
-__initfunc(static void finalize_mtrr_state(struct mtrr_state *state))
+static void __init finalize_mtrr_state(struct mtrr_state *state)
 {
     if (state->var_ranges) kfree (state->var_ranges);
 }   /*  End Function finalize_mtrr_state  */
 
 
-__initfunc(static unsigned long set_mtrr_state (struct mtrr_state *state,
-						struct set_mtrr_context *ctxt))
+static unsigned long __init set_mtrr_state (struct mtrr_state *state,
+						struct set_mtrr_context *ctxt)
 /*  [SUMMARY] Set the MTRR state for this CPU.
     <state> The MTRR state information to read.
     <ctxt> Some relevant CPU context.
@@ -948,7 +979,7 @@ static void set_mtrr_smp (unsigned int reg, unsigned long base,
 
 
 /*  Some BIOS's are fucked and don't set all MTRRs the same!  */
-__initfunc(static void mtrr_state_warn (unsigned long mask))
+static void __init mtrr_state_warn(unsigned long mask)
 {
     if (!mask) return;
     if (mask & MTRR_CHANGE_MASK_FIXED)
@@ -1030,6 +1061,7 @@ static int cyrix_get_free_region (unsigned long base, unsigned long size)
 	for (i = 0; i < 7; i++)
 	{
 	    cyrix_get_arr (i, &lbase, &lsize, &ltype);
+	    if ((i == 3) && arr3_protected) continue;
 	    if (lsize < 1) return i;
 	}
 	/* ARR0-ARR6 isn't free, try ARR7 but its size must be at least 256K */
@@ -1062,13 +1094,30 @@ int mtrr_add (unsigned long base, unsigned long size, unsigned int type,
     if ( !(boot_cpu_data.x86_capability & X86_FEATURE_MTRR) ) return -ENODEV;
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 < 6) { /* pre-Athlon CPUs */
+	  /* Apply the K6 block alignment and size rules
+	     In order
+		o Uncached or gathering only
+		o 128K or bigger block
+		o Power of 2 block
+		o base suitably aligned to the power
+	    */
+	  if (type > MTRR_TYPE_WRCOMB || size < (1 << 17) ||
+	      (size & ~(size-1))-size || (base & (size-1)))
+	      return -EINVAL;
+	  break;
+	} /* else fall through */
       case X86_VENDOR_INTEL:
-	/*  For Intel PPro stepping <= 7, must be 4 MiB aligned  */
-	if ( (boot_cpu_data.x86 == 6) && (boot_cpu_data.x86_model == 1) &&
-	     (boot_cpu_data.x86_mask <= 7) && ( base & ( (1 << 22) - 1 ) ) )
-	{
-	    printk ("mtrr: base(0x%lx) is not 4 MiB aligned\n", base);
-	    return -EINVAL;
+	/*  Double check for Intel, we may run on Athlon. */
+	if (boot_cpu_data.x86_vendor == X86_VENDOR_INTEL) {
+	  /*  For Intel PPro stepping <= 7, must be 4 MiB aligned  */
+	  if ( (boot_cpu_data.x86 == 6) && (boot_cpu_data.x86_model == 1) &&
+	       (boot_cpu_data.x86_mask <= 7) && ( base & ( (1 << 22) - 1 ) ) )
+	  {
+	      printk ("mtrr: base(0x%lx) is not 4 MiB aligned\n", base);
+	      return -EINVAL;
+	  }
 	}
 	/*  Fall through  */
       case X86_VENDOR_CYRIX:
@@ -1104,18 +1153,6 @@ int mtrr_add (unsigned long base, unsigned long size, unsigned int type,
 		    base, size);
 	    return -EINVAL;
 	}
-	break;
-      case X86_VENDOR_AMD:
-    	/* Apply the K6 block alignment and size rules
-    	   In order
-    	      o Uncached or gathering only
-    	      o 128K or bigger block
-    	      o Power of 2 block
-    	      o base suitably aligned to the power
-    	  */
-    	if (type > MTRR_TYPE_WRCOMB || size < (1 << 17) ||
-	    (size & ~(size-1))-size || (base & (size-1)))
-	    return -EINVAL;
 	break;
       default:
 	return -EINVAL;
@@ -1220,6 +1257,15 @@ int mtrr_del (int reg, unsigned long base, unsigned long size)
 	spin_unlock (&main_lock);
 	printk ("mtrr: register: %d too big\n", reg);
 	return -EINVAL;
+    }
+    if (boot_cpu_data.x86_vendor == X86_VENDOR_CYRIX)
+    {
+	if ((reg == 3) && arr3_protected)
+	{
+	    spin_unlock (&main_lock);
+	    printk ("mtrr: ARR3 cannot be changed\n");
+	    return -EINVAL;
+	}
     }
     (*get_mtrr) (reg, &lbase, &lsize, &ltype);
     if (lsize < 1)
@@ -1532,7 +1578,7 @@ arr_state_t arr_state[8] __initdata = {
 
 unsigned char ccr_state[7] __initdata = { 0, 0, 0, 0, 0, 0, 0 };
 
-__initfunc(static void cyrix_arr_init_secondary(void))
+static void __init cyrix_arr_init_secondary(void)
 {
     struct set_mtrr_context ctxt;
     int i;
@@ -1565,7 +1611,7 @@ __initfunc(static void cyrix_arr_init_secondary(void))
  *   - (maybe) disable ARR3
  * Just to be sure, we enable ARR usage by the processor (CCR5 bit 5 set)
  */
-__initfunc(static void cyrix_arr_init(void))
+static void __init cyrix_arr_init(void)
 {
     struct set_mtrr_context ctxt;
     unsigned char ccr[7];
@@ -1585,22 +1631,22 @@ __initfunc(static void cyrix_arr_init(void))
     ccr[5] = getCx86 (CX86_CCR5);
     ccr[6] = getCx86 (CX86_CCR6);
 
-    if (ccr[3] & 1)
+    if (ccr[3] & 1) {
       ccrc[3] = 1;
-    else {
+      arr3_protected = 1;
+    } else {
       /* Disable SMM mode (bit 1), access to SMM memory (bit 2) and
        * access to SMM memory through ARR3 (bit 7).
        */
-/*
       if (ccr[1] & 0x80) { ccr[1] &= 0x7f; ccrc[1] |= 0x80; }
       if (ccr[1] & 0x04) { ccr[1] &= 0xfb; ccrc[1] |= 0x04; }
       if (ccr[1] & 0x02) { ccr[1] &= 0xfd; ccrc[1] |= 0x02; }
-*/
+      arr3_protected = 0;
       if (ccr[6] & 0x02) {
         ccr[6] &= 0xfd; ccrc[6] = 1; /* Disable write protection of ARR3. */
         setCx86 (CX86_CCR6, ccr[6]);
       }
-      /* Disable ARR3. */
+      /* Disable ARR3. This is safe now that we disabled SMM. */
       /* cyrix_set_arr_up (3, 0, 0, 0, FALSE); */
     }
     /* If we changed CCR1 in memory, change it in the processor, too. */
@@ -1631,7 +1677,7 @@ __initfunc(static void cyrix_arr_init(void))
     if ( ccrc[6] ) printk ("mtrr: ARR3 was write protected, unprotected\n");
 }   /*  End Function cyrix_arr_init  */
 
-__initfunc(static void centaur_mcr_init (void))
+static void __init centaur_mcr_init(void)
 {
     unsigned i;
     struct set_mtrr_context ctxt;
@@ -1655,11 +1701,17 @@ __initfunc(static void centaur_mcr_init (void))
     set_mtrr_done (&ctxt);
 }   /*  End Function centaur_mcr_init  */
 
-__initfunc(static void mtrr_setup (void))
+static void __init mtrr_setup(void)
 {
     printk ("mtrr: v%s Richard Gooch (rgooch@atnf.csiro.au)\n", MTRR_VERSION);
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 < 6) { /* pre-Athlon CPUs */
+	  get_mtrr = amd_get_mtrr;
+	  set_mtrr_up = amd_set_mtrr_up;
+	  break;
+	} /* else fall through */
       case X86_VENDOR_INTEL:
 	get_mtrr = intel_get_mtrr;
 	set_mtrr_up = intel_set_mtrr_up;
@@ -1668,10 +1720,6 @@ __initfunc(static void mtrr_setup (void))
 	get_mtrr = cyrix_get_arr;
 	set_mtrr_up = cyrix_set_arr_up;
 	get_free_region = cyrix_get_free_region;
-	break;
-      case X86_VENDOR_AMD:
-	get_mtrr = amd_get_mtrr;
-	set_mtrr_up = amd_set_mtrr_up;
 	break;
      case X86_VENDOR_CENTAUR:
         get_mtrr = centaur_get_mcr;
@@ -1685,12 +1733,14 @@ __initfunc(static void mtrr_setup (void))
 static volatile unsigned long smp_changes_mask __initdata = 0;
 static struct mtrr_state smp_mtrr_state __initdata = {0, 0};
 
-__initfunc(void mtrr_init_boot_cpu (void))
+void __init mtrr_init_boot_cpu(void)
 {
     if ( !(boot_cpu_data.x86_capability & X86_FEATURE_MTRR) ) return;
     mtrr_setup ();
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 < 6) break; /* pre-Athlon CPUs */
       case X86_VENDOR_INTEL:
 	get_mtrr_state (&smp_mtrr_state);
 	break;
@@ -1703,7 +1753,7 @@ __initfunc(void mtrr_init_boot_cpu (void))
     }
 }   /*  End Function mtrr_init_boot_cpu  */
 
-__initfunc(static void intel_mtrr_init_secondary_cpu (void))
+static void __init intel_mtrr_init_secondary_cpu(void)
 {
     unsigned long mask, count;
     struct set_mtrr_context ctxt;
@@ -1722,11 +1772,14 @@ __initfunc(static void intel_mtrr_init_secondary_cpu (void))
     }
 }   /*  End Function intel_mtrr_init_secondary_cpu  */
 
-__initfunc(void mtrr_init_secondary_cpu (void))
+void __init mtrr_init_secondary_cpu(void)
 {
     if ( !(boot_cpu_data.x86_capability & X86_FEATURE_MTRR) ) return;
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	/* Just for robustness: pre-Athlon CPUs cannot do SMP. */
+	if (boot_cpu_data.x86 < 6) break;
       case X86_VENDOR_INTEL:
 	intel_mtrr_init_secondary_cpu ();
 	break;
@@ -1746,12 +1799,14 @@ __initfunc(void mtrr_init_secondary_cpu (void))
 }   /*  End Function mtrr_init_secondary_cpu  */
 #endif  /*  __SMP__  */
 
-__initfunc(int mtrr_init(void))
+int __init mtrr_init(void)
 {
     if ( !(boot_cpu_data.x86_capability & X86_FEATURE_MTRR) ) return 0;
 #  ifdef __SMP__
     switch (boot_cpu_data.x86_vendor)
     {
+      case X86_VENDOR_AMD:
+	if (boot_cpu_data.x86 < 6) break; /* pre-Athlon CPUs */
       case X86_VENDOR_INTEL:
 	finalize_mtrr_state (&smp_mtrr_state);
 	mtrr_state_warn (smp_changes_mask);

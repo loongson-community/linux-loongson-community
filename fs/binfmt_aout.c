@@ -31,16 +31,12 @@
 
 static int load_aout_binary(struct linux_binprm *, struct pt_regs * regs);
 static int load_aout_library(int fd);
-static int aout_core_dump(long signr, struct pt_regs * regs);
+static int aout_core_dump(long signr, struct pt_regs * regs, struct file *file);
 
 extern void dump_thread(struct pt_regs *, struct user *);
 
 static struct linux_binfmt aout_format = {
-#ifndef MODULE
-	NULL, NULL, load_aout_binary, load_aout_library, aout_core_dump
-#else
-	NULL, &__this_module, load_aout_binary, load_aout_library, aout_core_dump
-#endif
+	NULL, THIS_MODULE, load_aout_binary, load_aout_library, aout_core_dump, PAGE_SIZE
 };
 
 static void set_brk(unsigned long start, unsigned long end)
@@ -64,12 +60,12 @@ static int dump_write(struct file *file, const void *addr, int nr)
 
 #define DUMP_WRITE(addr, nr)	\
 	if (!dump_write(file, (void *)(addr), (nr))) \
-		goto close_coredump;
+		goto end_coredump;
 
 #define DUMP_SEEK(offset) \
 if (file->f_op->llseek) { \
 	if (file->f_op->llseek(file,(offset),0) != (offset)) \
- 		goto close_coredump; \
+ 		goto end_coredump; \
 } else file->f_pos = (offset)
 
 /*
@@ -83,14 +79,10 @@ if (file->f_op->llseek) { \
  */
 
 static inline int
-do_aout_core_dump(long signr, struct pt_regs * regs)
+do_aout_core_dump(long signr, struct pt_regs * regs, struct file *file)
 {
-	struct dentry * dentry = NULL;
-	struct inode * inode = NULL;
-	struct file * file;
 	mm_segment_t fs;
 	int has_dumped = 0;
-	char corefile[6+sizeof(current->comm)];
 	unsigned long dump_start, dump_size;
 	struct user dump;
 #if defined(__alpha__)
@@ -106,32 +98,8 @@ do_aout_core_dump(long signr, struct pt_regs * regs)
 #       define START_STACK(u)   (u.start_stack)
 #endif
 
-	if (!current->dumpable || atomic_read(&current->mm->count) != 1)
-		return 0;
-	current->dumpable = 0;
-
-/* See if we have enough room to write the upage.  */
-	if (current->rlim[RLIMIT_CORE].rlim_cur < PAGE_SIZE)
-		return 0;
 	fs = get_fs();
 	set_fs(KERNEL_DS);
-	memcpy(corefile,"core.",5);
-#if 0
-	memcpy(corefile+5,current->comm,sizeof(current->comm));
-#else
-	corefile[4] = '\0';
-#endif
-	file = filp_open(corefile,O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
-	if (IS_ERR(file))
-		goto end_coredump;
-	dentry = file->f_dentry;
-	inode = dentry->d_inode;
-	if (!S_ISREG(inode->i_mode))
-		goto close_coredump;
-	if (!inode->i_op || !inode->i_op->default_file_ops)
-		goto close_coredump;
-	if (!file->f_op->write)
-		goto close_coredump;
 	has_dumped = 1;
 	current->flags |= PF_DUMPCORE;
        	strncpy(dump.u_comm, current->comm, sizeof(current->comm));
@@ -210,20 +178,18 @@ do_aout_core_dump(long signr, struct pt_regs * regs)
 /* Finally dump the task struct.  Not be used by gdb, but could be useful */
 	set_fs(KERNEL_DS);
 	DUMP_WRITE(current,sizeof(*current));
-close_coredump:
-	filp_close(file, NULL);
 end_coredump:
 	set_fs(fs);
 	return has_dumped;
 }
 
 static int
-aout_core_dump(long signr, struct pt_regs * regs)
+aout_core_dump(long signr, struct pt_regs * regs, struct file *file)
 {
 	int retval;
 
 	MOD_INC_USE_COUNT;
-	retval = do_aout_core_dump(signr, regs);
+	retval = do_aout_core_dump(signr, regs, file);
 	MOD_DEC_USE_COUNT;
 	return retval;
 }
@@ -349,7 +315,7 @@ static inline int do_load_aout_binary(struct linux_binprm * bprm, struct pt_regs
 	current->personality = PER_LINUX;
 
 #if defined(__sparc__) && !defined(__sparc_v9__)
-	memcpy(&current->tss.core_exec, &ex, sizeof(struct exec));
+	memcpy(&current->thread.core_exec, &ex, sizeof(struct exec));
 #endif
 
 	current->mm->end_code = ex.a_text +
@@ -587,17 +553,15 @@ load_aout_library(int fd)
 }
 
 
-int __init init_aout_binfmt(void)
+static int __init init_aout_binfmt(void)
 {
 	return register_binfmt(&aout_format);
 }
 
-#ifdef MODULE
-int init_module(void) {
-	return init_aout_binfmt();
-}
-
-void cleanup_module( void) {
+static void __exit exit_aout_binfmt(void)
+{
 	unregister_binfmt(&aout_format);
 }
-#endif
+
+module_init(init_aout_binfmt)
+module_exit(exit_aout_binfmt)

@@ -42,8 +42,9 @@
 #include <linux/malloc.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,1,0)
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <linux/poll.h>
 #endif
 
@@ -525,8 +526,8 @@ static int js_read(struct inode *inode, struct file *file, char *buf, int count)
 
 		if (GOF(curl->tail) == jd->bhead && curl->startup == jd->num_axes + jd->num_buttons) {
 
+			__set_current_state(TASK_INTERRUPTIBLE);
 			add_wait_queue(&jd->wait, &wait);
-			current->state = TASK_INTERRUPTIBLE;
 
 			while (GOF(curl->tail) == jd->bhead) {
 

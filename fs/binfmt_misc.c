@@ -27,8 +27,8 @@
 #include <linux/proc_fs.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
+#include <linux/spinlock.h>
 #include <asm/uaccess.h>
-#include <asm/spinlock.h>
 
 /*
  * We should make this work with a "stub-only" /proc,
@@ -64,11 +64,7 @@ static void entry_proc_cleanup(struct binfmt_entry *e);
 static int entry_proc_setup(struct binfmt_entry *e);
 
 static struct linux_binfmt misc_format = {
-#ifndef MODULE
-	NULL, 0, load_misc_binary, NULL, NULL
-#else
-	NULL, &__this_module, load_misc_binary, NULL, NULL
-#endif
+	NULL, THIS_MODULE, load_misc_binary, NULL, NULL, 0
 };
 
 static struct proc_dir_entry *bm_dir = NULL;
@@ -493,7 +489,7 @@ static void bm_modcount(struct inode *inode, int fill)
 }
 #endif
 
-int __init init_misc_binfmt(void)
+static int __init init_misc_binfmt(void)
 {
 	int error = -ENOENT;
 	struct proc_dir_entry *status = NULL, *reg;
@@ -528,14 +524,7 @@ cleanup_bm:
 	goto out;
 }
 
-#ifdef MODULE
-EXPORT_NO_SYMBOLS;
-int init_module(void)
-{
-	return init_misc_binfmt();
-}
-
-void cleanup_module(void)
+static void __exit exit_misc_binfmt(void)
 {
 	unregister_binfmt(&misc_format);
 	remove_proc_entry("register", bm_dir);
@@ -543,5 +532,8 @@ void cleanup_module(void)
 	clear_entries();
 	remove_proc_entry("sys/fs/binfmt_misc", NULL);
 }
-#endif
-#undef VERBOSE_STATUS
+
+EXPORT_NO_SYMBOLS;
+
+module_init(init_misc_binfmt)
+module_exit(exit_misc_binfmt)

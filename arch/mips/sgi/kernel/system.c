@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: system.c,v 1.6 1998/10/18 13:51:49 tsbogend Exp $
+ * $Id: system.c,v 1.7 1998/10/18 22:55:34 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -35,7 +35,7 @@ static struct smatch sgi_cputable[] = {
 
 #define NUM_CPUS 9 /* for now */
 
-__initfunc(static int string_to_cpu(char *s))
+static int __init string_to_cpu(char *s)
 {
 	int i;
 
@@ -54,7 +54,7 @@ __initfunc(static int string_to_cpu(char *s))
  * We' call this early before loadmmu().  If we do the other way around
  * the firmware will crash and burn.
  */
-__initfunc(void sgi_sysinit(void))
+void __init sgi_sysinit(void)
 {
 	pcomponent *p, *toplev, *cpup = 0;
 	int cputype = -1;

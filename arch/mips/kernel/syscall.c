@@ -1,4 +1,4 @@
-/* $Id: syscall.c,v 1.9 1998/08/25 09:14:41 ralf Exp $
+/* $Id: syscall.c,v 1.10 1999/02/15 02:16:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -75,42 +75,6 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
 out:
 	unlock_kernel();
 	return error;
-}
-
-asmlinkage int sys_idle(void)
-{
-	unsigned long start_idle = 0;
-
-	if (current->pid != 0)
-		return -EPERM;
-
-	/* endless idle loop with no priority at all */
-	current->priority = 0;
-	current->counter = 0;
-	for (;;) {
-		/*
-		 * R4[36]00 have wait, R4[04]00 don't.
-		 * FIXME: We should save power by reducing the clock where
-		 *        possible.  Thiss will cut down the power consuption
-		 *        of R4200 systems to about 1/16th of normal, the
-		 *        same for logic clocked with the processor generated
-		 *        clocks.
-		 */
-		if (!start_idle) {
-			check_pgt_cache();
-			start_idle = jiffies;
-		}
-		if (wait_available && !current->need_resched)
-			__asm__(".set\tmips3\n\t"
-				"wait\n\t"
-				".set\tmips0");
-		run_task_queue(&tq_scheduler);
-		if (current->need_resched)
-			start_idle = 0;
-		schedule();
-	}
-
-	return 0;
 }
 
 asmlinkage int sys_fork(struct pt_regs regs)

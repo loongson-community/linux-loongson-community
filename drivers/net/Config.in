@@ -24,6 +24,9 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
      tristate 'Ethertap network tap' CONFIG_ETHERTAP
   fi
 fi
+
+tristate 'General Instruments Surfboard 1000' CONFIG_NET_SB1000
+
 #
 #	Ethernet
 #
@@ -90,7 +93,12 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
   fi
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
       tristate 'RealTek 8129/8139 (not 8019/8029!) support' CONFIG_RTL8139
+      tristate 'SiS 900 PCI Fast Ethernet Adapter support' CONFIG_SIS900
       tristate 'Packet Engines Yellowfin Gigabit-NIC support' CONFIG_YELLOWFIN
+      tristate 'Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support' CONFIG_ACENIC
+      if [ "$CONFIG_ACENIC" != "n" ]; then
+	  bool 'Omit support for old Tigon I based AceNICs' CONFIG_ACENIC_OMIT_TIGON_I
+      fi
   fi
   bool 'Other ISA cards' CONFIG_NET_ISA
   if [ "$CONFIG_NET_ISA" = "y" ]; then
@@ -121,7 +129,6 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
   if [ "$CONFIG_NET_EISA" = "y" ]; then
     tristate 'AMD PCnet32 (VLB and PCI) support' CONFIG_PCNET32
     if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-      tristate 'Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support' CONFIG_ACENIC
       tristate 'Ansel Communications EISA 3200 support (EXPERIMENTAL)' CONFIG_AC3200
     fi
 
@@ -143,6 +150,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       tristate 'SMC EtherPower II (EXPERIMENTAL)' CONFIG_EPIC100
       bool 'Zenith Z-Note support (EXPERIMENTAL)' CONFIG_ZNET
     fi
+    tristate 'Adaptec Starfire support' CONFIG_ADAPTEC_STARFIRE
   fi
   bool 'Pocket and portable adaptors' CONFIG_NET_POCKET
   if [ "$CONFIG_NET_POCKET" = "y" ]; then
@@ -194,9 +202,11 @@ if [ ! "$CONFIG_PARPORT" = "n" ]; then
   dep_tristate 'PLIP (parallel port) support' CONFIG_PLIP $CONFIG_PARPORT
 fi
 
-tristate 'PPP (point-to-point) support' CONFIG_PPP
+tristate 'PPP (point-to-point protocol) support' CONFIG_PPP
 if [ ! "$CONFIG_PPP" = "n" ]; then
-  comment 'CCP compressors for PPP are only built as modules.'
+  dep_tristate 'PPP support for async serial ports' CONFIG_PPP_ASYNC $CONFIG_PPP
+  dep_tristate 'PPP Deflate compression' CONFIG_PPP_DEFLATE $CONFIG_PPP
+  dep_tristate 'PPP BSD-Compress compression' CONFIG_PPP_BSDCOMP m
 fi
 
 tristate 'SLIP (serial line) support' CONFIG_SLIP
@@ -226,6 +236,11 @@ if [ "$CONFIG_TR" = "y" ]; then
 fi
 
 endmenu
+
+bool 'Fibre Channel driver support' CONFIG_NET_FC
+if [ "$CONFIG_NET_FC" = "y" ]; then
+  tristate 'Interphase 5526 Tachyon chipset based adaptor support' CONFIG_IPHASE5526
+fi
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'Red Creek Hardware VPN (EXPERIMENTAL)' CONFIG_RCPCI
@@ -284,6 +299,7 @@ fi
 
 endmenu
 
+
 #
 # X.25 network drivers
 #
@@ -292,4 +308,8 @@ if [ "$CONFIG_LAPB" != "n" ]; then
     dep_tristate 'LAPB over Ethernet driver' CONFIG_LAPBETHER $CONFIG_LAPB
     dep_tristate 'X.25 async driver' CONFIG_X25_ASY $CONFIG_LAPB
 fi
+fi
+
+if [ "$CONFIG_PCMCIA" != "n" ]; then
+   source drivers/net/pcmcia/Config.in
 fi

@@ -215,7 +215,7 @@ void rose_kill_by_neigh(struct rose_neigh *neigh)
 /*
  *	Kill all bound sockets on a dropped device.
  */
-static void rose_kill_by_device(struct device *dev)
+static void rose_kill_by_device(struct net_device *dev)
 {
 	struct sock *s;
 	
@@ -233,7 +233,7 @@ static void rose_kill_by_device(struct device *dev)
  */
 static int rose_device_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	struct device *dev = (struct device *)ptr;
+	struct net_device *dev = (struct net_device *)ptr;
 
 	if (event != NETDEV_DOWN)
 		return NOTIFY_DONE;
@@ -618,7 +618,7 @@ static struct sock *rose_make_new(struct sock *osk)
 	return sk;
 }
 
-static int rose_release(struct socket *sock, struct socket *peer)
+static int rose_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
@@ -667,7 +667,7 @@ static int rose_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_rose *addr = (struct sockaddr_rose *)uaddr;
-	struct device *dev;
+	struct net_device *dev;
 	ax25_address *user, *source;
 	int n;
 
@@ -727,7 +727,7 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 	struct sockaddr_rose *addr = (struct sockaddr_rose *)uaddr;
 	unsigned char cause, diagnostic;
 	ax25_address *user;
-	struct device *dev;
+	struct net_device *dev;
 	int n;
 
 	if (sk->state == TCP_ESTABLISHED && sock->state == SS_CONNECTING) {
@@ -847,11 +847,6 @@ static int rose_accept(struct socket *sock, struct socket *newsock, int flags)
 	struct sock *newsk;
 	struct sk_buff *skb;
 
-	if (newsock->sk != NULL)
-		rose_destroy_socket(newsock->sk);
-
-	newsock->sk = NULL;
-
 	if ((sk = sock->sk) == NULL)
 		return -EINVAL;
 
@@ -945,7 +940,7 @@ static int rose_getname(struct socket *sock, struct sockaddr *uaddr,
 	return 0;
 }
 
-int rose_rx_call_request(struct sk_buff *skb, struct device *dev, struct rose_neigh *neigh, unsigned int lci)
+int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct rose_neigh *neigh, unsigned int lci)
 {
 	struct sock *sk;
 	struct sock *make;
@@ -1250,10 +1245,6 @@ static int rose_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	return copied;
 }
 
-static int rose_shutdown(struct socket *sk, int how)
-{
-	return -EOPNOTSUPP;
-}
 
 static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
@@ -1366,7 +1357,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 static int rose_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
 {
 	struct sock *s;
-	struct device *dev;
+	struct net_device *dev;
 	const char *devname, *callsign;
 	int len = 0;
 	off_t pos = 0;
@@ -1438,10 +1429,9 @@ static struct net_proto_family rose_family_ops = {
 	rose_create
 };
 
-static struct proto_ops rose_proto_ops = {
+static struct proto_ops SOCKOPS_WRAPPED(rose_proto_ops) = {
 	PF_ROSE,
 
-	sock_no_dup,
 	rose_release,
 	rose_bind,
 	rose_connect,
@@ -1451,13 +1441,17 @@ static struct proto_ops rose_proto_ops = {
 	datagram_poll,
 	rose_ioctl,
 	rose_listen,
-	rose_shutdown,
+	sock_no_shutdown,
 	rose_setsockopt,
 	rose_getsockopt,
 	sock_no_fcntl,
 	rose_sendmsg,
-	rose_recvmsg
+	rose_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(rose_proto, PF_ROSE);
 
 static struct notifier_block rose_dev_notifier = {
 	rose_device_event,
@@ -1491,20 +1485,20 @@ static struct proc_dir_entry proc_net_rose_routes = {
 };
 #endif	
 
-static struct device *dev_rose;
+static struct net_device *dev_rose;
 
-__initfunc(void rose_proto_init(struct net_proto *pro))
+void __init rose_proto_init(struct net_proto *pro)
 {
 	int i;
 
 	rose_callsign = null_ax25_address;
 
-	if ((dev_rose = kmalloc(rose_ndevs * sizeof(struct device), GFP_KERNEL)) == NULL) {
+	if ((dev_rose = kmalloc(rose_ndevs * sizeof(struct net_device), GFP_KERNEL)) == NULL) {
 		printk(KERN_ERR "ROSE: rose_proto_init - unable to allocate device structure\n");
 		return;
 	}
 
-	memset(dev_rose, 0x00, rose_ndevs * sizeof(struct device));
+	memset(dev_rose, 0x00, rose_ndevs * sizeof(struct net_device));
 
 	for (i = 0; i < rose_ndevs; i++) {
 		dev_rose[i].name = kmalloc(20, GFP_KERNEL);

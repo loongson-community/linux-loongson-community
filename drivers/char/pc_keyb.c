@@ -17,7 +17,7 @@
 
 #include <linux/config.h>
 
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/tty.h>
@@ -512,10 +512,13 @@ void pckbd_leds(unsigned char leds)
 #endif
 
 /* for "kbd-reset" cmdline param */
-void __init kbd_reset_setup(char *str, int *ints)
+static int __init kbd_reset_setup(char *str)
 {
 	kbd_startup_reset = 1;
+	return 1;
 }
+
+__setup("kbd-reset", kbd_reset_setup);
 
 #define KBD_NO_DATA	(-1)	/* No data */
 #define KBD_BAD_DATA	(-2)	/* Parity or other error */
@@ -694,8 +697,6 @@ static char * __init initialize_kbd(void)
 
 void __init pckbd_init_hw(void)
 {
-	kbd_request_region();
-
 	/* Flush any pending input. */
 	kbd_clear_input();
 
@@ -875,7 +876,7 @@ static ssize_t read_aux(struct file * file, char * buffer,
 			return -EAGAIN;
 		add_wait_queue(&queue->proc_list, &wait);
 repeat:
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (queue_empty() && !signal_pending(current)) {
 			schedule();
 			goto repeat;

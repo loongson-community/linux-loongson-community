@@ -51,12 +51,14 @@ extern int			addrconf_add_ifaddr(void *arg);
 extern int			addrconf_del_ifaddr(void *arg);
 extern int			addrconf_set_dstaddr(void *arg);
 
-extern struct inet6_ifaddr *	ipv6_chk_addr(struct in6_addr *addr,
-					      struct device *dev, int nd);
+extern int			ipv6_chk_addr(struct in6_addr *addr,
+					      struct net_device *dev);
+extern struct inet6_ifaddr *	ipv6_get_ifaddr(struct in6_addr *addr,
+						struct net_device *dev);
 extern int			ipv6_get_saddr(struct dst_entry *dst, 
 					       struct in6_addr *daddr,
 					       struct in6_addr *saddr);
-extern int			ipv6_get_lladdr(struct device *dev, struct in6_addr *);
+extern int			ipv6_get_lladdr(struct net_device *dev, struct in6_addr *);
 
 /*
  *	multicast prototypes (mcast.c)
@@ -70,22 +72,65 @@ extern int			ipv6_sock_mc_drop(struct sock *sk,
 extern void			ipv6_sock_mc_close(struct sock *sk);
 extern int			inet6_mc_check(struct sock *sk, struct in6_addr *addr);
 
-extern int			ipv6_dev_mc_inc(struct device *dev,
+extern int			ipv6_dev_mc_inc(struct net_device *dev,
 						struct in6_addr *addr);
-extern int			ipv6_dev_mc_dec(struct device *dev,
+extern int			ipv6_dev_mc_dec(struct net_device *dev,
 						struct in6_addr *addr);
 extern void			ipv6_mc_up(struct inet6_dev *idev);
 extern void			ipv6_mc_down(struct inet6_dev *idev);
 extern void			ipv6_mc_destroy_dev(struct inet6_dev *idev);
 extern void			addrconf_dad_failure(struct inet6_ifaddr *ifp);
 
-extern int			ipv6_chk_mcast_addr(struct device *dev,
+extern int			ipv6_chk_mcast_addr(struct net_device *dev,
 						    struct in6_addr *addr);
 
-extern void			addrconf_prefix_rcv(struct device *dev,
+extern void			addrconf_prefix_rcv(struct net_device *dev,
 						    u8 *opt, int len);
 
-extern struct inet6_dev *	ipv6_get_idev(struct device *dev);
+extern __inline__ struct inet6_dev *
+__in6_dev_get(struct net_device *dev)
+{
+	return (struct inet6_dev *)dev->ip6_ptr;
+}
+
+extern rwlock_t addrconf_lock;
+
+extern __inline__ struct inet6_dev *
+in6_dev_get(struct net_device *dev)
+{
+	struct inet6_dev *idev = NULL;
+	read_lock(&addrconf_lock);
+	idev = dev->ip6_ptr;
+	if (idev)
+		atomic_inc(&idev->refcnt);
+	read_unlock(&addrconf_lock);
+	return idev;
+}
+
+extern void in6_dev_finish_destroy(struct inet6_dev *idev);
+
+extern __inline__ void
+in6_dev_put(struct inet6_dev *idev)
+{
+	if (atomic_dec_and_test(&idev->refcnt))
+		in6_dev_finish_destroy(idev);
+}
+
+#define __in6_dev_put(idev)  atomic_dec(&(idev)->refcnt)
+#define in6_dev_hold(idev)   atomic_inc(&(idev)->refcnt)
+
+
+extern void inet6_ifa_finish_destroy(struct inet6_ifaddr *ifp);
+
+extern __inline__ void in6_ifa_put(struct inet6_ifaddr *ifp)
+{
+	if (atomic_dec_and_test(&ifp->refcnt))
+		inet6_ifa_finish_destroy(ifp);
+}
+
+#define __in6_ifa_put(idev)  atomic_dec(&(idev)->refcnt)
+#define in6_ifa_hold(idev)   atomic_inc(&(idev)->refcnt)
+
 
 extern void			addrconf_forwarding_on(void);
 /*
@@ -95,7 +140,6 @@ extern void			addrconf_forwarding_on(void);
 static __inline__ u8 ipv6_addr_hash(struct in6_addr *addr)
 {	
 	__u32 word;
-	unsigned tmp;
 
 	/* 
 	 * We perform the hash function over the last 64 bits of the address
@@ -103,15 +147,10 @@ static __inline__ u8 ipv6_addr_hash(struct in6_addr *addr)
 	 */
 
 	word = addr->s6_addr[2] ^ addr->s6_addr32[3];
-	tmp  = word ^ (word>>16);
-	tmp ^= (tmp >> 8);
+	word  ^= (word>>16);
+	word ^= (word >> 8);
 
-	return ((tmp ^ (tmp >> 4)) & 0x0f);
-}
-
-static __inline__ int ipv6_devindex_hash(int ifindex)
-{
-	return ifindex & (IN6_ADDR_HSIZE - 1);
+	return ((word ^ (word >> 4)) & 0x0f);
 }
 
 /*

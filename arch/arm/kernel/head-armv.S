@@ -72,6 +72,8 @@ ENTRY(_stext)
  *  r1 = 6 -> CATS
  *  r1 = 7 -> tbox
  *  r1 = 8 -> SA110/21285 as co-processor
+ *  r1 = 9 -> CL-PS7110 system
+ *  r1 = 12 -> SA1100 based system
  */
 
 __entry:	teq	r0, #0					@ check for illegal entry...
@@ -162,9 +164,16 @@ __entry:	teq	r0, #0					@ check for illegal entry...
 		addne	r0, r4, #0x3600				@ d8000000
 		strne	r3, [r0]
 #endif
-@
-@ The following should work on both v3 and v4 implementations
-@
+		b	aligned_call
+/*
+ * The following should work on both v3 and v4 implementations
+ * Note: it seems that if the mov pc,lr is on the next cache
+ * line, it doesn't get fetched before the MMU starts
+ * translating, which prevents the kernel from booting.
+ * Ensure that this never happens.
+ */
+		.align 5
+aligned_call:
 		mov	lr, pc
 		mov	pc, r10					@ Call processor flush (returns ctrl reg)
 		adr	r5, __entry
@@ -178,7 +187,7 @@ __entry:	teq	r0, #0					@ check for illegal entry...
 #ifdef CONFIG_ARCH_RPC
 /* Turn the screen red on a error - RiscPC only.
  */
-1:		mov	r0, #0x02000000
+		mov	r0, #0x02000000
 		mov	r3, #0x11
 		orr	r3, r3, r3, lsl #8
 		orr	r3, r3, r3, lsl #16
@@ -187,6 +196,7 @@ __entry:	teq	r0, #0					@ check for illegal entry...
 		str	r3, [r0], #4
 		str	r3, [r0], #4
 #endif
+1:		mov	r0, r0
 		b	1b
 
 .Lbranch:	.long	.Lalready_done_mmap			@ Real address of routine
@@ -245,6 +255,12 @@ __entry:	teq	r0, #0					@ check for illegal entry...
 		.long	DC21285_ARMCSR_BASE			@ Physical I/O base address
 		.long	0x7cf00000 >> 18			@ Virtual I/O base address
 
+		@ SA1100
+		.long	SYMBOL_NAME(swapper_pg_dir) - 0xc0000000 + 0xc0000000
+		.long	0xc0000000
+		.long	0x80000000				@ IO mapping will change when kernel gets on its feet
+		.long	0x3800
+
 .LCProcTypes:	@ ARM6 / 610
 		.long	0x41560600
 		.long	0xffffff00
@@ -266,9 +282,9 @@ __entry:	teq	r0, #0					@ check for illegal entry...
 		b	.Larmv3_flush_late			@ arm v3 flush & ctrl late setup
 		mov	pc, lr
 
-		@ StrongARM
-		.long	0x4401a100
-		.long	0xfffffff0
+		@ StrongARM-110 and StrongARM-1100
+		.long	0x4401a100				@ 4401a100 and 4401a110
+		.long	0xffffffe0
 		.long	0x00000c02
 		b	.Larmv4_flush_early
 		b	.Lsa_fastclock

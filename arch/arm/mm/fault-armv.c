@@ -32,13 +32,14 @@
 
 #include "fault-common.c"
 
+/*
+ * need to get a 16k page for level 1
+ */
 pgd_t *get_pgd_slow(void)
 {
-	/*
-	 * need to get a 16k page for level 1
-	 */
 	pgd_t *pgd = (pgd_t *)__get_free_pages(GFP_KERNEL,2);
 	pgd_t *init;
+	pmd_t *new_pmd;
 
 	if (pgd) {
 		init = pgd_offset(&init_mm, 0);
@@ -46,8 +47,32 @@ pgd_t *get_pgd_slow(void)
 		memcpy(pgd + USER_PTRS_PER_PGD, init + USER_PTRS_PER_PGD,
 			(PTRS_PER_PGD - USER_PTRS_PER_PGD) * BYTES_PER_PTR);
 		clean_cache_area(pgd, PTRS_PER_PGD * BYTES_PER_PTR);
+
+		/*
+		 * On ARM, first page must always be allocated
+		 */
+		if (!pmd_alloc(pgd, 0))
+			goto nomem;
+		else {
+			pmd_t *old_pmd = pmd_offset(init, 0);
+			new_pmd = pmd_offset(pgd, 0);
+
+			if (!pte_alloc(new_pmd, 0))
+				goto nomem_pmd;
+			else {
+				pte_t *new_pte = pte_offset(new_pmd, 0);
+				pte_t *old_pte = pte_offset(old_pmd, 0);
+
+				set_pte (new_pte, *old_pte);
+			}
+		}
 	}
 	return pgd;
+
+nomem_pmd:
+	pmd_free(new_pmd);
+nomem:
+	return NULL;
 }
 
 pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
@@ -180,6 +205,7 @@ static int proc_alignment_read(char *page, char **start, off_t off,
 	return len;
 }
 
+#ifdef CONFIG_SYSCTL
 /*
  * This needs to be done after sysctl_init, otherwise sys/
  * will be overwritten.
@@ -193,6 +219,9 @@ void __init alignment_init(void)
 	if (e)
 		e->read_proc = proc_alignment_read;
 }
+
+__initcall(alignment_init);
+#endif
 
 static int
 do_alignment_exception(struct pt_regs *regs)
@@ -380,8 +409,25 @@ do_alignment_exception(struct pt_regs *regs)
 asmlinkage void
 do_DataAbort(unsigned long addr, int fsr, int error_code, struct pt_regs *regs)
 {
-	if (user_mode(regs))
+	if (user_mode(regs)) {
+		if (addr == regs->ARM_pc) {
+			static int first = 1;
+			if (first) {
+				/*
+				 * I want statistical information on this problem!
+				 */
+				printk(KERN_ERR "Buggy processor (%08X), "
+					"trying to continue.\n"
+					"Please send contents of /proc/cpuinfo "
+					"and this message to linux@arm.linux.org.uk",
+					fsr);
+				first = 0;
+			}
+			return;
+		}
+
 		error_code |= FAULT_CODE_USER;
+	}
 
 #define DIE(signr,nam)\
 		force_sig(signr, current);\

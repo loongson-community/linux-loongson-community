@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov 
  *
- * $Id: init.c,v 1.1 1999/01/17 03:49:40 ralf Exp $
+ * $Id: init.c,v 1.2 1999/08/17 22:18:38 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/config.h>
@@ -11,7 +11,7 @@
 
 char arcs_cmdline[CL_SIZE];
 
-__initfunc(int prom_init(unsigned int mem_upper))
+int __init prom_init(unsigned int mem_upper)
 {
 	mips_memory_upper = mem_upper;
 	mips_machgroup  = MACH_GROUP_UNKNOWN;
@@ -20,7 +20,7 @@ __initfunc(int prom_init(unsigned int mem_upper))
 	return 0;
 }
 
-__initfunc(void prom_fixup_mem_map(unsigned long start, unsigned long end))
+void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
 {
 }
 

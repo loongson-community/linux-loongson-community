@@ -47,7 +47,7 @@
     defined(CONFIG_WARPENGINE_SCSI) || \
     defined(CONFIG_A4091_SCSI) || \
     defined (CONFIG_GVP_TURBO_SCSI) || \
-    defined (CONFIG_BLZ603E)
+    defined (CONFIG_BLZ603EPLUS_SCSI)
 #define AMIGA7XXCONFIG
 #endif
 
@@ -95,6 +95,10 @@
 #include "fastlane.h"
 #endif
 
+#ifdef CONFIG_OKTAGON_SCSI
+#include "oktagon_esp.h"
+#endif
+
 #ifdef CONFIG_ATARI_SCSI
 #include "atari_scsi.h"
 #endif
@@ -129,6 +133,10 @@
 
 #ifdef CONFIG_SCSI_AIC7XXX
 #include "aic7xxx.h"
+#endif
+
+#ifdef CONFIG_SCSI_IPS
+#include "ips.h"
 #endif
 
 #ifdef CONFIG_SCSI_BUSLOGIC
@@ -335,6 +343,14 @@
 #include "dec_esp.h"
 #endif
 
+#ifdef CONFIG_SUN3X_ESP
+#include "sun3x_esp.h"
+#endif
+
+#ifdef CONFIG_IPHASE5526
+#include "../net/fc/iph5526_scsi.h"
+#endif
+
 /*
  * Moved ppa driver to the end of the probe list
  * since it is a removable host adapter.
@@ -410,6 +426,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_FASTLANE_SCSI
 	SCSI_FASTLANE,
 #endif
+#ifdef CONFIG_OKTAGON_SCSI
+	SCSI_OKTAGON_ESP,
+#endif
 #endif
 
 #ifdef CONFIG_ATARI
@@ -471,6 +490,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_AIC7XXX
     AIC7XXX,
+#endif
+#ifdef CONFIG_SCSI_IPS
+    IPS,
 #endif
 #ifdef CONFIG_SCSI_FD_MCS
    FD_MCS,
@@ -597,6 +619,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
     POWERTECSCSI,
 #endif
 #endif
+#ifdef CONFIG_IPHASE5526
+	IPH5526_SCSI_FC,
+#endif
 #ifdef CONFIG_SCSI_DECNCR	
     SCSI_DEC_ESP,
 #endif	
@@ -612,7 +637,10 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_JAZZ_ESP	
     SCSI_JAZZ_ESP,
-#endif	
+#endif
+#ifdef CONFIG_SUN3X_ESP  
+    SCSI_SUN3X_ESP,
+#endif
 #ifdef CONFIG_SCSI_DEBUG
     SCSI_DEBUG,
 #endif
@@ -747,11 +775,11 @@ scsi_register_device(struct Scsi_Device_Template * sdpnt)
  * Why is this a separate function?  Because the kernel_thread code
  * effectively does a fork, and there is a builtin exit() call when
  * the child returns.   The difficulty is that scsi_init() is
- * marked __initfunc(), which means the memory is unmapped after bootup
+ * marked __init, which means the memory is unmapped after bootup
  * is complete, which means that the thread's exit() call gets wiped.
  *
  * The lesson is to *NEVER*, *NEVER* call kernel_thread() from an
- * __initfunc() function, if that function could ever return.
+ * __init function, if that function could ever return.
  */
 static void launch_error_handler_thread(struct Scsi_Host * shpnt)
 {
@@ -769,7 +797,7 @@ static void launch_error_handler_thread(struct Scsi_Host * shpnt)
             shpnt->eh_notify = NULL;
 }
 
-__initfunc(unsigned int scsi_init(void))
+unsigned int __init scsi_init(void)
 {
     static int called = 0;
     int i, pcount;

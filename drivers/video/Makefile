@@ -37,7 +37,7 @@ endif
 
 ifeq ($(CONFIG_FB),y)
   L_OBJS += fonts.o
-  OX_OBJS += fbcon.o fbcmap.o fbmem.o
+  OX_OBJS += fbcon.o fbcmap.o fbmem.o modedb.o
   ifeq ($(CONFIG_FONT_8x8),y)
     L_OBJS += font_8x8.o
   endif
@@ -82,6 +82,11 @@ endif
 ifeq ($(CONFIG_FB_PM2),y)
 L_OBJS += pm2fb.o
 CONFIG_FBGEN_BUILTIN = y
+else
+  ifeq ($(CONFIG_FB_PM2),m)
+  M_OBJS += pm2fb.o
+  CONFIG_FBGEN_MODULE = y
+  endif
 endif
 
 ifeq ($(CONFIG_FB_APOLLO),y)
@@ -102,6 +107,10 @@ endif
 
 ifeq ($(CONFIG_FB_ATY),y)
 L_OBJS += atyfb.o
+else
+  ifeq ($(CONFIG_FB_ATY),m)
+  M_OBJS += atyfb.o
+  endif
 endif
 
 ifeq ($(CONFIG_FB_IGA),y)
@@ -206,6 +215,10 @@ endif
 
 ifeq ($(CONFIG_FB_VGA16),y)
 L_OBJS += vga16fb.o
+else
+  ifeq ($(CONFIG_FB_VGA16),m)
+  M_OBJS += vga16fb.o
+  endif
 endif
 
 ifeq ($(CONFIG_FB_VIRGE),y)
@@ -272,6 +285,13 @@ L_OBJS += sbusfb.o
     M_OBJS += cgfourteenfb.o
     endif
   endif
+  ifeq ($(CONFIG_FB_P9100),y)
+    L_OBJS += p9100fb.o
+  else
+    ifeq ($(CONFIG_FB_P9100),m)
+    M_OBJS += p9100fb.o
+    endif
+  endif
   ifeq ($(CONFIG_FB_LEO),y)
     L_OBJS += leofb.o
   else
@@ -322,6 +342,13 @@ else
     else
       ifeq ($(CONFIG_FB_CGFOURTEEN),m)
       M_OBJS += cgfourteenfb.o
+      endif
+    endif
+    ifeq ($(CONFIG_FB_P9100),y)
+      M_OBJS += p9100fb.o
+    else
+      ifeq ($(CONFIG_FB_P9100),m)
+      M_OBJS += p9100fb.o
       endif
     endif
     ifeq ($(CONFIG_FB_LEO),y)

@@ -1,4 +1,4 @@
-/* $Id: pcimt_scache.c,v 1.3 1998/08/25 09:14:51 ralf Exp $
+/* $Id: pcimt_scache.c,v 1.4 1999/01/04 16:03:59 ralf Exp $
  *
  * arch/mips/sni/pcimt_scache.c
  *
@@ -16,7 +16,7 @@
 #define cacheconf (*(volatile unsigned int *)PCIMT_CACHECONF)
 #define invspace (*(volatile unsigned int *)PCIMT_INVSPACE)
 
-__initfunc(void sni_pcimt_sc_init(void))
+void __init sni_pcimt_sc_init(void)
 {
 	unsigned int scsiz, sc_size;
 

@@ -57,7 +57,7 @@ static void free_module(struct module *, int tag_freed);
  * Called at boot time
  */
 
-__initfunc(void init_modules(void))
+void __init init_modules(void)
 {
 	kernel_module.nsyms = __stop___ksymtab - __start___ksymtab;
 
@@ -75,10 +75,6 @@ get_mod_name(const char *user_name, char **buf)
 {
 	unsigned long page;
 	long retval;
-
-	if ((unsigned long)user_name >= TASK_SIZE
-	    && !segment_eq(get_fs (), KERNEL_DS))
-		return -EFAULT;
 
 	page = __get_free_page(GFP_KERNEL);
 	if (!page)
@@ -161,7 +157,7 @@ err0:
  * Initialize a module.
  */
 
-asmlinkage int
+asmlinkage long
 sys_init_module(const char *name_user, struct module *mod_user)
 {
 	struct module mod_tmp, *mod;
@@ -353,7 +349,7 @@ err0:
 	return error;
 }
 
-asmlinkage int
+asmlinkage long
 sys_delete_module(const char *name_user)
 {
 	struct module *mod, *next;
@@ -628,7 +624,7 @@ qm_info(struct module *mod, char *buf, size_t bufsize, size_t *ret)
 	return error;
 }
 
-asmlinkage int
+asmlinkage long
 sys_query_module(const char *name_user, int which, char *buf, size_t bufsize,
 		 size_t *ret)
 {
@@ -693,7 +689,7 @@ out:
  * which does not arbitrarily limit the length of symbols.
  */
 
-asmlinkage int
+asmlinkage long
 sys_get_kernel_syms(struct kernel_sym *table)
 {
 	struct module *mod;
@@ -981,19 +977,19 @@ sys_create_module(const char *name_user, size_t size)
 	return -ENOSYS;
 }
 
-asmlinkage int
+asmlinkage long
 sys_init_module(const char *name_user, struct module *mod_user)
 {
 	return -ENOSYS;
 }
 
-asmlinkage int
+asmlinkage long
 sys_delete_module(const char *name_user)
 {
 	return -ENOSYS;
 }
 
-asmlinkage int
+asmlinkage long
 sys_query_module(const char *name_user, int which, char *buf, size_t bufsize,
 		 size_t *ret)
 {
@@ -1005,7 +1001,7 @@ sys_query_module(const char *name_user, int which, char *buf, size_t bufsize,
 	return -ENOSYS;
 }
 
-asmlinkage int
+asmlinkage long
 sys_get_kernel_syms(struct kernel_sym *table)
 {
 	return -ENOSYS;

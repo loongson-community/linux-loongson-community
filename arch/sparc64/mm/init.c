@@ -1,4 +1,4 @@
-/*  $Id: init.c,v 1.128 1999/05/25 16:53:24 jj Exp $
+/*  $Id: init.c,v 1.135 1999/09/06 22:55:10 ecd Exp $
  *  arch/sparc64/mm/init.c
  *
  *  Copyright (C) 1996-1999 David S. Miller (davem@caip.rutgers.edu)
@@ -42,7 +42,10 @@ unsigned long *sparc64_valid_addr_bitmap;
 unsigned long phys_base;
 
 /* get_new_mmu_context() uses "cache + 1".  */
+spinlock_t ctx_alloc_lock = SPIN_LOCK_UNLOCKED;
 unsigned long tlb_context_cache = CTX_FIRST_VERSION - 1;
+#define CTX_BMAP_SLOTS (1UL << (CTX_VERSION_SHIFT - 6))
+unsigned long mmu_context_bmap[CTX_BMAP_SLOTS];
 
 /* References to section boundaries */
 extern char __init_begin, __init_end, etext, __bss_start;
@@ -163,7 +166,7 @@ static int dvma_pages_current_index;
 static unsigned long dvmaiobase = 0;
 static unsigned long dvmaiosz __initdata = 0;
 
-__initfunc(void dvmaio_init(void))
+void __init dvmaio_init(void)
 {
 	long i;
 	
@@ -184,7 +187,7 @@ __initfunc(void dvmaio_init(void))
 	}
 }
 
-__initfunc(void iommu_init(int iommu_node, struct linux_sbus *sbus))
+void __init iommu_init(int iommu_node, struct linux_sbus *sbus)
 {
 	extern int this_is_starfire;
 	extern void *starfire_hookup(int);
@@ -386,7 +389,7 @@ void mmu_map_dma_area(unsigned long addr, int len, __u32 *dvma_addr,
 				dvma_pages_current_offset;
 
 			/* Map the CPU's view. */
-			pgdp = pgd_offset(init_task.mm, addr);
+			pgdp = pgd_offset(&init_mm, addr);
 			pmdp = pmd_alloc_kernel(pgdp, addr);
 			ptep = pte_alloc_kernel(pmdp, addr);
 			pte = mk_pte(the_page, PAGE_KERNEL);
@@ -583,7 +586,8 @@ void mmu_set_sbus64(struct linux_sbus_device *sdev, int bursts)
 	struct linux_sbus *sbus = sdev->my_bus;
 	struct sysio_regs *sregs = sbus->iommu->sysio_regs;
 	int slot = sdev->slot;
-	u64 *cfg, tmp;
+	volatile u64 *cfg;
+	u64 tmp;
 
 	switch(slot) {
 	case 0:
@@ -677,7 +681,7 @@ static inline void inherit_prom_mappings(void)
 			for (vaddr = trans[i].virt;
 			     vaddr < trans[i].virt + trans[i].size;
 			     vaddr += PAGE_SIZE) {
-				pgdp = pgd_offset(init_task.mm, vaddr);
+				pgdp = pgd_offset(&init_mm, vaddr);
 				if (pgd_none(*pgdp)) {
 					pmdp = sparc_init_alloc(&mempool,
 							 PMD_TABLE_SIZE);
@@ -739,7 +743,7 @@ void prom_world(int enter)
 	int i;
 
 	if (!enter)
-		set_fs(current->tss.current_ds);
+		set_fs(current->thread.current_ds);
 
 	if (!prom_ditlb_set)
 		return;
@@ -957,9 +961,6 @@ void __flush_tlb_all(void)
 			     : : "r" (pstate));
 }
 
-#define CTX_BMAP_SLOTS (1UL << (CTX_VERSION_SHIFT - 6))
-unsigned long mmu_context_bmap[CTX_BMAP_SLOTS];
-
 /* Caller does TLB context flushing on local CPU if necessary.
  *
  * We must be careful about boundary cases so that we never
@@ -969,14 +970,16 @@ unsigned long mmu_context_bmap[CTX_BMAP_SLOTS];
  */
 void get_new_mmu_context(struct mm_struct *mm)
 {
-	unsigned long ctx = (tlb_context_cache + 1) & ~(CTX_VERSION_MASK);
-	unsigned long new_ctx;
+	unsigned long ctx, new_ctx;
 	
+	spin_lock(&ctx_alloc_lock);
+	ctx = CTX_HWBITS(tlb_context_cache + 1);
 	if (ctx == 0)
 		ctx = 1;
-	if ((mm->context != NO_CONTEXT) &&
-	    !((mm->context ^ tlb_context_cache) & CTX_VERSION_MASK))
-		clear_bit(mm->context & ~(CTX_VERSION_MASK), mmu_context_bmap);
+	if (CTX_VALID(mm->context)) {
+		unsigned long nr = CTX_HWBITS(mm->context);
+		mmu_context_bmap[nr>>6] &= ~(1UL << (nr & 63));
+	}
 	new_ctx = find_next_zero_bit(mmu_context_bmap, 1UL << CTX_VERSION_SHIFT, ctx);
 	if (new_ctx >= (1UL << CTX_VERSION_SHIFT)) {
 		new_ctx = find_next_zero_bit(mmu_context_bmap, ctx, 1);
@@ -1003,12 +1006,13 @@ void get_new_mmu_context(struct mm_struct *mm)
 			goto out;
 		}
 	}
-	set_bit(new_ctx, mmu_context_bmap);
+	mmu_context_bmap[new_ctx>>6] |= (1UL << (new_ctx & 63));
 	new_ctx |= (tlb_context_cache & CTX_VERSION_MASK);
 out:
 	tlb_context_cache = new_ctx;
+	spin_unlock(&ctx_alloc_lock);
+
 	mm->context = new_ctx;
-	mm->cpu_vm_mask = 0;
 }
 
 #ifndef __SMP__
@@ -1041,15 +1045,15 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 	return NULL;
 }
 
-__initfunc(static void
-allocate_ptable_skeleton(unsigned long start, unsigned long end))
+static void __init
+allocate_ptable_skeleton(unsigned long start, unsigned long end)
 {
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
 
 	while (start < end) {
-		pgdp = pgd_offset(init_task.mm, start);
+		pgdp = pgd_offset(&init_mm, start);
 		if (pgd_none(*pgdp)) {
 			pmdp = sparc_init_alloc(&mempool, PAGE_SIZE);
 			memset(pmdp, 0, PAGE_SIZE);
@@ -1073,7 +1077,7 @@ allocate_ptable_skeleton(unsigned long start, unsigned long end))
 void sparc_ultra_mapioaddr(unsigned long physaddr, unsigned long virt_addr,
 			   int bus, int rdonly)
 {
-	pgd_t *pgdp = pgd_offset(init_task.mm, virt_addr);
+	pgd_t *pgdp = pgd_offset(&init_mm, virt_addr);
 	pmd_t *pmdp = pmd_offset(pgdp, virt_addr);
 	pte_t *ptep = pte_offset(pmdp, virt_addr);
 	pte_t pte;
@@ -1095,7 +1099,7 @@ void sparc_ultra_unmapioaddr(unsigned long virt_addr)
 	pmd_t *pmdp;
 	pte_t *ptep;
 
-	pgdp = pgd_offset(init_task.mm, virt_addr);
+	pgdp = pgd_offset(&init_mm, virt_addr);
 	pmdp = pmd_offset(pgdp, virt_addr);
 	ptep = pte_offset(pmdp, virt_addr);
 
@@ -1139,8 +1143,8 @@ void sparc_ultra_dump_dtlb(void)
 extern unsigned long free_area_init(unsigned long, unsigned long);
 extern unsigned long sun_serial_setup(unsigned long);
 
-__initfunc(unsigned long 
-paging_init(unsigned long start_mem, unsigned long end_mem))
+unsigned long __init
+paging_init(unsigned long start_mem, unsigned long end_mem)
 {
 	extern pmd_t swapper_pmd_dir[1024];
 	extern unsigned int sparc64_vpte_patchme1[1];
@@ -1259,7 +1263,7 @@ paging_init(unsigned long start_mem, unsigned long end_mem))
 	return device_scan (PAGE_ALIGN (start_mem));
 }
 
-__initfunc(static void taint_real_pages(unsigned long start_mem, unsigned long end_mem))
+static void __init taint_real_pages(unsigned long start_mem, unsigned long end_mem)
 {
 	unsigned long tmp = 0, paddr, endaddr;
 	unsigned long end = __pa(end_mem);
@@ -1305,7 +1309,7 @@ __initfunc(static void taint_real_pages(unsigned long start_mem, unsigned long e
 	}
 }
 
-__initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
+void __init mem_init(unsigned long start_mem, unsigned long end_mem)
 {
 	int codepages = 0;
 	int datapages = 0;
@@ -1319,6 +1323,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	max_mapnr = MAP_NR(end_mem);
 	high_memory = (void *) end_mem;
 	
+	start_mem = ((start_mem + 7UL) & ~7UL);
 	sparc64_valid_addr_bitmap = (unsigned long *)start_mem;
 	i = max_mapnr >> ((22 - PAGE_SHIFT) + 6);
 	i += 1;
@@ -1472,4 +1477,6 @@ void si_meminfo(struct sysinfo *val)
 	}
 	val->totalram <<= PAGE_SHIFT;
 	val->sharedram <<= PAGE_SHIFT;
+	val->totalbig = 0;
+	val->freebig = 0;
 }

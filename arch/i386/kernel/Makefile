@@ -13,8 +13,8 @@
 all: kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
-O_OBJS   := process.o signal.o entry.o traps.o irq.o vm86.o \
-            ptrace.o ioport.o ldt.o setup.o time.o sys_i386.o
+O_OBJS   := process.o semaphore.o signal.o entry.o traps.o irq.o vm86.o \
+	    ptrace.o i8259.o ioport.o ldt.o setup.o time.o sys_i386.o
 OX_OBJS  := i386_ksyms.o
 MX_OBJS  :=
 
@@ -34,8 +34,12 @@ else
   endif
 endif
 
-ifdef CONFIG_APM
+ifeq ($(CONFIG_APM),y)
 OX_OBJS += apm.o
+else
+  ifeq ($(CONFIG_APM),m)
+  MX_OBJS += apm.o
+  endif
 endif
 
 ifdef CONFIG_SMP
@@ -50,7 +54,7 @@ ifdef CONFIG_X86_VISWS_APIC
 O_OBJS += visws_apic.o
 endif
 
-head.o: head.S $(TOPDIR)/include/linux/tasks.h
+head.o: head.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -c $*.S -o $*.o
 
 include $(TOPDIR)/Rules.make

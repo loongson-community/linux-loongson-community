@@ -1,5 +1,5 @@
 /*
- * $Id: setup.c,v 1.133 1999/05/14 07:24:30 davem Exp $
+ * $Id: setup.c,v 1.148 1999/09/05 11:56:34 paulus Exp $
  * Common prep/pmac/chrp boot and setup code.
  */
 
@@ -12,6 +12,7 @@
 #include <linux/delay.h>
 #include <linux/blk.h>
 
+#include <asm/init.h>
 #include <asm/adb.h>
 #include <asm/cuda.h>
 #include <asm/pmu.h>
@@ -58,6 +59,12 @@ extern void mbx_init(unsigned long r3,
 		     unsigned long r7);
 
 extern void apus_init(unsigned long r3,
+                      unsigned long r4,
+                      unsigned long r5,
+                      unsigned long r6,
+                      unsigned long r7);
+
+extern void gemini_init(unsigned long r3,
                       unsigned long r4,
                       unsigned long r5,
                       unsigned long r6,
@@ -121,11 +128,11 @@ struct screen_info screen_info = {
 /*
  * I really need to add multiple-console support... -- Cort
  */
-__initfunc(int pmac_display_supported(char *name))
+int __init pmac_display_supported(char *name)
 {
 	return 0;
 }
-__initfunc(void pmac_find_display(void))
+void __init pmac_find_display(void)
 {
 }
 
@@ -267,6 +274,17 @@ int get_cpuinfo(char *buffer)
 			
 			cpu_node = find_type_devices("cpu");
 			if ( !cpu_node ) break;
+			{
+				int s;
+				for ( s = 0; (s < i) && cpu_node->next ;
+				      s++, cpu_node = cpu_node->next )
+					/* nothing */ ;
+#if 0 /* SMP Pmacs don't have all cpu nodes -- Cort */
+				if ( s != i )
+					printk("get_cpuinfo(): ran out of "
+					       "cpu nodes.\n");
+#endif
+			}
 			fp = (int *) get_property(cpu_node, "clock-frequency", NULL);
 			if ( !fp ) break;
 			len += sprintf(len+buffer, "clock\t\t: %dMHz\n",
@@ -327,10 +345,10 @@ unsigned long __init
 identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 		 unsigned long r6, unsigned long r7)
 {
-	
 #ifdef __SMP__
 	if ( first_cpu_booted ) return 0;
 #endif /* __SMP__ */
+	if ( ppc_md.progress ) ppc_md.progress("id mach(): start", 0x100);
 	
 #ifndef CONFIG_MACH_SPECIFIC
 	/* boot loader will tell us if we're APUS */
@@ -391,6 +409,8 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 	_machine = _MACH_fads;
 #elif defined(CONFIG_APUS)
 	_machine = _MACH_apus;
+#elif defined(CONFIG_GEMINI)
+	_machine = _MACH_gemini;
 #else
 #error "Machine not defined correctly"
 #endif /* CONFIG_APUS */
@@ -474,16 +494,19 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
                 mbx_init(r3, r4, r5, r6, r7);
                 break;
 #endif
+	case _MACH_gemini:
+		gemini_init(r3, r4, r5, r6, r7);
+		break;
 	default:
 		printk("Unknown machine type in identify_machine!\n");
 	}
-
 	/* Check for nobats option (used in mapin_ram). */
 	if (strstr(cmd_line, "nobats")) {
 		extern int __map_without_bats;
 		__map_without_bats = 1;
 	}
-	
+
+	if ( ppc_md.progress ) ppc_md.progress("id mach(): done", 0x200);
 	return 0;
 }
 
@@ -499,16 +522,18 @@ void ppc_setup_l2cr(char *str, int *ints)
 	}
 }
 
-__initfunc(void
-	   ppc_init(void))
+void __init ppc_init(void)
 {
+	/* clear the progress line */
+	if ( ppc_md.progress ) ppc_md.progress(" ", 0xffff);
+	
 	if (ppc_md.init != NULL) {
 		ppc_md.init();
 	}
 }
 
-__initfunc(void setup_arch(char **cmdline_p,
-			   unsigned long * memory_start_p, unsigned long * memory_end_p))
+void __init setup_arch(char **cmdline_p,
+		       unsigned long * memory_start_p, unsigned long * memory_end_p)
 {
 	extern int panic_timeout;
 	extern char _etext[], _edata[];
@@ -525,11 +550,11 @@ __initfunc(void setup_arch(char **cmdline_p,
  
 	/* reboot on panic */	
 	panic_timeout = 180;
-	
-	init_task.mm->start_code = PAGE_OFFSET;
-	init_task.mm->end_code = (unsigned long) _etext;
-	init_task.mm->end_data = (unsigned long) _edata;
-	init_task.mm->brk = (unsigned long) klimit;	
+
+	init_mm.start_code = PAGE_OFFSET;
+	init_mm.end_code = (unsigned long) _etext;
+	init_mm.end_data = (unsigned long) _edata;
+	init_mm.brk = (unsigned long) klimit;	
 
 	/* Save unparsed command line copy for /proc/cmdline */
 	strcpy(saved_command_line, cmd_line);
@@ -539,6 +564,8 @@ __initfunc(void setup_arch(char **cmdline_p,
 	*memory_end_p = (unsigned long) end_of_DRAM;
 
 	ppc_md.setup_arch(memory_start_p, memory_end_p);
+	/* clear the progress line */
+	if ( ppc_md.progress ) ppc_md.progress("arch: exit", 0x3eab);
 }
 
 void ppc_generic_ide_fix_driveid(struct hd_driveid *id)

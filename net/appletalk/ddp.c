@@ -81,7 +81,6 @@
 #include <linux/atalk.h>
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
-#include <linux/firewall.h>
 #include <linux/init.h>
 
 
@@ -92,7 +91,7 @@ extern void aarp_unregister_proc_fs(void);
 
 extern void aarp_probe_network(struct atalk_iface *atif);
 extern int  aarp_proxy_probe_network(struct atalk_iface *atif, struct at_addr *sa);
-extern void aarp_proxy_remove(struct device *dev, struct at_addr *sa);
+extern void aarp_proxy_remove(struct net_device *dev, struct at_addr *sa);
 
 
 #undef APPLETALK_DEBUG
@@ -283,7 +282,7 @@ static struct atalk_route atrtr_default; /* For probing devices or in a routerle
  * Drop a device. Doesn't drop any of its routes - that is the caller's
  * problem. Called when we down the interface or delete the address.
  */
-static void atif_drop_device(struct device *dev)
+static void atif_drop_device(struct net_device *dev)
 {
 	struct atalk_iface **iface = &atalk_iface_list;
 	struct atalk_iface *tmp;
@@ -303,7 +302,7 @@ static void atif_drop_device(struct device *dev)
 
 }
 
-static struct atalk_iface *atif_add_device(struct device *dev, struct at_addr *sa)
+static struct atalk_iface *atif_add_device(struct net_device *dev, struct at_addr *sa)
 {
 	struct atalk_iface *iface = (struct atalk_iface *)
 		kmalloc(sizeof(*iface), GFP_KERNEL);
@@ -452,7 +451,7 @@ static int atif_proxy_probe_device(struct atalk_iface *atif, struct at_addr* pro
 }
 
 
-struct at_addr *atalk_find_dev_addr(struct device *dev)
+struct at_addr *atalk_find_dev_addr(struct net_device *dev)
 {
 	struct atalk_iface *iface=dev->atalk_ptr;
 
@@ -491,7 +490,7 @@ static struct at_addr *atalk_find_primary(void)
  * Find a match for 'any network' - ie any of our interfaces with that
  * node number will do just nicely.
  */
-static struct atalk_iface *atalk_find_anynet(int node, struct device *dev)
+static struct atalk_iface *atalk_find_anynet(int node, struct net_device *dev)
 {
 	struct atalk_iface *iface=dev->atalk_ptr;
 
@@ -589,7 +588,7 @@ static struct atalk_route *atrtr_find(struct at_addr *target)
  * Given an AppleTalk network, find the device to use. This can be
  * a simple lookup.
  */
-struct device *atrtr_get_dev(struct at_addr *sa)
+struct net_device *atrtr_get_dev(struct at_addr *sa)
 {
 	struct atalk_route *atr=atrtr_find(sa);
 
@@ -602,7 +601,7 @@ struct device *atrtr_get_dev(struct at_addr *sa)
 /*
  * Set up a default router.
  */
-static void atrtr_set_default(struct device *dev)
+static void atrtr_set_default(struct net_device *dev)
 {
 	atrtr_default.dev = dev;
 	atrtr_default.flags = RTF_UP;
@@ -615,7 +614,7 @@ static void atrtr_set_default(struct device *dev)
  * entry in the list. While it uses netranges we always set them to one
  * entry to work like netatalk.
  */
-static int atrtr_create(struct rtentry *r, struct device *devhint)
+static int atrtr_create(struct rtentry *r, struct net_device *devhint)
 {
 	struct sockaddr_at *ta=(struct sockaddr_at *)&r->rt_dst;
 	struct sockaddr_at *ga=(struct sockaddr_at *)&r->rt_gateway;
@@ -725,7 +724,7 @@ static int atrtr_delete( struct at_addr *addr )
  * Called when a device is downed. Just throw away any routes
  * via it.
  */
-void atrtr_device_down(struct device *dev)
+void atrtr_device_down(struct net_device *dev)
 {
 	struct atalk_route **r = &atalk_router_list;
 	struct atalk_route *tmp;
@@ -748,7 +747,7 @@ void atrtr_device_down(struct device *dev)
 /*
  * Actually down the interface.
  */
-static inline void atalk_dev_down(struct device *dev)
+static inline void atalk_dev_down(struct net_device *dev)
 {
 	atrtr_device_down(dev);	/* Remove all routes for the device */
 	aarp_device_down(dev);	/* Remove AARP entries for the device */
@@ -764,7 +763,7 @@ static int ddp_device_event(struct notifier_block *this, unsigned long event, vo
 	if(event == NETDEV_DOWN)
 	{
 		/* Discard any use of this */
-	        atalk_dev_down((struct device *) ptr);
+	        atalk_dev_down((struct net_device *) ptr);
 	}
 
 	return (NOTIFY_DONE);
@@ -783,7 +782,7 @@ int atif_ioctl(int cmd, void *arg)
 	static char aarp_mcast[6] = {0x09, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
 	struct netrange *nr;
 	struct sockaddr_at *sa;
-	struct device *dev;
+	struct net_device *dev;
 	struct atalk_iface *atif;
 	int ct;
 	int limit;
@@ -793,7 +792,7 @@ int atif_ioctl(int cmd, void *arg)
 	if(copy_from_user(&atreq,arg,sizeof(atreq)))
 		return (-EFAULT);
 
-	if((dev = dev_get(atreq.ifr_name)) == NULL)
+	if((dev = __dev_get_by_name(atreq.ifr_name)) == NULL)
 		return (-ENODEV);
 
 	sa=(struct sockaddr_at*)&atreq.ifr_addr;
@@ -1012,7 +1011,7 @@ int atif_ioctl(int cmd, void *arg)
 static int atrtr_ioctl(unsigned int cmd, void *arg)
 {
 	struct rtentry rt;
-	struct device *dev = NULL;
+	struct net_device *dev = NULL;
 
 	if(copy_from_user(&rt, arg, sizeof(rt)))
 		return (-EFAULT);
@@ -1027,7 +1026,7 @@ static int atrtr_ioctl(unsigned int cmd, void *arg)
 		case SIOCADDRT:
 			/* FIX ME: the name of the device is still in user space, isn't it? */
 			if (rt.rt_dev != NULL)
-				if ((dev = dev_get(rt.rt_dev)) == NULL)
+				if ((dev = __dev_get_by_name(rt.rt_dev)) == NULL)
 					return -(ENODEV);
 			
 			return (atrtr_create(&rt, dev));
@@ -1201,7 +1200,7 @@ static int atalk_create(struct socket *sock, int protocol)
 /*
  * Free a socket. No work needed
  */
-static int atalk_release(struct socket *sock, struct socket *peer)
+static int atalk_release(struct socket *sock)
 {
 	struct sock *sk=sock->sk;
 
@@ -1361,19 +1360,6 @@ static int atalk_connect(struct socket *sock, struct sockaddr *uaddr,
 	return (0);
 }
 
-/*
- * Not relevant
- */
-static int atalk_accept(struct socket *sock, struct socket *newsock, int flags)
-{
-	if(newsock->sk)
-	{
-		sk_free(newsock->sk);
-		MOD_DEC_USE_COUNT;
-	}
-
-	return (-EOPNOTSUPP);
-}
 
 /*
  * Find the name of an AppleTalk socket. Just copy the right
@@ -1422,7 +1408,7 @@ static int atalk_getname(struct socket *sock, struct sockaddr *uaddr,
  * extracted. PPP should probably pass frames marked as for this layer.
  * [ie ARPHRD_ETHERTALK]
  */
-static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
+static int atalk_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt)
 {
 	struct sock *sock;
 	struct ddpehdr *ddp=(void *)skb->h.raw;
@@ -1480,12 +1466,6 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 		return (0);
 	}
 
-	if(call_in_firewall(PF_APPLETALK, skb->dev, ddp, NULL,&skb)!=FW_ACCEPT)
-	{
-		kfree_skb(skb);
-		return (0);
-	}
-
 	/* Check the packet is aimed at us */
 
 	if(ddp->deh_dnet == 0)	/* Net 0 is 'this network' */
@@ -1514,15 +1494,6 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 			if (dev->type == ARPHRD_PPP)
 				printk(KERN_DEBUG "AppleTalk: didn't forward broadcast packet received from PPP iface\n");
 			
-			kfree_skb(skb);
-			return (0);
-		}
-
-		/*
-		 * Check firewall allows this routing
-		 */
-		if(call_fw_firewall(PF_APPLETALK, skb->dev, ddp, NULL, &skb) != FW_ACCEPT)
-		{
 			kfree_skb(skb);
 			return (0);
 		}
@@ -1593,10 +1564,10 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
          */
         if(skb->data[12] == 22)
         {
-                struct device *dev;
+                struct net_device *dev;
 
 		/* This needs to be able to handle ipddp"N" devices */
-                if((dev = dev_get("ipddp0")) == NULL)
+                if((dev = __dev_get_by_name("ipddp0")) == NULL)
                         return (-ENODEV);
 
                 skb->protocol = htons(ETH_P_IP);
@@ -1645,7 +1616,7 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
  * Caller must provide enough headroom on the packet to pull the short
  * header and append a long one.
  */
-static int ltalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
+static int ltalk_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt)
 {
 	struct ddpehdr *ddp;
 	struct at_addr *ap;
@@ -1712,7 +1683,7 @@ static int atalk_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	struct sockaddr_at *usat=(struct sockaddr_at *)msg->msg_name;
 	struct sockaddr_at local_satalk, gsat;
 	struct sk_buff *skb;
-	struct device *dev;
+	struct net_device *dev;
 	struct ddpehdr *ddp;
 	int size;
 	struct atalk_route *rt;
@@ -1832,12 +1803,6 @@ static int atalk_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	else
 		ddp->deh_sum = atalk_checksum(ddp, len + sizeof(*ddp));
 
-	if(call_out_firewall(PF_APPLETALK, skb->dev, ddp, NULL, &skb) != FW_ACCEPT)
-	{
-		kfree_skb(skb);
-		return (-EPERM);
-	}
-
 	/*
 	 * Loopback broadcast packets to non gateway targets (ie routes
 	 * to group we are in)
@@ -1946,10 +1911,6 @@ static int atalk_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	return (err ? err : (copied));
 }
 
-static int atalk_shutdown(struct socket *sk,int how)
-{
-	return (-EOPNOTSUPP);
-}
 
 /*
  * AppleTalk ioctl calls.
@@ -2049,27 +2010,30 @@ static struct net_proto_family atalk_family_ops=
 	atalk_create
 };
 
-static struct proto_ops atalk_dgram_ops=
+static struct proto_ops SOCKOPS_WRAPPED(atalk_dgram_ops)=
 {
 	PF_APPLETALK,
 
-	sock_no_dup,
 	atalk_release,
 	atalk_bind,
 	atalk_connect,
 	sock_no_socketpair,
-	atalk_accept,
+	sock_no_accept,
 	atalk_getname,
 	datagram_poll,
 	atalk_ioctl,
 	sock_no_listen,
-	atalk_shutdown,
+	sock_no_shutdown,
 	sock_no_setsockopt,
 	sock_no_getsockopt,
 	sock_no_fcntl,
 	atalk_sendmsg,
-	atalk_recvmsg
+	atalk_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(atalk_dgram, PF_APPLETALK);
 
 static struct notifier_block ddp_notifier=
 {
@@ -2133,7 +2097,7 @@ static struct proc_dir_entry proc_atalk_iface=
 
 /* Called by proto.c on kernel start up */
 
-__initfunc(void atalk_proto_init(struct net_proto *pro))
+void __init atalk_proto_init(struct net_proto *pro)
 {
 	(void) sock_register(&atalk_family_ops);
 	if((ddp_dl = register_snap_client(ddp_snap_id, atalk_rcv)) == NULL)

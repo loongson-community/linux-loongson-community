@@ -1,4 +1,4 @@
-/* $Id: syscalls.h,v 1.16 1999/07/11 23:56:29 ralf Exp $
+/* $Id: syscalls.h,v 1.17 1999/09/28 22:25:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -127,7 +127,7 @@ SYS(sys_newfstat, 2)
 SYS(sys_uname, 1)
 SYS(sys_iopl, 0)	/* Well, actually 17 args ... */				/* 4110 */
 SYS(sys_vhangup, 0)
-SYS(sys_idle, 0)
+SYS(sys_ni_syscall, 0)	/* was sys_idle() */
 SYS(sys_vm86, 1)
 SYS(sys_wait4, 4)
 SYS(sys_swapoff, 1)				/* 4115 */

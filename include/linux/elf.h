@@ -20,15 +20,15 @@ typedef __s64	Elf64_Sword;
 typedef __u64	Elf64_Word;
 
 /* These constants are for the segment types stored in the image headers */
-#define PT_NULL    0
-#define PT_LOAD    1
-#define PT_DYNAMIC 2
-#define PT_INTERP  3
-#define PT_NOTE    4
-#define PT_SHLIB   5
-#define PT_PHDR    6
-#define PT_LOPROC  0x70000000
-#define PT_HIPROC  0x7fffffff
+#define PT_NULL			0
+#define PT_LOAD			1
+#define PT_DYNAMIC		2
+#define PT_INTERP		3
+#define PT_NOTE 		4
+#define PT_SHLIB		5
+#define PT_PHDR			6
+#define PT_LOPROC		0x70000000
+#define PT_HIPROC		0x7fffffff
 #define PT_MIPS_REGINFO		0x70000000
 
 /* Flags in the e_flags field of the header */
@@ -47,26 +47,23 @@ typedef __u64	Elf64_Word;
 #define ET_HIPROC 0xffff
 
 /* These constants define the various ELF target machines */
-#define EM_NONE  0
-#define EM_M32   1
-#define EM_SPARC 2
-#define EM_386   3
-#define EM_68K   4
-#define EM_88K   5
-#define EM_486   6   /* Perhaps disused */
-#define EM_860   7
-
-#define EM_MIPS		8	/* MIPS R3000 (officially, big-endian only) */
-
+#define EM_NONE         0
+#define EM_M32          1
+#define EM_SPARC        2
+#define EM_386          3
+#define EM_68K          4
+#define EM_88K          5
+#define EM_486          6	/* Perhaps disused */
+#define EM_860          7
+#define EM_MIPS         8	/* MIPS R3000 (officially, big-endian only) */
 #define EM_MIPS_RS4_BE 10	/* MIPS R4000 big-endian */
-
 #define EM_PARISC      15	/* HPPA */
-
 #define EM_SPARC32PLUS 18	/* Sun's "v8plus" */
-
 #define EM_PPC	       20	/* PowerPC */
-
 #define EM_SPARCV9     43	/* SPARC v9 64-bit */
+
+
+#define EM_IA_64	50	/* HP/Intel IA-64 */
 
 /*
  * This is an interim value that we will use until the committee comes
@@ -76,32 +73,32 @@ typedef __u64	Elf64_Word;
 
 
 /* This is the info that is needed to parse the dynamic section of the file */
-#define DT_NULL		0
-#define DT_NEEDED	1
-#define DT_PLTRELSZ	2
-#define DT_PLTGOT	3
-#define DT_HASH		4
-#define DT_STRTAB	5
-#define DT_SYMTAB	6
-#define DT_RELA		7
-#define DT_RELASZ	8
-#define DT_RELAENT	9
-#define DT_STRSZ	10
-#define DT_SYMENT	11
-#define DT_INIT		12
-#define DT_FINI		13
-#define DT_SONAME	14
-#define DT_RPATH 	15
-#define DT_SYMBOLIC	16
-#define DT_REL	        17
-#define DT_RELSZ	18
-#define DT_RELENT	19
-#define DT_PLTREL	20
-#define DT_DEBUG	21
-#define DT_TEXTREL	22
-#define DT_JMPREL	23
-#define DT_LOPROC	0x70000000
-#define DT_HIPROC	0x7fffffff
+#define DT_NULL			0
+#define DT_NEEDED		1
+#define DT_PLTRELSZ		2
+#define DT_PLTGOT		3
+#define DT_HASH			4
+#define DT_STRTAB		5
+#define DT_SYMTAB		6
+#define DT_RELA			7
+#define DT_RELASZ		8
+#define DT_RELAENT		9
+#define DT_STRSZ		10
+#define DT_SYMENT		11
+#define DT_INIT			12
+#define DT_FINI			13
+#define DT_SONAME		14
+#define DT_RPATH 		15
+#define DT_SYMBOLIC		16
+#define DT_REL			17
+#define DT_RELSZ		18
+#define DT_RELENT		19
+#define DT_PLTREL		20
+#define DT_DEBUG		21
+#define DT_TEXTREL		22
+#define DT_JMPREL		23
+#define DT_LOPROC		0x70000000
+#define DT_HIPROC		0x7fffffff
 #define DT_MIPS_RLD_VERSION	0x70000001
 #define DT_MIPS_TIME_STAMP	0x70000002
 #define DT_MIPS_ICHECKSUM	0x70000003
@@ -176,18 +173,18 @@ typedef struct {
 #define ELF32_R_SYM(x) ((x) >> 8)
 #define ELF32_R_TYPE(x) ((x) & 0xff)
 
-#define R_386_NONE	0
-#define R_386_32	1
-#define R_386_PC32	2
-#define R_386_GOT32	3
-#define R_386_PLT32	4
-#define R_386_COPY	5
-#define R_386_GLOB_DAT	6
-#define R_386_JMP_SLOT	7
-#define R_386_RELATIVE	8
-#define R_386_GOTOFF	9
-#define R_386_GOTPC	10
-#define R_386_NUM	11
+#define R_386_NONE		0
+#define R_386_32		1
+#define R_386_PC32		2
+#define R_386_GOT32		3
+#define R_386_PLT32		4
+#define R_386_COPY		5
+#define R_386_GLOB_DAT		6
+#define R_386_JMP_SLOT		7
+#define R_386_RELATIVE		8
+#define R_386_GOTOFF		9
+#define R_386_GOTPC		10
+#define R_386_NUM		11
 
 #define R_MIPS_NONE		0
 #define R_MIPS_16		1
@@ -458,23 +455,23 @@ typedef struct elf64_phdr {
 } Elf64_Phdr;
 
 /* sh_type */
-#define SHT_NULL	0
-#define SHT_PROGBITS	1
-#define SHT_SYMTAB	2
-#define SHT_STRTAB	3
-#define SHT_RELA	4
-#define SHT_HASH	5
-#define SHT_DYNAMIC	6
-#define SHT_NOTE	7
-#define SHT_NOBITS	8
-#define SHT_REL		9
-#define SHT_SHLIB	10
-#define SHT_DYNSYM	11
-#define SHT_NUM		12
-#define SHT_LOPROC	0x70000000
-#define SHT_HIPROC	0x7fffffff
-#define SHT_LOUSER	0x80000000
-#define SHT_HIUSER	0xffffffff
+#define SHT_NULL		0
+#define SHT_PROGBITS		1
+#define SHT_SYMTAB		2
+#define SHT_STRTAB		3
+#define SHT_RELA		4
+#define SHT_HASH		5
+#define SHT_DYNAMIC		6
+#define SHT_NOTE		7
+#define SHT_NOBITS		8
+#define SHT_REL			9
+#define SHT_SHLIB		10
+#define SHT_DYNSYM		11
+#define SHT_NUM			12
+#define SHT_LOPROC		0x70000000
+#define SHT_HIPROC		0x7fffffff
+#define SHT_LOUSER		0x80000000
+#define SHT_HIUSER		0xffffffff
 #define SHT_MIPS_LIST		0x70000000
 #define SHT_MIPS_CONFLICT	0x70000002
 #define SHT_MIPS_GPTAB		0x70000003
@@ -488,13 +485,13 @@ typedef struct elf64_phdr {
 #define SHF_MIPS_GPREL	0x10000000
 
 /* special section indexes */
-#define SHN_UNDEF	0
-#define SHN_LORESERVE	0xff00
-#define SHN_LOPROC	0xff00
-#define SHN_HIPROC	0xff1f
-#define SHN_ABS		0xfff1
-#define SHN_COMMON	0xfff2
-#define SHN_HIRESERVE	0xffff
+#define SHN_UNDEF		0
+#define SHN_LORESERVE		0xff00
+#define SHN_LOPROC		0xff00
+#define SHN_HIPROC		0xff1f
+#define SHN_ABS			0xfff1
+#define SHN_COMMON		0xfff2
+#define SHN_HIRESERVE		0xffff
 #define SHN_MIPS_ACCOMON	0xff00
  
 typedef struct {

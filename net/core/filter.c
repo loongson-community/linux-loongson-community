@@ -49,7 +49,7 @@ static u8 *load_pointer(struct sk_buff *skb, int k)
 	else if (k>=SKF_LL_OFF)
 		ptr = skb->mac.raw + k - SKF_LL_OFF;
 
-	if (ptr<skb->head && ptr < skb->tail)
+	if (ptr >= skb->head && ptr < skb->tail)
 		return ptr;
 	return NULL;
 }
@@ -248,6 +248,7 @@ load_b:
 						continue;
 					}
 				}
+				return 0;
 
 			case BPF_LD|BPF_W|BPF_LEN:
 				A = len;
@@ -440,9 +441,12 @@ int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk)
 	fp->len = fprog->len;
 
 	if ((err = sk_chk_filter(fp->insns, fp->len))==0) {
-		struct sk_filter *old_fp = sk->filter;
+		struct sk_filter *old_fp;
+
+		spin_lock_bh(&sk->lock.slock);
+		old_fp = sk->filter;
 		sk->filter = fp;
-		synchronize_bh();
+		spin_unlock_bh(&sk->lock.slock);
 		fp = old_fp;
 	}
 

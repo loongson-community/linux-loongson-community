@@ -1,4 +1,4 @@
-/* $Id: mmu_context.h,v 1.3 1999/01/04 16:09:23 ralf Exp $
+/* $Id: mmu_context.h,v 1.4 1999/08/09 19:43:17 harald Exp $
  *
  * Switch a MMU context.
  *
@@ -6,10 +6,11 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#ifndef __ASM_MIPS_MMU_CONTEXT_H
-#define __ASM_MIPS_MMU_CONTEXT_H
+#ifndef _ASM_MMU_CONTEXT_H
+#define _ASM_MMU_CONTEXT_H
 
 #include <linux/config.h>
 
@@ -28,17 +29,17 @@ extern unsigned long asid_cache;
 
 #endif
 
-/* 
- *  All unused by hardware upper bits will be considered 
+/*
+ *  All unused by hardware upper bits will be considered
  *  as a software asid extension.
  */
-#define ASID_VERSION_MASK  ((unsigned long)~(ASID_MASK|(ASID_MASK-1))) 
+#define ASID_VERSION_MASK  ((unsigned long)~(ASID_MASK|(ASID_MASK-1)))
 #define ASID_FIRST_VERSION ((unsigned long)(~ASID_VERSION_MASK) + 1)
 
-extern inline void get_new_mmu_context(struct mm_struct *mm, unsigned
-long asid)
+extern inline void
+get_new_mmu_context(struct mm_struct *mm, unsigned long asid)
 {
-        if (! ((asid += ASID_INC) & ASID_MASK) ) {
+	if (! ((asid += ASID_INC) & ASID_MASK) ) {
 		flush_tlb_all(); /* start new asid cycle */
 		if (!asid)      /* fix version if needed */
 			asid = ASID_FIRST_VERSION;
@@ -63,9 +64,23 @@ get_mmu_context(struct task_struct *p)
  * Initialize the context related info for a new mm_struct
  * instance.
  */
-extern inline void init_new_context(struct mm_struct *mm)
+extern inline void
+init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
 	mm->context = 0;
+}
+
+extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
+                             struct task_struct *tsk, unsigned cpu)
+{
+	if (next) {
+		unsigned long asid = asid_cache;
+		/* Check if our ASID is of an older version and thus invalid */
+		if ((next->context ^ asid) & ASID_VERSION_MASK)
+			get_new_mmu_context(next, asid);
+	}
+
+	set_entryhi(next->context);
 }
 
 /*
@@ -74,17 +89,20 @@ extern inline void init_new_context(struct mm_struct *mm)
  */
 extern inline void destroy_context(struct mm_struct *mm)
 {
-	mm->context = 0;
+	/* Nothing to do.  */
 }
 
 /*
  * After we have set current->mm to a new value, this activates
  * the context for the new mm so we see the new mappings.
  */
-extern inline void activate_context(struct task_struct *tsk)
+extern inline void
+activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
-	get_mmu_context(tsk);
-	set_entryhi(tsk->mm->context);
+	/* Unconditionally get an new ASID.  */
+	get_new_mmu_context(next, asid_cache);
+
+	set_entryhi(next->context);
 }
 
-#endif /* __ASM_MIPS_MMU_CONTEXT_H */
+#endif /* _ASM_MMU_CONTEXT_H */

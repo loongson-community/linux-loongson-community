@@ -21,6 +21,7 @@
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
 #include <linux/init.h>
+#include <linux/spinlock.h>
 
 #include <asm/byteorder.h>
 
@@ -31,7 +32,6 @@
 #include <asm/sbus.h>
 #include <asm/dma.h>
 #include <asm/system.h>
-#include <asm/spinlock.h>
 #include <asm/machines.h>
 #include <asm/ptrace.h>
 #include <asm/pgtable.h>
@@ -353,7 +353,7 @@ static int qlogicpti_reset_hardware(struct Scsi_Host *host)
 
 #define PTI_RESET_LIMIT 400
 
-__initfunc(static int qlogicpti_load_firmware(struct qlogicpti *qpti))
+static int __init qlogicpti_load_firmware(struct qlogicpti *qpti)
 {
 	struct qlogicpti_regs *qregs = qpti->qregs;
 	unsigned short csum = 0;
@@ -583,7 +583,7 @@ static void do_qlogicpti_intr_handler_sun4m(int irq, void *dev_id, struct pt_reg
 #endif
 
 /* Detect all PTI Qlogic ISP's in the machine. */
-__initfunc(int qlogicpti_detect(Scsi_Host_Template *tpnt))
+int __init qlogicpti_detect(Scsi_Host_Template *tpnt)
 {
 	struct qlogicpti *qpti, *qlink;
 	struct Scsi_Host *qpti_host;

@@ -1,4 +1,4 @@
-/* $Id: memory.c,v 1.13 1998/01/30 10:59:03 jj Exp $
+/* $Id: memory.c,v 1.14 1999/08/31 06:54:46 davem Exp $
  * memory.c: Prom routine for acquiring various bits of information
  *           about RAM on the machine, both virtual and physical.
  *
@@ -39,8 +39,8 @@ struct linux_mem_v0 prom_memlist;
 /* Internal Prom library routine to sort a linux_mlist_v0 memory
  * list.  Used below in initialization.
  */
-__initfunc(static void
-prom_sortmemlist(struct linux_mlist_v0 *thislist))
+static void __init
+prom_sortmemlist(struct linux_mlist_v0 *thislist)
 {
 	int swapi = 0;
 	int i, mitr, tmpsize;
@@ -69,7 +69,7 @@ prom_sortmemlist(struct linux_mlist_v0 *thislist))
 }
 
 /* Initialize the memory lists based upon the prom version. */
-__initfunc(void prom_meminit(void))
+void __init prom_meminit(void)
 {
 	int node = 0;
 	unsigned int iter, num_regs;

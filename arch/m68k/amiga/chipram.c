@@ -1,8 +1,7 @@
 /*
 **  linux/amiga/chipram.c
 **
-**      Modified 03-May-94 by Geert Uytterhoeven
-**                           (Geert.Uytterhoeven@cs.kuleuven.ac.be)
+**      Modified 03-May-94 by Geert Uytterhoeven <geert@linux-m68k.org>
 **          - 64-bit aligned allocations for full AGA compatibility
 */
 
@@ -33,7 +32,7 @@ unsigned long amiga_chip_avail( void )
 }
 
 
-__initfunc(void amiga_chip_init (void))
+void __init amiga_chip_init (void)
 {
   struct chip_desc *dp;
 

@@ -7,7 +7,7 @@
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.14 1999/08/02 17:34:29 andrewb Exp $
+ * $Id: sgiwd93.c,v 1.15 1999/08/11 20:26:51 andrewb Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -15,6 +15,7 @@
 #include <linux/blk.h>
 #include <linux/version.h>
 #include <linux/delay.h>
+#include <linux/spinlock.h>
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -24,7 +25,6 @@
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
 #include <asm/irq.h>
-#include <asm/spinlock.h>
 #include <asm/io.h>
 
 #include "scsi.h"
@@ -265,7 +265,7 @@ static inline void init_hpc_chain(uchar *buf)
 	hcp->desc.pnext = PHYSADDR(buf);
 }
 
-__initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
+int __init sgiwd93_detect(Scsi_Host_Template *HPsUX)
 {
 	static unsigned char called = 0;
 	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;

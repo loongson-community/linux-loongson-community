@@ -150,11 +150,6 @@ if [ "$CONFIG_ALPHA_CABRIOLET" = "y" -o "$CONFIG_ALPHA_AVANTI" = "y" \
 	-o "$CONFIG_ALPHA_DP264" = "y" -o "$CONFIG_ALPHA_RAWHIDE" = "y" ]
 then
   bool 'Use SRM as bootloader' CONFIG_ALPHA_SRM
-  if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-    if [ "$CONFIG_ALPHA_SRM" = "y" ]; then
-      bool '  Use SRM PCI setup' CONFIG_ALPHA_SRM_SETUP
-    fi
-  fi
 fi
 if [ "$CONFIG_ALPHA_ALCOR" = "y" -o "$CONFIG_ALPHA_MIKASA" = "y" \
 	-o "$CONFIG_ALPHA_SABLE" = "y" -o "$CONFIG_ALPHA_NORITAKE" = "y" \
@@ -173,13 +168,6 @@ then
 	bool 'Symmetric multi-processing support' CONFIG_SMP
 fi
 
-if [ "$CONFIG_PCI" = "y" ]; then
-  bool 'PCI quirks' CONFIG_PCI_QUIRKS
-  if [ "$CONFIG_PCI_QUIRKS" = "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
-    bool 'PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
-  fi
-  bool 'Backward-compatible /proc/pci' CONFIG_PCI_OLD_PROC
-fi
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
@@ -188,7 +176,7 @@ tristate 'Kernel support for a.out (ECOFF) binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
 tristate 'Kernel support for Linux/Intel ELF binaries' CONFIG_BINFMT_EM86
-source drivers/misc/Config.in
+source drivers/parport/Config.in
 endmenu
 
 source drivers/pnp/Config.in
@@ -216,6 +204,9 @@ if [ "$CONFIG_NET" = "y" ]; then
   bool 'Network device support' CONFIG_NETDEVICES
   if [ "$CONFIG_NETDEVICES" = "y" ]; then
     source drivers/net/Config.in
+    if [ "$CONFIG_ATM" = "y" ]; then
+      source drivers/atm/Config.in
+    fi
   fi
   endmenu
 fi

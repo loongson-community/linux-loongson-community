@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.14 1999/08/20 21:59:02 ralf Exp $
+/* $Id: head.S,v 1.15 1999/10/07 07:34:24 raiko Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -8,15 +8,16 @@
  *
  * Copyright (C) 1994, 1995 Waldorf Electronics
  * Written by Ralf Baechle and Andreas Busse
- * Copyright (C) 1995, 1996, 1997, 1998 Ralf Baechle
+ * Copyright (C) 1995 - 1999 Ralf Baechle
  * Copyright (C) 1996 Paul M. Antoine
  * Modified for DECStation and hence R3000 support by Paul M. Antoine
  * Further modifications by David S. Miller and Harald Koerfgen
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * Head.S contains the MIPS exception handler and startup code.
  */
 #include <linux/config.h>
-#include <linux/tasks.h>
+#include <linux/threads.h>
 
 #include <asm/asm.h>
 #include <asm/cacheops.h>
@@ -55,7 +56,8 @@
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22			# get pgd only bits
-	lw	k1, THREAD_PGDIR(k1)		# get task pg_dir
+	lw	k1, TASK_MM(k1)			# get task pg_dir
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	mfc0	k0, CP0_CONTEXT			# get context reg
@@ -82,7 +84,8 @@
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, THREAD_PGDIR(k1)
+	lw	k1, TASK_MM(k1)
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -110,7 +113,8 @@
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22			# get pgd only bits
-	lw	k1, THREAD_PGDIR(k1)		# get task pg_dir
+	lw	k1, TASK_MM(k1)			# get task pg_dir
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	lw	k1, (k1)
@@ -136,7 +140,8 @@
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, THREAD_PGDIR(k1)
+	lw	k1, TASK_MM(k1)
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -167,7 +172,8 @@
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, THREAD_PGDIR(k1)
+	lw	k1, TASK_MM(k1)
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -198,7 +204,8 @@
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, THREAD_PGDIR(k1)
+	lw	k1, TASK_MM(k1)
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -228,7 +235,8 @@
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, THREAD_PGDIR(k1)
+	lw	k1, TASK_MM(k1)
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -261,8 +269,9 @@
 	.set	mips1
 	mfc0	k0, CP0_BADVADDR
 	_GET_CURRENT(k1)			# get current task ptr
+	lw	k1, TASK_MM(k1)
 	srl	k0, k0, 22
-	lw	k1, THREAD_PGDIR(k1)
+	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT

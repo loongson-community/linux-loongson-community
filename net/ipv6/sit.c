@@ -6,7 +6,7 @@
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *	Alexey Kuznetsov	<kuznet@ms2.inr.ac.ru>
  *
- *	$Id: sit.c,v 1.31 1999/03/25 10:04:55 davem Exp $
+ *	$Id: sit.c,v 1.34 1999/08/31 07:04:16 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -53,10 +53,10 @@
 #define HASH_SIZE  16
 #define HASH(addr) ((addr^(addr>>4))&0xF)
 
-static int ipip6_fb_tunnel_init(struct device *dev);
-static int ipip6_tunnel_init(struct device *dev);
+static int ipip6_fb_tunnel_init(struct net_device *dev);
+static int ipip6_tunnel_init(struct net_device *dev);
 
-static struct device ipip6_fb_tunnel_dev = {
+static struct net_device ipip6_fb_tunnel_dev = {
 	NULL, 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NULL, ipip6_fb_tunnel_init,
 };
 
@@ -69,6 +69,8 @@ static struct ip_tunnel *tunnels_r[HASH_SIZE];
 static struct ip_tunnel *tunnels_l[HASH_SIZE];
 static struct ip_tunnel *tunnels_wc[1];
 static struct ip_tunnel **tunnels[4] = { tunnels_wc, tunnels_l, tunnels_r, tunnels_r_l };
+
+static rwlock_t ipip6_lock = RW_LOCK_UNLOCKED;
 
 static struct ip_tunnel * ipip6_tunnel_lookup(u32 remote, u32 local)
 {
@@ -118,8 +120,9 @@ static void ipip6_tunnel_unlink(struct ip_tunnel *t)
 
 	for (tp = ipip6_bucket(t); *tp; tp = &(*tp)->next) {
 		if (t == *tp) {
+			write_lock_bh(&ipip6_lock);
 			*tp = t->next;
-			synchronize_bh();
+			write_unlock_bh(&ipip6_lock);
 			break;
 		}
 	}
@@ -129,8 +132,9 @@ static void ipip6_tunnel_link(struct ip_tunnel *t)
 {
 	struct ip_tunnel **tp = ipip6_bucket(t);
 
+	write_lock_bh(&ipip6_lock);
 	t->next = *tp;
-	wmb();
+	write_unlock_bh(&ipip6_lock);
 	*tp = t;
 }
 
@@ -139,7 +143,7 @@ struct ip_tunnel * ipip6_tunnel_locate(struct ip_tunnel_parm *parms, int create)
 	u32 remote = parms->iph.daddr;
 	u32 local = parms->iph.saddr;
 	struct ip_tunnel *t, **tp, *nt;
-	struct device *dev;
+	struct net_device *dev;
 	unsigned h = 0;
 	int prio = 0;
 
@@ -170,12 +174,13 @@ struct ip_tunnel * ipip6_tunnel_locate(struct ip_tunnel_parm *parms, int create)
 	nt->dev = dev;
 	dev->name = nt->parms.name;
 	dev->init = ipip6_tunnel_init;
+	dev->new_style = 1;
 	memcpy(&nt->parms, parms, sizeof(*parms));
 	if (dev->name[0] == 0) {
 		int i;
 		for (i=1; i<100; i++) {
 			sprintf(dev->name, "sit%d", i);
-			if (dev_get(dev->name) == NULL)
+			if (__dev_get_by_name(dev->name) == NULL)
 				break;
 		}
 		if (i==100)
@@ -185,6 +190,7 @@ struct ip_tunnel * ipip6_tunnel_locate(struct ip_tunnel_parm *parms, int create)
 	if (register_netdevice(dev) < 0)
 		goto failed;
 
+	dev_hold(dev);
 	ipip6_tunnel_link(nt);
 	/* Do not decrement MOD_USE_COUNT here. */
 	return nt;
@@ -195,18 +201,26 @@ failed:
 	return NULL;
 }
 
-static void ipip6_tunnel_destroy(struct device *dev)
+static void ipip6_tunnel_destructor(struct net_device *dev)
 {
-	if (dev == &ipip6_fb_tunnel_dev) {
-		tunnels_wc[0] = NULL;
-		synchronize_bh();
-		return;
-	} else {
-		ipip6_tunnel_unlink((struct ip_tunnel*)dev->priv);
-		kfree(dev);
+	if (dev != &ipip6_fb_tunnel_dev) {
 		MOD_DEC_USE_COUNT;
 	}
 }
+
+static void ipip6_tunnel_uninit(struct net_device *dev)
+{
+	if (dev == &ipip6_fb_tunnel_dev) {
+		write_lock_bh(&ipip6_lock);
+		tunnels_wc[0] = NULL;
+		write_unlock_bh(&ipip6_lock);
+		dev_put(dev);
+	} else {
+		ipip6_tunnel_unlink((struct ip_tunnel*)dev->priv);
+		dev_put(dev);
+	}
+}
+
 
 void ipip6_err(struct sk_buff *skb, unsigned char *dp, int len)
 {
@@ -252,17 +266,20 @@ void ipip6_err(struct sk_buff *skb, unsigned char *dp, int len)
 		break;
 	}
 
+	read_lock(&ipip6_lock);
 	t = ipip6_tunnel_lookup(iph->daddr, iph->saddr);
 	if (t == NULL || t->parms.iph.daddr == 0)
-		return;
+		goto out;
 	if (t->parms.iph.ttl == 0 && type == ICMP_TIME_EXCEEDED)
-		return;
+		goto out;
 
 	if (jiffies - t->err_time < IPTUNNEL_ERR_TIMEO)
 		t->err_count++;
 	else
 		t->err_count = 1;
 	t->err_time = jiffies;
+out:
+	read_unlock(&ipip6_lock);
 	return;
 #else
 	struct iphdr *iph = (struct iphdr*)dp;
@@ -358,6 +375,7 @@ int ipip6_rcv(struct sk_buff *skb, unsigned short len)
 
 	iph = skb->nh.iph;
 
+	read_lock(&ipip6_lock);
 	if ((tunnel = ipip6_tunnel_lookup(iph->saddr, iph->daddr)) != NULL) {
 		skb->mac.raw = skb->nh.raw;
 		skb->nh.raw = skb_pull(skb, skb->h.raw - skb->data);
@@ -371,11 +389,13 @@ int ipip6_rcv(struct sk_buff *skb, unsigned short len)
 		dst_release(skb->dst);
 		skb->dst = NULL;
 		netif_rx(skb);
+		read_unlock(&ipip6_lock);
 		return 0;
 	}
 
 	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, 0);
 	kfree_skb(skb);
+	read_unlock(&ipip6_lock);
 	return 0;
 }
 
@@ -384,7 +404,7 @@ int ipip6_rcv(struct sk_buff *skb, unsigned short len)
  *	and that skb is filled properly by that function.
  */
 
-static int ipip6_tunnel_xmit(struct sk_buff *skb, struct device *dev)
+static int ipip6_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ip_tunnel *tunnel = (struct ip_tunnel*)dev->priv;
 	struct net_device_stats *stats = &tunnel->stat;
@@ -392,7 +412,7 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct device *dev)
 	struct ipv6hdr *iph6 = skb->nh.ipv6h;
 	u8     tos = tunnel->parms.iph.tos;
 	struct rtable *rt;     			/* Route to the other host */
-	struct device *tdev;			/* Device to other host */
+	struct net_device *tdev;			/* Device to other host */
 	struct iphdr  *iph;			/* Our new IP header */
 	int    max_headroom;			/* The extra header space needed */
 	u32    dst = tiph->daddr;
@@ -544,7 +564,7 @@ tx_error:
 }
 
 static int
-ipip6_tunnel_ioctl (struct device *dev, struct ifreq *ifr, int cmd)
+ipip6_tunnel_ioctl (struct net_device *dev, struct ifreq *ifr, int cmd)
 {
 	int err = 0;
 	struct ip_tunnel_parm p;
@@ -602,14 +622,12 @@ ipip6_tunnel_ioctl (struct device *dev, struct ifreq *ifr, int cmd)
 					break;
 				}
 				t = (struct ip_tunnel*)dev->priv;
-				start_bh_atomic();
 				ipip6_tunnel_unlink(t);
 				t->parms.iph.saddr = p.iph.saddr;
 				t->parms.iph.daddr = p.iph.daddr;
 				memcpy(dev->dev_addr, &p.iph.saddr, 4);
 				memcpy(dev->broadcast, &p.iph.daddr, 4);
 				ipip6_tunnel_link(t);
-				end_bh_atomic();
 				netdev_state_change(dev);
 			}
 		}
@@ -654,12 +672,12 @@ done:
 	return err;
 }
 
-static struct net_device_stats *ipip6_tunnel_get_stats(struct device *dev)
+static struct net_device_stats *ipip6_tunnel_get_stats(struct net_device *dev)
 {
 	return &(((struct ip_tunnel*)dev->priv)->stat);
 }
 
-static int ipip6_tunnel_change_mtu(struct device *dev, int new_mtu)
+static int ipip6_tunnel_change_mtu(struct net_device *dev, int new_mtu)
 {
 	if (new_mtu < IPV6_MIN_MTU || new_mtu > 0xFFF8 - sizeof(struct iphdr))
 		return -EINVAL;
@@ -667,11 +685,12 @@ static int ipip6_tunnel_change_mtu(struct device *dev, int new_mtu)
 	return 0;
 }
 
-static void ipip6_tunnel_init_gen(struct device *dev)
+static void ipip6_tunnel_init_gen(struct net_device *dev)
 {
 	struct ip_tunnel *t = (struct ip_tunnel*)dev->priv;
 
-	dev->destructor		= ipip6_tunnel_destroy;
+	dev->destructor		= ipip6_tunnel_destructor;
+	dev->uninit		= ipip6_tunnel_uninit;
 	dev->hard_start_xmit	= ipip6_tunnel_xmit;
 	dev->get_stats		= ipip6_tunnel_get_stats;
 	dev->do_ioctl		= ipip6_tunnel_ioctl;
@@ -689,9 +708,9 @@ static void ipip6_tunnel_init_gen(struct device *dev)
 	memcpy(dev->broadcast, &t->parms.iph.daddr, 4);
 }
 
-static int ipip6_tunnel_init(struct device *dev)
+static int ipip6_tunnel_init(struct net_device *dev)
 {
-	struct device *tdev = NULL;
+	struct net_device *tdev = NULL;
 	struct ip_tunnel *tunnel;
 	struct iphdr *iph;
 
@@ -710,7 +729,7 @@ static int ipip6_tunnel_init(struct device *dev)
 	}
 
 	if (!tdev && tunnel->parms.link)
-		tdev = dev_get_by_index(tunnel->parms.link);
+		tdev = __dev_get_by_index(tunnel->parms.link);
 
 	if (tdev) {
 		dev->hard_header_len = tdev->hard_header_len + sizeof(struct iphdr);
@@ -724,20 +743,20 @@ static int ipip6_tunnel_init(struct device *dev)
 }
 
 #ifdef MODULE
-static int ipip6_fb_tunnel_open(struct device *dev)
+static int ipip6_fb_tunnel_open(struct net_device *dev)
 {
 	MOD_INC_USE_COUNT;
 	return 0;
 }
 
-static int ipip6_fb_tunnel_close(struct device *dev)
+static int ipip6_fb_tunnel_close(struct net_device *dev)
 {
 	MOD_DEC_USE_COUNT;
 	return 0;
 }
 #endif
 
-__initfunc(int ipip6_fb_tunnel_init(struct device *dev))
+int __init ipip6_fb_tunnel_init(struct net_device *dev)
 {
 	struct iphdr *iph;
 
@@ -753,6 +772,7 @@ __initfunc(int ipip6_fb_tunnel_init(struct device *dev))
 	iph->ihl		= 5;
 	iph->ttl		= 64;
 
+	dev_hold(dev);
 	tunnels_wc[0]		= &ipip6_fb_tunnel;
 	return 0;
 }
@@ -775,7 +795,7 @@ void sit_cleanup(void)
 }
 #endif
 
-__initfunc(int sit_init(void))
+int __init sit_init(void)
 {
 	printk(KERN_INFO "IPv6 over IPv4 tunneling driver\n");
 

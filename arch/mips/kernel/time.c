@@ -1,4 +1,4 @@
-/* $Id: time.c,v 1.11 1999/02/15 02:16:53 ralf Exp $
+/* $Id: time.c,v 1.12 1999/06/13 16:30:34 ralf Exp $
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
  *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
@@ -478,7 +478,7 @@ struct irqaction irq0  = { timer_interrupt, SA_INTERRUPT, 0,
 
 void (*board_time_init)(struct irqaction *irq);
 
-__initfunc(void time_init(void))
+void __init time_init(void)
 {
 	unsigned int epoch, year, mon, day, hour, min, sec;
 	int i;

@@ -1,4 +1,4 @@
-/* $Id: offset.c,v 1.1 1999/08/18 23:37:48 ralf Exp $
+/* $Id: offset.c,v 1.2 1999/09/28 22:25:54 ralf Exp $
  *
  * offset.c: Calculate pt_regs and task_struct offsets.
  *
@@ -90,35 +90,42 @@ void output_task_defines(void)
 void output_thread_defines(void)
 {
 	text("/* MIPS specific thread_struct offsets. */");
-	offset("#define THREAD_REG16   ", struct task_struct, tss.reg16);
-	offset("#define THREAD_REG17   ", struct task_struct, tss.reg17);
-	offset("#define THREAD_REG18   ", struct task_struct, tss.reg18);
-	offset("#define THREAD_REG19   ", struct task_struct, tss.reg19);
-	offset("#define THREAD_REG20   ", struct task_struct, tss.reg20);
-	offset("#define THREAD_REG21   ", struct task_struct, tss.reg21);
-	offset("#define THREAD_REG22   ", struct task_struct, tss.reg22);
-	offset("#define THREAD_REG23   ", struct task_struct, tss.reg23);
-	offset("#define THREAD_REG29   ", struct task_struct, tss.reg29);
-	offset("#define THREAD_REG30   ", struct task_struct, tss.reg30);
-	offset("#define THREAD_REG31   ", struct task_struct, tss.reg31);
-	offset("#define THREAD_STATUS  ", struct task_struct, tss.cp0_status);
-	offset("#define THREAD_FPU     ", struct task_struct, tss.fpu);
-	offset("#define THREAD_BVADDR  ", struct task_struct, tss.cp0_badvaddr);
-	offset("#define THREAD_BUADDR  ", struct task_struct, tss.cp0_baduaddr);
-	offset("#define THREAD_ECODE   ", struct task_struct, tss.error_code);
-	offset("#define THREAD_TRAPNO  ", struct task_struct, tss.trap_no);
-	offset("#define THREAD_PGDIR   ", struct task_struct, tss.pg_dir);
-	offset("#define THREAD_MFLAGS  ", struct task_struct, tss.mflags);
-	offset("#define THREAD_CURDS   ", struct task_struct, tss.current_ds);
-	offset("#define THREAD_TRAMP   ", struct task_struct, tss.irix_trampoline);
-	offset("#define THREAD_OLDCTX  ", struct task_struct, tss.irix_oldctx);
+	offset("#define THREAD_REG16   ", struct task_struct, thread.reg16);
+	offset("#define THREAD_REG17   ", struct task_struct, thread.reg17);
+	offset("#define THREAD_REG18   ", struct task_struct, thread.reg18);
+	offset("#define THREAD_REG19   ", struct task_struct, thread.reg19);
+	offset("#define THREAD_REG20   ", struct task_struct, thread.reg20);
+	offset("#define THREAD_REG21   ", struct task_struct, thread.reg21);
+	offset("#define THREAD_REG22   ", struct task_struct, thread.reg22);
+	offset("#define THREAD_REG23   ", struct task_struct, thread.reg23);
+	offset("#define THREAD_REG29   ", struct task_struct, thread.reg29);
+	offset("#define THREAD_REG30   ", struct task_struct, thread.reg30);
+	offset("#define THREAD_REG31   ", struct task_struct, thread.reg31);
+	offset("#define THREAD_STATUS  ", struct task_struct, \
+	       thread.cp0_status);
+	offset("#define THREAD_FPU     ", struct task_struct, thread.fpu);
+	offset("#define THREAD_BVADDR  ", struct task_struct, \
+	       thread.cp0_badvaddr);
+	offset("#define THREAD_BUADDR  ", struct task_struct, \
+	       thread.cp0_baduaddr);
+	offset("#define THREAD_ECODE   ", struct task_struct, \
+	       thread.error_code);
+	offset("#define THREAD_TRAPNO  ", struct task_struct, thread.trap_no);
+	offset("#define THREAD_PGDIR   ", struct task_struct, thread.pg_dir);
+	offset("#define THREAD_MFLAGS  ", struct task_struct, thread.mflags);
+	offset("#define THREAD_CURDS   ", struct task_struct, \
+	       thread.current_ds);
+	offset("#define THREAD_TRAMP   ", struct task_struct, \
+	       thread.irix_trampoline);
+	offset("#define THREAD_OLDCTX  ", struct task_struct, \
+	       thread.irix_oldctx);
 	linefeed;
 }
 
 void output_mm_defines(void)
 {
 	text("/* Linux mm_struct offsets. */");
-	offset("#define MM_COUNT      ", struct mm_struct, count);
+	offset("#define MM_USERS      ", struct mm_struct, users);
 	offset("#define MM_PGD        ", struct mm_struct, pgd);
 	offset("#define MM_CONTEXT    ", struct mm_struct, context);
 	linefeed;

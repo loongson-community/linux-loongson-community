@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: cmdline.c,v 1.3 1998/04/05 11:24:01 ralf Exp $
+ * $Id: cmdline.c,v 1.1 1998/10/18 13:32:08 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -16,7 +16,7 @@
 
 char arcs_cmdline[CL_SIZE];
 
-__initfunc(char *prom_getcmdline(void))
+char * __init prom_getcmdline(void)
 {
 	return &(arcs_cmdline[0]);
 }
@@ -31,7 +31,7 @@ static char *ignored[] = {
 };
 #define NENTS(foo) ((sizeof((foo)) / (sizeof((foo[0])))))
 
-__initfunc(void prom_init_cmdline(void))
+void __init prom_init_cmdline(void)
 {
 	char *cp;
 	int actr, i;

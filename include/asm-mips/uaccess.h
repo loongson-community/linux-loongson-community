@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997, 1998 by Ralf Baechle
  *
- * $Id: uaccess.h,v 1.7 1998/05/04 09:13:02 ralf Exp $
+ * $Id: uaccess.h,v 1.8 1999/01/04 16:09:27 ralf Exp $
  */
 #ifndef __ASM_MIPS_UACCESS_H
 #define __ASM_MIPS_UACCESS_H
@@ -31,9 +31,9 @@
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
 
-#define get_fs()        (current->tss.current_ds)
+#define get_fs()        (current->thread.current_ds)
 #define get_ds()	(KERNEL_DS)
-#define set_fs(x)       (current->tss.current_ds=(x))
+#define set_fs(x)       (current->thread.current_ds=(x))
 
 #define segment_eq(a,b)	((a).seg == (b).seg)
 

@@ -1,4 +1,4 @@
-/* $Id: r4k_misc.S,v 1.6 1999/08/18 23:37:44 ralf Exp $
+/* $Id: r4k_misc.S,v 1.7 1999/09/28 22:25:47 ralf Exp $
  *
  * r4k_misc.S: Misc. exception handling code for r4k.
  *
@@ -20,7 +20,7 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 
-#undef NOTLB_OPTIMIZE /* If you are paranoid, define this. */
+#define NOTLB_OPTIMIZE /* If you are paranoid, define this. */
 
 	/* ABUSE of CPP macros 101. */
 
@@ -33,7 +33,8 @@
 	srl	pte, pte, 22; \
 	_GET_CURRENT(ptr); \
 	sll	pte, pte, 2; \
-	lw	ptr, THREAD_PGDIR(ptr); \
+	lw	ptr, TASK_MM(ptr); \
+	lw	ptr, MM_PGD(ptr); \
 	addu	ptr, pte, ptr; \
 	mfc0	pte, CP0_BADVADDR; \
 	lw	ptr, (ptr); \

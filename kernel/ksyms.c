@@ -39,6 +39,7 @@
 #include <linux/console.h>
 #include <linux/poll.h>
 #include <linux/mm.h>
+#include <linux/capability.h>
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -47,7 +48,6 @@
 #include <linux/kmod.h>
 #endif
 
-extern char *get_options(char *str, int *ints);
 extern void set_device_ro(kdev_t dev,int flag);
 extern struct file_operations * get_blkfops(unsigned int);
 extern int blkdev_release(struct inode * inode);
@@ -77,6 +77,7 @@ EXPORT_SYMBOL(request_module);
 #ifdef CONFIG_MODULES
 EXPORT_SYMBOL(get_module_symbol);
 #endif
+EXPORT_SYMBOL(get_option);
 EXPORT_SYMBOL(get_options);
 
 /* process memory management */
@@ -94,6 +95,7 @@ EXPORT_SYMBOL(free_pages);
 EXPORT_SYMBOL(__free_page);
 EXPORT_SYMBOL(kmem_find_general_cachep);
 EXPORT_SYMBOL(kmem_cache_create);
+EXPORT_SYMBOL(kmem_cache_destroy);
 EXPORT_SYMBOL(kmem_cache_shrink);
 EXPORT_SYMBOL(kmem_cache_alloc);
 EXPORT_SYMBOL(kmem_cache_free);
@@ -109,6 +111,7 @@ EXPORT_SYMBOL(high_memory);
 EXPORT_SYMBOL(vmtruncate);
 EXPORT_SYMBOL(find_vma);
 EXPORT_SYMBOL(get_unmapped_area);
+EXPORT_SYMBOL(init_mm);
 
 /* filesystem internal functions */
 EXPORT_SYMBOL(in_group_p);
@@ -116,7 +119,6 @@ EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_fs_type);
 EXPORT_SYMBOL(getname);
-EXPORT_SYMBOL(__fput);	/* goner? */
 EXPORT_SYMBOL(_fput);
 EXPORT_SYMBOL(igrab);
 EXPORT_SYMBOL(iunique);
@@ -168,10 +170,13 @@ EXPORT_SYMBOL(add_blkdev_randomness);
 EXPORT_SYMBOL(block_read_full_page);
 EXPORT_SYMBOL(block_write_full_page);
 EXPORT_SYMBOL(block_write_partial_page);
+EXPORT_SYMBOL(block_write_cont_page);
 EXPORT_SYMBOL(block_flushpage);
 EXPORT_SYMBOL(generic_file_read);
+EXPORT_SYMBOL(do_generic_file_read);
 EXPORT_SYMBOL(generic_file_write);
 EXPORT_SYMBOL(generic_file_mmap);
+EXPORT_SYMBOL(generic_buffer_fdatasync);
 EXPORT_SYMBOL(page_hash_bits);
 EXPORT_SYMBOL(page_hash_table);
 EXPORT_SYMBOL(file_lock_table);
@@ -193,7 +198,10 @@ EXPORT_SYMBOL(vfs_unlink);
 EXPORT_SYMBOL(vfs_rename);
 EXPORT_SYMBOL(__pollwait);
 EXPORT_SYMBOL(ROOT_DEV);
-
+EXPORT_SYMBOL(add_to_page_cache_unique);
+EXPORT_SYMBOL(__find_get_page);
+EXPORT_SYMBOL(__find_lock_page);
+                        
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
 EXPORT_SYMBOL(do_nfsservctl);
 #endif
@@ -270,6 +278,8 @@ EXPORT_SYMBOL(proc_dostring);
 EXPORT_SYMBOL(proc_dointvec);
 EXPORT_SYMBOL(proc_dointvec_jiffies);
 EXPORT_SYMBOL(proc_dointvec_minmax);
+EXPORT_SYMBOL(proc_doulongvec_ms_jiffies_minmax);
+EXPORT_SYMBOL(proc_doulongvec_minmax);
 
 /* interrupt handling */
 EXPORT_SYMBOL(request_irq);
@@ -308,11 +318,14 @@ EXPORT_SYMBOL(enable_hlt);
 #endif
 
 /* resource handling */
-EXPORT_SYMBOL(check_resource);
 EXPORT_SYMBOL(request_resource);
 EXPORT_SYMBOL(release_resource);
-EXPORT_SYMBOL(occupy_resource);
-EXPORT_SYMBOL(vacate_resource);
+EXPORT_SYMBOL(allocate_resource);
+EXPORT_SYMBOL(__request_region);
+EXPORT_SYMBOL(__check_region);
+EXPORT_SYMBOL(__release_region);
+EXPORT_SYMBOL(ioport_resource);
+EXPORT_SYMBOL(iomem_resource);
 
 /* process management */
 EXPORT_SYMBOL(__wake_up);
@@ -350,6 +363,7 @@ EXPORT_SYMBOL(_ctype);
 EXPORT_SYMBOL(secure_tcp_sequence_number);
 EXPORT_SYMBOL(get_random_bytes);
 EXPORT_SYMBOL(securebits);
+EXPORT_SYMBOL(cap_bset);
 
 /* Program loader interfaces */
 EXPORT_SYMBOL(setup_arg_pages);

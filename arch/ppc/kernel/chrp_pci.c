@@ -97,7 +97,7 @@ int gg2_pcibios_write_config_dword(unsigned char bus, unsigned char dev_fn,
 #define python_config_data(bus) ((0xfef00000+0xf8010)-(bus*0x100000))
 #define PYTHON_CFA(b, d, o)	(0x80 | ((b<<6) << 8) | ((d) << 16) \
 				 | (((o) & ~3) << 24))
-unsigned int python_busnr = 1;
+unsigned int python_busnr = 0;
 
 int python_pcibios_read_config_byte(unsigned char bus, unsigned char dev_fn,
 				    unsigned char offset, unsigned char *val)
@@ -279,8 +279,7 @@ chrp_pcibios_fixup(void)
 	if ( !strncmp("IBM", get_property(find_path_device("/"),
 					 "name", NULL),3) )
 	{
-		pci_scan_peer_bridge(1);
-		pci_scan_peer_bridge(2);
+		
 	}
 	
 	/* PCI interrupts are controlled by the OpenPIC */
@@ -290,22 +289,22 @@ chrp_pcibios_fixup(void)
 			dev->irq = openpic_to_irq( dev->irq );
 		/* adjust the io_port for the NCR cards for busses other than 0 -- Cort */
 		if ( (dev->bus->number > 0) && (dev->vendor == PCI_VENDOR_ID_NCR) )
-			dev->base_address[0] += (dev->bus->number*0x08000000);
+			dev->resource[0].start += (dev->bus->number*0x08000000);
 		/* these need to be absolute addrs for OF and Matrox FB -- Cort */
 		if ( dev->vendor == PCI_VENDOR_ID_MATROX )
 		{
-			if ( dev->base_address[0] < isa_mem_base )
-				dev->base_address[0] += isa_mem_base;
-			if ( dev->base_address[1] < isa_mem_base )
-				dev->base_address[1] += isa_mem_base;
+			if ( dev->resource[0].start < isa_mem_base )
+				dev->resource[0].start += isa_mem_base;
+			if ( dev->resource[1].start < isa_mem_base )
+				dev->resource[1].start += isa_mem_base;
 		}
 		/* the F50 identifies the amd as a trident */
 		if ( (dev->vendor == PCI_VENDOR_ID_TRIDENT) &&
-		      (dev->class == PCI_CLASS_NETWORK_ETHERNET) )
+		      (dev->class>>8 == PCI_CLASS_NETWORK_ETHERNET) )
 		{
 			dev->vendor = PCI_VENDOR_ID_AMD;
-			pcibios_write_config_word(dev->bus->number, dev->devfn,
-						   PCI_VENDOR_ID, PCI_VENDOR_ID_AMD);
+			pcibios_write_config_word(dev->bus->number,
+			  dev->devfn, PCI_VENDOR_ID, PCI_VENDOR_ID_AMD);
 		}
 	}
 }
@@ -347,7 +346,7 @@ chrp_setup_pci_ptrs(void)
 			} else if ( !strncmp("IBM,7043-260",
 			   get_property(find_path_device("/"), "name", NULL),12) )
 			{
-				pci_dram_offset = 0x80000000;
+				pci_dram_offset = 0x0;
 				isa_mem_base = 0xc0000000;
 				isa_io_base = 0xf8000000;
 			}

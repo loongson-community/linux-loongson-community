@@ -165,12 +165,12 @@ struct pci_id_info {
 	const char *name;
 	u16	vendor_id, device_id, device_id_mask, flags;
 	int io_size;
-	struct device *(*probe1)(int pci_bus, int pci_devfn, struct device *dev,
+	struct net_device *(*probe1)(int pci_bus, int pci_devfn, struct net_device *dev,
 							 long ioaddr, int irq, int chip_idx, int fnd_cnt);
 };
 
-static struct device * rtl8129_probe1(int pci_bus, int pci_devfn,
-									  struct device *dev, long ioaddr,
+static struct net_device * rtl8129_probe1(int pci_bus, int pci_devfn,
+									  struct net_device *dev, long ioaddr,
 									  int irq, int chp_idx, int fnd_cnt);
 
 static struct pci_id_info pci_tbl[] =
@@ -254,7 +254,7 @@ unsigned long param[4][4]={
 struct rtl8129_private {
 	char devname[8];			/* Used only for kernel debugging. */
 	const char *product_name;
-	struct device *next_module;
+	struct net_device *next_module;
 	int chip_id;
 	int chip_revision;
 	unsigned char pci_bus, pci_devfn;
@@ -294,32 +294,32 @@ MODULE_PARM(debug, "i");
 #endif
 #endif
 
-static int rtl8129_open(struct device *dev);
+static int rtl8129_open(struct net_device *dev);
 static int read_eeprom(long ioaddr, int location);
-static int mdio_read(struct device *dev, int phy_id, int location);
-static void mdio_write(struct device *dev, int phy_id, int location, int val);
+static int mdio_read(struct net_device *dev, int phy_id, int location);
+static void mdio_write(struct net_device *dev, int phy_id, int location, int val);
 static void rtl8129_timer(unsigned long data);
-static void rtl8129_tx_timeout(struct device *dev);
-static void rtl8129_init_ring(struct device *dev);
-static int rtl8129_start_xmit(struct sk_buff *skb, struct device *dev);
-static int rtl8129_rx(struct device *dev);
+static void rtl8129_tx_timeout(struct net_device *dev);
+static void rtl8129_init_ring(struct net_device *dev);
+static int rtl8129_start_xmit(struct sk_buff *skb, struct net_device *dev);
+static int rtl8129_rx(struct net_device *dev);
 static void rtl8129_interrupt(int irq, void *dev_instance, struct pt_regs *regs);
-static int rtl8129_close(struct device *dev);
-static int mii_ioctl(struct device *dev, struct ifreq *rq, int cmd);
-static struct enet_statistics *rtl8129_get_stats(struct device *dev);
+static int rtl8129_close(struct net_device *dev);
+static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
+static struct enet_statistics *rtl8129_get_stats(struct net_device *dev);
 static inline u32 ether_crc(int length, unsigned char *data);
-static void set_rx_mode(struct device *dev);
+static void set_rx_mode(struct net_device *dev);
 
 
 /* A list of all installed RTL8129 devices, for removing the driver module. */
-static struct device *root_rtl8129_dev = NULL;
+static struct net_device *root_rtl8129_dev = NULL;
 
 /* Ideally we would detect all network cards in slot order.  That would
    be best done a central PCI probe dispatch, which wouldn't work
    well when dynamically adding drivers.  So instead we detect just the
    Rtl81*9 cards in slot order. */
 
-int rtl8139_probe(struct device *dev)
+int rtl8139_probe(struct net_device *dev)
 {
 	int cards_found = 0;
 	int pci_index = 0;
@@ -353,7 +353,7 @@ int rtl8139_probe(struct device *dev)
 		{
 #if defined(PCI_SUPPORT_VER2)
 			struct pci_dev *pdev = pci_find_slot(pci_bus, pci_device_fn);
-			ioaddr = pdev->base_address[0] & ~3;
+			ioaddr = pdev->resource[0].start;
 			irq = pdev->irq;
 #else
 			u32 pci_ioaddr;
@@ -405,8 +405,8 @@ int rtl8139_probe(struct device *dev)
 	return cards_found ? 0 : -ENODEV;
 }
 
-static struct device *rtl8129_probe1(int pci_bus, int pci_devfn,
-									 struct device *dev, long ioaddr,
+static struct net_device *rtl8129_probe1(int pci_bus, int pci_devfn,
+									 struct net_device *dev, long ioaddr,
 									 int irq, int chip_idx, int found_cnt)
 {
 	static int did_version = 0;			/* Already printed version info. */
@@ -424,13 +424,15 @@ static struct device *rtl8129_probe1(int pci_bus, int pci_devfn,
 	/* Bring the chip out of low-power mode. */
 	outb(0x00, ioaddr + Config1);
 
-	if (read_eeprom(ioaddr, 0) != 0xffff)
-		for (i = 0; i < 3; i++)
-			((u16 *)(dev->dev_addr))[i] = read_eeprom(ioaddr, i + 7);
-	else
+	if (read_eeprom(ioaddr, 0) != 0xffff) {
+		for (i = 0; i < 3; i++) {
+			((u16 *)(dev->dev_addr))[i] =
+				le16_to_cpu(read_eeprom(ioaddr, i + 7));
+		}
+	} else {
 		for (i = 0; i < 6; i++)
 			dev->dev_addr[i] = inb(ioaddr + MAC0 + i);
-
+	}
 	for (i = 0; i < 5; i++)
 		printk("%2.2x:", dev->dev_addr[i]);
 	printk("%2.2x.\n", dev->dev_addr[i]);
@@ -596,7 +598,7 @@ static void mdio_sync(long mdio_addr)
 	}
 	return;
 }
-static int mdio_read(struct device *dev, int phy_id, int location)
+static int mdio_read(struct net_device *dev, int phy_id, int location)
 {
 	long mdio_addr = dev->base_addr + MII_SMI;
 	int mii_cmd = (0xf6 << 10) | (phy_id << 5) | location;
@@ -629,7 +631,7 @@ static int mdio_read(struct device *dev, int phy_id, int location)
 	return (retval>>1) & 0xffff;
 }
 
-static void mdio_write(struct device *dev, int phy_id, int location, int value)
+static void mdio_write(struct net_device *dev, int phy_id, int location, int value)
 {
 	long mdio_addr = dev->base_addr + MII_SMI;
 	int mii_cmd = (0x5002 << 16) | (phy_id << 23) | (location<<18) | value;
@@ -662,7 +664,7 @@ static void mdio_write(struct device *dev, int phy_id, int location, int value)
 
 
 static int
-rtl8129_open(struct device *dev)
+rtl8129_open(struct net_device *dev)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	long ioaddr = dev->base_addr;
@@ -680,6 +682,7 @@ rtl8129_open(struct device *dev)
 	tp->tx_bufs = kmalloc(TX_BUF_SIZE * NUM_TX_DESC, GFP_KERNEL);
 	tp->rx_ring = kmalloc(RX_BUF_LEN + 16, GFP_KERNEL);
 	if (tp->tx_bufs == NULL ||  tp->rx_ring == NULL) {
+		free_irq(dev->irq, dev);
 		if (tp->tx_bufs)
 			kfree(tp->tx_bufs);
 		if (rtl8129_debug > 0)
@@ -759,7 +762,7 @@ rtl8129_open(struct device *dev)
 
 static void rtl8129_timer(unsigned long data)
 {
-	struct device *dev = (struct device *)data;
+	struct net_device *dev = (struct net_device *)data;
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	long ioaddr = dev->base_addr;
 	int next_tick = 60*HZ;
@@ -855,7 +858,7 @@ static void rtl8129_timer(unsigned long data)
 	add_timer(&tp->timer);
 }
 
-static void rtl8129_tx_timeout(struct device *dev)
+static void rtl8129_tx_timeout(struct net_device *dev)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	long ioaddr = dev->base_addr;
@@ -938,7 +941,7 @@ static void rtl8129_tx_timeout(struct device *dev)
 
 /* Initialize the Rx and Tx rings, along with various 'dev' bits. */
 static void
-rtl8129_init_ring(struct device *dev)
+rtl8129_init_ring(struct net_device *dev)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	int i;
@@ -954,7 +957,7 @@ rtl8129_init_ring(struct device *dev)
 }
 
 static int
-rtl8129_start_xmit(struct sk_buff *skb, struct device *dev)
+rtl8129_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	long ioaddr = dev->base_addr;
@@ -999,7 +1002,7 @@ rtl8129_start_xmit(struct sk_buff *skb, struct device *dev)
    after the Tx thread. */
 static void rtl8129_interrupt(int irq, void *dev_instance, struct pt_regs *regs)
 {
-	struct device *dev = (struct device *)dev_instance;
+	struct net_device *dev = (struct net_device *)dev_instance;
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	int boguscnt = max_interrupt_work;
 	int status, link_changed = 0;
@@ -1172,7 +1175,7 @@ static void rtl8129_interrupt(int irq, void *dev_instance, struct pt_regs *regs)
 
 /* The data sheet doesn't describe the Rx ring at all, so I'm guessing at the
    field alignments and semantics. */
-static int rtl8129_rx(struct device *dev)
+static int rtl8129_rx(struct net_device *dev)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	long ioaddr = dev->base_addr;
@@ -1187,7 +1190,7 @@ static int rtl8129_rx(struct device *dev)
 
 	while ((inb(ioaddr + ChipCmd) & 1) == 0) {
 		int ring_offset = cur_rx % RX_BUF_LEN;
-		u32 rx_status = *(u32*)(rx_ring + ring_offset);
+		u32 rx_status = le32_to_cpu(*(u32*)(rx_ring + ring_offset));
 		int rx_size = rx_status >> 16;
 
 		if (rtl8129_debug > 4) {
@@ -1196,7 +1199,7 @@ static int rtl8129_rx(struct device *dev)
 				   dev->name, rx_status, rx_size, cur_rx);
 			printk(KERN_DEBUG"%s: Frame contents ", dev->name);
 			for (i = 0; i < 70; i++)
-				printk(" %2.2x", rx_ring[ring_offset + i]);
+				printk(" %2.2x", le32_to_cpu(rx_ring[ring_offset + i]));
 			printk(".\n");
 		}
 		if (rx_status & RxTooLong) {
@@ -1247,7 +1250,7 @@ static int rtl8129_rx(struct device *dev)
 					printk(KERN_DEBUG"%s:  Frame wrap @%d",
 						   dev->name, semi_count);
 					for (i = 0; i < 16; i++)
-						printk(" %2.2x", rx_ring[i]);
+						printk(" %2.2x", le32_to_cpu(rx_ring[i]));
 					printk(".\n");
 					memset(rx_ring, 0xcc, 16);
 				}
@@ -1282,7 +1285,7 @@ static int rtl8129_rx(struct device *dev)
 }
 
 static int
-rtl8129_close(struct device *dev)
+rtl8129_close(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
@@ -1327,7 +1330,7 @@ rtl8129_close(struct device *dev)
 	return 0;
 }
 
-static int mii_ioctl(struct device *dev, struct ifreq *rq, int cmd)
+static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	u16 *data = (u16 *)&rq->ifr_data;
@@ -1350,7 +1353,7 @@ static int mii_ioctl(struct device *dev, struct ifreq *rq, int cmd)
 }
 
 static struct enet_statistics *
-rtl8129_get_stats(struct device *dev)
+rtl8129_get_stats(struct net_device *dev)
 {
 	struct rtl8129_private *tp = (struct rtl8129_private *)dev->priv;
 	long ioaddr = dev->base_addr;
@@ -1387,7 +1390,7 @@ enum rx_mode_bits {
 	AcceptMulticast=0x04, AcceptMyPhys=0x02, AcceptAllPhys=0x01,
 };
 
-static void set_rx_mode(struct device *dev)
+static void set_rx_mode(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
 	u32 mc_filter[2];		 /* Multicast hash filter */
@@ -1432,7 +1435,7 @@ int init_module(void)
 void
 cleanup_module(void)
 {
-	struct device *next_dev;
+	struct net_device *next_dev;
 
 	/* No need to check MOD_IN_USE, as sys_delete_module() checks. */
 	while (root_rtl8129_dev) {

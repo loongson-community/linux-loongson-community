@@ -96,7 +96,6 @@
 #include <net/psnap.h>
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
-#include <linux/firewall.h>
 #include <linux/init.h>
 #include <linux/if_arp.h>
 
@@ -239,7 +238,7 @@ static void ipxitf_clear_primary_net(void)
 		ipx_primary_net = NULL;
 }
 
-static ipx_interface *ipxitf_find_using_phys(struct device *dev, unsigned short datalink)
+static ipx_interface *ipxitf_find_using_phys(struct net_device *dev, unsigned short datalink)
 {
 	ipx_interface	*i;
 
@@ -365,7 +364,7 @@ static void ipxitf_down(ipx_interface *intrfc)
 
 static int ipxitf_device_event(struct notifier_block *notifier, unsigned long event, void *ptr)
 {
-	struct device *dev = ptr;
+	struct net_device *dev = ptr;
 	ipx_interface *i, *tmp;
 
 	if(event != NETDEV_DOWN)
@@ -608,7 +607,7 @@ static struct sk_buff *ipxitf_adjust_skbuff(ipx_interface *intrfc, struct sk_buf
 static int ipxitf_send(ipx_interface *intrfc, struct sk_buff *skb, char *node)
 {
 	struct ipxhdr *ipx = skb->nh.ipxh;
-	struct device *dev = intrfc->if_dev;
+	struct net_device *dev = intrfc->if_dev;
 	struct datalink_proto *dl = intrfc->if_dlink;
 	char dest_node[IPX_NODE_LEN];
 	int send_to_wire = 1;
@@ -718,13 +717,6 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 	struct ipxhdr	*ipx = skb->nh.ipxh;
 	ipx_interface	*i;
 
-	/* We firewall first, ask questions later. */
-	if (call_in_firewall(PF_IPX, skb->dev, ipx, NULL, &skb)!=FW_ACCEPT)
-	{
-		kfree_skb(skb);
-		return (0);
-	}
-
 	/* See if we should update our network number */
 	if(!intrfc->if_netnum  /* net number of intrfc not known yet (== 0) */
 		&& (ipx->ipx_source.net == ipx->ipx_dest.net) /* intra packet */
@@ -752,7 +744,9 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 
 	if(ipx->ipx_type == IPX_TYPE_PPROP
 		&& ipx->ipx_tctrl < 8 
-		&& skb->pkt_type != PACKET_OTHERHOST) 
+		&& skb->pkt_type != PACKET_OTHERHOST
+		   /* header + 8 network numbers */ 
+		&& ntohs(ipx->ipx_pktsize) >= sizeof(struct ipxhdr) + 8 * 4) 
 	{
 		int i;
         	ipx_interface *ifcs;
@@ -775,6 +769,7 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 		{ 
 			/* < 8 hops && input itfc not in list */
 			*l = intrfc->if_netnum; /* insert recvd netnum into list */
+			ipx->ipx_tctrl++;
 			/* xmit on all other interfaces... */
 			for(ifcs = ipx_interfaces; ifcs != NULL; ifcs = ifcs->if_next) 
 			{
@@ -790,13 +785,8 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 				if(i - 1 == ipx->ipx_tctrl) 
 				{
 					ipx->ipx_dest.net = ifcs->if_netnum;
-					/* See if we are allowed to firewall forward */
-					if(call_fw_firewall(PF_IPX, skb->dev, ipx, NULL, &skb) == FW_ACCEPT)
-					{
-					        skb2=skb_clone(skb, GFP_ATOMIC);
-						if(skb2)
-							ipxrtr_route_skb(skb2);
-					}
+					skb2=skb_clone(skb, GFP_ATOMIC);
+					ipxrtr_route_skb(skb2);
 				}
 			}
 
@@ -812,13 +802,6 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 
 	if(intrfc->if_netnum != ipx->ipx_dest.net)
 	{
-		/* See if we are allowed to firewall forward */
-		if(call_fw_firewall(PF_IPX, skb->dev, ipx, NULL, &skb) != FW_ACCEPT)
-		{
-			kfree_skb(skb);
-			return (0);
-		}
-
 		/* We only route point-to-point packets. */
 		if(skb->pkt_type == PACKET_HOST)
 		{
@@ -922,7 +905,7 @@ static int ipx_map_frame_type(unsigned char type)
 
 static int ipxitf_create(ipx_interface_definition *idef)
 {
-	struct device *dev;
+	struct net_device *dev;
 	unsigned short dlink_type = 0;
 	struct datalink_proto *datalink = NULL;
 	ipx_interface *intrfc;
@@ -937,7 +920,7 @@ static int ipxitf_create(ipx_interface_definition *idef)
 		&& (ipxitf_find_using_net(idef->ipx_network) != NULL))
 		return (-EADDRINUSE);
 
-	dev = dev_get(idef->ipx_device);
+	dev = __dev_get_by_name(idef->ipx_device);
 	if(dev == NULL)
 		return (-ENODEV);
 
@@ -1025,7 +1008,7 @@ static int ipxitf_create(ipx_interface_definition *idef)
 
 static int ipxitf_delete(ipx_interface_definition *idef)
 {
-	struct device *dev = NULL;
+	struct net_device *dev = NULL;
 	unsigned short dlink_type = 0;
 	ipx_interface *intrfc;
 
@@ -1043,7 +1026,7 @@ static int ipxitf_delete(ipx_interface_definition *idef)
 	if(dlink_type == 0)
 		return (-EPROTONOSUPPORT);
 
-	dev = dev_get(idef->ipx_device);
+	dev = __dev_get_by_name(idef->ipx_device);
 	if(dev == NULL)
 		return (-ENODEV);
 
@@ -1057,7 +1040,7 @@ static int ipxitf_delete(ipx_interface_definition *idef)
 	return (-EINVAL);
 }
 
-static ipx_interface *ipxitf_auto_create(struct device *dev, 
+static ipx_interface *ipxitf_auto_create(struct net_device *dev, 
 	unsigned short dlink_type)
 {
 	struct datalink_proto *datalink = NULL;
@@ -1148,13 +1131,13 @@ static int ipxitf_ioctl(unsigned int cmd, void *arg)
 		{
 			struct sockaddr_ipx *sipx;
 			ipx_interface *ipxif;
-			struct device *dev;
+			struct net_device *dev;
 
 			if(copy_from_user(&ifr, arg, sizeof(ifr)))
 				return (-EFAULT);
 
 			sipx = (struct sockaddr_ipx *)&ifr.ifr_addr;
-			dev = dev_get(ifr.ifr_name);
+			dev = __dev_get_by_name(ifr.ifr_name);
 			if(!dev)
 				return (-ENODEV);
 
@@ -1424,12 +1407,6 @@ static int ipxrtr_route_packet(struct sock *sk, struct sockaddr_ipx *usipx, stru
 	else
 		ipx->ipx_checksum = ipx_set_checksum(ipx, len + sizeof(struct ipxhdr));
 
-	if(call_out_firewall(PF_IPX, skb->dev, ipx, NULL, &skb) != FW_ACCEPT)
-	{
-		kfree_skb(skb);
-		return (-EPERM);
-	}
-	
 	return (ipxitf_send(intrfc, skb, (rt && rt->ir_routed) ? 
 				rt->ir_router_node : ipx->ipx_dest.node));
 }
@@ -1813,7 +1790,7 @@ static int ipx_create(struct socket *sock, int protocol)
 	return (0);
 }
 
-static int ipx_release(struct socket *sock, struct socket *peer)
+static int ipx_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
@@ -2008,16 +1985,6 @@ static int ipx_connect(struct socket *sock, struct sockaddr *uaddr,
 	return (0);
 }
 
-static int ipx_accept(struct socket *sock, struct socket *newsock, int flags)
-{
-	if(newsock->sk)
-	{
-		sk_free(newsock->sk);
-		MOD_DEC_USE_COUNT;
-	}
-
-	return (-EOPNOTSUPP);
-}
 
 static int ipx_getname(struct socket *sock, struct sockaddr *uaddr,
 	int *uaddr_len, int peer)
@@ -2068,7 +2035,7 @@ static int ipx_getname(struct socket *sock, struct sockaddr *uaddr,
 	return (0);
 }
 
-int ipx_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
+int ipx_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt)
 {
 	/* NULL here for pt means the packet was looped back */
 	ipx_interface *intrfc;
@@ -2078,6 +2045,10 @@ int ipx_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	
 	/* Too small? */
 	if(ntohs(ipx->ipx_pktsize) < sizeof(struct ipxhdr))
+		goto drop;
+
+	/* Invalid header */
+	if(ntohs(ipx->ipx_pktsize) > skb->len)
 		goto drop;
 		
 	/* Not ours */	
@@ -2244,13 +2215,6 @@ out:
 	return (err);
 }
 
-/*
- * FIXME: We have to really support shutdown.
- */
-static int ipx_shutdown(struct socket *sk,int how)
-{
-	return (-EOPNOTSUPP);
-}
 
 static int ipx_ioctl(struct socket *sock,unsigned int cmd, unsigned long arg)
 {
@@ -2367,25 +2331,29 @@ static struct net_proto_family ipx_family_ops = {
 	ipx_create
 };
 
-static struct proto_ops ipx_dgram_ops = {
+static struct proto_ops SOCKOPS_WRAPPED(ipx_dgram_ops) = {
 	PF_IPX,
-	sock_no_dup,
 	ipx_release,
 	ipx_bind,
 	ipx_connect,
 	sock_no_socketpair,
-	ipx_accept,
+	sock_no_accept,
 	ipx_getname,
 	datagram_poll,
 	ipx_ioctl,
 	sock_no_listen,
-	ipx_shutdown,
+	sock_no_shutdown, /* FIXME: We have to really support shutdown. */
 	ipx_setsockopt,
 	ipx_getsockopt,
 	sock_no_fcntl,
 	ipx_sendmsg,
-	ipx_recvmsg
+	ipx_recvmsg,
+	sock_no_mmap
 };
+
+#include <linux/smp_lock.h>
+SOCKOPS_WRAP(ipx_dgram, PF_IPX);
+
 
 /* Called by protocol.c on kernel start up */
 

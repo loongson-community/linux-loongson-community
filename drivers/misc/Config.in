@@ -1,37 +1,16 @@
 #
-# For a description of the syntax of this configuration file,
-# see the Configure script.
+# Misc strange devices
 #
-# Parport configuration.
-#
+mainmenu_option next_comment
+comment 'Misc devices'
 
-tristate 'Parallel port support' CONFIG_PARPORT
-if [ "$CONFIG_PARPORT" != "n" ]; then
-  dep_tristate '   PC-style hardware' CONFIG_PARPORT_PC $CONFIG_PARPORT
-  if [ "$CONFIG_PARPORT_PC" != "n" ]; then
-    bool '   Use FIFO/DMA if available' CONFIG_PARPORT_PC_FIFO
-  fi
-  if [ "$CONFIG_ARM" = "y" ]; then
-    dep_tristate '   Archimedes hardware' CONFIG_PARPORT_ARC $CONFIG_PARPORT
-  fi
-  if [ "$CONFIG_AMIGA" = "y" ]; then
-    dep_tristate '   Amiga builtin port' CONFIG_PARPORT_AMIGA $CONFIG_PARPORT
-    if [ "$CONFIG_ZORRO" != "n" ]; then
-      dep_tristate '   Multiface III parallel port' CONFIG_PARPORT_MFC3 $CONFIG_PARPORT
-    fi
-  else
-    define_bool CONFIG_PARPORT_AMIGA n
-    define_bool CONFIG_PARPORT_MFC3 n
-  fi
-  if [ "$CONFIG_ATARI" = "y" ]; then
-    dep_tristate '   Atari hardware' CONFIG_PARPORT_ATARI $CONFIG_PARPORT
-  else
-    define_bool CONFIG_PARPORT_ATARI n
-  fi
-
-  # If exactly one hardware type is selected then parport will optimise away
-  # support for loading any others.  Defeat this if the user is keen.
-  bool '   Support foreign hardware' CONFIG_PARPORT_OTHER
-
-  bool '   IEEE 1284 transfer modes' CONFIG_PARPORT_1284
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  tristate 'Generic ACPI support' CONFIG_ACPI
 fi
+
+# PIIX4 ACPI requires PCI for setup and a hardcoded TSC for timing
+if [ "$CONFIG_PCI" = "y" -a "$CONFIG_X86_TSC" = "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool 'PIIX4 ACPI support' CONFIG_PIIX4_ACPI
+fi
+
+endmenu

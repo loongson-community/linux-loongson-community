@@ -146,7 +146,7 @@ struct ucred {
 #define AF_DECnet	12	/* Reserved for DECnet project	*/
 #define AF_NETBEUI	13	/* Reserved for 802.2LLC project*/
 #define AF_SECURITY	14	/* Security callback pseudo AF */
-#define pseudo_AF_KEY   15      /* PF_KEY key management API */
+#define AF_KEY		15      /* PF_KEY key management API */
 #define AF_NETLINK	16
 #define AF_ROUTE	AF_NETLINK /* Alias to emulate 4.4BSD */
 #define AF_PACKET	17	/* Packet family		*/
@@ -174,7 +174,7 @@ struct ucred {
 #define PF_DECnet	AF_DECnet
 #define PF_NETBEUI	AF_NETBEUI
 #define PF_SECURITY	AF_SECURITY
-#define PF_KEY          pseudo_AF_KEY
+#define PF_KEY		AF_KEY
 #define PF_NETLINK	AF_NETLINK
 #define PF_ROUTE	AF_ROUTE
 #define PF_PACKET	AF_PACKET
@@ -198,22 +198,19 @@ struct ucred {
 #define MSG_DONTROUTE	4
 #define MSG_TRYHARD     4       /* Synonym for MSG_DONTROUTE for DECnet */
 #define MSG_CTRUNC	8
-#define MSG_PROXY	0x10	/* Supply or ask second address. */
+#define MSG_PROBE	0x10	/* Do not send. Only probe path f.e. for MTU */
 #define MSG_TRUNC	0x20
 #define MSG_DONTWAIT	0x40	/* Nonblocking io		 */
 #define MSG_EOR         0x80	/* End of record */
 #define MSG_WAITALL	0x100	/* Wait for a full request */
 #define MSG_FIN         0x200
 #define MSG_SYN		0x400
-#define MSG_URG		0x800
+#define MSG_CONFIRM	0x800	/* Confirm path validity */
 #define MSG_RST		0x1000
-#define MSG_ERRQUEUE	0x2000
-#define MSG_NOSIGNAL	0x4000
-
-#define MSG_CTLIGNORE   0x80000000
+#define MSG_ERRQUEUE	0x2000	/* Fetch message from error queue */
+#define MSG_NOSIGNAL	0x4000	/* Do not generate SIGPIPE */
 
 #define MSG_EOF         MSG_FIN
-#define MSG_CTLFLAGS	(MSG_OOB|MSG_URG|MSG_FIN|MSG_SYN|MSG_RST)
 
 
 /* Setsockoptions(2) level. Thanks to BSD these must match IPPROTO_xxx */
@@ -243,6 +240,10 @@ struct ucred {
 #define TCP_NODELAY	1
 #define TCP_MAXSEG	2
 #define TCP_CORK	3	/* Linux specific (for use with sendfile) */
+#define TCP_KEEPIDLE	4
+#define TCP_KEEPINTVL	5
+#define TCP_KEEPCNT	6
+#define TCP_SYNCNT	7
 
 #ifdef __KERNEL__
 extern int memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len);

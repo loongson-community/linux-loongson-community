@@ -88,11 +88,12 @@ struct el_common_EV5_uncorrectable_mcheck {
 
 extern void halt(void) __attribute__((noreturn));
 
+#define prepare_to_switch()	do { } while(0)
 #define switch_to(prev,next,last)			\
 do {							\
 	unsigned long pcbb;				\
 	current = (next);				\
-	pcbb = virt_to_phys(&current->tss);		\
+	pcbb = virt_to_phys(&current->thread);		\
 	(last) = alpha_switch_to(pcbb, (prev));		\
 } while (0)
 
@@ -106,6 +107,15 @@ __asm__ __volatile__("mb": : :"memory")
 
 #define wmb() \
 __asm__ __volatile__("wmb": : :"memory")
+
+#define set_mb(var, value) \
+do { var = value; mb(); } while (0)
+
+#define set_rmb(var, value) \
+do { var = value; rmb(); } while (0)
+
+#define set_wmb(var, value) \
+do { var = value; wmb(); } while (0)
 
 #define imb() \
 __asm__ __volatile__ ("call_pal %0 #imb" : : "i" (PAL_imb) : "memory")

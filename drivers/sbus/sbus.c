@@ -1,4 +1,4 @@
-/* $Id: sbus.c,v 1.77 1999/05/29 06:25:57 davem Exp $
+/* $Id: sbus.c,v 1.80 1999/09/02 05:44:33 shadow Exp $
  * sbus.c:  SBus support routines.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -40,8 +40,7 @@ extern void prom_sbus_ranges_init (int, struct linux_sbus *);
 
 /* #define DEBUG_FILL */
 
-__initfunc(static void
-fill_sbus_device(int nd, struct linux_sbus_device *sbus_dev))
+static void __init fill_sbus_device(int nd, struct linux_sbus_device *sbus_dev)
 {
 	int grrr, len;
 	unsigned long dev_base_addr, base;
@@ -209,10 +208,13 @@ extern int flash_init(void);
 #ifdef CONFIG_SUN_AURORA
 extern int aurora_init(void);
 #endif
+#ifdef CONFIG_TADPOLE_TS102_UCTRL
+extern int ts102_uctrl_init(void);
+#endif
 
-__initfunc(static void
-sbus_do_child_siblings(int start_node, struct linux_sbus_device *child,
-		       struct linux_sbus *sbus))
+static void __init sbus_do_child_siblings(int start_node,
+					  struct linux_sbus_device *child,
+					  struct linux_sbus *sbus)
 {
 	struct linux_sbus_device *this_dev = child;
 	int this_node = start_node;
@@ -240,7 +242,7 @@ sbus_do_child_siblings(int start_node, struct linux_sbus_device *child,
 	}
 }
 
-__initfunc(void sbus_init(void))
+void __init sbus_init(void)
 {
 	register int nd, this_sbus, sbus_devs, topnd, iommund;
 	unsigned int sbus_clock;
@@ -445,6 +447,9 @@ __initfunc(void sbus_init(void))
 #endif
 #ifdef CONFIG_SUN_AURORA
 	aurora_init();
+#endif
+#ifdef CONFIG_TADPOLE_TS102_UCTRL
+	ts102_uctrl_init();
 #endif
 #ifdef __sparc_v9__
 	if (sparc_cpu_model == sun4u) {

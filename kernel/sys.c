@@ -41,11 +41,7 @@ int unregister_reboot_notifier(struct notifier_block * nb)
 	return notifier_chain_unregister(&reboot_notifier_list, nb);
 }
 
-
-
-extern void adjust_clock(void);
-
-asmlinkage int sys_ni_syscall(void)
+asmlinkage long sys_ni_syscall(void)
 {
 	return -ENOSYS;
 }
@@ -72,7 +68,7 @@ static int proc_sel(struct task_struct *p, int which, int who)
 	return 0;
 }
 
-asmlinkage int sys_setpriority(int which, int who, int niceval)
+asmlinkage long sys_setpriority(int which, int who, int niceval)
 {
 	struct task_struct *p;
 	unsigned int priority;
@@ -122,7 +118,7 @@ asmlinkage int sys_setpriority(int which, int who, int niceval)
  * not return the normal nice-value, but a value that has been
  * offset by 20 (ie it returns 0..40 instead of -20..20)
  */
-asmlinkage int sys_getpriority(int which, int who)
+asmlinkage long sys_getpriority(int which, int who)
 {
 	struct task_struct *p;
 	long max_prio = -ESRCH;
@@ -154,7 +150,7 @@ asmlinkage int sys_getpriority(int which, int who)
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
-asmlinkage int sys_reboot(int magic1, int magic2, int cmd, void * arg)
+asmlinkage long sys_reboot(int magic1, int magic2, int cmd, void * arg)
 {
 	char buffer[256];
 
@@ -252,7 +248,7 @@ void ctrl_alt_del(void)
  * SMP: There are not races, the GIDs are checked only by filesystem
  *      operations (as far as semantic preservation is concerned).
  */
-asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
+asmlinkage long sys_setregid(gid_t rgid, gid_t egid)
 {
 	int old_rgid = current->gid;
 	int old_egid = current->egid;
@@ -290,7 +286,7 @@ asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
  *
  * SMP: Same implicit races as above.
  */
-asmlinkage int sys_setgid(gid_t gid)
+asmlinkage long sys_setgid(gid_t gid)
 {
 	int old_egid = current->egid;
 
@@ -356,7 +352,7 @@ extern inline void cap_emulate_setxuid(int old_ruid, int old_euid,
  * 100% compatible with BSD.  A program which uses just setuid() will be
  * 100% compatible with POSIX with saved IDs. 
  */
-asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
+asmlinkage long sys_setreuid(uid_t ruid, uid_t euid)
 {
 	int old_ruid, old_euid, old_suid, new_ruid;
 
@@ -418,7 +414,7 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
  * will allow a root program to temporarily drop privileges and be able to
  * regain them by swapping the real and effective uid.  
  */
-asmlinkage int sys_setuid(uid_t uid)
+asmlinkage long sys_setuid(uid_t uid)
 {
 	int old_euid = current->euid;
 	int old_ruid, old_suid, new_ruid;
@@ -454,7 +450,7 @@ asmlinkage int sys_setuid(uid_t uid)
  * This function implements a generic ability to update ruid, euid,
  * and suid.  This allows you to implement the 4.4 compatible seteuid().
  */
-asmlinkage int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+asmlinkage long sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
 	int old_ruid = current->uid;
 	int old_euid = current->euid;
@@ -493,7 +489,7 @@ asmlinkage int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 	return 0;
 }
 
-asmlinkage int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
+asmlinkage long sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 {
 	int retval;
 
@@ -507,7 +503,7 @@ asmlinkage int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 /*
  * Same as above, but for rgid, egid, sgid.
  */
-asmlinkage int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
+asmlinkage long sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 {
        if (!capable(CAP_SETGID)) {
 		if ((rgid != (gid_t) -1) && (rgid != current->gid) &&
@@ -533,7 +529,7 @@ asmlinkage int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 	return 0;
 }
 
-asmlinkage int sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
+asmlinkage long sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
 	int retval;
 
@@ -551,7 +547,7 @@ asmlinkage int sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
  * whatever uid it wants to). It normally shadows "euid", except when
  * explicitly set by setfsuid() or for access..
  */
-asmlinkage int sys_setfsuid(uid_t uid)
+asmlinkage long sys_setfsuid(uid_t uid)
 {
 	int old_fsuid;
 
@@ -588,7 +584,7 @@ asmlinkage int sys_setfsuid(uid_t uid)
 /*
  * Samma på svenska..
  */
-asmlinkage int sys_setfsgid(gid_t gid)
+asmlinkage long sys_setfsgid(gid_t gid)
 {
 	int old_fsgid;
 
@@ -637,7 +633,7 @@ asmlinkage long sys_times(struct tms * tbuf)
  * LBT 04.03.94
  */
 
-asmlinkage int sys_setpgid(pid_t pid, pid_t pgid)
+asmlinkage long sys_setpgid(pid_t pid, pid_t pgid)
 {
 	struct task_struct * p;
 	int err = -EINVAL;
@@ -690,7 +686,7 @@ out:
 	return err;
 }
 
-asmlinkage int sys_getpgid(pid_t pid)
+asmlinkage long sys_getpgid(pid_t pid)
 {
 	if (!pid) {
 		return current->pgrp;
@@ -709,13 +705,13 @@ asmlinkage int sys_getpgid(pid_t pid)
 	}
 }
 
-asmlinkage int sys_getpgrp(void)
+asmlinkage long sys_getpgrp(void)
 {
 	/* SMP - assuming writes are word atomic this is fine */
 	return current->pgrp;
 }
 
-asmlinkage int sys_getsid(pid_t pid)
+asmlinkage long sys_getsid(pid_t pid)
 {
 	if (!pid) {
 		return current->session;
@@ -734,7 +730,7 @@ asmlinkage int sys_getsid(pid_t pid)
 	}
 }
 
-asmlinkage int sys_setsid(void)
+asmlinkage long sys_setsid(void)
 {
 	struct task_struct * p;
 	int err = -EPERM;
@@ -758,7 +754,7 @@ out:
 /*
  * Supplementary group IDs
  */
-asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
+asmlinkage long sys_getgroups(int gidsetsize, gid_t *grouplist)
 {
 	int i;
 	
@@ -784,7 +780,7 @@ asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
  *	without another task interfering.
  */
  
-asmlinkage int sys_setgroups(int gidsetsize, gid_t *grouplist)
+asmlinkage long sys_setgroups(int gidsetsize, gid_t *grouplist)
 {
 	if (!capable(CAP_SETGID))
 		return -EPERM;
@@ -822,7 +818,7 @@ out:
  */
 DECLARE_MUTEX(uts_sem);
 
-asmlinkage int sys_newuname(struct new_utsname * name)
+asmlinkage long sys_newuname(struct new_utsname * name)
 {
 	int errno = 0;
 
@@ -833,7 +829,7 @@ asmlinkage int sys_newuname(struct new_utsname * name)
 	return errno;
 }
 
-asmlinkage int sys_sethostname(char *name, int len)
+asmlinkage long sys_sethostname(char *name, int len)
 {
 	int errno;
 
@@ -851,7 +847,7 @@ asmlinkage int sys_sethostname(char *name, int len)
 	return errno;
 }
 
-asmlinkage int sys_gethostname(char *name, int len)
+asmlinkage long sys_gethostname(char *name, int len)
 {
 	int i, errno;
 
@@ -872,7 +868,7 @@ asmlinkage int sys_gethostname(char *name, int len)
  * Only setdomainname; getdomainname can be implemented by calling
  * uname()
  */
-asmlinkage int sys_setdomainname(char *name, int len)
+asmlinkage long sys_setdomainname(char *name, int len)
 {
 	int errno;
 
@@ -891,7 +887,7 @@ asmlinkage int sys_setdomainname(char *name, int len)
 	return errno;
 }
 
-asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim)
+asmlinkage long sys_getrlimit(unsigned int resource, struct rlimit *rlim)
 {
 	if (resource >= RLIM_NLIMITS)
 		return -EINVAL;
@@ -900,7 +896,7 @@ asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim)
 			? -EFAULT : 0;
 }
 
-asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim)
+asmlinkage long sys_setrlimit(unsigned int resource, struct rlimit *rlim)
 {
 	struct rlimit new_rlim, *old_rlim;
 
@@ -977,21 +973,21 @@ int getrusage(struct task_struct *p, int who, struct rusage *ru)
 	return copy_to_user(ru, &r, sizeof(r)) ? -EFAULT : 0;
 }
 
-asmlinkage int sys_getrusage(int who, struct rusage *ru)
+asmlinkage long sys_getrusage(int who, struct rusage *ru)
 {
 	if (who != RUSAGE_SELF && who != RUSAGE_CHILDREN)
 		return -EINVAL;
 	return getrusage(current, who, ru);
 }
 
-asmlinkage int sys_umask(int mask)
+asmlinkage long sys_umask(int mask)
 {
 	mask = xchg(&current->fs->umask, mask & S_IRWXUGO);
 	return mask;
 }
     
-asmlinkage int sys_prctl(int option, unsigned long arg2, unsigned long arg3,
-			 unsigned long arg4, unsigned long arg5)
+asmlinkage long sys_prctl(int option, unsigned long arg2, unsigned long arg3,
+			  unsigned long arg4, unsigned long arg5)
 {
 	int error = 0;
 	int sig;
@@ -1004,6 +1000,9 @@ asmlinkage int sys_prctl(int option, unsigned long arg2, unsigned long arg3,
 				break;
 			}
 			current->pdeath_signal = sig;
+			break;
+		case PR_GET_PDEATHSIG:
+			error = put_user(current->pdeath_signal, (int *)arg2);
 			break;
 		default:
 			error = -EINVAL;

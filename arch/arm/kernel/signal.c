@@ -273,8 +273,8 @@ setup_sigcontext(struct sigcontext *sc, /*struct _fpstate *fpstate,*/
 	err |= __put_user (regs->ARM_cpsr, &sc->arm_cpsr);
 #endif
 
-	err |= __put_user (current->tss.trap_no, &sc->trap_no);
-	err |= __put_user (current->tss.error_code, &sc->error_code);
+	err |= __put_user (current->thread.trap_no, &sc->trap_no);
+	err |= __put_user (current->thread.error_code, &sc->error_code);
 	err |= __put_user (mask, &sc->oldmask);
 
 	return err;
@@ -543,12 +543,8 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs, int syscall)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
-				lock_kernel();
-				if (current->binfmt
-				    && current->binfmt->core_dump
-				    && current->binfmt->core_dump(signr, regs))
+				if (do_coredump(signr, regs))
 					exit_code |= 0x80;
-				unlock_kernel();
 				/* FALLTHRU */
 
 			default:
