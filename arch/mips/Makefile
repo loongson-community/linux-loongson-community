@@ -527,10 +527,10 @@ endif
 core-$(CONFIG_SGI_IP32)		+= arch/mips/sgi-ip32/
 cflags-$(CONFIG_SGI_IP32)	+= -Iinclude/asm-mips/mach-ip32
 ifdef CONFIG_MIPS32
-load-$(CONFIG_SGI_IP32)		+= 0x88002000
+load-$(CONFIG_SGI_IP32)		+= 0x80002000
 endif
 ifdef CONFIG_MIPS64
-load-$(CONFIG_SGI_IP32)		+= 0x88004000
+load-$(CONFIG_SGI_IP32)		+= 0x80004000
 endif
 
 #
