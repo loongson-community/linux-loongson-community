@@ -376,6 +376,12 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 	pte_t *ptep;
 	int idx, pid;
 
+	/*
+	 * Handle debugger faulting in for debugee.
+	 */
+	if (current->active_mm != vma->vm_mm)
+		return;
+
 	__save_and_cli(flags);
 	pid = get_entryhi() & 0xff;
 
