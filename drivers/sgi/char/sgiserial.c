@@ -357,7 +357,9 @@ static _INLINE_ void rs_sched_event(struct sgi_serial *info,
 	mark_bh(SERIAL_BH);
 }
 
+#ifdef CONFIG_REMOTE_DEBUG
 extern void set_async_breakpoint(unsigned int epc);
+#endif
 
 static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs)
 {
@@ -393,11 +395,12 @@ static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs
 	 * for remote target debugging and arch/sparc/kernel/sparc-stub.c
 	 * to see how all this works.
 	 */
+#ifdef CONFIG_REMOTE_DEBUG
 	if((info->kgdb_channel) && (ch =='\003')) {
 		set_async_breakpoint(read_32bit_cp0_register(CP0_EPC));
 		goto clear_and_exit;
 	}
-
+#endif
 	if(!tty)
 		goto clear_and_exit;
 
