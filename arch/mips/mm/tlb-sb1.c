@@ -18,6 +18,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 #include <linux/config.h>
+#include <linux/init.h>
 #include <asm/mmu_context.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
@@ -102,10 +103,13 @@ void local_flush_tlb_all(void)
 	old_ctx = read_c0_entryhi() & ASID_MASK;
 	write_c0_entrylo0(0);
 	write_c0_entrylo1(0);
-	for (entry = 0; entry < current_cpu_data.tlbsize; entry++) {
+
+	entry = read_c0_wired();
+	while (entry < current_cpu_data.tlbsize) {
 		write_c0_entryhi(KSEG0 + (PAGE_SIZE << 1) * entry);
 		write_c0_index(entry);
 		tlb_write_indexed();
+		entry++;
 	}
 	write_c0_entryhi(old_ctx);
 	local_irq_restore(flags);
@@ -117,7 +121,7 @@ void local_flush_tlb_all(void)
  * Use increments of the maximum page size (16MB), and check for duplicate
  * entries before doing a given write.  Then, when we're safe from collisions
  * with the firmware, go back and give all the entries invalid addresses with
- * the normal flush routine.
+ * the normal flush routine.  Wired entries will be killed as well!
  */
 void sb1_sanitize_tlb(void)
 {
@@ -318,6 +322,34 @@ void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 	} else {
 		tlb_write_indexed();
 	}
+	local_irq_restore(flags);
+}
+
+void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+	unsigned long entryhi, unsigned long pagemask)
+{
+	unsigned long flags;
+	unsigned long wired;
+	unsigned long old_pagemask;
+	unsigned long old_ctx;
+
+	local_irq_save(flags);
+	old_ctx = read_c0_entryhi() & 0xff;
+	old_pagemask = read_c0_pagemask();
+	wired = read_c0_wired();
+	write_c0_wired(wired + 1);
+	write_c0_index(wired);
+
+	write_c0_pagemask(pagemask);
+	write_c0_entryhi(entryhi);
+	write_c0_entrylo0(entrylo0);
+	write_c0_entrylo1(entrylo1);
+	tlb_write_indexed();
+
+	write_c0_entryhi(old_ctx);
+	write_c0_pagemask(old_pagemask);
+
+	local_flush_tlb_all();
 	local_irq_restore(flags);
 }
 
