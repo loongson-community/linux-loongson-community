@@ -14,7 +14,6 @@
 
 #include <asm/sgialib.h>
 
-extern char prom_getchar (void);
 extern void prom_printf (char *, ...);
 
 void prom_putchar(char c)
@@ -42,7 +41,7 @@ static void prom_console_write(struct console *co, const char *s,
 
 static int prom_console_wait_key(struct console *co)
 {
-	return prom_getchar();
+	return 0;
 }
 
 static int __init prom_console_setup(struct console *co, char *options)

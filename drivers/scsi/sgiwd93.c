@@ -289,7 +289,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	init_hpc_chain(buf);
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 	/* HPC_SCSI_REG0 | 0x03 | KSEG1 */
-	wd33c93_init(sgiwd93_host, (wd33c93_regs *) 0xbfbc0003,
+	wd33c93_init(sgiwd93_host, (wd33c93_regs *) KSEG1ADDR (0x1fbc0003),
 		     dma_setup, dma_stop, WD33C93_FS_16_20);
 
 	hdata = (struct WD33C93_hostdata *)sgiwd93_host->hostdata;
@@ -323,7 +323,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 			init_hpc_chain(buf);
 			dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 			/* HPC_SCSI_REG1 | 0x03 | KSEG1 */
-			wd33c93_init(sgiwd93_host1, (wd33c93_regs *) 0xbfbc8003,
+			wd33c93_init(sgiwd93_host1, (wd33c93_regs *) KSEG1ADDR (0x1fbc8003),
 				     dma_setup, dma_stop, WD33C93_FS_16_20);
 	
 			hdata1 = (struct WD33C93_hostdata *)sgiwd93_host1->hostdata;

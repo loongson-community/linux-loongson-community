@@ -1747,15 +1747,15 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 	unsigned int flags;
 
-	if (size >= dcache_size) {
+	if (size >= (unsigned long)dcache_size) {
 		flush_cache_l1();
 	} else {
 		/* Workaround for R4600 bug.  See comment above. */
 		__save_and_cli(flags);
 		*(volatile unsigned long *)KSEG1;
 
-		a = addr & ~(dc_lsize - 1);
-		end = (addr + size) & ~(dc_lsize - 1);
+		a = addr & ~((unsigned long)dc_lsize - 1);
+		end = (addr + size) & ~((unsigned long)dc_lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
@@ -1771,13 +1771,13 @@ r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 
-	if (size >= scache_size) {
+	if (size >= (unsigned long)scache_size) {
 		flush_cache_l1();
 		return;
 	}
 
-	a = addr & ~(sc_lsize - 1);
-	end = (addr + size) & ~(sc_lsize - 1);
+	a = addr & ~((unsigned long)sc_lsize - 1);
+	end = (addr + size) & ~((unsigned long)sc_lsize - 1);
 	while (1) {
 		flush_scache_line(a);	/* Hit_Writeback_Inv_SD */
 		if (a == end) break;
@@ -1791,15 +1791,15 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 	unsigned int flags;
 
-	if (size >= dcache_size) {
+	if (size >= (unsigned long)dcache_size) {
 		flush_cache_l1();
 	} else {
 		/* Workaround for R4600 bug.  See comment above. */
 		__save_and_cli(flags);
 		*(volatile unsigned long *)KSEG1;
 
-		a = addr & ~(dc_lsize - 1);
-		end = (addr + size) & ~(dc_lsize - 1);
+		a = addr & ~((unsigned long)dc_lsize - 1);
+		end = (addr + size) & ~((unsigned long)dc_lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
@@ -1816,13 +1816,13 @@ r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 
-	if (size >= scache_size) {
+	if (size >= (unsigned long)scache_size) {
 		flush_cache_l1();
 		return;
 	}
 
-	a = addr & ~(sc_lsize - 1);
-	end = (addr + size) & ~(sc_lsize - 1);
+	a = addr & ~((unsigned long)sc_lsize - 1);
+	end = (addr + size) & ~((unsigned long)sc_lsize - 1);
 	while (1) {
 		flush_scache_line(a); /* Hit_Writeback_Inv_SD */
 		if (a == end) break;
@@ -1845,11 +1845,11 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long daddr, iaddr;
 
-	daddr = addr & ~(dc_lsize - 1);
+	daddr = addr & ~((unsigned long)dc_lsize - 1);
 	__asm__ __volatile__("nop;nop;nop;nop");	/* R4600 V1.7 */
 	protected_writeback_dcache_line(daddr);
 	protected_writeback_dcache_line(daddr + dc_lsize);
-	iaddr = addr & ~(ic_lsize - 1);
+	iaddr = addr & ~((unsigned long)ic_lsize - 1);
 	protected_flush_icache_line(iaddr);
 	protected_flush_icache_line(iaddr + ic_lsize);
 }
@@ -1859,7 +1859,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 	unsigned long daddr, iaddr;
 	unsigned int flags;
 
-	daddr = addr & ~(dc_lsize - 1);
+	daddr = addr & ~((unsigned long)dc_lsize - 1);
 	__save_and_cli(flags);
 
 	/* Clear internal cache refill buffer */
@@ -1867,7 +1867,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 
 	protected_writeback_dcache_line(daddr);
 	protected_writeback_dcache_line(daddr + dc_lsize);
-	iaddr = addr & ~(ic_lsize - 1);
+	iaddr = addr & ~((unsigned long)ic_lsize - 1);
 	protected_flush_icache_line(iaddr);
 	protected_flush_icache_line(iaddr + ic_lsize);
 	__restore_flags(flags);
