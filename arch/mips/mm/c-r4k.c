@@ -293,8 +293,9 @@ static void r4k___flush_cache_all(void)
 	on_each_cpu(local_r4k___flush_cache_all, NULL, 1, 1);
 }
 
-static inline void local_r4k_flush_cache_range(struct vm_area_struct *vma)
+static inline void local_r4k_flush_cache_range(void * args)
 {
+	struct vm_area_struct *vma = args;
 	int exec;
 
 	if (!(cpu_context(smp_processor_id(), vma->vm_mm)))
@@ -313,8 +314,10 @@ static void r4k_flush_cache_range(struct vm_area_struct *vma,
 	on_each_cpu(local_r4k_flush_cache_range, vma, 1, 1);
 }
 
-static inline void local_r4k_flush_cache_mm(struct mm_struct *mm)
+static inline void local_r4k_flush_cache_mm(void * args)
 {
+	struct mm_struct *mm = args;
+
 	if (!cpu_has_dc_aliases)
 		return;
 
@@ -345,11 +348,11 @@ struct flush_cache_page_args {
 	unsigned long page;
 };
 
-static inline void local_r4k_flush_cache_page(
-	struct flush_cache_page_args * args)
+static inline void local_r4k_flush_cache_page(void *args)
 {
-	struct vm_area_struct *vma = args->vma;
-	unsigned long page = args->page;
+	struct flush_cache_page_args *fcp_args = args;
+	struct vm_area_struct *vma = fcp_args->vma;
+	unsigned long page = fcp_args->page;
 	int exec = vma->vm_flags & VM_EXEC;
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgdp;
@@ -434,13 +437,13 @@ struct flush_icache_range_args {
 	unsigned long end;
 };
 
-static inline void local_r4k_flush_icache_range(
-	struct flush_icache_range_args *args)
+static inline void local_r4k_flush_icache_range(void *args)
 {
+	struct flush_icache_range_args *fir_args = args;
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
-	unsigned long start = args->start;
-	unsigned long end = args->end;
+	unsigned long start = fir_args->start;
+	unsigned long end = fir_args->end;
 	unsigned long addr, aend;
 
 	if (!cpu_has_ic_fills_f_dc) {
@@ -498,11 +501,11 @@ struct flush_icache_page_args {
 	struct page *page;
 };
 
-static inline void local_r4k_flush_icache_page(
-	struct flush_icache_page_args *args)
+static inline void local_r4k_flush_icache_page(void *args)
 {
-	struct vm_area_struct *vma = args->vma;
-	struct page *page = args->page;
+	struct flush_icache_page_args *fip_args = args;
+	struct vm_area_struct *vma = fip_args->vma;
+	struct page *page = fip_args->page;
 
 	/*
 	 * Tricky ...  Because we don't know the virtual address we've got the
