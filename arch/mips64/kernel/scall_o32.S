@@ -333,7 +333,7 @@ out:	jr	ra
 	sys	sys_getuid	0
 	sys	sys_stime	1			/* 4025 */
 	sys	sys32_ptrace	4
-	sys	sys32_alarm	1
+	sys	sys_alarm	1
 	sys	sys_ni_syscall	0			/* was sys_fstat */
 	sys	sys_pause	0
 	sys	sys32_utime	2			/* 4030 */

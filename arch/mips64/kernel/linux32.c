@@ -828,25 +828,6 @@ sys32_setitimer(int which, struct itimerval32 *in, struct itimerval32 *out)
 		return -EFAULT;
 
 	return 0;
-
-}
-asmlinkage unsigned long
-sys32_alarm(unsigned int seconds)
-{
-	struct itimerval it_new, it_old;
-	unsigned int oldalarm;
-
-	it_new.it_interval.tv_sec = it_new.it_interval.tv_usec = 0;
-	it_new.it_value.tv_sec = seconds;
-	it_new.it_value.tv_usec = 0;
-	do_setitimer(ITIMER_REAL, &it_new, &it_old);
-	oldalarm = it_old.it_value.tv_sec;
-	/* ehhh.. We can't return 0 if we have an alarm pending.. */
-	/* And we'd better return too much than too little anyway */
-	if (it_old.it_value.tv_usec)
-		oldalarm++;
-
-	return oldalarm;
 }
 
 /* Translations due to time_t size differences.  Which affects all

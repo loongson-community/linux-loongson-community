@@ -144,7 +144,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys32_nanosleep
 	PTR	sys32_getitimer			/* 6035 */
 	PTR	sys32_setitimer
-	PTR	sys32_alarm
+	PTR	sys_alarm
 	PTR	sys_getpid
 	PTR	sys32_sendfile
 	PTR	sys_socket			/* 6040 */
