@@ -404,7 +404,8 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 		*tty->flip.char_buf_ptr++ = ch;
 	ignore_char:
 	}
-	tty_flip_buffer_push(tty);
+	if (tty)
+		tty_flip_buffer_push(tty);
 }
 
 static void transmit_chars(struct dec_serial *info)
@@ -421,7 +422,8 @@ static void transmit_chars(struct dec_serial *info)
 		return;
 	}
 
-	if ((info->xmit_cnt <= 0) || info->tty->stopped || info->tx_stopped) {
+	if ((info->xmit_cnt <= 0) || (info->tty && info->tty->stopped)
+	    || info->tx_stopped) {
 		write_zsreg(info->zs_channel, R0, RES_Tx_P);
 		return;
 	}
@@ -455,8 +457,7 @@ static _INLINE_ void status_handle(struct dec_serial *info)
 		if (stat & DCD) {
 			wake_up_interruptible(&info->open_wait);
 		} else if (!(info->flags & ZILOG_CALLOUT_ACTIVE)) {
-			if (info->tty)
-				tty_hangup(info->tty);
+			tty_hangup(info->tty);
 		}
 	}
 
@@ -2154,3 +2155,4 @@ void __init zs_kgdb_hook(int tty_num)
 	set_debug_traps(); /* init stub */
 }
 #endif /* ifdef CONFIG_KGDB */
+

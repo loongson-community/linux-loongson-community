@@ -21,9 +21,9 @@
 
 #define DEBUG_DZ 1
 
+#include <linux/version.h>
 #ifdef MODULE
 #include <linux/module.h>
-#include <linux/version.h>
 #else
 #define MOD_INC_USE_COUNT
 #define MOD_DEC_USE_COUNT
@@ -1290,7 +1290,7 @@ static void show_serial_version (void)
 
 int __init dz_init(void)
 {
-  int i, flags;
+  int i, flags, tmp;
   struct dz_serial *info;
 
   /* Setup base handler, and timer table. */
@@ -1300,7 +1300,11 @@ int __init dz_init(void)
 
   memset(&serial_driver, 0, sizeof(struct tty_driver));
   serial_driver.magic = TTY_DRIVER_MAGIC;
+#if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
   serial_driver.name = "ttyS";
+#else
+  serial_driver.name = "tts/%d";
+#endif
   serial_driver.major = TTY_MAJOR;
   serial_driver.minor_start = 64;
   serial_driver.num = DZ_NB_PORT;
@@ -1309,7 +1313,7 @@ int __init dz_init(void)
   serial_driver.init_termios = tty_std_termios;
 
   serial_driver.init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
-  serial_driver.flags = TTY_DRIVER_REAL_RAW;
+  serial_driver.flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_NO_DEVFS;
   serial_driver.refcount = &serial_refcount;
   serial_driver.table = serial_table;
   serial_driver.termios = serial_termios;
@@ -1336,7 +1340,11 @@ int __init dz_init(void)
    * major number and the subtype code.
    */
   callout_driver = serial_driver;
+#if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
   callout_driver.name = "cua";
+#else
+  callout_driver.name = "cua/%d";
+#endif
   callout_driver.major = TTYAUX_MAJOR;
   callout_driver.subtype = SERIAL_TYPE_CALLOUT;
 
@@ -1380,6 +1388,11 @@ int __init dz_init(void)
       return 0;
 
     printk("ttyS%02d at 0x%08x (irq = %d)\n", info->line, info->port, SERIAL);
+
+    tty_register_devfs(&serial_driver, 0,
+			serial_driver.minor_start + info->line);
+    tty_register_devfs(&callout_driver, 0,
+			callout_driver.minor_start + info->line);
   }
 
   /* reset the chip */
