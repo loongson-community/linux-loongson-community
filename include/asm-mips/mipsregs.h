@@ -873,6 +873,26 @@ do {									\
 #define read_c0_depc()		__read_ulong_c0_register($24, 0)
 #define write_c0_depc(val)	__write_ulong_c0_register($24, 0, val)
 
+/*
+ * MIPS32 / MIPS64 performance counters
+ */
+#define read_c0_perfctrl0()	__read_32bit_c0_register($25, 0)
+#define write_c0_perfctrl0(val)	__write_32bit_c0_register($25, 0, val)
+#define read_c0_perfcntr0()	__read_32bit_c0_register($25, 1)
+#define write_c0_perfcntr0(val)	__write_32bit_c0_register($25, 1, val)
+#define read_c0_perfctrl1()	__read_32bit_c0_register($25, 2)
+#define write_c0_perfctrl1(val)	__write_32bit_c0_register($25, 2, val)
+#define read_c0_perfcntr1()	__read_32bit_c0_register($25, 3)
+#define write_c0_perfcntr1(val)	__write_32bit_c0_register($25, 3, val)
+#define read_c0_perfctrl2()	__read_32bit_c0_register($25, 4)
+#define write_c0_perfctrl2(val)	__write_32bit_c0_register($25, 4, val)
+#define read_c0_perfcntr2()	__read_32bit_c0_register($25, 5)
+#define write_c0_perfcntr2(val)	__write_32bit_c0_register($25, 5, val)
+#define read_c0_perfctrl3()	__read_32bit_c0_register($25, 6)
+#define write_c0_perfctrl3(val)	__write_32bit_c0_register($25, 6, val)
+#define read_c0_perfcntr3()	__read_32bit_c0_register($25, 7)
+#define write_c0_perfcntr3(val)	__write_32bit_c0_register($25, 7, val)
+
 /* RM9000 PerfCount performance counter register */
 #define read_c0_perfcount()	__read_64bit_c0_register($25, 0)
 #define write_c0_perfcount(val)	__write_64bit_c0_register($25, 0, val)
