@@ -64,6 +64,7 @@
 #define PRID_IMP_20KC		0x8200
 #define PRID_IMP_4KEC		0x8400
 #define PRID_IMP_4KSC		0x8600
+#define PRID_IMP_25KF		0x8800
 
 
 #define PRID_IMP_UNKNOWN	0xff00
@@ -166,7 +167,8 @@
 #define CPU_VR4181A		51
 #define CPU_AU1100		52
 #define CPU_SR71000		53
-#define CPU_LAST		53
+#define CPU_25KF		54
+#define CPU_LAST		54
 
 /*
  * ISA Level encodings

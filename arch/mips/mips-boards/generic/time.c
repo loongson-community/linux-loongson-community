@@ -147,7 +147,7 @@ unsigned long __init mips_rtc_get_time(void)
 
 void __init mips_time_init(void)
 {
-        unsigned int est_freq, flags;
+	unsigned int est_freq, flags, prid;
 
 	local_irq_save(flags);
 
@@ -158,8 +158,9 @@ void __init mips_time_init(void)
 	r4k_offset = cal_r4koff();
 	printk("%08x(%d)\n", r4k_offset, r4k_offset);
 
-        if ((read_c0_prid() & 0xffff00) ==
-	    (PRID_COMP_MIPS | PRID_IMP_20KC))
+	prid = read_c0_prid() & 0xffff00;
+	if ((prid == (PRID_COMP_MIPS | PRID_IMP_20KC)) ||
+	    (prid == (PRID_COMP_MIPS | PRID_IMP_25KF)))
 		est_freq = r4k_offset*HZ;
 	else
 		est_freq = 2*r4k_offset*HZ;

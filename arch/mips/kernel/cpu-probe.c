@@ -95,6 +95,7 @@ static inline void check_wait(void)
 	case CPU_4KSC:
 	case CPU_5KC:
 /*	case CPU_20KC:*/
+	case CPU_25KF:
 		cpu_wait = r4k_wait;
 		printk(" available.\n");
 		break;
@@ -176,7 +177,7 @@ __init void cpu_probe(void)
 		/* MIPS32 or MIPS64 compliant CPU. Read Config 1 register. */
 		c->options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
 			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC |
-			MIPS_CPU_LLSC;
+			MIPS_CPU_LLSC | MIPS_CPU_MCHECK;
 		config1 = read_c0_config1();
 		if (config1 & (1 << 3))
 			c->options |= MIPS_CPU_WATCH;
@@ -438,6 +439,12 @@ __init void cpu_probe(void)
 		case PRID_IMP_20KC:
 			c->cputype = CPU_20KC;
 			c->isa_level = MIPS_CPU_ISA_M64;
+			break;
+		case PRID_IMP_25KF:
+			c->cputype = CPU_25KF;
+			c->isa_level = MIPS_CPU_ISA_M64;
+			/* Probe for L2 cache */
+			c->scache.flags &= ~MIPS_CACHE_NOT_PRESENT;
 			break;
 		default:
 			c->cputype = CPU_UNKNOWN;
