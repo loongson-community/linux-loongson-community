@@ -360,6 +360,8 @@ head-y := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 
 libs-y		+= arch/mips/lib/
 core-y		+= arch/mips/kernel/ arch/mips/mm/ arch/mips/math-emu/
+core-$(CONFIG_MIPS32)	+= arch/mips/mm-32/
+core-$(CONFIG_MIPS64)	+= arch/mips/mm-64/
 
 ifdef CONFIG_BAGET_MIPS
 

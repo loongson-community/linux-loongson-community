@@ -263,7 +263,9 @@ LDFLAGS_BLOB	:= --format binary --oformat $(64bit-bfd)
 head-y := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
 libs-y		+= arch/mips64/lib/
-core-y		+= arch/mips64/kernel/ arch/mips64/mm/ arch/mips/math-emu/
+core-y		+= arch/mips64/kernel/ arch/mips/mm/ arch/mips/math-emu/
+core-$(CONFIG_MIPS32)	+= arch/mips/mm-32/
+core-$(CONFIG_MIPS64)	+= arch/mips/mm-64/
 
 ifdef CONFIG_MAPPED_KERNEL
 vmlinux.64: vmlinux
