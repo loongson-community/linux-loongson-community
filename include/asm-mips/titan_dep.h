@@ -58,6 +58,12 @@ extern unsigned long ocd_base;
  */
 #define RM9000x2_OCD_LKB5		0x0128		/* Ethernet */
 #define RM9000x2_OCD_LKM5		0x012c
+
+#define RM9000x2_OCD_LKB7		0x0138		/* HT Region 0 */
+#define RM9000x2_OCD_LKM7		0x013c
+#define RM9000x2_OCD_LKB8		0x0140		/* HT Region 1 */
+#define RM9000x2_OCD_LKM8		0x0144
+
 #define RM9000x2_OCD_LKB9		0x0148		/* Local Bus */
 #define RM9000x2_OCD_LKM9		0x014c
 #define RM9000x2_OCD_LKB10		0x0150
@@ -75,8 +81,75 @@ extern unsigned long ocd_base;
 #define RM9000x2_OCD_LPD2		0x0220
 #define RM9000x2_OCD_LPD3		0x0230
 
+#define RM9000x2_OCD_HTDVID		0x0600	/* HT Device Header */
+#define RM9000x2_OCD_HTSC		0x0604
+#define RM9000x2_OCD_HTCCR		0x0608
+#define RM9000x2_OCD_HTBHL		0x060c
+#define RM9000x2_OCD_HTBAR0		0x0610
+#define RM9000x2_OCD_HTBAR1		0x0614
+#define RM9000x2_OCD_HTBAR2		0x0618
+#define RM9000x2_OCD_HTBAR3		0x061c
+#define RM9000x2_OCD_HTBAR4		0x0620
+#define RM9000x2_OCD_HTBAR5		0x0624
+#define RM9000x2_OCD_HTCBCPT		0x0628
+#define RM9000x2_OCD_HTSDVID		0x062c
+#define RM9000x2_OCD_HTXRA		0x0630
+#define RM9000x2_OCD_HTCAP1		0x0634
+#define RM9000x2_OCD_HTIL		0x063c
+
+#define RM9000x2_OCD_HTLCC		0x0640	/* HT Capability Block */
+#define RM9000x2_OCD_HTLINK		0x0644
+#define RM9000x2_OCD_HTFQREV		0x0648
+
+#define RM9000x2_OCD_HTERCTL		0x0668	/* HT Controller */
+#define RM9000x2_OCD_HTRXDB		0x066c
+#define RM9000x2_OCD_HTIMPED		0x0670
+#define RM9000x2_OCD_HTSWIMP		0x0674
+#define RM9000x2_OCD_HTCAL		0x0678
+
+#define RM9000x2_OCD_HTBAA30		0x0680
+#define RM9000x2_OCD_HTBAA54		0x0684
+#define RM9000x2_OCD_HTMASK0		0x0688
+#define RM9000x2_OCD_HTMASK1		0x068c
+#define RM9000x2_OCD_HTMASK2		0x0690
+#define RM9000x2_OCD_HTMASK3		0x0694
+#define RM9000x2_OCD_HTMASK4		0x0698
+#define RM9000x2_OCD_HTMASK5		0x069c
+
+#define RM9000x2_OCD_HTIFCTL		0x06a0
+#define RM9000x2_OCD_HTPLL		0x06a4
+
+#define RM9000x2_OCD_HTSRI		0x06b0
+#define RM9000x2_OCD_HTRXNUM		0x06b4
+#define RM9000x2_OCD_HTTXNUM		0x06b8
+
+#define RM9000x2_OCD_HTTXCNT		0x06c8
+
+#define RM9000x2_OCD_HTERROR		0x06d8
+#define RM9000x2_OCD_HTRCRCE		0x06dc
+#define RM9000x2_OCD_HTEOI		0x06e0
+
+#define RM9000x2_OCD_CRCR		0x06f0
+
 #define RM9000x2_OCD_HTCFGA		0x06f8
 #define RM9000x2_OCD_HTCFGD		0x06fc
+
+#define RM9000x2_OCD_INTMSG		0x0a00
+
+#define RM9000x2_OCD_INTPIN0		0x0a40
+#define RM9000x2_OCD_INTPIN1		0x0a44
+#define RM9000x2_OCD_INTPIN2		0x0a48
+#define RM9000x2_OCD_INTPIN3		0x0a4c
+#define RM9000x2_OCD_INTPIN4		0x0a50
+#define RM9000x2_OCD_INTPIN5		0x0a54
+#define RM9000x2_OCD_INTPIN6		0x0a58
+#define RM9000x2_OCD_INTPIN7		0x0a5c
+#define RM9000x2_OCD_SEM		0x0a60
+#define RM9000x2_OCD_SEMSET		0x0a64
+#define RM9000x2_OCD_SEMCLR		0x0a68
+
+#define RM9000x2_OCD_TKT		0x0a70
+#define RM9000x2_OCD_TKTINC		0x0a74
 
 #define RM9000x2_OCD_NMICONFIG		0x0ac0		/* Interrupts */
 #define RM9000x2_OCD_INTP0PRI		0x1a80
@@ -162,4 +235,3 @@ extern unsigned long ocd_base;
 #define RM9K_READ_16(ofs, val)  *(val) = *(volatile u16 *)(RM9000x2_BASE_ADDR+ofs)
 
 #endif 
-
