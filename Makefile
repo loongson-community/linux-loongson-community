@@ -96,9 +96,6 @@ endif
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 AFLAGS := $(CPPFLAGS)
 
-# use '-fno-strict-aliasing', but only if the compiler can take it
-CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
-
 #
 # if you want the RAM disk device, define this to be the
 # size in blocks.
@@ -252,6 +249,9 @@ DRIVERS := $(DRIVERS) drivers/net/irda/irda_drivers.a
 endif
 
 include arch/$(ARCH)/Makefile
+
+# use '-fno-strict-aliasing', but only if the compiler can take it
+CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
 
 .S.s:
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -E -o $*.s $<
