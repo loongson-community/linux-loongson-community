@@ -36,6 +36,8 @@
 
 #define TUN_MINOR	     200
 
+#define LCD_MINOR	     140	/* Inofficial Linux/MIPS only alloc */
+
 extern int misc_init(void);
 
 struct miscdevice 

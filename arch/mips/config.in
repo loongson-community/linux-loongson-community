@@ -18,6 +18,7 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for Acer PICA 1 chipset' CONFIG_ACER_PICA_61
    bool 'Support for Algorithmics P4032 (EXPERIMENTAL)' CONFIG_ALGOR_P4032
    bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS
+   bool 'Support for Cobalt Server (EXPERIMENTAL)' CONFIG_MIPS_COBALT
    bool 'Support for DECstations (EXPERIMENTAL)' CONFIG_DECSTATION
    bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
    bool 'Support for Galileo EV64120 Evaluation board' CONFIG_MIPS_EV64120
@@ -219,6 +220,12 @@ if [ "$CONFIG_NEC_OSPREY" = "y" ]; then
    define_bool CONFIG_DUMMY_KEYB y
    define_bool CONFIG_SCSI n
 fi
+if [ "$CONFIG_MIPS_COBALT" = "y" ]; then
+   define_bool CONFIG_COBALT_LCD y
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_NONCOHERENT_IO y
+fi
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_IT8712 y
@@ -371,7 +378,8 @@ mainmenu_option next_comment
 comment 'General setup'
 if [ "$CONFIG_DECSTATION" = "y" -o \
      "$CONFIG_DDB5074" = "y" -o    \
-     "$CONFIG_NINO" = "y" ]; then
+     "$CONFIG_NINO" = "y" -o       \
+     "$CONFIG_MIPS_COBALT" = "y" ]; then
    define_bool CONFIG_CPU_LITTLE_ENDIAN y
 else
    bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN

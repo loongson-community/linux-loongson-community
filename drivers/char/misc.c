@@ -76,6 +76,7 @@ extern int ds1286_init(void);
 extern int pmu_device_init(void);
 extern int tosh_init(void);
 extern int i8k_init(void);
+extern int lcd_init(void);
 
 static int misc_read_proc(char *buf, char **start, off_t offset,
 			  int len, int *eof, void *private)
@@ -276,6 +277,9 @@ int __init misc_init(void)
 #endif
 #ifdef CONFIG_TOSHIBA
 	tosh_init();
+#endif
+#ifdef CONFIG_COBALT_LCD
+	lcd_init();
 #endif
 #ifdef CONFIG_I8K
 	i8k_init();

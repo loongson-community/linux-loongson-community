@@ -650,6 +650,7 @@ void __init setup_arch(char **cmdline_p)
 {
 	void atlas_setup(void);
 	void baget_setup(void);
+	void cobalt_setup(void);
 	void ddb_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
@@ -694,6 +695,11 @@ void __init setup_arch(char **cmdline_p)
 	case MACH_GROUP_BAGET: 
 		baget_setup();
 		break;
+#endif
+#ifdef CONFIG_MIPS_COBALT
+        case MACH_GROUP_COBALT:
+                cobalt_setup();
+                break;
 #endif
 #ifdef CONFIG_DECSTATION
 	case MACH_GROUP_DEC:
