@@ -2,8 +2,6 @@
  * loadmmu.c: Setup cpu/cache specific function ptrs at boot time.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: loadmmu.c,v 1.17 2000/03/13 10:33:05 raiko Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -46,6 +44,9 @@ extern void ld_mmu_r4xx0(void);
 #ifdef CONFIG_CPU_R6000
 extern void ld_mmu_r6000(void);
 #endif
+#ifdef CONFIG_CPU_R7000
+extern void ld_mmu_r7000(void);
+#endif
 #ifdef CONFIG_CPU_R8000
 extern void ld_mmu_tfp(void);
 #endif
@@ -85,6 +86,13 @@ void __init loadmmu(void)
 	case CPU_NEVADA:
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
+		break;
+#endif
+
+#if defined(CONFIG_CPU_RM7000)
+	case CPU_RM7000:
+		printk("Loading RM7000 MMU routines.\n");
+		ld_mmu_rm7k();
 		break;
 #endif
 
