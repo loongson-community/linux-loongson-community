@@ -148,6 +148,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		rtc->sec = sec;
 		rtc->control &= ~M48T35_RTC_SET;
 		spin_unlock_irq(&rtc_lock);
+
 		return 0;
 	}
 	default:
@@ -222,7 +223,7 @@ static int __init rtc_init(void)
 		printk(KERN_ERR "rtc: cannot register misc device.\n");
 		return -ENODEV;
 	}
-	if (!create_proc_read_entry ("driver/rtc", 0, NULL, rtc_read_proc, NULL)) {
+	if (!create_proc_read_entry("driver/rtc", 0, NULL, rtc_read_proc, NULL)) {
 		printk(KERN_ERR "rtc: cannot create /proc/rtc.\n");
 		misc_deregister(&rtc_dev);
 		return -ENOENT;
