@@ -171,6 +171,9 @@ long kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 	regs.regs[5] = (unsigned long) fn;
 	regs.cp0_epc = (unsigned long) kernel_thread_helper;
 	regs.cp0_status = read_c0_status();
+#if !(defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX))
+	regs.cp0_status |= ST0_EXL;
+#endif
 
 	/* Ok, create the new process.. */
 	return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0, &regs, 0, NULL, NULL);
