@@ -434,6 +434,7 @@ CONFIG_SERIO=y
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
 # CONFIG_SERIO_PCIPS2 is not set
+# CONFIG_SERIO_MACEPS2 is not set
 
 #
 # Input Device Drivers
@@ -652,6 +653,7 @@ CONFIG_SGI_PARTITION=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
+CONFIG_CMDLINE=""
 # CONFIG_DEBUG_KERNEL is not set
 
 #
