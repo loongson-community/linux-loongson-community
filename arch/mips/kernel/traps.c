@@ -142,7 +142,7 @@ void show_trace(unsigned int *sp)
 	module_start = VMALLOC_START;
 	module_end = module_start + MODULE_RANGE;
 
-	printk("Call Trace:");
+	printk("\nCall Trace:");
 
 	while ((unsigned long) stack & (PAGE_SIZE -1)) {
 		unsigned long addr;
