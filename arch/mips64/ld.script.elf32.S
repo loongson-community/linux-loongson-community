@@ -12,6 +12,7 @@ SECTIONS
     /* .gnu.warning sections are handled specially by elf32.em.  */
     *(.gnu.warning)
   } =0
+  .kstrtab : { *(.kstrtab) }
 
   . = ALIGN(16);		/* Exception table */
   __start___ex_table = .;
