@@ -930,6 +930,12 @@ void __init trap_init(void)
 		 * above
 		 */
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
+#ifdef CONFIG_SB1_CACHE_ERROR
+		/* Special cache error handler for SB1 */
+		extern char except_vec2_sb1;
+		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+#endif
+
 		save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
 
@@ -977,6 +983,7 @@ void __init trap_init(void)
 		save_fp_context = fpu_emulator_save_context;
 		restore_fp_context = fpu_emulator_restore_context;
 	}
+
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
 
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
