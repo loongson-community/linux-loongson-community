@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.16 2000/03/23 00:30:53 ulfc Exp $
+/* $Id: scall_o32.S,v 1.17 2000/03/24 00:07:29 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -111,6 +111,9 @@ o32_reschedule:
 
 trace_a_syscall:
 	SAVE_STATIC
+	sd	a4, PT_R8(sp)
+	sd	a5, PT_R9(sp)
+
 	sd	t2,PT_R1(sp)
 	jal	syscall_trace
 	ld	t2,PT_R1(sp)
@@ -119,6 +122,9 @@ trace_a_syscall:
 	ld	a1, PT_R5(sp)
 	ld	a2, PT_R6(sp)
 	ld	a3, PT_R7(sp)
+	ld	a4, PT_R8(sp)
+	ld	a5, PT_R9(sp)
+
 	jalr	t2
 
 	li	t0, -EMAXERRNO - 1	# error?
@@ -131,7 +137,7 @@ trace_a_syscall:
 1:	sd	v0, PT_R2(sp)		# result
 
 	jal	syscall_trace
-	j	ret_from_sys_call
+	j	o32_ret_from_sys_call
 
 /* ------------------------------------------------------------------------ */
 
