@@ -695,17 +695,18 @@ static int __init sgiseeq_probe(void)
 
 static void __exit sgiseeq_exit(void)
 {
+	struct net_device *next, *dev;
 	struct sgiseeq_private *sp;
-	struct net_device *next, *dev = root_sgiseeq_dev;
+	int irq;
 
-	while (dev) {
+	for (dev = root_sgiseeq_dev; dev; dev = next) {
 		sp = (struct sgiseeq_private *) dev->priv;
 		next = sp->next_module;
-		free_irq(dev->irq, dev);
-		free_page((unsigned long) sp);
+		irq = dev->irq;
 		unregister_netdev(dev);
+		free_irq(irq, dev);
+		free_page((unsigned long) sp);
 		kfree(dev);
-		dev = next;
 	}
 }
 
