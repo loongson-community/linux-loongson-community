@@ -623,7 +623,7 @@ static int startup(struct dec_serial * info)
 	save_flags(flags); cli();
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("starting up ttyS%d (irq %d)...", info->line, info->irq);
+	printk("starting up ttyS%02d (irq %d)...", info->line, info->irq);
 #endif
 
 	/*
@@ -1258,7 +1258,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	}
 	
 #ifdef SERIAL_DEBUG_OPEN
-	printk("rs_close ttys%d, count = %d\n", info->line, info->count);
+	printk("rs_close ttyS%02d, count = %d\n", info->line, info->count);
 #endif
 	if ((tty->count == 1) && (info->count != 1)) {
 		/*
@@ -1273,7 +1273,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 		info->count = 1;
 	}
 	if (--info->count < 0) {
-		printk("rs_close: bad serial port count for ttys%d: %d\n",
+		printk("rs_close: bad serial port count for ttyS%02d: %d\n",
 		       info->line, info->count);
 		info->count = 0;
 	}
@@ -1463,7 +1463,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 	retval = 0;
 	add_wait_queue(&info->open_wait, &wait);
 #ifdef SERIAL_DEBUG_OPEN
-	printk("block_til_ready before block: ttys%d, count = %d\n",
+	printk("block_til_ready before block: ttyS%02d, count = %d\n",
 	       info->line, info->count);
 #endif
 	cli();
@@ -1499,7 +1499,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 			break;
 		}
 #ifdef SERIAL_DEBUG_OPEN
-		printk("block_til_ready blocking: ttys%d, count = %d\n",
+		printk("block_til_ready blocking: ttyS%02d, count = %d\n",
 		       info->line, info->count);
 #endif
 		schedule();
@@ -1510,7 +1510,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		info->count++;
 	info->blocked_open--;
 #ifdef SERIAL_DEBUG_OPEN
-	printk("block_til_ready after blocking: ttys%d, count = %d\n",
+	printk("block_til_ready after blocking: ttyS%02d, count = %d\n",
 	       info->line, info->count);
 #endif
 	if (retval)
@@ -1600,7 +1600,7 @@ int rs_open(struct tty_struct *tty, struct file * filp)
 	info->pgrp = current->pgrp;
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("rs_open ttys%d successful...", info->line);
+	printk("rs_open ttyS%02d successful...", info->line);
 #endif
 /* tty->low_latency = 1; */
 	return 0;
@@ -1817,7 +1817,7 @@ int __init zs_init(void)
 		info->normal_termios = serial_driver.init_termios;
 		init_waitqueue_head(&info->open_wait);
 		init_waitqueue_head(&info->close_wait);
-		printk("tty%02d at 0x%08x (irq = %d)", info->line, 
+		printk("ttyS%02d at 0x%08x (irq = %d)", info->line, 
 		       info->port, info->irq);
 		printk(" is a Z85C30 SCC\n");
 	}

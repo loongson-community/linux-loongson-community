@@ -1047,7 +1047,7 @@ static void dz_close (struct tty_struct *tty, struct file *filp)
   }
 
   if (--info->count < 0) {
-    printk("ds_close: bad serial port count for ttys%d: %d\n",
+    printk("ds_close: bad serial port count for ttyS%02d: %d\n",
 	   info->line, info->count);
     info->count = 0;
   }
@@ -1379,7 +1379,7 @@ int __init dz_init(void)
     if (! info->port)
       return 0;
 
-    printk("ttyS%02d at 0x%04x (irq = %d)\n", info->line, info->port, SERIAL);
+    printk("ttyS%02d at 0x%08x (irq = %d)\n", info->line, info->port, SERIAL);
   }
 
   /* reset the chip */
