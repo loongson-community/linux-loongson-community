@@ -415,7 +415,7 @@ static int probing = 0;
 
 static volatile int command_status = FD_COMMAND_NONE, fdc_busy = 0;
 static struct wait_queue *fdc_wait = NULL, *command_done = NULL;
-#define NO_SIGNAL (!(current->signal & ~current->blocked) || !interruptible)
+#define NO_SIGNAL (!interruptible || !signal_pending(current))
 #define CALL(x) if ((x) == -EINTR) return -EINTR
 #define ECALL(x) if ((ret = (x))) return ret;
 #define _WAIT(x,i) CALL(ret=wait_til_done((x),i))
@@ -3274,7 +3274,7 @@ static int fd_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 			return 0;
                 case BLKRAGET:
 			return put_user(read_ahead[MAJOR(inode->i_rdev)],
-					(int *) param);
+					(long *) param);
 		case BLKFLSBUF:
 			if(!suser()) return -EACCES;
 			fsync_dev(inode->i_rdev);
@@ -3283,7 +3283,7 @@ static int fd_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 
 		case BLKGETSIZE:
 			ECALL(get_floppy_geometry(drive, type, &g));
-			return put_user(g->size, (int *) param);
+			return put_user(g->size, (long *) param);
 		/* BLKRRPART is not defined as floppies don't have
 		 * partition tables */
 	}
@@ -3463,20 +3463,22 @@ static void config_types(void)
 		printk("\n");
 }
 
-static long floppy_read(struct inode * inode, struct file * filp,
-		       char * buf, unsigned long count)
+static ssize_t floppy_read(struct file * filp, char *buf,
+			   size_t count, loff_t *ppos)
 {
+	struct inode *inode = filp->f_dentry->d_inode;
 	int drive = DRIVE(inode->i_rdev);
 
 	check_disk_change(inode->i_rdev);
 	if (UTESTF(FD_DISK_CHANGED))
 		return -ENXIO;
-	return block_read(inode, filp, buf, count);
+	return block_read(filp, buf, count, ppos);
 }
 
-static long floppy_write(struct inode * inode, struct file * filp,
-			const char * buf, unsigned long count)
+static ssize_t floppy_write(struct file * filp, const char * buf,
+			    size_t count, loff_t *ppos)
 {
+	struct inode * inode = filp->f_dentry->d_inode;
 	int block;
 	int ret;
 	int drive = DRIVE(inode->i_rdev);
@@ -3488,9 +3490,9 @@ static long floppy_write(struct inode * inode, struct file * filp,
 		return -ENXIO;
 	if (!UTESTF(FD_DISK_WRITABLE))
 		return -EROFS;
-	block = (filp->f_pos + count) >> 9;
+	block = (*ppos + count) >> 9;
 	INFBOUND(UDRS->maxblock, block);
-	ret= block_write(inode, filp, buf, count);
+	ret= block_write(filp, buf, count, ppos);
 	return ret;
 }
 
@@ -3500,9 +3502,13 @@ static int floppy_release(struct inode * inode, struct file * filp)
 
 	drive = DRIVE(inode->i_rdev);
 
-	if (!filp || (filp->f_mode & (2 | OPEN_WRITE_BIT)))
-		/* if the file is mounted OR (writable now AND writable at
-		 * open time) Linus: Does this cover all cases? */
+	/*
+	 * If filp is NULL, we're being called from blkdev_release
+	 * or after a failed mount attempt.  In the former case the
+	 * device has already been sync'ed, and in the latter no
+	 * sync is required.  Otherwise, sync if filp is writable.
+	 */
+	if (filp && (filp->f_mode & (2 | OPEN_WRITE_BIT)))
 		block_fsync(filp, filp->f_dentry);
 
 	if (UDRS->fd_ref < 0)
@@ -4010,11 +4016,6 @@ __initfunc(int floppy_init(void))
 			continue;
 		}
 
-		request_region(FDCS->address, 6, "floppy");
-		request_region(FDCS->address+7, 1, "floppy DIR");
-		/* address + 6 is reserved, and may be taken by IDE.
-		 * Unfortunately, Adaptec doesn't know this :-(, */
-
 		have_no_fdc = 0;
 		/* Not all FDCs seem to be able to handle the version command
 		 * properly, so force a reset for the standard FDC clones,
@@ -4036,7 +4037,6 @@ __initfunc(int floppy_init(void))
 
 static int floppy_grab_irq_and_dma(void)
 {
-	int i;
 	unsigned long flags;
 
 	INT_OFF;
@@ -4046,16 +4046,6 @@ static int floppy_grab_irq_and_dma(void)
 	}
 	INT_ON;
 	MOD_INC_USE_COUNT;
-	for (i=0; i< N_FDC; i++){
-		if (fdc_state[i].address != -1){
-			fdc = i;
-			reset_fdc_info(1);
-			fd_outb(FDCS->dor, FD_DOR);
-		}
-	}
-	fdc = 0;
-	set_dor(0, ~0, 8);  /* avoid immediate interrupt */
-
 	if (fd_request_irq(FLOPPY_IRQ)) {
 		DPRINT("Unable to grab IRQ%d for the floppy driver\n",
 			FLOPPY_IRQ);
@@ -4071,6 +4061,37 @@ static int floppy_grab_irq_and_dma(void)
 		usage_count--;
 		return -1;
 	}
+	for (fdc=0; fdc< N_FDC; fdc++){
+		if (FDCS->address != -1){
+			if (check_region(FDCS->address, 6) < 0 ||
+			    check_region(FDCS->address+7, 1) < 0) {
+				DPRINT("Floppy io-port 0x%04x in use\n",
+				       (unsigned int) FDCS->address);
+				fd_free_irq(FLOPPY_IRQ);
+				fd_free_dma(FLOPPY_DMA);
+				while(--fdc >= 0) {
+					release_region(FDCS->address, 6);
+					release_region(FDCS->address+7, 1);
+				}
+				MOD_DEC_USE_COUNT;
+				usage_count--;
+				return -1;
+			}
+			request_region(FDCS->address, 6, "floppy");
+			request_region(FDCS->address+7, 1, "floppy DIR");
+			/* address + 6 is reserved, and may be taken by IDE.
+			 * Unfortunately, Adaptec doesn't know this :-(, */
+		}
+	}
+	for (fdc=0; fdc< N_FDC; fdc++){
+		if (FDCS->address != -1){
+			reset_fdc_info(1);
+			fd_outb(FDCS->dor, FD_DOR);
+		}
+	}
+	fdc = 0;
+	set_dor(0, ~0, 8);  /* avoid immediate interrupt */
+
 	for (fdc = 0; fdc < N_FDC; fdc++)
 		if (FDCS->address != -1)
 			fd_outb(FDCS->dor, FD_DOR);
@@ -4081,6 +4102,7 @@ static int floppy_grab_irq_and_dma(void)
 
 static void floppy_release_irq_and_dma(void)
 {
+	int old_fdc;
 #ifdef FLOPPY_SANITY_CHECK
 #ifndef __sparc__
 	int drive;
@@ -4130,6 +4152,13 @@ static void floppy_release_irq_and_dma(void)
 	if (floppy_tq.sync)
 		printk("task queue still active\n");
 #endif
+	old_fdc = fdc;
+	for (fdc = 0; fdc < N_FDC; fdc++)
+		if (FDCS->address != -1) {
+			release_region(FDCS->address, 6);
+			release_region(FDCS->address+7, 1);
+		}
+	fdc = old_fdc;
 	MOD_DEC_USE_COUNT;
 }
 
@@ -4217,12 +4246,6 @@ int init_module(void)
 void cleanup_module(void)
 {
 	int fdc, dummy;
-		
-	for (fdc=0; fdc<2; fdc++)
-		if (FDCS->address != -1){
-			release_region(FDCS->address, 6);
-			release_region(FDCS->address+7, 1);
-	}
 		
 	unregister_blkdev(MAJOR_NR, "fd");
 

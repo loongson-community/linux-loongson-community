@@ -142,7 +142,7 @@ __initfunc(static void check_popad(void))
 	  : "edx" (inp)
 	  : "eax", "ecx", "edx", "edi" );
 	/* If this fails, it means that any user program may lock CPU hard. Too bad. */
-	if (res != 12345678) printk( "Bad.\n" );
+	if (res != 12345678) printk( "Buggy.\n" );
 		        else printk( "Ok.\n" );
 #endif
 }
@@ -166,6 +166,28 @@ __initfunc(static void check_amd_k6(void))
 	}
 }
 
+/*
+ * All current models of Pentium and Pentium with MMX technology CPUs
+ * have the F0 0F bug, which lets nonpriviledged users lock up the system:
+ */
+
+extern int pentium_f00f_bug;
+extern void trap_init_f00f_bug(void);
+
+
+__initfunc(static void check_pentium_f00f(void))
+{
+	/*
+	 * Pentium and Pentium MMX
+	 */
+	pentium_f00f_bug = 0;
+	if (x86==5 && !memcmp(x86_vendor_id, "GenuineIntel", 12)) {
+		printk(KERN_INFO "Intel Pentium with F0 0F bug - workaround enabled.\n");
+		pentium_f00f_bug = 1;
+		trap_init_f00f_bug();
+	}
+}
+
 __initfunc(static void check_bugs(void))
 {
 	check_tlb();
@@ -173,5 +195,6 @@ __initfunc(static void check_bugs(void))
 	check_hlt();
 	check_popad();
 	check_amd_k6();
+	check_pentium_f00f();
 	system_utsname.machine[1] = '0' + x86;
 }

@@ -198,6 +198,22 @@
 #include "mac53c94.h"
 #endif
 
+#ifdef CONFIG_SCSI_GDTH
+#include "gdth.h"
+#endif
+
+#ifdef CONFIG_SCSI_PCI2000
+#include "pci2000.h"
+#endif
+
+#ifdef CONFIG_SCSI_PCI2220I
+#include "pci2220i.h"
+#endif
+
+#ifdef CONFIG_SCSI_PSI240I
+#include "psi240i.h"
+#endif
+
 #ifdef CONFIG_SCSI_DEBUG
 #include "scsi_debug.h"
 #endif
@@ -260,6 +276,17 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_ADVANSYS
 	ADVANSYS,
 #endif
+
+#ifdef CONFIG_SCSI_PCI2000
+        PCI2000,
+#endif
+#ifdef CONFIG_SCSI_PCI2220I
+        PCI2220I,
+#endif
+#ifdef CONFIG_SCSI_PSI240I
+        PSI240I,
+#endif
+
 /* BusLogic must come before aha1542.c */
 #ifdef CONFIG_SCSI_BUSLOGIC
     BUSLOGIC,
@@ -344,6 +371,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_SUNESP
     SCSI_SPARC_ESP,
+#endif
+#ifdef CONFIG_SCSI_GDTH
+    GDTH,
 #endif
 #ifdef CONFIG_SCSI_QLOGICPTI
     QLOGICPTI,

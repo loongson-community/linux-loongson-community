@@ -34,6 +34,7 @@
 #include <linux/lockd/bind.h>
 #include <linux/lockd/xdr.h>
 #include <linux/init.h>
+#include <linux/nls.h>
 
 extern void device_setup(void);
 extern void binfmt_setup(void);
@@ -119,6 +120,10 @@ __initfunc(static void do_sys_setup(void))
 
 #ifdef CONFIG_EFS_FS
 	init_efs_fs();
+#endif
+
+#ifdef CONFIG_NLS
+	init_nls();
 #endif
 
 	mount_root();

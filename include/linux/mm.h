@@ -241,7 +241,7 @@ extern mem_map_t * mem_map;
  */
 #define __get_free_page(priority) __get_free_pages((priority),0,0)
 #define __get_dma_pages(priority, order) __get_free_pages((priority),(order),1)
-extern unsigned long __get_free_pages(int priority, unsigned long gfporder, int dma);
+extern unsigned long FASTCALL(__get_free_pages(int priority, unsigned long gfporder, int dma));
 
 extern inline unsigned long get_free_page(int priority)
 {
@@ -256,8 +256,8 @@ extern inline unsigned long get_free_page(int priority)
 /* memory.c & swap.c*/
 
 #define free_page(addr) free_pages((addr),0)
-extern void free_pages(unsigned long addr, unsigned long order);
-extern void __free_page(struct page *);
+extern void FASTCALL(free_pages(unsigned long addr, unsigned long order));
+extern void FASTCALL(__free_page(struct page *));
 
 extern void show_free_areas(void);
 extern unsigned long put_dirty_page(struct task_struct * tsk,unsigned long page,
@@ -296,6 +296,8 @@ extern unsigned long get_unmapped_area(unsigned long, unsigned long);
 extern unsigned long page_unuse(unsigned long);
 extern int shrink_mmap(int, int);
 extern void truncate_inode_pages(struct inode *, unsigned long);
+extern unsigned long get_cached_page(struct inode *, unsigned long, int);
+extern void put_cached_page(unsigned long);
 
 #define GFP_BUFFER	0x00
 #define GFP_ATOMIC	0x01

@@ -285,6 +285,9 @@
 #define __NR_pciconfig_read		345
 #define __NR_pciconfig_write		346
 #define __NR_query_module		347
+#define __NR_prctl			348
+#define __NR_pread			349
+#define __NR_pwrite			350
 
 #if defined(__LIBRARY__) && defined(__GNUC__)
 

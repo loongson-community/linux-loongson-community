@@ -4,8 +4,9 @@
  * use the linked lists for the inventory yet. 
  *
  * Miguel de Icaza, 1997.
+ *
+ * $Id$
  */
-#include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>

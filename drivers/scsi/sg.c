@@ -106,7 +106,7 @@ static int sg_open(struct inode * inode, struct file * filp)
 	    if (flags & O_NONBLOCK)
 		return -EBUSY;
 	    interruptible_sleep_on(&scsi_generics[dev].generic_wait);
-	    if (current->signal & ~current->blocked)
+	    if (signal_pending(current))
 		return -ERESTARTSYS;
 	}
 	scsi_generics[dev].exclude=1;
@@ -121,7 +121,7 @@ static int sg_open(struct inode * inode, struct file * filp)
 	    if (flags & O_NONBLOCK)
 		return -EBUSY;
 	    interruptible_sleep_on(&scsi_generics[dev].generic_wait);
-	    if (current->signal & ~current->blocked)
+	    if (signal_pending(current))
 		return -ERESTARTSYS;
 	}
 
@@ -172,7 +172,7 @@ static char *sg_malloc(int size)
 	while(big_inuse)
 	{
 	    interruptible_sleep_on(&big_wait);
-	    if (current->signal & ~current->blocked)
+	    if (signal_pending(current))
 		return NULL;
 	}
 	big_inuse=1;
@@ -200,12 +200,19 @@ static void sg_free(char *buff,int size)
  * complete semaphores to tell us whether the buffer is available for us
  * and whether the command is actually done.
  */
-static long sg_read(struct inode *inode,struct file *filp,char *buf,unsigned long count)
+static ssize_t sg_read(struct file *filp, char *buf,
+                       size_t count, loff_t *ppos)
 {
+    struct inode *inode = filp->f_dentry->d_inode;
     int dev=MINOR(inode->i_rdev);
     int i;
     unsigned long flags;
     struct scsi_generic *device=&scsi_generics[dev];
+
+    if (ppos != &filp->f_pos) {
+      /* FIXME: Hmm.  Seek to the right place, or fail?  */
+    }
+
     if ((i=verify_area(VERIFY_WRITE,buf,count)))
 	return i;
 
@@ -222,7 +229,7 @@ static long sg_read(struct inode *inode,struct file *filp,char *buf,unsigned lon
 	    return -EAGAIN;
 	}
 	interruptible_sleep_on(&device->read_wait);
-	if (current->signal & ~current->blocked)
+	if (signal_pending(current))
 	{
 	    restore_flags(flags);
 	    return -ERESTARTSYS;
@@ -322,8 +329,10 @@ static void sg_command_done(Scsi_Cmnd * SCpnt)
     wake_up(&scsi_generics[dev].read_wait);
 }
 
-static long sg_write(struct inode *inode,struct file *filp,const char *buf,unsigned long count)
+static ssize_t sg_write(struct file *filp, const char *buf, 
+                        size_t count, loff_t *ppos)
 {
+    struct inode         *inode = filp->f_dentry->d_inode;
     int			  bsize,size,amt,i;
     unsigned char	  cmnd[MAX_COMMAND_SIZE];
     kdev_t		  devt = inode->i_rdev;
@@ -332,6 +341,10 @@ static long sg_write(struct inode *inode,struct file *filp,const char *buf,unsig
     int			  input_size;
     unsigned char	  opcode;
     Scsi_Cmnd		* SCpnt;
+
+    if (ppos != &filp->f_pos) {
+      /* FIXME: Hmm.  Seek to the right place, or fail?  */
+    }
 
     if ((i=verify_area(VERIFY_READ,buf,count)))
 	return i;
@@ -355,7 +368,7 @@ static long sg_write(struct inode *inode,struct file *filp,const char *buf,unsig
 	printk("sg_write: sleeping on pending request\n");
 #endif
 	interruptible_sleep_on(&device->write_wait);
-	if (current->signal & ~current->blocked)
+	if (signal_pending(current))
 	    return -ERESTARTSYS;
     }
 

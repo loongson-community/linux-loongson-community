@@ -74,6 +74,10 @@ bad_area:
 	return 0;
 }
 
+asmlinkage void do_invalid_op (struct pt_regs *, unsigned long);
+
+extern int pentium_f00f_bug;
+
 /*
  * This routine handles page faults.  It determines the address,
  * and the problem, and then passes it off to one of the appropriate
@@ -86,18 +90,21 @@ bad_area:
  */
 asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
 {
-	struct task_struct *tsk = current;
-	struct mm_struct *mm = tsk->mm;
+	struct task_struct *tsk;
+	struct mm_struct *mm;
 	struct vm_area_struct * vma;
 	unsigned long address;
 	unsigned long page;
 	unsigned long fixup;
 	int write;
 
-	lock_kernel();
-
 	/* get the address */
 	__asm__("movl %%cr2,%0":"=r" (address));
+
+	lock_kernel();
+	tsk = current;
+	mm = tsk->mm;
+
 	down(&mm->mmap_sem);
 	vma = find_vma(mm, address);
 	if (!vma)
@@ -170,11 +177,27 @@ bad_area:
 		goto out;
 	}
 
+	/*
+	 * Pentium F0 0F C7 C8 bug workaround.
+	 */
+	if (pentium_f00f_bug) {
+		unsigned long nr;
+		
+		nr = (address - (unsigned long) idt) >> 3;
+
+		if (nr == 6) {
+			unlock_kernel();
+			do_invalid_op(regs, 0);
+			return;
+		}
+	}
+
 	/* Are we prepared to handle this kernel fault?  */
 	if ((fixup = search_exception_table(regs->eip)) != 0) {
-		printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
+		printk(KERN_DEBUG "%s: Exception at [<%lx>] cr2=%lx (fixup: %lx)\n",
 			tsk->comm,
 			regs->eip,
+			address,
 			fixup);
 		regs->eip = fixup;
 		goto out;
@@ -192,6 +215,7 @@ bad_area:
 		flush_tlb();
 		goto out;
 	}
+
 	if (address < PAGE_SIZE)
 		printk(KERN_ALERT "Unable to handle kernel NULL pointer dereference");
 	else

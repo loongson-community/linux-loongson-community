@@ -1,4 +1,4 @@
-/*	$Id: com20020.c,v 1.2 1997/09/05 08:57:50 mj Exp $
+/*	$Id: com20020.c,v 1.6 1997/11/09 11:04:58 mj Exp $
 
         Written 1997 by David Woodhouse <dwmw2@cam.ac.uk>
 
@@ -215,7 +215,7 @@ void put_whole_buffer (struct device *dev, unsigned offset, unsigned length, cha
 
 
 static const char *version =
- "com20020.c: v2.92 97/09/02 Avery Pennarun <apenwarr@bond.net> et al.\n";
+ "com20020.c: v3.00 97/11/09 Avery Pennarun <apenwarr@bond.net> et al.\n";
 
 /****************************************************************************
  *                                                                          *
@@ -336,12 +336,11 @@ __initfunc(int arc20020_found(struct device *dev,int ioaddr,int airq))
   struct arcnet_local *lp;
   
   /* reserve the irq */
-  if (request_irq(airq,&arcnet_interrupt,0,"arcnet (COM20020)",NULL))
+  if (request_irq(airq,&arcnet_interrupt,0,"arcnet (COM20020)",dev))
     {
       BUGMSG(D_NORMAL,"Can't get IRQ %d!\n",airq);
       return -ENODEV;
     }
-  irq2dev_map[airq]=dev;
   dev->irq=airq;
   
   /* reserve the I/O region - guaranteed to work by check_region */
@@ -355,8 +354,7 @@ __initfunc(int arc20020_found(struct device *dev,int ioaddr,int airq))
   dev->priv = kmalloc(sizeof(struct arcnet_local), GFP_KERNEL);
   if (dev->priv == NULL)
     {
-      irq2dev_map[airq] = NULL;
-      free_irq(airq,NULL);
+      free_irq(airq,dev);
       release_region(ioaddr,ARCNET_TOTAL_SIZE);
       return -ENOMEM;
     }
@@ -924,7 +922,8 @@ arc20020_prepare_tx(struct device *dev,u_char *hdr,int hdrlen,
        * frame.
        */
 
-      put_whole_buffer(dev, lp->txbuf*512+offset,4,"\0\0xff\0xff\0xff");
+      put_buffer_byte(dev, lp->txbuf*512+offset,hdr[0]);
+      put_whole_buffer(dev, lp->txbuf*512+offset+1,3,"\377\377\377");
       offset+=4;
     }
   else				/* "other" Exception packet */
@@ -1026,8 +1025,7 @@ void cleanup_module(void)
 
   if (dev->irq)
     {
-      irq2dev_map[dev->irq] = NULL;
-      free_irq(dev->irq,NULL);
+      free_irq(dev->irq,dev);
     }
 
   if (dev->base_addr) release_region(dev->base_addr,ARCNET_TOTAL_SIZE);

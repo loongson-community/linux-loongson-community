@@ -191,6 +191,7 @@ struct task_struct {
 	struct task_struct *next_task, *prev_task;
 	struct task_struct *next_run,  *prev_run;
 	int exit_code, exit_signal;
+	int pdeath_signal;  /*  The signal sent when the parent dies  */
 	/* ??? */
 	unsigned long personality;
 	int dumpable:1;
@@ -312,7 +313,7 @@ struct task_struct {
 /* exec domain */&default_exec_domain, \
 /* binfmt */	NULL, \
 /* schedlink */	&init_task,&init_task, &init_task, &init_task, \
-/* ec,brk... */	0,0,0,0,0, \
+/* ec,brk... */	0,0,0,0,0,0, \
 /* pid etc.. */	0,0,0,0,0, \
 /* suppl grps*/ 0, {0,}, \
 /* proc links*/ &init_task,&init_task,NULL,NULL,NULL, \
@@ -438,17 +439,22 @@ extern int securelevel;	/* system security level */
 
 #define CURRENT_TIME (xtime.tv_sec)
 
-extern void sleep_on(struct wait_queue ** p);
-extern void interruptible_sleep_on(struct wait_queue ** p);
-extern void wake_up(struct wait_queue ** p);
-extern void wake_up_interruptible(struct wait_queue ** p);
-extern void wake_up_process(struct task_struct * tsk);
+extern void FASTCALL(sleep_on(struct wait_queue ** p));
+extern void FASTCALL(interruptible_sleep_on(struct wait_queue ** p));
+extern void FASTCALL(wake_up(struct wait_queue ** p));
+extern void FASTCALL(wake_up_interruptible(struct wait_queue ** p));
+extern void FASTCALL(wake_up_process(struct task_struct * tsk));
 
 extern void notify_parent(struct task_struct * tsk, int signal);
 extern void release(struct task_struct * p);
 extern void force_sig(unsigned long sig,struct task_struct * p);
 extern int send_sig(unsigned long sig,struct task_struct * p,int priv);
 extern int in_group_p(gid_t grp);
+
+extern inline int signal_pending(struct task_struct *p)
+{
+	return (p->signal &~ p->blocked) != 0;
+}
 
 extern int request_irq(unsigned int irq,
 		       void (*handler)(int, void *, struct pt_regs *),

@@ -267,6 +267,7 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	struct tok_info *ti=0;
 	__u32 cd_chanid;
 	unsigned char *tchanid, ctemp;
+	unsigned long timeout;
 
 #ifndef MODULE
 	dev = init_trdev(dev,0);
@@ -406,10 +407,14 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 				irq=10;
 			if (intr==3)
 				irq=11;
-			/*
-			 *	FIXME: this wait should have a timeout
-			 */
-			while(!readb(ti->mmio + ACA_OFFSET + ACA_RW + RRR_EVEN));
+
+			timeout = jiffies + TR_SPIN_INTERVAL;
+			while(!readb(ti->mmio + ACA_OFFSET + ACA_RW + RRR_EVEN))
+				if (jiffies > timeout) {
+					DPRINTK("Hardware timeout during initialization.\n");
+					kfree_s(ti, sizeof(struct tok_info));
+					return -ENODEV;
+			        }
 			ti->sram=((__u32)readb(ti->mmio + ACA_OFFSET + ACA_RW + RRR_EVEN)<<12);
 			ti->global_int_enable=PIOaddr+ADAPTINTREL;
 			ti->adapter_int_enable=PIOaddr+ADAPTINTREL;
@@ -567,12 +572,11 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	DPRINTK("Using %dK shared RAM\n",ti->mapped_ram_size/2);
 #endif
 
-	if (request_irq (dev->irq = irq, &tok_interrupt,0,"ibmtr", NULL) != 0) {
+	if (request_irq (dev->irq = irq, &tok_interrupt,0,"ibmtr", dev) != 0) {
 		DPRINTK("Could not grab irq %d.  Halting Token Ring driver.\n",irq);
 		kfree_s(ti, sizeof(struct tok_info));
 		return -ENODEV;
 	}
-	irq2dev_map[irq]=dev;
 
  /*?? Now, allocate some of the PIO PORTs for this driver.. */
 	request_region(PIOaddr,IBMTR_IO_EXTENT,"ibmtr");  /* record PIOaddr range
@@ -701,7 +705,7 @@ void tok_interrupt (int irq, void *dev_id, struct pt_regs *regs)
 #if TR_VERBOSE
 	DPRINTK("Int from tok_driver, dev : %p\n",dev);
 #endif
-	dev = (struct device *)(irq2dev_map[irq]);
+	dev = dev_id;
 	ti  = (struct tok_info *) dev->priv;
 
       	/* Disable interrupts till processing is finished */
@@ -1477,12 +1481,6 @@ static int tok_send_packet(struct sk_buff *skb, struct device *dev)
 		return 1;
 	}
 
-	/* Donald does this, so we do too. */
-	if (skb==NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
 	if (test_and_set_bit(0,(void *)&dev->tbusy)!=0)
 		DPRINTK("Transmitter access conflict\n");
 	else {
@@ -1578,8 +1576,7 @@ void cleanup_module(void)
         for (i = 0; i < IBMTR_MAX_ADAPTERS; i++)
 	        if (dev_ibmtr[i]) {
 			 unregister_trdev(dev_ibmtr[i]);
-			 free_irq(dev_ibmtr[i]->irq, NULL);
-			 irq2dev_map[dev_ibmtr[i]->irq] = NULL;
+			 free_irq(dev_ibmtr[i]->irq, dev_ibmtr[i]);
 			 release_region(dev_ibmtr[i]->base_addr, IBMTR_IO_EXTENT);
 			 kfree_s(dev_ibmtr[i]->priv, sizeof(struct tok_info));
 			 kfree_s(dev_ibmtr[i], sizeof(struct device));

@@ -1,4 +1,4 @@
-/*	$Id: com90xx.c,v 1.3 1997/09/05 18:27:23 mj Exp $
+/*	$Id: com90xx.c,v 1.6 1997/11/09 11:05:01 mj Exp $
 
 	Derived from the original arcnet.c,
 	Written 1994-1996 by Avery Pennarun,
@@ -154,7 +154,7 @@ extern int arcnet_num_devs;
 #define ARCRESET	inb(_RESET)
 
 static const char *version =
- "com90xx.c: v2.92 97/09/02 Avery Pennarun <apenwarr@bond.net> et al.\n";
+ "com90xx.c: v3.00 97/11/09 Avery Pennarun <apenwarr@bond.net> et al.\n";
 
 
 /****************************************************************************
@@ -542,12 +542,11 @@ __initfunc(static int arc90xx_found(struct device *dev,int ioaddr,int airq, u_lo
   int mirror_size;
 
   /* reserve the irq */
-  if (request_irq(airq,&arcnet_interrupt,0,"arcnet (90xx)",NULL))
+  if (request_irq(airq,&arcnet_interrupt,0,"arcnet (90xx)",dev))
     {
       BUGMSG(D_NORMAL,"Can't get IRQ %d!\n",airq);
       return -ENODEV;
     }
-  irq2dev_map[airq]=dev;
   dev->irq=airq;
 
   /* reserve the I/O region - guaranteed to work by check_region */
@@ -585,8 +584,7 @@ __initfunc(static int arc90xx_found(struct device *dev,int ioaddr,int airq, u_lo
   dev->priv = kmalloc(sizeof(struct arcnet_local), GFP_KERNEL);
   if (dev->priv == NULL)
     {
-      irq2dev_map[airq] = NULL;
-      free_irq(airq,NULL);
+      free_irq(airq,dev);
       release_region(ioaddr,ARCNET_TOTAL_SIZE);
       return -ENOMEM;
     }
@@ -1203,8 +1201,7 @@ void cleanup_module(void)
 
   if (dev->irq)
     {
-      irq2dev_map[dev->irq] = NULL;
-      free_irq(dev->irq,NULL);
+      free_irq(dev->irq,dev);
     }
 
   if (dev->base_addr) release_region(dev->base_addr,ARCNET_TOTAL_SIZE);

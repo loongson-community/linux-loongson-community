@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 56
+SUBLEVEL = 67
 
 ARCH = mips
 
@@ -313,6 +313,7 @@ modules_install:
 	if [ -f IPV6_MODULES  ]; then inst_mod IPV6_MODULES  ipv6;  fi; \
 	if [ -f SCSI_MODULES  ]; then inst_mod SCSI_MODULES  scsi;  fi; \
 	if [ -f FS_MODULES    ]; then inst_mod FS_MODULES    fs;    fi; \
+	if [ -f NLS_MODULES   ]; then inst_mod NLS_MODULES   fs;    fi; \
 	if [ -f CDROM_MODULES ]; then inst_mod CDROM_MODULES cdrom; fi; \
 	\
 	ls *.o > .allmods; \

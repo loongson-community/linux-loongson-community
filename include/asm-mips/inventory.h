@@ -1,5 +1,10 @@
+/*
+ * $Id:$
+ */
 #ifndef __ASM_MIPS_INVENTORY_H
 #define __ASM_MIPS_INVENTORY_H
+
+#include <linux/config.h>
 
 #ifdef CONFIG_BINFMT_IRIX
 typedef struct inventory_s {
@@ -20,7 +25,4 @@ void init_inventory (void);
 #define add_to_inventory(c,t,o,u,s)
 #define init_inventory()
 #endif
-#endif
-
-
-
+#endif /* defined(CONFIG_BINFMT_IRIX) */

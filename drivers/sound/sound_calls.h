@@ -41,6 +41,7 @@ void audio_init_devices (void);
 
 int audio_select(int dev, struct fileinfo *file, int sel_type, poll_table * wait);
 void reorganize_buffers (int dev, struct dma_buffparms *dmap, int recording);
+int dma_ioctl (int dev, unsigned int cmd, caddr_t arg);
 
 /*
  *	System calls for the /dev/sequencer
@@ -83,7 +84,7 @@ void MIDIbuf_init(void);
  */
 
 /*	From soundcard.c	*/
-#ifndef __bsdi__
+#if !defined(__bsdi__) && !defined(__NjetBSD__)
 void tenmicrosec(int *osp);
 #endif
 void request_sound_timer (int count);
@@ -107,7 +108,7 @@ int sound_ioctl_sw (int dev, struct fileinfo *file,
 
 /*	From opl3.c	*/
 int opl3_detect (int ioaddr, int *osp);
-void opl3_init(int ioaddr, int *osp);
+int opl3_init(int ioaddr, int *osp);
 
 /*	From sb_card.c	*/
 void attach_sb_card(struct address_info *hw_config);
@@ -160,7 +161,7 @@ int probe_gus_db16(struct address_info *hw_config);
 /*	From gus_wave.c */
 int gus_wave_detect(int baseaddr);
 void gus_wave_init(struct address_info *hw_config);
-void gus_wave_unload (void);
+void gus_wave_unload (struct address_info *hw_config);
 void gus_voice_irq(void);
 void gus_write8(int reg, unsigned int data);
 void guswave_dma_irq(void);
@@ -169,7 +170,7 @@ int gus_default_mixer_ioctl (int dev, unsigned int cmd, caddr_t arg);
 void gus_timer_command (unsigned int addr, unsigned int val);
 
 /*	From gus_midi.c */
-void gus_midi_init(void);
+void gus_midi_init(struct address_info *hw_config);
 void gus_midi_interrupt(int dummy);
 
 /*	From mpu401.c */
@@ -185,14 +186,14 @@ int probe_uart6850(struct address_info *hw_config);
 void enable_opl3_mode(int left, int right, int both);
 
 /* 	From ics2101.c */
-void ics2101_mixer_init(void);
+int ics2101_mixer_init(void);
 
 /*	From sound_timer.c */
 void sound_timer_interrupt(void);
 void sound_timer_syncinterval(unsigned int new_usecs);
 
 /*	From ad1848.c */
-void ad1848_init (char *name, int io_base, int irq, int dma_playback, int dma_capture, int share_dma, int *osp);
+int ad1848_init (char *name, int io_base, int irq, int dma_playback, int dma_capture, int share_dma, int *osp);
 void ad1848_unload (int io_base, int irq, int dma_playback, int dma_capture, int share_dma);
 
 int ad1848_detect (int io_base, int *flags, int *osp);

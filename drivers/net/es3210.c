@@ -214,7 +214,7 @@ __initfunc(int es_probe1(struct device *dev, int ioaddr))
 		printk(" assigning IRQ %d", dev->irq);
 	}
 
-	if (request_irq(dev->irq, ei_interrupt, 0, "es3210", NULL)) {
+	if (request_irq(dev->irq, ei_interrupt, 0, "es3210", dev)) {
 		printk (" unable to get IRQ %d.\n", dev->irq);
 		return EAGAIN;
 	}
@@ -225,7 +225,7 @@ __initfunc(int es_probe1(struct device *dev, int ioaddr))
 
 		if (mem_enabled != 0x80) {
 			printk(" shared mem disabled - giving up\n");
-			free_irq(dev->irq, NULL);
+			free_irq(dev->irq, dev);
 			return -ENXIO;
 		}
 		dev->mem_start = 0xC0000 + mem_bits*0x4000;
@@ -243,7 +243,7 @@ __initfunc(int es_probe1(struct device *dev, int ioaddr))
 	/* Allocate dev->priv and fill in 8390 specific dev fields. */
 	if (ethdev_init(dev)) {
 		printk (" unable to allocate memory for dev->priv.\n");
-		free_irq(dev->irq, NULL);
+		free_irq(dev->irq, dev);
 		return -ENOMEM;
 	}
 
@@ -432,8 +432,7 @@ cleanup_module(void)
 		if (dev->priv != NULL) {
 			kfree(dev->priv);
 			dev->priv = NULL;
-			free_irq(dev->irq, NULL);
-			irq2dev_map[dev->irq] = NULL;
+			free_irq(dev->irq, dev);
 			release_region(dev->base_addr, ES_IO_EXTENT);
 			unregister_netdev(dev);
 		}

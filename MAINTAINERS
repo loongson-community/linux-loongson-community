@@ -70,6 +70,12 @@ M:	Remy.Card@linux.org
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+DISKQUOTA:
+P:	Marco van Wieringen
+M:	mvw@planets.elm.net
+L:	linux-kernel@vger.rutgers.edu
+S:	Maintained
+
 3C501 NETWORK DRIVER
 P:	Alan Cox
 M:	net-patches@lxorguk.ukuu.org.uk
@@ -85,13 +91,13 @@ W:	http://rsphy1.anu.edu.au/~gpg109/ne2000.html
 
 ETHEREXPRESS-16 NETWORK DRIVER
 P:	Philip Blundell
-M:	pjb27@cam.ac.uk
+M:	Philip.Blundell@pobox.com
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
 3C505 NETWORK DRIVER
 P:	Philip Blundell
-M:	phil@tazenda.demon.co.uk
+M:	Philip.Blundell@pobox.com
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
@@ -167,6 +173,13 @@ M:	jreuter@lykos.oche.de
 L:	linux-hams@vger.rutgers.edu
 S:	Maintained
 
+BAYCOM/HDLCDRV/SOUNDMODEM DRIVERS FOR AX.25
+P:	Thomas Sailer
+M:	sailer@ife.ee.ethz.ch
+L:	linux-hams@vger.rutgers.edu
+W:	http://www.ife.ee.ethz.ch/~sailer/ham/ham.html
+S:	Maintained
+
 BUSLOGIC SCSI DRIVER
 P:	Leonard N. Zubkoff
 M:	Leonard N. Zubkoff <lnz@dandelion.com>
@@ -204,6 +217,13 @@ M:	mike@i-Connect.Net
 L:	linux-eata@i-connect.net, linux-scsi@vger.rutgers.edu
 S:	Maintained
 
+GDT SCSI DISK ARRAY CONTROLLER DRIVER
+P:	Achim Leubner
+M:	achim@vortex.de
+L:	linux-scsi@vger.rutgers.edu
+W:	http://www.icp-vortex.com/
+S:	Supported
+
 FILE LOCKING (flock() and fcntl()/lockf())
 P:	Andy Walker
 M:	andy@lysaker.kvaerner.no
@@ -232,6 +252,7 @@ FTAPE/QIC-117:
 P:	Claus-Justus Heine
 M:	claus@momo.math.rwth-aachen.de
 L:	linux-tape@vger.rutgers.edu
+W:	http://www-math.math.rwth-aachen.de/~LBFM/claus/ftape/
 S:	Maintained
 
 IPX NETWORK LAYER
@@ -262,7 +283,7 @@ M68K:
 P:	Jes Sorensen
 M:	Jes.Sorensen@cern.ch
 W:	http://www.clark.net/pub/lawrencc/linux/index.html
-L:	linux-m68k@phil.uni-sb.de
+L:	linux-m68k@lists.linux-m68k.org
 S:	Maintained
 
 MODULE SUPPORT [GENERAL], KERNELD
@@ -368,9 +389,9 @@ S:	Maintained
 
 VFAT FILESYSTEM:
 P:	Gordon Chaffee
-M:	chaffee@plateau.cs.berkeley.edu
+M:	chaffee@cs.berkeley.edu
 L:	linux-kernel@vger.rutgers.edu
-W:	http://www-plateau.cs.berkeley.edu/people/chaffee
+W:	http://bmrc.berkeley.edu/people/chaffee
 S:	Maintained
 
 DIGI INTL. EPCA DRIVER:
@@ -458,6 +479,14 @@ W:	http://www.cyberelk.demon.co.uk/parport.html
 W:	http://www.cage.curtin.edu.au/~campbell/parbus/
 S:	Maintained
 
+PNP SUPPORT
+P:	Tom Lees
+M:	tom@lpsg.demon.co.uk
+L:	pnp-list@lpsg.demon.co.uk
+L:	pnp-list@redhat.com (maybe)
+W:	http://www.lpsg.demon.co.uk/pnp-linux.html
+S:	Maintained
+
 LINUX FOR POWERPC (PREP)
 P:	Cort Dougan
 M:	cort@cs.nmt.edu
@@ -491,6 +520,16 @@ DEVICE NUMBER REGISTRY
 P:	H. Peter Anvin
 M:	hpa@zytor.com
 L:	linux-kernel@vger.rutgers.edu
+S:	Maintained
+
+JOYSTICK DRIVER
+P:	Vojtech Pavlik
+M:	vojtech@atrey.karlin.mff.cuni.cz
+S:	Maintained
+
+NETWORK BLOCK DEVICE
+P:	Pavel Machek
+M:	pavel@atrey.karlin.mff.cuni.cz
 S:	Maintained
 
 REST:

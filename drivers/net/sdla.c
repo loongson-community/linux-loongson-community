@@ -872,7 +872,7 @@ static void sdla_isr(int irq, void *dev_id, struct pt_regs * regs)
 	struct frad_local *flp;
 	char              byte;
 
-	dev = irq2dev_map[irq];
+	dev = dev_id;
 
 	if (dev == NULL)
 	{
@@ -1293,7 +1293,6 @@ NOTE:  This is rather a useless action right now, as the
 			{
 				case ARPHRD_FRAD:
 					dev->type = ifr->ifr_flags;
-					dev->family = AF_UNSPEC;
 					break;
 				default:
 					return(-ENOPROTOOPT);
@@ -1475,10 +1474,8 @@ int sdla_set_config(struct device *dev, struct ifmap *map)
 	}
 	dev->irq = map->irq;
 
-	if (request_irq(dev->irq, &sdla_isr, 0, dev->name, NULL)) 
+	if (request_irq(dev->irq, &sdla_isr, 0, dev->name, dev)) 
 		return(-EAGAIN);
-
-	irq2dev_map[dev->irq] = dev;
 
 	if (flp->type == SDLA_S507)
 	{
@@ -1645,12 +1642,6 @@ __initfunc(int sdla_init(struct device *dev))
 	dev->change_mtu		= sdla_change_mtu;
 
 	dev->type		= 0xFFFF;
-	dev->family		= AF_UNSPEC;
-	dev->pa_alen		= 0;
-	dev->pa_addr		= 0;
-	dev->pa_dstaddr 	= 0;
-	dev->pa_brdaddr		= 0;
-	dev->pa_mask		= 0;
 	dev->hard_header_len = 0;
 	dev->addr_len		= 0;
 	dev->mtu		= SDLA_MAX_MTU;
@@ -1696,6 +1687,6 @@ void cleanup_module(void)
 	if (sdla0.priv)
 		kfree(sdla0.priv);
 	if (sdla0.irq)
-		free_irq(sdla0.irq, NULL);
+		free_irq(sdla0.irq, &sdla0);
 }
 #endif /* MODULE */

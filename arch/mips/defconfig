@@ -161,10 +161,12 @@ CONFIG_PCNET32=y
 # CONFIG_QUOTA is not set
 # CONFIG_MINIX_FS is not set
 CONFIG_EXT2_FS=y
-# CONFIG_FAT_FS is not set
-# CONFIG_MSDOS_FS is not set
-# CONFIG_VFAT_FS is not set
+CONFIG_ISO9660_FS=y
+# CONFIG_JOLIET is not set
+CONFIG_FAT_FS=y
+CONFIG_MSDOS_FS=y
 # CONFIG_UMSDOS_FS is not set
+CONFIG_VFAT_FS=y
 CONFIG_PROC_FS=y
 CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
@@ -174,7 +176,6 @@ CONFIG_NFSD=y
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set
-CONFIG_ISO9660_FS=y
 # CONFIG_HPFS_FS is not set
 # CONFIG_SYSV_FS is not set
 # CONFIG_AFFS_FS is not set
@@ -182,6 +183,37 @@ CONFIG_ISO9660_FS=y
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_UFS_FS is not set
 # CONFIG_MAC_PARTITION is not set
+
+#
+# Native Language Support
+#
+CONFIG_NLS=y
+# CONFIG_NLS_CODEPAGE_437 is not set
+# CONFIG_NLS_CODEPAGE_737 is not set
+# CONFIG_NLS_CODEPAGE_775 is not set
+CONFIG_NLS_CODEPAGE_850=y
+# CONFIG_NLS_CODEPAGE_852 is not set
+# CONFIG_NLS_CODEPAGE_855 is not set
+# CONFIG_NLS_CODEPAGE_857 is not set
+# CONFIG_NLS_CODEPAGE_860 is not set
+# CONFIG_NLS_CODEPAGE_861 is not set
+# CONFIG_NLS_CODEPAGE_862 is not set
+# CONFIG_NLS_CODEPAGE_863 is not set
+# CONFIG_NLS_CODEPAGE_864 is not set
+# CONFIG_NLS_CODEPAGE_865 is not set
+# CONFIG_NLS_CODEPAGE_866 is not set
+# CONFIG_NLS_CODEPAGE_869 is not set
+# CONFIG_NLS_CODEPAGE_874 is not set
+CONFIG_NLS_ISO8859_1=y
+# CONFIG_NLS_ISO8859_2 is not set
+# CONFIG_NLS_ISO8859_3 is not set
+# CONFIG_NLS_ISO8859_4 is not set
+# CONFIG_NLS_ISO8859_5 is not set
+# CONFIG_NLS_ISO8859_6 is not set
+# CONFIG_NLS_ISO8859_7 is not set
+# CONFIG_NLS_ISO8859_8 is not set
+# CONFIG_NLS_ISO8859_9 is not set
+# CONFIG_NLS_KOI8_R is not set
 
 #
 # Character devices
@@ -193,12 +225,17 @@ CONFIG_SERIAL=y
 # CONFIG_SERIAL_NONSTANDARD is not set
 # CONFIG_MOUSE is not set
 # CONFIG_QIC02_TAPE is not set
-# CONFIG_FTAPE is not set
 # CONFIG_APM is not set
 # CONFIG_WATCHDOG is not set
 # CONFIG_RTC is not set
 # CONFIG_NVRAM is not set
 # CONFIG_JOYSTICK is not set
+# CONFIG_MISC_RADIO is not set
+
+#
+# Ftape, the floppy tape device driver
+#
+# CONFIG_FTAPE is not set
 
 #
 # Sound

@@ -413,6 +413,39 @@ asmlinkage void math_emulate(long arg)
 
 #endif /* CONFIG_MATH_EMULATION */
 
+__initfunc(void trap_init_f00f_bug(void))
+{
+	unsigned long page;
+	pgd_t * pgd;
+	pmd_t * pmd;
+	pte_t * pte;
+
+	/*
+	 * Allocate a new page in virtual address space, 
+	 * and move the IDT to have entry #7 starting at
+	 * the beginning of the page. We'll force a page
+	 * fault for IDT entries #0-#6..
+	 */
+	page = (unsigned long) vmalloc(PAGE_SIZE);
+	memcpy((void *) page, idt_table, 256*8);
+
+	pgd = pgd_offset(&init_mm, page);
+	pmd = pmd_offset(pgd, page);
+	pte = pte_offset(pmd, page);
+	*pte = pte_wrprotect(*pte);
+	local_flush_tlb();
+
+	/*
+	 * "idt" is magic - it overlaps the idt_descr
+	 * variable so that updating idt will automatically
+	 * update the idt descriptor..
+	 */
+	idt = (struct desc_struct *)page;
+	__asm__ __volatile__("lidt %0": "=m" (idt_descr));
+}
+
+
+
 __initfunc(void trap_init(void))
 {
 	int i;

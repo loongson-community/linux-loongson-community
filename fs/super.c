@@ -17,8 +17,6 @@
  *  Added change_root: Werner Almesberger & Hans Lermen, Feb '96
  */
 
-#include <stdarg.h>
-
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -46,6 +44,14 @@
 #include <linux/nfs_fs.h>
 #include <linux/nfs_fs_sb.h>
 #include <linux/nfs_mount.h>
+
+/*
+ * We use a semaphore to synchronize all mount/umount
+ * activity - imagine the mess if we have a race between
+ * unmounting a filesystem and re-mounting it (or something
+ * else).
+ */
+static struct semaphore mount_sem = MUTEX;
 
 extern void wait_for_keypress(void);
 extern struct file_operations * get_blkfops(unsigned int major);
@@ -244,29 +250,24 @@ static int fs_maxindex(void)
 /*
  * Whee.. Weird sysv syscall. 
  */
-asmlinkage int sys_sysfs(int option, ...)
+asmlinkage int sys_sysfs(int option, unsigned long arg1, unsigned long arg2)
 {
-	va_list args;
 	int retval = -EINVAL;
-	unsigned int index;
 
 	lock_kernel();
-	va_start(args, option);
 	switch (option) {
 		case 1:
-			retval = fs_index(va_arg(args, const char *));
+			retval = fs_index((const char *) arg1);
 			break;
 
 		case 2:
-			index = va_arg(args, unsigned int);
-			retval = fs_name(index, va_arg(args, char *));
+			retval = fs_name(arg1, (char *) arg2);
 			break;
 
 		case 3:
 			retval = fs_maxindex();
 			break;
 	}
-	va_end(args);
 	unlock_kernel();
 	return retval;
 }
@@ -593,31 +594,11 @@ static int do_umount(kdev_t dev,int unmount_root)
 
 	if (!sb->s_root)
 		return -ENOENT;
-
-	if (dev==ROOT_DEV && !unmount_root) {
-		/*
-		 * Special case for "unmounting" root. We just try to remount
-		 * it readonly, and sync() the device.
-		 */
-		if (!(sb->s_flags & MS_RDONLY)) {
-			/*
-			 * Make sure all quotas are turned off on this device we need to mount
-			 * it readonly so no more writes by the quotasystem.
-			 * If later on the remount fails too bad there are no quotas running
-			 * anymore. Turn them on again by hand.
-			 */
-			quota_off(dev, -1);
-			fsync_dev(dev);
-			retval = do_remount_sb(sb, MS_RDONLY, 0);
-			return retval;
-		}
-		return 0;
-	}
-
 	/*
-	 * Before checking if the filesystem is still busy make sure the kernel
-	 * doesn't hold any quotafiles open on that device. If the umount fails
-	 * too bad there are no quotas running anymore. Turn them on again by hand.
+	 * Before checking whether the filesystem is still busy,
+	 * make sure the kernel doesn't hold any quotafiles open
+	 * on the device. If the umount fails, too bad -- there
+	 * are no quotas running anymore. Just turn them on again.
 	 */
 	quota_off(dev, -1);
 
@@ -627,12 +608,23 @@ static int do_umount(kdev_t dev,int unmount_root)
 	 * root entry should be in use and (b) that root entry is
 	 * clean.
 	 */
-	shrink_dcache();
+	shrink_dcache_sb(sb);
 	fsync_dev(dev);
+
+	if (dev==ROOT_DEV && !unmount_root) {
+		/*
+		 * Special case for "unmounting" root ...
+		 * we just try to remount it readonly.
+		 */
+		retval = 0;
+		if (!(sb->s_flags & MS_RDONLY))
+			retval = do_remount_sb(sb, MS_RDONLY, 0);
+		return retval;
+	}
 
 	retval = d_umount(sb);
 	if (retval)
-		return retval;
+		goto out;
 
 	/* Forget any inodes */
 	if (invalidate_inodes(sb)) {
@@ -647,7 +639,9 @@ static int do_umount(kdev_t dev,int unmount_root)
 			sb->s_op->put_super(sb);
 	}
 	remove_vfsmnt(dev);
-	return 0;
+	retval = 0;
+out:
+	return retval;
 }
 
 static int umount_dev(kdev_t dev)
@@ -665,6 +659,9 @@ static int umount_dev(kdev_t dev)
 		goto out_iput;
 
 	fsync_dev(dev);
+
+	down(&mount_sem);
+
 	retval = do_umount(dev,0);
 	if (!retval) {
 		fsync_dev(dev);
@@ -673,6 +670,8 @@ static int umount_dev(kdev_t dev)
 			put_unnamed_dev(dev);
 		}
 	}
+
+	up(&mount_sem);
 out_iput:
 	iput(inode);
 out:
@@ -767,6 +766,7 @@ int do_mount(kdev_t dev, const char * dev_name, const char * dir_name, const cha
 	struct vfsmount *vfsmnt;
 	int error;
 
+	down(&mount_sem);
 	error = -EACCES;
 	if (!(flags & MS_RDONLY) && dev && is_read_only(dev))
 		goto out;
@@ -810,12 +810,14 @@ int do_mount(kdev_t dev, const char * dev_name, const char * dir_name, const cha
 		vfsmnt->mnt_sb = sb;
 		vfsmnt->mnt_flags = flags;
 		d_mount(dir_d, sb->s_root);
-		return 0;		/* we don't dput(dir) - see umount */
+		error = 0;
+		goto out;		/* we don't dput(dir) - see umount */
 	}
 
 dput_and_out:
 	dput(dir_d);
 out:
+	up(&mount_sem);
 	return error;	
 }
 
@@ -831,6 +833,13 @@ static int do_remount_sb(struct super_block *sb, int flags, char *data)
 	int retval;
 	struct vfsmount *vfsmnt;
 	
+	/*
+	 * Invalidate the inodes, as some mount options may be changed.
+	 * N.B. If we are changing media, we should check the return
+	 * from invalidate_inodes ... can't allow _any_ open files.
+	 */
+	invalidate_inodes(sb);
+
 	if (!(flags & MS_RDONLY) && sb->s_dev && is_read_only(sb->s_dev))
 		return -EACCES;
 		/*flags |= MS_RDONLY;*/
@@ -861,8 +870,14 @@ static int do_remount(const char *dir,int flags,char *data)
 		struct super_block * sb = dentry->d_inode->i_sb;
 
 		retval = -EINVAL;
-		if (dentry == sb->s_root)
+		if (dentry == sb->s_root) {
+			/*
+			 * Shrink the dcache and sync the device.
+			 */
+			shrink_dcache_sb(sb);
+			fsync_dev(sb->s_dev);
 			retval = do_remount_sb(sb, flags, data);
+		}
 		dput(dentry);
 	}
 	return retval;
@@ -917,12 +932,11 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 	struct file_system_type * fstype;
 	struct dentry * dentry = NULL;
 	struct inode * inode = NULL;
-	struct file_operations * fops;
 	kdev_t dev;
 	int retval = -EPERM;
-	const char * t;
 	unsigned long flags = 0;
 	unsigned long page = 0;
+	struct file dummy;	/* allows read-write or read-only flag */
 
 	lock_kernel();
 	if (!suser())
@@ -938,6 +952,7 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 		free_page(page);
 		goto out;
 	}
+
 	retval = copy_mount_options (type, &page);
 	if (retval < 0)
 		goto out;
@@ -946,8 +961,8 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 	retval = -ENODEV;
 	if (!fstype)		
 		goto out;
-	t = fstype->name;
-	fops = NULL;
+
+	memset(&dummy, 0, sizeof(dummy));
 	if (fstype->fs_flags & FS_REQUIRES_DEV) {
 		dentry = namei(dev_name);
 		retval = PTR_ERR(dentry);
@@ -968,17 +983,15 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 		if (MAJOR(dev) >= MAX_BLKDEV)
 			goto dput_and_out;
 
-		fops = get_blkfops(MAJOR(dev));
 		retval = -ENOTBLK;
-		if (!fops)
+		dummy.f_op = get_blkfops(MAJOR(dev));
+		if (!dummy.f_op)
 			goto dput_and_out;
 
-		if (fops->open) {
-			struct file dummy;	/* allows read-write or read-only flag */
-			memset(&dummy, 0, sizeof(dummy));
+		if (dummy.f_op->open) {
 			dummy.f_dentry = dentry;
 			dummy.f_mode = (new_flags & MS_RDONLY) ? 1 : 3;
-			retval = fops->open(inode, &dummy);
+			retval = dummy.f_op->open(inode, &dummy);
 			if (retval)
 				goto dput_and_out;
 		}
@@ -993,22 +1006,28 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 	if ((new_flags & MS_MGC_MSK) == MS_MGC_VAL) {
 		flags = new_flags & ~MS_MGC_MSK;
 		retval = copy_mount_options(data, &page);
-		if (retval < 0) {
-			put_unnamed_dev(dev);
-			goto dput_and_out;
-		}
+		if (retval < 0)
+			goto clean_up;
 	}
-	retval = do_mount(dev,dev_name,dir_name,t,flags,(void *) page);
+	retval = do_mount(dev, dev_name, dir_name, fstype->name, flags,
+				(void *) page);
 	free_page(page);
-	if (retval && fops && fops->release) {
-		fops->release(inode, NULL);
-		put_unnamed_dev(dev);
-	}
+	if (retval)
+		goto clean_up;
+
 dput_and_out:
 	dput(dentry);
 out:
 	unlock_kernel();
 	return retval;
+
+clean_up:
+	if (dummy.f_op) {
+		if (dummy.f_op->release)
+			dummy.f_op->release(inode, NULL);
+	} else
+		put_unnamed_dev(dev);
+	goto dput_and_out;
 }
 
 __initfunc(static void do_mount_root(void))

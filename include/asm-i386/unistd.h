@@ -177,6 +177,7 @@
 #define __NR_nfsservctl		169
 #define __NR_setresgid		170
 #define __NR_getresgid		171
+#define __NR_prctl              172
 
 /* user-visible error numbers are in the range -1 - -122: see <asm-i386/errno.h> */
 
@@ -277,6 +278,8 @@ static inline _syscall1(int,setup,int,magic)
 static inline _syscall0(int,sync)
 static inline _syscall0(pid_t,setsid)
 static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)
+static inline _syscall3(int,read,int,fd,char *,buf,off_t,count)
+static inline _syscall3(off_t,lseek,int,fd,off_t,offset,int,count)
 static inline _syscall1(int,dup,int,fd)
 static inline _syscall3(int,execve,const char *,file,char **,argv,char **,envp)
 static inline _syscall3(int,open,const char *,file,int,flag,int,mode)

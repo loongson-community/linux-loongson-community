@@ -120,6 +120,7 @@ extern void generic_NCR5380_setup(char *str, int *intr);
 extern void generic_NCR53C400_setup(char *str, int *intr);
 extern void aha152x_setup(char *str, int *ints);
 extern void aha1542_setup(char *str, int *ints);
+extern void gdth_setup(char *str, int *ints);
 extern void aic7xxx_setup(char *str, int *ints);
 extern void AM53C974_setup(char *str, int *ints);
 extern void BusLogic_Setup(char *str, int *ints);
@@ -243,6 +244,9 @@ extern void plip_setup(char *str, int *ints);
 #endif
 #ifdef CONFIG_HFMODEM
 extern void hfmodem_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_FTAPE
+extern void ftape_setup(char *str, int *ints);
 #endif
 
 #if defined(CONFIG_SYSVIPC) || defined(CONFIG_KERNELD)
@@ -416,6 +420,9 @@ struct {
 #ifdef CONFIG_SCSI_AHA1542
 	{ "aha1542=", aha1542_setup},
 #endif
+#ifdef CONFIG_SCSI_GDTH
+	{ "gdth=", gdth_setup},
+#endif
 #ifdef CONFIG_SCSI_AIC7XXX
 	{ "aic7xxx=", aic7xxx_setup},
 #endif
@@ -566,6 +573,9 @@ struct {
 #ifdef CONFIG_PMAC_CONSOLE
 	{ "console=", pmac_cons_setup },
 	{ "vmode=", pmac_vmode_setup },
+#endif
+#ifdef CONFIG_FTAPE
+	{ "ftape=", ftape_setup},
 #endif
 	{ 0, 0 }
 };

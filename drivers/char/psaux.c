@@ -321,13 +321,13 @@ static int open_aux(struct inode * inode, struct file * file)
  * Write to the aux device.
  */
 
-static long write_aux(struct inode * inode, struct file * file,
-	const char * buffer, unsigned long count)
+static ssize_t write_aux(struct file * file, const char * buffer,
+			 size_t count, loff_t *ppos)
 {
-	int retval = 0;
+	ssize_t retval = 0;
 
 	if (count) {
-		int written = 0;
+		ssize_t written = 0;
 
 		aux_start_atomic();
 		do {
@@ -345,7 +345,7 @@ static long write_aux(struct inode * inode, struct file * file,
 		retval = -EIO;
 		if (written) {
 			retval = written;
-			inode->i_mtime = CURRENT_TIME;
+			file->f_dentry->d_inode->i_mtime = CURRENT_TIME;
 		}
 	}
 
@@ -468,10 +468,10 @@ static int open_qp(struct inode * inode, struct file * file)
  * Write to the 82C710 mouse device.
  */
 
-static long write_qp(struct inode * inode, struct file * file,
-	const char * buffer, unsigned long count)
+static ssize_t write_qp(struct file * file, const char * buffer,
+			size_t count, loff_t *ppos)
 {
-	int i = count;
+	ssize_t i = count;
 
 	while (i--) {
 		char c;
@@ -480,7 +480,7 @@ static long write_qp(struct inode * inode, struct file * file,
 		get_user(c, buffer++);
 		outb_p(c, qp_data);
 	}
-	inode->i_mtime = CURRENT_TIME;
+	file->f_dentry->d_inode->i_mtime = CURRENT_TIME;
 	return count;
 }
 
@@ -546,11 +546,11 @@ __initfunc(static int probe_qp(void))
  * Put bytes from input queue to buffer.
  */
 
-static long read_aux(struct inode * inode, struct file * file,
-	char * buffer, unsigned long count)
+static ssize_t read_aux(struct file * file, char * buffer,
+			size_t count, loff_t *ppos)
 {
 	struct wait_queue wait = { current, NULL };
-	int i = count;
+	ssize_t i = count;
 	unsigned char c;
 
 	if (queue_empty()) {
@@ -559,7 +559,7 @@ static long read_aux(struct inode * inode, struct file * file,
 		add_wait_queue(&queue->proc_list, &wait);
 repeat:
 		current->state = TASK_INTERRUPTIBLE;
-		if (queue_empty() && !(current->signal & ~current->blocked)) {
+		if (queue_empty() && !signal_pending(current)) {
 			schedule();
 			goto repeat;
 		}
@@ -573,10 +573,10 @@ repeat:
 	}
 	aux_ready = !queue_empty();
 	if (count-i) {
-		inode->i_atime = CURRENT_TIME;
+		file->f_dentry->d_inode->i_atime = CURRENT_TIME;
 		return count-i;
 	}
-	if (current->signal & ~current->blocked)
+	if (signal_pending(current))
 		return -ERESTARTSYS;
 	return 0;
 }

@@ -33,9 +33,8 @@
 #define NFSDBG_FACILITY		NFSDBG_FILE
 
 static int  nfs_file_mmap(struct file *, struct vm_area_struct *);
-static long nfs_file_read(struct inode *, struct file *, char *, unsigned long);
-static long nfs_file_write(struct inode *, struct file *,
-					const char *, unsigned long);
+static ssize_t nfs_file_read(struct file *, char *, size_t, loff_t *);
+static ssize_t nfs_file_write(struct file *, const char *, size_t, loff_t *);
 static int  nfs_file_close(struct inode *, struct file *);
 static int  nfs_fsync(struct file *, struct dentry *dentry);
 
@@ -84,67 +83,91 @@ struct inode_operations nfs_file_inode_operations = {
 # define IS_SWAPFILE(inode)	(0)
 #endif
 
-
+/*
+ * Flush all dirty pages, and check for write errors.
+ *
+ * Note that since the file close operation is called only by the
+ * _last_ process to close the file, we need to flush _all_ dirty 
+ * pages. This also means that there is little sense in checking
+ * for errors for this specific process -- we should probably just
+ * clear all errors.
+ */
 static int
 nfs_file_close(struct inode *inode, struct file *file)
 {
-	int	status;
+	int	status, error;
 
 	dfprintk(VFS, "nfs: close(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
-	if ((status = nfs_flush_dirty_pages(inode, 0, 0)) < 0)
-		return status;
-	return nfs_write_error(inode);
+	status = nfs_flush_dirty_pages(inode, 0, 0, 0);
+	error = nfs_write_error(inode);
+	if (!status)
+		status = error;
+	return status;
 }
 
-static long
-nfs_file_read(struct inode * inode, struct file * file,
-				char * buf, unsigned long count)
+static ssize_t
+nfs_file_read(struct file * file, char * buf, size_t count, loff_t *ppos)
 {
-	int	status;
+	struct inode * inode = file->f_dentry->d_inode;
+	ssize_t result;
 
 	dfprintk(VFS, "nfs: read(%x/%ld, %lu@%lu)\n",
 			inode->i_dev, inode->i_ino, count,
-			(unsigned long) file->f_pos);
+			(unsigned long) *ppos);
 
-	if ((status = nfs_revalidate_inode(NFS_SERVER(inode), inode)) < 0)
-		return status;
-	return generic_file_read(inode, file, buf, count);
+	result = nfs_revalidate_inode(NFS_SERVER(inode), inode);
+	if (!result)
+		result = generic_file_read(file, buf, count, ppos);
+	return result;
 }
 
 static int
 nfs_file_mmap(struct file * file, struct vm_area_struct * vma)
 {
-	int	status;
 	struct inode *inode = file->f_dentry->d_inode;
+	int	status;
 
 	dfprintk(VFS, "nfs: mmap(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
-	if ((status = nfs_revalidate_inode(NFS_SERVER(inode), inode)) < 0)
-		return status;
-	return generic_file_mmap(file, vma);
+	status = nfs_revalidate_inode(NFS_SERVER(inode), inode);
+	if (!status)
+		status = generic_file_mmap(file, vma);
+	return status;
 }
 
-static int nfs_fsync(struct file *file, struct dentry *dentry)
+/*
+ * Flush any dirty pages for this process, and check for write errors.
+ * The return status from this call provides a reliable indication of
+ * whether any write errors occurred for this process.
+ */
+static int
+nfs_fsync(struct file *file, struct dentry *dentry)
 {
 	struct inode *inode = dentry->d_inode;
+	int status, error;
+
 	dfprintk(VFS, "nfs: fsync(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
-	return nfs_flush_dirty_pages(inode, 0, 0);
+	status = nfs_flush_dirty_pages(inode, current->pid, 0, 0);
+	error = nfs_write_error(inode);
+	if (!status)
+		status = error;
+	return status;
 }
 
 /* 
  * Write to a file (through the page cache).
  */
-static long
-nfs_file_write(struct inode *inode, struct file *file,
-			const char *buf, unsigned long count)
+static ssize_t
+nfs_file_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 {
-	int	result;
+	struct inode * inode = file->f_dentry->d_inode;
+	ssize_t result;
 
 	dfprintk(VFS, "nfs: write(%x/%ld (%d), %lu@%lu)\n",
 			inode->i_dev, inode->i_ino, inode->i_count,
-			count, (unsigned long) file->f_pos);
+			count, (unsigned long) *ppos);
 
 	if (!inode) {
 		printk("nfs_file_write: inode = NULL\n");
@@ -154,21 +177,26 @@ nfs_file_write(struct inode *inode, struct file *file,
 		printk("NFS: attempt to write to active swap file!\n");
 		return -EBUSY;
 	}
-	if ((result = nfs_revalidate_inode(NFS_SERVER(inode), inode)) < 0)
-		return result;
+	result = nfs_revalidate_inode(NFS_SERVER(inode), inode);
+	if (result)
+		goto out;
+
+	/* N.B. This should be impossible now -- inodes can't change mode */
 	if (!S_ISREG(inode->i_mode)) {
 		printk("nfs_file_write: write to non-file, mode %07o\n",
 			inode->i_mode);
 		return -EINVAL;
 	}
-	if (count <= 0)
-		return 0;
+	result = count;
+	if (!count)
+		goto out;
 
-	/* Return error from previous async call */
-	if ((result = nfs_write_error(inode)) < 0)
-		return result;
-
-	return generic_file_write(inode, file, buf, count);
+	/* Check for an error from a previous async call */
+	result = nfs_write_error(inode);
+	if (!result)
+		result = generic_file_write(file, buf, count, ppos);
+out:
+	return result;
 }
 
 /*
@@ -177,15 +205,15 @@ nfs_file_write(struct inode *inode, struct file *file,
 int
 nfs_lock(struct file *filp, int cmd, struct file_lock *fl)
 {
+	struct inode * inode = filp->f_dentry->d_inode;
 	int	status;
-	struct inode * inode;
 
 	dprintk("NFS: nfs_lock(f=%4x/%ld, t=%x, fl=%x, r=%ld:%ld)\n",
-			filp->f_dentry->d_inode->i_dev, filp->f_dentry->d_inode->i_ino,
+			inode->i_dev, inode->i_ino,
 			fl->fl_type, fl->fl_flags,
 			fl->fl_start, fl->fl_end);
 
-	if (!(inode = filp->f_dentry->d_inode))
+	if (!inode)
 		return -EINVAL;
 
 	/* No mandatory locks over NFS */
@@ -209,8 +237,8 @@ nfs_lock(struct file *filp, int cmd, struct file_lock *fl)
 	/* If unlocking a file region, flush dirty pages (unless we've
 	 * been killed by a signal, that is). */
 	if (cmd == F_SETLK && fl->fl_type == F_UNLCK
-	 && !(current->signal & ~current->blocked)) {
-		status = nfs_flush_dirty_pages(inode,
+	    && !signal_pending(current)) {
+		status = nfs_flush_dirty_pages(inode, current->pid,
 			fl->fl_start, fl->fl_end == NLM_OFFSET_MAX? 0 :
 			fl->fl_end - fl->fl_start + 1);
 		if (status < 0)

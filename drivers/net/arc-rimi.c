@@ -1,4 +1,4 @@
-/*	$Id: arc-rimi.c,v 1.2 1997/09/05 08:57:51 mj Exp $
+/*	$Id: arc-rimi.c,v 1.5 1997/11/09 11:04:57 mj Exp $
 
         Derived from the original arcnet.c,
         Written 1994-1996 by Avery Pennarun,
@@ -131,7 +131,7 @@ extern int arcnet_num_devs;
 #define SETCONF	writeb(lp->config,_CONFIG)
 
 static const char *version =
-"arc-rimi.c: v2.92 97/09/02 Avery Pennarun <apenwarr@bond.net> et al.\n";
+"arc-rimi.c: v3.00 97/11/09 Avery Pennarun <apenwarr@bond.net> et al.\n";
 
 /****************************************************************************
  *                                                                          *
@@ -178,12 +178,11 @@ __initfunc(int arcrimi_found(struct device *dev,int node,int airq, u_long shmem)
   int mirror_size;
 
   /* reserve the irq */
-  if (request_irq(airq,&arcnet_interrupt,0,"arcnet (RIM I)",NULL))
+  if (request_irq(airq,&arcnet_interrupt,0,"arcnet (RIM I)",dev))
     {
       BUGMSG(D_NORMAL,"Can't get IRQ %d!\n",airq);
       return -ENODEV;
     }
-  irq2dev_map[airq]=dev;
   dev->irq=airq;
 
   dev->base_addr=0;
@@ -221,8 +220,7 @@ __initfunc(int arcrimi_found(struct device *dev,int node,int airq, u_long shmem)
   dev->priv = kmalloc(sizeof(struct arcnet_local), GFP_KERNEL);
   if (dev->priv == NULL)
     {
-      irq2dev_map[airq] = NULL;
-      free_irq(airq,NULL);
+      free_irq(airq,dev);
       return -ENOMEM;
     }
   memset(dev->priv,0,sizeof(struct arcnet_local));
@@ -792,8 +790,7 @@ void cleanup_module(void)
 
   if (dev->irq)
     {
-      irq2dev_map[dev->irq] = NULL;
-      free_irq(dev->irq,NULL);
+      free_irq(dev->irq,dev);
     }
 
   unregister_netdev(dev);

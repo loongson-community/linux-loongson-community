@@ -76,11 +76,6 @@ if [ "$CONFIG_QIC02_TAPE" != "n" ]; then
   fi
 fi
 
-tristate 'Ftape (QIC-80/Travan) support' CONFIG_FTAPE
-if [ "$CONFIG_FTAPE" != "n" ]; then
-  comment 'Set IObase/IRQ/DMA for ftape in ./drivers/char/ftape/Makefile'
-fi
-
 bool 'Advanced Power Management BIOS support' CONFIG_APM
 if [ "$CONFIG_APM" = "y" ]; then
   bool '   Ignore USER SUSPEND' CONFIG_APM_IGNORE_USER_SUSPEND
@@ -104,9 +99,29 @@ if [ "$CONFIG_WATCHDOG" != "n" ]; then
   tristate '   Acquire SBC Watchdog Timer' CONFIG_ACQUIRE_WDT
 fi
 bool 'Enhanced Real Time Clock Support' CONFIG_RTC
-if [ "$CONFIG_PPC" = "y" ]; then
+if [ "$CONFIG_ALPHA_BOOK1" = "y" ]; then
   bool 'Tadpole ANA H8 Support'  CONFIG_H8
 fi
+tristate 'Video For Linux' CONFIG_VIDEO_DEV
+dep_tristate 'BT848 Video For Linux' CONFIG_VIDEO_BT848 $CONFIG_VIDEO_DEV
+#dep_tristate 'Quickcam BW Video For Linux' CONFIG_VIDEO_BWQCAM $CONFIG_VIDEO_DEV
+dep_tristate 'Mediavision Pro Movie Studio Video For Linux' CONFIG_VIDEO_PMS $CONFIG_VIDEO_DEV
 tristate '/dev/nvram support' CONFIG_NVRAM
 tristate 'PC joystick support' CONFIG_JOYSTICK
+bool 'Radio Device Support' CONFIG_MISC_RADIO
+if [ "$CONFIG_MISC_RADIO" != "n" ]; then
+  bool '  AIMSlab RadioTrack (aka RadioReveal) support' CONFIG_RADIO_RTRACK
+  if [ "$CONFIG_RADIO_RTRACK" != "n" ]; then
+    hex '    RadioTrack i/o port (0x20f or 0x30f)' CONFIG_RADIO_RTRACK_PORT 0x20f
+  fi
+fi
+
+mainmenu_option next_comment
+comment 'Ftape, the floppy tape device driver'
+tristate 'Ftape (QIC-80/Travan) support' CONFIG_FTAPE
+if [ "$CONFIG_FTAPE" != "n" ]; then
+  source drivers/char/ftape/Config.in
+fi
+endmenu
+
 endmenu

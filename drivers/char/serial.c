@@ -24,6 +24,9 @@
  *  1/97:  Extended dumb serial ports are a config option now.  
  *         Saves 4k.   Michael A. Griffith <grif@acm.org>
  * 
+ *  8/97: Fix bug in rs_set_termios with RTS
+ *        Stanislav V. Voronyi <stas@uanet.kharkov.ua>
+ *
  * This module exports the following rs232 io functions:
  *
  *	int rs_init(void);
@@ -392,13 +395,6 @@ static inline int serial_paranoia_check(struct async_struct *info,
 	return 0;
 }
 
-/*
- * This is used to figure out the divisor speeds and the timeouts
- */
-static int baud_table[] = {
-	0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800,
-	9600, 19200, 38400, 57600, 115200, 230400, 460800, 0 };
-
 static inline unsigned int serial_in(struct async_struct *info, int offset)
 {
 #ifdef CONFIG_HUB6
@@ -634,7 +630,7 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 	ignore_char:
 		*status = serial_inp(info, UART_LSR);
 	} while (*status & UART_LSR_DR);
-	queue_task(&tty->flip.tqueue, &tq_timer);
+	tty_flip_buffer_push(tty);
 }
 
 static _INLINE_ void transmit_chars(struct async_struct *info, int *intr_done)
@@ -717,10 +713,10 @@ static _INLINE_ void check_modem_status(struct async_struct *info)
 		else if (!((info->flags & ASYNC_CALLOUT_ACTIVE) &&
 			   (info->flags & ASYNC_CALLOUT_NOHUP))) {
 #ifdef SERIAL_DEBUG_OPEN
-			printk("scheduling hangup...");
+			printk("doing serial hangup...");
 #endif
-			queue_task(&info->tqueue_hangup,
-					   &tq_scheduler);
+			if (info->tty)
+				tty_hangup(info->tty);
 		}
 	}
 	if (info->flags & ASYNC_CTS_FLOW) {
@@ -1001,28 +997,6 @@ static void do_softint(void *private_)
 }
 
 /*
- * This routine is called from the scheduler tqueue when the interrupt
- * routine has signalled that a hangup has occurred.  The path of
- * hangup processing is:
- *
- * 	serial interrupt routine -> (scheduler tqueue) ->
- * 	do_serial_hangup() -> tty->hangup() -> rs_hangup()
- * 
- */
-static void do_serial_hangup(void *private_)
-{
-	struct async_struct	*info = (struct async_struct *) private_;
-	struct tty_struct	*tty;
-	
-	tty = info->tty;
-	if (!tty)
-		return;
-
-	tty_hangup(tty);
-}
-
-
-/*
  * This subroutine is called when the RS_TIMER goes off.  It is used
  * by the serial driver to handle ports that do not have an interrupt
  * (irq=0).  This doesn't work very well for 16450's, but gives barely
@@ -1154,7 +1128,6 @@ static int startup(struct async_struct * info)
 #ifdef CONFIG_SERIAL_MANY_PORTS
 	unsigned short ICP;
 #endif
-
 
 	page = get_free_page(GFP_KERNEL);
 	if (!page)
@@ -1458,9 +1431,9 @@ static void shutdown(struct async_struct * info)
 static void change_speed(struct async_struct *info)
 {
 	unsigned short port;
-	int	quot = 0, baud_base;
+	int	quot = 0, baud_base, baud;
 	unsigned cflag, cval, fcr = 0;
-	int	i, bits;
+	int	bits;
 	unsigned long	flags;
 
 	if (!info->tty || !info->tty->termios)
@@ -1494,37 +1467,20 @@ static void change_speed(struct async_struct *info)
 #endif
 
 	/* Determine divisor based on baud rate */
-	i = cflag & CBAUD;
-	if (i & CBAUDEX) {
-		i &= ~CBAUDEX;
-		if (i < 1 || i > 4) 
-			info->tty->termios->c_cflag &= ~CBAUDEX;
-		else
-			i += 15;
-	}
-	if (i == 15) {
-		if ((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_HI)
-			i += 1;
-		if ((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_VHI)
-			i += 2;
-		if ((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_SHI)
-			i += 3;
-		if ((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_WARP)
-			i += 4;
-		if ((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_CUST)
-			quot = info->state->custom_divisor;
-	}
+	baud = tty_get_baud_rate(info->tty);
 	baud_base = info->state->baud_base;
-	if (!quot) {
-		if (baud_table[i] == 134)
+	if (baud == 38400)
+		quot = info->state->custom_divisor;
+	else {
+		if (baud == 134)
 			/* Special case since 134 is really 134.5 */
 			quot = (2*baud_base / 269);
-		else if (baud_table[i])
-			quot = baud_base / baud_table[i];
-		/* If the quotient is ever zero, default to 9600 bps */
-		if (!quot)
-			quot = baud_base / 9600;
+		else if (baud)
+			quot = baud_base / baud;
 	}
+	/* If the quotient is ever zero, default to 9600 bps */
+	if (!quot)
+		quot = baud_base / 9600;
 	info->quot = quot;
 	info->timeout = ((info->xmit_fifo_size*HZ*bits*quot) / baud_base);
 	info->timeout += HZ/50;		/* Add .02 seconds of slop */
@@ -1936,8 +1892,17 @@ check_and_exit:
 	if (state->flags & ASYNC_INITIALIZED) {
 		if (((old_state.flags & ASYNC_SPD_MASK) !=
 		     (state->flags & ASYNC_SPD_MASK)) ||
-		    (old_state.custom_divisor != state->custom_divisor))
+		    (old_state.custom_divisor != state->custom_divisor)) {
+			if ((state->flags & ASYNC_SPD_MASK) == ASYNC_SPD_HI)
+				info->tty->alt_speed = 57600;
+			if ((state->flags & ASYNC_SPD_MASK) == ASYNC_SPD_VHI)
+				info->tty->alt_speed = 115200;
+			if ((state->flags & ASYNC_SPD_MASK) == ASYNC_SPD_SHI)
+				info->tty->alt_speed = 230400;
+			if ((state->flags & ASYNC_SPD_MASK) == ASYNC_SPD_WARP)
+				info->tty->alt_speed = 460800;
 			change_speed(info);
+		}
 	} else
 		retval = startup(info);
 	return retval;
@@ -2068,51 +2033,27 @@ static int do_autoconfig(struct async_struct * info)
 	return 0;
 }
 
-
 /*
- * This routine sends a break character out the serial port.
+ * rs_break() --- routine which turns the break handling on or off
  */
-static void send_break(	struct async_struct * info, int duration)
+static void rs_break(struct tty_struct *tty, int break_state)
 {
+	struct async_struct * info = (struct async_struct *)tty->driver_data;
+	unsigned long flags;
+	
+	if (serial_paranoia_check(info, tty->device, "rs_break"))
+		return;
+
 	if (!info->port)
 		return;
-	current->state = TASK_INTERRUPTIBLE;
-	current->timeout = jiffies + duration;
-#ifdef SERIAL_DEBUG_SEND_BREAK
-	printk("rs_send_break(%d) jiff=%lu...", duration, jiffies);
-#endif
-	cli();
-	serial_out(info, UART_LCR, serial_inp(info, UART_LCR) | UART_LCR_SBC);
-	schedule();
-	serial_out(info, UART_LCR, serial_inp(info, UART_LCR) & ~UART_LCR_SBC);
-	sti();
-#ifdef SERIAL_DEBUG_SEND_BREAK
-	printk("done jiffies=%lu\n", jiffies);
-#endif
-}
-
-/*
- * This routine sets the break condition on the serial port.
- */
-static void begin_break(struct async_struct * info)
-{
-	if (!info->port)
-		return;
-	cli();
-	serial_out(info, UART_LCR, serial_inp(info, UART_LCR) | UART_LCR_SBC);
-	sti();
-}
-
-/*
- * This routine clears the break condition on the serial port.
- */
-static void end_break(struct async_struct * info)
-{
-	if (!info->port)
-		return;
-	cli();
-	serial_out(info, UART_LCR, serial_inp(info, UART_LCR) & ~UART_LCR_SBC);
-	sti();
+	save_flags(flags); cli();
+	if (break_state == -1)
+		serial_out(info, UART_LCR,
+			   serial_inp(info, UART_LCR) | UART_LCR_SBC);
+	else
+		serial_out(info, UART_LCR,
+			   serial_inp(info, UART_LCR) & ~UART_LCR_SBC);
+	restore_flags(flags);
 }
 
 /*
@@ -2279,7 +2220,6 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 {
 	int error;
 	struct async_struct * info = (struct async_struct *)tty->driver_data;
-	int retval;
 	struct async_icount cprev, cnow;	/* kernel counter temps */
 	struct serial_icounter_struct *p_cuser;	/* user space */
 
@@ -2295,53 +2235,6 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 	}
 	
 	switch (cmd) {
-		case TCSBRK:	/* SVID version: non-zero arg --> no break */
-			retval = tty_check_change(tty);
-			if (retval)
-				return retval;
-			tty_wait_until_sent(tty, 0);
-			if (current->signal & ~current->blocked)
-				return -EINTR;
-			if (!arg) {
-				send_break(info, HZ/4);	/* 1/4 second */
-				if (current->signal & ~current->blocked)
-					return -EINTR;
-			}
-			return 0;
-		case TCSBRKP:	/* support for POSIX tcsendbreak() */
-			retval = tty_check_change(tty);
-			if (retval)
-				return retval;
-			tty_wait_until_sent(tty, 0);
-			if (current->signal & ~current->blocked)
-				return -EINTR;
-			send_break(info, arg ? arg*(HZ/10) : HZ/4);
-			if (current->signal & ~current->blocked)
-				return -EINTR;
-			return 0;
-		case TIOCSBRK:
-			retval = tty_check_change(tty);
-			if (retval)
-				return retval;
-			tty_wait_until_sent(tty, 0);
-			begin_break(info);
-			return 0;
-		case TIOCCBRK:
-			retval = tty_check_change(tty);
-			if (retval)
-				return retval;
-			end_break(info);
-			return 0;
-		case TIOCGSOFTCAR:
-			return put_user(C_CLOCAL(tty) ? 1 : 0, (int *) arg);
-		case TIOCSSOFTCAR:
-			error = get_user(arg, (unsigned int *) arg);
-			if (error)
-				return error;
-			tty->termios->c_cflag =
-				((tty->termios->c_cflag & ~CLOCAL) |
-				 (arg ? CLOCAL : 0));
-			return 0;
 		case TIOCMGET:
 			return get_modem_info(info, (unsigned int *) arg);
 		case TIOCMBIS:
@@ -2403,7 +2296,7 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 			while (1) {
 				interruptible_sleep_on(&info->delta_msr_wait);
 				/* see if a signal did it */
-				if (current->signal & ~current->blocked)
+				if (signal_pending(current))
 					return -ERESTARTSYS;
 				cli();
 				cnow = info->state->icount; /* atomic copy */
@@ -2472,8 +2365,8 @@ static void rs_set_termios(struct tty_struct *tty, struct termios *old_termios)
 	if (!(old_termios->c_cflag & CBAUD) &&
 	    (tty->termios->c_cflag & CBAUD)) {
 		info->MCR |= UART_MCR_DTR;
-		if (!tty->hw_stopped ||
-		    !(tty->termios->c_cflag & CRTSCTS)) {
+		if (!(tty->termios->c_cflag & CRTSCTS) || 
+		    !test_bit(TTY_THROTTLED, &tty->flags)) {
 			info->MCR |= UART_MCR_RTS;
 		}
 		cli();
@@ -2655,7 +2548,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 		current->counter = 0;	/* make us low-priority */
 		current->timeout = jiffies + char_time;
 		schedule();
-		if (current->signal & ~current->blocked)
+		if (signal_pending(current))
 			break;
 		if (timeout && ((orig_jiffies + timeout) < jiffies))
 			break;
@@ -2710,10 +2603,8 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		if (info->flags & ASYNC_CLOSING)
 			interruptible_sleep_on(&info->close_wait);
 #ifdef SERIAL_DO_RESTART
-		if (info->flags & ASYNC_HUP_NOTIFY)
-			return -EAGAIN;
-		else
-			return -ERESTARTSYS;
+		return ((info->flags & ASYNC_HUP_NOTIFY) ?
+			-EAGAIN : -ERESTARTSYS);
 #else
 		return -EAGAIN;
 #endif
@@ -2802,7 +2693,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		    (do_clocal || (serial_in(info, UART_MSR) &
 				   UART_MSR_DCD)))
 			break;
-		if (current->signal & ~current->blocked) {
+		if (signal_pending(current)) {
 			retval = -ERESTARTSYS;
 			break;
 		}
@@ -2851,8 +2742,6 @@ static int get_async_struct(int line, struct async_struct **ret_info)
 	info->line = line;
 	info->tqueue.routine = do_softint;
 	info->tqueue.data = info;
-	info->tqueue_hangup.routine = do_serial_hangup;
-	info->tqueue_hangup.data = info;
 	info->state = sstate;
 	if (sstate->info) {
 		kfree_s(info, sizeof(struct async_struct));
@@ -2900,7 +2789,22 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 		else
 			tmp_buf = (unsigned char *) page;
 	}
-	
+
+	/*
+	 * If the port is the middle of closing, bail out now
+	 */
+	if (tty_hung_up_p(filp) ||
+	    (info->flags & ASYNC_CLOSING)) {
+		if (info->flags & ASYNC_CLOSING)
+			interruptible_sleep_on(&info->close_wait);
+#ifdef SERIAL_DO_RESTART
+		return ((info->flags & ASYNC_HUP_NOTIFY) ?
+			-EAGAIN : -ERESTARTSYS);
+#else
+		return -EAGAIN;
+#endif
+	}
+
 	/*
 	 * Start up serial port
 	 */
@@ -3294,7 +3198,6 @@ static void autoconfig(struct serial_state * state)
 		scratch = serial_in(info, UART_IIR) >> 5;
 		if (scratch == 7) {
 			serial_outp(info, UART_LCR, 0);
-			serial_outp(info, UART_FCR, UART_FCR_ENABLE_FIFO);
 			scratch = serial_in(info, UART_IIR) >> 5;
 			if (scratch == 6)
 				state->type = PORT_16750;
@@ -3424,6 +3327,7 @@ __initfunc(int rs_init(void))
 	serial_driver.stop = rs_stop;
 	serial_driver.start = rs_start;
 	serial_driver.hangup = rs_hangup;
+	serial_driver.break_ctl = rs_break;
 	serial_driver.wait_until_sent = rs_wait_until_sent;
 	serial_driver.read_proc = rs_read_proc;
 	

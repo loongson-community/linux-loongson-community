@@ -503,7 +503,7 @@ int locks_verify_locked(struct inode *inode)
 }
 
 int locks_verify_area(int read_write, struct inode *inode, struct file *filp,
-		      unsigned int offset, unsigned int count)
+		      loff_t offset, size_t count)
 {
 	/* Candidates for mandatory locking have the setgid bit set
 	 * but no group execute bit -  an otherwise meaningless combination.
@@ -531,8 +531,8 @@ int locks_mandatory_locked(struct inode *inode)
 }
 
 int locks_mandatory_area(int read_write, struct inode *inode,
-			 struct file *filp, unsigned int offset,
-			 unsigned int count)
+			 struct file *filp, loff_t offset,
+			 size_t count)
 {
 	struct file_lock *fl;
 	struct file_lock tfl;
@@ -560,7 +560,7 @@ repeat:
 		if (posix_locks_conflict(fl, &tfl)) {
 			if (filp && (filp->f_flags & O_NONBLOCK))
 				return (-EAGAIN);
-			if (current->signal & ~current->blocked)
+			if (signal_pending(current))
 				return (-ERESTARTSYS);
 			if (posix_locks_deadlock(&tfl, fl))
 				return (-EDEADLK);
@@ -569,7 +569,7 @@ repeat:
 			interruptible_sleep_on(&tfl.fl_wait);
 			locks_delete_block(fl, &tfl);
 
-			if (current->signal & ~current->blocked)
+			if (signal_pending(current))
 				return (-ERESTARTSYS);
 			/* If we've been sleeping someone might have
 			 * changed the permissions behind our back.
@@ -822,7 +822,7 @@ search:
 repeat:
 	/* Check signals each time we start */
 	error = -ERESTARTSYS;
-	if (current->signal & ~current->blocked)
+	if (signal_pending(current))
 		goto out;
 	for (fl = inode->i_flock; (fl != NULL) && (fl->fl_flags & FL_FLOCK);
 	     fl = fl->fl_next) {
@@ -881,9 +881,6 @@ int posix_lock_file(struct file *filp, struct file_lock *caller,
 
 	if (caller->fl_type != F_UNLCK) {
   repeat:
-		error = -ERESTARTSYS;
-		if (current->signal & ~current->blocked)
-			goto out;
 		for (fl = inode->i_flock; fl != NULL; fl = fl->fl_next) {
 			if (!(fl->fl_flags & FL_POSIX))
 				continue;
@@ -894,6 +891,9 @@ int posix_lock_file(struct file *filp, struct file_lock *caller,
 				goto out;
 			error = -EDEADLK;
 			if (posix_locks_deadlock(caller, fl))
+				goto out;
+			error = -ERESTARTSYS;
+			if (signal_pending(current))
 				goto out;
 			locks_insert_block(fl, caller);
 			interruptible_sleep_on(&caller->fl_wait);
@@ -1147,9 +1147,9 @@ static char *lock_get_status(struct file_lock *fl, int id, char *pfx)
 }
 
 static inline int copy_lock_status(char *p, char **q, off_t pos, int len,
-				   off_t offset, int length)
+				   off_t offset, off_t length)
 {
-	int i;
+	off_t i;
 
 	i = pos - offset;
 	if (i > 0) {
@@ -1171,15 +1171,13 @@ static inline int copy_lock_status(char *p, char **q, off_t pos, int len,
 	return (1);
 }
 
-int get_locks_status(char *buffer, char **start, off_t offset, int length)
+int get_locks_status(char *buffer, char **start, off_t offset, off_t length)
 {
 	struct file_lock *fl;
 	struct file_lock *bfl;
 	char *p;
 	char *q = buffer;
-	int i;
-	int len;
-	off_t pos = 0;
+	off_t i, len, pos = 0;
 
 	for (fl = file_lock_table, i = 1; fl != NULL; fl = fl->fl_nextlink, i++) {
 		p = lock_get_status(fl, i, "");

@@ -1374,7 +1374,7 @@ static int pi_probe(struct device *dev, int card_type)
 		   now.  There is no point in waiting since no other device can use
 		   the interrupt, and this marks the 'irqaction' as busy. */
 	{
-	    int irqval = request_irq(dev->irq, &pi_interrupt,0, "pi2", NULL);
+	    int irqval = request_irq(dev->irq, &pi_interrupt,0, "pi2", dev);
 	    if (irqval) {
 		printk(KERN_ERR "PI: unable to get IRQ %d (irqval=%d).\n",
 		       dev->irq, irqval);
@@ -1413,12 +1413,6 @@ static int pi_probe(struct device *dev, int card_type)
 
     /* New-style flags. */
     dev->flags = 0;
-    dev->family = AF_INET;
-    dev->pa_addr = 0;
-    dev->pa_brdaddr = 0;
-    dev->pa_mask = 0;
-    dev->pa_alen = 4;
-
     return 0;
 }
 
@@ -1439,10 +1433,9 @@ static int pi_open(struct device *dev)
     if (dev->base_addr & 2) {	/* if A channel */
 	if (first_time) {
 	    if (request_dma(dev->dma,"pi2")) {
-		free_irq(dev->irq, NULL);
+		free_irq(dev->irq, dev);
 		return -EAGAIN;
 	    }
-	    irq2dev_map[dev->irq] = dev;
 	}
 	/* Reset the hardware here. */
 	chipset_init(dev);
@@ -1670,9 +1663,8 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-    free_irq(pi0a.irq, NULL);	/* IRQs and IO Ports are shared */
+    free_irq(pi0a.irq, &pi0a);	/* IRQs and IO Ports are shared */
     release_region(pi0a.base_addr & 0x3f0, PI_TOTAL_SIZE);
-    irq2dev_map[pi0a.irq] = NULL;
 
     kfree(pi0a.priv);
     pi0a.priv = NULL;

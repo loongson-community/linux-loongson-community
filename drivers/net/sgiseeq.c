@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.3 1997/09/16 14:44:21 marks Exp $
+/* $Id: sgiseeq.c,v 1.4 1997/12/06 04:11:41 ralf Exp $
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -474,7 +474,7 @@ static int sgiseeq_close(struct device *dev)
 	/* Shutdown the Seeq. */
 	reset_hpc3_and_seeq(sp->hregs, sregs);
 
-	free_irq(dev->irq, NULL);
+	free_irq(dev->irq, dev);
 
 	return 0;
 }
@@ -514,17 +514,6 @@ static inline int verify_tx(struct sgiseeq_private *sp,
 		       dev->name, tickssofar);
 		sgiseeq_reset(dev);
 		return 0;
-	}
-	/* Is the skippy buf even reasonable? */
-	if(skb == NULL) {
-		dev_tint(dev);
-		printk("%s: skb is NULL\n", dev->name);
-		return -1;
-	}
-
-	if(skb->len <= 0) {
-		printk("%s: skb len is %d\n", dev->name, skb->len);
-		return -1;
 	}
 	/* Are we getting in someone else's way? */
 	if(test_and_set_bit(0, (void *) &dev->tbusy) != 0) {

@@ -537,10 +537,8 @@ i596_open(struct device *dev)
     if (i596_debug > 1)
 	printk("%s: i596_open() irq %d.\n", dev->name, dev->irq);
 
-    if (request_irq(dev->irq, &i596_interrupt, 0, "apricot", NULL))
+    if (request_irq(dev->irq, &i596_interrupt, 0, "apricot", dev))
 	return -EAGAIN;
-
-    irq2dev_map[dev->irq] = dev;
 
     i = init_rx_bufs(dev, RX_RING_SIZE);
 
@@ -549,8 +547,7 @@ i596_open(struct device *dev)
 
     if (i < 4)
     {
-        free_irq(dev->irq, NULL);
-        irq2dev_map[dev->irq] = 0;
+        free_irq(dev->irq, dev);
         return -EAGAIN;
     }
 
@@ -600,17 +597,6 @@ i596_start_xmit(struct sk_buff *skb, struct device *dev)
 	dev->tbusy = 0;
 	dev->trans_start = jiffies;
     }
-
-    /* If some higher level thinks we've misses a tx-done interrupt
-       we are passed NULL. n.b. dev_tint handles the cli()/sti()
-       itself. */
-    if (skb == NULL) {
-	dev_tint(dev);
-	return 0;
-    }
-
-    /* shouldn't happen */
-    if (skb->len <= 0) return 0;
 
     if (i596_debug > 3) printk("%s: i596_start_xmit() called\n", dev->name);
 
@@ -746,7 +732,7 @@ __initfunc(int apricot_probe(struct device *dev))
 static void
 i596_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-    struct device *dev = (struct device *)(irq2dev_map[irq]);
+    struct device *dev = dev_id;
     struct i596_private *lp;
     short ioaddr;
     int boguscnt = 200;
@@ -933,8 +919,7 @@ i596_close(struct device *dev)
 		   dev->name, lp->scb.status, lp->scb.command);
 	    break;
     	}
-    free_irq(dev->irq, NULL);
-    irq2dev_map[dev->irq] = 0;
+    free_irq(dev->irq, dev);
     remove_rx_bufs(dev);
     MOD_DEC_USE_COUNT;
 

@@ -232,11 +232,15 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name)
 	result = d_lookup(parent, name);
 	if (!result) {
 		struct dentry * dentry = d_alloc(parent, name);
-		int error = dir->i_op->lookup(dir, dentry);
-		result = ERR_PTR(error);
-		if (!error)
-			result = dget(dentry->d_mounts);
-		dput(dentry);
+		result = ERR_PTR(-ENOMEM);
+		if (dentry) {
+			int error = dir->i_op->lookup(dir, dentry);
+			result = dentry;
+			if (error) {
+				dput(dentry);
+				result = ERR_PTR(error);
+			}
+		}
 	}
 	up(&dir->i_sem);
 	return result;
@@ -290,25 +294,6 @@ static struct dentry * reserved_lookup(struct dentry * parent, struct qstr * nam
 	return dget(result);
 }
 
-/* In difference to the former version, lookup() no longer eats the dir. */
-static inline struct dentry * lookup(struct dentry * dir, struct qstr * name)
-{
-	struct dentry * result;
-
-	result = reserved_lookup(dir, name);
-	if (result)
-		goto done;
-
-	result = cached_lookup(dir, name);
-	if (result)
-		goto done;
-
-	result = real_lookup(dir, name);
-
-done:
-	return result;
-}
-
 static struct dentry * do_follow_link(struct dentry *base, struct dentry *dentry)
 {
 	struct inode * inode = dentry->d_inode;
@@ -328,6 +313,18 @@ static struct dentry * do_follow_link(struct dentry *base, struct dentry *dentry
 		dentry = ERR_PTR(-ELOOP);
 	}
 	dput(base);
+	return dentry;
+}
+
+static inline struct dentry * follow_mount(struct dentry * dentry)
+{
+	struct dentry * mnt = dentry->d_mounts;
+
+	if (mnt != dentry) {
+		dget(mnt);
+		dput(dentry);
+		dentry = mnt;
+	}
 	return dentry;
 }
 
@@ -412,9 +409,19 @@ struct dentry * lookup_dentry(const char * name, struct dentry * base, int follo
 			}
 		}
 
-		dentry = lookup(base, &this);
-		if (IS_ERR(dentry))
-			break;
+		/* This does the actual lookups.. */
+		dentry = reserved_lookup(base, &this);
+		if (!dentry) {
+			dentry = cached_lookup(base, &this);
+			if (!dentry) {
+				dentry = real_lookup(base, &this);
+				if (IS_ERR(dentry))
+					break;
+			}
+		}
+
+		/* Check mountpoints.. */
+		dentry = follow_mount(dentry);
 
 		if (!follow)
 			break;
@@ -445,6 +452,7 @@ struct dentry * __namei(const char *pathname, int follow_link)
 	char *name;
 	struct dentry *dentry;
 
+	check_dcache_memory();
 	name = getname(pathname);
 	dentry = (struct dentry *) name;
 	if (!IS_ERR(name)) {
@@ -518,6 +526,7 @@ struct dentry * open_namei(const char * pathname, int flag, int mode)
 	struct inode *inode;
 	struct dentry *dentry;
 
+	check_dcache_memory();
 	mode &= S_IALLUGO & ~current->fs->umask;
 	mode |= S_IFREG;
 
@@ -1170,7 +1179,8 @@ static inline int do_rename(const char * oldname, const char * newname)
 
 	if (new_dir->d_inode->i_sb && new_dir->d_inode->i_sb->dq_op)
 		new_dir->d_inode->i_sb->dq_op->initialize(new_dir->d_inode, -1);
-	error = old_dir->d_inode->i_op->rename(old_dir->d_inode, old_dentry, new_dir->d_inode, new_dentry);
+	error = old_dir->d_inode->i_op->rename(old_dir->d_inode, old_dentry,
+					       new_dir->d_inode, new_dentry);
 
 exit_lock:
 	double_unlock(new_dir, old_dir);

@@ -147,6 +147,9 @@ enum net_directory_inos {
 enum scsi_directory_inos {
 	PROC_SCSI_SCSI = 256,
 	PROC_SCSI_ADVANSYS,
+	PROC_SCSI_PCI2000,
+	PROC_SCSI_PCI2220I,
+	PROC_SCSI_PSI240I,
 	PROC_SCSI_EATA,
 	PROC_SCSI_EATA_PIO,
 	PROC_SCSI_AHA152X,
@@ -156,6 +159,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_BUSLOGIC,
 	PROC_SCSI_U14_34F,
 	PROC_SCSI_FDOMAIN,
+	PROC_SCSI_GDTH,
 	PROC_SCSI_GENERIC_NCR5380,
 	PROC_SCSI_IN2000,
 	PROC_SCSI_PAS16,
@@ -238,13 +242,15 @@ struct proc_dir_entry {
 	unsigned long size;
 	struct inode_operations * ops;
 	int (*get_info)(char *, char **, off_t, int, int);
-	void (*fill_inode)(struct inode *);
+	void (*fill_inode)(struct inode *, int);
 	struct proc_dir_entry *next, *parent, *subdir;
 	void *data;
 	int (*read_proc)(char *page, char **start, off_t off,
 			 int count, int *eof, void *data);
 	int (*write_proc)(struct file *file, const char *buffer,
 			  unsigned long count, void *data);
+	unsigned int count;	/* use count */
+	int deleted;		/* delete flag */
 };
 
 extern int (* dispatch_scsi_info_ptr) (int ino, char *buffer, char **start,

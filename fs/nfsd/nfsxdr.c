@@ -18,7 +18,7 @@
 #define NFSDDBG_FACILITY		NFSDDBG_XDR
 
 u32	nfs_ok, nfserr_perm, nfserr_noent, nfserr_io, nfserr_nxio,
-	nfserr_acces, nfserr_exist, nfserr_nodev, nfserr_notdir,
+	nfserr_inval, nfserr_acces, nfserr_exist, nfserr_nodev, nfserr_notdir,
 	nfserr_isdir, nfserr_fbig, nfserr_nospc, nfserr_rofs,
 	nfserr_nametoolong, nfserr_dquot, nfserr_stale;
 
@@ -47,10 +47,11 @@ nfsd_xdr_init(void)
 	if (inited)
 		return;
 
-	nfs_ok = htonl(NFS_OK);
-	nfserr_perm = htonl(NFSERR_PERM);
-	nfserr_noent = htonl(NFSERR_NOENT);
-	nfserr_io = htonl(NFSERR_IO);
+	nfs_ok		= htonl(NFS_OK);
+	nfserr_perm	= htonl(NFSERR_PERM);
+	nfserr_noent	= htonl(NFSERR_NOENT);
+	nfserr_io	= htonl(NFSERR_IO);
+	nfserr_inval	= htonl(NFSERR_INVAL);
 	nfserr_nxio = htonl(NFSERR_NXIO);
 	nfserr_acces = htonl(NFSERR_ACCES);
 	nfserr_exist = htonl(NFSERR_EXIST);
@@ -363,7 +364,7 @@ int
 nfssvc_encode_attrstat(struct svc_rqst *rqstp, u32 *p,
 					struct nfsd_attrstat *resp)
 {
-	if (!(p = encode_fattr(rqstp, p, resp->fh.fh_handle.fh_dentry->d_inode)))
+	if (!(p = encode_fattr(rqstp, p, resp->fh.fh_dentry->d_inode)))
 		return 0;
 	return xdr_ressize_check(rqstp, p);
 }
@@ -373,7 +374,7 @@ nfssvc_encode_diropres(struct svc_rqst *rqstp, u32 *p,
 					struct nfsd_diropres *resp)
 {
 	if (!(p = encode_fh(p, &resp->fh))
-	 || !(p = encode_fattr(rqstp, p, resp->fh.fh_handle.fh_dentry->d_inode)))
+	 || !(p = encode_fattr(rqstp, p, resp->fh.fh_dentry->d_inode)))
 		return 0;
 	return xdr_ressize_check(rqstp, p);
 }
@@ -391,7 +392,7 @@ int
 nfssvc_encode_readres(struct svc_rqst *rqstp, u32 *p,
 					struct nfsd_readres *resp)
 {
-	if (!(p = encode_fattr(rqstp, p, resp->fh.fh_handle.fh_dentry->d_inode)))
+	if (!(p = encode_fattr(rqstp, p, resp->fh.fh_dentry->d_inode)))
 		return 0;
 	*p++ = htonl(resp->count);
 	p += XDR_QUADLEN(resp->count);

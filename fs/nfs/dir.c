@@ -29,6 +29,13 @@
 
 #include <asm/segment.h>	/* for fs functions */
 
+#define NFS_MAX_AGE 10*HZ	/* max age for dentry validation */
+
+/* needed by smbfs as well ... move to dcache? */
+extern void nfs_renew_times(struct dentry *);
+
+#define NFS_PARANOIA 1
+
 /*
  * Head for a dircache entry. Currently still very simple; when
  * the cache grows larger, we will need a LRU list.
@@ -36,18 +43,20 @@
 struct nfs_dirent {
 	dev_t			dev;		/* device number */
 	ino_t			ino;		/* inode number */
-	u32			cookie;		/* cooke of first entry */
+	u32			cookie;		/* cookie of first entry */
 	unsigned short		valid  : 1,	/* data is valid */
 				locked : 1;	/* entry locked */
 	unsigned int		size;		/* # of entries */
 	unsigned long		age;		/* last used */
 	unsigned long		mtime;		/* last attr stamp */
 	struct wait_queue *	wait;
-	struct nfs_entry *	entry;
+	__u32 *			entry;		/* three __u32's per entry */
 };
 
-static int nfs_dir_open(struct inode * inode, struct file * file);
-static long nfs_dir_read(struct inode *, struct file *, char *, unsigned long);
+static int nfs_safe_remove(struct dentry *);
+
+static int nfs_dir_open(struct inode *, struct file *);
+static ssize_t nfs_dir_read(struct file *, char *, size_t, loff_t *);
 static int nfs_readdir(struct file *, void *, filldir_t);
 static int nfs_lookup(struct inode *, struct dentry *);
 static int nfs_create(struct inode *, struct dentry *, int);
@@ -57,7 +66,8 @@ static int nfs_unlink(struct inode *, struct dentry *);
 static int nfs_symlink(struct inode *, struct dentry *, const char *);
 static int nfs_link(struct inode *, struct inode *, struct dentry *);
 static int nfs_mknod(struct inode *, struct dentry *, int, int);
-static int nfs_rename(struct inode *, struct dentry *, struct inode *, struct dentry *);
+static int nfs_rename(struct inode *, struct dentry *,
+		      struct inode *, struct dentry *);
 
 static struct file_operations nfs_dir_operations = {
 	NULL,			/* lseek - default */
@@ -102,8 +112,8 @@ nfs_dir_open(struct inode *dir, struct file *file)
 	return nfs_revalidate_inode(NFS_SERVER(dir), dir);
 }
 
-static long
-nfs_dir_read(struct inode *inode, struct file *filp, char *buf, unsigned long count)
+static ssize_t
+nfs_dir_read(struct file *filp, char *buf, size_t count, loff_t *ppos)
 {
 	return -EISDIR;
 }
@@ -123,15 +133,16 @@ static struct nfs_dirent	dircache[NFS_MAX_DIRCACHE];
 
 static int nfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
+	struct inode 		*inode = filp->f_dentry->d_inode;
 	static struct wait_queue *readdir_wait = NULL;
 	struct wait_queue	**waitp = NULL;
 	struct nfs_dirent	*cache, *free;
-	struct nfs_entry	*entry;
 	unsigned long		age, dead;
 	u32			cookie;
 	int			ismydir, result;
 	int			i, j, index = 0;
-	struct inode 		*inode = filp->f_dentry->d_inode;
+	__u32			*entry;
+	char			*name, *start;
 
 	dfprintk(VFS, "NFS: nfs_readdir(%x/%ld)\n", inode->i_dev, inode->i_ino);
 	if (!inode || !S_ISDIR(inode->i_mode)) {
@@ -148,7 +159,7 @@ static int nfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 again:
 	if (waitp) {
 		interruptible_sleep_on(waitp);
-		if (current->signal & ~current->blocked)
+		if (signal_pending(current))
 			return -ERESTARTSYS;
 		waitp = NULL;
 	}
@@ -174,7 +185,7 @@ again:
 			goto again;
 		}
 
-		if (ismydir && cache->mtime != NFS_OLDMTIME(inode))
+		if (ismydir && cache->mtime != inode->i_mtime)
 			cache->valid = 0;
 
 		if (!cache->valid || cache->age < dead) {
@@ -194,17 +205,15 @@ again:
 			break;
 		}
 		for (j = 0; j < cache->size; j++) {
-			/*
-			dprintk("NFS: examing entry %.*s @%d\n",
-				(int) cache->entry[j].length,
-				cache->entry[j].name,
-				cache->entry[j].cookie);
-			 */
-			if (cache->entry[j].cookie != cookie)
+			__u32 *this_ent = cache->entry + j*3;
+
+			if (*(this_ent+1) != cookie)
 				continue;
 			if (j < cache->size - 1) {
-				entry = cache->entry + (index = j + 1);
-			} else if (cache->entry[j].eof) {
+				index = j + 1;
+				entry = this_ent + 3;
+			} else if (*(this_ent+2) & (1 << 15)) {
+				/* eof */
 				return 0;
 			}
 			break;
@@ -235,12 +244,10 @@ again:
 		cache->dev    = inode->i_dev;
 		cache->ino    = inode->i_ino;
 		if (!cache->entry) {
-			cache->entry = (struct nfs_entry *)
-						get_free_page(GFP_KERNEL);
-			if (!cache->entry) {
-				result = -ENOMEM;
+			result = -ENOMEM;
+			cache->entry = (__u32 *) get_free_page(GFP_KERNEL);
+			if (!cache->entry)
 				goto done;
-			}
 		}
 
 		result = nfs_proc_readdir(NFS_SERVER(inode), NFS_FH(inode),
@@ -251,31 +258,35 @@ again:
 		cache->valid = 1;
 		entry = cache->entry + (index = 0);
 	}
-	cache->mtime = NFS_OLDMTIME(inode);
+	cache->mtime = inode->i_mtime;
 	cache->age = jiffies;
 
 	/*
 	 * Yowza! We have a cache entry...
 	 */
+	start = (char *) cache->entry;
 	while (index < cache->size) {
-		int	nextpos = entry->cookie;
+		__u32	fileid  = *entry++;
+		__u32	nextpos = *entry++; /* cookie */
+		__u32	length  = *entry++;
 
 		/*
+		 * Unpack the eof flag, offset, and length
+		 */
+		result = length & (1 << 15); /* eof flag */
+		name = start + ((length >> 16) & 0xFFFF);
+		length &= 0x7FFF;
+		/*
 		dprintk("NFS: filldir(%p, %.*s, %d, %d, %x, eof %x)\n", entry,
-				(int) entry->length, entry->name, entry->length,
+				(int) length, name, length,
 				(unsigned int) filp->f_pos,
-				entry->fileid, entry->eof);
+				fileid, result);
 		 */
 
-		if (filldir(dirent, entry->name, entry->length, cookie, entry->fileid) < 0)
+		if (filldir(dirent, name, length, cookie, fileid) < 0)
 			break;
 		cookie = nextpos;
-		if (nextpos != entry->cookie) {
-			printk("nfs_readdir: shouldn't happen!\n");
-			break;
-		}
 		index++;
-		entry++;
 	}
 	filp->f_pos = cookie;
 	result = 0;
@@ -293,20 +304,54 @@ done:
 }
 
 /*
- * Invalidate dircache entries for inode
+ * Invalidate dircache entries for an inode.
  */
 void
 nfs_invalidate_dircache(struct inode *inode)
 {
-	struct nfs_dirent *cache;
+	struct nfs_dirent *cache = dircache;
 	dev_t		dev = inode->i_dev;
 	ino_t		ino = inode->i_ino;
 	int		i;
 
 	dfprintk(DIRCACHE, "NFS: invalidate dircache for %x/%ld\n", dev, (long)ino);
-	for (i = 0, cache = dircache; i < NFS_MAX_DIRCACHE; i++, cache++) {
-		if (!cache->locked && cache->dev == dev && cache->ino == ino)
-			cache->valid = 0;	/* brute force */
+	for (i = NFS_MAX_DIRCACHE; i--; cache++) {
+		if (cache->ino != ino)
+			continue;
+		if (cache->dev != dev)
+			continue;
+		if (cache->locked) {
+			printk("NFS: cache locked for %s/%ld\n",
+				kdevname(dev), (long) ino);
+			continue;
+		}
+		cache->valid = 0;	/* brute force */
+	}
+}
+
+/*
+ * Invalidate the dircache for a super block (or all caches),
+ * and release the cache memory.
+ */
+void
+nfs_invalidate_dircache_sb(struct super_block *sb)
+{
+	struct nfs_dirent *cache = dircache;
+	int		i;
+
+	for (i = NFS_MAX_DIRCACHE; i--; cache++) {
+		if (sb && sb->s_dev != cache->dev)
+			continue;
+		if (cache->locked) {
+			printk("NFS: cache locked at umount %s\n",
+				(cache->entry ? "(lost a page!)" : ""));
+			continue;
+		}
+		cache->valid = 0;	/* brute force */
+		if (cache->entry) {
+			free_page((unsigned long) cache->entry);
+			cache->entry = NULL;
+		}
 	}
 }
 
@@ -317,20 +362,8 @@ nfs_invalidate_dircache(struct inode *inode)
 void
 nfs_free_dircache(void)
 {
-	struct nfs_dirent *cache;
-	int		i;
-
 	dfprintk(DIRCACHE, "NFS: freeing dircache\n");
-	for (i = 0, cache = dircache; i < NFS_MAX_DIRCACHE; i++, cache++) {
-		cache->valid = 0;
-		if (cache->locked) {
-			printk("nfs_kfree_cache: locked entry in dircache!\n");
-			continue;
-		}
-		if (cache->entry)
-			free_page((unsigned long) cache->entry);
-		cache->entry = NULL;
-	}
+	nfs_invalidate_dircache_sb(NULL);
 }
 
 /*
@@ -350,19 +383,91 @@ static int nfs_lookup_revalidate(struct dentry * dentry)
 	unsigned long time = jiffies - dentry->d_time;
 	unsigned long max = 5*HZ;
 
-	if (dentry->d_inode && S_ISDIR(dentry->d_inode->i_mode))
-		max = 10*HZ;
-	return time < max;
+	if (dentry->d_inode) {
+		if (is_bad_inode(dentry->d_inode)) {
+#ifdef NFS_PARANOIA
+printk("nfs_lookup_validate: %s/%s has dud inode\n",
+dentry->d_parent->d_name.name, dentry->d_name.name);
+#endif
+			goto bad;
+		}
+		if (S_ISDIR(dentry->d_inode->i_mode))
+			max = NFS_MAX_AGE;
+	}
+
+	return (time < max) || IS_ROOT(dentry);
+bad:
+	return 0;
 }
 
-static void nfs_silly_delete(struct dentry *);
+/*
+ * This is called from dput() when d_count is going to 0.
+ * We use it to clean up silly-renamed files, and to check
+ * for dentries that have already expired.
+ */
+static void nfs_dentry_delete(struct dentry *dentry)
+{
+	if (dentry->d_flags & DCACHE_NFSFS_RENAMED) {
+		int error;
+		
+		dentry->d_flags &= ~DCACHE_NFSFS_RENAMED;
+#ifdef NFS_DEBUG
+printk("nfs_dentry_delete: unlinking %s/%s\n",
+dentry->d_parent->d_name.name, dentry->d_name.name);
+#endif
+		/* Unhash it first */
+		d_drop(dentry);
+		error = nfs_safe_remove(dentry);
+		if (error)
+			printk("NFS: can't silly-delete %s/%s, error=%d\n",
+				dentry->d_parent->d_name.name,
+				dentry->d_name.name, error);
+	}
+	/*
+	 * Check whether to expire the dentry ...
+	 */
+	else {
+		unsigned long age = jiffies - dentry->d_time;
+		if (age > NFS_MAX_AGE)
+			d_drop(dentry);
+	}
+
+#ifdef NFS_PARANOIA
+	/*
+	 * Sanity check: if the dentry has been unhashed and the
+	 * inode still has users, we could have problems ...
+	 */
+	if (list_empty(&dentry->d_hash) && dentry->d_inode) {
+		struct inode *inode = dentry->d_inode;
+		if (inode->i_count > 1) {
+printk("nfs_dentry_delete: %s/%s: ino=%ld, count=%d, nlink=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name,
+inode->i_ino, inode->i_count, inode->i_nlink);
+		}
+	}
+#endif
+}
 
 static struct dentry_operations nfs_dentry_operations = {
-	nfs_lookup_revalidate,
+	nfs_lookup_revalidate,	/* d_validate(struct dentry *) */
 	0,			/* d_hash */
 	0,			/* d_compare */
-	nfs_silly_delete,
+	nfs_dentry_delete	/* d_delete(struct dentry *) */
 };
+
+/*
+ * Whenever a lookup succeeds, we know the parent directories
+ * are all valid, so we want to update the dentry timestamps.
+ */
+void nfs_renew_times(struct dentry * dentry)
+{
+	for (;;) {
+		dentry->d_time = jiffies;
+		if (dentry == dentry->d_parent)
+			break;
+		dentry = dentry->d_parent;
+	}
+}
 
 static int nfs_lookup(struct inode *dir, struct dentry * dentry)
 {
@@ -373,38 +478,66 @@ static int nfs_lookup(struct inode *dir, struct dentry * dentry)
 	int error;
 
 	dfprintk(VFS, "NFS: lookup(%x/%ld, %.*s)\n",
-				dir->i_dev, dir->i_ino, len, dentry->d_name.name);
+			dir->i_dev, dir->i_ino, len, dentry->d_name.name);
 
 	if (!dir || !S_ISDIR(dir->i_mode)) {
 		printk("nfs_lookup: inode is NULL or not a directory\n");
 		return -ENOENT;
 	}
 
+	error = -ENAMETOOLONG;
 	if (len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
-	error = nfs_proc_lookup(NFS_SERVER(dir), NFS_FH(dir), dentry->d_name.name, &fhandle, &fattr);
-
+	error = nfs_proc_lookup(NFS_SERVER(dir), NFS_FH(dir), 
+				dentry->d_name.name, &fhandle, &fattr);
 	inode = NULL;
+	if (error == -ENOENT)
+		goto no_entry;
 	if (!error) {
+		error = -EACCES;
 		inode = nfs_fhget(dir->i_sb, &fhandle, &fattr);
-		if (!inode)
-			return -EACCES;
-	} else if (error != -ENOENT)
-		return error;
-
-	dentry->d_time = jiffies;
-	dentry->d_op = &nfs_dentry_operations;
-	d_add(dentry, inode);
-	return 0;
+		if (inode) {
+	    no_entry:
+			dentry->d_op = &nfs_dentry_operations;
+			d_add(dentry, inode);
+			nfs_renew_times(dentry);
+			error = 0;
+		}
+	}
+out:
+	return error;
 }
 
+/*
+ * Code common to create, mkdir, and mknod.
+ */
+static int nfs_instantiate(struct inode *dir, struct dentry *dentry,
+			struct nfs_fattr *fattr, struct nfs_fh *fhandle)
+{
+	struct inode *inode;
+	int error = -EACCES;
+
+	inode = nfs_fhget(dir->i_sb, fhandle, fattr);
+	if (inode) {
+		d_instantiate(dentry, inode);
+		nfs_renew_times(dentry);
+		error = 0;
+	}
+	return error;
+}
+
+/*
+ * Following a failed create operation, we drop the dentry rather
+ * than retain a negative dentry. This avoids a problem in the event
+ * that the operation succeeded on the server, but an error in the
+ * reply path made it appear to have failed.
+ */
 static int nfs_create(struct inode *dir, struct dentry * dentry, int mode)
 {
 	struct nfs_sattr sattr;
 	struct nfs_fattr fattr;
 	struct nfs_fh fhandle;
-	struct inode *inode;
 	int error;
 
 	dfprintk(VFS, "NFS: create(%x/%ld, %s\n",
@@ -415,33 +548,41 @@ static int nfs_create(struct inode *dir, struct dentry * dentry, int mode)
 		return -ENOENT;
 	}
 
+	error = -ENAMETOOLONG;
 	if (dentry->d_name.len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
 	sattr.mode = mode;
 	sattr.uid = sattr.gid = sattr.size = (unsigned) -1;
 	sattr.atime.seconds = sattr.mtime.seconds = (unsigned) -1;
-	error = nfs_proc_create(NFS_SERVER(dir), NFS_FH(dir),
-		dentry->d_name.name, &sattr, &fhandle, &fattr);
 
-	if (error)
-		return error;
-
-	inode = nfs_fhget(dir->i_sb, &fhandle, &fattr);
-	if (!inode)
-		return -EACCES;
-
+	/*
+	 * Invalidate the dir cache before the operation to avoid a race.
+	 */
 	nfs_invalidate_dircache(dir);
-	d_instantiate(dentry, inode);
-	return 0;
+	error = nfs_proc_create(NFS_SERVER(dir), NFS_FH(dir),
+			dentry->d_name.name, &sattr, &fhandle, &fattr);
+	if (!error)
+		error = nfs_instantiate(dir, dentry, &fattr, &fhandle);
+	else {
+#ifdef NFS_PARANOIA
+printk("nfs_create: %s/%s failed, error=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, error);
+#endif
+		d_drop(dentry);
+	}
+out:
+	return error;
 }
 
+/*
+ * See comments for nfs_proc_create regarding failed operations.
+ */
 static int nfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int rdev)
 {
 	struct nfs_sattr sattr;
 	struct nfs_fattr fattr;
 	struct nfs_fh fhandle;
-	struct inode *inode;
 	int error;
 
 	dfprintk(VFS, "NFS: mknod(%x/%ld, %s\n",
@@ -459,29 +600,31 @@ static int nfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int rde
 	sattr.uid = sattr.gid = sattr.size = (unsigned) -1;
 	if (S_ISCHR(mode) || S_ISBLK(mode))
 		sattr.size = rdev; /* get out your barf bag */
-
 	sattr.atime.seconds = sattr.mtime.seconds = (unsigned) -1;
-	error = nfs_proc_create(NFS_SERVER(dir), NFS_FH(dir),
-		dentry->d_name.name, &sattr, &fhandle, &fattr);
-
-	if (error)
-		return error;
-
-	inode = nfs_fhget(dir->i_sb, &fhandle, &fattr);
-	if (!inode)
-		return -EACCES;
 
 	nfs_invalidate_dircache(dir);
-	d_instantiate(dentry, inode);
-	return 0;
+	error = nfs_proc_create(NFS_SERVER(dir), NFS_FH(dir),
+				dentry->d_name.name, &sattr, &fhandle, &fattr);
+	if (!error)
+		error = nfs_instantiate(dir, dentry, &fattr, &fhandle);
+	else {
+#ifdef NFS_PARANOIA
+printk("nfs_mknod: %s/%s failed, error=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, error);
+#endif
+		d_drop(dentry);
+	}
+	return error;
 }
 
+/*
+ * See comments for nfs_proc_create regarding failed operations.
+ */
 static int nfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	struct nfs_sattr sattr;
 	struct nfs_fattr fattr;
 	struct nfs_fh fhandle;
-	struct inode * inode;
 	int error;
 
 	dfprintk(VFS, "NFS: mkdir(%x/%ld, %s\n",
@@ -499,21 +642,29 @@ static int nfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	sattr.uid = sattr.gid = sattr.size = (unsigned) -1;
 	sattr.atime.seconds = sattr.mtime.seconds = (unsigned) -1;
 
-	error = nfs_proc_mkdir(NFS_SERVER(dir), NFS_FH(dir),
-		dentry->d_name.name, &sattr, &fhandle, &fattr);
-
-	if (error)
-		return error;
-
-	inode = nfs_fhget(dir->i_sb, &fhandle, &fattr);
-	if (!inode)
-		return -EACCES;
-
 	nfs_invalidate_dircache(dir);
-	d_instantiate(dentry, inode);
-	return 0;
+	error = nfs_proc_mkdir(NFS_SERVER(dir), NFS_FH(dir),
+				dentry->d_name.name, &sattr, &fhandle, &fattr);
+	if (!error)
+		error = nfs_instantiate(dir, dentry, &fattr, &fhandle);
+	else {
+#ifdef NFS_PARANOIA
+printk("nfs_mkdir: %s/%s failed, error=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, error);
+#endif
+		d_drop(dentry);
+	}
+	return error;
 }
 
+/*
+ * To avoid retaining a stale inode reference, we check the dentry
+ * use count prior to the operation, and return EBUSY if it has
+ * multiple users.
+ *
+ * Update inode->i_nlink immediately after a successful operation.
+ * (See comments for nfs_unlink.)
+ */
 static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	int error;
@@ -526,16 +677,28 @@ static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 		return -ENOENT;
 	}
 
+	error = -ENAMETOOLONG;
 	if (dentry->d_name.len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
+	error = -EBUSY;
+	if (dentry->d_count > 1) {
+		/* Attempt to shrink child dentries ... */
+		shrink_dcache_parent(dentry);
+		if (dentry->d_count > 1)
+			goto out;
+	}
+	/* Drop the dentry to force a new lookup */
+	d_drop(dentry);
 	error = nfs_proc_rmdir(NFS_SERVER(dir), NFS_FH(dir), dentry->d_name.name);
-	if (error)
-		return error;
-
-	nfs_invalidate_dircache(dir);
-	d_delete(dentry);
-	return 0;
+	if (!error) {
+		if (dentry->d_inode->i_nlink)
+			dentry->d_inode->i_nlink --;
+		nfs_invalidate_dircache(dir);
+		nfs_renew_times(dentry);
+	}
+out:
+	return error;
 }
 
 
@@ -551,24 +714,22 @@ static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
  *
  *  Concerning my choice of the temp name: it is just nice to have
  *  i_ino part of the temp name, as this offers another check whether
- *  somebody attempts to remove the "silly renamed" dentry
- *  itself. Which is something that I consider evil. Your opinion may
- *  vary.
+ *  somebody attempts to remove the "silly renamed" dentry itself.
+ *  Which is something that I consider evil. Your opinion may vary.
  *  BUT:
  *  Now that I compute the hash value right, it should be possible to simply
  *  check for the DCACHE_NFSFS_RENAMED flag in dentry->d_flag instead of
  *  doing the string compare.
  *  WHICH MEANS:
  *  This offers the opportunity to shorten the temp name. Currently, I use
- *  the hex representation of i_ino + the hex value of jiffies. This
- *  sums up to as much as 36 characters for a 64 bit machine, and needs
- *  20 chars on a 32 bit machine. Have a look at jiffiesize etc.
+ *  the hex representation of i_ino + an event counter. This sums up to
+ *  as much as 36 characters for a 64 bit machine, and needs 20 chars on 
+ *  a 32 bit machine.
  *  QUINTESSENCE
  *  The use of i_ino is simply cosmetic. All we need is a unique temp
- *  file name for the .nfs files. The hex representation of "jiffies"
- *  seemed to be adequate. And as we retry in case such a file already
- *  exists we are guaranteed to succed (after some jiffies have passed
- *  by :)
+ *  file name for the .nfs files. The event counter seemed to be adequate.
+ *  And as we retry in case such a file already exists, we are guaranteed
+ *  to succeed.
  */
 
 static
@@ -576,14 +737,11 @@ struct dentry *nfs_silly_lookup(struct dentry *parent, char *silly, int slen)
 {
 	struct qstr    sqstr;
 	struct dentry *sdentry;
-	int i, error;
+	int error;
 
 	sqstr.name = silly;
 	sqstr.len  = slen;
-	sqstr.hash = init_name_hash();
-	for (i= 0; i < slen; i++)
-		sqstr.hash = partial_name_hash(silly[i], sqstr.hash);
-	sqstr.hash = end_name_hash(sqstr.hash);
+	sqstr.hash = full_name_hash(silly, slen);
 	sdentry = d_lookup(parent, &sqstr);
 	if (!sdentry) {
 		sdentry = d_alloc(parent, &sqstr);
@@ -605,19 +763,29 @@ static int nfs_sillyrename(struct inode *dir, struct dentry *dentry)
 	const int      countersize = sizeof(sillycounter)*2;
 	const int      slen       = strlen(".nfs") + i_inosize + countersize;
 	char           silly[slen+1];
-	int            error;
 	struct dentry *sdentry;
+	int            error = -EIO;
 
+	/*
+	 * Note that a silly-renamed file can be deleted once it's
+	 * no longer in use -- it's just an ordinary file now.
+	 */
 	if (dentry->d_count == 1) {
-		return -EIO;  /* No need to silly rename. */
+		dentry->d_flags &= ~DCACHE_NFSFS_RENAMED;
+		goto out;  /* No need to silly rename. */
 	}
 
-	if (dentry->d_flags & DCACHE_NFSFS_RENAMED) {
-		return -EBUSY; /* don't allow to unlink silly inode -- nope,
-				* think a bit: silly DENTRY, NOT inode --
-				* itself
-				*/
-	}
+#ifdef NFS_PARANOIA
+if (!dentry->d_inode)
+printk("NFS: silly-renaming %s/%s, negative dentry??\n",
+dentry->d_parent->d_name.name, dentry->d_name.name);
+#endif
+	/*
+	 * We don't allow a dentry to be silly-renamed twice.
+	 */
+	error = -EBUSY;
+	if (dentry->d_flags & DCACHE_NFSFS_RENAMED)
+		goto out;
 
 	sprintf(silly, ".nfs%*.*lx",
 		i_inosize, i_inosize, dentry->d_inode->i_ino);
@@ -634,54 +802,109 @@ static int nfs_sillyrename(struct inode *dir, struct dentry *dentry)
 			 dentry->d_name.name, silly);
 		
 		sdentry = nfs_silly_lookup(dentry->d_parent, silly, slen);
-		if (IS_ERR(sdentry)) {
-			return -EIO; /* FIXME ? */
-		}		
+		/*
+		 * N.B. Better to return EBUSY here ... it could be
+		 * dangerous to delete the file while it's in use.
+		 */
+		if (IS_ERR(sdentry))
+			goto out;
 	} while(sdentry->d_inode != NULL); /* need negative lookup */
 
 	error = nfs_proc_rename(NFS_SERVER(dir),
 				NFS_FH(dir), dentry->d_name.name,
 				NFS_FH(dir), silly);
-	if (error) {
-		dput(sdentry);
-		return error;
+	if (!error) {
+		nfs_invalidate_dircache(dir);
+		nfs_renew_times(dentry);
+		d_move(dentry, sdentry);
+		dentry->d_flags |= DCACHE_NFSFS_RENAMED;
+ 		/* If we return 0 we don't unlink */
 	}
-	nfs_invalidate_dircache(dir);
-	d_move(dentry, sdentry);
 	dput(sdentry);
-	dentry->d_flags |= DCACHE_NFSFS_RENAMED;
-
-	return 0; /* don't unlink */
+out:
+	return error;
 }
 
-static void nfs_silly_delete(struct dentry *dentry)
+/*
+ * Remove a file after making sure there are no pending writes,
+ * and after checking that the file has only one user. 
+ *
+ * Updating inode->i_nlink here rather than waiting for the next
+ * nfs_refresh_inode() is not merely cosmetic; once an object has
+ * been deleted, we want to get rid of the inode locally.  The NFS
+ * server may reuse the fileid for a new inode, and we don't want
+ * that to be confused with this inode.
+ */
+static int nfs_safe_remove(struct dentry *dentry)
 {
-	if (dentry->d_flags & DCACHE_NFSFS_RENAMED) {
-		struct inode *dir = dentry->d_parent->d_inode;
-		int error;
+	struct inode *dir = dentry->d_parent->d_inode;
+	struct inode *inode = dentry->d_inode;
+	int error, rehash = 0;
 		
-		dentry->d_flags &= ~DCACHE_NFSFS_RENAMED;
-
-		/* Unhash it first */
-		d_drop(dentry);
-		dfprintk(VFS, "trying to unlink %s\n", dentry->d_name.name);
-		error = nfs_proc_remove(NFS_SERVER(dir),
-					NFS_FH(dir), dentry->d_name.name);
-		if (error < 0)
-			printk("NFS " __FUNCTION__ " failed (err = %d)\n",
-			       -error);
-		dentry->d_inode->i_nlink --;
-		nfs_invalidate_dircache(dir);
+	error = -EBUSY;
+	if (inode) {
+		if (NFS_WRITEBACK(inode)) {
+			nfs_flush_dirty_pages(inode, 0, 0, 0);
+			if (NFS_WRITEBACK(inode)) {
+#ifdef NFS_PARANOIA
+printk("nfs_safe_remove: %s/%s writes pending, d_count=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, dentry->d_count);
+#endif
+				goto out;
+			}
+		}
+	} else {
+#ifdef NFS_PARANOIA
+printk("nfs_safe_remove: %s/%s already negative??\n",
+dentry->d_parent->d_name.name, dentry->d_name.name);
+#endif
 	}
+
+	if (dentry->d_count > 1) {
+#ifdef NFS_PARANOIA
+printk("nfs_safe_remove: %s/%s busy, d_count=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, dentry->d_count);
+#endif
+		goto out;
+	}
+	/*
+	 * Unhash the dentry while we remove the file ...
+	 */
+	if (!list_empty(&dentry->d_hash)) {
+		d_drop(dentry);
+		rehash = 1;
+	}
+	error = nfs_proc_remove(NFS_SERVER(dir),
+					NFS_FH(dir), dentry->d_name.name);
+	/*
+	 * ... then restore the hashed state.  This ensures that the
+	 * dentry can't become busy after having its file deleted.
+	 */
+	if (rehash) {
+		d_add(dentry, inode);
+	}
+#ifdef NFS_PARANOIA
+if (dentry->d_count > 1)
+printk("nfs_safe_remove: %s/%s busy after delete?? d_count=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, dentry->d_count);
+if (inode && inode->i_count > 1)
+printk("nfs_safe_remove: %s/%s inode busy?? i_count=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name, inode->i_count);
+#endif
+	if (!error) {
+		nfs_invalidate_dircache(dir);
+		if (inode && inode->i_nlink)
+			inode->i_nlink --;
+		d_delete(dentry);
+	}
+out:
+	return error;
 }
 
 /*  We do silly rename. In case sillyrename() returns -EBUSY, the inode
  *  belongs to an active ".nfs..." file and we return -EBUSY.
  *
  *  If sillyrename() returns 0, we do nothing, otherwise we unlink.
- * 
- *  inode->i_nlink is updated here rather than waiting for the next
- *  nfs_refresh_inode() for cosmetic reasons only.
  */
 static int nfs_unlink(struct inode *dir, struct dentry *dentry)
 {
@@ -695,70 +918,77 @@ static int nfs_unlink(struct inode *dir, struct dentry *dentry)
 		return -ENOENT;
 	}
 
+	error = -ENAMETOOLONG;
 	if (dentry->d_name.len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
 	error = nfs_sillyrename(dir, dentry);
-
-	if (error == -EBUSY) {
-		return -EBUSY;
-	} else if (error < 0) {
-		error = nfs_proc_remove(NFS_SERVER(dir),
-					NFS_FH(dir), dentry->d_name.name);
-		if (error < 0)
-			return error;
-		
-		dentry->d_inode->i_nlink --;
-		nfs_invalidate_dircache(dir);
-		d_delete(dentry);
+	if (error && error != -EBUSY) {
+		error = nfs_safe_remove(dentry);
+		if (!error) {
+			nfs_renew_times(dentry);
+		}
 	}
-
-	return 0;
+out:
+	return error;
 }
 
-static int nfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
+static int
+nfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	struct nfs_sattr sattr;
 	int error;
 
 	dfprintk(VFS, "NFS: symlink(%x/%ld, %s, %s)\n",
-				dir->i_dev, dir->i_ino, dentry->d_name.name, symname);
+			dir->i_dev, dir->i_ino, dentry->d_name.name, symname);
 
 	if (!dir || !S_ISDIR(dir->i_mode)) {
 		printk("nfs_symlink: inode is NULL or not a directory\n");
 		return -ENOENT;
 	}
 
+	error = -ENAMETOOLONG;
 	if (dentry->d_name.len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
 	if (strlen(symname) > NFS_MAXPATHLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
-	sattr.mode = S_IFLNK | S_IRWXUGO; /* SunOS 4.1.2 crashes without this! */
+#ifdef NFS_PARANOIA
+if (dentry->d_inode)
+printk("nfs_proc_symlink: %s/%s not negative!\n",
+dentry->d_parent->d_name.name, dentry->d_name.name);
+#endif
+	/*
+	 * Fill in the sattr for the call.
+ 	 * Note: SunOS 4.1.2 crashes if the mode isn't initialized!
+	 */
+	sattr.mode = S_IFLNK | S_IRWXUGO;
 	sattr.uid = sattr.gid = sattr.size = (unsigned) -1;
 	sattr.atime.seconds = sattr.mtime.seconds = (unsigned) -1;
 
-	error = nfs_proc_symlink(NFS_SERVER(dir), NFS_FH(dir),
-		dentry->d_name.name, symname, &sattr);
-
-	if (error)
-		return error;
-
-	nfs_invalidate_dircache(dir);
-	/*  this looks _funny_ doesn't it? But: nfs_proc_symlink()
-	 *  only fills in sattr, not fattr. Thus nfs_fhget() cannot be
-	 *  called, it would be pointless, without a valid fattr
-	 *  argument. Other possibility: call nfs_proc_lookup()
-	 *  HERE. But why? If somebody wants to reference this
-	 *  symlink, the cached_lookup() will fail, and
-	 *  nfs_proc_symlink() will be called anyway.
+	/*
+	 * Drop the dentry in advance to force a new lookup.
+	 * Since nfs_proc_symlink doesn't return a fattr, we
+	 * can't instantiate the new inode.
 	 */
 	d_drop(dentry);
-	return 0;
+	error = nfs_proc_symlink(NFS_SERVER(dir), NFS_FH(dir),
+				dentry->d_name.name, symname, &sattr);
+	if (!error) {
+		nfs_invalidate_dircache(dir);
+		nfs_renew_times(dentry->d_parent);
+	} else if (error == -EEXIST) {
+		printk("nfs_proc_symlink: %s/%s already exists??\n",
+			dentry->d_parent->d_name.name, dentry->d_name.name);
+	}
+
+out:
+	return error;
 }
 
-static int nfs_link(struct inode *inode, struct inode *dir, struct dentry *dentry)
+static int 
+nfs_link(struct inode *inode, struct inode *dir, struct dentry *dentry)
 {
 	int error;
 
@@ -771,20 +1001,20 @@ static int nfs_link(struct inode *inode, struct inode *dir, struct dentry *dentr
 		return -ENOENT;
 	}
 
+	error = -ENAMETOOLONG;
 	if (dentry->d_name.len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+		goto out;
 
-	error = nfs_proc_link(NFS_SERVER(inode), NFS_FH(inode),
-		NFS_FH(dir), dentry->d_name.name);
-
-	if (error)
-		return error;
-
-	nfs_invalidate_dircache(dir);
-	inode->i_count ++;
-	inode->i_nlink ++; /* no need to wait for nfs_refresh_inode() */
-	d_instantiate(dentry, inode);
-	return 0;
+	error = nfs_proc_link(NFS_SERVER(inode), NFS_FH(inode), NFS_FH(dir),
+				dentry->d_name.name);
+	if (!error) {
+		nfs_invalidate_dircache(dir);
+		inode->i_count ++;
+		inode->i_nlink ++; /* no need to wait for nfs_refresh_inode() */
+		d_instantiate(dentry, inode);
+	}
+out:
+	return error;
 }
 
 /*
@@ -804,16 +1034,25 @@ static int nfs_link(struct inode *inode, struct inode *dir, struct dentry *dentr
  * implementation that only depends on the dcache stuff instead of
  * using the inode layer
  *
+ * Unfortunately, things are a little more complicated than indicated
+ * above. For a cross-directory move, we want to make sure we can get
+ * rid of the old inode after the operation.  This means there must be
+ * no pending writes (if it's a file), and the use count must be 1.
+ * If these conditions are met, we can drop the dentries before doing
+ * the rename.
  */
 static int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		      struct inode *new_dir, struct dentry *new_dentry)
 {
-	int error;
+	struct inode *old_inode = old_dentry->d_inode;
+	struct inode *new_inode = new_dentry->d_inode;
+	int error, rehash = 0, update = 1;
 
-	dfprintk(VFS, "NFS: rename(%x/%ld, %s -> %x/%ld, %s)\n",
-				old_dir->i_dev, old_dir->i_ino, old_dentry->d_name.name,
-				new_dir->i_dev, new_dir->i_ino, new_dentry->d_name.name);
-
+#ifdef NFS_DEBUG_VERBOSE
+printk("nfs_rename: old %s/%s, count=%d, new %s/%s, count=%d\n",
+old_dentry->d_parent->d_name.name,old_dentry->d_name.name,old_dentry->d_count,
+new_dentry->d_parent->d_name.name,new_dentry->d_name.name,new_dentry->d_count);
+#endif
 	if (!old_dir || !S_ISDIR(old_dir->i_mode)) {
 		printk("nfs_rename: old inode is NULL or not a directory\n");
 		return -ENOENT;
@@ -824,98 +1063,109 @@ static int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		return -ENOENT;
 	}
 
-	if (old_dentry->d_name.len > NFS_MAXNAMLEN || new_dentry->d_name.len > NFS_MAXNAMLEN)
-		return -ENAMETOOLONG;
+	error = -ENAMETOOLONG;
+	if (old_dentry->d_name.len > NFS_MAXNAMLEN ||
+	    new_dentry->d_name.len > NFS_MAXNAMLEN)
+		goto out;
 
-	if (new_dir != old_dir) {
-		error = nfs_sillyrename(old_dir, old_dentry);
+	/*
+	 * First check whether the target is busy ... we can't
+	 * safely do _any_ rename if the target is in use.
+	 */
+	if (new_dentry->d_count > 1) {
+		if (new_inode && S_ISDIR(new_inode->i_mode))
+			shrink_dcache_parent(new_dentry);
+	}
+	error = -EBUSY;
+	if (new_dentry->d_count > 1) {
+#ifdef NFS_PARANOIA
+printk("nfs_rename: target %s/%s busy, d_count=%d\n",
+new_dentry->d_parent->d_name.name,new_dentry->d_name.name,new_dentry->d_count);
+#endif
+		goto out;
+	}
 
-		if (error == -EBUSY) {
-			return -EBUSY;
-		} else if (error == 0) { /* did silly rename stuff */
-			error = nfs_link(old_dentry->d_inode,
-					 new_dir, new_dentry);
-			
-			return error;
+	/*
+	 * Check for within-directory rename ... no complications.
+	 */
+	if (new_dir == old_dir)
+		goto do_rename;
+	/*
+	 * Cross-directory move ... check whether it's a file.
+	 */
+	if (S_ISREG(old_inode->i_mode)) {
+		if (NFS_WRITEBACK(old_inode)) {
+#ifdef NFS_PARANOIA
+printk("nfs_rename: %s/%s has pending writes\n",
+old_dentry->d_parent->d_name.name, old_dentry->d_name.name);
+#endif
+			nfs_flush_dirty_pages(old_inode, 0, 0, 0);
+			if (NFS_WRITEBACK(old_inode)) {
+#ifdef NFS_PARANOIA
+printk("nfs_rename: %s/%s has pending writes after flush\n",
+old_dentry->d_parent->d_name.name, old_dentry->d_name.name);
+#endif
+				goto out;
+			}
 		}
-		/* no need for silly rename, proceed as usual */
+	}
+	/*
+	 * Moving a directory ... prune child dentries if needed.
+	 */
+	else if (old_dentry->d_count > 1)
+		shrink_dcache_parent(old_dentry);
+
+	/*
+	 * Now check the use counts ... we can't safely do the
+	 * rename unless we can drop the dentries first.
+	 */
+	if (old_dentry->d_count > 1) {
+#ifdef NFS_PARANOIA
+printk("nfs_rename: old dentry %s/%s busy, d_count=%d\n",
+old_dentry->d_parent->d_name.name,old_dentry->d_name.name,old_dentry->d_count);
+#endif
+		goto out;
+	}
+	if (new_dentry->d_count > 1) {
+#ifdef NFS_PARANOIA
+printk("nfs_rename: new dentry %s/%s busy, d_count=%d\n",
+new_dentry->d_parent->d_name.name,new_dentry->d_name.name,new_dentry->d_count);
+#endif
+		goto out;
+	}
+
+	d_drop(old_dentry);
+	update = 0;
+
+do_rename:
+	/*
+	 * We must prevent any new references to the target while
+	 * the rename is in progress, so we unhash the dentry.
+	 */
+	if (!list_empty(&new_dentry->d_hash)) {
+		d_drop(new_dentry);
+		rehash = 1;
 	}
 	error = nfs_proc_rename(NFS_SERVER(old_dir),
 				NFS_FH(old_dir), old_dentry->d_name.name,
 				NFS_FH(new_dir), new_dentry->d_name.name);
-	if (error)
-		return error;
-
-	nfs_invalidate_dircache(old_dir);
-	nfs_invalidate_dircache(new_dir);
-
-	/* Update the dcache */
-	d_move(old_dentry, new_dentry);
-	return 0;
-}
-
-/*
- * Many nfs protocol calls return the new file attributes after
- * an operation.  Here we update the inode to reflect the state
- * of the server's inode.
- */
-
-void nfs_refresh_inode(struct inode *inode, struct nfs_fattr *fattr)
-{
-	int was_empty;
-
-	dfprintk(VFS, "NFS: refresh_inode(%x/%ld ct=%d)\n",
-		 inode->i_dev, inode->i_ino, inode->i_count);
-
-	if (!inode || !fattr) {
-		printk("nfs_refresh_inode: inode or fattr is NULL\n");
-		return;
+	if (rehash) {
+		d_add(new_dentry, new_inode);
 	}
-	if (inode->i_ino != fattr->fileid) {
-		printk("nfs_refresh_inode: inode number mismatch\n");
-		return;
+#ifdef NFS_PARANOIA
+if (new_dentry->d_count > 1)
+printk("nfs_rename: %s/%s busy after rename, d_count=%d\n",
+new_dentry->d_parent->d_name.name,new_dentry->d_name.name,new_dentry->d_count);
+#endif
+	if (!error) {
+		nfs_invalidate_dircache(new_dir);
+		nfs_invalidate_dircache(old_dir);
+		/* Update the dcache if needed */
+		if (update)
+			d_move(old_dentry, new_dentry);
 	}
-	was_empty = (inode->i_mode == 0);
-	inode->i_mode = fattr->mode;
-	inode->i_nlink = fattr->nlink;
-	inode->i_uid = fattr->uid;
-	inode->i_gid = fattr->gid;
-
-	/* Size changed from outside: invalidate caches on next read */
-	if (inode->i_size != fattr->size) {
-		dfprintk(PAGECACHE, "NFS:      cacheinv(%x/%ld)\n",
-					inode->i_dev, inode->i_ino);
-		NFS_CACHEINV(inode);
-	}
-	if (NFS_OLDMTIME(inode) != fattr->mtime.seconds) {
-		dfprintk(PAGECACHE, "NFS:      mtime change on %x/%ld\n",
-					inode->i_dev, inode->i_ino);
-		NFS_ATTRTIMEO(inode) = NFS_MINATTRTIMEO(inode);
-	}
-	inode->i_size = fattr->size;
-	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
-		inode->i_rdev = to_kdev_t(fattr->rdev);
-	else
-		inode->i_rdev = 0;
-	inode->i_blocks = fattr->blocks;
-	inode->i_atime = fattr->atime.seconds;
-	inode->i_mtime = fattr->mtime.seconds;
-	inode->i_ctime = fattr->ctime.seconds;
-	if (S_ISREG(inode->i_mode))
-		inode->i_op = &nfs_file_inode_operations;
-	else if (S_ISDIR(inode->i_mode))
-		inode->i_op = &nfs_dir_inode_operations;
-	else if (S_ISLNK(inode->i_mode))
-		inode->i_op = &nfs_symlink_inode_operations;
-	else if (S_ISCHR(inode->i_mode))
-		inode->i_op = &chrdev_inode_operations;
-	else if (S_ISBLK(inode->i_mode))
-		inode->i_op = &blkdev_inode_operations;
-	else if (S_ISFIFO(inode->i_mode)) {
-		if (was_empty)
-			init_fifo(inode);
-	} else
-		inode->i_op = NULL;
+out:
+	return error;
 }
 
 /*

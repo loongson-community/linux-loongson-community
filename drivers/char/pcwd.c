@@ -381,13 +381,12 @@ static int pcwd_open(struct inode *ino, struct file *filep)
 	return(0);
 }
 
-static long pcwd_read(struct inode *inode, struct file *file, char *buf,
-	unsigned long count)
+static ssize_t pcwd_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 {
 	unsigned short c = inb(current_readport);
 	unsigned char cp;
 
-	switch(MINOR(inode->i_rdev)) 
+	switch(MINOR(file->f_dentry->d_inode->i_rdev)) 
 	{
 		case TEMP_MINOR:
 			cp = c;

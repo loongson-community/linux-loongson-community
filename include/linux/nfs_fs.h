@@ -125,7 +125,7 @@ extern int nfs_proc_mkdir(struct nfs_server *server, struct nfs_fh *dir,
 extern int nfs_proc_rmdir(struct nfs_server *server, struct nfs_fh *dir,
 			const char *name);
 extern int nfs_proc_readdir(struct nfs_server *server, struct nfs_fh *fhandle,
-			u32 cookie, unsigned int size, struct nfs_entry *entry);
+			u32 cookie, unsigned int size, __u32 *entry);
 extern int nfs_proc_statfs(struct nfs_server *server, struct nfs_fh *fhandle,
 			struct nfs_fsinfo *res);
 
@@ -133,12 +133,11 @@ extern int nfs_proc_statfs(struct nfs_server *server, struct nfs_fh *fhandle,
 /*
  * linux/fs/nfs/inode.c
  */
-extern struct super_block *nfs_read_super(struct super_block *sb, 
-					  void *data,int);
+extern struct super_block *nfs_read_super(struct super_block *, void *, int);
 extern int init_nfs_fs(void);
-extern struct inode *nfs_fhget(struct super_block *sb, struct nfs_fh *fhandle,
-			       struct nfs_fattr *fattr);
-extern void nfs_refresh_inode(struct inode *inode, struct nfs_fattr *fattr);
+extern struct inode *nfs_fhget(struct super_block *, struct nfs_fh *,
+			       struct nfs_fattr *);
+extern int nfs_refresh_inode(struct inode *, struct nfs_fattr *);
 extern int nfs_revalidate(struct inode *);
 extern int _nfs_revalidate_inode(struct nfs_server *, struct inode *);
 
@@ -151,20 +150,14 @@ extern struct inode_operations nfs_file_inode_operations;
  * linux/fs/nfs/dir.c
  */
 extern struct inode_operations nfs_dir_inode_operations;
-extern void nfs_sillyrename_cleanup(struct inode *);
 extern void nfs_free_dircache(void);
 extern void nfs_invalidate_dircache(struct inode *);
+extern void nfs_invalidate_dircache_sb(struct super_block *);
 
 /*
  * linux/fs/nfs/symlink.c
  */
 extern struct inode_operations nfs_symlink_inode_operations;
-
-/*
- * linux/fs/nfs/mmap.c
- */
-extern int nfs_mmap(struct inode *inode, struct file *file,
-			struct vm_area_struct * vma);
 
 /*
  * linux/fs/nfs/locks.c
@@ -176,7 +169,7 @@ extern int nfs_lock(struct file *file, int cmd, struct file_lock *fl);
  */
 extern int  nfs_writepage(struct inode *, struct page *);
 extern int  nfs_check_error(struct inode *);
-extern int  nfs_flush_dirty_pages(struct inode *, off_t, off_t);
+extern int  nfs_flush_dirty_pages(struct inode *, pid_t, off_t, off_t);
 extern int  nfs_truncate_dirty_pages(struct inode *, unsigned long);
 extern void nfs_invalidate_pages(struct inode *);
 extern int  nfs_updatepage(struct inode *, struct page *, const char *,

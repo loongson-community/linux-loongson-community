@@ -17,6 +17,7 @@
  *	Added defines for the Sound Galaxy NX Pro mixer.
  * 
  */
+#ifdef CONFIG_SBDSP
 
 #define SBPRO_RECORDING_DEVICES	(SOUND_MASK_LINE | SOUND_MASK_MIC | SOUND_MASK_CD)
 
@@ -168,11 +169,11 @@ MIX_ENT(SOUND_MIXER_IGAIN,	0x3f, 7, 2, 0x40, 7, 2),
 MIX_ENT(SOUND_MIXER_OGAIN,	0x41, 7, 2, 0x42, 7, 2)
 };
 
-#ifdef SM_GAMES       /* Master volume is lower and PCM & FM volumes
+/* SM_GAMES          Master volume is lower and PCM & FM volumes
 			     higher than with SB Pro. This improves the
 			     sound quality */
 
-static int default_levels[32] =
+static int smg_default_levels[32] =
 {
   0x2020,			/* Master Volume */
   0x4b4b,			/* Bass */
@@ -193,9 +194,7 @@ static int default_levels[32] =
   0x1515			/* Line3 */
 };
 
-#else  /* If the user selected just plain SB Pro */
-
-static int default_levels[32] =
+static int sb_default_levels[32] =
 {
   0x5a5a,			/* Master Volume */
   0x4b4b,			/* Bass */
@@ -215,7 +214,6 @@ static int default_levels[32] =
   0x4040,			/* Line2 */
   0x1515			/* Line3 */
 };
-#endif /* SM_GAMES */
 
 static unsigned char sb16_recmasks_L[SOUND_MIXER_NRDEVICES] =
 {
@@ -282,4 +280,5 @@ static char     smw_mix_regs[] =	/* Left mixer registers */
 #define SRC__CD          3	/* Select CD recording source */
 #define SRC__LINE        7	/* Use Line-in for recording source */
 
+#endif
 #endif

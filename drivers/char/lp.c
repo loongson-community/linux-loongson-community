@@ -11,6 +11,9 @@
  * lp_read (Status readback) support added by Carsten Gross,
  *                                             carsten@sol.wohnheim.uni-ulm.de
  * Support for parport by Philip Blundell <Philip.Blundell@pobox.com>
+ * Reverted interrupt to polling at runtime if more than one device is parport
+ * registered and joined the interrupt and polling code.
+ *                               by Andrea Arcangeli <arcangeli@mbox.queen.it>
  */
 
 /* This driver is about due for a rewrite. */
@@ -251,7 +254,7 @@ static inline int lp_write_buf(unsigned int minor, const char *buf, int count)
 					sti();
 				}
 
-				if (current->signal & ~current->blocked) {
+				if (signal_pending(current)) {
 					if (total_bytes_written + bytes_written)
 						return total_bytes_written + bytes_written;
 					else
@@ -269,9 +272,9 @@ static inline int lp_write_buf(unsigned int minor, const char *buf, int count)
 	return total_bytes_written;
 }
 
-static long lp_write(struct inode * inode, struct file * file,
-	const char * buf, unsigned long count)
+static ssize_t lp_write(struct file * file, const char * buf, size_t count, loff_t *ppos)
 {
+	struct inode *inode = file->f_dentry->d_inode;
 	unsigned int minor = MINOR(inode->i_rdev);
 	int retv;
 
@@ -312,9 +315,9 @@ static void lp_select_in_high(int minor) {
 }
 
 /* Status readback confirming to ieee1284 */
-static long lp_read(struct inode * inode, struct file * file, 
-		   char * buf, unsigned long count)
+static ssize_t lp_read(struct file * file, char * buf, size_t count, loff_t *ppos)
 {
+	struct inode *inode = file->f_dentry->d_inode;
 	unsigned char z=0, Byte=0, status;
 	char *temp;
 	int retval;
@@ -376,7 +379,7 @@ static long lp_read(struct inode * inode, struct file * file,
 #ifdef LP_READ_DEBUG
 			printk(KERN_DEBUG "lp_read: (Autofeed low) timeout\n");
 #endif
-			if (current->signal & ~current->blocked) {
+			if (signal_pending(current)) {
 				lp_select_in_high(minor);
 				parport_release(lp_table[minor].dev);
 				if (temp !=buf)

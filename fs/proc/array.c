@@ -61,12 +61,12 @@ int get_malloc(char * buffer);
 #endif
 
 
-static long read_core(struct inode * inode, struct file * file,
-	char * buf, unsigned long count)
+static ssize_t read_core(struct file * file, char * buf,
+			 size_t count, loff_t *ppos)
 {
-	unsigned long p = file->f_pos, memsize;
-	int read;
-	int count1;
+	unsigned long p = *ppos, memsize;
+	ssize_t read;
+	ssize_t count1;
 	char * pnt;
 	struct user dump;
 #if defined (__i386__) || defined (__mc68000__)
@@ -101,16 +101,21 @@ static long read_core(struct inode * inode, struct file * file,
 		read += count1;
 	}
 
-	while (count > 0 && p < PAGE_SIZE + FIRST_MAPPED) {
-		put_user(0,buf);
-		buf++;
-		p++;
-		count--;
-		read++;
+	if (count > 0 && p < PAGE_SIZE + FIRST_MAPPED) {
+		count1 = PAGE_SIZE + FIRST_MAPPED - p;
+		if (count1 > count)
+			count1 = count;
+		clear_user(buf, count1);
+		buf += count1;
+		p += count1;
+		count -= count1;
+		read += count1;
 	}
-	copy_to_user(buf, (void *) (PAGE_OFFSET + p - PAGE_SIZE), count);
-	read += count;
-	file->f_pos += read;
+	if (count > 0) {
+		copy_to_user(buf, (void *) (PAGE_OFFSET+p-PAGE_SIZE), count);
+		read += count;
+	}
+	*ppos += read;
 	return read;
 }
 
@@ -129,11 +134,11 @@ struct inode_operations proc_kcore_inode_operations = {
  * buffer. Use of the program readprofile is recommended in order to
  * get meaningful info out of these data.
  */
-static long read_profile(struct inode *inode, struct file *file,
-	char *buf, unsigned long count)
+static ssize_t read_profile(struct file *file, char *buf,
+			    size_t count, loff_t *ppos)
 {
-	unsigned long p = file->f_pos;
-	int read;
+	unsigned long p = *ppos;
+	ssize_t read;
 	char * pnt;
 	unsigned int sample_step = 1 << prof_shift;
 
@@ -143,14 +148,14 @@ static long read_profile(struct inode *inode, struct file *file,
 		count = (prof_len+1)*sizeof(unsigned int) - p;
 	read = 0;
 
-	while (p < sizeof(unsigned long) && count > 0) {
+	while (p < sizeof(unsigned int) && count > 0) {
 		put_user(*((char *)(&sample_step)+p),buf);
 		buf++; p++; count--; read++;
 	}
 	pnt = (char *)prof_buffer + p - sizeof(unsigned int);
 	copy_to_user(buf,(void *)pnt,count);
 	read += count;
-	file->f_pos += read;
+	*ppos += read;
 	return read;
 }
 
@@ -160,10 +165,9 @@ static long read_profile(struct inode *inode, struct file *file,
  * Writing a 'profiling multiplier' value into it also re-sets the profiling
  * interrupt frequency, on architectures that support this.
  */
-static long write_profile(struct inode * inode, struct file * file,
-	const char * buf, unsigned long count)
+static ssize_t write_profile(struct file * file, const char * buf,
+			     size_t count, loff_t *ppos)
 {
-	int i=prof_len;
 #ifdef __SMP__
 	extern int setup_profiling_timer (unsigned int multiplier);
 
@@ -178,8 +182,7 @@ static long write_profile(struct inode * inode, struct file * file,
 	}
 #endif
   
-	while (i--)
-		prof_buffer[i]=0UL;
+	memset(prof_buffer, 0, prof_len * sizeof(*prof_buffer));
 	return count;
 }
 
@@ -348,6 +351,12 @@ static unsigned long get_phys_addr(struct task_struct * p, unsigned long ptr)
 
 	if (!p || !p->mm || ptr >= TASK_SIZE)
 		return 0;
+	/* Check for NULL pgd .. shouldn't happen! */
+	if (!p->mm->pgd) {
+		printk("get_phys_addr: pid %d has NULL pgd!\n", p->pid);
+		return 0;
+	}
+
 	page_dir = pgd_offset(p->mm,ptr);
 	if (pgd_none(*page_dir))
 		return 0;
@@ -921,58 +930,76 @@ static int get_statm(int pid, char * buffer)
  * For the /proc/<pid>/maps file, we use fixed length records, each containing
  * a single line.
  */
-#define MAPS_LINE_LENGTH	1024
-#define MAPS_LINE_SHIFT		10
+#define MAPS_LINE_LENGTH	4096
+#define MAPS_LINE_SHIFT		12
 /*
  * f_pos = (number of the vma in the task->mm->mmap list) * MAPS_LINE_LENGTH
  *         + (index into the line)
  */
 /* for systems with sizeof(void*) == 4: */
-#define MAPS_LINE_FORMAT4	  "%08lx-%08lx %s %08lx %s %lu\n"
+#define MAPS_LINE_FORMAT4	  "%08lx-%08lx %s %08lx %s %lu"
 #define MAPS_LINE_MAX4	49 /* sum of 8  1  8  1 4 1 8 1 5 1 10 1 */
 
 /* for systems with sizeof(void*) == 8: */
-#define MAPS_LINE_FORMAT8	  "%016lx-%016lx %s %016lx %s %lu\n"
+#define MAPS_LINE_FORMAT8	  "%016lx-%016lx %s %016lx %s %lu"
 #define MAPS_LINE_MAX8	73 /* sum of 16  1  16  1 4 1 16 1 5 1 10 1 */
 
 #define MAPS_LINE_MAX	MAPS_LINE_MAX8
 
 
-static long read_maps (int pid, struct file * file,
-	char * buf, unsigned long count)
+static ssize_t read_maps (int pid, struct file * file, char * buf,
+			  size_t count, loff_t *ppos)
 {
-	struct task_struct *p = find_task_by_pid(pid);
-	char * destptr;
+	struct task_struct *p;
+	struct vm_area_struct * map, * next;
+	char * destptr = buf, * buffer;
 	loff_t lineno;
-	int column;
-	struct vm_area_struct * map;
-	int i;
+	ssize_t column, i;
+	int volatile_task;
+	long retval;
 
+	/*
+	 * We might sleep getting the page, so get it first.
+	 */
+	retval = -ENOMEM;
+	buffer = (char*)__get_free_page(GFP_KERNEL);
+	if (!buffer)
+		goto out;
+
+	retval = -EINVAL;
+	p = find_task_by_pid(pid);
 	if (!p)
-		return -EINVAL;
+		goto freepage_out;
 
 	if (!p->mm || p->mm == &init_mm || count == 0)
-		return 0;
+		goto getlen_out;
+
+	/* Check whether the mmaps could change if we sleep */
+	volatile_task = (p != current || p->mm->count > 1);
 
 	/* decode f_pos */
-	lineno = file->f_pos >> MAPS_LINE_SHIFT;
-	column = file->f_pos & (MAPS_LINE_LENGTH-1);
+	lineno = *ppos >> MAPS_LINE_SHIFT;
+	column = *ppos & (MAPS_LINE_LENGTH-1);
 
 	/* quickly go to line lineno */
 	for (map = p->mm->mmap, i = 0; map && (i < lineno); map = map->vm_next, i++)
 		continue;
 
-	destptr = buf;
-
-	for ( ; map ; ) {
+	for ( ; map ; map = next ) {
 		/* produce the next line */
-		char line[MAPS_LINE_MAX+1];
+		char *line;
 		char str[5], *cp = str;
 		int flags;
 		kdev_t dev;
 		unsigned long ino;
+		int maxlen = (sizeof(void*) == 4) ? 
+			MAPS_LINE_MAX4 :  MAPS_LINE_MAX8;
 		int len;
 
+		/*
+		 * Get the next vma now (but it won't be used if we sleep).
+		 */
+		next = map->vm_next;
 		flags = map->vm_flags;
 
 		*cp++ = flags & VM_READ ? 'r' : '-';
@@ -986,30 +1013,41 @@ static long read_maps (int pid, struct file * file,
 		if (map->vm_dentry != NULL) {
 			dev = map->vm_dentry->d_inode->i_dev;
 			ino = map->vm_dentry->d_inode->i_ino;
-		}
+			line = d_path(map->vm_dentry, buffer, PAGE_SIZE);
+			buffer[PAGE_SIZE-1] = '\n';
+			line -= maxlen;
+			if(line < buffer)
+				line = buffer;
+		} else
+			line = buffer;
 
 		len = sprintf(line,
 			      sizeof(void*) == 4 ? MAPS_LINE_FORMAT4 : MAPS_LINE_FORMAT8,
 			      map->vm_start, map->vm_end, str, map->vm_offset,
 			      kdevname(dev), ino);
 
+		if(map->vm_dentry) {
+			for(i = len; i < maxlen; i++)
+				line[i] = ' ';
+			len = buffer + PAGE_SIZE - line;
+		} else
+			line[len++] = '\n';
 		if (column >= len) {
 			column = 0; /* continue with next line at column 0 */
 			lineno++;
-			map = map->vm_next;
-			continue;
+			continue; /* we haven't slept */
 		}
 
 		i = len-column;
 		if (i > count)
 			i = count;
-		copy_to_user(destptr, line+column, i);
-		destptr += i; count -= i;
-		column += i;
+		copy_to_user(destptr, line+column, i); /* may have slept */
+		destptr += i;
+		count   -= i;
+		column  += i;
 		if (column >= len) {
 			column = 0; /* next time: next line at column 0 */
 			lineno++;
-			map = map->vm_next;
 		}
 
 		/* done? */
@@ -1019,14 +1057,20 @@ static long read_maps (int pid, struct file * file,
 		/* By writing to user space, we might have slept.
 		 * Stop the loop, to avoid a race condition.
 		 */
-		if (p != current)
+		if (volatile_task)
 			break;
 	}
 
 	/* encode f_pos */
-	file->f_pos = (lineno << MAPS_LINE_SHIFT) + column;
+	*ppos = (lineno << MAPS_LINE_SHIFT) + column;
 
-	return destptr-buf;
+getlen_out:
+	retval = destptr - buf;
+
+freepage_out:
+	free_page((unsigned long)buffer);
+out:
+	return retval;
 }
 
 #ifdef CONFIG_MODULES
@@ -1172,13 +1216,14 @@ static inline int fill_array(char * page, int pid, int type, char **start, off_t
 
 #define PROC_BLOCK_SIZE	(3*1024)		/* 4K page size but our output routines use some slack for overruns */
 
-static long array_read(struct inode * inode, struct file * file,
-	char * buf, unsigned long count)
+static ssize_t array_read(struct file * file, char * buf,
+			  size_t count, loff_t *ppos)
 {
+	struct inode * inode = file->f_dentry->d_inode;
 	unsigned long page;
 	char *start;
-	int length;
-	int end;
+	ssize_t length;
+	ssize_t end;
 	unsigned int type, pid;
 	struct proc_dir_entry *dp;
 
@@ -1192,11 +1237,11 @@ static long array_read(struct inode * inode, struct file * file,
 	start = NULL;
 	dp = (struct proc_dir_entry *) inode->u.generic_ip;
 	if (dp->get_info)
-		length = dp->get_info((char *)page, &start, file->f_pos,
+		length = dp->get_info((char *)page, &start, *ppos,
 				      count, 0);
 	else
 		length = fill_array((char *) page, pid, type,
-				    &start, file->f_pos, count);
+				    &start, *ppos, count);
 	if (length < 0) {
 		free_page(page);
 		return length;
@@ -1204,19 +1249,19 @@ static long array_read(struct inode * inode, struct file * file,
 	if (start != NULL) {
 		/* We have had block-adjusting processing! */
 		copy_to_user(buf, start, length);
-		file->f_pos += length;
+		*ppos += length;
 		count = length;
 	} else {
 		/* Static 4kB (or whatever) block capacity */
-		if (file->f_pos >= length) {
+		if (*ppos >= length) {
 			free_page(page);
 			return 0;
 		}
-		if (count + file->f_pos > length)
-			count = length - file->f_pos;
-		end = count + file->f_pos;
-		copy_to_user(buf, (char *) page + file->f_pos, count);
-		file->f_pos = end;
+		if (count + *ppos > length)
+			count = length - *ppos;
+		end = count + *ppos;
+		copy_to_user(buf, (char *) page + *ppos, count);
+		*ppos = end;
 	}
 	free_page(page);
 	return count;
@@ -1255,15 +1300,16 @@ struct inode_operations proc_array_inode_operations = {
 	NULL			/* permission */
 };
 
-static long arraylong_read(struct inode * inode, struct file * file,
-	char * buf, unsigned long count)
+static ssize_t arraylong_read(struct file * file, char * buf,
+			      size_t count, loff_t *ppos)
 {
+	struct inode * inode = file->f_dentry->d_inode;
 	unsigned int pid = inode->i_ino >> 16;
 	unsigned int type = inode->i_ino & 0x0000ffff;
 
 	switch (type) {
 		case PROC_PID_MAPS:
-			return read_maps(pid, file, buf, count);
+			return read_maps(pid, file, buf, count, ppos);
 	}
 	return -EINVAL;
 }

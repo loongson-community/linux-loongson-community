@@ -146,7 +146,7 @@ static const struct super_operations hpfs_sops =
 
 /* file ops */
 
-static long hpfs_file_read(struct inode *, struct file *, char *, unsigned long);
+static ssize_t hpfs_file_read(struct file *, char *, size_t, loff_t *);
 static secno hpfs_bmap(struct inode *, unsigned);
 
 static const struct file_operations hpfs_file_ops =
@@ -187,8 +187,8 @@ static const struct inode_operations hpfs_file_iops =
 
 /* directory ops */
 
-static long hpfs_dir_read(struct inode *inode, struct file *filp,
-			  char *buf, unsigned long count);
+static ssize_t hpfs_dir_read(struct file *filp, char *buf, 
+			     size_t count, loff_t *ppos);
 static int hpfs_readdir(struct file *filp,
 			void *dirent, filldir_t filldir);
 static int hpfs_lookup(struct inode *, struct dentry *);
@@ -881,10 +881,11 @@ static unsigned count_one_bitmap(kdev_t dev, secno secno)
  * read.  Read the bytes, put them in buf, return the count.
  */
 
-static long hpfs_file_read(struct inode *inode, struct file *filp,
-			  char *buf, unsigned long count)
+static ssize_t hpfs_file_read(struct file *filp, char *buf,
+			      size_t count, loff_t *ppos)
 {
-	unsigned q, r, n, n0;
+	struct inode *inode = filp->f_dentry->d_inode;
+	size_t q, r, n, n0;
 	struct buffer_head *bh;
 	char *block;
 	char *start;
@@ -895,8 +896,8 @@ static long hpfs_file_read(struct inode *inode, struct file *filp,
 	/*
 	 * truncate count at EOF
 	 */
-	if (count > inode->i_size - (off_t) filp->f_pos)
-		count = inode->i_size - filp->f_pos;
+	if (count > inode->i_size - (off_t) *ppos)
+		count = inode->i_size - *ppos;
 
 	start = buf;
 	while (count > 0) {
@@ -904,8 +905,8 @@ static long hpfs_file_read(struct inode *inode, struct file *filp,
 		 * get file sector number, offset in sector, length to end of
 		 * sector
 		 */
-		q = filp->f_pos >> 9;
-		r = filp->f_pos & 511;
+		q = *ppos >> 9;
+		r = *ppos & 511;
 		n = 512 - r;
 
 		/*
@@ -941,8 +942,8 @@ static long hpfs_file_read(struct inode *inode, struct file *filp,
 			 * squeeze out \r, output length varies
 			 */
 			n0 = convcpy_tofs(buf, block + r, n);
-			if (count > inode->i_size - (off_t) filp->f_pos - n + n0)
-				count = inode->i_size - filp->f_pos - n + n0;
+			if (count > inode->i_size - (off_t) *ppos - n + n0)
+				count = inode->i_size - *ppos - n + n0;
 		}
 
 		brelse(bh);
@@ -950,7 +951,7 @@ static long hpfs_file_read(struct inode *inode, struct file *filp,
 		/*
 		 * advance input n bytes, output n0 bytes
 		 */
-		filp->f_pos += n;
+		*ppos += n;
 		buf += n0;
 		count -= n0;
 	}
@@ -1121,20 +1122,21 @@ static secno bplus_lookup(struct inode *inode, struct bplus_header *b,
 
 static int hpfs_lookup(struct inode *dir, struct dentry *dentry)
 {
-	struct quad_buffer_head qbh;
+	const char *name = dentry->d_name.name;
+	int len = dentry->d_name.len;
 	struct hpfs_dirent *de;
 	struct inode *inode;
 	ino_t ino;
-	const char *name = dentry->d_name.name;
-	int len = dentry->d_name.len;
 	int retval;
+	struct quad_buffer_head qbh;
 
 	/* In case of madness */
 
+	retval = -ENOTDIR;
 	if (dir == 0)
-		return -ENOENT;
+		goto out;
 	if (!S_ISDIR(dir->i_mode))
-		return -ENOENT;
+		goto out;
 
 	/*
 	 * Read in the directory entry. "." is there under the name ^A^A .
@@ -1154,9 +1156,11 @@ static int hpfs_lookup(struct inode *dir, struct dentry *dentry)
 	 * This is not really a bailout, just means file not found.
 	 */
 
-	inode = NULL;
-	if (!de)
-		goto add_dentry;
+	if (!de) {
+		d_add(dentry, NULL);
+		retval = 0;
+		goto out;
+	}
 
 	/*
 	 * Get inode number, what we're after.
@@ -1198,15 +1202,13 @@ static int hpfs_lookup(struct inode *dir, struct dentry *dentry)
 		}
 	}
 
-	/*
-	 * Add the dentry, negative or otherwise.
-	 */
-      add_dentry:
 	d_add(dentry, inode);
 	retval = 0;
 
       free4:
 	brelse4(&qbh);
+
+      out:
 	return retval;
 }
 
@@ -1578,8 +1580,8 @@ static struct hpfs_dirent *map_nth_dirent(kdev_t dev, dnode_secno dno,
 	return 0;
 }
 
-static long hpfs_dir_read(struct inode *inode, struct file *filp,
-			  char *buf, unsigned long count)
+static ssize_t hpfs_dir_read(struct file *filp, char *buf,
+			     size_t count, loff_t *ppos)
 {
 	return -EISDIR;
 }

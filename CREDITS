@@ -25,6 +25,14 @@ S: INR (Ecublens)
 S: CH-1015 Lausanne
 S: Switzerland
 
+N: Tim Alpaerts
+E: tim_alpaerts@toyota-motor-europe.com
+D: 802.2 class II logical link control layer,
+D: the humble start of an opening towards the IBM SNA protocols
+S: Klaproosstraat 72 c 10
+S: B-2610 Wilrijk-Antwerpen
+S: Belgium
+
 N: H. Peter Anvin
 E: hpa@zytor.com
 W: http://www.zytor.com/~hpa/
@@ -144,11 +152,11 @@ D: Original author of the Linux networking code
 
 N: Philip Blundell
 E: Philip.Blundell@pobox.com
-D: Device driver hacking (especially EtherExpress16/3C505 net cards)
+D: Device driver hacking 
 D: Some Linux/ARM stuff
 D: Co-architect of the parallel port sharing system
-S: 201 Gilbert Road
-S: Cambridge, UK. CB4 3PA
+S: Nexus Electronics Ltd
+S: 10 St Barnabas Road, Cambridge, UK. CB1 2BY
 
 N: Thomas Bogendoerfer
 E: tsbogend@alpha.franken.de
@@ -215,8 +223,9 @@ S: Fremont, California 94539
 S: USA
 
 N: Gordon Chaffee
-E: chaffee@plateau.cs.berkeley.edu
-D: vfat filesystem
+E: chaffee@cs.berkeley.edu
+W: http://bmrc.berkeley.edu/people/chaffee/
+D: vfat, fat32, joliet, native language support
 S: 3674 Oakwood Terrace #201
 S: Fremont, California 94536
 S: USA
@@ -358,6 +367,11 @@ S: Grevenbroicher Str. 17
 S: 47807 Krefeld
 S: Germany
 
+N: Tom Dyas
+E: tdyas@eden.rutgers.edu
+D: minor hacks and some sparc port stuff
+S: New Jersey, USA
+
 N: Drew Eckhardt
 E: drew@PoohSticks.ORG
 D: SCSI code
@@ -450,6 +464,17 @@ S: 1123 North Oak Park Avenue
 S: Oak Park, Illinois 60302
 S: USA
 
+N: Jim Freeman
+E: jfree@caldera.com
+W: http://www.sovereign.org/
+D: Initial GPL'd Frame Relay driver
+D: Dynamic PPP devices
+D: Sundry modularizations (PPP, IPX, ...) and fixes
+S: Caldera, Inc.
+S: 240 West Center St.
+S: Orem, Utah 84059-1920
+S: USA
+
 N: Bob Frey
 E: bobf@advansys.com
 D: AdvanSys SCSI driver
@@ -483,6 +508,24 @@ S: USA
 N: Philip Gladstone
 E: philip@raptor.com
 D: Kernel / timekeeping stuff
+  
+N: Richard E. Gooch
+E: rgooch@atnf.csiro.au
+D: parent process death signal to children
+D: prctl() syscall
+S: CSIRO Australia Telescope National Facility
+S: P.O. Box 76, Epping
+S: N.S.W., 2121
+S: Australia
+
+N: Richard E. Gooch
+E: rgooch@atnf.csiro.au
+D: parent process death signal to children
+D: prctl() syscall
+S: CSIRO Australia Telescope National Facility
+S: P.O. Box 76, Epping
+S: N.S.W., 2121
+S: Australia
 
 N: Dmitry S. Gorodchanin
 E: begemot@bgm.rosprint.net
@@ -585,9 +628,12 @@ S: 34131 Kassel
 S: Germany
 
 N: Richard Henderson
-E: richard@gnu.ai.mit.edu
 E: rth@cygnus.com
+E: richard@gnu.org
 D: Alpha/ELF, gcc, binutils, and glibc
+S: 5450 Mayme #25
+S: San Jose, California 95129
+S: USA
 
 N: Sebastian Hetze
 E: she@lunetix.de
@@ -623,8 +669,9 @@ S: USA
 N: Nick Holloway
 E: Nick.Holloway@alfie.demon.co.uk
 E: Nick.Holloway@parallax.co.uk
-D: Small patches for kernel, libc
-D: MAKEDEV
+W: http://www.alfie.demon.co.uk/
+P: 1024/75C49395 3A F0 E3 4E B7 9F E0 7E  47 A3 B0 D5 68 6A C2 FB
+D: Occasional Linux hacker...
 S: 15 Duke Street
 S: Chapelfields
 S: Coventry
@@ -632,12 +679,13 @@ S: CV5 8BZ
 S: United Kingdom
 
 N: Ron Holt
-E: ron@novell.com
+E: ron@caldera.com
+W: http://www.holt.org/
 D: Kernel development
-D: Contributed to kernel Wabi/Wine support
-S: Novell, Inc.
-S: 1700 South 122 East, Mailstop CP-1
-S: Provo, Utah 84606
+D: Minor kernel modifications to support Wabi and Wine
+S: Caldera, Inc.
+S: 240 West Center St.
+S: Orem, Utah 84059-1920
 S: USA
 
 N: Rob W. W. Hooft
@@ -775,6 +823,13 @@ N: Rudolf Koenig
 E: rfkoenig@immd4.informatik.uni-erlangen.de
 D: The Linux Support Team Erlangen
 
+N: Andi Kleen
+E: ak@muc.de
+D: network hacker, syncookies
+S: Schwalbenstr. 96
+S: 85551 Ottobrunn
+S: Germany
+
 N: Willy Konynenberg
 E: willy@xos.nl
 W: http://www.xos.nl/
@@ -827,6 +882,13 @@ E: lam836@cs.cuhk.hk
 D: Author of the dialog utility, foundation
 D: for Menuconfig's lxdialog.
 
+N: Tom Lees
+E: tom@lpsg.demon.co.uk
+W: http://www.lpsg.demon.co.uk/
+P: 1024/87D4D065 2A 66 86 9D 02 4D A6 1E  B8 A2 17 9D 4F 9B 89 D6
+D: Original author and current maintainer of
+D: PnP code.
+
 N: David van Leeuwen
 E: david@tm.tno.nl
 D: Philips/LMS cm206 cdrom driver, generic cdrom driver
@@ -856,6 +918,12 @@ D: Co-ordinator of DOSEMU releases
 S: Am Muehlenweg 38
 S: D53424 Remagen
 S: Germany
+
+N: Achim Leubner
+E: achim@vortex.de
+D: GDT SCSI Disk Array Controller driver
+S: ICP vortex Computersysteme GmbH
+S: Flein, Germany
 
 N: Phil Lewis
 E: beans@bucket.ualr.edu
@@ -921,6 +989,7 @@ D: Initial implementation of VC's, pty's and select()
 N: Pavel Machek
 E: pavel@atrey.karlin.mff.cuni.cz
 D: Softcursor for vga, hypertech cdrom support, vcsa bugfix
+D: Network block device
 S: Volkova 1131
 S: 198 00 Praha 9
 S: Czech Republic
@@ -951,19 +1020,19 @@ S: Halifax, Nova Scotia
 S: Canada B3J 3C8
 
 N: Martin Mares
-E: mj@k332.feld.cvut.cz
+E: mj@atrey.karlin.mff.cuni.cz
 W: http://atrey.karlin.mff.cuni.cz/~mj/
 D: BIOS video mode handling code
-D: Miscellaneous kernel fixes and hacks
 D: MOXA C-218 serial board driver
-D: BOOTP support
+D: Network autoconfiguration
+D: Random kernel hacking
 S: Kankovskeho 1241
 S: 182 00 Praha 8
 S: Czech Republic 
 
 N: John A. Martin
 E: jam@acm.org
-W: http://linux.wauug.org/~jam/
+W: http://www.tux.org/~jam/
 P: 1024/04456D53 9D A3 6C 6B 88 80 8A 61  D7 06 22 4F 95 40 CE D2
 P: 1024/3B986635 5A61 7EE6 9E20 51FB 59FB  2DA5 3E18 DD55 3B98 6635
 D: FSSTND contributor
@@ -1083,10 +1152,10 @@ S: D-37083 Goettingen
 S: Germany
 
 N: David Mosberger-Tang
-E: davidm@azstarnet.com
+E: David.Mosberger@acm.org
 D: Linux/Alpha
-S: 2552 E. Copper Street
-S: Tucson, Arizona 85716-2406
+S: 35706 Runckel Lane
+S: Fremont, CA 94536
 S: USA
 
 N: Ian A. Murdock
@@ -1127,9 +1196,10 @@ S: 55127 Mainz
 S: Germany
 
 N: David C. Niemi
-E: niemi@erols.com
+E: niemi@tux.org
+W: http://www.tux.org/~niemi/
 D: Assistant maintainer of Mtools, fdutils, and floppy driver
-D: Administrator of WAUUG Linux Server, http://linux.wauug.org
+D: Administrator of Tux.Org Linux Server, http://www.tux.org
 S: 2364 Old Trail Drive
 S: Reston, Virginia 20191
 S: USA
@@ -1151,6 +1221,15 @@ D: IPX development and support
 N: David Parsons
 E: orc@pell.chi.il.us
 D: improved memory detection code.
+
+N: Vojtech Pavlik
+E: vojtech@atrey.karlin.mff.cuni.cz
+D: Joystick driver
+D: arcnet-hardware readme
+D: Minor ARCnet hacking
+S: Ucitelska 1576
+S: Prague 8
+S: 182 00 Czech Republic
 
 N: Barak A. Pearlmutter
 E: bap@cs.unm.edu
@@ -1178,6 +1257,11 @@ D: Some smbfs fixes
 S: Demonstratsii 8-382
 S: Tula 300000
 S: Russia
+
+N: Kirk Petersen
+E: kirk@speakeasy.org
+W: http://www.speakeasy.org/~kirk/
+D: modularized BSD Unix domain sockets
 
 N: Kai Petzke
 E: wpp@marie.physik.tu-berlin.de
@@ -1579,11 +1663,12 @@ S: 1098 VA Amsterdam
 S: The Netherlands
 
 N: Tim Waugh
-E: tmw20@cyberelk.demon.co.uk
+E: tim@cyberelk.demon.co.uk
 D: Co-architect of the parallel-port sharing system
-S: 51 Frensham Road
-S: Southsea
-S: Hampshire, UK. PO4 8AE
+S: 12 Station Road
+S: Park Gate
+S: Southampton SO31 7GJ
+S: United Kingdom
 
 N: Juergen Weigert
 E: jnweiger@immd4.informatik.uni-erlangen.de
@@ -1629,8 +1714,8 @@ S: 73650 Winterbach
 S: Germany
 
 N: Marco van Wieringen
-E: mvw@mercury.mcs.nl.mugnet.org
-D: Author of acct and quota
+E: mvw@planets.elm.net
+D: Author of process accounting and diskquota
 S: Breeburgsingel 12
 S: 2135 CN Hoofddorp
 S: The Netherlands
@@ -1669,6 +1754,7 @@ N: David Woodhouse
 E: dwmw2@cam.ac.uk
 D: Extensive ARCnet rewrite
 D: ARCnet COM20020, COM90xx IO-MAP drivers
+D: SO_BINDTODEVICE in 2.1.x (from Elliot Poger's code in 2.0.31)
 S: Robinson College, Grange Road
 S: Cambridge. CB3 9AN
 S: England

@@ -63,8 +63,8 @@
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
-#include <asm/poll.h>
 
+#include <linux/poll.h>
 #include <linux/types.h>
 #include <linux/stddef.h>
 #include <linux/timer.h>
@@ -307,7 +307,7 @@ static void	do_apm_timer(unsigned long);
 
 static int	do_open(struct inode *, struct file *);
 static int	do_release(struct inode *, struct file *);
-static long	do_read(struct inode *, struct file *, char *, unsigned long);
+static ssize_t	do_read(struct file *, char *, size_t , loff_t *);
 static unsigned int do_poll(struct file *, poll_table *);
 static int	do_ioctl(struct inode *, struct file *, u_int, u_long);
 
@@ -812,8 +812,7 @@ static int check_apm_bios_struct(struct apm_bios_struct *as, const char *func)
 	return 0;
 }
 
-static long do_read(struct inode *inode, struct file *fp,
-	char *buf, unsigned long count)
+static ssize_t do_read(struct file *fp, char *buf, size_t count, loff_t *ppos)
 {
 	struct apm_bios_struct *	as;
 	int			i;
@@ -831,8 +830,7 @@ static long do_read(struct inode *inode, struct file *fp,
 		add_wait_queue(&process_list, &wait);
 repeat:
 		current->state = TASK_INTERRUPTIBLE;
-		if (queue_empty(as)
-		    && !(current->signal & ~current->blocked)) {
+		if (queue_empty(as) && !signal_pending(current)) {
 			schedule();
 			goto repeat;
 		}
@@ -859,7 +857,7 @@ repeat:
 	}
 	if (i < count)
 		return count - i;
-	if (current->signal & ~current->blocked)
+	if (signal_pending(current))
 		return -ERESTARTSYS;
 	return 0;
 }
@@ -958,7 +956,7 @@ static int do_open(struct inode * inode, struct file * filp)
 
 	as = (struct apm_bios_struct *)kmalloc(sizeof(*as), GFP_KERNEL);
 	if (as == NULL) {
-		printk(KERN_ER "apm_bios: cannot allocate struct of size %d bytes",
+		printk(KERN_ERR "apm_bios: cannot allocate struct of size %d bytes",
 		       sizeof(*as));
 		return -ENOMEM;
 	}

@@ -116,17 +116,23 @@ rpc_create_client(struct rpc_xprt *xprt, char *servname,
 
 /*
  * Properly shut down an RPC client, terminating all outstanding
- * requests.
+ * requests. Note that we must be certain that cl_oneshot and
+ * cl_dead are cleared, or else the client would be destroyed
+ * when the last task releases it.
  */
 int
 rpc_shutdown_client(struct rpc_clnt *clnt)
 {
 	dprintk("RPC: shutting down %s client for %s\n",
-			clnt->cl_protname, clnt->cl_server);
+		clnt->cl_protname, clnt->cl_server);
 	while (clnt->cl_users) {
-		dprintk("sigmask %08lx\n", current->signal);
-		dprintk("users %d\n", clnt->cl_users);
-		clnt->cl_dead = 1;
+#ifdef RPC_DEBUG
+		printk("rpc_shutdown_client: client %s, tasks=%d\n",
+			clnt->cl_protname, clnt->cl_users);
+#endif
+		/* Don't let rpc_release_client destroy us */
+		clnt->cl_oneshot = 0;
+		clnt->cl_dead = 0;
 		rpc_killall_tasks(clnt);
 		sleep_on(&destroy_wait);
 	}
@@ -142,7 +148,10 @@ rpc_destroy_client(struct rpc_clnt *clnt)
 	dprintk("RPC: destroying %s client for %s\n",
 			clnt->cl_protname, clnt->cl_server);
 
-	rpcauth_destroy(clnt->cl_auth);
+	if (clnt->cl_auth) {
+		rpcauth_destroy(clnt->cl_auth);
+		clnt->cl_auth = NULL;
+	}
 	if (clnt->cl_xprt) {
 		xprt_destroy(clnt->cl_xprt);
 		clnt->cl_xprt = NULL;
@@ -159,12 +168,16 @@ rpc_release_client(struct rpc_clnt *clnt)
 {
 	dprintk("RPC:      rpc_release_client(%p, %d)\n",
 				clnt, clnt->cl_users);
-	if (--(clnt->cl_users) == 0) {
-		wake_up(&destroy_wait);
-		if (clnt->cl_oneshot || clnt->cl_dead)
-			rpc_destroy_client(clnt);
-	}
-	dprintk("RPC:      rpc_release_client done\n");
+	if (clnt->cl_users) {
+		if (--(clnt->cl_users) > 0)
+			return;
+	} else
+		printk("rpc_release_client: %s client already free??\n",
+			clnt->cl_protname);
+
+	wake_up(&destroy_wait);
+	if (clnt->cl_oneshot || clnt->cl_dead)
+		rpc_destroy_client(clnt);
 }
 
 /*
@@ -202,10 +215,9 @@ rpc_do_call(struct rpc_clnt *clnt, u32 proc, void *argp, void *resp,
 	if ((async = (flags & RPC_TASK_ASYNC)) != 0) {
 		if (!func)
 			func = rpc_default_callback;
-		if (!(task = rpc_new_task(clnt, func, flags))) {
-			current->blocked = oldmask;
-			return -ENOMEM;
-		}
+		status = -ENOMEM;
+		if (!(task = rpc_new_task(clnt, func, flags)))
+			goto out;
 		task->tk_calldata = data;
 	} else {
 		rpc_init_task(task, clnt, NULL, flags);
@@ -219,12 +231,13 @@ rpc_do_call(struct rpc_clnt *clnt, u32 proc, void *argp, void *resp,
 	} else
 		async = 0;
 
+	status = 0;
 	if (!async) {
 		status = task->tk_status;
 		rpc_release_task(task);
-	} else
-		status = 0;
+	}
 
+out:
 	current->blocked = oldmask;
 	return status;
 }
@@ -312,21 +325,36 @@ call_reserveresult(struct rpc_task *task)
 {
 	dprintk("RPC: %4d call_reserveresult (status %d)\n",
 				task->tk_pid, task->tk_status);
+	/*
+	 * After a call to xprt_reserve(), we must have either
+	 * a request slot or else an error status.
+	 */
+	if ((task->tk_status >= 0 && !task->tk_rqstp) ||
+	    (task->tk_status < 0 && task->tk_rqstp))
+		printk("call_reserveresult: status=%d, request=%p??\n",
+		 task->tk_status, task->tk_rqstp);
 
 	if (task->tk_status >= 0) {
 		task->tk_action = call_allocate;
+		goto out;
 	} else if (task->tk_status == -EAGAIN) {
 		task->tk_timeout = task->tk_client->cl_timeout.to_resrvval;
 		task->tk_status = 0;
 		xprt_reserve(task);
-		return;
+		goto out;
 	} else if (task->tk_status == -ETIMEDOUT) {
+		printk("RPC: task timed out\n");
 		task->tk_action = call_timeout;
+		goto out;
 	} else {
 		task->tk_action = NULL;
 	}
-	if (!task->tk_rqstp)
+	if (!task->tk_rqstp) {
+		printk("RPC: task has no request, exit EIO\n");
 		rpc_exit(task, -EIO);
+	}
+out:
+	return;
 }
 
 /*
@@ -351,6 +379,7 @@ call_allocate(struct rpc_task *task)
 
 	if ((task->tk_buffer = rpc_malloc(task, bufsiz)) != NULL)
 		return;
+	printk("RPC: buffer allocation failed for task %p\n", task); 
 
 	if (1 || !signalled()) {
 		xprt_release(task);
@@ -401,6 +430,7 @@ call_encode(struct rpc_task *task)
 	/* Encode header and provided arguments */
 	encode = rpcproc_encode(clnt, task->tk_proc);
 	if (!(p = call_header(task))) {
+		printk("RPC: call_header failed, exit EIO\n");
 		rpc_exit(task, -EIO);
 	} else
 	if ((status = encode(req, p, task->tk_argp)) < 0) {
@@ -735,6 +765,7 @@ garbage:
 		task->tk_action = call_encode;
 		return NULL;
 	}
+	printk("RPC: garbage, exit EIO\n");
 	rpc_exit(task, -EIO);
 	return NULL;
 }

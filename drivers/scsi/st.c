@@ -11,7 +11,7 @@
   Copyright 1992 - 1997 Kai Makisara
 		 email Kai.Makisara@metla.fi
 
-  Last modified: Tue May 27 22:29:00 1997 by makisara@home
+  Last modified: Wed Nov  5 23:39:52 1997 by makisara@home
   Some small formal changes - aeb, 950809
 */
 
@@ -230,18 +230,9 @@ st_sleep_done (Scsi_Cmnd * SCpnt)
     }
     else
       (STp->buffer)->last_result = SCpnt->result;
-#if 0
-    if ((STp->buffer)->writing) {
-      /* Process errors before releasing request */
-      (STp->buffer)->last_result_fatal = st_chk_result(SCpnt);
-      SCpnt->request.rq_status = RQ_INACTIVE;
-    }
-    else
-      SCpnt->request.rq_status = RQ_SCSI_DONE;
-#else
+
     SCpnt->request.rq_status = RQ_SCSI_DONE;
     (STp->buffer)->last_SCpnt = SCpnt;
-#endif
 
 #if DEBUG
     STp->write_pending = 0;
@@ -645,8 +636,10 @@ scsi_tape_open(struct inode * inode, struct file * filp)
     }
 
     if ((STp->buffer)->last_result_fatal != 0) {
-      if ((SCpnt->sense_buffer[0] & 0x70) == 0x70 &&
-	  (SCpnt->sense_buffer[2] & 0x0f) == NO_TAPE) {
+      if ((STp->device)->scsi_level >= SCSI_2 &&
+	  (SCpnt->sense_buffer[0] & 0x70) == 0x70 &&
+	  (SCpnt->sense_buffer[2] & 0x0f) == NOT_READY &&
+	  SCpnt->sense_buffer[12] == 0x3a) { /* Check ASC */
 	STp->ready = ST_NO_TAPE;
       } else
 	STp->ready = ST_NOT_READY;
@@ -872,8 +865,6 @@ scsi_tape_close(struct inode * inode, struct file * filp)
 	if (!SCpnt)
 	  goto out;
 
-	SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
-
 	if ((STp->buffer)->last_result_fatal != 0 &&
 	    ((SCpnt->sense_buffer[0] & 0x70) != 0x70 ||
 	     (SCpnt->sense_buffer[2] & 0x4f) != 0x40 ||
@@ -882,11 +873,13 @@ scsi_tape_close(struct inode * inode, struct file * filp)
 	       SCpnt->sense_buffer[5] |
 	       SCpnt->sense_buffer[6]) == 0))) {
 	    /* Filter out successful write at EOM */
+	    SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
 	    printk(KERN_ERR "st%d: Error on write filemark.\n", dev);
 	    if (result == 0)
 		result = (-EIO);
 	}
 	else {
+	  SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
 	  if (STps->drv_file >= 0)
 	      STps->drv_file++ ;
 	  STps->drv_block = 0;
@@ -955,12 +948,12 @@ out:
 
 
 /* Write command */
-	static long
-st_write(struct inode * inode, struct file * filp, const char * buf,
-	 unsigned long count)
+static ssize_t
+st_write(struct file * filp, const char * buf, size_t count, loff_t *ppos)
 {
-    long total;
-    int i, do_count, blks, retval, transfer;
+    struct inode *inode = filp->f_dentry->d_inode;
+    ssize_t total;
+    ssize_t i, do_count, blks, retval, transfer;
     int write_threshold;
     int doing_write = 0;
     static unsigned char cmd[10];
@@ -971,9 +964,18 @@ st_write(struct inode * inode, struct file * filp, const char * buf,
     ST_partstat * STps;
     int dev = TAPE_NR(inode->i_rdev);
 
+    if (ppos != &filp->f_pos) {
+      /* "A request was outside the capabilities of the device." */
+      return -ENXIO;
+    }
+
     STp = &(scsi_tapes[dev]);
-    if (STp->ready != ST_READY)
-      return (-EIO);
+    if (STp->ready != ST_READY) {
+      if (STp->ready == ST_NO_TAPE)
+	return (-ENOMEDIUM);
+      else
+        return (-EIO);
+    }
     STm = &(STp->modes[STp->current_mode]);
     if (!STm->defined)
       return (-ENXIO);
@@ -1254,7 +1256,7 @@ st_write(struct inode * inode, struct file * filp, const char * buf,
 /* Read data from the tape. Returns zero in the normal case, one if the
    eof status has changed, and the negative error code in case of a
    fatal error. Otherwise updates the buffer and the eof state. */
-	static long
+static long
 read_tape(struct inode *inode, long count, Scsi_Cmnd **aSCpnt)
 {
     int transfer, blks, bytes;
@@ -1344,7 +1346,7 @@ read_tape(struct inode *inode, long count, Scsi_Cmnd **aSCpnt)
 		    }
 		    else {
 			SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
-			SCpnt = NULL;
+			SCpnt = *aSCpnt = NULL;
 			if (transfer == blks) {  /* We did not get anything, error */
 			    printk(KERN_NOTICE "st%d: Incorrect block size.\n", dev);
 			    if (STps->drv_block >= 0)
@@ -1441,11 +1443,12 @@ read_tape(struct inode *inode, long count, Scsi_Cmnd **aSCpnt)
 
 
 /* Read command */
-	static long
-st_read(struct inode * inode, struct file * filp, char * buf, unsigned long count)
+static ssize_t
+st_read(struct file * filp, char * buf, size_t count, loff_t *ppos)
 {
-    long total;
-    int i, transfer;
+    struct inode * inode = filp->f_dentry->d_inode;
+    ssize_t total;
+    ssize_t i, transfer;
     int special;
     Scsi_Cmnd * SCpnt = NULL;
     Scsi_Tape * STp;
@@ -1453,9 +1456,18 @@ st_read(struct inode * inode, struct file * filp, char * buf, unsigned long coun
     ST_partstat * STps;
     int dev = TAPE_NR(inode->i_rdev);
 
+    if (ppos != &filp->f_pos) {
+      /* "A request was outside the capabilities of the device." */
+      return -ENXIO;
+    }
+
     STp = &(scsi_tapes[dev]);
-    if (STp->ready != ST_READY)
-      return (-EIO);
+    if (STp->ready != ST_READY) {
+      if (STp->ready == ST_NO_TAPE)
+	return (-ENOMEDIUM);
+      else
+        return (-EIO);
+    }
     STm = &(STp->modes[STp->current_mode]);
     if (!STm->defined)
       return (-ENXIO);
@@ -1533,7 +1545,7 @@ st_read(struct inode * inode, struct file * filp, char * buf, unsigned long coun
       if ((STp->buffer)->buffer_bytes > 0) {
 #if DEBUG
 	if (debugging && STps->eof != ST_NOEOF)
-	  printk(ST_DEB_MSG "st%d: EOF up (%d). Left %d, needed %ld.\n", dev,
+	  printk(ST_DEB_MSG "st%d: EOF up (%d). Left %d, needed %d.\n", dev,
 		 STps->eof, (STp->buffer)->buffer_bytes, count - total);
 #endif
 	transfer = (STp->buffer)->buffer_bytes < count - total ?
@@ -1875,8 +1887,12 @@ st_int_ioctl(struct inode * inode,
    int dev = TAPE_NR(inode->i_rdev);
 
    STp = &(scsi_tapes[dev]);
-   if (STp->ready != ST_READY && cmd_in != MTLOAD)
-     return (-EIO);
+   if (STp->ready != ST_READY && cmd_in != MTLOAD) {
+     if (STp->ready == ST_NO_TAPE)
+       return (-ENOMEDIUM);
+     else
+       return (-EIO);
+   }
    timeout = STp->long_timeout;
    STps = &(STp->ps[STp->partition]);
    fileno = STps->drv_file;
@@ -2512,6 +2528,7 @@ set_location(struct inode * inode, unsigned int block, int partition,
     if (!SCpnt)
       return (-EBUSY);
 
+    SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
     STps->drv_block = STps->drv_file = (-1);
     STps->eof = ST_NOEOF;
     if ((STp->buffer)->last_result_fatal != 0) {
@@ -2537,7 +2554,6 @@ set_location(struct inode * inode, unsigned int block, int partition,
 	STps->drv_block = STps->drv_file = 0;
       result = 0;
     }
-    SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
 
     return result;
 }

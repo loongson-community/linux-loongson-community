@@ -17,16 +17,12 @@
 #include <linux/kernel_stat.h>
 #include <linux/errno.h>
 #include <linux/string.h>
-#include <linux/stat.h>
 #include <linux/swap.h>
-#include <linux/fs.h>
 #include <linux/swapctl.h>
 #include <linux/smp_lock.h>
 #include <linux/slab.h>
+#include <linux/dcache.h>
 
-#include <asm/dma.h>
-#include <asm/system.h> /* for cli()/sti() */
-#include <asm/uaccess.h> /* for copy_to/from_user */
 #include <asm/bitops.h>
 #include <asm/pgtable.h>
 
@@ -355,6 +351,11 @@ static inline int do_try_to_free_page(int priority, int dma, int wait)
 	int i=6;
 	int stop;
 
+	/* Let the dcache know we're looking for memory ... */
+	shrink_dcache_memory();
+	/* Always trim SLAB caches when memory gets low. */
+	(void) kmem_cache_reap(0, dma, wait);
+
 	/* we don't try as hard if we're not waiting.. */
 	stop = 3;
 	if (wait)
@@ -366,19 +367,9 @@ static inline int do_try_to_free_page(int priority, int dma, int wait)
 				return 1;
 			state = 1;
 		case 1:
-			/*
-			 * We shouldn't have a priority here:
-			 * If we're low on memory we should
-			 * unconditionally throw away _all_
-			 * kmalloc caches!
-			 */
-			if (kmem_cache_reap(0, dma, wait))
-				return 1;
-			state = 2;
-		case 2:
 			if (shm_swap(i, dma))
 				return 1;
-			state = 3;
+			state = 2;
 		default:
 			if (swap_out(i, dma, wait))
 				return 1;
@@ -425,6 +416,7 @@ void kswapd_setup(void)
        printk ("Starting kswapd v%.*s\n", i, s);
 }
 
+#define MAX_SWAP_FAIL 3
 /*
  * The background pageout daemon.
  * Started as a kernel thread from the init process.
@@ -452,6 +444,8 @@ int kswapd(void *unused)
 	init_swap_timer();
 	
 	while (1) {
+		int fail;
+
 		kswapd_awake = 0;
 		current->signal = 0;
 		run_task_queue(&tq_disk);
@@ -462,13 +456,27 @@ int kswapd(void *unused)
 		 * We now only swap out as many pages as needed.
 		 * When we are truly low on memory, we swap out
 		 * synchronously (WAIT == 1).  -- Rik.
+		 * If we've had too many consecutive failures,
+		 * go back to sleep to let other tasks run.
 		 */
-		while(nr_free_pages < min_free_pages)
-			try_to_free_page(GFP_KERNEL, 0, 1);
-		while((nr_free_pages + atomic_read(&nr_async_pages)) < free_pages_low)
-			try_to_free_page(GFP_KERNEL, 0, 1);
-		while((nr_free_pages + atomic_read(&nr_async_pages)) < free_pages_high)
-			try_to_free_page(GFP_KERNEL, 0, 0);
+		for (fail = 0; fail++ < MAX_SWAP_FAIL;) {
+			int pages, wait;
+
+			pages = nr_free_pages;
+			if (nr_free_pages >= min_free_pages)
+				pages += atomic_read(&nr_async_pages);
+			if (pages >= free_pages_high)
+				break;
+			wait = (pages < free_pages_low);
+			if (try_to_free_page(GFP_KERNEL, 0, wait))
+				fail = 0;
+		}
+		/*
+		 * Report failure if we couldn't reach the minimum goal.
+		 */
+		if (nr_free_pages < min_free_pages)
+			printk("kswapd: failed, got %d of %d\n",
+				nr_free_pages, min_free_pages);
 	}
 }
 

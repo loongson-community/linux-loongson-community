@@ -249,6 +249,12 @@ static unsigned long dma_mem_alloc(int size)
 static unsigned char *ltdmabuf;
 static unsigned char *ltdmacbuf;
 
+struct ltpc_private
+{
+	struct net_device_stats stats;
+	struct at_addr my_addr;
+};
+
 struct xmitQel {
 	struct xmitQel *next;
 	unsigned char *cbuf;
@@ -650,7 +656,7 @@ static int do_read(struct device *dev, void *cbuf, int cbuflen,
 static struct timer_list ltpc_timer;
 
 static int ltpc_xmit(struct sk_buff *skb, struct device *dev);
-static struct enet_statistics *ltpc_get_stats(struct device *dev);
+static struct net_device_stats *ltpc_get_stats(struct device *dev);
 
 static int ltpc_open(struct device *dev)
 {
@@ -691,7 +697,7 @@ static int sendup_buffer (struct device *dev)
 	int dnode, snode, llaptype, len; 
 	int sklen;
 	struct sk_buff *skb;
-	struct net_device_stats *stats = (struct enet_statistics *)dev->priv;
+	struct net_device_stats *stats = &((struct ltpc_private *)dev->priv)->stats;
 	struct lt_rcvlap *ltc = (struct lt_rcvlap *) ltdmacbuf;
 
 	if (ltc->command != LT_RCVLAP) {
@@ -755,7 +761,7 @@ static int sendup_buffer (struct device *dev)
  
 static void ltpc_interrupt(int irq, void *dev_id, struct pt_regs *reg_ptr)
 {
-	struct device *dev = (struct device *) irq2dev_map[irq];
+	struct device *dev = dev_id;
 
 	if (dev==NULL) {
 		printk("ltpc_interrupt: unknown device.\n");
@@ -786,7 +792,7 @@ static int ltpc_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 {
 	struct sockaddr_at *sa = (struct sockaddr_at *) &ifr->ifr_addr;
 	/* we'll keep the localtalk node address in dev->pa_addr */
-	struct at_addr *aa = (struct at_addr *) &dev->pa_addr;
+	struct at_addr *aa = &((struct ltpc_private *)dev->priv)->my_addr;
 	struct lt_init c;
 	int ltflags;
 
@@ -851,14 +857,14 @@ static int ltpc_init(struct device *dev)
 	dev->hard_start_xmit = ltpc_xmit;
 	dev->hard_header = ltpc_hard_header;
 
-	dev->priv = kmalloc(sizeof(struct net_device_stats), GFP_KERNEL);
+	dev->priv = kmalloc(sizeof(struct ltpc_private), GFP_KERNEL);
 	if(!dev->priv)
 	{
 		printk(KERN_INFO "%s: could not allocate statistics buffer\n", dev->name);
 		return -ENOMEM;
 	}
 
-	memset(dev->priv, 0, sizeof(struct net_device_stats));
+	memset(dev->priv, 0, sizeof(struct ltpc_private));
 	dev->get_stats = ltpc_get_stats;
 
 	dev->open = ltpc_open;
@@ -915,7 +921,7 @@ static int ltpc_xmit(struct sk_buff *skb, struct device *dev)
 	 * and skb->len is the length of the ddp data + ddp header
 	 */
 
-	struct net_device_stats *stats = (struct enet_statistics *)dev->priv;
+	struct net_device_stats *stats = &((struct ltpc_private *)dev->priv)->stats;
 
 	int i;
 	struct lt_sendlap cbuf;
@@ -951,7 +957,7 @@ static int ltpc_xmit(struct sk_buff *skb, struct device *dev)
 
 static struct net_device_stats *ltpc_get_stats(struct device *dev)
 {
-	struct net_device_stats *stats = (struct net_device_stats *) dev->priv;
+	struct net_device_stats *stats = &((struct ltpc_private *) dev->priv)->stats;
 	return stats;
 }
 
@@ -984,9 +990,9 @@ __initfunc(int ltpc_probe(struct device *dev))
 	save_flags(flags);
 	cli();
 
-	probe3 = request_irq( 3, &lt_probe_handler, 0, "ltpc_probe",NULL);
-	probe4 = request_irq( 4, &lt_probe_handler, 0, "ltpc_probe",NULL);
-	probe9 = request_irq( 9, &lt_probe_handler, 0, "ltpc_probe",NULL);
+	probe3 = request_irq( 3, &lt_probe_handler, 0, "ltpc_probe",dev);
+	probe4 = request_irq( 4, &lt_probe_handler, 0, "ltpc_probe",dev);
+	probe9 = request_irq( 9, &lt_probe_handler, 0, "ltpc_probe",dev);
 
 	irqhitmask = 0;
 
@@ -1023,9 +1029,9 @@ __initfunc(int ltpc_probe(struct device *dev))
 
 	cli();
  
-	if (!probe3) free_irq(3,NULL);
-	if (!probe4) free_irq(4,NULL);
-	if (!probe9) free_irq(9,NULL);
+	if (!probe3) free_irq(3,dev);
+	if (!probe4) free_irq(4,dev);
+	if (!probe9) free_irq(9,dev);
 
 	sti();
  
@@ -1193,8 +1199,7 @@ __initfunc(int ltpc_probe(struct device *dev))
 	ltpc_timer.data = (unsigned long) dev;
 
 	if (irq) {
-		irq2dev_map[irq] = dev;
-		(void) request_irq( irq, &ltpc_interrupt, 0, "ltpc",NULL);
+		(void) request_irq( irq, &ltpc_interrupt, 0, "ltpc", dev);
 		(void) inb_p(base+7);  /* enable interrupts from board */
 		(void) inb_p(base+7);  /* and reset irq line */
 		ltpc_timer.expires = 100;
@@ -1249,7 +1254,7 @@ void cleanup_module(void)
 	if(debug&DEBUG_VERBOSE) printk("freeing irq\n");
 
 	if(dev_ltpc.irq) {
-		free_irq(dev_ltpc.irq,NULL);
+		free_irq(dev_ltpc.irq,&dev_ltpc);
 		dev_ltpc.irq = 0;
 	}
 

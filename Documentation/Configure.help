@@ -148,6 +148,15 @@ CONFIG_BLK_DEV_LOOP
   nothing to do with the loopback device used for network connections
   from the machine to itself.  Most users will answer N here.
 
+Network Block Device support
+CONFIG_BLK_DEV_NBD
+  Saying Y here will allow computer to serve as client for network
+  block device - it will be able to use block devices exported by
+  servers (mount filesystems on them etc.). It also allows you to run
+  a block-device in userland (making server and client physicaly the same
+  computer, communicating using loopback). Normal users say N
+  here. Read Documentation/nbd.txt.
+
 Enhanced IDE/MFM/RLL disk/cdrom/tape/floppy support
 CONFIG_BLK_DEV_IDE
   This will use the full-featured IDE driver to control up to four IDE
@@ -449,6 +458,33 @@ CONFIG_DECSTATION
   http://lena.fnet.fr/ (To browse the WWW, you need to have access to
   a machine on the Internet that has a program like lynx or netscape).
 
+RAID-1 (mirroring) mode
+CONFIG_MD_MIRRORING
+  A RAID-1 set consists of several disk drives which are exact copies
+  of each other. In the event of a mirror failure, the RAID driver
+  will continue to use the operational mirrors in the set, providing
+  an error free MD device to the higher levels of the kernel. In
+  a set with N drives, the available space is the capacity of a single
+  drive, and the set protects against a failure of (N - 1) drives.
+  raidtools, a set of user-space tools which create and maintain
+  RAID1/4/5 sets, is available at:
+  ftp://ftp.kernel.org/pub/linux/daemons/raid
+  http://luthien.nuclecu.unam.mx/~miguel/raid
+
+RAID-4/RAID-5 mode
+CONFIG_MD_RAID5
+  A RAID-5 set of N drives with a capacity of C MB per drive provides
+  the capacity of C * (N - 1) drives, and protects against a failure
+  of a single drive. For a given sector (row) number, (N - 1) drives
+  contain data sectors, and one drive contains the parity protection.
+  For a RAID-4 set, the parity blocks are present on a single drive,
+  while a RAID-5 set distributes the parity accross the drives in one
+  of the available parity distribution methods.
+  raidtools, a set of user-space tools which create and maintain
+  RAID1/4/5 sets, is available at:
+  ftp://ftp.kernel.org/pub/linux/daemons/raid
+  http://luthien.nuclecu.unam.mx/~miguel/raid
+
 Support for Deskstation RPC44 
 CONFIG_DESKSTATION_RPC44
   This is a machine with a R4400 100 MHz CPU. To compile a Linux
@@ -524,7 +560,30 @@ CONFIG_NET
   kernel, you should consider updating your networking tools too
   because changes in the kernel and the tools often go hand in hand;
   see http://www.inka.de/sites/lina/linux/NetTools/index_en.html for
-  details. 
+  details.
+
+Packet socket
+CONFIG_PACKET
+  Packet protocol is used by applications directly communicating
+  to network devices f.e. tcpdump. You want that they worked,
+  so that choose Y. If you run kerneld, option M is the best solution.
+
+Kernel/User netlink socket
+CONFIG_NETLINK
+  This protocol family is used for bi-directional communication
+  between kernel and user level daemons. This option is unlikely to
+  be useful for common workstation, but if you configure router or
+  firewall, do not hesitate: press Y.
+
+Routing messages
+CONFIG_RTNETLINK
+  One of netlink protocols used by kernel routing engine.
+  You will need it to use advanced routing features.
+
+Netlink device emulation
+CONFIG_NETLINK_DEV
+  It is backward compatibility option, choose Y for now.
+  This option will be removed soon.
 
 Network aliasing
 CONFIG_NET_ALIAS
@@ -761,9 +820,10 @@ CONFIG_PCI_DIRECT
 
 PCI bridge optimization (experimental)
 CONFIG_PCI_OPTIMIZE
-  This can improve access times for some hardware devices under
-  certain BIOSes if your computer uses a PCI bus system. This is
-  recommended; say Y.
+  This can improve access times for some hardware devices if you have
+  a really broken BIOS and your computer uses a PCI bus system. Set to Y
+  if you think it might help, but try turning it off if you experience
+  any problems with the PCI bus.
 
 MCA support
 CONFIG_MCA
@@ -902,11 +962,11 @@ CONFIG_BINFMT_MISC
   you have use for it.  
   If you don't know what to answer at this point, say Y.
 
-Processor type
+Processor family
 CONFIG_M386
   This is the processor type of your CPU. This information is used for
   optimizing purposes. In order to compile a kernel that can run on
-  all Intel CPU types (albeit not optimally fast), you can specify
+  all x86 CPU types (albeit not optimally fast), you can specify
   "386" here.  If you specify one of "486" or "Pentium" or "PPro",
   then the kernel will run on all of these CPUs: 486 and Pentium
   (=586) and Pentium Pro (=686). In rare cases, it can make sense to
@@ -989,6 +1049,72 @@ CONFIG_PNP_PARPORT
   when requested.  If this option is enabled the kernel will probe to see
   what devices are connected at boot time.
 
+Plug and Play subsystem (EXPERIMENTAL)
+CONFIG_PNP_DRV
+  This enables support for the new Plug-and-Play (or PnP) Linux
+  subsystems. This support is required for PnP ISA support, and for PnP
+  Legacy support. User-mode utilities for this support may be found at
+  http://www.lpsg.demon.co.uk/pnp-linux.html.
+
+PnP resource management
+CONFIG_KERNEL_PNP_RESOURCE
+  This option will cause the new PnP generic resource management
+  routines to be used instead of the old routines request_xxx and
+  free_xxx. Emulation routines are put in place to support the old
+  calling style. This code support masks for IO decoding (required for
+  Plug and Play devices). There is no need to enable this option unless
+  you want to - these features will still be used where they are needed.
+  However, enabling it will reduce your kernel size slightly, and also
+  allow you to test this code more extensively.
+
+Support for boot-loaded PnP configuration (RECOMMENDED)
+CONFIG_PNP_BLDCONFIG
+  This will enable support for preloading data about the configuration
+  of any Plug-and-Play devices in the system into the kernel at boot
+  time, which means that any devices required at boot can be configured
+  at this time manually. Say Y unless you have a reason not to.
+
+PnP ISA support
+CONFIG_PNP_ISA
+  This option is required to allow the Linux PnP subsystem to handle
+  Plug and Play ISA devices. This includes full support for PnP ISA,
+  including the I/O range check feature.
+
+PnP ISA backwards-compatiblity support
+CONFIG_PNP_ISA_COMPAT
+  This option will enable partial backwards compatibility with drivers
+  written using older versions (up to the last 0.2.x) of the PnP driver
+  written by Tom Lees <tom@lpsg.demon.co.uk>.
+
+PnP Legacy device support
+CONFIG_PNP_LEGACY
+  Before PnP ISA was standardized, several "jumperless", or
+  "soft-configurable" boards were finding there way onto the market.
+  These cards used somewhat proprietary mechanisms for configuring
+  IRQs, DMAs, IO addresses, and memory ranges. These devices (mainly
+  network cards, but also some sound card) can be configured as any
+  other PnP device can by enabling this option, if appropriate drivers
+  for these devices are available.
+
+PnP sysctl support (RECOMMENDED)
+CONFIG_PNP_SYSCTL
+  This option enables support for the user-mode interface to the
+  kernel-mode PnP systems. It requires that you enable CONFIG_SYSCTL.
+  The only reason you might want to switch this off is if you aren't
+  going to use user-mode utilities to configure PnP, and you want to
+  save a couple of kilobytes of kernel space. Answer Y unless you know
+  what you are doing. User-mode utilities and a library for accessing
+  this interface may be found at
+  http://www.lpsg.demon.co.uk/pnp-linux.html.
+
+PnP auto-configures all devices on startup
+CONFIG_PNP_BOOTINIT
+  This option will allow the PnP subsystem to automatically configure
+  all the   PnP devices it finds upon system startup (or at least
+  attempt to). This is useful if you have older driver which do not use
+  the Linux-PnP system to configure PnP devices, and which you need
+  configured by PnP in order to use.
+
 Enable loadable module support
 CONFIG_MODULES
   Kernel modules are small pieces of compiled code which can be 
@@ -1065,9 +1191,7 @@ CONFIG_INET
 IP: multicasting
 CONFIG_IP_MULTICAST
   This is code for addressing several networked computers at once,
-  enlarging your kernel by about 2 kB. If you are using gated, the
-  daemon that updates your computer's routing tables, you will need to
-  have this option compiled in. You also need multicasting if you
+  enlarging your kernel by about 2 kB. You need multicasting if you
   intend to participate in the MBONE, a high bandwidth network on top
   of the internet which carries audio and video broadcasts. More
   information about the MBONE is on the WWW at
@@ -1138,6 +1262,39 @@ CONFIG_IP_ACCT
   recorded, you need the tool ipfwadm (available via ftp (user:
   anonymous) from ftp.xos.nl/pub/linux/ipfwadm/).
 
+IP: kernel level autoconfiguration
+CONFIG_IP_PNP
+  This enables automatic configuration of IP addresses of devices and
+  of the routing table during kernel boot, based on either information
+  supplied at the kernel command line or by BOOTP or RARP protocols.
+  You need to say Y only for diskless machines requiring network access
+  to boot (see CONFIG_ROOT_NFS for more information about root volume
+  mounted via NFS), because all other machines configure the network in
+  their startup scripts.
+
+BOOTP support
+CONFIG_IP_PNP_BOOTP
+  If you want your Linux box to mount its whole root filesystem from
+  some other computer over the net via NFS and you want the IP address
+  of your computer to be discovered automatically at boot time using
+  the BOOTP protocol (a special protocol designed for doing this job),
+  say Y here. In case the boot ROM of your network card was designed
+  for booting Linux and does BOOTP itself, providing all necessary
+  information on the kernel command line, you can say N here.  If
+  unsure, say Y. Note that in case you want to use BOOTP, a BOOTP
+  server must be operating on your network. Read
+  Documentation/nfsroot.txt for details.
+
+RARP support
+CONFIG_IP_PNP_RARP
+  If you want your Linux box to mount its whole root filesystem from
+  some other computer over the net via NFS and you want the IP address
+  of your computer to be discovered automatically at boot time using
+  the RARP protocol (an older protocol which is being obsoleted by
+  BOOTP and DHCP), say Y here. Note that in case you want to use RARP,
+  a RARP server must be operating on your network. Read
+  Documentation/nfsroot.txt for details.
+
 IP: tunneling
 CONFIG_NET_IPIP
   Tunneling means encapsulating data of one protocol type within
@@ -1154,7 +1311,22 @@ CONFIG_NET_IPIP
   one encapsulator called tunnel.o and one decapsulator called
   ipip.o. You can read details in drivers/net/README.tunnel. Most
   people won't need this and can say N.
-  
+
+IP: GRE tunnels over IP
+CONFIG_NET_IPGRE
+  Another kind of tunneling protocol - "Generic Routing Encapsulation".
+  It allows to tunnel any networking protocol over existing IPv4
+  infrastructure. At the moment only IPv4 and IPv6 are supported.
+  It is useful, if another endpoint is Cisco router: it likes
+  GRE much more than IPIP and, particularly, allows multicasts
+  redistribution over GRE tunnels.
+
+IP: broadcast GRE over IP
+CONFIG_NET_IPGRE_BROADCAST
+  One application of GRE/IP, allowing to construct broadcast LAN,
+  looking like ethernet network, distributed over the Internet.
+  It requires, that your domain supported multicast routing.
+
 IP: firewall packet logging
 CONFIG_IP_FIREWALL_VERBOSE
   This gives you information about what your firewall did with
@@ -1245,6 +1417,21 @@ CONFIG_IP_MROUTE
   capabilities of the various network cards is contained in
   drivers/net/README.multicast. If you haven't heard about it, you
   don't need it.
+
+IP: PIM-SM version 1 support
+CONFIG_IP_PIMSM_V1
+  Kernel side support for Sparse Mode PIM version 1. This multicast
+  routing protocol is used widely due to Cisco supports it.
+  You need special software to use it (pimd-v1). Press N, if
+  you do not want to use PIM-SM v1. Note, that Dense Mode PIM
+  need not this option.
+
+IP: PIM-SM version 2 support
+CONFIG_IP_PIMSM_V2
+  Kernel side support for Sparse Mode PIM version 2. You need
+  experimental routing daemon supporting it (pimd or gated-5).
+  This protocol is not used widely, so that press Y, if you
+  do not want play with it.
 
 PC/TCP compatibility mode
 CONFIG_INET_PCTCP
@@ -1346,6 +1533,13 @@ CONFIG_SKB_LARGE
   a second or   satellite links this option will make no difference to
   performance.
 
+BSD Unix domain sockets
+CONFIG_UNIX
+  Y if you want BSD Unix domain sockets.  Unless you are working on an
+  embedded system or somthing, you probably want to say Y.  If you try
+  building this as a module and you are running kerneld, you need to make
+  sure and add 'alias net-pf-1 unix' to your /etc/conf.module file.
+
 The IPv6 protocol
 CONFIG_IPV6
   This is experimental support for the next version of the Internet
@@ -1363,6 +1557,20 @@ CONFIG_IPV6
   removed from the running kernel whenever you want). The module will
   be called ipv6.o. If you want to compile it as a module, say M here
   and read Documentation/modules.txt.  It's safe to say N for now.
+
+IPv6: enable EUI-64 token format
+CONFIG_IPV6_EUI64
+  6bone is moving to new aggregatable address format and new link local
+  address assignment (EUI-64). Say Y, if your site already upgraded, or
+  started upgrade.
+
+IPv6: disable provider based addresses
+CONFIG_IPV6_NO_PB
+  Linux tries to operate correctly, when site is moved to EUI-64
+  only partially. Unfortunately, these two formats ("provider based"
+  and "aggregatable") are incompatible. Say Y, if your site finished
+  upgrade, and/or you encountered some problems caused by presense of
+  two link-local addresses on an interface.
 
 The IPX protocol
 CONFIG_IPX
@@ -1720,10 +1928,10 @@ CONFIG_BLK_DEV_SR
 Enable vendor-specific extensions (for SCSI CDROM)
 CONFIG_BLK_DEV_SR_VENDOR
   This enables the usage of vendor specific SCSI commands. This is
-  required for some stuff which is newer than the SCSI-II standard:
-  MultiSession CD support and some ioctls for reading Mode 2 Form 2
-  sectors. You'll probably want to say Y here, unless you have a
-  _really old_ CD-ROM drive.
+  required to support multisession CD's on with old NEC/TOSHIBA
+  cdrom drives (and HP Writers). If you have such a drive and get
+  the first session only, try to turn this on. Most drives should
+  work fine without this.
 
 SCSI generic support
 CONFIG_CHR_DEV_SG
@@ -2355,6 +2563,15 @@ CONFIG_SCSI_AM53C974
   and read Documentation/modules.txt. The module will be called
   AM53C974.o.
 
+GDT SCSI Disk Array Controller support
+CONFIG_SCSI_GDTH
+  This is a driver for all SCSI Disk Array Controllers (EISA/ISA/PCI) 
+  manufactured by ICP vortex. It is documented in the kernel source in
+  drivers/scsi/gdth.c and drivers/scsi/gdth.h. This driver is also
+  available as a module ( = code which can be inserted in and removed
+  from the running kernel whenever you want). If you want to compile 
+  it as a module, say M here and read Documentation/modules.txt. 	
+
 IOMEGA Parallel Port ZIP drive SCSI support
 CONFIG_SCSI_PPA
   This driver supports the parallel port version of IOMEGA's ZIP drive
@@ -2383,13 +2600,6 @@ CONFIG_SCSI_PPA_HAVE_PEDANTIC
   2 (check FIFO every other byte) and 3 (check FIFO every time). If
   your EPP chipset is from the SMC series, you are likely to have to
   set this value greater than 0.
-
-EPP Timing
-CONFIG_SCSI_PPA_EPP_TIME
-  This is the "reset time period", a delay time. The lower the value,
-  the faster the access to the ZIP drive; too low a value may
-  cause all sorts of mid-level SCSI problems however. If unsure, go
-  with the default.
 
 SGI wd93 Scsi Driver
 CONFIG_SCSI_SGIWD93
@@ -2703,6 +2913,18 @@ CONFIG_SOUNDMODEM_AFSK2400_8
   modulation scheme has many disadvantages, mainly its incompatibility
   with many transceiver designs and the fact that the TCM3105 (if
   used) is operated widely outside its specifications.
+
+Soundcard modem support for 2666 baud AFSK modulation
+CONFIG_SOUNDMODEM_AFSK2666
+  This option enables the soundmodem driver 2666 baud AFSK modem.
+  This modem is experimental, and not compatible to anything
+  else I know of.
+
+Soundcard modem support for 4800 baud 8PSK modulation
+CONFIG_SOUNDMODEM_PSK4800
+  This option enables the soundmodem driver 4800 baud 8PSK modem.
+  This modem is experimental, and not compatible to anything
+  else I know of.
 
 Soundcard modem support for 4800 baud HAPN-1 modulation
 CONFIG_SOUNDMODEM_HAPN4800
@@ -4280,6 +4502,154 @@ CONFIG_UMSDOS_FS
   umsdos.o. Note that the filesystem of your root partition cannot be
   a module, so this could be dangerous. If unsure, say N.
 
+nls: Native language codepages and Unicode support
+CONFIG_NLS
+  This is required by the FAT filesystems and by the ISO9660 filesystem
+  when it is compiled with Joliet support.  Joliet is a Microsoft
+  extension for CDROMs that supports Unicode.  This allows translation
+  between different character sets. When dealing with the FAT based
+  filesystems, there are two character sets that are important. The
+  first is the codepage.  Codepages are character sets that are used by
+  DOS to allow filenames to have native language characters when
+  character sets were limited to 256 characters. The codepage is the
+  character set that is used to store native language characters on
+  disk.  The two most common codepages are 437 in the United States and
+  850 in much of Europe. The second important character set is the
+  input/output character set. This is the character set that is
+  displayed on the screen. In the United States, this will almost always
+  be the ISO 8859-1 character set. This is the default. Linux will only
+  do a translation of the FAT filenames, not the contents of the files.
+
+nls iso8859-1
+CONFIG_NLS_ISO8859_1
+  ISO8859-1 is the Latin 1 character set, and it covers most West
+  European languages such as Albanian, Catalan, Danish, Dutch, English,
+  Faeroese, Finnish, French, German, Galician, Irish, Icelandic, Italian,
+  Norwegian, Portuguese, Spanish, Swedish, and Valencian.
+
+nls iso8859-2
+CONFIG_NLS_ISO8859_2
+  ISO8859-2 is the Latin 2 character set, and it works for most
+  Latin-written Slavic and Central European languages: Czech, German,
+  Hungarian, Polish, Rumanian, Croatian, Slovak, Slovene.
+
+nls iso8859-3
+CONFIG_NLS_ISO8859_3
+  ISO8859-3 is the Latin 3 character set, and it s popular with authors
+  of Esperanto, Galician, Maltese, and Turkish.
+
+nls iso8859-4
+CONFIG_NLS_ISO8859_4
+  ISO8859-4 is the Latin 4 character set, and it introduces letters
+  for Estonian, Latvian, and Lithuanian. It is an incomplete predecessor of
+  Latin 6.
+
+nls iso8859-5
+CONFIG_NLS_ISO8859_5
+  ISO8859-5 is a Cyrillic character set, and you can type Bulgarian,
+  Byelorussian, Macedonian, Russian, Serbian, and Ukrainian.
+  Note that the charset KOI8-R is preferred in Russia.
+
+nls iso8859-6
+CONFIG_NLS_ISO8859_6
+  ISO8859-6 is the Arabic character set.
+
+nls iso8859-7
+CONFIG_NLS_ISO8859_7
+  ISO8859-7 is the Modern Greek character set.
+
+nls iso8859-8
+CONFIG_NLS_ISO8859_8
+  ISO8859-8 is the Hebrew character set.
+
+nls iso8859-9
+CONFIG_NLS_ISO8859_9
+  ISO8859-9 is the Latin 5 character set, and it replaces the rarely
+  needed Icelandic letters in Latin 1 with the Turkish ones. Useful in
+  Turkey.
+
+nls iso8859-10
+CONFIG_NLS_ISO8859_10
+  ISO8859-10 is the Latin 6 character set, and it adds the last Inuit
+  (Greenlandic) and Sami (Lappish) letters that were missing in Latin 4 to
+  cover the entire Nordic area. 
+
+nls koi8-r
+CONFIG_NLS_KOI8_R
+  This is the preferred Russian character set.
+
+nls codepage 437
+CONFIG_NLS_CODEPAGE_437
+  This is the DOS codepage that is used in the United States and parts of
+  Canada.
+
+nls codepage 737
+CONFIG_NLS_CODEPAGE_737
+  This is the codepage used by DOS for Greek.
+
+nls codepage 775
+CONFIG_NLS_CODEPAGE_775
+  This is the codepage used by DOS for the Baltic Rim Languages.
+
+nls codepage 850
+CONFIG_NLS_CODEPAGE_850
+  This is the DOS codepage that is used in much of Europe--United Kingdom,
+  Germany, Spain, Italy, and [add more countries here]. It has some
+  characters useful to many European languages that are not part of
+  codepage 437.
+
+nls codepage 852
+CONFIG_NLS_CODEPAGE_852
+  This is the Latin 2 codepage used by DOS for much of Central and
+  Eastern Europe.  It has all the required characters for these languages:
+  Albanian, Croatian, Czech, English, Finnish, Hungarian, Irish, German,
+  Polish, Romanian, Serbian (Latin transcription), Slovak, Slovenian, and
+  Sorbian.
+
+nls codepage 855
+CONFIG_NLS_CODEPAGE_855
+  This is the DOS codepage that is used for Cyrillic.
+
+nls codepage 857
+CONFIG_NLS_CODEPAGE_857
+  This is the DOS codepage that is used for Turkish.
+
+nls codepage 860
+CONFIG_NLS_CODEPAGE_860
+  This is the DOS codepage that is used for Portuguese.
+
+nls codepage 861
+CONFIG_NLS_CODEPAGE_861
+  This is the DOS codepage that is used for Icelandic.
+
+nls codepage 862
+CONFIG_NLS_CODEPAGE_862
+  This is the DOS codepage that is used for Hebrew.
+
+nls codepage 863
+CONFIG_NLS_CODEPAGE_863
+  This is the DOS codepage that is used for Canadian French.
+
+nls codepage 864
+CONFIG_NLS_CODEPAGE_864
+  This is the DOS codepage that is used for Arabic.
+
+nls codepage 865
+CONFIG_NLS_CODEPAGE_865
+  This is the DOS codepage that is used in the Nordic European countries.
+
+nls codepage 866
+CONFIG_NLS_CODEPAGE_866
+  This is the DOS codepage that is used for Cyrillic/Russian.
+
+nls codepage 869
+CONFIG_NLS_CODEPAGE_869
+  This is the DOS codepage that is used for Greek.
+
+nls codepage 874
+CONFIG_NLS_CODEPAGE_874
+  This is the DOS codepage that is used for Thai.
+
 /proc filesystem support
 CONFIG_PROC_FS
   This is a virtual filesystem providing information about the status
@@ -4349,29 +4719,6 @@ CONFIG_NFSD
   want). The module is called nfsd.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt. If unsure,
   say N.
-
-BOOTP support
-CONFIG_RNFS_BOOTP
-  If you want your Linux box to mount its whole root filesystem from
-  some other computer over the net via NFS and you want the IP address
-  of your computer to be discovered automatically at boot time using
-  the BOOTP protocol (a special protocol designed for doing this job),
-  say Y here. In case the boot ROM of your network card was designed
-  for booting Linux and does BOOTP itself, providing all necessary
-  information on the kernel command line, you can say N here.  If
-  unsure, say Y. Note that in case you want to use BOOTP, a BOOTP
-  server must be operating on your network. Read
-  Documentation/nfsroot.txt for details.
-
-RARP support
-CONFIG_RNFS_RARP
-  If you want your Linux box to mount its whole root filesystem from
-  some other computer over the net via NFS and you want the IP address
-  of your computer to be discovered automatically at boot time using
-  the RARP protocol (an older protocol which is being obsoleted by
-  BOOTP and DHCP), say Y here. Note that in case you want to use RARP,
-  a RARP server must be operating on your network. Read
-  Documentation/nfsroot.txt for details.
 
 ISO9660 cdrom filesystem support
 CONFIG_ISO9660_FS
@@ -4894,22 +5241,278 @@ CONFIG_QIC02_DYNCONF
   support package.
   If you want to use the qic02conf program, say Y.
 
-Ftape (QIC-80/Travan) support
+Floppy tape drive (QIC-80/40/3010/3020/TR-1/TR-2/TR-3) support
 CONFIG_FTAPE
-  If you have a tape drive that is connected to your floppy
-  controller, say Y here. Some tape drives (like the Iomega Ditto
-  3200) come with a high speed controller of its own.  These drives
-  (and their companion controller) are also supported by this driver,
-  so say Y if you have one. If you have a special controller (such as
-  the CMS FC-10, FC-20, Iomega Mach-II, or Ditto Dash), you must say Y
-  here and configure it by editing the file
-  drivers/char/ftape/Makefile. If you want to use such a tape drive on
-  a PCI-bus based system, please read the file
-  drivers/char/ftape/README.PCI. This driver is also available as a
-  runtime loadable module ( = code which can be inserted in and
-  removed from the running kernel whenever you want). If you want to
-  compile it as a module, say M here and read
-  Documentation/modules.txt. The module will be called ftape.o.
+    If you have a tape drive that is connected to your floppy
+  controller, say `Y' here. Some tape drives (like the Seagate "Tape
+  Store 3200" or the Iomega "Ditto 3200" or the Exabyte "Eagle TR-3")
+  come with a "high speed" controller of their own. These drives (and
+  their companion controllers) are also supported.
+    If you have a special controller (such as the CMS FC-10, FC-20,
+  Mountain Mach-II, or any controller that is based on the Intel 82078
+  FDC like the high speed controllers by Seagate and Exabyte and
+  Iomega's "Ditto Dash") you must configure it by selecting the
+  appropriate entries from the "Floppy tape controllers" sub-menu and
+  possibly modify the default values for the IRQ and DMA channel and
+  the IO base in ftape's configuration menu. If you want to use your
+  floppy tape drive on a PCI-bus based system, please read the file
+  `./drivers/char/ftape/README.PCI'.
+    The ftape kernel driver is also available as a runtime loadable
+  module ( = code which can be inserted in and removed from the
+  running kernel whenever you want). If you want to compile it as a
+  module, say `M' here and read `./Documentation/modules.txt'.
+    Note that the `Ftape-HOWTO' is out of date (sorry), but there is a
+  web page with more recent documentation at
+  `http://www-math.math.rwth-aachen.de/~LBFM/claus/ftape/'. This page
+  always contains the latest release of the ftape driver and useful
+  information (backup software, ftape related patches and
+  documentation, FAQ). The Ftape-HOWTO still contains useful
+  information, though, but documents the older 2.08 version of ftape,
+  whereas this version of ftape is 3.04.
+    Note that the file system interface has changed quite a lot
+  compared to previous versions of ftape. Please read
+  `./Documentation/ftape.txt'
+
+The file system interface for ftape
+CONFIG_ZFTAPE
+    Normally, you want to say `Y' or `M'. DON'T say `N' here or you
+  WON'T BE ABLE TO USE YOUR FLOPPY TAPE DRIVE.
+    The ftape module itself no longer contains the routines necessary
+  to interface with the kernel VFS layer (i.e. to actually write data
+  to and read data from the tape drive). Instead the file system
+  interface (i.e. the hardware independent part of the driver) has
+  been moved to a separate module.
+    If you say `M' zftape will be compiled as as a runtime loadable
+  module ( = code which can be inserted in and removed from the
+  running kernel whenever you want). In this case you should read
+  `./Documentation/modules.txt'.
+    There will also be another module called `zft-compressor.o' which
+  contains code to support user transparent on-the-fly compression
+  based on Ross William's lzrw3 algorithm. `zft-compressor.o' will be
+  compiled as a runtime loadable module only. If you have enabled
+  auto-loading of kernel modules via `kerneld' (i.e. have said `Y' to
+  CONFIG_KERNELD) then `zft-compressor.o' will be loaded automatically
+  by zftape when needed.
+    Despite of its name zftape does NOT use compression by
+  default. The file `./Documentation/ftape.txt' contains a short
+  description of the most important changes in the file system
+  interface compared to previous versions of ftape. The ftape home
+  page `http://www-math.math.rwth-aachen.de/~LBFM/claus/ftape/'
+  contains further information. IMPORTANT NOTE: zftape can read
+  archives created by previous versions of ftape and provide file mark
+  support (i.e. fast skipping between tape archives) but previous
+  version of ftape will lack file mark support when reading archives
+  produced by zftape.
+
+Builtin on-the-fly compression for zftape, based on lzrw3
+CONFIG_ZFT_COMPRESSOR
+    This module implements builtin on-the-fly compression for ftape's
+  file system interface zftape. `zft-compressor.o' is compiled as a
+  runtime loadable module only and will be loaded by zftape on demand
+  if support for auto-loading of modules via `kerneld' has been
+  enabled (CONFIG_KERNELD).
+
+Default block size for zftape
+CONFIG_ZFT_DFLT_BLK_SZ
+    If unsure leave this at its default value, i.e. 10240.  Note that
+  you specify only the default block size here. The block size can be
+  changed at run time using the MTSETBLK tape operation with the
+  MTIOCTOP ioctl (i.e. with "mt -f /dev/qft0 setblk #BLKSZ" from the
+  shell command line).
+    The probably most striking difference between zftape and previous
+  versions of ftape is the fact that all data must be written or read
+  in multiples of a fixed block size. The block size defaults to
+  10240 which is what GNU tar uses. The values for the block size
+  should be either 1 or multiples of 1024 up to a maximum value of
+  63488 (i.e. 62k). If you specify `1' then zftape's builtin
+  compression will be disabled.
+    Reasonable values are `10240' (GNU tar's default block size),
+  `5120' (afio's default block size), `32768' (default block size some
+  backup programs assume for SCSI tape drives) or `1' (no restriction
+  on block size, but disables builtin compression).
+
+Number of DMA buffers
+CONFIG_FT_NR_BUFFERS
+    Please leave this at `3"' unless you REALLY know what you are
+  doing. It is not necessary to change this value. Values below 3 make
+  the proper use of ftape impossible, values greater than 3 are waste
+  of memory. You can change the amount of DMA memory used by ftape at
+  runtime with "mt -f /dev/qft0 setdrvbuffer #NUMBUFFERS". Each buffer
+  wastes 32kb of memory. Please note that this memory cannot be
+  swapped out.
+
+Procfs entry for ftape
+CONFIG_FT_PROC_FS
+    Optional. Saying `Y' will result in creation of a file
+  `/proc/ftape' under the proc file system. This files can be viewed
+  with your favorite pager (i.e. use "more /proc/ftape/history" or
+  "less /proc/ftape/history" or simply "cat /proc/ftape/history"). The
+  file will contain some status information about the inserted
+  cartridge, the kernel driver, your tape drive, the floppy disk
+  controller and the error history for the most recent use of the
+  kernel driver. Saying `Y' will enlarge the size of the ftape driver
+  by approximately 2k.
+  WARNING: When compiling ftape as a module (i.e. saying `M' to
+  `CONFIG_FTAPE') it is dangerous to use ftape's proc file system
+  interface. Accessing `/proc/ftape' while the module is unloaded will
+  result in a kernel Oops. This cannot be fixed from inside ftape.
+
+Controlling the amount of debugging output of ftape
+CONFIG_FT_NORMAL_DEBUG
+    This option controls the amount of debugging output the ftape driver
+  is ABLE to produce; it does not increase or diminish the debugging
+  level itself. If unsure, leave this at its default setting,
+  i.e. choose "Normal".
+    Ftape can print lots of debugging messages to the system console
+  resp. kernel log files. Reducing the amount of possible debugging
+  output reduces the size of the kernel module by some kb, so it might
+  be a good idea to use "None" for emergency boot floppies.
+    If you want to save memory then the following strategy is
+  recommended: leave this option at its default setting "Normal" until
+  you know that the driver works as expected, afterwards reconfigure
+  the kernel, this time specifying "Reduced" or "None" and recompile
+  and install the kernel as usual. Note that choosing "Excessive"
+  debugging output does not increase the amount of debugging output
+  printed to the console but only makes it possible to produce
+  "Excessive" debugging output.
+    Please read `./Documentation/ftape.txt' for a short description
+  how to control the amount of debugging output.
+
+The floppy drive controller for ftape
+CONFIG_FT_STD_FDC
+    Only change this setting if you have a special controller. If you
+  didn't plug any add-on card into your computer system but just
+  plugged the floppy tape cable into the already existing floppy drive
+  controller then you don't want to change the default setting,
+  i.e. choose "Standard".
+  Choose "MACH-2" if you have a Mountain Mach-2 controller.
+  Choose "FC-10/FC-20" if you have a Colorado FC-10 or FC-20
+  controller.
+  Choose "Alt/82078" if you have another controller that is located at
+  an IO base address different from the standard floppy drive
+  controller's base address of `0x3f0', or uses an IRQ (interrupt)
+  channel different from `6', or a DMA channel different from
+  `2'. This is necessary for any controller card that is based on
+  Intel's 82078 FDC such as Seagate's, Exabyte's and Iomega's "high
+  speed" controllers.
+    If you choose something other than "Standard" then please make
+  sure that the settings for the IO base address and the IRQ and DMA
+  channel in the configuration menus below are correct. Use the manual
+  of your tape drive to determine the correct settings!
+    If you are already successfully using your tape drive with another
+  operating system then you definitely should use the same settings
+  for the IO base, the IRQ and DMA channel that have proven to work
+  with that other OS.
+    Note that this menu lets you specify only the default setting for
+  the hardware setup. The hardware configuration can be changed at
+  boot time (when ftape is compiled into the kernel, i.e. if you
+  have said `Y' to `CONFIG_FTAPE') or module load time (i.e. if you
+  have said `M' to `CONFIG_FTAPE').
+    Please read also the file `./Documentation/ftape.txt' which
+  contains a short description of the parameters that can be set at
+  boot or load time. If you want to use your floppy tape drive on a
+  PCI-bus based system, please read the file
+  `./drivers/char/ftape/README.PCI'.
+
+IO base of the floppy disk controller used with Ftape
+CONFIG_FT_FDC_BASE
+    You don't need to specify a value if the following default
+  settings for the base IO address are correct:
+  <<< MACH-2     : 0x1E0 >>>
+  <<< FC-10/FC-20: 0x180 >>>
+  <<< Secondary  : 0x370 >>>
+  Secondary refers to a secondary FDC controller like the "high speed"
+  controllers delivered by Seagate or Exabyte or Iomega's Ditto Dash.
+    Please make sure that the setting for the IO base address
+  specified here is correct. USE THE MANUAL OF YOUR TAPE DRIVE OR
+  CONTROLLER CARD TO DETERMINE THE CORRECT SETTING. If you are already
+  successfully using the tape drive with another operating system then
+  you definitely should use the same settings for the IO base that has
+  proven to work with that other OS.
+    Note that this menu lets you specify only the default setting for
+  the IO base. The hardware configuration can be changed at boot time
+  (when ftape is compiled into the kernel, i.e. if you specify `Y' to
+  `CONFIG_FTAPE') or module load time (i.e. if you have say `M' to
+  `CONFIG_FTAPE').
+    Please read also the file `./Documentation/ftape.txt' which
+  contains a short description of the parameters that can be set at
+  boot or load time.
+  
+IRQ channel for the floppy disk controller used with Ftape
+CONFIG_FT_FDC_IRQ
+    You don't need to specify a value if the following default
+  settings for the interrupt channel are correct:
+  <<< MACH-2     : 6 >>>
+  <<< FC-10/FC-20: 9 >>>
+  <<< Secondary  : 6 >>>
+  Secondary refers to secondary a FDC controller like the "high speed"
+  controllers delivered by Seagate or Exabyte or Iomega's Ditto Dash.
+    Please make sure that the setting for the IO base address
+  specified here is correct. USE THE MANUAL OF YOUR TAPE DRIVE OR
+  CONTROLLER CARD TO DETERMINE THE CORRECT SETTING. If you are already
+  successfully using the tape drive with another operating system then
+  you definitely should use the same settings for the IO base that has
+  proven to work with that other OS.
+    Note that this menu lets you specify only the default setting for
+  the IRQ channel. The hardware configuration can be changed at boot
+  time (when ftape is compiled into the kernel, i.e. if you specify
+  `Y' to `CONFIG_FTAPE') or module load time (i.e. if you have say `M'
+  to `CONFIG_FTAPE').
+    Please read also the file `./Documentation/ftape.txt' which
+  contains a short description of the parameters that can be set at
+  boot or load time.
+  
+DMA channel for the floppy disk controller used with Ftape
+CONFIG_FT_FDC_DMA
+    You don't need to specify a value if the following default
+  settings for the DMA channel are correct:
+  <<< MACH-2     : 2 >>>
+  <<< FC-10/FC-20: 3 >>>
+  <<< Secondary  : 2 >>>
+  Secondary refers to a secondary FDC controller like the "high speed"
+  controllers delivered by Seagate or Exabyte or Iomega's Ditto Dash.
+    Please make sure that the setting for the IO base address
+  specified here is correct. USE THE MANUAL OF YOUR TAPE DRIVE OR
+  CONTROLLER CARD TO DETERMINE THE CORRECT SETTING. If you are already
+  successfully using the tape drive with another operating system then
+  you definitely should use the same settings for the IO base that has
+  proven to work with that other OS.
+    Note that this menu lets you specify only the default setting for
+  the DMA channel. The hardware configuration can be changed at boot
+  time (when ftape is compiled into the kernel, i.e. if you specify
+  `Y' to `CONFIG_FTAPE') or module load time (i.e. if you have say `M'
+  to `CONFIG_FTAPE').
+    Please read also the file `./Documentation/ftape.txt' which
+  contains a short description of the parameters that can be set at
+  boot or load time.
+
+FDC FIFO Threshold before requesting DMA service
+CONFIG_FT_FDC_THR
+    Set the FIFO threshold of the FDC. If this is higher the DMA
+  controller may serve the FCD after a higher latency time. If this is
+  lower, less DMA transfers occur leading to less bus contention.
+    You may try to tune this if ftape annoys you with "reduced data
+  rate because of excessive overrun errors" messages. However, this
+  doesn't seem to have too much an effect.
+  If unsure, don't touch the initial value, i.e. leave it at "8".
+
+FDC maximum data rate
+CONFIG_FT_FDC_MAX_RATE
+    With some mother board/FDC combinations ftape will not be able to
+  run your FDC/tape drive combination at the highest available
+  speed. If this is the case you'll encounter "reduced data rate
+  because of excessive overrun errors" messages and lots of retries
+  before ftape finally decides to reduce the data rate.
+    In this case it might be desirable to tell ftape beforehand that
+  it need not try to run the tape drive at the highest available
+  speed. If unsure, leave this disabled, i.e. leave it at 2000
+  bits/sec.
+
+Main CPU frequency, only for DEC alpha machine
+CONFIG_FT_ALPHA_CLOCK
+  On some DEC Alpha machines the CPU clock frequency cannot be
+  determined automatically, so you need to specify it here ONLY if
+  running a DEC Alpha, otherwise this setting has no effect.
 
 Zilog serial support
 CONFIG_SUN_ZS
@@ -5121,18 +5724,18 @@ CONFIG_NVRAM
 
 PC joystick support
 CONFIG_JOYSTICK
-  If you have a joystick, you can say Y here. If you then create a
-  character special file under /dev with major number 15 and minor
-  number 0 or 1 (for the two joystick ports) using mknod ("man
-  mknod"), you can read the status of the buttons and the x and y
-  coordinates from that file. More information, an example program and
-  a calibration program are contained in the joystick package which is
-  available via ftp (user: anonymous) in
-  sunsite.unc.edu/pub/Linux/kernel/patches/console/. This driver is
-  also available as a module ( = code which can be inserted in and
-  removed from the running kernel whenever you want). The module will
-  be called joystick.o. If you want to compile it as a module, say M
-  here and read Documentation/modules.txt.
+  If you have a PC compatible analog or digital joystick, you can
+  say Y here. If you then create a character special file under /dev
+  with major number 15 and minor number 0 or 1 (for the two joystick
+  ports) using mknod ("man mknod"), you can read the status of the
+  buttons and the x and y coordinates from that file. More
+  information, an example program and a calibration program are
+  contained in the joystick package which is available at:
+  ftp://sunsite.unc.edu/pub/Linux/kernel/patches/console
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called joystick.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
 
 ARC console time
 CONFIG_RTC_ARC
@@ -5376,9 +5979,9 @@ CONFIG_MAGIC_SYSRQ
   flush the disks, reboot the system immediately or dump some status
   information). This is accomplished by pressing various keys while
   holding SysRq (Alt+PrintScreen). As you are expected to be a kernel
-  hacker to use this, the simple rule about learning what the keys
+  hacker to use this, the simple rule about learning what do the keys
   mean is "Use the source, Luke!" -- read drivers/char/sysrq.c.  
-  Don't say Y unless you really know what this hack does.
+  Don't say Y unless you really know what does this hack do.
 
 ISDN subsystem
 CONFIG_ISDN
@@ -5587,6 +6190,124 @@ CONFIG_SUN_OPENPROMIO
   compile this as a module ( = code which can be inserted in and
   removed from the running kernel whenever you want), say M and read
   Documentation/modules.txt. If unsure, say Y.
+
+Support for Cyrix processors
+CONFIG_CYRIX
+  This enables recognition of Cyrix processors. Without it
+  /proc/cpuinfo will list your processor as an unknown model
+  of Cyrix. With it it will list the correct details. It should
+  be safe to say Y here regardless of what processor you are
+  actually using. If this option is not enabled none of the
+  Cyrix feature options are available.
+
+Enable suspend on halt power saving feature
+CONFIG_CYRIX_SUSP_HLT
+  Suspend on halt causes the processor to enter a low power state
+  when the "hlt" instruction is executed. This is disabled at
+  power up and many BIOSs leave it that way. You probably want it
+  enabled since it dramatically reduces the operating temperature
+  of the processor. In a few rare cases there may be problems
+  with some bus master DMA cards if this is enabled.
+
+No I/O recovery delays
+CONFIG_CYRIX_FAST_IO
+  Historically programmers used "jmp $+2" instructions to create
+  delays between I/O instructions. The branch prediction of 5x86
+  and higher processors renders this ineffective and so a selectable
+  delay is implemented for I/O instructions in the processor. Linux
+  uses dummy I/O instructions where necessary rather than jumps
+  and so the extra processor imposed delay should not be necessary.
+  Enabling this option removes this delay.
+
+5x86 performance features
+CONFIG_CYRIX_5X86
+  The Cyrix 5x86 has several performance feature which are enabled
+  using on-chip registers. This code attempts to ensure that the
+  useful features are set to suit Linux. Read Documentation/CPU/Cyrix
+  before enabling this.
+    WARNING: If this is enabled you may find that the only way to
+  reboot is to power cycle the machine. Even a hard reboot seems
+  to fail on some systems.
+
+6x86 performance features
+CONFIG_CYRIX_6X86
+  The Cyrix 6x86 has several performance feature which are enabled
+  using on-chip registers. Most are normally enabled by the BIOS
+  however this code ensures that all the useful ones are set to
+  suit Linux. Read Documentation/CPU/Cyrix before enabling this.
+
+Avoid unnecessary locked cycles
+CONFIG_CYRIX_6X86_NOLOCK
+  Enabling this option causes the 6x86 not to use locked bus cycles
+  except for page table access and interrupt acknowledge cycles.
+  This allows the data used by descriptor tables, xchg instructions
+  and instructions preceeded by the LOCK prefix to be cached leading
+  to improved performance. Enabling this option has no effect if
+  an SMP kernel is being built - SMP requires locked cycles to
+  guarantee processor synchronization.
+
+Allocate L1 cache lines on write misses
+CONFIG_CYRIX_6X86_WTALLOC
+  If this is enabled L1 cache write misses will cause a cache line
+  to be allocated. This may result in increased performance. On the
+  other hand it may cause excessive trashing of the L1 cache when
+  copying or zeroing pages. In general you _probably_ win...
+
+Branch Target Buffer features
+CONFIG_CYRIX_6X86_BTB
+  The Cyrix 6x86 has branch prediction logic which is normally
+  only set to handle short branches (as in small loops and ifs).
+  This code attempts on configure the branch prediction logic
+  appropriately. Read Documentation/CPU/Cyrix before enabling this.
+
+Variable sized paging mechanism (VSPM)
+CONFIG_CYRIX_6X86_VSPM
+  Variable sized paging mechanism (VSPM) is a feature of the Cyrix
+  6x86 family of processors that allows large regions of memory
+  to be mapped in one go, significantly reducing the amount of work
+  the MMU has to do compared with traditional paging. However VSPM
+  is known to be buggy in many 6x86 chip revisions. Please read
+  Documentation/CPU/Cyrix before enabling this.
+    WARNING: If this is enabled you may find that the only way to
+  reboot is to power cycle the machine. Even a hard reboot seems
+  to fail on some systems.
+
+Allocate L1 cache lines on write misses
+CONFIG_AMD_K5_WTALLOC
+  If this is enabled L1 cache write misses will cause a cache line
+  to be allocated. This may result in increased performance. On the
+  other hand it may cause excessive trashing of the L1 cache when
+  copying or zeroing pages. In general you _probably_ win...
+
+Allocate L1 cache lines on write misses
+CONFIG_AMD_K6_WTALLOC
+  If this is enabled L1 cache write misses will cause a cache line
+  to be allocated. This may result in increased performance. On the
+  other hand it may cause excessive trashing of the L1 cache when
+  copying or zeroing pages. In general you _probably_ win...
+
+Use write cacheability detection
+CONFIG_AMD_K6_WTALLOC_WCDE
+  Write cacheability detection requires the system logic to assert
+  the cache enable bus signal during a write cycle. Some chipsets
+  do this and some do not. Some, such as Triton, do but not at
+  the appropriate point during the write cycle. Cacheability
+  detection is not normally useful unless you have memory mapped
+  devices which exist outside the 640k-1M range but within your
+  actual memory. (There is another option that disables write
+  allocate for the 15M-16M range commonly used by older VLB
+  video cards). You probably do not want to enable this.
+
+No write allocate between 15MB-16MB
+CONFIG_AMD_K6_WTALLOC_WAE15M
+  There were a small number of cards, mainly VESA Local Bus
+  video cards, that were memory mapped to the 15M-16M address
+  range. If you have such a card you do not want write allocate
+  to delay or reorder writes to this space so you must enable
+  this option. Other memory mapped cards are either outside the
+  systems memory space or are in the 640k-1M range which is
+  not subject to write allocate so this option is not normally
+  required.
 
 # m68k-specific kernel options
 # Documented by Chris Lawrence <quango@themall.net> et al.
@@ -5823,6 +6544,11 @@ CONFIG_BLZ1230_SCSI
   1260 accelerator, and the optional SCSI module, say Y.  Otherwise,
   say N.
 
+Fastlane SCSI support
+CONFIG_FASTLANE_SCSI
+  If you have the Phase5 Fastlane Z3 SCSI controller, or plan to use one
+  in the near future, say Y to this question.  Otherwise, say N.
+
 Atari native SCSI support
 CONFIG_ATARI_SCSI
   If you have an Atari with built-in NCR5380 SCSI controller (TT,
@@ -5941,6 +6667,33 @@ CONFIG_ATARI_SCC
   code which can be inserted in and removed from the running kernel
   whenever you want). If you want to compile it as a module, say M
   here and read Documentation/modules.txt.
+
+Radio support
+CONFIG_MISC_RADIO
+  If you have a radio card (you will probably know if you do!), then
+  you will want to say "y" here and make a character device file 
+  (usually /dev/radio) with major number 10 and minor 152 using mknod
+  ("man mknod").  And then, don't forget to pick up some useful tools
+  to use said device (you _might_ find something at ftp.lmh.ox.ac.uk:
+  /users/weejock/linux/radio/, but I haven't written anything too
+  useful yet...)
+
+AIMSlab RadioTrack card
+CONFIG_RADIO_RTRACK
+  Choose "y" here if you have one of these, and then fill in the port
+  address below.
+
+RadioTrack i/o port
+CONFIG_RADIO_RTRACK_PORT
+  Enter either 0x30f or 0x20f here.  The card default is 0x30f, if you
+  haven't changed the jumper setting on the card.
+
+Atari SCC serial DMA support
+CONFIG_ATARI_SCC_DMA
+  This enables DMA support for receiving data on channel A of the SCC. If
+  you have a TT you may say Y here and read drivers/char/atari_SCC.README.
+  All other users should say N here, because only the TT has SCC-DMA, even
+  if your machine keeps claiming so at boot time.
 
 Atari MIDI serial support
 CONFIG_ATARI_MIDI
@@ -6071,6 +6824,17 @@ CONFIG_MACE
   Power Macintoshes and clones with ethernet built-in on the
   motherboard will usually use a MACE (Medium Access Control for
   Ethernet) interface.  Say Y to include support for the MACE chip.
+
+Video For Linux
+CONFIG_VIDEO_DEV
+  Support for audio/video capture and overlay devices. The exact capabilities
+  of each device vary. User tools for this are available from
+  ftp://ftp.uk.linux.org/pub/linux/video4linux
+
+BT848 Video For Linux
+CONFIG_VIDEO_BT848
+  Support for BT848 based frame grabber/overlay boards. This includes the 
+  Miro, Hauppauge and STB boards.
 
 # need an empty line after last entry, for sed script in Configure.
 
@@ -6207,3 +6971,10 @@ CONFIG_MACE
 # LocalWords:  dataless kerneltype SYSNAME Netbeui Comtrol Rocketport palmtop
 # LocalWords:  nvram SYSRQ SysRq PrintScreen sysrq NVRAMs NvRAM Shortwave RTTY
 # LocalWords:  HFMODEM shortwave Sitor Amtor Pactor GTOR hfmodem hayes TX TMOUT
+# LocalWords:  QIC TR CONFIG FTAPE Iomega CMS FC FDC Exabyte Iomega's DFLT
+# LocalWords:  tapedrive THR FCD IRQ DMA SZ PCI ftape README txt HOWTO
+# LocalWords:  http www rwth aachen LBFM claus FAQ mt ZFTAPE VFS
+# LocalWords:  zftape zft William's lzrw kerneld BLK zftape's tar's
+# LocalWords:  afio's MTSETBLK MTIOCTOP dev qft setblk BLKSZ NR
+# LocalWords:  setdrvbuffer kb NUMBUFFERS Procfs PROC FS proc resp STD
+# LocalWords:  Alt LocalWords

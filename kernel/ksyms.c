@@ -90,6 +90,10 @@ __attribute__((section("__ksymtab"))) = {
 };
 #endif
 
+
+#ifdef CONFIG_MODULES
+EXPORT_SYMBOL(get_module_symbol);
+#endif
 #ifdef CONFIG_KERNELD
 EXPORT_SYMBOL(kerneld_send);
 #endif
@@ -120,6 +124,7 @@ EXPORT_SYMBOL(exit_files);
 /* internal kernel memory management */
 EXPORT_SYMBOL(__get_free_pages);
 EXPORT_SYMBOL(free_pages);
+EXPORT_SYMBOL(__free_page);
 EXPORT_SYMBOL(kmem_find_general_cachep);
 EXPORT_SYMBOL(kmem_cache_create);
 EXPORT_SYMBOL(kmem_cache_shrink);
@@ -139,6 +144,7 @@ EXPORT_SYMBOL(update_vm_cache);
 EXPORT_SYMBOL(vmtruncate);
 
 /* filesystem internal functions */
+EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(getname);
 EXPORT_SYMBOL(putname);
 EXPORT_SYMBOL(__fput);
@@ -164,6 +170,7 @@ EXPORT_SYMBOL(check_disk_change);
 EXPORT_SYMBOL(invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
 EXPORT_SYMBOL(invalidate_inode_pages);
+EXPORT_SYMBOL(truncate_inode_pages);
 EXPORT_SYMBOL(fsync_dev);
 EXPORT_SYMBOL(permission);
 EXPORT_SYMBOL(inode_setattr);
@@ -180,7 +187,6 @@ EXPORT_SYMBOL(__bforget);
 EXPORT_SYMBOL(ll_rw_block);
 EXPORT_SYMBOL(__wait_on_buffer);
 EXPORT_SYMBOL(mark_buffer_uptodate);
-EXPORT_SYMBOL(unlock_buffer);
 EXPORT_SYMBOL(add_blkdev_randomness);
 EXPORT_SYMBOL(generic_file_read);
 EXPORT_SYMBOL(generic_file_write);
@@ -192,6 +198,11 @@ EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
 EXPORT_SYMBOL(posix_unblock_lock);
 EXPORT_SYMBOL(dput);
+EXPORT_SYMBOL(get_cached_page);
+EXPORT_SYMBOL(put_cached_page);
+EXPORT_SYMBOL(prune_dcache);
+EXPORT_SYMBOL(shrink_dcache_sb);
+EXPORT_SYMBOL(shrink_dcache_parent);
 
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
 EXPORT_SYMBOL(do_nfsservctl);
@@ -225,12 +236,18 @@ EXPORT_SYMBOL(blkdev_release);
 EXPORT_SYMBOL(gendisk_head);
 EXPORT_SYMBOL(resetup_one_dev);
 EXPORT_SYMBOL(unplug_device);
+EXPORT_SYMBOL(make_request);
+EXPORT_SYMBOL(tq_disk);
+EXPORT_SYMBOL(efind_buffer);
+EXPORT_SYMBOL(init_buffer);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);
 EXPORT_SYMBOL(tty_wait_until_sent);
 EXPORT_SYMBOL(tty_check_change);
 EXPORT_SYMBOL(tty_hung_up_p);
+EXPORT_SYMBOL(tty_flip_buffer_push);
+EXPORT_SYMBOL(tty_get_baud_rate);
 EXPORT_SYMBOL(do_SAK);
 EXPORT_SYMBOL(console_print);
 
@@ -351,7 +368,6 @@ EXPORT_SYMBOL(read_exec);
 EXPORT_SYMBOL(si_meminfo);
 
 /* Added to make file system as module */
-EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(set_writetime);
 EXPORT_SYMBOL(sys_tz);
 EXPORT_SYMBOL(__wait_on_super);
@@ -361,7 +377,6 @@ EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(nr_async_pages);
 EXPORT_SYMBOL(___strtok);
 EXPORT_SYMBOL(init_fifo);
-EXPORT_SYMBOL(super_blocks);
 EXPORT_SYMBOL(fifo_inode_operations);
 EXPORT_SYMBOL(chrdev_inode_operations);
 EXPORT_SYMBOL(blkdev_inode_operations);
@@ -369,6 +384,8 @@ EXPORT_SYMBOL(read_ahead);
 EXPORT_SYMBOL(get_hash_table);
 EXPORT_SYMBOL(get_empty_inode);
 EXPORT_SYMBOL(insert_inode_hash);
+EXPORT_SYMBOL(make_bad_inode);
+EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
 EXPORT_SYMBOL(__down);
 EXPORT_SYMBOL(__up);

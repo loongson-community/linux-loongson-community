@@ -17,7 +17,8 @@
  */
 struct qstr {
 	const unsigned char * name;
-	unsigned int len, hash;
+	unsigned int len;
+	unsigned int hash;
 };
 
 /* Name hashing routines. Initial hash value */
@@ -38,6 +39,15 @@ static inline unsigned long end_name_hash(unsigned long hash)
 	return (unsigned int) hash;
 }
 
+/* Compute the hash for a name string. */
+static inline unsigned int full_name_hash(const char * name, unsigned int len)
+{
+	unsigned long hash = init_name_hash();
+	while (len--)
+		hash = partial_name_hash(*name++, hash);
+	return end_name_hash(hash);
+}
+
 struct dentry {
 	int d_count;
 	unsigned int d_flags;
@@ -47,10 +57,13 @@ struct dentry {
 	struct dentry * d_covers;
 	struct list_head d_hash;	/* lookup hash list */
 	struct list_head d_lru;		/* d_count = 0 LRU list */
+	struct list_head d_child;	/* child of parent list */
+	struct list_head d_subdirs;	/* our children */
 	struct qstr d_name;
 	unsigned long d_time;		/* used by d_revalidate */
 	struct dentry_operations  *d_op;
 	struct super_block * d_sb;	/* The root of the dentry tree */
+	unsigned long d_reftime;	/* last time referenced */
 };
 
 struct dentry_operations {
@@ -104,9 +117,17 @@ extern void d_delete(struct dentry *);
 /* allocate/de-allocate */
 extern struct dentry * d_alloc(struct dentry * parent, const struct qstr *name);
 extern void prune_dcache(int);
+extern void shrink_dcache_sb(struct super_block *);
+extern void shrink_dcache_parent(struct dentry *);
 extern int d_invalidate(struct dentry *);
 
 #define shrink_dcache() prune_dcache(0)
+
+/* dcache memory management */
+extern int  select_dcache(int, int);
+extern void shrink_dcache_memory(void);
+extern void check_dcache_memory(void);
+extern void free_inode_memory(int);	/* defined in fs/inode.c */
 
 /* only used at mount-time */
 extern struct dentry * d_alloc_root(struct inode * root_inode, struct dentry * old_root);

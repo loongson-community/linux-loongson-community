@@ -254,10 +254,9 @@ e21_open(struct device *dev)
 {
 	short ioaddr = dev->base_addr;
 
-	if (request_irq(dev->irq, ei_interrupt, 0, "e2100", NULL)) {
+	if (request_irq(dev->irq, ei_interrupt, 0, "e2100", dev)) {
 		return EBUSY;
 	}
-	irq2dev_map[dev->irq] = dev;
 
 	/* Set the interrupt line and memory base on the hardware. */
 	inb(ioaddr + E21_IRQ_LOW);
@@ -353,7 +352,7 @@ e21_close(struct device *dev)
 	if (ei_debug > 1)
 		printk("%s: Shutting down ethercard.\n", dev->name);
 
-	free_irq(dev->irq, NULL);
+	free_irq(dev->irq, dev);
 	dev->irq = ei_status.saved_irq;
 
 	/* Shut off the interrupt line and secondary interface. */
@@ -361,8 +360,6 @@ e21_close(struct device *dev)
 	outb(0, ioaddr + E21_ASIC);
 	inb(ioaddr + E21_IRQ_HIGH); 			/* High IRQ bit, and if_port. */
 	outb(0, ioaddr + E21_ASIC);
-
-	irq2dev_map[dev->irq] = NULL;
 
 	ei_close(dev);
 
@@ -442,7 +439,7 @@ cleanup_module(void)
 	for (this_dev = 0; this_dev < MAX_E21_CARDS; this_dev++) {
 		struct device *dev = &dev_e21[this_dev];
 		if (dev->priv != NULL) {
-			/* NB: e21_close() handles free_irq + irq2dev map */
+			/* NB: e21_close() handles free_irq */
 			kfree(dev->priv);
 			dev->priv = NULL;
 			release_region(dev->base_addr, E21_IO_EXTENT);

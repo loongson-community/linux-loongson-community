@@ -484,7 +484,7 @@ __initfunc(int pt_init(void))
     { 0x230, 0x240, 0x250, 0x260, 0x270, 0x280, 0x290, 0x2a0,
       0x2b0, 0x300, 0x330, 0x3f0,  0};
 
-    printk(KERN_INFO "PT: 0.41 ALPHA 07 October 1995 Craig Small (vk2xlz@vk2xlz.ampr.org)\n");
+    printk(KERN_INFO "PT: 0.41 ALPHA 07 October 1995 Craig Small (csmall@small.dropbear.id.au)\n");
 
     for (port = &ports[0]; *port && !card_type; port++) {
         ioaddr = *port;
@@ -830,7 +830,7 @@ static int pt_probe(struct device *dev)
          * the interrupt, and this marks the 'irqaction' as busy.
          */
         {
-            int irqval = request_irq(dev->irq, &pt_interrupt,0, "pt", NULL);
+            int irqval = request_irq(dev->irq, &pt_interrupt,0, "pt", dev);
             if (irqval) {
                 printk(KERN_ERR "PT: ERROR: Unable to get IRQ %d (irqval = %d).\n",
                     dev->irq, irqval);
@@ -866,11 +866,6 @@ static int pt_probe(struct device *dev)
 
     /* New style flags */
     dev->flags = 0;
-    dev->family = AF_INET;
-    dev->pa_addr = 0;
-    dev->pa_brdaddr = 0;
-    dev->pa_mask = 0;
-    dev->pa_alen = sizeof(unsigned long);
 
     return 0;
 } /* pt_probe() */
@@ -896,11 +891,10 @@ static int pt_open(struct device *dev)
         {
             if (request_dma(dev->dma, "pt"))
             {
-                free_irq(dev->irq, NULL);
+                free_irq(dev->irq, dev);
                 return -EAGAIN;
             }
         }
- 	irq2dev_map[dev->irq] = dev;
 
          /* Reset hardware */
          chipset_init(dev);
@@ -1770,9 +1764,8 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	free_irq(pt0a.irq, NULL);	/* IRQs and IO Ports are shared */
+	free_irq(pt0a.irq, &pt0a);	/* IRQs and IO Ports are shared */
 	release_region(pt0a.base_addr & 0x3f0, PT_TOTAL_SIZE);
-	irq2dev_map[pt0a.irq] = NULL;
 
 	kfree(pt0a.priv);
 	pt0a.priv = NULL;

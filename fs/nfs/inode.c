@@ -33,13 +33,17 @@
 #include <asm/uaccess.h>
 
 #define NFSDBG_FACILITY		NFSDBG_VFS
+#define NFS_PARANOIA 1
 
-static int nfs_notify_change(struct inode *, struct iattr *);
+extern void nfs_invalidate_dircache_sb(struct super_block *);
+extern int  check_failed_request(struct inode *);
+
+static void nfs_read_inode(struct inode *);
 static void nfs_put_inode(struct inode *);
 static void nfs_delete_inode(struct inode *);
+static int  nfs_notify_change(struct inode *, struct iattr *);
 static void nfs_put_super(struct super_block *);
-static void nfs_read_inode(struct inode *);
-static int nfs_statfs(struct super_block *, struct statfs *, int bufsiz);
+static int  nfs_statfs(struct super_block *, struct statfs *, int);
 
 static struct super_operations nfs_sops = { 
 	nfs_read_inode,		/* read inode */
@@ -67,20 +71,51 @@ nfs_read_inode(struct inode * inode)
 {
 	inode->i_blksize = inode->i_sb->s_blocksize;
 	inode->i_mode = 0;
+	inode->i_rdev = 0;
 	inode->i_op = NULL;
 	NFS_CACHEINV(inode);
+	NFS_ATTRTIMEO(inode) = NFS_MINATTRTIMEO(inode);
 }
 
 static void
 nfs_put_inode(struct inode * inode)
 {
 	dprintk("NFS: put_inode(%x/%ld)\n", inode->i_dev, inode->i_ino);
+	/*
+	 * We want to get rid of unused inodes ...
+	 */
+	if (inode->i_count == 1)
+		inode->i_nlink = 0;
 }
 
 static void
 nfs_delete_inode(struct inode * inode)
 {
+	int failed;
+
 	dprintk("NFS: delete_inode(%x/%ld)\n", inode->i_dev, inode->i_ino);
+	/*
+	 * Flush out any pending write requests ...
+	 */
+	if (NFS_WRITEBACK(inode) != NULL) {
+		unsigned long timeout = jiffies + 5*HZ;
+		printk("NFS: inode %ld, invalidating pending RPC requests\n",
+			inode->i_ino);
+		nfs_invalidate_pages(inode);
+		while (NFS_WRITEBACK(inode) != NULL && jiffies < timeout) {
+			current->state = TASK_INTERRUPTIBLE;
+			current->timeout = jiffies + HZ/10;
+			schedule();
+		}
+		current->state = TASK_RUNNING;
+		if (NFS_WRITEBACK(inode) != NULL)
+			printk("NFS: Arghhh, stuck RPC requests!\n");
+	}
+
+	failed = check_failed_request(inode);
+	if (failed)
+		printk("NFS: inode %ld had %d failed requests\n",
+			inode->i_ino, failed);
 	clear_inode(inode);
 }
 
@@ -90,13 +125,21 @@ nfs_put_super(struct super_block *sb)
 	struct nfs_server *server = &sb->u.nfs_sb.s_server;
 	struct rpc_clnt	*rpc;
 
+	/*
+	 * Lock the super block while we bring down the daemons.
+	 */
+	lock_super(sb);
 	if ((rpc = server->client) != NULL)
 		rpc_shutdown_client(rpc);
 
 	if (!(server->flags & NFS_MOUNT_NONLM))
 		lockd_down();	/* release rpc.lockd */
 	rpciod_down();		/* release rpciod */
-	lock_super(sb);
+	/*
+	 * Invalidate the dircache for this superblock.
+	 */
+	nfs_invalidate_dircache_sb(sb);
+
 	sb->s_dev = 0;
 	unlock_super(sb);
 	MOD_DEC_USE_COUNT;
@@ -147,14 +190,12 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	unsigned int		authflavor;
 	int			tcp;
 	kdev_t			dev = sb->s_dev;
+	struct inode		*root_inode;
 
 	MOD_INC_USE_COUNT;
-	if (!data) {
-		printk("nfs_read_super: missing data argument\n");
-		sb->s_dev = 0;
-		MOD_DEC_USE_COUNT;
-		return NULL;
-	}
+	if (!data)
+		goto out_miss_args;
+
 	if (data->version != NFS_MOUNT_VERSION) {
 		printk("nfs warning: mount version %s than kernel\n",
 			data->version < NFS_MOUNT_VERSION ? "older" : "newer");
@@ -164,13 +205,19 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 			data->bsize  = 0;
 	}
 
+	/* We now require that the mount process passes the remote address */
+	memcpy(&srvaddr, &data->addr, sizeof(srvaddr));
+	if (srvaddr.sin_addr.s_addr == INADDR_ANY)
+		goto out_no_remote;
+
 	lock_super(sb);
 
-	server           = &sb->u.nfs_sb.s_server;
 	sb->s_magic      = NFS_SUPER_MAGIC;
 	sb->s_dev        = dev;
 	sb->s_op         = &nfs_sops;
 	sb->s_blocksize  = nfs_block_size(data->bsize, &sb->s_blocksize_bits);
+	sb->u.nfs_sb.s_root = data->root;
+	server           = &sb->u.nfs_sb.s_server;
 	server->rsize    = nfs_block_size(data->rsize, NULL);
 	server->wsize    = nfs_block_size(data->wsize, NULL);
 	server->flags    = data->flags;
@@ -179,15 +226,6 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	server->acdirmin = data->acdirmin*HZ;
 	server->acdirmax = data->acdirmax*HZ;
 	strcpy(server->hostname, data->hostname);
-	sb->u.nfs_sb.s_root = data->root;
-
-	/* We now require that the mount process passes the remote address */
-	memcpy(&srvaddr, &data->addr, sizeof(srvaddr));
-	if (srvaddr.sin_addr.s_addr == INADDR_ANY) {
-		printk("NFS: mount program didn't pass remote address!\n");
-		MOD_DEC_USE_COUNT;
-		return NULL;
-	}
 
 	/* Which protocol do we use? */
 	tcp   = (data->flags & NFS_MOUNT_TCP);
@@ -210,18 +248,13 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	/* Now create transport and client */
 	xprt = xprt_create_proto(tcp? IPPROTO_TCP : IPPROTO_UDP,
 						&srvaddr, &timeparms);
-	if (xprt == NULL) {
-		printk("NFS: cannot create RPC transport.\n");
-		goto failure;
-	}
+	if (xprt == NULL)
+		goto out_no_xprt;
 
 	clnt = rpc_create_client(xprt, server->hostname, &nfs_program,
 						NFS_VERSION, authflavor);
-	if (clnt == NULL) {
-		printk("NFS: cannot create RPC client.\n");
-		xprt_destroy(xprt);
-		goto failure;
-	}
+	if (clnt == NULL)
+		goto out_no_client;
 
 	clnt->cl_intr     = (data->flags & NFS_MOUNT_INTR)? 1 : 0;
 	clnt->cl_softrtry = (data->flags & NFS_MOUNT_SOFT)? 1 : 0;
@@ -229,29 +262,67 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	server->client    = clnt;
 
 	/* Fire up rpciod if not yet running */
+#ifdef RPCIOD_RESULT
+	if (rpciod_up())
+		goto out_no_iod;
+#else
 	rpciod_up();
+#endif
 
-	/* Unlock super block and try to get root fh attributes */
+	/*
+	 * Keep the super block locked while we try to get 
+	 * the root fh attributes.
+	 */
+	root_inode = nfs_fhget(sb, &data->root, NULL);
+	if (!root_inode)
+		goto out_no_root;
+	sb->s_root = d_alloc_root(root_inode, NULL);
+	if (!sb->s_root)
+		goto out_no_root;
+	/* We're airborne */
 	unlock_super(sb);
 
-	sb->s_root = d_alloc_root(nfs_fhget(sb, &data->root, NULL), NULL);
-	if (sb->s_root != NULL) {
-		/* We're airborne */
-		if (!(server->flags & NFS_MOUNT_NONLM))
-			lockd_up();
-		return sb;
-	}
+	/* Check whether to start the lockd process */
+	if (!(server->flags & NFS_MOUNT_NONLM))
+		lockd_up();
+	return sb;
 
 	/* Yargs. It didn't work out. */
+out_no_root:
 	printk("nfs_read_super: get root inode failed\n");
-	rpc_shutdown_client(server->client);
+	iput(root_inode);
 	rpciod_down();
+#ifdef RPCIOD_RESULT
+	goto out_shutdown;
 
-failure:
-	MOD_DEC_USE_COUNT;
-	if (sb->s_lock)
-		unlock_super(sb);
+out_no_iod:
+	printk("nfs_read_super: couldn't start rpciod!\n");
+out_shutdown:
+#endif
+	rpc_shutdown_client(server->client);
+	goto out_unlock;
+
+out_no_client:
+	printk("NFS: cannot create RPC client.\n");
+	xprt_destroy(xprt);
+	goto out_unlock;
+
+out_no_xprt:
+	printk("NFS: cannot create RPC transport.\n");
+out_unlock:
+	unlock_super(sb);
+	goto out_fail;
+
+out_no_remote:
+	printk("NFS: mount program didn't pass remote address!\n");
+	goto out_fail;
+
+out_miss_args:
+	printk("nfs_read_super: missing data argument\n");
+
+out_fail:
 	sb->s_dev = 0;
+	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
@@ -312,14 +383,48 @@ nfs_fhget(struct super_block *sb, struct nfs_fh *fhandle,
 		printk("nfs_fhget: iget failed\n");
 		return NULL;
 	}
-	if (inode->i_dev == sb->s_dev) {
-		if (inode->i_ino != fattr->fileid) {
-			printk("nfs_fhget: unexpected inode from iget\n");
-			return inode;
-		}
-		*NFS_FH(inode) = *fhandle;
-		nfs_refresh_inode(inode, fattr);
+#ifdef NFS_PARANOIA
+if (inode->i_dev != sb->s_dev)
+printk("nfs_fhget: impossible\n");
+#endif
+
+	if (inode->i_ino != fattr->fileid) {
+		printk("nfs_fhget: unexpected inode from iget\n");
+		return inode;
 	}
+
+	/*
+	 * Check whether the mode has been set, as we only want to
+	 * do this once. (We don't allow inodes to change types.)
+	 */
+	if (inode->i_mode == 0) {
+		inode->i_mode = fattr->mode;
+		if (S_ISREG(inode->i_mode))
+			inode->i_op = &nfs_file_inode_operations;
+		else if (S_ISDIR(inode->i_mode))
+			inode->i_op = &nfs_dir_inode_operations;
+		else if (S_ISLNK(inode->i_mode))
+			inode->i_op = &nfs_symlink_inode_operations;
+		else if (S_ISCHR(inode->i_mode)) {
+			inode->i_op = &chrdev_inode_operations;
+			inode->i_rdev = to_kdev_t(fattr->rdev);
+		} else if (S_ISBLK(inode->i_mode)) {
+			inode->i_op = &blkdev_inode_operations;
+			inode->i_rdev = to_kdev_t(fattr->rdev);
+		} else if (S_ISFIFO(inode->i_mode))
+			init_fifo(inode);
+		else
+			inode->i_op = NULL;
+		/*
+		 * Preset the size and mtime, as there's no need
+		 * to invalidate the caches.
+		 */ 
+		inode->i_size  = fattr->size;
+		inode->i_mtime = fattr->mtime.seconds;
+		NFS_OLDMTIME(inode) = fattr->mtime.seconds;
+	}
+	*NFS_FH(inode) = *fhandle;
+	nfs_refresh_inode(inode, fattr);
 	dprintk("NFS: fhget(%x/%ld ct=%d)\n",
 		inode->i_dev, inode->i_ino,
 		inode->i_count);
@@ -334,6 +439,17 @@ nfs_notify_change(struct inode *inode, struct iattr *attr)
 	struct nfs_fattr fattr;
 	int error;
 
+	/*
+	 * Make sure the inode is up-to-date.
+	 */
+	error = nfs_revalidate(inode);
+	if (error) {
+#ifdef NFS_PARANOIA
+printk("nfs_notify_change: revalidate failed, error=%d\n", error);
+#endif
+		goto out;
+	}
+
 	sattr.mode = (u32) -1;
 	if (attr->ia_valid & ATTR_MODE) 
 		sattr.mode = attr->ia_mode;
@@ -345,7 +461,6 @@ nfs_notify_change(struct inode *inode, struct iattr *attr)
 	sattr.gid = (u32) -1;
 	if (attr->ia_valid & ATTR_GID)
 		sattr.gid = attr->ia_gid;
-
 
 	sattr.size = (u32) -1;
 	if ((attr->ia_valid & ATTR_SIZE) && S_ISREG(inode->i_mode))
@@ -364,11 +479,25 @@ nfs_notify_change(struct inode *inode, struct iattr *attr)
 	}
 
 	error = nfs_proc_setattr(NFS_SERVER(inode), NFS_FH(inode),
-		&sattr, &fattr);
-	if (!error) {
+				&sattr, &fattr);
+	if (error)
+		goto out;
+	/*
+	 * If we changed the size or mtime, update the inode
+	 * now to avoid invalidating the page cache.
+	 */
+	if (sattr.size != (u32) -1) {
+		if (sattr.size != fattr.size)
+			printk("nfs_notify_change: sattr=%d, fattr=%d??\n",
+				sattr.size, fattr.size);
 		nfs_truncate_dirty_pages(inode, sattr.size);
-		nfs_refresh_inode(inode, &fattr);
+		inode->i_size  = sattr.size;
+		inode->i_mtime = fattr.mtime.seconds;
 	}
+	if (sattr.mtime.seconds != (u32) -1)
+		inode->i_mtime = fattr.mtime.seconds;
+	error = nfs_refresh_inode(inode, &fattr);
+out:
 	return error;
 }
 
@@ -384,6 +513,48 @@ nfs_revalidate(struct inode *inode)
 /*
  * This function is called whenever some part of NFS notices that
  * the cached attributes have to be refreshed.
+ */
+int
+_nfs_revalidate_inode(struct nfs_server *server, struct inode *inode)
+{
+	struct nfs_fattr fattr;
+	int		 status = 0;
+
+	if (jiffies - NFS_READTIME(inode) < NFS_ATTRTIMEO(inode))
+		goto out;
+
+	dfprintk(PAGECACHE, "NFS: revalidating %x/%ld inode\n",
+			inode->i_dev, inode->i_ino);
+	status = nfs_proc_getattr(server, NFS_FH(inode), &fattr);
+	if (status) {
+#ifdef NFS_PARANOIA
+printk("nfs_revalidate_inode: getattr failed, error=%d\n", status);
+#endif
+		goto done;
+	}
+
+	status = nfs_refresh_inode(inode, &fattr);
+	if (status)
+		goto done;
+	if (fattr.mtime.seconds == NFS_OLDMTIME(inode)) {
+		/* Update attrtimeo value */
+		if ((NFS_ATTRTIMEO(inode) <<= 1) > NFS_MAXATTRTIMEO(inode))
+			NFS_ATTRTIMEO(inode) = NFS_MAXATTRTIMEO(inode);
+	}
+	NFS_OLDMTIME(inode) = fattr.mtime.seconds;
+
+done:
+	dfprintk(PAGECACHE,
+		"NFS: inode %x/%ld revalidation complete (status %d).\n",
+				inode->i_dev, inode->i_ino, status);
+out:
+	return status;
+}
+
+/*
+ * Many nfs protocol calls return the new file attributes after
+ * an operation.  Here we update the inode to reflect the state
+ * of the server's inode.
  *
  * This is a bit tricky because we have to make sure all dirty pages
  * have been sent off to the server before calling invalidate_inode_pages.
@@ -393,45 +564,100 @@ nfs_revalidate(struct inode *inode)
  * A very similar scenario holds for the dir cache.
  */
 int
-_nfs_revalidate_inode(struct nfs_server *server, struct inode *inode)
+nfs_refresh_inode(struct inode *inode, struct nfs_fattr *fattr)
 {
-	struct nfs_fattr fattr;
-	int		 status;
+	int invalid = 0;
+	int error = -EIO;
 
-	if (jiffies - NFS_READTIME(inode) < NFS_ATTRTIMEO(inode))
-		return 0;
+	dfprintk(VFS, "NFS: refresh_inode(%x/%ld ct=%d)\n",
+		 inode->i_dev, inode->i_ino, inode->i_count);
 
-	dfprintk(PAGECACHE, "NFS: revalidating %x/%ld inode\n",
-			inode->i_dev, inode->i_ino);
-	NFS_READTIME(inode) = jiffies;
-	if ((status = nfs_proc_getattr(server, NFS_FH(inode), &fattr)) < 0)
-		goto done;
-
-	nfs_refresh_inode(inode, &fattr);
-	if (fattr.mtime.seconds != NFS_OLDMTIME(inode)) {
-		if (!S_ISDIR(inode->i_mode)) {
-			/* This sends off all dirty pages off to the server.
-			 * Note that this function must not sleep. */
-			nfs_invalidate_pages(inode);
-			invalidate_inode_pages(inode);
-		} else {
-			nfs_invalidate_dircache(inode);
-		}
-
-		NFS_OLDMTIME(inode)  = fattr.mtime.seconds;
-		NFS_ATTRTIMEO(inode) = NFS_MINATTRTIMEO(inode);
-	} else {
-		/* Update attrtimeo value */
-		if ((NFS_ATTRTIMEO(inode) <<= 1) > NFS_MAXATTRTIMEO(inode))
-			NFS_ATTRTIMEO(inode) = NFS_MAXATTRTIMEO(inode);
+	if (!inode || !fattr) {
+		printk("nfs_refresh_inode: inode or fattr is NULL\n");
+		goto out;
 	}
-	status = 0;
+	if (inode->i_ino != fattr->fileid) {
+		printk("nfs_refresh_inode: inode number mismatch\n");
+		goto out;
+	}
 
-done:
-	dfprintk(PAGECACHE,
-		"NFS: inode %x/%ld revalidation complete (status %d).\n",
-				inode->i_dev, inode->i_ino, status);
-	return status;
+	/*
+	 * Make sure the inode's type hasn't changed.
+	 */
+	if ((inode->i_mode & S_IFMT) != (fattr->mode & S_IFMT))
+		goto out_changed;
+
+	/*
+	 * If the size or mtime changed from outside, we want
+	 * to invalidate the local caches immediately.
+	 */
+	if (inode->i_size != fattr->size) {
+#ifdef NFS_DEBUG_VERBOSE
+printk("NFS: size change on %x/%ld\n", inode->i_dev, inode->i_ino);
+#endif
+		invalid = 1;
+	}
+	if (inode->i_mtime != fattr->mtime.seconds) {
+#ifdef NFS_DEBUG_VERBOSE
+printk("NFS: mtime change on %x/%ld\n", inode->i_dev, inode->i_ino);
+#endif
+		invalid = 1;
+	}
+
+	inode->i_mode = fattr->mode;
+	inode->i_nlink = fattr->nlink;
+	inode->i_uid = fattr->uid;
+	inode->i_gid = fattr->gid;
+
+	inode->i_size = fattr->size;
+	inode->i_blocks = fattr->blocks;
+	inode->i_atime = fattr->atime.seconds;
+	inode->i_mtime = fattr->mtime.seconds;
+	inode->i_ctime = fattr->ctime.seconds;
+	/*
+	 * Update the read time so we don't revalidate too often.
+	 */
+	NFS_READTIME(inode) = jiffies;
+	error = 0;
+	if (invalid)
+		goto out_invalid;
+out:
+	return error;
+
+out_changed:
+	/*
+	 * Big trouble! The inode has become a different object.
+	 */
+#ifdef NFS_PARANOIA
+printk("nfs_refresh_inode: inode %ld mode changed, %07o to %07o\n",
+inode->i_ino, inode->i_mode, fattr->mode);
+#endif
+	fattr->mode = inode->i_mode; /* save mode */
+	make_bad_inode(inode);
+	inode->i_mode = fattr->mode; /* restore mode */
+	/*
+	 * No need to worry about unhashing the dentry, as the
+	 * lookup validation will know that the inode is bad.
+	 * (But we fall through to invalidate the caches.)
+	 */
+
+out_invalid:
+	/*
+	 * Invalidate the local caches
+	 */
+#ifdef NFS_DEBUG_VERBOSE
+printk("nfs_refresh_inode: invalidating %ld pages\n", inode->i_nrpages);
+#endif
+	if (!S_ISDIR(inode->i_mode)) {
+		/* This sends off all dirty pages off to the server.
+		 * Note that this function must not sleep. */
+		nfs_invalidate_pages(inode);
+		invalidate_inode_pages(inode);
+	} else
+		nfs_invalidate_dircache(inode);
+	NFS_CACHEINV(inode);
+	NFS_ATTRTIMEO(inode) = NFS_MINATTRTIMEO(inode);
+	goto out;
 }
 
 /*
