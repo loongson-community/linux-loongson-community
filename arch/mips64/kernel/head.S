@@ -19,9 +19,11 @@
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 #include <asm/pgtable.h>
+#include <asm/sn/addrs.h>
+#include <asm/sn/sn0/hubni.h>
 
 	.macro	ARC64_TWIDDLE_PC
-#ifdef CONFIG_ARC64
+#if defined(CONFIG_ARC64) || defined(CONFIG_MAPPED_KERNEL)
 	/* We get launched at a XKPHYS address but the kernel is linked to
 	   run at a KSEG0 address, so jump there.  */
 	la	t0, \@f
@@ -30,6 +32,19 @@
 #endif
 	.endm
 
+	/*
+	 * outputs the local nasid into t1.
+	 */
+	.macro GET_NASID_ASM
+	dli	t1, LOCAL_HUB_ADDR(NI_STATUS_REV_ID)
+	ld	t1, (t1)
+	and	t1, NSRI_NODEID_MASK
+	dsrl	t1, NSRI_NODEID_SHFT
+	.endm
+
+	/*
+	 * inputs are the text nasid in t1, data nasid in t2.
+	 */
 	.macro MAPPED_KERNEL_SETUP_TLB
 #ifdef CONFIG_MAPPED_KERNEL
 	/*
@@ -39,10 +54,19 @@
 	 */
 	dli	t0, 0xffffffffc0000000
 	dmtc0	t0, CP0_ENTRYHI
+	li	t0, 0x1c000		# Offset of text into node memory
+	dsll	t1, NASID_SHFT		# Shift text nasid into place
+	dsll	t2, NASID_SHFT		# Same for data nasid
+	or	t1, t1, t0		# Physical load address of kernel text
+	or	t2, t1, t0		# Physical load address of kernel data
+	dsrl	t1, 6			# Put physical address into place
+	dsrl	t2, 6			# Put physical address into place
 	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _CACHE_CACHABLE_COW) >> 6)
-	mtc0	t0, CP0_ENTRYLO0	# physaddr 0, VG, cach exlwr
+	or	t0, t0, t1
+	mtc0	t0, CP0_ENTRYLO0	# physaddr, VG, cach exlwr
 	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _PAGE_DIRTY|_CACHE_CACHABLE_COW) >> 6)
-	mtc0	t0, CP0_ENTRYLO1	# physaddr 0, DVG, cach exlwr
+	or	t0, t0, t2
+	mtc0	t0, CP0_ENTRYLO1	# physaddr, DVG, cach exlwr
 	li	t0, 0x1ffe000		# MAPPED_KERN_TLBMASK, TLBPGMASK_16M
 	mtc0	t0, CP0_PAGEMASK
 	li	t0, 0			# KMAP_INX
@@ -67,6 +91,9 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	ori	sp, 0xf				# align stack on 16 byte.
 	xori	sp, 0xf
 
+	GET_NASID_ASM
+	move	t2, t1				# text and data are here
+1:  bne t1, zero, 1b
 	MAPPED_KERNEL_SETUP_TLB
 
 	ARC64_TWIDDLE_PC
@@ -103,6 +130,9 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	END(kernel_entry)
 
 NESTED(bootstrap, 16, sp)
+	GET_NASID_ASM
+	move	t1, zero			# till we know who is master
+	move	t2, zero			# till we know who is master
 	MAPPED_KERNEL_SETUP_TLB
 	ARC64_TWIDDLE_PC
 	CLI
