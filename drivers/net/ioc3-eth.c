@@ -81,19 +81,11 @@
 #define SIOCGPARAMS (SIOCDEVPRIVATE+3)	/* Read operational parameters */
 #define SIOCSPARAMS (SIOCDEVPRIVATE+4)	/* Set operational parameters */
 
-static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
-static void ioc3_set_multicast_list(struct net_device *dev);
-static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
-static void ioc3_timeout(struct net_device *dev);
-static inline unsigned int ioc3_hash(const unsigned char *addr);
-
-static const char ioc3_str[] = "IOC3 Ethernet";
-
 /* Private per NIC data of the driver.  */
 struct ioc3_private {
 	struct ioc3 *regs;
 	int phy;
-	unsigned long rxr;		/* pointer to receiver ring */
+	unsigned long *rxr;		/* pointer to receiver ring */
 	struct ioc3_etxd *txr;
 	struct sk_buff *rx_skbs[512];
 	struct sk_buff *tx_skbs[128];
@@ -106,6 +98,18 @@ struct ioc3_private {
 	u32 emcr, ehar_h, ehar_l;
 	spinlock_t ioc3_lock;
 };
+
+static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
+static void ioc3_set_multicast_list(struct net_device *dev);
+static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
+static void ioc3_timeout(struct net_device *dev);
+static inline unsigned int ioc3_hash(const unsigned char *addr);
+static void ioc3_stop(struct net_device *dev);
+static void ioc3_clean_tx_ring(struct ioc3_private *ip);
+static void ioc3_clean_rx_ring(struct ioc3_private *ip);
+static void ioc3_init(struct net_device *dev);
+
+static const char ioc3_str[] = "IOC3 Ethernet";
 
 /* We use this to acquire receive skb's that we can DMA directly into. */
 #define ALIGNED_RX_SKB_ADDR(addr) \
@@ -288,7 +292,7 @@ static int nic_init(struct ioc3 *ioc3)
 
 	type = "unknown";
 
-	do {
+	while (1) {
 		u64 reg;
 		reg = nic_find(ioc3, &save);
 
@@ -317,7 +321,8 @@ static int nic_init(struct ioc3 *ioc3)
 			reg >>= 8;
 		}
 		crc = reg & 0xff;
-	} while (0);
+		break;
+	}
 
 	printk("Found %s NIC", type);
 	if (type != "unknown") {
@@ -442,21 +447,17 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 			ip->stats.rx_packets++;		/* Statistics */
 			ip->stats.rx_bytes += len;
 
-			goto next;
+		} else {
+ 			/* The frame is invalid and the skb never
+                           reached the network layer so we can just
+                           recycle it.  */
+ 			new_skb = skb;
+ 			ip->stats.rx_errors++;
 		}
-		if (err & (ERXBUF_CRCERR | ERXBUF_FRAMERR | ERXBUF_CODERR |
-		           ERXBUF_INVPREAMB | ERXBUF_BADPKT | ERXBUF_CARRIER)) {
-			/* We don't send the skbuf to the network layer, so
-			   just recycle it.  */
-			new_skb = skb;
-
-			if (err & ERXBUF_CRCERR)	/* Statistics */
-				ip->stats.rx_crc_errors++;
-			if (err & ERXBUF_FRAMERR)
-				ip->stats.rx_frame_errors++;
-			ip->stats.rx_errors++;
-		}
-
+		if (err & ERXBUF_CRCERR)	/* Statistics */
+			ip->stats.rx_crc_errors++;
+		if (err & ERXBUF_FRAMERR)
+			ip->stats.rx_frame_errors++;
 next:
 		ip->rx_skbs[n_entry] = new_skb;
 		rxr[n_entry] = (0xa5UL << 56) |
@@ -621,52 +622,70 @@ int ioc3_mii_init(struct net_device *dev, struct ioc3_private *ip,
 }
 
 static void
-ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
-	        struct ioc3 *ioc3)
+ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
+		 struct ioc3 *ioc3)
 {
 	struct ioc3_erxbuf *rxb;
 	unsigned long *rxr;
-	unsigned long ring;
 	int i;
 
-	/* Allocate and initialize rx ring.  4kb = 512 entries  */
-	ip->rxr = get_free_page(GFP_KERNEL);
-	rxr = (unsigned long *) ip->rxr;
+	if (ip->rxr == NULL) {
+		/* Allocate and initialize rx ring.  4kb = 512 entries  */
+		ip->rxr = (unsigned long *) get_free_page(GFP_KERNEL);
+		rxr = (unsigned long *) ip->rxr;
 
-	/* Now the rx buffers.  The RX ring may be larger but we only
-	   allocate 16 buffers for now.  Need to tune this for performance
-	   and memory later.  */
-	for (i = 0; i < RX_BUFFS; i++) {
-		struct sk_buff *skb;
+		/* Now the rx buffers.  The RX ring may be larger but
+		   we only allocate 16 buffers for now.  Need to tune
+		   this for performance and memory later.  */
+		for (i = 0; i < RX_BUFFS; i++) {
+			struct sk_buff *skb;
 
-		skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, 0);
-		if (!skb) {
-			show_free_areas();
-			continue;
+			skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, 0);
+			if (!skb) {
+				show_free_areas();
+				continue;
+			}
+
+			ip->rx_skbs[i] = skb;
+			skb->dev = dev;
+
+			/* Because we reserve afterwards. */
+			skb_put(skb, (1664 + RX_OFFSET));
+			rxb = (struct ioc3_erxbuf *) skb->data;
+			rxr[i] = (0xa5UL << 56)
+				| ((unsigned long) rxb & TO_PHYS_MASK);
+			skb_reserve(skb, RX_OFFSET);
 		}
-
-		ip->rx_skbs[i] = skb;
-		skb->dev = dev;
-
-		/* Because we reserve afterwards. */
-		skb_put(skb, (1664 + RX_OFFSET));
-		rxb = (struct ioc3_erxbuf *) skb->data;
-		rxb->w0 = 0;				/* Clear valid bit */
-		rxr[i] = (0xa5UL << 56) | ((unsigned long) rxb & TO_PHYS_MASK);
-		skb_reserve(skb, RX_OFFSET);
+		ip->rx_ci = 0;
+		ip->rx_pi = RX_BUFFS;
 	}
 
+	if (ip->txr == NULL) {
+		/* Allocate and initialize tx rings.  16kb = 128 bufs.  */
+		ip->txr = (struct ioc3_etxd *)__get_free_pages(GFP_KERNEL, 2);
+		ip->tx_pi = 0;
+		ip->tx_ci = 0;
+	}
+}
+
+static void
+ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
+	        struct ioc3 *ioc3)
+{
+	unsigned long ring;
+
+	ioc3_alloc_rings(dev, ip, ioc3);
+
+	ioc3_clean_tx_ring(ip);
+	ioc3_clean_rx_ring(ip);
+
 	/* Now the rx ring base, consume & produce registers.  */
-	ring = (0xa5UL << 56) | (ip->rxr & TO_PHYS_MASK);
+	ring = (0xa5UL << 56) | ((unsigned long)ip->rxr & TO_PHYS_MASK);
 	ioc3->erbr_h = ring >> 32;
 	ioc3->erbr_l = ring & 0xffffffff;
-	ip->rx_ci = 0;
 	ioc3->ercir  = (ip->rx_ci << 3);
-	ip->rx_pi = RX_BUFFS;
 	ioc3->erpir  = (ip->rx_pi << 3) | ERPIR_ARM;
 
-	/* Allocate and initialize tx rings.  16kb = 128 bufs.  */
-	ip->txr = (struct ioc3_etxd *)__get_free_pages(GFP_KERNEL, 2);
 	ring = (0xa5UL << 56) | ((unsigned long)ip->txr & TO_PHYS_MASK);
 
 	ip->txqlen = 0;					/* nothing queued  */
@@ -674,10 +693,8 @@ ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
 	/* Now the tx ring base, consume & produce registers.  */
 	ioc3->etbr_h = ring >> 32;
 	ioc3->etbr_l = ring & 0xffffffff;
-	ip->tx_pi = 0;
 	ioc3->etpir  = (ip->tx_pi << 7);
-	ip->tx_ci = 0;
-	ioc3->etcir  = (ip->tx_pi << 7);
+	ioc3->etcir  = (ip->tx_ci << 7);
 	ioc3->etcir;					/* Flush */
 }
 
@@ -693,6 +710,22 @@ ioc3_clean_tx_ring(struct ioc3_private *ip)
 			ip->tx_skbs[i] = NULL;
 			dev_kfree_skb_any(skb);
 		}
+		ip->txr[i].cmd = 0;
+	}
+}
+
+static void
+ioc3_clean_rx_ring(struct ioc3_private *ip)
+{
+	struct sk_buff *skb;
+	int i;
+	
+	for (i = 0; i < RX_BUFFS; i++) {
+		struct ioc3_erxbuf *rxb;
+		skb = ip->rx_skbs[i];
+		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
+
+		rxb->w0 = 0;
 	}
 }
 
@@ -700,17 +733,24 @@ static void
 ioc3_free_rings(struct ioc3_private *ip)
 {
 	struct sk_buff *skb;
-	int i;
+	int rx_entry, n_entry;
 
 	ioc3_clean_tx_ring(ip);
 	free_pages((unsigned long)ip->txr, 2);
+	ip->txr = NULL;
 
-	for (i=0; i < 512; i++) {
-		skb = ip->rx_skbs[i];
+	n_entry = ip->rx_ci;
+	rx_entry = ip->rx_pi;
+
+	while (n_entry != rx_entry) {
+		skb = ip->rx_skbs[n_entry];
 		if (skb)
 			dev_kfree_skb_any(skb);
+
+		n_entry = (n_entry + 1) & 511;
 	}
 	free_page((unsigned long)ip->rxr);
+	ip->rxr = NULL;
 }
 
 static inline void
@@ -745,7 +785,8 @@ static void ioc3_init(struct net_device *dev)
 	ioc3->emcr = EMCR_RST;			/* Reset		*/
 	ioc3->emcr;				/* flush WB		*/
 	udelay(4);				/* Give it time ...	*/
-	ioc3->emcr = ip->emcr;
+	ioc3->emcr = 0;
+	ioc3->emcr;
 
 	/* Misc registers  */
 	ioc3->erbar = 0;
@@ -767,6 +808,7 @@ static void ioc3_init(struct net_device *dev)
 	ioc3->emcr = ip->emcr;
 	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT | /* Interrupts ...  */
 	             EISR_RXMEMERR | EISR_TXMEMERR;
+	ioc3->eier;
 }
 
 static void ioc3_stop(struct net_device *dev)
@@ -775,6 +817,7 @@ static void ioc3_stop(struct net_device *dev)
 	struct ioc3 *ioc3 = ip->regs;
 
 	ioc3->emcr = 0;				/* Shutup */
+	ip->emcr = 0;
 	ioc3->eier = 0;				/* Disable interrupts */
 	ioc3->eier;				/* Flush */
 }
