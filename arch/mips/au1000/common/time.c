@@ -406,10 +406,6 @@ void au1xxx_timer_setup(struct irqaction *irq)
 	r4k_cur = (read_c0_count() + r4k_offset);
 	write_c0_compare(r4k_cur);
 
-	/* no RTC on the pb1000 */
-	xtime.tv_sec = 0;
-	//xtime.tv_usec = 0;
-
 #ifdef CONFIG_PM
 	/*
 	 * setup counter 0, since it keeps ticking after a
