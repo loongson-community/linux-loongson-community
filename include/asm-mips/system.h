@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.15 1999/08/13 17:07:28 harald Exp $
+/* $Id: system.h,v 1.16 1999/10/09 00:01:43 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -127,6 +127,12 @@ __restore_flags(int flags)
 /*
  * These are probably defined overly paranoid ...
  */
+#ifdef CONFIG_CPU_HAS_WB
+#include <asm/wbflush.h>
+#define rmb()
+#define wmb() wbflush()
+#define mb() wbflush()
+#else
 #define mb()						\
 __asm__ __volatile__(					\
 	"# prevent instructions being moved around\n\t"	\
@@ -139,6 +145,7 @@ __asm__ __volatile__(					\
 	: "memory")
 #define rmb() mb()
 #define wmb() mb()
+#endif
 
 #define set_mb(var, value) \
 do { var = value; mb(); } while (0)

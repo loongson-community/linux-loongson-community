@@ -7,7 +7,7 @@
  * Copyright (C) 1998 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  *
- * $Id: r2300.c,v 1.10 1999/08/09 19:43:16 harald Exp $
+ * $Id: r2300.c,v 1.11 1999/10/09 00:00:58 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -416,7 +416,7 @@ static void r2300_flush_cache_sigtramp(unsigned long page)
 	 *  This function receives virtual address (from signal.c),
 	 *  but this moment we have needed mm_struct in 'current'
 	 */
-	unsigned long phys_page = get_phys_page(page, current->mm);
+	unsigned long phys_page = get_phys_page(page, current->active_mm);
 #ifdef DEBUG_CACHE
 		printk("csigtramp[%08lx]", page);
 #endif

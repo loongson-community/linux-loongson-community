@@ -28,10 +28,8 @@ if [ "$CONFIG_SGI_IP22" != "y" ]; then
 else
   define_bool CONFIG_SGI_PARTITION y
 fi
-if [ "$CONFIG_DECSTATION" != "y" ]; then
+if [ "$CONFIG_PARTITION_ADVANCED" = "y" ]; then
   bool 'Ultrix partition table support' CONFIG_ULTRIX_PARTITION
-else
-  define_bool CONFIG_ULTRIX_PARTITION y
 fi
 if [ "$ARCH" != "sparc" -a "$ARCH" != "sparc64" ]; then
   bool 'Sun partition tables support' CONFIG_SUN_PARTITION

@@ -10,8 +10,6 @@
 #ifndef DEC_ESP_H
 #define DEC_ESP_H
 
-#define EREGS_PAD(n)     unchar n[3];
-
 #include "NCR53C9x.h"
 
 #define DEC_SCSI_SREG 0

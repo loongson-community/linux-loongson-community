@@ -1,4 +1,4 @@
-/* $Id: r2300_switch.S,v 1.7 1999/08/09 19:43:14 harald Exp $
+/* $Id: r2300_switch.S,v 1.8 1999/08/18 23:37:44 ralf Exp $
  *
  * r2300_switch.S: R2300 specific task switching code.
  *
@@ -55,12 +55,8 @@ LEAF(resume)
 	lw	a2, THREAD_STATUS($28)
 	nor	a3, $0, a3
 	and	a2, a3
-	lw	a3, TASK_MM($28)
 	or	a2, t1
-	lw	a3, MM_CONTEXT(a3)
 	mtc0	a2, CP0_STATUS
-	andi	a3, 0xfc0
-	mtc0	a3, CP0_ENTRYHI
 	jr	ra
 	 move	v0, a0
 	END(resume)

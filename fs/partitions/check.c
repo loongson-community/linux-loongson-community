@@ -29,6 +29,7 @@
 #include "osf.h"
 #include "sgi.h"
 #include "sun.h"
+#include "ultrix.h"
 
 extern void device_init(void);
 extern void md_setup_drive(void);

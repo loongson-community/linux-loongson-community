@@ -1,4 +1,4 @@
-/* $Id: ptrace.h,v 1.6 1999/08/09 19:43:17 harald Exp $
+/* $Id: ptrace.h,v 1.7 1999/09/28 22:27:17 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -60,7 +60,7 @@ struct pt_regs {
 /*
  * Does the process account for user or for system time?
  */
-#define user_mode(regs) ((regs)->cp0_status & 0x10)
+#define user_mode(regs) (((regs)->cp0_status & KU_MASK) == KU_USER)
 
 #define instruction_pointer(regs) ((regs)->cp0_epc)
 

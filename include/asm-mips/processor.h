@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.19 1999/09/28 22:27:17 ralf Exp $
+/* $Id: processor.h,v 1.20 1999/10/09 00:01:43 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -11,6 +11,8 @@
  */
 #ifndef _ASM_PROCESSOR_H
 #define _ASM_PROCESSOR_H
+
+#include <asm/isadep.h>
 
 /*
  * Default implementation of macro that returns current
@@ -208,7 +210,7 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
  */
 #define start_thread(regs, new_pc, new_sp) do {				\
 	/* New thread looses kernel privileges. */			\
-	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;\
+	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KU_USER;\
 	regs->cp0_epc = new_pc;						\
 	regs->regs[29] = new_sp;					\
 	current->thread.current_ds = USER_DS;				\
