@@ -18,7 +18,7 @@
 #include <linux/errno.h>  /* error codes */
 #include <linux/types.h>  /* size_t */
 #include <linux/interrupt.h> /* mark_bh */
-#include <linux/pci.h>
+#include <linux/dma-mapping.h>
 
 #include <linux/in.h>
 #include <linux/netdevice.h>   /* struct device, and other headers */
@@ -209,8 +209,9 @@ static int meth_init_tx_ring(meth_private *priv)
 {
 	/* Init TX ring */
 	DPRINTK("Initializing TX ring\n");
-	priv->tx_ring = (tx_packet *) pci_alloc_consistent(NULL,TX_RING_BUFFER_SIZE,&(priv->tx_ring_dma));
-	if(!priv->tx_ring)
+	priv->tx_ring = dma_alloc_coherent(NULL, TX_RING_BUFFER_SIZE,
+	                                   &priv->tx_ring_dma, GFP_ATOMIC);
+	if (!priv->tx_ring)
 		return -ENOMEM;
 	memset(priv->tx_ring, 0, TX_RING_BUFFER_SIZE);
 	priv->tx_count = priv->tx_read = priv->tx_write = 0;
@@ -227,7 +228,8 @@ static int meth_init_rx_ring(meth_private *priv)
 {
 	int i;
 	for(i=0;i<RX_RING_ENTRIES;i++){
-		priv->rx_ring[i]=(rx_packet*)pci_alloc_consistent(NULL,METH_RX_BUFF_SIZE,&(priv->rx_ring_dmas[i]));
+		priv->rx_ring[i] = dma_alloc_coherent(NULL, METH_RX_BUFF_SIZE,
+		                                      priv->rx_ring_dmas[i]);
 		/* I'll need to re-sync it after each RX */
 		priv->regs->rx_fifo=priv->rx_ring_dmas[i];
 	}
@@ -245,20 +247,16 @@ static void meth_free_tx_ring(meth_private *priv)
 			dev_kfree_skb(priv->tx_skbs[i]);
 		priv->tx_skbs[i] = NULL;
 	}
-	pci_free_consistent(NULL,
-			    TX_RING_BUFFER_SIZE,
-			    priv->tx_ring,
-			    priv->tx_ring_dma);
+	dma_free_coherent(NULL, TX_RING_BUFFER_SIZE, priv->tx_ring,
+	                  priv->tx_ring_dma);
 }
 static void meth_free_rx_ring(meth_private *priv)
 {
 	int i;
 
 	for(i=0;i<RX_RING_ENTRIES;i++)
-		pci_free_consistent(NULL,
-				    METH_RX_BUFF_SIZE,
-				    priv->rx_ring[i],
-				    priv->rx_ring_dmas[i]);
+		dma_free_coherent(NULL, METH_RX_BUFF_SIZE, priv->rx_ring[i],
+		                  priv->rx_ring_dmas[i]);
 }
 
 int meth_reset(struct net_device *dev)
@@ -566,9 +564,7 @@ static void meth_tx_1page_prepare(meth_private* priv, struct sk_buff* skb)
 	}
 
 	/* first page */
-	catbuf = pci_map_single(NULL,
-				buffer_data,
-				buffer_len,
+	catbuf = dma_map_single(NULL, buffer_data, buffer_len,
 				PCI_DMA_TODEVICE);
 	desc->data.cat_buf[0].form.start_addr = catbuf >> 3;
 	desc->data.cat_buf[0].form.len = buffer_len-1;
@@ -593,16 +589,12 @@ static void meth_tx_2page_prepare(meth_private* priv, struct sk_buff* skb)
 	}
 
 	/* first page */
-	catbuf1 = pci_map_single(NULL,
-				 buffer1_data,
-				 buffer1_len,
+	catbuf1 = dma_map_single(NULL, buffer1_data, buffer1_len,
 				 PCI_DMA_TODEVICE);
 	desc->data.cat_buf[0].form.start_addr = catbuf1 >> 3;
 	desc->data.cat_buf[0].form.len = buffer1_len-1;
 	/* second page */
-	catbuf2 = pci_map_single(NULL,
-				 buffer2_data,
-				 buffer2_len,
+	catbuf2 = dma_map_single(NULL, buffer2_data, buffer2_len,
 				 PCI_DMA_TODEVICE);
 	desc->data.cat_buf[1].form.start_addr = catbuf2 >> 3;
 	desc->data.cat_buf[1].form.len = buffer2_len-1;
