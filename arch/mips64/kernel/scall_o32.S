@@ -247,7 +247,7 @@ LEAF(sys32_sysmips)
 
 	daddiu	v0, t0, 16		# v0 = usp + 16
 	daddu	t1, v0, 12		# 3 32-bit arguments
-	ld	v1, THREAD_CURDS($28)
+	ld	v1, TI_ADDR_LIMIT($28)
 	or	v0, v0, t1
 	and	v1, v1, v0
 	bltz	v1, efault
