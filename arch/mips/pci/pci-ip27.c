@@ -17,6 +17,8 @@
 #include <asm/sn/intr.h>
 #include <asm/sn/sn0/hub.h>
 
+extern unsigned int allocate_irqno(void);
+
 /*
  * Max #PCI busses we can handle; ie, max #PCI bridges.
  */
@@ -294,7 +296,7 @@ int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
  * settings.
  */
 
-static void __init pci_disable_swapping(struct pci_dev *dev)
+static inline void pci_disable_swapping(struct pci_dev *dev)
 {
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(dev->bus);
 	bridge_t *bridge = bc->base;
@@ -305,7 +307,7 @@ static void __init pci_disable_swapping(struct pci_dev *dev)
 	bridge->b_widget.w_tflush;	/* Flush */
 }
 
-static void __init pci_enable_swapping(struct pci_dev *dev)
+static inline void pci_enable_swapping(struct pci_dev *dev)
 {
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(dev->bus);
 	bridge_t *bridge = bc->base;
@@ -325,14 +327,11 @@ static void __init pci_fixup_ioc3(struct pci_dev *d)
 
 	d->resource[0].start |= offset;
 	d->resource[0].end |= offset;
-
-	pci_disable_swapping(d);
 }
 
 static void __init pci_fixup_isp1020(struct pci_dev *d)
 {
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
-	unsigned short command;
 
 	d->resource[0].start |= (unsigned long) bc->nasid << 32;
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", pci_name(d));
@@ -343,11 +342,6 @@ static void __init pci_fixup_isp1020(struct pci_dev *d)
 	 * bit set. Things stop working if we program the controllers as not
 	 * having PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
-	pci_set_master(d);
-	pci_read_config_word(d, PCI_COMMAND, &command);
-	command |= PCI_COMMAND_MEMORY;
-	command |= PCI_COMMAND_IO;
-	pci_write_config_word(d, PCI_COMMAND, command);
 	d->resource[1].flags |= 1;
 
 	pci_enable_swapping(d);
@@ -361,7 +355,6 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	int i;
 	int slot = PCI_SLOT(d->devfn);
 	unsigned int start;
-	unsigned short command;
 
 	printk("PCI: Fixing isp2x00 in [bus:slot.fn] %s\n", pci_name(d));
 
@@ -388,18 +381,11 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 
 	pci_enable_swapping(d);
 
-	/* set card's base addr reg */
-	//pci_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x500001);
-	//pci_write_config_dword(d, PCI_BASE_ADDRESS_1, 0x8b00000);
-	//pci_write_config_dword(d, PCI_ROM_ADDRESS, 0x8b20000);
-
 	/* I got these from booting irix on system... */
 	pci_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x200001);
-	//pci_write_config_dword(d, PCI_BASE_ADDRESS_1, 0xf800000);
 	pci_write_config_dword(d, PCI_ROM_ADDRESS, 0x10200000);
 
 	pci_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
-	//pci_write_config_dword(d, PCI_ROM_ADDRESS, (start | 0x20000));
 
 	/* set cache line size */
 	pci_write_config_dword(d, PCI_CACHE_LINE_SIZE, 0xf080);
@@ -417,14 +403,6 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	for (i = 0; i < 8; i++)
 		printk("PCI: device(%d)= 0x%x\n", i,
 		       bridge->b_device[i].reg);
-
-	/* configure device to allow bus mastering, i/o and memory mapping */
-	pci_set_master(d);
-	pci_read_config_word(d, PCI_COMMAND, &command);
-	command |= PCI_COMMAND_MEMORY;
-	command |= PCI_COMMAND_IO;
-	pci_write_config_word(d, PCI_COMMAND, command);
-	/*d->resource[1].flags |= 1; */
 }
 
 struct pci_fixup pcibios_fixups[] = {
