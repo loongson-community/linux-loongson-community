@@ -217,6 +217,36 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	__restore_flags(flags);
 }
 
+/*
+ * This one is only used for pages with the global bit set so we don't care
+ * much about the ASID.
+ */
+void __flush_tlb_one(unsigned long page)
+{
+	unsigned long flags;
+	int oldpid, idx;
+
+	__save_and_cli(flags);
+#ifdef DEBUG_TLB
+	printk("[tlbpage<%d,%08lx>]", CPU_CONTEXT(cpu, vma->vm_mm), page);
+#endif
+	page &= (PAGE_MASK << 1);
+	oldpid = (get_entryhi() & 0xff);
+	set_entryhi(page);
+	tlb_probe();
+	idx = get_index();
+	set_entrylo0(0);
+	set_entrylo1(0);
+	if (idx >= 0) {
+		/* Make sure all entries differ. */
+		set_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		tlb_write_indexed();
+	}
+	set_entryhi(oldpid);
+
+	__restore_flags(flags);
+}
+
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	unsigned long flags;

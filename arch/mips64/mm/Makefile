@@ -21,6 +21,8 @@ obj-$(CONFIG_CPU_MIPS64)	+= c-mips64.o pg-mips64.o tlb-r4k.o
 #
 #obj-y				+=  tlb-dbg-r4k.o
 
+obj-$(CONFIG_SB1_CACHE_ERROR)	+= cex-sb1.o cerr-sb1.o
+
 obj-$(CONFIG_SGI_IP22)		+= umap.o
 
 AFLAGS_tlb-glue-r4k.o := -P

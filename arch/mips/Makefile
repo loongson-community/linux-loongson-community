@@ -415,14 +415,6 @@ SUBDIRS		+= arch/mips/sibyte/cfe
 endif
 
 #
-# SB1 Cache Error handler
-#
-ifdef CONFIG_SB1_CACHE_ERROR
-LIBS		+= arch/mips/sibyte/sb1/sb1kern.a
-SUBDIRS		+= arch/mips/sibyte/sb1
-endif
-
-#
 # SNI RM200 PCI
 #
 ifdef CONFIG_SNI_RM200_PCI

@@ -175,15 +175,6 @@ SUBDIRS		+= arch/mips/sibyte/cfe
 endif
 
 #
-# SB1 Cache Error handler
-#
-ifdef CONFIG_SB1_CACHE_ERROR
-LIBS		+= arch/mips/sibyte/sb1/sb1kern.a
-SUBDIRS		+= arch/mips/sibyte/sb1
-endif
-
-
-#
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then
 # convert to ECOFF using elf2ecoff.
