@@ -97,9 +97,9 @@ void __init sgi_sysinit(void)
 				ArcRead(0, &c, 1, &cnt);
 				ArcEnterInteractiveMode();
 			}
-			printk(KERN_INFO "CPU: %s ", (char *)p->iname);
+			printk(KERN_INFO "CPU: %s ", (char *)(long)p->iname);
 			cpup = p;
-			cputype = string_to_cpu((char *)cpup->iname);
+			cputype = string_to_cpu((char *)(long)cpup->iname);
 		}
 		p = ArcGetPeer(p);
 	}
@@ -115,7 +115,7 @@ void __init sgi_sysinit(void)
 		case processor:
 			switch(p->type) {
 			case Fpu:
-				printk("FPU<%s> ", (char *)p->iname);
+				printk("FPU<%s> ", (char *)(long)p->iname);
 				break;
 
 			default:
