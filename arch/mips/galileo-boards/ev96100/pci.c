@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	Galileo EV96100 board specific pci support.
  *
@@ -379,6 +378,11 @@ void __init ev96100_int_line_fixup(struct pci_dev *dev)
 	    dev->irq = 2;
 	    pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
 	}
+}
+
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
 }
 
 struct pci_fixup pcibios_fixups[] = {

@@ -283,7 +283,7 @@ static void shaper_queue_xmit(struct shaper *shaper, struct sk_buff *skb)
 				shaper->dev->name,newskb->priority);
 		dev_queue_xmit(newskb);
 
-                shaper->stats.tx_bytes+=newskb->len;
+                shaper->stats.tx_bytes += skb->len;
 		shaper->stats.tx_packets++;
 
                 if(sh_debug)
@@ -682,6 +682,7 @@ static int shapers = 1;
 #ifdef MODULE
 
 MODULE_PARM(shapers, "i");
+MODULE_PARM_DESC(shapers, "Traffic shaper: maximum nuber of shapers");
 
 #else /* MODULE */
 

@@ -411,7 +411,7 @@ static struct irq_router pirq_routers[] = {
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371AB_0, pirq_piix_get, pirq_piix_set },
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371MX,   pirq_piix_get, pirq_piix_set },
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82443MX_0, pirq_piix_get, pirq_piix_set },
-	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82820FW_0, pirq_piix_get, pirq_piix_set },
+	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801BA_0, pirq_piix_get, pirq_piix_set },
 
 	{ "ALI", PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M1533, pirq_ali_get, pirq_ali_set },
 
@@ -587,13 +587,14 @@ static int pcibios_lookup_irq(struct pci_dev *dev, int assign)
 		if (info->irq[pin].link == pirq) {
 			/* We refuse to override the dev->irq information. Give a warning! */
 		    	if (dev2->irq && dev2->irq != irq) {
-		    		printk(KERN_INFO "IRQ routing conflict in pirq table for device %s\n", dev2->slot_name);
+		    		printk(KERN_INFO "IRQ routing conflict for %s, have irq %d, want irq %d\n",
+				       dev2->slot_name, dev2->irq, irq);
 		    		continue;
 		    	}
 			dev2->irq = irq;
 			pirq_penalty[irq]++;
 			if (dev != dev2)
-				printk(KERN_INFO "PCI: The same IRQ used for device %s\n", dev2->slot_name);
+				printk(KERN_INFO "PCI: Sharing IRQ %d with %s\n", irq, dev2->slot_name);
 		}
 	}
 	return 1;
@@ -656,10 +657,12 @@ void __init pcibios_fixup_irqs(void)
 			if (pin) {
 				pin--;		/* interrupt pins are numbered starting from 1 */
 				irq = IO_APIC_get_PCI_irq_vector(dev->bus->number, PCI_SLOT(dev->devfn), pin);
-/*
- * Will be removed completely if things work out well with fuzzy parsing
- */
-#if 0
+	/*
+	 * Busses behind bridges are typically not listed in the MP-table.
+	 * In this case we have to look up the IRQ based on the parent bus,
+	 * parent slot, and pin number. The SMP code detects such bridged
+	 * busses itself so we should get into this branch reliably.
+	 */
 				if (irq < 0 && dev->bus->parent) { /* go back to the bridge */
 					struct pci_dev * bridge = dev->bus->self;
 
@@ -670,7 +673,6 @@ void __init pcibios_fixup_irqs(void)
 						printk(KERN_WARNING "PCI: using PPB(B%d,I%d,P%d) to get irq %d\n", 
 							bridge->bus->number, PCI_SLOT(bridge->devfn), pin, irq);
 				}
-#endif
 				if (irq >= 0) {
 					printk(KERN_INFO "PCI->APIC IRQ transform: (B%d,I%d,P%d) -> %d\n",
 						dev->bus->number, PCI_SLOT(dev->devfn), pin, irq);

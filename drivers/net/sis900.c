@@ -1,6 +1,6 @@
 /* sis900.c: A SiS 900/7016 PCI Fast Ethernet driver for Linux.
    Copyright 1999 Silicon Integrated System Corporation 
-   Revision:	1.07.11	Apr. 10 2001
+   Revision:	1.08.00	Jun. 11 2001
    
    Modified from the driver which is originally written by Donald Becker.
    
@@ -18,6 +18,7 @@
    preliminary Rev. 1.0 Jan. 18, 1998
    http://www.sis.com.tw/support/databook.htm
 
+   Rev 1.08.00 Jun. 11 2001 Hui-Fen Hsu workaround for RTL8201 PHY and some bug fix
    Rev 1.07.11 Apr.  2 2001 Hui-Fen Hsu  updates PCI drivers to use the new pci_set_dma_mask for kernel 2.4.3
    Rev 1.07.10 Mar.  1 2001 Hui-Fen Hsu <hfhsu@sis.com.tw> some bug fix & 635M/B support 
    Rev 1.07.09 Feb.  9 2001 Dave Jones <davej@suse.de> PCI enable cleanup
@@ -52,6 +53,7 @@
 #include <linux/pci.h>
 #include <linux/netdevice.h>
 #include <linux/init.h>
+#include <linux/mii.h>
 
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
@@ -63,7 +65,7 @@
 #include "sis900.h"
 
 static char version[] __devinitdata =
-KERN_INFO "sis900.c: v1.07.11  4/10/2001\n";
+KERN_INFO "sis900.c: v1.08.00  6/11/2001\n";
 
 static int max_interrupt_work = 40;
 static int multicast_filter_limit = 128;
@@ -110,6 +112,7 @@ static struct mii_chip_info {
 	{ "AMD 79C901 HomePNA PHY",		0x0000, 0x6B90, HOME},
 	{ "ICS LAN PHY",			0x0015, 0xF440, LAN },
 	{ "NS 83851 PHY",			0x2000, 0x5C20, MIX },
+	{ "Realtek RTL8201 PHY",		0x0000, 0x8200, LAN },
 	{0,},
 };
 
@@ -158,6 +161,9 @@ MODULE_DESCRIPTION("SiS 900 PCI Fast Ethernet driver");
 MODULE_PARM(multicast_filter_limit, "i");
 MODULE_PARM(max_interrupt_work, "i");
 MODULE_PARM(debug, "i");
+MODULE_PARM_DESC(multicast_filter_limit, "SiS 900/7016 maximum number of filtered multicast addresses");
+MODULE_PARM_DESC(max_interrupt_work, "SiS 900/7016 maximum events handled per interrupt");
+MODULE_PARM_DESC(debug, "SiS 900/7016 debug level (2-4)");
 
 static int sis900_open(struct net_device *net_dev);
 static int sis900_mii_probe (struct net_device * net_dev);
@@ -375,13 +381,13 @@ static int __devinit sis900_probe (struct pci_dev *pci_dev, const struct pci_dev
 
 	if (ret == 0) {
 		ret = -ENODEV;
-		goto err_out_region;
+		goto err_out_unregister;
 	}
 
 	/* probe for mii transciver */
 	if (sis900_mii_probe(net_dev) == 0) {
 		ret = -ENODEV;
-		goto err_out_region;
+		goto err_out_unregister;
 	}
 
 	/* print some information about our NIC */
@@ -393,9 +399,10 @@ static int __devinit sis900_probe (struct pci_dev *pci_dev, const struct pci_dev
 
 	return 0;
 
+ err_out_unregister:
+ 	unregister_netdev(net_dev);
  err_out_cleardev:
  	pci_set_drvdata(pci_dev, NULL);
- err_out_region:
 	pci_release_regions(pci_dev);
  err_out:
 	kfree(net_dev);
@@ -996,7 +1003,7 @@ sis900_init_rx_ring(struct net_device *net_dev)
 static void sis630_set_eq(struct net_device *net_dev, u8 revision)
 {
 	struct sis900_private *sis_priv = net_dev->priv;
-	u16 reg14h, eq_value, max_value=0, min_value=0;
+	u16 reg14h, eq_value=0, max_value=0, min_value=0;
 	u8 host_bridge_rev;
 	int i, maxcount=10;
 	struct pci_dev *dev=NULL;
@@ -1243,6 +1250,7 @@ static void sis900_auto_negotiate(struct net_device *net_dev, int phy_addr)
 static void sis900_read_mode(struct net_device *net_dev, int *speed, int *duplex)
 {
 	struct sis900_private *sis_priv = net_dev->priv;
+	struct mii_phy *phy = sis_priv->mii;
 	int phy_addr = sis_priv->cur_phy;
 	u32 status;
 	u16 autoadv, autorec;
@@ -1258,18 +1266,25 @@ static void sis900_read_mode(struct net_device *net_dev, int *speed, int *duplex
 	autoadv = mdio_read(net_dev, phy_addr, MII_ANADV);
 	autorec = mdio_read(net_dev, phy_addr, MII_ANLPAR);
 	status = autoadv & autorec;
+	
+	*speed = HW_SPEED_10_MBPS;
+	*duplex = FDX_CAPABLE_HALF_SELECTED;
 
 	if (status & (MII_NWAY_TX | MII_NWAY_TX_FDX))
 		*speed = HW_SPEED_100_MBPS;
-	else
-		*speed = HW_SPEED_10_MBPS;
 	if (status & ( MII_NWAY_TX_FDX | MII_NWAY_T_FDX))
 		*duplex = FDX_CAPABLE_FULL_SELECTED;
-	else
-		*duplex = FDX_CAPABLE_HALF_SELECTED;
-
-	sis_priv->autong_complete = 1;
 	
+	sis_priv->autong_complete = 1;
+
+	/* Workaround for Realtek RTL8201 PHY issue */
+	if((phy->phy_id0 == 0x0000) && ((phy->phy_id1 & 0xFFF0) == 0x8200)){
+		if(mdio_read(net_dev, phy_addr, MII_CONTROL) & MII_CNTL_FDX)
+			*duplex = FDX_CAPABLE_FULL_SELECTED;
+		if(mdio_read(net_dev, phy_addr, 0x0019) & 0x01)
+			*speed = HW_SPEED_100_MBPS;
+	}
+
 	printk(KERN_INFO "%s: Media Link On %s %s-duplex \n",
 	       net_dev->name,
 	       *speed == HW_SPEED_100_MBPS ?
@@ -1688,19 +1703,24 @@ sis900_close(struct net_device *net_dev)
 static int mii_ioctl(struct net_device *net_dev, struct ifreq *rq, int cmd)
 {
 	struct sis900_private *sis_priv = net_dev->priv;
-	u16 *data = (u16 *)&rq->ifr_data;
+	struct mii_ioctl_data *data = (struct mii_ioctl_data *)&rq->ifr_data;
 
 	switch(cmd) {
-	case SIOCDEVPRIVATE:            	/* Get the address of the PHY in use. */
-		data[0] = sis_priv->mii->phy_addr;
+	case SIOCGMIIPHY:		/* Get address of MII PHY in use. */
+	case SIOCDEVPRIVATE:		/* for binary compat, remove in 2.5 */
+		data->phy_id = sis_priv->mii->phy_addr;
 		/* Fall Through */
-	case SIOCDEVPRIVATE+1:          	/* Read the specified MII register. */
-		data[3] = mdio_read(net_dev, data[0] & 0x1f, data[1] & 0x1f);
+
+	case SIOCGMIIREG:		/* Read MII PHY register. */
+	case SIOCDEVPRIVATE+1:		/* for binary compat, remove in 2.5 */
+		data->val_out = mdio_read(net_dev, data->phy_id & 0x1f, data->reg_num & 0x1f);
 		return 0;
-	case SIOCDEVPRIVATE+2:          	/* Write the specified MII register */
+
+	case SIOCSMIIREG:		/* Write MII PHY register. */
+	case SIOCDEVPRIVATE+2:		/* for binary compat, remove in 2.5 */
 		if (!capable(CAP_NET_ADMIN))
 			return -EPERM;
-		mdio_write(net_dev, data[0] & 0x1f, data[1] & 0x1f, data[2]);
+		mdio_write(net_dev, data->phy_id & 0x1f, data->reg_num & 0x1f, data->val_in);
 		return 0;
 	default:
 		return -EOPNOTSUPP;

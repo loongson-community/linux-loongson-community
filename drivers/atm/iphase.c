@@ -63,7 +63,6 @@
 #include <asm/uaccess.h>  
 #include <asm/string.h>  
 #include <asm/byteorder.h>  
-#include <math.h>  
 #include <linux/vmalloc.h>  
 #include "iphase.h"		  
 #include "suni.h"		  
@@ -95,6 +94,10 @@ MODULE_PARM(IA_TX_BUF_SZ, "i");
 MODULE_PARM(IA_RX_BUF, "i");
 MODULE_PARM(IA_RX_BUF_SZ, "i");
 MODULE_PARM(IADebugFlag, "i");
+#endif
+
+#if BITS_PER_LONG != 32
+#  error FIXME: this driver only works on 32-bit platforms
 #endif
 
 /**************************** IA_LIB **********************************/

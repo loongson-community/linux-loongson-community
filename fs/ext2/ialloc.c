@@ -194,15 +194,21 @@ void ext2_free_inode (struct inode * inode)
 	 * Note: we must free any quota before locking the superblock,
 	 * as writing the quota to disk may need the lock as well.
 	 */
+	DQUOT_INIT(inode);
 	DQUOT_FREE_INODE(sb, inode);
 	DQUOT_DROP(inode);
 
 	lock_super (sb);
 	es = sb->u.ext2_sb.s_es;
-	if (ino < EXT2_FIRST_INO(sb) || 
+	is_directory = S_ISDIR(inode->i_mode);
+
+	/* Do this BEFORE marking the inode not in use or returning an error */
+	clear_inode (inode);
+
+	if (ino < EXT2_FIRST_INO(sb) ||
 	    ino > le32_to_cpu(es->s_inodes_count)) {
-		ext2_error (sb, "free_inode",
-			    "reserved inode or nonexistent inode");
+		ext2_error (sb, "ext2_free_inode",
+			    "reserved or nonexistent inode %lu", ino);
 		goto error_return;
 	}
 	block_group = (ino - 1) / EXT2_INODES_PER_GROUP(sb);
@@ -210,13 +216,8 @@ void ext2_free_inode (struct inode * inode)
 	bitmap_nr = load_inode_bitmap (sb, block_group);
 	if (bitmap_nr < 0)
 		goto error_return;
-	
+
 	bh = sb->u.ext2_sb.s_inode_bitmap[bitmap_nr];
-
-	is_directory = S_ISDIR(inode->i_mode);
-
-	/* Do this BEFORE marking the inode not in use */
-	clear_inode (inode);
 
 	/* Ok, now we can actually update the inode bitmaps.. */
 	if (!ext2_clear_bit (bit, bh->b_data))
@@ -417,7 +418,6 @@ repeat:
 		cpu_to_le32(le32_to_cpu(es->s_free_inodes_count) - 1);
 	mark_buffer_dirty(sb->u.ext2_sb.s_sbh);
 	sb->s_dirt = 1;
-	inode->i_mode = mode;
 	inode->i_uid = current->fsuid;
 	if (test_opt (sb, GRPID))
 		inode->i_gid = dir->i_gid;
@@ -427,6 +427,7 @@ repeat:
 			mode |= S_ISGID;
 	} else
 		inode->i_gid = current->fsgid;
+	inode->i_mode = mode;
 
 	inode->i_ino = j;
 	inode->i_blksize = PAGE_SIZE;	/* This is the optimal IO size (for stat), not the fs block size */

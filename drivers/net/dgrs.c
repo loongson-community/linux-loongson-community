@@ -538,7 +538,7 @@ again:
 				break; /* For safety */
 			if ( (p-putp) >= len)
 			{
-				printk("%s: cbp = %x\n", devN->name, H2S(cbp));
+				printk("%s: cbp = %lx\n", devN->name, (long) H2S(cbp));
 				proc_reset(dev0, 1);	/* Freeze IDT */
 				break; /* For Safety */
 			}
@@ -607,7 +607,7 @@ again:
 				break; /* For safety */
 			if ( (p-putp) >= len)
 			{
-				printk("%s: cbp = %x\n", devN->name, H2S(cbp));
+				printk("%s: cbp = %lx\n", devN->name, (long) H2S(cbp));
 				proc_reset(dev0, 1);	/* Freeze IDT */
 				break; /* For Safety */
 			}
@@ -642,7 +642,7 @@ again:
 				break; /* For safety */
 			if ( (p-putp) >= len)
 			{
-				printk("%s: cbp = %x\n", devN->name, H2S(cbp));
+				printk("%s: cbp = %lx\n", devN->name, (long) H2S(cbp));
 				proc_reset(dev0, 1);	/* Freeze IDT */
 				break; /* For Safety */
 			}
@@ -1441,6 +1441,9 @@ MODULE_PARM(ipaddr, "1-4i");
 MODULE_PARM(iptrap, "1-4i");
 MODULE_PARM(ipxnet, "i");
 MODULE_PARM(nicmode, "i");
+MODULE_PARM_DESC(debug, "Digi RightSwitch enable debugging (0-1)");
+MODULE_PARM_DESC(dma, "Digi RightSwitch enable BM DMA (0-1)");
+MODULE_PARM_DESC(nicmode, "Digi RightSwitch operating mode (1: switch, 2: multi-NIC)");
 
 static int __init dgrs_init_module (void)
 {

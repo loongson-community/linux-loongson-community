@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.prom.c 1.20 05/23/01 00:38:42 cort
+ * BK Id: SCCS/s.prom.c 1.26 06/28/01 15:50:16 paulus
  */
 /*
  * Procedures for interfacing to the Open Firmware PROM on
@@ -42,9 +42,11 @@
 /*
  * Properties whose value is longer than this get excluded from our
  * copy of the device tree.  This way we don't waste space storing
- * things like "driver,AAPL,MacOS,PowerPC" properties.
+ * things like "driver,AAPL,MacOS,PowerPC" properties.  But this value
+ * does need to be big enough to ensure that we don't lose things
+ * like the interrupt-map property on a PCI-PCI bridge.
  */
-#define MAX_PROPERTY_LENGTH	1024
+#define MAX_PROPERTY_LENGTH	4096
 
 struct prom_args {
 	const char *service;
@@ -172,7 +174,6 @@ static void prom_welcome(boot_infos_t* bi, unsigned long phys);
 #endif
 
 extern void enter_rtas(void *);
-extern unsigned long reloc_offset(void);
 void phys_call_rtas(int, int, int, ...);
 
 extern char cmd_line[512];	/* XXX */
@@ -189,6 +190,14 @@ unsigned long dev_tree_size;
 #define BOOT_INFO_IS_COMPATIBLE(bi)		((bi)->compatible_version <= BOOT_INFO_VERSION)
 #define BOOT_INFO_IS_V2_COMPATIBLE(bi)	((bi)->version >= 2)
 #define BOOT_INFO_IS_V4_COMPATIBLE(bi)	((bi)->version >= 4)
+
+/*
+ * Note that prom_init() and anything called from prom_init() must
+ * use the RELOC/PTRRELOC macros to access any static data in
+ * memory, since the kernel may be running at an address that is
+ * different from the address that it was linked at.
+ * (Note that strings count as static variables.)
+ */
 
 __init
 static void
@@ -478,13 +487,14 @@ static inline void make_pte(unsigned long htab, unsigned int hsize,
 			    unsigned int va, unsigned int pa, int mode)
 {
 	unsigned int *pteg;
-	unsigned int hash, i;
+	unsigned int hash, i, vsid;
 
-	hash = ((va >> 5) ^ (va >> 21)) & 0x7fff80;
+	vsid = ((va >> 28) * 0x111) << 12;
+	hash = ((va ^ vsid) >> 5) & 0x7fff80;
 	pteg = (unsigned int *)(htab + (hash & (hsize - 1)));
 	for (i = 0; i < 8; ++i, pteg += 4) {
 		if ((pteg[1] & 1) == 0) {
-			pteg[1] = ((va >> 16) & 0xff80) | 1;
+			pteg[1] = vsid | ((va >> 16) & 0xf80) | 1;
 			pteg[3] = pa | mode;
 			break;
 		}
@@ -670,15 +680,15 @@ prom_init(int r3, int r4, prom_entry pp)
 	prom_alloc_htab();
 #endif
 
-#ifdef CONFIG_SMP
-	prom_hold_cpus(mem);
-#endif
-
 	mem = check_display(mem);
 
 	prom_print(RELOC("copying OF device tree..."));
 	mem = copy_device_tree(mem, mem + (1<<20));
 	prom_print(RELOC("done\n"));
+
+#ifdef CONFIG_SMP
+	prom_hold_cpus(mem);
+#endif
 
 	RELOC(klimit) = (char *) (mem - offset);
 
@@ -1190,7 +1200,7 @@ finish_device_tree(void)
 	if ((_machine == _MACH_chrp) || (boot_infos == 0 && pmac_newworld))
 		use_of_interrupt_tree = 1;
 
-	mem = finish_node(allnodes, mem, NULL, 0, 0);
+	mem = finish_node(allnodes, mem, NULL, 1, 1);
 	dev_tree_size = mem - (unsigned long) allnodes;
 	klimit = (char *) mem;
 }
@@ -1225,10 +1235,7 @@ finish_node(struct device_node *np, unsigned long mem_start,
 
 	np->name = get_property(np, "name", 0);
 	np->type = get_property(np, "device_type", 0);
-#if 0
-	np->n_addr_cells = naddrc;
-	np->n_size_cells = nsizec;
-#endif
+
 	/* get the device addresses and interrupts */
 	if (ifunc != NULL) {
 		mem_start = ifunc(np, mem_start, naddrc, nsizec);
@@ -1244,16 +1251,6 @@ finish_node(struct device_node *np, unsigned long mem_start,
 	ip = (int *) get_property(np, "#size-cells", 0);
 	if (ip != NULL)
 		nsizec = *ip;
-#if 0
-	if (np->parent == NULL) {
-		/*
-		 * Set the n_addr/size_cells on the root to its
-		 * own values, rather than 0.
-		 */
-		np->n_addr_cells = naddrc;
-		np->n_size_cells = nsizec;
-	}
-#endif	
 
 	/* the f50 sets the name to 'display' and 'compatible' to what we
 	 * expect for the name -- Cort
@@ -1479,7 +1476,8 @@ prom_n_addr_cells(struct device_node* np)
 		if (ip != NULL)
 			return *ip;
 	} while(np->parent);
-	return 0;
+	/* No #address-cells property for the root node, default to 1 */
+	return 1;
 }
 
 int
@@ -1493,7 +1491,8 @@ prom_n_size_cells(struct device_node* np)
 		if (ip != NULL)
 			return *ip;
 	} while(np->parent);
-	return 0;
+	/* No #size-cells property for the root node, default to 1 */
+	return 1;
 }
 
 __init
@@ -1980,7 +1979,7 @@ get_property(struct device_node *np, const char *name, int *lenp)
 	struct property *pp;
 
 	for (pp = np->properties; pp != 0; pp = pp->next) {
-		if (name && strcmp(pp->name, name) == 0) {
+		if (pp->name != NULL && strcmp(pp->name, name) == 0) {
 			if (lenp != 0)
 				*lenp = pp->length;
 			return pp->value;

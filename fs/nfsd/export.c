@@ -213,7 +213,8 @@ exp_export(struct nfsctl_export *nxp)
 
 	err = -EINVAL;
 	if (!(inode->i_sb->s_type->fs_flags & FS_REQUIRES_DEV) ||
-	    inode->i_sb->s_op->read_inode == NULL) {
+	    (inode->i_sb->s_op->read_inode == NULL
+	     && inode->i_sb->s_op->fh_to_dentry == NULL)) {
 		dprintk("exp_export: export of invalid fs type.\n");
 		goto finish;
 	}
@@ -427,7 +428,7 @@ exp_rootfh(struct svc_client *clp, kdev_t dev, ino_t ino,
 	 * fh must be initialized before calling fh_compose
 	 */
 	fh_init(&fh, maxsize);
-	if (fh_compose(&fh, exp, dget(nd.dentry)))
+	if (fh_compose(&fh, exp, dget(nd.dentry), NULL))
 		err = -EINVAL;
 	else
 		err = 0;

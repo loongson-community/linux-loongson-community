@@ -8,6 +8,10 @@
  * Copyright (C) 1994-1996  Linus Torvalds & authors
  */
 
+/*
+ *  This file contains the MIPS architecture specific IDE code.
+ */
+
 #ifndef __ASM_IDE_H
 #define __ASM_IDE_H
 

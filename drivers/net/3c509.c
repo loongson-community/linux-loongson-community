@@ -192,6 +192,9 @@ static struct isapnp_device_id el3_isapnp_adapters[] __initdata = {
 		ISAPNP_VENDOR('T', 'C', 'M'), ISAPNP_FUNCTION(0x5098),
 		(long) "3Com Etherlink III (TPC)" },
 	{	ISAPNP_ANY_ID, ISAPNP_ANY_ID,
+		ISAPNP_VENDOR('P', 'N', 'P'), ISAPNP_FUNCTION(0x80f7),
+		(long) "3Com Etherlink III compatible" },
+	{	ISAPNP_ANY_ID, ISAPNP_ANY_ID,
 		ISAPNP_VENDOR('P', 'N', 'P'), ISAPNP_FUNCTION(0x80f8),
 		(long) "3Com Etherlink III compatible" },
 	{ }	/* terminate list */
@@ -1007,9 +1010,14 @@ MODULE_PARM(debug,"i");
 MODULE_PARM(irq,"1-8i");
 MODULE_PARM(xcvr,"1-8i");
 MODULE_PARM(max_interrupt_work, "i");
+MODULE_PARM_DESC(debug, "EtherLink III debug level (0-6)");
+MODULE_PARM_DESC(irq, "EtherLink III IRQ number(s) (assigned)");
+MODULE_PARM_DESC(xcvr,"EtherLink III tranceiver(s) (0=internal, 1=external)");
+MODULE_PARM_DESC(max_interrupt_work, "EtherLink III maximum events handled per interrupt");
 #ifdef CONFIG_ISAPNP
 MODULE_PARM(nopnp, "i");
-#endif
+MODULE_PARM_DESC(nopnp, "EtherLink III disable ISA PnP support (0-1)");
+#endif	/* CONFIG_ISAPNP */
 
 int
 init_module(void)

@@ -6,7 +6,7 @@
  * CONTACTS
  *	E-mail regarding any portion of the Linux UDF file system should be
  *	directed to the development team mailing list (run by majordomo):
- *		linux_udf@hootie.lvld.hp.com
+ *		linux_udf@hpesjro.fc.hp.com
  *
  * COPYRIGHT
  *	This file is distributed under the terms of the GNU General Public
@@ -30,14 +30,16 @@ typedef struct
 
 struct udf_inode_info
 {
-	long i_uatime;
 	long i_umtime;
 	long i_uctime;
+	long i_crtime;
+	long i_ucrtime;
 	/* Physical address of inode */
 	lb_addr i_location;
 	__u64 i_unique;
 	__u32 i_lenEAttr;
 	__u32 i_lenAlloc;
+	__u64 i_lenExtents;
 	__u32 i_next_alloc_block;
 	__u32 i_next_alloc_goal;
 	unsigned i_alloc_type : 3;
@@ -54,5 +56,6 @@ struct udf_inode_info
 #define UDF_GETEASIZE   _IOR('l', 0x40, int)
 #define UDF_GETEABLOCK  _IOR('l', 0x41, void *)
 #define UDF_GETVOLIDENT _IOR('l', 0x42, void *)
+#define UDF_RELOCATE_BLOCKS _IOWR('l', 0x43, long)
 
 #endif /* !defined(_LINUX_UDF_FS_I_H) */

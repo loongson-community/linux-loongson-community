@@ -2356,7 +2356,6 @@ void scsi_unregister_module(int module_type, void *ptr)
 		/* The rest of these are not yet implemented. */
 	case MODULE_SCSI_CONST:
 	case MODULE_SCSI_IOCTL:
-		break;
 	default:
 		break;
 	}

@@ -171,6 +171,7 @@
 #include <linux/etherdevice.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
+#include <linux/mii.h>
 
 
 typedef u32 (TLanIntVectorFunc)( struct net_device *, u16 );
@@ -194,6 +195,11 @@ MODULE_PARM(duplex, "1-" __MODULE_STRING(MAX_TLAN_BOARDS) "i");
 MODULE_PARM(speed, "1-" __MODULE_STRING(MAX_TLAN_BOARDS) "i");
 MODULE_PARM(debug, "i");
 MODULE_PARM(bbuf, "i");
+MODULE_PARM_DESC(aui, "ThunderLAN use AUI port(s) (0-1)");
+MODULE_PARM_DESC(duplex, "ThunderLAN duplex setting(s) (0-default, 1-half, 2-full)");
+MODULE_PARM_DESC(speed, "ThunderLAN port speen setting(s) (0,10,100)");
+MODULE_PARM_DESC(debug, "ThunderLAN debug mask");
+MODULE_PARM_DESC(bbuf, "ThunderLAN use big buffer (0-1)");
 EXPORT_NO_SYMBOLS;
 
 /* Define this to enable Link beat monitoring */
@@ -240,21 +246,21 @@ static struct board {
 };
 
 static struct pci_device_id tlan_pci_tbl[] __devinitdata = {
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETELLIGENT_10,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETEL10,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETELLIGENT_10_100,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETEL100,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 1 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETFLEX_3P_INTEGRATED,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETFLEX3I,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 2 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETFLEX_3P,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_THUNDER,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 3 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETFLEX_3P_BNC,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETFLEX3B,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 4 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETELLIGENT_10_100_PROLIANT,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETEL100PI,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 5 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_NETELLIGENT_10_100_DUAL,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETEL100D,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 6 },
-	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_DESKPRO_4000_5233MMX,
+	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_NETEL100I,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 7 },
 	{ PCI_VENDOR_ID_OLICOM, PCI_DEVICE_ID_OLICOM_OC2183,
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 8 },
@@ -906,24 +912,29 @@ static int TLan_Open( struct net_device *dev )
 static int TLan_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	TLanPrivateInfo *priv = dev->priv;
-	u16 *data = (u16 *)&rq->ifr_data;
+	struct mii_ioctl_data *data = (struct mii_ioctl_data *)&rq->ifr_data;
 	u32 phy   = priv->phy[priv->phyNum];
 	
 	if (!priv->phyOnline)
 		return -EAGAIN;
 
 	switch(cmd) {
-		case SIOCDEVPRIVATE:
-			data[0] = phy;
+	case SIOCGMIIPHY:		/* Get address of MII PHY in use. */
+	case SIOCDEVPRIVATE:		/* for binary compat, remove in 2.5 */
+			data->phy_id = phy;
 
-		case SIOCDEVPRIVATE+1: /* Read MII register */
-			TLan_MiiReadReg(dev, data[0], data[1], &data[3]);
+
+	case SIOCGMIIREG:		/* Read MII PHY register. */
+	case SIOCDEVPRIVATE+1:		/* for binary compat, remove in 2.5 */
+			TLan_MiiReadReg(dev, data->phy_id & 0x1f, data->reg_num & 0x1f, &data->val_out);
 			return 0;
 		
-		case SIOCDEVPRIVATE+2: /* Write MII register */
+
+	case SIOCSMIIREG:		/* Write MII PHY register. */
+	case SIOCDEVPRIVATE+2:		/* for binary compat, remove in 2.5 */
 			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
-			TLan_MiiWriteReg(dev, data[0], data[1], data[2]);
+			TLan_MiiWriteReg(dev, data->phy_id & 0x1f, data->reg_num & 0x1f, data->val_in);
 			return 0;
 		default:
 			return -EOPNOTSUPP;

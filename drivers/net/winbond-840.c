@@ -1,4 +1,4 @@
-/* winbond-840.c: A Linux PCI network adapter skeleton device driver. */
+/* winbond-840.c: A Linux PCI network adapter device driver. */
 /*
 	Written 1998-2001 by Donald Becker.
 
@@ -37,6 +37,11 @@
 	* according to the documentation, the chip supports big endian
 		descriptors. Remove cpu_to_le32, enable BE descriptors.
 */
+
+#define DRV_NAME	"winbond-840"
+#define DRV_VERSION	"1.01"
+#define DRV_RELDATE	"5/15/2000"
+
 
 /* Automatically extracted configuration info:
 probe-func: winbond840_probe
@@ -122,13 +127,16 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 #include <linux/skbuff.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/ethtool.h>
+#include <linux/mii.h>
+#include <asm/uaccess.h>
 #include <asm/processor.h>		/* Processor type for cache alignment. */
 #include <asm/bitops.h>
 #include <asm/io.h>
 
 /* These identify the driver base version and may not be removed. */
 static char version[] __devinitdata =
-KERN_INFO "winbond-840.c:v1.01 (2.4 port) 5/15/2000  Donald Becker <becker@scyld.com>\n"
+KERN_INFO DRV_NAME ".c:v" DRV_VERSION " (2.4 port) " DRV_RELDATE "  Donald Becker <becker@scyld.com>\n"
 KERN_INFO "  http://www.scyld.com/network/drivers.html\n";
 
 MODULE_AUTHOR("Donald Becker <becker@scyld.com>");
@@ -139,6 +147,12 @@ MODULE_PARM(rx_copybreak, "i");
 MODULE_PARM(multicast_filter_limit, "i");
 MODULE_PARM(options, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
+MODULE_PARM_DESC(max_interrupt_work, "winbond-840 maximum events handled per interrupt");
+MODULE_PARM_DESC(debug, "winbond-840 debug level (0-6)");
+MODULE_PARM_DESC(rx_copybreak, "winbond-840 copy breakpoint for copy-only-tiny-frames");
+MODULE_PARM_DESC(multicast_filter_limit, "winbond-840 maximum number of filtered multicast addresses");
+MODULE_PARM_DESC(options, "winbond-840: Bits 0-3: media type, bit 17: full duplex");
+MODULE_PARM_DESC(full_duplex, "winbond-840 full duplex setting(s) (1)");
 
 /*
 				Theory of Operation
@@ -366,7 +380,7 @@ static int  netdev_rx(struct net_device *dev);
 static inline unsigned ether_crc(int length, unsigned char *data);
 static void set_rx_mode(struct net_device *dev);
 static struct net_device_stats *get_stats(struct net_device *dev);
-static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
+static int netdev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
 static int  netdev_close(struct net_device *dev);
 
 
@@ -399,7 +413,7 @@ static int __devinit w840_probe1 (struct pci_dev *pdev,
 		return -ENOMEM;
 	SET_MODULE_OWNER(dev);
 
-	if (pci_request_regions(pdev, "winbond-840"))
+	if (pci_request_regions(pdev, DRV_NAME))
 		goto err_out_netdev;
 
 #ifdef USE_IO_OPS
@@ -453,7 +467,7 @@ static int __devinit w840_probe1 (struct pci_dev *pdev,
 	dev->stop = &netdev_close;
 	dev->get_stats = &get_stats;
 	dev->set_multicast_list = &set_rx_mode;
-	dev->do_ioctl = &mii_ioctl;
+	dev->do_ioctl = &netdev_ioctl;
 	dev->tx_timeout = &tx_timeout;
 	dev->watchdog_timeo = TX_TIMEOUT;
 
@@ -826,7 +840,7 @@ static void init_registers(struct net_device *dev)
 		C000	32  longwords		0400 4 longwords
 	   Wait the specified 50 PCI cycles after a reset by initializing
 	   Tx and Rx queues and the address filter list. */
-#if defined(__powerpc__)		/* Big-endian */
+#if defined(__powerpc__) || defined(__sparc__)		/* Big-endian */
 	writel(0x00100080 | 0xE010, ioaddr + PCIBusCfg);
 #elif defined(__alpha__)
 	writel(0xE010, ioaddr + PCIBusCfg);
@@ -871,13 +885,12 @@ static void tx_timeout(struct net_device *dev)
 	printk(KERN_WARNING "%s: Transmit timed out, status %8.8x,"
 		   " resetting...\n", dev->name, (int)readl(ioaddr + IntrStatus));
 
-#ifndef __alpha__
 	{
 		int i;
-		printk(KERN_DEBUG "  Rx ring %8.8x: ", (int)np->rx_ring);
+		printk(KERN_DEBUG "  Rx ring %p: ", np->rx_ring);
 		for (i = 0; i < RX_RING_SIZE; i++)
 			printk(" %8.8x", (unsigned int)np->rx_ring[i].status);
-		printk("\n"KERN_DEBUG"  Tx ring %8.8x: ", (int)np->tx_ring);
+		printk("\n"KERN_DEBUG"  Tx ring %p: ", np->tx_ring);
 		for (i = 0; i < TX_RING_SIZE; i++)
 			printk(" %8.8x", np->tx_ring[i].status);
 		printk("\n");
@@ -886,7 +899,6 @@ static void tx_timeout(struct net_device *dev)
 				np->cur_tx, np->dirty_tx, np->tx_full,np->tx_q_bytes);
 	printk(KERN_DEBUG "Tx Descriptor addr %xh.\n",readl(ioaddr+0x4C));
 
-#endif
 	spin_lock_irq(&np->lock);
 	/*
 	 * Under high load dirty_tx and the internal tx descriptor pointer
@@ -1312,21 +1324,52 @@ static void set_rx_mode(struct net_device *dev)
 	writel(np->csr6, ioaddr + NetworkConfig);
 }
 
-static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
 {
-	u16 *data = (u16 *)&rq->ifr_data;
+	struct netdev_private *np = dev->priv;
+	u32 ethcmd;
+		
+	if (copy_from_user(&ethcmd, useraddr, sizeof(ethcmd)))
+		return -EFAULT;
+
+        switch (ethcmd) {
+        case ETHTOOL_GDRVINFO: {
+		struct ethtool_drvinfo info = {ETHTOOL_GDRVINFO};
+		strcpy(info.driver, DRV_NAME);
+		strcpy(info.version, DRV_VERSION);
+		strcpy(info.bus_info, np->pci_dev->slot_name);
+		if (copy_to_user(useraddr, &info, sizeof(info)))
+			return -EFAULT;
+		return 0;
+	}
+
+        }
+	
+	return -EOPNOTSUPP;
+}
+
+static int netdev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	struct mii_ioctl_data *data = (struct mii_ioctl_data *)&rq->ifr_data;
 
 	switch(cmd) {
-	case SIOCDEVPRIVATE:		/* Get the address of the PHY in use. */
-		data[0] = ((struct netdev_private *)dev->priv)->phys[0] & 0x1f;
+	case SIOCETHTOOL:
+		return netdev_ethtool_ioctl(dev, (void *) rq->ifr_data);
+	case SIOCGMIIPHY:		/* Get address of MII PHY in use. */
+	case SIOCDEVPRIVATE:		/* for binary compat, remove in 2.5 */
+		data->phy_id = ((struct netdev_private *)dev->priv)->phys[0] & 0x1f;
 		/* Fall Through */
-	case SIOCDEVPRIVATE+1:		/* Read the specified MII register. */
-		data[3] = mdio_read(dev, data[0] & 0x1f, data[1] & 0x1f);
+
+	case SIOCGMIIREG:		/* Read MII PHY register. */
+	case SIOCDEVPRIVATE+1:		/* for binary compat, remove in 2.5 */
+		data->val_out = mdio_read(dev, data->phy_id & 0x1f, data->reg_num & 0x1f);
 		return 0;
-	case SIOCDEVPRIVATE+2:		/* Write the specified MII register */
+
+	case SIOCSMIIREG:		/* Write MII PHY register. */
+	case SIOCDEVPRIVATE+2:		/* for binary compat, remove in 2.5 */
 		if (!capable(CAP_NET_ADMIN))
 			return -EPERM;
-		mdio_write(dev, data[0] & 0x1f, data[1] & 0x1f, data[2]);
+		mdio_write(dev, data->phy_id & 0x1f, data->reg_num & 0x1f, data->val_in);
 		return 0;
 	default:
 		return -EOPNOTSUPP;
@@ -1337,7 +1380,6 @@ static int netdev_close(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
 	struct netdev_private *np = dev->priv;
-	int i;
 
 	netif_stop_queue(dev);
 
@@ -1360,6 +1402,8 @@ static int netdev_close(struct net_device *dev)
 
 #ifdef __i386__
 	if (debug > 2) {
+		int i;
+
 		printk("\n"KERN_DEBUG"  Tx ring at %8.8x:\n",
 			   (int)np->tx_ring);
 		for (i = 0; i < TX_RING_SIZE; i++)
@@ -1403,7 +1447,7 @@ static void __devexit w840_remove1 (struct pci_dev *pdev)
 }
 
 static struct pci_driver w840_driver = {
-	name:		"winbond-840",
+	name:		DRV_NAME,
 	id_table:	w840_pci_tbl,
 	probe:		w840_probe1,
 	remove:		w840_remove1,

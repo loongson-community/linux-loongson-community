@@ -54,59 +54,50 @@ NESTED(handle_sys, PT_SIZE, sp)
 	bgez	t0, stackargs
 
 stack_done:
-	ld	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-	andi	t0, PT_TRACESYS
-	bnez	t0, trace_a_syscall
+		ld	t0, TASK_PTRACE($28)	# syscall tracing enabled?
+		andi	t0, PT_TRACESYS
+		bnez	t0, trace_a_syscall
 
-	jalr	t2			# Do The Real Thing (TM)
+		jalr	t2			# Do The Real Thing (TM)
 
-	li	t0, -EMAXERRNO - 1	# error?
-	sltu	t0, t0, v0
-	sd	t0, PT_R7(sp)		# set error flag
-	beqz	t0, 1f
+		li	t0, -EMAXERRNO - 1	# error?
+		sltu	t0, t0, v0
+		sd	t0, PT_R7(sp)		# set error flag
+		beqz	t0, 1f
 
-	negu	v0			# error
-	sd	v0, PT_R0(sp)		# set flag for syscall restarting
-1:	sd	v0, PT_R2(sp)		# result
-	
+		negu	v0			# error
+		sd	v0, PT_R0(sp)		# flag for syscall restarting
+1:		sd	v0, PT_R2(sp)		# result
+
 FEXPORT(o32_ret_from_sys_call)
-	la	t1, irq_stat		# softirq_active
-#ifdef CONFIG_SMP
-	lwu	t0, TASK_PROCESSOR($28)
-	dsll	t0, t0, 5
-	daddu	t1, t0
-#endif
-	lw	t0, 0(t1)		# softirq_active
-	lw	t1, 4(t1)		# softirq_mask.  unused delay slot
-	and	t0, t1
-	bnez	t0, o32_handle_softirq
+		mfc0	t0, CP0_STATUS	# need_resched and signals atomic test
+		ori	t0, t0, 1
+		xori	t0, t0, 1
+		mtc0	t0, CP0_STATUS
 
-9:	ld	t0,PT_STATUS(sp)	# returning to kernel mode?
-	andi	t1, t0, 0x10
-	ld	t2, TASK_NEED_RESCHED($28)
-	beqz	t1, o32_return		# -> yes
-	bnez	t2, o32_reschedule
-	lw	v0, TASK_SIGPENDING($28)
-	move	a0, zero
-	beqz	v0, o32_return
-	move	a1, sp
-	SAVE_STATIC
-	jal	do_signal
+		ld	t2, TASK_NEED_RESCHED($28)
+		bnez	t2, o32_reschedule
+		lw	v0, TASK_SIGPENDING($28)
+		bnez	v0, signal_return
 
-o32_return:
-	RESTORE_SOME
-	RESTORE_SP
-	.set	mips3
-	eret
-	.set	mips0
+restore_all:	RESTORE_SOME
+		RESTORE_SP
+		.set	mips3
+		eret
+		.set	mips0
 
-o32_handle_softirq:
-	jal	do_softirq
-	b	9b
+signal_return:	mfc0	t0, CP0_STATUS	# need_resched and signals atomic test
+		ori	t0, t0, 1
+		mtc0	t0, CP0_STATUS
+		move	a0, zero
+		move	a1, sp
+		SAVE_STATIC
+		jal	do_signal
+
 o32_reschedule:
-	SAVE_STATIC
-	jal	schedule
-	b	o32_ret_from_sys_call
+		SAVE_STATIC
+		jal	schedule
+		b	o32_ret_from_sys_call
 
 /* ------------------------------------------------------------------------ */
 

@@ -1,4 +1,4 @@
-/* $Id: pci_schizo.c,v 1.16 2001/05/15 08:54:30 davem Exp $
+/* $Id: pci_schizo.c,v 1.19 2001/06/20 21:31:00 davem Exp $
  * pci_schizo.c: SCHIZO specific PCI controller support.
  *
  * Copyright (C) 2001 David S. Miller (davem@redhat.com)
@@ -339,23 +339,28 @@ static int __init schizo_ino_to_pil(struct pci_dev *pdev, unsigned int ino)
 	if (ret == 0 && pdev == NULL) {
 		ret = 1;
 	} else if (ret == 0) {
-		switch ((pdev->class >> 16) & 0x0f) {
+		switch ((pdev->class >> 16) & 0xff) {
 		case PCI_BASE_CLASS_STORAGE:
 			ret = 4;
+			break;
 
 		case PCI_BASE_CLASS_NETWORK:
 			ret = 6;
+			break;
 
 		case PCI_BASE_CLASS_DISPLAY:
 			ret = 9;
+			break;
 
 		case PCI_BASE_CLASS_MULTIMEDIA:
 		case PCI_BASE_CLASS_MEMORY:
 		case PCI_BASE_CLASS_BRIDGE:
 			ret = 10;
+			break;
 
 		default:
 			ret = 1;
+			break;
 		};
 	}
 
@@ -1191,17 +1196,38 @@ static void __init schizo_register_error_handlers(struct pci_controller_info *p)
 	/* Make all Safari error conditions fatal except unmapped errors
 	 * which we make generate interrupts.
 	 */
+#if 1
+	/* XXX Something wrong with some Excalibur systems
+	 * XXX Sun is shipping.  The behavior on a 2-cpu
+	 * XXX machine is that both CPU1 parity error bits
+	 * XXX are set and are immediately set again when
+	 * XXX their error status bits are cleared.  Just
+	 * XXX ignore them for now.  -DaveM
+	 */
 	schizo_write(base + SCHIZO_SAFARI_ERRCTRL,
 		     (SCHIZO_SAFERRCTRL_EN |
 		      (SAFARI_ERROR_BADCMD | SAFARI_ERROR_SSMDIS |
 		       SAFARI_ERROR_BADMA | SAFARI_ERROR_BADMB |
-		       SAFARI_ERROR_BADMC | SAFARI_ERROR_CPU1PS |
-		       SAFARI_ERROR_CPU1PB | SAFARI_ERROR_CPU0PS |
-		       SAFARI_ERROR_CPU0PB | SAFARI_ERROR_CIQTO |
+		       SAFARI_ERROR_BADMC |
+		       SAFARI_ERROR_CIQTO |
 		       SAFARI_ERROR_LPQTO | SAFARI_ERROR_SFPQTO |
 		       SAFARI_ERROR_UFPQTO | SAFARI_ERROR_APERR |
 		       SAFARI_ERROR_BUSERR | SAFARI_ERROR_TIMEOUT |
 		       SAFARI_ERROR_ILL)));
+#else
+	schizo_write(base + SCHIZO_SAFARI_ERRCTRL,
+		     (SCHIZO_SAFERRCTRL_EN |
+		      (SAFARI_ERROR_BADCMD | SAFARI_ERROR_SSMDIS |
+		       SAFARI_ERROR_BADMA | SAFARI_ERROR_BADMB |
+		       SAFARI_ERROR_BADMC |
+		       SAFARI_ERROR_CPU1PS | SAFARI_ERROR_CPU1PB |
+		       SAFARI_ERROR_CPU0PS | SAFARI_ERROR_CPU0PB |
+		       SAFARI_ERROR_CIQTO |
+		       SAFARI_ERROR_LPQTO | SAFARI_ERROR_SFPQTO |
+		       SAFARI_ERROR_UFPQTO | SAFARI_ERROR_APERR |
+		       SAFARI_ERROR_BUSERR | SAFARI_ERROR_TIMEOUT |
+		       SAFARI_ERROR_ILL)));
+#endif
 
 	schizo_write(base + SCHIZO_SAFARI_IRQCTRL,
 		     (SCHIZO_SAFIRQCTRL_EN | (SAFARI_ERROR_UNMAP)));
@@ -1487,6 +1513,8 @@ static void __init pbm_register_toplevel_resources(struct pci_controller_info *p
 
 	request_resource(&ioport_resource, &pbm->io_space);
 	request_resource(&iomem_resource, &pbm->mem_space);
+	pci_register_legacy_regions(&pbm->io_space,
+				    &pbm->mem_space);
 }
 
 #define SCHIZO_STRBUF_CONTROL_A		(SCHIZO_PBM_A_REGS_OFF + 0x02800UL)

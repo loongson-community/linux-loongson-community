@@ -7,7 +7,7 @@
  * CONTACTS
  *	E-mail regarding any portion of the Linux UDF file system should be
  *	directed to the development team mailing list (run by majordomo):
- *		linux_udf@hootie.lvld.hp.com
+ *		linux_udf@hpesjro.fc.hp.com
  *
  * COPYRIGHT
  *	This file is distributed under the terms of the GNU General Public
@@ -79,6 +79,7 @@ struct inode * udf_new_inode (const struct inode *dir, int mode, int * err)
 
 	sb = dir->i_sb;
 	inode = new_inode(sb);
+
 	if (!inode)
 	{
 		*err = -ENOMEM;
@@ -114,7 +115,8 @@ struct inode * udf_new_inode (const struct inode *dir, int mode, int * err)
 	}
 	inode->i_mode = mode;
 	inode->i_uid = current->fsuid;
-	if (dir->i_mode & S_ISGID) {
+	if (dir->i_mode & S_ISGID)
+	{
 		inode->i_gid = dir->i_gid;
 		if (S_ISDIR(mode))
 			mode |= S_ISGID;
@@ -142,8 +144,10 @@ struct inode * udf_new_inode (const struct inode *dir, int mode, int * err)
 		UDF_I_ALLOCTYPE(inode) = ICB_FLAG_AD_SHORT;
 	else
 		UDF_I_ALLOCTYPE(inode) = ICB_FLAG_AD_LONG;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
-	UDF_I_UMTIME(inode) = UDF_I_UATIME(inode) = UDF_I_UCTIME(inode) = CURRENT_UTIME;
+	inode->i_mtime = inode->i_atime = inode->i_ctime =
+		UDF_I_CRTIME(inode) = CURRENT_TIME;
+	UDF_I_UMTIME(inode) = UDF_I_UCTIME(inode) =
+		UDF_I_UCRTIME(inode) = CURRENT_UTIME;
 	UDF_I_NEW_INODE(inode) = 1;
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);

@@ -712,8 +712,7 @@ static void add_timer_randomness(struct timer_rand_state *state, unsigned num)
 #if defined (__i386__)
 	if ( test_bit(X86_FEATURE_TSC, &boot_cpu_data.x86_capability) ) {
 		__u32 high;
-		__asm__(".byte 0x0f,0x31"
-			:"=a" (time), "=d" (high));
+		rdtsc(time, high);
 		num ^= high;
 	} else {
 		time = jiffies;
@@ -1793,7 +1792,7 @@ static int uuid_strategy(ctl_table *table, int *name, int nlen,
 			 void *newval, size_t newlen, void **context)
 {
 	unsigned char	tmp_uuid[16], *uuid;
-	int	len;
+	unsigned int	len;
 
 	if (!oldval || !oldlenp)
 		return 1;
@@ -1810,7 +1809,7 @@ static int uuid_strategy(ctl_table *table, int *name, int nlen,
 	if (len) {
 		if (len > 16)
 			len = 16;
-		if (copy_to_user(oldval, table->data, len))
+		if (copy_to_user(oldval, uuid, len))
 			return -EFAULT;
 		if (put_user(len, oldlenp))
 			return -EFAULT;

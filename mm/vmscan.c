@@ -265,12 +265,9 @@ out_unlock:
 	return !count;
 }
 
-/*
- * N.B. This function returns only 0 or 1.  Return values != 1 from
- * the lower level routines result in continued processing.
- */
-#define SWAP_SHIFT 5
-#define SWAP_MIN 8
+#define SWAP_MM_SHIFT	4
+#define SWAP_SHIFT	5
+#define SWAP_MIN	8
 
 static inline int swap_amount(struct mm_struct *mm)
 {
@@ -283,7 +280,7 @@ static inline int swap_amount(struct mm_struct *mm)
 	return nr;
 }
 
-static int swap_out(unsigned int priority, int gfp_mask)
+static void swap_out(unsigned int priority, int gfp_mask)
 {
 	int counter;
 	int retval = 0;
@@ -294,7 +291,7 @@ static int swap_out(unsigned int priority, int gfp_mask)
 		retval = swap_out_mm(mm, swap_amount(mm));
 
 	/* Then, look at the other mm's */
-	counter = (mmlist_nr << SWAP_SHIFT) >> priority;
+	counter = (mmlist_nr << SWAP_MM_SHIFT) >> priority;
 	do {
 		struct list_head *p;
 
@@ -316,11 +313,10 @@ static int swap_out(unsigned int priority, int gfp_mask)
 		retval |= swap_out_mm(mm, swap_amount(mm));
 		mmput(mm);
 	} while (--counter >= 0);
-	return retval;
+	return;
 
 empty:
 	spin_unlock(&mmlist_lock);
-	return 0;
 }
 
 
@@ -395,6 +391,7 @@ struct page * reclaim_page(zone_t * zone)
 	goto out;
 
 found_page:
+	memory_pressure++;
 	del_page_from_inactive_clean_list(page);
 	UnlockPage(page);
 	page->age = PAGE_AGE_START;
@@ -404,14 +401,13 @@ found_page:
 out:
 	spin_unlock(&pagemap_lru_lock);
 	spin_unlock(&pagecache_lock);
-	memory_pressure++;
 	return page;
 }
 
 /**
  * page_launder - clean dirty inactive pages, move to inactive_clean list
  * @gfp_mask: what operations we are allowed to do
- * @sync: should we wait synchronously for the cleaning of pages
+ * @sync: are we allowed to do synchronous IO in emergencies ?
  *
  * When this function is called, we are most likely low on free +
  * inactive_clean pages. Since we want to refill those pages as
@@ -428,18 +424,13 @@ out:
  * go out to Matthew Dillon.
  */
 #define MAX_LAUNDER 		(4 * (1 << page_cluster))
+#define CAN_DO_FS		(gfp_mask & __GFP_FS)
+#define CAN_DO_IO		(gfp_mask & __GFP_IO)
 int page_launder(int gfp_mask, int sync)
 {
 	int launder_loop, maxscan, cleaned_pages, maxlaunder;
-	int can_get_io_locks;
 	struct list_head * page_lru;
 	struct page * page;
-
-	/*
-	 * We can only grab the IO locks (eg. for flushing dirty
-	 * buffers to disk) if __GFP_IO is set.
-	 */
-	can_get_io_locks = gfp_mask & __GFP_IO;
 
 	launder_loop = 0;
 	maxlaunder = 0;
@@ -491,7 +482,7 @@ dirty_page_rescan:
 				goto page_active;
 
 			/* First time through? Move it to the back of the list */
-			if (!launder_loop) {
+			if (!launder_loop || !CAN_DO_FS) {
 				list_del(page_lru);
 				list_add(page_lru, &inactive_dirty_list);
 				UnlockPage(page);
@@ -521,7 +512,8 @@ dirty_page_rescan:
 		 * buffer pages
 		 */
 		if (page->buffers) {
-			int wait, clearedbuf;
+			unsigned int buffer_mask;
+			int clearedbuf;
 			int freed_page = 0;
 			/*
 			 * Since we might be doing disk IO, we have to
@@ -534,14 +526,14 @@ dirty_page_rescan:
 
 			/* Will we do (asynchronous) IO? */
 			if (launder_loop && maxlaunder == 0 && sync)
-				wait = 2;	/* Synchrounous IO */
+				buffer_mask = gfp_mask;				/* Do as much as we can */
 			else if (launder_loop && maxlaunder-- > 0)
-				wait = 1;	/* Async IO */
+				buffer_mask = gfp_mask & ~__GFP_WAIT;			/* Don't wait, async write-out */
 			else
-				wait = 0;	/* No IO */
+				buffer_mask = gfp_mask & ~(__GFP_WAIT | __GFP_IO);	/* Don't even start IO */
 
 			/* Try to free the page buffers. */
-			clearedbuf = try_to_free_buffers(page, wait);
+			clearedbuf = try_to_free_buffers(page, buffer_mask);
 
 			/*
 			 * Re-take the spinlock. Note that we cannot
@@ -621,7 +613,7 @@ page_active:
 	 * loads, flush out the dirty pages before we have to wait on
 	 * IO.
 	 */
-	if (can_get_io_locks && !launder_loop && free_shortage()) {
+	if ((CAN_DO_IO || CAN_DO_FS) && !launder_loop && free_shortage()) {
 		launder_loop = 1;
 		/* If we cleaned pages, never do synchronous IO. */
 		if (cleaned_pages)
@@ -655,24 +647,10 @@ int refill_inactive_scan(unsigned int priority, int target)
 
 	/*
 	 * When we are background aging, we try to increase the page aging
-	 * information in the system. When we have too many inactive pages
-	 * we don't do background aging since having all pages on the
-	 * inactive list decreases aging information.
-	 *
-	 * Since not all active pages have to be on the active list, we round
-	 * nr_active_pages up to num_physpages/2, if needed.
+	 * information in the system.
 	 */
-	if (!target) {
-		int inactive = nr_free_pages() + nr_inactive_clean_pages() +
-						nr_inactive_dirty_pages;
-		int active = MAX(nr_active_pages, num_physpages / 2);
-		if (active > 10 * inactive)
-			maxscan = nr_active_pages >> 4;
-		else if (active > 3 * inactive)
-			maxscan = nr_active_pages >> 8;
-		else
-			return 0;
-	}
+	if (!target)
+		maxscan = nr_active_pages >> 4;
 
 	/* Take the lock while messing with the list... */
 	spin_lock(&pagemap_lru_lock);
@@ -792,6 +770,8 @@ int inactive_shortage(void)
 			int zone_shortage;
 			zone_t *zone = pgdat->node_zones+ i;
 
+			if (!zone->size)
+				continue;
 			zone_shortage = zone->pages_high;
 			zone_shortage -= zone->inactive_dirty_pages;
 			zone_shortage -= zone->inactive_clean_pages;
@@ -843,12 +823,12 @@ static int refill_inactive(unsigned int gfp_mask, int user)
 				return 1;
 		}
 
+		/* Walk the VM space for a bit.. */
+		swap_out(DEF_PRIORITY, gfp_mask);
+
 		count -= refill_inactive_scan(DEF_PRIORITY, count);
 		if (count <= 0)
 			goto done;
-
-		/* If refill_inactive_scan failed, try to page stuff out.. */
-		swap_out(DEF_PRIORITY, gfp_mask);
 
 		if (--maxtry <= 0)
 				return 0;

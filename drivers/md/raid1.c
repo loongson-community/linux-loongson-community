@@ -75,14 +75,14 @@ static struct buffer_head *raid1_alloc_bh(raid1_conf_t *conf, int cnt)
 		md_spin_unlock_irq(&conf->device_lock);
 		if (cnt == 0)
 			break;
-		t = (struct buffer_head *)kmalloc(sizeof(struct buffer_head), GFP_BUFFER);
+		t = (struct buffer_head *)kmalloc(sizeof(struct buffer_head), GFP_NOIO);
 		if (t) {
 			memset(t, 0, sizeof(*t));
 			t->b_next = bh;
 			bh = t;
 			cnt--;
 		} else {
-			PRINTK("waiting for %d bh\n", cnt);
+			PRINTK("raid1: waiting for %d bh\n", cnt);
 			wait_event(conf->wait_buffer, conf->freebh_cnt >= cnt);
 		}
 	}
@@ -165,8 +165,7 @@ static struct raid1_bh *raid1_alloc_r1bh(raid1_conf_t *conf)
 		md_spin_unlock_irq(&conf->device_lock);
 		if (r1_bh)
 			return r1_bh;
-		r1_bh = (struct raid1_bh *) kmalloc(sizeof(struct raid1_bh),
-					GFP_BUFFER);
+		r1_bh = (struct raid1_bh *) kmalloc(sizeof(struct raid1_bh), GFP_NOIO);
 		if (r1_bh) {
 			memset(r1_bh, 0, sizeof(*r1_bh));
 			return r1_bh;
@@ -1123,7 +1122,7 @@ static void raid1d (void *data)
 
 		mddev = r1_bh->mddev;
 		if (mddev->sb_dirty) {
-			printk(KERN_INFO "dirty sb detected, updating.\n");
+			printk(KERN_INFO "raid1: dirty sb detected, updating.\n");
 			mddev->sb_dirty = 0;
 			md_update_sb(mddev);
 		}

@@ -45,13 +45,16 @@
 	* { fill me in }
 
 	LK1.1.8:
-	* ethtool support (jgarzik)
+	* ethtool driver info support (jgarzik)
+
+	LK1.1.9:
+	* MII ioctl support (jgarzik)
 
 */
 
 #define DRV_NAME	"epic100"
-#define DRV_VERSION	"1.11+LK1.1.8"
-#define DRV_RELDATE	"May 18, 2001"
+#define DRV_VERSION	"1.11+LK1.1.9"
+#define DRV_RELDATE	"July 2, 2001"
 
 
 /* The user-configurable values.
@@ -100,6 +103,7 @@ static int rx_copybreak;
 #error You must compile this driver with "-O".
 #endif
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -116,6 +120,7 @@ static int rx_copybreak;
 #include <linux/init.h>
 #include <linux/spinlock.h>
 #include <linux/ethtool.h>
+#include <linux/mii.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -135,6 +140,11 @@ MODULE_PARM(max_interrupt_work, "i");
 MODULE_PARM(rx_copybreak, "i");
 MODULE_PARM(options, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
+MODULE_PARM_DESC(debug, "EPIC/100 debug level (0-5)");
+MODULE_PARM_DESC(max_interrupt_work, "EPIC/100 maximum events handled per interrupt");
+MODULE_PARM_DESC(options, "EPIC/100: Bits 0-3: media type, bit 4: full duplex");
+MODULE_PARM_DESC(rx_copybreak, "EPIC/100 copy breakpoint for copy-only-tiny-frames");
+MODULE_PARM_DESC(full_duplex, "EPIC/100 full duplex setting(s) (1)");
 
 /*
 				Theory of Operation
@@ -1169,7 +1179,7 @@ static int epic_rx(struct net_device *dev)
 			if (pkt_len > PKT_BUF_SZ - 4) {
 				printk(KERN_ERR "%s: Oversized Ethernet frame, status %x "
 					   "%d bytes.\n",
-					   dev->name, pkt_len, status);
+					   dev->name, status, pkt_len);
 				pkt_len = 1514;
 			}
 			/* Check if the packet is long enough to accept without copying
@@ -1344,27 +1354,30 @@ static void set_rx_mode(struct net_device *dev)
 	return;
 }
 
-static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
+static int netdev_ethtool_ioctl (struct net_device *dev, void *useraddr)
 {
 	struct epic_private *np = dev->priv;
 	u32 ethcmd;
-		
-	if (copy_from_user(&ethcmd, useraddr, sizeof(ethcmd)))
+
+	if (copy_from_user (&ethcmd, useraddr, sizeof (ethcmd)))
 		return -EFAULT;
 
-        switch (ethcmd) {
-        case ETHTOOL_GDRVINFO: {
-		struct ethtool_drvinfo info = {ETHTOOL_GDRVINFO};
-		strcpy(info.driver, DRV_NAME);
-		strcpy(info.version, DRV_VERSION);
-		strcpy(info.bus_info, np->pci_dev->slot_name);
-		if (copy_to_user(useraddr, &info, sizeof(info)))
-			return -EFAULT;
-		return 0;
+	switch (ethcmd) {
+	case ETHTOOL_GDRVINFO:
+		{
+			struct ethtool_drvinfo info = { ETHTOOL_GDRVINFO };
+			strcpy (info.driver, DRV_NAME);
+			strcpy (info.version, DRV_VERSION);
+			strcpy (info.bus_info, np->pci_dev->slot_name);
+			if (copy_to_user (useraddr, &info, sizeof (info)))
+				return -EFAULT;
+			return 0;
+		}
+
+	default:
+		break;
 	}
 
-        }
-	
 	return -EOPNOTSUPP;
 }
 
@@ -1372,20 +1385,24 @@ static int netdev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	struct epic_private *ep = dev->priv;
 	long ioaddr = dev->base_addr;
-	u16 *data = (u16 *)&rq->ifr_data;
+	struct mii_ioctl_data *data = (struct mii_ioctl_data *)&rq->ifr_data;
 
 	switch(cmd) {
 	case SIOCETHTOOL:
 		return netdev_ethtool_ioctl(dev, (void *) rq->ifr_data);
-	case SIOCDEVPRIVATE:		/* Get the address of the PHY in use. */
-		data[0] = ep->phys[0] & 0x1f;
+
+	case SIOCGMIIPHY:		/* Get address of MII PHY in use. */
+	case SIOCDEVPRIVATE:		/* for binary compat, remove in 2.5 */
+		data->phy_id = ep->phys[0] & 0x1f;
 		/* Fall Through */
-	case SIOCDEVPRIVATE+1:		/* Read the specified MII register. */
+
+	case SIOCGMIIREG:		/* Read MII PHY register. */
+	case SIOCDEVPRIVATE+1:		/* for binary compat, remove in 2.5 */
 		if (! netif_running(dev)) {
 			outl(0x0200, ioaddr + GENCTL);
 			outl((inl(ioaddr + NVCTL) & ~0x003C) | 0x4800, ioaddr + NVCTL);
 		}
-		data[3] = mdio_read(dev, data[0] & 0x1f, data[1] & 0x1f);
+		data->val_out = mdio_read(dev, data->phy_id & 0x1f, data->reg_num & 0x1f);
 #if 0					/* Just leave on if the ioctl() is ever used. */
 		if (! netif_running(dev)) {
 			outl(0x0008, ioaddr + GENCTL);
@@ -1393,16 +1410,18 @@ static int netdev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		}
 #endif
 		return 0;
-	case SIOCDEVPRIVATE+2:		/* Write the specified MII register */
+
+	case SIOCSMIIREG:		/* Write MII PHY register. */
+	case SIOCDEVPRIVATE+2:		/* for binary compat, remove in 2.5 */
 		if (!capable(CAP_NET_ADMIN))
 			return -EPERM;
 		if (! netif_running(dev)) {
 			outl(0x0200, ioaddr + GENCTL);
 			outl((inl(ioaddr + NVCTL) & ~0x003C) | 0x4800, ioaddr + NVCTL);
 		}
-		if (data[0] == ep->phys[0]) {
-			u16 value = data[2];
-			switch (data[1]) {
+		if (data->phy_id == ep->phys[0]) {
+			u16 value = data->val_in;
+			switch (data->reg_num) {
 			case 0:
 				/* Check for autonegotiation on or reset. */
 				ep->duplex_lock = (value & 0x9000) ? 0 : 1;
@@ -1413,7 +1432,7 @@ static int netdev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 			}
 			/* Perhaps check_duplex(dev), depending on chip semantics. */
 		}
-		mdio_write(dev, data[0] & 0x1f, data[1] & 0x1f, data[2]);
+		mdio_write(dev, data->phy_id & 0x1f, data->reg_num & 0x1f, data->val_in);
 #if 0					/* Leave on if the ioctl() is used. */
 		if (! netif_running(dev)) {
 			outl(0x0008, ioaddr + GENCTL);
@@ -1445,29 +1464,35 @@ static void __devexit epic_remove_one (struct pci_dev *pdev)
 }
 
 
-static void epic_suspend (struct pci_dev *pdev)
+#ifdef CONFIG_PM
+
+static int epic_suspend (struct pci_dev *pdev, u32 state)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 	long ioaddr = dev->base_addr;
 
 	if (!netif_running(dev))
-		return;
+		return 0;
 	epic_pause(dev);
 	/* Put the chip into low-power mode. */
 	outl(0x0008, ioaddr + GENCTL);
 	/* pci_power_off(pdev, -1); */
+	return 0;
 }
 
 
-static void epic_resume (struct pci_dev *pdev)
+static int epic_resume (struct pci_dev *pdev)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 
 	if (!netif_running(dev))
-		return;
+		return 0;
 	epic_restart(dev);
 	/* pci_power_on(pdev); */
+	return 0;
 }
+
+#endif /* CONFIG_PM */
 
 
 static struct pci_driver epic_driver = {
@@ -1475,8 +1500,10 @@ static struct pci_driver epic_driver = {
 	id_table:	epic_pci_tbl,
 	probe:		epic_init_one,
 	remove:		epic_remove_one,
+#ifdef CONFIG_PM
 	suspend:	epic_suspend,
 	resume:		epic_resume,
+#endif /* CONFIG_PM */
 };
 
 

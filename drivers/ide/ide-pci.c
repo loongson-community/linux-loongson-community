@@ -34,7 +34,8 @@
 #define DEVID_PIIX4U	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801AA_1})
 #define DEVID_PIIX4U2	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82372FB_1})
 #define DEVID_PIIX4NX	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82451NX})
-#define DEVID_PIIX4U3	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82820FW_5})
+#define DEVID_PIIX4U3	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801BA_9})
+#define DEVID_PIIX4U4	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801BA_8})
 #define DEVID_VIA_IDE	((ide_pci_devid_t){PCI_VENDOR_ID_VIA,     PCI_DEVICE_ID_VIA_82C561})
 #define DEVID_VP_IDE	((ide_pci_devid_t){PCI_VENDOR_ID_VIA,     PCI_DEVICE_ID_VIA_82C586_1})
 #define DEVID_PDC20246	((ide_pci_devid_t){PCI_VENDOR_ID_PROMISE, PCI_DEVICE_ID_PROMISE_20246})
@@ -295,13 +296,16 @@ extern void ide_init_slc90e66(ide_hwif_t *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_SL82C105
+extern unsigned int pci_init_sl82c105(struct pci_dev *, const char *);
+extern void dma_init_sl82c105(ide_hwif_t *, unsigned long);
 extern void ide_init_sl82c105(ide_hwif_t *);
-extern void ide_dmacapable_sl82c105(ide_hwif_t *, unsigned long);
+#define PCI_W82C105	&pci_init_sl82c105
+#define DMA_W82C105	&dma_init_sl82c105
 #define INIT_W82C105	&ide_init_sl82c105
-#define DMA_W82C105	&ide_dmacapable_sl82c105
 #else
-#define INIT_W82C105	IDE_IGNORE
+#define PCI_W82C105	NULL
 #define DMA_W82C105	NULL
+#define INIT_W82C105	IDE_IGNORE
 #endif
 
 #ifdef CONFIG_BLK_DEV_TRM290
@@ -356,6 +360,7 @@ static ide_pci_device_t ide_pci_chipsets[] __initdata = {
 	{DEVID_PIIX4U2,	"PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
 	{DEVID_PIIX4NX,	"PIIX4",	PCI_PIIX,	NULL,		INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
 	{DEVID_PIIX4U3,	"PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
+	{DEVID_PIIX4U4, "PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
 	{DEVID_VIA_IDE,	"VIA_IDE",	NULL,		NULL,		NULL,		NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	ON_BOARD,	0 },
 	{DEVID_VP_IDE,	"VP_IDE",	PCI_VIA82CXXX,	ATA66_VIA82CXXX,INIT_VIA82CXXX,	DMA_VIA82CXXX,	{{0x40,0x02,0x02}, {0x40,0x01,0x01}}, 	ON_BOARD,	0 },
 	{DEVID_PDC20246,"PDC20246",	PCI_PDC202XX,	NULL,		INIT_PDC202XX,	NULL,		{{0x50,0x02,0x02}, {0x50,0x04,0x04}}, 	OFF_BOARD,	16 },
@@ -380,7 +385,7 @@ static ide_pci_device_t ide_pci_chipsets[] __initdata = {
 	{DEVID_AEC6210,	"AEC6210",	PCI_AEC62XX,	NULL,		INIT_AEC62XX,	DMA_AEC62XX,	{{0x4a,0x02,0x02}, {0x4a,0x04,0x04}}, 	OFF_BOARD,	0 },
 	{DEVID_AEC6260,	"AEC6260",	PCI_AEC62XX,	ATA66_AEC62XX,	INIT_AEC62XX,	NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	NEVER_BOARD,	0 },
 	{DEVID_AEC6260R,"AEC6260R",	PCI_AEC62XX,	ATA66_AEC62XX,	INIT_AEC62XX,	NULL,		{{0x4a,0x02,0x02}, {0x4a,0x04,0x04}},	OFF_BOARD,	0 },
-	{DEVID_W82C105,	"W82C105",	NULL,		NULL,		INIT_W82C105,	DMA_W82C105,	{{0x40,0x01,0x01}, {0x40,0x10,0x10}}, 	ON_BOARD,	0 },
+	{DEVID_W82C105,	"W82C105",	PCI_W82C105,	NULL,		INIT_W82C105,	DMA_W82C105,	{{0x40,0x01,0x01}, {0x40,0x10,0x10}}, 	ON_BOARD,	0 },
 	{DEVID_UM8673F,	"UM8673F",	NULL,		NULL,		NULL,		NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	ON_BOARD,	0 },
 	{DEVID_UM8886A,	"UM8886A",	NULL,		NULL,		NULL,		NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	ON_BOARD,	0 },
 	{DEVID_UM8886BF,"UM8886BF",	NULL,		NULL,		NULL,		NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}}, 	ON_BOARD,	0 },

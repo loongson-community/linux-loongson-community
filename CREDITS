@@ -454,6 +454,11 @@ N: Gary Brubaker
 E: xavyer@ix.netcom.com
 D: USB Serial Empeg Empeg-car Mark I/II Driver
 
+N: Matthias Bruestle
+E: m@mbsks.franken.de
+D: REINER SCT cyberJack pinpad/e-com USB chipcard reader driver
+S: Germany
+
 N: Ray Burr
 E: ryb@nightmare.com
 D: Original author of Amiga FFS filesystem
@@ -1136,13 +1141,11 @@ S: Mountain View, California 94041
 S: USA
 
 N: Benjamin Herrenschmidt
-E: bh40@calva.net
+E: benh@kernel.crashing.org
 E: benh@mipsys.com
-D: PowerMac booter (BootX)
-D: Additional PowerBook support
-D: Apple "Core99" machines support (ibook,g4,...)
-S: 22, rue des Marguettes
-S: 75012 Paris
+D: Various parts of PPC & PowerMac
+S: 122, boulevard Baille
+S: 13005 Marseille
 S: France
 
 N: Sebastian Hetze
@@ -1356,13 +1359,15 @@ N: Dave Jones
 E: davej@suse.de
 W: http://www.suse.de/~davej
 D: Moved PCI bridge tuning to userspace (Powertweak).
-D: Centaur/IDT Winchip/Winchip 2 tweaks.
+D: Various x86 (& clones) setup code hacking.
 D: AFFS fixes for 2.3.x
-D: Misc clean ups and other random hacking.
-S: 28, Laura Street,
-S: Treforest, Pontypridd,
-S: Mid Glamorgan, CF37 1NW,
-S: Wales, United Kingdom
+D: Various Janitorial hacks. (kernel-janitor.sourceforge.net)
+S: c/o SuSE Linux UK Ltd
+S: The Kinetic Centre
+S: Theobald Street
+S: Borehamwood
+S: Herts, WD6 4PJ
+S: United Kingdom
 
 N: Ani Joshi
 E: ajoshi@shell.unixbox.com
@@ -1517,6 +1522,17 @@ S: 7170 Warden Avenue, Unit 2
 S: Markham, Ontario
 S: L3R 8B2
 S: Canada
+
+N: Maxim Krasnyansky
+E: maxk@qualcomm.com
+W: http://vtun.sf.net
+W: http://bluez.sf.net
+D: Author of the Universal TUN/TAP driver
+D: Author of the Linux Bluetooth Subsystem (BlueZ)
+D: Various other kernel patches, cleanups and fixes
+S: 2213 La Terrace Circle
+S: San Jose, CA 95123
+S: USA
 
 N: Andreas S. Krebs
 E: akrebs@altavista.net
@@ -1742,6 +1758,8 @@ S: Czech Republic
 
 N: Paul Mackerras
 E: paulus@samba.org
+D: PPP driver
+D: Linux for PowerPC
 D: Linux port for PCI Power Macintosh
 
 N: Pat Mackinlay
@@ -1973,6 +1991,13 @@ E: minyard@wf-rch.cirr.com
 D: Sony CDU31A CDROM Driver
 S: 1805 Marquette
 S: Richardson, Texas 75081
+S: USA
+
+N: Patrick Mochel
+E: mochel@transmeta.com
+D: PCI Power Management, ACPI work
+S: 3940 Freedom Circle
+S: Santa Clara, CA 95054
 S: USA
 
 N: Eberhard Moenkeberg
@@ -2697,9 +2722,7 @@ S: USA
 N: Marcelo W. Tosatti
 E: marcelo@conectiva.com.br
 W: http://bazar.conectiva.com.br/~marcelo/
-D: Miscellaneous kernel hacker
-D: Cyclom 2X driver, drbd hacker
-D: linuxconf apache & proftpd module maintainer
+D: Miscellaneous kernel hacker (mostly VM/MM work)
 S: Conectiva S.A.
 S: R. Tocantins, 89 - Cristo Rei
 S: 80050-430 - Curitiba - Paraná
@@ -2883,6 +2906,14 @@ D: Various IP firewall updates, ipfwadm
 S: X/OS Experts in Open Systems BV
 S: Kruislaan 419
 S: 1098 VA Amsterdam 
+S: The Netherlands
+
+N: Jeroen Vreeken
+E: pe1rxq@amsat.org
+W: http://www.chello.nl/~j.vreeken/
+D: SE401 usb webcam driver
+S: Maastrichterweg 63
+S: 5554 GG Valkenswaard
 S: The Netherlands
 
 N: Peter Shaobo Wang

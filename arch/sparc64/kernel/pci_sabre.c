@@ -1,4 +1,4 @@
-/* $Id: pci_sabre.c,v 1.32 2001/05/15 11:10:01 davem Exp $
+/* $Id: pci_sabre.c,v 1.37 2001/06/13 06:34:30 davem Exp $
  * pci_sabre.c: Sabre specific PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@caipfs.rutgers.edu)
@@ -16,6 +16,7 @@
 #include <asm/pbm.h>
 #include <asm/iommu.h>
 #include <asm/irq.h>
+#include <asm/smp.h>
 
 #include "pci_impl.h"
 
@@ -196,7 +197,7 @@
 
 #define SABRE_CONFIGSPACE	0x001000000UL
 #define SABRE_IOSPACE		0x002000000UL
-#define SABRE_IOSPACE_SIZE	0x00000ffffUL
+#define SABRE_IOSPACE_SIZE	0x000ffffffUL
 #define SABRE_MEMSPACE		0x100000000UL
 #define SABRE_MEMSPACE_SIZE	0x07fffffffUL
 
@@ -590,23 +591,28 @@ static int __init sabre_ino_to_pil(struct pci_dev *pdev, unsigned int ino)
 	if (ret == 0 && pdev == NULL) {
 		ret = 1;
 	} else if (ret == 0) {
-		switch ((pdev->class >> 16) & 0x0f) {
+		switch ((pdev->class >> 16) & 0xff) {
 		case PCI_BASE_CLASS_STORAGE:
 			ret = 4;
+			break;
 
 		case PCI_BASE_CLASS_NETWORK:
 			ret = 6;
+			break;
 
 		case PCI_BASE_CLASS_DISPLAY:
 			ret = 9;
+			break;
 
 		case PCI_BASE_CLASS_MULTIMEDIA:
 		case PCI_BASE_CLASS_MEMORY:
 		case PCI_BASE_CLASS_BRIDGE:
 			ret = 10;
+			break;
 
 		default:
 			ret = 1;
+			break;
 		};
 	}
 	return ret;
@@ -1025,8 +1031,8 @@ static void __init sabre_resource_adjust(struct pci_dev *pdev,
 					 struct resource *res,
 					 struct resource *root)
 {
-	struct pcidev_cookie *pcp = pdev->sysdata;
-	struct pci_controller_info *p = pcp->pbm->parent;
+	struct pci_pbm_info *pbm = pci_bus2pbm[pdev->bus->number];
+	struct pci_controller_info *p = pbm->parent;
 	unsigned long base;
 
 	if (res->flags & IORESOURCE_IO)
@@ -1351,6 +1357,12 @@ static void __init pbm_register_toplevel_resources(struct pci_controller_info *p
 			    (pbm == &p->pbm_A ? 'A' : 'B'));
 		prom_halt();
 	}
+
+	/* Register legacy regions if this PBM covers that area. */
+	if (pbm->io_space.start == ibase &&
+	    pbm->mem_space.start == mbase)
+		pci_register_legacy_regions(&pbm->io_space,
+					    &pbm->mem_space);
 }
 
 static void __init sabre_pbm_init(struct pci_controller_info *p, int sabre_node, u32 dma_begin)
@@ -1476,7 +1488,7 @@ static void __init sabre_pbm_init(struct pci_controller_info *p, int sabre_node,
 
 		/* Hack up top-level resources. */
 		pbm->io_space.start = p->controller_regs + SABRE_IOSPACE;
-		pbm->io_space.end   = pbm->io_space.start + (1UL << 16) - 1UL;
+		pbm->io_space.end   = pbm->io_space.start + (1UL << 24) - 1UL;
 		pbm->io_space.flags = IORESOURCE_IO;
 
 		pbm->mem_space.start = p->controller_regs + SABRE_MEMSPACE;
@@ -1491,6 +1503,9 @@ static void __init sabre_pbm_init(struct pci_controller_info *p, int sabre_node,
 			prom_printf("Cannot register Hummingbird's MEM space.\n");
 			prom_halt();
 		}
+
+		pci_register_legacy_regions(&pbm->io_space,
+					    &pbm->mem_space);
 	}
 }
 
@@ -1514,8 +1529,19 @@ void __init sabre_init(int pnode, char *model_name)
 
 		if (prom_getproperty(pnode, "compatible",
 				     compat, sizeof(compat)) > 0 &&
-		    !strcmp(compat, "pci108e,a001"))
+		    !strcmp(compat, "pci108e,a001")) {
 			hummingbird_p = 1;
+		} else {
+			int cpu_node = linux_cpus[0].prom_node;
+
+			/* Of course, Sun has to encode things a thousand
+			 * different ways, inconsistently.
+			 */
+			if (prom_getproperty(cpu_node, "name",
+					     compat, sizeof(compat)) > 0 &&
+			    !strcmp(compat, "SUNW,UltraSPARC-IIe"))
+				hummingbird_p = 1;
+		}
 	}
 
 	p = kmalloc(sizeof(*p), GFP_ATOMIC);

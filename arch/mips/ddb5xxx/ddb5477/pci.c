@@ -141,4 +141,7 @@ void __init ddb_pci_reset_bus(void)
 	ddb_out32(DDB_PCICTL1_H, temp);
 }
 
-
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
+}

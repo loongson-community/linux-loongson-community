@@ -312,6 +312,13 @@ static struct file_operations proc_info_file_operations = {
 #define MAY_PTRACE(p) \
 (p==current||(p->p_pptr==current&&(p->ptrace & PT_PTRACED)&&p->state==TASK_STOPPED))
 
+
+static int mem_open(struct inode* inode, struct file* file)
+{
+	file->private_data = (void*)((long)current->self_exec_id);
+	return 0;
+}
+
 static ssize_t mem_read(struct file * file, char * buf,
 			size_t count, loff_t *ppos)
 {
@@ -319,6 +326,8 @@ static ssize_t mem_read(struct file * file, char * buf,
 	char *page;
 	unsigned long src = *ppos;
 	int copied = 0;
+	struct mm_struct *mm;
+
 
 	if (!MAY_PTRACE(task))
 		return -ESRCH;
@@ -326,6 +335,20 @@ static ssize_t mem_read(struct file * file, char * buf,
 	page = (char *)__get_free_page(GFP_USER);
 	if (!page)
 		return -ENOMEM;
+
+	task_lock(task);
+	mm = task->mm;
+	if (mm)
+		atomic_inc(&mm->mm_users);
+	task_unlock(task);
+	if (!mm)
+		return 0;
+
+	if (file->private_data != (void*)((long)current->self_exec_id) ) {
+		mmput(mm);
+		return -EIO;
+	}
+		
 
 	while (count > 0) {
 		int this_len, retval;
@@ -347,6 +370,7 @@ static ssize_t mem_read(struct file * file, char * buf,
 		count -= retval;
 	}
 	*ppos = src;
+	mmput(mm);
 	free_page((unsigned long) page);
 	return copied;
 }
@@ -398,6 +422,7 @@ static ssize_t mem_write(struct file * file, const char * buf,
 static struct file_operations proc_mem_operations = {
 	read:		mem_read,
 	write:		mem_write,
+	open:		mem_open,
 };
 
 static struct inode_operations proc_mem_inode_operations = {
@@ -635,15 +660,14 @@ static struct inode *proc_pid_make_inode(struct super_block * sb, struct task_st
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	inode->i_ino = fake_ino(task->pid, ino);
 
-	inode->u.proc_i.file = NULL;
-	/*
-	 * grab the reference to task.
-	 */
-	inode->u.proc_i.task = task;
-	get_task_struct(task);
 	if (!task->pid)
 		goto out_unlock;
 
+	/*
+	 * grab the reference to task.
+	 */
+	get_task_struct(task);
+	inode->u.proc_i.task = task;
 	inode->i_uid = 0;
 	inode->i_gid = 0;
 	if (ino == PROC_PID_INO || task->dumpable) {

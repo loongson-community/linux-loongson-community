@@ -1,4 +1,4 @@
-/* $Id: pci_common.c,v 1.18 2001/05/18 23:06:35 davem Exp $
+/* $Id: pci_common.c,v 1.26 2001/06/28 01:32:18 davem Exp $
  * pci_common.c: PCI controller common support.
  *
  * Copyright (C) 1999 David S. Miller (davem@redhat.com)
@@ -93,11 +93,37 @@ static void pci_device_delete(struct pci_dev *pdev)
 }
 
 /* Older versions of OBP on PCI systems encode 64-bit MEM
- * space assignments incorrectly, this fixes them up.
+ * space assignments incorrectly, this fixes them up.  We also
+ * take the opportunity here to hide other kinds of bogus
+ * assignments.
  */
-static void __init fixup_obp_assignments(struct pcidev_cookie *pcp)
+static void __init fixup_obp_assignments(struct pci_dev *pdev,
+					 struct pcidev_cookie *pcp)
 {
 	int i;
+
+	if (pdev->vendor == PCI_VENDOR_ID_AL &&
+	    (pdev->device == PCI_DEVICE_ID_AL_M7101 ||
+	     pdev->device == PCI_DEVICE_ID_AL_M1533)) {
+		int i;
+
+		/* Zap all of the normal resources, they are
+		 * meaningless and generate bogus resource collision
+		 * messages.  This is OpenBoot's ill-fated attempt to
+		 * represent the implicit resources that these devices
+		 * have.
+		 */
+		pcp->num_prom_assignments = 0;
+		for (i = 0; i < 6; i++) {
+			pdev->resource[i].start =
+				pdev->resource[i].end =
+				pdev->resource[i].flags = 0;
+		}
+		pdev->resource[PCI_ROM_RESOURCE].start =
+			pdev->resource[PCI_ROM_RESOURCE].end =
+			pdev->resource[PCI_ROM_RESOURCE].flags = 0;
+		return;
+	}
 
 	for (i = 0; i < pcp->num_prom_assignments; i++) {
 		struct linux_prom_pci_registers *ap;
@@ -194,7 +220,7 @@ static void __init pdev_cookie_fillin(struct pci_pbm_info *pbm,
 				(err / sizeof(pcp->prom_assignments[0]));
 	}
 
-	fixup_obp_assignments(pcp);
+	fixup_obp_assignments(pdev, pcp);
 
 	pdev->sysdata = pcp;
 }
@@ -231,11 +257,13 @@ void __init pci_fill_in_pbm_cookies(struct pci_bus *pbus,
 	}
 }
 
-static void __init bad_assignment(struct linux_prom_pci_registers *ap,
+static void __init bad_assignment(struct pci_dev *pdev,
+				  struct linux_prom_pci_registers *ap,
 				  struct resource *res,
 				  int do_prom_halt)
 {
-	prom_printf("PCI: Bogus PROM assignment.\n");
+	prom_printf("PCI: Bogus PROM assignment. BUS[%02x] DEVFN[%x]\n",
+		    pdev->bus->number, pdev->devfn);
 	if (ap)
 		prom_printf("PCI: phys[%08x:%08x:%08x] size[%08x:%08x]\n",
 			    ap->phys_hi, ap->phys_mid, ap->phys_lo,
@@ -293,7 +321,7 @@ __init get_device_resource(struct linux_prom_pci_registers *ap,
 	case  PCI_ROM_ADDRESS:
 		/* It had better be MEM space. */
 		if (space != 2)
-			bad_assignment(ap, NULL, 0);
+			bad_assignment(pdev, ap, NULL, 0);
 
 		res = &pdev->resource[PCI_ROM_RESOURCE];
 		break;
@@ -308,12 +336,25 @@ __init get_device_resource(struct linux_prom_pci_registers *ap,
 		break;
 
 	default:
-		bad_assignment(ap, NULL, 0);
+		bad_assignment(pdev, ap, NULL, 0);
 		res = NULL;
 		break;
 	};
 
 	return res;
+}
+
+static int __init pdev_resource_collisions_expected(struct pci_dev *pdev)
+{
+	if (pdev->vendor != PCI_VENDOR_ID_SUN)
+		return 0;
+
+	if (pdev->device == PCI_DEVICE_ID_SUN_RIO_EBUS ||
+	    pdev->device == PCI_DEVICE_ID_SUN_RIO_1394 ||
+	    pdev->device == PCI_DEVICE_ID_SUN_RIO_USB)
+		return 1;
+
+	return 0;
 }
 
 static void __init pdev_record_assignments(struct pci_pbm_info *pbm,
@@ -332,14 +373,15 @@ static void __init pdev_record_assignments(struct pci_pbm_info *pbm,
 		ap = &pcp->prom_assignments[i];
 		root = get_root_resource(ap, pbm);
 		res = get_device_resource(ap, pdev);
-		if (root == NULL || res == NULL)
+		if (root == NULL || res == NULL ||
+		    res->flags == 0)
 			continue;
 
 		/* Ok we know which resource this PROM assignment is
 		 * for, sanity check it.
 		 */
 		if ((res->start & 0xffffffffUL) != ap->phys_lo)
-			bad_assignment(ap, res, 1);
+			bad_assignment(pdev, ap, res, 1);
 
 		/* If it is a 64-bit MEM space assignment, verify that
 		 * the resource is too and that the upper 32-bits match.
@@ -348,9 +390,9 @@ static void __init pdev_record_assignments(struct pci_pbm_info *pbm,
 			if (((res->flags & IORESOURCE_MEM) == 0) ||
 			    ((res->flags & PCI_BASE_ADDRESS_MEM_TYPE_MASK)
 			     != PCI_BASE_ADDRESS_MEM_TYPE_64))
-				bad_assignment(ap, res, 1);
+				bad_assignment(pdev, ap, res, 1);
 			if ((res->start >> 32) != ap->phys_mid)
-				bad_assignment(ap, res, 1);
+				bad_assignment(pdev, ap, res, 1);
 
 			/* PBM cannot generate cpu initiated PIOs
 			 * to the full 64-bit space.  Therefore the
@@ -374,12 +416,17 @@ static void __init pdev_record_assignments(struct pci_pbm_info *pbm,
 		if (request_resource(root, res) < 0) {
 			/* OK, there is some conflict.  But this is fine
 			 * since we'll reassign it in the fixup pass.
-			 * Nevertheless notify the user that OBP made
-			 * an error.
+			 *
+			 * We notify the user that OBP made an error if it
+			 * is a case we don't expect.
 			 */
-			printk(KERN_ERR "PCI: Address space collision on region %ld "
-			       "of device %s\n",
-			       (res - &pdev->resource[0]), pdev->name);
+			if (!pdev_resource_collisions_expected(pdev)) {
+				printk(KERN_ERR "PCI: Address space collision on region %ld "
+				       "[%016lx:%016lx] of device %s\n",
+				       (res - &pdev->resource[0]),
+				       res->start, res->end,
+				       pdev->name);
+			}
 		}
 	}
 }
@@ -395,6 +442,23 @@ void __init pci_record_assignments(struct pci_pbm_info *pbm,
 	walk = &pbus->children;
 	for (walk = walk->next; walk != &pbus->children; walk = walk->next)
 		pci_record_assignments(pbm, pci_bus_b(walk));
+}
+
+/* Return non-zero if PDEV has implicit I/O resources even
+ * though it may not have an I/O base address register
+ * active.
+ */
+static int __init has_implicit_io(struct pci_dev *pdev)
+{
+	int class = pdev->class >> 8;
+
+	if (class == PCI_CLASS_NOT_DEFINED ||
+	    class == PCI_CLASS_NOT_DEFINED_VGA ||
+	    class == PCI_CLASS_STORAGE_IDE ||
+	    (pdev->class >> 16) == PCI_BASE_CLASS_DISPLAY)
+		return 1;
+
+	return 0;
 }
 
 static void __init pdev_assign_unassigned(struct pci_pbm_info *pbm,
@@ -460,7 +524,7 @@ static void __init pdev_assign_unassigned(struct pci_pbm_info *pbm,
 	 */
 	if (io_seen || mem_seen) {
 		pci_read_config_word(pdev, PCI_COMMAND, &cmd);
-		if (io_seen)
+		if (io_seen || has_implicit_io(pdev))
 			cmd |= PCI_COMMAND_IO;
 		if (mem_seen)
 			cmd |= PCI_COMMAND_MEMORY;
@@ -649,17 +713,22 @@ static void __init pdev_fixup_irq(struct pci_dev *pdev)
 			line = ((pci_irq_line - 1) & 3);
 		}
 
-		/* Now figure out the slot. */
+		/* Now figure out the slot.
+		 *
+		 * Basically, device number zero on the top-level bus is
+		 * always the PCI host controller.  Slot 0 is then device 1.
+		 * PBM A supports two external slots (0 and 1), and PBM B
+		 * supports 4 external slots (0, 1, 2, and 3).  On-board PCI
+		 * devices are wired to device numbers outside of these
+		 * ranges. -DaveM
+ 		 */
 		if (pdev->bus->number == pbm->pci_first_busno) {
-			if (pbm == &pbm->parent->pbm_A)
-				slot = (pdev->devfn >> 3) - 1;
-			else
-				slot = (pdev->devfn >> 3) - 2;
+			slot = (pdev->devfn >> 3) - 1;
 		} else {
-			if (pbm == &pbm->parent->pbm_A)
-				slot = (pdev->bus->self->devfn >> 3) - 1;
-			else
-				slot = (pdev->bus->self->devfn >> 3) - 2;
+			/* Underneath a bridge, use slot number of parent
+			 * bridge.
+			 */
+			slot = (pdev->bus->self->devfn >> 3) - 1;
 		}
 		slot = slot << 2;
 
@@ -819,6 +888,46 @@ void pci_setup_busmastering(struct pci_pbm_info *pbm,
 	walk = &pbus->children;
 	for (walk = walk->next; walk != &pbus->children; walk = walk->next)
 		pci_setup_busmastering(pbm, pci_bus_b(walk));
+}
+
+void pci_register_legacy_regions(struct resource *io_res,
+				 struct resource *mem_res)
+{
+	struct resource *p;
+
+	/* VGA Video RAM. */
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
+		return;
+
+	memset(p, 0, sizeof(*p));
+	p->name = "Video RAM area";
+	p->start = mem_res->start + 0xa0000UL;
+	p->end = p->start + 0x1ffffUL;
+	p->flags = IORESOURCE_BUSY;
+	request_resource(mem_res, p);
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
+		return;
+
+	memset(p, 0, sizeof(*p));
+	p->name = "System ROM";
+	p->start = mem_res->start + 0xf0000UL;
+	p->end = p->start + 0xffffUL;
+	p->flags = IORESOURCE_BUSY;
+	request_resource(mem_res, p);
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
+		return;
+
+	memset(p, 0, sizeof(*p));
+	p->name = "Video ROM";
+	p->start = mem_res->start + 0xc0000UL;
+	p->end = p->start + 0x7fffUL;
+	p->flags = IORESOURCE_BUSY;
+	request_resource(mem_res, p);
 }
 
 /* Generic helper routines for PCI error reporting. */

@@ -6,14 +6,19 @@
 #ifndef _ASM_PCI_H
 #define _ASM_PCI_H
 
+#include <linux/config.h>
+
 #ifdef __KERNEL__
 
 /* Can be used to override the logic in pci_scan_bus for skipping
    already-configured bus numbers - to be used for buggy BIOSes
    or architectures with incomplete PCI setup by the loader */
 
-//#define pcibios_assign_all_busses()	0
-#define pcibios_assign_all_busses()	1
+#ifdef CONFIG_PCI
+extern unsigned int pcibios_assign_all_busses(void);
+#else
+#define pcibios_assign_all_busses()	0
+#endif
 
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0x10000000

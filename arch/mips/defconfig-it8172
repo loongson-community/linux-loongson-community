@@ -100,6 +100,67 @@ CONFIG_SYSCTL=y
 #
 CONFIG_MTD=y
 # CONFIG_MTD_DEBUG is not set
+# CONFIG_MTD_PARTITIONS is not set
+# CONFIG_MTD_REDBOOT_PARTS is not set
+# CONFIG_MTD_BOOTLDR_PARTS is not set
+
+#
+# User Modules And Translation Layers
+#
+CONFIG_MTD_CHAR=y
+# CONFIG_MTD_BLOCK is not set
+# CONFIG_MTD_BLOCK_RO is not set
+# CONFIG_FTL is not set
+# CONFIG_NFTL is not set
+
+#
+# RAM/ROM/Flash chip drivers
+#
+CONFIG_MTD_CFI=y
+# CONFIG_MTD_CFI_VIRTUAL_ER is not set
+# CONFIG_MTD_CFI_ADV_OPTIONS is not set
+CONFIG_MTD_CFI_INTELEXT=y
+# CONFIG_MTD_CFI_AMDSTD is not set
+# CONFIG_MTD_AMDSTD is not set
+# CONFIG_MTD_SHARP is not set
+# CONFIG_MTD_RAM is not set
+# CONFIG_MTD_ROM is not set
+# CONFIG_MTD_JEDEC is not set
+
+#
+# Mapping drivers for chip access
+#
+CONFIG_MTD_PHYSMAP=y
+CONFIG_MTD_PHYSMAP_START=8000000
+CONFIG_MTD_PHYSMAP_LEN=2000000
+CONFIG_MTD_PHYSMAP_BUSWIDTH=4
+# CONFIG_MTD_SUN_UFLASH is not set
+# CONFIG_MTD_NORA is not set
+# CONFIG_MTD_PNC2000 is not set
+# CONFIG_MTD_RPXLITE is not set
+# CONFIG_MTD_SC520CDP is not set
+# CONFIG_MTD_NETSC520 is not set
+# CONFIG_MTD_SBC_GXX is not set
+# CONFIG_MTD_ELAN_104NC is not set
+# CONFIG_MTD_SA1100 is not set
+# CONFIG_MTD_SA1100_REDBOOT_PARTITIONS is not set
+# CONFIG_MTD_SA1100_BOOTLDR_PARTITIONS is not set
+# CONFIG_MTD_DC21285 is not set
+# CONFIG_MTD_IQ80310 is not set
+# CONFIG_MTD_DBOX2 is not set
+# CONFIG_MTD_CSTM_MIPS_IXX is not set
+# CONFIG_MTD_CFI_FLAGADM is not set
+# CONFIG_MTD_MIXMEM is not set
+# CONFIG_MTD_OCTAGON is not set
+# CONFIG_MTD_VMAX is not set
+# CONFIG_MTD_OCELOT is not set
+
+#
+# Self-contained MTD device drivers
+#
+# CONFIG_MTD_PMC551 is not set
+# CONFIG_MTD_SLRAM is not set
+# CONFIG_MTD_MTDRAM is not set
 
 #
 # Disk-On-Chip Device Drivers
@@ -110,43 +171,9 @@ CONFIG_MTD=y
 # CONFIG_MTD_DOCPROBE is not set
 
 #
-# RAM/ROM Device Drivers
+# NAND Flash Device Drivers
 #
-# CONFIG_MTD_SLRAM is not set
-# CONFIG_MTD_PMC551 is not set
-# CONFIG_MTD_MTDRAM is not set
-
-#
-# Linearly Mapped Flash Device Drivers
-#
-CONFIG_MTD_CFI=y
-CONFIG_MTD_CFI_INTELEXT=y
-# CONFIG_MTD_CFI_AMDSTD is not set
-# CONFIG_MTD_RAM is not set
-# CONFIG_MTD_ROM is not set
-# CONFIG_MTD_JEDEC is not set
-CONFIG_MTD_PHYSMAP=y
-CONFIG_MTD_PHYSMAP_START=8000000
-CONFIG_MTD_PHYSMAP_LEN=2000000
-CONFIG_MTD_PHYSMAP_BUSWIDTH=4
-
-#
-# Drivers for chip mappings
-#
-# CONFIG_MTD_MIXMEM is not set
-# CONFIG_MTD_NORA is not set
-# CONFIG_MTD_OCTAGON is not set
-# CONFIG_MTD_PNC2000 is not set
-# CONFIG_MTD_RPXLITE is not set
-# CONFIG_MTD_VMAX is not set
-
-#
-# User modules and translation layers for MTD devices
-#
-CONFIG_MTD_CHAR=y
-# CONFIG_MTD_BLOCK is not set
-# CONFIG_FTL is not set
-# CONFIG_NFTL is not set
+# CONFIG_MTD_NAND is not set
 
 #
 # Parallel port support
@@ -343,18 +370,22 @@ CONFIG_NETDEVICES=y
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
-# CONFIG_NET_SB1000 is not set
 
 #
 # Ethernet (10 or 100Mbit)
 #
 CONFIG_NET_ETHERNET=y
+# CONFIG_ARM_AM79C961A is not set
+# CONFIG_SUNLANCE is not set
+# CONFIG_HAPPYMEAL is not set
+# CONFIG_SUNBMAC is not set
+# CONFIG_SUNQE is not set
+# CONFIG_SUNLANCE is not set
+# CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
-# CONFIG_AT1700 is not set
-# CONFIG_DEPCA is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_ISA is not set
 CONFIG_NET_PCI=y
@@ -363,11 +394,12 @@ CONFIG_NET_PCI=y
 # CONFIG_APRICOT is not set
 # CONFIG_CS89x0 is not set
 CONFIG_TULIP=y
+# CONFIG_TULIP_MWI is not set
+# CONFIG_TULIP_MMIO is not set
 # CONFIG_DE4X5 is not set
 # CONFIG_DGRS is not set
 # CONFIG_DM9102 is not set
 # CONFIG_EEPRO100 is not set
-# CONFIG_EEPRO100_PM is not set
 # CONFIG_LNE390 is not set
 # CONFIG_FEALNX is not set
 # CONFIG_NATSEMI is not set
@@ -384,7 +416,6 @@ CONFIG_8139TOO=y
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_WINBOND_840 is not set
-# CONFIG_HAPPYMEAL is not set
 # CONFIG_LAN_SAA9730 is not set
 # CONFIG_NET_POCKET is not set
 
@@ -392,11 +423,14 @@ CONFIG_8139TOO=y
 # Ethernet (1000 Mbit)
 #
 # CONFIG_ACENIC is not set
+# CONFIG_ACENIC_OMIT_TIGON_I is not set
+# CONFIG_MYRI_SBUS is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_FDDI is not set
 # CONFIG_HIPPI is not set
+# CONFIG_PLIP is not set
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
 
@@ -537,7 +571,6 @@ CONFIG_DEVPTS_FS=y
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
 # CONFIG_SYSV_FS is not set
-# CONFIG_SYSV_FS_WRITE is not set
 # CONFIG_UDF_FS is not set
 # CONFIG_UDF_RW is not set
 # CONFIG_UFS_FS is not set

@@ -52,6 +52,7 @@
 #define FIONCLEX	0x6602		/* these numbers need to be adjusted. */
 #define FIOASYNC	0x667d
 #define FIONBIO		0x667e
+#define FIOQSIZE	0x667f
 
 #define TIOCGLTC	0x7474			/* get special local chars */
 #define TIOCSLTC	0x7475			/* set special local chars */

@@ -10,7 +10,7 @@
  * CONTACTS
  *	E-mail regarding any portion of the Linux UDF file system should be
  *	directed to the development team mailing list (run by majordomo):
- *		linux_udf@hootie.lvld.hp.com
+ *		linux_udf@hpesjro.fc.hp.com
  *
  * COPYRIGHT
  *	This file is distributed under the terms of the GNU General Public
@@ -161,6 +161,10 @@ struct VirtualAllocationTable20 {
 	Uint8	impUse[0];
 	Uint32  vatEntry[0];
 };
+
+/* ----------- 2.01 ------------- */
+/* UDF 2.01 6.11 */
+#define FILE_TYPE_REALTIME	0xf9U
 
 /* Sparing maps, see UDF 1.5 2.2.11 */
 typedef struct {

@@ -92,12 +92,12 @@ static inline int alloc_level(cpuid_t cpunum, int irq)
 	while (++j < PERNODE_LEVELS) {
 		if (node_level_to_irq[nodenum][j] == -1) {
 			node_level_to_irq[nodenum][j] = irq;
-			return(j);
+			return j;
 		}
 	}
 	printk("Cpu %ld flooded with devices\n", cpunum);
 	while(1);
-	return(-1);
+	return -1;
 }
 
 static inline int find_level(cpuid_t *cpunum, int irq)
@@ -183,7 +183,8 @@ static void do_IRQ(cpuid_t thiscpu, int irq, struct pt_regs * regs)
 	}
 	irq_exit(thiscpu, irq);
 
-	/* unmasking and bottom half handling is done magically for us. */
+	if (softirq_pending(thiscpu))
+		do_softirq();
 }
 
 /*

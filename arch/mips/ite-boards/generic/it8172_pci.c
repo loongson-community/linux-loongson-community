@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	IT8172 system controller specific pci support.
  *
@@ -273,4 +272,10 @@ void __init pcibios_fixup_bus(struct pci_bus *b)
 {
 	//printk("pcibios_fixup_bus\n");
 }
+
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
+}
+
 #endif /* CONFIG_PCI */

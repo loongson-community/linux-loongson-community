@@ -181,7 +181,7 @@ static int i596_debug = (DEB_SERIOUS|DEB_PROBE);
 MODULE_AUTHOR("Richard Hirst");
 MODULE_DESCRIPTION("i82596 driver");
 MODULE_PARM(i596_debug, "i");
-
+MODULE_PARM_DESC(i596_debug, "lasi_82596 debug mask");
 
 /* Copy frames shorter than rx_copybreak, otherwise pass on up in
  * a full sized sk_buff.  Value of 100 stolen from tulip.c (!alpha).
@@ -1515,13 +1515,13 @@ static char devicename[9] =
 {0,};
 static struct net_device dev_82596 =
 {
-	devicename,	/* device name inserted by drivers/net/net_init.c */
-	0, 0, 0, 0,
-	0, 0,		/* base, irq */
-	0, 0, 0, NULL, lasi_i82596_probe};
+	name: devicename,	/* device name inserted by drivers/net/net_init.c */
+	init: lasi_i82596_probe,
+};
 
 
 MODULE_PARM(debug, "i");
+MODULE_PARM_DESC(debug, "lasi_82596 debug mask");
 static int debug = -1;
 
 int init_module(void)

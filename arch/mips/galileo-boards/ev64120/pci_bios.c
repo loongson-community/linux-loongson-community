@@ -1181,6 +1181,11 @@ static void __init allocate_pci_space(struct pci_device *pci_devices)
 	} while (maxSize);
 }
 
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
+}
+
 void __init pcibios_init(void)
 {
 

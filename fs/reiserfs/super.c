@@ -149,6 +149,9 @@ struct super_operations reiserfs_sops =
   statfs: reiserfs_statfs,
   remount_fs: reiserfs_remount,
 
+  fh_to_dentry: reiserfs_fh_to_dentry,
+  dentry_to_fh: reiserfs_dentry_to_fh,
+
 };
 
 /* this was (ext2)parse_options */
@@ -302,7 +305,7 @@ static int read_bitmaps (struct super_block * s)
     int i, bmp, dl ;
     struct reiserfs_super_block * rs = SB_DISK_SUPER_BLOCK(s);
 
-    SB_AP_BITMAP (s) = reiserfs_kmalloc (sizeof (struct buffer_head *) * le16_to_cpu (rs->s_bmap_nr), GFP_BUFFER, s);
+    SB_AP_BITMAP (s) = reiserfs_kmalloc (sizeof (struct buffer_head *) * le16_to_cpu (rs->s_bmap_nr), GFP_NOFS, s);
     if (SB_AP_BITMAP (s) == 0)
 	return 1;
     memset (SB_AP_BITMAP (s), 0, sizeof (struct buffer_head *) * le16_to_cpu (rs->s_bmap_nr));
@@ -331,7 +334,7 @@ static int read_old_bitmaps (struct super_block * s)
   int bmp1 = (REISERFS_OLD_DISK_OFFSET_IN_BYTES / s->s_blocksize) + 1;  /* first of bitmap blocks */
 
   /* read true bitmap */
-  SB_AP_BITMAP (s) = reiserfs_kmalloc (sizeof (struct buffer_head *) * le16_to_cpu (rs->s_bmap_nr), GFP_BUFFER, s);
+  SB_AP_BITMAP (s) = reiserfs_kmalloc (sizeof (struct buffer_head *) * le16_to_cpu (rs->s_bmap_nr), GFP_NOFS, s);
   if (SB_AP_BITMAP (s) == 0)
     return 1;
 

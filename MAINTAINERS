@@ -231,7 +231,7 @@ S:	Maintained
 CIRRUS LOGIC GENERIC FBDEV DRIVER
 P:	Jeff Garzik
 M:	jgarzik@mandrakesoft.com
-L:	linux-fbdev@vuser.vu.union.edu
+L:	linux-fbdev-devel@lists.sourceforge.net
 S:	Odd Fixes
 
 CIRRUS LOGIC CS4280/CS461x SOUNDDRIVER
@@ -712,16 +712,11 @@ P:	Jaroslav Kysela
 M:	perex@suse.cz
 S:	Maintained
 
-ISDN SUBSYSTEM (general)
-P:	Fritz Elfert
-M:	fritz@isdn4linux.de
-L:	isdn4linux@listserv.isdn4linux.de
-W:	http://www.isdn4linux.de
-S:	Maintained
-
-ISDN SUBSYSTEM (card drivers)
+ISDN SUBSYSTEM
 P:	Karsten Keil
 M:	kkeil@suse.de
+P:	Kai Germaschewski
+M:	kai.germaschewski@gmx.de
 L:	isdn4linux@listserv.isdn4linux.de
 W:	http://www.isdn4linux.de
 S:	Maintained
@@ -764,8 +759,8 @@ P:	Keith Owens
 M:	kaos@ocs.com.au
 P:	Michael Elizabeth Chastain
 M:	mec@shout.net
-L:	linux-kbuild@torque.net
-W:	http://www.kernel.org/pub/linux/kernel/projects/kbuild/
+L:	kbuild-devel@lists.sourceforge.net
+W:	http://kbuild.sourceforge.net
 S:	Maintained 
 
 KERNEL NFSD
@@ -789,24 +784,30 @@ M:	eis@baty.hanse.de
 L:	linux-x25@vger.kernel.org
 S:	Maintained
 
-LINUX FOR POWERPC
-P:	Cort Dougan
-M:	cort@fsmlabs.com
-W:	http://www.fsmlabs.com/linuxppcbk.html
-S:	Maintained
+LINUX FOR IBM pSERIES (RS/6000)
+P:	Paul Mackerras
+M:	paulus@au.ibm.com
+W:	http://www.ibm.com/linux/ltc/projects/ppc
+S:	Supported
 
-LINUX FOR POWER MACINTOSH
+LINUX FOR POWERPC
 P:	Paul Mackerras
 M:	paulus@samba.org
+W:	http://www.fsmlabs.com/linuxppcbk.html
+S:	Supported
+
+LINUX FOR POWER MACINTOSH
+P:	Benjamin Herrenschmidt
+M:	benh@kernel.crashing.org
 W:	http://www.linuxppc.org/
 L:	linuxppc-dev@lists.linuxppc.org
 S:	Maintained
 
 LOGICAL VOLUME MANAGER
 P:     Heinz Mauelshagen
-M:     linux-LVM@EZ-Darmstadt.Telekom.de
-L:     linux-LVM@msede.com
-W:     http://linux.msede.com/lvm
+M:     mge@sistina.de
+L:     linux-LVM@sistina.com
+W:     http://www.sistina.com/lvm
 S:     Maintained 
 
 M68K
@@ -1087,9 +1088,9 @@ W:	http://www.alarsen.net/linux/qnx4fs/
 S:	Maintained
 
 RAGE128 FRAMEBUFFER DISPLAY DRIVER
-P:	Brad Douglas
-M:	brad@neruo.com
-L:	linux-fbdev@vuser.vu.union.edu
+P:	Ani Joshi
+M:	ajoshi@shell.unixbox.com
+L:	linux-fbdev-devel@lists.sourceforge.net
 S:	Maintained
 
 RAYLINK/WEBGEAR 802.11 WIRELESS LAN DRIVER
@@ -1169,7 +1170,7 @@ L:	linux-scsi@vger.kernel.org
 S:	Unmaintained
 
 SCSI TAPE DRIVER
-P:	Kai Mdkisara
+P:	Kai Mäkisara
 M:	Kai.Makisara@metla.fi
 L:	linux-scsi@vger.kernel.org
 S:	Maintained
@@ -1192,12 +1193,6 @@ P:	Urban Widmark
 M:	urban@teststation.com
 W:	http://samba.org/
 L:	samba@samba.org
-S:	Maintained
-
-SMP: (except SPARC)
-P:	Linus Torvalds
-M:	torvalds@transmeta.com
-L:	linux-smp@vger.kernel.org
 S:	Maintained
 
 SOFTWARE RAID (Multiple Disks) SUPPORT
@@ -1347,8 +1342,8 @@ P:	Ben Fennema
 M:	bfennema@falcon.csc.calpoly.edu
 P:	Dave Boynton
 M:	dave@trylinux.com
-L:	linux_udf@hootie.lvld.hp.com
-W:	http://www.trylinux.com/projects/udf/index.html
+L:	linux_udf@hpesjro.fc.hp.com
+W:	http://linux-udf.sourceforge.net
 S:	Maintained
 
 UMSDOS FILESYSTEM
@@ -1473,6 +1468,12 @@ L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 S:	Maintained
 
+USB SERIAL CYBERJACK PINPAD/E-COM DRIVER
+M:  linux-usb@sii.li
+L:  linux-usb-users@lists.sourceforge.net
+L:  linux-usb-devel@lists.sourceforge.net
+S:  Supported
+
 USB MASS STORAGE DRIVER
 P:	Matthew Dharm
 M:	mdharm-usb@one-eyed-alien.net
@@ -1571,6 +1572,12 @@ P:	Pauline Middelink
 M:	middelin@polyware.nl
 W:	http://www.polyware.nl/~middelin/En/hobbies.html
 W:	http://www.polyware.nl/~middelin/hobbies.html
+S:	Maintained
+
+Bluetooth Subsystem (BlueZ)
+P:	Maxim Krasnyansky
+M:	maxk@qualcomm.com
+W:	http://bluez.sf.net
 S:	Maintained
 
 THE REST

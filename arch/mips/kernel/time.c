@@ -373,8 +373,7 @@ asmlinkage void ll_timer_interrupt(int irq, struct pt_regs *regs)
 	
 	irq_exit(cpu, irq);
 
-	/* check for bottom half */
-	if (softirq_active(cpu)&softirq_mask(cpu))
+	if (softirq_pending(cpu))
 		do_softirq();
 }
 

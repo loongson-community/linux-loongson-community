@@ -1,4 +1,4 @@
-/* $Id: pci_psycho.c,v 1.24 2001/05/15 08:54:30 davem Exp $
+/* $Id: pci_psycho.c,v 1.26 2001/06/13 06:34:30 davem Exp $
  * pci_psycho.c: PSYCHO/U2P specific PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@caipfs.rutgers.edu)
@@ -353,23 +353,28 @@ static int __init psycho_ino_to_pil(struct pci_dev *pdev, unsigned int ino)
 	if (ret == 0 && pdev == NULL) {
 		ret = 1;
 	} else if (ret == 0) {
-		switch ((pdev->class >> 16) & 0x0f) {
+		switch ((pdev->class >> 16) & 0xff) {
 		case PCI_BASE_CLASS_STORAGE:
 			ret = 4;
+			break;
 
 		case PCI_BASE_CLASS_NETWORK:
 			ret = 6;
+			break;
 
 		case PCI_BASE_CLASS_DISPLAY:
 			ret = 9;
+			break;
 
 		case PCI_BASE_CLASS_MULTIMEDIA:
 		case PCI_BASE_CLASS_MEMORY:
 		case PCI_BASE_CLASS_BRIDGE:
 			ret = 10;
+			break;
 
 		default:
 			ret = 1;
+			break;
 		};
 	}
 
@@ -1404,6 +1409,8 @@ static void __init pbm_register_toplevel_resources(struct pci_controller_info *p
 
 	request_resource(&ioport_resource, &pbm->io_space);
 	request_resource(&iomem_resource, &pbm->mem_space);
+	pci_register_legacy_regions(&pbm->io_space,
+				    &pbm->mem_space);
 }
 
 static void psycho_pbm_strbuf_init(struct pci_controller_info *p,

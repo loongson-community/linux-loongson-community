@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.29 2001/05/15 08:54:30 davem Exp $
+/* $Id: pci.c,v 1.35 2001/06/13 06:34:30 davem Exp $
  * pci.c: UltraSparc PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@redhat.com)
@@ -177,6 +177,10 @@ static void __init pci_reorder_devs(void)
 	}
 }
 
+extern void rs_init(void);
+extern void clock_probe(void);
+extern void power_init(void);
+
 void __init pcibios_init(void)
 {
 	pci_controller_probe();
@@ -190,6 +194,9 @@ void __init pcibios_init(void)
 
 	isa_init();
 	ebus_init();
+	rs_init();
+	clock_probe();
+	power_init();
 }
 
 struct pci_fixup pcibios_fixups[] = {
@@ -198,6 +205,66 @@ struct pci_fixup pcibios_fixups[] = {
 
 void pcibios_fixup_bus(struct pci_bus *pbus)
 {
+	struct pci_pbm_info *pbm = pbus->sysdata;
+
+	/* Generic PCI bus probing sets these to point at
+	 * &io{port,mem}_resouce which is wrong for us.
+	 */
+	pbus->resource[0] = &pbm->io_space;
+	pbus->resource[1] = &pbm->mem_space;
+}
+
+/* NOTE: This can get called before we've fixed up pdev->sysdata. */
+int pci_claim_resource(struct pci_dev *pdev, int resource)
+{
+	struct pci_pbm_info *pbm = pci_bus2pbm[pdev->bus->number];
+	struct resource *res = &pdev->resource[resource];
+	struct resource *root;
+
+	if (!pbm)
+		return -EINVAL;
+
+	if (res->flags & IORESOURCE_IO)
+		root = &pbm->io_space;
+	else
+		root = &pbm->mem_space;
+
+	pbm->parent->resource_adjust(pdev, res, root);
+
+	return request_resource(root, res);
+}
+
+int pci_assign_resource(struct pci_dev *pdev, int resource)
+{
+	struct pcidev_cookie *pcp = pdev->sysdata;
+	struct pci_pbm_info *pbm = pcp->pbm;
+	struct resource *res = &pdev->resource[resource];
+	struct resource *root;
+	unsigned long min, max, size, align;
+	int err;
+
+	if (res->flags & IORESOURCE_IO) {
+		root = &pbm->io_space;
+		min = root->start + 0x400UL;
+		max = root->end;
+	} else {
+		root = &pbm->mem_space;
+		min = root->start;
+		max = min + 0x80000000UL;
+	}
+
+	size = res->end - res->start;
+	align = size + 1;
+
+	err = allocate_resource(root, res, size + 1, min, max, align, NULL, NULL);
+	if (err < 0) {
+		printk("PCI: Failed to allocate resource %d for %s\n",
+		       resource, pdev->name);
+	} else {
+		pbm->parent->base_address_update(pdev, resource);
+	}
+
+	return err;
 }
 
 void pcibios_update_resource(struct pci_dev *pdev, struct resource *res1,
@@ -238,6 +305,53 @@ char * __init pcibios_setup(char *str)
 
 /* Platform support for /proc/bus/pci/X/Y mmap()s. */
 
+/* If the user uses a host-bridge as the PCI device, he may use
+ * this to perform a raw mmap() of the I/O or MEM space behind
+ * that controller.
+ *
+ * This can be useful for execution of x86 PCI bios initialization code
+ * on a PCI card, like the xfree86 int10 stuff does.
+ */
+static int __pci_mmap_make_offset_bus(struct pci_dev *pdev, struct vm_area_struct *vma,
+				      enum pci_mmap_state mmap_state)
+{
+	struct pcidev_cookie *pcp = pdev->sysdata;
+	struct pci_pbm_info *pbm;
+	unsigned long space_size, user_offset, user_size;
+
+	if (!pcp)
+		return -ENXIO;
+	pbm = pcp->pbm;
+	if (!pbm)
+		return -ENXIO;
+
+	if (mmap_state == pci_mmap_io) {
+		space_size = (pbm->io_space.end -
+			      pbm->io_space.start) + 1;
+	} else {
+		space_size = (pbm->mem_space.end -
+			      pbm->mem_space.start) + 1;
+	}
+
+	/* Make sure the request is in range. */
+	user_offset = vma->vm_pgoff << PAGE_SHIFT;
+	user_size = vma->vm_end - vma->vm_start;
+
+	if (user_offset >= space_size ||
+	    (user_offset + user_size) > space_size)
+		return -EINVAL;
+
+	if (mmap_state == pci_mmap_io) {
+		vma->vm_pgoff = (pbm->io_space.start +
+				 user_offset) >> PAGE_SHIFT;
+	} else {
+		vma->vm_pgoff = (pbm->mem_space.start +
+				 user_offset) >> PAGE_SHIFT;
+	}
+
+	return 0;
+}
+
 /* Adjust vm_pgoff of VMA such that it is the physical page offset corresponding
  * to the 32-bit pci bus offset for DEV requested by the user.
  *
@@ -248,13 +362,16 @@ char * __init pcibios_setup(char *str)
  *
  * Returns negative error code on failure, zero on success.
  */
-static __inline__ int __pci_mmap_make_offset(struct pci_dev *dev, struct vm_area_struct *vma,
-					     enum pci_mmap_state mmap_state)
+static int __pci_mmap_make_offset(struct pci_dev *dev, struct vm_area_struct *vma,
+				  enum pci_mmap_state mmap_state)
 {
 	unsigned long user_offset = vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long user32 = user_offset & 0xffffffffUL;
 	unsigned long largest_base, this_base, addr32;
 	int i;
+
+	if ((dev->class >> 8) == PCI_CLASS_BRIDGE_HOST)
+		return __pci_mmap_make_offset_bus(dev, vma, mmap_state);
 
 	/* Figure out which base address this is for. */
 	largest_base = 0UL;
@@ -303,7 +420,7 @@ static __inline__ int __pci_mmap_make_offset(struct pci_dev *dev, struct vm_area
 /* Set vm_flags of VMA, as appropriate for this architecture, for a pci device
  * mapping.
  */
-static __inline__ void __pci_mmap_set_flags(struct pci_dev *dev, struct vm_area_struct *vma,
+static void __pci_mmap_set_flags(struct pci_dev *dev, struct vm_area_struct *vma,
 					    enum pci_mmap_state mmap_state)
 {
 	vma->vm_flags |= (VM_SHM | VM_LOCKED);
@@ -312,7 +429,7 @@ static __inline__ void __pci_mmap_set_flags(struct pci_dev *dev, struct vm_area_
 /* Set vm_page_prot of VMA, as appropriate for this architecture, for a pci
  * device mapping.
  */
-static __inline__ void __pci_mmap_set_pgprot(struct pci_dev *dev, struct vm_area_struct *vma,
+static void __pci_mmap_set_pgprot(struct pci_dev *dev, struct vm_area_struct *vma,
 					     enum pci_mmap_state mmap_state)
 {
 	/* Our io_remap_page_range takes care of this, do nothing. */

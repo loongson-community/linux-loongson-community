@@ -190,15 +190,24 @@ static int xlate_proc_name(const char *name,
 	return 0;
 }
 
-static unsigned char proc_alloc_map[PROC_NDYNAMIC / 8];
+static unsigned long proc_alloc_map[(PROC_NDYNAMIC + BITS_PER_LONG - 1) / BITS_PER_LONG];
+
+spinlock_t proc_alloc_map_lock = SPIN_LOCK_UNLOCKED;
 
 static int make_inode_number(void)
 {
-	int i = find_first_zero_bit((void *) proc_alloc_map, PROC_NDYNAMIC);
-	if (i<0 || i>=PROC_NDYNAMIC) 
-		return -1;
-	set_bit(i, (void *) proc_alloc_map);
-	return PROC_DYNAMIC_FIRST + i;
+	int i;
+	spin_lock(&proc_alloc_map_lock);
+	i = find_first_zero_bit(proc_alloc_map, PROC_NDYNAMIC);
+	if (i < 0 || i >= PROC_NDYNAMIC) {
+		i = -1;
+		goto out;
+	}
+	set_bit(i, proc_alloc_map);
+	i += PROC_DYNAMIC_FIRST;
+out:
+	spin_unlock(&proc_alloc_map_lock);
+	return i;
 }
 
 static int proc_readlink(struct dentry *dentry, char *buffer, int buflen)
@@ -546,8 +555,8 @@ void remove_proc_entry(const char *name, struct proc_dir_entry *parent)
 		de->next = NULL;
 		if (S_ISDIR(de->mode))
 			parent->nlink--;
-		clear_bit(de->low_ino-PROC_DYNAMIC_FIRST,
-				(void *) proc_alloc_map);
+		clear_bit(de->low_ino - PROC_DYNAMIC_FIRST,
+			  proc_alloc_map);
 		proc_kill_inodes(de);
 		de->nlink = 0;
 		if (!atomic_read(&de->count))

@@ -203,18 +203,7 @@ ENTRY(system_call)
 	call *SYMBOL_NAME(sys_call_table)(,%eax,4)
 	movl %eax,EAX(%esp)		# save the return value
 ENTRY(ret_from_sys_call)
-#ifdef CONFIG_SMP
-	movl processor(%ebx),%eax
-	shll $CONFIG_X86_L1_CACHE_SHIFT,%eax
-	movl SYMBOL_NAME(irq_stat)(,%eax),%ecx		# softirq_active
-	testl SYMBOL_NAME(irq_stat)+4(,%eax),%ecx	# softirq_mask
-#else
-	movl SYMBOL_NAME(irq_stat),%ecx		# softirq_active
-	testl SYMBOL_NAME(irq_stat)+4,%ecx	# softirq_mask
-#endif
-	jne   handle_softirq
-	
-ret_with_reschedule:
+	cli				# need_resched and signals atomic test
 	cmpl $0,need_resched(%ebx)
 	jne reschedule
 	cmpl $0,sigpending(%ebx)
@@ -257,32 +246,15 @@ badsys:
 	jmp ret_from_sys_call
 
 	ALIGN
-ret_from_exception:
-#ifdef CONFIG_SMP
-	GET_CURRENT(%ebx)
-	movl processor(%ebx),%eax
-	shll $CONFIG_X86_L1_CACHE_SHIFT,%eax
-	movl SYMBOL_NAME(irq_stat)(,%eax),%ecx		# softirq_active
-	testl SYMBOL_NAME(irq_stat)+4(,%eax),%ecx	# softirq_mask
-#else
-	movl SYMBOL_NAME(irq_stat),%ecx		# softirq_active
-	testl SYMBOL_NAME(irq_stat)+4,%ecx	# softirq_mask
-#endif
-	jne   handle_softirq
-
 ENTRY(ret_from_intr)
 	GET_CURRENT(%ebx)
+ret_from_exception:
 	movl EFLAGS(%esp),%eax		# mix EFLAGS and CS
 	movb CS(%esp),%al
 	testl $(VM_MASK | 3),%eax	# return to VM86 mode or non-supervisor?
-	jne ret_with_reschedule
+	jne ret_from_sys_call
 	jmp restore_all
 
-	ALIGN
-handle_softirq:
-	call SYMBOL_NAME(do_softirq)
-	jmp ret_from_intr
-	
 	ALIGN
 reschedule:
 	call SYMBOL_NAME(schedule)    # test
@@ -334,14 +306,16 @@ ENTRY(device_not_available)
 	pushl $-1		# mark this as an int
 	SAVE_ALL
 	GET_CURRENT(%ebx)
-	pushl $ret_from_exception
 	movl %cr0,%eax
 	testl $0x4,%eax			# EM (math emulation bit)
-	je SYMBOL_NAME(math_state_restore)
+	jne device_not_available_emulate
+	call SYMBOL_NAME(math_state_restore)
+	jmp ret_from_exception
+device_not_available_emulate:
 	pushl $0		# temporary storage for ORIG_EIP
 	call  SYMBOL_NAME(math_emulate)
 	addl $4,%esp
-	ret
+	jmp ret_from_exception
 
 ENTRY(debug)
 	pushl $0

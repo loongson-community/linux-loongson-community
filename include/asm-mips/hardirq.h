@@ -3,8 +3,9 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1997, 1998, 1999, 2000 by Ralf Baechle
+ * Copyright (C) 1997, 1998, 1999, 2000, 2001 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #ifndef _ASM_HARDIRQ_H
 #define _ASM_HARDIRQ_H
@@ -14,10 +15,8 @@
 #include <linux/irq.h>
 #include <linux/spinlock.h>
 
-/* entry.S is sensitive to the offsets of these fields */
 typedef struct {
-	unsigned int __softirq_active;
-	unsigned int __softirq_mask;
+	unsigned int __softirq_pending;
 	unsigned int __local_irq_count;
 	unsigned int __local_bh_count;
 	unsigned int __syscall_count;

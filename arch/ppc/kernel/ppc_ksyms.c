@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.ppc_ksyms.c 1.31 05/18/01 08:18:10 patch
+ * BK Id: SCCS/s.ppc_ksyms.c 1.36 06/28/01 15:50:16 paulus
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -357,14 +357,12 @@ EXPORT_SYMBOL(cpm_free_handler);
 #endif /* CONFIG_8xx */
 
 EXPORT_SYMBOL(ret_to_user_hook);
-EXPORT_SYMBOL(do_softirq);
 EXPORT_SYMBOL(next_mmu_context);
 EXPORT_SYMBOL(set_context);
-EXPORT_SYMBOL(mmu_context_overflow);
-EXPORT_SYMBOL(flush_hash_page); /* For MOL */
 EXPORT_SYMBOL(handle_mm_fault); /* For MOL */
 EXPORT_SYMBOL_NOVERS(disarm_decr);
 #if !defined(CONFIG_8xx) && !defined(CONFIG_4xx)
+EXPORT_SYMBOL(flush_hash_page); /* For MOL */
 extern long *intercept_table;
 EXPORT_SYMBOL(intercept_table);
 #endif

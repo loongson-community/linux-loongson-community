@@ -15,21 +15,15 @@
  */
 
 #include <linux/init.h>
-#include <linux/mm.h>
-#include <linux/proc_fs.h>
-#include <linux/smp_lock.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
 #include <linux/quotaops.h>
 #include <linux/pagemap.h>
-#include <linux/dcache.h>
 #include <linux/dnotify.h>
-
-#include <asm/uaccess.h>
-#include <asm/unaligned.h>
-#include <asm/semaphore.h>
-#include <asm/page.h>
-#include <asm/pgtable.h>
+#include <linux/smp_lock.h>
 
 #include <asm/namei.h>
+#include <asm/uaccess.h>
 
 #define ACC_MODE(x) ("\000\004\002\006"[(x)&O_ACCMODE])
 
@@ -351,22 +345,17 @@ int follow_up(struct vfsmount **mnt, struct dentry **dentry)
 
 static inline int __follow_down(struct vfsmount **mnt, struct dentry **dentry)
 {
-	struct list_head *p;
+	struct vfsmount *mounted;
+
 	spin_lock(&dcache_lock);
-	p = (*dentry)->d_vfsmnt.next;
-	while (p != &(*dentry)->d_vfsmnt) {
-		struct vfsmount *tmp;
-		tmp = list_entry(p, struct vfsmount, mnt_clash);
-		if (tmp->mnt_parent == *mnt) {
-			*mnt = mntget(tmp);
-			spin_unlock(&dcache_lock);
-			mntput(tmp->mnt_parent);
-			/* tmp holds the mountpoint, so... */
-			dput(*dentry);
-			*dentry = dget(tmp->mnt_root);
-			return 1;
-		}
-		p = p->next;
+	mounted = lookup_mnt(*mnt, *dentry);
+	if (mounted) {
+		*mnt = mntget(mounted);
+		spin_unlock(&dcache_lock);
+		dput(*dentry);
+		mntput(mounted->mnt_parent);
+		*dentry = dget(mounted->mnt_root);
+		return 1;
 	}
 	spin_unlock(&dcache_lock);
 	return 0;
@@ -1137,10 +1126,10 @@ do_link:
 		putname(nd->last.name);
 		goto exit;
 	}
+	error = -ELOOP;
 	if (count++==32) {
-		dentry = nd->dentry;
 		putname(nd->last.name);
-		goto ok;
+		goto exit;
 	}
 	dir = nd->dentry;
 	down(&dir->d_inode->i_sem);

@@ -320,7 +320,7 @@ o  <ftp://ftp.namesys.com/pub/reiserfsprogs/reiserfsprogs-3.x.0j.tar.gz>
 
 LVM toolset
 -----------
-o  <http://linux.msede.com/lvm/>
+o  <http://www.sistina.com/lvm/>
 
 Pcmcia-cs
 ---------
@@ -347,7 +347,7 @@ Network
 
 PPP
 ---
-o  <ftp://ftp.samba.org/ppp/ppp-2.4.0.tar.gz>
+o  <ftp://ftp.samba.org/pub/ppp/ppp-2.4.0.tar.gz>
 
 Isdn4k-utils
 ------------

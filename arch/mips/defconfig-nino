@@ -277,7 +277,6 @@ CONFIG_DEVPTS_FS=y
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
 # CONFIG_SYSV_FS is not set
-# CONFIG_SYSV_FS_WRITE is not set
 # CONFIG_UDF_FS is not set
 # CONFIG_UDF_RW is not set
 # CONFIG_UFS_FS is not set

@@ -337,7 +337,7 @@ static int ov511_read_proc(char *page, char **start, off_t off,
 	/* IMPORTANT: This output MUST be kept under PAGE_SIZE
 	 *            or we need to get more sophisticated. */
 
-	out += sprintf (out, "driver_version  : %s\n", version);
+	out += sprintf (out, "driver_version  : %s\n", DRIVER_VERSION);
 	out += sprintf (out, "custom_id       : %d\n", ov511->customid);
 	out += sprintf (out, "model           : %s\n", ov511->desc ?
 		clist[ov511->desc].description : "unknown");
@@ -3426,8 +3426,7 @@ static int __init usb_ov511_init(void)
 	if (usb_register(&ov511_driver) < 0)
 		return -1;
 
-	info(DRIVER_VERSION " " DRIVER_AUTHOR);
-	info(DRIVER_DESC);
+	info(DRIVER_VERSION ":" DRIVER_DESC);
 
 	return 0;
 }

@@ -658,7 +658,7 @@ static int cs4281_write_ac97(struct cs4281_state *card, u32 offset,
 	       card->pBA0 + BA0_ACCTL);
 
 	// Wait for the write to occur.
-	for (count = 0; count < 10; count++) {
+	for (count = 0; count < 100; count++) {
 		// First, we want to wait for a short time.
 		udelay(25);
 		// Now, check to see if the write has completed.
@@ -946,7 +946,7 @@ static __devinit int cs4281_hw_init(struct cs4281_state *card)
 }
 
 #ifndef NOT_CS4281_PM
-void printpm(struct cs4281_state *s)
+static void printpm(struct cs4281_state *s)
 {
 	CS_DBGOUT(CS_PM, 9, printk("pm struct:\n"));
 	CS_DBGOUT(CS_PM, 9, printk("flags:0x%x u32CLKCR1_SAVE: 0%x u32SSPMValue: 0x%x\n",
@@ -967,7 +967,7 @@ void printpm(struct cs4281_state *s)
 		s->pm.u32MIDCR_Save));
 
 }
-void printpipe(struct cs4281_pipeline *pl)
+static void printpipe(struct cs4281_pipeline *pl)
 {
 
 	CS_DBGOUT(CS_PM, 9, printk("pm struct:\n"));
@@ -1000,7 +1000,7 @@ void printpipe(struct cs4281_pipeline *pl)
 	CS_DBGOUT(CS_PM, 9, printk("u32FPDRnValue: 0x%x u32FPDRnAddress: 0x%x\n",
 		pl->u32FPDRnValue,pl->u32FPDRnAddress));
 }
-void printpipelines(struct cs4281_state *s)
+static void printpipelines(struct cs4281_state *s)
 {
 	int i;
 	for(i=0;i<CS4281_NUMBER_OF_PIPELINES;i++)
@@ -4463,9 +4463,9 @@ static void __devinit cs4281_remove(struct pci_dev *pci_dev)
 	unregister_sound_midi(s->dev_midi);
 	iounmap(s->pBA1);
 	iounmap(s->pBA0);
-	kfree(s);
 	pci_set_drvdata(pci_dev,NULL);
 	list_del(&s->list);
+	kfree(s);
 	CS_DBGOUT(CS_INIT | CS_FUNCTION, 2, printk(KERN_INFO
 		 "cs4281: cs4281_remove()-: remove successful\n"));
 }

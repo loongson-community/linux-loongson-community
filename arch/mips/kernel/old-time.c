@@ -443,7 +443,12 @@ r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 void indy_r4k_timer_interrupt (struct pt_regs *regs)
 {
 	static const int INDY_R4K_TIMER_IRQ = 7;
+	int cpu = smp_processor_id();
+
 	r4k_timer_interrupt (INDY_R4K_TIMER_IRQ, NULL, regs);
+
+	if (softirq_pending(cpu))
+		do_softirq();
 }
 
 struct irqaction irq0  = { timer_interrupt, SA_INTERRUPT, 0,

@@ -944,7 +944,7 @@ static void edge_bulk_out_cmd_callback (struct urb *urb)
 	}
 
 	if (status) {
-		dbg(__FUNCTION__" - nonzero write bulk status received: %d", urb->status);
+		dbg(__FUNCTION__" - nonzero write bulk status received: %d", status);
 		return;
 	}
 
@@ -3037,8 +3037,7 @@ int __init edgeport_init(void)
 	usb_serial_register (&edgeport_16dual_device);
 	usb_serial_register (&edgeport_compat_id_device);
 	usb_serial_register (&edgeport_8i_device);
-	info(DRIVER_VERSION " " DRIVER_AUTHOR);
-	info(DRIVER_DESC);
+	info(DRIVER_VERSION ":" DRIVER_DESC);
 	return 0;
 }
 

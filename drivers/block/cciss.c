@@ -63,6 +63,7 @@ const struct pci_device_id cciss_pci_device_id[] = {
                         0x0E11, 0x4080, 0, 0, 0},
 	{ PCI_VENDOR_ID_COMPAQ, PCI_DEVICE_ID_COMPAQ_CISSB,
                         0x0E11, 0x4082, 0, 0, 0},
+	{0,}
 };
 MODULE_DEVICE_TABLE(pci, cciss_pci_device_id);
 
@@ -610,7 +611,10 @@ static int cciss_ioctl(struct inode *inode, struct file *filep,
 		{
 			/* Copy the data into the buffer we created */ 
 			if (copy_from_user(buff, iocommand.buf, iocommand.buf_size))
+			{
+				kfree(buff);
 				return -EFAULT;
+			}
 		}
 		if ((c = cmd_alloc(h , 0)) == NULL)
 		{
@@ -680,6 +684,7 @@ static int cciss_ioctl(struct inode *inode, struct file *filep,
 			{
                         	kfree(buff);
 				cmd_free(h, c, 0);
+				return -EFAULT;
 			}
                 }
                 kfree(buff);

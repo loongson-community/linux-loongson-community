@@ -320,6 +320,11 @@ pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 	pci_write_config_dword(dev, where, reg);
 }
 
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
+}
+
 /*
  *  Called after each bus is probed, but before its children
  *  are examined.

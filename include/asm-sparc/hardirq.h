@@ -1,7 +1,7 @@
 /* hardirq.h: 32-bit Sparc hard IRQ support.
  *
  * Copyright (C) 1997 David S. Miller (davem@caip.rutgers.edu)
- * Copyright (C) 1998-2000 Anton Blanchard (anton@linuxcare.com)
+ * Copyright (C) 1998-2000 Anton Blanchard (anton@samba.org)
  */
 
 #ifndef __SPARC_HARDIRQ_H
@@ -14,8 +14,8 @@
 
 /* entry.S is sensitive to the offsets of these fields */
 typedef struct {
-	unsigned int __softirq_active;
-	unsigned int __softirq_mask;
+	unsigned int __softirq_pending;
+	unsigned int __unused_1;
 #ifndef CONFIG_SMP
 	unsigned int __local_irq_count;
 #else

@@ -220,10 +220,8 @@ asmlinkage void do_IRQ(unsigned long cause, struct pt_regs * regs)
 	}
 	irq_exit(cpu,irq);
 
-#if 0
-	if (softirq_active(cpu) & softirq_mask(cpu))
+	if (softirq_pending(cpu))
 		do_softirq();
-#endif
 }
 
 int request_irq(unsigned int irq, void (*handler)(int, void *, struct pt_regs *),

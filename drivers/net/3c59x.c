@@ -142,6 +142,13 @@
     - If a device's internalconfig register reports it has NWAY,
       use it, even if autoselect is enabled.
 
+   LK1.1.15 6 June 2001 akpm
+    - Prevent double counting of received bytes (Lars Christensen)
+    - Add ethtool support (jgarzik)
+    - Add module parm descriptions (Andrzej M. Krzysztofowicz)
+    - Implemented alloc_etherdev() API
+    - Special-case the 'Tx error 82' message.
+
     - See http://www.uow.edu.au/~andrewm/linux/#3c59x-2.3 for more details.
     - Also see Documentation/networking/vortex.txt
 */
@@ -155,6 +162,13 @@
  * elimination of all the tests and reduced cache footprint.
  */
 
+
+#define DRV_NAME	"3c59x"
+#define DRV_VERSION	"LK1.1.15"
+#define DRV_RELDATE	"6 June 2001"
+
+
+
 /* A few values that may be tweaked. */
 /* Keep the ring sizes a power of two for efficiency. */
 #define TX_RING_SIZE	16
@@ -164,7 +178,13 @@
 /* "Knobs" that adjust features and parameters. */
 /* Set the copy breakpoint for the copy-only-tiny-frames scheme.
    Setting to > 1512 effectively disables this feature. */
+#ifndef __arm__
 static const int rx_copybreak = 200;
+#else
+/* ARM systems perform better by disregarding the bus-master
+   transfer capability of these cards. -- rmk */
+static const int rx_copybreak = 1513;
+#endif
 /* Allow setting MTU to a larger size, bypassing the normal ethernet setup. */
 static const int mtu = 1500;
 /* Maximum events (Rx packets, etc.) to handle at each interrupt. */
@@ -204,13 +224,16 @@ static int vortex_debug = 1;
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
+#include <linux/mii.h>
 #include <linux/init.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include <linux/ethtool.h>
 #include <asm/irq.h>			/* For NR_IRQS only. */
 #include <asm/bitops.h>
 #include <asm/io.h>
+#include <asm/uaccess.h>
 
 /* Kernel compatibility defines, some common to David Hinds' PCMCIA package.
    This is only in the support-all-kernels source code. */
@@ -219,8 +242,9 @@ static int vortex_debug = 1;
 
 #include <linux/delay.h>
 
+
 static char version[] __devinitdata =
-"3c59x.c:LK1.1.13 27 Jan 2001  Donald Becker and others. http://www.scyld.com/network/vortex.html\n";
+DRV_NAME ".c:" DRV_VERSION " " DRV_RELDATE "  Donald Becker and others. http://www.scyld.com/network/vortex.html\n";
 
 MODULE_AUTHOR("Donald Becker <becker@scyld.com>");
 MODULE_DESCRIPTION("3Com 3c59x/3c90x/3c575 series Vortex/Boomerang/Cyclone driver");
@@ -236,6 +260,18 @@ MODULE_PARM(compaq_ioaddr, "i");
 MODULE_PARM(compaq_irq, "i");
 MODULE_PARM(compaq_device_id, "i");
 MODULE_PARM(watchdog, "i");
+MODULE_PARM_DESC(debug, "3c59x debug level (0-6)");
+MODULE_PARM_DESC(options, "3c59x: Bits 0-3: media type, bit 4: bus mastering, bit 9: full duplex");
+MODULE_PARM_DESC(full_duplex, "3c59x full duplex setting(s) (1)");
+MODULE_PARM_DESC(hw_checksums, "3c59x Hardware checksum checking by adapter(s) (0-1)");
+MODULE_PARM_DESC(flow_ctrl, "3c59x 802.3x flow control usage (PAUSE only) (0-1)");
+MODULE_PARM_DESC(enable_wol, "3c59x: Turn on Wake-on-LAN for adapter(s) (0-1)");
+MODULE_PARM_DESC(rx_copybreak, "3c59x copy breakpoint for copy-only-tiny-frames");
+MODULE_PARM_DESC(max_interrupt_work, "3c59x maximum events handled per interrupt");
+MODULE_PARM_DESC(compaq_ioaddr, "3c59x PCI I/O base address (Compaq BIOS problem workaround)");
+MODULE_PARM_DESC(compaq_irq, "3c59x PCI IRQ number (Compaq BIOS problem workaround)");
+MODULE_PARM_DESC(compaq_device_id, "3c59x PCI device ID (Compaq BIOS problem workaround)");
+MODULE_PARM_DESC(watchdog, "3c59x transmit timeout in milliseconds");
 
 /* Operational parameter that usually are not changed. */
 
@@ -251,7 +287,7 @@ MODULE_PARM(watchdog, "i");
    code size of a per-interface flag is not worthwhile. */
 static char mii_preamble_required;
 
-#define PFX "3c59x: "
+#define PFX DRV_NAME ": "
 
 
 
@@ -805,7 +841,9 @@ static int compaq_ioaddr, compaq_irq, compaq_device_id = 0x5900;
 
 static int vortex_cards_found;
 
-static void vortex_suspend (struct pci_dev *pdev)
+#ifdef CONFIG_PM
+
+static int vortex_suspend (struct pci_dev *pdev, u32 state)
 {
 	struct net_device *dev = pdev->driver_data;
 
@@ -818,9 +856,10 @@ static void vortex_suspend (struct pci_dev *pdev)
 			vortex_down(dev);
 		}
 	}
+	return 0;
 }
 
-static void vortex_resume (struct pci_dev *pdev)
+static int vortex_resume (struct pci_dev *pdev)
 {
 	struct net_device *dev = pdev->driver_data;
 
@@ -833,7 +872,10 @@ static void vortex_resume (struct pci_dev *pdev)
 			netif_device_attach(dev);
 		}
 	}
+	return 0;
 }
+
+#endif /* CONFIG_PM */
 
 /* returns count found (>= 0), or negative on error */
 static int __init vortex_eisa_init (void)
@@ -849,7 +891,7 @@ static int __init vortex_eisa_init (void)
 	for (ioaddr = 0x1000; ioaddr < 0x9000; ioaddr += 0x1000) {
 		int device_id;
 
-		if (request_region(ioaddr, VORTEX_TOTAL_SIZE, "3c59x") == NULL)
+		if (request_region(ioaddr, VORTEX_TOTAL_SIZE, DRV_NAME) == NULL)
 			continue;
 
 		/* Check the standard EISA ID register for an encoded '3Com'. */
@@ -918,6 +960,7 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 	static int printed_version;
 	int retval;
 	struct vortex_chip_info * const vci = &vortex_info_tbl[chip_idx];
+	char *print_name;
 
 	if (!printed_version) {
 		printk (KERN_INFO "%s", version);
@@ -925,7 +968,9 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 		printed_version = 1;
 	}
 
-	dev = init_etherdev(NULL, sizeof(*vp));
+	print_name = pdev ? pdev->slot_name : "3c59x";
+
+	dev = alloc_etherdev(sizeof(*vp));
 	retval = -ENOMEM;
 	if (!dev) {
 		printk (KERN_ERR PFX "unable to allocate etherdev, aborting\n");
@@ -934,7 +979,7 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 	SET_MODULE_OWNER(dev);
 
 	printk(KERN_INFO "%s: 3Com %s %s at 0x%lx, ",
-	       dev->name,
+	       print_name,
 	       pdev ? "PCI" : "EISA",
 	       vci->name,
 	       ioaddr);
@@ -958,7 +1003,7 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 	if (pdev) {
 		/* EISA resources already marked, so only PCI needs to do this here */
 		/* Ignore return value, because Cardbus drivers already allocate for us */
-		if (request_region(ioaddr, vci->io_size, dev->name) != NULL)
+		if (request_region(ioaddr, vci->io_size, print_name) != NULL)
 			vp->must_free_region = 1;
 
 		/* enable bus-mastering if necessary */		
@@ -977,7 +1022,7 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 			if (pci_latency < new_latency) {
 				printk(KERN_INFO "%s: Overriding PCI latency"
 					" timer (CFLT) setting of %d, new value is %d.\n",
-					dev->name, pci_latency, new_latency);
+					print_name, pci_latency, new_latency);
 					pci_write_config_byte(pdev, PCI_LATENCY_TIMER, new_latency);
 			}
 		}
@@ -1107,7 +1152,7 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 				goto free_ring;
 		}
 		printk(KERN_INFO "%s: CardBus functions mapped %8.8lx->%p\n",
-			   dev->name, fn_st_addr, vp->cb_fn_base);
+			   print_name, fn_st_addr, vp->cb_fn_base);
 		EL3WINDOW(2);
 
 		n = inw(ioaddr + Wn2_ResetOptions) & ~0x4010;
@@ -1230,7 +1275,7 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 
 	if (vortex_debug > 0) {
 		printk(KERN_INFO "%s: scatter/gather %sabled. h/w checksums %sabled\n",
-				dev->name,
+				print_name,
 				(dev->features & NETIF_F_SG) ? "en":"dis",
 				(dev->features & NETIF_F_IP_CSUM) ? "en":"dis");
 	}
@@ -1241,7 +1286,9 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 	dev->set_multicast_list = set_rx_mode;
 	dev->tx_timeout = vortex_tx_timeout;
 	dev->watchdog_timeo = (watchdog * HZ) / 1000;
-	return 0;
+	retval = register_netdev(dev);
+	if (retval == 0)
+		return 0;
 
 free_ring:
 	pci_free_consistent(pdev,
@@ -1252,7 +1299,6 @@ free_ring:
 free_region:
 	if (vp->must_free_region)
 		release_region(ioaddr, vci->io_size);
-	unregister_netdev(dev);
 	kfree (dev);
 	printk(KERN_ERR PFX "vortex_probe1 fails.  Returns %d\n", retval);
 out:
@@ -1725,7 +1771,7 @@ vortex_error(struct net_device *dev, int status)
 	unsigned char tx_status = 0;
 
 	if (vortex_debug > 2) {
-		printk(KERN_DEBUG "%s: vortex_error(), status=0x%x\n", dev->name, status);
+		printk(KERN_ERR "%s: vortex_error(), status=0x%x\n", dev->name, status);
 	}
 
 	if (status & TxComplete) {			/* Really "TxError" for us. */
@@ -1733,8 +1779,12 @@ vortex_error(struct net_device *dev, int status)
 		/* Presumably a tx-timeout. We must merely re-enable. */
 		if (vortex_debug > 2
 			|| (tx_status != 0x88 && vortex_debug > 0)) {
-			printk(KERN_DEBUG"%s: Transmit error, Tx status register %2.2x.\n",
+			printk(KERN_ERR "%s: Transmit error, Tx status register %2.2x.\n",
 				   dev->name, tx_status);
+			if (tx_status == 0x82) {
+				printk(KERN_ERR "Probably a duplex mismatch.  See "
+						"Documentation/networking/vortex.txt\n");
+			}
 			dump_tx_ring(dev);
 		}
 		if (tx_status & 0x14)  vp->stats.tx_fifo_errors++;
@@ -2293,7 +2343,6 @@ boomerang_rx(struct net_device *dev)
 			struct sk_buff *skb;
 			dma_addr_t dma = le32_to_cpu(vp->rx_ring[entry].addr);
 
-			vp->stats.rx_bytes += pkt_len;
 			if (vortex_debug > 4)
 				printk(KERN_DEBUG "Receiving packet size %d status %4.4x.\n",
 					   pkt_len, rx_status);
@@ -2571,28 +2620,65 @@ static void update_stats(long ioaddr, struct net_device *dev)
 	return;
 }
 
+
+static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
+{
+	struct vortex_private *vp = dev->priv;
+	u32 ethcmd;
+		
+	if (copy_from_user(&ethcmd, useraddr, sizeof(ethcmd)))
+		return -EFAULT;
+
+        switch (ethcmd) {
+        case ETHTOOL_GDRVINFO: {
+		struct ethtool_drvinfo info = {ETHTOOL_GDRVINFO};
+		strcpy(info.driver, DRV_NAME);
+		strcpy(info.version, DRV_VERSION);
+		if (vp->pdev)
+			strcpy(info.bus_info, vp->pdev->slot_name);
+		else
+			sprintf(info.bus_info, "EISA 0x%lx %d",
+				dev->base_addr, dev->irq);
+		if (copy_to_user(useraddr, &info, sizeof(info)))
+			return -EFAULT;
+		return 0;
+	}
+
+        }
+	
+	return -EOPNOTSUPP;
+}
+
 static int vortex_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	struct vortex_private *vp = (struct vortex_private *)dev->priv;
 	long ioaddr = dev->base_addr;
-	u16 *data = (u16 *)&rq->ifr_data;
+	struct mii_ioctl_data *data = (struct mii_ioctl_data *)&rq->ifr_data;
 	int phy = vp->phys[0] & 0x1f;
 	int retval;
 
 	switch(cmd) {
-	case SIOCDEVPRIVATE:		/* Get the address of the PHY in use. */
-		data[0] = phy;
-	case SIOCDEVPRIVATE+1:		/* Read the specified MII register. */
+	case SIOCETHTOOL:
+		return netdev_ethtool_ioctl(dev, (void *) rq->ifr_data);
+
+	case SIOCGMIIPHY:		/* Get address of MII PHY in use. */
+	case SIOCDEVPRIVATE:		/* for binary compat, remove in 2.5 */
+		data->phy_id = phy;
+
+	case SIOCGMIIREG:		/* Read MII PHY register. */
+	case SIOCDEVPRIVATE+1:		/* for binary compat, remove in 2.5 */
 		EL3WINDOW(4);
-		data[3] = mdio_read(dev, data[0] & 0x1f, data[1] & 0x1f);
+		data->val_out = mdio_read(dev, data->phy_id & 0x1f, data->reg_num & 0x1f);
 		retval = 0;
 		break;
-	case SIOCDEVPRIVATE+2:		/* Write the specified MII register */
+
+	case SIOCSMIIREG:		/* Write MII PHY register. */
+	case SIOCDEVPRIVATE+2:		/* for binary compat, remove in 2.5 */
 		if (!capable(CAP_NET_ADMIN)) {
 			retval = -EPERM;
 		} else {
 			EL3WINDOW(4);
-			mdio_write(dev, data[0] & 0x1f, data[1] & 0x1f, data[2]);
+			mdio_write(dev, data->phy_id & 0x1f, data->reg_num & 0x1f, data->val_in);
 			retval = 0;
 		}
 		break;
@@ -2774,9 +2860,11 @@ static struct pci_driver vortex_driver = {
 	name:		"3c59x",
 	probe:		vortex_init_one,
 	remove:		vortex_remove_one,
+	id_table:	vortex_pci_tbl,
+#ifdef CONFIG_PM
 	suspend:	vortex_suspend,
 	resume:		vortex_resume,
-	id_table:	vortex_pci_tbl,
+#endif
 };
 
 

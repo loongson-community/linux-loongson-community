@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.xmon.c 1.9 05/17/01 18:14:24 cort
+ * BK Id: SCCS/s.xmon.c 1.14 06/28/01 15:50:17 paulus
  */
 /*
  * Routines providing a simple monitor for use on the PowerMac.
@@ -661,8 +661,7 @@ backtrace(struct pt_regs *excp)
 	unsigned stack[2];
 	struct pt_regs regs;
 	extern char ret_from_intercept, ret_from_syscall_1, ret_from_syscall_2;
-	extern char do_bottom_half_ret, do_signal_ret;
-	extern char ret_from_except;
+	extern char do_signal_ret, ret_from_except;
 
 	printf("backtrace:\n");
 	
@@ -680,7 +679,6 @@ backtrace(struct pt_regs *excp)
 		    || stack[1] == (unsigned) &ret_from_except
 		    || stack[1] == (unsigned) &ret_from_syscall_1
 		    || stack[1] == (unsigned) &ret_from_syscall_2
-		    || stack[1] == (unsigned) &do_bottom_half_ret
 		    || stack[1] == (unsigned) &do_signal_ret) {
 			if (mread(sp+16, &regs, sizeof(regs)) != sizeof(regs))
 				break;
@@ -1019,7 +1017,8 @@ dump_hash_table()
 		seg_end = (seg << 28) | 0x0ffff000;
 		if (seg_end > hash_end)
 			seg_end = hash_end;
-		dump_hash_table_seg((hash_ctx << 4) + seg, seg_start, seg_end);
+		dump_hash_table_seg((hash_ctx << 4) + (seg * 0x111),
+				    seg_start, seg_end);
 		seg_start = seg_end + 0x1000;
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.irq.c 1.23 05/17/01 18:14:21 cort
+ * BK Id: SCCS/s.irq.c 1.28 06/28/01 16:15:56 paulus
  */
 /*
  *  arch/ppc/kernel/irq.c
@@ -531,26 +531,25 @@ int do_IRQ(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 	int irq;
-        hardirq_enter( cpu );
+        hardirq_enter(cpu);
 
 	/* every arch is required to have a get_irq -- Cort */
-	irq = ppc_md.get_irq( regs );
+	irq = ppc_md.get_irq(regs);
 
-	if ( irq < 0 )
-	{
+	if (irq >= 0) {
+		ppc_irq_dispatch_handler( regs, irq );
+	} else if (irq != -2) {
 		/* -2 means ignore, already handled */
-		if (irq != -2)
-		{
+		if (ppc_spurious_interrupts < 10)
 			printk(KERN_DEBUG "Bogus interrupt %d from PC = %lx\n",
 			       irq, regs->nip);
-			/* That's not SMP safe ... but who cares ? */
-			ppc_spurious_interrupts++;
-		}
-		goto out;
+		/* That's not SMP safe ... but who cares ? */
+		ppc_spurious_interrupts++;
 	}
-	ppc_irq_dispatch_handler( regs, irq );
-out:	
         hardirq_exit( cpu );
+
+	if (softirq_pending(cpu))
+		do_softirq();
 	return 1; /* lets ret_from_int know we can do checks */
 }
 

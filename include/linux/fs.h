@@ -204,15 +204,22 @@ extern void update_atime (struct inode *);
 
 extern void buffer_init(unsigned long);
 extern void inode_init(unsigned long);
+extern void mnt_init(unsigned long);
 
 /* bh state bits */
-#define BH_Uptodate	0	/* 1 if the buffer contains valid data */
-#define BH_Dirty	1	/* 1 if the buffer is dirty */
-#define BH_Lock		2	/* 1 if the buffer is locked */
-#define BH_Req		3	/* 0 if the buffer has been invalidated */
-#define BH_Mapped	4	/* 1 if the buffer has a disk mapping */
-#define BH_New		5	/* 1 if the buffer is new and not yet written out */
-#define BH_Protected	6	/* 1 if the buffer is protected */
+enum bh_state_bits {
+	BH_Uptodate,	/* 1 if the buffer contains valid data */
+	BH_Dirty,	/* 1 if the buffer is dirty */
+	BH_Lock,	/* 1 if the buffer is locked */
+	BH_Req,		/* 0 if the buffer has been invalidated */
+	BH_Mapped,	/* 1 if the buffer has a disk mapping */
+	BH_New,		/* 1 if the buffer is new and not yet written out */
+	BH_Protected,	/* 1 if the buffer is protected */
+
+	BH_PrivateStart,/* not a state bit, but the first bit available
+			 * for private allocation by other entities
+			 */
+};
 
 /*
  * Try to keep the most commonly used fields in single cache lines (16
@@ -835,6 +842,31 @@ struct super_operations {
 	int (*remount_fs) (struct super_block *, int *, char *);
 	void (*clear_inode) (struct inode *);
 	void (*umount_begin) (struct super_block *);
+
+	/* Following are for knfsd to interact with "interesting" filesystems
+	 * Currently just reiserfs, but possibly FAT and others later
+	 *
+	 * fh_to_dentry is given a filehandle fragement with length, and a type flag
+	 *   and must return a dentry for the referenced object or, if "parent" is
+	 *   set, a dentry for the parent of the object.
+	 *   If a dentry cannot be found, a "root" dentry should be created and
+	 *   flaged as DCACHE_NFSD_DISCONNECTED. nfsd_iget is an example implementation.
+	 *
+	 * dentry_to_fh is given a dentry and must generate the filesys specific
+	 *   part of the file handle.  Available length is passed in *lenp and used
+	 *   length should be returned therein.
+	 *   If need_parent is set, then dentry_to_fh should encode sufficient information
+	 *   to find the (current) parent.
+	 *   dentry_to_fh should return a 1byte "type" which will be passed back in
+	 *   the fhtype arguement to fh_to_dentry.  Type of 0 is reserved.
+	 *   If filesystem was exportable before the introduction of fh_to_dentry,
+	 *   types 1 and 2 should be used is that same way as the generic code.
+	 *   Type 255 means error.
+	 *
+	 * Lengths are in units of 4bytes, not bytes.
+	 */
+	struct dentry * (*fh_to_dentry)(struct super_block *sb, __u32 *fh, int len, int fhtype, int parent);
+	int (*dentry_to_fh)(struct dentry *, __u32 *fh, int *lenp, int need_parent);
 };
 
 /* Inode state bits.. */
@@ -1024,7 +1056,7 @@ extern struct file_operations rdwr_pipe_fops;
 
 extern int fs_may_remount_ro(struct super_block *);
 
-extern int try_to_free_buffers(struct page *, int);
+extern int try_to_free_buffers(struct page *, unsigned int);
 extern void refile_buffer(struct buffer_head * buf);
 
 /* reiserfs_writepage needs this */
@@ -1312,7 +1344,6 @@ extern int dcache_readdir(struct file *, void *, filldir_t);
 
 extern struct file_system_type *get_fs_type(const char *name);
 extern struct super_block *get_super(kdev_t);
-extern void put_super(kdev_t);
 static inline int is_mounted(kdev_t dev)
 {
 	struct super_block *sb = get_super(dev);

@@ -1137,4 +1137,9 @@ char *pcibios_setup(char *str)
         return str;
 }
 
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
+}
+
 #endif	/* CONFIG_PCI */
