@@ -67,7 +67,6 @@
 
 #define SIU_BASE_BAUD		1152000
 #define SIU_CLOCK		0x0102
-#define SIU_IRQ			17
 
 /* VR4122 and VR4131 DSIU Registers */
 #define DSIURB			KSEG1ADDR(0x0f000820)
@@ -77,7 +76,6 @@
 
 #define DSIU_BASE_BAUD		1152000
 #define DSIU_CLOCK		0x0802
-#define DSIU_IRQ		29
 
 int vr41xx_serial_ports = 0;
 

@@ -53,9 +53,50 @@ extern void vr41xx_clock_mask(u16 mask);
 /*
  * Interrupt Control Unit
  */
+/* CPU core Interrupt Numbers */
+#define MIPS_CPU_IRQ_BASE	0
+#define MIPS_CPU_IRQ(x)		(MIPS_CPU_IRQ_BASE + (x))
+#define MIPS_SOFTINT0_IRQ	MIPS_CPU_IRQ(0)
+#define MIPS_SOFTINT1_IRQ	MIPS_CPU_IRQ(1)
+#define ICU_CASCADE_IRQ		MIPS_CPU_IRQ(2)
+#define RTC_LONG1_IRQ		MIPS_CPU_IRQ(3)
+#define RTC_LONG2_IRQ		MIPS_CPU_IRQ(4)
+/* RFU */
+#define BATTERY_IRQ		MIPS_CPU_IRQ(6)
+#define MIPS_COUNTER_IRQ	MIPS_CPU_IRQ(7)
+
+/* SYINT1 Interrupt Numbers */
+#define SYSINT1_IRQ_BASE	8
+#define SYSINT1_IRQ(x)		(SYSINT1_IRQ_BASE + (x))
+/* RFU */
+#define POWER_IRQ		SYSINT1_IRQ(1)
+/* RFU */
+#define GIUINT_CASCADE_IRQ	SYSINT1_IRQ(8)
+#define SIU_IRQ			SYSINT1_IRQ(9)
+/* RFU */
+#define SOFTINT_IRQ		SYSINT1_IRQ(11)
+#define CLKRUN_IRQ		SYSINT1_IRQ(12)
+#define SYSINT1_IRQ_LAST	CLKRUN_IRQ
+
+/* SYSINT2 Interrupt Numbers */
+#define SYSINT2_IRQ_BASE	24
+#define SYSINT2_IRQ(x)		(SYSINT2_IRQ_BASE + (x))
+/* RFU */
+#define LED_IRQ			SYSINT2_IRQ(1)
+/* RFU */
+#define VTCLOCK_IRQ		SYSINT2_IRQ(3)
+#define FIR_IRQ			SYSINT2_IRQ(4)
+#define DSIU_IRQ		SYSINT2_IRQ(5)
+#define PCI_IRQ			SYSINT2_IRQ(6)
+#define SCU_IRQ			SYSINT2_IRQ(7)
+#define CSI_IRQ			SYSINT2_IRQ(8)
+#define BCU_IRQ			SYSINT2_IRQ(9)
+#define SYSINT2_IRQ_LAST	BCU_IRQ
 
 /* GIU Interrupt Numbers */
-#define GIU_IRQ(x)	(40 + (x))
+#define GIU_IRQ_BASE		40
+#define GIU_IRQ(x)		(GIU_IRQ_BASE + (x))	/* IRQ 40-71 */
+#define GIU_IRQ_LAST		GIU_IRQ(31)
 
 extern void (*board_irq_init)(void);
 extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));

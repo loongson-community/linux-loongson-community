@@ -167,7 +167,6 @@ void vr41xx_set_irq_level(int pin, int level)
 	vr41xx_clear_giuint(pin);
 }
 
-#define GIUINT_CASCADE_IRQ	16
 #define GIUINT_NR_IRQS		32
 
 enum {

@@ -48,8 +48,7 @@
 #include <asm/mipsregs.h>
 #include <asm/param.h>
 #include <asm/time.h>
-
-#define MIPS_COUNTER_TIMER_IRQ	7
+#include <asm/vr41xx/vr41xx.h>
 
 #define VR4111_ETIMELREG	KSEG1ADDR(0x0b0000c0)
 #define VR4122_ETIMELREG	KSEG1ADDR(0x0f000100)
@@ -87,7 +86,7 @@ void vr41xx_timer_setup(struct irqaction *irq)
 {
 	u32 count;
 
-	setup_irq(MIPS_COUNTER_TIMER_IRQ, irq);
+	setup_irq(MIPS_COUNTER_IRQ, irq);
 
 	count = read_c0_count();
 	write_c0_compare(count + (mips_counter_frequency / HZ));

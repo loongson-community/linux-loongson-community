@@ -54,16 +54,6 @@
 #include <asm/mipsregs.h>
 #include <asm/vr41xx/vr41xx.h>
 
-#define MIPS_CPU_IRQ_BASE	0
-#define SYSINT1_IRQ_BASE	8
-#define SYSINT1_IRQ_LAST	23
-#define SYSINT2_IRQ_BASE	24
-#define SYSINT2_IRQ_LAST	39
-#define GIUINT_IRQ_BASE		GIU_IRQ(0)
-#define GIUINT_IRQ_LAST		GIU_IRQ(31)
-
-#define ICU_CASCADE_IRQ		(MIPS_CPU_IRQ_BASE + 2)
-
 extern asmlinkage void vr41xx_handle_interrupt(void);
 
 extern void __init init_generic_irq(void);
@@ -228,7 +218,7 @@ static void enable_giuint_irq(unsigned int irq)
 {
 	int pin;
 
-	pin = irq - GIUINT_IRQ_BASE;
+	pin = irq - GIU_IRQ_BASE;
 	if (pin < 16)
 		set_icu1(MGIUINTLREG, (u16)1 << pin);
 	else
@@ -241,7 +231,7 @@ static void disable_giuint_irq(unsigned int irq)
 {
 	int pin;
 
-	pin = irq - GIUINT_IRQ_BASE;
+	pin = irq - GIU_IRQ_BASE;
 	vr41xx_disable_giuint(pin);
 
 	if (pin < 16)
@@ -252,7 +242,7 @@ static void disable_giuint_irq(unsigned int irq)
 
 static unsigned int startup_giuint_irq(unsigned int irq)
 {
-	vr41xx_clear_giuint(irq - GIUINT_IRQ_BASE);
+	vr41xx_clear_giuint(irq - GIU_IRQ_BASE);
 
 	enable_giuint_irq(irq);
 
@@ -265,7 +255,7 @@ static void ack_giuint_irq(unsigned int irq)
 {
 	disable_giuint_irq(irq);
 
-	vr41xx_clear_giuint(irq - GIUINT_IRQ_BASE);
+	vr41xx_clear_giuint(irq - GIU_IRQ_BASE);
 }
 
 static void end_giuint_irq(unsigned int irq)
@@ -315,12 +305,12 @@ static void __init vr41xx_icu_init(void)
 	write_icu2(0, MSYSINT2REG);
 	write_icu2(0, MGIUINTHREG);
 
-	for (i = SYSINT1_IRQ_BASE; i <= GIUINT_IRQ_LAST; i++) {
+	for (i = SYSINT1_IRQ_BASE; i <= GIU_IRQ_LAST; i++) {
 		if (i >= SYSINT1_IRQ_BASE && i <= SYSINT1_IRQ_LAST)
 			irq_desc[i].handler = &sysint1_irq_type;
 		else if (i >= SYSINT2_IRQ_BASE && i <= SYSINT2_IRQ_LAST)
 			irq_desc[i].handler = &sysint2_irq_type;
-		else if (i >= GIUINT_IRQ_BASE && i <= GIUINT_IRQ_LAST)
+		else if (i >= GIU_IRQ_BASE && i <= GIU_IRQ_LAST)
 			irq_desc[i].handler = &giuint_irq_type;
 	}
 
