@@ -638,6 +638,19 @@ extern inline void set_wired(unsigned long val)
 		: : "r" (val));
 }
 
+extern inline unsigned long get_info(void)
+{
+	unsigned long val;
+
+	__asm__(
+		".set push\n\t"
+		".set reorder\n\t"
+		"mfc0 %0, $7\n\t"
+		".set pop"
+		: "=r" (val));
+	return val;
+}
+
 /* CP0_TAGLO and CP0_TAGHI registers */
 extern inline unsigned long get_taglo(void)
 {
