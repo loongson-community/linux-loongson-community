@@ -305,6 +305,9 @@ void __init ld_mmu_tx49(void)
 	probe_icache(config);
 	probe_dcache(config);
 
+	shm_align_mask = max_t(unsigned long,
+	                       (dcache_size >> 2) - 1, PAGE_SIZE - 1);
+
 	switch (dc_lsize) {
 	case 16:
 		_clear_page = r4k_clear_page_d16;
