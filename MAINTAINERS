@@ -789,9 +789,9 @@ S:	Maintained
 
 MIPS
 P:	Ralf Baechle
-M:	ralf@gnu.ai.mit.edu
-W:	http://lena.fnet.fr/
-L:	linux-mips@fnet.fr
+M:	ralf@gnu.org
+W:	http://oss.sgi.com/mips/mips-howto.html
+L:	linux-mips@oss.sgi.com
 S:	Maintained
 
 MISCELLANEOUS MCA-SUPPORT
