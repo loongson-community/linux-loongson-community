@@ -124,8 +124,8 @@ void __init smp_boot_cpus(void)
 
 		/* Spawn a new process normally.  Grab a pointer to
 		   its task struct so we can mess with it */
-		idle = do_fork(CLONE_VM | CLONE_IDLETASK, 0, &regs, 0, NULL,
-		               NULL);
+		idle = copy_process(CLONE_VM | CLONE_IDLETASK, 0, &regs, 0,
+		                    NULL, NULL);
 		if (IS_ERR(idle))
 			panic("failed fork for CPU %d", cpu);
 

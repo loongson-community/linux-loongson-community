@@ -446,7 +446,7 @@ static struct task_struct * __init fork_by_hand(void)
 	 * don't care about the eip and regs settings since
 	 * we'll never reschedule the forked task.
 	 */
-	return do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0, NULL, NULL);
+	return copy_process(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0, NULL, NULL);
 }
 
 static int __init do_boot_cpu(int cpu, int num_cpus)
