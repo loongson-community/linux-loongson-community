@@ -56,7 +56,7 @@ void hpfs_truncate(struct inode *i)
 	i->i_blocks = 1 + ((i->i_size + 511) >> 9);
 	i->u.hpfs_i.mmu_private = i->i_size;
 	hpfs_truncate_btree(i->i_sb, i->i_ino, 1, ((i->i_size + 511) >> 9));
-	hpfs_write_inode(i, 0);
+	hpfs_write_inode(i);
 }
 
 int hpfs_get_block(struct inode *inode, long iblock, struct buffer_head *bh_result, int create)

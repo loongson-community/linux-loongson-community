@@ -4,10 +4,8 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *
  *  1997-11-28  Modified for POSIX.1b signals by Richard Henderson
- *  2000-05-25  Pentium III FXSR, SSE support by Gareth Hughes
+ *  2000-06-20  Pentium III FXSR, SSE support by Gareth Hughes
  */
-
-#include <linux/config.h>
 
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -22,6 +20,7 @@
 #include <linux/stddef.h>
 #include <asm/ucontext.h>
 #include <asm/uaccess.h>
+#include <asm/i387.h>
 
 #define DEBUG_SIG 0
 
@@ -186,53 +185,6 @@ struct rt_sigframe
 	char retcode[8];
 };
 
-static inline int restore_i387_hard(struct _fpstate *buf)
-{
-	struct task_struct *tsk = current;
-#ifdef CONFIG_X86_FXSR
-	struct _fpreg *from;
-	struct _fpxreg *to;
-	int i;
-#endif
-	clear_fpu(tsk);
-
-#ifdef CONFIG_X86_FXSR
-	if (__copy_from_user(&tsk->thread.i387.hard, buf, 7 * sizeof(long)))
-		return 1;
-
-	from = &buf->_st[0];
-	to = (struct _fpxreg *) &tsk->thread.i387.hard.st_space[0];
-	for (i = 0; i < 8; i++, to++, from++) {
-		if (__copy_from_user(to, from, sizeof(*from)))
-			return 1;
-	}
-
-	if (__copy_from_user(&tsk->thread.i387.hard.fxsr_space[0],
-			     &buf->_fxsr_env[0], X86_FXSR_SIZE))
-		return 1;
-#else
-	if (__copy_from_user(&tsk->thread.i387.hard, buf,
-			     sizeof(struct i387_hard_struct)))
-		return 1;
-#endif
-	return 0;
-}
-
-static inline int restore_i387(struct _fpstate *buf)
-{
-	int err;
-#ifndef CONFIG_MATH_EMULATION
-	err = restore_i387_hard(buf);
-#else
-	if (boot_cpu_data.hard_math)
-		err = restore_i387_hard(buf);
-	else
-		err = restore_i387_soft(&current->thread.i387.soft, buf);
-#endif
-	current->used_math = 1;
-	return err;
-}
-
 static int
 restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc, int *peax)
 {
@@ -362,63 +314,6 @@ badframe:
 /*
  * Set up a signal frame.
  */
-
-static inline int save_i387_hard(struct _fpstate * buf)
-{
-	struct task_struct *tsk = current;
-#ifdef CONFIG_X86_FXSR
-	struct _fpreg *to;
-	struct _fpxreg *from;
-	int i;
-	int err = 0;
-#endif
-	unlazy_fpu(tsk);
-	tsk->thread.i387.hard.status = tsk->thread.i387.hard.swd;
-
-#ifdef CONFIG_X86_FXSR
-	if (__copy_to_user(buf, &tsk->thread.i387.hard, 7 * sizeof(long)))
-		return -1;
-
-	to = &buf->_st[0];
-	from = (struct _fpxreg *) &tsk->thread.i387.hard.st_space[0];
-	for (i = 0; i < 8; i++, to++, from++) {
-		if (__copy_to_user(to, from, sizeof(*to)))
-			return -1;
-	}
-	err |= __put_user(tsk->thread.i387.hard.swd & 0xffff, &buf->status);
-	err |= __put_user(X86_FXSR_MAGIC, &buf->magic);
-	if (err)
-		return -1;
-
-	if (__copy_to_user(&buf->_fxsr_env[0],
-			   &tsk->thread.i387.hard.fxsr_space[0],
-			   X86_FXSR_SIZE))
-		return -1;
-#else
-	if (__copy_to_user(buf, &tsk->thread.i387.hard,
-			   sizeof(struct i387_hard_struct)))
-		return -1;
-#endif
-	return 1;
-}
-
-static int save_i387(struct _fpstate *buf)
-{
-	if (!current->used_math)
-		return 0;
-
-	/* This will cause a "finit" to be triggered by the next
-	   attempted FPU operation by the 'current' process.
-	   */
-	current->used_math = 0;
-
-#ifndef CONFIG_MATH_EMULATION
-	return save_i387_hard(buf);
-#else
-	return boot_cpu_data.hard_math ? save_i387_hard(buf)
-	  : save_i387_soft(&current->thread.i387.soft, buf);
-#endif
-}
 
 static int
 setup_sigcontext(struct sigcontext *sc, struct _fpstate *fpstate,
@@ -713,7 +608,7 @@ int do_signal(struct pt_regs *regs, sigset_t *oldset)
 		if (!signr)
 			break;
 
-		if ((current->ptrace&PT_PTRACED) && signr != SIGKILL) {
+		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
 			current->state = TASK_STOPPED;

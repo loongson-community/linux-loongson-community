@@ -83,10 +83,7 @@ nfsd_svc(unsigned short port, int nrservs)
 		if (error < 0)
 			goto failure;
 
-#if CONFIG_NFSD_TCP
-		/* This is developer-only at the moment,
-		 * there are untracked bugs as of 2.4.0-test1-ac11
-		 */
+#if 0	/* Don't even pretend that TCP works. It doesn't. */
 		error = svc_makesock(nfsd_serv, IPPROTO_TCP, port);
 		if (error < 0)
 			goto failure;

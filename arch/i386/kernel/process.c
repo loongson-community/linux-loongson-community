@@ -39,6 +39,7 @@
 #include <asm/io.h>
 #include <asm/ldt.h>
 #include <asm/processor.h>
+#include <asm/i387.h>
 #include <asm/desc.h>
 #include <asm/mmu_context.h>
 #ifdef CONFIG_MATH_EMULATION
@@ -343,7 +344,7 @@ void machine_power_off(void)
 
 void show_regs(struct pt_regs * regs)
 {
-	long cr0 = 0L, cr2 = 0L, cr3 = 0L, cr4 = 0L;
+	long cr0 = 0L, cr2 = 0L, cr3 = 0L;
 
 	printk("\n");
 	printk("EIP: %04x:[<%08lx>]",0xffff & regs->xcs,regs->eip);
@@ -360,15 +361,7 @@ void show_regs(struct pt_regs * regs)
 	__asm__("movl %%cr0, %0": "=r" (cr0));
 	__asm__("movl %%cr2, %0": "=r" (cr2));
 	__asm__("movl %%cr3, %0": "=r" (cr3));
-	printk("CR0: %08lx CR2: %08lx CR3: %08lx", cr0, cr2, cr3);
-	if (current_cpu_data.x86_capability &
-	    (X86_FEATURE_VME | X86_FEATURE_DE | X86_FEATURE_PSE |
-	     X86_FEATURE_TSC | X86_FEATURE_PAE | X86_FEATURE_MCE |
-	     X86_FEATURE_PGE | X86_FEATURE_FXSR | X86_FEATURE_XMM)) {
-		__asm__("movl %%cr4, %0": "=r" (cr4));
-		printk(" CR4: %08lx\n", cr4);
-	}
-	printk("\n");
+	printk("CR0: %08lx CR2: %08lx CR3: %08lx\n", cr0, cr2, cr3);
 }
 
 /*
@@ -511,38 +504,6 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 }
 
 /*
- * fill in the FPU structure for a core dump.
- */
-int dump_fpu (struct pt_regs * regs, struct user_i387_struct* fpu)
-{
-	int fpvalid;
-	struct task_struct *tsk = current;
-#ifdef CONFIG_X86_FXSR
-	unsigned short *to;
-	unsigned short *from;
-	int i;
-#endif
-	fpvalid = tsk->used_math;
-	if (fpvalid) {
-		unlazy_fpu(tsk);
-#ifdef CONFIG_X86_FXSR
-		memcpy(fpu, &tsk->thread.i387.hard, 7 * sizeof(long));
-
-		to = (unsigned short *)&fpu->st_space[0];
-		from = (unsigned short *)&tsk->thread.i387.hard.st_space[0];
-		for (i = 0; i < 8; i++, to += 5, from += 8) {
-			memcpy(to, from, 5 * sizeof(unsigned short));
-		}
-#else
-		memcpy(fpu, &tsk->thread.i387.hard,
-		       sizeof(struct user_i387_struct));
-#endif
-	}
-
-	return fpvalid;
-}
-
-/*
  * fill in the user structure for a core dump..
  */
 void dump_thread(struct pt_regs * regs, struct user * dump)
@@ -595,8 +556,8 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 /*
  *	switch_to(x,yn) should switch tasks from x to y.
  *
- * We f*save/fwait so that an exception goes off at the right time
- * (as a call from the f*save or fwait in effect) rather than to
+ * We fsave/fwait so that an exception goes off at the right time
+ * (as a call from the fsave or fwait in effect) rather than to
  * the wrong process. Lazy FP saving no longer makes any sense
  * with modern CPU's, and this simplifies a lot of things (SMP
  * and UP become the same).

@@ -39,15 +39,10 @@
  *  Detection for Celeron coppermine, identify_cpu() overhauled,
  *  and a few other clean ups.
  *  Dave Jones <dave@powertweak.com>, April 2000
- *  Pentium-III code by Ingo Molnar and modifications by Goutham Rao
- *  Updated to:
+ *
  *  Pentium III FXSR, SSE support
+ *  General FPU state handling cleanups
  *	Gareth Hughes <gareth@valinux.com>, May 2000
- *
- *  Added proper Cascades CPU and L2 cache detection for Cascades
- *  and 8-way type cache happy bunch from Intel:^)
- *  Dragan Stancevic <visitor@valinux.com>, May 2000 
- *
  */
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: audio.c,v 1.51 2000/06/19 06:24:47 davem Exp $
+/* $Id: audio.c,v 1.52 2000/06/22 11:42:27 davem Exp $
  * drivers/sbus/audio/audio.c
  *
  * Copyright 1996 Thomas K. Dyas (tdyas@noc.rutgers.edu)
@@ -2010,9 +2010,9 @@ int register_sparcaudio_driver(struct sparcaudio_driver *drv, int duplex)
 	for (i=0; i < sizeof (dev_list) / sizeof (*dev_list); i++) {
 		sparcaudio_mkname (name_buf, dev_list[i].name, dev);
 		minor = (dev << SPARCAUDIO_DEVICE_SHIFT) | dev_list[i].minor;
-		devfs_register (devfs_handle, name_buf, 0, DEVFS_FL_NONE,
+		devfs_register (devfs_handle, name_buf, DEVFS_FL_NONE,
 				SOUND_MAJOR, minor, S_IFCHR | dev_list[i].mode,
-				0, 0, &sparcaudio_fops, NULL);
+				&sparcaudio_fops, NULL);
 	}
 
         /* Setup the circular queues of output and input buffers

@@ -91,7 +91,6 @@ static int ext2_open_file (struct inode * inode, struct file * filp)
 	return 0;
 }
 
-
 /*
  * We have mostly NULL's here: the current defaults are ok for
  * the ext2 filesystem.
@@ -104,7 +103,7 @@ struct file_operations ext2_file_operations = {
 	mmap:		generic_file_mmap,
 	open:		ext2_open_file,
 	release:	ext2_release_file,
-	fsync:		ext2_fsync_file,
+	fsync:		ext2_sync_file,
 };
 
 struct inode_operations ext2_file_inode_operations = {

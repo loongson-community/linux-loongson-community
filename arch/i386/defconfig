@@ -23,7 +23,8 @@ CONFIG_M686=y
 # CONFIG_MK6 is not set
 # CONFIG_MK7 is not set
 # CONFIG_MCRUSOE is not set
-# CONFIG_MWINCHIP is not set
+# CONFIG_MWINCHIPC6 is not set
+# CONFIG_MWINCHIP2 is not set
 # CONFIG_MWINCHIP3D is not set
 CONFIG_X86_WP_WORKS_OK=y
 CONFIG_X86_INVLPG=y
@@ -114,6 +115,8 @@ CONFIG_BLK_DEV_FD=y
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_RAID0 is not set
+# CONFIG_MD_RAID1 is not set
+# CONFIG_MD_RAID5 is not set
 # CONFIG_BLK_DEV_RAM is not set
 # CONFIG_BLK_DEV_INITRD is not set
 
@@ -460,6 +463,7 @@ CONFIG_PSMOUSE=y
 # Watchdog Cards
 #
 # CONFIG_WATCHDOG is not set
+# CONFIG_INTEL_RNG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 
@@ -535,7 +539,6 @@ CONFIG_NFS_FS=y
 # CONFIG_ROOT_NFS is not set
 CONFIG_NFSD=y
 # CONFIG_NFSD_V3 is not set
-# CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set

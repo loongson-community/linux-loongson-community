@@ -50,6 +50,10 @@ static int ncp_symlink_readpage(struct file *file, struct page *page)
 	char *link;
 	char *buf = (char*)kmap(page);
 
+	error = -EIO;
+	if (ncp_make_open(inode,O_RDONLY))
+		goto fail;
+
 	error = -ENOMEM;
 	for (cnt = 0; (link=(char *)kmalloc(NCP_MAX_SYMLINK_SIZE, GFP_NFS))==NULL; cnt++) {
 		if (cnt > 10)
@@ -57,22 +61,20 @@ static int ncp_symlink_readpage(struct file *file, struct page *page)
 		schedule();
 	}
 
-	if (ncp_make_open(inode,O_RDONLY))
-		goto failEIO;
-
 	error=ncp_read_kernel(NCP_SERVER(inode),NCP_FINFO(inode)->file_handle,
                          0,NCP_MAX_SYMLINK_SIZE,link,&length);
 
-	ncp_inode_close(inode);
-	/* Close file handle if no other users... */
-	ncp_make_closed(inode);
-	if (error)
-		goto failEIO;
-
+	if (error) {
+		kfree(link);
+		goto fail;
+	}
 	if (length<NCP_MIN_SYMLINK_SIZE || 
 	    ((__u32 *)link)[0]!=NCP_SYMLINK_MAGIC0 ||
-	    ((__u32 *)link)[1]!=NCP_SYMLINK_MAGIC1)
-	    	goto failEIO;
+	    ((__u32 *)link)[1]!=NCP_SYMLINK_MAGIC1) {
+		error = -EIO;
+		kfree(link);
+		goto fail;
+	}
 
 	len = NCP_MAX_SYMLINK_SIZE;
 	error = ncp_vol2io(NCP_SERVER(inode), buf, &len, link+8, length-8, 0);
@@ -84,9 +86,6 @@ static int ncp_symlink_readpage(struct file *file, struct page *page)
 	UnlockPage(page);
 	return 0;
 
-failEIO:
-	error = -EIO;
-	kfree(link);
 fail:
 	SetPageError(page);
 	kunmap(page);
@@ -121,14 +120,12 @@ int ncp_symlink(struct inode *dir, struct dentry *dentry, const char *symname) {
 	if ((link=(char *)kmalloc(length+9,GFP_NFS))==NULL)
 		return -ENOMEM;
 
-	err = -EIO;
-	if (ncp_create_new(dir,dentry,0,aSHARED|aHIDDEN))
-		goto failfree;
+	if (ncp_create_new(dir,dentry,0,aSHARED|aHIDDEN)) {
+		kfree(link);
+		return -EIO;
+	}
 
 	inode=dentry->d_inode;
-
-	if (ncp_make_open(inode, O_WRONLY))
-		goto failfree;
 
 	((__u32 *)link)[0]=NCP_SYMLINK_MAGIC0;
 	((__u32 *)link)[1]=NCP_SYMLINK_MAGIC1;
@@ -137,26 +134,19 @@ int ncp_symlink(struct inode *dir, struct dentry *dentry, const char *symname) {
 	   symlink can point out of ncp filesystem */
 	length += 1;
 	err = ncp_io2vol(NCP_SERVER(inode),link+8,&length,symname,length-1,0);
-	if (err)
-		goto fail;
+	if (err) {
+		kfree(link);
+		return err;
+	}
 
 	if(ncp_write_kernel(NCP_SERVER(inode), NCP_FINFO(inode)->file_handle, 
 	    		    0, length+8, link, &i) || i!=length+8) {
-		err = -EIO;
-		goto fail;
+		kfree(link);
+		return -EIO;
 	}
 
-	ncp_inode_close(inode);
-	ncp_make_closed(inode);
 	kfree(link);
 	return 0;
-
-fail:
-	ncp_inode_close(inode);
-	ncp_make_closed(inode);
-failfree:
-	kfree(link);
-	return err;	
 }
 #endif
 

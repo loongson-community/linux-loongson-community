@@ -879,7 +879,6 @@ typedef struct {
 
 typedef struct {
 	struct phone_device p;
-	struct semaphore mutex;
 	unsigned int board;
 	unsigned int DSPbase;
 	unsigned int XILINXbase;

@@ -366,9 +366,12 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, int mode)
 	struct inode * inode;
 	int err;
 
+	/*
+	 * N.B. Several error exits in ext2_new_inode don't set err.
+	 */
 	inode = ext2_new_inode (dir, mode, &err);
 	if (!inode)
-		return err;
+		return -EIO;
 
 	inode->i_op = &ext2_file_inode_operations;
 	inode->i_fop = &ext2_file_operations;
@@ -394,7 +397,7 @@ static int ext2_mknod (struct inode * dir, struct dentry *dentry, int mode, int 
 
 	inode = ext2_new_inode (dir, mode, &err);
 	if (!inode)
-		return err;
+		return -EIO;
 
 	inode->i_uid = current->fsuid;
 	init_special_inode(inode, mode, rdev);
@@ -425,7 +428,7 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 
 	inode = ext2_new_inode (dir, S_IFDIR, &err);
 	if (!inode)
-		return err;
+		return -EIO;
 
 	inode->i_op = &ext2_dir_inode_operations;
 	inode->i_fop = &ext2_dir_operations;
@@ -451,7 +454,7 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	strcpy (de->name, "..");
 	ext2_set_de_type(dir->i_sb, de, S_IFDIR);
 	inode->i_nlink = 2;
-	mark_buffer_dirty_inode(dir_block, 1, dir);
+	mark_buffer_dirty(dir_block, 1);
 	brelse (dir_block);
 	inode->i_mode = S_IFDIR | mode;
 	if (dir->i_mode & S_ISGID)
@@ -631,7 +634,7 @@ static int ext2_symlink (struct inode * dir, struct dentry *dentry, const char *
 		return -ENAMETOOLONG;
 
 	if (!(inode = ext2_new_inode (dir, S_IFLNK, &err)))
-		return err;
+		return -EIO;
 
 	inode->i_mode = S_IFLNK | S_IRWXUGO;
 
@@ -788,7 +791,7 @@ static int ext2_rename (struct inode * old_dir, struct dentry *old_dentry,
 	mark_inode_dirty(old_dir);
 	if (dir_bh) {
 		PARENT_INO(dir_bh->b_data) = le32_to_cpu(new_dir->i_ino);
-		mark_buffer_dirty_inode(dir_bh, 1, old_inode);
+		mark_buffer_dirty(dir_bh, 1);
 		old_dir->i_nlink--;
 		mark_inode_dirty(old_dir);
 		if (new_inode) {

@@ -330,15 +330,7 @@ int hpfs_unlink(struct inode *dir, struct dentry *dentry)
 		struct iattr newattrs;
 		int err;
 		hpfs_unlock_2inodes(dir, inode);
-		if (rep)
-			goto ret;
-		d_drop(dentry);
-		if (dentry->d_count > 1 ||
-		    permission(inode, MAY_WRITE) ||
-		    get_write_access(inode)) {
-			d_rehash(dentry);
-			goto ret;
-		}
+		if (rep || dentry->d_count > 1 || permission(inode, MAY_WRITE) || get_write_access(inode)) goto ret;
 		/*printk("HPFS: truncating file before delete.\n");*/
 		down(&inode->i_sem);
 		newattrs.ia_size = 0;

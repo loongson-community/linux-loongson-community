@@ -82,7 +82,6 @@ static struct page* ncp_file_mmap_nopage(struct vm_area_struct *area,
 				break;
 			}
 		}
-		ncp_inode_close(inode);
 
 	}
 

@@ -323,12 +323,10 @@ ENTRY(coprocessor_error)
 	pushl $ SYMBOL_NAME(do_coprocessor_error)
 	jmp error_code
 
-#ifdef CONFIG_X86_XMM
 ENTRY(simd_coprocessor_error)
 	pushl $0
 	pushl $ SYMBOL_NAME(do_simd_coprocessor_error)
 	jmp error_code
-#endif
 
 ENTRY(device_not_available)
 	pushl $-1		# mark this as an int
@@ -336,7 +334,7 @@ ENTRY(device_not_available)
 	GET_CURRENT(%ebx)
 	pushl $ret_from_exception
 	movl %cr0,%eax
-	testl $0x4,%eax		# EM (math emulation bit)
+	testl $0x4,%eax			# EM (math emulation bit)
 	je SYMBOL_NAME(math_state_restore)
 	pushl $0		# temporary storage for ORIG_EIP
 	call  SYMBOL_NAME(math_emulate)

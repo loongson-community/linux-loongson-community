@@ -674,8 +674,9 @@ static int load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 						    interpreter,
 						    &interp_load_addr);
 
-		allow_write_access(interpreter);
+		lock_kernel();
 		fput(interpreter);
+		unlock_kernel();
 		kfree(elf_interpreter);
 
 		if (elf_entry == ~0UL) {
@@ -754,7 +755,7 @@ static int load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 #endif
 
 	start_thread(regs, elf_entry, bprm->p);
-	if (current->ptrace&PT_PTRACED)
+	if (current->ptrace & PT_PTRACED)
 		send_sig(SIGTRAP, current, 0);
 	retval = 0;
 out:
@@ -762,8 +763,9 @@ out:
 
 	/* error cleanup */
 out_free_dentry:
-	allow_write_access(interpreter);
+	lock_kernel();
 	fput(interpreter);
+	unlock_kernel();
 out_free_interp:
 	if (elf_interpreter)
 		kfree(elf_interpreter);

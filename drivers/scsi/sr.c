@@ -777,9 +777,9 @@ void sr_finish()
 		sprintf(name, "sr%d", i);
 		strcpy(scsi_CDs[i].cdi.name, name);
                 scsi_CDs[i].cdi.de =
-                    devfs_register (scsi_CDs[i].device->de, "cd", 2,
+                    devfs_register (scsi_CDs[i].device->de, "cd",
                                     DEVFS_FL_DEFAULT, MAJOR_NR, i,
-                                    S_IFBLK | S_IRUGO | S_IWUGO, 0, 0,
+                                    S_IFBLK | S_IRUGO | S_IWUGO,
                                     &cdrom_fops, NULL);
 		register_cdrom(&scsi_CDs[i].cdi);
 	}
@@ -857,7 +857,6 @@ void cleanup_module(void)
 	}
 	blksize_size[MAJOR_NR] = NULL;
         hardsect_size[MAJOR_NR] = NULL;
-	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	blk_size[MAJOR_NR] = NULL;
 	read_ahead[MAJOR_NR] = 0;
 

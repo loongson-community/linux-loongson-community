@@ -73,7 +73,7 @@ static void qnx4_write_super(struct super_block *sb)
 	sb->s_dirt = 0;
 }
 
-static void qnx4_write_inode(struct inode *inode, int unused)
+static void qnx4_write_inode(struct inode *inode)
 {
 	struct qnx4_inode_entry *raw_inode;
 	int block, ino;
@@ -340,6 +340,7 @@ static struct super_block *qnx4_read_super(struct super_block *s,
 	set_blocksize(dev, QNX4_BLOCK_SIZE);
 	s->s_blocksize = QNX4_BLOCK_SIZE;
 	s->s_blocksize_bits = QNX4_BLOCK_SIZE_BITS;
+	s->s_dev = dev;
 
 	/* Check the boot signature. Since the qnx4 code is
 	   dangerous, we should leave as quickly as possible

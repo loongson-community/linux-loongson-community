@@ -58,8 +58,8 @@ void add_to_swap_cache(struct page *page, swp_entry_t entry)
 		BUG();
 	if (page->mapping)
 		BUG();
-	flags = page->flags & ~(1 << PG_error);
-	page->flags = flags | (1 << PG_uptodate);
+	flags = page->flags & ~((1 << PG_error) | (1 << PG_dirty));
+	page->flags = flags | (1 << PG_referenced) | (1 << PG_uptodate);
 	add_to_page_cache_locked(page, &swapper_space, entry.val);
 }
 
@@ -73,7 +73,6 @@ static inline void remove_from_swap_cache(struct page *page)
 		PAGE_BUG(page);
 
 	PageClearSwapCache(page);
-	ClearPageDirty(page);
 	remove_inode_page(page);
 }
 
@@ -103,10 +102,9 @@ void delete_from_swap_cache_nolock(struct page *page)
 	if (!PageLocked(page))
 		BUG();
 
-	if (page->buffers)
- 		block_destroy_buffers(page);
+	if (block_flushpage(page, 0))
+		lru_cache_del(page);
 
-	lru_cache_del(page);
 	__delete_from_swap_cache(page);
 	page_cache_release(page);
 }

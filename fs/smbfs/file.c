@@ -27,7 +27,7 @@
 /* #define pr_debug printk */
 
 static int
-smb_fsync(struct file *file, struct dentry * dentry, int datasync)
+smb_fsync(struct file *file, struct dentry * dentry)
 {
 #ifdef SMBFS_DEBUG_VERBOSE
 printk("smb_fsync: sync file %s/%s\n", 

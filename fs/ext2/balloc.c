@@ -473,8 +473,11 @@ repeat:
 		if (i >= sb->u.ext2_sb.s_groups_count)
 			i = 0;
 		gdp = ext2_get_group_desc (sb, i, &bh2);
-		if (!gdp)
-			goto io_error;
+		if (!gdp) {
+			*err = -EIO;
+			unlock_super (sb);
+			return 0;
+		}
 		if (le16_to_cpu(gdp->bg_free_blocks_count) > 0)
 			break;
 	}

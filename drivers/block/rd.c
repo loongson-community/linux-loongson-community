@@ -107,9 +107,7 @@ static struct inode *rd_inode[NUM_RAMDISKS];		/* Protected device inodes */
  * architecture-specific setup routine (from the stored boot sector
  * information). 
  */
-
-int rd_size = CONFIG_BLK_DEV_RAM_SIZE;	/* Size of the RAM disks */
-
+int rd_size = 4096;		/* Size of the RAM disks */
 /*
  * It would be very desiderable to have a soft-blocksize (that in the case
  * of the ramdisk driver is also the hardblocksize ;) of PAGE_SIZE because
@@ -413,7 +411,7 @@ int __init rd_init (void)
 	devfs_handle = devfs_mk_dir (NULL, "rd", 0, NULL);
 	devfs_register_series (devfs_handle, "%u", NUM_RAMDISKS,
 			       DEVFS_FL_DEFAULT, MAJOR_NR, 0,
-			       S_IFBLK | S_IRUSR | S_IWUSR, 0, 0,
+			       S_IFBLK | S_IRUSR | S_IWUSR,
 			       &fd_fops, NULL);
 
 	for (i = 0; i < NUM_RAMDISKS; i++)

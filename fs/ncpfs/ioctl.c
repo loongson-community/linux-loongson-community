@@ -335,12 +335,18 @@ int ncp_ioctl(struct inode *inode, struct file *filp,
 			{
 				return result;
 			}
-			result = -EIO;
 			if (!ncp_conn_valid(server))
-				goto outrel;
-			result = -EISDIR;
+			{
+				return -EIO;
+			}
 			if (!S_ISREG(inode->i_mode))
-				goto outrel;
+			{
+				return -EISDIR;
+			}
+			if (!NCP_FINFO(inode)->opened)
+			{
+				return -EBADFD;
+			}
 			if (rqdata.cmd == NCP_LOCK_CLEAR)
 			{
 				result = ncp_ClearPhysicalRecord(NCP_SERVER(inode),
@@ -367,8 +373,6 @@ int ncp_ioctl(struct inode *inode, struct file *filp,
 							rqdata.timeout);
 				if (result > 0) result = -EAGAIN;
 			}
-outrel:			
-			ncp_inode_close(inode);
 			return result;
 		}
 #endif	/* CONFIG_NCPFS_IOCTL_LOCKING */

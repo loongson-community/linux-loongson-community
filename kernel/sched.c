@@ -60,8 +60,8 @@ struct task_struct * init_tasks[NR_CPUS] = {&init_task, };
  * The run-queue lock locks the parts that actually access
  * and change the run-queues, and have to be interrupt-safe.
  */
-spinlock_t runqueue_lock = SPIN_LOCK_UNLOCKED;  /* second */
-rwlock_t tasklist_lock = RW_LOCK_UNLOCKED;	/* third */
+__cacheline_aligned spinlock_t runqueue_lock = SPIN_LOCK_UNLOCKED;  /* second */
+__cacheline_aligned rwlock_t tasklist_lock = RW_LOCK_UNLOCKED;	/* third */
 
 static LIST_HEAD(runqueue_head);
 
@@ -337,23 +337,16 @@ out:
 	spin_unlock_irqrestore(&runqueue_lock, flags);
 }
 
-struct foo_struct {
-	struct task_struct *process;
-	struct timer_list timer;
-};
-
 static void process_timeout(unsigned long __data)
 {
-	struct foo_struct * foo = (struct foo_struct *) __data;
+	struct task_struct * p = (struct task_struct *) __data;
 
-	wake_up_process(foo->process);
-
-	timer_exit(&foo->timer);
+	wake_up_process(p);
 }
 
 signed long schedule_timeout(signed long timeout)
 {
-	struct foo_struct foo;
+	struct timer_list timer;
 	unsigned long expire;
 
 	switch (timeout)
@@ -388,16 +381,14 @@ signed long schedule_timeout(signed long timeout)
 
 	expire = timeout + jiffies;
 
-	init_timer(&foo.timer);
-	foo.timer.expires = expire;
-	foo.timer.data = (unsigned long) &foo;
-	foo.timer.function = process_timeout;
+	init_timer(&timer);
+	timer.expires = expire;
+	timer.data = (unsigned long) current;
+	timer.function = process_timeout;
 
-	foo.process = current;
-
-	add_timer(&foo.timer);
+	add_timer(&timer);
 	schedule();
-	del_timer_sync(&foo.timer);
+	del_timer(&timer);
 	/* RED-PEN. Timer may be running now on another cpu.
 	 * Pray that process will not exit enough fastly.
 	 */

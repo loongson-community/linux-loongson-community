@@ -201,7 +201,6 @@ static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 	if (!fmt)
 		goto _ret;
 
-	allow_write_access(bprm->file);
 	fput(bprm->file);
 	bprm->file = NULL;
 

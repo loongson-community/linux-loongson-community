@@ -20,7 +20,6 @@ struct poll_table_entry {
 typedef struct poll_table_struct {
 	struct poll_table_struct * next;
 	unsigned int nr;
-	int err;
 	struct poll_table_entry * entry;
 } poll_table;
 

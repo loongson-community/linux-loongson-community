@@ -52,6 +52,8 @@ struct _fpstate {
 	unsigned long	padding[56];
 };
 
+#define X86_FXSR_MAGIC		0x0000
+
 struct sigcontext {
 	unsigned short gs, __gsh;
 	unsigned short fs, __fsh;

@@ -172,8 +172,6 @@ EXPORT_SYMBOL(__invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
 EXPORT_SYMBOL(invalidate_inode_pages);
 EXPORT_SYMBOL(truncate_inode_pages);
-EXPORT_SYMBOL(fsync_inode_buffers);
-EXPORT_SYMBOL(buffer_insert_inode_queue);
 EXPORT_SYMBOL(fsync_dev);
 EXPORT_SYMBOL(permission);
 EXPORT_SYMBOL(inode_setattr);
@@ -207,7 +205,7 @@ EXPORT_SYMBOL(generic_ro_fops);
 EXPORT_SYMBOL(generic_buffer_fdatasync);
 EXPORT_SYMBOL(page_hash_bits);
 EXPORT_SYMBOL(page_hash_table);
-EXPORT_SYMBOL(file_lock_list);
+EXPORT_SYMBOL(file_lock_table);
 EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
@@ -273,7 +271,6 @@ EXPORT_SYMBOL(tty_std_termios);
 /* block device driver support */
 EXPORT_SYMBOL(block_read);
 EXPORT_SYMBOL(block_write);
-EXPORT_SYMBOL(wait_for_request);
 EXPORT_SYMBOL(blksize_size);
 EXPORT_SYMBOL(hardsect_size);
 EXPORT_SYMBOL(blk_size);
@@ -296,8 +293,6 @@ EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(max_sectors);
 EXPORT_SYMBOL(max_readahead);
 EXPORT_SYMBOL(file_moveto);
-EXPORT_SYMBOL(drive_stat_acct);
-EXPORT_SYMBOL(set_bh_page);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);
@@ -507,6 +502,7 @@ EXPORT_SYMBOL(disk_name);	/* for md.c */
 
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
+EXPORT_SYMBOL(put_write_access);
 
 /* dynamic registering of consoles */
 EXPORT_SYMBOL(register_console);

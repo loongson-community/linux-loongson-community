@@ -80,7 +80,7 @@ ntfs_read(struct file * filp, char *buf, size_t count, loff_t *off)
 	io.param=buf;
 	io.size=count;
 	error=ntfs_read_attr(ino,ino->vol->at_data,NULL,*off,&io);
-	if(error && !io.size)return -error;
+	if(error)return -error;
 	
 	*off+=io.size;
 	return io.size;
@@ -707,7 +707,7 @@ static void ntfs_read_inode(struct inode* inode)
 
 #ifdef CONFIG_NTFS_RW
 static void 
-ntfs_write_inode (struct inode *ino, int unused)
+ntfs_write_inode (struct inode *ino)
 {
 	ntfs_debug (DEBUG_LINUX, "ntfs:write inode %x\n", ino->i_ino);
 	ntfs_update_inode (NTFS_LINO2NINO (ino));

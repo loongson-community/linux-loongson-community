@@ -1,6 +1,7 @@
 #ifndef __ASM_IO_APIC_H
 #define __ASM_IO_APIC_H
 
+#include <linux/config.h>
 #include <asm/types.h>
 
 /*
@@ -8,6 +9,8 @@
  *
  * Copyright (C) 1997, 1998, 1999, 2000 Ingo Molnar
  */
+
+#ifdef CONFIG_X86_IO_APIC
 
 #define IO_APIC_BASE(idx) \
 		((volatile int *)__fix_to_virt(FIX_IO_APIC_BASE_0 + idx))
@@ -130,5 +133,14 @@ extern int nmi_watchdog;
 extern int skip_ioapic_setup;
 extern void IO_APIC_init_uniprocessor (void);
 
+/*
+ * If we use the IO-APIC for IRQ routing, disable automatic
+ * assignment of PCI IRQ's.
+ */
+#define io_apic_assign_pci_irqs (mp_irq_entries != 0)
+
+#else  /* !CONFIG_X86_IO_APIC */
+#define io_apic_assign_pci_irqs 0
 #endif
 
+#endif

@@ -18,7 +18,6 @@
 #include <linux/smp_lock.h>
 #include <linux/poll.h>
 #include <linux/file.h>
-#include <linux/vmalloc.h>
 
 #include <asm/uaccess.h>
 
@@ -53,7 +52,6 @@ static poll_table* alloc_wait(int nfds)
 	if(out==NULL)
 		return NULL;
 	out->nr = 0;
-	out->err = 0;
 	out->entry = (struct poll_table_entry *)(out + 1);
 	out->next = NULL;
 	nfds -=__MAX_POLL_TABLE_ENTRIES;
@@ -99,36 +97,19 @@ static void free_wait(poll_table * p)
 
 void __pollwait(struct file * filp, wait_queue_head_t * wait_address, poll_table *p)
 {
-	poll_table* walk = p;
 	for (;;) {
-		if (walk->nr < __MAX_POLL_TABLE_ENTRIES) {
+		if (p->nr < __MAX_POLL_TABLE_ENTRIES) {
 			struct poll_table_entry * entry;
-ok_table:
-		 	entry = walk->entry + walk->nr;
+		 	entry = p->entry + p->nr;
 		 	get_file(filp);
 		 	entry->filp = filp;
 			entry->wait_address = wait_address;
 			init_waitqueue_entry(&entry->wait, current);
 			add_wait_queue(wait_address,&entry->wait);
-			walk->nr++;
+			p->nr++;
 			return;
 		}
-		if (walk->next == NULL) {
-			poll_table *tmp;
-			current->state=TASK_RUNNING;
-			tmp = (poll_table *) __get_free_page(GFP_KERNEL);
-			if (!tmp) {
-				p->err=-ENOMEM;
-				return;
-			}
-			tmp->nr = 0;
-			tmp->entry = (struct poll_table_entry *)(tmp + 1);
-			tmp->next = NULL;
-			walk->next = tmp;
-			walk = tmp;
-			goto ok_table;
-		}
-		walk = walk->next;
+		p = p->next;
 	}
 }
 
@@ -245,16 +226,11 @@ int do_select(int n, fd_set_bits *fds, long *timeout)
 				wait = NULL;
 			}
 		}
+		wait = NULL;
 		if (retval || !__timeout || signal_pending(current))
 			break;
-		if(orig_wait->err) {
- 			retval=orig_wait->err;
-			goto out;
- 		}
-		wait = NULL;
 		__timeout = schedule_timeout(__timeout);
 	}
-out:
 	current->state = TASK_RUNNING;
 
 	free_wait(orig_wait);
@@ -318,10 +294,7 @@ sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 	 */
 	ret = -ENOMEM;
 	size = FDS_BYTES(n);
-	if(size>8000)
-		bits = vmalloc(6 * size);
-	else
-		bits = kmalloc(6 * size, GFP_KERNEL);
+	bits = kmalloc(6 * size, GFP_KERNEL);
 	if (!bits)
 		goto out_nofds;
 	fds.in      = (unsigned long *)  bits;
@@ -366,10 +339,7 @@ sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 	set_fd_set(n, exp, fds.res_ex);
 
 out:
-	if(size>8000)
-		vfree(bits);
-	else
-		kfree(bits);
+	kfree(bits);
 out_nofds:
 	return ret;
 }
@@ -412,7 +382,6 @@ static int do_poll(unsigned int nfds, unsigned int nchunks, unsigned int nleft,
 	struct pollfd *fds[], poll_table *wait, long timeout)
 {
 	int count = 0;
-	poll_table* orig_wait = wait;
 
 	for (;;) {
 		unsigned int i;
@@ -422,16 +391,11 @@ static int do_poll(unsigned int nfds, unsigned int nchunks, unsigned int nleft,
 			do_pollfd(POLLFD_PER_PAGE, fds[i], &wait, &count);
 		if (nleft)
 			do_pollfd(nleft, fds[nchunks], &wait, &count);
+		wait = NULL;
 		if (count || !timeout || signal_pending(current))
 			break;
-		if(orig_wait->err) {
-			count=orig_wait->err;
-			goto out;
-		}
-		wait=NULL;
 		timeout = schedule_timeout(timeout);
 	}
-out:
 	current->state = TASK_RUNNING;
 	return count;
 }

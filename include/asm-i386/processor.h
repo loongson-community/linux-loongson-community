@@ -2,9 +2,6 @@
  * include/asm-i386/processor.h
  *
  * Copyright (C) 1994 Linus Torvalds
- *
- * Pentium III FXSR, SSE support
- *	Gareth Hughes <gareth@valinux.com>, May 2000
  */
 
 #ifndef __ASM_I386_PROCESSOR_H
@@ -86,7 +83,7 @@ struct cpuinfo_x86 {
 #define X86_FEATURE_PGE		0x00002000	/* Page Global Enable */
 #define X86_FEATURE_MCA		0x00004000	/* Machine Check Architecture */
 #define X86_FEATURE_CMOV	0x00008000	/* CMOV instruction (FCMOVCC and FCOMI too if FPU present) */
-#define X86_FEATURE_PAT	0x00010000	/* Page Attribute Table */
+#define X86_FEATURE_PAT		0x00010000	/* Page Attribute Table */
 #define X86_FEATURE_PSE36	0x00020000	/* 36-bit PSEs */
 #define X86_FEATURE_18		0x00040000
 #define X86_FEATURE_19		0x00080000
@@ -95,7 +92,7 @@ struct cpuinfo_x86 {
 #define X86_FEATURE_22		0x00400000
 #define X86_FEATURE_MMX		0x00800000	/* Multimedia Extensions */
 #define X86_FEATURE_FXSR	0x01000000	/* FXSAVE and FXRSTOR instructions (fast save and restore of FPU context), and CR4.OSFXSR (OS uses these instructions) available */
-#define X86_FEATURE_XMM         0x02000000      /* Streaming SIMD Extensions */
+#define X86_FEATURE_XMM		0x02000000      /* Streaming SIMD Extensions */
 #define X86_FEATURE_26		0x04000000
 #define X86_FEATURE_27		0x08000000
 #define X86_FEATURE_28		0x10000000
@@ -147,7 +144,8 @@ extern inline void cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
 		  "=b" (*ebx),
 		  "=c" (*ecx),
 		  "=d" (*edx)
-		: "a" (op));
+		: "a" (op)
+		: "cc");
 }
 
 
@@ -250,9 +248,7 @@ extern unsigned int mca_pentium_flag;
 #define IO_BITMAP_OFFSET offsetof(struct tss_struct,io_bitmap)
 #define INVALID_IO_BITMAP_OFFSET 0x8000
 
-#ifndef CONFIG_X86_FXSR
-
-struct i387_hard_struct {
+struct i387_fsave_struct {
 	long	cwd;
 	long	swd;
 	long	twd;
@@ -264,32 +260,21 @@ struct i387_hard_struct {
 	long	status;		/* software status information */
 };
 
-#else
-
-/* It doesn't matter if the CPU writes only part of this struct;  it gets
- * copied by do_fork, so the unimplemented area never changes from what
- * init_task.i387 is initialized to (all zeroes).  */
-
-struct i387_hard_struct {
-	long	cwd;
-	long	swd;
-	long	twd;
+struct i387_fxsave_struct {
+	unsigned short	cwd;
+	unsigned short	swd;
+	unsigned short	twd;
+	unsigned short	fop;
 	long	fip;
 	long	fcs;
 	long	foo;
 	long	fos;
-	long	status;		/* software status information */
-	long	fxsr_space[6];	/* FXSR FPU environment must not be used */
 	long	mxcsr;
 	long	reserved;
 	long	st_space[32];	/* 8*16 bytes for each FP-reg = 128 bytes */
 	long	xmm_space[32];	/* 8*16 bytes for each XMM-reg = 128 bytes */
 	long	padding[56];
 } __attribute__ ((aligned (16)));
-
-#define X86_FXSR_MAGIC		0x0000
-#define X86_FXSR_SIZE		512
-#endif
 
 struct i387_soft_struct {
 	long	cwd;
@@ -306,7 +291,8 @@ struct i387_soft_struct {
 };
 
 union i387_union {
-	struct i387_hard_struct hard;
+	struct i387_fsave_struct	fsave;
+	struct i387_fxsave_struct	fxsave;
 	struct i387_soft_struct soft;
 };
 
@@ -421,75 +407,6 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 extern void copy_segments(struct task_struct *p, struct mm_struct * mm);
 extern void release_segments(struct mm_struct * mm);
 extern void forget_segments(void);
-
-/*
- * FPU lazy state save handling..
- */
-#ifndef CONFIG_X86_FXSR
-
-#define save_fpu(tsk) do { \
-	asm volatile("fnsave %0 ; fwait" \
-		     : "=m" (tsk->thread.i387.hard)); \
-	tsk->flags &= ~PF_USEDFPU; \
-	stts(); \
-} while (0)
-
-#define save_init_fpu(tsk) save_fpu(tsk)
-
-#define restore_fpu(tsk) do { \
-	asm volatile("frstor %0" \
-		     : : "m" (tsk->thread.i387.hard)); \
-} while (0)
-
-#else /* CONFIG_X86_FXSR */
-
-#define save_fpu(tsk) do { \
-	asm volatile("fnstenv %0 ; fxsave %1 ; fwait" \
-		     : "=m" (tsk->thread.i387.hard), \
-		       "=m" (tsk->thread.i387.hard.fxsr_space[0])); \
-	tsk->flags &= ~PF_USEDFPU; \
-	stts(); \
-} while (0)
-
-#define save_init_fpu(tsk) do { \
-	asm volatile("fnstenv %0 ; fxsave %1 ; fnclex" \
-		     : "=m" (tsk->thread.i387.hard), \
-		       "=m" (tsk->thread.i387.hard.fxsr_space[0])); \
-	tsk->flags &= ~PF_USEDFPU; \
-	stts(); \
-} while (0)
-
-#define restore_fpu(tsk) do { \
-	asm volatile("fxrstor %0 ; fldenv %1" \
-		     : : "m" (tsk->thread.i387.hard.fxsr_space[0]), \
-		         "m" (tsk->thread.i387.hard)); \
-} while (0)
-
-#endif /* CONFIG_X86_FXSR */
-
-#define unlazy_fpu(tsk) do { \
-	if (tsk->flags & PF_USEDFPU) \
-		save_fpu(tsk); \
-} while (0)
-
-#define clear_fpu(tsk) do { \
-	if (tsk->flags & PF_USEDFPU) { \
-		tsk->flags &= ~PF_USEDFPU; \
-		stts(); \
-	} \
-} while (0)
-
-#ifdef CONFIG_X86_XMM
-#define XMM_DEFAULT_MXCSR	0x1f80
-#define XMM_UNMASKED_MXCSR	0x0000
-
-#define set_fpu_mxcsr(val) do { \
-	if (cpu_has_xmm) { \
-		unsigned long __mxcsr = ((unsigned long)(val) & 0xffff); \
-		asm volatile("ldmxcsr %0" : : "m" (__mxcsr)); \
-	} \
-} while (0)
-#endif
 
 /*
  * Return saved PC of a blocked thread.

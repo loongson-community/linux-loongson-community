@@ -1,8 +1,6 @@
 #ifndef _LINUX_TIMER_H
 #define _LINUX_TIMER_H
 
-#ifdef __KERNEL__
-
 #include <linux/config.h>
 #include <linux/list.h>
 
@@ -93,10 +91,8 @@ extern int del_timer_sync(struct timer_list * timer);
 #define timer_set_running(t) (void)(t)
 #define timer_is_running(t) (0)
 #define timer_synchronize(t) do { (void)(t); barrier(); } while(0)
-#define del_timer_sync del_timer
+#define del_timer_sync(t) del_timer(t)
 #endif
-
-#define del_timer_async del_timer
 
 /*
  *	These inlines deal with timer wrapping correctly. You are 
@@ -115,5 +111,4 @@ extern int del_timer_sync(struct timer_list * timer);
 #define time_after_eq(a,b)	((long)(a) - (long)(b) >= 0)
 #define time_before_eq(a,b)	time_after_eq(b,a)
 
-#endif
 #endif

@@ -603,12 +603,7 @@ static int toshoboe_net_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	
 	switch (cmd) {
 	case SIOCSBANDWIDTH: /* Set bandwidth */
-		/*
-		 * This function will also be used by IrLAP to change the
-		 * speed, so we still must allow for speed change within
-		 * interrupt context.
-		 */
-		if (!in_interrupt() && !capable(CAP_NET_ADMIN))
+		if (!capable(CAP_NET_ADMIN))
 			return -EPERM;
 		/* toshoboe_setbaud(self, irq->ifr_baudrate); */
                 /* Just change speed once - inserted by Paul Bristow */
@@ -722,7 +717,7 @@ toshoboe_open (struct pci_dev *pci_dev)
   self->open = 0;
   self->stopped = 0;
   self->pdev = pci_dev;
-  self->base = pci_resource_start (pci_dev, 0);
+  self->base = pci_dev->resource[0].start;
 
   self->io.sir_base = self->base;
   self->io.irq = pci_dev->irq;
@@ -905,6 +900,7 @@ toshoboe_gotosleep (struct toshoboe_cb *self)
 static void 
 toshoboe_wakeup (struct toshoboe_cb *self)
 {
+  struct net_device *dev = self->netdev;
   unsigned long flags;
 
   if (!self->stopped)
@@ -956,26 +952,36 @@ int __init toshoboe_init (void)
   struct pci_dev *pci_dev = NULL;
   int found = 0;
 
-  while ((pci_dev = pci_find_device (PCI_VENDOR_ID_TOSHIBA,
-                                 PCI_DEVICE_ID_FIR701, pci_dev)) != NULL) {
-	  if (pci_enable_device(pci_dev))
-	  	continue;
+  do
+    {
+      pci_dev = pci_find_device (PCI_VENDOR_ID_TOSHIBA,
+                                 PCI_DEVICE_ID_FIR701, pci_dev);
+      if (pci_dev)
+        {
           printk (KERN_WARNING "ToshOboe: Found 701 chip at 0x%0lx irq %d\n",
-		  pci_resource_start (pci_dev, 0),
+		  pci_dev->resource[0].start,
                   pci_dev->irq);
 
           if (!toshoboe_open (pci_dev))
 	      found++;
-  }
+        }
+
+    }
+  while (pci_dev);
+
 
   if (found)
+    {
       return 0;
+    }
 
   return -ENODEV;
 }
 
+#ifdef MODULE
 
-static void __exit toshoboe_cleanup (void)
+static void
+toshoboe_cleanup (void)
 {
   int i;
 
@@ -991,8 +997,19 @@ static void __exit toshoboe_cleanup (void)
 }
 
 
-#ifdef MODULE
-module_init(toshoboe_init);
-#endif
-module_exit(toshoboe_cleanup);
 
+int
+init_module (void)
+{
+  return toshoboe_init ();
+}
+
+
+void
+cleanup_module (void)
+{
+  toshoboe_cleanup ();
+}
+
+
+#endif

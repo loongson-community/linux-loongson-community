@@ -70,7 +70,10 @@ comment 'USB HID'
       dep_tristate '  USB HIDBP Mouse support' CONFIG_USB_MOUSE $CONFIG_USB
    fi
    dep_tristate '  Wacom Intuos/Graphire tablet support' CONFIG_USB_WACOM $CONFIG_USB
-   dep_tristate '  Logitech WingMan Force joystick support' CONFIG_USB_WMFORCE $CONFIG_USB
+   dep_tristate '  I-Force joysticks/wheels' CONFIG_INPUT_IFORCE_USB $CONFIG_USB
+      if [ "$CONFIG_INPUT_IFORCE_USB" != "n" ];  then
+         define_tristate CONFIG_INPUT_IFORCE $CONFIG_INPUT_IFORCE_USB
+      fi
    dep_tristate '  Keyboard support' CONFIG_INPUT_KEYBDEV $CONFIG_USB
    dep_tristate '  Mouse support' CONFIG_INPUT_MOUSEDEV $CONFIG_USB
    if [ "$CONFIG_INPUT_MOUSEDEV" != "n" ]; then

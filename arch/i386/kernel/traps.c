@@ -9,7 +9,7 @@
 
 /*
  * 'Traps.c' handles hardware traps and faults after we have saved some
- * state in 'entry.S'.
+ * state in 'asm.s'.
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -37,6 +37,7 @@
 #include <asm/atomic.h>
 #include <asm/debugreg.h>
 #include <asm/desc.h>
+#include <asm/i387.h>
 
 #include <asm/smp.h>
 #include <asm/pgalloc.h>
@@ -154,9 +155,7 @@ asmlinkage void stack_segment(void);
 asmlinkage void general_protection(void);
 asmlinkage void page_fault(void);
 asmlinkage void coprocessor_error(void);
-#ifdef CONFIG_X86_XMM
 asmlinkage void simd_coprocessor_error(void);
-#endif
 asmlinkage void reserved(void);
 asmlinkage void alignment_check(void);
 asmlinkage void spurious_interrupt_bug(void);
@@ -587,9 +586,10 @@ void math_error(void *eip)
 {
 	struct task_struct * task;
 	siginfo_t info;
+	unsigned short cwd, swd;
 
 	/*
-	 * Save the info for the exception handler and clear the error
+	 * Save the info for the exception handler and clear the error.
 	 */
 	task = current;
 	save_init_fpu(task);
@@ -609,9 +609,9 @@ void math_error(void *eip)
 	 * and it will suffer the consequences since we won't be able to
 	 * fully reproduce the context of the exception
 	 */
-	switch(((~task->thread.i387.hard.cwd) &
-		task->thread.i387.hard.swd & 0x3f) |
-	       (task->thread.i387.hard.swd & 0x240)) {
+	cwd = get_fpu_cwd(task);
+	swd = get_fpu_swd(task);
+	switch (((~cwd) & swd & 0x3f) | (swd & 0x240)) {
 		case 0x000:
 		default:
 			break;
@@ -643,18 +643,18 @@ asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
 	math_error((void *)regs->eip);
 }
 
-#ifdef CONFIG_X86_XMM
 void simd_math_error(void *eip)
 {
 	struct task_struct * task;
 	siginfo_t info;
+	unsigned short mxcsr;
 
 	/*
-	 * Save the info for the exception handler and clear the error
+	 * Save the info for the exception handler and clear the error.
 	 */
 	task = current;
 	save_init_fpu(task);
-	set_fpu_mxcsr(XMM_DEFAULT_MXCSR);
+	load_mxcsr(0x1f80);
 	task->thread.trap_no = 19;
 	task->thread.error_code = 0;
 	info.si_signo = SIGFPE;
@@ -667,8 +667,8 @@ void simd_math_error(void *eip)
 	 * unmasked exception was caught we must mask the exception mask bits
 	 * at 0x1f80, and then use these to mask the exception bits at 0x3f.
 	 */
-	switch (~((task->thread.i387.hard.mxcsr & 0x1f80) >> 7) &
-		(task->thread.i387.hard.mxcsr & 0x3f)) {
+	mxcsr = get_fpu_mxcsr(task);
+	switch (~((mxcsr & 0x1f80) >> 7) & (mxcsr & 0x3f)) {
 		case 0x000:
 		default:
 			break;
@@ -695,10 +695,26 @@ void simd_math_error(void *eip)
 asmlinkage void do_simd_coprocessor_error(struct pt_regs * regs,
 					  long error_code)
 {
-	ignore_irq13 = 1;
-	simd_math_error((void *)regs->eip);
+	if (cpu_has_xmm) {
+		/* Handle SIMD FPU exceptions on PIII+ processors. */
+		ignore_irq13 = 1;
+		simd_math_error((void *)regs->eip);
+	} else {
+		/*
+		 * Handle strange cache flush from user space exception
+		 * in all other cases.  This is undocumented behaviour.
+		 */
+		if (regs->eflags & VM_MASK) {
+			handle_vm86_fault((struct kernel_vm86_regs *)regs,
+					  error_code);
+			return;
+		}
+		die_if_kernel("cache flush denied", regs, error_code);
+		current->thread.trap_no = 19;
+		current->thread.error_code = error_code;
+		force_sig(SIGSEGV, current);
+	}
 }
-#endif /* CONFIG_X86_XMM */
 
 asmlinkage void do_spurious_interrupt_bug(struct pt_regs * regs,
 					  long error_code)
@@ -718,7 +734,7 @@ asmlinkage void do_spurious_interrupt_bug(struct pt_regs * regs,
  */
 asmlinkage void math_state_restore(struct pt_regs regs)
 {
-	__asm__ __volatile__("clts");	/* Allow maths ops (or we recurse) */
+	__asm__ __volatile__("clts");		/* Allow maths ops (or we recurse) */
 
 	if (current->used_math) {
 		restore_fpu(current);
@@ -963,10 +979,8 @@ void __init trap_init(void)
 	set_trap_gate(15,&spurious_interrupt_bug);
 	set_trap_gate(16,&coprocessor_error);
 	set_trap_gate(17,&alignment_check);
-#ifdef CONFIG_X86_XMM
-	if (cpu_has_xmm)
-		set_trap_gate(19,&simd_coprocessor_error);
-#endif
+	set_trap_gate(19,&simd_coprocessor_error);
+
 	set_system_gate(SYSCALL_VECTOR,&system_call);
 
 	/*

@@ -287,6 +287,7 @@ struct inode * ext2_new_inode (const struct inode * dir, int mode, int * err)
 repeat:
 	gdp = NULL; i=0;
 	
+	*err = -ENOSPC;
 	if (S_ISDIR(mode)) {
 		avefreei = le32_to_cpu(es->s_free_inodes_count) /
 			sb->u.ext2_sb.s_groups_count;
@@ -368,7 +369,6 @@ repeat:
 	if (!gdp) {
 		unlock_super (sb);
 		iput(inode);
-		*err = -ENOSPC;
 		return NULL;
 	}
 	bitmap_nr = load_inode_bitmap (sb, i);
@@ -398,8 +398,9 @@ repeat:
 			ext2_error (sb, "ext2_new_inode",
 				    "Free inodes count corrupted in group %d",
 				    i);
-			/* If we continue recover from this case */
-			gdp->bg_free_inodes_count = 0;
+			unlock_super (sb);
+			iput (inode);
+			return NULL;
 		}
 		goto repeat;
 	}
@@ -410,7 +411,6 @@ repeat:
 			    "block_group = %d,inode=%d", i, j);
 		unlock_super (sb);
 		iput (inode);
-		*err = EIO;	/* Should never happen */
 		return NULL;
 	}
 	gdp->bg_free_inodes_count =

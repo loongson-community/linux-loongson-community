@@ -117,7 +117,7 @@ static int ext2_alloc_block (struct inode * inode, unsigned long goal, int *err)
 		inode->u.ext2_i.i_prealloc_count--;
 		ext2_debug ("preallocation hit (%lu/%lu).\n",
 			    ++alloc_hits, ++alloc_attempts);
-		*err = 0;
+
 	} else {
 		ext2_discard_prealloc (inode);
 		ext2_debug ("preallocation miss (%lu/%lu).\n",
@@ -200,7 +200,6 @@ out:
 	return ret;
 }
 
-/* returns NULL and sets *err on error */
 static struct buffer_head * inode_getblk (struct inode * inode, int nr,
 	int new_block, int * err, int metadata, long *phys, int *new)
 {
@@ -224,6 +223,7 @@ repeat:
 			return NULL;
 		}
 	}
+	*err = -EFBIG;
 
 	/* Check file limits.. */
 	{
@@ -311,7 +311,7 @@ repeat:
  *   can fail due to: - not present
  *                    - out of space
  *
- *   NULL return in the data case, or an error, is mandatory.
+ *   NULL return in the data case is mandatory.
  */
 static struct buffer_head * block_getblk (struct inode * inode,
 	  struct buffer_head * bh, int nr,
@@ -341,7 +341,6 @@ repeat:
 			if (tmp == le32_to_cpu(*p))
 				goto out;
 			brelse (result);
-			result = NULL;
 			goto repeat;
 		} else {
 			*phys = tmp;
@@ -403,9 +402,11 @@ repeat:
 		*new = 1;
 	}
 	*p = le32_to_cpu(tmp);
-	mark_buffer_dirty_inode(bh, 1, inode);
-	if (IS_SYNC(inode) || inode->u.ext2_i.i_osync) 
+	mark_buffer_dirty(bh, 1);
+	if (IS_SYNC(inode) || inode->u.ext2_i.i_osync) {
 		ll_rw_block (WRITE, 1, &bh);
+		wait_on_buffer (bh);
+	}
 	inode->i_ctime = CURRENT_TIME;
 	inode->i_blocks += blocksize/512;
 	mark_inode_dirty(inode);
@@ -486,9 +487,9 @@ static int ext2_get_block(struct inode *inode, long iblock, struct buffer_head *
 #define GET_INODE_PTR(x) \
 		inode_getblk(inode, x, iblock, &err, 1, NULL, NULL)
 #define GET_INDIRECT_DATABLOCK(x) \
-		block_getblk (inode, bh, x, iblock, &err, 0, &phys, &new)
+		block_getblk (inode, bh, x, iblock, &err, 0, &phys, &new);
 #define GET_INDIRECT_PTR(x) \
-		block_getblk (inode, bh, x, iblock, &err, 1, NULL, NULL)
+		block_getblk (inode, bh, x, iblock, &err, 1, NULL, NULL);
 
 	if (ptr < direct_blocks) {
 		bh = GET_INODE_DATABLOCK(ptr);
@@ -546,11 +547,13 @@ abort_too_big:
 struct buffer_head * ext2_getblk(struct inode * inode, long block, int create, int * err)
 {
 	struct buffer_head dummy;
+	int error;
 
 	dummy.b_state = 0;
 	dummy.b_blocknr = -1000;
-	*err = ext2_get_block(inode, block, &dummy, create);
-	if (!*err && buffer_mapped(&dummy)) {
+	error = ext2_get_block(inode, block, &dummy, create);
+	*err = error;
+	if (!error && buffer_mapped(&dummy)) {
 		struct buffer_head *bh;
 		bh = getblk(dummy.b_dev, dummy.b_blocknr, inode->i_sb->s_blocksize);
 		if (buffer_new(&dummy)) {
@@ -878,23 +881,8 @@ static int ext2_update_inode(struct inode * inode, int do_sync)
 	raw_inode->i_file_acl = cpu_to_le32(inode->u.ext2_i.i_file_acl);
 	if (S_ISDIR(inode->i_mode))
 		raw_inode->i_dir_acl = cpu_to_le32(inode->u.ext2_i.i_dir_acl);
-	else {
+	else
 		raw_inode->i_size_high = cpu_to_le32(inode->i_size >> 32);
-		if (inode->i_size >> 31) {
-			struct super_block *sb = inode->i_sb;
-			struct ext2_super_block *es = sb->u.ext2_sb.s_es;
-			if (!(es->s_feature_ro_compat & cpu_to_le32(EXT2_FEATURE_RO_COMPAT_LARGE_FILE))) {
-				/* If this is the first large file
-				 * created, add a flag to the superblock
-				 * SMP Note: we're currently protected by the
-				 * big kernel lock here, so this will need
-				 * to be changed if that's no longer true.
-				 */
-				es->s_feature_ro_compat |= cpu_to_le32(EXT2_FEATURE_RO_COMPAT_LARGE_FILE);
-				ext2_write_super(sb);
-			}
-		}
-	}
 
 	raw_inode->i_generation = cpu_to_le32(inode->i_generation);
 	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
@@ -916,10 +904,10 @@ static int ext2_update_inode(struct inode * inode, int do_sync)
 	return err;
 }
 
-void ext2_write_inode (struct inode * inode, int wait)
+void ext2_write_inode (struct inode * inode)
 {
 	lock_kernel();
-	ext2_update_inode (inode, wait);
+	ext2_update_inode (inode, 0);
 	unlock_kernel();
 }
 

@@ -1,4 +1,4 @@
-/* $Id: sys_sparc32.c,v 1.149 2000/06/19 06:24:37 davem Exp $
+/* $Id: sys_sparc32.c,v 1.152 2000/06/22 17:44:47 davem Exp $
  * sys_sparc32.c: Conversion between 32bit and 64bit native syscalls.
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -2624,7 +2624,8 @@ static void cmsg32_recvmsg_fixup(struct msghdr *kmsg, unsigned long orig_cmsg_up
 	 * the cmsg_len for MSG_TRUNC cases, we need not check that case either.
 	 */
 	ucmsg = (struct cmsghdr *) orig_cmsg_uptr;
-	while(((unsigned long)ucmsg) < ((unsigned long)kmsg->msg_control)) {
+	while(((unsigned long)ucmsg) <=
+	      (((unsigned long)kmsg->msg_control) - sizeof(struct cmsghdr))) {
 		struct cmsghdr32 *kcmsg32 = (struct cmsghdr32 *) wp;
 		int clen64, clen32;
 
@@ -3028,7 +3029,9 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	bprm.p = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
 	memset(bprm.page, 0, MAX_ARG_PAGES * sizeof(bprm.page[0]));
 
+	lock_kernel();
 	file = open_exec(filename);
+	unlock_kernel();
 
 	retval = PTR_ERR(file);
 	if (IS_ERR(file))
@@ -3040,12 +3043,10 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	bprm.loader = 0;
 	bprm.exec = 0;
 	if ((bprm.argc = count32(argv)) < 0) {
-		allow_write_access(file);
 		fput(file);
 		return bprm.argc;
 	}
 	if ((bprm.envc = count32(envp)) < 0) {
-		allow_write_access(file);
 		fput(file);
 		return bprm.envc;
 	}
@@ -3074,7 +3075,6 @@ do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 
 out:
 	/* Something went wrong, return the inode and free the argument pages*/
-	allow_write_access(bprm.file);
 	if (bprm.file)
 		fput(bprm.file);
 
@@ -3777,8 +3777,6 @@ static int nfs_getfh32_res_trans(union nfsctl_res *kres, union nfsctl_res32 *res
 {
 	return copy_to_user(res32, kres, sizeof(*res32));
 }
-
-extern asmlinkage int sys_nfsservctl(int cmd, void *arg, void *resp);
 
 int asmlinkage sys32_nfsservctl(int cmd, struct nfsctl_arg32 *arg32, union nfsctl_res32 *res32)
 {

@@ -29,7 +29,7 @@ static struct dentry *check_pseudo_root(struct super_block *);
 
 
 /*
- * Initialize a private filp. dentry is always a regular file one.
+ * Initialize a private filp
  */
 void fill_new_filp (struct file *filp, struct dentry *dentry)
 {
@@ -293,11 +293,11 @@ out:
 /*
  * Update the disk with the inode content
  */
-void UMSDOS_write_inode (struct inode *inode, int unused)
+void UMSDOS_write_inode (struct inode *inode)
 {
 	struct iattr newattrs;
 
-	fat_write_inode (inode, 0);
+	fat_write_inode (inode);
 	newattrs.ia_mtime = inode->i_mtime;
 	newattrs.ia_atime = inode->i_atime;
 	newattrs.ia_ctime = inode->i_ctime;

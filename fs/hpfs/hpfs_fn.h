@@ -266,7 +266,7 @@ ssize_t hpfs_file_write(struct file *file, const char *buf, size_t count, loff_t
 
 void hpfs_read_inode(struct inode *);
 void hpfs_write_inode_ea(struct inode *, struct fnode *);
-void hpfs_write_inode(struct inode *, int);
+void hpfs_write_inode(struct inode *);
 void hpfs_write_inode_nolock(struct inode *);
 int hpfs_notify_change(struct dentry *, struct iattr *);
 void hpfs_write_if_changed(struct inode *);

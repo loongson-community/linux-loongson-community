@@ -147,7 +147,7 @@ static int sync_dindirect(struct inode *inode, unsigned short *diblock,
 	return err;
 }
 
-int qnx4_sync_file(struct file *file, struct dentry *dentry, int datasync)
+int qnx4_sync_file(struct file *file, struct dentry *dentry)
 {
         struct inode *inode = dentry->d_inode;
 	int wait, err = 0;

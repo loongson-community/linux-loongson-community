@@ -5,7 +5,6 @@
  *	Gareth Hughes <gareth@valinux.com>, May 2000
  */
 
-#include <linux/config.h> /* for CONFIG_MATH_EMULATION */
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -19,6 +18,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/processor.h>
+#include <asm/i387.h>
 #include <asm/debugreg.h>
 
 /*
@@ -131,54 +131,6 @@ static unsigned long getreg(struct task_struct *child,
 			retval &= get_stack_long(child, regno);
 	}
 	return retval;
-}
-
-static inline int save_i387_user(struct user_i387_struct *buf,
-				 struct i387_hard_struct *hard)
-{
-#ifdef CONFIG_X86_FXSR
-	unsigned short *to;
-	unsigned short *from;
-	int i;
-
-	if (__copy_to_user(buf, hard, 7 * sizeof(long)))
-		return 1;
-
-	to = (unsigned short *)&buf->st_space[0];
-	from = (unsigned short *)&hard->st_space[0];
-	for (i = 0; i < 8; i++, to += 5, from += 8) {
-		if (__copy_to_user(to, from, 5 * sizeof(unsigned short)))
-			return 1;
-	}
-#else
-	if (__copy_to_user(buf, hard, sizeof(struct user_i387_struct)))
-		return 1;
-#endif
-	return 0;
-}
-
-static inline int restore_i387_user(struct i387_hard_struct *hard,
-				    struct user_i387_struct *buf)
-{
-#ifdef CONFIG_X86_FXSR
-	unsigned short *to;
-	unsigned short *from;
-	int i;
-
-	if (__copy_from_user(hard, buf, 7 * sizeof(long)))
-		return 1;
-
-	to = (unsigned short *)&hard->st_space[0];
-	from = (unsigned short *)&buf->st_space[0];
-	for (i = 0; i < 8; i++, to += 8, from += 5) {
-		if (__copy_from_user(to, from, 5 * sizeof(unsigned short)))
-			return 1;
-	}
-#else
-	if (__copy_from_user(hard, buf, sizeof(struct user_i387_struct)))
-		return 1;
-#endif
-	return 0;
 }
 
 asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
@@ -442,90 +394,59 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	}
 
 	case PTRACE_GETFPREGS: { /* Get the child FPU state. */
-		if (!access_ok(VERIFY_WRITE, (unsigned *)data, sizeof(struct user_i387_struct))) {
+		if (!access_ok(VERIFY_WRITE, (unsigned *)data,
+			       sizeof(struct user_i387_struct))) {
 			ret = -EIO;
 			break;
 		}
 		ret = 0;
 		if ( !child->used_math ) {
 			/* Simulate an empty FPU. */
-			child->thread.i387.hard.cwd = 0xffff037f;
-			child->thread.i387.hard.swd = 0xffff0000;
-			child->thread.i387.hard.twd = 0xffffffff;
+			set_fpu_cwd(child, 0x037f);
+			set_fpu_swd(child, 0x0000);
+			set_fpu_twd(child, 0xffff);
 		}
-#ifdef CONFIG_MATH_EMULATION
-		if ( boot_cpu_data.hard_math ) {
-#endif
-			save_i387_user((struct user_i387_struct *)data, &child->thread.i387.hard);
-#ifdef CONFIG_MATH_EMULATION
-		} else {
-			save_i387_soft(&child->thread.i387.soft, (struct _fpstate *)data);
-		}
-#endif
+		get_fpregs((struct user_i387_struct *)data, child);
 		break;
 	}
 
 	case PTRACE_SETFPREGS: { /* Set the child FPU state. */
-		if (!access_ok(VERIFY_READ, (unsigned *)data, sizeof(struct user_i387_struct))) {
+		if (!access_ok(VERIFY_READ, (unsigned *)data,
+			       sizeof(struct user_i387_struct))) {
 			ret = -EIO;
 			break;
 		}
 		child->used_math = 1;
-#ifdef CONFIG_MATH_EMULATION
-		if ( boot_cpu_data.hard_math ) {
-#endif
-			restore_i387_user(&child->thread.i387.hard, (struct user_i387_struct *)data);
-#ifdef CONFIG_MATH_EMULATION
-		} else {
-			restore_i387_soft(&child->thread.i387.soft, (struct _fpstate *)data);
-		}
-#endif
+		set_fpregs(child, (struct user_i387_struct *)data);
 		ret = 0;
 		break;
 	}
 
-	case PTRACE_GETXFPREGS: { /* Get the child extended FPU state. */
-#ifdef CONFIG_X86_FXSR
+	case PTRACE_GETFPXREGS: { /* Get the child extended FPU state. */
 		if (!access_ok(VERIFY_WRITE, (unsigned *)data,
-			       sizeof(struct user_xfpregs_struct))) {
+			       sizeof(struct user_fxsr_struct))) {
 			ret = -EIO;
 			break;
 		}
-		ret = 0;
 		if ( !child->used_math ) {
 			/* Simulate an empty FPU. */
-			child->thread.i387.hard.cwd = 0xffff037f;
-			child->thread.i387.hard.swd = 0xffff0000;
-			child->thread.i387.hard.twd = 0xffffffff;
+			set_fpu_cwd(child, 0x037f);
+			set_fpu_swd(child, 0x0000);
+			set_fpu_twd(child, 0xffff);
+			set_fpu_mxcsr(child, 0x1f80);
 		}
-		printk("PTRACE_GETXFPREGS: copying %d bytes from %p to %p\n",
-		       sizeof(struct user_xfpregs_struct),
-		       &child->thread.i387.hard, data);
-		__copy_to_user((void *)data, &child->thread.i387.hard,
-			       sizeof(struct user_xfpregs_struct));
-#else
-		ret = -EIO;
-#endif
+		ret = get_fpxregs((struct user_fxsr_struct *)data, child);
 		break;
 	}
 
-	case PTRACE_SETXFPREGS: { /* Set the child extended FPU state. */
-#ifdef CONFIG_X86_FXSR
+	case PTRACE_SETFPXREGS: { /* Set the child extended FPU state. */
 		if (!access_ok(VERIFY_READ, (unsigned *)data,
-			       sizeof(struct user_xfpregs_struct))) {
+			       sizeof(struct user_fxsr_struct))) {
 			ret = -EIO;
 			break;
 		}
 		child->used_math = 1;
-		printk("PTRACE_SETXFPREGS: copying %d bytes from %p to %p\n",
-		       sizeof(struct user_xfpregs_struct),
-		       data, &child->thread.i387.hard);
-		__copy_from_user(&child->thread.i387.hard, (void *)data,
-				 sizeof(struct user_xfpregs_struct));
-		ret = 0;
-#else
-		ret = -EIO;
-#endif
+		ret = set_fpxregs(child, (struct user_fxsr_struct *)data);
 		break;
 	}
 

@@ -514,7 +514,7 @@ repeat:
 			case TASK_STOPPED:
 				if (!p->exit_code)
 					continue;
-				if (!(options & WUNTRACED) && !(p->ptrace&PT_PTRACED))
+				if (!(options & WUNTRACED) && !(p->ptrace & PT_PTRACED))
 					continue;
 				read_unlock(&tasklist_lock);
 				retval = ru ? getrusage(p, RUSAGE_BOTH, ru) : 0; 

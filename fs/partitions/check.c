@@ -312,9 +312,9 @@ static void devfs_register_partition (struct gendisk *dev, int minor, int part)
 		devfs_flags |= DEVFS_FL_REMOVABLE;
 	sprintf (devname, "part%d", part);
 	dev->part[minor + part].de =
-	    devfs_register (dir, devname, 0, devfs_flags,
+	    devfs_register (dir, devname, devfs_flags,
 			    dev->major, minor + part,
-			    S_IFBLK | S_IRUSR | S_IWUSR, 0, 0,
+			    S_IFBLK | S_IRUSR | S_IWUSR,
 			    dev->fops, NULL);
 }
 
@@ -350,8 +350,8 @@ static void devfs_register_disc (struct gendisk *dev, int minor)
 	devfs_mk_symlink (devfs_handle, symlink, 0, DEVFS_FL_DEFAULT,
 			  dirname + pos, 0, &slave, NULL);
 	dev->part[minor].de =
-	    devfs_register (dir, "disc", 4, devfs_flags, dev->major, minor,
-			    S_IFBLK | S_IRUSR | S_IWUSR, 0, 0, dev->fops,NULL);
+	    devfs_register (dir, "disc", devfs_flags, dev->major, minor,
+			    S_IFBLK | S_IRUSR | S_IWUSR, dev->fops, NULL);
 	devfs_auto_unregister (dev->part[minor].de, slave);
 	if (!dev->de_arr)
 		devfs_auto_unregister (slave, dir);

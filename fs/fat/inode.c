@@ -837,7 +837,7 @@ static void fat_fill_inode(struct inode *inode, struct msdos_dir_entry *de)
 	MSDOS_I(inode)->i_ctime_ms = de->ctime_ms;
 }
 
-void fat_write_inode(struct inode *inode, int unused)
+void fat_write_inode(struct inode *inode)
 {
 	struct super_block *sb = inode->i_sb;
 	struct buffer_head *bh;
