@@ -1023,6 +1023,7 @@ static inline _syscall3(int,execve,const char *,file,char **,argv,char **,envp)
 static inline _syscall3(int,open,const char *,file,int,flag,int,mode)
 static inline _syscall1(int,close,int,fd)
 static inline _syscall1(int,_exit,int,exitcode)
+struct rusage;
 static inline _syscall4(pid_t,wait4,pid_t,pid,int *,stat_addr,int,options,struct rusage *,ru)
 static inline _syscall1(int,delete_module,const char *,name)
 
