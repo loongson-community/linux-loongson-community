@@ -35,7 +35,7 @@
 #include <asm/mips-boards/malta.h>
 #include <asm/mips-boards/maltaint.h>
 #include <asm/mips-boards/piix4.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 #include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/msc01_pci.h>
 

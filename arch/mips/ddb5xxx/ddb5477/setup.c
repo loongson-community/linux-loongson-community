@@ -179,9 +179,6 @@ extern struct pci_controller ddb5477_io_controller;
 static void __init ddb5477_setup(void)
 {
 	extern int panic_timeout;
-#ifdef CONFIG_BLK_DEV_IDE
-	extern struct ide_ops std_ide_ops;   
-#endif
 
 	/* initialize board - we don't trust the loader */
         ddb5477_board_init();
@@ -202,11 +199,6 @@ static void __init ddb5477_setup(void)
 
 	/* Reboot on panic */
 	panic_timeout = 180;
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-#endif
-
 
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;

@@ -9,7 +9,7 @@
 #
 # Some DECstations need all possible sections of an ECOFF executable
 #
-ifdef CONFIG_DECSTATION
+ifdef CONFIG_MACH_DECSTATION
   E2EFLAGS = -a
 else
   E2EFLAGS =

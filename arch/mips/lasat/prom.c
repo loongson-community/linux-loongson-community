@@ -2,7 +2,6 @@
  * PROM interface routines.
  */
 #include <linux/types.h>
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/string.h>
 #include <linux/ctype.h>

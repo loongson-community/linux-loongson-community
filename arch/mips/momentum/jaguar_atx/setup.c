@@ -40,8 +40,8 @@
  *  You should have received a copy of the  GNU General Public License along
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
- *
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -57,7 +57,6 @@
 #include <asm/time.h>
 #include <asm/bootinfo.h>
 #include <asm/page.h>
-#include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/pci.h>
@@ -65,7 +64,6 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
-#include <linux/version.h>
 #include <linux/bootmem.h>
 #include <linux/blk.h>
 #include <asm/mv64340.h>

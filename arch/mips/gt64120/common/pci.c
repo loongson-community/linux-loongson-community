@@ -36,7 +36,7 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 
 #define SELF 0
 

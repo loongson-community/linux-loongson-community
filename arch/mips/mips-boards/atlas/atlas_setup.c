@@ -34,7 +34,6 @@
 #include <asm/mips-boards/prom.h>
 #include <asm/mips-boards/atlas.h>
 #include <asm/mips-boards/atlasint.h>
-#include <asm/gt64120.h>
 #include <asm/time.h>
 #include <asm/traps.h>
 

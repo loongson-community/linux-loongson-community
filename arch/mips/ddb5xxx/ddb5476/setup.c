@@ -14,7 +14,6 @@
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
 #include <linux/pci.h>
-#include <linux/ide.h>
 
 #include <asm/addrspace.h>
 #include <asm/bcache.h>
@@ -42,8 +41,6 @@
 #ifdef CONFIG_KGDB
 extern void breakpoint(void);
 #endif
-
-extern struct ide_ops std_ide_ops;
 
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
 
@@ -163,9 +160,6 @@ static void __init ddb5476_setup(void)
 		    ("ddb_setup - requesting oo port resources failed.\n");
 		for (;;);
 	}
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-#endif
 
 	/* Reboot on panic */
 	panic_timeout = 180;

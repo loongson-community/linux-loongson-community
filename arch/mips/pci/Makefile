@@ -8,13 +8,14 @@ obj-y				+= pci.o
 # PCI bus host bridge specific code
 #
 obj-$(CONFIG_ITE_BOARD_GEN)	+= ops-it8172.o
-obj-$(CONFIG_MIPS_NILE4)	+= ops-nile4.o
 obj-$(CONFIG_MIPS_BONITO64)	+= ops-bonito64.o
 obj-$(CONFIG_MIPS_GT64111)	+= ops-gt64111.o
 obj-$(CONFIG_MIPS_GT64120)	+= ops-gt64120.o
 obj-$(CONFIG_MIPS_GT96100)	+= ops-gt96100.o
 obj-$(CONFIG_MIPS_MV64340)	+= ops-mv64340.o
 obj-$(CONFIG_MIPS_MSC)		+= ops-msc.o
+obj-$(CONFIG_MIPS_NILE4)	+= ops-nile4.o
+obj-$(CONFIG_MIPS_TX3927)	+= ops-jmr3927.o
 
 #
 # These are still pretty much in the old state, watch, go blind.
@@ -41,8 +42,8 @@ obj-$(CONFIG_SIBYTE_SB1250)	+= pci-sb1250.o
 obj-$(CONFIG_SNI_RM200_PCI)	+= fixup-sni.o ops-sni.o
 obj-$(CONFIG_TANBAC_TB0226)	+= fixup-tb0226.o
 obj-$(CONFIG_TANBAC_TB0229)	+= fixup-tb0229.o
-obj-$(CONFIG_TOSHIBA_JMR3927)	+= fixup-jmr3927.o ops-jmr3927.o
+obj-$(CONFIG_TOSHIBA_JMR3927)	+= fixup-jmr3927.o pci-jmr3927.o
 obj-$(CONFIG_TOSHIBA_RBTX4927)	+= fixup-rbtx4927.o ops-tx4927.o
 obj-$(CONFIG_VICTOR_MPC30X)	+= fixup-capcella.o
-obj-$(CONFIG_VR41XX_COMMON)	+= pci-vr41xx.o
+obj-$(CONFIG_MACH_VR41XX)	+= pci-vr41xx.o
 obj-$(CONFIG_ZAO_CAPCELLA)	+= fixup-victor-mpc30x.o

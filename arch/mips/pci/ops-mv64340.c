@@ -24,32 +24,10 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <asm/mv64340.h>
-
-/*
- * pci_range_ck -
- *
- * Check if the pci device that are trying to access does really exists
- * on the evaluation board.  
- *
- * Inputs :
- * bus - bus number (0 for PCI 0 ; 1 for PCI 1)
- * dev - number of device on the specific pci bus
- *
- * Outpus :
- * 0 - if OK , 1 - if failure
- */
-static inline int pci_range_ck(unsigned char bus, unsigned char dev)
-{
-	/* Accessing device 31 crashes the MV-64340. */
-	if (dev < 5)
-		return 0;
-	return -1;
-}
 
 /*
  * galileo_pcibios_(read/write)_config_(dword/word/byte) -
@@ -74,28 +52,15 @@ static inline int pci_range_ck(unsigned char bus, unsigned char dev)
  */
 
 static int mv64340_read_config(struct pci_bus *bus, unsigned int devfn, int reg,
-	int size, u32 * val)
+	int size, u32 * val, u32 address_reg, u32 data_reg)
 {
-	uint32_t address_reg, data_reg;
-	uint32_t address;
-	int bus = bus->number;
-	int dev = PCI_SLOT(devfn);
-	int func = PCI_FUNC(devfn);
+	u32 address;
 
-	/* verify the range */
-	if (pci_range_ck(busno, dev))
+	/* Accessing device 31 crashes the MV-64340. */
+	if (PCI_SLOT(devfn) > 5)
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
-	/* select the MV-64340 registers to communicate with the PCI bus */
-	if (bus == 0) {
-		address_reg = MV64340_PCI_0_CONFIG_ADDR;
-		data_reg = MV64340_PCI_0_CONFIG_DATA_VIRTUAL_REG;
-	} else {
-		address_reg = MV64340_PCI_1_CONFIG_ADDR;
-		data_reg = MV64340_PCI_1_CONFIG_DATA_VIRTUAL_REG;
-	}
-
-	address = (bus << 16) | (dev << 11) | (func << 8) |
+	address = (bus->number << 16) | (dev << 11) | (func << 8) |
 		  (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
@@ -119,31 +84,16 @@ static int mv64340_read_config(struct pci_bus *bus, unsigned int devfn, int reg,
 }
 
 static int mv64340_write_config(struct pci_bus *bus, unsigned int devfn,
-	int reg, int size, u32 val)
+	int reg, int size, u32 val, u32 address_reg, u32 data_reg)
 {
-	int dev, bus, func;
-	uint32_t address_reg, data_reg;
-	uint32_t address;
+	u32 address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
-
-	/* verify the range */
-	if (pci_range_ck(bus, dev))
+	/* Accessing device 31 crashes the MV-64340. */
+	if (PCI_SLOT(devfn) > 5)
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
-	/* select the MV-64340 registers to communicate with the PCI bus */
-	if (bus == 0) {
-		address_reg = MV64340_PCI_0_CONFIG_ADDR;
-		data_reg = MV64340_PCI_0_CONFIG_DATA_VIRTUAL_REG;
-	} else {
-		address_reg = MV64340_PCI_1_CONFIG_ADDR;
-		data_reg = MV64340_PCI_1_CONFIG_DATA_VIRTUAL_REG;
-	}
-
-	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	address = (bus->number << 16) | (devfn << 8) |
+		  (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -168,7 +118,28 @@ static int mv64340_write_config(struct pci_bus *bus, unsigned int devfn,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-struct pci_ops mv64340_pci_ops = {
-	.read	= mv64340_read_config,
-	.write	= mv64340_write_config
+#define BUILD_PCI_OPS(host)						\
+									\
+static int mv64340_bus ## host ## _read_config(struct pci_bus *bus,	\
+	unsigned int devfn, int reg, int size, u32 * val)		\
+{									\
+	return mv64340_read_config(bus, devfn, reg, size, val,		\
+	           MV64340_PCI_ ## host ## _CONFIG_ADDR;		\
+	           MV64340_PCI_ ## host ## _CONFIG_DATA_VIRTUAL_REG);	\
+}									\
+									\
+static int mv64340_bus ## host ## _write_config(struct pci_bus *bus,	\
+	unsigned int devfn, int reg, int size, u32 val)			\
+{									\
+	return mv64340_write_config(bus, devfn, reg, size, val,		\
+	           MV64340_PCI_ ## host ## _CONFIG_ADDR;		\
+	           MV64340_PCI_ ## host ## _CONFIG_DATA_VIRTUAL_REG);	\
+}									\
+									\
+struct pci_ops mv64340_bus ## host ## _pci_ops = {			\
+	.read	= mv64340_bus ## host ## _read_config,			\
+	.write	= mv64340_bus ## host ## _write_config			\
 };
+
+BUILD_PCI_OPS(0)
+BUILD_PCI_OPS(1)

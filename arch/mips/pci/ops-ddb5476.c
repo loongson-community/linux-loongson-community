@@ -14,7 +14,6 @@
  * option) any later version.
  *
  */
-#include <linux/config.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/types.h>

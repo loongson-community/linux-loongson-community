@@ -8,7 +8,6 @@
  * Copyright (C) 1996, 97, 98, 99, 2000, 01, 03 by Ralf Baechle
  * Copyright (C) 1999, 2000, 01 Silicon Graphics, Inc.
  */
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/ide.h>
 #include <asm/uaccess.h>
@@ -54,7 +53,3 @@ EXPORT_SYMBOL_NOVERS(__strnlen_user_nocheck_asm);
 EXPORT_SYMBOL_NOVERS(__strnlen_user_asm);
 
 EXPORT_SYMBOL(invalid_pte_table);
-
-#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
-EXPORT_SYMBOL(ide_ops);
-#endif

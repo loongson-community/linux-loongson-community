@@ -38,7 +38,6 @@
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
  *  - New creation, NEC Eagle is supported.
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>

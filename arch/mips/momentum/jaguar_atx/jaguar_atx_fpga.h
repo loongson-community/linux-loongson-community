@@ -26,6 +26,8 @@
 #ifndef __JAGUAR_ATX_FPGA_H__
 #define __JAGUAR_ATX_FPGA_H__
 
+#include <linux/config.h>
+
 #ifdef CONFIG_MIPS64
 #define JAGUAR_ATX_CS0_ADDR (0xfffffffffc000000)
 #else

@@ -43,7 +43,7 @@
 #include <linux/cache.h>
 #include <asm/pci.h>
 #include <asm/io.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 
 static inline unsigned int pci0ReadConfigReg(unsigned int offset)
 {

@@ -42,6 +42,7 @@
  *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *  - Added support for NEC VR4133.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>

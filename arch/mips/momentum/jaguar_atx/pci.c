@@ -27,7 +27,6 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/version.h>
 #include <asm/pci.h>
 #include <asm/io.h>
 #include <asm/mv64340.h>
@@ -51,6 +50,6 @@ void __init pcibios_init(void)
 	iomem_resource.start  = 0xc0000000;
 	iomem_resource.end    = 0xc0000000 + 0x20000000 - 1;
 
-	pci_scan_bus(0, &mv64340_pci_ops, NULL);
-	pci_scan_bus(1, &mv64340_pci_ops, NULL);
+	pci_scan_bus(0, &mv64340_bus0_pci_ops, NULL);
+	pci_scan_bus(1, &mv64340_bus1_pci_ops, NULL);
 }

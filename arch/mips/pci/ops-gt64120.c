@@ -19,7 +19,7 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 
 #define PCI_ACCESS_READ  0
 #define PCI_ACCESS_WRITE 1
@@ -47,10 +47,8 @@ static int gt64120_pcibios_config_access(unsigned char access_type,
 		return -1;	/* Because of a bug in the galileo (for slot 31). */
 
 	/* Clear cause register bits */
-	intr = GT_READ(GT_INTRCAUSE_OFS);
-	GT_WRITE(GT_INTRCAUSE_OFS, intr &
-		 ~(GT_INTRCAUSE_MASABORT0_BIT |
-		   GT_INTRCAUSE_TARABORT0_BIT));
+	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT |
+	                             GT_INTRCAUSE_TARABORT0_BIT));
 
 	/* Setup address */
 	GT_WRITE(GT_PCI0_CFGADDR_OFS,
@@ -86,10 +84,8 @@ static int gt64120_pcibios_config_access(unsigned char access_type,
 		/* Error occurred */
 
 		/* Clear bits */
-		intr = GT_READ(GT_INTRCAUSE_OFS);
-		GT_WRITE(GT_INTRCAUSE_OFS, intr &
-			 ~(GT_INTRCAUSE_MASABORT0_BIT |
-			   GT_INTRCAUSE_TARABORT0_BIT));
+		GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT |
+		                             GT_INTRCAUSE_TARABORT0_BIT));
 
 		return -1;
 	}

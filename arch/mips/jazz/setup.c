@@ -37,7 +37,6 @@ extern void jazz_machine_restart(char *command);
 extern void jazz_machine_halt(void);
 extern void jazz_machine_power_off(void);
 
-extern struct ide_ops std_ide_ops;
 extern struct rtc_ops jazz_rtc_ops;
 
 static void __init jazz_time_init(struct irqaction *irq)
@@ -53,8 +52,6 @@ static struct resource jazz_io_resources[] = {
 	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
 	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
 };
-
-#define JAZZ_IO_RESOURCES (sizeof(jazz_io_resources)/sizeof(struct resource))
 
 static void __init jazz_setup(void)
 {
@@ -77,7 +74,7 @@ static void __init jazz_setup(void)
 	isa_slot_offset = 0xe3000000;
 
 	/* request I/O space for devices used on all i[345]86 PCs */
-	for (i = 0; i < JAZZ_IO_RESOURCES; i++)
+	for (i = 0; i < ARRAY_SIZE(jazz_io_resources); i++)
 		request_resource(&ioport_resource, jazz_io_resources + i);
 
         board_timer_setup = jazz_time_init;
@@ -87,9 +84,6 @@ static void __init jazz_setup(void)
 	_machine_halt = jazz_machine_halt;
 	_machine_power_off = jazz_machine_power_off;
 
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-#endif
 #ifdef CONFIG_VT
 	conswitchp = &dummy_con;
 #endif

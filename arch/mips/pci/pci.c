@@ -37,7 +37,6 @@ struct pci_controller *pci_isa_hose;
 
 unsigned long PCIBIOS_MIN_IO	= 0x0000;
 unsigned long PCIBIOS_MIN_MEM	= 0;
-unsigned int PCI_DMA_BUS_IS_PHYS = 0;
 
 /*
  * We need to avoid collisions with `mirrored' VGA ports

@@ -27,11 +27,37 @@ source "init/Kconfig"
 
 menu "Machine selection"
 
+config MACH_JAZZ
+	bool "Support for the Jazz family of machines"
+	help
+	 This a family of machines based on the MIPS R4030 chipset which was
+	 used by several vendors to build RISC/os and Windows NT workstations.
+	 Members include the Acer PICA, MIPS Magnum 4000, MIPS Millenium and
+	 Olivetti M700-10 workstations.
+
 config ACER_PICA_61
 	bool "Support for Acer PICA 1 chipset (EXPERIMENTAL)"
-	depends on EXPERIMENTAL
+	depends on MACH_JAZZ && EXPERIMENTAL
 	help
 	  This is a machine with a R4400 133/150 MHz CPU. To compile a Linux
+	  kernel that runs on these, say Y here. For details about Linux on
+	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
+	  <http://www.linux-mips.org/>.
+
+config MIPS_MAGNUM_4000
+	bool "Support for MIPS Magnum 4000"
+	depends on MACH_JAZZ
+	help
+	  This is a machine with a R4000 100 MHz CPU. To compile a Linux
+	  kernel that runs on these, say Y here. For details about Linux on
+	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
+	  <http://www.linux-mips.org/>.
+
+config OLIVETTI_M700
+	bool "Support for Olivetti M700-10"
+	depends on MACH_JAZZ
+	help
+	  This is a machine with a R4000 100 MHz CPU. To compile a Linux
 	  kernel that runs on these, say Y here. For details about Linux on
 	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
 	  <http://www.linux-mips.org/>.
@@ -44,14 +70,52 @@ config BAGET_MIPS
 	  more details about the Baget see the Linux/MIPS FAQ on
 	  <http://www.linux-mips.org/>.
 
+config MACH_VR41XX
+	bool "Support for NEC VR41XX-based machines"
+
 config CASIO_E55
 	bool "Support for CASIO CASSIOPEIA E-10/15/55/65"
+	depends on MACH_VR41XX
+
+config IBM_WORKPAD
+	bool "Support for IBM WorkPad z50"
+	depends on MACH_VR41XX
+
+config NEC_EAGLE
+	bool "Support for NEC Eagle/Hawk board"
+	depends on MACH_VR41XX
+
+config TANBAC_TB0226
+	bool "Support for TANBAC TB0226 (Mbase)"
+	depends on MACH_VR41XX
+	help
+	  The TANBAC TB0226 (Mbase) is a MIPS-based platform manufactured by TANBAC.
+	  Please refer to <http://www.tanbac.co.jp/> about Mbase.
+
+config TANBAC_TB0229
+	bool "Support for TANBAC TB0229 (VR4131DIMM)"
+	depends on MACH_VR41XX
+	help
+	  The TANBAC TB0229 (VR4131DIMM) is a MIPS-based platform manufactured by TANBAC.
+	  Please refer to <http://www.tanbac.co.jp/> about VR4131DIMM.
+
+config VICTOR_MPC30X
+	bool "Support for Victor MP-C303/304"
+	depends on MACH_VR41XX
+
+config ZAO_CAPCELLA
+	bool "Support for ZAO Networks Capcella"
+	depends on MACH_VR41XX
+
+config TOSHIBA_JMR3927
+	bool "Support for Toshiba JMR-TX3927 board"
+	depends on MIPS32
 
 config MIPS_COBALT
 	bool "Support for Cobalt Server (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
 
-config DECSTATION
+config MACH_DECSTATION
 	bool "Support for DECstations"
 	depends on MIPS32 || EXPERIMENTAL
 	---help---
@@ -124,9 +188,6 @@ config LASAT_SYSCTL
 config HP_LASERJET
 	bool "Support for Hewlett Packard LaserJet board"
 
-config IBM_WORKPAD
-	bool "Support for IBM WorkPad z50"
-
 config MIPS_ITE8172
 	bool "Support for ITE 8172G board"
 	help
@@ -150,14 +211,6 @@ config MIPS_ATLAS
 	help
 	  This enables support for the QED R5231-based MIPS Atlas evaluation
 	  board.
-
-config MIPS_MAGNUM_4000
-	bool "Support for MIPS Magnum 4000"
-	help
-	  This is a machine with a R4000 100 MHz CPU. To compile a Linux
-	  kernel that runs on these, say Y here. For details about Linux on
-	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-	  <http://www.linux-mips.org/>.
 
 config MIPS_MALTA
 	bool "Support for MIPS Malta board"
@@ -226,17 +279,6 @@ config DDB5477_BUS_FREQUENCY
 	
 config NEC_OSPREY
 	bool "Support for NEC Osprey board"
-
-config NEC_EAGLE
-	bool "Support for NEC Eagle/Hawk board"
-
-config OLIVETTI_M700
-	bool "Support for Olivetti M700-10"
-	help
-	  This is a machine with a R4000 100 MHz CPU. To compile a Linux
-	  kernel that runs on these, say Y here. For details about Linux on
-	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-	  <http://www.linux-mips.org/>.
 
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
@@ -314,13 +356,13 @@ config SGI_IP32
 	help
 	  If you want this kernel to run on SGI O2 workstation, say Y here.
 
-config SOC_AU1X00
+config MACH_AU1X00
 	depends on MIPS32
 	bool "Support for AMD/Alchemy Au1X00 SOCs"
 
 choice
 	prompt "Au1X00 SOC Type"
-	depends on SOC_AU1X00
+	depends on MACH_AU1X00
         help
            Say Y here to enable support for one of three AMD/Alchemy
            SOCs. For additional documentation see www.amd.com.
@@ -336,7 +378,7 @@ endchoice
 
 choice  
         prompt "AMD/Alchemy Au1x00 board support"
-        depends on SOC_AU1X00
+        depends on MACH_AU1X00
 	help
 	  These are evaluation boards built by AMD/Alchemy to
 	  showcase their Au1X00 Internet Edge Processors. The SOC design
@@ -604,31 +646,9 @@ config SNI_RM200_PCI
 	  Technology and now in turn merged with Fujitsu.  Say Y here to
 	  support this machine type.
 
-config TANBAC_TB0226
-	bool "Support for TANBAC TB0226 (Mbase)"
-	help
-	  The TANBAC TB0226 (Mbase) is a MIPS-based platform manufactured by TANBAC.
-	  Please refer to <http://www.tanbac.co.jp/> about Mbase.
-
-config TANBAC_TB0229
-	bool "Support for TANBAC TB0229 (VR4131DIMM)"
-	help
-	  The TANBAC TB0229 (VR4131DIMM) is a MIPS-based platform manufactured by TANBAC.
-	  Please refer to <http://www.tanbac.co.jp/> about VR4131DIMM.
-
-config TOSHIBA_JMR3927
-	bool "Support for Toshiba JMR-TX3927 board"
-	depends on MIPS32
-
 config TOSHIBA_RBTX4927
 	bool "Support for Toshiba TBTX49[23]7 board"
 	depends on MIPS32
-
-config VICTOR_MPC30X
-	bool "Support for Victor MP-C303/304"
-
-config ZAO_CAPCELLA
-	bool "Support for ZAO Networks Capcella"
 
 config RWSEM_GENERIC_SPINLOCK
 	bool
@@ -657,7 +677,7 @@ config	DMA_IP27
 
 config	DMA_NONCOHERENT
 	bool
-	depends on ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || NEC_EAGLE || NEC_OSPREY || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_JAGUAR_ATX || MIPS_BOSPORUS || MIPS_DB1000 || MIPS_DB1100 || MIPS_DB1500 || MIPS_SEAD || MIPS_MALTA || MIPS_MAGNUM_4000 || MIPS_MIRAGE || MIPS_MTX1 || MIPS_XXS1500 || OLIVETTI_M700 || MIPS_ATLAS || LASAT || MIPS_ITE8172 || IBM_WORKPAD || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || DECSTATION || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || CASIO_E55 || ACER_PICA_61 || TANBAC_TB0226 || TANBAC_TB0229
+	depends on ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || NEC_EAGLE || NEC_OSPREY || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_JAGUAR_ATX || MIPS_BOSPORUS || MIPS_DB1000 || MIPS_DB1100 || MIPS_DB1500 || MIPS_SEAD || MIPS_MALTA || MIPS_MAGNUM_4000 || MIPS_MIRAGE || MIPS_MTX1 || MIPS_XXS1500 || OLIVETTI_M700 || MIPS_ATLAS || LASAT || MIPS_ITE8172 || IBM_WORKPAD || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || MACH_DECSTATION || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || CASIO_E55 || ACER_PICA_61 || TANBAC_TB0226 || TANBAC_TB0229
 	default y
 
 config GENERIC_ISA_DMA
@@ -667,17 +687,12 @@ config GENERIC_ISA_DMA
 
 config I8259
 	bool
-	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MIPS_MALTA || MIPS_COBALT || MIPS_JAZZ || ACER_PICA_61
+	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MACH_JAZZ || MIPS_MALTA || MIPS_COBALT
 	default y
 
 config MIPS_BONITO64
 	bool
 	depends on MIPS_ATLAS || MIPS_MALTA
-	default y
-
-config MIPS_JAZZ
-	bool
-	depends on ACER_PICA_61 || MIPS_MAGNUM_4000 || OLIVETTI_M700
 	default y
 
 config MIPS_MSC
@@ -692,7 +707,7 @@ config MIPS_NILE4
 
 config CPU_LITTLE_ENDIAN
 	bool "Generate little endian code"
-	default y if ACER_PICA_61 || CASIO_E55 || DDB5074 || DDB5476 || DDB5477 || DECSTATION || HP_LASERJET || IBM_WORKPAD || LASAT || MIPS_COBALT || MIPS_ITE8172 || MIPS_IVR || MIPS_PB1000 || MIPS_PB1100 || MIPS_PB1500 || NEC_OSPREY || NEC_EAGLE || OLIVETTI_M700 || SNI_RM200_PCI || VICTOR_MPC30X || ZAO_CAPCELLA
+	default y if ACER_PICA_61 || CASIO_E55 || DDB5074 || DDB5476 || DDB5477 || MACH_DECSTATION || HP_LASERJET || IBM_WORKPAD || LASAT || MIPS_COBALT || MIPS_ITE8172 || MIPS_IVR || MIPS_PB1000 || MIPS_PB1100 || MIPS_PB1500 || NEC_OSPREY || NEC_EAGLE || OLIVETTI_M700 || SNI_RM200_PCI || VICTOR_MPC30X || ZAO_CAPCELLA
 	default n if BAGET_MIPS || MIPS_EV64120 || MIPS_EV96100 || MOMENCO_OCELOT || MOMENCO_OCELOT_G || SGI_IP22 || SGI_IP27 || SGI_IP32 || TOSHIBA_JMR3927
 	help
 	  Some MIPS machines can be configured for either little or big endian
@@ -701,10 +716,10 @@ config CPU_LITTLE_ENDIAN
 
 config IRQ_CPU
 	bool
-	depends on CASIO_E55 || DDB5074 || DDB5476 || DDB5477 || DECSTATION || HP_LASERJET || IBM_WORKPAD || MIPS_COBALT || MIPS_EV96100 || MOMENCO_OCELOT || MOMENCO_OCELOT_G || NEC_EAGLE || NEC_OSPREY || SGI_IP22 || VICTOR_MPC30X || TANBAC_TB0226 || TANBAC_TB0229 || ZAO_CAPCELLA
+	depends on CASIO_E55 || DDB5074 || DDB5476 || DDB5477 || MACH_DECSTATION || HP_LASERJET || IBM_WORKPAD || MIPS_COBALT || MIPS_EV96100 || MOMENCO_OCELOT || MOMENCO_OCELOT_G || NEC_EAGLE || NEC_OSPREY || SGI_IP22 || VICTOR_MPC30X || TANBAC_TB0226 || TANBAC_TB0229 || ZAO_CAPCELLA
 	default y
 
-config	IRQ_CPU_RM7K
+config IRQ_CPU_RM7K
 	bool
 	depends on MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT || MOMENCO_OCELOT_G
 	default y
@@ -717,11 +732,6 @@ config VR41XX_TIME_C
 config DUMMY_KEYB
 	bool
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1xxx_SOC || NEC_EAGLE || NEC_OSPREY || DDB5477 || IBM_WORKPAD || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
-	default y
-
-config VR41XX_COMMON
-	bool
-	depends on NEC_EAGLE || ZAO_CAPCELLA || VICTOR_MPC30X || IBM_WORKPAD || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
 	default y
 
 config VRC4173
@@ -751,6 +761,11 @@ config MIPS_GT64120
 config MIPS_MV64340
 	bool
 	depends on MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT_C
+	default y
+
+config MIPS_TX3927
+	bool
+	depends on TOSHIBA_JMR3927
 	default y
 
 config ITE_BOARD_GEN
@@ -815,18 +830,18 @@ config IT8712
 
 config BOOT_ELF32
 	bool
-	depends on DECSTATION || MIPS_ATLAS || MIPS_MALTA || MOMENCO_JAGUAR_ATX || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
+	depends on MACH_DECSTATION || MIPS_ATLAS || MIPS_MALTA || MOMENCO_JAGUAR_ATX || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
 	default y
 
 config MIPS_L1_CACHE_SHIFT
 	int
-	default "4" if DECSTATION
+	default "4" if MACH_DECSTATION
 	default "7" if SGI_IP27
 	default "5"
 
 config ARC32
 	bool
-	depends on MIPS_JAZZ || SNI_RM200_PCI || SGI_IP32 || SGI_IP22
+	depends on MACH_JAZZ || SNI_RM200_PCI || SGI_IP22 || SGI_IP32
 	default y
 
 config FB
@@ -885,12 +900,12 @@ config ARC_CONSOLE
 
 config ARC_MEMORY
 	bool
-	depends on MIPS_JAZZ || SNI_RM200_PCI || SGI_IP32
+	depends on MACH_JAZZ || SNI_RM200_PCI || SGI_IP32
 	default y
 
 config ARC_PROMLIB
 	bool
-	depends on MIPS_JAZZ || SNI_RM200_PCI || SGI_IP22 || SGI_IP32
+	depends on MACH_JAZZ || SNI_RM200_PCI || SGI_IP22 || SGI_IP32
 	default y
 
 config BOARD_SCACHE
@@ -1130,7 +1145,7 @@ config CPU_HAS_LLDSCD
 
 config CPU_HAS_WB
 	bool "Writeback Buffer available" if CPU_ADVANCED
-	default y if !CPU_ADVANCED && (CPU_R3000 || CPU_VR41XX || CPU_TX39XX) && DECSTATION
+	default y if !CPU_ADVANCED && (CPU_R3000 || CPU_VR41XX || CPU_TX39XX) && MACH_DECSTATION
 	help
 	  Say N here for slightly better performance.  You must say Y here for
 	  machines which require flushing of write buffers in software.  Saying
@@ -1157,7 +1172,7 @@ config CPU_HAS_SYNC
 #
 config HIGHMEM
 	bool "High Memory Support"
-	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_R10000) && !(BAGET_MIPS || DECSTATION)
+	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_R10000) && !(BAGET_MIPS || MACH_DECSTATION)
 
 config SMP
 	bool "Multi-Processing support"
@@ -1297,7 +1312,7 @@ source "drivers/eisa/Kconfig"
 
 config TC
 	bool "TURBOchannel support"
-	depends on DECSTATION
+	depends on MACH_DECSTATION
 	help
 	  TurboChannel is a DEC (now Compaq (now HP)) bus for Alpha and MIPS
 	  processors.  Documentation on writing device drivers for TurboChannel
@@ -1394,7 +1409,7 @@ config BINFMT_ELF32
 
 config PM
 	bool "Power Management support (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && SOC_AU1X00
+	depends on EXPERIMENTAL && MACH_AU1X00
 
 endmenu
 

@@ -39,6 +39,7 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -54,7 +55,6 @@
 #include <asm/time.h>
 #include <asm/bootinfo.h>
 #include <asm/page.h>
-#include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/pci.h>

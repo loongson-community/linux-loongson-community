@@ -130,13 +130,6 @@ static void __init hp_setup(void)
    pci_setup();
 #endif
 
-#ifdef CONFIG_IDE
-   {
-      extern struct ide_ops std_ide_ops;
-      ide_ops = &std_ide_ops;
-   }
-#endif
-
    _machine_restart =(void (*)(char *)) hplj_restart;
    _machine_halt = hplj_halt;
    _machine_power_off = hplj_halt;

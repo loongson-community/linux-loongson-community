@@ -9,13 +9,11 @@
  * Copyright (C) 2001, 2002, 2003 by Liam Davies (ldavies@agile.tv)
  *
  */
-
 #include <linux/config.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/mc146818rtc.h>
 #include <linux/init.h>
-#include <linux/ide.h>
 
 #include <asm/bootinfo.h>
 #include <asm/pci_channel.h>
@@ -33,7 +31,6 @@ extern void cobalt_machine_halt(void);
 extern void cobalt_machine_power_off(void);
 
 extern struct rtc_ops std_rtc_ops;
-extern struct ide_ops std_ide_ops;
 
 int cobalt_board_id;
 
@@ -113,10 +110,6 @@ static void __init cobalt_setup(void)
 
 	board_time_init = cobalt_time_init;
 	board_timer_setup = cobalt_timer_setup;
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-#endif
 
         set_io_port_base(KSEG1ADDR(GT64111_IO_BASE));
 

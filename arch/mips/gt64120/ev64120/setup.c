@@ -36,7 +36,6 @@
 #include <linux/timex.h>
 #include <asm/bootinfo.h>
 #include <asm/page.h>
-#include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/pci.h>
@@ -46,7 +45,6 @@
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
 #include <asm/traps.h>
-#include <linux/version.h>
 #include <linux/bootmem.h>
 
 unsigned long gt64120_base = KSEG1ADDR(0x14000000);

@@ -34,7 +34,6 @@
 #include <asm/bootinfo.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
 #include <asm/it8172/it8172.h>
 #include <asm/it8172/it8172_dbg.h>
 

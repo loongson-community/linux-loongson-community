@@ -5,8 +5,6 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * ########################################################################
- *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -19,14 +17,11 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
- *
- * 
  */
 #ifndef __ASM_DB1X00_H
 #define __ASM_DB1X00_H
 
+#include <linux/config.h>
 
 /*
  * Overlay data structure of the Db1x00 board registers.

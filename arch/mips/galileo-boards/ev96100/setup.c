@@ -46,7 +46,7 @@
 #include <asm/mipsregs.h>
 #include <asm/irq.h>
 #include <asm/delay.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 #include <asm/galileo-boards/ev96100int.h>
 
 

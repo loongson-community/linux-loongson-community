@@ -1,12 +1,9 @@
 /*
- *
  * Alchemy Semi Au1000 pcmcia driver include file
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -20,14 +17,11 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
- *
- *
  */
 #ifndef __ASM_AU1000_PCMCIA_H
 #define __ASM_AU1000_PCMCIA_H
 
+#include <linux/config.h>
 
 #define AU1000_PCMCIA_POLL_PERIOD    (2*HZ)
 #define AU1000_PCMCIA_IO_SPEED       (255)

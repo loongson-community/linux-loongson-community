@@ -14,7 +14,6 @@
 #include <linux/mc146818rtc.h>
 #include <linux/param.h>
 #include <linux/init.h>
-#include <linux/console.h>
 
 #include <asm/time.h>
 #include <asm/mipsregs.h>

@@ -20,12 +20,12 @@
  * Setup code for the SWARM board
  */
 
+#include <linux/config.h>
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
 #include <linux/blkdev.h>
 #include <linux/init.h>
-#include <linux/ide.h>
 #include <linux/console.h>
 
 #include <asm/irq.h>
@@ -42,10 +42,6 @@
 
 extern struct rtc_ops *rtc_ops;
 extern struct rtc_ops swarm_rtc_ops;
-
-#ifdef CONFIG_BLK_DEV_IDE
-extern struct ide_ops sibyte_ide_ops;
-#endif
 
 extern void sb1250_setup(void);
 
@@ -128,10 +124,6 @@ static void __init swarm_setup(void)
 	       "without"
 #endif
 	       " CFE\n");
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &sibyte_ide_ops;
-#endif
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_DUMMY_CONSOLE

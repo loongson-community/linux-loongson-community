@@ -1,6 +1,8 @@
 #ifndef __ASM_TOPOLOGY_H
 #define __ASM_TOPOLOGY_H
 
+#include <linux/config.h>
+
 #if CONFIG_SGI_IP27
 
 #include <asm/mmzone.h>

@@ -35,8 +35,6 @@
 #include <asm/sn/sn_private.h>
 #include <asm/sn/sn0/ip27.h>
 #include <asm/sn/mapped_kernel.h>
-#include <asm/sn/sn0/addrs.h>
-#include <asm/sn/gda.h>
 
 #define CPU_NONE		(cpuid_t)-1
 

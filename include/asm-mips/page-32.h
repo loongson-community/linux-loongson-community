@@ -9,8 +9,6 @@
 #ifndef _ASM_PAGE_32_H
 #define _ASM_PAGE_32_H
 
-#include <linux/config.h>
-
 /*
  * This handles the memory map.
  * We handle pages at KSEG0 for kernels with 32 bit address space.

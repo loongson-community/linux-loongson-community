@@ -21,9 +21,6 @@
 #include <linux/mc146818rtc.h>
 #include <linux/ioport.h>
 #include <linux/pci.h>
-#ifdef CONFIG_BLK_DEV_IDE
-#include <linux/ide.h>
-#endif
 #include <linux/tty.h>
 
 #include <asm/cpu.h>
@@ -33,9 +30,6 @@
 #include <asm/mips-boards/prom.h>
 #include <asm/mips-boards/malta.h>
 #include <asm/mips-boards/maltaint.h>
-#ifdef CONFIG_BLK_DEV_FD
-#include <asm/floppy.h>
-#endif
 #include <asm/dma.h>
 #include <asm/time.h>
 #include <asm/traps.h>
@@ -43,8 +37,6 @@
 #include <linux/console.h>
 #endif
 
-extern struct ide_ops std_ide_ops;
-extern struct fd_ops std_fd_ops;
 extern struct rtc_ops malta_rtc_ops;
 
 extern void mips_reboot_setup(void);
@@ -63,8 +55,6 @@ struct resource standard_io_resources[] = {
 	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
 	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
 };
-
-#define STANDARD_IO_RESOURCES (sizeof(standard_io_resources)/sizeof(struct resource))
 
 const char *get_system_type(void)
 {
@@ -98,7 +88,7 @@ static void __init malta_setup(void)
 	unsigned int i;
 
 	/* Request I/O space for devices used on the Malta board. */
-	for (i = 0; i < STANDARD_IO_RESOURCES; i++)
+	for (i = 0; i < ARRAY_SIZE(standard_io_resources); i++)
 		request_resource(&ioport_resource, standard_io_resources+i);
 
 	/*
@@ -112,11 +102,7 @@ static void __init malta_setup(void)
 
 	rtc_ops = &malta_rtc_ops;
 
-#ifdef CONFIG_BLK_DEV_IDE
-        ide_ops = &std_ide_ops;
-#endif
 #ifdef CONFIG_BLK_DEV_FD
-        fd_ops = &std_fd_ops;
 	fd_activate ();
 #endif
 #ifdef CONFIG_VT

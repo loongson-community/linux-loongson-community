@@ -45,15 +45,12 @@ struct cpuinfo_mips cpu_data[NR_CPUS];
 struct screen_info screen_info;
 #endif
 
-#if defined(CONFIG_BLK_DEV_FD) || defined(CONFIG_BLK_DEV_FD_MODULE)
-extern struct fd_ops no_fd_ops;
-struct fd_ops *fd_ops;
-#endif
+/*
+ * Despite it's name this variable is even if we don't have PCI
+ */
+unsigned int PCI_DMA_BUS_IS_PHYS;
 
-#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
-extern struct ide_ops no_ide_ops;
-struct ide_ops *ide_ops;
-#endif
+EXPORT_SYMBOL(PCI_DMA_BUS_IS_PHYS);
 
 extern void * __rd_start, * __rd_end;
 
@@ -475,14 +472,6 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	clear_c0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
 	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
-#endif
-
-#ifdef CONFIG_BLK_DEV_FD
-	fd_ops = &no_fd_ops;
-#endif
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &no_ide_ops;
 #endif
 
 	rtc_ops = &no_rtc_ops;

@@ -6,6 +6,7 @@
  * Copyright (C) 1994 - 1999, 2000 by Ralf Baechle and others.
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/sched.h>

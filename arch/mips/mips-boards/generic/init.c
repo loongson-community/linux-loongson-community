@@ -23,9 +23,10 @@
 #include <linux/kernel.h>
 
 #include <asm/io.h>
+#include <asm/bootinfo.h>
 #include <asm/mips-boards/prom.h>
 #include <asm/mips-boards/generic.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 #include <asm/mips-boards/msc01_pci.h>
 #include <asm/mips-boards/bonito64.h>
 #ifdef CONFIG_MIPS_MALTA
@@ -42,12 +43,6 @@ extern char saa9730_getDebugChar(void);
 
 int remote_debug = 0;
 #endif
-
-/* Environment variable */
-typedef struct {
-	char *name;
-	char *val;
-} t_env_var;
 
 int prom_argc;
 int *_prom_argv, *_prom_envp;
@@ -323,5 +318,4 @@ void __init prom_init(void)
 	console_config();
 #endif
 
-	return 0;
 }

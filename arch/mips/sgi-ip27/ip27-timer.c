@@ -13,7 +13,6 @@
 #include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/mm.h>
-#include <linux/bcd.h>
 
 #include <asm/time.h>
 #include <asm/pgtable.h>

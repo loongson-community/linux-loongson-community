@@ -44,7 +44,7 @@
 #include <asm/io.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 
 asmlinkage inline void pci_intA(struct pt_regs *regs)
 {

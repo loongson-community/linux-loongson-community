@@ -46,7 +46,7 @@ rtc_ops->rtc_write_data(val, addr); \
 rtc_ops->rtc_bcd_mode()
 
 
-#ifdef CONFIG_DECSTATION
+#ifdef CONFIG_MACH_DECSTATION
 
 #include <asm/dec/rtc-dec.h>
 

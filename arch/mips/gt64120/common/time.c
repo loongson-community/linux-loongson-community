@@ -12,7 +12,7 @@
 #include <linux/sched.h>
 #include <linux/kernel_stat.h>
 #include <asm/ptrace.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 
 /*
  * These are interrupt handlers for the GT on-chip interrupts.  They all come

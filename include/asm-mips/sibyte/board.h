@@ -19,6 +19,8 @@
 #ifndef _SIBYTE_BOARD_H
 #define _SIBYTE_BOARD_H
 
+#include <linux/config.h>
+
 #ifdef CONFIG_SIBYTE_BOARD
 
 #if defined(CONFIG_SIBYTE_SWARM) || defined(CONFIG_SIBYTE_PTSWARM) || \

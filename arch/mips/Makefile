@@ -162,77 +162,73 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 #
 # Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
 #
-core-$(CONFIG_MIPS_JAZZ)	+= arch/mips/jazz/
-load-$(CONFIG_MIPS_JAZZ)	+= 0x80080000
+core-$(CONFIG_MACH_JAZZ)	+= arch/mips/jazz/
+cflags-$(CONFIG_MACH_JAZZ)	+= -Iinclude/asm-mips/mach-jazz
+load-$(CONFIG_MACH_JAZZ)	+= 0x80080000
 
+#
+# Common Alchemy Au1x00 stuff
+#
+core-$(CONFIG_MACH_AU1X00)	+= arch/mips/au1000/common/
+cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-au1x00
 
 #
 # AMD Alchemy Pb1000 eval board
 #
-core-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/pb1000/
 load-$(CONFIG_MIPS_PB1000)	+= 0x80100000
 
 #
 # AMD Alchemy Pb1100 eval board
 #
-core-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/pb1100/
 load-$(CONFIG_MIPS_PB1100)	+= 0x80100000
 
 #
 # AMD Alchemy Pb1500 eval board
 #
-core-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
 load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
 
 #
 # AMD Alchemy Db1000 eval board
 #
-core-$(CONFIG_MIPS_DB1000)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_DB1000)	+= arch/mips/au1000/db1x00/
 load-$(CONFIG_MIPS_DB1000)	+= 0x80100000
 
 #
 # AMD Alchemy Db1100 eval board
 #
-core-$(CONFIG_MIPS_DB1100)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_DB1100)	+= arch/mips/au1000/db1x00/
 load-$(CONFIG_MIPS_DB1100)	+= 0x80100000
 
 #
 # AMD Alchemy Db1500 eval board
 #
-core-$(CONFIG_MIPS_DB1500)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_DB1500)	+= arch/mips/au1000/db1x00/
 load-$(CONFIG_MIPS_DB1500)	+= 0x80100000
 
 #
 # AMD Alchemy Bosporus eval board
 #
-core-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/au1000/db1x00/
 load-$(CONFIG_MIPS_BOSPORUS)	+= 0x80100000
 
 #
 # AMD Alchemy Mirage eval board
 #
-core-$(CONFIG_MIPS_MIRAGE)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_MIRAGE)	+= arch/mips/au1000/db1x00/
 load-$(CONFIG_MIPS_MIRAGE)	+= 0x80100000
 
 #
 # 4G-Systems eval board
 #
-core-$(CONFIG_MIPS_MTX1)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_MTX1)	+= arch/mips/au1000/mtx-1/
 load-$(CONFIG_MIPS_MTX1)	+= 0x80100000
 
 #
 # MyCable eval board
 #
-core-$(CONFIG_MIPS_XXS1500)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_XXS1500)	+= arch/mips/au1000/xxs1500/
 load-$(CONFIG_MIPS_XXS1500)	+= 0x80100000
 
@@ -251,9 +247,10 @@ load-$(CONFIG_MIPS_COBALT)	+= 0x80080000
 #
 # DECstation family
 #
-core-$(CONFIG_DECSTATION)	+= arch/mips/dec/
-libs-$(CONFIG_DECSTATION)	+= arch/mips/dec/prom/
-load-$(CONFIG_DECSTATION)	+= 0x80040000
+core-$(CONFIG_MACH_DECSTATION)	+= arch/mips/dec/
+cflags-$(CONFIG_MACH_DECSTATION)+= -Iinclude/asm-mips/mach-dec
+libs-$(CONFIG_MACH_DECSTATION)	+= arch/mips/dec/prom/
+load-$(CONFIG_MACH_DECSTATION)	+= 0x80040000
 CLEAN_FILES			+= drivers/tc/lk201-map.c
 
 #
@@ -261,12 +258,14 @@ CLEAN_FILES			+= drivers/tc/lk201-map.c
 #
 core-$(CONFIG_MIPS_EV64120)	+= arch/mips/gt64120/ev64120/
 core-$(CONFIG_MIPS_EV64120)	+= arch/mips/gt64120/common/
+cflags-$(CONFIG_MIPS_EV64120)	+= -Iinclude/asm-mips/mach-ev64120
 load-$(CONFIG_MIPS_EV64120)	+= 0x80100000
 
 #
 # Galileo EV96100 Board
 #
 core-$(CONFIG_MIPS_EV96100)	+= arch/mips/galileo-boards/ev96100/
+cflags-$(CONFIG_MIPS_EV96100)	+= -Iinclude/asm-mips/mach-ev96100
 load-$(CONFIG_MIPS_EV96100)	+= 0x80100000
 
 #
@@ -289,16 +288,22 @@ core-$(CONFIG_MIPS_ITE8172)	+= arch/mips/ite-boards/qed-4n-s01b/
 load-$(CONFIG_MIPS_ITE8172)	+= 0x80100000
 
 #
-# MIPS Atlas board
+# For all MIPS, Inc. eval boards
 #
 core-$(CONFIG_MIPS_BOARDS_GEN)	+= arch/mips/mips-boards/generic/
+
+#
+# MIPS Atlas board
+#
 core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/atlas/
+cflags-$(CONFIG_MIPS_ATLAS)	+= -Iinclude/asm-mips/mach-mips
 load-$(CONFIG_MIPS_ATLAS)	+= 0x80100000
 
 #
 # MIPS Malta board
 #
 core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/
+cflags-$(CONFIG_MIPS_MALTA)	+= -Iinclude/asm-mips/mach-mips
 load-$(CONFIG_MIPS_MALTA)	+= 0x80100000
 
 #
@@ -339,16 +344,16 @@ load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x80100000
 # Momentum Jaguar ATX
 #
 core-$(MOMENCO_JAGUAR_ATX)	+= arch/mips/momentum/jaguar_atx/
-ifdef CONFIG_JAGUAR_DMALOW
-load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x88000000
-else
-load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x88000000
-endif
+load-$(MOMENCO_JAGUAR_ATX)	+= 0x88000000
+
+#
+# NEC DDB
+#
+core-$(CONFIG_DDB5XXX_COMMON)	+= arch/mips/ddb5xxx/common/
 
 #
 # NEC DDB Vrc-5074
 #
-core-$(CONFIG_DDB5XXX_COMMON)	+= arch/mips/ddb5xxx/common/
 core-$(CONFIG_DDB5074)		+= arch/mips/ddb5xxx/ddb5074/
 load-$(CONFIG_DDB5074)		+= 0x80080000
 
@@ -365,6 +370,7 @@ core-$(CONFIG_DDB5477)		+= arch/mips/ddb5xxx/ddb5477/
 load-$(CONFIG_DDB5477)		+= 0x80100000
 
 core-$(CONFIG_LASAT)		+= arch/mips/lasat/
+cflags-$(CONFIG_LASAT)		+= -Iinclude/asm-mips/mach-lasat
 load-$(CONFIG_LASAT)		+= 0x80000000
 
 #
@@ -375,9 +381,14 @@ core-$(CONFIG_NEC_OSPREY)	+= arch/mips/vr4181/common/ \
 load-$(CONFIG_NEC_OSPREY)	+= 0x80002000
 
 #
+# Common VR41xx
+#
+core-$(CONFIG_MACH_VR41XX)	+= arch/mips/vr41xx/common/
+cflags-$(CONFIG_MACH_VR41XX)	+= -Iinclude/asm-mips/mach-vr41xx
+
+#
 # NEC Eagle/Hawk (VR4122/VR4131) board
 #
-core-$(CONFIG_VR41XX_COMMON)	+= arch/mips/vr41xx/common/
 core-$(CONFIG_NEC_EAGLE)	+= arch/mips/vr41xx/nec-eagle/
 load-$(CONFIG_NEC_EAGLE)	+= 0x80000000
 
@@ -474,6 +485,7 @@ endif
 # removed (as happens, even if they have __initcall/module_init)
 #
 core-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/sb1250/
+
 core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
 
 #
@@ -517,6 +529,7 @@ core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/toshiba_rbtx4927/
 core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/common/
 load-$(CONFIG_TOSHIBA_RBTX4927)	+= 0x80020000
 
+cflags-y			+= -Iinclude/asm-mips/mach-generic
 drivers-$(CONFIG_PCI)		+= arch/mips/pci/
 
 ifdef CONFIG_MIPS32
@@ -604,9 +617,6 @@ endif
 
 makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)
 
-#
-# SNI firmware is f*cked in interesting ways ...
-#
 ifdef CONFIG_SNI_RM200_PCI
 all:	vmlinux.ecoff
 endif

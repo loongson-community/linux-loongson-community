@@ -15,8 +15,8 @@
 #include <asm/pci_channel.h>
 #include <asm/hp-lj/asic.h>
 
-volatile u32 *pci_config_address_reg = (volatile u32 *) 0xfdead000;
-volatile u32 *pci_config_data_reg = (volatile u32 *) 0xfdead000;
+static volatile u32 *pci_config_address_reg = (volatile u32 *) 0xfdead000;
+static volatile u32 *pci_config_data_reg = (volatile u32 *) 0xfdead000;
 
 
 

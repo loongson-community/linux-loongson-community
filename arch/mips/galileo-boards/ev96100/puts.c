@@ -4,7 +4,7 @@
  */
 
 #include <linux/types.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 
 
 //#define SERIAL_BASE    EV96100_UART0_REGS_BASE

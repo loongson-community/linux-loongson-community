@@ -24,7 +24,7 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
@@ -44,7 +44,6 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/time.h>
 #include <asm/time.h>
 #include <asm/tx4927/tx4927.h>
 

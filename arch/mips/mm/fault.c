@@ -5,7 +5,6 @@
  *
  * Copyright (C) 1995 - 2000 by Ralf Baechle
  */
-#include <linux/config.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>

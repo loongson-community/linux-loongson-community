@@ -53,10 +53,6 @@ char serial_console[20];
 #endif
 
 extern struct resource ioport_resource;
-#ifdef CONFIG_BLK_DEV_IDE
-extern struct ide_ops std_ide_ops;
-extern struct ide_ops *ide_ops;
-#endif
 #ifdef CONFIG_SERIO_I8042
 int init_8712_keyboard(void);
 #endif
@@ -161,6 +157,10 @@ static void __init it8172_setup(void)
 	 * Pull enabled devices out of standby
 	 */
 	IT_IO_READ16(IT_PM_DSR, dsr);
+
+	/*
+	 * Fixme: This breaks when these drivers are modules!!!
+	 */
 #ifdef CONFIG_SOUND_IT8172
 	dsr &= ~IT_PM_DSR_ACSB;
 #else
@@ -168,7 +168,6 @@ static void __init it8172_setup(void)
 #endif
 #ifdef CONFIG_BLK_DEV_IT8172
 	dsr &= ~IT_PM_DSR_IDESB;
-	ide_ops = &std_ide_ops;
 #else
 	dsr |= IT_PM_DSR_IDESB;
 #endif

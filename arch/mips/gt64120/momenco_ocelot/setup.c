@@ -51,7 +51,6 @@
 #include <asm/time.h>
 #include <asm/bootinfo.h>
 #include <asm/page.h>
-#include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/pci.h>
@@ -62,7 +61,7 @@
 #include <asm/traps.h>
 #include <linux/bootmem.h>
 #include <linux/initrd.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/gt64120.h>
 #include "ocelot_pld.h"
 
 extern struct rtc_ops no_rtc_ops;

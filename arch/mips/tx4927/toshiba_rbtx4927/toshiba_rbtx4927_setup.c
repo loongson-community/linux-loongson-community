@@ -52,10 +52,8 @@
 #include <linux/timex.h>
 #include <asm/bootinfo.h>
 #include <asm/page.h>
-#include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/pci.h>
 #include <asm/processor.h>
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
@@ -72,17 +70,11 @@
 #include <asm/tx4927/toshiba_rbtx4927.h>
 #ifdef CONFIG_PCI
 #include <asm/tx4927/tx4927_pci.h>
-#include <linux/types.h>
-#include <linux/pci.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
 #include <asm/pci_channel.h>
 #endif
 #ifdef CONFIG_BLK_DEV_IDEPCI
 #include <linux/hdreg.h>
-#include <asm/ptrace.h>
 #include <linux/ide.h>
-extern struct ide_ops std_ide_ops;
 #endif
 
 #undef TOSHIBA_RBTX4927_SETUP_DEBUG
@@ -953,30 +945,9 @@ void __init toshiba_rbtx4927_setup(void)
 	_machine_halt = toshiba_rbtx4927_halt;
 	_machine_power_off = toshiba_rbtx4927_power_off;
 
-
-#ifdef CONFIG_BLK_DEV_IDEPCI
-	{
-		TOSHIBA_RBTX4927_SETUP_DPRINTK
-		    (TOSHIBA_RBTX4927_SETUP_SETUP,
-		     ":ide_ops=&std_ide_ops(modified)\n");
-		ide_ops = &std_ide_ops;
-	}
-#else
-	{
-		TOSHIBA_RBTX4927_SETUP_DPRINTK
-		    (TOSHIBA_RBTX4927_SETUP_SETUP,
-		     ":ide_ops=<NOT_CONFIG>\n");
-	}
-#endif
-
 #ifdef CONFIG_FB
-	{
-		conswitchp = &dummy_con;
-	}
+	conswitchp = &dummy_con;
 #endif
-
-
-
 
 #ifdef CONFIG_PCI
 

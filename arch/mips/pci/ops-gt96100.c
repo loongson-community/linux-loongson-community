@@ -46,16 +46,15 @@
 #define PCI_ACCESS_WRITE 1
 
 static int static gt96100_config_access(unsigned char access_type,
-	struct pci_bus *bus, unsigned char where, u32 * data)
+	struct pci_bus *bus, unsigned int devfn, int where, u32 * data)
 {
-	unsigned char bus = dev->bus->number;
-	unsigned char dev_fn = dev->devfn;
+	unsigned char bus = bus->number;
 	u32 intr;
 
 	/*
 	 * Because of a bug in the galileo (for slot 31).
 	 */
-	if (bus == 0 && dev_fn >= PCI_DEVFN(31, 0))
+	if (bus == 0 && devfn >= PCI_DEVFN(31, 0))
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	/* Clear cause register bits */
@@ -65,26 +64,26 @@ static int static gt96100_config_access(unsigned char access_type,
 	/* Setup address */
 	GT_WRITE(GT_PCI0_CFGADDR_OFS,
 		 (bus << GT_PCI0_CFGADDR_BUSNUM_SHF) |
-		 (dev_fn << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 (devfn << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
 		 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF) |
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 	udelay(2);
 
 
 	if (access_type == PCI_ACCESS_WRITE) {
-		if (dev_fn != 0)
+		if (devfn != 0)
 			*data = le32_to_cpu(*data);
 		GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
 	} else {
-		GT_READ(GT_PCI0_CFGDATA_OFS, *data);
-		if (dev_fn != 0)
+		*data = GT_READ(GT_PCI0_CFGDATA_OFS);
+		if (devfn != 0)
 			*data = le32_to_cpu(*data);
 	}
 
 	udelay(2);
 
 	/* Check for master or target abort */
-	GT_READ(GT_INTRCAUSE_OFS, intr);
+	intr = GT_READ(GT_INTRCAUSE_OFS);
 
 	if (intr & (GT_INTRCAUSE_MASABORT0_BIT | GT_INTRCAUSE_TARABORT0_BIT)) {
 		/* Error occured */
@@ -102,57 +101,49 @@ static int static gt96100_config_access(unsigned char access_type,
  * read/write a 32bit word and mask/modify the data we actually want.
  */
 static int gt96100_pcibios_read(struct pci_bus *bus, unsigned int devfn,
-                                int where, int size, u32 * val)
+	int where, int size, u32 * val)
 {
 	u32 data = 0;
 
+	if (gt96100_config_access(PCI_ACCESS_READ, bus, devfn, where, &data))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
 	switch (size) {
 	case 1:
-		if (gt96100_config_access(PCI_ACCESS_READ, bus, where, &data))
-			return -1;
-
 		*val = (data >> ((where & 3) << 3)) & 0xff;
-
-		return PCIBIOS_SUCCESSFUL;
+		break;
 
 	case 2:
-		if (gt96100_config_access(PCI_ACCESS_READ, bus, where, &data))
-			return -1;
-
 		*val = (data >> ((where & 3) << 3)) & 0xffff;
-
-		return PCIBIOS_SUCCESSFUL;
+		break;
 
 	case 4:
-		if (gt96100_config_access(PCI_ACCESS_READ, bus, where, &data))
-			return -1;
-
 		*val = data;
-
-		return PCIBIOS_SUCCESSFUL;
+		break;
 	}
+	return PCIBIOS_SUCCESSFUL;
 }
 
 static int gt96100_pcibios_write(struct pci_bus *bus, unsigned int devfn,
-                                 int where, int size, u32 val)
+	int where, int size, u32 val)
 {
 	u32 data = 0;
 
 	switch (size) {
 	case 1:
-		if (gt96100_config_access(PCI_ACCESS_READ, bus, where, &data))
+		if (gt96100_config_access(PCI_ACCESS_READ, bus, devfn, where, &data))
 			return -1;
 
 		data = (data & ~(0xff << ((where & 3) << 3))) |
 		       (val << ((where & 3) << 3));
 
-		if (gt96100_config_access(PCI_ACCESS_WRITE, bus, where, &data))
+		if (gt96100_config_access(PCI_ACCESS_WRITE, bus, devfn, where, &data))
 			return -1;
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 2:
-		if (gt96100_config_access(PCI_ACCESS_READ, bus, where, &data))
+		if (gt96100_config_access(PCI_ACCESS_READ, bus, devfn, where, &data))
 			return -1;
 
 		data = (data & ~(0xffff << ((where & 3) << 3))) |

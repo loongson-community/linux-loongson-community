@@ -16,7 +16,6 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/console.h>
-#include <linux/ide.h>
 #include <linux/ioport.h>
 #include <linux/major.h>
 #include <linux/kdev_t.h>
@@ -103,10 +102,6 @@ static void __init zao_capcella_setup(void)
 
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
-#endif
-
-#if defined(CONFIG_IDE) || defined(CONFIG_IDE_MODULE)
-	ide_ops = &vr41xx_ide_ops;
 #endif
 
 	vr41xx_bcu_init();

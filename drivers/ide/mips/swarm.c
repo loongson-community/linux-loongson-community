@@ -38,43 +38,9 @@
  * ide_hwifs[] declarations outside of the header).
  */
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/ide.h>
 #include <asm/sibyte/board.h>
-
-extern struct ide_ops std_ide_ops;
-
-/*
- * Don't force a binding of hwif indexes to ioports or irqs; avoid
- * probing anywhere there isn't a device - we don't support the
- * standard IDE ioport addresses.
- */
-
-static ide_ioreg_t sibyte_ide_default_io_base(int index)
-{
-	return 0;
-}
-
-static int sibyte_ide_default_irq(ide_ioreg_t base)
-{
-	return 0;
-}
-
-/* 
- * The standard assignment of hw registers is fine.
- */
-static void sibyte_ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port,
-				       ide_ioreg_t ctrl_port, int *irq)
-{
-	std_ide_ops.ide_init_hwif_ports(hw, data_port, ctrl_port, irq);
-}
-
-struct ide_ops sibyte_ide_ops = {
-	&sibyte_ide_default_irq,
-	&sibyte_ide_default_io_base,
-	&sibyte_ide_init_hwif_ports
-};
 
 /*
  * Our non-swapping I/O operations.  

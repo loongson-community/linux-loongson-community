@@ -18,7 +18,6 @@
 #include <linux/mc146818rtc.h>
 #include <linux/console.h>
 #include <linux/fb.h>
-#include <linux/ide.h>
 #include <linux/tty.h>
 
 #include <asm/arc/types.h>
@@ -39,7 +38,6 @@ extern void sni_machine_restart(char *command);
 extern void sni_machine_halt(void);
 extern void sni_machine_power_off(void);
 
-extern struct ide_ops std_ide_ops;
 extern struct rtc_ops std_rtc_ops;
 
 static void __init sni_rm200_pci_timer_setup(struct irqaction *irq)
@@ -112,8 +110,6 @@ static struct resource pcimt_io_resources[] = {
 	{ "PCI config data", 0xcfc, 0xcff, IORESOURCE_BUSY }
 };
 
-#define PCIMT_IO_RESOURCES (sizeof(pcimt_io_resources)/sizeof(struct resource))
-
 static struct resource sni_mem_resource = {
 	"PCIMT PCI MEM", 0x10000000UL, 0xffffffffUL, IORESOURCE_MEM
 };
@@ -147,18 +143,16 @@ static struct resource pcimt_mem_resources[] = {
 	{ "Main Memory", 0x20000000, 0x9fffffff, IORESOURCE_BUSY}
 };
 
-#define PCIMT_MEM_RESOURCES (sizeof(pcimt_mem_resources)/sizeof(struct resource))
-
 static void __init sni_resource_init(void)
 {
 	int i;
 
 	/* request I/O space for devices used on all i[345]86 PCs */
-	for (i = 0; i < PCIMT_IO_RESOURCES; i++)
+	for (i = 0; i < ARRAY_SIZE(pcimt_io_resources); i++)
 		request_resource(&ioport_resource, pcimt_io_resources + i);
 
 	/* request mem space for pcimt-specific devices */
-	for (i = 0; i < PCIMT_MEM_RESOURCES; i++)
+	for (i = 0; i < ARRAY_SIZE(pcimt_mem_resources); i++)
 		request_resource(&sni_mem_resource, pcimt_mem_resources + i);
 
 	ioport_resource.end = sni_io_resource.end;
@@ -198,10 +192,6 @@ static void __init sni_rm200_pci_setup(void)
 	_machine_power_off = sni_machine_power_off;
 
 	sni_display_setup();
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-#endif
 
 	rtc_ops = &std_rtc_ops;
 

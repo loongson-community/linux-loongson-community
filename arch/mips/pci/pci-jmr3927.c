@@ -3,12 +3,7 @@
  * Author: MontaVista Software, Inc.
  *              ahennessy@mvista.com
  *
- * include/asm-mips/jmr3927/pci.h
- * Based on include/asm-mips/ddb5xxx/pci.h
- *
- * This file essentially defines the interface between board
- * specific PCI code and MIPS common PCI code.  Should potentially put
- * into include/asm/pci.h file.
+ * Copyright (C) 2000-2001 Toshiba Corporation
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -30,17 +25,34 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#ifndef __ASM_TX3927_PCI_H
-#define __ASM_TX3927__PCI_H
-
-#include <linux/ioport.h>
+#include <linux/types.h>
 #include <linux/pci.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
 
 #include <asm/pci_channel.h>
+#include <asm/jmr3927/jmr3927.h>
+#include <asm/debug.h>
 
-/*
- * board supplied pci irq fixup routine
- */
-extern void pcibios_fixup_irqs(void);
+struct resource pci_io_resource = {
+	"IO MEM",
+	0x1000,			/* reserve regacy I/O space */
+	0x1000 + JMR3927_PCIIO_SIZE - 1,
+	IORESOURCE_IO
+};
 
-#endif  /* __ASM_TX3927_PCI_H */
+struct resource pci_mem_resource = {
+	"PCI MEM",
+	JMR3927_PCIMEM,
+	JMR3927_PCIMEM + JMR3927_PCIMEM_SIZE - 1,
+	IORESOURCE_MEM
+};
+
+extern struct pci_ops jmr3927_pci_ops;
+
+struct pci_controller jmr3927_controller = {
+	.pci_ops	= &jmr3927_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+	.mem_offset	= JMR3927_PCIMEM;
+};

@@ -1,3 +1,4 @@
+#include <linux/config.h>
 #include <asm-generic/vmlinux.lds.h>
 
 #undef mips		/* CPP really sucks for this job  */

@@ -26,20 +26,17 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/pci.h>
-#include <linux/ide.h>
-
 #include <linux/interrupt.h>
-#include <asm/time.h>
-
-#include <asm/cpu.h>
-#include <asm/bootinfo.h>
-#include <asm/irq.h>
-#include <asm/lasat/lasat.h>
-
 #include <linux/tty.h>
 #include <linux/serial.h>
 #include <linux/serial_core.h>
+
+#include <asm/time.h>
+#include <asm/cpu.h>
+#include <asm/bootinfo.h>
+#include <asm/irq.h>
 #include <asm/serial.h>
+#include <asm/lasat/lasat.h>
 #include <asm/lasat/serial.h>
 
 #ifdef CONFIG_PICVUE
@@ -56,11 +53,6 @@
 
 int lasat_command_line = 0;
 void lasatint_init(void);
-
-#ifdef CONFIG_BLK_DEV_IDE
-extern struct ide_ops std_ide_ops;
-extern struct ide_ops *ide_ops;
-#endif
 
 extern char arcs_cmdline[CL_SIZE];
 
@@ -121,16 +113,6 @@ static struct notifier_block lasat_panic_block[] =
 	{ lasat_panic_display, NULL, INT_MAX },
 	{ lasat_panic_prom_monitor, NULL, INT_MIN }
 };
-
-#ifdef CONFIG_BLK_DEV_IDE
-static int lasat_ide_default_irq(ide_ioreg_t base) {
-	return 0;
-}
-
-static ide_ioreg_t lasat_ide_default_io_base(int index) {
-	return 0;
-}
-#endif
 
 static void lasat_time_init(void)
 {
@@ -193,12 +175,6 @@ static void __init lasat_setup(void)
 	/* Set up panic notifier */
 	for (i = 0; i < sizeof(lasat_panic_block) / sizeof(struct notifier_block); i++)
 		notifier_chain_register(&panic_notifier_list, &lasat_panic_block[i]);
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-	ide_ops->ide_default_irq = &lasat_ide_default_irq;
-	ide_ops->ide_default_io_base = &lasat_ide_default_io_base;
-#endif
 
 	lasat_reboot_setup();
 

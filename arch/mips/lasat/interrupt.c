@@ -18,7 +18,6 @@
  * Routines for generic manipulation of the interrupts found on the 
  * Lasat boards.
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/slab.h>

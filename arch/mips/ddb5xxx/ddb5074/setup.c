@@ -28,7 +28,6 @@
 #include <asm/ddb5xxx/ddb5074.h>
 #include <asm/ddb5xxx/ddb5xxx.h>
 
-
 #ifdef CONFIG_KGDB
 extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
@@ -38,7 +37,6 @@ extern void breakpoint(void);
 extern void console_setup(char *);
 #endif
 
-extern struct ide_ops std_ide_ops;
 extern struct rtc_ops ddb_rtc_ops;
 
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
@@ -117,19 +115,15 @@ static void __init ddb5074_setup(void)
 	_machine_halt = ddb_machine_halt;
 	_machine_power_off = ddb_machine_power_off;
 
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
-#endif
-
 	rtc_ops = &ddb_rtc_ops;
 
-    ddb_out32(DDB_BAR0, 0);
+	ddb_out32(DDB_BAR0, 0);
 
 	ddb_set_pmr(DDB_PCIINIT0, DDB_PCICMD_IO, 0, 0x10);
 	ddb_set_pmr(DDB_PCIINIT1, DDB_PCICMD_MEM, DDB_PCI_MEM_BASE , 0x10);
 
 #ifdef CONFIG_FB
-    conswitchp = &dummy_con;
+	conswitchp = &dummy_con;
 #endif
 
 	/* Reboot on panic */

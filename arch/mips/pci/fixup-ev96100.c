@@ -27,14 +27,9 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
+#include <linux/init.h>
 #include <linux/types.h>
 #include <linux/pci.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/pci_ids.h>
-
-#include <asm/gt64120.h>
-#include <asm/galileo-boards/ev96100.h>
 
 static char irq_tab_ev96100[][5] __initdata = {
  [8] = { 0, 5, 5, 5, 5 },

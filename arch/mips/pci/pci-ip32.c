@@ -5,13 +5,12 @@
  *
  * Copyright (C) 2000, 2001 Keith M Wesolowski
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/types.h>
-#include <linux/interrupt.h>
-#include <linux/pci.h>
 #include <asm/pci_channel.h>
 #include <asm/ip32/mace.h>
 #include <asm/ip32/crime.h>

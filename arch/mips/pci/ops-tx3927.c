@@ -42,228 +42,119 @@
 #include <asm/jmr3927/jmr3927.h>
 #include <asm/debug.h>
 
-struct resource pci_io_resource = {
-	"pci IO space",
-	0x1000,			/* reserve regacy I/O space */
-	0x1000 + JMR3927_PCIIO_SIZE - 1,
-	IORESOURCE_IO
-};
-
-struct resource pci_mem_resource = {
-	"pci memory space",
-	JMR3927_PCIMEM,
-	JMR3927_PCIMEM + JMR3927_PCIMEM_SIZE - 1,
-	IORESOURCE_MEM
-};
-
-extern struct pci_ops jmr3927_pci_ops;
-
-struct pci_controller jmr3927_controller = {
-	.pci_ops	= &jmr3927_pci_ops,
-	.io_resource	= &pci_io_resource,
-	.mem_resource	= &pci_mem_resource,
-};
-
-static int
-mkaddr(unsigned char bus, unsigned char dev_fn, unsigned char where,
-       int *flagsp)
+static inline int mkaddr(unsigned char bus, unsigned char dev_fn,
+	unsigned char where)
 {
 	if (bus == 0 && dev_fn >= PCI_DEVFN(TX3927_PCIC_MAX_DEVNU, 0))
-		return -1;
+		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	tx3927_pcicptr->ica = ((bus & 0xff) << 0x10) |
-	    ((dev_fn & 0xff) << 0x08) | (where & 0xfc);
+	                      ((dev_fn & 0xff) << 0x08) |
+	                      (where & 0xfc);
+
 	/* clear M_ABORT and Disable M_ABORT Int. */
 	tx3927_pcicptr->pcistat |= PCI_STATUS_REC_MASTER_ABORT;
 	tx3927_pcicptr->pcistatim &= ~PCI_STATUS_REC_MASTER_ABORT;
-	return 0;
+
+	return PCIBIOS_SUCCESSFUL;
 }
 
-static int check_abort(int flags)
+static inline int check_abort(void)
 {
-	int code = PCIBIOS_SUCCESSFUL;
-	if (tx3927_pcicptr->pcistat & PCI_STATUS_REC_MASTER_ABORT) {
+	if (tx3927_pcicptr->pcistat & PCI_STATUS_REC_MASTER_ABORT)
 		tx3927_pcicptr->pcistat |= PCI_STATUS_REC_MASTER_ABORT;
 		tx3927_pcicptr->pcistatim |= PCI_STATUS_REC_MASTER_ABORT;
-		code = PCIBIOS_DEVICE_NOT_FOUND;
-	}
-	return code;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	return PCIBIOS_SUCCESSFUL;
 }
 
-/*
- * We can't address 8 and 16 bit words directly.  Instead we have to
- * read/write a 32bit word and mask/modify the data we actually want.
- */
-static int jmr3927_pcibios_read_config_byte(struct pci_dev *dev,
-					    int where, unsigned char *val)
+static int jmr3927_pci_read_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 * val)
 {
-	int flags;
-	unsigned char bus, func_num;
-
-	db_assert((where & 3) == 0);
-	db_assert(where < (1 << 8));
+	int ret, busno;
 
 	/* check if the bus is top-level */
-	if (dev->bus->parent != NULL) {
-		bus = dev->bus->number;
-		db_assert(bus != 0);
-	} else {
-		bus = 0;
+	if (bus->parent != NULL)
+		busno = bus->number;
+
+	ret = mkaddr(busno, devfn, where);
+	if (ret)
+		return ret;
+
+	switch (size) {
+	case 1:
+		*val = *(volatile u8 *) ((unsigned long) & tx3927_pcicptr->icd | (where & 3));
+		break;
+
+	case 2:
+		*val = le16_to_cpu(*(volatile u16 *) ((unsigned long) & tx3927_pcicptr->icd | (where & 3)));
+		break;
+
+	case 4:
+		*val = le32_to_cpu(tx3927_pcicptr->icd);
+		break;
 	}
 
-	func_num = PCI_FUNC(dev->devfn);
-	if (mkaddr(bus, dev->devfn, where, &flags))
-		return -1;
-	*val =
-	    *(volatile u8 *) ((ulong) & tx3927_pcicptr->icd | (where & 3));
-	return check_abort(flags);
+	return check_abort();
 }
 
-static int jmr3927_pcibios_read_config_word(struct pci_dev *dev,
-					    int where, unsigned short *val)
+static int jmr3927_pci_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 val)
 {
-	int flags;
-	unsigned char bus, func_num;
-
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	db_assert((where & 3) == 0);
-	db_assert(where < (1 << 8));
+	int ret, busno;
 
 	/* check if the bus is top-level */
-	if (dev->bus->parent != NULL) {
-		bus = dev->bus->number;
-		db_assert(bus != 0);
-	} else {
+	if (bus->parent != NULL)
+		bus = bus->number;
+	else
 		bus = 0;
-	}
 
-	func_num = PCI_FUNC(dev->devfn);
-	if (mkaddr(bus, dev->devfn, where, &flags))
-		return -1;
-	*val =
-	    le16_to_cpu(*(volatile u16 *)
-			((ulong) & tx3927_pcicptr->icd | (where & 3)));
-	return check_abort(flags);
-}
+	ret = mkaddr(busno, devfn, where);
+	if (ret)
+		return ret;
 
-static int jmr3927_pcibios_read_config_dword(struct pci_dev *dev,
-					     int where, unsigned int *val)
-{
-	int flags;
-	unsigned char bus, func_num;
+	switch (size) {
+	case 1:
+		*(volatile u8 *) ((unsigned long) & tx3927_pcicptr->icd | (where & 3)) = val;
+		break;
 
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	db_assert((where & 3) == 0);
-	db_assert(where < (1 << 8));
-
-	/* check if the bus is top-level */
-	if (dev->bus->parent != NULL) {
-		bus = dev->bus->number;
-		db_assert(bus != 0);
-	} else {
-		bus = 0;
-	}
-
-	func_num = PCI_FUNC(dev->devfn);
-	if (mkaddr(bus, dev->devfn, where, &flags))
-		return -1;
-	*val = le32_to_cpu(tx3927_pcicptr->icd);
-	return check_abort(flags);
-}
-
-static int jmr3927_pcibios_write_config_byte(struct pci_dev *dev,
-					     int where, unsigned char val)
-{
-	int flags;
-	unsigned char bus, func_num;
-
-	/* check if the bus is top-level */
-	if (dev->bus->parent != NULL) {
-		bus = dev->bus->number;
-		db_assert(bus != 0);
-	} else {
-		bus = 0;
-	}
-
-	func_num = PCI_FUNC(dev->devfn);
-	if (mkaddr(bus, dev->devfn, where, &flags))
-		return -1;
-	*(volatile u8 *) ((ulong) & tx3927_pcicptr->icd | (where & 3)) =
-	    val;
-	return check_abort(flags);
-}
-
-static int jmr3927_pcibios_write_config_word(struct pci_dev *dev,
-					     int where, unsigned short val)
-{
-	int flags;
-	unsigned char bus, func_num;
-
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	/* check if the bus is top-level */
-	if (dev->bus->parent != NULL) {
-		bus = dev->bus->number;
-		db_assert(bus != 0);
-	} else {
-		bus = 0;
-	}
-
-	func_num = PCI_FUNC(dev->devfn);
-	if (mkaddr(bus, dev->devfn, where, &flags))
-		return -1;
-	*(volatile u16 *) ((ulong) & tx3927_pcicptr->icd | (where & 3)) =
+	case 2:
+		*(volatile u16 *) (unsigned longulong) & tx3927_pcicptr->icd | (where & 2)) =
 	    cpu_to_le16(val);
-	return check_abort(flags);
-}
+		break;
 
-static int jmr3927_pcibios_write_config_dword(struct pci_dev *dev,
-					      int where, unsigned int val)
-{
-	int flags;
-	unsigned char bus, func_num;
-
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	/* check if the bus is top-level */
-	if (dev->bus->parent != NULL) {
-		bus = dev->bus->number;
-		db_assert(bus != 0);
-	} else {
-		bus = 0;
+	case 4:
+		tx3927_pcicptr->icd = cpu_to_le32(val);
 	}
 
-	func_num = PCI_FUNC(dev->devfn);
-	if (mkaddr(bus, dev->devfn, where, &flags))
-		return -1;
-	tx3927_pcicptr->icd = cpu_to_le32(val);
-	return check_abort(flags);
+	if (tx3927_pcicptr->pcistat & PCI_STATUS_REC_MASTER_ABORT)
+		tx3927_pcicptr->pcistat |= PCI_STATUS_REC_MASTER_ABORT;
+		tx3927_pcicptr->pcistatim |= PCI_STATUS_REC_MASTER_ABORT;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	return check_abort();
 }
+
 struct pci_ops jmr3927_pci_ops = {
-	jmr3927_pcibios_read_config_byte,
-	jmr3927_pcibios_read_config_word,
-	jmr3927_pcibios_read_config_dword,
-	jmr3927_pcibios_write_config_byte,
-	jmr3927_pcibios_write_config_word,
-	jmr3927_pcibios_write_config_dword
+	jmr3927_pcibios_read_config,
+	jmr3927_pcibios_write_config,
 };
 
+
 #ifndef JMR3927_INIT_INDIRECT_PCI
+
 inline unsigned long tc_readl(volatile __u32 * addr)
 {
 	return readl(addr);
 }
+
 inline void tc_writel(unsigned long data, volatile __u32 * addr)
 {
 	writel(data, addr);
 }
 #else
+
 unsigned long tc_readl(volatile __u32 * addr)
 {
 	unsigned long val;
@@ -282,6 +173,7 @@ unsigned long tc_readl(volatile __u32 * addr)
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 	return val;
 }
+
 void tc_writel(unsigned long data, volatile __u32 * addr)
 {
 	addr = PHYSADDR(addr);
@@ -296,6 +188,7 @@ void tc_writel(unsigned long data, volatile __u32 * addr)
 	/* clear by setting */
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 }
+
 unsigned char tx_ioinb(unsigned char *addr)
 {
 	unsigned long val;
@@ -326,6 +219,7 @@ unsigned char tx_ioinb(unsigned char *addr)
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 	return val;
 }
+
 void tx_iooutb(unsigned long data, unsigned char *addr)
 {
 	__u32 ioaddr;
@@ -352,6 +246,7 @@ void tx_iooutb(unsigned long data, unsigned char *addr)
 	/* clear by setting */
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 }
+
 unsigned short tx_ioinw(unsigned short *addr)
 {
 	unsigned long val;
@@ -379,6 +274,7 @@ unsigned short tx_ioinw(unsigned short *addr)
 	return val;
 
 }
+
 void tx_iooutw(unsigned long data, unsigned short *addr)
 {
 	__u32 ioaddr;
@@ -401,6 +297,7 @@ void tx_iooutw(unsigned long data, unsigned short *addr)
 	/* clear by setting */
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 }
+
 unsigned long tx_ioinl(unsigned int *addr)
 {
 	unsigned long val;
@@ -420,6 +317,7 @@ unsigned long tx_ioinl(unsigned int *addr)
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 	return val;
 }
+
 void tx_iooutl(unsigned long data, unsigned int *addr)
 {
 	__u32 ioaddr;
@@ -436,6 +334,7 @@ void tx_iooutl(unsigned long data, unsigned int *addr)
 	/* clear by setting */
 	tx3927_pcicptr->istat |= PCI_ISTAT_IDICC;
 }
+
 void tx_insbyte(unsigned char *addr, void *buffer, unsigned int count)
 {
 	unsigned char *ptr = (unsigned char *) buffer;
@@ -444,6 +343,7 @@ void tx_insbyte(unsigned char *addr, void *buffer, unsigned int count)
 		*ptr++ = tx_ioinb(addr);
 	}
 }
+
 void tx_insword(unsigned short *addr, void *buffer, unsigned int count)
 {
 	unsigned short *ptr = (unsigned short *) buffer;
@@ -452,6 +352,7 @@ void tx_insword(unsigned short *addr, void *buffer, unsigned int count)
 		*ptr++ = tx_ioinw(addr);
 	}
 }
+
 void tx_inslong(unsigned int *addr, void *buffer, unsigned int count)
 {
 	unsigned long *ptr = (unsigned long *) buffer;
@@ -460,6 +361,7 @@ void tx_inslong(unsigned int *addr, void *buffer, unsigned int count)
 		*ptr++ = tx_ioinl(addr);
 	}
 }
+
 void tx_outsbyte(unsigned char *addr, void *buffer, unsigned int count)
 {
 	unsigned char *ptr = (unsigned char *) buffer;
@@ -468,6 +370,7 @@ void tx_outsbyte(unsigned char *addr, void *buffer, unsigned int count)
 		tx_iooutb(*ptr++, addr);
 	}
 }
+
 void tx_outsword(unsigned short *addr, void *buffer, unsigned int count)
 {
 	unsigned short *ptr = (unsigned short *) buffer;
@@ -476,6 +379,7 @@ void tx_outsword(unsigned short *addr, void *buffer, unsigned int count)
 		tx_iooutw(*ptr++, addr);
 	}
 }
+
 void tx_outslong(unsigned int *addr, void *buffer, unsigned int count)
 {
 	unsigned long *ptr = (unsigned long *) buffer;

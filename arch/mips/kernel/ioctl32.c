@@ -46,7 +46,6 @@
 #include <linux/hdreg.h>
 #include <linux/raid/md.h>
 #include <linux/blkpg.h>
-#include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/rtc.h>
 #include <linux/pci.h>

@@ -13,7 +13,7 @@
  * option) any later version.
  */
 #define __ASSEMBLY__
-#include <linux/config.h>
+
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
 #include <asm/addrspace.h>

@@ -51,11 +51,6 @@ extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
 #endif
 
-#ifdef CONFIG_BLK_DEV_IDE
-extern struct ide_ops std_ide_ops;
-extern struct ide_ops *ide_ops;
-#endif
-
 extern struct rtc_ops no_rtc_ops;
 extern char * __init prom_getcmdline(void);
 extern void __init board_setup(void);
@@ -168,10 +163,6 @@ static void __init au1x00_setup(void)
 #ifdef CONFIG_FB
 	// Needed if PCI video card in use
 	conswitchp = &dummy_con;
-#endif
-
-#ifdef CONFIG_BLK_DEV_IDE
-	ide_ops = &std_ide_ops;
 #endif
 
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
