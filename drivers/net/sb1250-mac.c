@@ -184,8 +184,8 @@ typedef struct sbmacdma_s {
 	int		 sbdma_txdir;       /* direction (1=transmit) */
 	int		 sbdma_maxdescr;	/* total # of descriptors in ring */
 #ifdef CONFIG_SBMAC_COALESCE
-        int              sbdma_int_pktcnt;  /* # descriptors rx before interrupt*/
-        int              sbdma_int_timeout; /* # usec rx interrupt */
+        int              sbdma_int_pktcnt;  /* # descriptors rx/tx before interrupt*/
+        int              sbdma_int_timeout; /* # usec rx/tx interrupt */
 #endif
 
 	sbmac_port_t     sbdma_config0;	/* DMA config register 0 */
@@ -756,28 +756,20 @@ static void sbdma_initctx(sbmacdma_t *d,
 	
 #ifdef CONFIG_SBMAC_COALESCE
         /*
-         * Setup Rx DMA coalescing defaults
+         * Setup Rx/Tx DMA coalescing defaults
          */
 
-        if ( txrx == DMA_RX ) {
-		if ( int_pktcnt ) {
-                	d->sbdma_int_pktcnt = int_pktcnt;
-		        }
-		else {
-                	d->sbdma_int_pktcnt = 1;
-		        }
-
-		if ( int_timeout ) {
-		        d->sbdma_int_timeout = int_timeout;
-		        }
-		else {
-		        d->sbdma_int_timeout = 0;
-		    }
-	        }
-        else {
-                d->sbdma_int_pktcnt = 0;
-                d->sbdma_int_timeout = 0;
-	        }
+	if ( int_pktcnt ) {
+		d->sbdma_int_pktcnt = int_pktcnt;
+	} else {
+		d->sbdma_int_pktcnt = 1;
+	}
+	
+	if ( int_timeout ) {
+		d->sbdma_int_timeout = int_timeout;
+	} else {
+		d->sbdma_int_timeout = 0;
+	}
 #endif
 
 }
@@ -797,43 +789,34 @@ static void sbdma_initctx(sbmacdma_t *d,
 
 static void sbdma_channel_start(sbmacdma_t *d, int rxtx )
 {
-    /*
-     * Turn on the DMA channel
-     */
+	/*
+	 * Turn on the DMA channel
+	 */
 	
 #ifdef CONFIG_SBMAC_COALESCE
-    if (rxtx == DMA_RX) {
-        SBMAC_WRITECSR(d->sbdma_config1,
+	SBMAC_WRITECSR(d->sbdma_config1,
 		       V_DMA_INT_TIMEOUT(d->sbdma_int_timeout) |
 		       0);
-        SBMAC_WRITECSR(d->sbdma_config0,
-                       M_DMA_EOP_INT_EN |
-                       V_DMA_RINGSZ(d->sbdma_maxdescr) |
-                       V_DMA_INT_PKTCNT(d->sbdma_int_pktcnt) |
-                       0);
-	}
-    else {
+	SBMAC_WRITECSR(d->sbdma_config0,
+		       M_DMA_EOP_INT_EN |
+		       V_DMA_RINGSZ(d->sbdma_maxdescr) |
+		       V_DMA_INT_PKTCNT(d->sbdma_int_pktcnt) |
+		       0);
+#else
 	SBMAC_WRITECSR(d->sbdma_config1,0);
 	SBMAC_WRITECSR(d->sbdma_config0,
 		       V_DMA_RINGSZ(d->sbdma_maxdescr) |
 		       0);
-	}
-#else
-    SBMAC_WRITECSR(d->sbdma_config1,0);
-    SBMAC_WRITECSR(d->sbdma_config0,
-		   V_DMA_RINGSZ(d->sbdma_maxdescr) |
-		   0);
 #endif
 
-	
-    SBMAC_WRITECSR(d->sbdma_dscrbase,d->sbdma_dscrtable_phys);
-	
-    /*
-     * Initialize ring pointers
-     */
-	
-    d->sbdma_addptr = d->sbdma_dscrtable;
-    d->sbdma_remptr = d->sbdma_dscrtable;
+	SBMAC_WRITECSR(d->sbdma_dscrbase,d->sbdma_dscrtable_phys);
+
+	/*
+	 * Initialize ring pointers
+	 */
+
+	d->sbdma_addptr = d->sbdma_dscrtable;
+	d->sbdma_remptr = d->sbdma_dscrtable;
 }
 
 /**********************************************************************
@@ -955,7 +938,7 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 		sb_new = sb;
 		/* 
 		 * nothing special to reinit buffer, it's already aligned
-		 * and sb->tail already points to a good place.
+		 * and sb->data already points to a good place.
 		 */
 	}
 	
@@ -964,18 +947,18 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 */
 	
 #ifdef CONFIG_SBMAC_COALESCE
-        /*
-         * Do not interrupt per DMA transfer.
-         */
-        dsc->dscr_a = virt_to_phys(sb_new->tail) |
-                V_DMA_DSCRA_A_SIZE(NUMCACHEBLKS(pktsize+ETHER_ALIGN)) |
-                0;
+	/*
+	 * Do not interrupt per DMA transfer.
+	 */
+	dsc->dscr_a = virt_to_phys(sb_new->tail) |
+		V_DMA_DSCRA_A_SIZE(NUMCACHEBLKS(pktsize+ETHER_ALIGN)) |
+		0;
 #else
 	dsc->dscr_a = virt_to_phys(sb_new->tail) |
 		V_DMA_DSCRA_A_SIZE(NUMCACHEBLKS(pktsize+ETHER_ALIGN)) |
 		M_DMA_DSCRA_INTERRUPT;
 #endif
-	
+
 	/* receiving: no options */
 	dsc->dscr_b = 0;
 	
@@ -1059,7 +1042,9 @@ static int sbdma_add_txbuffer(sbmacdma_t *d,struct sk_buff *sb)
 
 	dsc->dscr_a = phys | 
 		V_DMA_DSCRA_A_SIZE(ncb) |
+#ifndef CONFIG_SBMAC_COALESCE
 		M_DMA_DSCRA_INTERRUPT |
+#endif
 		M_DMA_ETHTX_SOP;
 	
 	/* transmitting: set outbound options and length */
@@ -1488,7 +1473,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	uint64_t reg;
 	sbmac_port_t port;
 	uint64_t cfg,fifo,framecfg;
-	int idx;
+	int idx, th_value;
 	
 	/*
 	 * Don't do this if running
@@ -1522,25 +1507,29 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 		0;
 	
 	/* 
-	 * Be sure that RD_THRSH+WR_THRSH <= 32
+	 * Be sure that RD_THRSH+WR_THRSH <= 32 for pass1 pars
+	 * and make sure that RD_THRSH + WR_THRSH <=128 for pass2 and above
 	 * Use a larger RD_THRSH for gigabit
 	 */
+	if (soc_pass >= K_SYS_REVISION_PASS2) 
+		th_value = 64;
+	else 
+		th_value = 28;
 
 	fifo = V_MAC_TX_WR_THRSH(4) |	/* Must be '4' or '8' */
 		((s->sbm_speed == sbmac_speed_1000)
-		 ? V_MAC_TX_RD_THRSH(28) : V_MAC_TX_RD_THRSH(4)) |
+		 ? V_MAC_TX_RD_THRSH(th_value) : V_MAC_TX_RD_THRSH(4)) |
 		V_MAC_TX_RL_THRSH(4) |
 		V_MAC_RX_PL_THRSH(4) |
 		V_MAC_RX_RD_THRSH(4) |	/* Must be '4' */
 		V_MAC_RX_PL_THRSH(4) |
 		V_MAC_RX_RL_THRSH(8) |
 		0;
-	
+
 	framecfg = V_MAC_MIN_FRAMESZ_DEFAULT |
 		V_MAC_MAX_FRAMESZ_DEFAULT |
 		V_MAC_BACKOFF_SEL(1);
-	
-	
+
 	/*
 	 * Clear out the hash address map 
 	 */
@@ -1649,7 +1638,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 * Accept any TX interrupt and EOP count/timer RX interrupts on ch 0
 	 */
 	SBMAC_WRITECSR(s->sbm_imr,
-		       (M_MAC_INT_CHANNEL << S_MAC_TX_CH0) |
+		       ((M_MAC_INT_EOP_COUNT | M_MAC_INT_EOP_TIMER) << S_MAC_TX_CH0) |
 		       ((M_MAC_INT_EOP_COUNT | M_MAC_INT_EOP_TIMER) << S_MAC_RX_CH0));
 #else
 	/*
@@ -1871,7 +1860,11 @@ static void sbmac_init_and_start(struct sbmac_softc *sc)
 #endif
 
 
-/****************************************BMAC's address/mcast registers
+/**********************************************************************
+ *  SBMAC_ADDR2REG(ptr)
+ *  
+ *  Convert six bytes into the 64-bit register value that
+ *  we typically write into the SBMAC's address/mcast registers
  *  
  *  Input parameters: 
  *  	   ptr - pointer to 6 bytes
