@@ -533,31 +533,50 @@
 #ifndef __ASSEMBLY__
 
 /*
- * Functions to access the r10k performance counter and control registers
+ * Functions to access the R10000 performance counters.  These are basically
+ * mfc0 and mtc0 instructions from and to coprocessor register with a 5-bit
+ * performance counter number encoded into bits 1 ... 5 of the instruction.
+ * Only performance counters 0 to 1 actually exist, so for a non-R10000 aware
+ * disassembler these will look like an access to sel 0 or 1.
  */
-#define read_r10k_perf_cntr(counter)                            \
-({ unsigned int __res;                                          \
-        __asm__ __volatile__(                                   \
-        "mfpc\t%0, "STR(counter)                                \
-        : "=r" (__res));                                        \
-        __res;})
+#define read_r10k_perf_cntr(counter)				\
+({								\
+	unsigned int __res;					\
+	__asm__ __volatile__(					\
+	"mfpc\t%0, %1"						\
+        : "=r" (__res)						\
+	: "i" (counter));					\
+								\
+        __res;							\
+})
 
 #define write_r10k_perf_cntr(counter,val)                       \
-        __asm__ __volatile__(                                   \
-        "mtpc\t%0, "STR(counter)                                \
-        : : "r" (val));
+do {								\
+	__asm__ __volatile__(					\
+	"mtpc\t%0, %1"						\
+	:							\
+	: "r" (val), "i" (counter));				\
+} while (0)
 
-#define read_r10k_perf_cntl(counter)                            \
-({ unsigned int __res;                                          \
-        __asm__ __volatile__(                                   \
-        "mfps\t%0, "STR(counter)                                \
-        : "=r" (__res));                                        \
-        __res;})
+#define read_r10k_perf_event(counter)				\
+({								\
+	unsigned int __res;					\
+	__asm__ __volatile__(					\
+	"mfps\t%0, %1"						\
+        : "=r" (__res)						\
+	: "i" (counter));					\
+								\
+        __res;							\
+})
 
 #define write_r10k_perf_cntl(counter,val)                       \
-        __asm__ __volatile__(                                   \
-        "mtps\t%0, "STR(counter)                                \
-        : : "r" (val));
+do {								\
+	__asm__ __volatile__(					\
+	"mtps\t%0, %1"						\
+	:							\
+	: "r" (val), "i" (counter));				\
+} while (0)
+
 
 /*
  * Macros to access the system control coprocessor
