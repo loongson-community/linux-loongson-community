@@ -28,7 +28,7 @@ extern void init_i8259_irqs(void);
  * cases where no better interrupt acknowledge method is available and we
  * absolutely must touch the i8259.
  */
-static inline int i8259_irq(struct pt_regs *regs)
+static inline int i8259_irq(void)
 {
 	int irq;
 
