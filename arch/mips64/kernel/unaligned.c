@@ -505,8 +505,8 @@ asmlinkage void do_ade(struct pt_regs *regs)
 
 	/*
 	 * Address errors may be deliberately induced by the FPU emulator to
-	 * take retake control of the CPU after executing the instruction in
-	 * the delay slot of an emulated branch.
+	 * retake control of the CPU after executing the instruction in the
+	 * delay slot of an emulated branch.
 	 */
 	/* Terminate if exception was recognized as a delay slot return */
 	if (do_dsemulret(regs))
