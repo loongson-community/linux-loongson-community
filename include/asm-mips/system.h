@@ -281,7 +281,7 @@ struct task_struct;
 
 #define switch_to(prev,next,last) \
 do { \
-	(last) =resume(prev, next, next->thread_info); \
+	(last) = resume(prev, next, next->thread_info); \
 } while(0)
 
 /*
