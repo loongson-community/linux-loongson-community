@@ -46,6 +46,12 @@
 #include <asm/au1000.h>
 #include <asm/pb1000.h>
 
+#ifdef CONFIG_USB_OHCI
+// Enable the workaround for the OHCI DoneHead
+// register corruption problem.
+#define CONFIG_AU1000_OHCI_FIX
+#endif
+
 #if defined(CONFIG_AU1000_SERIAL_CONSOLE)
 extern void console_setup(char *, int *);
 char serial_console[20];
@@ -79,7 +85,8 @@ void au1000_wbflush(void)
 void __init au1000_setup(void)
 {
 	char *argptr;
-	u32 pin_func, static_cfg0, usb_clocks=0;
+	u32 pin_func, static_cfg0;
+	u32 sys_freqctrl, sys_clksrc;
 	
 	argptr = prom_getcmdline();
 
@@ -112,7 +119,7 @@ void __init au1000_setup(void)
 	// set AUX clock to 12MHz * 8 = 96 MHz
 	outl(8, AUX_PLL_CNTRL);
 	outl(0, PIN_STATE);
-	udelay(1000);
+	udelay(100);
 
 #if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
 #ifdef CONFIG_USB_OHCI
@@ -125,16 +132,57 @@ void __init au1000_setup(void)
 		strcat(argptr, usb_args);
 	}
 #endif
-	// enable CLK2 and/or CLK1 for USB Host and/or Device clocks
-	outl(0x00300000, FQ_CNTRL_1);         // FREQ2 = aux/2 = 48 MHz
-#ifdef CONFIG_AU1000_USB_DEVICE
-	usb_clocks |= 0x00000200; // CLK1 = FREQ2
-#endif
+
+	/* zero and disable FREQ2 */
+	sys_freqctrl = inl(FQ_CNTRL_1);
+	sys_freqctrl &= ~0xFFF00000;
+	outl(sys_freqctrl, FQ_CNTRL_1);
+
+	/* zero and disable USBH/USBD clocks */
+	sys_clksrc = inl(CLOCK_SOURCE_CNTRL);
+	sys_clksrc &= ~0x00007FE0;
+	outl(sys_clksrc, CLOCK_SOURCE_CNTRL);
+
+	sys_freqctrl = inl(FQ_CNTRL_1);
+	sys_freqctrl &= ~0xFFF00000;
+
+	sys_clksrc = inl(CLOCK_SOURCE_CNTRL);
+	sys_clksrc &= ~0x00007FE0;
+
+#ifdef CONFIG_AU1000_OHCI_FIX
+	/* CPU core freq to 48MHz to slow it way down... */
+	outl(4, CPU_PLL_CNTRL);
+
+	/*
+	 * Setup 48MHz FREQ2 from CPUPLL for USB Host
+	 */
+	/* FRDIV2=3 -> div by 8 of 384MHz -> 48MHz */
+	sys_freqctrl |= ((3<<22) | (1<<21) | (0<<20));
+	outl(sys_freqctrl, FQ_CNTRL_1);
+
+	/* CPU core freq to 384MHz */
+	outl(0x20, CPU_PLL_CNTRL);
+
+	printk("Au1000: 48MHz OHCI workaround enabled\n");
+
+#else   // CONFIG_AU1000_OHCI_FIX
+
+	// FREQ2 = aux/2 = 48 MHz
+	sys_freqctrl |= ((0<<22) | (1<<21) | (1<<20));
+	outl(sys_freqctrl, FQ_CNTRL_1);
+
+#endif  // CONFIG_AU1000_OHCI_FIX
+
+	/*
+	 * Route 48MHz FREQ2 into USB Host and/or Device
+	 */
 #ifdef CONFIG_USB_OHCI
-	usb_clocks |= 0x00004000; // CLK2 = FREQ2
+	sys_clksrc |= ((4<<12) | (0<<11) | (0<<10));
 #endif
-	outl(usb_clocks, CLOCK_SOURCE_CNTRL);
-	udelay(1000);
+#ifdef CONFIG_AU1000_USB_DEVICE
+	sys_clksrc |= ((4<<7) | (0<<6) | (0<<5));
+#endif
+	outl(sys_clksrc, CLOCK_SOURCE_CNTRL);
 
 #ifdef CONFIG_USB_OHCI
 	// enable host controller and wait for reset done
@@ -158,7 +206,7 @@ void __init au1000_setup(void)
 	outl(0x0030, OUTPUT_STATE_CLEAR);
 #endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
 
-	// select gpio 15 (for interrupt line) 
+	// make gpio 15 an input (for interrupt line) 
 	pin_func = inl(PIN_FUNCTION) & (u32)(~0x100);
 	// we don't need I2S, so make it available for GPIO[31:29] 
 	pin_func |= (1<<5);
@@ -177,7 +225,8 @@ void __init au1000_setup(void)
 	outl(0x00000004, STATIC_CONFIG_2);
 
 	// STATIC_TIMING_2
-	outl(0x08061908, STATIC_TIMING_2);
+	//outl(0x08061908, STATIC_TIMING_2);
+	outl(0x09000000, STATIC_TIMING_2);
 
 	// Set 32-bit base address decoding for RCE2*
 	outl(0x10003ff0, STATIC_ADDRESS_2);
