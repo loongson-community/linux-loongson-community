@@ -2698,6 +2698,6 @@ void __init ld_mmu_r4xx0(void)
 	 *   - The entire mm handling assumes the c0_pagemask register to
 	 *     be set for 4kb pages.
 	 */
-	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
+	set_pagemask(PM_4K);
 	flush_tlb_all();
 }
