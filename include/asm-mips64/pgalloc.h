@@ -1,4 +1,4 @@
-/* $Id: pgalloc.h,v 1.2 2000/02/23 00:41:38 ralf Exp $
+/* $Id: pgalloc.h,v 1.3 2000/02/24 00:13:20 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -109,8 +109,8 @@ extern inline pmd_t *get_pmd_fast(void)
 {
 	unsigned long *ret;
 
-	if ((ret = (unsigned long *)pte_quicklist) != NULL) {
-		pte_quicklist = (unsigned long *)(*ret);
+	if ((ret = (unsigned long *)pmd_quicklist) != NULL) {
+		pmd_quicklist = (unsigned long *)(*ret);
 		ret[0] = ret[1];
 		pgtable_cache_size--;
 		return (pmd_t *)ret;
@@ -121,8 +121,8 @@ extern inline pmd_t *get_pmd_fast(void)
 
 extern inline void free_pmd_fast(pmd_t *pmd)
 {
-	*(unsigned long *)pmd = (unsigned long) pte_quicklist;
-	pte_quicklist = (unsigned long *) pmd;
+	*(unsigned long *)pmd = (unsigned long) pmd_quicklist;
+	pmd_quicklist = (unsigned long *) pmd;
 	pgtable_cache_size++;
 }
 
