@@ -1719,9 +1719,6 @@ static void __init titan_ge_cleanup_module(void)
 	/* Nothing to do here */
 }
 
-module_init(titan_ge_init_module);
-module_exit(titan_ge_cleanup_module);
-
 /*
  * Initialize the Rx descriptor ring for the Titan Ge
  */
@@ -1970,3 +1967,10 @@ static unsigned long titan_ge_tx_coal(unsigned long delay)
 
 	return delay;
 }
+
+MODULE_AUTHOR("Manish Lachwani <lachwani@pmc-sierra.com>");
+MODULE_DESCRIPTION("Titan GE driver");
+MODULE_LICENSE("GPL");
+
+module_init(titan_ge_init_module);
+module_exit(titan_ge_cleanup_module);
