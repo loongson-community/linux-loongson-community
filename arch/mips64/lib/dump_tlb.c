@@ -15,35 +15,33 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-#define mips_tlb_entries 48
+#define mips_tlb_entries 64
 
 void
 dump_tlb(int first, int last)
 {
-	int	i;
-	unsigned int pagemask, c0, c1, asid;
-	unsigned long entryhi, entrylo0, entrylo1;
+	unsigned long s_entryhi, entryhi, entrylo0, entrylo1, asid;
+	unsigned int s_index, pagemask, c0, c1, i;
 
-	asid = get_entryhi() & 0xff;
+	s_entryhi = get_entryhi();
+	s_index = get_index();
+	asid = s_entryhi & 0xff;
 
-	for(i=first;i<=last;i++)
-	{
+	for (i = first; i <= last; i++) {
 		write_32bit_cp0_register(CP0_INDEX, i);
 		__asm__ __volatile__(
-			".set\tmips3\n\t"
 			".set\tnoreorder\n\t"
 			"nop;nop;nop;nop\n\t"
 			"tlbr\n\t"
 			"nop;nop;nop;nop\n\t"
-			".set\treorder\n\t"
-			".set\tmips0\n\t");
+			".set\treorder");
 		pagemask = read_32bit_cp0_register(CP0_PAGEMASK);
-		entryhi  = read_32bit_cp0_register(CP0_ENTRYHI);
-		entrylo0 = read_32bit_cp0_register(CP0_ENTRYLO0);
-		entrylo1 = read_32bit_cp0_register(CP0_ENTRYLO1);
+		entryhi  = get_entryhi();
+		entrylo0 = get_entrylo0();
+		entrylo1 = get_entrylo1();
 
-		/* Unused entries have a virtual address of KSEG0.  */
-		if ((entryhi & 0xffffe000) != 0x80000000
+		/* Unused entries have a virtual address of CKSEG0.  */
+		if ((entryhi & ~0x1ffffUL) != CKSEG0
 		    && (entryhi & 0xff) == asid) {
 			/*
 			 * Only print entries in use
@@ -53,10 +51,10 @@ dump_tlb(int first, int last)
 			c0 = (entrylo0 >> 3) & 7;
 			c1 = (entrylo1 >> 3) & 7;
 
-			printk("va=%08lx asid=%08lx"
+			printk("va=%08lx asid=%02lx"
 			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]"
-			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]",
-			       (entryhi & 0xffffe000),
+			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]\n",
+			       (entryhi & ~0x1fffUL),
 			       entryhi & 0xff,
 			       entrylo0 & PAGE_MASK, c0,
 			       (entrylo0 & 4) ? 1 : 0,
@@ -71,7 +69,8 @@ dump_tlb(int first, int last)
 	}
 	printk("\n");
 
-	set_entryhi(asid);
+	set_entryhi(s_entryhi);
+	set_index(s_index);
 }
 
 void
