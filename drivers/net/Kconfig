@@ -2045,11 +2045,11 @@ config MV64340_ETH_1
 	  This enables support for Port 1 of the Marvell MV64340 Gigabit
 	  Ethernet.
 
-config MV64340_ETH_3
-	bool "MV-64340 Port 3"
+config MV64340_ETH_2
+	bool "MV-64340 Port 2"
 	depends on MV64340_ETH
 	help
-	  This enables support for Port 3 of the Marvell MV64340 Gigabit
+	  This enables support for Port 2 of the Marvell MV64340 Gigabit
 	  Ethernet.
 
 endmenu
