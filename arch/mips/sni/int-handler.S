@@ -37,7 +37,7 @@ led_cache:	.byte	0
 		mfc0	t1, CP0_CAUSE
 		and	t0, t1
 
-		 andi	t1, t0, 0x4a00			# hardware interrupt 1
+		 andi	t1, t0, 0x6800			# hardware interrupt 1
 		bnez	t1, _hwint134
 		 andi	t1, t0, 0x1000			# hardware interrupt 2
 		bnez	t1, _hwint2
@@ -55,7 +55,9 @@ led_cache:	.byte	0
 /* hwint0 should deal with MP agent, ASIC PCI, EISA NMI and debug
    button interrupts.  */
 _hwint0:	jal	pciasic_hwint0
-		 move	a1, sp
+		 move	a0, sp
+		j	ret_from_irq
+		 nop
 
 /*
  * hwint 1 deals with EISA and SCSI interrupts,
@@ -63,12 +65,21 @@ _hwint0:	jal	pciasic_hwint0
  * hwint 4 is used for only the onboard PCnet 32.
  */
 _hwint134:	jal	pciasic_hwint134
+		 move	a0, sp
+		j	ret_from_irq
+		 nop
 
 
 /* This interrupt was used for the com1 console on the first prototypes.  */
 _hwint2:	jal	pciasic_hwint2
+		 move	a0, sp
+		j	ret_from_irq
+		 nop
 
 /* hwint5 is the r4k count / compare interrupt  */
 _hwint5:	jal	pciasic_hwint5
+		 move	a0, sp
+		j	ret_from_irq
+		 nop
 
 		END(sni_rm200_pci_handle_int)
