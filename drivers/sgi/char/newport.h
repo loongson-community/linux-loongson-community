@@ -1,4 +1,4 @@
-/* $Id: newport.h,v 1.2 1996/06/10 16:38:34 dm Exp $
+/* $Id: newport.h,v 1.1.1.1 1997/06/01 03:17:26 ralf Exp $
  * newport.h: Defines and register layout for NEWPORT graphics
  *            hardware.
  *
@@ -405,5 +405,7 @@ static inline int newport_bfwait(void)
 		return 1;
 	return 0;
 }
+
+extern struct graphics_ops *newport_probe (int, struct console_ops *, char **);
 
 #endif /* !(_SGI_NEWPORT_H) */
