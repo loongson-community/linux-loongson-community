@@ -43,7 +43,7 @@ const char *get_system_type(void)
 
 static void prom_cpu0_exit(void *arg)
 {
-	void *nvram = (void *) YOSEMITE_NVRAM_BASE_ADDR;
+	void *nvram = (void *) YOSEMITE_RTC_BASE;
 
 	/* Ask the NVRAM/RTC/watchdog chip to assert reset in 1/16 second */
 	writeb(0x84, nvram + 0xff7);
