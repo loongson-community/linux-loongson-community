@@ -41,7 +41,7 @@ extern void *(*rex_gettcinfo)(void);
  * Interface to the world. Read comment in include/asm-mips/tc.h.
  */
 
-int search_tc_card(char *name)
+int search_tc_card(const char *name)
 {
 	int slot;
 	slot_info *sip;
