@@ -123,10 +123,19 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp,
 	start_kernel();
 }
 
-void __init add_memory_region(phys_t start, phys_t size,
-			      long type)
+void __init add_memory_region(phys_t start, phys_t size, long type)
 {
 	int x = boot_mem_map.nr_map;
+	struct boot_mem_map_entry *prev = boot_mem_map.map + x - 1;
+
+	/*
+	 * Try to merge with previous entry if any.  This is far less than
+	 * perfect but is sufficient for most real world cases.
+	 */
+	if (x && prev->addr + prev->size == start && prev->type == type) {
+		prev->size += size;
+		return;
+	}
 
 	if (x == BOOT_MEM_MAP_MAX) {
 		printk("Ooops! Too many entries in the memory map!\n");
