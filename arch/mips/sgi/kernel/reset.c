@@ -33,7 +33,9 @@
 #define POWERDOWN_FREQ		(HZ / 4)
 #define PANIC_FREQ		(HZ / 8)
 
-static struct timer_list power_timer, blink_timer, debounce_timer;
+static unsigned char sgi_volume;
+
+static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
 static int shuting_down, has_paniced;
 
 static void sgi_machine_restart(char *command) __attribute__((noreturn));
@@ -129,20 +131,50 @@ static inline void power_button(void)
 	add_timer(&power_timer);
 }
 
-unsigned char current_volume = 0x7f;
-
-static inline void volume_up_button(void)
+void inline sgi_volume_set(unsigned char volume)
 {
-	current_volume = (current_volume < 0xe1) ? current_volume + 0x1e : 0xff;
-	hpc3c0->pbus_extregs[2][0] = current_volume;
-	hpc3c0->pbus_extregs[2][1] = current_volume;
+	sgi_volume = volume;
+
+	hpc3c0->pbus_extregs[2][0] = sgi_volume;
+	hpc3c0->pbus_extregs[2][1] = sgi_volume;
 }
 
-static inline void volume_down_button(void)
+void inline sgi_volume_get(unsigned char *volume)
 {
-	current_volume = (current_volume > 0x1e) ? current_volume - 0x1e : 0;
-	hpc3c0->pbus_extregs[2][0] = current_volume;
-	hpc3c0->pbus_extregs[2][1] = current_volume;
+	*volume = sgi_volume;
+}
+
+static inline void volume_up_button(unsigned long data)
+{
+	del_timer(&volume_timer);
+
+	if (sgi_volume < 0xff)
+		sgi_volume++;
+
+	hpc3c0->pbus_extregs[2][0] = sgi_volume;
+	hpc3c0->pbus_extregs[2][1] = sgi_volume;
+
+	if (ioc_icontrol->istat1 & 2) {
+		volume_timer.expires = jiffies + 1;
+		add_timer(&volume_timer);
+	}
+
+}
+
+static inline void volume_down_button(unsigned long data)
+{
+	del_timer(&volume_timer);
+
+	if (sgi_volume > 0)
+		sgi_volume--;
+
+	hpc3c0->pbus_extregs[2][0] = sgi_volume;
+	hpc3c0->pbus_extregs[2][1] = sgi_volume;
+
+	if (ioc_icontrol->istat1 & 2) {
+		volume_timer.expires = jiffies + 1;
+		add_timer(&volume_timer);
+	}
 }
 
 static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
@@ -162,10 +194,18 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 
 	if (!(buttons & 2))		/* Power button was pressed */
 		power_button();
-	if (!(buttons & 0x40))		/* Volume up button was pressed */
-		volume_up_button();
-	if (!(buttons & 0x10))		/* Volume down button was pressed */
-		volume_down_button();
+	if (!(buttons & 0x40)) {	/* Volume up button was pressed */
+		init_timer(&volume_timer);
+		volume_timer.function = volume_up_button;
+		volume_timer.expires = jiffies + 1;
+		add_timer(&volume_timer);
+	}
+	if (!(buttons & 0x10)) {	/* Volume down button was pressed */
+		init_timer(&volume_timer);
+		volume_timer.function = volume_down_button;
+		volume_timer.expires = jiffies + 1;
+		add_timer(&volume_timer);
+	}
 }
 
 static int panic_event(struct notifier_block *this, unsigned long event,

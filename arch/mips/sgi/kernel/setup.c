@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.20 1999/02/11 23:50:31 tsbogend Exp $
+/* $Id: setup.c,v 1.21 1999/04/05 01:41:18 ulfc Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -29,6 +29,7 @@
 
 extern struct rtc_ops indy_rtc_ops;
 void indy_reboot_setup(void);
+void sgi_volume_set(unsigned char);
 
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
@@ -143,6 +144,8 @@ __initfunc(void sgi_setup(void))
 			console_setup ("ttyS0");
 	}
 #endif
+	  
+	sgi_volume_set(simple_strtoul(prom_getenv("volume"), NULL, 10));
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
