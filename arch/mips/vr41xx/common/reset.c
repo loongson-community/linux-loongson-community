@@ -11,7 +11,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <asm/io.h>
-#include <asm/pgtable.h>
+#include <asm/cacheflush.h>
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/system.h>
