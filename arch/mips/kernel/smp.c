@@ -160,6 +160,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 
 	spin_lock(&smp_call_lock);
 	call_data = &data;
+	mb();
 
 	/* Send a message to all other CPUs and wait for them to respond */
 	for (i = 0; i < NR_CPUS; i++)
