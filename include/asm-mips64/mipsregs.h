@@ -14,7 +14,10 @@
 
 #include <linux/config.h>
 #include <linux/linkage.h>
+
+#ifndef __ASSEMBLY__
 #include <asm/system.h>
+#endif
 
 /*
  * The following macros are especially useful for __asm__
