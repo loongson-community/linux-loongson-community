@@ -478,7 +478,7 @@ void __init time_init(void)
 		write_32bit_cp0_register(CP0_COUNT, 0);
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;
-	} else if (mips_machtype == MACH_DS5000_2X0) {
+	} else if (IOASIC) {
 		ioasic_write(FCTR, 0);
 		do_gettimeoffset = do_ioasic_gettimeoffset;
 		irq0.handler = ioasic_timer_interrupt;
