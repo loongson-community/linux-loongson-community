@@ -40,7 +40,7 @@
 		sw	v0,GDB_FR_REG2(sp)
 
 /*
- * first save the CP0 and special registers
+ * First save the CP0 and special registers
  */
 
 		mfc0	v0,CP0_STATUS
@@ -98,7 +98,7 @@
 /*
  * Followed by the floating point registers
  */
-		mfc0	v0,CP0_STATUS		/* check if the FPU is enabled */
+		mfc0	v0,CP0_STATUS		/* FPU enabled? */
 		srl	v0,v0,16
 		andi	v0,v0,(ST0_CU1 >> 16)
 
@@ -148,7 +148,7 @@
 		sw	v0,GDB_FR_FIR(sp)
 
 /*
- * current stack frame ptr
+ * Current stack frame ptr
  */
 
 2:
@@ -178,7 +178,7 @@
 		.set	at
 
 /*
- * continue with the higher level handler
+ * Continue with the higher level handler
  */
 
 		move	a0,sp
@@ -187,7 +187,7 @@
 		 nop
 
 /*
- * restore all writable registers, in reverse order
+ * Restore all writable registers, in reverse order
  */
 
 		.set	noat
@@ -298,9 +298,9 @@
 		lw	$1,GDB_FR_REG1(sp)
 		lw	sp,GDB_FR_REG29(sp)		/* Deallocate stack */
 
+		.set	mips3
 		eret
+		.set	mips0
 		.set	at
 		.set	reorder
 		END(trap_low)
-
-/* end of file gdb-low.S */
