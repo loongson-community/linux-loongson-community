@@ -362,9 +362,23 @@ CONFIG_SGI_O2MACE_ETH=y
 # CONFIG_NET_PCI is not set
 
 #
-# Gigabit Ethernet (1000/10000 Mbit)
+# Ethernet (1000 Mbit)
 #
-# CONFIG_NET_GIGE is not set
+# CONFIG_ACENIC is not set
+# CONFIG_DL2K is not set
+# CONFIG_E1000 is not set
+# CONFIG_NS83820 is not set
+# CONFIG_HAMACHI is not set
+# CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
+# CONFIG_SK98LIN is not set
+# CONFIG_TIGON3 is not set
+
+#
+# Ethernet (10000 Mbit)
+#
+# CONFIG_IXGB is not set
+# CONFIG_S2IO is not set
 
 #
 # Token Ring devices

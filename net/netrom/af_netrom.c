@@ -1021,7 +1021,7 @@ static int nr_sendmsg(struct kiocb *iocb, struct socket *sock,
 	unsigned char *asmptr;
 	int size;
 
-	if (msg->msg_flags & ~(MSG_DONTWAIT|MSG_EOR))
+	if (msg->msg_flags & ~(MSG_DONTWAIT|MSG_EOR|MSG_CMSG_COMPAT))
 		return -EINVAL;
 
 	lock_sock(sk);
@@ -1176,6 +1176,7 @@ static int nr_recvmsg(struct kiocb *iocb, struct socket *sock,
 static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	struct sock *sk = sock->sk;
+	void __user *argp = (void __user *)arg;
 	int ret = 0;
 
 	lock_sock(sk);
@@ -1186,7 +1187,7 @@ static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		if (amount < 0)
 			amount = 0;
 		release_sock(sk);
-		return put_user(amount, (int *)arg);
+		return put_user(amount, (int __user *)argp);
 	}
 
 	case TIOCINQ: {
@@ -1196,11 +1197,11 @@ static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		if ((skb = skb_peek(&sk->sk_receive_queue)) != NULL)
 			amount = skb->len;
 		release_sock(sk);
-		return put_user(amount, (int *)arg);
+		return put_user(amount, (int __user *)argp);
 	}
 
 	case SIOCGSTAMP:
-		ret = sock_get_timestamp(sk, (struct timeval *)arg);
+		ret = sock_get_timestamp(sk, argp);
 		release_sock(sk);
 		return ret;
 
@@ -1222,11 +1223,11 @@ static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	case SIOCNRDECOBS:
 		release_sock(sk);
 		if (!capable(CAP_NET_ADMIN)) return -EPERM;
-		return nr_rt_ioctl(cmd, (void *)arg);
+		return nr_rt_ioctl(cmd, argp);
 
 	default:
 		release_sock(sk);
-		return dev_ioctl(cmd, (void *)arg);
+		return dev_ioctl(cmd, argp);
 	}
 	release_sock(sk);
 

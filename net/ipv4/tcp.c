@@ -530,7 +530,7 @@ int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 		return -ENOIOCTLCMD;
 	};
 
-	return put_user(answ, (int *)arg);
+	return put_user(answ, (int __user *)arg);
 }
 
 
@@ -966,7 +966,7 @@ ssize_t tcp_sendpage(struct socket *sock, struct page *page, int offset,
 #define TCP_PAGE(sk)	(inet_sk(sk)->sndmsg_page)
 #define TCP_OFF(sk)	(inet_sk(sk)->sndmsg_off)
 
-static inline int tcp_copy_to_page(struct sock *sk, char *from,
+static inline int tcp_copy_to_page(struct sock *sk, char __user *from,
 				   struct sk_buff *skb, struct page *page,
 				   int off, int copy)
 {
@@ -991,7 +991,7 @@ static inline int tcp_copy_to_page(struct sock *sk, char *from,
 	return 0;
 }
 
-static inline int skb_add_data(struct sk_buff *skb, char *from, int copy)
+static inline int skb_add_data(struct sk_buff *skb, char __user *from, int copy)
 {
 	int err = 0;
 	unsigned int csum;
@@ -1065,7 +1065,7 @@ int tcp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 
 	while (--iovlen >= 0) {
 		int seglen = iov->iov_len;
-		unsigned char *from = iov->iov_base;
+		unsigned char __user *from = iov->iov_base;
 
 		iov++;
 
@@ -2498,56 +2498,11 @@ int tcp_getsockopt(struct sock *sk, int level, int optname, char __user *optval,
 		break;
 	case TCP_INFO: {
 		struct tcp_info info;
-		u32 now = tcp_time_stamp;
 
 		if (get_user(len, optlen))
 			return -EFAULT;
-		info.tcpi_state = sk->sk_state;
-		info.tcpi_ca_state = tp->ca_state;
-		info.tcpi_retransmits = tp->retransmits;
-		info.tcpi_probes = tp->probes_out;
-		info.tcpi_backoff = tp->backoff;
-		info.tcpi_options = 0;
-		if (tp->tstamp_ok)
-			info.tcpi_options |= TCPI_OPT_TIMESTAMPS;
-		if (tp->sack_ok)
-			info.tcpi_options |= TCPI_OPT_SACK;
-		if (tp->wscale_ok) {
-			info.tcpi_options |= TCPI_OPT_WSCALE;
-			info.tcpi_snd_wscale = tp->snd_wscale;
-			info.tcpi_rcv_wscale = tp->rcv_wscale;
-		} else {
-			info.tcpi_snd_wscale = 0;
-			info.tcpi_rcv_wscale = 0;
-		}
-		if (tp->ecn_flags & TCP_ECN_OK)
-			info.tcpi_options |= TCPI_OPT_ECN;
 
-		info.tcpi_rto = (1000000 * tp->rto) / HZ;
-		info.tcpi_ato = (1000000 * tp->ack.ato) / HZ;
-		info.tcpi_snd_mss = tp->mss_cache_std;
-		info.tcpi_rcv_mss = tp->ack.rcv_mss;
-
-		info.tcpi_unacked = tp->packets_out;
-		info.tcpi_sacked = tp->sacked_out;
-		info.tcpi_lost = tp->lost_out;
-		info.tcpi_retrans = tp->retrans_out;
-		info.tcpi_fackets = tp->fackets_out;
-
-		info.tcpi_last_data_sent = ((now - tp->lsndtime) * 1000) / HZ;
-		info.tcpi_last_ack_sent = 0;
-		info.tcpi_last_data_recv = ((now -
-					     tp->ack.lrcvtime) * 1000) / HZ;
-		info.tcpi_last_ack_recv = ((now - tp->rcv_tstamp) * 1000) / HZ;
-
-		info.tcpi_pmtu = tp->pmtu_cookie;
-		info.tcpi_rcv_ssthresh = tp->rcv_ssthresh;
-		info.tcpi_rtt = ((1000000 * tp->srtt) / HZ) >> 3;
-		info.tcpi_rttvar = ((1000000 * tp->mdev) / HZ) >> 2;
-		info.tcpi_snd_ssthresh = tp->snd_ssthresh;
-		info.tcpi_snd_cwnd = tp->snd_cwnd;
-		info.tcpi_advmss = tp->advmss;
-		info.tcpi_reordering = tp->reordering;
+		tcp_get_info(sk, &info);
 
 		len = min_t(unsigned int, len, sizeof(info));
 		if (put_user(len, optlen))

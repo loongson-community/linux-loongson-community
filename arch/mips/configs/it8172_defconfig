@@ -233,7 +233,6 @@ CONFIG_BLK_DEV_IDE=y
 #
 CONFIG_BLK_DEV_IDEDISK=y
 # CONFIG_IDEDISK_MULTI_MODE is not set
-# CONFIG_IDEDISK_STROKE is not set
 # CONFIG_BLK_DEV_IDECD is not set
 # CONFIG_BLK_DEV_IDETAPE is not set
 # CONFIG_BLK_DEV_IDEFLOPPY is not set
@@ -351,7 +350,11 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
 
 #
-# Gigabit Ethernet (1000/10000 Mbit)
+# Ethernet (1000 Mbit)
+#
+
+#
+# Ethernet (10000 Mbit)
 #
 
 #

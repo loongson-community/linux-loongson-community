@@ -277,7 +277,11 @@ CONFIG_NET_ETHERNET=y
 CONFIG_MIPS_GT96100ETH=y
 
 #
-# Gigabit Ethernet (1000/10000 Mbit)
+# Ethernet (1000 Mbit)
+#
+
+#
+# Ethernet (10000 Mbit)
 #
 
 #

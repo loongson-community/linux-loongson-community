@@ -332,8 +332,8 @@ void start_thread(struct pt_regs *regs, unsigned long fdptr, unsigned long sp)
          * entry is the TOC value we need to use.
          */
 	set_fs(USER_DS);
-	__get_user(entry, (unsigned long *)fdptr);
-	__get_user(toc, (unsigned long *)fdptr+1);
+	__get_user(entry, (unsigned long __user *)fdptr);
+	__get_user(toc, (unsigned long __user *)fdptr+1);
 
 	/* Check whether the e_entry function descriptor entries
 	 * need to be relocated before we can use them.
@@ -386,7 +386,7 @@ int get_fpexc_mode(struct task_struct *tsk, unsigned long adr)
 	unsigned int val;
 
 	val = __unpack_fe01(tsk->thread.fpexc_mode);
-	return put_user(val, (unsigned int *) adr);
+	return put_user(val, (unsigned int __user *) adr);
 }
 
 int sys_clone(unsigned long clone_flags, unsigned long p2, unsigned long p3,
@@ -546,7 +546,7 @@ void show_stack(struct task_struct *p, unsigned long *_sp)
 		 * We look for the "regshere" marker in the current frame.
 		 */
 		if (validate_sp(sp, p, sizeof(struct pt_regs) + 400)
-		    && _sp[12] == 0x7265677368657265) {
+		    && _sp[12] == 0x7265677368657265ul) {
 			struct pt_regs *regs = (struct pt_regs *)
 				(sp + STACK_FRAME_OVERHEAD);
 			printk("--- Exception: %lx", regs->trap);

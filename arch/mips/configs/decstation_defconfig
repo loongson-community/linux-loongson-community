@@ -303,7 +303,11 @@ CONFIG_NET_ETHERNET=y
 CONFIG_DECLANCE=y
 
 #
-# Gigabit Ethernet (1000/10000 Mbit)
+# Ethernet (1000 Mbit)
+#
+
+#
+# Ethernet (10000 Mbit)
 #
 
 #

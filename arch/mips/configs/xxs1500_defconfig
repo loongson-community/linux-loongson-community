@@ -297,7 +297,11 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
 
 #
-# Gigabit Ethernet (1000/10000 Mbit)
+# Ethernet (1000 Mbit)
+#
+
+#
+# Ethernet (10000 Mbit)
 #
 
 #

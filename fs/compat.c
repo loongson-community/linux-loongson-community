@@ -614,7 +614,7 @@ out:
 }
 
 static inline long
-copy_iocb(long nr, u32 __user *ptr32, u64 __user *ptr64)
+copy_iocb(long nr, u32 __user *ptr32, struct iocb __user * __user *ptr64)
 {
 	compat_uptr_t uptr;
 	int i;
@@ -622,7 +622,7 @@ copy_iocb(long nr, u32 __user *ptr32, u64 __user *ptr64)
 	for (i = 0; i < nr; ++i) {
 		if (get_user(uptr, ptr32 + i))
 			return -EFAULT;
-		if (put_user((u64)compat_ptr(uptr), ptr64 + i))
+		if (put_user(compat_ptr(uptr), ptr64 + i))
 			return -EFAULT;
 	}
 	return 0;
@@ -643,7 +643,7 @@ compat_sys_io_submit(aio_context_t ctx_id, int nr, u32 __user *iocb)
 		nr = MAX_AIO_SUBMITS;
 	
 	iocb64 = compat_alloc_user_space(nr * sizeof(*iocb64));
-	ret = copy_iocb(nr, iocb, (u64 __user *) iocb64);
+	ret = copy_iocb(nr, iocb, iocb64);
 	if (!ret)
 		ret = sys_io_submit(ctx_id, nr, iocb64);
 	return ret;
@@ -744,9 +744,9 @@ extern int copy_mount_options (const void __user *, unsigned long *);
 #define SMBFS_NAME      "smbfs"
 #define NCPFS_NAME      "ncpfs"
 
-asmlinkage int compat_sys_mount(char __user * dev_name, char __user * dir_name,
-				char __user * type, unsigned long flags,
-				void __user * data)
+asmlinkage long compat_sys_mount(char __user * dev_name, char __user * dir_name,
+				 char __user * type, unsigned long flags,
+				 void __user * data)
 {
 	unsigned long type_page;
 	unsigned long data_page;

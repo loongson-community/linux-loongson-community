@@ -288,9 +288,8 @@ CONFIG_EEPRO100=y
 # CONFIG_VIA_RHINE is not set
 
 #
-# Gigabit Ethernet (1000/10000 Mbit)
+# Ethernet (1000 Mbit)
 #
-CONFIG_NET_GIGE=y
 # CONFIG_ACENIC is not set
 # CONFIG_DL2K is not set
 # CONFIG_E1000 is not set
@@ -303,6 +302,10 @@ CONFIG_MV64340_ETH=y
 CONFIG_MV64340_ETH_0=y
 CONFIG_MV64340_ETH_1=y
 CONFIG_MV64340_ETH_2=y
+
+#
+# Ethernet (10000 Mbit)
+#
 # CONFIG_IXGB is not set
 # CONFIG_S2IO is not set
 

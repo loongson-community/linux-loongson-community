@@ -319,7 +319,7 @@ error_fault:
 	err = -EFAULT;
 	kfree_skb(skb);
 error:
-	IP_INC_STATS(IpOutDiscards);
+	IP_INC_STATS(OutDiscards);
 	return err; 
 }
 
@@ -631,7 +631,7 @@ static int raw_ioctl(struct sock *sk, int cmd, unsigned long arg)
 	switch (cmd) {
 		case SIOCOUTQ: {
 			int amount = atomic_read(&sk->sk_wmem_alloc);
-			return put_user(amount, (int *)arg);
+			return put_user(amount, (int __user *)arg);
 		}
 		case SIOCINQ: {
 			struct sk_buff *skb;
@@ -642,12 +642,12 @@ static int raw_ioctl(struct sock *sk, int cmd, unsigned long arg)
 			if (skb != NULL)
 				amount = skb->len;
 			spin_unlock_irq(&sk->sk_receive_queue.lock);
-			return put_user(amount, (int *)arg);
+			return put_user(amount, (int __user *)arg);
 		}
 
 		default:
 #ifdef CONFIG_IP_MROUTE
-			return ipmr_ioctl(sk, cmd, arg);
+			return ipmr_ioctl(sk, cmd, (void __user *)arg);
 #else
 			return -ENOIOCTLCMD;
 #endif

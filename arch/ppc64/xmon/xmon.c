@@ -1402,7 +1402,7 @@ static void xmon_show_stack(unsigned long sp, unsigned long lr,
 		/* Look for "regshere" marker to see if this is
 		   an exception frame. */
 		if (mread(sp + 0x60, &marker, sizeof(unsigned long))
-		    && marker == 0x7265677368657265) {
+		    && marker == 0x7265677368657265ul) {
 			if (mread(sp + 0x70, &regs, sizeof(regs))
 			    != sizeof(regs)) {
 				printf("Couldn't read registers at %lx\n",
@@ -2512,7 +2512,7 @@ static void dump_slb(void)
 
 	printf("SLB contents of cpu %x\n", smp_processor_id());
 
-	for (i = 0; i < naca->slb_size; i++) {
+	for (i = 0; i < SLB_NUM_ENTRIES; i++) {
 		asm volatile("slbmfee  %0,%1" : "=r" (tmp) : "r" (i));
 		printf("%02d %016lx ", i, tmp);
 

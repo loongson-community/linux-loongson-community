@@ -1,7 +1,7 @@
 VERSION = 2
 PATCHLEVEL = 6
 SUBLEVEL = 7
-EXTRAVERSION =-rc2
+EXTRAVERSION =-rc3
 NAME=Zonked Quokka
 
 # *DOCUMENTATION*
@@ -903,6 +903,7 @@ help:
 	@echo  '  rpm		  - Build a kernel as an RPM package'
 	@echo  '  tags/TAGS	  - Generate tags file for editors'
 	@echo  '  cscope	  - Generate cscope index'
+	@echo  '  checkstack      - Generate a list of stack hogs'
 	@echo  ''
 	@echo  'Documentation targets:'
 	@$(MAKE) -f $(srctree)/Documentation/DocBook/Makefile dochelp
