@@ -67,7 +67,7 @@
 
 LEAF(lazy_fpu_switch)
 	mfc0	t0, CP0_STATUS			# enable cp1
-	li	t3, 0x20000000
+	li	t3, ST0_CU1
 	or	t0, t3
 	mtc0	t0, CP0_STATUS
 
@@ -140,7 +140,7 @@ LEAF(restore_fp)
 
 LEAF(init_fpu)
 	mfc0	t0, CP0_STATUS
-	li	t1, 0x20000000
+	li	t1, ST0_CU1
 	or	t0, t1
 	mtc0	t0, CP0_STATUS
 	sll	t0, t0, 5
