@@ -49,8 +49,6 @@ extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_mcheck(void);
 extern asmlinkage void handle_reserved(void);
 
-static char *cpu_names[] = CPU_NAMES;
-
 char watch_available = 0;
 char dedicated_iv_available = 0;
 
@@ -678,7 +676,7 @@ r4k:
 		break;
 
 	case CPU_R8000:
-		panic("unsupported CPU type %s.", cpu_names[mips_cpu.cputype]);
+		panic("R8000 is unsupported");
 		break;
 
 	case CPU_UNKNOWN:
