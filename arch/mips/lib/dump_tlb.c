@@ -11,6 +11,7 @@
 
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
