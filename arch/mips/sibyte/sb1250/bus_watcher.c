@@ -27,6 +27,7 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/interrupt.h>
 #include <linux/sched.h>
 #include <linux/proc_fs.h>
 #include <asm/system.h>
@@ -170,7 +171,7 @@ static void create_proc_decoder(struct bw_stats_struct *stats)
  * notes: possible re-entry due to multiple sources
  *        should check/indicate saturation
  */
-static void sibyte_bw_int(int irq, void *data, struct pt_regs *regs)
+static irqreturn_t sibyte_bw_int(int irq, void *data, struct pt_regs *regs)
 {
 	struct bw_stats_struct *stats = data;
 	unsigned long cntr;
@@ -199,6 +200,7 @@ static void sibyte_bw_int(int irq, void *data, struct pt_regs *regs)
 	bw_print_buffer(bw_buf, stats);
 	printk(bw_buf);
 #endif
+	return IRQ_HANDLED;
 }
 
 int __init sibyte_bus_watcher(void)
