@@ -326,6 +326,43 @@ static void waitcodec(struct ac97_codec *codec)
 	while (inl(s->io + VRC5477_CODEC_WR) & 0x80000000);
 }
 
+static int ac97_codec_not_present(struct ac97_codec *codec)
+{
+	struct vrc5477_ac97_state *s = 
+		(struct vrc5477_ac97_state *)codec->private_data;
+	unsigned long flags;
+	unsigned short count  = 0xffff; 
+
+	spin_lock_irqsave(&s->lock, flags);
+
+	/* wait until we can access codec registers */
+	do {
+	       if (!(inl(s->io + VRC5477_CODEC_WR) & 0x80000000))
+		       break;
+	} while (--count);
+
+	if (count == 0) {
+		spin_unlock_irqrestore(&s->lock, flags);
+		return -1;
+	}
+
+	/* write 0 to reset */
+	outl((AC97_RESET << 16) | 0, s->io + VRC5477_CODEC_WR);
+
+	/* test whether we get a response from ac97 chip */
+	count  = 0xffff; 
+	do { 
+	       if (!(inl(s->io + VRC5477_CODEC_WR) & 0x80000000))
+		       break;
+	} while (--count);
+
+	if (count == 0) {
+		spin_unlock_irqrestore(&s->lock, flags);
+		return -1;
+	}
+	spin_unlock_irqrestore(&s->lock, flags);
+	return 0;
+}
 
 /* --------------------------------------------------------------------- */
 
@@ -719,8 +756,8 @@ static inline void vrc5477_ac97_dac_interrupt(struct vrc5477_ac97_state *s)
 	unsigned temp;
 
 	/* next DMA transfer should already started */
-	ASSERT(inl(s->io + VRC5477_DAC1_CTRL) & VRC5477_DMA_WIP);
-	ASSERT(inl(s->io + VRC5477_DAC2_CTRL) & VRC5477_DMA_WIP);
+	// ASSERT(inl(s->io + VRC5477_DAC1_CTRL) & VRC5477_DMA_WIP);
+	// ASSERT(inl(s->io + VRC5477_DAC2_CTRL) & VRC5477_DMA_WIP);
 
 	/* let us set for next next DMA transfer */
 	temp = dac->nextOut + dac->fragSize*2;
@@ -755,9 +792,9 @@ static inline void vrc5477_ac97_dac_interrupt(struct vrc5477_ac97_state *s)
 	/* adjust count */
 	dac->count -= dac->fragSize;
 	if (dac->count <=0 ) {
-		ASSERT(dac->count == 0);
-		ASSERT(dac->nextIn == dac->nextOut);
 		/* buffer under run */
+		dac->count = 0;
+		dac->nextIn = dac->nextOut;
 		stop_dac(s);
 	}
 
@@ -1114,12 +1151,10 @@ copy_dac_from_user(struct vrc5477_ac97_state *s,
 		}
                 if (copyCount + db->nextIn > db->fragTotalSize) {
                         copyCount = db->fragTotalSize - db->nextIn;
-                        ASSERT((copyCount % db->fragSize) == 0);
                         ASSERT(copyCount > 0);
                 }
 
-		copyFragCount = (copyCount-1) >> db->fragShift;
-		copyFragCount = (copyFragCount+1) << db->fragShift;
+		copyFragCount = copyCount;
 		ASSERT(copyFragCount >= copyCount);
 
 		/* we copy differently based on the number channels */
@@ -1164,7 +1199,6 @@ copy_dac_from_user(struct vrc5477_ac97_state *s,
 			db->nextIn = 0;
 		}
 
-		ASSERT((copyFragCount % db->fragSize) == 0);
 		ASSERT( (count == 0) || (copyCount == copyFragCount));
 	}
 
@@ -1223,7 +1257,6 @@ static ssize_t vrc5477_ac97_write(struct file *file, const char *buffer,
 			}
 		} while (avail <= 0);
 	
-		ASSERT( (avail % db->fragSize) == 0);
 		copyCount = copy_dac_from_user(s, buffer, count, avail);
 		if (copyCount < 0) {
 			if (!ret) ret = -EFAULT;
@@ -1783,81 +1816,6 @@ MODULE_AUTHOR("Monta Vista Software, jsun@mvista.com or jsun@junsun.net");
 MODULE_DESCRIPTION("NEC Vrc5477 audio (AC97) Driver");
 MODULE_LICENSE("GPL");
 
-/* --------------------------------------------------------------------- */
-extern void jsun_scan_pci_bus(void);
-extern void vrc5477_show_pci_regs(void);
-extern void vrc5477_show_pdar_regs(void);
-
-/* -------------------------------------------------------- */
-#define         AC97_BASE               0xbb000000
-#define         myinl(x)                  *(volatile u32*)(AC97_BASE + (x))
-#define         myoutl(x,y)               *(volatile u32*)(AC97_BASE + (y)) = (x)
-
-u16 myrdcodec(u8 addr)
-{
-        u32 result;
-
-        /* wait until we can access codec registers */
-        // while (inl(VRC5477_CODEC_WR) & 0x80000000);
-
-        /* write the address and "read" command to codec */
-        addr = addr & 0x7f;
-        myoutl((addr << 16) | VRC5477_CODEC_WR_RWC, VRC5477_CODEC_WR);
-
-        /* get the return result */
-        udelay(100); /* workaround hardware bug */
-        // dump_memory(0xbb000000, 48);
-        while ( ((result=myinl(VRC5477_CODEC_RD)) & 0xc0000000) != 0xc0000000);
-        ASSERT(addr == ((result >> 16) & 0x7f) );
-        return result & 0xffff;
-}
-
-void mywrcodec(u8 addr, u16 data)
-{
-        /* wait until we can access codec registers */
-        while (myinl(VRC5477_CODEC_WR) & 0x80000000);
-
-        /* write the address and value to codec */
-        myoutl((addr << 16) | data, VRC5477_CODEC_WR);
-
-}
-
-
-void jsun_ac97_test(struct vrc5477_ac97_state *s)
-{
-        int i;
-
-        /* reset codec */
-	/*
-        wrcodec(&s->codec, 0, 0);
-        while (inl(s->io + VRC5477_CODEC_WR) & 0x80000000);
-	*/
-        mywrcodec(0, 0);
-        while (myinl(VRC5477_CODEC_WR) & 0x80000000);
-
-	for (i=0; i< 0x40; i+=4) {	
-		ASSERT(inl(s->io+i) == myinl(i));
-	}
-
-        printk("codec registers : ");
-        for (i=0; i<= 0x3a; i+=2) {
-                if ( (i%0x10) == 0) {
-                        printk("\n%02x\t", i);
-                }
-                // printk("%04x\t", rdcodec(&s->codec, i));
-                printk("%04x\t", myrdcodec(i));
-        }
-        printk("\n\n");
-        printk("codec registers : ");
-        for (i=0; i<= 0x3a; i+=2) {
-                if ( (i%0x10) == 0) {
-                        printk("\n%02x\t", i);
-                }
-                printk("%04x\t", rdcodec(&s->codec, i));
-        }
-        printk("\n\n");
-}
-
 static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 					const struct pci_device_id *pciid)
 {
@@ -1895,6 +1853,13 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 	 * adcChannels, adcRate is done in open() so that
          * no persistent state across file opens.
 	 */
+
+	/* test if get response from ac97, if not return */
+        if (ac97_codec_not_present(&(s->codec))) {
+		printk(KERN_ERR PFX "no ac97 codec\n");
+		goto err_region;
+
+        }
 
 	if (!request_region(s->io, pci_resource_len(pcidev,0),
 			    VRC5477_AC97_MODULE_NAME)) {
@@ -1957,26 +1922,18 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 			s->dacRate);
 	}
 
-#if 0
-	/* What's wrong with the codec chip defaults?
-	 * If at all, shouldn't this be done through ac97_codec.c instead?
-	 * This code just ends up making my system noisey at boot.
-	 * /dev/mixer reaches these anyway.  bdl
-	 */
-
         /* let us get the default volumne louder */
-        wrcodec(&s->codec, 0x2, 0);
-        wrcodec(&s->codec, 0x18, 0x0707);
-	/* mute line in loopback to line out */
-	wrcodec(&s->codec, 0x10, 0x8000);
+        wrcodec(&s->codec, 0x2, 0x1010);	/* master volume, middle */
+        wrcodec(&s->codec, 0xc, 0x10);		/* phone volume, middle */
+        // wrcodec(&s->codec, 0xe, 0x10);		/* misc volume, middle */
+	wrcodec(&s->codec, 0x10, 0x8000);	/* line-in 2 line-out disable */
+        wrcodec(&s->codec, 0x18, 0x0707);	/* PCM out (line out) middle */
+
 
 	/* by default we select line in the input */
 	wrcodec(&s->codec, 0x1a, 0x0404);
-	/* pick middle value for record gain */
-	// wrcodec(&s->codec, 0x1c, 0x0707);
 	wrcodec(&s->codec, 0x1c, 0x0f0f);
 	wrcodec(&s->codec, 0x1e, 0x07);
-#endif
 
 	/* enable the master interrupt but disable all others */
 	outl(VRC5477_INT_MASK_NMASK, s->io + VRC5477_INT_MASK);
@@ -2047,7 +2004,7 @@ static int __init init_vrc5477_ac97(void)
 {
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk("Vrc5477 AC97 driver: version v0.1 time " __TIME__ " " __DATE__ " by Jun Sun\n");
+	printk("Vrc5477 AC97 driver: version v0.2 time " __TIME__ " " __DATE__ " by Jun Sun\n");
 	return pci_module_init(&vrc5477_ac97_driver);
 }
 
