@@ -11,10 +11,8 @@
 #define _ASM_SYSTEM_H
 
 #include <linux/config.h>
-
 #include <asm/sgidefs.h>
 #include <asm/ptrace.h>
-
 #include <linux/kernel.h>
 
 __asm__ (
@@ -194,19 +192,18 @@ do { var = value; mb(); } while (0)
 #define set_wmb(var, value) \
 do { var = value; wmb(); } while (0)
 
-#if !defined (_LANGUAGE_ASSEMBLY)
 /*
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
 extern asmlinkage void *resume(void *last, void *next);
-#endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 #define prepare_to_switch()	do { } while(0)
 
 extern asmlinkage void lazy_fpu_switch(void *, void *);
 extern asmlinkage void init_fpu(void);
-extern asmlinkage void save_fp(void *);
+extern asmlinkage void save_fp(struct task_struct *);
+extern asmlinkage void restore_fp(struct task_struct *);
 
 #ifdef CONFIG_SMP
 #define SWITCH_DO_LAZY_FPU \
