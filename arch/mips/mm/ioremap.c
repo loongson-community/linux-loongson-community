@@ -113,7 +113,7 @@ static int remap_area_pages(unsigned long address, phys_t phys_addr,
 
 #define IS_LOW512(addr) (!((phys_t)(addr) & ~0x1fffffffUL))
 
-void * __ioremap_mode(phys_t phys_addr, phys_t size, unsigned long flags)
+void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 {
 	struct vm_struct * area;
 	unsigned long offset;
@@ -189,5 +189,5 @@ void __iounmap(void *addr)
         kfree(p);
 }
 
-EXPORT_SYMBOL(__ioremap_mode);
+EXPORT_SYMBOL(__ioremap);
 EXPORT_SYMBOL(__iounmap);
