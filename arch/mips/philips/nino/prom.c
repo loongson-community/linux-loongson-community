@@ -26,8 +26,7 @@ extern unsigned long tx3912fb_size;
 #endif
 
 /* Do basic initialization */
-void __init prom_init(int argc, char **argv,
-		unsigned long magic, int *prom_vec)
+void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
 {
 	unsigned long mem_size;
 

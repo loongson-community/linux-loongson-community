@@ -42,7 +42,21 @@ static void nino_machine_power_off(void)
 
 static void __init nino_board_init()
 {
-	/* Nothing for now */
+	/*
+	 * Set up the master clock module. The value set in
+	 * the Clock Control Register by WindowsCE is 0x00432ba.
+	 * We set a few values here and let the device drivers
+	 * handle the rest.
+	 *
+	 * NOTE: The UART clocks must be enabled here to provide
+	 *       enough time for them to settle.
+	 */
+	outl(0x00000000, TX3912_CLK_CTRL);
+	outl((TX3912_CLK_CTRL_SIBMCLKDIR | TX3912_CLK_CTRL_SIBMCLKDIV_2 |
+		TX3912_CLK_CTRL_ENSIBMCLK | TX3912_CLK_CTRL_CSERSEL |
+		TX3912_CLK_CTRL_CSERDIV_3 | TX3912_CLK_CTRL_ENCSERCLK |
+		TX3912_CLK_CTRL_ENUARTACLK | TX3912_CLK_CTRL_ENUARTBCLK),
+		TX3912_CLK_CTRL);
 }
 
 static __init void nino_time_init(void)
@@ -51,7 +65,7 @@ static __init void nino_time_init(void)
 	outl(TX3912_SYS_TIMER_VALUE, TX3912_TIMER_PERIOD);
 	outl(TX3912_TIMER_CTRL_ENPERTIMER, TX3912_TIMER_CTRL);
 
-	/* Enable the timer clock line */
+	/* Enable the master timer clock */
 	outl(inl(TX3912_CLK_CTRL) | TX3912_CLK_CTRL_ENTIMERCLK,
 		TX3912_CLK_CTRL);
 

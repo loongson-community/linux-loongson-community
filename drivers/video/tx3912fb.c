@@ -1,14 +1,14 @@
 /*
- * linux/drivers/video/tx3912fb.c
+ *  drivers/video/tx3912fb.c
  *
- * Copyright (C) 1999 Harald Koerfgen
- * Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
+ *  Copyright (C) 1999 Harald Koerfgen
+ *  Copyright (C) 2001 Steven Hill (sjhill@realitydiluted.com)
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License. See the file COPYING in the main directory of this archive for
  * more details.
  *
- * Framebuffer for LCD controller in TMPR3912/05 and PR31700 processors
+ *  Framebuffer for LCD controller in TMPR3912/05 and PR31700 processors
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -20,15 +20,16 @@
 #include <linux/init.h>
 #include <linux/pm.h>
 #include <linux/fb.h>
-#include <asm/bootinfo.h>
-#include <asm/uaccess.h>
 #include <video/fbcon.h>
 #include <video/fbcon-mfb.h>
 #include <video/fbcon-cfb2.h>
 #include <video/fbcon-cfb4.h>
 #include <video/fbcon-cfb8.h>
-#include "tx3912fb.h"
 #include <asm/io.h>
+#include <asm/bootinfo.h>
+#include <asm/uaccess.h>
+#include <asm/tx3912.h>
+#include "tx3912fb.h"
 
 /*
  * Frame buffer, palette and console structures
@@ -347,57 +348,59 @@ static int tx3912fb_ioctl(struct inode *inode, struct file *file, u_int cmd,
  */
 int __init tx3912fb_init(void)
 {
-	/* Stop the video logic when frame completes */
-	outl(inl(TX3912_VIDEO_CTRL1) | ENFREEZEFRAME, TX3912_VIDEO_CTRL1);
-	udelay(800);
-
 	/* Disable the video logic */
-	outl(inl(TX3912_VIDEO_CTRL1) & ~(ENVID | DISPON), TX3912_VIDEO_CTRL1);
+	outl(inl(TX3912_VIDEO_CTRL1) &
+		~(TX3912_VIDEO_CTRL1_ENVID | TX3912_VIDEO_CTRL1_DISPON),
+		TX3912_VIDEO_CTRL1);
 	udelay(200);
 
 	/* Set start address for DMA transfer */
-	outl(tx3912fb_paddr &
-		(TX3912_VIDCTRL3_VIDBANK_MASK | TX3912_VIDCTRL3_VIDBASEHI_MASK),
-		TX3912_VIDEO_CTRL3);
+	outl(tx3912fb_paddr, TX3912_VIDEO_CTRL3);
 
 	/* Set end address for DMA transfer */
-	outl((tx3912fb_paddr + tx3912fb_size + 1) &
-		TX3912_VIDCTRL4_VIDBASELO_MASK,
-		TX3912_VIDEO_CTRL4);
+	outl((tx3912fb_paddr + tx3912fb_size + 1), TX3912_VIDEO_CTRL4);
 
 	/* Set the pixel depth */
 	switch (tx3912fb_info.bits_per_pixel) {
 	case 1:
 		/* Monochrome */
-		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDCTRL1_BITSEL_MASK,
+		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDEO_CTRL1_BITSEL_MASK,
 			TX3912_VIDEO_CTRL1);
 		break;
 	case 4:
 		/* 4-bit gray */
-		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDCTRL1_BITSEL_MASK,
+		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDEO_CTRL1_BITSEL_MASK,
 			TX3912_VIDEO_CTRL1);
-		outl(inl(TX3912_VIDEO_CTRL1) | TX3912_VIDCTRL1_4BIT_GRAY,
+		outl(inl(TX3912_VIDEO_CTRL1) |
+			TX3912_VIDEO_CTRL1_BITSEL_4BIT_GRAY,
 			TX3912_VIDEO_CTRL1);
 		break;
 	case 8:
 		/* 8-bit color */
-		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDCTRL1_BITSEL_MASK,
+		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDEO_CTRL1_BITSEL_MASK,
 			TX3912_VIDEO_CTRL1);
-		outl(inl(TX3912_VIDEO_CTRL1) | TX3912_VIDCTRL1_8BIT_COLOR,
+		outl(inl(TX3912_VIDEO_CTRL1) |
+			TX3912_VIDEO_CTRL1_BITSEL_8BIT_COLOR,
 			TX3912_VIDEO_CTRL1);
 		break;
 	case 2:
 	default:
 		/* 2-bit gray */
-		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDCTRL1_BITSEL_MASK,
+		outl(inl(TX3912_VIDEO_CTRL1) & ~TX3912_VIDEO_CTRL1_BITSEL_MASK,
 			TX3912_VIDEO_CTRL1);
-		outl(inl(TX3912_VIDEO_CTRL1) | TX3912_VIDCTRL1_2BIT_GRAY,
+		outl(inl(TX3912_VIDEO_CTRL1) |
+			TX3912_VIDEO_CTRL1_BITSEL_2BIT_GRAY,
 			TX3912_VIDEO_CTRL1);
 		break;
 	}
 
+	/* Enable the video clock */
+	outl(inl(TX3912_CLK_CTRL) | TX3912_CLK_CTRL_ENVIDCLK,
+		TX3912_CLK_CTRL);
+
 	/* Unfreeze video logic and enable DF toggle */
-	outl(inl(TX3912_VIDEO_CTRL1) & ~(ENFREEZEFRAME | DFMODE),
+	outl(inl(TX3912_VIDEO_CTRL1) &
+		~(TX3912_VIDEO_CTRL1_ENFREEZEFRAME | TX3912_VIDEO_CTRL1_DFMODE),
 		TX3912_VIDEO_CTRL1);
 	udelay(200);
 
@@ -406,7 +409,9 @@ int __init tx3912fb_init(void)
 	udelay(200);
 
 	/* Enable the video logic */
-	outl(inl(TX3912_VIDEO_CTRL1) | (ENVID | DISPON), TX3912_VIDEO_CTRL1);
+	outl(inl(TX3912_VIDEO_CTRL1) |
+		(TX3912_VIDEO_CTRL1_ENVID | TX3912_VIDEO_CTRL1_DISPON),
+		TX3912_VIDEO_CTRL1);
 
 	strcpy(fb_info.modename, TX3912FB_NAME);
 	fb_info.changevar = NULL;

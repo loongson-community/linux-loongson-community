@@ -31,6 +31,13 @@ static void enable_irq6(unsigned int irq)
 		outl(inl(TX3912_INT5_ENABLE) | TX3912_INT5_PERINT,
 			TX3912_INT5_ENABLE);
 	}
+	if(irq == 3) {
+		outl(inl(TX3912_INT6_ENABLE) |
+			TX3912_INT6_ENABLE_PRIORITYMASK_UARTARXINT,
+			TX3912_INT6_ENABLE);
+		outl(inl(TX3912_INT2_ENABLE) | TX3912_INT2_UARTA_RX_BITS,
+			TX3912_INT2_ENABLE);
+	}
 }
 
 static unsigned int startup_irq6(unsigned int irq)
@@ -46,8 +53,17 @@ static void disable_irq6(unsigned int irq)
 		outl(inl(TX3912_INT6_ENABLE) &
 			~TX3912_INT6_ENABLE_PRIORITYMASK_PERINT,
 			TX3912_INT6_ENABLE);
+		outl(inl(TX3912_INT5_ENABLE) & ~TX3912_INT5_PERINT,
+			TX3912_INT5_ENABLE);
 		outl(inl(TX3912_INT5_CLEAR) | TX3912_INT5_PERINT,
 			TX3912_INT5_CLEAR);
+	}
+	if(irq == 3) {
+		outl(inl(TX3912_INT6_ENABLE) &
+			~TX3912_INT6_ENABLE_PRIORITYMASK_UARTARXINT,
+			TX3912_INT6_ENABLE);
+		outl(inl(TX3912_INT2_ENABLE) & ~TX3912_INT2_UARTA_RX_BITS,
+			TX3912_INT2_ENABLE);
 	}
 }
 
@@ -75,7 +91,13 @@ void irq6_dispatch(struct pt_regs *regs)
 {
 	int irq = -1;
 
-	if(inl(TX3912_INT6_STATUS) & TX3912_INT6_STATUS_INTVEC_PERINT) {
+	if((inl(TX3912_INT6_STATUS) & TX3912_INT6_STATUS_INTVEC_UARTARXINT) ==
+		TX3912_INT6_STATUS_INTVEC_UARTARXINT) {
+		irq = 3;
+		goto done;
+	}
+	if((inl(TX3912_INT6_STATUS) & TX3912_INT6_STATUS_INTVEC_PERINT) ==
+		TX3912_INT6_STATUS_INTVEC_PERINT) {
 		irq = 0;
 		goto done;
 	}
@@ -188,12 +210,16 @@ void __init nino_irq_setup(void)
 	outl(0xffffffff, TX3912_INT4_CLEAR);
 	outl(0xffffffff, TX3912_INT5_CLEAR);
 
-	/* Enable interrupts */
+	/*
+	 * Disable all PR31700 interrupts. We let the various
+	 * device drivers in the system register themselves
+	 * and set the proper hardware bits.
+	 */
 	outl(0x00000000, TX3912_INT1_ENABLE);
-	outl(0xfffff000, TX3912_INT2_ENABLE);
+	outl(0x00000000, TX3912_INT2_ENABLE);
 	outl(0x00000000, TX3912_INT3_ENABLE);
 	outl(0x00000000, TX3912_INT4_ENABLE);
-	outl(0xffffffff, TX3912_INT5_ENABLE);
+	outl(0x00000000, TX3912_INT5_ENABLE);
 
 	/* Initialize IRQ vector table */
 	init_generic_irq();
@@ -203,10 +229,8 @@ void __init nino_irq_setup(void)
 		hw_irq_controller *handler = NULL;
 		if (i == 0 || i == 3)
 			handler		= &irq6_type;
-		else if (i == 2)
-			handler		= &irq4_type;
 		else
-			handler		= NULL;
+			handler		= &irq4_type;
 
 		irq_desc[i].status	= IRQ_DISABLED;
 		irq_desc[i].action	= 0;
