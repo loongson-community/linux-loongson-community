@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.11-rc2
-# Sun Jan 30 19:02:57 2005
+# Wed Feb  2 20:14:24 2005
 #
 CONFIG_MIPS=y
 
@@ -190,6 +190,7 @@ CONFIG_PCMCIA_AU1X00=m
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
+# CONFIG_PM is not set
 
 #
 # Device Drivers
