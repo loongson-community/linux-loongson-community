@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: a.out.h,v 1.1 1999/08/18 23:37:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -27,7 +27,7 @@ struct exec
 
 #ifdef __KERNEL__
 
-#define STACK_TOP	TASK_SIZE
+#define STACK_TOP (current->thread.mflags & MF_32BIT ? 0x7fff8000 : TASK_SIZE)
 
 #endif
 

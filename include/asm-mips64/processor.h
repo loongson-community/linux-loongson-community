@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.3 1999/09/28 22:27:19 ralf Exp $
+/* $Id: processor.h,v 1.4 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -141,6 +141,7 @@ struct thread_struct {
 	unsigned long trap_no;
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
+#define MF_32BIT  4			/* Process is in 32-bit compat mode */
 	unsigned long mflags;
 	mm_segment_t current_ds;
 	unsigned long irix_trampoline;  /* Wheee... */
@@ -178,7 +179,6 @@ struct thread_struct {
 
 #ifdef __KERNEL__
 
-/* Linus sez 16kb is good for you ...  */
 #define KERNEL_STACK_SIZE 0x4000
 
 #if !defined (_LANGUAGE_ASSEMBLY)
