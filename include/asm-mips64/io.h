@@ -264,24 +264,24 @@ __OUTS(w,l,4)
  *  - you don't have to worry about side effects within the __builtin..
  */
 #define outb(val,port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outbc((val),(port)) : \
-	__outb((val),(port)))
+((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
+	__outbc((val),(port)^(3)) : \
+	__outb((val),(port)^(3)))
 
 #define inb(port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inbc(port) : \
-	__inb(port))
+((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
+	__inbc((port)^(3)) : \
+	__inb((port)^(3)))
 
 #define outb_p(val,port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outbc_p((val),(port)) : \
-	__outb_p((val),(port)))
+((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
+	__outbc_p((val),(port)^(3)) : \
+	__outb_p((val),(port)^(3)))
 
 #define inb_p(port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inbc_p(port) : \
-	__inb_p(port))
+((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
+	__inbc_p((port)^(3)) : \
+	__inb_p((port)^(3)))
 
 #define outw(val,port) \
 ((__builtin_constant_p(((port)^(2))) && ((port)^(2)) < 32768) ? \
@@ -294,14 +294,14 @@ __OUTS(w,l,4)
 	__inw((port)^(2)))
 
 #define outw_p(val,port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outwc_p((val),(port)) : \
-	__outw_p((val),(port)))
+((__builtin_constant_p((port)^(2)) && ((port)^(2)) < 32768) ? \
+	__outwc_p((val),(port)^(2)) : \
+	__outw_p((val),(port)^(2)))
 
 #define inw_p(port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inwc_p(port) : \
-	__inw_p(port))
+((__builtin_constant_p((port)^(2)) && ((port)^(2)) < 32768) ? \
+	__inwc_p((port)^(2)) : \
+	__inw_p((port)^(2)))
 
 #define outl(val,port) \
 ((__builtin_constant_p((port)) && (port) < 32768) ? \
