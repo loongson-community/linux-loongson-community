@@ -248,8 +248,8 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 void __devinit smp_prepare_boot_cpu(void)
 {
 	/*
-	 * XXXKW ever NOT physical CPU 0?  Note that
-	 * smp_processor_id() probably isn't valid yet
+	 * This assumes that bootup is always handled by the processor
+	 * with the logic and physical number 0.
 	 */
 	__cpu_number_map[0] = 0;
 	__cpu_logical_map[0] = 0;
