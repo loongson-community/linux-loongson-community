@@ -8,3 +8,4 @@ tags    TAGS
 *.Z     *.elc   *.ln
 .depend
 .*.flags
+.*.cmd

@@ -1,3 +1,4 @@
 .depend
 .*.flags
 lk201-map.c
+.*.cmd

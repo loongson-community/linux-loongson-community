@@ -3,3 +3,4 @@
 bootsect
 setup
 zImage
+.*.cmd

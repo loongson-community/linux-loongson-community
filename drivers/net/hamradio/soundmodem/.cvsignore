@@ -8,3 +8,4 @@ sm_tbl_hapn4800.h
 sm_tbl_fsk9600.h
 sm_tbl_afsk2400_8.h
 sm_tbl_afsk2400_7.h
+.*.cmd

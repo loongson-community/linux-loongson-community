@@ -1,3 +1,4 @@
 .depend
 .*.flags
 offset.s offset.h
+.*.cmd

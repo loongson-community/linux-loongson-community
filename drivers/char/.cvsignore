@@ -4,3 +4,4 @@ conmakehash
 consolemap_deftbl.c
 qtronixmap.c
 uni_hash.tbl
+.*.cmd
