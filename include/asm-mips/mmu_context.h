@@ -154,7 +154,7 @@ drop_mmu_context(struct mm_struct *mm, unsigned cpu)
 
 	if (test_bit(cpu, &mm->cpu_vm_mask))  {
 		get_new_mmu_context(mm, cpu);
-		write_c0_entryhi(cpu_context(cpu, mm) & 0xff);
+		write_c0_entryhi(cpu_asid(cpu, mm));
 	} else {
 		/* will get a new context next time */
 		cpu_context(cpu, mm) = 0;
