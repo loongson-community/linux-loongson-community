@@ -1047,7 +1047,6 @@ static inline void coherency_setup(void)
 		clear_c0_config(CONF_CU);
 		break;
 	}
-
 }
 
 void __init ld_mmu_r4xx0(void)
