@@ -20,9 +20,6 @@
 #ifndef _MIPS_SEADINT_H
 #define _MIPS_SEADINT_H
 
-/*
- * Number of SEAD's only two supported IRQs
- */
 #define SEADINT_UART0     2
 #define SEADINT_UART1     3
 
