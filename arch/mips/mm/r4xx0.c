@@ -102,6 +102,69 @@ static void r4k_clear_page_d32(unsigned long page)
 
 
 /*
+ * This flavour of r4k_clear_page is for the R4600 V1.x.  Cite from the
+ * IDT R4600 V1.7 errata:
+ *
+ *  18. The CACHE instructions Hit_Writeback_Invalidate_D, Hit_Writeback_D,
+ *      Hit_Invalidate_D and Create_Dirty_Exclusive_D should only be
+ *      executed if there is no other dcache activity. If the dcache is
+ *      accessed for another instruction immeidately preceding when these
+ *      cache instructions are executing, it is possible that the dcache 
+ *      tag match outputs used by these cache instructions will be 
+ *      incorrect. These cache instructions should be preceded by at least
+ *      four instructions that are not any kind of load or store 
+ *      instruction.
+ *
+ *      This is not allowed:    lw
+ *                              nop
+ *                              nop
+ *                              nop
+ *                              cache       Hit_Writeback_Invalidate_D
+ *
+ *      This is allowed:        lw
+ *                              nop
+ *                              nop
+ *                              nop
+ *                              nop
+ *                              cache       Hit_Writeback_Invalidate_D
+ */
+static void r4k_clear_page_r4600_v1(unsigned long page)
+{
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%2\n"
+		"1:\tnop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"cache\t%3,(%0)\n\t"
+		"sd\t$0,(%0)\n\t"
+		"sd\t$0,8(%0)\n\t"
+		"sd\t$0,16(%0)\n\t"
+		"sd\t$0,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"cache\t%3,-32(%0)\n\t"
+		"sd\t$0,-32(%0)\n\t"
+		"sd\t$0,-24(%0)\n\t"
+		"sd\t$0,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sd\t$0,-8(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (page)
+		:"0" (page),
+		 "I" (PAGE_SIZE),
+		 "i" (Create_Dirty_Excl_D)
+		:"$1","memory");
+}
+
+/*
  * This is still inefficient.  We only can do better if we know the
  * virtual address where the copy will be accessed.
  */
@@ -192,6 +255,74 @@ static void r4k_copy_page_d32(unsigned long to, unsigned long from)
 		"sw\t%3,20(%0)\n\t"
 		"sw\t%4,24(%0)\n\t"
 		"sw\t%5,28(%0)\n\t"
+		"cache\t%9,32(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"daddiu\t%1,64\n\t"
+		"lw\t%2,-32(%1)\n\t"
+		"lw\t%3,-28(%1)\n\t"
+		"lw\t%4,-24(%1)\n\t"
+		"lw\t%5,-20(%1)\n\t"
+		"sw\t%2,-32(%0)\n\t"
+		"sw\t%3,-28(%0)\n\t"
+		"sw\t%4,-24(%0)\n\t"
+		"sw\t%5,-20(%0)\n\t"
+		"lw\t%2,-16(%1)\n\t"
+		"lw\t%3,-12(%1)\n\t"
+		"lw\t%4,-8(%1)\n\t"
+		"lw\t%5,-4(%1)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sw\t%5,-4(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2),
+		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
+		:"0" (to), "1" (from),
+		 "I" (PAGE_SIZE),
+		 "i" (Create_Dirty_Excl_D));
+}
+
+/*
+ * Again a special version for the R4600 V1.x
+ */
+static void r4k_copy_page_r4600_v1(unsigned long to, unsigned long from)
+{
+	unsigned long dummy1, dummy2;
+	unsigned long reg1, reg2, reg3, reg4;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%8\n"
+		"1:\tnop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"\tcache\t%9,(%0)\n\t"
+		"lw\t%2,(%1)\n\t"
+		"lw\t%3,4(%1)\n\t"
+		"lw\t%4,8(%1)\n\t"
+		"lw\t%5,12(%1)\n\t"
+		"sw\t%2,(%0)\n\t"
+		"sw\t%3,4(%0)\n\t"
+		"sw\t%4,8(%0)\n\t"
+		"sw\t%5,12(%0)\n\t"
+		"lw\t%2,16(%1)\n\t"
+		"lw\t%3,20(%1)\n\t"
+		"lw\t%4,24(%1)\n\t"
+		"lw\t%5,28(%1)\n\t"
+		"sw\t%2,16(%0)\n\t"
+		"sw\t%3,20(%0)\n\t"
+		"sw\t%4,24(%0)\n\t"
+		"sw\t%5,28(%0)\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
+		"nop\n\t"
 		"cache\t%9,32(%0)\n\t"
 		"daddiu\t%0,64\n\t"
 		"daddiu\t%1,64\n\t"
@@ -1693,6 +1824,7 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
 	addr &= ~(dc_lsize - 1);
+	__asm__ __volatile__("nop;nop;nop;nop");
 	flush_dcache_line(addr);
 	flush_dcache_line(addr + dc_lsize);
 	flush_icache_line(addr);
@@ -2254,8 +2386,13 @@ static void setup_noscache_funcs(void)
 		flush_page_to_ram = r4k_flush_page_to_ram_d16i16;
 		break;
 	case 32:
-		clear_page = r4k_clear_page_d32;
-		copy_page = r4k_copy_page_d32;
+		if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2010) {
+			clear_page = r4k_clear_page_r4600_v1;
+			copy_page = r4k_copy_page_r4600_v1;
+		} else {
+			clear_page = r4k_clear_page_d32;
+			copy_page = r4k_copy_page_d32;
+		}
 		flush_cache_all = r4k_flush_cache_all_d32i32;
 		flush_cache_mm = r4k_flush_cache_mm_d32i32;
 		flush_cache_range = r4k_flush_cache_range_d32i32;
