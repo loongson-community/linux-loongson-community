@@ -57,13 +57,16 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 /*
  * This handles the memory map.
  * We handle pages at KSEG0 for kernels with upto 512mb of memory,
- * at XKPHYS for kernels with more than that.
+ * at XKPHYS with a suitable caching mode for kernels with more than that.
  */
 #if defined(CONFIG_SGI_IP22) || defined(CONFIG_MIPS_ATLAS) || \
     defined(CONFIG_MIPS_MALTA)
 #define PAGE_OFFSET	0xffffffff80000000UL
 #endif
-#if defined(CONFIG_SGI_IP27) || defined(CONFIG_SGI_IP32)
+#if defined(CONFIG_SGI_IP32)
+#define PAGE_OFFSET	0x9800000000000000UL
+#endif
+#if defined(CONFIG_SGI_IP27)
 #define PAGE_OFFSET	0xa800000000000000UL
 #endif
 
