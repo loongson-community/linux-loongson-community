@@ -119,9 +119,10 @@ struct sgiaudio_chan_ops {
 	if (!cnt)								\
 		printk("hal2: failed while waiting for indirect trans.\n");	\
 										\
-	printk("hal2: finished waiting at cnt:%d isr:%04hx ", regs->isr, cnt);	\
+	printk("hal2: finished waiting at cnt:%d isr:%04hx ", cnt, regs->isr);	\
 	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",			\
 	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);			\
+	udelay(1000);								\
 }										\
 
 static unsigned short ireg_read(unsigned short address)
@@ -137,6 +138,7 @@ static unsigned short ireg_read(unsigned short address)
 static void ireg_write(unsigned short address, unsigned short val)
 {
 	h2_ctrl->idr0 = val;
+	udelay(1000);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -146,6 +148,7 @@ static void ireg_write2(unsigned short address, unsigned short val0, unsigned
 {
 	h2_ctrl->idr0 = val0;
 	h2_ctrl->idr1 = val1;
+	udelay(1000);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -157,6 +160,7 @@ static void ireg_write4(unsigned short address, unsigned short val0, unsigned
 	h2_ctrl->idr1 = val1;
 	h2_ctrl->idr2 = val2;
 	h2_ctrl->idr3 = val3;
+	udelay(1000);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -170,6 +174,7 @@ static void ireg_setbit(unsigned short write_address, unsigned short
 	INDIRECT_WAIT(h2_ctrl);
 	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp | bit;
+	udelay(1000);
 	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
@@ -183,18 +188,21 @@ static void ireg_clearbit(unsigned short write_address, unsigned short
 	INDIRECT_WAIT(h2_ctrl);
 	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp & ~bit;
+	udelay(1000);
 	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
 
 static void hal2_reset(void)
 {
-	h2_ctrl->isr &= ~H2_ISR_GLOBAL_RESET_N;		/* reset the card */
 #if 0
 	h2_ctrl->isr &= ~H2_ISR_CODEC_RESET_N;
 	h2_ctrl->isr |= H2_ISR_CODEC_RESET_N;
 #endif
+	h2_ctrl->isr &= ~H2_ISR_GLOBAL_RESET_N;		/* reset the card */
+	udelay(1000);
 	h2_ctrl->isr |= H2_ISR_GLOBAL_RESET_N;		/* and reactivate it */
+	udelay(1000);
 }
 
 static int hal2_probe(void)
