@@ -5,7 +5,6 @@
 
 obj-y			:= baget.o print.o setup.o time.o irq.o bagetIRQ.o \
 			   reset.o
-obj-$(CONFIG_SERIAL)	+= vacserial.o
 obj-$(CONFIG_VAC_RTC)	+= vacrtc.o
 
 EXTRA_AFLAGS := $(CFLAGS)

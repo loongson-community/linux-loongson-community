@@ -458,6 +458,12 @@ config ITE_GPIO
 	tristate "ITE GPIO"
 	depends on MIPS && MIPS_ITE8172
 
+config VAC_SERIAL
+	tristate "Baget VAC serial support (EXPERIMENTAL)"
+	depends on EXPERIMENTAL && BAGET_MIPS
+	help
+	  This enables the driver for the Baget's VAC RS232 seriall driver.
+
 config A2232
 	tristate "Commodore A2232 serial support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && ZORRO
