@@ -606,7 +606,7 @@ static int ioc3_mii_init(struct net_device *dev, struct ioc3_private *ip,
 	phy = -1;
 	for (i = 0; i < 32; i++) {
 		word = mii_read(ioc3, i, 2);
-		if ((word != 0xffff) & (word != 0x0000)) {
+		if ((word != 0xffff) && (word != 0x0000)) {
 			phy = i;
 			break;			/* Found a PHY		*/
 		}
