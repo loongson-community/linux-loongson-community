@@ -224,6 +224,14 @@ do {	current->thread.mflags &= ~MF_ABI_MASK;			\
 
 #endif /* CONFIG_MIPS64 */
 
+extern void dump_regs(elf_greg_t *, struct pt_regs *regs);
+extern int dump_task_fpu(struct task_struct *, elf_fpregset_t *);
+
+#define ELF_CORE_COPY_REGS(elf_regs, regs)			\
+	dump_regs((elf_greg_t *)&(elf_regs), regs);
+#define ELF_CORE_COPY_FPREGS(tsk, elf_fpregs)			\
+	dump_task_fpu(tsk, elf_fpregs)
+
 #endif /* __KERNEL__ */
 
 /* This one accepts IRIX binaries.  */
@@ -231,10 +239,6 @@ do {	current->thread.mflags &= ~MF_ABI_MASK;			\
 
 #define USE_ELF_CORE_DUMP
 #define ELF_EXEC_PAGESIZE	PAGE_SIZE
-
-#define ELF_CORE_COPY_REGS(_dest,_regs)				\
-	memcpy((char *) &_dest, (char *) _regs,			\
-	       sizeof(struct pt_regs));
 
 /* This yields a mask that user programs can use to figure out what
    instruction set this cpu supports.  This could be done in userspace,
