@@ -318,3 +318,8 @@ EXPORT(sysn32_call_table)
 	PTR	sys_epoll_ctl
 	PTR	sys_epoll_wait
 	PTR	sys_remap_file_pages		/* 6210 */
+	PTR	sys_ni_syscall
+	PTR	sys_fcntl
+	PTR	sys_newstat
+	PTR	sys_newfstat
+	PTR	sys_newlstat			/* 6215 */
