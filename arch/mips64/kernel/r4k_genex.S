@@ -36,6 +36,11 @@
 
 	__INIT
 
+/* A temporary overflow handler used by check_daddi(). */
+
+	BUILD_HANDLER  daddi_ov daddi_ov none silent	/* #12 */
+
+
 /* General exception handler for CPUs with virtual coherency exception.
  *
  * Be careful when changing this, it has to be at most 256 (as a special
