@@ -37,6 +37,7 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 #include <asm/mach-au1x00/au1000.h>
 #include <asm/mach-au1x00/au1xxx_dbdma.h>
 #include <asm/system.h>
@@ -747,7 +748,7 @@ au1xxx_dbdma_chan_free(u32 chanid)
 	kfree(ctp);
 }
 
-static void
+static irqreturn_t
 dbdma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	u32	intstat;
@@ -774,6 +775,7 @@ dbdma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	ctp->cur_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
 	
+	return IRQ_HANDLED;
 }
 
 static void
