@@ -12,7 +12,6 @@
 #include <linux/types.h>
 #include <linux/console.h>
 #include <linux/sched.h>
-#include <linux/mc146818rtc.h>
 #include <linux/pc_keyb.h>
 
 #include <asm/addrspace.h>
@@ -20,6 +19,7 @@
 #include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>
+#include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/sgimc.h>
 #include <asm/sgi/sgihpc.h>
@@ -37,7 +37,7 @@ static int remote_debug = 0;
 extern void console_setup(char *);
 #endif
 
-extern unsigned long r4k_interval; /* Cycle counter ticks per 1/HZ seconds */
+extern void sgitime_init(void);
 
 extern struct rtc_ops indy_rtc_ops;
 void indy_reboot_setup(void);
@@ -118,101 +118,6 @@ struct kbd_ops sgi_kbd_ops = {
 	sgi_read_status
 };
 
-static unsigned long dosample(volatile unsigned char *tcwp,
-                              volatile unsigned char *tc2p)
-{
-        unsigned long ct0, ct1;
-        unsigned char msb, lsb;
-
-        /* Start the counter. */
-        *tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MRGEN);
-        *tc2p = (SGINT_TCSAMP_COUNTER & 0xff);
-        *tc2p = (SGINT_TCSAMP_COUNTER >> 8);
-
-        /* Get initial counter invariant */
-        ct0 = read_32bit_cp0_register(CP0_COUNT);
-
-        /* Latch and spin until top byte of counter2 is zero */
-        do {
-                *tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CLAT);
-                lsb = *tc2p;
-                msb = *tc2p;
-                ct1 = read_32bit_cp0_register(CP0_COUNT);
-        } while(msb);
-
-	/* Stop the counter. */
-	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MSWST);
-
-	/*
-	 * Return the difference, this is how far the r4k counter increments
-	 * for every 1/HZ seconds. We round off the nearest 1 MHz of master
-	 * clock (= 1000000 / 100 / 2 = 5000 count).
-	 */
-
-	return ((ct1 - ct0) / 5000) * 5000;
-}
-
-#define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
-
-void sgi_time_init (struct irqaction *irq) {
-	/* Here we need to calibrate the cycle counter to at least be close.
-	 * We don't need to actually register the irq handler because that's
-	 * all done in indyIRQ.S.
-	 */
-        struct sgi_ioc_timers *p;
-        volatile unsigned char *tcwp, *tc2p;
-	unsigned long r4k_ticks[3];
-	unsigned long r4k_next;
-
-        /* Figure out the r4k offset, the algorithm is very simple
-         * and works in _all_ cases as long as the 8254 counter
-         * register itself works ok (as an interrupt driving timer
-         * it does not because of bug, this is why we are using
-         * the onchip r4k counter/compare register to serve this
-         * purpose, but for r4k_offset calculation it will work
-         * ok for us).  There are other very complicated ways
-         * of performing this calculation but this one works just
-         * fine so I am not going to futz around. ;-)
-         */
-        p = ioc_timers;
-        tcwp = &p->tcword;
-        tc2p = &p->tcnt2;
-
-        printk("Calibrating system timer... ");
-        dosample(tcwp, tc2p);                   /* Prime cache. */
-        dosample(tcwp, tc2p);                   /* Prime cache. */
-	/* Zero is NOT an option. */
-	do {
-		r4k_ticks[0] = dosample (tcwp, tc2p);
-	} while (!r4k_ticks[0]);
-	do {
-		r4k_ticks[1] = dosample (tcwp, tc2p);
-	} while (!r4k_ticks[1]);
-
-	if (r4k_ticks[0] != r4k_ticks[1]) {
-		printk ("warning: timer counts differ, retrying...");
-		r4k_ticks[2] = dosample (tcwp, tc2p);
-		if (r4k_ticks[2] == r4k_ticks[0] 
-		    || r4k_ticks[2] == r4k_ticks[1])
-			r4k_interval = r4k_ticks[2];
-		else {
-			printk ("disagreement, using average...");
-			r4k_interval = (r4k_ticks[0] + r4k_ticks[1] 
-					+ r4k_ticks[2]) / 3;
-		}
-	} else
-		r4k_interval = r4k_ticks[0];
-
-        printk("%d [%d.%02d MHz CPU]\n", (int) r4k_interval, 
-		(int) (r4k_interval / 5000), (int) (r4k_interval % 5000) / 50);
-
-	/* Set ourselves up for future interrupts */
-        r4k_next = (read_32bit_cp0_register(CP0_COUNT) + r4k_interval);
-        write_32bit_cp0_register(CP0_COMPARE, r4k_next);
-        change_cp0_status(ST0_IM, ALLINTS);
-	sti ();
-}
-
 void __init sgi_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
@@ -221,9 +126,7 @@ void __init sgi_setup(void)
 #ifdef CONFIG_REMOTE_DEBUG
 	char *kgdb_ttyd;
 #endif
-
-	board_time_init = sgi_time_init;
-
+	sgitime_init();
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the
 	 * boardID and whether this is a Guiness or a FullHouse machine.
@@ -301,8 +204,5 @@ void __init sgi_setup(void)
 	kbd_ops = &sgi_kbd_ops;
 #ifdef CONFIG_PSMOUSE
 	aux_device_present = 0xaa;
-#endif
-#ifdef CONFIG_VIDEO_VINO
-	init_vino();
 #endif
 }

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1998, 2001 by Ralf Baechle
  */
-#include <linux/mc146818rtc.h>
+#include <asm/ds1286.h>
 #include <asm/sgi/sgihpc.h>
 
 static unsigned char indy_rtc_read_data(unsigned long addr)

@@ -61,8 +61,8 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 
 static unsigned int ds1286_poll(struct file *file, poll_table *wait);
 
-void get_rtc_time (struct rtc_time *rtc_tm);
-void get_rtc_alm_time (struct rtc_time *alm_tm);
+void ds1286_get_alm_time (struct rtc_time *alm_tm);
+void ds1286_get_exact_time(struct rtc_time *rtc_tm);
 
 void set_rtc_irq_bit(unsigned char bit);
 void clear_rtc_irq_bit(unsigned char bit);
@@ -173,7 +173,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 		 * tm_min, and tm_sec values are filled in.
 		 */
 
-		get_rtc_alm_time(&wtime);
+		ds1286_get_alm_time(&wtime);
 		break; 
 	}
 	case RTC_ALM_SET:	/* Store a time into the alarm */
@@ -215,15 +215,12 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 	}
 	case RTC_RD_TIME:	/* Read the time/date from RTC	*/
 	{
-		get_rtc_time(&wtime);
+		ds1286_get_exact_time(&wtime);
 		break;
 	}
 	case RTC_SET_TIME:	/* Set the RTC */
 	{
 		struct rtc_time rtc_tm;
-		unsigned char mon, day, hrs, min, sec, leap_yr;
-		unsigned char save_control;
-		unsigned int yrs, flags;
 
 		if (!capable(CAP_SYS_TIME))
 			return -EACCES;
@@ -231,57 +228,8 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 		if (copy_from_user(&rtc_tm, (struct rtc_time*)arg,
 				   sizeof(struct rtc_time)))
 			return -EFAULT;
-
-		yrs = rtc_tm.tm_year + 1900;
-		mon = rtc_tm.tm_mon + 1;   /* tm_mon starts at zero */
-		day = rtc_tm.tm_mday;
-		hrs = rtc_tm.tm_hour;
-		min = rtc_tm.tm_min;
-		sec = rtc_tm.tm_sec;
-
-		if (yrs < 1970)
-			return -EINVAL;
-
-		leap_yr = ((!(yrs % 4) && (yrs % 100)) || !(yrs % 400));
-
-		if ((mon > 12) || (day == 0))
-			return -EINVAL;
-
-		if (day > (days_in_mo[mon] + ((mon == 2) && leap_yr)))
-			return -EINVAL;
-
-		if ((hrs >= 24) || (min >= 60) || (sec >= 60))
-			return -EINVAL;
-
-		if ((yrs -= 1940) > 255)    /* They are unsigned */
-			return -EINVAL;
-
-		if (yrs >= 100)
-			yrs -= 100;
-
-		BIN_TO_BCD(sec);
-		BIN_TO_BCD(min);
-		BIN_TO_BCD(hrs);
-		BIN_TO_BCD(day);
-		BIN_TO_BCD(mon);
-		BIN_TO_BCD(yrs);
-
-		spin_lock_irqsave(&ds1286_lock, flags);
-		save_control = CMOS_READ(RTC_CMD);
-		CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
-
-		CMOS_WRITE(yrs, RTC_YEAR);
-		CMOS_WRITE(mon, RTC_MONTH);
-		CMOS_WRITE(day, RTC_DATE);
-		CMOS_WRITE(hrs, RTC_HOURS);
-		CMOS_WRITE(min, RTC_MINUTES);
-		CMOS_WRITE(sec, RTC_SECONDS);
-		CMOS_WRITE(0, RTC_HUNDREDTH_SECOND);
-
-		CMOS_WRITE(save_control, RTC_CMD);
-		spin_unlock_irqrestore(&ds1286_lock, flags);
-
-		return 0;
+		
+		return ds1286_set_time(&rtc_tm);
 	}
 	default:
 		return -EINVAL;
@@ -369,7 +317,7 @@ int get_ds1286_status(char *buf)
 
 	p = buf;
 
-	get_rtc_time(&tm);
+	ds1286_get_exact_time(&tm);
 	hundredth = CMOS_READ(RTC_HUNDREDTH_SECOND);
 	BCD_TO_BIN(hundredth);
 
@@ -384,7 +332,7 @@ int get_ds1286_status(char *buf)
 	 * match any value for that particular field. Values that are
 	 * greater than a valid time, but less than 0xc0 shouldn't appear.
 	 */
-	get_rtc_alm_time(&tm);
+	ds1286_get_alm_time(&tm);
 	p += sprintf(p, "alarm\t\t: %s ", days[tm.tm_wday]);
 	if (tm.tm_hour <= 24)
 		p += sprintf(p, "%02d:", tm.tm_hour);
@@ -441,12 +389,10 @@ static inline unsigned char ds1286_is_updating(void)
 	return CMOS_READ(RTC_CMD) & RTC_TE;
 }
 
-void get_rtc_time(struct rtc_time *rtc_tm)
+void ds1286_get_exact_time(struct rtc_time *rtc_tm)
 {
 	unsigned long uip_watchdog = jiffies;
-	unsigned char save_control;
-	unsigned int flags;
-
+	
 	/*
 	 * read RTC once any update in progress is done. The update
 	 * can take just over 2ms. We wait 10 to 20ms. There is no need to
@@ -460,6 +406,17 @@ void get_rtc_time(struct rtc_time *rtc_tm)
 	if (ds1286_is_updating() != 0)
 		while (jiffies - uip_watchdog < 2*HZ/100)
 			barrier();
+	
+	ds1286_get_time(rtc_tm);
+}
+
+/* 
+ * we're using this for setting system time when timer is not running yet
+ */
+void ds1286_get_time(struct rtc_time *rtc_tm)
+{
+	unsigned char save_control;
+	unsigned int flags;
 
 	/*
 	 * Only the values that we read from the RTC are set. We leave
@@ -500,7 +457,66 @@ void get_rtc_time(struct rtc_time *rtc_tm)
 	rtc_tm->tm_mon--;
 }
 
-void get_rtc_alm_time(struct rtc_time *alm_tm)
+int ds1286_set_time(struct rtc_time *rtc_tm)
+{
+	unsigned char mon, day, hrs, min, sec, leap_yr;
+	unsigned char save_control;
+	unsigned int yrs, flags;
+
+
+	yrs = rtc_tm->tm_year + 1900;
+	mon = rtc_tm->tm_mon + 1;   /* tm_mon starts at zero */
+	day = rtc_tm->tm_mday;
+	hrs = rtc_tm->tm_hour;
+	min = rtc_tm->tm_min;
+	sec = rtc_tm->tm_sec;
+
+	if (yrs < 1970)
+		return -EINVAL;
+
+	leap_yr = ((!(yrs % 4) && (yrs % 100)) || !(yrs % 400));
+
+	if ((mon > 12) || (day == 0))
+		return -EINVAL;
+
+	if (day > (days_in_mo[mon] + ((mon == 2) && leap_yr)))
+		return -EINVAL;
+
+	if ((hrs >= 24) || (min >= 60) || (sec >= 60))
+		return -EINVAL;
+
+	if ((yrs -= 1940) > 255)    /* They are unsigned */
+		return -EINVAL;
+
+	if (yrs >= 100)
+		yrs -= 100;
+
+	BIN_TO_BCD(sec);
+	BIN_TO_BCD(min);
+	BIN_TO_BCD(hrs);
+	BIN_TO_BCD(day);
+	BIN_TO_BCD(mon);
+	BIN_TO_BCD(yrs);
+
+	spin_lock_irqsave(&ds1286_lock, flags);
+	save_control = CMOS_READ(RTC_CMD);
+	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+
+	CMOS_WRITE(yrs, RTC_YEAR);
+	CMOS_WRITE(mon, RTC_MONTH);
+	CMOS_WRITE(day, RTC_DATE);
+	CMOS_WRITE(hrs, RTC_HOURS);
+	CMOS_WRITE(min, RTC_MINUTES);
+	CMOS_WRITE(sec, RTC_SECONDS);
+	CMOS_WRITE(0, RTC_HUNDREDTH_SECOND);
+
+	CMOS_WRITE(save_control, RTC_CMD);
+	spin_unlock_irqrestore(&ds1286_lock, flags);
+
+	return 0;
+}
+
+void ds1286_get_alm_time(struct rtc_time *alm_tm)
 {
 	unsigned char cmd;
 	unsigned int flags;

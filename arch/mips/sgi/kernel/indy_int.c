@@ -7,54 +7,26 @@
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) 
  *                    - Indigo2 changes
  *                    - Interrupt handling fixes
+ * Copyright (C) 2001 Ladislav Michl (ladis@psi.cz)
  */
-#include <linux/init.h>
 
-#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/init.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
-#include <linux/types.h>
 #include <linux/interrupt.h>
-#include <linux/ioport.h>
-#include <linux/timex.h>
-#include <linux/slab.h>
-#include <linux/random.h>
-#include <linux/smp.h>
-#include <linux/smp_lock.h>
 
-#include <asm/bitops.h>
-#include <asm/bootinfo.h>
-#include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
-#include <asm/system.h>
-
-#include <asm/ptrace.h>
-#include <asm/processor.h>
-#include <asm/sgi/sgi.h>
-#include <asm/sgi/sgihpc.h>
-#include <asm/sgi/sgint23.h>
-#include <asm/sgialib.h>
+#include <asm/addrspace.h>
 #include <asm/gdb-stub.h>
 
-/*
- * Linux has a controller-independent x86 interrupt architecture.
- * every controller has a 'controller-template', that is used
- * by the main code to do the right thing. Each driver-visible
- * interrupt source is transparently wired to the apropriate
- * controller. Thus drivers need not be aware of the
- * interrupt-controller.
- *
- * Various interrupt controllers we handle: 8259 PIC, SMP IO-APIC,
- * PIIX4's internal 8259 PIC and SGI's Visual Workstation Cobalt (IO-)APIC.
- * (IO-APICs assumed to be messaging to Pentium local-APICs)
- *
- * the code is designed to be easily extended with new/different
- * interrupt controllers, without having to do assembly magic.
- */
+#include <asm/sgi/sgint23.h>
+#include <asm/sgi/sgihpc.h>
 
 /* #define DEBUG_SGINT */
+#undef I_REALLY_NEED_THIS_IRQ
 
 struct sgi_int2_regs *sgi_i2regs;
 struct sgi_int3_regs *sgi_i3regs;
@@ -68,30 +40,23 @@ static char lc2msk_to_irqnr[256];
 static char lc3msk_to_irqnr[256];
 
 extern asmlinkage void indyIRQ(void);
-
-/* Local IRQ's are layed out logically like this:
- *
- * 0  --> 7   ==   local 0 interrupts
- * 8  --> 15  ==   local 1 interrupts
- * 16 --> 23  ==   vectored level 2 interrupts
- * 24 --> 31  ==   vectored level 3 interrupts (not used)
- * 32 --> 40  ==   vectored GIO interrupts
- * 41 --> 52  ==   vectored HPCDMA interrupts
- */
+extern void do_IRQ(int irq, struct pt_regs *regs);
 
 static void enable_local0_irq(unsigned int irq)
 {
 	unsigned long flags;
 
 	save_and_cli(flags);
-	ioc_icontrol->imask0 |= (1 << (irq - SGINT_LOCAL0));
+	/* don't allow mappable interrupt to be enabled from setup_irq,
+	 * we have our own way to do so */
+	if (irq != SGI_MAP_0_IRQ)
+		ioc_icontrol->imask0 |= (1 << (irq - SGINT_LOCAL0));
 	restore_flags(flags);
 }
 
 static unsigned int startup_local0_irq(unsigned int irq)
 {
 	enable_local0_irq(irq);
-
 	return 0;		/* Never anything pending  */
 }
 
@@ -129,14 +94,16 @@ static void enable_local1_irq(unsigned int irq)
 	unsigned long flags;
 
 	save_and_cli(flags);
-	ioc_icontrol->imask1 |= (1 << (irq - SGINT_LOCAL1));
+	/* don't allow mappable interrupt to be enabled from setup_irq,
+	 * we have our own way to do so */
+	if (irq != SGI_MAP_1_IRQ)
+		ioc_icontrol->imask1 |= (1 << (irq - SGINT_LOCAL1));
 	restore_flags(flags);
 }
 
 static unsigned int startup_local1_irq(unsigned int irq)
 {
 	enable_local1_irq(irq);
-
 	return 0;		/* Never anything pending  */
 }
 
@@ -145,7 +112,7 @@ void disable_local1_irq(unsigned int irq)
 	unsigned long flags;
 
 	save_and_cli(flags);
-	ioc_icontrol->imask1 &= ~(1 << (irq- SGINT_LOCAL1));
+	ioc_icontrol->imask1 &= ~(1 << (irq - SGINT_LOCAL1));
 	restore_flags(flags);
 }
 
@@ -174,7 +141,7 @@ static void enable_local2_irq(unsigned int irq)
 	unsigned long flags;
 
 	save_and_cli(flags);
-	enable_local0_irq(7);
+	ioc_icontrol->imask0 |= (1 << (SGI_MAP_0_IRQ - SGINT_LOCAL0));
 	ioc_icontrol->cmeimask0 |= (1 << (irq - SGINT_LOCAL2));
 	restore_flags(flags);
 }
@@ -182,7 +149,6 @@ static void enable_local2_irq(unsigned int irq)
 static unsigned int startup_local2_irq(unsigned int irq)
 {
 	enable_local2_irq(irq);
-
 	return 0;		/* Never anything pending  */
 }
 
@@ -192,6 +158,8 @@ void disable_local2_irq(unsigned int irq)
 
 	save_and_cli(flags);
 	ioc_icontrol->cmeimask0 &= ~(1 << (irq - SGINT_LOCAL2));
+	if (!ioc_icontrol->cmeimask0)
+		ioc_icontrol->imask0 &= ~(1 << (SGI_MAP_0_IRQ - SGINT_LOCAL0));
 	restore_flags(flags);
 }
 
@@ -217,18 +185,21 @@ static struct hw_interrupt_type ip22_local2_irq_type = {
 
 static void enable_local3_irq(unsigned int irq)
 {
+#ifdef I_REALLY_NEED_THIS_IRQ
 	unsigned long flags;
-
+	
 	save_and_cli(flags);
-	printk("Yeeee, got passed irq_nr %d at enable_local3_irq\n", irq);
-	panic("Invalid IRQ level!");
+	ioc_icontrol->imask1 |= (1 << (SGI_MAP_1_IRQ - SGINT_LOCAL1));
+	ioc_icontrol->cmeimask1 |= (1 << (irq - SGINT_LOCAL3));
 	restore_flags(flags);
+#else
+	panic("Who need local 3 irq? see indy_int.c\n");
+#endif
 }
 
 static unsigned int startup_local3_irq(unsigned int irq)
 {
 	enable_local3_irq(irq);
-
 	return 0;		/* Never anything pending  */
 }
 
@@ -237,12 +208,9 @@ void disable_local3_irq(unsigned int irq)
 	unsigned long flags;
 
 	save_and_cli(flags);
-	/*
-	 * This way we'll see if anyone would ever want vectored level 3
-	 * interrupts. Highly unlikely.
-	 */
-	printk("Yeeee, got passed irq_nr %d at disable_local3_irq\n", irq);
-	panic("Invalid IRQ level!");
+	ioc_icontrol->cmeimask1 &= ~(1 << (irq - SGINT_LOCAL3));
+	if (!ioc_icontrol->cmeimask1)
+		ioc_icontrol->imask1 &= ~(1 << (SGI_MAP_1_IRQ - SGINT_LOCAL1));
 	restore_flags(flags);
 }
 
@@ -263,80 +231,6 @@ static struct hw_interrupt_type ip22_local3_irq_type = {
 	disable_local3_irq,
 	mask_and_ack_local3_irq,
 	end_local3_irq,
-	NULL
-};
-
-void enable_gio_irq(unsigned int irq)
-{
-	/* XXX TODO XXX */
-}
-
-static unsigned int startup_gio_irq(unsigned int irq)
-{
-	enable_gio_irq(irq);
-
-	return 0;		/* Never anything pending  */
-}
-
-void disable_gio_irq(unsigned int irq)
-{
-	/* XXX TODO XXX */
-}
-
-#define shutdown_gio_irq	disable_gio_irq
-#define mask_and_ack_gio_irq	disable_gio_irq
-
-static void end_gio_irq (unsigned int irq)
-{
-	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
-		enable_gio_irq(irq);
-}
-
-static struct hw_interrupt_type ip22_gio_irq_type = {
-	"IP22 GIO",
-	startup_gio_irq,
-	shutdown_gio_irq,
-	enable_gio_irq,
-	disable_gio_irq,
-	mask_and_ack_gio_irq,
-	end_gio_irq,
-	NULL
-};
-
-void enable_hpcdma_irq(unsigned int irq)
-{
-	/* XXX TODO XXX */
-}
-
-static unsigned int startup_hpcdma_irq(unsigned int irq)
-{
-	enable_hpcdma_irq(irq);
-
-	return 0;		/* Never anything pending  */
-}
-
-void disable_hpcdma_irq(unsigned int irq)
-{
-	/* XXX TODO XXX */
-}
-
-#define shutdown_hpcdma_irq	disable_hpcdma_irq
-#define mask_and_ack_hpcdma_irq	disable_hpcdma_irq
-
-static void end_hpcdma_irq (unsigned int irq)
-{
-	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
-		enable_hpcdma_irq(irq);
-}
-
-static struct hw_interrupt_type ip22_hpcdma_irq_type = {
-	"IP22 HPC DMA",
-	startup_hpcdma_irq,
-	shutdown_hpcdma_irq,
-	enable_hpcdma_irq,
-	disable_hpcdma_irq,
-	mask_and_ack_hpcdma_irq,
-	end_hpcdma_irq,
 	NULL
 };
 
@@ -369,16 +263,17 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 
 	mask &= ioc_icontrol->imask1;
 	if (mask & ISTAT1_LIO3) {
-		printk("WHee: Got an LIO3 irq, winging it...\n");
+#ifndef I_REALLY_NEED_THIS_IRQ
+		printk("Whee: Got an LIO3 irq, winging it...\n");
+#endif
 		mask2 = ioc_icontrol->vmeistat;
 		mask2 &= ioc_icontrol->cmeimask1;
-		irq = lc3msk_to_irqnr[ioc_icontrol->vmeistat];
+		irq = lc3msk_to_irqnr[mask2];
 	} else {
 		irq = lc1msk_to_irqnr[mask];
 	}
 
 	/* if irq == 0, then the interrupt has already been cleared */
-	/* not sure if it is needed here, but it is needed for local0 */
 	if (irq)
 		do_IRQ(irq, regs);
 	return;	
@@ -387,16 +282,33 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 void indy_buserror_irq(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
-	int irq = 6;
+	int irq = SGI_BUSERR_IRQ;
 
 	irq_enter(cpu, irq);
-	kstat.irqs[0][irq]++;
+	kstat.irqs[cpu][irq]++;
 	die("Got a bus error IRQ, shouldn't happen yet\n", regs);
 	printk("Spinning...\n");
 	while(1);
 	irq_exit(cpu, irq);
 }
 
+static struct irqaction local0_cascade = 
+	{ no_action, SA_INTERRUPT, 0, "local0 cascade", NULL, NULL };
+static struct irqaction local1_cascade = 
+	{ no_action, SA_INTERRUPT, 0, "local1 cascade", NULL, NULL };
+static struct irqaction buserr = 
+	{ no_action, SA_INTERRUPT, 0, "Bus Error", NULL, NULL };
+static struct irqaction map0_cascade =
+	{ no_action, SA_INTERRUPT, 0, "mappable0 cascade", NULL, NULL };
+#ifdef I_REALLY_NEED_THIS_IRQ
+static struct irqaction map1_cascade =
+	{ no_action, SA_INTERRUPT, 0, "mappable1 cascade", NULL, NULL };
+#endif
+
+extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
+extern void mips_cpu_irq_init(u32 irq_base);
+extern void init_generic_irq(void);
+	
 void __init init_IRQ(void)
 {
 	int i;
@@ -407,45 +319,45 @@ void __init init_IRQ(void)
 	/* Init local mask --> irq tables. */
 	for (i = 0; i < 256; i++) {
 		if (i & 0x80) {
-			lc0msk_to_irqnr[i] = 7;
-			lc1msk_to_irqnr[i] = 15;
-			lc2msk_to_irqnr[i] = 23;
-			lc3msk_to_irqnr[i] = 31;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 7;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 7;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 7;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 7;
 		} else if (i & 0x40) {
-			lc0msk_to_irqnr[i] = 6;
-			lc1msk_to_irqnr[i] = 14;
-			lc2msk_to_irqnr[i] = 22;
-			lc3msk_to_irqnr[i] = 30;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 6;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 6;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 6;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 6;
 		} else if (i & 0x20) {
-			lc0msk_to_irqnr[i] = 5;
-			lc1msk_to_irqnr[i] = 13;
-			lc2msk_to_irqnr[i] = 21;
-			lc3msk_to_irqnr[i] = 29;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 5;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 5;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 5;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 5;
 		} else if (i & 0x10) {
-			lc0msk_to_irqnr[i] = 4;
-			lc1msk_to_irqnr[i] = 12;
-			lc2msk_to_irqnr[i] = 20;
-			lc3msk_to_irqnr[i] = 28;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 4;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 4;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 4;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 4;
 		} else if (i & 0x08) {
-			lc0msk_to_irqnr[i] = 3;
-			lc1msk_to_irqnr[i] = 11;
-			lc2msk_to_irqnr[i] = 19;
-			lc3msk_to_irqnr[i] = 27;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 3;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 3;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 3;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 3;
 		} else if (i & 0x04) {
-			lc0msk_to_irqnr[i] = 2;
-			lc1msk_to_irqnr[i] = 10;
-			lc2msk_to_irqnr[i] = 18;
-			lc3msk_to_irqnr[i] = 26;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 2;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 2;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 2;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 2;
 		} else if (i & 0x02) {
-			lc0msk_to_irqnr[i] = 1;
-			lc1msk_to_irqnr[i] = 9;
-			lc2msk_to_irqnr[i] = 17;
-			lc3msk_to_irqnr[i] = 25;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 1;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 1;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 1;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 1;
 		} else if (i & 0x01) {
-			lc0msk_to_irqnr[i] = 0;
-			lc1msk_to_irqnr[i] = 8;
-			lc2msk_to_irqnr[i] = 16;
-			lc3msk_to_irqnr[i] = 24;
+			lc0msk_to_irqnr[i] = SGINT_LOCAL0 + 0;
+			lc1msk_to_irqnr[i] = SGINT_LOCAL1 + 0;
+			lc2msk_to_irqnr[i] = SGINT_LOCAL2 + 0;
+			lc3msk_to_irqnr[i] = SGINT_LOCAL3 + 0;
 		} else {
 			lc0msk_to_irqnr[i] = 0;
 			lc1msk_to_irqnr[i] = 0;
@@ -474,6 +386,8 @@ void __init init_IRQ(void)
 	set_except_vector(0, indyIRQ);
 
 	init_generic_irq();
+	/* init CPU irqs */
+	mips_cpu_irq_init(SGINT_CPU);
 
 	for (i = SGINT_LOCAL0; i < SGINT_END; i++) {
 		hw_irq_controller *handler;
@@ -484,16 +398,23 @@ void __init init_IRQ(void)
 			handler		= &ip22_local1_irq_type;
 		else if (i < SGINT_LOCAL3)
 			handler		= &ip22_local2_irq_type;
-		else if (i < SGINT_GIO)
+		else
 			handler		= &ip22_local3_irq_type;
-		else if (i < SGINT_HPCDMA)
-			handler		= &ip22_gio_irq_type;
-		else if (i < SGINT_END)
-			handler		= &ip22_hpcdma_irq_type;
 
 		irq_desc[i].status	= IRQ_DISABLED;
 		irq_desc[i].action	= 0;
 		irq_desc[i].depth	= 1;
 		irq_desc[i].handler	= handler;
 	}
+
+	/* vector handler. this register the IRQ as non-sharable */
+	setup_irq(SGI_LOCAL_0_IRQ, &local0_cascade);
+	setup_irq(SGI_LOCAL_1_IRQ, &local1_cascade);
+	setup_irq(SGI_BUSERR_IRQ, &buserr);
+	
+	/* cascade in cascade. i love Indy ;-) */
+	setup_irq(SGI_MAP_0_IRQ, &map0_cascade);
+#ifdef I_REALLY_NEED_THIS_IRQ
+	setup_irq(SGI_MAP_1_IRQ, &map1_cascade);
+#endif
 }
