@@ -197,6 +197,8 @@ void __init prom_meminit(void)
 
 		hub_data[node] = (struct hub_data *)(node_data[node] + 1);
 
+		cpus_clear(hub_data[node]->h_cpus);
+
 		slot_freepfn += PFN_UP(sizeof(struct pglist_data) +
 				       sizeof(struct hub_data));
 	
