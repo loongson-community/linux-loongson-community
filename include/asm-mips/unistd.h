@@ -1028,7 +1028,7 @@ type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
 	\
 	__asm__ volatile ( \
 	".set\tnoreorder\n\t" \
-	"li\t$2, %6\t\t\t# " #name "\n\t" \
+	"li\t$2, %7\t\t\t# " #name "\n\t" \
 	"syscall\n\t" \
 	"move\t%0, $2\n\t" \
 	".set\treorder" \
