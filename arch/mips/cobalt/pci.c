@@ -22,18 +22,18 @@
  
 #ifdef CONFIG_PCI
 
-static void qube_expansion_slot_bist(void)
+static void qube_expansion_slot_bist(struct pci_dev *dev)
 {
 	unsigned char ctrl;
 	int timeout = 100000;
 
-	pcibios_read_config_byte(0, (0x0a<<3), PCI_BIST, &ctrl);
+	pci_read_config_byte(dev, PCI_BIST, &ctrl);
 	if(!(ctrl & PCI_BIST_CAPABLE))
 		return;
 
-	pcibios_write_config_byte(0, (0x0a<<3), PCI_BIST, ctrl|PCI_BIST_START);
+	pci_write_config_byte(dev, PCI_BIST, ctrl|PCI_BIST_START);
 	do {
-		pcibios_read_config_byte(0, (0x0a<<3), PCI_BIST, &ctrl);
+		pci_read_config_byte(dev, PCI_BIST, &ctrl);
 		if(!(ctrl & PCI_BIST_START))
 			break;
 	} while(--timeout > 0);
@@ -42,20 +42,20 @@ static void qube_expansion_slot_bist(void)
 		       (ctrl & PCI_BIST_CODE_MASK));
 }
 
-static void qube_expansion_slot_fixup(void)
+static void qube_expansion_slot_fixup(struct pci_dev *dev)
 {
 	unsigned short pci_cmd;
-	unsigned long ioaddr_base = 0x108000; /* It's magic, ask Doug. */
+	unsigned long ioaddr_base = 0x10108000; /* It's magic, ask Doug. */
 	unsigned long memaddr_base = 0x12000000;
 	int i;
 
 	/* Enable bits in COMMAND so driver can talk to it. */
-	pcibios_read_config_word(0, (0x0a<<3), PCI_COMMAND, &pci_cmd);
+	pci_read_config_word(dev, PCI_COMMAND, &pci_cmd);
 	pci_cmd |= (PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-	pcibios_write_config_word(0, (0x0a<<3), PCI_COMMAND, pci_cmd);
+	pci_write_config_word(dev, PCI_COMMAND, pci_cmd);
 
 	/* Give it a working IRQ. */
-	pcibios_write_config_byte(0, (0x0a<<3), PCI_INTERRUPT_LINE, 9);
+	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_QUBE_SLOT_IRQ);
 
 	/* Fixup base addresses, we only support I/O at the moment. */
 	for(i = 0; i <= 5; i++) {
@@ -64,14 +64,14 @@ static void qube_expansion_slot_fixup(void)
 		unsigned long *basep = &ioaddr_base;
 
 		/* Check type first, punt if non-IO. */
-		pcibios_read_config_dword(0, (0x0a<<3), regaddr, &rval);
+		pci_read_config_dword(dev, regaddr, &rval);
 		aspace = (rval & PCI_BASE_ADDRESS_SPACE);
 		if(aspace != PCI_BASE_ADDRESS_SPACE_IO)
 			basep = &memaddr_base;
 
 		/* Figure out how much it wants, if anything. */
-		pcibios_write_config_dword(0, (0x0a<<3), regaddr, 0xffffffff);
-		pcibios_read_config_dword(0, (0x0a<<3), regaddr, &rval);
+		pci_write_config_dword(dev, regaddr, 0xffffffff);
+		pci_read_config_dword(dev, regaddr, &rval);
 
 		/* Unused? */
 		if(rval == 0)
@@ -85,9 +85,15 @@ static void qube_expansion_slot_fixup(void)
 			alignme = 0x400;
 		rval = ((*basep + (alignme - 1)) & ~(alignme - 1));
 		*basep = (rval + size);
-		pcibios_write_config_dword(0, (0x0a<<3), regaddr, rval | aspace);
+		pci_write_config_dword(dev, regaddr, rval | aspace);
+		dev->resource[i].start = rval;
+		dev->resource[i].end = *basep - 1;
+		if(aspace == PCI_BASE_ADDRESS_SPACE_IO) {
+			dev->resource[i].start -= 0x10000000;
+			dev->resource[i].end -= 0x10000000;
+		}
 	}
-	qube_expansion_slot_bist();
+	qube_expansion_slot_bist(dev);
 }
 
 static void qube_raq_via_bmIDE_fixup(struct pci_dev *dev)
@@ -225,15 +231,16 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 static void
 qube_pcibios_fixup(struct pci_dev *dev)
 {
-	unsigned int tmp;
+	if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_PCISLOT) {
+		unsigned int tmp;
 
-	/* See if there is a device in the expansion slot, if so
-	 * fixup IRQ, fix base addresses, and enable master +
-	 * I/O + memory accesses in config space.
-	 */
-	pcibios_read_config_dword(0, 0x0a<<3, PCI_VENDOR_ID, &tmp);
-	if(tmp != 0xffffffff && tmp != 0x00000000)
-		qube_expansion_slot_fixup();
+		/* See if there is a device in the expansion slot, if so
+		 * discover its resources and fixup whatever we need to
+		 */
+		pci_read_config_dword(dev, PCI_VENDOR_ID, &tmp);
+		if(tmp != 0xffffffff && tmp != 0x00000000)
+			qube_expansion_slot_fixup(dev);
+	}
 }
 
 struct pci_fixup pcibios_fixups[] = {

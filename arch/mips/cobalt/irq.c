@@ -64,7 +64,7 @@ extern void mask_irq(unsigned int irq);
 static unsigned short irqnr_to_type[COBALT_IRQS] = 
 { CPUINT_LINE(0),  NOINT_LINE,      VIAINT_LINE,  NOINT_LINE, 
   CPUINT_LINE(1),  NOINT_LINE,      NOINT_LINE,   CPUINT_LINE(3),
-  VIAINT_LINE,     CPUINT_LINE(5),  NOINT_LINE,   NOINT_LINE,
+  VIAINT_LINE,     VIAINT_LINE,     NOINT_LINE,   NOINT_LINE,
   NOINT_LINE,      CPUINT_LINE(2),  VIAINT_LINE,  VIAINT_LINE };
 
 /*

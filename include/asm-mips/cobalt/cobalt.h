@@ -38,6 +38,7 @@
 #define COBALT_TIMER_IRQ       0
 #define COBALT_KEYBOARD_IRQ    1
 #define COBALT_QUBE_ETH_IRQ    13
+#define COBALT_QUBE_SLOT_IRQ   9
 #define COBALT_RAQ_ETH0_IRQ    4
 #define COBALT_RAQ_ETH1_IRQ    13
 #define COBALT_SCC_IRQ         4
