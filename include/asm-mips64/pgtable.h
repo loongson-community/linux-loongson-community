@@ -43,8 +43,13 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
 
 #define flush_icache_range(start, end)	flush_cache_all()
-#define flush_icache_page(vma, page)	flush_cache_page(vma, page->virtual & PAGE_MASK)
 
+#define flush_icache_page(vma, page)					\
+do {									\
+	unsigned long addr;						\
+	addr = page_address(page);					\
+	_flush_cache_page(vma, addr);					\
+} while (0)                                                              
 
 /*
  * Each address space has 2 4K pages as its page directory, giving 1024
