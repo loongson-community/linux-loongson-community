@@ -98,7 +98,6 @@ static int titan_ge_init_tx_desc_ring(titan_ge_port_info *, int,
 static int titan_ge_open(struct net_device *);
 static int titan_ge_start_xmit(struct sk_buff *, struct net_device *);
 static int titan_ge_stop(struct net_device *);
-static void titan_ge_int_handler(int, void *, struct pt_regs *);
 static int titan_ge_set_mac_address(struct net_device *, void *);
 
 static unsigned long titan_ge_tx_coal(unsigned long, int);
@@ -403,13 +402,12 @@ static void titan_ge_xdma_reset(void)
 }
 
 /*
- * Titan Gbe Interrupt Handler. All the three ports
- * send interrupt to one line only. Once an interrupt
- * is triggered, figure out the port and then check
+ * Titan Gbe Interrupt Handler. All the three ports send interrupt to one line
+ * only. Once an interrupt is triggered, figure out the port and then check
  * the channel.
  */
-static void titan_ge_int_handler(int irq, void *dev_id,
-				 struct pt_regs *regs)
+static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
+	struct pt_regs *regs)
 {
 	struct net_device *netdev = (struct net_device *) dev_id;
 	titan_ge_port_info *titan_ge_eth;
@@ -480,7 +478,7 @@ static void titan_ge_int_handler(int irq, void *dev_id,
 					(port_num << 8));
 
 		if (eth_int_cause_error == 0)
-			return;
+			return IRQ_NONE;
 	}
 
 	/* Handle Tx first. No need to ack interrupts */
@@ -571,6 +569,8 @@ static void titan_ge_int_handler(int irq, void *dev_id,
 			}
 		}
 	}
+
+	return IRQ_HANDLED;
 }
 
 /*
