@@ -490,9 +490,12 @@ extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
 #else /* Sane hardware */
 
-#define dma_cache_wback_inv(start,size)	do { (start); (size); } while (0)
-#define dma_cache_wback(start,size)	do { (start); (size); } while (0)
-#define dma_cache_inv(start,size)	do { (start); (size); } while (0)
+#define dma_cache_wback_inv(start,size)	\
+	do { (void) (start); (void) (size); } while (0)
+#define dma_cache_wback(start,size)	\
+	do { (void) (start); (void) (size); } while (0)
+#define dma_cache_inv(start,size)	\
+	do { (void) (start); (void) (size); } while (0)
 
 #endif /* CONFIG_NONCOHERENT_IO */
 
