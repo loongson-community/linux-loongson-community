@@ -183,15 +183,16 @@ static inline void * __ioremap_mode(unsigned long offset, unsigned long size,
 	unsigned long flags)
 {
 	if (cpu_has_64bit_addresses) {
+		u64 base = (u64)XKPHYS + ((u64)flags >> 9 << 59);
+
 		/*
 		 * R10000 supports uncached attributes therefore K1BASE may not
 		 * be XKPHYS + (2 << 59) for some machines such as the Origin.
 		 */
-		if (K1BASE != XKPHYS + ((unsigned long)K_CALG_UNCACHED << 59) &&
+		if (K1BASE != XKPHYS + ((u64)K_CALG_UNCACHED << 59) &&
 		    flags == _CACHE_UNCACHED)
-			return (void *) ((unsigned long)K1BASE + offset);
-		return (void *) ((unsigned long)XKPHYS + (flags >> 9 << 59) +
-		                 offset);
+			base = (u64) K1BASE;
+		return (void *) (unsigned long) (base + offset);
 	}
 
 	return __ioremap(offset, size, flags);
