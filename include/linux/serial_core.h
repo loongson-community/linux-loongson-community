@@ -56,9 +56,6 @@
 #define PORT_SUNZILOG	38
 #define PORT_SUNSAB	39
 
-/* MIPS type numbers.  */
-#define PORT_IP22ZILOG	40
-
 /* NEC v850.  */
 #define PORT_V850E_UART	40
 
@@ -87,6 +84,9 @@
 
 /* Samsung S3C2410 SoC and derivatives thereof */
 #define PORT_S3C2410    55
+
+/* SGI IP22 aka Indy / Challenge S / Indigo 2 */
+#define PORT_IP22ZILOG	56
 
 #ifdef __KERNEL__
 
