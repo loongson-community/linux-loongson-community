@@ -7,6 +7,7 @@
  * Copyright (C) 2000, 2001  Ralf Baechle <ralf@gnu.org>
  * swiped from i386, and cloned for MIPS by Geert, polished by Ralf.
  */
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -299,7 +300,9 @@ void dma_cache_sync(void *vaddr, size_t size, enum dma_data_direction direction)
 EXPORT_SYMBOL(dma_cache_sync);
 
 /* The DAC routines are a PCIism.. */
+
 #ifdef CONFIG_PCI
+
 #include <linux/pci.h>
 
 dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
@@ -308,7 +311,7 @@ dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
 	return (dma64_addr_t)page_to_phys(page) + offset;
 }
 
-EXPORT_SYMBOL(dma_cache_sync);
+EXPORT_SYMBOL(pci_dac_page_to_dma);
 
 struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
 	dma64_addr_t dma_addr)
@@ -335,4 +338,5 @@ void pci_dac_dma_sync_single(struct pci_dev *pdev,
 }
 
 EXPORT_SYMBOL(pci_dac_dma_sync_single);
+
 #endif /* CONFIG_PCI */
