@@ -87,6 +87,10 @@ void __init load_mmu(void)
 		break;
 #endif
 
+	case CPU_R8000:
+		panic("R8000 is unsupported");
+		break;
+
 	default:
 		/* XXX We need an generic routine in the MIPS port
 		 * XXX to jabber stuff onto the screen on all machines
