@@ -42,6 +42,8 @@
 
 struct cpuinfo_mips cpu_data[NR_CPUS];
 
+EXPORT_SYMBOL(cpu_data);
+
 #ifdef CONFIG_VT
 struct screen_info screen_info;
 #endif
