@@ -54,6 +54,7 @@ cflags-y			:= -I $(TOPDIR)/include/asm/gcc
 cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
 cflags-$(CONFIG_MIPS32)		+= $(call check_gcc, -mabi=32,)
 cflags-$(CONFIG_MIPS64)		+= -mabi=64
+cflags-y			+= $(call check_gcc, -finline-limit=100000,)
 LDFLAGS_vmlinux			+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
 
