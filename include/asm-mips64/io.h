@@ -35,6 +35,10 @@
 #include <asm/ip32/io.h>
 #endif
 
+#ifdef CONFIG_SIBYTE_SB1250
+#include <asm/sibyte/io.h>
+#endif
+
 #ifdef CONFIG_SGI_IP27
 extern unsigned long bus_to_baddr[256];
 
