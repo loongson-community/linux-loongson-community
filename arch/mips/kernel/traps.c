@@ -844,7 +844,8 @@ void __init trap_init(void)
 	 * Copy the EJTAG debug exception vector handler code to it's final 
 	 * destination.
 	 */
-	//memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
+	if (mips_cpu.options & MIPS_CPU_EJTAG)
+		memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
