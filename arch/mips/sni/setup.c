@@ -14,6 +14,7 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
+#include <linux/mc146818rtc.h>
 #include <linux/pci.h>
 #include <linux/console.h>
 #include <linux/fb.h>
@@ -165,10 +166,17 @@ static struct pci_controller sni_controller = {
 	.io_offset	= 0x00000000UL
 };
 
+static inline void sni_pcimt_time_init(void)
+{
+	rtc_get_time = mc146818_get_cmos_time;
+	rtc_set_time = mc146818_set_rtc_mmss;
+}
+
 static void __init sni_rm200_pci_setup(void)
 {
 	sni_pcimt_detect();
 	sni_pcimt_sc_init();
+	sni_pcimt_time_init();
 
 	set_io_port_base(SNI_PORT_BASE);
 	ioport_resource.end = sni_io_resource.end;
