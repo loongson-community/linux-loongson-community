@@ -452,7 +452,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
 	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		if (cpu_has_dc_aliases || exec)
+		if (cpu_has_dc_aliases || (exec && !cpu_has_ic_fills_f_dc))
 			r4k_blast_dcache_page(page);
 		if (exec)
 			r4k_blast_icache_page(page);
@@ -465,7 +465,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * to work correctly.
 	 */
 	page = (KSEG0 + (page & (dcache_size - 1)));
-	if (cpu_has_dc_aliases || exec)
+	if (cpu_has_dc_aliases || (exec && !cpu_has_ic_fills_f_dc))
 		r4k_blast_dcache_page_indexed(page);
 	if (exec) {
 		if (cpu_has_vtag_icache) {
@@ -488,18 +488,20 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 	unsigned long addr, aend;
 
-	if (end - start > dcache_size)
-		r4k_blast_dcache();
-	else {
-		addr = start & ~(dc_lsize - 1);
-		aend = (end - 1) & ~(dc_lsize - 1);
+	if (!cpu_has_ic_fills_f_dc) {
+		if (end - start > dcache_size)
+			r4k_blast_dcache();
+		else {
+			addr = start & ~(dc_lsize - 1);
+			aend = (end - 1) & ~(dc_lsize - 1);
 
-		while (1) {
-			/* Hit_Writeback_Inv_D */
-			protected_writeback_dcache_line(addr);
-			if (addr == aend)
-				break;
-			addr += dc_lsize;
+			while (1) {
+				/* Hit_Writeback_Inv_D */
+				protected_writeback_dcache_line(addr);
+				if (addr == aend)
+					break;
+				addr += dc_lsize;
+			}
 		}
 	}
 
@@ -528,8 +530,6 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 static void r4k_flush_icache_page(struct vm_area_struct *vma,
 	struct page *page)
 {
-	unsigned long addr;
-
 	/*
 	 * If there's no context yet, or the page isn't executable, no icache
 	 * flush is needed.
@@ -537,13 +537,15 @@ static void r4k_flush_icache_page(struct vm_area_struct *vma,
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
+	if (!cpu_has_ic_fills_f_dc) {
+		unsigned long addr = (unsigned long) page_address(page);
+		r4k_blast_dcache_page(addr);
+	}
+
 	/*
 	 * We're not sure of the virtual address(es) involved here, so
-	 * conservatively flush the entire caches.
+	 * we have to flush the entire I-cache.
 	 */
-	addr = (unsigned long) page_address(page);
-	r4k_blast_dcache_page(addr);
-
 	if (cpu_has_vtag_icache) {
 		int cpu = smp_processor_id();
 
@@ -783,15 +785,6 @@ static void __init probe_pcache(void)
 		              c->icache.ways *
 		              c->icache.linesz;
 
-		if ((config & 0x8) || (c->cputype == CPU_20KC)) {
-			/*
-			 * The CPU has a virtually tagged I-cache.
-			 * Some older 20Kc chips doesn't have the 'VI' bit in
-			 * the config register, so we also check for 20Kc.
-			 */
-			c->icache.flags |= MIPS_CACHE_VTAG;
-		}
-
 		/*
 		 * Now probe the MIPS32 / MIPS64 data cache.
 		 */
@@ -831,6 +824,22 @@ static void __init probe_pcache(void)
 
 	if (dcache_way_size > PAGE_SIZE)
 	        c->dcache.flags |= MIPS_CACHE_ALIASES;
+
+	if (config & 0x8)		/* VI bit */
+		c->icache.flags |= MIPS_CACHE_VTAG;
+
+	switch (c->cputype) {
+	case CPU_20KC:
+		/*
+		 * Some older 20Kc chips doesn't have the 'VI' bit in
+		 * the config register.
+		 */
+		c->icache.flags |= MIPS_CACHE_VTAG;
+		break;
+	case CPU_AU1500:
+		c->icache.flags |= MIPS_CACHE_IC_F_DC;
+		break;
+	}
 
 	printk("Primary instruction cache %ldkb, %s, %s, linesize %d bytes\n",
 	       icache_size >> 10,
