@@ -159,7 +159,7 @@ void __init prom_prepare_cpus(unsigned int max_cpus)
 		intr_clear_all(COMPACT_TO_NASID_NODEID(cnode));
 
 	/* Master has already done per_cpu_init() */
-	install_ipi(smp_processor_id());
+	install_ipi();
 
 	replicate_kernel_text(numnodes);
 
