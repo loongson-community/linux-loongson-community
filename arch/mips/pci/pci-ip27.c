@@ -82,7 +82,7 @@ static int pci_conf0_read_config(struct pci_bus *bus, unsigned int devfn,
 	else
 		res = get_dbe(*value, (u32 *) addr);
 
-	return PCIBIOS_SUCCESSFUL;
+	return res ? PCIBIOS_DEVICE_NOT_FOUND : PCIBIOS_SUCCESSFUL;
 
 oh_my_gawd:
 
@@ -109,6 +109,79 @@ oh_my_gawd:
 	*value = (cf >> shift) & mask;
 
 	return PCIBIOS_SUCCESSFUL;
+}
+
+static int pci_conf1_read_config(struct pci_bus *bus, unsigned int devfn,
+				 int where, int size, u32 * value)
+{
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(bus);
+	bridge_t *bridge = bc->base;
+	int busno = bus->number;
+	int slot = PCI_SLOT(devfn);
+	int fn = PCI_FUNC(devfn);
+	volatile void *addr;
+	u32 cf, shift, mask;
+	int res;
+
+	bridge->b_pci_cfg = (busno << 16) | (slot << 11);
+	addr = &bridge->b_type1_cfg.c[(fn << 8) | PCI_VENDOR_ID];
+	if (get_dbe(cf, (u32 *) addr))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	/*
+	 * IOC3 is fucked fucked beyond believe ...  Don't even give the
+	 * generic PCI code a chance to look at it for real ...
+	 */
+	if (cf == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16)))
+		goto oh_my_gawd;
+
+	bridge->b_pci_cfg = (busno << 16) | (slot << 11);
+	addr = &bridge->b_type1_cfg.c[(fn << 8) | (where ^ (4 - size))];
+
+	if (size == 1)
+		res = get_dbe(*value, (u8 *) addr);
+	else if (size == 2)
+		res = get_dbe(*value, (u16 *) addr);
+	else
+		res = get_dbe(*value, (u32 *) addr);
+
+	return res ? PCIBIOS_DEVICE_NOT_FOUND : PCIBIOS_SUCCESSFUL;
+
+oh_my_gawd:
+
+	/*
+	 * IOC3 is fucked fucked beyond believe ...  Don't even give the
+	 * generic PCI code a chance to look at the wrong register.
+	 */
+	if ((where >= 0x14 && where < 0x40) || (where >= 0x48)) {
+		*value = 0;
+		return PCIBIOS_SUCCESSFUL;
+	}
+
+	/*
+	 * IOC3 is fucked fucked beyond believe ...  Don't try to access
+	 * anything but 32-bit words ...
+	 */
+	bridge->b_pci_cfg = (busno << 16) | (slot << 11);
+	addr = &bridge->b_type1_cfg.c[(fn << 8) | where];
+
+	if (get_dbe(cf, (u32 *) addr))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	shift = ((where & 3) << 3);
+	mask = (0xffffffffU >> ((4 - size) << 3));
+	*value = (cf >> shift) & mask;
+
+	return PCIBIOS_SUCCESSFUL;
+}
+
+static int pci_read_config(struct pci_bus *bus, unsigned int devfn,
+			   int where, int size, u32 * value)
+{
+	if (bus->number > 0)
+		return pci_conf1_read_config(bus, devfn, where, size, value);
+
+	return pci_conf0_read_config(bus, devfn, where, size, value);
 }
 
 static int pci_conf0_write_config(struct pci_bus *bus, unsigned int devfn,
@@ -177,9 +250,84 @@ oh_my_gawd:
 	return PCIBIOS_SUCCESSFUL;
 }
 
+static int pci_conf1_write_config(struct pci_bus *bus, unsigned int devfn,
+				  int where, int size, u32 value)
+{
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(bus);
+	bridge_t *bridge = bc->base;
+	int slot = PCI_SLOT(devfn);
+	int fn = PCI_FUNC(devfn);
+	volatile void *addr;
+	u32 cf, shift, mask, smask;
+	int res;
+
+	addr = &bridge->b_type0_cfg_dev[slot].f[fn].c[PCI_VENDOR_ID];
+	if (get_dbe(cf, (u32 *) addr))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	/*
+	 * IOC3 is fucked fucked beyond believe ...  Don't even give the
+	 * generic PCI code a chance to look at it for real ...
+	 */
+	if (cf == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16)))
+		goto oh_my_gawd;
+
+	addr = &bridge->b_type0_cfg_dev[slot].f[fn].c[where ^ (4 - size)];
+
+	if (size == 1) {
+		res = put_dbe(value, (u8 *) addr);
+	} else if (size == 2) {
+		res = put_dbe(value, (u16 *) addr);
+	} else {
+		res = put_dbe(value, (u32 *) addr);
+	}
+
+	if (res)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	return PCIBIOS_SUCCESSFUL;
+
+oh_my_gawd:
+
+	/*
+	 * IOC3 is fucked fucked beyond believe ...  Don't even give the
+	 * generic PCI code a chance to touch the wrong register.
+	 */
+	if ((where >= 0x14 && where < 0x40) || (where >= 0x48))
+		return PCIBIOS_SUCCESSFUL;
+
+	/*
+	 * IOC3 is fucked fucked beyond believe ...  Don't try to access
+	 * anything but 32-bit words ...
+	 */
+	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];
+
+	if (get_dbe(cf, (u32 *) addr))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	shift = ((where & 3) << 3);
+	mask = (0xffffffffU >> ((4 - size) << 3));
+	smask = mask << shift;
+
+	cf = (cf & ~smask) | ((value & mask) << shift);
+	if (put_dbe(cf, (u32 *) addr))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	return PCIBIOS_SUCCESSFUL;
+}
+
+static int pci_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 value)
+{
+	if (bus->number > 0)
+		return pci_conf1_write_config(bus, devfn, where, size, value);
+
+	return pci_conf0_write_config(bus, devfn, where, size, value);
+}
+
 static struct pci_ops bridge_pci_ops = {
-	.read = pci_conf0_read_config,
-	.write = pci_conf0_write_config,
+	.read = pci_read_config,
+	.write = pci_write_config,
 };
 
 int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
@@ -196,11 +344,13 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	if (!num_bridges)
 		ioport_resource.end = ~0UL;
 
-	bc = &bridges[num_bridges++];
+	bc = &bridges[num_bridges];
 
 	bc->pc.pci_ops		= &bridge_pci_ops;
 	bc->pc.mem_resource	= &bc->mem;
 	bc->pc.io_resource	= &bc->io;
+
+	bc->pc.index		= num_bridges;
 
 	bc->mem.name		= "Bridge PCI MEM";
 	bc->pc.mem_offset	= offset;
@@ -260,6 +410,9 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	bc->base = bridge;
 
 	register_pci_controller(&bc->pc);
+
+	num_bridges++;
+
 	return 0;
 }
 
