@@ -19,6 +19,10 @@
 	STI
 	.endm
 
+	.macro	__BUILD_kmode
+	KMODE
+	.endm
+
 	.macro	tlb_handler name interruptible writebit
 	NESTED(__\name, PT_SIZE, sp)
 	SAVE_ALL
@@ -32,6 +36,6 @@
 	END(__\name)
 	.endm
 
-	tlb_handler	xtlb_mod sti 1
-	tlb_handler	xtlb_tlbl sti 0
-	tlb_handler	xtlb_tlbs sti 1
+	tlb_handler	xtlb_mod kmode 1
+	tlb_handler	xtlb_tlbl kmode 0
+	tlb_handler	xtlb_tlbs kmode 1
