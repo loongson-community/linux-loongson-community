@@ -268,7 +268,7 @@ void indy_buserror_irq(struct pt_regs *regs)
 	int irq = SGI_BUSERR_IRQ;
 
 	irq_enter();
-	kstat_cpu(cpu).irqs[irq]++;
+	kstat_this_cpu.irqs[irq]++;
 	ip22_be_interrupt(irq, regs);
 	irq_exit();
 }

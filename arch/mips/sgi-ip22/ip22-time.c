@@ -176,7 +176,7 @@ void indy_8254timer_irq(struct pt_regs *regs)
 	char c;
 
 	irq_enter();
-	kstat_cpu(cpu).irqs[irq]++;
+	kstat_this_cpu.irqs[irq]++;
 	printk(KERN_ALERT "Oops, got 8254 interrupt.\n");
 	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
@@ -189,12 +189,9 @@ void indy_r4k_timer_interrupt(struct pt_regs *regs)
 	int irq = SGI_TIMER_IRQ;
 
 	irq_enter();
-	kstat_cpu(cpu).irqs[irq]++;
+	kstat_this_cpu.irqs[irq]++;
 	timer_interrupt(irq, NULL, regs);
 	irq_exit();
-
-	if (softirq_pending(cpu))
-		do_softirq();
 }
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);

@@ -200,8 +200,6 @@ void output_irq_cpustat_t_defines(void)
 {
 	text("/* Linux irq_cpustat_t offsets. */");
 	offset("#define IC_SOFTIRQ_PENDING ", irq_cpustat_t, __softirq_pending);
-	offset("#define IC_SYSCALL_COUNT   ", irq_cpustat_t, __syscall_count);
-	offset("#define IC_KSOFTIRQD_TASK  ", irq_cpustat_t, __ksoftirqd_task);
 	size("#define IC_IRQ_CPUSTAT_T   ", irq_cpustat_t);
 	linefeed;
 }

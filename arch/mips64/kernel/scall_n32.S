@@ -333,12 +333,13 @@ EXPORT(sysn32_call_table)
 	PTR	sys_statfs64
 	PTR	sys_fstatfs64
 	PTR	sys_sendfile64
-	sys	sys_timer_create		/* 6220 */
-	sys	sys_timer_settime
-	sys	sys_timer_gettime
-	sys	sys_timer_getoverrun
-	sys	sys_timer_delete
-	sys	sys_clock_settime		/* 6225 */
-	sys	sys_clock_gettime
-	sys	sys_clock_getres
-	sys	sys_clock_nanosleep
+	PTR	sys_timer_create		/* 6220 */
+	PTR	sys_timer_settime
+	PTR	sys_timer_gettime
+	PTR	sys_timer_getoverrun
+	PTR	sys_timer_delete
+	PTR	sys_clock_settime		/* 6225 */
+	PTR	sys_clock_gettime
+	PTR	sys_clock_getres
+	PTR	sys_clock_nanosleep
+	PTR	sys_tgkill

@@ -96,7 +96,7 @@ static irqreturn_t cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * re
 	timerlo = count;
 
 	write_c0_compare((u32) (count + cc_interval));
-	kstat_cpu(0).irqs[irq]++;
+	kstat_this_cpu.irqs[irq]++;
 	do_timer(regs);
 
 	if (!jiffies) {

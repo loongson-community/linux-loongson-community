@@ -569,6 +569,7 @@ out:	jr	ra
 	sys	sys_clock_gettime	2
 	sys	sys_clock_getres	2
 	sys	sys_clock_nanosleep	4		/* 4265 */
+	sys	sys_tgkill		3
 
 	.endm
 

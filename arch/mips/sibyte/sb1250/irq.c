@@ -430,7 +430,7 @@ void sb1250_kgdb_interrupt(struct pt_regs *regs)
 	 * host to stop the break, since we would see another
 	 * interrupt on the end-of-break too)
 	 */
-	kstat_cpu(smp_processor_id()).irqs[K_INT_UART_1]++;
+	kstat_this_cpu.irqs[K_INT_UART_1]++;
 	mdelay(500);
 	duart_out(R_DUART_CMD, V_DUART_MISC_CMD_RESET_BREAK_INT |
 				M_DUART_RX_EN | M_DUART_TX_EN);

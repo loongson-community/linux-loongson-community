@@ -275,11 +275,12 @@
 #define __NR_clock_gettime		(__NR_Linux + 263)
 #define __NR_clock_getres		(__NR_Linux + 264)
 #define __NR_clock_nanosleep		(__NR_Linux + 265)
+#define __NR_tgkill			(__NR_Linux + 266)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		265
+#define __NR_Linux_syscalls		266
 
 #ifndef __ASSEMBLY__
 

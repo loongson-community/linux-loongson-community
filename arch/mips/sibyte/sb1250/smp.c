@@ -76,7 +76,7 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	unsigned int action;
 
-	kstat_cpu(cpu).irqs[K_INT_MBOX_0]++;
+	kstat_this_cpu.irqs[K_INT_MBOX_0]++;
 	/* Load the mailbox register to figure out what we're supposed to do */
 	action = (__raw_readq(mailbox_regs[cpu]) >> 48) & 0xffff;
 
