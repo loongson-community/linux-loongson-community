@@ -86,7 +86,8 @@ NESTED(mapped_kernel_setup_tlb, 16, sp)
 	dmtc0	t0, CP0_ENTRYHI
 	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _PAGE_DIRTY|_CACHE_CACHABLE_COW) >> 6)
 	mtc0	t0, CP0_ENTRYLO0	# physaddr 0, DVG, cach exlwr
-	mtc0	zero, CP0_ENTRYLO1	# 16M should be enough for text+data
+	li	t0, (_PAGE_GLOBAL >> 6)	# allow global access to kernel
+	mtc0	t0, CP0_ENTRYLO1	# 16M should be enough for text+data
 	li	t0, 0x1ffe000		# MAPPED_KERN_TLBMASK, TLBPGMASK_16M
 	mtc0	t0, CP0_PAGEMASK
 	li	t0, 0			# KMAP_INX
