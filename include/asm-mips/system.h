@@ -275,14 +275,14 @@ __xchg(unsigned long x, volatile void * ptr, int size)
 
 extern void *set_except_vector(int n, void *addr);
 
-extern void __die(const char *, struct pt_regs *, const char *where,
-	unsigned long line) __attribute__((noreturn));
-extern void __die_if_kernel(const char *, struct pt_regs *, const char *where,
-	unsigned long line);
+extern void __die(const char *, struct pt_regs *, const char *file,
+	const char *func, unsigned long line) __attribute__((noreturn));
+extern void __die_if_kernel(const char *, struct pt_regs *, const char *file,
+	const char *func, unsigned long line);
 
 #define die(msg, regs)							\
-	__die(msg, regs, __FILE__ ":"__FUNCTION__, __LINE__)
+	__die(msg, regs, __FILE__ ":", __FUNCTION__, __LINE__)
 #define die_if_kernel(msg, regs)					\
-	__die_if_kernel(msg, regs, __FILE__ ":"__FUNCTION__, __LINE__)
+	__die_if_kernel(msg, regs, __FILE__ ":", __FUNCTION__, __LINE__)
 
 #endif /* _ASM_SYSTEM_H */

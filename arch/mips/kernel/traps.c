@@ -325,25 +325,25 @@ void show_registers(struct pt_regs *regs)
 
 static spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
 
-void __die(const char * str, struct pt_regs * regs, const char *where,
-           unsigned long line)
+void __die(const char * str, struct pt_regs * regs, const char * file,
+	   const char * func, unsigned long line)
 {
 	console_verbose();
 	spin_lock_irq(&die_lock);
 	printk("%s", str);
 	if (where)
-		printk(" in %s, line %ld", where, line);
+		printk(" in %s:%s, line %ld", file, func, line);
 	printk(":\n");
 	show_registers(regs);
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
 
-void __die_if_kernel(const char * str, struct pt_regs * regs, const char *where,
-	unsigned long line)
+void __die_if_kernel(const char * str, struct pt_regs * regs,
+		     const char * file, const char * func, unsigned long line)
 {
 	if (!user_mode(regs))
-		__die(str, regs, where, line);
+		__die(str, regs, file, func, line);
 }
 
 extern const struct exception_table_entry __start___dbe_table[];

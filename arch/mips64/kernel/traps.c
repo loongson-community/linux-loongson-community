@@ -216,31 +216,38 @@ void show_regs(struct pt_regs *regs)
 	printk("Cause   : %08x\n", (unsigned int) regs->cp0_cause);
 }
 
-static spinlock_t die_lock;
-
-void die(const char * str, struct pt_regs * regs)
+void show_registers(struct pt_regs *regs)
 {
-	if (user_mode(regs))	/* Just return if in user mode.  */
-		return;
-
-	console_verbose();
-	spin_lock_irq(&die_lock);
-	printk("%s\n", str);
 	show_regs(regs);
-	printk("Process %s (pid: %d, stackpage=%08lx)\n",
+	printk("Process %s (pid: %d, stackpage=%016lx)\n",
 		current->comm, current->pid, (unsigned long) current);
 	show_stack((unsigned long *) regs->regs[29]);
 	show_trace((unsigned long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
+}
+
+static spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
+
+void __die(const char * str, struct pt_regs * regs, const char * file,
+	   const char * func, unsigned long line)
+{
+	console_verbose();
+	spin_lock_irq(&die_lock);
+	printk("%s", str);
+	if (file && func)
+		printk(" in %s:%s, line %ld", file, func, line);
+	printk(":\n");
+	show_registers(regs);
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
 
-void die_if_kernel(const char * str, struct pt_regs * regs)
+void __die_if_kernel(const char * str, struct pt_regs * regs,
+		     const char * file, const char * func, unsigned long line)
 {
 	if (!user_mode(regs))
-		die(str, regs);
+		__die(str, regs, file, func, line);
 }
 
 extern const struct exception_table_entry __start___dbe_table[];
