@@ -27,7 +27,7 @@ LEAF(__strnlen_user_asm)
 	and	v0, ta0
 	bltz	v0, fault
 
-EXPORT(__strnlen_user_nocheck_asm)
+FEXPORT(__strnlen_user_nocheck_asm)
 	move	v0, a0
 	daddu	a1, a0			# stop pointer
 1:	beq	v0, a1, 1f		# limit reached?
