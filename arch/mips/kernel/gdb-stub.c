@@ -234,7 +234,7 @@ static void getpacket(char *buffer)
 		 * now, read until a # or end of buffer is found
 		 */
 		while (count < BUFMAX) {
-			ch = getDebugChar() & 0x7f;
+			ch = getDebugChar();
 			if (ch == '#')
 				break;
 			checksum = checksum + ch;
@@ -340,15 +340,22 @@ static unsigned char *mem2hex(char *mem, char *buf, int count, int may_fault)
  * may_fault is non-zero if we are reading from arbitrary memory, but is currently
  * not used.
  */
-static char *hex2mem(char *buf, char *mem, int count, int may_fault)
+static char *hex2mem(char *buf, char *mem, int count, int binary, int may_fault)
 {
 	int i;
 	unsigned char ch;
 
 	for (i=0; i<count; i++)
 	{
-		ch = hex(*buf++) << 4;
-		ch |= hex(*buf++);
+		if (binary) {
+			ch = *buf++;
+			if (ch == 0x7d)
+				ch = 0x20 ^ *buf++;
+		}
+		else {
+			ch = hex(*buf++) << 4;
+			ch |= hex(*buf++);
+		}
 		if (kgdb_write_byte(ch, mem++) != 0)
 			return 0;
 	}
@@ -670,6 +677,7 @@ void handle_exception (struct gdb_regs *regs)
 	char *ptr;
 	unsigned long *stack;
 	int i;
+	int bflag = 0;
 
 	kgdb_started = 1;
 
@@ -818,17 +826,17 @@ void handle_exception (struct gdb_regs *regs)
 		case 'G':
 		{
 			ptr = &input_buffer[1];
-			hex2mem(ptr, (char *)&regs->reg0, 32*sizeof(long), 0);
+			hex2mem(ptr, (char *)&regs->reg0, 32*sizeof(long), 0, 0);
 			ptr += 32*(2*sizeof(long));
-			hex2mem(ptr, (char *)&regs->cp0_status, 6*sizeof(long), 0);
+			hex2mem(ptr, (char *)&regs->cp0_status, 6*sizeof(long), 0, 0);
 			ptr += 6*(2*sizeof(long));
-			hex2mem(ptr, (char *)&regs->fpr0, 32*sizeof(long), 0);
+			hex2mem(ptr, (char *)&regs->fpr0, 32*sizeof(long), 0, 0);
 			ptr += 32*(2*sizeof(long));
-			hex2mem(ptr, (char *)&regs->cp1_fsr, 2*sizeof(long), 0);
+			hex2mem(ptr, (char *)&regs->cp1_fsr, 2*sizeof(long), 0, 0);
 			ptr += 2*(2*sizeof(long));
-			hex2mem(ptr, (char *)&regs->frame_ptr, 2*sizeof(long), 0);
+			hex2mem(ptr, (char *)&regs->frame_ptr, 2*sizeof(long), 0, 0);
 			ptr += 2*(2*sizeof(long));
-			hex2mem(ptr, (char *)&regs->cp0_index, 16*sizeof(long), 0);
+			hex2mem(ptr, (char *)&regs->cp0_index, 16*sizeof(long), 0, 0);
 			strcpy(output_buffer,"OK");
 		 }
 		break;
@@ -850,6 +858,13 @@ void handle_exception (struct gdb_regs *regs)
 			break;
 
 		/*
+		 * XAA..AA,LLLL: Write LLLL escaped binary bytes at address AA.AA
+		 */
+		case 'X':
+			bflag = 1;
+			/* fall through */
+
+		/*
 		 * MAA..AA,LLLL: Write LLLL bytes at address AA.AA return OK
 		 */
 		case 'M':
@@ -859,7 +874,7 @@ void handle_exception (struct gdb_regs *regs)
 				&& *ptr++ == ','
 				&& hexToInt(&ptr, &length)
 				&& *ptr++ == ':') {
-				if (hex2mem(ptr, (char *)addr, length, 1))
+				if (hex2mem(ptr, (char *)addr, length, bflag, 1))
 					strcpy(output_buffer, "OK");
 				else
 					strcpy(output_buffer, "E03");
