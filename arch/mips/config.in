@@ -172,7 +172,6 @@ if [ "$CONFIG_DDB5074" = "y" ]; then
    define_bool CONFIG_OLD_TIME_C y
 fi
 if [ "$CONFIG_DDB5476"  = "y" ]; then
-   define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_PCI y
    define_bool CONFIG_PC_KEYB y
