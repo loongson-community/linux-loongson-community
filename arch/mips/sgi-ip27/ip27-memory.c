@@ -185,7 +185,7 @@ void __init prom_meminit(void)
 	node_datasz = PFN_UP(sizeof(ip27_pg_data_t));
 	mlreset();
 
-	max_low_pfn = num_physpages = szmem(0, 0);
+	num_physpages = szmem(0, 0);
 
 	for (node = 0; node < numnodes; node++) {
 		slot_firstpfn = slot_getbasepfn(node, 0);
@@ -231,6 +231,9 @@ void __init paging_init(void)
 		zones_size[ZONE_DMA] = end_pfn + 1 - start_pfn;
 		free_area_init_node(node, NODE_DATA(node), NULL,
 				zones_size, start_pfn, NULL);
+
+		if (end_pfn > max_low_pfn)
+			max_low_pfn = end_pfn;
 	}
 }
 
