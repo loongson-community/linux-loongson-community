@@ -75,8 +75,6 @@ static void __init jazz_irq_setup(void)
 	change_c0_status(ST0_IM, IE_IRQ4 | IE_IRQ3 | IE_IRQ2 | IE_IRQ1);
 	/* set the clock to 100 Hz */
 	r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
-	request_region(0x20, 0x20, "pic1");
-	request_region(0xa0, 0x20, "pic2");
 	i8259_setup_irq(2, &irq2);
 }
 

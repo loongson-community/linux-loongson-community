@@ -113,20 +113,16 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 
 static struct {
 	struct resource dma1;
-	struct resource pic1;
 	struct resource timer;
 	struct resource rtc;
 	struct resource dma_page_reg;
-	struct resource pic2;
 	struct resource dma2;
 } ddb5476_ioport = {
 	{
 	"dma1", 0x00, 0x1f, IORESOURCE_BUSY}, {
-	"pic1", 0x20, 0x3f, IORESOURCE_BUSY}, {
 	"timer", 0x40, 0x5f, IORESOURCE_BUSY}, {
 	"rtc", 0x70, 0x7f, IORESOURCE_BUSY}, {
 	"dma page reg", 0x80, 0x8f, IORESOURCE_BUSY}, {
-	"pic2", 0xa0, 0xbf, IORESOURCE_BUSY}, {
 	"dma2", 0xc0, 0xdf, IORESOURCE_BUSY}
 };
 
@@ -158,12 +154,10 @@ ddb_setup(void)
 
 	/* request io port/mem resources  */
 	if (request_resource(&ioport_resource, &ddb5476_ioport.dma1) ||
-	    request_resource(&ioport_resource, &ddb5476_ioport.pic1) ||
 	    request_resource(&ioport_resource, &ddb5476_ioport.timer) ||
 	    request_resource(&ioport_resource, &ddb5476_ioport.rtc) ||
 	    request_resource(&ioport_resource,
 			     &ddb5476_ioport.dma_page_reg)
-	    || request_resource(&ioport_resource, &ddb5476_ioport.pic2)
 	    || request_resource(&ioport_resource, &ddb5476_ioport.dma2)
 	    || request_resource(&iomem_resource, &ddb5476_iomem.nile4)) {
 		printk
