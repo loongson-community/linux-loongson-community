@@ -357,6 +357,7 @@ cleanup_src_unaligned:
 	beqz	len, done
 	 and	rem, len, NBYTES-1  # rem = len % NBYTES
 	beq	rem, len, copy_bytes
+	nop
 1:
 EXC(	 LDFIRST t0, FIRST(0)(src),	l_exc)
 EXC(	LDREST	t0, REST(0)(src),	l_exc_copy)
