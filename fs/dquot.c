@@ -1039,6 +1039,7 @@ int dquot_alloc_block(struct inode *inode, unsigned long number, char warn)
 	struct dquot *dquot[MAXQUOTAS];
 	char warntype[MAXQUOTAS];
 
+	lock_kernel();
 	for (cnt = 0; cnt < MAXQUOTAS; cnt++) {
 		dquot[cnt] = NODQUOT;
 		warntype[cnt] = NOWARN;
@@ -1064,6 +1065,7 @@ warn_put_all:
 	for (cnt = 0; cnt < MAXQUOTAS; cnt++)
 		if (dquot[cnt] != NODQUOT)
 			dqput(dquot[cnt]);
+	unlock_kernel();
 	return ret;
 }
 
@@ -1081,6 +1083,7 @@ int dquot_alloc_inode(const struct inode *inode, unsigned long number)
 		warntype[cnt] = NOWARN;
 	}
 	/* NOBLOCK Start */
+	lock_kernel();
 	for (cnt = 0; cnt < MAXQUOTAS; cnt++) {
 		dquot[cnt] = dqduplicate(inode -> i_dquot[cnt]);
 		if (dquot[cnt] == NODQUOT)
@@ -1101,6 +1104,7 @@ warn_put_all:
 	for (cnt = 0; cnt < MAXQUOTAS; cnt++)
 		if (dquot[cnt] != NODQUOT)
 			dqput(dquot[cnt]);
+	unlock_kernel();
 	return ret;
 }
 
@@ -1113,6 +1117,7 @@ void dquot_free_block(struct inode *inode, unsigned long number)
 	struct dquot *dquot;
 
 	/* NOBLOCK Start */
+	lock_kernel();
 	for (cnt = 0; cnt < MAXQUOTAS; cnt++) {
 		dquot = dqduplicate(inode->i_dquot[cnt]);
 		if (dquot == NODQUOT)
@@ -1121,6 +1126,7 @@ void dquot_free_block(struct inode *inode, unsigned long number)
 		dqput(dquot);
 	}
 	inode->i_blocks -= number << (BLOCK_SIZE_BITS - 9);
+	unlock_kernel();
 	/* NOBLOCK End */
 }
 
@@ -1133,6 +1139,7 @@ void dquot_free_inode(const struct inode *inode, unsigned long number)
 	struct dquot *dquot;
 
 	/* NOBLOCK Start */
+	lock_kernel();
 	for (cnt = 0; cnt < MAXQUOTAS; cnt++) {
 		dquot = dqduplicate(inode->i_dquot[cnt]);
 		if (dquot == NODQUOT)
@@ -1140,6 +1147,7 @@ void dquot_free_inode(const struct inode *inode, unsigned long number)
 		dquot_decr_inodes(dquot, number);
 		dqput(dquot);
 	}
+	unlock_kernel();
 	/* NOBLOCK End */
 }
 

@@ -29,6 +29,7 @@
 #include <linux/init.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 
@@ -53,6 +54,7 @@ static int ramfs_statfs(struct super_block *sb, struct statfs *buf)
  * Lookup the data. This is trivial - if the dentry didn't already
  * exist, we know it is negative.
  */
+/* SMP-safe */
 static struct dentry * ramfs_lookup(struct inode *dir, struct dentry *dentry)
 {
 	d_add(dentry, NULL);
@@ -133,6 +135,7 @@ struct inode *ramfs_get_inode(struct super_block *sb, int mode, int dev)
 /*
  * File creation. Allocate an inode, and we're done..
  */
+/* SMP-safe */
 static int ramfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int dev)
 {
 	struct inode * inode = ramfs_get_inode(dir->i_sb, mode, dev);
@@ -162,9 +165,6 @@ static int ramfs_create(struct inode *dir, struct dentry *dentry, int mode)
 static int ramfs_link(struct dentry *old_dentry, struct inode * dir, struct dentry * dentry)
 {
 	struct inode *inode = old_dentry->d_inode;
-
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
 
 	inode->i_nlink++;
 	atomic_inc(&inode->i_count);	/* New dentry reference */
@@ -249,13 +249,18 @@ static int ramfs_rename(struct inode * old_dir, struct dentry *old_dentry, struc
 
 static int ramfs_symlink(struct inode * dir, struct dentry *dentry, const char * symname)
 {
-	int error;
+	struct inode *inode;
+	int error = -ENOSPC;
 
-	error = ramfs_mknod(dir, dentry, S_IFLNK | S_IRWXUGO, 0);
-	if (!error) {
+	inode = ramfs_get_inode(dir->i_sb, S_IFLNK|S_IRWXUGO, 0);
+	if (inode) {
 		int l = strlen(symname)+1;
-		struct inode *inode = dentry->d_inode;
 		error = block_symlink(inode, symname, l);
+		if (!error) {
+			d_instantiate(dentry, inode);
+			dget(dentry);
+		} else
+			iput(inode);
 	}
 	return error;
 }

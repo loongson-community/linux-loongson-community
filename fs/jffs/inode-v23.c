@@ -422,10 +422,12 @@ jffs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		 old_dir, old_dentry->d_name.name,
 		 new_dir, new_dentry->d_name.name));
 
+	lock_kernel();
 	c = (struct jffs_control *)old_dir->i_sb->u.generic_sbp;
 	ASSERT(if (!c) {
 		printk(KERN_ERR "jffs_rename(): The old_dir inode "
 		       "didn't have a reference to a jffs_file struct\n");
+		unlock_kernel();
 		return -EIO;
 	});
 
@@ -544,6 +546,7 @@ jffs_rename(struct inode *old_dir, struct dentry *old_dentry,
 jffs_rename_end:
 	D3(printk (KERN_NOTICE "rename(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return result;
 } /* jffs_rename()  */
 
@@ -631,6 +634,8 @@ jffs_lookup(struct inode *dir, struct dentry *dentry)
 	len = dentry->d_name.len;
 	name = dentry->d_name.name;
 
+	lock_kernel();
+
 	D3({
 		char *s = (char *)kmalloc(len + 1, GFP_KERNEL);
 		memcpy(s, name, len);
@@ -698,6 +703,7 @@ jffs_lookup(struct inode *dir, struct dentry *dentry)
 	d_add(dentry, inode);
 	D3(printk (KERN_NOTICE "lookup(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return NULL;
 
 jffs_lookup_end:
@@ -705,6 +711,7 @@ jffs_lookup_end:
 	up(&c->fmc->biglock);
 
 jffs_lookup_end_no_biglock:
+	unlock_kernel();
 	return ERR_PTR(r);
 } /* jffs_lookup()  */
 
@@ -803,11 +810,13 @@ jffs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		kfree(_name);
 	});
 
+	lock_kernel();
 	dir_f = (struct jffs_file *)dir->u.generic_ip;
 
 	ASSERT(if (!dir_f) {
 		printk(KERN_ERR "jffs_mkdir(): No reference to a "
 		       "jffs_file struct in inode.\n");
+		unlock_kernel();
 		return -EIO;
 	});
 
@@ -881,6 +890,7 @@ jffs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 jffs_mkdir_end:
 	D3(printk (KERN_NOTICE "mkdir(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return result;
 } /* jffs_mkdir()  */
 
@@ -893,10 +903,12 @@ jffs_rmdir(struct inode *dir, struct dentry *dentry)
 	int ret;
 	D3(printk("***jffs_rmdir()\n"));
 	D3(printk (KERN_NOTICE "rmdir(): down biglock\n"));
+	lock_kernel();
 	down(&c->fmc->biglock);
 	ret = jffs_remove(dir, dentry, S_IFDIR);
 	D3(printk (KERN_NOTICE "rmdir(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return ret;
 }
 
@@ -908,12 +920,14 @@ jffs_unlink(struct inode *dir, struct dentry *dentry)
 	struct jffs_control *c = (struct jffs_control *)dir->i_sb->u.generic_sbp;
 	int ret; 
 
+	lock_kernel();
 	D3(printk("***jffs_unlink()\n"));
 	D3(printk (KERN_NOTICE "unlink(): down biglock\n"));
 	down(&c->fmc->biglock);
 	ret = jffs_remove(dir, dentry, 0);
 	D3(printk (KERN_NOTICE "unlink(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return ret;
 }
 
@@ -1048,6 +1062,7 @@ jffs_mknod(struct inode *dir, struct dentry *dentry, int mode, int rdev)
 
 	D1(printk("***jffs_mknod()\n"));
 
+	lock_kernel();
 	dir_f = (struct jffs_file *)dir->u.generic_ip;
 	c = dir_f->c;
 
@@ -1119,6 +1134,7 @@ jffs_mknod_err:
 jffs_mknod_end:
 	D3(printk (KERN_NOTICE "mknod(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return result;
 } /* jffs_mknod()  */
 
@@ -1135,6 +1151,7 @@ jffs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	int symname_len = strlen(symname);
 	int err;
 
+	lock_kernel();
 	D1({
 		int len = dentry->d_name.len; 
 		char *_name = (char *)kmalloc(len + 1, GFP_KERNEL);
@@ -1154,6 +1171,7 @@ jffs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	ASSERT(if (!dir_f) {
 		printk(KERN_ERR "jffs_symlink(): No reference to a "
 		       "jffs_file struct in inode.\n");
+		unlock_kernel();
 		return -EIO;
 	});
 
@@ -1162,6 +1180,7 @@ jffs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	/* Create a node and initialize it as much as needed.  */
 	if (!(node = jffs_alloc_node())) {
 		D(printk("jffs_symlink(): Allocation failed: node = NULL\n"));
+		unlock_kernel();
 		return -ENOMEM;
 	}
 	D3(printk (KERN_NOTICE "symlink(): down biglock\n"));
@@ -1216,6 +1235,7 @@ jffs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
  jffs_symlink_end:
 	D3(printk (KERN_NOTICE "symlink(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return err;
 } /* jffs_symlink()  */
 
@@ -1239,6 +1259,7 @@ jffs_create(struct inode *dir, struct dentry *dentry, int mode)
 	struct inode *inode;
 	int err;
 
+	lock_kernel();
 	D1({
 		int len = dentry->d_name.len;
 		char *s = (char *)kmalloc(len + 1, GFP_KERNEL);
@@ -1252,6 +1273,7 @@ jffs_create(struct inode *dir, struct dentry *dentry, int mode)
 	ASSERT(if (!dir_f) {
 		printk(KERN_ERR "jffs_create(): No reference to a "
 		       "jffs_file struct in inode.\n");
+		unlock_kernel();
 		return -EIO;
 	});
 
@@ -1260,6 +1282,7 @@ jffs_create(struct inode *dir, struct dentry *dentry, int mode)
 	/* Create a node and initialize as much as needed.  */
 	if (!(node = jffs_alloc_node())) {
 		D(printk("jffs_create(): Allocation failed: node == 0\n"));
+		unlock_kernel();
 		return -ENOMEM;
 	}
 	D3(printk (KERN_NOTICE "create(): down biglock\n"));
@@ -1317,6 +1340,7 @@ jffs_create(struct inode *dir, struct dentry *dentry, int mode)
  jffs_create_end:
 	D3(printk (KERN_NOTICE "create(): up biglock\n"));
 	up(&c->fmc->biglock);
+	unlock_kernel();
 	return err;
 } /* jffs_create()  */
 

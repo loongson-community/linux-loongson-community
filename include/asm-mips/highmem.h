@@ -19,6 +19,7 @@
 
 #ifdef __KERNEL__
 
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <asm/kmap_types.h>
@@ -84,6 +85,10 @@ static inline void *kmap_atomic(struct page *page, enum km_type type)
 
 	idx = type + KM_TYPE_NR*smp_processor_id();
 	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
+#if CONFIG_DEBUG_HIGHMEM
+	if (!pte_none(*(kmap_pte-idx)))
+		BUG();
+#endif
 	set_pte(kmap_pte-idx, mk_pte(page, kmap_prot));
 	//local_flush_tlb_page(NULL, vaddr);
 	local_flush_tlb_all();
@@ -93,6 +98,26 @@ static inline void *kmap_atomic(struct page *page, enum km_type type)
 
 static inline void kunmap_atomic(void *kvaddr, enum km_type type)
 {
+#if CONFIG_DEBUG_HIGHMEM
+	unsigned long vaddr = (unsigned long) kvaddr & PAGE_MASK;
+	enum fixed_addresses idx = type + KM_TYPE_NR*smp_processor_id();
+
+	if (vaddr < FIXADDR_START) { // FIXME
+		preempt_enable();
+		return;
+	}
+
+	if (vaddr != __fix_to_virt(FIX_KMAP_BEGIN+idx))
+		BUG();
+
+	/*
+	 * force other mappings to Oops if they'll try to access
+	 * this pte without first remap it
+	 */
+	pte_clear(kmap_pte-idx);
+	__flush_tlb_one(vaddr);
+#endif
+
 	preempt_enable();
 }
 

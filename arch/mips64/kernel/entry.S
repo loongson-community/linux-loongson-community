@@ -19,11 +19,6 @@
 
 		.text
 		.align 4
-FEXPORT(ret_from_fork)
-		move	a0, v0			# prev
-		jal	schedule_tail
-		j	syscall_exit
-
 EXPORT(ret_from_irq)
 EXPORT(ret_from_exception)
 		ld	t0, PT_STATUS(sp)	# returning to kernel mode?
@@ -41,6 +36,11 @@ EXPORT(resume_userspace)
 						# syscall_trace
 		bnez	a2, work_pending
 		j	restore_all
+
+FEXPORT(ret_from_fork)
+#if defined(CONFIG_SMP)
+		jal	schedule_tail
+#endif
 
 EXPORT(syscall_exit)
 		mfc0	t0, CP0_STATUS		# make sure need_resched and

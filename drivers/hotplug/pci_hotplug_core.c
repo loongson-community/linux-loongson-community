@@ -94,6 +94,7 @@ static int pcihpfs_statfs (struct super_block *sb, struct statfs *buf)
 	return 0;
 }
 
+/* SMP-safe */
 static struct dentry *pcihpfs_lookup (struct inode *dir, struct dentry *dentry)
 {
 	d_add(dentry, NULL);
@@ -129,6 +130,7 @@ static struct inode *pcihpfs_get_inode (struct super_block *sb, int mode, int de
 	return inode; 
 }
 
+/* SMP-safe */
 static int pcihpfs_mknod (struct inode *dir, struct dentry *dentry, int mode, int dev)
 {
 	struct inode *inode = pcihpfs_get_inode(dir->i_sb, mode, dev);
@@ -156,9 +158,6 @@ static int pcihpfs_link (struct dentry *old_dentry, struct inode *dir,
 			 struct dentry *dentry)
 {
 	struct inode *inode = old_dentry->d_inode;
-
-	if(S_ISDIR(inode->i_mode))
-		return -EPERM;
 
 	inode->i_nlink++;
 	atomic_inc(&inode->i_count);

@@ -64,6 +64,7 @@
 #include <asm/uaccess.h>
 #include <linux/ctype.h>
 #include <linux/init.h>
+#include <linux/smp_lock.h>
 
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
@@ -793,6 +794,7 @@ static int comx_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	}
 	memset(dev, 0, sizeof(struct net_device));
 
+	lock_kernel();
 	if ((new_dir = create_proc_entry(dentry->d_name.name, mode | S_IFDIR, 
 		comx_root_dir)) == NULL) {
 		goto cleanup_dev;
@@ -852,6 +854,7 @@ static int comx_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	ch->lineup_delay = DEFAULT_LINEUP_DELAY;
 
 	MOD_INC_USE_COUNT;
+	unlock_kernel();
 	return 0;
 cleanup_if_ptr:
 	kfree(ch->if_ptr);
@@ -871,23 +874,29 @@ cleanup_new_dir:
 	remove_proc_entry(dentry->d_name.name, comx_root_dir);
 cleanup_dev:
 	kfree(dev);
+	unlock_kernel();
 	return ret;
 }
 
 static int comx_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	struct proc_dir_entry *entry = PDE(dentry->d_inode);
-	struct net_device *dev = entry->data;
-	struct comx_channel *ch = dev->priv;
+	struct net_device *dev;
+	struct comx_channel *ch;
 	int ret;
 
+	lock_kernel();
+	dev = entry->data;
+	ch = dev->priv;
 	if (dev->flags & IFF_UP) {
 		printk(KERN_ERR "%s: down interface before removing it\n", dev->name);
+		unlock_kernel();
 		return -EBUSY;
 	}
 
 	if (ch->protocol && ch->protocol->line_exit && 
 	    (ret=ch->protocol->line_exit(dev))) {
+		unlock_kernel();
 		return ret;
 	}
 	if (ch->hardware && ch->hardware->hw_exit && 
@@ -895,6 +904,7 @@ static int comx_rmdir(struct inode *dir, struct dentry *dentry)
 		if(ch->protocol && ch->protocol->line_init) {
 			ch->protocol->line_init(dev);
 		}
+		unlock_kernel();
 		return ret;
 	}
 	ch->protocol = NULL;
@@ -920,6 +930,7 @@ static int comx_rmdir(struct inode *dir, struct dentry *dentry)
 	remove_proc_entry(dentry->d_name.name, comx_root_dir);
 
 	MOD_DEC_USE_COUNT;
+	unlock_kernel();
 	return 0;
 }
 
@@ -928,6 +939,7 @@ static struct dentry *comx_lookup(struct inode *dir, struct dentry *dentry)
 	struct proc_dir_entry *de;
 	struct inode *inode = NULL;
 
+	lock_kernel();
 	if ((de = PDE(dir)) != NULL) {
 		for (de = de->subdir ; de ; de = de->next) {
 			if ((de && de->low_ino) && 
@@ -937,12 +949,14 @@ static struct dentry *comx_lookup(struct inode *dir, struct dentry *dentry)
 			 	if ((inode = proc_get_inode(dir->i_sb, 
 			 	    de->low_ino, de)) == NULL) { 
 			 		printk(KERN_ERR "COMX: lookup error\n"); 
+					unlock_kernel();
 			 		return ERR_PTR(-EINVAL); 
 			 	}
 				break;
 			}
 		}
 	}
+	unlock_kernel();
 	dentry->d_op = &comx_dentry_operations;
 	d_add(dentry, inode);
 	return NULL;

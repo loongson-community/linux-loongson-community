@@ -214,7 +214,7 @@ do { var = value; wmb(); } while (0)
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
-extern asmlinkage void *resume(void *last, void *next, void *next_ti);
+extern asmlinkage void resume(void *last, void *next, void *next_ti);
 #endif /* !__ASSEMBLY__ */
 
 #define prepare_to_switch()	do { } while(0)
@@ -226,9 +226,9 @@ extern asmlinkage void init_fpu(void);
 extern asmlinkage void save_fp(struct task_struct *);
 extern asmlinkage void restore_fp(struct task_struct *);
 
-#define switch_to(prev,next,last) \
+#define switch_to(prev,next) \
 do { \
-	(last) = resume(prev, next, next->thread_info); \
+	resume(prev, next, next->thread_info); \
 } while(0)
 
 /*

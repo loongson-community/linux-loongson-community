@@ -21,14 +21,12 @@ int vfs_readdir(struct file *file, filldir_t filler, void *buf)
 	if (!file->f_op || !file->f_op->readdir)
 		goto out;
 	down(&inode->i_sem);
-	down(&inode->i_zombie);
 	res = -ENOENT;
 	if (!IS_DEADDIR(inode)) {
 		lock_kernel();
 		res = file->f_op->readdir(file, buf, filler);
 		unlock_kernel();
 	}
-	up(&inode->i_zombie);
 	up(&inode->i_sem);
 out:
 	return res;
@@ -54,7 +52,7 @@ int dcache_readdir(struct file * filp, void * dirent, filldir_t filldir)
 			filp->f_pos++;
 			/* fallthrough */
 		case 1:
-			if (filldir(dirent, "..", 2, i, dentry->d_parent->d_inode->i_ino, DT_DIR) < 0)
+			if (filldir(dirent, "..", 2, i, parent_ino(dentry), DT_DIR) < 0)
 				break;
 			i++;
 			filp->f_pos++;

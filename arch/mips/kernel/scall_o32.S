@@ -245,7 +245,7 @@ bad_address:
 bad_alignment:
 	li	v0, -EINVAL
 	jr	ra
-	END(mips_atomic_set)	
+	END(mips_atomic_set)
 
 	LEAF(sys_sysmips)
 	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set

@@ -258,12 +258,11 @@ static struct dentry_operations proc_dentry_operations =
  */
 struct dentry *proc_lookup(struct inode * dir, struct dentry *dentry)
 {
-	struct inode *inode;
+	struct inode *inode = NULL;
 	struct proc_dir_entry * de;
-	int error;
+	int error = -ENOENT;
 
-	error = -ENOENT;
-	inode = NULL;
+	lock_kernel();
 	de = PDE(dir);
 	if (de) {
 		for (de = de->subdir; de ; de = de->next) {
@@ -279,6 +278,7 @@ struct dentry *proc_lookup(struct inode * dir, struct dentry *dentry)
 			}
 		}
 	}
+	unlock_kernel();
 
 	if (inode) {
 		dentry->d_op = &proc_dentry_operations;
@@ -319,7 +319,7 @@ int proc_readdir(struct file * filp,
 			/* fall through */
 		case 1:
 			if (filldir(dirent, "..", 2, i,
-				    filp->f_dentry->d_parent->d_inode->i_ino,
+				    parent_ino(filp->f_dentry),
 				    DT_DIR) < 0)
 				return 0;
 			i++;

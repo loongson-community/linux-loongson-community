@@ -55,6 +55,14 @@ asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
 int hlt_counter;
 
 /*
+ * Return saved PC of a blocked thread.
+ */
+unsigned long thread_saved_pc(struct task_struct *tsk)
+{
+	return ((unsigned long *)tsk->thread.esp)[3];
+}
+
+/*
  * Powermanagement idle function, if any..
  */
 void (*pm_idle)(void);
@@ -78,7 +86,7 @@ void enable_hlt(void)
  * We use this if we don't have any better
  * idle routine..
  */
-static void default_idle(void)
+void default_idle(void)
 {
 	if (current_cpu_data.hlt_works_ok && !hlt_counter) {
 		__cli();
@@ -137,7 +145,6 @@ void cpu_idle (void)
 		while (!need_resched())
 			idle();
 		schedule();
-		check_pgt_cache();
 	}
 }
 

@@ -57,6 +57,8 @@ extern void andes_flush_icache_page(unsigned long);
 #define flush_cache_page(vma,page)		do { } while(0)
 #define flush_page_to_ram(page)			do { } while(0)
 #define flush_icache_range(start, end)		_flush_cache_l1()
+#define flush_icache_user_range(vma, page, addr, len)	\
+	flush_icache_page((vma), (page))
 #define flush_icache_page(vma, page)					\
 do {									\
 	if ((vma)->vm_flags & VM_EXEC)					\
@@ -70,6 +72,8 @@ do {									\
 #define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
 #define flush_icache_range(start, end)	_flush_icache_range(start, end)
+#define flush_icache_user_range(vma, page, addr, len)	\
+	 flush_icache_page((vma), (page))
 #define flush_icache_page(vma, page)	_flush_icache_page(vma, page)
 #ifdef CONFIG_VTAG_ICACHE
 #define flush_icache_all()		_flush_icache_all()
@@ -125,10 +129,12 @@ extern void (*_flush_cache_l1)(void);
 
 /* Entries per page directory level: we use two-level, so we don't really
    have any PMD directory physically.  */
-#define PTRS_PER_PGD	1024
-#define PTRS_PER_PMD	1024
-#define PTRS_PER_PTE	512
+#define PTRS_PER_PGD		1024
+#define PTRS_PER_PMD		1024
+#define PTRS_PER_PTE		512
 #define PGD_ORDER		1
+#define PMD_ORDER		1
+#define PTE_ORDER		0
 
 #define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
@@ -261,24 +267,13 @@ extern pmd_t empty_bad_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-static inline unsigned long pmd_page(pmd_t pmd)
-{
-	return pmd_val(pmd);
-}
+#define page_pte(page)		page_pte_prot(page, __pgprot(0))
+#define pmd_page_kernel(pmd)	pmd_val(pmd)
+#define pmd_page(pmd)		(mem_map + (pmd_val(pmd) - PAGE_OFFSET))
 
 static inline unsigned long pgd_page(pgd_t pgd)
 {
 	return pgd_val(pgd);
-}
-
-static inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
-{
-	pmd_val(*pmdp) = (((unsigned long) ptep) & PAGE_MASK);
-}
-
-static inline void pgd_set(pgd_t * pgdp, pmd_t * pmdp)
-{
-	pgd_val(*pgdp) = (((unsigned long) pmdp) & PAGE_MASK);
 }
 
 static inline int pte_none(pte_t pte)
@@ -310,8 +305,8 @@ static inline void pte_clear(pte_t *ptep)
  * (pmds are folded into pgds so this doesnt get actually called,
  * but the define is needed for a generic inline function.)
  */
-#define set_pmd(pmdptr, pmdval) (*(pmdptr) = pmdval)
-#define set_pgd(pgdptr, pgdval) (*(pgdptr) = pgdval)
+#define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while(0);
+#define set_pgd(pgdptr, pgdval) do { *(pgdptr) = (pgdval); } while(0);
 
 /*
  * Empty pmd entries point to the invalid_pte_table.
@@ -359,11 +354,6 @@ static inline void pgd_clear(pgd_t *pgdp)
 	pgd_val(*pgdp) = ((unsigned long) invalid_pmd_table);
 }
 
-/*
- * Permanent address of a page.  On MIPS64 we never have highmem, so this
- * is simple.
- */
-#define page_address(page)	((page)->virtual)
 #ifndef CONFIG_DISCONTIGMEM
 #define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
 #else
@@ -522,11 +512,18 @@ static inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
 }
 
 /* Find an entry in the third-level page table.. */ 
-static inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
-{
-	return (pte_t *) (pmd_page(*dir)) +
-	       ((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1));
-}
+#define __pte_offset(address)						\
+	((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
+#define pte_offset(dir, address)					\
+	((pte_t *) (pmd_page_kernel(*dir)) + __pte_offset(address))
+#define pte_offset_kernel(dir, address)					\
+	((pte_t *) pmd_page_kernel(*(dir)) +  __pte_offset(address))
+#define pte_offset_map(dir, address)					\
+	((pte_t *)page_address(pmd_page(*(dir))) + __pte_offset(address))
+#define pte_offset_map_nested(dir, address)				\
+	((pte_t *)page_address(pmd_page(*(dir))) + __pte_offset(address))
+#define pte_unmap(pte) ((void)(pte))
+#define pte_unmap_nested(pte) ((void)(pte))
 
 /*
  * Initialize a new pgd / pmd table with invalid pointers.

@@ -112,6 +112,7 @@ static struct dentry *coda_lookup(struct inode *dir, struct dentry *entry)
         CDEBUG(D_INODE, "name %s, len %ld in ino %ld, fid %s\n", 
 	       name, (long)length, dir->i_ino, coda_i2s(dir));
 
+	lock_kernel();
         /* control object, create inode on the fly */
         if (coda_isroot(dir) && coda_iscontrol(name, length)) {
 	        error = coda_cnode_makectl(&res_inode, dir->i_sb);
@@ -135,10 +136,14 @@ static struct dentry *coda_lookup(struct inode *dir, struct dentry *entry)
 		}
 
 	    	error = coda_cnode_make(&res_inode, &resfid, dir->i_sb);
-		if (error) return ERR_PTR(error);
+		if (error) {
+			unlock_kernel();
+			return ERR_PTR(error);
+		}
 	} else if (error != -ENOENT) {
 	        CDEBUG(D_INODE, "error for %s(%*s)%d\n",
 		       coda_i2s(dir), (int)length, name, error);
+		unlock_kernel();
 		return ERR_PTR(error);
 	}
 	CDEBUG(D_INODE, "lookup: %s is (%s), type %d result %d, dropme %d\n",
@@ -152,6 +157,7 @@ exit:
 		d_drop(entry);
 		coda_flag_inode(res_inode, C_VATTR);
 	}
+	unlock_kernel();
         return NULL;
 }
 
@@ -213,12 +219,15 @@ static int coda_create(struct inode *dir, struct dentry *de, int mode)
 	struct ViceFid newfid;
 	struct coda_vattr attrs;
 
+	lock_kernel();
 	coda_vfs_stat.create++;
 
 	CDEBUG(D_INODE, "name: %s, length %d, mode %o\n", name, length, mode);
 
-	if (coda_isroot(dir) && coda_iscontrol(name, length))
+	if (coda_isroot(dir) && coda_iscontrol(name, length)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
 	error = venus_create(dir->i_sb, coda_i2f(dir), name, length, 
 				0, mode, 0, &newfid, &attrs);
@@ -226,12 +235,14 @@ static int coda_create(struct inode *dir, struct dentry *de, int mode)
         if ( error ) {
 		CDEBUG(D_INODE, "create: %s, result %d\n",
 		       coda_f2s(&newfid), error); 
+		unlock_kernel();
 		d_drop(de);
 		return error;
 	}
 
 	error = coda_cnode_make(&result, &newfid, dir->i_sb);
 	if ( error ) {
+		unlock_kernel();
 		d_drop(de);
 		result = NULL;
 		return error;
@@ -239,6 +250,7 @@ static int coda_create(struct inode *dir, struct dentry *de, int mode)
 
 	/* invalidate the directory cnode's attributes */
 	coda_dir_changed(dir, 0);
+	unlock_kernel();
 	d_instantiate(de, result);
         return 0;
 }
@@ -255,13 +267,16 @@ static int coda_mknod(struct inode *dir, struct dentry *de, int mode, int rdev)
 	if ( coda_hasmknod == 0 )
 		return -EIO;
 
+	lock_kernel();
 	coda_vfs_stat.create++;
 
 	CDEBUG(D_INODE, "name: %s, length %d, mode %o, rdev %x\n",
 	       name, length, mode, rdev);
 
-	if (coda_isroot(dir) && coda_iscontrol(name, length))
+	if (coda_isroot(dir) && coda_iscontrol(name, length)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
 	error = venus_create(dir->i_sb, coda_i2f(dir), name, length, 
 				0, mode, rdev, &newfid, &attrs);
@@ -270,6 +285,7 @@ static int coda_mknod(struct inode *dir, struct dentry *de, int mode, int rdev)
 		CDEBUG(D_INODE, "mknod: %s, result %d\n",
 		       coda_f2s(&newfid), error); 
 		d_drop(de);
+		unlock_kernel();
 		return error;
 	}
 
@@ -277,11 +293,13 @@ static int coda_mknod(struct inode *dir, struct dentry *de, int mode, int rdev)
 	if ( error ) {
 		d_drop(de);
 		result = NULL;
+		unlock_kernel();
 		return error;
 	}
 
 	/* invalidate the directory cnode's attributes */
 	coda_dir_changed(dir, 0);
+	unlock_kernel();
 	d_instantiate(de, result);
         return 0;
 }			     
@@ -295,10 +313,13 @@ static int coda_mkdir(struct inode *dir, struct dentry *de, int mode)
 	int error;
 	struct ViceFid newfid;
 
+	lock_kernel();
 	coda_vfs_stat.mkdir++;
 
-	if (coda_isroot(dir) && coda_iscontrol(name, len))
+	if (coda_isroot(dir) && coda_iscontrol(name, len)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
 	CDEBUG(D_INODE, "mkdir %s (len %d) in %s, mode %o.\n", 
 	       name, len, coda_i2s(dir), mode);
@@ -311,6 +332,7 @@ static int coda_mkdir(struct inode *dir, struct dentry *de, int mode)
 	        CDEBUG(D_INODE, "mkdir error: %s result %d\n", 
 		       coda_f2s(&newfid), error); 
 		d_drop(de);
+		unlock_kernel();
                 return error;
         }
          
@@ -320,11 +342,13 @@ static int coda_mkdir(struct inode *dir, struct dentry *de, int mode)
 	error = coda_cnode_make(&inode, &newfid, dir->i_sb);
 	if ( error ) {
 		d_drop(de);
+		unlock_kernel();
 		return error;
 	}
 	
 	/* invalidate the directory cnode's attributes */
 	coda_dir_changed(dir, 1);
+	unlock_kernel();
 	d_instantiate(de, inode);
         return 0;
 }
@@ -338,10 +362,13 @@ static int coda_link(struct dentry *source_de, struct inode *dir_inode,
 	int len = de->d_name.len;
 	int error;
 
+	lock_kernel();
 	coda_vfs_stat.link++;
 
-	if (coda_isroot(dir_inode) && coda_iscontrol(name, len))
+	if (coda_isroot(dir_inode) && coda_iscontrol(name, len)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
 	CDEBUG(D_INODE, "old: fid: %s\n", coda_i2s(inode));
 	CDEBUG(D_INODE, "directory: %s\n", coda_i2s(dir_inode));
@@ -361,6 +388,7 @@ static int coda_link(struct dentry *source_de, struct inode *dir_inode,
         
 out:
 	CDEBUG(D_INODE, "link result %d\n",error);
+	unlock_kernel();
 	return(error);
 }
 
@@ -373,14 +401,19 @@ static int coda_symlink(struct inode *dir_inode, struct dentry *de,
 	int symlen;
         int error=0;
         
+	lock_kernel();
 	coda_vfs_stat.symlink++;
 
-	if (coda_isroot(dir_inode) && coda_iscontrol(name, len))
+	if (coda_isroot(dir_inode) && coda_iscontrol(name, len)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
 	symlen = strlen(symname);
-	if ( symlen > CODA_MAXPATHLEN )
-                return -ENAMETOOLONG;
+	if ( symlen > CODA_MAXPATHLEN ) {
+		unlock_kernel();
+		return -ENAMETOOLONG;
+	}
 
         CDEBUG(D_INODE, "symname: %s, length: %d\n", symname, symlen);
 
@@ -397,6 +430,7 @@ static int coda_symlink(struct inode *dir_inode, struct dentry *de,
 		coda_dir_changed(dir_inode, 0);
 
         CDEBUG(D_INODE, "in symlink result %d\n",error);
+	unlock_kernel();
         return error;
 }
 
@@ -407,6 +441,7 @@ int coda_unlink(struct inode *dir, struct dentry *de)
 	const char *name = de->d_name.name;
 	int len = de->d_name.len;
 
+	lock_kernel();
 	coda_vfs_stat.unlink++;
 
         CDEBUG(D_INODE, " %s in %s, dirino %ld\n", name , 
@@ -415,11 +450,13 @@ int coda_unlink(struct inode *dir, struct dentry *de)
         error = venus_remove(dir->i_sb, coda_i2f(dir), name, len);
         if ( error ) {
                 CDEBUG(D_INODE, "upc returned error %d\n", error);
+		unlock_kernel();
                 return error;
         }
 
 	coda_dir_changed(dir, 0);
 	de->d_inode->i_nlink--;
+	unlock_kernel();
 
         return 0;
 }
@@ -430,20 +467,25 @@ int coda_rmdir(struct inode *dir, struct dentry *de)
 	int len = de->d_name.len;
         int error;
 
+	lock_kernel();
 	coda_vfs_stat.rmdir++;
 
-	if (!d_unhashed(de))
+	if (!d_unhashed(de)) {
+		unlock_kernel();
 		return -EBUSY;
+	}
 	error = venus_rmdir(dir->i_sb, coda_i2f(dir), name, len);
 
         if ( error ) {
                 CDEBUG(D_INODE, "upc returned error %d\n", error);
+		unlock_kernel();
                 return error;
         }
 
 	coda_dir_changed(dir, -1);
 	de->d_inode->i_nlink--;
 	d_delete(de);
+	unlock_kernel();
 
         return 0;
 }
@@ -459,6 +501,7 @@ static int coda_rename(struct inode *old_dir, struct dentry *old_dentry,
         int link_adjust = 0;
         int error;
 
+	lock_kernel();
 	coda_vfs_stat.rename++;
 
         CDEBUG(D_INODE, "old: %s, (%d length), new: %s"
@@ -485,6 +528,7 @@ static int coda_rename(struct inode *old_dir, struct dentry *old_dentry,
 	}
 
 	CDEBUG(D_INODE, "result %d\n", error); 
+	unlock_kernel();
 
 	return error;
 }

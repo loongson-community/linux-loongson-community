@@ -28,6 +28,7 @@
 #include <linux/string.h>
 #include <linux/locks.h>
 #include <linux/quotaops.h>
+#include <linux/smp_lock.h>
 
 
 /*
@@ -205,6 +206,7 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry)
 	if (dentry->d_name.len > EXT3_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
+	lock_kernel();
 	bh = ext3_find_entry(dentry, &de);
 	inode = NULL;
 	if (bh) {
@@ -212,9 +214,12 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry)
 		brelse (bh);
 		inode = iget(dir->i_sb, ino);
 
-		if (!inode)
+		if (!inode) {
+			unlock_kernel();
 			return ERR_PTR(-EACCES);
+		}
 	}
+	unlock_kernel();
 	d_add(dentry, inode);
 	return NULL;
 }
@@ -451,9 +456,12 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode)
 	struct inode * inode;
 	int err;
 
+	lock_kernel();
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS + 3);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(dir))
 		handle->h_sync = 1;
@@ -468,6 +476,7 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode)
 		err = ext3_add_nondir(handle, dentry, inode);
 	}
 	ext3_journal_stop(handle, dir);
+	unlock_kernel();
 	return err;
 }
 
@@ -478,9 +487,12 @@ static int ext3_mknod (struct inode * dir, struct dentry *dentry,
 	struct inode *inode;
 	int err;
 
+	lock_kernel();
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS + 3);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(dir))
 		handle->h_sync = 1;
@@ -493,6 +505,7 @@ static int ext3_mknod (struct inode * dir, struct dentry *dentry,
 		err = ext3_add_nondir(handle, dentry, inode);
 	}
 	ext3_journal_stop(handle, dir);
+	unlock_kernel();
 	return err;
 }
 
@@ -507,9 +520,12 @@ static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	if (dir->i_nlink >= EXT3_LINK_MAX)
 		return -EMLINK;
 
+	lock_kernel();
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS + 3);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(dir))
 		handle->h_sync = 1;
@@ -562,6 +578,7 @@ static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	d_instantiate(dentry, inode);
 out_stop:
 	ext3_journal_stop(handle, dir);
+	unlock_kernel();
 	return err;
 
 out_no_entry:
@@ -792,9 +809,12 @@ static int ext3_rmdir (struct inode * dir, struct dentry *dentry)
 	struct ext3_dir_entry_2 * de;
 	handle_t *handle;
 
+	lock_kernel();
 	handle = ext3_journal_start(dir, EXT3_DELETE_TRANS_BLOCKS);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	retval = -ENOENT;
 	bh = ext3_find_entry (dentry, &de);
@@ -838,6 +858,7 @@ static int ext3_rmdir (struct inode * dir, struct dentry *dentry)
 end_rmdir:
 	ext3_journal_stop(handle, dir);
 	brelse (bh);
+	unlock_kernel();
 	return retval;
 }
 
@@ -849,9 +870,12 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 	struct ext3_dir_entry_2 * de;
 	handle_t *handle;
 
+	lock_kernel();
 	handle = ext3_journal_start(dir, EXT3_DELETE_TRANS_BLOCKS);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(dir))
 		handle->h_sync = 1;
@@ -889,6 +913,7 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 
 end_unlink:
 	ext3_journal_stop(handle, dir);
+	unlock_kernel();
 	brelse (bh);
 	return retval;
 }
@@ -904,9 +929,12 @@ static int ext3_symlink (struct inode * dir,
 	if (l > dir->i_sb->s_blocksize)
 		return -ENAMETOOLONG;
 
+	lock_kernel();
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS + 5);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(dir))
 		handle->h_sync = 1;
@@ -937,6 +965,7 @@ static int ext3_symlink (struct inode * dir,
 	err = ext3_add_nondir(handle, dentry, inode);
 out_stop:
 	ext3_journal_stop(handle, dir);
+	unlock_kernel();
 	return err;
 
 out_no_entry:
@@ -953,15 +982,17 @@ static int ext3_link (struct dentry * old_dentry,
 	struct inode *inode = old_dentry->d_inode;
 	int err;
 
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
-	if (inode->i_nlink >= EXT3_LINK_MAX)
+	lock_kernel();
+	if (inode->i_nlink >= EXT3_LINK_MAX) {
+		unlock_kernel();
 		return -EMLINK;
+	}
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(dir))
 		handle->h_sync = 1;
@@ -973,6 +1004,7 @@ static int ext3_link (struct dentry * old_dentry,
 	ext3_mark_inode_dirty(handle, inode);
 	err = ext3_add_nondir(handle, dentry, inode);
 	ext3_journal_stop(handle, dir);
+	unlock_kernel();
 	return err;
 }
 
@@ -995,9 +1027,12 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 
 	old_bh = new_bh = dir_bh = NULL;
 
+	lock_kernel();
 	handle = ext3_journal_start(old_dir, 2 * EXT3_DATA_TRANS_BLOCKS + 2);
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		unlock_kernel();
 		return PTR_ERR(handle);
+	}
 
 	if (IS_SYNC(old_dir) || IS_SYNC(new_dir))
 		handle->h_sync = 1;
@@ -1106,6 +1141,7 @@ end_rename:
 	brelse (old_bh);
 	brelse (new_bh);
 	ext3_journal_stop(handle, old_dir);
+	unlock_kernel();
 	return retval;
 }
 
@@ -1113,13 +1149,13 @@ end_rename:
  * directories can handle most operations...
  */
 struct inode_operations ext3_dir_inode_operations = {
-	create:		ext3_create,		/* BKL held */
-	lookup:		ext3_lookup,		/* BKL held */
-	link:		ext3_link,		/* BKL held */
-	unlink:		ext3_unlink,		/* BKL held */
-	symlink:	ext3_symlink,		/* BKL held */
-	mkdir:		ext3_mkdir,		/* BKL held */
-	rmdir:		ext3_rmdir,		/* BKL held */
-	mknod:		ext3_mknod,		/* BKL held */
-	rename:		ext3_rename,		/* BKL held */
+	create:		ext3_create,
+	lookup:		ext3_lookup,
+	link:		ext3_link,
+	unlink:		ext3_unlink,
+	symlink:	ext3_symlink,
+	mkdir:		ext3_mkdir,
+	rmdir:		ext3_rmdir,
+	mknod:		ext3_mknod,
+	rename:		ext3_rename,
 };

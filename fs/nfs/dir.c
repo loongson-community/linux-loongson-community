@@ -579,6 +579,7 @@ static struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry)
 	error = -ENOMEM;
 	dentry->d_op = &nfs_dentry_operations;
 
+	lock_kernel();
 	error = NFS_PROTO(dir)->lookup(dir, &dentry->d_name, &fhandle, &fattr);
 	inode = NULL;
 	if (error == -ENOENT)
@@ -593,6 +594,7 @@ static struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry)
 		}
 		nfs_renew_times(dentry);
 	}
+	unlock_kernel();
 out:
 	return ERR_PTR(error);
 }
@@ -640,6 +642,7 @@ static int nfs_create(struct inode *dir, struct dentry *dentry, int mode)
 	 * select the appropriate create strategy. Currently open_namei
 	 * does not pass the create flags.
 	 */
+	lock_kernel();
 	nfs_zap_caches(dir);
 	error = NFS_PROTO(dir)->create(dir, &dentry->d_name,
 					 &attr, 0, &fhandle, &fattr);
@@ -647,6 +650,7 @@ static int nfs_create(struct inode *dir, struct dentry *dentry, int mode)
 		error = nfs_instantiate(dentry, &fhandle, &fattr);
 	if (error || fhandle.size == 0)
 		d_drop(dentry);
+	unlock_kernel();
 	return error;
 }
 
@@ -666,6 +670,7 @@ static int nfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int rde
 	attr.ia_mode = mode;
 	attr.ia_valid = ATTR_MODE;
 
+	lock_kernel();
 	nfs_zap_caches(dir);
 	error = NFS_PROTO(dir)->mknod(dir, &dentry->d_name, &attr, rdev,
 					&fhandle, &fattr);
@@ -673,6 +678,7 @@ static int nfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int rde
 		error = nfs_instantiate(dentry, &fhandle, &fattr);
 	if (error || fhandle.size == 0)
 		d_drop(dentry);
+	unlock_kernel();
 	return error;
 }
 
@@ -692,6 +698,7 @@ static int nfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	attr.ia_valid = ATTR_MODE;
 	attr.ia_mode = mode | S_IFDIR;
 
+	lock_kernel();
 #if 0
 	/*
 	 * Always drop the dentry, we can't always depend on
@@ -708,6 +715,7 @@ static int nfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		error = nfs_instantiate(dentry, &fhandle, &fattr);
 	if (error || fhandle.size == 0)
 		d_drop(dentry);
+	unlock_kernel();
 	return error;
 }
 
@@ -718,10 +726,12 @@ static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 	dfprintk(VFS, "NFS: rmdir(%s/%ld, %s\n", dir->i_sb->s_id,
 		dir->i_ino, dentry->d_name.name);
 
+	lock_kernel();
 	nfs_zap_caches(dir);
 	error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 	if (!error)
 		dentry->d_inode->i_nlink = 0;
+	unlock_kernel();
 
 	return error;
 }
@@ -865,6 +875,7 @@ static int nfs_unlink(struct inode *dir, struct dentry *dentry)
 	dfprintk(VFS, "NFS: unlink(%s/%ld, %s)\n", dir->i_sb->s_id,
 		dir->i_ino, dentry->d_name.name);
 
+	lock_kernel();
 	error = nfs_sillyrename(dir, dentry);
 	if (error && error != -EBUSY) {
 		error = nfs_safe_remove(dentry);
@@ -872,6 +883,7 @@ static int nfs_unlink(struct inode *dir, struct dentry *dentry)
 			nfs_renew_times(dentry);
 		}
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -908,6 +920,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 	qsymname.name = symname;
 	qsymname.len  = strlen(symname);
 
+	lock_kernel();
 	nfs_zap_caches(dir);
 	error = NFS_PROTO(dir)->symlink(dir, &dentry->d_name, &qsymname,
 					  &attr, &sym_fh, &sym_attr);
@@ -919,6 +932,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 			       dentry->d_parent->d_name.name, dentry->d_name.name);
 		d_drop(dentry);
 	}
+	unlock_kernel();
 
 out:
 	return error;
@@ -939,10 +953,12 @@ nfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	 * Since nfs_proc_link doesn't return a file handle,
 	 * we can't use the existing dentry.
 	 */
+	lock_kernel();
 	d_drop(dentry);
 	nfs_zap_caches(dir);
 	NFS_CACHEINV(inode);
 	error = NFS_PROTO(dir)->link(inode, dir, &dentry->d_name);
+	unlock_kernel();
 	return error;
 }
 
@@ -982,6 +998,7 @@ static int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	 * To prevent any new references to the target during the rename,
 	 * we unhash the dentry and free the inode in advance.
 	 */
+	lock_kernel();
 	if (!d_unhashed(new_dentry)) {
 		d_drop(new_dentry);
 		rehash = new_dentry;
@@ -1058,6 +1075,7 @@ out:
 	/* new dentry created? */
 	if (dentry)
 		dput(dentry);
+	unlock_kernel();
 	return error;
 }
 

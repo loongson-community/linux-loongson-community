@@ -411,8 +411,7 @@ static int ncp_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		filp->f_pos = 1;
 	}
 	if (filp->f_pos == 1) {
-		if (filldir(dirent, "..", 2, 1,
-				dentry->d_parent->d_inode->i_ino, DT_DIR))
+		if (filldir(dirent, "..", 2, 1, parent_ino(dentry), DT_DIR))
 			goto out;
 		filp->f_pos = 2;
 	}
@@ -741,6 +740,7 @@ static struct dentry *ncp_lookup(struct inode *dir, struct dentry *dentry)
 	int error, res, len = dentry->d_name.len + 1;
 	__u8 __name[len];
 
+	lock_kernel();
 	error = -EIO;
 	if (!ncp_conn_valid(server))
 		goto finished;
@@ -785,6 +785,7 @@ add_entry:
 
 finished:
 	PPRINTK("ncp_lookup: result=%d\n", error);
+	unlock_kernel();
 	return ERR_PTR(error);
 }
 
@@ -825,6 +826,7 @@ int ncp_create_new(struct inode *dir, struct dentry *dentry, int mode,
 	PPRINTK("ncp_create_new: creating %s/%s, mode=%x\n",
 		dentry->d_parent->d_name.name, dentry->d_name.name, mode);
 	error = -EIO;
+	lock_kernel();
 	if (!ncp_conn_valid(server))
 		goto out;
 
@@ -861,6 +863,7 @@ int ncp_create_new(struct inode *dir, struct dentry *dentry, int mode,
 	finfo.access = opmode;
 	error = ncp_instantiate(dir, dentry, &finfo);
 out:
+	unlock_kernel();
 	return error;
 }
 
@@ -879,6 +882,7 @@ static int ncp_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	DPRINTK("ncp_mkdir: making %s/%s\n",
 		dentry->d_parent->d_name.name, dentry->d_name.name);
 	error = -EIO;
+	lock_kernel();
 	if (!ncp_conn_valid(server))
 		goto out;
 
@@ -896,6 +900,7 @@ static int ncp_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		error = ncp_instantiate(dir, dentry, &finfo);
 	}
 out:
+	unlock_kernel();
 	return error;
 }
 
@@ -909,6 +914,7 @@ static int ncp_rmdir(struct inode *dir, struct dentry *dentry)
 		dentry->d_parent->d_name.name, dentry->d_name.name);
 
 	error = -EIO;
+	lock_kernel();
 	if (!ncp_conn_valid(server))
 		goto out;
 
@@ -948,15 +954,18 @@ static int ncp_rmdir(struct inode *dir, struct dentry *dentry)
 			break;
        	}
 out:
+	unlock_kernel();
 	return error;
 }
 
 static int ncp_unlink(struct inode *dir, struct dentry *dentry)
 {
 	struct inode *inode = dentry->d_inode;
-	struct ncp_server *server = NCP_SERVER(dir);
+	struct ncp_server *server;
 	int error;
 
+	lock_kernel();
+	server = NCP_SERVER(dir);
 	DPRINTK("ncp_unlink: unlinking %s/%s\n",
 		dentry->d_parent->d_name.name, dentry->d_name.name);
 	
@@ -1007,6 +1016,7 @@ static int ncp_unlink(struct inode *dir, struct dentry *dentry)
 	}
 		
 out:
+	unlock_kernel();
 	return error;
 }
 
@@ -1024,6 +1034,7 @@ static int ncp_rename(struct inode *old_dir, struct dentry *old_dentry,
 		new_dentry->d_parent->d_name.name, new_dentry->d_name.name);
 
 	error = -EIO;
+	lock_kernel();
 	if (!ncp_conn_valid(server))
 		goto out;
 
@@ -1067,6 +1078,7 @@ static int ncp_rename(struct inode *old_dir, struct dentry *old_dentry,
 			break;
 	}
 out:
+	unlock_kernel();
 	return error;
 }
 

@@ -11,6 +11,7 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/interrupt.h>
 
 #include <asm/ptrace.h>
 #include <asm/processor.h>
@@ -197,6 +198,19 @@ void output_signal_defined(void)
 	constant("#define _SIGPROF    ", SIGPROF);
 	constant("#define _SIGXCPU    ", SIGXCPU);
 	constant("#define _SIGXFSZ    ", SIGXFSZ);
+	linefeed;
+}
+
+void output_irq_cpustat_t_defines(void)
+{
+	text("/* Linux irq_cpustat_t offsets. */");
+	offset("#define IC_SOFTIRQ_PENDING ", irq_cpustat_t, __softirq_pending);
+	offset("#define IC_LOCAL_IRQ_COUNT ", irq_cpustat_t, __local_irq_count);
+	offset("#define IC_LOCAL_BH_COUNT  ", irq_cpustat_t, __local_bh_count);
+	offset("#define IC_SYSCALL_COUNT   ", irq_cpustat_t, __syscall_count);
+	offset("#define IC_KSOFTIRQD_TASK  ", irq_cpustat_t, __ksoftirqd_task);
+	size("#define IC_IRQ_CPUSTAT_T   ", irq_cpustat_t);
+	linefeed;
 }
 
 text("#endif /* !(_MIPS_OFFSET_H) */");

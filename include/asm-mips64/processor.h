@@ -41,13 +41,9 @@
 #endif
 
 struct cpuinfo_mips {
-	unsigned long udelay_val;
-	unsigned long *pgd_quick;
-	unsigned long *pmd_quick;
-	unsigned long *pte_quick;
-	unsigned long pgtable_cache_sz;
-	unsigned long last_asn;
-	unsigned long asid_cache;
+	unsigned long	udelay_val;
+	unsigned long	last_asn;
+	unsigned long	asid_cache;
 #if defined(CONFIG_SGI_IP27)
 	cpuid_t		p_cpuid;	/* PROM assigned cpuid */
 	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
@@ -57,7 +53,6 @@ struct cpuinfo_mips {
 #endif
 #if 0
 	unsigned long loops_per_sec;
-	unsigned long pgtable_cache_sz;
 	unsigned long ipi_count;
 	unsigned long irq_attempt[NR_IRQS];
 	unsigned long smp_local_irq_count;
@@ -234,19 +229,7 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 #define copy_segments(p, mm) do { } while(0)
 #define release_segments(mm) do { } while(0)
 
-/*
- * Return saved PC of a blocked thread.
- */
-static inline unsigned long thread_saved_pc(struct thread_struct *t)
-{
-	extern void ret_from_fork(void);
-
-	/* New born processes are a special case */
-	if (t->reg31 == (unsigned long) ret_from_fork)
-		return t->reg31;
-
-	return ((unsigned long*)t->reg29)[11];
-}
+extern unsigned long thread_saved_pc(struct thread_struct *t);
 
 #define user_mode(regs)	(((regs)->cp0_status & ST0_KSU) == KSU_USER)
 

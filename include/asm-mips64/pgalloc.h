@@ -50,154 +50,94 @@ static inline void flush_tlb_pgtables(struct mm_struct *mm,
 	/* Nothing to do on MIPS.  */
 }
 
+#define pmd_populate_kernel(mm, pmd, pte)	set_pmd(pmd, __pmd(pte))
+#define pmd_populate(mm, pmd, pte)		set_pmd(pmd, __pmd(pte))
+#define pgd_populate(mm, pgd, pmd)		set_pgd(pgd, __pgd(pmd))
 
-/*
- * Allocate and free page tables.
- */
-
-#define pgd_quicklist (current_cpu_data.pgd_quick)
-#define pmd_quicklist (current_cpu_data.pmd_quick)
-#define pte_quicklist (current_cpu_data.pte_quick)
-#define pgtable_cache_size (current_cpu_data.pgtable_cache_sz)
-
-#define pmd_populate(mm, pmd, pte)	pmd_set(pmd, pte)
-#define pgd_populate(mm, pgd, pmd)	pgd_set(pgd, pmd)
-
-extern pgd_t *get_pgd_slow(void);
-
-static inline pgd_t *get_pgd_fast(void)
+static inline pgd_t *pgd_alloc(struct mm_struct *mm)
 {
-	unsigned long *ret;
+	pgd_t *ret, *init;
 
-	if((ret = pgd_quicklist) != NULL) {
-		pgd_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-		return (pgd_t *)ret;
+	ret = (pgd_t *) __get_free_pages(GFP_KERNEL, 1);
+	if (ret) {
+		init = pgd_offset(&init_mm, 0);
+		pgd_init((unsigned long)ret);
+		memcpy(ret + USER_PTRS_PER_PGD, init + USER_PTRS_PER_PGD,
+		       (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
 	}
 
-	ret = (unsigned long *) get_pgd_slow();
-	return (pgd_t *)ret;
+	return ret;
 }
 
-static inline void free_pgd_fast(pgd_t *pgd)
+static inline void pgd_free(pgd_t *pgd)
 {
-	*(unsigned long *)pgd = (unsigned long) pgd_quicklist;
-	pgd_quicklist = (unsigned long *) pgd;
-	pgtable_cache_size++;
+	free_pages((unsigned long)pgd, PGD_ORDER);
 }
 
-static inline void free_pgd_slow(pgd_t *pgd)
+static inline pte_t *pte_alloc_one_kernel(struct mm_struct *mm,
+	unsigned long address)
 {
-	free_pages((unsigned long)pgd, 1);
-}
-
-static inline pte_t *pte_alloc_one(struct mm_struct *mm, unsigned long address)
-{
+	int count = 0;
 	pte_t *pte;
 
-	pte = (pte_t *) __get_free_page(GFP_KERNEL);
-	if (pte)
-		clear_page(pte);
+	do {
+		pte = (pte_t *) __get_free_pages(GFP_KERNEL, PTE_ORDER);
+		if (pte)
+			clear_page(pte);
+		else {
+			current->state = TASK_UNINTERRUPTIBLE;
+			schedule_timeout(HZ);
+			}
+	} while (!pte && (count++ < 10));
+
 	return pte;
 }
 
-static inline pte_t *pte_alloc_one_fast(struct mm_struct *mm, unsigned long address)
+static inline struct page *pte_alloc_one(struct mm_struct *mm,
+	unsigned long address)
 {
-	unsigned long *ret;
+	int count = 0;
+	struct page *pte;
 
-	if ((ret = (unsigned long *)pte_quicklist) != NULL) {
-		pte_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-	}
-	return (pte_t *)ret;
+	do {
+		pte = alloc_pages(GFP_KERNEL, PTE_ORDER);
+		if (pte)
+			clear_highpage(pte);
+		else {
+			current->state = TASK_UNINTERRUPTIBLE;
+			schedule_timeout(HZ);
+		}
+	} while (!pte && (count++ < 10));
+
+	return pte;
 }
 
-extern pte_t *get_pte_slow(pmd_t *pmd, unsigned long address_preadjusted);
-
-static inline pte_t *get_pte_fast(void)
+static inline void pte_free_kernel(pte_t *pte)
 {
-	unsigned long *ret;
-
-	if((ret = (unsigned long *)pte_quicklist) != NULL) {
-		pte_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-	}
-	return (pte_t *)ret;
+	free_pages((unsigned long)pte, PTE_ORDER);
 }
 
-static inline void free_pte_fast(pte_t *pte)
+static inline void pte_free(struct page *pte)
 {
-	*(unsigned long *)pte = (unsigned long) pte_quicklist;
-	pte_quicklist = (unsigned long *) pte;
-	pgtable_cache_size++;
-}
-
-static inline void free_pte_slow(pte_t *pte)
-{
-	free_pages((unsigned long)pte, 0);
+	__free_pages(pte, PTE_ORDER);
 }
 
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long address)
 {
 	pmd_t *pmd;
 
-	pmd = (pmd_t *) __get_free_pages(GFP_KERNEL, 1);
+	pmd = (pmd_t *) __get_free_pages(GFP_KERNEL, PMD_ORDER);
 	if (pmd)
 		pmd_init((unsigned long)pmd, (unsigned long)invalid_pte_table);
 	return pmd;
 }
 
-static inline pmd_t *pmd_alloc_one_fast(struct mm_struct *mm, unsigned long address)
+static inline void pmd_free(pmd_t *pmd)
 {
-	unsigned long *ret;
-
-	if ((ret = (unsigned long *)pmd_quicklist) != NULL) {
-		pmd_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-	}
-	return (pmd_t *)ret;
+	free_pages((unsigned long)pmd, PMD_ORDER);
 }
-
-extern pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long address_preadjusted);
-
-static inline pmd_t *get_pmd_fast(void)
-{
-	unsigned long *ret;
-
-	if ((ret = (unsigned long *)pmd_quicklist) != NULL) {
-		pmd_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-		return (pmd_t *)ret;
-	}
-
-	return (pmd_t *)ret;
-}
-
-static inline void free_pmd_fast(pmd_t *pmd)
-{
-	*(unsigned long *)pmd = (unsigned long) pmd_quicklist;
-	pmd_quicklist = (unsigned long *) pmd;
-	pgtable_cache_size++;
-}
-
-static inline void free_pmd_slow(pmd_t *pmd)
-{
-	free_pages((unsigned long)pmd, 1);
-}
-
-#define pte_free(pte)           free_pte_fast(pte)
-#define pmd_free(pte)           free_pmd_fast(pte)
-#define pgd_free(pgd)           free_pgd_fast(pgd)
-#define pgd_alloc(mm)           get_pgd_fast()
 
 extern pte_t kptbl[(PAGE_SIZE << PGD_ORDER)/sizeof(pte_t)];
 extern pmd_t kpmdtbl[PTRS_PER_PMD];
-
-extern int do_check_pgt_cache(int, int);
 
 #endif /* _ASM_PGALLOC_H */

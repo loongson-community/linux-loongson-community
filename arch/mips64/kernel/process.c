@@ -38,7 +38,6 @@ ATTRIB_NORET void cpu_idle(void)
 			if (cpu_wait)
 				(*cpu_wait)();
 		schedule();
-		check_pgt_cache();
 	}
 }
 
@@ -169,6 +168,20 @@ int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 		  "$9","$10","$11","$12","$13","$14","$15","$24","$25");
 
 	return retval;
+}
+
+/*
+ * Return saved PC of a blocked thread.
+ */
+unsigned long thread_saved_pc(struct thread_struct *t)
+{
+	extern void ret_from_fork(void);
+
+	/* New born processes are a special case */
+	if (t->reg31 == (unsigned long) ret_from_fork)
+		return t->reg31;
+
+	return ((unsigned long*)t->reg29)[11];
 }
 
 /*

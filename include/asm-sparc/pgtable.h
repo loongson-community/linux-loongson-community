@@ -293,9 +293,6 @@ BTFIXUPDEF_CALL_CONST(pte_t, pte_mkyoung, pte_t)
 #define page_pte_prot(page, prot)	mk_pte(page, prot)
 #define page_pte(page)			page_pte_prot(page, __pgprot(0))
 
-/* Permanent address of a page. */
-#define page_address(page)  ((page)->virtual)
-
 BTFIXUPDEF_CALL(struct page *, pte_page, pte_t)
 #define pte_page(pte) BTFIXUP_CALL(pte_page)(pte)
 
@@ -348,6 +345,7 @@ BTFIXUPDEF_CALL(pte_t *, pte_offset, pmd_t *, unsigned long)
 extern unsigned int pg_iobits;
 
 #define flush_icache_page(vma, pg)      do { } while(0)
+#define flush_icache_user_range(vma,pg,adr,len)	do { } while (0)
 
 /* Certain architectures need to do special things when pte's
  * within a page table are directly modified.  Thus, the following

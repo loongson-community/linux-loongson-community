@@ -1473,7 +1473,9 @@ out_nofds:
 
 static int cp_new_stat32(struct kstat *stat, struct stat32 *statbuf)
 {
-	err  = put_user(stat->dev, &statbuf->st_dev);
+	int err;
+
+	err = put_user(stat->dev, &statbuf->st_dev);
 	err |= put_user(stat->ino, &statbuf->st_ino);
 	err |= put_user(stat->mode, &statbuf->st_mode);
 	err |= put_user(stat->nlink, &statbuf->st_nlink);
@@ -1976,7 +1978,7 @@ sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		   in so that we'll be awakened when they arrive.  */
 		sigset_t oldblocked = current->blocked;
 		sigandsets(&current->blocked, &current->blocked, &these);
-		recalc_sigpending(current);
+		recalc_sigpending();
 		spin_unlock_irq(&current->sigmask_lock);
 
 		timeout = MAX_SCHEDULE_TIMEOUT;
@@ -1990,7 +1992,7 @@ sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		spin_lock_irq(&current->sigmask_lock);
 		sig = dequeue_signal(&these, &info);
 		current->blocked = oldblocked;
-		recalc_sigpending(current);
+		recalc_sigpending();
 	}
 	spin_unlock_irq(&current->sigmask_lock);
 

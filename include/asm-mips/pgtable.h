@@ -53,6 +53,8 @@ extern void (*_flush_icache_all)(void);
 
 #define flush_icache_range(start, end)	_flush_icache_range(start,end)
 #define flush_icache_page(vma, page) 	_flush_icache_page(vma, page)
+#define flush_icache_user_range(vma, page, addr, len)	\
+					_flush_icache_page((vma), (page))
 
 #define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
 #ifdef CONFIG_VTAG_ICACHE
@@ -192,15 +194,9 @@ extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-static inline unsigned long pmd_page(pmd_t pmd)
-{
-	return pmd_val(pmd);
-}
-
-static inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
-{
-	pmd_val(*pmdp) = (((unsigned long) ptep) & PAGE_MASK);
-}
+#define page_pte(page)		page_pte_prot(page, __pgprot(0))
+#define pmd_page_kernel(pmd)	pmd_val(pmd)
+#define pmd_page(pmd)		(mem_map + (pmd_val(pmd) - PAGE_OFFSET))
 
 static inline int pte_none(pte_t pte)    { return !(pte_val(pte) & ~_PAGE_GLOBAL); }
 static inline int pte_present(pte_t pte) { return pte_val(pte) & _PAGE_PRESENT; }
@@ -240,8 +236,8 @@ static inline void pte_clear(pte_t *ptep)
  * (pmds are folded into pgds so this doesnt get actually called,
  * but the define is needed for a generic inline function.)
  */
-#define set_pmd(pmdptr, pmdval) (*(pmdptr) = pmdval)
-#define set_pgd(pgdptr, pgdval) (*(pgdptr) = pgdval)
+#define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while(0);
+#define set_pgd(pgdptr, pgdval) do { *(pgdptr) = (pgdval); } while(0);
 
 /*
  * Empty pgd/pmd entries point to the invalid_pte_table.
@@ -251,11 +247,11 @@ static inline int pmd_none(pmd_t pmd)
 	return pmd_val(pmd) == (unsigned long) invalid_pte_table;
 }
 
-static inline int pmd_bad(pmd_t pmd)
-{
-	return ((pmd_page(pmd) >= (unsigned long) KSEG1) ||
-	        (pmd_page(pmd) < PAGE_OFFSET));
-}
+#define pmd_bad(pmd)							\
+({	pmd_t __pmd = (pmd);						\
+	((pmd_page(__pmd) >= (unsigned long) KSEG1) ||			\
+	        (pmd_page(__pmd) < PAGE_OFFSET));			\
+})
 
 static inline int pmd_present(pmd_t pmd)
 {
@@ -277,11 +273,6 @@ static inline int pgd_bad(pgd_t pgd)		{ return 0; }
 static inline int pgd_present(pgd_t pgd)	{ return 1; }
 static inline void pgd_clear(pgd_t *pgdp)	{ }
 
-/*
- * Permanent address of a page.  Obviously must never be called on a highmem
- * page.
- */
-#define page_address(page)	((page)->virtual)
 #ifdef CONFIG_CPU_VR41XX
 #define pte_page(x)             (mem_map+(unsigned long)((pte_val(x) >> (PAGE_SHIFT + 2))))
 #else
@@ -411,8 +402,6 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 	return __pte((pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot));
 }
 
-#define page_pte(page) page_pte_prot(page, __pgprot(0))
-
 #define __pgd_offset(address)	pgd_index(address)
 #define __pmd_offset(address) \
 	(((address) >> PMD_SHIFT) & (PTRS_PER_PMD-1))
@@ -435,13 +424,18 @@ static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 }
 
 /* Find an entry in the third-level page table.. */ 
-static inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
-{
-	return (pte_t *) (pmd_page(*dir)) +
-	       ((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1));
-}
-
-extern int do_check_pgt_cache(int, int);
+#define __pte_offset(address)						\
+	((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
+#define pte_offset(dir, address)					\
+	((pte_t *) (pmd_page_kernel(*dir)) + __pte_offset(address))
+#define pte_offset_kernel(dir, address) \
+	((pte_t *) pmd_page_kernel(*(dir)) +  __pte_offset(address))
+#define pte_offset_map(dir, address) \
+	((pte_t *)kmap_atomic(pmd_page(*(dir)),KM_PTE0) + __pte_offset(address))
+#define pte_offset_map_nested(dir, address) \
+	((pte_t *)kmap_atomic(pmd_page(*(dir)),KM_PTE1) + __pte_offset(address))
+#define pte_unmap(pte) kunmap_atomic(pte, KM_PTE0)
+#define pte_unmap_nested(pte) kunmap_atomic(pte, KM_PTE1)
 
 extern pgd_t swapper_pg_dir[1024];
 extern void paging_init(void);

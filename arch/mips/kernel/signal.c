@@ -90,7 +90,7 @@ static_unused int _sys_sigsuspend(struct pt_regs regs)
 	spin_lock_irq(&current->sigmask_lock);
 	saveset = current->blocked;
 	current->blocked = newset;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	regs.regs[2] = EINTR;
@@ -122,7 +122,7 @@ static_unused int _sys_rt_sigsuspend(struct pt_regs regs)
 	spin_lock_irq(&current->sigmask_lock);
 	saveset = current->blocked;
 	current->blocked = newset;
-        recalc_sigpending(current);
+        recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	regs.regs[2] = EINTR;
@@ -315,7 +315,7 @@ asmlinkage void sys_sigreturn(struct pt_regs regs)
 	sigdelsetmask(&blocked, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
 	current->blocked = blocked;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	if (restore_sigcontext(&regs, &frame->sf_sc))
@@ -352,7 +352,7 @@ asmlinkage void sys_rt_sigreturn(struct pt_regs regs)
 	sigdelsetmask(&set, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
 	current->blocked = set;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	if (restore_sigcontext(&regs, &frame->rs_uc.uc_mcontext))
@@ -610,7 +610,7 @@ static inline void handle_signal(unsigned long sig, struct k_sigaction *ka,
 		spin_lock_irq(&current->sigmask_lock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
 		sigaddset(&current->blocked,sig);
-		recalc_sigpending(current);
+		recalc_sigpending();
 		spin_unlock_irq(&current->sigmask_lock);
 	}
 }
@@ -656,9 +656,11 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
+			preempt_disable();
 			current->state = TASK_STOPPED;
 			notify_parent(current, SIGCHLD);
 			schedule();
+			preempt_enable();
 
 			/* We're back.  Did the debugger cancel the sig?  */
 			if (!(signr = current->exit_code))
@@ -711,13 +713,18 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 					continue;
 				/* FALLTHRU */
 
-			case SIGSTOP:
-				current->state = TASK_STOPPED;
+			case SIGSTOP: {
+				struct signal_struct *sig;
 				current->exit_code = signr;
+				sig = current->p_pptr->sig;
+				preempt_disable();
+				current->state = TASK_STOPPED;
 				if (!(current->p_pptr->sig->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDSTOP))
 					notify_parent(current, SIGCHLD);
 				schedule();
+				preempt_enable();
 				continue;
+			}
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:

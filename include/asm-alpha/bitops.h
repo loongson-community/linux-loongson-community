@@ -3,6 +3,7 @@
 
 #include <linux/config.h>
 #include <linux/kernel.h>
+#include <asm/compiler.h>
 
 /*
  * Copyright 1994, Linus Torvalds.
@@ -60,25 +61,25 @@ clear_bit(unsigned long nr, volatile void * addr)
 
 	__asm__ __volatile__(
 	"1:	ldl_l %0,%3\n"
-	"	and %0,%2,%0\n"
+	"	bic %0,%2,%0\n"
 	"	stl_c %0,%1\n"
 	"	beq %0,2f\n"
 	".subsection 2\n"
 	"2:	br 1b\n"
 	".previous"
 	:"=&r" (temp), "=m" (*m)
-	:"Ir" (~(1UL << (nr & 31))), "m" (*m));
+	:"Ir" (1UL << (nr & 31)), "m" (*m));
 }
 
 /*
  * WARNING: non atomic version.
  */
 static __inline__ void
-__change_bit(unsigned long nr, volatile void * addr)
+__clear_bit(unsigned long nr, volatile void * addr)
 {
 	int *m = ((int *) addr) + (nr >> 5);
 
-	*m ^= 1 << (nr & 31);
+	*m &= ~(1 << (nr & 31));
 }
 
 static inline void
@@ -97,6 +98,17 @@ change_bit(unsigned long nr, volatile void * addr)
 	".previous"
 	:"=&r" (temp), "=m" (*m)
 	:"Ir" (1UL << (nr & 31)), "m" (*m));
+}
+
+/*
+ * WARNING: non atomic version.
+ */
+static __inline__ void
+__change_bit(unsigned long nr, volatile void * addr)
+{
+	int *m = ((int *) addr) + (nr >> 5);
+
+	*m ^= 1 << (nr & 31);
 }
 
 static inline int
@@ -181,20 +193,6 @@ __test_and_clear_bit(unsigned long nr, volatile void * addr)
 	return (old & mask) != 0;
 }
 
-/*
- * WARNING: non atomic version.
- */
-static __inline__ int
-__test_and_change_bit(unsigned long nr, volatile void * addr)
-{
-	unsigned long mask = 1 << (nr & 0x1f);
-	int *m = ((int *) addr) + (nr >> 5);
-	int old = *m;
-
-	*m = old ^ mask;
-	return (old & mask) != 0;
-}
-
 static inline int
 test_and_change_bit(unsigned long nr, volatile void * addr)
 {
@@ -220,6 +218,20 @@ test_and_change_bit(unsigned long nr, volatile void * addr)
 	return oldbit != 0;
 }
 
+/*
+ * WARNING: non atomic version.
+ */
+static __inline__ int
+__test_and_change_bit(unsigned long nr, volatile void * addr)
+{
+	unsigned long mask = 1 << (nr & 0x1f);
+	int *m = ((int *) addr) + (nr >> 5);
+	int old = *m;
+
+	*m = old ^ mask;
+	return (old & mask) != 0;
+}
+
 static inline int
 test_bit(int nr, volatile void * addr)
 {
@@ -235,12 +247,15 @@ test_bit(int nr, volatile void * addr)
  */
 static inline unsigned long ffz_b(unsigned long x)
 {
-	unsigned long sum = 0;
+	unsigned long sum, x1, x2, x4;
 
 	x = ~x & -~x;		/* set first 0 bit, clear others */
-	if (x & 0xF0) sum += 4;
-	if (x & 0xCC) sum += 2;
-	if (x & 0xAA) sum += 1;
+	x1 = x & 0xAA;
+	x2 = x & 0xCC;
+	x4 = x & 0xF0;
+	sum = x2 ? 2 : 0;
+	sum += (x4 != 0) * 4;
+	sum += (x1 != 0);
 
 	return sum;
 }
@@ -257,8 +272,30 @@ static inline unsigned long ffz(unsigned long word)
 
 	__asm__("cmpbge %1,%2,%0" : "=r"(bits) : "r"(word), "r"(~0UL));
 	qofs = ffz_b(bits);
-	__asm__("extbl %1,%2,%0" : "=r"(bits) : "r"(word), "r"(qofs));
+	bits = __kernel_extbl(word, qofs);
 	bofs = ffz_b(bits);
+
+	return qofs*8 + bofs;
+#endif
+}
+
+/*
+ * __ffs = Find First set bit in word.  Undefined if no set bit exists.
+ */
+static inline unsigned long __ffs(unsigned long word)
+{
+#if defined(__alpha_cix__) && defined(__alpha_fix__)
+	/* Whee.  EV67 can calculate it directly.  */
+	unsigned long result;
+	__asm__("cttz %1,%0" : "=r"(result) : "r"(word));
+	return result;
+#else
+	unsigned long bits, qofs, bofs;
+
+	__asm__("cmpbge $31,%1,%0" : "=r"(bits) : "r"(word));
+	qofs = ffz_b(bits);
+	bits = __kernel_extbl(word, qofs);
+	bofs = ffz_b(~bits);
 
 	return qofs*8 + bofs;
 #endif
@@ -269,12 +306,12 @@ static inline unsigned long ffz(unsigned long word)
 /*
  * ffs: find first bit set. This is defined the same way as
  * the libc and compiler builtin ffs routines, therefore
- * differs in spirit from the above ffz (man ffs).
+ * differs in spirit from the above __ffs.
  */
 
 static inline int ffs(int word)
 {
-	int result = ffz(~word);
+	int result = __ffs(word);
 	return word ? result+1 : 0;
 }
 
@@ -316,6 +353,14 @@ static inline unsigned long hweight64(unsigned long w)
 #define hweight16(x) hweight64((x) & 0xfffful)
 #define hweight8(x)  hweight64((x) & 0xfful)
 #else
+static inline unsigned long hweight64(unsigned long w)
+{
+	unsigned long result;
+	for (result = 0; w ; w >>= 1)
+		result += (w & 1);
+	return result;
+}
+
 #define hweight32(x) generic_hweight32(x)
 #define hweight16(x) generic_hweight16(x)
 #define hweight8(x)  generic_hweight8(x)
@@ -365,10 +410,53 @@ found_middle:
 }
 
 /*
- * The optimizer actually does good code for this case..
+ * Find next one bit in a bitmap reasonably efficiently.
+ */
+static inline unsigned long
+find_next_bit(void * addr, unsigned long size, unsigned long offset)
+{
+	unsigned long * p = ((unsigned long *) addr) + (offset >> 6);
+	unsigned long result = offset & ~63UL;
+	unsigned long tmp;
+
+	if (offset >= size)
+		return size;
+	size -= result;
+	offset &= 63UL;
+	if (offset) {
+		tmp = *(p++);
+		tmp &= ~0UL << offset;
+		if (size < 64)
+			goto found_first;
+		if (tmp)
+			goto found_middle;
+		size -= 64;
+		result += 64;
+	}
+	while (size & ~63UL) {
+		if ((tmp = *(p++)))
+			goto found_middle;
+		result += 64;
+		size -= 64;
+	}
+	if (!size)
+		return result;
+	tmp = *p;
+found_first:
+	tmp &= ~0UL >> (64 - size);
+	if (!tmp)
+		return result + size;
+found_middle:
+	return result + __ffs(tmp);
+}
+
+/*
+ * The optimizer actually does good code for this case.
  */
 #define find_first_zero_bit(addr, size) \
 	find_next_zero_bit((addr), (size), 0)
+#define find_first_bit(addr, size) \
+	find_next_bit((addr), (size), 0)
 
 #ifdef __KERNEL__
 

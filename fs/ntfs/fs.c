@@ -276,10 +276,9 @@ static int ntfs_readdir(struct file* filp, void *dirent, filldir_t filldir)
 			ntfs_debug(DEBUG_OTHER, __FUNCTION__ "(): Calling "
 				    "filldir for .. with len 2, f_pos 0x%Lx, "
 				    "inode %lu, DT_DIR.\n", filp->f_pos,
-				    filp->f_dentry->d_parent->d_inode->i_ino);
+				    parent_ino(filp->f_dentry));
 			cb.ret_code = filldir(dirent, "..", 2, filp->f_pos,
-				    filp->f_dentry->d_parent->d_inode->i_ino,
-				    DT_DIR);
+				    parent_ino(filp->f_dentry), DT_DIR);
 			if (cb.ret_code)
 				goto done;
 			cb.pl++;
@@ -529,6 +528,7 @@ static struct dentry *ntfs_lookup(struct inode *dir, struct dentry *d)
 	walk.name = NULL;
 	walk.namelen = 0;
 	/* Convert to wide string. */
+	lock_kernel();
 	err = ntfs_decodeuni(NTFS_INO2VOL(dir), (char*)d->d_name.name,
 			       d->d_name.len, &walk.name, &walk.namelen);
 	if (err)
@@ -548,10 +548,12 @@ static struct dentry *ntfs_lookup(struct inode *dir, struct dentry *d)
 	d_add(d, res);
 	ntfs_free(item);
 	ntfs_free(walk.name);
+	unlock_kernel();
 	/* Always return success, the dcache will handle negative entries. */
 	return NULL;
 err_ret:
 	ntfs_free(walk.name);
+	unlock_kernel();
 	return ERR_PTR(err);
 }
 
@@ -575,6 +577,7 @@ static int ntfs_create(struct inode* dir, struct dentry *d, int mode)
 	int error = 0;
 	ntfs_attribute *si;
 
+	lock_kernel();
 	r = new_inode(dir->i_sb);
 	if (!r) {
 		error = -ENOMEM;
@@ -619,10 +622,12 @@ static int ntfs_create(struct inode* dir, struct dentry *d, int mode)
 	r->i_mode |= S_IWUGO;
 #endif
 	r->i_mode &= ~vol->umask;
+	unlock_kernel();
 	insert_inode_hash(r);
 	d_instantiate(d, r);
 	return 0;
  fail:
+	unlock_kernel();
 	if (r)
 		iput(r);
 	return error;
@@ -636,6 +641,7 @@ static int _linux_ntfs_mkdir(struct inode *dir, struct dentry* d, int mode)
 	ntfs_inode *ino;
 	ntfs_attribute *si;
 
+	lock_kernel();
 	ntfs_debug (DEBUG_DIR1, "mkdir %s in %x\n", d->d_name.name, dir->i_ino);
 	error = -ENAMETOOLONG;
 	if (d->d_name.len > /* FIXME: */ 255)
@@ -676,6 +682,7 @@ static int _linux_ntfs_mkdir(struct inode *dir, struct dentry* d, int mode)
 	error = 0;
  out:
  	ntfs_debug (DEBUG_DIR1, "mkdir returns %d\n", error);
+	unlock_kernel();
 	return error;
 }
 #endif

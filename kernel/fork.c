@@ -129,6 +129,7 @@ static int get_pid(unsigned long flags)
 {
 	static int next_safe = PID_MAX;
 	struct task_struct *p;
+	int pid;
 
 	if (flags & CLONE_PID)
 		return current->pid;
@@ -164,9 +165,10 @@ inside:
 		}
 		read_unlock(&tasklist_lock);
 	}
+	pid = last_pid;
 	spin_unlock(&lastpid_lock);
 
-	return last_pid;
+	return pid;
 }
 
 static inline int dup_mmap(struct mm_struct * mm)
@@ -749,13 +751,10 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		 * runqueue lock is not a problem.
 		 */
 		current->time_slice = 1;
-		scheduler_tick(current);
+		scheduler_tick(0, 0);
 	}
 	p->sleep_timestamp = jiffies;
 	__restore_flags(flags);
-
-	if (p->policy == SCHED_OTHER)
-		p->prio = MAX_PRIO - 1 - ((MAX_PRIO - 1 - p->prio) * 1) / 3;
 
 	/*
 	 * Ok, add it to the run-queues and make it

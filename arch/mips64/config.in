@@ -279,7 +279,7 @@ comment 'Sound'
 
 tristate 'Sound card support' CONFIG_SOUND
 if [ "$CONFIG_SOUND" != "n" ]; then
-   source drivers/sound/Config.in
+   source sound/Config.in
 fi
 endmenu
 
@@ -293,12 +293,15 @@ source drivers/input/Config.in
 mainmenu_option next_comment
 comment 'Kernel hacking'
 
-#bool 'Debug kmalloc/kfree' CONFIG_DEBUG_MALLOC
 bool 'Are you using a crosscompiler' CONFIG_CROSSCOMPILE
-bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
-bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
-if [ "$CONFIG_SMP" != "y" ]; then
-   bool 'Run uncached' CONFIG_MIPS_UNCACHED
+
+bool 'Kernel debugging' CONFIG_DEBUG_KERNEL
+if [ "$CONFIG_DEBUG_KERNEL" != "n" ]; then
+   bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
+   bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
+   if [ "$CONFIG_SMP" != "y" ]; then
+      bool 'Run uncached' CONFIG_MIPS_UNCACHED
+   fi
 fi
 endmenu
 

@@ -115,7 +115,7 @@ extern const struct key  MAX_KEY;
    protecting unlink is bigger that a key lf "save link" which
    protects truncate), so there left no items to make truncate
    completion on */
-static void remove_save_link_only (struct super_block * s, struct key * key)
+static void remove_save_link_only (struct super_block * s, struct key * key, int oid_free)
 {
     struct reiserfs_transaction_handle th;
 
@@ -123,7 +123,7 @@ static void remove_save_link_only (struct super_block * s, struct key * key)
      journal_begin (&th, s, JOURNAL_PER_BALANCE_CNT);
  
      reiserfs_delete_solid_item (&th, key);
-     if (is_direct_le_key (KEY_FORMAT_3_5, key))
+     if (oid_free)
         /* removals are protected by direct items */
         reiserfs_release_objectid (&th, le32_to_cpu (key->k_objectid));
 
@@ -196,7 +196,7 @@ static void finish_unfinished (struct super_block * s)
 	       "save" link and release objectid */
             reiserfs_warning ("vs-2180: finish_unfinished: iget failed for %K\n",
                               &obj_key);
-            remove_save_link_only (s, &save_link_key);
+            remove_save_link_only (s, &save_link_key, 1);
             continue;
         }
 
@@ -204,8 +204,20 @@ static void finish_unfinished (struct super_block * s)
 	    /* file is not unlinked */
             reiserfs_warning ("vs-2185: finish_unfinished: file %K is not unlinked\n",
                               &obj_key);
-            remove_save_link_only (s, &save_link_key);
+            remove_save_link_only (s, &save_link_key, 0);
             continue;
+	}
+
+	if (truncate && S_ISDIR (inode->i_mode) ) {
+	    /* We got a truncate request for a dir which is impossible.
+	       The only imaginable way is to execute unfinished truncate request
+	       then boot into old kernel, remove the file and create dir with
+	       the same key. */
+	    reiserfs_warning("green-2101: impossible truncate on a directory %k. Please report\n", INODE_PKEY (inode));
+	    remove_save_link_only (s, &save_link_key, 0);
+	    truncate = 0;
+	    iput (inode); 
+	    continue;
 	}
  
         if (truncate) {
@@ -272,6 +284,8 @@ void add_save_link (struct reiserfs_transaction_handle * th,
 			   4/*length*/, 0xffff/*free space*/);
     } else {
 	/* truncate */
+	if (S_ISDIR (inode->i_mode))
+	    reiserfs_warning("green-2102: Adding a truncate savelink for a directory %k! Please report\n", INODE_PKEY(inode));
 	set_cpu_key_k_offset (&key, 1);
 	set_cpu_key_k_type (&key, TYPE_INDIRECT);
 
@@ -296,10 +310,11 @@ void add_save_link (struct reiserfs_transaction_handle * th,
 
     /* put "save" link inot tree */
     retval = reiserfs_insert_item (th, &path, &key, &ih, (char *)&link);
-    if (retval)
-	reiserfs_warning ("vs-2120: add_save_link: insert_item returned %d\n",
+    if (retval) {
+	if (retval != -ENOSPC)
+	    reiserfs_warning ("vs-2120: add_save_link: insert_item returned %d\n",
 			  retval);
-    else {
+    } else {
 	if( truncate )
 	    REISERFS_I(inode) -> i_flags |= i_link_saved_truncate_mask;
 	else
@@ -640,28 +655,30 @@ static int reiserfs_remount (struct super_block * s, int * flags, char * data)
 
 static int read_bitmaps (struct super_block * s)
 {
-    int i, bmp, dl ;
-    struct reiserfs_super_block * rs = SB_DISK_SUPER_BLOCK(s);
+    int i, bmp;
 
-    SB_AP_BITMAP (s) = reiserfs_kmalloc (sizeof (struct buffer_head *) * sb_bmap_nr(rs), GFP_NOFS, s);
+    SB_AP_BITMAP (s) = reiserfs_kmalloc (sizeof (struct buffer_head *) * SB_BMAP_NR(s), GFP_NOFS, s);
     if (SB_AP_BITMAP (s) == 0)
 	return 1;
-    memset (SB_AP_BITMAP (s), 0, sizeof (struct buffer_head *) * sb_bmap_nr(rs));
-
-    /* reiserfs leaves the first 64k unused so that any partition
-       labeling scheme currently used will have enough space. Then we
-       need one block for the super.  -Hans */
-    bmp = (REISERFS_DISK_OFFSET_IN_BYTES / s->s_blocksize) + 1;	/* first of bitmap blocks */
-    SB_AP_BITMAP (s)[0] = reiserfs_bread (s, bmp);
-    if(!SB_AP_BITMAP(s)[0])
-	return 1;
-    for (i = 1, bmp = dl = s->s_blocksize * 8; i < sb_bmap_nr(rs); i ++) {
-	SB_AP_BITMAP (s)[i] = reiserfs_bread (s, bmp);
-	if (!SB_AP_BITMAP (s)[i])
-	    return 1;
-	bmp += dl;
+    for (i = 0, bmp = REISERFS_DISK_OFFSET_IN_BYTES / s->s_blocksize + 1;
+	 i < SB_BMAP_NR(s); i++, bmp = s->s_blocksize * 8 * i) {
+	SB_AP_BITMAP (s)[i] = getblk (s->s_dev, bmp, s->s_blocksize);
+	if (!buffer_uptodate(SB_AP_BITMAP(s)[i]))
+	    ll_rw_block(READ, 1, SB_AP_BITMAP(s) + i);
     }
-
+    for (i = 0; i < SB_BMAP_NR(s); i++) {
+	wait_on_buffer(SB_AP_BITMAP (s)[i]);
+	if (!buffer_uptodate(SB_AP_BITMAP(s)[i])) {
+	    reiserfs_warning("sh-2029: reiserfs read_bitmaps: "
+			 "bitmap block (#%lu) reading failed\n",
+			 SB_AP_BITMAP(s)[i]->b_blocknr);
+	    for (i = 0; i < SB_BMAP_NR(s); i++)
+		brelse(SB_AP_BITMAP(s)[i]);
+	    reiserfs_kfree(SB_AP_BITMAP(s), sizeof(struct buffer_head *) * SB_BMAP_NR(s), s);
+	    SB_AP_BITMAP(s) = NULL;
+	    return 1;
+	}
+    }
     return 0;
 }
 
@@ -835,7 +852,9 @@ __u32 find_hash_out (struct super_block * s)
 
     inode = s->s_root->d_inode;
 
-    while (1) {
+    do { // Some serious "goto"-hater was there ;)
+	u32 teahash, r5hash, yurahash;
+
 	make_cpu_key (&key, inode, ~0, TYPE_DIRENTRY, 3);
 	retval = search_by_entry_key (s, &key, &path, &de);
 	if (retval == IO_ERROR) {
@@ -854,20 +873,30 @@ __u32 find_hash_out (struct super_block * s)
 	                     "is using the default hash\n");
 	    break;
 	}
-	if (GET_HASH_VALUE(yura_hash (de.de_name, de.de_namelen)) == 
-	    GET_HASH_VALUE(keyed_hash (de.de_name, de.de_namelen))) {
-	    reiserfs_warning ("reiserfs: Could not detect hash function "
-			      "please mount with -o hash={tea,rupasov,r5}\n") ;
-	    hash = UNSET_HASH ;
+	r5hash=GET_HASH_VALUE (r5_hash (de.de_name, de.de_namelen));
+	teahash=GET_HASH_VALUE (keyed_hash (de.de_name, de.de_namelen));
+	yurahash=GET_HASH_VALUE (yura_hash (de.de_name, de.de_namelen));
+	if ( ( (teahash == r5hash) && (GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num]))) == r5hash) ) ||
+	     ( (teahash == yurahash) && (yurahash == GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num])))) ) ||
+	     ( (r5hash == yurahash) && (yurahash == GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num])))) ) ) {
+	    reiserfs_warning("reiserfs: Unable to automatically detect hash"
+		"function for device %s\n"
+		"please mount with -o hash={tea,rupasov,r5}\n", kdevname (s->s_dev));
+	    hash = UNSET_HASH;
 	    break;
 	}
-	if (GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num])) ) ==
-	    GET_HASH_VALUE (yura_hash (de.de_name, de.de_namelen)))
+	if (GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num])) ) == yurahash)
 	    hash = YURA_HASH;
-	else
+	else if (GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num])) ) == teahash)
 	    hash = TEA_HASH;
-	break;
-    }
+	else if (GET_HASH_VALUE( deh_offset(&(de.de_deh[de.de_entry_num])) ) == r5hash)
+	    hash = R5_HASH;
+	else {
+	    reiserfs_warning("reiserfs: Unrecognised hash function for "
+			     "device %s\n", kdevname (s->s_dev));
+	    hash = UNSET_HASH;
+	}
+    } while (0);
 
     pathrelse (&path);
     return hash;
@@ -892,16 +921,16 @@ static int what_hash (struct super_block * s)
 	** mount options 
 	*/
 	if (reiserfs_rupasov_hash(s) && code != YURA_HASH) {
-	    printk("REISERFS: Error, tea hash detected, "
-		   "unable to force rupasov hash\n") ;
+	    printk("REISERFS: Error, %s hash detected, "
+		   "unable to force rupasov hash\n", reiserfs_hashname(code)) ;
 	    code = UNSET_HASH ;
 	} else if (reiserfs_tea_hash(s) && code != TEA_HASH) {
-	    printk("REISERFS: Error, rupasov hash detected, "
-		   "unable to force tea hash\n") ;
+	    printk("REISERFS: Error, %s hash detected, "
+		   "unable to force tea hash\n", reiserfs_hashname(code)) ;
 	    code = UNSET_HASH ;
 	} else if (reiserfs_r5_hash(s) && code != R5_HASH) {
-	    printk("REISERFS: Error, r5 hash detected, "
-		   "unable to force r5 hash\n") ;
+	    printk("REISERFS: Error, %s hash detected, "
+		   "unable to force r5 hash\n", reiserfs_hashname(code)) ;
 	    code = UNSET_HASH ;
 	} 
     } else { 

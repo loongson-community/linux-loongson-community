@@ -33,6 +33,9 @@ SECTIONS
     *(.text)
     *(.fixup)
     *(.got1)
+    __got2_start = .;
+    *(.got2)
+    __got2_end = .;
   }
   _etext = .;
   PROVIDE (etext = .);
@@ -46,8 +49,9 @@ SECTIONS
   .fini      : { *(.fini)    } =0
   .ctors     : { *(.ctors)   }
   .dtors     : { *(.dtors)   }
+
   /* Read-write section, merged into data segment: */
-  . = (. + 0x0FFF) & 0xFFFFF000;
+  . = ALIGN(4096);
   .data    :
   {
     *(.data)
@@ -76,6 +80,9 @@ SECTIONS
 
   . = ALIGN(32);
   .data.cacheline_aligned : { *(.data.cacheline_aligned) }
+
+  . = ALIGN(8192);
+  .data.init_task : { *(.data.init_task) }
 
   . = ALIGN(4096);
   __init_begin = .;

@@ -217,6 +217,7 @@ typedef enum {
 	DFE538TX,
 	DFE690TXD,
 	FE2000VX,
+	ALLIED8139,
 	RTL8129,
 } board_t;
 
@@ -235,6 +236,7 @@ static struct {
 	{ "D-Link DFE-538TX (RealTek RTL8139)", RTL8139_CAPS },
 	{ "D-Link DFE-690TXD (RealTek RTL8139)", RTL8139_CAPS },
 	{ "AboCom FE2000VX (RealTek RTL8139)", RTL8139_CAPS },
+	{ "Allied Telesyn 8139 CardBus", RTL8139_CAPS },
 	{ "RealTek RTL8129", RTL8129_CAPS },
 };
 
@@ -249,6 +251,7 @@ static struct pci_device_id rtl8139_pci_tbl[] __devinitdata = {
 	{0x1186, 0x1300, PCI_ANY_ID, PCI_ANY_ID, 0, 0, DFE538TX },
 	{0x1186, 0x1340, PCI_ANY_ID, PCI_ANY_ID, 0, 0, DFE690TXD },
 	{0x13d1, 0xab06, PCI_ANY_ID, PCI_ANY_ID, 0, 0, FE2000VX },
+	{0x1259, 0xa117, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ALLIED8139 },
 
 #ifdef CONFIG_8139TOO_8129
 	{0x10ec, 0x8129, PCI_ANY_ID, PCI_ANY_ID, 0, 0, RTL8129 },
@@ -1557,7 +1560,7 @@ static int rtl8139_thread (void *data)
 	reparent_to_init();
 	spin_lock_irq(&current->sigmask_lock);
 	sigemptyset(&current->blocked);
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	strncpy (current->comm, dev->name, sizeof(current->comm) - 1);
@@ -1646,23 +1649,24 @@ static int rtl8139_start_xmit (struct sk_buff *skb, struct net_device *dev)
 	struct rtl8139_private *tp = dev->priv;
 	void *ioaddr = tp->mmio_addr;
 	unsigned int entry;
+	unsigned int len = skb->len;
 
 	/* Calculate the next Tx descriptor entry. */
 	entry = tp->cur_tx % NUM_TX_DESC;
 
-	if (likely(skb->len < TX_BUF_SIZE)) {
+	if (likely(len < TX_BUF_SIZE)) {
 		skb_copy_and_csum_dev(skb, tp->tx_buf[entry]);
 		dev_kfree_skb(skb);
 	} else {
 		dev_kfree_skb(skb);
 		tp->stats.tx_dropped++;
 		return 0;
-  	}
+	}
 
 	/* Note: the chip doesn't have auto-pad! */
 	spin_lock_irq(&tp->lock);
 	RTL_W32_F (TxStatus0 + (entry * sizeof (u32)),
-		   tp->tx_flag | (skb->len >= ETH_ZLEN ? skb->len : ETH_ZLEN));
+		   tp->tx_flag | max(len, (unsigned int)ETH_ZLEN));
 
 	dev->trans_start = jiffies;
 
@@ -1673,8 +1677,8 @@ static int rtl8139_start_xmit (struct sk_buff *skb, struct net_device *dev)
 		netif_stop_queue (dev);
 	spin_unlock_irq(&tp->lock);
 
-	DPRINTK ("%s: Queued Tx packet at %p size %u to slot %d.\n",
-		 dev->name, skb->data, skb->len, entry);
+	DPRINTK ("%s: Queued Tx packet size %u to slot %d.\n",
+		 dev->name, len, entry);
 
 	return 0;
 }

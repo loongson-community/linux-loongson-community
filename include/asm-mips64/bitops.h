@@ -10,6 +10,7 @@
 #define _ASM_BITOPS_H
 
 #include <linux/config.h>
+#include <linux/compiler.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>		/* sigh ... */
 
@@ -445,6 +446,21 @@ static __inline__ unsigned long ffz(unsigned long word)
 static __inline__ unsigned long __ffs(unsigned long word)
 {
 	return ffz(~word);
+}
+
+/*
+ * Every architecture must define this function. It's the fastest
+ * way of searching a 168-bit bitmap where the first 128 bits are
+ * unlikely to be set. It's guaranteed that at least one of the 168
+ * bits is cleared.
+ */
+static inline int sched_find_first_bit(unsigned long *b)
+{
+	if (unlikely(b[0]))
+		return __ffs(b[0]);
+	if (unlikely(b[1]))
+		return __ffs(b[1]) + 64;
+	return __ffs(b[2]) + 128;
 }
 
 /*

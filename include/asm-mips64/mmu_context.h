@@ -16,15 +16,6 @@
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
 
-static inline int sched_find_first_bit(unsigned long *b)
-{
-	if (unlikely(b[0]))
-		return __ffs(b[0]);
-	if (unlikely(b[1]))
-		return __ffs(b[1]) + 64;
-	return __ffs(b[2]) + 128;
-}
-
 /*
  * For the fast tlb miss handlers, we currently keep a per cpu array
  * of pointers to the current pgd for each processor. Also, the proc.

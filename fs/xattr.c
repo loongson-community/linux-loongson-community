@@ -67,9 +67,11 @@ setxattr(struct dentry *d, char *name, void *value, size_t size, int flags)
 	if (flags & ~(XATTR_CREATE|XATTR_REPLACE))
 		return -EINVAL;
 
-	if (copy_from_user(kname, name, XATTR_NAME_MAX))
-		return -EFAULT;
-	kname[XATTR_NAME_MAX] = '\0';
+	error = strncpy_from_user(kname, name, sizeof(kname));
+	if (error == 0 || error == sizeof(kname))
+		error = -ERANGE;
+	if (error < 0)
+		return error;
 
 	kvalue = xattr_alloc(size, XATTR_SIZE_MAX);
 	if (IS_ERR(kvalue))
@@ -136,16 +138,18 @@ sys_fsetxattr(int fd, char *name, void *value, size_t size, int flags)
 /*
  * Extended attribute GET operations
  */
-static long
+static ssize_t
 getxattr(struct dentry *d, char *name, void *value, size_t size)
 {
-	int error;
+	ssize_t error;
 	void *kvalue;
 	char kname[XATTR_NAME_MAX + 1];
 
-	if (copy_from_user(kname, name, XATTR_NAME_MAX))
-		return -EFAULT;
-	kname[XATTR_NAME_MAX] = '\0';
+	error = strncpy_from_user(kname, name, sizeof(kname));
+	if (error == 0 || error == sizeof(kname))
+		error = -ERANGE;
+	if (error < 0)
+		return error;
 
 	kvalue = xattr_alloc(size, XATTR_SIZE_MAX);
 	if (IS_ERR(kvalue))
@@ -159,17 +163,17 @@ getxattr(struct dentry *d, char *name, void *value, size_t size)
 	}
 
 	if (kvalue && error > 0)
-		if (copy_to_user(value, kvalue, size))
+		if (copy_to_user(value, kvalue, error))
 			error = -EFAULT;
 	xattr_free(kvalue, size);
 	return error;
 }
 
-asmlinkage long
+asmlinkage ssize_t
 sys_getxattr(char *path, char *name, void *value, size_t size)
 {
 	struct nameidata nd;
-	int error;
+	ssize_t error;
 
 	error = user_path_walk(path, &nd);
 	if (error)
@@ -179,11 +183,11 @@ sys_getxattr(char *path, char *name, void *value, size_t size)
 	return error;
 }
 
-asmlinkage long
+asmlinkage ssize_t
 sys_lgetxattr(char *path, char *name, void *value, size_t size)
 {
 	struct nameidata nd;
-	int error;
+	ssize_t error;
 
 	error = user_path_walk_link(path, &nd);
 	if (error)
@@ -193,11 +197,11 @@ sys_lgetxattr(char *path, char *name, void *value, size_t size)
 	return error;
 }
 
-asmlinkage long
+asmlinkage ssize_t
 sys_fgetxattr(int fd, char *name, void *value, size_t size)
 {
 	struct file *f;
-	int error = -EBADF;
+	ssize_t error = -EBADF;
 
 	f = fget(fd);
 	if (!f)
@@ -210,10 +214,10 @@ sys_fgetxattr(int fd, char *name, void *value, size_t size)
 /*
  * Extended attribute LIST operations
  */
-static long
+static ssize_t
 listxattr(struct dentry *d, char *list, size_t size)
 {
-	int error;
+	ssize_t error;
 	char *klist;
 
 	klist = (char *)xattr_alloc(size, XATTR_LIST_MAX);
@@ -228,17 +232,17 @@ listxattr(struct dentry *d, char *list, size_t size)
 	}
 
 	if (klist && error > 0)
-		if (copy_to_user(list, klist, size))
+		if (copy_to_user(list, klist, error))
 			error = -EFAULT;
 	xattr_free(klist, size);
 	return error;
 }
 
-asmlinkage long
+asmlinkage ssize_t
 sys_listxattr(char *path, char *list, size_t size)
 {
 	struct nameidata nd;
-	int error;
+	ssize_t error;
 
 	error = user_path_walk(path, &nd);
 	if (error)
@@ -248,11 +252,11 @@ sys_listxattr(char *path, char *list, size_t size)
 	return error;
 }
 
-asmlinkage long
+asmlinkage ssize_t
 sys_llistxattr(char *path, char *list, size_t size)
 {
 	struct nameidata nd;
-	int error;
+	ssize_t error;
 
 	error = user_path_walk_link(path, &nd);
 	if (error)
@@ -262,11 +266,11 @@ sys_llistxattr(char *path, char *list, size_t size)
 	return error;
 }
 
-asmlinkage long
+asmlinkage ssize_t
 sys_flistxattr(int fd, char *list, size_t size)
 {
 	struct file *f;
-	int error = -EBADF;
+	ssize_t error = -EBADF;
 
 	f = fget(fd);
 	if (!f)
@@ -285,9 +289,11 @@ removexattr(struct dentry *d, char *name)
 	int error;
 	char kname[XATTR_NAME_MAX + 1];
 
-	if (copy_from_user(kname, name, XATTR_NAME_MAX))
-		return -EFAULT;
-	kname[XATTR_NAME_MAX] = '\0';
+	error = strncpy_from_user(kname, name, sizeof(kname));
+	if (error == 0 || error == sizeof(kname))
+		error = -ERANGE;
+	if (error < 0)
+		return error;
 
 	error = -EOPNOTSUPP;
 	if (d->d_inode->i_op && d->d_inode->i_op->removexattr) {

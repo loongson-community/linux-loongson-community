@@ -20,6 +20,7 @@
 #include <linux/hfs_fs_sb.h>
 #include <linux/hfs_fs_i.h>
 #include <linux/hfs_fs.h>
+#include <linux/smp_lock.h>
 
 /*================ Forward declarations ================*/
 
@@ -114,6 +115,7 @@ static struct dentry *dbl_lookup(struct inode * dir, struct dentry *dentry)
 	struct hfs_cat_key key;
 	struct inode *inode = NULL;
 
+	lock_kernel();
 	dentry->d_op = &hfs_dentry_operations;
 	entry = HFS_I(dir)->entry;
 	
@@ -145,6 +147,7 @@ static struct dentry *dbl_lookup(struct inode * dir, struct dentry *dentry)
 	}
 	
 done:
+	unlock_kernel();
 	d_add(dentry, inode);
 	return NULL;
 }
@@ -269,11 +272,13 @@ static int dbl_create(struct inode * dir, struct dentry *dentry,
 {
 	int error;
 
+	lock_kernel();
 	if (is_hdr(dir, dentry->d_name.name, dentry->d_name.len)) {
 		error = -EEXIST;
 	} else {
 		error = hfs_create(dir, dentry, mode);
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -290,11 +295,13 @@ static int dbl_mkdir(struct inode * parent, struct dentry *dentry,
 {
 	int error;
 
+	lock_kernel();
 	if (is_hdr(parent, dentry->d_name.name, dentry->d_name.len)) {
 		error = -EEXIST;
 	} else {
 		error = hfs_mkdir(parent, dentry, mode);
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -310,11 +317,13 @@ static int dbl_unlink(struct inode * dir, struct dentry *dentry)
 {
 	int error;
 
+	lock_kernel();
 	error = hfs_unlink(dir, dentry);
 	if ((error == -ENOENT) && is_hdr(dir, dentry->d_name.name,
 					 dentry->d_name.len)) {
 		error = -EPERM;
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -330,11 +339,13 @@ static int dbl_rmdir(struct inode * parent, struct dentry *dentry)
 {
 	int error;
 
+	lock_kernel();
 	error = hfs_rmdir(parent, dentry);
 	if ((error == -ENOENT) && is_hdr(parent, dentry->d_name.name,
 					 dentry->d_name.len)) {
 		error = -ENOTDIR;
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -355,6 +366,7 @@ static int dbl_rename(struct inode *old_dir, struct dentry *old_dentry,
 {
 	int error;
 
+	lock_kernel();
 	if (is_hdr(new_dir, new_dentry->d_name.name,
 		   new_dentry->d_name.len)) {
 		error = -EPERM;
@@ -367,6 +379,7 @@ static int dbl_rename(struct inode *old_dir, struct dentry *old_dentry,
 			error = -EPERM;
 		}
 	}
+	unlock_kernel();
 	return error;
 }
 

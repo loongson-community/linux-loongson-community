@@ -26,7 +26,6 @@
 /*
  * task_struct *resume(task_struct *prev, task_struct *next)
  */
-	.set	noreorder
 	.align	5
 	LEAF(resume)
 	mfc0	t1, CP0_STATUS
@@ -53,7 +52,6 @@
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
 	jr	ra
-	 move	v0, a0
 	END(resume)
 
 /*
@@ -70,15 +68,15 @@ LEAF(lazy_fpu_switch)
 	mtc0	t0, CP0_STATUS
 	FPU_ENABLE_HAZARD
 
+	nor	t3, zero, t3
 	beqz	a0, 2f				# Save floating point state
-	 nor	t3, zero, t3
 
 	ld	t1, ST_OFF(a0)			# last thread looses fpu
 	and	t1, t3
 	sd	t1, ST_OFF(a0)
 	sll	t2, t1, 5
+	sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	bgez	t2, 1f
-	 sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	fpu_save_16odd a0
 1:
 	fpu_save_16even a0 t1			# clobbers t1
@@ -87,11 +85,10 @@ LEAF(lazy_fpu_switch)
 	beqz	a1, 3f
 
 	sll	t0, t0, 5			# load new fp state
+	ldc1	$f0, (THREAD_FPU + 0x00)(a1)
 	bgez	t0, 1f
-	 ldc1	$f0, (THREAD_FPU + 0x00)(a1)
 	fpu_restore_16odd a1
 1:
-	.set	reorder
 	fpu_restore_16even a1, t0		# clobbers t0
 3:
 	jr	ra
@@ -100,17 +97,15 @@ LEAF(lazy_fpu_switch)
 /*
  * Save a thread's fp context.
  */
-	.set	noreorder
 LEAF(save_fp)
 	mfc0	t0, CP0_STATUS
 	sll	t1, t0, 5
 	bgez	t1, 1f				# 16 register mode?
-	 nop
 	fpu_save_16odd a0
 1:
 	fpu_save_16even a0 t1			# clobbers t1
+	sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	jr	ra
-	 sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	END(save_fp)
 
 /*
@@ -120,12 +115,9 @@ LEAF(restore_fp)
 	mfc0	t0, CP0_STATUS
 	sll	t1, t0, 5
 	bgez	t0, 1f				# 16 register mode?
-	 nop
 
 	fpu_restore_16odd a0
-1:
-	.set	reorder
-	fpu_restore_16even a0, t0		# clobbers t0
+1:	fpu_restore_16even a0, t0		# clobbers t0
 
 	jr	ra
 	END(restore_fp)
@@ -151,8 +143,8 @@ LEAF(init_fpu)
 	li	t1, FPU_DEFAULT
 	ctc1	t1, fcr31
 
+	li	t0, -1				# SNaN
 	bgez	t0, 1f				# 16 / 32 register mode?
-	 li	t0, -1
 
 	dmtc1	t0, $f1
 	dmtc1	t0, $f3
@@ -186,6 +178,6 @@ LEAF(init_fpu)
 	dmtc1	t0, $f24
 	dmtc1	t0, $f26
 	dmtc1	t0, $f28
+	dmtc1	t0, $f30
 	jr	ra
-	 dmtc1	t0, $f30
 	END(init_fpu)

@@ -20,6 +20,7 @@
 #include <linux/hfs_fs_sb.h>
 #include <linux/hfs_fs_i.h>
 #include <linux/hfs_fs.h>
+#include <linux/smp_lock.h>
 
 /*================ File-local functions ================*/
 
@@ -170,15 +171,20 @@ int hfs_create(struct inode * dir, struct dentry *dentry, int mode)
 	struct inode *inode;
 	int error;
 
+	lock_kernel();
 	/* build the key, checking against reserved names */
-	if (build_key(&key, dir, dentry->d_name.name, dentry->d_name.len)) 
+	if (build_key(&key, dir, dentry->d_name.name, dentry->d_name.len)) {
+		unlock_kernel();
 		return -EEXIST;
+	}
 
 	if ((error = hfs_cat_create(entry, &key, 
 			       (mode & S_IWUSR) ? 0 : HFS_FIL_LOCK,
 			       HFS_SB(dir->i_sb)->s_type,
-			       HFS_SB(dir->i_sb)->s_creator, &new)))
+			       HFS_SB(dir->i_sb)->s_creator, &new))) {
+		unlock_kernel();
 		return error;
+	}
 
 	/* create an inode for the new file. back out if we run
 	 * into trouble. */
@@ -186,6 +192,7 @@ int hfs_create(struct inode * dir, struct dentry *dentry, int mode)
 	if (!(inode = hfs_iget(new, HFS_I(dir)->file_type, dentry))) {
 		hfs_cat_delete(entry, new, 1);
 		hfs_cat_put(new);
+		unlock_kernel();
 		return -EIO;
 	}
 
@@ -195,6 +202,7 @@ int hfs_create(struct inode * dir, struct dentry *dentry, int mode)
 	if (HFS_I(dir)->d_drop_op)
 		HFS_I(dir)->d_drop_op(dentry, HFS_I(dir)->file_type);
 	mark_inode_dirty(inode);
+	unlock_kernel();
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -209,26 +217,33 @@ int hfs_create(struct inode * dir, struct dentry *dentry, int mode)
  */
 int hfs_mkdir(struct inode * parent, struct dentry *dentry, int mode)
 {
-	struct hfs_cat_entry *entry = HFS_I(parent)->entry;
+	struct hfs_cat_entry *entry;
 	struct hfs_cat_entry *new;
 	struct hfs_cat_key key;
 	struct inode *inode;
 	int error;
 
+	lock_kernel();
+	entry = HFS_I(parent)->entry;
 	/* build the key, checking against reserved names */
 	if (build_key(&key, parent, dentry->d_name.name, 
-		      dentry->d_name.len)) 
+		      dentry->d_name.len)) {
+		unlock_kernel();
 		return -EEXIST;
+	}
 
 	/* try to create the directory */
-	if ((error = hfs_cat_mkdir(entry, &key, &new)))
+	if ((error = hfs_cat_mkdir(entry, &key, &new))) {
+		unlock_kernel();
 		return error;
+	}
 
 	/* back out if we run into trouble */
 	new->count++; /* hfs_iget eats one */
 	if (!(inode = hfs_iget(new, HFS_I(parent)->file_type, dentry))) {
 		hfs_cat_delete(entry, new, 1);
 		hfs_cat_put(new);
+		unlock_kernel();
 		return -EIO;
 	}
 
@@ -236,6 +251,7 @@ int hfs_mkdir(struct inode * parent, struct dentry *dentry, int mode)
 	update_dirs_plus(entry, 1);
 	mark_inode_dirty(inode);
 	d_instantiate(dentry, inode);
+	unlock_kernel();
 	return 0;
 }
 
@@ -254,12 +270,18 @@ int hfs_unlink(struct inode * dir, struct dentry *dentry)
 	struct hfs_cat_key key;
 	int error;
 
+	lock_kernel();
+	entry = HFS_I(dir)->entry;
 	if (build_key(&key, dir, dentry->d_name.name,
-		      dentry->d_name.len)) 
+		      dentry->d_name.len)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
-	if (!(victim = hfs_cat_get(entry->mdb, &key))) 
+	if (!(victim = hfs_cat_get(entry->mdb, &key))) {
+		unlock_kernel();
 		return -ENOENT;
+	}
 
 	error = -EPERM;
 	if (victim->type != HFS_CDR_FIL)
@@ -277,6 +299,7 @@ int hfs_unlink(struct inode * dir, struct dentry *dentry)
 
 hfs_unlink_put:
 	hfs_cat_put(victim);	/* Note that hfs_cat_put(NULL) is safe. */
+	unlock_kernel();
 	return error;
 }
 
@@ -290,18 +313,24 @@ hfs_unlink_put:
  */
 int hfs_rmdir(struct inode * parent, struct dentry *dentry)
 {
-	struct hfs_cat_entry *entry = HFS_I(parent)->entry;
+	struct hfs_cat_entry *entry;
 	struct hfs_cat_entry *victim = NULL;
 	struct inode *inode = dentry->d_inode;
 	struct hfs_cat_key key;
 	int error;
 
+	lock_kernel();
+	entry = HFS_I(parent)->entry;
 	if (build_key(&key, parent, dentry->d_name.name,
-		      dentry->d_name.len))
+		      dentry->d_name.len)) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
-	if (!(victim = hfs_cat_get(entry->mdb, &key)))
+	if (!(victim = hfs_cat_get(entry->mdb, &key))) {
+		unlock_kernel();
 		return -ENOENT;
+	}
 
 	error = -ENOTDIR;
 	if (victim->type != HFS_CDR_DIR) 
@@ -329,6 +358,7 @@ int hfs_rmdir(struct inode * parent, struct dentry *dentry)
 	 
 hfs_rmdir_put:
 	hfs_cat_put(victim);	/* Note that hfs_cat_put(NULL) is safe. */
+	unlock_kernel();
 	return error;
 }
 
@@ -346,20 +376,27 @@ hfs_rmdir_put:
 int hfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	       struct inode *new_dir, struct dentry *new_dentry)
 {
-	struct hfs_cat_entry *old_parent = HFS_I(old_dir)->entry;
-	struct hfs_cat_entry *new_parent = HFS_I(new_dir)->entry;
+	struct hfs_cat_entry *old_parent;
+	struct hfs_cat_entry *new_parent;
 	struct hfs_cat_entry *victim = NULL;
 	struct hfs_cat_entry *deleted;
 	struct hfs_cat_key key;
 	int error;
 
+	lock_kernel();
+	old_parent = HFS_I(old_dir)->entry;
+	new_parent = HFS_I(new_dir)->entry;
 	if (build_key(&key, old_dir, old_dentry->d_name.name,
 		      old_dentry->d_name.len) ||
-	    (HFS_ITYPE(old_dir->i_ino) != HFS_ITYPE(new_dir->i_ino))) 
+	    (HFS_ITYPE(old_dir->i_ino) != HFS_ITYPE(new_dir->i_ino))) {
+		unlock_kernel();
 		return -EPERM;
+	}
 
-	if (!(victim = hfs_cat_get(old_parent->mdb, &key))) 
+	if (!(victim = hfs_cat_get(old_parent->mdb, &key))) {
+		unlock_kernel();
 		return -ENOENT;
+	}
 
 	error = -EPERM;
 	if (build_key(&key, new_dir, new_dentry->d_name.name,
@@ -388,5 +425,6 @@ int hfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 
 hfs_rename_put:
 	hfs_cat_put(victim);	/* Note that hfs_cat_put(NULL) is safe. */
+	unlock_kernel();
 	return error;
 }

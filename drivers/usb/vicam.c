@@ -115,8 +115,11 @@ static inline unsigned long uvirt_to_kva(pgd_t *pgd, unsigned long adr)
 	if (!pgd_none(*pgd)) {
 		pmd = pmd_offset(pgd, adr);
 		if (!pmd_none(*pmd)) {
-			ptep = pte_offset(pmd, adr);
+			preempt_disable();
+			ptep = pte_offset_map(pmd, adr);
 			pte = *ptep;
+			pte_unmap(pte);
+			preempt_enable();
 			if(pte_present(pte)) {
 				ret  = (unsigned long) page_address(pte_page(pte));
 				ret |= (adr & (PAGE_SIZE - 1));
@@ -884,7 +887,7 @@ static void * __devinit vicam_probe(struct usb_device *udev, unsigned int ifnum,
 	}
 	memset(vicam, 0, sizeof(*vicam));
 
-	vicam->readurb = usb_alloc_urb(0);
+	vicam->readurb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!vicam->readurb) {
 		kfree(vicam);
 		return NULL;
@@ -896,13 +899,18 @@ static void * __devinit vicam_probe(struct usb_device *udev, unsigned int ifnum,
 	vicam->win.contrast = 10;
 
 	/* FIXME */
-	if (vicam_init(vicam))
+	if (vicam_init(vicam)) {
+		usb_free_urb(vicam->readurb);
+		kfree(vicam);
 		return NULL;
+	}
 	memcpy(&vicam->vdev, &vicam_template, sizeof(vicam_template));
 	memcpy(vicam->vdev.name, vicam->camera_name, strlen(vicam->camera_name));
 	
 	if (video_register_device(&vicam->vdev, VFL_TYPE_GRABBER, video_nr) == -1) {
 		err("video_register_device");
+		usb_free_urb(vicam->readurb);
+		kfree(vicam);
 		return NULL;
 	}
 

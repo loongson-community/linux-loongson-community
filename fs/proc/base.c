@@ -623,8 +623,10 @@ static int proc_readfd(struct file * filp, void * dirent, filldir_t filldir)
 				} while (i);
 
 				ino = fake_ino(pid, PROC_PID_FD_DIR + fd);
-				if (filldir(dirent, buf+j, NUMBUF-j, fd+2, ino, DT_LNK) < 0)
+				if (filldir(dirent, buf+j, NUMBUF-j, fd+2, ino, DT_LNK) < 0) {
+					read_lock(&files->file_lock);
 					break;
+				}
 				read_lock(&files->file_lock);
 			}
 			read_unlock(&files->file_lock);
@@ -777,6 +779,7 @@ static struct dentry_operations pid_base_dentry_operations =
 /* Lookups */
 #define MAX_MULBY10	((~0U-9)/10)
 
+/* SMP-safe */
 static struct dentry *proc_lookupfd(struct inode * dir, struct dentry * dentry)
 {
 	unsigned int fd, c;
@@ -855,6 +858,7 @@ static struct inode_operations proc_fd_inode_operations = {
 	permission:	proc_permission,
 };
 
+/* SMP-safe */
 static struct dentry *proc_base_lookup(struct inode *dir, struct dentry *dentry)
 {
 	struct inode *inode;
@@ -984,6 +988,7 @@ static struct inode_operations proc_self_inode_operations = {
 	follow_link:	proc_self_follow_link,
 };
 
+/* SMP-safe */
 struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry)
 {
 	unsigned int pid, c;

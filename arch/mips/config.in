@@ -616,7 +616,7 @@ comment 'Sound'
 
 tristate 'Sound card support' CONFIG_SOUND
 if [ "$CONFIG_SOUND" != "n" ]; then
-   source drivers/sound/Config.in
+   source sound/Config.in
 fi
 endmenu
 
@@ -631,14 +631,21 @@ mainmenu_option next_comment
 comment 'Kernel hacking'
 
 bool 'Are you using a crosscompiler' CONFIG_CROSSCOMPILE
-if [ "$CONFIG_SERIAL" = "y" -o "$CONFIG_AU1000_UART" = "y" ]; then
-  bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
-  dep_bool 'Console output to GDB' CONFIG_GDB_CONSOLE $CONFIG_REMOTE_DEBUG
-fi
-bool 'Enable run-time debugging' CONFIG_DEBUG
-bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
-if [ "$CONFIG_SMP" != "y" ]; then
-   bool 'Run uncached' CONFIG_MIPS_UNCACHED
+
+bool 'Kernel debugging' CONFIG_DEBUG_KERNEL
+if [ "$CONFIG_DEBUG_KERNEL" != "n" ]; then
+   if [ "$CONFIG_SERIAL" = "y" -o "$CONFIG_AU1000_UART" = "y" ]; then
+     bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
+     dep_bool 'Console output to GDB' CONFIG_GDB_CONSOLE $CONFIG_REMOTE_DEBUG
+   fi
+   bool 'Enable run-time debugging' CONFIG_DEBUG
+   bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
+   if [ "$CONFIG_SMP" != "y" ]; then
+      bool 'Run uncached' CONFIG_MIPS_UNCACHED
+   fi
+   if [ "$CONFIG_HIGHMEM" = "y" ]; then
+      bool '  Highmem debugging' CONFIG_DEBUG_HIGHMEM
+   fi
 fi
 endmenu
 

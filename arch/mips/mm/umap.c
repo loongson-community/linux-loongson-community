@@ -181,7 +181,7 @@ static inline int vmap_pmd_range(pmd_t *pmd, unsigned long address,
 		end = PGDIR_SIZE;
 	vaddr -= address;
 	do {
-		pte_t * pte = pte_alloc(current->mm, pmd, address);
+		pte_t * pte = pte_alloc_kernel(current->mm, pmd, address);
 		if (!pte)
 			return -ENOMEM;
 		vmap_pte_range(pte, address, end - address, address + vaddr);

@@ -27,6 +27,7 @@
 #include <linux/time.h>
 #include <linux/fs.h>
 #include <linux/ufs_fs.h>
+#include <linux/smp_lock.h>
 
 #undef UFS_NAMEI_DEBUG
 
@@ -68,12 +69,16 @@ static struct dentry *ufs_lookup(struct inode * dir, struct dentry *dentry)
 	if (dentry->d_name.len > UFS_MAXNAMLEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
+	lock_kernel();
 	ino = ufs_inode_by_name(dir, dentry);
 	if (ino) {
 		inode = iget(dir->i_sb, ino);
-		if (!inode) 
+		if (!inode) {
+			unlock_kernel();
 			return ERR_PTR(-EACCES);
+		}
 	}
+	unlock_kernel();
 	d_add(dentry, inode);
 	return NULL;
 }
@@ -95,7 +100,9 @@ static int ufs_create (struct inode * dir, struct dentry * dentry, int mode)
 		inode->i_fop = &ufs_file_operations;
 		inode->i_mapping->a_ops = &ufs_aops;
 		mark_inode_dirty(inode);
+		lock_kernel();
 		err = ufs_add_nondir(dentry, inode);
+		unlock_kernel();
 	}
 	return err;
 }
@@ -107,7 +114,9 @@ static int ufs_mknod (struct inode * dir, struct dentry *dentry, int mode, int r
 	if (!IS_ERR(inode)) {
 		init_special_inode(inode, mode, rdev);
 		mark_inode_dirty(inode);
+		lock_kernel();
 		err = ufs_add_nondir(dentry, inode);
+		unlock_kernel();
 	}
 	return err;
 }
@@ -123,6 +132,7 @@ static int ufs_symlink (struct inode * dir, struct dentry * dentry,
 	if (l > sb->s_blocksize)
 		goto out;
 
+	lock_kernel();
 	inode = ufs_new_inode(dir, S_IFLNK | S_IRWXUGO);
 	err = PTR_ERR(inode);
 	if (IS_ERR(inode))
@@ -145,6 +155,7 @@ static int ufs_symlink (struct inode * dir, struct dentry * dentry,
 
 	err = ufs_add_nondir(dentry, inode);
 out:
+	unlock_kernel();
 	return err;
 
 out_fail:
@@ -157,18 +168,21 @@ static int ufs_link (struct dentry * old_dentry, struct inode * dir,
 	struct dentry *dentry)
 {
 	struct inode *inode = old_dentry->d_inode;
+	int error;
 
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
-	if (inode->i_nlink >= UFS_LINK_MAX)
+	lock_kernel();
+	if (inode->i_nlink >= UFS_LINK_MAX) {
+		unlock_kernel();
 		return -EMLINK;
+	}
 
 	inode->i_ctime = CURRENT_TIME;
 	ufs_inc_count(inode);
 	atomic_inc(&inode->i_count);
 
-	return ufs_add_nondir(dentry, inode);
+	error = ufs_add_nondir(dentry, inode);
+	unlock_kernel();
+	return error;
 }
 
 static int ufs_mkdir(struct inode * dir, struct dentry * dentry, int mode)
@@ -179,6 +193,7 @@ static int ufs_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	if (dir->i_nlink >= UFS_LINK_MAX)
 		goto out;
 
+	lock_kernel();
 	ufs_inc_count(dir);
 
 	inode = ufs_new_inode(dir, S_IFDIR|mode);
@@ -198,6 +213,7 @@ static int ufs_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	err = ufs_add_link(dentry, inode);
 	if (err)
 		goto out_fail;
+	unlock_kernel();
 
 	d_instantiate(dentry, inode);
 out:
@@ -209,6 +225,7 @@ out_fail:
 	iput (inode);
 out_dir:
 	ufs_dec_count(dir);
+	unlock_kernel();
 	goto out;
 }
 
@@ -219,6 +236,7 @@ static int ufs_unlink(struct inode * dir, struct dentry *dentry)
 	struct ufs_dir_entry * de;
 	int err = -ENOENT;
 
+	lock_kernel();
 	de = ufs_find_entry (dentry, &bh);
 	if (!de)
 		goto out;
@@ -231,6 +249,7 @@ static int ufs_unlink(struct inode * dir, struct dentry *dentry)
 	ufs_dec_count(inode);
 	err = 0;
 out:
+	unlock_kernel();
 	return err;
 }
 
@@ -239,6 +258,7 @@ static int ufs_rmdir (struct inode * dir, struct dentry *dentry)
 	struct inode * inode = dentry->d_inode;
 	int err= -ENOTEMPTY;
 
+	lock_kernel();
 	if (ufs_empty_dir (inode)) {
 		err = ufs_unlink(dir, dentry);
 		if (!err) {
@@ -247,6 +267,7 @@ static int ufs_rmdir (struct inode * dir, struct dentry *dentry)
 			ufs_dec_count(dir);
 		}
 	}
+	unlock_kernel();
 	return err;
 }
 
@@ -261,6 +282,7 @@ static int ufs_rename (struct inode * old_dir, struct dentry * old_dentry,
 	struct ufs_dir_entry *old_de;
 	int err = -ENOENT;
 
+	lock_kernel();
 	old_de = ufs_find_entry (old_dentry, &old_bh);
 	if (!old_de)
 		goto out;
@@ -313,6 +335,7 @@ static int ufs_rename (struct inode * old_dir, struct dentry * old_dentry,
 		ufs_set_link(old_inode, dir_de, dir_bh, new_dir);
 		ufs_dec_count(old_dir);
 	}
+	unlock_kernel();
 	return 0;
 
 out_dir:
@@ -321,6 +344,7 @@ out_dir:
 out_old:
 	brelse (old_bh);
 out:
+	unlock_kernel();
 	return err;
 }
 

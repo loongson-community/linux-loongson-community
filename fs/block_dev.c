@@ -195,11 +195,15 @@ static loff_t block_llseek(struct file *file, loff_t offset, int origin)
 
 static int __block_fsync(struct inode * inode)
 {
-	int ret;
+	int ret, err;
 
-	filemap_fdatasync(inode->i_mapping);
-	ret = sync_buffers(inode->i_rdev, 1);
-	filemap_fdatawait(inode->i_mapping);
+	ret = filemap_fdatasync(inode->i_mapping);
+	err = sync_buffers(inode->i_rdev, 1);
+	if (err && !ret)
+		ret = err;
+	err = filemap_fdatawait(inode->i_mapping);
+	if (err && !ret)
+		ret = err;
 
 	return ret;
 }
@@ -647,10 +651,14 @@ int blkdev_put(struct block_device *bdev, int kind)
 
 	down(&bdev->bd_sem);
 	lock_kernel();
-	if (kind == BDEV_FILE)
+	switch (kind) {
+	case BDEV_FILE:
 		__block_fsync(bd_inode);
-	else if (kind == BDEV_FS)
+		break;
+	case BDEV_FS:
 		fsync_no_super(bdev);
+		break;
+	}
 	if (!--bdev->bd_openers)
 		kill_bdev(bdev);
 	if (bdev->bd_op->release)

@@ -21,6 +21,7 @@
 #include <linux/msdos_fs.h>
 #include <linux/ctype.h>
 #include <linux/slab.h>
+#include <linux/smp_lock.h>
 
 #define DEBUG_LEVEL 0
 #if (DEBUG_LEVEL >= 1)
@@ -986,6 +987,7 @@ struct dentry *vfat_lookup(struct inode *dir,struct dentry *dentry)
 	PRINTK2(("vfat_lookup: name=%s, len=%d\n", 
 		 dentry->d_name.name, dentry->d_name.len));
 
+	lock_kernel();
 	table = (MSDOS_SB(dir->i_sb)->options.name_check == 's') ? 2 : 0;
 	dentry->d_op = &vfat_dentry_ops[table];
 
@@ -997,19 +999,23 @@ struct dentry *vfat_lookup(struct inode *dir,struct dentry *dentry)
 	}
 	inode = fat_build_inode(dir->i_sb, de, sinfo.ino, &res);
 	fat_brelse(dir->i_sb, bh);
-	if (res)
+	if (res) {
+		unlock_kernel();
 		return ERR_PTR(res);
+	}
 	alias = d_find_alias(inode);
 	if (alias) {
 		if (d_invalidate(alias)==0)
 			dput(alias);
 		else {
 			iput(inode);
+			unlock_kernel();
 			return alias;
 		}
 		
 	}
 error:
+	unlock_kernel();
 	dentry->d_op = &vfat_dentry_ops[table];
 	dentry->d_time = dentry->d_parent->d_inode->i_version;
 	d_add(dentry,inode);
@@ -1025,19 +1031,25 @@ int vfat_create(struct inode *dir,struct dentry* dentry,int mode)
 	struct vfat_slot_info sinfo;
 	int res;
 
+	lock_kernel();
 	res = vfat_add_entry(dir, &dentry->d_name, 0, &sinfo, &bh, &de);
-	if (res < 0)
+	if (res < 0) {
+		unlock_kernel();
 		return res;
+	}
 	inode = fat_build_inode(sb, de, sinfo.ino, &res);
 	fat_brelse(sb, bh);
-	if (!inode)
+	if (!inode) {
+		unlock_kernel();
 		return res;
+	}
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	mark_inode_dirty(inode);
 	inode->i_version++;
 	dir->i_version++;
 	dentry->d_time = dentry->d_parent->d_inode->i_version;
 	d_instantiate(dentry,inode);
+	unlock_kernel();
 	return 0;
 }
 
@@ -1074,13 +1086,18 @@ int vfat_rmdir(struct inode *dir,struct dentry* dentry)
 	struct buffer_head *bh = NULL;
 	struct msdos_dir_entry *de;
 
+	lock_kernel();
 	res = fat_dir_empty(dentry->d_inode);
-	if (res)
+	if (res) {
+		unlock_kernel();
 		return res;
+	}
 
 	res = vfat_find(dir,&dentry->d_name,&sinfo, &bh, &de);
-	if (res<0)
+	if (res<0) {
+		unlock_kernel();
 		return res;
+	}
 	dentry->d_inode->i_nlink = 0;
 	dentry->d_inode->i_mtime = CURRENT_TIME;
 	dentry->d_inode->i_atime = CURRENT_TIME;
@@ -1089,6 +1106,7 @@ int vfat_rmdir(struct inode *dir,struct dentry* dentry)
 	/* releases bh */
 	vfat_remove_entry(dir,&sinfo,bh,de);
 	dir->i_nlink--;
+	unlock_kernel();
 	return 0;
 }
 
@@ -1100,9 +1118,12 @@ int vfat_unlink(struct inode *dir, struct dentry* dentry)
 	struct msdos_dir_entry *de;
 
 	PRINTK1(("vfat_unlink: %s\n", dentry->d_name.name));
+	lock_kernel();
 	res = vfat_find(dir,&dentry->d_name,&sinfo,&bh,&de);
-	if (res < 0)
+	if (res < 0) {
+		unlock_kernel();
 		return res;
+	}
 	dentry->d_inode->i_nlink = 0;
 	dentry->d_inode->i_mtime = CURRENT_TIME;
 	dentry->d_inode->i_atime = CURRENT_TIME;
@@ -1110,6 +1131,7 @@ int vfat_unlink(struct inode *dir, struct dentry* dentry)
 	mark_inode_dirty(dentry->d_inode);
 	/* releases bh */
 	vfat_remove_entry(dir,&sinfo,bh,de);
+	unlock_kernel();
 
 	return res;
 }
@@ -1124,9 +1146,12 @@ int vfat_mkdir(struct inode *dir,struct dentry* dentry,int mode)
 	struct msdos_dir_entry *de;
 	int res;
 
+	lock_kernel();
 	res = vfat_add_entry(dir, &dentry->d_name, 1, &sinfo, &bh, &de);
-	if (res < 0)
+	if (res < 0) {
+		unlock_kernel();
 		return res;
+	}
 	inode = fat_build_inode(sb, de, sinfo.ino, &res);
 	if (!inode)
 		goto out;
@@ -1143,6 +1168,7 @@ int vfat_mkdir(struct inode *dir,struct dentry* dentry,int mode)
 	d_instantiate(dentry,inode);
 out:
 	fat_brelse(sb, bh);
+	unlock_kernel();
 	return res;
 
 mkdir_failed:
@@ -1155,6 +1181,7 @@ mkdir_failed:
 	vfat_remove_entry(dir,&sinfo,bh,de);
 	iput(inode);
 	dir->i_nlink--;
+	unlock_kernel();
 	return res;
 }
  
@@ -1172,6 +1199,7 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 	old_bh = new_bh = dotdot_bh = NULL;
 	old_inode = old_dentry->d_inode;
 	new_inode = new_dentry->d_inode;
+	lock_kernel();
 	res = vfat_find(old_dir,&old_dentry->d_name,&old_sinfo,&old_bh,&old_de);
 	PRINTK3(("vfat_rename 2\n"));
 	if (res < 0) goto rename_done;
@@ -1238,6 +1266,7 @@ rename_done:
 	fat_brelse(sb, dotdot_bh);
 	fat_brelse(sb, old_bh);
 	fat_brelse(sb, new_bh);
+	unlock_kernel();
 	return res;
 
 }

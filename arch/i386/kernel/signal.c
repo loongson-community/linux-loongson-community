@@ -20,6 +20,7 @@
 #include <linux/stddef.h>
 #include <linux/tty.h>
 #include <linux/personality.h>
+#include <linux/binfmts.h>
 #include <asm/ucontext.h>
 #include <asm/uaccess.h>
 #include <asm/i387.h>
@@ -76,7 +77,7 @@ sys_sigsuspend(int history0, int history1, old_sigset_t mask)
 	spin_lock_irq(&current->sigmask_lock);
 	saveset = current->blocked;
 	siginitset(&current->blocked, mask);
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	regs->eax = -EINTR;
@@ -105,7 +106,7 @@ sys_rt_sigsuspend(sigset_t *unewset, size_t sigsetsize)
 	spin_lock_irq(&current->sigmask_lock);
 	saveset = current->blocked;
 	current->blocked = newset;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	regs->eax = -EINTR;
@@ -262,7 +263,7 @@ asmlinkage int sys_sigreturn(unsigned long __unused)
 	sigdelsetmask(&set, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
 	current->blocked = set;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 	
 	if (restore_sigcontext(regs, &frame->sc, &eax))
@@ -290,7 +291,7 @@ asmlinkage int sys_rt_sigreturn(unsigned long __unused)
 	sigdelsetmask(&set, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
 	current->blocked = set;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 	
 	if (restore_sigcontext(regs, &frame->uc.uc_mcontext, &eax))
@@ -569,7 +570,7 @@ handle_signal(unsigned long sig, struct k_sigaction *ka,
 		spin_lock_irq(&current->sigmask_lock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
 		sigaddset(&current->blocked,sig);
-		recalc_sigpending(current);
+		recalc_sigpending();
 		spin_unlock_irq(&current->sigmask_lock);
 	}
 }
@@ -609,9 +610,11 @@ int do_signal(struct pt_regs *regs, sigset_t *oldset)
 		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
+			preempt_disable();
 			current->state = TASK_STOPPED;
 			notify_parent(current, SIGCHLD);
 			schedule();
+			preempt_enable();
 
 			/* We're back.  Did the debugger cancel the sig?  */
 			if (!(signr = current->exit_code))
@@ -666,12 +669,14 @@ int do_signal(struct pt_regs *regs, sigset_t *oldset)
 
 			case SIGSTOP: {
 				struct signal_struct *sig;
-				current->state = TASK_STOPPED;
 				current->exit_code = signr;
 				sig = current->p_pptr->sig;
+				preempt_disable();
+				current->state = TASK_STOPPED;
 				if (sig && !(sig->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDSTOP))
 					notify_parent(current, SIGCHLD);
 				schedule();
+				preempt_enable();
 				continue;
 			}
 

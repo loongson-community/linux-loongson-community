@@ -57,7 +57,6 @@ obj-$(CONFIG_SUNGEM) += sungem.o
 
 obj-$(CONFIG_MACE) += mace.o
 obj-$(CONFIG_BMAC) += bmac.o
-obj-$(CONFIG_GMAC) += gmac.o
 
 obj-$(CONFIG_OAKNET) += oaknet.o 8390.o
 
@@ -65,7 +64,7 @@ obj-$(CONFIG_DGRS) += dgrs.o
 obj-$(CONFIG_RCPCI) += rcpci.o
 obj-$(CONFIG_VORTEX) += 3c59x.o
 obj-$(CONFIG_NE2K_PCI) += ne2k-pci.o 8390.o
-obj-$(CONFIG_PCNET32) += pcnet32.o
+obj-$(CONFIG_PCNET32) += pcnet32.o mii.o
 obj-$(CONFIG_EEPRO100) += eepro100.o
 obj-$(CONFIG_TLAN) += tlan.o
 obj-$(CONFIG_EPIC100) += epic100.o mii.o

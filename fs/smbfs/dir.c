@@ -82,8 +82,7 @@ smb_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		filp->f_pos = 1;
 		/* fallthrough */
 	case 1:
-		if (filldir(dirent, "..", 2, 1,
-			    dentry->d_parent->d_inode->i_ino, DT_DIR) < 0)
+		if (filldir(dirent, "..", 2, 1, parent_ino(dentry), DT_DIR) < 0)
 			goto out;
 		filp->f_pos = 2;
 	}
@@ -399,6 +398,7 @@ smb_lookup(struct inode *dir, struct dentry *dentry)
 	if (dentry->d_name.len > SMB_MAXNAMELEN)
 		goto out;
 
+	lock_kernel();
 	error = smb_proc_getattr(dentry, &finfo);
 #ifdef SMBFS_PARANOIA
 	if (error && error != -ENOENT)
@@ -426,6 +426,7 @@ smb_lookup(struct inode *dir, struct dentry *dentry)
 			error = 0;
 		}
 	}
+	unlock_kernel();
 out:
 	return ERR_PTR(error);
 }
@@ -483,6 +484,7 @@ smb_create(struct inode *dir, struct dentry *dentry, int mode)
 
 	VERBOSE("creating %s/%s, mode=%d\n", DENTRY_PATH(dentry), mode);
 
+	lock_kernel();
 	smb_invalid_dir_cache(dir);
 	error = smb_proc_create(dentry, 0, CURRENT_TIME, &fileid);
 	if (!error) {
@@ -491,6 +493,7 @@ smb_create(struct inode *dir, struct dentry *dentry, int mode)
 		PARANOIA("%s/%s failed, error=%d\n",
 			 DENTRY_PATH(dentry), error);
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -500,11 +503,13 @@ smb_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	int error;
 
+	lock_kernel();
 	smb_invalid_dir_cache(dir);
 	error = smb_proc_mkdir(dentry);
 	if (!error) {
 		error = smb_instantiate(dentry, 0, 0);
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -517,6 +522,7 @@ smb_rmdir(struct inode *dir, struct dentry *dentry)
 	/*
 	 * Close the directory if it's open.
 	 */
+	lock_kernel();
 	smb_close(inode);
 
 	/*
@@ -530,6 +536,7 @@ smb_rmdir(struct inode *dir, struct dentry *dentry)
 	error = smb_proc_rmdir(dentry);
 
 out:
+	unlock_kernel();
 	return error;
 }
 
@@ -541,12 +548,14 @@ smb_unlink(struct inode *dir, struct dentry *dentry)
 	/*
 	 * Close the file if it's open.
 	 */
+	lock_kernel();
 	smb_close(dentry->d_inode);
 
 	smb_invalid_dir_cache(dir);
 	error = smb_proc_unlink(dentry);
 	if (!error)
 		smb_renew_times(dentry);
+	unlock_kernel();
 	return error;
 }
 
@@ -560,6 +569,7 @@ smb_rename(struct inode *old_dir, struct dentry *old_dentry,
 	 * Close any open files, and check whether to delete the
 	 * target before attempting the rename.
 	 */
+	lock_kernel();
 	if (old_dentry->d_inode)
 		smb_close(old_dentry->d_inode);
 	if (new_dentry->d_inode) {
@@ -582,5 +592,6 @@ smb_rename(struct inode *old_dir, struct dentry *old_dentry,
 		smb_renew_times(new_dentry);
 	}
 out:
+	unlock_kernel();
 	return error;
 }

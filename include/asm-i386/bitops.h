@@ -6,6 +6,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/compiler.h>
 
 /*
  * These have to be done with inline assembly: that way the bit-setting
@@ -358,7 +359,7 @@ static __inline__ int find_next_zero_bit (void * addr, int size, int offset)
  * @offset: The bitnumber to start searching at
  * @size: The maximum size to search
  */
-static __inline__ int find_next_bit (void * addr, int size, int offset)
+static __inline__ int find_next_bit(void * addr, int size, int offset)
 {
 	unsigned long * p = ((unsigned long *) addr) + (offset >> 5);
 	int set = 0, bit = offset & 31, res;
@@ -414,6 +415,25 @@ static __inline__ unsigned long __ffs(unsigned long word)
 }
 
 #ifdef __KERNEL__
+
+/*
+ * Every architecture must define this function. It's the fastest
+ * way of searching a 140-bit bitmap where the first 100 bits are
+ * unlikely to be set. It's guaranteed that at least one of the 140
+ * bits is cleared.
+ */
+static inline int sched_find_first_bit(unsigned long *b)
+{
+	if (unlikely(b[0]))
+		return __ffs(b[0]);
+	if (unlikely(b[1]))
+		return __ffs(b[1]) + 32;
+	if (unlikely(b[2]))
+		return __ffs(b[2]) + 64;
+	if (b[3])
+		return __ffs(b[3]) + 96;
+	return __ffs(b[4]) + 128;
+}
 
 /**
  * ffs - find first bit set

@@ -7,7 +7,6 @@
 
 #include <linux/device.h>
 #include <linux/module.h>
-#include <linux/malloc.h>
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/err.h>

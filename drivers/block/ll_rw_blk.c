@@ -54,10 +54,6 @@ static kmem_cache_t *request_cachep;
  */
 DECLARE_TASK_QUEUE(tq_disk);
 
-/* This specifies how many sectors to read ahead on the disk. */
-
-int read_ahead[MAX_BLKDEV];
-
 /* blk_dev_struct is:
  *	request_queue
  *	*queue
@@ -82,11 +78,6 @@ int * blk_size[MAX_BLKDEV];
  * if (!blksize_size[MAJOR]) then 1024 bytes is assumed.
  */
 int * blksize_size[MAX_BLKDEV];
-
-/*
- * The following tunes the read-ahead algorithm in mm/filemap.c
- */
-int * max_readahead[MAX_BLKDEV];
 
 /*
  * How many reqeusts do we allocate per queue,
@@ -1227,7 +1218,7 @@ out:
 	return 0;
 
 end_io:
-	bio->bi_end_io(bio, nr_sectors);
+	bio->bi_end_io(bio);
 	return 0;
 }
 
@@ -1329,7 +1320,7 @@ void generic_make_request(struct bio *bio)
 			       "generic_make_request: Trying to access nonexistent block-device %s (%Lu)\n",
 			       kdevname(bio->bi_dev), (long long) bio->bi_sector);
 end_io:
-			bio->bi_end_io(bio, nr_sectors);
+			bio->bi_end_io(bio);
 			break;
 		}
 
@@ -1350,15 +1341,12 @@ end_io:
 /*
  * our default bio end_io callback handler for a buffer_head mapping.
  */
-static int end_bio_bh_io_sync(struct bio *bio, int nr_sectors)
+static void end_bio_bh_io_sync(struct bio *bio)
 {
 	struct buffer_head *bh = bio->bi_private;
 
-	BIO_BUG_ON(nr_sectors != (bh->b_size >> 9));
-
 	bh->b_end_io(bh, test_bit(BIO_UPTODATE, &bio->bi_flags));
 	bio_put(bio);
-	return 0;
 }
 
 /**
@@ -1641,8 +1629,7 @@ int end_that_request_first(struct request *req, int uptodate, int nr_sectors)
 		if (!bio->bi_size) {
 			req->bio = bio->bi_next;
 
-			if (unlikely(bio_endio(bio, uptodate, total_nsect)))
-				BUG();
+			bio_endio(bio, uptodate);
 
 			total_nsect = 0;
 		}
@@ -1689,7 +1676,6 @@ int __init blk_dev_init(void)
 		dev->queue = NULL;
 
 	memset(ro_bits,0,sizeof(ro_bits));
-	memset(max_readahead, 0, sizeof(max_readahead));
 
 	total_ram = nr_free_pages() << (PAGE_SHIFT - 10);
 

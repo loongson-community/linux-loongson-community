@@ -76,7 +76,7 @@ static struct dentry *ext2_lookup(struct inode * dir, struct dentry *dentry)
 	inode = NULL;
 	if (ino) {
 		inode = iget(dir->i_sb, ino);
-		if (!inode) 
+		if (!inode)
 			return ERR_PTR(-EACCES);
 	}
 	d_add(dentry, inode);
@@ -162,9 +162,6 @@ static int ext2_link (struct dentry * old_dentry, struct inode * dir,
 	struct dentry *dentry)
 {
 	struct inode *inode = old_dentry->d_inode;
-
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
 
 	if (inode->i_nlink >= EXT2_LINK_MAX)
 		return -EMLINK;

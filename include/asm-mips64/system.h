@@ -196,7 +196,7 @@ do { var = value; wmb(); } while (0)
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
-extern asmlinkage void *resume(void *last, void *next, void *next_ti);
+extern asmlinkage void resume(void *last, void *next, void *next_ti);
 
 #define prepare_to_switch()	do { } while(0)
 
@@ -218,10 +218,10 @@ extern asmlinkage void restore_fp(struct task_struct *);
 #define SWITCH_DO_LAZY_FPU	do { } while(0)
 #endif /* CONFIG_SMP */
 
-#define switch_to(prev,next,last) \
+#define switch_to(prev,next) \
 do { \
 	SWITCH_DO_LAZY_FPU; \
-	(last) = resume(prev, next, next->thread_info); \
+	resume(prev, next, next->thread_info); \
 } while(0)
 
 extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)

@@ -633,6 +633,7 @@ static struct dentry *openpromfs_lookup(struct inode * dir, struct dentry *dentr
 	inode = NULL;
 	name = dentry->d_name.name;
 	len = dentry->d_name.len;
+	lock_kernel();
 	if (name [0] == '.' && len == 5 && !strncmp (name + 1, "node", 4)) {
 		ino = NODEP2INO(NODE(dir->i_ino).first_prop);
 		type = OPFSL_NODENUM;
@@ -692,10 +693,13 @@ static struct dentry *openpromfs_lookup(struct inode * dir, struct dentry *dentr
 		ino = lookup_children (NODE(dir->i_ino).child, name, len);
 		if (ino)
 			type = OPFSL_DIR;
-		else
+		else {
+			unlock_kernel();
 			return ERR_PTR(-ENOENT);
+		}
 	}
 	inode = iget (dir->i_sb, ino);
+	unlock_kernel();
 	if (!inode)
 		return ERR_PTR(-EINVAL);
 	switch (type) {
@@ -829,24 +833,31 @@ static int openpromfs_create (struct inode *dir, struct dentry *dentry, int mode
 		return -ENOENT;
 	if (dentry->d_name.len > 256)
 		return -EINVAL;
-	if (aliases_nodes == ALIASES_NNODES)
-		return -EIO;
 	p = kmalloc (dentry->d_name.len + 1, GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
 	strncpy (p, dentry->d_name.name, dentry->d_name.len);
 	p [dentry->d_name.len] = 0;
+	lock_kernel();
+	if (aliases_nodes == ALIASES_NNODES) {
+		kfree(p);
+		unlock_kernel();
+		return -EIO;
+	}
 	alias_names [aliases_nodes++] = p;
 	inode = iget (dir->i_sb,
 			NODEP2INO(NODE(dir->i_ino).first_prop) + aliases_nodes);
-	if (!inode)
+	if (!inode) {
+		unlock_kernel();
 		return -EINVAL;
+	}
 	inode->i_mode = S_IFREG | S_IRUGO | S_IWUSR;
 	inode->i_fop = &openpromfs_prop_ops;
 	inode->i_nlink = 1;
 	if (inode->i_size < 0) inode->i_size = 0;
 	inode->u.generic_ip = (void *)(long)(((u16)aliases) | 
 			(((u16)(aliases_nodes - 1)) << 16));
+	unlock_kernel();
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -860,6 +871,7 @@ static int openpromfs_unlink (struct inode *dir, struct dentry *dentry)
 	
 	name = dentry->d_name.name;
 	len = dentry->d_name.len;
+	lock_kernel();
 	for (i = 0; i < aliases_nodes; i++)
 		if ((strlen (alias_names [i]) == len)
 		    && !strncmp (name, alias_names[i], len)) {
@@ -873,6 +885,7 @@ static int openpromfs_unlink (struct inode *dir, struct dentry *dentry)
 			buffer [10 + len] = 0;
 			prom_feval (buffer);
 		}
+	unlock_kernel();
 	return 0;
 }
 

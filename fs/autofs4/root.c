@@ -229,6 +229,7 @@ static struct dentry_operations autofs4_dentry_operations = {
 
 /* Lookups in non-root dirs never find anything - if it's there, it's
    already in the dcache */
+/* SMP-safe */
 static struct dentry *autofs4_dir_lookup(struct inode *dir, struct dentry *dentry)
 {
 #if 0
@@ -256,6 +257,7 @@ static struct dentry *autofs4_root_lookup(struct inode *dir, struct dentry *dent
 
 	sbi = autofs4_sbi(dir->i_sb);
 
+	lock_kernel();
 	oz_mode = autofs4_oz_mode(sbi);
 	DPRINTK(("autofs_lookup: pid = %u, pgrp = %u, catatonic = %d, oz_mode = %d\n",
 		 current->pid, current->pgrp, sbi->catatonic, oz_mode));
@@ -288,9 +290,12 @@ static struct dentry *autofs4_root_lookup(struct inode *dir, struct dentry *dent
 	 * a signal. If so we can force a restart..
 	 */
 	if (dentry->d_flags & DCACHE_AUTOFS_PENDING) {
-		if (signal_pending(current))
+		if (signal_pending(current)) {
+			unlock_kernel();
 			return ERR_PTR(-ERESTARTNOINTR);
+		}
 	}
+	unlock_kernel();
 
 	/*
 	 * If this dentry is unhashed, then we shouldn't honour this
@@ -316,18 +321,24 @@ static int autofs4_dir_symlink(struct inode *dir,
 	DPRINTK(("autofs_dir_symlink: %s <- %.*s\n", symname, 
 		 dentry->d_name.len, dentry->d_name.name));
 
-	if (!autofs4_oz_mode(sbi))
+	lock_kernel();
+	if (!autofs4_oz_mode(sbi)) {
+		unlock_kernel();
 		return -EACCES;
+	}
 
 	ino = autofs4_init_ino(ino, sbi, S_IFLNK | 0555);
-	if (ino == NULL)
+	if (ino == NULL) {
+		unlock_kernel();
 		return -ENOSPC;
+	}
 
 	ino->size = strlen(symname);
 	ino->u.symlink = cp = kmalloc(ino->size + 1, GFP_KERNEL);
 
 	if (cp == NULL) {
 		kfree(ino);
+		unlock_kernel();
 		return -ENOSPC;
 	}
 
@@ -347,6 +358,7 @@ static int autofs4_dir_symlink(struct inode *dir,
 
 	dir->i_mtime = CURRENT_TIME;
 
+	unlock_kernel();
 	return 0;
 }
 
@@ -371,8 +383,11 @@ static int autofs4_dir_unlink(struct inode *dir, struct dentry *dentry)
 	struct autofs_info *ino = autofs4_dentry_ino(dentry);
 	
 	/* This allows root to remove symlinks */
-	if ( !autofs4_oz_mode(sbi) && !capable(CAP_SYS_ADMIN) )
+	lock_kernel();
+	if ( !autofs4_oz_mode(sbi) && !capable(CAP_SYS_ADMIN) ) {
+		unlock_kernel();
 		return -EACCES;
+	}
 
 	dput(ino->dentry);
 
@@ -382,6 +397,8 @@ static int autofs4_dir_unlink(struct inode *dir, struct dentry *dentry)
 	dir->i_mtime = CURRENT_TIME;
 
 	d_drop(dentry);
+
+	unlock_kernel();
 	
 	return 0;
 }
@@ -391,12 +408,16 @@ static int autofs4_dir_rmdir(struct inode *dir, struct dentry *dentry)
 	struct autofs_sb_info *sbi = autofs4_sbi(dir->i_sb);
 	struct autofs_info *ino = autofs4_dentry_ino(dentry);
 	
-	if (!autofs4_oz_mode(sbi))
+	lock_kernel();
+	if (!autofs4_oz_mode(sbi)) {
+		unlock_kernel();
 		return -EACCES;
+	}
 
 	spin_lock(&dcache_lock);
 	if (!list_empty(&dentry->d_subdirs)) {
 		spin_unlock(&dcache_lock);
+		unlock_kernel();
 		return -ENOTEMPTY;
 	}
 	list_del_init(&dentry->d_hash);
@@ -410,6 +431,7 @@ static int autofs4_dir_rmdir(struct inode *dir, struct dentry *dentry)
 	if (dir->i_nlink)
 		dir->i_nlink--;
 
+	unlock_kernel();
 	return 0;
 }
 
@@ -421,15 +443,20 @@ static int autofs4_dir_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	struct autofs_info *ino = autofs4_dentry_ino(dentry);
 	struct inode *inode;
 
-	if ( !autofs4_oz_mode(sbi) )
+	lock_kernel();
+	if ( !autofs4_oz_mode(sbi) ) {
+		unlock_kernel();
 		return -EACCES;
+	}
 
 	DPRINTK(("autofs_dir_mkdir: dentry %p, creating %.*s\n",
 		 dentry, dentry->d_name.len, dentry->d_name.name));
 
 	ino = autofs4_init_ino(ino, sbi, S_IFDIR | 0555);
-	if (ino == NULL)
+	if (ino == NULL) {
+		unlock_kernel();
 		return -ENOSPC;
+	}
 
 	inode = autofs4_get_inode(dir->i_sb, ino);
 	d_instantiate(dentry, inode);
@@ -445,6 +472,7 @@ static int autofs4_dir_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	dir->i_nlink++;
 	dir->i_mtime = CURRENT_TIME;
 
+	unlock_kernel();
 	return 0;
 }
 

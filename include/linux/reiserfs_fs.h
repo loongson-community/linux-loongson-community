@@ -337,7 +337,15 @@ static inline struct reiserfs_inode_info *REISERFS_I(struct inode *inode)
 #define REISERFS_VALID_FS    1
 #define REISERFS_ERROR_FS    2
 
-
+//
+// there are 5 item types currently
+//
+#define TYPE_STAT_DATA 0
+#define TYPE_INDIRECT 1
+#define TYPE_DIRECT 2
+#define TYPE_DIRENTRY 3 
+#define TYPE_MAXTYPE 3 
+#define TYPE_ANY 15 // FIXME: comment is required
 
 /***************************************************************************/
 /*                       KEY & ITEM HEAD                                   */
@@ -373,7 +381,7 @@ static inline __u16 offset_v2_k_type( const struct offset_v2 *v2 )
 {
     offset_v2_esafe_overlay tmp = *(const offset_v2_esafe_overlay *)v2;
     tmp.linear = le64_to_cpu( tmp.linear );
-    return tmp.offset_v2.k_type;
+    return (tmp.offset_v2.k_type <= TYPE_MAXTYPE)?tmp.offset_v2.k_type:TYPE_ANY;
 }
  
 static inline void set_offset_v2_k_type( struct offset_v2 *v2, int type )
@@ -521,15 +529,6 @@ struct item_head
 */
 #define get_block_num(p, i) le32_to_cpu(get_unaligned((p) + (i)))
 #define put_block_num(p, i, v) put_unaligned(cpu_to_le32(v), (p) + (i))
-
-//
-// there are 5 item types currently
-//
-#define TYPE_STAT_DATA 0
-#define TYPE_INDIRECT 1
-#define TYPE_DIRECT 2
-#define TYPE_DIRENTRY 3 
-#define TYPE_ANY 15 // FIXME: comment is required
 
 //
 // in old version uniqueness field shows key type
@@ -1498,7 +1497,7 @@ struct item_operations {
 
 extern struct item_operations stat_data_ops, indirect_ops, direct_ops, 
   direntry_ops;
-extern struct item_operations * item_ops [4];
+extern struct item_operations * item_ops [TYPE_ANY + 1];
 
 #define op_bytes_number(ih,bsize)                    item_ops[le_ih_k_type (ih)]->bytes_number (ih, bsize)
 #define op_is_left_mergeable(key,bsize)              item_ops[le_key_k_type (le_key_version (key), key)]->is_left_mergeable (key, bsize)
@@ -1928,8 +1927,14 @@ void wait_buffer_until_released (const struct buffer_head * bh);
 struct buffer_head * reiserfs_bread (struct super_block *super, int n_block);
 
 /* fix_nodes.c */
+#ifdef CONFIG_REISERFS_CHECK
 void * reiserfs_kmalloc (size_t size, int flags, struct super_block * s);
 void reiserfs_kfree (const void * vp, size_t size, struct super_block * s);
+#else
+#define reiserfs_kmalloc(x, y, z) kmalloc(x, y)
+#define reiserfs_kfree(x, y, z) kfree(x)
+#endif
+
 int fix_nodes (int n_op_mode, struct tree_balance * p_s_tb, 
 	       struct item_head * p_s_ins_ih, const void *);
 void unfix_nodes (struct tree_balance *);
@@ -1960,6 +1965,7 @@ void print_block_head (struct buffer_head * bh, char * mes);
 void check_leaf (struct buffer_head * bh);
 void check_internal (struct buffer_head * bh);
 void print_statistics (struct super_block * s);
+char * reiserfs_hashname(int code);
 
 /* lbalance.c */
 int leaf_move_items (int shift_mode, struct tree_balance * tb, int mov_num, int mov_bytes, struct buffer_head * Snew);

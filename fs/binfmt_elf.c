@@ -1025,6 +1025,23 @@ static int elf_core_dump(long signr, struct pt_regs * regs, struct file * file)
 
 	}
 
+	memset(&prstatus, 0, sizeof(prstatus));
+	/*
+	 * This transfers the registers from regs into the standard
+	 * coredump arrangement, whatever that is.
+	 */
+#ifdef ELF_CORE_COPY_REGS
+	ELF_CORE_COPY_REGS(prstatus.pr_reg, regs)
+#else
+	if (sizeof(elf_gregset_t) != sizeof(struct pt_regs))
+	{
+		printk("sizeof(elf_gregset_t) (%ld) != sizeof(struct pt_regs) (%ld)\n",
+			(long)sizeof(elf_gregset_t), (long)sizeof(struct pt_regs));
+	}
+	else
+		*(struct pt_regs *)&prstatus.pr_reg = *regs;
+#endif
+
 	/* now stop all vm operations */
 	down_write(&current->mm->mmap_sem);
 	segs = current->mm->map_count;
@@ -1068,7 +1085,6 @@ static int elf_core_dump(long signr, struct pt_regs * regs, struct file * file)
 	 * Set up the notes in similar form to SVR4 core dumps made
 	 * with info from their /proc.
 	 */
-	memset(&prstatus, 0, sizeof(prstatus));
 
 	notes[0].name = "CORE";
 	notes[0].type = NT_PRSTATUS;
@@ -1090,22 +1106,6 @@ static int elf_core_dump(long signr, struct pt_regs * regs, struct file * file)
 	prstatus.pr_cstime.tv_sec = CT_TO_SECS(current->times.tms_cstime);
 	prstatus.pr_cstime.tv_usec = CT_TO_USECS(current->times.tms_cstime);
 
-	/*
-	 * This transfers the registers from regs into the standard
-	 * coredump arrangement, whatever that is.
-	 */
-#ifdef ELF_CORE_COPY_REGS
-	ELF_CORE_COPY_REGS(prstatus.pr_reg, regs)
-#else
-	if (sizeof(elf_gregset_t) != sizeof(struct pt_regs))
-	{
-		printk("sizeof(elf_gregset_t) (%ld) != sizeof(struct pt_regs) (%ld)\n",
-			(long)sizeof(elf_gregset_t), (long)sizeof(struct pt_regs));
-	}
-	else
-		*(struct pt_regs *)&prstatus.pr_reg = *regs;
-#endif
-
 #ifdef DEBUG
 	dump_regs("Passed in regs", (elf_greg_t *)regs);
 	dump_regs("prstatus regs", (elf_greg_t *)&prstatus.pr_reg);
@@ -1119,7 +1119,7 @@ static int elf_core_dump(long signr, struct pt_regs * regs, struct file * file)
 	psinfo.pr_state = i;
 	psinfo.pr_sname = (i < 0 || i > 5) ? '.' : "RSDZTD"[i];
 	psinfo.pr_zomb = psinfo.pr_sname == 'Z';
-	psinfo.pr_nice = current->__nice;
+	psinfo.pr_nice = task_nice(current);
 	psinfo.pr_flag = current->flags;
 	psinfo.pr_uid = NEW_TO_OLD_UID(current->uid);
 	psinfo.pr_gid = NEW_TO_OLD_GID(current->gid);
@@ -1201,9 +1201,11 @@ static int elf_core_dump(long signr, struct pt_regs * regs, struct file * file)
 
 		if (!maydump(vma))
 			continue;
+
 #ifdef DEBUG
-		printk("elf_core_dump: writing %08lx %lx\n", addr, len);
+		printk("elf_core_dump: writing %08lx-%08lx\n", vma->vm_start, vma->vm_end);
 #endif
+
 		for (addr = vma->vm_start;
 		     addr < vma->vm_end;
 		     addr += PAGE_SIZE) {

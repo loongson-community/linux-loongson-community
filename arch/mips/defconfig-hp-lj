@@ -771,11 +771,7 @@ CONFIG_SERIO_SERPORT=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
-CONFIG_REMOTE_DEBUG=y
-# CONFIG_GDB_CONSOLE is not set
-# CONFIG_DEBUG is not set
-# CONFIG_MAGIC_SYSRQ is not set
-# CONFIG_MIPS_UNCACHED is not set
+# CONFIG_DEBUG_KERNEL is not set
 
 #
 # Library routines

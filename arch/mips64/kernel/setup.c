@@ -198,6 +198,14 @@ static inline unsigned long cpu_get_fpu_id(void)
 	return fpu_id;
 }
 
+/*
+ * Check the CPU has an FPU the official way.
+ */
+static inline int cpu_has_fpu(void)
+{
+	return ((cpu_get_fpu_id() & 0xff00) != FPIR_IMP_NONE);
+}
+
 /* declaration of the global struct */
 struct mips_cpu mips_cpu = {
     processor_id:	PRID_IMP_UNKNOWN,

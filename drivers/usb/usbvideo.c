@@ -26,6 +26,7 @@
 #include <linux/wrapper.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
+#include <linux/mm.h>
 
 #include <asm/io.h>
 
@@ -60,30 +61,6 @@ static int usbvideo_default_procfs_write_proc(
 
 #define MDEBUG(x)	do { } while(0)		/* Debug memory management */
 
-/* Given PGD from the address space's page table, return the kernel
- * virtual mapping of the physical memory mapped at ADR.
- */
-unsigned long usbvideo_uvirt_to_kva(pgd_t *pgd, unsigned long adr)
-{
-	unsigned long ret = 0UL;
-	pmd_t *pmd;
-	pte_t *ptep, pte;
-
-	if (!pgd_none(*pgd)) {
-		pmd = pmd_offset(pgd, adr);
-		if (!pmd_none(*pmd)) {
-			ptep = pte_offset(pmd, adr);
-			pte = *ptep;
-			if (pte_present(pte)) {
-				ret = (unsigned long) page_address(pte_page(pte));
-				ret |= (adr & (PAGE_SIZE-1));
-			}
-		}
-	}
-	MDEBUG(printk("uv2kva(%lx-->%lx)", adr, ret));
-	return ret;
-}
-
 /*
  * Here we want the physical address of the memory.
  * This is used when initializing the contents of the
@@ -94,7 +71,7 @@ unsigned long usbvideo_kvirt_to_pa(unsigned long adr)
 	unsigned long va, kva, ret;
 
 	va = VMALLOC_VMADDR(adr);
-	kva = usbvideo_uvirt_to_kva(pgd_offset_k(va), va);
+	kva = page_address(vmalloc_to_page(va));
 	ret = __pa(kva);
 	MDEBUG(printk("kv2pa(%lx-->%lx)", adr, ret));
 	return ret;
@@ -791,6 +768,10 @@ int usbvideo_register(
 		cams->cb.getFrame = usbvideo_GetFrame;
 	if (cams->cb.disconnect == NULL)
 		cams->cb.disconnect = usbvideo_Disconnect;
+	if (cams->cb.startDataPump == NULL)
+		cams->cb.startDataPump = usbvideo_StartDataPump;
+	if (cams->cb.stopDataPump == NULL)
+		cams->cb.stopDataPump = usbvideo_StopDataPump;
 #if USES_PROC_FS
 	/*
 	 * If both /proc fs callbacks are NULL then we assume that the driver
@@ -963,7 +944,7 @@ void usbvideo_Disconnect(struct usb_device *dev, void *ptr)
 	uvd->remove_pending = 1; /* Now all ISO data will be ignored */
 
 	/* At this time we ask to cancel outstanding URBs */
-	usbvideo_StopDataPump(uvd);
+	GET_CALLBACK(uvd, stopDataPump)(uvd);
 
 	for (i=0; i < USBVIDEO_NUMSBUF; i++)
 		usb_free_urb(uvd->sbuf[i].urb);
@@ -1073,7 +1054,7 @@ uvd_t *usbvideo_AllocateDevice(usbvideo_t *cams)
 
 	down(&uvd->lock);
 	for (i=0; i < USBVIDEO_NUMSBUF; i++) {
-		uvd->sbuf[i].urb = usb_alloc_urb(FRAMES_PER_DESC);
+		uvd->sbuf[i].urb = usb_alloc_urb(FRAMES_PER_DESC, GFP_KERNEL);
 		if (uvd->sbuf[i].urb == NULL) {
 			err("usb_alloc_urb(%d.) failed.", FRAMES_PER_DESC);
 			uvd->uvd_used = 0;
@@ -1299,7 +1280,7 @@ int usbvideo_v4l_open(struct video_device *dev, int flags)
 	if (errCode == 0) {
 		/* Start data pump if we have valid endpoint */
 		if (uvd->video_endp != 0)
-			errCode = usbvideo_StartDataPump(uvd);
+			errCode = GET_CALLBACK(uvd, startDataPump)(uvd);
 		if (errCode == 0) {
 			if (VALID_CALLBACK(uvd, setupOnOpen)) {
 				if (uvd->debug > 1)
@@ -1349,8 +1330,8 @@ void usbvideo_v4l_close(struct video_device *dev)
 	if (uvd->debug > 1)
 		info("%s($%p)", proc, dev);
 
-	down(&uvd->lock);	
-	usbvideo_StopDataPump(uvd);
+	down(&uvd->lock);
+	GET_CALLBACK(uvd, stopDataPump)(uvd);
 	usbvideo_rvfree(uvd->fbuf, uvd->fbuf_size);
 	uvd->fbuf = NULL;
 	RingQueue_Free(&uvd->dp);

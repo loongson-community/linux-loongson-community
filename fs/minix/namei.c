@@ -131,9 +131,6 @@ static int minix_link(struct dentry * old_dentry, struct inode * dir,
 {
 	struct inode *inode = old_dentry->d_inode;
 
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
 	if (inode->i_nlink >= inode->i_sb->u.minix_sb.s_link_max)
 		return -EMLINK;
 

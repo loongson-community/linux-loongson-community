@@ -59,20 +59,6 @@ void pgd_init(unsigned long page)
 	}
 }
 
-pgd_t *get_pgd_slow(void)
-{
-	pgd_t *ret, *init;
-
-	ret = (pgd_t *) __get_free_pages(GFP_KERNEL, 1);
-	if (ret) {
-		init = pgd_offset(&init_mm, 0);
-		pgd_init((unsigned long)ret);
-		memcpy(ret + USER_PTRS_PER_PGD, init + USER_PTRS_PER_PGD,
-			(PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
-	}
-	return ret;
-}
-
 void pmd_init(unsigned long addr, unsigned long pagetable)
 {
 	unsigned long *p, *end;
@@ -93,28 +79,11 @@ void pmd_init(unsigned long addr, unsigned long pagetable)
 	}
 }
 
-int do_check_pgt_cache(int low, int high)
-{
-	int freed = 0;
-
-	if (pgtable_cache_size > high) {
-		do {
-			if (pgd_quicklist)
-				free_pgd_slow(get_pgd_fast()), freed++;
-			if (pmd_quicklist)
-				free_pmd_slow(get_pmd_fast()), freed++;
-			if (pte_quicklist)
-				free_pte_slow(get_pte_fast()), freed++;
-		} while (pgtable_cache_size > low);
-	}
-	return freed;
-}
-
-
 asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 {
 	/* XXX Just get it working for now... */
 	flush_cache_l1();
+
 	return 0;
 }
 
@@ -185,7 +154,6 @@ void show_mem(void)
 	printk("%d reserved pages\n", reserved);
 	printk("%d pages shared\n", shared);
 	printk("%d pages swap cached\n",cached);
-	printk("%ld pages in page table cache\n", pgtable_cache_size);
 	printk("%d free pages\n", free);
 	show_buffers();
 }
@@ -228,12 +196,10 @@ void __init paging_init(void)
 
 	memset((void *)kptbl, 0, PAGE_SIZE << PGD_ORDER);
 	memset((void *)kpmdtbl, 0, PAGE_SIZE);
-	pgd_set(swapper_pg_dir, kpmdtbl);
+	set_pgd(swapper_pg_dir, __pgd(kpmdtbl));
 	for (i = 0; i < (1 << PGD_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
 		pmd_val(*pmd) = (unsigned long)pte;
 }
-
-//extern int page_is_ram(unsigned long pagenr);
 
 #define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
 #define PFN_DOWN(x)	((x) >> PAGE_SHIFT)

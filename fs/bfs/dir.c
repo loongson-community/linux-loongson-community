@@ -8,6 +8,7 @@
 #include <linux/string.h>
 #include <linux/bfs_fs.h>
 #include <linux/locks.h>
+#include <linux/smp_lock.h>
 
 #include "bfs_defs.h"
 
@@ -82,8 +83,10 @@ static int bfs_create(struct inode * dir, struct dentry * dentry, int mode)
 	inode = new_inode(s);
 	if (!inode)
 		return -ENOSPC;
+	lock_kernel();
 	ino = find_first_zero_bit(s->su_imap, s->su_lasti);
 	if (ino > s->su_lasti) {
+		unlock_kernel();
 		iput(inode);
 		return -ENOSPC;
 	}
@@ -110,8 +113,10 @@ static int bfs_create(struct inode * dir, struct dentry * dentry, int mode)
 		inode->i_nlink--;
 		mark_inode_dirty(inode);
 		iput(inode);
+		unlock_kernel();
 		return err;
 	}
+	unlock_kernel();
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -125,14 +130,18 @@ static struct dentry * bfs_lookup(struct inode * dir, struct dentry * dentry)
 	if (dentry->d_name.len > BFS_NAMELEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
+	lock_kernel();
 	bh = bfs_find_entry(dir, dentry->d_name.name, dentry->d_name.len, &de);
 	if (bh) {
 		unsigned long ino = le32_to_cpu(de->ino);
 		brelse(bh);
 		inode = iget(dir->i_sb, ino);
-		if (!inode)
+		if (!inode) {
+			unlock_kernel();
 			return ERR_PTR(-EACCES);
+		}
 	}
+	unlock_kernel();
 	d_add(dentry, inode);
 	return NULL;
 }
@@ -142,17 +151,18 @@ static int bfs_link(struct dentry * old, struct inode * dir, struct dentry * new
 	struct inode * inode = old->d_inode;
 	int err;
 
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
+	lock_kernel();
 	err = bfs_add_entry(dir, new->d_name.name, new->d_name.len, inode->i_ino);
-	if (err)
+	if (err) {
+		unlock_kernel();
 		return err;
+	}
 	inode->i_nlink++;
 	inode->i_ctime = CURRENT_TIME;
 	mark_inode_dirty(inode);
 	atomic_inc(&inode->i_count);
 	d_instantiate(new, inode);
+	unlock_kernel();
 	return 0;
 }
 
@@ -165,6 +175,7 @@ static int bfs_unlink(struct inode * dir, struct dentry * dentry)
 	struct bfs_dirent * de;
 
 	inode = dentry->d_inode;
+	lock_kernel();
 	bh = bfs_find_entry(dir, dentry->d_name.name, dentry->d_name.len, &de);
 	if (!bh || de->ino != inode->i_ino) 
 		goto out_brelse;
@@ -185,6 +196,7 @@ static int bfs_unlink(struct inode * dir, struct dentry * dentry)
 
 out_brelse:
 	brelse(bh);
+	unlock_kernel();
 	return error;
 }
 
@@ -201,6 +213,7 @@ static int bfs_rename(struct inode * old_dir, struct dentry * old_dentry,
 	if (S_ISDIR(old_inode->i_mode))
 		return -EINVAL;
 
+	lock_kernel();
 	old_bh = bfs_find_entry(old_dir, 
 				old_dentry->d_name.name, 
 				old_dentry->d_name.len, &old_de);
@@ -237,6 +250,7 @@ static int bfs_rename(struct inode * old_dir, struct dentry * old_dentry,
 	error = 0;
 
 end_rename:
+	unlock_kernel();
 	brelse(old_bh);
 	brelse(new_bh);
 	return error;

@@ -16,6 +16,7 @@
 #include <linux/fcntl.h>
 #include <linux/locks.h>
 #include <linux/amigaffs.h>
+#include <linux/smp_lock.h>
 #include <asm/uaccess.h>
 
 #include <linux/errno.h>
@@ -217,11 +218,14 @@ affs_lookup(struct inode *dir, struct dentry *dentry)
 
 	pr_debug("AFFS: lookup(\"%.*s\")\n",(int)dentry->d_name.len,dentry->d_name.name);
 
+	lock_kernel();
 	affs_lock_dir(dir);
 	bh = affs_find_entry(dir, dentry);
 	affs_unlock_dir(dir);
-	if (IS_ERR(bh))
+	if (IS_ERR(bh)) {
+		unlock_kernel();
 		return ERR_PTR(PTR_ERR(bh));
+	}
 	if (bh) {
 		u32 ino = bh->b_blocknr;
 
@@ -235,10 +239,13 @@ affs_lookup(struct inode *dir, struct dentry *dentry)
 		}
 		affs_brelse(bh);
 		inode = iget(sb, ino);
-		if (!inode)
+		if (!inode) {
+			unlock_kernel();
 			return ERR_PTR(-EACCES);
+		}
 	}
 	dentry->d_op = AFFS_SB->s_flags & SF_INTL ? &affs_intl_dentry_operations : &affs_dentry_operations;
+	unlock_kernel();
 	d_add(dentry, inode);
 	return NULL;
 }
@@ -246,13 +253,17 @@ affs_lookup(struct inode *dir, struct dentry *dentry)
 int
 affs_unlink(struct inode *dir, struct dentry *dentry)
 {
+	int res;
 	pr_debug("AFFS: unlink(dir=%d, \"%.*s\")\n", (u32)dir->i_ino,
 		 (int)dentry->d_name.len, dentry->d_name.name);
 
 	if (!dentry->d_inode)
 		return -ENOENT;
 
-	return affs_remove_header(dentry);
+	lock_kernel();
+	res = affs_remove_header(dentry);
+	unlock_kernel();
+	return res;
 }
 
 int
@@ -265,9 +276,12 @@ affs_create(struct inode *dir, struct dentry *dentry, int mode)
 	pr_debug("AFFS: create(%lu,\"%.*s\",0%o)\n",dir->i_ino,(int)dentry->d_name.len,
 		 dentry->d_name.name,mode);
 
+	lock_kernel();
 	inode = affs_new_inode(dir);
-	if (!inode)
+	if (!inode) {
+		unlock_kernel();
 		return -ENOSPC;
+	}
 
 	inode->i_mode = mode;
 	mode_to_prot(inode);
@@ -280,8 +294,10 @@ affs_create(struct inode *dir, struct dentry *dentry, int mode)
 	if (error) {
 		inode->i_nlink = 0;
 		iput(inode);
+		unlock_kernel();
 		return error;
 	}
+	unlock_kernel();
 	return 0;
 }
 
@@ -294,9 +310,12 @@ affs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	pr_debug("AFFS: mkdir(%lu,\"%.*s\",0%o)\n",dir->i_ino,
 		 (int)dentry->d_name.len,dentry->d_name.name,mode);
 
+	lock_kernel();
 	inode = affs_new_inode(dir);
-	if (!inode)
+	if (!inode) {
+		unlock_kernel();
 		return -ENOSPC;
+	}
 
 	inode->i_mode = S_IFDIR | mode;
 	mode_to_prot(inode);
@@ -309,21 +328,29 @@ affs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		inode->i_nlink = 0;
 		mark_inode_dirty(inode);
 		iput(inode);
+		unlock_kernel();
 		return error;
 	}
+	unlock_kernel();
 	return 0;
 }
 
 int
 affs_rmdir(struct inode *dir, struct dentry *dentry)
 {
+	int res;
 	pr_debug("AFFS: rmdir(dir=%u, \"%.*s\")\n", (u32)dir->i_ino,
 		 (int)dentry->d_name.len, dentry->d_name.name);
 
+	lock_kernel();
+
+	/* WTF??? */
 	if (!dentry->d_inode)
 		return -ENOENT;
 
-	return affs_remove_header(dentry);
+	res = affs_remove_header(dentry);
+	unlock_kernel();
+	return res;
 }
 
 int
@@ -339,11 +366,14 @@ affs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	pr_debug("AFFS: symlink(%lu,\"%.*s\" -> \"%s\")\n",dir->i_ino,
 		 (int)dentry->d_name.len,dentry->d_name.name,symname);
 
+	lock_kernel();
 	maxlen = AFFS_SB->s_hashsize * sizeof(u32) - 1;
 	error = -ENOSPC;
 	inode  = affs_new_inode(dir);
-	if (!inode)
+	if (!inode) {
+		unlock_kernel();
 		return -ENOSPC;
+	}
 
 	inode->i_op = &affs_symlink_inode_operations;
 	inode->i_data.a_ops = &affs_symlink_aops;
@@ -389,6 +419,7 @@ affs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	error = affs_add_entry(dir, inode, dentry, ST_SOFTLINK);
 	if (error)
 		goto err;
+	unlock_kernel();
 
 	return 0;
 
@@ -396,6 +427,7 @@ err:
 	inode->i_nlink = 0;
 	mark_inode_dirty(inode);
 	iput(inode);
+	unlock_kernel();
 	return error;
 }
 
@@ -408,16 +440,17 @@ affs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	pr_debug("AFFS: link(%u, %u, \"%.*s\")\n", (u32)inode->i_ino, (u32)dir->i_ino,
 		 (int)dentry->d_name.len,dentry->d_name.name);
 
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
-	error = affs_add_entry(dir, inode, dentry, S_ISDIR(inode->i_mode) ? ST_LINKDIR : ST_LINKFILE);
+	lock_kernel();
+	error = affs_add_entry(dir, inode, dentry, ST_LINKFILE);
 	if (error) {
+		/* WTF??? */
 		inode->i_nlink = 0;
 		mark_inode_dirty(inode);
 		iput(inode);
+		unlock_kernel();
 		return error;
 	}
+	unlock_kernel();
 	return 0;
 }
 
@@ -429,6 +462,7 @@ affs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct buffer_head *bh = NULL;
 	int retval;
 
+	lock_kernel();
 	pr_debug("AFFS: rename(old=%u,\"%*s\" to new=%u,\"%*s\")\n",
 		 (u32)old_dir->i_ino, (int)old_dentry->d_name.len, old_dentry->d_name.name,
 		 (u32)new_dir->i_ino, (int)new_dentry->d_name.len, new_dentry->d_name.name);
@@ -439,8 +473,10 @@ affs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	/* Unlink destination if it already exists */
 	if (new_dentry->d_inode) {
 		retval = affs_remove_header(new_dentry);
-		if (retval)
+		if (retval) {
+			unlock_kernel();
 			return retval;
+		}
 	}
 
 	retval = -EIO;
@@ -466,5 +502,6 @@ affs_rename(struct inode *old_dir, struct dentry *old_dentry,
 done:
 	mark_buffer_dirty_inode(bh, retval ? old_dir : new_dir);
 	affs_brelse(bh);
+	unlock_kernel();
 	return retval;
 }

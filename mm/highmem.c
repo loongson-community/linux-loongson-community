@@ -20,6 +20,7 @@
 #include <linux/pagemap.h>
 #include <linux/mempool.h>
 #include <linux/blkdev.h>
+#include <asm/pgalloc.h>
 
 static mempool_t *page_pool, *isa_page_pool;
 
@@ -288,11 +289,11 @@ static inline void copy_to_high_bio_irq(struct bio *to, struct bio *from)
 	}
 }
 
-static inline int bounce_end_io (struct bio *bio, int nr_sectors, mempool_t *pool)
+static inline void bounce_end_io(struct bio *bio, mempool_t *pool)
 {
 	struct bio *bio_orig = bio->bi_private;
 	struct bio_vec *bvec, *org_vec;
-	int ret, i;
+	int i;
 
 	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
 		goto out_eio;
@@ -311,41 +312,38 @@ static inline int bounce_end_io (struct bio *bio, int nr_sectors, mempool_t *poo
 	}
 
 out_eio:
-	ret = bio_orig->bi_end_io(bio_orig, nr_sectors);
-
+	bio_orig->bi_end_io(bio_orig);
 	bio_put(bio);
-	return ret;
 }
 
-static int bounce_end_io_write(struct bio *bio, int nr_sectors)
+static void bounce_end_io_write(struct bio *bio)
 {
-	return bounce_end_io(bio, nr_sectors, page_pool);
+	bounce_end_io(bio, page_pool);
 }
 
-static int bounce_end_io_write_isa(struct bio *bio, int nr_sectors)
+static void bounce_end_io_write_isa(struct bio *bio)
 {
-	return bounce_end_io(bio, nr_sectors, isa_page_pool);
+	bounce_end_io(bio, isa_page_pool);
 }
 
-static inline int __bounce_end_io_read(struct bio *bio, int nr_sectors,
-				       mempool_t *pool)
+static inline void __bounce_end_io_read(struct bio *bio, mempool_t *pool)
 {
 	struct bio *bio_orig = bio->bi_private;
 
 	if (test_bit(BIO_UPTODATE, &bio->bi_flags))
 		copy_to_high_bio_irq(bio_orig, bio);
 
-	return bounce_end_io(bio, nr_sectors, pool);
+	bounce_end_io(bio, pool);
 }
 
-static int bounce_end_io_read(struct bio *bio, int nr_sectors)
+static void bounce_end_io_read(struct bio *bio)
 {
-	return __bounce_end_io_read(bio, nr_sectors, page_pool);
+	__bounce_end_io_read(bio, page_pool);
 }
 
-static int bounce_end_io_read_isa(struct bio *bio, int nr_sectors)
+static void bounce_end_io_read_isa(struct bio *bio)
 {
-	return __bounce_end_io_read(bio, nr_sectors, isa_page_pool);
+	return __bounce_end_io_read(bio, isa_page_pool);
 }
 
 void create_bounce(unsigned long pfn, int gfp, struct bio **bio_orig)
@@ -381,7 +379,7 @@ void create_bounce(unsigned long pfn, int gfp, struct bio **bio_orig)
 		/*
 		 * is destination page below bounce pfn?
 		 */
-		if ((page - page->zone->zone_mem_map) + (page->zone->zone_start_paddr >> PAGE_SHIFT) < pfn)
+		if ((page - page_zone(page)->zone_mem_map) + (page_zone(page)->zone_start_paddr >> PAGE_SHIFT) < pfn)
 			continue;
 
 		/*
@@ -448,3 +446,19 @@ void create_bounce(unsigned long pfn, int gfp, struct bio **bio_orig)
 	bio->bi_private = *bio_orig;
 	*bio_orig = bio;
 }
+
+#if CONFIG_DEBUG_HIGHMEM
+void check_highmem_ptes(void)
+{
+	int idx, type;
+
+	for (type = 0; type < KM_TYPE_NR; type++) {
+		idx = type + KM_TYPE_NR*smp_processor_id();
+		if (!pte_none(*(kmap_pte-idx))) {
+			printk("scheduling with KM_TYPE %d held!\n", type);
+			BUG();
+		}
+	}
+}
+#endif
+

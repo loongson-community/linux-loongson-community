@@ -477,6 +477,11 @@ CONFIG_MSDOS_PARTITION=y
 # Sound
 #
 CONFIG_SOUND=y
+
+#
+# Open Sound System
+#
+CONFIG_SOUND_PRIME=y
 # CONFIG_SOUND_BT878 is not set
 # CONFIG_SOUND_CMPCI is not set
 # CONFIG_SOUND_EMU10K1 is not set
@@ -500,6 +505,11 @@ CONFIG_SOUND_VRC5477=y
 # CONFIG_MIDI_VIA82CXXX is not set
 # CONFIG_SOUND_OSS is not set
 # CONFIG_SOUND_TVMIXER is not set
+
+#
+# Advanced Linux Sound Architecture
+#
+# CONFIG_SND is not set
 
 #
 # USB support
@@ -635,11 +645,7 @@ CONFIG_SERIO_SERPORT=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
-# CONFIG_REMOTE_DEBUG is not set
-# CONFIG_GDB_CONSOLE is not set
-CONFIG_DEBUG=y
-# CONFIG_MAGIC_SYSRQ is not set
-# CONFIG_MIPS_UNCACHED is not set
+# CONFIG_DEBUG_KERNEL is not set
 
 #
 # Library routines

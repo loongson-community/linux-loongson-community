@@ -26,6 +26,7 @@
 #include <linux/hfs_fs_sb.h>
 #include <linux/hfs_fs_i.h>
 #include <linux/hfs_fs.h>
+#include <linux/smp_lock.h>
 
 /*================ Forward declarations ================*/
 
@@ -104,6 +105,7 @@ static struct dentry *nat_lookup(struct inode * dir, struct dentry *dentry)
 	struct hfs_cat_key key;
 	struct inode *inode = NULL;
 
+	lock_kernel();
 	dentry->d_op = &hfs_dentry_operations;
 	entry = HFS_I(dir)->entry;
 	dtype = HFS_ITYPE(dir->i_ino);
@@ -154,6 +156,7 @@ static struct dentry *nat_lookup(struct inode * dir, struct dentry *dentry)
 	}
 
 done:
+	unlock_kernel();
 	d_add(dentry, inode);
 	return NULL;
 }
@@ -330,6 +333,7 @@ static int nat_rmdir(struct inode *parent, struct dentry *dentry)
 	struct hfs_name cname;
 	int error;
 
+	lock_kernel();
 	hfs_nameout(parent, &cname, dentry->d_name.name, dentry->d_name.len);
 	if (hfs_streq(cname.Name, cname.Len,
 		      DOT_APPLEDOUBLE->Name, DOT_APPLEDOUBLE_LEN)) {
@@ -346,6 +350,7 @@ static int nat_rmdir(struct inode *parent, struct dentry *dentry)
 	} else {
 		error = hfs_rmdir(parent, dentry);
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -366,9 +371,11 @@ static int nat_rmdir(struct inode *parent, struct dentry *dentry)
  */
 static int nat_hdr_unlink(struct inode *dir, struct dentry *dentry)
 {
-	struct hfs_cat_entry *entry = HFS_I(dir)->entry;
+	struct hfs_cat_entry *entry;
 	int error = 0;
 
+	lock_kernel();
+	entry = HFS_I(dir)->entry;
 	if (!HFS_SB(dir->i_sb)->s_afpd) {
 		/* Not in AFPD compatibility mode */
 		error = -EPERM;
@@ -393,6 +400,7 @@ static int nat_hdr_unlink(struct inode *dir, struct dentry *dentry)
 			}
 		}
 	}
+	unlock_kernel();
 	return error;
 }
 
@@ -417,9 +425,11 @@ static int nat_hdr_unlink(struct inode *dir, struct dentry *dentry)
 static int nat_hdr_rename(struct inode *old_dir, struct dentry *old_dentry,
 			  struct inode *new_dir, struct dentry *new_dentry)
 {
-	struct hfs_cat_entry *entry = HFS_I(old_dir)->entry;
+	struct hfs_cat_entry *entry;
 	int error = 0;
 
+	lock_kernel();
+	entry = HFS_I(old_dir)->entry;
 	if (!HFS_SB(old_dir->i_sb)->s_afpd) {
 		/* Not in AFPD compatibility mode */
 		error = -EPERM;
@@ -448,5 +458,6 @@ static int nat_hdr_rename(struct inode *old_dir, struct dentry *old_dentry,
 			error = -EPERM;
 		}
 	}
+	unlock_kernel();
 	return error;
 }

@@ -28,7 +28,6 @@
  * task_struct *r4xx0_resume(task_struct *prev, task_struct *next,
  *                           struct thread_info *next_ti)
  */
-	.set	noreorder
 	.align	5
 	LEAF(resume)
 #ifndef CONFIG_CPU_HAS_LLSC
@@ -47,7 +46,7 @@
 	CPU_RESTORE_NONSCRATCH(a1)
 
 	addiu	t0, a1, KERNEL_STACK_SIZE-32
-#ifdef CONFIG_SMP	 
+#ifdef CONFIG_SMP
 	mfc0	a3, CP0_CONTEXT
 	la	t1, kernelsp
 	srl	a3, 23
@@ -56,7 +55,7 @@
 	sw	t0, (t1)	
 #else
 	sw	t0, kernelsp
-#endif 
+#endif
 
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff00
@@ -67,7 +66,6 @@
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
 	jr	ra
-	 move	v0, a0
 	END(resume)
 
 /*
@@ -84,8 +82,8 @@ LEAF(lazy_fpu_switch)
 	mtc0	t0, CP0_STATUS
 	FPU_ENABLE_HAZARD
 
+	nor	t3, zero, t3
 	beqz	a0, 2f				# Save floating point state
-	 nor	t3, zero, t3
 
 	lw	t1, ST_OFF(a0)			# last thread looses fpu
 	and	t1, t3
@@ -93,10 +91,7 @@ LEAF(lazy_fpu_switch)
 
 
 	FPU_SAVE_DOUBLE(a0, t1)			# clobbers t1
-2:
-
-	.set	reorder
-	FPU_RESTORE_DOUBLE(a1, t0)		# clobbers t0
+2:	FPU_RESTORE_DOUBLE(a1, t0)		# clobbers t0
 	jr	ra
 	END(lazy_fpu_switch)
 
@@ -154,8 +149,6 @@ LEAF(init_fpu)
 	dmtc1	t0, $f24
 	dmtc1	t0, $f26
 	dmtc1	t0, $f28
-	.set	noreorder
+	dmtc1	t0, $f30
 	jr	ra
-	 dmtc1	t0, $f30
-	.set	reorder
 	END(init_fpu)

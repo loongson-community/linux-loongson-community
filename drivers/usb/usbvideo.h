@@ -269,6 +269,8 @@ typedef struct {
 	int (*getFrame)(uvd_t *, int);
 	int (*procfs_read)(char *page,char **start,off_t off,int count,int *eof,void *data);
 	int (*procfs_write)(struct file *file,const char *buffer,unsigned long count,void *data);
+	int (*startDataPump)(uvd_t *uvd);
+	void (*stopDataPump)(uvd_t *uvd);
 } usbvideo_cb_t;
 
 struct s_usbvideo_t {
@@ -328,7 +330,6 @@ void usbvideo_TestPattern(uvd_t *uvd, int fullframe, int pmode);
 void usbvideo_VideosizeToString(char *buf, int bufLen, videosize_t vs);
 
 /* Memory allocation routines */
-unsigned long usbvideo_uvirt_to_kva(pgd_t *pgd, unsigned long adr);
 unsigned long usbvideo_kvirt_to_pa(unsigned long adr);
 void *usbvideo_rvmalloc(unsigned long size);
 void usbvideo_rvfree(void *mem, unsigned long size);

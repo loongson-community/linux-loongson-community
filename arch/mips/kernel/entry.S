@@ -49,30 +49,23 @@
 		.macro	init_ret_intr
 		.endm
 
-		.macro	resume_kernel
-		restore_all
-		.endm
+#define resume_kernel restore_all
 #endif
 
 		.text
 		.align 4
 		.set	push
 		.set	reorder
-EXPORT(ret_from_fork)
-		move	a0, v0			# prev
-		jal	schedule_tail
-		j	syscall_exit
-
 EXPORT(ret_from_irq)
 EXPORT(ret_from_exception)
 		lw	t0, PT_STATUS(sp)	# returning to kernel mode?
 		andi	t0, t0, KU_USER
-		beqz	t0, restore_all
+		beqz	t0, resume_kernel
 
 EXPORT(resume_userspace)
-		mfc0	t0, CP0_STATUS		# make sure need_resched and
-		ori	t0, t0, 1		# signals dont change between
-		xori	t0, t0, 1		# sampling and return
+		mfc0	t0, CP0_STATUS		# make sure we dont miss an
+		ori	t0, t0, 1		# interrupt setting need_resched
+		xori	t0, t0, 1		# between sampling and return
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
@@ -81,6 +74,41 @@ EXPORT(resume_userspace)
 						# syscall_trace)
 		bnez	a2, work_pending
 		j	restore_all
+
+#ifdef CONFIG_PREEMPT
+ENTRY(resume_kernel)
+		lw	t0, TI_PRE_COUNT($28)
+		bnez	t0, restore_all
+		LONG_L	t0, TI_FLAGS($28)
+		andi	t1, t0, _TIF_NEED_RESCHED
+		beqz	restore_all
+#ifdef CONFIG_SMP
+		lw	t0, TI_CPU($28)
+		la	t1, irq_stat
+		sll	t0, 5				# *sizeof(irq_cpustat_t)
+		addu	t0, t1
+		lw	t1, local_bh_count(t0)
+		addl	t0, local_irq_count(t0)
+#else
+		lw	t1, irq_stat+local_bh_count
+		addl	t0, irq_stat+local_irq_count
+#endif
+		addu	t0, t1
+		bnez	t0, restore_all
+		lw	t0, TI_PRE_COUNT($28)
+		addiu	t0, 1
+		sw	t0, TI_PRE_COUNT($28)
+		sti
+		movl	t0, TI_TASK($28)	# ti->task
+		sw	zero, TASK_STATE(t0)	# current->state = TASK_RUNNING
+		jal	schedule
+		j	ret_from_intr
+#endif
+
+EXPORT(ret_from_fork)
+#if defined(CONFIG_SMP)
+		jal	schedule_tail
+#endif
 
 EXPORT(syscall_exit)
 		mfc0	t0, CP0_STATUS		# make sure need_resched and
@@ -126,8 +154,8 @@ work_notifysig:					# deal with pending signals and
 FEXPORT(syscall_exit_work)
 		LONG_L	t0, TI_FLAGS($28)
 		bgez	t0, work_pending	# trace bit is set
-		mfc0	t0, CP0_STATUS		# sti
-		ori	t0, t0, 1
+		mfc0	t0, CP0_STATUS		# could let do_syscall_trace()
+		ori	t0, t0, 1		# call schedule() instead
 		mtc0	t0, CP0_STATUS
 		jal	do_syscall_trace
 		b	resume_userspace

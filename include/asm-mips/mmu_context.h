@@ -17,31 +17,6 @@
 #include <asm/pgtable.h>
 
 /*
- * Every architecture must define this function. It's the fastest
- * way of searching a 168-bit bitmap where the first 128 bits are
- * unlikely to be set. It's guaranteed that at least one of the 168
- * bits is cleared.
- */
-#if MAX_RT_PRIO != 128 || MAX_PRIO != 168
-# error update this function.
-#endif
-
-static inline int sched_find_first_bit(unsigned long *b)
-{
-	if (unlikely(b[0]))
-		return __ffs(b[0]);
-	if (unlikely(b[1]))
-		return __ffs(b[1]) + 32;
-	if (unlikely(b[2]))
-		return __ffs(b[2]) + 64;
-	if (unlikely(b[3]))
-		return __ffs(b[3]) + 96;
-	if (b[4])
-		return __ffs(b[4]) + 128;
-	return __ffs(b[5]) + 32 + 128;
-}
-
-/*
  * For the fast tlb miss handlers, we currently keep a per cpu array
  * of pointers to the current pgd for each processor. Also, the proc.
  * id is stuffed into the context register. This should be changed to 

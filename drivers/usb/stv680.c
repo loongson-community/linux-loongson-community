@@ -139,8 +139,11 @@ static inline unsigned long uvirt_to_kva (pgd_t * pgd, unsigned long adr)
 	if (!pgd_none (*pgd)) {
 		pmd = pmd_offset (pgd, adr);
 		if (!pmd_none (*pmd)) {
-			ptep = pte_offset (pmd, adr);
+			preempt_disable();
+			ptep = pte_offset_map (pmd, adr);
 			pte = *ptep;
+			pte_unmap(pte);
+			preempt_enable();
 			if (pte_present (pte)) {
 				ret = (unsigned long) page_address (pte_page (pte));
 				ret |= (adr & (PAGE_SIZE - 1));
@@ -804,7 +807,7 @@ static int stv680_start_stream (struct usb_stv *stv680)
 	}
 
 	for (i = 0; i < STV680_NUMSBUF; i++) {
-		urb = usb_alloc_urb (0);
+		urb = usb_alloc_urb (0, GFP_KERNEL);
 		if (!urb)
 			return ENOMEM;
 

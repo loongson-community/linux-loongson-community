@@ -18,7 +18,7 @@ extern spinlock_t kernel_flag;
 #else
 #ifdef CONFIG_PREEMPT
 #define kernel_locked()			preempt_get_count()
-#define global_irq_holder		0
+#define check_irq_holder(cpu)		do { } while(0)
 #else
 #define kernel_locked()			1
 #endif
@@ -27,22 +27,22 @@ extern spinlock_t kernel_flag;
 /*
  * Release global kernel lock and global interrupt lock
  */
-static __inline__ void release_kernel_lock(struct task_struct *task, int cpu)
-{
-	if (unlikely(task->lock_depth >= 0))
-		spin_unlock(&kernel_flag);
-	release_irqlock(cpu);
-	__sti();
-}
+#define release_kernel_lock(task, cpu)		\
+do {						\
+	if (unlikely(task->lock_depth >= 0)) {	\
+		spin_unlock(&kernel_flag);	\
+		check_irq_holder(cpu);		\
+	}					\
+} while (0)
 
 /*
  * Re-acquire the kernel lock
  */
-static __inline__ void reacquire_kernel_lock(struct task_struct *task)
-{
-	if (unlikely(task->lock_depth >= 0))
-		spin_lock(&kernel_flag);
-}
+#define reacquire_kernel_lock(task)		\
+do {						\
+	if (unlikely(task->lock_depth >= 0))	\
+		spin_lock(&kernel_flag);	\
+} while (0)
 
 /*
  * Getting the big kernel lock.
@@ -65,6 +65,9 @@ static __inline__ void lock_kernel(void)
 
 static __inline__ void unlock_kernel(void)
 {
+	if (current->lock_depth < 0)
+		BUG();
+
 	if (--current->lock_depth < 0)
 		spin_unlock(&kernel_flag);
 }

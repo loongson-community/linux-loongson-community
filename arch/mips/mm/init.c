@@ -90,29 +90,12 @@ static inline unsigned long setup_zero_pages(void)
 	return 1UL << order;
 }
 
-int do_check_pgt_cache(int low, int high)
-{
-	int freed = 0;
-
-	if (pgtable_cache_size > high) {
-		do {
-			if (pgd_quicklist)
-				free_pgd_slow(get_pgd_fast()), freed++;
-			if (pmd_quicklist)
-				free_pmd_slow(get_pmd_fast()), freed++;
-			if (pte_quicklist)
-				free_pte_slow(get_pte_fast()), freed++;
-		} while (pgtable_cache_size > low);
-	}
-	return freed;
-}
-
 #if CONFIG_HIGHMEM
 pte_t *kmap_pte;
 pgprot_t kmap_prot;
 
 #define kmap_get_fixmap_pte(vaddr)					\
-	pte_offset(pmd_offset(pgd_offset_k(vaddr), (vaddr)), (vaddr))
+	pte_offset_kernel(pmd_offset(pgd_offset_k(vaddr), (vaddr)), (vaddr))
 
 static void __init kmap_init(void)
 {
@@ -151,7 +134,6 @@ void show_mem(void)
 	printk("%d reserved pages\n", reserved);
 	printk("%d pages shared\n", shared);
 	printk("%d pages swap cached\n",cached);
-	printk("%ld pages in page table cache\n",pgtable_cache_size);
 	printk("%d free pages\n", free);
 	show_buffers();
 }
@@ -181,7 +163,7 @@ static void __init fixrange_init (unsigned long start, unsigned long end,
 			if (pmd_none(*pmd)) {
 				pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
 				set_pmd(pmd, __pmd(pte));
-				if (pte != pte_offset(pmd, 0))
+				if (pte != pte_offset_kernel(pmd, 0))
 					BUG();
 			}
 			vaddr += PMD_SIZE;
@@ -219,7 +201,7 @@ void __init pagetable_init(void)
 
 	pgd = swapper_pg_dir + __pgd_offset(vaddr);
 	pmd = pmd_offset(pgd, vaddr);
-	pte = pte_offset(pmd, vaddr);
+	pte = pte_offset_kernel(pmd, vaddr);
 	pkmap_page_table = pte;
 #endif
 }

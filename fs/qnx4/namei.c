@@ -21,6 +21,7 @@
 #include <linux/stat.h>
 #include <linux/fcntl.h>
 #include <linux/errno.h>
+#include <linux/smp_lock.h>
 
 
 /*
@@ -115,6 +116,7 @@ struct dentry * qnx4_lookup(struct inode *dir, struct dentry *dentry)
 	int len = dentry->d_name.len;
 	struct inode *foundinode = NULL;
 
+	lock_kernel();
 	if (!(bh = qnx4_find_entry(len, dir, name, &de, &ino)))
 		goto out;
 	/* The entry is linked, let's get the real info */
@@ -127,10 +129,12 @@ struct dentry * qnx4_lookup(struct inode *dir, struct dentry *dentry)
 	brelse(bh);
 
 	if ((foundinode = iget(dir->i_sb, ino)) == NULL) {
+		unlock_kernel();
 		QNX4DEBUG(("qnx4: lookup->iget -> NULL\n"));
 		return ERR_PTR(-EACCES);
 	}
 out:
+	unlock_kernel();
 	d_add(dentry, foundinode);
 
 	return NULL;
@@ -155,9 +159,11 @@ int qnx4_rmdir(struct inode *dir, struct dentry *dentry)
 	int ino;
 
 	QNX4DEBUG(("qnx4: qnx4_rmdir [%s]\n", dentry->d_name.name));
+	lock_kernel();
 	bh = qnx4_find_entry(dentry->d_name.len, dir, dentry->d_name.name,
 			     &de, &ino);
 	if (bh == NULL) {
+		unlock_kernel();
 		return -ENOENT;
 	}
 	inode = dentry->d_inode;
@@ -189,6 +195,7 @@ int qnx4_rmdir(struct inode *dir, struct dentry *dentry)
       end_rmdir:
 	brelse(bh);
 
+	unlock_kernel();
 	return retval;
 }
 
@@ -201,9 +208,11 @@ int qnx4_unlink(struct inode *dir, struct dentry *dentry)
 	int ino;
 
 	QNX4DEBUG(("qnx4: qnx4_unlink [%s]\n", dentry->d_name.name));
+	lock_kernel();
 	bh = qnx4_find_entry(dentry->d_name.len, dir, dentry->d_name.name,
 			     &de, &ino);
 	if (bh == NULL) {
+		unlock_kernel();
 		return -ENOENT;
 	}
 	inode = dentry->d_inode;
@@ -229,7 +238,8 @@ int qnx4_unlink(struct inode *dir, struct dentry *dentry)
 	mark_inode_dirty(inode);
 	retval = 0;
 
-      end_unlink:
+end_unlink:
+	unlock_kernel();
 	brelse(bh);
 
 	return retval;

@@ -243,8 +243,7 @@ extern inline pte_t pte_modify(pte_t orig_pte, pgprot_t new_prot)
 #define pte_mkold(pte)		(__pte(((pte_val(pte)<<1UL)>>1UL) & ~_PAGE_ACCESSED))
 
 /* Permanent address of a page. */
-#define __page_address(page)	((page)->virtual)
-#define page_address(page)	({ __page_address(page); })
+#define __page_address(page)	page_address(page)
 
 #define pte_page(x) (mem_map+(((pte_val(x)&_PAGE_PADDR)-phys_base)>>PAGE_SHIFT))
 
@@ -277,6 +276,7 @@ extern pgd_t swapper_pg_dir[1];
 extern void update_mmu_cache(struct vm_area_struct *, unsigned long, pte_t);
 
 #define flush_icache_page(vma, pg)	do { } while(0)
+#define flush_icache_user_range(vma,pg,adr,len)	do { } while (0)
 
 /* Make a non-present pseudo-TTE. */
 extern inline pte_t mk_pte_io(unsigned long page, pgprot_t prot, int space)

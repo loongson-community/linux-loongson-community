@@ -123,29 +123,24 @@ static ide_startstop_t lba_48_rw_disk (ide_drive_t *drive, struct request *rq, u
  */
 static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsigned long block)
 {
-	if (rq->flags & REQ_CMD)
-		goto good_command;
+	if (!(rq->flags & REQ_CMD)) {
+		blk_dump_rq_flags(rq, "do_rw_disk, bad command");
+		ide_end_request(drive, 0);
+		return ide_stopped;
+	}
 
-	blk_dump_rq_flags(rq, "do_rw_disk, bad command");
-	ide_end_request(0, HWGROUP(drive));
-	return ide_stopped;
-
-good_command:
-
-#ifdef CONFIG_BLK_DEV_PDC4030
 	if (IS_PDC4030_DRIVE) {
 		extern ide_startstop_t promise_rw_disk(ide_drive_t *, struct request *, unsigned long);
 		return promise_rw_disk(drive, rq, block);
 	}
-#endif /* CONFIG_BLK_DEV_PDC4030 */
 
 	if ((drive->id->cfs_enable_2 & 0x0400) && (drive->addressing))	/* 48-bit LBA */
-		return lba_48_rw_disk(drive, rq, (unsigned long long) block);
+		return lba_48_rw_disk(drive, rq, block);
 	if (drive->select.b.lba)		/* 28-bit LBA */
-		return lba_28_rw_disk(drive, rq, (unsigned long) block);
+		return lba_28_rw_disk(drive, rq, block);
 
 	/* 28-bit CHS : DIE DIE DIE piece of legacy crap!!! */
-	return chs_rw_disk(drive, rq, (unsigned long) block);
+	return chs_rw_disk(drive, rq, block);
 }
 
 static task_ioreg_t get_command (ide_drive_t *drive, int cmd)
@@ -329,7 +324,6 @@ static ide_startstop_t lba_48_rw_disk (ide_drive_t *drive, struct request *rq, u
 	args.posthandler	= NULL;
 	args.rq			= (struct request *) rq;
 	args.block		= block;
-	rq->special		= NULL;
 	rq->special		= (ide_task_t *)&args;
 
 	return do_rw_taskfile(drive, &args);
@@ -906,8 +900,6 @@ static int set_lba_addressing (ide_drive_t *drive, int arg)
 static void idedisk_add_settings(ide_drive_t *drive)
 {
 	struct hd_driveid *id = drive->id;
-	int major = HWIF(drive)->major;
-	int minor = drive->select.b.unit << PARTN_BITS;
 
 	ide_add_setting(drive,	"bios_cyl",		SETTING_RW,					-1,			-1,			TYPE_INT,	0,	65535,				1,	1,	&drive->bios_cyl,		NULL);
 	ide_add_setting(drive,	"bios_head",		SETTING_RW,					-1,			-1,			TYPE_BYTE,	0,	255,				1,	1,	&drive->bios_head,		NULL);
@@ -916,8 +908,6 @@ static void idedisk_add_settings(ide_drive_t *drive)
 	ide_add_setting(drive,	"bswap",		SETTING_READ,					-1,			-1,			TYPE_BYTE,	0,	1,				1,	1,	&drive->bswap,			NULL);
 	ide_add_setting(drive,	"multcount",		id ? SETTING_RW : SETTING_READ,			HDIO_GET_MULTCOUNT,	HDIO_SET_MULTCOUNT,	TYPE_BYTE,	0,	id ? id->max_multsect : 0,	1,	1,	&drive->mult_count,		set_multcount);
 	ide_add_setting(drive,	"nowerr",		SETTING_RW,					HDIO_GET_NOWERR,	HDIO_SET_NOWERR,	TYPE_BYTE,	0,	1,				1,	1,	&drive->nowerr,			set_nowerr);
-	ide_add_setting(drive,	"breada_readahead",	SETTING_RW,					BLKRAGET,		BLKRASET,		TYPE_INT,	0,	255,				1,	1,	&read_ahead[major],		NULL);
-	ide_add_setting(drive,	"file_readahead",	SETTING_RW,					BLKFRAGET,		BLKFRASET,		TYPE_INTA,	0,	4096,			PAGE_SIZE,	1024,	&max_readahead[major][minor],	NULL);
 	ide_add_setting(drive,	"lun",			SETTING_RW,					-1,			-1,			TYPE_INT,	0,	7,				1,	1,	&drive->lun,			NULL);
 	ide_add_setting(drive,	"wcache",		SETTING_RW,					HDIO_GET_WCACHE,	HDIO_SET_WCACHE,	TYPE_BYTE,	0,	1,				1,	1,	&drive->wcache,			write_cache);
 	ide_add_setting(drive,	"acoustic",		SETTING_RW,					HDIO_GET_ACOUSTIC,	HDIO_SET_ACOUSTIC,	TYPE_BYTE,	0,	254,				1,	1,	&drive->acoustic,		set_acoustic);
@@ -1040,6 +1030,7 @@ static int idedisk_cleanup (ide_drive_t *drive)
 	return ide_unregister_subdriver(drive);
 }
 
+int idedisk_init (void);
 int idedisk_reinit(ide_drive_t *drive);
 
 /*
@@ -1047,7 +1038,6 @@ int idedisk_reinit(ide_drive_t *drive);
  */
 static ide_driver_t idedisk_driver = {
 	name:			"ide-disk",
-	version:		IDEDISK_VERSION,
 	media:			ide_disk,
 	busy:			0,
 	supports_dma:		1,
@@ -1066,15 +1056,8 @@ static ide_driver_t idedisk_driver = {
 	capacity:		idedisk_capacity,
 	special:		idedisk_special,
 	proc:			idedisk_proc,
+	driver_init:		idedisk_init,
 	driver_reinit:		idedisk_reinit,
-};
-
-int idedisk_init (void);
-static ide_module_t idedisk_module = {
-	IDE_DRIVER_MODULE,
-	idedisk_init,
-	&idedisk_driver,
-	NULL
 };
 
 MODULE_DESCRIPTION("ATA DISK Driver");
@@ -1085,7 +1068,7 @@ int idedisk_reinit (ide_drive_t *drive)
 
 	MOD_INC_USE_COUNT;
 
-	if (ide_register_subdriver (drive, &idedisk_driver, IDE_SUBDRIVER_VERSION)) {
+	if (ide_register_subdriver (drive, &idedisk_driver)) {
 		printk (KERN_ERR "ide-disk: %s: Failed to register the driver with ide.c\n", drive->name);
 		return 1;
 	}
@@ -1100,7 +1083,7 @@ int idedisk_reinit (ide_drive_t *drive)
 	DRIVER(drive)->busy--;
 	failed--;
 
-	ide_register_module(&idedisk_module);
+	ide_register_module(&idedisk_driver);
 	MOD_DEC_USE_COUNT;
 	return 0;
 }
@@ -1122,7 +1105,7 @@ static void __exit idedisk_exit (void)
 			ide_remove_proc_entries(drive->proc, idedisk_proc);
 #endif
 	}
-	ide_unregister_module(&idedisk_module);
+	ide_unregister_module(&idedisk_driver);
 }
 
 int idedisk_init (void)
@@ -1132,7 +1115,7 @@ int idedisk_init (void)
 	
 	MOD_INC_USE_COUNT;
 	while ((drive = ide_scan_devices (ide_disk, idedisk_driver.name, NULL, failed++)) != NULL) {
-		if (ide_register_subdriver (drive, &idedisk_driver, IDE_SUBDRIVER_VERSION)) {
+		if (ide_register_subdriver (drive, &idedisk_driver)) {
 			printk (KERN_ERR "ide-disk: %s: Failed to register the driver with ide.c\n", drive->name);
 			continue;
 		}
@@ -1147,7 +1130,7 @@ int idedisk_init (void)
 		DRIVER(drive)->busy--;
 		failed--;
 	}
-	ide_register_module(&idedisk_module);
+	ide_register_module(&idedisk_driver);
 	MOD_DEC_USE_COUNT;
 	return 0;
 }

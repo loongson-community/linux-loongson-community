@@ -524,6 +524,10 @@ static int is_leaf (char * buf, int blocksize, struct buffer_head * bh)
     ih = (struct item_head *)(buf + BLKH_SIZE);
     prev_location = blocksize;
     for (i = 0; i < nr; i ++, ih ++) {
+	if ( le_ih_k_type(ih) == TYPE_ANY) {
+	    reiserfs_warning ("is_leaf: wrong item type for item %h\n",ih);
+	    return 0;
+	}
 	if (ih_location (ih) >= blocksize || ih_location (ih) < IH_SIZE * nr) {
 	    reiserfs_warning ("is_leaf: item location seems wrong: %h\n", ih);
 	    return 0;
@@ -1701,8 +1705,7 @@ void reiserfs_do_truncate (struct reiserfs_transaction_handle *th,
     }
 
     if ( n_file_size == 0 || n_file_size < n_new_file_size ) {
-	pathrelse(&s_search_path);
-	return;
+	goto update_and_out ;
     }
 
     /* Update key to search for the last file item. */
@@ -1755,6 +1758,7 @@ void reiserfs_do_truncate (struct reiserfs_transaction_handle *th,
 	    "PAP-5680: truncate did not finish: new_file_size %Ld, current %Ld, oid %d\n",
 	    n_new_file_size, n_file_size, s_item_key.on_disk_key.k_objectid);
 
+update_and_out:
     if (update_timestamps) {
 	// this is truncate, not file closing
 	p_s_inode->i_mtime = p_s_inode->i_ctime = CURRENT_TIME;

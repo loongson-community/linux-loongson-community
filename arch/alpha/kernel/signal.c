@@ -32,8 +32,8 @@
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
 
 asmlinkage void ret_from_sys_call(void);
-asmlinkage int do_signal(sigset_t *, struct pt_regs *,
-			 struct switch_stack *, unsigned long, unsigned long);
+static int do_signal(sigset_t *, struct pt_regs *, struct switch_stack *,
+		     unsigned long, unsigned long);
 
 
 int copy_siginfo_to_user(siginfo_t *to, siginfo_t *from)
@@ -104,7 +104,7 @@ osf_sigprocmask(int how, unsigned long newmask, long a2, long a3,
 		if (_NSIG_WORDS > 1 && sign > 0)
 			sigemptyset(&current->blocked);
 		current->blocked.sig[0] = newmask;
-		recalc_sigpending(current);
+		recalc_sigpending();
 		spin_unlock_irq(&current->sigmask_lock);
 
 		(&regs)->r0 = 0;		/* special no error return */
@@ -182,7 +182,7 @@ do_sigsuspend(old_sigset_t mask, struct pt_regs *reg, struct switch_stack *sw)
 	spin_lock_irq(&current->sigmask_lock);
 	oldset = current->blocked;
 	siginitset(&current->blocked, mask);
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	while (1) {
@@ -209,7 +209,7 @@ do_rt_sigsuspend(sigset_t *uset, size_t sigsetsize,
 	spin_lock_irq(&current->sigmask_lock);
 	oldset = current->blocked;
 	current->blocked = set;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	while (1) {
@@ -316,7 +316,7 @@ do_sigreturn(struct sigframe *frame, struct pt_regs *regs,
 	sigdelsetmask(&set, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
 	current->blocked = set;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	if (restore_sigcontext(&frame->sc, regs, sw))
@@ -347,7 +347,7 @@ do_rt_sigreturn(struct rt_sigframe *frame, struct pt_regs *regs,
 	sigdelsetmask(&set, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
 	current->blocked = set;
-	recalc_sigpending(current);
+	recalc_sigpending();
 	spin_unlock_irq(&current->sigmask_lock);
 
 	if (restore_sigcontext(&frame->uc.uc_mcontext, regs, sw))
@@ -579,7 +579,7 @@ handle_signal(int sig, struct k_sigaction *ka, siginfo_t *info,
 		spin_lock_irq(&current->sigmask_lock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
 		sigaddset(&current->blocked,sig);
-		recalc_sigpending(current);
+		recalc_sigpending();
 		spin_unlock_irq(&current->sigmask_lock);
 	}
 }
@@ -618,7 +618,7 @@ syscall_restart(unsigned long r0, unsigned long r19,
  * restart. "r0" is also used as an indicator whether we can restart at
  * all (if we get here from anything but a syscall return, it will be 0)
  */
-asmlinkage int
+static int
 do_signal(sigset_t *oldset, struct pt_regs * regs, struct switch_stack * sw,
 	  unsigned long r0, unsigned long r19)
 {
@@ -743,4 +743,13 @@ do_signal(sigset_t *oldset, struct pt_regs * regs, struct switch_stack * sw,
 		ptrace_set_bpt(current);	/* re-set breakpoint */
 
 	return 0;
+}
+
+void
+do_notify_resume(sigset_t *oldset, struct pt_regs *regs,
+		 struct switch_stack *sw, unsigned long r0,
+		 unsigned long r19, unsigned long thread_info_flags)
+{
+	if (thread_info_flags & _TIF_SIGPENDING)
+		do_signal(oldset, regs, sw, r0, r19);
 }

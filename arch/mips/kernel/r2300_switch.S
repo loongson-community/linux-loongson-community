@@ -57,10 +57,7 @@ LEAF(resume)
 	and	a2, a3
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
-	.set	noreorder
 	jr	ra
-	 move	v0, a0
-	.set	reorder
 	END(resume)
 
 /*
@@ -76,10 +73,8 @@ LEAF(lazy_fpu_switch)
 	or	t0, t3
 	mtc0	t0, CP0_STATUS
 
-	.set	noreorder
+	nor	t3, zero, t3
 	beqz	a0, 2f				# Save floating point state
-	 nor	t3, zero, t3
-	.set	reorder
 	lw	t1, ST_OFF(a0)			# last thread looses fpu
 	and	t1, t3
 	sw	t1, ST_OFF(a0)
@@ -158,8 +153,6 @@ LEAF(init_fpu)
 	mtc1	t0, $f28
 	mtc1	t0, $f29
 	mtc1	t0, $f30
-	.set	noreorder
+	mtc1	t0, $f31
 	jr	ra
-	 mtc1	t0, $f31
-	.set	reorder
 	END(init_fpu)

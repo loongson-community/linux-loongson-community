@@ -15,6 +15,7 @@
 #include <linux/fs.h>
 #include <linux/sysv_fs.h>
 #include <linux/pagemap.h>
+#include <linux/smp_lock.h>
 
 static inline void inc_count(struct inode *inode)
 {
@@ -76,7 +77,7 @@ static struct dentry *sysv_lookup(struct inode * dir, struct dentry * dentry)
 
 	if (ino) {
 		inode = iget(dir->i_sb, ino);
-		if (!inode) 
+		if (!inode)
 			return ERR_PTR(-EACCES);
 	}
 	d_add(dentry, inode);
@@ -136,9 +137,6 @@ static int sysv_link(struct dentry * old_dentry, struct inode * dir,
 	struct dentry * dentry)
 {
 	struct inode *inode = old_dentry->d_inode;
-
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
 
 	if (inode->i_nlink >= inode->i_sb->sv_link_max)
 		return -EMLINK;

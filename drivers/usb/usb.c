@@ -1085,6 +1085,7 @@ void usb_inc_dev_use(struct usb_device *dev)
 /**
  * usb_alloc_urb - creates a new urb for a USB driver to use
  * @iso_packets: number of iso packets for this urb
+ * @mem_flags: the type of memory to allocate, see kmalloc() for a list of valid options for this.
  *
  * Creates an urb for the USB driver to use, initializes a few internal
  * structures, incrementes the usage counter, and returns a pointer to it.
@@ -1096,13 +1097,13 @@ void usb_inc_dev_use(struct usb_device *dev)
  *
  * The driver must call usb_free_urb() when it is finished with the urb.
  */
-struct urb *usb_alloc_urb(int iso_packets)
+struct urb *usb_alloc_urb(int iso_packets, int mem_flags)
 {
 	struct urb *urb;
 
 	urb = (struct urb *)kmalloc(sizeof(struct urb) + 
 		iso_packets * sizeof(struct usb_iso_packet_descriptor),
-		in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
+		mem_flags);
 	if (!urb) {
 		err("alloc_urb: kmalloc failed");
 		return NULL;
@@ -1368,7 +1369,7 @@ int usb_internal_control_msg(struct usb_device *usb_dev, unsigned int pipe,
 	int retv;
 	int length;
 
-	urb = usb_alloc_urb(0);
+	urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!urb)
 		return -ENOMEM;
   
@@ -1456,7 +1457,7 @@ int usb_bulk_msg(struct usb_device *usb_dev, unsigned int pipe,
 	if (len < 0)
 		return -EINVAL;
 
-	urb=usb_alloc_urb(0);
+	urb=usb_alloc_urb(0, GFP_KERNEL);
 	if (!urb)
 		return -ENOMEM;
 
@@ -1978,11 +1979,11 @@ void usb_disconnect(struct usb_device **pdev)
 				if (driver->owner)
 					__MOD_DEC_USE_COUNT(driver->owner);
 				/* if driver->disconnect didn't release the interface */
-				if (interface->driver) {
-					put_device (&interface->dev);
+				if (interface->driver)
 					usb_driver_release_interface(driver, interface);
-				}
 			}
+			/* remove our device node for this interface */
+			put_device(&interface->dev);
 		}
 	}
 
@@ -2322,7 +2323,8 @@ int usb_clear_halt(struct usb_device *dev, int pipe)
 int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 {
 	struct usb_interface *iface;
-	int ret;
+	struct usb_interface_descriptor *iface_as;
+	int i, ret;
 
 	iface = usb_ifnum_to_if(dev, interface);
 	if (!iface) {
@@ -2344,8 +2346,30 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 		return ret;
 
 	iface->act_altsetting = alternate;
-	dev->toggle[0] = 0;	/* 9.1.1.5 says to do this */
-	dev->toggle[1] = 0;
+
+	/* 9.1.1.5: reset toggles for all endpoints affected by this iface-as
+	 *
+	 * Note:
+	 * Despite EP0 is always present in all interfaces/AS, the list of
+	 * endpoints from the descriptor does not contain EP0. Due to its
+	 * omnipresence one might expect EP0 being considered "affected" by
+	 * any SetInterface request and hence assume toggles need to be reset.
+	 * However, EP0 toggles are re-synced for every individual transfer
+	 * during the SETUP stage - hence EP0 toggles are "don't care" here.
+	 */
+
+	iface_as = &iface->altsetting[alternate];
+	for (i = 0; i < iface_as->bNumEndpoints; i++) {
+		u8	ep = iface_as->endpoint[i].bEndpointAddress;
+
+		usb_settoggle(dev, ep&USB_ENDPOINT_NUMBER_MASK, usb_endpoint_out(ep), 0);
+	}
+
+	/* usb_set_maxpacket() sets the maxpacket size for all EP in all
+	 * interfaces but it shouldn't do any harm here: we have changed
+	 * the AS for the requested interface only, hence for unaffected
+	 * interfaces it's just re-application of still-valid values.
+	 */
 	usb_set_maxpacket(dev);
 	return 0;
 }

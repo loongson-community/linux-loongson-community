@@ -12,6 +12,7 @@
 
 #include <linux/time.h>
 #include <linux/msdos_fs.h>
+#include <linux/smp_lock.h>
 
 #define MSDOS_DEBUG 0
 #define PRINTK(x)
@@ -215,6 +216,7 @@ struct dentry *msdos_lookup(struct inode *dir,struct dentry *dentry)
 
 	dentry->d_op = &msdos_dentry_operations;
 
+	lock_kernel();
 	res = msdos_find(dir, dentry->d_name.name, dentry->d_name.len, &bh,
 			&de, &ino);
 
@@ -231,6 +233,7 @@ add:
 out:
 	if (bh)
 		fat_brelse(sb, bh);
+	unlock_kernel();
 	return ERR_PTR(res);
 }
 
@@ -277,27 +280,36 @@ int msdos_create(struct inode *dir,struct dentry *dentry,int mode)
 	int ino,res,is_hid;
 	char msdos_name[MSDOS_NAME];
 
+	lock_kernel();
 	res = msdos_format_name(dentry->d_name.name,dentry->d_name.len,
 				msdos_name, &MSDOS_SB(sb)->options);
-	if (res < 0)
+	if (res < 0) {
+		unlock_kernel();
 		return res;
+	}
 	is_hid = (dentry->d_name.name[0]=='.') && (msdos_name[0]!='.');
 	/* Have to do it due to foo vs. .foo conflicts */
 	if (fat_scan(dir,msdos_name,&bh,&de,&ino) >= 0) {
 		fat_brelse(sb, bh);
+		unlock_kernel();
 		return -EINVAL;
  	}
 	inode = NULL;
 	res = msdos_add_entry(dir, msdos_name, &bh, &de, &ino, 0, is_hid);
-	if (res)
+	if (res) {
+		unlock_kernel();
 		return res;
+	}
 	inode = fat_build_inode(dir->i_sb, de, ino, &res);
 	fat_brelse(sb, bh);
-	if (!inode)
+	if (!inode) {
+		unlock_kernel();
 		return res;
+	}
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	mark_inode_dirty(inode);
 	d_instantiate(dentry, inode);
+	unlock_kernel();
 	return 0;
 }
 
@@ -311,6 +323,7 @@ int msdos_rmdir(struct inode *dir, struct dentry *dentry)
 	struct msdos_dir_entry *de;
 
 	bh = NULL;
+	lock_kernel();
 	res = msdos_find(dir, dentry->d_name.name, dentry->d_name.len,
 				&bh, &de, &ino);
 	if (res < 0)
@@ -335,6 +348,7 @@ int msdos_rmdir(struct inode *dir, struct dentry *dentry)
 
 rmdir_done:
 	fat_brelse(sb, bh);
+	unlock_kernel();
 	return res;
 }
 
@@ -349,10 +363,13 @@ int msdos_mkdir(struct inode *dir,struct dentry *dentry,int mode)
 	char msdos_name[MSDOS_NAME];
 	int ino;
 
+	lock_kernel();
 	res = msdos_format_name(dentry->d_name.name,dentry->d_name.len,
 				msdos_name, &MSDOS_SB(sb)->options);
-	if (res < 0)
+	if (res < 0) {
+		unlock_kernel();
 		return res;
+	}
 	is_hid = (dentry->d_name.name[0]=='.') && (msdos_name[0]!='.');
 	/* foo vs .foo situation */
 	if (fat_scan(dir,msdos_name,&bh,&de,&ino) >= 0)
@@ -380,6 +397,7 @@ int msdos_mkdir(struct inode *dir,struct dentry *dentry,int mode)
 	res = 0;
 
 out_unlock:
+	unlock_kernel();
 	return res;
 
 mkdir_error:
@@ -412,6 +430,7 @@ int msdos_unlink( struct inode *dir, struct dentry *dentry)
 	struct msdos_dir_entry *de;
 
 	bh = NULL;
+	lock_kernel();
 	res = msdos_find(dir, dentry->d_name.name, dentry->d_name.len,
 			&bh, &de, &ino);
 	if (res < 0)
@@ -427,6 +446,7 @@ int msdos_unlink( struct inode *dir, struct dentry *dentry)
 	mark_inode_dirty(dir);
 	res = 0;
 unlink_done:
+	unlock_kernel();
 	return res;
 }
 
@@ -541,6 +561,7 @@ int msdos_rename(struct inode *old_dir,struct dentry *old_dentry,
 	int is_hid,old_hid; /* if new file and old file are hidden */
 	char old_msdos_name[MSDOS_NAME], new_msdos_name[MSDOS_NAME];
 
+	lock_kernel();
 	error = msdos_format_name(old_dentry->d_name.name,
 				  old_dentry->d_name.len,old_msdos_name,
 				  &MSDOS_SB(old_dir->i_sb)->options);
@@ -564,6 +585,7 @@ int msdos_rename(struct inode *old_dir,struct dentry *old_dentry,
 	fat_brelse(sb, old_bh);
 
 rename_done:
+	unlock_kernel();
 	return error;
 }
 

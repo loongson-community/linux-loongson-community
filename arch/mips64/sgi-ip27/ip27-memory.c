@@ -243,7 +243,7 @@ void __init paging_init(void)
 	/* This is for vmalloc  */
 	memset((void *)kptbl, 0, PAGE_SIZE << PGD_ORDER);
 	memset((void *)kpmdtbl, 0, PAGE_SIZE);
-	pgd_set(swapper_pg_dir, kpmdtbl);
+	set_pgd(swapper_pg_dir, kpmdtbl);
 	for (i = 0; i < (1 << PGD_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
 		pmd_val(*pmd) = (unsigned long)pte;
 
