@@ -41,9 +41,9 @@ static inline void console_verbose(void)
 		console_loglevel = 15;
 }
 
-extern asmlinkage void handle_mod(void);
-extern asmlinkage void handle_tlbl(void);
-extern asmlinkage void handle_tlbs(void);
+extern asmlinkage void __xtlb_mod(void);
+extern asmlinkage void __xtlb_tlbl(void);
+extern asmlinkage void __xtlb_tlbs(void);
 extern asmlinkage void handle_adel(void);
 extern asmlinkage void handle_ades(void);
 extern asmlinkage void handle_ibe(void);
@@ -542,9 +542,9 @@ r4k:
 			       0x100);
 		}
 
-		set_except_vector(1, handle_mod);
-		set_except_vector(2, handle_tlbl);
-		set_except_vector(3, handle_tlbs);
+		set_except_vector(1, __xtlb_mod);
+		set_except_vector(2, __xtlb_tlbl);
+		set_except_vector(3, __xtlb_tlbs);
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
 
