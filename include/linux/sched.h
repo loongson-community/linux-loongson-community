@@ -254,7 +254,7 @@ struct user_struct {
 
 	/* Hash table maintenance information */
 	struct user_struct *next, **pprev;
-	unsigned int uid;
+	uid_t uid;
 };
 
 #define get_current_user() ({ 				\
@@ -410,6 +410,7 @@ struct task_struct {
 #define PT_PTRACED	0x00000001
 #define PT_TRACESYS	0x00000002
 #define PT_DTRACE	0x00000004	/* delayed trace (used on m68k, i386) */
+#define PT_TRACESYSGOOD	0x00000008
 
 /*
  * Limit the stack by to some sane default: root can always

@@ -1,4 +1,4 @@
-/* $Id: semaphore.c,v 1.2 1999/12/28 11:50:37 jj Exp $
+/* $Id: semaphore.c,v 1.3 2000/10/14 10:09:00 davem Exp $
  * Generic semaphore code. Buyer beware. Do your own
  * specific changes in <asm/semaphore-helper.h>
  */
@@ -218,7 +218,7 @@ void down_write_failed(struct rw_semaphore *sem)
 	while (sem->count < 0) {
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE | TASK_EXCLUSIVE);
 		if (sem->count >= 0)
-			break;  /* we must attempt to aquire or bias the lock */
+			break;  /* we must attempt to acquire or bias the lock */
 		schedule();
 	}
 

@@ -130,10 +130,9 @@ static void flush_all_zero_pkmaps(void)
 		if (pkmap_count[i] != 1)
 			continue;
 		pkmap_count[i] = 0;
-		pte = pkmap_page_table[i];
+		pte = ptep_get_and_clear(pkmap_page_table+i);
 		if (pte_none(pte))
 			BUG();
-		pte_clear(pkmap_page_table+i);
 		page = pte_page(pte);
 		page->virtual = NULL;
 	}
@@ -310,7 +309,7 @@ struct buffer_head * create_bounce(int rw, struct buffer_head * bh_orig)
 repeat_bh:
 	bh = kmem_cache_alloc(bh_cachep, SLAB_BUFFER);
 	if (!bh) {
-		wakeup_bdflush(1);
+		wakeup_bdflush(1);  /* Sets task->state to TASK_RUNNING */
 		current->policy |= SCHED_YIELD;
 		schedule();
 		goto repeat_bh;
@@ -324,7 +323,7 @@ repeat_bh:
 repeat_page:
 	page = alloc_page(GFP_BUFFER);
 	if (!page) {
-		wakeup_bdflush(1);
+		wakeup_bdflush(1);  /* Sets task->state to TASK_RUNNING */
 		current->policy |= SCHED_YIELD;
 		schedule();
 		goto repeat_page;

@@ -39,10 +39,11 @@
  *	1.10a	Andrea Arcangeli: Alpha updates
  *	1.10b	Andrew Morton: SMP lock fix
  *	1.10c	Cesar Barros: SMP locking fixes and cleanup
- *	1.10d	Maciej W. Rozycki: Handle DECstation's year weirdness.
+ *	1.10d	Paul Gortmaker: delete paranoia check in rtc_exit
+ *	1.10e	Maciej W. Rozycki: Handle DECstation's year weirdness.
  */
 
-#define RTC_VERSION		"1.10d"
+#define RTC_VERSION		"1.10e"
 
 #define RTC_IO_EXTENT	0x10	/* Only really two ports, but...	*/
 
@@ -743,18 +744,6 @@ found:
 
 static void __exit rtc_exit (void)
 {
-	/* interrupts and maybe timer disabled at this point by rtc_release */
-	/* FIXME: Maybe??? */
-
-	if (rtc_status & RTC_TIMER_ON) {
-		spin_lock_irq (&rtc_lock);
-		rtc_status &= ~RTC_TIMER_ON;
-		del_timer(&rtc_irq_timer);
-		spin_unlock_irq (&rtc_lock);
-
-		printk(KERN_WARNING "rtc_exit(), and timer still running.\n");
-	}
-
 	remove_proc_entry ("driver/rtc", NULL);
 	misc_deregister(&rtc_dev);
 

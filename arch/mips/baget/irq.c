@@ -178,7 +178,7 @@ static void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
 
 	mask_irq(irq);  
@@ -200,7 +200,7 @@ static void do_IRQ(int irq, struct pt_regs * regs)
 		printk("do_IRQ: Unregistered IRQ (0x%X) occured\n", irq);
 	}
 	unmask_irq(irq);
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }

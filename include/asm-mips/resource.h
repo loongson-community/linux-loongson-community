@@ -26,13 +26,13 @@
 
 #define RLIM_NLIMITS 11			/* Number of limit flavors.  */
 
-#ifdef __KERNEL__
-
 /*
  * SuS says limits have to be unsigned.
  * Which makes a ton more sense anyway.
  */
 #define RLIM_INFINITY	0x7fffffffUL
+
+#ifdef __KERNEL__
 
 #define INIT_RLIMITS					\
 {							\

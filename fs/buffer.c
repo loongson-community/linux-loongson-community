@@ -586,7 +586,7 @@ unsigned int get_hardblocksize(kdev_t dev)
 
    These are two special cases. Normal usage imply the device driver
    to issue a sync on the device (without waiting I/O completation) and
-   then an invalidate_buffers call that doesn't trashes dirty buffers. */
+   then an invalidate_buffers call that doesn't trash dirty buffers. */
 void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 {
 	int i, nlist, slept;
@@ -618,6 +618,8 @@ void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 				__remove_from_queues(bh);
 				put_last_free(bh);
 			}
+			/* else complain loudly? */
+
 			write_unlock(&hash_table_lock);
 			if (slept)
 				goto out;
@@ -706,7 +708,7 @@ void set_blocksize(kdev_t dev, int size)
 static void refill_freelist(int size)
 {
 	if (!grow_buffers(size)) {
-		wakeup_bdflush(1);
+		wakeup_bdflush(1);  /* Sets task->state to TASK_RUNNING */
 		current->policy |= SCHED_YIELD;
 		schedule();
 	}
@@ -1041,12 +1043,8 @@ struct buffer_head * breada(kdev_t dev, int block, int bufsize,
 
 	blocks = (filesize - pos) >> (9+index);
 
-	if (blocks < (read_ahead[MAJOR(dev)] >> index))
-		blocks = read_ahead[MAJOR(dev)] >> index;
 	if (blocks > NBUF) 
 		blocks = NBUF;
-
-/*	if (blocks) printk("breada (new) %d blocks\n",blocks); */
 
 	bhlist[0] = bh;
 	j = 1;
@@ -2060,7 +2058,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
            buffer_heads and exit. */
 	spin_lock(&unused_list_lock);
 	for (i = bhind; --i >= 0; ) {
-		__put_unused_buffer_head(bh[bhind]);
+		__put_unused_buffer_head(bh[i]);
 	}
 	spin_unlock(&unused_list_lock);
 	goto finished;

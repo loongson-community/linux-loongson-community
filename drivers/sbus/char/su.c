@@ -1,4 +1,4 @@
-/* $Id: su.c,v 1.41 2000/09/04 19:41:27 ecd Exp $
+/* $Id: su.c,v 1.42 2000/10/14 10:09:04 davem Exp $
  * su.c: Small serial driver for keyboard/mouse interface on sparc32/PCI
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -2219,7 +2219,7 @@ done:
  */
 static __inline__ void __init show_su_version(void)
 {
-	char *revision = "$Revision: 1.41 $";
+	char *revision = "$Revision: 1.42 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
@@ -2938,17 +2938,13 @@ static int __init serial_console_setup(struct console *co, char *options)
 }
 
 static struct console sercons = {
-	"ttyS",
-	serial_console_write,
-	NULL,
-	serial_console_device,
-	serial_console_wait_key,
-	NULL,
-	serial_console_setup,
-	CON_PRINTBUFFER,
-	-1,
-	0,
-	NULL
+	name:		"ttyS",
+	write:		serial_console_write,
+	device:		serial_console_device,
+	wait_key:	serial_console_wait_key,
+	setup:		serial_console_setup,
+	flags:		CON_PRINTBUFFER,
+	index:		-1,
 };
 
 int su_console_registered = 0;

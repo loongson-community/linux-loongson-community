@@ -101,6 +101,10 @@ int (*hpt34x_display_info)(char *, char **, off_t, int) = NULL;
 extern byte hpt366_proc;
 int (*hpt366_display_info)(char *, char **, off_t, int) = NULL;
 #endif /* CONFIG_BLK_DEV_HPT366 */
+#ifdef CONFIG_BLK_DEV_OSB4
+extern byte osb4_proc;
+int (*osb4_display_info)(char *, char **, off_t, int) = NULL;
+#endif /* CONFIG_BLK_DEV_OSB4 */
 #ifdef CONFIG_BLK_DEV_PDC202XX
 extern byte pdc202xx_proc;
 int (*pdc202xx_display_info)(char *, char **, off_t, int) = NULL;
@@ -113,6 +117,10 @@ int (*piix_display_info)(char *, char **, off_t, int) = NULL;
 extern byte sis_proc;
 int (*sis_display_info)(char *, char **, off_t, int) = NULL;
 #endif /* CONFIG_BLK_DEV_SIS5513 */
+#ifdef CONFIG_BLK_DEV_SLC90E66
+extern byte slc90e66_proc;
+int (*slc90e66_display_info)(char *, char **, off_t, int) = NULL;
+#endif /* CONFIG_BLK_DEV_SLC90E66 */
 #ifdef CONFIG_BLK_DEV_VIA82CXXX
 extern byte via_proc;
 int (*via_display_info)(char *, char **, off_t, int) = NULL;
@@ -829,6 +837,10 @@ void proc_ide_create(void)
 	if ((hpt366_display_info) && (hpt366_proc))
 		create_proc_info_entry("hpt366", 0, proc_ide_root, hpt366_display_info);
 #endif /* CONFIG_BLK_DEV_HPT366 */
+#ifdef CONFIG_BLK_DEV_OSB4
+	if ((osb4_display_info) && (osb4_proc))
+		create_proc_info_entry("osb4", 0, proc_ide_root, osb4_display_info);
+#endif /* CONFIG_BLK_DEV_OSB4 */
 #ifdef CONFIG_BLK_DEV_PDC202XX
 	if ((pdc202xx_display_info) && (pdc202xx_proc))
 		create_proc_info_entry("pdc202xx", 0, proc_ide_root, pdc202xx_display_info);
@@ -841,6 +853,10 @@ void proc_ide_create(void)
 	if ((sis_display_info) && (sis_proc))
 		create_proc_info_entry("sis", 0, proc_ide_root, sis_display_info);
 #endif /* CONFIG_BLK_DEV_SIS5513 */
+#ifdef CONFIG_BLK_DEV_SLC90E66
+	if ((slc90e66_display_info) && (slc90e66_proc))
+		create_proc_info_entry("slc90e66", 0, proc_ide_root, slc90e66_display_info);
+#endif /* CONFIG_BLK_DEV_SLC90E66 */
 #ifdef CONFIG_BLK_DEV_VIA82CXXX
 	if ((via_display_info) && (via_proc))
 		create_proc_info_entry("via", 0, proc_ide_root, via_display_info);
@@ -881,6 +897,10 @@ void proc_ide_destroy(void)
 	if ((hpt366_display_info) && (hpt366_proc))
 		remove_proc_entry("ide/hpt366",0);
 #endif /* CONFIG_BLK_DEV_HPT366 */
+#ifdef CONFIG_BLK_DEV_OSB4
+	if ((osb4_display_info) && (osb4_proc))
+		remove_proc_entry("ide/osb4",0);
+#endif /* CONFIG_BLK_DEV_OSB4 */
 #ifdef CONFIG_BLK_DEV_PDC202XX
 	if ((pdc202xx_display_info) && (pdc202xx_proc))
 		remove_proc_entry("ide/pdc202xx",0);
@@ -893,6 +913,10 @@ void proc_ide_destroy(void)
 	if ((sis_display_info) && (sis_proc))
 		remove_proc_entry("ide/sis", 0);
 #endif /* CONFIG_BLK_DEV_SIS5513 */
+#ifdef CONFIG_BLK_DEV_SLC90E66
+	if ((slc90e66_display_info) && (slc90e66_proc))
+		remove_proc_entry("ide/slc90e66",0);
+#endif /* CONFIG_BLK_DEV_SLC90E66 */
 #ifdef CONFIG_BLK_DEV_VIA82CXXX
 	if ((via_display_info) && (via_proc))
 		remove_proc_entry("ide/via",0);

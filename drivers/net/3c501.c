@@ -218,10 +218,6 @@ struct net_local
  *	The boilerplate probe code.
  */
 
-#ifdef HAVE_DEVLIST
-struct netdev_entry el1_drv = {"3c501", el1_probe1, EL1_IO_EXTENT, netcard_portlist};
-#else
-
 /**
  * el1_probe:
  * @dev: The device structure passed in to probe. 
@@ -246,17 +242,11 @@ int __init el1_probe(struct net_device *dev)
 		return -ENXIO;
 
 	for (i = 0; netcard_portlist[i]; i++)
-	{
-		int ioaddr = netcard_portlist[i];
-		if (check_region(ioaddr, EL1_IO_EXTENT))
-			continue;
-		if (el1_probe1(dev, ioaddr) == 0)
+		if (el1_probe1(dev, netcard_portlist[i]) == 0)
 			return 0;
-	}
 
 	return -ENODEV;
 }
-#endif
 
 /**
  *	el1_probe: 

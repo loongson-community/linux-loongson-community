@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.54 2000/08/10 01:04:53 davem Exp $
+/* $Id: page.h,v 1.55 2000/10/30 21:01:41 davem Exp $
  * page.h:  Various defines and such for MMU operations on the Sparc for
  *          the Linux kernel.
  *
@@ -38,7 +38,6 @@
  * this so lets disable it. - Anton
  */
 #if 0
-/* #if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8) */
 /* We need the mb()'s so we don't trigger a compiler bug - Anton */
 #define BUG() do { \
 	mb(); \

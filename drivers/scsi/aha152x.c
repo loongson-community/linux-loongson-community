@@ -1280,7 +1280,8 @@ int aha152x_detect(Scsi_Host_Template * tpnt)
 			scsi_unregister(shpnt);
 			registered_count--;
 			release_region(shpnt->io_port, IO_RANGE);
-			aha152x_host[shpnt->irq - IRQ_MIN] = shpnt = 0;
+			aha152x_host[shpnt->irq - IRQ_MIN] = 0;
+			shpnt = 0;
 			continue;
 		}
 		HOSTDATA(shpnt)->swint = 0;
@@ -1346,7 +1347,7 @@ int aha152x_release(struct Scsi_Host *shpnt)
 
 /*
  * setup controller to generate interrupts depending
- * on current state (lock has to be aquired)
+ * on current state (lock has to be acquired)
  *
  */ 
 static int setup_expected_interrupts(struct Scsi_Host *shpnt)

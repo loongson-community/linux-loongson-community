@@ -5,7 +5,7 @@
  *
  *		PACKET - implements raw packet sockets.
  *
- * Version:	$Id: af_packet.c,v 1.42 2000/08/29 03:44:56 davem Exp $
+ * Version:	$Id: af_packet.c,v 1.46 2000/10/24 21:26:19 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -33,6 +33,7 @@
  *		Alan Cox	:	Protocol setting support
  *	Alexey Kuznetsov	:	Untied from IPv4 stack.
  *	Cyrus Durgin		:	Fixed kerneld for kmod.
+ *	Michal Ostrowski        :       Module initialization cleanup.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -66,6 +67,10 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/if_bridge.h>
+
+#ifdef CONFIG_NET_DIVERT
+#include <linux/divert.h>
+#endif /* CONFIG_NET_DIVERT */
 
 #ifdef CONFIG_INET
 #include <net/inet_common.h>
@@ -1484,6 +1489,14 @@ static int packet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg
 #endif
 #endif				
 
+		case SIOCGIFDIVERT:
+		case SIOCSIFDIVERT:
+#ifdef CONFIG_NET_DIVERT
+			return(divert_ioctl(cmd, (struct divert_cf *) arg));
+#else
+			return -ENOPKG;
+#endif /* CONFIG_NET_DIVERT */
+
 			return -ENOPKG;
 			
 #ifdef CONFIG_INET
@@ -1860,8 +1873,8 @@ done:
 #endif
 
 
-#ifdef MODULE
-void cleanup_module(void)
+
+static void __exit packet_exit(void)
 {
 #ifdef CONFIG_PROC_FS
 	remove_proc_entry("net/packet", 0);
@@ -1872,17 +1885,16 @@ void cleanup_module(void)
 }
 
 
-int init_module(void)
-#else
-void __init packet_proto_init(struct net_proto *pro)
-#endif
+static int __init packet_init(void)
 {
 	sock_register(&packet_family_ops);
 	register_netdevice_notifier(&packet_netdev_notifier);
 #ifdef CONFIG_PROC_FS
 	create_proc_read_entry("net/packet", 0, 0, packet_read_proc, NULL);
 #endif
-#ifdef MODULE
 	return 0;
-#endif
 }
+
+
+module_init(packet_init);
+module_exit(packet_exit);

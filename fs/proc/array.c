@@ -157,7 +157,7 @@ static inline char * task_state(struct task_struct *p, char *buffer)
 		"Uid:\t%d\t%d\t%d\t%d\n"
 		"Gid:\t%d\t%d\t%d\t%d\n",
 		get_task_state(p),
-		p->pid, p->p_opptr->pid, p->p_pptr->pid != p->p_opptr->pid ? p->p_opptr->pid : 0,
+		p->pid, p->p_opptr->pid, p->p_pptr->pid != p->p_opptr->pid ? p->p_pptr->pid : 0,
 		p->uid, p->euid, p->suid, p->fsuid,
 		p->gid, p->egid, p->sgid, p->fsgid);
 	read_unlock(&tasklist_lock);	
@@ -575,7 +575,7 @@ ssize_t proc_pid_read_maps (struct task_struct *task, struct file * file, char *
 		goto getlen_out;
 
 	/* Check whether the mmaps could change if we sleep */
-	volatile_task = (task != current || atomic_read(&mm->mm_users) > 1);
+	volatile_task = (task != current || atomic_read(&mm->mm_users) > 2);
 
 	/* decode f_pos */
 	lineno = *ppos >> MAPS_LINE_SHIFT;

@@ -68,13 +68,13 @@ char saved_command_line[CL_SIZE];
 
 char m68k_debug_device[6] = "";
 
-void (*mach_sched_init) (void (*handler)(int, void *, struct pt_regs *)) __initdata;
+void (*mach_sched_init) (void (*handler)(int, void *, struct pt_regs *)) __initdata = NULL;
 /* machine dependent keyboard functions */
-int (*mach_keyb_init) (void) __initdata;
+int (*mach_keyb_init) (void) __initdata = NULL;
 int (*mach_kbdrate) (struct kbd_repeat *) = NULL;
 void (*mach_kbd_leds) (unsigned int) = NULL;
 /* machine dependent irq functions */
-void (*mach_init_IRQ) (void) __initdata;
+void (*mach_init_IRQ) (void) __initdata = NULL;
 void (*(*mach_default_handler)[]) (int, void *, struct pt_regs *) = NULL;
 void (*mach_get_model) (char *model) = NULL;
 int (*mach_get_hardware_list) (char *buffer) = NULL;
@@ -365,7 +365,7 @@ void __init setup_arch(char **cmdline_p)
 		high_memory += m68k_memory[i].size;
 	}
 
-	availmem += init_bootmem_node(0, availmem >> PAGE_SHIFT,
+	availmem += init_bootmem_node(NODE_DATA(0), availmem >> PAGE_SHIFT,
 				      startmem >> PAGE_SHIFT, endmem >> PAGE_SHIFT);
 
 	for (i = 0; i < m68k_num_memory; i++)

@@ -102,8 +102,8 @@ static void	nfs_commit_done(struct rpc_task *);
 # define IS_SWAPFILE(inode)	(0)
 #endif
 
-static kmem_cache_t *nfs_page_cachep = NULL;
-static kmem_cache_t *nfs_wdata_cachep = NULL;
+static kmem_cache_t *nfs_page_cachep;
+static kmem_cache_t *nfs_wdata_cachep;
 
 static __inline__ struct nfs_page *nfs_page_alloc(void)
 {
@@ -1207,7 +1207,7 @@ nfs_writeback_done(struct rpc_task *task)
 
 	/* We can't handle that yet but we check for it nevertheless */
 	if (resp->count < argp->count && task->tk_status >= 0) {
-		static unsigned long    complain = 0;
+		static unsigned long    complain;
 		if (time_before(complain, jiffies)) {
 			printk(KERN_WARNING
 			       "NFS: Server wrote less than requested.\n");
@@ -1227,7 +1227,7 @@ nfs_writeback_done(struct rpc_task *task)
 		 *	 NFS_FILE_SYNC. We therefore implement this checking
 		 *	 as a dprintk() in order to avoid filling syslog.
 		 */
-		static unsigned long    complain = 0;
+		static unsigned long    complain;
 
 		if (time_before(complain, jiffies)) {
 			dprintk("NFS: faulty NFSv3 server %s:"
@@ -1238,9 +1238,6 @@ nfs_writeback_done(struct rpc_task *task)
 		}
 	}
 #endif
-
-	/* Update attributes as result of writeback. */
-	nfs_write_attributes(inode, resp->fattr);
 
 	while (!list_empty(&data->pages)) {
 		req = nfs_list_entry(data->pages.next);
@@ -1281,6 +1278,9 @@ nfs_writeback_done(struct rpc_task *task)
 	next:
 		nfs_unlock_request(req);
 	}
+	/* Update attributes as result of writeback. */
+	nfs_write_attributes(inode, resp->fattr);
+
 }
 
 
@@ -1395,7 +1395,6 @@ nfs_commit_done(struct rpc_task *task)
         dprintk("NFS: %4d nfs_commit_done (status %d)\n",
                                 task->tk_pid, task->tk_status);
 
-	nfs_refresh_inode(inode, resp->fattr);
 	while (!list_empty(&data->pages)) {
 		req = nfs_list_entry(data->pages.next);
 		nfs_list_remove_request(req);
@@ -1427,6 +1426,8 @@ nfs_commit_done(struct rpc_task *task)
 	next:
 		nfs_unlock_request(req);
 	}
+
+	nfs_write_attributes(inode, resp->fattr);
 }
 #endif
 

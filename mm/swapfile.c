@@ -223,10 +223,10 @@ static inline void unuse_pte(struct vm_area_struct * vma, unsigned long address,
 		if (pte_page(pte) != page)
 			return;
 		/* We will be removing the swap cache in a moment, so... */
-		set_pte(dir, pte_mkdirty(pte));
+		ptep_mkdirty(dir);
 		return;
 	}
-	if (pte_val(pte) != entry.val)
+	if (pte_to_swp_entry(pte).val != entry.val)
 		return;
 	set_pte(dir, pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 	swap_free(entry);
@@ -315,12 +315,12 @@ static void unuse_process(struct mm_struct * mm,
 	 */
 	if (!mm)
 		return;
-	vmlist_access_lock(mm);
+	spin_lock(&mm->page_table_lock);
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		pgd_t * pgd = pgd_offset(mm, vma->vm_start);
 		unuse_vma(vma, pgd, entry, page);
 	}
-	vmlist_access_unlock(mm);
+	spin_unlock(&mm->page_table_lock);
 	return;
 }
 

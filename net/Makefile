@@ -7,7 +7,7 @@
 
 O_TARGET :=	network.o
 
-mod-subdirs :=	ipv4/netfilter ipv6/netfilter ipx irda atm
+mod-subdirs :=	ipv4/netfilter ipv6/netfilter ipx irda atm netlink
 export-objs :=	netsyms.o
 
 subdir-y :=	core ethernet
@@ -46,7 +46,7 @@ subdir-$(CONFIG_DECNET)		+= decnet
 subdir-$(CONFIG_ECONET)		+= econet
 
 
-obj-y	:= socket.o protocols.o $(join $(subdir-y), $(patsubst %,/%.o,$(notdir $(subdir-y))))
+obj-y	:= socket.o $(join $(subdir-y), $(patsubst %,/%.o,$(notdir $(subdir-y))))
 ifeq ($(CONFIG_NET),y)
 obj-$(CONFIG_MODULES)		+= netsyms.o
 obj-$(CONFIG_SYSCTL)		+= sysctl_net.o

@@ -1,5 +1,4 @@
-/* $Id: hardirq.h,v 1.8 2000/03/02 02:37:13 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -38,8 +37,8 @@ typedef struct {
 #define hardirq_trylock(cpu)	(local_irq_count(cpu) == 0)
 #define hardirq_endlock(cpu)	do { } while (0)
 
-#define irq_enter(cpu)		(local_irq_count(cpu)++)
-#define irq_exit(cpu)		(local_irq_count(cpu)--)
+#define irq_enter(cpu, irq)	(local_irq_count(cpu)++)
+#define irq_exit(cpu, irq)	(local_irq_count(cpu)--)
 
 #define synchronize_irq()	barrier();
 

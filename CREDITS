@@ -320,7 +320,7 @@ E: bogstad@pobox.com
 D: wrote /proc/self hack, minor samba & dosemu patches
 
 N: Axel Boldt
-E: boldt@math.ucsb.edu
+E: axel@uni-paderborn.de
 W: http://math-www.uni-paderborn.de/~axel/
 D: Configuration help text support
 D: Linux CD and Support Giveaway List
@@ -795,13 +795,16 @@ S: 26506 Norden
 S: Germany
 
 N: Jeremy Fitzhardinge
-E: jeremy@zip.com.au
+E: jeremy@goop.org
+W: http://www.goop.org/~jeremy
+D: author of userfs filesystem
 D: Improved mmap and munmap handling
 D: General mm minor tidyups
-S: 67 Surrey St.
-S: Darlinghurst, Sydney
-S: New South Wales 2010
-S: Australia
+D: autofs v4 maintainer
+S: 987 Alabama St
+S: San Francisco
+S: CA, 94110
+S: USA
 
 N: Ralf Flaxa
 E: rfflaxa@immd4.informatik.uni-erlangen.de
@@ -1703,7 +1706,7 @@ D: cfdisk (curses based disk partitioning program)
 
 N: Torben Mathiasen
 E: torben.mathiasen@compaq.com
-E: tmm@image.dk
+E: torben@kernel.dk
 W: http://tlan.kernel.dk
 D: ThunderLAN maintainer
 D: ThunderLAN updates and other kernel fixes.
@@ -2173,9 +2176,9 @@ S: 79098 Freiburg
 S: Germany
 
 N: Joerg Reuter
-E: jreuter@poboxes.com
-W: http://poboxes.com/jreuter/
-W: http://qsl.net/dl1bke/
+E: jreuter@yaina.de
+W: http://yaina.de/jreuter/
+W: http://www.qsl.net/dl1bke/
 D: Generic Z8530 driver, AX.25 DAMA slave implementation
 D: Several AX.25 hacks
 

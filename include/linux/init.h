@@ -31,8 +31,9 @@
  * static int init_variable __initdata = 0;
  * static char linux_logo[] __initdata = { 0x32, 0x36, ... };
  *
- * For initialized data not at file scope, i.e. within a function,
- * you should use __initlocaldata instead, due to a bug in GCC 2.7.
+ * Don't forget to initialize data not at file scope, i.e. within a function,
+ * as gcc otherwise puts the data into the bss section and not into the init
+ * section.
  */
 
 #ifndef MODULE
@@ -100,8 +101,6 @@ extern struct kernel_param __setup_start, __setup_end;
 #define __FINIT
 #define __INITDATA
 
-/* Not sure what version aliases were introduced in, but certainly in 2.91.66.  */
-#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 91)
 /* These macros create a dummy inline: gcc 2.9x does not count alias
  as usage, hence the `unused function' warning when __init functions
  are declared static. We use the dummy __*_module_inline functions
@@ -117,19 +116,9 @@ typedef void (*__cleanup_module_func_t)(void);
 	void cleanup_module(void) __attribute__((alias(#x))); \
 	extern inline __cleanup_module_func_t __cleanup_module_inline(void) \
 	{ return x; }
-#else
-#define module_init(x)	int init_module(void) { return x(); }
-#define module_exit(x)	void cleanup_module(void) { x(); }
-#endif
 
 #define __setup(str,func) /* nothing */
 
-#endif
-
-#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
-#define __initlocaldata  __initdata
-#else
-#define __initlocaldata
 #endif
 
 #ifdef CONFIG_HOTPLUG

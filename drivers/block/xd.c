@@ -142,9 +142,9 @@ static DECLARE_WAIT_QUEUE_HEAD(xd_wait_int);
 static DECLARE_WAIT_QUEUE_HEAD(xd_wait_open);
 static u_char xd_valid[XD_MAXDRIVES] = { 0,0 };
 static u_char xd_drives, xd_irq = 5, xd_dma = 3, xd_maxsectors;
-static u_char xd_override __initdata, xd_type __initdata;
+static u_char xd_override __initdata = 0, xd_type __initdata = 0;
 static u_short xd_iobase = 0x320;
-static int xd_geo[XD_MAXDRIVES*3] __initdata;
+static int xd_geo[XD_MAXDRIVES*3] __initdata = { 0, };
 
 static volatile int xdc_busy;
 static DECLARE_WAIT_QUEUE_HEAD(xdc_wait);
@@ -518,7 +518,7 @@ static u_char xd_setup_dma (u_char mode,u_char *buffer,u_int count)
 	
 	if (nodma)
 		return (PIO_MODE);
-	if (((u_int) buffer & 0xFFFF0000) != (((u_int) buffer + count) & 0xFFFF0000)) {
+	if (((unsigned long) buffer & 0xFFFF0000) != (((unsigned long) buffer + count) & 0xFFFF0000)) {
 #ifdef DEBUG_OTHER
 		printk("xd_setup_dma: using PIO, transfer overlaps 64k boundary\n");
 #endif /* DEBUG_OTHER */
@@ -529,7 +529,7 @@ static u_char xd_setup_dma (u_char mode,u_char *buffer,u_int count)
 	disable_dma(xd_dma);
 	clear_dma_ff(xd_dma);
 	set_dma_mode(xd_dma,mode);
-	set_dma_addr(xd_dma,(u_int) buffer);
+	set_dma_addr(xd_dma, (unsigned long) buffer);
 	set_dma_count(xd_dma,count);
 	
 	release_dma_lock(f);

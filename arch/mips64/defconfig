@@ -234,6 +234,7 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_NET_VENDOR_SMC is not set
 # CONFIG_NET_VENDOR_RACAL is not set
 # CONFIG_DEPCA is not set
+# CONFIG_HP100 is not set
 # CONFIG_NET_ISA is not set
 # CONFIG_NET_PCI is not set
 # CONFIG_NET_POCKET is not set

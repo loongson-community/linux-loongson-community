@@ -142,6 +142,7 @@ static int usb_hub_configure(struct usb_hub *hub, struct usb_endpoint_descriptor
 		 * the hub can/will return fewer bytes here. */
 	if (ret < 0) {
 		err("Unable to get hub descriptor (err = %d)", ret);
+		kfree(hub->descriptor);
 		return -1;
 	}
 
@@ -191,6 +192,7 @@ static int usb_hub_configure(struct usb_hub *hub, struct usb_endpoint_descriptor
 	ret = usb_get_hub_status(dev, &hubstatus);
 	if (ret < 0) {
 		err("Unable to get hub status (err = %d)", ret);
+		kfree(hub->descriptor);
 		return -1;
 	}
 
@@ -212,6 +214,7 @@ static int usb_hub_configure(struct usb_hub *hub, struct usb_endpoint_descriptor
 	hub->urb = usb_alloc_urb(0);
 	if (!hub->urb) {
 		err("couldn't allocate interrupt urb");
+		kfree(hub->descriptor);
 		return -1;
 	}
 
@@ -220,6 +223,7 @@ static int usb_hub_configure(struct usb_hub *hub, struct usb_endpoint_descriptor
 	ret = usb_submit_urb(hub->urb);
 	if (ret) {
 		err("usb_submit_urb failed (%d)", ret);
+		kfree(hub->descriptor);
 		return -1;
 	}
 		
@@ -247,24 +251,32 @@ static void *hub_probe(struct usb_device *dev, unsigned int i)
 	/* Some hubs have a subclass of 1, which AFAICT according to the */
 	/*  specs is not defined, but it works */
 	if ((interface->bInterfaceSubClass != 0) &&
-	    (interface->bInterfaceSubClass != 1))
+	    (interface->bInterfaceSubClass != 1)) {
+		err("invalid subclass (%d) for USB hub device #%d",
+			interface->bInterfaceSubClass, dev->devnum);
 		return NULL;
+	}
 
 	/* Multiple endpoints? What kind of mutant ninja-hub is this? */
-	if (interface->bNumEndpoints != 1)
+	if (interface->bNumEndpoints != 1) {
+		err("invalid bNumEndpoints (%d) for USB hub device #%d",
+			interface->bNumEndpoints, dev->devnum);
 		return NULL;
+	}
 
 	endpoint = &interface->endpoint[0];
 
 	/* Output endpoint? Curiousier and curiousier.. */
 	if (!(endpoint->bEndpointAddress & USB_DIR_IN)) {
-		err("Device is hub class, but has output endpoint?");
+		err("Device #%d is hub class, but has output endpoint?",
+			dev->devnum);
 		return NULL;
 	}
 
 	/* If it's not an interrupt endpoint, we'd better punt! */
-	if ((endpoint->bmAttributes & 3) != 3) {
-		err("Device is hub class, but has endpoint other than interrupt?");
+	if ((endpoint->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) != USB_ENDPOINT_XFER_INT) {
+		err("Device #%d is hub class, but has endpoint other than interrupt?",
+			dev->devnum);
 		return NULL;
 	}
 
@@ -291,7 +303,7 @@ static void *hub_probe(struct usb_device *dev, unsigned int i)
 	if (usb_hub_configure(hub, endpoint) >= 0)
 		return hub;
 
-	err("hub configuration failed");
+	err("hub configuration failed for device #%d", dev->devnum);
 
 	/* free hub, but first clean up its list. */
 	spin_lock_irqsave(&hub_event_lock, flags);
@@ -539,8 +551,6 @@ static void usb_hub_port_connect_change(struct usb_device *hub, int port,
 
 	tempstr = kmalloc(1024, GFP_KERNEL);
 	portstr = kmalloc(1024, GFP_KERNEL);
-	if (portstr)
-		portstr[0] = 0;
 
 	for (i = 0; i < HUB_PROBE_TRIES; i++) {
 		struct usb_device *pdev, *cdev;
@@ -567,6 +577,7 @@ static void usb_hub_port_connect_change(struct usb_device *hub, int port,
 		cdev = dev;
 		pdev = dev->parent;
 		if (portstr && tempstr) {
+			portstr[0] = 0;
 			while (pdev) {
 				int port;
 
@@ -583,25 +594,15 @@ static void usb_hub_port_connect_change(struct usb_device *hub, int port,
 				cdev = pdev;
 				pdev = pdev->parent;
 			}
-		}
-
-		if (portstr)
 			info("USB new device connect on bus%d/%s, assigned device number %d",
 				dev->bus->busnum, portstr, dev->devnum);
-		else
+		} else
 			info("USB new device connect on bus%d, assigned device number %d",
 				dev->bus->busnum, dev->devnum);
 
-		if (portstr)
-			kfree(portstr);
-		if (tempstr)
-			kfree(tempstr);
-
 		/* Run it through the hoops (find a driver, etc) */
-		if (!usb_new_device(dev)) {
-			up(&usb_address0_sem);
-			return;
-		}
+		if (!usb_new_device(dev))
+			goto done;
 
 		/* Free the configuration if there was an error */
 		usb_free_dev(dev);
@@ -612,7 +613,12 @@ static void usb_hub_port_connect_change(struct usb_device *hub, int port,
 
 	hub->children[port] = NULL;
 	usb_hub_port_disable(hub, port);
+done:
 	up(&usb_address0_sem);
+	if (portstr)
+		kfree(portstr);
+	if (tempstr)
+		kfree(tempstr);
 }
 
 static void usb_hub_events(void)
@@ -794,6 +800,7 @@ int usb_hub_init(void)
 
 	/* Fall through if kernel_thread failed */
 	usb_deregister(&hub_driver);
+	err("failed to start usb_hub_thread");
 
 	return -1;
 }

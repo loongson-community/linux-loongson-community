@@ -187,7 +187,11 @@ enum
 	NET_CORE_MSG_BURST=9,
 	NET_CORE_OPTMEM_MAX=10,
 	NET_CORE_HOT_LIST_LENGTH=11,
-	NET_CORE_DIVERT_VERSION=12
+	NET_CORE_DIVERT_VERSION=12,
+	NET_CORE_NO_CONG_THRESH=13,
+	NET_CORE_NO_CONG=14,
+	NET_CORE_LO_CONG=15,
+	NET_CORE_MOD_CONG=16
 };
 
 /* /proc/sys/net/ethernet */
@@ -270,6 +274,7 @@ enum
 	NET_TCP_RMEM=85,
 	NET_TCP_APP_WIN=86,
 	NET_TCP_ADV_WIN_SCALE=87,
+	NET_IPV4_NONLOCAL_BIND=88,
 };
 
 enum {
@@ -630,16 +635,6 @@ extern int do_sysctl_strategy (ctl_table *table,
 extern ctl_handler sysctl_string;
 extern ctl_handler sysctl_intvec;
 extern ctl_handler sysctl_jiffies;
-
-extern int do_string (
-	void *oldval, size_t *oldlenp, void *newval, size_t newlen,
-	int rdwr, char *data, size_t max);
-extern int do_int (
-	void *oldval, size_t *oldlenp, void *newval, size_t newlen,
-	int rdwr, int *data);
-extern int do_struct (
-	void *oldval, size_t *oldlenp, void *newval, size_t newlen,
-	int rdwr, void *data, size_t len);
 
 
 /*

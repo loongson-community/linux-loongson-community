@@ -1,4 +1,4 @@
-/*  $Id: init.c,v 1.156 2000/09/21 06:34:48 anton Exp $
+/*  $Id: init.c,v 1.157 2000/10/19 00:49:52 davem Exp $
  *  arch/sparc64/mm/init.c
  *
  *  Copyright (C) 1996-1999 David S. Miller (davem@caip.rutgers.edu)
@@ -873,7 +873,7 @@ unsigned long __init bootmem_init(unsigned long *pages_avail)
 	}
 #endif	
 	/* Initialize the boot-time allocator. */
-	bootmap_size = init_bootmem_node(0, bootmap_pfn, phys_base>>PAGE_SHIFT, end_pfn);
+	bootmap_size = init_bootmem_node(NODE_DATA(0), bootmap_pfn, phys_base>>PAGE_SHIFT, end_pfn);
 
 	/* Now register the available physical memory with the
 	 * allocator.

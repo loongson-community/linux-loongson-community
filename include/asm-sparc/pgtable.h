@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.102 2000/08/14 00:46:13 anton Exp $ */
+/* $Id: pgtable.h,v 1.105 2000/10/30 21:01:41 davem Exp $ */
 #ifndef _SPARC_PGTABLE_H
 #define _SPARC_PGTABLE_H
 
@@ -88,18 +88,9 @@ BTFIXUPDEF_SIMM13(user_ptrs_per_pgd)
 
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
 
-#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
 #define pte_ERROR(e)   __builtin_trap()
 #define pmd_ERROR(e)   __builtin_trap()
 #define pgd_ERROR(e)   __builtin_trap()
-#else
-#define pte_ERROR(e) \
-	printk("%s:%d: bad pte %08lx.\n", __FILE__, __LINE__, pte_val(e))
-#define pmd_ERROR(e) \
-	printk("%s:%d: bad pmd %08lx.\n", __FILE__, __LINE__, pmd_val(e))
-#define pgd_ERROR(e) \
-	printk("%s:%d: bad pgd %08lx.\n", __FILE__, __LINE__, pgd_val(e))
-#endif
 
 BTFIXUPDEF_INT(page_none)
 BTFIXUPDEF_INT(page_shared)
@@ -321,8 +312,10 @@ BTFIXUPDEF_CALL_CONST(pte_t, mk_pte_io, unsigned long, pgprot_t, int)
 #define mk_pte_io(page,pgprot,space) BTFIXUP_CALL(mk_pte_io)(page,pgprot,space)
 
 BTFIXUPDEF_CALL(void, pgd_set, pgd_t *, pmd_t *)
+BTFIXUPDEF_CALL(void, pmd_set, pmd_t *, pte_t *)
 
 #define pgd_set(pgdp,pmdp) BTFIXUP_CALL(pgd_set)(pgdp,pmdp)
+#define pmd_set(pmdp,ptep) BTFIXUP_CALL(pmd_set)(pmdp,ptep)
 
 BTFIXUPDEF_INT(pte_modify_mask)
 
@@ -454,6 +447,8 @@ extern unsigned long *sparc_valid_addr_bitmap;
 
 extern int io_remap_page_range(unsigned long from, unsigned long to,
 			       unsigned long size, pgprot_t prot, int space);
+
+#include <asm-generic/pgtable.h>
 
 #endif /* !(__ASSEMBLY__) */
 

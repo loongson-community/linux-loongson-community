@@ -177,7 +177,7 @@ static void do_update_one(void *unused)
 
 	req->err = 1; /* assume the worst */
 
-	if (c->x86_vendor != X86_VENDOR_INTEL || c->x86 < 6){
+	if (c->x86_vendor != X86_VENDOR_INTEL || c->x86 != 6){
 		printk(KERN_ERR "microcode: CPU%d not an Intel P6\n", cpu_num);
 		return;
 	}
@@ -198,11 +198,15 @@ static void do_update_one(void *unused)
 			wrmsr(0x8B, 0, 0);
 			__asm__ __volatile__ ("cpuid" : : : "ax", "bx", "cx", "dx");
 			rdmsr(0x8B, val[0], rev);
-			if (microcode[i].rev <= rev) {
+			if (microcode[i].rev < rev) {
 				printk(KERN_ERR 
 					"microcode: CPU%d not 'upgrading' to earlier revision"
 					" %d (current=%d)\n", cpu_num, microcode[i].rev, rev);
-			} else { 
+			} else if (microcode[i].rev == rev) {
+				printk(KERN_ERR
+					"microcode: CPU%d already up-to-date (revision %d)\n",
+						cpu_num, rev);
+			} else {
 				int sum = 0;
 				struct microcode *m = &microcode[i];
 				unsigned int *sump = (unsigned int *)(m+1);

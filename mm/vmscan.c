@@ -55,22 +55,8 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 
 	onlist = PageActive(page);
 	/* Don't look at this pte if it's been accessed recently. */
-	if (pte_young(pte)) {
-		set_pte(page_table, pte_mkold(pte));
-		if (onlist) {
-			/*
-			 * Transfer the "accessed" bit from the page
-			 * tables to the global page map. Page aging
-			 * will be done by refill_inactive_scan().
-			 */
-                	SetPageReferenced(page);
-		} else {
-			/*
-			 * The page is not on the active list, so
-			 * we have to do the page aging ourselves.
-			 */
-			age_page_up(page);
-		}
+	if (ptep_test_and_clear_young(page_table)) {
+		age_page_up(page);
 		goto out_failed;
 	}
 	if (!onlist)
@@ -87,6 +73,13 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 
 	if (TryLockPage(page))
 		goto out_failed;
+
+	/* From this point on, the odds are that we're going to
+	 * nuke this pte, so read and clear the pte.  This hook
+	 * is needed on CPUs which update the accessed and dirty
+	 * bits in hardware.
+	 */
+	pte = ptep_get_and_clear(page_table);
 
 	/*
 	 * Is the page already in the swap cache? If so, then
@@ -124,7 +117,6 @@ drop_pte:
 	 */
 	if (!pte_dirty(pte)) {
 		flush_cache_page(vma, address);
-		pte_clear(page_table);
 		goto drop_pte;
 	}
 
@@ -134,7 +126,7 @@ drop_pte:
 	 * locks etc.
 	 */
 	if (!(gfp_mask & __GFP_IO))
-		goto out_unlock;
+		goto out_unlock_restore;
 
 	/*
 	 * Don't do any of the expensive stuff if
@@ -143,7 +135,7 @@ drop_pte:
 	if (page->zone->free_pages + page->zone->inactive_clean_pages
 					+ page->zone->inactive_dirty_pages
 		      	> page->zone->pages_high + inactive_target)
-		goto out_unlock;
+		goto out_unlock_restore;
 
 	/*
 	 * Ok, it's really dirty. That means that
@@ -169,10 +161,10 @@ drop_pte:
 		int error;
 		struct file *file = vma->vm_file;
 		if (file) get_file(file);
-		pte_clear(page_table);
+
 		mm->rss--;
 		flush_tlb_page(vma, address);
-		vmlist_access_unlock(mm);
+		spin_unlock(&mm->page_table_lock);
 		error = swapout(page, file);
 		UnlockPage(page);
 		if (file) fput(file);
@@ -191,7 +183,7 @@ drop_pte:
 	 */
 	entry = get_swap_page();
 	if (!entry.val)
-		goto out_unlock; /* No swap space left */
+		goto out_unlock_restore; /* No swap space left */
 
 	if (!(page = prepare_highmem_swapout(page)))
 		goto out_swap_free;
@@ -205,7 +197,7 @@ drop_pte:
 	mm->rss--;
 	set_pte(page_table, swp_entry_to_pte(entry));
 	flush_tlb_page(vma, address);
-	vmlist_access_unlock(mm);
+	spin_unlock(&mm->page_table_lock);
 
 	/* OK, do a physical asynchronous write to swap.  */
 	rw_swap_page(WRITE, page, 0);
@@ -215,10 +207,12 @@ out_free_success:
 	page_cache_release(page);
 	return 1;
 out_swap_free:
+	set_pte(page_table, pte);
 	swap_free(entry);
 out_failed:
 	return 0;
-out_unlock:
+out_unlock_restore:
+	set_pte(page_table, pte);
 	UnlockPage(page);
 	return 0;
 }
@@ -307,7 +301,7 @@ static int swap_out_vma(struct mm_struct * mm, struct vm_area_struct * vma, unsi
 	unsigned long end;
 
 	/* Don't swap out areas which are locked down */
-	if (vma->vm_flags & VM_LOCKED)
+	if (vma->vm_flags & (VM_LOCKED|VM_RESERVED))
 		return 0;
 
 	pgdir = pgd_offset(mm, address);
@@ -341,7 +335,7 @@ static int swap_out_mm(struct mm_struct * mm, int gfp_mask)
 	 * Find the proper vm-area after freezing the vma chain 
 	 * and ptes.
 	 */
-	vmlist_access_lock(mm);
+	spin_lock(&mm->page_table_lock);
 	vma = find_vma(mm, address);
 	if (vma) {
 		if (address < vma->vm_start)
@@ -364,7 +358,7 @@ static int swap_out_mm(struct mm_struct * mm, int gfp_mask)
 	mm->swap_cnt = 0;
 
 out_unlock:
-	vmlist_access_unlock(mm);
+	spin_unlock(&mm->page_table_lock);
 
 	/* We didn't find anything for the process */
 	return 0;
@@ -790,7 +784,8 @@ int refill_inactive_scan(unsigned int priority, int oneshot)
 			 *
 			 * SUBTLE: we can have buffer pages with count 1.
 			 */
-			if (page_count(page) <= (page->buffers ? 2 : 1)) {
+			if (page->age == 0 && page_count(page) <=
+						(page->buffers ? 2 : 1)) {
 				deactivate_page_nolock(page);
 				page_active = 0;
 			} else {
@@ -837,8 +832,9 @@ int free_shortage(void)
 		for(i = 0; i < MAX_NR_ZONES; i++) {
 			zone_t *zone = pgdat->node_zones+ i;
 			if (zone->size && (zone->inactive_clean_pages +
-					zone->free_pages < zone->pages_min)) {
-				sum += zone->pages_min;
+					zone->free_pages < zone->pages_min+1)) {
+				/* + 1 to have overlap with alloc_pages() !! */
+				sum += zone->pages_min + 1;
 				sum -= zone->free_pages;
 				sum -= zone->inactive_clean_pages;
 			}
@@ -1095,12 +1091,20 @@ int kswapd(void *unused)
 		 * We go to sleep for one second, but if it's needed
 		 * we'll be woken up earlier...
 		 */
-		if (!free_shortage() || !inactive_shortage())
+		if (!free_shortage() || !inactive_shortage()) {
 			interruptible_sleep_on_timeout(&kswapd_wait, HZ);
 		/*
-		 * TODO: insert out of memory check & oom killer
-		 * invocation in an else branch here.
+		 * If we couldn't free enough memory, we see if it was
+		 * due to the system just not having enough memory.
+		 * If that is the case, the only solution is to kill
+		 * a process (the alternative is enternal deadlock).
+		 *
+		 * If there still is enough memory around, we just loop
+		 * and try free some more memory...
 		 */
+		} else if (out_of_memory()) {
+			oom_kill();
+		}
 	}
 }
 

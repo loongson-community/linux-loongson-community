@@ -5,7 +5,7 @@
  *
  *		PF_INET protocol family socket handler.
  *
- * Version:	$Id: af_inet.c,v 1.114 2000/09/18 05:59:48 davem Exp $
+ * Version:	$Id: af_inet.c,v 1.121 2000/10/24 21:26:18 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -107,6 +107,9 @@
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
 #endif
+#ifdef CONFIG_NET_DIVERT
+#include <linux/divert.h>
+#endif /* CONFIG_NET_DIVERT */
 #if defined(CONFIG_NET_RADIO) || defined(CONFIG_NET_PCMCIA_RADIO)
 #include <linux/wireless.h>		/* Note : will define WIRELESS_EXT */
 #endif	/* CONFIG_NET_RADIO || CONFIG_NET_PCMCIA_RADIO */
@@ -444,6 +447,9 @@ int inet_release(struct socket *sock)
 	return(0);
 }
 
+/* It is off by default, see below. */
+int sysctl_ip_nonlocal_bind;
+
 static int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sockaddr_in *addr=(struct sockaddr_in *)uaddr;
@@ -460,6 +466,21 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 		return -EINVAL;
 
 	chk_addr_ret = inet_addr_type(addr->sin_addr.s_addr);
+
+	/* Not specified by any standard per-se, however it breaks too
+	 * many applications when removed.  It is unfortunate since
+	 * allowing applications to make a non-local bind solves
+	 * several problems with systems using dynamic addressing.
+	 * (ie. your servers still start up even if your ISDN link
+	 *  is temporarily down)
+	 */
+	if (sysctl_ip_nonlocal_bind == 0 && 
+	    sk->protinfo.af_inet.freebind == 0 &&
+	    addr->sin_addr.s_addr != INADDR_ANY &&
+	    chk_addr_ret != RTN_LOCAL &&
+	    chk_addr_ret != RTN_MULTICAST &&
+	    chk_addr_ret != RTN_BROADCAST)
+		return -EADDRNOTAVAIL;
 
 	snum = ntohs(addr->sin_port);
 	if (snum && snum < PROT_SOCK && !capable(CAP_NET_BIND_SERVICE))
@@ -750,13 +771,14 @@ int inet_shutdown(struct socket *sock, int how)
 	}
 
 	switch (sk->state) {
-	default:	
+	case TCP_CLOSE:
+		err = -ENOTCONN;
+		/* Hack to wake up other listeners, who can poll for
+		   POLLHUP, even on eg. unconnected UDP sockets -- RR */
+	default:
 		sk->shutdown |= how;
 		if (sk->prot->shutdown)
 			sk->prot->shutdown(sk, how);
-		break;
-	case TCP_CLOSE:
-		err = -ENOTCONN;
 		break;
 
 	/* Remaining two branches are temporary solution for missing
@@ -847,6 +869,13 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 			if (br_ioctl_hook != NULL)
 				return br_ioctl_hook(arg);
 #endif
+		case SIOCGIFDIVERT:
+		case SIOCSIFDIVERT:
+#ifdef CONFIG_NET_DIVERT
+			return(divert_ioctl(cmd, (struct divert_cf *) arg));
+#else
+			return -ENOPKG;
+#endif	/* CONFIG_NET_DIVERT */
 			return -ENOPKG;
 			
 		case SIOCADDDLCI:
@@ -946,7 +975,7 @@ extern void tcp_v4_init(struct net_proto_family *);
  *	Called by socket.c on kernel startup.  
  */
  
-void __init inet_proto_init(struct net_proto *pro)
+static int __init inet_init(void)
 {
 	struct sk_buff *dummy_skb;
 	struct inet_protocol *p;
@@ -956,7 +985,7 @@ void __init inet_proto_init(struct net_proto *pro)
 	if (sizeof(struct inet_skb_parm) > sizeof(dummy_skb->cb))
 	{
 		printk(KERN_CRIT "inet_proto_init: panic\n");
-		return;
+		return -EINVAL;
 	}
 
 	/*
@@ -1030,4 +1059,6 @@ void __init inet_proto_init(struct net_proto *pro)
 	proc_net_create ("tcp", 0, tcp_get_info);
 	proc_net_create ("udp", 0, udp_get_info);
 #endif		/* CONFIG_PROC_FS */
+	return 0;
 }
+module_init(inet_init);

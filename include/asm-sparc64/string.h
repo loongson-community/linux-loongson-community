@@ -1,4 +1,4 @@
-/* $Id: string.h,v 1.17 2000/06/19 06:24:58 davem Exp $
+/* $Id: string.h,v 1.18 2000/10/30 21:01:41 davem Exp $
  * string.h: External definitions for optimized assembly string
  *           routines for the Linux Kernel.
  *
@@ -110,18 +110,7 @@ static inline void *__constant_memset(void *s, int c, __kernel_size_t count)
 #define __HAVE_ARCH_STRLEN
 
 extern __kernel_size_t __strlen(const char *);
-
-#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 91)
 extern __kernel_size_t strlen(const char *);
-#else /* !EGCS */
-/* Ugly but it works around a bug in our original sparc64-linux-gcc.  */
-#undef strlen
-#define strlen(__arg0)					\
-({	int __strlen_res = __strlen(__arg0) + 1;	\
-	__strlen_res -= 1;				\
-	__strlen_res;					\
-})
-#endif /* !EGCS */
 
 #define __HAVE_ARCH_STRNCMP
 

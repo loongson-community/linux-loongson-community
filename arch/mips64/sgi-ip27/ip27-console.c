@@ -28,7 +28,7 @@ void prom_putchar(char c)
 
 char __init prom_getchar(void)
 {
-	return(0);
+	return 0;
 }
 
 static void
@@ -44,17 +44,11 @@ ip27prom_console_dev(struct console *c)
 }
 
 static struct console ip27_prom_console = {
-	"prom",
-	ip27prom_console_write,
-	NULL,
-	ip27prom_console_dev,
-	NULL,
-	NULL,
-	NULL,
-	CON_PRINTBUFFER,
-	-1,
-	0,
-	NULL
+    name:	"prom",
+    write:	ip27prom_console_write,
+    device:	ip27prom_console_dev,
+    flags:	CON_PRINTBUFFER,
+    index:	-1,
 };
 
 __init void ip27_setup_console(void)

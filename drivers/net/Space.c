@@ -33,6 +33,7 @@
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/netlink.h>
+#include <linux/divert.h>
 
 #define	NEXT_DEV	NULL
 
@@ -101,6 +102,7 @@ extern int mace68k_probe(struct net_device *dev);
 extern int macsonic_probe(struct net_device *dev);
 extern int mac8390_probe(struct net_device *dev);
 extern int mac89x0_probe(struct net_device *dev);
+extern int mc32_probe(struct net_device *dev);
   
 /* Gigabit Ethernet adapters */
 extern int yellowfin_probe(struct net_device *dev);
@@ -136,14 +138,28 @@ static int __init probe_list(struct net_device *dev, struct devprobe *plist)
 {
 	struct devprobe *p = plist;
 	unsigned long base_addr = dev->base_addr;
+#ifdef CONFIG_NET_DIVERT
+	int ret;
+#endif /* CONFIG_NET_DIVERT */
 
 	while (p->probe != NULL) {
-		if (base_addr && p->probe(dev) == 0)	/* probe given addr */
+		if (base_addr && p->probe(dev) == 0) {	/* probe given addr */
+#ifdef CONFIG_NET_DIVERT
+			ret = alloc_divert_blk(dev);
+			if (ret)
+				return ret;
+#endif /* CONFIG_NET_DIVERT */
 			return 0;
-		else if (p->status == 0) {		/* has autoprobe failed yet? */
+		} else if (p->status == 0) {		/* has autoprobe failed yet? */
 			p->status = p->probe(dev);	/* no, try autoprobe */
-			if (p->status == 0)
+			if (p->status == 0) {
+#ifdef CONFIG_NET_DIVERT
+				ret = alloc_divert_blk(dev);
+				if (ret)
+					return ret;
+#endif /* CONFIG_NET_DIVERT */
 				return 0;
+			}
 		}
 		p++;
 	}
@@ -188,6 +204,9 @@ struct devprobe mca_probes[] __initdata = {
 #endif
 #ifdef CONFIG_ELMC		/* 3c523 */
 	{elmc_probe, 0},
+#endif
+#ifdef CONFIG_ELMC_II		/* 3c527 */
+	{mc32_probe, 0},
 #endif
 #ifdef CONFIG_SKMC              /* SKnet Microchannel */
         {skmca_probe, 0},
@@ -687,6 +706,25 @@ extern int loopback_init(struct net_device *dev);
 struct net_device loopback_dev = 
 	{"lo", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, loopback_init};
 
+/*
+ * The @dev_base list is protected by @dev_base_lock and the rtln
+ * semaphore.
+ *
+ * Pure readers hold dev_base_lock for reading.
+ *
+ * Writers must hold the rtnl semaphore while they loop through the
+ * dev_base list, and hold dev_base_lock for writing when they do the
+ * actual updates.  This allows pure readers to access the list even
+ * while a writer is preparing to update it.
+ *
+ * To put it another way, dev_base_lock is held for writing only to
+ * protect against pure readers; the rtnl semaphore provides the
+ * protection against other writers.
+ *
+ * See, for example usages, register_netdevice() and
+ * unregister_netdevice(), which must be called with the rtnl
+ * semaphore held.
+ */
 struct net_device *dev_base = &loopback_dev;
 rwlock_t dev_base_lock = RW_LOCK_UNLOCKED;
 

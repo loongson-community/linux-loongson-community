@@ -437,6 +437,8 @@ int i2o_scsi_detect(Scsi_Host_Template * tpnt)
 				continue;
 		
 			shpnt = scsi_register(tpnt, sizeof(struct i2o_scsi_host));
+			if(shpnt==NULL)
+				continue;
 			save_flags(flags);
 			cli();
 			shpnt->unique_id = (u32)d;
@@ -902,12 +904,8 @@ int i2o_scsi_bios_param(Disk * disk, kdev_t dev, int *ip)
 	return 0;
 }
 
-/* Loadable module support */
-#ifdef MODULE
-
 MODULE_AUTHOR("Red Hat Software");
 
-Scsi_Host_Template driver_template = I2OSCSI;
+static Scsi_Host_Template driver_template = I2OSCSI;
 
 #include "../scsi/scsi_module.c"
-#endif

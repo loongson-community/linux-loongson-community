@@ -16,16 +16,16 @@
 #include <asm/sigcontext.h>
 #include <asm/user.h>
 
+extern void init_fpu(void);
 /*
  * FPU lazy state save handling...
  */
-extern void save_fpu( struct task_struct *tsk );
 extern void save_init_fpu( struct task_struct *tsk );
 extern void restore_fpu( struct task_struct *tsk );
 
 #define unlazy_fpu( tsk ) do { \
 	if ( tsk->flags & PF_USEDFPU ) \
-		save_fpu( tsk ); \
+		save_init_fpu( tsk ); \
 } while (0)
 
 #define clear_fpu( tsk ) do { \

@@ -2,6 +2,7 @@
 
 	Hardware driver for Intel i810 Random Number Generator (RNG)
 	Copyright 2000 Jeff Garzik <jgarzik@mandrakesoft.com>
+	Copyright 2000 Philipp Rumpf <prumpf@tux.org>
 
 	Driver Web site:  http://gtf.org/garzik/drivers/i810_rng/
 
@@ -131,6 +132,9 @@
 	This will slow things down but guarantee that bad data is
 	never passed upstream.
 
+	* FIXME: module unload is racy.  To fix this, struct ctl_table
+	needs an owner member a la struct file_operations.
+
 	* Since the RNG is accessed from a timer as well as normal
 	kernel code, but not from interrupts, we use spin_lock_bh
 	in regular code, and spin_lock in the timer function, to
@@ -164,6 +168,17 @@
 	* Convert numeric globals to unsigned
 	* Module unload cleanup
 
+	Version 0.9.1:
+	* Support i815 chipsets too (Matt Sottek)
+	* Fix reference counting when statically compiled (prumpf)
+	* Rewrite rng_dev_read (prumpf)
+	* Make module races less likely (prumpf)
+	* Small miscellaneous bug fixes (prumpf)
+	* Use pci table for PCI id list
+
+	Version 0.9.2:
+	* Simplify open blocking logic
+
  */
 
 
@@ -187,7 +202,7 @@
 /*
  * core module and version information
  */
-#define RNG_VERSION "0.9.0"
+#define RNG_VERSION "0.9.2"
 #define RNG_MODULE_NAME "i810_rng"
 #define RNG_DRIVER_NAME   RNG_MODULE_NAME " hardware driver " RNG_VERSION
 #define PFX RNG_MODULE_NAME ": "
@@ -216,11 +231,6 @@
         }
 #endif
 
-
-/*
- * misc helper macros
- */
-#define arraysize(x)            (sizeof(x)/sizeof(*(x)))
 
 /*
  * prototypes
@@ -281,8 +291,6 @@ static spinlock_t rng_lock = SPIN_LOCK_UNLOCKED; /* hardware lock */
 static struct timer_list rng_timer;	/* kernel timer for RNG hardware reads and tests */
 static struct pci_dev *rng_pdev;	/* Firmware Hub PCI device found during PCI probe */
 static struct semaphore rng_open_sem;	/* Semaphore for serializing rng_open/release */
-static wait_queue_head_t rng_open_wait;	/* Wait queue for serializing open/release */
-static int rng_open_mode;		/* Open mode (we only allow reads) */
 
 
 /*
@@ -363,7 +371,7 @@ static void rng_timer_tick (unsigned long data)
 
 
 /*
- * rng_enable - enable or disable the RNG and internal timer
+ * rng_enable - enable or disable the RNG hardware
  */
 static int rng_enable (int enable)
 {
@@ -377,15 +385,13 @@ static int rng_enable (int enable)
 	hw_status = rng_hwstatus ();
 
 	if (enable) {
-		rng_hw_enabled = 1;
+		rng_hw_enabled++;
 		MOD_INC_USE_COUNT;
 	} else {
-#ifndef __alpha__
-		if (GET_USE_COUNT (THIS_MODULE) > 0)
+		if (rng_hw_enabled) {
+			rng_hw_enabled--;
 			MOD_DEC_USE_COUNT;
-		if (GET_USE_COUNT (THIS_MODULE) == 0)
-			rng_hw_enabled = 0;
-#endif
+		}
 	}
 
 	if (rng_hw_enabled && ((hw_status & RNG_ENABLED) == 0)) {
@@ -407,7 +413,8 @@ static int rng_enable (int enable)
 	else if (action == 2)
 		printk (KERN_INFO PFX "RNG h/w disabled\n");
 
-	if ((!!enable) != (!!(new_status & RNG_ENABLED))) {
+	/* too bad C doesn't have ^^ */
+	if ((!enable) != (!(new_status & RNG_ENABLED))) {
 		printk (KERN_ERR PFX "Unable to %sable the RNG\n",
 			enable ? "en" : "dis");
 		rc = -EIO;
@@ -429,6 +436,7 @@ static int rng_handle_sysctl_enable (ctl_table * table, int write, struct file *
 
 	DPRINTK ("ENTER\n");
 
+	MOD_INC_USE_COUNT;
 	spin_lock_bh (&rng_lock);
 	rng_enabled_sysctl = enabled_save = rng_timer_enabled;
 	spin_unlock_bh (&rng_lock);
@@ -455,6 +463,9 @@ static int rng_handle_sysctl_enable (ctl_table * table, int write, struct file *
 	} else {
 		spin_unlock_bh (&rng_lock);
 	}
+
+	/* This needs to be in a higher layer */
+	MOD_DEC_USE_COUNT;
 
 	DPRINTK ("EXIT, returning 0\n");
 	return 0;
@@ -614,22 +625,17 @@ static int rng_dev_open (struct inode *inode, struct file *filp)
 	int rc = -EINVAL;
 
 	if ((filp->f_mode & FMODE_READ) == 0)
-		goto err_out_ret;
+		return rc;
 	if (filp->f_mode & FMODE_WRITE)
-		goto err_out_ret;
+		return rc;
 
 	/* wait for device to become free */
-	down (&rng_open_sem);
-	while (rng_open_mode & filp->f_mode) {
-		if (filp->f_flags & O_NONBLOCK) {
-			up (&rng_open_sem);
-			return -EWOULDBLOCK;
-		}
-		up (&rng_open_sem);
-		interruptible_sleep_on (&rng_open_wait);
-		if (signal_pending (current))
+	if (filp->f_flags & O_NONBLOCK) {
+		if (down_trylock (&rng_open_sem))
+			return -EAGAIN;
+	} else {
+		if (down_interruptible (&rng_open_sem))
 			return -ERESTARTSYS;
-		down (&rng_open_sem);
 	}
 
 	if (rng_enable (1)) {
@@ -637,87 +643,60 @@ static int rng_dev_open (struct inode *inode, struct file *filp)
 		goto err_out;
 	}
 
-	rng_open_mode |= filp->f_mode & (FMODE_READ | FMODE_WRITE);
-	up (&rng_open_sem);
 	return 0;
 
 err_out:
 	up (&rng_open_sem);
-err_out_ret:
 	return rc;
 }
 
 
 static int rng_dev_release (struct inode *inode, struct file *filp)
 {
-	down(&rng_open_sem);
-
 	rng_enable(0);
-	rng_open_mode &= (~filp->f_mode) & (FMODE_READ|FMODE_WRITE);
-
 	up (&rng_open_sem);
-	wake_up (&rng_open_wait);
 	return 0;
 }
 
 
-static ssize_t rng_dev_read (struct file *filp, char * buf, size_t size,
-			     loff_t *offp)
+static ssize_t rng_dev_read (struct file *filp, char *buf, size_t size,
+			     loff_t * offp)
 {
-	int have_data, copied = 0;
-	u8 data=0;
-	u8 *page;
+	int have_data;
+	u8 data = 0;
+	ssize_t ret = 0;
 
-	if (size < 1)
-		return 0;
+	while (size) {
+		spin_lock_bh (&rng_lock);
 
-	page = (unsigned char *) get_free_page (GFP_KERNEL);
-	if (!page)
-		return -ENOMEM;
-
-read_loop:
-	/* using the fact that read() can return >0 but
-	 * less than the requested amount, we simply
-	 * read up to PAGE_SIZE or buffer size, whichever
-	 * is smaller, and return that data.
-	 */
-	if ((copied == size) || (copied == PAGE_SIZE)) {
-		size_t tmpsize = (copied == size) ? size : PAGE_SIZE;
-		int rc = copy_to_user (buf, page, tmpsize);
-		free_page ((long)page);
-		if (rc) return rc;
-		return tmpsize;
-	}
-
-	spin_lock_bh (&rng_lock);
-
-	have_data = 0;
-	if (rng_data_present ()) {
-		data = rng_data_read ();
-		have_data = 1;
-	}
-
-	spin_unlock_bh (&rng_lock);
-
-	if (have_data) {
-		page[copied] = data;
-		copied++;
-	} else {
-		if (filp->f_flags & O_NONBLOCK) {
-			free_page ((long)page);
-			return -EAGAIN;
+		have_data = 0;
+		if (rng_data_present ()) {
+			data = rng_data_read ();
+			have_data = 1;
 		}
+
+		spin_unlock_bh (&rng_lock);
+
+		if (have_data) {
+			if (put_user (data, buf++)) {
+				ret = ret ? : -EFAULT;
+				break;
+			}
+			size--;
+			ret++;
+		}
+
+		if (current->need_resched)
+			schedule ();
+
+		if (signal_pending (current))
+			return ret ? : -ERESTARTSYS;
+
+		if (filp->f_flags & O_NONBLOCK)
+			return ret ? : -EAGAIN;
 	}
 
-	if (current->need_resched)
-		schedule ();
-
-	if (signal_pending (current)) {
-		free_page ((long)page);
-		return -ERESTARTSYS;
-	}
-
-	goto read_loop;
+	return ret;
 }
 
 
@@ -793,8 +772,9 @@ err_out_free_res:
  * want to register another driver on the same PCI id.
  */
 const static struct pci_device_id rng_pci_tbl[] __initdata = {
-        { 0x8086, 0x2418, PCI_ANY_ID, PCI_ANY_ID, },
-        { 0x8086, 0x2428, PCI_ANY_ID, PCI_ANY_ID, },
+	{ 0x8086, 0x2418, PCI_ANY_ID, PCI_ANY_ID, },
+	{ 0x8086, 0x2428, PCI_ANY_ID, PCI_ANY_ID, },
+	{ 0x8086, 0x1130, PCI_ANY_ID, PCI_ANY_ID, },
 	{ 0, },
 };
 MODULE_DEVICE_TABLE (pci, rng_pci_tbl);
@@ -832,14 +812,16 @@ static int __init rng_init (void)
 	DPRINTK ("ENTER\n");
 
 	init_MUTEX (&rng_open_sem);
-	init_waitqueue_head (&rng_open_wait);
 
-	pdev = pci_find_device (0x8086, 0x2418, NULL);
-	if (!pdev)
-		pdev = pci_find_device (0x8086, 0x2428, NULL);
-	if (!pdev)
-		return -ENODEV;
+	pci_for_each_dev(pdev) {
+		if (pci_match_device (rng_pci_tbl, pdev) != NULL)
+			goto match;
+	}
 
+	DPRINTK ("EXIT, returning -ENODEV\n");
+	return -ENODEV;
+
+match:
 	rc = rng_init_one (pdev);
 	if (rc)
 		return rc;
@@ -894,7 +876,7 @@ module_exit (rng_cleanup);
 *  4.11.1 (http://csrc.nist.gov/fips/fips1401.htm)
 *  The Monobit, Poker, Runs, and Long Runs tests are implemented below.
 *  This test is run at periodic intervals to verify
-*  data is sufficently random. If the tests are failed the RNG module
+*  data is sufficiently random. If the tests are failed the RNG module
 *  will no longer submit data to the entropy pool, but the tests will
 *  continue to run at the given interval. If at a later time the RNG
 *  passes all tests it will be re-enabled for the next period.
@@ -905,7 +887,7 @@ module_exit (rng_cleanup);
 *  disable the RNG, we will just leave it disabled for the period of
 *  time until the tests are rerun and passed.
 *
-*  For argument sake I tested /proc/urandom with these tests and it
+*  For argument sake I tested /dev/urandom with these tests and it
 *  took 142,095 tries before I got a failure, and urandom isn't as
 *  random as random :)
 */
@@ -923,7 +905,7 @@ static void rng_fips_test_store (int rng_data)
 	int j;
 	static int last_bit = 0;
 
-	DPRINTK ("ENTER, rng_data = %d\n", rng_data & 0xFF);
+	DPRINTK ("ENTER, rng_data = %d\n", rng_data);
 
 	poker[rng_data >> 4]++;
 	poker[rng_data & 15]++;
@@ -1010,8 +992,8 @@ static void rng_run_fips_test (void)
 	rng_trusted = rng_test;
 
 	/* finally, clear out FIPS variables for start of next run */
-	memset (&poker, 0, sizeof (poker));
-	memset (&runs, 0, sizeof (runs));
+	memset (poker, 0, sizeof (poker));
+	memset (runs, 0, sizeof (runs));
 	ones = 0;
 	rlength = -1;
 	current_bit = 0;
@@ -1019,4 +1001,3 @@ static void rng_run_fips_test (void)
 
 	DPRINTK ("EXIT\n");
 }
-

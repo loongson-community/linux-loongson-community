@@ -1,4 +1,4 @@
-/* $Id: pgalloc.h,v 1.9 2000/08/01 04:53:58 anton Exp $ */
+/* $Id: pgalloc.h,v 1.11 2000/10/16 14:32:49 anton Exp $ */
 #ifndef _SPARC_PGALLOC_H
 #define _SPARC_PGALLOC_H
 
@@ -138,9 +138,5 @@ BTFIXUPDEF_CALL(pgd_t *, pgd_alloc, void)
 
 #define pgd_free(pgd) BTFIXUP_CALL(pgd_free)(pgd)
 #define pgd_alloc() BTFIXUP_CALL(pgd_alloc)()
-
-BTFIXUPDEF_CALL(void, set_pgdir, unsigned long, pgd_t)
-
-#define set_pgdir(address,entry) BTFIXUP_CALL(set_pgdir)(address,entry)
 
 #endif /* _SPARC64_PGALLOC_H */

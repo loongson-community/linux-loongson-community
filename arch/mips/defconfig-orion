@@ -128,6 +128,7 @@ CONFIG_BLK_DEV_INITRD=y
 # CONFIG_X25 is not set
 # CONFIG_LAPB is not set
 # CONFIG_LLC is not set
+# CONFIG_NET_DIVERT is not set
 # CONFIG_ECONET_AUNUDP is not set
 # CONFIG_ECONET_NATIVE is not set
 # CONFIG_WAN_ROUTER is not set

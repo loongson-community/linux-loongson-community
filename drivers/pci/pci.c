@@ -474,6 +474,16 @@ static inline unsigned int pci_calc_resource_flags(unsigned int flags)
 	return IORESOURCE_MEM;
 }
 
+/*
+ * Find the extent of a PCI decode..
+ */
+static u32 pci_size(u32 base, unsigned long mask)
+{
+	u32 size = mask & base;		/* Find the significant bits */
+	size = size & ~(size-1);	/* Get the lowest of them to find the decode size */
+	return size-1;			/* extent = size - 1 */
+}
+
 static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 {
 	unsigned int pos, reg, next;
@@ -501,10 +511,10 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 			l = 0;
 		if ((l & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_MEMORY) {
 			res->start = l & PCI_BASE_ADDRESS_MEM_MASK;
-			sz = ~(sz & PCI_BASE_ADDRESS_MEM_MASK);
+			sz = pci_size(sz, PCI_BASE_ADDRESS_MEM_MASK);
 		} else {
 			res->start = l & PCI_BASE_ADDRESS_IO_MASK;
-			sz = ~(sz & PCI_BASE_ADDRESS_IO_MASK) & 0xffff;
+			sz = pci_size(sz, PCI_BASE_ADDRESS_IO_MASK & 0xffff);
 		}
 		res->end = res->start + (unsigned long) sz;
 		res->flags |= (l & 0xf) | pci_calc_resource_flags(l);
@@ -543,7 +553,7 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 			res->flags = (l & PCI_ROM_ADDRESS_ENABLE) |
 			  IORESOURCE_MEM | IORESOURCE_PREFETCH | IORESOURCE_READONLY | IORESOURCE_CACHEABLE;
 			res->start = l & PCI_ROM_ADDRESS_MASK;
-			sz = ~(sz & PCI_ROM_ADDRESS_MASK);
+			sz = pci_size(sz, PCI_ROM_ADDRESS_MASK);
 			res->end = res->start + (unsigned long) sz;
 		}
 		res->name = dev->name;
@@ -575,10 +585,17 @@ void __init pci_read_bridge_bases(struct pci_bus *child)
 	base = ((io_base_lo & PCI_IO_RANGE_MASK) << 8) | (io_base_hi << 16);
 	limit = ((io_limit_lo & PCI_IO_RANGE_MASK) << 8) | (io_limit_hi << 16);
 	if (base && base <= limit) {
-		res->flags |= (io_base_lo & PCI_IO_RANGE_TYPE_MASK) | IORESOURCE_IO;
+		res->flags = (io_base_lo & PCI_IO_RANGE_TYPE_MASK) | IORESOURCE_IO;
 		res->start = base;
 		res->end = limit + 0xfff;
 		res->name = child->name;
+	} else {
+		/*
+		 * Ugh. We don't know enough about this bridge. Just assume
+		 * that it's entirely transparent.
+		 */
+		printk("Unknown bridge resource %d: assuming transparent\n", 0);
+		child->resource[0] = child->parent->resource[0];
 	}
 
 	res = child->resource[1];
@@ -587,10 +604,14 @@ void __init pci_read_bridge_bases(struct pci_bus *child)
 	base = (mem_base_lo & PCI_MEMORY_RANGE_MASK) << 16;
 	limit = (mem_limit_lo & PCI_MEMORY_RANGE_MASK) << 16;
 	if (base && base <= limit) {
-		res->flags |= (mem_base_lo & PCI_MEMORY_RANGE_TYPE_MASK) | IORESOURCE_MEM;
+		res->flags = (mem_base_lo & PCI_MEMORY_RANGE_TYPE_MASK) | IORESOURCE_MEM;
 		res->start = base;
 		res->end = limit + 0xfffff;
 		res->name = child->name;
+	} else {
+		/* See comment above. Same thing */
+		printk("Unknown bridge resource %d: assuming transparent\n", 1);
+		child->resource[1] = child->parent->resource[1];
 	}
 
 	res = child->resource[2];
@@ -610,10 +631,14 @@ void __init pci_read_bridge_bases(struct pci_bus *child)
 	}
 #endif
 	if (base && base <= limit) {
-		res->flags |= (mem_base_lo & PCI_MEMORY_RANGE_TYPE_MASK) | IORESOURCE_MEM | IORESOURCE_PREFETCH;
+		res->flags = (mem_base_lo & PCI_MEMORY_RANGE_TYPE_MASK) | IORESOURCE_MEM | IORESOURCE_PREFETCH;
 		res->start = base;
 		res->end = limit + 0xfffff;
 		res->name = child->name;
+	} else {
+		/* See comments above */
+		printk("Unknown bridge resource %d: assuming transparent\n", 2);
+		child->resource[2] = child->parent->resource[2];
 	}
 }
 

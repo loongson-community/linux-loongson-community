@@ -52,6 +52,7 @@
 
 #define IOCNR_GET_DEVICE_ID	1
 #define LPIOC_GET_DEVICE_ID(len) _IOC(_IOC_READ, 'P', IOCNR_GET_DEVICE_ID, len)	/* get device_id string */
+#define LPGETSTATUS		0x060b		/* same as in drivers/char/lp.c */
 
 /*
  * A DEVICE_ID string may include the printer's serial number.
@@ -179,10 +180,19 @@ static int usblp_open(struct inode *inode, struct file *file)
 	if (usblp->used)
 		goto out;
 
+	/*
+	 * TODO: need to implement LP_ABORTOPEN + O_NONBLOCK as in drivers/char/lp.c ???
+	 * This is #if 0-ed because we *don't* want to fail an open
+	 * just because the printer is off-line.
+	 */
+#if 0
 	if ((retval = usblp_check_status(usblp, 0))) {
 		retval = retval > 1 ? -EIO : -ENOSPC;
 		goto out;
 	}
+#else
+	retval = 0;	
+#endif
 
 	usblp->used = 1;
 	file->private_data = usblp;
@@ -192,6 +202,7 @@ static int usblp_open(struct inode *inode, struct file *file)
 
 	if (usblp->bidir) {
 		usblp->readcount = 0;
+		usblp->readurb.dev = usblp->dev;
 		usb_submit_urb(&usblp->readurb);
 	}
 out:
@@ -231,30 +242,59 @@ static unsigned int usblp_poll(struct file *file, struct poll_table_struct *wait
 static int usblp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct usblp *usblp = file->private_data;
-	int length;
+	int length, err;
+	unsigned char status;
 
-	if ((_IOC_TYPE(cmd) != 'P') || (_IOC_DIR(cmd) != _IOC_READ))
-		return -EINVAL;
+	if (_IOC_TYPE(cmd) == 'P')	/* new-style ioctl number */
+	
+		switch (_IOC_NR(cmd)) {
 
-	switch (_IOC_NR(cmd)) {
+			case IOCNR_GET_DEVICE_ID: /* get the DEVICE_ID string */
+				if (_IOC_DIR(cmd) != _IOC_READ)
+					return -EINVAL;
 
-		case IOCNR_GET_DEVICE_ID: /* get the DEVICE_ID string */
+				err = usblp_get_id(usblp, 0, usblp->device_id_string, DEVICE_ID_SIZE - 1);
+				if (err < 0) {
+					dbg ("usblp%d: error = %d reading IEEE-1284 Device ID string",
+						usblp->minor, err);
+					usblp->device_id_string[0] = usblp->device_id_string[1] = '\0';
+					return -EIO;
+				}
 
-			length = (usblp->device_id_string[0] << 8) + usblp->device_id_string[1]; /* big-endian */
+				length = (usblp->device_id_string[0] << 8) + usblp->device_id_string[1]; /* big-endian */
+				if (length < DEVICE_ID_SIZE)
+					usblp->device_id_string[length] = '\0';
+				else
+					usblp->device_id_string[DEVICE_ID_SIZE - 1] = '\0';
 
-			dbg ("usblp_ioctl GET_DEVICE_ID actlen: %d, size: %d, string: '%s'",
-				length, _IOC_SIZE(cmd), &usblp->device_id_string[2]);
+				dbg ("usblp%d Device ID string [%d/max %d]='%s'",
+					usblp->minor, length, _IOC_SIZE(cmd), &usblp->device_id_string[2]);
 
-			if (length > _IOC_SIZE(cmd)) length = _IOC_SIZE(cmd); /* truncate */
+				if (length > _IOC_SIZE(cmd)) length = _IOC_SIZE(cmd); /* truncate */
 
-			if (copy_to_user((unsigned char *) arg, usblp->device_id_string, (unsigned long) length))
-				return -EFAULT;
+				if (copy_to_user((unsigned char *) arg, usblp->device_id_string, (unsigned long) length))
+					return -EFAULT;
 
-			break;
+				break;
 
-		default:
-			return -EINVAL;
-	}
+			default:
+				return -EINVAL;
+		}
+	else	/* old-style ioctl value */
+		switch (cmd) {
+
+			case LPGETSTATUS:
+				if (usblp_read_status(usblp, &status)) {
+					err("usblp%d: failed reading printer status", usblp->minor);
+					return -EIO;
+				}
+				if (copy_to_user ((unsigned char *)arg, &status, 1))
+					return -EFAULT;
+				break;
+
+			default:
+				return -EINVAL;
+		}
 
 	return 0;
 }
@@ -301,6 +341,7 @@ static ssize_t usblp_write(struct file *file, const char *buffer, size_t count, 
 		if (copy_from_user(usblp->writeurb.transfer_buffer, buffer + writecount,
 				usblp->writeurb.transfer_buffer_length)) return -EFAULT;
 
+		usblp->writeurb.dev = usblp->dev;
 		usb_submit_urb(&usblp->writeurb);
 	}
 
@@ -332,6 +373,7 @@ static ssize_t usblp_read(struct file *file, char *buffer, size_t count, loff_t 
 	if (usblp->readurb.status) {
 		err("usblp%d: error %d reading from printer",
 			usblp->minor, usblp->readurb.status);
+		usblp->readurb.dev = usblp->dev;
 		usb_submit_urb(&usblp->readurb);
 		return -EIO;
 	}
@@ -342,8 +384,11 @@ static ssize_t usblp_read(struct file *file, char *buffer, size_t count, loff_t 
 	if (copy_to_user(buffer, usblp->readurb.transfer_buffer + usblp->readcount, count))
 		return -EFAULT;
 
-	if ((usblp->readcount += count) == usblp->readurb.actual_length)
+	if ((usblp->readcount += count) == usblp->readurb.actual_length) {
+		usblp->readcount = 0;
+		usblp->readurb.dev = usblp->dev;
 		usb_submit_urb(&usblp->readurb);
+	}
 
 	return count;
 }

@@ -284,7 +284,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[0][irq]++;
 
 	printk("Got irq %d, press a key.", irq);
@@ -320,7 +320,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }
@@ -455,18 +455,16 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 	/* if action == NULL, then we do have a handler for the irq */
 	if ( action == NULL ) { goto no_handler; }
 	
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[0][irq + 16]++;
 	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 	goto end;
 
 no_handler:
 	printk("No handler for local0 irq: %i\n", irq);
 
 end:	
-	return;	
-	
 }
 
 void indy_local1_irqdispatch(struct pt_regs *regs)
@@ -493,10 +491,10 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	/* if action == NULL, then we do have a handler for the irq */
 	if ( action == NULL ) { goto no_handler; }
 	
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[0][irq + 24]++;
 	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 	goto end;
 	
 no_handler:
@@ -511,13 +509,13 @@ void indy_buserror_irq(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = 6;
 
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[0][irq]++;
 	printk("Got a bus error IRQ, shouldn't happen yet\n");
 	show_regs(regs);
 	printk("Spinning...\n");
 	while(1);
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 }
 
 /* Misc. crap just to keep the kernel linking... */

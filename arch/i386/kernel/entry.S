@@ -205,7 +205,7 @@ ENTRY(system_call)
 ENTRY(ret_from_sys_call)
 #ifdef CONFIG_SMP
 	movl processor(%ebx),%eax
-	shll $5,%eax
+	shll $CONFIG_X86_L1_CACHE_SHIFT,%eax
 	movl SYMBOL_NAME(irq_stat)(,%eax),%ecx		# softirq_active
 	testl SYMBOL_NAME(irq_stat)+4(,%eax),%ecx	# softirq_mask
 #else
@@ -261,7 +261,7 @@ ret_from_exception:
 #ifdef CONFIG_SMP
 	GET_CURRENT(%ebx)
 	movl processor(%ebx),%eax
-	shll $5,%eax
+	shll $CONFIG_X86_L1_CACHE_SHIFT,%eax
 	movl SYMBOL_NAME(irq_stat)(,%eax),%ecx		# softirq_active
 	testl SYMBOL_NAME(irq_stat)+4(,%eax),%ecx	# softirq_mask
 #else
@@ -305,16 +305,18 @@ error_code:
 	pushl %ebx
 	cld
 	movl %es,%ecx
-	xchgl %eax, ORIG_EAX(%esp)	# orig_eax (get the error code. )
+	movl ORIG_EAX(%esp), %esi	# get the error code
+	movl ES(%esp), %edi		# get the function address
+	movl %eax, ORIG_EAX(%esp)
+	movl %ecx, ES(%esp)
 	movl %esp,%edx
-	xchgl %ecx, ES(%esp)		# get the address and save es.
-	pushl %eax			# push the error code
-	pushl %edx
+	pushl %esi			# push the error code
+	pushl %edx			# push the pt_regs pointer
 	movl $(__KERNEL_DS),%edx
 	movl %edx,%ds
 	movl %edx,%es
 	GET_CURRENT(%ebx)
-	call *%ecx
+	call *%edi
 	addl $8,%esp
 	jmp ret_from_exception
 

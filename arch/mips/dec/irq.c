@@ -2,9 +2,7 @@
  * Code to handle DECstation IRQs plus some generic interrupt stuff.
  *
  * Copyright (C) 1992 Linus Torvalds
- * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
- *
- * $Id: irq.c,v 1.6 2000/02/04 07:40:23 ralf Exp $
+ * Copyright (C) 1994, 1995, 1996, 1997, 2000 Ralf Baechle
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -121,7 +119,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
     int do_random, cpu;
 
     cpu = smp_processor_id();
-    irq_enter(cpu);
+    irq_enter(cpu, irq);
     kstat.irqs[cpu][irq]++;
 
     mask_irq(irq);
@@ -138,7 +136,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 	} while (action);
 	if (do_random & SA_SAMPLE_RANDOM)
 	    add_interrupt_randomness(irq);
-	unmask_irq(irq);
+	unmask_irq(irq, irq);
 	__cli();
     }
     irq_exit(cpu);

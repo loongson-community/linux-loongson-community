@@ -46,7 +46,7 @@ extern rwlock_t xtime_lock;
 
 /* Cycle counter value at the previous timer interrupt.. */
 
-static unsigned int timerhi = 0, timerlo = 0;
+static unsigned int timerhi, timerlo;
 
 /*
  * Cached "1/(clocks per usec)*2^32" value.
@@ -317,7 +317,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 }
 
 /* last time the cmos clock got updated */
-static long last_rtc_update = 0;
+static long last_rtc_update;
 
 /*
  * timer_interrupt() needs to keep up the real-time clock,

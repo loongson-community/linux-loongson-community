@@ -34,8 +34,8 @@ static inline void free_area_pte(pmd_t * pmd, unsigned long address, unsigned lo
 	if (end > PMD_SIZE)
 		end = PMD_SIZE;
 	do {
-		pte_t page = *pte;
-		pte_clear(pte);
+		pte_t page;
+		page = ptep_get_and_clear(pte);
 		address += PAGE_SIZE;
 		pte++;
 		if (pte_none(page))
@@ -142,15 +142,14 @@ inline int vmalloc_area_pages (unsigned long address, unsigned long size,
 	flush_cache_all();
 	do {
 		pmd_t *pmd;
-		pgd_t olddir = *dir;
 		
 		pmd = pmd_alloc_kernel(dir, address);
 		if (!pmd)
 			return -ENOMEM;
+
 		if (alloc_area_pmd(pmd, address, end - address, gfp_mask, prot))
 			return -ENOMEM;
-		if (pgd_val(olddir) != pgd_val(*dir))
-			set_pgdir(address, *dir);
+
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	} while (address && (address < end));
@@ -222,14 +221,11 @@ void * __vmalloc (unsigned long size, int gfp_mask, pgprot_t prot)
 		return NULL;
 	}
 	area = get_vm_area(size, VM_ALLOC);
-	if (!area) {
-		BUG();
+	if (!area)
 		return NULL;
-	}
 	addr = area->addr;
 	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size, gfp_mask, prot)) {
 		vfree(addr);
-		BUG();
 		return NULL;
 	}
 	return addr;

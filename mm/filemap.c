@@ -135,6 +135,12 @@ void invalidate_inode_pages(struct inode * inode)
 		if (TryLockPage(page))
 			continue;
 
+		/* Neither can we invalidate something in use.. */
+		if (page_count(page) != 1) {
+			UnlockPage(page);
+			continue;
+		}
+
 		__lru_cache_del(page);
 		__remove_inode_page(page);
 		UnlockPage(page);
@@ -156,6 +162,7 @@ static inline void truncate_partial_page(struct page *page, unsigned partial)
 
 static inline void truncate_complete_page(struct page *page)
 {
+	/* Leave it on the LRU if it gets converted into anonymous buffers */
 	if (!page->buffers || block_flushpage(page, 0))
 		lru_cache_del(page);
 
@@ -167,6 +174,7 @@ static inline void truncate_complete_page(struct page *page)
 	 * all sorts of fun problems ...  
 	 */
 	ClearPageDirty(page);
+	ClearPageUptodate(page);
 	remove_inode_page(page);
 	page_cache_release(page);
 }
@@ -495,20 +503,46 @@ void ___wait_on_page(struct page *page)
 }
 
 /*
- * Get an exclusive lock on the page..
+ * Get a lock on the page, assuming we need to sleep
+ * to get it..
+ */
+static void __lock_page(struct page *page)
+{
+	struct task_struct *tsk = current;
+	DECLARE_WAITQUEUE(wait, tsk);
+
+	add_wait_queue_exclusive(&page->wait, &wait);
+	for (;;) {
+		sync_page(page);
+		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
+		if (PageLocked(page)) {
+			run_task_queue(&tq_disk);
+			schedule();
+			continue;
+		}
+		if (!TryLockPage(page))
+			break;
+	}
+	tsk->state = TASK_RUNNING;
+	remove_wait_queue(&page->wait, &wait);
+}
+	
+
+/*
+ * Get an exclusive lock on the page, optimistically
+ * assuming it's not locked..
  */
 void lock_page(struct page *page)
 {
-	while (TryLockPage(page))
-		___wait_on_page(page);
+	if (TryLockPage(page))
+		__lock_page(page);
 }
-
 
 /*
  * a rather lightweight function, finding and getting a reference to a
  * hashed page atomically, waiting for it if it's locked.
  */
-struct page * __find_get_page (struct address_space *mapping,
+static struct page * __find_get_page(struct address_space *mapping,
 				unsigned long offset, struct page **hash)
 {
 	struct page *page;
@@ -517,41 +551,11 @@ struct page * __find_get_page (struct address_space *mapping,
 	 * We scan the hash list read-only. Addition to and removal from
 	 * the hash-list needs a held write-lock.
 	 */
-repeat:
 	spin_lock(&pagecache_lock);
 	page = __find_page_nolock(mapping, offset, *hash);
 	if (page)
 		page_cache_get(page);
 	spin_unlock(&pagecache_lock);
-
-	/* Found the page, sleep if locked. */
-	if (page && PageLocked(page)) {
-		struct task_struct *tsk = current;
-		DECLARE_WAITQUEUE(wait, tsk);
-
-		sync_page(page);
-
-		__set_task_state(tsk, TASK_UNINTERRUPTIBLE);
-		add_wait_queue(&page->wait, &wait);
-
-		if (PageLocked(page))
-			schedule();
-		__set_task_state(tsk, TASK_RUNNING);
-		remove_wait_queue(&page->wait, &wait);
-
-		/*
-		 * The page might have been unhashed meanwhile. It's
-		 * not freed though because we hold a reference to it.
-		 * If this is the case then it will be freed _here_,
-		 * and we recheck the hash anyway.
-		 */
-		page_cache_release(page);
-		goto repeat;
-	}
-	/*
-	 * It's not locked so we can return the page and we hold
-	 * a reference to it.
-	 */
 	return page;
 }
 
@@ -570,39 +574,23 @@ struct page * __find_lock_page (struct address_space *mapping,
 repeat:
 	spin_lock(&pagecache_lock);
 	page = __find_page_nolock(mapping, offset, *hash);
-	if (page)
+	if (page) {
 		page_cache_get(page);
-	spin_unlock(&pagecache_lock);
+		spin_unlock(&pagecache_lock);
 
-	/* Found the page, sleep if locked. */
-	if (page && TryLockPage(page)) {
-		struct task_struct *tsk = current;
-		DECLARE_WAITQUEUE(wait, tsk);
+		lock_page(page);
 
-		sync_page(page);
+		/* Is the page still hashed? Ok, good.. */
+		if (page->mapping)
+			return page;
 
-		__set_task_state(tsk, TASK_UNINTERRUPTIBLE);
-		add_wait_queue(&page->wait, &wait);
-
-		if (PageLocked(page))
-			schedule();
-		__set_task_state(tsk, TASK_RUNNING);
-		remove_wait_queue(&page->wait, &wait);
-
-		/*
-		 * The page might have been unhashed meanwhile. It's
-		 * not freed though because we hold a reference to it.
-		 * If this is the case then it will be freed _here_,
-		 * and we recheck the hash anyway.
-		 */
+		/* Nope: we raced. Release and try again.. */
+		UnlockPage(page);
 		page_cache_release(page);
 		goto repeat;
 	}
-	/*
-	 * It's not locked so we can return the page and we hold
-	 * a reference to it.
-	 */
-	return page;
+	spin_unlock(&pagecache_lock);
+	return NULL;
 }
 
 #if 0
@@ -993,7 +981,7 @@ page_ok:
 		 * virtual addresses, take care about potential aliasing
 		 * before reading the page on the kernel side.
 		 */
-		if (page->mapping->i_mmap_shared != NULL)
+		if (mapping->i_mmap_shared != NULL)
 			flush_dcache_page(page);
 
 		/*
@@ -1027,6 +1015,15 @@ page_not_up_to_date:
 
 		/* Get exclusive access to the page ... */
 		lock_page(page);
+
+		/* Did it get unhashed before we got the lock? */
+		if (!page->mapping) {
+			UnlockPage(page);
+			page_cache_release(page);
+			continue;
+		}
+
+		/* Did somebody else fill it already? */
 		if (Page_Uptodate(page)) {
 			UnlockPage(page);
 			goto page_ok;
@@ -1323,16 +1320,16 @@ struct page * filemap_nopage(struct vm_area_struct * area,
 	struct inode *inode = file->f_dentry->d_inode;
 	struct address_space *mapping = inode->i_mapping;
 	struct page *page, **hash, *old_page;
-	unsigned long size = (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	unsigned long size, pgoff;
 
-	unsigned long pgoff = ((address - area->vm_start) >> PAGE_CACHE_SHIFT) + area->vm_pgoff;
+	pgoff = ((address - area->vm_start) >> PAGE_CACHE_SHIFT) + area->vm_pgoff;
 
+retry_all:
 	/*
-	 * Semantics for shared and private memory areas are different
-	 * past the end of the file. A shared mapping past the last page
-	 * of the file is an error and results in a SIGBUS, while a
-	 * private mapping just maps in a zero page.
+	 * An external ptracer can access pages that normally aren't
+	 * accessible..
 	 */
+	size = (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	if ((pgoff >= size) && (area->vm_mm == current->mm))
 		return NULL;
 
@@ -1411,6 +1408,15 @@ no_cached_page:
 
 page_not_uptodate:
 	lock_page(page);
+
+	/* Did it get unhashed while we waited for it? */
+	if (!page->mapping) {
+		UnlockPage(page);
+		page_cache_release(page);
+		goto retry_all;
+	}
+
+	/* Did somebody else get it up-to-date? */
 	if (Page_Uptodate(page)) {
 		UnlockPage(page);
 		goto success;
@@ -1429,6 +1435,15 @@ page_not_uptodate:
 	 * and we need to check for errors.
 	 */
 	lock_page(page);
+
+	/* Somebody truncated the page on us? */
+	if (!page->mapping) {
+		UnlockPage(page);
+		page_cache_release(page);
+		goto retry_all;
+	}
+
+	/* Somebody else successfully read it in? */
 	if (Page_Uptodate(page)) {
 		UnlockPage(page);
 		goto success;
@@ -1448,17 +1463,25 @@ page_not_uptodate:
 	return NULL;
 }
 
+/*
+ * If a task terminates while we're swapping the page, the vma and
+ * and file could be released: try_to_swap_out has done a get_file.
+ * vma/file is guaranteed to exist in the unmap/sync cases because
+ * mmap_sem is held.
+ *
+ * The "mapping" test takes care of somebody having truncated the
+ * page and thus made this write-page a no-op..
+ */
 static int filemap_write_page(struct file *file,
 			      struct page * page,
 			      int wait)
 {
-	/*
-	 * If a task terminates while we're swapping the page, the vma and
-	 * and file could be released: try_to_swap_out has done a get_file.
-	 * vma/file is guaranteed to exist in the unmap/sync cases because
-	 * mmap_sem is held.
-	 */
-	return page->mapping->a_ops->writepage(file, page);
+	struct address_space * mapping = page->mapping;
+	int error = 0;
+
+	if (mapping)
+		error = mapping->a_ops->writepage(file, page);
+	return error;
 }
 
 
@@ -1475,39 +1498,47 @@ int filemap_swapout(struct page * page, struct file * file)
 	return retval;
 }
 
+/* Called with mm->page_table_lock held to protect against other
+ * threads/the swapper from ripping pte's out from under us.
+ */
 static inline int filemap_sync_pte(pte_t * ptep, struct vm_area_struct *vma,
 	unsigned long address, unsigned int flags)
 {
 	unsigned long pgoff;
-	pte_t pte = *ptep;
+	pte_t pte;
 	struct page *page;
 	int error;
 
+	pte = *ptep;
+
 	if (!(flags & MS_INVALIDATE)) {
 		if (!pte_present(pte))
-			return 0;
-		if (!pte_dirty(pte))
-			return 0;
+			goto out;
+		if (!ptep_test_and_clear_dirty(ptep))
+			goto out;
 		flush_page_to_ram(pte_page(pte));
 		flush_cache_page(vma, address);
-		set_pte(ptep, pte_mkclean(pte));
 		flush_tlb_page(vma, address);
 		page = pte_page(pte);
 		page_cache_get(page);
 	} else {
 		if (pte_none(pte))
-			return 0;
+			goto out;
 		flush_cache_page(vma, address);
-		pte_clear(ptep);
+
+		pte = ptep_get_and_clear(ptep);
 		flush_tlb_page(vma, address);
+
 		if (!pte_present(pte)) {
+			spin_unlock(&vma->vm_mm->page_table_lock);
 			swap_free(pte_to_swp_entry(pte));
-			return 0;
+			spin_lock(&vma->vm_mm->page_table_lock);
+			goto out;
 		}
 		page = pte_page(pte);
 		if (!pte_dirty(pte) || flags == MS_INVALIDATE) {
 			page_cache_free(page);
-			return 0;
+			goto out;
 		}
 	}
 	pgoff = (address - vma->vm_start) >> PAGE_CACHE_SHIFT;
@@ -1516,11 +1547,20 @@ static inline int filemap_sync_pte(pte_t * ptep, struct vm_area_struct *vma,
 		printk("weirdness: pgoff=%lu index=%lu address=%lu vm_start=%lu vm_pgoff=%lu\n",
 			pgoff, page->index, address, vma->vm_start, vma->vm_pgoff);
 	}
+
+	spin_unlock(&vma->vm_mm->page_table_lock);
 	lock_page(page);
+
 	error = filemap_write_page(vma->vm_file, page, 1);
+
 	UnlockPage(page);
 	page_cache_free(page);
+
+	spin_lock(&vma->vm_mm->page_table_lock);
 	return error;
+
+out:
+	return 0;
 }
 
 static inline int filemap_sync_pte_range(pmd_t * pmd,
@@ -1590,6 +1630,11 @@ int filemap_sync(struct vm_area_struct * vma, unsigned long address,
 	unsigned long end = address + size;
 	int error = 0;
 
+	/* Aquire the lock early; it may be possible to avoid dropping
+	 * and reaquiring it repeatedly.
+	 */
+	spin_lock(&vma->vm_mm->page_table_lock);
+
 	dir = pgd_offset(vma->vm_mm, address);
 	flush_cache_range(vma->vm_mm, end - size, end);
 	if (address >= end)
@@ -1600,6 +1645,9 @@ int filemap_sync(struct vm_area_struct * vma, unsigned long address,
 		dir++;
 	} while (address && (address < end));
 	flush_tlb_range(vma->vm_mm, end - size, end);
+
+	spin_unlock(&vma->vm_mm->page_table_lock);
+
 	return error;
 }
 
@@ -1766,11 +1814,11 @@ static long madvise_fixup_start(struct vm_area_struct * vma,
 	get_file(n->vm_file);
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
-	vmlist_modify_lock(vma->vm_mm);
+	spin_lock(&vma->vm_mm->page_table_lock);
 	vma->vm_pgoff += (end - vma->vm_start) >> PAGE_SHIFT;
 	vma->vm_start = end;
 	insert_vm_struct(current->mm, n);
-	vmlist_modify_unlock(vma->vm_mm);
+	spin_unlock(&vma->vm_mm->page_table_lock);
 	return 0;
 }
 
@@ -1790,10 +1838,10 @@ static long madvise_fixup_end(struct vm_area_struct * vma,
 	get_file(n->vm_file);
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
-	vmlist_modify_lock(vma->vm_mm);
+	spin_lock(&vma->vm_mm->page_table_lock);
 	vma->vm_end = start;
 	insert_vm_struct(current->mm, n);
-	vmlist_modify_unlock(vma->vm_mm);
+	spin_unlock(&vma->vm_mm->page_table_lock);
 	return 0;
 }
 
@@ -1823,7 +1871,7 @@ static long madvise_fixup_middle(struct vm_area_struct * vma,
 		vma->vm_ops->open(left);
 		vma->vm_ops->open(right);
 	}
-	vmlist_modify_lock(vma->vm_mm);
+	spin_lock(&vma->vm_mm->page_table_lock);
 	vma->vm_pgoff += (start - vma->vm_start) >> PAGE_SHIFT;
 	vma->vm_start = start;
 	vma->vm_end = end;
@@ -1831,7 +1879,7 @@ static long madvise_fixup_middle(struct vm_area_struct * vma,
 	vma->vm_raend = 0;
 	insert_vm_struct(current->mm, left);
 	insert_vm_struct(current->mm, right);
-	vmlist_modify_unlock(vma->vm_mm);
+	spin_unlock(&vma->vm_mm->page_table_lock);
 	return 0;
 }
 
@@ -2270,13 +2318,20 @@ struct page *read_cache_page(struct address_space *mapping,
 				int (*filler)(void *,struct page*),
 				void *data)
 {
-	struct page *page = __read_cache_page(mapping, index, filler, data);
+	struct page *page;
 	int err;
 
+retry:
+	page = __read_cache_page(mapping, index, filler, data);
 	if (IS_ERR(page) || Page_Uptodate(page))
 		goto out;
 
 	lock_page(page);
+	if (!page->mapping) {
+		UnlockPage(page);
+		page_cache_release(page);
+		goto retry;
+	}
 	if (Page_Uptodate(page)) {
 		UnlockPage(page);
 		goto out;

@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.56 2000/09/21 06:29:01 anton Exp $
+/*  $Id: setup.c,v 1.57 2000/10/14 10:09:00 davem Exp $
  *  linux/arch/sparc64/kernel/setup.c
  *
  *  Copyright (C) 1995,1996  David S. Miller (davem@caip.rutgers.edu)
@@ -75,17 +75,10 @@ prom_console_write(struct console *con, const char *s, unsigned n)
 }
 
 static struct console prom_console = {
-	"prom",
-	prom_console_write,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	CON_CONSDEV | CON_ENABLED,
-	-1,
-	0,
-	NULL
+	name:		"prom",
+	write:		prom_console_write,
+	flags:		CON_CONSDEV | CON_ENABLED,
+	index:		-1,
 };
 
 #define PROM_TRUE	-1
@@ -294,17 +287,10 @@ unsigned long cmdline_memory_size = 0;
 
 #ifdef PROM_DEBUG_CONSOLE
 static struct console prom_debug_console = {
-	"debug",
-	prom_console_write,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	CON_PRINTBUFFER,
-	-1,
-	0,
-	NULL
+	name:		"debug",
+	write:		prom_console_write,
+	flags:		CON_PRINTBUFFER,
+	index:		-1,
 };
 #endif
 

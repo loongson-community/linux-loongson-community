@@ -1,4 +1,4 @@
-# Maintained by Axel Boldt (boldt@math.ucsb.edu)
+# Maintained by Axel Boldt (axel@uni-paderborn.de)
 #
 # This version of the Linux kernel configuration help texts
 # corresponds to the kernel versions 2.3.x.
@@ -868,6 +868,10 @@ CONFIG_BLK_DEV_OPTI621
   This is a driver for the OPTi 82C621 EIDE controller.
   Please read the comments at the top of drivers/ide/opti621.c.
 
+ServerWorks OSB4 chipset support (EXPERIMENTAL)
+CONFIG_BLK_DEV_OSB4
+  This driver adds PIO/DMA support for the Serverworks OSB4 chipset
+
 Intel PIIXn chipsets support
 CONFIG_BLK_DEV_PIIX
   This driver adds PIO mode setting and tuning for all PIIX IDE
@@ -938,7 +942,20 @@ CONFIG_BLK_DEV_SIS5513
   available" as well.
 
   Please read the comments at the top of drivers/ide/sis5513.c
- 
+
+SLC90E66 chipset support
+CONFIG_BLK_DEV_SLC90E66
+  This driver ensures (U)DMA support for Victroy66 SouthBridges for
+  SMsC with Intel NorthBridges.  This is an Ultra66 based chipset.
+  The nice thing about it is that you can mix Ultra/DMA/PIO devices
+  and it will handle timing cycles.  Since this is an improved look-a-like
+  to the PIIX4 it should be a nice addition.
+
+  If you say Y here, you need to say Y to "Use DMA by default when
+  available" as well.
+
+  Please read the comments at the top of drivers/ide/slc90e66.c
+
 Winbond SL82c105 support
 CONFIG_BLK_DEV_SL82C105
   If you have a Winbond SL82c105 IDE controller, say Y here to enable
@@ -2157,12 +2174,25 @@ CONFIG_ALPHA_LEGACY_START_ADDRESS
 
   If you're using aboot 0.7 or later, the bootloader will examine
   the ELF headers to determine where to transfer control.  Unfortunately,
-  most older bootloaders -- APB, or MILO -- hardcoded the kernel
+  most older bootloaders -- APB or MILO -- hardcoded the kernel
   start address rather than examining the ELF headers, and the result
   is a hard lockup.
 
   Say Y if you have a broken bootloader.  Say N if you do not, or
   if you wish to run on Wildfire.
+
+Large VMALLOC support
+CONFIG_ALPHA_LARGE_VMALLOC
+  Process creation and other aspects of virtual memory management
+  can be streamlined if we restrict the kernel to one PGD for all
+  vmalloc allocations.  This equates to about 8GB.
+
+  Under normal circumstances, this is so far and above what is needed
+  as to be laughable.  However, there are certain applications (such
+  as benchmark-grade in-kernel web serving) that can make use of as
+  much vmalloc space as is available.
+
+  Say N unless you know you need gobs and gobs of vmalloc space.
 
 Non-standard serial port support
 CONFIG_SERIAL_NONSTANDARD
@@ -2377,6 +2407,30 @@ CONFIG_AGP_ALI
 
 PCI support
 CONFIG_PCI
+  Find out whether you have a PCI motherboard. PCI is the name of a
+  bus system, i.e. the way the CPU talks to the other stuff inside
+  your box. Other bus systems are ISA, EISA, Microchannel (MCA) or
+  VESA. If you have PCI, say Y, otherwise N. 
+
+  The PCI-HOWTO, available from
+  http://www.linuxdoc.org/docs.html#howto , contains valuable
+  information about which PCI hardware does work under Linux and which
+  doesn't.
+
+PCI support
+CONFIG_PCI_INTEGRATOR
+  Find out whether you have a PCI motherboard. PCI is the name of a
+  bus system, i.e. the way the CPU talks to the other stuff inside
+  your box. Other bus systems are ISA, EISA, Microchannel (MCA) or
+  VESA. If you have PCI, say Y, otherwise N. 
+
+  The PCI-HOWTO, available from
+  http://www.linuxdoc.org/docs.html#howto , contains valuable
+  information about which PCI hardware does work under Linux and which
+  doesn't.
+
+QSpan PCI
+CONFIG_PCI_QSPAN
   Find out whether you have a PCI motherboard. PCI is the name of a
   bus system, i.e. the way the CPU talks to the other stuff inside
   your box. Other bus systems are ISA, EISA, Microchannel (MCA) or
@@ -4570,6 +4624,30 @@ CONFIG_LAPB
 CONFIG_LLC
   This is a Logical Link Layer protocol used for X.25 connections over
   Ethernet, using ordinary Ethernet cards. 
+
+
+Frame Diverter (EXPERIMENTAL)
+CONFIG_NET_DIVERT
+  The Frame Diverter allows you to divert packets from the
+  network, that are not aimed at the interface receiving it (in 
+  promisc. mode). Typically, a Linux box setup as an ethernet bridge
+  with the Frames Diverter on, can do some *really* transparent www 
+  caching using a Squid proxy for example.
+
+  This is very usefull when you don't want to change your router's
+  config (or if you simply don't have access to it).
+
+  The other possible usages of diverting Ethernet Frames are numberous:
+   - reroute smtp traffic to another interface
+   - traffic-shape certain network streams
+   - transparently proxy smtp connections
+   - etc...
+
+  For more informations, please refer to:
+    http://www.freshmeat.net/projects/etherdivert
+    http://perso.wanadoo.fr/magpie/EtherDivert.html
+
+  If unsure, say N
 
 802.1d Ethernet Bridging
 CONFIG_BRIDGE
@@ -8124,6 +8202,11 @@ CONFIG_NE2K_PCI
   say Y and read the Ethernet-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto .
 
+  This driver also works for the following NE2000 clone cards:
+    RealTek RTL-8029  Winbond 89C940  Compex RL2000  KTI ET32P2
+    NetVin NV5000SC   Via 86C926      SureCom NE34   Winbond
+    Holtek HT80232    Holtek HT80229
+
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called ne2k-pci.o. If you want to compile it as a
@@ -8186,6 +8269,8 @@ CONFIG_RTL8129
   the RTL8129 chip. If you have one of those, say Y and
   read the Ethernet-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto .
+
+  Note: the 8029 is a NE2000 PCI clone, you can use the NE2K-PCI driver.
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -9969,12 +10054,13 @@ CONFIG_USB_OHCI
   The module will be called usb-ohci.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
-USB Human Interface Device (HID) support
+USB Human Interface Device (full HID) support
 CONFIG_USB_HID
-  Say Y here if you want to connect keyboards, mice, joysticks,
-  graphic tablets, or any other HID based devices to your
-  computer via USB. More information is available:
-  Documentation/usb/input.txt.
+  Say Y here if you want full HID support to connect keyboards,
+  mice, joysticks, graphic tablets, or any other HID based devices
+  to your computer via USB. You can't use this driver and the
+  HIDBP (Boot Protocol) keyboard and mouse drivers at the same time.
+  More information is available: Documentation/usb/input.txt.
 
   If unsure, say Y.
 
@@ -9983,11 +10069,11 @@ CONFIG_USB_HID
   The module will be called hid.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-USB HIDBP Keyboard support
+USB HIDBP Keyboard (basic) support
 CONFIG_USB_KBD
   Say Y here if you don't want to use the generic HID driver for your
   USB keyboard and prefer to use the keyboard in its limited Boot
-  Protocol mode. This driver is much smaller than the HID one.
+  Protocol mode instead. This driver is much smaller than the HID one.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -9996,11 +10082,11 @@ CONFIG_USB_KBD
 
   If unsure, say N.
 
-USB HIDBP Mouse support
+USB HIDBP Mouse (basic) support
 CONFIG_USB_MOUSE
   Say Y here if you don't want to use the generic HID driver for your
   USB mouse and prefer to use the mouse in its limited Boot Protocol
-  mode. This driver is much smaller than the HID one.
+  mode instead. This driver is much smaller than the HID one.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -14259,6 +14345,25 @@ CONFIG_SOUND_TRIDENT
   for Trident 4Dwave. PCI ID 1039:7018 stands for SiS7018. PCI ID
   10B9:5451 stands for ALi5451.
 
+  This driver supports S/PDIF in/out (record/playback) for ALi 5451
+  embedded in ALi M1535+ and M1535D+. Note that they aren't all 
+  enabled by default; you can enable them by saying Y to "/proc file
+  system support" and "Sysctl support", and after the /proc file 
+  system has been mounted, executing the command
+
+	command			what is enabled
+  
+  echo 0>/proc/ALi5451	pcm out is also set to S/PDIF out. (Default).
+  
+  echo 1>/proc/ALi5451	use S/PDIF out to output pcm data.
+  
+  echo 2>/proc/ALi5451	use S/PDIF out to output non-pcm data.(AC3...).
+
+  echo 3>/proc/ALi5451	record from Ac97 in(MIC, Line in...). (Default).
+  
+  echo 4>/proc/ALi5451	no matter Ac97 settings, record from S/PDIF in.
+  
+  
   This driver differs slightly from OSS/Free, so PLEASE READ the
   comments at the top of driver/sound/trident.c
 
@@ -15094,18 +15199,27 @@ CONFIG_RMW_INSNS
   really know what you are doing, say N. Try Y only if you're quite
   adventurous.
 
-Amiga AutoConfig Identification
+Zorro support
 CONFIG_ZORRO
-  This enables support for automatic identification of Amiga expansion
-  cards that obey the AutoConfig(tm) specification.
-  Say Y if you want your expansion cards to be identified on bootup;
-  it will enlarge your kernel by about 10 KB. The identification
-  information is then also available through /proc/zorro (say Y to
-  "/proc file system support"!). Read Documentation/zorro.txt for more
-  information. 
+  This enables support for the Zorro bus in the Amiga. If you have
+  expansion cards in your Amiga that conform to the Amiga
+  AutoConfig(tm) specification, say Y, otherwise N. Note that even
+  expansion cards that do not fit in the Zorro slots but fit in e.g.
+  the CPU slot may fall in this category, so you have to say Y to let
+  Linux use these.
 
-  Note that even if you say N here, you can still use your expansion
-  cards. If in doubt, say Y.
+Zorro device name database
+CONFIG_ZORRO_NAMES
+  By default, the kernel contains a database of all known Zorro device
+  names to make the information in /proc/iomem comprehensible to the
+  user. This database increases the size of the kernel image by about
+  15KB, but it gets freed after the system boots up, so it doesn't
+  take up kernel memory. Anyway, if you are building an installation
+  floppy or kernel for an embedded system where kernel image size
+  really matters, you can disable this feature and you'll get device
+  ID numbers instead of names.
+
+  When in doubt, say Y.
 
 Amiga 1200/600 PCMCIA support (EXPERIMENTAL)
 CONFIG_AMIGA_PCMCIA
@@ -16683,6 +16797,119 @@ CONFIG_DISPLAY7SEG
   If you do not have a CompactPCI model CP1400 or CP1500, or
   another UltraSPARC-IIi-cEngine boardset with a 7-segment display,
   you should say N to this option. 
+
+IA-64 system type
+CONFIG_IA64_GENERIC
+  This selects the system type of your hardware.  A "generic" kernel
+  will run on any supported IA-64 system.  However, if you configure
+  a kernel for your specific system, it will be faster and smaller.
+
+  To find out what type of IA-64 system you have, you may want to
+  check the IA-64 Linux web site at http://www.linux-ia64.org/.
+  As of the time of this writing, most hardware is DIG compliant,
+  so the "DIG-compliant" option is usually the right choice.
+
+  HP-simulator   For the HP simulator (http://software.hp.com/ia64linux/).
+  SN1-simulator  For the SGI SN1 simulator.
+  DIG-compliant  For DIG ("Developer's Interface Guide") compliant system.
+
+  If you don't know what to do, choose "generic".
+
+Kernel page size
+CONFIG_IA64_PAGE_SIZE_4KB
+
+  This lets you select the page size of the kernel.  For best IA-64
+  performance, a page size of 8KB or 16KB is recommended.  For best
+  IA-32 compatibility, a page size of 4KB should be selected (the vast
+  majority of IA-32 binaries work perfectly fine with a larger page
+  size).  For Itanium systems, do NOT chose a page size larger than
+  16KB.
+
+  4KB                For best IA-32 compatibility
+  8KB                For best IA-64 performance
+  16KB               For best IA-64 performance
+  64KB               Not for Itanium.
+
+  If you don't know what to do, choose 8KB.
+
+Enable Itanium A-step specific code
+CONFIG_ITANIUM_ASTEP_SPECIFIC
+  Select this option to build a kernel for an Itanium prototype system
+  with an A-step CPU.  You have an A-step CPU if the "revision" field in
+  /proc/cpuinfo is 0.
+
+Enable Itanium A1-step specific code
+CONFIG_ITANIUM_A1_SPECIFIC
+  Select this option to build a kernel for an Itanium prototype system
+  with an A1-step CPU.  If you don't know whether you have an A1-step CPU,
+  you probably don't and you can answer "no" here.
+
+Enable Itanium B-step specific code
+CONFIG_ITANIUM_BSTEP_SPECIFIC
+  Select this option to build a kernel for an Itanium prototype system
+  with a B-step CPU.  You have a B-step CPU if the "revision" field in
+  /proc/cpuinfo has a value in the range from 1 to 4.
+
+Enable Itanium B0-step specific code
+CONFIG_ITANIUM_B0_SPECIFIC
+  Select this option to bild a kernel for an Itanium prototype system
+  with a B0-step CPU.  You have a B0-step CPU if the "revision" field in
+  /proc/cpuinfo is 1.
+
+Force interrupt redirection
+CONFIG_IA64_HAVE_IRQREDIR
+  Select this option if you know that your system has the ability to
+  redirect interrupts to different CPUs.  Select N here if you're
+  unsure.
+
+Enable use of global TLB purge instruction (ptc.g)
+CONFIG_ITANIUM_PTCG
+  Say Y here if you want the kernel to use the IA-64 "ptc.g"
+  instruction to flush the TLB on all CPUs.  Select N here if
+  you're unsure.
+
+Enable SoftSDV hacks
+CONFIG_IA64_SOFTSDV_HACKS
+  Say Y here to enable hacks to make the kernel work on the Intel
+  SoftSDV simulator.  Select N here if you're unsure.
+
+Enable AzusA hacks
+CONFIG_IA64_AZUSA_HACKS
+  Say Y here to enable hacks to make the kernel work on the NEC
+  AzusA platform.  Select N here if you're unsure.
+
+Force socket buffers below 4GB?
+CONFIG_SKB_BELOW_4GB
+  Most of today's network interface cards (NICs) support DMA to
+  the low 32 bits of the address space only.  On machines with
+  more then 4GB of memory, this can cause the system to slow
+  down if there is no I/O TLB hardware.  Turning this option on
+  avoids the slow-down by forcing socket buffers to be allocated
+  from memory below 4GB.  The downside is that your system could
+  run out of memory below 4GB before all memory has been used up.
+  If you're unsure how to answer this question, answer Y.
+
+Enable IA-64 Machine Check Abort
+CONFIG_IA64_MCA
+  Say Y here to enable machine check support for IA-64.  If you're
+  unsure, answer Y.
+
+Performance monitor support
+CONFIG_PERFMON
+  Selects whether support for the IA-64 performance monitor hardware
+  is included in the kernel.  This makes some kernel data-structures a
+  little bigger and slows down execution a bit, but it is still
+  usually a good idea to turn this on.  If you're unsure, say N.
+
+/proc/pal support
+CONFIG_IA64_PALINFO
+  If you say Y here, you are able to get PAL (Processor Abstraction
+  Layer) information in /proc/pal.  This contains useful information
+  about the processors in your systems, such as cache and TLB sizes
+  and the PAL firmware version in use.
+
+  To use this option, you have to check that the "/proc file system
+  support" (CONFIG_PROC_FS) is enabled, too.
 
 #
 # A couple of things I keep forgetting:
