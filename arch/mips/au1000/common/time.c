@@ -89,7 +89,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		goto null;
 
 	do {
-		count = read_c0_prid();
+		count = read_c0_count();
 		timerhi += (count < timerlo);   /* Wrap around */
 		timerlo = count;
 
