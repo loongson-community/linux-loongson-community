@@ -359,7 +359,7 @@ extern inline void pgd_clear(pgd_t *pgdp)
 #define mips64_pte_pagenr(x) \
 	(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID(pte_val(x))) + \
 	PLAT_NODE_DATA_LOCALNR(pte_val(x), PHYSADDR_TO_NID(pte_val(x))))
-#define pte_page(x)		(mem_map+pte_pagenr(x))
+#define pte_page(x)		(mem_map+mips64_pte_pagenr(x))
 #endif
 
 /*
