@@ -1,4 +1,4 @@
-/* $Id: hal2.c,v 1.9 1999/01/28 21:54:39 ulfc Exp $
+/* $Id: hal2.c,v 1.10 1999/02/02 20:24:46 ulfc Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -210,8 +210,6 @@ static void hal2_reset(void)
 	h2_ctrl->isr = 0;		/* reset the card */
 	udelay(200);
 	printk("reset done isr:%04hx\n", h2_ctrl->isr);
-	udelay(200);
-	h2_ctrl->isr = H2_ISR_GLOBAL_RESET_N;
 	udelay(200);
 	h2_ctrl->isr = H2_ISR_GLOBAL_RESET_N | H2_ISR_CODEC_RESET_N;
 	udelay(200);

@@ -11,28 +11,27 @@
 #define H2_VOLUME_PIO		(H2_HAL2_BASE + 2 * 0x200)
 #define H2_SYNTH_PIO		(H2_HAL2_BASE + 3 * 0x200)
 
-typedef volatile unsigned short hal_reg;
+typedef volatile unsigned int hal_reg;
 
 struct hal2_ctrl_regs {
-	hal_reg _unused0[8];
+	hal_reg _unused0[4];
 	hal_reg isr;		/* 0x10 Status Register */
-	hal_reg _unused1[7];
+	hal_reg _unused1[3];
 	hal_reg rev;		/* 0x20 Revision Register */
-	hal_reg _unused2[7];
+	hal_reg _unused2[3];
 	hal_reg iar;		/* 0x30 Indirect Address Register */
-	hal_reg _unused3[7];
+	hal_reg _unused3[3];
 	hal_reg idr0;		/* 0x40 Indirect Data Register 0 */
-	hal_reg _unused4[7];
+	hal_reg _unused4[3];
 	hal_reg idr1;		/* 0x50 Indirect Data Register 1 */
-	hal_reg _unused5[7];
+	hal_reg _unused5[3];
 	hal_reg idr2;		/* 0x60 Indirect Data Register 2 */
-	hal_reg _unused6[7];
+	hal_reg _unused6[3];
 	hal_reg idr3;		/* 0x70 Indirect Data Register 3 */
 } volatile *h2_ctrl = (struct hal2_ctrl_regs *) KSEG1ADDR(H2_CTRL_PIO);
 
 struct hal2_vol_regs {
 	hal_reg right;		/* 0x00 Right volume */
-	hal_reg _unused0[1];
 	hal_reg left;		/* 0x04 Left volume */
 } volatile *h2_vol = (struct hal2_vol_regs *) KSEG1ADDR(H2_VOLUME_PIO);
 
