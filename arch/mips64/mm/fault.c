@@ -70,6 +70,10 @@ void bust_spinlocks(int yes)
 	spin_lock_init(&timerlist_lock);
 	if (yes) {
 		oops_in_progress = 1;
+#ifdef CONFIG_SMP
+		/* Many serial drivers do __global_cli() */
+		global_irq_lock = SPIN_LOCK_UNLOCKED;
+#endif
 	} else {
 		int loglevel_save = console_loglevel;
 #ifdef CONFIG_VT
@@ -149,6 +153,7 @@ good_area:
 			goto bad_area;
 	}
 
+survive:
 	/*
 	 * If for any reason at all we couldn't handle the fault,
 	 * make sure we exit gracefully rather than endlessly redo
@@ -177,7 +182,6 @@ good_area:
 bad_area:
 	up_read(&mm->mmap_sem);
 
-bad_area_nosemaphore:
 	if (user_mode(regs)) {
 		tsk->thread.cp0_badvaddr = address;
 		tsk->thread.error_code = write;
@@ -234,6 +238,12 @@ no_context:
  */
 out_of_memory:
 	up_read(&mm->mmap_sem);
+	if (tsk->pid == 1) {
+		tsk->policy |= SCHED_YIELD;
+		schedule();
+		down_read(&mm->mmap_sem);
+		goto survive;
+	}
 	printk("VM: killing process %s\n", tsk->comm);
 	if (user_mode(regs))
 		do_exit(SIGKILL);
@@ -247,7 +257,7 @@ do_sigbus:
 	 * or user mode.
 	 */
 	tsk->thread.cp0_badvaddr = address;
-	info.si_code = SIGBUS;
+	info.si_signo = SIGBUS;
 	info.si_errno = 0;
 	info.si_code = BUS_ADRERR;
 	info.si_addr = (void *) address;
