@@ -38,6 +38,7 @@
 #include <asm/smp_lock.h>
 #include <asm/usioctl.h>
 #include <asm/mman.h>
+#include <asm/uaccess.h>
 
 #define NUM_USEMAS (1 << MINORBITS - 1)
 #define USEMA_FORMAT "/dev/usema%d"
@@ -80,7 +81,7 @@ sgi_usemaclone_open(struct inode *inode, struct file *filp)
 	 * allocating and pull a switcheroo on filp->d_entry.
 	 */
 	sprintf(semaname, USEMA_FORMAT, semanum);
-	semadentry = namei(semaname, 0);
+	semadentry = namei(semaname);
 	if (!semadentry) {
 		/* This Shouldn't Happen(tm) */
 		printk("[%s:%d] usemaclone_open: can't find dentry for %s",
@@ -173,7 +174,7 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	case UIOCNOIBLOCK:	/* XXX maybe? */
 	case UIOCBLOCK: {
 		/* Block this process on the semaphore */
-		us_attach *attach = (us_attach *)arg;
+		usattach_t *attach = (usattach_t *)arg;
 		int semanum;
 		retval = verify_area(VERIFY_READ, attach, sizeof(usattach_t));
 		if (retval) {
@@ -194,7 +195,7 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	case UIOCAUNBLOCK:	/* XXX make `async' */
 	case UIOCUNBLOCK: {
 		/* Wake up all process waiting on this semaphore */
-		us_attach *attach = (us_attach *)arg;
+		usattach_t *attach = (usattach_t *)arg;
 		int semanum;
 		retval = verify_area(VERIFY_READ, attach, sizeof(usattach_t));
 		if (retval) {
@@ -209,10 +210,11 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		wake_up(&usema_list[semanum].proc_list);
 		return 0;
 	}
+	}
 	return -ENOSYS;
 }
 
-static int
+static unsigned int
 sgi_usema_poll(struct file *filp, poll_table *wait)
 {
 	int semanum = MINOR(filp->f_dentry->d_inode->i_rdev);
