@@ -2,6 +2,7 @@
 # Automatically generated make config: don't edit
 #
 CONFIG_MIPS=y
+# CONFIG_SMP is not set
 
 #
 # Code maturity level options

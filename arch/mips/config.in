@@ -3,6 +3,7 @@
 # see Documentation/kbuild/config-language.txt.
 #
 define_bool CONFIG_MIPS y
+define_bool CONFIG_SMP n
 
 mainmenu_name "Linux Kernel Configuration"
 
