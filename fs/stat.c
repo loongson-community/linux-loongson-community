@@ -94,9 +94,8 @@ int vfs_fstat(unsigned int fd, struct kstat *stat)
 	return error;
 }
 
-#if !defined(__alpha__) && !defined(__sparc__) && !defined(__ia64__) \
-  && !defined(CONFIG_ARCH_S390) && !defined(__hppa__) && !defined(__x86_64__) \
-  && !defined(__arm__) && !defined(CONFIG_V850) && !defined(__mips__)
+#if defined(__i386__) || defined(__m68k__) || defined(__ppc__) \
+  || defined(__sh__)
 
 /*
  * For backward compatibility?  Maybe this should be moved
