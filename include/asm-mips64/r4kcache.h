@@ -18,21 +18,11 @@
 	__asm__ __volatile__(						\
 	"	.set	noreorder		\n"			\
 	"	.set	mips3\n\t		\n"			\
-	"	cache	%0, (%1)		\n"			\
+	"	cache	%0, %1			\n"			\
 	"	.set	mips0			\n"			\
 	"	.set	reorder"					\
 	:								\
-	: "i" (op), "r" (addr))
-
-#define cache_op(op,addr)					\
-	__asm__ __volatile__(					\
-	"	.set	noreorder\n\t"				\
-	"	.set	mips3\n\t"				\
-	"	cache	%0, (%1)\n\t"				\
-	"	.set	mips0\n\t"				\
-	"	.set	reorder\n\t"				\
-	:							\
-	: "i" (op), "r" (addr))
+	: "i" (op), "m" (*(unsigned char *)(addr)))
 
 static inline void flush_icache_line_indexed(unsigned long addr)
 {
@@ -89,7 +79,7 @@ static inline void protected_flush_icache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "i" (Hit_Invalidate_I), "i" (addr));
+		: "i" (Hit_Invalidate_I), "r" (addr));
 }
 
 static inline void protected_writeback_dcache_line(unsigned long addr)
@@ -104,7 +94,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "i" (Hit_Writeback_D), "i" (addr));
+		: "i" (Hit_Writeback_D), "r" (addr));
 }
 
 #define cache16_unroll32(base,op)				\
