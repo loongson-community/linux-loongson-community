@@ -4,9 +4,11 @@
  *  Based on arch/mips/sgi/kernel/indyIRQ.S
  *
  *  Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *
- *  $Id$
+ *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
+ *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
+ *
+ *  $Id: int-handler.S,v 1.1 2000/01/26 00:07:44 ralf Exp $
  */
 
 #include <asm/asm.h>
