@@ -21,9 +21,9 @@
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
+#include <asm/cacheflush.h>
 #include <asm/cpu.h>
 #include <asm/offset.h>
-#include <asm/pgalloc.h>
 #include <asm/ptrace.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>

@@ -16,7 +16,7 @@
 #include <linux/utsname.h>
 
 #include <asm/cachectl.h>
-#include <asm/pgalloc.h>
+#include <asm/cacheflush.h>
 #include <asm/sysmips.h>
 #include <asm/uaccess.h>
 

@@ -15,8 +15,7 @@
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <asm/pgalloc.h>
-#include <asm/pgtable.h>
+#include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 
 /*
@@ -34,15 +33,16 @@
 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
 extern unsigned long pgd_current[];
 
+#define ASID_INC	0x1
+#define ASID_MASK	0xff
+
 #ifdef CONFIG_SMP
 #define cpu_context(cpu, mm)	((mm)->context[cpu])
 #else
 #define cpu_context(cpu, mm)	((mm)->context)
 #endif
+#define cpu_asid(cpu, mm)	(cpu_context((cpu), (mm)) & ASID_MASK)
 #define asid_cache(cpu)		(cpu_data[cpu].asid_cache)
-
-#define ASID_INC	0x1
-#define ASID_MASK	0xff
 
 static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk, unsigned cpu)
 {

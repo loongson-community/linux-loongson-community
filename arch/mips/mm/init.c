@@ -28,13 +28,12 @@
 #include <linux/blk.h>
 
 #include <asm/bootinfo.h>
+#include <asm/cacheflush.h>
 #include <asm/cachectl.h>
 #include <asm/cpu.h>
 #include <asm/dma.h>
 #include <asm/jazzdma.h>
 #include <asm/system.h>
-#include <asm/pgtable.h>
-#include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
 
