@@ -370,6 +370,7 @@ static void exit_mm(void)
 		mpnt = next;
 	}
 
+#ifdef __i386__
 	/* forget local segments */
 	__asm__ __volatile__("mov %w0,%%fs ; mov %w0,%%gs ; lldt %w0"
 		: /* no outputs */
@@ -380,6 +381,7 @@ static void exit_mm(void)
 		current->ldt = NULL;
 		vfree(ldt);
 	}
+#endif
 
 	free_page_tables(current);
 }

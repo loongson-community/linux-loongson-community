@@ -6,6 +6,7 @@
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
+#include <linux/string.h>
 
 #define VERIFY_READ 0
 #define VERIFY_WRITE 1
@@ -142,10 +143,8 @@ extern inline unsigned long get_free_page(int priority)
 
 	page = __get_free_page(priority);
 	if (page)
-		__asm__ __volatile__("rep ; stosl"
-			: /* no outputs */ \
-			:"a" (0),"c" (1024),"D" (page)
-			:"di","cx");
+		memset((void *)page, 0, 4096);
+
 	return page;
 }
 
@@ -172,8 +171,6 @@ extern void do_no_page(struct vm_area_struct * vma, unsigned long address,
 	unsigned long error_code);
 
 extern unsigned long paging_init(unsigned long start_mem, unsigned long end_mem);
-extern void mem_init(unsigned long low_start_mem,
-		     unsigned long start_mem, unsigned long end_mem);
 extern void show_mem(void);
 extern void oom(struct task_struct * task);
 extern void si_meminfo(struct sysinfo * val);
@@ -211,21 +208,6 @@ extern unsigned long high_memory;
 #define MAP_PAGE_RESERVED (1<<15)
 
 extern unsigned short * mem_map;
-
-#define PAGE_PRESENT	0x001
-#define PAGE_RW		0x002
-#define PAGE_USER	0x004
-#define PAGE_PWT	0x008	/* 486 only - not used currently */
-#define PAGE_PCD	0x010	/* 486 only - not used currently */
-#define PAGE_ACCESSED	0x020
-#define PAGE_DIRTY	0x040
-#define PAGE_COW	0x200	/* implemented in software (one of the AVL bits) */
-
-#define PAGE_PRIVATE	(PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_ACCESSED | PAGE_COW)
-#define PAGE_SHARED	(PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_ACCESSED)
-#define PAGE_COPY	(PAGE_PRESENT | PAGE_USER | PAGE_ACCESSED | PAGE_COW)
-#define PAGE_READONLY	(PAGE_PRESENT | PAGE_USER | PAGE_ACCESSED)
-#define PAGE_TABLE	(PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_ACCESSED)
 
 #define GFP_BUFFER	0x00
 #define GFP_ATOMIC	0x01
@@ -268,46 +250,10 @@ extern inline unsigned long in_swap_cache(unsigned long addr)
 	return swap_cache[addr >> PAGE_SHIFT]; 
 }
 
-extern inline long find_in_swap_cache (unsigned long addr)
-{
-	unsigned long entry;
-
-#ifdef SWAP_CACHE_INFO
-	swap_cache_find_total++;
-#endif
-	__asm__ __volatile__("xchgl %0,%1"
-		:"=m" (swap_cache[addr >> PAGE_SHIFT]),
-		 "=r" (entry)
-		:"0" (swap_cache[addr >> PAGE_SHIFT]),
-		 "1" (0));
-#ifdef SWAP_CACHE_INFO
-	if (entry)
-		swap_cache_find_success++;
-#endif	
-	return entry;
-}
-
-extern inline int delete_from_swap_cache(unsigned long addr)
-{
-	unsigned long entry;
-	
-#ifdef SWAP_CACHE_INFO
-	swap_cache_del_total++;
-#endif	
-	__asm__ __volatile__("xchgl %0,%1"
-		:"=m" (swap_cache[addr >> PAGE_SHIFT]),
-		 "=r" (entry)
-		:"0" (swap_cache[addr >> PAGE_SHIFT]),
-		 "1" (0));
-	if (entry)  {
-#ifdef SWAP_CACHE_INFO
-		swap_cache_del_success++;
-#endif
-		swap_free(entry);
-		return 1;
-	}
-	return 0;
-}
+/*
+ * Include machine dependend stuff
+ */
+#include <asm/mm.h>
 
 #endif /* __KERNEL__ */
 

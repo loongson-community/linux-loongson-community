@@ -1134,7 +1134,7 @@ unsigned long bread_page(unsigned long address, dev_t dev, int b[], int size, in
  	for (i=0, j=0; j<PAGE_SIZE ; i++, j += size, where += size) {
 		if (bh[i]) {
 			if (bh[i]->b_uptodate)
-				memcpy((void *) where, bh[i]->b_data, size);
+				memcpy((void *)where, bh[i]->b_data, size);
 			brelse(bh[i]);
 		}
 	}

@@ -30,8 +30,8 @@ net.o:		$(OBJS) network.a
 
 network.a:	subdirs
 		rm -f $@
-		ar rc $@ $(SUBOBJS)
-		ranlib $@
+		$(AR) rc $@ $(SUBOBJS)
+		$(RANLIB) $@
 
 subdirs:	dummy
 		set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done

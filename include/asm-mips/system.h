@@ -11,8 +11,9 @@
 #ifndef _ASM_MIPS_SYSTEM_H_
 #define _ASM_MIPS_SYSTEM_H_
 
+#include <linux/types.h>
 #include <asm/segment.h>
-#include <mips/mipsregs.h>
+#include <asm/mipsregs.h>
 
 /*
  * move_to_user_mode() doesn't switch to user mode on the mips, since
@@ -25,46 +26,64 @@
 #define move_to_user_mode()
 
 #define sti() \
-__asm__ __volatile__( \
+__asm__ __volatile__(                    \
+	".set\tnoat\n\t"                 \
 	"mfc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	"ori\t$1,$1,1\n\t" \
+	"ori\t$1,$1,0x1f\n\t"            \
+	"xori\t$1,$1,0x1e\n\t"           \
 	"mtc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	: /* no outputs */ \
-	: /* no inputs */ \
-	: "$1","memory")
+	".set\tat"                       \
+	: /* no outputs */               \
+	: /* no inputs */                \
+	: "$1")
 
 #define cli() \
-__asm__ __volatile__( \
+__asm__ __volatile__(                    \
+	".set\tnoat\n\t"                 \
 	"mfc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	"srl\t$1,$1,1\n\t" \
-	"sll\t$1,$1,1\n\t" \
+	"ori\t$1,$1,1\n\t"               \
+	"xori\t$1,$1,1\n\t"              \
 	"mtc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	: /* no outputs */ \
-	: /* no inputs */ \
-	: "$1","memory")
+	".set\tat"                       \
+	: /* no outputs */               \
+	: /* no inputs */                \
+	: "$1")
 
 #define nop() __asm__ __volatile__ ("nop")
 
-#define save_flags(x) \
-__asm__ __volatile__( \
-	".set\tnoreorder\n\t" \
-	".set\tnoat\n\t" \
-	"mfc0\t%0,$12\n\t" \
-	".set\tat\n\t" \
-	".set\treorder" \
-	: "=r" (x) \
-	: /* no inputs */ \
-	: "memory")
+extern ulong IRQ_vectors[256];
+extern ulong exception_handlers[256];
 
-#define restore_flags(x) \
-__asm__ __volatile__( \
-	".set\tnoreorder\n\t" \
-	".set\tnoat\n\t" \
-	"mtc0\t%0,$12\n\t" \
-	".set\tat\n\t" \
-	".set\treorder" \
-	: /* no output */ \
-	: "r" (x) \
-	: "memory")
+#define set_intr_gate(n,addr) \
+	IRQ_vectors[n] = (ulong) (addr)
+
+#define set_except_vector(n,addr) \
+	exception_handlers[n] = (ulong) (addr)
+
+/*
+ * atomic exchange of one word
+ *
+ * Fixme: This works only on MIPS ISA >=3
+ */
+#define atomic_exchange(m,r) \
+	__asm__ __volatile__( \
+		"1:\tll\t$8,(%2)\n\t" \
+		"move\t$9,%0\n\t" \
+		"sc\t$9,(%2)\n\t" \
+		"beq\t$0,$9,1b\n\t" \
+		: "=r" (r) \
+		: "0" (r), "r" (&(m)) \
+		: "$8","$9","memory");
+
+#define save_flags(x)                    \
+__asm__ __volatile__(                    \
+	"mfc0\t%0,$12\n\t"               \
+	: "=r" (x))                      \
+
+#define restore_flags(x)                 \
+__asm__ __volatile__(                    \
+	"mtc0\t%0,$12\n\t"               \
+	: /* no output */                \
+	: "r" (x));                      \
 
 #endif /* _ASM_MIPS_SYSTEM_H_ */

@@ -481,7 +481,7 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 static void
 net_interrupt(int reg_ptr)
 {
-	int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
 	int ioaddr, status, boguscount = 20;

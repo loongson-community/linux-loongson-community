@@ -14,11 +14,14 @@
  */
 
 #include <asm/system.h>
+#include <asm/mipsregs.h>
 
-int splx (int new_level) {
+int splx (int new_level)
+{
     register int old_level, tmp;
+
     save_flags(tmp);
-    old_level = (tmp & 0x200) ? 7 : 0;
+    old_level = ((tmp & (ST0_IE|ST0_ERL|ST0_EXL)) == ST0_IE) ? 7 : 0;
     if (new_level)
 	sti();
     else 

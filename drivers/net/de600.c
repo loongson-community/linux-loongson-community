@@ -498,7 +498,7 @@ de600_start_xmit(struct sk_buff *skb, struct device *dev)
 static void
 de600_interrupt(int reg_ptr)
 {
-	int		irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+	int		irq = pt_regs2irq(reg_ptr);
 	struct device	*dev = irq2dev_map[irq];
 	byte		irq_status;
 	int		retrig = 0;

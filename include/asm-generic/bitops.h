@@ -1,5 +1,5 @@
-#ifndef _ASM_GENERIC_BITOPS_H_
-#define _ASM_GENERIC_BITOPS_H_
+#ifndef _ASM_GENERIC_BITOPS_H
+#define _ASM_GENERIC_BITOPS_H
 
 /*
  * For the benefit of those who are trying to port Linux to another
@@ -16,38 +16,56 @@
  * C language equivalents written by Theodore Ts'o, 9/26/92
  */
 
-extern __inline__ int set_bit(int nr,int * addr)
+#ifdef __USE_GENERIC_set_bit
+extern __inline__ int set_bit(int nr, void * addr)
 {
 	int	mask, retval;
+	int	*a = addr;
 
-	addr += nr >> 5;
+	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
 	cli();
-	retval = (mask & *addr) != 0;
-	*addr |= mask;
+	retval = (mask & *a) != 0;
+	*a |= mask;
 	sti();
 	return retval;
 }
+#endif
 
-extern __inline__ int clear_bit(int nr, int * addr)
+#ifdef __USE_GENERIC_clear_bit
+extern __inline__ int clear_bit(int nr, void * addr)
 {
 	int	mask, retval;
+	int	*a = addr;
 
-	addr += nr >> 5;
+	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
 	cli();
-	retval = (mask & *addr) != 0;
-	*addr &= ~mask;
+	retval = (mask & *a) != 0;
+	*a &= ~mask;
 	sti();
 	return retval;
 }
+#endif
 
-extern __inline__ int test_bit(int nr, int * addr)
+#ifdef __USE_GENERIC_test_bit
+extern __inline__ int test_bit(int nr, void * addr)
 {
 	int	mask;
+	int	*a = addr;
 
-	addr += nr >> 5;
+	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	return ((mask & *addr) != 0);
+	return ((mask & *a) != 0);
 }
+#endif
+
+#ifdef __USE_GENERIC_find_first_zero_bit
+#error "Generic find_first_zero_bit() not written yet."
+#endif
+
+#ifdef __USE_GENERIC_find_next_zero_bit
+#error "Generic find_next_zero_bit() not written yet."
+#endif
+
 #endif /* _ASM_GENERIC_BITOPS_H */

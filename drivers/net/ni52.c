@@ -716,7 +716,8 @@ static void *alloc_rfa(struct device *dev,void *ptr)
 
 static void ni52_interrupt(int reg_ptr)
 {
-  struct device *dev = (struct device *) irq2dev_map[-((struct pt_regs *)reg_ptr)->orig_eax-2];
+  int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+  struct device *dev = (struct device *)(irq2dev_map[irq]);
   unsigned short stat;
   int pd = 0;
   struct priv *p;
@@ -726,7 +727,7 @@ static void ni52_interrupt(int reg_ptr)
 #endif
 
   if (dev == NULL) {
-    printk ("ni52-interrupt: irq %d for unknown device.\n",(int) -(((struct pt_regs *)reg_ptr)->orig_eax+2));
+    printk ("ni52-interrupt: irq %d for unknown device.\n", irq);
     return;
   }
   p = (struct priv *) dev->priv;

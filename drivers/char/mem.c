@@ -87,9 +87,16 @@ static int mmap_mem(struct inode * inode, struct file * file, struct vm_area_str
 {
 	if (vma->vm_offset & ~PAGE_MASK)
 		return -ENXIO;
+#if defined (__i386__)
 	if (x86 > 3 && vma->vm_offset >= high_memory)
 		vma->vm_page_prot |= PAGE_PCD;
-	if (remap_page_range(vma->vm_start, vma->vm_offset, vma->vm_end - vma->vm_start, vma->vm_page_prot))
+#elif defined (__mips__)
+	if (vma->vm_offset >= high_memory)
+		vma->vm_page_prot = vma->vm_page_prot & ~CACHE_MASK | CACHE_UNCACHED;
+#endif
+
+	if (remap_page_range(vma->vm_start, vma->vm_offset,
+		             vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
 	vma->vm_inode = inode;
 	inode->i_count++;
@@ -179,8 +186,9 @@ static int write_full(struct inode * inode,struct file * file,char * buf, int co
 }
 
 /*
- * Special lseek() function for /dev/null and /dev/zero.  Most notably, you can fopen()
- * both devices with "a" now.  This was previously impossible.  SRB.
+ * Special lseek() function for /dev/null and /dev/zero.
+ * Most notably, you can fopen() both devices with "a" now.
+ * This was previously impossible.  SRB.
  */
 
 static int null_lseek(struct inode * inode, struct file * file, off_t offset, int orig)

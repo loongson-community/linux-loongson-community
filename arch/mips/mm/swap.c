@@ -72,18 +72,12 @@ extern inline void show_swap_cache_info(void)
 extern inline int add_to_swap_cache(unsigned long addr, unsigned long entry)
 {
 	struct swap_info_struct * p = &swap_info[SWP_TYPE(entry)];
-	
+
 #ifdef SWAP_CACHE_INFO
 	swap_cache_add_total++;
 #endif
 	if ((p->flags & SWP_WRITEOK) == SWP_WRITEOK) { 
-		__asm__ __volatile__ (
-				      "xchgl %0,%1\n"
-				      : "=m" (swap_cache[addr >> PAGE_SHIFT]),
-				       "=r" (entry)
-				      : "0" (swap_cache[addr >> PAGE_SHIFT]),
-				       "1" (entry)
-				      );
+		atomic_exchange(swap_cache[addr >> PAGE_SHIFT],entry);
 		if (entry)  {
 			printk("swap_cache: replacing non-NULL entry\n");
 		}
@@ -282,9 +276,9 @@ unsigned long swap_in(unsigned long entry)
 	}
 	read_swap_page(entry, (char *) page);
 	if (add_to_swap_cache(page, entry))
-		return page | PAGE_PRESENT;
+		return page | PAGE_VALID;
   	swap_free(entry);
-	return page | PAGE_DIRTY | PAGE_PRESENT;
+	return page | PAGE_DIRTY | PAGE_VALID;
 }
 
 static inline int try_to_swap_out(unsigned long * table_ptr)
@@ -292,7 +286,7 @@ static inline int try_to_swap_out(unsigned long * table_ptr)
 	unsigned long page, entry;
 
 	page = *table_ptr;
-	if (!(PAGE_PRESENT & page))
+	if (!(PAGE_VALID & page))
 		return 0;
 	if (page >= high_memory)
 		return 0;
@@ -375,7 +369,7 @@ static int swap_out_process(struct task_struct * p)
 	 * Go through process' page directory.
 	 */
 	address = p->mm->swap_address;
-	pgdir = (address >> PGDIR_SHIFT) + (unsigned long *) p->tss.cr3;
+	pgdir = (address >> PGDIR_SHIFT) + (unsigned long *) p->tss.pg_dir;
 	offset = address & ~PGDIR_MASK;
 	address &= PGDIR_MASK;
 	for ( ; address < TASK_SIZE ;
@@ -385,7 +379,7 @@ static int swap_out_process(struct task_struct * p)
 			continue;
 		if (mem_map[MAP_NR(pg_table)] & MAP_PAGE_RESERVED)
 			continue;
-		if (!(PAGE_PRESENT & pg_table)) {
+		if (!(PAGE_VALID & pg_table)) {
 			printk("swap_out_process (%s): bad page-table at vm %08lx: %08lx\n",
 					p->comm, address + offset, pg_table);
 			*pgdir = 0;
@@ -650,7 +644,7 @@ unsigned long __get_dma_pages(int priority, unsigned long order)
 	unsigned long list = 0; 
 	unsigned long result;
 	unsigned long limit = 16*1024*1024;
-	
+
 	/* if (EISA_bus) limit = ~0UL; */
 	if (priority != GFP_ATOMIC)
 		priority = GFP_BUFFER;
@@ -722,11 +716,11 @@ repeat:
 		if (!p)
 			continue;
 		for (pgt = 0 ; pgt < PTRS_PER_PAGE ; pgt++) {
-			ppage = pgt + ((unsigned long *) p->tss.cr3);
+			ppage = pgt + ((unsigned long *) p->tss.pg_dir);
 			page = *ppage;
 			if (!page)
 				continue;
-			if (!(page & PAGE_PRESENT) || (page >= high_memory))
+			if (!(page & PAGE_VALID) || (page >= high_memory))
 				continue;
 			if (mem_map[MAP_NR(page)] & MAP_PAGE_RESERVED)
 				continue;
@@ -735,7 +729,7 @@ repeat:
 				page = *ppage;
 				if (!page)
 					continue;
-				if (page & PAGE_PRESENT) {
+				if (page & PAGE_VALID) {
 					if (!(page = in_swap_cache(page)))
 						continue;
 					if (SWP_TYPE(page) != type)

@@ -37,13 +37,27 @@ static inline int get_max_filename(unsigned long address)
 		if (vma->vm_end > address)
 			break;
 	}
+#if defined (__i386__)
 	if (vma->vm_start > address || !(vma->vm_page_prot & PAGE_USER))
+#elif defined (__mips__)
+	if (vma->vm_start > address ||
+            vma->vm_start >= 0x80000000 || vma->vm_end >= 0x80000000)
+#else
+#error "Architecture not supported."
+#endif
 		return -EFAULT;
+
 	address = vma->vm_end - address;
 	if (address > PAGE_SIZE)
 		return 0;
 	if (vma->vm_next && vma->vm_next->vm_start == vma->vm_end &&
+#if defined (__i386__)
 	   (vma->vm_next->vm_page_prot & PAGE_USER))
+#elif defined (__mips__)
+            (vma->vm_start >= 0x80000000 || vma->vm_end >= 0x80000000))
+#else
+#error "Architecture not supported."
+#endif
 		return 0;
 	return address;
 }

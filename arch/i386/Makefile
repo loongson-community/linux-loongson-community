@@ -55,7 +55,7 @@ zlilo: $(CONFIGURE) zImage
 LOWLDFLAGS      =-qmagic -Ttext 0xfe0
 HIGHLDFLAGS     =-qmagic -Ttext 0xfffe0
 
-tools/system:	boot/head.o init/main.o tools/version.o linuxsubdirs
+tools/system:	boot/head.o init/main.o init/init.o tools/version.o linuxsubdirs
 	$(LD) $(LOWLDFLAGS) boot/head.o init/main.o tools/version.o \
 		$(ARCHIVES) \
 		$(FILESYSTEMS) \

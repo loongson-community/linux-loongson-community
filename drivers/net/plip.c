@@ -681,7 +681,7 @@ plip_receive_packet(struct device *dev)
 static void
 plip_interrupt(int reg_ptr)
 {
-    int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+    int irq = pt_regs2irq(reg_ptr);
     struct device *dev = (struct device *) irq2dev_map[irq];
     struct net_local *nl = (struct net_local *)dev->priv;
     struct plip_local *rcv = &nl->rcv_data;

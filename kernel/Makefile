@@ -12,14 +12,14 @@
 .c.s:
 	$(CC) $(CFLAGS) -S $<
 .s.o:
-	$(AS) -o $*.o $<
+	$(AS) $(ASFLAGS) -o $*.o $<
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 
 OBJS  = sched.o entry.o traps.o irq.o dma.o fork.o exec_domain.o \
  	panic.o printk.o vsprintf.o sys.o module.o ksyms.o exit.o \
 	signal.o ptrace.o ioport.o itimer.o \
-	info.o ldt.o time.o tqueue.o vm86.o bios32.o splx.o
+	info.o ldt.o time.o tqueue.o vm86.o bios32.o splx.o dummy.o
 
 all: kernel.o
 

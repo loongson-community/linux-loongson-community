@@ -638,8 +638,13 @@ load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	error = do_mmap(NULL, 0, 4096, PROT_READ | PROT_EXEC,
 			MAP_FIXED | MAP_PRIVATE, 0);
 
+#if defined (__i386__)
 	regs->eip = elf_entry;		/* eip, magic happens :-) */
 	regs->esp = bprm->p;			/* stack pointer */
+#elif defined (__mips__)
+	regs->cp0_epc = elf_entry;	/* eip, magic happens :-) */
+	regs->reg29 = bprm->p;			/* stack pointer */
+#endif
 	if (current->flags & PF_PTRACED)
 		send_sig(SIGTRAP, current, 0);
 #ifndef CONFIG_BINFMT_ELF

@@ -126,6 +126,8 @@ extern unsigned long scsi_dev_init(unsigned long, unsigned long);
 /*
  * Boot command-line arguments
  */
+void copy_options(char * to, char * from);
+void parse_options(char *line);
 #define MAX_INIT_ARGS 8
 #define MAX_INIT_ENVS 8
 #define COMMAND_LINE ((char *) (PARAM+2048))
@@ -266,11 +268,6 @@ static void calibrate_delay(void)
 
 	printk("Calibrating delay loop.. ");
 	while (loops_per_sec <<= 1) {
-		/* wait for "start of" clock tick */
-		ticks = jiffies;
-		while (ticks == jiffies)
-			/* nothing */;
-		/* Go .. */
 		ticks = jiffies;
 		__delay(loops_per_sec);
 		ticks = jiffies - ticks;
@@ -289,113 +286,23 @@ static void calibrate_delay(void)
 	}
 	printk("failed\n");
 }
-
-
+	
 /*
- * This is a simple kernel command line parsing function: it parses
- * the command line, and fills in the arguments/environment to init
- * as appropriate. Any cmd-line option is taken to be an environment
- * variable if it contains the character '='.
- *
- *
- * This routine also checks for options meant for the kernel - currently
- * only the "root=XXXX" option is recognized. These options are not given
- * to init - they are for internal kernel use only.
+ * parse machine depended options
  */
-static void parse_options(char *line)
+int parse_machine_options(char *line)
 {
-	char *next;
-	char *devnames[] = { "hda", "hdb", "sda", "sdb", "sdc", "sdd", "sde", "fd", "xda", "xdb", NULL };
-	int devnums[]    = { 0x300, 0x340, 0x800, 0x810, 0x820, 0x830, 0x840, 0x200, 0xD00, 0xD40, 0};
-	int args, envs;
-
-	if (!*line)
-		return;
-	args = 0;
-	envs = 1;	/* TERM is set to 'console' by default */
-	next = line;
-	while ((line = next) != NULL) {
-		if ((next = strchr(line,' ')) != NULL)
-			*next++ = 0;
-		/*
-		 * check for kernel options first..
-		 */
-		if (!strncmp(line,"root=",5)) {
-			int n;
-			line += 5;
-			if (strncmp(line,"/dev/",5)) {
-				ROOT_DEV = simple_strtoul(line,NULL,16);
-				continue;
-			}
-			line += 5;
-			for (n = 0 ; devnames[n] ; n++) {
-				int len = strlen(devnames[n]);
-				if (!strncmp(line,devnames[n],len)) {
-					ROOT_DEV = devnums[n]+simple_strtoul(line+len,NULL,0);
-					break;
-				}
-			}
-			continue;
-		}
-		if (!strcmp(line,"ro")) {
-			root_mountflags |= MS_RDONLY;
-			continue;
-		}
-		if (!strcmp(line,"rw")) {
-			root_mountflags &= ~MS_RDONLY;
-			continue;
-		}
-		if (!strcmp(line,"debug")) {
-			console_loglevel = 10;
-			continue;
-		}
-		if (!strcmp(line,"no-hlt")) {
-			hlt_works_ok = 0;
-			continue;
-		}
-		if (!strcmp(line,"no387")) {
-			hard_math = 0;
-			__asm__("movl %%cr0,%%eax\n\t"
-				"orl $0xE,%%eax\n\t"
-				"movl %%eax,%%cr0\n\t" : : : "ax");
-			continue;
-		}
-		if (checksetup(line))
-			continue;
-		/*
-		 * Then check if it's an environment variable or
-		 * an option.
-		 */
-		if (strchr(line,'=')) {
-			if (envs >= MAX_INIT_ENVS)
-				break;
-			envp_init[++envs] = line;
-		} else {
-			if (args >= MAX_INIT_ARGS)
-				break;
-			argv_init[++args] = line;
-		}
+	if (!strcmp(line,"no-hlt")) {
+		hlt_works_ok = 0;
+		return 1;
 	}
-	argv_init[args+1] = NULL;
-	envp_init[envs+1] = NULL;
-}
-
-static void copy_options(char * to, char * from)
-{
-	char c = ' ';
-	int len = 0;
-
-	for (;;) {
-		if (c == ' ' && *(unsigned long *)from == *(unsigned long *)"mem=")
-			memory_end = simple_strtoul(from+4, &from, 0);
-		c = *(from++);
-		if (!c)
-			break;
-		if (COMMAND_LINE_SIZE <= ++len)
-			break;
-		*(to++) = c;
+	if (!strcmp(line,"no387")) {
+		hard_math = 0;
+		__asm__("movl %%cr0,%%eax\n\t"
+			"orl $0xE,%%eax\n\t"
+			"movl %%eax,%%cr0\n\t" : : : "ax");
+		return 1;
 	}
-	*to = '\0';
 }
 
 static void copro_timeout(void)
@@ -571,78 +478,4 @@ asmlinkage void start_kernel(void)
  */
 	for(;;)
 		idle();
-}
-
-static int printf(const char *fmt, ...)
-{
-	va_list args;
-	int i;
-
-	va_start(args, fmt);
-	write(1,printbuf,i=vsprintf(printbuf, fmt, args));
-	va_end(args);
-	return i;
-}
-
-void init(void)
-{
-	int pid,i;
-
-	setup();
-	sprintf(term, "TERM=con%dx%d", ORIG_VIDEO_COLS, ORIG_VIDEO_LINES);
-
-	#ifdef CONFIG_UMSDOS_FS
-	{
-		/*
-			When mounting a umsdos fs as root, we detect
-			the pseudo_root (/linux) and initialise it here.
-			pseudo_root is defined in fs/umsdos/inode.c
-		*/
-		extern struct inode *pseudo_root;
-		if (pseudo_root != NULL){
-			current->fs->root = pseudo_root;
-			current->fs->pwd  = pseudo_root;
-		}
-	}
-	#endif
-
-	(void) open("/dev/tty1",O_RDWR,0);
-	(void) dup(0);
-	(void) dup(0);
-
-	execve("/etc/init",argv_init,envp_init);
-	execve("/bin/init",argv_init,envp_init);
-	execve("/sbin/init",argv_init,envp_init);
-	/* if this fails, fall through to original stuff */
-
-	if (!(pid=fork())) {
-		close(0);
-		if (open("/etc/rc",O_RDONLY,0))
-			_exit(1);
-		execve("/bin/sh",argv_rc,envp_rc);
-		_exit(2);
-	}
-	if (pid>0)
-		while (pid != wait(&i))
-			/* nothing */;
-	while (1) {
-		if ((pid = fork()) < 0) {
-			printf("Fork failed in init\n\r");
-			continue;
-		}
-		if (!pid) {
-			close(0);close(1);close(2);
-			setsid();
-			(void) open("/dev/tty1",O_RDWR,0);
-			(void) dup(0);
-			(void) dup(0);
-			_exit(execve("/bin/sh",argv,envp));
-		}
-		while (1)
-			if (pid == wait(&i))
-				break;
-		printf("\n\rchild %d died with code %04x\n\r",pid,i);
-		sync();
-	}
-	_exit(0);
 }

@@ -23,11 +23,11 @@
 static inline int namecompare(int len, int maxlen,
 	const char * name, const char * buffer)
 {
-	if (len > maxlen)
+	if (len >= maxlen)
 		return 0;
 	if (len < maxlen && buffer[len])
 		return 0;
-	return !memcmp(name, buffer, len);
+	return !memcmp(name,buffer,len);
 }
 
 /*

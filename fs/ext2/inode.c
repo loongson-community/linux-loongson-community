@@ -99,7 +99,7 @@ static int ext2_alloc_block (struct inode * inode, unsigned long goal)
 				    "cannot get block %lu", result);
 			return 0;
 		}
-		memset(bh->b_data, 0, inode->i_sb->s_blocksize);
+		memset (bh->b_data, 0, inode->i_sb->s_blocksize);
 		bh->b_uptodate = 1;
 		mark_buffer_dirty(bh, 1);
 		brelse (bh);

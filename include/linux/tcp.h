@@ -17,7 +17,6 @@
 #ifndef _LINUX_TCP_H
 #define _LINUX_TCP_H
 
-#include <asm/types.h>
 
 #define HEADER_SIZE	64		/* maximum header size		*/
 
@@ -27,7 +26,7 @@ struct tcphdr {
 	u16	dest;
 	u32	seq;
 	u32	ack_seq;
-#if defined(__i386__)
+#if defined(__i386__) || defined(__MIPSEL__)
 	u16	res1:4,
 		doff:4,
 		fin:1,
@@ -37,7 +36,7 @@ struct tcphdr {
 		ack:1,
 		urg:1,
 		res2:2;
-#elif defined(__mc68000__)
+#elif defined(__mc68000__) || defined(__MIPSEB__)
 	u16	res2:2,
 		urg:1,
 		ack:1,

@@ -68,7 +68,9 @@ struct symbol_table symbol_table = { 0, 0, 0, /* for stacked module support */
 
 	/* system info variables */
 	X(EISA_bus),
+#ifdef __i386__
 	X(wp_works_ok),
+#endif
 
 	/* process memory management */
 	X(verify_area),

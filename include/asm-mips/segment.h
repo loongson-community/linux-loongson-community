@@ -12,11 +12,19 @@
 #ifndef _ASM_MIPS_SEGMENT_H_
 #define _ASM_MIPS_SEGMENT_H_
 
+#define KERNEL_CS	0x80000000
+#define KERNEL_DS	KERNEL_CS
+
+#define USER_CS		0x00000000
+#define USER_DS		USER_CS
+
+#ifndef __ASSEMBLY__
+
 static inline unsigned char get_user_byte(const char * addr)
 {
-	register unsigned char _v;
+	unsigned char _v;
 
-	__asm__ ("lbu\t%0,%1":"=r" (_v):"r" (*addr));
+	__asm__ ("lbu\t%0,(%1)":"=r" (_v):"r" (*addr));
 
 	return _v;
 }
@@ -27,7 +35,7 @@ static inline unsigned short get_user_word(const short *addr)
 {
 	unsigned short _v;
 
-	__asm__ ("lhu\t%0,%1":"=r" (_v):"r" (*addr));
+	__asm__ ("lhu\t%0,(%1)":"=r" (_v):"r" (*addr));
 
 	return _v;
 }
@@ -38,7 +46,7 @@ static inline unsigned long get_user_long(const int *addr)
 {
 	unsigned long _v;
 
-	__asm__ ("lwu\t%0,%1":"=r" (_v):"r" (*addr)); \
+	__asm__ ("lwu\t%0,(%1)":"=r" (_v):"r" (*addr)); \
 	return _v;
 }
 
@@ -48,7 +56,7 @@ static inline unsigned long get_user_dlong(const int *addr)
 {
 	unsigned long _v;
 
-	__asm__ ("ld\t%0,%1":"=r" (_v):"r" (*addr)); \
+	__asm__ ("ld\t%0,(%1)":"=r" (_v):"r" (*addr)); \
 	return _v;
 }
 
@@ -56,28 +64,28 @@ static inline unsigned long get_user_dlong(const int *addr)
 
 static inline void put_user_byte(char val,char *addr)
 {
-__asm__ ("sb\t%0,%1": /* no outputs */ :"r" (val),"r" (*addr));
+__asm__ ("sb\t%0,(%1)": /* no outputs */ :"r" (val),"r" (*addr));
 }
 
 #define put_fs_byte(x,addr) put_user_byte((x),(char *)(addr))
 
 static inline void put_user_word(short val,short * addr)
 {
-__asm__ ("sh\t%0,%1": /* no outputs */ :"r" (val),"r" (*addr));
+__asm__ ("sh\t%0,(%1)": /* no outputs */ :"r" (val),"r" (*addr));
 }
 
 #define put_fs_word(x,addr) put_user_word((x),(short *)(addr))
 
 static inline void put_user_long(unsigned long val,int * addr)
 {
-__asm__ ("sw\t%0,%1": /* no outputs */ :"r" (val),"r" (*addr));
+__asm__ ("sw\t%0,(%1)": /* no outputs */ :"r" (val),"r" (*addr));
 }
 
 #define put_fs_long(x,addr) put_user_long((x),(int *)(addr))
 
 static inline void put_user_dlong(unsigned long val,int * addr)
 {
-__asm__ ("sd\t%0,%1": /* no outputs */ :"r" (val),"r" (*addr));
+__asm__ ("sd\t%0,(%1)": /* no outputs */ :"r" (val),"r" (*addr));
 }
 
 #define put_fs_dlong(x,addr) put_user_dlong((x),(int *)(addr))
@@ -213,5 +221,7 @@ static inline void set_fs(unsigned long val)
 {
 	segment_fs = val;
 }
+
+#endif
 
 #endif /* _ASM_MIPS_SEGMENT_H_ */

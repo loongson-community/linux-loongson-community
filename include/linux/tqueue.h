@@ -144,8 +144,7 @@ _INLINE_ void run_task_queue(task_queue *list)
 
 	while(1) {
 		p = &tq_last;
-		__asm__ __volatile__("xchgl %0,%2" : "=r" (p) :
-				     "0" (p), "m" (*list) : "memory");
+		atomic_exchange(*list,p);
 		if(p == &tq_last)
 			break;
 

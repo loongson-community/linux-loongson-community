@@ -154,24 +154,26 @@ extern inline char * strpbrk(const char * cs,const char * ct)
 #endif
 
 #ifdef __USE_PORTABLE_strtok
+
+extern char * ___strtok;
+
 extern inline char * strtok(char * s,const char * ct)
 {
   char *sbegin, *send;
-  static char *ssave = NULL;
   
-  sbegin  = s ? s : ssave;
+  sbegin  = s ? s : ___strtok;
   if (!sbegin) {
 	  return NULL;
   }
   sbegin += strspn(sbegin,ct);
   if (*sbegin == '\0') {
-    ssave = NULL;
+    ___strtok = NULL;
     return( NULL );
   }
   send = strpbrk( sbegin, ct);
   if (send && *send != '\0')
     *send++ = '\0';
-  ssave = send;
+  ___strtok = send;
   return (sbegin);
 }
 #endif

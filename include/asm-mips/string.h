@@ -11,6 +11,8 @@
 #ifndef _ASM_MIPS_STRING_H_
 #define _ASM_MIPS_STRING_H_
 
+#include <asm/mipsregs.h>
+
 #define __USE_PORTABLE_STRINGS_H_
 
 extern inline char * strcpy(char * dest,const char *src)
@@ -77,7 +79,8 @@ extern inline int strcmp(const char * cs,const char * ct)
 	"bne\t$1,%2,2f\n\t"
 	"addiu\t%1,%1,1\n\t"
 	"bne\t$0,%2,1b\n\t"
-	"lbu\t%2,(%0)\n"
+	"lbu\t%2,(%0)\n\t"
+	STR(FILL_LDS) "\n\t"
 	"move\t%2,$1\n"
 	"2:\tsub\t%2,%2,$1\n"
 	"3:\t.set\tat\n\t"
@@ -206,4 +209,24 @@ extern inline void * memmove(void * dest,const void * src, size_t n)
 
 #define __USE_PORTABLE_memcmp
 
+static inline char * memscan(void * addr, unsigned char c, int size)
+{
+	if (!size)
+		return addr;
+	__asm__(".set\tnoreorder\n\t"
+		".set\tnoat\n"
+		"1:\tbeq\t$0,%1,2f\n\t"
+		"lbu\t$1,(%0)\n\t"
+		"subu\t%1,%1,1\n\t"
+		"bne\t$0,%1,1b\n\t"
+		"addiu\t%0,%0,1\n\t"
+		".set\tat\n\t"
+		".set\treorder\n"
+		"2:"
+		: "=d" (addr), "=d" (size)
+		: "0" (addr), "1" (size), "d" (c)
+		: "$1");
+
+	return addr;
+}
 #endif /* _ASM_MIPS_STRING_H_ */

@@ -1588,7 +1588,7 @@ int tty_register_driver(struct tty_driver *driver)
 	
 	driver->prev = 0;
 	driver->next = tty_drivers;
-	tty_drivers->prev = driver;
+	if(tty_drivers) tty_drivers->prev = driver;
 	tty_drivers = driver;
 	return error;
 }

@@ -405,7 +405,7 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 /* The ZNET interrupt handler. */
 static void	znet_interrupt(int reg_ptr)
 {
-	int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = irq2dev_map[irq];
 	int ioaddr;
 	int boguscnt = 20;

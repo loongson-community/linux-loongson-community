@@ -75,8 +75,12 @@ extern void scrollback(int);
 extern void scrollfront(int);
 extern int vc_cons_allocated(unsigned int);
 
+#if defined (__i386__)
 #define fake_keyboard_interrupt() \
 __asm__ __volatile__("int $0x21")
+#elif defined (__mips__)
+extern void fake_keyboard_interrupt(void);
+#endif
 
 unsigned char kbd_read_mask = 0x01;	/* modified by psaux.c */
 
@@ -614,6 +618,7 @@ static void show_ptregs(void)
 {
 	if (!pt_regs)
 		return;
+#if defined (__i386__)
 	printk("\n");
 	printk("EIP: %04x:%08lx",0xffff & pt_regs->cs,pt_regs->eip);
 	if (pt_regs->cs & 3)
@@ -626,6 +631,11 @@ static void show_ptregs(void)
 	printk(" DS: %04x ES: %04x FS: %04x GS: %04x\n",
 		0xffff & pt_regs->ds,0xffff & pt_regs->es,
 		0xffff & pt_regs->fs,0xffff & pt_regs->gs);
+#elif defined (__mips__)
+	/*
+	 * FIXME...
+	 */
+#endif
 }
 
 static void hold(void)
@@ -1146,7 +1156,9 @@ static void kbd_bh(void * unused)
 	sti();
 }
 
+#ifdef __i386__
 long no_idt[2] = {0, 0};
+#endif
 
 /*
  * This routine reboots the machine by asking the keyboard
@@ -1156,12 +1168,16 @@ long no_idt[2] = {0, 0};
 void hard_reset_now(void)
 {
 	int i, j;
+#ifdef __i386__
 	extern unsigned long pg0[1024];
+#endif
 
 	sti();
 /* rebooting needs to touch the page at absolute addr 0 */
+#ifdef __i386__
 	pg0[0] = 7;
 	*((unsigned short *)0x472) = 0x1234;
+#endif
 	for (;;) {
 		for (i=0; i<100; i++) {
 			kb_wait();
@@ -1169,7 +1185,9 @@ void hard_reset_now(void)
 				/* nothing */;
 			outb(0xfe,0x64);	 /* pulse reset low */
 		}
+#ifdef __i386__
 		__asm__("\tlidt _no_idt");
+#endif
 	}
 }
 

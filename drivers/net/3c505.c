@@ -671,7 +671,7 @@ static void elp_interrupt(int reg_ptr)
 {
   int len;
   int dlen;
-  int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+  int irq = pt_regs2irq(reg_ptr);
   struct device *dev;
   elp_device * adapter;
   int timeout;

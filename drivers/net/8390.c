@@ -238,7 +238,7 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
    Handle the ether interface interrupts. */
 void ei_interrupt(int reg_ptr)
 {
-    int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
+    int irq = pt_regs2irq(reg_ptr);
     struct device *dev = (struct device *)(irq2dev_map[irq]);
     int e8390_base;
     int interrupts, boguscount = 0;

@@ -44,6 +44,16 @@ extern inline int tas(char * m)
 	return res;
 }
 
+/*
+ * atomic exchange
+ */
+#define atomic_exchange(m,r) \
+	__asm__ __volatile__( \
+		"xchgl %0,%2" \
+		: "=r" ((r)) \
+		: "0" ((r)), "m" (*(m)) \
+		: "memory");
+
 #define save_flags(x) \
 __asm__ __volatile__("pushfl ; popl %0":"=r" (x): /* no input */ :"memory")
 

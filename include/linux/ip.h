@@ -32,19 +32,19 @@ struct timestamp {
 	u8	len;
 	u8	ptr;
 	union {
-#if defined(__i386__)  
-		u8	flags:4,
-			overflow:4;
-#elif defined(__mc68000__)
-		u8	overflow:4,
+#if defined(__i386__) || defined(__MIPSEL__) 
+	u8	flags:4,
+		overflow:4;
+#elif defined(__mc68000__) || defined(__MIPSEB__)
+	unsigned char	overflow:4,
 			flags:4;
 #elif defined(__alpha__)
-		u8	flags:4,
-			overflow:4;
+	u8	flags:4,
+		overflow:4;
 #else
 #error	"Adjust this structure to match your CPU"
 #endif						
-		u8	full_char;
+	u8	full_char;
 	} x;
 	u32	data[9];
 };
@@ -73,13 +73,13 @@ struct options {
 
 
 struct iphdr {
-#if defined(__i386__)
+#if defined(__i386__) || defined(__MIPSEL__)
 	u8	ihl:4,
 		version:4;
-#elif defined (__mc68000__)
+#elif defined (__mc68000__) || defined(__MIPSEB__)
 	u8	version:4,
   		ihl:4;
-#elif defined (__alpha__)
+#elif defined(__alpha__)
 	u8	ihl:4,
 		version:4;
 #else

@@ -5,6 +5,7 @@
 
 #include <linux/kernel.h>
 #include <linux/errno.h>
+#include <asm/system.h>
 #include <asm/dma.h>
 
 
@@ -62,10 +63,18 @@ static __inline__ unsigned int mutex_atomic_swap(volatile unsigned int * p, unsi
 	 * the swap may not be atomic.
 	 */
 
+#if 0
 	asm __volatile__ ("xchgl %2, %0\n"
 			: /* outputs: semval   */ "=r" (semval)
 			: /* inputs: newval, p */ "0" (semval), "m" (*p)
 			);	/* p is a var, containing an address */
+#else
+	/*
+	 * RB: Try atomic exchange from include/asm/system.h
+	 * This should be portable...
+	 */
+	atomic_exchange(p,semval)
+#endif
 	return semval;
 } /* mutex_atomic_swap */
 

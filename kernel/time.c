@@ -200,7 +200,7 @@ static inline unsigned long do_gettimeoffset(void)
  */
 static inline void do_gettimeofday(struct timeval *tv)
 {
-#ifdef __i386__
+#if defined (__i386__) || defined (__mips__)
 	cli();
 	*tv = xtime;
 	tv->tv_usec += do_gettimeoffset();

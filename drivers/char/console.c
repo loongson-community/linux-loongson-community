@@ -90,6 +90,7 @@
 #include <linux/major.h>
 
 #include <asm/io.h>
+#include <asm/slots.h>
 #include <asm/system.h>
 #include <asm/segment.h>
 #include <asm/bitops.h>
@@ -123,6 +124,10 @@ static int sel_start = -1;
 static int sel_end;
 static char sel_buffer[SEL_BUFFER_SIZE] = { '\0' };
 #endif /* CONFIG_SELECTION */
+
+#ifdef __mips__
+static unsigned int dummy;
+#endif
 
 #define NPAR 16
 
@@ -290,12 +295,24 @@ static struct vc {
 
 static void * memsetw(void * s, unsigned short c, unsigned int count)
 {
+#if defined (__i386__)
 __asm__("cld\n\t"
 	"rep\n\t"
 	"stosw"
 	: /* no output */
 	:"a" (c),"D" (s),"c" (count/2)
 	:"cx","di");
+#elif defined (__mips_)
+__asm__ __volatile__(
+	".set\tnoreorder\n"
+	"1:sh\t%2,(%0)\n\t"
+	"subu\t%1,%1,1\n\t"
+	"bne\t$0,%1,1b\n\t"
+	"addiu\t%0,%0,2\n\t"
+	".set\treorder"
+	:"=r" (dummy),"=r" (dummy)
+	:"r" (c),"0" (s),"1" (count/2));
+#endif
 return s;
 }
 
@@ -676,6 +693,7 @@ static void scrup(int currcons, unsigned int t, unsigned int b)
 		pos += video_size_row;
 		scr_end += video_size_row;
 		if (scr_end > video_mem_end) {
+#if defined (__i386__)
 			__asm__("cld\n\t"
 				"rep\n\t"
 				"movsl\n\t"
@@ -688,11 +706,37 @@ static void scrup(int currcons, unsigned int t, unsigned int b)
 				"D" (video_mem_start),
 				"S" (origin)
 				:"cx","di","si");
+#elif defined (__mips__)
+			__asm__ __volatile__(
+				".set\tnoreorder\n\t"
+				".set\tnoat\n"
+				"1:\tlwu\t$1,(%2)\n\t"
+				"subu\t%0,%0,1\n\t"
+				"addiu\t%2,%2,4\n\t"
+				"sw\t$1,(%1)\n\t"
+				"bne\t$0,%0,1b\n\t"
+				"addiu\t%1,%1,4\n"
+				"1:\tsh\t%4,(%1)\n\t"
+				"subu\t%3,%3,1\n\t"
+				"bne\t$0,%3,1b\n\t"
+				"addiu\t%1,%1,2\n\t"
+				".set\tat\n\t"
+				".set\treorder"
+				:"=r" (dummy),"=r" (dummy),
+				 "=r" (dummy),"=r" (dummy)
+				:"r" (video_erase_char),
+				 "0" ((video_num_lines-1)*video_num_columns>>1),
+				 "1" (video_mem_start),
+				 "2" (origin),
+				 "3" (video_num_columns)
+				:"$1");
+#endif
 			scr_end -= origin-video_mem_start;
 			pos -= origin-video_mem_start;
 			origin = video_mem_start;
 			has_scrolled = 1;
 		} else {
+#if defined (__i386__)
 			__asm__("cld\n\t"
 				"rep\n\t"
 				"stosw"
@@ -701,9 +745,23 @@ static void scrup(int currcons, unsigned int t, unsigned int b)
 				"c" (video_num_columns),
 				"D" (scr_end-video_size_row)
 				:"cx","di");
+#elif defined (__mips__)
+			__asm__ __volatile__(
+				".set\tnoreorder\n"
+				"1:sh\t%2,(%1)\n\t"
+				"subu\t%0,%0,1\n\t"
+				"bne\t$0,%0,1b\n\t"
+				"addiu\t%1,%1,2\n\t"
+				".set\treorder\n\t"
+				:"=r" (dummy),"=r" (dummy)
+				:"r" (video_erase_char),
+				 "0" (video_num_columns),
+				 "1" (scr_end-video_size_row));
+#endif
 		}
 		set_origin(currcons);
 	} else {
+#if defined (__i386__)
 		__asm__("cld\n\t"
 			"rep\n\t"
 			"movsl\n\t"
@@ -716,6 +774,30 @@ static void scrup(int currcons, unsigned int t, unsigned int b)
 			"D" (origin+video_size_row*t),
 			"S" (origin+video_size_row*(t+1))
 			:"cx","di","si");
+#elif defined (__mips__)
+		__asm__ __volatile__(
+			".set\tnoreorder\n\t"
+			".set\tnoat\n"
+			"1:\tlwu\t$1,(%2)\n\t"
+			"subu\t%0,%0,1\n\t"
+			"sw\t$1,(%1)\n\t"
+			"addiu\t%2,%2,4\n\t"
+			"bne\t$0,%1,1b\n\t"
+			"addiu\t%1,%1,4\n"
+			"1:\tsh\t%4,(%1)\n\t"
+			"subu\t%3,%3,1\n\t"
+			"bne\t$0,%3,1b\n\t"
+			"addiu\t%1,%1,2\n\t"
+			".set\tat\n\t"
+			".set\treorder\n\t"
+			:"=r" (dummy),"=r" (dummy),"=r" (dummy),"=r" (dummy)
+			:"r" (video_erase_char),
+			 "0" ((b-t-1)*video_num_columns>>1),
+			 "1" (origin+video_size_row*t),
+			 "2" (origin+video_size_row*(t+1)),
+			 "3" (video_num_columns)
+			:"$1");
+#endif
 	}
 }
 
@@ -723,6 +805,7 @@ static void scrdown(int currcons, unsigned int t, unsigned int b)
 {
 	if (b > video_num_lines || t >= b)
 		return;
+#if defined (__i386__)
 	__asm__("std\n\t"
 		"rep\n\t"
 		"movsl\n\t"
@@ -737,6 +820,30 @@ static void scrdown(int currcons, unsigned int t, unsigned int b)
 		"D" (origin+video_size_row*b-4),
 		"S" (origin+video_size_row*(b-1)-4)
 		:"ax","cx","di","si");
+#elif defined (__mips__)
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n"
+		"1:\tlw\t$1,(%2)\n\t"
+		"subu\t%0,%0,1\n\t"
+		"sw\t$1,(%1)\n\t"
+		"subu\t%2,%2,4\n\t"
+		"bne\t$0,%0,1b\n\t"
+		"subu\t%1,%1,4\n"
+		"1:\tsh\t%4,(%1)\n\t"
+		"subu\t%3,%3,1\n\t"
+		"bne\t$0,%3,1b\n\t"
+		"subu\t%1,%1,2\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy),"=r" (dummy),"=r" (dummy),"=r" (dummy)
+		:"r" (video_erase_char),
+		 "0" ((b-t-1)*video_num_columns>>1),
+		 "1" (origin+video_size_row*b-4),
+		 "2" (origin+video_size_row*(b-1)-4),
+		 "3" (video_num_columns)
+		:"$1");
+#endif
 	has_scrolled = 1;
 }
 
@@ -809,6 +916,7 @@ static void csi_J(int currcons, int vpar)
 		default:
 			return;
 	}
+#if defined (__i386__)
 	__asm__("cld\n\t"
 		"rep\n\t"
 		"stosw\n\t"
@@ -816,6 +924,17 @@ static void csi_J(int currcons, int vpar)
 		:"c" (count),
 		"D" (start),"a" (video_erase_char)
 		:"cx","di");
+#elif defined (__mips__)
+	__asm__ __volatile__(
+		".set\tnoreorder\n"
+		"1:\tsh\t%4,(%1)\n\t"
+		"subu\t%0,%0,1\n\t"
+		"bne\t$0,%0,1b\n\t"
+		"addiu\t%1,%1,2\n\t"
+		".set\treorder"
+		:"=r" (dummy),"=r" (dummy)
+		:"0" (count),"1" (start),"r" (video_erase_char));
+#endif
 	need_wrap = 0;
 }
 
@@ -840,6 +959,7 @@ static void csi_K(int currcons, int vpar)
 		default:
 			return;
 	}
+#if defined (__i386__)
 	__asm__("cld\n\t"
 		"rep\n\t"
 		"stosw\n\t"
@@ -847,6 +967,17 @@ static void csi_K(int currcons, int vpar)
 		:"c" (count),
 		"D" (start),"a" (video_erase_char)
 		:"cx","di");
+#elif defined (__mips__)
+	__asm__ __volatile__(
+		".set\tnoreorder\n"
+		"1:\tsh\t%2,(%1)\n\t"
+		"subu\t%0,%0,1\n\t"
+		"bne\t$0,%0,1b\n\t"
+		"addiu\t%1,%1,2\n\t"
+		".set\treorder\n\t"
+		:"=r" (dummy),"=r" (dummy)
+		:"0" (count),"1" (start),"r" (video_erase_char));
+#endif
 	need_wrap = 0;
 }
 
@@ -861,6 +992,7 @@ static void csi_X(int currcons, int vpar) /* erase the following vpar positions 
 	start=pos;
 	count=(vpar > video_num_columns-x) ? (video_num_columns-x) : vpar;
 
+#if defined (__i386__)
 	__asm__("cld\n\t"
 		"rep\n\t"
 		"stosw\n\t"
@@ -868,6 +1000,17 @@ static void csi_X(int currcons, int vpar) /* erase the following vpar positions 
 		:"c" (count),
 		"D" (start),"a" (video_erase_char)
 		:"cx","di");
+#elif defined (__mips__)
+	__asm__ __volatile__(
+		".set\tnoreorder\n"
+		"1:\tsh\t%4,(%1)\n\t"
+		"subu\t%0,%0,1\n\t"
+		"bne\t$0,%0,1b\n\t"
+		"addiu\t%1,%1,2\n\t"
+		".set\treorder"
+		:"=r" (dummy),"=r" (dummy)
+		:"0" (count),"1" (start),"r" (video_erase_char));
+#endif
 	need_wrap = 0;
 }
 
@@ -1280,6 +1423,7 @@ static void reset_terminal(int currcons, int do_clear)
 	deccm		= 1;
 	decim		= 0;
 
+#ifdef __i386__
 	set_kbd(decarm);
 	clr_kbd(decckm);
 	clr_kbd(kbdapplic);
@@ -1288,6 +1432,7 @@ static void reset_terminal(int currcons, int do_clear)
 	kbd_table[currcons].ledmode = LED_SHOW_FLAGS;
 	kbd_table[currcons].ledflagstate = kbd_table[currcons].default_ledflagstate;
 	set_leds();
+#endif
 
 	default_attr(currcons);
 	update_attr(currcons);
@@ -1869,7 +2014,6 @@ long con_init(long kmem_start)
 	int currcons = 0;
 	int orig_x = ORIG_X;
 	int orig_y = ORIG_Y;
-
 	memset(&console_driver, 0, sizeof(struct tty_driver));
 	console_driver.magic = TTY_DRIVER_MAGIC;
 	console_driver.name = "tty";
@@ -1910,42 +2054,42 @@ long con_init(long kmem_start)
 	
 	if (ORIG_VIDEO_MODE == 7)	/* Is this a monochrome display? */
 	{
-		video_mem_base = 0xb0000;
+		video_mem_base = SLOTSPACE + 0xb0000;
 		video_port_reg = 0x3b4;
 		video_port_val = 0x3b5;
 		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10)
 		{
 			video_type = VIDEO_TYPE_EGAM;
-			video_mem_term = 0xb8000;
+			video_mem_term = SLOTSPACE + 0xb8000;
 			display_desc = "EGA+";
 		}
 		else
 		{
 			video_type = VIDEO_TYPE_MDA;
-			video_mem_term = 0xb2000;
+			video_mem_term = SLOTSPACE + 0xb2000;
 			display_desc = "*MDA";
 		}
 	}
 	else				/* If not, it is color. */
 	{
 		can_do_color = 1;
-		video_mem_base = 0xb8000;
+		video_mem_base = SLOTSPACE + 0xb8000;
 		video_port_reg	= 0x3d4;
 		video_port_val	= 0x3d5;
 		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10)
 		{
 			video_type = VIDEO_TYPE_EGAC;
-			video_mem_term = 0xc0000;
+			video_mem_term = SLOTSPACE + 0xc0000;
 			display_desc = "EGA+";
 		}
 		else
 		{
 			video_type = VIDEO_TYPE_CGA;
-			video_mem_term = 0xba000;
+			video_mem_term = SLOTSPACE + 0xba000;
 			display_desc = "*CGA";
 		}
 	}
-	
+
 	/* Initialize the variables used for scrolling (mostly EGA/VGA)	*/
 
 	/* Due to kmalloc roundup allocating statically is more efficient -
@@ -2491,10 +2635,10 @@ static void clear_selection()
  * (sizif@botik.yaroslavl.su).
  */
 
-#define colourmap ((char *)0xa0000)
+#define colourmap ((char *)(SLOTSPACE + 0xa0000))
 /* Pauline Middelink <middelin@polyware.iaf.nl> reports that we
    should use 0xA0000 for the bwmap as well.. */
-#define blackwmap ((char *)0xa0000)
+#define blackwmap ((char *)(SLOTSPACE + 0xa0000))
 #define cmapsz 8192
 #define seq_port_reg (0x3c4)
 #define seq_port_val (0x3c5)

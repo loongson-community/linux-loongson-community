@@ -209,7 +209,11 @@ static int aout_core_dump(long signr, struct pt_regs * regs)
 /* changed the size calculations - should hopefully work better. lbt */
 	dump.magic = CMAGIC;
 	dump.start_code = 0;
+#if defined (__i386__)
 	dump.start_stack = regs->esp & ~(PAGE_SIZE - 1);
+#elif defined (__mips__)
+	dump.start_stack = regs->reg29 & ~(PAGE_SIZE - 1);
+#endif
 	dump.u_tsize = ((unsigned long) current->mm->end_code) >> 12;
 	dump.u_dsize = ((unsigned long) (current->mm->brk + (PAGE_SIZE-1))) >> 12;
 	dump.u_dsize -= dump.u_tsize;
@@ -230,6 +234,7 @@ static int aout_core_dump(long signr, struct pt_regs * regs)
 	dump.u_ar0 = (struct pt_regs *)(((int)(&dump.regs)) -((int)(&dump)));
 	dump.signal = signr;
 	dump.regs = *regs;
+#if defined (__i386__)
 /* Flag indicating the math stuff is valid. We don't support this for the
    soft-float routines yet */
 	if (hard_math) {
@@ -244,6 +249,12 @@ static int aout_core_dump(long signr, struct pt_regs * regs)
 		   convert it into standard 387 format first.. */
 		dump.u_fpvalid = 0;
 	}
+#elif defined (__mips__)
+	/*
+	 * Dump the MIPS fpa.
+	 * FIXME: not implemented yet.
+	 */
+#endif
 	set_fs(KERNEL_DS);
 /* struct user */
 	DUMP_WRITE(&dump,sizeof(dump));
@@ -551,6 +562,7 @@ void flush_old_exec(struct linux_binprm * bprm)
 		mpnt = mpnt1;
 	}
 
+#if defined (__i386__)
 	/* Flush the old ldt stuff... */
 	if (current->ldt) {
 		free_page((unsigned long) current->ldt);
@@ -565,6 +577,11 @@ void flush_old_exec(struct linux_binprm * bprm)
 	}
 
 	for (i=0 ; i<8 ; i++) current->debugreg[i] = 0;
+#elif defined (__mips__)
+	/*
+	 * Do MIPS specific magic
+	 */
+#endif
 
 	if (bprm->e_uid != current->euid || bprm->e_gid != current->egid || 
 	    !permission(bprm->inode,MAY_READ))
@@ -598,8 +615,10 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 	int retval;
 	int sh_bang = 0;
 
+#if defined (__i386__)
 	if (regs->cs != USER_CS)
 		return -EINVAL;
+#endif
 	bprm.p = PAGE_SIZE*MAX_ARG_PAGES-4;
 	for (i=0 ; i<MAX_ARG_PAGES ; i++)	/* clear page-table */
 		bprm.page[i] = 0;
@@ -768,10 +787,14 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	int error;
 	char * filename;
 
+#if defined (__i386__)
 	error = getname((char *) regs.ebx, &filename);
+#elif defined (__mips__)
+	error = getname((char *) regs.reg3, &filename);
+#endif
 	if (error)
 		return error;
-	error = do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
+	error = do_execve(filename, (char **) regs.reg4, (char **) regs.reg5, &regs);
 	putname(filename);
 	return error;
 }
@@ -898,8 +921,13 @@ beyond_if:
 					bprm->argc, bprm->envc,
 					current->personality != PER_LINUX);
 	current->mm->start_stack = p;
+#if defined (__i386__)
 	regs->eip = ex.a_entry;		/* eip, magic happens :-) */
 	regs->esp = p;			/* stack pointer */
+#elif defined (__mips__)
+	regs->cp0_epc = ex.a_entry;	/* eip, magic happens :-) */
+	regs->reg29 = p;		/* stack pointer */
+#endif
 	if (current->flags & PF_PTRACED)
 		send_sig(SIGTRAP, current, 0);
 	return 0;

@@ -42,15 +42,26 @@ asmlinkage int sys_idle(void)
 	if (current->pid != 0)
 		return -EPERM;
 
+#ifdef __i386__
 	/* Map out the low memory: it's no longer needed */
 	for (i = 0 ; i < 768 ; i++)
 		swapper_pg_dir[i] = 0;
+#endif
 
 	/* endless idle loop with no priority at all */
 	current->counter = -100;
 	for (;;) {
+#if defined (__i386__)
 		if (hlt_works_ok && !need_resched)
 			__asm__("hlt");
+#elif defined (__mips__)
+		/*
+		 * R4[26]00 have wait, the R4000 doesn't.
+		 * Dunno about the R4400...
+		 */
+		if (!need_resched)
+			__asm__("wait");
+#endif
 		schedule();
 	}
 }

@@ -2,7 +2,7 @@ VERSION = 1
 PATCHLEVEL = 1
 SUBLEVEL = 68
 
-ARCH = i386
+ARCH = mips
 
 all:	Version zImage
 
@@ -55,7 +55,7 @@ SVGA_MODE=	-DSVGA_MODE=NORMAL_VGA
 # standard CFLAGS
 #
 
-CFLAGS = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -pipe
+CFLAGS = -Wall -Wstrict-prototypes -O -fomit-frame-pointer #-pipe
 
 ifdef CONFIG_CPP
 CFLAGS := $(CFLAGS) -x c++
@@ -81,6 +81,11 @@ DRIVERS		=drivers/block/block.a \
 		 ibcs/ibcs.o
 LIBS		=lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc ibcs lib
+SYMLINKS	=boot include/asm kernel/entry.S init/main.c kernel/sched.c \
+		 kernel/traps.c kernel/irq.c kernel/ioport.c kernel/ldt.c \
+		 kernel/vm86.c kernel/bios32.c kernel/splx.c kernel/signal.c \
+		 kernel/ptrace.c kernel/dummy.c mm
+
 
 ifdef CONFIG_SCSI
 DRIVERS := $(DRIVERS) drivers/scsi/scsi.a
@@ -97,7 +102,7 @@ endif
 .c.s:
 	$(CC) $(CFLAGS) -S -o $*.s $<
 .s.o:
-	$(AS) -o $*.o $<
+	$(AS) $(ASFLAGS) -o $*.o $<
 .c.o:
 	$(CC) $(CFLAGS) -c -o $*.o $<
 
@@ -113,7 +118,46 @@ include/asm:
 kernel/entry.S:
 	ln -sf ../arch/$(ARCH)/entry.S kernel/entry.S
 
-symlinks: boot include/asm kernel/entry.S
+init/main.c:
+	ln -sf ../arch/$(ARCH)/main.c init/main.c
+
+kernel/sched.c:
+	ln -sf ../arch/$(ARCH)/sched.c kernel/sched.c
+
+kernel/traps.c:
+	ln -sf ../arch/$(ARCH)/traps.c kernel/traps.c
+
+kernel/irq.c:
+	ln -sf ../arch/$(ARCH)/irq.c kernel/irq.c
+
+kernel/ioport.c:
+	ln -sf ../arch/$(ARCH)/ioport.c kernel/ioport.c
+
+kernel/ldt.c:
+	ln -sf ../arch/$(ARCH)/ldt.c kernel/ldt.c
+
+kernel/vm86.c:
+	ln -sf ../arch/$(ARCH)/vm86.c kernel/vm86.c
+
+kernel/bios32.c:
+	ln -sf ../arch/$(ARCH)/bios32.c kernel/bios32.c
+
+kernel/splx.c:
+	ln -sf ../arch/$(ARCH)/splx.c kernel/splx.c
+
+kernel/signal.c:
+	ln -sf ../arch/$(ARCH)/signal.c kernel/signal.c
+
+kernel/ptrace.c:
+	ln -sf ../arch/$(ARCH)/ptrace.c kernel/ptrace.c
+
+kernel/dummy.c:
+	ln -sf ../arch/$(ARCH)/dummy.c kernel/dummy.c
+
+mm:
+	ln -sf arch/$(ARCH)/mm mm
+
+symlinks: $(SYMLINKS)
 
 config.in: arch/$(ARCH)/config.in
 	cp $< $@
@@ -160,13 +204,16 @@ tools/version.o: tools/version.c tools/version.h
 init/main.o: $(CONFIGURE) init/main.c
 	$(CC) $(CFLAGS) $(PROFILING) -c -o $*.o $<
 
+init/init.o: $(CONFIGURE) init/init.c
+	$(CC) $(CFLAGS) $(PROFILING) -c -o $*.o $<
+
 fs: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=fs
 
 lib: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=lib
 
-mm: dummy
+mm.o: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=mm
 
 ipc: dummy
@@ -181,7 +228,7 @@ drivers: dummy
 net: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=net
 
-clean:	archclean
+clean:
 	rm -f kernel/ksyms.lst
 	rm -f core `find . -name '*.[oas]' -print`
 	rm -f core `find . -name 'core' -print`
@@ -194,7 +241,7 @@ mrproper: clean
 	rm -f include/linux/autoconf.h tools/version.h
 	rm -f drivers/sound/local.h
 	rm -f .version .config* config.in config.old
-	rm -f boot include/asm kernel/entry.S
+	rm -f $(SYMLINKS) boot include/asm kernel/entry.S init/main.c
 	rm -f .depend `find . -name .depend -print`
 
 distclean: mrproper

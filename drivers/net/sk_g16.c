@@ -1312,7 +1312,7 @@ static int SK_send_packet(struct sk_buff *skb, struct device *dev)
 
 static void SK_interrupt(int reg_ptr)
 {
-    int irq = - (((struct pt_regs *)reg_ptr)->orig_eax+2);
+    int irq = pt_regs2irq(reg_ptr);
     int csr0;
     struct device *dev = (struct device *) irq2dev_map[irq];
     struct priv *p = (struct priv *) dev->priv;

@@ -21,6 +21,7 @@
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/interrupt.h>
 #include <linux/fs.h>
 #include <linux/types.h>
 #include <linux/string.h>
@@ -71,6 +72,7 @@ loopback_xmit(struct sk_buff *skb, struct device *dev)
   dev->tbusy = 0;
 
 #if 1
+#if defined (__i386__)
 	__asm__("cmpl $0,_intr_count\n\t"
 		"jne 1f\n\t"
 		"movl _bh_active,%%eax\n\t"
@@ -83,6 +85,13 @@ loopback_xmit(struct sk_buff *skb, struct device *dev)
 		:
 		:
 		: "ax", "dx", "cx");
+#elif defined (__mips__)
+  if(intr_count == 0 && (bh_active & bh_mask) != 0) {
+    intr_count++;
+    do_bottom_half();
+    intr_count--;
+  }
+#endif
 #endif
 
   return(0);
