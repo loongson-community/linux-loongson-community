@@ -177,7 +177,7 @@ static_unused int _sys_clone(struct pt_regs regs)
 	newsp = regs.regs[5];
 	if (!newsp)
 		newsp = regs.regs[29];
-	user_tid = regs.regs[6];
+	user_tid = (int *) regs.regs[6];
 	p = do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0, user_tid);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
