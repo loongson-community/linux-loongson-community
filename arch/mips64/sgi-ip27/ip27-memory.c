@@ -196,3 +196,15 @@ prom_free_prom_memory (void)
 {
 	/* We got nothing to free here ...  */
 }
+
+#ifdef CONFIG_DISCONTIGMEM
+
+plat_pg_data_t plat_node_data[MAX_COMPACT_NODES];
+
+int numa_debug(void)
+{
+	printk("NUMA debug\n");
+	*(int *)0 = 0;
+	return(0);
+}
+#endif

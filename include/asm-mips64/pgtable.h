@@ -15,6 +15,8 @@
 #ifndef _LANGUAGE_ASSEMBLY
 
 #include <linux/linkage.h>
+#include <linux/config.h>
+#include <linux/mmzone.h>
 #include <asm/cachectl.h>
 
 /* Basically we have the same two-level (which is the logical three level
@@ -284,7 +286,11 @@ extern inline void pgd_clear(pgd_t *pgdp)
  * called on a highmem page.
  */
 #define page_address(page)	((page)->virtual)
+#ifndef CONFIG_DISCONTIGMEM
 #define pte_pagenr(x)		((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+#else
+#define pte_pagenr(x)		(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID((pte_val(x) & PAGE_MASK))) + PLAT_NODE_DATA_LOCALNR((pte_val(x) & PAGE_MASK), PHYSADDR_TO_NID((pte_val(x) >> PAGE_SHIFT))))
+#endif
 #define pte_page(x)		(mem_map+pte_pagenr(x))
 
 /*
@@ -371,11 +377,18 @@ extern inline pte_t pte_mkyoung(pte_t pte)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
+#ifndef CONFIG_DISCONTIGMEM
+#define PAGE_TO_PFN(page)	(page - mem_map)
+#else
+#define PAGE_TO_PFN(page)	(((page)-(page)->zone->zone_pgdat->node_mem_map) \
+				   + ((PAGE_TO_PLAT_NODE(page))->physstart >> \
+						PAGE_SHIFT))
+#endif
 #define mk_pte(page, pgprot)						\
 ({									\
 	pte_t	__pte;							\
 									\
-	pte_val(__pte) = ((unsigned long)(page - mem_map) << PAGE_SHIFT) | \
+	pte_val(__pte) = ((unsigned long)(PAGE_TO_PFN(page)) << PAGE_SHIFT) | \
 	                 pgprot_val(pgprot);				\
 									\
 	__pte;								\
@@ -439,7 +452,9 @@ extern void (*update_mmu_cache)(struct vm_area_struct *vma,
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define PageSkip(page)		(0)
+#ifndef CONFIG_DISCONTIGMEM
 #define kern_addr_valid(addr)	(1)
+#endif
 
 /* TLB operations. */
 extern inline void tlb_probe(void)

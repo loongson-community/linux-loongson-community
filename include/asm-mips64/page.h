@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.3 2000/01/17 23:32:47 ralf Exp $
+/* $Id: page.h,v 1.4 2000/01/27 01:05:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -64,7 +64,9 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 
 #define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
 #define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
+#ifndef CONFIG_DISCONTIGMEM
 #define MAP_NR(addr)	(__pa(addr) >> PAGE_SHIFT)
+#endif
 
 #endif /* defined (__KERNEL__) */
 

@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.11 2000/02/04 07:40:23 ralf Exp $
+# $Id: config.in,v 1.12 2000/02/05 06:47:09 ralf Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -16,6 +16,7 @@ bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SGI IP27' CONFIG_SGI_IP27
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  IP27 N-Mode' CONFIG_SGI_SN0_N_MODE
+   bool '  Discontiguous Memory Support' CONFIG_DISCONTIGMEM
    #bool '  IP27 XXL' CONFIG_SGI_SN0_XXL
 fi
 endmenu
