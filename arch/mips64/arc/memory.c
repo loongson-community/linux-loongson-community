@@ -1,7 +1,6 @@
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
+ * memory.c: PROM library functions for acquiring/using memory descriptors
+ *           given to us from the ARCS firmware.
  *
  * Copyright (C) 1996 by David S. Miller
  * Copyright (C) 1999, 2000, 2001 by Ralf Baechle
@@ -58,26 +57,20 @@ static char *arc_mtypes[8] = {
 #define mtypes(a) (prom_flags & PROM_FLAG_ARCS) ? arcs_mtypes[a.arcs] : arc_mtypes[a.arc]
 #endif
 
-static struct prom_pmemblock pblocks[PROM_MAX_PMEMBLOCKS];
-
-#define MEMTYPE_DONTUSE   0
-#define MEMTYPE_PROM      1
-#define MEMTYPE_FREE      2
-
 static inline int memtype_classify_arcs (union linux_memtypes type)
 {
 	switch (type.arcs) {
 	case arcs_fcontig:
 	case arcs_free:
-		return MEMTYPE_FREE;
+		return BOOT_MEM_RAM;
 	case arcs_atmp:
-		return MEMTYPE_PROM;
+		return BOOT_MEM_ROM_DATA;
 	case arcs_eblock:
 	case arcs_rvpage:
 	case arcs_bmem:
 	case arcs_prog:
 	case arcs_aperm:
-		return MEMTYPE_DONTUSE;
+		return BOOT_MEM_RESERVED;
 	default:
 		BUG();
 	}
