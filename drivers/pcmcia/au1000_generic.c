@@ -4,11 +4,11 @@
  *
  * Copyright 2001-2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *         	ppopov@mvista.com or source@mvista.com
+ *         	ppopov@embeddedalley.com or source@mvista.com
  *
- * Copyright 2004 Pete Popov, updated the driver to 2.6.
- * Followed the sa11xx API and largely copied many of the hardware
- * independent functions. 
+ * Copyright 2004 Pete Popov, Embedded Alley Solutions, Inc.
+ * Updated the driver to 2.6. Followed the sa11xx API and largely 
+ * copied many of the hardware independent functions. 
  *
  * ########################################################################
  *
@@ -52,7 +52,7 @@
 #include "au1000_generic.h"
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Pete Popov, MontaVista Software <ppopov@mvista.com>");
+MODULE_AUTHOR("Pete Popov <ppopov@embeddedalley.com>");
 MODULE_DESCRIPTION("Linux PCMCIA Card Services: Au1x00 Socket Controller");
 
 #if 0
@@ -70,22 +70,12 @@ extern struct au1000_pcmcia_socket au1000_pcmcia_socket[];
  * grab pcmcia sockets directly.
  */
 u32 *pcmcia_base_vaddrs[2];
-
-static spinlock_t pcmcia_lock = SPIN_LOCK_UNLOCKED;
 extern const unsigned long mips_io_port_base;
 
+DECLARE_MUTEX(pcmcia_sockets_lock);
+
 static int (*au1x00_pcmcia_hw_init[])(struct device *dev) = {
-#if defined(CONFIG_MIPS_PB1000) || defined(CONFIG_MIPS_PB1100) || defined(CONFIG_MIPS_PB1500)
-	pcmcia_pb1x00_init,
-#elif defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100) || defined(CONFIG_MIPS_DB1500)
-	pcmcia_db1x00_init,
-#elif defined(CONFIG_MIPS_XXS1500)
-	pcmcia_xxs1500_init,
-#elif defined(CONFIG_MIPS_SPARTACUS2)
-	pcmcia_spartacus_init,
-#elif defined(CONFIG_MIPS_PICOENGINE)
-	pcmcia_picoengine_init,
-#endif
+	au1x_board_init,
 };
 
 static int 
@@ -132,7 +122,7 @@ au1x00_pcmcia_config_skt(struct au1000_pcmcia_socket *skt, socket_state_t *state
 	}
 
 	if (ret < 0)
-		printk(KERN_ERR "%s: unable to configure socket %d\n", __FUNCTION__, skt->nr);
+		debug("unable to configure socket %d\n", skt->nr);
 
 	return ret;
 }
@@ -149,7 +139,7 @@ static int au1x00_pcmcia_sock_init(struct pcmcia_socket *sock)
 {
 	struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-	printk(KERN_DEBUG, "%s initializing socket %u\n", __FUNCTION__, skt->nr);
+	debug("initializing socket %u\n", skt->nr);
 
 	skt->ops->socket_init(skt);
 	return 0;
@@ -168,7 +158,7 @@ static int au1x00_pcmcia_suspend(struct pcmcia_socket *sock)
 	struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 	int ret;
 
-	debug(2, "%s(): suspending socket %u\n", __FUNCTION__, skt->nr);
+	debug("suspending socket %u\n", skt->nr);
 
 	ret = au1x00_pcmcia_config_skt(skt, &dead_socket);
 	if (ret == 0)
@@ -185,7 +175,7 @@ static void au1x00_check_status(struct au1000_pcmcia_socket *skt)
 {
 	unsigned int events;
 
-	debug(4, "%s(): entering PCMCIA monitoring thread\n", __FUNCTION__);
+	debug("entering PCMCIA monitoring thread\n");
 
 	do {
 		unsigned int status;
@@ -198,7 +188,7 @@ static void au1x00_check_status(struct au1000_pcmcia_socket *skt)
 		skt->status = status;
 		spin_unlock_irqrestore(&status_lock, flags);
 
-		debug(2, "events: %s%s%s%s%s%s\n",
+		debug("events: %s%s%s%s%s%s\n",
 			events == 0         ? "<NONE>"   : "",
 			events & SS_DETECT  ? "DETECT "  : "",
 			events & SS_READY   ? "READY "   : "",
@@ -218,7 +208,7 @@ static void au1x00_check_status(struct au1000_pcmcia_socket *skt)
 static void au1x00_pcmcia_poll_event(unsigned long dummy)
 {
 	struct au1000_pcmcia_socket *skt = (struct au1000_pcmcia_socket *)dummy;
-	debug(4, "%s(): polling for events\n", __FUNCTION__);
+	debug("polling for events\n");
 
 	mod_timer(&skt->poll_timer, jiffies + AU1000_PCMCIA_POLL_PERIOD);
 
@@ -265,7 +255,7 @@ au1x00_pcmcia_get_socket(struct pcmcia_socket *sock, socket_state_t *state)
 {
   struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-  debug(2, "%s() for sock %u\n", __FUNCTION__, skt->nr);
+  debug("for sock %u\n", skt->nr);
   *state = skt->cs_state;
   return 0;
 }
@@ -284,9 +274,9 @@ au1x00_pcmcia_set_socket(struct pcmcia_socket *sock, socket_state_t *state)
 {
   struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-  debug(2, "%s() for sock %u\n", __FUNCTION__, skt->nr);
+  debug("for sock %u\n", skt->nr);
 
-  debug(3, "\tmask:  %s%s%s%s%s%s\n\tflags: %s%s%s%s%s%s\n",
+  debug("\tmask:  %s%s%s%s%s%s\n\tflags: %s%s%s%s%s%s\n",
 	(state->csc_mask==0)?"<NONE>":"",
 	(state->csc_mask&SS_DETECT)?"DETECT ":"",
 	(state->csc_mask&SS_READY)?"READY ":"",
@@ -299,7 +289,7 @@ au1x00_pcmcia_set_socket(struct pcmcia_socket *sock, socket_state_t *state)
 	(state->flags&SS_RESET)?"RESET ":"",
 	(state->flags&SS_SPKR_ENA)?"SPKR_ENA ":"",
 	(state->flags&SS_OUTPUT_ENA)?"OUTPUT_ENA ":"");
-  debug(3, "\tVcc %d  Vpp %d  irq %d\n",
+  debug("\tVcc %d  Vpp %d  irq %d\n",
 	state->Vcc, state->Vpp, state->io_irq);
 
   return au1x00_pcmcia_config_skt(skt, state);
@@ -312,8 +302,7 @@ au1x00_pcmcia_set_io_map(struct pcmcia_socket *sock, struct pccard_io_map *map)
 	unsigned int speed;
 
 	if(map->map>=MAX_IO_WIN){
-		printk(KERN_ERR, "%smap (%d) out of range\n",
-				__FUNCTION__, map->map);
+		debug("map (%d) out of range\n", map->map);
 		return -1;
 	}
 
@@ -336,8 +325,7 @@ au1x00_pcmcia_set_mem_map(struct pcmcia_socket *sock, struct pccard_mem_map *map
 	unsigned short speed = map->speed;
 
 	if(map->map>=MAX_WIN){
-		printk(KERN_ERR, "%s map (%d) out of range\n", 
-				__FUNCTION__, map->map);
+		debug("map (%d) out of range\n", map->map);
 		return -1;
 	}
 
@@ -350,16 +338,14 @@ au1x00_pcmcia_set_mem_map(struct pcmcia_socket *sock, struct pccard_mem_map *map
 	}
 
 	if (map->flags & MAP_ATTRIB) {
-		map->sys_start = skt->phys_attr + map->card_start;
+		map->static_start = skt->phys_attr + map->card_start;
 	}
 	else {
-		map->sys_start = skt->phys_mem + map->card_start;
+		map->static_start = skt->phys_mem + map->card_start;
 	}
 
-	map->sys_stop=map->sys_start+MAP_SIZE;
-	debug(4, "set_mem_map %d start %Lx stop %Lx card_start %x\n", 
-			map->map, map->sys_start, map->sys_stop, 
-			map->card_start);
+	debug("set_mem_map %d start %08lx card_start %08x\n", 
+			map->map, map->static_start, map->card_start);
 	return 0;
 
 }  /* au1x00_pcmcia_set_mem_map() */
@@ -418,6 +404,7 @@ int au1x00_pcmcia_socket_probe(struct device *dev, struct pcmcia_low_level *ops,
 		skt->dev	= dev;
 		skt->ops	= ops;
 
+		skt->res_skt.name	= skt_names[skt->nr];
 		skt->res_io.name	= "io";
 		skt->res_io.flags	= IORESOURCE_MEM | IORESOURCE_BUSY;
 		skt->res_mem.name	= "memory";
@@ -426,9 +413,12 @@ int au1x00_pcmcia_socket_probe(struct device *dev, struct pcmcia_low_level *ops,
 		skt->res_attr.flags	= IORESOURCE_MEM;
 		
 		/*
-		 * PCMCIA drivers use the inb/outb macros to access the
-		 * IO registers. Since mips_io_port_base is added to the
-		 * access address, we need to subtract it here.
+		 * PCMCIA client drivers use the inb/outb macros to access the
+		 * IO registers. Since mips_io_port_base is added to the 
+		 * access address of the mips implementation of inb/outb, 
+		 * we need to subtract it here because we want to access the
+		 * I/O or MEM address directly, without going through this
+		 * "mips_io_port_base" mechanism.
 		 */
 		if (i == 0) {
 			skt->virt_io = (void *)
@@ -490,6 +480,7 @@ int au1x00_drv_pcmcia_remove(struct device *dev)
 	struct skt_dev_info *sinfo = dev_get_drvdata(dev);
 	int i;
 
+	down(&pcmcia_sockets_lock);
 	dev_set_drvdata(dev, NULL);
 
 	for (i = 0; i < sinfo->nskt; i++) {
@@ -505,6 +496,7 @@ int au1x00_drv_pcmcia_remove(struct device *dev)
 	}
 
 	kfree(sinfo);
+	up(&pcmcia_sockets_lock);
 	return 0;
 }
 
@@ -517,11 +509,13 @@ static int au1x00_drv_pcmcia_probe(struct device *dev)
 {
 	int i, ret = -ENODEV;
 
+	down(&pcmcia_sockets_lock);
 	for (i=0; i < ARRAY_SIZE(au1x00_pcmcia_hw_init); i++) {
 		ret = au1x00_pcmcia_hw_init[i](dev);
 		if (ret == 0)
 			break;
 	}
+	up(&pcmcia_sockets_lock);
 	return ret;
 }
 

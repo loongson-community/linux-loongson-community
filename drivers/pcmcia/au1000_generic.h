@@ -137,10 +137,6 @@ struct pcmcia_low_level {
 	void (*socket_suspend)(struct au1000_pcmcia_socket *);
 };
 
-extern int pcmcia_pb1x00_init(struct device *dev);
-extern int pcmcia_db1x00_init(struct device *dev);
-extern int pcmcia_xxs1500_init(struct device *dev);
-extern int pcmcia_spartacus_init(struct device *dev);
-extern int pcmcia_picoengine_init(struct device *dev);
+extern int au1x_board_init(struct device *dev);
 
 #endif /* __ASM_AU1000_PCMCIA_H */

@@ -91,7 +91,7 @@ db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state
 	}
 
 	if (inserted) 
-		debug(4, "db1x00 socket %d: inserted %d, vs %d pcmcia %x\n", 
+		debug("db1x00 socket %d: inserted %d, vs %d pcmcia %x\n", 
 				skt->nr, inserted, vs, bcsr->pcmcia);
 
 	if (inserted) {
@@ -141,7 +141,7 @@ db1x00_pcmcia_configure_socket(struct au1000_pcmcia_socket *skt, struct socket_s
 	u16 pwr;
 	int sock = skt->nr;
 
-	debug(4, "config_skt %d Vcc %dV Vpp %dV, reset %d\n", 
+	debug("config_skt %d Vcc %dV Vpp %dV, reset %d\n", 
 			sock, state->Vcc, state->Vpp, 
 			state->flags & SS_RESET);
 
@@ -273,7 +273,7 @@ struct pcmcia_low_level db1x00_pcmcia_ops = {
 	.socket_suspend		= db1x00_socket_suspend
 };
 
-int __init pcmcia_db1x00_init(struct device *dev)
+int __init au1x_board_init(struct device *dev)
 {
 	int ret = -ENODEV;
 	bcsr->pcmcia = 0; /* turn off power, if it's not already off */
