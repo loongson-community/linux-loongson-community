@@ -8,6 +8,9 @@ obj-y		+= cpu-probe.o branch.o entry.o genex.o irq.o process.o \
 		   ptrace.o reset.o semaphore.o setup.o signal.o syscall.o \
 		   time.o traps.o unaligned.o
 
+binfmt_irix-objs	:= irixelf.o irixinv.o irixioctl.o irixsig.o	\
+			   irix5sys.o sysirix.o
+
 ifdef CONFIG_MODULES
 obj-y				+= mips_ksyms.o module.o
 obj-$(CONFIG_MIPS32)		+= module-elf32.o
@@ -44,8 +47,7 @@ obj-$(CONFIG_IRQ_MV64340)	+= irq-mv6434x.o
 
 obj-$(CONFIG_MIPS32)		+= scall32-o32.o
 obj-$(CONFIG_MIPS64)		+= scall64-64.o
-obj-$(CONFIG_BINFMT_IRIX)	+= irixelf.o irixioctl.o irixsig.o sysirix.o \
-				   irixinv.o
+obj-$(CONFIG_BINFMT_IRIX)	+= binfmt_irix.o
 obj-$(CONFIG_MIPS32_COMPAT)	+= ioctl32.o linux32.o signal32.o
 obj-$(CONFIG_MIPS32_N32)	+= binfmt_elfn32.o scall64-n32.o signal_n32.o
 obj-$(CONFIG_MIPS32_O32)	+= binfmt_elfo32.o scall64-o32.o ptrace32.o

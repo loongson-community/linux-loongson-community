@@ -339,7 +339,7 @@ out:	jr	ra
 	.macro	syscalltable
 #if defined(CONFIG_BINFMT_IRIX)
 	mille	sys_ni_syscall		0	/*    0 -  999 SVR4 flavour */
-# include "irix5sys.h"				/* 1000 - 1999 32-bit IRIX */
+	mille	sys_ni_syscall		0	/* 1000 - 1999 32-bit IRIX */
 	mille	sys_ni_syscall		0	/* 2000 - 2999 BSD43 flavour */
 	mille	sys_ni_syscall		0	/* 3000 - 3999 POSIX flavour */
 #endif
@@ -640,6 +640,6 @@ out:	jr	ra
 
 	.align	3
 	.type	sys_call_table,@object
-sys_call_table:
+EXPORT(sys_call_table)
 	syscalltable
 	.size	sys_call_table, . - sys_call_table
