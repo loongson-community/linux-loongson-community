@@ -572,6 +572,8 @@ static inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
  */
 #define HAVE_ARCH_UNMAPPED_AREA
 
+#define io_remap_page_range remap_page_range
+
 #endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_PGTABLE_H */
