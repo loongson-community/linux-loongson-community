@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.24 2000/02/04 07:40:23 ralf Exp $
+/* $Id: irixelf.c,v 1.25 2000/03/02 02:36:50 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -29,6 +29,7 @@
 #include <linux/shm.h>
 #include <linux/personality.h>
 #include <linux/elfcore.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgalloc.h>
@@ -449,29 +450,31 @@ static inline int look_for_irix_interpreter(char **name,
 
 	*name = NULL;
 	for(i = 0; i < pnum; i++, epp++) {
-		if(epp->p_type != PT_INTERP)
+		if (epp->p_type != PT_INTERP)
 			continue;
 
 		/* It is illegal to have two interpreters for one executable. */
-		if(*name != NULL)
+		if (*name != NULL)
 			goto out;
 
 		*name = (char *) kmalloc((epp->p_filesz +
 					  strlen(IRIX_INTERP_PREFIX)),
 					 GFP_KERNEL);
-		if(!*name)
+		if (!*name)
 			return -ENOMEM;
 
 		strcpy(*name, IRIX_INTERP_PREFIX);
 		retval = read_exec(bprm->dentry, epp->p_offset, (*name + 16),
 				   epp->p_filesz, 1);
-		if(retval < 0)
+		if (retval < 0)
 			goto out;
 
 		old_fs = get_fs(); set_fs(get_ds());
+		lock_kernel();
 		dentry = namei(*name);
+		unlock_kernel();
 		set_fs(old_fs);
-		if(IS_ERR(dentry)) {
+		if (IS_ERR(dentry)) {
 			retval = PTR_ERR(dentry);
 			goto out;
 		}
@@ -485,7 +488,9 @@ static inline int look_for_irix_interpreter(char **name,
 	return 0;
 
 dput_and_out:
+	lock_kernel();
 	dput(dentry);
+	unlock_kernel();
 out:
 	kfree(*name);
 	return retval;
@@ -566,7 +571,9 @@ static inline int map_interpreter(struct elf_phdr *epp, struct elfhdr *ihp,
 		old_fs = get_fs();
 		set_fs(get_ds());
 
+		lock_kernel();
 		dput(identry);
+		unlock_kernel();
 
 		if(*eentry == 0xffffffff)
 			return -1;
@@ -682,10 +689,10 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	                                   &interpreter_dentry,
 					   &interp_elf_ex, elf_phdata, bprm,
 					   elf_ex.e_phnum);
-	if(retval)
+	if (retval)
 		goto out_free_file;
 
-	if(elf_interpreter) {
+	if (elf_interpreter) {
 		retval = verify_irix_interpreter(&interp_elf_ex);
 		if(retval)
 			goto out_free_interp;
@@ -811,7 +818,9 @@ out:
 	return retval;
 
 out_free_dentry:
+	lock_kernel();
 	dput(interpreter_dentry);
+	unlock_kernel();
 out_free_interp:
 	if (elf_interpreter)
 		kfree(elf_interpreter);

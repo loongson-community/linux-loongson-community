@@ -45,13 +45,13 @@ noritake_update_irq_hw(int irq, int mask)
 	outw(mask, port);
 }
 
-static inline void
+static void
 noritake_enable_irq(unsigned int irq)
 {
 	noritake_update_irq_hw(irq, cached_irq_mask |= 1 << (irq - 16));
 }
 
-static inline void
+static void
 noritake_disable_irq(unsigned int irq)
 {
 	noritake_update_irq_hw(irq, cached_irq_mask &= ~(1 << (irq - 16)));
@@ -135,12 +135,11 @@ noritake_init_irq(void)
 	outw(0, 0x54c);
 
 	for (i = 16; i < 48; ++i) {
-		irq_desc[i].status = IRQ_DISABLED;
+		irq_desc[i].status = IRQ_DISABLED | IRQ_LEVEL;
 		irq_desc[i].handler = &noritake_irq_type;
 	}
 
 	init_i8259a_irqs();
-	init_rtc_irq();
 	common_init_isa_dma();
 }
 

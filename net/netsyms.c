@@ -502,6 +502,7 @@ EXPORT_SYMBOL(dev_remove_pack);
 EXPORT_SYMBOL(dev_get);
 EXPORT_SYMBOL(dev_alloc);
 EXPORT_SYMBOL(dev_alloc_name);
+EXPORT_SYMBOL(__netdev_watchdog_up);
 #ifdef CONFIG_KMOD
 EXPORT_SYMBOL(dev_load);
 #endif
@@ -580,10 +581,9 @@ EXPORT_SYMBOL(nf_register_hook);
 EXPORT_SYMBOL(nf_unregister_hook);
 EXPORT_SYMBOL(nf_register_sockopt);
 EXPORT_SYMBOL(nf_unregister_sockopt);
-EXPORT_SYMBOL(nf_getinfo);
 EXPORT_SYMBOL(nf_reinject);
-EXPORT_SYMBOL(nf_register_interest);
-EXPORT_SYMBOL(nf_unregister_interest);
+EXPORT_SYMBOL(nf_register_queue_handler);
+EXPORT_SYMBOL(nf_unregister_queue_handler);
 EXPORT_SYMBOL(nf_hook_slow);
 EXPORT_SYMBOL(nf_hooks);
 #endif

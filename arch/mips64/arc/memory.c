@@ -1,4 +1,4 @@
-/* $Id: memory.c,v 1.4 2000/01/17 23:32:46 ralf Exp $
+/* $Id: memory.c,v 1.5 2000/01/27 23:21:57 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -13,7 +13,6 @@
  * because on some machines like SGI IP27 the ARC memory configuration data
  * completly bogus and alternate easier to use mechanisms are available.
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -21,7 +20,6 @@
 #include <linux/mm.h>
 #include <linux/bootmem.h>
 #include <linux/swap.h>
-#include <linux/config.h>
 
 #include <asm/sgialib.h>
 #include <asm/page.h>

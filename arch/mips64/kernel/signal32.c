@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: signal32.c,v 1.2 2000/02/18 00:03:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -8,7 +8,6 @@
  * Copyright (C) 1994 - 1999  Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/smp.h>

@@ -18,6 +18,7 @@
 
 #include <linux/mm.h>
 #include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -1160,7 +1161,7 @@ static void end_level_ioapic_irq (unsigned int i)
 
 static void mask_and_ack_level_ioapic_irq (unsigned int i) { /* nothing */ }
 
-static void set_ioapic_affinity (unsigned int irq, unsigned int mask)
+static void set_ioapic_affinity (unsigned int irq, unsigned long mask)
 {
 	unsigned long flags;
 	/*

@@ -22,7 +22,6 @@ struct linux_hose_info;
 struct pci_dev;
 struct pci_ops;
 struct pci_controler;
-struct irqaction;
 
 struct alpha_machine_vector
 {
@@ -67,10 +66,9 @@ struct alpha_machine_vector
 
 	void (*mv_switch_mm)(struct mm_struct *, struct mm_struct *,
 			     struct task_struct *, long);
-	void (*mv_activate_mm)(struct mm_struct *, struct mm_struct *, long);
+	void (*mv_activate_mm)(struct mm_struct *, struct mm_struct *);
 
 	void (*mv_flush_tlb_current)(struct mm_struct *);
-	void (*mv_flush_tlb_other)(struct mm_struct *);
 	void (*mv_flush_tlb_current_page)(struct mm_struct * mm,
 					  struct vm_area_struct *vma,
 					  unsigned long addr);
@@ -82,7 +80,7 @@ struct alpha_machine_vector
 
 	void (*init_arch)(void);
 	void (*init_irq)(void);
-	void (*init_rtc)(struct irqaction *);
+	void (*init_rtc)(void);
 	void (*init_pci)(void);
 	void (*kill_arch)(int);
 

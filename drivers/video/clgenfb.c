@@ -31,7 +31,7 @@
  *
  */
 
-#define CLGEN_VERSION "1.9.4.4"
+#define CLGEN_VERSION "1.9.4.5"
 
 #include <linux/config.h>
 #include <linux/module.h>
@@ -46,7 +46,6 @@
 #include <linux/init.h>
 #include <linux/selection.h>
 #include <asm/pgtable.h>
-#include <asm/delay.h>
 #include <asm/io.h>
 #ifdef CONFIG_ZORRO
 #include <linux/zorro.h>

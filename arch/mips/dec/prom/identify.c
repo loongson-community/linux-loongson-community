@@ -3,10 +3,9 @@
  *
  * Copyright (C) 1998 Harald Koerfgen and Paul M. Antoine
  *
- * $Id: identify.c,v 1.1 1999/01/17 03:49:44 ralf Exp $
+ * $Id: identify.c,v 1.2 1999/10/09 00:00:58 ralf Exp $
  */
 #include <linux/init.h>
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 

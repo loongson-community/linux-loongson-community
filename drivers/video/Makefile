@@ -5,7 +5,7 @@
 SUB_DIRS        :=
 MOD_SUB_DIRS    := $(SUB_DIRS)
 MOD_IN_SUB_DIRS :=
-ALL_SUB_DIRS    := $(SUB_DIRS) matrox
+ALL_SUB_DIRS    := $(SUB_DIRS) matrox riva
 
 O_TARGET := video.o
 O_OBJS   :=
@@ -16,11 +16,12 @@ M_OBJS   :=
 # All of the (potential) objects that export symbols.
 # This list comes from 'grep -l EXPORT_SYMBOL *.[hc]'.
 
-export-objs    :=  fbmem.o fbcmap.o fbcon.o fbcon-afb.o fbcon-ilbm.o fbcon-vga.o \
-		   fbcon-iplan2p2.o fbcon-iplan2p4.o fbcon-iplan2p8.o fbcon-vga-planes.o \
-		   fbcon-cfb16.o fbcon-cfb2.o fbcon-cfb24.o fbcon-cfb32.o fbcon-cfb4.o fbcon-cfb8.o \
-		   fbcon-mac.o fbcon-mfb.o fbcon-vga8-planes.o \
-		   matrox/matroxfb.o
+export-objs    := fbmem.o fbcmap.o fbcon.o fbcon-afb.o fbcon-ilbm.o \
+		  fbcon-vga.o fbcon-iplan2p2.o fbcon-iplan2p4.o \
+		  fbcon-iplan2p8.o fbcon-vga-planes.o fbcon-cfb16.o \
+		  fbcon-cfb2.o fbcon-cfb24.o fbcon-cfb32.o fbcon-cfb4.o \
+		  fbcon-cfb8.o fbcon-mac.o fbcon-mfb.o fbcon-vga8-planes.o \
+		  matrox/matroxfb.o cyber2000fb.o
 
 # Object file lists.
 obj-y          :=
@@ -62,7 +63,6 @@ obj-$(CONFIG_FB_CT65550)          += chipsfb.o
 obj-$(CONFIG_FB_CYBER)            += cyberfb.o
 obj-$(CONFIG_FB_CYBER2000)        += cyber2000fb.o
 obj-$(CONFIG_FB_SGIVW)            += sgivwfb.o
-obj-$(CONFIG_FB_RIVA)             += rivafb.o riva_hw.o
 obj-$(CONFIG_FB_3DFX)             += tdfxfb.o
 obj-$(CONFIG_FB_MAC)              += macfb.o macmodes.o
 obj-$(CONFIG_FB_HP300)            += hpfb.o
@@ -96,6 +96,16 @@ MOD_SUB_DIRS			  += matrox
 else
   ifeq ($(CONFIG_FB_MATROX),m)
   MOD_SUB_DIRS			  += matrox
+  endif
+endif
+
+ifeq ($(CONFIG_FB_RIVA),y)
+SUB_DIRS			  += riva
+obj-y				  += riva/rivafb.o
+MOD_SUB_DIRS			  += riva
+else
+  ifeq ($(CONFIG_FB_RIVA),m)
+  MOD_SUB_DIRS			  += riva
   endif
 endif
 

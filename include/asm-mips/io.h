@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.12 2000/02/16 01:45:55 ralf Exp $
+/* $Id: io.h,v 1.13 2000/02/24 00:13:19 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -15,8 +15,6 @@
  * Slowdown I/O port space accesses for antique hardware.
  */
 #undef CONF_SLOWDOWN_IO
-
-#include <linux/config.h>
 
 #include <asm/addrspace.h>
 

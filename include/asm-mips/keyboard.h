@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: keyboard.h,v 1.14 1999/08/19 22:56:33 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -11,7 +11,6 @@
 
 #ifdef __KERNEL__
 
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
 #include <asm/bootinfo.h>

@@ -4,9 +4,10 @@
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
  *
- *  $Id$
+ *  $Id: irq.c,v 1.1 2000/01/26 00:07:44 ralf Exp $
  */
 
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/signal.h>
 #include <linux/sched.h>

@@ -1,4 +1,4 @@
-/* $Id: hardirq.h,v 1.4 2000/02/23 00:41:38 ralf Exp $
+/* $Id: hardirq.h,v 1.5 2000/03/02 02:37:13 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -12,6 +12,20 @@
 
 #include <linux/threads.h>
 #include <linux/irq.h>
+
+typedef struct {
+	unsigned long __local_irq_count;
+	unsigned long __local_bh_count;
+	unsigned long __pad[14];
+} ____cacheline_aligned irq_cpustat_t;
+
+extern irq_cpustat_t irq_stat [NR_CPUS];
+
+/*
+ * Simple wrappers reducing source bloat
+ */
+#define local_irq_count(cpu) (irq_stat[(cpu)].__local_irq_count)
+#define local_bh_count(cpu) (irq_stat[(cpu)].__local_bh_count)
 
 /*
  * Are we in an interrupt context? Either doing bottom half

@@ -87,7 +87,7 @@ void rd_load(void);
 static int crd_load(struct file *fp, struct file *outfp);
 
 #ifdef CONFIG_BLK_DEV_INITRD
-static int initrd_users = 0;
+static int initrd_users;
 #endif
 #endif
 
@@ -122,13 +122,13 @@ int rd_blocksize = BLOCK_SIZE;	/* Size of the RAM disks */
 
 #ifndef MODULE
 
-int rd_doload = 0;		/* 1 = load RAM disk, 0 = don't load */
+int rd_doload;			/* 1 = load RAM disk, 0 = don't load */
 int rd_prompt = 1;		/* 1 = prompt for RAM disk, 0 = don't prompt */
-int rd_image_start = 0;		/* starting block # of image */
+int rd_image_start;		/* starting block # of image */
 #ifdef CONFIG_BLK_DEV_INITRD
-unsigned long initrd_start,initrd_end;
+unsigned long initrd_start, initrd_end;
 int mount_initrd = 1;		/* zero if initrd should not be mounted */
-int initrd_below_start_ok = 0;
+int initrd_below_start_ok;
 
 static int __init no_initrd(char *str)
 {
@@ -293,11 +293,15 @@ static int rd_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 
 	switch (cmd) {
 		case BLKFLSBUF:
-			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
+			if (!capable(CAP_SYS_ADMIN))
+				return -EACCES;
 			/* special: we want to release the ramdisk memory,
 			   it's not like with the other blockdevices where
 			   this ioctl only flushes away the buffer cache. */
+			if ((atomic_read(&inode->i_bdev->bd_openers) > 2))
+				return -EBUSY;
 			destroy_buffers(inode->i_rdev);
+			rd_blocksizes[minor] = 0;
 			break;
 
          	case BLKGETSIZE:   /* Return device size */
@@ -338,6 +342,8 @@ static int initrd_release(struct inode *inode,struct file *file)
 	extern void free_initrd_mem(unsigned long, unsigned long);
 
 	if (--initrd_users) return 0;
+	blkdev_put(inode->i_bdev, BDEV_FILE);
+	iput(inode);
 	free_initrd_mem(initrd_start, initrd_end);
 	initrd_start = 0;
 	return 0;
@@ -366,7 +372,6 @@ static int rd_open(struct inode * inode, struct file * filp)
 	if (DEVICE_NR(inode->i_rdev) >= NUM_RAMDISKS)
 		return -ENXIO;
 
-	filp->f_op = &def_blk_fops;
 	MOD_INC_USE_COUNT;
 
 	return 0;
@@ -389,12 +394,18 @@ static void __exit rd_cleanup (void)
 {
 	int i;
 
-	for (i = 0 ; i < NUM_RAMDISKS; i++)
+	for (i = 0 ; i < NUM_RAMDISKS; i++) {
+		struct block_device *bdev;
+		bdev = bdget(kdev_t_to_nr(MKDEV(MAJOR_NR,i)));
+		atomic_dec(&bdev->bd_openers);
 		destroy_buffers(MKDEV(MAJOR_NR, i));
+	}
 
 	devfs_unregister (devfs_handle);
 	unregister_blkdev( MAJOR_NR, "ramdisk" );
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
+	blksize_size[MAJOR_NR] = NULL;
+	blk_size[MAJOR_NR] = NULL;
 }
 
 /* This is the registration and initialization section of the RAM disk driver */
@@ -432,15 +443,20 @@ int __init rd_init (void)
 
 	hardsect_size[MAJOR_NR] = rd_hardsec;		/* Size of the RAM disk blocks */
 	blksize_size[MAJOR_NR] = rd_blocksizes;		/* Avoid set_blocksize() check */
-	blk_size[MAJOR_NR] = rd_kbsize;			/* Size of the RAM disk in kB  */
 
-	for (i = 0; i < NUM_RAMDISKS; i++)
+	for (i = 0; i < NUM_RAMDISKS; i++) {
+		struct block_device *bdev;
 		register_disk(NULL, MKDEV(MAJOR_NR,i), 1, &fd_fops, rd_size<<1);
+		bdev = bdget(kdev_t_to_nr(MKDEV(MAJOR_NR,i)));
+		atomic_inc(&bdev->bd_openers);  /* avoid invalidate_buffers() */
+	}
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* We ought to separate initrd operations here */
 	register_disk(NULL, MKDEV(MAJOR_NR,INITRD_MINOR), 1, &fd_fops, rd_size<<1);
 #endif
+
+	blk_size[MAJOR_NR] = rd_kbsize;			/* Size of the RAM disk in kB  */
 
 		/* rd_size is given in kB */
 	printk("RAMDISK driver initialized: "
@@ -584,26 +600,28 @@ static void __init rd_load_image(kdev_t device, int offset, int unit)
 
 	ram_device = MKDEV(MAJOR_NR, unit);
 
+	if ((inode = get_empty_inode()) == NULL)
+		return;
 	memset(&infile, 0, sizeof(infile));
 	memset(&in_dentry, 0, sizeof(in_dentry));
-	inode = get_empty_inode();
-	inode->i_rdev = device;
-	inode->i_bdev = bdget(kdev_t_to_nr(device));
 	infile.f_mode = 1; /* read only */
 	infile.f_dentry = &in_dentry;
 	in_dentry.d_inode = inode;
+	infile.f_op = &def_blk_fops;
+	init_special_inode(inode, S_IFBLK | S_IRUSR, kdev_t_to_nr(device));
 
+	if ((out_inode = get_empty_inode()) == NULL)
+		goto free_inode;
 	memset(&outfile, 0, sizeof(outfile));
 	memset(&out_dentry, 0, sizeof(out_dentry));
-	out_inode = get_empty_inode();
-	out_inode->i_rdev = ram_device;
-	out_inode->i_bdev = bdget(kdev_t_to_nr(ram_device));
 	outfile.f_mode = 3; /* read/write */
 	outfile.f_dentry = &out_dentry;
 	out_dentry.d_inode = out_inode;
+	outfile.f_op = &def_blk_fops;
+	init_special_inode(out_inode, S_IFBLK | S_IRUSR | S_IWUSR, kdev_t_to_nr(ram_device));
 
 	if (blkdev_open(inode, &infile) != 0)
-		goto free_inodes;
+		goto free_inode;
 	if (blkdev_open(out_inode, &outfile) != 0)
 		goto free_inodes;
 
@@ -697,9 +715,12 @@ done:
 	if (infile.f_op->release)
 		infile.f_op->release(inode, &infile);
 	set_fs(fs);
-free_inodes:
-	iput(inode);
+	return;
+free_inodes: /* free inodes on error */ 
 	iput(out_inode);
+	blkdev_put(inode->i_bdev, BDEV_FILE);
+free_inode:
+	iput(inode);
 }
 
 

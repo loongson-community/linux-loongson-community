@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.23 2000/02/04 07:40:23 ralf Exp $
+/* $Id: sysirix.c,v 1.24 2000/02/05 06:47:08 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -878,7 +878,6 @@ asmlinkage int irix_exec(struct pt_regs *regs)
 	int error, base = 0;
 	char *filename;
 
-	lock_kernel();
 	if(regs->regs[2] == 1000)
 		base = 1;
 	filename = getname((char *) (long)regs->regs[base + 4]);
@@ -890,7 +889,6 @@ asmlinkage int irix_exec(struct pt_regs *regs)
 	putname(filename);
 
 out:
-	unlock_kernel();
 	return error;
 }
 

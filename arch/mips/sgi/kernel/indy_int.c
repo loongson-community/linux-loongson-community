@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.17 2000/02/04 07:40:23 ralf Exp $
+/* $Id: indy_int.c,v 1.18 2000/03/02 02:36:50 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -9,7 +9,6 @@
  *                    - Indigo2 changes
  *                    - Interrupt handling fixes
  */
-#include <linux/config.h>
 #include <linux/init.h>
 
 #include <linux/errno.h>

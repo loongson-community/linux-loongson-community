@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.13 2000/02/27 01:03:24 kanoj Exp $
+/* $Id: pgtable.h,v 1.14 2000/03/02 02:37:13 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -72,6 +72,7 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define PTRS_PER_PMD	1024
 #define PTRS_PER_PTE	512
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
+#define FIRST_USER_PGD_NR	0
 
 #define VMALLOC_START     XKSEG
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))

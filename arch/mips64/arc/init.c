@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.3 1999/10/19 20:51:45 ralf Exp $
+/* $Id: init.c,v 1.3 1999/11/19 23:29:05 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,7 +10,6 @@
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
 
 #include <asm/sgialib.h>
 

@@ -1,5 +1,5 @@
 /*
- * $Id: socket.h,v 1.5 1998/03/17 22:16:17 ralf Exp $
+ * $Id: socket.h,v 1.6 2000/02/25 21:52:09 ralf Exp $
  */
 #ifndef _ASM_SOCKET_H
 #define _ASM_SOCKET_H
@@ -57,6 +57,8 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SO_DETACH_FILTER        27
 
 #ifdef __KERNEL__
+
+#define SO_PEERNAME             28
 
 /* Types of sockets.  */
 #define SOCK_DGRAM 1		/* Connectionless, unreliable datagrams

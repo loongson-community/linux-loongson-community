@@ -1,4 +1,4 @@
-/* $Id: bootinfo.h,v 1.10 2000/01/26 00:07:45 ralf Exp $
+/* $Id: bootinfo.h,v 1.11 2000/03/06 11:14:32 raiko Exp $
  *
  * bootinfo.h -- Definition of the Linux/MIPS boot information structure
  *
@@ -11,9 +11,6 @@
  */
 #ifndef __ASM_MIPS_BOOTINFO_H
 #define __ASM_MIPS_BOOTINFO_H
-
-/* XXX */
-#include <linux/config.h>
 
 /*
  * Values for machgroup

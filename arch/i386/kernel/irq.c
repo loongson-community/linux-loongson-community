@@ -32,7 +32,6 @@
 #include <linux/kernel_stat.h>
 #include <linux/irq.h>
 #include <linux/proc_fs.h>
-#include <linux/irq.h>
 
 #include <asm/io.h>
 #include <asm/smp.h>
@@ -184,24 +183,43 @@ int get_irq_list(char *buf)
 unsigned char global_irq_holder = NO_PROC_ID;
 unsigned volatile int global_irq_lock;
 
+extern void show_stack(unsigned long* esp);
+
 static void show(char * str)
 {
 	int i;
-	unsigned long *stack;
 	int cpu = smp_processor_id();
 
 	printk("\n%s, CPU %d:\n", str, cpu);
-	printk("irq:  %d [%d %d]\n",
-		irqs_running(), local_irq_count(0), local_irq_count(1));
-	printk("bh:   %d [%d %d]\n",
-		spin_is_locked(&global_bh_lock) ? 1 : 0, local_bh_count(0), local_bh_count(1));
-	stack = (unsigned long *) &stack;
-	for (i = 40; i ; i--) {
-		unsigned long x = *++stack;
-		if (x > (unsigned long) &get_option && x < (unsigned long) &vsprintf) {
-			printk("<[%08lx]> ", x);
+	printk("irq:  %d [",irqs_running());
+	for(i=0;i < smp_num_cpus;i++)
+		printk(" %d",local_irq_count(i));
+	printk(" ]\nbh:   %d [",spin_is_locked(&global_bh_lock) ? 1 : 0);
+	for(i=0;i < smp_num_cpus;i++)
+		printk(" %d",local_bh_count(i));
+
+	printk(" ]\nStack dumps:");
+	for(i=0;i< smp_num_cpus;i++) {
+		unsigned long esp;
+		if(i==cpu)
+			continue;
+		printk("\nCPU %d:",i);
+		esp = init_tss[i].esp0;
+		if(esp==NULL) {
+			/* tss->esp0 is set to NULL in cpu_init(),
+			 * it's initialized when the cpu returns to user
+			 * space. -- manfreds
+			 */
+			printk(" <unknown> ");
+			continue;
 		}
-	}
+		esp &= ~(THREAD_SIZE-1);
+		esp += sizeof(struct task_struct);
+		show_stack((void*)esp);
+ 	}
+	printk("\nCPU %d:",cpu);
+	show_stack(NULL);
+	printk("\n");
 }
 	
 #define MAXCOUNT 100000000
@@ -874,7 +892,7 @@ static struct proc_dir_entry * root_irq_dir;
 static struct proc_dir_entry * irq_dir [NR_IRQS];
 static struct proc_dir_entry * smp_affinity_entry [NR_IRQS];
 
-unsigned int irq_affinity [NR_IRQS] = { [0 ... NR_IRQS-1] = 0xffffffff};
+static unsigned long irq_affinity [NR_IRQS] = { [0 ... NR_IRQS-1] = ~0UL };
 
 #define HEX_DIGITS 8
 
@@ -883,7 +901,7 @@ static int irq_affinity_read_proc (char *page, char **start, off_t off,
 {
 	if (count < HEX_DIGITS+1)
 		return -EINVAL;
-	return sprintf (page, "%08x\n", irq_affinity[(int)data]);
+	return sprintf (page, "%08lx\n", irq_affinity[(long)data]);
 }
 
 static unsigned int parse_hex_value (const char *buffer,
@@ -926,7 +944,7 @@ out:
 static int irq_affinity_write_proc (struct file *file, const char *buffer,
 					unsigned long count, void *data)
 {
-	int irq = (int) data, full_count = count, err;
+	int irq = (long) data, full_count = count, err;
 	unsigned long new_value;
 
 	if (!irq_desc[irq].handler->set_affinity)
@@ -993,7 +1011,7 @@ static void register_irq_proc (unsigned int irq)
 	entry = create_proc_entry("smp_affinity", 0700, irq_dir[irq]);
 
 	entry->nlink = 1;
-	entry->data = (void *)irq;
+	entry->data = (void *)(long)irq;
 	entry->read_proc = irq_affinity_read_proc;
 	entry->write_proc = irq_affinity_write_proc;
 

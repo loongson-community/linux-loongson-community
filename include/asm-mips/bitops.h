@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: bitops.h,v 1.7 1999/08/19 22:56:33 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -56,11 +56,12 @@ extern __inline__ unsigned long ffz(unsigned long word);
 
 #if defined(CONFIG_CPU_HAS_LLSC)
 
+#include <asm/mipsregs.h>
+
 /*
  * These functions for MIPS ISA > 1 are interrupt and SMP proof and
  * interrupt friendly
  */
-#include <asm/mipsregs.h>
 
 /*
  * The following functions will only work for the R4000!
@@ -144,8 +145,6 @@ extern __inline__ int test_and_change_bit(int nr, void *addr)
 }
 
 #else /* MIPS I */
-
-#include <asm/mipsregs.h>
 
 extern __inline__ void set_bit(int nr, void * addr)
 {

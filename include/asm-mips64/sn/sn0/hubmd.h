@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: hubmd.h,v 1.1 2000/01/13 00:17:02 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -11,6 +11,8 @@
  */
 #ifndef	_ASM_SN_SN0_HUBMD_H
 #define	_ASM_SN_SN0_HUBMD_H
+
+#include <linux/config.h>
 
 /*
  * Hub Memory/Directory interface registers

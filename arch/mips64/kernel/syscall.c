@@ -1,4 +1,4 @@
-/* $Id: syscall.c,v 1.2 2000/01/29 01:41:59 ralf Exp $
+/* $Id: syscall.c,v 1.3 2000/02/04 07:40:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,7 +7,6 @@
  * Copyright (C) 1995 - 1999 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>
@@ -109,7 +108,6 @@ asmlinkage int sys_execve(abi64_no_regargs, struct pt_regs regs)
 	int error;
 	char * filename;
 
-	lock_kernel();
 	filename = getname((char *) (long)regs.regs[4]);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
@@ -119,7 +117,6 @@ asmlinkage int sys_execve(abi64_no_regargs, struct pt_regs regs)
 	putname(filename);
 
 out:
-	unlock_kernel();
 	return error;
 }
 

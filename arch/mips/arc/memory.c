@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: memory.c,v 1.9 2000/01/27 01:05:23 ralf Exp $
+ * $Id: memory.c,v 1.10 2000/01/27 23:21:57 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -13,7 +13,6 @@
 #include <linux/mm.h>
 #include <linux/bootmem.h>
 #include <linux/swap.h>
-#include <linux/config.h>
 
 #include <asm/sgialib.h>
 #include <asm/page.h>

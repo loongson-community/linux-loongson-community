@@ -1,4 +1,4 @@
-/* $Id: r2300_misc.S,v 1.7 1999/10/09 00:00:58 ralf Exp $
+/* $Id: r2300_misc.S,v 1.8 1999/12/08 22:05:10 harald Exp $
  * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -10,8 +10,6 @@
  * Copyright (c) 1998 Harald Koerfgen
  * Copyright (c) 1998, 1999 Gleb Raiko & Vladimir Roganov
  */
-#include <linux/config.h>
-
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/bootinfo.h>

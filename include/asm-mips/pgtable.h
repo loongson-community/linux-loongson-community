@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.30 2000/02/24 00:13:19 ralf Exp $
+/* $Id: pgtable.h,v 1.31 2000/03/02 02:37:13 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -79,6 +79,7 @@ extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define PTRS_PER_PMD	1
 #define PTRS_PER_PGD	1024
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
+#define FIRST_USER_PGD_NR	0
 
 #define VMALLOC_START     KSEG2
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))

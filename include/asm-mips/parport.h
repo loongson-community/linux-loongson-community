@@ -1,4 +1,4 @@
-/* $Id: parport.h,v 1.2 2000/02/18 00:24:48 ralf Exp $
+/* $Id: parport.h,v 1.3 2000/03/02 02:37:13 ralf Exp $
  *
  * parport.h: ia32-specific parport initialisation
  *
@@ -8,8 +8,6 @@
  */
 #ifndef _ASM_PARPORT_H
 #define _ASM_PARPORT_H 1
-
-#include <linux/config.h>
 
 /* Maximum number of ports to support.  It is useless to set this greater
    than PARPORT_MAX (in <linux/parport.h>).  */

@@ -48,7 +48,7 @@ alcor_enable_irq(unsigned int irq)
 	alcor_update_irq_hw(cached_irq_mask |= 1UL << (irq - 16));
 }
 
-static inline void
+static void
 alcor_disable_irq(unsigned int irq)
 {
 	alcor_update_irq_hw(cached_irq_mask &= ~(1UL << (irq - 16)));
@@ -81,6 +81,13 @@ alcor_isa_mask_and_ack_irq(unsigned int irq)
 	*(vuip)GRU_INT_CLEAR = 0; mb();
 }
 
+static void
+alcor_end_irq(unsigned int irq)
+{
+	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
+		alcor_enable_irq(irq);
+}
+
 static struct hw_interrupt_type alcor_irq_type = {
 	typename:	"ALCOR",
 	startup:	alcor_startup_irq,
@@ -88,7 +95,7 @@ static struct hw_interrupt_type alcor_irq_type = {
 	enable:		alcor_enable_irq,
 	disable:	alcor_disable_irq,
 	ack:		alcor_mask_and_ack_irq,
-	end:		alcor_enable_irq,
+	end:		alcor_end_irq,
 };
 
 static void
@@ -134,13 +141,12 @@ alcor_init_irq(void)
 		   on while IRQ probing.  */
 		if (i >= 16+20 && i <= 16+30)
 			continue;
-		irq_desc[i].status = IRQ_DISABLED;
+		irq_desc[i].status = IRQ_DISABLED | IRQ_LEVEL;
 		irq_desc[i].handler = &alcor_irq_type;
 	}
 	i8259a_irq_type.ack = alcor_isa_mask_and_ack_irq;
 
 	init_i8259a_irqs();
-	init_rtc_irq();
 	common_init_isa_dma();
 
 	setup_irq(16+31, &isa_cascade_irqaction);

@@ -5,16 +5,14 @@
  *                     Albert Dorofeev <albert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
  *
- *  $Id: pci.c,v 1.3 2000/02/16 01:45:55 ralf Exp $
+ *  $Id: pci.c,v 1.4 2000/02/18 00:02:17 ralf Exp $
  */
 
 #include <linux/init.h>
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <linux/sched.h>
-#include <linux/pci.h>
 #include <linux/ioport.h>
 #include <asm-mips/nile4.h>
 

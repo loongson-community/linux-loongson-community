@@ -1,4 +1,4 @@
-/* $Id: syscall.c,v 1.12 1999/12/04 03:59:00 ralf Exp $
+/* $Id: syscall.c,v 1.13 2000/02/04 07:40:23 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -129,7 +129,6 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	int error;
 	char * filename;
 
-	lock_kernel();
 	filename = getname((char *) (long)regs.regs[4]);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
@@ -139,7 +138,6 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	putname(filename);
 
 out:
-	unlock_kernel();
 	return error;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: time.c,v 1.13 1999/10/09 00:00:58 ralf Exp $
+/* $Id: time.c,v 1.14 2000/01/26 00:07:44 ralf Exp $
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
  *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
@@ -6,6 +6,7 @@
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/sched.h>

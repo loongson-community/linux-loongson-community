@@ -1,11 +1,10 @@
-/* $Id: ip27-irq.c,v 1.6 2000/02/10 05:58:56 dagum Exp $
+/* $Id: ip27-irq.c,v 1.7 2000/03/02 02:36:50 ralf Exp $
  *
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
  * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#include <linux/config.h>
 #include <linux/init.h>
 
 #include <linux/errno.h>

@@ -3,10 +3,9 @@
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov 
  *
- * $Id: init.c,v 1.2 1999/08/17 22:18:38 ralf Exp $
+ * $Id: init.c,v 1.3 1999/10/09 00:00:57 ralf Exp $
  */
 #include <linux/init.h>
-#include <linux/config.h>
 #include <asm/bootinfo.h>
 
 char arcs_cmdline[CL_SIZE];

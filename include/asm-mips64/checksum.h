@@ -1,4 +1,4 @@
-/* $Id: checksum.h,v 1.5 2000/02/18 00:24:48 ralf Exp $
+/* $Id: checksum.h,v 1.6 2000/02/18 22:06:19 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -9,8 +9,6 @@
  */
 #ifndef _ASM_CHECKSUM_H
 #define _ASM_CHECKSUM_H
-
-#include <asm/checksum.h>
 
 /*
  * computes the checksum of a memory block at buff, length len,

@@ -40,6 +40,7 @@
 #define PTRS_PER_PMD	(1UL << (PAGE_SHIFT-3))
 #define PTRS_PER_PGD	((1UL << (PAGE_SHIFT-3))-1)
 #define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
+#define FIRST_USER_PGD_NR	0
 
 /* Number of pointers that fit on a page:  this will go away. */
 #define PTRS_PER_PAGE	(1UL << (PAGE_SHIFT-3))
@@ -305,5 +306,7 @@ extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 	printk("%s:%d: bad pmd %016lx.\n", __FILE__, __LINE__, pmd_val(e))
 #define pgd_ERROR(e) \
 	printk("%s:%d: bad pgd %016lx.\n", __FILE__, __LINE__, pgd_val(e))
+
+extern void paging_init(void);
 
 #endif /* _ALPHA_PGTABLE_H */

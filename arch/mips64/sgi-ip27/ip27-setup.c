@@ -1,4 +1,4 @@
-/* $Id: ip27-setup.c,v 1.3 2000/01/21 22:34:03 ralf Exp $
+/* $Id: ip27-setup.c,v 1.6 2000/02/05 02:12:32 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,7 +19,6 @@
 #include <asm/sn/klconfig.h>
 #include <asm/ioc3.h>
 #include <asm/mipsregs.h>
-#include <asm/sn/klconfig.h>
 
 /* Check against user dumbness.  */
 #ifdef CONFIG_VT
