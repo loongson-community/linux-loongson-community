@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 2000, 2003 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 2000, 2003, 2004 by Ralf Baechle
  */
 #include <linux/config.h>
 #include <linux/eisa.h>
@@ -26,6 +26,7 @@
 #include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/mc146818-time.h>
 #include <asm/pci_channel.h>
 #include <asm/processor.h>
 #include <asm/ptrace.h>
@@ -172,7 +173,7 @@ static inline void sni_pcimt_time_init(void)
 	rtc_set_time = mc146818_set_rtc_mmss;
 }
 
-static void __init sni_rm200_pci_setup(void)
+static int __init sni_rm200_pci_setup(void)
 {
 	sni_pcimt_detect();
 	sni_pcimt_sc_init();
@@ -201,6 +202,8 @@ static void __init sni_rm200_pci_setup(void)
 #ifdef CONFIG_PCI
 	register_pci_controller(&sni_controller);
 #endif
+
+	return 0;
 }
 
 early_initcall(sni_rm200_pci_setup);
