@@ -281,8 +281,6 @@ static int lan_saa9730_allocate_buffers(struct pci_dev *pdev, struct lan_saa9730
 	     (lp->DmaTxmPackets << PK_COUNT_TX_B_SHF),
 	     &lp->lan_saa9730_regs->PacketCount);
 
-	show_saa9730_regs(lp);
-
 	return 0;
 }
 
