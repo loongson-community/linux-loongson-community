@@ -221,7 +221,9 @@ struct rt_sigframe {
 };
 
 #ifdef CONFIG_TRAD_SIGNALS
-asmlinkage void sys_sigreturn(struct pt_regs regs)
+save_static_function(sys_sigreturn);
+__attribute_used__ noinline static void
+_sys_sigreturn(nabi_no_regargs struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -258,7 +260,9 @@ badframe:
 }
 #endif
 
-asmlinkage void sys_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
+save_static_function(sys_rt_sigreturn);
+__attribute_used__ noinline static void
+_sys_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
 {
 	struct rt_sigframe *frame;
 	sigset_t set;
@@ -396,8 +400,7 @@ static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	 *         syscall
 	 */
 	if (PLAT_TRAMPOLINE_STUFF_LINE)
-		__builtin_memset(frame->sf_code, '0',
-		                 PLAT_TRAMPOLINE_STUFF_LINE);
+		__clear_user(frame->sf_code, PLAT_TRAMPOLINE_STUFF_LINE);
 	err |= __put_user(0x24020000 + __NR_sigreturn, frame->sf_code + 0);
 	err |= __put_user(0x0000000c                 , frame->sf_code + 1);
 	flush_cache_sigtramp((unsigned long) frame->sf_code);
@@ -453,8 +456,7 @@ static void inline setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	 *         syscall
 	 */
 	if (PLAT_TRAMPOLINE_STUFF_LINE)
-		__builtin_memset(frame->rs_code, '0',
-		                 PLAT_TRAMPOLINE_STUFF_LINE);
+		__clear_user(frame->rs_code, PLAT_TRAMPOLINE_STUFF_LINE);
 	err |= __put_user(0x24020000 + __NR_rt_sigreturn, frame->rs_code + 0);
 	err |= __put_user(0x0000000c                    , frame->rs_code + 1);
 	flush_cache_sigtramp((unsigned long) frame->rs_code);

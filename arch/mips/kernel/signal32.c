@@ -440,7 +440,9 @@ static int copy_siginfo_to_user32(siginfo_t32 *to, siginfo_t *from)
 	return err;
 }
 
-asmlinkage void sys32_sigreturn(nabi_no_regargs struct pt_regs regs)
+save_static_function(sys32_sigreturn);
+__attribute_used__ noinline static void
+_sys32_sigreturn(nabi_no_regargs struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -476,7 +478,9 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-asmlinkage void sys32_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
+save_static_function(sys32_rt_sigreturn);
+__attribute_used__ noinline static void
+_sys32_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
 {
 	struct rt_sigframe32 *frame;
 	sigset_t set;
