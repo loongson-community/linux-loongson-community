@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.3 1999/08/20 21:59:05 ralf Exp $
+/* $Id: init.c,v 1.5 1999/11/23 17:12:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -49,11 +49,92 @@ void __bad_pte(pmd_t *pmd)
 	pmd_set(pmd, BAD_PAGETABLE);
 }
 
+/* Fixme, we need something like BAD_PMDTABLE ...  */
+void __bad_pmd(pgd_t *pgd)
+{
+	printk("Bad pgd in pmd_alloc: %08lx\n", pgd_val(*pgd));
+	pgd_set(pgd, (pmd_t *) BAD_PAGETABLE);
+}
+
+extern inline void pgd_init(unsigned long page)
+{
+	unsigned long *p, *end;
+
+ 	p = (unsigned long *) page;
+	end = p + PTRS_PER_PGD;
+
+	while (p < end) {
+		p[0] = (unsigned long) invalid_pmd_table;
+		p[1] = (unsigned long) invalid_pmd_table;
+		p[2] = (unsigned long) invalid_pmd_table;
+		p[3] = (unsigned long) invalid_pmd_table;
+		p[4] = (unsigned long) invalid_pmd_table;
+		p[5] = (unsigned long) invalid_pmd_table;
+		p[6] = (unsigned long) invalid_pmd_table;
+		p[7] = (unsigned long) invalid_pmd_table;
+		p += 8;
+	}
+}
+
+pgd_t *get_pgd_slow(void)
+{
+	pgd_t *ret, *init;
+
+	ret = (pgd_t *) __get_free_pages(GFP_KERNEL, 1);
+	if (ret) {
+		init = pgd_offset(&init_mm, 0);
+		pgd_init((unsigned long)ret);
+	}
+	return ret;
+}
+
+extern inline void pmd_init(unsigned long addr)
+{
+	unsigned long *p, *end;
+
+ 	p = (unsigned long *) addr;
+	end = p + PTRS_PER_PMD;
+
+	while (p < end) {
+		p[0] = (unsigned long) invalid_pte_table;
+		p[1] = (unsigned long) invalid_pte_table;
+		p[2] = (unsigned long) invalid_pte_table;
+		p[3] = (unsigned long) invalid_pte_table;
+		p[4] = (unsigned long) invalid_pte_table;
+		p[5] = (unsigned long) invalid_pte_table;
+		p[6] = (unsigned long) invalid_pte_table;
+		p[7] = (unsigned long) invalid_pte_table;
+		p += 8;
+	}
+}
+
+pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long offset)
+{
+	pmd_t *pmd;
+
+	pmd = (pmd_t *) __get_free_pages(GFP_KERNEL, 1);
+	if (pgd_none(*pgd)) {
+		if (pmd) {
+			pmd_init((unsigned long)pmd);
+			pgd_set(pgd, pmd);
+			return pmd + offset;
+		}
+		pgd_set(pgd, BAD_PMDTABLE);
+		return NULL;
+	}
+	free_page((unsigned long)pmd);
+	if (pgd_bad(*pgd)) {
+		__bad_pmd(pgd);
+		return NULL;
+	}
+	return (pmd_t *) pgd_page(*pgd) + offset;
+}
+
 pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
 {
 	pte_t *page;
 
-	page = (pte_t *) __get_free_page(GFP_USER);
+	page = (pte_t *) __get_free_pages(GFP_USER, 1);
 	if (pmd_none(*pmd)) {
 		if (page) {
 			clear_page((unsigned long)page);
@@ -75,7 +156,7 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 {
 	pte_t *page;
 
-	page = (pte_t *) __get_free_page(GFP_KERNEL);
+	page = (pte_t *) __get_free_pages(GFP_KERNEL, 1);
 	if (pmd_none(*pmd)) {
 		if (page) {
 			clear_page((unsigned long)page);
@@ -85,12 +166,29 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 		pmd_set(pmd, BAD_PAGETABLE);
 		return NULL;
 	}
-	free_page((unsigned long)page);
+	free_pages((unsigned long)page, 1);
 	if (pmd_bad(*pmd)) {
 		__bad_pte(pmd);
 		return NULL;
 	}
 	return (pte_t *) pmd_page(*pmd) + offset;
+}
+
+int do_check_pgt_cache(int low, int high)
+{
+	int freed = 0;
+
+	if (pgtable_cache_size > high) {
+		do {
+			if (pgd_quicklist)
+				free_pgd_slow(get_pgd_fast()), freed++;
+			if (pmd_quicklist)
+				free_pmd_slow(get_pmd_fast()), freed++;
+			if (pte_quicklist)
+				free_pte_slow(get_pte_fast()), freed++;
+		} while (pgtable_cache_size > low);
+	}
+	return freed;
 }
 
 
@@ -143,21 +241,19 @@ static inline unsigned long setup_zero_pages(void)
 	return size;
 }
 
-int do_check_pgt_cache(int low, int high)
+extern inline void pte_init(unsigned long page)
 {
-	int freed = 0;
+	unsigned long *p, *end, bp;
 
-	if(pgtable_cache_size > high) {
-		do {
-			if(pgd_quicklist)
-				free_pgd_slow(get_pgd_fast()), freed++;
-			if(pmd_quicklist)
-				free_pmd_slow(get_pmd_fast()), freed++;
-			if(pte_quicklist)
-				free_pte_slow(get_pte_fast()), freed++;
-		} while(pgtable_cache_size > low);
+	bp = pte_val(BAD_PAGE);
+ 	p = (unsigned long *) page;
+	end = p + PTRS_PER_PTE;
+
+	while (p < end) {
+		p[0] = p[1] = p[2] = p[3] =
+		p[4] = p[5] = p[6] = p[7] = bp;
+		p += 8;
 	}
-	return freed;
 }
 
 /*
@@ -173,27 +269,24 @@ int do_check_pgt_cache(int low, int high)
  * ZERO_PAGE is a special page that is used for zero-initialized
  * data and COW.
  */
+pmd_t * __bad_pmd_table(void)
+{
+	extern pmd_t invalid_pmd_table[PTRS_PER_PMD];
+	unsigned long page;
+
+	page = (unsigned long) invalid_pmd_table;
+	pte_init(page);
+
+	return (pmd_t *) page;
+}
+
 pte_t * __bad_pagetable(void)
 {
 	extern char empty_bad_page_table[PAGE_SIZE];
-	unsigned long dummy1, dummy2, page;
+	unsigned long page;
 
 	page = (unsigned long) empty_bad_page_table;
-	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		"dsll\t$1, %1, 32\n\t"
-		"dsrl\t%1, $1, 32\n\t"
-		"or\t%1, $1\n\t"
-		"daddiu\t$1, %0, %4\n"
-		"1:\tdaddiu\t%0, 8\n\t"
-		"bne\t$1, %0, 1b\n\t"
-		" sd\t%1, -8(%0)\n\t"
-		".set\tat\n\t"
-		".set\treorder"
-		:"=r" (dummy1), "=r" (dummy2)
-		:"0" (page), "1" (pte_val(BAD_PAGE)), "i" (PAGE_SIZE)
-		:"$1");
+	pte_init(page);
 
 	return (pte_t *) page;
 }
@@ -231,7 +324,7 @@ void show_mem(void)
 	printk("%d reserved pages\n", reserved);
 	printk("%d pages shared\n", shared);
 	printk("%d pages swap cached\n",cached);
-	printk("%ld pages in page table cache\n",pgtable_cache_size);
+	printk("%ld pages in page table cache\n", pgtable_cache_size);
 	printk("%d free pages\n", free);
 #ifdef CONFIG_NET
 	show_net_buffers();
@@ -246,6 +339,7 @@ paging_init(unsigned long start_mem, unsigned long end_mem)
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
 	pgd_init((unsigned long)swapper_pg_dir + PAGE_SIZE / 2);
+	pmd_init((unsigned long)invalid_pmd_table);
 	return free_area_init(start_mem, end_mem);
 }
 

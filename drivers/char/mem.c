@@ -50,7 +50,7 @@ extern void prom_con_init(void);
 #ifdef CONFIG_MDA_CONSOLE
 extern void mda_console_init(void);
 #endif
-#if defined(CONFIG_PPC) || defined(CONFIG_MAC)
+#if defined(CONFIG_ADB)
 extern void adbdev_init(void);
 #endif
 #ifdef CONFIG_USB
@@ -268,7 +268,8 @@ static ssize_t write_kmem(struct file * file, const char * buf,
 	return do_write_mem(file, (void*)p, p, buf, count, ppos);
 }
 
-#if !defined(CONFIG_PPC) && !defined(__mc68000__)
+#if (!defined(CONFIG_PPC) && !defined(__mc68000__) && !defined(__mips__)) || \
+    defined(CONFIG_HAVE_IO_PORTS)
 static ssize_t read_port(struct file * file, char * buf,
 			 size_t count, loff_t *ppos)
 {
@@ -517,7 +518,8 @@ static struct file_operations null_fops = {
 	NULL		/* fsync */
 };
 
-#if !defined(CONFIG_PPC) && !defined(__mc68000__)
+#if (!defined(CONFIG_PPC) && !defined(__mc68000__) && !defined(__mips__)) || \
+    defined(CONFIG_HAVE_IO_PORTS)
 static struct file_operations port_fops = {
 	memory_lseek,
 	read_port,
@@ -571,7 +573,8 @@ static int memory_open(struct inode * inode, struct file * filp)
 		case 3:
 			filp->f_op = &null_fops;
 			break;
-#if !defined(CONFIG_PPC) && !defined(__mc68000__)
+#if (!defined(CONFIG_PPC) && !defined(__mc68000__) && !defined(__mips__)) || \
+    defined(CONFIG_HAVE_IO_PORTS)
 		case 4:
 			filp->f_op = &port_fops;
 			break;
@@ -667,7 +670,7 @@ int __init chr_dev_init(void)
 #ifdef CONFIG_VIDEO_BT848
 	i2c_init();
 #endif
-#if defined(CONFIG_PPC) || defined(CONFIG_MAC)
+#if defined(CONFIG_ADB)
 	adbdev_init();
 #endif
 #ifdef CONFIG_VIDEO_DEV

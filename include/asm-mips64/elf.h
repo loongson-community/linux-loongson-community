@@ -7,6 +7,7 @@
 #ifndef _ASM_ELF_H
 #define _ASM_ELF_H
 
+#ifndef ELF_ARCH
 /* ELF register definitions */
 #define ELF_NGREG	45
 #define ELF_NFPREG	33
@@ -32,6 +33,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 #define ELF_DATA	ELFDATA2LSB
 #endif
 #define ELF_ARCH	EM_MIPS
+#endif /* !defined(ELF_ARCH) */
 
 #define USE_ELF_CORE_DUMP
 #define ELF_EXEC_PAGESIZE	4096
@@ -75,7 +77,9 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
    the loader.  We need to make sure that it is out of the way of the program
    that it will "exec", and that there is sufficient room for the brk.  */
 
+#ifndef ELF_ET_DYN_BASE
 #define ELF_ET_DYN_BASE         (2 * TASK_SIZE / 3)
+#endif
 
 #ifdef __KERNEL__
 #define SET_PERSONALITY(ex,ibcs2) \

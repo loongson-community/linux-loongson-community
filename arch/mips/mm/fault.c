@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.12 1999/09/28 22:25:48 ralf Exp $
+/* $Id: fault.c,v 1.13 1999/10/09 00:00:58 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -28,8 +28,6 @@
 #include <asm/uaccess.h>
 
 #define development_version (LINUX_VERSION_CODE & 0x100)
-
-extern void die(char *, struct pt_regs *, unsigned long write);
 
 unsigned long asid_cache = ASID_FIRST_VERSION;
 
@@ -145,7 +143,7 @@ no_context:
 	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
 	       address, regs->cp0_epc, regs->regs[31]);
-	die("Oops", regs, write);
+	die("Oops", regs);
 	do_exit(SIGKILL);
 
 /*

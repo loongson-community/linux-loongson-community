@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
+/* $Id: semaphore.h,v 1.3 1999/10/20 18:10:32 ralf Exp $
  *
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: sgihpc.h,v 1.2 1999/10/19 20:51:54 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -22,8 +22,8 @@ extern int sgi_boardid;  /* Board revision. */
 
 /* An HPC dma descriptor. */
 struct hpc_dma_desc {
-	unsigned long pbuf;      /* physical address of data buffer */
-	unsigned long cntinfo;   /* counter and info bits */
+	int pbuf;		 /* physical address of data buffer */
+	int cntinfo;   		 /* counter and info bits */
 #define HPCDMA_EOX    0x80000000 /* last desc in chain for tx */
 #define HPCDMA_EOR    0x80000000 /* last desc in chain for rx */
 #define HPCDMA_EOXP   0x40000000 /* end of packet for tx */
@@ -35,10 +35,10 @@ struct hpc_dma_desc {
 #define HPCDMA_OWN    0x00004000 /* Denotes ring buffer ownership on rx */
 #define HPCDMA_BCNT   0x00003fff /* size in bytes of this dma buffer */
 
-	unsigned long pnext;     /* paddr of next hpc_dma_desc if any */
+	int pnext;		 /* paddr of next hpc_dma_desc if any */
 };
 
-typedef volatile unsigned long hpcreg;
+typedef volatile unsigned int hpcreg;
 
 /* HPC1 stuff. */
 
@@ -332,7 +332,7 @@ extern struct hpc3_miscregs *hpc3mregs;
 #define HPC3_MREGS_PBASE   0x1fbd9800 /* physical */
 
 /* We need software copies of these because they are write only. */
-extern unsigned long sgi_hpc_write1, sgi_hpc_write2;
+extern unsigned int sgi_hpc_write1, sgi_hpc_write2;
 
 #define SGI_KEYBOARD_IRQ 20
 

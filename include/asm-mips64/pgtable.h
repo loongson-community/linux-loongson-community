@@ -58,26 +58,25 @@ extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
-#define PMD_SHIFT	22
+#define PMD_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT - 3))
 #define PMD_SIZE	(1UL << PMD_SHIFT)
 #define PMD_MASK	(~(PMD_SIZE-1))
 
 /* PGDIR_SHIFT determines what a third-level page table entry can map */
-#define PGDIR_SHIFT	22
+#define PGDIR_SHIFT	(PMD_SHIFT + (PAGE_SHIFT + 1 - 3))
 #define PGDIR_SIZE	(1UL << PGDIR_SHIFT)
 #define PGDIR_MASK	(~(PGDIR_SIZE-1))
 
-/* Entries per page directory level: we use two-level, so
- * we don't really have any PMD directory physically.
- */
-#define PTRS_PER_PTE	1024
-#define PTRS_PER_PMD	1
+/* Entries per page directory level: we use two-level, so we don't really
+   have any PMD directory physically.  */
 #define PTRS_PER_PGD	1024
+#define PTRS_PER_PMD	1024
+#define PTRS_PER_PTE	512
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
 
-#define VMALLOC_START     KSEG2
+#define VMALLOC_START     XKSEG
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
-#define VMALLOC_END       KSEG3
+#define VMALLOC_END       (KSEG3 + (1UL << 40))	/* 1 TB */
 
 /* Note that we shift the lower 32bits of each EntryLo[01] entry
  * 6 bits to the left. That way we can convert the PFN into the
@@ -173,11 +172,13 @@ extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
  */
 extern pte_t __bad_page(void);
 extern pte_t *__bad_pagetable(void);
+extern pmd_t *__bad_pmd_table(void);
 
 extern unsigned long empty_zero_page;
 extern unsigned long zero_page_mask;
 
 #define BAD_PAGETABLE __bad_pagetable()
+#define BAD_PMDTABLE __bad_pmd_table()
 #define BAD_PAGE __bad_page()
 #define ZERO_PAGE(__vaddr) \
 	(empty_zero_page + (((unsigned long)(__vaddr)) & zero_page_mask))
@@ -191,7 +192,7 @@ extern unsigned long zero_page_mask;
 /*
  * sizeof(void*) == (1 << SIZEOF_PTR_LOG2)
  */
-#define SIZEOF_PTR_LOG2			2
+#define SIZEOF_PTR_LOG2			3
 
 /* to find an entry in a page-table */
 #define PAGE_PTR(address) \
@@ -199,7 +200,8 @@ extern unsigned long zero_page_mask;
 
 extern void (*load_pgd)(unsigned long pg_dir);
 
-extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
+extern pte_t invalid_pte_table[PAGE_SIZE/sizeof(pte_t)];
+extern pmd_t invalid_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
 
 /*
  * Conversion functions: convert a page and protection to a page entry,
@@ -215,13 +217,30 @@ extern inline unsigned long pmd_page(pmd_t pmd)
 	return pmd_val(pmd);
 }
 
+extern inline unsigned long pgd_page(pgd_t pgd)
+{
+	return pgd_val(pgd);
+}
+
 extern inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
 {
 	pmd_val(*pmdp) = (((unsigned long) ptep) & PAGE_MASK);
 }
 
-extern inline int pte_none(pte_t pte)    { return !pte_val(pte); }
-extern inline int pte_present(pte_t pte) { return pte_val(pte) & _PAGE_PRESENT; }
+extern inline void pgd_set(pgd_t * pgdp, pmd_t * pmdp)
+{
+	pgd_val(*pgdp) = (((unsigned long) pmdp) & PAGE_MASK);
+}
+
+extern inline int pte_none(pte_t pte)
+{
+	return !pte_val(pte);
+}
+
+extern inline int pte_present(pte_t pte)
+{
+	return pte_val(pte) & _PAGE_PRESENT;
+}
 
 /* Certain architectures need to do special things when pte's
  * within a page table are directly modified.  Thus, the following
@@ -238,7 +257,7 @@ extern inline void pte_clear(pte_t *ptep)
 }
 
 /*
- * Empty pgd/pmd entries point to the invalid_pte_table.
+ * Empty pmd entries point to the invalid_pte_table.
  */
 extern inline int pmd_none(pmd_t pmd)
 {
@@ -253,7 +272,7 @@ extern inline int pmd_bad(pmd_t pmd)
 
 extern inline int pmd_present(pmd_t pmd)
 {
-	return pmd_val(pmd);
+	return pmd_val(pmd) != (unsigned long) invalid_pte_table;
 }
 
 extern inline void pmd_clear(pmd_t *pmdp)
@@ -262,23 +281,52 @@ extern inline void pmd_clear(pmd_t *pmdp)
 }
 
 /*
- * The "pgd_xxx()" functions here are trivial for a folded two-level
- * setup: the pgd is never bad, and a pmd always exists (as it's folded
- * into the pgd entry)
+ * Empty pgd entries point to the invalid_pmd_table.
  */
-extern inline int pgd_none(pgd_t pgd)		{ return 0; }
-extern inline int pgd_bad(pgd_t pgd)		{ return 0; }
-extern inline int pgd_present(pgd_t pgd)	{ return 1; }
-extern inline void pgd_clear(pgd_t *pgdp)	{ }
+extern inline int pgd_none(pgd_t pgd)
+{
+	return pgd_val(pgd) == (unsigned long) invalid_pmd_table;
+}
+
+extern inline int pgd_bad(pgd_t pgd)
+{
+	return ((pgd_page(pgd) > (unsigned long) high_memory) ||
+	        (pgd_page(pgd) < PAGE_OFFSET));
+}
+
+extern inline int pgd_present(pgd_t pgd)
+{
+	return pgd_val(pgd) != (unsigned long) invalid_pmd_table;
+}
+
+extern inline void pgd_clear(pgd_t *pgdp)
+{
+	pgd_val(*pgdp) = ((unsigned long) invalid_pmd_table);
+}
 
 /*
  * The following only work if pte_present() is true.
  * Undefined behaviour if not..
  */
-extern inline int pte_read(pte_t pte)	{ return pte_val(pte) & _PAGE_READ; }
-extern inline int pte_write(pte_t pte)	{ return pte_val(pte) & _PAGE_WRITE; }
-extern inline int pte_dirty(pte_t pte)	{ return pte_val(pte) & _PAGE_MODIFIED; }
-extern inline int pte_young(pte_t pte)	{ return pte_val(pte) & _PAGE_ACCESSED; }
+extern inline int pte_read(pte_t pte)
+{
+	return pte_val(pte) & _PAGE_READ;
+}
+
+extern inline int pte_write(pte_t pte)
+{
+	return pte_val(pte) & _PAGE_WRITE;
+}
+
+extern inline int pte_dirty(pte_t pte)
+{
+	return pte_val(pte) & _PAGE_MODIFIED;
+}
+
+extern inline int pte_young(pte_t pte)
+{
+	return pte_val(pte) & _PAGE_ACCESSED;
+}
 
 extern inline pte_t pte_wrprotect(pte_t pte)
 {
@@ -361,13 +409,14 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 /* to find an entry in a page-table-directory */
 extern inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
 {
-	return mm->pgd + (address >> PGDIR_SHIFT);
+	return mm->pgd + ((address >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1));
 }
 
 /* Find an entry in the second-level page table.. */
-extern inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
+extern inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
 {
-	return (pmd_t *) dir;
+	return (pmd_t *) pgd_page(*dir) +
+	       ((address >> PMD_SHIFT) & (PTRS_PER_PMD - 1));
 }
 
 /* Find an entry in the third-level page table.. */ 
@@ -378,9 +427,11 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
 }
 
 /*
- * Initialize new page directory with pointers to invalid ptes
+ * Initialize a new pgd / pmd table with invalid pointers.
  */
-extern void (*pgd_init)(unsigned long page);
+extern void pte_init(unsigned long page);
+extern void pgd_init(unsigned long page);
+extern void pmd_init(unsigned long page);
 
 /*
  * Allocate and free page tables. The xxx_kernel() versions are
@@ -389,24 +440,13 @@ extern void (*pgd_init)(unsigned long page);
  */
 
 #define pgd_quicklist (current_cpu_data.pgd_quick)
-#define pmd_quicklist ((unsigned long *)0)
+#define pmd_quicklist (current_cpu_data.pmd_quick)
 #define pte_quicklist (current_cpu_data.pte_quick)
 #define pgtable_cache_size (current_cpu_data.pgtable_cache_sz)
 
-extern __inline__ pgd_t *get_pgd_slow(void)
-{
-	pgd_t *ret = (pgd_t *)__get_free_page(GFP_KERNEL), *init;
+extern pgd_t *get_pgd_slow(void);
 
-	if (ret) {
-		init = pgd_offset(&init_mm, 0);
-		pgd_init((unsigned long)ret);
-		memcpy (ret + USER_PTRS_PER_PGD, init + USER_PTRS_PER_PGD,
-			(PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
-	}
-	return ret;
-}
-
-extern __inline__ pgd_t *get_pgd_fast(void)
+extern inline pgd_t *get_pgd_fast(void)
 {
 	unsigned long *ret;
 
@@ -414,27 +454,29 @@ extern __inline__ pgd_t *get_pgd_fast(void)
 		pgd_quicklist = (unsigned long *)(*ret);
 		ret[0] = ret[1];
 		pgtable_cache_size--;
-	} else
-		ret = (unsigned long *)get_pgd_slow();
+		return (pgd_t *)ret;
+	}
+
+	ret = (unsigned long *) get_pgd_slow();
 	return (pgd_t *)ret;
 }
 
-extern __inline__ void free_pgd_fast(pgd_t *pgd)
+extern inline void free_pgd_fast(pgd_t *pgd)
 {
 	*(unsigned long *)pgd = (unsigned long) pgd_quicklist;
 	pgd_quicklist = (unsigned long *) pgd;
 	pgtable_cache_size++;
 }
 
-extern __inline__ void free_pgd_slow(pgd_t *pgd)
+extern inline void free_pgd_slow(pgd_t *pgd)
 {
-	free_page((unsigned long)pgd);
+	free_pages((unsigned long)pgd, 1);
 }
 
 extern pte_t *get_pte_slow(pmd_t *pmd, unsigned long address_preadjusted);
 extern pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long address_preadjusted);
 
-extern __inline__ pte_t *get_pte_fast(void)
+extern inline pte_t *get_pte_fast(void)
 {
 	unsigned long *ret;
 
@@ -446,37 +488,55 @@ extern __inline__ pte_t *get_pte_fast(void)
 	return (pte_t *)ret;
 }
 
-extern __inline__ void free_pte_fast(pte_t *pte)
+extern inline void free_pte_fast(pte_t *pte)
 {
 	*(unsigned long *)pte = (unsigned long) pte_quicklist;
 	pte_quicklist = (unsigned long *) pte;
 	pgtable_cache_size++;
 }
 
-extern __inline__ void free_pte_slow(pte_t *pte)
+extern inline void free_pte_slow(pte_t *pte)
 {
-	free_page((unsigned long)pte);
+	free_pages((unsigned long)pte, 0);
 }
 
-/* We don't use pmd cache, so these are dummy routines */
-extern __inline__ pmd_t *get_pmd_fast(void)
+extern pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long address_preadjusted);
+extern pmd_t *get_pmd_kernel_slow(pgd_t *pgd, unsigned long address_preadjusted);
+
+extern inline pmd_t *get_pmd_fast(void)
 {
-	return (pmd_t *)0;
+	unsigned long *ret;
+
+	if ((ret = (unsigned long *)pte_quicklist) != NULL) {
+		pte_quicklist = (unsigned long *)(*ret);
+		ret[0] = ret[1];
+		pgtable_cache_size--;
+		return (pmd_t *)ret;
+	}
+
+	return (pmd_t *)ret;
 }
 
-extern __inline__ void free_pmd_fast(pmd_t *pmd)
+extern inline void free_pmd_fast(pmd_t *pmd)
 {
+	*(unsigned long *)pmd = (unsigned long) pte_quicklist;
+	pte_quicklist = (unsigned long *) pmd;
+	pgtable_cache_size++;
 }
 
-extern __inline__ void free_pmd_slow(pmd_t *pmd)
+extern inline void free_pmd_slow(pmd_t *pmd)
 {
+	free_pages((unsigned long)pmd, 1);
 }
 
 extern void __bad_pte(pmd_t *pmd);
 extern void __bad_pte_kernel(pmd_t *pmd);
+extern void __bad_pmd(pgd_t *pgd);
 
 #define pte_free_kernel(pte)    free_pte_fast(pte)
 #define pte_free(pte)           free_pte_fast(pte)
+#define pmd_free_kernel(pte)    free_pmd_fast(pte)
+#define pmd_free(pte)           free_pmd_fast(pte)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
 #define pgd_alloc()             get_pgd_fast()
 
@@ -487,7 +547,7 @@ extern inline pte_t * pte_alloc_kernel(pmd_t * pmd, unsigned long address)
 	if (pmd_none(*pmd)) {
 		pte_t *page = get_pte_fast();
 		if (page) {
-			pmd_val(*pmd) = (unsigned long)page;
+			pmd_val(*pmd) = (unsigned long) page;
 			return page + address;
 		}
 		return get_pte_kernel_slow(pmd, address);
@@ -506,7 +566,7 @@ extern inline pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
 	if (pmd_none(*pmd)) {
 		pte_t *page = get_pte_fast();
 		if (page) {
-			pmd_val(*pmd) = (unsigned long)page;
+			pmd_val(*pmd) = (unsigned long) page;
 			return page + address;
 		}
 		return get_pte_slow(pmd, address);
@@ -518,20 +578,24 @@ extern inline pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
 	return (pte_t *) pmd_page(*pmd) + address;
 }
 
-/*
- * allocating and freeing a pmd is trivial: the 1-entry pmd is
- * inside the pgd, so has no extra memory associated with it.
- */
-extern inline void pmd_free(pmd_t * pmd)
+extern inline pmd_t *pmd_alloc(pgd_t * pgd, unsigned long address)
 {
+	address = (address >> PMD_SHIFT) & (PTRS_PER_PMD - 1);
+	if (pgd_none(*pgd)) {
+		pmd_t *page = get_pmd_fast();
+
+		if (!page)
+			return get_pmd_slow(pgd, address);
+		pgd_set(pgd, page);
+		return page + address;
+	}
+	if (pgd_bad(*pgd)) {
+		__bad_pmd(pgd);
+		return NULL;
+	}
+	return (pmd_t *) pgd_page(*pgd) + address;
 }
 
-extern inline pmd_t * pmd_alloc(pgd_t * pgd, unsigned long address)
-{
-	return (pmd_t *) pgd;
-}
-
-#define pmd_free_kernel		pmd_free
 #define pmd_alloc_kernel	pmd_alloc
 
 extern int do_check_pgt_cache(int, int);
@@ -548,7 +612,7 @@ extern inline void set_pgdir(unsigned long address, pgd_t entry)
 	for_each_task(p) {
 		if (!p->mm)
 			continue;
-		*pgd_offset(p->mm,address) = entry;
+		*pgd_offset(p->mm, address) = entry;
 	}
 	read_unlock(&tasklist_lock);
 #ifndef __SMP__
@@ -569,11 +633,18 @@ extern void (*update_mmu_cache)(struct vm_area_struct *vma,
 				unsigned long address, pte_t pte);
 
 /*
- * Kernel with 32 bit address space
+ * Non-present pages:  high 24 bits are offset, next 8 bits type,
+ * low 32 bits zero.
  */
-#define SWP_TYPE(entry) (((entry) >> 1) & 0x3f)
-#define SWP_OFFSET(entry) ((entry) >> 8)
-#define SWP_ENTRY(type,offset) (((type) << 1) | ((offset) << 8))
+extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
+{
+	pte_t pte; pte_val(pte) = (type << 32) | (offset << 40);
+	return pte;
+}
+
+#define SWP_TYPE(entry) (((entry) >> 32) & 0xff)
+#define SWP_OFFSET(entry) ((entry) >> 40)
+#define SWP_ENTRY(type,offset) pte_val(mk_swap_pte((type),(offset)))
 
 #define module_map      vmalloc
 #define module_unmap    vfree
@@ -624,9 +695,7 @@ extern inline unsigned long get_pagemask(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mfc0 %0, $5\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -636,9 +705,7 @@ extern inline void set_pagemask(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mtc0 %0, $5\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -650,9 +717,7 @@ extern inline unsigned long get_entrylo0(void)
 
 	__asm__ __volatile__(	
 		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mfc0 %0, $2\n\t"
-		".set mips0\n\t"
+		"dmfc0 %0, $2\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -662,9 +727,7 @@ extern inline void set_entrylo0(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mtc0 %0, $2\n\t"
-		".set mips0\n\t"
+		"dmtc0 %0, $2\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -675,9 +738,7 @@ extern inline unsigned long get_entrylo1(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mfc0 %0, $3\n\t"
-		".set mips0\n\t"
+		"dmfc0 %0, $3\n\t"
 		".set reorder" : "=r" (val));
 
 	return val;
@@ -687,9 +748,7 @@ extern inline void set_entrylo1(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mtc0 %0, $3\n\t"
-		".set mips0\n\t"
+		"dmtc0 %0, $3\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -701,9 +760,7 @@ extern inline unsigned long get_entryhi(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mfc0 %0, $10\n\t"
-		".set mips0\n\t"
+		"dmfc0 %0, $10\n\t"
 		".set reorder"
 		: "=r" (val));
 
@@ -714,9 +771,7 @@ extern inline void set_entryhi(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
-		"mtc0 %0, $10\n\t"
-		".set mips0\n\t"
+		"dmtc0 %0, $10\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -728,9 +783,7 @@ extern inline unsigned long get_index(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mfc0 %0, $0\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -740,9 +793,7 @@ extern inline void set_index(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mtc0 %0, $0\n\t"
-		".set mips0\n\t"
 		".set reorder\n\t"
 		: : "r" (val));
 }
@@ -754,9 +805,7 @@ extern inline unsigned long get_wired(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mfc0 %0, $6\n\t"
-		".set mips0\n\t"
 		".set reorder\n\t"
 		: "=r" (val));
 	return val;
@@ -766,9 +815,7 @@ extern inline void set_wired(unsigned long val)
 {
 	__asm__ __volatile__(
 		"\n\t.set noreorder\n\t"
-		".set mips3\n\t"
 		"mtc0 %0, $6\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -780,9 +827,7 @@ extern inline unsigned long get_taglo(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mfc0 %0, $28\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -792,9 +837,7 @@ extern inline void set_taglo(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mtc0 %0, $28\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -805,9 +848,7 @@ extern inline unsigned long get_taghi(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mfc0 %0, $29\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -817,9 +858,7 @@ extern inline void set_taghi(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mtc0 %0, $29\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -831,9 +870,7 @@ extern inline unsigned long get_context(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mfc0 %0, $4\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 
@@ -844,9 +881,7 @@ extern inline void set_context(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		".set mips3\n\t"
 		"mtc0 %0, $4\n\t"
-		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }

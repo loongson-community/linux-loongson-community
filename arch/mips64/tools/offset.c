@@ -1,9 +1,8 @@
-/* $Id: offset.c,v 1.2 1999/09/28 22:25:54 ralf Exp $
+/* $Id: offset.c,v 1.5 1999/10/08 21:07:52 ralf Exp $
  *
  * offset.c: Calculate pt_regs and task_struct offsets.
  *
  * Copyright (C) 1996 David S. Miller
- * Made portable by Ralf Baechle
  * Copyright (C) 1997, 1998, 1999 Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
@@ -111,7 +110,6 @@ void output_thread_defines(void)
 	offset("#define THREAD_ECODE   ", struct task_struct, \
 	       thread.error_code);
 	offset("#define THREAD_TRAPNO  ", struct task_struct, thread.trap_no);
-	offset("#define THREAD_PGDIR   ", struct task_struct, thread.pg_dir);
 	offset("#define THREAD_MFLAGS  ", struct task_struct, thread.mflags);
 	offset("#define THREAD_CURDS   ", struct task_struct, \
 	       thread.current_ds);
@@ -125,7 +123,7 @@ void output_thread_defines(void)
 void output_mm_defines(void)
 {
 	text("/* Linux mm_struct offsets. */");
-	offset("#define MM_USERS      ", struct mm_struct, users);
+	offset("#define MM_USERS      ", struct mm_struct, mm_users);
 	offset("#define MM_PGD        ", struct mm_struct, pgd);
 	offset("#define MM_CONTEXT    ", struct mm_struct, context);
 	linefeed;

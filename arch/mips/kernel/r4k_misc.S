@@ -1,4 +1,4 @@
-/* $Id: r4k_misc.S,v 1.7 1999/09/28 22:25:47 ralf Exp $
+/* $Id: r4k_misc.S,v 1.8 1999/10/09 00:00:58 ralf Exp $
  *
  * r4k_misc.S: Misc. exception handling code for r4k.
  *
@@ -20,7 +20,7 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 
-#define NOTLB_OPTIMIZE /* If you are paranoid, define this. */
+#undef NOTLB_OPTIMIZE /* If you are paranoid, define this. */
 
 	/* ABUSE of CPP macros 101. */
 
@@ -31,11 +31,9 @@
 #define LOAD_PTE(pte, ptr) \
 	mfc0	pte, CP0_BADVADDR; \
 	srl	pte, pte, 22; \
-	_GET_CURRENT(ptr); \
+	lw	ptr, current_pgd; \
 	sll	pte, pte, 2; \
-	lw	ptr, TASK_MM(ptr); \
-	lw	ptr, MM_PGD(ptr); \
-	addu	ptr, pte, ptr; \
+	addu	ptr, ptr, pte; \
 	mfc0	pte, CP0_BADVADDR; \
 	lw	ptr, (ptr); \
 	srl	pte, pte, 10; \
@@ -59,7 +57,6 @@
 
 #define DO_FAULT(write) \
 	.set	noat; \
-	.set	macro; \
 	SAVE_ALL; \
 	mfc0	a2, CP0_BADVADDR; \
 	STI; \
@@ -69,8 +66,7 @@
 	 li	a1, write; \
 	j	ret_from_sys_call; \
 	 nop; \
-	.set	noat; \
-	.set	nomacro;
+	.set	noat;
 
 	/* Check is PTE is present, if not then jump to LABEL.
 	 * PTR points to the page table where this PTE is located,
@@ -137,7 +133,6 @@
 	.align	5
 	NESTED(handle_tlbl, PT_SIZE, sp)
 	.set	noat
-	.set	nomacro
 invalid_tlbl:
 #ifndef NOTLB_OPTIMIZE
 	/* Test present bit in entry. */

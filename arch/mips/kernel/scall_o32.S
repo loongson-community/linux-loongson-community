@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.4 1998/06/25 20:01:01 ralf Exp $
+/* $Id: scall_o32.S,v 1.7 1999/07/26 19:42:40 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -99,9 +99,9 @@ o32_reschedule:
 
 trace_a_syscall:
 	SAVE_STATIC
-	sw	t2,PT_R1(sp)
+	sw	t2, PT_R1(sp)
 	jal	syscall_trace
-	lw	t2,PT_R1(sp)
+	lw	t2, PT_R1(sp)
 
 	lw	a0, PT_R4(sp)		# Restore argument registers
 	lw	a1, PT_R5(sp)

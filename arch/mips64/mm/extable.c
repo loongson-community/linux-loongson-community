@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: extable.c,v 1.2 1999/11/23 17:12:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -14,7 +14,7 @@
 extern const struct exception_table_entry __start___ex_table[];
 extern const struct exception_table_entry __stop___ex_table[];
 
-static inline unsigned
+static inline unsigned long
 search_one_table(const struct exception_table_entry *first,
                  const struct exception_table_entry *last,
                  unsigned long value)

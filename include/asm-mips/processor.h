@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.20 1999/10/09 00:01:43 ralf Exp $
+/* $Id: processor.h,v 1.21 1999/10/12 17:33:50 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -196,13 +196,13 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
  */
 extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 {
-	extern void ret_from_sys_call(void);
+	extern void ret_from_fork(void);
 
 	/* New born processes are a special case */
-	if (t->reg31 == (unsigned long) ret_from_sys_call)
+	if (t->reg31 == (unsigned long) ret_from_fork)
 		return t->reg31;
 
-	return ((unsigned long*)t->reg29)[17];
+	return ((unsigned long *)t->reg29)[10];
 }
 
 /*

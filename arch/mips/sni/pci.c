@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.7 1999/01/04 16:03:58 ralf Exp $
+/* $Id: pci.c,v 1.8 1999/10/09 00:00:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -13,7 +13,6 @@
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>
-#include <asm/pci.h>
 #include <asm/sni.h>
 
 #ifdef CONFIG_PCI

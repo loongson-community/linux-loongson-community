@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.15 1999/07/26 19:42:40 harald Exp $
+ * $Id: entry.S,v 1.16 1999/08/18 23:37:43 ralf Exp $
  */
 
 /*
@@ -48,6 +48,7 @@ reschedule:	jal	schedule
 
 EXPORT(ret_from_sys_call)
 EXPORT(ret_from_irq)
+		.type	ret_from_irq,@function
 		lw	t0,bh_mask
 		lw	t1,bh_active		# unused delay slot
 		and	t0,t1

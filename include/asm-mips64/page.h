@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: page.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -6,8 +6,6 @@
  *
  * Copyright (C) 1994 - 1999 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
- *
- * XXX This is all complete bullshit on MIPS64.
  */
 #ifndef _ASM_PAGE_H
 #define _ASM_PAGE_H
@@ -78,7 +76,7 @@ typedef unsigned long pgprot_t;
  * This handles the memory map.
  * We handle pages at KSEG0 for kernels with 32 bit address space.
  */
-#define PAGE_OFFSET	0x80000000UL
+#define PAGE_OFFSET	0xffffffff80000000UL
 #define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
 #define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
 #define MAP_NR(addr)	(__pa(addr) >> PAGE_SHIFT)

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip22-timer.c,v 1.3 1999/10/19 20:51:52 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -228,15 +228,13 @@ void __init indy_timer_init(void)
 	struct sgi_ioc_timers *p;
 	volatile unsigned char *tcwp, *tc2p;
 
-	/* Figure out the r4k offset, the algorithm is very simple
-	 * and works in _all_ cases as long as the 8254 counter
-	 * register itself works ok (as an interrupt driving timer
-	 * it does not because of bug, this is why we are using
-	 * the onchip r4k counter/compare register to serve this
-	 * purpose, but for r4k_offset calculation it will work
-	 * ok for us).  There are other very complicated ways
-	 * of performing this calculation but this one works just
-	 * fine so I am not going to futz around. ;-)
+	/* Figure out the r4k offset, the algorithm is very simple and works
+	 * in _all_ cases as long as the 8254 counter register itself works ok
+	 * (as an interrupt driving timer it does not because of bug, this is
+	 * why we are using the onchip r4k counter/compare register to serve
+	 * this purpose, but for r4k_offset calculation it will work ok for us).
+	 * There are other very complicated ways of performing this calculation
+	 * but this one works just fine so I am not going to futz around. ;-)
 	 */
 	p = ioc_timers;
 	tcwp = &p->tcword;

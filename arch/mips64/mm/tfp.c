@@ -1,4 +1,4 @@
-/* $Id: tfp.c,v 1.2 1999/08/21 22:19:16 ralf Exp $
+/* $Id: tfp.c,v 1.4 1999/11/23 17:12:50 ralf Exp $
  *
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
@@ -78,10 +78,6 @@ static void tfp_load_pgd(unsigned long pg_dir)
 {
 }
 
-static void tfp_pgd_init(unsigned long page)
-{
-}
-
 static int tfp_user_mode(struct pt_regs *regs)
 {
 	return (regs->cp0_status & ST0_KSU) == KSU_USER;
@@ -104,7 +100,6 @@ void __init ld_mmu_tfp(void)
 	user_mode = tfp_user_mode;
 
 	load_pgd = tfp_load_pgd;
-	pgd_init = tfp_pgd_init;
     
 	flush_cache_all();
 	flush_tlb_all();

@@ -12,7 +12,7 @@
 #define _SGI_NEWPORT_H
 
 
-typedef volatile unsigned long npireg_t;
+typedef volatile unsigned int npireg_t;
 
 union npfloat {
 	volatile float flt;
@@ -143,7 +143,7 @@ struct newport_rexregs {
 	npireg_t colorback;   /* Background color */
 	npireg_t colorvram;   /* Clear color for fast vram */
 	npireg_t alpharef;    /* Reference value for afunctions */
-	unsigned long pad0;
+	unsigned int pad0;
 	npireg_t smask0x;     /* Window GL relative screen mask 0 */
 	npireg_t smask0y;     /* Window GL relative screen mask 0 */
 	npireg_t _setup;
@@ -151,7 +151,7 @@ struct newport_rexregs {
 	npireg_t _lsrestore;
 	npireg_t _lssave;
 
-	unsigned long _pad1[0x30];
+	unsigned int _pad1[0x30];
 
 	/* Iterators, full state for context switch */
 	npfreg_t _xstart;	/* X-start point (current) */
@@ -178,7 +178,7 @@ struct newport_rexregs {
 	npireg_t xyendi;
 	npireg_t xstartendi;
 
-	unsigned long _unused2[0x29];
+	unsigned int _unused2[0x29];
 
 	npfreg_t colorred;
 	npfreg_t coloralpha;
@@ -223,7 +223,7 @@ struct newport_rexregs {
 #define NPORT_DMODE_CSMASK  0x0f800000
 #define NPORT_DMODE_SENDIAN 0x10000000
 
-	unsigned long _unused3;
+	unsigned int _unused3;
 
 	union np_dcb dcbdata0;
 	npireg_t dcbdata1;
@@ -248,8 +248,8 @@ struct newport_cregs {
 #define NPORT_CMODE_SM4   0x00000010
 #define NPORT_CMODE_CMSK  0x00001e00
 
-	unsigned long _unused0;
-	unsigned long config;
+	unsigned int _unused0;
+	unsigned int config;
 #define NPORT_CFG_G32MD   0x00000001
 #define NPORT_CFG_BWIDTH  0x00000002
 #define NPORT_CFG_ERCVR   0x00000004
@@ -284,11 +284,11 @@ struct newport_cregs {
 
 struct newport_regs {
 	struct newport_rexregs set;
-	unsigned long _unused0[0x16e];
+	unsigned int _unused0[0x16e];
 	struct newport_rexregs go;
-	unsigned long _unused1[0x22e];
+	unsigned int _unused1[0x22e];
 	struct newport_cregs cset;
-	unsigned long _unused2[0x1ef];
+	unsigned int _unused2[0x1ef];
 	struct newport_cregs cgo;
 };
 extern struct newport_regs *npregs;

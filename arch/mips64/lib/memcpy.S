@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: memcpy.S,v 1.2 1999/10/19 20:51:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -93,7 +93,7 @@
 	.set	noat
 
 	.align	5
-LEAF(memcpy)					/* a0=dst a1=src a2=len */
+LEAF(xxmemcpy)					/* a0=dst a1=src a2=len */
 	move	v0, a0				/* return value */
 __memcpy:
 EXPORT(__copy_user)
@@ -365,7 +365,7 @@ u_end_bytes:
 
 	jr	ra
 	 move	a2, zero
-	END(memcpy)
+	END(xxmemcpy)
 
 /* descending order, destination aligned  */
 #define RMOVE_BIGCHUNK(src, dst, offset, t0, t1, t2, t3) \
@@ -406,14 +406,14 @@ u_end_bytes:
 	usw	t3, (offset + 0x0c)(dst)
 
 	.align	5
-LEAF(memmove)
+LEAF(xxmemmove)
 	sltu	ta0, a0, a1			# dst < src -> memcpy
-	bnez	ta0, memcpy
+	bnez	ta0, xxmemcpy
 	 daddu	v0, a0, a2
 	sltu	ta0, v0, a1			# dst + len < src -> non-
 	bnez	ta0, __memcpy			# overlapping, can use memcpy
 	 move	v0, a0				/* return value */
-	END(memmove)
+	END(xxmemmove)
 
 LEAF(__rmemcpy)					/* a0=dst a1=src a2=len */
 	daddu	a0, a2				# dst = dst + len

@@ -2,16 +2,16 @@
  * driver/usb/usb-core.c
  *
  * (C) Copyright David Waite 1999
- * based on code from usb.c, by Linus Torvolds
+ * based on code from usb.c, by Linus Torvalds
  *
  * The purpose of this file is to pull any and all generic modular code from
  * usb.c and put it in a separate file. This way usb.c is kept as a generic
  * library, while this file handles starting drivers, etc.
  *
  */
+
 #include <linux/kernel.h>
 #include <linux/config.h>
-#include <linux/module.h>
 
 #include "inits.h"
 #include "usb.h"
@@ -28,9 +28,11 @@
 #	endif
 #endif
 
-
 int usb_init(void)
 {
+#ifdef CONFIG_USB_PROC
+	proc_usb_init ();
+#endif
 #ifndef CONFIG_USB_MODULE
 #	ifdef CONFIG_USB_UHCI
 		uhci_init();
@@ -59,6 +61,9 @@ int usb_init(void)
 #	ifdef CONFIG_USB_PRINTER
 		usb_printer_init();
 #	endif
+#	ifdef CONFIG_USB_SERIAL
+		usb_serial_init();
+#	endif
 #	ifdef CONFIG_USB_CPIA
 		usb_cpia_init();
 #	endif
@@ -69,11 +74,9 @@ int usb_init(void)
 		usb_scsi_init();
 #	endif
 #endif
-#ifdef CONFIG_USB_PROC
-	proc_usb_init ();
-#endif
 	return 0;
 }
+
 /*
  *  Clean up when unloading the module
  */
@@ -100,10 +103,9 @@ int init_module(void)
 {
 	return usb_init();
 }
+
 void cleanup_module(void)
 {
 	cleanup_drivers();
 }
 #endif
-
-

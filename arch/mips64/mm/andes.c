@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.1 1999/08/18 23:37:47 ralf Exp $
+/* $Id: andes.c,v 1.3 1999/11/23 17:12:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -89,11 +89,6 @@ andes_load_pgd(unsigned long pg_dir)
 {
 }
 
-static void
-andes_pgd_init(unsigned long page)
-{
-}
-
 static int
 andes_user_mode(struct pt_regs *regs)
 {
@@ -117,7 +112,6 @@ void __init ld_mmu_andes(void)
 	user_mode = andes_user_mode;
 
 	load_pgd = andes_load_pgd;
-	pgd_init = andes_pgd_init;
 
 	flush_cache_all();
 	flush_tlb_all();

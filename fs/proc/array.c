@@ -575,10 +575,20 @@ static unsigned long get_wchan(struct task_struct *p)
 		unsigned long pc;
 
 		pc = thread_saved_pc(&p->thread);
-		if (pc >= (unsigned long) interruptible_sleep_on && pc < (unsigned long) add_timer) {
-			schedule_frame = ((unsigned long *)(long)p->thread.reg30)[16];
-			return (unsigned long)((unsigned long *)schedule_frame)[11];
+		if (pc == (unsigned long) interruptible_sleep_on
+		    || pc == (unsigned long) sleep_on) {
+			schedule_frame = ((unsigned long *)p->thread.reg30)[9];
+			return ((unsigned long *)schedule_frame)[15];
 		}
+		if (pc == (unsigned long) interruptible_sleep_on_timeout
+		    || pc == (unsigned long) sleep_on_timeout) {
+			schedule_frame = ((unsigned long *)p->thread.reg30)[9];
+			return ((unsigned long *)schedule_frame)[16];
+		}
+		if (pc >= first_sched && pc < last_sched) {
+			printk(KERN_DEBUG "Bug in %s\n", __FUNCTION__);
+		}
+
 		return pc;
 	}
 #elif defined(__mc68000__)

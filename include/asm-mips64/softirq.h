@@ -9,12 +9,6 @@
 #ifndef _ASM_SOFTIRQ_H
 #define _ASM_SOFTIRQ_H
 
-/* The locking mechanism for base handlers, to prevent re-entrancy,
- * is entirely private to an implementation, it should not be
- * referenced at all outside of this file.
- */
-extern atomic_t __mips_bh_counter;
-
 extern unsigned int local_bh_count[NR_CPUS];
 
 #define cpu_bh_disable(cpu)    do { local_bh_count[(cpu)]++; barrier(); } while (0)
@@ -33,9 +27,9 @@ static inline void clear_active_bhs(unsigned long x)
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0,%1\n\t"
+		"1:\tlld\t%0,%1\n\t"
 		"and\t%0,%2\n\t"
-		"sc\t%0,%1\n\t"
+		"scd\t%0,%1\n\t"
 		"beqz\t%0,1b"
 		:"=&r" (temp),
 		 "=m" (bh_active)

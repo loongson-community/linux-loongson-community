@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip22-int.c,v 1.4 1999/11/19 20:35:23 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -259,8 +259,6 @@ int get_irq_list(char *buf)
 	return len;
 }
 
-atomic_t __mips_bh_counter;
-
 /*
  * do_IRQ handles IRQ's that have been installed without the
  * SA_INTERRUPT flag: it uses the full signal-handling return
@@ -279,7 +277,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 
 	printk("Got irq %d, press a key.", irq);
 	prom_getchar();
-	romvec->imode();
+	ArcEnterInteractiveMode();
 
 	/*
 	 * mask and ack quickly, we don't want the irq controller

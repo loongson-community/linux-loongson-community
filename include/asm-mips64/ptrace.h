@@ -1,4 +1,4 @@
-/* $Id: ptrace.h,v 1.1 1999/08/18 21:46:55 ralf Exp $
+/* $Id: ptrace.h,v 1.2 1999/09/28 22:27:19 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -23,14 +23,22 @@
 #define FPC_EIR		70
 
 #ifndef __ASSEMBLY__
+
+#define abi64_no_regargs						\
+	unsigned long __dummy0,						\
+	unsigned long __dummy1,						\
+	unsigned long __dummy2,						\
+	unsigned long __dummy3,						\
+	unsigned long __dummy4,						\
+	unsigned long __dummy5,						\
+	unsigned long __dummy6,						\
+	unsigned long __dummy7
+
 /*
  * This struct defines the way the registers are stored on the stack during a
  * system call/exception. As usual the registers k0/k1 aren't being saved.
  */
 struct pt_regs {
-	/* Pad bytes for argument save space on the stack. */
-	unsigned long pad0[8];
-
 	/* Saved main processor registers. */
 	unsigned long regs[32];
 

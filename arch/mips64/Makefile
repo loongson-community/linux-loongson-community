@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.1 1999/08/18 23:37:46 ralf Exp $
+# $Id: Makefile,v 1.3 1999/10/19 20:51:44 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -71,10 +71,10 @@ LIBS          += arch/mips64/sgi-ip22/sgikern.a arch/mips64/arc/arclib.a
 SUBDIRS       += arch/mips64/sgi-ip22 arch/mips64/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
-# 0x88002000 for production kernels.  Note that the value must be
-# 8kb aligned or the handling of the current variable will break.
+# 0x88004000 for production kernels.  Note that the value must be
+# 16kb aligned or the handling of the current variable will break.
 #
-LOADADDR      += 0x88002000
+LOADADDR      += 0x88004000
 endif
 
 #

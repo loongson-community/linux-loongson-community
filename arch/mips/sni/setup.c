@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.11 1999/08/21 22:19:12 ralf Exp $
+/* $Id: setup.c,v 1.12 1999/10/09 00:00:59 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -31,7 +31,6 @@
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/sni.h>
-#include <asm/pci.h>
 
 /*
  * Initial irq handlers.

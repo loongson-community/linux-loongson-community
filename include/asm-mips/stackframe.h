@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Paul M. Antoine.
  *
- * $Id: stackframe.h,v 1.9 1999/07/26 19:42:44 harald Exp $
+ * $Id: stackframe.h,v 1.10 1999/08/13 17:07:27 harald Exp $
  */
 #ifndef __ASM_MIPS_STACKFRAME_H
 #define __ASM_MIPS_STACKFRAME_H
@@ -13,7 +13,10 @@
 #include <linux/config.h>
 
 #define SAVE_AT                                          \
-		sw	$1, PT_R1(sp)
+		.set	push;                            \
+		.set	noat;                            \
+		sw	$1, PT_R1(sp);                   \
+		.set	pop
 
 #define SAVE_TEMP                                        \
 		mfhi	v1;                              \
@@ -101,7 +104,10 @@
 		SAVE_STATIC
 
 #define RESTORE_AT                                       \
+		.set	push;                            \
+		.set	noat;                            \
 		lw	$1,  PT_R1(sp);                  \
+		.set	pop;
 
 #define RESTORE_TEMP                                     \
 		lw	$24, PT_LO(sp);                  \

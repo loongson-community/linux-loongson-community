@@ -21,15 +21,15 @@
 
 #define save_static(frame)                               \
 	__asm__ __volatile__(                            \
-		"sw\t$16,"__str(PT_R16)"(%0)\n\t"        \
-		"sw\t$17,"__str(PT_R17)"(%0)\n\t"        \
-		"sw\t$18,"__str(PT_R18)"(%0)\n\t"        \
-		"sw\t$19,"__str(PT_R19)"(%0)\n\t"        \
-		"sw\t$20,"__str(PT_R20)"(%0)\n\t"        \
-		"sw\t$21,"__str(PT_R21)"(%0)\n\t"        \
-		"sw\t$22,"__str(PT_R22)"(%0)\n\t"        \
-		"sw\t$23,"__str(PT_R23)"(%0)\n\t"        \
-		"sw\t$30,"__str(PT_R30)"(%0)\n\t"        \
+		"sd\t$16,"__str(PT_R16)"(%0)\n\t"        \
+		"sd\t$17,"__str(PT_R17)"(%0)\n\t"        \
+		"sd\t$18,"__str(PT_R18)"(%0)\n\t"        \
+		"sd\t$19,"__str(PT_R19)"(%0)\n\t"        \
+		"sd\t$20,"__str(PT_R20)"(%0)\n\t"        \
+		"sd\t$21,"__str(PT_R21)"(%0)\n\t"        \
+		"sd\t$22,"__str(PT_R22)"(%0)\n\t"        \
+		"sd\t$23,"__str(PT_R23)"(%0)\n\t"        \
+		"sd\t$30,"__str(PT_R30)"(%0)\n\t"        \
 		: /* No outputs */                       \
 		: "r" (frame))
 
@@ -38,35 +38,38 @@
 #ifdef _LANGUAGE_ASSEMBLY
 
 		.macro	SAVE_AT
-		sw	$1, PT_R1(sp)
+		.set	push
+		.set	noat
+		sd	$1, PT_R1(sp)
+		.set	pop
 		.endm
 
 		.macro	SAVE_TEMP
 		mfhi	v1
-		sw	$8, PT_R8(sp)
-		sw	$9, PT_R9(sp)
-		sw	v1, PT_HI(sp)
+		sd	$8, PT_R8(sp)
+		sd	$9, PT_R9(sp)
+		sd	v1, PT_HI(sp)
 		mflo	v1
-		sw	$10,PT_R10(sp)
-		sw	$11, PT_R11(sp)
-		sw	v1,  PT_LO(sp)
-		sw	$12, PT_R12(sp)
-		sw	$13, PT_R13(sp)
-		sw	$14, PT_R14(sp)
-		sw	$15, PT_R15(sp)
-		sw	$24, PT_R24(sp)
+		sd	$10, PT_R10(sp)
+		sd	$11, PT_R11(sp)
+		sd	v1,  PT_LO(sp)
+		sd	$12, PT_R12(sp)
+		sd	$13, PT_R13(sp)
+		sd	$14, PT_R14(sp)
+		sd	$15, PT_R15(sp)
+		sd	$24, PT_R24(sp)
 		.endm
 
 		.macro	SAVE_STATIC
-		sw	$16, PT_R16(sp)
-		sw	$17, PT_R17(sp)
-		sw	$18, PT_R18(sp)
-		sw	$19, PT_R19(sp)
-		sw	$20, PT_R20(sp)
-		sw	$21, PT_R21(sp)
-		sw	$22, PT_R22(sp)
-		sw	$23, PT_R23(sp)
-		sw	$30, PT_R30(sp)
+		sd	$16, PT_R16(sp)
+		sd	$17, PT_R17(sp)
+		sd	$18, PT_R18(sp)
+		sd	$19, PT_R19(sp)
+		sd	$20, PT_R20(sp)
+		sd	$21, PT_R21(sp)
+		sd	$22, PT_R22(sp)
+		sd	$23, PT_R23(sp)
+		sd	$30, PT_R30(sp)
 		.endm
 
 		.macro	SAVE_SOME
@@ -80,28 +83,28 @@
 		.set	reorder
 		/* Called from user mode, new stack. */
 		lui	k1, %hi(kernelsp)
-		lw	k1, %lo(kernelsp)(k1)
+		ld	k1, %lo(kernelsp)(k1)
 8:		move	k0, sp
-		subu	sp, k1, PT_SIZE
-		sw	k0, PT_R29(sp)
-		sw	$3, PT_R3(sp)
-		sw	$0, PT_R0(sp)
-		mfc0	v1, CP0_STATUS
-		sw	$2, PT_R2(sp)
-		sw	v1, PT_STATUS(sp)
-		sw	$4, PT_R4(sp)
-		mfc0	v1, CP0_CAUSE
-		sw	$5, PT_R5(sp)
-		sw	v1, PT_CAUSE(sp)
-		sw	$6, PT_R6(sp)
-		mfc0	v1, CP0_EPC
-		sw	$7, PT_R7(sp)
-		sw	v1, PT_EPC(sp)
-		sw	$25, PT_R25(sp)
-		sw	$28, PT_R28(sp)
-		sw	$31, PT_R31(sp)
-		ori	$28, sp, 0x1fff
-		xori	$28, 0x1fff
+		dsubu	sp, k1, PT_SIZE
+		sd	k0, PT_R29(sp)
+		sd	$3, PT_R3(sp)
+		sd	$0, PT_R0(sp)
+		dmfc0	v1, CP0_STATUS
+		sd	$2, PT_R2(sp)
+		sd	v1, PT_STATUS(sp)
+		sd	$4, PT_R4(sp)
+		dmfc0	v1, CP0_CAUSE
+		sd	$5, PT_R5(sp)
+		sd	v1, PT_CAUSE(sp)
+		sd	$6, PT_R6(sp)
+		dmfc0	v1, CP0_EPC
+		sd	$7, PT_R7(sp)
+		sd	v1, PT_EPC(sp)
+		sd	$25, PT_R25(sp)
+		sd	$28, PT_R28(sp)
+		sd	$31, PT_R31(sp)
+		ori	$28, sp, 0x3fff
+		xori	$28, 0x3fff
 		.set	pop
 		.endm
 
@@ -113,39 +116,39 @@
 		.endm
 
 		.macro	RESTORE_AT
-		lw	$1,  PT_R1(sp)
+		ld	$1,  PT_R1(sp)
 		.endm
 
 		.macro	RESTORE_SP
-		lw	sp,  PT_R29(sp)
+		ld	sp,  PT_R29(sp)
 		.endm
 
 		.macro	RESTORE_TEMP
-		lw	$24, PT_LO(sp)
-		lw	$8, PT_R8(sp)
-		lw	$9, PT_R9(sp)
+		ld	$24, PT_LO(sp)
+		ld	$8, PT_R8(sp)
+		ld	$9, PT_R9(sp)
 		mtlo	$24
-		lw	$24, PT_HI(sp)
-		lw	$10,PT_R10(sp)
-		lw	$11, PT_R11(sp)
+		ld	$24, PT_HI(sp)
+		ld	$10, PT_R10(sp)
+		ld	$11, PT_R11(sp)
 		mthi	$24
-		lw	$12, PT_R12(sp)
-		lw	$13, PT_R13(sp)
-		lw	$14, PT_R14(sp)
-		lw	$15, PT_R15(sp)
-		lw	$24, PT_R24(sp)
+		ld	$12, PT_R12(sp)
+		ld	$13, PT_R13(sp)
+		ld	$14, PT_R14(sp)
+		ld	$15, PT_R15(sp)
+		ld	$24, PT_R24(sp)
 		.endm
 
 		.macro	RESTORE_STATIC
-		lw	$16, PT_R16(sp)
-		lw	$17, PT_R17(sp)
-		lw	$18, PT_R18(sp)
-		lw	$19, PT_R19(sp)
-		lw	$20, PT_R20(sp)
-		lw	$21, PT_R21(sp)
-		lw	$22, PT_R22(sp)
-		lw	$23, PT_R23(sp)
-		lw	$30, PT_R30(sp)
+		ld	$16, PT_R16(sp)
+		ld	$17, PT_R17(sp)
+		ld	$18, PT_R18(sp)
+		ld	$19, PT_R19(sp)
+		ld	$20, PT_R20(sp)
+		ld	$21, PT_R21(sp)
+		ld	$22, PT_R22(sp)
+		ld	$23, PT_R23(sp)
+		ld	$30, PT_R30(sp)
 		.endm
 
 		.macro	RESTORE_SOME
@@ -158,22 +161,22 @@
 		mtc0	t0, CP0_STATUS
 		li	v1, 0xff00
 		and	t0, v1
-		lw	v0, PT_STATUS(sp)
+		ld	v0, PT_STATUS(sp)
 		nor	v1, $0, v1
 		and	v0, v1
 		or	v0, t0
-		mtc0	v0, CP0_STATUS
-		lw	v1, PT_EPC(sp)
-		mtc0	v1, CP0_EPC
-		lw	$31, PT_R31(sp)
-		lw	$28, PT_R28(sp)
-		lw	$25, PT_R25(sp)
-		lw	$7,  PT_R7(sp)
-		lw	$6,  PT_R6(sp)
-		lw	$5,  PT_R5(sp)
-		lw	$4,  PT_R4(sp)
-		lw	$3,  PT_R3(sp)
-		lw	$2,  PT_R2(sp)
+		dmtc0	v0, CP0_STATUS
+		ld	v1, PT_EPC(sp)
+		dmtc0	v1, CP0_EPC
+		ld	$31, PT_R31(sp)
+		ld	$28, PT_R28(sp)
+		ld	$25, PT_R25(sp)
+		ld	$7,  PT_R7(sp)
+		ld	$6,  PT_R6(sp)
+		ld	$5,  PT_R5(sp)
+		ld	$4,  PT_R4(sp)
+		ld	$3,  PT_R3(sp)
+		ld	$2,  PT_R2(sp)
 		.endm
 
 		.macro	RESTORE_ALL
@@ -201,11 +204,11 @@
  * Set cp0 enable bit as sign that we're running on the kernel stack
  */
 		.macro	STI
-		mfc0	t0,CP0_STATUS
-		li	t1,ST0_CU0|0x1f
-		or	t0,t1
-		xori	t0,0x1e
-		mtc0	t0,CP0_STATUS
+		mfc0	t0, CP0_STATUS
+		li	t1, ST0_CU0 | 0x1f
+		or	t0, t1
+		xori	t0, 0x1e
+		mtc0	t0, CP0_STATUS
 		.endm
 
 /*
@@ -214,7 +217,7 @@
  */
 		.macro	KMODE
 		mfc0	t0, CP0_STATUS
-		li	t1, ST0_CU0|0x1e
+		li	t1, ST0_CU0 | 0x1e
 		or	t0, t1
 		xori	t0, 0x1e
 		mtc0	t0, CP0_STATUS

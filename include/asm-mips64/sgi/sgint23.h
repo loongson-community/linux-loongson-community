@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: sgint23.h,v 1.3 1999/10/20 18:10:32 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -24,6 +24,32 @@
 #define SGINT_GIO      32  /* INDY has 9 GIO irq levels */
 #define SGINT_HPCDMA   41  /* INDY has 11 HPCDMA irq _sources_ */
 #define SGINT_END      52  /* End of 'spaces' */
+
+/* Individual interrupt definitions for the INDY and Indigo2
+ */
+
+#define SGI_WD93_0_IRQ	SGINT_LOCAL0 + 1	/* 1st onboard WD93 */
+#define SGI_WD93_1_IRQ	SGINT_LOCAL0 + 2	/* 2nd onboard WD93 */
+#define SGI_ENET_IRQ	SGINT_LOCAL0 + 3	/* onboard ethernet */
+
+#define SGI_PANEL_IRQ	SGINT_LOCAL1 + 1	/* front panel */
+
+#define SGI_EISA_IRQ	SGINT_LOCAL2 + 3	/* EISA interrupts */
+#define SGI_KEYBOARD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
+#define SGI_SERIAL_IRQ	SGINT_LOCAL2 + 5	/* onboard serial */
+
+/* Individual interrupt definitions for the INDY and Indigo2
+ */
+
+#define SGI_WD93_0_IRQ	SGINT_LOCAL0 + 1	/* 1st onboard WD93 */
+#define SGI_WD93_1_IRQ	SGINT_LOCAL0 + 2	/* 2nd onboard WD93 */
+#define SGI_ENET_IRQ	SGINT_LOCAL0 + 3	/* onboard ethernet */
+
+#define SGI_PANEL_IRQ	SGINT_LOCAL1 + 1	/* front panel */
+
+#define SGI_EISA_IRQ	SGINT_LOCAL2 + 3	/* EISA interrupts */
+#define SGI_KEYBOARD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
+#define SGI_SERIAL_IRQ	SGINT_LOCAL2 + 5	/* onboard serial */
 
 /* INT2 occupies HPC PBUS slot 4, INT3 uses slot 6. */
 #define SGI_INT2_BASE 0x1fbd9000 /* physical */
@@ -141,7 +167,7 @@ struct sgi_ioc_timers {
 struct sgi_int2_regs {
 	struct sgi_ioc_ints ints;
 
-	volatile unsigned long ledbits;   /* LED control bits */
+	volatile u32 ledbits; 		  /* LED control bits */
 #define INT2_LED_TXCLK         0x01       /* GPI to TXCLK enable */
 #define INT2_LED_SERSLCT0      0x02       /* serial port0: 0=apple 1=pc */
 #define INT2_LED_SERSLCT1      0x04       /* serial port1: 0=apple 1=pc */
@@ -160,8 +186,8 @@ struct sgi_int2_regs {
 /* I am guesing there are only two unused registers here 
  * but I could be wrong...			- andrewb
  */
-/*	unsigned long _unused[3]; */
-	unsigned long _unused[2];
+/*	u32 _unused[3]; */
+	u32 _unused[2];
 	struct sgi_ioc_timers timers;
 };
 
@@ -170,13 +196,13 @@ struct sgi_int3_regs {
 
 #ifdef __MIPSEB__
 	unsigned char _unused0[3];
-	volatile unsigned char tclear;    /* Timer clear strobe address */
+	volatile unsigned char tclear;		/* Timer clear strobe address */
 #else
-	volatile unsigned char tclear;    /* Timer clear strobe address */
+	volatile unsigned char tclear;		/* Timer clear strobe address */
 	unsigned char _unused0[3];
 #endif
-	volatile unsigned long estatus;   /* Error status reg */
-	unsigned long _unused1[2];
+	volatile u32 estatus;			/* Error status reg */
+	u32 _unused1[2];
 	struct sgi_ioc_timers timers;
 };
 

@@ -1,4 +1,4 @@
-/* $Id: current.h,v 1.1 1999/08/18 21:46:54 ralf Exp $
+/* $Id: current.h,v 1.2 1999/09/28 22:27:19 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -27,8 +27,8 @@ register struct task_struct *current asm("$28");
 	.set	noreorder;			\
 	lw	reg, %lo(kernelsp)(reg);	\
 	.set	pop;				\
-	ori	reg, 8191;			\
-	xori	reg, 8191
+	ori	reg, 0x3fff;			\
+	xori	reg, 0x3fff
 
 #endif
 

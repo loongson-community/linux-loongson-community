@@ -37,6 +37,8 @@
 #include <asm/irq.h>
 #include <asm/system.h>
 
+#include <asm/io.h>
+
 /* Some configuration switches are present in the include file... */
 
 #include <linux/pc_keyb.h>
@@ -100,7 +102,6 @@ static unsigned char mouse_reply_expected = 0;
 static void kb_wait(void)
 {
 	unsigned long timeout = KBC_TIMEOUT;
-	unsigned char status;
 
 	do {
 		/*
@@ -404,7 +405,7 @@ static inline void handle_mouse_event(unsigned char scancode)
 		if (head != queue->tail) {
 			queue->head = head;
 			if (queue->fasync)
-				kill_fasync(queue->fasync, SIGIO);
+				kill_fasync(queue->fasync, SIGIO, POLL_IN);
 			wake_up_interruptible(&queue->proc_list);
 		}
 	}
@@ -421,32 +422,43 @@ static inline void handle_mouse_event(unsigned char scancode)
 static unsigned char handle_kbd_event(void)
 {
 	unsigned char status = kbd_read_status();
+	unsigned int work = 10000;
 
 	while (status & KBD_STAT_OBF) {
 		unsigned char scancode;
 
 		scancode = kbd_read_input();
-
 		if (status & KBD_STAT_MOUSE_OBF) {
 			handle_mouse_event(scancode);
 		} else {
+#ifdef CONFIG_VT
 			if (do_acknowledge(scancode))
 				handle_scancode(scancode, !(scancode & 0x80));
+#endif				
 			mark_bh(KEYBOARD_BH);
 		}
 
 		status = kbd_read_status();
+		
+		if(!work--)
+		{
+			printk(KERN_ERR "pc_keyb: controller jammed (0x%02X).\n",
+				status);
+			break;
+		}
 	}
 
 	return status;
 }
 
+
 static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	unsigned long flags;
 
+#ifdef CONFIG_VT
 	kbd_pt_regs = regs;
-
+#endif
 	spin_lock_irqsave(&kbd_controller_lock, flags);
 	handle_kbd_event();
 	spin_unlock_irqrestore(&kbd_controller_lock, flags);
@@ -660,9 +672,9 @@ static char * __init initialize_kbd(void)
 
 	kbd_write_command_w(KBD_CCMD_WRITE_MODE);
 	kbd_write_output_w(KBD_MODE_KBD_INT
-			 | KBD_MODE_SYS
-			 | KBD_MODE_DISABLE_MOUSE
-			 | KBD_MODE_KCC);
+			      | KBD_MODE_SYS
+			      | KBD_MODE_DISABLE_MOUSE
+			      | KBD_MODE_KCC);
 
 	/* ibm powerpc portables need this to use scan-code set 1 -- Cort */
 	kbd_write_command_w(KBD_CCMD_READ_MODE);
@@ -697,6 +709,8 @@ static char * __init initialize_kbd(void)
 
 void __init pckbd_init_hw(void)
 {
+	kbd_request_region();
+
 	/* Flush any pending input. */
 	kbd_clear_input();
 
@@ -832,7 +846,7 @@ static int release_aux(struct inode * inode, struct file * file)
 		return 0;
 	kbd_write_cmd(AUX_INTS_OFF);			    /* Disable controller ints */
 	kbd_write_command_w(KBD_CCMD_MOUSE_DISABLE);
-	aux_free_irq(inode);
+	aux_free_irq(AUX_DEV);
 	return 0;
 }
 
@@ -847,7 +861,7 @@ static int open_aux(struct inode * inode, struct file * file)
 		return 0;
 	}
 	queue->head = queue->tail = 0;		/* Flush input queue */
-	if (aux_request_irq(keyboard_interrupt, inode)) {
+	if (aux_request_irq(keyboard_interrupt, AUX_DEV)) {
 		aux_count--;
 		return -EBUSY;
 	}

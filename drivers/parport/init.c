@@ -91,6 +91,8 @@ static int __init parport_setup (char *str)
 	if (sep++) {
 		if (!strncmp (sep, "auto", 4))
 			dma[parport_setup_ptr] = PARPORT_DMA_AUTO;
+		else if (!strncmp (sep, "nofifo", 6))
+			dma[parport_setup_ptr] = PARPORT_DMA_NOFIFO;
 		else if (strncmp (sep, "none", 4)) {
 			val = simple_strtoul (sep, &endptr, 0);
 			if (endptr == sep) {
@@ -209,6 +211,8 @@ EXPORT_SYMBOL(parport_device_coords);
 EXPORT_SYMBOL(parport_daisy_deselect_all);
 EXPORT_SYMBOL(parport_daisy_select);
 EXPORT_SYMBOL(parport_daisy_init);
+EXPORT_SYMBOL(parport_find_device);
+EXPORT_SYMBOL(parport_find_class);
 #endif
 
 void inc_parport_count(void)

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: setup.c,v 1.3 1999/10/19 20:51:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -31,6 +31,7 @@
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
@@ -79,7 +80,7 @@ struct kbd_ops *kbd_ops;
  *
  * These are initialized so they are in the .data section
  */
-unsigned long mips_memory_upper = KSEG0; /* this is set by kernel_entry() */
+unsigned long mips_memory_upper = KSEG0;
 unsigned long mips_cputype = CPU_UNKNOWN;
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
@@ -87,6 +88,7 @@ unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 unsigned char aux_device_present;
 extern int _end;
 
+extern void load_mmu(void);
 extern char empty_zero_page[PAGE_SIZE];
 
 static char command_line[CL_SIZE] = { 0, };
@@ -94,6 +96,40 @@ static char command_line[CL_SIZE] = { 0, };
 extern char arcs_cmdline[CL_SIZE];
 
 extern void ip22_setup(void);
+
+static inline void cpu_probe(void)
+{
+	unsigned int prid = read_32bit_cp0_register(CP0_PRID);
+
+	switch(prid & 0xff00) {
+	case PRID_IMP_R4000:
+		if((prid & 0xff) == PRID_REV_R4400)
+			mips_cputype = CPU_R4400SC;
+		else
+			mips_cputype = CPU_R4000SC;
+		break;
+	case PRID_IMP_R4600:
+		mips_cputype = CPU_R4600;
+		break;
+	case PRID_IMP_R4700:
+		mips_cputype = CPU_R4700;
+		break;
+	case PRID_IMP_R5000:
+		mips_cputype = CPU_R5000;
+		break;
+	case PRID_IMP_NEVADA:
+		mips_cputype = CPU_NEVADA;
+		break;
+	case PRID_IMP_R8000:
+		mips_cputype = CPU_R8000;
+		break;
+	case PRID_IMP_R10000:
+		mips_cputype = CPU_R10000;
+		break;
+	default:
+		mips_cputype = CPU_UNKNOWN;
+	}
+}
 
 void __init setup_arch(char **cmdline_p, unsigned long * memory_start_p,
                        unsigned long * memory_end_p)
@@ -103,6 +139,9 @@ void __init setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 	unsigned long tmp;
 	unsigned long *initrd_header;
 #endif
+
+	cpu_probe();
+	load_mmu();
 
 #ifdef CONFIG_SGI_IP22
 	ip22_setup();

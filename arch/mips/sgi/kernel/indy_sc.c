@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.11 1999/10/09 00:00:59 ralf Exp $
+/* $Id: indy_sc.c,v 1.12 1999/10/21 00:23:05 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -221,6 +221,7 @@ struct bcache_ops indy_sc_ops = {
 
 void __init indy_sc_init(void)
 {
+return;
 	if (indy_sc_probe()) {
 		indy_sc_enable();
 		bcops = &indy_sc_ops;

@@ -38,6 +38,9 @@ SECTIONS
   _etext = .;
   PROVIDE (etext = .);
 
+  . = ALIGN(8192);
+  .data.init_task : { *(.data.init_task) }
+
   /* Startup code */
   . = ALIGN(4096);
   __init_begin = .;

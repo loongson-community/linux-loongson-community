@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.20 1999/06/17 13:25:48 ralf Exp $
+/* $Id: sysirix.c,v 1.21 1999/10/09 00:00:58 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -47,7 +47,6 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 	int base = 0;
 	int error = 0;
 
-	lock_kernel();
 	if(regs->regs[2] == 1000)
 		base = 1;
 	cmd = regs->regs[base + 4];
@@ -57,8 +56,7 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		break;
 	case MP_NPROCS:
 	case MP_NAPROCS:
-		error = 1;
-		error = NR_CPUS;
+		error = smp_num_cpus;
 		break;
 	default:
 		printk("SYSMP[%s:%ld]: Unsupported opcode %d\n",
@@ -67,7 +65,6 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		break;
 	}
 
-	unlock_kernel();
 	return error;
 }
 
@@ -1106,13 +1103,16 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 	struct file *file = NULL;
 	unsigned long retval;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if(!(flags & MAP_ANONYMOUS)) {
 		if(!(file = fget(fd))) {
 			retval = -EBADF;
 			goto out;
 		}
-		/* Ok, bad taste hack follows, try to think in something else when reading this */
+
+		/* Ok, bad taste hack follows, try to think in something else
+		 * when reading this.  */
 		if (flags & IRIX_MAP_AUTOGROW){
 			unsigned long old_pos;
 			long max_size = offset + len;
@@ -1124,7 +1124,7 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 			}
 		}
 	}
-	
+
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
 	retval = do_mmap(file, addr, len, prot, flags, offset);
@@ -1133,6 +1133,8 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
+
 	return retval;
 }
 
@@ -1684,23 +1686,25 @@ out:
 	return retval;
 }
 
-extern asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
-					 int flags, int fd, off_t offset);
+extern asmlinkage unsigned long
+sys_mmap(unsigned long addr, size_t len, int prot, int flags, int fd,
+         off_t offset);
 
 asmlinkage int irix_mmap64(struct pt_regs *regs)
 {
 	int len, prot, flags, fd, off1, off2, error, base = 0;
 	unsigned long addr, *sp;
 	struct file *file;
-	
+
+	down(&current->mm->mmap_sem);
 	lock_kernel();
-	if(regs->regs[2] == 1000)
+	if (regs->regs[2] == 1000)
 		base = 1;
 	sp = (unsigned long *) (regs->regs[29] + 16);
 	addr = regs->regs[base + 4];
 	len = regs->regs[base + 5];
 	prot = regs->regs[base + 6];
-	if(!base) {
+	if (!base) {
 		flags = regs->regs[base + 7];
 		error = verify_area(VERIFY_READ, sp, (4 * sizeof(unsigned long)));
 		if(error)
@@ -1717,22 +1721,22 @@ asmlinkage int irix_mmap64(struct pt_regs *regs)
 		__get_user(off1, &sp[2]);
 		__get_user(off2, &sp[3]);
 	}
-	if(off1) {
+	if (off1) {
 		error = -EINVAL;
 		goto out;
 	}
 
-	if(!(flags & MAP_ANONYMOUS)) {
+	if (!(flags & MAP_ANONYMOUS)) {
 		if(!(file = fcheck(fd))) {
 			error = -EBADF;
 			goto out;
 		}
-		
+
 		/* Ok, bad taste hack follows, try to think in something else when reading this */
 		if (flags & IRIX_MAP_AUTOGROW){
 			unsigned long old_pos;
 			long max_size = off2 + len;
-			
+
 			if (max_size > file->f_dentry->d_inode->i_size){
 				old_pos = sys_lseek (fd, max_size - 1, 0);
 				sys_write (fd, "", 1);
@@ -1750,30 +1754,27 @@ out:
 
 asmlinkage int irix_dmi(struct pt_regs *regs)
 {
-	lock_kernel();
 	printk("[%s:%ld] Wheee.. irix_dmi()\n",
 	       current->comm, current->pid);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
 asmlinkage int irix_pread(int fd, char *buf, int cnt, int off64,
 			  int off1, int off2)
 {
-	lock_kernel();
 	printk("[%s:%ld] Wheee.. irix_pread(%d,%p,%d,%d,%d,%d)\n",
 	       current->comm, current->pid, fd, buf, cnt, off64, off1, off2);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
 asmlinkage int irix_pwrite(int fd, char *buf, int cnt, int off64,
 			   int off1, int off2)
 {
-	lock_kernel();
 	printk("[%s:%ld] Wheee.. irix_pwrite(%d,%p,%d,%d,%d,%d)\n",
 	       current->comm, current->pid, fd, buf, cnt, off64, off1, off2);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -1781,12 +1782,11 @@ asmlinkage int irix_sgifastpath(int cmd, unsigned long arg0, unsigned long arg1,
 				unsigned long arg2, unsigned long arg3,
 				unsigned long arg4, unsigned long arg5)
 {
-	lock_kernel();
 	printk("[%s:%ld] Wheee.. irix_fastpath(%d,%08lx,%08lx,%08lx,%08lx,"
 	       "%08lx,%08lx)\n",
 	       current->comm, current->pid, cmd, arg0, arg1, arg2,
 	       arg3, arg4, arg5);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -2414,12 +2414,10 @@ out:
 
 asmlinkage int irix_unimp(struct pt_regs *regs)
 {
-	lock_kernel();
 	printk("irix_unimp [%s:%ld] v0=%d v1=%d a0=%08lx a1=%08lx a2=%08lx "
 	       "a3=%08lx\n", current->comm, current->pid,
 	       (int) regs->regs[2], (int) regs->regs[3],
 	       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	unlock_kernel();
 
 	return -ENOSYS;
 }

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: types.h,v 1.1 1999/08/18 23:37:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,7 +10,7 @@
 #ifndef _ASM_TYPES_H
 #define _ASM_TYPES_H
 
-typedef unsigned long umode_t;
+typedef unsigned int umode_t;
 
 /*
  * __xx is ok: it doesn't pollute the POSIX namespace. Use these in the

@@ -1,4 +1,4 @@
-/* $Id: uaccess.h,v 1.1 1999/08/18 23:37:53 ralf Exp $
+/* $Id: uaccess.h,v 1.2 1999/08/19 22:56:35 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -23,15 +23,15 @@
  *
  * For historical reasons, these macros are grossly misnamed.
  */
-#define KERNEL_DS	((mm_segment_t) { 0UL })
-#define USER_DS		((mm_segment_t) { 1UL })
+#define KERNEL_DS	((mm_segment_t) { (unsigned long) 0L })
+#define USER_DS		((mm_segment_t) { (unsigned long) -1L })
 
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
 
-#define get_fs()        (current->tss.current_ds)
+#define get_fs()        (current->thread.current_ds)
 #define get_ds()	(KERNEL_DS)
-#define set_fs(x)       (current->tss.current_ds=(x))
+#define set_fs(x)       (current->thread.current_ds=(x))
 
 #define segment_eq(a,b)	((a).seg == (b).seg)
 
@@ -48,7 +48,7 @@
  */
 #define __access_ok(addr,size,mask) \
         (((__signed__ long)((mask)&(addr | size | (addr+size)))) >= 0)
-#define __access_mask (-(long)(get_fs().seg))
+#define __access_mask ((long)(get_fs().seg))
 
 #define access_ok(type,addr,size) \
 __access_ok(((unsigned long)(addr)),(size),__access_mask)
@@ -385,7 +385,6 @@ strncpy_from_user(char *__to, const char *__from, long __len)
 	return res;
 }
 
-
 /* Returns: 0 if bad, string length+1 (memory size) of string if ok */
 extern inline long __strlen_user(const char *s)
 {
@@ -413,6 +412,39 @@ extern inline long strlen_user(const char *s)
 		: "=r" (res)
 		: "r" (s)
 		: "$2", "$4", "$8", "$31");
+
+	return res;
+}
+
+/* Returns: 0 if bad, string length+1 (memory size) of string if ok */
+extern inline long __strnlen_user(const char *s, long n)
+{
+	long res;
+
+	__asm__ __volatile__(
+		"move\t$4, %1\n\t"
+		"move\t$5, %2\n\t"
+		__MODULE_JAL(__strlen_user_nocheck_asm)
+		"move\t%0, $2"
+		: "=r" (res)
+		: "r" (s), "r" (n)
+		: "$2", "$4", "$5", "$8", "$31");
+
+	return res;
+}
+
+extern inline long strnlen_user(const char *s, long n)
+{
+	long res;
+
+	__asm__ __volatile__(
+		"move\t$4, %1\n\t"
+		"move\t$5, %2\n\t"
+		__MODULE_JAL(__strlen_user_asm)
+		"move\t%0, $2"
+		: "=r" (res)
+		: "r" (s), "r" (n)
+		: "$2", "$4", "$5", "$8", "$31");
 
 	return res;
 }

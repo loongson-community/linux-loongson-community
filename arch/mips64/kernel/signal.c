@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.1 1999/09/27 16:01:38 ralf Exp $
+/* $Id: signal.c,v 1.5 1999/10/19 20:51:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -34,14 +34,14 @@
 extern asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
                          int options, unsigned long *ru);
 extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
-extern asmlinkage int (*save_fp_context)(struct sigcontext *sc);
-extern asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
+extern asmlinkage int save_fp_context(struct sigcontext *sc);
+extern asmlinkage int restore_fp_context(struct sigcontext *sc);
 
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
  */
 asmlinkage inline int
-sys_sigsuspend(struct pt_regs regs)
+sys_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
 
@@ -68,7 +68,7 @@ sys_sigsuspend(struct pt_regs regs)
 }
 
 asmlinkage int
-sys_rt_sigsuspend(struct pt_regs regs)
+sys_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 {
 	sigset_t *unewset, saveset, newset;
         size_t sigsetsize;
@@ -143,7 +143,7 @@ sys_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 }
 
 asmlinkage int
-sys_sigaltstack(struct pt_regs regs)
+sys_sigaltstack(abi64_no_regargs, struct pt_regs regs)
 {
 	const stack_t *uss = (const stack_t *) regs.regs[4];
 	stack_t *uoss = (stack_t *) regs.regs[5];
@@ -202,7 +202,7 @@ struct rt_sigframe {
 };
 
 asmlinkage void
-sys_sigreturn(struct pt_regs regs)
+sys_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -237,7 +237,7 @@ badframe:
 }
 
 asmlinkage void
-sys_rt_sigreturn(struct pt_regs regs)
+sys_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct rt_sigframe *frame;
 	sigset_t set;
@@ -612,7 +612,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
 			case SIGBUS:
-				if (do_cordump(signr, regs))
+				if (do_coredump(signr, regs))
 					exit_code |= 0x80;
 				/* FALLTHRU */
 

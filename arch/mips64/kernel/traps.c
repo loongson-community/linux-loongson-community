@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.1 1999/09/27 16:01:38 ralf Exp $
+/* $Id: traps.c,v 1.10 1999/11/23 17:12:49 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -15,6 +15,7 @@
 #include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/spinlock.h>
 
 #include <asm/branch.h>
 #include <asm/cachectl.h>
@@ -25,15 +26,22 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
-static inline void console_verbose(void)
+extern int console_loglevel;
+
+static inline void console_silent(void)
 {
-	extern int console_loglevel;
-	console_loglevel = 15;
+	console_loglevel = 0;
 }
 
-extern asmlinkage void r4k_handle_mod(void);
-extern asmlinkage void r4k_handle_tlbl(void);
-extern asmlinkage void r4k_handle_tlbs(void);
+static inline void console_verbose(void)
+{
+	if (console_loglevel)
+		console_loglevel = 15;
+}
+
+extern asmlinkage void __xtlb_mod_debug(void);
+extern asmlinkage void __xtlb_tlbl_debug(void);
+extern asmlinkage void __xtlb_tlbs_debug(void);
 extern asmlinkage void handle_adel(void);
 extern asmlinkage void handle_ades(void);
 extern asmlinkage void handle_ibe(void);
@@ -53,6 +61,7 @@ static char *cpu_names[] = CPU_NAMES;
 char watch_available = 0;
 char dedicated_iv_available = 0;
 char vce_available = 0;
+char mips4_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
 void (*dbe_board_handler)(struct pt_regs *regs);
@@ -161,12 +170,15 @@ void show_code(unsigned int *pc)
 	}
 }
 
+spinlock_t die_lock;
+
 void die(const char * str, struct pt_regs * regs, unsigned long err)
 {
 	if (user_mode(regs))	/* Just return if in user mode.  */
 		return;
 
 	console_verbose();
+	spin_lock_irq(&die_lock);
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_regs(regs);
 	printk("Process %s (pid: %ld, stackpage=%08lx)\n",
@@ -175,6 +187,7 @@ void die(const char * str, struct pt_regs * regs, unsigned long err)
 	show_trace((unsigned int *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
+	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
 
@@ -357,10 +370,9 @@ void do_cpu(struct pt_regs *regs)
 		return;
 
 	if (current->used_math) {		/* Using the FPU again.  */
-		r4xx0_lazy_fpu_switch(last_task_used_math);
+		lazy_fpu_switch(last_task_used_math);
 	} else {				/* First time FPU user.  */
-
-		r4xx0_init_fpu();
+		init_fpu();
 		current->used_math = 1;
 	}
 	last_task_used_math = current;
@@ -416,6 +428,7 @@ static inline void watch_init(unsigned long cputype)
 static inline void setup_dedicated_int(void)
 {
 	extern void except_vec4(void);
+
 	switch(mips_cputype) {
 	case CPU_NEVADA:
 		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
@@ -433,7 +446,7 @@ unsigned long exception_handlers[32];
  */
 void set_except_vector(int n, void *addr)
 {
-	unsigned handler = (unsigned long) addr;
+	unsigned long handler = (unsigned long) addr;
 	exception_handlers[n] = handler;
 	if (n == 0 && dedicated_iv_available) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
@@ -442,24 +455,38 @@ void set_except_vector(int n, void *addr)
 	}
 }
 
-asmlinkage void (*save_fp_context)(struct sigcontext *sc);
-extern asmlinkage void r4k_save_fp_context(struct sigcontext *sc);
+static inline void mips4_setup(void)
+{
+	switch (mips_cputype) {
+	case CPU_R5000:
+	case CPU_R5000A:
+	case CPU_NEVADA:
+	case CPU_R8000:
+	case CPU_R10000:
+		mips4_available = 1;
+		set_cp0_status(ST0_XX, ST0_XX);
+	}
+	mips4_available = 0;
+}
 
-asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
-extern asmlinkage void r4k_restore_fp_context(struct sigcontext *sc);
+static inline void go_64(void)
+{
+	unsigned int bits;
 
-extern asmlinkage void *r4xx0_resume(void *last, void *next);
+	bits = ST0_KX|ST0_SX|ST0_UX;
+	set_cp0_status(bits, bits);
+	printk("Entering 64-bit mode.\n");
+}
 
 void __init trap_init(void)
 {
-	extern char except_vec0_nevada, except_vec0_r4000;
-	extern char except_vec0_r4600, except_vec0_r2300;
-	extern char except_vec1_generic, except_vec2_generic;
+	extern char __tlb_refill_debug_tramp;
+	extern char __xtlb_refill_debug_tramp;
+	extern char except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	unsigned long i;
 
 	/* Copy the generic exception handler code to it's final destination. */
-	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 
@@ -475,6 +502,8 @@ void __init trap_init(void)
 	 */
 	watch_init(mips_cputype);
 	setup_dedicated_int();
+	mips4_setup();
+	go_64();		/* In memoriam C128 ;-)  */
 
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
@@ -504,14 +533,11 @@ void __init trap_init(void)
 	case CPU_R4200:
 	case CPU_R4300:
 	case CPU_R4600:
-        case CPU_R5000:
-        case CPU_NEVADA:
-		if(mips_cputype == CPU_NEVADA) {
-			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
-		} else if (mips_cputype == CPU_R4600)
-			memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
-		else
-			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
+	case CPU_R5000:
+	case CPU_NEVADA:
+		/* Debug TLB refill handler.  */
+		memcpy((void *)KSEG0, &__tlb_refill_debug_tramp, 0x80);
+		memcpy((void *)KSEG0 + 0x080, &__xtlb_refill_debug_tramp, 0x80);
 
 		/* Cache error vector  */
 		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
@@ -524,12 +550,9 @@ void __init trap_init(void)
 			       0x100);
 		}
 
-		save_fp_context = r4k_save_fp_context;
-		restore_fp_context = r4k_restore_fp_context;
-		resume = r4xx0_resume;
-		set_except_vector(1, r4k_handle_mod);
-		set_except_vector(2, r4k_handle_tlbl);
-		set_except_vector(3, r4k_handle_tlbs);
+		set_except_vector(1, __xtlb_mod_debug);
+		set_except_vector(2, __xtlb_tlbl_debug);
+		set_except_vector(3, __xtlb_tlbs_debug);
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
 
@@ -559,4 +582,7 @@ void __init trap_init(void)
 		panic("Unknown CPU type");
 	}
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
+
+	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
+	current->active_mm = &init_mm;
 }

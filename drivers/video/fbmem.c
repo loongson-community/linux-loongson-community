@@ -100,12 +100,17 @@ extern int fm2fb_setup(char*);
 extern int q40fb_init(void);
 extern int sgivwfb_init(void);
 extern int sgivwfb_setup(char*);
+extern int tdfxfb_init(void);
+extern int tdfxfb_setup(char*);
 
 static struct {
 	const char *name;
 	int (*init)(void);
 	int (*setup)(char*);
 } fb_drivers[] __initdata = {
+#ifdef CONFIG_FB_3DFX
+	{ "tdfx", tdfxfb_init, tdfxfb_setup },
+#endif
 #ifdef CONFIG_FB_SGIVW
 	{ "sgivw", sgivwfb_init, sgivwfb_setup },
 #endif
@@ -453,6 +458,11 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		    /* set them all */
 		    for (i = 0; i < MAX_NR_CONSOLES; i++)
 			set_con2fb_map(i, con2fb.framebuffer);
+		return 0;
+	case FBIOBLANK:
+		if (info->blank == 0)
+			return -EINVAL;
+		(*info->blank)(arg, info);
 		return 0;
 	default:
 		return fb->fb_ioctl(inode, file, cmd, arg, PROC_CONSOLE(info),

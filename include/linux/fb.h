@@ -26,6 +26,7 @@
 /* #define FBIOSWITCH_MONIBIT	0x460E */
 #define FBIOGET_CON2FBMAP	0x460F
 #define FBIOPUT_CON2FBMAP	0x4610
+#define FBIOBLANK		0x4611		/* arg: 0 or vesa level + 1 */
 
 #define FB_TYPE_PACKED_PIXELS		0	/* Packed Pixels	*/
 #define FB_TYPE_PLANES			1	/* Non interleaved planes */
@@ -80,6 +81,8 @@
 #define FB_ACCEL_NV3		27	/* nVidia RIVA 128              */
 #define FB_ACCEL_NV4		28	/* nVidia RIVA TNT		*/
 #define FB_ACCEL_NV5		29	/* nVidia RIVA TNT2		*/
+#define FB_ACCEL_CT_6555x	30	/* C&T 6555x			*/
+#define FB_ACCEL_3DFX_BANSHEE	31	/* 3Dfx Banshee			*/
 
 struct fb_fix_screeninfo {
 	char id[16];			/* identification string eg "TT Builtin" */

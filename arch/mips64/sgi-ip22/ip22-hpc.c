@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip22-hpc.c,v 1.2 1999/10/19 20:51:52 ralf Exp $
  *
  * ip22-hpc.c: Routines for generic manipulation of the HPC controllers.
  *
@@ -6,6 +6,7 @@
  * Copyright (C) 1998, 1999 Ralf Baechle
  */
 #include <linux/init.h>
+#include <linux/types.h>
 
 #include <asm/addrspace.h>
 #include <asm/sgi/sgihpc.h>
@@ -18,7 +19,7 @@ struct hpc3_regs *hpc3c0, *hpc3c1;
 struct hpc3_miscregs *hpc3mregs;
 
 /* We need software copies of these because they are write only. */
-unsigned long sgi_hpc_write1, sgi_hpc_write2;
+unsigned int sgi_hpc_write1, sgi_hpc_write2;
 
 /* Machine specific identifier knobs. */
 int sgi_has_ioc2 = 0;

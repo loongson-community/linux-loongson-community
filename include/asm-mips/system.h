@@ -1,14 +1,15 @@
-/* $Id: system.h,v 1.17 1999/10/12 17:33:50 harald Exp $
+/* $Id: system.h,v 1.18 1999/11/17 22:48:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996, 1997, 1998 by Ralf Baechle
- * Modified further for R[236]000 by Paul M. Antoine, 1996
+ * Copyright (C) 1994 - 1999 by Ralf Baechle
+ * Copyright (C) 1996 by Paul M. Antoine
+ * Copyright (C) 1994 - 1999 by Ralf Baechle
  */
-#ifndef __ASM_MIPS_SYSTEM_H
-#define __ASM_MIPS_SYSTEM_H
+#ifndef _ASM_SYSTEM_H
+#define _ASM_SYSTEM_H
 
 #include <linux/config.h>
 #include <linux/kernel.h>
@@ -186,7 +187,7 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 		"1:\tmove\t$1,%2\n\t"
 		"sc\t$1,(%1)\n\t"
 		"beqzl\t$1,1b\n\t"
-		"ll\t%0,(%1)\n\t"
+		"lld\t%0,(%1)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		: "=r" (val), "=r" (m), "=r" (dummy)
@@ -260,4 +261,14 @@ static __inline__ unsigned long __xchg(unsigned long x, volatile void * ptr, int
 
 extern void set_except_vector(int n, void *addr);
 
-#endif /* __ASM_MIPS_SYSTEM_H */
+extern void __die(const char *, struct pt_regs *, const char *where,
+	unsigned long line) __attribute__((noreturn));
+extern void __die_if_kernel(const char *, struct pt_regs *, const char *where,
+	unsigned long line);
+
+#define die(msg, regs)							\
+	__die(msg, regs, __FILE__ ":"__FUNCTION__, __LINE__)
+#define die_if_kernel(msg, regs) do {					\
+	__die_if_kernel(msg, regs, __FILE__ ":"__FUNCTION__, __LINE__)
+
+#endif /* _ASM_SYSTEM_H */

@@ -38,21 +38,14 @@
 #define ACPI_FACP_SIG  0x50434146 /* 'FACP' */
 #define ACPI_DSDT_SIG  0x54445344 /* 'DSDT' */
 
-/* PM1_STS flags */
-#define ACPI_TMR_STS    0x0001
-#define ACPI_BM_STS     0x0010
-#define ACPI_GBL_STS    0x0020
-#define ACPI_PWRBTN_STS 0x0100
-#define ACPI_SLPBTN_STS 0x0200
-#define ACPI_RTC_STS    0x0400
-#define ACPI_WAK_STS    0x8000
-
-/* PM1_EN flags */
-#define ACPI_TMR_EN    0x0001
-#define ACPI_GBL_EN    0x0020
-#define ACPI_PWRBTN_EN 0x0100
-#define ACPI_SLPBTN_EN 0x0200
-#define ACPI_RTC_EN    0x0400
+/* PM1_STS/EN flags */
+#define ACPI_TMR    0x0001
+#define ACPI_BM     0x0010
+#define ACPI_GBL    0x0020
+#define ACPI_PWRBTN 0x0100
+#define ACPI_SLPBTN 0x0200
+#define ACPI_RTC    0x0400
+#define ACPI_WAK    0x8000
 
 /* PM1_CNT flags */
 #define ACPI_SCI_EN   0x0001
@@ -64,8 +57,12 @@
 #define ACPI_SLP_EN   0x2000
 
 /* PM_TMR masks */
-#define ACPI_TMR_VAL_MASK   0x00ffffff
-#define ACPI_E_TMR_VAL_MASK 0xff000000
+#define ACPI_TMR_MASK   0x00ffffff
+#define ACPI_TMR_HZ	3580000 /* 3.58 MHz */
+
+/* strangess to avoid integer overflow */
+#define ACPI_uS_TO_TMR_TICKS(val) \
+  (((val) * (ACPI_TMR_HZ / 10000)) / 100)
 
 /* PM2_CNT flags */
 #define ACPI_ARB_DIS 0x01
@@ -146,11 +143,29 @@ struct acpi_facp {
 };
 
 #define ACPI_FIND_TABLES	_IOR('A', 1, struct acpi_find_tables)
-#define ACPI_WAIT_EVENT		_IO('A', 2)
+#define ACPI_ENABLE_EVENT	_IOW('A', 2, struct acpi_enable_event)
+#define ACPI_WAIT_EVENT		_IOR('A', 3, struct acpi_wait_event)
 
 struct acpi_find_tables {
-	unsigned long facp;
-	unsigned long dsdt;
+	unsigned long facp; /* FACP physical address */
+	unsigned long dsdt; /* DSDT physical address */
 };
+
+struct acpi_enable_event {
+        __u32 pm1_enable; /* fixed events */
+        __u32 gpe_enable; /* general-purpose events (GPEs) */
+        __u32 gpe_level;  /* level-triggered GPEs */
+};
+
+struct acpi_wait_event {
+        __u32 pm1_status; /* fixed events */
+        __u32 gpe_status; /* general-purpose events */
+};
+
+#ifdef __KERNEL__
+
+extern void (*acpi_idle)(void);
+
+#endif
 
 #endif /* _LINUX_ACPI_H */

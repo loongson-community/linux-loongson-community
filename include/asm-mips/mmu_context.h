@@ -1,4 +1,4 @@
-/* $Id: mmu_context.h,v 1.4 1999/08/09 19:43:17 harald Exp $
+/* $Id: mmu_context.h,v 1.5 1999/10/09 00:01:43 ralf Exp $
  *
  * Switch a MMU context.
  *
@@ -16,6 +16,7 @@
 
 /* Fuck.  The f-word is here so you can grep for it :-)  */
 extern unsigned long asid_cache;
+extern pgd_t *current_pgd;
 
 #if defined(CONFIG_CPU_R3000)
 
@@ -47,19 +48,6 @@ get_new_mmu_context(struct mm_struct *mm, unsigned long asid)
 	mm->context = asid_cache = asid;
 }
 
-extern inline void
-get_mmu_context(struct task_struct *p)
-{
-	struct mm_struct *mm = p->mm;
-
-	if (mm) {
-		unsigned long asid = asid_cache;
-		/* Check if our ASID is of an older version and thus invalid */
-		if ((mm->context ^ asid) & ASID_VERSION_MASK)
-			get_new_mmu_context(mm, asid);
-	}
-}
-
 /*
  * Initialize the context related info for a new mm_struct
  * instance.
@@ -73,13 +61,13 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
                              struct task_struct *tsk, unsigned cpu)
 {
-	if (next) {
-		unsigned long asid = asid_cache;
-		/* Check if our ASID is of an older version and thus invalid */
-		if ((next->context ^ asid) & ASID_VERSION_MASK)
-			get_new_mmu_context(next, asid);
-	}
+	unsigned long asid = asid_cache;
 
+	/* Check if our ASID is of an older version and thus invalid */
+	if ((next->context ^ asid) & ASID_VERSION_MASK)
+		get_new_mmu_context(next, asid);
+
+	current_pgd = next->pgd;
 	set_entryhi(next->context);
 }
 
@@ -99,9 +87,10 @@ extern inline void destroy_context(struct mm_struct *mm)
 extern inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
-	/* Unconditionally get an new ASID.  */
+	/* Unconditionally get a new ASID.  */
 	get_new_mmu_context(next, asid_cache);
 
+	current_pgd = next->pgd;
 	set_entryhi(next->context);
 }
 

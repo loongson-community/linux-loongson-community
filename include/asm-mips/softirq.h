@@ -1,13 +1,14 @@
-/* $Id: softirq.h,v 1.8 1999/08/13 17:07:27 harald Exp $
+/* $Id: softirq.h,v 1.9 1999/11/19 20:35:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1997, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#ifndef __ASM_MIPS_SOFTIRQ_H
-#define __ASM_MIPS_SOFTIRQ_H
+#ifndef _ASM_SOFTIRQ_H
+#define _ASM_SOFTIRQ_H
 
 #include <linux/config.h>
 
@@ -106,4 +107,4 @@ extern inline void end_bh_atomic(void)
 #define softirq_endlock(cpu)   (cpu_bh_endlock(cpu))
 #define synchronize_bh()	barrier()
 
-#endif /* __ASM_MIPS_SOFTIRQ_H */
+#endif /* _ASM_SOFTIRQ_H */

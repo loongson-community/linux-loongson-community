@@ -10,7 +10,7 @@
 #ifndef _ASM_HARDIRQ_H
 #define _ASM_HARDIRQ_H
 
-#include <linux/tasks.h>
+#include <linux/threads.h>
 
 extern unsigned int local_irq_count[NR_CPUS];
 

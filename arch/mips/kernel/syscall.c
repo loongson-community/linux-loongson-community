@@ -1,4 +1,4 @@
-/* $Id: syscall.c,v 1.10 1999/02/15 02:16:52 ralf Exp $
+/* $Id: syscall.c,v 1.11 1999/10/09 00:00:58 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -61,6 +61,7 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
 	struct file * file = NULL;
 	unsigned long error = -EFAULT;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if (!(flags & MAP_ANONYMOUS)) {
 		error = -EBADF;
@@ -69,11 +70,14 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
 			goto out;
 	}
         flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
+
         error = do_mmap(file, addr, len, prot, flags, offset);
         if (file)
                 fput(file);
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
+
 	return error;
 }
 

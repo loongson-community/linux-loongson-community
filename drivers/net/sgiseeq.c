@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.11 1999/10/09 00:01:24 ralf Exp $
+/* $Id: sgiseeq.c,v 1.12 1999/10/21 00:23:05 ralf Exp $
  *
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
@@ -71,12 +71,12 @@ static char *sgiseeqstr = "SGI Seeq8003";
 
 struct sgiseeq_rx_desc {
 	struct hpc_dma_desc rdma;
-	unsigned long buf_vaddr;
+	signed int buf_vaddr;
 };
 
 struct sgiseeq_tx_desc {
 	struct hpc_dma_desc tdma;
-	unsigned long buf_vaddr;
+	signed int buf_vaddr;
 };
 
 /* Warning: This structure is layed out in a certain way because
@@ -87,7 +87,7 @@ struct sgiseeq_init_block { /* Note the name ;-) */
 	/* Ptrs to the descriptors in KSEG1 uncached space. */
 	struct sgiseeq_rx_desc *rx_desc;
 	struct sgiseeq_tx_desc *tx_desc;
-	unsigned long _padding[30]; /* Pad out to largest cache line size. */
+	unsigned int _padding[30]; /* Pad out to largest cache line size. */
 
 	struct sgiseeq_rx_desc rxvector[SEEQ_RX_BUFFERS];
 	struct sgiseeq_tx_desc txvector[SEEQ_TX_BUFFERS];
@@ -212,28 +212,28 @@ void sgiseeq_dump_rings(void)
 	once++;
 	printk("RING DUMP:\n");
 	for(i = 0; i < SEEQ_RX_BUFFERS; i++) {
-		printk("RX [%d]: @(%p) [%08lx,%08lx,%08lx] ",
+		printk("RX [%d]: @(%p) [%08x,%08x,%08x] ",
 		       i, (&r[i]), r[i].rdma.pbuf, r[i].rdma.cntinfo,
 		       r[i].rdma.pnext);
 		i += 1;
-		printk("-- [%d]: @(%p) [%08lx,%08lx,%08lx]\n",
+		printk("-- [%d]: @(%p) [%08x,%08x,%08x]\n",
 		       i, (&r[i]), r[i].rdma.pbuf, r[i].rdma.cntinfo,
 		       r[i].rdma.pnext);
 	}
 	for(i = 0; i < SEEQ_TX_BUFFERS; i++) {
-		printk("TX [%d]: @(%p) [%08lx,%08lx,%08lx] ",
+		printk("TX [%d]: @(%p) [%08x,%08x,%08x] ",
 		       i, (&t[i]), t[i].tdma.pbuf, t[i].tdma.cntinfo,
 		       t[i].tdma.pnext);
 		i += 1;
-		printk("-- [%d]: @(%p) [%08lx,%08lx,%08lx]\n",
+		printk("-- [%d]: @(%p) [%08x,%08x,%08x]\n",
 		       i, (&t[i]), t[i].tdma.pbuf, t[i].tdma.cntinfo,
 		       t[i].tdma.pnext);
 	}
 	printk("INFO: [rx_new = %d rx_old=%d] [tx_new = %d tx_old = %d]\n",
 	       gpriv->rx_new, gpriv->rx_old, gpriv->tx_new, gpriv->tx_old);
-	printk("RREGS: rx_cbptr[%08lx] rx_ndptr[%08lx] rx_ctrl[%08lx]\n",
+	printk("RREGS: rx_cbptr[%08x] rx_ndptr[%08x] rx_ctrl[%08x]\n",
 	       hregs->rx_cbptr, hregs->rx_ndptr, hregs->rx_ctrl);
-	printk("TREGS: tx_cbptr[%08lx] tx_ndptr[%08lx] tx_ctrl[%08lx]\n",
+	printk("TREGS: tx_cbptr[%08x] tx_ndptr[%08x] tx_ctrl[%08x]\n",
 	       hregs->tx_cbptr, hregs->tx_ndptr, hregs->tx_ctrl);
 }
 #endif
@@ -309,7 +309,7 @@ static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp
 	/* Service every received packet. */
 	for_each_rx(rd, sp) {
 		len = (PKT_BUF_SZ - (rd->rdma.cntinfo & HPCDMA_BCNT) - 3);
-		pkt_pointer = (unsigned char *)rd->buf_vaddr;
+		pkt_pointer = (unsigned char *)(long)rd->buf_vaddr;
 		pkt_status = pkt_pointer[len + 2];
 
 		if(pkt_status & SEEQ_RSTAT_FIG) {
@@ -364,8 +364,7 @@ static inline void kick_tx(struct sgiseeq_tx_desc *td,
 	 */
 	while((td->tdma.cntinfo & (HPCDMA_XIU | HPCDMA_ETXD)) ==
 	      (HPCDMA_XIU | HPCDMA_ETXD))
-		td = (struct sgiseeq_tx_desc *)
-			KSEG1ADDR(td->tdma.pnext);
+		td = (struct sgiseeq_tx_desc *)(long) KSEG1ADDR(td->tdma.pnext);
 	if(td->tdma.cntinfo & HPCDMA_XIU) {
 		hregs->tx_ndptr = PHYSADDR(td);
 		hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
@@ -562,7 +561,7 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	 *    entry and the HPC got to the end of the chain before we
 	 *    added this new entry and restarted it.
 	 */
-	memcpy((char *)td->buf_vaddr, skb->data, skblen);
+	memcpy((char *)(long)td->buf_vaddr, skb->data, skblen);
 	td->tdma.cntinfo = ((len) & HPCDMA_BCNT) |
 		(HPCDMA_XIU | HPCDMA_EOXP | HPCDMA_XIE | HPCDMA_EOX);
 	if(sp->tx_old != sp->tx_new) {
@@ -733,7 +732,8 @@ int sgiseeq_probe(struct net_device *dev)
 
 	/* First get the ethernet address of the onboard
 	 * interface from ARCS.
-	 * (This is fragile; PROM doesn't like running from cache.)
+	 * This is fragile; PROM doesn't like running from cache.
+	 * On MIPS64 it crashes for some other, yet unknown reason.
 	 */
 	ep = romvec->get_evar("eaddr");
 	str2eaddr(onboard_eth_addr, ep);

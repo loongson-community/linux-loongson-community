@@ -1,4 +1,4 @@
-/* $Id: shmiq.c,v 1.13 1999/09/28 22:26:59 ralf Exp $
+/* $Id: shmiq.c,v 1.14 1999/10/09 00:01:31 ralf Exp $
  *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -118,7 +118,7 @@ shmiq_push_event (struct shmqevent *e)
 	s->tail = tail_next;
 	shmiqs [device].tail = tail_next;
 	if (shmiqs [device].fasync)
-		kill_fasync (shmiqs [device].fasync, SIGIO);
+		kill_fasync (shmiqs [device].fasync, SIGIO, POLL_IN);
 	wake_up_interruptible (&shmiqs [device].proc_list);
 }
 

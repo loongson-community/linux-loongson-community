@@ -49,6 +49,15 @@
 #define USB_DIR_OUT			0
 #define USB_DIR_IN			0x80
 
+#define USB_ENDPOINT_NUMBER_MASK	0x0f	/* in bEndpointAddress */
+#define USB_ENDPOINT_DIR_MASK		0x80
+
+#define USB_ENDPOINT_XFERTYPE_MASK	0x03	/* in bmAttributes */
+#define USB_ENDPOINT_XFER_CONTROL	0
+#define USB_ENDPOINT_XFER_ISOC		1
+#define USB_ENDPOINT_XFER_BULK		2
+#define USB_ENDPOINT_XFER_INT		3
+
 /*
  * USB Packet IDs (PIDs)
  */
@@ -117,29 +126,44 @@ struct usb_proc_ctrltransfer {
 	__u16 value;
 	__u16 index;
 	__u16 length;
-        /* pointer to data */
+	__u32 timeout;  /* in milliseconds */
         void *data;
 };
-
-#define USB_PROC_CONTROL           _IOWR('U', 0, struct usb_proc_ctrltransfer)
 
 struct usb_proc_bulktransfer {
         unsigned int ep;
         unsigned int len;
+	unsigned int timeout; /* in milliseconds */
         void *data;
 };
 
-#define USB_PROC_BULK              _IOWR('U', 2, struct usb_proc_bulktransfer)
+struct usb_proc_old_ctrltransfer {
+	__u8 requesttype;
+	__u8 request;
+	__u16 value;
+	__u16 index;
+	__u16 length;
+        /* pointer to data */
+        void *data;
+};
 
-#define USB_PROC_RESETEP           _IOR('U', 3, unsigned int)
+struct usb_proc_old_bulktransfer {
+        unsigned int ep;
+        unsigned int len;
+        void *data;
+};
 
 struct usb_proc_setinterface {
         unsigned int interface;
         unsigned int altsetting;
 };
 
+#define USB_PROC_CONTROL           _IOWR('U', 0, struct usb_proc_ctrltransfer)
+#define USB_PROC_BULK              _IOWR('U', 2, struct usb_proc_bulktransfer)
+#define USB_PROC_OLD_CONTROL       _IOWR('U', 0, struct usb_proc_old_ctrltransfer)
+#define USB_PROC_OLD_BULK          _IOWR('U', 2, struct usb_proc_old_bulktransfer)
+#define USB_PROC_RESETEP           _IOR('U', 3, unsigned int)
 #define USB_PROC_SETINTERFACE      _IOR('U', 4, struct usb_proc_setinterface)
-
 #define USB_PROC_SETCONFIGURATION  _IOR('U', 5, unsigned int)
 
 
@@ -429,8 +453,8 @@ struct usb_isoc_desc {
 struct usb_operations {
 	int (*allocate)(struct usb_device *);
 	int (*deallocate)(struct usb_device *);
-	int (*control_msg)(struct usb_device *, unsigned int, devrequest *, void *, int);
-	int (*bulk_msg)(struct usb_device *, unsigned int, void *, int,unsigned long *);
+	int (*control_msg)(struct usb_device *, unsigned int, devrequest *, void *, int, int);
+	int (*bulk_msg)(struct usb_device *, unsigned int, void *, int, unsigned long *, int);
 	int (*request_irq)(struct usb_device *, unsigned int, usb_device_irq, int, void *, void **);
 	int (*release_irq)(struct usb_device *, void *);
 	void *(*request_bulk)(struct usb_device *, unsigned int, usb_device_irq,
@@ -496,7 +520,7 @@ struct usb_device {
   
 	void *hcpriv;			/* Host Controller private data */
 	void *private;			/* Upper layer private data */
-
+	void *audiopriv;		/* May be both audio and HID */
 	/* procfs entry */
 	struct proc_dir_entry *proc_entry;
 
@@ -515,10 +539,6 @@ struct usb_device {
 extern int usb_register(struct usb_driver *);
 extern void usb_deregister(struct usb_driver *);
 
-int usb_find_driver(struct usb_device *);
-void usb_check_support(struct usb_device *);
-void usb_driver_purge(struct usb_driver *, struct usb_device *);
-
 extern struct usb_bus *usb_alloc_bus(struct usb_operations *);
 extern void usb_free_bus(struct usb_bus *);
 extern void usb_register_bus(struct usb_bus *);
@@ -529,7 +549,7 @@ extern void usb_free_dev(struct usb_device *);
 extern void usb_inc_dev_use(struct usb_device *);
 #define usb_dec_dev_use usb_free_dev
 
-extern int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype, __u16 value, __u16 index, void *data, __u16 size);
+extern int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype, __u16 value, __u16 index, void *data, __u16 size, int timeout);
 
 extern int usb_request_irq(struct usb_device *, unsigned int, usb_device_irq, int, void *, void **);
 extern int usb_release_irq(struct usb_device *dev, void *handle, unsigned int pipe);
@@ -695,7 +715,7 @@ void usb_show_string(struct usb_device *dev, char *id, int index);
 #ifdef USB_DEBUG
 #define PRINTD(format, args...) printk("usb: " format "\n" , ## args);
 #else /* NOT DEBUGGING */
-#define PRINTD(fmt, arg...) do {} while (0) /**/
+#define PRINTD(fmt, arg...) do {} while (0)
 #endif /* USB_DEBUG */
 /* A simple way to change one line from DEBUG to NOT DEBUG: */
 #define XPRINTD(fmt, arg...)	do {} while (0)

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip22-sc.c,v 1.3 1999/10/20 18:10:24 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -33,31 +33,16 @@ static unsigned long scache_size;
 
 static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 {
-	unsigned long tmp;
-
 	__asm__ __volatile__("
 		.set	noreorder
-		.set	mips3
-		.set	noat
-		mfc0	%2, $12
-		li	$1, 0x80	# Go 64 bit
-		mtc0	$1, $12
-
-		dli	$1, 0x9000000080000000
-		or	%0, $1		# first line to flush
-		or	%1, $1		# last line to flush
-		.set	at
-
+		or	%0, %4		# first line to flush
+		or	%1, %4		# last line to flush
 1:		sw	$0, 0(%0)
 		bne	%0, %1, 1b
 		daddu	%0, 32
-
-		mtc0	%2, $12		# Back to 32 bit
-		nop; nop; nop; nop;
-		.set mips0
 		.set reorder"
-		: "=r" (first), "=r" (last), "=&r" (tmp)
-		: "0" (first), "1" (last)
+		: "=r" (first), "=r" (last)
+		: "0" (first), "1" (last), "r" (0x9000000080000000)
 		: "$1");
 }
 
@@ -88,78 +73,33 @@ out:
 	__restore_flags(flags);
 }
 
-static void indy_sc_enable(void)
+static void inline indy_sc_enable(void)
 {
-	unsigned long tmp1, tmp2, tmp3;
-
-	/* This is really cool... */
 #ifdef DEBUG_CACHE
 	printk("Enabling R4600 SCACHE\n");
 #endif
-	__asm__ __volatile__("
-		.set	push
-		.set	noreorder
-		.set	mips3
-		mfc0	%2, $12
-		nop; nop; nop; nop;
-		li	%1, 0x80
-		mtc0	%1, $12
-		nop; nop; nop; nop;
-		li	%0, 0x1
-		dsll	%0, 31
-		lui	%1, 0x9000
-		dsll32	%1, 0
-		or	%0, %1, %0
-		sb	$0, 0(%0)
-		mtc0	$0, $12
-		nop; nop; nop; nop;
-		mtc0	%2, $12
-		nop; nop; nop; nop;
-		.set	pop"
-		: "=r" (tmp1), "=r" (tmp2), "=r" (tmp3));
+	*(volatile unsigned char *) 0x9000000080000000 = 0;
 }
 
 static void indy_sc_disable(void)
 {
-	unsigned long tmp1, tmp2, tmp3;
-
 #ifdef DEBUG_CACHE
 	printk("Disabling R4600 SCACHE\n");
 #endif
-	__asm__ __volatile__("
-		.set	push
-		.set	noreorder
-		.set	mips3
-		li	%0, 0x1
-		dsll	%0, 31
-		lui	%1, 0x9000
-		dsll32	%1, 0
-		or	%0, %1, %0
-		mfc0	%2, $12
-		nop; nop; nop; nop;
-		li	%1, 0x80
-		mtc0	%1, $12
-		nop; nop; nop; nop;
-		sh	$0, 0(%0)
-		mtc0	$0, $12
-		nop; nop; nop; nop;
-		mtc0	%2, $12
-		nop; nop; nop; nop;
-		.set	pop"
-        : "=r" (tmp1), "=r" (tmp2), "=r" (tmp3));
+	*(volatile unsigned short *) 0x9000000080000000 = 0;
 }
 
 static inline __init int indy_sc_probe(void)
 {
-	volatile unsigned int *cpu_control;
+	volatile u32 *cpu_control;
 	unsigned short cmd = 0xc220;
 	unsigned long data = 0;
 	int i, n;
 
 #ifdef __MIPSEB__
-	cpu_control = (volatile unsigned int *) KSEG1ADDR(0x1fa00034);
+	cpu_control = (volatile u32 *) KSEG1ADDR(0x1fa00034);
 #else
-	cpu_control = (volatile unsigned int *) KSEG1ADDR(0x1fa00030);
+	cpu_control = (volatile u32 *) KSEG1ADDR(0x1fa00030);
 #endif
 #define DEASSERT(bit) (*(cpu_control) &= (~(bit)))
 #define ASSERT(bit) (*(cpu_control) |= (bit))
@@ -211,7 +151,7 @@ static inline __init int indy_sc_probe(void)
 
 /* XXX Check with wje if the Indy caches can differenciate between
    writeback + invalidate and just invalidate.  */
-struct bcache_ops indy_sc_ops = {
+static struct bcache_ops indy_sc_ops = {
 	indy_sc_enable,
 	indy_sc_disable,
 	indy_sc_wback_invalidate,
@@ -220,6 +160,7 @@ struct bcache_ops indy_sc_ops = {
 
 void __init indy_sc_init(void)
 {
+return;  /* Not for now, debugging ... */
 	if (indy_sc_probe()) {
 		indy_sc_enable();
 		bcops = &indy_sc_ops;

@@ -39,9 +39,7 @@ CONFIG_SYSVIPC=y
 #
 # Loadable module support
 #
-CONFIG_MODULES=y
-# CONFIG_MODVERSIONS is not set
-CONFIG_KMOD=y
+# CONFIG_MODULES is not set
 
 #
 # Block devices
@@ -53,7 +51,6 @@ CONFIG_KMOD=y
 # Please see Documentation/ide.txt for help/info on IDE drives
 #
 # CONFIG_BLK_DEV_HD_ONLY is not set
-# CONFIG_BLK_CPQ_DA is not set
 
 #
 # Additional Block Devices
@@ -64,7 +61,6 @@ CONFIG_KMOD=y
 # CONFIG_BLK_DEV_RAM is not set
 # CONFIG_BLK_DEV_XD is not set
 CONFIG_PARIDE_PARPORT=m
-# CONFIG_PARIDE is not set
 # CONFIG_BLK_DEV_IDE_MODES is not set
 # CONFIG_BLK_DEV_HD is not set
 
@@ -76,7 +72,22 @@ CONFIG_PARIDE_PARPORT=m
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
-# CONFIG_INET is not set
+CONFIG_INET=y
+# CONFIG_IP_MULTICAST is not set
+# CONFIG_IP_ADVANCED_ROUTER is not set
+CONFIG_IP_PNP=y
+CONFIG_IP_PNP_BOOTP=y
+# CONFIG_IP_PNP_RARP is not set
+# CONFIG_IP_ROUTER is not set
+# CONFIG_NET_IPIP is not set
+# CONFIG_NET_IPGRE is not set
+# CONFIG_IP_ALIAS is not set
+# CONFIG_SYN_COOKIES is not set
+
+#
+# (it is safe to leave these untouched)
+#
+CONFIG_SKB_LARGE=y
 
 #
 #  
@@ -92,7 +103,48 @@ CONFIG_UNIX=y
 #
 # Network device support
 #
-# CONFIG_NETDEVICES is not set
+CONFIG_NETDEVICES=y
+
+#
+# ARCnet devices
+#
+# CONFIG_ARCNET is not set
+# CONFIG_DUMMY is not set
+# CONFIG_EQUALIZER is not set
+# CONFIG_NET_SB1000 is not set
+
+#
+# Ethernet (10 or 100Mbit)
+#
+# CONFIG_NET_ETHERNET is not set
+# CONFIG_FDDI is not set
+# CONFIG_PLIP is not set
+# CONFIG_PPP is not set
+# CONFIG_SLIP is not set
+
+#
+# Wireless LAN (non-hamradio)
+#
+# CONFIG_NET_RADIO is not set
+
+#
+# Token Ring driver support
+#
+# CONFIG_TR is not set
+# CONFIG_NET_FC is not set
+
+#
+# Wan interfaces
+#
+# CONFIG_WAN is not set
+
+#
+# PCMCIA network devices
+#
+# CONFIG_PCMCIA_PCNET is not set
+# CONFIG_PCMCIA_3C589 is not set
+# CONFIG_PCMCIA_RAYCS is not set
+CONFIG_SGISEEQ=y
 
 #
 # Amateur Radio support
@@ -185,6 +237,14 @@ CONFIG_EXT2_FS=y
 #
 # Network File Systems
 #
+# CONFIG_CODA_FS is not set
+CONFIG_NFS_FS=y
+CONFIG_ROOT_NFS=y
+# CONFIG_NFSD is not set
+CONFIG_SUNRPC=y
+CONFIG_LOCKD=y
+# CONFIG_SMB_FS is not set
+# CONFIG_NCP_FS is not set
 
 #
 # Partition Types
@@ -219,6 +279,5 @@ CONFIG_SGI_DS1286=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
-# CONFIG_MIPS_FPE_MODULE is not set
 # CONFIG_REMOTE_DEBUG is not set
 # CONFIG_MAGIC_SYSRQ is not set

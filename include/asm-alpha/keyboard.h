@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.8 1999/06/10 08:02:36 ralf Exp $
+ * $Id: keyboard.h,v 1.9 1999/11/19 20:35:47 ralf Exp $
  */
 
 /*
@@ -75,6 +75,31 @@ extern unsigned char pckbd_sysrq_xlate[128];
 #define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, 0, \
 	"PS/2 Mouse", NULL)
 #define aux_free_irq(dev_id) free_irq(AUX_IRQ, NULL)
+
+/* resource allocation */
+#define kbd_request_region()
+#define kbd_request_irq(handler) request_irq(KEYBOARD_IRQ, handler, 0, \
+                                             "keyboard", NULL)
+
+/* How to access the keyboard macros on this platform.  */
+#define kbd_read_input() inb(KBD_DATA_REG)
+#define kbd_read_status() inb(KBD_STATUS_REG)
+#define kbd_write_output(val) outb(val, KBD_DATA_REG)
+#define kbd_write_command(val) outb(val, KBD_CNTL_REG)
+
+/* Some stoneage hardware needs delays after some operations.  */
+#define kbd_pause() do { } while(0)
+
+/*
+ * Machine specific bits for the PS/2 driver
+ */
+
+#define AUX_IRQ 12
+
+#define aux_request_irq(hand, dev_id)                                  \
+       request_irq(AUX_IRQ, hand, SA_SHIRQ, "PS/2 Mouse", dev_id)
+
+#define aux_free_irq(dev_id) free_irq(AUX_IRQ, dev_id)
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_ALPHA_KEYBOARD_H */

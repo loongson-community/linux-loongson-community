@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.1 1999/09/27 16:01:37 ralf Exp $
+/* $Id: process.c,v 1.7 1999/12/03 17:51:49 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -30,9 +30,23 @@
 #include <asm/io.h>
 #include <asm/elf.h>
 
+asmlinkage int cpu_idle(void)
+{
+	/* endless idle loop with no priority at all */
+	current->priority = 0;
+	current->counter = -100;
+	while (1) {
+		while (!current->need_resched)
+			if (wait_available)
+				__asm__("wait");
+		schedule();
+		check_pgt_cache();
+	}
+}
+
 struct task_struct *last_task_used_math = NULL;
 
-asmlinkage void ret_from_sys_call(void);
+asmlinkage void ret_from_fork(void);
 
 void exit_thread(void)
 {
@@ -64,13 +78,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	if (last_task_used_math == current) {
 		set_cp0_status(ST0_CU1, ST0_CU1);
-		r4xx0_save_fp(p);
+		save_fp(p);
 	}
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
 	*childregs = *regs;
 	childregs->regs[7] = 0;	/* Clear error flag */
-	if(current->personality == PER_LINUX) {
+	if (current->personality == PER_LINUX) {
 		childregs->regs[2] = 0;	/* Child gets zero as return value */
 		regs->regs[2] = p->pid;
 	} else {
@@ -89,7 +103,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		p->thread.current_ds = USER_DS;
 	}
 	p->thread.reg29 = (unsigned long) childregs;
-	p->thread.reg31 = (unsigned long) ret_from_sys_call;
+	p->thread.reg31 = (unsigned long) ret_from_fork;
 
 	/*
 	 * New tasks loose permission to use the fpu. This accelerates context
@@ -98,7 +112,6 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	p->thread.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
                             ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
-	p->mm->context = 0;
 
 	return 0;
 }
@@ -123,12 +136,15 @@ void dump_thread(struct pt_regs *regs, struct user *dump)
 	dump->start_code  = current->mm->start_code;
 	dump->start_data  = current->mm->start_data;
 	dump->start_stack = regs->regs[29] & ~(PAGE_SIZE - 1);
-	dump->u_tsize = (current->mm->end_code - dump->start_code) >> PAGE_SHIFT;
-	dump->u_dsize = (current->mm->brk + (PAGE_SIZE - 1) - dump->start_data) >> PAGE_SHIFT;
-	dump->u_ssize =
-		(current->mm->start_stack - dump->start_stack + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	dump->u_tsize = (current->mm->end_code - dump->start_code)
+	                >> PAGE_SHIFT;
+	dump->u_dsize = (current->mm->brk + (PAGE_SIZE - 1) - dump->start_data)
+	                >> PAGE_SHIFT;
+	dump->u_ssize = (current->mm->start_stack - dump->start_stack +
+	                 PAGE_SIZE - 1) >> PAGE_SHIFT;
 	memcpy(&dump->regs[0], regs, sizeof(struct pt_regs));
-	memcpy(&dump->regs[EF_SIZE/4], &current->thread.fpu, sizeof(current->thread.fpu));
+	memcpy(&dump->regs[EF_SIZE/4], &current->thread.fpu,
+	       sizeof(current->thread.fpu));
 }
 
 /*
@@ -136,24 +152,20 @@ void dump_thread(struct pt_regs *regs, struct user *dump)
  */
 int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
-	long retval;
+	int retval;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
 		"move\t$6, $sp\n\t"
 		"move\t$4, %5\n\t"
 		"li\t$2, %1\n\t"
 		"syscall\n\t"
 		"beq\t$6, $sp, 1f\n\t"
-		" dsubu\t$sp, 32\n\t"
+		"move\t$4, %3\n\t"
 		"jalr\t%4\n\t"
-		" move\t$4, %3\n\t"
 		"move\t$4, $2\n\t"
 		"li\t$2, %2\n\t"
 		"syscall\n"
-		"1:\tdaddiu\t$sp, 32\n\t"
-		"move\t%0, $2\n\t"
-		".set\treorder"
+		"1:\tmove\t%0, $2"
 		:"=r" (retval)
 		:"i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
 		 "r" (flags | CLONE_VM)

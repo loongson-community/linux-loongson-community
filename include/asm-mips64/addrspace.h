@@ -1,10 +1,11 @@
-/* $Id$
+/* $Id: addrspace.h,v 1.2 1999/10/19 20:51:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996 by Ralf Baechle
+ * Copyright (C) 1996, 1999 by Ralf Baechle
+ * Copyright (C) 1999 by Silicon Graphics, Inc.
  */
 #ifndef _ASM_ADDRSPACE_H
 #define _ASM_ADDRSPACE_H
@@ -12,11 +13,11 @@
 /*
  * Memory segments (32bit kernel mode addresses)
  */
-#define KUSEG                   0x00000000
-#define KSEG0                   0x80000000
-#define KSEG1                   0xa0000000
-#define KSEG2                   0xc0000000
-#define KSEG3                   0xe0000000
+#define KUSEG                   0x0000000000000000
+#define KSEG0                   0xffffffff80000000
+#define KSEG1                   0xffffffffa0000000
+#define KSEG2                   0xffffffffc0000000
+#define KSEG3                   0xffffffffe0000000
 
 /*
  * Returns the kernel segment base of a given address

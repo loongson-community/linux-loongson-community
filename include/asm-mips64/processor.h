@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.3 1999/09/27 20:56:47 ralf Exp $
+/* $Id: processor.h,v 1.3 1999/09/28 22:27:19 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -27,6 +27,7 @@
 struct mips_cpuinfo {
 	unsigned long udelay_val;
 	unsigned long *pgd_quick;
+	unsigned long *pmd_quick;
 	unsigned long *pte_quick;
 	unsigned long pgtable_cache_sz;
 };
@@ -39,6 +40,7 @@ extern char wait_available;		/* only available on R4[26]00 */
 extern char cyclecounter_available;	/* only available from R4000 upwards. */
 extern char dedicated_iv_available;	/* some embedded MIPS like Nevada */
 extern char vce_available;		/* Supports VCED / VCEI exceptions */
+extern char mips4_available;		/* CPU has MIPS IV ISA or better */
 
 extern struct mips_cpuinfo boot_cpu_data;
 extern unsigned int vced_count, vcei_count;
@@ -72,12 +74,13 @@ extern int EISA_bus;
 extern struct task_struct *last_task_used_math;
 
 /*
- * User space process size: 2GB. This is hardcoded into a few places,
+ * User space process size: 1TB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.  TASK_SIZE
- * for a 64 bit kernel expandable to 8192EB, of which the current MIPS
- * implementations will "only" be able to use 1TB ...
+ * is limited to 1TB by the R4000 architecture; R10000 and better do
+ * support 16TB.
+#define TASK_SIZE	   0x80000000UL
  */
-#define TASK_SIZE	(0x80000000UL)
+#define TASK_SIZE	0x10000000000UL
 
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
@@ -92,9 +95,9 @@ extern struct task_struct *last_task_used_math;
 #define NUM_FPU_REGS	32
 
 struct mips_fpu_hard_struct {
-	unsigned int fp_regs[NUM_FPU_REGS];
+	unsigned long fp_regs[NUM_FPU_REGS];
 	unsigned int control;
-} __attribute__((aligned(8)));
+};
 
 /*
  * FIXME: no fpu emulator yet (but who cares anyway?)
@@ -136,7 +139,6 @@ struct thread_struct {
 	unsigned long cp0_baduaddr;	/* Last kernel fault accessing USEG */
 	unsigned long error_code;
 	unsigned long trap_no;
-	unsigned long pg_dir;                   /* used in tlb refill    */
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
 	unsigned long mflags;
@@ -150,7 +152,7 @@ struct thread_struct {
 #define INIT_MMAP { &init_mm, KSEG0, KSEG1, NULL, PAGE_SHARED, \
                     VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
 
-#define INIT_TSS  { \
+#define INIT_THREAD  { \
         /* \
          * saved main processor registers \
          */ \
@@ -167,7 +169,7 @@ struct thread_struct {
 	/* \
 	 * Other stuff associated with the process \
 	 */ \
-	0, 0, 0, 0, (unsigned long) swapper_pg_dir, \
+	0, 0, 0, 0, \
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \
@@ -176,16 +178,18 @@ struct thread_struct {
 
 #ifdef __KERNEL__
 
-#define KERNEL_STACK_SIZE 8192
+/* Linus sez 16kb is good for you ...  */
+#define KERNEL_STACK_SIZE 0x4000
 
 #if !defined (_LANGUAGE_ASSEMBLY)
 
 /* Free all resources held by a thread. */
-extern void release_thread(struct task_struct *);
+#define release_thread(thread) do { } while(0)
+
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
 /* Copy and release all segment info associated with a VM */
-#define copy_segments(nr, p, mm) do { } while(0)
+#define copy_segments(p, mm) do { } while(0)
 #define release_segments(mm) do { } while(0)
 #define forget_segments()		do { } while (0)
 
@@ -214,16 +218,17 @@ extern int (*user_mode)(struct pt_regs *);
 	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;\
 	regs->cp0_epc = new_pc;						\
 	regs->regs[29] = new_sp;					\
-	current->tss.current_ds = USER_DS;				\
+	current->thread.current_ds = USER_DS;				\
 } while (0)
 
 /* Allocation and freeing of basic task resources. */
 /*
  * NOTE! The task struct and the stack go together
  */
+#define THREAD_SIZE (2*PAGE_SIZE)
 #define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
-#define free_task_struct(p)	free_pages((unsigned long)(p),1)
+	((struct task_struct *) __get_free_pages(GFP_KERNEL, 2))
+#define free_task_struct(p)	free_pages((unsigned long)(p), 2)
 
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)

@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.15 1999/10/07 07:34:24 raiko Exp $
+/* $Id: head.S,v 1.16 1999/10/09 00:00:58 ralf Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -54,10 +54,8 @@
 	LEAF(except_vec0_r4000)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22			# get pgd only bits
-	lw	k1, TASK_MM(k1)			# get task pg_dir
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	mfc0	k0, CP0_CONTEXT			# get context reg
@@ -82,10 +80,8 @@
 	LEAF(except_vec0_r4600)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, TASK_MM(k1)
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -111,10 +107,8 @@
 	LEAF(except_vec0_nevada)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22			# get pgd only bits
-	lw	k1, TASK_MM(k1)			# get task pg_dir
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	lw	k1, (k1)
@@ -138,10 +132,8 @@
 	LEAF(except_vec0_r45k_bvahwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, TASK_MM(k1)
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -170,10 +162,8 @@
 	LEAF(except_vec0_r4k_mphwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, TASK_MM(k1)
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -202,10 +192,8 @@
 	LEAF(except_vec0_r4k_250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, TASK_MM(k1)
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -233,10 +221,8 @@
 	LEAF(except_vec0_r4k_MP250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
-	lw	k1, TASK_MM(k1)
-	lw	k1, MM_PGD(k1)			# get pgd pointer
+	lw	k1, current_pgd			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -268,10 +254,8 @@
 	.set	noat
 	.set	mips1
 	mfc0	k0, CP0_BADVADDR
-	_GET_CURRENT(k1)			# get current task ptr
-	lw	k1, TASK_MM(k1)
+	lw	k1, current_pgd			# get pgd pointer
 	srl	k0, k0, 22
-	lw	k1, MM_PGD(k1)			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -605,6 +589,8 @@ probe_done:
 		.fill	32*4,1,0
 
 EXPORT(kernelsp)
+		PTR	0
+EXPORT(current_pgd)
 		PTR	0
 		.text
 

@@ -13,14 +13,24 @@
  * are evil.
  */
 
+#ifndef EXPORT_SYMTAB
+#define EXPORT_SYMTAB
+#endif
+
 #define USB_DEBUG	1
 
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/bitops.h>
 #include <linux/malloc.h>
 
 #include "usb.h"
+
+static int usb_find_driver(struct usb_device *);
+static void usb_check_support(struct usb_device *);
+static void usb_driver_purge(struct usb_driver *, struct usb_device *);
+
 
 /*
  * We have a per-interface "registered driver" list.
@@ -172,14 +182,15 @@ static long calc_bus_time (int low_speed, int input_dir, int isoc, int bytecount
  * However, this first cut at USB bandwidth allocation does not
  * contain any frame allocation tracking.
  */
-int check_bandwidth_alloc (unsigned int old_alloc, long bustime)
+static int check_bandwidth_alloc (unsigned int old_alloc, long bustime)
 {
 	unsigned int	new_alloc;
 
 	new_alloc = old_alloc + bustime;
 		/* what new total allocated bus time would be */
 
-	PRINTD ("usb-bandwidth-alloc: was: %ld, new: %ld, bustime = %ld us, Pipe allowed: %s",
+	PRINTD ("usb-bandwidth-alloc: was: %u, new: %u, "
+		"bustime = %ld us, Pipe allowed: %s",
 		old_alloc, new_alloc, bustime,
 		(new_alloc <= FRAME_TIME_MAX_USECS_ALLOC) ?
 			"yes" : "no");
@@ -263,6 +274,7 @@ static void usb_check_support(struct usb_device *dev)
 	if (!dev->driver && dev->devnum > 0)
 		usb_find_driver(dev);
 }
+
 /*
  * This entrypoint gets called for each new device.
  *
@@ -318,7 +330,6 @@ void usb_free_dev(struct usb_device *dev)
 {
 	if (atomic_dec_and_test(&dev->refcnt)) {
 		usb_destroy_configuration(dev);
-
 		dev->bus->op->deallocate(dev);
 		kfree(dev);
 	}
@@ -681,7 +692,7 @@ int usb_set_address(struct usb_device *dev)
 	dr.index = 0;
 	dr.length = 0;
 
-	return dev->bus->op->control_msg(dev, usb_snddefctrl(dev), &dr, NULL, 0);
+	return dev->bus->op->control_msg(dev, usb_snddefctrl(dev), &dr, NULL, 0, HZ);
 }
 
 int usb_get_descriptor(struct usb_device *dev, unsigned char type, unsigned char index, void *buf, int size)
@@ -697,7 +708,7 @@ int usb_get_descriptor(struct usb_device *dev, unsigned char type, unsigned char
 	dr.length = size;
 
 	while (i--) {
-		if (!(result = dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev,0), &dr, buf, size))
+		if (!(result = dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev,0), &dr, buf, size, HZ))
 		    || result == USB_ST_STALL)
 			break;
 	}
@@ -714,7 +725,7 @@ int usb_get_string(struct usb_device *dev, unsigned short langid, unsigned char 
 	dr.index = langid;
 	dr.length = size;
 
-	return dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev,0), &dr, buf, size);
+	return dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev,0), &dr, buf, size, HZ);
 }
 
 int usb_get_device_descriptor(struct usb_device *dev)
@@ -740,7 +751,7 @@ int usb_get_status (struct usb_device *dev, int type, int target, void *data)
 	dr.index = target;
 	dr.length = 2;
 
-	return dev->bus->op->control_msg (dev, usb_rcvctrlpipe (dev,0), &dr, data, 2);
+	return dev->bus->op->control_msg (dev, usb_rcvctrlpipe (dev,0), &dr, data, 2, HZ);
 }
 
 int usb_get_protocol(struct usb_device *dev)
@@ -754,7 +765,7 @@ int usb_get_protocol(struct usb_device *dev)
 	dr.index = 1;
 	dr.length = 1;
 
-	if (dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev, 0), &dr, buf, 1))
+	if (dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev, 0), &dr, buf, 1, HZ))
 		return -1;
 
 	return buf[0];
@@ -770,7 +781,7 @@ int usb_set_protocol(struct usb_device *dev, int protocol)
 	dr.index = 1;
 	dr.length = 0;
 
-	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0))
+	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0, HZ))
 		return -1;
 
 	return 0;
@@ -788,7 +799,7 @@ int usb_set_idle(struct usb_device *dev,  int duration, int report_id)
 	dr.index = 1;
 	dr.length = 0;
 
-	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0))
+	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0, HZ))
 		return -1;
 
 	return 0;
@@ -838,7 +849,7 @@ int usb_clear_halt(struct usb_device *dev, int endp)
 	dr.index = endp;
 	dr.length = 0;
 
-	result = dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev,0), &dr, NULL, 0);
+	result = dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev,0), &dr, NULL, 0, HZ);
 
 	/* don't clear if failed */
 	if (result)
@@ -850,7 +861,7 @@ int usb_clear_halt(struct usb_device *dev, int endp)
 	dr.length = 2;
 	status = 0xffff;
 
-	result = dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev,0), &dr, &status, 2);
+	result = dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev,0), &dr, &status, 2, HZ);
 
 	if (result)
 	    return result;
@@ -876,7 +887,7 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 	dr.index = interface;
 	dr.length = 0;
 
-	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0))
+	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0, HZ))
 		return -1;
 
 	dev->ifnum = interface;
@@ -907,7 +918,7 @@ int usb_set_configuration(struct usb_device *dev, int configuration)
 		printk(KERN_INFO "usb: selecting invalid configuration %d\n", configuration);
 		return -1;
 	}
-	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0))
+	if (dev->bus->op->control_msg(dev, usb_sndctrlpipe(dev, 0), &dr, NULL, 0, HZ))
 		return -1;
 
 	dev->actconfig = cp;
@@ -927,7 +938,7 @@ int usb_get_report(struct usb_device *dev, unsigned char type, unsigned char id,
 	dr.index = index;
 	dr.length = size;
 
-	if (dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev, 0), &dr, buf, size))
+	if (dev->bus->op->control_msg(dev, usb_rcvctrlpipe(dev, 0), &dr, buf, size, HZ))
 		return -1;
 
 	return 0;
@@ -962,9 +973,9 @@ int usb_get_configuration(struct usb_device *dev)
 		/* We grab the first 8 bytes so we know how long the whole */
 		/*  configuration is */
 		result = usb_get_descriptor(dev, USB_DT_CONFIG, cfgno, buffer, 8);
-		if (result)
+		if (result < 0)
 	    		return -1;
-
+		
   	  	/* Get the full buffer */
 		le16_to_cpus(&desc->wTotalLength);
 
@@ -990,7 +1001,6 @@ int usb_get_configuration(struct usb_device *dev)
 
 	return 0;
 }
-
 
 char *usb_string(struct usb_device *dev, int index)
 {
@@ -1115,7 +1125,7 @@ int usb_new_device(struct usb_device *dev)
 	return 0;
 }
 
-int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype, __u16 value, __u16 index, void *data, __u16 size)
+int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype, __u16 value, __u16 index, void *data, __u16 size, int timeout)
 {
         devrequest dr;
 
@@ -1125,7 +1135,7 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u
         dr.index = cpu_to_le16p(&index);
         dr.length = cpu_to_le16p(&size);
 
-        return dev->bus->op->control_msg(dev, pipe, &dr, data, size);
+        return dev->bus->op->control_msg(dev, pipe, &dr, data, size, timeout);
 }
 
 int usb_request_irq(struct usb_device *dev, unsigned int pipe, usb_device_irq handler, int period, void *dev_id, void **handle)
@@ -1148,9 +1158,10 @@ int usb_request_irq(struct usb_device *dev, unsigned int pipe, usb_device_irq ha
 	if (!ret) {
 		dev->bus->bandwidth_allocated += bustime;
 		dev->bus->bandwidth_int_reqs++;
-		PRINTD ("bw_alloc bumped to %d for %d requesters\n",
+		PRINTD ("bw_alloc bumped to %d for %d requesters",
 			dev->bus->bandwidth_allocated,
-			dev->bus->bandwidth_int_reqs);
+			dev->bus->bandwidth_int_reqs +
+			dev->bus->bandwidth_isoc_reqs);
 	}
 
 	return ret;
@@ -1180,9 +1191,10 @@ int usb_release_irq(struct usb_device *dev, void *handle, unsigned int pipe)
 		bustime = NS_TO_US(bustime);
 		dev->bus->bandwidth_allocated -= bustime;
 		dev->bus->bandwidth_int_reqs--;
-		PRINTD ("bw_alloc reduced to %d for %d requesters\n",
+		PRINTD ("bw_alloc reduced to %d for %d requesters",
 			dev->bus->bandwidth_allocated,
-			dev->bus->bandwidth_int_reqs);
+			dev->bus->bandwidth_int_reqs +
+			dev->bus->bandwidth_isoc_reqs);
 	}
 
 	return err;
@@ -1208,11 +1220,14 @@ int usb_init_isoc (struct usb_device *usb_dev,
 	long    bustime;
 	int	err;
 
+	if (frame_count <= 0)
+		return -EINVAL;
+
 	/* Check host controller's bandwidth for this Isoc. request. */
 	/* TBD: some way to factor in frame_spacing ??? */
 	bustime = calc_bus_time (0, usb_pipein(pipe), 1,
 			usb_maxpacket(usb_dev, pipe, usb_pipeout(pipe)));
-	bustime = NS_TO_US(bustime);	/* work in microseconds */
+	bustime = NS_TO_US(bustime) / frame_count;	/* work in microseconds */
 	if (check_bandwidth_alloc (usb_dev->bus->bandwidth_allocated, bustime))
 		return USB_ST_BANDWIDTH_ERROR;
 
@@ -1222,8 +1237,9 @@ int usb_init_isoc (struct usb_device *usb_dev,
 	if (!err) {
 		usb_dev->bus->bandwidth_allocated += bustime;
 		usb_dev->bus->bandwidth_isoc_reqs++;
-		PRINTD ("bw_alloc bumped to %d for %d requesters\n",
+		PRINTD ("bw_alloc bumped to %d for %d requesters",
 			usb_dev->bus->bandwidth_allocated,
+			usb_dev->bus->bandwidth_int_reqs +
 			usb_dev->bus->bandwidth_isoc_reqs);
 	}
 
@@ -1238,11 +1254,12 @@ void usb_free_isoc (struct usb_isoc_desc *isocdesc)
 	bustime = calc_bus_time (0, usb_pipein(isocdesc->pipe), 1,
 			usb_maxpacket(isocdesc->usb_dev, isocdesc->pipe,
 			usb_pipeout(isocdesc->pipe)));
-	bustime = NS_TO_US(bustime);
+	bustime = NS_TO_US(bustime) / isocdesc->frame_count;
 	isocdesc->usb_dev->bus->bandwidth_allocated -= bustime;
 	isocdesc->usb_dev->bus->bandwidth_isoc_reqs--;
-	PRINTD ("bw_alloc reduced to %d for %d requesters\n",
+	PRINTD ("bw_alloc reduced to %d for %d requesters",
 		isocdesc->usb_dev->bus->bandwidth_allocated,
+		isocdesc->usb_dev->bus->bandwidth_int_reqs +
 		isocdesc->usb_dev->bus->bandwidth_isoc_reqs);
 
 	isocdesc->usb_dev->bus->op->free_isoc (isocdesc);
@@ -1271,3 +1288,49 @@ struct list_head *usb_bus_get_list(void)
 }
 #endif
 
+/*
+ * USB may be built into the kernel or be built as modules.
+ * If the USB core [and maybe a host controller driver] is built
+ * into the kernel, and other device drivers are built as modules,
+ * then these symbols need to be exported for the modules to use.
+ */
+EXPORT_SYMBOL(usb_register);
+EXPORT_SYMBOL(usb_deregister);
+EXPORT_SYMBOL(usb_alloc_bus);
+EXPORT_SYMBOL(usb_free_bus);
+EXPORT_SYMBOL(usb_register_bus);
+EXPORT_SYMBOL(usb_deregister_bus);
+EXPORT_SYMBOL(usb_alloc_dev);
+EXPORT_SYMBOL(usb_free_dev);
+EXPORT_SYMBOL(usb_inc_dev_use);
+
+EXPORT_SYMBOL(usb_init_root_hub);
+EXPORT_SYMBOL(usb_new_device);
+EXPORT_SYMBOL(usb_connect);
+EXPORT_SYMBOL(usb_disconnect);
+
+EXPORT_SYMBOL(usb_set_address);
+EXPORT_SYMBOL(usb_get_descriptor);
+EXPORT_SYMBOL(usb_get_string);
+EXPORT_SYMBOL(usb_string);
+EXPORT_SYMBOL(usb_get_protocol);
+EXPORT_SYMBOL(usb_set_protocol);
+EXPORT_SYMBOL(usb_get_report);
+EXPORT_SYMBOL(usb_set_idle);
+EXPORT_SYMBOL(usb_clear_halt);
+EXPORT_SYMBOL(usb_set_interface);
+EXPORT_SYMBOL(usb_get_configuration);
+EXPORT_SYMBOL(usb_set_configuration);
+
+EXPORT_SYMBOL(usb_control_msg);
+EXPORT_SYMBOL(usb_request_irq);
+EXPORT_SYMBOL(usb_release_irq);
+/* EXPORT_SYMBOL(usb_bulk_msg); */
+EXPORT_SYMBOL(usb_request_bulk);
+EXPORT_SYMBOL(usb_terminate_bulk);
+
+EXPORT_SYMBOL(usb_get_current_frame_number);
+EXPORT_SYMBOL(usb_init_isoc);
+EXPORT_SYMBOL(usb_free_isoc);
+EXPORT_SYMBOL(usb_run_isoc);
+EXPORT_SYMBOL(usb_kill_isoc);

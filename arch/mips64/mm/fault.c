@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.2 1999/09/28 22:25:52 ralf Exp $
+/* $Id: fault.c,v 1.5 1999/11/23 17:12:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -45,8 +45,7 @@ unsigned long asid_cache;
  * routines.
  */
 asmlinkage void
-do_page_fault(struct pt_regs *regs, unsigned long write,
-              unsigned long address)
+do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 {
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
@@ -147,6 +146,7 @@ no_context:
 	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
 	       address, regs->cp0_epc, regs->regs[31]);
+while(1);
 	die("Oops", regs, write);
 	do_exit(SIGKILL);
 

@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.15 1999/09/28 22:25:47 ralf Exp $
+/* $Id: process.c,v 1.16 1999/10/09 00:00:58 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -31,45 +31,27 @@
 #include <asm/elf.h>
 #include <asm/isadep.h>
 
-asmlinkage int cpu_idle(void)
+void cpu_idle(void)
 {
-	unsigned long start_idle = 0;
-
-	if (current->pid != 0)
-		return -EPERM;
-
 	/* endless idle loop with no priority at all */
 	current->priority = 0;
-	current->counter = 0;
-	for (;;) {
-		/*
-		 * R4[36]00 have wait, R4[04]00 don't.
-		 * FIXME: We should save power by reducing the clock where
-		 *        possible.  Thiss will cut down the power consuption
-		 *        of R4200 systems to about 1/16th of normal, the
-		 *        same for logic clocked with the processor generated
-		 *        clocks.
-		 */
-		if (!start_idle) {
-			check_pgt_cache();
-			start_idle = jiffies;
-		}
-		if (wait_available && !current->need_resched)
-			__asm__(".set\tmips3\n\t"
-				"wait\n\t"
-				".set\tmips0");
-		run_task_queue(&tq_scheduler);
-		if (current->need_resched)
-			start_idle = 0;
-		schedule();
-	}
+	current->counter = -100;
+	init_idle();
 
-	return 0;
+	while (1) {
+		while (!current->need_resched)
+			if (wait_available)
+				__asm__(".set\tmips3\n\t"
+					"wait\n\t"
+					".set\tmips0");
+		schedule();
+		check_pgt_cache();
+	}
 }
 
 struct task_struct *last_task_used_math = NULL;
 
-asmlinkage void ret_from_sys_call(void);
+asmlinkage void ret_from_fork(void);
 
 void exit_thread(void)
 {
@@ -127,7 +109,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		p->thread.current_ds = USER_DS;
 	}
 	p->thread.reg29 = (unsigned long) childregs;
-	p->thread.reg31 = (unsigned long) ret_from_sys_call;
+	p->thread.reg31 = (unsigned long) ret_from_fork;
 
 	/*
 	 * New tasks loose permission to use the fpu. This accelerates context

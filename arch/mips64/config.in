@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.3 1999/08/21 22:19:13 ralf Exp $
+# $Id: config.in,v 1.8 1999/11/23 17:12:49 ralf Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -23,8 +23,8 @@ unset CONFIG_ARC32
 unset CONFIG_ARC64
 
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
-  define_bool CONFIG_BOOT_ELF32 y
-  define_bool CONFIG_ARC32 y
+   define_bool CONFIG_BOOT_ELF32 y
+   define_bool CONFIG_ARC32 y
 fi
 
 mainmenu_option next_comment
@@ -42,6 +42,9 @@ endmenu
 mainmenu_option next_comment
 comment 'General setup'
 
+if [ "$CONFIG_CPU_R10000" = "y" ]; then
+   bool 'Support for large 64-bit configurations' CONFIG_MIPS_INSANE_LARGE
+fi
 bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 
 define_bool CONFIG_BINFMT_AOUT n
@@ -57,12 +60,12 @@ mainmenu_option next_comment
 comment 'Loadable module support'
 bool 'Enable loadable module support' CONFIG_MODULES
 if [ "$CONFIG_MODULES" = "y" ]; then
-  bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
-  bool 'Kernel module loader' CONFIG_KMOD
+   bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
+   bool 'Kernel module loader' CONFIG_KMOD
 fi
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-  bool 'Support for frame buffer devices (EXPERIMENTAL)' CONFIG_FB
+   bool 'Support for frame buffer devices (EXPERIMENTAL)' CONFIG_FB
 fi
 
 endmenu
@@ -70,7 +73,7 @@ endmenu
 source drivers/block/Config.in
 
 if [ "$CONFIG_NET" = "y" ]; then
-  source net/Config.in
+   source net/Config.in
 fi
 
 mainmenu_option next_comment
@@ -79,22 +82,32 @@ comment 'SCSI support'
 tristate 'SCSI support' CONFIG_SCSI
 
 if [ "$CONFIG_SCSI" != "n" ]; then
-  source drivers/scsi/Config.in
+   source drivers/scsi/Config.in
 fi
 endmenu
 
 if [ "$CONFIG_NET" = "y" ]; then
-  mainmenu_option next_comment
-  comment 'Network device support'
+   mainmenu_option next_comment
+   comment 'Network device support'
 
-  bool 'Network device support' CONFIG_NETDEVICES
-  if [ "$CONFIG_NETDEVICES" = "y" ]; then
-    source drivers/net/Config.in
-      if [ "$CONFIG_ATM" = "y" ]; then
-        source drivers/atm/Config.in
+   bool 'Network device support' CONFIG_NETDEVICES
+   if [ "$CONFIG_NETDEVICES" = "y" ]; then
+      source drivers/net/Config.in
+      if [ "$CONFIG_SGI_IP22" = "y" ]; then
+	 bool 'SGI Seeq ethernet controller support' CONFIG_SGISEEQ
       fi
-  fi
-  endmenu
+      if [ "$CONFIG_DECSTATION" = "y" ]; then
+	 bool 'DEC LANCE ethernet controller support' CONFIG_DECLANCE
+      fi
+      if [ "$CONFIG_BAGET_MIPS" = "y" ]; then
+	 tristate 'Baget AMD LANCE support' CONFIG_BAGETLANCE
+	 tristate 'Baget Backplane Shared Memory support' CONFIG_BAGETBSM
+      fi
+      if [ "$CONFIG_ATM" = "y" ]; then
+	 source drivers/atm/Config.in
+      fi
+   fi
+   endmenu
 fi
 
 source net/ax25/Config.in
@@ -105,10 +118,10 @@ mainmenu_option next_comment
 comment 'ISDN subsystem'
 
 if [ "$CONFIG_NET" != "n" ]; then
-  tristate 'ISDN support' CONFIG_ISDN
-  if [ "$CONFIG_ISDN" != "n" ]; then
-    source drivers/isdn/Config.in
-  fi
+   tristate 'ISDN support' CONFIG_ISDN
+   if [ "$CONFIG_ISDN" != "n" ]; then
+      source drivers/isdn/Config.in
+   fi
 fi
 endmenu
 
@@ -117,7 +130,7 @@ comment 'Old CD-ROM drivers (not SCSI, not IDE)'
 
 bool 'Support non-SCSI/IDE/ATAPI CDROM drives' CONFIG_CD_NO_IDESCSI
 if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
-  source drivers/cdrom/Config.in
+   source drivers/cdrom/Config.in
 fi
 endmenu
 
@@ -125,18 +138,20 @@ source drivers/char/Config.in
 
 source drivers/usb/Config.in
 
+# drivers/misc has currently only i386 specific devices.
+#source drivers/misc/Config.in
+
 source fs/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
-  mainmenu_option next_comment
-  comment 'Console drivers'
-  # XXX cleanup
-  if [ "$CONFIG_SGI_IP22" = "y" ]; then
-    tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
-    if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
-      define_bool CONFIG_DUMMY_CONSOLE y
-    fi
-  fi
+   mainmenu_option next_comment
+   comment 'Console drivers'
+   if [ "$CONFIG_SGI_IP22" = "y" ]; then
+      tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
+      if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
+	 define_bool CONFIG_DUMMY_CONSOLE y
+      fi
+   fi
   endmenu
 fi
 
@@ -145,12 +160,12 @@ comment 'Sound'
 
 tristate 'Sound card support' CONFIG_SOUND
 if [ "$CONFIG_SOUND" != "n" ]; then
-source drivers/sound/Config.in
+   source drivers/sound/Config.in
 fi
 endmenu
 
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
-  source drivers/sgi/Config.in
+   source drivers/sgi/Config.in
 fi
 
 mainmenu_option next_comment
@@ -159,7 +174,7 @@ comment 'Kernel hacking'
 #bool 'Debug kmalloc/kfree' CONFIG_DEBUG_MALLOC
 bool 'Are you using a crosscompiler' CONFIG_CROSSCOMPILE
 if [ "$CONFIG_MODULES" = "y" ]; then
-  bool ' Build fp execption handler module' CONFIG_MIPS_FPE_MODULE
+   bool ' Build fp execption handler module' CONFIG_MIPS_FPE_MODULE
 fi
 bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ

@@ -1,4 +1,4 @@
-/* $Id: loadmmu.c,v 1.1 1999/08/18 23:37:48 ralf Exp $
+/* $Id: loadmmu.c,v 1.6 1999/11/23 17:12:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -46,7 +46,6 @@ void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 
 /* Miscellaneous. */
 void (*load_pgd)(unsigned long pg_dir);
-void (*pgd_init)(unsigned long page);
 void (*update_mmu_cache)(struct vm_area_struct * vma,
 			 unsigned long address, pte_t pte);
 
@@ -54,15 +53,11 @@ void (*show_regs)(struct pt_regs *);
 
 int (*user_mode)(struct pt_regs *);
 
-asmlinkage void *(*resume)(void *last, void *next);
-
-extern void ld_mmu_r2300(void);
 extern void ld_mmu_r4xx0(void);
-extern void ld_mmu_r6000(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 
-void __init loadmmu(void)
+void __init load_mmu(void)
 {
 	switch(mips_cputype) {
 	case CPU_R4000PC:

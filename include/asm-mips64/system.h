@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.2 1999/10/09 00:01:43 ralf Exp $
+/* $Id: system.h,v 1.3 1999/11/17 22:48:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -150,9 +150,10 @@ do { var = value; wmb(); } while (0)
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
-extern asmlinkage void *(*resume)(void *last, void *next);
+extern asmlinkage void *resume(void *last, void *next);
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
+#define prepare_to_switch()	do { } while(0)
 #define switch_to(prev,next,last) \
 do { \
 	(last) = resume(prev, next); \
@@ -169,7 +170,7 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 		"1:\tmove\t$1,%2\n\t"
 		"sc\t$1,(%1)\n\t"
 		"beqzl\t$1,1b\n\t"
-		"ll\t%0,(%1)\n\t"
+		"lld\t%0,(%1)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		: "=r" (val), "=r" (m), "=r" (dummy)

@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.14 1999/10/09 00:00:59 ralf Exp $
+/* $Id: indy_int.c,v 1.15 1999/10/21 00:23:05 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -258,8 +258,6 @@ int get_irq_list(char *buf)
 	}
 	return len;
 }
-
-atomic_t __mips_bh_counter;
 
 /*
  * do_IRQ handles IRQ's that have been installed without the

@@ -5,7 +5,7 @@
  *      Code (mostly sleleton and comments) derived from DECstation IRQ
  *      handling.
  *
- * $Id: irq.c,v 1.3 1999/08/17 22:18:37 ralf Exp $
+ * $Id: irq.c,v 1.4 1999/10/09 00:00:57 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -32,8 +32,6 @@
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
-
-atomic_t __mips_bh_counter;
 
 /*
  * This table is a correspondence between IRQ numbers and CPU PILs

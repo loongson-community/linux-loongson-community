@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.24 1999/08/13 17:07:26 harald Exp $
+/* $Id: traps.c,v 1.25 1999/08/21 22:19:11 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -14,6 +14,7 @@
 #include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/spinlock.h>
 
 #include <asm/branch.h>
 #include <asm/cachectl.h>
@@ -25,10 +26,17 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
+extern int console_loglevel;
+
+static inline void console_silent(void)
+{
+	console_loglevel = 0;
+}
+
 static inline void console_verbose(void)
 {
-	extern int console_loglevel;
-	console_loglevel = 15;
+	if (console_loglevel)
+		console_loglevel = 15;
 }
 
 /*
@@ -187,13 +195,17 @@ void show_code(unsigned int *pc)
 	}
 }
 
-void die(const char * str, struct pt_regs * regs, unsigned long err)
-{
-	if (user_mode(regs))	/* Just return if in user mode.  */
-		return;
+spinlock_t die_lock;
 
+extern void __die(const char * str, struct pt_regs * regs, const char *where,
+                  unsigned long line)
+{
 	console_verbose();
-	printk("%s: %04lx\n", str, err & 0xffff);
+	spin_lock_irq(&die_lock);
+	printk("%s", str);
+	if (where)
+		printk(" in %s, line %ld", where, line);
+	printk(":\n");
 	show_regs(regs);
 	printk("Process %s (pid: %ld, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
@@ -201,13 +213,16 @@ void die(const char * str, struct pt_regs * regs, unsigned long err)
 	show_trace((unsigned int *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
+while(1);
+	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
 
-void die_if_kernel(const char * str, struct pt_regs * regs, unsigned long err)
+void __die_if_kernel(const char * str, struct pt_regs * regs, const char *where,
+	unsigned long line)
 {
 	if (!user_mode(regs))
-		die(str, regs, err);
+		__die(str, regs, where, line);
 }
 
 static void default_be_board_handler(struct pt_regs *regs)
@@ -674,10 +689,10 @@ void __init trap_init(void)
 
 		if (vce_available) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
-			       0x180);
+			       0x80);
 		} else {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-			       0x100);
+			       0x80);
 		}
 
 		break;
@@ -718,4 +733,7 @@ void __init trap_init(void)
 		panic("Unknown CPU type");
 	}
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
+
+	atomic_inc(&init_mm.mm_count);	/* XXX  UP?  */
+	current->active_mm = &init_mm;
 }

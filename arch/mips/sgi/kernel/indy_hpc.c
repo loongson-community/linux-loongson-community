@@ -1,4 +1,4 @@
-/* $Id: indy_hpc.c,v 1.7 1999/10/09 00:00:59 ralf Exp $
+/* $Id: indy_hpc.c,v 1.8 1999/10/21 00:23:05 ralf Exp $
  *
  * indy_hpc.c: Routines for generic manipulation of the HPC controllers.
  *
@@ -18,7 +18,7 @@ struct hpc3_regs *hpc3c0, *hpc3c1;
 struct hpc3_miscregs *hpc3mregs;
 
 /* We need software copies of these because they are write only. */
-unsigned long sgi_hpc_write1, sgi_hpc_write2;
+unsigned int sgi_hpc_write1, sgi_hpc_write2;
 
 /* Machine specific identifier knobs. */
 int sgi_has_ioc2 = 0;

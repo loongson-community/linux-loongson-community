@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: mips64_ksyms.c,v 1.4 1999/11/19 20:35:22 ralf Exp $
  *
  * Export MIPS64-specific functions needed for loadable modules.
  *
@@ -34,6 +34,8 @@ extern long __strncpy_from_user_asm(char *__to, const char *__from,
                                     long __len);
 extern long __strlen_user_nocheck_asm(const char *s);
 extern long __strlen_user_asm(const char *s);
+extern long __strnlen_user_nocheck_asm(const char *s);
+extern long __strnlen_user_asm(const char *s);
 
 EXPORT_SYMBOL(EISA_bus);
 
@@ -54,7 +56,6 @@ EXPORT_SYMBOL_NOVERS(strtok);
 EXPORT_SYMBOL_NOVERS(strpbrk);
 
 EXPORT_SYMBOL(clear_page);
-EXPORT_SYMBOL(__mips_bh_counter);
 EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
@@ -70,6 +71,8 @@ EXPORT_SYMBOL_NOVERS(__strncpy_from_user_nocheck_asm);
 EXPORT_SYMBOL_NOVERS(__strncpy_from_user_asm);
 EXPORT_SYMBOL_NOVERS(__strlen_user_nocheck_asm);
 EXPORT_SYMBOL_NOVERS(__strlen_user_asm);
+EXPORT_SYMBOL_NOVERS(__strnlen_user_nocheck_asm);
+EXPORT_SYMBOL_NOVERS(__strnlen_user_asm);
 
 
 /* Networking helper routines. */

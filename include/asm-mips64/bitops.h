@@ -1,4 +1,4 @@
-/* $Id: bitops.h,v 1.2 1999/08/19 22:56:34 ralf Exp $
+/* $Id: bitops.h,v 1.3 1999/08/20 21:59:08 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -13,95 +13,13 @@
 #include <linux/types.h>
 #include <linux/byteorder/swab.h>		/* sigh ... */
 
-#ifdef __KERNEL__
+#ifndef __KERNEL__
+#error "Don't do this, sucker ..."
+#endif
+
 #include <asm/system.h>
 #include <asm/sgidefs.h>
 #include <asm/mipsregs.h>
-#endif
-
-/*
- * This gets exported to userland, so we need to have a MIPS I versions
- * as well.  Userland always get the non-thread / signal safe variants.
- */
-
-#ifndef __KERNEL__
-
-extern __inline__ void
-set_bit(unsigned long nr, void * addr)
-{
-	int	mask;
-	int	*a = addr;
-
-	a += nr >> 5;
-	mask = 1 << (nr & 0x1f);
-	*a |= mask;
-}
-
-extern __inline__ void
-clear_bit(unsigned long nr, void * addr)
-{
-	int	mask;
-	int	*a = addr;
-
-	a += nr >> 5;
-	mask = 1 << (nr & 0x1f);
-	*a &= ~mask;
-}
-
-extern __inline__ void
-change_bit(unsigned long nr, void * addr)
-{
-	int	mask;
-	int	*a = addr;
-
-	a += nr >> 5;
-	mask = 1 << (nr & 0x1f);
-	*a ^= mask;
-}
-
-extern __inline__ unsigned long
-test_and_set_bit(unsigned long nr, void * addr)
-{
-	int	mask, retval;
-	int	*a = addr;
-
-	a += nr >> 5;
-	mask = 1 << (nr & 0x1f);
-	retval = (mask & *a) != 0;
-	*a |= mask;
-
-	return retval;
-}
-
-extern __inline__ unsigned long
-test_and_clear_bit(unsigned long nr, void * addr)
-{
-	int	mask, retval;
-	int	*a = addr;
-
-	a += nr >> 5;
-	mask = 1 << (nr & 0x1f);
-	retval = (mask & *a) != 0;
-	*a &= ~mask;
-
-	return retval;
-}
-
-extern __inline__ unsigned long
-test_and_change_bit(unsigned long nr, void * addr)
-{
-	int	mask, retval;
-	int	*a = addr;
-
-	a += nr >> 5;
-	mask = 1 << (nr & 0x1f);
-	retval = (mask & *a) != 0;
-	*a ^= mask;
-
-	return retval;
-}
-
-#else /* __KERNEL__ */
 
 /*
  * These functions for MIPS ISA > 1 are interrupt and SMP proof and
@@ -111,73 +29,64 @@ test_and_change_bit(unsigned long nr, void * addr)
 extern __inline__ void
 set_bit(unsigned long nr, void *addr)
 {
-	unsigned int *m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t# set_bit\n"
-		"1:\tll\t%0, %1\n\t"
+		"1:\tlld\t%0, %1\t\t# set_bit\n\t"
 		"or\t%0, %2\n\t"
-		"sc\t%0, %1\n\t"
-		"beqzl\t%0,1b\n\t"
-		" ll\t%0, %1\n\t"
-		".set\treorder"
+		"scd\t%0, %1\n\t"
+		"beqz\t%0, 1b"
 		:"=&r" (temp), "=m" (*m)
-		:"ir" (1UL << (nr & 31)), "m" (*m));
+		:"ir" (1UL << (nr & 0x3f)), "m" (*m));
 }
 
 extern __inline__ void
 clear_bit(unsigned long nr, void *addr)
 {
-	unsigned int *m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t# clear_bit\n"
-		"1:\tll\t%0, %1\n\t"
+		"1:\tlld\t%0, %1\t\t# clear_bit\n\t"
 		"and\t%0, %2\n\t"
-		"sc\t%0, %1\n\t"
-		"beqzl\t%0,1b\n\t"
-		" ll\t%0, %1\n\t"
-		".set\treorder"
+		"scd\t%0, %1\n\t"
+		"beqz\t%0, 1b\n\t"
 		:"=&r" (temp), "=m" (*m)
-		:"ir" (~(1UL << (nr & 31))), "m" (*m));
+		:"ir" (~(1UL << (nr & 0x3f))), "m" (*m));
 }
 
 extern __inline__ void
 change_bit(unsigned long nr, void *addr)
 {
-	unsigned int *m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t# change_bit\n"
-		"1:\tll\t%0, %1\n\t"
+		"1:\tlld\t%0, %1\t\t# change_bit\n\t"
 		"xor\t%0, %2\n\t"
-		"sc\t%0, %1\n\t"
-		"beqzl\t%0,1b\n\t"
-		" ll\t%0, %1\n\t"
-		".set\treorder"
+		"scd\t%0, %1\n\t"
+		"beqz\t%0, 1b"
 		:"=&r" (temp), "=m" (*m)
-		:"ir" (1UL << (nr & 31)), "m" (*m));
+		:"ir" (1UL << (nr & 0x3f)), "m" (*m));
 }
 
 extern __inline__ unsigned long
 test_and_set_bit(unsigned long nr, void *addr)
 {
-	unsigned int *m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp, res;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\t\t# test_and_set_bit\n"
-		"1:\tll\t%0, %1\n\t"
+		"1:\tlld\t%0, %1\n\t"
 		"or\t%2, %0, %3\n\t"
-		"sc\t%2, %1\n\t"
-		"beqz\t%2,1b\n\t"
+		"scd\t%2, %1\n\t"
+		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
 		".set\treorder"
 		:"=&r" (temp), "=m" (*m), "=&r" (res)
-		:"r" (1UL << (nr & 31)), "m" (*m));
+		:"r" (1UL << (nr & 0x3f)), "m" (*m));
 
 	return res != 0;
 }
@@ -185,20 +94,20 @@ test_and_set_bit(unsigned long nr, void *addr)
 extern __inline__ unsigned long
 test_and_clear_bit(unsigned long nr, void *addr)
 {
-	unsigned int *m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp, res;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\t\t# test_and_clear_bit\n"
-		"1:\tll\t%0, %1\n\t"
+		"1:\tlld\t%0, %1\n\t"
 		"or\t%2, %0, %3\n\t"
 		"xor\t%2, %3\n\t"
-		"sc\t%2, %1\n\t"
-		"beqz\t%2,1b\n\t"
+		"scd\t%2, %1\n\t"
+		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
 		".set\treorder"
 		:"=&r" (temp), "=m" (*m), "=&r" (res)
-		:"r" (1UL << (nr & 31)), "m" (*m));
+		:"r" (1UL << (nr & 0x3f)), "m" (*m));
 
 	return res != 0;
 }
@@ -206,29 +115,27 @@ test_and_clear_bit(unsigned long nr, void *addr)
 extern __inline__ unsigned long
 test_and_change_bit(unsigned long nr, void *addr)
 {
-	unsigned int *m = ((unsigned int *) addr) + (nr >> 5);
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp, res;
 
 	__asm__ __volatile__(
 		".set\tnoreorder\t\t# test_and_change_bit\n"
-		"1:\tll\t%0, %1\n\t"
+		"1:\tlld\t%0, %1\n\t"
 		"xor\t%2, %0, %3\n\t"
-		"sc\t%2, %1\n\t"
-		"beqz\t%2,1b\n\t"
+		"scd\t%2, %1\n\t"
+		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
 		".set\treorder"
 		:"=&r" (temp), "=m" (*m), "=&r" (res)
-		:"r" (1UL << (nr & 31)), "m" (*m));
+		:"r" (1UL << (nr & 0x3f)), "m" (*m));
 
 	return res != 0;
 }
 
-#endif /* __KERNEL__ */
-
 extern __inline__ unsigned long
 test_bit(int nr, volatile void * addr)
 {
-	return 1UL & (((const int *) addr)[nr >> 5] >> (nr & 31));
+	return 1UL & (((const long *) addr)[nr >> 6] >> (nr & 0x3f));
 }
 
 #ifndef __MIPSEB__
@@ -332,29 +239,20 @@ find_next_zero_bit (void * addr, int size, int offset)
  * ffz = Find First Zero in word. Undefined if no zero exists,
  * so code should check against ~0UL first..
  */
-extern __inline__ unsigned long
-ffz(unsigned long word)
+extern __inline__ unsigned long ffz(unsigned long word)
 {
-	unsigned int	__res;
-	unsigned int	mask = 1;
+	unsigned long k;
 
-	__asm__ (
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		"move\t%0,$0\n"
-		"1:\tand\t$1,%2,%1\n\t"
-		"beqz\t$1,2f\n\t"
-		"sll\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,1\n\t"
-		".set\tat\n\t"
-		".set\treorder\n"
-		"2:\n\t"
-		: "=&r" (__res), "=r" (mask)
-		: "r" (word), "1" (mask)
-		: "$1");
+	word = ~word;
+	k = 63;
+	if (word & 0x00000000ffffffffUL) { k -= 32; word <<= 32; }
+	if (word & 0x0000ffff00000000UL) { k -= 16; word <<= 16; }
+	if (word & 0x00ff000000000000UL) { k -= 8;  word <<= 8;  }
+	if (word & 0x0f00000000000000UL) { k -= 4;  word <<= 4;  }
+	if (word & 0x3000000000000000UL) { k -= 2;  word <<= 2;  }
+	if (word & 0x4000000000000000UL) { k -= 1; }
 
-	return __res;
+	return k;
 }
 
 #ifdef __KERNEL__
@@ -386,32 +284,32 @@ ffz(unsigned long word)
  * on Linus's ALPHA routines, which are pretty portable BTW.
  */
 
-extern __inline__ int
-find_next_zero_bit(void *addr, int size, int offset)
+extern __inline__ unsigned long
+find_next_zero_bit(void *addr, unsigned long size, unsigned long offset)
 {
-	unsigned long *p = ((unsigned long *) addr) + (offset >> 5);
-	unsigned long result = offset & ~31UL;
+	unsigned long *p = ((unsigned long *) addr) + (offset >> 6);
+	unsigned long result = offset & ~63UL;
 	unsigned long tmp;
 
 	if (offset >= size)
 		return size;
 	size -= result;
-	offset &= 31UL;
+	offset &= 63UL;
 	if (offset) {
 		tmp = *(p++);
-		tmp |= ~0UL >> (32-offset);
-		if (size < 32)
+		tmp |= ~0UL >> (64-offset);
+		if (size < 64)
 			goto found_first;
 		if (~tmp)
 			goto found_middle;
-		size -= 32;
-		result += 32;
+		size -= 64;
+		result += 64;
 	}
-	while (size & ~31UL) {
+	while (size & ~63UL) {
 		if (~(tmp = *(p++)))
 			goto found_middle;
-		result += 32;
-		size -= 32;
+		result += 64;
+		size -= 64;
 	}
 	if (!size)
 		return result;
@@ -427,6 +325,8 @@ found_middle:
         find_next_zero_bit((addr), (size), 0)
 
 #endif /* (__MIPSEB__) */
+
+#ifdef __KERNEL__
 
 /* Now for the ext2 filesystem bit operations and helper routines. */
 
@@ -547,5 +447,7 @@ found_middle:
 #define minix_clear_bit(nr,addr) test_and_clear_bit(nr,addr)
 #define minix_test_bit(nr,addr) test_bit(nr,addr)
 #define minix_find_first_zero_bit(addr,size) find_first_zero_bit(addr,size)
+
+#endif /* __KERNEL__ */
 
 #endif /* _ASM_BITOPS_H */

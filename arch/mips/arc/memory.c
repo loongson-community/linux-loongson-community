@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: memory.c,v 1.5 1999/04/14 21:25:02 tsbogend Exp $
+ * $Id: memory.c,v 1.6 1999/10/09 00:00:57 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -19,7 +19,7 @@
 #include <asm/pgtable.h>
 #include <asm/bootinfo.h>
 
-/* #define DEBUG */
+#undef DEBUG
 
 struct linux_mdesc * __init prom_getmdesc(struct linux_mdesc *curr)
 {

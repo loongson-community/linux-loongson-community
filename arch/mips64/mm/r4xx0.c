@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.3 1999/09/28 22:25:52 ralf Exp $
+/* $Id: r4xx0.c,v 1.6 1999/11/23 17:12:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -21,6 +21,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
+#include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
 /* CP0 hazard avoidance. */
@@ -798,10 +799,8 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			__save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -838,10 +837,8 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -878,10 +875,8 @@ r4k_flush_cache_range_s64d16i16(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -918,10 +913,8 @@ r4k_flush_cache_range_s128d16i16(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -958,10 +951,8 @@ r4k_flush_cache_range_s32d32i32(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -998,10 +989,8 @@ r4k_flush_cache_range_s64d32i32(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1038,10 +1027,8 @@ r4k_flush_cache_range_s128d32i32(struct mm_struct *mm, unsigned long start,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -2142,23 +2129,6 @@ static void r4k_load_pgd(unsigned long pg_dir)
 {
 }
 
-static void r4k_pgd_init(unsigned long page)
-{
-	unsigned long *p = (unsigned long *) page;
-	int i;
-
-	for(i = 0; i < USER_PTRS_PER_PGD; i+=8) {
-		p[i + 0] = (unsigned long) invalid_pte_table;
-		p[i + 1] = (unsigned long) invalid_pte_table;
-		p[i + 2] = (unsigned long) invalid_pte_table;
-		p[i + 3] = (unsigned long) invalid_pte_table;
-		p[i + 4] = (unsigned long) invalid_pte_table;
-		p[i + 5] = (unsigned long) invalid_pte_table;
-		p[i + 6] = (unsigned long) invalid_pte_table;
-		p[i + 7] = (unsigned long) invalid_pte_table;
-	}
-}
-
 #ifdef DEBUG_TLBUPDATE
 static unsigned long ehi_debug[NTLB_ENTRIES];
 static unsigned long el0_debug[NTLB_ENTRIES];
@@ -2243,29 +2213,34 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 }
 #endif
 
-static void r4k_show_regs(struct pt_regs * regs)
+static void r4k_show_regs(struct pt_regs *regs)
 {
 	/* Saved main processor registers. */
-	printk("$0 : %08lx %08lx %08lx %08lx\n",
+	printk("$0      : %016lx %016lx %016lx %016lx\n",
 	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
-	printk("$4 : %08lx %08lx %08lx %08lx\n",
+	printk("$4      : %016lx %016lx %016lx %016lx\n",
                regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	printk("$8 : %08lx %08lx %08lx %08lx\n",
+	printk("$8      : %016lx %016lx %016lx %016lx\n",
 	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
-	printk("$12: %08lx %08lx %08lx %08lx\n",
+	printk("$12     : %016lx %016lx %016lx %016lx\n",
                regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
-	printk("$16: %08lx %08lx %08lx %08lx\n",
+	printk("$16     : %016lx %016lx %016lx %016lx\n",
 	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
-	printk("$20: %08lx %08lx %08lx %08lx\n",
+	printk("$20     : %016lx %016lx %016lx %016lx\n",
                regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
-	printk("$24: %08lx %08lx\n",
+	printk("$24     : %016lx %016lx\n",
 	       regs->regs[24], regs->regs[25]);
-	printk("$28: %08lx %08lx %08lx %08lx\n",
+	printk("$28     : %016lx %016lx %016lx %016lx\n",
 	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
+	printk("Hi      : %016lx\n", regs->hi);
+	printk("Lo      : %016lx\n", regs->lo);
 
 	/* Saved cp0 registers. */
-	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
-	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
+	printk("epc     : %016lx\nbadvaddr: %016lx\n",
+	       regs->cp0_epc, regs->cp0_badvaddr);
+	printk("Status  : %08x\nCause   : %08x\n",
+	       (unsigned int) regs->cp0_status, (unsigned int) regs->cp0_cause);
+//{static int x = 3; x--; if(!x) while(1);}
 }
 
 /* Detect and size the various r4k caches. */
@@ -2546,7 +2521,6 @@ void __init ld_mmu_r4xx0(void)
 	flush_tlb_page = r4k_flush_tlb_page;
 
 	load_pgd = r4k_load_pgd;
-	pgd_init = r4k_pgd_init;
 	update_mmu_cache = r4k_update_mmu_cache;
 
 	show_regs = r4k_show_regs;

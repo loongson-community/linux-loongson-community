@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip22-mc.c,v 1.2 1999/10/19 20:51:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -20,7 +20,7 @@
 /* #define DEBUG_SGIMC */
 
 struct sgimc_misc_ctrl *mcmisc_regs;
-unsigned long *rpsscounter;
+u32 *rpsscounter;
 struct sgimc_dma_ctrl *dmactrlregs;
 
 static inline char *mconfig_string(unsigned long val)
@@ -54,7 +54,7 @@ void __init sgimc_init(void)
 	unsigned long tmpreg;
 
 	mcmisc_regs = (struct sgimc_misc_ctrl *)(KSEG1+0x1fa00000);
-	rpsscounter = (unsigned long *) (KSEG1 + 0x1fa01004);
+	rpsscounter = (u32 *) (KSEG1 + 0x1fa01004);
 	dmactrlregs = (struct sgimc_dma_ctrl *) (KSEG1+0x1fa02000);
 
 	printk("MC: SGI memory controller Revision %d\n",

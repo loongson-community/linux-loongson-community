@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: asm.h,v 1.1 1999/08/18 23:37:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -93,6 +93,17 @@ symbol		=	value
 		.set	reorder;                        \
 		la	a0,8f;                          \
 		jal	printk;                         \
+		.set	pop;				\
+		TEXT(string)
+
+/*
+ * Print formated string
+ */
+#define PROM_PRINT(string)                              \
+		.set	push;				\
+		.set	reorder;                        \
+		la	a0,8f;                          \
+		jal	prom_printf;                    \
 		.set	pop;				\
 		TEXT(string)
 

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: system.c,v 1.3 1999/10/19 20:51:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -49,7 +49,7 @@ static int __init string_to_cpu(char *s)
 	prom_printf("\nYeee, could not determine MIPS cpu type <%s>\n", s);
 	prom_printf("press a key to reboot\n");
 	prom_getchar();
-	romvec->imode();
+	ArcEnterInteractiveMode();
 	return 0;
 }
 
@@ -78,7 +78,7 @@ void __init sgi_sysinit(void)
 				prom_printf("\nYeee, SGI MP not ready yet\n");
 				prom_printf("press a key to reboot\n");
 				prom_getchar();
-				romvec->imode();
+				ArcEnterInteractiveMode();
 			}
 			printk("CPU: %s ", p->iname);
 			cpup = p;
@@ -90,7 +90,7 @@ void __init sgi_sysinit(void)
 		prom_printf("\nYeee, could not find cpu ARCS component\n");
 		prom_printf("press a key to reboot\n");
 		prom_getchar();
-		romvec->imode();
+		ArcEnterInteractiveMode();
 	}
 	p = ArcGetChild(cpup);
 	while(p) {

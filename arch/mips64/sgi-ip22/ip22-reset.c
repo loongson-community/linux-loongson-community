@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip22-reset.c,v 1.3 1999/10/08 21:07:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -15,7 +15,6 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
-#include <asm/reboot.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/sgihpc.h>
 #include <asm/sgi/sgint23.h>
@@ -38,26 +37,26 @@ static unsigned char sgi_volume;
 static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
 static int shuting_down, has_paniced;
 
-static void ip22_machine_restart(char *command) __attribute__((noreturn));
-static void ip22_machine_halt(void) __attribute__((noreturn));
-static void ip22_machine_power_off(void) __attribute__((noreturn));
+void machine_restart(char *command) __attribute__((noreturn));
+void machine_halt(void) __attribute__((noreturn));
+void machine_power_off(void) __attribute__((noreturn));
 
 /* XXX How to pass the reboot command to the firmware??? */
-static void ip22_machine_restart(char *command)
+void machine_restart(char *command)
 {
 	if (shuting_down)
-		ip22_machine_power_off();
+		machine_power_off();
 	ArcReboot();
 }
 
-static void ip22_machine_halt(void)
+void machine_halt(void)
 {
 	if (shuting_down)
-		ip22_machine_power_off();
+		machine_power_off();
 	ArcEnterInteractiveMode();
 }
 
-static void ip22_machine_power_off(void)
+void machine_power_off(void)
 {
 	struct indy_clock *clock = (struct indy_clock *)INDY_CLOCK_REGS;
 
@@ -79,7 +78,7 @@ static void ip22_machine_power_off(void)
 
 static void power_timeout(unsigned long data)
 {
-	ip22_machine_power_off();
+	machine_power_off();
 }
 
 static void blink_timeout(unsigned long data)
@@ -118,7 +117,7 @@ static inline void power_button(void)
 
 	if (shuting_down || kill_proc(1, SIGINT, 1)) {
 		/* No init process or button pressed twice.  */
-		ip22_machine_power_off();
+		machine_power_off();
 	}
 
 	shuting_down = 1;
@@ -234,10 +233,6 @@ void ip22_reboot_setup(void)
 	if (setup_done)
 		return;
 	setup_done = 1;
-
-	_machine_restart = ip22_machine_restart;
-	_machine_halt = ip22_machine_halt;
-	_machine_power_off = ip22_machine_power_off;
 
 	request_irq(9, panel_int, 0, "Front Panel", NULL);
 	init_timer(&blink_timer);
