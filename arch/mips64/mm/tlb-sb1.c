@@ -324,11 +324,7 @@ void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
  */
 void sb1_tlb_init(void)
 {
-	u32 config1;
-
 	write_c0_pagemask(PM_4K);
-	config1 = read_c0_config1();
-	current_cpu_data.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 
 	/*
 	 * We don't know what state the firmware left the TLB's in, so this is
