@@ -66,7 +66,7 @@ void __init loadmmu(void)
 		ld_mmu_r5432();
 #endif
 
-#if defined(CONFIG_CPU_MIPS32)
+#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
 		printk("Loading MIPS32 MMU routines.\n");
 		ld_mmu_mips32();
 #endif

@@ -20,6 +20,7 @@ obj-$(CONFIG_CPU_NEVADA)	+= r4xx0.o
 obj-$(CONFIG_CPU_R5432)		+= r5432.o
 obj-$(CONFIG_CPU_RM7000)	+= rm7k.o
 obj-$(CONFIG_CPU_MIPS32)	+= mips32.o
+obj-$(CONFIG_CPU_MIPS64)	+= mips32.o
 obj-$(CONFIG_SGI_IP22)		+= umap.o
 obj-$(CONFIG_BAGET_MIPS)	+= umap.o
 
