@@ -13,6 +13,32 @@
 #
 
 #
+# Select the object file format to substitute into the linker script.
+#
+ifdef CONFIG_CPU_LITTLE_ENDIAN
+32bit-tool-prefix	= mips64el-linux-
+64bit-tool-prefix	= mips64el-linux-
+32bit-bfd		= elf32-tradlittlemips
+64bit-bfd		= elf64-tradlittlemips
+else
+32bit-tool-prefix	= mips64-linux-
+64bit-tool-prefix	= mips64-linux-
+32bit-bfd		= elf32-tradbigmips
+64bit-bfd		= elf64-tradbigmips
+endif
+
+ifdef CONFIG_MIPS32
+tool-prefix		= $(32bit-tool-prefix)
+endif
+ifdef CONFIG_MIPS64
+tool-prefix		= $(64bit-tool-prefix)
+endif
+
+ifdef CONFIG_CROSSCOMPILE
+CROSS_COMPILE		:= $(tool-prefix)
+endif
+
+#
 # GCC uses -G 0 -mabicalls -fpic as default.  We don't want PIC in the kernel
 # code since it only slows down the whole thing.  At some point we might make
 # use of global pointer optimizations but their use of $28 conflicts with
@@ -24,6 +50,7 @@
 #
 cflags-y			:= -I $(TOPDIR)/include/asm/gcc
 cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
+cflags-$(CONFIG_MIPS32)		+= $(call check_gcc, -mabi=32,)
 cflags-$(CONFIG_MIPS64)		+= -mabi=64
 LDFLAGS_vmlinux			+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
@@ -67,9 +94,9 @@ cflags-$(CONFIG_CPU_VR41XX)	+= -mcpu=r4600
 cflags-$(CONFIG_CPU_R4X00)	+= -mcpu=r4600
 32bit-isa-$(CONFIG_CPU_R4X00)	+= -mips2 -Wa,--trap
 64bit-isa-$(CONFIG_CPU_R4X00)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_MIPS32)	+= -mcpu=r4600
-32bit-isa-$(CONFIG_CPU_MIPS32)	+= $(call check_gcc, -mips32, -mips2) -Wa,--trap
-64bit-isa-$(CONFIG_CPU_MIPS32)	+= -mboom -Wa,--trap
+cflags-$(CONFIG_CPU_MIPS32)	+= $(call check_gcc, -mtune=mips32, -mcpu=r4600)
+32bit-isa-$(CONFIG_CPU_MIPS32)	+= $(call check_gcc, -mips32 -mabi=32, -mips2) -Wa,--trap
+64bit-isa-$(CONFIG_CPU_MIPS32)	+= -mboom
 cflags-$(CONFIG_CPU_MIPS64)	+= 
 32bit-isa-$(CONFIG_CPU_MIPS64)	+= $(call check_gcc, -mips32, -mips2) -Wa,--trap
 64bit-isa-$(CONFIG_CPU_MIPS64)	+= $(call check_gcc, -mips64, -mips4) -Wa,--trap
@@ -407,28 +434,11 @@ load-$(CONFIG_TOSHIBA_RBTX4927)	+= 0x80020000
 
 drivers-$(CONFIG_PCI)		+= arch/mips/pci/
 
-#
-# Select the object file format to substitute into the linker script.
-#
-ifdef CONFIG_CPU_LITTLE_ENDIAN
-32bit-tool-prefix	= mips64el-linux-
-64bit-tool-prefix	= mips64el-linux-
-32bit-bfd		= elf32-tradlittlemips
-64bit-bfd		= elf64-tradlittlemips
-else
-32bit-tool-prefix	= mips64-linux-
-64bit-tool-prefix	= mips64-linux-
-32bit-bfd		= elf32-tradbigmips
-64bit-bfd		= elf64-tradbigmips
-endif
-
 ifdef CONFIG_MIPS32
-tool-prefix		= $(32bit-tool-prefix)
 build-bfd		= $(32bit-bfd)
 cflags-y		+= $(32bit-isa-y)
 endif
 ifdef CONFIG_MIPS64
-tool-prefix		= $(64bit-tool-prefix)
 build-bfd		= $(64bit-bfd)
 cflags-y		+= $(64bit-isa-y)
 endif
@@ -443,10 +453,6 @@ else
 JIFFIES			= jiffies_64
 endif
 
-ifdef CONFIG_CROSSCOMPILE
-CROSS_COMPILE		:= $(tool-prefix)
-endif
-
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then
@@ -457,12 +463,17 @@ endif
 #
 #AS += -64
 #LDFLAGS += -m elf64bmip
-cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32
-cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32
 
+ifdef CONFIG_MIPS64
+#
+# We use an unusual code model for building 64-bit kernels.  64-bit ELF,
+# squeezed into 32-bit ELF files.  Later version of gas throw silly warnings
+# which requires the use of -mgp64 which not all gas versions have ...
+#
 GRRR=-Wa,-mgp64
 cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32 $(call check_warning, $(GRRR),)
 cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32 $(call check_warning, $(GRRR),)
+endif
 
 #
 # Choosing incompatible machines durings configuration will result in
