@@ -74,6 +74,8 @@ static int mace_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 
 		return PCIBIOS_SUCCESSFUL;
 	}
+
+	return PCIBIOS_BAD_REGISTER_NUMBER;
 }
 
 static int mace_pci_write_config(struct pci_bus *bus, unsigned int devfn,
@@ -107,6 +109,8 @@ static int mace_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 
 		return PCIBIOS_SUCCESSFUL;
 	}
+
+	return PCIBIOS_BAD_REGISTER_NUMBER;
 }
 
 struct pci_ops mace_pci_ops = {
