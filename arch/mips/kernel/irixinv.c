@@ -4,8 +4,6 @@
  * use the linked lists for the inventory yet. 
  *
  * Miguel de Icaza, 1997.
- *
- * $Id: irixinv.c,v 1.3 1998/04/05 11:23:51 ralf Exp $
  */
 #include <linux/mm.h>
 #include <linux/init.h>
@@ -79,3 +77,5 @@ void __init init_inventory (void)
 	add_to_inventory (2, 2, 0, 1, 0);
 	add_to_inventory (7, 14, 0, 0, 6);
 }
+
+__initcall(init_inventory);

@@ -87,7 +87,6 @@ static int init(void *);
 
 extern void init_IRQ(void);
 extern void init_modules(void);
-extern void init_inventory(void);
 extern void sock_init(void);
 extern void fork_init(unsigned long);
 extern void mca_init(void);
@@ -571,9 +570,6 @@ asmlinkage void __init start_kernel(void)
 		    "disabling it.\n",initrd_start,min_low_pfn << PAGE_SHIFT);
 		initrd_start = 0;
 	}
-#endif
-#ifdef CONFIG_BINFMT_IRIX
-	init_inventory();
 #endif
 	mem_init();
 	kmem_cache_sizes_init();
