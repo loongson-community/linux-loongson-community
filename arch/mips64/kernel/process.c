@@ -29,6 +29,7 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>
+#include <asm/cpu.h>
 
 ATTRIB_NORET void cpu_idle(void)
 {
@@ -49,8 +50,10 @@ void exit_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (IS_FPU_OWNER()) {
-		__enable_fpu();
-		__asm__ __volatile__("cfc1\t$0,$31");
+		if (mips_cpu.options & MIPS_CPU_FPU) {
+			__enable_fpu();
+			__asm__ __volatile__("cfc1\t$0,$31");
+		}
 		CLEAR_FPU_OWNER();
 	}
 }
@@ -59,8 +62,10 @@ void flush_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (IS_FPU_OWNER()) {
-		__enable_fpu();
-		__asm__ __volatile__("cfc1\t$0,$31");
+		if (mips_cpu.options & MIPS_CPU_FPU) {
+			__enable_fpu();
+			__asm__ __volatile__("cfc1\t$0,$31");
+		}
 		CLEAR_FPU_OWNER();
 	}
 }
@@ -76,7 +81,8 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 
 	if (IS_FPU_OWNER()) {
-		save_fp(p);
+		if (mips_cpu.options & MIPS_CPU_FPU)
+			save_fp(p);
 	}
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;

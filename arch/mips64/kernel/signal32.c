@@ -31,8 +31,8 @@
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
 
 extern asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs);
-extern asmlinkage int save_fp_context(struct sigcontext *sc);
-extern asmlinkage int restore_fp_context(struct sigcontext *sc);
+extern asmlinkage int (*save_fp_context)(struct sigcontext *sc);
+extern asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
 
 extern asmlinkage void do_syscall_trace(void);
 
@@ -62,38 +62,6 @@ typedef struct sigaltstack32 {
 	__kernel_size_t32 ss_size;
 	int ss_flags;
 } stack32_t;
-
-
-static inline int store_fp_context(struct sigcontext *sc)
-{
-	unsigned int fcr0;
-	int err = 0;
-
-	err |= __copy_to_user(&sc->sc_fpregs[0],
-			      &current->thread.fpu.hard.fp_regs[0],
-			      NUM_FPU_REGS * sizeof(unsigned long));
-	err |= __copy_to_user(&sc->sc_fpc_csr,
-			      &current->thread.fpu.hard.control,
-			      sizeof(unsigned int));
-	__asm__ __volatile__("cfc1 %0, $0\n\t" : "=r" (fcr0));
-	err |= __copy_to_user(&sc->sc_fpc_eir, &fcr0, sizeof(unsigned int));
-
-	return err;
-}
-
-static inline int refill_fp_context(struct sigcontext *sc)
-{
-	int err = 0;
-
-	if (verify_area(VERIFY_READ, sc, sizeof(*sc)))
-		return -EFAULT;
-	err |= __copy_from_user(&current->thread.fpu.hard.fp_regs[0],
-				&sc->sc_fpregs[0],
-				NUM_FPU_REGS * sizeof(unsigned long));
-	err |= __copy_from_user(&current->thread.fpu.hard.control,
-				&sc->sc_fpc_csr, sizeof(unsigned int));
-	return err;
-}
 
 extern void __put_sigset_unknown_nsig(void);
 extern void __get_sigset_unknown_nsig(void);
@@ -289,6 +257,54 @@ asmlinkage int sys32_sigaltstack(abi64_no_regargs, struct pt_regs regs)
 	return ret;
 }
 
+static inline int restore_thread_fp_context(struct sigcontext *sc)
+{
+	u64 *pfreg = &current->thread.fpu.soft.regs[0];
+	int err = 0;
+
+	/* 
+	 * Copy all 32 64-bit values.
+	 */
+
+#define restore_fpr(i) 						\
+	do { err |= __get_user(pfreg[i], &sc->sc_fpregs[i]); } while(0)
+
+	restore_fpr( 0); restore_fpr( 1); restore_fpr( 2); restore_fpr( 3);
+	restore_fpr( 4); restore_fpr( 5); restore_fpr( 6); restore_fpr( 7);
+	restore_fpr( 8); restore_fpr( 9); restore_fpr(10); restore_fpr(11);
+	restore_fpr(12); restore_fpr(13); restore_fpr(14); restore_fpr(15);
+	restore_fpr(16); restore_fpr(17); restore_fpr(18); restore_fpr(19);
+	restore_fpr(20); restore_fpr(21); restore_fpr(22); restore_fpr(23);
+	restore_fpr(24); restore_fpr(25); restore_fpr(26); restore_fpr(27);
+	restore_fpr(28); restore_fpr(29); restore_fpr(30); restore_fpr(31);
+
+	err |= __get_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+
+	return err;
+}
+
+static inline int save_thread_fp_context(struct sigcontext *sc)
+{
+	u64 *pfreg = &current->thread.fpu.soft.regs[0];
+	int err = 0;
+
+#define save_fpr(i) 							\
+	do { err |= __put_user(pfreg[i], &sc->sc_fpregs[i]); } while(0)
+
+	save_fpr( 0); save_fpr( 1); save_fpr( 2); save_fpr( 3);
+	save_fpr( 4); save_fpr( 5); save_fpr( 6); save_fpr( 7);
+	save_fpr( 8); save_fpr( 9); save_fpr(10); save_fpr(11);
+	save_fpr(12); save_fpr(13); save_fpr(14); save_fpr(15);
+	save_fpr(16); save_fpr(17); save_fpr(18); save_fpr(19);
+	save_fpr(20); save_fpr(21); save_fpr(22); save_fpr(23);
+	save_fpr(24); save_fpr(25); save_fpr(26); save_fpr(27);
+	save_fpr(28); save_fpr(29); save_fpr(30); save_fpr(31);
+
+	err |= __put_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+
+	return err;
+}
+
 static asmlinkage int restore_sigcontext(struct pt_regs *regs,
 					 struct sigcontext *sc)
 {
@@ -316,15 +332,24 @@ static asmlinkage int restore_sigcontext(struct pt_regs *regs,
 #undef restore_gp_reg
 
 	err |= __get_user(owned_fp, &sc->sc_ownedfp);
+	err |= __get_user(current->used_math, &sc->sc_used_math);
+
 	if (owned_fp) {
-		if (IS_FPU_OWNER()) {
-			CLEAR_FPU_OWNER();
-			regs->cp0_status &= ~ST0_CU1;
-		}
-		current->used_math = 1;
-		err |= refill_fp_context(sc);
+		err |= restore_fp_context(sc);
+		goto out;
 	}
 
+	if (IS_FPU_OWNER()) {
+		/* Signal handler acquired FPU - give it back */
+		CLEAR_FPU_OWNER();
+		regs->cp0_status &= ~ST0_CU1;
+	}
+	if (current->used_math) {
+		/* Undo possible contamination of thread state */
+		err |= restore_thread_fp_context(sc);
+	}
+
+out:
 	return err;
 }
 
@@ -422,9 +447,11 @@ badframe:
 static int inline setup_sigcontext(struct pt_regs *regs,
 				   struct sigcontext *sc)
 {
+	int owned_fp;
 	int err = 0;
 
 	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
+	err |= __put_user(regs->cp0_status, &sc->sc_status);
 
 #define save_gp_reg(i) {						\
 	err |= __put_user(regs->regs[i], &sc->sc_regs[i]);		\
@@ -445,20 +472,27 @@ static int inline setup_sigcontext(struct pt_regs *regs,
 	err |= __put_user(regs->cp0_cause, &sc->sc_cause);
 	err |= __put_user(regs->cp0_badvaddr, &sc->sc_badvaddr);
 
-	if (current->used_math) {	/* fp is active.  */
-		if (IS_FPU_OWNER()) {
-			lazy_fpu_switch(current, 0);
-			CLEAR_FPU_OWNER();
-			regs->cp0_status &= ~ST0_CU1;
-		}
-		err |= __put_user(1, &sc->sc_ownedfp);
-		err |= store_fp_context(sc);
-		current->used_math = 0;
-	} else {
-		err |= __put_user(0, &sc->sc_ownedfp);
-	}
-	err |= __put_user(regs->cp0_status, &sc->sc_status);
+	owned_fp = IS_FPU_OWNER();
+	err |= __put_user(owned_fp, &sc->sc_ownedfp);
+	err |= __put_user(current->used_math, &sc->sc_used_math);
 
+	if (!current->used_math)
+		goto out;
+
+	/* There exists FP thread state that may be trashed by signal */
+	if (owned_fp) {	
+		/* fp is active.  Save context from FPU */
+		err |= save_fp_context(sc);
+		goto out;
+	}
+
+	/* 
+	 * Someone else has FPU. 
+	 * Copy Thread context into signal context 
+	 */
+	err |= save_thread_fp_context(sc);
+
+out:
 	return err;
 }
 
@@ -472,6 +506,13 @@ static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 
 	/* Default to using normal stack */
 	sp = regs->regs[29];
+
+	/* 
+ 	 * FPU emulator may have it's own trampoline active just
+ 	 * above the user stack, 16-bytes before the next lowest
+ 	 * 16 byte boundary.  Try to avoid trashing it.
+ 	 */
+ 	sp -= 32;
 
 	/* This is the X/Open sanctioned signal stack switching.  */
 	if ((ka->sa.sa_flags & SA_ONSTACK) && ! on_sig_stack(sp))

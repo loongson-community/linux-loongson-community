@@ -655,6 +655,14 @@ void *set_except_vector(int n, void *addr)
 	return (void *)old_handler;
 }
 
+asmlinkage int (*save_fp_context)(struct sigcontext *sc);
+asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
+extern asmlinkage int _save_fp_context(struct sigcontext *sc);
+extern asmlinkage int _restore_fp_context(struct sigcontext *sc);
+
+extern asmlinkage int fpu_emulator_save_context(struct sigcontext *sc);
+extern asmlinkage int fpu_emulator_restore_context(struct sigcontext *sc);
+
 void __init per_cpu_trap_init(void)
 {
 	unsigned int cpu = smp_processor_id();
@@ -796,6 +804,14 @@ void __init trap_init(void)
 		panic("Unknown CPU type");
 	}
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
+
+	if (mips_cpu.options & MIPS_CPU_FPU) {
+	        save_fp_context = _save_fp_context;
+		restore_fp_context = _restore_fp_context;
+	} else {
+		save_fp_context = fpu_emulator_save_context;
+		restore_fp_context = fpu_emulator_restore_context;
+	}
 
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
 		set_cp0_status(ST0_XX);
