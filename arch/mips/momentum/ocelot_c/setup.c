@@ -1,6 +1,4 @@
 /*
- * setup.c
- *
  * BRIEF MODULE DESCRIPTION
  * Momentum Computer Ocelot-C and -CS board dependent boot routines
  *
@@ -112,9 +110,6 @@ void PMON_v2_setup(void)
 	mv64340_base = 0xf4000000;
 }
 
-#define CONV_BCD2BIN(val)	(((val) & 0xf) + (((val) >> 4) * 10))
-#define CONV_BIN2BCD(val)	(((val) % 10) + (((val) / 10) << 4))
-
 unsigned long m48t37y_get_time(void)
 {
 	unsigned char* rtc_base = (unsigned char*)0xfc800000;
@@ -123,16 +118,16 @@ unsigned long m48t37y_get_time(void)
 	/* stop the update */
 	rtc_base[0x7ff8] = 0x40;
 
-	year = CONV_BCD2BIN(rtc_base[0x7fff]);
-	year += CONV_BCD2BIN(rtc_base[0x7ff1]) * 100;
+	year = BCD2BIN(rtc_base[0x7fff]);
+	year += BCD2BIN(rtc_base[0x7ff1]) * 100;
 
-	month = CONV_BCD2BIN(rtc_base[0x7ffe]);
+	month = BCD2BIN(rtc_base[0x7ffe]);
 
-	day = CONV_BCD2BIN(rtc_base[0x7ffd]);
+	day = BCD2BIN(rtc_base[0x7ffd]);
 
-	hour = CONV_BCD2BIN(rtc_base[0x7ffb]);
-	min = CONV_BCD2BIN(rtc_base[0x7ffa]);
-	sec = CONV_BCD2BIN(rtc_base[0x7ff9]);
+	hour = BCD2BIN(rtc_base[0x7ffb]);
+	min = BCD2BIN(rtc_base[0x7ffa]);
+	sec = BCD2BIN(rtc_base[0x7ff9]);
 
 	/* start the update */
 	rtc_base[0x7ff8] = 0x00;
@@ -153,19 +148,19 @@ int m48t37y_set_time(unsigned long sec)
 	rtc_base[0x7ff8] = 0x80;
 
 	/* year */
-	rtc_base[0x7fff] = CONV_BIN2BCD(tm.tm_year % 100);
-	rtc_base[0x7ff1] = CONV_BIN2BCD(tm.tm_year / 100);
+	rtc_base[0x7fff] = BIN2BCD(tm.tm_year % 100);
+	rtc_base[0x7ff1] = BIN2BCD(tm.tm_year / 100);
 
 	/* month */
-	rtc_base[0x7ffe] = CONV_BIN2BCD(tm.tm_mon);
+	rtc_base[0x7ffe] = BIN2BCD(tm.tm_mon);
 
 	/* day */
-	rtc_base[0x7ffd] = CONV_BIN2BCD(tm.tm_mday);
+	rtc_base[0x7ffd] = BIN2BCD(tm.tm_mday);
 
 	/* hour/min/sec */
-	rtc_base[0x7ffb] = CONV_BIN2BCD(tm.tm_hour);
-	rtc_base[0x7ffa] = CONV_BIN2BCD(tm.tm_min);
-	rtc_base[0x7ff9] = CONV_BIN2BCD(tm.tm_sec);
+	rtc_base[0x7ffb] = BIN2BCD(tm.tm_hour);
+	rtc_base[0x7ffa] = BIN2BCD(tm.tm_min);
+	rtc_base[0x7ff9] = BIN2BCD(tm.tm_sec);
 
 	/* day of week -- not really used, but let's keep it up-to-date */
 	rtc_base[0x7ffc] = CONV_BIN2BCD(tm.tm_wday + 1);

@@ -8,9 +8,7 @@
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- *
  */
-
 #include <linux/bcd.h>
 #include <linux/types.h>
 #include <linux/time.h>
@@ -109,9 +107,6 @@ static int xicor_write(uint8_t addr, int b)
 	}
 }
 
-#define BCD2BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
-#define BIN2BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
-
 int xicor_set_time(unsigned long t)
 {
 	struct rtc_time tm;
@@ -124,18 +119,18 @@ int xicor_set_time(unsigned long t)
 	xicor_write(X1241REG_SR, X1241REG_SR_WEL | X1241REG_SR_RWEL);
 
 	/* trivial ones */
-	BIN2BCD(tm.tm_sec);
+	tm.tm_sec = BIN2BCD(tm.tm_sec);
 	xicor_write(X1241REG_SC, tm.tm_sec);
 
-	BIN2BCD(tm.tm_min);
+	tm.tm_min = BIN2BCD(tm.tm_min);
 	xicor_write(X1241REG_MN, tm.tm_min);
 
-	BIN2BCD(tm.tm_mday);
+	tm.tm_mday = BIN2BCD(tm.tm_mday);
 	xicor_write(X1241REG_DT, tm.tm_mday);
 
 	/* tm_mon starts from 0, *ick* */
 	tm.tm_mon ++;
-	BIN2BCD(tm.tm_mon);
+	tm.tm_mon = BIN2BCD(tm.tm_mon);
 	xicor_write(X1241REG_MO, tm.tm_mon);
 
 	/* year is split */
@@ -148,7 +143,7 @@ int xicor_set_time(unsigned long t)
 	tmp = xicor_read(X1241REG_HR);
 	if (tmp & X1241REG_HR_MIL) {
 		/* 24 hour format */
-		BIN2BCD(tm.tm_hour);
+		tm.tm_hour = BIN2BCD(tm.tm_hour);
 		tmp = (tmp & ~0x3f) | (tm.tm_hour & 0x3f);
 	} else {
 		/* 12 hour format, with 0x2 for pm */
@@ -157,7 +152,7 @@ int xicor_set_time(unsigned long t)
 			tmp |= 0x20;
 			tm.tm_hour -= 12;
 		}
-		BIN2BCD(tm.tm_hour);
+		tm.tm_hour = BIN2BCD(tm.tm_hour);
 		tmp |= tm.tm_hour;
 	}
 	xicor_write(X1241REG_HR, tmp);
@@ -187,13 +182,13 @@ unsigned long xicor_get_time(void)
 	year = xicor_read(X1241REG_YR);
 	y2k = xicor_read(X1241REG_Y2K);
 
-	BCD2BIN(sec);
-	BCD2BIN(min);
-	BCD2BIN(hour);
-	BCD2BIN(day);
-	BCD2BIN(mon);
-	BCD2BIN(year);
-	BCD2BIN(y2k);
+	sec = BCD2BIN(sec);
+	min = BCD2BIN(min);
+	hour = BCD2BIN(hour);
+	day = BCD2BIN(day);
+	mon = BCD2BIN(mon);
+	year = BCD2BIN(year);
+	y2k = BCD2BIN(y2k);
 
 	year += (y2k * 100);
 

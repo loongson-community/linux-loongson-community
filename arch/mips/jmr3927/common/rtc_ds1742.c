@@ -1,5 +1,4 @@
 /*
- *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *              ahennessy@mvista.com
@@ -50,12 +49,6 @@
 #include <asm/debug.h>
 
 #define	EPOCH		2000
-
-#undef BCD2BIN
-#define BCD2BIN(val) (((val)&15) + ((val)>>4)*10)
-
-#undef BIN2BCD
-#define BIN2BCD(val) ((((val)/10)<<4) + (val)%10)
 
 static unsigned long rtc_base;
 

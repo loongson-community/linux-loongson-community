@@ -125,9 +125,6 @@ static int xicor_write(uint8_t addr, int b)
 	}
 }
 
-#define BCD2BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
-#define BIN2BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
-
 /*
  * In order to set the CMOS clock precisely, set_rtc_mmss has to be
  * called 500 ms after the second nowtime has started, because when
@@ -144,7 +141,7 @@ int set_rtc_mmss(unsigned long nowtime)
 	int real_seconds, real_minutes, cmos_minutes;
 
 	cmos_minutes = xicor_read(X1241REG_MN);
-	BCD2BIN(cmos_minutes);
+	cmos_minutes = BCD2BIN(cmos_minutes);
 
 	/*
 	 * since we're only adjusting minutes and seconds,
@@ -163,8 +160,8 @@ int set_rtc_mmss(unsigned long nowtime)
 	xicor_write(X1241REG_SR, X1241REG_SR_WEL | X1241REG_SR_RWEL);
 
 	if (abs(real_minutes - cmos_minutes) < 30) {
-		BIN2BCD(real_seconds);
-		BIN2BCD(real_minutes);
+		real_seconds = BIN2BCD(real_seconds);
+		real_minutes = BIN2BCD(real_minutes);
 		xicor_write(X1241REG_SC, real_seconds);
 		xicor_write(X1241REG_MN, real_minutes);
 	} else {
@@ -196,19 +193,19 @@ static unsigned long __init get_swarm_time(void)
 			hour = (hour & 0xf) + 0x12;
 	}
 
-	BCD2BIN(sec);
-	BCD2BIN(min);
-	BCD2BIN(hour);
+	sec = BCD2BIN(sec);
+	min = BCD2BIN(min);
+	hour = BCD2BIN(hour);
 
 	day = xicor_read(X1241REG_DT);
 	mon = xicor_read(X1241REG_MO);
 	year = xicor_read(X1241REG_YR);
 	y2k = xicor_read(X1241REG_Y2K);
 
-	BCD2BIN(day);
-	BCD2BIN(mon);
-	BCD2BIN(year);
-	BCD2BIN(y2k);
+	day = BCD2BIN(day);
+	mon = BCD2BIN(mon);
+	year = BCD2BIN(year);
+	y2k = BCD2BIN(y2k);
 
 	year += (y2k * 100);
 

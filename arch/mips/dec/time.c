@@ -284,7 +284,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 	cmos_minutes = CMOS_READ(RTC_MINUTES);
 	if (!(save_control & RTC_DM_BINARY) || RTC_ALWAYS_BCD)
-		BCD2BIN(cmos_minutes);
+		cmos_minutes = BCD2BIN(cmos_minutes);
 
 	/*
 	 * since we're only adjusting minutes and seconds,
@@ -300,8 +300,8 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 	if (abs(real_minutes - cmos_minutes) < 30) {
 		if (!(save_control & RTC_DM_BINARY) || RTC_ALWAYS_BCD) {
-			BIN2BCD(real_seconds);
-			BIN2BCD(real_minutes);
+			real_seconds = BIN2BCD(real_seconds);
+			real_minutes = BIN2BCD(real_minutes);
 		}
 		CMOS_WRITE(real_seconds, RTC_SECONDS);
 		CMOS_WRITE(real_minutes, RTC_MINUTES);
@@ -469,12 +469,12 @@ void __init time_init(void)
 		year = CMOS_READ(RTC_YEAR);
 	} while (sec != CMOS_READ(RTC_SECONDS));
 	if (!(CMOS_READ(RTC_CONTROL) & RTC_DM_BINARY) || RTC_ALWAYS_BCD) {
-		BCD2BIN(sec);
-		BCD2BIN(min);
-		BCD2BIN(hour);
-		BCD2BIN(day);
-		BCD2BIN(mon);
-		BCD2BIN(year);
+		sec = BCD2BIN(sec);
+		min = BCD2BIN(min);
+		hour = BCD2BIN(hour);
+		day = BCD2BIN(day);
+		mon = BCD2BIN(mon);
+		year = BCD2BIN(year);
 	}
 	/*
 	 * The PROM will reset the year to either '72 or '73.

@@ -10,7 +10,6 @@
  * option) any later version.
  *
  */
-
 #include <linux/bcd.h>
 #include <linux/types.h>
 #include <linux/time.h>
@@ -139,9 +138,6 @@ static int m41t81_write(uint8_t addr, int b)
 	return 0;
 }
 
-#define BCD2BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
-#define BIN2BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
-
 int m41t81_set_time(unsigned long t)
 {
 	struct rtc_time tm;
@@ -154,32 +150,32 @@ int m41t81_set_time(unsigned long t)
 	 * believe we should finish writing min within a second.
 	 */
 
-	BIN2BCD(tm.tm_sec);
+	tm.tm_sec = BIN2BCD(tm.tm_sec);
 	m41t81_write(M41T81REG_SC, tm.tm_sec);
 	
-	BIN2BCD(tm.tm_min);
+	tm.tm_min = BIN2BCD(tm.tm_min);
 	m41t81_write(M41T81REG_MN, tm.tm_min);
 
-	BIN2BCD(tm.tm_hour);
+	tm.tm_hour = BIN2BCD(tm.tm_hour);
 	tm.tm_hour = (tm.tm_hour & 0x3f) | (m41t81_read(M41T81REG_HR) & 0xc0);
 	m41t81_write(M41T81REG_HR, tm.tm_hour);
 
 	/* tm_wday starts from 0 to 6 */
 	if (tm.tm_wday == 0) tm.tm_wday = 7;
-	BIN2BCD(tm.tm_wday);
+	tm.tm_wday = BIN2BCD(tm.tm_wday);
 	m41t81_write(M41T81REG_DY, tm.tm_wday);
 
-	BIN2BCD(tm.tm_mday);
+	tm.tm_mday = BIN2BCD(tm.tm_mday);
 	m41t81_write(M41T81REG_DT, tm.tm_mday);
 
 	/* tm_mon starts from 0, *ick* */
 	tm.tm_mon ++;
-	BIN2BCD(tm.tm_mon);
+	tm.tm_mon = BIN2BCD(tm.tm_mon);
 	m41t81_write(M41T81REG_MO, tm.tm_mon);
 
 	/* we don't do century, everything is beyond 2000 */
 	tm.tm_year %= 100;
-	BIN2BCD(tm.tm_year);
+	tm.tm_year = BIN2BCD(tm.tm_year);
 	m41t81_write(M41T81REG_YR, tm.tm_year);
 
 	return 0;
@@ -202,12 +198,12 @@ unsigned long m41t81_get_time(void)
 	mon = m41t81_read(M41T81REG_MO);
 	year = m41t81_read(M41T81REG_YR);
 
-	BCD2BIN(sec);
-	BCD2BIN(min);
-	BCD2BIN(hour);
-	BCD2BIN(day);
-	BCD2BIN(mon);
-	BCD2BIN(year);
+	sec = BCD2BIN(sec);
+	min = BCD2BIN(min);
+	hour = BCD2BIN(hour);
+	day = BCD2BIN(day);
+	mon = BCD2BIN(mon);
+	year = BCD2BIN(year);
 
 	year += 2000;
 
