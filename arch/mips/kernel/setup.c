@@ -100,7 +100,7 @@ EXPORT_SYMBOL(mips_io_port_base);
 
 
 /*
- * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
+ * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped
  * for the processor.
  */
 unsigned long isa_slot_offset;

@@ -107,7 +107,7 @@ extern void ip27_setup(void);
 extern void ip32_setup(void);
 
 /*
- * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
+ * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped
  * for the processor.
  */
 unsigned long isa_slot_offset;

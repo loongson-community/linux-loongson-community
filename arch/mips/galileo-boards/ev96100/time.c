@@ -221,7 +221,7 @@ void do_settimeofday(struct timeval *tv)
 	write_lock_irq (&xtime_lock);
 
 	/* This is revolting. We need to set the xtime.tv_usec correctly.
-	 * However, the value in this location is is value at the last tick.
+	 * However, the value in this location is value at the last tick.
 	 * Discover what correction gettimeofday would have done, and then
 	 * undo it!
 	 */
