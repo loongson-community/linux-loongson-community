@@ -493,7 +493,7 @@ config ARC
 
 config GENERIC_ISA_DMA
 	bool
-	depends on SNI_RM200_PCI || MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61
+	depends on SNI_RM200_PCI || MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61 || MIPS_MALTA
 	default y
 
 config CONFIG_GT64120
@@ -573,6 +573,7 @@ config NEW_PCI
 config SWAP_IO_SPACE
 	bool
 	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SIBYTE_SB1250 || SGI_IP22 || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || MIPS_EV96100 || MIPS_PB1100 || MIPS_PB1000
+	default y
 
 config SIBYTE_HAS_LDT
 	bool
@@ -1045,13 +1046,6 @@ config ISA
 	  inside your box.  Other bus systems are PCI, EISA, or VESA.  ISA is
 	  an older system, now being displaced by PCI; newer boards don't
 	  support it.  If you have ISA, say Y, otherwise N.
-
-#
-# The SCSI bits are needed to get the SCSI code to link ...
-#
-config GENERIC_ISA_DMA
-	bool
-	default y if ACER_PICA_61 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || SNI_RM200_PCI || SCSI
 
 config EISA
 	bool "EISA support"
