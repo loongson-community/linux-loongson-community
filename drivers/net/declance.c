@@ -43,9 +43,10 @@
  */
 
 #include <linux/config.h>
-#include <linux/delay.h>
 #include <linux/crc32.h>
+#include <linux/delay.h>
 #include <linux/errno.h>
+#include <linux/if_ether.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
