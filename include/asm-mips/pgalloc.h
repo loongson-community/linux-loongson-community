@@ -23,8 +23,7 @@ static inline void pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmd,
 static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
 	struct page *pte)
 {
-	set_pmd(pmd, __pmd(((unsigned long long)page_to_pfn(pte) <<
-			(unsigned long long) PAGE_SHIFT)));
+	set_pmd(pmd, __pmd((unsigned long)page_address(pte)));
 }
 
 #define pgd_populate(mm, pmd, pte)	BUG()
