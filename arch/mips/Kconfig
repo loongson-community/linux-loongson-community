@@ -117,7 +117,7 @@ config MIPS_COBALT
 
 config MACH_DECSTATION
 	bool "Support for DECstations"
-	depends on MIPS32 || EXPERIMENTAL
+	depends on MIPS32 && EXPERIMENTAL
 	---help---
 	  This enables support for DEC's MIPS based workstations.  For details
 	  see the Linux/MIPS FAQ on <http://www.linux-mips.org/> and the
