@@ -55,6 +55,7 @@
 
 #include <asm/addrspace.h>
 #include <asm/dec/interrupts.h>
+#include <asm/dec/ioasic.h>
 #include <asm/dec/ioasic_addrs.h>
 #include <asm/dec/kn01.h>
 #include <asm/dec/machtype.h>
@@ -245,7 +246,6 @@ struct lance_private {
 	int dma_irq;
 	volatile struct lance_regs *ll;
 	volatile struct lance_init_block *init_block;
-	volatile unsigned long *dma_ptr_reg;
 
 	spinlock_t	lock;
 
@@ -784,15 +784,19 @@ static int lance_open(struct net_device *dev)
 
 	/* Associate IRQ with lance_interrupt */
 	if (request_irq(dev->irq, &lance_interrupt, 0, "lance", dev)) {
-		printk("lance: Can't get irq %d\n", dev->irq);
+		printk("lance: Can't get IRQ %d\n", dev->irq);
 		return -EAGAIN;
 	}
-	if (lp->dma_irq >= 0 &&
-	    request_irq(lp->dma_irq,
-			&lance_dma_merr_int, 0, "lance error", dev)) {
-		free_irq(dev->irq, dev);
-		printk("lance: Can't get dma irq %d\n", lp->dma_irq);
-		return -EAGAIN;
+	if (lp->dma_irq >= 0) {
+		if (request_irq(lp->dma_irq, &lance_dma_merr_int, 0,
+				"lance error", dev)) {
+			free_irq(dev->irq, dev);
+			printk("lance: Can't get DMA IRQ %d\n", lp->dma_irq);
+			return -EAGAIN;
+		}
+		/* Enable I/O ASIC LANCE DMA.  */
+		wbflush();
+		ioasic_write(SSR, ioasic_read(SSR) | LANCE_DMA_EN);
 	}
 
 	status = init_restart_lance(lp);
@@ -817,8 +821,12 @@ static int lance_close(struct net_device *dev)
 	writereg(&ll->rap, LE_CSR0);
 	writereg(&ll->rdp, LE_C0_STOP);
 
-	if (lp->dma_irq >= 0)
+	if (lp->dma_irq >= 0) {
+		/* Disable I/O ASIC LANCE DMA.  */
+		ioasic_write(SSR, ioasic_read(SSR) & ~LANCE_DMA_EN);
+		wbflush();
 		free_irq(lp->dma_irq, dev);
+	}
 	free_irq(dev->irq, dev);
 	/*
 	   MOD_DEC_USE_COUNT;
@@ -1069,16 +1077,10 @@ static int __init dec_lance_init(const int type, const int slot)
 					 i * TX_BUFF_SIZE);
 		}
 
-		/*
-		 * setup and enable IOASIC LANCE DMA
-		 */
+		/* Setup I/O ASIC LANCE DMA.  */
 		lp->dma_irq = dec_interrupt[DEC_IRQ_LANCE_MERR];
-		lp->dma_ptr_reg = (unsigned long *)(system_base +
-						    IOCTL + LANCE_DMA_P);
-		*(lp->dma_ptr_reg) = PHYSADDR(dev->mem_start) << 3;
-		*(unsigned long *)(system_base + IOCTL + SSR) |= (1 << 16);
+		ioasic_write(LANCE_DMA_P, PHYSADDR(dev->mem_start) << 3);
 
-		wbflush();
 		break;
 
 	case PMAD_LANCE:
