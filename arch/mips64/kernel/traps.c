@@ -105,9 +105,12 @@ void show_stack(unsigned long *sp)
 void show_trace(unsigned long *sp)
 {
 	int i;
-	long addr;
+	unsigned long addr;
 
 	printk("Call Trace:");
+#ifdef CONFIG_KALLSYMS
+	printk("\n");
+#endif
 	i = 0;
 	while ((long) sp & (PAGE_SIZE - 1)) {
 
@@ -136,6 +139,7 @@ void show_trace(unsigned long *sp)
 			}
 
 			printk(" [<%016lx>]", addr);
+			print_symbol(" %s\n", addr);
 			i++;
 		}
 	}
@@ -145,6 +149,16 @@ void show_trace(unsigned long *sp)
 void show_trace_task(struct task_struct *tsk)
 {
 	show_trace((long *)tsk->thread.reg29);
+}
+
+/*
+ * The architecture-independent dump_stack generator
+ */
+void dump_stack(void)
+{
+	unsigned long stack;
+
+	show_trace(&stack);
 }
 
 void show_code(unsigned int *pc)
