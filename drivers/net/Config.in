@@ -177,9 +177,6 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	 bool '    Philips SAA9730 Ethernet support (EXPERIMENTAL)' CONFIG_LAN_SAA9730
       fi
-      if [ "$CONFIG_EXPERIMENTAL" = "y" -a "$CONFIG_ORION" = "y" ]; then
-	 bool '    Philips SAA9730 Ethernet support (EXPERIMENTAL)' CONFIG_LAN_SAA9730
-      fi
    fi
    bool '  Pocket and portable adapters' CONFIG_NET_POCKET
    if [ "$CONFIG_NET_POCKET" = "y" ]; then
@@ -195,7 +192,6 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    fi 
    if [ "$CONFIG_BAGET_MIPS" = "y" ]; then
       tristate '  Baget AMD LANCE support' CONFIG_BAGETLANCE
-      tristate '  Baget Backplane Shared Memory support' CONFIG_BAGETBSM
    fi
 fi
 
