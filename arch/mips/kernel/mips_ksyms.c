@@ -8,6 +8,7 @@
  * Copyright (C) 1996, 97, 98, 99, 2000, 01, 03 by Ralf Baechle
  * Copyright (C) 1999, 2000, 01 Silicon Graphics, Inc.
  */
+#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <asm/checksum.h>
 #include <asm/pgtable.h>
@@ -60,3 +61,6 @@ EXPORT_SYMBOL(__strnlen_user_asm);
 EXPORT_SYMBOL(csum_partial);
 
 EXPORT_SYMBOL(invalid_pte_table);
+#ifdef CONFIG_GENERIC_IRQ_PROBE
+EXPORT_SYMBOL(probe_irq_mask);
+#endif
