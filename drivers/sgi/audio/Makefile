@@ -8,7 +8,7 @@
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
 #
-# sbus audio drivers
+# sgi audio drivers
 #
 
 O_TARGET := sgiaudio.o
