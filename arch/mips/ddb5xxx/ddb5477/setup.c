@@ -36,6 +36,7 @@
 #include <asm/gdb-stub.h>
 #include <asm/traps.h>
 #include <asm/debug.h>
+#include <asm/pci_channel.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -172,6 +173,9 @@ extern void ddb5477_irq_setup(void);
 extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
 #endif
 
+extern struct pci_controller ddb5477_ext_controller;
+extern struct pci_controller ddb5477_io_controller;
+
 void __init ddb_setup(void)
 {
 	extern int panic_timeout;
@@ -213,6 +217,9 @@ void __init ddb_setup(void)
 	initrd_start = (unsigned long)&__rd_start;
 	initrd_end = (unsigned long)&__rd_end;
 #endif
+
+	register_pci_controller (&ddb5477_ext_controller);
+	register_pci_controller (&ddb5477_io_controller);
 }
 
 static void __init ddb5477_board_init(void)

@@ -52,13 +52,13 @@ static struct resource iopci_mem_resource = {
 extern struct pci_ops ddb5477_ext_pci_ops;
 extern struct pci_ops ddb5477_io_pci_ops;
 
-struct pci_controller ddb5477_ext_controller[] = {
+struct pci_controller ddb5477_ext_controller = {
 	.pci_ops	= &ddb5477_ext_pci_ops,
 	.io_resource	= &extpci_io_resource,
 	.mem_resource	= &extpci_mem_resource
 };
 
-struct pci_controller ddb5477_io_controller[] = {
+struct pci_controller ddb5477_io_controller = {
 	.pci_ops	= &ddb5477_io_pci_ops,
 	.io_resource	= &iopci_io_resource,
 	.mem_resource	= &iopci_mem_resource
@@ -161,7 +161,6 @@ void __init pcibios_fixup_irqs(void)
 		slot_irq_map = rockhopperII_irq_map;
 	else
 		slot_irq_map = irq_map;
-
 
 	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		slot_num = PCI_SLOT(dev->devfn);
