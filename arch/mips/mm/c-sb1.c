@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 2001 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 2000, 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -85,6 +85,11 @@ static unsigned int dcache_range_cutoff;
 	"	sync				\n"			\
 	"	.set	mips0")
 
+#define mispredict()							\
+	__asm__ __volatile__(						\
+	"	bnezl  $0, 1f		\n" /* Force mispredict */	\
+	"1:				\n");
+
 /*
  * Writeback and invalidate the entire dcache
  */
@@ -107,14 +112,18 @@ static inline void __sb1_writeback_inv_dcache_all(void)
 static inline void __sb1_writeback_inv_dcache_range(unsigned long start,
 	unsigned long end)
 {
+	unsigned long index;
+
 	start &= ~(dcache_line_size - 1);
 	end = (end + dcache_line_size - 1) & ~(dcache_line_size - 1);
 
 	while (start != end) {
-		cache_set_op(Index_Writeback_Inv_D, start);
-		cache_set_op(Index_Writeback_Inv_D, start ^ (1<<12));
+		index = start & dcache_index_mask;
+		cache_set_op(Index_Writeback_Inv_D, index);
+		cache_set_op(Index_Writeback_Inv_D, index ^ (1<<12));
 		start += dcache_line_size;
 	}
+	sync();
 }
 
 /*
@@ -219,11 +228,7 @@ static inline void __sb1_flush_icache_range(unsigned long start,
 		cache_set_op(Index_Invalidate_I, start & icache_index_mask);
 		start += icache_line_size;
 	}
-
-	__asm__ __volatile__(
-	"	bnezl  $0, 1f		\n" /* Force mispredict */
-	"1:				\n");
-
+	mispredict();
 	sync();
 }
 
@@ -362,31 +367,10 @@ asm("sb1_flush_icache_page = local_sb1_flush_icache_page");
  */
 static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 {
-	__asm__ __volatile__ (
-	"	.set	push		\n"
-	"	.set	noreorder	\n"
-	"	.set	noat		\n"
-	"	.set	mips4		\n"
-	"	cache	%2, (0<<13)(%0)	\n" /* Index-inval this address */
-	"	cache	%2, (1<<13)(%0)	\n" /* Index-inval this address */
-	"	cache	%2, (2<<13)(%0)	\n" /* Index-inval this address */
-	"	cache	%2, (3<<13)(%0)	\n" /* Index-inval this address */
-	"	xori	$1, %0, 1<<12	\n" /* Flip index bit 12	*/
-	"	cache	%2, (0<<13)($1)	\n" /* Index-inval this address */
-	"	cache	%2, (1<<13)($1)	\n" /* Index-inval this address */
-	"	cache	%2, (2<<13)($1)	\n" /* Index-inval this address */
-	"	cache	%2, (3<<13)($1)	\n" /* Index-inval this address */
-	"	cache	%3, (0<<13)(%1)	\n" /* Index-inval this address */
-	"	cache	%3, (1<<13)(%1)	\n" /* Index-inval this address */
-	"	cache	%3, (2<<13)(%1)	\n" /* Index-inval this address */
-	"	cache	%3, (3<<13)(%1)	\n" /* Index-inval this address */
-	"	bnezl	$0, 1f		\n" /* Force mispredict */
-	"	 nop			\n"
-	"1:                             \n"
-	"	.set	pop		\n"
-	:
-	: "r" (addr & dcache_index_mask), "r" (addr & icache_index_mask),
-	  "i" (Index_Writeback_Inv_D), "i" (Index_Invalidate_I));
+	cache_set_op(Index_Writeback_Inv_D, addr & dcache_index_mask);
+	cache_set_op(Index_Writeback_Inv_D, (addr ^ (1<<12)) & dcache_index_mask);
+	cache_set_op(Index_Invalidate_I, addr & icache_index_mask);
+	mispredict();
 }
 
 #ifdef CONFIG_SMP
@@ -506,8 +490,8 @@ void ld_mmu_sb1(void)
 	extern char except_vec2_sb1;
 
 	/* Special cache error handler for SB1 */
-	memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
-	memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+	memcpy((void *)(K0BASE + 0x100), &except_vec2_sb1, 0x80);
+	memcpy((void *)(K1BASE + 0x100), &except_vec2_sb1, 0x80);
 
 	probe_cache_sizes();
 
@@ -547,17 +531,19 @@ void ld_mmu_sb1(void)
 	 * This is the only way to force the update of K0 to complete
 	 * before subsequent instruction fetch.
 	 */
-	write_c0_epc(&&here);
 	__asm__ __volatile__(
+	"	.set	noat			\n"
 	"	.set	noreorder		\n"
 	"	.set	mips3\n\t		\n"
+	"	la	$1, 1f			\n"
+	"	mtc0	$1, $14			\n"
 	"	eret				\n"
-	"	.set	mips0\n\t		\n"
+	"1:	.set	mips0\n\t		\n"
+	"	.set	at			\n"
 	"	.set	reorder"
 	:
 	:
 	: "memory");
-here:
 
 	flush_cache_all();
 }
