@@ -62,7 +62,7 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 #ifdef CONFIG_SGI_IP22
 #define PAGE_OFFSET	0xffffffff80000000UL
 #endif
-#ifdef CONFIG_SGI_IP27
+#if defined(CONFIG_SGI_IP27) || defined(CONFIG_SGI_IP32)
 #define PAGE_OFFSET	0xa800000000000000UL
 #endif
 
