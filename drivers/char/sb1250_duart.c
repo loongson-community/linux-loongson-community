@@ -489,9 +489,31 @@ static void duart_set_termios(struct tty_struct *tty, struct termios *old)
 	duart_set_cflag(us->line, tty->termios->c_cflag);
 }
 
+static int get_serial_info(uart_state_t *us, struct serial_struct * retinfo) {
+
+	struct serial_struct tmp;
+
+	memset(&tmp, 0, sizeof(tmp));
+
+	tmp.type=PORT_SB1250;
+	tmp.line=us->line;
+	tmp.port=A_DUART_CHANREG(tmp.line,0);
+	tmp.irq=K_INT_UART_0 + tmp.line;
+	tmp.xmit_fifo_size=16; /* fixed by hw */
+	tmp.baud_base=5000000;
+	tmp.io_type=SERIAL_IO_MEM;
+
+	if (copy_to_user(retinfo,&tmp,sizeof(*retinfo)))
+		return -EFAULT;
+
+	return 0;
+}
+
 static int duart_ioctl(struct tty_struct *tty, struct file * file,
 		       unsigned int cmd, unsigned long arg)
 {
+	uart_state_t *us = (uart_state_t *) tty->driver_data;
+
 /*	if (serial_paranoia_check(info, tty->device, "rs_ioctl"))
 	return -ENODEV;*/
 	switch (cmd) {
@@ -508,8 +530,7 @@ static int duart_ioctl(struct tty_struct *tty, struct file * file,
 		printk("Ignoring TIOCMSET\n");
 		break;
 	case TIOCGSERIAL:
-		printk("Ignoring TIOCGSERIAL\n");
-		break;
+		return get_serial_info(us,(struct serial_struct *) arg);
 	case TIOCSSERIAL:
 		printk("Ignoring TIOCSSERIAL\n");
 		break;
@@ -539,36 +560,6 @@ static int duart_ioctl(struct tty_struct *tty, struct file * file,
 	}
 //	printk("Ignoring IOCTL %x from pid %i (%s)\n", cmd, current->pid, current->comm);
 	return -ENOIOCTLCMD;
-#if 0
-	if ((cmd != TIOCGSERIAL) && (cmd != TIOCSSERIAL) &&
-	    (cmd != TIOCSERCONFIG) && (cmd != TIOCSERGSTRUCT) &&
-	    (cmd != TIOCMIWAIT) && (cmd != TIOCGICOUNT)) {
-		if (tty->flags & (1 << TTY_IO_ERROR))
-			return -EIO;
-	}
-	
-	switch (cmd) {
-	case TIOCMGET:
-	case TIOCMBIS:
-	case TIOCMBIC:
-	case TIOCMSET:
-	case TIOCGSERIAL:
-	case TIOCSSERIAL:
-	case TIOCSERCONFIG:
-	case TIOCSERGETLSR: /* Get line status register */
-	case TIOCSERGSTRUCT:
-	case TIOCMIWAIT:
-	case TIOCGICOUNT:
-	case TIOCSERGWILD:
-	case TIOCSERSWILD:
-		/* XXX Implement me! */
-		printk("IOCTL needs implementing: %x\n", cmd);
-		
-	default:
-		printk("Unknown ioctl: %x\n", cmd);
-	}
-#endif
-	return 0;
 }
 
 /* XXXKW locking? */
