@@ -500,6 +500,30 @@ sig:
 	force_sig(signal, current);
 }
 
+/*
+ * ll uses the opcode of lwc0 and sc uses the opcode of swc0.  That is both
+ * opcodes are supposed to result in coprocessor unusable exceptions if
+ * executed on ll/sc-less processors.  That's the theory.  In practice a
+ * few processors such as NEC's VR4100 throw reserved instruction exceptions
+ * instead, so we're doing the emulation thing in both exception handlers.
+ */
+static inline int simulate_llsc(struct pt_regs *regs)
+{
+	unsigned int opcode;
+
+	if (unlikely(get_insn_opcode(regs, &opcode)))
+		return -EFAULT;
+
+	if ((opcode & OPCODE) == LL) {
+		simulate_ll(regs, opcode);
+		return;
+	}
+	if ((opcode & OPCODE) == SC) {
+		simulate_sc(regs, opcode);
+		return;
+	}
+}
+
 asmlinkage void do_ov(struct pt_regs *regs)
 {
 	siginfo_t info;
@@ -644,12 +668,16 @@ asmlinkage void do_ri(struct pt_regs *regs)
 {
 	die_if_kernel("Reserved instruction in kernel code", regs);
 
+	if (!cpu_has_llsc)
+		if (!simulate_llsc(regs))
+			return;
+
 	force_sig(SIGILL, current);
 }
 
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
-	unsigned int opcode, cpid;
+	unsigned int cpid;
 
 	die_if_kernel("do_cpu invoked from kernel context!", regs);
 
@@ -660,17 +688,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		if (cpu_has_llsc)
 			break;
 
-		if (!get_insn_opcode(regs, &opcode)) {
-			if ((opcode & OPCODE) == LL) {
-				simulate_ll(regs, opcode);
-				return;
-			}
-			if ((opcode & OPCODE) == SC) {
-				simulate_sc(regs, opcode);
-				return;
-			}
-		}
-
+		if (!simulate_llsc(regs))
+			return;
 		break;
 
 	case 1:
