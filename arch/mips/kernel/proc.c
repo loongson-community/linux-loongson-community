@@ -85,7 +85,7 @@ int get_cpuinfo(char *buffer)
 	len += sprintf(buffer + len, "microsecond timers\t: %s\n",
 	               (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
 	len += sprintf(buffer + len, "extra interrupt vector\t: %s\n",
-	               (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
+	               (mips_cpu.options & MIPS_CPU_DIVEC) ? "yes" : "no");
 	len += sprintf(buffer + len, "hardware watchpoint\t: %s\n",
 	               watch_available ? "yes" : "no");
 
