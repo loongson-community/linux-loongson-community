@@ -396,8 +396,12 @@ load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x80100000
 #
 # Momentum Jaguar ATX
 #
-core-$(MOMENCO_JAGUAR_ATX)	+= arch/mips/momentum/jaguar_atx/
-load-$(MOMENCO_JAGUAR_ATX)	+= 0x88000000
+core-$(CONFIG_MOMENCO_JAGUAR_ATX)	+= arch/mips/momentum/jaguar_atx/
+ifdef CONFIG_JAGUAR_DMALOW
+load-$(CONFIG_MOMENCO_JAGUAR_ATX)	+= 0x88000000
+else
+load-$(CONFIG_MOMENCO_JAGUAR_ATX)	+= 0x80100000
+endif
 
 #
 # NEC DDB
