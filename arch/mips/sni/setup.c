@@ -21,6 +21,8 @@
 #include <linux/ide.h>
 #include <linux/tty.h>
 
+#include <asm/arc/types.h>
+#include <asm/sgialib.h>
 #include <asm/bcache.h>
 #include <asm/bootinfo.h>
 #include <asm/io.h>
@@ -72,6 +74,31 @@ static inline void sni_pcimt_detect(void)
 	asic = (csmsr & 0x08) ? asic : !asic;
 	p += sprintf(p, ", ASIC PCI Rev %s", asic ? "1.0" : "1.1");
 	printk("%s.\n", boardtype);
+}
+
+static void __init sni_display_setup(void)
+{
+#ifdef CONFIG_VT
+#if defined(CONFIG_VGA_CONSOLE)
+	struct screen_info *si = &screen_info;
+	DISPLAY_STATUS *di;
+
+	di = ArcGetDisplayStatus(1);
+
+	if (di) {
+		si->orig_x		= di->CursorXPosition;
+		si->orig_y		= di->CursorYPosition;
+		si->orig_video_cols	= di->CursorMaxXPosition;
+		si->orig_video_lines	= di->CursorMaxYPosition;
+		si->orig_video_isVGA	= VIDEO_TYPE_VGAC;
+	}
+
+	conswitchp = &vga_con;
+
+#elif defined(CONFIG_DUMMY_CONSOLE)
+	conswitchp = &dummy_con;
+#endif
+#endif
 }
 
 static struct resource pcimt_io_resources[] = {
@@ -136,32 +163,11 @@ void __init sni_rm200_pci_setup(void)
 	_machine_halt = sni_machine_halt;
 	_machine_power_off = sni_machine_power_off;
 
+	sni_display_setup();
+
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
 #endif
-
-#ifdef CONFIG_VT
-#if defined(CONFIG_VGA_CONSOLE)
-	conswitchp = &vga_con;
-#elif defined(CONFIG_DUMMY_CONSOLE)
-	conswitchp = &dummy_con;
-#endif
-#endif
-
-	screen_info = (struct screen_info) {
-		.orig_x			= 0,		// XXX
-		.orig_y			= 0,		// XXX
-		.dontuse1		= 0,
-		.orig_video_page	= 52,
-		.orig_video_mode	= 3,
-		.orig_video_cols	= 80,		// XXX
-		.unused2		= 4626,
-		.orig_video_ega_bx	= 3,
-		.unused3		= 9,
-		.orig_video_lines	= 25,		// XXX
-		.orig_video_isVGA	= VIDEO_TYPE_VGAC,
-		.orig_video_points	= 16		// XXX
-	};
 
 	rtc_ops = &std_rtc_ops;
 
