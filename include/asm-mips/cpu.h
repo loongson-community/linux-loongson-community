@@ -26,10 +26,8 @@
 
 #define PRID_COMP_LEGACY       0x000000
 #define PRID_COMP_MIPS         0x010000
+#define PRID_COMP_BROADCOM     0x020000
 #define PRID_COMP_ALCHEMY      0x030000
-/* 
- * Don't know who should be here...QED and Sandcraft, maybe?
- */
 #define PRID_COMP_SIBYTE       0x040000
 
 /*
