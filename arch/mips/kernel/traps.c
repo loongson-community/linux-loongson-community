@@ -314,17 +314,8 @@ void show_regs(struct pt_regs * regs)
 	       regs->cp0_cause);
 }
 
-spinlock_t die_lock;
-
-extern void __die(const char * str, struct pt_regs * regs, const char *where,
-                  unsigned long line)
+void show_registers(struct pt_regs *regs)
 {
-	console_verbose();
-	spin_lock_irq(&die_lock);
-	printk("%s", str);
-	if (where)
-		printk(" in %s, line %ld", where, line);
-	printk(":\n");
 	show_regs(regs);
 	printk("Process %s (pid: %d, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
@@ -332,6 +323,20 @@ extern void __die(const char * str, struct pt_regs * regs, const char *where,
 	show_trace((unsigned int *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
+}
+
+spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
+
+void __die(const char * str, struct pt_regs * regs, const char *where,
+           unsigned long line)
+{
+	console_verbose();
+	spin_lock_irq(&die_lock);
+	printk("%s", str);
+	if (where)
+		printk(" in %s, line %ld", where, line);
+	printk(":\n");
+	show_registers(regs);
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
