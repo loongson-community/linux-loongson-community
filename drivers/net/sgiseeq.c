@@ -64,13 +64,13 @@ static char *sgiseeqstr = "SGI Seeq8003";
 #define DEBUG
 
 struct sgiseeq_rx_desc {
-	struct hpc_dma_desc rdma;
-	signed int buf_vaddr;
+	volatile struct hpc_dma_desc rdma;
+	volatile signed int buf_vaddr;
 };
 
 struct sgiseeq_tx_desc {
-	struct hpc_dma_desc tdma;
-	signed int buf_vaddr;
+	volatile struct hpc_dma_desc tdma;
+	volatile signed int buf_vaddr;
 };
 
 /*
@@ -89,7 +89,7 @@ struct sgiseeq_init_block { /* Note the name ;-) */
 };
 
 struct sgiseeq_private {
-	volatile struct sgiseeq_init_block srings;
+	struct sgiseeq_init_block *srings;
 	char *name;
 	struct hpc3_ethregs *hregs;
 	struct sgiseeq_regs *sregs;
@@ -153,7 +153,7 @@ static inline void seeq_load_eaddr(struct net_device *dev,
 static int seeq_init_ring(struct net_device *dev)
 {
 	struct sgiseeq_private *sp = dev->priv;
-	volatile struct sgiseeq_init_block *ib = &sp->srings;
+	struct sgiseeq_init_block *ib = sp->srings;
 	int i;
 
 	netif_stop_queue(dev);
@@ -206,8 +206,8 @@ static struct net_device *gdev;
 void sgiseeq_dump_rings(void)
 {
 	static int once;
-	struct sgiseeq_rx_desc *r = gpriv->srings.rx_desc;
-	struct sgiseeq_tx_desc *t = gpriv->srings.tx_desc;
+	struct sgiseeq_rx_desc *r = gpriv->srings->rx_desc;
+	struct sgiseeq_tx_desc *t = gpriv->srings->tx_desc;
 	struct hpc3_ethregs *hregs = gpriv->hregs;
 	int i;
 
@@ -268,8 +268,8 @@ static int init_seeq(struct net_device *dev, struct sgiseeq_private *sp,
 
 	hregs->rx_dconfig |= RDMACFG_INIT;
 
-	hregs->rx_ndptr = CPHYSADDR(sp->srings.rx_desc);
-	hregs->tx_ndptr = CPHYSADDR(sp->srings.tx_desc);
+	hregs->rx_ndptr = CPHYSADDR(sp->srings->rx_desc);
+	hregs->tx_ndptr = CPHYSADDR(sp->srings->tx_desc);
 
 	seeq_go(sp, hregs, sregs);
 	return 0;
@@ -294,14 +294,14 @@ static inline void rx_maybe_restart(struct sgiseeq_private *sp,
 				    struct sgiseeq_regs *sregs)
 {
 	if (!(hregs->rx_ctrl & HPC3_ERXCTRL_ACTIVE)) {
-		hregs->rx_ndptr = CPHYSADDR(sp->srings.rx_desc + sp->rx_new);
+		hregs->rx_ndptr = CPHYSADDR(sp->srings->rx_desc + sp->rx_new);
 		seeq_go(sp, hregs, sregs);
 	}
 }
 
-#define for_each_rx(rd, sp) for((rd) = &(sp)->srings.rx_desc[(sp)->rx_new]; \
+#define for_each_rx(rd, sp) for((rd) = &(sp)->srings->rx_desc[(sp)->rx_new]; \
 				!((rd)->rdma.cntinfo & HPCDMA_OWN); \
-				(rd) = &(sp)->srings.rx_desc[(sp)->rx_new])
+				(rd) = &(sp)->srings->rx_desc[(sp)->rx_new])
 
 static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp,
 			      struct hpc3_ethregs *hregs,
@@ -349,8 +349,8 @@ static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp
 		rd->rdma.cntinfo = RCNTINFO_INIT;
 		sp->rx_new = NEXT_RX(sp->rx_new);
 	}
-	sp->srings.rx_desc[orig_end].rdma.cntinfo &= ~(HPCDMA_EOR);
-	sp->srings.rx_desc[PREV_RX(sp->rx_new)].rdma.cntinfo |= HPCDMA_EOR;
+	sp->srings->rx_desc[orig_end].rdma.cntinfo &= ~(HPCDMA_EOR);
+	sp->srings->rx_desc[PREV_RX(sp->rx_new)].rdma.cntinfo |= HPCDMA_EOR;
 	rx_maybe_restart(sp, hregs, sregs);
 }
 
@@ -403,7 +403,7 @@ static inline void sgiseeq_tx(struct net_device *dev, struct sgiseeq_private *sp
 
 	/* Ack 'em... */
 	for (j = sp->tx_old; j != sp->tx_new; j = NEXT_TX(j)) {
-		td = &sp->srings.tx_desc[j];
+		td = &sp->srings->tx_desc[j];
 
 		if (!(td->tdma.cntinfo & (HPCDMA_XIU)))
 			break;
@@ -524,7 +524,7 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	len = (skblen <= ETH_ZLEN) ? ETH_ZLEN : skblen;
 	sp->stats.tx_bytes += len;
 	entry = sp->tx_new;
-	td = &sp->srings.tx_desc[entry];
+	td = &sp->srings->tx_desc[entry];
 
 	/* Create entry.  There are so many races with adding a new
 	 * descriptor to the chain:
@@ -547,14 +547,14 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (sp->tx_old != sp->tx_new) {
 		struct sgiseeq_tx_desc *backend;
 
-		backend = &sp->srings.tx_desc[PREV_TX(sp->tx_new)];
+		backend = &sp->srings->tx_desc[PREV_TX(sp->tx_new)];
 		backend->tdma.cntinfo &= ~HPCDMA_EOX;
 	}
 	sp->tx_new = NEXT_TX(sp->tx_new); /* Advance. */
 
 	/* Maybe kick the HPC back into motion. */
 	if (!(hregs->tx_ctrl & HPC3_ETXCTRL_ACTIVE))
-		kick_tx(&sp->srings.tx_desc[sp->tx_old], hregs);
+		kick_tx(&sp->srings->tx_desc[sp->tx_old], hregs);
 
 	dev->trans_start = jiffies;
 	dev_kfree_skb(skb);
@@ -615,23 +615,27 @@ static inline void setup_rx_ring(struct sgiseeq_rx_desc *buf, int nbufs)
 
 static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 {
-	struct net_device *dev;
+	struct sgiseeq_init_block *sr;
 	struct sgiseeq_private *sp;
+	struct net_device *dev;
 	int err, i;
 
-	dev = alloc_etherdev(0);
+	dev = alloc_etherdev(sizeof (struct sgiseeq_private));
 	if (!dev) {
 		printk(KERN_ERR "Sgiseeq: Etherdev alloc failed, aborting.\n");
 		err = -ENOMEM;
 		goto err_out;
 	}
+	sp = dev->priv;
+
 	/* Make private data page aligned */
-	sp = (struct sgiseeq_private *) get_zeroed_page(GFP_KERNEL); 	 
-	if (!sp) {
+	sr = (struct sgiseeq_init_block *) get_zeroed_page(GFP_KERNEL);
+	if (!sr) {
 		printk(KERN_ERR "Sgiseeq: Page alloc failed, aborting.\n");
 		err = -ENOMEM;
 		goto err_out_free_dev;
 	}
+	sp->srings = sr;
 
 #define EADDR_NVOFS     250
 	for (i = 0; i < 3; i++) {
@@ -649,18 +653,18 @@ static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	sp->hregs = &hpc3c0->ethregs;
 	sp->name = sgiseeqstr;
 
-	sp->srings.rx_desc = (struct sgiseeq_rx_desc *)
-	                     KSEG1ADDR(ALIGNED(&sp->srings.rxvector[0]));
-	dma_cache_wback_inv((unsigned long)&sp->srings.rxvector,
-	                    sizeof(sp->srings.rxvector));
-	sp->srings.tx_desc = (struct sgiseeq_tx_desc *)
-	                     KSEG1ADDR(ALIGNED(&sp->srings.txvector[0]));
-	dma_cache_wback_inv((unsigned long)&sp->srings.txvector,
-	                    sizeof(sp->srings.txvector));
+	sp->srings->rx_desc = (struct sgiseeq_rx_desc *)
+	                     KSEG1ADDR(ALIGNED(&sp->srings->rxvector[0]));
+	dma_cache_wback_inv((unsigned long)&sp->srings->rxvector,
+	                    sizeof(sp->srings->rxvector));
+	sp->srings->tx_desc = (struct sgiseeq_tx_desc *)
+	                     KSEG1ADDR(ALIGNED(&sp->srings->txvector[0]));
+	dma_cache_wback_inv((unsigned long)&sp->srings->txvector,
+	                    sizeof(sp->srings->txvector));
 
 	/* A couple calculations now, saves many cycles later. */
-	setup_rx_ring(sp->srings.rx_desc, SEEQ_RX_BUFFERS);
-	setup_tx_ring(sp->srings.tx_desc, SEEQ_TX_BUFFERS);
+	setup_rx_ring(sp->srings->rx_desc, SEEQ_RX_BUFFERS);
+	setup_tx_ring(sp->srings->tx_desc, SEEQ_TX_BUFFERS);
 
 	/* Reset the chip. */
 	hpc3_eth_reset(sp->hregs);
@@ -679,8 +683,6 @@ static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	dev->get_stats		= sgiseeq_get_stats;
 	dev->set_multicast_list	= sgiseeq_set_multicast;
 	dev->irq		= irq;
-	dev->dma		= 0;
-	dev->priv		= sp;
 
 	if (register_netdev(dev)) {
 		printk(KERN_ERR "Sgiseeq: Cannot register net device, "
