@@ -95,9 +95,9 @@ static void r4k_clear_page_d16(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
-		:"$1", "memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		: "memory");
 }
 
 static void r4k_clear_page_d32(void * page)
@@ -120,9 +120,9 @@ static void r4k_clear_page_d32(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
-		:"$1", "memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		: "memory");
 }
 
 
@@ -180,11 +180,9 @@ static void r4k_clear_page_r4600_v1(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_D)
-		:"$1", "memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		: "memory");
 }
 
 /*
@@ -214,9 +212,9 @@ static void r4k_clear_page_r4600_v2(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
-		:"$1", "memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
+		: "memory");
 	__restore_flags(flags);
 }
 
@@ -251,9 +249,9 @@ static void r4k_clear_page_s16(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
-		:"$1","memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
+		: "memory");
 }
 
 static void r4k_clear_page_s32(void * page)
@@ -276,9 +274,9 @@ static void r4k_clear_page_s32(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
-		:"$1","memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
+		: "memory");
 }
 
 static void r4k_clear_page_s64(void * page)
@@ -300,11 +298,9 @@ static void r4k_clear_page_s64(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_SD)
-		:"$1","memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
+		: "memory");
 }
 
 static void r4k_clear_page_s128(void * page)
@@ -334,11 +330,9 @@ static void r4k_clear_page_s128(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE),
-		 "i" (Create_Dirty_Excl_SD)
-		:"$1", "memory");
+		: (page)
+		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_SD)
+		: "memory");
 }
 
 
