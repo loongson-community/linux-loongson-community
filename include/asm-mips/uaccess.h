@@ -138,6 +138,7 @@ struct __large_struct { unsigned long buf[100]; };
 	long __gu_err;						\
 	__typeof(*(ptr)) __gu_val;				\
 	long __gu_addr;						\
+	might_sleep();						\
 	__asm__("":"=r" (__gu_val));				\
 	__gu_addr = (long) (ptr);				\
 	__asm__("":"=r" (__gu_err));				\
@@ -155,6 +156,7 @@ struct __large_struct { unsigned long buf[100]; };
 	long __gu_err;						\
 	__typeof__(*(ptr)) __gu_val;				\
 	long __gu_addr;						\
+	might_sleep();						\
 	__asm__("":"=r" (__gu_val));				\
 	__gu_addr = (long) (ptr);				\
 	__asm__("":"=r" (__gu_err));				\
@@ -228,6 +230,7 @@ extern void __get_user_unknown(void);
 	long __pu_err;						\
 	__typeof__(*(ptr)) __pu_val;				\
 	long __pu_addr;						\
+	might_sleep();						\
 	__pu_val = (x);						\
 	__pu_addr = (long) (ptr);				\
 	__asm__("":"=r" (__pu_err));				\
@@ -246,6 +249,7 @@ extern void __get_user_unknown(void);
 	long __pu_err;						\
 	__typeof__(*(ptr)) __pu_val;				\
 	long __pu_addr;						\
+	might_sleep();						\
 	__pu_val = (x);						\
 	__pu_addr = (long) (ptr);				\
 	__asm__("":"=r" (__pu_err));				\
@@ -341,6 +345,7 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 	const void *__cu_from;						\
 	long __cu_len;							\
 									\
+	might_sleep();							\
 	__cu_to = (to);							\
 	__cu_from = (from);						\
 	__cu_len = (n);							\
@@ -354,6 +359,7 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 	const void *__cu_from;						\
 	long __cu_len;							\
 									\
+	might_sleep();							\
 	__cu_to = (to);							\
 	__cu_from = (from);						\
 	__cu_len = (n);							\
@@ -393,6 +399,7 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 	const void *__cu_from;						\
 	long __cu_len;							\
 									\
+	might_sleep();							\
 	__cu_to = (to);							\
 	__cu_from = (from);						\
 	__cu_len = (n);							\
@@ -407,6 +414,7 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 	const void *__cu_from;						\
 	long __cu_len;							\
 									\
+	might_sleep();							\
 	__cu_to = (to);							\
 	__cu_from = (from);						\
 	__cu_len = (n);							\
@@ -421,6 +429,7 @@ __clear_user(void *addr, __kernel_size_t size)
 {
 	__kernel_size_t res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, $0\n\t"
@@ -453,6 +462,7 @@ __strncpy_from_user(char *__to, const char *__from, long __len)
 {
 	long res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, %2\n\t"
@@ -471,6 +481,7 @@ strncpy_from_user(char *__to, const char *__from, long __len)
 {
 	long res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, %2\n\t"
@@ -489,6 +500,7 @@ static inline long __strlen_user(const char *s)
 {
 	long res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		__MODULE_JAL(__strlen_user_nocheck_asm)
@@ -504,6 +516,7 @@ static inline long strlen_user(const char *s)
 {
 	long res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		__MODULE_JAL(__strlen_user_asm)
@@ -520,6 +533,7 @@ static inline long __strnlen_user(const char *s, long n)
 {
 	long res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, %2\n\t"
@@ -536,6 +550,7 @@ static inline long strnlen_user(const char *s, long n)
 {
 	long res;
 
+	might_sleep();
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, %2\n\t"
