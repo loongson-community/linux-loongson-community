@@ -32,6 +32,7 @@ unsigned int sb1_pass;
 unsigned int soc_pass;
 unsigned int soc_type;
 unsigned int periph_rev;
+unsigned int zbbus_mhz;
 
 static char *soc_str;
 static char *pass_str;
@@ -102,6 +103,10 @@ static inline int setup_bcm1250(void)
 		periph_rev = 3;
 		pass_str = "C0";
 		break;
+	case K_SYS_REVISION_BCM1250_C1:
+		periph_rev = 3;
+		pass_str = "C1";
+		break;
 	default:
 		if (soc_pass < K_SYS_REVISION_BCM1250_PASS2_2) {
 			periph_rev = 2;
@@ -145,6 +150,7 @@ static inline int setup_bcm112x(void)
 void sb1250_setup(void)
 {
 	uint64_t sys_rev;
+	int plldiv;
 	int bad_config = 0;
 
 	sb1_pass = read_c0_prid() & 0xff;
@@ -157,8 +163,14 @@ void sb1250_setup(void)
 		machine_restart(NULL);
 	}
 
-	prom_printf("SiByte %s %s (SB1 rev %d)\n",
-		    soc_str, pass_str, sb1_pass);
+	plldiv = G_SYS_PLL_DIV(__raw_readq(IO_SPACE_BASE | A_SCD_SYSTEM_CFG));
+	zbbus_mhz = ((plldiv >> 1) * 50) + ((plldiv & 1) * 25);
+#ifndef CONFIG_SB1_PASS_1_WORKAROUNDS
+	__raw_writeq(0, KSEG1 + A_SCD_ZBBUS_CYCLE_COUNT);
+#endif
+
+	prom_printf("Broadcom SiByte %s %s @ %d MHz (SB1 rev %d)\n",
+		    soc_str, pass_str, zbbus_mhz * 2, sb1_pass);
 	prom_printf("Board type: %s\n", get_system_type());
 
 	switch(war_pass) {

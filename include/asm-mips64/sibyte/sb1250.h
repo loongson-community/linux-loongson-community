@@ -19,6 +19,12 @@
 #ifndef _ASM_SIBYTE_SB1250_H
 #define _ASM_SIBYTE_SB1250_H
 
+/*
+ * yymmddpp: year, month, day, patch.
+ * should sync with Makefile EXTRAVERSION
+ */
+#define SIBYTE_RELEASE 0x02111403
+
 #define SB1250_NR_IRQS 64
 
 #define SB1250_DUART_MINOR_BASE		64
@@ -33,6 +39,7 @@ extern unsigned int sb1_pass;
 extern unsigned int soc_pass;
 extern unsigned int soc_type;
 extern unsigned int periph_rev;
+extern unsigned int zbbus_mhz;
 
 extern void sb1250_time_init(void);
 extern unsigned long sb1250_gettimeoffset(void);
