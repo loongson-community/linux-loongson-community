@@ -578,6 +578,13 @@ static void __init probe_icache(unsigned long config)
 	}
 	ic_lsize = 16 << ((config >> 5) & 1);
 
+	/*
+	 * Processor configuration sanity check for the R4000PC and SC V2.2
+	 * erratum #2 ...
+	 */
+	if (read_c0_prid() == 0x0422 && ic_lsize != 16)
+		panic("Impropper processor configuration detected");
+
 	printk("Primary instruction cache %ldK, linesize %ld bytes.\n",
 	       icache_size >> 10, ic_lsize);
 }
