@@ -109,6 +109,13 @@ static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
 				/* copy filename and data in dirslot */
 				filldir(dirent, nameptr, namelen, filp->f_pos, inodenum);
 
+				/* sanity check */
+				if (nameptr - (char *) dirblock + namelen > EFS_DIRBSIZE) {
+					printk(KERN_WARNING "EFS: directory entry %d exceeds directory block\n", slot);
+					slot++;
+					continue;
+				}
+
 				/* store position of next slot */
 				if (++slot == dirblock->slots) {
 					slot = 0;

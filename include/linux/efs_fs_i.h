@@ -29,7 +29,8 @@ typedef union extent_u {
 
 typedef struct edevs {
 	short		odev;
-	unsigned int	ndev;
+	short		dev_filler;	/* force ndev to start */
+	unsigned int	ndev;		/* on a 32-bit boundary */
 } efs_devs;
 
 /*
