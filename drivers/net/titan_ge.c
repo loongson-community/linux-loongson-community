@@ -115,12 +115,12 @@ static int titan_ge_return_tx_desc(titan_ge_port_info *, int);
  * to be done only once for all the ports. This flag controls
  * that
  */
-unsigned long config_done = 0;
+unsigned long config_done;
 
 /*
  * One time out of memory flag
  */
-unsigned int oom_flag = 0;
+unsigned int oom_flag;
 
 #ifdef TITAN_RX_NAPI
 static int titan_ge_poll(struct net_device *netdev, int *budget);
