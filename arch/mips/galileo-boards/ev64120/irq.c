@@ -48,8 +48,6 @@
 #include <asm/system.h>
 #include <asm/galileo-boards/ev64120int.h>
 
-extern void do_IRQ(int irq, struct pt_regs *regs);
-
 #define MAX_AGENTS_PER_INT 21	/*  Random number  */
 unsigned char pci_int_irq[MAX_AGENTS_PER_INT];
 static int max_interrupts = 0;
