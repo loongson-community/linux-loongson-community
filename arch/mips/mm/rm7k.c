@@ -384,11 +384,6 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	}
 }
 
-/* Load a new root pointer into the TLB. */
-void load_pgd(unsigned long pg_dir)
-{
-}
-
 void pgd_init(unsigned long page)
 {
 	unsigned long *p = (unsigned long *) page;
@@ -567,13 +562,6 @@ void __init ld_mmu_rm7k(void)
 	__flush_cache_all_d32i32();
 	write_32bit_cp0_register(CP0_WIRED, 0);
 
-	/*
-	 * You should never change this register:
-	 *   - On R4600 1.7 the tlbp never hits for pages smaller than
-	 *     the value in the c0_pagemask register.
-	 *   - The entire mm handling assumes the c0_pagemask register to
-	 *     be set for 4kb pages.
-	 */
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
 	flush_tlb_all();
 }

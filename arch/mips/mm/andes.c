@@ -157,10 +157,6 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	/* XXX */
 }
 
-void load_pgd(unsigned long pg_dir)
-{
-}
-
 void pgd_init(unsigned long page)
 {
 }

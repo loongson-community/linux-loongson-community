@@ -4,28 +4,20 @@
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * ########################################################################
+ * This program is free software; you can distribute it and/or modify it
+ * under the terms of the GNU General Public License (Version 2) as
+ * published by the Free Software Foundation.
  *
- *  This program is free software; you can distribute it and/or modify it
- *  under the terms of the GNU General Public License (Version 2) as
- *  published by the Free Software Foundation.
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- *  This program is distributed in the hope it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- *  for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
  * MIPS32 CPU variant specific MMU/Cache routines.
- *
- * This file is the original r4xx0.c file with modification that makes the
- * cache and tlb handling more generic.
- *
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -670,11 +662,6 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		set_entryhi(oldpid);
 		__restore_flags(flags);
 	}
-}
-
-/* Load a new root pointer into the TLB. */
-void load_pgd(unsigned long pg_dir)
-{
 }
 
 void pgd_init(unsigned long page)

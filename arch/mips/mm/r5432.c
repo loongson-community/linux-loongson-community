@@ -675,11 +675,6 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	}
 }
 
-/* Load a new root pointer into the TLB. */
-void load_pgd(unsigned long pg_dir)
-{
-}
-
 void pgd_init(unsigned long page)
 {
 	unsigned long *p = (unsigned long *) page;
