@@ -11,7 +11,6 @@
 #include <linux/ide.h>
 #include <linux/ioport.h>
 #include <linux/hdreg.h>
-#include <asm/ptrace.h>
 #include <asm/hdreg.h>
 
 static int std_ide_default_irq(ide_ioreg_t base)
