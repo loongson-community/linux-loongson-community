@@ -314,18 +314,19 @@ cpuid_t getcpuid(void)
 void per_cpu_init(void)
 {
 	static int is_slave = 0;
-
-#if 0
 	cpuid_t cpu = getcpuid();
-#endif
 	cnodeid_t cnode = get_compact_nodeid();
 
 #if 0
 	intr_init();
 #endif
 	set_cp0_status(ST0_IM, 0);
-	cpu_time_init();
 	per_hub_init(cnode);
+	cpu_time_init();
+	install_cpuintr(cpu);
+#if 0
+	install_tlbintr(cpu);
+#endif
 	if (is_slave) {
 		set_cp0_status(ST0_BEV, 0);
 		if (mips4_available)
@@ -333,10 +334,6 @@ void per_cpu_init(void)
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
 		set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
 	}
-#if 0
-	install_cpuintr(cpu);
-	install_tlbintr(cpu);
-#endif
 	if (is_slave == 0)
 		is_slave = 1;
 }
