@@ -392,11 +392,11 @@ emul:
 			fpuemuprivate.stats.stores++;
 #if (defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN) || defined(__MIPSEB__)
 			if (put_user(ctx->regs[rt + 1], va + 0)
-			    || put_user(ctx->regs[rt + 0], va + 4))
+			    || put_user(ctx->regs[rt + 0], va + 1))
 				return SIGBUS;
 #else
 			if (put_user(ctx->regs[rt + 0], va + 0)
-			    || put_user(ctx->regs[rt + 1], va + 4))
+			    || put_user(ctx->regs[rt + 1], va + 1))
 				return SIGBUS;
 #endif
 		}
