@@ -512,7 +512,8 @@ asmlinkage void ll_timer_interrupt(int irq, struct pt_regs *regs)
 asmlinkage void ll_local_timer_interrupt(int irq, struct pt_regs *regs)
 {
 	irq_enter();
-	kstat_this_cpu.irqs[irq]++;
+	if (smp_processor_id() != 0)
+		kstat_this_cpu.irqs[irq]++;
 
 	/* we keep interrupt disabled all the time */
 	local_timer_interrupt(irq, NULL, regs);
