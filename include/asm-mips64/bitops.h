@@ -545,7 +545,19 @@ static inline int test_le_bit(unsigned long nr, const unsigned long * addr)
 	return ((mask & *ADDR) != 0);
 }
 
-#define ext2_ffz(word)	ffz(__swab32(word))
+static inline unsigned long ext2_ffz(unsigned int word)
+{
+	int b = 0, s;
+
+	word = ~word;
+	s = 16; if (word << 16 != 0) s = 0; b += s; word >>= s;
+	s =  8; if (word << 24 != 0) s = 0; b += s; word >>= s;
+	s =  4; if (word << 28 != 0) s = 0; b += s; word >>= s;
+	s =  2; if (word << 30 != 0) s = 0; b += s; word >>= s;
+	s =  1; if (word << 31 != 0) s = 0; b += s;
+
+	return b;
+}
 
 static inline unsigned long find_next_zero_le_bit(unsigned long *addr,
 	unsigned long size, unsigned long offset)
