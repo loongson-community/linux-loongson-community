@@ -188,14 +188,14 @@ struct pci_ops sb1250_pci_ops = {
 
 static struct resource sb1250_mem_resource = {
 	.name	= "SB1250 PCI MEM",
-	.start	= 0x41000000UL,
+	.start	= 0x40000000UL,
 	.end	= 0x5fffffffUL,
 	.flags	= IORESOURCE_MEM,
 };
                                                                                 
 static struct resource sb1250_io_resource = {
 	.name	= "SB1250 PCI I/O",
-	.start	= 0x00008000UL,
+	.start	= 0x00000000UL,
 	.end	= 0x01ffffffUL,
 	.flags	= IORESOURCE_IO,
 };
@@ -214,6 +214,10 @@ static int __init sb1250_pcibios_init(void)
 
 	/* CFE will assign PCI resources */
 	pci_probe_only = 1;
+
+	/* Avoid ISA compat ranges.  */
+	PCIBIOS_MIN_IO = 0x00008000UL;
+	PCIBIOS_MIN_MEM = 0x01000000UL;
 
 	/* Set I/O resource limits.  */
 	ioport_resource.end = 0x01ffffffUL;	/* 32MB accessible by sb1250 */
