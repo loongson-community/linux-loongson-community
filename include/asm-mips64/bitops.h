@@ -21,6 +21,12 @@
 #include <asm/sgidefs.h>
 
 /*
+ * clear_bit() doesn't provide any barrier for the compiler.
+ */
+#define smp_mb__before_clear_bit()	smp_mb()
+#define smp_mb__after_clear_bit()	smp_mb()
+
+/*
  * set_bit - Atomically set a bit in memory
  * @nr: the bit to set
  * @addr: the address to start counting from
@@ -85,20 +91,12 @@ static inline void clear_bit(unsigned long nr, volatile void *addr)
 		: "ir" (~(1UL << (nr & 0x3f))), "m" (*m));
 }
 
-<<<<<<< bitops.h
 static inline void __clear_bit(int nr, volatile void * addr)
 {
 	unsigned long * m = ((unsigned long *) addr) + (nr >> 6);
 
 	*m &= ~(1UL << (nr & 0x3f));
 }
-
-#define smp_mb__before_clear_bit()	barrier()
-#define smp_mb__after_clear_bit()	barrier()
-=======
-#define smp_mb__before_clear_bit()	smp_mb()
-#define smp_mb__after_clear_bit()	smp_mb()
->>>>>>> 1.20
 
 /*
  * change_bit - Toggle a bit in memory
