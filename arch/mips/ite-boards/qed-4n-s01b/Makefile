@@ -7,8 +7,6 @@
 # specific files.
 #
 
-O_TARGET := ite.o
-
 obj-y := init.o
 
 obj-$(CONFIG_PCI) += pci_fixup.o

@@ -2,8 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-O_TARGET := mm.o
-
 export-objs			+= umap.o
 obj-y				:= extable.o init.o fault.o loadmmu.o \
 				   pgtable.o tlb-glue-r4k.o tlbex-r4k.o

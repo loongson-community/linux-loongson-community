@@ -53,6 +53,7 @@
 #include <linux/root_dev.h>
 #include <linux/percpu.h>
 #include <linux/smp_lock.h>
+#include <linux/dnotify.h>
 #include <asm/checksum.h>
 
 #if defined(CONFIG_PROC_FS)
@@ -90,7 +91,6 @@ EXPORT_SYMBOL(do_brk);
 EXPORT_SYMBOL(exit_mm);
 
 /* internal kernel memory management */
-EXPORT_SYMBOL(_alloc_pages);
 EXPORT_SYMBOL(__alloc_pages);
 EXPORT_SYMBOL(alloc_pages_node);
 EXPORT_SYMBOL(__get_free_pages);
@@ -115,9 +115,12 @@ EXPORT_SYMBOL(vmalloc_32);
 EXPORT_SYMBOL(vmap);
 EXPORT_SYMBOL(vunmap);
 EXPORT_SYMBOL(vmalloc_to_page);
-EXPORT_SYMBOL(mem_map);
 EXPORT_SYMBOL(remap_page_range);
+#ifndef CONFIG_DISCONTIGMEM
+EXPORT_SYMBOL(contig_page_data);
+EXPORT_SYMBOL(mem_map);
 EXPORT_SYMBOL(max_mapnr);
+#endif
 EXPORT_SYMBOL(high_memory);
 EXPORT_SYMBOL(vmtruncate);
 EXPORT_SYMBOL(find_vma);
@@ -560,6 +563,7 @@ EXPORT_SYMBOL(buffer_insert_list);
 EXPORT_SYMBOL(make_bad_inode);
 EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
+EXPORT_SYMBOL(__inode_dir_notify);
 
 #ifdef CONFIG_UID16
 EXPORT_SYMBOL(overflowuid);
@@ -602,7 +606,6 @@ EXPORT_SYMBOL(init_task);
 EXPORT_SYMBOL(init_thread_union);
 
 EXPORT_SYMBOL(tasklist_lock);
-EXPORT_SYMBOL(pidhash);
 #if defined(CONFIG_SMP) && defined(__GENERIC_PER_CPU)
 EXPORT_SYMBOL(__per_cpu_offset);
 #endif

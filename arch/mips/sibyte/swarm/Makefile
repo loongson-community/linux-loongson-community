@@ -1,4 +1,4 @@
-L_TARGET			= sbswarm.a
+L_TARGET			= lib.a
 
 obj-y				= setup.o cmdline.o rtc_xicor1241.o
 

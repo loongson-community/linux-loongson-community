@@ -1,5 +1,3 @@
-O_TARGET := sb1250.o
-
 obj-y := setup.o irq.o irq_handler.o time.o
 
 obj-$(CONFIG_PCI)		+= pci.o

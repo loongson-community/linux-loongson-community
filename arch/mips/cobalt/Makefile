@@ -2,8 +2,6 @@
 # Makefile for the Cobalt micro systems family specific parts of the kernel
 #
 
-O_TARGET := cobalt.o
-
 obj-y	 := irq.o int-handler.o pci.o reset.o setup.o via.o promcon.o
 
 EXTRA_AFLAGS := $(CFLAGS)

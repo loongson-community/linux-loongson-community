@@ -22,8 +22,6 @@
 # Makefile for the MIPS boards generic routines under Linux.
 #
 
-O_TARGET:= galboards.o
-
 obj-y := reset.o
 
 include $(TOPDIR)/Rules.make

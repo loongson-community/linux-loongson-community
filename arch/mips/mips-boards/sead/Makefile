@@ -23,8 +23,6 @@
 # under Linux.
 #
 
-O_TARGET	:= sead.o
-
 obj-y		:= sead_int.o sead_setup.o sead_time.o
 
 include $(TOPDIR)/Rules.make

@@ -2,7 +2,6 @@
 # Makefile for the LASAT specific kernel interface routines under Linux.
 #
 
-O_TARGET := lasatkern.o
 obj-y	 := reset.o setup.o prom.o lasat_board.o \
 		lasat_eeprom.o interrupt.o lasatIRQ.o
 

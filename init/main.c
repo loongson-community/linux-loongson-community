@@ -66,6 +66,7 @@ extern void sbus_init(void);
 extern void sysctl_init(void);
 extern void signals_init(void);
 extern void buffer_init(void);
+extern void pidhash_init(void);
 extern void pte_chain_init(void);
 extern void radix_tree_init(void);
 extern void free_initmem(void);
@@ -390,6 +391,7 @@ asmlinkage void __init start_kernel(void)
 	printk(linux_banner);
 	setup_arch(&command_line);
 	setup_per_cpu_areas();
+	build_all_zonelists();
 	printk("Kernel command line: %s\n", saved_command_line);
 	parse_options(command_line);
 	trap_init();
@@ -430,6 +432,7 @@ asmlinkage void __init start_kernel(void)
 #endif
 	mem_init();
 	kmem_cache_sizes_init();
+	pidhash_init();
 	pgtable_cache_init();
 	pte_chain_init();
 	fork_init(num_physpages);

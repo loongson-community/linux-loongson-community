@@ -2,8 +2,6 @@
 # Makefile for the IP27 specific kernel interface routines under Linux.
 #
 
-O_TARGET = ip27.o
-
 export-objs		= ip27-rtc.o
 
 obj-y	:= ip27-berr.o ip27-console.o ip27-irq.o ip27-init.o ip27-irq-glue.o \

@@ -2,7 +2,7 @@
 # Makefile for the ARC prom monitor library routines under Linux.
 #
 
-L_TARGET = arclib.a
+L_TARGET = lib.a
 
 obj-y				+= cmdline.o env.o file.o identify.o init.o \
 				   misc.o time.o tree.o

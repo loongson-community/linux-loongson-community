@@ -2,8 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-O_TARGET := mm.o
-
 export-objs			+= ioremap.o loadmmu.o umap.o
 obj-y				+= extable.o init.o ioremap.o fault.o \
 				   pgtable.o loadmmu.o

@@ -47,21 +47,28 @@ get_swap_bio(int gfp_flags, struct page *page, bio_end_io_t end_io)
 	return bio;
 }
 
-static void end_swap_bio_write(struct bio *bio)
+static int end_swap_bio_write(struct bio *bio, unsigned int bytes_done, int err)
 {
 	const int uptodate = test_bit(BIO_UPTODATE, &bio->bi_flags);
 	struct page *page = bio->bi_io_vec[0].bv_page;
+
+	if (bio->bi_size)
+		return 1;
 
 	if (!uptodate)
 		SetPageError(page);
 	end_page_writeback(page);
 	bio_put(bio);
+	return 0;
 }
 
-static void end_swap_bio_read(struct bio *bio)
+static int end_swap_bio_read(struct bio *bio, unsigned int bytes_done, int err)
 {
 	const int uptodate = test_bit(BIO_UPTODATE, &bio->bi_flags);
 	struct page *page = bio->bi_io_vec[0].bv_page;
+
+	if (bio->bi_size)
+		return 1;
 
 	if (!uptodate) {
 		SetPageError(page);
@@ -71,6 +78,7 @@ static void end_swap_bio_read(struct bio *bio)
 	}
 	unlock_page(page);
 	bio_put(bio);
+	return 0;
 }
 
 /*
@@ -123,12 +131,12 @@ out:
  * Swap pages are !PageLocked and PageWriteback while under writeout so that
  * memory allocators will throttle against them.
  */
-static int swap_vm_writeback(struct page *page, int *nr_to_write)
+static int swap_vm_writeback(struct page *page, struct writeback_control *wbc)
 {
 	struct address_space *mapping = page->mapping;
 
 	unlock_page(page);
-	return generic_writepages(mapping, nr_to_write);
+	return generic_writepages(mapping, wbc);
 }
 
 struct address_space_operations swap_aops = {

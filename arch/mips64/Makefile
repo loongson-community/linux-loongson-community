@@ -100,9 +100,7 @@ endif
 # MIPS Atlas board
 #
 ifdef CONFIG_MIPS_ATLAS
-LIBS		+= arch/mips/mips-boards/atlas/atlas.o \
-		   arch/mips/mips-boards/generic/mipsboards.o
-SUBDIRS		+= arch/mips/mips-boards/generic arch/mips/mips-boards/atlas
+core-y		+= arch/mips/mips-boards/generic/ arch/mips/mips-boards/atlas/
 LOADADDR	:= 0x80100000
 endif
 
@@ -110,9 +108,7 @@ endif
 # MIPS Malta board
 #
 ifdef CONFIG_MIPS_MALTA
-LIBS		+= arch/mips/mips-boards/malta/malta.o \
-		   arch/mips/mips-boards/generic/mipsboards.o
-SUBDIRS		+= arch/mips/mips-boards/malta arch/mips/mips-boards/generic
+core-y		+= arch/mips/mips-boards/malta/ arch/mips/mips-boards/generic/
 LOADADDR	:= 0x80100000
 endif
 
@@ -120,39 +116,33 @@ endif
 # MIPS SEAD board
 #
 ifdef CONFIG_MIPS_SEAD
-LIBS		+= arch/mips/mips-boards/sead/sead.o \
-		   arch/mips/mips-boards/generic/mipsboards.o
-SUBDIRS		+= arch/mips/mips-boards/generic arch/mips/mips-boards/sead
+core-y		+= arch/mips/mips-boards/generic/ arch/mips/mips-boards/sead/
 LOADADDR	:= 0x80100000
 endif
 
 #
 # SGI IP22 (Indy/Indigo2)
 #
-ifdef CONFIG_SGI_IP22
-CORE_FILES	+= arch/mips/sgi-ip22/ip22-kern.o
-LIBS		+= arch/mips/arc/arclib.a
-SUBDIRS		+= arch/mips/sgi-ip22 arch/mips/arc
-#
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
 # 0x88004000 for production kernels.  Note that the value must be
 # 16kb aligned or the handling of the current variable will break.
 #
+ifdef CONFIG_SGI_IP22
+core-y		+= arch/mips/sgi-ip22/
+libs-y		+= arch/mips/arc/
 LOADADDR	:= 0x88004000
 endif
 
 #
 # SGI-IP27 (Origin200/2000)
 #
-ifdef CONFIG_SGI_IP27
-CORE_FILES	+= arch/mips/sgi-ip27/ip27.o
-LIBS		+= arch/mips/arc/arclib.a
-SUBDIRS		+= arch/mips/sgi-ip27 arch/mips/arc
-#
 # Set LOADADDR to >= 0xc000000000300000 if you want to leave space for
 # symmon, 0xc00000000001c000 for production kernels.  Note that the value
 # must be 16kb aligned or the handling of the current variable will break.
 #
+ifdef CONFIG_SGI_IP27
+core-y		+= arch/mips/sgi-ip27/
+libs-y		+= arch/mips/arc/
 #LOADADDR	:= 0xa80000000001c000
 ifdef CONFIG_MAPPED_KERNEL
 LOADADDR	:= 0xc001c000
@@ -164,35 +154,32 @@ endif
 #
 # SGI-IP32 (O2)
 #
-ifdef CONFIG_SGI_IP32
-CORE_FILES	+= arch/mips/sgi-ip32/ip32-kern.a
-LIBS		+= arch/mips/arc/arclib.a
-SUBDIRS		+= arch/mips/sgi-ip32 arch/mips/arc
-#
 # Set LOADADDR to >= 0x????????? if you want to leave space for symmon,
 # 0x80002000 for production kernels.  Note that the value must be
 # 16kb aligned or the handling of the current variable will break.
 #
+ifdef CONFIG_SGI_IP32
+core-y		+= arch/mips/sgi-ip32/
+libs-y		+= arch/mips/arc/
 LOADADDR	:= 0x80002000
 endif
 
 #
 # Sibyte SB1250 SOC
 #
-ifdef CONFIG_SIBYTE_SB1250
 # This is a LIB so that it links at the end, and initcalls are later
 # the sequence; but it is built as an object so that modules don't get
 # removed (as happens, even if they have __initcall/module_init)
-LIBS		+= arch/mips/sibyte/sb1250/sb1250.o
-SUBDIRS		+= arch/mips/sibyte/sb1250
+#
+ifdef CONFIG_SIBYTE_SB1250
+core-y		+= arch/mips/sibyte/sb1250/
 endif
 
 #
 # Sibyte SWARM board
 #
 ifdef CONFIG_SIBYTE_SWARM
-LIBS		+= arch/mips/sibyte/swarm/sbswarm.a
-SUBDIRS		+= arch/mips/sibyte/swarm
+libs-y		+= arch/mips/sibyte/swarm/
 LOADADDR	:= 0x80100000
 endif
 
@@ -200,8 +187,7 @@ endif
 # Sibyte CFE firmware
 #
 ifdef CONFIG_SIBYTE_CFE
-LIBS		+= arch/mips/sibyte/cfe/cfe.a
-SUBDIRS		+= arch/mips/sibyte/cfe
+libs-y		+= arch/mips/sibyte/cfe/
 endif
 
 #
@@ -239,9 +225,9 @@ LDFLAGS_vmlinux += -Ttext $(LOADADDR)
 
 HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
-SUBDIRS := $(addprefix arch/mips/, tools) $(SUBDIRS) $(addprefix arch/mips64/, kernel mm lib)
-CORE_FILES := arch/mips64/kernel/kernel.o arch/mips64/mm/mm.o $(CORE_FILES)
-LIBS := arch/mips64/lib/lib.a $(LIBS)
+SUBDIRS		:= arch/mips/tools
+libs-y		+= arch/mips64/lib
+core-y		+= arch/mips64/kernel arch/mips64/mm arch/mips/math-emu
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 

@@ -8,6 +8,8 @@
 # Copyright (C) 1998 Jakub Jelinek (jj@ultra.linux.cz)
 #
 
+AFLAGS_vmlinux.lds.o += -Usparc
+
 # If the solaris /bin/sh wasn't so broken, I wouldn't need the following
 # line...
 SHELL  =/bin/bash
@@ -72,7 +74,7 @@ endif
 
 CORE_FILES += arch/sparc64/math-emu/math-emu.o
 
-LIBS := $(TOPDIR)/lib/lib.a $(LIBS) $(TOPDIR)/arch/sparc64/prom/promlib.a \
+LIBS := $(TOPDIR)/lib/lib.a $(LIBS) $(TOPDIR)/arch/sparc64/prom/lib.a \
 	$(TOPDIR)/arch/sparc64/lib/lib.a
 
 vmlinux.aout: vmlinux

@@ -3,8 +3,6 @@
 # under Linux.
 #
 
-O_TARGET = ddb5074.a
-
 obj-y	:= setup.o irq.o time.o prom.o pci.o int-handler.o nile4.o
 
 EXTRA_AFLAGS := $(CFLAGS)

@@ -2,8 +2,6 @@
 # Makefile for common code of the NEC VR4100 series.
 #
 
-O_TARGET	:= vr41xx.o
-
 obj-y		:= bcu.o cmu.o giu.o icu.o int-handler.o reset.o
 
 obj-$(CONFIG_PCI)		+= pciu.o

@@ -73,7 +73,7 @@ unsigned long phys_cpu_present_map;
  * Intel MP BIOS table parsing routines:
  */
 
-#ifndef CONFIG_X86_VISWS_APIC
+
 /*
  * Checksum an MP configuration block.
  */
@@ -737,7 +737,7 @@ static int __init smp_scan_config (unsigned long base, unsigned long length)
 	return 0;
 }
 
-void __init find_intel_smp (void)
+void __init find_smp_config (void)
 {
 	unsigned int address;
 
@@ -775,40 +775,6 @@ void __init find_intel_smp (void)
 	smp_scan_config(address, 0x400);
 	if (smp_found_config)
 		printk(KERN_WARNING "WARNING: MP table in the EBDA can be UNSAFE, contact linux-smp@vger.kernel.org if you experience SMP problems!\n");
-}
-
-#else
-
-/*
- * The Visual Workstation is Intel MP compliant in the hardware
- * sense, but it doesn't have a BIOS(-configuration table).
- * No problem for Linux.
- */
-void __init find_visws_smp(void)
-{
-	smp_found_config = 1;
-
-	phys_cpu_present_map |= 2; /* or in id 1 */
-	apic_version[1] |= 0x10; /* integrated APIC */
-	apic_version[0] |= 0x10;
-
-	mp_lapic_addr = APIC_DEFAULT_PHYS_BASE;
-}
-
-#endif
-
-/*
- * - Intel MP Configuration Table
- * - or SGI Visual Workstation configuration
- */
-void __init find_smp_config (void)
-{
-#ifdef CONFIG_X86_LOCAL_APIC
-	find_intel_smp();
-#endif
-#ifdef CONFIG_VISWS
-	find_visws_smp();
-#endif
 }
 
 
@@ -976,7 +942,7 @@ void __init mp_override_legacy_irq (
 	intsrc.mpc_dstapic = mp_ioapics[ioapic].mpc_apicid;	   /* APIC ID */
 	intsrc.mpc_dstirq = pin;				    /* INTIN# */
 
-	Dprintk("Int: type %d, pol %d, trig %d, bus %d, irq %d, %d-%d\n", 
+	Dprintk("Int: type %d, pol %d, trig %d, bus %d, irq %d, %d-%d\n",
 		intsrc.mpc_irqtype, intsrc.mpc_irqflag & 3, 
 		(intsrc.mpc_irqflag >> 2) & 3, intsrc.mpc_srcbus, 
 		intsrc.mpc_srcbusirq, intsrc.mpc_dstapic, intsrc.mpc_dstirq);
@@ -1049,8 +1015,20 @@ void __init mp_config_acpi_legacy_irqs (void)
 		if (++mp_irq_entries == MAX_IRQ_SOURCES)
 			panic("Max # of irq sources exceeded!\n");
 	}
+}
 
-	return;
+/* Ensure the ACPI SCI interrupt level is active low, edge-triggered */
+
+void __init mp_config_ioapic_for_sci(int irq)
+{
+	int ioapic;
+	int ioapic_pin;
+
+	ioapic = mp_find_ioapic(irq);
+
+	ioapic_pin = irq - mp_ioapic_routing[ioapic].irq_start;
+
+	io_apic_set_pci_routing(ioapic, ioapic_pin, irq);
 }
 
 #ifdef CONFIG_ACPI_PCI
@@ -1059,7 +1037,6 @@ void __init mp_parse_prt (void)
 {
 	struct list_head	*node = NULL;
 	struct acpi_prt_entry	*entry = NULL;
-	int			vector = 0;
 	int			ioapic = -1;
 	int			ioapic_pin = 0;
 	int			irq = 0;
@@ -1104,14 +1081,13 @@ void __init mp_parse_prt (void)
 
 		mp_ioapic_routing[ioapic].pin_programmed[idx] |= (1<<bit);
 
-		vector = io_apic_set_pci_routing(ioapic, ioapic_pin, irq);
-		if (vector)
+		if (!io_apic_set_pci_routing(ioapic, ioapic_pin, irq))
 			entry->irq = irq;
 
-		printk(KERN_DEBUG "%02x:%02x:%02x[%c] -> %d-%d -> vector 0x%02x"
-			" -> IRQ %d\n", entry->id.segment, entry->id.bus, 
+		printk(KERN_DEBUG "%02x:%02x:%02x[%c] -> %d-%d -> IRQ %d\n",
+			entry->id.segment, entry->id.bus, 
 			entry->id.device, ('A' + entry->pin), 
-			mp_ioapic_routing[ioapic].apic_id, ioapic_pin, vector, 
+			mp_ioapic_routing[ioapic].apic_id, ioapic_pin, 
 			entry->irq);
 	}
 	

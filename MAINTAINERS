@@ -240,8 +240,8 @@ L:	linux-net@vger.kernel.org
 S:	Maintained
 
 AX.25 NETWORK LAYER
-P:	Matthias Welwarsky
-M:	dg2fef@afthd.tu-darmstadt.de
+P:	Ralf Baechle
+M:	ralf@linux-mips.org
 L:	linux-hams@vger.kernel.org
 S:	Maintained
 
@@ -531,6 +531,14 @@ M:	mike@i-Connect.Net
 L:	linux-eata@i-connect.net, linux-scsi@vger.kernel.org
 S:	Maintained
 
+EBTABLES
+P:	Bart De Schuymer
+M:	bart.de.schuymer@pandora.be
+L:	ebtables-user@lists.sourceforge.net
+L:	ebtables-devel@lists.sourceforge.net
+W:	http://ebtables.sourceforge.net/
+S:	Maintained
+
 EEPRO100 NETWORK DRIVER
 P:	Andrey V. Savochkin
 M:	saw@saw.sw.com.sg
@@ -733,12 +741,9 @@ W:	http://www.developer.ibm.com/welcome/netfinity/serveraid.html
 S:	Supported 
 
 IDE DRIVER [GENERAL]
-P:	Martin Dalecki
-M:	martin@dalecki.de
-I:	pl_PL.ISO8859-2, de_DE.ISO8859-15, (en_US.ISO8859-1)
 L:	linux-kernel@vger.kernel.org
-W:	http://www.dalecki.de
-S:	Developement
+L:	linux-ide@vger.kernel.org
+S:	Maintained
 
 IDE/ATAPI CDROM DRIVER
 P:	Jens Axboe
@@ -912,8 +917,6 @@ L:	autofs@linux.kernel.org
 S:	Maintained
 
 KERNEL BUILD (Makefile, Rules.make, scripts/*)
-P:	Keith Owens
-M:	kaos@ocs.com.au
 P:	Michael Elizabeth Chastain
 M:	mec@shout.net
 L:	kbuild-devel@lists.sourceforge.net
@@ -1056,12 +1059,6 @@ W:	http://www.acc.umu.se/~mcalinux/
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
-MODULE SUPPORT [GENERAL], KMOD
-P:	Keith Owens
-M:	kaos@ocs.com.au
-L:	linux-kernel@vger.kernel.org
-S:	Maintained
-
 MOUSE AND MISC DEVICES [GENERAL]
 P:	Alessandro Rubini
 M:	rubini@ipvvis.unipv.it
@@ -1113,8 +1110,8 @@ L:	netfilter-devel@lists.netfilter.org
 S:	Supported
 
 NETROM NETWORK LAYER
-P:	Tomi Manninen
-M:	Tomi.Manninen@hut.fi
+P:	Ralf Baechle
+M:	ralf@linux-mips.org
 L:	linux-hams@vger.kernel.org
 S:	Maintained
 
@@ -1370,8 +1367,8 @@ W:	http://www.namesys.com
 S:	Supported
 
 ROSE NETWORK LAYER
-P:	Jean-Paul Roubelat
-M:	jpr@f6fbb.org
+P:	Ralf Baechle
+M:	ralf@linux-mips.org
 L:	linux-hams@vger.kernel.org
 S:	Maintained
 

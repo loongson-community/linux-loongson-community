@@ -321,10 +321,10 @@ static inline void pgd_clear(pgd_t *pgdp)
 #define pte_pfn(x)		((unsigned long)((x).pte >> PAGE_SHIFT))
 #define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
 #else
-#define mips64_pte_pagenr(x) \
-	(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID(pte_val(x))) + \
-	PLAT_NODE_DATA_LOCALNR(pte_val(x), PHYSADDR_TO_NID(pte_val(x))))
-#define pte_page(x)		(mem_map+mips64_pte_pagenr(x))
+
+#define pte_page(x) ( NODE_MEM_MAP(PHYSADDR_TO_NID(pte_val(x))) +
+	PLAT_NODE_DATA_LOCALNR(pte_val(x), PHYSADDR_TO_NID(pte_val(x))) )
+				  
 #endif
 
 /*

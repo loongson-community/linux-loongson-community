@@ -85,22 +85,21 @@ ifdef CONFIG_MCYRIXIII
 CFLAGS += -march=i586
 endif
 
+ifdef CONFIG_VISWS
+MACHINE	:= mach-visws
+else
+MACHINE	:= mach-generic
+endif
+
 HEAD := arch/i386/kernel/head.o arch/i386/kernel/init_task.o
 
-SUBDIRS += arch/i386/kernel arch/i386/mm arch/i386/lib
+libs-y 					+= arch/i386/lib/
+core-y					+= arch/i386/kernel/ arch/i386/mm/ arch/i386/$(MACHINE)/
+drivers-$(CONFIG_MATH_EMULATION)	+= arch/i386/math-emu/
+drivers-$(CONFIG_PCI)			+= arch/i386/pci/
 
-CORE_FILES := arch/i386/kernel/kernel.o arch/i386/mm/mm.o $(CORE_FILES)
-LIBS := $(TOPDIR)/arch/i386/lib/lib.a $(LIBS) $(TOPDIR)/arch/i386/lib/lib.a
-
-ifdef CONFIG_MATH_EMULATION
-SUBDIRS += arch/i386/math-emu
-DRIVERS += arch/i386/math-emu/math.o
-endif
-
-ifdef CONFIG_PCI
-SUBDIRS	+= arch/i386/pci
-DRIVERS	+= arch/i386/pci/pci.o
-endif
+CFLAGS += -I$(TOPDIR)/arch/i386/$(MACHINE)
+AFLAGS += -I$(TOPDIR)/arch/i386/$(MACHINE)
 
 MAKEBOOT = +$(MAKE) -C arch/$(ARCH)/boot
 

@@ -6,8 +6,6 @@
 # Makefile for the Galileo EV64120 board.
 #
 
-O_TARGET	:= ev64120.o
-
 export-objs	= i2o.o
 
 obj-y		:= serialGT.o int-handler.o promcon.o reset.o setup.o irq.o \

@@ -2,8 +2,6 @@
 # Makefile for NEC DDB-Vrc5477 board
 #
 
-O_TARGET:= ddb5477.o
-
 obj-y	 += int-handler.o irq.o irq_5477.o setup.o pci.o pci_ops.o lcd44780.o
 
 obj-$(CONFIG_DEBUG) 		+= debug.o

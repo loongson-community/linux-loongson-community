@@ -3,8 +3,6 @@
 # under Linux.
 #
 
-O_TARGET := hp-lj.o
-
 export-objs := utils.o
 
 obj-y   := init.o setup.o irq.o int-handler.o pci.o utils.o asic.o

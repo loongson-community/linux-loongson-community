@@ -18,8 +18,6 @@
 # Makefile for the MIPS boards generic routines under Linux.
 #
 
-O_TARGET := mipsboards.o
-
 obj-y				:= mipsIRQ.o pci.o reset.o display.o init.o \
 				   memory.o printf.o cmdline.o
 obj-$(CONFIG_MIPS_ATLAS)	+= time.o

@@ -6,8 +6,6 @@ netboot: all
 	$(LD) -N -G 0 -T ld.ecoff ../../boot/zImage \
 		dec_boot.o ramdisk.img -o nbImage
 
-O_TARGET := dec_boot.o
-
 obj-y	 := decstation.o
 
 clean:

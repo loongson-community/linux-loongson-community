@@ -291,7 +291,7 @@ static inline void copy_to_high_bio_irq(struct bio *to, struct bio *from)
 	}
 }
 
-static inline void bounce_end_io(struct bio *bio, mempool_t *pool)
+static void bounce_end_io(struct bio *bio, mempool_t *pool)
 {
 	struct bio *bio_orig = bio->bi_private;
 	struct bio_vec *bvec, *org_vec;
@@ -314,18 +314,26 @@ static inline void bounce_end_io(struct bio *bio, mempool_t *pool)
 	}
 
 out_eio:
-	bio_orig->bi_end_io(bio_orig);
+	bio_endio(bio_orig, bio_orig->bi_size, 0);
 	bio_put(bio);
 }
 
-static void bounce_end_io_write(struct bio *bio)
+static int bounce_end_io_write(struct bio *bio, unsigned int bytes_done,int err)
 {
+	if (bio->bi_size)
+		return 1;
+
 	bounce_end_io(bio, page_pool);
+	return 0;
 }
 
-static void bounce_end_io_write_isa(struct bio *bio)
+static int bounce_end_io_write_isa(struct bio *bio, unsigned int bytes_done, int err)
 {
+	if (bio->bi_size)
+		return 1;
+
 	bounce_end_io(bio, isa_page_pool);
+	return 0;
 }
 
 static inline void __bounce_end_io_read(struct bio *bio, mempool_t *pool)
@@ -338,14 +346,22 @@ static inline void __bounce_end_io_read(struct bio *bio, mempool_t *pool)
 	bounce_end_io(bio, pool);
 }
 
-static void bounce_end_io_read(struct bio *bio)
+static int bounce_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
 {
+	if (bio->bi_size)
+		return 1;
+
 	__bounce_end_io_read(bio, page_pool);
+	return 0;
 }
 
-static void bounce_end_io_read_isa(struct bio *bio)
+static int bounce_end_io_read_isa(struct bio *bio, unsigned int bytes_done, int err)
 {
-	return __bounce_end_io_read(bio, isa_page_pool);
+	if (bio->bi_size)
+		return 1;
+
+	__bounce_end_io_read(bio, isa_page_pool);
+	return 0;
 }
 
 void blk_queue_bounce(request_queue_t *q, struct bio **bio_orig)

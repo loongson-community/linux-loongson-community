@@ -71,11 +71,11 @@ static int elf_core_dump(long signr, struct pt_regs * regs, struct file * file);
 #define ELF_PAGEALIGN(_v) (((_v) + ELF_MIN_ALIGN - 1) & ~(ELF_MIN_ALIGN - 1))
 
 static struct linux_binfmt elf_format = {
-		module:		THIS_MODULE,
-		load_binary:	load_elf_binary,
-		load_shlib:	load_elf_library,
-		core_dump:	elf_core_dump,
-		min_coredump:	ELF_EXEC_PAGESIZE
+		.module		= THIS_MODULE,
+		.load_binary	= load_elf_binary,
+		.load_shlib	= load_elf_library,
+		.core_dump	= elf_core_dump,
+		.min_coredump	= ELF_EXEC_PAGESIZE
 };
 
 #define BAD_ADDR(x)	((unsigned long)(x) > TASK_SIZE)
@@ -146,7 +146,7 @@ create_elf_tables(struct linux_binprm *bprm, struct elfhdr * exec,
 	if (k_platform) {
 		size_t len = strlen(k_platform) + 1;
 
-#if defined(__i386__) && defined(CONFIG_SMP)
+#ifdef CONFIG_X86_HT
 		/*
 		 * In some cases (e.g. Hyper-Threading), we want to avoid L1
 		 * evictions by the processes running on the same package. One
