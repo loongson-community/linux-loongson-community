@@ -18,6 +18,7 @@
 
 #include <asm/branch.h>
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/bootinfo.h>
