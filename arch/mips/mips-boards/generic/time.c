@@ -102,12 +102,12 @@ static unsigned int __init cal_r4koff(void)
 	while (CMOS_READ(RTC_REG_A) & RTC_UIP);
 	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP));
 
-	mips_counter_frequency = read_c0_count();
+	mips_hpt_frequency = read_c0_count();
 
 	/* restore interrupts */
 	local_irq_restore(flags);
 
-	return (mips_counter_frequency / HZ);
+	return (mips_hpt_frequency / HZ);
 }
 
 unsigned long __init mips_rtc_get_time(void)

@@ -164,7 +164,7 @@ static __init void indy_time_init(void)
 		(int) (r4k_tick / (500000 / HZ)),
 		(int) (r4k_tick % (500000 / HZ)));
 
-	mips_counter_frequency = r4k_tick * HZ;
+	mips_hpt_frequency = r4k_tick * HZ;
 }
 
 /* Generic SGI handler for (spurious) 8254 interrupts */

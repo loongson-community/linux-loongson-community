@@ -179,9 +179,9 @@ void momenco_timer_setup(struct irqaction *irq)
 void momenco_time_init(void)
 {
 #ifdef CONFIG_CPU_SR71000
-	mips_counter_frequency = cpu_clock;
+	mips_hpt_frequency = cpu_clock;
 #elif defined(CONFIG_CPU_RM7000)
-	mips_counter_frequency = cpu_clock / 2;
+	mips_hpt_frequency = cpu_clock / 2;
 #else
 #error Unknown CPU for this board
 #endif

@@ -44,7 +44,7 @@ unsigned long missed_heart_beats = 0;
 
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
-extern unsigned int mips_counter_frequency;
+extern unsigned int mips_hpt_frequency;
 
 /* Cycle counter value at the previous timer interrupt.. */
 static unsigned int timerhi = 0, timerlo = 0;
@@ -192,7 +192,7 @@ unsigned long cal_r4koff(void)
 
 	count = read_c0_count();
 	cpu_speed = count * 2;
-	mips_counter_frequency = count;
+	mips_hpt_frequency = count;
 	set_au1x00_uart_baud_base(((cpu_speed) / 4) / 16);
 	spin_unlock_irqrestore(&time_lock, flags);
 	return (cpu_speed / HZ);

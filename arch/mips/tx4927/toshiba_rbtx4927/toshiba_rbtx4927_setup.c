@@ -1167,7 +1167,7 @@ toshiba_rbtx4927_time_init(void)
 				       ":rtc_ds1742_init()+\n");
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT,
-				       ":Calibrate mips_counter_frequency-\n");
+				       ":Calibrate mips_hpt_frequency-\n");
 	rtc_ds1742_wait();
 
 	/* get the count */
@@ -1180,29 +1180,29 @@ toshiba_rbtx4927_time_init(void)
 	c2 = read_c0_count();
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT,
-				       ":Calibrate mips_counter_frequency+\n");
+				       ":Calibrate mips_hpt_frequency+\n");
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT,
 				       ":c1=%12u\n", c1);
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT,
 				       ":c2=%12u\n", c2);
 
 	/* this diff is as close as we are going to get to counter ticks per sec */
-	mips_counter_frequency = abs(c2 - c1);
+	mips_hpt_frequency = abs(c2 - c1);
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT,
-				       ":f1=%12u\n", mips_counter_frequency);
+				       ":f1=%12u\n", mips_hpt_frequency);
 
 	/* round to 1/10th of a MHz */
-	mips_counter_frequency /= (100 * 1000);
-	mips_counter_frequency *= (100 * 1000);
+	mips_hpt_frequency /= (100 * 1000);
+	mips_hpt_frequency *= (100 * 1000);
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT,
-				       ":f2=%12u\n", mips_counter_frequency);
+				       ":f2=%12u\n", mips_hpt_frequency);
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_INFO,
-				       ":mips_counter_frequency=%uHz (%uMHz)\n",
-				       mips_counter_frequency,
-				       mips_counter_frequency / 1000000);
+				       ":mips_hpt_frequency=%uHz (%uMHz)\n",
+				       mips_hpt_frequency,
+				       mips_hpt_frequency / 1000000);
 #else
-	mips_counter_frequency = 100000000;
+	mips_hpt_frequency = 100000000;
 #endif
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_TIME_INIT, "+\n");

@@ -120,7 +120,7 @@ void __init tx4927_timer_setup(struct irqaction *irq)
 
 	/* to generate the first timer interrupt */
 	c1 = read_c0_count();
-	count = c1 + (mips_counter_frequency / HZ);
+	count = c1 + (mips_hpt_frequency / HZ);
 	write_c0_compare(count);
 	c2 = read_c0_count();
 

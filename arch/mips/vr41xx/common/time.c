@@ -89,5 +89,5 @@ void vr41xx_timer_setup(struct irqaction *irq)
 	setup_irq(MIPS_COUNTER_IRQ, irq);
 
 	count = read_c0_count();
-	write_c0_compare(count + (mips_counter_frequency / HZ));
+	write_c0_compare(count + (mips_hpt_frequency / HZ));
 }

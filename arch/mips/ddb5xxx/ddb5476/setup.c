@@ -82,7 +82,7 @@ extern void rtc_ds1386_init(unsigned long base);
 static void __init ddb_time_init(void)
 {
 #if defined(USE_CPU_COUNTER_TIMER)
-	mips_counter_frequency = CPU_COUNTER_FREQUENCY;
+	mips_hpt_frequency = CPU_COUNTER_FREQUENCY;
 #endif
 
 	/* we have ds1396 RTC chip */

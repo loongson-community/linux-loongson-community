@@ -36,7 +36,7 @@
  *  - Added support for NEC VR4111 and VR4121.
  *
  *  Paul Mundt <lethal@chaoticdreams.org>
- *  - Calculate mips_counter_frequency properly on VR4131.
+ *  - Calculate mips_hpt_frequency properly on VR4131.
  *
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
  *  - New creation, NEC VR4122 and VR4131 are supported.
@@ -177,7 +177,7 @@ static inline unsigned long calculate_tclock(u16 clkspeed, unsigned long pclock,
 	return tclock;
 }
 
-static inline unsigned long calculate_mips_counter_frequency(unsigned long tclock)
+static inline unsigned long calculate_mips_hpt_frequency(unsigned long tclock)
 {
 	/*
 	 * VR4131 Revision 2.0 and 2.1 use a value of (tclock / 2).
@@ -202,5 +202,5 @@ void __init vr41xx_bcu_init(void)
 	vtclock = calculate_vtclock(clkspeed, pclock);
 	tclock = calculate_tclock(clkspeed, pclock, vtclock);
 
-	mips_counter_frequency = calculate_mips_counter_frequency(tclock);
+	mips_hpt_frequency = calculate_mips_hpt_frequency(tclock);
 }
