@@ -43,6 +43,8 @@
 #define DBG(x...)
 #endif
 
+extern void ip27_be_init(void) __init;
+
 /*
  * get_nasid() returns the physical node id number of the caller.
  */
