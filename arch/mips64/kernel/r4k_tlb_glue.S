@@ -47,7 +47,7 @@ ld $2, PT_R2(sp)
 	sd	t0, PT_BVADDR(sp)
 	move	a0, sp
 	jal	\name
-	j	return
+	j	ret_from_sys_call
 	END(__\name)
 	.endm
 
