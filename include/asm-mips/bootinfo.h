@@ -248,7 +248,8 @@
 #define CPU_4KEC		38
 #define CPU_4KSC		39
 #define CPU_VR41XX		40
-#define CPU_LAST		40
+#define CPU_R5500		41
+#define CPU_LAST		41
 
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
@@ -257,7 +258,7 @@
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
         "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
         "MIPS 5Kc", "R4310", "SiByte SB1", "TX3912", "TX3922", "TX3927",     \
-	"Au1000", "MIPS 4KEc", "MIPS 4KSc", "NEC Vr41xx" }
+	"Au1000", "MIPS 4KEc", "MIPS 4KSc", "NEC Vr41xx", "R5500" }
 
 #define COMMAND_LINE_SIZE	256
 

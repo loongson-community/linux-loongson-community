@@ -62,8 +62,8 @@ void __init loadmmu(void)
                printk("Loading RM7000 MMU routines.\n");
                ld_mmu_rm7k();
 #endif
-#if defined(CONFIG_CPU_R5432)
-		printk("Loading R5432 MMU routines.\n");
+#if defined(CONFIG_CPU_R5432) || defined(CONFIG_CPU_R5500)
+		printk("Loading R5432/R5500 MMU routines.\n");
 		ld_mmu_r5432();
 #endif
 

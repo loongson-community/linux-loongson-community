@@ -254,6 +254,12 @@ static inline void cpu_probe(void)
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
+		case PRID_IMP_R5500:
+			mips_cpu.cputype = CPU_R5500;
+			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.tlbsize = 48;
+			break;
 		case PRID_IMP_NEVADA:
 			mips_cpu.cputype = CPU_NEVADA;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
