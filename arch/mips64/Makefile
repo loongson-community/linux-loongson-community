@@ -135,9 +135,9 @@ endif
 # SGI-IP27 (Origin200/2000)
 #
 ifdef CONFIG_SGI_IP27
-CORE_FILES	+= arch/mips64/sgi-ip27/ip27.o
+CORE_FILES	+= arch/mips/sgi-ip27/ip27.o
 LIBS		+= arch/mips64/arc/arclib.a
-SUBDIRS		+= arch/mips64/sgi-ip27 arch/mips64/arc
+SUBDIRS		+= arch/mips/sgi-ip27 arch/mips64/arc
 #
 # Set LOADADDR to >= 0xc000000000300000 if you want to leave space for
 # symmon, 0xc00000000001c000 for production kernels.  Note that the value
@@ -155,9 +155,9 @@ endif
 # SGI-IP32 (O2)
 #
 ifdef CONFIG_SGI_IP32
-CORE_FILES	+= arch/mips64/sgi-ip32/ip32-kern.a
+CORE_FILES	+= arch/mips/sgi-ip32/ip32-kern.a
 LIBS		+= arch/mips64/arc/arclib.a
-SUBDIRS		+= arch/mips64/sgi-ip32 arch/mips64/arc
+SUBDIRS		+= arch/mips/sgi-ip32 arch/mips64/arc
 #
 # Set LOADADDR to >= 0x????????? if you want to leave space for symmon,
 # 0x80002000 for production kernels.  Note that the value must be
