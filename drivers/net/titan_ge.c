@@ -78,11 +78,6 @@
 #include <asm/system.h>
 #include <asm/titan_dep.h>
 
-/*
- * Sparse descriptors.  We will still need to benchmark this
- */
-#define SPARSE_DESCRIPTORS
-
 #include "titan_ge.h"
 #include "titan_mdio.h"
 
@@ -225,8 +220,7 @@ static void titan_ge_enable_tx(unsigned int port_num)
 {
 	unsigned long reg_data;
 
-	reg_data = TITAN_GE_READ(TITAN_GE_TMAC_CONFIG_1 +
-				(port_num << 12));
+	reg_data = TITAN_GE_READ(TITAN_GE_TMAC_CONFIG_1 + (port_num << 12));
 	if (!(reg_data & 0x8000)) {
 		printk("TMAC disabled for port %d!! \n", port_num);
 
@@ -411,6 +405,15 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR0, is);
 #endif
 		break;
+
+	case 2:
+		is = OCD_READ(RM9000x2_OCD_INTP0STATUS4);
+		OCD_WRITE(RM9000x2_OCD_INTP0CLEAR4, is);
+
+#ifdef CONFIG_SMP
+		is = OCD_READ(RM9000x2_OCD_INTP1STATUS4);
+		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR4, is);
+#endif
 	}
 
 	eth_int_cause1 = TITAN_GE_READ(TITAN_GE_INTR_XDMA_CORE_A);
@@ -577,10 +580,10 @@ static int titan_ge_open(struct net_device *netdev)
 	if (retval != 0) {
 		printk(KERN_ERR "Cannot assign IRQ number to TITAN GE \n");
 		return -1;
-	} else {
-		netdev->irq = irq;
-		printk(KERN_INFO "Assigned IRQ %d to port %d\n", irq, port_num);
 	}
+
+	netdev->irq = irq;
+	printk(KERN_INFO "Assigned IRQ %d to port %d\n", irq, port_num);
 
 	spin_lock_irq(&(titan_ge_eth->lock));
 
@@ -592,6 +595,7 @@ static int titan_ge_open(struct net_device *netdev)
 	}
 
 	spin_unlock_irq(&(titan_ge_eth->lock));
+
 	return 0;
 }
 
@@ -643,7 +647,6 @@ static int titan_ge_rx_task(struct net_device *netdev,
 
 		titan_ge_port->rx_used_desc_q =
 			(rx_used_desc + 1) % TITAN_GE_RX_QUEUE;
-
 	}
 
 	return count;
@@ -733,10 +736,8 @@ static int titan_ge_port_start(struct net_device *netdev,
 		/* Step 1:  XDMA config	*/
 		reg_data = TITAN_GE_READ(TITAN_GE_XDMA_CONFIG);
 		reg_data &= ~(0x80000000);      /* clear reset */
-#ifndef SPARSE_DESCRIPTORS
 		reg_data |= 0x1 << 29;	/* sparse tx descriptor spacing */
 		reg_data |= 0x1 << 28;	/* sparse rx descriptor spacing */
-#endif
 		reg_data |= (0x1 << 23) | (0x1 << 24);  /* Descriptor Coherency */
 		reg_data |= (0x1 << 21) | (0x1 << 22);  /* Data Coherency */
 		TITAN_GE_WRITE(TITAN_GE_XDMA_CONFIG, reg_data);
