@@ -93,7 +93,6 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	GET_NASID_ASM
 	move	t2, t1				# text and data are here
-1:  bne t1, zero, 1b
 	MAPPED_KERNEL_SETUP_TLB
 
 	ARC64_TWIDDLE_PC

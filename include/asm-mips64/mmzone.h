@@ -8,9 +8,11 @@
 #include <asm/sn/types.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/arch.h>
+#include <asm/sn/klkernvars.h>
 
 typedef struct plat_pglist_data {
 	pg_data_t	gendata;
+	kern_vars_t	kern_vars;
 } plat_pg_data_t;
 
 /*
