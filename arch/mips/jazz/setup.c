@@ -39,8 +39,6 @@ extern void jazz_machine_power_off(void);
 
 extern struct ide_ops std_ide_ops;
 extern struct rtc_ops jazz_rtc_ops;
-extern struct fd_ops *fd_ops;
-extern struct fd_ops jazz_fd_ops;
 
 static void __init jazz_time_init(struct irqaction *irq)
 {
@@ -69,7 +67,6 @@ static void __init jazz_setup(void)
 	/* Map 0xe4000000 -> 0x0:600005C0, 0xe4100000 -> 400005C0 */
 	add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
 
-	irq_setup = jazz_irq_setup;
 	set_io_port_base(JAZZ_PORT_BASE);
 #ifdef CONFIG_EISA
 	if (mips_machtype == MACH_MIPS_MAGNUM_4000)
@@ -90,9 +87,6 @@ static void __init jazz_setup(void)
 
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
-#endif
-#ifdef CONFIG_BLK_DEV_FD
-	fd_ops = &jazz_fd_ops;
 #endif
 #ifdef CONFIG_VT
 	conswitchp = &dummy_con;

@@ -61,9 +61,6 @@ extern void enable_irq(unsigned int);
 struct pt_regs;
 extern asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
-/* Machine specific interrupt initialization  */
-extern void (*irq_setup)(void);
-
 extern void init_generic_irq(void);
 
 #endif /* _ASM_IRQ_H */
