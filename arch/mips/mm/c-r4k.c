@@ -254,16 +254,25 @@ static inline void r4k_blast_scache_setup(void)
 		r4k_blast_scache = blast_scache128;
 }
 
+/*
+ * This is former mm's flush_cache_all() which really should be
+ * flush_cache_vunmap these days ...
+ */
+static inline void local_r4k_flush_cache_all(void * args)
+{
+	r4k_blast_dcache();
+	r4k_blast_icache();
+}
+
 static void r4k_flush_cache_all(void)
 {
 	if (!cpu_has_dc_aliases)
 		return;
 
-	r4k_blast_dcache();
-	r4k_blast_icache();
+	on_each_cpu(local_r4k_flush_cache_all, NULL, 1, 1);
 }
 
-static void r4k___flush_cache_all(void)
+static inline void local_r4k___flush_cache_all(void * args)
 {
 	r4k_blast_dcache();
 	r4k_blast_icache();
@@ -279,8 +288,12 @@ static void r4k___flush_cache_all(void)
 	}
 }
 
-static void r4k_flush_cache_range(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k___flush_cache_all(void)
+{
+	on_each_cpu(local_r4k___flush_cache_all, NULL, 1, 1);
+}
+
+static inline void local_r4k_flush_cache_range(struct vm_area_struct *vma)
 {
 	int exec;
 
@@ -294,7 +307,13 @@ static void r4k_flush_cache_range(struct vm_area_struct *vma,
 		r4k_blast_icache();
 }
 
-static void r4k_flush_cache_mm(struct mm_struct *mm)
+static void r4k_flush_cache_range(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
+{
+	on_each_cpu(local_r4k_flush_cache_range, vma, 1, 1);
+}
+
+static inline void local_r4k_flush_cache_mm(struct mm_struct *mm)
 {
 	if (!cpu_has_dc_aliases)
 		return;
@@ -316,9 +335,21 @@ static void r4k_flush_cache_mm(struct mm_struct *mm)
 		r4k_blast_scache();
 }
 
-static void r4k_flush_cache_page(struct vm_area_struct *vma,
-					unsigned long page)
+static void r4k_flush_cache_mm(struct mm_struct *mm)
 {
+	on_each_cpu(local_r4k_flush_cache_mm, mm, 1, 1);
+}
+
+struct flush_cache_page_args {
+	struct vm_area_struct *vma;
+	unsigned long page;
+};
+
+static inline void local_r4k_flush_cache_page(
+	struct flush_cache_page_args * args)
+{
+	struct vm_area_struct *vma = args->vma;
+	unsigned long page = args->page;
 	int exec = vma->vm_flags & VM_EXEC;
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgdp;
@@ -377,15 +408,39 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_data_cache_page(unsigned long addr)
+static void r4k_flush_cache_page(struct vm_area_struct *vma,
+	unsigned long page)
 {
-	r4k_blast_dcache_page(addr);
+	struct flush_cache_page_args args;
+
+	args.vma = vma;
+	args.page = page;
+
+	on_each_cpu(local_r4k_flush_cache_page, &args, 1, 1);
 }
 
-static void r4k_flush_icache_range(unsigned long start, unsigned long end)
+static inline void local_r4k_flush_data_cache_page(void * addr)
+{
+	r4k_blast_dcache_page((unsigned long) addr);
+}
+
+static void r4k_flush_data_cache_page(unsigned long addr)
+{
+	on_each_cpu(local_r4k_flush_data_cache_page, (void *) addr, 1, 1);
+}
+
+struct flush_icache_range_args {
+	unsigned long start;
+	unsigned long end;
+};
+
+static inline void local_r4k_flush_icache_range(
+	struct flush_icache_range_args *args)
 {
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
+	unsigned long start = args->start;
+	unsigned long end = args->end;
 	unsigned long addr, aend;
 
 	if (!cpu_has_ic_fills_f_dc) {
@@ -420,6 +475,16 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 	}
 }
 
+static void r4k_flush_icache_range(unsigned long start, unsigned long end)
+{
+	struct flush_icache_range_args args;
+
+	args.start = start;
+	args.end = end;
+
+	on_each_cpu(local_r4k_flush_icache_range, &args, 1, 1);
+}
+
 /*
  * Ok, this seriously sucks.  We use them to flush a user page but don't
  * know the virtual address, so we have to blast away the whole icache
@@ -427,14 +492,17 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
  * least know the kernel address of the page so we can flush it
  * selectivly.
  */
-static void r4k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
+
+struct flush_icache_page_args {
+	struct vm_area_struct *vma;
+	struct page *page;
+};
+
+static inline void local_r4k_flush_icache_page(
+	struct flush_icache_page_args *args)
 {
-	/*
-	 * If there's no context yet, or the page isn't executable, no icache
-	 * flush is needed.
-	 */
-	if (!(vma->vm_flags & VM_EXEC))
-		return;
+	struct vm_area_struct *vma = args->vma;
+	struct page *page = args->page;
 
 	/*
 	 * Tricky ...  Because we don't know the virtual address we've got the
@@ -471,6 +539,25 @@ static void r4k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	} else
 		r4k_blast_icache();
 }
+
+static void r4k_flush_icache_page(struct vm_area_struct *vma,
+	struct page *page)
+{
+	struct flush_icache_page_args args;
+
+	/*
+	 * If there's no context yet, or the page isn't executable, no I-cache
+	 * flush is needed.
+	 */
+	if (!(vma->vm_flags & VM_EXEC))
+		return;
+
+	args.vma = vma;
+	args.page = page;
+
+	on_each_cpu(local_r4k_flush_icache_page, &args, 1, 1);
+}
+
 
 #ifdef CONFIG_DMA_NONCOHERENT
 
@@ -575,10 +662,11 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
  * very much about what happens in that case.  Usually a segmentation
  * fault will dump the process later on anyway ...
  */
-static void r4k_flush_cache_sigtramp(unsigned long addr)
+static void local_r4k_flush_cache_sigtramp(void * arg)
 {
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
+	unsigned long addr = (unsigned long) arg;
 
 	R4600_HIT_CACHEOP_WAR_IMPL;
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
@@ -603,6 +691,11 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 	}
 	if (MIPS_CACHE_SYNC_WAR)
 		__asm__ __volatile__ ("sync");
+}
+
+static void r4k_flush_cache_sigtramp(unsigned long addr)
+{
+	on_each_cpu(local_r4k_flush_cache_sigtramp, (void *) addr, 1, 1);
 }
 
 static void r4k_flush_icache_all(void)
