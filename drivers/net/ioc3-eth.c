@@ -75,7 +75,7 @@
 
 /*
  * Private ioctls that de facto are well known and used for examply
- * by mii-tool.  These are deprecated.
+ * by mii-tool.  These are deprecated and will go away in 2.5.0.
  */
 #define SIOCGMIIPHY (SIOCDEVPRIVATE)	/* Read from current PHY */
 #define SIOCGMIIREG (SIOCDEVPRIVATE+1)	/* Read any PHY register */
@@ -986,7 +986,13 @@ out_free:
 
 static void __devexit ioc3_remove_one (struct pci_dev *pdev)
 {
-	/* Later ... */
+	struct net_device *dev = pci_get_drvdata(pdev);
+	struct ioc3_private *ip = dev->priv;
+	struct ioc3 *ioc3 = ip->regs;
+
+	iounmap(ioc3);
+	/* pci_release_regions(pdev);  Will be used in 2.4.3 */
+	kfree(dev);
 }
 
 static struct pci_device_id ioc3_pci_tbl[] __devinitdata = {
@@ -999,7 +1005,7 @@ static struct pci_driver ioc3_driver = {
 	name:		"ioc3-eth",
 	id_table:	ioc3_pci_tbl,
 	probe:		ioc3_probe,
-	/* remove:		ioc3_remove_one, */
+	remove:		ioc3_remove_one,
 };
 
 static int __init ioc3_init_module(void)
