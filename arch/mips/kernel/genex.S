@@ -17,6 +17,7 @@
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
+#include <asm/war.h>
 
 	__INIT
 
