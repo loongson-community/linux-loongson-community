@@ -203,7 +203,7 @@ static inline unsigned long thread_saved_pc(struct thread_struct *t)
 	if (t->reg31 == (unsigned long) ret_from_fork)
 		return t->reg31;
 
-	return ((unsigned long *)t->reg29)[10];
+	return ((unsigned long *)t->reg29)[13];
 }
 
 /*
