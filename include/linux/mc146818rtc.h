@@ -98,4 +98,12 @@ extern spinlock_t rtc_lock;		/* serialize CMOS RAM access */
 #define BIN_TO_BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
 #endif
 
+#ifndef RTC_IO_EXTENT
+#define RTC_IO_EXTENT	0x10	/* Only really two ports, but...	*/
+#endif
+
+#ifndef RTC_IOMAPPED
+#define RTC_IOMAPPED	1	/* Default to I/O mapping. */
+#endif
+
 #endif /* _MC146818RTC_H */

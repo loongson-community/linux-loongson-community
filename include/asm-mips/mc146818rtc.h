@@ -6,26 +6,37 @@
  * Machine dependent access functions for RTC registers.
  *
  * Copyright (C) 1996, 1997, 1998, 2000 Ralf Baechle
+ * Copyright (C) 2002  Maciej W. Rozycki
  */
 #ifndef _ASM_MC146818RTC_H
 #define _ASM_MC146818RTC_H
 
 #include <linux/config.h>
+
+#include <asm/addrspace.h>
 #include <asm/io.h>
 
-#ifndef RTC_PORT
-#if defined(CONFIG_MIPS_ITE8172) || defined(CONFIG_MIPS_IVR)
+#ifdef CONFIG_DECSTATION
+extern char *dec_rtc_base;
+#define RTC_PORT(x)	CPHYSADDR(dec_rtc_base)
+#define RTC_IO_EXTENT	0x100
+#define RTC_IOMAPPED	0
+#elif defined(CONFIG_MIPS_ITE8172) || defined(CONFIG_MIPS_IVR)
 #define RTC_PORT(x)	(0x14014800 + (x))
+#define RTC_IOMAPPED	0
 #elif defined(CONFIG_MIPS_PB1500) || defined(CONFIG_MIPS_PB1100)
-#define RTC_PORT(x)	(0xAC000000 + (x))
+#define RTC_PORT(x)	(0x0c000000 + (x))
+#define RTC_IOMAPPED	0
 #else
 #define RTC_PORT(x)	(0x70 + (x))
 #endif
-#endif
 
 /*
- * The yet supported machines all access the RTC index register via
- * an ISA port access but the way to access the date register differs ...
+ * Most supported machines access the RTC index register via an ISA
+ * port access but the way to access the date register differs ...
+ * The DECstation directly maps the RTC memory in the CPU's address
+ * space with the chipset generating necessary index write/data access
+ * cycles automagically.
  */
 #define CMOS_READ(addr) ({ \
 rtc_ops->rtc_read_data(addr); \
