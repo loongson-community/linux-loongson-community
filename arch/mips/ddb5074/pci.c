@@ -5,7 +5,7 @@
  *                     Albert Dorofeev <albert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
  *
- *  $Id$
+ *  $Id: pci.c,v 1.1 2000/01/26 00:07:44 ralf Exp $
  */
 
 #include <linux/init.h>
@@ -171,13 +171,17 @@ struct pci_ops nile4_pci_ops = {
 };
 
 
-static void __init pcibios_claim_resources(struct pci_bus *bus)
+static void __init pcibios_claim_resources(struct list_head *bus_list)
 {
+    struct list_head *ln, *dn;
+    struct pci_bus *bus;
     struct pci_dev *dev;
     int idx;
 
-    while (bus) {
-	for (dev=bus->devices; dev; dev=dev->sibling) {
+    for (ln = bus_list->next; ln != bus_list; ln = ln->next) {
+	bus = pci_bus_b(ln);
+	for (dn = bus->devices.next; dn != &bus->devices; dn = dn->next) {
+	    dev = pci_dev_b(dn);
 	    for (idx = 0; idx < PCI_NUM_RESOURCES; idx++) {
 		struct resource *r = &dev->resource[idx];
 		struct resource *pr;
@@ -190,9 +194,7 @@ static void __init pcibios_claim_resources(struct pci_bus *bus)
 		}
 	    }
 	}
-	if (bus->children)
-	    pcibios_claim_resources(bus->children);
-	bus = bus->next;
+	pcibios_claim_resources(&bus->children);
     }
 }
 
@@ -202,7 +204,7 @@ void pcibios_init(void)
     printk("PCI: Probing PCI hardware\n");
     ioport_resource.end = 0x1ffffff;
     pci_scan_bus(0, &nile4_pci_ops, NULL);
-    pcibios_claim_resources(pci_root);
+    pcibios_claim_resources(&pci_root_buses);
 
 #if 0
     {
@@ -224,16 +226,19 @@ void pcibios_init(void)
 
 void pcibios_fixup_bus(struct pci_bus *bus)
 {
+    struct list_head *dn;
     struct pci_dev *dev;
     extern struct pci_dev *pci_pmu;	/* for LEDs D2 and D3 */
+    int slot_num, func_num;
     u8 t8;
 
     /*
      *  FIXME: PMON doesn't autoconfigure the PCI devices
      *         For now we just hardcode them for our configuration
      */
-    for (dev = bus->devices; dev; dev = dev->sibling) {
-	int slot_num, func_num;
+    printk("PCI: Configuring PCI devices (hardcoded)\n");
+    for (dn = bus->devices.next; dn != &bus->devices; dn = dn->next) {
+	dev = pci_dev_b(dn);
 
 	slot_num = PCI_SLOT(dev->devfn);
 	func_num = PCI_FUNC(dev->devfn);
@@ -277,7 +282,7 @@ void pcibios_fixup_bus(struct pci_bus *bus)
 		break;
 	    case 4:
 		printk("[slot 3]  Promise Technology IDE UltraDMA/33");
-		printk(" Or 3Com 3c905 :-)\n");
+		printk(" or 3Com 3c905 :-)\n");
 		dev->irq = nile4_to_irq(NILE4_INT_INTC);
 		dev->resource[0].start = 0x1800000;
 		dev->resource[0].end = dev->resource[0].start+0x7fffff;
@@ -315,6 +320,43 @@ char *pcibios_setup (char *str)
 {
     return str;
 }
+
+void __init pcibios_update_resource(struct pci_dev *dev, struct resource *root,
+				    struct resource *res, int resource)
+{
+    unsigned long where, size;
+    u32 reg;
+
+    where = PCI_BASE_ADDRESS_0 + (resource * 4);
+    size = res->end - res->start;
+    pci_read_config_dword(dev, where, &reg);
+    reg = (reg & size) | (((u32)(res->start - root->start)) & ~size);
+    pci_write_config_dword(dev, where, reg);
+}
+
+void __init pcibios_update_irq(struct pci_dev *dev, int irq)
+{
+    pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
+}
+
+void __init pcibios_fixup_pbus_ranges(struct pci_bus *bus,
+				      struct pbus_set_ranges_data *ranges)
+{
+    ranges->io_start -= bus->resource[0]->start;
+    ranges->io_end -= bus->resource[0]->start;
+    ranges->mem_start -= bus->resource[1]->start;
+    ranges->mem_end -= bus->resource[1]->start;
+}
+
+void __init pcibios_align_resource(void *data, struct resource *res,
+				   unsigned long size)
+{}
+
+int pci_assign_resource(struct pci_dev *dev, int i)
+{
+    panic("pci_assign_resource: not yet implemented\n");
+}
+
 
 struct pci_fixup pcibios_fixups[] = {};
 

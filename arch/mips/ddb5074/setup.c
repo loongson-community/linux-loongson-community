@@ -4,7 +4,7 @@
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
  *
- *  $Id$
+ *  $Id: setup.c,v 1.1 2000/01/26 00:07:44 ralf Exp $
  */
 
 #include <linux/config.h>
@@ -106,6 +106,11 @@ void __init ddb_setup(void)
     _machine_power_off = ddb_machine_power_off;
 
     rtc_ops = &ddb_rtc_ops;
+}
+
+int __init page_is_ram(unsigned long pagenr)
+{
+    return 1;
 }
 
 
