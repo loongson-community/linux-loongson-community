@@ -6,9 +6,9 @@
     *  This module contains constants and macros useful for
     *  manipulating the SB1250's Synchronous Serial
     *
-    *  SB1250 specification level:  0.2
-    *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  SB1250 specification level:  User's manual 1/02/02
+    *  
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *

@@ -97,7 +97,6 @@
 
 #define M_DUART_TX_CTS_ENA          _SB_MAKEMASK1(4)
 
-
 #define M_DUART_MODE_RESERVED2      _SB_MAKEMASK1(5)    /* must be zero */
 
 #define S_DUART_CHAN_MODE	    6
@@ -207,7 +206,6 @@
 
 #define S_DUART_IN_PIN_CHNG         4
 #define M_DUART_IN_PIN_CHNG         _SB_MAKEMASK(4,S_DUART_IN_PIN_CHNG)
-
 
 /*
  * DUART Output port control register (Table 10-14)

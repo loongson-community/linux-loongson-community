@@ -7,9 +7,9 @@
     *  programming the SB1250's DMA controllers, both the data mover
     *  and the Ethernet DMA.
     *
-    *  SB1250 specification level:  0.2
+    *  SB1250 specification level:  User's manual 1/02/02
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *
@@ -209,6 +209,9 @@
 #define M_DMA_ETHRX_BADIP4CS        _SB_MAKEMASK1(51)
 #define M_DMA_ETHRX_DSCRERR	    _SB_MAKEMASK1(52)
 
+/* Note: BADTCPCS is actually in DSCR_A */
+#define M_DMA_ETHRX_BADTCPCS	_SB_MAKEMASK1(0)	/* PASS2 */
+
 #define S_DMA_ETHRX_RXCH            53
 #define M_DMA_ETHRX_RXCH            _SB_MAKEMASK(2,S_DMA_ETHRX_RXCH)
 #define V_DMA_ETHRX_RXCH(x)         _SB_MAKEVALUE(x,S_DMA_ETHRX_RXCH)
@@ -302,10 +305,10 @@
  * Register: DM_DSCR_BASE_3
  */
 
-#define M_DM_DSCR_BASE_MBZ          _SB_MAKEMASK(3,0)
+#define M_DM_DSCR_BASE_MBZ          _SB_MAKEMASK(4,0)
 
 /*  Note: Just mask the base address and then OR it in. */
-#define S_DM_DSCR_BASE_ADDR         _SB_MAKE64(3)
+#define S_DM_DSCR_BASE_ADDR         _SB_MAKE64(4)
 #define M_DM_DSCR_BASE_ADDR         _SB_MAKEMASK(36,S_DM_DSCR_BASE_ADDR)
 
 #define S_DM_DSCR_BASE_RINGSZ       _SB_MAKE64(40)
@@ -364,7 +367,10 @@
 #define M_DM_DSCRA_UN_DEST          _SB_MAKEMASK1(40)
 #define M_DM_DSCRA_UN_SRC           _SB_MAKEMASK1(41)
 #define M_DM_DSCRA_INTERRUPT        _SB_MAKEMASK1(42)
-#define M_DM_DSCRA_THROTTLE         _SB_MAKEMASK1(43)
+/*#define M_DM_DSCRA_THROTTLE         _SB_MAKEMASK1(43) */ /* REMOVED PASS2 */
+
+#define M_DM_DSCRA_RD_BKOFF	    _SB_MAKEMASK1(52)		/* PASS2 */
+#define M_DM_DSCRA_WR_BKOFF	    _SB_MAKEMASK1(53)		/* PASS2 */
 
 #define S_DM_DSCRA_DIR_DEST         _SB_MAKE64(44)
 #define M_DM_DSCRA_DIR_DEST         _SB_MAKEMASK(2,S_DM_DSCRA_DIR_DEST)
@@ -398,7 +404,7 @@
 #define M_DM_DSCRA_L2C_DEST         _SB_MAKEMASK1(50)
 #define M_DM_DSCRA_L2C_SRC          _SB_MAKEMASK1(51)
 
-#define M_DM_DSCRA_RESERVED2        _SB_MAKEMASK(12,52)
+#define M_DM_DSCRA_RESERVED2        _SB_MAKEMASK(10,54)
 
 /*
  * Data Mover Descriptor Doubleword "B"  (Table 7-25)

@@ -6,9 +6,9 @@
     *  This module contains constants and macros useful for
     *  programming the memory controller.
     *
-    *  SB1250 specification level:  0.2
+    *  SB1250 specification level:  User's manual 1/02/02
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *
@@ -298,69 +298,80 @@
  * SDRAM Timing Register  (Table 6-15)
  */
 
-#define M_MC_w2rIDLE_TWOCYCLES	  _SB_MAKEMASK1(62)
+#define M_MC_w2rIDLE_TWOCYCLES	  _SB_MAKEMASK1(60)
 #define M_MC_r2wIDLE_TWOCYCLES	  _SB_MAKEMASK1(61)
-#define M_MC_r2rIDLE_TWOCYCLES	  _SB_MAKEMASK1(60)
+#define M_MC_r2rIDLE_TWOCYCLES	  _SB_MAKEMASK1(62)
 
 #define S_MC_tFIFO                56
 #define M_MC_tFIFO                _SB_MAKEMASK(4,S_MC_tFIFO)
 #define V_MC_tFIFO(x)             _SB_MAKEVALUE(x,S_MC_tFIFO)
+#define G_MC_tFIFO(x)             _SB_GETVALUE(x,S_MC_tFIFO,M_MC_tFIFO)
 #define K_MC_tFIFO_DEFAULT        1
 #define V_MC_tFIFO_DEFAULT        V_MC_tFIFO(K_MC_tFIFO_DEFAULT)
 
 #define S_MC_tRFC                 52
 #define M_MC_tRFC                 _SB_MAKEMASK(4,S_MC_tRFC)
 #define V_MC_tRFC(x)              _SB_MAKEVALUE(x,S_MC_tRFC)
+#define G_MC_tRFC(x)              _SB_GETVALUE(x,S_MC_tRFC,M_MC_tRFC)
 #define K_MC_tRFC_DEFAULT         12
 #define V_MC_tRFC_DEFAULT         V_MC_tRFC(K_MC_tRFC_DEFAULT)
 
 #define S_MC_tCwCr                40
 #define M_MC_tCwCr                _SB_MAKEMASK(4,S_MC_tCwCr)
 #define V_MC_tCwCr(x)             _SB_MAKEVALUE(x,S_MC_tCwCr)
+#define G_MC_tCwCr(x)             _SB_GETVALUE(x,S_MC_tCwCr,M_MC_tCwCr)
 #define K_MC_tCwCr_DEFAULT        4
 #define V_MC_tCwCr_DEFAULT        V_MC_tCwCr(K_MC_tCwCr_DEFAULT)
 
 #define S_MC_tRCr                 28
 #define M_MC_tRCr                 _SB_MAKEMASK(4,S_MC_tRCr)
 #define V_MC_tRCr(x)              _SB_MAKEVALUE(x,S_MC_tRCr)
+#define G_MC_tRCr(x)              _SB_GETVALUE(x,S_MC_tRCr,M_MC_tRCr)
 #define K_MC_tRCr_DEFAULT         9
 #define V_MC_tRCr_DEFAULT         V_MC_tRCr(K_MC_tRCr_DEFAULT)
 
 #define S_MC_tRCw                 24
 #define M_MC_tRCw                 _SB_MAKEMASK(4,S_MC_tRCw)
 #define V_MC_tRCw(x)              _SB_MAKEVALUE(x,S_MC_tRCw)
+#define G_MC_tRCw(x)              _SB_GETVALUE(x,S_MC_tRCw,M_MC_tRCw)
 #define K_MC_tRCw_DEFAULT         10
 #define V_MC_tRCw_DEFAULT         V_MC_tRCw(K_MC_tRCw_DEFAULT)
 
 #define S_MC_tRRD                 20
 #define M_MC_tRRD                 _SB_MAKEMASK(4,S_MC_tRRD)
 #define V_MC_tRRD(x)              _SB_MAKEVALUE(x,S_MC_tRRD)
+#define G_MC_tRRD(x)              _SB_GETVALUE(x,S_MC_tRRD,M_MC_tRRD)
 #define K_MC_tRRD_DEFAULT         2
 #define V_MC_tRRD_DEFAULT         V_MC_tRRD(K_MC_tRRD_DEFAULT)
 
 #define S_MC_tRP                  16
 #define M_MC_tRP                  _SB_MAKEMASK(4,S_MC_tRP)
 #define V_MC_tRP(x)               _SB_MAKEVALUE(x,S_MC_tRP)
+#define G_MC_tRP(x)               _SB_GETVALUE(x,S_MC_tRP,M_MC_tRP)
 #define K_MC_tRP_DEFAULT          4
 #define V_MC_tRP_DEFAULT          V_MC_tRP(K_MC_tRP_DEFAULT)
 
 #define S_MC_tCwD                 8
 #define M_MC_tCwD                 _SB_MAKEMASK(4,S_MC_tCwD)
 #define V_MC_tCwD(x)              _SB_MAKEVALUE(x,S_MC_tCwD)
+#define G_MC_tCwD(x)              _SB_GETVALUE(x,S_MC_tCwD,M_MC_tCwD)
 #define K_MC_tCwD_DEFAULT         1
 #define V_MC_tCwD_DEFAULT         V_MC_tCwD(K_MC_tCwD_DEFAULT)
 
 #define M_tCrDh                   _SB_MAKEMASK1(7)
+#define M_MC_tCrDh		  M_tCrDh
 
 #define S_MC_tCrD                 4
 #define M_MC_tCrD                 _SB_MAKEMASK(3,S_MC_tCrD)
 #define V_MC_tCrD(x)              _SB_MAKEVALUE(x,S_MC_tCrD)
+#define G_MC_tCrD(x)              _SB_GETVALUE(x,S_MC_tCrD,M_MC_tCrD)
 #define K_MC_tCrD_DEFAULT         2
 #define V_MC_tCrD_DEFAULT         V_MC_tCrD(K_MC_tCrD_DEFAULT)
 
 #define S_MC_tRCD                 0
 #define M_MC_tRCD                 _SB_MAKEMASK(4,S_MC_tRCD)
 #define V_MC_tRCD(x)              _SB_MAKEVALUE(x,S_MC_tRCD)
+#define G_MC_tRCD(x)              _SB_GETVALUE(x,S_MC_tRCD,M_MC_tRCD)
 #define K_MC_tRCD_DEFAULT         3
 #define V_MC_tRCD_DEFAULT         V_MC_tRCD(K_MC_tRCD_DEFAULT)
 

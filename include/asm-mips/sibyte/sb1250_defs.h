@@ -6,8 +6,10 @@
     *  This file contains macros and definitions used by the other
     *  include files.
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  SB1250 specification level:  User's manual 1/02/02
     *
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
+    *  
     *********************************************************************
     *
     *  Copyright 2000,2001

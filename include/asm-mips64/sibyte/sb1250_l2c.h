@@ -6,9 +6,9 @@
     *  This module contains constants useful for manipulating the
     *  level 2 cache.
     *
-    *  SB1250 specification level:  0.2
+    *  SB1250 specification level:  User's manual 1/02/02
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *
@@ -75,6 +75,14 @@
 #define M_L2C_MGMT_INDEX            _SB_MAKEMASK(12,S_L2C_MGMT_INDEX)
 #define V_L2C_MGMT_INDEX(x)         _SB_MAKEVALUE(x,S_L2C_MGMT_INDEX)
 #define G_L2C_MGMT_INDEX(x)         _SB_GETVALUE(x,S_L2C_MGMT_INDEX,M_L2C_MGMT_INDEX)
+
+#define S_L2C_MGMT_QUADRANT         15
+#define M_L2C_MGMT_QUADRANT         _SB_MAKEMASK(2,S_L2C_MGMT_QUADRANT)
+#define V_L2C_MGMT_QUADRANT(x)      _SB_MAKEVALUE(x,S_L2C_MGMT_QUADRANT)
+#define G_L2C_MGMT_QUADRANT(x)      _SB_GETVALUE(x,S_L2C_MGMT_QUADRANT,M_L2C_MGMT_QUADRANT)
+
+#define S_L2C_MGMT_HALF		    16
+#define M_L2C_MGMT_HALF	            _SB_MAKEMASK(1,S_L2C_MGMT_HALF)
 
 #define S_L2C_MGMT_WAY              17
 #define M_L2C_MGMT_WAY              _SB_MAKEMASK(2,S_L2C_MGMT_WAY)

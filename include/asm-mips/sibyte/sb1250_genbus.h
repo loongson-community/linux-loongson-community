@@ -6,9 +6,9 @@
     *  This module contains constants and macros useful for
     *  manipulating the SB1250's Generic Bus interface
     *
-    *  SB1250 specification level:  01/02/2002
+    *  SB1250 specification level:  User's manual 1/02/02
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *
@@ -48,11 +48,13 @@
 #define M_IO_WIDTH_SEL		_SB_MAKEMASK(2,S_IO_WIDTH_SEL)
 #define K_IO_WIDTH_SEL_1	0
 #define K_IO_WIDTH_SEL_2	1
+#define K_IO_WIDTH_SEL_1L       2		/* PASS2 */
 #define K_IO_WIDTH_SEL_4	3
 #define V_IO_WIDTH_SEL(x)	_SB_MAKEVALUE(x,S_IO_WIDTH_SEL)
 #define G_IO_WIDTH_SEL(x)	_SB_GETVALUE(x,S_IO_WIDTH_SEL,M_IO_WIDTH_SEL)
 
 #define M_IO_PARITY_ENA		_SB_MAKEMASK1(4)
+#define M_IO_BURST_EN		_SB_MAKEMASK1(5)	/* PASS2 */
 #define M_IO_PARITY_ODD		_SB_MAKEMASK1(6)
 #define M_IO_NONMUX		_SB_MAKEMASK1(7)
 
@@ -92,10 +94,17 @@
 #define V_IO_ALE_WIDTH(x)	_SB_MAKEVALUE(x,S_IO_ALE_WIDTH)
 #define G_IO_ALE_WIDTH(x)	_SB_GETVALUE(x,S_IO_ALE_WIDTH,M_IO_ALE_WIDTH)
 
+#define M_IO_EARLY_CS	        _SB_MAKEMASK1(3)	/* PASS2 */
+
 #define S_IO_ALE_TO_CS		4
 #define M_IO_ALE_TO_CS		_SB_MAKEMASK(2,S_IO_ALE_TO_CS)
 #define V_IO_ALE_TO_CS(x)	_SB_MAKEVALUE(x,S_IO_ALE_TO_CS)
 #define G_IO_ALE_TO_CS(x)	_SB_GETVALUE(x,S_IO_ALE_TO_CS,M_IO_ALE_TO_CS)
+
+#define S_IO_BURST_WIDTH           _SB_MAKE64(6)			/* PASS2 */
+#define M_IO_BURST_WIDTH           _SB_MAKEMASK(2,S_IO_BURST_WIDTH)	/* PASS2 */
+#define V_IO_BURST_WIDTH(x)        _SB_MAKEVALUE(x,S_IO_BURST_WIDTH)	/* PASS2 */
+#define G_IO_BURST_WIDTH(x)        _SB_GETVALUE(x,S_IO_BURST_WIDTH,M_IO_BURST_WIDTH)	/* PASS2 */
 
 #define S_IO_CS_WIDTH		8
 #define M_IO_CS_WIDTH		_SB_MAKEMASK(5,S_IO_CS_WIDTH)
@@ -116,6 +125,8 @@
 #define M_IO_ALE_TO_WRITE	_SB_MAKEMASK(3,S_IO_ALE_TO_WRITE)
 #define V_IO_ALE_TO_WRITE(x)	_SB_MAKEVALUE(x,S_IO_ALE_TO_WRITE)
 #define G_IO_ALE_TO_WRITE(x)	_SB_GETVALUE(x,S_IO_ALE_TO_WRITE,M_IO_ALE_TO_WRITE)
+
+#define M_IO_RDY_SYNC	        _SB_MAKEMASK1(3)	/* PASS2 */
 
 #define S_IO_WRITE_WIDTH	4
 #define M_IO_WRITE_WIDTH	_SB_MAKEMASK(4,S_IO_WRITE_WIDTH)
@@ -155,6 +166,7 @@
 #define M_IO_TIMEOUT_INT	_SB_MAKEMASK1(10)
 #define M_IO_ILL_ADDR_INT	_SB_MAKEMASK1(11)
 #define M_IO_MULT_CS_INT	_SB_MAKEMASK1(12)
+#define M_IO_COH_ERR	        _SB_MAKEMASK1(14)	/* PASS2 */
 
 /*
  * PCMCIA configuration register (Table 12-6)

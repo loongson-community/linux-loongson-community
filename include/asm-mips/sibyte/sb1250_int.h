@@ -6,9 +6,9 @@
     *  This module contains constants for manipulating the SB1250's
     *  interrupt mapper and definitions for the interrupt sources.
     *
-    *  SB1250 specification level:  0.2
+    *  SB1250 specification level:  User's manual 1/02/02
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *
@@ -77,8 +77,8 @@
 #define K_INT_MBOX_1                27
 #define K_INT_MBOX_2                28
 #define K_INT_MBOX_3                29
-#define K_INT_SPARE_0               30
-#define K_INT_SPARE_1               31
+#define K_INT_CYCLE_CP0_INT	    30		/* PASS2 */
+#define K_INT_CYCLE_CP1_INT	    31		/* PASS2 */
 #define K_INT_GPIO_0                32
 #define K_INT_GPIO_1                33
 #define K_INT_GPIO_2                34
@@ -108,9 +108,9 @@
 #define K_INT_PCI_INTC              58
 #define K_INT_PCI_INTD              59
 #define K_INT_SPARE_2               60
-#define K_INT_SPARE_3               61
-#define K_INT_SPARE_4               62
-#define K_INT_SPARE_5               63
+#define K_INT_MAC_0_CH1		    61		/* PASS2 */
+#define K_INT_MAC_1_CH1		    62		/* PASS2 */
+#define K_INT_MAC_2_CH1		    63		/* PASS2 */
 
 /*
  * Mask values for each interrupt
@@ -146,8 +146,8 @@
 #define M_INT_MBOX_1                _SB_MAKEMASK1(K_INT_MBOX_1)
 #define M_INT_MBOX_2                _SB_MAKEMASK1(K_INT_MBOX_2)
 #define M_INT_MBOX_3                _SB_MAKEMASK1(K_INT_MBOX_3)
-#define M_INT_SPARE_0               _SB_MAKEMASK1(K_INT_SPARE_0)
-#define M_INT_SPARE_1               _SB_MAKEMASK1(K_INT_SPARE_1)
+#define M_INT_CYCLE_CP0_INT	    _SB_MAKEMASK1(K_INT_CYCLE_CP0_INT)	/* PASS2 */
+#define M_INT_CYCLE_CP1_INT	    _SB_MAKEMASK1(K_INT_CYCLE_CP1_INT)	/* PASS2 */
 #define M_INT_GPIO_0                _SB_MAKEMASK1(K_INT_GPIO_0)
 #define M_INT_GPIO_1                _SB_MAKEMASK1(K_INT_GPIO_1)
 #define M_INT_GPIO_2                _SB_MAKEMASK1(K_INT_GPIO_2)
@@ -177,9 +177,9 @@
 #define M_INT_PCI_INTC              _SB_MAKEMASK1(K_INT_PCI_INTC)
 #define M_INT_PCI_INTD              _SB_MAKEMASK1(K_INT_PCI_INTD)
 #define M_INT_SPARE_2               _SB_MAKEMASK1(K_INT_SPARE_2)
-#define M_INT_SPARE_3               _SB_MAKEMASK1(K_INT_SPARE_3)
-#define M_INT_SPARE_4               _SB_MAKEMASK1(K_INT_SPARE_4)
-#define M_INT_SPARE_5               _SB_MAKEMASK1(K_INT_SPARE_5)
+#define M_INT_MAC_0_CH1		    _SB_MAKEMASK1(K_INT_MAC_0_CH1)	/* PASS2 */
+#define M_INT_MAC_1_CH1		    _SB_MAKEMASK1(K_INT_MAC_1_CH1)	/* PASS2 */
+#define M_INT_MAC_2_CH1		    _SB_MAKEMASK1(K_INT_MAC_2_CH1)	/* PASS2 */
 
 /*
  * Interrupt mappings

@@ -6,9 +6,9 @@
     *  This module contains constants and macros useful for
     *  manipulating the System Control and Debug module on the 1250.
     *
-    *  SB1250 specification level:  0.2  plus errata as of 11/7/2000
+    *  SB1250 specification level:  User's manual 1/02/02
     *
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *
     *********************************************************************
     *
@@ -53,7 +53,8 @@
 
 #define K_SYS_REVISION_PASS1	    1
 #define K_SYS_REVISION_PASS2	    3
-#define K_SYS_REVISION_PASS3	    4 /* XXX Unknown */
+#define K_SYS_REVISION_PASS2_2	    16
+#define K_SYS_REVISION_PASS3	    32
 
 #define S_SYS_PART                  _SB_MAKE64(16)
 #define M_SYS_PART                  _SB_MAKEMASK(16,S_SYS_PART)
@@ -152,6 +153,9 @@
 
 #define M_SYS_MISR_MODE             _SB_MAKEMASK1(61)
 #define M_SYS_MISR_RESET            _SB_MAKEMASK1(62)
+
+#define M_SYS_SW_FLAG		    _SB_MAKEMASK1(63)	/* PASS2 */
+
 
 /*
  * Mailbox Registers (Table 4-3)
@@ -346,6 +350,7 @@
 #define M_SCD_TRACE_CFG_FREEZE_FULL     _SB_MAKEMASK1(5)
 #define M_SCD_TRACE_CFG_DEBUG_FULL      _SB_MAKEMASK1(6)
 #define M_SCD_TRACE_CFG_FULL            _SB_MAKEMASK1(7)
+#define M_SCD_TRACE_CFG_FORCECNT        _SB_MAKEMASK1(8)	/* PASS2 */
 
 #define S_SCD_TRACE_CFG_CUR_ADDR        10
 #define M_SCD_TRACE_CFG_CUR_ADDR        _SB_MAKEMASK(8,S_SCD_TRACE_CFG_CUR_ADDR)
