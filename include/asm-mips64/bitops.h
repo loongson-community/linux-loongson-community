@@ -11,7 +11,7 @@
 
 #include <linux/config.h>
 #include <linux/types.h>
-#include <linux/byteorder/swab.h>		/* sigh ... */
+#include <asm/byteorder.h>		/* sigh ... */
 
 #ifndef __KERNEL__
 #error "Don't do this, sucker ..."
