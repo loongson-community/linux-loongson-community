@@ -1307,3 +1307,32 @@ sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp)
 	}
 	return ret;
 }
+
+struct tms32 {
+	int tms_utime;
+	int tms_stime;
+	int tms_cutime;
+	int tms_cstime;
+};
+
+extern asmlinkage long sys_times(struct tms * tbuf);
+asmlinkage long sys32_times(struct tms32 *tbuf)
+{
+	struct tms t;
+	long ret;
+	mm_segment_t old_fs = get_fs();
+	int err;
+
+	set_fs(KERNEL_DS);
+	ret = sys_times(tbuf ? &t : NULL);
+	set_fs(old_fs);
+	if (tbuf) {
+		err = put_user (t.tms_utime, &tbuf->tms_utime);
+		err |= __put_user (t.tms_stime, &tbuf->tms_stime);
+		err |= __put_user (t.tms_cutime, &tbuf->tms_cutime);
+		err |= __put_user (t.tms_cstime, &tbuf->tms_cstime);
+		if (err)
+			ret = -EFAULT;
+	}
+	return ret;
+}
