@@ -59,11 +59,6 @@ struct mips_cpuinfo boot_cpu_data = { 0, NULL, NULL, 0 };
 void (*cpu_wait)(void) = NULL;
 
 /*
- * Do we have a cyclecounter available?
- */
-char cyclecounter_available;
-
-/*
  * There are several bus types available for MIPS machines.  "RISC PC"
  * type machines have ISA, EISA, VLB or PCI available, DECstations
  * have Turbochannel or Q-Bus, SGI has GIO, there are lots of VME

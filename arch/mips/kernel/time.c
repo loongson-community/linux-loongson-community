@@ -453,14 +453,6 @@ void indy_r4k_timer_interrupt (struct pt_regs *regs)
 	r4k_timer_interrupt (INDY_R4K_TIMER_IRQ, NULL, regs);
 }
 
-char cyclecounter_available;
-
-static inline void init_cycle_counter(void)
-{
-	if(mips_cpu.options & MIPS_CPU_COUNTER) cyclecounter_available = 1;
-	else cyclecounter_available = 0;
-}
-
 struct irqaction irq0  = { timer_interrupt, SA_INTERRUPT, 0,
                                   "timer", NULL, NULL};
 
@@ -517,9 +509,7 @@ void __init time_init(void)
 	xtime.tv_usec = 0;
 	write_unlock_irq (&xtime_lock);
 
-	init_cycle_counter();
-
-	if (cyclecounter_available) {
+	if (mips_cpu.options & MIPS_CPU_COUNTER) {
 		write_32bit_cp0_register(CP0_COUNT, 0);
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;
