@@ -43,7 +43,6 @@
 #include <asm/ptrace.h>
 #include <asm/time.h>
 #include <asm/reboot.h>
-#include <asm/mc146818rtc.h>
 #include <asm/traps.h>
 #include <linux/bootmem.h>
 
