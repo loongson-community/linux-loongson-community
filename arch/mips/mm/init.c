@@ -206,6 +206,12 @@ void __init pagetable_init(void)
 
 #ifdef CONFIG_HIGHMEM
 	/*
+	 * Fixed mappings:
+	 */
+	vaddr = __fix_to_virt(__end_of_fixed_addresses - 1) & PMD_MASK;
+	fixrange_init(vaddr, 0, pgd_base);
+
+	/*
 	 * Permanent kmaps:
 	 */
 	vaddr = PKMAP_BASE;
