@@ -36,10 +36,6 @@
  * that is used so rarely (how much space in the page tables?)
  *
  */
-#include <linux/config.h>
-
-#ifdef CONFIG_PCI
-
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -331,5 +327,3 @@ unsigned __init int pcibios_assign_all_busses(void)
 {
 	return 1;
 }
-
-#endif				/* CONFIG_PCI */
