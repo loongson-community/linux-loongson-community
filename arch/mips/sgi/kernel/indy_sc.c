@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.7 1999/05/07 22:25:11 ulfc Exp $
+/* $Id: indy_sc.c,v 1.8 1999/05/10 17:40:16 ulfc Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -70,7 +70,10 @@ static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
 #endif
 	/* Which lines to flush?  */
 	first_line = SC_INDEX(addr);
-	last_line = SC_INDEX(SC_ROUND(addr + size));
+	if (size <= SC_LINE)
+		last_line = SC_INDEX(addr);
+	else
+		last_line = SC_INDEX(addr + size - 1);
 
 	__save_and_cli(flags);
 	if (first_line <= last_line) {
