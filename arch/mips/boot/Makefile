@@ -24,16 +24,8 @@ strip-flags	= $(addprefix --remove-section=,$(drop-sections))
 
 all: vmlinux.ecoff vmlinux.srec addinitrd
 
-vmlinux.rm200: vmlinux
-	$(OBJCOPY) \
-		--change-addresses=0xfffffffc \
-		-O ecoff-littlemips \
-		$(strip-flags) \
-		--impure \
-		vmlinux $@
-
 vmlinux.ecoff:	$(obj)/elf2ecoff vmlinux
-	./elf2ecoff vmlinux $(obj)/vmlinux.ecoff $(E2EFLAGS)
+	$(obj)/elf2ecoff vmlinux vmlinux.ecoff $(E2EFLAGS)
 
 $(obj)/elf2ecoff: $(obj)/elf2ecoff.c
 	$(HOSTCC) -o $@ $^
@@ -45,12 +37,11 @@ $(obj)/addinitrd: $(obj)/addinitrd.c
 	$(HOSTCC) -o $@ $^
 
 archhelp:
-	@echo	'* vmlinux.rm200	- Bootable kernel image for RM200C'
+	@echo	'* vmlinux.ecoff	- ECOFF boot image'
 
 CLEAN_FILES += addinitrd \
 	       elf2ecoff \
 	       vmlinux.ecoff \
 	       vmlinux.srec \
-	       vmlinux.rm200 \
 	       zImage.tmp \
 	       zImage
