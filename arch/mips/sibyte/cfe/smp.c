@@ -51,7 +51,7 @@ void __init prom_build_cpu_map(void)
 /*
  * Common setup before any secondaries are started
  */
-void prom_prepare_cpus(void)
+void prom_prepare_cpus(unsigned int max_cpus)
 {
 }
 
