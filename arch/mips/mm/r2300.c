@@ -125,7 +125,7 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 
 	p = (volatile unsigned long *) KSEG0;
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ca_flags|flags)&~ST0_IEC);
@@ -147,7 +147,7 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 		if (size > 0x40000)
 			size = 0;
 	}
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS, flags);
 
 	return size * sizeof(*p);
 }
@@ -170,7 +170,7 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 	if (size > icache_size)
 		size = icache_size;
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
@@ -212,7 +212,7 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 		p += 0x080;
 	}
 
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS,flags);
 }
 
 static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
@@ -224,7 +224,7 @@ static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
 	if (size > dcache_size)
 		size = dcache_size;
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|flags)&~ST0_IEC);
@@ -266,7 +266,7 @@ static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
 		p += 0x080;
 	}
 
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS,flags);
 }
 
 static inline unsigned long get_phys_page (unsigned long addr,
@@ -710,49 +710,50 @@ void __init ld_mmu_r23000(void)
 	_copy_page = r3k_copy_page;
 
 	switch (mips_cpu.cputype) {
-		case CPU_R2000:
-		case CPU_R3000:
-		case CPU_R3000A:
-		case CPU_R3081:
+	case CPU_R2000:
+	case CPU_R3000:
+	case CPU_R3000A:
+	case CPU_R3081:
+	case CPU_R3081E:
 
-			r3k_probe_cache();
+		r3k_probe_cache();
 
-			_flush_cache_all = r3k_flush_cache_all;
-			___flush_cache_all = r3k_flush_cache_all;
-			_flush_cache_mm = r3k_flush_cache_mm;
-			_flush_cache_range = r3k_flush_cache_range;
-			_flush_cache_page = r3k_flush_cache_page;
-			_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
-			_flush_page_to_ram = r3k_flush_page_to_ram;
-			_flush_icache_page = r3k_flush_icache_page;
-			_flush_icache_range = r3k_flush_icache_range;
+		_flush_cache_all = r3k_flush_cache_all;
+		___flush_cache_all = r3k_flush_cache_all;
+		_flush_cache_mm = r3k_flush_cache_mm;
+		_flush_cache_range = r3k_flush_cache_range;
+		_flush_cache_page = r3k_flush_cache_page;
+		_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
+		_flush_page_to_ram = r3k_flush_page_to_ram;
+		_flush_icache_page = r3k_flush_icache_page;
+		_flush_icache_range = r3k_flush_icache_range;
 
-			_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
-			break;
+		_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
+		break;
 
-		case CPU_TX3912:
-		case CPU_TX3922:
-		case CPU_TX3927:
+	case CPU_TX3912:
+	case CPU_TX3922:
+	case CPU_TX3927:
 
-			config=read_32bit_cp0_register(CP0_CONF);
-			config &= (~TX39_CONF_WBON);
-			write_32bit_cp0_register(CP0_CONF, config);
+		config=read_32bit_cp0_register(CP0_CONF);
+		config &= ~TX39_CONF_WBON;
+		write_32bit_cp0_register(CP0_CONF, config);
 
-			tx39_probe_cache();
+		tx39_probe_cache();
 
-			_flush_cache_all = tx39_flush_icache_all;
-			___flush_cache_all = tx39_flush_icache_all;
-			_flush_cache_mm = tx39_flush_icache_all;
-			_flush_cache_range = tx39_flush_icache_all;
-			_flush_cache_page = tx39_flush_icache_all;
-			_flush_cache_sigtramp = tx39_flush_icache_all;
-			_flush_page_to_ram = r3k_flush_page_to_ram;
-			_flush_icache_page = tx39_flush_icache_all;
-			_flush_icache_range = tx39_flush_icache_all;
+		_flush_cache_all = tx39_flush_icache_all;
+		___flush_cache_all = tx39_flush_icache_all;
+		_flush_cache_mm = tx39_flush_icache_all;
+		_flush_cache_range = tx39_flush_icache_all;
+		_flush_cache_page = tx39_flush_icache_all;
+		_flush_cache_sigtramp = tx39_flush_icache_all;
+		_flush_page_to_ram = r3k_flush_page_to_ram;
+		_flush_icache_page = tx39_flush_icache_all;
+		_flush_icache_range = tx39_flush_icache_all;
 
-			_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
+		_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
 
-			break;
+		break;
 	}
 
 	printk("Primary instruction cache %dkb, linesize %d bytes\n",
