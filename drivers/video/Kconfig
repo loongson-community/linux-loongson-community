@@ -40,7 +40,7 @@ config FB
 
 config DUMMY_CONSOLE
 	bool
-	depends on FB
+	depends on FB || (VT && SGI_IP22)
 	default y
 
 config FB_CLGEN

@@ -524,13 +524,13 @@ CONFIG_MSDOS_PARTITION=y
 # Console drivers
 #
 # CONFIG_VGA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
 CONFIG_FONT_8x16=y
 # CONFIG_MDA_CONSOLE is not set
 
 #
 # Frame-buffer support
 #
+CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FB_CLGEN is not set
 # CONFIG_FB_PM2 is not set
 # CONFIG_FB_CYBER2000 is not set
