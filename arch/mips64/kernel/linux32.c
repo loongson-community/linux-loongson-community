@@ -487,7 +487,10 @@ put_rusage (struct rusage32 *ru, struct rusage *r)
 {
 	int err;
 
-	err = put_user (r->ru_utime.tv_sec, &ru->ru_utime.tv_sec);
+	if (verify_area(VERIFY_WRITE, ru, sizeof *ru))
+		return -EFAULT;
+
+	err = __put_user (r->ru_utime.tv_sec, &ru->ru_utime.tv_sec);
 	err |= __put_user (r->ru_utime.tv_usec, &ru->ru_utime.tv_usec);
 	err |= __put_user (r->ru_stime.tv_sec, &ru->ru_stime.tv_sec);
 	err |= __put_user (r->ru_stime.tv_usec, &ru->ru_stime.tv_usec);
@@ -505,6 +508,7 @@ put_rusage (struct rusage32 *ru, struct rusage *r)
 	err |= __put_user (r->ru_nsignals, &ru->ru_nsignals);
 	err |= __put_user (r->ru_nvcsw, &ru->ru_nvcsw);
 	err |= __put_user (r->ru_nivcsw, &ru->ru_nivcsw);
+
 	return err;
 }
 
