@@ -650,8 +650,8 @@ do {									\
 
 #define __read_ulong_c0_register(reg, sel)				\
 	((sizeof(unsigned long) == 4) ?					\
-	__read_32bit_c0_register(reg, sel) :				\
-	__read_64bit_c0_register(reg, sel))
+	(unsigned long) __read_32bit_c0_register(reg, sel) :		\
+	(unsigned long) __read_64bit_c0_register(reg, sel))
 
 #define __write_ulong_c0_register(reg, sel, val)			\
 do {									\
