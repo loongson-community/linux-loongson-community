@@ -9,11 +9,11 @@
  *	This is read internally and used to synthesize a stream of
  *	triples in the form expected from a PS/2 device.
  *
- *	0.0 1997-05-16 Alan Cox <alan@cymru.net> - Pad reader
+ *	0.0 1997-05-16 Alan Cox <alan@redhat.com> - Pad reader
  *	0.1 1997-05-19 Robin O'Leary <robin@acm.org> - PS/2 emulation
  *	0.2 1997-06-03 Robin O'Leary <robin@acm.org> - tap gesture
- *	0.3 1997-06-27 Alan Cox <alan@cymru.net> - 2.1 commit
- *	0.4 1997-11-09 Alan Cox <alan@cymru.net> - Single Unix VFS API changes
+ *	0.3 1997-06-27 Alan Cox <alan@redhat.com> - 2.1 commit
+ *	0.4 1997-11-09 Alan Cox <alan@redhat.com> - Single Unix VFS API changes
  */
 
 #include <linux/module.h>
@@ -48,7 +48,7 @@ static struct pc110pad_params current_params;
 
 
 /* driver/filesystem interface management */
-static struct wait_queue *queue;
+static wait_queue_head_t queue;
 static struct fasync_struct *asyncptr;
 static int active=0;	/* number of concurrent open()s */
 
@@ -656,6 +656,7 @@ int pc110pad_init(void)
 		return -EBUSY;
 	}
 	request_region(current_params.io, 4, "pc110pad");
+	init_waitqueue_head(&queue);
 	printk("PC110 digitizer pad at 0x%X, irq %d.\n",
 		current_params.io,current_params.irq);
 	misc_register(&pc110_pad);

@@ -42,7 +42,7 @@
  * unmounting a filesystem and re-mounting it (or something
  * else).
  */
-static struct semaphore mount_sem = MUTEX;
+static DECLARE_MUTEX(mount_sem);
 
 extern void wait_for_keypress(void);
 extern struct file_operations * get_blkfops(unsigned int major);
@@ -169,20 +169,20 @@ static void remove_vfsmnt(kdev_t dev)
 
 int register_filesystem(struct file_system_type * fs)
 {
-        struct file_system_type ** tmp;
+	struct file_system_type ** tmp;
 
-        if (!fs)
-                return -EINVAL;
-        if (fs->next)
-                return -EBUSY;
-        tmp = &file_systems;
-        while (*tmp) {
-                if (strcmp((*tmp)->name, fs->name) == 0)
-                        return -EBUSY;
-                tmp = &(*tmp)->next;
-        }
-        *tmp = fs;
-        return 0;
+	if (!fs)
+		return -EINVAL;
+	if (fs->next)
+		return -EBUSY;
+	tmp = &file_systems;
+	while (*tmp) {
+		if (strcmp((*tmp)->name, fs->name) == 0)
+			return -EBUSY;
+		tmp = &(*tmp)->next;
+	}
+	*tmp = fs;
+	return 0;
 }
 
 #ifdef CONFIG_MODULES
@@ -413,7 +413,7 @@ struct file_system_type *get_fs_type(const char *name)
 
 void __wait_on_super(struct super_block * sb)
 {
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 
 	add_wait_queue(&sb->s_wait, &wait);
 repeat:
@@ -530,6 +530,7 @@ static struct super_block *get_empty_super(void)
 		memset(s, 0, sizeof(struct super_block));
 		INIT_LIST_HEAD(&s->s_dirty);
 		list_add (&s->s_list, super_blocks.prev);
+		init_waitqueue_head(&s->s_wait);
 	}
 	return s;
 }
@@ -845,7 +846,8 @@ int fs_may_mount(kdev_t dev)
  * Anyone using this new feature must know what he/she is doing.
  */
 
-int do_mount(kdev_t dev, const char * dev_name, const char * dir_name, const char * type, int flags, void * data)
+int do_mount(kdev_t dev, const char * dev_name, const char * dir_name,
+	     const char * type, int flags, void * data)
 {
 	struct dentry * dir_d;
 	struct super_block * sb;
@@ -952,16 +954,19 @@ static int do_remount(const char *dir,int flags,char *data)
 	if (!IS_ERR(dentry)) {
 		struct super_block * sb = dentry->d_inode->i_sb;
 
-		retval = -EINVAL;
-		if (dentry == sb->s_root) {
-			/*
-			 * Shrink the dcache and sync the device.
-			 */
-			shrink_dcache_sb(sb);
-			fsync_dev(sb->s_dev);
-			if (flags & MS_RDONLY)
-				acct_auto_close(sb->s_dev);
-			retval = do_remount_sb(sb, flags, data);
+		retval = -ENODEV;
+		if (sb) {
+			retval = -EINVAL;
+			if (dentry == sb->s_root) {
+				/*
+				 * Shrink the dcache and sync the device.
+				 */
+				shrink_dcache_sb(sb);
+				fsync_dev(sb->s_dev);
+				if (flags & MS_RDONLY)
+					acct_auto_close(sb->s_dev);
+				retval = do_remount_sb(sb, flags, data);
+			}
 		}
 		dput(dentry);
 	}

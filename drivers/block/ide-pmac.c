@@ -21,6 +21,8 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/ide.h>
+
 #include <asm/prom.h>
 #include <asm/io.h>
 #include <asm/dbdma.h>
@@ -31,9 +33,9 @@
 #include <asm/adb.h>
 #include <asm/pmu.h>
 #endif
-#include "ide.h"
 #include "ide_modes.h"
 
+int pmac_ide_ports_known;
 ide_ioreg_t pmac_ide_regbase[MAX_HWIFS];
 int pmac_ide_irq[MAX_HWIFS];
 int pmac_ide_count;
@@ -58,28 +60,30 @@ struct notifier_block idepmac_sleep_notifier = {
  * N.B. this can't be an initfunc, because the media-bay task can
  * call ide_[un]register at any time.
  */
-void
-pmac_ide_init_hwif_ports(ide_ioreg_t *p, ide_ioreg_t base, int *irq)
+void pmac_ide_init_hwif_ports (	hw_regs_t *hw,
+				ide_ioreg_t data_port,
+				ide_ioreg_t ctrl_port,
+				int *irq)
 {
 	int i, r;
 
-	*p = 0;
-	if (base == 0)
+	if (data_port == 0)
 		return;
 	/* we check only for -EINVAL meaning that we have found a matching
 	   bay but with the wrong device type */ 
 
-	r = check_media_bay_by_base(base, MB_CD);
+	r = check_media_bay_by_base(data_port, MB_CD);
 	if (r == -EINVAL)
 		return;
-		
-	for (i = 0; i < 8; ++i)
-		*p++ = base + i * 0x10;
-	*p = base + 0x160;
+	
+	for ( i = 0; i < 8 ; ++i )
+		hw->io_ports[i] = data_port + i * 0x10;
+	hw->io_ports[8] = data_port + 0x160;
+
 	if (irq != NULL) {
 		*irq = 0;
 		for (i = 0; i < MAX_HWIFS; ++i) {
-			if (base == pmac_ide_regbase[i]) {
+			if (data_port == pmac_ide_regbase[i]) {
 				*irq = pmac_ide_irq[i];
 				break;
 			}
@@ -104,8 +108,7 @@ void pmac_ide_tuneproc(ide_drive_t *drive, byte pio)
 	}
 }
 
-__initfunc(void
-pmac_ide_probe(void))
+__initfunc(void pmac_ide_probe(void))
 {
 	struct device_node *np;
 	int i;
@@ -147,7 +150,7 @@ pmac_ide_probe(void))
 			       np->full_name);
 			continue;
 		}
-		
+
 		base = (unsigned long) ioremap(np->addrs[0].address, 0x200);
 		
 		/* XXX This is bogus. Should be fixed in the registry by checking
@@ -172,7 +175,8 @@ pmac_ide_probe(void))
 			feature_set(np, FEATURE_IDE_enable);
 
 		hwif = &ide_hwifs[i];
-		pmac_ide_init_hwif_ports(hwif->io_ports, base, &hwif->irq);
+		pmac_ide_init_hwif_ports(&hwif->hw, base, 0, &hwif->irq);
+		memcpy(hwif->io_ports, hwif->hw.io_ports, sizeof(hwif->io_ports));
 		hwif->chipset = ide_generic;
 		hwif->noprobe = !hwif->io_ports[IDE_DATA_OFFSET];
 		hwif->tuneproc = pmac_ide_tuneproc;

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_output.c,v 1.108 1999/05/08 21:48:59 davem Exp $
+ * Version:	$Id: tcp_output.c,v 1.110 1999/05/27 00:37:45 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -35,6 +35,8 @@
  */
 
 #include <net/tcp.h>
+
+#include <linux/smp_lock.h>
 
 extern int sysctl_tcp_timestamps;
 extern int sysctl_tcp_window_scaling;
@@ -239,6 +241,11 @@ static int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len)
 
 	/* Rechecksum original buffer. */
 	skb->csum = csum_partial(skb->data, skb->len, 0);
+
+	/* Looks stupid, but our code really uses when of
+	 * skbs, which it never sent before. --ANK
+	 */
+	TCP_SKB_CB(buff)->when = TCP_SKB_CB(skb)->when;
 
 	/* Link BUFF into the send queue. */
 	__skb_append(skb, buff);
@@ -961,6 +968,7 @@ void tcp_connect(struct sock *sk, struct sk_buff *buff, int mtu)
 	/* Ok, now lock the socket before we make it visible to
 	 * the incoming packet engine.
 	 */
+	unlock_kernel();
 	lock_sock(sk);
 
 	/* Socket identity change complete, no longer
@@ -988,6 +996,7 @@ void tcp_connect(struct sock *sk, struct sk_buff *buff, int mtu)
 
 	/* Now, it is safe to release the socket. */
 	release_sock(sk);
+	lock_kernel();
 }
 
 /* Send out a delayed ack, the caller does the policy checking

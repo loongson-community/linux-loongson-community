@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.17 1998/08/28 23:29:05 tsbogend Exp $
+/* $Id: signal.c,v 1.18 1999/02/15 02:16:52 ralf Exp $
  *
  *  linux/arch/mips/kernel/signal.c
  *
@@ -504,6 +504,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 			default:
 				lock_kernel();
 				sigaddset(&current->signal, signr);
+				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;
 				do_exit(exit_code);
 				/* NOTREACHED */

@@ -32,10 +32,11 @@
  *	1.08	Miquel van Smoorenburg: disallow certain things on the
  *		DEC Alpha as the CMOS clock is also used for other things.
  *	1.09	Nikita Schmidt: epoch support and some Alpha cleanup.
+ *	1.09a	Pete Zaitcev: Sun SPARC
  *
  */
 
-#define RTC_VERSION		"1.09"
+#define RTC_VERSION		"1.09a"
 
 #define RTC_IRQ 	8	/* Can't see this changing soon.	*/
 #define RTC_IO_EXTENT	0x10	/* Only really two ports, but...	*/
@@ -63,6 +64,12 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
+#ifdef __sparc__
+#include <asm/ebus.h>
+
+static unsigned long rtc_port;
+#endif
+
 /*
  *	We sponge a minor off of the misc major. No need slurping
  *	up another valuable major dev number for this. If you add
@@ -70,7 +77,7 @@
  *	ioctls.
  */
 
-static struct wait_queue *rtc_wait;
+static DECLARE_WAIT_QUEUE_HEAD(rtc_wait);
 
 static struct timer_list rtc_irq_timer;
 
@@ -84,12 +91,12 @@ static int rtc_ioctl(struct inode *inode, struct file *file,
 
 static unsigned int rtc_poll(struct file *file, poll_table *wait);
 
-void get_rtc_time (struct rtc_time *rtc_tm);
-void get_rtc_alm_time (struct rtc_time *alm_tm);
-void rtc_dropped_irq(unsigned long data);
+static void get_rtc_time (struct rtc_time *rtc_tm);
+static void get_rtc_alm_time (struct rtc_time *alm_tm);
+static void rtc_dropped_irq(unsigned long data);
 
-void set_rtc_irq_bit(unsigned char bit);
-void mask_rtc_irq_bit(unsigned char bit);
+static void set_rtc_irq_bit(unsigned char bit);
+static void mask_rtc_irq_bit(unsigned char bit);
 
 static inline unsigned char rtc_is_updating(void);
 
@@ -151,7 +158,7 @@ static long long rtc_llseek(struct file *file, loff_t offset, int origin)
 static ssize_t rtc_read(struct file *file, char *buf,
 			size_t count, loff_t *ppos)
 {
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 	unsigned long data;
 	ssize_t retval;
 	
@@ -526,7 +533,42 @@ __initfunc(int rtc_init(void))
 	unsigned long uip_watchdog;
 	char *guess = NULL;
 #endif
+#ifdef __sparc__
+	struct linux_ebus *ebus;
+	struct linux_ebus_device *edev;
+	int rtc_irq;
+#endif
+
 	printk(KERN_INFO "Real Time Clock Driver v%s\n", RTC_VERSION);
+#ifdef __sparc__
+	for_each_ebus(ebus) {
+		for_each_ebusdev(edev, ebus) {
+			if(strcmp(edev->prom_name, "rtc") == 0) {
+				goto found;
+			}
+		}
+	}
+	printk("rtc_init: no PC rtc found\n");
+	return -EIO;
+
+found:
+	rtc_port = edev->base_address[0];
+	rtc_irq = edev->irqs[0];
+	/*
+	 * XXX Interrupt pin #7 in Espresso is shared between RTC and
+	 * PCI Slot 2 INTA# (and some INTx# in Slot 1). SA_INTERRUPT here
+	 * is asking for trouble with add-on boards. Change to SA_SHIRQ.
+	 */
+	if(request_irq(rtc_irq, rtc_interrupt, SA_INTERRUPT, "rtc", (void *)&rtc_port)) {
+		/*
+		 * Standard way for sparc to print irq's is to use
+		 * __irq_itoa(). I think for EBus it's ok to use %d.
+		 */
+		printk("rtc: cannot register IRQ %d\n", rtc_irq);
+		return -EIO;
+	}
+	misc_register(&rtc_dev);
+#else
 	if(request_irq(RTC_IRQ, rtc_interrupt, SA_INTERRUPT, "rtc", NULL))
 	{
 		/* Yeah right, seeing as irq 8 doesn't even hit the bus. */
@@ -536,6 +578,7 @@ __initfunc(int rtc_init(void))
 	misc_register(&rtc_dev);
 	/* Check region? Naaah! Just snarf it up. */
 	request_region(RTC_PORT(0), RTC_IO_EXTENT, "rtc");
+#endif /* __sparc__ vs. Others */
 #if defined(__alpha__) || defined(__mips__)
 	rtc_freq = HZ;
 	
@@ -571,7 +614,6 @@ __initfunc(int rtc_init(void))
 #endif
 	init_timer(&rtc_irq_timer);
 	rtc_irq_timer.function = rtc_dropped_irq;
-	rtc_wait = NULL;
 	save_flags(flags);
 	cli();
 	/* Initialize periodic freq. to CMOS reset default, which is 1024Hz */
@@ -593,7 +635,7 @@ __initfunc(int rtc_init(void))
  *	for something that requires a steady > 1KHz signal anyways.)
  */
 
-void rtc_dropped_irq(unsigned long data)
+static void rtc_dropped_irq(unsigned long data)
 {
 	unsigned long flags;
 
@@ -701,7 +743,7 @@ static inline unsigned char rtc_is_updating(void)
 	return uip;
 }
 
-void get_rtc_time(struct rtc_time *rtc_tm)
+static void get_rtc_time(struct rtc_time *rtc_tm)
 {
 
 	unsigned long flags, uip_watchdog = jiffies;
@@ -758,7 +800,7 @@ void get_rtc_time(struct rtc_time *rtc_tm)
 	rtc_tm->tm_mon--;
 }
 
-void get_rtc_alm_time(struct rtc_time *alm_tm)
+static void get_rtc_alm_time(struct rtc_time *alm_tm)
 {
 	unsigned long flags;
 	unsigned char ctrl;
@@ -808,7 +850,7 @@ void mask_rtc_irq_bit(unsigned char bit)
 	rtc_irq_data = 0;
 }
 
-void set_rtc_irq_bit(unsigned char bit)
+static void set_rtc_irq_bit(unsigned char bit)
 {
 	unsigned char val;
 	unsigned long flags;

@@ -41,6 +41,7 @@
 #include <linux/blk.h>
 #include <linux/vt_kern.h>
 #include <linux/console.h>
+#include <linux/ide.h>
 #include <asm/prom.h>
 #include <asm/system.h>
 #include <asm/pgtable.h>
@@ -365,7 +366,7 @@ note_scsi_host(struct device_node *node, void *host))
 #ifdef CONFIG_BLK_DEV_IDE_PMAC
 extern int pmac_ide_count;
 extern struct device_node *pmac_ide_node[];
-static int ide_majors[] = { 3, 22, 33, 34, 56, 57 };
+static int ide_majors[] = { 3, 22, 33, 34, 56, 57, 88, 89 };
 
 __initfunc(kdev_t find_ide_boot(void))
 {
@@ -543,8 +544,18 @@ pmac_ide_fix_driveid(struct hd_driveid *id)
         ppc_generic_ide_fix_driveid(id);
 }
 
+#if defined(CONFIG_BLK_DEV_IDE_PMAC)
 /* This is declared in drivers/block/ide-pmac.c */
-void pmac_ide_init_hwif_ports (ide_ioreg_t *p, ide_ioreg_t base, int *irq);
+void pmac_ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port, ide_ioreg_t ctrl_port, int *irq);
+#else
+/*
+ * This registers the standard ports for this architecture with the IDE
+ * driver.
+ */
+void pmac_ide_init_hwif_ports(hw_regs_t *hw, ide_ioreg_t data_port, ide_ioreg_t ctrl_port, int *irq)
+{
+}
+#endif
 #endif
 
 __initfunc(void

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.8 1999/04/11 17:13:56 harald Exp $
+ * $Id: loadmmu.c,v 1.9 1999/06/13 16:30:35 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -31,6 +31,7 @@ void (*flush_page_to_ram)(unsigned long page);
 
 /* DMA cache operations. */
 void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
+void (*dma_cache_wback)(unsigned long start, unsigned long size);
 void (*dma_cache_inv)(unsigned long start, unsigned long size);
 
 /* TLB operations. */

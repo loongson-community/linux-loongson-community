@@ -15,6 +15,7 @@
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
+#include <linux/string.h>
 #include <linux/errno.h>
 #include <linux/malloc.h>
 #include <linux/qnx4_fs.h>
@@ -337,7 +338,7 @@ static struct super_block *qnx4_read_super(struct super_block *s,
 	s->u.qnx4_sb.sb_buf = bh;
 	s->u.qnx4_sb.sb = (struct qnx4_super_block *) bh->b_data;
 	s->s_root =
-	    d_alloc_root(iget(s, QNX4_ROOT_INO * QNX4_INODES_PER_BLOCK), NULL);
+	    d_alloc_root(iget(s, QNX4_ROOT_INO * QNX4_INODES_PER_BLOCK));
 	if (s->s_root == NULL) {
 		printk("qnx4: get inode failed\n");
 		goto out;
@@ -408,29 +409,16 @@ static void qnx4_read_inode(struct inode *inode)
 
 	memcpy(&inode->u.qnx4_i, (struct qnx4_inode_info *) raw_inode, QNX4_DIR_ENTRY_SIZE);
 	inode->i_op = &qnx4_file_inode_operations;
-	if (S_ISREG(inode->i_mode)) {
+	if (S_ISREG(inode->i_mode))
 		inode->i_op = &qnx4_file_inode_operations;
-	} else {
-		if (S_ISDIR(inode->i_mode)) {
-			inode->i_op = &qnx4_dir_inode_operations;
-		} else {
-			if (S_ISLNK(inode->i_mode)) {
-				inode->i_op = &qnx4_symlink_inode_operations;
-			} else {
-				if (S_ISCHR(inode->i_mode)) {
-					inode->i_op = &chrdev_inode_operations;
-				} else {
-					if (S_ISBLK(inode->i_mode)) {
-						inode->i_op = &blkdev_inode_operations;
-					} else {
-						if (S_ISFIFO(inode->i_mode)) {
-							init_fifo(inode);
-						}
-					}
-				}
-			}
-		}
-	}
+	else if (S_ISDIR(inode->i_mode))
+		inode->i_op = &qnx4_dir_inode_operations;
+	else if (S_ISLNK(inode->i_mode))
+		inode->i_op = &qnx4_symlink_inode_operations;
+	else
+		/* HUH??? Where is device number? Oh, well... */
+		init_special_inode(inode, inode->i_mode, 0);
+
 	brelse(bh);
 }
 

@@ -81,7 +81,7 @@ struct inst {
       unsigned char repeat_byte;
 
       /* These members manage timeouts for programmed delays */
-      struct wait_queue *wait_queue;
+      wait_queue_head_t wait_queue;
       struct timer_list timer_list;
 };
 
@@ -997,7 +997,7 @@ static void probeLptPort(unsigned idx)
       instances[idx].enhanced = 0;
       instances[idx].direction = 0;
       instances[idx].mode = COMPATIBILITY;
-      instances[idx].wait_queue = 0;
+      init_waitqueue_head(&instances[idx].wait_queue);
       instances[idx].run_length = 0;
       instances[idx].run_flag = 0;
       init_timer(&instances[idx].timer_list);

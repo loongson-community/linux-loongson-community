@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.14 1999/05/01 12:23:45 harald Exp $
+/* $Id: setup.c,v 1.15 1999/05/01 22:40:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -28,6 +28,7 @@
 #ifdef CONFIG_BLK_DEV_RAM
 #include <linux/blk.h>
 #endif
+#include <linux/ide.h>
 #ifdef CONFIG_RTC
 #include <linux/ioport.h>
 #include <linux/timex.h>
@@ -36,7 +37,6 @@
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
-#include <asm/ide.h>
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>

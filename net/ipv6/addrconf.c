@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: addrconf.c,v 1.48 1999/03/25 10:04:43 davem Exp $
+ *	$Id: addrconf.c,v 1.50 1999/06/09 10:11:09 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -100,9 +100,7 @@ static struct timer_list addr_chk_timer = {
    1. The result of inet6_add_addr() is used only inside lock
       or from bh_atomic context.
 
-   2. inet6_get_lladdr() is used only from bh protected context.
-
-   3. The result of ipv6_chk_addr() is not used outside of bh protected context.
+   2. The result of ipv6_chk_addr() is not used outside of bh protected context.
  */
 
 static __inline__ void addrconf_lock(void)
@@ -463,7 +461,7 @@ out:
 	return err;
 }
 
-struct inet6_ifaddr * ipv6_get_lladdr(struct device *dev)
+int ipv6_get_lladdr(struct device *dev, struct in6_addr *addr)
 {
 	struct inet6_ifaddr *ifp = NULL;
 	struct inet6_dev *idev;
@@ -471,12 +469,15 @@ struct inet6_ifaddr * ipv6_get_lladdr(struct device *dev)
 	if ((idev = ipv6_get_idev(dev)) != NULL) {
 		addrconf_lock();
 		for (ifp=idev->addr_list; ifp; ifp=ifp->if_next) {
-			if (ifp->scope == IFA_LINK)
-				break;
+			if (ifp->scope == IFA_LINK) {
+				ipv6_addr_copy(addr, &ifp->addr);
+				addrconf_unlock();
+				return 0;
+			}
 		}
 		addrconf_unlock();
 	}
-	return ifp;
+	return -EADDRNOTAVAIL;
 }
 
 /*
@@ -982,6 +983,7 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 		return;
 	}
 
+	read_lock(&dev_base_lock);
         for (dev = dev_base; dev != NULL; dev = dev->next) {
 		if (dev->ip_ptr && (dev->flags & IFF_UP)) {
 			struct in_device * in_dev = dev->ip_ptr;
@@ -1014,6 +1016,7 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 			}
 		}
         }
+	read_unlock(&dev_base_lock);
 }
 
 static void init_loopback(struct device *dev)
@@ -1842,7 +1845,7 @@ __initfunc(void addrconf_init(void))
 	struct device *dev;
 
 	/* This takes sense only during module load. */
-
+	read_lock(&dev_base_lock);
 	for (dev = dev_base; dev; dev = dev->next) {
 		if (!(dev->flags&IFF_UP))
 			continue;
@@ -1858,6 +1861,7 @@ __initfunc(void addrconf_init(void))
 			/* Ignore all other */
 		}
 	}
+	read_unlock(&dev_base_lock);
 #endif
 	
 #ifdef CONFIG_PROC_FS

@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.105 1999/04/13 14:17:08 jj Exp $
+/*  $Id: setup.c,v 1.107 1999/06/03 15:02:20 davem Exp $
  *  linux/arch/sparc/kernel/setup.c
  *
  *  Copyright (C) 1995  David S. Miller (davem@caip.rutgers.edu)
@@ -313,6 +313,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 	if(!strcmp(&cputypval,"sun4 ")) { sparc_cpu_model=sun4; }
 	if(!strcmp(&cputypval,"sun4c")) { sparc_cpu_model=sun4c; }
 	if(!strcmp(&cputypval,"sun4m")) { sparc_cpu_model=sun4m; }
+	if(!strcmp(&cputypval,"sun4s")) { sparc_cpu_model=sun4m; }  /* CP-1200 with PROM 2.30 -E */
 	if(!strcmp(&cputypval,"sun4d")) { sparc_cpu_model=sun4d; }
 	if(!strcmp(&cputypval,"sun4e")) { sparc_cpu_model=sun4e; }
 	if(!strcmp(&cputypval,"sun4u")) { sparc_cpu_model=sun4u; }
@@ -456,6 +457,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 					prom_printf("MrCoffee keyboard\n");
 				} else {
 					prom_printf("Inconsistent or unknown console\n");
+					prom_printf("You cannot mix serial and non serial input/output devices\n");
 					prom_halt();
 				}
 			}

@@ -1,4 +1,4 @@
-/* $Id: ioctl.c,v 1.10 1998/03/29 10:11:00 davem Exp $
+/* $Id: ioctl.c,v 1.11 1999/05/27 00:36:25 davem Exp $
  * ioctl.c: Solaris ioctl emulation.
  *
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -677,7 +677,10 @@ static inline int solaris_i(unsigned int fd, unsigned int cmd, u32 arg)
 			struct device *d;
 			int i = 0;
 			
+			read_lock_bh(&dev_base_lock);
 			for (d = dev_base; d; d = d->next) i++;
+			read_unlock_bh(&dev_base_lock);
+
 			if (put_user (i, (int *)A(arg)))
 				return -EFAULT;
 			return 0;

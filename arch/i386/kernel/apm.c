@@ -314,7 +314,7 @@ static int			got_clock_diff = 0;
 static int			debug = 0;
 static int			apm_disabled = 0;
 
-static struct wait_queue *	process_list = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(process_list);
 static struct apm_bios_struct *	user_list = NULL;
 
 static struct timer_list	apm_timer;
@@ -1017,7 +1017,7 @@ static ssize_t do_read(struct file *fp, char *buf, size_t count, loff_t *ppos)
 	struct apm_bios_struct *	as;
 	int			i;
 	apm_event_t		event;
-	struct wait_queue	wait = { current,	NULL };
+        DECLARE_WAITQUEUE(wait, current);
 
 	as = fp->private_data;
 	if (check_apm_bios_struct(as, "read"))

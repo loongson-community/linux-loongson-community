@@ -1,4 +1,4 @@
-/* $Id: ptifddi.c,v 1.5 1997/04/16 10:27:27 jj Exp $
+/* $Id: ptifddi.c,v 1.7 1999/06/09 08:19:01 davem Exp $
  * ptifddi.c: Network driver for Performance Technologies single-attach
  *            and dual-attach FDDI sbus cards.
  *
@@ -8,6 +8,7 @@
 static char *version =
         "ptifddi.c:v1.0 10/Dec/96 David S. Miller (davem@caipfs.rutgers.edu)\n";
 
+#include <linux/string.h>
 #include <linux/init.h>
 
 #include "ptifddi.h"

@@ -103,9 +103,6 @@ struct parport_operations {
 
 	void (*change_mode)(struct parport *, int);
 
-	void (*release_resources)(struct parport *);
-	int (*claim_resources)(struct parport *);
-
 	void (*epp_write_data)(struct parport *, unsigned char);
 	unsigned char (*epp_read_data)(struct parport *);
 	void (*epp_write_addr)(struct parport *, unsigned char);
@@ -163,12 +160,13 @@ struct pardevice {
 	struct pardevice *next;
 	struct pardevice *prev;
 	struct parport_state *state;     /* saved status over preemption */
-	struct wait_queue *wait_q;
+	wait_queue_head_t wait_q;
 	unsigned long int time;
 	unsigned long int timeslice;
 	unsigned int waiting;
 	struct pardevice *waitprev;
 	struct pardevice *waitnext;
+        void * sysctl_table;
 };
 
 /* Directory information for the /proc interface */
@@ -184,6 +182,7 @@ struct parport_dir {
 /* A parallel port */
 struct parport {
 	unsigned long base;	/* base address */
+	unsigned long base_hi;	/* base address (ECR) */
 	unsigned int size;	/* IO extent */
 	const char *name;
 	int irq;		/* interrupt (or -1 for none) */
@@ -209,6 +208,14 @@ struct parport {
 	spinlock_t pardevice_lock;
 	spinlock_t waitlist_lock;
 	rwlock_t cad_lock;
+        void * sysctl_table;
+};
+
+struct parport_driver {
+	const char *name;
+	void (*attach) (struct parport *);
+	void (*detach) (struct parport *);
+	struct parport_driver *next;
 };
 
 /* parport_register_port registers a new parallel port at the given address (if
@@ -219,20 +226,29 @@ struct parport {
 struct parport *parport_register_port(unsigned long base, int irq, int dma,
 				      struct parport_operations *ops);
 
+/* Once a registered port is ready for high-level drivers to use, the
+   low-level driver that registered it should announce it.  This will
+   call the high-level drivers' attach() functions (after things like
+   determining the IEEE 1284.3 topology of the port and collecting
+   DeviceIDs). */
+void parport_announce_port (struct parport *port);
+
 /* Unregister a port. */
 extern void parport_unregister_port(struct parport *port);
 
 /* parport_in_use returns nonzero if there are devices attached to a port. */
 #define parport_in_use(x)  ((x)->devices != NULL)
 
-/* Put a parallel port to sleep; release its hardware resources.  Only possible
- * if no devices are registered.  */
-extern void parport_quiesce(struct parport *);
-
 /* parport_enumerate returns a pointer to the linked list of all the ports
  * in this machine.
  */
 struct parport *parport_enumerate(void);
+
+/* Register a new high-level driver. */
+extern int parport_register_driver (struct parport_driver *);
+
+/* Unregister a high-level driver. */
+extern void parport_unregister_driver (struct parport_driver *);
 
 /* parport_register_device declares that a device is connected to a port, and 
  * tells the kernel all it needs to know.  
@@ -318,19 +334,22 @@ extern __inline__ void parport_generic_irq(int irq, struct parport *port,
 #define PARPORT_DEV_LURK		(1<<0)	/* WARNING !! DEPRECATED !! */
 #define PARPORT_DEV_EXCL		(1<<1)	/* Need exclusive access. */
 
-#define PARPORT_FLAG_COMA		(1<<0)
+#define PARPORT_FLAG_COMA_		(1<<0)  /* No longer used. */
 #define PARPORT_FLAG_EXCL		(1<<1)	/* EXCL driver registered. */
 
-extern void parport_parse_irqs(int, const char *[], int irqval[]);
+extern int parport_parse_irqs(int, const char *[], int irqval[]);
+extern int parport_parse_dmas(int, const char *[], int irqval[]);
 extern int parport_ieee1284_nibble_mode_ok(struct parport *, unsigned char);
 extern int parport_wait_peripheral(struct parport *, unsigned char, unsigned
 				   char);
 
 /* Prototypes from parport_procfs */
-extern int parport_proc_init(void);
-extern void parport_proc_cleanup(void);
 extern int parport_proc_register(struct parport *pp);
 extern int parport_proc_unregister(struct parport *pp);
+extern int parport_device_proc_register(struct pardevice *device);
+extern int parport_device_proc_unregister(struct pardevice *device);
+extern int parport_default_proc_register(void);
+extern int parport_default_proc_unregister(void);
 
 extern void dec_parport_count(void);
 extern void inc_parport_count(void);

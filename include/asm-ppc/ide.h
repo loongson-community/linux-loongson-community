@@ -18,7 +18,7 @@
 #define MAX_HWIFS	4
 #endif
 
-typedef unsigned int ide_ioreg_t;
+#include <asm/hdreg.h>
 
 #ifdef __KERNEL__
 
@@ -49,16 +49,17 @@ struct ide_machdep_calls {
         void        (*release_region)(ide_ioreg_t from,
                                       unsigned int extent);
         void        (*fix_driveid)(struct hd_driveid *id);
-        void        (*ide_init_hwif)(ide_ioreg_t *p,
-                                     ide_ioreg_t base,
-                                     int *irq); 
+        void        (*ide_init_hwif)(hw_regs_t *hw,
+                                     ide_ioreg_t data_port,
+                                     ide_ioreg_t ctrl_port,
+                                     int *irq);
 
         int io_base;
 };
 
 extern struct ide_machdep_calls ppc_ide_md;
 
-void ide_init_hwif_ports(ide_ioreg_t *p, ide_ioreg_t base, int *irq);
+void ide_init_hwif_ports(hw_regs_t *hw, ide_ioreg_t data_port, ide_ioreg_t ctrl_port, int *irq);
 void ide_insw(ide_ioreg_t port, void *buf, int ns);
 void ide_outsw(ide_ioreg_t port, void *buf, int ns);
 void ppc_generic_ide_fix_driveid(struct hd_driveid *id);
@@ -82,31 +83,58 @@ void ppc_generic_ide_fix_driveid(struct hd_driveid *id);
 
 static __inline__ int ide_default_irq(ide_ioreg_t base)
 {
-	return ppc_ide_md.default_irq(base);
+	if ( ppc_ide_md.default_irq )
+		return ppc_ide_md.default_irq(base);
+	else
+		return -1;
 }
 
 static __inline__ ide_ioreg_t ide_default_io_base(int index)
 {
-	return ppc_ide_md.default_io_base(index);
+	if ( ppc_ide_md.default_io_base )
+		return ppc_ide_md.default_io_base(index);
+	else
+		return -1;
+}
+
+static __inline__ void ide_init_default_hwifs(void)
+{
+#ifdef __DO_I_NEED_THIS
+	hw_regs_t hw;
+	int index;
+
+	for(index = 0; index < MAX_HWIFS; index++) {
+		ide_init_hwif_ports(&hw, ide_default_io_base(index), 0, NULL);
+		hw.irq = ide_default_irq(ide_default_io_base(index));
+		ide_register_hw(&hw, NULL);
+	}
+#endif /* __DO_I_NEED_THIS */
 }
 
 static __inline__ int ide_check_region (ide_ioreg_t from, unsigned int extent)
 {
-	return ppc_ide_md.check_region(from, extent);
+	if ( ppc_ide_md.check_region )
+		return ppc_ide_md.check_region(from, extent);
+	else
+		return -1;
 }
 
 static __inline__ void ide_request_region (ide_ioreg_t from, unsigned int extent, const char *name)
 {
-	ppc_ide_md.request_region(from, extent, name);
+	if ( ppc_ide_md.request_region )
+		ppc_ide_md.request_region(from, extent, name);
 }
 
 static __inline__ void ide_release_region (ide_ioreg_t from, unsigned int extent)
 {
-	ppc_ide_md.release_region(from, extent);
+	if ( ppc_ide_md.release_region )
+		ppc_ide_md.release_region(from, extent);
 }
 
-static __inline__ void ide_fix_driveid (struct hd_driveid *id) {
-        ppc_ide_md.fix_driveid(id);
+static __inline__ void ide_fix_driveid (struct hd_driveid *id)
+{
+        if ( ppc_ide_md.fix_driveid )
+		ppc_ide_md.fix_driveid(id);
 }
 
 #undef inb
@@ -131,21 +159,13 @@ typedef union {
 	} b;
 } select_t;
 
-static __inline__ int ide_request_irq(unsigned int irq, void (*handler)(int, void *, struct pt_regs *),
-			unsigned long flags, const char *device, void *dev_id)
-{
-	return request_irq(irq, handler, flags, device, dev_id);
-}			
-
-static __inline__ void ide_free_irq(unsigned int irq, void *dev_id)
-{
-	free_irq(irq, dev_id);
-}
+#define ide_request_irq(irq,hand,flg,dev,id)	request_irq((irq),(hand),(flg),(dev),(id))
+#define ide_free_irq(irq,dev_id)		free_irq((irq), (dev_id))
 
 /*
  * The following are not needed for the non-m68k ports
  */
-#define ide_ack_intr(base, irq)		(1)
+#define ide_ack_intr(hwif)		(1)
 #define ide_release_lock(lock)		do {} while (0)
 #define ide_get_lock(lock, hdlr, data)	do {} while (0)
 

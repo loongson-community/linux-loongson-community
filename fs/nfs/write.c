@@ -250,11 +250,24 @@ update_write_request(struct nfs_wreq *req, unsigned int first,
 	return 1;
 }
 
+static kmem_cache_t *nfs_wreq_cachep;
+
+int nfs_init_wreqcache(void)
+{
+	nfs_wreq_cachep = kmem_cache_create("nfs_wreq",
+					    sizeof(struct nfs_wreq),
+					    0, SLAB_HWCACHE_ALIGN,
+					    NULL, NULL);
+	if (nfs_wreq_cachep == NULL)
+		return -ENOMEM;
+	return 0;
+}
+
 static inline void
 free_write_request(struct nfs_wreq * req)
 {
 	if (!--req->wb_count)
-		kfree(req);
+		kmem_cache_free(nfs_wreq_cachep, req);
 }
 
 /*
@@ -274,7 +287,7 @@ create_write_request(struct file * file, struct page *page, unsigned int offset,
 		page->offset + offset, bytes);
 
 	/* FIXME: Enforce hard limit on number of concurrent writes? */
-	wreq = (struct nfs_wreq *) kmalloc(sizeof(*wreq), GFP_KERNEL);
+	wreq = kmem_cache_alloc(nfs_wreq_cachep, SLAB_KERNEL);
 	if (!wreq)
 		goto out_fail;
 	memset(wreq, 0, sizeof(*wreq));
@@ -292,6 +305,7 @@ create_write_request(struct file * file, struct page *page, unsigned int offset,
 	wreq->wb_file = file;
 	wreq->wb_pid    = current->pid;
 	wreq->wb_page   = page;
+	init_waitqueue_head(&wreq->wb_wait);
 	wreq->wb_offset = offset;
 	wreq->wb_bytes  = bytes;
 	wreq->wb_count	= 2;		/* One for the IO, one for us */
@@ -305,7 +319,7 @@ create_write_request(struct file * file, struct page *page, unsigned int offset,
 
 out_req:
 	rpc_release_task(task);
-	kfree(wreq);
+	kmem_cache_free(nfs_wreq_cachep, wreq);
 out_fail:
 	return NULL;
 }
@@ -363,7 +377,7 @@ wait_on_write_request(struct nfs_wreq *req)
 	struct dentry		*dentry = file->f_dentry;
 	struct inode		*inode = dentry->d_inode;
 	struct rpc_clnt		*clnt = NFS_CLIENT(inode);
-	struct wait_queue	wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 	sigset_t		oldmask;
 	int retval;
 
@@ -407,17 +421,17 @@ nfs_writepage(struct file * file, struct page *page)
  * things with a page scheduled for an RPC call (e.g. invalidate it).
  */
 int
-nfs_updatepage(struct file *file, struct page *page, unsigned long offset, unsigned int count, int sync)
+nfs_updatepage(struct file *file, struct page *page, unsigned long offset, unsigned int count)
 {
 	struct dentry	*dentry = file->f_dentry;
 	struct inode	*inode = dentry->d_inode;
 	struct nfs_wreq	*req;
-	int		synchronous = sync;
+	int		synchronous = file->f_flags & O_SYNC;
 	int		retval;
 
-	dprintk("NFS:      nfs_updatepage(%s/%s %d@%ld, sync=%d)\n",
+	dprintk("NFS:      nfs_updatepage(%s/%s %d@%ld)\n",
 		dentry->d_parent->d_name.name, dentry->d_name.name,
-		count, page->offset+offset, sync);
+		count, page->offset+offset);
 
 	/*
 	 * Try to find a corresponding request on the writeback queue.
@@ -453,7 +467,7 @@ nfs_updatepage(struct file *file, struct page *page, unsigned long offset, unsig
 	file->f_count++;
 
 	/* Schedule request */
-	synchronous = schedule_write_request(req, sync);
+	synchronous = schedule_write_request(req, synchronous);
 
 updated:
 	if (req->wb_bytes == PAGE_SIZE)

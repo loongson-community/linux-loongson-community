@@ -62,6 +62,15 @@ SUB_DIRS += sgi
 MOD_SUB_DIRS += sgi
 endif
 
+ifeq ($(CONFIG_I2O),y)
+SUB_DIRS += i2o
+MOD_SUB_DIRS += i2o
+else
+  ifeq ($(CONFIG_I2O),m)
+  MOD_SUB_DIRS += i2o
+  endif
+endif 
+
 # If CONFIG_SCSI is set, the core of SCSI support will be added to the kernel,
 # but some of the low-level things may also be modules.
 ifeq ($(CONFIG_SCSI),y)

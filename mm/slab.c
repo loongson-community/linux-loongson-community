@@ -438,7 +438,7 @@ long __init kmem_cache_init(long start, long end)
 #undef	kmem_slab_offset
 #undef	kmem_slab_diff
 
-	cache_chain_sem = MUTEX;
+	init_MUTEX(&cache_chain_sem);
 
 	size = cache_cache.c_offset + sizeof(kmem_bufctl_t);
 	size += (L1_CACHE_BYTES-1);
@@ -902,7 +902,7 @@ next:
 		left_over -= slab_align_size;
 	}
 
-	/* Offset must be a factor of the alignment. */
+	/* Offset must be a multiple of the alignment. */
 	offset += (align-1);
 	offset &= ~(align-1);
 

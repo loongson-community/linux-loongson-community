@@ -21,6 +21,9 @@ if [ "$CONFIG_FB" = "y" ]; then
   if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
     bool 'Acorn VIDC support' CONFIG_FB_ACORN
   fi
+  if [ "$CONFIG_ARCH_NETWINDER" = "y" ]; then
+    tristate 'Cyber2000 support' CONFIG_FB_CYBER2000
+  fi
   if [ "$CONFIG_APOLLO" = "y" ]; then
     define_bool CONFIG_FB_APOLLO y
   fi
@@ -71,6 +74,7 @@ if [ "$CONFIG_FB" = "y" ]; then
   fi
   if [ "$ARCH" = "i386" ]; then
     bool 'VESA VGA graphics console' CONFIG_FB_VESA
+    bool 'VGA 16-color graphics console' CONFIG_FB_VGA16
     define_bool CONFIG_VIDEO_SELECT y
   fi
   if [ "$CONFIG_VISWS" = "y" ]; then
@@ -138,6 +142,7 @@ if [ "$CONFIG_FB" = "y" ]; then
     tristate 'Atari interleaved bitplanes (8 planes) support' CONFIG_FBCON_IPLAN2P8
 #   tristate 'Atari interleaved bitplanes (16 planes) support' CONFIG_FBCON_IPLAN2P16
     tristate 'Mac variable bpp packed pixels support' CONFIG_FBCON_MAC
+    bool 'VGA 16-color planar support' CONFIG_FBCON_VGA_PLANES
     tristate 'VGA characters/attributes support' CONFIG_FBCON_VGA
   else
     # Guess what we need
@@ -178,8 +183,8 @@ if [ "$CONFIG_FB" = "y" ]; then
 	 "$CONFIG_FB_VIRGE" = "y" -o "$CONFIG_FB_CYBER" = "y" -o \
 	 "$CONFIG_FB_VALKYRIE" = "y" -o "$CONFIG_FB_PLATINUM" = "y" -o \
 	 "$CONFIG_FB_IGA" = "y" -o "$CONFIG_FB_MATROX" = "y" -o \
-	 "$CONFIG_FB_CT65550" = "y" -o "$CONFIG_FB_PM2" = "y" -o
-	 "$CONFIG_FB_SGIVW = "y" ]; then
+	 "$CONFIG_FB_CT65550" = "y" -o "$CONFIG_FB_PM2" = "y" -o \
+	 "$CONFIG_FB_SGIVW = "y" -o "$CONFIG_FB_CYBER2000" = "y" ]; then
       define_bool CONFIG_FBCON_CFB8 y
     else
       if [ "$CONFIG_FB_ACORN" = "m" -o "$CONFIG_FB_ATARI" = "m" -o \
@@ -193,7 +198,7 @@ if [ "$CONFIG_FB" = "y" ]; then
 	   "$CONFIG_FB_VALKYRIE" = "m" -o "$CONFIG_FB_PLATINUM" = "m" -o \
 	   "$CONFIG_FB_IGA" = "m" -o "$CONFIG_FB_MATROX" = "m" -o \
 	   "$CONFIG_FB_CT65550" = "m" -o "$CONFIG_FB_PM2" = "m" -o \
-	   "$CONFIG_FB_SGIVW = "m" ]; then
+	   "$CONFIG_FB_SGIVW = "m" -o "$CONFIG_FB_CYBER2000" = "m" ]; then
 	define_bool CONFIG_FBCON_CFB8 m
       fi
     fi
@@ -205,7 +210,8 @@ if [ "$CONFIG_FB" = "y" ]; then
 	 "$CONFIG_FB_VIRGE" = "y" -o "$CONFIG_FB_CYBER" = "y" -o \
 	 "$CONFIG_FB_VALKYRIE" = "y" -o "$CONFIG_FB_PLATINUM" = "y" -o \
 	 "$CONFIG_FB_CT65550" = "y" -o "$CONFIG_FB_MATROX" = "y" -o \
-	 "$CONFIG_FB_PM2" = "y" -o "$CONFIG_FB_SGIVW" = "y" ]; then
+	 "$CONFIG_FB_PM2" = "y" -o "$CONFIG_FB_SGIVW" = "y" -o \
+	 "$CONFIG_FB_CYBER2000" = "y" ]; then
       define_bool CONFIG_FBCON_CFB16 y
     else
       if [ "$CONFIG_FB_ATARI" = "m" -o "$CONFIG_FB_ATY" = "m" -o \
@@ -216,18 +222,21 @@ if [ "$CONFIG_FB" = "y" ]; then
 	   "$CONFIG_FB_VIRGE" = "m" -o "$CONFIG_FB_CYBER" = "m" -o \
 	   "$CONFIG_FB_VALKYRIE" = "m" -o "$CONFIG_FB_PLATINUM" = "m" -o \
 	   "$CONFIG_FB_CT65550" = "m" -o "$CONFIG_FB_MATROX" = "m" -o \
-	   "$CONFIG_FB_PM2" = "m" -o "$CONFIG_FB_SGIVW" = "m" ]; then
+	   "$CONFIG_FB_PM2" = "m" -o "$CONFIG_FB_SGIVW" = "m" -o \
+	   "$CONFIG_FB_CYBER2000" = "m" ]; then
 	define_bool CONFIG_FBCON_CFB16 m
       fi
     fi
     if [ "$CONFIG_FB_ATY" = "y" -o "$CONFIG_FB_VIRTUAL" = "y" -o \
 	 "$CONFIG_FB_CLGEN" = "y" -o "$CONFIG_FB_VESA" = "y" -o \
-	  "$CONFIG_FB_MATROX" = "y" -o "$CONFIG_FB_PM2" = "y" ]; then
+	  "$CONFIG_FB_MATROX" = "y" -o "$CONFIG_FB_PM2" = "y" -o \
+	 "$CONFIG_FB_CYBER2000" = "y" ]; then
       define_bool CONFIG_FBCON_CFB24 y
     else
       if [ "$CONFIG_FB_ATY" = "m" -o "$CONFIG_FB_VIRTUAL" = "m" -o \
 	   "$CONFIG_FB_CLGEN" = "m" -o "$CONFIG_FB_VESA" = "m" -o \
-	   "$CONFIG_FB_MATROX" = "m" -o "$CONFIG_FB_PM2" = "m" ]; then
+	   "$CONFIG_FB_MATROX" = "m" -o "$CONFIG_FB_PM2" = "m" -o \
+	   "$CONFIG_FB_CYBER2000" = "m" ]; then
 	define_bool CONFIG_FBCON_CFB24 m
       fi
     fi
@@ -277,6 +286,9 @@ if [ "$CONFIG_FB" = "y" ]; then
 	define_bool CONFIG_FBCON_MAC  m
       fi
     fi
+    if [ "$CONFIG_FB_VGA16" = "y" ]; then
+      define_bool CONFIG_FBCON_VGA_PLANES y
+    fi
     if [ "$CONFIG_FB_MDA" = "y" -o "$CONFIG_FB_VGA" = "y" ]; then
       define_bool CONFIG_FBCON_VGA y
     else
@@ -324,7 +336,7 @@ if [ "$CONFIG_FB" = "y" ]; then
       if [ "$CONFIG_AMIGA" = "y" ]; then
         define_bool CONFIG_FONT_PEARL_8x8 y
       fi
-      if [ "$CONFIG_ARM" = "y" ]; then
+      if [ "$CONFIG_ARM" = "y" -a "$CONFIG_ARCH_ACORN" = "y" ]; then
         define_bool CONFIG_FONT_ACORN_8x8 y
       fi
     fi

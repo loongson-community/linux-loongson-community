@@ -503,7 +503,7 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 	sb->s_dev = dev;
 	sb->s_op = &sysv_sops;
 	root_inode = iget(sb,SYSV_ROOT_INO);
-	sb->s_root = d_alloc_root(root_inode, NULL);
+	sb->s_root = d_alloc_root(root_inode);
 	if (!sb->s_root) {
 		printk("SysV FS: get root inode failed\n");
 		sysv_put_super(sb);
@@ -882,7 +882,7 @@ void sysv_read_inode(struct inode * inode)
 	}
 	inode->i_blocks = inode->i_blksize = 0;
 	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
-		inode->i_rdev = to_kdev_t(raw_inode->i_a.i_rdev);
+		;
 	else
 	if (sb->sv_convert)
 		for (block = 0; block < 10+1+1+1; block++)
@@ -892,19 +892,15 @@ void sysv_read_inode(struct inode * inode)
 		for (block = 0; block < 10+1+1+1; block++)
 			inode->u.sysv_i.i_data[block] =
 				read3byte(&raw_inode->i_a.i_addb[3*block]);
-	brelse(bh);
 	if (S_ISREG(inode->i_mode))
 		inode->i_op = &sysv_file_inode_operations;
 	else if (S_ISDIR(inode->i_mode))
 		inode->i_op = &sysv_dir_inode_operations;
 	else if (S_ISLNK(inode->i_mode))
 		inode->i_op = &sysv_symlink_inode_operations;
-	else if (S_ISCHR(inode->i_mode))
-		inode->i_op = &chrdev_inode_operations;
-	else if (S_ISBLK(inode->i_mode))
-		inode->i_op = &blkdev_inode_operations;
-	else if (S_ISFIFO(inode->i_mode))
-		init_fifo(inode);
+	else
+		init_special_inode(inode, inode->i_mode,raw_inode->i_a.i_rdev);
+	brelse(bh);
 }
 
 /* To avoid inconsistencies between inodes in memory and inodes on disk. */

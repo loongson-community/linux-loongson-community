@@ -16,6 +16,14 @@ D: One of assisting postmasters for vger.rutgers.edu's lists
 S: (ask for current address)
 S: Finland
 
+N: Dragos Acostachioaie
+E: dragos@iname.com
+W: http://www.arbornet.org/~dragos
+D: /proc/sysvipc
+S: C. Negri 6, bl. D3
+S: Iasi 6600
+S: Romania
+
 N: Dave Airlie
 E: airlied@linux.ie
 W: http://www.csn.ul.ie/~airlied
@@ -90,6 +98,11 @@ S: MIT Room E15-341
 S: 20 Ames Street
 S: Cambridge, Massachusetts 02139
 S: USA
+
+N: Michel Aubry
+E: giovanni <giovanni@sudfr.com>
+D: Aladdin 1533/1543(C) chipset IDE
+D: VIA MVP-3/TX Pro III chipset IDE
 
 N: Jens Axboe
 E: axboe@image.dk
@@ -668,7 +681,7 @@ N: Richard E. Gooch
 E: rgooch@atnf.csiro.au
 D: parent process death signal to children
 D: prctl() syscall
-D: /proc/mtrr support to manipulate MTRRs on Pentium Pro's
+D: /proc/mtrr support to manipulate MTRRs on Intel P6 family
 S: CSIRO Australia Telescope National Facility
 S: P.O. Box 76, Epping
 S: New South Wales, 2121
@@ -766,16 +779,31 @@ S: 77 Clarence Mews
 S: London SE16 1GD
 S: United Kingdom
 
+N: Bart Hartgers
+E: bart@etpmod.phys.tue.nl
+D: MTRR emulation with Centaur MCRs
+S: Gen Stedmanstraat 212
+S: 5623 HZ Eindhoven
+S: The Netherlands
+
 N: Kai Harrekilde-Petersen
-E: khp@dolphinics.no
+E: khp@olicom.dk
 D: Original author of the ftape-HOWTO, i82078 fdc detection code.
-S: Peder Holters vei 13
-S: 1168 Oslo
-S: Norway
 
 N: Andrew Haylett
 E: ajh@primag.co.uk
 D: Selection mechanism
+
+N: Andre Hedrick
+E: hedrick@astro.dyer.vanderbilt.edu
+D: Uniform Multi-Platform E-IDE driver
+D: Aladdin 1533/1543(C) chipset IDE
+D: HighPoint HPT343/5 chipset IDE
+D: PIIX chipset IDE
+D: Promise Ultra/33 chipset IDE
+D: Promise Ultra/66 chipset IDE
+S: Nashville, TN
+S: USA
 
 N: Jochen Hein
 E: jochen.hein@delphi.central.de
@@ -813,7 +841,7 @@ S: 14059 Berlin
 S: Germany
 
 N: Michael Hipp
-E: mhipp@student.uni-tuebingen.de
+E: hippm@informatik.uni-tuebingen.de
 D: drivers for the racal ni5210 & ni6510 Ethernet-boards
 S: Talstr. 1
 S: D - 72072 Tuebingen
@@ -940,6 +968,10 @@ S: Na Orechovce 7
 S: 160 00 Praha 6
 S: Czech Republic
 
+N: Andreas S. Krebs
+E: akrebs@altavista.net
+D: CYPRESS CY82C693 chipset IDE, Digital's PC-Alpha 164SX boards
+
 N: Niels Kristian Bech Jensen
 E: nkbj@image.dk
 W: http://www.image.dk/~nkbj
@@ -949,6 +981,13 @@ D: Danish HOWTO, Linux+FreeBSD mini-HOWTO.
 S: Dr. Holsts Vej 34, lejl. 164
 S: DK-8230 Åbyhøj
 S: Denmark
+
+N: Andrzej Krzysztofowicz
+E: ankry@green.mif.pg.gda.pl
+D: Aladdin 1533/1543(C) chipset IDE
+D: PIIX chipset IDE
+S: Faculty of Applied Phys. & Math.
+S: Technical University of Gdansk
 
 N: Michael K. Johnson
 E: johnsonm@redhat.com
@@ -1330,8 +1369,11 @@ S: Germany
 
 N: Arnaldo Carvalho de Melo
 E: acme@conectiva.com.br
+W: http://www.conectiva.com.br/~acme
 D: wanrouter hacking
-D: cyclades 2X sync card driver (still in early devel stage)
+D: Cyclom 2X synchronous card driver
+D: i18n for minicom, net-tools, util-linux, fetchmail, etc
+S: Conectiva Informatica LTDA
 S: R. Prof. Rubens Elke Braga, 558 - Parolin
 S: 80220-320 Curitiba - Parana
 S: Brazil
@@ -1417,8 +1459,8 @@ S: D-37083 Goettingen
 S: Germany
 
 N: David Mosberger-Tang
-E: David.Mosberger@acm.org
-D: Linux/Alpha
+E: davidm@hpl.hp.com if IA-64 related, else David.Mosberger@acm.org
+D: Linux/Alpha and Linux/ia64
 S: 35706 Runckel Lane
 S: Fremont, California 94536
 S: USA
@@ -1511,6 +1553,15 @@ D: IPX development and support
 N: David Parsons
 E: orc@pell.chi.il.us
 D: improved memory detection code.
+
+N: Mikulas Patocka
+E: mikulas@artax.karlin.mff.cuni.cz
+W: http://artax.karlin.mff.cuni.cz/~mikulas/
+P: 1024/BB11D2D5 A0 F1 28 4A C4 14 1E CF  92 58 7A 8F 69 BC A4 D3
+D: Read/write HPFS filesystem
+S: Weissova 8
+S: 644 00 Brno
+S: Czech Republic
 
 N: Vojtech Pavlik
 E: vojtech@ucw.cz
@@ -1741,6 +1792,10 @@ E: hps@tanstaafl.de
 D: added PCI support to the serial driver
 S: Buckenhof, Germany
 
+N: Michael Schmitz
+E:
+D: Macintosh IDE Driver
+
 N: Martin Schulze
 E: joey@linux.de
 W: http://home.pages.de/~joey/
@@ -1813,7 +1868,7 @@ S: Australia
 
 N: Chris Smith
 E: csmith@convex.com
-D: HPFS filesystem
+D: Read only HPFS filesystem
 S: Richardson, Texas
 S: USA
 
@@ -1897,6 +1952,17 @@ D: Original kernel hacker
 S: 1050 Woodduck Avenue
 S: Santa Clara, California 95051
 S: USA
+
+N: Marcelo W. Tosatti
+E: marcelo@conectiva.com.br
+W: http://lie-br.conectiva.com.br/~marcelo/
+D: Miscellaneous kernel hacker
+D: Cyclom 2X driver hacker
+D: linuxconf apache & proftpd module maintainer
+S: Conectiva Informatica LTDA
+S: R. Prof. Rubens Elke Braga, 558 - Parolin
+S: 80220-320 Curitiba - Parana
+S: Brazil
 
 N: Stefan Traby
 E: stefan@quant-x.com
@@ -2027,6 +2093,9 @@ D: m68k/Amiga and PPC/CHRP Longtrail coordinator
 D: Frame buffer device and XF68_FBDev maintainer
 D: m68k IDE maintainer
 D: Amiga Zorro maintainer
+D: Amiga Buddha and Catweasel chipset IDE
+D: Atari Falcon chipset IDE
+D: Amiga Gayle chipset IDE
 S: C. Huysmansstraat 12
 S: B-3128 Baal
 S: Belgium

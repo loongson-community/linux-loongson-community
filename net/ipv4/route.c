@@ -5,7 +5,7 @@
  *
  *		ROUTE - implementation of the IP router.
  *
- * Version:	$Id: route.c,v 1.67 1999/05/08 20:00:20 davem Exp $
+ * Version:	$Id: route.c,v 1.69 1999/06/09 10:11:02 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -174,7 +174,18 @@ __u8 ip_tos2prio[16] = {
  * Route cache.
  */
 
-struct rtable 	*rt_hash_table[RT_HASH_DIVISOR];
+/* The locking scheme is rather straight forward:
+ *
+ * 1) A BH protected rwlock protects the central route hash.
+ * 2) Only writers remove entries, and they hold the lock
+ *    as they look at rtable reference counts.
+ * 3) Only readers acquire references to rtable entries,
+ *    they do so with atomic increments and with the
+ *    lock held.
+ */
+
+static struct rtable 	*rt_hash_table[RT_HASH_DIVISOR];
+static rwlock_t		 rt_hash_lock = RW_LOCK_UNLOCKED;
 
 static int rt_intern_hash(unsigned hash, struct rtable * rth, struct rtable ** res);
 
@@ -204,7 +215,7 @@ static int rt_cache_get_info(char *buffer, char **start, off_t offset, int lengt
   	}
 	
   	
-	start_bh_atomic();
+	read_lock_bh(&rt_hash_lock);
 
 	for (i = 0; i<RT_HASH_DIVISOR; i++) {
 		for (r = rt_hash_table[i]; r; r = r->u.rt_next) {
@@ -239,7 +250,7 @@ static int rt_cache_get_info(char *buffer, char **start, off_t offset, int lengt
         }
 
 done:
-	end_bh_atomic();
+	read_unlock_bh(&rt_hash_lock);
   	
   	*start = buffer+len-(pos-offset);
   	len = pos-offset;
@@ -292,6 +303,7 @@ static __inline__ int rt_may_expire(struct rtable *rth, int tmo1, int tmo2)
 	return 1;
 }
 
+/* This runs via a timer and thus is always in BH context. */
 static void rt_check_expire(unsigned long dummy)
 {
 	int i;
@@ -305,6 +317,7 @@ static void rt_check_expire(unsigned long dummy)
 		rover = (rover + 1) & (RT_HASH_DIVISOR-1);
 		rthp = &rt_hash_table[rover];
 
+		write_lock(&rt_hash_lock);
 		while ((rth = *rthp) != NULL) {
 			if (rth->u.dst.expires) {
 				/* Entrie is expired even if it is in use */
@@ -325,6 +338,7 @@ static void rt_check_expire(unsigned long dummy)
 			*rthp = rth->u.rt_next;
 			rt_free(rth);
 		}
+		write_unlock(&rt_hash_lock);
 
 		/* Fallback loop breaker. */
 		if ((jiffies - now) > 0)
@@ -334,6 +348,9 @@ static void rt_check_expire(unsigned long dummy)
 	add_timer(&rt_periodic_timer);
 }
 
+/* This can run from both BH and non-BH contexts, the latter
+ * in the case of a forced flush event.
+ */
 static void rt_run_flush(unsigned long dummy)
 {
 	int i;
@@ -341,23 +358,23 @@ static void rt_run_flush(unsigned long dummy)
 
 	rt_deadline = 0;
 
-	start_bh_atomic();
 	for (i=0; i<RT_HASH_DIVISOR; i++) {
-		if ((rth = xchg(&rt_hash_table[i], NULL)) == NULL)
-			continue;
-		end_bh_atomic();
+		write_lock_bh(&rt_hash_lock);
+		rth = rt_hash_table[i];
+		if(rth != NULL)
+			rt_hash_table[i] = NULL;
+		write_unlock_bh(&rt_hash_lock);
 
 		for (; rth; rth=next) {
 			next = rth->u.rt_next;
 			rth->u.rt_next = NULL;
 			rt_free(rth);
 		}
-
-		start_bh_atomic();
 	}
-	end_bh_atomic();
 }
   
+static spinlock_t rt_flush_lock = SPIN_LOCK_UNLOCKED;
+
 void rt_cache_flush(int delay)
 {
 	unsigned long now = jiffies;
@@ -366,7 +383,7 @@ void rt_cache_flush(int delay)
 	if (delay < 0)
 		delay = ip_rt_min_delay;
 
-	start_bh_atomic();
+	spin_lock_bh(&rt_flush_lock);
 
 	if (del_timer(&rt_flush_timer) && delay > 0 && rt_deadline) {
 		long tmo = (long)(rt_deadline - now);
@@ -386,7 +403,7 @@ void rt_cache_flush(int delay)
 	}
 
 	if (delay <= 0) {
-		end_bh_atomic();
+		spin_unlock_bh(&rt_flush_lock);
 		rt_run_flush(0);
 		return;
 	}
@@ -396,7 +413,7 @@ void rt_cache_flush(int delay)
 
 	rt_flush_timer.expires = now + delay;
 	add_timer(&rt_flush_timer);
-	end_bh_atomic();
+	spin_unlock_bh(&rt_flush_lock);
 }
 
 /*
@@ -459,7 +476,10 @@ static int rt_garbage_collect(void)
 	do {
 		int i, k;
 
-		start_bh_atomic();
+		/* The write lock is held during the entire hash
+		 * traversal to ensure consistent state of the rover.
+		 */
+		write_lock_bh(&rt_hash_lock);
 		for (i=0, k=rover; i<RT_HASH_DIVISOR; i++) {
 			unsigned tmo = expire;
 
@@ -480,7 +500,7 @@ static int rt_garbage_collect(void)
 				break;
 		}
 		rover = k;
-		end_bh_atomic();
+		write_unlock_bh(&rt_hash_lock);
 
 		if (goal <= 0)
 			goto work_done;
@@ -530,10 +550,9 @@ static int rt_intern_hash(unsigned hash, struct rtable * rt, struct rtable ** rp
 	int attempts = !in_interrupt();
 
 restart:
-	start_bh_atomic();
-
 	rthp = &rt_hash_table[hash];
 
+	write_lock_bh(&rt_hash_lock);
 	while ((rth = *rthp) != NULL) {
 		if (memcmp(&rth->key, &rt->key, sizeof(rt->key)) == 0) {
 			/* Put it first */
@@ -544,7 +563,7 @@ restart:
 			atomic_inc(&rth->u.dst.refcnt);
 			atomic_inc(&rth->u.dst.use);
 			rth->u.dst.lastuse = now;
-			end_bh_atomic();
+			write_unlock_bh(&rt_hash_lock);
 
 			rt_drop(rt);
 			*rp = rth;
@@ -559,7 +578,7 @@ restart:
 	 */
 	if (rt->rt_type == RTN_UNICAST || rt->key.iif == 0) {
 		if (!arp_bind_neighbour(&rt->u.dst)) {
-			end_bh_atomic();
+			write_unlock_bh(&rt_hash_lock);
 
 			/* Neighbour tables are full and nothing
 			   can be released. Try to shrink route cache,
@@ -594,7 +613,7 @@ restart:
 	}
 #endif
 	rt_hash_table[hash] = rt;
-	end_bh_atomic();
+	write_unlock_bh(&rt_hash_lock);
 	*rp = rt;
 	return 0;
 }
@@ -633,6 +652,7 @@ void ip_rt_redirect(u32 old_gw, u32 daddr, u32 new_gw,
 
 			rthp=&rt_hash_table[hash];
 
+			write_lock_bh(&rt_hash_lock);
 			while ( (rth = *rthp) != NULL) {
 				struct rtable *rt;
 
@@ -657,6 +677,7 @@ void ip_rt_redirect(u32 old_gw, u32 daddr, u32 new_gw,
 				rt = dst_alloc(sizeof(struct rtable), &ipv4_dst_ops);
 				if (rt == NULL) {
 					ip_rt_put(rth);
+					write_unlock_bh(&rt_hash_lock);
 					return;
 				}
 
@@ -688,11 +709,15 @@ void ip_rt_redirect(u32 old_gw, u32 daddr, u32 new_gw,
 				}
 
 				*rthp = rth->u.rt_next;
+				write_unlock_bh(&rt_hash_lock);
 				if (!rt_intern_hash(hash, rt, &rt))
 					ip_rt_put(rt);
 				rt_drop(rth);
-				break;
+				goto do_next;
 			}
+			write_unlock_bh(&rt_hash_lock);
+		do_next:
+			;
 		}
 	}
 	return;
@@ -722,8 +747,8 @@ static struct dst_entry *ipv4_negative_advice(struct dst_entry *dst)
 #if RT_CACHE_DEBUG >= 1
 			printk(KERN_DEBUG "ip_rt_advice: redirect to %d.%d.%d.%d/%02x dropped\n", NIPQUAD(rt->rt_dst), rt->key.tos);
 #endif
-			start_bh_atomic();
 			ip_rt_put(rt);
+			write_lock_bh(&rt_hash_lock);
 			for (rthp = &rt_hash_table[hash]; *rthp; rthp = &(*rthp)->u.rt_next) {
 				if (*rthp == rt) {
 					*rthp = rt->u.rt_next;
@@ -731,7 +756,7 @@ static struct dst_entry *ipv4_negative_advice(struct dst_entry *dst)
 					break;
 				}
 			}
-			end_bh_atomic();
+			write_unlock_bh(&rt_hash_lock);
 			return NULL;
 		}
 	}
@@ -861,6 +886,7 @@ unsigned short ip_rt_frag_needed(struct iphdr *iph, unsigned short new_mtu)
 	for (i=0; i<2; i++) {
 		unsigned hash = rt_hash_code(daddr, skeys[i], tos);
 
+		read_lock_bh(&rt_hash_lock);
 		for (rth = rt_hash_table[hash]; rth; rth = rth->u.rt_next) {
 			if (rth->key.dst == daddr &&
 			    rth->key.src == skeys[i] &&
@@ -890,6 +916,7 @@ unsigned short ip_rt_frag_needed(struct iphdr *iph, unsigned short new_mtu)
 				}
 			}
 		}
+		read_unlock_bh(&rt_hash_lock);
 	}
 	return est_mtu ? : new_mtu;
 }
@@ -1362,6 +1389,7 @@ int ip_route_input(struct sk_buff *skb, u32 daddr, u32 saddr,
 	tos &= IPTOS_TOS_MASK;
 	hash = rt_hash_code(daddr, saddr^(iif<<5), tos);
 
+	read_lock_bh(&rt_hash_lock);
 	for (rth=rt_hash_table[hash]; rth; rth=rth->u.rt_next) {
 		if (rth->key.dst == daddr &&
 		    rth->key.src == saddr &&
@@ -1374,10 +1402,12 @@ int ip_route_input(struct sk_buff *skb, u32 daddr, u32 saddr,
 			rth->u.dst.lastuse = jiffies;
 			atomic_inc(&rth->u.dst.use);
 			atomic_inc(&rth->u.dst.refcnt);
+			read_unlock_bh(&rt_hash_lock);
 			skb->dst = (struct dst_entry*)rth;
 			return 0;
 		}
 	}
+	read_unlock_bh(&rt_hash_lock);
 
 	/* Multicast recognition logic is moved from route cache to here.
 	   The problem was that too many Ethernet cards have broken/missing
@@ -1657,7 +1687,7 @@ int ip_route_output(struct rtable **rp, u32 daddr, u32 saddr, u32 tos, int oif)
 
 	hash = rt_hash_code(daddr, saddr^(oif<<5), tos);
 
-	start_bh_atomic();
+	read_lock_bh(&rt_hash_lock);
 	for (rth=rt_hash_table[hash]; rth; rth=rth->u.rt_next) {
 		if (rth->key.dst == daddr &&
 		    rth->key.src == saddr &&
@@ -1673,12 +1703,12 @@ int ip_route_output(struct rtable **rp, u32 daddr, u32 saddr, u32 tos, int oif)
 			rth->u.dst.lastuse = jiffies;
 			atomic_inc(&rth->u.dst.use);
 			atomic_inc(&rth->u.dst.refcnt);
-			end_bh_atomic();
+			read_unlock_bh(&rt_hash_lock);
 			*rp = rth;
 			return 0;
 		}
 	}
-	end_bh_atomic();
+	read_unlock_bh(&rt_hash_lock);
 
 	return ip_route_output_slow(rp, daddr, saddr, tos, oif);
 }
@@ -1821,9 +1851,7 @@ int inet_rtm_getroute(struct sk_buff *in_skb, struct nlmsghdr* nlh, void *arg)
 			return -ENODEV;
 		skb->protocol = __constant_htons(ETH_P_IP);
 		skb->dev = dev;
-		start_bh_atomic();
 		err = ip_route_input(skb, dst, src, rtm->rtm_tos, dev);
-		end_bh_atomic();
 		rt = (struct rtable*)skb->dst;
 		if (!err && rt->u.dst.error)
 			err = -rt->u.dst.error;
@@ -1869,7 +1897,7 @@ int ip_rt_dump(struct sk_buff *skb,  struct netlink_callback *cb)
 		if (h < s_h) continue;
 		if (h > s_h)
 			s_idx = 0;
-		start_bh_atomic();
+		read_lock_bh(&rt_hash_lock);
 		for (rt = rt_hash_table[h], idx = 0; rt; rt = rt->u.rt_next, idx++) {
 			if (idx < s_idx)
 				continue;
@@ -1877,12 +1905,12 @@ int ip_rt_dump(struct sk_buff *skb,  struct netlink_callback *cb)
 			if (rt_fill_info(skb, NETLINK_CB(cb->skb).pid,
 					 cb->nlh->nlmsg_seq, RTM_NEWROUTE, 1) <= 0) {
 				dst_release(xchg(&skb->dst, NULL));
-				end_bh_atomic();
+				read_unlock_bh(&rt_hash_lock);
 				goto done;
 			}
 			dst_release(xchg(&skb->dst, NULL));
 		}
-		end_bh_atomic();
+		read_unlock_bh(&rt_hash_lock);
 	}
 
 done:
@@ -1968,6 +1996,7 @@ ctl_table ipv4_route_table[] = {
 
 #ifdef CONFIG_NET_CLS_ROUTE
 struct ip_rt_acct ip_rt_acct[256];
+rwlock_t ip_rt_acct_lock = RW_LOCK_UNLOCKED;
 
 #ifdef CONFIG_PROC_FS
 static int ip_rt_acct_read(char *buffer, char **start, off_t offset,
@@ -1980,9 +2009,9 @@ static int ip_rt_acct_read(char *buffer, char **start, off_t offset,
 		*eof = 1;
 	}
 	if (length > 0) {
-		start_bh_atomic();
+		read_lock_bh(&ip_rt_acct_lock);
 		memcpy(buffer, ((u8*)&ip_rt_acct)+offset, length);
-		end_bh_atomic();
+		read_unlock_bh(&ip_rt_acct_lock);
 		return length;
 	}
 	return 0;

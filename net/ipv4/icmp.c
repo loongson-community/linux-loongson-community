@@ -1,9 +1,9 @@
 /*
  *	NET3:	Implementation of the ICMP protocol layer. 
  *	
- *		Alan Cox, <alan@cymru.net>
+ *		Alan Cox, <alan@redhat.com>
  *
- *	Version: $Id: icmp.c,v 1.52 1999/03/21 12:04:11 davem Exp $
+ *	Version: $Id: icmp.c,v 1.57 1999/06/09 10:10:50 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -699,8 +699,8 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 			case ICMP_FRAG_NEEDED:
 				if (ipv4_config.no_pmtu_disc) {
 					if (net_ratelimit())
-						printk(KERN_INFO "ICMP: %s: fragmentation needed and DF set.\n",
-					       in_ntoa(iph->daddr));
+						printk(KERN_INFO "ICMP: %d.%d.%d.%d: fragmentation needed and DF set.\n",
+						       NIPQUAD(iph->daddr));
 				} else {
 					unsigned short new_mtu;
 					new_mtu = ip_rt_frag_needed(iph, ntohs(icmph->un.frag.mtu));
@@ -711,7 +711,7 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 				break;
 			case ICMP_SR_FAILED:
 				if (net_ratelimit())
-					printk(KERN_INFO "ICMP: %s: Source Route Failed.\n", in_ntoa(iph->daddr));
+					printk(KERN_INFO "ICMP: %d.%d.%d.%d: Source Route Failed.\n", NIPQUAD(iph->daddr));
 				break;
 			default:
 				break;
@@ -741,8 +741,8 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 		if (inet_addr_type(iph->daddr) == RTN_BROADCAST)
 		{
 			if (net_ratelimit())
-				printk(KERN_WARNING "%s sent an invalid ICMP error to a broadcast.\n",
-			       	in_ntoa(skb->nh.iph->saddr));
+				printk(KERN_WARNING "%d.%d.%d.%d sent an invalid ICMP error to a broadcast.\n",
+			       	NIPQUAD(skb->nh.iph->saddr));
 			return; 
 		}
 	}
@@ -1142,6 +1142,8 @@ __initfunc(void icmp_init(struct net_proto_family *ops))
 	icmp_inode.i_sock = 1;
 	icmp_inode.i_uid = 0;
 	icmp_inode.i_gid = 0;
+	init_waitqueue_head(&icmp_inode.i_wait);
+	init_waitqueue_head(&icmp_inode.u.socket_i.wait);
 
 	icmp_socket->inode = &icmp_inode;
 	icmp_socket->state = SS_UNCONNECTED;
@@ -1150,6 +1152,11 @@ __initfunc(void icmp_init(struct net_proto_family *ops))
 	if ((err=ops->create(icmp_socket, IPPROTO_ICMP))<0)
 		panic("Failed to create the ICMP control socket.\n");
 	icmp_socket->sk->allocation=GFP_ATOMIC;
-	icmp_socket->sk->num = 256;		/* Don't receive any data */
 	icmp_socket->sk->ip_ttl = MAXTTL;
+
+	/* Unhash it so that IP input processing does not even
+	 * see it, we do not wish this socket to see incoming
+	 * packets.
+	 */
+	icmp_socket->sk->prot->unhash(icmp_socket->sk);
 }

@@ -1,4 +1,4 @@
-/* $Id: ptrace.c,v 1.11 1999/02/15 02:16:51 ralf Exp $
+/* $Id: ptrace.c,v 1.12 1999/06/13 16:30:32 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -141,25 +141,6 @@ repeat:
 	 */
 	set_pte(pgtable, pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 	flush_tlb_page(vma, addr);
-}
-
-static struct vm_area_struct * find_extend_vma(struct task_struct * tsk, unsigned long addr)
-{
-	struct vm_area_struct * vma;
-
-	addr &= PAGE_MASK;
-	vma = find_vma(tsk->mm, addr);
-	if (!vma)
-		return NULL;
-	if (vma->vm_start <= addr)
-		return vma;
-	if (!(vma->vm_flags & VM_GROWSDOWN))
-		return NULL;
-	if (vma->vm_end - addr > tsk->rlim[RLIMIT_STACK].rlim_cur)
-		return NULL;
-	vma->vm_offset -= vma->vm_start - addr;
-	vma->vm_start = addr;
-	return vma;
 }
 
 /*

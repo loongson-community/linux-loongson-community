@@ -5,6 +5,7 @@
  *  Swap reorganised 29.12.95, Stephen Tweedie
  */
 
+#include <linux/config.h>
 #include <linux/malloc.h>
 #include <linux/smp_lock.h>
 #include <linux/kernel_stat.h>
@@ -473,6 +474,18 @@ int get_swaparea_info(char *buf)
 	return len;
 }
 
+int is_swap_partition(kdev_t dev) {
+	struct swap_info_struct *ptr = swap_info;
+	int i;
+
+	for (i = 0 ; i < nr_swapfiles ; i++, ptr++) {
+		if (ptr->flags & SWP_USED)
+			if (ptr->swap_device == dev)
+				return 1;
+	}
+	return 0;
+}
+
 /*
  * Written 01/25/92 by Simmule Turner, heavily changed by Linus.
  *
@@ -491,7 +504,9 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	int swap_header_version;
 	int lock_map_size = PAGE_SIZE;
 	int nr_good_pages = 0;
+	unsigned long maxpages;
 	unsigned long tmp_lock_map = 0;
+	int swapfilesize;
 	
 	lock_kernel();
 	if (!capable(CAP_SYS_ADMIN))
@@ -530,35 +545,41 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	error = -EINVAL;
 
 	if (S_ISBLK(swap_dentry->d_inode->i_mode)) {
-		p->swap_device = swap_dentry->d_inode->i_rdev;
-		set_blocksize(p->swap_device, PAGE_SIZE);
+		kdev_t dev = swap_dentry->d_inode->i_rdev;
+
+		p->swap_device = dev;
+		set_blocksize(dev, PAGE_SIZE);
 		
 		filp.f_dentry = swap_dentry;
 		filp.f_mode = 3; /* read write */
 		error = blkdev_open(swap_dentry->d_inode, &filp);
 		if (error)
 			goto bad_swap_2;
-		set_blocksize(p->swap_device, PAGE_SIZE);
+		set_blocksize(dev, PAGE_SIZE);
 		error = -ENODEV;
-		if (!p->swap_device ||
-		    (blk_size[MAJOR(p->swap_device)] &&
-		     !blk_size[MAJOR(p->swap_device)][MINOR(p->swap_device)]))
+		if (!dev || (blk_size[MAJOR(dev)] &&
+		     !blk_size[MAJOR(dev)][MINOR(dev)]))
 			goto bad_swap;
 		error = -EBUSY;
 		for (i = 0 ; i < nr_swapfiles ; i++) {
 			if (i == type)
 				continue;
-			if (p->swap_device == swap_info[i].swap_device)
+			if (dev == swap_info[i].swap_device)
 				goto bad_swap;
 		}
+		swapfilesize = 0;
+		if (blk_size[MAJOR(dev)])
+			swapfilesize = blk_size[MAJOR(dev)][MINOR(dev)]
+				/ (PAGE_SIZE / 1024);
 	} else if (S_ISREG(swap_dentry->d_inode->i_mode)) {
 		error = -EBUSY;
 		for (i = 0 ; i < nr_swapfiles ; i++) {
-			if (i == type)
+			if (i == type || !swap_info[i].swap_file)
 				continue;
 			if (swap_dentry->d_inode == swap_info[i].swap_file->d_inode)
 				goto bad_swap;
 		}
+		swapfilesize = swap_dentry->d_inode->i_size / PAGE_SIZE;
 	} else
 		goto bad_swap;
 
@@ -627,10 +648,12 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 		p->highest_bit = swap_header->info.last_page - 1;
 		p->max	       = swap_header->info.last_page;
 
+		maxpages = SWP_OFFSET(SWP_ENTRY(0,~0UL));
+		if (p->max >= maxpages)
+			p->max = maxpages-1;
+
 		error = -EINVAL;
 		if (swap_header->info.nr_badpages > MAX_SWAP_BADPAGES)
-			goto bad_swap;
-		if (p->max >= SWP_OFFSET(SWP_ENTRY(0,~0UL)))
 			goto bad_swap;
 		
 		/* OK, set up the swap map and apply the bad block list */
@@ -654,6 +677,12 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 			goto bad_swap;
 	}
 	
+	if (swapfilesize && p->max > swapfilesize) {
+		printk(KERN_WARNING
+		       "Swap area shorter than signature indicates\n");
+		error = -EINVAL;
+		goto bad_swap;
+	}
 	if (!nr_good_pages) {
 		printk(KERN_WARNING "Empty swap-file\n");
 		error = -EINVAL;

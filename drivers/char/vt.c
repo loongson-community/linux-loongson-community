@@ -1100,7 +1100,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
  * while those not ready go back to sleep. Seems overkill to add a wait
  * to each vt just for this - usually this does nothing!
  */
-static struct wait_queue *vt_activate_queue = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(vt_activate_queue);
 
 /*
  * Sleeps until a vt is activated, or the task is interrupted. Returns
@@ -1109,7 +1109,7 @@ static struct wait_queue *vt_activate_queue = NULL;
 int vt_waitactive(int vt)
 {
 	int retval;
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 
 	add_wait_queue(&vt_activate_queue, &wait);
 	for (;;) {

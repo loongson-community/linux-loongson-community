@@ -32,6 +32,7 @@
 #include <linux/hdreg.h>
 #include <linux/skbuff.h>
 #include <linux/genhd.h>
+#include <linux/blkpg.h>
 #include <linux/swap.h>
 #include <linux/ctype.h>
 #include <linux/file.h>
@@ -81,6 +82,7 @@ EXPORT_SYMBOL(get_options);
 /* process memory management */
 EXPORT_SYMBOL(do_mmap);
 EXPORT_SYMBOL(do_munmap);
+EXPORT_SYMBOL(do_brk);
 EXPORT_SYMBOL(exit_mm);
 EXPORT_SYMBOL(exit_files);
 EXPORT_SYMBOL(exit_fs);
@@ -116,6 +118,8 @@ EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_fs_type);
 EXPORT_SYMBOL(getname);
 EXPORT_SYMBOL(__fput);
+EXPORT_SYMBOL(igrab);
+EXPORT_SYMBOL(iunique);
 EXPORT_SYMBOL(iget);
 EXPORT_SYMBOL(iput);
 EXPORT_SYMBOL(__namei);
@@ -184,6 +188,7 @@ EXPORT_SYMBOL(vfs_rmdir);
 EXPORT_SYMBOL(vfs_unlink);
 EXPORT_SYMBOL(vfs_rename);
 EXPORT_SYMBOL(__pollwait);
+EXPORT_SYMBOL(ROOT_DEV);
 
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
 EXPORT_SYMBOL(do_nfsservctl);
@@ -282,7 +287,6 @@ EXPORT_SYMBOL(timer_table);
 #ifdef __SMP__
 /* Various random spinlocks we want to export */
 EXPORT_SYMBOL(tqueue_lock);
-EXPORT_SYMBOL(waitqueue_lock);
 #endif
 
 /* autoirq from  drivers/net/auto_irq.c */
@@ -325,6 +329,7 @@ EXPORT_SYMBOL(vsprintf);
 EXPORT_SYMBOL(kdevname);
 EXPORT_SYMBOL(bdevname);
 EXPORT_SYMBOL(cdevname);
+EXPORT_SYMBOL(partition_name);		/* md.c only */
 EXPORT_SYMBOL(simple_strtoul);
 EXPORT_SYMBOL(system_utsname);	/* UTS data */
 EXPORT_SYMBOL(uts_sem);		/* UTS semaphore */
@@ -341,7 +346,7 @@ EXPORT_SYMBOL(securebits);
 
 /* Program loader interfaces */
 EXPORT_SYMBOL(setup_arg_pages);
-EXPORT_SYMBOL(copy_strings);
+EXPORT_SYMBOL(copy_strings_kernel);
 EXPORT_SYMBOL(do_execve);
 EXPORT_SYMBOL(flush_old_exec);
 EXPORT_SYMBOL(open_dentry);
@@ -359,6 +364,7 @@ EXPORT_SYMBOL(clear_inode);
 EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(nr_async_pages);
 EXPORT_SYMBOL(___strtok);
+EXPORT_SYMBOL(init_special_inode);
 EXPORT_SYMBOL(init_fifo);
 EXPORT_SYMBOL(fifo_inode_operations);
 EXPORT_SYMBOL(chrdev_inode_operations);

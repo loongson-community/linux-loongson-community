@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.15 1999/01/04 16:03:48 ralf Exp $
+/* $Id: irixelf.c,v 1.16.2.2 1999/06/14 21:40:54 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -133,9 +133,7 @@ static void set_brk(unsigned long start, unsigned long end)
 	end = PAGE_ALIGN(end);
 	if (end <= start) 
 		return;
-	do_mmap(NULL, start, end - start,
-		PROT_READ | PROT_WRITE | PROT_EXEC,
-		MAP_FIXED | MAP_PRIVATE, 0);
+	do_brk(start, end - start);
 }
 
 
@@ -395,9 +393,7 @@ static unsigned int load_irix_interp(struct elfhdr * interp_elf_ex,
 
 	/* Map the last of the bss segment */
 	if (last_bss > len) {
-		do_mmap(NULL, len, (last_bss - len),
-			PROT_READ|PROT_WRITE|PROT_EXEC,
-			MAP_FIXED|MAP_PRIVATE, 0);
+		do_brk(len, (last_bss - len));
 	}
 	kfree(elf_phdata);
 
@@ -590,8 +586,7 @@ void irix_map_prda_page (void)
 	unsigned long v;
 	struct prda *pp;
 
-	v =  do_mmap (NULL, PRDA_ADDRESS, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC,
-		      MAP_FIXED | MAP_PRIVATE, 0);
+	v =  do_brk (PRDA_ADDRESS, PAGE_SIZE);
 	
 	if (v < 0)
 		return;
@@ -618,7 +613,7 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	unsigned int load_addr, elf_bss, elf_brk;
 	unsigned int elf_entry, interp_load_addr = 0;
 	unsigned int start_code, end_code, end_data, elf_stack;
-	int elf_exec_fileno, retval, has_interp, has_ephdr, i;
+	int elf_exec_fileno, retval, has_interp, has_ephdr, size, i;
 	char *elf_interpreter;
 	mm_segment_t old_fs;
 	
@@ -635,13 +630,13 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 #endif
 
 	/* Now read in all of the header information */
-	elf_phdata = (struct elf_phdr *) kmalloc(elf_ex.e_phentsize * 
-						 elf_ex.e_phnum, GFP_KERNEL);
+	size = elf_ex.e_phentsize * elf_ex.e_phnum;
+	elf_phdata = (struct elf_phdr *) kmalloc(size, GFP_KERNEL);
 	if (elf_phdata == NULL)
 		return -ENOMEM;
 	
-	retval = read_exec(bprm->dentry, elf_ex.e_phoff, (char *) elf_phdata,
-			   elf_ex.e_phentsize * elf_ex.e_phnum, 1);
+	retval = read_exec(bprm->dentry, elf_ex.e_phoff,
+	                   (char *) elf_phdata, size, 1);
 	if (retval < 0) {
 		kfree (elf_phdata);
 		return retval;
@@ -733,7 +728,7 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	 * change some of these later.
 	 */
 	current->mm->rss = 0;
-	bprm->p = setup_arg_pages(bprm->p, bprm);
+	setup_arg_pages(bprm);
 	current->mm->start_stack = bprm->p;
 	
 	/* At this point, we assume that the image should be loaded at
@@ -803,12 +798,12 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	padzero(elf_bss);
 
 #ifdef DEBUG_ELF
-	printk("(start_brk) %08lx\n" , current->mm->start_brk);
-	printk("(end_code) %08lx\n" , current->mm->end_code);
-	printk("(start_code) %08lx\n" , current->mm->start_code);
-	printk("(end_data) %08lx\n" , current->mm->end_data);
-	printk("(start_stack) %08lx\n" , current->mm->start_stack);
-	printk("(brk) %08lx\n" , current->mm->brk);
+	printk("(start_brk) %lx\n" , (long) current->mm->start_brk);
+	printk("(end_code) %lx\n" , (long) current->mm->end_code);
+	printk("(start_code) %lx\n" , (long) current->mm->start_code);
+	printk("(end_data) %lx\n" , (long) current->mm->end_data);
+	printk("(start_stack) %lx\n" , (long) current->mm->start_stack);
+	printk("(brk) %lx\n" , (long) current->mm->brk);
 #endif
 
 #if 0 /* XXX No fucking way dude... */
@@ -932,9 +927,7 @@ static inline int do_load_irix_library(int fd)
 	len = (elf_phdata->p_filesz + elf_phdata->p_vaddr+ 0xfff) & 0xfffff000;
 	bss = elf_phdata->p_memsz + elf_phdata->p_vaddr;
 	if (bss > len)
-	  do_mmap(NULL, len, bss-len,
-		  PROT_READ|PROT_WRITE|PROT_EXEC,
-		  MAP_FIXED|MAP_PRIVATE, 0);
+	  do_brk(len, bss-len);
 	kfree(elf_phdata);
 	return 0;
 }
@@ -1109,10 +1102,10 @@ static int writenote(struct memelfnote *men, struct file *file)
 #undef DUMP_SEEK
 
 #define DUMP_WRITE(addr, nr)	\
-	if (!dump_write(&file, (addr), (nr))) \
+	if (!dump_write(file, (addr), (nr))) \
 		goto close_coredump;
 #define DUMP_SEEK(off)	\
-	if (!dump_seek(&file, (off))) \
+	if (!dump_seek(file, (off))) \
 		goto close_coredump;
 /* Actual dumper.
  *

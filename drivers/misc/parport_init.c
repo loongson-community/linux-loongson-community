@@ -20,10 +20,11 @@
 
 #ifndef MODULE
 static int io[PARPORT_MAX+1] __initdata = { [0 ... PARPORT_MAX] = 0 };
+static int io_hi[PARPORT_MAX+1] __initdata = { [0 ... PARPORT_MAX] = 0 };
 static int irq[PARPORT_MAX] __initdata = { [0 ... PARPORT_MAX-1] = PARPORT_IRQ_PROBEONLY };
-static int dma[PARPORT_MAX] __initdata = { [0 ... PARPORT_MAX-1] = PARPORT_DMA_NONE };
+static int dma[PARPORT_MAX] __initdata = { [0 ... PARPORT_MAX-1] = PARPORT_DMA_AUTO };
 
-extern int parport_pc_init(int *io, int *irq, int *dma);
+extern int parport_pc_init(int *io, int *io_hi, int *irq, int *dma);
 extern int parport_ax_init(void);
 
 static int parport_setup_ptr __initdata = 0;
@@ -98,13 +99,17 @@ __initfunc(void parport_setup(char *str, int *ints))
 #ifdef MODULE
 int init_module(void)
 {
-	(void)parport_proc_init();	/* We can go on without it. */
+#ifdef CONFIG_SYSCTL
+	parport_default_proc_register ();
+#endif
 	return 0;
 }
 
 void cleanup_module(void)
 {
-	parport_proc_cleanup();
+#ifdef CONFIG_SYSCTL
+	parport_default_proc_unregister ();
+#endif
 }
 
 #else
@@ -117,11 +122,12 @@ __initfunc(int parport_init(void))
 #ifdef CONFIG_PNP_PARPORT
 	parport_probe_hook = &parport_probe_one;
 #endif
-#ifdef	CONFIG_PROC_FS
-	parport_proc_init();
+#ifdef	CONFIG_SYSCTL
+	parport_default_proc_register ();
 #endif
+
 #ifdef CONFIG_PARPORT_PC
-	parport_pc_init(io, irq, dma);
+	parport_pc_init(io, io_hi, irq, dma);
 #endif
 #ifdef CONFIG_PARPORT_AX
 	parport_ax_init();
@@ -135,6 +141,9 @@ __initfunc(int parport_init(void))
 #ifdef CONFIG_PARPORT_ATARI
 	parport_atari_init();
 #endif
+#ifdef CONFIG_PARPORT_ARC
+	parport_arc_init();
+#endif
 	return 0;
 }
 #endif
@@ -145,8 +154,10 @@ EXPORT_SYMBOL(parport_claim);
 EXPORT_SYMBOL(parport_claim_or_block);
 EXPORT_SYMBOL(parport_release);
 EXPORT_SYMBOL(parport_register_port);
+EXPORT_SYMBOL(parport_announce_port);
 EXPORT_SYMBOL(parport_unregister_port);
-EXPORT_SYMBOL(parport_quiesce);
+EXPORT_SYMBOL(parport_register_driver);
+EXPORT_SYMBOL(parport_unregister_driver);
 EXPORT_SYMBOL(parport_register_device);
 EXPORT_SYMBOL(parport_unregister_device);
 EXPORT_SYMBOL(parport_enumerate);
@@ -156,6 +167,7 @@ EXPORT_SYMBOL(parport_proc_register);
 EXPORT_SYMBOL(parport_proc_unregister);
 EXPORT_SYMBOL(parport_probe_hook);
 EXPORT_SYMBOL(parport_parse_irqs);
+EXPORT_SYMBOL(parport_parse_dmas);
 
 void inc_parport_count(void)
 {

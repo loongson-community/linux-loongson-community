@@ -1,4 +1,4 @@
-/* $Id: sys_sunos32.c,v 1.22 1998/10/26 20:01:13 davem Exp $
+/* $Id: sys_sunos32.c,v 1.26 1999/06/09 08:23:54 davem Exp $
  * sys_sunos32.c: SunOS binary compatability layer on sparc64.
  *
  * Copyright (C) 1995, 1996, 1997 David S. Miller (davem@caip.rutgers.edu)
@@ -134,7 +134,6 @@ asmlinkage int sunos_brk(u32 baddr)
 	unsigned long newbrk, oldbrk, brk = (unsigned long) baddr;
 
 	down(&current->mm->mmap_sem);
-	lock_kernel();
 	if (brk < current->mm->end_code)
 		goto out;
 	newbrk = PAGE_ALIGN(brk);
@@ -175,12 +174,9 @@ asmlinkage int sunos_brk(u32 baddr)
 		goto out;
 	/* Ok, we have probably got enough memory - let it rip. */
 	current->mm->brk = brk;
-	do_mmap(NULL, oldbrk, newbrk-oldbrk,
-		PROT_READ|PROT_WRITE|PROT_EXEC,
-		MAP_FIXED|MAP_PRIVATE, 0);
+	do_brk(oldbrk, newbrk-oldbrk);
 	retval = 0;
 out:
-	unlock_kernel();
 	up(&current->mm->mmap_sem);
 	return retval;
 }
@@ -1347,7 +1343,7 @@ asmlinkage int sunos_readv(u32 fd, u32 vector, s32 count)
 
 	lock_kernel();
 	ret = check_nonblock(sys32_readv(fd, vector, count), fd);
-	lock_kernel();
+	unlock_kernel();
 	return ret;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: shmiq.c,v 1.8 1998/08/29 20:40:04 ralf Exp $
+/* $Id: shmiq.c,v 1.11 1998/09/19 19:17:50 ralf Exp $
  *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -84,7 +84,7 @@ static struct {
 	int    events;
 	int    mapped;
 	
-	struct wait_queue    *proc_list;
+	wait_queue_head_t    proc_list;
 	struct fasync_struct *fasync;
 } shmiqs [MAX_SHMI_QUEUES];
 

@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.14 1999/01/04 16:09:25 ralf Exp $
+/* $Id: processor.h,v 1.15 1999/02/15 02:22:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,6 +10,12 @@
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
+
+/*
+ * Default implementation of macro that returns current
+ * instruction pointer ("program counter").
+ */
+#define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
 #if !defined (_LANGUAGE_ASSEMBLY)
 #include <asm/cachectl.h>
@@ -174,7 +180,7 @@ struct thread_struct {
 
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
-extern pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
+extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
 /* Copy and release all segment info associated with a VM */
 #define copy_segments(nr, p, mm) do { } while(0)
@@ -195,6 +201,7 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 	return ((unsigned long*)t->reg29)[17];
 }
 
+struct pt_regs;
 extern int (*user_mode)(struct pt_regs *);
 
 /*

@@ -392,14 +392,42 @@ enum
 	NET_TR_RIF_TIMEOUT=1
 };
 
-/* /proc/sys/net/decnet */
+/* /proc/sys/net/decnet/ */
 enum {
-	NET_DECNET_DEF_T3_BROADCAST=1,
-	NET_DECNET_DEF_T3_POINTTOPOINT=2,
-	NET_DECNET_DEF_T1=3,
-	NET_DECNET_DEF_BCT1=4,
-	NET_DECNET_CACHETIMEOUT=5,
-	NET_DECNET_DEBUG_LEVEL=6
+	NET_DECNET_NODE_TYPE = 1,
+	NET_DECNET_NODE_ADDRESS = 2,
+	NET_DECNET_NODE_NAME = 3,
+	NET_DECNET_DEFAULT_DEVICE = 4,
+	NET_DECNET_TIME_WAIT = 5,
+	NET_DECNET_DN_COUNT = 6,
+	NET_DECNET_DI_COUNT = 7,
+	NET_DECNET_DR_COUNT = 8,
+	NET_DECNET_DST_GC_INTERVAL = 9,
+	NET_DECNET_CONF = 10,
+	NET_DECNET_DEBUG_LEVEL = 255
+};
+
+/* /proc/sys/net/decnet/conf/<dev> */
+enum {
+	NET_DECNET_CONF_LOOPBACK = -2,
+	NET_DECNET_CONF_DDCMP = -3,
+	NET_DECNET_CONF_PPP = -4,
+	NET_DECNET_CONF_X25 = -5,
+	NET_DECNET_CONF_GRE = -6,
+	NET_DECNET_CONF_ETHER = -7
+
+	/* ... and ifindex of devices */
+};
+
+/* /proc/sys/net/decnet/conf/<dev>/ */
+enum {
+	NET_DECNET_CONF_DEV_PRIORITY = 1,
+	NET_DECNET_CONF_DEV_T1 = 2,
+	NET_DECNET_CONF_DEV_T2 = 3,
+	NET_DECNET_CONF_DEV_T3 = 4,
+	NET_DECNET_CONF_DEV_COST = 5,
+	NET_DECNET_CONF_DEV_BLKSIZE = 6,
+	NET_DECNET_CONF_DEV_STATE = 7
 };
 
 /* CTL_PROC names: */
@@ -424,12 +452,42 @@ enum
 /* CTL_DEV names: */
 enum {
 	DEV_CDROM=1,
-	DEV_HWMON=2
+	DEV_HWMON=2,
+	DEV_PARPORT=3
 };
 
 /* /proc/sys/dev/cdrom */
 enum {
 	DEV_CDROM_INFO=1
+};
+
+/* /proc/sys/dev/parport */
+enum {
+	DEV_PARPORT_DEFAULT=-3
+};
+
+/* /proc/sys/dev/parport/default */
+enum {
+	DEV_PARPORT_DEFAULT_TIMESLICE=1,
+	DEV_PARPORT_DEFAULT_SPINTIME=2
+};
+
+/* /proc/sys/dev/parport/parport n */
+enum {
+	DEV_PARPORT_SPINTIME=1,
+	DEV_PARPORT_HARDWARE=2,
+	DEV_PARPORT_DEVICES=3,
+	DEV_PARPORT_AUTOPROBE=16
+};
+
+/* /proc/sys/dev/parport/parport n/devices/ */
+enum {
+	DEV_PARPORT_DEVICES_ACTIVE=-3,
+};
+
+/* /proc/sys/dev/parport/parport n/devices/device n */
+enum {
+	DEV_PARPORT_DEVICE_TIMESLICE=1,
 };
 
 #ifdef __KERNEL__

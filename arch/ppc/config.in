@@ -8,8 +8,9 @@ mainmenu_option next_comment
 comment 'Platform support'
 define_bool CONFIG_PPC y
 choice 'Processor type' \
-	"6xx/7xx	CONFIG_6xx \
-	 860/821	CONFIG_8xx" 6xx/7xx
+	"6xx/7xx		CONFIG_6xx \
+	 630/Power3(64-Bit) 	CONFIG_PPC64 \
+	 860/821		CONFIG_8xx" 6xx/7xx
 
 choice 'Machine Type' \
 	"PowerMac	CONFIG_PMAC \
@@ -22,6 +23,10 @@ choice 'Machine Type' \
 bool 'Symmetric multi-processing support' CONFIG_SMP
 if [ "$CONFIG_ALL_PPC" != "y" ];then
   define_bool CONFIG_MACH_SPECIFIC y
+fi
+
+if [ "$CONFIG_PPC64" != "y" ];then
+  define_bool CONFIG_6xx y
 fi
 endmenu
 
@@ -171,6 +176,7 @@ source drivers/video/Config.in
 endmenu
 
 source drivers/char/Config.in
+source drivers/usb/Config.in
 source fs/Config.in
 
 mainmenu_option next_comment

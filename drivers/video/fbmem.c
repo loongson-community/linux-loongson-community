@@ -44,7 +44,7 @@
      *  Frame buffer device initialization and setup routines
      */
 
-extern unsigned long acornfb_init(void);
+extern void acornfb_init(void);
 extern void acornfb_setup(char *options, int *ints);
 extern void amifb_init(void);
 extern void amifb_setup(char *options, int *ints);
@@ -56,6 +56,8 @@ extern void cyberfb_init(void);
 extern void cyberfb_setup(char *options, int *ints);
 extern void pm2fb_init(void);
 extern void pm2fb_setup(char *options, int *ints);
+extern void cyber2000fb_init(void);
+extern void cyber2000fb_setup(char *options, int *ints);
 extern void retz3fb_init(void);
 extern void retz3fb_setup(char *options, int *ints);
 extern void clgenfb_init(void);
@@ -79,6 +81,8 @@ extern void s3triofb_init(void);
 extern void s3triofb_setup(char *options, int *ints);
 extern void vesafb_init(void);
 extern void vesafb_setup(char *options, int *ints);
+extern void vga16fb_init(void);
+extern void vga16fb_setup(char *options, int *ints);
 extern void matroxfb_init(void);
 extern void matroxfb_setup(char* options, int *ints);
 extern void hpfb_init(void);
@@ -120,6 +124,9 @@ static struct {
 #ifdef CONFIG_FB_CYBER
 	{ "cyber", cyberfb_init, cyberfb_setup },
 #endif
+#ifdef CONFIG_FB_CYBER2000
+	{ "cyber2000", cyber2000fb_init, cyber2000fb_setup },
+#endif
 #ifdef CONFIG_FB_PM2
 	{ "pm2fb", pm2fb_init, pm2fb_setup },
 #endif
@@ -158,6 +165,9 @@ static struct {
 #endif
 #ifdef CONFIG_FB_VESA
 	{ "vesa", vesafb_init, vesafb_setup },
+#endif 
+#ifdef CONFIG_FB_VGA16
+	{ "vga16", vga16fb_init, vga16fb_setup },
 #endif 
 #ifdef CONFIG_FB_MATROX
 	{ "matrox", matroxfb_init, matroxfb_setup },
@@ -501,6 +511,13 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 #elif defined(__mips__)
 	pgprot_val(vma->vm_page_prot) &= ~_CACHE_MASK;
 	pgprot_val(vma->vm_page_prot) |= _CACHE_UNCACHED;
+#elif defined(__arm__)
+#if defined(CONFIG_CPU_32) && !defined(CONFIG_ARCH_ACORN)
+	/* On Acorn architectures, we want to keep the framebuffer
+	 * cached.
+	 */
+	pgprot_val(vma->vm_page_prot) &= ~(PTE_CACHEABLE | PTE_BUFFERABLE);
+#endif
 #else
 #warning What do we have to do here??
 #endif

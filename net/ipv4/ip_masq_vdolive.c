@@ -2,13 +2,16 @@
  *		IP_MASQ_VDOLIVE  - VDO Live masquerading module
  *
  *
- * Version:	@(#)$Id: ip_masq_vdolive.c,v 1.4 1998/10/06 04:49:07 davem Exp $
+ * Version:	@(#)$Id: ip_masq_vdolive.c,v 1.6 1999/06/09 08:29:03 davem Exp $
  *
  * Author:	Nigel Metheringham <Nigel.Metheringham@ThePLAnet.net>
  *		PLAnet Online Ltd
  *
  * Fixes:	Minor changes for 2.1 by
  *		Steven Clarke <Steven.Clarke@ThePlanet.Net>, Planet Online Ltd
+ *
+ *              Add missing #include <linux/string.h>
+ *              Horst von Brand <vonbrand@sleipnir.valparaiso.cl>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -25,6 +28,7 @@
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
+#include <linux/string.h>
 #include <linux/kernel.h>
 #include <asm/system.h>
 #include <linux/skbuff.h>

@@ -6,6 +6,8 @@
  */
 #undef CONF_SLOWDOWN_IO
 
+#include <linux/config.h>
+
 #include <asm/mipsconfig.h>
 #include <asm/addrspace.h>
 
@@ -377,10 +379,14 @@ __OUTS(w,l,4)
 
 /*
  * The caches on some architectures aren't dma-coherent and have need to
- * handle this in software.  There are two types of operations that
+ * handle this in software.  There are three types of operations that
  * can be applied to dma buffers.
  *
  *  - dma_cache_wback_inv(start, size) makes caches and coherent by
+ *    writing the content of the caches back to memory, if necessary.
+ *    The function also invalidates the affected part of the caches as
+ *    necessary before DMA transfers from outside to memory.
+ *  - dma_cache_wback(start, size) makes caches and coherent by
  *    writing the content of the caches back to memory, if necessary.
  *    The function also invalidates the affected part of the caches as
  *    necessary before DMA transfers from outside to memory.
@@ -390,6 +396,7 @@ __OUTS(w,l,4)
  *    to the memory.
  */
 extern void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
+extern void (*dma_cache_wback)(unsigned long start, unsigned long size);
 extern void (*dma_cache_inv)(unsigned long start, unsigned long size);
 
 #endif /* __ASM_MIPS_IO_H */

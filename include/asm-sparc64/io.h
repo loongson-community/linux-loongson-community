@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.19 1998/08/23 05:41:46 ecd Exp $ */
+/* $Id: io.h,v 1.20 1999/05/14 07:23:18 davem Exp $ */
 #ifndef __SPARC64_IO_H
 #define __SPARC64_IO_H
 
@@ -225,5 +225,11 @@ extern void *sparc_alloc_io(u32 pa, void *va, int sz, char *name,
 			    u32 io, int rdonly);
 extern void sparc_free_io (void *va, int sz);
 extern void *sparc_dvma_malloc (int sz, char *name, __u32 *dvma_addr);
+
+/* Nothing to do */
+
+#define dma_cache_inv(_start,_size)		do { } while (0)
+#define dma_cache_wback(_start,_size)		do { } while (0)
+#define dma_cache_wback_inv(_start,_size)	do { } while (0)
 
 #endif /* !(__SPARC64_IO_H) */

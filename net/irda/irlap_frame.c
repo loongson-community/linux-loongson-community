@@ -6,10 +6,10 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Tue Aug 19 10:27:26 1997
- * Modified at:   Fri Apr 23 09:30:42 1999
+ * Modified at:   Mon May 31 09:29:13 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
- *     Copyright (c) 1998 Dag Brattli <dagb@cs.uit.no>, All Rights Resrved.
+ *     Copyright (c) 1998-1999 Dag Brattli <dagb@cs.uit.no>, All Rights Resrved.
  *     
  *     This program is free software; you can redistribute it and/or 
  *     modify it under the terms of the GNU General Public License as 
@@ -1001,10 +1001,6 @@ void irlap_send_i_frame(struct irlap_cb *self, struct sk_buff *skb,
 {
 	__u8  *frame;
 	
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == LAP_MAGIC, return;);
-	ASSERT( skb != NULL, return;);
-
 	frame = skb->data;
 	
 	/* Insert connection address */
@@ -1013,15 +1009,6 @@ void irlap_send_i_frame(struct irlap_cb *self, struct sk_buff *skb,
 	
 	/* Insert next to receive (Vr) */
 	frame[1] |= (self->vr << 5);  /* insert nr */
-
-#if 0
-	{
-		int ns;
-		ns = (frame[1] >> 1) & 0x07; /* Next to send */
-
-		DEBUG(0, __FUNCTION__ "(), ns=%d\n", ns);
-	}
-#endif
 
 	irlap_queue_xmit(self, skb);
 }
@@ -1056,8 +1043,8 @@ static inline void irlap_recv_i_frame(struct irlap_cb *self,
  *    Receive and parse an Unnumbered Information (UI) frame
  *
  */
-static void irlap_recv_ui_frame( struct irlap_cb *self, struct sk_buff *skb, 
-				 struct irlap_info *info)
+static void irlap_recv_ui_frame(struct irlap_cb *self, struct sk_buff *skb, 
+				struct irlap_info *info)
 {
 	__u8 *frame;
 
@@ -1240,7 +1227,7 @@ int irlap_driver_rcv(struct sk_buff *skb, struct device *dev,
 	 *  Optimize for the common case and check if the frame is an
 	 *  I(nformation) frame. Only I-frames have bit 0 set to 0
 	 */
-	if(~control & 0x01) {
+	if (~control & 0x01) {
 		irlap_recv_i_frame(self, skb, &info, command);
 		self->stats.rx_packets++;
 		return 0;
@@ -1254,7 +1241,7 @@ int irlap_driver_rcv(struct sk_buff *skb, struct device *dev,
 		 *  Received S(upervisory) frame, check which frame type it is
 		 *  only the first nibble is of interest
 		 */
-		switch(control & 0x0f) {
+		switch (control & 0x0f) {
 		case RR:
 			irlap_recv_rr_frame( self, skb, &info, command);
 			self->stats.rx_packets++;
@@ -1279,7 +1266,7 @@ int irlap_driver_rcv(struct sk_buff *skb, struct device *dev,
 	/* 
 	 *  This must be a C(ontrol) frame 
 	 */
-	switch(control) {
+	switch (control) {
 	case XID_RSP:
 		irlap_recv_discovery_xid_rsp(self, skb, &info);
 		break;

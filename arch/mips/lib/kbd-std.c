@@ -1,4 +1,4 @@
-/* $Id: kbd-std.c,v 1.1 1998/10/28 12:38:14 ralf Exp $
+/* $Id: kbd-std.c,v 1.2 1999/06/11 14:29:45 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -6,11 +6,11 @@
  *
  * Routines for standard PC style keyboards accessible via I/O ports.
  *
- * Copyright (C) 1998 by Ralf Baechle
+ * Copyright (C) 1998, 1999 by Ralf Baechle
  */
-#include <linux/pc_keyb.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
+#include <linux/pc_keyb.h>
 #include <asm/keyboard.h>
 #include <asm/io.h>
 

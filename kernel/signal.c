@@ -11,6 +11,7 @@
 #include <linux/unistd.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
+#include <linux/sched.h>
 
 #include <asm/uaccess.h>
 
@@ -324,7 +325,7 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 
 		if (nr_queued_signals < max_queued_signals) {
 			q = (struct signal_queue *)
-			    kmem_cache_alloc(signal_queue_cachep, GFP_KERNEL);
+			    kmem_cache_alloc(signal_queue_cachep, GFP_ATOMIC);
 		}
 		
 		if (q) {
@@ -387,7 +388,7 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 
 out:
 	spin_unlock_irqrestore(&t->sigmask_lock, flags);
-        if (t->state == TASK_INTERRUPTIBLE && signal_pending(t))
+        if ((t->state & TASK_INTERRUPTIBLE) && signal_pending(t))
                 wake_up_process(t);
 
 out_nolock:
@@ -417,6 +418,7 @@ force_sig_info(int sig, struct siginfo *info, struct task_struct *t)
 	if (t->sig->action[sig-1].sa.sa_handler == SIG_IGN)
 		t->sig->action[sig-1].sa.sa_handler = SIG_DFL;
 	sigdelset(&t->blocked, sig);
+	recalc_sigpending(t);
 	spin_unlock_irqrestore(&t->sigmask_lock, flags);
 
 	return send_sig_info(sig, info, t);
@@ -1039,7 +1041,7 @@ out:
 #endif /* __sparc__ */
 #endif
 
-#if !defined(__alpha__)
+#if !defined(__alpha__) && !defined(__ia64__)
 /*
  * For backwards compatibility.  Functionality superseded by sigprocmask.
  */
@@ -1065,9 +1067,9 @@ sys_ssetmask(int newmask)
 
 	return old;
 }
-#endif /* !defined(__alpha__) */
+#endif /* !defined(__alpha__) && !defined(__ia64__) */
 
-#if !defined(__alpha__) && !defined(__mips__)
+#if !defined(__alpha__) && !defined(__mips__) && !defined(__ia64__)
 /*
  * For backwards compatibility.  Functionality superseded by sigaction.
  */
@@ -1084,4 +1086,4 @@ sys_signal(int sig, __sighandler_t handler)
 
 	return ret ? ret : (unsigned long)old_sa.sa.sa_handler;
 }
-#endif /* !defined(__alpha__) && !defined(__mips__) */
+#endif /* !defined(__alpha__) && !defined(__mips__) && !defined(__ia64__) */

@@ -21,6 +21,8 @@ CONFIG_X86_BSWAP=y
 CONFIG_X86_POPAD_OK=y
 CONFIG_X86_TSC=y
 CONFIG_X86_GOOD_APIC=y
+CONFIG_1GB=y
+# CONFIG_2GB is not set
 # CONFIG_MATH_EMULATION is not set
 # CONFIG_MTRR is not set
 CONFIG_SMP=y
@@ -58,6 +60,16 @@ CONFIG_BINFMT_MISC=y
 # CONFIG_APM is not set
 
 #
+# I2O device support
+#
+# CONFIG_I2O is not set
+# CONFIG_I2O_PCI is not set
+# CONFIG_I2O_BLOCK is not set
+# CONFIG_I2O_LAN is not set
+# CONFIG_I2O_SCSI is not set
+# CONFIG_I2O_PROC is not set
+
+#
 # Plug and Play support
 #
 # CONFIG_PNP is not set
@@ -73,7 +85,9 @@ CONFIG_BLK_DEV_IDE=y
 #
 # CONFIG_BLK_DEV_HD_IDE is not set
 CONFIG_BLK_DEV_IDEDISK=y
+# CONFIG_IDEDISK_MULTI_MODE is not set
 CONFIG_BLK_DEV_IDECD=y
+# CONFIG_IDECD_SLOTS is not set
 # CONFIG_BLK_DEV_IDETAPE is not set
 # CONFIG_BLK_DEV_IDEFLOPPY is not set
 # CONFIG_BLK_DEV_IDESCSI is not set
@@ -83,6 +97,7 @@ CONFIG_BLK_DEV_RZ1000=y
 CONFIG_BLK_DEV_IDEPCI=y
 CONFIG_BLK_DEV_IDEDMA=y
 # CONFIG_BLK_DEV_OFFBOARD is not set
+# CONFIG_BLK_DEV_AEC6210 is not set
 CONFIG_IDEDMA_AUTO=y
 # CONFIG_IDE_CHIPSETS is not set
 
@@ -96,6 +111,7 @@ CONFIG_IDEDMA_AUTO=y
 # CONFIG_BLK_DEV_XD is not set
 CONFIG_PARIDE_PARPORT=y
 # CONFIG_PARIDE is not set
+CONFIG_BLK_DEV_IDE_MODES=y
 # CONFIG_BLK_DEV_HD is not set
 
 #
@@ -239,6 +255,11 @@ CONFIG_EEXPRESS_PRO100=y
 # CONFIG_HAMRADIO is not set
 
 #
+# IrDA subsystem support
+#
+# CONFIG_IRDA is not set
+
+#
 # ISDN subsystem
 #
 # CONFIG_ISDN is not set
@@ -292,6 +313,21 @@ CONFIG_82C710_MOUSE=y
 # CONFIG_FTAPE is not set
 
 #
+# USB drivers - not for the faint of heart
+#
+CONFIG_USB=y
+CONFIG_USB_UHCI=y
+# CONFIG_USB_OHCI is not set
+# CONFIG_USB_OHCI_HCD is not set
+CONFIG_USB_HUB=y
+CONFIG_USB_MOUSE=y
+CONFIG_USB_KBD=y
+# CONFIG_USB_AUDIO is not set
+# CONFIG_USB_ACM is not set
+# CONFIG_USB_PRINTER is not set
+# CONFIG_USB_SCSI is not set
+
+#
 # Filesystems
 #
 # CONFIG_QUOTA is not set
@@ -332,6 +368,7 @@ CONFIG_LOCKD=y
 # CONFIG_MAC_PARTITION is not set
 # CONFIG_SMD_DISKLABEL is not set
 # CONFIG_SOLARIS_X86_PARTITION is not set
+# CONFIG_SGI_DISKLABEL is not set
 # CONFIG_NLS is not set
 
 #

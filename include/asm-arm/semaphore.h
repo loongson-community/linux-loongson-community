@@ -5,13 +5,12 @@
 #define __ASM_ARM_SEMAPHORE_H
 
 #include <linux/linkage.h>
-#include <asm/system.h>
 #include <asm/atomic.h>
 
 struct semaphore {
 	atomic_t count;
 	int waking;
-	struct wait_queue * wait;
+	wait_queue_head_t wait;
 };
 
 #define MUTEX ((struct semaphore) { ATOMIC_INIT(1), 0, NULL })

@@ -1597,9 +1597,9 @@ static int happy_meal_is_not_so_happy(struct happy_meal *hp,
 				      unsigned long status)
 {
 	int reset = 0;
-
+	
 	/* Only print messages for non-counter related interrupts. */
-	if(status & (GREG_STAT_RFIFOVF | GREG_STAT_STSTERR | GREG_STAT_TFIFO_UND |
+	if(status & (GREG_STAT_STSTERR | GREG_STAT_TFIFO_UND |
 		     GREG_STAT_MAXPKTERR | GREG_STAT_RXERR |
 		     GREG_STAT_RXPERR | GREG_STAT_RXTERR | GREG_STAT_EOPERR |
 		     GREG_STAT_MIFIRQ | GREG_STAT_TXEACK | GREG_STAT_TXLERR |
@@ -1609,9 +1609,9 @@ static int happy_meal_is_not_so_happy(struct happy_meal *hp,
 		       hp->dev->name, status);
 
 	if(status & GREG_STAT_RFIFOVF) {
-		/* The receive FIFO overflowwed, usually a DMA error. */
-		printk("%s: Happy Meal receive FIFO overflow.\n", hp->dev->name);
-		reset = 1;
+		/* Receive FIFO overflow is harmless and the hardware will take
+		   care of it, just some packets are lost. Who cares. */
+		printk(KERN_DEBUG "%s: Happy Meal receive FIFO overflow.\n", hp->dev->name);
 	}
 
 	if(status & GREG_STAT_STSTERR) {
@@ -1834,7 +1834,7 @@ static inline void sun4c_happy_meal_tx(struct happy_meal *hp)
 #define RXD(x)
 #endif
 
-/* Originally I use to handle the allocation failure by just giving back just
+/* Originally I used to handle the allocation failure by just giving back just
  * that one ring buffer to the happy meal.  Problem is that usually when that
  * condition is triggered, the happy meal expects you to do something reasonable
  * with all of the packets it has DMA'd in.  So now I just drop the entire

@@ -16,6 +16,9 @@ extern unsigned int local_bh_count;
 #define local_bh_count		(cpu_data[smp_processor_id()].bh_count)
 #endif
 
+#define local_bh_disable()	(local_bh_count++)
+#define local_bh_enable()	(local_bh_count--)
+
 /* The locking mechanism for base handlers, to prevent re-entrancy,
  * is entirely private to an implementation, it should not be
  * referenced at all outside of this file.
@@ -94,7 +97,8 @@ static inline void end_bh_atomic(void)
 static inline int softirq_trylock(int cpu)
 {
 	if (spin_trylock(&global_bh_count)) {
-		if (atomic_read(&global_bh_lock) == 0) {
+		if (atomic_read(&global_bh_lock) == 0 &&
+		    cpu_data[cpu].bh_count == 0) {
 			++(cpu_data[cpu].bh_count);
 			return 1;
 		}

@@ -407,6 +407,9 @@ struct dentry * lookup_inode(kdev_t dev, ino_t dirino, ino_t ino)
 	sb = get_super(dev);
 	if (!sb)
 		goto out_page;
+	result = ERR_PTR(-ENOSYS);
+	if (!sb->s_op->read_inode)	/* No working iget(), e.g. FAT */
+		goto out_page;
 	root = dget(sb->s_root);
 	root_ino = root->d_inode->i_ino; /* usually 2 */
 
@@ -433,7 +436,7 @@ struct dentry * lookup_inode(kdev_t dev, ino_t dirino, ino_t ino)
 		dir = iget(sb, dirino);
 		if (!dir)
 			goto out_root;
-		dentry = d_alloc_root(dir, NULL);
+		dentry = d_alloc_root(dir);
 		if (!dentry)
 			goto out_iput;
 
@@ -528,7 +531,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, dentry->d_count,empty->ino);
 	 * Add the parent to the dir cache before releasing the dentry,
 	 * and check whether to save a copy of the dentry's path.
 	 */
-	if (dentry != dentry->d_parent) {
+	if (!IS_ROOT(dentry)) {
 		struct dentry *parent = dget(dentry->d_parent);
 		if (add_to_fhcache(parent, NFSD_DIR_CACHE))
 			nfsd_nr_verified++;
@@ -1137,7 +1140,7 @@ check_type:
 				error = nfserr_stale;
 dprintk("fh_verify: no root_squashed access.\n");
 			}
-		} while ((tdentry != tdentry->d_parent));
+		} while (!IS_ROOT(tdentry));
 		if (exp->ex_dentry != tdentry) {
 			error = nfserr_stale;
 			printk("nfsd Security: %s/%s bad export.\n",

@@ -1624,7 +1624,7 @@ char *p1,*p2;
    *p1 = '\0';
    if (ints[0]) {
       for (i=0; i<ints[0]; i++) {
-         x = vsprintf(p1,"nosync:0x%02x,",&(ints[i+1]));
+         x = sprintf(p1,"nosync:0x%02x,", ints[i+1]);
          p1 += x;
          }
       }

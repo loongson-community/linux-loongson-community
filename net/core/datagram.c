@@ -6,7 +6,7 @@
  *	This is used because UDP, RAW, PACKET, DDP, IPX, AX.25 and NetROM layer all have identical poll code and mostly
  *	identical recvmsg() code. So we share it here. The poll was shared before but buried in udp.c so I moved it.
  *
- *	Authors:	Alan Cox <alan@cymru.net>. (datagram_poll() from old udp.c code)
+ *	Authors:	Alan Cox <alan@redhat.com>. (datagram_poll() from old udp.c code)
  *
  *	Fixes:
  *		Alan Cox	:	NULL return from skb_peek_copy() understood
@@ -54,7 +54,7 @@
 
 static inline void wait_for_packet(struct sock * sk)
 {
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 
 	add_wait_queue(sk->sleep, &wait);
 	current->state = TASK_INTERRUPTIBLE;
@@ -151,15 +151,15 @@ restart:
 		   is reentearble (it is not) or this function
 		   is called by interrupts.
 
-		   Protect it with global skb spinlock,
+		   Protect it with skb queue spinlock,
 		   though for now even this is overkill.
 		                                --ANK (980728)
 		 */
-		spin_lock_irqsave(&skb_queue_lock, cpu_flags);
+		spin_lock_irqsave(&sk->receive_queue.lock, cpu_flags);
 		skb = skb_peek(&sk->receive_queue);
 		if(skb!=NULL)
 			atomic_inc(&skb->users);
-		spin_unlock_irqrestore(&skb_queue_lock, cpu_flags);
+		spin_unlock_irqrestore(&sk->receive_queue.lock, cpu_flags);
 	} else
 		skb = skb_dequeue(&sk->receive_queue);
 

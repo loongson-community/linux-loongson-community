@@ -1,4 +1,4 @@
-/* $Id: parport_share.c,v 1.12 1998/09/19 19:17:18 ralf Exp $
+/* $Id: parport_share.c,v 1.13 1999/01/04 16:06:01 ralf Exp $
  * Parallel-port resource manager code.
  * 
  * Authors: David Campbell <campbell@tirian.che.curtin.edu.au>
@@ -14,6 +14,8 @@
 #undef PARPORT_DEBUG_SHARING		/* undef for production */
 
 #include <linux/config.h>
+
+#include <linux/string.h>
 
 #include <linux/tasks.h>
 
@@ -37,8 +39,62 @@
 
 #define PARPORT_DEFAULT_TIMESLICE	(HZ/5)
 
+unsigned long parport_default_timeslice = PARPORT_DEFAULT_TIMESLICE;
+
+/* This doesn't do anything yet. */
+int parport_default_spintime;
+
 static struct parport *portlist = NULL, *portlist_tail = NULL;
 spinlock_t parportlist_lock = SPIN_LOCK_UNLOCKED;
+
+static struct parport_driver *driver_chain = NULL;
+spinlock_t driverlist_lock = SPIN_LOCK_UNLOCKED;
+
+static void call_driver_chain (int attach, struct parport *port)
+{
+	struct parport_driver *drv;
+
+	for (drv = driver_chain; drv; drv = drv->next) {
+		if (attach)
+			drv->attach (port);
+		else
+			drv->detach (port);
+	}
+}
+
+int parport_register_driver (struct parport_driver *drv)
+{
+	struct parport *port;
+
+	spin_lock (&driverlist_lock);
+	drv->next = driver_chain;
+	driver_chain = drv;
+	spin_unlock (&driverlist_lock);
+
+	for (port = portlist; port; port = port->next)
+		drv->attach (port);
+
+	return 0;
+}
+
+void parport_unregister_driver (struct parport_driver *arg)
+{
+	struct parport_driver *drv = driver_chain, *olddrv = NULL;
+
+	while (drv) {
+		if (drv == arg) {
+			spin_lock (&driverlist_lock);
+			if (olddrv)
+				olddrv->next = drv->next;
+			else
+				driver_chain = drv->next;
+			spin_unlock (&driverlist_lock);
+			return;
+		}
+		olddrv = drv;
+		drv = drv->next;
+	}
+}
 
 void (*parport_probe_hook)(struct parport *port) = NULL;
 
@@ -138,9 +194,18 @@ struct parport *parport_register_port(unsigned long base, int irq, int dma,
 	return tmp;
 }
 
+void parport_announce_port (struct parport *port)
+{
+	/* Let drivers know that a new port has arrived. */
+	call_driver_chain (1, port);
+}
+
 void parport_unregister_port(struct parport *port)
 {
 	struct parport *p;
+
+	/* Spread the word. */
+	call_driver_chain (0, port);
 
 	spin_lock(&parportlist_lock);
 	if (portlist == port) {
@@ -169,25 +234,6 @@ void parport_unregister_port(struct parport *port)
 		kfree (port->probe_info.description);
 	kfree(port->name);
 	kfree(port);
-}
-
-void parport_quiesce(struct parport *port)
-{
-	if (port->devices) {
-		printk(KERN_WARNING "%s: attempt to quiesce active port.\n",
-		       port->name);
-		return;
-	}
-
-	if (port->flags & PARPORT_FLAG_COMA) {
-		printk(KERN_WARNING "%s: attempt to quiesce comatose port.\n",
-		       port->name);
-		return;
-	}
-
-	port->ops->release_resources(port);
-
-	port->flags |= PARPORT_FLAG_COMA; 
 }
 
 struct pardevice *parport_register_device(struct parport *port, const char *name,
@@ -222,19 +268,6 @@ struct pardevice *parport_register_device(struct parport *port, const char *name
 		printk(KERN_WARNING "%s: memory squeeze, couldn't register %s.\n", port->name, name);
 		kfree(tmp);
 		return NULL;
-	}
-
-	/* We may need to claw back the port hardware. */
-	if (port->flags & PARPORT_FLAG_COMA) {
-		if (port->ops->claim_resources(port)) {
-			printk(KERN_WARNING
-			       "%s: unable to get hardware to register %s.\n",
-			       port->name, name);
-			kfree (tmp->state);
-			kfree (tmp);
-			return NULL;
-		}
-		port->flags &= ~PARPORT_FLAG_COMA;
 	}
 
 	tmp->name = name;
@@ -277,8 +310,8 @@ struct pardevice *parport_register_device(struct parport *port, const char *name
 	inc_parport_count();
 	port->ops->inc_use_count();
 
-	init_waitqueue(&tmp->wait_q);
-	tmp->timeslice = PARPORT_DEFAULT_TIMESLICE;
+	init_waitqueue_head(&tmp->wait_q);
+	tmp->timeslice = parport_default_timeslice;
 	tmp->waitnext = tmp->waitprev = NULL;
 
 	return tmp;
@@ -298,9 +331,9 @@ void parport_unregister_device(struct pardevice *dev)
 	port = dev->port;
 
 	if (port->cad == dev) {
-		printk(KERN_WARNING "%s: refused to unregister "
-		       "currently active device %s.\n", port->name, dev->name);
-		return;
+		printk(KERN_DEBUG "%s: %s forgot to release port\n",
+		       port->name, dev->name);
+		parport_release (dev);
 	}
 
 	spin_lock(&port->pardevice_lock);
@@ -321,10 +354,6 @@ void parport_unregister_device(struct pardevice *dev)
 
 	dec_parport_count();
 	port->ops->dec_use_count();
-
-	/* If there are no more devices, put the port to sleep. */
-	if (!port->devices)
-		parport_quiesce(port);
 
 	return;
 }
@@ -517,23 +546,38 @@ void parport_release(struct pardevice *dev)
 	}
 }
 
-void parport_parse_irqs(int nports, const char *irqstr[], int irqval[])
+static int parport_parse_params (int nports, const char *str[], int val[],
+				 int automatic, int none)
 {
 	unsigned int i;
-	for (i = 0; i < nports && irqstr[i]; i++) {
-		if (!strncmp(irqstr[i], "auto", 4))
-			irqval[i] = PARPORT_IRQ_AUTO;
-		else if (!strncmp(irqstr[i], "none", 4))
-			irqval[i] = PARPORT_IRQ_NONE;
+	for (i = 0; i < nports && str[i]; i++) {
+		if (!strncmp(str[i], "auto", 4))
+			val[i] = automatic;
+		else if (!strncmp(str[i], "none", 4))
+			val[i] = none;
 		else {
 			char *ep;
-			unsigned long r = simple_strtoul(irqstr[i], &ep, 0);
-			if (ep != irqstr[i])
-				irqval[i] = r;
+			unsigned long r = simple_strtoul(str[i], &ep, 0);
+			if (ep != str[i])
+				val[i] = r;
 			else {
-				printk("parport: bad irq specifier `%s'\n", irqstr[i]);
-				return;
+				printk("parport: bad specifier `%s'\n", str[i]);
+				return -1;
 			}
 		}
 	}
+
+	return 0;
+}
+
+int parport_parse_irqs(int nports, const char *irqstr[], int irqval[])
+{
+	return parport_parse_params (nports, irqstr, irqval, PARPORT_IRQ_AUTO,
+				     PARPORT_IRQ_NONE);
+}
+
+int parport_parse_dmas(int nports, const char *dmastr[], int dmaval[])
+{
+	return parport_parse_params (nports, dmastr, dmaval, PARPORT_DMA_AUTO,
+				     PARPORT_DMA_NONE);
 }

@@ -16,6 +16,7 @@ extern unsigned long event;
 #include <asm/system.h>
 #include <asm/semaphore.h>
 #include <asm/page.h>
+#include <asm/ptrace.h>
 
 #include <linux/smp.h>
 #include <linux/tty.h>
@@ -79,6 +80,7 @@ extern int last_pid;
 #define TASK_ZOMBIE		4
 #define TASK_STOPPED		8
 #define TASK_SWAPPING		16
+#define TASK_EXCLUSIVE		32
 
 /*
  * Scheduling policies
@@ -161,9 +163,9 @@ struct fs_struct {
 #define AVL_MIN_MAP_COUNT	32
 
 struct mm_struct {
-	struct vm_area_struct *mmap;		/* list of VMAs */
-	struct vm_area_struct *mmap_avl;	/* tree of VMAs */
-	struct vm_area_struct *mmap_cache;	/* last find_vma result */
+	struct vm_area_struct * mmap;		/* list of VMAs */
+	struct vm_area_struct * mmap_avl;	/* tree of VMAs */
+	struct vm_area_struct * mmap_cache;	/* last find_vma result */
 	pgd_t * pgd;
 	atomic_t count;
 	int map_count;				/* number of VMAs */
@@ -184,11 +186,11 @@ struct mm_struct {
 	void * segments;
 };
 
-#define INIT_MM {					\
+#define INIT_MM(name) {					\
 		&init_mmap, NULL, NULL,			\
 		swapper_pg_dir, 			\
 		ATOMIC_INIT(1), 1,			\
-		MUTEX,					\
+		__MUTEX_INITIALIZER(name.mmap_sem),	\
 		0,					\
 		0, 0, 0, 0,				\
 		0, 0, 0, 				\
@@ -267,7 +269,7 @@ struct task_struct {
 	/* Pointer to task[] array linkage. */
 	struct task_struct **tarray_ptr;
 
-	struct wait_queue *wait_chldexit;	/* for wait4() */
+	wait_queue_head_t wait_chldexit;	/* for wait4() */
 	struct semaphore *vfork_sem;		/* for vfork() */
 	unsigned long policy, rt_priority;
 	unsigned long it_real_value, it_prof_value, it_virt_value;
@@ -345,7 +347,7 @@ struct task_struct {
  *  INIT_TASK is used to set up the first task table, touch at
  * your own risk!. Base=0, limit=0x1fffff (=2MB)
  */
-#define INIT_TASK \
+#define INIT_TASK(name) \
 /* state etc */	{ 0,0,0,KERNEL_DS,&default_exec_domain,0, \
 /* counter */	DEF_PRIORITY,DEF_PRIORITY,0, \
 /* SMP */	0,0,0,-1, \
@@ -356,7 +358,7 @@ struct task_struct {
 /* proc links*/ &init_task,&init_task,NULL,NULL,NULL, \
 /* pidhash */	NULL, NULL, \
 /* tarray */	&task[0], \
-/* chld wait */	NULL, NULL, \
+/* chld wait */	__WAIT_QUEUE_HEAD_INITIALIZER(name.wait_chldexit), NULL, \
 /* timeout */	SCHED_OTHER,0,0,0,0,0,0,0, \
 /* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
 /* utime */	{0,0,0,0},0, \
@@ -380,9 +382,13 @@ struct task_struct {
 /* signals */	SPIN_LOCK_UNLOCKED, &init_signals, {{0}}, {{0}}, NULL, &init_task.sigqueue, 0, 0, \
 }
 
+#ifndef INIT_TASK_SIZE
+# define INIT_TASK_SIZE	2048*sizeof(long)
+#endif
+
 union task_union {
 	struct task_struct task;
-	unsigned long stack[2048];
+	unsigned long stack[INIT_TASK_SIZE/sizeof(long)];
 };
 
 extern union task_union init_task_union;
@@ -447,8 +453,8 @@ extern __inline__ struct task_struct *find_task_by_pid(int pid)
 }
 
 /* per-UID process charging. */
-extern int alloc_uid(struct task_struct *p);
-void free_uid(struct task_struct *p);
+extern int alloc_uid(struct task_struct *);
+void free_uid(struct task_struct *);
 
 #include <asm/current.h>
 
@@ -464,39 +470,39 @@ extern unsigned long prof_shift;
 
 #define CURRENT_TIME (xtime.tv_sec)
 
-extern void FASTCALL(__wake_up(struct wait_queue ** p, unsigned int mode));
-extern void FASTCALL(sleep_on(struct wait_queue ** p));
-extern long FASTCALL(sleep_on_timeout(struct wait_queue ** p,
+extern void FASTCALL(__wake_up(wait_queue_head_t *q, unsigned int mode));
+extern void FASTCALL(sleep_on(wait_queue_head_t *q));
+extern long FASTCALL(sleep_on_timeout(wait_queue_head_t *q,
 				      signed long timeout));
-extern void FASTCALL(interruptible_sleep_on(struct wait_queue ** p));
-extern long FASTCALL(interruptible_sleep_on_timeout(struct wait_queue ** p,
+extern void FASTCALL(interruptible_sleep_on(wait_queue_head_t *q));
+extern long FASTCALL(interruptible_sleep_on_timeout(wait_queue_head_t *q,
 						    signed long timeout));
 extern void FASTCALL(wake_up_process(struct task_struct * tsk));
 
 #define wake_up(x)			__wake_up((x),TASK_UNINTERRUPTIBLE | TASK_INTERRUPTIBLE)
 #define wake_up_interruptible(x)	__wake_up((x),TASK_INTERRUPTIBLE)
 
+extern int in_group_p(gid_t);
+
 extern void release(struct task_struct * p);
-extern int in_group_p(gid_t grp);
 
 extern void flush_signals(struct task_struct *);
 extern void flush_signal_handlers(struct task_struct *);
-extern int dequeue_signal(sigset_t *block, siginfo_t *);
-extern int send_sig_info(int, struct siginfo *info, struct task_struct *);
-extern int force_sig_info(int, struct siginfo *info, struct task_struct *);
-extern int kill_pg_info(int, struct siginfo *info, pid_t);
-extern int kill_sl_info(int, struct siginfo *info, pid_t);
-extern int kill_proc_info(int, struct siginfo *info, pid_t);
-extern int kill_something_info(int, struct siginfo *info, int);
-extern void notify_parent(struct task_struct * tsk, int);
-extern void force_sig(int sig, struct task_struct * p);
-extern int send_sig(int sig, struct task_struct * p, int priv);
+extern int dequeue_signal(sigset_t *, siginfo_t *);
+extern int send_sig_info(int, struct siginfo *, struct task_struct *);
+extern int force_sig_info(int, struct siginfo *, struct task_struct *);
+extern int kill_pg_info(int, struct siginfo *, pid_t);
+extern int kill_sl_info(int, struct siginfo *, pid_t);
+extern int kill_proc_info(int, struct siginfo *, pid_t);
+extern int kill_something_info(int, struct siginfo *, int);
+extern void notify_parent(struct task_struct *, int);
+extern void force_sig(int, struct task_struct *);
+extern int send_sig(int, struct task_struct *, int);
 extern int kill_pg(pid_t, int, int);
 extern int kill_sl(pid_t, int, int);
 extern int kill_proc(pid_t, int, int);
-extern int do_sigaction(int sig, const struct k_sigaction *act,
-			struct k_sigaction *oact);
-extern int do_sigaltstack(const stack_t *ss, stack_t *oss, unsigned long sp);
+extern int do_sigaction(int, const struct k_sigaction *, struct k_sigaction *);
+extern int do_sigaltstack(const stack_t *, stack_t *, unsigned long);
 
 extern inline int signal_pending(struct task_struct *p)
 {
@@ -538,8 +544,7 @@ static inline void recalc_sigpending(struct task_struct *t)
 
 static inline int on_sig_stack(unsigned long sp)
 {
-	return (sp >= current->sas_ss_sp
-	        && sp < current->sas_ss_sp + current->sas_ss_size);
+	return (sp - current->sas_ss_sp < current->sas_ss_size);
 }
 
 static inline int sas_ss_flags(unsigned long sp)
@@ -548,12 +553,10 @@ static inline int sas_ss_flags(unsigned long sp)
 	       : on_sig_stack(sp) ? SS_ONSTACK : 0);
 }
 
-extern int request_irq(unsigned int irq,
+extern int request_irq(unsigned int,
 		       void (*handler)(int, void *, struct pt_regs *),
-		       unsigned long flags, 
-		       const char *device,
-		       void *dev_id);
-extern void free_irq(unsigned int irq, void *dev_id);
+		       unsigned long, const char *, void *);
+extern void free_irq(unsigned int, void *);
 
 /*
  * This has now become a routine instead of a macro, it sets a flag if
@@ -631,54 +634,39 @@ extern void exit_sighand(struct task_struct *);
 extern int do_execve(char *, char **, char **, struct pt_regs *);
 extern int do_fork(unsigned long, unsigned long, struct pt_regs *);
 
-/*
- * The wait-queues are circular lists, and you have to be *very* sure
- * to keep them correct. Use only these two functions to add/remove
- * entries in the queues.
- */
-extern inline void __add_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
-{
-	wait->next = *p ? : WAIT_QUEUE_HEAD(p);
-	*p = wait;
-}
-
-extern rwlock_t waitqueue_lock;
-
-extern inline void add_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
+extern inline void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 {
 	unsigned long flags;
 
-	write_lock_irqsave(&waitqueue_lock, flags);
-	__add_wait_queue(p, wait);
-	write_unlock_irqrestore(&waitqueue_lock, flags);
+	wq_write_lock_irqsave(&q->lock, flags);
+	__add_wait_queue(q, wait);
+	wq_write_unlock_irqrestore(&q->lock, flags);
 }
 
-extern inline void __remove_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
-{
-	struct wait_queue * next = wait->next;
-	struct wait_queue * head = next;
-	struct wait_queue * tmp;
-
-	while ((tmp = head->next) != wait) {
-		head = tmp;
-	}
-	head->next = next;
-}
-
-extern inline void remove_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
+extern inline void add_wait_queue_exclusive(wait_queue_head_t *q,
+							wait_queue_t * wait)
 {
 	unsigned long flags;
 
-	write_lock_irqsave(&waitqueue_lock, flags);
-	__remove_wait_queue(p, wait);
-	write_unlock_irqrestore(&waitqueue_lock, flags); 
+	wq_write_lock_irqsave(&q->lock, flags);
+	__add_wait_queue_tail(q, wait);
+	wq_write_unlock_irqrestore(&q->lock, flags);
+}
+
+extern inline void remove_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
+{
+	unsigned long flags;
+
+	wq_write_lock_irqsave(&q->lock, flags);
+	__remove_wait_queue(q, wait);
+	wq_write_unlock_irqrestore(&q->lock, flags);
 }
 
 #define __wait_event(wq, condition) 					\
 do {									\
-	struct wait_queue __wait;					\
+	wait_queue_t __wait;						\
+	init_waitqueue_entry(&__wait, current);				\
 									\
-	__wait.task = current;						\
 	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
 		current->state = TASK_UNINTERRUPTIBLE;			\
@@ -699,9 +687,9 @@ do {									\
 
 #define __wait_event_interruptible(wq, condition, ret)			\
 do {									\
-	struct wait_queue __wait;					\
+	wait_queue_t __wait;						\
+	init_waitqueue_entry(&__wait, current);				\
 									\
-	__wait.task = current;						\
 	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
 		current->state = TASK_INTERRUPTIBLE;			\

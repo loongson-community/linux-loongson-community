@@ -1,4 +1,4 @@
-/* $Id: softirq.h,v 1.4 1998/09/19 19:19:39 ralf Exp $
+/* $Id: softirq.h,v 1.5 1999/02/15 02:22:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -16,6 +16,15 @@
 extern atomic_t __mips_bh_counter;
 
 extern unsigned int local_bh_count[NR_CPUS];
+
+#define cpu_bh_disable(cpu)    do { local_bh_count[(cpu)]++; barrier(); } while (0)
+#define cpu_bh_enable(cpu)     do { barrier(); local_bh_count[(cpu)]--; } while (0)
+
+#define cpu_bh_trylock(cpu)    (local_bh_count[(cpu)] ? 0 : (local_bh_count[(cpu)] = 1))
+#define cpu_bh_endlock(cpu)    (local_bh_count[(cpu)] = 0)
+
+#define local_bh_disable()     cpu_bh_disable(smp_processor_id())
+#define local_bh_enable()      cpu_bh_enable(smp_processor_id())
 
 #define get_active_bhs()	(bh_mask & bh_active)
 
@@ -71,19 +80,19 @@ extern inline void enable_bh(int nr)
 
 extern inline void start_bh_atomic(void)
 {
-	local_bh_count[smp_processor_id()]++;
+	local_bh_disable();
 	barrier();
 }
 
 extern inline void end_bh_atomic(void)
 {
 	barrier();
-	local_bh_count[smp_processor_id()]--;
+	local_bh_enable();
 }
 
 /* These are for the irq's testing the lock */
-#define softirq_trylock(cpu)	(local_bh_count[cpu] ? 0 : (local_bh_count[cpu] = 1))
-#define softirq_endlock(cpu)	(local_bh_count[cpu] = 0)
+#define softirq_trylock(cpu)   (cpu_bh_trylock(cpu))
+#define softirq_endlock(cpu)   (cpu_bh_endlock(cpu))
 #define synchronize_bh()	barrier()
 
 #endif /* __ASM_MIPS_SOFTIRQ_H */

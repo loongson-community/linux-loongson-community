@@ -27,19 +27,16 @@
  * New scheme, half the table is for TIME_WAIT, the other half is
  * for the rest.  I'll experiment with dynamic table growth later.
  */
-#define TCP_HTABLE_SIZE		512
+extern int tcp_ehash_size;
+extern struct sock **tcp_ehash;
 
 /* This is for listening sockets, thus all sockets which possess wildcards. */
 #define TCP_LHTABLE_SIZE	32	/* Yes, really, this is all you need. */
-
-/* This is for all sockets, to keep track of the local port allocations. */
-#define TCP_BHTABLE_SIZE	512
 
 /* tcp_ipv4.c: These need to be shared by v4 and v6 because the lookup
  *             and hashing code needs to work with different AF's yet
  *             the port space is shared.
  */
-extern struct sock *tcp_established_hash[TCP_HTABLE_SIZE];
 extern struct sock *tcp_listening_hash[TCP_LHTABLE_SIZE];
 
 /* There are a few simple rules, which allow for local port reuse by
@@ -85,7 +82,9 @@ struct tcp_bind_bucket {
 	struct tcp_bind_bucket	**pprev;
 };
 
-extern struct tcp_bind_bucket *tcp_bound_hash[TCP_BHTABLE_SIZE];
+extern struct tcp_bind_bucket **tcp_bhash;
+extern int tcp_bhash_size;
+
 extern kmem_cache_t *tcp_bucket_cachep;
 extern struct tcp_bind_bucket *tcp_bucket_create(unsigned short snum);
 extern void tcp_bucket_unlock(struct sock *sk);
@@ -113,7 +112,7 @@ static __inline__ void tcp_reg_zap(struct sock *sk)
 /* These are AF independent. */
 static __inline__ int tcp_bhashfn(__u16 lport)
 {
-	return (lport & (TCP_BHTABLE_SIZE - 1));
+	return (lport & (tcp_bhash_size - 1));
 }
 
 static __inline__ void tcp_sk_bindify(struct sock *sk)
@@ -121,7 +120,7 @@ static __inline__ void tcp_sk_bindify(struct sock *sk)
 	struct tcp_bind_bucket *tb;
 	unsigned short snum = sk->num;
 
-	for(tb = tcp_bound_hash[tcp_bhashfn(snum)]; tb->port != snum; tb = tb->next)
+	for(tb = tcp_bhash[tcp_bhashfn(snum)]; tb->port != snum; tb = tb->next)
 		;
 	/* Update bucket flags. */
 	if(tb->owners == NULL) {
@@ -290,7 +289,7 @@ static __inline__ int tcp_sk_listen_hashfn(struct sock *sk)
 #define TCP_PROBEWAIT_LEN (1*HZ)/* time to wait between probes when
 				 * I've got something to write and
 				 * there is no window			*/
-#define TCP_KEEPALIVE_TIME (180*60*HZ)		/* two hours */
+#define TCP_KEEPALIVE_TIME (120*60*HZ)		/* two hours */
 #define TCP_KEEPALIVE_PROBES	9		/* Max of 9 keepalive probes	*/
 #define TCP_KEEPALIVE_PERIOD ((75*HZ)>>2)	/* period of keepalive check	*/
 
@@ -728,7 +727,7 @@ extern __inline__ int tcp_raise_window(struct sock *sk)
  */
 extern __inline__ __u32 tcp_recalc_ssthresh(struct tcp_opt *tp)
 {
-	__u32 snd_wnd_packets = tp->snd_wnd / tp->mss_cache;
+	__u32 snd_wnd_packets = tp->snd_wnd / max(tp->mss_cache, 1);
 
 	return max(min(snd_wnd_packets, tp->snd_cwnd) >> 1, 2);
 }

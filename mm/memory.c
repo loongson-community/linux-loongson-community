@@ -130,16 +130,14 @@ void clear_page_tables(struct mm_struct *mm, unsigned long first, int nr)
 {
 	pgd_t * page_dir = mm->pgd;
 
-	if (page_dir && page_dir != swapper_pg_dir) {
-		page_dir += first;
-		do {
-			free_one_pgd(page_dir);
-			page_dir++;
-		} while (--nr);
+	page_dir += first;
+	do {
+		free_one_pgd(page_dir);
+		page_dir++;
+	} while (--nr);
 
-		/* keep the page table cache within bounds */
-		check_pgt_cache();
-	}
+	/* keep the page table cache within bounds */
+	check_pgt_cache();
 }
 
 /*
@@ -547,19 +545,6 @@ int remap_page_range(unsigned long from, unsigned long phys_addr, unsigned long 
 }
 
 /*
- * sanity-check function..
- */
-static void put_page(pte_t * page_table, pte_t pte)
-{
-	if (!pte_none(*page_table)) {
-		free_page_and_swap_cache(pte_page(pte));
-		return;
-	}
-/* no need for flush_tlb */
-	set_pte(page_table, pte);
-}
-
-/*
  * This routine is used to map in a page into an address space: needed by
  * execve() for the initial stack and environment pages.
  */
@@ -616,20 +601,14 @@ unsigned long put_dirty_page(struct task_struct * tsk, unsigned long page, unsig
  * and potentially makes it more efficient.
  */
 static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, pte_t *page_table)
+	unsigned long address, pte_t *page_table, pte_t pte)
 {
-	pte_t pte;
 	unsigned long old_page, new_page;
 	struct page * page_map;
 	
-	pte = *page_table;
 	new_page = __get_free_page(GFP_USER);
-	/* Did someone else copy this page for us while we slept? */
+	/* Did swap_out() unmapped the protected page while we slept? */
 	if (pte_val(*page_table) != pte_val(pte))
-		goto end_wp_page;
-	if (!pte_present(pte))
-		goto end_wp_page;
-	if (pte_write(pte))
 		goto end_wp_page;
 	old_page = pte_page(pte);
 	if (MAP_NR(old_page) >= max_mapnr)
@@ -654,36 +633,42 @@ static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 		delete_from_swap_cache(page_map);
 		/* FallThrough */
 	case 1:
-		/* We can release the kernel lock now.. */
-		unlock_kernel();
-
 		flush_cache_page(vma, address);
 		set_pte(page_table, pte_mkdirty(pte_mkwrite(pte)));
 		flush_tlb_page(vma, address);
 end_wp_page:
+		/*
+		 * We can release the kernel lock now.. Now swap_out will see
+		 * a dirty page and so won't get confused and flush_tlb_page
+		 * won't SMP race. -Andrea
+		 */
+		unlock_kernel();
+
 		if (new_page)
 			free_page(new_page);
 		return 1;
 	}
 		
-	unlock_kernel();
 	if (!new_page)
-		return 0;
+		goto no_new_page;
 
-	if (PageReserved(mem_map + MAP_NR(old_page)))
+	if (PageReserved(page_map))
 		++vma->vm_mm->rss;
 	copy_cow_page(old_page,new_page);
 	flush_page_to_ram(old_page);
 	flush_page_to_ram(new_page);
 	flush_cache_page(vma, address);
 	set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
-	free_page(old_page);
 	flush_tlb_page(vma, address);
+	unlock_kernel();
+	__free_page(page_map);
 	return 1;
 
 bad_wp_page:
 	printk("do_wp_page: bogus page at address %08lx (%08lx)\n",address,old_page);
 	send_sig(SIGKILL, tsk, 1);
+no_new_page:
+	unlock_kernel();
 	if (new_page)
 		free_page(new_page);
 	return 0;
@@ -820,7 +805,7 @@ static int do_anonymous_page(struct task_struct * tsk, struct vm_area_struct * v
 		tsk->min_flt++;
 		flush_page_to_ram(page);
 	}
-	put_page(page_table, entry);
+	set_pte(page_table, entry);
 	return 1;
 }
 
@@ -879,7 +864,7 @@ static int do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	} else if (atomic_read(&mem_map[MAP_NR(page)].count) > 1 &&
 		   !(vma->vm_flags & VM_SHARED))
 		entry = pte_wrprotect(entry);
-	put_page(page_table, entry);
+	set_pte(page_table, entry);
 	/* no need to invalidate: a not-present page shouldn't be cached */
 	return 1;
 }
@@ -913,7 +898,7 @@ static inline int handle_pte_fault(struct task_struct *tsk,
 	flush_tlb_page(vma, address);
 	if (write_access) {
 		if (!pte_write(entry))
-			return do_wp_page(tsk, vma, address, pte);
+			return do_wp_page(tsk, vma, address, pte, entry);
 
 		entry = pte_mkdirty(entry);
 		set_pte(pte, entry);

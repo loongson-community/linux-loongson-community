@@ -1,5 +1,5 @@
 /*
- *  $Id: init.c,v 1.164 1999/05/05 17:33:55 cort Exp $
+ *  $Id: init.c,v 1.166 1999/05/22 18:18:30 cort Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -402,7 +402,7 @@ __ioremap(unsigned long addr, unsigned long size, unsigned long flags)
 	for (i = 0; i < size; i += PAGE_SIZE)
 		map_page(&init_task, v+i, p+i, flags);
 out:	
-	return (void *) (v + (p & ~PAGE_MASK));
+	return (void *) (v + (addr & ~PAGE_MASK));
 }
 
 void iounmap(void *addr)
@@ -1510,7 +1510,7 @@ __initfunc(static void hash_init(void))
 	for (h = 256<<10; h < ramsize / 256 && h < 4<<20; h *= 2, Hash_mask++)
 		;
 	Hash_size = h;
-	Hash_mask << 10;  /* so setting _SDR1 works the same -- Cort */
+	Hash_mask <<= 10;  /* so setting _SDR1 works the same -- Cort */
 #else
 	for (h = 64<<10; h < ramsize / 256 && h < 2<<20; h *= 2)
 		;

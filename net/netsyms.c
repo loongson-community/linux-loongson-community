@@ -106,9 +106,16 @@ EXPORT_SYMBOL(dev_lockct);
 EXPORT_SYMBOL(skb_over_panic);
 EXPORT_SYMBOL(skb_under_panic);
 
+/* Socket layer global data */
+EXPORT_SYMBOL(sockhash_lock);
+
 /* Socket layer registration */
 EXPORT_SYMBOL(sock_register);
 EXPORT_SYMBOL(sock_unregister);
+
+/* Socket locking */
+EXPORT_SYMBOL(lock_sock);
+EXPORT_SYMBOL(release_sock);
 
 /* Socket layer support routines */
 EXPORT_SYMBOL(memcpy_fromiovec);
@@ -156,7 +163,6 @@ EXPORT_SYMBOL(put_cmsg);
 EXPORT_SYMBOL(net_families);
 EXPORT_SYMBOL(sock_kmalloc);
 EXPORT_SYMBOL(sock_kfree_s);
-EXPORT_SYMBOL(skb_queue_lock);
 
 #ifdef CONFIG_FILTER
 EXPORT_SYMBOL(sk_run_filter);
@@ -164,7 +170,6 @@ EXPORT_SYMBOL(sk_run_filter);
 
 EXPORT_SYMBOL(neigh_table_init);
 EXPORT_SYMBOL(neigh_table_clear);
-EXPORT_SYMBOL(__neigh_lookup);
 EXPORT_SYMBOL(neigh_resolve_output);
 EXPORT_SYMBOL(neigh_connected_output);
 EXPORT_SYMBOL(neigh_update);
@@ -187,7 +192,6 @@ EXPORT_SYMBOL(neigh_rand_reach_time);
 /*	dst_entry	*/
 EXPORT_SYMBOL(dst_alloc);
 EXPORT_SYMBOL(__dst_free);
-EXPORT_SYMBOL(dst_total);
 EXPORT_SYMBOL(dst_destroy);
 
 /*	misc. support routines */
@@ -243,7 +247,6 @@ EXPORT_SYMBOL(ip_mc_dec_group);
 EXPORT_SYMBOL(__ip_finish_output);
 EXPORT_SYMBOL(inet_dgram_ops);
 EXPORT_SYMBOL(ip_cmsg_recv);
-EXPORT_SYMBOL(__release_sock);
 
 /* Route manipulation */
 EXPORT_SYMBOL(ip_rt_ioctl);
@@ -279,9 +282,11 @@ EXPORT_SYMBOL(inet_recvmsg);
 
 /* Socket demultiplexing. */
 EXPORT_SYMBOL(tcp_good_socknum);
-EXPORT_SYMBOL(tcp_established_hash);
+EXPORT_SYMBOL(tcp_ehash);
+EXPORT_SYMBOL(tcp_ehash_size);
 EXPORT_SYMBOL(tcp_listening_hash);
-EXPORT_SYMBOL(tcp_bound_hash);
+EXPORT_SYMBOL(tcp_bhash);
+EXPORT_SYMBOL(tcp_bhash_size);
 EXPORT_SYMBOL(udp_good_socknum);
 EXPORT_SYMBOL(udp_hash);
 
@@ -382,8 +387,7 @@ EXPORT_SYMBOL(neigh_dump_info);
 EXPORT_SYMBOL(dev_set_allmulti);
 EXPORT_SYMBOL(dev_set_promiscuity);
 EXPORT_SYMBOL(sklist_remove_socket);
-EXPORT_SYMBOL(rtnl_wait);
-EXPORT_SYMBOL(rtnl_rlockct);
+EXPORT_SYMBOL(rtnl_sem);
 EXPORT_SYMBOL(rtnl_lock);
 EXPORT_SYMBOL(rtnl_unlock);
 
@@ -470,6 +474,7 @@ EXPORT_SYMBOL(netdev_unregister_fc);
 EXPORT_SYMBOL(netdev_fc_xoff);
 #endif
 EXPORT_SYMBOL(dev_base);
+EXPORT_SYMBOL(dev_base_lock);
 EXPORT_SYMBOL(dev_close);
 EXPORT_SYMBOL(dev_mc_add);
 EXPORT_SYMBOL(dev_mc_delete);

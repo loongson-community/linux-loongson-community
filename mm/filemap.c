@@ -48,7 +48,7 @@ struct pio_request
 };
 static struct pio_request *pio_first = NULL, **pio_last = &pio_first;
 static kmem_cache_t *pio_request_cache;
-static struct wait_queue *pio_wait = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(pio_wait);
 
 static inline void 
 make_pio_request(struct file *, unsigned long, unsigned long);
@@ -300,9 +300,8 @@ static unsigned long try_to_read_ahead(struct file * file,
 void __wait_on_page(struct page *page)
 {
 	struct task_struct *tsk = current;
-	struct wait_queue wait;
+	DECLARE_WAITQUEUE(wait, tsk);
 
-	wait.task = tsk;
 	add_wait_queue(&page->wait, &wait);
 repeat:
 	tsk->state = TASK_UNINTERRUPTIBLE;
@@ -1312,18 +1311,9 @@ int generic_file_mmap(struct file * file, struct vm_area_struct * vma)
 	struct vm_operations_struct * ops;
 	struct inode *inode = file->f_dentry->d_inode;
 
-	if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_MAYWRITE)) {
+	ops = &file_private_mmap;
+	if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_MAYWRITE))
 		ops = &file_shared_mmap;
-		/* share_page() can only guarantee proper page sharing if
-		 * the offsets are all page aligned. */
-		if (vma->vm_offset & (PAGE_SIZE - 1))
-			return -EINVAL;
-	} else {
-		ops = &file_private_mmap;
-		if (inode->i_op && inode->i_op->bmap &&
-		    (vma->vm_offset & (inode->i_sb->s_blocksize - 1)))
-			return -EINVAL;
-	}
 	if (!inode->i_sb || !S_ISREG(inode->i_mode))
 		return -EACCES;
 	if (!inode->i_op || !inode->i_op->readpage)
@@ -1435,7 +1425,8 @@ out:
  */
 ssize_t
 generic_file_write(struct file *file, const char *buf,
-		   size_t count, loff_t *ppos)
+		   size_t count, loff_t *ppos,
+		   writepage_t write_one_page)
 {
 	struct dentry	*dentry = file->f_dentry; 
 	struct inode	*inode = dentry->d_inode; 
@@ -1444,10 +1435,7 @@ generic_file_write(struct file *file, const char *buf,
 	struct page	*page, **hash;
 	unsigned long	page_cache = 0;
 	unsigned long	written;
-	long		status, sync;
-
-	if (!inode->i_op || !inode->i_op->updatepage)
-		return -EIO;
+	long		status;
 
 	if (file->f_error) {
 		int error = file->f_error;
@@ -1455,7 +1443,6 @@ generic_file_write(struct file *file, const char *buf,
 		return error;
 	}
 
-	sync    = file->f_flags & O_SYNC;
 	written = 0;
 
 	if (file->f_flags & O_APPEND)
@@ -1511,15 +1498,7 @@ generic_file_write(struct file *file, const char *buf,
 		wait_on_page(page);
 		set_bit(PG_locked, &page->flags);
 
-		/*
-		 * Do the real work.. If the writer ends up delaying the write,
-		 * the writer needs to increment the page use counts until he
-		 * is done with the page.
-		 */
-		bytes -= copy_from_user((u8*)page_address(page) + offset, buf, bytes);
-		status = -EFAULT;
-		if (bytes)
-			status = inode->i_op->updatepage(file, page, offset, bytes, sync);
+		status = write_one_page(file, page, offset, bytes, buf);
 
 		/* Mark it unlocked again and drop the page.. */
 		clear_bit(PG_locked, &page->flags);
@@ -1677,7 +1656,7 @@ static inline void make_pio_request(struct file *file,
 int kpiod(void * unused)
 {
 	struct task_struct *tsk = current;
-	struct wait_queue wait = { tsk, };
+	DECLARE_WAITQUEUE(wait, tsk);
 	struct inode * inode;
 	struct dentry * dentry;
 	struct pio_request * p;
@@ -1686,7 +1665,6 @@ int kpiod(void * unused)
 	tsk->pgrp = 1;
 	strcpy(tsk->comm, "kpiod");
 	sigfillset(&tsk->blocked);
-	init_waitqueue(&pio_wait);
 	/*
 	 * Mark this task as a memory allocator - we don't want to get caught
 	 * up in the regular mm freeing frenzy if we have to allocate memory

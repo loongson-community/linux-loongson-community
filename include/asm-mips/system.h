@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.9 1999/05/01 10:08:19 harald Exp $
+/* $Id: system.h,v 1.10 1999/06/13 16:35:55 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -112,6 +112,12 @@ __restore_flags(int flags)
 #define save_flags(x) __save_flags(x)
 #define save_and_cli(x) __save_and_cli(x)
 #define restore_flags(x) __restore_flags(x)
+
+/* For spinlocks etc */
+#define local_irq_save(x)	__save_flags(x);
+#define local_irq_restore(x)	__restore_flags(x);
+#define local_irq_disable()	__cli();
+#define local_irq_enable()	__sti();
 
 /*
  * These are probably defined overly paranoid ...

@@ -52,7 +52,8 @@ enum root_directory_inos {
 	PROC_STRAM,
 	PROC_SOUND,
 	PROC_MTRR, /* whether enabled or not */
-	PROC_FS
+	PROC_FS,
+	PROC_SYSVIPC
 };
 
 enum pid_directory_inos {
@@ -135,11 +136,11 @@ enum net_directory_inos {
 	PROC_NET_TR_RIF,
 	PROC_NET_DN_DEV,
 	PROC_NET_DN_ADJ,
-	PROC_NET_DN_L1,
-	PROC_NET_DN_L2,
+	PROC_NET_DN_ROUTE,
 	PROC_NET_DN_CACHE,
 	PROC_NET_DN_SKT,
-	PROC_NET_DN_FW,
+	PROC_NET_DN_FW_CHAINS,
+	PROC_NET_DN_FW_CHAIN_NAMES,
 	PROC_NET_DN_RAW,
 	PROC_NET_NETSTAT,
 	PROC_NET_IPFW_CHAINS,
@@ -205,8 +206,10 @@ enum scsi_directory_inos {
 	PROC_SCSI_53C94,
 	PROC_SCSI_PLUTO,
 	PROC_SCSI_INI9100U,
- 	PROC_SCSI_INIA100,
+	PROC_SCSI_INIA100,
 	PROC_SCSI_FCAL,
+	PROC_SCSI_I2O,
+	PROC_SCSI_USB_SCSI,
 	PROC_SCSI_SCSI_DEBUG,	
 	PROC_SCSI_NOT_PRESENT,
 	PROC_SCSI_FILE,                        /* I'm assuming here that we */
@@ -241,6 +244,12 @@ enum fs_coda_directory_inos {
 	PROC_PERMISSION_STATS,
 	PROC_CACHE_INV_STATS,
 	PROC_CODA_FS_LAST
+};
+
+enum sysvipc_directory_inos {
+	PROC_SYSVIPC_SHM = PROC_CODA_FS_LAST,
+	PROC_SYSVIPC_SEM,
+	PROC_SYSVIPC_MSG
 };
 
 /* Finally, the dynamically allocatable proc entries are reserved: */
@@ -313,6 +322,7 @@ extern struct proc_dir_entry proc_pid;
 extern struct proc_dir_entry proc_pid_fd;
 extern struct proc_dir_entry proc_mca;
 extern struct proc_dir_entry *proc_bus;
+extern struct proc_dir_entry *proc_sysvipc;
 
 extern struct inode_operations proc_scsi_inode_operations;
 
@@ -422,6 +432,7 @@ extern struct inode_operations proc_ringbuf_inode_operations;
 #endif
 extern struct inode_operations proc_omirr_inode_operations;
 extern struct inode_operations proc_ppc_htab_inode_operations;
+extern struct inode_operations proc_sysvipc_inode_operations;
 
 /*
  * generic.c

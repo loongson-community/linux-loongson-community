@@ -58,7 +58,7 @@ static void free_wait(poll_table * p)
 	}
 }
 
-void __pollwait(struct file * filp, struct wait_queue ** wait_address, poll_table *p)
+void __pollwait(struct file * filp, wait_queue_head_t * wait_address, poll_table *p)
 {
 	for (;;) {
 		if (p->nr < __MAX_POLL_TABLE_ENTRIES) {
@@ -68,8 +68,7 @@ ok_table:
 		 	entry->filp = filp;
 		 	filp->f_count++;
 			entry->wait_address = wait_address;
-			entry->wait.task = current;
-			entry->wait.next = NULL;
+			init_waitqueue_entry(&entry->wait, current);
 			add_wait_queue(wait_address,&entry->wait);
 			p->nr++;
 			return;
@@ -268,8 +267,12 @@ sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 	}
 
 	ret = -EINVAL;
-	if (n < 0 || n > KFDS_NR)
+	if (n < 0)
 		goto out_nofds;
+
+	if (n > KFDS_NR)
+		n = KFDS_NR;
+
 	/*
 	 * We need 6 bitmaps (in/out/ex for both incoming and outgoing),
 	 * since we used fdset we need to allocate memory in units of

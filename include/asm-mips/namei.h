@@ -3,7 +3,7 @@
  *
  * Included from linux/fs/namei.c
  *
- * $Id: namei.h,v 1.5 1997/12/01 18:00:40 ralf Exp $
+ * $Id: namei.h,v 1.6 1999/01/04 16:09:23 ralf Exp $
  */
 #ifndef __ASM_MIPS_NAMEI_H
 #define __ASM_MIPS_NAMEI_H
@@ -23,7 +23,7 @@ __mips_lookup_dentry(const char *name, int lookup_flags)
 
 	base = lookup_dentry (IRIX32_EMUL,
 			dget (current->fs->root), 
-			(LOOKUP_FOLLOW | LOOKUP_DIRECTORY | LOOKUP_SLASHOK));
+			(LOOKUP_FOLLOW | LOOKUP_DIRECTORY));
 			
 	if (IS_ERR (base)) return base;
 	

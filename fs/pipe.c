@@ -414,7 +414,7 @@ static struct inode * get_pipe_inode(void)
 		} else {
 			PIPE_BASE(*inode) = (char *) page;
 			inode->i_op = &pipe_inode_operations;
-			PIPE_WAIT(*inode) = NULL;
+			init_waitqueue_head(&PIPE_WAIT(*inode));
 			PIPE_START(*inode) = PIPE_LEN(*inode) = 0;
 			PIPE_RD_OPENERS(*inode) = PIPE_WR_OPENERS(*inode) = 0;
 			PIPE_READERS(*inode) = PIPE_WRITERS(*inode) = 1;
@@ -486,7 +486,7 @@ int do_pipe(int *fd)
 	j = error;
 
 	error = -ENOMEM;
-	f1->f_dentry = f2->f_dentry = dget(d_alloc_root(inode, NULL));
+	f1->f_dentry = f2->f_dentry = dget(d_alloc_root(inode));
 	if (!f1->f_dentry)
 		goto close_f12_inode_i_j;
 

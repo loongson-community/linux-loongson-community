@@ -49,6 +49,7 @@
 
 #define MAJOR_NR XT_DISK_MAJOR
 #include <linux/blk.h>
+#include <linux/blkpg.h>
 
 #include "xd.h"
 
@@ -159,7 +160,8 @@ static struct file_operations xd_fops = {
 	xd_release,		/* release */
 	block_fsync		/* fsync */
 };
-static struct wait_queue *xd_wait_int = NULL, *xd_wait_open = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(xd_wait_int);
+static DECLARE_WAIT_QUEUE_HEAD(xd_wait_open);
 static u_char xd_valid[XD_MAXDRIVES] = { 0,0 };
 static u_char xd_drives = 0, xd_irq = 5, xd_dma = 3, xd_maxsectors;
 static u_char xd_override __initdata = 0, xd_type = 0;
@@ -167,7 +169,7 @@ static u_short xd_iobase = 0x320;
 static int xd_geo[XD_MAXDRIVES*3] __initdata = { 0,0,0,0,0,0 };
 
 static volatile int xdc_busy = 0;
-static struct wait_queue *xdc_wait = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(xdc_wait);
 
 typedef void (*timeout_fn)(unsigned long);
 static struct timer_list xd_timer = { NULL, NULL, 0, 0, (timeout_fn) xd_wakeup },
@@ -336,21 +338,9 @@ static int xd_ioctl (struct inode *inode,struct file *file,u_int cmd,u_long arg)
 			g.start = xd_struct[MINOR(inode->i_rdev)].start_sect;
 			return copy_to_user(geometry, &g, sizeof g) ? -EFAULT : 0;
 		}
-		case BLKRASET:
-			if(!capable(CAP_SYS_ADMIN)) return -EACCES;
-			if(arg > 0xff) return -EINVAL;
-			read_ahead[MAJOR(inode->i_rdev)] = arg;
-			return 0;
-		case BLKRAGET:
-			return put_user(read_ahead[MAJOR(inode->i_rdev)], (long*) arg);
 		case BLKGETSIZE:
 			if (!arg) return -EINVAL;
 			return put_user(xd_struct[MINOR(inode->i_rdev)].nr_sects,(long *) arg);
-		case BLKFLSBUF:   /* Return devices size */
-			if(!capable(CAP_SYS_ADMIN))  return -EACCES;
-			fsync_dev(inode->i_rdev);
-			invalidate_buffers(inode->i_rdev);
-			return 0;
 		case HDIO_SET_DMA:
 			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
 			if (xdc_busy) return -EBUSY;
@@ -368,7 +358,15 @@ static int xd_ioctl (struct inode *inode,struct file *file,u_int cmd,u_long arg)
 			if (!capable(CAP_SYS_ADMIN)) 
 				return -EACCES;
 			return xd_reread_partitions(inode->i_rdev);
-		RO_IOCTLS(inode->i_rdev,arg);
+
+		case BLKFLSBUF:
+		case BLKROSET:
+		case BLKROGET:
+		case BLKRASET:
+		case BLKRAGET:
+		case BLKPG:
+			return blk_ioctl(inode->i_rdev, cmd, arg);
+
 		default:
 			return -EINVAL;
 	}

@@ -16,11 +16,22 @@
 #include <linux/errno.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
+#include <linux/init.h>
 
 #include <net/dst.h>
 
-struct dst_entry * dst_garbage_list;
-atomic_t	dst_total = ATOMIC_INIT(0);
+/* Locking strategy:
+ * 1) Garbage collection state of dead destination cache
+ *    entries is protected by dst_lock.
+ * 2) GC is run only from BH context, and is the only remover
+ *    of entries.
+ * 3) Entries are added to the garbage list from both BH
+ *    and non-BH context, so local BH disabling is needed.
+ * 4) All operations modify state, so a spinlock is used.
+ */
+static struct dst_entry 	*dst_garbage_list;
+static atomic_t			 dst_total = ATOMIC_INIT(0);
+static spinlock_t		 dst_lock = SPIN_LOCK_UNLOCKED;
 
 static unsigned long dst_gc_timer_expires;
 static unsigned long dst_gc_timer_inc = DST_GC_MAX;
@@ -29,14 +40,16 @@ static void dst_run_gc(unsigned long);
 static struct timer_list dst_gc_timer =
 	{ NULL, NULL, DST_GC_MIN, 0L, dst_run_gc };
 
-#if RT_CACHE_DEBUG >= 2
-atomic_t hh_count;
-#endif
 
 static void dst_run_gc(unsigned long dummy)
 {
 	int    delayed = 0;
 	struct dst_entry * dst, **dstp;
+
+	if (!spin_trylock(&dst_lock)) {
+		mod_timer(&dst_gc_timer, jiffies + HZ/10);
+		return;
+	}
 
 	del_timer(&dst_gc_timer);
 	dstp = &dst_garbage_list;
@@ -51,7 +64,7 @@ static void dst_run_gc(unsigned long dummy)
 	}
 	if (!dst_garbage_list) {
 		dst_gc_timer_inc = DST_GC_MAX;
-		return;
+		goto out;
 	}
 	if ((dst_gc_timer_expires += dst_gc_timer_inc) > DST_GC_MAX)
 		dst_gc_timer_expires = DST_GC_MAX;
@@ -62,6 +75,9 @@ static void dst_run_gc(unsigned long dummy)
 	       atomic_read(&dst_total), delayed,  dst_gc_timer_expires);
 #endif
 	add_timer(&dst_gc_timer);
+
+out:
+	spin_unlock(&dst_lock);
 }
 
 static int dst_discard(struct sk_buff *skb)
@@ -100,7 +116,8 @@ void * dst_alloc(int size, struct dst_ops * ops)
 
 void __dst_free(struct dst_entry * dst)
 {
-	start_bh_atomic();
+	spin_lock_bh(&dst_lock);
+
 	/* The first case (dev==NULL) is required, when
 	   protocol module is unloaded.
 	 */
@@ -119,7 +136,8 @@ void __dst_free(struct dst_entry * dst)
 		dst_gc_timer.expires = jiffies + dst_gc_timer_expires;
 		add_timer(&dst_gc_timer);
 	}
-	end_bh_atomic();
+
+	spin_unlock_bh(&dst_lock);
 }
 
 void dst_destroy(struct dst_entry * dst)
@@ -142,4 +160,37 @@ void dst_destroy(struct dst_entry * dst)
 		dst->ops->destroy(dst);
 	atomic_dec(&dst_total);
 	kfree(dst);
+}
+
+static int dst_dev_event(struct notifier_block *this, unsigned long event, void *ptr)
+{
+	struct device *dev = ptr;
+	struct dst_entry *dst;
+
+	switch (event) {
+	case NETDEV_UNREGISTER:
+	case NETDEV_DOWN:
+		spin_lock_bh(&dst_lock);
+		for (dst = dst_garbage_list; dst; dst = dst->next) {
+			if (dst->dev == dev) {
+				dst->input = dst_discard;
+				dst->output = dst_blackhole;
+				dst->dev = &loopback_dev;
+			}
+		}
+		spin_unlock_bh(&dst_lock);
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+struct notifier_block dst_dev_notifier = {
+	dst_dev_event,
+	NULL,
+	0
+};
+
+__initfunc(void dst_init(void))
+{
+	register_netdevice_notifier(&dst_dev_notifier);
 }

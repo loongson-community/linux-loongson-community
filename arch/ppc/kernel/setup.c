@@ -1,5 +1,5 @@
 /*
- * $Id: setup.c,v 1.132 1999/03/24 00:32:19 cort Exp $
+ * $Id: setup.c,v 1.133 1999/05/14 07:24:30 davem Exp $
  * Common prep/pmac/chrp boot and setup code.
  */
 
@@ -17,6 +17,7 @@
 #include <asm/pmu.h>
 #include <asm/residual.h>
 #include <asm/io.h>
+#include <linux/ide.h>
 #include <asm/ide.h>
 #include <asm/prom.h>
 #include <asm/processor.h>
@@ -160,10 +161,10 @@ void machine_halt(void)
 }
   
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
-void ide_init_hwif_ports (ide_ioreg_t *p, ide_ioreg_t base, int *irq)
+void ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port, ide_ioreg_t ctrl_port, int *irq)
 {
 	if (ppc_ide_md.ide_init_hwif != NULL) {
-		ppc_ide_md.ide_init_hwif(p, base, irq);
+		ppc_ide_md.ide_init_hwif(hw, data_port, ctrl_port, irq);
 	}
 }
 #endif

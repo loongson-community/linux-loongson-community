@@ -1,8 +1,8 @@
 /*
  *			Simple traffic shaper for Linux NET3.
  *
- *	(c) Copyright 1996 Alan Cox <alan@cymru.net>, All Rights Reserved.
- *				http://www.cymru.net
+ *	(c) Copyright 1996 Alan Cox <alan@redhat.com>, All Rights Reserved.
+ *				http://www.redhat.com
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -582,6 +582,7 @@ static struct shaper *shaper_alloc(struct device *dev)
 	init_timer(&sh->timer);
 	sh->timer.function=shaper_timer;
 	sh->timer.data=(unsigned long)sh;
+	init_waitqueue_head(&sh->wait_queue);
 	return sh;
 }
 

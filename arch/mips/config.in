@@ -1,4 +1,4 @@
-#
+# $Id: config.in,v 1.93 1999/05/14 22:36:58 cort Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -123,6 +123,10 @@ if [ "$CONFIG_DECSTATION" = "y" ]; then
 #		fi
 	endmenu
 fi
+
+source drivers/i2o/Config.in
+
+source drivers/pnp/Config.in
 
 source drivers/block/Config.in
 
@@ -257,7 +261,7 @@ else
   endmenu
 fi
 
-# source drivers/usb/Config.in
+source drivers/usb/Config.in
 
 source fs/Config.in
 

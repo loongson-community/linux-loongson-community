@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: ip6_fw.c,v 1.10 1998/08/26 12:04:57 davem Exp $
+ *	$Id: ip6_fw.c,v 1.12 1999/06/09 08:29:32 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -16,6 +16,7 @@
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/types.h>
+#include <linux/string.h>
 #include <linux/socket.h>
 #include <linux/sockios.h>
 #include <linux/net.h>
@@ -382,7 +383,7 @@ __initfunc(void ip6_fw_init(void))
 }
 
 #ifdef MODULE
-void module_cleanup(void)
+void cleanup_module(void)
 {
 #ifdef CONFIG_NETLINK
 	netlink_detach(NETLINK_IP6_FW);

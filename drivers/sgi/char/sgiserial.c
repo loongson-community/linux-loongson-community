@@ -35,7 +35,7 @@
 #define NUM_SERIAL 1     /* One chip on board. */
 #define NUM_CHANNELS (NUM_SERIAL * 2)
 
-extern struct wait_queue * keypress_wait;
+extern wait_queue_head_t keypress_wait;
 
 struct sgi_zslayout *zs_chips[NUM_SERIAL] = { 0, };
 struct sgi_zschannel *zs_channels[NUM_CHANNELS] = { 0, 0, };
@@ -127,7 +127,7 @@ static struct termios *serial_termios_locked[NUM_CHANNELS];
  * memory if large numbers of serial ports are open.
  */
 static unsigned char tmp_buf[4096]; /* This is cheating */
-static struct semaphore tmp_buf_sem = MUTEX;
+static DECLARE_MUTEX(tmp_buf_sem);
 
 static inline int serial_paranoia_check(struct sgi_serial *info,
 					dev_t device, const char *routine)
@@ -1513,7 +1513,7 @@ void rs_hangup(struct tty_struct *tty)
 static int block_til_ready(struct tty_struct *tty, struct file * filp,
 			   struct sgi_serial *info)
 {
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 	int		retval;
 	int		do_clocal = 0;
 
@@ -1925,8 +1925,8 @@ int rs_init(void)
 		info->tqueue_hangup.data = info;
 		info->callout_termios =callout_driver.init_termios;
 		info->normal_termios = serial_driver.init_termios;
-		info->open_wait = 0;
-		info->close_wait = 0;
+		init_waitqueue_head(&info->open_wait);
+		init_waitqueue_head(&info->close_wait);
 		printk("tty%02d at 0x%04x (irq = %d)", info->line, 
 		       info->port, info->irq);
 		printk(" is a Zilog8530\n");

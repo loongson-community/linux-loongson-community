@@ -227,7 +227,7 @@ static struct termios *serial_termios_locked[NR_PORTS];
  * memory if large numbers of serial ports are open.
  */
 static unsigned char *tmp_buf;
-static struct semaphore tmp_buf_sem = MUTEX;
+static DECLARE_MUTEX(tmp_buf_sem);
 
 static inline int serial_paranoia_check(struct async_struct *info,
 					kdev_t device, const char *routine)
@@ -2444,7 +2444,7 @@ static void rs_hangup(struct tty_struct *tty)
 static int block_til_ready(struct tty_struct *tty, struct file * filp,
 			   struct async_struct *info)
 {
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 	struct serial_state *state = info->state;
 	int		retval;
 	int		do_clocal = 0, extra_count = 0;
@@ -2593,6 +2593,9 @@ static int get_async_struct(int line, struct async_struct **ret_info)
 		return -ENOMEM;
 	}
 	memset(info, 0, sizeof(struct async_struct));
+	init_waitqueue_head(&info->open_wait);
+	init_waitqueue_head(&info->close_wait);
+	init_waitqueue_head(&info->delta_msr_wait);
 	info->magic = SERIAL_MAGIC;
 	info->port = sstate->port;
 	info->flags = sstate->flags;

@@ -2,7 +2,7 @@
  *      	An implementation of a loadable kernel mode driver providing
  *		multiple kernel/user space bidirectional communications links.
  *
- * 		Author: 	Alan Cox <alan@cymru.net>
+ * 		Author: 	Alan Cox <alan@redhat.com>
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -361,6 +361,7 @@ int init_coda_psdev(void)
 	}
 	memset(&coda_upc_comm, 0, sizeof(coda_upc_comm));
 	memset(&coda_super_info, 0, sizeof(coda_super_info));
+	init_waitqueue_head(&coda_upc_comm.vc_waitq);
 
 	coda_sysctl_init();
 

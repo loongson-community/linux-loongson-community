@@ -6,10 +6,11 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Sun Aug 31 20:14:37 1997
- * Modified at:   Thu Apr 22 14:30:37 1999
+ * Modified at:   Mon May 31 13:54:20 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
- *     Copyright (c) 1998 Dag Brattli <dagb@cs.uit.no>, All Rights Reserved.
+ *     Copyright (c) 1998-1999 Dag Brattli <dagb@cs.uit.no>, 
+ *     All Rights Reserved.
  *     
  *     This program is free software; you can redistribute it and/or 
  *     modify it under the terms of the GNU General Public License as 
@@ -98,7 +99,7 @@
 #define IRLAN_SHORT  1
 #define IRLAN_ARRAY  2
 
-#define IRLAN_MAX_HEADER (TTP_HEADER+LMP_HEADER+LAP_HEADER)
+#define IRLAN_MAX_HEADER (TTP_HEADER+LMP_HEADER+LAP_MAX_HEADER)
 
 /*
  *  IrLAN client
@@ -109,7 +110,10 @@ struct irlan_client_cb {
 	int open_retries;
 
 	struct tsap_cb *tsap_ctrl;
+	__u32 max_sdu_size;
+	__u8  max_header_size;
 	
+	int access_type;         /* Access type of provider */
 	__u8 reconnect_key[255];
 	__u8 key_len;
 	
@@ -119,6 +123,9 @@ struct irlan_client_cb {
 
 	int unicast_open;
 	int broadcast_open;
+
+	int tx_busy;
+	struct sk_buff_head txq; /* Transmit control queue */
 
 	struct timer_list kick_timer;
 };
@@ -130,6 +137,8 @@ struct irlan_provider_cb {
 	int state;
 	
 	struct tsap_cb *tsap_ctrl;
+	__u32 max_sdu_size;
+	__u8  max_header_size;
 
 	/*
 	 *  Store some values here which are used by the provider to parse
@@ -140,42 +149,45 @@ struct irlan_provider_cb {
 	int filter_mode;
 	int filter_operation;
 	int filter_entry;
-
+	int access_type;     /* Access type */
 	__u16 send_arb_val;
 
 	__u8 mac_address[6]; /* Generated MAC address for peer device */
 };
 
 /*
- *  IrLAN
+ *  IrLAN control block
  */
 struct irlan_cb {
 	QUEUE queue; /* Must be first */
 
 	int    magic;
 	char   ifname[9];
-	struct device dev;  /* Ethernet device structure*/
+	struct device dev;        /* Ethernet device structure*/
 	struct enet_statistics stats;
 
-	__u32 saddr;        /* Source devcie address */
-	__u32 daddr;        /* Destination device address */
+	__u32 saddr;              /* Source device address */
+	__u32 daddr;              /* Destination device address */
 	int   netdev_registered;
 	int   notify_irmanager;
 	
-	int media;          /* Media type */
-	int access_type;    /* Currently used access type */
-	__u8 version[2];    /* IrLAN version */
+	int media;                /* Media type */
+	__u8 version[2];          /* IrLAN version */
 	
 	struct tsap_cb *tsap_data;
 
-	int  use_udata;  /* Use Unit Data transfers */
+	int  master;              /* Master instance? */
+	int  use_udata;           /* Use Unit Data transfers */
 
-	__u8 stsap_sel_data; /* Source data TSAP selector */
-	__u8 dtsap_sel_data; /* Destination data TSAP selector */
-	__u8 dtsap_sel_ctrl; /* Destination ctrl TSAP selector */
+	__u8 stsap_sel_data;      /* Source data TSAP selector */
+	__u8 dtsap_sel_data;      /* Destination data TSAP selector */
+	__u8 dtsap_sel_ctrl;      /* Destination ctrl TSAP selector */
 
-	struct irlan_client_cb client;     /* Client specific fields */
+	struct irlan_client_cb   client;   /* Client specific fields */
 	struct irlan_provider_cb provider; /* Provider specific fields */
+
+	__u32 max_sdu_size;
+	__u8  max_header_size;
 	
 	struct timer_list watchdog_timer;
 };
@@ -191,6 +203,8 @@ void irlan_ias_register(struct irlan_cb *self, __u8 tsap_sel);
 void irlan_start_watchdog_timer(struct irlan_cb *self, int timeout);
 
 void irlan_open_data_tsap(struct irlan_cb *self);
+
+int irlan_run_ctrl_tx_queue(struct irlan_cb *self);
 
 void irlan_get_provider_info(struct irlan_cb *self);
 void irlan_get_unicast_addr(struct irlan_cb *self);

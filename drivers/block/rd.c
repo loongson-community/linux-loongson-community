@@ -72,6 +72,7 @@ extern void wait_for_keypress(void);
  */
 #define MAJOR_NR RAMDISK_MAJOR
 #include <linux/blk.h>
+#include <linux/blkpg.h>
 
 /*
  * We use a block size of 512 bytes in comparision to BLOCK_SIZE
@@ -198,11 +199,10 @@ static int rd_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 			if (!arg)  return -EINVAL;
 			return put_user(rd_length[minor] >> RDBLK_SIZE_BITS, (long *) arg);
 
-		case BLKSSZGET:	   /* Block size of media */
-			if (!arg)  return -EINVAL;
-			return put_user(rd_blocksizes[minor], (int *)arg);
-
-		RO_IOCTLS(inode->i_rdev, arg);
+		case BLKROSET:
+		case BLKROGET:
+		case BLKSSZGET:
+			return blk_ioctl(inode->i_rdev, cmd, arg);
 
 		default:
 			return -EINVAL;
@@ -482,6 +482,7 @@ __initfunc(static void rd_load_image(kdev_t device, int offset, int unit))
 	memset(&inode, 0, sizeof(inode));
 	memset(&in_dentry, 0, sizeof(in_dentry));
 	inode.i_rdev = device;
+	init_waitqueue_head(&inode.i_wait);
 	infile.f_mode = 1; /* read only */
 	infile.f_dentry = &in_dentry;
 	in_dentry.d_inode = &inode;
@@ -490,6 +491,7 @@ __initfunc(static void rd_load_image(kdev_t device, int offset, int unit))
 	memset(&out_inode, 0, sizeof(out_inode));
 	memset(&out_dentry, 0, sizeof(out_dentry));
 	out_inode.i_rdev = ram_device;
+	init_waitqueue_head(&out_inode.i_wait);
 	outfile.f_mode = 3; /* read/write */
 	outfile.f_dentry = &out_dentry;
 	out_dentry.d_inode = &out_inode;
@@ -517,7 +519,7 @@ __initfunc(static void rd_load_image(kdev_t device, int offset, int unit))
 	}
 
 	if (nblocks > (rd_length[unit] >> RDBLK_SIZE_BITS)) {
-		printk("RAMDISK: image too big! (%d/%d blocks)\n",
+		printk("RAMDISK: image too big! (%d/%ld blocks)\n",
 		       nblocks, rd_length[unit] >> RDBLK_SIZE_BITS);
 		goto done;
 	}
@@ -625,7 +627,7 @@ __initfunc(void rd_load_secondary(void))
 #ifdef CONFIG_BLK_DEV_INITRD
 __initfunc(void initrd_load(void))
 {
-	rd_load_image(MKDEV(MAJOR_NR, INITRD_MINOR),0,0);
+	rd_load_image(MKDEV(MAJOR_NR, INITRD_MINOR),rd_image_start,0);
 }
 #endif
 

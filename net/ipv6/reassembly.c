@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: reassembly.c,v 1.11 1998/08/26 12:05:16 davem Exp $
+ *	$Id: reassembly.c,v 1.13 1999/06/09 08:29:40 davem Exp $
  *
  *	Based on: net/ipv4/ip_fragment.c
  *
@@ -19,9 +19,12 @@
  *	Fixes:	
  *	Andi Kleen	Make it work with multiple hosts.
  *			More RFC compliance.
+ *
+ *      Horst von Brand Add missing #include <linux/string.h>
  */
 #include <linux/errno.h>
 #include <linux/types.h>
+#include <linux/string.h>
 #include <linux/socket.h>
 #include <linux/sockios.h>
 #include <linux/sched.h>

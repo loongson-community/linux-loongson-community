@@ -1,7 +1,6 @@
 #ifndef _M68K_SEMAPHORE_H
 #define _M68K_SEMAPHORE_H
 
-#include <linux/config.h>
 #include <linux/linkage.h>
 
 #include <asm/system.h>
@@ -19,7 +18,7 @@
 struct semaphore {
 	atomic_t count;
 	atomic_t waking;
-	struct wait_queue * wait;
+	wait_queue_head_t wait;
 };
 
 #define MUTEX ((struct semaphore) { ATOMIC_INIT(1), ATOMIC_INIT(0), NULL })

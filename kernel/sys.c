@@ -11,6 +11,7 @@
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 #include <linux/prctl.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -812,7 +813,7 @@ out:
  * rather than a semaphore. Anybody want to implement
  * one?
  */
-struct semaphore uts_sem = MUTEX;
+DECLARE_MUTEX(uts_sem);
 
 asmlinkage int sys_newuname(struct new_utsname * name)
 {
@@ -900,6 +901,8 @@ asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim)
 		return -EINVAL;
 	if(copy_from_user(&new_rlim, rlim, sizeof(*rlim)))
 		return -EFAULT;
+	if (new_rlim.rlim_cur < 0 || new_rlim.rlim_max < 0)
+		return -EINVAL;
 	old_rlim = current->rlim + resource;
 	if (((new_rlim.rlim_cur > old_rlim->rlim_max) ||
 	     (new_rlim.rlim_max > old_rlim->rlim_max)) &&

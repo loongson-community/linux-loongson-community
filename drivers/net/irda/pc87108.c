@@ -6,10 +6,10 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Sat Nov  7 21:43:15 1998
- * Modified at:   Tue Apr 20 11:11:39 1999
+ * Modified at:   Mon May 24 15:19:21 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
- *     Copyright (c) 1998 Dag Brattli <dagb@cs.uit.no>
+ *     Copyright (c) 1998-1999 Dag Brattli <dagb@cs.uit.no>
  *     Copyright (c) 1998 Lichen Wang, <lwang@actisys.com>
  *     Copyright (c) 1998 Actisys Corp., www.actisys.com
  *     All Rights Reserved
@@ -67,11 +67,12 @@
 #define BROKEN_DONGLE_ID
 
 static char *driver_name = "pc87108";
+static int qos_mtt_bits = 0x07;  /* 1 ms or more */
 
 #define CHIP_IO_EXTENT 8
 
 static unsigned int io[]  = { 0x2f8, ~0, ~0, ~0 };
-static unsigned int io2[] = { 0x150, 0, 0, 0};
+static unsigned int io2[] = { 0x150, 0, 0, 0 };
 static unsigned int irq[] = { 3, 0, 0, 0 };
 static unsigned int dma[] = { 0, 0, 0, 0 };
 
@@ -97,28 +98,28 @@ static char *dongle_types[] = {
 };
 
 /* Some prototypes */
-static int  pc87108_open( int i, unsigned int iobase, unsigned int board_addr, 
-			  unsigned int irq, unsigned int dma);
+static int  pc87108_open(int i, unsigned int iobase, unsigned int board_addr, 
+			 unsigned int irq, unsigned int dma);
 #ifdef MODULE
-static int  pc87108_close( struct irda_device *idev);
+static int  pc87108_close(struct irda_device *idev);
 #endif /* MODULE */
-static int  pc87108_probe( int iobase, int board_addr, int irq, int dma);
-static void pc87108_pio_receive( struct irda_device *idev);
-static int  pc87108_dma_receive( struct irda_device *idev); 
+static int  pc87108_probe(int iobase, int board_addr, int irq, int dma);
+static void pc87108_pio_receive(struct irda_device *idev);
+static int  pc87108_dma_receive(struct irda_device *idev); 
 static int  pc87108_dma_receive_complete(struct irda_device *idev, int iobase);
-static int  pc87108_hard_xmit( struct sk_buff *skb, struct device *dev);
-static int  pc87108_pio_write( int iobase, __u8 *buf, int len, int fifo_size);
-static void pc87108_dma_write( struct irda_device *idev, int iobase);
-static void pc87108_change_speed( struct irda_device *idev, int baud);
+static int  pc87108_hard_xmit(struct sk_buff *skb, struct device *dev);
+static int  pc87108_pio_write(int iobase, __u8 *buf, int len, int fifo_size);
+static void pc87108_dma_write(struct irda_device *idev, int iobase);
+static void pc87108_change_speed(struct irda_device *idev, int baud);
 static void pc87108_interrupt(int irq, void *dev_id, struct pt_regs *regs);
-static void pc87108_wait_until_sent( struct irda_device *idev);
-static int  pc87108_is_receiving( struct irda_device *idev);
-static int  pc87108_read_dongle_id ( int iobase);
-static void pc87108_init_dongle_interface ( int iobase, int dongle_id);
+static void pc87108_wait_until_sent(struct irda_device *idev);
+static int  pc87108_is_receiving(struct irda_device *idev);
+static int  pc87108_read_dongle_id (int iobase);
+static void pc87108_init_dongle_interface (int iobase, int dongle_id);
 
-static int  pc87108_net_init( struct device *dev);
-static int  pc87108_net_open( struct device *dev);
-static int  pc87108_net_close( struct device *dev);
+static int  pc87108_net_init(struct device *dev);
+static int  pc87108_net_open(struct device *dev);
+static int  pc87108_net_close(struct device *dev);
 
 /*
  * Function pc87108_init ()
@@ -130,11 +131,11 @@ __initfunc(int pc87108_init(void))
 {
 	int i;
 
-	for ( i=0; (io[i] < 2000) && (i < 4); i++) {
+	for (i=0; (io[i] < 2000) && (i < 4); i++) {
 		int ioaddr = io[i];
 		if (check_region(ioaddr, CHIP_IO_EXTENT) < 0)
 			continue;
-		if (pc87108_open( i, io[i], io2[i], irq[i], dma[i]) == 0)
+		if (pc87108_open(i, io[i], io2[i], irq[i], dma[i]) == 0)
 			return 0;
 	}
 	return -ENODEV;
@@ -166,29 +167,29 @@ static void pc87108_cleanup(void)
  *    Open driver instance
  *
  */
-static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr, 
-			 unsigned int irq, unsigned int dma)
+static int pc87108_open(int i, unsigned int iobase, unsigned int board_addr, 
+			unsigned int irq, unsigned int dma)
 {
 	struct pc87108 *self;
 	struct irda_device *idev;
 	int ret;
 	int dongle_id;
 
-	DEBUG( 0, __FUNCTION__ "()\n");
+	DEBUG(0, __FUNCTION__ "()\n");
 
-	if (( dongle_id = pc87108_probe( iobase, board_addr, irq, dma)) == -1)
+	if ((dongle_id = pc87108_probe(iobase, board_addr, irq, dma)) == -1)
 		return -1;
 
 	/*
 	 *  Allocate new instance of the driver
 	 */
-	self = kmalloc( sizeof(struct pc87108), GFP_KERNEL);
-	if ( self == NULL) {
-		printk( KERN_ERR "IrDA: Can't allocate memory for "
-			"IrDA control block!\n");
+	self = kmalloc(sizeof(struct pc87108), GFP_KERNEL);
+	if (self == NULL) {
+		printk(KERN_ERR "IrDA: Can't allocate memory for "
+		       "IrDA control block!\n");
 		return -ENOMEM;
 	}
-	memset( self, 0, sizeof(struct pc87108));
+	memset(self, 0, sizeof(struct pc87108));
    
 	/* Need to store self somewhere */
 	dev_self[i] = self;
@@ -203,24 +204,24 @@ static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr,
         idev->io.fifo_size = 32;
 
 	/* Lock the port that we need */
-	ret = check_region( idev->io.iobase, idev->io.io_ext);
-	if ( ret < 0) { 
-		DEBUG( 0, __FUNCTION__ "(), can't get iobase of 0x%03x\n",
-		       idev->io.iobase);
+	ret = check_region(idev->io.iobase, idev->io.io_ext);
+	if (ret < 0) { 
+		DEBUG(0, __FUNCTION__ "(), can't get iobase of 0x%03x\n",
+		      idev->io.iobase);
 		/* pc87108_cleanup( self->idev);  */
 		return -ENODEV;
 	}
-	request_region( idev->io.iobase, idev->io.io_ext, idev->name);
+	request_region(idev->io.iobase, idev->io.io_ext, idev->name);
 
 	/* Initialize QoS for this device */
-	irda_init_max_qos_capabilies( &idev->qos);
+	irda_init_max_qos_capabilies(&idev->qos);
 	
 	/* The only value we must override it the baudrate */
 	idev->qos.baud_rate.bits = IR_9600|IR_19200|IR_38400|IR_57600|
 		IR_115200|IR_576000|IR_1152000|(IR_4000000 << 8);
 	
-	idev->qos.min_turn_time.bits = 0x07;
-	irda_qos_bits_to_value( &idev->qos);
+	idev->qos.min_turn_time.bits = qos_mtt_bits;
+	irda_qos_bits_to_value(&idev->qos);
 	
 	idev->flags = IFF_FIR|IFF_MIR|IFF_SIR|IFF_DMA|IFF_PIO|IFF_DONGLE;
 
@@ -244,10 +245,10 @@ static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr,
 	idev->netdev.stop            = pc87108_net_close;
 
 	idev->io.dongle_id = dongle_id;
-	pc87108_init_dongle_interface( iobase, dongle_id);
+	pc87108_init_dongle_interface(iobase, dongle_id);
 
 	/* Open the IrDA device */
-	irda_device_open( idev, driver_name, self);
+	irda_device_open(idev, driver_name, self);
 	
 	return 0;
 }
@@ -259,23 +260,26 @@ static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr,
  *    Close driver instance
  *
  */
-static int pc87108_close( struct irda_device *idev)
+static int pc87108_close(struct irda_device *idev)
 {
+	struct pc87108 *self;
 	int iobase;
 
 	DEBUG( 4, __FUNCTION__ "()\n");
 
-	ASSERT( idev != NULL, return -1;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return -1;);
+	ASSERT(idev != NULL, return -1;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return -1;);
 
         iobase = idev->io.iobase;
+	self = (struct pc87108 *) idev->priv;
 
 	/* Release the PORT that this driver is using */
-	DEBUG( 4, __FUNCTION__ "(), Releasing Region %03x\n", 
-	       idev->io.iobase);
-	release_region( idev->io.iobase, idev->io.io_ext);
+	DEBUG(4, __FUNCTION__ "(), Releasing Region %03x\n", idev->io.iobase);
+	release_region(idev->io.iobase, idev->io.io_ext);
 
-	irda_device_close( idev);
+	irda_device_close(idev);
+
+	kfree(self);
 
 	return 0;
 }
@@ -287,22 +291,22 @@ static int pc87108_close( struct irda_device *idev)
  *    Returns non-negative on success.
  *
  */
-static int pc87108_probe( int iobase, int board_addr, int irq, int dma) 
+static int pc87108_probe(int iobase, int board_addr, int irq, int dma) 
 {
 	int version;
 	__u8 temp=0;
 	int dongle_id;
 	
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 
 	/* Base Address and Interrupt Control Register BAIC */
 	outb(0, board_addr);
-	switch ( iobase) {
-	case 0x3E8: outb( 0x14, board_addr+1); break;
-	case 0x2E8: outb( 0x15, board_addr+1); break;
-	case 0x3F8: outb( 0x16, board_addr+1); break;
-	case 0x2F8: outb( 0x17, board_addr+1); break;
-	default:    DEBUG(0, __FUNCTION__ "(), invalid base_address");
+	switch (iobase) {
+	case 0x3E8: outb(0x14, board_addr+1); break;
+	case 0x2E8: outb(0x15, board_addr+1); break;
+	case 0x3F8: outb(0x16, board_addr+1); break;
+	case 0x2F8: outb(0x17, board_addr+1); break;
+	default:    ERROR(__FUNCTION__ "(), invalid base_address");
 	}
 	
 	/* Control Signal Routing Register CSRT */
@@ -314,74 +318,73 @@ static int pc87108_probe( int iobase, int board_addr, int irq, int dma)
 	case 9:  temp = 0x05; break;
 	case 11: temp = 0x06; break;
 	case 15: temp = 0x07; break;
-	default: DEBUG( 0, __FUNCTION__ "(), invalid irq");
+	default: ERROR(__FUNCTION__ "(), invalid irq");
 	}
-	outb( 1, board_addr);
-
+	outb(1, board_addr);
+	
 	switch (dma) {	
-	case 0: outb( 0x08+temp, board_addr+1); break;
-	case 1: outb( 0x10+temp, board_addr+1); break;
-	case 3: outb( 0x18+temp, board_addr+1); break;
+	case 0: outb(0x08+temp, board_addr+1); break;
+	case 1: outb(0x10+temp, board_addr+1); break;
+	case 3: outb(0x18+temp, board_addr+1); break;
 	default: DEBUG( 0, __FUNCTION__ "(), invalid dma");
 	}
 
 	/* Mode Control Register MCTL */
-	outb( 2, board_addr);
-	outb( 0x03, board_addr+1);
+	outb(2, board_addr);
+	outb(0x03, board_addr+1);
 		
 	/* read the Module ID */
-	switch_bank( iobase, BANK3);
-	version =  inb( iobase+MID);
+	switch_bank(iobase, BANK3);
+	version = inb(iobase+MID);
 	
 	/* should be 0x2? */
-	if (0x20 != (version & 0xf0))
-	{
-		DEBUG( 0, __FUNCTION__ "(), Wrong chip version");	
+	if (0x20 != (version & 0xf0)) {
+		ERROR(__FUNCTION__ "(), Wrong chip version %02x\n", version);
 		return -1;
 	}
 	
 	/* Switch to advanced mode */
 	switch_bank( iobase, BANK2);
-	outb( ECR1_EXT_SL, iobase+ECR1);
-	switch_bank( iobase, BANK0);
+	outb(ECR1_EXT_SL, iobase+ECR1);
+	switch_bank(iobase, BANK0);
 
-	dongle_id = pc87108_read_dongle_id( iobase);
-	DEBUG( 0, __FUNCTION__ "(), Found dongle: %s\n", 
-	       dongle_types[ dongle_id]);
+	dongle_id = pc87108_read_dongle_id(iobase);
+	DEBUG(0, __FUNCTION__ "(), Found dongle: %s\n", 
+	      dongle_types[ dongle_id]);
 	
 	/* Set FIFO threshold to TX17, RX16, reset and enable FIFO's */
-	switch_bank( iobase, BANK0);	
-	outb( FCR_RXTH|FCR_TXTH|FCR_TXSR|FCR_RXSR|FCR_FIFO_EN, iobase+FCR);
+	switch_bank(iobase, BANK0);	
+	outb(FCR_RXTH|FCR_TXTH|FCR_TXSR|FCR_RXSR|FCR_FIFO_EN, iobase+FCR);
 	
 	/* Set FIFO size to 32 */
-	switch_bank( iobase, BANK2);
-	outb( EXCR2_RFSIZ|EXCR2_TFSIZ, iobase+EXCR2);	
+	switch_bank(iobase, BANK2);
+	outb(EXCR2_RFSIZ|EXCR2_TFSIZ, iobase+EXCR2);	
 
 	/* IRCR2: FEND_MD is set */
-	switch_bank( iobase, BANK5);
-	outb( 0x2a, iobase+4);
+	switch_bank(iobase, BANK5);
+	outb(0x2a, iobase+4);
 
 	/* Make sure that some defaults are OK */
-	switch_bank( iobase, BANK6);
-	outb( 0x20, iobase+0); /* Set 32 bits FIR CRC */
-	outb( 0x0a, iobase+1); /* Set MIR pulse width */
-	outb( 0x0d, iobase+2); /* Set SIR pulse width */
-	outb( 0x2a, iobase+4); /* Set beginning frag, and preamble length */
+	switch_bank(iobase, BANK6);
+	outb(0x20, iobase+0); /* Set 32 bits FIR CRC */
+	outb(0x0a, iobase+1); /* Set MIR pulse width */
+	outb(0x0d, iobase+2); /* Set SIR pulse width */
+	outb(0x2a, iobase+4); /* Set beginning frag, and preamble length */
 
 	/* Receiver frame length */
-	switch_bank( iobase, BANK4);
-	outb( 2048 & 0xff, iobase+6);
-	outb(( 2048 >> 8) & 0x1f, iobase+7);
+	switch_bank(iobase, BANK4);
+	outb(2048 & 0xff, iobase+6);
+	outb((2048 >> 8) & 0x1f, iobase+7);
 
 	/* Transmitter frame length */
-	outb( 2048 & 0xff, iobase+4);
-	outb(( 2048 >> 8) & 0x1f, iobase+5);
+	outb(2048 & 0xff, iobase+4);
+	outb((2048 >> 8) & 0x1f, iobase+5);
 	
-	DEBUG( 0, "PC87108 driver loaded. Version: 0x%02x\n", version);
+	DEBUG(0, "PC87108 driver loaded. Version: 0x%02x\n", version);
 
 	/* Enable receive interrupts */
-	switch_bank( iobase, BANK0);
-	outb( IER_RXHDL_IE, iobase+IER);
+	switch_bank(iobase, BANK0);
+	outb(IER_RXHDL_IE, iobase+IER);
 
 	return dongle_id;
 }
@@ -404,10 +407,10 @@ static int pc87108_read_dongle_id ( int iobase)
 	bank = inb( iobase+BSR);
 
 	/* Select Bank 7 */
-	switch_bank( iobase, BANK7);
+	switch_bank(iobase, BANK7);
 	
 	/* IRCFG4: IRSL0_DS and IRSL21_DS are cleared */
-	outb( 0x00, iobase+7);
+	outb(0x00, iobase+7);
 	
 	/* ID0, 1, and 2 are pulled up/down very slowly */
 	udelay(50);
@@ -416,16 +419,16 @@ static int pc87108_read_dongle_id ( int iobase)
 	dongle_id = inb( iobase+4) & 0x0f;
 
 #ifdef BROKEN_DONGLE_ID
-	if ( dongle_id == 0x0a)
+	if (dongle_id == 0x0a)
 		dongle_id = 0x09;
 #endif
-
+	
 	/* Go back to  bank 0 before returning */
-	switch_bank( iobase, BANK0);
+	switch_bank(iobase, BANK0);
 
-	DEBUG( 0, __FUNCTION__ "(), Dongle = %#x\n", dongle_id);
+	DEBUG(0, __FUNCTION__ "(), Dongle = %#x\n", dongle_id);
 
-	outb( bank, iobase+BSR);
+	outb(bank, iobase+BSR);
 
 	return dongle_id;
 }
@@ -438,7 +441,7 @@ static int pc87108_read_dongle_id ( int iobase)
  *     power-on/reset. It also needs to be used whenever you suspect that
  *     the dongle is changed. 
  */
-static void pc87108_init_dongle_interface ( int iobase, int dongle_id)
+static void pc87108_init_dongle_interface (int iobase, int dongle_id)
 {
 	int bank;
 
@@ -805,7 +808,6 @@ static void pc87108_dma_write( struct irda_device *idev, int iobase)
 	setup_dma(idev->io.dma, idev->tx_buff.data, idev->tx_buff.len, 
 		  DMA_MODE_WRITE);
 	
-	/* idev->media_busy = TRUE; */
 	idev->io.direction = IO_XMIT;
 	
 	/* Choose transmit DMA channel  */ 
@@ -814,11 +816,11 @@ static void pc87108_dma_write( struct irda_device *idev, int iobase)
 	      iobase+ECR1);
 	
 	/* Enable DMA */
- 	switch_bank( iobase, BANK0);	
-	outb( inb( iobase+MCR)|MCR_DMA_EN, iobase+MCR);
+ 	switch_bank(iobase, BANK0);	
+	outb(inb(iobase+MCR)|MCR_DMA_EN, iobase+MCR);
 
 	/* Restore bank register */
-	outb( bsr, iobase+BSR);
+	outb(bsr, iobase+BSR);
 }
 
 /*
@@ -828,7 +830,7 @@ static void pc87108_dma_write( struct irda_device *idev, int iobase)
  *    got transfered
  *
  */
-static int pc87108_pio_write( int iobase, __u8 *buf, int len, int fifo_size)
+static int pc87108_pio_write(int iobase, __u8 *buf, int len, int fifo_size)
 {
 	int actual = 0;
 	__u8 bank;
@@ -847,16 +849,16 @@ static int pc87108_pio_write( int iobase, __u8 *buf, int len, int fifo_size)
 	}
 
 	/* Fill FIFO with current frame */
-	while (( fifo_size-- > 0) && (actual < len)) {
+	while ((fifo_size-- > 0) && (actual < len)) {
 		/* Transmit next byte */
-		outb( buf[actual++], iobase+TXD);
+		outb(buf[actual++], iobase+TXD);
 	}
         
-	DEBUG( 4, __FUNCTION__ "(), fifo_size %d ; %d sent of %d\n", 
-	       fifo_size, actual, len);
+	DEBUG(4, __FUNCTION__ "(), fifo_size %d ; %d sent of %d\n", 
+	      fifo_size, actual, len);
 
 	/* Restore bank */
-	outb( bank, iobase+BSR);
+	outb(bank, iobase+BSR);
 
 	return actual;
 }
@@ -973,7 +975,7 @@ static int pc87108_dma_receive(struct irda_device *idev)
  *
  *    
  */
-static int pc87108_dma_receive_complete( struct irda_device *idev, int iobase)
+static int pc87108_dma_receive_complete(struct irda_device *idev, int iobase)
 {
 	struct sk_buff *skb;
 	struct pc87108 *self;
@@ -988,8 +990,6 @@ static int pc87108_dma_receive_complete( struct irda_device *idev, int iobase)
 	/* Save current bank */
 	bank = inb( iobase+BSR);
 	
-	iobase = idev->io.iobase;
-
 	/* Read status FIFO */
 	switch_bank(iobase, BANK5);
 	while (( status = inb( iobase+FRM_ST)) & FRM_ST_VLD) {
@@ -1003,18 +1003,18 @@ static int pc87108_dma_receive_complete( struct irda_device *idev, int iobase)
 	}
 	
 	/* Try to process all entries in status FIFO */
-	switch_bank( iobase, BANK0);
-	while ( st_fifo->len) {
+	switch_bank(iobase, BANK0);
+	while (st_fifo->len) {
       
 		/* Get first entry */
-		status = st_fifo->entries[ st_fifo->head].status;
-		len    = st_fifo->entries[ st_fifo->head].len;
+		status = st_fifo->entries[st_fifo->head].status;
+		len    = st_fifo->entries[st_fifo->head].len;
 		st_fifo->head++;
 		st_fifo->len--;
 
 		/* Check for errors */
-		if ( status & FRM_ST_ERR_MSK) {
-			if ( status & FRM_ST_LOST_FR) {
+		if (status & FRM_ST_ERR_MSK) {
+			if (status & FRM_ST_LOST_FR) {
 				/* Add number of lost frames to stats */
 				idev->stats.rx_errors += len;	
 			} else {
@@ -1188,8 +1188,8 @@ static __u8 pc87108_fir_interrupt( struct irda_device *idev, int iobase,
 	bank = inb( iobase+BSR);
 	
 	/* Status event, or end of frame detected in FIFO */
-	if ( eir & (EIR_SFIF_EV|EIR_LS_EV)) {
-		if ( pc87108_dma_receive_complete( idev, iobase)) {
+	if (eir & (EIR_SFIF_EV|EIR_LS_EV)) {
+		if (pc87108_dma_receive_complete( idev, iobase)) {
 
 			/* Wait for next status FIFO interrupt */
 			new_ier |= IER_SFIF_IE;
@@ -1459,6 +1459,14 @@ static int pc87108_net_close(struct device *dev)
 }
 
 #ifdef MODULE
+
+MODULE_AUTHOR("Dag Brattli <dagb@cs.uit.no>");
+MODULE_DESCRIPTION("NSC PC87108 IrDA Device Driver");
+
+MODULE_PARM(qos_mtt_bits, "i");
+MODULE_PARM(io, "1-4i");
+MODULE_PARM(io2, "1-4i");
+MODULE_PARM(irq, "1-4i");
 
 /*
  * Function init_module (void)

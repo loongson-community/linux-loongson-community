@@ -89,7 +89,7 @@ struct inode_operations hfs_nat_ndir_inode_operations = {
 	NULL,			/* symlink */
 	hfs_mkdir,		/* mkdir */
 	nat_rmdir,		/* rmdir */
-	hfs_mknod,		/* mknod */
+	NULL,			/* mknod */
 	hfs_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
@@ -224,10 +224,6 @@ static int nat_readdir(struct file * filp,
 	struct hfs_brec brec;
         struct hfs_cat_entry *entry;
 	struct inode *dir = filp->f_dentry->d_inode;
-
-	if (!dir || !dir->i_sb || !S_ISDIR(dir->i_mode)) {
-		return -EBADF;
-	}
 
 	entry = HFS_I(dir)->entry;
 	type = HFS_ITYPE(dir->i_ino);

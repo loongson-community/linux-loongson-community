@@ -8,7 +8,7 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  *
- * Version:	$Id: af_unix.c,v 1.76 1999/05/08 05:54:55 davem Exp $
+ * Version:	$Id: af_unix.c,v 1.78 1999/05/27 00:38:41 davem Exp $
  *
  * Fixes:
  *		Linus Torvalds	:	Assorted bug cures.
@@ -114,8 +114,8 @@ int sysctl_unix_max_dgram_qlen = 10;
 
 unix_socket *unix_socket_table[UNIX_HASH_SIZE+1];
 static atomic_t unix_nr_socks = ATOMIC_INIT(0);
-static struct wait_queue * unix_ack_wqueue = NULL;
-static struct wait_queue * unix_dgram_wqueue = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(unix_ack_wqueue);
+static DECLARE_WAIT_QUEUE_HEAD(unix_dgram_wqueue);
 
 #define unix_sockets_unbound	(unix_socket_table[UNIX_HASH_SIZE])
 
@@ -144,19 +144,21 @@ extern __inline__ int unix_may_send(unix_socket *sk, unix_socket *osk)
 	return (unix_peer(osk) == NULL || unix_our_peer(sk, osk));
 }
 
+#define ulock(sk)	(&(sk->protinfo.af_unix.user_count))
+
 extern __inline__ void unix_lock(unix_socket *sk)
 {
-	atomic_inc(&sk->sock_readers);
+	atomic_inc(ulock(sk));
 }
 
 extern __inline__ void unix_unlock(unix_socket *sk)
 {
-	atomic_dec(&sk->sock_readers);
+	atomic_dec(ulock(sk));
 }
 
 extern __inline__ int unix_locked(unix_socket *sk)
 {
-	return atomic_read(&sk->sock_readers);
+	return (atomic_read(ulock(sk)) != 0);
 }
 
 extern __inline__ void unix_release_addr(struct unix_address *addr)
@@ -433,7 +435,7 @@ static struct sock * unix_create1(struct socket *sock, int stream)
 	sk->destruct = unix_destruct_addr;
 	sk->protinfo.af_unix.family=PF_UNIX;
 	sk->protinfo.af_unix.dentry=NULL;
-	sk->protinfo.af_unix.readsem=MUTEX;	/* single task reading lock */
+	init_MUTEX(&sk->protinfo.af_unix.readsem);/* single task reading lock */
 	sk->protinfo.af_unix.list=&unix_sockets_unbound;
 	unix_insert_socket(sk);
 
@@ -1511,7 +1513,7 @@ static int unix_read_proc(char *buffer, char **start, off_t offset,
 	{
 		len+=sprintf(buffer+len,"%p: %08X %08X %08lX %04X %02X %5ld",
 			s,
-			atomic_read(&s->sock_readers),
+			atomic_read(ulock(s)),
 			0,
 			s->socket ? s->socket->flags : 0,
 			s->type,

@@ -5,7 +5,7 @@
  *
  *		PF_INET protocol family socket handler.
  *
- * Version:	$Id: af_inet.c,v 1.87 1999/04/22 10:07:33 davem Exp $
+ * Version:	$Id: af_inet.c,v 1.91 1999/06/09 08:28:55 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -147,22 +147,17 @@ static __inline__ void kill_sk_queues(struct sock *sk)
 	struct sk_buff *skb;
 
 	/* First the read buffer. */
-	while((skb = skb_dequeue(&sk->receive_queue)) != NULL) {
-		/* This will take care of closing sockets that were
-		 * listening and didn't accept everything.
-		 */
-		if (skb->sk != NULL && skb->sk != sk)
-			skb->sk->prot->close(skb->sk, 0);
+	while((skb = skb_dequeue(&sk->receive_queue)) != NULL)
 		kfree_skb(skb);
-	}
 
 	/* Next, the error queue. */
 	while((skb = skb_dequeue(&sk->error_queue)) != NULL)
 		kfree_skb(skb);
 
-  	/* Now the backlog. */
-  	while((skb=skb_dequeue(&sk->back_log)) != NULL)
-		kfree_skb(skb);
+	/* It is _impossible_ for the backlog to contain anything
+	 * when we get here.  All user references to this socket
+	 * have gone away, only the net layer knows can touch it.
+	 */
 }
 
 static __inline__ void kill_sk_now(struct sock *sk)
@@ -195,14 +190,19 @@ static __inline__ void kill_sk_later(struct sock *sk)
 
 	sk->destroy = 1;
 	sk->ack_backlog = 0;
-	release_sock(sk);
+	bh_unlock_sock(sk);
 	net_reset_timer(sk, TIME_DESTROY, SOCK_DESTROY_TIME);
 }
 
+/* Callers must hold the BH spinlock.
+ *
+ * At this point, there should be no process reference to this
+ * socket, and thus no user references at all.  Therefore we
+ * can assume the socket waitqueue is inactive and nobody will
+ * try to jump onto it.
+ */
 void destroy_sock(struct sock *sk)
 {
-	lock_sock(sk);			/* just to be safe. */
-
   	/* Now we can no longer get new packets or once the
   	 * timers are killed, send them.
   	 */
@@ -212,12 +212,6 @@ void destroy_sock(struct sock *sk)
 		sk->prot->destroy(sk);
 
 	kill_sk_queues(sk);
-
-	/* Now if it has a half accepted/ closed socket. */
-	if (sk->pair) {
-		sk->pair->prot->close(sk->pair, 0);
-		sk->pair = NULL;
-  	}
 
 	/* Now if everything is gone we can free the socket
 	 * structure, otherwise we need to keep it around until
@@ -284,6 +278,14 @@ static int inet_autobind(struct sock *sk)
 	return 0;
 }
 
+/* Listening INET sockets never sleep to wait for memory, so
+ * it is completely silly to wake them up on queue space
+ * available events.  So we hook them up to this dummy callback.
+ */
+static void inet_listen_write_space(struct sock *sk)
+{
+}
+
 /*
  *	Move a socket into listening state.
  */
@@ -310,6 +312,7 @@ int inet_listen(struct socket *sock, int backlog)
 		dst_release(xchg(&sk->dst_cache, NULL));
 		sk->prot->rehash(sk);
 		add_to_prot_sklist(sk);
+		sk->write_space = inet_listen_write_space;
 	}
 	sk->socket->flags |= SO_ACCEPTCON;
 	return(0);
@@ -368,7 +371,7 @@ static int inet_create(struct socket *sock, int protocol)
 		if (protocol && protocol != IPPROTO_UDP)
 			goto free_and_noproto;
 		protocol = IPPROTO_UDP;
-		sk->no_check = UDP_NO_CHECK;
+		sk->no_check = UDP_CSUM_DEFAULT;
 		sk->ip_pmtudisc = IP_PMTUDISC_DONT;
 		prot=&udp_prot;
 		sock->ops = &inet_dgram_ops;
@@ -578,7 +581,7 @@ int inet_dgram_connect(struct socket *sock, struct sockaddr * uaddr,
 
 static void inet_wait_for_connect(struct sock *sk)
 {
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 
 	add_wait_queue(sk->sleep, &wait);
 	current->state = TASK_INTERRUPTIBLE;
@@ -684,14 +687,8 @@ int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 	if (sk1->prot->accept == NULL)
 		goto do_err;
 
-	/* Restore the state if we have been interrupted, and then returned. */
-	if (sk1->pair != NULL) {
-		sk2 = sk1->pair;
-		sk1->pair = NULL;
-	} else {
-		if((sk2 = sk1->prot->accept(sk1,flags)) == NULL)
-			goto do_sk1_err;
-	}
+	if((sk2 = sk1->prot->accept(sk1,flags)) == NULL)
+		goto do_sk1_err;
 
 	/*
 	 *	We've been passed an extra socket.

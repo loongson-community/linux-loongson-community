@@ -9,6 +9,11 @@
  *  Force Cyrix 6x86(MX) and M II processors to report MTRR capability
  *  and fix against Cyrix "coma bug" by
  *      Zoltan Boszormenyi <zboszor@mol.hu> February 1999.
+ * 
+ *  Force Centaur C6 processors to report MTRR capability.
+ *      Bart Hartgers <bart@etpmod.phys.tue.nl>, May 199.
+ *
+ *  Intel Mobile Pentium II detection fix. Sean Gilley, June 1999.
  */
 
 /*
@@ -685,7 +690,7 @@ static struct cpu_model_info cpu_models[] __initdata = {
 	    NULL, NULL, NULL, NULL }},
 	{ X86_VENDOR_INTEL,	6,
 	  { "Pentium Pro A-step", "Pentium Pro", NULL, "Pentium II (Klamath)", 
-	    NULL, "Pentium II (Deschutes)", "Celeron (Mendocino)", NULL,
+            NULL, "Pentium II (Deschutes)", "Mobile Pentium II", NULL,
 	    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }},
 	{ X86_VENDOR_AMD,	4,
 	  { NULL, NULL, NULL, "486 DX/2", NULL, NULL, NULL, "486 DX/2-WB",
@@ -791,13 +796,19 @@ __initfunc(void identify_cpu(struct cpuinfo_x86 *c))
 			if (c->x86_model <= 16)
 				p = cpu_models[i].model_names[c->x86_model];
 
-			/* Names for the Pentium II processors */
+			/* Names for the Pentium II Celeron processors 
+                           detectable only by also checking the cache size */
 			if ((cpu_models[i].vendor == X86_VENDOR_INTEL)
-			    && (cpu_models[i].x86 == 6) 
-			    && (c->x86_model == 5)
-			    && (c->x86_cache_size == 0)) {
-				p = "Celeron (Covington)";
-			}
+			    && (cpu_models[i].x86 == 6)){ 
+				if(c->x86_model == 6 && c->x86_cache_size == 128) {
+                            		p = "Celeron (Mendocino)"; 
+                          	}
+			  	else { 
+                            	if (c->x86_model == 5 && c->x86_cache_size == 0) {
+				  	p = "Celeron (Covington)";
+			    	}
+                        }
+                    }
 		}
 			
 	}
@@ -861,6 +872,8 @@ __initfunc(void print_cpu_info(struct cpuinfo_x86 *c))
 		/* lv|=(1<<6);	- may help too if the board can cope */
 		printk("now 0x%X", lv);
 		wrmsr(0x107, lv, hv);
+		/* Emulate MTRRs using Centaur's MCR. */
+		c->x86_capability |= X86_FEATURE_MTRR;	   	
 	}
 	printk("\n");
 }

@@ -53,6 +53,8 @@ struct irvtd_cb {
 	struct sk_buff_head rxbuff; 
 	struct ircomm_cb *comm;     /* ircomm instance */
 
+	__u32 tx_max_sdu_size;
+	__u32 max_header_size;
 	/* 
 	 * These members are used for compatibility with usual serial device.
 	 * See linux/serial.h
@@ -64,12 +66,13 @@ struct irvtd_cb {
 	int line;
 	int count;                /* open count */
 	int blocked_open;
-	struct wait_queue       *open_wait;
-	struct wait_queue       *close_wait;
-	struct wait_queue       *delta_msr_wait;
-	struct wait_queue       *tx_wait;
+	wait_queue_head_t       open_wait;
+	wait_queue_head_t       close_wait;
+	wait_queue_head_t       delta_msr_wait;
+	wait_queue_head_t       tx_wait;
 
-	struct timer_list       timer;
+	struct timer_list       tx_timer;
+	struct timer_list       rx_timer;
 
 	long pgrp;
 	long session;  

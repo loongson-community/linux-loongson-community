@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.10 1998/08/25 09:14:40 ralf Exp $
+/* $Id: process.c,v 1.11 1999/01/03 17:50:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -149,7 +149,7 @@ void dump_thread(struct pt_regs *regs, struct user *dump)
 /*
  * Create a kernel thread
  */
-pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
+int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 {
 	long retval;
 

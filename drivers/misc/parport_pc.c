@@ -9,6 +9,7 @@
  * based on work by Grant Guenther <grant@torque.net> and Phil Blundell.
  *
  * Cleaned up include files - Russell King <linux@arm.uk.linux.org>
+ * Better EPP probing - Carlos Henrique Bauer <chbauer@acm.org>
  */
 
 /* This driver should work with any hardware that is broadly compatible
@@ -36,6 +37,7 @@
 
 #include <linux/config.h>
 #include <linux/module.h>
+#include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
@@ -43,8 +45,10 @@
 #include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/malloc.h>
+#include <linux/pci.h>
 
 #include <asm/io.h>
+#include <asm/dma.h>
 
 #include <linux/parport.h>
 #include <linux/parport_pc.h>
@@ -53,7 +57,27 @@
    than PARPORT_MAX (in <linux/parport.h>).  */
 #define PARPORT_PC_MAX_PORTS  8
 
-static int user_specified = 0;
+static int user_specified __initdata = 0;
+
+/*
+ * Clear TIMEOUT BIT in EPP MODE
+ */
+int parport_pc_epp_clear_timeout(struct parport *pb)
+{
+	unsigned char r;
+
+	if (!(parport_pc_read_status(pb) & 0x01))
+		return 1;
+
+	/* To clear timeout some chips require double read */
+	parport_pc_read_status(pb);
+	r = parport_pc_read_status(pb);
+	parport_pc_write_status(pb, r | 0x01); /* Some reset by writing 1 */
+	parport_pc_write_status(pb, r & 0xfe); /* Others by writing 0 */
+	r = parport_pc_read_status(pb);
+
+	return !(r & 0x01);
+}
 
 static void parport_pc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
@@ -62,27 +86,27 @@ static void parport_pc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 void parport_pc_write_epp(struct parport *p, unsigned char d)
 {
-	outb(d, p->base+EPPDATA);
+	outb(d, EPPDATA(p));
 }
 
 unsigned char parport_pc_read_epp(struct parport *p)
 {
-	return inb(p->base+EPPDATA);
+	return inb(EPPDATA(p));
 }
 
 void parport_pc_write_epp_addr(struct parport *p, unsigned char d)
 {
-	outb(d, p->base+EPPADDR);
+	outb(d, EPPADDR(p));
 }
 
 unsigned char parport_pc_read_epp_addr(struct parport *p)
 {
-	return inb(p->base+EPPADDR);
+	return inb(EPPADDR(p));
 }
 
 int parport_pc_check_epp_timeout(struct parport *p)
 {
-	if (!(inb(p->base+STATUS) & 1))
+	if (!(inb(STATUS(p)) & 1))
 		return 0;
 	parport_pc_epp_clear_timeout(p);
 	return 1;
@@ -90,24 +114,24 @@ int parport_pc_check_epp_timeout(struct parport *p)
 
 unsigned char parport_pc_read_configb(struct parport *p)
 {
-	return inb(p->base+CONFIGB);
+	return inb(CONFIGB(p));
 }
 
 void parport_pc_write_data(struct parport *p, unsigned char d)
 {
-	outb(d, p->base+DATA);
+	outb(d, DATA(p));
 }
 
 unsigned char parport_pc_read_data(struct parport *p)
 {
-	return inb(p->base+DATA);
+	return inb(DATA(p));
 }
 
 void parport_pc_write_control(struct parport *p, unsigned char d)
 {
 	struct parport_pc_private *priv = p->private_data;
 	priv->ctr = d;/* update soft copy */
-	outb(d, p->base+CONTROL);
+	outb(d, CONTROL(p));
 }
 
 unsigned char parport_pc_read_control(struct parport *p)
@@ -121,34 +145,34 @@ unsigned char parport_pc_frob_control(struct parport *p, unsigned char mask,  un
 	struct parport_pc_private *priv = p->private_data;
 	unsigned char ctr = priv->ctr;
 	ctr = (ctr & ~mask) ^ val;
-	outb (ctr, p->base+CONTROL);
+	outb (ctr, CONTROL(p));
 	return priv->ctr = ctr; /* update soft copy */
 }
 
 void parport_pc_write_status(struct parport *p, unsigned char d)
 {
-	outb(d, p->base+STATUS);
+	outb(d, STATUS(p));
 }
 
 unsigned char parport_pc_read_status(struct parport *p)
 {
-	return inb(p->base+STATUS);
+	return inb(STATUS(p));
 }
 
 void parport_pc_write_econtrol(struct parport *p, unsigned char d)
 {
-	outb(d, p->base+ECONTROL);
+	outb(d, ECONTROL(p));
 }
 
 unsigned char parport_pc_read_econtrol(struct parport *p)
 {
-	return inb(p->base+ECONTROL);
+	return inb(ECONTROL(p));
 }
 
 unsigned char parport_pc_frob_econtrol(struct parport *p, unsigned char mask,  unsigned char val)
 {
-	unsigned char old = inb(p->base+ECONTROL);
-	outb(((old & ~mask) ^ val), p->base+ECONTROL);
+	unsigned char old = inb(ECONTROL(p));
+	outb(((old & ~mask) ^ val), ECONTROL(p));
 	return old;
 }
 
@@ -159,12 +183,12 @@ void parport_pc_change_mode(struct parport *p, int m)
 
 void parport_pc_write_fifo(struct parport *p, unsigned char v)
 {
-	outb (v, p->base+CONFIGA);
+	outb (v, CONFIGA(p));
 }
 
 unsigned char parport_pc_read_fifo(struct parport *p)
 {
-	return inb (p->base+CONFIGA);
+	return inb (CONFIGA(p));
 }
 
 void parport_pc_disable_irq(struct parport *p)
@@ -175,28 +199,6 @@ void parport_pc_disable_irq(struct parport *p)
 void parport_pc_enable_irq(struct parport *p)
 {
 	parport_pc_frob_control(p, 0x10, 0x10);
-}
-
-void parport_pc_release_resources(struct parport *p)
-{
-	if (p->irq != PARPORT_IRQ_NONE)
-		free_irq(p->irq, p);
-	release_region(p->base, p->size);
-	if (p->modes & PARPORT_MODE_PCECR)
-		release_region(p->base+0x400, 3);
-}
-
-int parport_pc_claim_resources(struct parport *p)
-{
-	int err;
-	if (p->irq != PARPORT_IRQ_NONE)
-		if ((err = request_irq(p->irq, parport_pc_interrupt,
-				       0, p->name, p)) != 0)
-			return err;
-	request_region(p->base, p->size, p->name);
-	if (p->modes & PARPORT_MODE_PCECR)
-		request_region(p->base+0x400, 3, p->name);
-	return 0;
 }
 
 void parport_pc_init_state(struct parport_state *s)
@@ -223,8 +225,8 @@ size_t parport_pc_epp_read_block(struct parport *p, void *buf, size_t length)
 {
 	size_t got = 0;
 	for (; got < length; got++) {
-		*((char*)buf)++ = inb (p->base+EPPDATA);
-		if (inb (p->base+STATUS) & 0x01)
+		*((char*)buf)++ = inb (EPPDATA(p));
+		if (inb (STATUS(p)) & 0x01)
 			break;
 	}
 	return got;
@@ -234,8 +236,8 @@ size_t parport_pc_epp_write_block(struct parport *p, void *buf, size_t length)
 {
 	size_t written = 0;
 	for (; written < length; written++) {
-		outb (*((char*)buf)++, p->base+EPPDATA);
-		if (inb (p->base+STATUS) & 0x01)
+		outb (*((char*)buf)++, EPPDATA(p));
+		if (inb (STATUS(p)) & 0x01)
 			break;
 	}
 	return written;
@@ -296,9 +298,6 @@ struct parport_operations parport_pc_ops =
 	
 	parport_pc_change_mode,
 	
-	parport_pc_release_resources,
-	parport_pc_claim_resources,
-	
 	parport_pc_write_epp,
 	parport_pc_read_epp,
 	parport_pc_write_epp_addr,
@@ -326,31 +325,11 @@ struct parport_operations parport_pc_ops =
 
 /* --- Mode detection ------------------------------------- */
 
-/*
- * Clear TIMEOUT BIT in EPP MODE
- */
-int parport_pc_epp_clear_timeout(struct parport *pb)
-{
-	unsigned char r;
-
-	if (!(parport_pc_read_status(pb) & 0x01))
-		return 1;
-
-	/* To clear timeout some chips require double read */
-	parport_pc_read_status(pb);
-	r = parport_pc_read_status(pb);
-	parport_pc_write_status(pb, r | 0x01); /* Some reset by writing 1 */
-	parport_pc_write_status(pb, r & 0xfe); /* Others by writing 0 */
-	r = parport_pc_read_status(pb);
-
-	return !(r & 0x01);
-}
-
 
 /*
  * Checks for port existence, all ports support SPP MODE
  */
-static int parport_SPP_supported(struct parport *pb)
+static int __init parport_SPP_supported(struct parport *pb)
 {
 	unsigned char r, w;
 
@@ -370,13 +349,13 @@ static int parport_SPP_supported(struct parport *pb)
 	 * allow reads, so read_control just returns a software
 	 * copy. Some ports _do_ allow reads, so bypass the software
 	 * copy here.  In addition, some bits aren't writable. */
-	r = inb (pb->base+CONTROL);
-	if ((r & 0x3f) == w) {
+	r = inb (CONTROL (pb));
+	if ((r & 0xf) == w) {
 		w = 0xe;
 		parport_pc_write_control (pb, w);
-		r = inb (pb->base+CONTROL);
+		r = inb (CONTROL(pb));
 		parport_pc_write_control (pb, 0xc);
-		if ((r & 0x3f) == w)
+		if ((r & 0xf) == w)
 			return PARPORT_MODE_PCSPP;
 	}
 
@@ -425,7 +404,7 @@ static int parport_SPP_supported(struct parport *pb)
  * We will write 0x2c to ECR and 0xcc to CTR since both of these
  * values are "safe" on the CTR since bits 6-7 of CTR are unused.
  */
-static int parport_ECR_present(struct parport *pb)
+static int __init parport_ECR_present(struct parport *pb)
 {
 	unsigned char r;
 
@@ -458,7 +437,7 @@ static int parport_ECR_present(struct parport *pb)
 	return 0;
 }
 
-static int parport_ECP_supported(struct parport *pb)
+static int __init parport_ECP_supported(struct parport *pb)
 {
 	int i;
 	unsigned char oecr;
@@ -493,11 +472,24 @@ static int parport_ECP_supported(struct parport *pb)
  *	or writing a 1 to the bit (SMC, UMC, WinBond), others ???
  *	This bit is always high in non EPP modes.
  */
-static int parport_EPP_supported(struct parport *pb)
+static int __init parport_EPP_supported(struct parport *pb)
 {
 	/* If EPP timeout bit clear then EPP available */
 	if (!parport_pc_epp_clear_timeout(pb))
 		return 0;  /* No way to clear timeout */
+
+	/*
+	 * Theory:
+	 *	Bit 0 of STR is the EPP timeout bit, this bit is 0
+	 *	when EPP is possible and is set high when an EPP timeout
+	 *	occurs (EPP uses the HALT line to stop the CPU while it does
+	 *	the byte transfer, an EPP timeout occurs if the attached
+	 *	device fails to respond after 10 micro seconds).
+	 *
+	 *	This bit is cleared by either reading it (National Semi)
+	 *	or writing a 1 to the bit (SMC, UMC, WinBond), others ???
+	 *	This bit is always high in non EPP modes.
+	 */
 
 	parport_pc_write_control(pb, parport_pc_read_control(pb) | 0x20);
 	parport_pc_write_control(pb, parport_pc_read_control(pb) | 0x10);
@@ -511,10 +503,49 @@ static int parport_EPP_supported(struct parport *pb)
 		return PARPORT_MODE_PCEPP;
 	}
 
+	/*
+	 * Theory:
+	 *     Write two values to the EPP address register and
+	 *     read them back. When the transfer times out, the state of
+	 *     the EPP register is undefined in some cases (EPP 1.9?) but
+	 *     in others (EPP 1.7, ECPEPP?) it is possible to read back
+	 *     its value.
+	 */
+	parport_pc_epp_clear_timeout(pb);
+	udelay(30); /* Wait for possible EPP timeout */
+
+	/* Previous test left outputs disabled. */
+	outb (0x55, EPPADDR (pb));
+
+	parport_pc_epp_clear_timeout(pb);
+	udelay(30); /* Wait for possible EPP timeout */
+
+	/* We must enable the outputs to be able to read the address
+           register. */
+	parport_pc_frob_control (pb, 0x20, 0x00);
+
+	if (inb (EPPADDR (pb)) == 0x55) {
+
+		/* wash ... */
+		parport_pc_frob_control (pb, 0x20, 0x20);
+		outb (0xaa, EPPADDR (pb));
+
+		parport_pc_epp_clear_timeout(pb);
+		udelay(30); /* Wait for possible EPP timeout */
+
+		/* ... and repeat */
+		parport_pc_frob_control (pb, 0x20, 0x00);
+
+		if (inb (EPPADDR (pb)) == 0xaa) {
+			parport_pc_epp_clear_timeout (pb);
+			return PARPORT_MODE_PCEPP;
+		}
+	}
+
 	return 0;
 }
 
-static int parport_ECPEPP_supported(struct parport *pb)
+static int __init parport_ECPEPP_supported(struct parport *pb)
 {
 	int mode;
 	unsigned char oecr;
@@ -550,7 +581,7 @@ static int parport_ECPEPP_supported(struct parport *pb)
  * be misdetected here is rather academic. 
  */
 
-static int parport_PS2_supported(struct parport *pb)
+static int __init parport_PS2_supported(struct parport *pb)
 {
 	int ok = 0;
 	unsigned char octr = parport_pc_read_control(pb);
@@ -570,7 +601,7 @@ static int parport_PS2_supported(struct parport *pb)
 	return ok?PARPORT_MODE_PCPS2:0;
 }
 
-static int parport_ECPPS2_supported(struct parport *pb)
+static int __init parport_ECPPS2_supported(struct parport *pb)
 {
 	int mode;
 	unsigned char oecr;
@@ -590,7 +621,7 @@ static int parport_ECPPS2_supported(struct parport *pb)
 /* --- IRQ detection -------------------------------------- */
 
 /* Only if supports ECP mode */
-static int programmable_irq_support(struct parport *pb)
+static int __init programmable_irq_support(struct parport *pb)
 {
 	int irq, intrLine;
 	unsigned char oecr = parport_pc_read_econtrol(pb);
@@ -607,7 +638,7 @@ static int programmable_irq_support(struct parport *pb)
 	return irq;
 }
 
-static int irq_probe_ECP(struct parport *pb)
+static int __init irq_probe_ECP(struct parport *pb)
 {
 	int irqs, i;
 
@@ -634,15 +665,14 @@ static int irq_probe_ECP(struct parport *pb)
  * This detection seems that only works in National Semiconductors
  * This doesn't work in SMC, LGS, and Winbond 
  */
-static int irq_probe_EPP(struct parport *pb)
+static int __init irq_probe_EPP(struct parport *pb)
 {
+#ifndef ADVANCED_DETECT
+	return PARPORT_IRQ_NONE;
+#else
 	int irqs;
 	unsigned char octr = parport_pc_read_control(pb);
 	unsigned char oecr;
-
-#ifndef ADVANCED_DETECT
-	return PARPORT_IRQ_NONE;
-#endif
 
 	if (pb->modes & PARPORT_MODE_PCECR)
 		oecr = parport_pc_read_econtrol(pb);
@@ -673,17 +703,18 @@ static int irq_probe_EPP(struct parport *pb)
 		pb->irq = PARPORT_IRQ_NONE;
 
 	return pb->irq;
+#endif /* Advanced detection. */
 }
 
-static int irq_probe_SPP(struct parport *pb)
+static int __init irq_probe_SPP(struct parport *pb)
 {
+#ifndef ADVANCED_DETECT
+	/* Don't even try to do this. */
+	return PARPORT_IRQ_NONE;
+#else
 	int irqs;
 	unsigned char octr = parport_pc_read_control(pb);
 	unsigned char oecr;
-
-#ifndef ADVANCED_DETECT
-	return PARPORT_IRQ_NONE;
-#endif
 
 	if (pb->modes & PARPORT_MODE_PCECR)
 		oecr = parport_pc_read_econtrol(pb);
@@ -714,6 +745,7 @@ static int irq_probe_SPP(struct parport *pb)
 		parport_pc_write_econtrol(pb, oecr);
 	parport_pc_write_control(pb, octr);
 	return pb->irq;
+#endif /* Advanced detection. */
 }
 
 /* We will attempt to share interrupt requests since other devices
@@ -723,7 +755,7 @@ static int irq_probe_SPP(struct parport *pb)
  * When ECP is available we can autoprobe for IRQs.
  * NOTE: If we can autoprobe it, we can register the IRQ.
  */
-static int parport_irq_probe(struct parport *pb)
+static int __init parport_irq_probe(struct parport *pb)
 {
 	if (pb->modes & PARPORT_MODE_PCECR) {
 		pb->irq = programmable_irq_support(pb);
@@ -754,43 +786,63 @@ out:
 
 /* --- Initialisation code -------------------------------- */
 
-static int probe_one_port(unsigned long int base, int irq, int dma)
+static int __init probe_one_port(unsigned long int base,
+				 unsigned long int base_hi,
+				 int irq, int dma)
 {
-	struct parport *p;
+	struct parport_pc_private *priv;
+	struct parport tmp;
+	struct parport *p = &tmp;
 	int probedirq = PARPORT_IRQ_NONE;
 	if (check_region(base, 3)) return 0;
-	if (!(p = parport_register_port(base, irq, dma, &parport_pc_ops)))
-		return 0;
-	p->private_data = kmalloc (sizeof (struct parport_pc_private),
-				   GFP_KERNEL);
-	if (!p->private_data) {
-		/* Not enough memory. */
+	priv = kmalloc (sizeof (struct parport_pc_private), GFP_KERNEL);
+	if (!priv) {
 		printk (KERN_DEBUG "parport (0x%lx): no memory!\n", base);
-		parport_unregister_port (p);
 		return 0;
 	}
-	((struct parport_pc_private *) (p->private_data))->ctr = 0xc;
+	priv->ctr = 0xc;
+	p->base = base;
+	p->base_hi = base_hi;
+	p->irq = irq;
+	p->dma = dma;
+	p->modes = PARPORT_MODE_PCSPP;
+	p->ops = &parport_pc_ops;
+	p->private_data = priv;
+	if (base_hi && !check_region (base_hi, 3)) {
+		p->modes |= parport_ECR_present (p);
+		p->modes |= parport_ECP_supported (p);
+		p->modes |= parport_ECPPS2_supported (p);
+	}
 	if (p->base != 0x3bc) {
-		if (!check_region(base+0x400,3)) {
-			p->modes |= parport_ECR_present(p);	
-			p->modes |= parport_ECP_supported(p);
-			p->modes |= parport_ECPPS2_supported(p);
-		}
 		if (!check_region(base+0x3, 5)) {
-			p->modes |= parport_EPP_supported(p);
-			p->modes |= parport_ECPEPP_supported(p);
+			p->modes |= parport_EPP_supported (p);
+			p->modes |= parport_ECPEPP_supported (p);
 		}
 	}
 	if (!parport_SPP_supported(p)) {
 		/* No port. */
-		kfree (p->private_data);
-		parport_unregister_port (p);
+		kfree (priv);
 		return 0;
 	}
-	p->modes |= PARPORT_MODE_PCSPP | parport_PS2_supported(p);
-	p->size = (p->modes & (PARPORT_MODE_PCEPP 
-			       | PARPORT_MODE_PCECPEPP))?8:3;
+
+	p->modes |= parport_PS2_supported(p);
+
+	if (!(p = parport_register_port (base, PARPORT_IRQ_NONE,
+					 PARPORT_DMA_NONE, &parport_pc_ops))) {
+		kfree (priv);
+		return 0;
+	}
+
+	p->base_hi = base_hi;
+	p->modes = tmp.modes;
+	p->size = (p->modes & PARPORT_MODE_PCEPP) ? 8 : 3;
+	p->private_data = priv;
+
 	printk(KERN_INFO "%s: PC-style at 0x%lx", p->name, p->base);
+	if (p->base_hi && (p->modes & PARPORT_MODE_PCECR))
+		printk (" (0x%lx)", p->base_hi);
+	p->irq = irq;
+	p->dma = dma;
 	if (p->irq == PARPORT_IRQ_AUTO) {
 		p->irq = PARPORT_IRQ_NONE;
 		parport_irq_probe(p);
@@ -824,37 +876,188 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 		printk("%s: detected irq %d; use procfs to enable interrupt-driven operation.\n", p->name, probedirq);
 #endif
 	parport_proc_register(p);
-	p->flags |= PARPORT_FLAG_COMA;
+
+	request_region (p->base, p->size, p->name);
+	if (p->modes & PARPORT_MODE_PCECR)
+		request_region (p->base_hi, 3, p->name);
+
+	if (p->irq != PARPORT_IRQ_NONE) {
+		if (request_irq (p->irq, parport_pc_interrupt,
+				 0, p->name, p)) {
+			printk (KERN_WARNING "%s: irq %d in use, "
+				"resorting to polled operation\n",
+				p->name, p->irq);
+			p->irq = PARPORT_IRQ_NONE;
+			p->dma = PARPORT_DMA_NONE;
+		}
+
+		if (p->dma != PARPORT_DMA_NONE) {
+			if (request_dma (p->dma, p->name)) {
+				printk (KERN_WARNING "%s: dma %d in use, "
+					"resorting to PIO operation\n",
+					p->name, p->dma);
+				p->dma = PARPORT_DMA_NONE;
+			}
+		}
+	}
 
 	/* Done probing.  Now put the port into a sensible start-up state. */
 	if (p->modes & PARPORT_MODE_PCECR)
 		/*
-		 * Put the ECP detected port in the more SPP like mode.
+		 * Put the ECP detected port in PS2 mode.
 		 */
-		parport_pc_write_econtrol(p, 0x0);
-	parport_pc_write_control(p, 0xc);
+		parport_pc_write_econtrol(p, 0x24);
 	parport_pc_write_data(p, 0);
+	parport_pc_write_control(p, 0x8);
+	udelay (50);
+	parport_pc_write_control(p, 0xc);
+	udelay (50);
 
 	if (parport_probe_hook)
 		(*parport_probe_hook)(p);
 
+	/* Now that we've told the sharing engine about the port, and
+	   found out its characteristics, let the high-level drivers
+	   know about it. */
+	parport_announce_port (p);
+
 	return 1;
 }
 
-int parport_pc_init(int *io, int *irq, int *dma)
+/* Look for PCI parallel port cards. */
+static int __init parport_pc_init_pci (int irq, int dma)
+{
+/* These need to go in pci.h: */
+#ifndef PCI_VENDOR_ID_SIIG
+#define PCI_VENDOR_ID_SIIG              0x131f
+#define PCI_DEVICE_ID_SIIG_1S1P_10x_550 0x1010
+#define PCI_DEVICE_ID_SIIG_1S1P_10x_650 0x1011
+#define PCI_DEVICE_ID_SIIG_1S1P_10x_850 0x1012
+#define PCI_DEVICE_ID_SIIG_1P_10x       0x1020
+#define PCI_DEVICE_ID_SIIG_2P_10x       0x1021
+#define PCI_DEVICE_ID_SIIG_2S1P_10x_550 0x1034
+#define PCI_DEVICE_ID_SIIG_2S1P_10x_650 0x1035
+#define PCI_DEVICE_ID_SIIG_2S1P_10x_850 0x1036
+#define PCI_DEVICE_ID_SIIG_1P_20x       0x2020
+#define PCI_DEVICE_ID_SIIG_2P_20x       0x2021
+#define PCI_DEVICE_ID_SIIG_2P1S_20x_550 0x2040
+#define PCI_DEVICE_ID_SIIG_2P1S_20x_650 0x2041
+#define PCI_DEVICE_ID_SIIG_2P1S_20x_850 0x2042
+#define PCI_DEVICE_ID_SIIG_1S1P_20x_550 0x2010
+#define PCI_DEVICE_ID_SIIG_1S1P_20x_650 0x2011
+#define PCI_DEVICE_ID_SIIG_1S1P_20x_850 0x2012
+#define PCI_DEVICE_ID_SIIG_2S1P_20x_550 0x2060
+#define PCI_DEVICE_ID_SIIG_2S1P_20x_650 0x2061
+#define PCI_DEVICE_ID_SIIG_2S1P_20x_850 0x2062
+#define PCI_VENDOR_ID_LAVA              0x1407
+#define PCI_DEVICE_ID_LAVA_PARALLEL     0x8000
+#define PCI_DEVICE_ID_LAVA_DUAL_PAR_A   0x8001 /* The Lava Dual Parallel is */
+#define PCI_DEVICE_ID_LAVA_DUAL_PAR_B   0x8002 /* two PCI devices on a card */
+#endif /* IDs not defined */
+
+	int count = 0;
+#ifdef CONFIG_PCI
+	int i;
+	struct {
+		unsigned int vendor;
+		unsigned int device;
+		unsigned int numports;
+		struct {
+			unsigned int lo;
+			unsigned int hi; /* -ve if not there */
+		} addr[4];
+	} cards[] = {
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1S1P_10x_550, 1,
+		  { { 3, 4 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1S1P_10x_650, 1,
+		  { { 3, 4 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1S1P_10x_850, 1,
+		  { { 3, 4 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1P_10x, 1,
+		  { { 2, 3 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2P_10x, 2,
+		  { { 2, 3 }, { 4, 5 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2S1P_10x_550, 1,
+		  { { 4, 5 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2S1P_10x_650, 1,
+		  { { 4, 5 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2S1P_10x_850, 1,
+		  { { 4, 5 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1P_20x, 1,
+		  { { 0, 1 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2P_20x, 2,
+		  { { 0, 1 }, { 2, 3 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2P1S_20x_550, 2,
+		  { { 1, 2 }, { 3, 4 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2P1S_20x_650, 2,
+		  { { 1, 2 }, { 3, 4 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2P1S_20x_850, 2,
+		  { { 1, 2 }, { 3, 4 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1S1P_20x_550, 1,
+		  { { 1, 2 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1S1P_20x_650, 1,
+		  { { 1, 2 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_1S1P_20x_850, 1,
+		  { { 1, 2 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2S1P_20x_550, 1,
+		  { { 2, 3 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2S1P_20x_650, 1,
+		  { { 2, 3 }, } },
+		{ PCI_VENDOR_ID_SIIG, PCI_DEVICE_ID_SIIG_2S1P_20x_850, 1,
+		  { { 2, 3 }, } },
+		{ PCI_VENDOR_ID_LAVA, PCI_DEVICE_ID_LAVA_PARALLEL, 1,
+		  { { 0, -1 }, } },
+		{ PCI_VENDOR_ID_LAVA, PCI_DEVICE_ID_LAVA_DUAL_PAR_A, 1,
+		  { { 0, -1 }, } },
+		{ PCI_VENDOR_ID_LAVA, PCI_DEVICE_ID_LAVA_DUAL_PAR_B, 1,
+		  { { 0, -1 }, } },
+		{ 0, }
+	};
+
+	if (!pci_present ())
+		return 0;
+
+	for (i = 0; cards[i].vendor; i++) {
+		struct pci_dev *pcidev = NULL;
+		while ((pcidev = pci_find_device (cards[i].vendor,
+						  cards[i].device,
+						  pcidev)) != NULL) {
+			int n;
+			for (n = 0; n < cards[i].numports; n++) {
+				int lo = cards[i].addr[n].lo;
+				int hi = cards[i].addr[n].hi;
+				int io_lo = pcidev->base_address[lo];
+				int io_hi = ((hi < 0) ? 0 :
+					     pcidev->base_address[hi]);
+				io_lo &= PCI_BASE_ADDRESS_IO_MASK;
+				io_hi &= PCI_BASE_ADDRESS_IO_MASK;
+				count += probe_one_port (io_lo, io_hi,
+							 irq, dma);
+			}
+		}
+	}
+#endif /* CONFIG_PCI */
+
+	return count;
+}
+
+int __init parport_pc_init(int *io, int *io_hi, int *irq, int *dma)
 {
 	int count = 0, i = 0;
 	if (io && *io) {
 		/* Only probe the ports we were given. */
 		user_specified = 1;
 		do {
-			count += probe_one_port(*(io++), *(irq++), *(dma++));
+			if (!*io_hi) *io_hi = 0x400 + *io;
+			count += probe_one_port(*(io++), *(io_hi++),
+						*(irq++), *(dma++));
 		} while (*io && (++i < PARPORT_PC_MAX_PORTS));
 	} else {
 		/* Probe all the likely ports. */
-		count += probe_one_port(0x3bc, irq[0], dma[0]);
-		count += probe_one_port(0x378, irq[0], dma[0]);
-		count += probe_one_port(0x278, irq[0], dma[0]);
+		count += probe_one_port(0x3bc, 0x7bc, irq[0], dma[0]);
+		count += probe_one_port(0x378, 0x778, irq[0], dma[0]);
+		count += probe_one_port(0x278, 0x678, irq[0], dma[0]);
+		count += parport_pc_init_pci (irq[0], dma[0]);
 	}
 
 	return count;
@@ -862,12 +1065,23 @@ int parport_pc_init(int *io, int *irq, int *dma)
 
 #ifdef MODULE
 static int io[PARPORT_PC_MAX_PORTS+1] = { [0 ... PARPORT_PC_MAX_PORTS] = 0 };
-static int dma[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_DMA_NONE };
+static int io_hi[PARPORT_PC_MAX_PORTS+1] = { [0 ... PARPORT_PC_MAX_PORTS] = 0 };
+static int dmaval[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_DMA_AUTO };
 static int irqval[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_IRQ_PROBEONLY };
 static const char *irq[PARPORT_PC_MAX_PORTS] = { NULL, };
+static const char *dma[PARPORT_PC_MAX_PORTS] = { NULL, };
+
+MODULE_PARM_DESC(io, "base address");
 MODULE_PARM(io, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "i");
+
+MODULE_PARM_DESC(io_hi, "base address for ECR");
+MODULE_PARM(io_hi, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "i");
+
+MODULE_PARM_DESC(irq, "irq line to use (or 'auto' or 'none')");
 MODULE_PARM(irq, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "s");
-MODULE_PARM(dma, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "i");
+
+MODULE_PARM_DESC(dma, "dma channel to use (or 'auto' or 'none')");
+MODULE_PARM(dma, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "s");
 
 int init_module(void)
 {	
@@ -875,9 +1089,30 @@ int init_module(void)
 	   the irq values. */
 	unsigned int i;
 	for (i = 0; i < PARPORT_PC_MAX_PORTS && io[i]; i++);
-	parport_parse_irqs(i, irq, irqval);
+	if (i) {
+		if (parport_parse_irqs(i, irq, irqval)) return 1;
+		if (parport_parse_dmas(i, dma, dmaval)) return 1;
+	}
+	else {
+		/* The user can make us use any IRQs or DMAs we find. */
+		int val;
 
-	return (parport_pc_init(io, irqval, dma)?0:1);
+		if (irq[0] && !parport_parse_irqs (1, irq, &val))
+			switch (val) {
+			case PARPORT_IRQ_NONE:
+			case PARPORT_IRQ_AUTO:
+				irqval[0] = val;
+			}
+
+		if (dma[0] && !parport_parse_dmas (1, dma, &val))
+			switch (val) {
+			case PARPORT_DMA_NONE:
+			case PARPORT_DMA_AUTO:
+				dmaval[0] = val;
+			}
+	}
+
+	return (parport_pc_init(io, io_hi, irqval, dmaval)?0:1);
 }
 
 void cleanup_module(void)
@@ -885,9 +1120,14 @@ void cleanup_module(void)
 	struct parport *p = parport_enumerate(), *tmp;
 	while (p) {
 		tmp = p->next;
-		if (p->modes & PARPORT_MODE_PCSPP) { 
-			if (!(p->flags & PARPORT_FLAG_COMA)) 
-				parport_quiesce(p);
+		if (p->modes & PARPORT_MODE_PCSPP) {
+			if (p->dma != PARPORT_DMA_NONE)
+				free_dma (p->dma);
+			if (p->irq != PARPORT_IRQ_NONE)
+				free_irq (p->irq, p);
+			release_region (p->base, p->size);
+			if (p->modes & PARPORT_MODE_PCECP)
+				release_region (p->base_hi, 3);
 			parport_proc_unregister(p);
 			kfree (p->private_data);
 			parport_unregister_port(p);

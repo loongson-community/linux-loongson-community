@@ -246,26 +246,6 @@ put_long(struct task_struct * tsk, struct vm_area_struct * vma,
 	flush_tlb();
 }
 
-static struct vm_area_struct *
-find_extend_vma(struct task_struct * tsk, unsigned long addr)
-{
-	struct vm_area_struct * vma;
-
-	addr &= PAGE_MASK;
-	vma = find_vma(tsk->mm,addr);
-	if (!vma)
-		return NULL;
-	if (vma->vm_start <= addr)
-		return vma;
-	if (!(vma->vm_flags & VM_GROWSDOWN))
-		return NULL;
-	if (vma->vm_end - addr > tsk->rlim[RLIMIT_STACK].rlim_cur)
-		return NULL;
-	vma->vm_offset -= vma->vm_start - addr;
-	vma->vm_start = addr;
-	return vma;
-}
-
 /*
  * This routine checks the page boundaries, and that the offset is
  * within the task area. It then calls get_long() to read a long.
@@ -506,7 +486,8 @@ sys_ptrace(long request, long pid, long addr, long data,
 		     (current->uid != child->uid) ||
 		     (current->gid != child->egid) ||
 		     (current->gid != child->sgid) ||
-		     (current->gid != child->gid))
+		     (current->gid != child->gid) ||
+		     (!cap_issubset(child->cap_permitted, current->cap_permitted)))
 		    && !capable(CAP_SYS_PTRACE))
 			goto out;
 		/* the same process cannot be attached many times */

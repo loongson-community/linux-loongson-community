@@ -53,6 +53,21 @@ CONFIG_MODVERSIONS=y
 CONFIG_KMOD=y
 
 #
+# I2O device support
+#
+# CONFIG_I2O is not set
+# CONFIG_I2O_PCI is not set
+# CONFIG_I2O_BLOCK is not set
+# CONFIG_I2O_LAN is not set
+# CONFIG_I2O_SCSI is not set
+# CONFIG_I2O_PROC is not set
+
+#
+# Plug and Play support
+#
+# CONFIG_PNP is not set
+
+#
 # Block devices
 #
 CONFIG_BLK_DEV_FD=m
@@ -63,6 +78,7 @@ CONFIG_BLK_DEV_IDE=m
 #
 # CONFIG_BLK_DEV_HD_IDE is not set
 CONFIG_BLK_DEV_IDEDISK=m
+# CONFIG_IDEDISK_MULTI_MODE is not set
 CONFIG_BLK_DEV_IDECD=m
 # CONFIG_BLK_DEV_IDETAPE is not set
 # CONFIG_BLK_DEV_IDEFLOPPY is not set
@@ -82,6 +98,7 @@ CONFIG_BLK_DEV_RAM=m
 # CONFIG_BLK_DEV_XD is not set
 CONFIG_PARIDE_PARPORT=y
 # CONFIG_PARIDE is not set
+# CONFIG_BLK_DEV_IDE_MODES is not set
 # CONFIG_BLK_DEV_HD is not set
 
 #
@@ -276,6 +293,11 @@ CONFIG_RTC=y
 # CONFIG_FTAPE is not set
 
 #
+# USB drivers - not for the faint of heart
+#
+# CONFIG_USB is not set
+
+#
 # Filesystems
 #
 CONFIG_QUOTA=y
@@ -302,7 +324,6 @@ CONFIG_EXT2_FS=y
 #
 # CONFIG_CODA_FS is not set
 CONFIG_NFS_FS=m
-# CONFIG_NFSD_SUN is not set
 CONFIG_SUNRPC=m
 CONFIG_LOCKD=m
 # CONFIG_SMB_FS is not set
@@ -316,6 +337,7 @@ CONFIG_LOCKD=m
 # CONFIG_OSF_PARTITION is not set
 # CONFIG_SMD_DISKLABEL is not set
 # CONFIG_SOLARIS_X86_PARTITION is not set
+# CONFIG_SGI_DISKLABEL is not set
 CONFIG_NLS=y
 
 #
@@ -369,5 +391,4 @@ CONFIG_FONT_8x16=y
 #
 # CONFIG_CROSSCOMPILE is not set
 # CONFIG_MIPS_FPE_MODULE is not set
-# CONFIG_REMOTE_DEBUG is not set
 # CONFIG_MAGIC_SYSRQ is not set

@@ -1,4 +1,4 @@
-/* $Id: semaphore-helper.h,v 1.2 1999/06/10 08:02:41 ralf Exp $
+/* $Id: semaphore-helper.h,v 1.3 1999/06/11 14:30:15 ralf Exp $
  *
  * SMP- and interrupt-safe semaphores helper functions.
  *
@@ -57,7 +57,7 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 {
 	long ret, tmp;
 
-#ifdef __MIPSEL__
+#ifdef __MIPSEB__
         __asm__ __volatile__("
 	.set	mips3
 	.set	push

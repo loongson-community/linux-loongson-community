@@ -53,7 +53,7 @@ spinlock_t io_request_lock = SPIN_LOCK_UNLOCKED;
 /*
  * used to wait on when there are no free requests
  */
-struct wait_queue * wait_for_request = NULL;
+DECLARE_WAIT_QUEUE_HEAD(wait_for_request);
 
 /* This specifies how many sectors to read ahead on the disk.  */
 
@@ -208,7 +208,7 @@ static inline struct request * get_request(int n, kdev_t dev)
 static struct request * __get_request_wait(int n, kdev_t dev)
 {
 	register struct request *req;
-	struct wait_queue wait = { current, NULL };
+	DECLARE_WAITQUEUE(wait, current);
 	unsigned long flags;
 
 	add_wait_queue(&wait_for_request, &wait);
@@ -471,6 +471,8 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	     case IDE3_MAJOR:
 	     case IDE4_MAJOR:
 	     case IDE5_MAJOR:
+	     case IDE6_MAJOR:
+	     case IDE7_MAJOR:
 	     case ACSI_MAJOR:
 	     case MFM_ACORN_MAJOR:
 		/*
@@ -497,6 +499,7 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	     case SCSI_DISK6_MAJOR:
 	     case SCSI_DISK7_MAJOR:
 	     case SCSI_CDROM_MAJOR:
+	     case I2O_MAJOR:
 
 		do {
 			if (req->sem)

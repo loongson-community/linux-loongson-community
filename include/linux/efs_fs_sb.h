@@ -31,7 +31,6 @@ struct efs_super {
 	short		fs_heads;       /* heads per cylinder */
 	short		fs_ncg;         /* # of cylinder groups in filesystem */
 	short		fs_dirty;       /* fs needs to be fsck'd */
-	short		fs_filler;	/* force fs_time to start 2bytes later*/
 	int32_t		fs_time;        /* last super-block update */
 	int32_t		fs_magic;       /* magic number */
 	char		fs_fname[6];    /* file system name */

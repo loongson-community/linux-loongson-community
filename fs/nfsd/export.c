@@ -64,7 +64,7 @@ static int			initialized = 0;
 static int			hash_lock = 0;
 static int			want_lock = 0;
 static int			hash_count = 0;
-static struct wait_queue *	hash_wait = NULL;
+static DECLARE_WAIT_QUEUE_HEAD(	hash_wait );
 
 #define READLOCK		0
 #define WRITELOCK		1
@@ -168,9 +168,8 @@ else
 					}
 				} while (NULL != (exp = exp->ex_next));
 		} while (nfsd_parentdev(&xdev));
-		if (xdentry == xdentry->d_parent) {
+		if (IS_ROOT(xdentry))
 			break;
-		}
 	} while ((xdentry = xdentry->d_parent));
 	exp = NULL;
 out:
@@ -204,7 +203,7 @@ dprintk("nfsd: exp_child mount under submount.\n");
 #endif
 						goto out;
 					}
-					if (ndentry == ndentry->d_parent)
+					if (IS_ROOT(ndentry))
 						break;
 				}
 		} while (NULL != (exp = exp->ex_next));

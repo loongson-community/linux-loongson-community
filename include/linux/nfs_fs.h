@@ -79,6 +79,8 @@ do { \
 #define NFS_FLAGS(inode)		((inode)->u.nfs_i.flags)
 #define NFS_REVALIDATING(inode)		(NFS_FLAGS(inode) & NFS_INO_REVALIDATE)
 #define NFS_WRITEBACK(inode)		((inode)->u.nfs_i.writeback)
+#define NFS_COOKIES(inode)		((inode)->u.nfs_i.cookies)
+#define NFS_DIREOF(inode)		((inode)->u.nfs_i.direof)
 
 /*
  * These are the default flags for swap requests
@@ -100,7 +102,7 @@ struct nfs_wreq {
 	struct rpc_task		wb_task;	/* RPC task */
 	struct file *		wb_file;	/* dentry referenced */
 	struct page *		wb_page;	/* page to be written */
-	struct wait_queue *	wb_wait;	/* wait for completion */
+	wait_queue_head_t	wb_wait;	/* wait for completion */
 	unsigned int		wb_offset;	/* offset within page */
 	unsigned int		wb_bytes;	/* dirty range */
 	unsigned int		wb_count;	/* user count */
@@ -139,9 +141,6 @@ extern int nfs_proc_setattr(struct nfs_server *server, struct nfs_fh *fhandle,
 extern int nfs_proc_lookup(struct nfs_server *server, struct nfs_fh *dir,
 			const char *name, struct nfs_fh *fhandle,
 			struct nfs_fattr *fattr);
-extern int nfs_proc_readlink(struct nfs_server *server, struct nfs_fh *fhandle,
-			void **p0, char **string, unsigned int *len,
-			unsigned int maxlen);
 extern int nfs_proc_read(struct nfs_server *server, struct nfs_fh *fhandle,
 			int swap, unsigned long offset, unsigned int count,
 			void *buffer, struct nfs_fattr *fattr);
@@ -166,8 +165,6 @@ extern int nfs_proc_mkdir(struct nfs_server *server, struct nfs_fh *dir,
 			struct nfs_fh *fhandle, struct nfs_fattr *fattr);
 extern int nfs_proc_rmdir(struct nfs_server *server, struct nfs_fh *dir,
 			const char *name);
-extern int nfs_proc_readdir(struct nfs_server *server, struct nfs_fh *fhandle,
-			u32 cookie, unsigned int size, __u32 *entry);
 extern int nfs_proc_statfs(struct nfs_server *server, struct nfs_fh *fhandle,
 			struct nfs_fsinfo *res);
 
@@ -195,9 +192,7 @@ extern struct inode_operations nfs_file_inode_operations;
  */
 extern struct inode_operations nfs_dir_inode_operations;
 extern struct dentry_operations nfs_dentry_operations;
-extern void nfs_free_dircache(void);
 extern void nfs_invalidate_dircache(struct inode *);
-extern void nfs_invalidate_dircache_sb(struct super_block *);
 
 /*
  * linux/fs/nfs/symlink.c
@@ -228,7 +223,7 @@ extern int  nfs_wb_file(struct inode *, struct file *);
  * back first..
  */
 extern void nfs_inval(struct inode *);
-extern int  nfs_updatepage(struct file *, struct page *, unsigned long, unsigned int, int);
+extern int  nfs_updatepage(struct file *, struct page *, unsigned long, unsigned int);
 
 /*
  * linux/fs/nfs/read.c

@@ -557,7 +557,8 @@ struct cyclades_port {
 	unsigned long		event;
 	unsigned long		last_active;
 	int			count;	/* # of fd on device */
-	int                     x_break;
+	int                     breakon;
+	int                     breakoff;
 	int			blocked_open; /* # of blocked opens */
 	long			session; /* Session of opening process */
 	long			pgrp; /* pgrp of opening process */
@@ -570,9 +571,9 @@ struct cyclades_port {
 	struct tq_struct	tqueue;
 	struct termios		normal_termios;
 	struct termios		callout_termios;
-	struct wait_queue	*open_wait;
-	struct wait_queue	*close_wait;
-	struct wait_queue	*shutdown_wait;
+	wait_queue_head_t	open_wait;
+	wait_queue_head_t	close_wait;
+	wait_queue_head_t	shutdown_wait;
         struct cyclades_monitor mon;
 	unsigned long		jiffies[3];
 	unsigned long		rflush_count;
