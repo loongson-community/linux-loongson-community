@@ -69,6 +69,7 @@ LEAF(lazy_fpu_switch)
 	li	t3, ST0_CU1
 	or	t0, t3
 	mtc0	t0, CP0_STATUS
+	FPU_ENABLE_HAZARD
 
 	beqz	a0, 2f				# Save floating point state
 	 nor	t3, zero, t3
@@ -145,6 +146,7 @@ LEAF(init_fpu)
 	li	t1, ST0_CU1
 	or	t0, t1
 	mtc0	t0, CP0_STATUS
+	FPU_ENABLE_HAZARD
 	sll	t0, t0, 5
 
 	li	t1, FPU_DEFAULT
