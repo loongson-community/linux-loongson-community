@@ -32,10 +32,15 @@ const char *get_system_type(void)
 	}
 }
 
+#if defined(CONFIG_DDB5477)
+void ddb5477_runtime_detection(void);
+#endif
+
 /* [jsun@junsun.net] PMON passes arguments in C main() style */
 void __init prom_init(void)
 {
 	int argc = fw_arg0;
+	char **arg = (char**) fw_arg1;
 	int i;
 
 	/* arg[0] is "g", the rest is boot parameters */

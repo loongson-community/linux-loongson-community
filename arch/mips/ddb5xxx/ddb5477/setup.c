@@ -151,7 +151,6 @@ extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 static void __init ddb_timer_setup(struct irqaction *irq)
 {
 #if defined(USE_CPU_COUNTER_TIMER)
-	unsigned int count;
 
         /* we are using the cpu counter for timer interrupts */
 	setup_irq(CPU_IRQ_BASE + 7, irq);
@@ -168,6 +167,7 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 
 static void ddb5477_board_init(void);
 extern void ddb5477_irq_setup(void);
+extern void (*irq_setup)(void);
 
 #if defined(CONFIG_BLK_DEV_INITRD)
 extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
@@ -176,7 +176,7 @@ extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
 extern struct pci_controller ddb5477_ext_controller;
 extern struct pci_controller ddb5477_io_controller;
 
-static void __init ddb5477_setup(void)
+static int  ddb5477_setup(void)
 {
 	extern int panic_timeout;
 
@@ -212,6 +212,8 @@ static void __init ddb5477_setup(void)
 
 	register_pci_controller (&ddb5477_ext_controller);
 	register_pci_controller (&ddb5477_io_controller);
+
+	return 0;
 }
 
 early_initcall(ddb5477_setup);

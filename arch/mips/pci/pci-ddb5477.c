@@ -88,16 +88,11 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  1, AD:12 */ 0xff,
 	/* SLOT:  2, AD:13 */ 0xff,
 	/* SLOT:  3, AD:14 */ 0xff,
-						/* SLOT:  4, AD:15 */ VRC5477_IRQ_INTA,
-						/* onboard tulip */
-						/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTB,
-						/* slot 1 */
-						/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTC,
-						/* slot 2 */
-						/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD,
-						/* slot 3 */
-						/* SLOT:  8, AD:19 */ VRC5477_IRQ_INTE,
-						/* slot 4 */
+	/* SLOT:  4, AD:15 */ VRC5477_IRQ_INTA, /* onboard tulip */
+	/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTB, /* slot 1 */
+	/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTC, /* slot 2 */
+	/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD, /* slot 3 */
+	/* SLOT:  8, AD:19 */ VRC5477_IRQ_INTE, /* slot 4 */
 	/* SLOT:  9, AD:20 */ 0xff,
 	/* SLOT: 10, AD:21 */ 0xff,
 	/* SLOT: 11, AD:22 */ 0xff,
@@ -107,31 +102,21 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT: 15, AD:26 */ 0xff,
 	/* SLOT: 16, AD:27 */ 0xff,
 	/* SLOT: 17, AD:28 */ 0xff,
-							/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC,
-							/* vrc5477 ac97 */
-							/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB,
-							/* vrc5477 usb peri */
-							/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA,
-							/* vrc5477 usb host */
+	/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC, /* vrc5477 ac97 */
+	/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB, /* vrc5477 usb peri */
+	/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA, /* vrc5477 usb host */
 };
 static unsigned char rockhopperII_irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  0, AD:11 */ 0xff,
-						/* SLOT:  1, AD:12 */ VRC5477_IRQ_INTB,
-						/* onboard AMD PCNET */
+	/* SLOT:  1, AD:12 */ VRC5477_IRQ_INTB, /* onboard AMD PCNET */
 	/* SLOT:  2, AD:13 */ 0xff,
 	/* SLOT:  3, AD:14 */ 0xff,
-					/* SLOT:  4, AD:15 */ 14,
-					/* M5229 ide ISA irq */
-						/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTD,
-						/* slot 3 */
-						/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTA,
-						/* slot 4 */
-						/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD,
-						/* slot 5 */
-					/* SLOT:  8, AD:19 */ 0,
-					/* M5457 modem nop */
-						/* SLOT:  9, AD:20 */ VRC5477_IRQ_INTA,
-						/* slot 2 */
+	/* SLOT:  4, AD:15 */ 14, /* M5229 ide ISA irq */
+	/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTD, /* slot 3 */
+	/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTA, /* slot 4 */
+	/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD, /* slot 5 */
+	/* SLOT:  8, AD:19 */ 0, /* M5457 modem nop */
+	/* SLOT:  9, AD:20 */ VRC5477_IRQ_INTA, /* slot 2 */
 	/* SLOT: 10, AD:21 */ 0xff,
 	/* SLOT: 11, AD:22 */ 0xff,
 	/* SLOT: 12, AD:23 */ 0xff,
@@ -139,55 +124,55 @@ static unsigned char rockhopperII_irq_map[MAX_SLOT_NUM] = {
 	/* SLOT: 14, AD:25 */ 0xff,
 	/* SLOT: 15, AD:26 */ 0xff,
 	/* SLOT: 16, AD:27 */ 0xff,
-					/* SLOT: 17, AD:28 */ 0,
-					/* M7101 PMU nop */
-							/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC,
-							/* vrc5477 ac97 */
-							/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB,
-							/* vrc5477 usb peri */
-							/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA,
-							/* vrc5477 usb host */
+	/* SLOT: 17, AD:28 */ 0, /* M7101 PMU nop */
+	/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC, /* vrc5477 ac97 */
+	/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB, /* vrc5477 usb peri */
+	/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA, /* vrc5477 usb host */
 };
 
-void __init pcibios_fixup_irqs(void)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	struct pci_dev *dev = NULL;
 	int slot_num;
 	unsigned char *slot_irq_map;
 	unsigned char irq;
+
+	/* 
+	 * We ignore the swizzled slot and pin values.  The original
+	 * pci_fixup_irq() codes largely base irq number on the dev slot 
+	 * numbers because except for one case they are unique even
+	 * though there are multiple pci buses.
+	 */
 
 	if (mips_machtype == MACH_NEC_ROCKHOPPERII)
 		slot_irq_map = rockhopperII_irq_map;
 	else
 		slot_irq_map = irq_map;
 
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		slot_num = PCI_SLOT(dev->devfn);
-		irq = slot_irq_map[slot_num];
+	slot_num = PCI_SLOT(dev->devfn);
+	irq = slot_irq_map[slot_num];
 
-		db_assert(slot_num < MAX_SLOT_NUM);
+	db_assert(slot_num < MAX_SLOT_NUM);
 
-		db_assert(irq != 0xff);
+	db_assert(irq != 0xff);
 
-		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
+	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
 
-		dev->irq = irq;
-
-		if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
-			/* hack to distinquish overlapping slot 20s, one
-			 * on bus 0 (ALI USB on the M1535 on the backplane), 
-			 * and one on bus 2 (NEC USB controller on the CPU board)
-			 * Make the M1535 USB - ISA IRQ number 9.
-			 */
-			if (slot_num == 20 && dev->bus->number == 0) {
-				pci_write_config_byte(dev,
-						      PCI_INTERRUPT_LINE,
-						      9);
-				dev->irq = 9;
-			}
+	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
+		/* hack to distinquish overlapping slot 20s, one
+		 * on bus 0 (ALI USB on the M1535 on the backplane), 
+		 * and one on bus 2 (NEC USB controller on the CPU board)
+		 * Make the M1535 USB - ISA IRQ number 9.
+		 */
+		if (slot_num == 20 && dev->bus->number == 0) {
+			pci_write_config_byte(dev,
+					      PCI_INTERRUPT_LINE,
+					      9);
+			irq = 9;
 		}
 
 	}
+
+	return irq;
 }
 
 void ddb_pci_reset_bus(void)
