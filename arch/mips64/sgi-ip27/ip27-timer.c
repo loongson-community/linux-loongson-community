@@ -90,15 +90,16 @@ static int set_rtc_mmss(unsigned long nowtime)
 void rt_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
+	int cpuA = ((cputoslice(smp_processor_id())) == 0);
 	int user = user_mode(regs);
 	int irq = 7;				/* XXX Assign number */
 
 	write_lock(&xtime_lock);
 
 again:
-	LOCAL_HUB_S(PI_RT_PEND_A, 0);		/* Ack  */
+	LOCAL_HUB_S(cpuA ? PI_RT_PEND_A : PI_RT_PEND_B, 0);	/* Ack  */
 	ct_cur += CYCLES_PER_JIFFY;
-	LOCAL_HUB_S(PI_RT_COMPARE_A, ct_cur);
+	LOCAL_HUB_S(cpuA ? PI_RT_COMPARE_A : PI_RT_COMPARE_B, ct_cur);
 
 	if (LOCAL_HUB_L(PI_RT_COUNT) >= ct_cur)
 		goto again;
