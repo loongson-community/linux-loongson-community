@@ -142,7 +142,7 @@ static struct resource pcimt_mem_resources[] = {
 	{ "PCI INT Acknowledge", 0x1a000000, 0x1a000003, IORESOURCE_BUSY },
 	{ "Boot PROM", 0x1fc00000, 0x1fc7ffff, IORESOURCE_BUSY},
 	{ "Diag PROM", 0x1fc80000, 0x1fcfffff, IORESOURCE_BUSY},
-	{ "X Bus", 0x1fd00000, 0x1fdfffff, IORESOURCE_BUSY},
+	{ "X-Bus", 0x1fd00000, 0x1fdfffff, IORESOURCE_BUSY},
 	{ "BIOS map", 0x1fe00000, 0x1fefffff, IORESOURCE_BUSY},
 	{ "NVRAM / EEPROM", 0x1ff00000, 0x1ff7ffff, IORESOURCE_BUSY},
 	{ "ASIC PCI", 0x1fff0000, 0x1fffefff, IORESOURCE_BUSY},
