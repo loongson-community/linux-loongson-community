@@ -29,11 +29,8 @@ int __compute_return_epc(struct pt_regs *regs)
 	union mips_instruction insn;
 
 	epc = regs->cp0_epc;
-	if (epc & 3) {
-		printk("%s: unaligned epc - sending SIGBUS.\n", current->comm);
-		force_sig(SIGBUS, current);
-		return -EFAULT;
-	}
+	if (epc & 3)
+		goto unaligned;
 
 	/*
 	 * Read the instruction
@@ -197,4 +194,9 @@ int __compute_return_epc(struct pt_regs *regs)
 	}
 
 	return 0;
+
+unaligned:
+	printk("%s: unaligned epc - sending SIGBUS.\n", current->comm);
+	force_sig(SIGBUS, current);
+	return -EFAULT;
 }
