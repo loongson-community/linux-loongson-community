@@ -86,7 +86,7 @@ static inline void r4k_blast_dcache_page_indexed_setup(void)
 
 static void (* r4k_blast_dcache)(void);
 
-static void r4k_blast_dcache_setup(void)
+static inline void r4k_blast_dcache_setup(void)
 {
 	unsigned long dc_lsize = cpu_dcache_line_size();
 
