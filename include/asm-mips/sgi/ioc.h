@@ -201,6 +201,24 @@ struct sgioc_regs {
 #define SGIOC_WRITE_MHI		0x80	/* 1=5.25V 0=+5V */
 	u32 _unused6;
 	struct sgint_regs int3;
+	u32 _unused7[15];
+	volatile u32 extio;		/* FullHouse only */
+#define EXTIO_S0_IRQ_3		0x8000	/* S0: vid.vsync */
+#define EXTIO_S0_IRQ_2		0x4000	/* S0: gfx.fifofull */
+#define EXTIO_S0_IRQ_1		0x2000	/* S0: gfx.int */
+#define EXTIO_S0_RETRACE	0x1000
+#define EXTIO_SG_IRQ_3		0x0800	/* SG: vid.vsync */
+#define EXTIO_SG_IRQ_2		0x0400	/* SG: gfx.fifofull */
+#define EXTIO_SG_IRQ_1		0x0200	/* SG: gfx.int */
+#define EXTIO_SG_RETRACE	0x0100
+#define EXTIO_GIO_33MHZ		0x0080
+#define EXTIO_EISA_BUSERR	0x0040
+#define EXTIO_MC_BUSERR		0x0020
+#define EXTIO_HPC3_BUSERR	0x0010
+#define EXTIO_S0_STAT_1		0x0008
+#define EXTIO_S0_STAT_0		0x0004
+#define EXTIO_SG_STAT_1		0x0002
+#define EXTIO_SG_STAT_0		0x0001
 };
 
 extern struct sgioc_regs *sgioc;
