@@ -55,7 +55,10 @@ if [ "$CONFIG_UFS_FS" != "n" ]; then
   bool '   UFS filesystem write support (experimental)' CONFIG_UFS_FS_WRITE
 fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-  tristate 'SGI EFS filesystem support' CONFIG_EFS_FS
+  tristate 'SGI EFS filesystem support (read only) (experimental)' CONFIG_EFS_FS
+  if [ "$CONFIG_EFS_FS" != "n" ]; then
+    define_bool CONFIG_SGI_PARTITION y
+  fi
 fi
 
 if [ "$CONFIG_NET" = "y" ]; then

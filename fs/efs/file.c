@@ -6,7 +6,7 @@
  * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/efs.h>
+#include <linux/efs_fs.h>
 
 static struct file_operations efs_file_operations = {
 	NULL,			/* lseek */

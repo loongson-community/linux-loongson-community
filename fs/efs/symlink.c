@@ -6,7 +6,7 @@
  * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/efs.h>
+#include <linux/efs_fs.h>
 
 static int
 	efs_readlink(struct dentry *, char *, int);
@@ -33,7 +33,7 @@ struct inode_operations efs_symlink_inode_operations = {
 	NULL			/* permission */
 };
 
-static char *efs_linktarget(struct inode *in) {
+static char *efs_linktarget(struct inode *in, int *len) {
 	char *name;
 	struct buffer_head * bh;
 	efs_block_t size = in->i_size;
@@ -69,6 +69,7 @@ static char *efs_linktarget(struct inode *in) {
 	}
   
 	name[size] = (char) 0;
+	if (len) *len = size;
 
 	return name;
 }
@@ -77,7 +78,7 @@ static struct dentry *efs_follow_link(struct dentry *dentry, struct dentry *base
 	char *name;
 	struct inode *inode = dentry->d_inode;
 
-	name = efs_linktarget(inode);
+	name = efs_linktarget(inode, NULL);
 	base = lookup_dentry(name, base, follow);
 	kfree(name);
   
@@ -89,11 +90,8 @@ static int efs_readlink(struct dentry * dir, char * buf, int bufsiz) {
 	char *name;
 	struct inode *inode = dir->d_inode;
   
-	if (bufsiz > 1023) bufsiz = 1023;
-
-	if (!(name = efs_linktarget(inode))) return 0;
-
-	rc = copy_to_user(buf, name, bufsiz) ? -EFAULT : 0;
+	if (!(name = efs_linktarget(inode, &bufsiz))) return 0;
+	rc = copy_to_user(buf, name, bufsiz) ? -EFAULT : bufsiz;
 	kfree(name);
 
 	return rc;

@@ -6,12 +6,12 @@
  * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/efs.h>
+#include <linux/efs_fs.h>
 
 /* search an efs directory inode for the given name */
 
 static uint32_t efs_find_entry(struct inode *inode, const char *name, int len) {
-	struct efs_in_info *ini = (struct efs_in_info *) &inode->u.generic_ip;
+	struct efs_inode_info *ini = (struct efs_inode_info *) &inode->u.generic_ip;
 	struct buffer_head *bh;
 
 	int			slot, namelen;

@@ -7,14 +7,33 @@
  *              and from work (c) 1998 Mike Shaver.
  */
 
-#include <linux/efs.h>
+#include <linux/efs_fs.h>
+#include <linux/efs_fs_sb.h>
+
+static inline void extent_copy(efs_extent *src, efs_extent *dst) {
+	/*
+	 * this is slightly evil. it doesn't just copy the
+	 * efs_extent from src to dst, it also mangles the bits
+	 * so that dst ends up in cpu byte-order.
+	 */
+
+	dst->cooked.ex_magic  =  (unsigned int) src->raw[0];
+	dst->cooked.ex_bn     = ((unsigned int) src->raw[1] << 16) |
+				((unsigned int) src->raw[2] <<  8) |
+				((unsigned int) src->raw[3] <<  0);
+	dst->cooked.ex_length =  (unsigned int) src->raw[4];
+	dst->cooked.ex_offset = ((unsigned int) src->raw[5] << 16) |
+				((unsigned int) src->raw[6] <<  8) |
+				((unsigned int) src->raw[7] <<  0);
+	return;
+}
 
 void efs_read_inode(struct inode *in) {
 	int i, extents, inode_index;
 	dev_t device;
 	struct buffer_head *bh;
-	struct efs_spb *sbp = (struct efs_spb *)&in->i_sb->u.generic_sbp;
-	struct efs_in_info *ini = (struct efs_in_info *)&in->u.generic_ip;
+	struct efs_sb_info *sbp = (struct efs_sb_info *)&in->i_sb->u.generic_sbp;
+	struct efs_inode_info *ini = (struct efs_inode_info *)&in->u.generic_ip;
 	efs_block_t block, offset;
 	struct efs_dinode *efs_inode;
   
@@ -70,10 +89,8 @@ void efs_read_inode(struct inode *in) {
 
 	/* copy the first 12 extents directly from the inode */
 	for(i = 0; i < EFS_DIRECTEXTENTS; i++) {
-		/* ick. horrible (ab)use of union */
-		ini->extents[i].u1.l = be32_to_cpu(efs_inode->di_u.di_extents[i].u1.l);
-		ini->extents[i].u2.l = be32_to_cpu(efs_inode->di_u.di_extents[i].u2.l);
-		if (i < extents && ini->extents[i].u1.s.ex_magic != 0) {
+		extent_copy(&(efs_inode->di_u.di_extents[i]), &(ini->extents[i]));
+		if (i < extents && ini->extents[i].cooked.ex_magic != 0) {
 			printk("EFS: extent %d has bad magic number in inode %lu\n", i, in->i_ino);
 			brelse(bh);
 			goto read_inode_error;
@@ -136,7 +153,7 @@ read_inode_error:
 }
 
 static inline efs_block_t
-efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_spb *sbi, struct efs_in_info *ini) {
+efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sbp, struct efs_inode_info *ini) {
 	efs_block_t start;
 	efs_block_t length;
 	efs_block_t offset;
@@ -145,12 +162,12 @@ efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_spb *sbi, struct
 	** given an extent and a logical block within a file,
 	** can this block be found within this extent ?
 	*/
-	start  = ptr->u1.s.ex_bn;
-	length = ptr->u2.s.ex_length;
-	offset = ptr->u2.s.ex_offset;
+	start  = ptr->cooked.ex_bn;
+	length = ptr->cooked.ex_length;
+	offset = ptr->cooked.ex_offset;
 
 	if ((block >= offset) && (block < offset+length)) {
-		return(sbi->fs_start + start + block - offset);
+		return(sbp->fs_start + start + block - offset);
 	} else {
 		return 0;
 	}
@@ -159,23 +176,23 @@ efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_spb *sbi, struct
 /* find the disk block number for a given logical file block number */
 
 efs_block_t efs_read_block(struct inode *inode, efs_block_t block) {
-	struct efs_spb *sbi = (struct efs_spb *) &inode->i_sb->u.generic_sbp;
-	struct efs_in_info *ini = (struct efs_in_info *) &inode->u.generic_ip;
+	struct efs_sb_info *sbp = (struct efs_sb_info *) &inode->i_sb->u.generic_sbp;
+	struct efs_inode_info *ini = (struct efs_inode_info *) &inode->u.generic_ip;
 	struct buffer_head *bh;
 
 	efs_block_t result = 0;
 	int indirexts, indirext, imagic;
 	efs_block_t istart, iblock, ilen;
-	int i, last, total, checked;
+	int i, cur, last, total, checked;
 	efs_extent *exts;
-	efs_extent tmp;
+	efs_extent ext;
 
 	last  = ini->lastextent;
 	total = ini->numextents;
 
 	if (total <= EFS_DIRECTEXTENTS) {
 		/* first check the last extent we returned */
-		if ((result = efs_extent_check(&ini->extents[last], block, sbi, ini)))
+		if ((result = efs_extent_check(&ini->extents[last], block, sbp, ini)))
 			return result;
     
 		/* if we only have one extent then nothing can be found */
@@ -186,8 +203,8 @@ efs_block_t efs_read_block(struct inode *inode, efs_block_t block) {
 
 		/* check the stored extents in the inode */
 		/* start with next extent and check forwards */
-		for(i = 0; i < total - 1; i++) {
-			if ((result = efs_extent_check(&ini->extents[(last + i) % total], block, sbi, ini))) {
+		for(i = 1; i < total; i++) {
+			if ((result = efs_extent_check(&ini->extents[(last + i) % total], block, sbp, ini))) {
 				ini->lastextent = i;
 				return result;
 			}
@@ -200,13 +217,19 @@ efs_block_t efs_read_block(struct inode *inode, efs_block_t block) {
 #ifdef DEBUG
 	printk("EFS: indirect search for logical block %u\n", block);
 #endif
-	indirexts = ini->extents[0].u2.s.ex_offset;
+
+	/*
+	 * OPT: this lot is inefficient.
+	 */
+
+	indirexts = ini->extents[0].cooked.ex_offset;
 	checked = 0;
 
 	for(indirext = 0; indirext < indirexts; indirext++) {
-		imagic = ini->extents[indirext].u1.s.ex_magic;
-		istart = ini->extents[indirext].u1.s.ex_bn + sbi->fs_start;
-		ilen   = ini->extents[indirext].u2.s.ex_length;
+		cur = (last + indirext) % indirexts;
+		imagic = ini->extents[cur].cooked.ex_magic;
+		istart = ini->extents[cur].cooked.ex_bn + sbp->fs_start;
+		ilen   = ini->extents[cur].cooked.ex_length;
 
 		for(iblock = istart; iblock < istart + ilen; iblock++) {
 			bh = bread(inode->i_dev, iblock, EFS_BLOCKSIZE);
@@ -214,20 +237,27 @@ efs_block_t efs_read_block(struct inode *inode, efs_block_t block) {
 				printk("EFS: bread() failed at block %d\n", block);
 				return 0;
 			}
+#ifdef DEBUG
+			printk("EFS: read indirect extent block %d\n", iblock-istart);
+#endif
 
-			exts = (struct extent *) bh->b_data;
+			exts = (efs_extent *) bh->b_data;
 			for(i = 0; i < EFS_BLOCKSIZE / sizeof(efs_extent) && checked < total; i++, checked++) {
-				tmp.u1.l = be32_to_cpu(exts[i].u1.l);
-				tmp.u2.l = be32_to_cpu(exts[i].u2.l);
+				/*
+				 * this block might be read-cached
+				 * so fiddle the endianness in a private copy
+				 */
+				extent_copy(&(exts[i]), &ext);
 
-				if (tmp.u1.s.ex_magic != 0) {
+				if (ext.cooked.ex_magic != 0) {
 					printk("EFS: extent %d has bad magic number in block %d\n", i, iblock);
 					brelse(bh);
 					return 0;
 				}
 
-				if ((result = efs_extent_check(&tmp, block, sbi, ini))) {
+				if ((result = efs_extent_check(&ext, block, sbp, ini))) {
 					brelse(bh);
+					ini->lastextent = cur;
 					return result;
 				}
 			}
