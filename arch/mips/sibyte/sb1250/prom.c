@@ -23,6 +23,7 @@
 #include <linux/blkdev.h>
 #include <linux/bootmem.h>
 #include <linux/smp.h>
+#include <linux/initrd.h>
 
 #include <asm/bootinfo.h>
 #include <asm/reboot.h>

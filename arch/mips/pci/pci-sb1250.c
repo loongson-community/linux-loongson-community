@@ -37,6 +37,7 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/console.h>
+#include <linux/tty.h>
 
 #include <asm/io.h>
 
