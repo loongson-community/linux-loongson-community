@@ -3,10 +3,10 @@
  *
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
+ * Copyright (C) 2000 Ralf Baechle
  *
- * Mostly from the sparc64 ioctl32 implementation.
+ * Mostly stolen from the sparc64 ioctl32 implementation.
  */
-
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -23,12 +23,43 @@
 #include <linux/blkpg.h>
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
+#include <linux/auto_fs.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
 
-#define A(__x) ((unsigned long)(__x))
-
 long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
+
+static int w_long(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+	mm_segment_t old_fs = get_fs();
+	int err;
+	unsigned long val;
+	
+	set_fs (KERNEL_DS);
+	err = sys_ioctl(fd, cmd, (unsigned long)&val);
+	set_fs (old_fs);
+	if (!err && put_user((unsigned int) val, (u32 *)arg))
+		return -EFAULT;
+	return err;
+}
+
+static int rw_long(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+	mm_segment_t old_fs = get_fs();
+	int err;
+	unsigned long val;
+
+	if (get_user(val, (u32 *)arg))
+		return -EFAULT;
+	set_fs(KERNEL_DS);
+	err = sys_ioctl(fd, cmd, (unsigned long)&val);
+	set_fs (old_fs);
+	if (!err && put_user(val, (u32 *)arg))
+		return -EFAULT;
+	return err;
+}
+
+#define A(__x) ((unsigned long)(__x))
 
 struct timeval32 {
 	int tv_sec;
@@ -492,18 +523,11 @@ static int mt_ioctl_trans(unsigned int fd, unsigned int cmd, unsigned long arg)
 	return err ? -EFAULT: 0;
 }
 
-static int w_long(unsigned int fd, unsigned int cmd, unsigned long arg)
+#define AUTOFS_IOC_SETTIMEOUT32 _IOWR(0x93,0x64,unsigned int)
+
+static int ioc_settimeout(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
-	mm_segment_t old_fs = get_fs();
-	int err;
-	unsigned long val;
-	
-	set_fs (KERNEL_DS);
-	err = sys_ioctl(fd, cmd, (unsigned long)&val);
-	set_fs (old_fs);
-	if (!err && put_user((unsigned int) val, (u32 *)arg))
-		return -EFAULT;
-	return err;
+	return rw_long(fd, AUTOFS_IOC_SETTIMEOUT, arg);
 }
 
 struct ioctl32_handler {
@@ -692,13 +716,20 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_HANDLER(MTIOCGET32, mt_ioctl_trans),
 	IOCTL32_HANDLER(MTIOCPOS32, mt_ioctl_trans),
 	IOCTL32_HANDLER(MTIOCGETCONFIG32, mt_ioctl_trans),
-	IOCTL32_HANDLER(MTIOCSETCONFIG32, mt_ioctl_trans)
+	IOCTL32_HANDLER(MTIOCSETCONFIG32, mt_ioctl_trans),
 	// MTIOCRDFTSEG
 	// MTIOCWRFTSEG
 	// MTIOCVOLINFO
 	// MTIOCGETSIZE
 	// MTIOCFTFORMAT
 	// MTIOCFTCMD
+
+	IOCTL32_DEFAULT(AUTOFS_IOC_READY),		/* auto_fs.h ioctls */
+	IOCTL32_DEFAULT(AUTOFS_IOC_FAIL),
+	IOCTL32_DEFAULT(AUTOFS_IOC_CATATONIC),
+	IOCTL32_DEFAULT(AUTOFS_IOC_PROTOVER),
+	IOCTL32_HANDLER(AUTOFS_IOC_SETTIMEOUT32, ioc_settimeout),
+	IOCTL32_DEFAULT(AUTOFS_IOC_EXPIRE)
 };
 
 #define NR_IOCTL32_HANDLERS	(sizeof(ioctl32_handler_table) /	\
