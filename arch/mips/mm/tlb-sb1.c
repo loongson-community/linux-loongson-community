@@ -38,13 +38,13 @@ static inline void dump_cur_tlb_regs(void)
 		"     tlbr             \n"
 		"     dmfc0  $1, $10   \n"
 		"     dsrl32 %0, $1, 0 \n"
-		"     sra    %1, $1, 0 \n"
+		"     sll    %1, $1, 0 \n"
 		"     dmfc0  $1, $2    \n"
 		"     dsrl32 %2, $1, 0 \n"
-		"     sra    %3, $1, 0 \n"
+		"     sll    %3, $1, 0 \n"
 		"     dmfc0  $1, $3    \n"
 		"     dsrl32 %4, $1, 0 \n"
-		"     sra    %5, $1, 0 \n"
+		"     sll    %5, $1, 0 \n"
 		"     mfc0   %6, $5    \n"
 		".set pop              \n"
 		: "=r" (entryhihi),
@@ -63,7 +63,11 @@ static inline void dump_cur_tlb_regs(void)
 
 void sb1_dump_tlb(void)
 {
+	unsigned long old_ctx;
+	unsigned long flags;
 	int entry;
+	__save_and_cli(flags);
+	old_ctx = get_entryhi();
 	printk("Current TLB registers state:\n"
 	       "      EntryHi       EntryLo0          EntryLo1     PageMask  Index\n"
 	       "--------------------------------------------------------------------\n");
@@ -83,6 +87,8 @@ void sb1_dump_tlb(void)
 		dump_cur_tlb_regs();
 	}
 	printk("\n");
+	set_entryhi(old_ctx);
+	__restore_flags(flags);
 }
 
 void local_flush_tlb_all(void)

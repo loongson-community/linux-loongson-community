@@ -37,13 +37,13 @@ static inline void dump_cur_tlb_regs(void)
 		"     tlbr             \n"
 		"     dmfc0  $1, $10   \n"
 		"     dsrl32 %0, $1, 0 \n"
-		"     sra    %1, $1, 0 \n"
+		"     sll    %1, $1, 0 \n"
 		"     dmfc0  $1, $2    \n"
 		"     dsrl32 %2, $1, 0 \n"
-		"     sra    %3, $1, 0 \n"
+		"     sll    %3, $1, 0 \n"
 		"     dmfc0  $1, $3    \n"
 		"     dsrl32 %4, $1, 0 \n"
-		"     sra    %5, $1, 0 \n"
+		"     sll    %5, $1, 0 \n"
 		"     mfc0   %6, $5    \n"
 		".set pop              \n"
 		: "=r" (entryhihi),
@@ -62,7 +62,11 @@ static inline void dump_cur_tlb_regs(void)
 
 void sb1_dump_tlb(void)
 {
+	unsigned long old_ctx;
+	unsigned long flags;
 	int entry;
+	__save_and_cli(flags);
+	old_ctx = get_entryhi();
 	printk("Current TLB registers state:\n"
 	       "      EntryHi       EntryLo0          EntryLo1     PageMask  Index\n"
 	       "--------------------------------------------------------------------\n");
@@ -83,6 +87,8 @@ void sb1_dump_tlb(void)
 		dump_cur_tlb_regs();
 	}
 	printk("\n");
+	set_entryhi(old_ctx);
+	__restore_flags(flags);
 }
 
 void local_flush_tlb_all(void)
@@ -145,18 +151,18 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 
 	__save_and_cli(flags);
 	cpu = smp_processor_id();
-	if(CPU_CONTEXT(cpu, mm) != 0) {
+	if (CPU_CONTEXT(cpu, mm) != 0) {
 		int size;
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
-		if(size <= (mips_cpu.tlbsize/2)) {
+		if (size <= (mips_cpu.tlbsize/2)) {
 			int oldpid = (get_entryhi() & 0xff);
 			int newpid = (CPU_CONTEXT(cpu, mm) & 0xff);
 
 			start &= (PAGE_MASK << 1);
 			end += ((PAGE_SIZE << 1) - 1);
 			end &= (PAGE_MASK << 1);
-			while(start < end) {
+			while (start < end) {
 				int idx;
 
 				set_entryhi(start | newpid);
@@ -166,7 +172,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				set_entrylo0(0);
 				set_entrylo1(0);
 				set_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
-				if(idx < 0)
+				if (idx < 0)
 					continue;
 				tlb_write_indexed();
 			}
@@ -195,6 +201,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 		start &= (PAGE_MASK << 1);
 		end += ((PAGE_SIZE << 1) - 1);
 		end &= (PAGE_MASK << 1);
+
 		while (start < end) {
 			int idx;
 
@@ -215,7 +222,6 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	}
 	__restore_flags(flags);
 }
-
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
