@@ -181,10 +181,6 @@ static int isBranchInstr(mips_instruction * i)
 			ctx->regs[x & ~((xcp->cp0_status & FR_BIT) == 0)])
 #define DITOREG(di,x)	(ctx->regs[x & ~((xcp->cp0_status & FR_BIT) == 0)] \
 			= (di))
-#define DIFROMREG(di,x)	((di) = \
-			ctx->regs[x & ~((xcp->cp0_status & FR_BIT) == 0)])
-#define DITOREG(di,x)	(ctx->regs[x & ~((xcp->cp0_status & FR_BIT) == 0)] \
-			= (di))
 
 #define SPFROMREG(sp,x)	SIFROMREG((sp).bits,x)
 #define SPTOREG(sp,x)	SITOREG((sp).bits,x)
