@@ -434,10 +434,10 @@ ioc3_rx(struct ioc3_private *ip)
 
 	skb = ip->rx_skbs[rx_entry];
 	rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
-	w0 = rxb->w0;
+	w0 = be32_to_cpu(rxb->w0);
 
 	while (w0 & ERXBUF_V) {
-		err = rxb->err;				/* It's valid ...  */
+		err = be32_to_cpu(rxb->err);		/* It's valid ...  */
 		if (err & ERXBUF_GOODPKT) {
 			len = ((w0 >> ERXBUF_BYTECNT_SHIFT) & 0x7ff) - 4;
 			skb_trim(skb, len);
@@ -478,8 +478,8 @@ ioc3_rx(struct ioc3_private *ip)
 			ip->stats.rx_frame_errors++;
 next:
 		ip->rx_skbs[n_entry] = new_skb;
-		rxr[n_entry] = (0xa5UL << 56) |
-		                ((unsigned long) rxb & TO_PHYS_MASK);
+		rxr[n_entry] = cpu_to_be32((0xa5UL << 56) |
+		                         ((unsigned long) rxb & TO_PHYS_MASK));
 		rxb->w0 = 0;				/* Clear valid flag */
 		n_entry = (n_entry + 1) & 511;		/* Update erpir */
 
@@ -487,7 +487,7 @@ next:
 		rx_entry = (rx_entry + 1) & 511;
 		skb = ip->rx_skbs[rx_entry];
 		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
-		w0 = rxb->w0;
+		w0 = be32_to_cpu(rxb->w0);
 	}
 	ioc3->erpir = (n_entry << 3) | ERPIR_ARM;
 	ip->rx_pi = n_entry;
@@ -1189,8 +1189,8 @@ ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
 			/* Because we reserve afterwards. */
 			skb_put(skb, (1664 + RX_OFFSET));
 			rxb = (struct ioc3_erxbuf *) skb->data;
-			rxr[i] = (0xa5UL << 56)
-				| ((unsigned long) rxb & TO_PHYS_MASK);
+			rxr[i] = cpu_to_be64((0xa5UL << 56) |
+			                ((unsigned long) rxb & TO_PHYS_MASK));
 			skb_reserve(skb, RX_OFFSET);
 		}
 		ip->rx_ci = 0;
@@ -1554,8 +1554,8 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			memset(desc->data + len, 0, ETH_ZLEN - len);
 			len = ETH_ZLEN;
 		}
-		desc->cmd    = len | ETXD_INTWHENDONE | ETXD_D0V;
-		desc->bufcnt = len;
+		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_D0V);
+		desc->bufcnt = cpu_to_be32(len);
 	} else if ((data ^ (data + len)) & 0x4000) {
 		unsigned long b2, s1, s2;
 
@@ -1563,16 +1563,20 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		s1 = b2 - data;
 		s2 = data + len - b2;
 
-		desc->cmd    = len | ETXD_INTWHENDONE | ETXD_B1V | ETXD_B2V;
-		desc->bufcnt = (s1 << ETXD_B1CNT_SHIFT) |
-		               (s2 << ETXD_B2CNT_SHIFT);
-		desc->p1     = (0xa5UL << 56) | (data & TO_PHYS_MASK);
-		desc->p2     = (0xa5UL << 56) | (data & TO_PHYS_MASK);
+		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE |
+		                           ETXD_B1V | ETXD_B2V);
+		desc->bufcnt = cpu_to_be32((s1 << ETXD_B1CNT_SHIFT)
+		                           | (s2 << ETXD_B2CNT_SHIFT));
+		desc->p1     = cpu_to_be64((0xa5UL << 56) |
+                                           (data & TO_PHYS_MASK));
+		desc->p2     = cpu_to_be64((0xa5UL << 56) |
+		                           (data & TO_PHYS_MASK));
 	} else {
 		/* Normal sized packet that doesn't cross a page boundary. */
-		desc->cmd    = len | ETXD_INTWHENDONE | ETXD_B1V;
-		desc->bufcnt = len << ETXD_B1CNT_SHIFT;
-		desc->p1     = (0xa5UL << 56) | (data & TO_PHYS_MASK);
+		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_B1V);
+		desc->bufcnt = cpu_to_be32(len << ETXD_B1CNT_SHIFT);
+		desc->p1     = cpu_to_be64((0xa5UL << 56) |
+		                           (data & TO_PHYS_MASK));
 	}
 
 	BARRIER();
