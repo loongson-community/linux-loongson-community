@@ -52,12 +52,6 @@ config MTD_MS02NV
 	  say M here and read <file:Documentation/modules.txt>.  The module will
 	  be called ms02-nv.o.
 
-config MTD_MS02NV
-	tristate "DEC MS02-NV NVRAM module support"
-	depends on CONFIG_DECSTATION
-	help
-	  Support for NVRAM module on DECstation.
-
 config MTD_SLRAM
 	tristate "Uncached system RAM"
 	depends on MTD
