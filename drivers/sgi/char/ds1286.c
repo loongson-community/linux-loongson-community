@@ -378,7 +378,7 @@ int get_ds1286_status(char *buf)
 
 	get_rtc_time(&tm);
 	hundredth = CMOS_READ(RTC_HUNDREDTH_SECOND);
-	hundredth = BCD_TO_BIN(hundredth);
+	BCD_TO_BIN(hundredth);
 
 	p += sprintf(p,
 	             "rtc_time\t: %02d:%02d:%02d.%02d\n"
