@@ -202,10 +202,14 @@ void output_thread_fpu_defines(void)
 
 	offset("#define THREAD_FCR31   ",
 	       struct task_struct, thread.fpu.hard.fcr31);
+	linefeed;
 }
 
 void output_mm_defines(void)
 {
+	text("/* Size of struct page  */");
+	size("#define STRUCT_PAGE_SIZE   ", struct page);
+	linefeed;
 	text("/* Linux mm_struct offsets. */");
 	offset("#define MM_USERS      ", struct mm_struct, mm_users);
 	offset("#define MM_PGD        ", struct mm_struct, pgd);
