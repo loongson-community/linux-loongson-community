@@ -29,7 +29,6 @@
 
 ieee754sp ieee754sp_sqrt(ieee754sp x)
 {
-	int sign = (int) 0x80000000;
 	int ix, s, q, m, t, i;
 	unsigned int r;
 	COMPXSP;
