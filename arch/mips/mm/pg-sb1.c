@@ -21,6 +21,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 #include <linux/config.h>
+#include <asm/page.h>
 
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 #define SB1_PREF_LOAD_STREAMED_HINT "0"
@@ -31,7 +32,7 @@
 #endif
 
 /* These are the functions hooked by the memory management function pointers */
-static void sb1_clear_page(void *page)
+void sb1_clear_page(void *page)
 {
 	/* JDCXXX - This should be bottlenecked by the write buffer, but these
 	   things tend to be mildly unpredictable...should check this on the
@@ -65,7 +66,7 @@ static void sb1_clear_page(void *page)
 
 }
 
-static void sb1_copy_page(void *to, void *from)
+void sb1_copy_page(void *to, void *from)
 {
 
 	/* This should be optimized in assembly...can't use ld/sd, though,
