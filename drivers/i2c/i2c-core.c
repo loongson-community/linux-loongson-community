@@ -1493,6 +1493,15 @@ static void __exit i2c_exit(void)
 #ifdef CONFIG_I2C_RPXLITE
 	extern int i2c_rpx_init(void);
 #endif
+
+#ifdef CONFIG_I2C_ALGO_SIBYTE
+	extern int i2c_algo_sibyte_init(void);
+	extern int i2c_sibyte_init(void);
+#endif
+#ifdef CONFIG_I2C_MAX1617
+	extern int i2c_max1617_init(void);
+#endif
+
 #ifdef CONFIG_I2C_PROC
 	extern int sensors_init(void);
 #endif
@@ -1536,6 +1545,15 @@ int __init i2c_init_all(void)
 #endif
 #ifdef CONFIG_I2C_RPXLITE
 	i2c_rpx_init();
+#endif
+
+	/* --------------------- SiByte -------- */
+#ifdef CONFIG_I2C_ALGO_SIBYTE
+	i2c_algo_sibyte_init();
+	i2c_sibyte_init();
+#endif
+#ifdef CONFIG_I2C_MAX1617
+	i2c_max1617_init();
 #endif
 
 	/* -------------- proc interface ---- */

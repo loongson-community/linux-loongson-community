@@ -96,6 +96,8 @@
 #define I2C_DRIVERID_ZR36067	49     /* Zoran 36067 video encoder	*/
 #define I2C_DRIVERID_ZR36120	50     /* Zoran 36120 video encoder	*/
 #define I2C_DRIVERID_24LC32A	51		/* Microchip 24LC32A 32k EEPROM	*/
+#define I2C_DRIVERID_SAA7114H	52     /* video decoder			*/
+#define I2C_DRIVERID_MAX1617	53     /* temp sensor			*/
 
 
 
@@ -166,6 +168,8 @@
 #define I2C_ALGO_MPC8XX 0x110000	/* MPC8xx PowerPC I2C algorithm */
 #define I2C_ALGO_OCP    0x120000	/* IBM or otherwise On-chip I2C algorithm */
 
+#define I2C_ALGO_SIBYTE 0x140000	/* Broadcom SiByte SOCs		*/
+
 #define I2C_ALGO_EXP	0x800000	/* experimental			*/
 
 #define I2C_ALGO_MASK	0xff0000	/* Mask for algorithms		*/
@@ -214,6 +218,9 @@
 
 /* --- PowerPC on-chip adapters						*/
 #define I2C_HW_OCP 0x00	/* IBM on-chip I2C adapter 	*/
+
+/* --- Broadcom SiByte adapters						*/
+#define I2C_HW_SIBYTE	0x00
 
 
 /* --- SMBus only adapters						*/

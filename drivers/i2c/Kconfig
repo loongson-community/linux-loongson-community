@@ -166,6 +166,14 @@ config I2C_IBM_OCP_ADAP
 	tristate "IBM on-chip I2C Adapter"
 	depends on I2C_IBM_OCP_ALGO
 
+config I2C_ALGO_SIBYTE
+	tristate "SiByte SMBus interface"
+	depends on SIBYTE_SB1xxx_SOC && I2C
+
+config I2C_MAX1617
+	tristate "MAX1617 Temperature Sensor"
+	depends on I2C_ALGO_SIBYTE
+
 # This is needed for automatic patch generation: sensors code starts here
 # This is needed for automatic patch generation: sensors code ends here
 config I2C_CHARDEV
