@@ -211,7 +211,12 @@ void __init au1500_setup(void)
 #ifdef CONFIG_FB_E1356
 	if ((argptr = strstr(argptr, "video=")) == NULL) {
 		argptr = prom_getcmdline();
-		strcat(argptr, " video=e1356fb:system:pb1500,mmunalign:1");
+		strcat(argptr, " video=e1356fb:system:pb1500");
+	}
+#elif defined (CONFIG_FB_XPERT98)
+	if ((argptr = strstr(argptr, "video=")) == NULL) {
+		argptr = prom_getcmdline();
+		strcat(argptr, " video=atyfb:1024x768-8@70");
 	}
 #endif // CONFIG_FB_E1356
 
@@ -229,7 +234,11 @@ void __init au1500_setup(void)
 	// Setup PCI bus controller
 	au_writel(0, Au1500_PCI_CMEM);
 	au_writel(0x00003fff, Au1500_CFG_BASE);
+#if defined(__MIPSEB__)
+	au_writel(0xf | (2<<6) | (1<<4), Au1500_PCI_CFG);
+#else
 	au_writel(0xf, Au1500_PCI_CFG);
+#endif
 	au_writel(0xf0000000, Au1500_PCI_MWMASK_DEV);
 	au_writel(0, Au1500_PCI_MWBASE_REV_CCL);
 	au_writel(0x02a00356, Au1500_PCI_STATCMD);
@@ -250,12 +259,13 @@ void __init au1500_setup(void)
 #ifdef CONFIG_RTC
 	rtc_ops = &pb1500_rtc_ops;
 	// Enable the RTC if not already enabled 
-	if (!(readb(0xac000028) & 0x20)) {
-		writeb(readb(0xac000028) | 0x20, 0xac000028);
+	if (!(au_readl(0xac000028) & 0x20)) {
+		printk("enabling clock ...\n");
+		au_writel((au_readl(0xac000028) | 0x20), 0xac000028);
 	}
 	// Put the clock in BCD mode
-	if (readb(0xac00002C) & 0x4) { /* reg B */
-		writeb(readb(0xac00002c) & ~0x4, 0xac00002c);
+	if (readl(0xac00002C) & 0x4) { /* reg B */
+		au_writel(au_readl(0xac00002c) & ~0x4, 0xac00002c);
 		au_sync();
 	}
 #endif
