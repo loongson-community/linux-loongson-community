@@ -59,9 +59,11 @@
 	dsll	t1, NASID_SHFT		# Shift text nasid into place
 	dsll	t2, NASID_SHFT		# Same for data nasid
 	or	t1, t1, t0		# Physical load address of kernel text
-	or	t2, t1, t0		# Physical load address of kernel data
-	dsrl	t1, 6			# Put physical address into place
-	dsrl	t2, 6			# Put physical address into place
+	or	t2, t2, t0		# Physical load address of kernel data
+	dsrl	t1, 12			# 4K pfn
+	dsrl	t2, 12			# 4K pfn
+	dsll	t1, 6			# Get pfn into place
+	dsll	t2, 6			# Get pfn into place
 	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _CACHE_CACHABLE_COW) >> 6)
 	or	t0, t0, t1
 	mtc0	t0, CP0_ENTRYLO0	# physaddr, VG, cach exlwr
