@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.19 1999/02/09 22:54:10 adevries Exp $
+/* $Id: setup.c,v 1.20 1999/02/11 23:50:31 tsbogend Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -33,12 +33,6 @@ void indy_reboot_setup(void);
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
-
-
-#ifdef CONFIG_SGI_HAL2
-extern void sgiaudio_init(void);
-#endif
-
 
 static void sgi_request_region(void)
 {
@@ -161,10 +155,6 @@ __initfunc(void sgi_setup(void))
 	kbd_ops = &sgi_kbd_ops;
 #ifdef CONFIG_PSMOUSE
 	aux_device_present = 0xaa;
-#endif
-
-#ifdef CONFIG_SGI_HAL2
-        sgiaudio_init();
 #endif
 #ifdef CONFIG_VIDEO_VINO
 	init_vino();
