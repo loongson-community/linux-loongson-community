@@ -562,7 +562,7 @@ extern void FASTCALL(wake_up_process(struct task_struct * tsk));
 extern int in_group_p(gid_t);
 extern int in_egroup_p(gid_t);
 
-extern void release(struct task_struct * p);
+extern void release_task(struct task_struct * p);
 
 extern void proc_caches_init(void);
 extern void flush_signals(struct task_struct *);
