@@ -396,12 +396,12 @@ static inline unsigned long ffz(unsigned long word)
 	int b = 0, s;
 
 	word = ~word;
-	s = 32; if (word >> 32 == 0) s = 0; b += s; word >>= s;
-	s = 16; if (word >> 16 == 0) s = 0; b += s; word >>= s;
-	s =  8; if (word >>  8 == 0) s = 0; b += s; word >>= s;
-	s =  4; if (word >>  4 == 0) s = 0; b += s; word >>= s;
-	s =  2; if (word >>  2 == 0) s = 0; b += s; word >>= s;
-	s =  1; if (word >>  1 == 0) s = 0; b += s;
+        s = 32; if (word << 32 != 0) s = 0; b += s; word >>= s;
+        s = 16; if (word << 48 != 0) s = 0; b += s; word >>= s;
+        s =  8; if (word << 56 != 0) s = 0; b += s; word >>= s;
+        s =  4; if (word << 60 != 0) s = 0; b += s; word >>= s;
+        s =  2; if (word << 62 != 0) s = 0; b += s; word >>= s;
+        s =  1; if (word << 63 != 0) s = 0; b += s;
 
 	return b;
 }
