@@ -139,16 +139,6 @@
 #define IVR_SERIAL_PORT_DEFNS
 #endif
 
-#ifdef CONFIG_LASAT
-/* This dummy definition allocates one element in the SERIAL_PORT_DFNS
- * list below. This element is filled out by the the code in serial_init() 
- * in arch/mips/lasat/setup.c which autoselects the configuration based 
- * on machine type. */
-#define LASAT_SERIAL_PORT_DEFNS { },
-#else
-#define LASAT_SERIAL_PORT_DEFNS
-#endif
-
 #ifdef CONFIG_SERIAL_AU1X00
 #include <asm/au1000.h>
 #define AU1X00_SERIAL_PORT_DEFNS                                    \
@@ -373,7 +363,6 @@
 	IVR_SERIAL_PORT_DEFNS           		\
 	ITE_SERIAL_PORT_DEFNS           		\
 	COBALT_SERIAL_PORT_DEFNS			\
-	LASAT_SERIAL_PORT_DEFNS				\
 	EV96100_SERIAL_PORT_DEFNS			\
 	JAZZ_SERIAL_PORT_DEFNS				\
 	STD_SERIAL_PORT_DEFNS				\
