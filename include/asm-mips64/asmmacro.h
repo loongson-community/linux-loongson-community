@@ -14,6 +14,7 @@
 #ifdef CONFIG_CPU_SB1
 #define FPU_ENABLE_HAZARD		\
 	.set    push;           	\
+	.set	noreorder;		\
 	.set    mips64;         	\
 	SSNOP;                  	\
 	bnezl   $0, .+4;        	\
