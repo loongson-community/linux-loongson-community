@@ -29,7 +29,7 @@ enum major_op {
 	ll_op, lwc1_op, lwc2_op, pref_op,
 	lld_op, ldc1_op, ldc2_op, ld_op,
 	sc_op, swc1_op, swc2_op, major_3b_op, /* Opcode 0x3b is unused */
-	scd_op, sdc1_op, sdc2_op, sd_op,
+	scd_op, sdc1_op, sdc2_op, sd_op
 };
 
 /*
@@ -51,7 +51,7 @@ enum spec_op {
 	tge_op, tgeu_op, tlt_op, tltu_op,
 	teq_op, spec5_unused_op, tne_op, spec6_unused_op,
 	dsll_op, spec7_unused_op, dsrl_op, dsra_op,
-	dsll32_op, spec8_unused_op, dsrl32_op, dsra32_op,
+	dsll32_op, spec8_unused_op, dsrl32_op, dsra32_op
 };
 
 /*
@@ -76,7 +76,7 @@ enum cop_op {
 	cfc_op        = 0x02, mtc_op        = 0x04,
 	dmtc_op       = 0x05, ctc_op        = 0x06,
 	bc_op         = 0x08, cop_op        = 0x10,
-	copm_op       = 0x18,
+	copm_op       = 0x18
 };
 
 /*
