@@ -11,6 +11,7 @@
 #define _ASM_IO_H
 
 #include <linux/config.h>
+#include <linux/compiler.h>
 #include <linux/types.h>
 
 #include <asm/addrspace.h>
@@ -169,7 +170,7 @@ extern unsigned long isa_slot_offset;
 #define page_to_phys(page)	((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
 extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
-extern void __iounmap(void *addr);
+extern void __iounmap(volatile void __iomem *addr);
 
 static inline void * __ioremap_mode(unsigned long offset, unsigned long size,
 	unsigned long flags)
@@ -236,7 +237,7 @@ static inline void * __ioremap_mode(unsigned long offset, unsigned long size,
 #define ioremap_uncached_accelerated(offset, size)			\
 	__ioremap_mode((offset), (size), _CACHE_UNCACHED_ACCELERATED)
 
-static inline void iounmap(void *addr)
+static inline void iounmap(volatile void __iomem *addr)
 {
 	if (cpu_has_64bits)
 		return;

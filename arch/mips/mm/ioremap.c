@@ -171,15 +171,14 @@ void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 
 #define IS_KSEG1(addr) (((unsigned long)(addr) & ~0x1fffffffUL) == KSEG1)
 
-void __iounmap(void *addr)
+void __iounmap(volatile void __iomem *addr)
 {
 	struct vm_struct *p;
 
 	if (IS_KSEG1(addr))
 		return;
 
-	vfree((void *) (PAGE_MASK & (unsigned long) addr));
-	p = remove_vm_area((void *) (PAGE_MASK & (unsigned long) addr));
+	p = remove_vm_area((void *) (PAGE_MASK & (unsigned long __force) addr));
 	if (!p) {
 		printk(KERN_ERR "iounmap: bad address %p\n", addr);
 		return;
