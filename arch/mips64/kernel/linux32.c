@@ -1532,6 +1532,15 @@ struct semid_ds32 {
         unsigned short  sem_nsems;              /* no. of semaphores in array */
 };
 
+struct semid64_ds32 {
+	struct ipc64_perm32 sem_perm;
+	__kernel_time_t32 sem_otime;
+	__kernel_time_t32 sem_ctime;
+	unsigned int sem_nsems;
+	unsigned int __unused1;
+	unsigned int __unused2;
+};
+
 struct msqid_ds32
 {
         struct ipc_perm32 msg_perm;
@@ -1589,7 +1598,6 @@ do_sys32_semctl(int first, int second, int third, void *uptr)
 	u32 pad;
 	int err, err2;
 	struct semid64_ds s;
-	struct semid_ds32 *usp;
 	mm_segment_t old_fs;
 
 	if (!uptr)
@@ -1602,7 +1610,6 @@ do_sys32_semctl(int first, int second, int third, void *uptr)
 	else
 		fourth.__pad = (void *)A(pad);
 	switch (third & ~IPC_64) {
-
 	case IPC_INFO:
 	case IPC_RMID:
 	case IPC_SET:
@@ -1619,29 +1626,54 @@ do_sys32_semctl(int first, int second, int third, void *uptr)
 
 	case IPC_STAT:
 	case SEM_STAT:
-		usp = (struct semid_ds32 *)A(pad);
 		fourth.__pad = &s;
 		old_fs = get_fs ();
 		set_fs (KERNEL_DS);
 		err = sys_semctl (first, second, third, fourth);
 		set_fs (old_fs);
-		err2 = put_user(s.sem_perm.key, &usp->sem_perm.key);
-		err2 |= __put_user(s.sem_perm.uid, &usp->sem_perm.uid);
-		err2 |= __put_user(s.sem_perm.gid, &usp->sem_perm.gid);
-		err2 |= __put_user(s.sem_perm.cuid,
-				   &usp->sem_perm.cuid);
-		err2 |= __put_user (s.sem_perm.cgid,
-				    &usp->sem_perm.cgid);
-		err2 |= __put_user (s.sem_perm.mode,
-				    &usp->sem_perm.mode);
-		err2 |= __put_user (s.sem_perm.seq, &usp->sem_perm.seq);
-		err2 |= __put_user (s.sem_otime, &usp->sem_otime);
-		err2 |= __put_user (s.sem_ctime, &usp->sem_ctime);
-		err2 |= __put_user (s.sem_nsems, &usp->sem_nsems);
+
+		if (third & IPC_64) {
+			struct semid64_ds32 *usp64 = (struct semid64_ds32 *) A(pad);
+
+			if (!access_ok(VERIFY_WRITE, usp64, sizeof(*usp64))) {
+				err = -EFAULT;
+				break;
+			}
+			err2 = __put_user(s.sem_perm.key, &usp64->sem_perm.key);
+			err2 |= __put_user(s.sem_perm.uid, &usp64->sem_perm.uid);
+			err2 |= __put_user(s.sem_perm.gid, &usp64->sem_perm.gid);
+			err2 |= __put_user(s.sem_perm.cuid, &usp64->sem_perm.cuid);
+			err2 |= __put_user(s.sem_perm.cgid, &usp64->sem_perm.cgid);
+			err2 |= __put_user(s.sem_perm.mode, &usp64->sem_perm.mode);
+			err2 |= __put_user(s.sem_perm.seq, &usp64->sem_perm.seq);
+			err2 |= __put_user(s.sem_otime, &usp64->sem_otime);
+			err2 |= __put_user(s.sem_ctime, &usp64->sem_ctime);
+			err2 |= __put_user(s.sem_nsems, &usp64->sem_nsems);
+		} else {
+			struct semid_ds32 *usp32 = (struct semid_ds32 *) A(pad);
+
+			if (!access_ok(VERIFY_WRITE, usp32, sizeof(*usp32))) {
+				err = -EFAULT;
+				break;
+			}
+			err2 = __put_user(s.sem_perm.key, &usp32->sem_perm.key);
+			err2 |= __put_user(s.sem_perm.uid, &usp32->sem_perm.uid);
+			err2 |= __put_user(s.sem_perm.gid, &usp32->sem_perm.gid);
+			err2 |= __put_user(s.sem_perm.cuid, &usp32->sem_perm.cuid);
+			err2 |= __put_user(s.sem_perm.cgid, &usp32->sem_perm.cgid);
+			err2 |= __put_user(s.sem_perm.mode, &usp32->sem_perm.mode);
+			err2 |= __put_user(s.sem_perm.seq, &usp32->sem_perm.seq);
+			err2 |= __put_user(s.sem_otime, &usp32->sem_otime);
+			err2 |= __put_user(s.sem_ctime, &usp32->sem_ctime);
+			err2 |= __put_user(s.sem_nsems, &usp32->sem_nsems);
+		}
 		if (err2)
 			err = -EFAULT;
 		break;
 
+	default:
+		err = - EINVAL;
+		break;
 	}
 
 	return err;
