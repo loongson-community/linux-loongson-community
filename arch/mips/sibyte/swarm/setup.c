@@ -31,8 +31,10 @@
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <asm/bootinfo.h>
+#include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/time.h>
+#include <asm/traps.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_genbus.h>
@@ -43,17 +45,23 @@ extern struct rtc_ops *rtc_ops;
 extern struct rtc_ops swarm_rtc_ops;
 
 #ifdef CONFIG_BLK_DEV_IDE
-extern struct ide_ops std_ide_ops;
-#ifdef CONFIG_BLK_DEV_IDE_SIBYTE
 extern struct ide_ops sibyte_ide_ops;
 #endif
-#endif
+
+extern void sb1250_setup(void);
+
+extern int xicor_probe(void);
+extern int xicor_set_time(unsigned long);
+extern unsigned long xicor_get_time(void);
+
+extern int m41t81_probe(void);
+extern int m41t81_set_time(unsigned long);
+extern unsigned long m41t81_get_time(void);
 
 const char *get_system_type(void)
 {
 	return "SiByte " SIBYTE_BOARD_NAME;
 }
-
 
 void __init swarm_timer_setup(struct irqaction *irq)
 {
@@ -66,15 +74,20 @@ void __init swarm_timer_setup(struct irqaction *irq)
         sb1250_time_init();
 }
 
-extern void sb1250_setup(void);
-
-extern int xicor_probe(void);
-extern int xicor_set_time(unsigned long);
-extern unsigned long xicor_get_time(void);
-
-extern int m41t81_probe(void);
-extern int m41t81_set_time(unsigned long);
-extern unsigned long m41t81_get_time(void);
+int swarm_be_handler(struct pt_regs *regs, int is_fixup)
+{
+	if (!is_fixup && (regs->cp0_cause & 4)) {
+		/* Data bus error - print PA */
+#ifdef CONFIG_MIPS64
+		printk("DBE physical address: %010lx\n",
+		       __read_64bit_c0_register($26, 1));
+#else
+		printk("DBE physical address: %010llx\n",
+		       __read_64bit_c0_split($26, 1));
+#endif
+	}
+	return (is_fixup ? MIPS_BE_FIXUP : MIPS_BE_FATAL);
+}
 
 void __init swarm_setup(void)
 {
@@ -85,6 +98,7 @@ void __init swarm_setup(void)
 	panic_timeout = 5;  /* For debug.  */
 
 	board_timer_setup = swarm_timer_setup;
+	board_be_handler = swarm_be_handler;
 
 	if (xicor_probe()) {
 		printk("swarm setup: Xicor 1241 RTC detected.\n");
@@ -113,11 +127,7 @@ void __init swarm_setup(void)
 	       " CFE\n");
 
 #ifdef CONFIG_BLK_DEV_IDE
-#ifdef CONFIG_BLK_DEV_IDE_SIBYTE
 	ide_ops = &sibyte_ide_ops;
-#else
-	ide_ops = &std_ide_ops;
-#endif
 #endif
 
 #ifdef CONFIG_VT

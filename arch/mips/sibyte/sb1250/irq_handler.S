@@ -131,7 +131,7 @@
 	 */
 	la	v0, KSEG1 + A_IMR_CPU0_BASE
 #ifdef CONFIG_SMP
-	lw	t1, TASK_PROCESSOR($28)
+	lw	t1, TI_CPU($28)
 	sll	t1, IMR_REGISTER_SPACING_SHIFT
 	addu	v0, t1
 #endif
