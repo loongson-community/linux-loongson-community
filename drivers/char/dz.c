@@ -23,37 +23,22 @@
 
 #define DEBUG_DZ 1
 
-#include <linux/version.h>
-#ifdef MODULE
-#include <linux/module.h>
-#else
-#define MOD_INC_USE_COUNT
-#define MOD_DEC_USE_COUNT
-#endif
-
 #include <linux/config.h>
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/major.h>
+#include <linux/module.h>
 #include <linux/param.h>
 #include <linux/tqueue.h>
 #include <linux/interrupt.h>
 #include <asm-mips/wbflush.h>
-/* for definition of SERIAL */
 #include <asm/dec/interrupts.h>
 
-/* for definition of struct console */
-#ifdef CONFIG_SERIAL_CONSOLE
-#define CONSOLE_LINE (3)
-#endif				/* ifdef CONFIG_SERIAL_CONSOLE */
-
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(DEBUG_DZ)
 #include <linux/console.h>
-#endif
-
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 #include <linux/serial.h>
@@ -64,13 +49,13 @@
 #include <asm/dec/kn01.h>
 #include <asm/dec/kn02.h>
 
-#ifdef DEBUG_DZ
 #include <linux/ptrace.h>
 #include <linux/fs.h>
 #include <asm/bootinfo.h>
 
+#define CONSOLE_LINE (3)	/* for definition of struct console */
+
 extern int (*prom_printf) (char *,...);
-#endif
 
 #include "dz.h"
 
