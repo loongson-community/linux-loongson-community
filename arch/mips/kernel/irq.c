@@ -4,7 +4,7 @@
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
  *
- * $Id: irq.c,v 1.7 1997/09/26 11:51:33 ralf Exp $
+ * $Id: irq.c,v 1.6 1997/12/01 17:57:28 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -162,6 +162,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
         	} while (action);
 		if (do_random & SA_SAMPLE_RANDOM)
 			add_interrupt_randomness(irq);
+	        unmask_irq (irq);
 		__cli();
 	}
 	irq_exit(cpu, irq);
