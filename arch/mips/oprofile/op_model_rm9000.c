@@ -99,13 +99,11 @@ static irqreturn_t rm9000_perfcount_handler(int irq, void * dev_id,
 	counter2 = counters >> 32;
 
 	if (control & RM9K_COUNTER1_OVERFLOW) {
-		oprofile_add_sample(regs->cp0_epc, !user_mode(regs),
-		                    0, smp_processor_id());
+		oprofile_add_sample(regs, 0);
 		counter1 = reg.reset_counter1;
 	}
 	if (control & RM9K_COUNTER2_OVERFLOW) {
-		oprofile_add_sample(regs->cp0_epc, !user_mode(regs),
-		                    1, smp_processor_id());
+		oprofile_add_sample(regs, 1);
 		counter2 = reg.reset_counter2;
 	}
 
