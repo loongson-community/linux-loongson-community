@@ -1041,6 +1041,8 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev,
 	
 	return 0;
 
+out_free_lp:
+	/* FIXME: a leak */
 out_free_netdev:
 	free_netdev(dev);
 
