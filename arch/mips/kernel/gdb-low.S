@@ -1,13 +1,9 @@
 /*
- * arch/mips/kernel/gdb-low.S
- *
  * gdb-low.S contains the low-level trap handler for the GDB stub.
  *
  * Copyright (C) 1995 Andreas Busse
- *
- * $Id: gdb-low.S,v 1.4 1997/12/01 17:57:26 ralf Exp $
  */
-
+#include <linux/config.h>
 #include <linux/sys.h>
 
 #include <asm/asm.h>
@@ -308,11 +304,18 @@
 		lw	v1,GDB_FR_REG3(sp)
 		lw	v0,GDB_FR_REG2(sp)
 		lw	$1,GDB_FR_REG1(sp)
-		lw	sp,GDB_FR_REG29(sp)		/* Deallocate stack */
+#ifdef CONFIG_CPU_R3000
+		lw	k0, GDB_FR_EPC(sp)
+		lw	sp, GDB_FR_REG29(sp)		/* Deallocate stack */
+		jr	k0
+		rfe
+#else
+		lw	sp, GDB_FR_REG29(sp)		/* Deallocate stack */
 
 		.set	mips3
 		eret
 		.set	mips0
+#endif
 		.set	at
 		.set	reorder
 		END(trap_low)
