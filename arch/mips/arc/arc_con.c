@@ -31,10 +31,7 @@ static kdev_t prom_console_device(struct console *co)
 
 static int __init prom_console_setup(struct console *co, char *options)
 {
-	if (prom_flags & PROM_FLAG_USE_AS_CONSOLE)
-		return 0;
-	else
-		return 1;
+	return !(prom_flags & PROM_FLAG_USE_AS_CONSOLE);
 }
 
 static struct console arc_cons = {
