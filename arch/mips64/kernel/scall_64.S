@@ -147,6 +147,7 @@ illegal_syscall:
 	j	syscall_exit
 	END(handle_sys64)
 
+	.align	3
 sys_call_table:
 	PTR	sys_syscall				/* 5000 */
 	PTR	sys_exit

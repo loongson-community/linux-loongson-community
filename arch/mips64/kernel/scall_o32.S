@@ -532,6 +532,7 @@ out:	jr	ra
 	PTR	\function
 	.endm
 
+	.align	3
 sys_call_table:
 	syscalltable
 
