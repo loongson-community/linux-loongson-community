@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.16 1999/10/09 00:01:43 ralf Exp $
+/* $Id: system.h,v 1.17 1999/10/12 17:33:50 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -221,7 +221,7 @@ extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
 		"1:\tmove\t$1,%2\n\t"
 		"scd\t$1,(%1)\n\t"
 		"beqzl\t$1,1b\n\t"
-		"ll\t%0,(%1)\n\t"
+		"lld\t%0,(%1)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		: "=r" (val), "=r" (m), "=r" (dummy)
