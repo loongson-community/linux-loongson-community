@@ -28,6 +28,8 @@
 
 #include "ieee754int.h"
 
+#define assert(expr) ((void)0)
+
 /* 3bit extended single precision sticky right shift */
 #define SPXSRSXn(rs) \
   (xe += rs, \

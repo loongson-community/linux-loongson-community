@@ -28,6 +28,8 @@
 
 #include "ieee754int.h"
 
+#define assert(expr) ((void)0)
+
 /* 3bit extended double precision sticky right shift */
 #define XDPSRS(v,rs)	\
   ((rs > (DP_MBITS+3))?1:((v) >> (rs)) | ((v) << (64-(rs)) != 0))

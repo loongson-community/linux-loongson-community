@@ -25,13 +25,6 @@
  */
 
 
-#include <limits.h>
-#ifdef __KERNEL__
-#define assert(expr) ((void)0)
-#else
-#include <assert.h>
-#endif
-#include <stdarg.h>
 #include "ieee754dp.h"
 
 int ieee754dp_finite(ieee754dp x)

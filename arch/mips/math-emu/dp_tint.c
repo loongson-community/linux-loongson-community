@@ -25,13 +25,7 @@
  */
 
 
-#include <limits.h>
-#ifdef __KERNEL__
-#define assert(expr) ((void)0)
-#else
-#include <assert.h>
-#endif
-#include <stdarg.h>
+#include <linux/kernel.h>
 #include "ieee754dp.h"
 
 int ieee754dp_tint(ieee754dp x)

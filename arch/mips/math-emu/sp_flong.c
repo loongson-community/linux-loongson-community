@@ -25,14 +25,6 @@
  */
 
 
-#include <limits.h>
-#ifdef __KERNEL__
-#define assert(expr) ((void)0)
-#else
-#include <assert.h>
-#endif
-#include <stdarg.h>
-
 #include "ieee754sp.h"
 
 ieee754sp ieee754sp_flong(long long x)
@@ -43,7 +35,7 @@ ieee754sp ieee754sp_flong(long long x)
 
 	if (x == 0)
 		return ieee754sp_zero(0);
-	if (x == 1 | x == -1)
+	if (x == 1 || x == -1)
 		return ieee754sp_one(x < 0);
 	if (x == 10 || x == -10)
 		return ieee754sp_ten(x < 0);

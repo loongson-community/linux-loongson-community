@@ -25,14 +25,6 @@
  */
 
 
-#include <limits.h>
-#ifdef __KERNEL__
-#define assert(expr) ((void)0)
-#else
-#include <assert.h>
-#endif
-#include <stdarg.h>
-
 #include "ieee754sp.h"
 
 ieee754sp ieee754sp_sub(ieee754sp x, ieee754sp y)

@@ -30,13 +30,6 @@
  */
 
 
-#include <limits.h>
-#ifdef __KERNEL__
-#define assert(expr) ((void)0)
-#else
-#include <assert.h>
-#include <varargs.h>
-#endif
 #include "ieee754int.h"
 
 #define DP_EBIAS	1023
