@@ -211,6 +211,9 @@ static void __init py_rtc_setup(void)
 	write_seqlock(&xtime_lock);
 	xtime.tv_sec = m48t37y_get_time();
 	xtime.tv_nsec = 0;
+
+	set_normalized_timespec(&wall_to_monotonic,
+	                        -xtime.tv_sec, -xtime.tv_nsec);
 	write_sequnlock(&xtime_lock);
 }
 
