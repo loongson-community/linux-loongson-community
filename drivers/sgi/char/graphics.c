@@ -37,6 +37,7 @@
 
 /* The boards */
 #include "newport.h"
+#include <asm/ng1.h>
 
 #ifdef PRODUCTION_DRIVER
 #define enable_gconsole()
@@ -70,6 +71,7 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 
 	case GFX_GETBOARD_INFO: {
 		struct gfx_getboardinfo_args *bia = (void *) arg;
+		struct ng1_info *bi;
 		void   *dest_buf;
 		int    max_len;
 		
@@ -82,13 +84,28 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 
 		if (board >= boards)
 			return -EINVAL;
-		if (max_len < sizeof (struct gfx_getboardinfo_args))
+
+		if (max_len < sizeof (struct ng1_info))
 			return -EINVAL;
-		if (max_len > cards [board].g_board_info_len)
+#if 0
+		/* So, g_board_info_len is being set to zero somewhere,
+		   and it's screwing stuff up.
+		   XXX security!
+		*/
+		if (cards[board].g_board_info_len &&
+		    max_len > cards [board].g_board_info_len)
 			max_len = cards [boards].g_board_info_len;
+#endif
 		i = verify_area (VERIFY_WRITE, dest_buf, max_len);
 		if (i) return i;
-		if (copy_to_user (dest_buf, cards [board].g_board_info, max_len))
+		bi = cards[board].g_board_info;
+#ifdef DEBUG_GRAPHICS
+		printk(KERN_DEBUG "GFX_GETBOARD_INFO: "
+		       "copying data for board %d to %x: \"%s\" (%d/%d)\n",
+		       board, dest_buf,
+		       bi->gfx_info.name, bi->gfx_info.length, max_len);
+#endif
+		if (copy_to_user (dest_buf, bi, max_len))
 			return -EFAULT;
 		return max_len;
 	}
@@ -99,7 +116,12 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		int  r;
 
 		i = verify_area (VERIFY_READ, (void *)arg, sizeof (struct gfx_attach_board_args));
-		if (i) return i;
+		if (i) {
+		    printk(KERN_WARNING
+			   "GFX_ATTACH_BOARD: error %d, args %p\n", i,
+			   (void *)arg);
+		    return i;
+		}
 
 		__get_user_ret (board, &att->board, -EFAULT);
 		__get_user_ret (vaddr, &att->vaddr, -EFAULT);
@@ -111,27 +133,60 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		 * below to find our board information.
 		 */
 		if (board != devnum){
-			printk ("Parameter board does not match the current board\n");
-			return -EINVAL;
+		    printk ("Parameter board does not match the current board\n");
+		    return -EINVAL;
 		}
 		
-		if (board >= boards)
-			return -EINVAL;
+		if (board >= boards) {
+		    printk(KERN_WARNING
+			   "GFX_ATTACH_BOARD: board %d >= max (%d)\n",
+			   board, boards);
+		    return -EINVAL;
+		}
 
 		/* If it is the first opening it, then make it the board owner */
 		if (!cards [board].g_owner)
-			cards [board].g_owner = current;
+		    cards [board].g_owner = current;
 
 		/*
 		 * Ok, we now call mmap on this file, which will end up calling
 		 * sgi_graphics_mmap
 		 */
+#ifdef DEBUG_GRAPHICS
+		if ((unsigned long)vaddr & ~PAGE_MASK) {
+		    printk(KERN_WARNING "GFX_ATTACH_BOARD: "
+			   "vaddr %0#lx isn't a PAGE_SIZE (%0#lx) multiple\n",
+			   vaddr, PAGE_SIZE);
+		    
+		    return -EINVAL;
+		}
+		if (!file->f_op || !file->f_op->mmap) {
+		    printk(KERN_WARNING "GFX_ATTACH_BOARD: "
+			   "mmap is going to suck: f_op = %x, mmap = %x\n",
+			   file->f_op, (file->f_op ? file->f_op->mmap : 0));
+		}
+#endif
+		/*  do we really need to disable before we know that
+		 *  everything worked OK?
+		 */
 		disable_gconsole ();
-		r = do_mmap (file, (unsigned long)vaddr, cards [board].g_regs_size,
-			 PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
-		if (r)
-			return r;
+		r = do_mmap (file, (unsigned long)vaddr,
+			     cards [board].g_regs_size,
+			     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
+		if (r) {
+		    if (r < 0) {
+#ifdef DEBUG_GRAPHICS
+			printk(KERN_WARNING "GFX_ATTACH_BOARD: "
+			       "mmap(/dev/graphics, %x, %lx) failed (%d)\n",
+			       vaddr, cards[board].g_regs_size,
+			       r);
+#endif
+			enable_gconsole();
+		    }
+		    return r;
+		}
 
+		return 0;
 	}
 
 	/* Strange, the real mapping seems to be done at GFX_ATTACH_BOARD,
@@ -238,13 +293,19 @@ static struct vm_operations_struct graphics_mmap = {
 };
 	
 int
-sgi_graphics_mmap (struct inode *inode, struct file *file, struct vm_area_struct *vma)
+sgi_graphics_mmap (struct file *file, struct vm_area_struct *vma)
 {
 	uint size;
 
 	size = vma->vm_end - vma->vm_start;
-	if (vma->vm_offset & ~PAGE_MASK)
+	if (vma->vm_offset & ~PAGE_MASK) {
+#ifdef DEBUG_GRAPHICS
+	    printk(KERN_WARNING "sgi_graphics_mmap: "
+		   "vm_offset %0#lx doesn't fit with PAGE_SIZE %0#lx\n",
+		   vma->vm_offset, PAGE_SIZE);
+#endif
 		return -ENXIO;
+	}
 
 	/* 1. Set our special graphic virtualizer  */
 	vma->vm_ops = &graphics_mmap;
@@ -254,6 +315,7 @@ sgi_graphics_mmap (struct inode *inode, struct file *file, struct vm_area_struct
 		
 	/* final setup */
 	vma->vm_file = file;
+	file->f_count++;
 	return 0;
 }
 	
