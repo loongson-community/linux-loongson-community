@@ -235,8 +235,8 @@
 #define CPU_TX3922		35
 #define CPU_TX3927		36
 #define CPU_AU1000		37
-#define CPU_4KEC		37
-#define CPU_4KSC		38
+#define CPU_4KEC		38
+#define CPU_4KSC		39
 #define CPU_LAST		39
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
