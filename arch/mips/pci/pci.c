@@ -294,6 +294,8 @@ pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 
 #ifdef CONFIG_HOTPLUG
 EXPORT_SYMBOL(pcibios_resource_to_bus);
+EXPORT_SYMBOL(PCIBIOS_MIN_IO);
+EXPORT_SYMBOL(PCIBIOS_MIN_MEM);
 #endif
 
 char *pcibios_setup(char *str)
