@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.15 2000/03/20 22:56:30 kanoj Exp $
+/* $Id: scall_o32.S,v 1.16 2000/03/23 00:30:53 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,8 +19,6 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/unistd.h>
-
-#define DEBUG_MIPS64 1
 
 /* This duplicates the definition from <linux/sched.h> */
 #define PF_TRACESYS	0x00000020	/* tracing system calls */
@@ -220,7 +218,7 @@ illegal_syscall:
 	sys	sys_setuid	1
 	sys	sys_getuid	0
 	sys	sys_stime	1			/* 4025 */
-	sys	sys_ni_syscall	0	/* ptrace */
+	sys	sys32_ptrace	4
 	sys	sys_alarm	1
 	sys	sys_fstat	2
 	sys	sys_ni_syscall	0
