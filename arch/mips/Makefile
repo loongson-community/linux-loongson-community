@@ -140,12 +140,6 @@ LIBS          += arch/mips/arc/arclib.a
 LOADADDR      += 0x80080000
 endif
 
-ifdef CONFIG_COBALT_MICRO_SERVER
-ARCHIVES      += arch/mips/cobalt/cobalt.o
-SUBDIRS       += arch/mips/cobalt
-LOADADDR      += 0x80000000
-endif
-
 ifdef CONFIG_SNI_RM200_PCI
 CORE_FILES    += arch/mips/sni/sni.o
 SUBDIRS       += arch/mips/sni arch/mips/arc
