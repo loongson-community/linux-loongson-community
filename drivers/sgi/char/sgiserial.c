@@ -2247,7 +2247,7 @@ static struct console sgi_console_driver = {
 /*
  *	Register console.
  */
-void __init serial_console_init(void)
+void __init sgi_serial_console_init(void)
 {
 	register_console(&sgi_console_driver);
 }
