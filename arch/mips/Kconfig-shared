@@ -587,7 +587,7 @@ config IT8712
 
 config BOOT_ELF32
 	bool
-	depends on SIBYTE_SB1250 || SGI_IP32 || SGI_IP22 || MIPS_MALTA || MIPS_ATLAS
+	depends on MIPS_ATLAS || MIPS_MALTA || SIBYTE_SB1250 || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
 	default y
 
 config L1_CACHE_SHIFT
