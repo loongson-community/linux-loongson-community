@@ -169,9 +169,8 @@ load-$(CONFIG_SNI_RM200_PCI)	+= 0x80080000
 cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32
 cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32
 
-LDFLAGS_vmlinux			+= -Ttext $(load-y)
-
-AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h \
+		-D"LOADADDR=$(load-y)"
 
 AFLAGS		+= $(cflags-y)
 CFLAGS		+= $(cflags-y)
