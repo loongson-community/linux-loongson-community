@@ -1103,7 +1103,7 @@ static void __init probe_icache(unsigned long config)
 	}
 	ic_lsize = 16 << ((config >> 5) & 1);
 
-	printk("Primary instruction cache %dkb, linesize %ld bytes.\n",
+	printk("Primary instruction cache %ldkb, linesize %ld bytes.\n",
 	       icache_size >> 10, ic_lsize);
 }
 
@@ -1125,7 +1125,7 @@ static void __init probe_dcache(unsigned long config)
 	}
 	dc_lsize = 16 << ((config >> 4) & 1);
 
-	printk("Primary data cache %dkb, linesize %ld bytes.\n",
+	printk("Primary data cache %ldkb, linesize %ld bytes.\n",
 	       dcache_size >> 10, dc_lsize);
 }
 
