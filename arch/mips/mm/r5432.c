@@ -549,6 +549,7 @@ void flush_tlb_all(void)
 {
 	unsigned long old_ctx;
 	int entry;
+	unsigned long flags;
 
 #ifdef DEBUG_TLB
 	printk("[tlball]");
