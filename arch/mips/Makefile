@@ -89,6 +89,9 @@ GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_SB1
 GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
+ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
+MODFLAGS       += -msb1-pass1-workarounds
+endif
 endif
 
 GCCFLAGS	+= -pipe
@@ -273,8 +276,34 @@ endif
 # Au1000 eval board
 #
 ifdef CONFIG_MIPS_PB1000
-LIBS          += arch/mips/au1000/pb1000/pb1000.o arch/mips/au1000/common/au1000.o
+LIBS          += arch/mips/au1000/pb1000/pb1000.o \
+                 arch/mips/au1000/common/au1000.o
 SUBDIRS       += arch/mips/au1000/pb1000 arch/mips/au1000/common
+LOADADDR      += 0x80100000
+endif
+
+#
+# Sibyte SB1250 SOC
+#
+ifdef CONFIG_SIBYTE_SB1250
+# This is a LIB so that it links at the end, and initcalls are later
+# the sequence; but it is built as an object so that modules don't get
+# removed (as happens, even if they have __initcall/module_init)
+LIBS          += arch/mips/sibyte/sb1250/sb1250.o
+SUBDIRS       += arch/mips/sibyte/sb1250 
+endif
+
+#
+# Sibyte SWARM board
+#
+ifdef CONFIG_SB1_CACHE_ERROR
+LIBS          += arch/mips/sibyte/sb1/sb1kern.a
+SUBDIRS       += arch/mips/sibyte/sb1
+endif
+
+ifdef CONFIG_SIBYTE_SWARM
+LIBS          += arch/mips/sibyte/swarm/sbswarm.a
+SUBDIRS       += arch/mips/sibyte/swarm
 LOADADDR      += 0x80100000
 endif
 

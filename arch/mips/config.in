@@ -3,7 +3,6 @@
 # see Documentation/kbuild/config-language.txt.
 #
 define_bool CONFIG_MIPS y
-define_bool CONFIG_SMP n
 
 mainmenu_name "Linux Kernel Configuration"
 
@@ -37,6 +36,38 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
         "Model-300/301/302/319 CONFIG_NINO_4MB \
          Model-200/210/312/320/325/350/390 CONFIG_NINO_8MB \
          Model-500/510 CONFIG_NINO_16MB" CONFIG_NINO_8MB
+   fi
+   bool 'Support for SiByte SB1250 SOC' CONFIG_SIBYTE_SB1250
+   if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+      bool '  Support for SB1250 onchip PCI controller' CONFIG_PCI
+      bool '  Support for SB1250 profiling - SB1/SCD perf counters' CONFIG_SIBYTE_SB1250_PROF
+      bool '  Support for BCM1250 profiling using trace buffer' CONFIG_BCM1250_TBPROF
+      bool '  Remote debugging (kgdb over UART 1)' CONFIG_REMOTE_DEBUG
+      bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
+      if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
+	 bool '    Running under simulation' CONFIG_SIMULATION
+	 bool '    Configure for L3proc Demo' CONFIG_L3DEMO
+	 bool '    Standalone compile (for simulation without firmware)' CONFIG_SWARM_STANDALONE
+	 if [ "$CONFIG_SWARM_STANDALONE" = "y" ]; then
+            int  '      Memory size (in megabytes)' CONFIG_SIBYTE_SWARM_RAM_SIZE 32
+         fi
+	 if [ "$CONFIG_SWARM_STANDALONE" = "n" ]; then
+	    int '      Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
+            bool '      Multi-Processing support' CONFIG_SMP
+	 fi
+	 if [ "$CONFIG_BLK_DEV_INITRD" = "y" ]; then
+	    bool '      Embed root filesystem ramdisk into the kernel' CONFIG_EMBEDDED_RAMDISK 
+	    if [ "$CONFIG_EMBEDDED_RAMDISK" = "y" ]; then
+               choice '      Ramdisk Image to use for root filesystem' \
+	         "Ikos-tiny                   CONFIG_SIBYTE_RAMDISK_IKOS \
+                  Simple-init                 CONFIG_SIBYTE_RAMDISK_SIMPLE_INIT \
+                  General                     CONFIG_SIBYTE_RAMDISK_GENERAL     \
+                  Promice-console             CONFIG_SIBYTE_RAMDISK_PROMICE_CONSOLE\
+                  N+I-demo                    CONFIG_SIBYTE_RAMDISK_NIDEMO\
+                  Screening                   CONFIG_SIBYTE_RAMDISK_SCREENING" General          
+            fi
+         fi
+      fi
    fi
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
@@ -78,6 +109,13 @@ unset CONFIG_PC_KEYB
 
 define_bool CONFIG_MCA n
 define_bool CONFIG_SBUS n
+
+if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+   define_bool CONFIG_COHERENT_IO y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_PCI n
+   define_bool CONFIG_SWAP_IO_SPACE y
+fi
 
 if [ "$CONFIG_MIPS_EV96100" = "y" ]; then
    define_bool CONFIG_PCI y
@@ -266,8 +304,12 @@ choice 'CPU type' \
 	 MIPS32 CONFIG_CPU_MIPS32 \
 	 MIPS64 CONFIG_CPU_MIPS64" R4x00
 
-bool 'Override CPU Options' CONFIG_CPU_ADVANCED
+if [ "$CONFIG_CPU_SB1" = "y" ]; then
+   bool '  Workarounds for pass 1 sb1 bugs' CONFIG_SB1_PASS_1_WORKAROUNDS
+   bool '  Support for SB1 Cache Error handler' CONFIG_SB1_CACHE_ERROR
+fi
 
+bool 'Override CPU Options' CONFIG_CPU_ADVANCED
 if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
    bool '  ll/sc Instructions available' CONFIG_CPU_HAS_LLSC
    bool '  lld/scd Instructions available' CONFIG_CPU_HAS_LLDSCD
