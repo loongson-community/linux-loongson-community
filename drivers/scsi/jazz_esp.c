@@ -6,6 +6,7 @@
  * jazz_esp is based on David S. Miller's ESP driver and cyber_esp
  */
 
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/types.h>
@@ -50,6 +51,40 @@ static volatile unsigned char cmd_buffer[16];
 				 * before they are trasfered to the ESP chip
 				 * via PIO.
 				 */
+
+int jazz_esp_detect(Scsi_Host_Template *tpnt);
+static int jazz_esp_release(struct Scsi_Host *shost)
+{
+	if (shost->irq)
+		free_irq(shost->irq, NULL);
+	if (shost->dma_channel != 0xff)
+		free_dma(shost->dma_channel);
+	if (shost->io_port && shost->n_io_port)
+		release_region(shost->io_port, shost->n_io_port);
+	scsi_unregister(shost);
+	return 0;
+}
+
+static Scsi_Host_Template driver_template = {
+	.proc_name		= "esp",
+	.proc_info		= &esp_proc_info,
+	.name			= "ESP 100/100a/200",
+	.detect			= jazz_esp_detect,
+	.slave_alloc		= esp_slave_alloc,
+	.slave_destroy		= esp_slave_destroy,
+	.release		= jazz_esp_release,
+	.info			= esp_info,
+	.queuecommand		= esp_queue,
+	.eh_abort_handler	= esp_abort,
+	.eh_bus_reset_handler	= esp_reset,
+	.can_queue		= 7,
+	.this_id		= 7,
+	.sg_tablesize		= SG_ALL,
+	.cmd_per_lun		= 1,
+	.use_clustering		= DISABLE_CLUSTERING,
+};
+
+#include "scsi_module.c"
 
 /***************************************************************** Detection */
 int jazz_esp_detect(Scsi_Host_Template *tpnt)
@@ -115,7 +150,7 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 	esp->esp_command = (volatile unsigned char *)cmd_buffer;
 	
 	/* get virtual dma address for command buffer */
-	esp->esp_command_dvma = vdma_alloc(PHYSADDR(cmd_buffer), sizeof (cmd_buffer));
+	esp->esp_command_dvma = vdma_alloc(CPHYSADDR(cmd_buffer), sizeof (cmd_buffer));
 	
 	esp->irq = JAZZ_SCSI_IRQ;
 	request_irq(JAZZ_SCSI_IRQ, esp_intr, SA_INTERRUPT, "JAZZ SCSI",
@@ -137,18 +172,6 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 	return esps_in_use;
     }
     return 0;
-}
-
-static int jazz_esp_release(struct Scsi_Host *shost)
-{
-	if (shost->irq)
-		free_irq(shost->irq, NULL);
-	if (shost->dma_channel != 0xff)
-		free_dma(shost->dma_channel);
-	if (shost->io_port && shost->n_io_port)
-		release_region(shost->io_port, shost->n_io_port);
-	scsi_unregister(shost);
-	return 0;
 }
 
 /************************************************************* DMA Functions */
@@ -232,20 +255,20 @@ static void dma_setup(struct NCR_ESP *esp, __u32 addr, int count, int write)
 
 static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
-    sp->SCp.have_data_in = vdma_alloc(PHYSADDR(sp->SCp.buffer), sp->SCp.this_residual);
+    sp->SCp.have_data_in = vdma_alloc(CPHYSADDR(sp->SCp.buffer), sp->SCp.this_residual);
     sp->SCp.ptr = (char *)((unsigned long)sp->SCp.have_data_in);
 }
 
 static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     int sz = sp->SCp.buffers_residual;
-    struct mmu_sglist *sg = (struct mmu_sglist *) sp->SCp.buffer;
+    struct scatterlist *sg = (struct scatterlist *) sp->SCp.buffer;
     
     while (sz >= 0) {
-	sg[sz].dvma_addr = vdma_alloc(PHYSADDR(sg[sz].addr), sg[sz].len);
+	sg[sz].dma_address = vdma_alloc(CPHYSADDR(page_address(sg[sz].page) + sg[sz].offset), sg[sz].length);
 	sz--;
     }
-    sp->SCp.ptr=(char *)((unsigned long)sp->SCp.buffer->dvma_address);
+    sp->SCp.ptr=(char *)(sp->SCp.buffer->dma_address);
 }    
 
 static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
@@ -256,17 +279,17 @@ static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     int sz = sp->use_sg - 1;
-    struct mmu_sglist *sg = (struct mmu_sglist *)sp->buffer;
+    struct scatterlist *sg = (struct scatterlist *)sp->buffer;
 			
     while(sz >= 0) {
-	vdma_free(sg[sz].dvma_addr);
+	vdma_free(sg[sz].dma_address);
 	sz--;
     }
 }
 
 static void dma_advance_sg (Scsi_Cmnd *sp)
 {
-    sp->SCp.ptr = (char *)((unsigned long)sp->SCp.buffer->dvma_address);
+    sp->SCp.ptr = (char *)(sp->SCp.buffer->dma_address);
 }
 
 #define JAZZ_HDC_LED   0xe000d100 /* FIXME, find correct address */
@@ -284,23 +307,4 @@ static void dma_led_on(struct NCR_ESP *esp)
     *(unsigned char *)JAZZ_HDC_LED = 1;
 #endif    
 }
-
-static Scsi_Host_Template driver_template = {
-	.proc_name		= "esp",
-	.proc_info		= &esp_proc_info,
-	.name			= "ESP 100/100a/200",
-	.detect			= jazz_esp_detect,
-	.slave_alloc		= esp_slave_alloc,
-	.slave_destroy		= esp_slave_destroy,
-	.release		= jazz_esp_release,
-	.info			= esp_info,
-	.queuecommand		= esp_queue,
-	.eh_abort_handler	= esp_abort,
-	.eh_bus_reset_handler	= esp_reset,
-	.can_queue		= 7,
-	.this_id		= 7,
-	.sg_tablesize		= SG_ALL,
-	.cmd_per_lun		= 1,
-	.use_clustering		= DISABLE_CLUSTERING,
-};
 
