@@ -236,7 +236,7 @@ extern void iounmap(void *addr);
 #define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
 #define ____raw_readq(addr)						\
 ({									\
-	u64 res;							\
+	u64 __res;							\
 									\
 	__asm__ __volatile__ (						\
 		"	.set	mips3		# ____raw_readq	\n"	\
@@ -244,22 +244,22 @@ extern void iounmap(void *addr);
 		"	dsra32	%M0, %L0, 0			\n"	\
 		"	sll	%L0, %L0, 0			\n"	\
 		"	.set	mips0				\n"	\
-		: "=r" (res)						\
+		: "=r" (__res)						\
 		: "r" (addr));						\
 									\
-	res;								\
+	__res;								\
 })
 
 #define __raw_readq(addr)						\
 ({									\
-	unsigned long flags;						\
-	u64 res;							\
+	unsigned long __flags;						\
+	u64 __res;							\
 									\
-	local_irq_save(flags);						\
-	res = ____raw_readq(addr);					\
-	local_irq_restore(flags);					\
+	local_irq_save(__flags);					\
+	__res = ____raw_readq(addr);					\
+	local_irq_restore(__flags);					\
 									\
-	res;								\
+	__res;								\
 })
 
 #define readb(addr)		__ioswab8(__raw_readb(addr))
@@ -272,7 +272,7 @@ extern void iounmap(void *addr);
 #define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
 #define ____raw_writeq(val,addr)					\
 ({									\
-	u64 tmp;							\
+	u64 __tmp;							\
 									\
 	__asm__ __volatile__ (						\
 		"	.set	mips3				\n"	\
@@ -282,17 +282,17 @@ extern void iounmap(void *addr);
 		"	or	%L0, %L0, %M0			\n"	\
 		"	sd	%L0, (%2)			\n"	\
 		"	.set	mips0				\n"	\
-		: "=r" (tmp)						\
+		: "=r" (__tmp)						\
 		: "0" ((unsigned long long)val), "r" (addr));		\
 })
 
 #define __raw_writeq(val,addr)						\
 ({									\
-	unsigned long flags;						\
+	unsigned long __flags;						\
 									\
-	local_irq_save(flags);						\
+	local_irq_save(__flags);					\
 	____raw_writeq(val, addr);					\
-	local_irq_restore(flags);					\
+	local_irq_restore(__flags);					\
 })
 
 #define writeb(b,addr)		__raw_writeb(__ioswab8(b),(addr))
