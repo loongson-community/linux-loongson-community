@@ -1,6 +1,4 @@
-/* $Id: vino.c,v 1.5 1999/10/09 00:01:14 ralf Exp $
- * drivers/char/vino.c
- *
+/*
  * (incomplete) Driver for the Vino Video input system found in SGI Indys.
  *
  * Copyright (C) 1999 Ulf Carlsson (ulfc@bun.falkenberg.se)
@@ -57,9 +55,7 @@ static __inline__ unsigned long long vino_reg_read(unsigned long addr)
 		".set\tat\n\t"
 		".set\tmips0"
 		:
-		:"r" (virt_addr),
-		 "r" (&ret)
-		:"$1");
+		:"r" (virt_addr), "r" (&ret));
 	restore_flags(flags);
 
 	return ret;
@@ -83,9 +79,7 @@ static __inline__ void vino_reg_write(unsigned long long value,
 		".set\tat\n\t"
 		".set\tmips0"
 		:
-		:"r" (&value),
-		 "r" (virt_addr)
-		:"$1");
+		:"r" (&value), "r" (virt_addr));
 	restore_flags(flags);
 }
 
@@ -93,45 +87,41 @@ static __inline__ void vino_reg_and(unsigned long long value,
 				    unsigned long addr)
 {
 	unsigned long virt_addr = KSEG1ADDR(addr + VINO_BASE);
-	unsigned long flags;
+	unsigned long tmp, flags;
 
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	__asm__ __volatile__(
-		".set\tmips3\n\t"
+		".set\tmips3\t\t\t# vino_reg_and\n\t"
 		".set\tnoat\n\t"
-		"ld\t$1,(%0)\n\t"
-		"ld\t$2,(%1)\n\t"
-		"and\t$1,$1,$2\n\t"
-		"sd\t$1,(%0)\n\t"
+		"ld\t$1, (%1)\n\t"
+		"ld\t%0, (%2)\n\t"
+		"and\t$1, $1, %0\n\t"
+		"sd\t$1, (%1)\n\t"
 		".set\tat\n\t"
 		".set\tmips0"
-		:
-		:"r" (virt_addr),
-		 "r" (&value)
-		:"$1","$2");
-	restore_flags(flags);
+		: "=&r" (tmp)
+		: "r" (virt_addr), "r" (&value));
+	__restore_flags(flags);
 }
 
 static __inline__ void vino_reg_or(unsigned long long value,
 				   unsigned long addr)
 {
 	unsigned long virt_addr = KSEG1ADDR(addr + VINO_BASE);
-	unsigned long flags;
+	unsigned long tmp, flags;
 
 	save_and_cli(flags);
 	__asm__ __volatile__(
 		".set\tmips3\n\t"
 		".set\tnoat\n\t"
-		"ld\t$1,(%0)\n\t"
-		"ld\t$2,(%1)\n\t"
-		"or\t$1,$1,$2\n\t"
-		"sd\t$1,(%0)\n\t"
+		"ld\t$1, (%1)\n\t"
+		"ld\t%0, (%2)\n\t"
+		"or\t$1, $1, %0\n\t"
+		"sd\t$1, (%1)\n\t"
 		".set\tat\n\t"
 		".set\tmips0"
-		:
-		:"r" (virt_addr),
-		 "r" (&value)
-		:"$1","$2");
+		: "=&r" (tmp)
+		: "r" (virt_addr), "r" (&value));
 	restore_flags(flags);
 }
 
