@@ -61,9 +61,9 @@ struct sgi_serial *zs_chain;  /* IRQ servicing chain */
 static int zilog_irq = SGI_SERIAL_IRQ;
 
 /* Console hooks... */
-static int zs_cons_chanout = 0;
-static int zs_cons_chanin = 0;
-struct sgi_serial *zs_consinfo = 0;
+static int zs_cons_chanout;
+static int zs_cons_chanin;
+struct sgi_serial *zs_consinfo;
 
 static unsigned char kgdb_regs[16] = {
 	0, 0, 0,                     /* write 0, 1, 2 */

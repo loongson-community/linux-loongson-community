@@ -80,8 +80,8 @@ static spinlock_t ds1286_lock = SPIN_LOCK_UNLOCKED;
 #define RTC_IS_OPEN		0x01	/* means /dev/rtc is in use	*/
 #define RTC_TIMER_ON		0x02	/* missed irq timer active	*/
 
-unsigned char ds1286_status = 0;	/* bitmapped status byte.	*/
-unsigned long ds1286_freq = 0;		/* Current periodic IRQ rate	*/
+unsigned char ds1286_status;		/* bitmapped status byte.	*/
+unsigned long ds1286_freq;		/* Current periodic IRQ rate	*/
 
 unsigned char days_in_mo[] = 
 {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
