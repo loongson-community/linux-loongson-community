@@ -56,10 +56,6 @@ extern void (*board_time_init)(void);
 extern void au1x_time_init(void);
 extern void (*board_timer_setup)(struct irqaction *irq);
 extern void au1x_timer_setup(struct irqaction *irq);
-#if defined(CONFIG_64BIT_PHYS_ADDR) && (defined(CONFIG_SOC_AU1500) || defined(CONFIG_SOC_AU1550))
-extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
-static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
-#endif
 extern void au1xxx_time_init(void);
 extern void au1xxx_timer_setup(struct irqaction *irq);
 extern void set_cpuspec(void);
@@ -147,9 +143,6 @@ static int __init au1x00_setup(void)
 	_machine_power_off = au1000_power_off;
 	board_time_init = au1xxx_time_init;
 	board_timer_setup = au1xxx_timer_setup;
-#if defined(CONFIG_64BIT_PHYS_ADDR) && (defined(CONFIG_SOC_AU1500) || defined(CONFIG_SOC_AU1550))
-	fixup_bigphys_addr = au1500_fixup_bigphys_addr;
-#endif
 
 	/* IO/MEM resources. */
 	set_io_port_base(0);
@@ -177,7 +170,7 @@ early_initcall(au1x00_setup);
 
 #if defined(CONFIG_64BIT_PHYS_ADDR) && (defined(CONFIG_SOC_AU1500) || defined(CONFIG_SOC_AU1550))
 /* This routine should be valid for all Au1500 based boards */
-static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size)
+phys_t fixup_bigphys_addr(phys_t phys_addr, phys_t size)
 {
 	u32 pci_start = (u32)Au1500_PCI_MEM_START;
 	u32 pci_end = (u32)Au1500_PCI_MEM_END;
