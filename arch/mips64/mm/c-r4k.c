@@ -614,8 +614,10 @@ static char *way_string[] = { NULL, "direct mapped", "2-way", "3-way", "4-way",
 	"5-way", "6-way", "7-way", "8-way"
 };
 
-static void __init probe_icache(unsigned long config)
+static void __init probe_pcache(void)
 {
+	struct cpuinfo_mips *c = &current_cpu_data;
+	unsigned int config = read_c0_config();
 	unsigned long config1;
 	unsigned int lsize;
 
@@ -625,24 +627,39 @@ static void __init probe_icache(unsigned long config)
 	case CPU_R5000:
 	case CPU_NEVADA:
 		icache_size = 1 << (12 + ((config >> 9) & 7));
-		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
-		current_cpu_data.icache.ways = 2;
-		current_cpu_data.icache.waybit = ffs(icache_size/2) - 1;
+		c->icache.linesz = 16 << ((config >> 5) & 1);
+		c->icache.ways = 2;
+		c->icache.waybit = ffs(icache_size/2) - 1;
+
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		c->dcache.ways = 2;
+		c->dcache.waybit= ffs(dcache_size/2) - 1;
 		break;
 
 	case CPU_R5432:
 	case CPU_R5500:
 		icache_size = 1 << (12 + ((config >> 9) & 7));
-		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
-		current_cpu_data.icache.ways = 2;
-		current_cpu_data.icache.waybit= 0;
+		c->icache.linesz = 16 << ((config >> 5) & 1);
+		c->icache.ways = 2;
+		c->icache.waybit= 0;
+
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		c->dcache.ways = 2;
+		c->dcache.waybit = 0;
 		break;
 
 	case CPU_TX49XX:
 		icache_size = 1 << (12 + ((config >> 9) & 7));
-		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
-		current_cpu_data.icache.ways = 4;
-		current_cpu_data.icache.waybit= 0;
+		c->icache.linesz = 16 << ((config >> 5) & 1);
+		c->icache.ways = 4;
+		c->icache.waybit= 0;
+
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		c->dcache.ways = 4;
+		c->dcache.waybit = 0;
 		break;
 
 	case CPU_R4000PC:
@@ -652,16 +669,26 @@ static void __init probe_icache(unsigned long config)
 	case CPU_R4400SC:
 	case CPU_R4400MC:
 		icache_size = 1 << (12 + ((config >> 9) & 7));
-		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
-		current_cpu_data.icache.ways = 1;
-		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
+		c->icache.linesz = 16 << ((config >> 5) & 1);
+		c->icache.ways = 1;
+		c->icache.waybit = 0; 	/* doesn't matter */
+
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		c->dcache.ways = 1;
+		c->dcache.waybit = 0;	/* does not matter */
 		break;
 
 	case CPU_VR4131:
 		icache_size = 1 << (10 + ((config >> 9) & 7));
-		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
-		current_cpu_data.icache.ways = 2;
-		current_cpu_data.icache.waybit = ffs(icache_size/2) - 1;
+		c->icache.linesz = 16 << ((config >> 5) & 1);
+		c->icache.ways = 2;
+		c->icache.waybit = ffs(icache_size/2) - 1;
+
+		dcache_size = 1 << (10 + ((config >> 6) & 7));
+		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		c->dcache.ways = 2;
+		c->dcache.waybit = ffs(dcache_size/2) - 1;
 		break;
 
 	case CPU_VR41XX:
@@ -671,37 +698,61 @@ static void __init probe_icache(unsigned long config)
 	case CPU_VR4181:
 	case CPU_VR4181A:
 		icache_size = 1 << (10 + ((config >> 9) & 7));
-		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
-		current_cpu_data.icache.ways = 1;
-		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
+		c->icache.linesz = 16 << ((config >> 5) & 1);
+		c->icache.ways = 1;
+		c->icache.waybit = 0; 	/* doesn't matter */
+
+		dcache_size = 1 << (10 + ((config >> 6) & 7));
+		c->dcache.linesz = 16 << ((config >> 4) & 1);
+		c->dcache.ways = 1;
+		c->dcache.waybit = 0;	/* does not matter */
 		break;
 
 	default:
 		if (!(config & 0x80000000))
-			panic("Don't know how to probe I-cache on this cpu.");
+			panic("Don't know how to probe P-caches on this cpu.");
 
+		/*
+		 * So we seem to be a MIPS32 or MIPS64 CPU
+		 * So let's probe the I-cache ...
+		 */
 		config1 = read_c0_config1();
 
 		if ((lsize = ((config1 >> 19) & 7)))
-			current_cpu_data.icache.linesz = 2 << lsize;
+			c->icache.linesz = 2 << lsize;
 		else
-			current_cpu_data.icache.linesz = lsize;
-		current_cpu_data.icache.sets = 64 << ((config1 >> 22) & 7);
-		current_cpu_data.icache.ways = 1 + ((config1 >> 16) & 7);
+			c->icache.linesz = lsize;
+		c->icache.sets = 64 << ((config1 >> 22) & 7);
+		c->icache.ways = 1 + ((config1 >> 16) & 7);
 
-		icache_size = current_cpu_data.icache.sets *
-		              current_cpu_data.icache.ways *
-		              current_cpu_data.icache.linesz;
+		icache_size = c->icache.sets *
+		              c->icache.ways *
+		              c->icache.linesz;
 
-		if ((config & 0x8) || (current_cpu_data.cputype == CPU_20KC)) {
+		if ((config & 0x8) || (c->cputype == CPU_20KC)) {
 			/*
 			 * The CPU has a virtually tagged I-cache.
 			 * Some older 20Kc chips doesn't have the 'VI' bit in
 			 * the config register, so we also check for 20Kc.
 			 */
-			current_cpu_data.icache.flags |= MIPS_CACHE_VTAG;
+			c->icache.flags |= MIPS_CACHE_VTAG;
 		}
-		
+
+		/*
+		 * Now probe the MIPS32 / MIPS64 data cache.
+		 */
+		c->dcache.flags = 0;
+
+		if ((lsize = ((config1 >> 10) & 7)))
+			c->dcache.linesz = 2 << lsize;
+		else
+			c->dcache.linesz= lsize;
+		c->dcache.sets = 64 << ((config1 >> 13) & 7);
+		c->dcache.ways = 1 + ((config1 >> 7) & 7);
+
+		dcache_size = c->dcache.sets *
+		              c->dcache.ways *
+		              c->dcache.linesz;
 		break;
 	}
 
@@ -714,110 +765,26 @@ static void __init probe_icache(unsigned long config)
 	 */
 	if (PAGE_SIZE <= 0x8000 && read_c0_prid() == 0x0422 &&
 	    (read_c0_config() & CONF_SC) &&
-	     current_cpu_data.icache.linesz != 16)
+	     c->icache.linesz != 16)
 		panic("Impropper processor configuration detected");
 
 	/* compute a couple of other cache variables */
-	icache_way_size = icache_size / current_cpu_data.icache.ways;
-	current_cpu_data.icache.sets = icache_size /
-		(current_cpu_data.icache.linesz * current_cpu_data.icache.ways);
+	icache_way_size = icache_size / c->icache.ways;
+	dcache_way_size = dcache_size / c->dcache.ways;
+
+	c->icache.sets = icache_size / (c->icache.linesz * c->icache.ways);
+	c->dcache.sets = dcache_size / (c->dcache.linesz * c->dcache.ways);
+
+	if (dcache_way_size > PAGE_SIZE)
+	        c->dcache.flags |= MIPS_CACHE_ALIASES;
 
 	printk("Primary instruction cache %ldkb, %s, %s, linesize %d bytes\n",
 	       icache_size >> 10,
 	       cpu_has_vtag_icache ? "virtually tagged" : "physically tagged",
-	       way_string[current_cpu_data.icache.ways],
-	       current_cpu_data.icache.linesz);
-}
-
-static void __init probe_dcache(unsigned long config)
-{
-	unsigned long config1;
-	unsigned int lsize;
-
-	switch (current_cpu_data.cputype) {
-	case CPU_R4600:			/* QED style two way caches? */
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_NEVADA:
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
-		current_cpu_data.dcache.ways = 2;
-		current_cpu_data.dcache.waybit= ffs(dcache_size/2) - 1;
-		break;
-
-	case CPU_R5432:
-	case CPU_R5500:
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
-		current_cpu_data.dcache.ways = 2;
-		current_cpu_data.dcache.waybit = 0;
-		break;
-
-	case CPU_TX49XX:
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
-		current_cpu_data.dcache.ways = 4;
-		current_cpu_data.dcache.waybit = 0;
-		break;
-
-	case CPU_VR4131:
-		dcache_size = 1 << (10 + ((config >> 6) & 7));
-		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
-		current_cpu_data.dcache.ways = 2;
-		current_cpu_data.dcache.waybit = ffs(dcache_size/2) - 1;
-		break;
-
-	case CPU_VR41XX:
-	case CPU_VR4111:
-	case CPU_VR4121:
-	case CPU_VR4122:
-	case CPU_VR4181:
-	case CPU_VR4181A:
-		dcache_size = 1 << (10 + ((config >> 6) & 7));
-		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
-		current_cpu_data.dcache.ways = 1;
-		current_cpu_data.dcache.waybit = 0;	/* does not matter */
-		break;
-
-	case CPU_R4000PC:
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4400PC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
-		current_cpu_data.dcache.ways = 1;
-		current_cpu_data.dcache.waybit = 0;	/* does not matter */
-		break;
-
-	default:
-		current_cpu_data.dcache.flags = 0;
-		config1 = read_c0_config1();
-
-		if ((lsize = ((config1 >> 10) & 7)))
-			current_cpu_data.dcache.linesz = 2 << lsize;
-		else
-			current_cpu_data.dcache.linesz= lsize;
-		current_cpu_data.dcache.sets = 64 << ((config1 >> 13) & 7);
-		current_cpu_data.dcache.ways = 1 + ((config1 >> 7) & 7);
-
-		dcache_size = current_cpu_data.dcache.sets *
-		              current_cpu_data.dcache.ways *
-		              current_cpu_data.dcache.linesz;
-		break;
-	}
-
-	/* compute a couple of other cache variables */
-	dcache_way_size = dcache_size / current_cpu_data.dcache.ways;
-	current_cpu_data.dcache.sets = dcache_size /
-		(current_cpu_data.dcache.linesz * current_cpu_data.dcache.ways);
-	if (dcache_way_size > PAGE_SIZE)
-	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
+	       way_string[c->icache.ways], c->icache.linesz);
 
 	printk("Primary data cache %ldkb %s, linesize %d bytes\n",
-	       dcache_size >> 10, way_string[current_cpu_data.dcache.ways],
-	       current_cpu_data.dcache.linesz);
+	       dcache_size >> 10, way_string[c->dcache.ways], c->dcache.linesz);
 }
 
 /*
@@ -826,10 +793,11 @@ static void __init probe_dcache(unsigned long config)
  * executes in KSEG1 space or else you will crash and burn badly.  You have
  * been warned.
  */
-static int __init probe_scache(unsigned long config)
+static int __init probe_scache(void)
 {
 	extern unsigned long stext;
 	unsigned long flags, addr, begin, end, pow2;
+	unsigned int config = read_c0_config();
 	int tmp;
 
 	if ((config >> 17) & 1)
@@ -957,8 +925,9 @@ static void __init setup_scache_funcs(void)
 typedef int (*probe_func_t)(unsigned long);
 extern int r5k_sc_init(void);
 
-static inline void __init setup_scache(unsigned int config)
+static inline void __init setup_scache(void)
 {
+	unsigned int config = read_c0_config();
 	probe_func_t probe_scache_kseg1;
 	int sc_present = 0;
 
@@ -1008,7 +977,6 @@ static inline void __init setup_scache(unsigned int config)
 void __init ld_mmu_r4xx0(void)
 {
 	extern char except_vec2_generic;
-	unsigned long config;
 
 	/* Default cache error handler for R4000 and R5000 family */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
@@ -1034,10 +1002,8 @@ void __init ld_mmu_r4xx0(void)
 		break;
 	}
 
-	config = read_c0_config();
-	probe_icache(config);
-	probe_dcache(config);
-	setup_scache(config);
+	probe_pcache();
+	setup_scache();
 
 	if (current_cpu_data.dcache.sets *
 	    current_cpu_data.dcache.ways > PAGE_SIZE)
