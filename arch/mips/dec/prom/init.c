@@ -87,7 +87,7 @@ void __init prom_init(void)
 	extern void dec_machine_halt(void);
 	s32 argc = fw_arg0;
 	s32 argv = fw_arg1;
-	u32 envp = fw_arg2;
+	u32 magic = fw_arg2;
 	s32 prom_vec = fw_arg3;
 
 	/*

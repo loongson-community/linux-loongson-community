@@ -18,8 +18,9 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 
-#include <asm/cpu.h>
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
+#include <asm/cpu-features.h>
 #include <asm/irq.h>
 #include <asm/irq_cpu.h>
 #include <asm/mipsregs.h>
@@ -43,7 +44,7 @@
 extern void dec_machine_restart(char *command);
 extern void dec_machine_halt(void);
 extern void dec_machine_power_off(void);
-extern void dec_intr_halt(int irq, void *dev_id, struct pt_regs *regs);
+extern irqreturn_t dec_intr_halt(int irq, void *dev_id, struct pt_regs *regs);
 
 extern asmlinkage void decstation_handle_int(void);
 
