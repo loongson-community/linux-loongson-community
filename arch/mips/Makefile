@@ -64,6 +64,9 @@ endif
 ifdef CONFIG_CPU_NEVADA
 CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap -mmad
 endif
+ifdef CONFIG_CPU_RM7000
+CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap
+endif
 ifdef CONFIG_CPU_R8000
 CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap
 endif
