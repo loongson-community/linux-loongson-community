@@ -39,7 +39,6 @@ EXPORT_SYMBOL_NOVERS(strnlen);
 EXPORT_SYMBOL_NOVERS(strrchr);
 EXPORT_SYMBOL_NOVERS(strstr);
 
-EXPORT_SYMBOL(_clear_page);
 EXPORT_SYMBOL(kernel_thread);
 
 /*

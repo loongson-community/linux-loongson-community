@@ -23,6 +23,8 @@
 void (*_clear_page)(void * page);
 void (*_copy_page)(void * to, void * from);
 
+EXPORT_SYMBOL(_clear_page);
+
 /* Cache operations. */
 void (*flush_cache_all)(void);
 void (*__flush_cache_all)(void);
