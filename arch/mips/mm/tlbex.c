@@ -27,19 +27,19 @@
 
 /* #define DEBUG_TLB */
 
-static __init int r45k_bvahwbug(void)
+static __init int __attribute__((unused)) r45k_bvahwbug(void)
 {
 	/* XXX: We should probe for the presence of this bug, but we don't. */
 	return 0;
 }
 
-static __init int r4k_250MHZhwbug(void)
+static __init int __attribute__((unused)) r4k_250MHZhwbug(void)
 {
 	/* XXX: We should probe for the presence of this bug, but we don't. */
 	return 0;
 }
 
-static __init int bcm1250_m3_war(void)
+static __init int __attribute__((unused)) bcm1250_m3_war(void)
 {
 	return BCM1250_M3_WAR;
 }
@@ -721,16 +721,18 @@ static __initdata u32 final_handler[64];
  *
  * As if we MIPS hackers wouldn't know how to nop pipelines happy ...
  */
-static __init void build_tlbp_hazard(u32 **p)
+static __init void __attribute__((unused)) build_tlb_probe_entry(u32 **p)
 {
 	switch (current_cpu_data.cputype) {
 	case CPU_R5000:
 	case CPU_R5000A:
 	case CPU_NEVADA:
 		i_nop(p);
+		i_tlbp(p);
 		break;
 
 	default:
+		i_tlbp(p);
 		break;
 	}
 }
@@ -762,7 +764,12 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 	case CPU_R4600:
 	case CPU_R4700:
 	case CPU_R5000:
+	case CPU_R5000A:
 	case CPU_5KC:
+	case CPU_AU1000:
+	case CPU_AU1100:
+	case CPU_AU1500:
+	case CPU_AU1550:
 		i_nop(p);
 		i_tlbwr(p);
 		break;
@@ -987,7 +994,7 @@ static __init void build_update_entries(u32 **p, unsigned int tmp,
 	 * Kernel is a special case. Only a few CPUs use it.
 	 */
 #ifdef CONFIG_64BIT_PHYS_ADDR
-	if (cpu_has_64bit_registers) {
+	if (cpu_has_64bit_gp_regs) {
 		i_ld(p, tmp, 0, ptep); /* get even pte */
 		i_ld(p, ptep, sizeof(pte_t), ptep); /* get odd pte */
 		i_dsrl(p, tmp, tmp, 6); /* convert to entrylo0 */
@@ -1007,10 +1014,8 @@ static __init void build_update_entries(u32 **p, unsigned int tmp,
 #else
 	i_LW(p, tmp, 0, ptep); /* get even pte */
 	i_LW(p, ptep, sizeof(pte_t), ptep); /* get odd pte */
-	if (r45k_bvahwbug()) {
-		build_tlbp_hazard(p);
-		i_tlbp(p);
-	}
+	if (r45k_bvahwbug())
+		build_tlb_probe_entry(p);
 	i_SRL(p, tmp, tmp, 6); /* convert to entrylo0 */
 	if (r4k_250MHZhwbug())
 		i_mtc0(p, 0, C0_ENTRYLO0);
