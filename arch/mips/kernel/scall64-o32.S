@@ -201,26 +201,9 @@ LEAF(sys32_syscall)
 	move	a0, a1			# shift argument registers
 	move	a1, a2
 	move	a2, a3
-
-1:	lw	a3, 16(t0)
-2:	lw	t3, 20(t0)
-3:	lw	t1, 24(t0)
-
-	.section __ex_table,"a"
-	PTR	1b, efault
-	PTR	2b, efault
-	PTR	3b, efault
-	.previous
-
-	sw	t3, 16(sp)		# put into new stackframe
-	sw	t1, 20(sp)
-
-	bnez	t1, 1f			# zero arguments?
-	daddu	a0, sp, 32		# then pass sp in a0
-1:
-
-	sw	t3, 16(sp)
-	sw	v1, 20(sp)
+	move	a3, a4
+	move	a4, a5
+	move	a5, a6
 	jr	t2
 	/* Unreached */
 
