@@ -20,7 +20,6 @@
 
 #include <asm/mipsregs.h>
 #include <asm/addrspace.h>
-#include <asm/gdb-stub.h>
 
 #include <asm/sgi/sgint23.h>
 #include <asm/sgi/sgihpc.h>
