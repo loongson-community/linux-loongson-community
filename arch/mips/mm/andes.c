@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.8 1999/10/09 00:00:58 ralf Exp $
+/* $Id: andes.c,v 1.9 2000/01/27 01:05:23 ralf Exp $
  *
  * andes.c: MMU and cache operations for the R10000 (ANDES).
  *
@@ -126,7 +126,7 @@ static void andes_flush_cache_sigtramp(unsigned long page)
 }
 
 /* TLB operations. XXX Write these dave... */
-inline void flush_tlb_all(void)
+void flush_tlb_all(void)
 {
 	/* XXX */
 }

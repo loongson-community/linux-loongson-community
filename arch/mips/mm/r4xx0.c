@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.26 1999/10/21 00:23:04 ralf Exp $
+/* $Id: r4xx0.c,v 1.27 2000/01/27 01:05:23 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -2228,7 +2228,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 
 #define NTLB_ENTRIES_HALF  24  /* Fixed on all R4XX0 variants... */
 
-inline void flush_tlb_all(void)
+void flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;

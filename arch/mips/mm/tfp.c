@@ -1,4 +1,4 @@
-/* $Id: tfp.c,v 1.8 1999/10/09 00:00:58 ralf Exp $
+/* $Id: tfp.c,v 1.9 2000/01/27 01:05:23 ralf Exp $
  *
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
@@ -53,7 +53,7 @@ static void tfp_flush_cache_sigtramp(unsigned long page)
 }
 
 /* TLB operations. XXX Write these dave... */
-inline void flush_tlb_all(void)
+void flush_tlb_all(void)
 {
 	/* XXX */
 }

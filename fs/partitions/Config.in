@@ -21,6 +21,7 @@ if [ "$CONFIG_PARTITION_ADVANCED" = "y" ]; then
       bool '    Solaris (x86) partition table support' CONFIG_SOLARIS_X86_PARTITION
       bool '    Unixware slices support' CONFIG_UNIXWARE_DISKLABEL
    fi
+   bool '  Ultrix partition table support' CONFIG_ULTRIX_PARTITION
 else
    if [ "$ARCH" = "alpha" ]; then
       define_bool CONFIG_OSF_PARTITION y
@@ -46,16 +47,12 @@ else
    if [ "$CONFIG_ATARI" = "y" ]; then
       define_bool CONFIG_ATARI_PARTITION y
    fi
+   bool 'Ultrix partition table support' CONFIG_ULTRIX_PARTITION
 fi
 if [ "$CONFIG_SGI_IP22" != "y" -a "$CONFIG_SGI_IP27" != "y" ]; then
    bool 'SGI partition support' CONFIG_SGI_PARTITION
 else
    define_bool CONFIG_SGI_PARTITION y
-fi
-if [ "$CONFIG_DECSTATION" != "y" ]; then
-   bool 'Ultrix partition table support' CONFIG_ULTRIX_PARTITION
-else
-   define_bool CONFIG_ULTRIX_PARTITION y
 fi
 if [ "$ARCH" != "sparc" -a "$ARCH" != "sparc64" ]; then
    bool 'Sun partition tables support' CONFIG_SUN_PARTITION

@@ -1,4 +1,4 @@
-/* $Id: pgalloc.h,v 1.1 2000/02/01 16:57:23 ralf Exp $
+/* $Id: pgalloc.h,v 1.1 2000/02/04 07:40:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -34,11 +34,11 @@ extern void (*flush_page_to_ram)(struct page * page);
  *  - flush_tlb_page(mm, vmaddr) flushes a single page
  *  - flush_tlb_range(mm, start, end) flushes a range of pages
  */
-extern void (*flush_tlb_all)(void);
-extern void (*flush_tlb_mm)(struct mm_struct *mm);
-extern void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
+extern void flush_tlb_all(void);
+extern void flush_tlb_mm(struct mm_struct *mm);
+extern void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			       unsigned long end);
-extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
+extern void flush_tlb_page(struct vm_area_struct *vma, unsigned long page);
 
 /*
  * Allocate and free page tables. The xxx_kernel() versions are

@@ -1,4 +1,4 @@
-/* $Id: r6000.c,v 1.8 1999/10/09 00:00:58 ralf Exp $
+/* $Id: r6000.c,v 1.9 2000/01/27 01:05:23 ralf Exp $
  *
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
@@ -130,7 +130,7 @@ static void r6000_flush_cache_sigtramp(unsigned long page)
 }
 
 /* TLB operations. XXX Write these dave... */
-inline void flush_tlb_all(void)
+void flush_tlb_all(void)
 {
 	/* XXX */
 }
