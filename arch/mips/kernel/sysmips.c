@@ -108,10 +108,3 @@ sys_cachectl(char *addr, int nbytes, int op)
 {
 	return -ENOSYS;
 }
-
-asmlinkage int sys_pause(void)
-{
-	current->state = TASK_INTERRUPTIBLE;
-	schedule();
-	return -ERESTARTNOHAND;
-}
