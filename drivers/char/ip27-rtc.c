@@ -215,7 +215,7 @@ static int __init rtc_init(void)
 
 	nid = get_nasid();
 	rtc = (struct m48t35_rtc *)
-	    KL_CONFIG_CH_CONS_INFO(nid)->memory_base + IOC3_BYTEBUS_DEV0;
+	    (KL_CONFIG_CH_CONS_INFO(nid)->memory_base + IOC3_BYTEBUS_DEV0);
 
 	printk(KERN_INFO "Real Time Clock Driver v%s\n", RTC_VERSION);
 	if (misc_register(&rtc_dev)) {
