@@ -1,8 +1,8 @@
 /*
- * $Id: socket.h,v 1.4 1997/12/06 23:55:49 ralf Exp $
+ * $Id: socket.h,v 1.5 1998/03/17 22:16:17 ralf Exp $
  */
-#ifndef __ASM_MIPS_SOCKET_H
-#define __ASM_MIPS_SOCKET_H
+#ifndef _ASM_SOCKET_H
+#define _ASM_SOCKET_H
 
 #include <asm/sockios.h>
 
@@ -56,6 +56,8 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SO_ATTACH_FILTER        26
 #define SO_DETACH_FILTER        27
 
+#ifdef __KERNEL__
+
 /* Types of sockets.  */
 #define SOCK_DGRAM 1		/* Connectionless, unreliable datagrams
 				   of fixed maximum length.  */
@@ -69,4 +71,6 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 				   the dev level.  For writing rarp and
 				   other similar things on the user level.  */
 
-#endif /* __ASM_MIPS_SOCKET_H */
+#endif /* __KERNEL__ */
+
+#endif /* _ASM_SOCKET_H */

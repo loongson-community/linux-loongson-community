@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: socket.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -61,6 +61,8 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SO_ATTACH_FILTER        26
 #define SO_DETACH_FILTER        27
 
+#ifdef __KERNEL__
+
 /* Types of sockets.  */
 #define SOCK_DGRAM 1		/* Connectionless, unreliable datagrams
 				   of fixed maximum length.  */
@@ -73,5 +75,6 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SOCK_PACKET 10		/* Linux specific way of getting packets at
 				   the dev level.  For writing rarp and
 				   other similar things on the user level.  */
+#endif /* __KERNEL__ */
 
 #endif /* _ASM_SOCKET_H */
