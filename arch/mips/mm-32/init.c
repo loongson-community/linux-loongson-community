@@ -97,37 +97,6 @@ static void __init kmap_init(void)
 
 #endif /* CONFIG_HIGHMEM */
 
-#ifdef CONFIG_HIGHMEM
-static void __init fixrange_init (unsigned long start, unsigned long end,
-	pgd_t *pgd_base)
-{
-	pgd_t *pgd;
-	pmd_t *pmd;
-	pte_t *pte;
-	int i, j;
-	unsigned long vaddr;
-
-	vaddr = start;
-	i = __pgd_offset(vaddr);
-	j = __pmd_offset(vaddr);
-	pgd = pgd_base + i;
-
-	for ( ; (i < PTRS_PER_PGD) && (vaddr != end); pgd++, i++) {
-		pmd = (pmd_t *)pgd;
-		for (; (j < PTRS_PER_PMD) && (vaddr != end); pmd++, j++) {
-			if (pmd_none(*pmd)) {
-				pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
-				set_pmd(pmd, __pmd(pte));
-				if (pte != pte_offset_kernel(pmd, 0))
-					BUG();
-			}
-			vaddr += PMD_SIZE;
-		}
-		j = 0;
-	}
-}
-#endif
-
 #ifndef CONFIG_DISCONTIGMEM
 
 extern void pagetable_init(void);
