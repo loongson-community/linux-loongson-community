@@ -632,6 +632,8 @@ static void ioc3_error(struct ioc3_private *ip, u32 eisr)
 	struct net_device *dev = priv_netdev(ip);
 	unsigned char *iface = dev->name;
 
+	spin_lock(&ip->ioc3_lock);
+
 	if (eisr & EISR_RXOFLO)
 		printk(KERN_ERR "%s: RX overflow.\n", iface);
 	if (eisr & EISR_RXBUFOFLO)
@@ -649,8 +651,9 @@ static void ioc3_error(struct ioc3_private *ip, u32 eisr)
 	ioc3_init(dev);
 	ioc3_mii_init(ip);
 
-	dev->trans_start = jiffies;
 	netif_wake_queue(dev);
+
+	spin_unlock(&ip->ioc3_lock);
 }
 
 /* The interrupt handler does all of the Rx thread work and cleans up
@@ -1345,11 +1348,14 @@ static void ioc3_timeout(struct net_device *dev)
 
 	printk(KERN_ERR "%s: transmit timed out, resetting\n", dev->name);
 
+	spin_lock_irq(&ip->ioc3_lock);
+
 	ioc3_stop(ip);
 	ioc3_init(dev);
 	ioc3_mii_init(ip);
 
-	dev->trans_start = jiffies;
+	spin_unlock_irq(&ip->ioc3_lock);
+
 	netif_wake_queue(dev);
 }
 
