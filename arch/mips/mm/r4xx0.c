@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.25 1999/10/09 00:00:58 ralf Exp $
+/* $Id: r4xx0.c,v 1.26 1999/10/21 00:23:04 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -78,7 +78,7 @@ struct bcache_ops *bcops = &no_sc_ops;
  *   versions of R4000 and R4400.
  */
 
-static void r4k_clear_page_d16(unsigned long page)
+static void r4k_clear_page_d16(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -109,7 +109,7 @@ static void r4k_clear_page_d16(unsigned long page)
 		:"$1","memory");
 }
 
-static void r4k_clear_page_d32(unsigned long page)
+static void r4k_clear_page_d32(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -166,7 +166,7 @@ static void r4k_clear_page_d32(unsigned long page)
  *                              nop
  *                              cache       Hit_Writeback_Invalidate_D
  */
-static void r4k_clear_page_r4600_v1(unsigned long page)
+static void r4k_clear_page_r4600_v1(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -205,7 +205,7 @@ static void r4k_clear_page_r4600_v1(unsigned long page)
 /*
  * And this one is for the R4600 V2.0
  */
-static void r4k_clear_page_r4600_v2(unsigned long page)
+static void r4k_clear_page_r4600_v2(void * page)
 {
 	unsigned int flags;
 
@@ -248,7 +248,7 @@ static void r4k_clear_page_r4600_v2(unsigned long page)
  * this the kernel crashed shortly after mounting the root filesystem.  CPU
  * bug?  Weirdo cache instruction semantics?
  */
-static void r4k_clear_page_s16(unsigned long page)
+static void r4k_clear_page_s16(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -279,7 +279,7 @@ static void r4k_clear_page_s16(unsigned long page)
 		:"$1","memory");
 }
 
-static void r4k_clear_page_s32(unsigned long page)
+static void r4k_clear_page_s32(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -308,7 +308,7 @@ static void r4k_clear_page_s32(unsigned long page)
 		:"$1","memory");
 }
 
-static void r4k_clear_page_s64(unsigned long page)
+static void r4k_clear_page_s64(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -336,7 +336,7 @@ static void r4k_clear_page_s64(unsigned long page)
 		:"$1","memory");
 }
 
-static void r4k_clear_page_s128(unsigned long page)
+static void r4k_clear_page_s128(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -378,7 +378,7 @@ static void r4k_clear_page_s128(unsigned long page)
  * virtual address where the copy will be accessed.
  */
 
-static void r4k_copy_page_d16(unsigned long to, unsigned long from)
+static void r4k_copy_page_d16(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -437,7 +437,7 @@ static void r4k_copy_page_d16(unsigned long to, unsigned long from)
 		 "i" (Create_Dirty_Excl_D));
 }
 
-static void r4k_copy_page_d32(unsigned long to, unsigned long from)
+static void r4k_copy_page_d32(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -497,7 +497,7 @@ static void r4k_copy_page_d32(unsigned long to, unsigned long from)
 /*
  * Again a special version for the R4600 V1.x
  */
-static void r4k_copy_page_r4600_v1(unsigned long to, unsigned long from)
+static void r4k_copy_page_r4600_v1(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -562,7 +562,7 @@ static void r4k_copy_page_r4600_v1(unsigned long to, unsigned long from)
 		 "i" (Create_Dirty_Excl_D));
 }
 
-static void r4k_copy_page_r4600_v2(unsigned long to, unsigned long from)
+static void r4k_copy_page_r4600_v2(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -633,7 +633,7 @@ static void r4k_copy_page_r4600_v2(unsigned long to, unsigned long from)
 /*
  * These are for R4000SC / R4400MC
  */
-static void r4k_copy_page_s16(unsigned long to, unsigned long from)
+static void r4k_copy_page_s16(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -692,7 +692,7 @@ static void r4k_copy_page_s16(unsigned long to, unsigned long from)
 		 "i" (Create_Dirty_Excl_SD));
 }
 
-static void r4k_copy_page_s32(unsigned long to, unsigned long from)
+static void r4k_copy_page_s32(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -749,7 +749,7 @@ static void r4k_copy_page_s32(unsigned long to, unsigned long from)
 		 "i" (Create_Dirty_Excl_SD));
 }
 
-static void r4k_copy_page_s64(unsigned long to, unsigned long from)
+static void r4k_copy_page_s64(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -805,7 +805,7 @@ static void r4k_copy_page_s64(unsigned long to, unsigned long from)
 		 "i" (Create_Dirty_Excl_SD));
 }
 
-static void r4k_copy_page_s128(unsigned long to, unsigned long from)
+static void r4k_copy_page_s128(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -1739,7 +1739,7 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if(mm->context == 0)
+	if (mm->context == 0)
 		return;
 
 #ifdef DEBUG_CACHE
@@ -1962,110 +1962,119 @@ out:
  *    flush.
  * 3) In KSEG1, no flush necessary.
  */
-static void r4k_flush_page_to_ram_s16d16i16(unsigned long page)
+static void r4k_flush_page_to_ram_s16d16i16(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache16_page(page);
+		blast_scache16_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_s32d16i16(unsigned long page)
+static void r4k_flush_page_to_ram_s32d16i16(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache32_page(page);
+		blast_scache32_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_s64d16i16(unsigned long page)
+static void r4k_flush_page_to_ram_s64d16i16(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache64_page(page);
+		blast_scache64_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_s128d16i16(unsigned long page)
+static void r4k_flush_page_to_ram_s128d16i16(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache128_page(page);
+		blast_scache128_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_s32d32i32(unsigned long page)
+static void r4k_flush_page_to_ram_s32d32i32(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache32_page(page);
+		blast_scache32_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_s64d32i32(unsigned long page)
+static void r4k_flush_page_to_ram_s64d32i32(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache64_page(page);
+		blast_scache64_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_s128d32i32(unsigned long page)
+static void r4k_flush_page_to_ram_s128d32i32(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_scache128_page(page);
+		blast_scache128_page(addr);
 	}
 }
 
-static void r4k_flush_page_to_ram_d16i16(unsigned long page)
+static void r4k_flush_page_to_ram_d16i16(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 		unsigned long flags;
 
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		save_and_cli(flags);
-		blast_dcache16_page(page);
-		restore_flags(flags);
+		__save_and_cli(flags);
+		blast_dcache16_page(addr);
+		__restore_flags(flags);
 	}
 }
 
-static void r4k_flush_page_to_ram_d32i32(unsigned long page)
+static void r4k_flush_page_to_ram_d32i32(struct page * page)
 {
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= KSEG0 && addr < KSEG1) || (addr >= KSEG2)) {
 		unsigned long flags;
 
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		save_and_cli(flags);
-		blast_dcache32_page(page);
-		restore_flags(flags);
+		__save_and_cli(flags);
+		blast_dcache32_page(addr);
+		__restore_flags(flags);
 	}
 }
 

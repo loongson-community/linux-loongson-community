@@ -36,6 +36,7 @@
 #include <linux/swap.h>
 #include <linux/ctype.h>
 #include <linux/file.h>
+#include <linux/iobuf.h>
 #include <linux/console.h>
 #include <linux/poll.h>
 #include <linux/mm.h>
@@ -118,11 +119,13 @@ EXPORT_SYMBOL(in_group_p);
 EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_fs_type);
+EXPORT_SYMBOL(get_empty_super);
+EXPORT_SYMBOL(remove_vfsmnt);
 EXPORT_SYMBOL(getname);
 EXPORT_SYMBOL(_fput);
 EXPORT_SYMBOL(igrab);
 EXPORT_SYMBOL(iunique);
-EXPORT_SYMBOL(iget);
+EXPORT_SYMBOL(iget4);
 EXPORT_SYMBOL(iput);
 EXPORT_SYMBOL(__namei);
 EXPORT_SYMBOL(lookup_dentry);
@@ -140,6 +143,9 @@ EXPORT_SYMBOL(d_lookup);
 EXPORT_SYMBOL(d_path);
 EXPORT_SYMBOL(__mark_buffer_dirty);
 EXPORT_SYMBOL(__mark_inode_dirty);
+EXPORT_SYMBOL(free_kiovec);
+EXPORT_SYMBOL(brw_kiovec);
+EXPORT_SYMBOL(alloc_kiovec);
 EXPORT_SYMBOL(get_empty_filp);
 EXPORT_SYMBOL(init_private_file);
 EXPORT_SYMBOL(filp_open);

@@ -169,6 +169,11 @@ out:
 int d_invalidate(struct dentry * dentry)
 {
 	/*
+	 * If it's already been dropped, return OK.
+	 */
+	if (list_empty(&dentry->d_hash))
+		return 0;
+	/*
 	 * Check whether to do a partial shrink_dcache
 	 * to get rid of unused child entries.
 	 */
@@ -415,7 +420,7 @@ int shrink_dcache_memory(int priority, unsigned int gfp_mask)
 		unlock_kernel();
 		/* FIXME: kmem_cache_shrink here should tell us
 		   the number of pages freed, and it should
-		   work in a __GFP_DMA/__GFP_BIGMEM behaviour
+		   work in a __GFP_DMA/__GFP_HIGHMEM behaviour
 		   to free only the interesting pages in
 		   function of the needs of the current allocation. */
 		kmem_cache_shrink(dentry_cache);

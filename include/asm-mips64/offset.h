@@ -52,7 +52,7 @@
 #define TASK_COUNTER       48
 #define TASK_PRIORITY      56
 #define TASK_MM            1304
-#define TASK_STRUCT_SIZE   1392
+#define TASK_STRUCT_SIZE   1400
 
 /* MIPS specific thread_struct offsets. */
 #define THREAD_REG16   864

@@ -55,7 +55,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_ARTHUR is not set
 CONFIG_PARPORT=y
 CONFIG_PARPORT_PC=y
-CONFIG_CMDLINE="root=/dev/hda2 ro mem=32M parport=0x378,7 ide0=autotune"
+CONFIG_CMDLINE="root=/dev/hda1 ro mem=32M parport=0x378,7 ide0=autotune"
 CONFIG_LEDS=y
 CONFIG_LEDS_TIMER=y
 # CONFIG_LEDS_CPU is not set
@@ -89,7 +89,7 @@ CONFIG_IDEDMA_PCI_AUTO=y
 # CONFIG_BLK_DEV_OPTI621 is not set
 # CONFIG_BLK_DEV_TRM290 is not set
 # CONFIG_BLK_DEV_NS87415 is not set
-# CONFIG_BLK_DEV_VIA82C586 is not set
+# CONFIG_BLK_DEV_VIA82CXXX is not set
 # CONFIG_BLK_DEV_CMD646 is not set
 CONFIG_BLK_DEV_SL82C105=y
 # CONFIG_IDE_CHIPSETS is not set

@@ -41,7 +41,6 @@
 #include <asm/residual.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
-#include <asm/ide.h>
 #include <asm/cache.h>
 #include <asm/dma.h>
 #include <asm/machdep.h>
@@ -211,7 +210,7 @@ no_l2:
 }
 
 void __init
-prep_setup_arch(unsigned long * memory_start_p, unsigned long * memory_end_p)
+prep_setup_arch()
 {
 	extern char cmd_line[];
 	unsigned char reg;

@@ -1,4 +1,4 @@
-/* $Id: tfp.c,v 1.7 1999/08/09 19:43:17 harald Exp $
+/* $Id: tfp.c,v 1.8 1999/10/09 00:00:58 ralf Exp $
  *
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
@@ -42,7 +42,7 @@ static void tfp_flush_cache_page(struct vm_area_struct *vma,
 	/* XXX */
 }
 
-static void tfp_flush_page_to_ram(unsigned long page)
+static void tfp_flush_page_to_ram(struct page * page)
 {
 	/* XXX */
 }

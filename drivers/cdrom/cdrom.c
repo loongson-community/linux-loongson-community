@@ -177,10 +177,15 @@
   for ide-cd to handle multisession discs.
   -- Export cdrom_mode_sense and cdrom_mode_select.
   -- init_cdrom_command() for setting up a cgc command.
+  
+  3.05 Sep 23, 1999 - Jens Axboe <axboe@image.dk>
+  -- Changed the interface for CDROM_SEND_PACKET. Before it was virtually
+  impossible to send the drive data in a sensible way.
+  
 -------------------------------------------------------------------------*/
 
-#define REVISION "Revision: 3.04"
-#define VERSION "Id: cdrom.c 3.04 1999/09/14"
+#define REVISION "Revision: 3.05"
+#define VERSION "Id: cdrom.c 3.05 1999/09/23"
 
 /* I use an error-log mask to give fine grain control over the type of
    messages dumped to the system logs.  The available masks include: */
@@ -213,6 +218,7 @@
 #include <linux/cdrom.h>
 #include <linux/sysctl.h>
 #include <linux/proc_fs.h>
+#include <linux/init.h>
 #include <asm/fcntl.h>
 #include <asm/segment.h>
 #include <asm/uaccess.h>
@@ -316,7 +322,7 @@ int register_cdrom(struct cdrom_device_info *cdi)
 	if (cdo->open == NULL || cdo->release == NULL)
 		return -2;
 	if ( !banner_printed ) {
-		printk(KERN_INFO "Uniform CDROM driver " REVISION "\n");
+		printk(KERN_INFO "Uniform CD-ROM driver " REVISION "\n");
 		banner_printed = 1;
 #ifdef CONFIG_SYSCTL
 		cdrom_sysctl_register();
@@ -404,6 +410,8 @@ struct cdrom_device_info *cdrom_find_device (kdev_t dev)
 	return cdi;
 }
 
+static int cdrom_setup_writemode(struct cdrom_device_info *cdi);
+
 /* We use the open-option O_NONBLOCK to indicate that the
  * purpose of opening is only for subsequent ioctl() calls; no device
  * integrity checks are performed.
@@ -415,22 +423,31 @@ struct cdrom_device_info *cdrom_find_device (kdev_t dev)
 static
 int cdrom_open(struct inode *ip, struct file *fp)
 {
+	struct cdrom_device_info *cdi;
 	kdev_t dev = ip->i_rdev;
-	struct cdrom_device_info *cdi = cdrom_find_device(dev);
-	int purpose = !!(fp->f_flags & O_NONBLOCK);
-	int ret=0;
+	int ret;
 
 	cdinfo(CD_OPEN, "entering cdrom_open\n"); 
-	if (cdi == NULL)
+	if ((cdi = cdrom_find_device(dev)) == NULL)
 		return -ENODEV;
-	if (fp->f_mode & FMODE_WRITE)
-		return -EROFS;
-	purpose = purpose || !(cdi->options & CDO_USE_FFLAGS);
-	if (purpose)
-		ret = cdi->ops->open(cdi, purpose);
+
+	/* just CD-RW for now. DVD-RW will come soon, CD-R and DVD-R
+	 * need to be handled differently. */
+	if ((fp->f_mode & FMODE_WRITE) && !CDROM_CAN(CDC_CD_RW))
+			return -EROFS;
+
+	/* if this was a O_NONBLOCK open and we should honor the flags,
+	 * do a quick open without drive/disc integrity checks. */
+	if ((fp->f_flags & O_NONBLOCK) && (cdi->options & CDO_USE_FFLAGS))
+		ret = cdi->ops->open(cdi, 1);
 	else
 		ret = open_for_data(cdi);
+
 	if (!ret) cdi->use_count++;
+
+	if (fp->f_mode & FMODE_WRITE && !cdi->write.writeable)
+		cdi->write.writeable = !cdrom_setup_writemode(cdi);
+
 	cdinfo(CD_OPEN, "Use count for \"/dev/%s\" now %d\n", cdi->name, cdi->use_count);
 	/* Do this on open.  Don't wait for mount, because they might
 	    not be mounting, but opening with O_NONBLOCK */
@@ -525,7 +542,7 @@ int open_for_data(struct cdrom_device_info * cdi)
 	if (CDROM_CAN(CDC_LOCK) && cdi->options & CDO_LOCK) {
 			cdo->lock_door(cdi, 1);
 			cdinfo(CD_OPEN, "door locked.\n");
-	}	
+	}
 	cdinfo(CD_OPEN, "device opened successfully.\n"); 
 	return ret;
 
@@ -616,7 +633,7 @@ int cdrom_release(struct inode *ip, struct file *fp)
 	if (cdi->use_count > 0) cdi->use_count--;
 	if (cdi->use_count == 0)
 		cdinfo(CD_CLOSE, "Use count for \"/dev/%s\" now zero\n", cdi->name);
-	if (cdi->use_count == 0 &&      /* last process that closes dev*/
+	if (cdi->use_count == 0 &&
 	    cdo->capability & CDC_LOCK && !keeplocked) {
 		cdinfo(CD_CLOSE, "Unlocking door!\n");
 		cdo->lock_door(cdi, 0);
@@ -1701,8 +1718,8 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		     unsigned long arg)
 {		
 	struct cdrom_device_ops *cdo = cdi->ops;
-	kdev_t dev = cdi->dev;
 	struct cdrom_generic_command cgc;
+	kdev_t dev = cdi->dev;
 	char buffer[32];
 	int ret = 0;
 
@@ -1919,7 +1936,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 
 	case CDROMSTART:
 	case CDROMSTOP: {
-		cdinfo(CD_DO_IOCTL, "entering audio ioctl (start/stop)\n"); 
+		cdinfo(CD_DO_IOCTL, "entering CDROMSTART/CDROMSTOP\n"); 
 		cgc.cmd[0] = GPCMD_START_STOP_UNIT;
 		cgc.cmd[1] = 1;
 		cgc.cmd[4] = (cmd == CDROMSTART) ? 1 : 0;
@@ -1928,7 +1945,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 
 	case CDROMPAUSE:
 	case CDROMRESUME: {
-		cdinfo(CD_DO_IOCTL, "entering audio ioctl (pause/resume)\n"); 
+		cdinfo(CD_DO_IOCTL, "entering CDROMPAUSE/CDROMRESUME\n"); 
 		cgc.cmd[0] = GPCMD_PAUSE_RESUME;
 		cgc.cmd[8] = (cmd == CDROMRESUME) ? 1 : 0;
 		return cdo->generic_packet(cdi, &cgc);
@@ -1938,7 +1955,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		dvd_struct s;
 		if (!CDROM_CAN(CDC_DVD))
 			return -ENOSYS;
-		cdinfo(CD_DO_IOCTL, "entering dvd_read_struct\n"); 
+		cdinfo(CD_DO_IOCTL, "entering DVD_READ_STRUCT\n"); 
 		IOCTL_IN(arg, dvd_struct, s);
 		if ((ret = dvd_read_struct(cdi, &s)))
 			return ret;
@@ -1950,7 +1967,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		dvd_authinfo ai;
 		if (!CDROM_CAN(CDC_DVD))
 			return -ENOSYS;
-		cdinfo(CD_DO_IOCTL, "entering dvd_auth\n"); 
+		cdinfo(CD_DO_IOCTL, "entering DVD_AUTH\n"); 
 		IOCTL_IN(arg, dvd_authinfo, ai);
 		if ((ret = dvd_do_auth (cdi, &ai)))
 			return ret;
@@ -1959,26 +1976,58 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		}
 
 	case CDROM_SEND_PACKET: {
+		__u8 *userbuf, copy = 0;
 		if (!CDROM_CAN(CDC_GENERIC_PACKET))
 			return -ENOSYS;
-		cdinfo(CD_DO_IOCTL, "entering send_packet\n"); 
+		cdinfo(CD_DO_IOCTL, "entering CDROM_SEND_PACKET\n"); 
 		IOCTL_IN(arg, struct cdrom_generic_command, cgc);
-		cgc.buffer = kmalloc(cgc.buflen, GFP_KERNEL);
+		copy = !!cgc.buflen;
+		userbuf = cgc.buffer;
+		cgc.buffer = NULL;
+		if (userbuf != NULL && copy) {
+			/* usually commands just copy data one way, i.e.
+			 * we send a buffer to the drive and the command
+			 * specifies whether the drive will read or
+			 * write to that buffer. usually the buffers
+			 * are very small, so we don't loose that much
+			 * by doing a redundant copy each time. */
+			if (!access_ok(VERIFY_WRITE, userbuf, cgc.buflen)) {
+				printk("can't get write perms\n");
+				return -EFAULT;
+			}
+			if (!access_ok(VERIFY_READ, userbuf, cgc.buflen)) {
+				printk("can't get read perms\n");
+				return -EFAULT;
+			}
+		}
+		/* reasonable limits */
+		if (cgc.buflen < 0 || cgc.buflen > 131072) {
+			printk("invalid size given\n");
+			return -EINVAL;
+		}
+		if (copy) {
+			cgc.buffer = kmalloc(cgc.buflen, GFP_KERNEL);
+			if (cgc.buffer == NULL)
+				return -ENOMEM;
+			__copy_from_user(cgc.buffer, userbuf, cgc.buflen);
+		}
 		ret = cdo->generic_packet(cdi, &cgc);
-		if (copy_to_user((void*)arg, cgc.buffer, cgc.buflen))
-			ret = -EFAULT;
+		if (copy && !ret)
+			__copy_to_user(userbuf, cgc.buffer, cgc.buflen);
 		kfree(cgc.buffer);
 		return ret;
 		}
 	case CDROM_NEXT_WRITABLE: {
-		long next;
+		long next = 0;
+		cdinfo(CD_DO_IOCTL, "entering CDROM_NEXT_WRITABLE\n"); 
 		if ((ret = cdrom_get_next_writable(dev, &next)))
 			return ret;
 		IOCTL_OUT(arg, long, next);
 		return 0;
 		}
 	case CDROM_LAST_WRITTEN: {
-		long last;
+		long last = 0;
+		cdinfo(CD_DO_IOCTL, "entering CDROM_LAST_WRITTEN\n"); 
 		if ((ret = cdrom_get_last_written(dev, &last)))
 			return ret;
 		IOCTL_OUT(arg, long, last);
@@ -2038,10 +2087,10 @@ int cdrom_get_last_written(kdev_t dev, long *last_written)
 	track_information ti;
 	__u32 last_track;
 	int ret = -1;
-	
+
 	if (!CDROM_CAN(CDC_GENERIC_PACKET))
 		goto use_toc;
-	
+
 	if ((ret = cdrom_get_disc_info(dev, &di)))
 		goto use_toc;
 
@@ -2089,7 +2138,7 @@ int cdrom_get_next_writable(kdev_t dev, long *next_writable)
 	track_information ti;
 	__u16 last_track;
 	int ret = -1;
-	
+
 	if (!CDROM_CAN(CDC_GENERIC_PACKET))
 		goto use_last_written;
 
@@ -2123,6 +2172,99 @@ use_last_written:
 		*next_writable += 7;
 		return 0;
 	}
+}
+
+/* return the buffer size of writeable drives */
+static int cdrom_read_buffer_capacity(struct cdrom_device_info *cdi)
+{
+	struct cdrom_device_ops *cdo = cdi->ops;
+	struct cdrom_generic_command cgc;
+	struct {
+		unsigned int pad;
+		unsigned int buffer_size;
+		unsigned int buffer_free;
+	} buf;
+	int ret;
+
+	init_cdrom_command(&cgc, &buf, 12);
+	cgc.cmd[0] = 0x5c;
+	cgc.cmd[8] = 12;
+
+	if ((ret = cdo->generic_packet(cdi, &cgc)))
+		return ret;
+	
+	return be32_to_cpu(buf.buffer_size);
+}
+
+/* return 0 if succesful and the disc can be considered writeable. */
+static int cdrom_setup_writemode(struct cdrom_device_info *cdi)
+{
+	struct cdrom_generic_command cgc;
+	write_param_page wp;
+	disc_information di;
+	track_information ti;
+	int ret, last_track;
+
+	memset(&di, 0, sizeof(disc_information));
+	memset(&ti, 0, sizeof(track_information));
+	memset(&wp, 0, sizeof(write_param_page));
+	memset(&cdi->write, 0, sizeof(struct cdrom_write_settings));
+
+	if ((ret = cdrom_get_disc_info(cdi->dev, &di)))
+		return ret;
+
+	last_track = (di.last_track_msb << 8) | di.last_track_lsb;
+	if ((ret = cdrom_get_track_info(cdi->dev, last_track, 1, &ti)))
+		return ret;
+
+	/* if the media is erasable, then it is either CD-RW or
+	 * DVD-RW - use fixed packets for those. non-erasable media
+	 * indicated CD-R or DVD-R media, use varible sized packets for
+	 * those (where the packet size is a bit less than the buffer
+	 * capacity of the drive. */
+	if (di.erasable) {
+		cdi->write.fpacket = 1;
+		/* FIXME: DVD-RW is 16, should get the packet size instead */
+		cdi->write.packet_size = 32;
+	} else {
+		int buf_size;		
+		cdi->write.fpacket = 0;
+		buf_size = cdrom_read_buffer_capacity(cdi);
+		buf_size -= 100*1024;
+		cdi->write.packet_size = buf_size / CD_FRAMESIZE;
+	}
+
+	init_cdrom_command(&cgc, &wp, 0x3c);
+	if ((ret = cdrom_mode_sense(cdi, &cgc, GPMODE_WRITE_PARMS_PAGE, 0)))
+		return ret;
+
+	/* sanity checks */
+	if ((ti.damage && !ti.nwa_v) || ti.blank) {
+		cdinfo(CD_WARNING, "can't write to this disc\n"); 
+		return 1;
+	}
+
+	/* NWA is only for CD-R and DVD-R. -RW media is randomly
+	 * writeable once it has been formatted. */
+	cdi->write.nwa = ti.nwa_v ? be32_to_cpu(ti.next_writable) : 0;
+
+	wp.fp			= cdi->write.fpacket ? 1 : 0;
+	wp.track_mode		= 0;
+	wp.write_type		= 0;
+	wp.data_block_type 	= 8;
+	wp.session_format 	= 0;
+	wp.multi_session	= 3;
+	wp.audio_pause		= cpu_to_be16(0x96);
+	wp.packet_size		= cdi->write.fpacket ? cpu_to_be32(cdi->write.packet_size) : 0;
+	wp.track_mode		= 5; /* should be ok with both CD and DVD */
+
+	if ((ret = cdrom_mode_select(cdi, &cgc)))
+		return ret;
+
+	cdinfo(CD_WARNING, "%s: writeable with %lu block %s packets\n",
+				cdi->name, cdi->write.packet_size,
+				cdi->write.fpacket ? "fixed" : "variable");
+	return 0;
 }
 
 EXPORT_SYMBOL(cdrom_get_next_writable);
@@ -2384,22 +2526,22 @@ static void cdrom_sysctl_register(void)
 
 	initialized = 1;
 }
+#endif /* endif CONFIG_SYSCTL */
+
 
 #ifdef MODULE
 static void cdrom_sysctl_unregister(void)
 {
+#ifdef CONFIG_SYSCTL
 	unregister_sysctl_table(cdrom_sysctl_header);
+#endif
 }
-#endif /* endif MODULE */
-#endif /* endif CONFIG_SYSCTL */
-
-#ifdef MODULE
 
 int init_module(void)
 {
 #ifdef CONFIG_SYSCTL
 	cdrom_sysctl_register();
-#endif /* CONFIG_SYSCTL */ 
+#endif
 	return 0;
 }
 
@@ -2410,5 +2552,5 @@ void cleanup_module(void)
 	cdrom_sysctl_unregister();
 #endif /* CONFIG_SYSCTL */ 
 }
-
 #endif /* endif MODULE */
+

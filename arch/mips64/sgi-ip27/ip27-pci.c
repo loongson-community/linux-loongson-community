@@ -114,8 +114,6 @@ void __init pcibios_init(void)
 	nasid_t nid = get_nasid();
 
 	ioport_resource.end = ~0UL;
-	/* Nothing to do for now.  */
-	printk("%s called.\n", __FUNCTION__);
 
 	printk("PCI: Probing PCI hardware on host bus 0, node %d.\n", nid);
 	pci_scan_bus(0, ops, NULL);
@@ -185,8 +183,6 @@ pcibios_fixup_bus(struct pci_bus *b)
 	unsigned short command;
 	struct pci_dev *dev;
 
-	/* Nothing to do for now.  */
-	printk("%s called.\n", __FUNCTION__);
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
 
 	/*

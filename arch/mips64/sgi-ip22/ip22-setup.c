@@ -111,6 +111,15 @@ struct kbd_ops sgi_kbd_ops = {
 	ip22_read_status
 };
 
+int __init page_is_ram(unsigned long pagenr)
+{
+	if (pagenr < MAP_NR(PAGE_OFFSET + 0x2000UL))
+		return 1;
+	if (pagenr > MAP_NR(PAGE_OFFSET + 0x08002000))
+		return 1;
+	return 0;
+}
+
 void __init ip22_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE

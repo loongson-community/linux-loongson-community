@@ -14,6 +14,7 @@
 
 #include <asm/smp.h>
 #include <asm/lithium.h>
+#include <asm/io.h>
 
 #include "pci-i386.h"
 
@@ -128,4 +129,9 @@ void __init pcibios_init(void)
 char * __init pcibios_setup(char *str)
 {
 	return str;
+}
+
+int pcibios_enable_device(struct pci_dev *dev)
+{
+	return pcibios_enable_resources(dev);
 }

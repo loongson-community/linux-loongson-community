@@ -293,11 +293,8 @@ void power_save(void)
 		
 			/* set the POW bit in the MSR, and enable interrupts
 			 * so we wake up sometime! */
+			__sti(); /* this keeps rtl from getting confused -- Cort */
 			_nmask_and_or_msr(0, MSR_POW | MSR_EE);
-
-			/* Disable interrupts again so restore_flags will
-			 * work. */
-			_nmask_and_or_msr(MSR_EE, 0);
 		}
 		restore_flags(msr);
 	default:

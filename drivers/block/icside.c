@@ -288,7 +288,6 @@ icside_build_dmatable(ide_drive_t *drive, int reading)
 static int
 icside_config_drive(ide_drive_t *drive, int mode)
 {
-	ide_hwif_t *hwif = HWIF(drive);
 	int speed, err;
 
 	if (mode == 2) {
@@ -382,7 +381,8 @@ icside_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 		if (drive->media != ide_disk)
 			return 0;
 
-		ide_set_handler(drive, &ide_dma_intr, WAIT_CMD);
+		drive->timeout = WAIT_CMD;
+		ide_set_handler(drive, &ide_dma_intr);
 		OUT_BYTE(reading ? WIN_READDMA : WIN_WRITEDMA,
 			 IDE_COMMAND_REG);
 

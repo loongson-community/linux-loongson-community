@@ -1,4 +1,4 @@
-/* $Id: umap.c,v 1.1 1999/08/18 21:46:52 ralf Exp $
+/* $Id: umap.c,v 1.2 1999/12/04 03:59:01 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -109,16 +109,16 @@ void *vmalloc_uncached (unsigned long size)
 static inline void free_pte(pte_t page)
 {
 	if (pte_present(page)) {
-		unsigned long addr = pte_page(page);
-		if (MAP_NR(addr) >= max_mapnr || PageReserved(mem_map+MAP_NR(addr)))
+		unsigned long nr = pte_pagenr(page);
+		if (nr >= max_mapnr || PageReserved(mem_map+nr))
 			return;
-		free_page(addr);
+		__free_page(pte_page(page));
 		if (current->mm->rss <= 0)
 			return;
 		current->mm->rss--;
 		return;
 	}
-	swap_free(pte_val(page));
+	swap_free(page);
 }
 
 static inline void forget_pte(pte_t page)
@@ -147,15 +147,15 @@ vmap_pte_range (pte_t *pte, unsigned long address, unsigned long size, unsigned 
 		end = PMD_SIZE;
 	do {
 		pte_t oldpage = *pte;
-		unsigned long page;
+		struct page * page;
 		pte_clear(pte);
 
 		vdir = pgd_offset_k (vaddr);
 		vpmd = pmd_offset (vdir, vaddr);
 		vpte = pte_offset (vpmd, vaddr);
 		page = pte_page (*vpte);
-		
-		set_pte(pte, mk_pte_phys(page, PAGE_USERIO));
+
+		set_pte(pte, mk_pte(page, PAGE_USERIO));
 		forget_pte(oldpage);
 		address += PAGE_SIZE;
 		vaddr += PAGE_SIZE;

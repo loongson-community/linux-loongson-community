@@ -323,6 +323,11 @@ struct iattr {
 #include <linux/quota.h>
 #include <linux/mount.h>
 
+/*
+ * oh the beauties of C type declarations.
+ */
+struct page;
+
 struct inode {
 	struct list_head	i_hash;
 	struct list_head	i_list;
@@ -350,7 +355,7 @@ struct inode {
 	wait_queue_head_t	i_wait;
 	struct file_lock	*i_flock;
 	struct vm_area_struct	*i_mmap;
-	struct page		*i_pages;
+	struct list_head	i_pages;
 	spinlock_t		i_shared_lock;
 	struct dquot		*i_dquot[MAXQUOTAS];
 	struct pipe_inode_info	*i_pipe;
@@ -769,8 +774,6 @@ extern int fs_may_mount(kdev_t);
 extern int try_to_free_buffers(struct page *);
 extern void refile_buffer(struct buffer_head * buf);
 
-extern atomic_t buffermem;
-
 #define BUF_CLEAN	0
 #define BUF_LOCKED	1	/* Buffers scheduled for write */
 #define BUF_DIRTY	2	/* Dirty buffers, not yet scheduled for write */
@@ -874,7 +877,7 @@ typedef struct {
 	int error;
 } read_descriptor_t;
 
-typedef int (*read_actor_t)(read_descriptor_t *, const char *, unsigned long);
+typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, unsigned long);
 
 
 extern struct dentry * lookup_dentry(const char *, struct dentry *, unsigned int);
@@ -886,7 +889,14 @@ extern struct dentry * __namei(const char *, unsigned int);
 extern void iput(struct inode *);
 extern struct inode * igrab(struct inode *);
 extern ino_t iunique(struct super_block *, ino_t);
-extern struct inode * iget(struct super_block *, unsigned long);
+
+typedef int (*find_inode_t)(struct inode *, unsigned long, void *);
+extern struct inode * iget4(struct super_block *, unsigned long, find_inode_t, void *);
+static inline struct inode *iget(struct super_block *sb, unsigned long ino)
+{
+	return iget4(sb, ino, NULL, NULL);
+}
+
 extern void clear_inode(struct inode *);
 extern struct inode * get_empty_inode(void);
 
@@ -934,11 +944,14 @@ extern void do_generic_file_read(struct file * filp, loff_t *ppos, read_descript
 
 
 extern struct super_block *get_super(kdev_t);
+struct super_block *get_empty_super(void);
+void remove_vfsmnt(kdev_t dev);
 extern void put_super(kdev_t);
 unsigned long generate_cluster(kdev_t, int b[], int);
 unsigned long generate_cluster_swab32(kdev_t, int b[], int);
 extern kdev_t ROOT_DEV;
 
+extern void show_buffers(void);
 extern void mount_root(void);
 
 #ifdef CONFIG_BLK_DEV_INITRD

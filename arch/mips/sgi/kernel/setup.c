@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.27 1999/10/21 00:23:05 ralf Exp $
+/* $Id: setup.c,v 1.28 1999/12/08 11:35:38 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -126,6 +126,15 @@ static void __init sgi_irq_setup(void)
 		set_debug_traps();
 	breakpoint(); /* you may move this line to whereever you want :-) */
 #endif
+}
+
+int __init page_is_ram(unsigned long pagenr)
+{
+	if (pagenr < MAP_NR(PAGE_OFFSET + 0x2000UL))
+		return 1;
+	if (pagenr > MAP_NR(PAGE_OFFSET + 0x08002000))
+		return 1;
+	return 0;
 }
 
 void __init sgi_setup(void)

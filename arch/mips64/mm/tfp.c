@@ -1,4 +1,4 @@
-/* $Id: tfp.c,v 1.4 1999/12/04 03:59:01 ralf Exp $
+/* $Id: tfp.c,v 1.5 2000/01/17 23:32:46 ralf Exp $
  *
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
@@ -16,7 +16,61 @@
 #include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
-extern unsigned long mips_tlb_entries;
+static void tfp_clear_page(void * page)
+{
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"daddiu\t$1,%0,%2\n"
+		"1:\tsd\t$0,(%0)\n\t"
+		"sd\t$0,8(%0)\n\t"
+		"sd\t$0,16(%0)\n\t"
+		"sd\t$0,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"sd\t$0,-32(%0)\n\t"
+		"sd\t$0,-24(%0)\n\t"
+		"sd\t$0,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sd\t$0,-8(%0)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (page)
+		:"0" (page), "I" (PAGE_SIZE)
+		:"$1", "memory");
+}
+
+static void tfp_copy_page(void * to, void * from)
+{
+	unsigned long dummy1, dummy2, reg1, reg2;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"daddiu\t$1,%0,%6\n"
+		"1:\tld\t%2,(%1)\n\t"
+		"ld\t%3,8(%1)\n\t"
+		"sd\t%2,(%0)\n\t"
+		"sd\t%3,8(%0)\n\t"
+		"ld\t%2,16(%1)\n\t"
+		"ld\t%3,24(%1)\n\t"
+		"sd\t%2,16(%0)\n\t"
+		"sd\t%3,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"daddiu\t%1,64\n\t"
+		"ld\t%2,-32(%1)\n\t"
+		"ld\t%3,-24(%1)\n\t"
+		"sd\t%2,-32(%0)\n\t"
+		"sd\t%3,-24(%0)\n\t"
+		"ld\t%2,-16(%1)\n\t"
+		"ld\t%3,-8(%1)\n\t"
+		"sd\t%2,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		" sd\t%3,-8(%0)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
+		:"0" (to), "1" (from), "I" (PAGE_SIZE));
+}
 
 /* Cache operations. XXX Write these dave... */
 static inline void tfp_flush_cache_all(void)
@@ -42,7 +96,7 @@ static void tfp_flush_cache_page(struct vm_area_struct *vma,
 	/* XXX */
 }
 
-static void tfp_flush_page_to_ram(unsigned long page)
+static void tfp_flush_page_to_ram(struct page * page)
 {
 	/* XXX */
 }
@@ -81,6 +135,9 @@ static int tfp_user_mode(struct pt_regs *regs)
 
 void __init ld_mmu_tfp(void)
 {
+	clear_page = tfp_clear_page;
+	copy_page = tfp_copy_page;
+
 	flush_cache_all = tfp_flush_cache_all;
 	flush_cache_mm = tfp_flush_cache_mm;
 	flush_cache_range = tfp_flush_cache_range;

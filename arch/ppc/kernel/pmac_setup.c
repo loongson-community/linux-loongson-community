@@ -39,6 +39,7 @@
 #include <linux/ioport.h>
 #include <linux/major.h>
 #include <linux/blk.h>
+#include <linux/ide.h>
 #include <linux/vt_kern.h>
 #include <linux/console.h>
 #include <linux/ide.h>
@@ -57,7 +58,6 @@
 #include <asm/ohare.h>
 #include <asm/mediabay.h>
 #include <asm/feature.h>
-#include <asm/ide.h>
 #include <asm/machdep.h>
 #include <asm/keyboard.h>
 #include <asm/dma.h>
@@ -238,7 +238,7 @@ pmac_mksound(unsigned int hz, unsigned int ticks)
 static volatile u32 *sysctrl_regs;
 
 void __init
-pmac_setup_arch(unsigned long *memory_start_p, unsigned long *memory_end_p)
+pmac_setup_arch(void)
 {
 	struct device_node *cpu;
 	int *fp;
@@ -269,7 +269,7 @@ pmac_setup_arch(unsigned long *memory_start_p, unsigned long *memory_end_p)
 	__ioremap(0xffc00000, 0x400000, pgprot_val(PAGE_READONLY));
 	ohare_init();
 
-	*memory_start_p = pmac_find_bridges(*memory_start_p, *memory_end_p);
+	pmac_find_bridges();
 	init_p2pbridge();
 
 	/* Checks "l2cr-value" property in the registry */
@@ -421,7 +421,7 @@ note_scsi_host(struct device_node *node, void *host)
 #if defined(CONFIG_BLK_DEV_IDE) && defined(CONFIG_BLK_DEV_IDE_PMAC)
 extern int pmac_ide_count;
 extern struct device_node *pmac_ide_node[];
-static int ide_majors[] = { 3, 22, 33, 34, 56, 57, 88, 89 };
+static int ide_majors[] = { 3, 22, 33, 34, 56, 57, 88, 89, 90, 91 };
 
 kdev_t __init find_ide_boot(void)
 {

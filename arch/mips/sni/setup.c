@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.12 1999/10/09 00:00:59 ralf Exp $
+/* $Id: setup.c,v 1.13 1999/12/04 03:59:00 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -101,6 +101,11 @@ static inline void sni_pcimt_detect(void)
 	asic = (csmsr & 0x08) ? asic : !asic;
 	p += sprintf(p, ", ASIC PCI Rev %s", asic ? "1.0" : "1.1");
 	printk("%s.\n", boardtype);
+}
+
+int __init page_is_ram(unsigned long pagenr)
+{
+	return 1;
 }
 
 void __init sni_rm200_pci_setup(void)

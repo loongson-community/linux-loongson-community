@@ -860,7 +860,7 @@ S: Germany
 
 N: David Hinds
 E: dhinds@zen.stanford.edu
-W: http://hyper.stanford.edu/~dhinds
+W: http://tao.stanford.edu/~dhinds
 D: PCMCIA and CardBus stuff, PCMCIA-HOWTO, PCMCIA client drivers
 S: 2019 W. Middlefield Rd #1
 S: Mountain View, CA  94043
@@ -907,14 +907,14 @@ S: CV5 8BZ
 S: United Kingdom
 
 N: Ron Holt
-E: ron@caldera.com
+E: ron@holt.org
 W: http://www.holt.org/
-P: 1024/1FD44539 DF 4B EB 9F 5B 68 38 9A  40 E3 FB 71 D1 C8 0B 56
+W: http://www.ronholt.com/
 D: Kernel development
-D: Minor kernel modifications to support Wabi and Wine
-S: Caldera, Inc.
-S: 240 West Center Street
-S: Orem, Utah 84059-1920
+D: Kernel LDT modifications to support Wabi and Wine
+S: Holtron Internetics, Inc.
+S: 998 East 900 South, Suite 26
+S: Provo, Utah 84606-5607
 S: USA
 
 N: Rob W. W. Hooft
@@ -1329,11 +1329,11 @@ S: 198 00 Praha 9
 S: Czech Republic
 
 N: Paul Mackerras
-E: paulus@cs.anu.edu.au
+E: paulus@linuxcare.com
 D: Linux port for PCI Power Macintosh
-S: Dept. of Computer Science
-S: Australian National University
-S: Canberra  ACT  0200
+S: Linuxcare, Inc.
+S: 24 Marcus Clarke Street
+S: Canberra ACT 2601
 S: Australia
 
 N: Pat Mackinlay

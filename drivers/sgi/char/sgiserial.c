@@ -419,6 +419,7 @@ static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs
 			show_state();
 			return;
 		} else if (ch == 2) {
+			show_buffers();
 			return;
 		}
 		/* It is a 'keyboard interrupt' ;-) */
@@ -2246,10 +2247,7 @@ static struct console sgi_console_driver = {
 /*
  *	Register console.
  */
-long __init serial_console_init(long kmem_start, long kmem_end)
+void __init serial_console_init(void)
 {
 	register_console(&sgi_console_driver);
-	return kmem_start;
 }
-
-

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.12 1999/09/18 20:48:03 harald Exp $
+ * $Id: loadmmu.c,v 1.13 1999/10/09 00:00:58 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -17,8 +17,8 @@
 #include <asm/sgialib.h>
 
 /* memory functions */
-void (*clear_page)(unsigned long page);
-void (*copy_page)(unsigned long to, unsigned long from);
+void (*clear_page)(void * page);
+void (*copy_page)(void * to, void * from);
 
 /* Cache operations. */
 void (*flush_cache_all)(void);
@@ -27,7 +27,7 @@ void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
 			  unsigned long end);
 void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
 void (*flush_cache_sigtramp)(unsigned long addr);
-void (*flush_page_to_ram)(unsigned long page);
+void (*flush_page_to_ram)(struct page * page);
 
 /* DMA cache operations. */
 void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);

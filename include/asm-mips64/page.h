@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
+/* $Id: page.h,v 1.3 2000/01/17 23:32:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,17 +19,14 @@
 
 #ifdef __KERNEL__
 
-#define STRICT_MM_TYPECHECKS
-
 #ifndef _LANGUAGE_ASSEMBLY
 
 #define BUG() do { printk("kernel BUG at %s:%d!\n", __FILE__, __LINE__); *(int *)0=0; } while (0)
 #define PAGE_BUG(page) do {  BUG(); } while (0)
 
-extern void (*clear_page)(unsigned long page);
-extern void (*copy_page)(unsigned long to, unsigned long from);
+extern void (*clear_page)(void * page);
+extern void (*copy_page)(void * to, void * from);
 
-#ifdef STRICT_MM_TYPECHECKS
 /*
  * These are used to make use of C type-checking..
  */
@@ -47,27 +44,6 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 #define __pme(x)	((pme_t) { (x) } )
 #define __pgd(x)	((pgd_t) { (x) } )
 #define __pgprot(x)	((pgprot_t) { (x) } )
-
-#else /* !defined (STRICT_MM_TYPECHECKS) */
-/*
- * .. while these make it easier on the compiler
- */
-typedef unsigned long pte_t;
-typedef unsigned long pmd_t;
-typedef unsigned long pgd_t;
-typedef unsigned long pgprot_t;
-
-#define pte_val(x)	(x)
-#define pmd_val(x)	(x)
-#define pgd_val(x)	(x)
-#define pgprot_val(x)	(x)
-
-#define __pte(x)	(x)
-#define __pmd(x)	(x)
-#define __pgd(x)	(x)
-#define __pgprot(x)	(x)
-
-#endif /* !defined (STRICT_MM_TYPECHECKS) */
 
 #endif /* _LANGUAGE_ASSEMBLY */
 

@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.3 1999/12/04 03:59:00 ralf Exp $
+/* $Id: andes.c,v 1.4 2000/01/17 23:32:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -24,7 +24,7 @@
 				     ".set reorder\n\t")
 
 /* R10000 has no Create_Dirty type cacheops.  */
-static void andes_clear_page(unsigned long page)
+static void andes_clear_page(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -47,7 +47,7 @@ static void andes_clear_page(unsigned long page)
 		:"$1", "memory");
 }
 
-static void andes_copy_page(unsigned long to, unsigned long from)
+static void andes_copy_page(void * to, void * from)
 {
 	unsigned long dummy1, dummy2, reg1, reg2;
 
@@ -176,16 +176,17 @@ out:
 /* Hoo hum...  will this ever be called for an address that is not in CKSEG0
    and not cacheable?  */
 static void
-andes_flush_page_to_ram(unsigned long page)
+andes_flush_page_to_ram(struct page * page)
 {
-	page &= PAGE_MASK;
-	if ((page >= K0BASE_NONCOH && page < (0xb0UL << 56))
-	    || (page >= KSEG0 && page < KSEG1)
-	    || (page >= KSEG2)) {
+	unsigned long addr = page_address(page) & PAGE_MASK;
+
+	if ((addr >= K0BASE_NONCOH && addr < (0xb0UL << 56))
+	    || (addr >= KSEG0 && addr < KSEG1)
+	    || (addr >= KSEG2)) {
 #ifdef DEBUG_CACHE
-		printk("cram[%08lx]", page);
+		printk("cram[%08lx]", addr);
 #endif
-		blast_dcache32_page(page);
+		blast_dcache32_page(addr);
 	}
 }
 
@@ -467,9 +468,8 @@ void __init ld_mmu_andes(void)
 	 */
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
 
-        /* We can't flush the TLB at this time since the IP27 ARC firmware
-           depends on it.  ARC go home.  */
-	/* flush_tlb_all(); */
+        /* From this point on the ARC firmware is dead.  */
+	flush_tlb_all();
 
         /* Did I tell you that ARC SUCKS?  */
 }

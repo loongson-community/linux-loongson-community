@@ -7,7 +7,7 @@
  * Copyright (C) 1998 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  *
- * $Id: r2300.c,v 1.11 1999/10/09 00:00:58 ralf Exp $
+ * $Id: r2300.c,v 1.12 1999/10/12 17:33:49 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -45,7 +45,7 @@ static struct cache_space {
 #define NTLB_ENTRIES       64  /* Fixed on all R23000 variants... */
 
 /* page functions */
-void r2300_clear_page(unsigned long page)
+void r2300_clear_page(void * page)
 {
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -69,7 +69,7 @@ void r2300_clear_page(unsigned long page)
 		:"$1","memory");
 }
 
-static void r2300_copy_page(unsigned long to, unsigned long from)
+static void r2300_copy_page(void * to, void * from)
 {
 	unsigned long dummy1, dummy2;
 	unsigned long reg1, reg2, reg3, reg4;
@@ -200,8 +200,8 @@ static inline unsigned long get_phys_page (unsigned long page,
 			pte = *page_table;
 			if (!pte_present(pte))
 				return 0; 
-			return pte_page(pte);
-	}
+			return pte_val(pte) & PAGE_MASK;
+		}
 	}
 }
 
@@ -348,12 +348,12 @@ static void r2300_flush_cache_page(struct vm_area_struct *vma,
 	}
 }
 
-static void r2300_flush_page_to_ram(unsigned long page)
+static void r2300_flush_page_to_ram(struct page * page)
 {
 	/*
 	 *  We need to flush both i- & d- caches :-(
 	 */
-	unsigned long phys_page = get_phys_page(page, NULL);
+	unsigned long phys_page = get_phys_page(page_address(page), NULL);
 #ifdef DEBUG_CACHE
 	printk("cram[%08lx]", page);
 #endif

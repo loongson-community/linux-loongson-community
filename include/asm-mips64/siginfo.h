@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: siginfo.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -196,7 +196,7 @@ typedef struct siginfo {
 #define SIGEV_THREAD	131	/* deliver via thread creation */
 
 #define SIGEV_MAX_SIZE	64
-#define SIGEV_PAD_SIZE	((SIGEV_MAX_SIZE/sizeof(int)) - 4)
+#define SIGEV_PAD_SIZE	((SIGEV_MAX_SIZE/sizeof(int)) - 6)
 
 /* XXX This one isn't yet IRIX / ABI compatible.  */
 typedef struct sigevent {

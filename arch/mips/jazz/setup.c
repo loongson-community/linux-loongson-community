@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.23 1999/10/07 07:31:14 raiko Exp $
+/* $Id: setup.c,v 1.24 1999/10/09 00:00:58 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -23,6 +23,7 @@
 #include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/jazz.h>
+#include <asm/jazzdma.h>
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/io.h>
@@ -79,6 +80,11 @@ static void __init jazz_irq_setup(void)
 	i8259_setup_irq(2, &irq2);
 }
 
+int __init page_is_ram(unsigned long pagenr)
+{
+	return 1;
+}
+
 void __init jazz_setup(void)
 {
 	add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
@@ -125,4 +131,6 @@ void __init jazz_setup(void)
 
 	rtc_ops = &jazz_rtc_ops;
 	kbd_ops = &jazz_kbd_ops;
+
+	vdma_init();
 }

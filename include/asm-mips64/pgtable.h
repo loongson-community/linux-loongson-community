@@ -31,7 +31,7 @@ extern void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
 				 unsigned long end);
 extern void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
 extern void (*flush_cache_sigtramp)(unsigned long addr);
-extern void (*flush_page_to_ram)(unsigned long page);
+extern void (*flush_page_to_ram)(struct page * page);
 #define flush_icache_range(start, end) flush_cache_all()
 
 /* TLB flushing:
@@ -163,6 +163,13 @@ extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 
 #if !defined (_LANGUAGE_ASSEMBLY)
 
+#define pte_ERROR(e) \
+	printk("%s:%d: bad pte %016lx.\n", __FILE__, __LINE__, pte_val(e))
+#define pmd_ERROR(e) \
+	printk("%s:%d: bad pmd %016lx.\n", __FILE__, __LINE__, pmd_val(e))
+#define pgd_ERROR(e) \
+	printk("%s:%d: bad pgd %016lx.\n", __FILE__, __LINE__, pgd_val(e))
+
 /*
  * BAD_PAGETABLE is used when we need a bogus page-table, while
  * BAD_PAGE is used for a bogus page.
@@ -180,8 +187,8 @@ extern unsigned long zero_page_mask;
 #define BAD_PAGETABLE __bad_pagetable()
 #define BAD_PMDTABLE __bad_pmd_table()
 #define BAD_PAGE __bad_page()
-#define ZERO_PAGE(__vaddr) \
-	(empty_zero_page + (((unsigned long)(__vaddr)) & zero_page_mask))
+#define ZERO_PAGE(vaddr) \
+	(mem_map + MAP_NR(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR			(8*sizeof(unsigned long))
@@ -254,6 +261,8 @@ extern inline void pte_clear(pte_t *ptep)
 	set_pte(ptep, __pte(0));
 }
 
+#define pte_pagenr(x)	((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+
 /*
  * Empty pmd entries point to the invalid_pte_table.
  */
@@ -301,6 +310,16 @@ extern inline void pgd_clear(pgd_t *pgdp)
 {
 	pgd_val(*pgdp) = ((unsigned long) invalid_pmd_table);
 }
+
+/*
+ * Permanent address of a page.  On MIPS64 we never have highmem, so this
+ * is simple.
+ * called on a highmem page.
+ */
+#define page_address(page)						\
+	 (PAGE_OFFSET + (((page) - mem_map) << PAGE_SHIFT))
+#define pages_to_mb(x) ((x) >> (20-PAGE_SHIFT))		/* Unused? */
+#define pte_page(x) (mem_map+pte_pagenr(x))
 
 /*
  * The following only work if pte_present() is true.
@@ -386,9 +405,14 @@ extern inline pte_t pte_mkyoung(pte_t pte)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-extern inline pte_t mk_pte(unsigned long page, pgprot_t pgprot)
+extern inline pte_t mk_pte(struct page * page, pgprot_t pgprot)
 {
-	return __pte(((page & PAGE_MASK) - PAGE_OFFSET) | pgprot_val(pgprot));
+	pte_t	__pte;
+
+	pte_val(__pte) = ((unsigned long)(page - mem_map) << PAGE_SHIFT) |
+	                 pgprot_val(pgprot);
+
+	return __pte;
 }
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
@@ -400,6 +424,9 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {
 	return __pte((pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot));
 }
+
+#define page_pte_prot(page,prot) mk_pte(page, prot)
+#define page_pte(page) page_pte_prot(page, __pgprot(0))
 
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)
@@ -640,9 +667,9 @@ extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 	return pte;
 }
 
-#define SWP_TYPE(entry) (((entry) >> 32) & 0xff)
-#define SWP_OFFSET(entry) ((entry) >> 40)
-#define SWP_ENTRY(type,offset) pte_val(mk_swap_pte((type),(offset)))
+#define SWP_TYPE(entry) ((pte_val(entry) >> 32) & 0xff)
+#define SWP_OFFSET(entry) (pte_val(entry) >> 40)
+#define SWP_ENTRY(type,offset) mk_swap_pte((type),(offset))
 
 #define module_map      vmalloc
 #define module_unmap    vfree

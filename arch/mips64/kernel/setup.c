@@ -142,10 +142,8 @@ static inline void cpu_probe(void)
 	}
 }
 
-void __init setup_arch(char **cmdline_p, unsigned long * memory_start_p,
-                       unsigned long * memory_end_p)
+void __init setup_arch(char **cmdline_p)
 {
-	unsigned long memory_end;
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
 	unsigned long *initrd_header;
@@ -161,32 +159,14 @@ void __init setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 	ip27_setup();
 #endif
 
-	memory_end = mips_memory_upper;
-
-	/*
-	 * Due to prefetching and similar mechanism the CPU sometimes
-	 * generates addresses beyond the end of memory.  We leave the size
-	 * of one cache line at the end of memory unused to make shure we
-	 * don't catch this type of bus errors.
-	 */
-	memory_end -= 128;
-	memory_end &= PAGE_MASK;
-
 	strncpy (command_line, arcs_cmdline, CL_SIZE);
 	memcpy(saved_command_line, command_line, CL_SIZE);
 	saved_command_line[CL_SIZE-1] = '\0';
 
 	*cmdline_p = command_line;
-	*memory_start_p = (unsigned long) &_end;
-#ifdef CONFIG_BOOT_ELF64
-	/* memory_end is a XKPHYS address but memory_start is in CKSEG.
-	   All memory handling is done using XKPHYS addresses, so convert.  */
-	*memory_start_p = (*memory_start_p & 0x1ffffffUL)
-	                  | 0xa800000000000000UL;
-#endif
-	*memory_end_p = memory_end;
 
 #ifdef CONFIG_BLK_DEV_INITRD
+#error "Initrd is broken, please fit it."
 	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
 	if (tmp < (unsigned long)&_end)
 		tmp += PAGE_SIZE;

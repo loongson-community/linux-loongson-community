@@ -14,6 +14,7 @@
 
 #include <asm/pgtable.h>
 #include <asm/sgialib.h>
+#include <asm/sn/klconfig.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/sn0/ip27.h>
@@ -88,20 +89,21 @@ extern void ioc3_eth_init(void);
 
 void __init time_init(void)
 {
-	unsigned int cpufreq;
-	char *cpufreqstr;
+	lboard_t *board;
+	klcpu_t *cpu;
+	int cpuid;
 
-	/* Is this timesource good enough?  Ok to assume that all CPUs have
-	   this clockrate?  Are they 100% synchronously clocked?  */
-	cpufreqstr = ArcGetEnvironmentVariable("cpufreq");
-	if (cpufreqstr == NULL)
-		panic("Cannot detect CPU clock rate");
-	cpufreq = simple_strtoul(cpufreqstr, NULL, 10);
-	printk("PROM says CPU clock is %dMHz\n", cpufreq);
+	/* Don't use ARCS.  ARCS is fragile.  Klconfig is simple and sane.  */
+	board = find_lboard(KLTYPE_IP27);
+	if (!board)
+		panic("Can't find board info for myself.");
 
-	/* We didn't flush the TLB earlier since the ARC firmware depends on
-	   it.  So do it now.  */
-	flush_tlb_all();
+	cpuid = LOCAL_HUB_L(PI_CPU_NUM) ? IP27_CPU0_INDEX : IP27_CPU1_INDEX;
+	cpu = (klcpu_t *) KLCF_COMP(board, cpuid);
+	if (!cpu)
+		panic("No information about myself?");
+
+	printk("CPU clock is %dMHz.\n", cpu->cpu_speed);
 
 	/* Don't worry about second CPU, it's disabled.  */
 	LOCAL_HUB_S(PI_RT_EN_A, 1);

@@ -1,4 +1,4 @@
-/* $Id: loadmmu.c,v 1.3 1999/12/04 03:59:00 ralf Exp $
+/* $Id: loadmmu.c,v 1.4 2000/01/17 23:32:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -21,8 +21,8 @@
 #include <asm/sgialib.h>
 
 /* memory functions */
-void (*clear_page)(unsigned long page);
-void (*copy_page)(unsigned long to, unsigned long from);
+void (*clear_page)(void * page);
+void (*copy_page)(void * to, void * from);
 
 /* Cache operations. */
 void (*flush_cache_all)(void);
@@ -31,7 +31,7 @@ void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
 			  unsigned long end);
 void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
 void (*flush_cache_sigtramp)(unsigned long addr);
-void (*flush_page_to_ram)(unsigned long page);
+void (*flush_page_to_ram)(struct page * page);
 
 /* DMA cache operations. */
 void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);

@@ -1,4 +1,4 @@
-/* $Id: r6000.c,v 1.7 1999/08/09 19:43:16 harald Exp $
+/* $Id: r6000.c,v 1.8 1999/10/09 00:00:58 ralf Exp $
  *
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
@@ -16,7 +16,84 @@
 #include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
-__asm__(".set mips3"); /* because we know... */
+__asm__(".set mips2"); /* because we know... */
+
+/* page functions */
+void r6000_clear_page(void * page)
+{
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"addiu\t$1,%0,%2\n"
+		"1:\tsw\t$0,(%0)\n\t"
+		"sw\t$0,4(%0)\n\t"
+		"sw\t$0,8(%0)\n\t"
+		"sw\t$0,12(%0)\n\t"
+		"addiu\t%0,32\n\t"
+		"sw\t$0,-16(%0)\n\t"
+		"sw\t$0,-12(%0)\n\t"
+		"sw\t$0,-8(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sw\t$0,-4(%0)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (page)
+		:"0" (page),
+		 "I" (PAGE_SIZE)
+		:"$1","memory");
+}
+
+static void r6000_copy_page(void * to, void * from)
+{
+	unsigned long dummy1, dummy2;
+	unsigned long reg1, reg2, reg3, reg4;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"addiu\t$1,%0,%8\n"
+		"1:\tlw\t%2,(%1)\n\t"
+		"lw\t%3,4(%1)\n\t"
+		"lw\t%4,8(%1)\n\t"
+		"lw\t%5,12(%1)\n\t"
+		"sw\t%2,(%0)\n\t"
+		"sw\t%3,4(%0)\n\t"
+		"sw\t%4,8(%0)\n\t"
+		"sw\t%5,12(%0)\n\t"
+		"lw\t%2,16(%1)\n\t"
+		"lw\t%3,20(%1)\n\t"
+		"lw\t%4,24(%1)\n\t"
+		"lw\t%5,28(%1)\n\t"
+		"sw\t%2,16(%0)\n\t"
+		"sw\t%3,20(%0)\n\t"
+		"sw\t%4,24(%0)\n\t"
+		"sw\t%5,28(%0)\n\t"
+		"addiu\t%0,64\n\t"
+		"addiu\t%1,64\n\t"
+		"lw\t%2,-32(%1)\n\t"
+		"lw\t%3,-28(%1)\n\t"
+		"lw\t%4,-24(%1)\n\t"
+		"lw\t%5,-20(%1)\n\t"
+		"sw\t%2,-32(%0)\n\t"
+		"sw\t%3,-28(%0)\n\t"
+		"sw\t%4,-24(%0)\n\t"
+		"sw\t%5,-20(%0)\n\t"
+		"lw\t%2,-16(%1)\n\t"
+		"lw\t%3,-12(%1)\n\t"
+		"lw\t%4,-8(%1)\n\t"
+		"lw\t%5,-4(%1)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sw\t%5,-4(%0)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2),
+		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
+		:"0" (to), "1" (from),
+		 "I" (PAGE_SIZE));
+}
 
 /* Cache operations. XXX Write these dave... */
 static inline void r6000_flush_cache_all(void)
@@ -42,7 +119,7 @@ static void r6000_flush_cache_page(struct vm_area_struct *vma,
 	/* XXX */
 }
 
-static void r6000_flush_page_to_ram(unsigned long page)
+static void r6000_flush_page_to_ram(struct page * page)
 {
 	/* XXX */
 }
@@ -83,22 +160,15 @@ void pgd_init(unsigned long page)
 	unsigned long dummy1, dummy2;
 
 	/*
-	 * This version is optimized for the R6000.  We generate dirty lines
-	 * in the datacache, overwrite these lines with zeros and then flush
-	 * the cache.  Sounds horribly complicated but is just a trick to
-	 * avoid unnecessary loads of from memory and uncached stores which
-	 * are very expensive.  Not tested yet as the R6000 is a rare CPU only
-	 * available in SGI machines and I don't have one.
+	 * The plain and boring version for the R3000.  No cache flushing
+	 * stuff is implemented since the R3000 has physical caches.
 	 */
 	__asm__ __volatile__(
 		".set\tnoreorder\n"
-		"1:\t"
-		"cache\t%5,(%0)\n\t"
-		"sw\t%2,(%0)\n\t"
+		"1:\tsw\t%2,(%0)\n\t"
 		"sw\t%2,4(%0)\n\t"
 		"sw\t%2,8(%0)\n\t"
 		"sw\t%2,12(%0)\n\t"
-		"cache\t%5,16(%0)\n\t"
 		"sw\t%2,16(%0)\n\t"
 		"sw\t%2,20(%0)\n\t"
 		"sw\t%2,24(%0)\n\t"
@@ -111,8 +181,7 @@ void pgd_init(unsigned long page)
 		 "=r" (dummy2)
 		:"r" ((unsigned long) invalid_pte_table),
 		 "0" (page),
-		 "1" (USER_PTRS_PER_PGD/8),
-		 "i" (Create_Dirty_Excl_D));
+		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)));
 }
 
 void update_mmu_cache(struct vm_area_struct * vma,
@@ -166,6 +235,9 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 void __init ld_mmu_r6000(void)
 {
+	clear_page = r6000_clear_page;
+	copy_page = r6000_copy_page;
+
 	flush_cache_all = r6000_flush_cache_all;
 	flush_cache_mm = r6000_flush_cache_mm;
 	flush_cache_range = r6000_flush_cache_range;

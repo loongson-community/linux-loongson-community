@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.3 2000/01/17 23:32:47 ralf Exp $
+/* $Id: io.h,v 1.4 2000/01/25 21:58:42 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -155,6 +155,23 @@ extern inline void iounmap(void *addr)
 #define memcpy_toio(a,b,c)	memcpy((void *)(0xa0000000 + (unsigned long)(a)),(b),(c))
 
 /* END SNI HACKS ... */
+
+/*
+ * ISA space is 'always mapped' on currently supported MIPS systems, no need
+ * to explicitly ioremap() it. The fact that the ISA IO space is mapped
+ * to PAGE_OFFSET is pure coincidence - it does not mean ISA values
+ * are physical addresses. The following constant pointer can be
+ * used as the IO-area pointer (it can be iounmapped as well, so the
+ * analogy with PCI is quite large):
+ */
+#define __ISA_IO_base ((char *)(PAGE_OFFSET))
+
+#define isa_readb(a) readb(a)
+#define isa_readw(a) readb(a)
+#define isa_readl(a) readb(a)
+#define isa_writeb(b,a) writeb(b,a)
+#define isa_writew(w,a) writeb(w,a)
+#define isa_writel(l,a) writeb(l,a)
 
 /*
  * We don't have csum_partial_copy_fromio() yet, so we cheat here and

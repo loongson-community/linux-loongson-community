@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.20 1999/10/09 00:00:58 ralf Exp $
+/* $Id: setup.c,v 1.21 2000/01/26 00:07:44 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -97,13 +97,6 @@ unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 unsigned char aux_device_present;
 extern int _end;
 
-extern char empty_zero_page[PAGE_SIZE];
-
-/*
- * This is set up by the setup-routine at boot-time
- */
-#define PARAM	empty_zero_page
-
 static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];
 extern char arcs_cmdline[CL_SIZE];
@@ -131,10 +124,8 @@ static void __init default_irq_setup(void)
 	panic("Unknown machtype in init_IRQ");
 }
 
-void __init setup_arch(char **cmdline_p,
-           unsigned long * memory_start_p, unsigned long * memory_end_p)
+void __init setup_arch(char **cmdline_p)
 {
-	unsigned long memory_end;
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
 	unsigned long *initrd_header;
@@ -204,25 +195,14 @@ void __init setup_arch(char **cmdline_p,
 		panic("Unsupported architecture");
 	}
 
-	memory_end = mips_memory_upper;
-	/*
-	 * Due to prefetching and similar mechanism the CPU sometimes
-	 * generates addresses beyond the end of memory.  We leave the size
-	 * of one cache line at the end of memory unused to make shure we
-	 * don't catch this type of bus errors.
-	 */
-	memory_end -= 128;
-	memory_end &= PAGE_MASK;
-
         strncpy (command_line, arcs_cmdline, CL_SIZE);
 	memcpy(saved_command_line, command_line, CL_SIZE);
 	saved_command_line[CL_SIZE-1] = '\0';
 
 	*cmdline_p = command_line;
-	*memory_start_p = (unsigned long) &_end;
-	*memory_end_p = memory_end;
 
 #ifdef CONFIG_BLK_DEV_INITRD
+#error "Fixme, I'm broken."
 	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
 	if (tmp < (unsigned long)&_end)
 		tmp += PAGE_SIZE;
