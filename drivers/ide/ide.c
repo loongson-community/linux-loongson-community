@@ -175,7 +175,7 @@ static int system_bus_speed;	/* holds what we think is VESA/PCI bus speed */
 static int initializing;	/* set while initializing built-in drivers */
 
 DECLARE_MUTEX(ide_cfg_sem);
-spinlock_t ide_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
+ __cacheline_aligned_in_smp DEFINE_SPINLOCK(ide_lock);
 
 #ifdef CONFIG_BLK_DEV_IDEPCI
 static int ide_scan_direction; /* THIS was formerly 2.2.x pci=reverse */
@@ -368,8 +368,8 @@ static int ide_open (struct inode * inode, struct file * filp)
  *	list of drivers.  Currently nobody takes both at once.
  */
 
-static spinlock_t drives_lock = SPIN_LOCK_UNLOCKED;
-static spinlock_t drivers_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(drives_lock);
+static DEFINE_SPINLOCK(drivers_lock);
 static LIST_HEAD(drivers);
 
 /* Iterator for the driver list. */
@@ -1554,18 +1554,7 @@ int generic_ide_ioctl(struct file *file, struct block_device *bdev,
 			HWGROUP(drive)->busy = 1;
 			spin_unlock_irqrestore(&ide_lock, flags);
 			(void) ide_do_reset(drive);
-			if (drive->suspend_reset) {
-/*
- *				APM WAKE UP todo !!
- *				int nogoodpower = 1;
- *				while(nogoodpower) {
- *					check_power1() or check_power2()
- *					nogoodpower = 0;
- *				} 
- *				HWIF(drive)->multiproc(drive);
- */
-				return ioctl_by_bdev(bdev, BLKRRPART, 0);
-			}
+
 			return 0;
 		}
 
@@ -2035,16 +2024,6 @@ static void __init probe_for_hwifs (void)
 #endif
 }
 
-/*
- *	Actually unregister the subdriver. Called with the
- *	request lock dropped.
- */
- 
-static int default_cleanup (ide_drive_t *drive)
-{
-	return ide_unregister_subdriver(drive);
-}
-
 static ide_startstop_t default_do_request (ide_drive_t *drive, struct request *rq, sector_t block)
 {
 	ide_end_request(drive, 0, 0);
@@ -2080,14 +2059,6 @@ static ide_startstop_t default_special (ide_drive_t *drive)
 	return ide_stopped;
 }
 
-static int default_attach (ide_drive_t *drive)
-{
-	printk(KERN_ERR "%s: does not support hotswap of device class !\n",
-		drive->name);
-
-	return 0;
-}
-
 static ide_startstop_t default_abort(ide_drive_t *drive, struct request *rq)
 {
 	return __ide_abort(drive, rq);
@@ -2102,7 +2073,8 @@ static ide_startstop_t default_start_power_step(ide_drive_t *drive,
 
 static void setup_driver_defaults (ide_driver_t *d)
 {
-	if (d->cleanup == NULL)		d->cleanup = default_cleanup;
+	BUG_ON(d->attach == NULL || d->cleanup == NULL);
+
 	if (d->do_request == NULL)	d->do_request = default_do_request;
 	if (d->end_request == NULL)	d->end_request = default_end_request;
 	if (d->error == NULL)		d->error = default_error;
@@ -2110,7 +2082,6 @@ static void setup_driver_defaults (ide_driver_t *d)
 	if (d->pre_reset == NULL)	d->pre_reset = default_pre_reset;
 	if (d->capacity == NULL)	d->capacity = default_capacity;
 	if (d->special == NULL)		d->special = default_special;
-	if (d->attach == NULL)		d->attach = default_attach;
 	if (d->start_power_step == NULL)
 		d->start_power_step = default_start_power_step;
 }
@@ -2139,7 +2110,6 @@ int ide_register_subdriver(ide_drive_t *drive, ide_driver_t *driver)
 		drive->dsc_overlap = (drive->next != drive && driver->supports_dsc_overlap);
 		drive->nice1 = 1;
 	}
-	drive->suspend_reset = 0;
 #ifdef CONFIG_PROC_FS
 	if (drive->driver != &idedefault_driver) {
 		ide_add_proc_entries(drive->proc, generic_subdriver_entries, drive);

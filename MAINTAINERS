@@ -575,7 +575,7 @@ S:	Maintained
 CPU FREQUENCY DRIVERS
 P:	Dave Jones
 M:	davej@codemonkey.org.uk
-L:	cpufreq@www.linux.org.uk
+L:	cpufreq@lists.linux.org.uk
 W:	http://www.codemonkey.org.uk/projects/cpufreq/
 S:	Maintained
 
@@ -1988,6 +1988,20 @@ L:	linux-visws-devel@lists.sf.net
 W:	http://linux-visws.sf.net
 S:	Maintained for 2.6.
 
+SIMTEC EB110ATX (Chalice CATS)
+P:	Ben Dooks
+P:	Vincent Sanders
+M:	support@simtec.co.uk
+W:	http://www.simtec.co.uk/products/EB110ATX/
+S:	Supported
+
+SIMTEC EB2410ITX (BAST)
+P:	Ben Dooks
+P:	Vincent Sanders
+M:	support@simtec.co.uk
+W:	http://www.simtec.co.uk/products/EB2410ITX/
+S:	Supported
+
 SIS 5513 IDE CONTROLLER DRIVER
 P:	Lionel Bouton
 M:	Lionel.Bouton@inet6.fr
@@ -2077,6 +2091,13 @@ P:	Anton Blanchard
 M:	anton@samba.org
 L:	sparclinux@vger.kernel.org
 L:	ultralinux@vger.kernel.org
+S:	Maintained
+
+SHARP LH SUPPORT (LH7952X & LH7A40X)
+P:	Marc Singer
+M:	elf@buici.com
+W:	http://projects.buici.com/arm
+L:	linux-arm-kernel@lists.arm.linux.org.uk
 S:	Maintained
 
 SPARC (sparc32):

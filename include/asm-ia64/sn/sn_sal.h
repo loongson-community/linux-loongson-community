@@ -32,9 +32,10 @@
 #define  SN_SAL_NO_FAULT_ZONE_VIRTUAL		   0x02000010
 #define  SN_SAL_NO_FAULT_ZONE_PHYSICAL		   0x02000011
 #define  SN_SAL_PRINT_ERROR			   0x02000012
-#define  SN_SAL_GET_SAPIC_INFO                     0x02009999	//ZZZZ fix
 #define  SN_SAL_SET_ERROR_HANDLING_FEATURES	   0x0200001a	// reentrant
 #define  SN_SAL_GET_FIT_COMPT			   0x0200001b	// reentrant
+#define  SN_SAL_GET_HUB_INFO                       0x0200001c
+#define  SN_SAL_GET_SAPIC_INFO                     0x0200001d
 #define  SN_SAL_CONSOLE_PUTC                       0x02000021
 #define  SN_SAL_CONSOLE_GETC                       0x02000022
 #define  SN_SAL_CONSOLE_PUTS                       0x02000023
@@ -203,7 +204,7 @@ ia64_sn_get_master_baseio_nasid(void)
 	return ret_stuff.v0;
 }
 
-static inline u64
+static inline char *
 ia64_sn_get_klconfig_addr(nasid_t nasid)
 {
 	struct ia64_sal_retval ret_stuff;
@@ -223,7 +224,7 @@ ia64_sn_get_klconfig_addr(nasid_t nasid)
 	if (ret_stuff.status != 0) {
 		panic("ia64_sn_get_klconfig_addr: Returned error %lx\n", ret_stuff.status);
 	}
-	return(ret_stuff.v0);
+	return ret_stuff.v0 ? __va(ret_stuff.v0) : NULL;
 }
 
 /*
@@ -472,6 +473,52 @@ ia64_sn_pod_mode(void)
 	if (isrv.status)
 		return 0;
 	return isrv.v0;
+}
+
+/**
+ * ia64_sn_probe_mem - read from memory safely
+ * @addr: address to probe
+ * @size: number bytes to read (1,2,4,8)
+ * @data_ptr: address to store value read by probe (-1 returned if probe fails)
+ *
+ * Call into the SAL to do a memory read.  If the read generates a machine
+ * check, this routine will recover gracefully and return -1 to the caller.
+ * @addr is usually a kernel virtual address in uncached space (i.e. the
+ * address starts with 0xc), but if called in physical mode, @addr should
+ * be a physical address.
+ *
+ * Return values:
+ *  0 - probe successful
+ *  1 - probe failed (generated MCA)
+ *  2 - Bad arg
+ * <0 - PAL error
+ */
+static inline u64
+ia64_sn_probe_mem(long addr, long size, void *data_ptr)
+{
+	struct ia64_sal_retval isrv;
+
+	SAL_CALL(isrv, SN_SAL_PROBE, addr, size, 0, 0, 0, 0, 0);
+
+	if (data_ptr) {
+		switch (size) {
+		case 1:
+			*((u8*)data_ptr) = (u8)isrv.v0;
+			break;
+		case 2:
+			*((u16*)data_ptr) = (u16)isrv.v0;
+			break;
+		case 4:
+			*((u32*)data_ptr) = (u32)isrv.v0;
+			break;
+		case 8:
+			*((u64*)data_ptr) = (u64)isrv.v0;
+			break;
+		default:
+			isrv.status = 2;
+		}
+	}
+	return isrv.status;
 }
 
 /*
@@ -847,6 +894,14 @@ ia64_sn_irtr_init(nasid_t nasid, void *buf, int len)
 
 /*
  * Returns the nasid, subnode & slice corresponding to a SAPIC ID
+ *
+ *  In:
+ *	arg0 - SN_SAL_GET_SAPIC_INFO
+ *	arg1 - sapicid (lid >> 16) 
+ *  Out:
+ *	v0 - nasid
+ *	v1 - subnode
+ *	v2 - slice
  */
 static inline u64
 ia64_sn_get_sapic_info(int sapicid, int *nasid, int *subnode, int *slice)
@@ -859,7 +914,7 @@ ia64_sn_get_sapic_info(int sapicid, int *nasid, int *subnode, int *slice)
 	ret_stuff.v2 = 0;
 	SAL_CALL_NOLOCK(ret_stuff, SN_SAL_GET_SAPIC_INFO, sapicid, 0, 0, 0, 0, 0, 0);
 
-/***** BEGIN HACK - temp til new proms available ********/
+/***** BEGIN HACK - temp til old proms no longer supported ********/
 	if (ret_stuff.status == SALRET_NOT_IMPLEMENTED) {
 		if (nasid) *nasid = sapicid & 0xfff;
 		if (subnode) *subnode = (sapicid >> 13) & 1;
@@ -876,6 +931,46 @@ ia64_sn_get_sapic_info(int sapicid, int *nasid, int *subnode, int *slice)
 	if (slice) *slice = (int) ret_stuff.v2;
 	return 0;
 }
+ 
+/*
+ * Returns information about the HUB/SHUB.
+ *  In:
+ *	arg0 - SN_SAL_GET_HUB_INFO
+ * 	arg1 - 0 (other values reserved for future use)
+ *  Out:
+ *	v0 - shub type (0=shub1, 1=shub2)
+ *	v1 - masid mask (ex., 0x7ff for 11 bit nasid)
+ *	v2 - bit position of low nasid bit
+ */
+static inline u64
+ia64_sn_get_hub_info(int fc, u64 *arg1, u64 *arg2, u64 *arg3)
+{
+	struct ia64_sal_retval ret_stuff;
+
+	ret_stuff.status = 0;
+	ret_stuff.v0 = 0;
+	ret_stuff.v1 = 0;
+	ret_stuff.v2 = 0;
+	SAL_CALL_NOLOCK(ret_stuff, SN_SAL_GET_HUB_INFO, fc, 0, 0, 0, 0, 0, 0);
+
+/***** BEGIN HACK - temp til old proms no longer supported ********/
+	if (ret_stuff.status == SALRET_NOT_IMPLEMENTED) {
+		if (arg1) *arg1 = 0;
+		if (arg2) *arg2 = 0x7ff;
+		if (arg3) *arg3 = 38;
+		return 0;
+	}
+/***** END HACK *******/
+
+	if (ret_stuff.status < 0)
+		return ret_stuff.status;
+
+	if (arg1) *arg1 = ret_stuff.v0;
+	if (arg2) *arg2 = ret_stuff.v1;
+	if (arg3) *arg3 = ret_stuff.v2;
+	return 0;
+}
+ 
 /*
  * This is the access point to the Altix PROM hardware performance
  * and status monitoring interface. For info on using this, see

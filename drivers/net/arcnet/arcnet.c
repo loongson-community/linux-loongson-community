@@ -93,7 +93,6 @@ EXPORT_SYMBOL(arc_raw_proto);
 EXPORT_SYMBOL(arc_proto_null);
 EXPORT_SYMBOL(arcnet_unregister_proto);
 EXPORT_SYMBOL(arcnet_debug);
-EXPORT_SYMBOL(arcdev_setup);
 EXPORT_SYMBOL(alloc_arcdev);
 EXPORT_SYMBOL(arcnet_interrupt);
 
@@ -317,7 +316,7 @@ static int choose_mtu(void)
 
 
 /* Setup a struct device for ARCnet. */
-void arcdev_setup(struct net_device *dev)
+static void arcdev_setup(struct net_device *dev)
 {
 	dev->type = ARPHRD_ARCNET;
 	dev->hard_header_len = sizeof(struct archdr);
@@ -352,7 +351,7 @@ struct net_device *alloc_arcdev(char *name)
 			   name && *name ? name : "arc%d", arcdev_setup);
 	if(dev) {
 		struct arcnet_local *lp = (struct arcnet_local *) dev->priv;
-		lp->lock = SPIN_LOCK_UNLOCKED;
+		spin_lock_init(&lp->lock);
 	}
 
 	return dev;

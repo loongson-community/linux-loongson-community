@@ -75,7 +75,7 @@ static struct tty_driver *sb1250_duart_driver; //, sb1250_duart_callout_driver;
  * This lock protects both the open flags for all the uart states as 
  * well as the reference count for the module
  */
-static spinlock_t          open_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(open_lock);
 
 typedef struct { 
 	unsigned char       outp_buf[SERIAL_XMIT_SIZE];

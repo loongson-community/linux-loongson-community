@@ -26,11 +26,11 @@
 
 DECLARE_MUTEX(xfrm_cfg_sem);
 
-static rwlock_t xfrm_policy_lock = RW_LOCK_UNLOCKED;
+static DEFINE_RWLOCK(xfrm_policy_lock);
 
 struct xfrm_policy *xfrm_policy_list[XFRM_POLICY_MAX*2];
 
-static rwlock_t xfrm_policy_afinfo_lock = RW_LOCK_UNLOCKED;
+static DEFINE_RWLOCK(xfrm_policy_afinfo_lock);
 static struct xfrm_policy_afinfo *xfrm_policy_afinfo[NPROTO];
 
 static kmem_cache_t *xfrm_dst_cache;
@@ -38,7 +38,7 @@ static kmem_cache_t *xfrm_dst_cache;
 static struct work_struct xfrm_policy_gc_work;
 static struct list_head xfrm_policy_gc_list =
 	LIST_HEAD_INIT(xfrm_policy_gc_list);
-static spinlock_t xfrm_policy_gc_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(xfrm_policy_gc_lock);
 
 static struct xfrm_policy_afinfo *xfrm_policy_get_afinfo(unsigned short family);
 static void xfrm_policy_put_afinfo(struct xfrm_policy_afinfo *afinfo);
@@ -548,8 +548,6 @@ void xfrm_policy_delete(struct xfrm_policy *pol, int dir)
 		xfrm_policy_kill(pol);
 	}
 }
-
-EXPORT_SYMBOL(xfrm_policy_delete);
 
 int xfrm_sk_policy_insert(struct sock *sk, int dir, struct xfrm_policy *pol)
 {

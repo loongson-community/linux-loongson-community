@@ -105,7 +105,7 @@ struct scsi_disk {
 };
 
 static DEFINE_IDR(sd_index_idr);
-static spinlock_t sd_index_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(sd_index_lock);
 
 /* This semaphore is used to mediate the 0->1 reference get in the
  * face of object destruction (i.e. we can't allow a get on an
@@ -1082,9 +1082,12 @@ repeat:
 				       " READ CAPACITY(16).\n", diskname);
 				longrc = 1;
 				goto repeat;
-			} else {
-				printk(KERN_ERR "%s: too big for kernel.  Assuming maximum 2Tb\n", diskname);
 			}
+			printk(KERN_ERR "%s: too big for this kernel.  Use a "
+			       "kernel compiled with support for large block "
+			       "devices.\n", diskname);
+			sdkp->capacity = 0;
+			goto got_data;
 		}
 		sdkp->capacity = 1 + (((sector_t)buffer[0] << 24) |
 			(buffer[1] << 16) |

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc1
-# Wed Jan 12 22:42:31 2005
+# Linux kernel version: 2.6.11-rc2
+# Tue Jan 25 03:01:32 2005
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -186,6 +186,7 @@ CONFIG_PREVENT_FIRMWARE_BUILD=y
 #
 # CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_DEV_XD is not set
+# CONFIG_BLK_DEV_COW_COMMON is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
@@ -520,6 +521,7 @@ CONFIG_WATCHDOG=y
 # CONFIG_VGA_CONSOLE is not set
 # CONFIG_MDA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
+# CONFIG_BACKLIGHT_LCD_SUPPORT is not set
 
 #
 # Sound

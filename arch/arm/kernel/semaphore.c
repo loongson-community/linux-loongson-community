@@ -54,7 +54,7 @@ void __up(struct semaphore *sem)
 	wake_up(&sem->wait);
 }
 
-static spinlock_t semaphore_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(semaphore_lock);
 
 void __sched __down(struct semaphore * sem)
 {
@@ -178,7 +178,7 @@ int __down_trylock(struct semaphore * sem)
  * registers (r0 to r3 and lr), but not ip, as we use it as a return
  * value in some cases..
  */
-asm("	.section .sched.text			\n\
+asm("	.section .sched.text,\"ax\"		\n\
 	.align	5				\n\
 	.globl	__down_failed			\n\
 __down_failed:					\n\

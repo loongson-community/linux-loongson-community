@@ -67,12 +67,12 @@ union powernow_acpi_control_t {
 #endif
 
 #ifdef CONFIG_CPU_FREQ_DEBUG
-/* divide by 1000 to get VID. */
+/* divide by 1000 to get VCore voltage in V. */
 static int mobile_vid_table[32] = {
     2000, 1950, 1900, 1850, 1800, 1750, 1700, 1650,
     1600, 1550, 1500, 1450, 1400, 1350, 1300, 0,
     1275, 1250, 1225, 1200, 1175, 1150, 1125, 1100,
-    1075, 1050, 1024, 1000, 975, 950, 925, 0,
+    1075, 1050, 1025, 1000, 975, 950, 925, 0,
 };
 #endif
 
@@ -635,6 +635,17 @@ static int __init powernow_cpu_init (struct cpufreq_policy *policy)
 
 static int powernow_cpu_exit (struct cpufreq_policy *policy) {
 	cpufreq_frequency_table_put_attr(policy->cpu);
+
+#ifdef CONFIG_X86_POWERNOW_K7_ACPI
+	if (acpi_processor_perf) {
+		acpi_processor_unregister_performance(acpi_processor_perf, 0);
+		kfree(acpi_processor_perf);
+	}
+#endif
+
+	if (powernow_table)
+		kfree(powernow_table);
+
 	return 0;
 }
 
@@ -664,15 +675,7 @@ static int __init powernow_init (void)
 
 static void __exit powernow_exit (void)
 {
-#ifdef CONFIG_X86_POWERNOW_K7_ACPI
-	if (acpi_processor_perf) {
-		acpi_processor_unregister_performance(acpi_processor_perf, 0);
-		kfree(acpi_processor_perf);
-	}
-#endif
 	cpufreq_unregister_driver(&powernow_driver);
-	if (powernow_table)
-		kfree(powernow_table);
 }
 
 module_param(acpi_force,  int, 0444);

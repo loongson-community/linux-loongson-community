@@ -122,6 +122,7 @@ config I2C_I801
 	    82801EB
 	    6300ESB
 	    ICH6
+	    ICH7
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-i801.
@@ -218,7 +219,7 @@ config I2C_KEYWEST
 
 config I2C_MPC
 	tristate "MPC107/824x/85xx/52xx"
-	depends on I2C && FSL_OCP
+	depends on I2C && PPC
 	help
 	  If you say yes to this option, support will be included for the
 	  built-in I2C interface on the MPC107/Tsi107/MPC8240/MPC8245 and
@@ -430,7 +431,7 @@ config I2C_STUB
 	  especially for certain kinds of sensor chips.
 
 	  If you do build this module, be sure to read the notes and warnings
-	  in Documentation/i2c/i2c-stub.
+	  in <file:Documentation/i2c/i2c-stub>.
 
 	  If you don't know what to do here, definitely say N.
 
@@ -439,7 +440,6 @@ config I2C_VIA
 	depends on I2C && PCI && EXPERIMENTAL
 	select I2C_ALGOBIT
 	help
-
 	  If you say yes to this option, support will be included for the VIA
           82C586B I2C interface
 
@@ -450,7 +450,6 @@ config I2C_VIAPRO
 	tristate "VIA 82C596/82C686/823x"
 	depends on I2C && PCI && EXPERIMENTAL
 	help
-
 	  If you say yes to this option, support will be included for the VIA
 	  82C596/82C686/823x I2C interfaces.  Specifically, the following 
 	  chipsets are supported:
@@ -470,7 +469,6 @@ config I2C_VOODOO3
 	depends on I2C && PCI && EXPERIMENTAL
 	select I2C_ALGOBIT
 	help
-
 	  If you say yes to this option, support will be included for the
 	  Voodoo 3 I2C interface.
 

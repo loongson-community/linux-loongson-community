@@ -41,11 +41,9 @@
 #include <linux/smp_lock.h>
 
 #include <asm/byteorder.h>
-#include <asm/irq.h>		/* for struct irq_region support */
 #include <asm/pdc.h>
 #include <asm/pdcpat.h>
 #include <asm/page.h>
-#include <asm/segment.h>
 #include <asm/system.h>
 
 #include <asm/hardware.h>	/* for register_parisc_driver() stuff */
@@ -1565,7 +1563,7 @@ lba_common_init(struct lba_device *lba_dev)
 {
 	pci_bios = &lba_bios_ops;
 	pcibios_register_hba(HBA_DATA(lba_dev));
-	lba_dev->lba_lock = SPIN_LOCK_UNLOCKED;	
+	spin_lock_init(&lba_dev->lba_lock);
 
 	/*
 	** Set flags which depend on hw_rev

@@ -57,7 +57,7 @@
 #define TX_TIMEOUT (60*HZ)	/* Transmission timeout is 60 seconds. */
 
 static struct net_device *dev_list = NULL;
-static spinlock_t dev_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(dev_lock);
 
 typedef enum DUPLEX { UNKNOWN, HALF_DUPLEX, FULL_DUPLEX } DUPLEX;
 

@@ -305,7 +305,7 @@ static inline u32 htb_classid(struct htb_class *cl)
 	return (cl && cl != HTB_DIRECT) ? cl->classid : TC_H_UNSPEC;
 }
 
-static struct htb_class *htb_classify(struct sk_buff *skb, struct Qdisc *sch, int *qres)
+static struct htb_class *htb_classify(struct sk_buff *skb, struct Qdisc *sch, int *qerr)
 {
 	struct htb_sched *q = qdisc_priv(sch);
 	struct htb_class *cl;
@@ -321,35 +321,20 @@ static struct htb_class *htb_classify(struct sk_buff *skb, struct Qdisc *sch, in
 	if ((cl = htb_find(skb->priority,sch)) != NULL && cl->level == 0) 
 		return cl;
 
+	*qerr = NET_XMIT_DROP;
 	tcf = q->filter_list;
 	while (tcf && (result = tc_classify(skb, tcf, &res)) >= 0) {
 #ifdef CONFIG_NET_CLS_ACT
-		int terminal = 0;
 		switch (result) {
-		case TC_ACT_SHOT: /* Stop and kfree */
-			*qres = NET_XMIT_DROP;
-			terminal = 1;
-			break;
 		case TC_ACT_QUEUED:
 		case TC_ACT_STOLEN: 
-			terminal = 1;
-			break;
-		case TC_ACT_RECLASSIFY:  /* Things look good */
-		case TC_ACT_OK:
-		case TC_ACT_UNSPEC:
-		default:
-		break;
-		}
-
-		if (terminal) {
-			kfree_skb(skb);
+			*qerr = NET_XMIT_SUCCESS;
+		case TC_ACT_SHOT:
 			return NULL;
 		}
-#else
-#ifdef CONFIG_NET_CLS_POLICE
+#elif defined(CONFIG_NET_CLS_POLICE)
 		if (result == TC_POLICE_SHOT)
-			return NULL;
-#endif
+			return HTB_DIRECT;
 #endif
 		if ((cl = (void*)res.class) == NULL) {
 			if (res.classid == sch->handle)
@@ -723,37 +708,24 @@ htb_deactivate(struct htb_sched *q,struct htb_class *cl)
 
 static int htb_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
-    int ret = NET_XMIT_SUCCESS;
+    int ret;
     struct htb_sched *q = qdisc_priv(sch);
     struct htb_class *cl = htb_classify(skb,sch,&ret);
 
-
-#ifdef CONFIG_NET_CLS_ACT
-    if (cl == HTB_DIRECT ) {
-	if (q->direct_queue.qlen < q->direct_qlen ) {
-	    __skb_queue_tail(&q->direct_queue, skb);
-	    q->direct_pkts++;
-	}
-    } else if (!cl) {
-	    if (NET_XMIT_DROP == ret) {
-		    sch->qstats.drops++;
-	    }
-	    return ret;
-    }
-#else
-    if (cl == HTB_DIRECT || !cl) {
+    if (cl == HTB_DIRECT) {
 	/* enqueue to helper queue */
-	if (q->direct_queue.qlen < q->direct_qlen && cl) {
+	if (q->direct_queue.qlen < q->direct_qlen) {
 	    __skb_queue_tail(&q->direct_queue, skb);
 	    q->direct_pkts++;
-	} else {
-	    kfree_skb (skb);
-	    sch->qstats.drops++;
-	    return NET_XMIT_DROP;
 	}
-    }
+#ifdef CONFIG_NET_CLS_ACT
+    } else if (!cl) {
+	if (ret == NET_XMIT_DROP)
+		sch->qstats.drops++;
+	kfree_skb (skb);
+	return ret;
 #endif
-    else if (cl->un.leaf.q->enqueue(skb, cl->un.leaf.q) != NET_XMIT_SUCCESS) {
+    } else if (cl->un.leaf.q->enqueue(skb, cl->un.leaf.q) != NET_XMIT_SUCCESS) {
 	sch->qstats.drops++;
 	cl->qstats.drops++;
 	return NET_XMIT_DROP;
@@ -1267,7 +1239,7 @@ static int htb_init(struct Qdisc *sch, struct rtattr *opt)
 	printk(KERN_INFO "HTB init, kernel part version %d.%d\n",
 			  HTB_VER >> 16,HTB_VER & 0xffff);
 #endif
-	if (!opt || rtattr_parse(tb, TCA_HTB_INIT, RTA_DATA(opt), RTA_PAYLOAD(opt)) ||
+	if (!opt || rtattr_parse_nested(tb, TCA_HTB_INIT, opt) ||
 			tb[TCA_HTB_INIT-1] == NULL ||
 			RTA_PAYLOAD(tb[TCA_HTB_INIT-1]) < sizeof(*gopt)) {
 		printk(KERN_ERR "HTB: hey probably you have bad tc tool ?\n");
@@ -1559,7 +1531,7 @@ static int htb_change_class(struct Qdisc *sch, u32 classid,
 	struct tc_htb_opt *hopt;
 
 	/* extract all subattrs from opt attr */
-	if (!opt || rtattr_parse(tb, TCA_HTB_RTAB, RTA_DATA(opt), RTA_PAYLOAD(opt)) ||
+	if (!opt || rtattr_parse_nested(tb, TCA_HTB_RTAB, opt) ||
 			tb[TCA_HTB_PARMS-1] == NULL ||
 			RTA_PAYLOAD(tb[TCA_HTB_PARMS-1]) < sizeof(*hopt))
 		goto failure;

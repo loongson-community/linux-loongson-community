@@ -433,7 +433,7 @@ enum psycho_error_type {
 #define  PSYCHO_STCLINE_VALID	 0x0000000000000002UL	/* Valid */
 #define  PSYCHO_STCLINE_FOFN	 0x0000000000000001UL	/* Fetch Outstanding / Flush Necessary */
 
-static spinlock_t stc_buf_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(stc_buf_lock);
 static unsigned long stc_error_buf[128];
 static unsigned long stc_tag_buf[16];
 static unsigned long stc_line_buf[16];
@@ -453,9 +453,9 @@ static void __psycho_check_one_stc(struct pci_controller_info *p,
 		tag_base = regbase + PSYCHO_STC_TAG_A;
 		line_base = regbase + PSYCHO_STC_LINE_A;
 	} else {
-		err_base = regbase + PSYCHO_STC_ERR_A;
-		tag_base = regbase + PSYCHO_STC_TAG_A;
-		line_base = regbase + PSYCHO_STC_LINE_A;
+		err_base = regbase + PSYCHO_STC_ERR_B;
+		tag_base = regbase + PSYCHO_STC_TAG_B;
+		line_base = regbase + PSYCHO_STC_LINE_B;
 	}
 
 	spin_lock(&stc_buf_lock);

@@ -48,7 +48,7 @@ struct sys_timer *system_timer;
 extern unsigned long wall_jiffies;
 
 /* this needs a better home */
-spinlock_t rtc_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(rtc_lock);
 
 #ifdef CONFIG_SA1100_RTC_MODULE
 EXPORT_SYMBOL(rtc_lock);
@@ -63,7 +63,7 @@ unsigned long profile_pc(struct pt_regs *regs)
 	unsigned long fp, pc = instruction_pointer(regs);
 
 	if (in_lock_functions(pc)) {
-		fp = thread_saved_fp(current);
+		fp = regs->ARM_fp;
 		pc = pc_pointer(((unsigned long *)fp)[-1]);
 	}
 

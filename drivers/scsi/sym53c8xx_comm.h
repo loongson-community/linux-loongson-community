@@ -250,7 +250,7 @@ static void ___m_free(m_pool_s *mp, void *ptr, int size)
 	}
 }
 
-static spinlock_t ncr53c8xx_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(ncr53c8xx_lock);
 
 static void *__m_calloc2(m_pool_s *mp, int size, char *name, int uflags)
 {
@@ -505,8 +505,6 @@ static int __map_scsi_sg_data(struct device *dev, struct scsi_cmnd *cmd)
 #define unmap_scsi_data(np, cmd)	__unmap_scsi_data(np->dev, cmd)
 #define map_scsi_single_data(np, cmd)	__map_scsi_single_data(np->dev, cmd)
 #define map_scsi_sg_data(np, cmd)	__map_scsi_sg_data(np->dev, cmd)
-#define sync_scsi_data_for_cpu(np, cmd)	__sync_scsi_data_for_cpu(np->dev, cmd)
-#define sync_scsi_data_for_device(np, cmd) __sync_scsi_data_for_device(np->dev, cmd)
 
 /*==========================================================
 **

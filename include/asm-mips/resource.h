@@ -26,16 +26,14 @@
 #define RLIMIT_SIGPENDING 11		/* max number of pending signals */
 #define RLIMIT_MSGQUEUE 12		/* maximum bytes in POSIX mqueues */
 
-#define RLIM_NLIMITS 13
-
-#ifdef __KERNEL__
-
-#include <linux/config.h>
+#define RLIM_NLIMITS 13			/* Number of limit flavors.  */
+#define __ARCH_RLIMIT_ORDER
 
 /*
  * SuS says limits have to be unsigned.
  * Which makes a ton more sense anyway.
  */
+#include <linux/config.h>
 #ifdef CONFIG_MIPS32
 #define RLIM_INFINITY	0x7fffffffUL
 #endif
@@ -43,23 +41,6 @@
 #define RLIM_INFINITY	(~0UL)
 #endif
 
-#define INIT_RLIMITS							\
-{									\
-	[RLIMIT_CPU]		= { RLIM_INFINITY, RLIM_INFINITY },	\
-	[RLIMIT_FSIZE]		= { RLIM_INFINITY, RLIM_INFINITY },	\
-	[RLIMIT_DATA]		= { RLIM_INFINITY, RLIM_INFINITY },	\
-	[RLIMIT_STACK]		= { _STK_LIM,      RLIM_INFINITY },	\
-	[RLIMIT_CORE]		= {        0,      RLIM_INFINITY },	\
-	[RLIMIT_NOFILE]		= { INR_OPEN,      INR_OPEN      },	\
-	[RLIMIT_AS]		= { RLIM_INFINITY, RLIM_INFINITY },	\
-	[RLIMIT_RSS]		= { RLIM_INFINITY, RLIM_INFINITY },	\
-	[RLIMIT_NPROC]		= {             0,             0 },	\
-	[RLIMIT_MEMLOCK]	= { MLOCK_LIMIT,   MLOCK_LIMIT   },	\
-	[RLIMIT_LOCKS]		= { RLIM_INFINITY, RLIM_INFINITY },	\
-	[RLIMIT_SIGPENDING]	= { MAX_SIGPENDING, MAX_SIGPENDING },	\
-	[RLIMIT_MSGQUEUE]	= { MQ_BYTES_MAX, MQ_BYTES_MAX },	\
-}
-
-#endif /* __KERNEL__ */
+#include <asm-generic/resource.h>
 
 #endif /* _ASM_RESOURCE_H */

@@ -51,7 +51,6 @@
 #include <linux/sysctl.h>
 #include <linux/proc_fs.h>
 #include <linux/workqueue.h>
-#include <linux/suspend.h>
 #include <linux/percpu.h>
 #include <linux/blkdev.h>
 
@@ -169,7 +168,7 @@ typedef struct a_list {
 
 STATIC a_list_t		*as_free_head;
 STATIC int		as_list_len;
-STATIC spinlock_t	as_lock = SPIN_LOCK_UNLOCKED;
+STATIC DEFINE_SPINLOCK(as_lock);
 
 /*
  * Try to batch vunmaps because they are costly.
@@ -1594,7 +1593,7 @@ error:
  */
 
 STATIC LIST_HEAD(pbd_delwrite_queue);
-STATIC spinlock_t pbd_delwrite_lock = SPIN_LOCK_UNLOCKED;
+STATIC DEFINE_SPINLOCK(pbd_delwrite_lock);
 
 STATIC void
 pagebuf_delwri_queue(
@@ -1685,9 +1684,7 @@ pagebuf_daemon(
 
 	INIT_LIST_HEAD(&tmp);
 	do {
-		/* swsusp */
-		if (current->flags & PF_FREEZE)
-			refrigerator(PF_FREEZE);
+		try_to_freeze(PF_FREEZE);
 
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout((xfs_buf_timer_centisecs * HZ) / 100);

@@ -92,7 +92,7 @@ config PPC_MAPLE
 	default n
 	help
           This option enables support for the Maple 970FX Evaluation Board.
-	  For more informations, refer to http://www.970eval.com
+	  For more informations, refer to <http://www.970eval.com>
 
 config PPC
 	bool
@@ -186,14 +186,6 @@ config SMP
 
 	  If you don't know what to do here, say Y.
 
-config IRQ_ALL_CPUS
-	bool "Distribute interrupts on all CPUs by default"
-	depends on SMP && PPC_MULTIPLATFORM
-	help
-	  This option gives the kernel permission to distribute IRQs across
-	  multiple CPUs.  Saying N here will route all IRQs to the first
-	  CPU.
-
 config NR_CPUS
 	int "Maximum number of CPUs (2-128)"
 	range 2 128
@@ -230,6 +222,17 @@ config PREEMPT
 
 	  Say Y here if you are building a kernel for a desktop, embedded
 	  or real-time system.  Say N if you are unsure.
+
+config PREEMPT_BKL
+	bool "Preempt The Big Kernel Lock"
+	depends on PREEMPT
+	default y
+	help
+	  This option reduces the latency of the kernel by making the
+	  big kernel lock preemptible.
+
+	  Say Y here if you are building a kernel for a desktop system.
+	  Say N if you are unsure.
 
 #
 # Use the generic interrupt handling code in kernel/irq/:

@@ -283,20 +283,20 @@ static void path_rec_completion(int status,
 	skb_queue_head_init(&skqueue);
 
 	if (!status) {
-		/*
-		 * For now we set static_rate to 0.  This is not
-		 * really correct: we should look at the rate
-		 * component of the path member record, compare it
-		 * with the rate of our local port (calculated from
-		 * the active link speed and link width) and set an
-		 * inter-packet delay appropriately.
-		 */
 		struct ib_ah_attr av = {
 			.dlid 	       = be16_to_cpu(pathrec->dlid),
 			.sl 	       = pathrec->sl,
-			.static_rate   = 0,
 			.port_num      = priv->port
 		};
+
+		if (ib_sa_rate_enum_to_int(pathrec->rate) > 0)
+			av.static_rate = (2 * priv->local_rate -
+					  ib_sa_rate_enum_to_int(pathrec->rate) - 1) /
+				(priv->local_rate ? priv->local_rate : 1);
+
+		ipoib_dbg(priv, "static_rate %d for local port %dX, path %dX\n",
+			  av.static_rate, priv->local_rate,
+			  ib_sa_rate_enum_to_int(pathrec->rate));
 
 		ah = ipoib_create_ah(dev, priv->pd, &av);
 	}
@@ -411,7 +411,7 @@ static void neigh_add_path(struct sk_buff *skb, struct net_device *dev)
 
 	/*
 	 * We can only be called from ipoib_start_xmit, so we're
-	 * inside tx_lock -- no need to save/restore flags.
+	 * inside dev->xmit_lock -- no need to save/restore flags.
 	 */
 	spin_lock(&priv->lock);
 
@@ -483,7 +483,7 @@ static void unicast_arp_send(struct sk_buff *skb, struct net_device *dev,
 
 	/*
 	 * We can only be called from ipoib_start_xmit, so we're
-	 * inside tx_lock -- no need to save/restore flags.
+	 * inside dev->xmit_lock -- no need to save/restore flags.
 	 */
 	spin_lock(&priv->lock);
 
@@ -526,27 +526,11 @@ static void unicast_arp_send(struct sk_buff *skb, struct net_device *dev,
 	spin_unlock(&priv->lock);
 }
 
+/* Called with dev->xmit_lock held and IRQs disabled.  */
 static int ipoib_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ipoib_dev_priv *priv = netdev_priv(dev);
 	struct ipoib_neigh *neigh;
-	unsigned long flags;
-
-	local_irq_save(flags);
-	if (!spin_trylock(&priv->tx_lock)) {
-		local_irq_restore(flags);
-		return NETDEV_TX_LOCKED;
-	}
-
-	/*
-	 * Check if our queue is stopped.  Since we have the LLTX bit
-	 * set, we can't rely on netif_stop_queue() preventing our
-	 * xmit function from being called with a full queue.
-	 */
-	if (unlikely(netif_queue_stopped(dev))) {
-		spin_unlock_irqrestore(&priv->tx_lock, flags);
-		return NETDEV_TX_BUSY;
-	}
 
 	if (skb->dst && skb->dst->neighbour) {
 		if (unlikely(!*to_ipoib_neigh(skb->dst->neighbour))) {
@@ -601,12 +585,11 @@ static int ipoib_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 out:
-	spin_unlock_irqrestore(&priv->tx_lock, flags);
 
 	return NETDEV_TX_OK;
 }
 
-struct net_device_stats *ipoib_get_stats(struct net_device *dev)
+static struct net_device_stats *ipoib_get_stats(struct net_device *dev)
 {
 	struct ipoib_dev_priv *priv = netdev_priv(dev);
 
@@ -797,7 +780,7 @@ static void ipoib_setup(struct net_device *dev)
 	dev->addr_len 		 = INFINIBAND_ALEN;
 	dev->type 		 = ARPHRD_INFINIBAND;
 	dev->tx_queue_len 	 = IPOIB_TX_RING_SIZE * 2;
-	dev->features            = NETIF_F_VLAN_CHALLENGED | NETIF_F_LLTX;
+	dev->features            = NETIF_F_VLAN_CHALLENGED;
 
 	/* MTU will be reset when mcast join happens */
 	dev->mtu 		 = IPOIB_PACKET_SIZE - IPOIB_ENCAP_LEN;
@@ -812,7 +795,6 @@ static void ipoib_setup(struct net_device *dev)
 	priv->dev = dev;
 
 	spin_lock_init(&priv->lock);
-	spin_lock_init(&priv->tx_lock);
 
 	init_MUTEX(&priv->mcast_mutex);
 	init_MUTEX(&priv->vlan_mutex);

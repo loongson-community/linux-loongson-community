@@ -45,7 +45,7 @@
 int (*ioapic_renumber_irq)(int ioapic, int irq);
 atomic_t irq_mis_count;
 
-static spinlock_t ioapic_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(ioapic_lock);
 
 /*
  *	Is the SiS APIC rmw bug present ?
@@ -573,6 +573,7 @@ static int balanced_irq(void *unused)
 	for ( ; ; ) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		time_remaining = schedule_timeout(time_remaining);
+		try_to_freeze(PF_FREEZE);
 		if (time_after(jiffies,
 				prev_balance_time+balanced_irq_interval)) {
 			do_irq_balance();

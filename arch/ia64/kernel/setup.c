@@ -1,7 +1,7 @@
 /*
  * Architecture-specific setup.
  *
- * Copyright (C) 1998-2001, 2003 Hewlett-Packard Co
+ * Copyright (C) 1998-2001, 2003-2004 Hewlett-Packard Co
  *	David Mosberger-Tang <davidm@hpl.hp.com>
  *	Stephane Eranian <eranian@hpl.hp.com>
  * Copyright (C) 2000, Rohit Seth <rohit.seth@intel.com>
@@ -60,6 +60,7 @@
 unsigned long __per_cpu_offset[NR_CPUS];
 EXPORT_SYMBOL(__per_cpu_offset);
 #endif
+unsigned long __per_cpu_mca[NR_CPUS];
 
 DEFINE_PER_CPU(struct cpuinfo_ia64, cpu_info);
 DEFINE_PER_CPU(unsigned long, local_per_cpu_offset);
@@ -312,7 +313,28 @@ setup_arch (char **cmdline_p)
 	io_port_init();
 
 #ifdef CONFIG_IA64_GENERIC
-	machvec_init(acpi_get_sysname());
+	{
+		const char *mvec_name = strstr (*cmdline_p, "machvec=");
+		char str[64];
+
+		if (mvec_name) {
+			const char *end;
+			size_t len;
+
+			mvec_name += 8;
+			end = strchr (mvec_name, ' ');
+			if (end)
+				len = end - mvec_name;
+			else
+				len = strlen (mvec_name);
+			len = min(len, sizeof (str) - 1);
+			strncpy (str, mvec_name, len);
+			str[len] = '\0';
+			mvec_name = str;
+		} else
+			mvec_name = acpi_get_sysname();
+		machvec_init(mvec_name);
+	}
 #endif
 
 	if (early_console_setup(*cmdline_p) == 0)
@@ -580,6 +602,7 @@ void
 cpu_init (void)
 {
 	extern void __devinit ia64_mmu_init (void *);
+	extern void set_mca_pointer (struct cpuinfo_ia64 *, void *);
 	unsigned long num_phys_stacked;
 	pal_vm_info_2_u_t vmi;
 	unsigned int max_ctx;
@@ -634,6 +657,7 @@ cpu_init (void)
 		BUG();
 
 	ia64_mmu_init(ia64_imva(cpu_data));
+	set_mca_pointer(cpu_info, cpu_data);
 
 #ifdef CONFIG_IA32_SUPPORT
 	ia32_cpu_init();

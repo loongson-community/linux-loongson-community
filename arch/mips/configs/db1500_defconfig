@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc1
-# Wed Jan 12 22:41:47 2005
+# Linux kernel version: 2.6.11-rc2
+# Tue Jan 25 02:58:38 2005
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -283,6 +283,7 @@ CONFIG_MTD_DB1X00_USER=y
 # CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_UMEM is not set
+# CONFIG_BLK_DEV_COW_COMMON is not set
 CONFIG_BLK_DEV_LOOP=y
 # CONFIG_BLK_DEV_CRYPTOLOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
@@ -647,6 +648,7 @@ CONFIG_SYNCLINK_CS=m
 # Graphics support
 #
 # CONFIG_FB is not set
+# CONFIG_BACKLIGHT_LCD_SUPPORT is not set
 
 #
 # Sound
@@ -784,6 +786,7 @@ CONFIG_USB_HIDINPUT=y
 # CONFIG_USB_CYTHERM is not set
 # CONFIG_USB_PHIDGETKIT is not set
 # CONFIG_USB_PHIDGETSERVO is not set
+# CONFIG_USB_IDMOUSE is not set
 
 #
 # USB ATM/DSL drivers

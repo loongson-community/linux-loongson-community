@@ -167,7 +167,8 @@ static int au1x00_pcmcia_suspend(struct pcmcia_socket *sock)
 	return ret;
 }
 
-static spinlock_t status_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(status_lock);
+
 /*
  * au1x00_check_status()
  */

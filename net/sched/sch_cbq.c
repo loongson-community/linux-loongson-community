@@ -241,7 +241,7 @@ cbq_reclassify(struct sk_buff *skb, struct cbq_class *this)
  */
 
 static struct cbq_class *
-cbq_classify(struct sk_buff *skb, struct Qdisc *sch, int *qres)
+cbq_classify(struct sk_buff *skb, struct Qdisc *sch, int *qerr)
 {
 	struct cbq_sched_data *q = qdisc_priv(sch);
 	struct cbq_class *head = &q->link;
@@ -255,13 +255,11 @@ cbq_classify(struct sk_buff *skb, struct Qdisc *sch, int *qres)
 	 */
 	if (TC_H_MAJ(prio^sch->handle) == 0 &&
 	    (cl = cbq_class_lookup(q, prio)) != NULL)
-			return cl;
+		return cl;
 
+	*qerr = NET_XMIT_DROP;
 	for (;;) {
 		int result = 0;
-#ifdef CONFIG_NET_CLS_ACT
-		int terminal = 0;
-#endif
 		defmap = head->defaults;
 
 		/*
@@ -282,27 +280,13 @@ cbq_classify(struct sk_buff *skb, struct Qdisc *sch, int *qres)
 
 #ifdef CONFIG_NET_CLS_ACT
 		switch (result) {
-		case TC_ACT_SHOT: /* Stop and kfree */
-			*qres = NET_XMIT_DROP;
-			terminal = 1;
-			break;
 		case TC_ACT_QUEUED:
 		case TC_ACT_STOLEN: 
-			terminal = 1;
-			break;
-		case TC_ACT_RECLASSIFY:  /* Things look good */
-		case TC_ACT_OK: 
-		case TC_ACT_UNSPEC:
-		default:
-			break;
-		}
-
-		if (terminal) {
-			kfree_skb(skb);
+			*qerr = NET_XMIT_SUCCESS;
+		case TC_ACT_SHOT:
 			return NULL;
 		}
-#else
-#ifdef CONFIG_NET_CLS_POLICE
+#elif defined(CONFIG_NET_CLS_POLICE)
 		switch (result) {
 		case TC_POLICE_RECLASSIFY:
 			return cbq_reclassify(skb, cl);
@@ -311,7 +295,6 @@ cbq_classify(struct sk_buff *skb, struct Qdisc *sch, int *qres)
 		default:
 			break;
 		}
-#endif
 #endif
 		if (cl->level == 0)
 			return cl;
@@ -423,45 +406,35 @@ cbq_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
 	struct cbq_sched_data *q = qdisc_priv(sch);
 	int len = skb->len;
-	int ret = NET_XMIT_SUCCESS;
-	struct cbq_class *cl = cbq_classify(skb, sch,&ret);
+	int ret;
+	struct cbq_class *cl = cbq_classify(skb, sch, &ret);
 
 #ifdef CONFIG_NET_CLS_POLICE
 	q->rx_class = cl;
 #endif
-	if (cl) {
-#ifdef CONFIG_NET_CLS_POLICE
-		cl->q->__parent = sch;
-#endif
-		if ((ret = cl->q->enqueue(skb, cl->q)) == NET_XMIT_SUCCESS) {
-			sch->q.qlen++;
-			sch->bstats.packets++;
-			sch->bstats.bytes+=len;
-			cbq_mark_toplevel(q, cl);
-			if (!cl->next_alive)
-				cbq_activate_class(cl);
-			return ret;
-		}
-	}
-
-#ifndef CONFIG_NET_CLS_ACT
-	sch->qstats.drops++;
-	if (cl == NULL)
+	if (cl == NULL) {
+		if (ret == NET_XMIT_DROP)
+			sch->qstats.drops++;
 		kfree_skb(skb);
-	else {
-		cbq_mark_toplevel(q, cl);
-		cl->qstats.drops++;
-	}
-#else
-	if ( NET_XMIT_DROP == ret) {
-		sch->qstats.drops++;
+		return ret;
 	}
 
-	if (cl != NULL) {
-		cbq_mark_toplevel(q, cl);
-		cl->qstats.drops++;
-	}
+#ifdef CONFIG_NET_CLS_POLICE
+	cl->q->__parent = sch;
 #endif
+	if ((ret = cl->q->enqueue(skb, cl->q)) == NET_XMIT_SUCCESS) {
+		sch->q.qlen++;
+		sch->bstats.packets++;
+		sch->bstats.bytes+=len;
+		cbq_mark_toplevel(q, cl);
+		if (!cl->next_alive)
+			cbq_activate_class(cl);
+		return ret;
+	}
+
+	sch->qstats.drops++;
+	cbq_mark_toplevel(q, cl);
+	cl->qstats.drops++;
 	return ret;
 }
 
@@ -1439,7 +1412,7 @@ static int cbq_init(struct Qdisc *sch, struct rtattr *opt)
 	struct rtattr *tb[TCA_CBQ_MAX];
 	struct tc_ratespec *r;
 
-	if (rtattr_parse(tb, TCA_CBQ_MAX, RTA_DATA(opt), RTA_PAYLOAD(opt)) < 0 ||
+	if (rtattr_parse_nested(tb, TCA_CBQ_MAX, opt) < 0 ||
 	    tb[TCA_CBQ_RTAB-1] == NULL || tb[TCA_CBQ_RATE-1] == NULL ||
 	    RTA_PAYLOAD(tb[TCA_CBQ_RATE-1]) < sizeof(struct tc_ratespec))
 		return -EINVAL;
@@ -1824,8 +1797,7 @@ cbq_change_class(struct Qdisc *sch, u32 classid, u32 parentid, struct rtattr **t
 	struct cbq_class *parent;
 	struct qdisc_rate_table *rtab = NULL;
 
-	if (opt==NULL ||
-	    rtattr_parse(tb, TCA_CBQ_MAX, RTA_DATA(opt), RTA_PAYLOAD(opt)))
+	if (opt==NULL || rtattr_parse_nested(tb, TCA_CBQ_MAX, opt))
 		return -EINVAL;
 
 	if (tb[TCA_CBQ_OVL_STRATEGY-1] &&

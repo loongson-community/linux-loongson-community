@@ -2299,17 +2299,17 @@ static void account_it_prof(struct task_struct *p, cputime_t cputime)
 static void check_rlimit(struct task_struct *p, cputime_t cputime)
 {
 	cputime_t total, tmp;
+	unsigned long secs;
 
 	total = cputime_add(p->utime, p->stime);
-	tmp = jiffies_to_cputime(p->signal->rlim[RLIMIT_CPU].rlim_cur);
-	if (unlikely(cputime_gt(total, tmp))) {
+	secs = cputime_to_secs(total);
+	if (unlikely(secs >= p->signal->rlim[RLIMIT_CPU].rlim_cur)) {
 		/* Send SIGXCPU every second. */
 		tmp = cputime_sub(total, cputime);
-		if (cputime_to_secs(tmp) < cputime_to_secs(total))
+		if (cputime_to_secs(tmp) < secs)
 			send_sig(SIGXCPU, p, 1);
 		/* and SIGKILL when we go over max.. */
-		tmp = jiffies_to_cputime(p->signal->rlim[RLIMIT_CPU].rlim_max);
-		if (cputime_gt(total, tmp))
+		if (secs >= p->signal->rlim[RLIMIT_CPU].rlim_max)
 			send_sig(SIGKILL, p, 1);
 	}
 }
@@ -2383,13 +2383,17 @@ void account_system_time(struct task_struct *p, int hardirq_offset,
 void account_steal_time(struct task_struct *p, cputime_t steal)
 {
 	struct cpu_usage_stat *cpustat = &kstat_this_cpu.cpustat;
-	cputime64_t steal64 = cputime_to_cputime64(steal);
+	cputime64_t tmp = cputime_to_cputime64(steal);
 	runqueue_t *rq = this_rq();
 
-	if (p == rq->idle)
-		cpustat->system = cputime64_add(cpustat->system, steal64);
-	else
-		cpustat->steal = cputime64_add(cpustat->steal, steal64);
+	if (p == rq->idle) {
+		p->stime = cputime_add(p->stime, steal);
+		if (atomic_read(&rq->nr_iowait) > 0)
+			cpustat->iowait = cputime64_add(cpustat->iowait, tmp);
+		else
+			cpustat->idle = cputime64_add(cpustat->idle, tmp);
+	} else
+		cpustat->steal = cputime64_add(cpustat->steal, tmp);
 }
 
 /*
@@ -3001,6 +3005,101 @@ void fastcall __sched wait_for_completion(struct completion *x)
 }
 EXPORT_SYMBOL(wait_for_completion);
 
+unsigned long fastcall __sched
+wait_for_completion_timeout(struct completion *x, unsigned long timeout)
+{
+	might_sleep();
+
+	spin_lock_irq(&x->wait.lock);
+	if (!x->done) {
+		DECLARE_WAITQUEUE(wait, current);
+
+		wait.flags |= WQ_FLAG_EXCLUSIVE;
+		__add_wait_queue_tail(&x->wait, &wait);
+		do {
+			__set_current_state(TASK_UNINTERRUPTIBLE);
+			spin_unlock_irq(&x->wait.lock);
+			timeout = schedule_timeout(timeout);
+			if (!timeout)
+				goto out;
+			spin_lock_irq(&x->wait.lock);
+		} while (!x->done);
+		__remove_wait_queue(&x->wait, &wait);
+	}
+	x->done--;
+	spin_unlock_irq(&x->wait.lock);
+out:
+	return timeout;
+}
+EXPORT_SYMBOL(wait_for_completion_timeout);
+
+int fastcall __sched wait_for_completion_interruptible(struct completion *x)
+{
+	int ret = 0;
+
+	might_sleep();
+
+	spin_lock_irq(&x->wait.lock);
+	if (!x->done) {
+		DECLARE_WAITQUEUE(wait, current);
+
+		wait.flags |= WQ_FLAG_EXCLUSIVE;
+		__add_wait_queue_tail(&x->wait, &wait);
+		do {
+			if (signal_pending(current)) {
+				ret = -ERESTARTSYS;
+				goto out;
+			}
+			__set_current_state(TASK_INTERRUPTIBLE);
+			spin_unlock_irq(&x->wait.lock);
+			schedule();
+			spin_lock_irq(&x->wait.lock);
+		} while (!x->done);
+		__remove_wait_queue(&x->wait, &wait);
+	}
+	x->done--;
+out:
+	spin_unlock_irq(&x->wait.lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(wait_for_completion_interruptible);
+
+unsigned long fastcall __sched
+wait_for_completion_interruptible_timeout(struct completion *x,
+					  unsigned long timeout)
+{
+	might_sleep();
+
+	spin_lock_irq(&x->wait.lock);
+	if (!x->done) {
+		DECLARE_WAITQUEUE(wait, current);
+
+		wait.flags |= WQ_FLAG_EXCLUSIVE;
+		__add_wait_queue_tail(&x->wait, &wait);
+		do {
+			if (signal_pending(current)) {
+				timeout = -ERESTARTSYS;
+				goto out_unlock;
+			}
+			__set_current_state(TASK_INTERRUPTIBLE);
+			spin_unlock_irq(&x->wait.lock);
+			timeout = schedule_timeout(timeout);
+			if (!timeout)
+				goto out;
+			spin_lock_irq(&x->wait.lock);
+		} while (!x->done);
+		__remove_wait_queue(&x->wait, &wait);
+	}
+	x->done--;
+out_unlock:
+	spin_unlock_irq(&x->wait.lock);
+out:
+	return timeout;
+}
+EXPORT_SYMBOL(wait_for_completion_interruptible_timeout);
+
+
 #define	SLEEP_ON_VAR					\
 	unsigned long flags;				\
 	wait_queue_t wait;				\
@@ -3187,6 +3286,15 @@ int task_nice(const task_t *p)
 	return TASK_NICE(p);
 }
 
+/*
+ * The only users of task_nice are binfmt_elf and binfmt_elf32.
+ * binfmt_elf is no longer modular, but binfmt_elf32 still is.
+ * Therefore, task_nice is needed if there is a compat_mode.
+ */
+#ifdef CONFIG_COMPAT
+EXPORT_SYMBOL_GPL(task_nice);
+#endif
+
 /**
  * idle_cpu - is a given cpu idle currently?
  * @cpu: the processor in question.
@@ -3197,6 +3305,15 @@ int idle_cpu(int cpu)
 }
 
 EXPORT_SYMBOL_GPL(idle_cpu);
+
+/**
+ * idle_task - return the idle task for a given cpu.
+ * @cpu: the processor in question.
+ */
+task_t *idle_task(int cpu)
+{
+	return cpu_rq(cpu)->idle;
+}
 
 /**
  * find_process_by_pid - find a process with a matching PID value.

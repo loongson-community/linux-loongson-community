@@ -199,7 +199,7 @@ static int verify_command(struct file *file, unsigned char *cmd)
 			return 0;
 	}
 
-	if (!(type & CMD_WARNED)) {
+	if (!type) {
 		cmd_type[cmd[0]] = CMD_WARNED;
 		printk(KERN_WARNING "scsi: unknown opcode 0x%02x\n", cmd[0]);
 	}
@@ -339,7 +339,8 @@ static int sg_scsi_ioctl(struct file *file, request_queue_t *q,
 			 struct gendisk *bd_disk, Scsi_Ioctl_Command __user *sic)
 {
 	struct request *rq;
-	int err, in_len, out_len, bytes, opcode, cmdlen;
+	int err;
+	unsigned int in_len, out_len, bytes, opcode, cmdlen;
 	char *buffer = NULL, sense[SCSI_SENSE_BUFFERSIZE];
 
 	/*

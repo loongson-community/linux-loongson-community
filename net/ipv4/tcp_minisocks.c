@@ -419,7 +419,7 @@ static void tcp_twkill(unsigned long);
 #define TCP_TWKILL_QUOTA	100
 
 static struct hlist_head tcp_tw_death_row[TCP_TWKILL_SLOTS];
-static spinlock_t tw_death_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(tw_death_lock);
 static struct timer_list tcp_tw_timer = TIMER_INITIALIZER(tcp_twkill, 0, 0);
 static void twkill_work(void *);
 static DECLARE_WORK(tcp_twkill_work, twkill_work, NULL);
@@ -754,11 +754,11 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		newtp->mdev = TCP_TIMEOUT_INIT;
 		newtp->rto = TCP_TIMEOUT_INIT;
 
-		tcp_set_pcount(&newtp->packets_out, 0);
-		tcp_set_pcount(&newtp->left_out, 0);
-		tcp_set_pcount(&newtp->retrans_out, 0);
-		tcp_set_pcount(&newtp->sacked_out, 0);
-		tcp_set_pcount(&newtp->fackets_out, 0);
+		newtp->packets_out = 0;
+		newtp->left_out = 0;
+		newtp->retrans_out = 0;
+		newtp->sacked_out = 0;
+		newtp->fackets_out = 0;
 		newtp->snd_ssthresh = 0x7fffffff;
 
 		/* So many TCP implementations out there (incorrectly) count the
