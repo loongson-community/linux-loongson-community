@@ -23,6 +23,7 @@
 #include <asm/bootinfo.h>
 #include <asm/cacheops.h>
 #include <asm/cpu.h>
+#include <asm/uaccess.h>
 
 /* These are probed at ld_mmu time */
 static unsigned long icache_size;
@@ -244,10 +245,7 @@ asm("sb1_flush_icache_range = local_sb1_flush_icache_range");
 static void sb1_flush_icache_page(struct vm_area_struct *vma,
 	struct page *page)
 {
-	unsigned int cpu = smp_processor_id();
-
 	if (!(vma->vm_flags & VM_EXEC)) {
-//		printk("sb1_flush_icache_page(): not exec\n");
 		return;
 	}
 
@@ -258,7 +256,6 @@ static void sb1_flush_icache_page(struct vm_area_struct *vma,
 	 *
 	 * Bumping the ASID may well be cheaper, need to experiment ...
 	 */
-//printk("sb1_flush_icache_page(): flushing exec page\n");
 	sb1___flush_cache_all();
 }
 
@@ -326,27 +323,41 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 #endif
 }
 
-static void local_sb1_flush_cache_sigtramp(unsigned long addr)
+/*
+ * A signal trampoline must fit into a single cacheline.
+ */
+static inline void local_sb1_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long daddr, iaddr;
 
-	
 	daddr = addr & ~(dcache_line_size - 1);
 	protected_writeback_dcache_line(daddr);
-	protected_writeback_dcache_line(daddr + dcache_line_size);
 	iaddr = addr & ~(icache_line_size - 1);
 	protected_flush_icache_line(iaddr);
-	protected_flush_icache_line(iaddr + icache_line_size);
 }
 
 #ifdef CONFIG_SMP
-extern void sb1_flush_cache_sigtramp_ipi(void *ignored);
-asm("sb1_flush_cache_sigtramp_ipi = local_sb1_flush_cache_sigtramp");
+static void sb1_flush_cache_sigtramp_ipi(void *info)
+{
+	unsigned long iaddr = (unsigned long) info;
+
+	iaddr = iaddr & ~(icache_line_size - 1);
+	protected_flush_icache_line(iaddr);
+}
 
 static void sb1_flush_cache_sigtramp(unsigned long addr)
 {
-	smp_call_function(sb1_flush_cache_sigtramp_ipi, (void *) addr, 1, 1);
+	unsigned long tmp;
+
+	/*
+	 * Flush the local dcache, then load the instruction back into a
+	 * register.  That will make sure that any remote CPU also has
+	 * written back it's data cache to memory.
+	 */
 	local_sb1_flush_cache_sigtramp(addr);
+	__get_user(tmp, (unsigned long *)addr);
+
+	smp_call_function(sb1_flush_cache_sigtramp_ipi, (void *) addr, 1, 1);
 }
 #else
 void sb1_flush_cache_sigtramp(unsigned long addr);
