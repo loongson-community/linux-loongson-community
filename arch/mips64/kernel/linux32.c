@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.8 2000/03/14 19:28:12 ulfc Exp $
+/* $Id: linux32.c,v 1.9 2000/03/15 02:36:21 kanoj Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -545,8 +545,10 @@ sys32_wait4(__kernel_pid_t32 pid, unsigned int *stat_addr, int options,
 		int ret;
 		unsigned int status;
 		mm_segment_t old_fs = get_fs();
-		
+	
+		set_fs(KERNEL_DS);	
 		ret = sys_wait4(pid, stat_addr ? &status : NULL, options, &r);
+		set_fs(old_fs);
 		if (put_rusage (ru, &r)) return -EFAULT;
 		if (stat_addr && put_user (status, stat_addr))
 			return -EFAULT;
