@@ -129,10 +129,10 @@ static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
 								KLSTRUCT_CPU);
 		}
 		brd = KLCF_NEXT(brd);
-		if (brd)
-			brd = find_lboard(brd,KLTYPE_IP27);
-		else
+		if (!brd)
 			break;
+
+		brd = find_lboard(brd, KLTYPE_IP27);
 	} while (brd);
 
 	return cpus_found;
@@ -236,7 +236,6 @@ void mlreset(void)
 	}
 }
 
-
 static void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend,
 	int base_level, char *name)
 {
@@ -265,21 +264,14 @@ static void intr_clear_all(nasid_t nasid)
 static void sn_mp_setup(void)
 {
 	cnodeid_t	cnode;
-#if 0
-	cpuid_t		cpu;
-#endif
+//	cpuid_t		cpu;
 
 	for (cnode = 0; cnode < numnodes; cnode++) {
-#if 0
-		init_platform_nodepda();
-#endif
+//		init_platform_nodepda();
 		intr_clear_all(COMPACT_TO_NASID_NODEID(cnode));
 	}
-#if 0
-	for (cpu = 0; cpu < maxcpus; cpu++) {
-		init_platform_pda();
-	}
-#endif
+//	for (cpu = 0; cpu < maxcpus; cpu++)
+//		init_platform_pda();
 }
 
 static void per_hub_init(cnodeid_t cnode)
@@ -511,11 +503,11 @@ static void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 
 static int node_distance(nasid_t nasid_a, nasid_t nasid_b)
 {
-	nasid_t nasid;
-	cnodeid_t cnode;
-	lboard_t *brd, *dest_brd;
-	int port;
 	klrou_t *router, *router_a = NULL, *router_b = NULL;
+	lboard_t *brd, *dest_brd;
+	cnodeid_t cnode;
+	nasid_t nasid;
+	int port;
 
 	/* Figure out which routers nodes in question are connected to */
 	for (cnode = 0; cnode < numnodes; cnode++) {
@@ -552,7 +544,7 @@ static int node_distance(nasid_t nasid_a, nasid_t nasid_b)
 				}
 			}
 
-		} while ( (brd = find_lboard_class(KLCF_NEXT(brd), KLTYPE_ROUTER)) );
+		} while ((brd = find_lboard_class(KLCF_NEXT(brd), KLTYPE_ROUTER)));
 	}
 
 	if (router_a == NULL) {
