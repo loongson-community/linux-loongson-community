@@ -1,10 +1,10 @@
 #ifndef _I8042_IP22_H
 #define _I8042_IP22_H
 
-#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/ioc.h>
+#include <asm/sgi/ip22.h>
 #include <asm/sgi/sgint23.h>
-
-#define sgi_kh ((struct hpc_keyb *) &(hpc3mregs->kbdmouse0))
+#include <asm/sgi/sgint23.h>
 
 /*
  * This program is free software; you can redistribute it and/or modify it
@@ -31,28 +31,28 @@
  * Register numbers.
  */
 
-#define I8042_COMMAND_REG	((unsigned int)&sgi_kh->command)
-#define I8042_STATUS_REG	((unsigned int)&sgi_kh->command)
-#define I8042_DATA_REG		((unsigned int)&sgi_kh->data)
+#define I8042_COMMAND_REG	((unsigned int)&sgioc->kbdmouse.command)
+#define I8042_STATUS_REG	((unsigned int)&sgioc->kbdmouse.command)
+#define I8042_DATA_REG		((unsigned int)&sgioc->kbdmouse.data)
 
 static inline int i8042_read_data(void)
 {
-	return sgi_kh->data;
+	return sgioc->kbdmouse.data;
 }
 
 static inline int i8042_read_status(void)
 {
-	return sgi_kh->command;
+	return sgioc->kbdmouse.command;
 }
 
 static inline void i8042_write_data(int val)
 {
-	sgi_kh->data = val;
+	sgioc->kbdmouse.data = val;
 }
 
 static inline void i8042_write_command(int val)
 {
-	sgi_kh->command = val;
+	sgioc->kbdmouse.command = val;
 }
 
 static inline int i8042_platform_init(void)

@@ -1,15 +1,15 @@
 /*
  * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
+ * License. See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * sgigio.h: Definitions for GIO bus found on SGI IP22 (and others by linux
- *           unsupported) machines.
+ * gio.h: Definitions for SGI GIO bus
  *
  * Copyright (C) 2002 Ladislav Michl
  */
-#ifndef _ASM_SGI_SGIGIO_H
-#define _ASM_SGI_SGIGIO_H
+
+#ifndef _SGI_GIO_H
+#define _SGI_GIO_H
 
 /*
  * GIO bus addresses
@@ -83,4 +83,4 @@
 #define GIO_SLOT_EXP0_BASE	0x1f400000
 #define GIO_SLOT_EXP1_BASE	0x1f600000
 
-#endif /* _ASM_SGI_SGIGIO_H */
+#endif /* _SGI_GIO_H */

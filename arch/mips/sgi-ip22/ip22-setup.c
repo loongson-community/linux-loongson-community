@@ -13,7 +13,6 @@
 #include <linux/sched.h>
 #include <linux/tty.h>
 #include <linux/pc_keyb.h>
-#include <linux/module.h>
 
 #include <asm/addrspace.h>
 #include <asm/bcache.h>
@@ -21,14 +20,14 @@
 #include <asm/irq.h>
 #include <asm/reboot.h>
 #include <asm/ds1286.h>
-#include <asm/sgialib.h>
-#include <asm/sgi/sgimc.h>
-#include <asm/sgi/sgihpc.h>
-#include <asm/sgi/sgint23.h>
 #include <asm/time.h>
 #include <asm/gdb-stub.h>
 #include <asm/io.h>
 #include <asm/traps.h>
+#include <asm/sgialib.h>
+#include <asm/sgi/mc.h>
+#include <asm/sgi/hpc3.h>
+#include <asm/sgi/ip22.h>
 
 #ifdef CONFIG_KGDB
 extern void rs_kgdb_hook(int);
@@ -36,15 +35,13 @@ extern void breakpoint(void);
 static int remote_debug = 0;
 #endif
 
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_ARC_CONSOLE)
+#if defined(CONFIG_IP22_SERIAL_CONSOLE) || defined(CONFIG_ARC_CONSOLE)
 extern void console_setup(char *);
 #endif
 
 extern void sgitime_init(void);
 
-extern struct hpc3_miscregs *hpc3mregs;
-extern struct rtc_ops indy_rtc_ops;
-extern void sgi_volume_set(unsigned char);
+extern struct rtc_ops ip22_rtc_ops;
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 
@@ -65,7 +62,6 @@ void ip22_do_break(void)
 		return;
 
 	printk("\n");
-
 	ArcEnterInteractiveMode();
 }
 
@@ -100,8 +96,8 @@ void __init ip22_setup(void)
 	 */
 	ctype = ArcGetEnvironmentVariable("console");
 	if (ctype && *ctype == 'd') {
-#ifdef CONFIG_SERIAL_CONSOLE
-		if(*(ctype + 1) == '2')
+#ifdef CONFIG_IP22_SERIAL_CONSOLE
+		if (*(ctype + 1) == '2')
 			console_setup("ttyS1");
 		else
 			console_setup("ttyS0");
@@ -109,8 +105,7 @@ void __init ip22_setup(void)
 	}
 #ifdef CONFIG_ARC_CONSOLE
 	else if (!ctype || *ctype != 'g') {
-		/* Use ARC if we don't want serial ('d') or
-		 * Newport ('g'). */
+		/* Use ARC if we don't want serial ('d') or Newport ('g'). */
 		prom_flags |= PROM_FLAG_USE_AS_CONSOLE;
 		console_setup("arc");
 	}
@@ -122,22 +117,20 @@ void __init ip22_setup(void)
 		int line;
 		kgdb_ttyd += strlen("kgdb=ttyd");
 		if (*kgdb_ttyd != '1' && *kgdb_ttyd != '2')
-			printk("KGDB: Uknown serial line /dev/ttyd%c, "
-			       "falling back to /dev/ttyd1\n", *kgdb_ttyd);
+			printk(KERN_INFO "KGDB: Uknown serial line /dev/ttyd%c"
+			       ", falling back to /dev/ttyd1\n", *kgdb_ttyd);
 		line = *kgdb_ttyd == '2' ? 0 : 1;
-		printk("KGDB: Using serial line /dev/ttyd%d for session\n",
-		       line ? 1 : 2);
+		printk(KERN_INFO "KGDB: Using serial line /dev/ttyd%d for "
+		       "session\n", line ? 1 : 2);
 		rs_kgdb_hook(line);
 
-		printk("KGDB: Using serial line /dev/ttyd%d for session, "
-			    "please connect your debugger\n", line ? 1 : 2);
+		printk(KERN_INFO "KGDB: Using serial line /dev/ttyd%d for "
+		       "session, please connect your debugger\n", line ? 1:2);
 
 		remote_debug = 1;
 		/* Breakpoints and stuff are in sgi_irq_setup() */
 	}
 #endif
-
-	sgi_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"), NULL, 10));
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
@@ -170,15 +163,14 @@ void __init ip22_setup(void)
 #endif
 #ifdef CONFIG_DUMMY_CONSOLE
 	/* Either if newport console wasn't used or failed to initialize. */
+#ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	if(conswitchp != &newport_con)
+#endif
 		conswitchp = &dummy_con;
 #endif
 #endif
-
-	rtc_ops = &indy_rtc_ops;
+	rtc_ops = &ip22_rtc_ops;
 #ifdef CONFIG_PSMOUSE
 	aux_device_present = 0xaa;
 #endif
 }
-
-EXPORT_SYMBOL(stop_a_enabled);

@@ -24,8 +24,6 @@
 #include <asm/page.h>
 #include <asm/pgalloc.h>
 #include <asm/semaphore.h>
-#include <asm/sgi/sgihpc.h>
-#include <asm/sgi/sgimc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
 #ifdef CONFIG_BLK_DEV_FD
@@ -101,12 +99,6 @@ EXPORT_SYMBOL(__up);
 EXPORT_SYMBOL(vdma_alloc);
 EXPORT_SYMBOL(vdma_free);
 EXPORT_SYMBOL(vdma_log2phys);
-#endif
-
-#ifdef CONFIG_SGI_IP22
-EXPORT_SYMBOL(hpc3c0);
-EXPORT_SYMBOL(hpc3c1);
-EXPORT_SYMBOL(mcmisc_regs);
 #endif
 
 /*

@@ -17,11 +17,11 @@
 #include <asm/mipsregs.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/time.h>
 #include <asm/ds1286.h>
 #include <asm/sgialib.h>
-#include <asm/sgi/sgint23.h>
-#include <asm/sgi/sgigio.h>
-#include <asm/time.h>
+#include <asm/sgi/ioc.h>
+#include <asm/sgi/ip22.h>
 
 /*
  * note that mktime uses month from 1 to 12 while to_tm
@@ -94,31 +94,31 @@ static int indy_rtc_set_time(unsigned long tim)
 	return 0;
 }
 
-static unsigned long dosample(volatile unsigned char *tcwp,
-			      volatile unsigned char *tc2p)
+static unsigned long dosample(void)
 {
 	u32 ct0, ct1;
 	volatile u8 msb, lsb;
 
 	/* Start the counter. */
-	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MRGEN);
-	*tc2p = (SGINT_TCSAMP_COUNTER & 0xff);
-	*tc2p = (SGINT_TCSAMP_COUNTER >> 8);
+	sgint->tcword = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL |
+			 SGINT_TCWORD_MRGEN);
+	sgint->tcnt2 = (SGINT_TCSAMP_COUNTER & 0xff);
+	sgint->tcnt2 = (SGINT_TCSAMP_COUNTER >> 8);
 
 	/* Get initial counter invariant */
 	ct0 = read_c0_count();
 
 	/* Latch and spin until top byte of counter2 is zero */
 	do {
-		*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CLAT);
-		lsb = *tc2p;
-		msb = *tc2p;
+		sgint->tcword = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CLAT);
+		lsb = sgint->tcnt2;
+		msb = sgint->tcnt2;
 		ct1 = read_c0_count();
-	} while(msb);
+	} while (msb);
 
 	/* Stop the counter. */
-	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MSWST);
-
+	sgint->tcword = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL |
+			 SGINT_TCWORD_MSWST);
 	/*
 	 * Return the difference, this is how far the r4k counter increments
 	 * for every 1/HZ seconds. We round off the nearest 1 MHz of master
@@ -132,12 +132,11 @@ static unsigned long dosample(volatile unsigned char *tcwp,
  */
 static __init void indy_time_init(void)
 {
-	struct sgi_ioc_timers *p;
-	volatile unsigned char *tcwp, *tc2p;
 	unsigned long r4k_ticks[3];
 	unsigned long r4k_tick;
 
-	/* Figure out the r4k offset, the algorithm is very simple
+	/* 
+	 * Figure out the r4k offset, the algorithm is very simple
 	 * and works in _all_ cases as long as the 8254 counter
 	 * register itself works ok (as an interrupt driving timer
 	 * it does not because of bug, this is why we are using
@@ -147,36 +146,32 @@ static __init void indy_time_init(void)
 	 * of performing this calculation but this one works just
 	 * fine so I am not going to futz around. ;-)
 	 */
-	p = ioc_timers;
-	tcwp = &p->tcword;
-	tc2p = &p->tcnt2;
-
 	printk(KERN_INFO "Calibrating system timer... ");
-	dosample(tcwp, tc2p);                   /* Prime cache. */
-	dosample(tcwp, tc2p);                   /* Prime cache. */
+	dosample();	/* Prime cache. */
+	dosample();	/* Prime cache. */
 	/* Zero is NOT an option. */
 	do {
-		r4k_ticks[0] = dosample (tcwp, tc2p);
+		r4k_ticks[0] = dosample();
 	} while (!r4k_ticks[0]);
 	do {
-		r4k_ticks[1] = dosample (tcwp, tc2p);
+		r4k_ticks[1] = dosample();
 	} while (!r4k_ticks[1]);
 
 	if (r4k_ticks[0] != r4k_ticks[1]) {
-		printk ("warning: timer counts differ, retrying...");
-		r4k_ticks[2] = dosample (tcwp, tc2p);
+		printk(KERN_INFO "warning: timer counts differ, retrying...");
+		r4k_ticks[2] = dosample();
 		if (r4k_ticks[2] == r4k_ticks[0]
 		    || r4k_ticks[2] == r4k_ticks[1])
 			r4k_tick = r4k_ticks[2];
 		else {
-			printk ("disagreement, using average...");
+			printk(KERN_INFO "disagreement, using average...");
 			r4k_tick = (r4k_ticks[0] + r4k_ticks[1]
 				   + r4k_ticks[2]) / 3;
 		}
 	} else
 		r4k_tick = r4k_ticks[0];
 
-	printk("%d [%d.%02d MHz CPU]\n", (int) r4k_tick,
+	printk(KERN_INFO "%d [%d.%02d MHz CPU]\n", (int) r4k_tick,
 		(int) (r4k_tick / 5000), (int) (r4k_tick % 5000) / 50);
 
 	mips_counter_frequency = r4k_tick * HZ;
@@ -192,7 +187,7 @@ void indy_8254timer_irq(struct pt_regs *regs)
 
 	irq_enter();
 	kstat_cpu(cpu).irqs[irq]++;
-	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
+	printk(KERN_ALERT "Oops, got 8254 interrupt.\n");
 	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
 	irq_exit();

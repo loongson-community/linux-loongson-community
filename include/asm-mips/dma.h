@@ -85,7 +85,7 @@
  */
 #ifdef CONFIG_SGI_IP22
 /* Horrible hack to have a correct DMA window on IP22 */
-#include <asm/sgi/sgimc.h>
+#include <asm/sgi/mc.h>
 #define MAX_DMA_ADDRESS		(PAGE_OFFSET + SGIMC_SEG0_BADDR + 0x01000000)
 #else
 #define MAX_DMA_ADDRESS		(PAGE_OFFSET + 0x01000000)

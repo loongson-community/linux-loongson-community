@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2002 Ladislav Michl
  */
-#include <linux/errno.h>
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -12,8 +12,8 @@
 #include <asm/system.h>
 #include <asm/traps.h>
 #include <asm/branch.h>
-#include <asm/sgi/sgimc.h>
-#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/mc.h>
+#include <asm/sgi/hpc3.h>
 
 
 static unsigned int cpu_err_stat;	/* Status reg for CPU */
@@ -24,12 +24,12 @@ static unsigned int gio_err_addr;	/* Error address reg for GIO */
 static void save_and_clear_buserr(void)
 {
 	/* save memory controler's error status registers */
-	cpu_err_addr = mcmisc_regs->cerr;
-	cpu_err_stat = mcmisc_regs->cstat;
-	gio_err_addr = mcmisc_regs->gerr;
-	gio_err_stat = mcmisc_regs->gstat;
+	cpu_err_addr = sgimc->cerr;
+	cpu_err_stat = sgimc->cstat;
+	gio_err_addr = sgimc->gerr;
+	gio_err_stat = sgimc->gstat;
 
-	mcmisc_regs->cstat = mcmisc_regs->gstat = 0;
+	sgimc->cstat = sgimc->gstat = 0;
 }
 
 #define GIO_ERRMASK	0xff00
@@ -72,7 +72,7 @@ void be_ip22_interrupt(int irq, struct pt_regs *regs)
 {
 	save_and_clear_buserr();
 	print_buserr();
-	panic("Bus error, epc == %08lx, ra == %08lx",
+	panic(KERN_EMERG "Bus error, epc == %08lx, ra == %08lx",
 	      regs->cp0_epc, regs->regs[31]);
 }
 

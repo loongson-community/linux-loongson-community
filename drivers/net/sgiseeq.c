@@ -29,8 +29,8 @@
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 
-#include <asm/sgi/sgihpc.h>
-#include <asm/sgi/sgint23.h>
+#include <asm/sgi/hpc3.h>
+#include <asm/sgi/ip22.h>
 #include <asm/sgialib.h>
 
 #include "sgiseeq.h"

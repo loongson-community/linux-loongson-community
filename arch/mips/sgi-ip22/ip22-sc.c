@@ -10,14 +10,14 @@
 #include <linux/mm.h>
 
 #include <asm/bcache.h>
-#include <asm/sgi/sgi.h>
-#include <asm/sgi/sgimc.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
-#include <asm/sgialib.h>
 #include <asm/mmu_context.h>
+#include <asm/sgialib.h>
+#include <asm/sgi/sgi.h>
+#include <asm/sgi/mc.h>
 
 /* Secondary cache size in bytes, if present.  */
 static unsigned long scache_size;
@@ -201,7 +201,7 @@ static inline int __init indy_sc_probe(void)
 
 	scache_size = data;
 
-	printk("R4600/R5000 SCACHE size %ldK, linesize 32 bytes.\n",
+	printk(KERN_INFO "R4600/R5000 SCACHE size %ldK, linesize 32 bytes.\n",
 	       scache_size >> 10);
 
 	return 1;

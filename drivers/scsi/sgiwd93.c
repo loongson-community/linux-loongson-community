@@ -24,9 +24,9 @@
 #include <asm/pgtable.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/sgi.h>
-#include <asm/sgi/sgimc.h>
-#include <asm/sgi/sgihpc.h>
-#include <asm/sgi/sgint23.h>
+#include <asm/sgi/mc.h>
+#include <asm/sgi/hpc3.h>
+#include <asm/sgi/ip22.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 
@@ -142,10 +142,10 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 	/* Start up the HPC. */
 	hregs->ndptr = PHYSADDR(hdata->dma_bounce_buffer);
 	if(datainp) {
-		dma_cache_wback_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
+		dma_cache_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
 		hregs->ctrl = (HPC3_SCTRL_ACTIVE);
 	} else {
-		dma_cache_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
+		dma_cache_wback_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
 		hregs->ctrl = (HPC3_SCTRL_ACTIVE | HPC3_SCTRL_DIR);
 	}
 
@@ -218,7 +218,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	struct WD33C93_hostdata *hdata1;
 	wd33c93_regs regs;
 	uchar *buf;
-
+	
 	if(called)
 		return 0; /* Should bitch on the console about this... */
 
@@ -257,7 +257,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 		return 0;
 	}
         /* set up second controller on the Indigo2 */
-	if(!sgi_guiness) {
+	if(ip22_is_fullhouse()) {
 		sgiwd93_host1 = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
 		if(sgiwd93_host1 != NULL)
 		{
@@ -314,7 +314,7 @@ int sgiwd93_release(struct Scsi_Host *instance)
 	free_irq(SGI_WD93_0_IRQ, sgiwd93_intr);
 	free_page(KSEG0ADDR(hdata->dma_bounce_buffer));
 	wd33c93_release();
-	if(!sgi_guiness) {
+	if(ip22_is_fullhouse()) {
 		free_irq(SGI_WD93_1_IRQ, sgiwd93_intr);
 		free_page(KSEG0ADDR(hdata1->dma_bounce_buffer));
 		wd33c93_release();

@@ -22,19 +22,18 @@
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <asm/uaccess.h>
-#include <asm/sgi/sgimc.h>
+#include <asm/sgi/mc.h>
 
 static int indydog_alive;
 
 static inline void indydog_ping(void)
 {
-	mcmisc_regs->watchdogt = 0;
+	sgimc->watchdogt = 0;
 }
 
 /*
  *	Allow only one person to hold it open
  */
-
 static int indydog_open(struct inode *inode, struct file *file)
 {
 	u32 mc_ctrl0;
@@ -44,32 +43,28 @@ static int indydog_open(struct inode *inode, struct file *file)
 #ifdef CONFIG_WATCHDOG_NOWAYOUT
 	MOD_INC_USE_COUNT;
 #endif
-	/*
-	 *	Activate timer
-	 */
-	mc_ctrl0 = mcmisc_regs->cpuctrl0 | SGIMC_CCTRL0_WDOG;
-	mcmisc_regs->cpuctrl0 = mc_ctrl0;
+	/* Activate timer */
+	mc_ctrl0 = sgimc->cpuctrl0 | SGIMC_CCTRL0_WDOG;
+	sgimc->cpuctrl0 = mc_ctrl0;
 	indydog_ping();
 			
 	indydog_alive = 1;
-	printk("Started watchdog timer.\n");
+	printk(KERN_INFO "Started watchdog timer.\n");
 	
 	return 0;
 }
 
 static int indydog_release(struct inode *inode, struct file *file)
 {
-	/*
-	 *	Shut off the timer.
-	 * 	Lock it in if it's a module and we defined ...NOWAYOUT
-	 */
+	/* Shut off the timer.
+	 * Lock it in if it's a module and we defined ...NOWAYOUT */
 	lock_kernel();
 #ifndef CONFIG_WATCHDOG_NOWAYOUT
 	{
-	u32 mc_ctrl0 = mcmisc_regs->cpuctrl0; 
+	u32 mc_ctrl0 = sgimc->cpuctrl0; 
 	mc_ctrl0 &= ~SGIMC_CCTRL0_WDOG;
-	mcmisc_regs->cpuctrl0 = mc_ctrl0;
-	printk("Stopped watchdog timer.\n");
+	sgimc->cpuctrl0 = mc_ctrl0;
+	printk(KERN_INFO "Stopped watchdog timer.\n");
 	}
 #endif
 	indydog_alive = 0;
@@ -80,13 +75,11 @@ static int indydog_release(struct inode *inode, struct file *file)
 
 static ssize_t indydog_write(struct file *file, const char *data, size_t len, loff_t *ppos)
 {
-	/*  Can't seek (pwrite) on this device  */
+	/* Can't seek (pwrite) on this device */
 	if (ppos != &file->f_pos)
 		return -ESPIPE;
 
-	/*
-	 *	Refresh the timer.
-	 */
+	/* Refresh the timer. */
 	if (len) {
 		indydog_ping();
 		return 1;

@@ -37,8 +37,9 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/sgialib.h>
-#include <asm/sgi/sgint23.h>
-#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/ioc.h>
+#include <asm/sgi/hpc3.h>
+#include <asm/sgi/ip22.h>
 
 #include <linux/serial_core.h>
 
@@ -955,7 +956,7 @@ static struct zilog_layout * __init get_zs(int chip)
 	}
 
 	/* Not probe-able, hard code it. */
-	base = (unsigned long) &hpc3mregs->ser1cmd;
+	base = (unsigned long) &sgioc->serport;
 
 	zilog_irq = SGI_SERIAL_IRQ;
 	request_mem_region(base, 8, "IP22-Zilog");

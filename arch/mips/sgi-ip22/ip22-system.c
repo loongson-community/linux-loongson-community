@@ -86,7 +86,6 @@ void __init sgi_sysinit(void)
 	p = ArcGetChild(PROM_NULL_COMPONENT);
 
 	/* Now scan for cpu(s). */
-	printk(KERN_INFO);
 	toplev = p = ArcGetChild(p);
 	while(p) {
 		int ncpus = 0;
@@ -98,7 +97,7 @@ void __init sgi_sysinit(void)
 				ArcRead(0, &c, 1, &cnt);
 				ArcEnterInteractiveMode();
 			}
-			printk("CPU: %s ", (char *)p->iname);
+			printk(KERN_INFO "CPU: %s ", (char *)p->iname);
 			cpup = p;
 			cputype = string_to_cpu((char *)cpup->iname);
 		}
@@ -116,7 +115,7 @@ void __init sgi_sysinit(void)
 		case processor:
 			switch(p->type) {
 			case Fpu:
-				printk("FPU<%s> ", (char *)p->iname);
+				printk(KERN_INFO "FPU<%s> ", (char *)p->iname);
 				break;
 
 			default:
@@ -127,15 +126,15 @@ void __init sgi_sysinit(void)
 		case cache:
 			switch(p->type) {
 			case picache:
-				printk("ICACHE ");
+				printk(KERN_INFO "ICACHE ");
 				break;
 
 			case pdcache:
-				printk("DCACHE ");
+				printk(KERN_INFO "DCACHE ");
 				break;
 
 			case sccache:
-				printk("SCACHE ");
+				printk(KERN_INFO "SCACHE ");
 				break;
 
 			default:
@@ -149,5 +148,5 @@ void __init sgi_sysinit(void)
 		};
 		p = ArcGetPeer(p);
 	}
-	printk("\n");
+	printk(KERN_INFO "\n");
 }
