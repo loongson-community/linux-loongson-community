@@ -34,9 +34,7 @@
  *                     task_struct *next)
  */
 LEAF(resume)
-	.set	reorder
 	mfc0	t1, CP0_STATUS
-	.set	noreorder
 	sw	t1, THREAD_STATUS(a0)
 	CPU_SAVE_NONSCRATCH(a0)
 	sw	ra, THREAD_REG31(a0)
@@ -57,8 +55,10 @@ LEAF(resume)
 	and	a2, a3
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
+	.set	noreorder
 	jr	ra
 	 move	v0, a0
+	.set	reorder
 	END(resume)
 
 /*
@@ -74,18 +74,16 @@ LEAF(lazy_fpu_switch)
 	or	t0, t3
 	mtc0	t0, CP0_STATUS
 
+	.set	noreorder
 	beqz	a0, 2f				# Save floating point state
 	 nor	t3, zero, t3
 	.set	reorder
 	lw	t1, ST_OFF(a0)			# last thread looses fpu
-	.set	noreorder
 	and	t1, t3
 	sw	t1, ST_OFF(a0)
 	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
 
 2:
-	lwc1	$f0, (THREAD_FPU + 0x00)($28)
-	.set	reorder
 	FPU_RESTORE_SINGLE($28, t0)		# clobbers t0
 	jr	ra
 	END(lazy_fpu_switch)
@@ -115,8 +113,6 @@ LEAF(restore_fp)
  */
 
 #define FPU_DEFAULT  0x00000000
-
-	.set	noreorder
 
 LEAF(init_fpu)
 	mfc0	t0, CP0_STATUS
@@ -160,7 +156,8 @@ LEAF(init_fpu)
 	mtc1	t0, $f28
 	mtc1	t0, $f29
 	mtc1	t0, $f30
+	.set	noreorder
 	jr	ra
 	 mtc1	t0, $f31
+	.set	reorder
 	END(init_fpu)
-
