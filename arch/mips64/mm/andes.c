@@ -18,6 +18,8 @@
 #include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
+static int scache_lsz64;
+
 /* CP0 hazard avoidance.  I think we can drop this for the R10000.  */
 #define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
 				     "nop; nop; nop; nop; nop; nop;\n\t" \
@@ -116,106 +118,13 @@ andes_flush_cache_l2(void)
 	}
 }
 
-static void
-andes_flush_cache_mm(struct mm_struct *mm)
+void
+andes_flush_icache_page(unsigned long page)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
-		andes_flush_cache_l1();
-	}
-}
-
-static void
-andes_flush_cache_range(struct mm_struct *mm, unsigned long start,
-                        unsigned long end)
-{
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
-		unsigned long flags;
-
-#ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
-		save_and_cli(flags);
-		blast_dcache32(); blast_icache64();
-		restore_flags(flags);
-	}
-}
-
-static void
-andes_flush_cache_page(struct vm_area_struct *vma, unsigned long page)
-{
-	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
-	pgd_t *pgdp;
-	pmd_t *pmdp;
-	pte_t *ptep;
-	int text;
-
-	/*
-	 * If ownes no valid ASID yet, cannot possibly have gotten
-	 * this page into the cache.
-	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
-		return;
-
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
-	save_and_cli(flags);
-	page &= PAGE_MASK;
-	pgdp = pgd_offset(mm, page);
-	pmdp = pmd_offset(pgdp, page);
-	ptep = pte_offset(pmdp, page);
-
-	/*
-	 * If the page isn't marked valid, the page cannot possibly be
-	 * in the cache.
-	 */
-	if(!(pte_val(*ptep) & _PAGE_PRESENT))
-		goto out;
-
-	text = (vma->vm_flags & VM_EXEC);
-	/*
-	 * Doing flushes for another ASID than the current one is
-	 * too difficult since stupid R4k caches do a TLB translation
-	 * for every cache flush operation.  So we do indexed flushes
-	 * in that case, which doesn't overly flush the cache too much.
-	 */
-	if ((mm == current->mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		blast_dcache32_page(page);
-		if(text)
-			blast_icache64_page(page);
-	} else {
-		/*
-		 * Do indexed flush, too much work to get the (possible)
-		 * tlb refills to work correctly.
-		 */
-		page = (CKSEG0 + (page & (dcache_size - 1)));
-		blast_dcache32_page_indexed(page);
-		if(text)
-			blast_icache64_page_indexed(page);
-	}
-out:
-	restore_flags(flags);
-}
-
-/* Hoo hum...  will this ever be called for an address that is not in CKSEG0
-   and not cacheable?  */
-static void
-andes_flush_page_to_ram(struct page * page)
-{
-	unsigned long addr = page_address(page) & PAGE_MASK;
-
-	if ((addr >= K0BASE_NONCOH && addr < (0xb0UL << 56))
-	    || (addr >= KSEG0 && addr < KSEG1)
-	    || (addr >= KSEG2)) {
-#ifdef DEBUG_CACHE
-		printk("cram[%08lx]", addr);
-#endif
-		blast_dcache32_page(addr);
-	}
+	if (scache_lsz64)
+		blast_scache64_page(page);
+	else
+		blast_scache128_page(page);
 }
 
 static void
@@ -476,16 +385,24 @@ void __init ld_mmu_andes(void)
 
 	_flush_cache_l1 = andes_flush_cache_l1;
 	_flush_cache_l2 = andes_flush_cache_l2;
-	_flush_cache_mm = andes_flush_cache_mm;
-	_flush_cache_range = andes_flush_cache_range;
-	_flush_cache_page = andes_flush_cache_page;
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
-	_flush_page_to_ram = andes_flush_page_to_ram;
 
 	_flush_tlb_all = andes_flush_tlb_all;
 	_flush_tlb_mm = andes_flush_tlb_mm;
 	_flush_tlb_range = andes_flush_tlb_range;
 	_flush_tlb_page = andes_flush_tlb_page;
+
+	switch (sc_lsize()) {
+		case 64:
+			scache_lsz64 = 1;
+			break;
+		case 128:
+			scache_lsz64 = 0;
+			break;
+		default:
+			printk("Unknown L2 line size\n");
+			while(1);
+	}
     
 	update_mmu_cache = andes_update_mmu_cache;
 
