@@ -51,7 +51,7 @@
 #include <net/udp.h>
 #include <net/inet_common.h>
 
-#include <net/checksum.h>
+#include <net/ip6_checksum.h>
 #include <net/xfrm.h>
 
 #include <linux/proc_fs.h>
@@ -507,7 +507,7 @@ static inline int udpv6_queue_rcv_skb(struct sock * sk, struct sk_buff *skb)
 		return -1;
 	}
 
-	if (sk->sk_filter && skb->ip_summed != CHECKSUM_UNNECESSARY) {
+	if (skb->ip_summed != CHECKSUM_UNNECESSARY) {
 		if ((unsigned short)csum_fold(skb_checksum(skb, 0, skb->len, skb->csum))) {
 			UDP6_INC_STATS_BH(UdpInErrors);
 			kfree_skb(skb);

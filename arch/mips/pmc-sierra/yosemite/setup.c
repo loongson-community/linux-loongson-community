@@ -147,9 +147,9 @@ unsigned long uart_base = 0xfd000000L;
 extern void (*late_time_init)(void);
 
 unsigned long ocd_base;
-                                                                                
+
 EXPORT_SYMBOL(ocd_base);
- 
+
 /*
  * Common setup before any secondaries are started
  */
@@ -170,7 +170,7 @@ static void __init py_map_ocd(void)
 	ocd_base = (unsigned long) ioremap(OCD_BASE, OCD_SIZE);
 	if (!ocd_base)
 		panic("Mapping OCD failed - game over.  Your score is 0.");
-                                                                                
+
 	/*
 	 * Register to interrupt zero because we share the interrupt with
 	 * the serial driver which we don't properly support yet.

@@ -138,6 +138,7 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Generic Driver Options
 #
+CONFIG_PREVENT_FIRMWARE_BUILD=y
 
 #
 # Memory Technology Devices (MTD)
@@ -163,7 +164,7 @@ CONFIG_TRAD_SIGNALS=y
 # CONFIG_BLK_DEV_UMEM is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
-# CONFIG_BLK_DEV_CARMEL is not set
+# CONFIG_BLK_DEV_SX8 is not set
 # CONFIG_BLK_DEV_RAM is not set
 # CONFIG_LBD is not set
 
@@ -251,6 +252,7 @@ CONFIG_XFRM=y
 # QoS and/or fair queueing
 #
 # CONFIG_NET_SCHED is not set
+# CONFIG_NET_CLS_ROUTE is not set
 
 #
 # Network testing
@@ -306,6 +308,7 @@ CONFIG_PCNET32=y
 # CONFIG_SUNDANCE is not set
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
+# CONFIG_VIA_VELOCITY is not set
 # CONFIG_LAN_SAA9730 is not set
 
 #

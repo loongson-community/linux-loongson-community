@@ -366,6 +366,8 @@ struct net_device
 	struct Qdisc		*qdisc_ingress;
 	unsigned long		tx_queue_len;	/* Max frames per queue allowed */
 
+	/* ingress path synchronizer */
+	spinlock_t		ingress_lock;
 	/* hard_start_xmit synchronizer */
 	spinlock_t		xmit_lock;
 	/* cpu id of processor entered to hard_start_xmit or -1,
@@ -405,6 +407,7 @@ struct net_device
 #define NETIF_F_HW_VLAN_FILTER	512	/* Receive filtering on VLAN */
 #define NETIF_F_VLAN_CHALLENGED	1024	/* Device cannot handle VLAN packets */
 #define NETIF_F_TSO		2048	/* Can offload TCP/IP segmentation */
+#define NETIF_F_LLTX		4096	/* LockLess TX */
 
 	/* Called after device is detached from network. */
 	void			(*uninit)(struct net_device *dev);

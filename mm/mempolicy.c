@@ -26,7 +26,7 @@
  *                process policy.
  * default        Allocate on the local node first, or when on a VMA
  *                use the process policy. This is what Linux always did
- *				   in a NUMA aware kernel and still does by, ahem, default.
+ *		  in a NUMA aware kernel and still does by, ahem, default.
  *
  * The process policy is applied for most non interrupt memory allocations
  * in that process' context. Interrupts ignore the policies and always
@@ -93,14 +93,12 @@ static struct mempolicy default_policy = {
 /* Check if all specified nodes are online */
 static int nodes_online(unsigned long *nodes)
 {
-	DECLARE_BITMAP(offline, MAX_NUMNODES);
+	DECLARE_BITMAP(online2, MAX_NUMNODES);
 
-	bitmap_copy(offline, node_online_map, MAX_NUMNODES);
-	if (bitmap_empty(offline, MAX_NUMNODES))
-		set_bit(0, offline);
-	bitmap_complement(offline, MAX_NUMNODES);
-	bitmap_and(offline, offline, nodes, MAX_NUMNODES);
-	if (!bitmap_empty(offline, MAX_NUMNODES))
+	bitmap_copy(online2, node_online_map, MAX_NUMNODES);
+	if (bitmap_empty(online2, MAX_NUMNODES))
+		set_bit(0, online2);
+	if (!bitmap_subset(nodes, online2, MAX_NUMNODES))
 		return -EINVAL;
 	return 0;
 }
@@ -135,6 +133,10 @@ static int get_nodes(unsigned long *nodes, unsigned long __user *nmask,
 	unsigned long endmask;
 
 	--maxnode;
+	bitmap_zero(nodes, MAX_NUMNODES);
+	if (maxnode == 0 || !nmask)
+		return 0;
+
 	nlongs = BITS_TO_LONGS(maxnode);
 	if ((maxnode % BITS_PER_LONG) == 0)
 		endmask = ~0UL;
@@ -143,7 +145,7 @@ static int get_nodes(unsigned long *nodes, unsigned long __user *nmask,
 
 	/* When the user specified more nodes than supported just check
 	   if the non supported part is all zero. */
-	if (nmask && nlongs > BITS_TO_LONGS(MAX_NUMNODES)) {
+	if (nlongs > BITS_TO_LONGS(MAX_NUMNODES)) {
 		for (k = BITS_TO_LONGS(MAX_NUMNODES); k < nlongs; k++) {
 			unsigned long t;
 			if (get_user(t,  nmask + k))
@@ -158,8 +160,7 @@ static int get_nodes(unsigned long *nodes, unsigned long __user *nmask,
 		endmask = ~0UL;
 	}
 
-	bitmap_zero(nodes, MAX_NUMNODES);
-	if (nmask && copy_from_user(nodes, nmask, nlongs*sizeof(unsigned long)))
+	if (copy_from_user(nodes, nmask, nlongs*sizeof(unsigned long)))
 		return -EFAULT;
 	nodes[nlongs-1] &= endmask;
 	return mpol_check_policy(mode, nodes);
@@ -622,14 +623,14 @@ static unsigned offset_il_node(struct mempolicy *pol,
 
 /* Allocate a page in interleaved policy.
    Own path because it needs to do special accounting. */
-static struct page *alloc_page_interleave(unsigned gfp, unsigned nid)
+static struct page *alloc_page_interleave(unsigned gfp, unsigned order, unsigned nid)
 {
 	struct zonelist *zl;
 	struct page *page;
 
 	BUG_ON(!test_bit(nid, node_online_map));
 	zl = NODE_DATA(nid)->node_zonelists + (gfp & GFP_ZONEMASK);
-	page = __alloc_pages(gfp, 0, zl);
+	page = __alloc_pages(gfp, order, zl);
 	if (page && page_zone(page) == zl->zones[0]) {
 		zl->zones[0]->pageset[get_cpu()].interleave_hit++;
 		put_cpu();
@@ -677,7 +678,7 @@ alloc_page_vma(unsigned gfp, struct vm_area_struct *vma, unsigned long addr)
 			/* fall back to process interleaving */
 			nid = interleave_nodes(pol);
 		}
-		return alloc_page_interleave(gfp, nid);
+		return alloc_page_interleave(gfp, 0, nid);
 	}
 	return __alloc_pages(gfp, 0, zonelist_policy(gfp, pol));
 }
@@ -686,7 +687,7 @@ alloc_page_vma(unsigned gfp, struct vm_area_struct *vma, unsigned long addr)
  * 	alloc_pages_current - Allocate pages.
  *
  *	@gfp:
- *			%GFP_USER   user allocation,
+ *		%GFP_USER   user allocation,
  *      	%GFP_KERNEL kernel allocation,
  *      	%GFP_HIGHMEM highmem allocation,
  *      	%GFP_FS     don't call back into a file system.
@@ -703,8 +704,8 @@ struct page *alloc_pages_current(unsigned gfp, unsigned order)
 
 	if (!pol || in_interrupt())
 		pol = &default_policy;
-	if (pol->policy == MPOL_INTERLEAVE && order == 0)
-		return alloc_page_interleave(gfp, interleave_nodes(pol));
+	if (pol->policy == MPOL_INTERLEAVE)
+		return alloc_page_interleave(gfp, order, interleave_nodes(pol));
 	return __alloc_pages(gfp, order, zonelist_policy(gfp, pol));
 }
 EXPORT_SYMBOL(alloc_pages_current);
@@ -1002,7 +1003,8 @@ void mpol_free_shared_policy(struct shared_policy *p)
 	up(&p->sem);
 }
 
-static __init int numa_policy_init(void)
+/* assumes fs == KERNEL_DS */
+void __init numa_policy_init(void)
 {
 	policy_cache = kmem_cache_create("numa_policy",
 					 sizeof(struct mempolicy),
@@ -1011,6 +1013,17 @@ static __init int numa_policy_init(void)
 	sn_cache = kmem_cache_create("shared_policy_node",
 				     sizeof(struct sp_node),
 				     0, SLAB_PANIC, NULL, NULL);
-	return 0;
+
+	/* Set interleaving policy for system init. This way not all
+	   the data structures allocated at system boot end up in node zero. */
+
+	if (sys_set_mempolicy(MPOL_INTERLEAVE, node_online_map, MAX_NUMNODES) < 0)
+		printk("numa_policy_init: interleaving failed\n");
 }
-module_init(numa_policy_init);
+
+/* Reset policy of current process to default.
+ * Assumes fs == KERNEL_DS */
+void numa_default_policy(void)
+{
+	sys_set_mempolicy(MPOL_DEFAULT, NULL, 0);
+}

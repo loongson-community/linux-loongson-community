@@ -186,8 +186,6 @@ static struct hw_interrupt_type giuint_high_irq_type = {
 	.end		= end_giuint_high_irq,
 };
 
-static struct irqaction giu_cascade = {no_action, 0, 0, "cascade", NULL, NULL};
-
 void __init init_vr41xx_giuint_irq(void)
 {
 	int i;
@@ -305,6 +303,7 @@ struct vr41xx_giuint_cascade {
 };
 
 static struct vr41xx_giuint_cascade giuint_cascade[GIUINT_NR_IRQS];
+static struct irqaction giu_cascade = {no_action, 0, CPU_MASK_NONE, "cascade", NULL, NULL};
 
 static int no_irq_number(int irq)
 {

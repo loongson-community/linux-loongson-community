@@ -47,10 +47,7 @@
 
 extern int do_signal(sigset_t *, struct pt_regs *);
 
-int abs(int);
-
 EXPORT_SYMBOL(do_signal);
-EXPORT_SYMBOL(sys_ioctl);
 
 EXPORT_SYMBOL(isa_io_base);
 EXPORT_SYMBOL(pci_io_base);
@@ -157,8 +154,6 @@ EXPORT_SYMBOL_NOVERS(memmove);
 EXPORT_SYMBOL_NOVERS(memscan);
 EXPORT_SYMBOL_NOVERS(memcmp);
 EXPORT_SYMBOL_NOVERS(memchr);
-
-EXPORT_SYMBOL(abs);
 
 EXPORT_SYMBOL(timer_interrupt);
 EXPORT_SYMBOL(irq_desc);

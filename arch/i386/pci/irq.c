@@ -12,6 +12,7 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/dmi.h>
 #include <asm/io.h>
 #include <asm/smp.h>
 #include <asm/io_apic.h>
@@ -22,7 +23,8 @@
 #define PIRQ_SIGNATURE	(('$' << 0) + ('P' << 8) + ('I' << 16) + ('R' << 24))
 #define PIRQ_VERSION 0x0100
 
-int broken_hp_bios_irq9;
+static int broken_hp_bios_irq9;
+int acer_tm360_irqrouting;
 
 static struct irq_routing_table *pirq_table;
 
@@ -745,6 +747,14 @@ static int pcibios_lookup_irq(struct pci_dev *dev, int assign)
 		r->set(pirq_router_dev, dev, pirq, 11);
 	}
 
+	/* same for Acer Travelmate 360, but with CB and irq 11 -> 10 */
+	if (acer_tm360_irqrouting && dev->irq == 11 && dev->vendor == PCI_VENDOR_ID_O2) {
+		pirq = 0x68;
+		mask = 0x400;
+		dev->irq = r->get(pirq_router_dev, dev, pirq);
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+	}
+
 	/*
 	 * Find the best IRQ to assign: use the one
 	 * reported by the device if possible.
@@ -893,12 +903,41 @@ static void __init pcibios_fixup_irqs(void)
 	}
 }
 
+/*
+ * Work around broken HP Pavilion Notebooks which assign USB to
+ * IRQ 9 even though it is actually wired to IRQ 11
+ */
+static int __init fix_broken_hp_bios_irq9(struct dmi_system_id *d)
+{
+	if (!broken_hp_bios_irq9) {
+		broken_hp_bios_irq9 = 1;
+		printk(KERN_INFO "%s detected - fixing broken IRQ routing\n", d->ident);
+	}
+	return 0;
+}
+
+static struct dmi_system_id __initdata pciirq_dmi_table[] = {
+	{
+		.callback = fix_broken_hp_bios_irq9,
+		.ident = "HP Pavilion N5400 Series Laptop",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
+			DMI_MATCH(DMI_BIOS_VERSION, "GE.M1.03"),
+			DMI_MATCH(DMI_PRODUCT_VERSION, "HP Pavilion Notebook Model GE"),
+			DMI_MATCH(DMI_BOARD_VERSION, "OmniBook N32N-736"),
+		},
+	},
+	{ }
+};
+
 static int __init pcibios_irq_init(void)
 {
 	DBG("PCI: IRQ init\n");
 
 	if (pcibios_enable_irq || raw_pci_ops == NULL)
 		return 0;
+
+	dmi_check_system(pciirq_dmi_table);
 
 	pirq_table = pirq_find_routing_table();
 
@@ -1000,7 +1039,7 @@ int pirq_enable_irq(struct pci_dev *dev)
 	/* VIA bridges use interrupt line for apic/pci steering across
 	   the V-Link */
 	else if (interrupt_line_quirk)
-		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq & 15);
 	return 0;
 }
 

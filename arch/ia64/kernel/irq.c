@@ -607,7 +607,7 @@ int request_irq(unsigned int irq,
 
 	action->handler = handler;
 	action->flags = irqflags;
-	action->mask = 0;
+	cpus_clear(action->mask);
 	action->name = devname;
 	action->next = NULL;
 	action->dev_id = dev_id;
@@ -1017,6 +1017,22 @@ static int irq_affinity_write_proc (struct file *file, const char *buffer,
 
 	return full_count;
 }
+
+void move_irq(int irq)
+{
+	/* note - we hold desc->lock */
+	cpumask_t tmp;
+	irq_desc_t *desc = irq_descp(irq);
+
+	if (!cpus_empty(pending_irq_cpumask[irq])) {
+		cpus_and(tmp, pending_irq_cpumask[irq], cpu_online_map);
+		if (unlikely(!cpus_empty(tmp))) {
+			desc->handler->set_affinity(irq, pending_irq_cpumask[irq]);
+		}
+		cpus_clear(pending_irq_cpumask[irq]);
+	}
+}
+
 
 #endif /* CONFIG_SMP */
 

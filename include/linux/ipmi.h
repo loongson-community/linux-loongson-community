@@ -373,6 +373,16 @@ int ipmi_request_supply_msgs(ipmi_user_t          user,
 			     int                  priority);
 
 /*
+ * Do polling on the IPMI interface the user is attached to.  This
+ * causes the IPMI code to do an immediate check for information from
+ * the driver and handle anything that is immediately pending.  This
+ * will not block in anyway.  This is useful if you need to implement
+ * polling from the user like you need to send periodic watchdog pings
+ * from a crash dump, or something like that.
+ */
+void ipmi_poll_interface(ipmi_user_t user);
+
+/*
  * When commands come in to the SMS, the user can register to receive
  * them.  Only one user can be listening on a specific netfn/cmd pair
  * at a time, you will get an EBUSY error if the command is already
@@ -488,7 +498,7 @@ int ipmi_addr_equal(struct ipmi_addr *addr1, struct ipmi_addr *addr2);
 /* Messages sent to the interface are this format. */
 struct ipmi_req
 {
-	unsigned char *addr; /* Address to send the message to. */
+	unsigned char __user *addr; /* Address to send the message to. */
 	unsigned int  addr_len;
 
 	long    msgid; /* The sequence number for the message.  This
@@ -539,7 +549,7 @@ struct ipmi_recv
 	int     recv_type; /* Is this a command, response or an
 			      asyncronous event. */
 
-	unsigned char *addr;    /* Address the message was from is put
+	unsigned char __user *addr;    /* Address the message was from is put
 				   here.  The caller must supply the
 				   memory. */
 	unsigned int  addr_len; /* The size of the address buffer.

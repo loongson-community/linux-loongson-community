@@ -201,6 +201,7 @@ static int econet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len
 	return 0;
 }
 
+#if defined(CONFIG_ECONET_AUNUDP) || defined(CONFIG_ECONET_NATIVE)
 /*
  *	Queue a transmit result for the user to be told about.
  */
@@ -227,6 +228,7 @@ static void tx_result(struct sock *sk, unsigned long cookie, int result)
 	if (sock_queue_rcv_skb(sk, skb) < 0)
 		kfree_skb(skb);
 }
+#endif
 
 #ifdef CONFIG_ECONET_NATIVE
 /*
@@ -255,10 +257,9 @@ static int econet_sendmsg(struct kiocb *iocb, struct socket *sock,
 	struct ec_addr addr;
 	int err;
 	unsigned char port, cb;
+#if defined(CONFIG_ECONET_AUNUDP) || defined(CONFIG_ECONET_NATIVE)
 	struct sk_buff *skb;
 	struct ec_cb *eb;
-#ifdef CONFIG_ECONET_NATIVE
-	unsigned short proto = 0;
 #endif
 #ifdef CONFIG_ECONET_AUNUDP
 	struct msghdr udpmsg;
@@ -316,6 +317,8 @@ static int econet_sendmsg(struct kiocb *iocb, struct socket *sock,
 	{
 		/* Real hardware Econet.  We're not worthy etc. */
 #ifdef CONFIG_ECONET_NATIVE
+		unsigned short proto = 0;
+
 		dev_hold(dev);
 		
 		skb = sock_alloc_send_skb(sk, len+LL_RESERVED_SPACE(dev), 
@@ -718,6 +721,7 @@ static struct proto_ops SOCKOPS_WRAPPED(econet_ops) = {
 #include <linux/smp_lock.h>
 SOCKOPS_WRAP(econet, PF_ECONET);
 
+#if defined(CONFIG_ECONET_AUNUDP) || defined(CONFIG_ECONET_NATIVE)
 /*
  *	Find the listening socket, if any, for the given data.
  */
@@ -761,9 +765,9 @@ static int ec_queue_packet(struct sock *sk, struct sk_buff *skb,
 
 	return sock_queue_rcv_skb(sk, skb);
 }
+#endif
 
 #ifdef CONFIG_ECONET_AUNUDP
-
 /*
  *	Send an AUN protocol response. 
  */

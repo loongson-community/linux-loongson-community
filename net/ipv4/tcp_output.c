@@ -48,9 +48,9 @@ int sysctl_tcp_retrans_collapse = 1;
 static __inline__
 void update_send_head(struct sock *sk, struct tcp_opt *tp, struct sk_buff *skb)
 {
-	tp->send_head = skb->next;
-	if (tp->send_head == (struct sk_buff *)&sk->sk_write_queue)
-		tp->send_head = NULL;
+	sk->sk_send_head = skb->next;
+	if (sk->sk_send_head == (struct sk_buff *)&sk->sk_write_queue)
+		sk->sk_send_head = NULL;
 	tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 	if (tp->packets_out++ == 0)
 		tcp_reset_xmit_timer(sk, TCP_TIME_RETRANS, tp->rto);
@@ -326,11 +326,11 @@ static void tcp_queue_skb(struct sock *sk, struct sk_buff *skb)
 	/* Advance write_seq and place onto the write_queue. */
 	tp->write_seq = TCP_SKB_CB(skb)->end_seq;
 	__skb_queue_tail(&sk->sk_write_queue, skb);
-	tcp_charge_skb(sk, skb);
+	sk_charge_skb(sk, skb);
 
 	/* Queue it, remembering where we must start sending. */
-	if (tp->send_head == NULL)
-		tp->send_head = skb;
+	if (sk->sk_send_head == NULL)
+		sk->sk_send_head = skb;
 }
 
 /* Send _single_ skb sitting at the send head. This function requires
@@ -339,82 +339,18 @@ static void tcp_queue_skb(struct sock *sk, struct sk_buff *skb)
 void tcp_push_one(struct sock *sk, unsigned cur_mss)
 {
 	struct tcp_opt *tp = tcp_sk(sk);
-	struct sk_buff *skb = tp->send_head;
+	struct sk_buff *skb = sk->sk_send_head;
 
 	if (tcp_snd_test(tp, skb, cur_mss, TCP_NAGLE_PUSH)) {
 		/* Send it out now. */
 		TCP_SKB_CB(skb)->when = tcp_time_stamp;
 		if (!tcp_transmit_skb(sk, skb_clone(skb, sk->sk_allocation))) {
-			tp->send_head = NULL;
+			sk->sk_send_head = NULL;
 			tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 			if (tp->packets_out++ == 0)
 				tcp_reset_xmit_timer(sk, TCP_TIME_RETRANS, tp->rto);
 			return;
 		}
-	}
-}
-
-/* Split fragmented skb to two parts at length len. */
-
-static void skb_split(struct sk_buff *skb, struct sk_buff *skb1, u32 len)
-{
-	int i;
-	int pos = skb_headlen(skb);
-
-	if (len < pos) {
-		/* Split line is inside header. */
-		memcpy(skb_put(skb1, pos-len), skb->data + len, pos-len);
-
-		/* And move data appendix as is. */
-		for (i = 0; i < skb_shinfo(skb)->nr_frags; i++)
-			skb_shinfo(skb1)->frags[i] = skb_shinfo(skb)->frags[i];
-
-		skb_shinfo(skb1)->nr_frags = skb_shinfo(skb)->nr_frags;
-		skb_shinfo(skb)->nr_frags = 0;
-
-		skb1->data_len = skb->data_len;
-		skb1->len += skb1->data_len;
-		skb->data_len = 0;
-		skb->len = len;
-		skb->tail = skb->data+len;
-	} else {
-		int k = 0;
-		int nfrags = skb_shinfo(skb)->nr_frags;
-
-		/* Second chunk has no header, nothing to copy. */
-
-		skb_shinfo(skb)->nr_frags = 0;
-		skb1->len = skb1->data_len = skb->len - len;
-		skb->len = len;
-		skb->data_len = len - pos;
-
-		for (i=0; i<nfrags; i++) {
-			int size = skb_shinfo(skb)->frags[i].size;
-			if (pos + size > len) {
-				skb_shinfo(skb1)->frags[k] = skb_shinfo(skb)->frags[i];
-
-				if (pos < len) {
-					/* Split frag.
-					 * We have to variants in this case:
-					 * 1. Move all the frag to the second
-					 *    part, if it is possible. F.e.
-					 *    this approach is mandatory for TUX,
-					 *    where splitting is expensive.
-					 * 2. Split is accurately. We make this.
-					 */
-					get_page(skb_shinfo(skb)->frags[i].page);
-					skb_shinfo(skb1)->frags[0].page_offset += (len-pos);
-					skb_shinfo(skb1)->frags[0].size -= (len-pos);
-					skb_shinfo(skb)->frags[i].size = len-pos;
-					skb_shinfo(skb)->nr_frags++;
-				}
-				k++;
-			} else {
-				skb_shinfo(skb)->nr_frags++;
-			}
-			pos += size;
-		}
-		skb_shinfo(skb1)->nr_frags = k;
 	}
 }
 
@@ -436,10 +372,10 @@ static int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len)
 		return -ENOMEM;
 
 	/* Get a new skb... force flag on. */
-	buff = tcp_alloc_skb(sk, nsize, GFP_ATOMIC);
+	buff = sk_stream_alloc_skb(sk, nsize, GFP_ATOMIC);
 	if (buff == NULL)
 		return -ENOMEM; /* We'll just try again later. */
-	tcp_charge_skb(sk, buff);
+	sk_charge_skb(sk, buff);
 
 	/* Correct the sequence numbers. */
 	TCP_SKB_CB(buff)->seq = TCP_SKB_CB(skb)->seq + len;
@@ -636,8 +572,10 @@ int tcp_write_xmit(struct sock *sk, int nonagle)
 		 */
 		mss_now = tcp_current_mss(sk, 1);
 
-		while((skb = tp->send_head) &&
-		      tcp_snd_test(tp, skb, mss_now, tcp_skb_is_last(sk, skb) ? nonagle : TCP_NAGLE_PUSH)) {
+		while ((skb = sk->sk_send_head) &&
+		       tcp_snd_test(tp, skb, mss_now,
+			       	    tcp_skb_is_last(sk, skb) ? nonagle :
+				    			       TCP_NAGLE_PUSH)) {
 			if (skb->len > mss_now) {
 				if (tcp_fragment(sk, skb, mss_now))
 					break;
@@ -657,7 +595,7 @@ int tcp_write_xmit(struct sock *sk, int nonagle)
 			return 0;
 		}
 
-		return !tp->packets_out && tp->send_head;
+		return !tp->packets_out && sk->sk_send_head;
 	}
 	return 0;
 }
@@ -734,7 +672,7 @@ u32 __tcp_select_window(struct sock *sk)
 	if (free_space < full_space/2) {
 		tp->ack.quick = 0;
 
-		if (tcp_memory_pressure)
+		if (tcp_prot.memory_pressure)
 			tp->rcv_ssthresh = min(tp->rcv_ssthresh, 4U*tp->advmss);
 
 		if (free_space < mss)
@@ -827,7 +765,7 @@ static void tcp_retrans_try_collapse(struct sock *sk, struct sk_buff *skb, int m
 		 */
 		if (tp->fackets_out)
 			tp->fackets_out--;
-		tcp_free_skb(sk, next_skb);
+		sk_stream_free_skb(sk, next_skb);
 		tp->packets_out--;
 	}
 }
@@ -843,7 +781,7 @@ void tcp_simple_retransmit(struct sock *sk)
 	unsigned int mss = tcp_current_mss(sk, 0);
 	int lost = 0;
 
-	for_retrans_queue(skb, sk, tp) {
+	sk_stream_for_retrans_queue(skb, sk) {
 		if (skb->len > mss && 
 		    !(TCP_SKB_CB(skb)->sacked&TCPCB_SACKED_ACKED)) {
 			if (TCP_SKB_CB(skb)->sacked&TCPCB_SACKED_RETRANS) {
@@ -929,7 +867,7 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 	/* Collapse two adjacent packets if worthwhile and we can. */
 	if(!(TCP_SKB_CB(skb)->flags & TCPCB_FLAG_SYN) &&
 	   (skb->len < (cur_mss >> 1)) &&
-	   (skb->next != tp->send_head) &&
+	   (skb->next != sk->sk_send_head) &&
 	   (skb->next != (struct sk_buff *)&sk->sk_write_queue) &&
 	   (skb_shinfo(skb)->nr_frags == 0 && skb_shinfo(skb->next)->nr_frags == 0) &&
 	   (sysctl_tcp_retrans_collapse != 0))
@@ -1004,7 +942,7 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 
 	/* First pass: retransmit lost packets. */
 	if (packet_cnt) {
-		for_retrans_queue(skb, sk, tp) {
+		sk_stream_for_retrans_queue(skb, sk) {
 			__u8 sacked = TCP_SKB_CB(skb)->sacked;
 
 			if (tcp_packets_in_flight(tp) >= tp->snd_cwnd)
@@ -1052,7 +990,7 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 
 	packet_cnt = 0;
 
-	for_retrans_queue(skb, sk, tp) {
+	sk_stream_for_retrans_queue(skb, sk) {
 		if(++packet_cnt > tp->fackets_out)
 			break;
 
@@ -1089,7 +1027,7 @@ void tcp_send_fin(struct sock *sk)
 	 */
 	mss_now = tcp_current_mss(sk, 1); 
 
-	if(tp->send_head != NULL) {
+	if (sk->sk_send_head != NULL) {
 		TCP_SKB_CB(skb)->flags |= TCPCB_FLAG_FIN;
 		TCP_SKB_CB(skb)->end_seq++;
 		tp->write_seq++;
@@ -1168,8 +1106,8 @@ int tcp_send_synack(struct sock *sk)
 				return -ENOMEM;
 			__skb_unlink(skb, &sk->sk_write_queue);
 			__skb_queue_head(&sk->sk_write_queue, nskb);
-			tcp_free_skb(sk, skb);
-			tcp_charge_skb(sk, nskb);
+			sk_stream_free_skb(sk, skb);
+			sk_charge_skb(sk, nskb);
 			skb = nskb;
 		}
 
@@ -1329,7 +1267,7 @@ int tcp_connect(struct sock *sk)
 	TCP_SKB_CB(buff)->when = tcp_time_stamp;
 	tp->retrans_stamp = TCP_SKB_CB(buff)->when;
 	__skb_queue_tail(&sk->sk_write_queue, buff);
-	tcp_charge_skb(sk, buff);
+	sk_charge_skb(sk, buff);
 	tp->packets_out++;
 	tcp_transmit_skb(sk, skb_clone(buff, GFP_KERNEL));
 	TCP_INC_STATS(TcpActiveOpens);
@@ -1468,7 +1406,7 @@ int tcp_write_wakeup(struct sock *sk)
 		struct tcp_opt *tp = tcp_sk(sk);
 		struct sk_buff *skb;
 
-		if ((skb = tp->send_head) != NULL &&
+		if ((skb = sk->sk_send_head) != NULL &&
 		    before(TCP_SKB_CB(skb)->seq, tp->snd_una+tp->snd_wnd)) {
 			int err;
 			int mss = tcp_current_mss(sk, 0);
@@ -1522,7 +1460,7 @@ void tcp_send_probe0(struct sock *sk)
 
 	err = tcp_write_wakeup(sk);
 
-	if (tp->packets_out || !tp->send_head) {
+	if (tp->packets_out || !sk->sk_send_head) {
 		/* Cancel probe timer, if it is not required. */
 		tp->probes_out = 0;
 		tp->backoff = 0;

@@ -76,10 +76,10 @@ static int indydog_open(struct inode *inode, struct file *file)
 	/* Activate timer */
 	indydog_start();
 	indydog_ping();
-			
+
 	indydog_alive = 1;
 	printk(KERN_INFO "Started watchdog timer.\n");
-	
+
 	return 0;
 }
 
@@ -88,13 +88,13 @@ static int indydog_release(struct inode *inode, struct file *file)
 	/* Shut off the timer.
 	 * Lock it in if it's a module and we defined ...NOWAYOUT */
 	if (!nowayout) {
-		u32 mc_ctrl0 = sgimc->cpuctrl0; 
+		u32 mc_ctrl0 = sgimc->cpuctrl0;
 		mc_ctrl0 &= ~SGIMC_CCTRL0_WDOG;
 		sgimc->cpuctrl0 = mc_ctrl0;
 		printk(KERN_INFO "Stopped watchdog timer.\n");
 	}
 	indydog_alive = 0;
-	
+
 	return 0;
 }
 

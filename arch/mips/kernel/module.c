@@ -33,7 +33,7 @@ int module_finalize(const Elf_Ehdr *hdr,
 	char *secstrings = (void *)hdr + sechdrs[hdr->e_shstrndx].sh_offset;
 
 	INIT_LIST_HEAD(&me->arch.dbe_list);
-	for (s = sechdrs; s < sechdrs + hdr->e_shnum; s++) { 
+	for (s = sechdrs; s < sechdrs + hdr->e_shnum; s++) {
 		if (strcmp("__dbe_table", secstrings + s->sh_name) != 0)
 			continue;
 		me->arch.dbe_start = (void *)s->sh_addr;

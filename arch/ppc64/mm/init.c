@@ -89,15 +89,15 @@ unsigned long	top_of_ram;
 
 void show_mem(void)
 {
-	int total = 0, reserved = 0;
-	int shared = 0, cached = 0;
+	unsigned long total = 0, reserved = 0;
+	unsigned long shared = 0, cached = 0;
 	struct page *page;
 	pg_data_t *pgdat;
 	unsigned long i;
 
 	printk("Mem-info:\n");
 	show_free_areas();
-	printk("Free swap:       %6dkB\n",nr_swap_pages<<(PAGE_SHIFT-10));
+	printk("Free swap:       %6ldkB\n", nr_swap_pages<<(PAGE_SHIFT-10));
 	for_each_pgdat(pgdat) {
 		for (i = 0; i < pgdat->node_spanned_pages; i++) {
 			page = pgdat->node_mem_map + i;
@@ -110,10 +110,10 @@ void show_mem(void)
 				shared += page_count(page) - 1;
 		}
 	}
-	printk("%d pages of RAM\n",total);
-	printk("%d reserved pages\n",reserved);
-	printk("%d pages shared\n",shared);
-	printk("%d pages swap cached\n",cached);
+	printk("%ld pages of RAM\n", total);
+	printk("%ld reserved pages\n", reserved);
+	printk("%ld pages shared\n", shared);
+	printk("%ld pages swap cached\n", cached);
 }
 
 #ifdef CONFIG_PPC_ISERIES
@@ -764,6 +764,7 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long ea,
 	void *pgdir;
 	pte_t *ptep;
 	int local = 0;
+	int cpu;
 	cpumask_t tmp;
 
 	/* handle i-cache coherency */
@@ -794,12 +795,14 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long ea,
 
 	vsid = get_vsid(vma->vm_mm->context.id, ea);
 
-	tmp = cpumask_of_cpu(smp_processor_id());
+	cpu = get_cpu();
+	tmp = cpumask_of_cpu(cpu);
 	if (cpus_equal(vma->vm_mm->cpu_vm_mask, tmp))
 		local = 1;
 
 	__hash_page(ea, pte_val(pte) & (_PAGE_USER|_PAGE_RW), vsid, ptep,
 		    0x300, local);
+	put_cpu();
 }
 
 void * reserve_phb_iospace(unsigned long size)

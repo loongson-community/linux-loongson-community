@@ -280,8 +280,8 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 {
 	struct i2o_controller *c = dev->controller;
 	int tid = dev->tid;
-	unsigned long msg;
-	unsigned long mptr;
+	void *msg;
+	void *mptr;
 	u64 offset;
 	struct request *req = ireq->req;
 	int count = req->nr_sectors<<9;
@@ -291,7 +291,7 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 
 	// printk(KERN_INFO "i2ob_send called\n");
 	/* Map the message to a virtual address */
-	msg = c->mem_offset + m;
+	msg = c->msg_virt + m;
 	
 	sgnum = i2ob_build_sglist(dev, ireq);
 	
@@ -479,7 +479,7 @@ static void i2o_block_reply(struct i2o_handler *h, struct i2o_controller *c, str
 		/* Now flush the message by making it a NOP */
 		m[0]&=0x00FFFFFF;
 		m[0]|=(I2O_CMD_UTIL_NOP)<<24;
-		i2o_post_message(c, ((unsigned long)m) - c->mem_offset);
+		i2o_post_message(c, (unsigned long) m - (unsigned long) c->msg_virt);
 
 		return;
 	}
@@ -861,6 +861,7 @@ static int i2ob_ioctl(struct inode *inode, struct file *file,
 {
 	struct gendisk *disk = inode->i_bdev->bd_disk;
 	struct i2ob_device *dev = disk->private_data;
+	void __user *argp = (void __user *)arg;
 
 	/* Anyone capable of this syscall can do *real bad* things */
 
@@ -873,13 +874,13 @@ static int i2ob_ioctl(struct inode *inode, struct file *file,
 			i2o_block_biosparam(get_capacity(disk), 
 					&g.cylinders, &g.heads, &g.sectors);
 			g.start = get_start_sect(inode->i_bdev);
-			return copy_to_user((void *)arg,&g, sizeof(g))?-EFAULT:0;
+			return copy_to_user(argp, &g, sizeof(g))?-EFAULT:0;
 		}
 		
 		case BLKI2OGRSTRAT:
-			return put_user(dev->rcache, (int *)arg);
+			return put_user(dev->rcache, (int __user *)argp);
 		case BLKI2OGWSTRAT:
-			return put_user(dev->wcache, (int *)arg);
+			return put_user(dev->wcache, (int __user *)argp);
 		case BLKI2OSRSTRAT:
 			if(arg<0||arg>CACHE_SMARTFETCH)
 				return -EINVAL;

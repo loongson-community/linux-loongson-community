@@ -83,6 +83,7 @@
 #include <linux/pci.h>
 #include <linux/miscdevice.h>
 #include <linux/smp_lock.h>
+#include <linux/compat.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -102,9 +103,6 @@
 #define my_VERSION	MPT_LINUX_VERSION_COMMON
 #define MYNAM		"mptctl"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,62)
-EXPORT_NO_SYMBOLS;
-#endif
 MODULE_AUTHOR(MODULEAUTHOR);
 MODULE_DESCRIPTION(my_NAME);
 MODULE_LICENSE("GPL");
@@ -144,8 +142,8 @@ static int mptctl_hp_targetinfo(unsigned long arg);
 /*
  * Private function calls.
  */
-static int mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local);
-static int mptctl_do_fw_download(int ioc, char *ufwbuf, size_t fwlen);
+static int mptctl_do_mpt_command (struct mpt_ioctl_command karg, void __user *mfPtr);
+static int mptctl_do_fw_download(int ioc, char __user *ufwbuf, size_t fwlen);
 static MptSge_t *kbuf_alloc_2_sgl( int bytes, u32 dir, int sge_offset, int *frags,
 		struct buflist **blp, dma_addr_t *sglbuf_dma, MPT_ADAPTER *ioc);
 static void kfree_sgl( MptSge_t *sgl, dma_addr_t sgl_dma,
@@ -547,38 +545,6 @@ mptctl_ioc_reset(MPT_ADAPTER *ioc, int reset_phase)
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
 /*
- *  struct file_operations functionality.
- *  Members:
- *	llseek, write, read, ioctl, open, release
- */
-/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,9)
-static loff_t
-mptctl_llseek(struct file *file, loff_t offset, int origin)
-{
-	return -ESPIPE;
-}
-#define no_llseek mptctl_llseek
-#endif
-
-/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
-static ssize_t
-mptctl_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
-{
-	printk(KERN_ERR MYNAM ": ioctl WRITE not yet supported\n");
-	return 0;
-}
-
-/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
-static ssize_t
-mptctl_read(struct file *file, char *buf, size_t count, loff_t *ptr)
-{
-	printk(KERN_ERR MYNAM ": ioctl READ not yet supported\n");
-	return 0;
-}
-
-/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
-/*
  *  MPT ioctl handler
  *  cmd - specify the particular IOCTL command to be issued
  *  arg - data specific to the command. Must not be null.
@@ -586,7 +552,7 @@ mptctl_read(struct file *file, char *buf, size_t count, loff_t *ptr)
 static int
 mptctl_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
-	mpt_ioctl_header	*uhdr = (mpt_ioctl_header *) arg;
+	mpt_ioctl_header __user *uhdr = (void __user *) arg;
 	mpt_ioctl_header	 khdr;
 	int iocnum;
 	unsigned iocnumX;
@@ -599,7 +565,7 @@ mptctl_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned 
 	if (copy_from_user(&khdr, uhdr, sizeof(khdr))) {
 		printk(KERN_ERR "%s::mptctl_ioctl() @%d - "
 				"Unable to copy mpt_ioctl_header data @ %p\n",
-				__FILE__, __LINE__, (void*)uhdr);
+				__FILE__, __LINE__, uhdr);
 		return -EFAULT;
 	}
 	ret = -ENXIO;				/* (-6) No such device or address */
@@ -671,7 +637,7 @@ mptctl_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned 
 
 static int mptctl_do_reset(unsigned long arg)
 {
-	struct mpt_ioctl_diag_reset *urinfo = (struct mpt_ioctl_diag_reset *) arg;
+	struct mpt_ioctl_diag_reset __user *urinfo = (void __user *) arg;
 	struct mpt_ioctl_diag_reset krinfo;
 	MPT_ADAPTER		*iocp;
 
@@ -680,7 +646,7 @@ static int mptctl_do_reset(unsigned long arg)
 	if (copy_from_user(&krinfo, urinfo, sizeof(struct mpt_ioctl_diag_reset))) {
 		printk(KERN_ERR "%s@%d::mptctl_do_reset - "
 				"Unable to copy mpt_ioctl_diag_reset struct @ %p\n",
-				__FILE__, __LINE__, (void*)urinfo);
+				__FILE__, __LINE__, urinfo);
 		return -EFAULT;
 	}
 
@@ -696,21 +662,6 @@ static int mptctl_do_reset(unsigned long arg)
 		return -1;
 	}
 
-	return 0;
-}
-
-/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
-static int mptctl_open(struct inode *inode, struct file *file)
-{
-	/*
-	 * Should support multiple management users
-	 */
-	return 0;
-}
-
-/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
-static int mptctl_release(struct inode *inode, struct file *file)
-{
 	return 0;
 }
 
@@ -734,14 +685,14 @@ static int mptctl_release(struct inode *inode, struct file *file)
 static int
 mptctl_fw_download(unsigned long arg)
 {
-	struct mpt_fw_xfer	*ufwdl = (struct mpt_fw_xfer *) arg;
+	struct mpt_fw_xfer __user *ufwdl = (void __user *) arg;
 	struct mpt_fw_xfer	 kfwdl;
 
 	dctlprintk((KERN_INFO "mptctl_fwdl called. mptctl_id = %xh\n", mptctl_id)); //tc
 	if (copy_from_user(&kfwdl, ufwdl, sizeof(struct mpt_fw_xfer))) {
 		printk(KERN_ERR "%s@%d::_ioctl_fwdl - "
 				"Unable to copy mpt_fw_xfer struct @ %p\n",
-				__FILE__, __LINE__, (void*)ufwdl);
+				__FILE__, __LINE__, ufwdl);
 		return -EFAULT;
 	}
 
@@ -763,7 +714,7 @@ mptctl_fw_download(unsigned long arg)
  *		-ENOMSG if FW upload returned bad status
  */
 static int
-mptctl_do_fw_download(int ioc, char *ufwbuf, size_t fwlen)
+mptctl_do_fw_download(int ioc, char __user *ufwbuf, size_t fwlen)
 {
 	FWDownload_t		*dlmsg;
 	MPT_FRAME_HDR		*mf;
@@ -892,7 +843,7 @@ mptctl_do_fw_download(int ioc, char *ufwbuf, size_t fwlen)
 			if (copy_from_user(bl->kptr, ufwbuf+fw_bytes_copied, bl->len)) {
 				printk(KERN_ERR "%s@%d::_ioctl_fwdl - "
 						"Unable to copy f/w buffer hunk#%d @ %p\n",
-						__FILE__, __LINE__, n, (void*)ufwbuf);
+						__FILE__, __LINE__, n, ufwbuf);
 				goto fwdl_out;
 			}
 			fw_bytes_copied += bl->len;
@@ -1198,7 +1149,7 @@ kfree_sgl(MptSge_t *sgl, dma_addr_t sgl_dma, struct buflist *buflist, MPT_ADAPTE
 static int
 mptctl_getiocinfo (unsigned long arg, unsigned int data_size)
 {
-	struct mpt_ioctl_iocinfo *uarg = (struct mpt_ioctl_iocinfo *) arg;
+	struct mpt_ioctl_iocinfo __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_iocinfo *karg;
 	MPT_ADAPTER		*ioc;
 	struct pci_dev		*pdev;
@@ -1238,7 +1189,7 @@ mptctl_getiocinfo (unsigned long arg, unsigned int data_size)
 	if (copy_from_user(karg, uarg, data_size)) {
 		printk(KERN_ERR "%s@%d::mptctl_getiocinfo - "
 			"Unable to read in mpt_ioctl_iocinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		kfree(karg);
 		return -EFAULT;
 	}
@@ -1278,10 +1229,8 @@ mptctl_getiocinfo (unsigned long arg, unsigned int data_size)
 	karg->pciId = pdev->device;
 	pci_read_config_byte(pdev, PCI_CLASS_REVISION, &revision);
 	karg->hwRev = revision;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
 	karg->subSystemDevice = pdev->subsystem_device;
 	karg->subSystemVendor = pdev->subsystem_vendor;
-#endif
 
 	if (cim_rev == 1) {
 		/* Get the PCI bus, device, and function numbers for the IOC
@@ -1335,10 +1284,10 @@ mptctl_getiocinfo (unsigned long arg, unsigned int data_size)
 
 	/* Copy the data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *)arg, karg, data_size)) {
+	if (copy_to_user((char __user *)arg, karg, data_size)) {
 		printk(KERN_ERR "%s@%d::mptctl_getiocinfo - "
 			"Unable to write out mpt_ioctl_iocinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		kfree(karg);
 		return -EFAULT;
 	}
@@ -1360,7 +1309,7 @@ mptctl_getiocinfo (unsigned long arg, unsigned int data_size)
 static int
 mptctl_gettargetinfo (unsigned long arg)
 {
-	struct mpt_ioctl_targetinfo *uarg = (struct mpt_ioctl_targetinfo *) arg;
+	struct mpt_ioctl_targetinfo __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_targetinfo karg;
 	MPT_ADAPTER		*ioc;
 	struct Scsi_Host	*sh;
@@ -1382,7 +1331,7 @@ mptctl_gettargetinfo (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_targetinfo))) {
 		printk(KERN_ERR "%s@%d::mptctl_gettargetinfo - "
 			"Unable to read in mpt_ioctl_targetinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1500,21 +1449,21 @@ data_space_full:
 
 	/* Copy part of the data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *)arg, &karg,
+	if (copy_to_user((char __user *)arg, &karg,
 				sizeof(struct mpt_ioctl_targetinfo))) {
 		printk(KERN_ERR "%s@%d::mptctl_gettargetinfo - "
 			"Unable to write out mpt_ioctl_targetinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		kfree(pmem);
 		return -EFAULT;
 	}
 
 	/* Copy the remaining data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *) uarg->targetInfo, pmem, numBytes)) {
+	if (copy_to_user(uarg->targetInfo, pmem, numBytes)) {
 		printk(KERN_ERR "%s@%d::mptctl_gettargetinfo - "
 			"Unable to write out mpt_ioctl_targetinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)pdata);
+				__FILE__, __LINE__, pdata);
 		kfree(pmem);
 		return -EFAULT;
 	}
@@ -1535,7 +1484,7 @@ data_space_full:
 static int
 mptctl_readtest (unsigned long arg)
 {
-	struct mpt_ioctl_test	*uarg = (struct mpt_ioctl_test *) arg;
+	struct mpt_ioctl_test __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_test	 karg;
 	MPT_ADAPTER *ioc;
 	int iocnum;
@@ -1544,7 +1493,7 @@ mptctl_readtest (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_test))) {
 		printk(KERN_ERR "%s@%d::mptctl_readtest - "
 			"Unable to read in mpt_ioctl_test struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1571,10 +1520,10 @@ mptctl_readtest (unsigned long arg)
 
 	/* Copy the data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *)arg, &karg, sizeof(struct mpt_ioctl_test))) {
+	if (copy_to_user((char __user *)arg, &karg, sizeof(struct mpt_ioctl_test))) {
 		printk(KERN_ERR "%s@%d::mptctl_readtest - "
 			"Unable to write out mpt_ioctl_test struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1595,7 +1544,7 @@ mptctl_readtest (unsigned long arg)
 static int
 mptctl_eventquery (unsigned long arg)
 {
-	struct mpt_ioctl_eventquery	*uarg = (struct mpt_ioctl_eventquery *) arg;
+	struct mpt_ioctl_eventquery __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_eventquery	 karg;
 	MPT_ADAPTER *ioc;
 	int iocnum;
@@ -1604,7 +1553,7 @@ mptctl_eventquery (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_eventquery))) {
 		printk(KERN_ERR "%s@%d::mptctl_eventquery - "
 			"Unable to read in mpt_ioctl_eventquery struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1620,10 +1569,10 @@ mptctl_eventquery (unsigned long arg)
 
 	/* Copy the data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *)arg, &karg, sizeof(struct mpt_ioctl_eventquery))) {
+	if (copy_to_user((char __user *)arg, &karg, sizeof(struct mpt_ioctl_eventquery))) {
 		printk(KERN_ERR "%s@%d::mptctl_eventquery - "
 			"Unable to write out mpt_ioctl_eventquery struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 	return 0;
@@ -1633,7 +1582,7 @@ mptctl_eventquery (unsigned long arg)
 static int
 mptctl_eventenable (unsigned long arg)
 {
-	struct mpt_ioctl_eventenable	*uarg = (struct mpt_ioctl_eventenable *) arg;
+	struct mpt_ioctl_eventenable __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_eventenable	 karg;
 	MPT_ADAPTER *ioc;
 	int iocnum;
@@ -1642,7 +1591,7 @@ mptctl_eventenable (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_eventenable))) {
 		printk(KERN_ERR "%s@%d::mptctl_eventenable - "
 			"Unable to read in mpt_ioctl_eventenable struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1680,7 +1629,7 @@ mptctl_eventenable (unsigned long arg)
 static int
 mptctl_eventreport (unsigned long arg)
 {
-	struct mpt_ioctl_eventreport	*uarg = (struct mpt_ioctl_eventreport *) arg;
+	struct mpt_ioctl_eventreport __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_eventreport	 karg;
 	MPT_ADAPTER		 *ioc;
 	int			 iocnum;
@@ -1690,7 +1639,7 @@ mptctl_eventreport (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_eventreport))) {
 		printk(KERN_ERR "%s@%d::mptctl_eventreport - "
 			"Unable to read in mpt_ioctl_eventreport struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1716,10 +1665,10 @@ mptctl_eventreport (unsigned long arg)
 	/* Copy the data from kernel memory to user memory
 	 */
 	numBytes = max * sizeof(MPT_IOCTL_EVENTS);
-	if (copy_to_user((char *) uarg->eventData, ioc->events, numBytes)) {
+	if (copy_to_user(uarg->eventData, ioc->events, numBytes)) {
 		printk(KERN_ERR "%s@%d::mptctl_eventreport - "
 			"Unable to write out mpt_ioctl_eventreport struct @ %p\n",
-				__FILE__, __LINE__, (void*)ioc->events);
+				__FILE__, __LINE__, ioc->events);
 		return -EFAULT;
 	}
 
@@ -1730,7 +1679,7 @@ mptctl_eventreport (unsigned long arg)
 static int
 mptctl_replace_fw (unsigned long arg)
 {
-	struct mpt_ioctl_replace_fw	*uarg = (struct mpt_ioctl_replace_fw *) arg;
+	struct mpt_ioctl_replace_fw __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_replace_fw	 karg;
 	MPT_ADAPTER		 *ioc;
 	fw_image_t		 **fwmem = NULL;
@@ -1744,7 +1693,7 @@ mptctl_replace_fw (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_replace_fw))) {
 		printk(KERN_ERR "%s@%d::mptctl_replace_fw - "
 			"Unable to read in mpt_ioctl_replace_fw struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1774,7 +1723,7 @@ mptctl_replace_fw (unsigned long arg)
 		if (copy_from_user(fwmem[ii]->fw, uarg->newImage + offset, fwmem[ii]->size)) {
 			printk(KERN_ERR "%s@%d::mptctl_replace_fw - "
 				"Unable to read in mpt_ioctl_replace_fw image @ %p\n",
-					__FILE__, __LINE__, (void*)uarg);
+					__FILE__, __LINE__, uarg);
 
 			mpt_free_fw_memory(ioc, fwmem);
 			return -EFAULT;
@@ -1819,7 +1768,7 @@ mptctl_replace_fw (unsigned long arg)
 static int
 mptctl_mpt_command (unsigned long arg)
 {
-	struct mpt_ioctl_command *uarg = (struct mpt_ioctl_command *) arg;
+	struct mpt_ioctl_command __user *uarg = (void __user *) arg;
 	struct mpt_ioctl_command  karg;
 	MPT_ADAPTER	*ioc;
 	int		iocnum;
@@ -1830,7 +1779,7 @@ mptctl_mpt_command (unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(struct mpt_ioctl_command))) {
 		printk(KERN_ERR "%s@%d::mptctl_mpt_command - "
 			"Unable to read in mpt_ioctl_command struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -1841,7 +1790,7 @@ mptctl_mpt_command (unsigned long arg)
 		return -ENODEV;
 	}
 
-	rc = mptctl_do_mpt_command (karg, (char *) &uarg->MF, 0);
+	rc = mptctl_do_mpt_command (karg, &uarg->MF);
 
 	return rc;
 }
@@ -1859,7 +1808,7 @@ mptctl_mpt_command (unsigned long arg)
  *		-EPERM if SCSI I/O and target is untagged
  */
 static int
-mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local)
+mptctl_do_mpt_command (struct mpt_ioctl_command karg, void __user *mfPtr)
 {
 	MPT_ADAPTER	*ioc;
 	MPT_FRAME_HDR	*mf = NULL;
@@ -1923,23 +1872,15 @@ mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local)
 
 	/* Copy the request frame
 	 * Reset the saved message context.
+	 * Request frame in user space
 	 */
-        if (local) {
-		/* Request frame in kernel space
-		 */
-		memcpy((char *)mf, (char *) mfPtr, karg.dataSgeOffset * 4);
-        } else {
-		/* Request frame in user space
-		 */
-		if (copy_from_user((char *)mf, (char *) mfPtr,
-					karg.dataSgeOffset * 4)){
-			printk(KERN_ERR "%s@%d::mptctl_do_mpt_command - "
-				"Unable to read MF from mpt_ioctl_command struct @ %p\n",
-				__FILE__, __LINE__, (void*)mfPtr);
-			rc = -EFAULT;
-			goto done_free_mem;
-		}
-        }
+	if (copy_from_user(mf, mfPtr, karg.dataSgeOffset * 4)) {
+		printk(KERN_ERR "%s@%d::mptctl_do_mpt_command - "
+			"Unable to read MF from mpt_ioctl_command struct @ %p\n",
+			__FILE__, __LINE__, mfPtr);
+		rc = -EFAULT;
+		goto done_free_mem;
+	}
 	hdr->MsgContext = cpu_to_le32(msgContext);
 
 
@@ -2220,7 +2161,7 @@ mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local)
 						"%s@%d::mptctl_do_mpt_command - Unable "
 						"to read user data "
 						"struct @ %p\n",
-						__FILE__, __LINE__,(void*)karg.dataOutBufPtr);
+						__FILE__, __LINE__,karg.dataOutBufPtr);
 					rc =  -EFAULT;
 					goto done_free_mem;
 				}
@@ -2321,12 +2262,12 @@ mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local)
 			}
 
 			if (sz > 0) {
-				if (copy_to_user((char *)karg.replyFrameBufPtr,
+				if (copy_to_user(karg.replyFrameBufPtr,
 					 &ioc->ioctl->ReplyFrame, sz)){
 
 					 printk(KERN_ERR "%s@%d::mptctl_do_mpt_command - "
 					 "Unable to write out reply frame %p\n",
-					 __FILE__, __LINE__, (void*)karg.replyFrameBufPtr);
+					 __FILE__, __LINE__, karg.replyFrameBufPtr);
 					 rc =  -ENODATA;
 					 goto done_free_mem;
 				}
@@ -2338,11 +2279,11 @@ mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local)
 		if (ioc->ioctl->status & MPT_IOCTL_STATUS_SENSE_VALID) {
 			sz = min(karg.maxSenseBytes, MPT_SENSE_BUFFER_SIZE);
 			if (sz > 0) {
-				if (copy_to_user((char *)karg.senseDataPtr, ioc->ioctl->sense, sz)) {
+				if (copy_to_user(karg.senseDataPtr, ioc->ioctl->sense, sz)) {
 					printk(KERN_ERR "%s@%d::mptctl_do_mpt_command - "
 					"Unable to write sense data to user %p\n",
 					__FILE__, __LINE__,
-					(void*)karg.senseDataPtr);
+					karg.senseDataPtr);
 					rc =  -ENODATA;
 					goto done_free_mem;
 				}
@@ -2355,12 +2296,12 @@ mptctl_do_mpt_command (struct mpt_ioctl_command karg, char *mfPtr, int local)
 		if ((ioc->ioctl->status & MPT_IOCTL_STATUS_COMMAND_GOOD) &&
 					(karg.dataInSize > 0) && (bufIn.kptr)) {
 
-			if (copy_to_user((char *)karg.dataInBufPtr,
+			if (copy_to_user(karg.dataInBufPtr,
 					 bufIn.kptr, karg.dataInSize)) {
 				printk(KERN_ERR "%s@%d::mptctl_do_mpt_command - "
 					"Unable to write data to user %p\n",
 					__FILE__, __LINE__,
-					(void*)karg.dataInBufPtr);
+					karg.dataInBufPtr);
 				rc =  -ENODATA;
 			}
 		}
@@ -2413,7 +2354,7 @@ done_free_mem:
 static int
 mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
 {
-	hp_host_info_t	*uarg = (hp_host_info_t *) arg;
+	hp_host_info_t	__user *uarg = (void __user *) arg;
 	MPT_ADAPTER		*ioc;
 	struct pci_dev		*pdev;
 	char			*pbuf;
@@ -2437,7 +2378,7 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
 	if (copy_from_user(&karg, uarg, sizeof(hp_host_info_t))) {
 		printk(KERN_ERR "%s@%d::mptctl_hp_host_info - "
 			"Unable to read in hp_host_info struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -2455,10 +2396,8 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
 
 	karg.vendor = pdev->vendor;
 	karg.device = pdev->device;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
 	karg.subsystem_id = pdev->subsystem_device;
 	karg.subsystem_vendor = pdev->subsystem_vendor;
-#endif
 	karg.devfn = pdev->devfn;
 	karg.bus = pdev->bus->number;
 
@@ -2540,7 +2479,7 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
 		break;
 	}
 
-	karg.base_io_addr = pdev->PCI_BASEADDR_START(0);
+	karg.base_io_addr = pci_resource_start(pdev, 0);
 
 	if ((int)ioc->chip_type <= (int) FC929)
 		karg.bus_phys_width = HP_BUS_WIDTH_UNK;
@@ -2576,11 +2515,10 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
 
 	/* Copy the data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *)arg, &karg,
-				sizeof(hp_host_info_t))) {
+	if (copy_to_user((char __user *)arg, &karg, sizeof(hp_host_info_t))) {
 		printk(KERN_ERR "%s@%d::mptctl_hpgethostinfo - "
 			"Unable to write out hp_host_info @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -2602,7 +2540,7 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
 static int
 mptctl_hp_targetinfo(unsigned long arg)
 {
-	hp_target_info_t	*uarg = (hp_target_info_t *) arg;
+	hp_target_info_t __user *uarg = (void __user *) arg;
 	SCSIDevicePage0_t	*pg0_alloc;
 	SCSIDevicePage3_t	*pg3_alloc;
 	MPT_ADAPTER		*ioc;
@@ -2619,7 +2557,7 @@ mptctl_hp_targetinfo(unsigned long arg)
 	if (copy_from_user(&karg, uarg, sizeof(hp_target_info_t))) {
 		printk(KERN_ERR "%s@%d::mptctl_hp_targetinfo - "
 			"Unable to read in hp_host_targetinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 	
@@ -2727,10 +2665,10 @@ mptctl_hp_targetinfo(unsigned long arg)
 
 	/* Copy the data from kernel memory to user memory
 	 */
-	if (copy_to_user((char *)arg, &karg, sizeof(hp_target_info_t))) {
+	if (copy_to_user((char __user *)arg, &karg, sizeof(hp_target_info_t))) {
 		printk(KERN_ERR "%s@%d::mptctl_hp_target_info - "
 			"Unable to write out mpt_ioctl_targetinfo struct @ %p\n",
-				__FILE__, __LINE__, (void*)uarg);
+				__FILE__, __LINE__, uarg);
 		return -EFAULT;
 	}
 
@@ -2739,20 +2677,10 @@ mptctl_hp_targetinfo(unsigned long arg)
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,51)
-#define	owner_THIS_MODULE  .owner = THIS_MODULE,
-#else
-#define	owner_THIS_MODULE
-#endif
-
 static struct file_operations mptctl_fops = {
-	owner_THIS_MODULE
+	.owner =	THIS_MODULE,
 	.llseek =	no_llseek,
-	.read =		mptctl_read,
-	.write =	mptctl_write,
 	.ioctl =	mptctl_ioctl,
-	.open =		mptctl_open,
-	.release =	mptctl_release,
 };
 
 static struct miscdevice mptctl_miscdev = {
@@ -2800,7 +2728,7 @@ compat_mptfwxfer_ioctl(unsigned int fd, unsigned int cmd,
 
 	dctlprintk((KERN_INFO MYNAM "::compat_mptfwxfer_ioctl() called\n"));
 
-	if (copy_from_user(&kfw32, (char *)arg, sizeof(kfw32)))
+	if (copy_from_user(&kfw32, (char __user *)arg, sizeof(kfw32)))
 		return -EFAULT;
 
 	/* Verify intended MPT adapter */
@@ -2817,7 +2745,7 @@ compat_mptfwxfer_ioctl(unsigned int fd, unsigned int cmd,
 
 	kfw.iocnum = iocnum;
 	kfw.fwlen = kfw32.fwlen;
-	kfw.bufp = (void *)(unsigned long)kfw32.bufp;
+	kfw.bufp = compat_ptr(kfw32.bufp);
 
 	ret = mptctl_do_fw_download(kfw.iocnum, kfw.bufp, kfw.fwlen);
 
@@ -2831,7 +2759,7 @@ compat_mpt_command(unsigned int fd, unsigned int cmd,
 			unsigned long arg, struct file *filp)
 {
 	struct mpt_ioctl_command32 karg32;
-	struct mpt_ioctl_command32 *uarg = (struct mpt_ioctl_command32 *) arg;
+	struct mpt_ioctl_command32 __user *uarg = (struct mpt_ioctl_command32 __user *) arg;
 	struct mpt_ioctl_command karg;
 	MPT_ADAPTER *iocp = NULL;
 	int iocnum, iocnumX;
@@ -2840,7 +2768,7 @@ compat_mpt_command(unsigned int fd, unsigned int cmd,
 
 	dctlprintk((KERN_INFO MYNAM "::compat_mpt_command() called\n"));
 
-	if (copy_from_user(&karg32, (char *)arg, sizeof(karg32)))
+	if (copy_from_user(&karg32, (char __user *)arg, sizeof(karg32)))
 		return -EFAULT;
 
 	/* Verify intended MPT adapter */
@@ -2866,14 +2794,14 @@ compat_mpt_command(unsigned int fd, unsigned int cmd,
 	karg.maxSenseBytes = karg32.maxSenseBytes;
 	karg.dataSgeOffset = karg32.dataSgeOffset;
 
-	karg.replyFrameBufPtr = (char *)(unsigned long)karg32.replyFrameBufPtr;
-	karg.dataInBufPtr = (char *)(unsigned long)karg32.dataInBufPtr;
-	karg.dataOutBufPtr = (char *)(unsigned long)karg32.dataOutBufPtr;
-	karg.senseDataPtr = (char *)(unsigned long)karg32.senseDataPtr;
+	karg.replyFrameBufPtr = (char __user *)(unsigned long)karg32.replyFrameBufPtr;
+	karg.dataInBufPtr = (char __user *)(unsigned long)karg32.dataInBufPtr;
+	karg.dataOutBufPtr = (char __user *)(unsigned long)karg32.dataOutBufPtr;
+	karg.senseDataPtr = (char __user *)(unsigned long)karg32.senseDataPtr;
 
 	/* Pass new structure to do_mpt_command
 	 */
-	ret = mptctl_do_mpt_command (karg, (char *) &uarg->MF, 0);
+	ret = mptctl_do_mpt_command (karg, &uarg->MF);
 
 	up(&mptctl_syscall_sem_ioc[iocp->id]);
 

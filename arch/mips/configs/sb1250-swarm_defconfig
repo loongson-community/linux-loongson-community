@@ -179,6 +179,7 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Generic Driver Options
 #
+CONFIG_PREVENT_FIRMWARE_BUILD=y
 
 #
 # Memory Technology Devices (MTD)
@@ -204,7 +205,7 @@ CONFIG_TRAD_SIGNALS=y
 # CONFIG_BLK_DEV_UMEM is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
-# CONFIG_BLK_DEV_CARMEL is not set
+# CONFIG_BLK_DEV_SX8 is not set
 CONFIG_BLK_DEV_RAM=y
 CONFIG_BLK_DEV_RAM_SIZE=9220
 CONFIG_BLK_DEV_INITRD=y
@@ -219,6 +220,7 @@ CONFIG_BLK_DEV_IDE=y
 #
 # Please see Documentation/ide.txt for help/info on IDE drives
 #
+# CONFIG_BLK_DEV_IDE_SATA is not set
 CONFIG_BLK_DEV_IDEDISK=y
 # CONFIG_IDEDISK_MULTI_MODE is not set
 CONFIG_BLK_DEV_IDECD=y
@@ -317,6 +319,7 @@ CONFIG_XFRM=y
 # QoS and/or fair queueing
 #
 # CONFIG_NET_SCHED is not set
+# CONFIG_NET_CLS_ROUTE is not set
 
 #
 # Network testing

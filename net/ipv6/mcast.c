@@ -60,7 +60,7 @@
 #include <net/addrconf.h>
 #include <net/ip6_route.h>
 
-#include <net/checksum.h>
+#include <net/ip6_checksum.h>
 
 /* Set to 3 to get tracing... */
 #define MCAST_DEBUG 2
@@ -365,7 +365,7 @@ int ip6_mc_source(int add, int omode, struct sock *sk,
 	err = -EADDRNOTAVAIL;
 
 	for (pmc=inet6->ipv6_mc_list; pmc; pmc=pmc->next) {
-		if (pmc->ifindex != pgsr->gsr_interface)
+		if (pgsr->gsr_interface && pmc->ifindex != pgsr->gsr_interface)
 			continue;
 		if (ipv6_addr_cmp(&pmc->addr, group) == 0)
 			break;

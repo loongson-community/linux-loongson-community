@@ -73,8 +73,8 @@ extern int cyber2000fb_init(void);
 extern int cyber2000fb_setup(char*);
 extern int retz3fb_init(void);
 extern int retz3fb_setup(char*);
-extern int clgenfb_init(void);
-extern int clgenfb_setup(char*);
+extern int cirrusfb_init(void);
+extern int cirrusfb_setup(char*);
 extern int hitfb_init(void);
 extern int vfb_init(void);
 extern int vfb_setup(char*);
@@ -175,6 +175,7 @@ extern int kyrofb_init(void);
 extern int kyrofb_setup(char*);
 extern int mc68x328fb_init(void);
 extern int mc68x328fb_setup(char *);
+extern int asiliantfb_init(void);
 
 static struct {
 	const char *name;
@@ -206,8 +207,8 @@ static struct {
 #ifdef CONFIG_FB_PM3
 	{ "pm3fb", pm3fb_init, pm3fb_setup },
 #endif           
-#ifdef CONFIG_FB_CLGEN
-	{ "clgenfb", clgenfb_init, clgenfb_setup },
+#ifdef CONFIG_FB_CIRRUS
+	{ "cirrusfb", cirrusfb_init, cirrusfb_setup },
 #endif
 #ifdef CONFIG_FB_ATY
 	{ "atyfb", atyfb_init, atyfb_setup },
@@ -393,6 +394,9 @@ static struct {
 #endif
 #ifdef CONFIG_FB_68328
 	{ "68328fb", mc68x328fb_init, mc68x328fb_setup },
+#endif
+#ifdef CONFIG_FB_ASILIANT
+	{ "asiliantfb", asiliantfb_init, NULL },
 #endif
 
 	/*
@@ -726,6 +730,7 @@ int fb_show_logo(struct fb_info *info)
 	u32 *palette = NULL, *saved_pseudo_palette = NULL;
 	unsigned char *logo_new = NULL;
 	struct fb_image image;
+	struct fb_fillrect rect;
 	int x;
 
 	/* Return if the frame buffer is not mapped or suspended */
@@ -771,6 +776,12 @@ int fb_show_logo(struct fb_info *info)
 	image.height = fb_logo.logo->height;
 	image.dy = 0;
 
+	rect.dx = 0;
+	rect.dy = 0;
+	rect.color = 0;
+	rect.width = info->var.xres;
+	rect.height = fb_logo.logo->height;
+	info->fbops->fb_fillrect(info, &rect);
 	for (x = 0; x < num_online_cpus() * (fb_logo.logo->width + 8) &&
 	     x <= info->var.xres-fb_logo.logo->width; x += (fb_logo.logo->width + 8)) {
 		image.dx = x;
@@ -811,7 +822,7 @@ static int fbmem_read_proc(char *buf, char **start, off_t offset,
 }
 
 static ssize_t
-fb_read(struct file *file, char *buf, size_t count, loff_t *ppos)
+fb_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
 	struct inode *inode = file->f_dentry->d_inode;
@@ -848,7 +859,7 @@ fb_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 }
 
 static ssize_t
-fb_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
+fb_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
 	struct inode *inode = file->f_dentry->d_inode;
@@ -925,26 +936,30 @@ fb_cursor(struct fb_info *info, struct fb_cursor *sprite)
 	
 	if (cursor.set & FB_CUR_SETSHAPE) {
 		int size = ((cursor.image.width + 7) >> 3) * cursor.image.height;		
+		char *data, *mask;
+
 		if ((cursor.image.height != info->cursor.image.height) ||
 		    (cursor.image.width != info->cursor.image.width))
 			cursor.set |= FB_CUR_SETSIZE;
 		
-		cursor.image.data = kmalloc(size, GFP_KERNEL);
-		if (!cursor.image.data)
+		data = kmalloc(size, GFP_KERNEL);
+		if (!data)
 			return -ENOMEM;
 		
-		cursor.mask = kmalloc(size, GFP_KERNEL);
-		if (!cursor.mask) {
-			kfree(cursor.image.data);
+		mask = kmalloc(size, GFP_KERNEL);
+		if (!mask) {
+			kfree(data);
 			return -ENOMEM;
 		}
 		
-		if (copy_from_user(cursor.image.data, sprite->image.data, size) ||
-		    copy_from_user(cursor.mask, sprite->mask, size)) { 
-			kfree(cursor.image.data);
-			kfree(cursor.mask);
+		if (copy_from_user(data, sprite->image.data, size) ||
+		    copy_from_user(mask, sprite->mask, size)) {
+			kfree(data);
+			kfree(mask);
 			return -EFAULT;
 		}
+		cursor.image.data = data;
+		cursor.mask = mask;
 	}
 	info->cursor.set = cursor.set;
 	info->cursor.rop = cursor.rop;
@@ -999,7 +1014,11 @@ fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var)
 
 			fb_set_cmap(&info->cmap, 1, info);
 
-			notifier_call_chain(&fb_notifier_list, FB_EVENT_MODE_CHANGE, info);
+			if (info->flags & FBINFO_MISC_MODECHANGEUSER) {
+				notifier_call_chain(&fb_notifier_list,
+						    FB_EVENT_MODE_CHANGE, info);
+				info->flags &= ~FBINFO_MISC_MODECHANGEUSER;
+			}
 		}
 	}
 	return 0;
@@ -1050,7 +1069,9 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if (copy_from_user(&var, (void *) arg, sizeof(var)))
 			return -EFAULT;
 		acquire_console_sem();
+		info->flags |= FBINFO_MISC_MODECHANGEUSER;
 		i = fb_set_var(info, &var);
+		info->flags &= ~FBINFO_MISC_MODECHANGEUSER;
 		release_console_sem();
 		if (i) return i;
 		if (copy_to_user((void *) arg, &var, sizeof(var)))
@@ -1105,11 +1126,10 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 #endif /* CONFIG_KMOD */
 		if (!registered_fb[con2fb.framebuffer])
 		    return -EINVAL;
-		if (con2fb.console != 0)
-			set_con2fb_map(con2fb.console-1, con2fb.framebuffer);
-		else
-			fb_console_init();		
-		return 0;
+		if (con2fb.console > 0 && con2fb.console < MAX_NR_CONSOLES)
+			return set_con2fb_map(con2fb.console-1,
+					      con2fb.framebuffer);
+		return -EINVAL;
 #endif	/* CONFIG_FRAMEBUFFER_CONSOLE */
 	case FBIOBLANK:
 		acquire_console_sem();

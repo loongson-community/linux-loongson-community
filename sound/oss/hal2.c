@@ -94,7 +94,7 @@ struct hal2_codec {
 	spinlock_t lock;
 	struct semaphore sem;
 
-	int usecount;			/* recording and playback are 
+	int usecount;			/* recording and playback are
 					 * independent */
 };
 
@@ -111,7 +111,7 @@ struct hal2_card {
 	int dev_dsp;			/* audio device */
 	int dev_mixer;			/* mixer device */
 	int dev_midi;			/* midi device */
-	
+
 	struct hal2_ctl_regs *ctl_regs;	/* HAL2 ctl registers */
 	struct hal2_aes_regs *aes_regs;	/* HAL2 aes registers */
 	struct hal2_vol_regs *vol_regs;	/* HAL2 vol registers */
@@ -129,7 +129,7 @@ struct hal2_card {
 
 static char *hal2str = "HAL2";
 
-/* 
+/*
  * I doubt anyone has a machine with two HAL2 cards. It's possible to
  * have two HPC's, so it is probably possible to have two HAL2 cards.
  * Try to deal with it, but note that it is not tested.
@@ -589,7 +589,7 @@ static int hal2_alloc_dac_dmabuf(struct hal2_codec *codec)
 
 static int hal2_alloc_adc_dmabuf(struct hal2_codec *codec)
 {
-	return hal2_alloc_dmabuf(codec, H2_ADC_BUFSIZE, 
+	return hal2_alloc_dmabuf(codec, H2_ADC_BUFSIZE,
 				 H2_ADC_BUFSIZE / H2_BLOCK_SIZE,
 				 HPCDMA_XIE | H2_BLOCK_SIZE,
 				 DMA_TO_DEVICE);
@@ -786,7 +786,7 @@ static int hal2_write_mixer(struct hal2_card *hal2, int index, int vol)
 		DEBUG_MIX("output attenuator %d,%d\n", l, r);
 
 		if (r | l) {
-			tmp = hal2_i_look32(hal2, H2I_DAC_C2); 
+			tmp = hal2_i_look32(hal2, H2I_DAC_C2);
 			tmp &= ~(H2I_C2_L_ATT_M | H2I_C2_R_ATT_M | H2I_C2_MUTE);
 
 			/* Attenuator has five bits */
@@ -836,7 +836,7 @@ static void hal2_init_mixer(struct hal2_card *hal2)
 	hal2_i_write32(hal2, H2I_DAC_C2, 0);
 	/* set max input gain */
 	hal2_i_write32(hal2, H2I_ADC_C2, H2I_C2_MUTE |
-			(H2I_C2_L_GAIN_M << H2I_C2_L_GAIN_SHIFT) | 
+			(H2I_C2_L_GAIN_M << H2I_C2_L_GAIN_SHIFT) |
 			(H2I_C2_R_GAIN_M << H2I_C2_R_GAIN_SHIFT));
 	/* set max volume */
 	hal2->mixer.master = 0xff;
@@ -866,7 +866,7 @@ static void hal2_volume_control(int direction)
 	hal2_card[0]->mixer.master = master;
 }
 
-static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd, 
+static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd,
 			    unsigned long arg)
 {
 	int val;
@@ -1455,11 +1455,11 @@ static int hal2_init_card(struct hal2_card **phal2, struct hpc3_regs *hpc3)
 	hal2_init_codec(&hal2->dac, hpc3, 0);
 	hal2_init_codec(&hal2->adc, hpc3, 1);
 
-	/* 
+	/*
 	 * All DMA channel interfaces in HAL2 are designed to operate with
 	 * PBUS programmed for 2 cycles in D3, 2 cycles in D4 and 2 cycles
 	 * in D5. HAL2 is a 16-bit device which can accept both big and little
-	 * endian format. It assumes that even address bytes are on high 
+	 * endian format. It assumes that even address bytes are on high
 	 * portion of PBUS (15:8) and assumes that HPC3 is programmed to
 	 * accept a live (unsynchronized) version of P_DREQ_N from HAL2.
 	 */
@@ -1528,13 +1528,13 @@ static int __init init_hal2(void)
 		hal2_card[i] = NULL;
 
 	error = hal2_init_card(&hal2_card[0], hpc3c0);
-	
+
 	/* let Indy's volume buttons work */
 	if (!error && !ip22_is_fullhouse())
 		indy_volume_button = hal2_volume_control;
-	
+
 	return error;
-	
+
 }
 
 static void __exit exit_hal2(void)

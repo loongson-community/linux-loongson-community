@@ -131,7 +131,7 @@ int reiserfs_allocate_blocks_for_region(
     struct buffer_head *bh; // Buffer head that contains items that we are going to deal with
     __u32 * item; // pointer to item we are going to deal with
     INITIALIZE_PATH(path); // path to item, that we are going to deal with.
-    b_blocknr_t allocated_blocks[blocks_to_allocate]; // Pointer to a place where allocated blocknumbers would be stored. Right now statically allocated, later that will change.
+    b_blocknr_t *allocated_blocks; // Pointer to a place where allocated blocknumbers would be stored.
     reiserfs_blocknr_hint_t hint; // hint structure for block allocator.
     size_t res; // return value of various functions that we call.
     int curr_block; // current block used to keep track of unmapped blocks.
@@ -144,9 +144,19 @@ int reiserfs_allocate_blocks_for_region(
     int modifying_this_item = 0; // Flag for items traversal code to keep track
 				 // of the fact that we already prepared
 				 // current block for journal
-
+    int will_prealloc = 0;
 
     RFALSE(!blocks_to_allocate, "green-9004: tried to allocate zero blocks?");
+
+    /* only preallocate if this is a small write */
+    if (REISERFS_I(inode)->i_prealloc_count ||
+       (!(write_bytes & (inode->i_sb->s_blocksize -1)) &&
+        blocks_to_allocate <
+        REISERFS_SB(inode->i_sb)->s_alloc_options.preallocsize))
+        will_prealloc = REISERFS_SB(inode->i_sb)->s_alloc_options.preallocsize;
+
+    allocated_blocks = kmalloc((blocks_to_allocate + will_prealloc) *
+    					sizeof(b_blocknr_t), GFP_NOFS);
 
     /* First we compose a key to point at the writing position, we want to do
        that outside of any locking region. */
@@ -174,13 +184,7 @@ int reiserfs_allocate_blocks_for_region(
     hint.key = key.on_disk_key; // on disk key of file.
     hint.block = inode->i_blocks>>(inode->i_sb->s_blocksize_bits-9); // Number of disk blocks this file occupies already.
     hint.formatted_node = 0; // We are allocating blocks for unformatted node.
-
-    /* only preallocate if this is a small write */
-    if (blocks_to_allocate <
-        REISERFS_SB(inode->i_sb)->s_alloc_options.preallocsize)
-        hint.preallocate = 1;
-    else
-        hint.preallocate = 0;
+    hint.preallocate = will_prealloc;
 
     /* Call block allocator to allocate blocks */
     res = reiserfs_allocate_blocknrs(&hint, allocated_blocks, blocks_to_allocate, blocks_to_allocate);
@@ -467,6 +471,12 @@ retry:
     // the inode.
     //
     pathrelse(&path);
+    /*
+     * cleanup prellocation from previous writes
+     * if this is a partial block write
+     */
+    if (write_bytes & (inode->i_sb->s_blocksize -1))
+        reiserfs_discard_prealloc(th, inode);
     reiserfs_write_unlock(inode->i_sb);
 
     // go through all the pages/buffers and map the buffers to newly allocated
@@ -504,6 +514,7 @@ retry:
 
     RFALSE( curr_block > blocks_to_allocate, "green-9007: Used too many blocks? weird");
 
+    kfree(allocated_blocks);
     return 0;
 
 // Need to deal with transaction here.
@@ -517,6 +528,7 @@ error_exit:
     reiserfs_update_sd(th, inode); // update any changes we made to blk count
     journal_end(th, inode->i_sb, JOURNAL_PER_BALANCE_CNT * 3 + 1);
     reiserfs_write_unlock(inode->i_sb);
+    kfree(allocated_blocks);
 
     return res;
 }
@@ -585,9 +597,19 @@ int reiserfs_commit_page(struct inode *inode, struct page *page,
     struct buffer_head *bh, *head;
     unsigned long i_size_index = inode->i_size >> PAGE_CACHE_SHIFT;
     int new;
+    int logit = reiserfs_file_data_log(inode);
+    struct super_block *s = inode->i_sb;
+    int bh_per_page = PAGE_CACHE_SIZE / s->s_blocksize;
+    struct reiserfs_transaction_handle th;
+    th.t_trans_id = 0;
 
     blocksize = 1 << inode->i_blkbits;
 
+    if (logit) {
+	reiserfs_write_lock(s);
+	journal_begin(&th, s, bh_per_page + 1);
+	reiserfs_update_inode_transaction(inode);
+    }
     for(bh = head = page_buffers(page), block_start = 0;
         bh != head || !block_start;
 	block_start=block_end, bh = bh->b_this_page)
@@ -601,7 +623,10 @@ int reiserfs_commit_page(struct inode *inode, struct page *page,
 		    partial = 1;
 	} else {
 	    set_buffer_uptodate(bh);
-	    if (!buffer_dirty(bh)) {
+	    if (logit) {
+		reiserfs_prepare_for_journal(s, bh, 1);
+		journal_mark_dirty(&th, s, bh);
+	    } else if (!buffer_dirty(bh)) {
 		mark_buffer_dirty(bh);
 		/* do data=ordered on any page past the end
 		 * of file and any buffer marked BH_New.
@@ -613,7 +638,10 @@ int reiserfs_commit_page(struct inode *inode, struct page *page,
 	    }
 	}
     }
-
+    if (logit) {
+	journal_end(&th, s, bh_per_page + 1);
+	reiserfs_write_unlock(s);
+    }
     /*
      * If this is a partial write which happened to make all buffers
      * uptodate then we can optimize away a bogus readpage() for
@@ -1254,6 +1282,7 @@ ssize_t reiserfs_file_write( struct file *file, /* the file we are going to writ
 	journal_end(&th, th.t_super, th.t_blocks_allocated);
         reiserfs_write_unlock(inode->i_sb);
     }
+
     if ((file->f_flags & O_SYNC) || IS_SYNC(inode))
 	res = generic_osync_inode(inode, file->f_mapping, OSYNC_METADATA|OSYNC_DATA);
 

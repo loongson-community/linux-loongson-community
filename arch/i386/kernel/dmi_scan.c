@@ -10,6 +10,7 @@
 #include <asm/io.h>
 #include <linux/pm.h>
 #include <asm/system.h>
+#include <linux/dmi.h>
 #include <linux/bootmem.h>
 
 unsigned long dmi_broken;
@@ -139,21 +140,6 @@ static int __init dmi_iterate(void (*decode)(struct dmi_header *))
 	return -1;
 }
 
-
-enum
-{
-	DMI_BIOS_VENDOR,
-	DMI_BIOS_VERSION,
-	DMI_BIOS_DATE,
-	DMI_SYS_VENDOR,
-	DMI_PRODUCT_NAME,
-	DMI_PRODUCT_VERSION,
-	DMI_BOARD_VENDOR,
-	DMI_BOARD_NAME,
-	DMI_BOARD_VERSION,
-	DMI_STRING_MAX
-};
-
 static char *dmi_ident[DMI_STRING_MAX];
 
 /*
@@ -176,26 +162,11 @@ static void __init dmi_save_ident(struct dmi_header *dm, int slot, int string)
 }
 
 /*
- *	DMI callbacks for problem boards
+ * Ugly compatibility crap.
  */
-
-struct dmi_strmatch
-{
-	u8 slot;
-	char *substr;
-};
-
-#define NONE	255
-
-struct dmi_blacklist
-{
-	int (*callback)(struct dmi_blacklist *);
-	char *ident;
-	struct dmi_strmatch matches[4];
-};
-
-#define NO_MATCH	{ NONE, NULL}
-#define MATCH(a,b)	{ a, b }
+#define dmi_blacklist	dmi_system_id
+#define NO_MATCH	{ DMI_NONE, NULL}
+#define MATCH		DMI_MATCH
 
 /* 
  * Reboot options and system auto-detection code provided by
@@ -343,16 +314,15 @@ static __init int disable_smbus(struct dmi_blacklist *d)
 }
 
 /*
- * Work around broken HP Pavilion Notebooks which assign USB to
- * IRQ 9 even though it is actually wired to IRQ 11
+ * Work around broken Acer TravelMate 360 Notebooks which assign Cardbus to
+ * IRQ 11 even though it is actually wired to IRQ 10
  */
-static __init int fix_broken_hp_bios_irq9(struct dmi_blacklist *d)
+static __init int fix_acer_tm360_irqrouting(struct dmi_blacklist *d)
 {
 #ifdef CONFIG_PCI
-	extern int broken_hp_bios_irq9;
-	if (broken_hp_bios_irq9 == 0)
-	{
-		broken_hp_bios_irq9 = 1;
+	extern int acer_tm360_irqrouting;
+	if (acer_tm360_irqrouting == 0) {
+		acer_tm360_irqrouting = 1;
 		printk(KERN_INFO "%s detected - fixing broken IRQ routing\n", d->ident);
 	}
 #endif
@@ -546,15 +516,21 @@ static __init int ignore_timer_override(struct dmi_blacklist *d)
 
 #ifdef	CONFIG_ACPI_PCI
 static __init int disable_acpi_irq(struct dmi_blacklist *d) 
-{ 
-	printk(KERN_NOTICE "%s detected: force use of acpi=noirq\n", d->ident); 	
-	acpi_noirq_set();
+{
+	if (!acpi_force) {
+		printk(KERN_NOTICE "%s detected: force use of acpi=noirq\n",
+		       d->ident); 	
+		acpi_noirq_set();
+	}
 	return 0;
 }
 static __init int disable_acpi_pci(struct dmi_blacklist *d) 
-{ 
-	printk(KERN_NOTICE "%s detected: force use of pci=noacpi\n", d->ident); 	
-	acpi_disable_pci();
+{
+	if (!acpi_force) {
+		printk(KERN_NOTICE "%s detected: force use of pci=noacpi\n",
+		       d->ident); 	
+		acpi_disable_pci();
+	}
 	return 0;
 }  
 #endif
@@ -839,13 +815,12 @@ static __initdata struct dmi_blacklist dmi_blacklist[]={
 			NO_MATCH, NO_MATCH
 			} },
 	 
-	{ fix_broken_hp_bios_irq9, "HP Pavilion N5400 Series Laptop", {
-			MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
-			MATCH(DMI_BIOS_VERSION, "GE.M1.03"),
-			MATCH(DMI_PRODUCT_VERSION, "HP Pavilion Notebook Model GE"),
-			MATCH(DMI_BOARD_VERSION, "OmniBook N32N-736")
+
+	{ fix_acer_tm360_irqrouting, "Acer TravelMate 36x Laptop", {
+			MATCH(DMI_SYS_VENDOR, "Acer"),
+			MATCH(DMI_PRODUCT_NAME, "TravelMate 360"),
+			NO_MATCH, NO_MATCH
 			} },
- 
 
 	/*
 	 *	Generic per vendor APM settings
@@ -1034,6 +1009,13 @@ static __initdata struct dmi_blacklist dmi_blacklist[]={
 			MATCH(DMI_BOARD_NAME, "PR-DLS"),
 			MATCH(DMI_BIOS_VERSION, "ASUS PR-DLS ACPI BIOS Revision 1010"),
 			MATCH(DMI_BIOS_DATE, "03/21/2003") }},
+
+ 	{ disable_acpi_pci, "Acer TravelMate 36x Laptop", {
+ 			MATCH(DMI_SYS_VENDOR, "Acer"),
+ 			MATCH(DMI_PRODUCT_NAME, "TravelMate 360"),
+ 			NO_MATCH, NO_MATCH
+ 			} },
+
 #endif
 
 	{ NULL, }
@@ -1048,9 +1030,6 @@ static __initdata struct dmi_blacklist dmi_blacklist[]={
 
 static __init void dmi_check_blacklist(void)
 {
-	struct dmi_blacklist *d;
-	int i;
-		
 #ifdef	CONFIG_ACPI_BOOT
 #define	ACPI_BLACKLIST_CUTOFF_YEAR	2001
 
@@ -1072,25 +1051,7 @@ static __init void dmi_check_blacklist(void)
 		}
 	}
 #endif
-
-	d=&dmi_blacklist[0];
-	while(d->callback)
-	{
-		for(i=0;i<4;i++)
-		{
-			int s = d->matches[i].slot;
-			if(s==NONE)
-				continue;
-			if(dmi_ident[s] && strstr(dmi_ident[s], d->matches[i].substr))
-				continue;
-			/* No match */
-			goto fail;
-		}
-		if(d->callback(d))
-			return;
-fail:			
-		d++;
-	}
+ 	dmi_check_system(dmi_blacklist);
 }
 
 	
@@ -1157,3 +1118,52 @@ void __init dmi_scan_machine(void)
 }
 
 EXPORT_SYMBOL(is_unsafe_smbus);
+
+
+/**
+ *	dmi_check_system - check system DMI data
+ *	@list: array of dmi_system_id structures to match against
+ *
+ *	Walk the blacklist table running matching functions until someone
+ *	returns non zero or we hit the end. Callback function is called for
+ *	each successfull match. Returns the number of matches.
+ */
+int dmi_check_system(struct dmi_system_id *list)
+{
+	int i, count = 0;
+	struct dmi_system_id *d = list;
+
+	while (d->ident) {
+		for (i = 0; i < ARRAY_SIZE(d->matches); i++) {
+			int s = d->matches[i].slot;
+			if (s == DMI_NONE)
+				continue;
+			if (dmi_ident[s] && strstr(dmi_ident[s], d->matches[i].substr))
+				continue;
+			/* No match */
+			goto fail;
+		}
+		if (d->callback && d->callback(d))
+			break;
+		count++;
+fail:		d++;
+	}
+
+	return count;
+}
+
+EXPORT_SYMBOL(dmi_check_system);
+
+/**
+ *	dmi_get_system_info - return DMI data value
+ *	@field: data index (see enum dmi_filed)
+ *
+ *	Returns one DMI data value, can be used to perform
+ *	complex DMI data checks.
+ */
+char * dmi_get_system_info(int field)
+{
+	return dmi_ident[field];
+}
+
+EXPORT_SYMBOL(dmi_get_system_info);

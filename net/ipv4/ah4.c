@@ -74,12 +74,15 @@ static int ah_output(struct sk_buff **pskb)
 	}
 
 	spin_lock_bh(&x->lock);
-	err = xfrm_check_output(x, *pskb, AF_INET);
+	err = xfrm_state_check(x, *pskb);
 	if (err)
 		goto error;
 
 	iph = (*pskb)->nh.iph;
 	if (x->props.mode) {
+		err = xfrm4_tunnel_check_size(*pskb);
+		if (err)
+			goto error;
 		top_iph = (struct iphdr*)skb_push(*pskb, x->props.header_len);
 		top_iph->ihl = 5;
 		top_iph->version = 4;
@@ -340,7 +343,7 @@ static struct xfrm_type ah_type =
 	.output		= ah_output
 };
 
-static struct inet_protocol ah4_protocol = {
+static struct net_protocol ah4_protocol = {
 	.handler	=	xfrm4_rcv,
 	.err_handler	=	ah4_err,
 	.no_policy	=	1,

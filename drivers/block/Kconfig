@@ -6,7 +6,7 @@ menu "Block devices"
 
 config BLK_DEV_FD
 	tristate "Normal floppy disk support"
-	depends on (!X86_PC9800 && !ARCH_S390 && !M68K && !IA64) || Q40 || (SUN3X && BROKEN)
+	depends on (!ARCH_S390 && !M68K && !IA64) || Q40 || (SUN3X && BROKEN)
 	---help---
 	  If you want to use the floppy disk drive(s) of your PC under Linux,
 	  say Y. Information about this driver, especially important for IBM
@@ -25,13 +25,6 @@ config AMIGA_FLOPPY
 config ATARI_FLOPPY
 	tristate "Atari floppy support"
 	depends on ATARI
-
-config BLK_DEV_FD98
-	tristate "NEC PC-9800 floppy disk support"
-	depends on X86_PC9800
-	---help---
-	  If you want to use the floppy disk drive(s) of NEC PC-9801/PC-9821,
-	  say Y.
 
 config BLK_DEV_SWIM_IOP
 	bool "Macintosh IIfx/Quadra 900/Quadra 950 floppy support (EXPERIMENTAL)"
@@ -292,14 +285,14 @@ config BLK_DEV_NBD
 
 	  If unsure, say N.
 
-config BLK_DEV_CARMEL
-	tristate "Promise SATA SX8 (carmel) support"
+config BLK_DEV_SX8
+	tristate "Promise SATA SX8 support"
 	depends on PCI
 	---help---
 	  Saying Y or M here will enable support for the 
-	  Promise SATA SX8 ("carmel") controllers.
+	  Promise SATA SX8 controllers.
 
-	  Use devices /dev/carmel/$N and /dev/carmel/$Np$M.
+	  Use devices /dev/sx8/$N and /dev/sx8/$Np$M.
 
 config BLK_DEV_RAM
 	tristate "RAM disk support"

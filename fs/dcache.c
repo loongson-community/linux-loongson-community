@@ -30,9 +30,11 @@
 #include <linux/security.h>
 #include <linux/seqlock.h>
 #include <linux/swap.h>
+#include <linux/bootmem.h>
 
-#define DCACHE_PARANOIA 1
 /* #define DCACHE_DEBUG 1 */
+
+int sysctl_vfs_cache_pressure = 100;
 
 spinlock_t dcache_lock __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 seqlock_t rename_lock __cacheline_aligned_in_smp = SEQLOCK_UNLOCKED;
@@ -64,9 +66,9 @@ struct dentry_stat_t dentry_stat = {
 	.age_limit = 45,
 };
 
-static void d_callback(void *arg)
+static void d_callback(struct rcu_head *head)
 {
-	struct dentry * dentry = (struct dentry *)arg;
+	struct dentry * dentry = container_of(head, struct dentry, d_rcu);
 
 	if (dname_external(dentry))
 		kfree(dentry->d_name.name);
@@ -81,7 +83,7 @@ static void d_free(struct dentry *dentry)
 {
 	if (dentry->d_op && dentry->d_op->d_release)
 		dentry->d_op->d_release(dentry);
- 	call_rcu(&dentry->d_rcu, d_callback, dentry);
+ 	call_rcu(&dentry->d_rcu, d_callback);
 }
 
 /*
@@ -663,7 +665,7 @@ static int shrink_dcache_memory(int nr, unsigned int gfp_mask)
 			return -1;
 		prune_dcache(nr);
 	}
-	return dentry_stat.nr_unused;
+	return (dentry_stat.nr_unused / 100) * sysctl_vfs_cache_pressure;
 }
 
 /**
@@ -1561,13 +1563,25 @@ static int __init set_dhash_entries(char *str)
 }
 __setup("dhash_entries=", set_dhash_entries);
 
+static void __init dcache_init_early(void)
+{
+	int loop;
+
+	dentry_hashtable =
+		alloc_large_system_hash("Dentry cache",
+					sizeof(struct hlist_head),
+					dhash_entries,
+					13,
+					0,
+					&d_hash_shift,
+					&d_hash_mask);
+
+	for (loop = 0; loop < (1 << d_hash_shift); loop++)
+		INIT_HLIST_HEAD(&dentry_hashtable[loop]);
+}
+
 static void __init dcache_init(unsigned long mempages)
 {
-	struct hlist_head *d;
-	unsigned long order;
-	unsigned int nr_hash;
-	int i;
-
 	/* 
 	 * A constructor could be added for stable state like the lists,
 	 * but it is probably not worth it because of the cache nature
@@ -1580,45 +1594,6 @@ static void __init dcache_init(unsigned long mempages)
 					 NULL, NULL);
 	
 	set_shrinker(DEFAULT_SEEKS, shrink_dcache_memory);
-
-	if (!dhash_entries)
-		dhash_entries = PAGE_SHIFT < 13 ?
-				mempages >> (13 - PAGE_SHIFT) :
-				mempages << (PAGE_SHIFT - 13);
-
-	dhash_entries *= sizeof(struct hlist_head);
-	for (order = 0; ((1UL << order) << PAGE_SHIFT) < dhash_entries; order++)
-		;
-
-	do {
-		unsigned long tmp;
-
-		nr_hash = (1UL << order) * PAGE_SIZE /
-			sizeof(struct hlist_head);
-		d_hash_mask = (nr_hash - 1);
-
-		tmp = nr_hash;
-		d_hash_shift = 0;
-		while ((tmp >>= 1UL) != 0UL)
-			d_hash_shift++;
-
-		dentry_hashtable = (struct hlist_head *)
-			__get_free_pages(GFP_ATOMIC, order);
-	} while (dentry_hashtable == NULL && --order >= 0);
-
-	printk(KERN_INFO "Dentry cache hash table entries: %d (order: %ld, %ld bytes)\n",
-			nr_hash, order, (PAGE_SIZE << order));
-
-	if (!dentry_hashtable)
-		panic("Failed to allocate dcache hash table\n");
-
-	d = dentry_hashtable;
-	i = nr_hash;
-	do {
-		INIT_HLIST_HEAD(d);
-		d++;
-		i--;
-	} while (i);
 }
 
 /* SLAB cache for __getname() consumers */
@@ -1631,6 +1606,12 @@ EXPORT_SYMBOL(d_genocide);
 
 extern void bdev_cache_init(void);
 extern void chrdev_init(void);
+
+void __init vfs_caches_init_early(void)
+{
+	dcache_init_early();
+	inode_init_early();
+}
 
 void __init vfs_caches_init(unsigned long mempages)
 {

@@ -9,9 +9,9 @@
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  *
- * Titan supports Hypertransport or PCI but not both. Hence, one interrupt 
+ * Titan supports Hypertransport or PCI but not both. Hence, one interrupt
  * line is shared between the PCI slot A and Hypertransport. This is the
- * Processor INTB #0. 
+ * Processor INTB #0.
  */
 
 #include <linux/config.h>

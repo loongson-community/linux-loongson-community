@@ -51,7 +51,7 @@
 #include <asm/apic.h>
 #endif
 
-#define IPMI_WATCHDOG_VERSION "v31"
+#define IPMI_WATCHDOG_VERSION "v32"
 
 /*
  * The IPMI command/response information for the watchdog timer.
@@ -515,40 +515,37 @@ static struct watchdog_info ident=
 static int ipmi_ioctl(struct inode *inode, struct file *file,
 		      unsigned int cmd, unsigned long arg)
 {
+	void __user *argp = (void __user *)arg;
 	int i;
 	int val;
 
 	switch(cmd) {
 	case WDIOC_GETSUPPORT:
-		i = copy_to_user((void*)arg, &ident, sizeof(ident));
+		i = copy_to_user(argp, &ident, sizeof(ident));
 		return i ? -EFAULT : 0;
 
 	case WDIOC_SETTIMEOUT:
-		i = copy_from_user(&val, (void *) arg, sizeof(int));
+		i = copy_from_user(&val, argp, sizeof(int));
 		if (i)
 			return -EFAULT;
 		timeout = val;
 		return ipmi_set_timeout(IPMI_SET_TIMEOUT_HB_IF_NECESSARY);
 
 	case WDIOC_GETTIMEOUT:
-		i = copy_to_user((void *) arg,
-				 &timeout,
-				 sizeof(timeout));
+		i = copy_to_user(argp, &timeout, sizeof(timeout));
 		if (i)
 			return -EFAULT;
 		return 0;
 
 	case WDIOC_SET_PRETIMEOUT:
-		i = copy_from_user(&val, (void *) arg, sizeof(int));
+		i = copy_from_user(&val, argp, sizeof(int));
 		if (i)
 			return -EFAULT;
 		pretimeout = val;
 		return ipmi_set_timeout(IPMI_SET_TIMEOUT_HB_IF_NECESSARY);
 
 	case WDIOC_GET_PRETIMEOUT:
-		i = copy_to_user((void *) arg,
-				 &pretimeout,
-				 sizeof(pretimeout));
+		i = copy_to_user(argp, &pretimeout, sizeof(pretimeout));
 		if (i)
 			return -EFAULT;
 		return 0;
@@ -557,7 +554,7 @@ static int ipmi_ioctl(struct inode *inode, struct file *file,
 		return ipmi_heartbeat();
 
 	case WDIOC_SETOPTIONS:
-		i = copy_from_user(&val, (void *) arg, sizeof(int));
+		i = copy_from_user(&val, argp, sizeof(int));
 		if (i)
 			return -EFAULT;
 		if (val & WDIOS_DISABLECARD)
@@ -576,7 +573,7 @@ static int ipmi_ioctl(struct inode *inode, struct file *file,
 
 	case WDIOC_GETSTATUS:
 		val = 0;
-		i = copy_to_user((void *) arg, &val, sizeof(val));
+		i = copy_to_user(argp, &val, sizeof(val));
 		if (i)
 			return -EFAULT;
 		return 0;
@@ -587,7 +584,7 @@ static int ipmi_ioctl(struct inode *inode, struct file *file,
 }
 
 static ssize_t ipmi_write(struct file *file,
-			  const char  *buf,
+			  const char  __user *buf,
 			  size_t      len,
 			  loff_t      *ppos)
 {
@@ -607,7 +604,7 @@ static ssize_t ipmi_write(struct file *file,
 }
 
 static ssize_t ipmi_read(struct file *file,
-			 char        *buf,
+			 char        __user *buf,
 			 size_t      count,
 			 loff_t      *ppos)
 {
@@ -883,14 +880,12 @@ static int wdog_panic_handler(struct notifier_block *this,
 
 	/* On a panic, if we have a panic timeout, make sure that the thing
 	   reboots, even if it hangs during that panic. */
-	if (watchdog_user && !panic_event_handled && (panic_timeout > 0)) {
+	if (watchdog_user && !panic_event_handled) {
 		/* Make sure the panic doesn't hang, and make sure we
 		   do this only once. */
 		panic_event_handled = 1;
 	    
-		timeout = panic_timeout + 120;
-		if (timeout > 255)
-			timeout = 255;
+		timeout = 255;
 		pretimeout = 0;
 		ipmi_watchdog_state = WDOG_TIMEOUT_RESET;
 		panic_halt_ipmi_set_timeout();

@@ -65,7 +65,6 @@
 #include "cirrus.h"
 #include "vg468.h"
 #include "ricoh.h"
-#include "o2micro.h"
 
 #ifdef DEBUG
 static const char version[] =
@@ -1372,8 +1371,15 @@ static int __init init_i82365(void)
 {
     int i, ret;
 
-    if (driver_register(&i82365_driver))
-	return -1;
+    ret = driver_register(&i82365_driver);
+    if (ret)
+	return ret;
+
+    ret = platform_device_register(&i82365_device);
+    if (ret) {
+	driver_unregister(&i82365_driver);
+	return ret;
+    }
 
     printk(KERN_INFO "Intel ISA PCIC probe: ");
     sockets = 0;
@@ -1382,11 +1388,10 @@ static int __init init_i82365(void)
 
     if (sockets == 0) {
 	printk("not found.\n");
+	platform_device_unregister(&i82365_device);
 	driver_unregister(&i82365_driver);
 	return -ENODEV;
     }
-
-    platform_device_register(&i82365_device);
 
     /* Set up interrupt handler(s) */
     if (grab_irq != 0)

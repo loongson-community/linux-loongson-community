@@ -59,6 +59,14 @@ struct cfq_data {
 	unsigned int max_queued;
 
 	mempool_t *crq_pool;
+
+	request_queue_t *queue;
+
+	/*
+	 * tunables
+	 */
+	unsigned int cfq_quantum;
+	unsigned int cfq_queued;
 };
 
 struct cfq_queue {
@@ -89,7 +97,8 @@ struct cfq_rq {
 
 static void cfq_put_queue(struct cfq_data *cfqd, struct cfq_queue *cfqq);
 static struct cfq_queue *cfq_find_cfq_hash(struct cfq_data *cfqd, int pid);
-static void cfq_dispatch_sort(struct list_head *head, struct cfq_rq *crq);
+static void cfq_dispatch_sort(struct cfq_data *cfqd, struct cfq_queue *cfqq,
+			      struct cfq_rq *crq);
 
 /*
  * lots of deadline iosched dupes, can be abstracted later...
@@ -206,8 +215,7 @@ retry:
 		return;
 	}
 
-	cfq_del_crq_rb(cfqq, __alias);
-	cfq_dispatch_sort(cfqd->dispatch, __alias);
+	cfq_dispatch_sort(cfqd, cfqq, __alias);
 	goto retry;
 }
 
@@ -321,10 +329,15 @@ cfq_merged_requests(request_queue_t *q, struct request *req,
 	cfq_remove_request(q, next);
 }
 
-static void cfq_dispatch_sort(struct list_head *head, struct cfq_rq *crq)
+static void
+cfq_dispatch_sort(struct cfq_data *cfqd, struct cfq_queue *cfqq,
+		  struct cfq_rq *crq)
 {
-	struct list_head *entry = head;
+	struct list_head *head = cfqd->dispatch, *entry = head;
 	struct request *__rq;
+
+	cfq_del_crq_rb(cfqq, crq);
+	cfq_remove_merge_hints(cfqd->queue, crq);
 
 	if (!list_empty(head)) {
 		__rq = list_entry_rq(head->next);
@@ -352,9 +365,7 @@ __cfq_dispatch_requests(request_queue_t *q, struct cfq_data *cfqd,
 {
 	struct cfq_rq *crq = rb_entry_crq(rb_first(&cfqq->sort_list));
 
-	cfq_del_crq_rb(cfqq, crq);
-	cfq_remove_merge_hints(q, crq);
-	cfq_dispatch_sort(cfqd->dispatch, crq);
+	cfq_dispatch_sort(cfqd, cfqq, crq);
 }
 
 static int cfq_dispatch_requests(request_queue_t *q, struct cfq_data *cfqd)
@@ -385,7 +396,7 @@ restart:
 		ret = 1;
 	}
 
-	if ((queued < cfq_quantum) && good_queues)
+	if ((queued < cfqd->cfq_quantum) && good_queues)
 		goto restart;
 
 	return ret;
@@ -556,7 +567,7 @@ static int cfq_may_queue(request_queue_t *q, int rw)
 
 	cfqq = cfq_find_cfq_hash(cfqd, current->tgid);
 	if (cfqq) {
-		int limit = (q->nr_requests - cfq_queued) / cfqd->busy_queues;
+		int limit = (q->nr_requests - cfqd->cfq_queued) / cfqd->busy_queues;
 
 		if (limit < 3)
 			limit = 3;
@@ -574,6 +585,8 @@ static void cfq_put_request(request_queue_t *q, struct request *rq)
 {
 	struct cfq_data *cfqd = q->elevator.elevator_data;
 	struct cfq_rq *crq = RQ_DATA(rq);
+	struct request_list *rl;
+	int other_rw;
 
 	if (crq) {
 		BUG_ON(q->last_merge == rq);
@@ -581,6 +594,23 @@ static void cfq_put_request(request_queue_t *q, struct request *rq)
 
 		mempool_free(crq, cfqd->crq_pool);
 		rq->elevator_private = NULL;
+	}
+
+	/*
+	 * work-around for may_queue "bug": if a read gets issued and refused
+	 * to queue because writes ate all the allowed slots and no other
+	 * reads are pending for this queue, it could get stuck infinitely
+	 * since freed_request() only checks the waitqueue for writes when
+	 * freeing them. or vice versa for a single write vs many reads.
+	 * so check here whether "the other" data direction might be able
+	 * to queue and wake them
+	 */
+	rl = &q->rq;
+	other_rw = rq_data_dir(rq) ^ 1;
+	if (rl->count[other_rw] <= q->nr_requests) {
+		smp_mb();
+		if (waitqueue_active(&rl->wait[other_rw]))
+			wake_up(&rl->wait[other_rw]);
 	}
 }
 
@@ -643,6 +673,7 @@ static int cfq_init(request_queue_t *q, elevator_t *e)
 
 	cfqd->dispatch = &q->queue_head;
 	e->elevator_data = cfqd;
+	cfqd->queue = q;
 
 	/*
 	 * just set it to some high value, we want anyone to be able to queue
@@ -650,6 +681,9 @@ static int cfq_init(request_queue_t *q, elevator_t *e)
 	 */
 	cfqd->max_queued = q->nr_requests;
 	q->nr_requests = 8192;
+
+	cfqd->cfq_queued = cfq_queued;
+	cfqd->cfq_quantum = cfq_quantum;
 
 	return 0;
 out_crqpool:
@@ -685,8 +719,110 @@ static int __init cfq_slab_setup(void)
 
 subsys_initcall(cfq_slab_setup);
 
+/*
+ * sysfs parts below -->
+ */
+struct cfq_fs_entry {
+	struct attribute attr;
+	ssize_t (*show)(struct cfq_data *, char *);
+	ssize_t (*store)(struct cfq_data *, const char *, size_t);
+};
+
+static ssize_t
+cfq_var_show(unsigned int var, char *page)
+{
+	return sprintf(page, "%d\n", var);
+}
+
+static ssize_t
+cfq_var_store(unsigned int *var, const char *page, size_t count)
+{
+	char *p = (char *) page;
+
+	*var = simple_strtoul(p, &p, 10);
+	return count;
+}
+
+#define SHOW_FUNCTION(__FUNC, __VAR)					\
+static ssize_t __FUNC(struct cfq_data *cfqd, char *page)		\
+{									\
+	return cfq_var_show(__VAR, (page));				\
+}
+SHOW_FUNCTION(cfq_quantum_show, cfqd->cfq_quantum);
+SHOW_FUNCTION(cfq_queued_show, cfqd->cfq_queued);
+#undef SHOW_FUNCTION
+
+#define STORE_FUNCTION(__FUNC, __PTR, MIN, MAX)				\
+static ssize_t __FUNC(struct cfq_data *cfqd, const char *page, size_t count)	\
+{									\
+	int ret = cfq_var_store(__PTR, (page), count);			\
+	if (*(__PTR) < (MIN))						\
+		*(__PTR) = (MIN);					\
+	else if (*(__PTR) > (MAX))					\
+		*(__PTR) = (MAX);					\
+	return ret;							\
+}
+STORE_FUNCTION(cfq_quantum_store, &cfqd->cfq_quantum, 1, INT_MAX);
+STORE_FUNCTION(cfq_queued_store, &cfqd->cfq_queued, 1, INT_MAX);
+#undef STORE_FUNCTION
+
+static struct cfq_fs_entry cfq_quantum_entry = {
+	.attr = {.name = "quantum", .mode = S_IRUGO | S_IWUSR },
+	.show = cfq_quantum_show,
+	.store = cfq_quantum_store,
+};
+static struct cfq_fs_entry cfq_queued_entry = {
+	.attr = {.name = "queued", .mode = S_IRUGO | S_IWUSR },
+	.show = cfq_queued_show,
+	.store = cfq_queued_store,
+};
+
+static struct attribute *default_attrs[] = {
+	&cfq_quantum_entry.attr,
+	&cfq_queued_entry.attr,
+	NULL,
+};
+
+#define to_cfq(atr) container_of((atr), struct cfq_fs_entry, attr)
+
+static ssize_t
+cfq_attr_show(struct kobject *kobj, struct attribute *attr, char *page)
+{
+	elevator_t *e = container_of(kobj, elevator_t, kobj);
+	struct cfq_fs_entry *entry = to_cfq(attr);
+
+	if (!entry->show)
+		return 0;
+
+	return entry->show(e->elevator_data, page);
+}
+
+static ssize_t
+cfq_attr_store(struct kobject *kobj, struct attribute *attr,
+	       const char *page, size_t length)
+{
+	elevator_t *e = container_of(kobj, elevator_t, kobj);
+	struct cfq_fs_entry *entry = to_cfq(attr);
+
+	if (!entry->store)
+		return -EINVAL;
+
+	return entry->store(e->elevator_data, page, length);
+}
+
+static struct sysfs_ops cfq_sysfs_ops = {
+	.show	= cfq_attr_show,
+	.store	= cfq_attr_store,
+};
+
+struct kobj_type cfq_ktype = {
+	.sysfs_ops	= &cfq_sysfs_ops,
+	.default_attrs	= default_attrs,
+};
+
 elevator_t iosched_cfq = {
 	.elevator_name =		"cfq",
+	.elevator_ktype =		&cfq_ktype,
 	.elevator_merge_fn = 		cfq_merge,
 	.elevator_merged_fn =		cfq_merged_request,
 	.elevator_merge_req_fn =	cfq_merged_requests,

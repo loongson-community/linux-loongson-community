@@ -38,8 +38,6 @@
 #include <net/ipv6.h>
 #include <linux/icmpv6.h>
 
-#define MAX_SG_ONSTACK 4
-
 int esp6_output(struct sk_buff **pskb)
 {
 	int err;
@@ -65,14 +63,16 @@ int esp6_output(struct sk_buff **pskb)
 	}
 
 	spin_lock_bh(&x->lock);
-	err = xfrm_check_output(x, *pskb, AF_INET6);
+	err = xfrm_state_check(x, *pskb);
 	if (err)
 		goto error;
-	err = -ENOMEM;
 
-	/* Strip IP header in transport mode. Save it. */
-
-	if (!x->props.mode) {
+	if (x->props.mode) {
+		err = xfrm6_tunnel_check_size(*pskb);
+		if (err)
+			goto error;
+	} else {
+		/* Strip IP header in transport mode. Save it. */
 		hdr_len = ip6_find_1stfragopt(*pskb, &prevhdr);
 		nexthdr = *prevhdr;
 		*prevhdr = IPPROTO_ESP;
@@ -86,6 +86,7 @@ int esp6_output(struct sk_buff **pskb)
 	}
 
 	/* Now skb is pure payload to encrypt */
+	err = -ENOMEM;
 
 	/* Round to block size */
 	clen = (*pskb)->len;
@@ -148,17 +149,16 @@ int esp6_output(struct sk_buff **pskb)
 		crypto_cipher_set_iv(tfm, esp->conf.ivec, crypto_tfm_alg_ivsize(tfm));
 
 	do {
-		struct scatterlist sgbuf[nfrags>MAX_SG_ONSTACK ? 0 : nfrags];
-		struct scatterlist *sg = sgbuf;
+		struct scatterlist *sg = &esp->sgbuf[0];
 
-		if (unlikely(nfrags > MAX_SG_ONSTACK)) {
+		if (unlikely(nfrags > ESP_NUM_FAST_SG)) {
 			sg = kmalloc(sizeof(struct scatterlist)*nfrags, GFP_ATOMIC);
 			if (!sg)
 				goto error;
 		}
 		skb_to_sgvec(*pskb, sg, esph->enc_data+esp->conf.ivlen-(*pskb)->data, clen);
 		crypto_cipher_encrypt(tfm, sg, sg, clen);
-		if (unlikely(sg != sgbuf))
+		if (unlikely(sg != &esp->sgbuf[0]))
 			kfree(sg);
 	} while (0);
 
@@ -256,12 +256,11 @@ int esp6_input(struct xfrm_state *x, struct xfrm_decap_state *decap, struct sk_b
 
         {
 		u8 nexthdr[2];
-		struct scatterlist sgbuf[nfrags>MAX_SG_ONSTACK ? 0 : nfrags];
-		struct scatterlist *sg = sgbuf;
+		struct scatterlist *sg = &esp->sgbuf[0];
 		u8 padlen;
 		u8 *prevhdr;
 
-		if (unlikely(nfrags > MAX_SG_ONSTACK)) {
+		if (unlikely(nfrags > ESP_NUM_FAST_SG)) {
 			sg = kmalloc(sizeof(struct scatterlist)*nfrags, GFP_ATOMIC);
 			if (!sg) {
 				ret = -ENOMEM;
@@ -270,7 +269,7 @@ int esp6_input(struct xfrm_state *x, struct xfrm_decap_state *decap, struct sk_b
 		}
 		skb_to_sgvec(skb, sg, sizeof(struct ipv6_esp_hdr) + esp->conf.ivlen, elen);
 		crypto_cipher_decrypt(esp->conf.tfm, sg, sg, elen);
-		if (unlikely(sg != sgbuf))
+		if (unlikely(sg != &esp->sgbuf[0]))
 			kfree(sg);
 
 		if (skb_copy_bits(skb, skb->len-alen-2, nexthdr, 2))

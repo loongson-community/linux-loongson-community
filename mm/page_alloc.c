@@ -38,7 +38,7 @@ DECLARE_BITMAP(node_online_map, MAX_NUMNODES);
 struct pglist_data *pgdat_list;
 unsigned long totalram_pages;
 unsigned long totalhigh_pages;
-int nr_swap_pages;
+long nr_swap_pages;
 int numnodes = 1;
 int sysctl_lower_zone_protection = 0;
 
@@ -54,6 +54,9 @@ EXPORT_SYMBOL(zone_table);
 
 static char *zone_names[MAX_NR_ZONES] = { "DMA", "Normal", "HighMem" };
 int min_free_kbytes = 1024;
+
+static unsigned long __initdata nr_kernel_pages;
+static unsigned long __initdata nr_all_pages;
 
 /*
  * Temporary debugging check for pages not lying within a given zone.
@@ -290,6 +293,20 @@ void __free_pages_ok(struct page *page, unsigned int order)
 #define MARK_USED(index, order, area) \
 	__change_bit((index) >> (1+(order)), (area)->map)
 
+/*
+ * The order of subdivision here is critical for the IO subsystem.
+ * Please do not alter this order without good reasons and regression
+ * testing. Specifically, as large blocks of memory are subdivided,
+ * the order in which smaller blocks are delivered depends on the order
+ * they're subdivided in this function. This is the primary factor
+ * influencing the order in which pages are delivered to the IO
+ * subsystem according to empirical testing, and this is also justified
+ * by considering the behavior of a buddy system containing a single
+ * large block of memory acted on by a series of small allocations.
+ * This behavior is a critical factor in sglist merging's success.
+ *
+ * -- wli
+ */
 static inline struct page *
 expand(struct zone *zone, struct page *page,
 	 unsigned long index, int low, int high, struct free_area *area)
@@ -297,14 +314,12 @@ expand(struct zone *zone, struct page *page,
 	unsigned long size = 1 << high;
 
 	while (high > low) {
-		BUG_ON(bad_range(zone, page));
 		area--;
 		high--;
 		size >>= 1;
-		list_add(&page->lru, &area->free_list);
-		MARK_USED(index, high, area);
-		index += size;
-		page += size;
+		BUG_ON(bad_range(zone, &page[size]));
+		list_add(&page[size].lru, &area->free_list);
+		MARK_USED(index + size, high, area);
 	}
 	return page;
 }
@@ -732,53 +747,12 @@ got_pg:
 
 EXPORT_SYMBOL(__alloc_pages);
 
-#ifdef CONFIG_NUMA
-/* Early boot: Everything is done by one cpu, but the data structures will be
- * used by all cpus - spread them on all nodes.
- */
-static __init unsigned long get_boot_pages(unsigned int gfp_mask, unsigned int order)
-{
-static int nodenr;
-	int i = nodenr;
-	struct page *page;
-
-	for (;;) {
-		if (i > nodenr + numnodes)
-			return 0;
-		if (node_present_pages(i%numnodes)) {
-			struct zone **z;
-			/* The node contains memory. Check that there is
-			 * memory in the intended zonelist.
-			 */
-			z = NODE_DATA(i%numnodes)->node_zonelists[gfp_mask & GFP_ZONEMASK].zones;
-			while (*z) {
-				if ( (*z)->free_pages > (1UL<<order))
-					goto found_node;
-				z++;
-			}
-		}
-		i++;
-	}
-found_node:
-	nodenr = i+1;
-	page = alloc_pages_node(i%numnodes, gfp_mask, order);
-	if (!page)
-		return 0;
-	return (unsigned long) page_address(page);
-}
-#endif
-
 /*
  * Common helper functions.
  */
 fastcall unsigned long __get_free_pages(unsigned int gfp_mask, unsigned int order)
 {
 	struct page * page;
-
-#ifdef CONFIG_NUMA
-	if (unlikely(system_state == SYSTEM_BOOTING))
-		return get_boot_pages(gfp_mask, order);
-#endif
 	page = alloc_pages(gfp_mask, order);
 	if (!page)
 		return 0;
@@ -1471,6 +1445,10 @@ static void __init free_area_init_core(struct pglist_data *pgdat,
 		if (zholes_size)
 			realsize -= zholes_size[j];
 
+		if (j == ZONE_DMA || j == ZONE_NORMAL)
+			nr_kernel_pages += realsize;
+		nr_all_pages += realsize;
+
 		zone->spanned_pages = size;
 		zone->present_pages = realsize;
 		zone->name = zone_names[j];
@@ -1516,8 +1494,8 @@ static void __init free_area_init_core(struct pglist_data *pgdat,
 				zone_names[j], realsize, batch);
 		INIT_LIST_HEAD(&zone->active_list);
 		INIT_LIST_HEAD(&zone->inactive_list);
-		atomic_set(&zone->nr_scan_active, 0);
-		atomic_set(&zone->nr_scan_inactive, 0);
+		zone->nr_scan_active = 0;
+		zone->nr_scan_inactive = 0;
 		zone->nr_active = 0;
 		zone->nr_inactive = 0;
 		if (!size)
@@ -2010,4 +1988,70 @@ int lower_zone_protection_sysctl_handler(ctl_table *table, int write,
 	proc_dointvec_minmax(table, write, file, buffer, length);
 	setup_per_zone_protection();
 	return 0;
+}
+
+/*
+ * allocate a large system hash table from bootmem
+ * - it is assumed that the hash table must contain an exact power-of-2
+ *   quantity of entries
+ */
+void *__init alloc_large_system_hash(const char *tablename,
+				     unsigned long bucketsize,
+				     unsigned long numentries,
+				     int scale,
+				     int consider_highmem,
+				     unsigned int *_hash_shift,
+				     unsigned int *_hash_mask)
+{
+	unsigned long mem, max, log2qty, size;
+	void *table;
+
+	/* round applicable memory size up to nearest megabyte */
+	mem = consider_highmem ? nr_all_pages : nr_kernel_pages;
+	mem += (1UL << (20 - PAGE_SHIFT)) - 1;
+	mem >>= 20 - PAGE_SHIFT;
+	mem <<= 20 - PAGE_SHIFT;
+
+	/* limit to 1 bucket per 2^scale bytes of low memory (rounded up to
+	 * nearest power of 2 in size) */
+	if (scale > PAGE_SHIFT)
+		mem >>= (scale - PAGE_SHIFT);
+	else
+		mem <<= (PAGE_SHIFT - scale);
+
+	mem = 1UL << (long_log2(mem) + 1);
+
+	/* limit allocation size */
+	max = (1UL << (PAGE_SHIFT + MAX_SYS_HASH_TABLE_ORDER)) / bucketsize;
+	if (max > mem)
+		max = mem;
+
+	/* allow the kernel cmdline to have a say */
+	if (!numentries || numentries > max)
+		numentries = max;
+
+	log2qty = long_log2(numentries);
+
+	do {
+		size = bucketsize << log2qty;
+
+		table = (void *) alloc_bootmem(size);
+
+	} while (!table && size > PAGE_SIZE);
+
+	if (!table)
+		panic("Failed to allocate %s hash table\n", tablename);
+
+	printk("%s hash table entries: %d (order: %d, %lu bytes)\n",
+	       tablename,
+	       (1U << log2qty),
+	       long_log2(size) - PAGE_SHIFT,
+	       size);
+
+	if (_hash_shift)
+		*_hash_shift = log2qty;
+	if (_hash_mask)
+		*_hash_mask = (1 << log2qty) - 1;
+
+	return table;
 }

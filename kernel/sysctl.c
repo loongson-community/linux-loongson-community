@@ -39,6 +39,8 @@
 #include <linux/initrd.h>
 #include <linux/times.h>
 #include <linux/limits.h>
+#include <linux/dcache.h>
+
 #include <asm/uaccess.h>
 
 #ifdef CONFIG_ROOT_NFS
@@ -53,8 +55,6 @@ extern int C_A_D;
 extern int sysctl_overcommit_memory;
 extern int sysctl_overcommit_ratio;
 extern int max_threads;
-extern atomic_t nr_queued_signals;
-extern int max_queued_signals;
 extern int sysrq_enabled;
 extern int core_uses_pid;
 extern char core_pattern[];
@@ -429,22 +429,6 @@ static ctl_table kern_table[] = {
 		.proc_handler	= &proc_dointvec,
 	},
 #endif
-	{
-		.ctl_name	= KERN_RTSIGNR,
-		.procname	= "rtsig-nr",
-		.data		= &nr_queued_signals,
-		.maxlen		= sizeof(int),
-		.mode		= 0444,
-		.proc_handler	= &proc_dointvec,
-	},
-	{
-		.ctl_name	= KERN_RTSIGMAX,
-		.procname	= "rtsig-max",
-		.data		= &max_queued_signals,
-		.maxlen		= sizeof(int),
-		.mode		= 0644,
-		.proc_handler	= &proc_dointvec,
-	},
 #ifdef CONFIG_SYSVIPC
 	{
 		.ctl_name	= KERN_SHMMAX,
@@ -790,6 +774,16 @@ static ctl_table vm_table[] = {
 		.procname	= "block_dump",
 		.data		= &block_dump,
 		.maxlen		= sizeof(block_dump),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec,
+		.strategy	= &sysctl_intvec,
+		.extra1		= &zero,
+	},
+	{
+		.ctl_name	= VM_VFS_CACHE_PRESSURE,
+		.procname	= "vfs_cache_pressure",
+		.data		= &sysctl_vfs_cache_pressure,
+		.maxlen		= sizeof(sysctl_vfs_cache_pressure),
 		.mode		= 0644,
 		.proc_handler	= &proc_dointvec,
 		.strategy	= &sysctl_intvec,

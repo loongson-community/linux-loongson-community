@@ -1060,6 +1060,12 @@ S: USA
 N: Jeff Garzik
 E: jgarzik@pobox.com
 
+N: Kumar Gala
+E: kumar.gala@freescale.com
+D: Embedded PowerPC 6xx/7xx/74xx/82xx/85xx support
+S: Austin, Texas 78729
+S: USA
+
 N: Jacques Gelinas
 E: jacques@solucorp.qc.ca
 D: Author of the Umsdos file system
@@ -2267,8 +2273,8 @@ S: USA
 N: Eberhard Moenkeberg
 E: emoenke@gwdg.de
 D: CDROM driver "sbpcd" (Matsushita/Panasonic/Soundblaster)
-S: Reinholdstrasse 14
-S: D-37083 Goettingen
+S: Ruhstrathoehe 2 b.
+S: D-37085 Goettingen
 S: Germany
 
 N: Thomas Molina
@@ -2570,6 +2576,14 @@ E: stelian@popies.net
 P: 1024D/EDBB6147 7B36 0E07 04BC 11DC A7A0  D3F7 7185 9E7A EDBB 6147
 D: sonypi, meye drivers, mct_u232 usb serial hacks
 S: Paris, France
+
+N: Matt Porter
+E: mporter@kernel.crashing.org
+D: Motorola PowerPC PReP support
+D: cPCI PowerPC support
+D: Embedded PowerPC 4xx/6xx/7xx/74xx support
+S: Chandler, Arizona 85249
+S: USA
 
 N: Frederic Potter 
 E: fpotter@cirpack.com
@@ -3109,12 +3123,13 @@ S: Beaverton, Oregon 97005
 S: USA
 
 N: Marcelo W. Tosatti
-E: marcelo@conectiva.com.br
-W: http://bazar.conectiva.com.br/~marcelo/
-D: Miscellaneous kernel hacker (mostly VM/MM work)
-S: Conectiva S.A.
-S: R. Tocantins, 89 - Cristo Rei
-S: 80050-430 - Curitiba - Paraná
+E: marcelo.tosatti@cyclades.com
+D: Miscellaneous kernel hacker
+D: v2.4 kernel maintainer
+D: Current pc300/cyclades maintainer
+S: Cyclades Corporation
+S: Av Cristovao Colombo, 462. Floresta.
+S: Porto Alegre
 S: Brazil
 
 N: Stefan Traby

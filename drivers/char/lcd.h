@@ -92,7 +92,7 @@ struct lcd_display {
 
 
 
-/* 
+/*
  * Function command codes for io_ctl.
  */
 #define LCD_On			1
@@ -106,21 +106,21 @@ struct lcd_display {
 #define LCD_Get_Cursor		9
 #define LCD_Set_Cursor		10
 #define LCD_Home		11
-#define LCD_Read		12		
-#define LCD_Write		13	
+#define LCD_Read		12
+#define LCD_Write		13
 #define LCD_Cursor_Off		14
 #define LCD_Cursor_On		15
 #define LCD_Get_Cursor_Pos	16
 #define LCD_Set_Cursor_Pos	17
 #define LCD_Blink_Off           18
 
-#define LED_Set			40	
+#define LED_Set			40
 #define LED_Bit_Set		41
 #define LED_Bit_Clear		42
 
 
 //  Button defs
-#define BUTTON_Read             50  
+#define BUTTON_Read             50
 
 //  Flash command codes
 #define FLASH_Erase		60
@@ -171,11 +171,11 @@ struct lcd_display {
 #define kGal_DevBank3Cfg        0x146FDFFB
 #define kGal_DevBank3PReg       0x468
 
-// Network 
+// Network
 
 #define kIPADDR			1
 #define kNETMASK		2
-#define kGATEWAY		3	
+#define kGATEWAY		3
 #define kDNS			4
 
 #define kClassA			5

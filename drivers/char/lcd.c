@@ -676,6 +676,6 @@ static int timeout(volatile unsigned long address)
 
 module_init(lcd_init);
 module_exit(lcd_exit);
-                                                                                
+
 MODULE_AUTHOR("Andrew Bose");
 MODULE_LICENSE("GPL");

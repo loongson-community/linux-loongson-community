@@ -74,9 +74,6 @@ textaddr-y	:= 0xC0008000
 textaddr-$(CONFIG_ARCH_CO285)	   := 0x60008000
  machine-$(CONFIG_ARCH_CO285)	   := footbridge
   incdir-$(CONFIG_ARCH_CO285)	   := ebsa285
- machine-$(CONFIG_ARCH_FTVPCI)	   := ftvpci
-  incdir-$(CONFIG_ARCH_FTVPCI)	   := nexuspci
- machine-$(CONFIG_ARCH_TBOX)	   := tbox
  machine-$(CONFIG_ARCH_SHARK)	   := shark
  machine-$(CONFIG_ARCH_SA1100)	   := sa1100
 ifeq ($(CONFIG_ARCH_SA1100),y)
@@ -91,7 +88,6 @@ textaddr-$(CONFIG_ARCH_CLPS711X)   := 0xc0028000
  machine-$(CONFIG_ARCH_CLPS711X)   := clps711x
 textaddr-$(CONFIG_ARCH_FORTUNET)   := 0xc0008000
  machine-$(CONFIG_ARCH_IOP3XX)	   := iop3xx
- machine-$(CONFIG_ARCH_ADIFCC)	   := adifcc
  machine-$(CONFIG_ARCH_IXP4XX)	   := ixp4xx
  machine-$(CONFIG_ARCH_OMAP)	   := omap
  machine-$(CONFIG_ARCH_S3C2410)	   := s3c2410
@@ -119,6 +115,7 @@ core-y				+= arch/arm/mach-$(machine-y)/
 endif
 core-$(CONFIG_FPE_NWFPE)	+= arch/arm/nwfpe/
 core-$(CONFIG_FPE_FASTFPE)	+= $(FASTFPE_OBJ)
+core-$(CONFIG_VFP)		+= arch/arm/vfp/
 
 drivers-$(CONFIG_OPROFILE)      += arch/arm/oprofile/
 drivers-$(CONFIG_ARCH_CLPS7500)	+= drivers/acorn/char/

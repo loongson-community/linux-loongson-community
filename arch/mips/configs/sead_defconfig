@@ -139,6 +139,7 @@ CONFIG_EMBEDDED_RAMDISK_IMAGE="ramdisk.gz"
 #
 # Generic Driver Options
 #
+CONFIG_PREVENT_FIRMWARE_BUILD=y
 
 #
 # Memory Technology Devices (MTD)

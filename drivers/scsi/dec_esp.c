@@ -49,7 +49,7 @@
 #define DEC_SCSI_DIAG 0xC0000
 
 #include "scsi.h"
-#include "hosts.h"
+#include <scsi/scsi_host.h>
 #include "NCR53C9x.h"
 
 static int  dma_bytes_sent(struct NCR_ESP *esp, int fifo_count);

@@ -152,7 +152,7 @@ store_spi_transport_##field(struct class_device *cdev, const char *buf, \
 	spi_transport_store_function(field, format_string)		\
 static CLASS_DEVICE_ATTR(field, S_IRUGO | S_IWUSR,			\
 			 show_spi_transport_##field,			\
-			 store_spi_transport_##field)
+			 store_spi_transport_##field);
 
 /* The Parallel SCSI Tranport Attributes: */
 spi_transport_rd_attr(offset, "%d\n");
@@ -173,7 +173,7 @@ store_spi_revalidate(struct class_device *cdev, const char *buf, size_t count)
 	spi_dv_device(sdev);
 	return count;
 }
-static CLASS_DEVICE_ATTR(revalidate, S_IWUSR, NULL, store_spi_revalidate)
+static CLASS_DEVICE_ATTR(revalidate, S_IWUSR, NULL, store_spi_revalidate);
 
 /* Translate the period into ns according to the current spec
  * for SDTR/PPR messages */
@@ -390,10 +390,11 @@ spi_dv_retrain(struct scsi_request *sreq, u8 *buffer, u8 *ptr,
 {
 	struct spi_internal *i = to_spi_internal(sreq->sr_host->transportt);
 	struct scsi_device *sdev = sreq->sr_device;
-	int period, prevperiod = 0; 
+	int period = 0, prevperiod = 0; 
 
 
 	for (;;) {
+		int newperiod;
 		if (compare_fn(sreq, buffer, ptr, DV_LOOPS))
 			/* Successful DV */
 			break;
@@ -401,7 +402,8 @@ spi_dv_retrain(struct scsi_request *sreq, u8 *buffer, u8 *ptr,
 		/* OK, retrain, fallback */
 		if (i->f->get_period)
 			i->f->get_period(sdev);
-		period = spi_period(sdev);
+		newperiod = spi_period(sdev);
+		period = newperiod > period ? newperiod : period;
 		if (period < 0x0d)
 			period++;
 		else

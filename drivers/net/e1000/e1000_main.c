@@ -299,7 +299,7 @@ e1000_down(struct e1000_adapter *adapter)
 void
 e1000_reset(struct e1000_adapter *adapter)
 {
-	uint32_t pba;
+	uint32_t pba, manc;
 	/* Repartition Pba for greater than 9k mtu
 	 * To take effect CTRL.RST is required.
 	 */
@@ -341,6 +341,12 @@ e1000_reset(struct e1000_adapter *adapter)
 
 	e1000_reset_adaptive(&adapter->hw);
 	e1000_phy_get_info(&adapter->hw, &adapter->phy_info);
+
+	if(adapter->en_mng_pt) {
+		manc = E1000_READ_REG(&adapter->hw, MANC);
+		manc |= (E1000_MANC_ARP_EN | E1000_MANC_EN_MNG2HOST);
+		E1000_WRITE_REG(&adapter->hw, MANC, manc);
+	}
 }
 
 /**
@@ -482,6 +488,8 @@ e1000_probe(struct pci_dev *pdev,
 
 	if(pci_using_dac)
 		netdev->features |= NETIF_F_HIGHDMA;
+
+	adapter->en_mng_pt = e1000_enable_mng_pass_thru(&adapter->hw);
 
 	/* before reading the EEPROM, reset the controller to 
 	 * put the device in a known good starting state */
@@ -2367,7 +2375,6 @@ e1000_alloc_rx_buffers(struct e1000_adapter *adapter)
 	struct e1000_rx_desc *rx_desc;
 	struct e1000_buffer *buffer_info;
 	struct sk_buff *skb;
-	int reserve_len = 2;
 	unsigned int i;
 
 	i = rx_ring->next_to_use;
@@ -2376,7 +2383,7 @@ e1000_alloc_rx_buffers(struct e1000_adapter *adapter)
 	while(!buffer_info->skb) {
 		rx_desc = E1000_RX_DESC(*rx_ring, i);
 
-		skb = dev_alloc_skb(adapter->rx_buffer_len + reserve_len);
+		skb = dev_alloc_skb(adapter->rx_buffer_len + NET_IP_ALIGN);
 
 		if(!skb) {
 			/* Better luck next round */
@@ -2387,7 +2394,7 @@ e1000_alloc_rx_buffers(struct e1000_adapter *adapter)
 		 * this will result in a 16 byte aligned IP header after
 		 * the 14 byte MAC header is removed
 		 */
-		skb_reserve(skb, reserve_len);
+		skb_reserve(skb, NET_IP_ALIGN);
 
 		skb->dev = netdev;
 

@@ -214,15 +214,17 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #include <linux/list.h>
 #include <linux/radix-tree.h>
 #include <linux/audit.h>
+#include <linux/init.h>
 #include <asm/semaphore.h>
 #include <asm/byteorder.h>
 
 /* Used to be a macro which just called the function, now just a function */
 extern void update_atime (struct inode *);
 
-extern void inode_init(unsigned long);
-extern void mnt_init(unsigned long);
-extern void files_init(unsigned long);
+extern void __init inode_init(unsigned long);
+extern void __init inode_init_early(void);
+extern void __init mnt_init(unsigned long);
+extern void __init files_init(unsigned long);
 
 struct buffer_head;
 typedef int (get_block_t)(struct inode *inode, sector_t iblock,
@@ -900,6 +902,7 @@ struct inode_operations {
 			struct inode *, struct dentry *);
 	int (*readlink) (struct dentry *, char __user *,int);
 	int (*follow_link) (struct dentry *, struct nameidata *);
+	void (*put_link) (struct dentry *, struct nameidata *);
 	void (*truncate) (struct inode *);
 	int (*permission) (struct inode *, int, struct nameidata *);
 	int (*setattr) (struct dentry *, struct iattr *);
@@ -977,7 +980,8 @@ static inline void touch_atime(struct vfsmount *mnt, struct dentry *dentry)
 
 static inline void file_accessed(struct file *file)
 {
-	touch_atime(file->f_vfsmnt, file->f_dentry);
+	if (!(file->f_flags & O_NOATIME))
+		touch_atime(file->f_vfsmnt, file->f_dentry);
 }
 
 int sync_inode(struct inode *inode, struct writeback_control *wbc);
@@ -1199,7 +1203,8 @@ extern int filp_close(struct file *, fl_owner_t id);
 extern char * getname(const char __user *);
 
 /* fs/dcache.c */
-extern void vfs_caches_init(unsigned long);
+extern void __init vfs_caches_init_early(void);
+extern void __init vfs_caches_init(unsigned long);
 
 #define __getname()	kmem_cache_alloc(names_cachep, SLAB_KERNEL)
 #define __putname(name) kmem_cache_free(names_cachep, (void *)(name))
@@ -1463,8 +1468,11 @@ extern int vfs_readlink(struct dentry *, char __user *, int, const char *);
 extern int vfs_follow_link(struct nameidata *, const char *);
 extern int page_readlink(struct dentry *, char __user *, int);
 extern int page_follow_link(struct dentry *, struct nameidata *);
+extern int page_follow_link_light(struct dentry *, struct nameidata *);
+extern void page_put_link(struct dentry *, struct nameidata *);
 extern int page_symlink(struct inode *inode, const char *symname, int len);
 extern struct inode_operations page_symlink_inode_operations;
+extern int generic_readlink(struct dentry *, char __user *, int);
 extern void generic_fillattr(struct inode *, struct kstat *);
 extern int vfs_getattr(struct vfsmount *, struct dentry *, struct kstat *);
 void inode_add_bytes(struct inode *inode, loff_t bytes);

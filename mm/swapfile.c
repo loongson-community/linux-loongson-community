@@ -32,7 +32,7 @@
 
 spinlock_t swaplock = SPIN_LOCK_UNLOCKED;
 unsigned int nr_swapfiles;
-int total_swap_pages;
+long total_swap_pages;
 static int swap_overflow;
 
 EXPORT_SYMBOL(total_swap_pages);
@@ -467,6 +467,13 @@ static unsigned long unuse_pmd(struct vm_area_struct * vma, pmd_t *dir,
 		if (unlikely(pte_same(*pte, swp_pte))) {
 			unuse_pte(vma, offset + address, pte, entry, page);
 			pte_unmap(pte);
+
+			/*
+			 * Move the page to the active list so it is not
+			 * immediately swapped out again after swapon.
+			 */
+			activate_page(page);
+
 			/* add 1 since address may be 0 */
 			return 1 + offset + address;
 		}
@@ -645,7 +652,7 @@ static int try_to_unuse(unsigned int type)
 	 * open() method called) - so swap entries may be invisible
 	 * to swapoff for a while, then reappear - but that is rare.
 	 */
-	while ((i = find_next_to_unuse(si, i))) {
+	while ((i = find_next_to_unuse(si, i)) != 0) {
 		if (signal_pending(current)) {
 			retval = -EINTR;
 			break;

@@ -47,7 +47,6 @@
 
 #include <linux/delay.h>
 #include <linux/mc146818rtc.h>
-#include <asm/pgalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/desc.h>
 #include <asm/arch_hooks.h>
@@ -1193,7 +1192,9 @@ __init void arch_init_sched_domains(void)
 		int j;
 		cpumask_t nodemask;
 		struct sched_group *node = &sched_group_nodes[i];
-		cpus_and(nodemask, node_to_cpumask(i), cpu_possible_map);
+		cpumask_t node_cpumask = node_to_cpumask(i);
+
+		cpus_and(nodemask, node_cpumask, cpu_possible_map);
 
 		if (cpus_empty(nodemask))
 			continue;
@@ -1229,7 +1230,9 @@ __init void arch_init_sched_domains(void)
 	for (i = 0; i < MAX_NUMNODES; i++) {
 		struct sched_group *cpu = &sched_group_nodes[i];
 		cpumask_t nodemask;
-		cpus_and(nodemask, node_to_cpumask(i), cpu_possible_map);
+		cpumask_t node_cpumask = node_to_cpumask(i);
+
+		cpus_and(nodemask, node_cpumask, cpu_possible_map);
 
 		if (cpus_empty(nodemask))
 			continue;

@@ -120,18 +120,15 @@ extern void FASTCALL(__wake_up_sync(wait_queue_head_t *q, unsigned int mode, int
 
 #define __wait_event(wq, condition) 					\
 do {									\
-	wait_queue_t __wait;						\
-	init_waitqueue_entry(&__wait, current);				\
+	DEFINE_WAIT(__wait);						\
 									\
-	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
-		set_current_state(TASK_UNINTERRUPTIBLE);		\
+		prepare_to_wait(&wq, &__wait, TASK_UNINTERRUPTIBLE);	\
 		if (condition)						\
 			break;						\
 		schedule();						\
 	}								\
-	current->state = TASK_RUNNING;					\
-	remove_wait_queue(&wq, &__wait);				\
+	finish_wait(&wq, &__wait);					\
 } while (0)
 
 #define wait_event(wq, condition) 					\
@@ -143,12 +140,10 @@ do {									\
 
 #define __wait_event_interruptible(wq, condition, ret)			\
 do {									\
-	wait_queue_t __wait;						\
-	init_waitqueue_entry(&__wait, current);				\
+	DEFINE_WAIT(__wait);						\
 									\
-	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
-		set_current_state(TASK_INTERRUPTIBLE);			\
+		prepare_to_wait(&wq, &__wait, TASK_INTERRUPTIBLE);	\
 		if (condition)						\
 			break;						\
 		if (!signal_pending(current)) {				\
@@ -158,8 +153,7 @@ do {									\
 		ret = -ERESTARTSYS;					\
 		break;							\
 	}								\
-	current->state = TASK_RUNNING;					\
-	remove_wait_queue(&wq, &__wait);				\
+	finish_wait(&wq, &__wait);					\
 } while (0)
 
 #define wait_event_interruptible(wq, condition)				\
@@ -172,12 +166,10 @@ do {									\
 
 #define __wait_event_interruptible_timeout(wq, condition, ret)		\
 do {									\
-	wait_queue_t __wait;						\
-	init_waitqueue_entry(&__wait, current);				\
+	DEFINE_WAIT(__wait);						\
 									\
-	add_wait_queue(&wq, &__wait);					\
 	for (;;) {							\
-		set_current_state(TASK_INTERRUPTIBLE);			\
+		prepare_to_wait(&wq, &__wait, TASK_INTERRUPTIBLE);	\
 		if (condition)						\
 			break;						\
 		if (!signal_pending(current)) {				\
@@ -189,8 +181,7 @@ do {									\
 		ret = -ERESTARTSYS;					\
 		break;							\
 	}								\
-	current->state = TASK_RUNNING;					\
-	remove_wait_queue(&wq, &__wait);				\
+	finish_wait(&wq, &__wait);					\
 } while (0)
 
 #define wait_event_interruptible_timeout(wq, condition, timeout)	\
@@ -200,7 +191,34 @@ do {									\
 		__wait_event_interruptible_timeout(wq, condition, __ret); \
 	__ret;								\
 })
-	
+
+#define __wait_event_interruptible_exclusive(wq, condition, ret)	\
+do {									\
+	DEFINE_WAIT(__wait);						\
+									\
+	for (;;) {							\
+		prepare_to_wait_exclusive(&wq, &__wait,			\
+					TASK_INTERRUPTIBLE);		\
+		if (condition)						\
+			break;						\
+		if (!signal_pending(current)) {				\
+			schedule();					\
+			continue;					\
+		}							\
+		ret = -ERESTARTSYS;					\
+		break;							\
+	}								\
+	finish_wait(&wq, &__wait);					\
+} while (0)
+
+#define wait_event_interruptible_exclusive(wq, condition)		\
+({									\
+	int __ret = 0;							\
+	if (!(condition))						\
+		__wait_event_interruptible_exclusive(wq, condition, __ret);\
+	__ret;								\
+})
+
 /*
  * Must be called with the spinlock in the wait_queue_head_t held.
  */

@@ -50,7 +50,7 @@
 
 #define OCD_BASE                0xfb000000UL
 #define OCD_SIZE                0x3000UL
- 
+
 extern unsigned long ocd_base;
 
 /*

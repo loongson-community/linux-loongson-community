@@ -172,9 +172,9 @@ static struct rtas_error_log *FWNMI_get_errinfo(struct pt_regs *regs)
  */
 static void FWNMI_release_errinfo(void)
 {
-	unsigned long ret = rtas_call(rtas_token("ibm,nmi-interlock"), 0, 1, NULL);
+	int ret = rtas_call(rtas_token("ibm,nmi-interlock"), 0, 1, NULL);
 	if (ret != 0)
-		printk("FWNMI: nmi-interlock failed: %ld\n", ret);
+		printk("FWNMI: nmi-interlock failed: %d\n", ret);
 }
 #endif
 
@@ -308,8 +308,7 @@ static void parse_fpe(struct pt_regs *regs)
 	siginfo_t info;
 	unsigned long fpscr;
 
-	if (regs->msr & MSR_FP)
-		giveup_fpu(current);
+	flush_fp_to_thread(current);
 
 	fpscr = current->thread.fpscr;
 
@@ -442,8 +441,22 @@ void KernelFPUnavailableException(struct pt_regs *regs)
 	die("Unrecoverable FP Unavailable Exception", regs, SIGABRT);
 }
 
-void KernelAltivecUnavailableException(struct pt_regs *regs)
+void AltivecUnavailableException(struct pt_regs *regs)
 {
+#ifndef CONFIG_ALTIVEC
+	if (user_mode(regs)) {
+		/* A user program has executed an altivec instruction,
+		   but this kernel doesn't support altivec. */
+		siginfo_t info;
+
+		memset(&info, 0, sizeof(info));
+		info.si_signo = SIGILL;
+		info.si_code = ILL_ILLOPC;
+		info.si_addr = (void *) regs->nip;
+		_exception(SIGILL, &info, regs);
+		return;
+	}
+#endif
 	printk(KERN_EMERG "Unrecoverable VMX/Altivec Unavailable Exception "
 			  "%lx at %lx\n", regs->trap, regs->nip);
 	die("Unrecoverable VMX/Altivec Unavailable Exception", regs, SIGABRT);
@@ -531,10 +544,39 @@ AlignmentException(struct pt_regs *regs)
 void
 AltivecAssistException(struct pt_regs *regs)
 {
-	if (regs->msr & MSR_VEC)
-		giveup_altivec(current);
-	/* XXX quick hack for now: set the non-Java bit in the VSCR */
-	current->thread.vscr.u[3] |= 0x10000;
+	int err;
+	siginfo_t info;
+
+	if (!user_mode(regs)) {
+		printk(KERN_EMERG "VMX/Altivec assist exception in kernel mode"
+		       " at %lx\n", regs->nip);
+		die("Kernel VMX/Altivec assist exception", regs, SIGILL);
+	}
+
+	flush_altivec_to_thread(current);
+
+	err = emulate_altivec(regs);
+	if (err == 0) {
+		regs->nip += 4;		/* skip emulated instruction */
+		emulate_single_step(regs);
+		return;
+	}
+
+	if (err == -EFAULT) {
+		/* got an error reading the instruction */
+		info.si_signo = SIGSEGV;
+		info.si_errno = 0;
+		info.si_code = SEGV_MAPERR;
+		info.si_addr = (void *) regs->nip;
+		force_sig_info(SIGSEGV, &info, current);
+	} else {
+		/* didn't recognize the instruction */
+		/* XXX quick hack for now: set the non-Java bit in the VSCR */
+		if (printk_ratelimit())
+			printk(KERN_ERR "Unrecognized altivec instruction "
+			       "in %s at %lx\n", current->comm, regs->nip);
+		current->thread.vscr.u[3] |= 0x10000;
+	}
 }
 #endif /* CONFIG_ALTIVEC */
 
