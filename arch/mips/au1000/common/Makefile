@@ -10,12 +10,9 @@
 # unless it's something special (ie not a .c file).
 #
 
-obj-y := prom.o int-handler.o dma.o irq.o puts.o time.o reset.o \
-	clocks.o power.o
+obj-y				+= prom.o int-handler.o dma.o irq.o puts.o \
+				   time.o reset.o clocks.o power.o
 
-# obj-$(CONFIG_AU1X00_UART) += serial.o FIXME: port to 2.5 using
-# generic_serial.c
-
-obj-$(CONFIG_AU1X00_USB_DEVICE) += usbdev.o
-obj-$(CONFIG_KGDB) += dbg_io.o
-obj-$(CONFIG_RTC) += rtc.o
+obj-$(CONFIG_AU1X00_USB_DEVICE)	+= usbdev.o
+obj-$(CONFIG_KGDB)		+= dbg_io.o
+obj-$(CONFIG_RTC)		+= rtc.o
