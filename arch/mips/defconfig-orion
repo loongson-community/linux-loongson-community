@@ -37,8 +37,8 @@ CONFIG_ORION=y
 # CONFIG_CPU_R6000 is not set
 # CONFIG_CPU_R4300 is not set
 # CONFIG_CPU_R4X00 is not set
-CONFIG_CPU_R5000=y
-# CONFIG_CPU_RM7000 is not set
+# CONFIG_CPU_R5000 is not set
+CONFIG_CPU_RM7000=y
 # CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R8000 is not set
 # CONFIG_CPU_R10000 is not set
