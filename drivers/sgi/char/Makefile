@@ -9,7 +9,7 @@
 
 O_TARGET := sgichar.o
 
-export-objs	:= newport.o shmiq.o sgicons.o usema.o
+export-objs	:= newport.o rrm.o shmiq.o sgicons.o usema.o
 obj-y		:= newport.o shmiq.o sgicons.o usema.o streamable.o
 
 obj-$(CONFIG_SGI_SERIAL)	+= sgiserial.o
