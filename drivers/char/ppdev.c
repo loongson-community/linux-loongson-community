@@ -71,10 +71,6 @@
 #define PP_VERSION "ppdev: user-space parallel port driver"
 #define CHRDEV "ppdev"
 
-#ifndef min
-#define min(a,b) ((a) < (b) ? (a) : (b))
-#endif
-
 struct pp_struct {
 	struct pardevice * pdev;
 	wait_queue_head_t irq_wait;
@@ -104,11 +100,6 @@ static inline void pp_enable_irq (struct pp_struct *pp)
 	port->ops->enable_irq (port);
 }
 
-static loff_t pp_lseek (struct file * file, long long offset, int origin)
-{
-	return -ESPIPE;
-}
-
 static ssize_t pp_read (struct file * file, char * buf, size_t count,
 			loff_t * ppos)
 {
@@ -127,7 +118,7 @@ static ssize_t pp_read (struct file * file, char * buf, size_t count,
 		return -EINVAL;
 	}
 
-	kbuffer = kmalloc (min (count, PP_BUFFER_SIZE), GFP_KERNEL);
+	kbuffer = kmalloc(min(unsigned int, count, PP_BUFFER_SIZE), GFP_KERNEL);
 	if (!kbuffer) {
 		return -ENOMEM;
 	}
@@ -135,7 +126,7 @@ static ssize_t pp_read (struct file * file, char * buf, size_t count,
 	mode = pport->ieee1284.mode & ~(IEEE1284_DEVICEID | IEEE1284_ADDR);
 
 	while (bytes_read < count) {
-		ssize_t need = min(count - bytes_read, PP_BUFFER_SIZE);
+		ssize_t need = min(unsigned long, count - bytes_read, PP_BUFFER_SIZE);
 
 		if (mode == IEEE1284_MODE_EPP) {
 			/* various specials for EPP mode */
@@ -207,7 +198,7 @@ static ssize_t pp_write (struct file * file, const char * buf, size_t count,
 		return -EINVAL;
 	}
 
-	kbuffer = kmalloc (min (count, PP_BUFFER_SIZE), GFP_KERNEL);
+	kbuffer = kmalloc(min(unsigned int, count, PP_BUFFER_SIZE), GFP_KERNEL);
 	if (!kbuffer) {
 		return -ENOMEM;
 	}
@@ -215,7 +206,7 @@ static ssize_t pp_write (struct file * file, const char * buf, size_t count,
 	mode = pport->ieee1284.mode & ~(IEEE1284_DEVICEID | IEEE1284_ADDR);
 
 	while (bytes_written < count) {
-		ssize_t n = min(count - bytes_written, PP_BUFFER_SIZE);
+		ssize_t n = min(unsigned long, count - bytes_written, PP_BUFFER_SIZE);
 
 		if (copy_from_user (kbuffer, buf + bytes_written, n)) {
 			bytes_written = -EFAULT;
@@ -726,7 +717,7 @@ static unsigned int pp_poll (struct file * file, poll_table * wait)
 
 static struct file_operations pp_fops = {
 	owner:		THIS_MODULE,
-	llseek:		pp_lseek,
+	llseek:		no_llseek,
 	read:		pp_read,
 	write:		pp_write,
 	poll:		pp_poll,

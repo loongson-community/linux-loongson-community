@@ -61,6 +61,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/semaphore.h>
+#include <linux/completion.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
 #include <linux/smp_lock.h>
@@ -187,7 +188,7 @@ static struct gendisk i2ob_gendisk;	/* Declared later */
  * evt_msg contains the last event.
  */
 static DECLARE_MUTEX_LOCKED(i2ob_evt_sem);
-static DECLARE_MUTEX_LOCKED(i2ob_thread_dead);
+static DECLARE_COMPLETION(i2ob_thread_dead);
 static spinlock_t i2ob_evt_lock = SPIN_LOCK_UNLOCKED;
 static u32 evt_msg[MSG_FRAME_SIZE>>2];
 
@@ -712,7 +713,7 @@ static void i2o_block_reply(struct i2o_handler *h, struct i2o_controller *c, str
 static int i2ob_evt(void *dummy)
 {
 	unsigned int evt;
-	unsigned int flags;
+	unsigned long flags;
 	int unit;
 	int i;
 	//The only event that has data is the SCSI_SMART event.
@@ -859,7 +860,7 @@ static int i2ob_evt(void *dummy)
 		}
 	};
 
-	up_and_exit(&i2ob_thread_dead,0);
+	complete_and_exit(&i2ob_thread_dead,0);
 	return 0;
 }
 
@@ -1697,7 +1698,7 @@ void i2ob_del_device(struct i2o_controller *c, struct i2o_device *d)
 {	
 	int unit = 0;
 	int i = 0;
-	int flags;
+	unsigned long flags;
 
 	spin_lock_irqsave(&io_request_lock, flags);
 
@@ -2002,7 +2003,7 @@ void cleanup_module(void)
 			printk("waiting...");
 		}
 		/* Be sure it died */
-		down(&i2ob_thread_dead);
+		wait_for_completion(&i2ob_thread_dead);
 		printk("done.\n");
 	}
 

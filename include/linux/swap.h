@@ -116,9 +116,7 @@ extern wait_queue_head_t kswapd_wait;
 extern wait_queue_head_t kreclaimd_wait;
 extern int page_launder(int, int);
 extern int free_shortage(void);
-extern int total_free_shortage(void);
 extern int inactive_shortage(void);
-extern int total_inactive_shortage(void);
 extern void wakeup_kswapd(void);
 extern int try_to_free_pages(unsigned int gfp_mask);
 
@@ -258,9 +256,9 @@ extern spinlock_t pagemap_lru_lock;
  * 64 (1 << INACTIVE_SHIFT) seconds.
  */
 #define INACTIVE_SHIFT 6
-#define inactive_min(a,b) ((a) < (b) ? (a) : (b))
-#define inactive_target inactive_min((memory_pressure >> INACTIVE_SHIFT), \
-		(num_physpages / 4))
+#define inactive_target min(unsigned long, \
+			    (memory_pressure >> INACTIVE_SHIFT), \
+			    (num_physpages / 4))
 
 /*
  * Ugly ugly ugly HACK to make sure the inactive lists

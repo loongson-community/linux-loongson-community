@@ -428,8 +428,8 @@ static void agp_generic_agp_enable(u32 mode)
 			/* adjust RQ depth */
 			command =
 			    ((command & ~0xff000000) |
-			     min((mode & 0xff000000),
-				 min((command & 0xff000000),
+			     min(u32, (mode & 0xff000000),
+				 min(u32, (command & 0xff000000),
 				     (scratch & 0xff000000))));
 
 			/* disable SBA if it's not supported */
@@ -2338,6 +2338,7 @@ static int serverworks_create_gatt_table(void)
 	retval = serverworks_create_gatt_pages(value->num_entries / 1024);
 	if (retval != 0) {
 		serverworks_free_page_map(&page_dir);
+		serverworks_free_page_map(&serverworks_private.scratch_dir);
 		return retval;
 	}
 
@@ -2656,8 +2657,8 @@ static void serverworks_agp_enable(u32 mode)
 			/* adjust RQ depth */
 			command =
 			    ((command & ~0xff000000) |
-			     min((mode & 0xff000000),
-				 min((command & 0xff000000),
+			     min(u32, (mode & 0xff000000),
+				 min(u32, (command & 0xff000000),
 				     (scratch & 0xff000000))));
 
 			/* disable SBA if it's not supported */

@@ -55,11 +55,6 @@ static void calculate_ofrag(struct woinst *);
 static void calculate_ifrag(struct wiinst *);
 
 /* Audio file operations */
-static loff_t emu10k1_audio_llseek(struct file *file, loff_t offset, int origin)
-{
-	return -ESPIPE;
-}
-
 static ssize_t emu10k1_audio_read(struct file *file, char *buffer, size_t count, loff_t * ppos)
 {
 	struct emu10k1_wavedevice *wave_dev = (struct emu10k1_wavedevice *) file->private_data;
@@ -120,7 +115,7 @@ static ssize_t emu10k1_audio_read(struct file *file, char *buffer, size_t count,
 
 		if ((bytestocopy >= wiinst->buffer.fragment_size)
 		    || (bytestocopy >= count)) {
-			bytestocopy = min(bytestocopy, count);
+			bytestocopy = min(u32, bytestocopy, count);
 
 			emu10k1_wavein_xferdata(wiinst, (u8 *) buffer, &bytestocopy);
 
@@ -220,7 +215,7 @@ static ssize_t emu10k1_audio_write(struct file *file, const char *buffer, size_t
 		if ((bytestocopy >= woinst->buffer.fragment_size)
 		    || (bytestocopy >= count)) {
 
-			bytestocopy = min(bytestocopy, count);
+			bytestocopy = min(u32, bytestocopy, count);
 
 			emu10k1_waveout_xferdata(woinst, (u8 *) buffer, &bytestocopy);
 
@@ -1223,7 +1218,6 @@ match:
 		tasklet_init(&woinst->timer.tasklet, emu10k1_waveout_bh, (unsigned long) wave_dev);
 		wave_dev->woinst = woinst;
 		emu10k1_waveout_setformat(wave_dev, &woinst->format);
-
 	}
 
 	file->private_data = (void *) wave_dev;
@@ -1266,7 +1260,7 @@ static int emu10k1_audio_release(struct inode *inode, struct file *file)
 
 		spin_unlock_irqrestore(&woinst->lock, flags);
 		/* wait for the tasklet (bottom-half) to finish */
-		tasklet_unlock_wait(&woinst->timer.tasklet);
+		tasklet_kill(&woinst->timer.tasklet);
 		kfree(wave_dev->woinst);
 	}
 
@@ -1280,7 +1274,7 @@ static int emu10k1_audio_release(struct inode *inode, struct file *file)
 		}
 
 		spin_unlock_irqrestore(&wiinst->lock, flags);
-		tasklet_unlock_wait(&wiinst->timer.tasklet);
+		tasklet_kill(&wiinst->timer.tasklet);
 		kfree(wave_dev->wiinst);
 	}
 
@@ -1496,6 +1490,9 @@ void emu10k1_wavein_bh(unsigned long refdata)
 	u32 bytestocopy;
 	unsigned long flags;
 
+	if (!wiinst)
+		return;
+
 	spin_lock_irqsave(&wiinst->lock, flags);
 
 	if (!(wiinst->state & WAVE_STATE_STARTED)) {
@@ -1523,6 +1520,9 @@ void emu10k1_waveout_bh(unsigned long refdata)
 	u32 bytestocopy;
 	unsigned long flags;
 
+	if (!woinst)
+		return;
+
 	spin_lock_irqsave(&woinst->lock, flags);
 
 	if (!(woinst->state & WAVE_STATE_STARTED)) {
@@ -1549,7 +1549,7 @@ void emu10k1_waveout_bh(unsigned long refdata)
 
 struct file_operations emu10k1_audio_fops = {
 	owner:		THIS_MODULE,
-	llseek:		emu10k1_audio_llseek,
+	llseek:		no_llseek,
 	read:		emu10k1_audio_read,
 	write:		emu10k1_audio_write,
 	poll:		emu10k1_audio_poll,

@@ -45,12 +45,12 @@ atomic_t page_cache_size = ATOMIC_INIT(0);
 unsigned int page_hash_bits;
 struct page **page_hash_table;
 
-spinlock_t pagecache_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t __cacheline_aligned pagecache_lock = SPIN_LOCK_UNLOCKED;
 /*
  * NOTE: to avoid deadlocking you must never acquire the pagecache_lock with
  *       the pagemap_lru_lock held.
  */
-spinlock_t pagemap_lru_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t __cacheline_aligned pagemap_lru_lock = SPIN_LOCK_UNLOCKED;
 
 #define CLUSTER_PAGES		(1 << page_cluster)
 #define CLUSTER_OFFSET(x)	(((x) >> page_cluster) << page_cluster)
@@ -979,9 +979,13 @@ static void generic_file_readahead(int reada_ok,
 
 static inline void check_used_once (struct page *page)
 {
-	if (!page->age) {
-		page->age = PAGE_AGE_START;
-		ClearPageReferenced(page);
+	if (!PageActive(page)) {
+		if (page->age)
+			activate_page(page);
+		else {
+			page->age = PAGE_AGE_START;
+			ClearPageReferenced(page);
+		}
 	}
 }
 

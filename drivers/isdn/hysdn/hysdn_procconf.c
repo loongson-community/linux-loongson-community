@@ -1,4 +1,4 @@
-/* $Id: hysdn_procconf.c,v 1.8.6.2 2001/04/20 02:42:00 keil Exp $
+/* $Id: hysdn_procconf.c,v 1.8.6.3 2001/08/13 07:46:15 kai Exp $
 
  * Linux driver for HYSDN cards, /proc/net filesystem dir and conf functions.
  * written by Werner Cornelius (werner@titro.de) for Hypercope GmbH
@@ -31,7 +31,7 @@
 
 #include "hysdn_defs.h"
 
-static char *hysdn_procconf_revision = "$Revision: 1.8.6.2 $";
+static char *hysdn_procconf_revision = "$Revision: 1.8.6.3 $";
 
 #define INFO_OUT_LEN 80		/* length of info line including lf */
 
@@ -91,15 +91,6 @@ process_line(struct conf_writedata *cnf)
 	}			/* line to send */
 	return (0);
 }				/* process_line */
-
-/*************************/
-/* dummy file operations */
-/*************************/
-static loff_t
-hysdn_dummy_lseek(struct file *file, loff_t offset, int orig)
-{
-	return -ESPIPE;
-}				/* hysdn_dummy_lseek */
 
 /***********************************/
 /* conf file operations and tables */
@@ -396,7 +387,7 @@ hysdn_conf_close(struct inode *ino, struct file *filep)
 /******************************************************/
 static struct file_operations conf_fops =
 {
-	llseek:         hysdn_dummy_lseek,
+	llseek:         no_llseek,
 	read:           hysdn_conf_read,
 	write:          hysdn_conf_write,
 	open:           hysdn_conf_open,

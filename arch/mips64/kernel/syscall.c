@@ -55,7 +55,11 @@ sys_mmap(unsigned long addr, size_t len, unsigned long prot,
          unsigned long flags, unsigned long fd, off_t offset)
 {
 	struct file * file = NULL;
-	unsigned long error = -EFAULT;
+	unsigned long error;
+
+	error = -EINVAL;
+	if (offset & ~PAGE_MASK)
+		goto out;
 
 	if (!(flags & MAP_ANONYMOUS)) {
 		error = -EBADF;
@@ -70,8 +74,8 @@ sys_mmap(unsigned long addr, size_t len, unsigned long prot,
 	up_write(&current->mm->mmap_sem);
         if (file)
                 fput(file);
-out:
 
+out:
 	return error;
 }
 

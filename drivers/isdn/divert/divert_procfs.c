@@ -1,5 +1,5 @@
 /*
- * $Id: divert_procfs.c,v 1.11 2000/11/25 17:01:00 kai Exp $
+ * $Id: divert_procfs.c,v 1.11.6.1 2001/08/13 07:46:15 kai Exp $
  *
  * Filesystem handling for the diversion supplementary services.
  *
@@ -276,15 +276,9 @@ isdn_divert_ioctl(struct inode *inode, struct file *file,
 
 
 #ifdef CONFIG_PROC_FS
-static loff_t
-isdn_divert_lseek(struct file *file, loff_t offset, int orig)
-{
-	return -ESPIPE;
-}
-
 static struct file_operations isdn_fops =
 {
-	llseek:         isdn_divert_lseek,
+	llseek:         no_llseek,
 	read:           isdn_divert_read,
 	write:          isdn_divert_write,
 	poll:           isdn_divert_poll,

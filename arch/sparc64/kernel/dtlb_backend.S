@@ -1,4 +1,4 @@
-/* $Id: dtlb_backend.S,v 1.9 2000/01/31 04:59:12 davem Exp $
+/* $Id: dtlb_backend.S,v 1.12 2001/08/13 20:41:54 kanoj Exp $
  * dtlb_backend.S: Back end to DTLB miss replacement strategy.
  *                 This is included directly into the trap table.
  *
@@ -10,22 +10,20 @@
 #define VPTE_SHIFT		(PAGE_SHIFT - 3)
 #define PMD_SHIFT		(23 - PAGE_SHIFT + 3)
 #define PGD_SHIFT		(34 - PAGE_SHIFT + 3)
-#define VPTE_BITS		(_PAGE_CP | _PAGE_CV | _PAGE_P | _PAGE_W)
+#define VPTE_BITS		(_PAGE_CP | _PAGE_CV | _PAGE_P)
 
 /* Ways we can get here:
  *
  * 1) Nucleus loads and stores to/from PA-->VA direct mappings at tl>1.
  * 2) Nucleus loads and stores to/from user/kernel window save areas.
- * 3) VPTE misses from dtlb_base, dtlb_prot, and itlb_base.  But this only
- *    happens for non-nucleus contexts.  Nucleus VPTE's cannot work because
- *    of how OBP uses the same part of the address space in ctx 0.
+ * 3) VPTE misses from dtlb_base and itlb_base.
  */
 
 /* TLB1 ** ICACHE line 1: tl1 DTLB and quick VPTE miss	*/
 	ldxa		[%g1 + %g1] ASI_DMMU, %g4	! Get TAG_ACCESS
 	add		%g3, %g3, %g5			! Compute VPTE base
 	cmp		%g4, %g5			! VPTE miss?
-	blu,pn		%xcc, .-0x4004			! Fall to tl0 miss
+	blu,pn		%xcc, from_tl1_trap		! Fall to tl0 miss
 	 andcc		%g4, TAG_CONTEXT_BITS, %g5	! From Nucleus? (for tl0 miss)
 	sllx		%g6, VPTE_SHIFT, %g4		! Position TAG_ACCESS
 	or		%g4, %g5, %g4			! Prepare TAG_ACCESS
@@ -59,10 +57,9 @@ sparc64_vpte_continue:
 	stxa		%g5, [%g0] ASI_DTLB_DATA_IN	! Load VPTE into TLB
 	stxa		%g4, [%g1 + %g1] ASI_DMMU	! Restore previous TAG_ACCESS
 	retry						! Load PTE once again
-vpte_noent:
-	mov		TLB_SFSR, %g1			! Restore %g1 value
-	stxa		%g4, [%g1 + %g1] ASI_DMMU	! Restore previous TAG_ACCESS
-	done						! Slick trick
+	nop
+	nop
+	nop
 
 #undef TAG_CONTEXT_BITS
 #undef VPTE_SHIFT

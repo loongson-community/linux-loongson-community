@@ -33,28 +33,46 @@ static char * __init dmi_string(struct dmi_header *dm, u8 s)
 	return bp;
 }
 
+/*
+ *	We have to be cautious here. We have seen BIOSes with DMI pointers
+ *	pointing to completely the wrong place for example
+ */
+ 
 static int __init dmi_table(u32 base, int len, int num, void (*decode)(struct dmi_header *))
 {
 	u8 *buf;
 	struct dmi_header *dm;
 	u8 *data;
 	int i=1;
-	int last = 0;	
 		
 	buf = ioremap(base, len);
 	if(buf==NULL)
 		return -1;
 
 	data = buf;
+
+	/*
+ 	 *	Stop when we see al the items the table claimed to have
+ 	 *	OR we run off the end of the table (also happens)
+ 	 */
+ 
 	while(i<num && (data - buf) < len)
 	{
 		dm=(struct dmi_header *)data;
-		if(dm->type < last)
+	
+		/*
+		 *	Avoid misparsing crud if the length of the last
+	 	 *	record is crap 
+		 */
+		if((data-buf+dm->length) >= len)
 			break;
-		last = dm->type;
 		decode(dm);		
 		data+=dm->length;
-		while(*data || data[1])
+		/*
+		 *	Don't go off the end of the data if there is
+	 	 *	stuff looking like string fill past the end
+	 	 */
+		while((data-buf) < len && (*data || data[1]))
 			data++;
 		data+=2;
 		i++;
@@ -253,6 +271,18 @@ static __init int broken_apm_power(struct dmi_blacklist *d)
 	return 0;
 }		
 
+
+/*
+ * This bios swaps the APM minute reporting bytes over (Many sony laptops
+ * have this problem).
+ */
+ 
+static __init int swab_apm_power_in_minutes(struct dmi_blacklist *d)
+{
+	apm_info.get_power_status_swabinminutes = 1;
+	printk(KERN_WARNING "BIOS strings suggest APM reports battery life in minutes and wrong byte order.\n");
+	return 0;
+}
 /*
  *	Process the DMI blacklists
  */
@@ -294,6 +324,11 @@ static __initdata struct dmi_blacklist dmi_blacklist[]={
 			MATCH(DMI_SYS_VENDOR, "IBM"),
 			NO_MATCH, NO_MATCH, NO_MATCH
 			} },
+	{ set_apm_ints, "Dell Inspiron", {	/* Allow interrupts during suspend on Dell Inspiron laptops*/
+			MATCH(DMI_SYS_VENDOR, "Dell Computer Corporation"),
+			MATCH(DMI_PRODUCT_NAME, "Inspiron 4000"),
+			NO_MATCH, NO_MATCH
+			} },
 	{ set_apm_ints, "ASUSTeK", {   /* Allow interrupts during APM or the clock goes slow */
 			MATCH(DMI_SYS_VENDOR, "ASUSTeK Computer Inc."),
 			MATCH(DMI_PRODUCT_NAME, "L8400K series Notebook PC"),
@@ -303,6 +338,21 @@ static __initdata struct dmi_blacklist dmi_blacklist[]={
 			MATCH(DMI_SYS_VENDOR, "TriGem Computer, Inc"),
 			MATCH(DMI_PRODUCT_NAME, "Delhi3"),
 			NO_MATCH, NO_MATCH,
+			} },
+	{ swab_apm_power_in_minutes, "Sony VAIO", {	/* Handle problems with APM on Sony Vaio PCG-Z505LS */
+			MATCH(DMI_BIOS_VENDOR, "Phoenix Technologies LTD"),
+			MATCH(DMI_BIOS_VERSION, "R0203Z3"),
+			MATCH(DMI_BIOS_DATE, "08/25/00"), NO_MATCH
+			} },
+	{ swab_apm_power_in_minutes, "Sony VAIO", {	/* Handle problems with APM on Sony Vaio PCG-Z505LS */
+			MATCH(DMI_BIOS_VENDOR, "Phoenix Technologies LTD"),
+			MATCH(DMI_BIOS_VERSION, "R0203D0"),
+			MATCH(DMI_BIOS_DATE, "05/12/00"), NO_MATCH
+			} },
+	{ swab_apm_power_in_minutes, "Sony VAIO", {	/* Handle problems with APM on Sony Vaio PCG-Z600NE */
+			MATCH(DMI_BIOS_VENDOR, "Phoenix Technologies LTD"),
+			MATCH(DMI_BIOS_VERSION, "R0121Z1"),
+			MATCH(DMI_BIOS_DATE, "05/11/00"), NO_MATCH
 			} },
 	{ NULL, }
 };

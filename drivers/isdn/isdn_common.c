@@ -1,4 +1,4 @@
-/* $Id: isdn_common.c,v 1.114.6.12 2001/06/09 15:14:15 kai Exp $
+/* $Id: isdn_common.c,v 1.114.6.13 2001/08/13 07:46:15 kai Exp $
 
  * Linux ISDN subsystem, common used functions (linklevel).
  *
@@ -51,7 +51,7 @@
 
 isdn_dev *dev;
 
-static char *isdn_revision = "$Revision: 1.114.6.12 $";
+static char *isdn_revision = "$Revision: 1.114.6.13 $";
 
 extern char *isdn_net_revision;
 extern char *isdn_tty_revision;
@@ -1077,12 +1077,6 @@ isdn_read(struct file *file, char *buf, size_t count, loff_t * off)
 	return retval;
 }
 
-static loff_t
-isdn_llseek(struct file *file, loff_t offset, int orig)
-{
-	return -ESPIPE;
-}
-
 static ssize_t
 isdn_write(struct file *file, const char *buf, size_t count, loff_t * off)
 {
@@ -1748,7 +1742,7 @@ isdn_close(struct inode *ino, struct file *filep)
 static struct file_operations isdn_fops =
 {
 	owner:		THIS_MODULE,
-	llseek:		isdn_llseek,
+	llseek:		no_llseek,
 	read:		isdn_read,
 	write:		isdn_write,
 	poll:		isdn_poll,

@@ -14,7 +14,7 @@
  *    derived from this software without specific prior written permission.
  *
  * Alternatively, this software may be distributed under the terms of the
- * GNU Public License ("GPL").
+ * GNU General Public License ("GPL").
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -28,7 +28,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id: //depot/src/aic7xxx/aic7xxx_93cx6.c#7 $
+ * $Id: //depot/src/aic7xxx/aic7xxx_93cx6.c#8 $
  *
  * $FreeBSD: src/sys/dev/aic7xxx/aic7xxx_93cx6.c,v 1.9 2000/11/10 20:13:41 gibbs Exp $
  */
@@ -41,7 +41,7 @@
  *     -------------------------------------------------------------------
  *     READ        1    10   A5 - A0             Reads data stored in memory,
  *                                               starting at specified address
- *     EWEN        1    00   11XXXX              Write enable must preceed
+ *     EWEN        1    00   11XXXX              Write enable must precede
  *                                               all programming modes
  *     ERASE       1    11   A5 - A0             Erase register A5A4A3A2A1A0
  *     WRITE       1    01   A5 - A0   D15 - D0  Writes register

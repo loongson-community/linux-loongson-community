@@ -92,8 +92,8 @@
 #define MIDI_SYNTH_NAME "EMU10K1 MIDI"
 #define MIDI_SYNTH_CAPS SYNTH_CAP_INPUT
  
-#include "sound_config.h"
-#include "midi_synth.h"
+#include "../sound_config.h"
+#include "../midi_synth.h"
 
 /* this should be in dev_table.h */
 #define SNDCARD_EMU10K1 46
@@ -370,10 +370,10 @@ err_out1:
 
 static void __devinit emu10k1_midi_cleanup(struct emu10k1_card *card)
 {
-    tasklet_unlock_wait(&card->mpuout->tasklet);
+    tasklet_kill(&card->mpuout->tasklet);
     kfree(card->mpuout);
 
-    tasklet_unlock_wait(&card->mpuin->tasklet);
+    tasklet_kill(&card->mpuin->tasklet);
     kfree(card->mpuin);
 
 #ifdef EMU10K1_SEQUENCER
@@ -1039,6 +1039,7 @@ extern int emu10k1_seq_midi_buffer_status(int dev);
 
 static struct midi_operations emu10k1_midi_operations =
 {
+    THIS_MODULE,
     {"EMU10K1 MIDI", 0, 0, SNDCARD_EMU10K1},
 	&std_midi_synth,
 	{0},

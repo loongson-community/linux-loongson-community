@@ -30,6 +30,11 @@ extern unsigned long bus_to_baddr[256];
 #undef CONF_SLOWDOWN_IO
 
 /*
+ * Change "struct page" to physical address.
+ */
+#define page_to_phys(page)	PHYSADDR(page_address(page))
+
+/*
  * On MIPS, we have the whole physical address space mapped at all
  * times, so "ioremap()" and "iounmap()" do not need to do anything.
  *
@@ -111,6 +116,9 @@ static inline void * phys_to_virt(unsigned long address)
 {
 	return (void *)(address + PAGE_OFFSET);
 }
+
+/* This is too simpleminded for more sophisticated than dumb hardware ...  */
+#define page_to_bus page_to_phys
 
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped

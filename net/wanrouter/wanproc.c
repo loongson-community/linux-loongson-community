@@ -25,7 +25,7 @@
 #include <linux/stddef.h>	/* offsetof(), etc. */
 #include <linux/errno.h>	/* return codes */
 #include <linux/kernel.h>
-#include <linux/malloc.h>	/* kmalloc(), kfree() */
+#include <linux/slab.h>	/* kmalloc(), kfree() */
 #include <linux/mm.h>		/* verify_area(), etc. */
 #include <linux/string.h>	/* inline mem*, str* functions */
 #include <asm/byteorder.h>	/* htons(), etc. */
@@ -45,13 +45,6 @@
 
 
 /****** Defines and Macros **************************************************/
-
-#ifndef	min
-#define min(a,b) (((a)<(b))?(a):(b))
-#endif
-#ifndef	max
-#define max(a,b) (((a)>(b))?(a):(b))
-#endif
 
 #define	PROC_BUFSZ	4000	/* buffer size for printing proc info */
 
@@ -266,7 +259,7 @@ typedef struct wan_stat_entry
 		pos = dent->get_info(page, dent->data, 0, 0);
 		offs = file->f_pos;
 		if (offs < pos) {
-			len = min(pos - offs, count);
+			len = min(unsigned int, pos - offs, count);
 			if (copy_to_user(buf, (page + offs), len)) {
 				kfree(page);
 				return -EFAULT;
@@ -812,7 +805,7 @@ typedef struct wan_stat_entry
 		pos = dent->get_info(page, dent->data, 0, 0, 0);
 		offs = file->f_pos;
 		if (offs < pos) {
-			len = min(pos - offs, count);
+			len = min(unsigned int, pos - offs, count);
 			if (copy_to_user(buf, (page + offs), len)) {
 				kfree(page);
 				return -EFAULT;
@@ -848,7 +841,7 @@ typedef struct wan_stat_entry
 		pos = dent->get_info(page, dent->data, 0, 0, 0);
 		offs = file->f_pos;
 		if (offs < pos) {
-			len = min(pos - offs, count);
+			len = min(unsigned int, pos - offs, count);
 			memcpy_tofs((void*)buf, (void*)(page + offs), len);
 			file->f_pos += len;
 		}
@@ -1039,7 +1032,7 @@ typedef struct wan_stat_entry
  *	No /proc - output stubs
  */
 
-__initfunc(int wanrouter_proc_init(void))
+int __init wanrouter_proc_init(void)
 {
 	return 0;
 }

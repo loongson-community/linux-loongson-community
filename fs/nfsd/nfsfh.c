@@ -41,7 +41,7 @@ struct nfsd_getdents_callback {
  * the name matching the specified inode number.
  */
 static int filldir_one(void * __buf, const char * name, int len,
-			off_t pos, ino_t ino, unsigned int d_type)
+			loff_t pos, ino_t ino, unsigned int d_type)
 {
 	struct nfsd_getdents_callback *buf = __buf;
 	struct qstr *qs = buf->name;
@@ -611,7 +611,7 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 						!(exp->ex_flags & NFSEXP_NOSUBTREECHECK));
 		}
 		if (IS_ERR(dentry)) {
-			if (PTR_ERR(dentry) != EINVAL)
+			if (PTR_ERR(dentry) != -EINVAL)
 				error = nfserrno(PTR_ERR(dentry));
 			goto out;
 		}

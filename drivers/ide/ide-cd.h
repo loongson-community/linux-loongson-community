@@ -37,11 +37,12 @@
 
 /************************************************************************/
 
-#define SECTOR_SIZE		512
 #define SECTOR_BITS 		9
-#define SECTORS_PER_FRAME	(CD_FRAMESIZE / SECTOR_SIZE)
+#define SECTOR_SIZE		(1 << SECTOR_BITS)
+#define SECTORS_PER_FRAME	(CD_FRAMESIZE >> SECTOR_BITS)
 #define SECTOR_BUFFER_SIZE	(CD_FRAMESIZE * 32)
-#define SECTORS_BUFFER		(SECTOR_BUFFER_SIZE / SECTOR_SIZE)
+#define SECTORS_BUFFER		(SECTOR_BUFFER_SIZE >> SECTOR_BITS)
+#define SECTORS_MAX		(131072 >> SECTOR_BITS)
 
 #define BLOCKS_PER_FRAME	(CD_FRAMESIZE / BLOCK_SIZE)
 
@@ -149,7 +150,7 @@ struct atapi_toc_entry {
 struct atapi_toc {
 	int    last_session_lba;
 	int    xa_flag;
-	unsigned capacity;
+	unsigned long capacity;
 	struct atapi_toc_header hdr;
 	struct atapi_toc_entry  ent[MAX_TRACKS+1];
 	  /* One extra for the leadout. */

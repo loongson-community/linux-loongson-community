@@ -48,7 +48,7 @@
 #include <linux/errno.h>	/* return codes */
 #include <linux/kernel.h>
 #include <linux/module.h>	/* support for loadable modules */
-#include <linux/malloc.h>	/* kmalloc(), kfree() */
+#include <linux/slab.h>	/* kmalloc(), kfree() */
 #include <linux/mm.h>		/* verify_area(), etc. */
 #include <linux/string.h>	/* inline mem*, str* functions */
 
@@ -137,17 +137,6 @@ static void dbg_kfree(void * v, int line) {
 #define kfree(x) dbg_kfree(x,__LINE__)
 *****************************************************************************/
 
-
-/*
- * 	Defines and Macros 
- */
-
-#ifndef	min
-#define min(a,b) (((a)<(b))?(a):(b))
-#endif
-#ifndef	max
-#define max(a,b) (((a)>(b))?(a):(b))
-#endif
 
 /*
  * 	Function Prototypes 

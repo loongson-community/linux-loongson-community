@@ -794,6 +794,17 @@ void set_blocksize(kdev_t dev, int size)
 		goto retry;
 }
 
+static void free_more_memory(void)
+{
+	balance_dirty(NODEV);
+	page_launder(GFP_NOFS, 0);		
+	wakeup_bdflush();
+	wakeup_kswapd();
+	current->policy |= SCHED_YIELD;
+	__set_current_state(TASK_RUNNING);
+	schedule();
+}
+
 /*
  * We used to try various strange things. Let's not.
  * We'll just try to balance dirty buffers, and possibly
@@ -802,15 +813,8 @@ void set_blocksize(kdev_t dev, int size)
  */
 static void refill_freelist(int size)
 {
-	if (!grow_buffers(size)) {
-		balance_dirty(NODEV);
-		page_launder(GFP_NOFS, 0);		
-		wakeup_bdflush();
-		wakeup_kswapd();
-		current->policy |= SCHED_YIELD;
-		__set_current_state(TASK_RUNNING);
-		schedule();
-	}
+	if (!grow_buffers(size))
+		free_more_memory();
 }
 
 void init_buffer(struct buffer_head *bh, bh_end_io_t *handler, void *private)
@@ -1408,9 +1412,7 @@ no_grow:
 	 */
 	run_task_queue(&tq_disk);
 
-	current->policy |= SCHED_YIELD;
-	__set_current_state(TASK_RUNNING);
-	schedule();
+	free_more_memory();
 	goto try_again;
 }
 
@@ -2399,7 +2401,6 @@ int try_to_free_buffers(struct page * page, unsigned int gfp_mask)
 {
 	struct buffer_head * tmp, * bh = page->buffers;
 	int index = BUFSIZE_INDEX(bh->b_size);
-	int loop = 0;
 
 cleaned_buffers_try_again:
 	spin_lock(&lru_list_lock);
@@ -2449,8 +2450,8 @@ busy_buffer_page:
 	if (gfp_mask & __GFP_IO) {
 		sync_page_buffers(bh, gfp_mask);
 		/* We waited synchronously, so we can free the buffers. */
-		if ((gfp_mask & __GFP_WAIT) && !loop) {
-			loop = 1;
+		if (gfp_mask & __GFP_WAIT) {
+			gfp_mask = 0;	/* no IO or waiting this time around */
 			goto cleaned_buffers_try_again;
 		}
 		wakeup_bdflush();

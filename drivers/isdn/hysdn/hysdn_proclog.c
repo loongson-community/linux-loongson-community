@@ -1,4 +1,4 @@
-/* $Id: hysdn_proclog.c,v 1.9.6.1 2001/05/26 15:19:58 kai Exp $
+/* $Id: hysdn_proclog.c,v 1.9.6.2 2001/08/13 07:46:15 kai Exp $
 
  * Linux driver for HYSDN cards, /proc/net filesystem log functions.
  * written by Werner Cornelius (werner@titro.de) for Hypercope GmbH
@@ -152,15 +152,6 @@ put_log_buffer(hysdn_card * card, char *cp)
 	wake_up_interruptible(&(pd->rd_queue));		/* announce new entry */
 }				/* put_log_buffer */
 
-
-/*************************/
-/* dummy file operations */
-/*************************/
-static loff_t
-hysdn_dummy_lseek(struct file *file, loff_t offset, int orig)
-{
-	return -ESPIPE;
-}				/* hysdn_dummy_lseek */
 
 /******************************/
 /* file operations and tables */
@@ -411,7 +402,7 @@ hysdn_log_poll(struct file *file, poll_table * wait)
 /**************************************************/
 static struct file_operations log_fops =
 {
-	llseek:         hysdn_dummy_lseek,
+	llseek:         no_llseek,
 	read:           hysdn_log_read,
 	write:          hysdn_log_write,
 	poll:           hysdn_log_poll,

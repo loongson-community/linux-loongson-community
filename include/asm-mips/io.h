@@ -125,11 +125,18 @@ extern inline void * bus_to_virt(unsigned long address)
 	return (void *)KSEG0ADDR(address);
 }
 
+#define page_to_bus page_to_phys
+
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped
  * for the processor.
  */
 extern unsigned long isa_slot_offset;
+
+/*
+ * Change "struct page" to physical address.
+ */
+#define page_to_phys(page)	((page - mem_map) << PAGE_SHIFT)
 
 extern void * __ioremap(unsigned long offset, unsigned long size, unsigned long flags);
 
