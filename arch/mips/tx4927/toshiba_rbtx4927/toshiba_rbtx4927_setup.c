@@ -6,7 +6,7 @@
  *
  * Copyright 2001-2002 MontaVista Software Inc.
  *
- * Copyright (C) 1996, 1997, 2001  Ralf Baechle
+ * Copyright (C) 1996, 97, 2001, 04  Ralf Baechle (ralf@linux-mips.org)
  * Copyright (C) 2000 RidgeRun, Inc.
  * Author: RidgeRun, Inc.
  *   glonnon@ridgerun.com, skranz@ridgerun.com, stevej@ridgerun.com
@@ -69,7 +69,6 @@
 #include <asm/tx4927/toshiba_rbtx4927.h>
 #ifdef CONFIG_PCI
 #include <asm/tx4927/tx4927_pci.h>
-#include <asm/pci_channel.h>
 #endif
 #ifdef CONFIG_BLK_DEV_IDEPCI
 #include <linux/hdreg.h>

@@ -3,7 +3,6 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 
-#include <asm/pci_channel.h>
 #include <asm/debug.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>

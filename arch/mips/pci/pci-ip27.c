@@ -4,7 +4,7 @@
  * for more details.
  *
  * Copyright (C) 2003 Christoph Hellwig (hch@lst.de)
- * Copyright (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999, 2000, 04 Ralf Baechle (ralf@linux-mips.org)
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/init.h>
@@ -12,7 +12,6 @@
 #include <linux/pci.h>
 #include <asm/sn/arch.h>
 #include <asm/pci/bridge.h>
-#include <asm/pci_channel.h>
 #include <asm/paccess.h>
 #include <asm/sn/intr.h>
 #include <asm/sn/sn0/hub.h>

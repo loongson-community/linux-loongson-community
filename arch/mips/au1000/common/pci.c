@@ -6,6 +6,8 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
+ * Copyright (C) 2004 by Ralf Baechle (ralf@linux-mips.org)
+ *
  *  Support for all devices (greater than 16) added by David Gathright.
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -35,7 +37,6 @@
 #include <linux/init.h>
 
 #include <asm/mach-au1x00/au1000.h>
-#include <asm/pci_channel.h>
 
 /* TBD */
 static struct resource pci_io_resource = {

@@ -13,7 +13,7 @@
 #define _ASM_PCI_BRIDGE_H
 
 #include <linux/types.h>
-#include <asm/pci_channel.h>
+#include <linux/pci.h>
 #include <asm/xtalk/xwidget.h>		/* generic widget header */
 
 /* I/O page size */

@@ -4,7 +4,7 @@
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  *
- * Copyright (C) 2003 Ralf Baechle (ralf@linux-mips.org)
+ * Copyright (C) 2003, 04 Ralf Baechle (ralf@linux-mips.org)
  */
 #include <linux/config.h>
 #include <linux/kernel.h>
@@ -13,8 +13,6 @@
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/pci.h>
-
-#include <asm/pci_channel.h>
 
 /*
  * Indicate whether we respect the PCI setup left by the firmware.

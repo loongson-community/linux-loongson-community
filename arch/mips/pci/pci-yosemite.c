@@ -3,15 +3,13 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 2004 by Ralf Baechle
- *
+ * Copyright (C) 2004 by Ralf Baechle (ralf@linux-mips.org)
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <asm/gt64240.h>
-#include <asm/pci_channel.h>
 
 extern struct pci_ops titan_pci_ops;
 

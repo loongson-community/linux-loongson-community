@@ -3,6 +3,8 @@
  * Copyright 2001 MontaVista Software Inc.
  * Author: jsun@mvista.com or jsun@junsun.net
  *
+ * Copyright (C) 2004 by Ralf Baechle (ralf@linux-mips.org)
+ *
  * arch/mips/ddb5xxx/ddb5477/setup.c
  *     Setup file for DDB5477.
  *
@@ -35,7 +37,6 @@
 #include <asm/gdb-stub.h>
 #include <asm/traps.h>
 #include <asm/debug.h>
-#include <asm/pci_channel.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 

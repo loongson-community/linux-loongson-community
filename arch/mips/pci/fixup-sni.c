@@ -5,14 +5,13 @@
  *
  * SNI specific PCI support for RM200/RM300.
  *
- * Copyright (C) 1997 - 2000, 2003 Ralf Baechle
+ * Copyright (C) 1997 - 2000, 2003, 04 Ralf Baechle (ralf@linux-mips.org)
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/pci.h>
 
 #include <asm/mipsregs.h>
-#include <asm/pci_channel.h>
 #include <asm/sni.h>
 
 /*

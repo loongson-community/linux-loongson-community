@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 2000, 2001 Keith M Wesolowski
+ * Copyright (C) 2000, 2001, 04 Keith M Wesolowski
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -12,7 +12,6 @@
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
-#include <asm/pci_channel.h>
 #include <linux/delay.h>
 #include <asm/bootinfo.h>
 
