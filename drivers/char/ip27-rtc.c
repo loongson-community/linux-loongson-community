@@ -125,11 +125,9 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if ((yrs -= epoch) > 255)    /* They are unsigned */
 			return -EINVAL;
 
-		spin_lock_irq(&rtc_lock);
-		if (yrs > 169) {
-			spin_unlock_irq(&rtc_lock);
+		if (yrs > 169)
 			return -EINVAL;
-		}
+
 		if (yrs >= 100)
 			yrs -= 100;
 
