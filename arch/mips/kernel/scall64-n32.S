@@ -68,7 +68,6 @@ NESTED(handle_sysn32, PT_SIZE, sp)
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-FEXPORT(n32_syscall_exit)
 	local_irq_disable		# make sure need_resched and
 					# signals dont change between
 					# sampling and return
@@ -107,7 +106,7 @@ n32_syscall_trace_entry:
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-	j	n32_syscall_exit
+	j	syscall_exit
 
 not_n32_scall:
 	/* This is not an n32 compatibility syscall, pass it on to
