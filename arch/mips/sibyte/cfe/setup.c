@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001, 2002 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -66,6 +66,10 @@ extern unsigned char __rd_end;
 
 #ifdef CONFIG_SMP
 static int reboot_smp = 0;
+#endif
+
+#ifdef CONFIG_KGDB
+extern int kgdb_port;
 #endif
 
 static void cfe_linux_exit(void)
@@ -230,6 +234,9 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
 	uint64_t cfe_ept, cfe_handle;
 	unsigned int cfe_eptseal;
+#ifdef CONFIG_KGDB
+	char *arg;
+#endif
 
 	_machine_restart   = (void (*)(char *))cfe_linux_exit;
 	_machine_halt      = cfe_linux_exit;
@@ -288,6 +295,13 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 			panic("LINUX_CMDLINE not defined in cfe.");
 		}
 	}
+
+#ifdef CONFIG_KGDB
+	if ((arg = strstr(arcs_cmdline,"kgdb=duart")) != NULL)
+		kgdb_port = (arg[10] == '0') ? 0 : 1;
+	else
+		kgdb_port = 1;
+#endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	{
