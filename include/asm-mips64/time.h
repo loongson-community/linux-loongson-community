@@ -25,9 +25,12 @@
  * RTC ops.  By default, they point to no-RTC functions.
  *	rtc_get_time - mktime(year, mon, day, hour, min, sec) in seconds.
  *	rtc_set_time - reverse the above translation and set time to RTC.
+ *	rtc_set_mmss - similar to rtc_set_time, but only min and sec need
+ *			to be set.  Used by RTC sync-up.
  */
 extern unsigned long (*rtc_get_time)(void);
 extern int (*rtc_set_time)(unsigned long);
+extern int (*rtc_set_mmss)(unsigned long);
 
 /*
  * to_tm() converts system time back to (year, mon, day, hour, min, sec).
