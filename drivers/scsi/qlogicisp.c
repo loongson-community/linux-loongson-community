@@ -922,7 +922,11 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 
 	num_free = QLOGICISP_REQ_QUEUE_LEN - REQ_QUEUE_DEPTH(in_ptr, out_ptr);
 	host->can_queue = host->host_busy + num_free;
+#ifndef CONFIG_SGI_IP27
 	host->sg_tablesize = QLOGICISP_MAX_SG(num_free);
+#else
+	host->sg_tablesize = 0;
+#endif
 
 	LEAVE("isp1020_queuecommand");
 
