@@ -77,12 +77,9 @@ int kstack_depth_to_print = 24;
  */
 #define MODULE_RANGE (8*1024*1024)
 
-#ifndef CONFIG_CPU_HAS_LLSC
 /*
  * This stuff is needed for the userland ll-sc emulation for R2300
  */
-void simulate_ll(struct pt_regs *regs, unsigned int opcode);
-void simulate_sc(struct pt_regs *regs, unsigned int opcode);
 
 #define OPCODE 0xfc000000
 #define BASE   0x03e00000
@@ -90,7 +87,96 @@ void simulate_sc(struct pt_regs *regs, unsigned int opcode);
 #define OFFSET 0x0000ffff
 #define LL     0xc0000000
 #define SC     0xe0000000
+
+/*
+ * The ll_bit is cleared by r*_switch.S
+ */
+
+unsigned long ll_bit;
+#ifdef CONFIG_PROC_FS
+extern unsigned long ll_ops;
+extern unsigned long sc_ops;
 #endif
+
+static struct task_struct *ll_task = NULL;
+
+static inline void simulate_ll(struct pt_regs *regp, unsigned int opcode)
+{
+	unsigned long value, *vaddr;
+	long offset;
+	int signal = 0;
+
+	/*
+	 * analyse the ll instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
+
+#ifdef CONFIG_PROC_FS
+	ll_ops++;
+#endif
+
+	if ((unsigned long)vaddr & 3)
+		signal = SIGBUS;
+	else if (get_user(value, vaddr))
+		signal = SIGSEGV;
+	else {
+		if (ll_task == NULL || ll_task == current) {
+			ll_bit = 1;
+		} else {
+			ll_bit = 0;
+		}
+		ll_task = current;
+		regp->regs[(opcode & RT) >> 16] = value;
+	}
+	if (compute_return_epc(regp))
+		return;
+	if (signal)
+		send_sig(signal, current, 1);
+}
+
+static inline void simulate_sc(struct pt_regs *regp, unsigned int opcode)
+{
+	unsigned long *vaddr, reg;
+	long offset;
+	int signal = 0;
+
+	/*
+	 * analyse the sc instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
+	reg = (opcode & RT) >> 16;
+
+#ifdef CONFIG_PROC_FS
+	sc_ops++;
+#endif
+
+	if ((unsigned long)vaddr & 3)
+		signal = SIGBUS;
+	else if (ll_bit == 0 || ll_task != current)
+		regp->regs[reg] = 0;
+	else if (put_user(regp->regs[reg], vaddr))
+		signal = SIGSEGV;
+	else
+		regp->regs[reg] = 1;
+	if (compute_return_epc(regp))
+		return;
+	if (signal)
+		send_sig(signal, current, 1);
+}
 
 /*
  * This routine abuses get_user()/put_user() to reference pointers
@@ -516,12 +602,6 @@ sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-#ifndef CONFIG_CPU_HAS_LLSC
-
-#ifdef CONFIG_SMP
-#error "ll/sc emulation is not SMP safe"
-#endif
-
 /*
  * userland emulation for R2300 CPUs
  * needed for the multithreading part of glibc
@@ -531,10 +611,18 @@ sigsegv:
  */
 asmlinkage void do_ri(struct pt_regs *regs)
 {
-	unsigned int opcode;
 
 	if (!user_mode(regs))
 		BUG();
+
+#ifndef CONFIG_CPU_HAS_LLSC
+
+#ifdef CONFIG_SMP
+#error "ll/sc emulation is not SMP safe"
+#endif
+
+	{
+	unsigned int opcode;
 
 	if (!get_insn_opcode(regs, &opcode)) {
 		if ((opcode & OPCODE) == LL) {
@@ -546,113 +634,13 @@ asmlinkage void do_ri(struct pt_regs *regs)
 			return;
 		}
 	}
-
-	if (compute_return_epc(regs))
-		return;
-	force_sig(SIGILL, current);
-}
-
-/*
- * The ll_bit is cleared by r*_switch.S
- */
-
-unsigned long ll_bit;
-#ifdef CONFIG_PROC_FS
-extern unsigned long ll_ops;
-extern unsigned long sc_ops;
-#endif
-
-static struct task_struct *ll_task = NULL;
-
-void simulate_ll(struct pt_regs *regp, unsigned int opcode)
-{
-	unsigned long value, *vaddr;
-	long offset;
-	int signal = 0;
-
-	/*
-	 * analyse the ll instruction that just caused a ri exception
-	 * and put the referenced address to addr.
-	 */
-
-	/* sign extend offset */
-	offset = opcode & OFFSET;
-	offset <<= 16;
-	offset >>= 16;
-
-	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
-
-#ifdef CONFIG_PROC_FS
-	ll_ops++;
-#endif
-
-	if ((unsigned long)vaddr & 3)
-		signal = SIGBUS;
-	else if (get_user(value, vaddr))
-		signal = SIGSEGV;
-	else {
-		if (ll_task == NULL || ll_task == current) {
-			ll_bit = 1;
-		} else {
-			ll_bit = 0;
-		}
-		ll_task = current;
-		regp->regs[(opcode & RT) >> 16] = value;
 	}
-	if (compute_return_epc(regp))
-		return;
-	if (signal)
-		send_sig(signal, current, 1);
-}
+#endif /* CONFIG_CPU_HAS_LLSC */
 
-void simulate_sc(struct pt_regs *regp, unsigned int opcode)
-{
-	unsigned long *vaddr, reg;
-	long offset;
-	int signal = 0;
-
-	/*
-	 * analyse the sc instruction that just caused a ri exception
-	 * and put the referenced address to addr.
-	 */
-
-	/* sign extend offset */
-	offset = opcode & OFFSET;
-	offset <<= 16;
-	offset >>= 16;
-
-	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
-	reg = (opcode & RT) >> 16;
-
-#ifdef CONFIG_PROC_FS
-	sc_ops++;
-#endif
-
-	if ((unsigned long)vaddr & 3)
-		signal = SIGBUS;
-	else if (ll_bit == 0 || ll_task != current)
-		regp->regs[reg] = 0;
-	else if (put_user(regp->regs[reg], vaddr))
-		signal = SIGSEGV;
-	else
-		regp->regs[reg] = 1;
-	if (compute_return_epc(regp))
-		return;
-	if (signal)
-		send_sig(signal, current, 1);
-}
-
-#else /* MIPS 2 or higher */
-
-asmlinkage void do_ri(struct pt_regs *regs)
-{
 	if (compute_return_epc(regs))
 		return;
-
 	force_sig(SIGILL, current);
 }
-
-#endif
 
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
