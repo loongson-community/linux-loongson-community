@@ -1,4 +1,4 @@
-/* $Id: softirq.h,v 1.7 1999/07/26 19:42:44 harald Exp $
+/* $Id: softirq.h,v 1.8 1999/08/13 17:07:27 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -30,7 +30,7 @@ extern unsigned int local_bh_count[NR_CPUS];
 
 #define get_active_bhs()	(bh_mask & bh_active)
 
-#if defined(CONFIG_CPU_R3000)
+#if !defined(CONFIG_CPU_HAS_LLSC)
 
 #define clear_active_bhs(x)     atomic_clear_mask((x),&bh_active)
 

@@ -1314,7 +1314,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 		char_time = 1;
 	if (timeout)
 		char_time = MIN(char_time, timeout);
-	while ((read_zsreg(info->zs_channel, 1) & ALL_SNT) == 0) {
+	while ((read_zsreg(info->zs_channel, 1) & Tx_BUF_EMP) == 0) {
 		current->state = TASK_INTERRUPTIBLE;
 		current->counter = 0;	/* make us low-priority */
 		schedule_timeout(char_time);

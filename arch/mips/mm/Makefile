@@ -22,6 +22,14 @@ ifdef CONFIG_CPU_R4X00
 O_OBJS   += r4xx0.o
 endif
 
+ifdef CONFIG_CPU_R5000
+O_OBJS   += r4xx0.o
+endif
+
+ifdef CONFIG_CPU_NEVADA
+O_OBJS   += r4xx0.o
+endif
+
 ifdef CONFIG_CPU_R6000
 O_OBJS   += r6000.o
 endif

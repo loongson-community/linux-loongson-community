@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.16 1999/06/17 13:25:47 ralf Exp $
+/* $Id: setup.c,v 1.17 1999/08/20 21:59:02 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -76,7 +76,7 @@ int EISA_bus = 0;
  * information is being use to continue the screen output just below
  * the BIOS printed text and with the same text resolution.
  */
-struct screen_info screen_info = DEFAULT_SCREEN_INFO;
+struct screen_info screen_info;
 
 #ifdef CONFIG_BLK_DEV_FD
 extern struct fd_ops no_fd_ops;

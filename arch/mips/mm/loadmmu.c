@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.10 1999/06/17 13:25:51 ralf Exp $
+ * $Id: loadmmu.c,v 1.11 1999/08/09 19:43:16 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -37,7 +37,8 @@ void (*dma_cache_inv)(unsigned long start, unsigned long size);
 #ifdef CONFIG_CPU_R3000
 extern void ld_mmu_r2300(void);
 #endif
-#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300)
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300) || \
+    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
 extern void ld_mmu_r4xx0(void);
 #endif
 #ifdef CONFIG_CPU_R6000
@@ -62,7 +63,8 @@ __initfunc(void loadmmu(void))
 		break;
 #endif
 
-#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300)
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300) || \
+    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
 	case CPU_R4000PC:
 	case CPU_R4000SC:
 	case CPU_R4000MC:
