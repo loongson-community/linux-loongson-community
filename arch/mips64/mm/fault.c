@@ -134,6 +134,13 @@ good_area:
 bad_area:
 	up(&mm->mmap_sem);
 
+	/*
+	 * Quickly check for vmalloc range faults.
+	 */
+	if ((!vma) && (address >= VMALLOC_START) && (address < VMALLOC_END)) {
+		printk("Fix vmalloc invalidate fault\n");
+		while(1);
+	}
 	if (user_mode(regs)) {
 		struct siginfo si;
 		tsk->thread.cp0_badvaddr = address;
