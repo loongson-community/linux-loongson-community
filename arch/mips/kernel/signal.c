@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.18 1999/02/15 02:16:52 ralf Exp $
+/* $Id: signal.c,v 1.19 1999/06/17 13:25:47 ralf Exp $
  *
  *  linux/arch/mips/kernel/signal.c
  *
@@ -32,8 +32,8 @@
 asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
                          int options, unsigned long *ru);
 asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
-extern asmlinkage void (*save_fp_context)(struct sigcontext *sc);
-extern asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
+extern asmlinkage void save_fp_context(struct sigcontext *sc);
+extern asmlinkage void restore_fp_context(struct sigcontext *sc);
 
 /*
  * Atomically swap in the new signal mask, and wait for a signal.

@@ -42,8 +42,6 @@ static struct cache_space {
 #undef DEBUG_TLB
 #undef DEBUG_CACHE
 
-extern unsigned long mips_tlb_entries;
-
 #define NTLB_ENTRIES       64  /* Fixed on all R23000 variants... */
 
 /* page functions */
@@ -427,7 +425,7 @@ static void r2300_flush_cache_sigtramp(unsigned long page)
 }
 
 /* TLB operations. */
-static inline void r2300_flush_tlb_all(void)
+inline void flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -449,7 +447,7 @@ static inline void r2300_flush_tlb_all(void)
 	restore_flags(flags);
 }
 
-static void r2300_flush_tlb_mm(struct mm_struct *mm)
+void flush_tlb_mm(struct mm_struct *mm)
 {
 	if(mm->context != 0) {
 		unsigned long flags;
@@ -465,7 +463,7 @@ static void r2300_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-static void r2300_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				  unsigned long end)
 {
 	if(mm->context != 0) {
@@ -508,7 +506,7 @@ static void r2300_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-static void r2300_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if(vma->vm_mm->context != 0) {
 		unsigned long flags;
@@ -544,7 +542,7 @@ static void r2300_load_pgd(unsigned long pg_dir)
 /*
  * Initialize new page directory with pointers to invalid ptes
  */
-static void r2300_pgd_init(unsigned long page)
+void pgd_init(unsigned long page)
 {
 	unsigned long dummy1, dummy2;
 
@@ -573,7 +571,7 @@ static void r2300_pgd_init(unsigned long page)
 		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)));
 }
 
-static void r2300_update_mmu_cache(struct vm_area_struct * vma,
+void update_mmu_cache(struct vm_area_struct * vma,
 				   unsigned long address, pte_t pte)
 {
 	unsigned long flags;
@@ -629,7 +627,7 @@ static void r2300_update_mmu_cache(struct vm_area_struct * vma,
 	restore_flags(flags);
 }
 
-static void r2300_show_regs(struct pt_regs * regs)
+void show_regs(struct pt_regs * regs)
 {
 	/*
 	 * Saved main processor registers
@@ -662,18 +660,13 @@ static void r2300_show_regs(struct pt_regs * regs)
 	       (unsigned int) regs->cp0_cause);
 }
 
-static void r2300_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 				  unsigned long entryhi, unsigned long pagemask)
 {
 printk("r2300_add_wired_entry");
         /*
 	 * FIXME, to be done
 	 */
-}
-
-static int r2300_user_mode(struct pt_regs *regs)
-{
-	return !(regs->cp0_status & KU_USER);
 }
 
 __initfunc(void ld_mmu_r2300(void))
@@ -693,23 +686,7 @@ __initfunc(void ld_mmu_r2300(void))
 	flush_cache_sigtramp = r2300_flush_cache_sigtramp;
 	flush_page_to_ram = r2300_flush_page_to_ram;
 
-	flush_tlb_all = r2300_flush_tlb_all;
-	flush_tlb_mm = r2300_flush_tlb_mm;
-	flush_tlb_range = r2300_flush_tlb_range;
-	flush_tlb_page = r2300_flush_tlb_page;
-
         dma_cache_wback_inv = r3k_dma_cache_wback_inv;
-
-	load_pgd = r2300_load_pgd;
-	pgd_init = r2300_pgd_init;
-	update_mmu_cache = r2300_update_mmu_cache;
-	r3000_asid_setup();
-
-	show_regs = r2300_show_regs;
-    
-        add_wired_entry = r2300_add_wired_entry;
-
-	user_mode = r2300_user_mode;
 
 	flush_tlb_all();
 }

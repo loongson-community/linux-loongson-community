@@ -1,4 +1,4 @@
-/* $Id: r6000.c,v 1.5 1998/08/25 09:14:47 ralf Exp $
+/* $Id: r6000.c,v 1.6 1999/01/04 16:03:54 ralf Exp $
  *
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
@@ -53,32 +53,32 @@ static void r6000_flush_cache_sigtramp(unsigned long page)
 }
 
 /* TLB operations. XXX Write these dave... */
-static inline void r6000_flush_tlb_all(void)
+inline void flush_tlb_all(void)
 {
 	/* XXX */
 }
 
-static void r6000_flush_tlb_mm(struct mm_struct *mm)
+void flush_tlb_mm(struct mm_struct *mm)
 {
 	/* XXX */
 }
 
-static void r6000_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				  unsigned long end)
 {
 	/* XXX */
 }
 
-static void r6000_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	/* XXX */
 }
 
-static void r6000_load_pgd(unsigned long pg_dir)
+void load_pgd(unsigned long pg_dir)
 {
 }
 
-static void r6000_pgd_init(unsigned long page)
+void pgd_init(unsigned long page)
 {
 	unsigned long dummy1, dummy2;
 
@@ -115,7 +115,7 @@ static void r6000_pgd_init(unsigned long page)
 		 "i" (Create_Dirty_Excl_D));
 }
 
-static void r6000_update_mmu_cache(struct vm_area_struct * vma,
+void update_mmu_cache(struct vm_area_struct * vma,
 				   unsigned long address, pte_t pte)
 {
 	r6000_flush_tlb_page(vma, address);
@@ -125,7 +125,7 @@ static void r6000_update_mmu_cache(struct vm_area_struct * vma,
 	 */
 }
 
-static void r6000_show_regs(struct pt_regs * regs)
+void show_regs(struct pt_regs * regs)
 {
 	/*
 	 * Saved main processor registers
@@ -158,15 +158,10 @@ static void r6000_show_regs(struct pt_regs * regs)
 	       (unsigned int) regs->cp0_cause);
 }
 
-static void r6000_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 				  unsigned long entryhi, unsigned long pagemask)
 {
         /* XXX */
-}
-
-static int r6000_user_mode(struct pt_regs *regs)
-{
-	return !(regs->cp0_status & 0x4);
 }
 
 __initfunc(void ld_mmu_r6000(void))
@@ -177,22 +172,6 @@ __initfunc(void ld_mmu_r6000(void))
 	flush_cache_page = r6000_flush_cache_page;
 	flush_cache_sigtramp = r6000_flush_cache_sigtramp;
 	flush_page_to_ram = r6000_flush_page_to_ram;
-
-	flush_tlb_all = r6000_flush_tlb_all;
-	flush_tlb_mm = r6000_flush_tlb_mm;
-	flush_tlb_range = r6000_flush_tlb_range;
-	flush_tlb_page = r6000_flush_tlb_page;
-	r6000_asid_setup();
-
-	load_pgd = r6000_load_pgd;
-	pgd_init = r6000_pgd_init;
-	update_mmu_cache = r6000_update_mmu_cache;
-
-	show_regs = r6000_show_regs;
-    
-        add_wired_entry = r6000_add_wired_entry;
-
-	user_mode = r6000_user_mode;
 
 	flush_cache_all();
 	flush_tlb_all();

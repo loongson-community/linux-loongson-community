@@ -1,4 +1,4 @@
-/* $Id: mmu_context.h,v 1.2 1998/05/07 03:02:50 ralf Exp $
+/* $Id: mmu_context.h,v 1.3 1999/01/04 16:09:23 ralf Exp $
  *
  * Switch a MMU context.
  *
@@ -11,52 +11,34 @@
 #ifndef __ASM_MIPS_MMU_CONTEXT_H
 #define __ASM_MIPS_MMU_CONTEXT_H
 
+#include <linux/config.h>
+
 /* Fuck.  The f-word is here so you can grep for it :-)  */
 extern unsigned long asid_cache;
 
-/* I patch, therefore I am ...  */
-#define ASID_INC(asid)						\
- ({ unsigned long __asid = asid;				\
-   __asm__("1:\taddiu\t%0,0\t\t\t\t# patched\n\t"		\
-           ".section\t__asid_inc,\"a\"\n\t"			\
-           ".word\t1b\n\t"					\
-           ".previous"						\
-           :"=r" (__asid)					\
-           :"0" (__asid));					\
-   __asid; })
-#define ASID_MASK(asid)						\
- ({ unsigned long __asid = asid;				\
-   __asm__("1:\tandi\t%0,%1,0\t\t\t# patched\n\t"			\
-           ".section\t__asid_mask,\"a\"\n\t"			\
-           ".word\t1b\n\t"					\
-           ".previous"						\
-           :"=r" (__asid)					\
-           :"r" (__asid));					\
-   __asid; })
-#define ASID_VERSION_MASK					\
- ({ unsigned long __asid;					\
-   __asm__("1:\tli\t%0,0\t\t\t\t# patched\n\t"			\
-           ".section\t__asid_version_mask,\"a\"\n\t"		\
-           ".word\t1b\n\t"					\
-           ".previous"						\
-           :"=r" (__asid));					\
-   __asid; })
-#define ASID_FIRST_VERSION					\
- ({ unsigned long __asid = asid;				\
-   __asm__("1:\tli\t%0,0\t\t\t\t# patched\n\t"			\
-           ".section\t__asid_first_version,\"a\"\n\t"		\
-           ".word\t1b\n\t"					\
-           ".previous"						\
-           :"=r" (__asid));					\
-   __asid; })
+#if defined(CONFIG_CPU_R3000)
 
-#define ASID_FIRST_VERSION_R3000 0x1000
-#define ASID_FIRST_VERSION_R4000 0x100
+#define ASID_INC	0x40
+#define ASID_MASK	0xfc0
 
-extern inline void
-get_new_mmu_context(struct mm_struct *mm, unsigned long asid)
+#else /* FIXME: not correct for R6000, R8000 */
+
+#define ASID_INC	0x1
+#define ASID_MASK	0xff
+
+#endif
+
+/* 
+ *  All unused by hardware upper bits will be considered 
+ *  as a software asid extension.
+ */
+#define ASID_VERSION_MASK  ((unsigned long)~(ASID_MASK|(ASID_MASK-1))) 
+#define ASID_FIRST_VERSION ((unsigned long)(~ASID_VERSION_MASK) + 1)
+
+extern inline void get_new_mmu_context(struct mm_struct *mm, unsigned
+long asid)
 {
-	if (!ASID_MASK((asid = ASID_INC(asid)))) {
+        if (! ((asid += ASID_INC) & ASID_MASK) ) {
 		flush_tlb_all(); /* start new asid cycle */
 		if (!asid)      /* fix version if needed */
 			asid = ASID_FIRST_VERSION;
@@ -104,31 +86,5 @@ extern inline void activate_context(struct task_struct *tsk)
 	get_mmu_context(tsk);
 	set_entryhi(tsk->mm->context);
 }
-
-extern void __asid_setup(unsigned int inc, unsigned int mask,
-                         unsigned int version_mask, unsigned int first_version);
-
-extern inline void r3000_asid_setup(void)
-{
-	__asid_setup(0x40, 0xfc0, 0xf000, ASID_FIRST_VERSION_R3000);
-}
-
-extern inline void r6000_asid_setup(void)
-{
-	panic("r6000_asid_setup: implement me");	/* No idea ...  */
-}
-
-extern inline void tfp_asid_setup(void)
-{
-	panic("tfp_asid_setup: implement me");	/* No idea ...  */
-}
-
-extern inline void r4xx0_asid_setup(void)
-{
-	__asid_setup(1, 0xff, 0xff00, ASID_FIRST_VERSION_R4000);
-}
-
-/* R10000 has the same ASID mechanism as the R4000.  */
-#define andes_asid_setup r4xx0_asid_setup
 
 #endif /* __ASM_MIPS_MMU_CONTEXT_H */

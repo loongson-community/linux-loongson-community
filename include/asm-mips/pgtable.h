@@ -41,16 +41,16 @@ extern void (*flush_page_to_ram)(unsigned long page);
  *  - flush_tlb_page(mm, vmaddr) flushes a single page
  *  - flush_tlb_range(mm, start, end) flushes a range of pages
  */
-extern void (*flush_tlb_all)(void);
-extern void (*flush_tlb_mm)(struct mm_struct *mm);
-extern void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
+extern void flush_tlb_all(void);
+extern void flush_tlb_mm(struct mm_struct *mm);
+extern void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			       unsigned long end);
-extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
+extern void flush_tlb_page(struct vm_area_struct *vma, unsigned long page);
 
 /*
  * - add_wired_entry() add a fixed TLB entry, and move wired register
  */
-extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
+extern void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 			       unsigned long entryhi, unsigned long pagemask);
 
 
@@ -219,7 +219,7 @@ extern unsigned long zero_page_mask;
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
-extern void (*load_pgd)(unsigned long pg_dir);
+extern void load_pgd(unsigned long pg_dir);
 
 /* to set the page-dir */
 #define SET_PAGE_DIR(tsk,pgdir) (tsk)->tss.pg_dir = ((unsigned long) (pgdir))
@@ -405,7 +405,7 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
 /*
  * Initialize new page directory with pointers to invalid ptes
  */
-extern void (*pgd_init)(unsigned long page);
+extern void pgd_init(unsigned long page);
 
 /*
  * Allocate and free page tables. The xxx_kernel() versions are
@@ -590,7 +590,7 @@ extern inline void set_pgdir(unsigned long address, pgd_t entry)
 
 extern pgd_t swapper_pg_dir[1024];
 
-extern void (*update_mmu_cache)(struct vm_area_struct *vma,
+extern void update_mmu_cache(struct vm_area_struct *vma,
 				unsigned long address, pte_t pte);
 
 /*

@@ -60,11 +60,11 @@ struct pt_regs {
 /*
  * Does the process account for user or for system time?
  */
-#define user_mode(regs) ((regs)->cp0_status & KU_USER)
+#define user_mode(regs) (((regs)->cp0_status & KU_MASK) == KU_USER)
 
 #define instruction_pointer(regs) ((regs)->cp0_epc)
 
-extern void (*show_regs)(struct pt_regs *);
+extern void show_regs(struct pt_regs *);
 #endif /* !(__ASSEMBLY__) */
 
 #endif

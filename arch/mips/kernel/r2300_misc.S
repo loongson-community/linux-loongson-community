@@ -1,5 +1,5 @@
-/* $Id: r2300_misc.S,v 1.2 1999/04/11 17:13:55 harald Exp $
- * r2300_misc.S: Misc. exception handling code for R3000/R2000.
+/* $Id: misc.S,v 1.3 1999/05/01 22:40:36 ralf Exp $
+ * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
  *
@@ -120,7 +120,7 @@
 	.set	noreorder
 
 	.align	5
-NESTED(r2300_handle_tlbl, PT_SIZE, sp)
+NESTED(handle_tlbl, PT_SIZE, sp)
 	.set	noat
 
 #ifndef NOTLB_OPTIMIZE
@@ -141,9 +141,9 @@ nopage_tlbl:
 #endif
 
 	DO_FAULT(0)
-END(r2300_handle_tlbl)
+END(handle_tlbl)
 
-NESTED(r2300_handle_tlbs, PT_SIZE, sp)
+NESTED(handle_tlbs, PT_SIZE, sp)
 	.set	noat
 
 #ifndef NOTLB_OPTIMIZE
@@ -163,10 +163,10 @@ nopage_tlbs:
 #endif
 
 	DO_FAULT(1)
-END(r2300_handle_tlbs)
+END(handle_tlbs)
 
 	.align	5
-NESTED(r2300_handle_mod, PT_SIZE, sp)
+NESTED(handle_mod, PT_SIZE, sp)
 	.set	noat
 #ifndef NOTLB_OPTIMIZE
 	LOAD_PTE(k0, k1)
@@ -194,4 +194,4 @@ NESTED(r2300_handle_mod, PT_SIZE, sp)
 
 nowrite_mod:
 	DO_FAULT(1)
-END(r2300_handle_mod)
+END(handle_mod)

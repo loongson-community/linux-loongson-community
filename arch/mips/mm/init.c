@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.14 1999/06/22 23:06:28 ralf Exp $
+/* $Id: init.c,v 1.15 1999/07/05 23:09:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -380,36 +380,4 @@ void si_meminfo(struct sysinfo *val)
 	val->totalram <<= PAGE_SHIFT;
 	val->sharedram <<= PAGE_SHIFT;
 	return;
-}
-
-/* Fixup an immediate instruction  */
-__initfunc(static void __i_insn_fixup(unsigned int **start, unsigned int **stop,
-                         unsigned int i_const))
-{
-	unsigned int **p, *ip;
-
-	for (p = start;p < stop; p++) {
-		ip = *p;
-		*ip = (*ip & 0xffff0000) | i_const;
-	}
-}
-
-#define i_insn_fixup(section, const)					  \
-do {									  \
-	extern unsigned int *__start_ ## section;			  \
-	extern unsigned int *__stop_ ## section;			  \
-	__i_insn_fixup(&__start_ ## section, &__stop_ ## section, const); \
-} while(0)
-
-/* Caller is assumed to flush the caches before the first context switch.  */
-__initfunc(void __asid_setup(unsigned int inc, unsigned int mask,
-                             unsigned int version_mask,
-                             unsigned int first_version))
-{
-	i_insn_fixup(__asid_inc, inc);
-	i_insn_fixup(__asid_mask, mask);
-	i_insn_fixup(__asid_version_mask, version_mask);
-	i_insn_fixup(__asid_first_version, first_version);
-
-	asid_cache = first_version;
 }

@@ -1,4 +1,4 @@
-/* $Id: r2300_fpu.S,v 1.4 1999/04/11 17:13:55 harald Exp $
+/* $Id: r2300_fpu.S,v 1.5 1999/05/01 22:40:36 ralf Exp $
  * r2300_fpu.S: Save/restore floating point context for signal handlers.
  *
  * This file is subject to the terms and conditions of the GNU General Public
@@ -28,7 +28,7 @@
 	.set	noreorder
 	.set	mips1
 	/* Save floating point context */
-LEAF(r2300_save_fp_context)
+LEAF(save_fp_context)
 
 	cfc1	t1,fcr31
 	EX(swc1	$f0,(SC_FPREGS+0)(a0))
@@ -69,7 +69,7 @@ LEAF(r2300_save_fp_context)
 	.set	nomacro
 	 EX(sw	t0,SC_FPC_EIR(a0))
 	.set	macro
-	END(r2300_save_fp_context)
+	END(save_fp_context)
 
 /*
  * Restore FPU state:
@@ -80,7 +80,7 @@ LEAF(r2300_save_fp_context)
  * frame on the current content of c0_status, not on the content of the
  * stack frame which might have been changed by the user.
  */
-LEAF(r2300_restore_fp_context)
+LEAF(restore_fp_context)
 	EX(lw t0,SC_FPC_CSR(a0))
 	EX(lwc1	$f0,(SC_FPREGS+0)(a0))
 	EX(lwc1	$f1,(SC_FPREGS+8)(a0))
@@ -116,4 +116,4 @@ LEAF(r2300_restore_fp_context)
 	EX(lwc1	$f31,(SC_FPREGS+248)(a0))
 	jr	ra
 	 ctc1	t0,fcr31
-	END(r2300_restore_fp_context)
+	END(restore_fp_context)

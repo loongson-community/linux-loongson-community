@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.9 1999/06/13 16:30:35 ralf Exp $
+ * $Id: loadmmu.c,v 1.10 1999/06/17 13:25:51 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -34,44 +34,35 @@ void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
 void (*dma_cache_wback)(unsigned long start, unsigned long size);
 void (*dma_cache_inv)(unsigned long start, unsigned long size);
 
-/* TLB operations. */
-void (*flush_tlb_all)(void);
-void (*flush_tlb_mm)(struct mm_struct *mm);
-void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
-			unsigned long end);
-void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
-
-/* Miscellaneous. */
-void (*load_pgd)(unsigned long pg_dir);
-void (*pgd_init)(unsigned long page);
-void (*update_mmu_cache)(struct vm_area_struct * vma,
-			 unsigned long address, pte_t pte);
-
-void (*show_regs)(struct pt_regs *);
-
-void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
-			unsigned long entryhi, unsigned long pagemask);
-
-int (*user_mode)(struct pt_regs *);
-
-asmlinkage void *(*resume)(void *last, void *next);
-
+#ifdef CONFIG_CPU_R3000
 extern void ld_mmu_r2300(void);
+#endif
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300)
 extern void ld_mmu_r4xx0(void);
+#endif
+#ifdef CONFIG_CPU_R6000
 extern void ld_mmu_r6000(void);
+#endif
+#ifdef CONFIG_CPU_R8000
 extern void ld_mmu_tfp(void);
+#endif
+#ifdef CONFIG_CPU_R10000
 extern void ld_mmu_andes(void);
+#endif
 
 __initfunc(void loadmmu(void))
 {
 	switch(mips_cputype) {
+#ifdef CONFIG_CPU_R3000
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:
 		printk("Loading R[23]00 MMU routines.\n");
 		ld_mmu_r2300();
 		break;
+#endif
 
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300)
 	case CPU_R4000PC:
 	case CPU_R4000SC:
 	case CPU_R4000MC:
@@ -90,22 +81,29 @@ __initfunc(void loadmmu(void))
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
 		break;
+#endif
 
+#ifdef CONFIG_CPU_R6000
 	case CPU_R6000:
 	case CPU_R6000A:
 		printk("Loading R6000 MMU routines.\n");
 		ld_mmu_r6000();
 		break;
+#endif
 
+#ifdef CONFIG_CPU_R8000
 	case CPU_R8000:
 		printk("Loading TFP MMU routines.\n");
 		ld_mmu_tfp();
 		break;
+#endif
 
+#ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 		printk("Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
 		break;
+#endif
 
 	default:
 		/* XXX We need an generic routine in the MIPS port

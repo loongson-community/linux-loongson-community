@@ -6,7 +6,7 @@
  * Multi-cpu abstraction and reworking:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4k_misc.S,v 1.3 1997/09/07 04:51:07 ralf Exp $
+ * $Id: r4k_misc.S,v 1.4 1997/12/01 17:57:30 ralf Exp $
  */
 #include <asm/asm.h>
 #include <asm/current.h>
@@ -137,7 +137,7 @@
 	 * of the instruction cache else you get bogus results.
 	 */
 	.align	5
-	NESTED(r4k_handle_tlbl, PT_SIZE, sp)
+	NESTED(handle_tlbl, PT_SIZE, sp)
 	.set	noat
 	.set	nomacro
 invalid_tlbl:
@@ -159,10 +159,10 @@ invalid_tlbl:
 
 nopage_tlbl:
 	DO_FAULT(0)
-	END(r4k_handle_tlbl)
+	END(handle_tlbl)
 
 	.align	5
-	NESTED(r4k_handle_tlbs, PT_SIZE, sp)
+	NESTED(handle_tlbs, PT_SIZE, sp)
 	.set	noat
 #ifndef NOTLB_OPTIMIZE
 	LOAD_PTE(k0, k1)
@@ -181,10 +181,10 @@ nopage_tlbl:
 
 nopage_tlbs:
 	DO_FAULT(1)
-	END(r4k_handle_tlbs)
+	END(handle_tlbs)
 
 	.align	5
-	NESTED(r4k_handle_mod, PT_SIZE, sp)
+	NESTED(handle_mod, PT_SIZE, sp)
 	.set	noat
 #ifndef NOTLB_OPTIMIZE
 	LOAD_PTE(k0, k1)
@@ -213,4 +213,4 @@ nopage_tlbs:
 
 nowrite_mod:
 	DO_FAULT(1)
-	END(r4k_handle_mod)
+	END(handle_mod)

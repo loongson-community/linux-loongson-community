@@ -10,7 +10,7 @@
  * Multi-arch abstraction and asm macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4k_fpu.S,v 1.4 1998/04/05 11:23:52 ralf Exp $
+ * $Id: r4k_fpu.S,v 1.5 1999/05/01 22:40:36 ralf Exp $
  */
 #include <asm/asm.h>
 #include <asm/fpregdef.h>
@@ -27,7 +27,7 @@
 	.set	noreorder
 	.set	mips3
 	/* Save floating point context */
-LEAF(r4k_save_fp_context)
+LEAF(save_fp_context)
 	mfc0	t1,CP0_STATUS
 	 sll	t2,t1,5
 
@@ -76,7 +76,7 @@ LEAF(r4k_save_fp_context)
 	.set	nomacro
 	 EX(sw	t0,SC_FPC_EIR(a0))
 	.set	macro
-	END(r4k_save_fp_context)
+	END(save_fp_context)
 
 /*
  * Restore FPU state:
@@ -87,7 +87,7 @@ LEAF(r4k_save_fp_context)
  * frame on the current content of c0_status, not on the content of the
  * stack frame which might have been changed by the user.
  */
-LEAF(r4k_restore_fp_context)
+LEAF(restore_fp_context)
 	mfc0	t1, CP0_STATUS
 	sll	t0,t1,5
 	bgez	t0,1f
@@ -135,4 +135,4 @@ LEAF(r4k_restore_fp_context)
 	EX(ldc1	$f30,(SC_FPREGS+240)(a0))
 	jr	ra
 	 ctc1	t0,fcr31
-	END(r4k_restore_fp_context)
+	END(restore_fp_context)

@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.6 1999/05/01 22:40:37 ralf Exp $
+/* $Id: r4k_switch.S,v 1.7 1999/06/13 16:30:32 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -31,7 +31,7 @@
 	.set	noreorder
 	.set	mips3
 	.align	5
-	LEAF(r4xx0_resume)
+	LEAF(resume)
 	mfc0	t1, CP0_STATUS
 	sw	t1, THREAD_STATUS(a0)
 	CPU_SAVE_NONSCRATCH(a0)
@@ -59,7 +59,7 @@
 	mtc0	a3, CP0_ENTRYHI
 	jr	ra
 	 move	v0, a0
-	END(r4xx0_resume)
+	END(resume)
 
 /*
  * Do lazy fpu context switch.  Saves FPU context to the process in a0
@@ -68,7 +68,7 @@
 
 #define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
 
-LEAF(r4xx0_lazy_fpu_switch)
+LEAF(lazy_fpu_switch)
 	mfc0	t0, CP0_STATUS			# enable cp1
 	li	t3, 0x20000000
 	or	t0, t3
@@ -95,13 +95,13 @@ LEAF(r4xx0_lazy_fpu_switch)
 	.set	reorder
 	FPU_RESTORE_16EVEN($28, t0)		# clobbers t0
 	jr	ra
-	END(r4xx0_lazy_fpu_switch)
+	END(lazy_fpu_switch)
 
 /*
  * Save a thread's fp context.
  */
 	.set	noreorder
-LEAF(r4xx0_save_fp)
+LEAF(save_fp)
 	mfc0	t0, CP0_STATUS
 	sll	t1, t0, 5
 	bgez	t1, 1f				# 16 register mode?
@@ -111,7 +111,7 @@ LEAF(r4xx0_save_fp)
 	FPU_SAVE_16EVEN(a0, t1)			# clobbers t1
 	jr	ra
 	 sdc1	$f0, (THREAD_FPU + 0x00)(a0)
-	END(r4xx0_save_fp)
+	END(save_fp)
 
 /*
  * Load the FPU with signalling NANS.  This bit pattern we're using has
@@ -123,7 +123,7 @@ LEAF(r4xx0_save_fp)
 
 #define FPU_DEFAULT  0x00000000
 
-LEAF(r4xx0_init_fpu)
+LEAF(init_fpu)
 	mfc0	t0, CP0_STATUS
 	li	t1, 0x20000000
 	or	t0, t1
@@ -170,4 +170,4 @@ LEAF(r4xx0_init_fpu)
 	dmtc1	t0, $f28
 	jr	ra
 	 dmtc1	t0, $f30
-	END(r4xx0_init_fpu)
+	END(init_fpu)

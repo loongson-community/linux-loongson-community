@@ -40,12 +40,9 @@ extern asmlinkage void deskstation_rpc44_handle_int(void);
 extern asmlinkage void deskstation_tyne_handle_int(void);
 extern asmlinkage void mips_magnum_4000_handle_int(void);
 
-extern asmlinkage void r4k_handle_mod(void);
-extern asmlinkage void r2300_handle_mod(void);
-extern asmlinkage void r4k_handle_tlbl(void);
-extern asmlinkage void r2300_handle_tlbl(void);
-extern asmlinkage void r4k_handle_tlbs(void);
-extern asmlinkage void r2300_handle_tlbs(void);
+extern asmlinkage void handle_mod(void);
+extern asmlinkage void handle_tlbl(void);
+extern asmlinkage void handle_tlbs(void);
 extern asmlinkage void handle_adel(void);
 extern asmlinkage void handle_ades(void);
 extern asmlinkage void handle_ibe(void);
@@ -60,15 +57,6 @@ extern asmlinkage void handle_fpe(void);
 extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_reserved(void);
 
-extern asmlinkage void r4xx0_lazy_fpu_switch(struct task_struct *);
-extern asmlinkage void r4xx0_init_fpu(void);
-extern asmlinkage void r4xx0_save_fp(struct sigcontext *);
-extern asmlinkage void r2300_lazy_fpu_switch(struct task_struct *);
-extern asmlinkage void r2300_init_fpu(void);
-extern asmlinkage void r2300_save_fp(struct sigcontext *);
-
-extern asmlinkage void simfp(unsigned int);
-
 static char *cpu_names[] = CPU_NAMES;
 
 char watch_available = 0;
@@ -77,10 +65,6 @@ char vce_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
 void (*dbe_board_handler)(struct pt_regs *regs);
-
-static void (*lazy_fpu_switch)(struct task_struct *);
-static void (*init_fpu)(void);
-void (*save_fp)(struct sigcontext *);
 
 int kstack_depth_to_print = 24;
 
@@ -281,6 +265,7 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 	unsigned long pc;
 	unsigned int insn;
+	extern void simfp(void*);
 
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
@@ -497,6 +482,8 @@ void do_ri(struct pt_regs *regs)
 void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
+	extern void lazy_fpu_switch(void*);
+	extern void init_fpu(void);
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 	if (cpid != 1)
@@ -592,19 +579,6 @@ void set_except_vector(int n, void *addr)
 	}
 }
 
-asmlinkage void (*save_fp_context)(struct sigcontext *sc);
-extern asmlinkage void r4k_save_fp_context(struct sigcontext *sc);
-extern asmlinkage void r2300_save_fp_context(struct sigcontext *sc);
-extern asmlinkage void r6000_save_fp_context(struct sigcontext *sc);
-
-asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
-extern asmlinkage void r4k_restore_fp_context(struct sigcontext *sc);
-extern asmlinkage void r2300_restore_fp_context(struct sigcontext *sc);
-extern asmlinkage void r6000_restore_fp_context(struct sigcontext *sc);
-
-extern asmlinkage void *r4xx0_resume(void *last, void *next);
-extern asmlinkage void *r2300_resume(void *last, void *next);
-
 __initfunc(void trap_init(void))
 {
 	extern char except_vec0_nevada, except_vec0_r4000;
@@ -634,6 +608,29 @@ __initfunc(void trap_init(void))
 	 */
 	watch_init(mips_cputype);
 	setup_dedicated_int();
+
+	set_except_vector(1, handle_mod);
+	set_except_vector(2, handle_tlbl);
+	set_except_vector(3, handle_tlbs);
+	set_except_vector(4, handle_adel);
+	set_except_vector(5, handle_ades);
+	/*
+	 * The Data Bus Error/ Instruction Bus Errors are signaled
+	 * by external hardware.  Therefore these two expection have
+	 * board specific handlers.
+	 */
+	set_except_vector(6, handle_ibe);
+	set_except_vector(7, handle_dbe);
+	ibe_board_handler = default_be_board_handler;
+	dbe_board_handler = default_be_board_handler;
+
+	set_except_vector(8, handle_sys);
+	set_except_vector(9, handle_bp);
+	set_except_vector(10, handle_ri);
+	set_except_vector(11, handle_cpu);
+	set_except_vector(12, handle_ov);
+	set_except_vector(13, handle_tr);
+	set_except_vector(15, handle_fpe);
 
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
@@ -684,39 +681,10 @@ __initfunc(void trap_init(void))
 			       0x100);
 		}
 
-		save_fp_context = r4k_save_fp_context;
-		restore_fp_context = r4k_restore_fp_context;
-		lazy_fpu_switch = r4xx0_lazy_fpu_switch;
-		init_fpu = r4xx0_init_fpu;
-		save_fp = r4xx0_save_fp;
-		resume = r4xx0_resume;
-		set_except_vector(1, r4k_handle_mod);
-		set_except_vector(2, r4k_handle_tlbl);
-		set_except_vector(3, r4k_handle_tlbs);
-		set_except_vector(4, handle_adel);
-		set_except_vector(5, handle_ades);
-
-		/*
-		 * The following two are signaled by onboard hardware and
-		 * should get board specific handlers to get maximum
-		 * available information.
-		 */
-		set_except_vector(6, handle_ibe);
-		set_except_vector(7, handle_dbe);
-
-		set_except_vector(8, handle_sys);
-		set_except_vector(9, handle_bp);
-		set_except_vector(10, handle_ri);
-		set_except_vector(11, handle_cpu);
-		set_except_vector(12, handle_ov);
-		set_except_vector(13, handle_tr);
-		set_except_vector(15, handle_fpe);
 		break;
 
 	case CPU_R6000:
 	case CPU_R6000A:
-		save_fp_context = r6000_save_fp_context;
-		restore_fp_context = r6000_restore_fp_context;
 #if 0
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
@@ -734,34 +702,6 @@ __initfunc(void trap_init(void))
 	case CPU_R3000A:
 		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
 		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
-		save_fp_context = r2300_save_fp_context;
-		restore_fp_context = r2300_restore_fp_context;
-		lazy_fpu_switch = r2300_lazy_fpu_switch;
-		init_fpu = r2300_init_fpu;
-		save_fp = r2300_save_fp;
-		resume = r2300_resume;
-		set_except_vector(1, r2300_handle_mod);
-		set_except_vector(2, r2300_handle_tlbl);
-		set_except_vector(3, r2300_handle_tlbs);
-		set_except_vector(4, handle_adel);
-		set_except_vector(5, handle_ades);
-		/*
-		 * The Data Bus Error/ Instruction Bus Errors are signaled
-		 * by external hardware.  Therefore these two expection have
-		 * board specific handlers.
-		 */
-		set_except_vector(6, handle_ibe);
-		set_except_vector(7, handle_dbe);
-		ibe_board_handler = default_be_board_handler;
-		dbe_board_handler = default_be_board_handler;
-
-		set_except_vector(8, handle_sys);
-		set_except_vector(9, handle_bp);
-		set_except_vector(10, handle_ri);
-		set_except_vector(11, handle_cpu);
-		set_except_vector(12, handle_ov);
-		set_except_vector(13, handle_tr);
-		set_except_vector(15, handle_fpe);
 		break;
 	case CPU_R3041:
 	case CPU_R3051:

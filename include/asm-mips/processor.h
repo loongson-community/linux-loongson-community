@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.15 1999/02/15 02:22:12 ralf Exp $
+/* $Id: processor.h,v 1.16 1999/06/17 13:30:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -202,7 +202,6 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 }
 
 struct pt_regs;
-extern int (*user_mode)(struct pt_regs *);
 
 /*
  * Do necessary setup to start up a newly executed thread.

@@ -242,7 +242,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	struct task_struct *child;
 	unsigned int flags;
 	int res;
-	extern void (*save_fp)(struct sigcontext *);
+	extern void save_fp(void*);
 
 	lock_kernel();
 #if 0

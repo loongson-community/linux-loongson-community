@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.21 1999/01/04 16:03:54 ralf Exp $
+/* $Id: r4xx0.c,v 1.22 1999/06/17 13:25:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -2222,7 +2222,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 
 #define NTLB_ENTRIES_HALF  24  /* Fixed on all R4XX0 variants... */
 
-static inline void r4k_flush_tlb_all(void)
+inline void flush_tlb_all(void)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
@@ -2255,7 +2255,7 @@ static inline void r4k_flush_tlb_all(void)
 	restore_flags(flags);
 }
 
-static void r4k_flush_tlb_mm(struct mm_struct *mm)
+void flush_tlb_mm(struct mm_struct *mm)
 {
 	if(mm->context != 0) {
 		unsigned long flags;
@@ -2271,7 +2271,7 @@ static void r4k_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-static void r4k_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				unsigned long end)
 {
 	if(mm->context != 0) {
@@ -2320,7 +2320,7 @@ static void r4k_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 	}
 }
 
-static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if(vma->vm_mm->context != 0) {
 		unsigned long flags;
@@ -2354,11 +2354,11 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 }
 
 /* Load a new root pointer into the TLB. */
-static void r4k_load_pgd(unsigned long pg_dir)
+void load_pgd(unsigned long pg_dir)
 {
 }
 
-static void r4k_pgd_init(unsigned long page)
+void pgd_init(unsigned long page)
 {
 	unsigned long *p = (unsigned long *) page;
 	int i;
@@ -2385,7 +2385,7 @@ static unsigned long el1_debug[NTLB_ENTRIES];
  * updates the TLB with the new pte(s), and another which also checks
  * for the R4k "end of page" hardware bug and does the needy.
  */
-static void r4k_update_mmu_cache(struct vm_area_struct * vma,
+void update_mmu_cache(struct vm_area_struct * vma,
 				 unsigned long address, pte_t pte)
 {
 	unsigned long flags;
@@ -2459,7 +2459,7 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 }
 #endif
 
-static void r4k_show_regs(struct pt_regs * regs)
+void show_regs(struct pt_regs * regs)
 {
 	/* Saved main processor registers. */
 	printk("$0 : %08lx %08lx %08lx %08lx\n",
@@ -2484,7 +2484,7 @@ static void r4k_show_regs(struct pt_regs * regs)
 	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
 }
 			
-static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 				      unsigned long entryhi, unsigned long pagemask)
 {
         unsigned long flags;
@@ -2765,11 +2765,6 @@ __initfunc(static inline void setup_scache(unsigned int config))
 	setup_noscache_funcs();
 }
 
-static int r4k_user_mode(struct pt_regs *regs)
-{
-	return (regs->cp0_status & ST0_KSU) == KSU_USER;
-}
-
 __initfunc(void ld_mmu_r4xx0(void))
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
@@ -2794,22 +2789,6 @@ __initfunc(void ld_mmu_r4xx0(void))
 	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
 		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
-
-	flush_tlb_all = r4k_flush_tlb_all;
-	flush_tlb_mm = r4k_flush_tlb_mm;
-	flush_tlb_range = r4k_flush_tlb_range;
-	flush_tlb_page = r4k_flush_tlb_page;
-	r4xx0_asid_setup();
-
-	load_pgd = r4k_load_pgd;
-	pgd_init = r4k_pgd_init;
-	update_mmu_cache = r4k_update_mmu_cache;
-
-	show_regs = r4k_show_regs;
-    
-        add_wired_entry = r4k_add_wired_entry;
-
-	user_mode = r4k_user_mode;
 
 	flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
