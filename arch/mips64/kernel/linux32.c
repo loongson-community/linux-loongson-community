@@ -1,5 +1,4 @@
-/* $Id: linux32.c,v 1.14 2000/03/23 00:30:53 ulfc Exp $
- * 
+/* 
  * Conversion between 32-bit and 64-bit native system calls.
  *
  * Copyright (C) 2000 Silicon Graphics, Inc.
@@ -245,27 +244,6 @@ asmlinkage int sys_ftruncate64(unsigned int fd, unsigned int high,
 	if ((int)high < 0)
 		return -EINVAL;
 	return sys_ftruncate(fd, ((long) high << 32) | low);
-}
-
-asmlinkage long sys_newstat(char * filename, struct stat * statbuf);
-
-asmlinkage int sys_stat64(char * filename, struct stat *statbuf)
-{
-	return sys_newstat(filename, statbuf);
-}
-
-asmlinkage long sys_newlstat(char * filename, struct stat * statbuf);
-
-asmlinkage int sys_lstat64(char * filename, struct stat *statbuf)
-{
-	return sys_newlstat(filename, statbuf);
-}
-
-asmlinkage long sys_newfstat(unsigned int fd, struct stat * statbuf);
-
-asmlinkage int sys_fstat64(unsigned int fd, struct stat *statbuf)
-{
-	return sys_newfstat(fd, statbuf);
 }
 
 #if 0

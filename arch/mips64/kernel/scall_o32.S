@@ -1,11 +1,10 @@
-/* $Id: scall_o32.S,v 1.18 2000/03/27 21:04:13 ulfc Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997, 1998, 1999 by Ralf Baechle
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1995 - 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  *
  * Hairy, the userspace application uses a different argument passing
  * convention than the kernel, so we have to translate things from o32
@@ -415,9 +414,9 @@ illegal_syscall:
 	sys	sys_mmap2	6			/* 4210 */
 	sys	sys_truncate64	2
 	sys	sys_ftruncate64	2
-	sys	sys_stat64	3
-	sys	sys_lstat64	3
-	sys	sys_fstat64	3			/* 4210 */
+	sys	sys_newstat	3
+	sys	sys_newlstat	3
+	sys	sys_newfstat	3			/* 4210 */
 	sys	sys_pivot_root	2
 	sys	sys_mincore	3
 	sys	sys_madvise	3

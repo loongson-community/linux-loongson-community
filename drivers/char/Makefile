@@ -319,7 +319,7 @@ obj-$(L_DECODERS) += saa7110.o saa7111.o saa7185.o
 obj-$(L_I2C) += i2c-old.o
 
 ifeq ($(CONFIG_DZ),y)
-  L_OBJS += dz.o
+  obj-$(CONFIG_DZ) += dz.o
 endif
 
 obj-$(CONFIG_NWBUTTON) += nwbutton.o
