@@ -1,9 +1,9 @@
-/* $Id: newport_con.c,v 1.11 1999/04/09 20:23:57 ulfc Exp $
+/* $Id: newport_con.c,v 1.13 1999/04/11 10:37:08 ulfc Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
  * (C) 1998 Thomas Bogendoerfer (tsbogend@alpha.franken.de)
- * (C) 1999 Ulf Carlsson (ulfc@bun.falkenberg.se)
+ * (C) 1999 Ulf Carlsson (ulfc@thepuffingruop.com)
  * 
  * This driver is based on sgicons.c and cons_newport.
  * 
@@ -30,10 +30,15 @@
 #define INCLUDE_LINUX_LOGO_DATA
 #include <asm/linux_logo.h>
 
+#include <video/font.h>
+
 #define LOGO_W		80
 #define LOGO_H		80
 
-extern unsigned char vga_font[];
+extern struct fbcon_font_desc font_vga_8x16;
+
+#define FONT_DATA font_vga_8x16.data
+
 extern struct newport_regs *npregs;
 
 static int logo_active;
@@ -325,7 +330,7 @@ static void newport_putc(struct vc_data *vc, int charattr, int ypos, int xpos)
 {
     unsigned char *p;
     
-    p = &vga_font[(charattr & 0xff) << 4];
+    p = &FONT_DATA[(charattr & 0xff) << 4];
     charattr = (charattr >> 8) & 0xff;
     xpos <<= 3;
     ypos <<= 4;
@@ -374,7 +379,7 @@ static void newport_putcs(struct vc_data *vc, const unsigned short *s,
 			     NPORT_DMODE0_L32);
     
     for (i = 0; i < count; i++, xpos += 8) {
-	p = &vga_font[(s[i] & 0xff) << 4];
+	p = &FONT_DATA[(s[i] & 0xff) << 4];
 
 	newport_wait();
 
