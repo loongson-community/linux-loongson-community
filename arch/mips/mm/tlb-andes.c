@@ -88,7 +88,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				idx = read_c0_index();
 				write_c0_entrylo0(0);
 				write_c0_entrylo1(0);
-				write_c0_entryhi(KSEG0);
+				write_c0_entryhi(CKSEG0);
 				if(idx < 0)
 					continue;
 				tlb_write_indexed();
@@ -126,7 +126,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 			idx = read_c0_index();
 			write_c0_entrylo0(0);
 			write_c0_entrylo1(0);
-			write_c0_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
+			write_c0_entryhi(CKSEG0 + (idx << (PAGE_SHIFT+1)));
 			if (idx < 0)
 				continue;
 			tlb_write_indexed();
@@ -154,7 +154,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		idx = read_c0_index();
 		write_c0_entrylo0(0);
 		write_c0_entrylo1(0);
-		write_c0_entryhi(KSEG0);
+		write_c0_entryhi(CKSEG0);
 		if (idx < 0)
 			goto finish;
 		tlb_write_indexed();
@@ -184,7 +184,7 @@ void local_flush_tlb_one(unsigned long page)
 	write_c0_entrylo1(0);
 	if (idx >= 0) {
 		/* Make sure all entries differ. */
-		write_c0_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		write_c0_entryhi(CKSEG0+(idx<<(PAGE_SHIFT+1)));
 		tlb_write_indexed();
 	}
 	write_c0_entryhi(oldpid);
