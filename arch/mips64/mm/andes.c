@@ -304,7 +304,7 @@ andes_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			if(mm == current->mm)
 				set_entryhi(mm->context & 0xff);
 		}
-		__restore_flags(flags);
+		restore_flags(flags);
 	}
 }
 
