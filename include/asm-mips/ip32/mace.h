@@ -13,7 +13,6 @@
 #define __ASM_MACE_H__
 
 #include <linux/config.h>
-#include <asm/addrspace.h>
 #include <asm/io.h>
 
 /*
@@ -24,19 +23,25 @@
 #undef BIT
 #define BIT(x)	(1 << (x))
 
+#ifdef CONFIG_MIPS32
 typedef struct {
-	volatile uint64_t reg;
+	volatile unsigned long long reg;
 } mace64_t;
 
 typedef struct {
-#ifdef CONFIG_MIPS32
-	uint32_t pad;
-	volatile uint32_t reg;
+	unsigned long pad;
+	volatile unsigned long reg;
+} mace32_t;
 #endif
 #ifdef CONFIG_MIPS64
-	volatile uint64_t reg;
-#endif
+typedef struct {
+	volatile unsigned long reg;
+} mace64_t;
+
+typedef struct {
+	volatile unsigned long reg;
 } mace32_t;
+#endif
 
 #define __mace_read(reg)	\
 	(sizeof(reg) == 4 ? readl(&reg) : readq(&reg))
@@ -47,8 +52,8 @@ typedef struct {
  * PCI interface
  */
 struct mace_pci {
-	volatile uint32_t error_addr;
-	volatile uint32_t error;
+	volatile unsigned int error_addr;
+	volatile unsigned int error;
 #define MACEPCI_ERROR_MASTER_ABORT		BIT(31)
 #define MACEPCI_ERROR_TARGET_ABORT		BIT(30)
 #define MACEPCI_ERROR_DATA_PARITY_ERR		BIT(29)
@@ -72,7 +77,7 @@ struct mace_pci {
 #define MACEPCI_ERROR_DEVSEL_SLOW		0x80
 #define MACEPCI_ERROR_FBB			BIT(1)
 #define MACEPCI_ERROR_66MHZ			BIT(0)
-	volatile uint32_t control;
+	volatile unsigned int control;
 #define MACEPCI_CONTROL_INT(x)			BIT(x)
 #define MACEPCI_CONTROL_INT_MASK		0xff
 #define MACEPCI_CONTROL_SERR_ENA		BIT(8)
@@ -93,13 +98,13 @@ struct mace_pci {
 #define MACEPCI_CONTROL_DPED_INT		BIT(29)
 #define MACEPCI_CONTROL_TAR_INT			BIT(30)
 #define MACEPCI_CONTROL_MAR_INT			BIT(31)
-	volatile uint32_t rev;
-	uint32_t _pad[0xcf8/4 - 4];
-	volatile uint32_t config_addr;
+	volatile unsigned int rev;
+	unsigned int _pad[0xcf8/4 - 4];
+	volatile unsigned int config_addr;
 	union {
-		volatile uint8_t b[4];
-		volatile uint16_t w[2];
-		volatile uint32_t l;
+		volatile unsigned char b[4];
+		volatile unsigned short w[2];
+		volatile unsigned int l;
 	} config_data;
 };
 #define MACEPCI_LOW_MEMORY		0x1a000000
@@ -114,7 +119,7 @@ struct mace_pci {
  * Video interface
  */
 struct mace_video {
-	uint64_t xxx;	/* later... */
+	mace32_t xxx;	/* later... */
 };
 
 /* 
@@ -151,6 +156,10 @@ struct mace_ethernet {
 	/*===================================*/
 	mace32_t rx_fifo;
 };
+#define mace_eth_read(r)	\
+	__mace_read(mace->eth.##r.reg)
+#define mace_eth_write(v,r)	\
+	__mace_write(v,mace->eth.##r.reg)
 
 
 /* 
@@ -159,8 +168,12 @@ struct mace_ethernet {
 
 /* Audio registers */
 struct mace_audio {
-	uint64_t xxx;	/* later... */
+	mace32_t xxx;	/* later... */
 };
+#define mace_perif_audio_read(r)	\
+	__mace_read(mace->perif.audio.##r.reg)
+#define mace_perif_audio_write(v,r)	\
+	__mace_write(v,mace->perif.audio.##r.reg)
 
 /* ISA Control and DMA registers */
 struct mace_isactrl {
@@ -211,23 +224,27 @@ struct mace_isactrl {
 #define MACEISA_SERIAL2_RDMAT_INT	BIT(30)
 #define MACEISA_SERIAL2_RDMAOR_INT	BIT(31)
 
-	uint64_t _pad[0x2000/8 - 4];
+	mace64_t _pad[0x2000/8 - 4];
 
 	mace64_t dp_ram[0x400];
 };
+#define mace_perif_ctrl_read(r)		\
+	__mace_read(mace->perif.ctrl.##r.reg)
+#define mace_perif_ctrl_write(v,r)	\
+	__mace_write(v,mace->perif.ctrl.##r.reg)
 
 /* Keyboard & Mouse registers
- * -> drivers/input/serio/i8042.c */
-struct mace_ps2 {
-	mace32_t tbuf;
-	mace32_t rbuf;
+ * -> drivers/input/serio/maceps2.c */
+struct mace_ps2port {
+	mace32_t tx;
+	mace32_t rx;
 	mace32_t control;
 	mace32_t status;
 };
 
-struct mace_kbdmouse {
-	struct mace_ps2 keyb;
-	struct mace_ps2 mouse;
+struct mace_ps2 {
+	struct mace_ps2port keyb;
+	struct mace_ps2port mouse;
 };
 
 /* I2C registers
@@ -246,10 +263,10 @@ struct mace_i2c {
 
 /* Timer registers */
 typedef union {
-	mace32_t ust_msc;
+	mace64_t ust_msc;
 	struct reg {
-		volatile uint32_t ust;
-		volatile uint32_t msc;
+		volatile unsigned int ust;
+		volatile unsigned int msc;
 	};
 } timer_reg;
 
@@ -271,23 +288,19 @@ struct mace_timers {
 
 struct mace_perif {
 	struct mace_audio audio;
-#define mace_perif_audio_read(r)	__mace_read(mace->perif.audio.##r.reg)
-#define mace_perif_audio_write(v,r)	__mace_write(v,mace->perif.audio.##r.reg)
-	uint8_t _pad0[0x10000 - sizeof(struct mace_audio)];
+	char _pad0[0x10000 - sizeof(struct mace_audio)];
 
 	struct mace_isactrl ctrl;
-#define mace_perif_ctrl_read(r)		__mace_read(mace->perif.ctrl.##r.reg)
-#define mace_perif_ctrl_write(v,r)	__mace_write(v,mace->perif.ctrl.##r.reg)
-	uint8_t _pad1[0x10000 - sizeof(struct mace_isactrl)];
+	char _pad1[0x10000 - sizeof(struct mace_isactrl)];
 
-	struct mace_kbdmouse kbdmouse;
-	uint8_t _pad2[0x10000 - sizeof(struct mace_kbdmouse)];
+	struct mace_ps2 ps2;
+	char _pad2[0x10000 - sizeof(struct mace_ps2)];
 
 	struct mace_i2c i2c;
-	uint8_t _pad3[0x10000 - sizeof(struct mace_i2c)];
+	char _pad3[0x10000 - sizeof(struct mace_i2c)];
 
 	struct mace_timers timers;
-	uint8_t _pad4[0x10000 - sizeof(struct mace_timers)];
+	char _pad4[0x10000 - sizeof(struct mace_timers)];
 };
 
 
@@ -296,60 +309,56 @@ struct mace_perif {
  */
 
 /* Parallel port */
-struct mace_parallel {
-	uint64_t xxx;	/* later... */
+struct mace_parallel {	/* later... */
 };
 
-struct mace_ecp1284 {
-	uint64_t xxx;	/* later... */
+struct mace_ecp1284 {	/* later... */
 };
 
 /* Serial port */
 struct mace_serial {
-	uint64_t xxx;	/* later... */
+	mace64_t xxx;	/* later... */
 };
 
 struct mace_isa {
 	struct mace_parallel parallel;
-	uint8_t _pad1[0x8000 - sizeof(struct mace_parallel)];
+	char _pad1[0x8000 - sizeof(struct mace_parallel)];
 
 	struct mace_ecp1284 ecp1284;
-	uint8_t _pad2[0x8000 - sizeof(struct mace_ecp1284)];
+	char _pad2[0x8000 - sizeof(struct mace_ecp1284)];
 
 	struct mace_serial serial1;
-	uint8_t _pad3[0x8000 - sizeof(struct mace_serial)];
+	char _pad3[0x8000 - sizeof(struct mace_serial)];
 
 	struct mace_serial serial2;
-	uint8_t _pad4[0x8000 - sizeof(struct mace_serial)];
+	char _pad4[0x8000 - sizeof(struct mace_serial)];
 
 	mace32_t rtc[0x10000/8];
 };
 
 struct sgi_mace {
-	uint8_t _reserved[0x80000];
+	char _reserved[0x80000];
 
 	struct mace_pci pci;
-	uint8_t _pad0[0x80000 - sizeof(struct mace_pci)];
+	char _pad0[0x80000 - sizeof(struct mace_pci)];
 
 	struct mace_video video_in1;
-	uint8_t _pad1[0x80000 - sizeof(struct mace_video)];
+	char _pad1[0x80000 - sizeof(struct mace_video)];
 
 	struct mace_video video_in2;
-	uint8_t _pad2[0x80000 - sizeof(struct mace_video)];
+	char _pad2[0x80000 - sizeof(struct mace_video)];
 
 	struct mace_video video_out;
-	uint8_t _pad3[0x80000 - sizeof(struct mace_video)];
+	char _pad3[0x80000 - sizeof(struct mace_video)];
 
 	struct mace_ethernet eth;
-#define mace_eth_read(r)	__mace_read(mace->eth.##r.reg)
-#define mace_eth_write(v,r)	__mace_write(v,mace->eth.##r.reg)
-	uint8_t _pad4[0x80000 - sizeof(struct mace_ethernet)];
+	char _pad4[0x80000 - sizeof(struct mace_ethernet)];
 
 	struct mace_perif perif;
-	uint8_t _pad5[0x80000 - sizeof(struct mace_perif)];
+	char _pad5[0x80000 - sizeof(struct mace_perif)];
 
 	struct mace_isa isa;
-	uint8_t _pad6[0x80000 - sizeof(struct mace_isa)];
+	char _pad6[0x80000 - sizeof(struct mace_isa)];
 };
 
 extern struct sgi_mace *mace;
