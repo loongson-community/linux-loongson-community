@@ -97,8 +97,8 @@ static int indy_rtc_set_time(unsigned long tim)
 static unsigned long dosample(volatile unsigned char *tcwp,
 			      volatile unsigned char *tc2p)
 {
-	unsigned long ct0, ct1;
-	unsigned char msb, lsb;
+	u32 ct0, ct1;
+	volatile u8 msb, lsb;
 
 	/* Start the counter. */
 	*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CALL | SGINT_TCWORD_MRGEN);
