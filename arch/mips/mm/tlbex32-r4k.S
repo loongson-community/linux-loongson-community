@@ -94,19 +94,17 @@
 	P_MTC0	ptr, CP0_ENTRYLO0;
 
 #define DO_FAULT(write) \
-	.set	noat; \
 	SAVE_ALL; \
 	mfc0	a2, CP0_BADVADDR; \
-	KMODE; \
-	.set	at; \
 	move	a0, sp; \
+	sw	a2, PT_BVADDR(sp); \
+	KMODE; \
 	jal	do_page_fault; \
 	 li	a1, write; \
 	j	ret_from_exception; \
-	 nop; \
-	.set	noat;
+	 nop;
 
-	/* Check is PTE is present, if not then jump to LABEL.
+	/* Check if PTE is present, if not then jump to LABEL.
 	 * PTR points to the page table where this PTE is located,
 	 * when the macro is done executing PTE will be restored
 	 * with it's original value.
@@ -141,6 +139,7 @@
 
 
 	.set	noreorder
+	.set	noat
 
 /*
  * From the IDT errata for the QED RM5230 (Nevada), processor revision 1.0:
@@ -170,7 +169,6 @@
 	 */
 	.align	5
 	NESTED(handle_tlbl, PT_SIZE, sp)
-	.set	noat
 #if BCM1250_M3_WAR
 	mfc0	k0, CP0_BADVADDR
 	mfc0	k1, CP0_ENTRYHI
@@ -183,7 +181,6 @@
 	.set	mips0
 1:
 #endif
-invalid_tlbl:
 #ifdef TLB_OPTIMIZE
 	.set	mips3
 	/* Test present bit in entry. */
@@ -208,10 +205,8 @@ nopage_tlbl:
 
 	.align	5
 	NESTED(handle_tlbs, PT_SIZE, sp)
-	.set	noat
 #ifdef TLB_OPTIMIZE
 	.set	mips3
-        li      k0,0
 	LOAD_PTE(k0, k1)
 	R5K_HAZARD
 	tlbp				# find faulting entry
@@ -233,7 +228,6 @@ nopage_tlbs:
 
 	.align	5
 	NESTED(handle_mod, PT_SIZE, sp)
-	.set	noat
 #ifdef TLB_OPTIMIZE
 	.set	mips3
 	LOAD_PTE(k0, k1)

@@ -122,17 +122,15 @@
 	P_MTC0	ptr, CP0_ENTRYLO0;
 
 #define DO_FAULT(write) \
-	.set	noat; \
 	SAVE_ALL; \
 	mfc0	a2, CP0_BADVADDR; \
-	KMODE; \
-	.set	at; \
 	move	a0, sp; \
+	sw	a2, PT_BVADDR(sp); \
+	KMODE; \
 	jal	do_page_fault; \
 	 li	a1, write; \
 	j	ret_from_exception; \
-	 nop; \
-	.set	noat;
+	 nop;
 
 	/* Check is PTE is present, if not then jump to LABEL.
 	 * PTR points to the page table where this PTE is located,
@@ -168,11 +166,11 @@
 	PTE_S	pte, (ptr);
 
 	.set	noreorder
+	.set	noat
 
 	.align	5
 	NESTED(handle_tlbl, PT_SIZE, sp)
-	.set	noat
-invalid_tlbl:
+
 #ifdef TLB_OPTIMIZE
 	/* Test present bit in entry. */
 	LOAD_PTE(k0, k1)
@@ -189,18 +187,17 @@ invalid_tlbl:
 	.set	mips3
 	eret
 	.set	mips0
+nopage_tlbl:
 #endif
 
-nopage_tlbl:
 	DO_FAULT(0)
 	END(handle_tlbl)
 
 	.align	5
 	NESTED(handle_tlbs, PT_SIZE, sp)
-	.set	noat
+
 #ifdef TLB_OPTIMIZE
 	.set	mips3
-        li      k0,0
 	LOAD_PTE(k0, k1)
 	tlbp				# find faulting entry
 	PTE_WRITABLE(k0, k1, nopage_tlbs)
@@ -215,15 +212,15 @@ nopage_tlbl:
 	.set	mips3
 	eret
 	.set	mips0
+nopage_tlbs:
 #endif
 
-nopage_tlbs:
 	DO_FAULT(1)
 	END(handle_tlbs)
 
 	.align	5
 	NESTED(handle_mod, PT_SIZE, sp)
-	.set	noat
+
 #ifdef TLB_OPTIMIZE
 	.set	mips3
 	LOAD_PTE(k0, k1)
@@ -245,9 +242,9 @@ nopage_tlbs:
 	.set	mips3
 	eret
 	.set	mips0
+nowrite_mod:
 #endif
 
-nowrite_mod:
 	DO_FAULT(1)
 	END(handle_mod)
 
