@@ -17,8 +17,6 @@
 
 struct newport_regs *npregs;
 
-EXPORT_SYMBOL(npregs);
-
 /* Kernel routines for supporting graphics context switching */
 
 void newport_save (void *y)
@@ -27,7 +25,7 @@ void newport_save (void *y)
 	newport_wait ();
 
 #define LOAD(val) x->val = npregs->set.val;
-#define LOADI(val) x->val = npregs->set.val.i;
+#define LOADI(val) x->val = npregs->set.val.word;
 #define LOADC(val) x->val = npregs->cset.val;
 	
 	LOAD(drawmode1);
@@ -90,7 +88,7 @@ void newport_save (void *y)
 	newport_bfwait ();
 	LOAD (dcbmode);
 	newport_bfwait ();
-	x->dcbdata0 = npregs->set.dcbdata0.all;
+	x->dcbdata0 = npregs->set.dcbdata0.byword;
 	newport_bfwait ();
 	LOAD(dcbdata1);
 }
@@ -110,7 +108,7 @@ void newport_restore (void *y)
 {
 	newport_ctx *x = y;
 #define STORE(val) npregs->set.val = x->val
-#define STOREI(val) npregs->set.val.i = x->val
+#define STOREI(val) npregs->set.val.word = x->val
 #define STOREC(val) npregs->cset.val = x->val
 	newport_wait ();
 	

@@ -33,5 +33,4 @@ EXPORT_SYMBOL(disable_gconsole);
 EXPORT_SYMBOL(enable_gconsole);
 EXPORT_SYMBOL(remove_mapping);
 
-
-
+EXPORT_SYMBOL(npregs);
