@@ -140,8 +140,15 @@ static void mips3264_flush_cache_page_pc(struct vm_area_struct *vma,
 		page = KSEG0 + (page & (dcache_size - 1));
 		if (cpu_has_dc_aliases || exec)
 			blast_dcache_page_indexed(page);
-		if (exec)
-			blast_icache_page_indexed(page);
+		if (exec) {
+			if (cpu_has_vtag_icache) {
+				int cpu = smp_processor_id();
+
+				if (cpu_context(cpu, vma->vm_mm) != 0)
+					drop_mmu_context(vma->vm_mm, cpu);
+			} else
+				blast_icache_page_indexed(page);
+		}
 	}
 }
 
@@ -174,7 +181,14 @@ mips3264_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	 */
 	addr = (unsigned long) page_address(page);
 	blast_dcache_page(addr);
-	blast_icache();
+
+	if (cpu_has_vtag_icache) {
+		int cpu = smp_processor_id();
+
+		if (cpu_context(cpu, vma->vm_mm) != 0)
+			drop_mmu_context(vma->vm_mm, cpu);
+	} else
+		blast_icache();
 }
 
 /*
