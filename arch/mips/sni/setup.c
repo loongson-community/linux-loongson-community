@@ -91,6 +91,7 @@ static void __init sni_display_setup(void)
 		si->orig_video_cols	= di->CursorMaxXPosition;
 		si->orig_video_lines	= di->CursorMaxYPosition;
 		si->orig_video_isVGA	= VIDEO_TYPE_VGAC;
+		si->orig_video_points	= 16;
 	}
 
 	conswitchp = &vga_con;
