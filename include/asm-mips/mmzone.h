@@ -5,6 +5,7 @@
 #ifndef _ASM_MMZONE_H_
 #define _ASM_MMZONE_H_
 
+#include <asm/page.h>
 #include <mmzone.h>
 
 #define kvaddr_to_nid(kvaddr)	pa_to_nid(__pa(kvaddr))
