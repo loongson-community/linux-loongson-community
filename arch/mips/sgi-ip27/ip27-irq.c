@@ -226,14 +226,13 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 }
 
 /* Shutdown one of the (PCI ...) IRQs routes over a bridge.  */
-static unsigned int shutdown_bridge_irq(unsigned int irq)
+static void shutdown_bridge_irq(unsigned int irq)
 {
 	bridge_t *bridge;
 	int pin, swlevel;
 	cpuid_t cpu;
 
-	if (irq < BASE_PCI_IRQ)
-		return 0;
+	BUG_ON(irq < BASE_PCI_IRQ);
 
 	bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq),
 	                                     WID_FROM_PCI_IRQ(irq));
@@ -250,8 +249,6 @@ static unsigned int shutdown_bridge_irq(unsigned int irq)
 
 	bridge->b_int_enable &= ~(1 << pin);
 	bridge->b_widget.w_tflush;                      /* Flush */
-
-	return 0;       /* Never anything pending.  */
 }
 
 static inline void enable_bridge_irq(unsigned int irq)
