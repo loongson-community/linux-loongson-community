@@ -396,29 +396,26 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 #endif
 
 	/* Ack the CPU interrupt */
-	if (port_num == 0) {
+	switch (port_num) {
+	case 0:
 		is = OCD_READ(RM9000x2_OCD_INTP0STATUS1);
 		OCD_WRITE(RM9000x2_OCD_INTP0CLEAR1, is);
 
 #ifdef CONFIG_SMP
-		is = *(volatile uint32_t *)(ocd_base + 0x2b00);
-		*(volatile uint32_t *)(ocd_base + 0x2b0c) = is;
 		is = OCD_READ(RM9000x2_OCD_INTP1STATUS1);
 		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR1, is);
 #endif
-	}
+		break;
 
-	/* Ack the CPU interrupt */
-	if (port_num == 1) {
+	case 1:
 		is = OCD_READ(RM9000x2_OCD_INTP0STATUS0);
 		OCD_WRITE(RM9000x2_OCD_INTP0CLEAR0, is);
 
 #ifdef CONFIG_SMP
-		is = *(volatile uint32_t *)(ocd_base + 0x2b00);
-		*(volatile uint32_t *)(ocd_base + 0x2b0c) = is;
 		is = OCD_READ(RM9000x2_OCD_INTP1STATUS0);
 		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR0, is);
 #endif
+		break;
 	}
 
 	eth_int_cause1 = TITAN_GE_READ(TITAN_GE_INTR_XDMA_CORE_A);
