@@ -242,12 +242,11 @@ void ip27_hub_error(struct pt_regs *regs)
 /*
  * Get values that vary depending on which CPU and bit we're operating on.
  */
-static hub_intmasks_t *intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
+static void intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
 				hubreg_t **intpend_masks, int *ip)
 {
-	hub_intmasks_t *hub_intmasks;
+	hub_intmasks_t *hub_intmasks = &cpu_data[cpu].p_intmasks;
 
-	hub_intmasks = &cpu_data[cpu].p_intmasks;
 	if (bit < N_INTPEND_BITS) {
 		*intpend_masks = hub_intmasks->intpend0_masks;
 		*ip = 0;
@@ -257,7 +256,6 @@ static hub_intmasks_t *intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
 		*ip = 1;
 		*new_bit = bit - N_INTPEND_BITS;
 	}
-	return hub_intmasks;
 }
 
 static int intr_connect_level(int cpu, int bit)
@@ -268,7 +266,7 @@ static int intr_connect_level(int cpu, int bit)
 	hubreg_t *intpend_masks;
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
 
-	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
+	intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
 
 	/* Make sure it's not already pending when we connect it. */
 	REMOTE_HUB_CLR_INTR(nasid, bit + ip * N_INTPEND_BITS);
@@ -277,7 +275,7 @@ static int intr_connect_level(int cpu, int bit)
 
 	if (ip == 0) {
 		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
-				PI_INT_MASK_OFFSET * slice);
+		                PI_INT_MASK_OFFSET * slice);
 	} else {
 		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
 				PI_INT_MASK_OFFSET * slice);
@@ -295,7 +293,7 @@ static int intr_disconnect_level(int cpu, int bit)
 	hubreg_t *intpend_masks;
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
 
-	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
+	intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
 	intpend_masks[0] &= ~(1ULL << (u64)bit);
 	if (ip == 0) {
 		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
