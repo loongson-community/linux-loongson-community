@@ -164,7 +164,7 @@ void show_regs(struct pt_regs *regs)
 	/*
 	 * Saved main processor registers
 	 */
-	for (i = 0; i < 32; i++) {
+	for (i = 0; i < 32; ) {
 		if ((i % 4) == 0)
 			printk("$%2d :", i);
 		if (i == 0)
