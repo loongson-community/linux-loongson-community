@@ -193,7 +193,7 @@ static inline void free_pmd_slow(pmd_t *pmd)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
 #define pgd_alloc(mm)           get_pgd_fast()
 
-extern pte_t kptbl[(PAGE_SIZE<<KPTBL_PAGE_ORDER)/sizeof(pte_t)];
+extern pte_t kptbl[(PAGE_SIZE << PGD_ORDER)/sizeof(pte_t)];
 extern pmd_t kpmdtbl[PTRS_PER_PMD];
 
 extern int do_check_pgt_cache(int, int);

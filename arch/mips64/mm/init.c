@@ -226,10 +226,10 @@ void __init paging_init(void)
 
 	free_area_init(zones_size);
 
-	memset((void *)kptbl, 0, PAGE_SIZE << KPTBL_PAGE_ORDER);
+	memset((void *)kptbl, 0, PAGE_SIZE << PGD_ORDER);
 	memset((void *)kpmdtbl, 0, PAGE_SIZE);
 	pgd_set(swapper_pg_dir, kpmdtbl);
-	for (i = 0; i < (1 << KPTBL_PAGE_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
+	for (i = 0; i < (1 << PGD_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
 		pmd_val(*pmd) = (unsigned long)pte;
 }
 

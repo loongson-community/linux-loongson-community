@@ -182,7 +182,7 @@ LINKFLAGS += -Ttext $(LOADADDR)
 
 HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
-SUBDIRS := $(addprefix arch/mips64/, tools) $(SUBDIRS) $(addprefix arch/mips64/, kernel mm lib)
+SUBDIRS := $(addprefix arch/mips/, tools) $(SUBDIRS) $(addprefix arch/mips64/, kernel mm lib)
 CORE_FILES := arch/mips64/kernel/kernel.o arch/mips64/mm/mm.o $(CORE_FILES)
 LIBS := arch/mips64/lib/lib.a $(LIBS)
 

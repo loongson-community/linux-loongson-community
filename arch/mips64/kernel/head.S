@@ -171,7 +171,7 @@ NESTED(smp_bootstrap, 16, sp)
 	page	swapper_pg_dir, 1
 	page	invalid_pte_table, 0
 	page	invalid_pmd_table, 1
-	page	kptbl, KPTBL_PAGE_ORDER
+	page	kptbl, _PGD_ORDER
 	.globl	ekptbl
 	page	kpmdtbl, 0
 ekptbl:

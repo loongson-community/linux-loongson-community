@@ -106,7 +106,7 @@ extern void (*_flush_cache_l1)(void);
  * Vmalloc handling: vmalloc uses swapper_pg_dir[0] (returned by 
  * pgd_offset_k), which is initalized to point to kpmdtbl. kpmdtbl is 
  * the only single page pmd in the system. kpmdtbl entries point into 
- * kptbl[] array. We reserve 1<<KPTBL_PAGE_ORDER pages to hold the
+ * kptbl[] array. We reserve 1 << PGD_ORDER pages to hold the
  * vmalloc range translations, which the fault handler looks at.
  */
 
@@ -127,16 +127,18 @@ extern void (*_flush_cache_l1)(void);
 #define PTRS_PER_PGD	1024
 #define PTRS_PER_PMD	1024
 #define PTRS_PER_PTE	512
-#define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
+#define PGD_ORDER		1
+
+#define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
 
-#define KPTBL_PAGE_ORDER  1
-#define VMALLOC_START     XKSEG
-#define VMALLOC_VMADDR(x) ((unsigned long)(x))
-#define VMALLOC_END       \
-	(VMALLOC_START + ((1 << KPTBL_PAGE_ORDER) * PTRS_PER_PTE * PAGE_SIZE))
+#define VMALLOC_START		XKSEG
+#define VMALLOC_VMADDR(x)	((unsigned long)(x))
+#define VMALLOC_END	\
+	(VMALLOC_START + ((1 << PGD_ORDER) * PTRS_PER_PTE * PAGE_SIZE))
 
-/* Note that we shift the lower 32bits of each EntryLo[01] entry
+/*
+ * Note that we shift the lower 32bits of each EntryLo[01] entry
  * 6 bits to the left. That way we can convert the PFN into the
  * physical address by a single 'and' operation and gain 6 additional
  * bits for storing information which isn't present in a normal
