@@ -82,8 +82,13 @@ static void __init jazz_irq_setup(void)
 
 void __init jazz_setup(void)
 {
+	/* Map 0xe0000000 -> 0x0:800005C0, 0xe0010000 -> 0x1:30000580 */
 	add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
+
+	/* Map 0xe2000000 -> 0x0:900005C0, 0xe3010000 -> 0x0:910005C0 */
 	add_wired_entry (0x02400017, 0x02440017, 0xe2000000, PM_16M);
+
+	/* Map 0xe4000000 -> 0x0:600005C0, 0xe4100000 -> 400005C0 */
 	add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
 
 	irq_setup = jazz_irq_setup;
