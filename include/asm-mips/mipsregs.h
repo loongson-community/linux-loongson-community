@@ -12,7 +12,9 @@
 #ifndef _ASM_MIPSREGS_H
 #define _ASM_MIPSREGS_H
 
+#include <linux/config.h>
 #include <linux/linkage.h>
+#include <asm/system.h>
 
 /*
  * The following macros are especially useful for __asm__
@@ -149,7 +151,6 @@
 /*
  * Values for PageMask register
  */
-#include <linux/config.h>
 #ifdef CONFIG_CPU_VR41XX
 
 /* Why doesn't stupidity hurt ... */
@@ -446,7 +447,32 @@
 
 #ifndef _LANGUAGE_ASSEMBLY
 
-#include <asm/system.h>
+/*
+ * Functions to access the r10k performance counter and control registers
+ */
+#define read_r10k_perf_cntr(counter)                            \
+({ unsigned int __res;                                          \
+        __asm__ __volatile__(                                   \
+        "mfpc\t%0, "STR(counter)                                \
+        : "=r" (__res));                                        \
+        __res;})
+
+#define write_r10k_perf_cntr(counter,val)                       \
+        __asm__ __volatile__(                                   \
+        "mtpc\t%0, "STR(counter)                                \
+        : : "r" (val));
+
+#define read_r10k_perf_cntl(counter)                            \
+({ unsigned int __res;                                          \
+        __asm__ __volatile__(                                   \
+        "mfps\t%0, "STR(counter)                                \
+        : "=r" (__res));                                        \
+        __res;})
+
+#define write_r10k_perf_cntl(counter,val)                       \
+        __asm__ __volatile__(                                   \
+        "mtps\t%0, "STR(counter)                                \
+        : : "r" (val));
 
 /*
  * Macros to access the system control coprocessor
