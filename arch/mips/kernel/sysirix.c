@@ -469,6 +469,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 		int *pageno = (int *) (regs->regs[base + 6]);
 		struct mm_struct *mm = current->mm;
 		pgd_t *pgdp;
+		pud_t *pudp;
 		pmd_t *pmdp;
 		pte_t *ptep;
 
@@ -478,7 +479,8 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 
 		down_read(&mm->mmap_sem);
 		pgdp = pgd_offset(mm, addr);
-		pmdp = pmd_offset(pgdp, addr);
+		pudp = pud_offset(pgdp, addr);
+		pmdp = pmd_offset(pudp, addr);
 		ptep = pte_offset(pmdp, addr);
 		retval = -EINVAL;
 		if (ptep) {

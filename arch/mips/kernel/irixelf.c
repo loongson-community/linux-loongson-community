@@ -8,7 +8,7 @@
  *
  * Copyright (C) 1993 - 1994 Eric Youngdale <ericy@cais.com>
  * Copyright (C) 1996 - 2004 David S. Miller <dm@engr.sgi.com>
- * Copyright (C) 2004 Steven J. Hill <sjhill@realitydiluted.com>
+ * Copyright (C) 2004 - 2005 Steven J. Hill <sjhill@realitydiluted.com>
  */
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -255,7 +255,6 @@ static unsigned int load_irix_interp(struct elfhdr * interp_elf_ex,
 	/* First of all, some simple consistency checks */
 	if ((interp_elf_ex->e_type != ET_EXEC &&
 	     interp_elf_ex->e_type != ET_DYN) ||
-	     !irix_elf_check_arch(interp_elf_ex) ||
 	     !interpreter->f_op->mmap) {
 		printk("IRIX interp has bad e_type %d\n", interp_elf_ex->e_type);
 		return 0xffffffff;
@@ -396,7 +395,7 @@ static int verify_binary(struct elfhdr *ehp, struct linux_binprm *bprm)
 
 	/* First of all, some simple consistency checks */
 	if((ehp->e_type != ET_EXEC && ehp->e_type != ET_DYN) ||
-	    !irix_elf_check_arch(ehp) || !bprm->file->f_op->mmap) {
+	    !bprm->file->f_op->mmap) {
 		return -ENOEXEC;
 	}
 
@@ -411,62 +410,59 @@ static int verify_binary(struct elfhdr *ehp, struct linux_binprm *bprm)
 	 * XXX all registers as 64bits on cpu's capable of this at
 	 * XXX exception time plus frob the XTLB exception vector.
 	 */
-	if((ehp->e_flags & 0x20)) {
+	if((ehp->e_flags & EF_MIPS_ABI2)) {
 		return -ENOEXEC;
 	}
 
 	return 0; /* It's ok. */
 }
 
+/*
+ * This is where the detailed check is performed. Irix binaries
+ * use interpreters with 'libc.so' in the name, so this function
+ * can differentiate between Linux and Irix binaries.
+ */
 #define IRIX_INTERP_PREFIX "/usr/gnemul/irix"
 
-/* Look for an IRIX ELF interpreter. */
 static inline int look_for_irix_interpreter(char **name,
 					    struct file **interpreter,
 					    struct elfhdr *interp_elf_ex,
-					    struct elf_phdr *epp,
-					    struct linux_binprm *bprm, int pnum)
+					    struct elf_phdr *ihdr,
+					    struct linux_binprm *bprm)
 {
-	int i;
 	int retval = -EINVAL;
 	struct file *file = NULL;
 
-	*name = NULL;
-	for(i = 0; i < pnum; i++, epp++) {
-		if (epp->p_type != PT_INTERP)
-			continue;
+	*name = kmalloc((ihdr->p_filesz + strlen(IRIX_INTERP_PREFIX)),
+			GFP_KERNEL);
+	if (!*name)
+		return -ENOMEM;
 
-		/* It is illegal to have two interpreters for one executable. */
-		if (*name != NULL)
-			goto out;
+	strcpy(*name, IRIX_INTERP_PREFIX);
+	retval = kernel_read(bprm->file, ihdr->p_offset, (*name + 16),
+	                     ihdr->p_filesz);
+	if (retval < 0)
+		goto out;
 
-		*name = kmalloc((epp->p_filesz + strlen(IRIX_INTERP_PREFIX)),
-				GFP_KERNEL);
-		if (!*name)
-			return -ENOMEM;
-
-		strcpy(*name, IRIX_INTERP_PREFIX);
-		retval = kernel_read(bprm->file, epp->p_offset, (*name + 16),
-		                     epp->p_filesz);
-		if (retval < 0)
-			goto out;
-
-		file = open_exec(*name);
-		if (IS_ERR(file)) {
-			retval = PTR_ERR(file);
-			goto out;
-		}
-		retval = kernel_read(file, 0, bprm->buf, 128);
-		if (retval < 0)
-			goto dput_and_out;
-
-		*interp_elf_ex = *(struct elfhdr *) bprm->buf;
+	file = open_exec(*name);
+	if (IS_ERR(file)) {
+		retval = PTR_ERR(file);
+		goto out;
 	}
+
+	retval = kernel_read(file, 0, bprm->buf, 128);
+	if (retval < 0)
+		goto dput_and_out;
+
+	*interp_elf_ex = *(struct elfhdr *) bprm->buf;
+
 	*interpreter = file;
+
 	return 0;
 
 dput_and_out:
 	fput(file);
+
 out:
 	kfree(*name);
 	return retval;
@@ -657,12 +653,18 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	end_code = 0;
 	end_data = 0;
 
-	retval = look_for_irix_interpreter(&elf_interpreter,
-	                                   &interpreter,
-					   &interp_elf_ex, elf_phdata, bprm,
-					   elf_ex.e_phnum);
-	if (retval)
+	/*
+	 * If we get a return value, we change the value to be ENOEXEC
+	 * so that we can exit gracefully and the main binary format
+	 * search loop in 'fs/exec.c' will move onto the next handler
+	 * which should be the normal ELF binary handler.
+	 */
+	retval = look_for_irix_interpreter(&elf_interpreter, &interpreter,
+					   &interp_elf_ex, elf_ihdr, bprm);
+	if (retval) {
+		retval = -ENOEXEC;
 		goto out_free_file;
+	}
 
 	if (elf_interpreter) {
 		retval = verify_irix_interpreter(&interp_elf_ex);
@@ -813,8 +815,15 @@ static int load_irix_library(struct file *file)
 
 	/* First of all, some simple consistency checks. */
 	if(elf_ex.e_type != ET_EXEC || elf_ex.e_phnum > 2 ||
-	   !irix_elf_check_arch(&elf_ex) || !file->f_op->mmap)
+	   !file->f_op->mmap)
 		return -ENOEXEC;
+
+	/*
+	 * FIXME: We need to check the SGI_ONLY flag if possible,
+	 *        for now we will issue a warning when this occurs
+	 *        which should be investigated further.
+	 */
+	printk("%s: Check SGI_ONLY flag in this library!\n", __FUNCTION__);
 
 	/* Now read in all of the header information. */
 	if(sizeof(struct elf_phdr) * elf_ex.e_phnum > PAGE_SIZE)
@@ -1302,8 +1311,17 @@ static int __init init_irix_binfmt(void)
 {
 	int init_inventory(void);
 	extern asmlinkage unsigned long sys_call_table;
+	extern asmlinkage unsigned long sys_call_table_irix5;
 
 	init_inventory();
+
+	/*
+	 * Copy the IRIX5 syscall table (8000 bytes) into the main syscall
+	 * table. The IRIX5 calls are located by an offset of 8000 bytes
+	 * from the beginning of the main table.
+	 */
+	memcpy((void *) ((unsigned long) &sys_call_table + 8000),
+		&sys_call_table_irix5, 8000);
 
 	return register_binfmt(&irix_format);
 }
