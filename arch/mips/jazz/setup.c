@@ -54,10 +54,12 @@ static struct resource jazz_io_resources[] = {
 	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
 };
 
-#define JAZZ_IO_RESOURCES (sizeof(pcimt_io_resources)/sizeof(struct resource))
+#define JAZZ_IO_RESOURCES (sizeof(jazz_io_resources)/sizeof(struct resource))
 
 static void __init jazz_setup(void)
 {
+	int i;
+
 	/* Map 0xe0000000 -> 0x0:800005C0, 0xe0010000 -> 0x1:30000580 */
 	add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
 
