@@ -178,7 +178,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 			if (idx < 0)
 				continue;
 			/* Make sure all entries differ. */
-			write_c0_entryhi(KSEG0+idx*0x2000);
+			write_c0_entryhi(XKPHYS+idx*0x2000);
 			BARRIER;
 			tlb_write_indexed();
 			BARRIER;
