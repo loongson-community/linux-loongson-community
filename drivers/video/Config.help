@@ -187,19 +187,18 @@ CONFIG_FB_ATY128
   module, say M here and read <file:Documentation/modules.txt>.
 
 CONFIG_FB_MAXINE
-  Say Y here to directly support the on-board framebuffer in the
-  Maxine (5000/20, /25, /33) version of the DECstation.  There is a
-  page dedicated to Linux on DECstations at <http://decstation.unix-ag.org/>.
+  Support for the onboard framebuffer (1024x768x8) in the Personal
+  DECstation series (Personal DECstation 5000/20, /25, /33, /50,
+  Codename "Maxine").
 
 CONFIG_FB_PMAG_BA
-  Say Y here to directly support the on-board PMAG-BA framebuffer in
-  the 5000/1xx versions of the DECstation.  There is a page dedicated
-  to Linux on DECstations at <http://decstation.unix-ag.org/>.
+  Support for the PMAG-BA TURBOchannel framebuffer card (1024x864x8)
+  used mainly in the MIPS-based DECstation series.
 
 CONFIG_FB_PMAGB_B
-  Say Y here to directly support the on-board PMAGB-B framebuffer in
-  the 5000/1xx versions of the DECstation.  There is a page dedicated
-  to Linux on DECstations at <http://decstation.unix-ag.org/>.
+  Support for the PMAGB-B TURBOchannel framebuffer card used mainly
+  in the MIPS-based DECstation series. The card is currently only 
+  supported in 1280x1024x8 mode.  
 
 CONFIG_FB_NEOMAGIC
   This driver supports notebooks with NeoMagic PCI chips.
