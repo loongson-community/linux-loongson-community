@@ -498,69 +498,47 @@
 ({ unsigned long __res;							\
 	if (sel == 0)							\
 		__asm__ __volatile__(					\
-		".set\tmips3\n\t"					\
-		"dmfc0\t%0, " #source "\n\t"				\
-		".set\tmips0"						\
-		: "=r" (__res));					\
+			".set\tmips3\n\t"				\
+			"dmfc0\t%0, " #source "\n\t"			\
+			".set\tmips0"					\
+			: "=r" (__res));				\
 	else								\
 		__asm__ __volatile__(					\
-		".set\tmips64\n\t"					\
-		"dmfc0\t%0, " #source ", " #sel "\n\t"			\
-		".set\tmips0"						\
-		: "=r" (__res));					\
+			".set\tmips64\n\t"				\
+			"dmfc0\t%0, " #source ", " #sel "\n\t"		\
+			".set\tmips0"					\
+			: "=r" (__res));				\
 	__res;								\
 })
 
 #define __write_32bit_c0_register(register, sel, value)			\
 do {									\
 	if (sel == 0)							\
-		if (__builtin_constant_p(value) && (value) == 0)	\
-			__asm__ __volatile__(				\
-			"mtc0\t$0, " #register "\n\t");			\
-		else							\
-			__asm__ __volatile__(				\
-			"mtc0\t%0, " #register "\n\t"			\
-			: : "r" (value));				\
+		__asm__ __volatile__(					\
+			"mtc0\t%z0, " #register "\n\t"			\
+			: : "Jr" (value));				\
 	else								\
-		if (__builtin_constant_p(value) && (value) == 0)	\
-			__asm__ __volatile__(				\
+		__asm__ __volatile__(					\
 			".set\tmips32\n\t"				\
-			"mtc0\t$0, " #register ", " #sel "\n\t"		\
-			".set\tmips0");					\
-		else							\
-			__asm__ __volatile__(				\
-			".set\tmips32\n\t"				\
-			"mtc0\t%0, " #register ", " #sel "\n\t"		\
+			"mtc0\t%z0, " #register ", " #sel "\n\t"	\
 			".set\tmips0"					\
-			: : "r" (value));				\
+			: : "Jr" (value));				\
 } while (0)
 
 #define __write_64bit_c0_register(register, sel, value)			\
 do {									\
 	if (sel == 0)							\
-		if (__builtin_constant_p(value) && (value) == 0)	\
-			__asm__ __volatile__(				\
+		__asm__ __volatile__(					\
 			".set\tmips3\n\t"				\
-			"dmtc0\t$0, " #register "\n\t"			\
-			".set\tmips0");					\
-		else							\
-			__asm__ __volatile__(				\
-			".set\tmips3\n\t"				\
-			"dmtc0\t%0, " #register "\n\t"			\
+			"dmtc0\t%z0, " #register "\n\t"			\
 			".set\tmips0"					\
-			: : "r" (value));				\
+			: : "Jr" (value));				\
 	else								\
-		if (__builtin_constant_p(value) && (value) == 0)	\
-			__asm__ __volatile__(				\
+		__asm__ __volatile__(					\
 			".set\tmips64\n\t"				\
-			"dmtc0\t$0, " #register ", " #sel "\n\t"	\
-			".set\tmips0");					\
-		else							\
-			__asm__ __volatile__(				\
-			".set\tmips64\n\t"				\
-			"dmtc0\t%0, " #register ", " #sel "\n\t"	\
+			"dmtc0\t%z0, " #register ", " #sel "\n\t"	\
 			".set\tmips0"					\
-			: : "r" (value));				\
+			: : "Jr" (value));				\
 } while (0)
 
 #define __read_ulong_c0_register(reg, sel)				\
