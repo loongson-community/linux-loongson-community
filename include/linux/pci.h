@@ -1000,17 +1000,17 @@ enum pci_fixup_pass {
 
 /* Anonymous variables would be nice... */
 #define DECLARE_PCI_FIXUP_HEADER(vendor, device, hook)					\
-	static struct pci_fixup __pci_fixup_##vendor##device##hook __attribute_used__	\
+	static const struct pci_fixup __pci_fixup_##vendor##device##hook __attribute_used__	\
 	__attribute__((__section__(".pci_fixup_header"))) = {				\
 		vendor, device, hook };
 
 #define DECLARE_PCI_FIXUP_FINAL(vendor, device, hook)				\
-	static struct pci_fixup __pci_fixup_##vendor##device##hook __attribute_used__	\
+	static const struct pci_fixup __pci_fixup_##vendor##device##hook __attribute_used__	\
 	__attribute__((__section__(".pci_fixup_final"))) = {				\
 		vendor, device, hook };
 
 #define DECLARE_PCI_FIXUP_ENABLE(vendor, device, hook)				\
-	static struct pci_fixup __pci_fixup_##vendor##device##hook __attribute_used__	\
+	static const struct pci_fixup __pci_fixup_##vendor##device##hook __attribute_used__	\
 	__attribute__((__section__(".pci_fixup_enable"))) = {				\
 		vendor, device, hook };
 
