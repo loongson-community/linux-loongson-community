@@ -5,21 +5,26 @@
  *
  * Driver for SGI's IOC3 based Ethernet cards as found in the PCI card.
  *
- * Copyright (C) 1999, 2000 Ralf Baechle
- * Copyright (C) 1995, 1999, 2000 by Silicon Graphics, Inc.
+ * Copyright (C) 1999, 2000, 2001 Ralf Baechle
+ * Copyright (C) 1995, 1999, 2000, 2001 by Silicon Graphics, Inc.
+ *
+ * References:
+ *  o IOC3 ASIC specification 4.51, 1996-04-18
+ *  o IEEE 802.3 specification, 2000 edition
+ *  o DP38840A Specification, National Semiconductor, March 1997
  *
  * To do:
  *
- *  - Handle allocation failures in ioc3_alloc_skb() more gracefully.
- *  - Handle allocation failures in ioc3_init_rings().
- *  - Use prefetching for large packets.  What is a good lower limit for
+ *  o Handle allocation failures in ioc3_alloc_skb() more gracefully.
+ *  o Handle allocation failures in ioc3_init_rings().
+ *  o Use prefetching for large packets.  What is a good lower limit for
  *    prefetching?
- *  - We're probably allocating a bit too much memory.
- *  - Workarounds for various PHYs.
- *  - Proper autonegotiation.
- *  - What exactly is net_device_stats.tx_dropped supposed to count?
- *  - Use hardware checksums.
- *  - Convert to using the PCI infrastructure / IOC3 meta driver.
+ *  o We're probably allocating a bit too much memory.
+ *  o Use hardware checksums.
+ *  o Convert to using a IOC3 meta driver.
+ *  o Which PHYs might possibly be attached to the IOC3 in real live,
+ *    which workarounds are required for them?  Do we ever have Lucent's?
+ *  o For the 2.5 branch kill the mii-tool ioctls.
  */
 #include <linux/init.h>
 #include <linux/delay.h>
@@ -28,6 +33,7 @@
 #include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+
 #ifdef CONFIG_SERIAL
 #include <linux/serial.h>
 #include <asm/serial.h>
@@ -37,11 +43,13 @@
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/ethtool.h>
 #include <linux/skbuff.h>
 
 #include <asm/byteorder.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
+#include <asm/uaccess.h>
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
 #include <asm/sn/sn0/hubni.h>
@@ -51,14 +59,16 @@
 #include <asm/sn/sn0/ip27.h>
 #include <asm/pci/bridge.h>
 
+#include "mii.h"
+
 /*
- * 32 RX buffers.  This is tunable in the range of 16 <= x < 512.  The
+ * 64 RX buffers.  This is tunable in the range of 16 <= x < 512.  The
  * value must be a power of two.
  */
 #define RX_BUFFS 64
 
 /*
- * Private ioctls that de facto are well known and used for examply
+ * Private ioctls that de facto are well known and used for example
  * by mii-tool.  These are deprecated and will go away in 2.5.0.
  */
 #define SIOCGMIIPHY (SIOCDEVPRIVATE)	/* Read from current PHY */
@@ -68,6 +78,14 @@
 /* These exist in other drivers; we don't use them at this time.  */
 #define SIOCGPARAMS (SIOCDEVPRIVATE+3)	/* Read operational parameters */
 #define SIOCSPARAMS (SIOCDEVPRIVATE+4)	/* Set operational parameters */
+
+/* Timer state engine. */
+enum ioc3_timer_state {
+	arbwait  = 0,	/* Waiting for auto negotiation to complete.          */
+	lupwait  = 1,	/* Auto-neg complete, awaiting link-up status.        */
+	ltrywait = 2,	/* Forcing try of all modes, from fastest to slowest. */
+	asleep   = 3,	/* Time inactive.                                     */
+};
 
 /* Private per NIC data of the driver.  */
 struct ioc3_private {
@@ -84,8 +102,20 @@ struct ioc3_private {
 	int tx_pi;			/* TX producer index */
 	int txqlen;
 	u32 emcr, ehar_h, ehar_l;
-	struct timer_list negtimer;
 	spinlock_t ioc3_lock;
+	struct net_device *dev;
+
+	/* Members used by autonegotiation  */
+	struct timer_list ioc3_timer;
+	enum ioc3_timer_state timer_state; /* State of auto-neg timer.	   */
+	unsigned int timer_ticks;	/* Number of clicks at each state  */
+	unsigned short sw_bmcr;		/* sw copy of MII config register  */
+	unsigned short sw_bmsr;		/* sw copy of MII status register  */
+	unsigned short sw_physid1;	/* sw copy of PHYSID1		   */
+	unsigned short sw_physid2;	/* sw copy of PHYSID2		   */
+	unsigned short sw_advertise;	/* sw copy of ADVERTISE		   */
+	unsigned short sw_lpa;		/* sw copy of LPA		   */
+	unsigned short sw_csconfig;	/* sw copy of CSCONFIG		   */
 };
 
 static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
@@ -93,8 +123,8 @@ static void ioc3_set_multicast_list(struct net_device *dev);
 static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
 static void ioc3_timeout(struct net_device *dev);
 static inline unsigned int ioc3_hash(const unsigned char *addr);
-static inline void ioc3_stop(struct net_device *dev);
-static void ioc3_init(struct net_device *dev);
+static inline void ioc3_stop(struct ioc3_private *ip);
+static void ioc3_init(struct ioc3_private *ip);
 
 static const char ioc3_str[] = "IOC3 Ethernet";
 
@@ -325,8 +355,9 @@ static int nic_init(struct ioc3 *ioc3)
 /*
  * Read the NIC (Number-In-a-Can) device.
  */
-static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
+static void ioc3_get_eaddr(struct ioc3_private *ip)
 {
+	struct ioc3 *ioc3 = ip->regs;
 	u8 nic[14];
 	int i;
 	int tries = 2; /* There may be some problem with the battery?  */
@@ -354,7 +385,7 @@ static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
 
 	printk("Ethernet address is ");
 	for (i = 2; i < 8; i++) {
-		dev->dev_addr[i - 2] = nic[i];
+		ip->dev->dev_addr[i - 2] = nic[i];
 		printk("%02x", nic[i]);
 		if (i < 7)
 			printk(":");
@@ -362,10 +393,15 @@ static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
 	printk(".\n");
 }
 
-/* Caller must hold the ioc3_lock ever for MII readers.  This is also
-   used to protect the transmitter side but it's low contention.  */
-static u16 mii_read(struct ioc3 *ioc3, int phy, int reg)
+/*
+ * Caller must hold the ioc3_lock ever for MII readers.  This is also
+ * used to protect the transmitter side but it's low contention.
+ */
+static u16 mii_read(struct ioc3_private *ip, int reg)
 {
+	struct ioc3 *ioc3 = ip->regs;
+	int phy = ip->phy;
+
 	while (ioc3->micr & MICR_BUSY);
 	ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg | MICR_READTRIG;
 	while (ioc3->micr & MICR_BUSY);
@@ -373,16 +409,18 @@ static u16 mii_read(struct ioc3 *ioc3, int phy, int reg)
 	return ioc3->midr_r & MIDR_DATA_MASK;
 }
 
-static void mii_write(struct ioc3 *ioc3, int phy, int reg, u16 data)
+static void mii_write(struct ioc3_private *ip, int reg, u16 data)
 {
+	struct ioc3 *ioc3 = ip->regs;
+	int phy = ip->phy;
+
 	while (ioc3->micr & MICR_BUSY);
 	ioc3->midr_w = data;
 	ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg;
 	while (ioc3->micr & MICR_BUSY);
 }
 
-static int ioc3_mii_init(struct net_device *dev, struct ioc3_private *ip,
-                         struct ioc3 *ioc3);
+static int ioc3_mii_init(struct ioc3_private *ip);
 
 static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 {
@@ -394,9 +432,10 @@ static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 }
 
 static inline void
-ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
+ioc3_rx(struct ioc3_private *ip)
 {
 	struct sk_buff *skb, *new_skb;
+	struct ioc3 *ioc3 = ip->regs;
 	int rx_entry, n_entry, len;
 	struct ioc3_erxbuf *rxb;
 	unsigned long *rxr;
@@ -415,7 +454,7 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 		if (err & ERXBUF_GOODPKT) {
 			len = ((w0 >> ERXBUF_BYTECNT_SHIFT) & 0x7ff) - 4;
 			skb_trim(skb, len);
-			skb->protocol = eth_type_trans(skb, dev);
+			skb->protocol = eth_type_trans(skb, ip->dev);
 
 			new_skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, GFP_ATOMIC);
 			if (!new_skb) {
@@ -429,14 +468,14 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 
 			ip->rx_skbs[rx_entry] = NULL;	/* Poison  */
 
-			new_skb->dev = dev;
+			new_skb->dev = ip->dev;
 
 			/* Because we reserve afterwards. */
 			skb_put(new_skb, (1664 + RX_OFFSET));
 			rxb = (struct ioc3_erxbuf *) new_skb->data;
 			skb_reserve(new_skb, RX_OFFSET);
 
-			dev->last_rx = jiffies;
+			ip->dev->last_rx = jiffies;
 			ip->stats.rx_packets++;		/* Statistics */
 			ip->stats.rx_bytes += len;
 		} else {
@@ -469,9 +508,10 @@ next:
 }
 
 static inline void
-ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
+ioc3_tx(struct ioc3_private *ip)
 {
 	unsigned long packets, bytes;
+	struct ioc3 *ioc3 = ip->regs;
 	int tx_entry, o_entry;
 	struct sk_buff *skb;
 	u32 etcir;
@@ -502,7 +542,7 @@ ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 	ip->txqlen -= packets;
 
 	if (ip->txqlen < 128)
-		netif_wake_queue(dev);
+		netif_wake_queue(ip->dev);
 
 	ip->tx_ci = o_entry;
 	spin_unlock(&ip->ioc3_lock);
@@ -516,31 +556,27 @@ ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
  * also consider to take the interface down.
  */
 static void
-ioc3_error(struct net_device *dev, struct ioc3_private *ip,
-           struct ioc3 *ioc3, u32 eisr)
+ioc3_error(struct ioc3_private *ip, u32 eisr)
 {
-	if (eisr & EISR_RXOFLO) {
-		printk(KERN_ERR "%s: RX overflow.\n", dev->name);
-	}
-	if (eisr & EISR_RXBUFOFLO) {
-		printk(KERN_ERR "%s: RX buffer overflow.\n", dev->name);
-	}
-	if (eisr & EISR_RXMEMERR) {
-		printk(KERN_ERR "%s: RX PCI error.\n", dev->name);
-	}
-	if (eisr & EISR_RXPARERR) {
-		printk(KERN_ERR "%s: RX SSRAM parity error.\n", dev->name);
-	}
-	if (eisr & EISR_TXBUFUFLO) {
-		printk(KERN_ERR "%s: TX buffer underflow.\n", dev->name);
-	}
-	if (eisr & EISR_TXMEMERR) {
-		printk(KERN_ERR "%s: TX PCI error.\n", dev->name);
-	}
+	struct net_device *dev = ip->dev;
+	unsigned char *iface = dev->name;
 
-	ioc3_stop(dev);
-	ioc3_init(dev);
-	ioc3_mii_init(dev, ip, ioc3);
+	if (eisr & EISR_RXOFLO)
+		printk(KERN_ERR "%s: RX overflow.\n", iface);
+	if (eisr & EISR_RXBUFOFLO)
+		printk(KERN_ERR "%s: RX buffer overflow.\n", iface);
+	if (eisr & EISR_RXMEMERR)
+		printk(KERN_ERR "%s: RX PCI error.\n", iface);
+	if (eisr & EISR_RXPARERR)
+		printk(KERN_ERR "%s: RX SSRAM parity error.\n", iface);
+	if (eisr & EISR_TXBUFUFLO)
+		printk(KERN_ERR "%s: TX buffer underflow.\n", iface);
+	if (eisr & EISR_TXMEMERR)
+		printk(KERN_ERR "%s: TX PCI error.\n", iface);
+
+	ioc3_stop(ip);
+	ioc3_init(ip);
+	ioc3_mii_init(ip);
 
 	dev->trans_start = jiffies;
 	netif_wake_queue(dev);
@@ -566,53 +602,504 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 
 		if (eisr & (EISR_RXOFLO | EISR_RXBUFOFLO | EISR_RXMEMERR |
 		            EISR_RXPARERR | EISR_TXBUFUFLO | EISR_TXMEMERR))
-			ioc3_error(dev, ip, ioc3, eisr);
+			ioc3_error(ip, eisr);
 		if (eisr & EISR_RXTIMERINT)
-			ioc3_rx(dev, ip, ioc3);
+			ioc3_rx(ip);
 		if (eisr & EISR_TXEXPLICIT)
-			ioc3_tx(dev, ip, ioc3);
+			ioc3_tx(ip);
 
 		eisr = ioc3->eisr & enabled;
 	}
 }
 
-static void negotiate(unsigned long data)
+/*
+ * Auto negotiation.  The scheme is very simple.  We have a timer routine that
+ * keeps watching the auto negotiation process as it progresses.  The DP83840
+ * is first told to start doing it's thing, we set up the time and place the
+ * timer state machine in it's initial state.
+ *
+ * Here the timer peeks at the DP83840 status registers at each click to see
+ * if the auto negotiation has completed, we assume here that the DP83840 PHY
+ * will time out at some point and just tell us what (didn't) happen.  For
+ * complete coverage we only allow so many of the ticks at this level to run,
+ * when this has expired we print a warning message and try another strategy.
+ * This "other" strategy is to force the interface into various speed/duplex
+ * configurations and we stop when we see a link-up condition before the
+ * maximum number of "peek" ticks have occurred.
+ *
+ * Once a valid link status has been detected we configure the BigMAC and the
+ * rest of the Happy Meal to speak the most efficient protocol we could
+ * get a clean link for.  The priority for link configurations, highest first
+ * is:
+ *
+ *     100 Base-T Full Duplex
+ *     100 Base-T Half Duplex
+ *     10 Base-T Full Duplex
+ *     10 Base-T Half Duplex
+ *
+ * We start a new timer now, after a successful auto negotiation status has
+ * been detected.  This timer just waits for the link-up bit to get set in
+ * the BMCR of the DP83840.  When this occurs we print a kernel log message
+ * describing the link type in use and the fact that it is up.
+ *
+ * If a fatal error of some sort is signalled and detected in the interrupt
+ * service routine, and the chip is reset, or the link is ifconfig'd down
+ * and then back up, this entire process repeats itself all over again.
+ */
+static int ioc3_try_next_permutation(struct ioc3_private *ip)
 {
-	struct net_device *dev = (struct net_device *) data;
-	struct ioc3_private *ip = (struct ioc3_private *) dev->priv;
-	struct ioc3 *ioc3 = ip->regs;
+	ip->sw_bmcr = mii_read(ip, MII_CONTROL);
 
-	mod_timer(&ip->negtimer, jiffies + 20 * HZ);
+	/* Downgrade from full to half duplex.  Only possible via ethtool.  */
+	if (ip->sw_bmcr & MII_CR_FULLDPLX) {
+		ip->sw_bmcr &= ~MII_CR_FULLDPLX;
+		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+
+		return 0;
+	}
+
+	/* Downgrade from 100 to 10. */
+	if (ip->sw_bmcr & MII_CR_SPEED100) {
+		ip->sw_bmcr &= ~MII_CR_SPEED100;
+		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+
+		return 0;
+	}
+
+	/* We've tried everything. */
+	return -1;
 }
 
-static int ioc3_mii_init(struct net_device *dev, struct ioc3_private *ip,
-                         struct ioc3 *ioc3)
+static void
+ioc3_display_link_mode(struct ioc3_private *ip)
 {
-	u16 word, mii0;
-	int i, phy;
+	char *tmode = "";
 
+	ip->sw_lpa = mii_read(ip, MII_LPA);
+
+	if (ip->sw_lpa & (MII_LPA_100HALF | MII_LPA_100FULL)) {
+		if (ip->sw_lpa & MII_LPA_100FULL)
+			tmode = "100Mb/s, Full Duplex";
+		else
+			tmode = "100Mb/s, Half Duplex";
+	} else {
+		if (ip->sw_lpa & MII_LPA_10FULL)
+			tmode = "10Mb/s, Full Duplex";
+		else
+			tmode = "10Mb/s, Half Duplex";
+	}
+
+	printk(KERN_INFO "%s: Link is up at %s.\n", ip->dev->name, tmode);
+}
+
+static void
+ioc3_display_forced_link_mode(struct ioc3_private *ip)
+{
+	char *speed = "", *duplex = "";
+
+	ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+	if (ip->sw_bmcr & MII_CR_SPEED100)
+		speed = "100Mb/s, ";
+	else
+		speed = "10Mb/s, ";
+	if (ip->sw_bmcr & MII_CR_FULLDPLX)
+		duplex = "Full Duplex.\n";
+	else
+		duplex = "Half Duplex.\n";
+
+	printk(KERN_INFO "%s: Link has been forced up at %s%s", ip->dev->name,
+	       speed, duplex);
+}
+
+static int ioc3_set_link_modes(struct ioc3_private *ip)
+{
+	struct ioc3 *ioc3 = ip->regs;
+	int full;
+
+	/*
+	 * All we care about is making sure the bigmac tx_cfg has a
+	 * proper duplex setting.
+	 */
+	if (ip->timer_state == arbwait) {
+		ip->sw_lpa = mii_read(ip, MII_LPA);
+		if (!(ip->sw_lpa & (MII_LPA_10HALF | MII_LPA_10FULL |
+		                    MII_LPA_100HALF | MII_LPA_100FULL)))
+			goto no_response;
+		if (ip->sw_lpa & MII_LPA_100FULL)
+			full = 1;
+		else if (ip->sw_lpa & MII_LPA_100HALF)
+			full = 0;
+		else if (ip->sw_lpa & MII_LPA_10FULL)
+			full = 1;
+		else
+			full = 0;
+	} else {
+		/* Forcing a link mode. */
+		ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+		if (ip->sw_bmcr & MII_CR_FULLDPLX)
+			full = 1;
+		else
+			full = 0;
+	}
+
+	if (full)
+		ip->emcr |= EMCR_DUPLEX;
+	else
+		ip->emcr &= ~EMCR_DUPLEX;
+
+	ioc3->emcr = ip->emcr;
+	ioc3->emcr;
+
+	return 0;
+
+no_response:
+
+	return 1;
+}
+
+static int is_lucent_phy(struct ioc3_private *ip)
+{
+	unsigned short mr2, mr3;
+	int ret = 0;
+
+	mr2 = mii_read(ip, MII_PHYSID1);
+	mr3 = mii_read(ip, MII_PHYSID2);
+	if ((mr2 & 0xffff) == 0x0180 && ((mr3 & 0xffff) >> 10) == 0x1d) {
+		ret = 1;
+	}
+
+	return ret;
+}
+
+static void ioc3_timer(unsigned long data)
+{
+	struct ioc3_private *ip = (struct ioc3_private *) data;
+	int restart_timer = 0;
+
+	ip->timer_ticks++;
+	switch (ip->timer_state) {
+	case arbwait:
+		/*
+		 * Only allow for 5 ticks, thats 10 seconds and much too
+		 * long to wait for arbitration to complete.
+		 */
+		if (ip->timer_ticks >= 10) {
+			/* Enter force mode. */
+	do_force_mode:
+			ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+			printk(KERN_NOTICE "%s: Auto-Negotiation unsuccessful,"
+			       " trying force link mode\n", ip->dev->name);
+			ip->sw_bmcr = MII_CR_SPEED100;
+			mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+
+			if (!is_lucent_phy(ip)) {
+				/*
+				 * OK, seems we need do disable the transceiver
+				 * for the first tick to make sure we get an
+				 * accurate link state at the second tick.
+				 */
+				ip->sw_csconfig = mii_read(ip,
+				                           DP83840_CSCONFIG);
+				ip->sw_csconfig &= ~(CSCONFIG_TCVDISAB);
+				mii_write(ip, DP83840_CSCONFIG,
+				          ip->sw_csconfig);
+			}
+			ip->timer_state = ltrywait;
+			ip->timer_ticks = 0;
+			restart_timer = 1;
+		} else {
+			/* Anything interesting happen? */
+			ip->sw_bmsr = mii_read(ip, MII_STATUS);
+			if (ip->sw_bmsr & MII_SR_ANEGCOMPLETE) {
+				int ret;
+
+				/* Just what we've been waiting for... */
+				ret = ioc3_set_link_modes(ip);
+				if (ret) {
+					/* Ooops, something bad happened, go to
+					 * force mode.
+					 *
+					 * XXX Broken hubs which don't support
+					 * XXX 802.3u auto-negotiation make this
+					 * XXX happen as well.
+					 */
+					goto do_force_mode;
+				}
+
+				/*
+				 * Success, at least so far, advance our state
+				 * engine.
+				 */
+				ip->timer_state = lupwait;
+				restart_timer = 1;
+			} else {
+				restart_timer = 1;
+			}
+		}
+		break;
+
+	case lupwait:
+		/*
+		 * Auto negotiation was successful and we are awaiting a
+		 * link up status.  I have decided to let this timer run
+		 * forever until some sort of error is signalled, reporting
+		 * a message to the user at 10 second intervals.
+		 */
+		ip->sw_bmsr = mii_read(ip, MII_STATUS);
+		if (ip->sw_bmsr & MII_SR_LSTATUS) {
+			/*
+			 * Wheee, it's up, display the link mode in use and put
+			 * the timer to sleep.
+			 */
+			ioc3_display_link_mode(ip);
+			ip->timer_state = asleep;
+			restart_timer = 0;
+		} else {
+			if (ip->timer_ticks >= 10) {
+				printk(KERN_NOTICE "%s: Auto negotiation successful, link still "
+				       "not completely up.\n", ip->dev->name);
+				ip->timer_ticks = 0;
+				restart_timer = 1;
+			} else {
+				restart_timer = 1;
+			}
+		}
+		break;
+
+	case ltrywait:
+		/*
+		 * Making the timeout here too long can make it take
+		 * annoyingly long to attempt all of the link mode
+		 * permutations, but then again this is essentially
+		 * error recovery code for the most part.
+		 */
+		ip->sw_bmsr = mii_read(ip, MII_STATUS);
+		ip->sw_csconfig = mii_read(ip, DP83840_CSCONFIG);
+		if (ip->timer_ticks == 1) {
+			if (!is_lucent_phy(ip)) {
+				/*
+				 * Re-enable transceiver, we'll re-enable the
+				 * transceiver next tick, then check link state
+				 * on the following tick.
+				 */
+				ip->sw_csconfig |= CSCONFIG_TCVDISAB;
+				mii_write(ip, DP83840_CSCONFIG,
+				          ip->sw_csconfig);
+			}
+			restart_timer = 1;
+			break;
+		}
+		if (ip->timer_ticks == 2) {
+			if (!is_lucent_phy(ip)) {
+				ip->sw_csconfig &= ~(CSCONFIG_TCVDISAB);
+				mii_write(ip, DP83840_CSCONFIG,
+				          ip->sw_csconfig);
+			}
+			restart_timer = 1;
+			break;
+		}
+		if (ip->sw_bmsr & MII_SR_LSTATUS) {
+			/* Force mode selection success. */
+			ioc3_display_forced_link_mode(ip);
+			ioc3_set_link_modes(ip);  /* XXX error? then what? */
+			ip->timer_state = asleep;
+			restart_timer = 0;
+		} else {
+			if (ip->timer_ticks >= 4) { /* 6 seconds or so... */
+				int ret;
+
+				ret = ioc3_try_next_permutation(ip);
+				if (ret == -1) {
+					/*
+					 * Aieee, tried them all, reset the
+					 * chip and try all over again.
+					 */
+					printk(KERN_NOTICE "%s: Link down, "
+					       "cable problem?\n",
+					       ip->dev->name);
+
+					ioc3_init(ip);
+					return;
+				}
+				if (!is_lucent_phy(ip)) {
+					ip->sw_csconfig = mii_read(ip,
+					                    DP83840_CSCONFIG);
+					ip->sw_csconfig |= CSCONFIG_TCVDISAB;
+					mii_write(ip, DP83840_CSCONFIG,
+					          ip->sw_csconfig);
+				}
+				ip->timer_ticks = 0;
+				restart_timer = 1;
+			} else {
+				restart_timer = 1;
+			}
+		}
+		break;
+
+	case asleep:
+	default:
+		/* Can't happens.... */
+		printk(KERN_ERR "%s: Aieee, link timer is asleep but we got "
+		       "one anyways!\n", ip->dev->name);
+		restart_timer = 0;
+		ip->timer_ticks = 0;
+		ip->timer_state = asleep; /* foo on you */
+		break;
+	};
+
+	if (restart_timer) {
+		ip->ioc3_timer.expires = jiffies + ((12 * HZ)/10); /* 1.2s */
+		add_timer(&ip->ioc3_timer);
+	}
+}
+
+static void
+ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
+{
+	int timeout;
+
+	/* Read all of the registers we are interested in now. */
+	ip->sw_bmsr      = mii_read(ip, MII_STATUS);
+	ip->sw_bmcr      = mii_read(ip, MII_CONTROL);
+	ip->sw_physid1   = mii_read(ip, MII_PHYSID1);
+	ip->sw_physid2   = mii_read(ip, MII_PHYSID2);
+
+	/* XXX Check MII_SR_ANEGCAPABLE, should not be necessary though. */
+
+	ip->sw_advertise = mii_read(ip, MII_ADVERTISMENT);
+	if (ep == NULL || ep->autoneg == AUTONEG_ENABLE) {
+		/* Advertise everything we can support. */
+		if (ip->sw_bmsr & MII_SR_10HALF)
+			ip->sw_advertise |= (MII_AVT_10HALF);
+		else
+			ip->sw_advertise &= ~(MII_AVT_10HALF);
+
+		if (ip->sw_bmsr & MII_SR_10FULL)
+			ip->sw_advertise |= (MII_AVT_10FULL);
+		else
+			ip->sw_advertise &= ~(MII_AVT_10FULL);
+		if (ip->sw_bmsr & MII_SR_100HALF)
+			ip->sw_advertise |= (MII_AVT_100HALF);
+		else
+			ip->sw_advertise &= ~(MII_AVT_100HALF);
+		if (ip->sw_bmsr & MII_SR_100FULL)
+			ip->sw_advertise |= (MII_AVT_100FULL);
+		else
+			ip->sw_advertise &= ~(MII_AVT_100FULL);
+		mii_write(ip, MII_ADVERTISMENT, ip->sw_advertise);
+
+		/*
+		 * XXX Currently no Happy Meal cards I know off support
+		 * XXX 100BaseT4, XXX and this is because the DP83840 does not
+		 * XXX support it, changes XXX would need to be made to the
+		 * XXX tx/rx logic in the driver as well so I completely skip
+		 * XXX checking for it in the BMSR for now.
+		 */
+
+#ifdef AUTO_SWITCH_DEBUG
+		ASD(("%s: Advertising [ ", ip->dev->name));
+		if (ip->sw_advertise & ADVERTISE_10HALF)
+			ASD(("10H "));
+		if (ip->sw_advertise & ADVERTISE_10FULL)
+			ASD(("10F "));
+		if (ip->sw_advertise & ADVERTISE_100HALF)
+			ASD(("100H "));
+		if (ip->sw_advertise & ADVERTISE_100FULL)
+			ASD(("100F "));
+#endif
+
+		/* Enable Auto-Negotiation, this is usually on already... */
+		ip->sw_bmcr |= MII_CR_ANENABLE;
+		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+
+		/* Restart it to make sure it is going. */
+		ip->sw_bmcr |= MII_CR_ANRESTART;
+		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+
+		/* MII_CR_ANRESTART self clears when the process has begun. */
+
+		timeout = 64;  /* More than enough. */
+		while (--timeout) {
+			ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+			if (!(ip->sw_bmcr & MII_CR_ANRESTART))
+				break; /* got it. */
+			udelay(10);
+		}
+		if (!timeout) {
+			printk(KERN_ERR "%s: Happy Meal would not start auto negotiation "
+			       "BMCR=0x%04x\n", ip->dev->name, ip->sw_bmcr);
+			printk(KERN_NOTICE "%s: Performing force link detection.\n",
+			       ip->dev->name);
+			goto force_link;
+		} else {
+			ip->timer_state = arbwait;
+		}
+	} else {
+force_link:
+		/*
+		 * Force the link up, trying first a particular mode.
+		 * Either we are here at the request of ethtool or
+		 * because the Happy Meal would not start to autoneg.
+		 */
+
+		/*
+		 * Disable auto-negotiation in BMCR, enable the duplex and
+		 * speed setting, init the timer state machine, and fire it off.
+		 */
+		if (ep == NULL || ep->autoneg == AUTONEG_ENABLE) {
+			ip->sw_bmcr = MII_CR_SPEED100;
+		} else {
+			if (ep->speed == SPEED_100)
+				ip->sw_bmcr = MII_CR_SPEED100;
+			else
+				ip->sw_bmcr = 0;
+			if (ep->duplex == DUPLEX_FULL)
+				ip->sw_bmcr |= MII_CR_FULLDPLX;
+		}
+		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+
+		if (!is_lucent_phy(ip)) {
+			/*
+			 * OK, seems we need do disable the transceiver for the
+			 * first tick to make sure we get an accurate link
+			 * state at the second tick.
+			 */
+			ip->sw_csconfig = mii_read(ip, DP83840_CSCONFIG);
+			ip->sw_csconfig &= ~(CSCONFIG_TCVDISAB);
+			mii_write(ip, DP83840_CSCONFIG, ip->sw_csconfig);
+		}
+		ip->timer_state = ltrywait;
+	}
+
+	del_timer(&ip->ioc3_timer);
+	ip->timer_ticks = 0;
+	ip->ioc3_timer.expires = jiffies + (12 * HZ)/10;  /* 1.2 sec. */
+	ip->ioc3_timer.data = (unsigned long) ip;
+	ip->ioc3_timer.function = &ioc3_timer;
+	add_timer(&ip->ioc3_timer);
+}
+
+static int ioc3_mii_init(struct ioc3_private *ip)
+{
+	int i, found;
+	u16 word;
+
+	found = 0;
 	spin_lock_irq(&ip->ioc3_lock);
-	phy = -1;
 	for (i = 0; i < 32; i++) {
-		word = mii_read(ioc3, i, 2);
+		ip->phy = i;
+		word = mii_read(ip, 2);
 		if ((word != 0xffff) && (word != 0x0000)) {
-			phy = i;
+			found = 1;
 			break;			/* Found a PHY		*/
 		}
 	}
-	if (phy == -1) {
+	if (!found) {
 		spin_unlock_irq(&ip->ioc3_lock);
 		return -ENODEV;
 	}
-	ip->phy = phy;
 
-	/* Autonegotiate 100mbit and fullduplex. */
-	mii0 = mii_read(ioc3, ip->phy, 0);
-	mii_write(ioc3, ip->phy, 0, mii0 | 0x3100);
-
-	ip->negtimer.function = &negotiate;
-	ip->negtimer.data = (unsigned long) dev;
-	mod_timer(&ip->negtimer, jiffies);	/* Run it now  */
+	ioc3_start_auto_negotiation(ip, NULL);		// XXX ethtool
 
 	spin_unlock_irq(&ip->ioc3_lock);
 
@@ -792,13 +1279,15 @@ ioc3_ssram_disc(struct ioc3_private *ip)
 	}
 }
 
-static void ioc3_init(struct net_device *dev)
+static void ioc3_init(struct ioc3_private *ip)
 {
-	struct ioc3_private *ip = dev->priv;
+	struct net_device *dev = ip->dev;
 	struct ioc3 *ioc3 = ip->regs;
 
+	del_timer(&ip->ioc3_timer);		/* Kill if running	*/
+
 	ioc3->emcr = EMCR_RST;			/* Reset		*/
-	ioc3->emcr;				/* flush WB		*/
+	ioc3->emcr;				/* Flush WB		*/
 	udelay(4);				/* Give it time ...	*/
 	ioc3->emcr = 0;
 	ioc3->emcr;
@@ -816,7 +1305,7 @@ static void ioc3_init(struct net_device *dev)
 	ioc3->ehar_l = ip->ehar_l;
 	ioc3->ersr = 42;			/* XXX should be random */
 
-	ioc3_init_rings(dev, ip, ioc3);
+	ioc3_init_rings(ip->dev, ip, ioc3);
 
 	ip->emcr |= ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
 	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
@@ -827,9 +1316,8 @@ static void ioc3_init(struct net_device *dev)
 	ioc3->eier;
 }
 
-static inline void ioc3_stop(struct net_device *dev)
+static inline void ioc3_stop(struct ioc3_private *ip)
 {
-	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
 
 	ioc3->emcr = 0;				/* Shutup */
@@ -852,7 +1340,7 @@ ioc3_open(struct net_device *dev)
 
 	ip->ehar_h = 0;
 	ip->ehar_l = 0;
-	ioc3_init(dev);
+	ioc3_init(ip);
 
 	netif_start_queue(dev);
 	return 0;
@@ -863,10 +1351,11 @@ ioc3_close(struct net_device *dev)
 {
 	struct ioc3_private *ip = dev->priv;
 
-	del_timer(&ip->negtimer);
+	del_timer(&ip->ioc3_timer);
+
 	netif_stop_queue(dev);
 
-	ioc3_stop(dev);					/* Flush */
+	ioc3_stop(ip);
 	free_irq(dev->irq, dev);
 
 	ioc3_free_rings(ip);
@@ -897,13 +1386,12 @@ static void inline ioc3_serial_probe(struct pci_dev *pdev,
 static int __devinit ioc3_probe(struct pci_dev *pdev,
 	                        const struct pci_device_id *ent)
 {
-	u16 mii0, mii_status, mii2, mii3, mii4;
 	struct net_device *dev = NULL;
 	struct ioc3_private *ip;
 	struct ioc3 *ioc3;
 	unsigned long ioc3_base, ioc3_size;
 	u32 vendor, model, rev;
-	int phy, err;
+	int err;
 
 	dev = alloc_etherdev(sizeof(struct ioc3_private));
 	if (!dev)
@@ -915,6 +1403,7 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 
 	SET_MODULE_OWNER(dev);
 	ip = dev->priv;
+	ip->dev = dev;
 
 	dev->irq = pdev->irq;
 
@@ -922,7 +1411,7 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	ioc3_size = pci_resource_len(pdev, 0);
 	ioc3 = (struct ioc3 *) ioremap(ioc3_base, ioc3_size);
 	if (!ioc3) {
-		printk(KERN_CRIT "ioc3eth(%s): Didn't find a PHY, goodbye.\n",
+		printk(KERN_CRIT "ioc3eth(%s): ioremap failed, goodbye.\n",
 		       pdev->slot_name);
 		err = -ENOMEM;
 		goto out_res;
@@ -935,38 +1424,21 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 
 	spin_lock_init(&ip->ioc3_lock);
 
-	ioc3_stop(dev);
-	ip->emcr = 0;
-	ioc3_init(dev);
+	ioc3_stop(ip);
+	ioc3_init(ip);
 
-	init_timer(&ip->negtimer);
-	ioc3_mii_init(dev, ip, ioc3);
+	init_timer(&ip->ioc3_timer);
+	ioc3_mii_init(ip);
 
-	phy = ip->phy;
-	if (phy == -1) {
-		printk(KERN_CRIT"%s: Didn't find a PHY, goodbye.\n", dev->name);
+	if (ip->phy == -1) {
+		printk(KERN_CRIT "ioc3-eth(%s): Didn't find a PHY, goodbye.\n",
+		       pdev->slot_name);
 		err = -ENODEV;
 		goto out_stop;
 	}
 
-	mii0 = mii_read(ioc3, phy, 0);
-	mii_status = mii_read(ioc3, phy, 1);
-	mii2 = mii_read(ioc3, phy, 2);
-	mii3 = mii_read(ioc3, phy, 3);
-	mii4 = mii_read(ioc3, phy, 4);
-	vendor = (mii2 << 12) | (mii3 >> 4);
-	model  = (mii3 >> 4) & 0x3f;
-	rev    = mii3 & 0xf;
-	printk(KERN_INFO"Using PHY %d, vendor 0x%x, model %d, rev %d.\n",
-	       phy, vendor, model, rev);
-	printk(KERN_INFO "ioc3eth(%s):  MII transceiver found at MDIO address "
-	       "%d, config %4.4x status %4.4x.\n",
-	       pdev->slot_name, phy, mii0, mii_status);
-
 	ioc3_ssram_disc(ip);
-	printk("IOC3 SSRAM has %d kbyte.\n", ip->emcr & EMCR_BUFSIZ ? 128 : 64);
-
-	ioc3_get_eaddr(dev, ioc3);
+	ioc3_get_eaddr(ip);
 
 	/* The IOC3-specific entries in the device structure. */
 	dev->open		= ioc3_open;
@@ -982,10 +1454,18 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	if (err)
 		goto out_stop;
 
+	vendor = (ip->sw_physid1 << 12) | (ip->sw_physid2 >> 4);
+	model  = (ip->sw_physid2 >> 4) & 0x3f;
+	rev    = ip->sw_physid2 & 0xf;
+	printk(KERN_INFO "%s: Using PHY %d, vendor 0x%x, model %d, "
+	       "rev %d.\n", dev->name, ip->phy, vendor, model, rev);
+	printk(KERN_INFO "%s: IOC3 SSRAM has %d kbyte.\n", dev->name,
+	       ip->emcr & EMCR_BUFSIZ ? 128 : 64);
+
 	return 0;
 
 out_stop:
-	ioc3_stop(dev);
+	ioc3_stop(ip);
 	free_irq(dev->irq, dev);
 	ioc3_free_rings(ip);
 out_res:
@@ -1097,13 +1577,12 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 static void ioc3_timeout(struct net_device *dev)
 {
 	struct ioc3_private *ip = dev->priv;
-	struct ioc3 *ioc3 = ip->regs;
 
 	printk(KERN_ERR "%s: transmit timed out, resetting\n", dev->name);
 
-	ioc3_stop(dev);
-	ioc3_init(dev);
-	ioc3_mii_init(dev, ip, ioc3);
+	ioc3_stop(ip);
+	ioc3_init(ip);
+	ioc3_mii_init(ip);
 
 	dev->trans_start = jiffies;
 	netif_wake_queue(dev);
@@ -1113,7 +1592,7 @@ static void ioc3_timeout(struct net_device *dev)
  * Given a multicast ethernet address, this routine calculates the
  * address's bit index in the logical address filter mask
  */
-#define CRC_MASK        0xEDB88320
+#define CRC_MASK        0xedb88320
 
 static inline unsigned int
 ioc3_hash(const unsigned char *addr)
@@ -1145,37 +1624,126 @@ ioc3_hash(const unsigned char *addr)
 	return temp;
 }
 
-/* Provide ioctl() calls to examine the MII xcvr state. */
+
+/* We provide both the mii-tools and the ethtool ioctls.  */
 static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	struct ioc3_private *ip = (struct ioc3_private *) dev->priv;
+	struct ethtool_cmd *ep_user = (struct ethtool_cmd *) rq->ifr_data;
 	u16 *data = (u16 *)&rq->ifr_data;
 	struct ioc3 *ioc3 = ip->regs;
-	int phy = ip->phy;
+	struct ethtool_cmd ecmd;
 
 	switch (cmd) {
 	case SIOCGMIIPHY:	/* Get the address of the PHY in use.  */
-		if (phy == -1)
+		if (ip->phy == -1)
 			return -ENODEV;
-		data[0] = phy;
+		data[0] = ip->phy;
 		return 0;
 
-	case SIOCGMIIREG:	/* Read any PHY register.  */
+	case SIOCGMIIREG: {	/* Read a PHY register.  */
+		unsigned int phy = data[0];
+		unsigned int reg = data[1];
+
+		if (phy > 0x1f || reg > 0x1f)
+			return -EINVAL;
+
 		spin_lock_irq(&ip->ioc3_lock);
-		data[3] = mii_read(ioc3, data[0], data[1]);
+		while (ioc3->micr & MICR_BUSY);
+		ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg | MICR_READTRIG;
+		while (ioc3->micr & MICR_BUSY);
+		data[3] = (ioc3->midr_r & MIDR_DATA_MASK);
 		spin_unlock_irq(&ip->ioc3_lock);
+
 		return 0;
 
-	case SIOCSMIIREG:	/* Write any PHY register.  */
+	case SIOCSMIIREG:	/* Write a PHY register.  */
+		phy = data[0];
+		reg = data[1];
+
 		if (!capable(CAP_NET_ADMIN))
 			return -EPERM;
-		spin_lock_irq(&ip->ioc3_lock);
-		mii_write(ioc3, data[0], data[1], data[2]);
-		spin_unlock_irq(&ip->ioc3_lock);
-		return 0;
 
-	default:
-		return -EOPNOTSUPP;
+		if (phy > 0x1f || reg > 0x1f)
+			return -EINVAL;
+
+		spin_lock_irq(&ip->ioc3_lock);
+		while (ioc3->micr & MICR_BUSY);
+		ioc3->midr_w = data[2];
+		ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg;
+		while (ioc3->micr & MICR_BUSY);
+		spin_unlock_irq(&ip->ioc3_lock);
+
+		return 0;
+		}
+	case SIOCETHTOOL:
+		if (copy_from_user(&ecmd, ep_user, sizeof(ecmd)))
+			return -EFAULT;
+
+		if (ecmd.cmd == ETHTOOL_GSET) {
+			ecmd.supported =
+				(SUPPORTED_10baseT_Half |
+				 SUPPORTED_10baseT_Full |
+				 SUPPORTED_100baseT_Half |
+				 SUPPORTED_100baseT_Full | SUPPORTED_Autoneg |
+				 SUPPORTED_TP | SUPPORTED_MII);
+
+			ecmd.port = PORT_TP;
+			ecmd.transceiver = XCVR_INTERNAL;
+			ecmd.phy_address = ip->phy;
+
+			/* Record PHY settings. */
+			spin_lock_irq(&ip->ioc3_lock);
+			ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+			ip->sw_lpa = mii_read(ip, MII_LPA);
+			spin_unlock_irq(&ip->ioc3_lock);
+			if (ip->sw_bmcr & MII_CR_ANENABLE) {
+				ecmd.autoneg = AUTONEG_ENABLE;
+				ecmd.speed = (ip->sw_lpa &
+			             (MII_LPA_100HALF | MII_LPA_100FULL)) ?
+			             SPEED_100 : SPEED_10;
+			if (ecmd.speed == SPEED_100)
+				ecmd.duplex = (ip->sw_lpa & (MII_LPA_100FULL)) ?
+				              DUPLEX_FULL : DUPLEX_HALF;
+			else
+				ecmd.duplex = (ip->sw_lpa & (MII_LPA_10FULL)) ?
+				              DUPLEX_FULL : DUPLEX_HALF;
+			} else {
+				ecmd.autoneg = AUTONEG_DISABLE;
+				ecmd.speed = (ip->sw_bmcr & MII_CR_SPEED100) ?
+				             SPEED_100 : SPEED_10;
+				ecmd.duplex = (ip->sw_bmcr & MII_CR_FULLDPLX) ?
+				              DUPLEX_FULL : DUPLEX_HALF;
+			}
+			if (copy_to_user(ep_user, &ecmd, sizeof(ecmd)))
+				return -EFAULT;
+			return 0;
+		} else if (ecmd.cmd == ETHTOOL_SSET) {
+			if (!capable(CAP_NET_ADMIN))
+				return -EPERM;
+
+			/* Verify the settings we care about. */
+			if (ecmd.autoneg != AUTONEG_ENABLE &&
+			    ecmd.autoneg != AUTONEG_DISABLE)
+				return -EINVAL;
+
+			if (ecmd.autoneg == AUTONEG_DISABLE &&
+			    ((ecmd.speed != SPEED_100 &&
+			      ecmd.speed != SPEED_10) ||
+			     (ecmd.duplex != DUPLEX_HALF &&
+			      ecmd.duplex != DUPLEX_FULL)))
+				return -EINVAL;
+
+			/* Ok, do it to it. */
+			del_timer(&ip->ioc3_timer);
+			spin_lock_irq(&ip->ioc3_lock);
+			ioc3_start_auto_negotiation(ip, &ecmd);
+			spin_unlock_irq(&ip->ioc3_lock);
+
+			return 0;
+		} else
+		default:
+			return -EOPNOTSUPP;
 	}
 
 	return -EOPNOTSUPP;
