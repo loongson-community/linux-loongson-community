@@ -96,9 +96,7 @@ LEAF(spurious_interrupt)
 		 * couldn't find a cause for it.
 		 */
 		lui     t1,%hi(irq_err_count)
-		.set	reorder
 		lw      t0,%lo(irq_err_count)(t1)
-		.set	noreorder
 		addiu   t0,1
 		sw      t0,%lo(irq_err_count)(t1)
 		j	ret_from_irq
