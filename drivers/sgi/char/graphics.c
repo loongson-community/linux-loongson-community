@@ -228,9 +228,14 @@ sgi_graphics_close (struct inode *inode, struct file *file)
 
 	/* Was this file handle from the board owner?, clear it */
 	if (current == cards [board].g_owner){
-		cards [board].g_owner = 0;
-		(*cards [board].g_reset_console)();
-		enable_gconsole ();
+#ifdef DEBUG_GRAPHICS
+	    printk(KERN_WARNING "sgi_graphics_close: "
+		   "owner \"%s\" of board %d closed, resetting\n",
+		   current->comm, board);
+#endif
+	    cards [board].g_owner = 0;
+	    (*cards [board].g_reset_console)();
+	    enable_gconsole ();
 	}
 	return 0;
 }
@@ -254,8 +259,13 @@ sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int writ
 	 * and revoke the mapping in that case.
 	 */
 	if (cards [board].g_user && cards [board].g_user != current){
-		/* FIXME: save graphics context here, dump it to rendering node? */
-		remove_mapping (cards [board].g_user, vma->vm_start, vma->vm_end);
+	    /* FIXME: save graphics context here, dump it to rendering node? */
+#ifdef DEBUG_GRAPHICS
+	    printk(KERN_WARNING "sgi_graphics_nopage: "
+		   "need to remove mapping from process \"%s\"\n",
+		   cards[board].g_user->comm);
+#endif
+	    remove_mapping (cards [board].g_user, vma->vm_start, vma->vm_end);
 	}
 	cards [board].g_user = current;
 #if DEBUG_GRAPHICS
@@ -315,7 +325,6 @@ sgi_graphics_mmap (struct file *file, struct vm_area_struct *vma)
 		
 	/* final setup */
 	vma->vm_file = file;
-	file->f_count++;
 	return 0;
 }
 	
