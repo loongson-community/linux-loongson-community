@@ -261,11 +261,12 @@ static unsigned int bridge_startup(unsigned int irq)
                 device |= BRIDGE_DEV_SWAP_DIR;
                 bridge->b_device[pin].reg = device;
                 /*
-                 * Associate interrupt pin with device
                  * XXX This only works if b_int_device is initialized to 0!
+		 * We program the bridge to have a 1:1 mapping between devices
+		 * (slots) and intr pins.
                  */
                 device = bridge->b_int_device;
-                device |= (pin << (real_irq*3));
+                device |= (pin << (pin*3));
                 bridge->b_int_device = device;
         }
         bridge->b_widget.w_tflush;                      /* Flush */
