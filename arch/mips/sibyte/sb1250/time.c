@@ -79,11 +79,12 @@ void sb1250_time_init(void)
 	      KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));
 
 	sb1250_unmask_irq(cpu, K_INT_TIMER_0 + cpu);
-	/* This interrupt is "special" in that it doesn't use the request_irq way
-	   to hook the irq line.  The timer interrupt is initialized early enough
-	   to make this a major pain, and it's also firing enough to warrant a
-	   bit of special case code.  sb1250_timer_interrupt is called directly
-	   from irq_handler.S when IP[4] is set during an interrupt */
+	/*
+	 * This interrupt is "special" in that it doesn't use the request_irq
+	 * way to hook the irq line.  The timer interrupt is initialized early
+	 * enough to make this a major pain, and it's also firing enough to
+	 * warrant a bit of special case code.  sb1250_timer_interrupt is called	 * directly from irq_handler.S when IP[4] is set during an interrupt
+	 */
 }
 
 extern int set_rtc_mmss(unsigned long nowtime);
@@ -97,9 +98,11 @@ void sb1250_timer_interrupt(struct pt_regs *regs)
 	/* Reset the timer */
 	out64(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
 	      KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));  
-	
-	/* Need to do some stuff here with xtime, too, but that looks like
-	   it should be architecture independent...does it really belong here? */
+
+	/*
+	 * Need to do some stuff here with xtime, too, but that looks like
+	 * it should be architecture independent...does it really belong here?
+	 */
 	if (!cpu) {
 		do_timer(regs);
 
@@ -115,20 +118,18 @@ void sb1250_timer_interrupt(struct pt_regs *regs)
 				last_rtc_update = xtime.tv_sec - 600; 
 		read_unlock(&xtime_lock);
 	} 
-	
+
 #ifdef CONFIG_SMP
-	{
-		int user = user_mode(regs);
+	/*
+	 * We need to make like a normal interrupt -- otherwise timer
+	 * interrupts ignore the global interrupt lock, which would be
+	 * a Bad Thing.
+	 */
+	irq_enter(cpu, 0);
+	update_process_times(user_mode(regs));
+	irq_exit(cpu, 0);
 
-		/* We need to make like a normal interrupt -- otherwise
-		   timer interrupts ignore the global interrupt lock,
-		   which would be a Bad Thing.  */
-		irq_enter(cpu, 0);
-		update_process_times(user);
-		irq_exit(cpu, 0);
-
-		if (softirq_pending(cpu))
-			do_softirq();
-	}
+	if (softirq_pending(cpu))
+		do_softirq();
 #endif /* CONFIG_SMP */
 }
