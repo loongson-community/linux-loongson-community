@@ -4,7 +4,7 @@
  * for more details.
  *
  * Copyright (C) 1996 by David S. Miller
- * Copyright (C) 1999, 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000, 2001 by Ralf Baechle
  * Copyright (C) 1999, 2000 by Silicon Graphics, Inc.
  *
  * PROM library functions for acquiring/using memory descriptors given to us
@@ -40,7 +40,7 @@ static char *arcs_mtypes[8] = {
 	"Free/Contig RAM",
 	"Generic Free RAM",
 	"Bad Memory",
-	"Standlong Program Pages",
+	"Standlone Program Pages",
 	"ARCS Temp Storage Area",
 	"ARCS Permanent Storage Area"
 };
@@ -53,7 +53,7 @@ static char *arc_mtypes[8] = {
 	"LoadedProgram",
 	"FirmwareTemporary",
 	"FirmwarePermanent",
-	"FreeContigiuous"
+	"FreeContiguous"
 };
 #define mtypes(a) (prom_flags & PROM_FLAG_ARCS) ? arcs_mtypes[a.arcs] : arc_mtypes[a.arc]
 #endif
