@@ -96,55 +96,52 @@ extern int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
 
 void __init smp_boot_cpus(void)
 {
-	int i;
 	int cur_cpu = 0;
+	int cpu;
 
 	smp_num_cpus = prom_setup_smp();
 	init_new_context(current, &init_mm);
-	current->processor = 0;
+	current_thread_info()->cpu = 0;
 	cpu_data[0].udelay_val = loops_per_jiffy;
 	cpu_data[0].asid_cache = ASID_FIRST_VERSION;
 	CPUMASK_CLRALL(cpu_online_map);
 	CPUMASK_SETB(cpu_online_map, 0);
 	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
-	init_idle();
 	/* smp_tune_scheduling();  XXX */
 
 	/*
 	 * This loop attempts to compensate for "holes" in the CPU
 	 * numbering.  It's overkill, but general.
 	 */
-	for (i = 1; i < smp_num_cpus; ) {
-		struct task_struct *p;
+	for (cpu = 1; cpu < smp_num_cpus; ) {
+		struct task_struct *idle;
 		struct pt_regs regs;
 		int retval;
-		printk("Starting CPU %d... ", i);
+		printk("Starting CPU %d... ", cpu);
 
 		/* Spawn a new process normally.  Grab a pointer to
 		   its task struct so we can mess with it */
-		p = do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0);
+		idle = do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0);
+		if (IS_ERR(idle))
+			panic("failed fork for CPU %d", cpu);
 
-		/* Schedule the first task manually */
-		p->processor = i;
-		p->cpus_runnable = 1 << i; /* we schedule the first task manually */
+		/*
+		 * We remove it from the pidhash and the runqueue
+		 * once we got the process:
+		 */
+		init_idle(idle, cpu);
 
-		/* Attach to the address space of init_task. */
-		atomic_inc(&init_mm.mm_count);
-		p->active_mm = &init_mm;
-		init_tasks[i] = p;
-
-		del_from_runqueue(p);
-		unhash_process(p);
+		unhash_process(idle);
 
 		do {
 			/* Iterate until we find a CPU that comes up */
 			cur_cpu++;
 			retval = prom_boot_secondary(cur_cpu,
-					    (unsigned long)p + KERNEL_STACK_SIZE - 32,
-					    (unsigned long)p);
+					    (unsigned long)idle + KERNEL_STACK_SIZE - 32,
+					    (unsigned long)idle);
 		} while (!retval && (cur_cpu < NR_CPUS));
 		if (retval) {
-			i++;
+			cpu++;
 		} else {
 			panic("CPU discovery disaster");
 		}
