@@ -39,7 +39,7 @@
 #define PRID_VR4131_REV2_1	0x00000c82
 #define PRID_VR4131_REV2_2	0x00000c83
 
-/* VR4131 0x00000c84- */
+/* VR4133 0x00000c84- */
 #define PRID_VR4133		0x00000c84
 
 /*
@@ -80,49 +80,57 @@ enum {
 #define MIPS_CPU_IRQ(x)		(MIPS_CPU_IRQ_BASE + (x))
 #define MIPS_SOFTINT0_IRQ	MIPS_CPU_IRQ(0)
 #define MIPS_SOFTINT1_IRQ	MIPS_CPU_IRQ(1)
-#define ICU_CASCADE_IRQ		MIPS_CPU_IRQ(2)
-#define RTC_LONG1_IRQ		MIPS_CPU_IRQ(3)
-#define RTC_LONG2_IRQ		MIPS_CPU_IRQ(4)
-/* RFU */
-#define BATTERY_IRQ		MIPS_CPU_IRQ(6)
+#define INT0_CASCADE_IRQ	MIPS_CPU_IRQ(2)
+#define INT1_CASCADE_IRQ	MIPS_CPU_IRQ(3)
+#define INT2_CASCADE_IRQ	MIPS_CPU_IRQ(4)
+#define INT3_CASCADE_IRQ	MIPS_CPU_IRQ(5)
+#define INT4_CASCADE_IRQ	MIPS_CPU_IRQ(6)
 #define MIPS_COUNTER_IRQ	MIPS_CPU_IRQ(7)
 
 /* SYINT1 Interrupt Numbers */
 #define SYSINT1_IRQ_BASE	8
 #define SYSINT1_IRQ(x)		(SYSINT1_IRQ_BASE + (x))
-/* RFU */
+#define BATTRY_IRQ		SYSINT1_IRQ(0)
 #define POWER_IRQ		SYSINT1_IRQ(1)
-/* RFU */
+#define RTCLONG1_IRQ		SYSINT1_IRQ(2)
 #define ELAPSEDTIME_IRQ		SYSINT1_IRQ(3)
 /* RFU */
+#define PIU_IRQ			SYSINT1_IRQ(5)
+#define AIU_IRQ			SYSINT1_IRQ(6)
+#define KIU_IRQ			SYSINT1_IRQ(7)
 #define GIUINT_CASCADE_IRQ	SYSINT1_IRQ(8)
 #define SIU_IRQ			SYSINT1_IRQ(9)
-/* RFU */
+#define BUSERR_IRQ		SYSINT1_IRQ(10)
 #define SOFTINT_IRQ		SYSINT1_IRQ(11)
 #define CLKRUN_IRQ		SYSINT1_IRQ(12)
-#define SYSINT1_IRQ_LAST	CLKRUN_IRQ
+#define DOZEPIU_IRQ		SYSINT1_IRQ(13)
+#define SYSINT1_IRQ_LAST	DOZEPIU_IRQ
 
 /* SYSINT2 Interrupt Numbers */
 #define SYSINT2_IRQ_BASE	24
 #define SYSINT2_IRQ(x)		(SYSINT2_IRQ_BASE + (x))
-/* RFU */
+#define RTCLONG2_IRQ		SYSINT2_IRQ(0)
 #define LED_IRQ			SYSINT2_IRQ(1)
-/* RFU */
-#define VTCLOCK_IRQ		SYSINT2_IRQ(3)
+#define HSP_IRQ			SYSINT2_IRQ(2)
+#define TCLOCK_IRQ		SYSINT2_IRQ(3)
 #define FIR_IRQ			SYSINT2_IRQ(4)
+#define CEU_IRQ			SYSINT2_IRQ(4)	/* same number as FIR_IRQ */
 #define DSIU_IRQ		SYSINT2_IRQ(5)
 #define PCI_IRQ			SYSINT2_IRQ(6)
 #define SCU_IRQ			SYSINT2_IRQ(7)
 #define CSI_IRQ			SYSINT2_IRQ(8)
 #define BCU_IRQ			SYSINT2_IRQ(9)
-#define SYSINT2_IRQ_LAST	BCU_IRQ
+#define ETHERNET_IRQ		SYSINT2_IRQ(10)
+#define SYSINT2_IRQ_LAST	ETHERNET_IRQ
 
 /* GIU Interrupt Numbers */
 #define GIU_IRQ_BASE		40
 #define GIU_IRQ(x)		(GIU_IRQ_BASE + (x))	/* IRQ 40-71 */
 #define GIU_IRQ_LAST		GIU_IRQ(31)
+#define GIU_IRQ_TO_PIN(x)	((x) - GIU_IRQ_BASE)	/* Pin 0-31 */
 
 extern void (*board_irq_init)(void);
+extern int vr41xx_set_intassign(unsigned int irq, unsigned char intassign);
 extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
 
 /*
@@ -138,15 +146,13 @@ extern void vr41xx_set_tclock_cycle(uint32_t cycles);
 extern uint32_t vr41xx_read_tclock_counter(void);
 
 /*
- * Gegeral-Purpose I/O Unit
+ * General-Purpose I/O Unit
  */
-extern void vr41xx_enable_giuint(int pin);
-extern void vr41xx_disable_giuint(int pin);
-extern void vr41xx_clear_giuint(int pin);
-
 enum {
 	TRIGGER_LEVEL,
-	TRIGGER_EDGE
+	TRIGGER_EDGE,
+	TRIGGER_EDGE_FALLING,
+	TRIGGER_EDGE_RISING
 };
 
 enum {

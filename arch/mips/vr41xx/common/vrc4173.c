@@ -194,8 +194,8 @@ static inline void vrc4173_icu_init(int cascade_irq)
 	
 	vrc4173_outw(0, VRC4173_MSYSINT1REG);
 
-	vr41xx_set_irq_trigger(cascade_irq - GIU_IRQ(0), TRIGGER_LEVEL, SIGNAL_THROUGH);
-	vr41xx_set_irq_level(cascade_irq - GIU_IRQ(0), LEVEL_LOW);
+	vr41xx_set_irq_trigger(GIU_IRQ_TO_PIN(cascade_irq), TRIGGER_LEVEL, SIGNAL_THROUGH);
+	vr41xx_set_irq_level(GIU_IRQ_TO_PIN(cascade_irq), LEVEL_LOW);
 
 	for (i = VRC4173_IRQ_BASE; i <= VRC4173_IRQ_LAST; i++)
                 irq_desc[i].handler = &vrc4173_irq_type;
