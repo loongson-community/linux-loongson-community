@@ -384,7 +384,7 @@ void cboot(void)
 	bte_lateinit();
 	init_mfhi_war();
 #endif
-	flush_tlb_all();
+	_flush_tlb_all();
 	flush_cache_all();
 	start_secondary();
 }

@@ -76,7 +76,7 @@ void __init smp_boot_cpus(void)
 	current->processor = 0;
 	init_idle();
 	smp_tune_scheduling();
-	smp_num_cpus = 1; /* maxcpus; */
+	smp_num_cpus = 1; /* maxcpus */
 	allowboot();
 }
 
@@ -192,8 +192,67 @@ void smp_call_function_interrupt(void)
 }
 	
 
-void flush_tlb_others (unsigned long cpumask, struct mm_struct *mm, 
-						unsigned long va)
+static void flush_tlb_all_ipi(void *info)
 {
-	panic("flush_tlb_others\n");
+	_flush_tlb_all();
 }
+
+void flush_tlb_all(void)
+{
+	smp_call_function(flush_tlb_all_ipi, 0, 1, 1);
+	_flush_tlb_all();
+}
+
+static void flush_tlb_mm_ipi(void *mm)
+{
+	_flush_tlb_mm((struct mm_struct *)mm);
+}
+
+void flush_tlb_mm(struct mm_struct *mm)
+{
+	smp_call_function(flush_tlb_mm_ipi, (void *)mm, 1, 1);
+	_flush_tlb_mm(mm);
+}
+
+struct flush_tlb_data {
+	struct mm_struct *mm;
+	struct vm_area_struct *vma;
+	unsigned long addr1;
+	unsigned long addr2;
+};
+
+static void flush_tlb_range_ipi(void *info)
+{
+	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
+
+	_flush_tlb_range(fd->mm, fd->addr1, fd->addr2);
+}
+
+void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
+{
+	struct flush_tlb_data fd;
+
+	fd.mm = mm;
+	fd.addr1 = start;
+	fd.addr2 = end;
+	smp_call_function(flush_tlb_range_ipi, (void *)&fd, 1, 1);
+	_flush_tlb_range(mm, start, end);
+}
+
+static void flush_tlb_page_ipi(void *info)
+{
+	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
+
+	_flush_tlb_page(fd->vma, fd->addr1);
+}
+
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
+{
+	struct flush_tlb_data fd;
+
+	fd.vma = vma;
+	fd.addr1 = page;
+	smp_call_function(flush_tlb_page_ipi, (void *)&fd, 1, 1);
+	_flush_tlb_page(vma, page);
+}
+

@@ -469,7 +469,7 @@ void __init ld_mmu_andes(void)
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
 
         /* From this point on the ARC firmware is dead.  */
-	flush_tlb_all();
+	_flush_tlb_all();
 
         /* Did I tell you that ARC SUCKS?  */
 }
