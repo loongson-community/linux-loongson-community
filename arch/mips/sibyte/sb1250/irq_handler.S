@@ -31,7 +31,6 @@
 #include <linux/config.h>
 
 #include <asm/addrspace.h>
-#include <asm/processor.h>
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>

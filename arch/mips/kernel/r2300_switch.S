@@ -17,7 +17,6 @@
 #include <asm/mipsregs.h>
 #include <asm/offset.h>
 #include <asm/page.h>
-#include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/thread_info.h>

@@ -20,7 +20,6 @@
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/page.h>
-#include <asm/processor.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 #ifdef CONFIG_SGI_IP27
