@@ -32,6 +32,7 @@
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/auto_fs.h>
+#include <linux/auto_fs4.h>
 #include <linux/ext2_fs.h>
 #include <linux/raid/md_u.h>
 
@@ -930,6 +931,7 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_DEFAULT(AUTOFS_IOC_PROTOVER),
 	IOCTL32_HANDLER(AUTOFS_IOC_SETTIMEOUT32, ioc_settimeout),
 	IOCTL32_DEFAULT(AUTOFS_IOC_EXPIRE),
+	IOCTL32_DEFAULT(AUTOFS_IOC_EXPIRE_MULTI),
 
 	/* Little p (/dev/rtc, /dev/envctrl, etc.) */
 	IOCTL32_DEFAULT(_IOR('p', 20, int[7])), /* RTCGET */
