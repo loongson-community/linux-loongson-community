@@ -35,6 +35,7 @@
 #include <asm/hardirq.h>
 #include <asm/div64.h>
 #include <asm/cpu.h>
+#include <asm/time.h>
 
 #include <linux/interrupt.h>
 #include <linux/mc146818rtc.h>
@@ -45,8 +46,6 @@
 
 static unsigned int r4k_offset; /* Amount to increment compare reg each time */
 static unsigned int r4k_cur;    /* What counter should be at next timer irq */
-
-extern unsigned int mips_counter_frequency;
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
@@ -71,13 +70,6 @@ static inline void ack_r4ktimer(unsigned int newval)
 
 void mips_timer_interrupt(struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
-	int irq = MIPS_CPU_TIMER_IRQ;
-
-	irq_enter(cpu, irq);
-	kstat.irqs[cpu][irq]++;
-	timer_interrupt(irq, NULL, regs);
-
 	if ((timer_tick_count++ % HZ) == 0) {
 		mips_display_message(&display_string[display_count++]);
 		if (display_count == MAX_DISPLAY_COUNT)
@@ -85,10 +77,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 
 	}
 
-	irq_exit(cpu, irq);
-
-	if (softirq_pending(cpu))
-		do_softirq();
+	ll_timer_interrupt(MIPS_CPU_TIMER_IRQ, regs);
 }
 
 /* 
