@@ -105,6 +105,9 @@ if [ "$CONFIG_BLK_DEV_IDE" != "n" ]; then
 	   define_bool CONFIG_BLK_DEV_IDEPCI $CONFIG_BLK_DEV_IDEDMA_PMAC
 	 fi
       fi
+      if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
+	 bool '  SWARM onboard IDE support' CONFIG_BLK_DEV_IDE_SWARM
+      fi
       if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
 	 dep_bool '    ICS IDE interface support' CONFIG_BLK_DEV_IDE_ICSIDE $CONFIG_ARCH_ACORN
 	 dep_bool '      ICS DMA support' CONFIG_BLK_DEV_IDEDMA_ICS $CONFIG_BLK_DEV_IDE_ICSIDE

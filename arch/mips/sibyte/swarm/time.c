@@ -219,7 +219,7 @@ static unsigned long __init get_swarm_time(void)
 /*
  *  Bring up the timer at 100 Hz.  
  */
-void __init time_init(void)
+void __init swarm_time_init(void)
 {
 	unsigned int flags;
 	int status;

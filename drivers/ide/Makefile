@@ -48,6 +48,7 @@ ide-obj-$(CONFIG_BLK_DEV_IDEDMA_PCI)	+= ide-dma.o
 ide-obj-$(CONFIG_BLK_DEV_IDEPCI)	+= ide-pci.o
 ide-obj-$(CONFIG_BLK_DEV_ISAPNP)	+= ide-pnp.o
 ide-obj-$(CONFIG_BLK_DEV_IDE_PMAC)	+= ide-pmac.o
+ide-obj-$(CONFIG_BLK_DEV_IDE_SWARM)	+= ide-swarm.o
 ide-obj-$(CONFIG_BLK_DEV_MAC_IDE)	+= macide.o
 ide-obj-$(CONFIG_BLK_DEV_NS87415)	+= ns87415.o
 ide-obj-$(CONFIG_BLK_DEV_OPTI621)	+= opti621.o

@@ -670,8 +670,10 @@ void __init setup_arch(char **cmdline_p)
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_low_pfn, first_usable_pfn;
+#ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
 	unsigned long* initrd_header;
+#endif
 
 	int i;
 
