@@ -187,14 +187,6 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_SCSI_SGIWD93),y)
-L_OBJS += sgiwd93.o wd33c93.o
-else
-  ifeq ($(CONFIG_SCSI_SGIWD93),m)
-  M_OBJS += sgiwd93.o wd33c93.o
-  endif
-endif
-
 ifeq ($(CONFIG_CYBERSTORM_SCSI),y)
 L_OBJS += NCR53C9x.o cyberstorm.o
 else
