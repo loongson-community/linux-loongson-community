@@ -67,10 +67,10 @@
 	/*
 	 * clear saved user stack CU1 bit
 	 */
-	lw	t0, ST_OFF(a0)
+	lw	t0, ST_OFF(t3)
 	li	t1, ~ST0_CU1
 	and	t0, t0, t1
-	sw	t0, ST_OFF(a0)
+	sw	t0, ST_OFF(t3)
 
 	FPU_SAVE_DOUBLE(a0, t0)			# clobbers t0
 

@@ -24,6 +24,10 @@
 
 	.set	mips3
 
+/* 
+ * Offset to the current process status flags, the first 32 bytes of the
+ * stack are not used.
+ */
 #define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
 
 /*
@@ -58,15 +62,15 @@
 	nor	t1, zero, t1
 
 	and	t0, t0, t1
-	sd	t0, TASK_FLAGS(t3)
+	sd	t0, TI_FLAGS(t3)
 
 	/*
 	 * clear saved user stack CU1 bit
 	 */
-	ld	t0, ST_OFF(a0)
+	ld	t0, ST_OFF(t3)
 	li	t1, ~ST0_CU1
 	and	t0, t0, t1
-	sd	t0, ST_OFF(a0)
+	sd	t0, ST_OFF(t3)
 
 	
 	sll	t2, t0, 5

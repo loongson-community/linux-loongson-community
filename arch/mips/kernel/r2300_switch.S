@@ -27,6 +27,10 @@
 	.set	mips1
 	.align	5
 
+/*
+ * Offset to the current process status flags, the first 32 bytes of the
+ * stack are not used.
+ */
 #define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
 
 /*
@@ -66,12 +70,12 @@ LEAF(resume)
 	sw	t0, TI_FLAGS(t3)
 
 	/*
-	 * clear user-saved stack CU1 bit
+	 * clear saved user stack CU1 bit
 	 */
-	lw	t0, ST_OFF(a0)
+	lw	t0, ST_OFF(t3)
 	li	t1, ~ST0_CU1
 	and	t0, t0, t1
-	sw	t0, ST_OFF(a0)
+	sw	t0, ST_OFF(t3)
 
 	FPU_SAVE_SINGLE(a0, t0)			# clobbers t0
 
