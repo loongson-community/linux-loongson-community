@@ -174,10 +174,8 @@ void ip27_do_irq_mask0(struct pt_regs *regs)
 	swlevel = ms1bit(pend0);
 	if (pend0 & (1UL << CPU_RESCHED_A_IRQ)) {
 		LOCAL_HUB_CLR_INTR(CPU_RESCHED_A_IRQ);
-		handle_resched_intr();
 	} else if (pend0 & (1UL << CPU_RESCHED_B_IRQ)) {
 		LOCAL_HUB_CLR_INTR(CPU_RESCHED_B_IRQ);
-		handle_resched_intr();
 	} else if (pend0 & (1UL << CPU_CALL_A_IRQ)) {
 		LOCAL_HUB_CLR_INTR(CPU_CALL_A_IRQ);
 		smp_call_function_interrupt();
@@ -432,12 +430,6 @@ void __init init_IRQ(void)
 		irq_desc[i].depth	= 1;
 		irq_desc[i].handler	= &bridge_irq_type;
 	}
-}
-
-irqreturn_t handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
-{
-	/* Nothing, the return from intr will work for us */
-	return IRQ_NONE;
 }
 
 #ifdef CONFIG_SMP
