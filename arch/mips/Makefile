@@ -27,7 +27,7 @@ CROSS_COMPILE	= $(tool-prefix)
 endif
 
 #
-# GCC uses -G0 -mabicalls -fpic as default.  We don't want PIC in the kernel
+# GCC uses -G 0 -mabicalls -fpic as default.  We don't want PIC in the kernel
 # code since it only slows down the whole thing.  At some point we might make
 # use of global pointer optimizations but their use of $28 conflicts with
 # the current pointer optimization.

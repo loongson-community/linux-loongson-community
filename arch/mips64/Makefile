@@ -25,7 +25,7 @@ CROSS_COMPILE	= $(tool-prefix)
 endif
 
 #
-# The ELF GCC uses -G0 -mabicalls -fpic as default.  We don't need PIC
+# The ELF GCC uses -G 0 -mabicalls -fpic as default.  We don't need PIC
 # code in the kernel since it only slows down the whole thing.  For the
 # old GCC these options are just the defaults.  At some point we might
 # make use of global pointer optimizations.
