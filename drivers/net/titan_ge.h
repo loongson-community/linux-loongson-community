@@ -1,23 +1,23 @@
 #ifndef _TITAN_GE_H_
 #define _TITAN_GE_H_
 
-#include <linux/config.h>
-#include <linux/version.h>
-#include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
+#include <linux/sched.h>
 #include <linux/spinlock.h>
 
 /*
  * These functions should be later moved to a more generic location since there
  * will be others accessing it also 
  */
-#define	TITAN_GE_BASE	0xbb000000
+#define TITAN_GE_BASE	0xfe000000UL
+#define TITAN_GE_SIZE	0x10000UL
+
+extern unsigned long titan_ge_base;
 
 #define	TITAN_GE_WRITE(offset, data) \
-		*(volatile u32 *)(TITAN_GE_BASE + offset) = data
+		*(volatile u32 *)(titan_ge_base + (offset)) = data
 
-#define TITAN_GE_READ(offset) *(volatile u32 *)(TITAN_GE_BASE + offset)
+#define TITAN_GE_READ(offset) *(volatile u32 *)(titan_ge_base + offset)
 
 #ifndef msec_delay
 #define msec_delay(x)   do { if(in_interrupt()) { \

@@ -78,6 +78,8 @@ static int titan_ge_return_tx_desc(titan_ge_port_info *,
 				   titan_ge_packet *);
 int titan_ge_receive_queue(struct net_device *, unsigned int);
 
+unsigned long titan_ge_base;
+
 /* MAC Address XXX For testing purposes, use any value */
 static unsigned char titan_ge_mac_addr_base[6] = {
 	0x00, 0x11, 0x22, 0x33, 0x44, 0x55
@@ -1681,6 +1683,13 @@ static int __init titan_ge_init_module(void)
 {
 	unsigned long version, device;
 
+	titan_ge_base = (unsigned long) ioremap(TITAN_GE_BASE, TITAN_GE_SIZE);
+	if (!titan_ge_base) {
+		printk("Mapping Titan GE failed\n");
+
+		return -ENOMEM;
+	}
+
 	printk(KERN_NOTICE "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
 	device = TITAN_GE_READ(TITAN_GE_DEVICE_ID);
 	version = (device & 0x000f0000) >> 16;
@@ -1703,7 +1712,7 @@ static int __init titan_ge_init_module(void)
  */
 static void __exit titan_ge_cleanup_module(void)
 {
-	/* Nothing to do here */
+	iounmap((void *)titan_ge_base);
 }
 
 /*
