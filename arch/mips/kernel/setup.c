@@ -142,9 +142,9 @@ static inline int cpu_has_confreg(void)
 	unsigned long size1, size2; 
 	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
 
-	size1 = r3k_cache_size(ST0_DE);
+	size1 = r3k_cache_size(ST0_ISC);
 	write_32bit_cp0_register(CP0_CONF, cfg^CONF_AC);
-	size2 = r3k_cache_size(ST0_DE);
+	size2 = r3k_cache_size(ST0_ISC);
 	write_32bit_cp0_register(CP0_CONF, cfg);
 	return size1 != size2;
 #else
