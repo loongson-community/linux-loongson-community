@@ -2905,13 +2905,13 @@ sbmac_cleanup_module(void)
 
 	for (idx = 0; idx < MAX_UNITS; idx++) {
 		dev = dev_sbmac[idx];
-		if (!dev) {
-			struct sbmac_softc *sc = dev->priv;
-			unregister_netdev(dev);
-			sbmac_uninitctx(sc);
-			free_netdev(dev);
-		}
+		if (!dev)
+			continue;
 
+		struct sbmac_softc *sc = dev->priv;
+		unregister_netdev(dev);
+		sbmac_uninitctx(sc);
+		free_netdev(dev);
 	}
 }
 
