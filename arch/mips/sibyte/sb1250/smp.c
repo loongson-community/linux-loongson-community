@@ -28,21 +28,26 @@
  * independent of board/firmware
  */
 
-static u64 mailbox_set_regs[] = 
-{  KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU, 
-   KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU  };
+static u64 mailbox_set_regs[] = {
+	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU, 
+	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU
+};
 
-static u64 mailbox_clear_regs[] = 
-{  KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU, 
-   KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU  };
+static u64 mailbox_clear_regs[] = {
+	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU, 
+	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU
+};
 
-static u64 mailbox_regs[] = 
-{  KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU, 
-   KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU  };
+static u64 mailbox_regs[] = {
+	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU, 
+	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU
+};
 
 
-/* Simple enough; everything is set up, so just poke the appropriate mailbox
-   register, and we should be set */
+/*
+ * Simple enough; everything is set up, so just poke the appropriate mailbox
+ * register, and we should be set
+ */
 void core_send_ipi(int cpu, unsigned int action)
 {
 	out64((((u64)action)<< 48), mailbox_set_regs[cpu]);
@@ -52,37 +57,10 @@ void core_send_ipi(int cpu, unsigned int action)
 void sb1250_smp_finish(void)
 {
 	extern void sb1_sanitize_tlb(void);
+
 	sb1_sanitize_tlb();
 	sb1250_time_init();
 }
-
-static void sb1250_smp_reschedule(void)
-{
-	current->need_resched = 1;
-}
-
-static void sb1250_smp_call_function(void)
-{
-	void (*func) (void *info) = call_data->func;
-	void *info = call_data->info;
-	int wait = call_data->wait;
-
-	/*
-	 * Notify initiating CPU that I've grabbed the data
-	 * and am about to execute the function
-	 */
-	mb();
-	atomic_inc(&call_data->started);
-	(*func)(info);
-	/*
-	 * At this point the info structure may be out of scope unless wait==1
-	 */
-	if (wait) {
-		mb();
-		atomic_inc(&call_data->finished);
-	}
-}
-
 
 void sb1250_mailbox_interrupt(struct pt_regs *regs)
 {
@@ -95,10 +73,12 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 	/* Clear the mailbox to clear the interrupt */
 	out64(((u64)action)<<48, mailbox_clear_regs[cpu]);
 
-	if (action & SMP_RESCHEDULE_YOURSELF) {
-		sb1250_smp_reschedule();
-	}
+	/*
+	 * Nothing to do for SMP_RESCHEDULE_YOURSELF; returning from the
+	 * interrupt will do the reschedule for us
+	 */
+
 	if (action & SMP_CALL_FUNCTION) {
-		sb1250_smp_call_function();
+		smp_call_function_interrupt();
 	}
 }
