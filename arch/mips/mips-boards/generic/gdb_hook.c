@@ -35,6 +35,8 @@ static struct serial_state rs_table[RS_TABLE_SIZE] = {
 
 static struct async_struct kdb_port_info = {0};
 
+int (*putDebugChar)(char);
+char (*getDebugChar)(void);
 
 static __inline__ unsigned int serial_in(struct async_struct *info, int offset)
 {
