@@ -13,6 +13,7 @@
 #include <linux/config.h>
 #include <linux/version.h>
 #define __NO_VERSION__
+#include <linux/bitops.h>
 #include <linux/module.h>
 
 #include <linux/msdos_fs.h>
