@@ -998,6 +998,12 @@ void __init trap_init(void)
 	}
 
 	if (mips_cpu.cputype == CPU_SB1) {
+		extern char except_vec2_sb1;
+
+		/* Special cache error handler for SB1 */
+		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
+		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_c0_status(0xf000);
 		set_c0_status(0xc00);
