@@ -30,11 +30,10 @@
 #include <asm/ptrace.h>
 #include <asm/processor.h>
 #include <asm/pci/bridge.h>
-#include <asm/sn/sn0/hub.h>
-#include <asm/sn/sn0/ip27.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/agent.h>
 #include <asm/sn/arch.h>
+#include <asm/sn/hub.h>
 #include <asm/sn/intr.h>
 #include <asm/sn/intr_public.h>
 
@@ -187,7 +186,7 @@ void ip27_do_irq_mask0(struct pt_regs *regs)
 #endif
 	{
 		/* "map" swlevel to irq */
-		irq = LEVEL_TO_IRQ(cpu, swlevel);
+		irq = node_level_to_irq[CPUID_TO_COMPACT_NODEID(cpu)][swlevel];
 		do_IRQ(irq, regs);
 	}
 
@@ -219,7 +218,7 @@ void ip27_do_irq_mask1(struct pt_regs *regs)
 
 	swlevel = ms1bit(pend1);
 	/* "map" swlevel to irq */
-	irq = LEVEL_TO_IRQ(cpu, swlevel);
+	irq = node_level_to_irq[CPUID_TO_COMPACT_NODEID(cpu)][swlevel];
 	LOCAL_HUB_CLR_INTR(swlevel);
 	do_IRQ(irq, regs);
 	/* clear bit in pend1 */
@@ -246,14 +245,14 @@ void ip27_hub_error(struct pt_regs *regs)
 static void intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
                           hubreg_t **intpend_masks, int *ip)
 {
-	struct hub_intmasks_s *hub_intmasks = &cpu_data[cpu].p_intmasks;
+	struct slice_data *si = cpu_data[cpu].data;
 
 	if (bit < N_INTPEND_BITS) {
-		*intpend_masks = &hub_intmasks->intpend0_masks;
+		*intpend_masks = &si->irqmask[0];
 		*ip = 0;
 		*new_bit = bit;
 	} else {
-		*intpend_masks = &hub_intmasks->intpend1_masks;
+		*intpend_masks = &si->irqmask[1];
 		*ip = 1;
 		*new_bit = bit - N_INTPEND_BITS;
 	}
@@ -378,7 +377,7 @@ static void shutdown_bridge_irq(unsigned int irq)
 	 */
 	swlevel = find_level(&cpu, irq);
 	intr_disconnect_level(cpu, swlevel);
-	LEVEL_TO_IRQ(cpu, swlevel) = -1;
+	node_level_to_irq[CPUID_TO_COMPACT_NODEID(cpu)][swlevel] = -1;
 
 	bridge->b_int_enable &= ~(1 << pin);
 	bridge->b_widget.w_tflush;                      /* Flush */
@@ -438,6 +437,7 @@ void install_ipi(void)
 {
 	int slice = LOCAL_HUB_L(PI_CPU_NUM);
 	int cpu = smp_processor_id();
+	struct slice_data *si = cpu_data[cpu].data;
 	hubreg_t mask, set;
 
 	if (slice == 0) {
@@ -447,7 +447,7 @@ void install_ipi(void)
 		set = (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) |
 		      (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ));
 		mask |= set;
-		cpu_data[cpu].p_intmasks.intpend0_masks |= set;
+		si->irqmask[0] |= set;
 		LOCAL_HUB_S(PI_INT_MASK0_A, mask);
 	} else {
 		LOCAL_HUB_CLR_INTR(CPU_RESCHED_B_IRQ);
@@ -456,7 +456,7 @@ void install_ipi(void)
 		set = (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) |
 		      (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ));
 		mask |= set;
-		cpu_data[cpu].p_intmasks.intpend0_masks |= set;
+		si->irqmask[1] |= set;
 		LOCAL_HUB_S(PI_INT_MASK0_B, mask);
 	}
 }

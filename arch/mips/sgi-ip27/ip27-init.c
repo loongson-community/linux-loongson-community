@@ -26,6 +26,7 @@
 #include <asm/sn/ioc3.h>
 #include <asm/mipsregs.h>
 #include <asm/sn/gda.h>
+#include <asm/sn/hub.h>
 #include <asm/sn/intr.h>
 #include <asm/current.h>
 #include <asm/smp.h>
@@ -74,10 +75,42 @@ static int is_fine_dirmode(void)
 		>> NSRI_REGIONSIZE_SHFT) & REGIONSIZE_FINE);
 }
 
-extern void xtalk_probe_node(cnodeid_t nid);
-void per_hub_init(cnodeid_t cnode)
+extern void pcibr_setup(cnodeid_t);
+
+static __init void per_slice_init(cnodeid_t cnode, int slice)
 {
-	nasid_t		nasid = COMPACT_TO_NASID_NODEID(cnode);
+	struct slice_data *si = hub_data[cnode]->slice + slice;
+	int cpu = smp_processor_id();
+	int i;
+
+	/*
+	 * Some interrupts are reserved by hardware or by software convention.
+	 * Mark these as reserved right away so they won't be used accidently
+	 * later.
+	 */
+	for (i = 0; i <= BASE_PCI_IRQ; i++)
+		set_bit(i, si->irqmask);
+	set_bit(IP_PEND0_6_63, si->irqmask);
+
+	for (i = NI_BRDCAST_ERR_A; i <= MSC_PANIC_INTR; i++)
+		set_bit(i, si->irqmask + 1);
+
+	/*
+	 * We use this so we can find the local hub's data as fast as only
+	 * possible.
+	 */
+	cpu_data[cpu].data = si;
+}
+
+extern void xtalk_probe_node(cnodeid_t nid);
+
+void __init per_hub_init(cnodeid_t cnode)
+{
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
+	int slice = LOCAL_HUB_L(PI_CPU_NUM);
+
+	if (!test_and_set_bit(slice, &hub_data[cnode]->slice_map))
+		per_slice_init(cnode, slice);
 
 	if (test_and_set_bit(cnode, hub_init_mask))
 		return;

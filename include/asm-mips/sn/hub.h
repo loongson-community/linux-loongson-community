@@ -7,9 +7,15 @@
 #include <asm/sn/klkernvars.h>
 #include <asm/xtalk/xtalk.h>
 
+struct slice_data {
+	unsigned long irqmask[2];
+};
+                                                                                
 struct hub_data {
 	kern_vars_t	kern_vars;
 	DECLARE_BITMAP  (h_bigwin_used, HUB_NUM_BIG_WINDOW);
+	unsigned long slice_map;
+	struct slice_data slice[2];
 };
 
 extern struct hub_data *hub_data[];
