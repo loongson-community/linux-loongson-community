@@ -500,6 +500,8 @@ void __init time_init(void)
 
 	/* caclulate cache parameters */
 	if (mips_counter_frequency) {
+		u32 count;
+
 		cycles_per_jiffy = mips_counter_frequency / HZ;
 
 		/* sll32_usecs_per_cycle = 10^6 * 2^32 / mips_counter_freq */
@@ -507,6 +509,14 @@ void __init time_init(void)
 		sll32_usecs_per_cycle = mips_counter_frequency / 100000;
 		sll32_usecs_per_cycle = 0xffffffff / sll32_usecs_per_cycle;
 		sll32_usecs_per_cycle *= 10;
+
+		/* 
+		 * For those using cpu counter as timer,  this sets up the 
+		 * first interrupt 
+		 */ 
+		count = read_32bit_cp0_register(CP0_COUNT);
+		write_32bit_cp0_register (CP0_COMPARE,
+					  count + cycles_per_jiffy);
 	}
 
 	/*
