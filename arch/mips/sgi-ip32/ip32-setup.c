@@ -6,6 +6,7 @@
  * for more details.
  *
  * Copyright (C) 2000 Harald Koerfgen
+ * Copyright (C) 2002, 03 Ilya A. Volynets
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -64,7 +65,6 @@ extern void __init crime_init (void);
 #include <linux/serial.h>
 #include <linux/serial_core.h>
 extern int __init early_serial_setup(struct uart_port *port);
-extern void __init ip32_pci_setup(void);
 
 #define STD_COM_FLAGS (ASYNC_SKIP_TEST)
 #define BASE_BAUD (1843200 / 16)
