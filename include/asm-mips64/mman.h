@@ -1,4 +1,4 @@
-/* $Id: mman.h,v 1.1 1999/08/19 22:56:34 ralf Exp $
+/* $Id: mman.h,v 1.2 2000/02/04 23:09:08 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -45,9 +45,9 @@
 /*
  * Flags for msync
  */
-#define MS_SYNC		0x01		/* synchronous memory sync */
-#define MS_ASYNC	0x02		/* sync memory asynchronously */
-#define MS_INVALIDATE	0x04		/* invalidate mappings & caches */
+#define MS_ASYNC	0x0001		/* sync memory asynchronously */
+#define MS_INVALIDATE	0x0002		/* invalidate mappings & caches */
+#define MS_SYNC		0x0004		/* synchronous memory sync */
 
 /*
  * Flags for mlockall

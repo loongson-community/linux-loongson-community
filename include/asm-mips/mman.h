@@ -46,9 +46,9 @@
 /*
  * Flags for msync
  */
-#define MS_SYNC		0x0001		/* synchronous memory sync */
-#define MS_ASYNC	0x0002		/* sync memory asynchronously */
-#define MS_INVALIDATE	0x0004		/* invalidate mappings & caches */
+#define MS_ASYNC	0x0001		/* sync memory asynchronously */
+#define MS_INVALIDATE	0x0002		/* invalidate mappings & caches */
+#define MS_SYNC		0x0004		/* synchronous memory sync */
 
 /*
  * Flags for mlockall
