@@ -221,13 +221,19 @@ unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
 	return 0;
 }
 
-static void __init pcibios_fixup_resource(struct resource *res, struct resource *root)
+static void __init pcibios_fixup_resource(struct pci_dev *dev,
+	struct resource *res, struct resource *root)
 {
-	res->start += root->start;
-	res->end += root->start;
+	struct pci_controller *hose = (struct pci_controller *) dev->sysdata;
+
+	if (hose->iommu) {
+		res->start += root->start;
+		res->end += root->start;
+	}
 }
 
-static void __init pcibios_fixup_device_resources(struct pci_dev *dev, struct pci_bus *bus)
+static void __init pcibios_fixup_device_resources(struct pci_dev *dev,
+	struct pci_bus *bus)
 {
 	/* Update device resources.  */
 	struct pci_controller *hose = (struct pci_controller *)bus->sysdata;
@@ -237,10 +243,12 @@ static void __init pcibios_fixup_device_resources(struct pci_dev *dev, struct pc
 		if (!dev->resource[i].start)
 			continue;
 		if (dev->resource[i].flags & IORESOURCE_IO)
-			pcibios_fixup_resource(&dev->resource[i],
+			pcibios_fixup_resource(dev,
+			                       &dev->resource[i],
 					       hose->io_resource);
 		else if (dev->resource[i].flags & IORESOURCE_MEM)
-			pcibios_fixup_resource(&dev->resource[i],
+			pcibios_fixup_resource(dev,
+			                       &dev->resource[i],
 					       hose->mem_resource);
 	}
 }
