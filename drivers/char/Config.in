@@ -73,6 +73,9 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
       bool '  Support for sb1250 onchip DUART' CONFIG_SIBYTE_SB1250_DUART
       if [ "$CONFIG_SIBYTE_SB1250_DUART" = "y" ]; then
 	 bool '  Console on SB1250 DUART' CONFIG_SIBYTE_SB1250_DUART_CONSOLE
+	 if [ "$CONFIG_SIBYTE_SB1250_DUART_CONSOLE" = "y" ]; then
+	    define_bool CONFIG_SERIAL_CONSOLE y
+	 fi
 	 int  '  Output buffers size (in bytes)' CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE 1024
 	 bool '  Leave port 1 alone (for kgdb or audio)' CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
       fi
