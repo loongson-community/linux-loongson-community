@@ -179,61 +179,95 @@ static inline void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 }
 
 /*
+ * If the address is either in the .text section of the
+ * kernel, or in the vmalloc'ed module regions, it *may*
+ * be the address of a calling routine
+ */
+
+#ifdef CONFIG_MODULES
+
+extern struct module *module_list;
+extern struct module kernel_module;
+
+static inline int kernel_text_address(long addr)
+{
+	extern char _stext, _etext;
+	int retval = 0;
+	struct module *mod;
+
+	if (addr >= (long) &_stext && addr <= (long) &_etext)
+		return 1;
+
+	for (mod = module_list; mod != &kernel_module; mod = mod->next) {
+		/* mod_bound tests for addr being inside the vmalloc'ed
+		 * module area. Of course it'd be better to test only
+		 * for the .text subset... */
+		if (mod_bound(addr, 0, mod)) {
+			retval = 1;
+			break;
+		}
+	}
+
+	return retval;
+}
+
+#else
+
+static inline int kernel_text_address(long addr)
+{
+	extern char _stext, _etext;
+
+	return (addr >= (long) &_stext && addr <= (long) &_etext);
+}
+
+#endif
+
+/*
  * This routine abuses get_user()/put_user() to reference pointers
  * with at least a bit of error checking ...
  */
-void show_stack(unsigned int *sp)
+void show_stack(long *sp)
 {
 	int i;
-	unsigned int *stack;
+	long stackdata;
 
-	stack = sp ? sp : (unsigned int *)&sp;
-	i = 0;
+	sp = sp ? sp : (long *)&sp;
 
-	printk("Stack:");
-	while ((unsigned long) stack & (PAGE_SIZE - 1)) {
-		unsigned long stackdata;
+	printk("Stack:   ");
+	i = 1;
+	while ((long) sp & (PAGE_SIZE - 1)) {
+		if (i && ((i % 8) == 0))
+			printk("\n");
+		if (i > 40) {
+			printk(" ...");
+			break;
+		}
 
-		if (__get_user(stackdata, stack++)) {
+		if (__get_user(stackdata, sp++)) {
 			printk(" (Bad stack address)");
 			break;
 		}
 
 		printk(" %08lx", stackdata);
-
-		if (++i > 40) {
-			printk(" ...");
-			break;
-		}
-
-		if (i % 8 == 0)
-			printk("\n      ");
+		i++;
 	}
+	printk("\n");
 }
 
-void show_trace(unsigned int *sp)
+void show_trace(long *sp)
 {
 	int i;
-	int column = 0;
-	unsigned int *stack;
-	unsigned long kernel_start, kernel_end;
-	unsigned long module_start, module_end;
-	extern char _stext, _etext;
+	long addr;
 
-	stack = sp ? sp : (unsigned int *) &sp;
-	i = 0;
+	sp = sp ? sp : (long *) &sp;
 
-	kernel_start = (unsigned long) &_stext;
-	kernel_end = (unsigned long) &_etext;
-	module_start = VMALLOC_START;
-	module_end = module_start + MODULE_RANGE;
+	printk("Call Trace:  ");
+	i = 1;
+	while ((long) sp & (PAGE_SIZE - 1)) {
 
-	printk("\nCall Trace:");
-
-	while ((unsigned long) stack & (PAGE_SIZE -1)) {
-		unsigned long addr;
-
-		if (__get_user(addr, stack++)) {
+		if (__get_user(addr, sp++)) {
+			if (i && ((i % 6) == 0))
+				printk("\n");
 			printk(" (Bad stack address)\n");
 			break;
 		}
@@ -247,27 +281,24 @@ void show_trace(unsigned int *sp)
 		 * out the call path that was taken.
 		 */
 
-		if ((addr >= kernel_start && addr < kernel_end) ||
-		    (addr >= module_start && addr < module_end)) { 
-
-			printk(" [<%08lx>]", addr);
-			if (column++ == 5) {
+		if (kernel_text_address(addr)) {
+			if (i && ((i % 6) == 0))
 				printk("\n");
-				column = 0;
-			}
-			if (++i > 40) {
+			if (i > 40) {
 				printk(" ...");
 				break;
 			}
+
+			printk(" [<%08lx>]", addr);
+			i++;
 		}
 	}
-	if (column != 0)
-		printk("\n");
+	printk("\n");
 }
 
 void show_trace_task(struct task_struct *tsk)
 {
-	show_trace((unsigned int *)tsk->thread.reg29);
+	show_trace((long *)tsk->thread.reg29);
 }
 
 void show_code(unsigned int *pc)
@@ -319,8 +350,8 @@ void show_registers(struct pt_regs *regs)
 	show_regs(regs);
 	printk("Process %s (pid: %d, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
-	show_stack((unsigned int *) regs->regs[29]);
-	show_trace((unsigned int *) regs->regs[29]);
+	show_stack((long *) regs->regs[29]);
+	show_trace((long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
 }
