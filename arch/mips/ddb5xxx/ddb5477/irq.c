@@ -1,4 +1,4 @@
-/***********************************************************************
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
@@ -9,9 +9,7 @@
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- ***********************************************************************
  */
-
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/irq.h>
@@ -68,7 +66,7 @@ set_pci_int_attr(u32 pci, u32 intn, u32 active, u32 trigger)
 	
 	reg_value &= ~reg_bitmask;
 	reg_value |= (active | trigger) << (intn * 2);
-        ddb_out32(pci, reg_value);
+	ddb_out32(pci, reg_value);
 }
 
 extern void vrc5477_irq_init(u32 base);
@@ -163,22 +161,3 @@ vrc5477_irq_dispatch(struct pt_regs *regs)
 		}
 	}
 }
-
-void (*irq_setup)(void);
-
-void __init init_IRQ(void)
-{
-
-#ifdef CONFIG_REMOTE_DEBUG
-        extern void breakpoint(void);
-        extern void set_debug_traps(void);
-
-        printk("Wait for gdb client connection ...\n");
-        set_debug_traps();
-        breakpoint();
-#endif
-
-        /* invoke board-specific irq setup */
-        irq_setup();
-}
- 
