@@ -1,4 +1,4 @@
-/* $Id: ip27-pci.c,v 1.1 2000/01/20 22:50:29 ralf Exp $
+/* $Id: ip27-pci.c,v 1.5 2000/01/31 23:25:06 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -172,6 +172,7 @@ void __init
 pcibios_fixup_bus(struct pci_bus *b)
 {
 	unsigned short command;
+	struct list_head *ln;
 	struct pci_dev *dev;
 
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
@@ -182,7 +183,8 @@ pcibios_fixup_bus(struct pci_bus *b)
 	 * stop working if we program the controllers as not having
 	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
-	for (dev = b->devices; dev; dev = dev->sibling) {
+	for (ln=b->devices.next; ln != &b->devices; ln=ln->next) {
+		dev = pci_dev_b(ln);
 		if (PCI_FUNC(dev->devfn) == 0) {
 			if ((PCI_SLOT(dev->devfn) == 0) || 
 						(PCI_SLOT(dev->devfn) == 1)) {
@@ -196,6 +198,21 @@ pcibios_fixup_bus(struct pci_bus *b)
 			}
 		}
 	}
+}
+
+void __init
+pcibios_fixup_pbus_ranges(struct pci_bus * bus,
+                          struct pbus_set_ranges_data * ranges)
+{
+	ranges->io_start -= bus->resource[0]->start;
+	ranges->io_end -= bus->resource[0]->start;
+	ranges->mem_start -= bus->resource[1]->start;
+	ranges->mem_end -= bus->resource[1]->start;
+}
+
+void __init
+pcibios_align_resource(void *data, struct resource *res, unsigned long size)
+{
 }
 
 char * __init
