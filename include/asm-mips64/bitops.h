@@ -338,8 +338,7 @@ static inline int find_first_zero_bit (void *addr, unsigned size)
 		"2:"
 		: "=r" (res), "=r" (dummy), "=r" (addr)
 		: "0" ((signed int) 0), "1" ((unsigned int) 0xffffffff),
-		  "2" (addr), "r" (size)
-		: "$1");
+		  "2" (addr), "r" (size));
 
 	return res;
 }
@@ -371,8 +370,7 @@ static inline int find_next_zero_bit (void * addr, int size, int offset)
 			".set\treorder\n"
 			"1:"
 			: "=r" (set), "=r" (dummy)
-			: "0" (0), "1" (1 << bit), "r" (*p)
-			: "$1");
+			: "0" (0), "1" (1 << bit), "r" (*p));
 		if (set < (32 - bit))
 			return set + offset;
 		set = 32 - bit;

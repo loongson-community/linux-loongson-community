@@ -202,12 +202,12 @@ __asm__ __volatile__ ( \
 #define __INS(m,s,i) \
 __INS1(s) __INS2(m) \
 	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), "I" (i) \
-	: "$1");} \
+	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), \
+	  "I" (i));} \
 __INS1(s##c) __INS2(m) \
 	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), "I" (i) \
-	: "$1");}
+	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), \
+	  "I" (i));}
 
 #define __OUTS1(s) \
 extern inline void __outs##s(unsigned long port, const void * addr, unsigned long count) {
@@ -228,12 +228,12 @@ __asm__ __volatile__ ( \
 #define __OUTS(m,s,i) \
 __OUTS1(s) __OUTS2(m) \
 	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), "I" (i) \
-	: "$1");} \
+	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), \
+	  "I" (i));} \
 __OUTS1(s##c) __OUTS2(m) \
 	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), "I" (i) \
-	: "$1");}
+	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), \
+	  "I" (i));}
 
 __IN(unsigned char,b,b)
 __IN(unsigned short,h,w)
