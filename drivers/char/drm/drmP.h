@@ -781,30 +781,30 @@ extern unsigned int  DRM(poll)(struct file *filp,
 #if LINUX_VERSION_CODE < 0x020317
 extern unsigned long DRM(vm_nopage)(struct vm_area_struct *vma,
 				    unsigned long address,
-				    int write_access);
+				    int unused);
 extern unsigned long DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 					unsigned long address,
-					int write_access);
+					int unused);
 extern unsigned long DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 					unsigned long address,
-					int write_access);
+					int unused);
 extern unsigned long DRM(vm_sg_nopage)(struct vm_area_struct *vma,
 				       unsigned long address,
-				       int write_access);
+				       int unused);
 #else
 				/* Return type changed in 2.3.23 */
 extern struct page *DRM(vm_nopage)(struct vm_area_struct *vma,
 				   unsigned long address,
-				   int write_access);
+				   int unused);
 extern struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 				       unsigned long address,
-				       int write_access);
+				       int unused);
 extern struct page *DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 				       unsigned long address,
-				       int write_access);
+				       int unused);
 extern struct page *DRM(vm_sg_nopage)(struct vm_area_struct *vma,
 				      unsigned long address,
-				      int write_access);
+				      int unused);
 #endif
 extern void	     DRM(vm_open)(struct vm_area_struct *vma);
 extern void	     DRM(vm_close)(struct vm_area_struct *vma);

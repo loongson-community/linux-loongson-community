@@ -1,4 +1,4 @@
-/* $Id: floppy.h,v 1.31 2001/08/22 17:46:31 davem Exp $
+/* $Id: floppy.h,v 1.32 2001/10/26 17:59:36 davem Exp $
  * asm-sparc64/floppy.h: Sparc specific parts of the Floppy driver.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -104,7 +104,6 @@ static int sun_floppy_types[2] = { 0, 0 };
 #define FLOPPY1_TYPE		sun_floppy_types[1]
 
 #define FDC1			((unsigned long)sun_fdc)
-static int FDC2 =		-1;
 
 #define N_FDC    1
 #define N_DRIVE  8
@@ -883,5 +882,7 @@ static unsigned long __init sun_floppy_init(void)
 
 	return sun_floppy_types[0];
 }
+
+#define EXTRA_FLOPPY_PARAMS
 
 #endif /* !(__ASM_SPARC64_FLOPPY_H) */

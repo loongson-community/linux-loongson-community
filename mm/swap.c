@@ -27,41 +27,11 @@
 /* How many pages do we try to swap or page in/out together? */
 int page_cluster;
 
-/* We track the number of pages currently being asynchronously swapped
-   out, so that we don't try to swap TOO many pages out at once */
-atomic_t nr_async_pages = ATOMIC_INIT(0);
-
 pager_daemon_t pager_daemon = {
 	512,	/* base number for calculating the number of tries */
 	SWAP_CLUSTER_MAX,	/* minimum number of tries */
 	8,	/* do swap I/O in clusters of this size */
 };
-
-/**
- * (de)activate_page - move pages from/to active and inactive lists
- * @page: the page we want to move
- * @nolock - are we already holding the pagemap_lru_lock?
- *
- * Deactivate_page will move an active page to the right
- * inactive list, while activate_page will move a page back
- * from one of the inactive lists to the active list. If
- * called on a page which is not on any of the lists, the
- * page is left alone.
- */
-static inline void deactivate_page_nolock(struct page * page)
-{
-	if (PageActive(page)) {
-		del_page_from_active_list(page);
-		add_page_to_inactive_list(page);
-	}
-}	
-
-void deactivate_page(struct page * page)
-{
-	spin_lock(&pagemap_lru_lock);
-	deactivate_page_nolock(page);
-	spin_unlock(&pagemap_lru_lock);
-}
 
 /*
  * Move an inactive page to the active list.
@@ -87,11 +57,11 @@ void activate_page(struct page * page)
  */
 void lru_cache_add(struct page * page)
 {
-	if (!PageLocked(page))
-		BUG();
-	spin_lock(&pagemap_lru_lock);
-	add_page_to_inactive_list(page);
-	spin_unlock(&pagemap_lru_lock);
+	if (!PageActive(page) && !PageInactive(page)) {
+		spin_lock(&pagemap_lru_lock);
+		add_page_to_inactive_list(page);
+		spin_unlock(&pagemap_lru_lock);
+	}
 }
 
 /**
@@ -107,9 +77,9 @@ void __lru_cache_del(struct page * page)
 		del_page_from_active_list(page);
 	} else if (PageInactive(page)) {
 		del_page_from_inactive_list(page);
-	} else
-		printk("VM: __lru_cache_del, found unknown page ?!\n");
-	DEBUG_LRU_PAGE(page);
+	} else {
+//		printk("VM: __lru_cache_del, found unknown page ?!\n");
+	}
 }
 
 /**
@@ -118,8 +88,6 @@ void __lru_cache_del(struct page * page)
  */
 void lru_cache_del(struct page * page)
 {
-	if (!PageLocked(page))
-		BUG();
 	spin_lock(&pagemap_lru_lock);
 	__lru_cache_del(page);
 	spin_unlock(&pagemap_lru_lock);

@@ -209,7 +209,9 @@ if [ "$CONFIG_FTAPE" != "n" ]; then
    source drivers/char/ftape/Config.in
 fi
 
-tristate 'ACP Modem (Mwave) support' CONFIG_MWAVE
+if [ "$CONFIG_X86" = "y" ]; then
+   tristate 'ACP Modem (Mwave) support' CONFIG_MWAVE
+fi
 
 endmenu
 

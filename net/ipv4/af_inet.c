@@ -5,7 +5,7 @@
  *
  *		PF_INET protocol family socket handler.
  *
- * Version:	$Id: af_inet.c,v 1.133 2001/08/06 13:21:16 davem Exp $
+ * Version:	$Id: af_inet.c,v 1.135 2001/10/27 03:27:13 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -141,6 +141,10 @@ int (*dlci_ioctl_hook)(unsigned int, void *);
 
 #if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
 int (*br_ioctl_hook)(unsigned long);
+#endif
+
+#if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
+int (*vlan_ioctl_hook)(unsigned long arg);
 #endif
 
 /* The inetsw table contains everything that inet_create needs to
@@ -879,6 +883,18 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 #endif
 			if (br_ioctl_hook != NULL)
 				return br_ioctl_hook(arg);
+#endif
+			return -ENOPKG;
+
+		case SIOCGIFVLAN:
+		case SIOCSIFVLAN:
+#if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
+#ifdef CONFIG_KMOD
+			if (vlan_ioctl_hook == NULL)
+				request_module("8021q");
+#endif
+			if (vlan_ioctl_hook != NULL)
+				return vlan_ioctl_hook(arg);
 #endif
 			return -ENOPKG;
 

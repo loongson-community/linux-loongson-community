@@ -239,7 +239,6 @@ CONFIG_SERIAL_TX3912_CONSOLE=y
 # Ftape, the floppy tape device driver
 #
 # CONFIG_FTAPE is not set
-# CONFIG_MWAVE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 
@@ -273,6 +272,7 @@ CONFIG_SERIAL_TX3912_CONSOLE=y
 # CONFIG_RAMFS is not set
 # CONFIG_ISO9660_FS is not set
 # CONFIG_JOLIET is not set
+# CONFIG_ZISOFS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_NTFS_FS is not set
@@ -294,6 +294,8 @@ CONFIG_EXT2_FS=y
 # CONFIG_UFS_FS_WRITE is not set
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_SMB_FS is not set
+# CONFIG_ZISOFS_FS is not set
+# CONFIG_ZLIB_FS_INFLATE is not set
 
 #
 # Partition Types

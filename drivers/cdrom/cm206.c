@@ -765,11 +765,19 @@ void get_disc_status(void)
 	}
 }
 
+struct block_device_operations cm206_bdops =
+{
+	owner:			THIS_MODULE,
+	open:			cdrom_open,
+	release:		cdrom_release,
+	ioctl:			cdrom_ioctl,
+	check_media_change:	cdrom_media_changed,
+};
+
 /* The new open. The real opening strategy is defined in cdrom.c. */
 
 static int cm206_open(struct cdrom_device_info *cdi, int purpose)
 {
-	MOD_INC_USE_COUNT;
 	if (!cd->openfiles) {	/* reset only first time */
 		cd->background = 0;
 		reset_cm260();
@@ -792,7 +800,6 @@ static void cm206_release(struct cdrom_device_info *cdi)
 		FIRST_TRACK = 0;	/* No valid disc status */
 	}
 	--cd->openfiles;
-	MOD_DEC_USE_COUNT;
 }
 
 /* Empty buffer empties $sectors$ sectors of the adapter card buffer,
@@ -1478,7 +1485,7 @@ int __init cm206_init(void)
 		return -EIO;
 	}
 	printk(".\n");
-	if (devfs_register_blkdev(MAJOR_NR, "cm206", &cdrom_fops) != 0) {
+	if (devfs_register_blkdev(MAJOR_NR, "cm206", &cm206_bdops) != 0) {
 		printk(KERN_INFO "Cannot register for major %d!\n",
 		       MAJOR_NR);
 		cleanup(3);
@@ -1491,6 +1498,7 @@ int __init cm206_init(void)
 		cleanup(3);
 		return -EIO;
 	}
+	devfs_plain_cdrom(&cm206_info, &cm206_bdops);
 	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	blksize_size[MAJOR_NR] = cm206_blocksizes;
 	read_ahead[MAJOR_NR] = 16;	/* reads ahead what? */

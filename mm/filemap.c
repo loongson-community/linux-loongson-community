@@ -49,8 +49,13 @@ struct page **page_hash_table;
 
 spinlock_t pagecache_lock ____cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 /*
- * NOTE: to avoid deadlocking you must never acquire the pagecache_lock with
- *       the pagemap_lru_lock held.
+ * NOTE: to avoid deadlocking you must never acquire the pagemap_lru_lock 
+ *	with the pagecache_lock held.
+ *
+ * Ordering:
+ *	swap_lock ->
+ *		pagemap_lru_lock ->
+ *			pagecache_lock
  */
 spinlock_t pagemap_lru_lock ____cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 
@@ -136,17 +141,21 @@ static inline int sync_page(struct page *page)
 /*
  * Add a page to the dirty page list.
  */
-void __set_page_dirty(struct page *page)
+void set_page_dirty(struct page *page)
 {
-	struct address_space *mapping = page->mapping;
+	if (!test_and_set_bit(PG_dirty, &page->flags)) {
+		struct address_space *mapping = page->mapping;
 
-	spin_lock(&pagecache_lock);
-	list_del(&page->list);
-	list_add(&page->list, &mapping->dirty_pages);
-	spin_unlock(&pagecache_lock);
+		if (mapping) {
+			spin_lock(&pagecache_lock);
+			list_del(&page->list);
+			list_add(&page->list, &mapping->dirty_pages);
+			spin_unlock(&pagecache_lock);
 
-	if (mapping->host)
-		mark_inode_dirty_pages(mapping->host);
+			if (mapping->host)
+				mark_inode_dirty_pages(mapping->host);
+		}
+	}
 }
 
 /**
@@ -164,8 +173,8 @@ void invalidate_inode_pages(struct inode * inode)
 
 	head = &inode->i_mapping->clean_pages;
 
-	spin_lock(&pagecache_lock);
 	spin_lock(&pagemap_lru_lock);
+	spin_lock(&pagecache_lock);
 	curr = head->next;
 
 	while (curr != head) {
@@ -196,8 +205,8 @@ unlock:
 		continue;
 	}
 
-	spin_unlock(&pagemap_lru_lock);
 	spin_unlock(&pagecache_lock);
+	spin_unlock(&pagemap_lru_lock);
 }
 
 static inline void truncate_partial_page(struct page *page, unsigned partial)
@@ -524,6 +533,30 @@ int generic_buffer_fdatasync(struct inode *inode, unsigned long start_idx, unsig
 	return retval;
 }
 
+/*
+ * In-memory filesystems have to fail their
+ * writepage function - and this has to be
+ * worked around in the VM layer..
+ *
+ * We
+ *  - mark the page dirty again (but do NOT
+ *    add it back to the inode dirty list, as
+ *    that would livelock in fdatasync)
+ *  - activate the page so that the page stealer
+ *    doesn't try to write it out over and over
+ *    again.
+ */
+int fail_writepage(struct page *page)
+{
+	activate_page(page);
+	SetPageReferenced(page);
+	SetPageDirty(page);
+	UnlockPage(page);
+	return 0;
+}
+
+EXPORT_SYMBOL(fail_writepage);
+
 /**
  *      filemap_fdatasync - walk the list of dirty pages of the given address space
  *     	and writepage() all of them.
@@ -610,8 +643,9 @@ void add_to_page_cache_locked(struct page * page, struct address_space *mapping,
 	spin_lock(&pagecache_lock);
 	add_page_to_inode_queue(mapping, page);
 	add_page_to_hash_queue(page, page_hash(mapping, index));
-	lru_cache_add(page);
 	spin_unlock(&pagecache_lock);
+
+	lru_cache_add(page);
 }
 
 /*
@@ -630,7 +664,6 @@ static inline void __add_to_page_cache(struct page * page,
 	page->index = offset;
 	add_page_to_inode_queue(mapping, page);
 	add_page_to_hash_queue(page, hash);
-	lru_cache_add(page);
 }
 
 void add_to_page_cache(struct page * page, struct address_space * mapping, unsigned long offset)
@@ -638,6 +671,7 @@ void add_to_page_cache(struct page * page, struct address_space * mapping, unsig
 	spin_lock(&pagecache_lock);
 	__add_to_page_cache(page, mapping, offset, page_hash(mapping, offset));
 	spin_unlock(&pagecache_lock);
+	lru_cache_add(page);
 }
 
 int add_to_page_cache_unique(struct page * page,
@@ -657,6 +691,8 @@ int add_to_page_cache_unique(struct page * page,
 	}
 
 	spin_unlock(&pagecache_lock);
+	if (!err)
+		lru_cache_add(page);
 	return err;
 }
 
@@ -740,6 +776,17 @@ void ___wait_on_page(struct page *page)
 	remove_wait_queue(&page->wait, &wait);
 }
 
+void unlock_page(struct page *page)
+{
+	clear_bit(PG_launder, &(page)->flags);
+	smp_mb__before_clear_bit();
+	if (!test_and_clear_bit(PG_locked, &(page)->flags))
+		BUG();
+	smp_mb__after_clear_bit(); 
+	if (waitqueue_active(&(page)->wait))
+	wake_up(&(page)->wait);
+}
+
 /*
  * Get a lock on the page, assuming we need to sleep
  * to get it..
@@ -791,6 +838,24 @@ struct page * __find_get_page(struct address_space *mapping,
 	page = __find_page_nolock(mapping, offset, *hash);
 	if (page)
 		page_cache_get(page);
+	spin_unlock(&pagecache_lock);
+	return page;
+}
+
+/*
+ * Same as above, but trylock it instead of incrementing the count.
+ */
+struct page *find_trylock_page(struct address_space *mapping, unsigned long offset)
+{
+	struct page *page;
+	struct page **hash = page_hash(mapping, offset);
+
+	spin_lock(&pagecache_lock);
+	page = __find_page_nolock(mapping, offset, *hash);
+	if (page) {
+		if (TryLockPage(page))
+			page = NULL;
+	}
 	spin_unlock(&pagecache_lock);
 	return page;
 }
@@ -868,7 +933,9 @@ struct page * find_or_create_page(struct address_space *mapping, unsigned long i
 				newpage = NULL;
 			}
 			spin_unlock(&pagecache_lock);
-			if (unlikely(newpage != NULL))
+			if (newpage == NULL)
+				lru_cache_add(page);
+			else 
 				page_cache_release(newpage);
 		}
 	}
@@ -883,6 +950,51 @@ struct page *grab_cache_page(struct address_space *mapping, unsigned long index)
 	return find_or_create_page(mapping, index, mapping->gfp_mask);
 }
 
+
+/*
+ * Same as grab_cache_page, but do not wait if the page is unavailable.
+ * This is intended for speculative data generators, where the data can
+ * be regenerated if the page couldn't be grabbed.  This routine should
+ * be safe to call while holding the lock for another page.
+ */
+struct page *grab_cache_page_nowait(struct address_space *mapping, unsigned long index)
+{
+	struct page *page, **hash;
+
+	hash = page_hash(mapping, index);
+	page = __find_get_page(mapping, index, hash);
+
+	if ( page ) {
+		if ( !TryLockPage(page) ) {
+			/* Page found and locked */
+			/* This test is overly paranoid, but what the heck... */
+			if ( unlikely(page->mapping != mapping || page->index != index) ) {
+				/* Someone reallocated this page under us. */
+				UnlockPage(page);
+				page_cache_release(page);
+				return NULL;
+			} else {
+				return page;
+			}
+		} else {
+			/* Page locked by someone else */
+			page_cache_release(page);
+			return NULL;
+		}
+	}
+
+	page = page_cache_alloc(mapping);
+	if ( unlikely(!page) )
+		return NULL;	/* Failed to allocate a page */
+
+	if ( unlikely(add_to_page_cache_unique(page, mapping, index, hash)) ) {
+		/* Someone else grabbed the page already. */
+		page_cache_release(page);
+		return NULL;
+	}
+
+	return page;
+}
 
 #if 0
 #define PROFILE_READAHEAD
@@ -1344,6 +1456,7 @@ no_cached_page:
 		page = cached_page;
 		__add_to_page_cache(page, mapping, index, hash);
 		spin_unlock(&pagecache_lock);
+		lru_cache_add(page);		
 		cached_page = NULL;
 
 		goto readpage;
@@ -1630,14 +1743,13 @@ static void nopage_sequential_readahead(struct vm_area_struct * vma,
  * it in the page cache, and handles the special cases reasonably without
  * having a lot of duplicated code.
  */
-struct page * filemap_nopage(struct vm_area_struct * area,
-	unsigned long address, int no_share)
+struct page * filemap_nopage(struct vm_area_struct * area, unsigned long address, int unused)
 {
 	int error;
 	struct file *file = area->vm_file;
 	struct address_space *mapping = file->f_dentry->d_inode->i_mapping;
 	struct inode *inode = mapping->host;
-	struct page *page, **hash, *old_page;
+	struct page *page, **hash;
 	unsigned long size, pgoff, endoff;
 
 	pgoff = ((address - area->vm_start) >> PAGE_CACHE_SHIFT) + area->vm_pgoff;
@@ -1683,22 +1795,9 @@ success:
 	 * Found the page and have a reference on it, need to check sharing
 	 * and possibly copy it over to another page..
 	 */
-	old_page = page;
 	mark_page_accessed(page);
-	if (no_share) {
-		struct page *new_page = alloc_page(GFP_HIGHUSER);
-
-		if (new_page) {
-			copy_user_highpage(new_page, old_page, address);
-			flush_page_to_ram(new_page);
-		} else
-			new_page = NOPAGE_OOM;
-		page_cache_release(page);
-		return new_page;
-	}
-
-	flush_page_to_ram(old_page);
-	return old_page;
+	flush_page_to_ram(page);
+	return page;
 
 no_cached_page:
 	/*
@@ -1799,8 +1898,7 @@ static inline int filemap_sync_pte(pte_t * ptep, struct vm_area_struct *vma,
 		struct page *page = pte_page(pte);
 		if (VALID_PAGE(page) && !PageReserved(page) && ptep_test_and_clear_dirty(ptep)) {
 			flush_tlb_page(vma, address);
-			if (page->mapping)
-				set_page_dirty(page);
+			set_page_dirty(page);
 		}
 	}
 	return 0;

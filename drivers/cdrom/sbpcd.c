@@ -5418,6 +5418,15 @@ static int sbp_data(struct request *req)
 	return (1);
 }
 /*==========================================================================*/
+
+static struct block_device_operations sbpcd_bdops =
+{
+	owner:			THIS_MODULE,
+	open:			cdrom_open,
+	release:		cdrom_release,
+	ioctl:			cdrom_ioctl,
+	check_media_change:	cdrom_media_changed,
+};
 /*==========================================================================*/
 /*
  *  Open the device special file.  Check that a disk is in. Read TOC.
@@ -5428,7 +5437,6 @@ static int sbpcd_open(struct cdrom_device_info *cdi, int purpose)
 
 	i = MINOR(cdi->dev);
 
-	MOD_INC_USE_COUNT;
 	down(&ioctl_read_sem);
 	switch_drive(i);
 
@@ -5495,7 +5503,6 @@ static void sbpcd_release(struct cdrom_device_info * cdi)
 		}
 	}
 	up(&ioctl_read_sem);
-	MOD_DEC_USE_COUNT;
 	return ;
 }
 /*==========================================================================*/
@@ -5848,7 +5855,7 @@ int __init SBPCD_INIT(void)
 	OUT(MIXER_data,0xCC); /* one nibble per channel, max. value: 0xFF */
 #endif /* SOUND_BASE */ 
 	
-	if (devfs_register_blkdev(MAJOR_NR, major_name, &cdrom_fops) != 0)
+	if (devfs_register_blkdev(MAJOR_NR, major_name, &sbpcd_bdops) != 0)
 	{
 		msg(DBG_INF, "Can't get MAJOR %d for Matsushita CDROM\n", MAJOR_NR);
 #ifdef MODULE
@@ -5923,7 +5930,7 @@ int __init SBPCD_INIT(void)
 		sbpcd_infop->de =
 		    devfs_register (devfs_handle, nbuff, DEVFS_FL_DEFAULT,
 				    MAJOR_NR, j, S_IFBLK | S_IRUGO | S_IWUGO,
-				    &cdrom_fops, NULL);
+				    &sbpcd_bdops, NULL);
 		if (register_cdrom(sbpcd_infop))
 		{
                 	printk(" sbpcd: Unable to register with Uniform CD-ROm driver\n");

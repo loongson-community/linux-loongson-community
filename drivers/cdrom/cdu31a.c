@@ -3112,17 +3112,13 @@ static int scd_open(struct cdrom_device_info *cdi, int openmode)
 	unsigned int res_size;
 	unsigned char params[2];
 
-	MOD_INC_USE_COUNT;
 	if (sony_usage == 0) {
-		if (scd_spinup() != 0) {
-			MOD_DEC_USE_COUNT;
+		if (scd_spinup() != 0)
 			return -EIO;
-		}
 		sony_get_toc();
 		if (!sony_toc_read) {
 			do_sony_cd_cmd(SONY_SPIN_DOWN_CMD, NULL, 0,
 				       res_reg, &res_size);
-			MOD_DEC_USE_COUNT;
 			return -EIO;
 		}
 
@@ -3183,8 +3179,16 @@ static void scd_release(struct cdrom_device_info *cdi)
 		sony_spun_up = 0;
 	}
 	sony_usage--;
-	MOD_DEC_USE_COUNT;
 }
+
+struct block_device_operations scd_bdops =
+{
+	owner:			THIS_MODULE,
+	open:			cdrom_open,
+	release:		cdrom_release,
+	ioctl:			cdrom_ioctl,
+	check_media_change:	cdrom_media_changed,
+};
 
 static struct cdrom_device_ops scd_dops = {
 	open:scd_open,
@@ -3383,7 +3387,7 @@ int __init cdu31a_init(void)
 
 		request_region(cdu31a_port, 4, "cdu31a");
 
-		if (devfs_register_blkdev(MAJOR_NR, "cdu31a", &cdrom_fops)) {
+		if (devfs_register_blkdev(MAJOR_NR, "cdu31a", &scd_bdops)) {
 			printk("Unable to get major %d for CDU-31a\n",
 			       MAJOR_NR);
 			goto errout2;
@@ -3465,6 +3469,7 @@ int __init cdu31a_init(void)
 		if (register_cdrom(&scd_info)) {
 			goto errout0;
 		}
+		devfs_plain_cdrom(&scd_info, &scd_bdops);
 	}
 
 

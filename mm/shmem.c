@@ -212,9 +212,7 @@ static int shmem_free_swp(swp_entry_t *dir, unsigned int count)
 		entry = *ptr;
 		*ptr = (swp_entry_t){0};
 		freed++;
-
-		/* vmscan will do the actual page freeing later.. */
-		swap_free (entry);
+		free_swap_and_cache(entry);
 	}
 	return freed;
 }
@@ -422,7 +420,6 @@ void shmem_unuse(swp_entry_t entry, struct page *page)
  */
 static int shmem_writepage(struct page * page)
 {
-	int error;
 	struct shmem_inode_info *info;
 	swp_entry_t *entry, swap;
 	struct address_space *mapping;
@@ -438,12 +435,8 @@ static int shmem_writepage(struct page * page)
 	info = SHMEM_I(inode);
 getswap:
 	swap = get_swap_page();
-	if (!swap.val) {
-		activate_page(page);
-		SetPageDirty(page);
-		error = -ENOMEM;
-		goto out;
-	}
+	if (!swap.val)
+		return fail_writepage(page);
 
 	spin_lock(&info->lock);
 	entry = shmem_swp_entry(info, index, 0);
@@ -454,7 +447,6 @@ getswap:
 		BUG();
 
 	/* Remove it from the page cache */
-	lru_cache_del(page);
 	remove_inode_page(page);
 	page_cache_release(page);
 
@@ -473,11 +465,10 @@ getswap:
 	*entry = swap;
 	info->swapped++;
 	spin_unlock(&info->lock);
+	SetPageUptodate(page);
 	set_page_dirty(page);
-	error = 0;
-out:
 	UnlockPage(page);
-	return error;
+	return 0;
 }
 
 /*
@@ -628,7 +619,7 @@ failed:
 	return error;
 }
 
-struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, int no_share)
+struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, int unused)
 {
 	struct page * page;
 	unsigned int idx;
@@ -640,19 +631,7 @@ struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, i
 	if (shmem_getpage(inode, idx, &page))
 		return page;
 
-	if (no_share) {
-		struct page *new_page = page_cache_alloc(inode->i_mapping);
-
-		if (new_page) {
-			copy_user_highpage(new_page, page, address);
-			flush_page_to_ram(new_page);
-		} else
-			new_page = NOPAGE_OOM;
-		page_cache_release(page);
-		return new_page;
-	}
-
-	flush_page_to_ram (page);
+	flush_page_to_ram(page);
 	return(page);
 }
 
@@ -831,7 +810,6 @@ shmem_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 	while (count) {
 		unsigned long bytes, index, offset;
 		char *kaddr;
-		int deactivate = 1;
 
 		/*
 		 * Try to find the page in the cache. If it isn't there,
@@ -842,7 +820,6 @@ shmem_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 		bytes = PAGE_CACHE_SIZE - offset;
 		if (bytes > count) {
 			bytes = count;
-			deactivate = 0;
 		}
 
 		/*
@@ -889,8 +866,6 @@ shmem_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 unlock:
 		/* Mark it unlocked again and drop the page.. */
 		UnlockPage(page);
-		if (deactivate)
-			deactivate_page(page);
 		page_cache_release(page);
 
 		if (status < 0)
@@ -1157,7 +1132,7 @@ static int shmem_symlink(struct inode * dir, struct dentry *dentry, const char *
 		
 	inode = dentry->d_inode;
 	info = SHMEM_I(inode);
-	inode->i_size = len;
+	inode->i_size = len-1;
 	if (len <= sizeof(struct shmem_inode_info)) {
 		/* do it inline */
 		memcpy(info, symname, len);

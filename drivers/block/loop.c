@@ -207,7 +207,6 @@ static int lo_send(struct loop_device *lo, struct buffer_head *bh, int bsize,
 		index++;
 		pos += size;
 		UnlockPage(page);
-		deactivate_page(page);
 		page_cache_release(page);
 	}
 	return 0;
@@ -218,7 +217,6 @@ write_fail:
 	kunmap(page);
 unlock:
 	UnlockPage(page);
-	deactivate_page(page);
 	page_cache_release(page);
 fail:
 	return -1;
@@ -941,6 +939,7 @@ static int lo_release(struct inode *inode, struct file *file)
 }
 
 static struct block_device_operations lo_fops = {
+	owner:		THIS_MODULE,
 	open:		lo_open,
 	release:	lo_release,
 	ioctl:		lo_ioctl,
@@ -951,6 +950,7 @@ static struct block_device_operations lo_fops = {
  */
 MODULE_PARM(max_loop, "i");
 MODULE_PARM_DESC(max_loop, "Maximum number of loop devices (1-255)");
+MODULE_LICENSE("GPL");
 
 int loop_register_transfer(struct loop_func_table *funcs)
 {

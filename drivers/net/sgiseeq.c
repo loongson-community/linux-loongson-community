@@ -4,6 +4,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>

@@ -125,7 +125,7 @@ extern pgprot_t protection_map[16];
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
 	void (*close)(struct vm_area_struct * area);
-	struct page * (*nopage)(struct vm_area_struct * area, unsigned long address, int write_access);
+	struct page * (*nopage)(struct vm_area_struct * area, unsigned long address, int unused);
 };
 
 /*
@@ -270,7 +270,7 @@ typedef struct page {
 #define PG_referenced		 2
 #define PG_uptodate		 3
 #define PG_dirty		 4
-#define PG_decr_after		 5
+#define PG_unused		 5
 #define PG_active		 6
 #define PG_inactive		 7
 #define PG_slab			 8
@@ -282,6 +282,7 @@ typedef struct page {
 #define PG_launder		15	/* written out by VM pressure.. */
 
 /* Make it prettier to test the above... */
+#define UnlockPage(page)	unlock_page(page)
 #define Page_Uptodate(page)	test_bit(PG_uptodate, &(page)->flags)
 #define SetPageUptodate(page)	set_bit(PG_uptodate, &(page)->flags)
 #define ClearPageUptodate(page)	clear_bit(PG_uptodate, &(page)->flags)
@@ -296,13 +297,7 @@ typedef struct page {
 #define PageLaunder(page)	test_bit(PG_launder, &(page)->flags)
 #define SetPageLaunder(page)	set_bit(PG_launder, &(page)->flags)
 
-extern void __set_page_dirty(struct page *);
-
-static inline void set_page_dirty(struct page * page)
-{
-	if (!test_and_set_bit(PG_dirty, &page->flags))
-		__set_page_dirty(page);
-}
+extern void FASTCALL(set_page_dirty(struct page *));
 
 /*
  * The first mb is necessary to safely close the critical section opened by the
@@ -310,14 +305,6 @@ static inline void set_page_dirty(struct page * page)
  * the clear_bit and the read of the waitqueue (to avoid SMP races with a
  * parallel wait_on_page).
  */
-#define UnlockPage(page)	do { \
-					clear_bit(PG_launder, &(page)->flags); \
-					smp_mb__before_clear_bit(); \
-					if (!test_and_clear_bit(PG_locked, &(page)->flags)) BUG(); \
-					smp_mb__after_clear_bit(); \
-					if (waitqueue_active(&(page)->wait)) \
-						wake_up(&(page)->wait); \
-				} while (0)
 #define PageError(page)		test_bit(PG_error, &(page)->flags)
 #define SetPageError(page)	set_bit(PG_error, &(page)->flags)
 #define ClearPageError(page)	clear_bit(PG_error, &(page)->flags)
@@ -325,9 +312,6 @@ static inline void set_page_dirty(struct page * page)
 #define SetPageReferenced(page)	set_bit(PG_referenced, &(page)->flags)
 #define ClearPageReferenced(page)	clear_bit(PG_referenced, &(page)->flags)
 #define PageTestandClearReferenced(page)	test_and_clear_bit(PG_referenced, &(page)->flags)
-#define PageDecrAfter(page)	test_bit(PG_decr_after, &(page)->flags)
-#define SetPageDecrAfter(page)	set_bit(PG_decr_after, &(page)->flags)
-#define PageTestandClearDecrAfter(page)	test_and_clear_bit(PG_decr_after, &(page)->flags)
 #define PageSlab(page)		test_bit(PG_slab, &(page)->flags)
 #define PageSetSlab(page)	set_bit(PG_slab, &(page)->flags)
 #define PageClearSlab(page)	clear_bit(PG_slab, &(page)->flags)
@@ -413,7 +397,8 @@ extern void show_free_areas_node(pg_data_t *pgdat);
 
 extern void clear_page_tables(struct mm_struct *, unsigned long, int);
 
-struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, int no_share);
+extern int fail_writepage(struct page *);
+struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, int unused);
 struct file *shmem_file_setup(char * name, loff_t size);
 extern void shmem_lock(struct file * file, int lock);
 extern int shmem_zero_setup(struct vm_area_struct *);
@@ -467,20 +452,8 @@ static inline int is_page_cache_freeable(struct page * page)
 	return page_count(page) - !!page->buffers == 1;
 }
 
-/*
- * Work out if there are any other processes sharing this
- * swap cache page. Never mind the buffers.
- */
-static inline int exclusive_swap_page(struct page *page)
-{
-	if (!PageLocked(page))
-		BUG();
-	if (!PageSwapCache(page))
-		return 0;
-	if (page_count(page) - !!page->buffers != 2)	/* 2: us + cache */
-		return 0;
-	return swap_count(page) == 1;			/* 1: just cache */
-}
+extern int can_share_swap_page(struct page *);
+extern int remove_exclusive_swap_page(struct page *);
 
 extern void __free_pte(pte_t);
 

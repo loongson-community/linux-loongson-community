@@ -30,6 +30,7 @@
 #include <net/pkt_sched.h>
 #include <net/scm.h>
 #include <linux/if_bridge.h>
+#include <linux/if_vlan.h>
 #include <linux/random.h>
 #ifdef CONFIG_NET_DIVERT
 #include <linux/divert.h>
@@ -211,6 +212,12 @@ EXPORT_SYMBOL(make_8023_client);
 EXPORT_SYMBOL(destroy_8023_client);
 EXPORT_SYMBOL(make_EII_client);
 EXPORT_SYMBOL(destroy_EII_client);
+#endif
+
+/* for 801q VLAN support */
+#if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
+EXPORT_SYMBOL(dev_change_flags);
+EXPORT_SYMBOL(vlan_ioctl_hook);
 #endif
 
 EXPORT_SYMBOL(sklist_destroy_socket);
@@ -432,6 +439,9 @@ EXPORT_SYMBOL(rtnl_sem);
 EXPORT_SYMBOL(rtnl_lock);
 EXPORT_SYMBOL(rtnl_unlock);
 
+/* ABI emulation layers need this */
+EXPORT_SYMBOL(move_addr_to_kernel);
+EXPORT_SYMBOL(move_addr_to_user);
                   
 /* Used by at least ipip.c.  */
 EXPORT_SYMBOL(ipv4_config);

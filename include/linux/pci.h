@@ -3,7 +3,7 @@
  *
  *	PCI defines and function prototypes
  *	Copyright 1994, Drew Eckhardt
- *	Copyright 1997--1999 Martin Mares <mj@suse.cz>
+ *	Copyright 1997--1999 Martin Mares <mj@ucw.cz>
  *
  *	For more information, please consult the following manuals (look at
  *	http://www.pcisig.com/ for how to get them):
@@ -247,8 +247,8 @@
 #define  PCI_AGP_COMMAND_64BIT	0x0020 	/* Allow processing of 64-bit addresses */
 #define  PCI_AGP_COMMAND_FW	0x0010 	/* Force FW transfers */
 #define  PCI_AGP_COMMAND_RATE4	0x0004	/* Use 4x rate */
-#define  PCI_AGP_COMMAND_RATE2	0x0002	/* Use 4x rate */
-#define  PCI_AGP_COMMAND_RATE1	0x0001	/* Use 4x rate */
+#define  PCI_AGP_COMMAND_RATE2	0x0002	/* Use 2x rate */
+#define  PCI_AGP_COMMAND_RATE1	0x0001	/* Use 1x rate */
 #define PCI_AGP_SIZEOF		12
 
 /* Slot Identification */

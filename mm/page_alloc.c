@@ -80,8 +80,6 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 		BUG();
 	if (PageLocked(page))
 		BUG();
-	if (PageDecrAfter(page))
-		BUG();
 	if (PageActive(page))
 		BUG();
 	if (PageInactive(page))
@@ -139,14 +137,10 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 	return;
 
  local_freelist:
-	/*
-	 * This is a little subtle: if the allocation order
-	 * wanted is major than zero we'd better take all the pages
-	 * local since we must deal with fragmentation too and we
-	 * can't rely on the nr_local_pages information.
-	 */
-	if (current->nr_local_pages && !current->allocation_order)
+	if (current->nr_local_pages)
 		goto back_local_freelist;
+	if (in_interrupt())
+		goto back_local_freelist;		
 
 	list_add(&page->list, &current->local_pages);
 	page->index = order;
@@ -274,8 +268,6 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
 						BUG();
 					if (PageLocked(page))
 						BUG();
-					if (PageDecrAfter(page))
-						BUG();
 					if (PageActive(page))
 						BUG();
 					if (PageInactive(page))
@@ -358,7 +350,7 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 	/* here we're in the low on memory slow path */
 
 rebalance:
-	if (current->flags & PF_MEMALLOC) {
+	if (current->flags & (PF_MEMALLOC | PF_MEMDIE)) {
 		zone = zonelist->zones;
 		for (;;) {
 			zone_t *z = *(zone++);
@@ -394,7 +386,7 @@ rebalance:
 	}
 
 	/* Don't let big-order allocations loop */
-	if (order > 1)
+	if (order > 3)
 		return NULL;
 
 	/* Yield for kswapd, and try again */
@@ -428,6 +420,15 @@ unsigned long get_zeroed_page(unsigned int gfp_mask)
 		return (unsigned long) address;
 	}
 	return 0;
+}
+
+void page_cache_release(struct page *page)
+{
+	if (!PageReserved(page) && put_page_testzero(page)) {
+		if (PageActive(page) || PageInactive(page))
+			lru_cache_del(page);
+		__free_pages_ok(page, 0);
+	}
 }
 
 void __free_pages(struct page *page, unsigned int order)
@@ -514,14 +515,14 @@ void show_free_areas_core(pg_data_t *pgdat)
 	pg_data_t *tmpdat = pgdat;
 
 	printk("Free pages:      %6dkB (%6dkB HighMem)\n",
-		nr_free_pages() << (PAGE_SHIFT-10),
-		nr_free_highpages() << (PAGE_SHIFT-10));
+		K(nr_free_pages()),
+		K(nr_free_highpages()));
 
 	while (tmpdat) {
 		zone_t *zone;
 		for (zone = tmpdat->node_zones;
 			       	zone < tmpdat->node_zones + MAX_NR_ZONES; zone++)
-			printk("Zone:%s freepages:%6lukB min:%6luKB low:%6lukB " 
+			printk("Zone:%s freepages:%6lukB min:%6lukB low:%6lukB " 
 				       "high:%6lukB\n", 
 					zone->name,
 					K(zone->free_pages),
@@ -531,10 +532,6 @@ void show_free_areas_core(pg_data_t *pgdat)
 			
 		tmpdat = tmpdat->node_next;
 	}
-
-	printk("Free pages:      %6dkB (%6dkB HighMem)\n",
-		K(nr_free_pages()),
-		K(nr_free_highpages()));
 
 	printk("( Active: %d, inactive: %d, free: %d )\n",
 	       nr_active_pages,
@@ -560,8 +557,7 @@ void show_free_areas_core(pg_data_t *pgdat)
 					nr++;
 				}
 				total += nr * (1 << order);
-				printk("%lu*%lukB ", nr,
-						(PAGE_SIZE>>10) << order);
+				printk("%lu*%lukB ", nr, K(1UL) << order);
 			}
 			spin_unlock_irqrestore(&zone->lock, flags);
 		}

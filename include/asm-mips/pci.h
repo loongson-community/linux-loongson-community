@@ -8,6 +8,7 @@
 
 #include <linux/config.h>
 #include <linux/types.h>
+#include <asm/io.h>			/* for virt_to_bus()  */
 
 #ifdef __KERNEL__
 

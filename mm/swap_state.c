@@ -23,8 +23,7 @@
  */
 static int swap_writepage(struct page *page)
 {
-	if (exclusive_swap_page(page)) {
-		delete_from_swap_cache(page);
+	if (remove_exclusive_swap_page(page)) {
 		UnlockPage(page);
 		return 0;
 	}
@@ -82,7 +81,6 @@ int add_to_swap_cache(struct page *page, swp_entry_t entry)
 		INC_CACHE_INFO(exist_race);
 		return -EEXIST;
 	}
-	SetPageUptodate(page);
 	if (!PageLocked(page))
 		BUG();
 	if (!PageSwapCache(page))
@@ -119,8 +117,7 @@ void delete_from_swap_cache(struct page *page)
 	if (!PageLocked(page))
 		BUG();
 
-	if (block_flushpage(page, 0))
-		lru_cache_del(page);
+	block_flushpage(page, 0);
 
 	entry.val = page->index;
 
@@ -148,8 +145,7 @@ void free_page_and_swap_cache(struct page *page)
 	 * 					- Marcelo
 	 */
 	if (PageSwapCache(page) && !TryLockPage(page)) {
-		if (exclusive_swap_page(page))
-			delete_from_swap_cache(page);
+		remove_exclusive_swap_page(page);
 		UnlockPage(page);
 	}
 	page_cache_release(page);

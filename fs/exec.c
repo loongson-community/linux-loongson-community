@@ -275,6 +275,7 @@ void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long a
 		goto out;
 	if (!pte_none(*pte))
 		goto out;
+	lru_cache_add(page);
 	flush_dcache_page(page);
 	flush_page_to_ram(page);
 	set_pte(pte, pte_mkdirty(pte_mkwrite(mk_pte(page, PAGE_COPY))));
@@ -770,7 +771,6 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 	    if (!bprm->loader && eh->fh.f_magic == 0x183 &&
 		(eh->fh.f_flags & 0x3000) == 0x3000)
 	    {
-		char * dynloader[] = { "/sbin/loader" };
 		struct file * file;
 		unsigned long loader;
 
@@ -780,10 +780,14 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 
 	        loader = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
 
-		file = open_exec(dynloader[0]);
+		file = open_exec("/sbin/loader");
 		retval = PTR_ERR(file);
 		if (IS_ERR(file))
 			return retval;
+
+		/* Remember if the application is TASO.  */
+		bprm->sh_bang = eh->ah.entry < 0x100000000;
+
 		bprm->file = file;
 		bprm->loader = loader;
 		retval = prepare_binprm(bprm);

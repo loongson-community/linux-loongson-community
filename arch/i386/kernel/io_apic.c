@@ -750,12 +750,14 @@ void __init print_IO_APIC(void)
 	)
 		UNEXPECTED_IO_APIC();
 
+	printk(KERN_DEBUG ".......     : PRQ implemented: %X\n", reg_01.PRQ);
 	printk(KERN_DEBUG ".......     : IO APIC version: %04X\n", reg_01.version);
 	if (	(reg_01.version != 0x01) && /* 82489DX IO-APICs */
+		(reg_01.version != 0x02) && /* 82801BA IO-APICs (ICH2) */
 		(reg_01.version != 0x10) && /* oldest IO-APICs */
 		(reg_01.version != 0x11) && /* Pentium/Pro IO-APICs */
 		(reg_01.version != 0x13) && /* Xeon IO-APICs */
-		(reg_01.entries != 0x20)    /* Intel P64H (82806 AA) */
+		(reg_01.version != 0x20)    /* Intel P64H (82806 AA) */
 	)
 		UNEXPECTED_IO_APIC();
 	if (reg_01.__reserved_1 || reg_01.__reserved_2)
@@ -1237,14 +1239,17 @@ static void end_level_ioapic_irq (unsigned int irq)
 	ack_APIC_irq();
 
 	if (!(v & (1 << (i & 0x1f)))) {
+#ifdef APIC_LOCKUP_DEBUG
+		struct irq_pin_list *entry;
+#endif
+
 #ifdef APIC_MISMATCH_DEBUG
 		atomic_inc(&irq_mis_count);
 #endif
 		spin_lock(&ioapic_lock);
 		__mask_and_edge_IO_APIC_irq(irq);
 #ifdef APIC_LOCKUP_DEBUG
-		for (;;) {
-			struct irq_pin_list *entry = irq_2_pin + irq;
+		for (entry = irq_2_pin + irq;;) {
 			unsigned int reg;
 
 			if (entry->pin == -1)

@@ -145,18 +145,13 @@ out:
 	return entry;
 }
 
-/*
- * Caller has made sure that the swapdevice corresponding to entry
- * is still around or has not been recycled.
- */
-void swap_free(swp_entry_t entry)
+static struct swap_info_struct * swap_info_get(swp_entry_t entry)
 {
 	struct swap_info_struct * p;
 	unsigned long offset, type;
 
 	if (!entry.val)
 		goto out;
-
 	type = SWP_TYPE(entry);
 	if (type >= nr_swapfiles)
 		goto bad_nofile;
@@ -172,8 +167,37 @@ void swap_free(swp_entry_t entry)
 	if (p->prio > swap_info[swap_list.next].prio)
 		swap_list.next = type;
 	swap_device_lock(p);
-	if (p->swap_map[offset] < SWAP_MAP_MAX) {
-		if (!--(p->swap_map[offset])) {
+	return p;
+
+bad_free:
+	printk(KERN_ERR "swap_free: %s%08lx\n", Unused_offset, entry.val);
+	goto out;
+bad_offset:
+	printk(KERN_ERR "swap_free: %s%08lx\n", Bad_offset, entry.val);
+	goto out;
+bad_device:
+	printk(KERN_ERR "swap_free: %s%08lx\n", Unused_file, entry.val);
+	goto out;
+bad_nofile:
+	printk(KERN_ERR "swap_free: %s%08lx\n", Bad_file, entry.val);
+out:
+	return NULL;
+}	
+
+static void swap_info_put(struct swap_info_struct * p)
+{
+	swap_device_unlock(p);
+	swap_list_unlock();
+}
+
+static int swap_entry_free(struct swap_info_struct *p, unsigned long offset)
+{
+	int count = p->swap_map[offset];
+
+	if (count < SWAP_MAP_MAX) {
+		count--;
+		p->swap_map[offset] = count;
+		if (!count) {
 			if (offset < p->lowest_bit)
 				p->lowest_bit = offset;
 			if (offset > p->highest_bit)
@@ -181,23 +205,152 @@ void swap_free(swp_entry_t entry)
 			nr_swap_pages++;
 		}
 	}
-	swap_device_unlock(p);
-	swap_list_unlock();
-out:
-	return;
+	return count;
+}
 
-bad_nofile:
-	printk(KERN_ERR "swap_free: %s%08lx\n", Bad_file, entry.val);
-	goto out;
-bad_device:
-	printk(KERN_ERR "swap_free: %s%08lx\n", Unused_file, entry.val);
-	goto out;
-bad_offset:
-	printk(KERN_ERR "swap_free: %s%08lx\n", Bad_offset, entry.val);
-	goto out;
-bad_free:
-	printk(KERN_ERR "swap_free: %s%08lx\n", Unused_offset, entry.val);
-	goto out;
+/*
+ * Caller has made sure that the swapdevice corresponding to entry
+ * is still around or has not been recycled.
+ */
+void swap_free(swp_entry_t entry)
+{
+	struct swap_info_struct * p;
+
+	p = swap_info_get(entry);
+	if (p) {
+		swap_entry_free(p, SWP_OFFSET(entry));
+		swap_info_put(p);
+	}
+}
+
+/*
+ * Check if we're the only user of a swap page,
+ * when the page is locked.
+ */
+static int exclusive_swap_page(struct page *page)
+{
+	int retval = 0;
+	struct swap_info_struct * p;
+	swp_entry_t entry;
+
+	entry.val = page->index;
+	p = swap_info_get(entry);
+	if (p) {
+		/* Is the only swap cache user the cache itself? */
+		if (p->swap_map[SWP_OFFSET(entry)] == 1) {
+			/* Recheck the page count with the pagecache lock held.. */
+			spin_lock(&pagecache_lock);
+			if (page_count(page) - !!page->buffers == 2)
+				retval = 1;
+			spin_unlock(&pagecache_lock);
+		}
+		swap_info_put(p);
+	}
+	return retval;
+}
+
+/*
+ * We can use this swap cache entry directly
+ * if there are no other references to it.
+ *
+ * Here "exclusive_swap_page()" does the real
+ * work, but we opportunistically check whether
+ * we need to get all the locks first..
+ */
+int can_share_swap_page(struct page *page)
+{
+	int retval = 0;
+
+	if (!PageLocked(page))
+		BUG();
+	switch (page_count(page)) {
+	case 3:
+		if (!page->buffers)
+			break;
+		/* Fallthrough */
+	case 2:
+		if (!PageSwapCache(page))
+			break;
+		retval = exclusive_swap_page(page);
+		break;
+	case 1:
+		if (PageReserved(page))
+			break;
+		retval = 1;
+	}
+	return retval;
+}
+
+/*
+ * Work out if there are any other processes sharing this
+ * swap cache page. Free it if you can. Return success.
+ */
+int remove_exclusive_swap_page(struct page *page)
+{
+	int retval;
+	struct swap_info_struct * p;
+	swp_entry_t entry;
+
+	if (!PageLocked(page))
+		BUG();
+	if (!PageSwapCache(page))
+		return 0;
+	if (page_count(page) - !!page->buffers != 2)	/* 2: us + cache */
+		return 0;
+
+	entry.val = page->index;
+	p = swap_info_get(entry);
+	if (!p)
+		return 0;
+
+	/* Is the only swap cache user the cache itself? */
+	retval = 0;
+	if (p->swap_map[SWP_OFFSET(entry)] == 1) {
+		/* Recheck the page count with the pagecache lock held.. */
+		spin_lock(&pagecache_lock);
+		if (page_count(page) - !!page->buffers == 2) {
+			__delete_from_swap_cache(page);
+			SetPageDirty(page);
+			retval = 1;
+		}
+		spin_unlock(&pagecache_lock);
+	}
+	swap_info_put(p);
+
+	if (retval) {
+		block_flushpage(page, 0);
+		swap_free(entry);
+		page_cache_release(page);
+	}
+
+	return retval;
+}
+
+/*
+ * Free the swap entry like above, but also try to
+ * free the page cache entry if it is the last user.
+ */
+void free_swap_and_cache(swp_entry_t entry)
+{
+	struct swap_info_struct * p;
+	struct page *page = NULL;
+
+	p = swap_info_get(entry);
+	if (p) {
+		if (swap_entry_free(p, SWP_OFFSET(entry)) == 1)
+			page = find_trylock_page(&swapper_space, entry.val);
+		swap_info_put(p);
+	}
+	if (page) {
+		page_cache_get(page);
+		/* Only cache user (+us), or swap space full? Free it! */
+		if (page_count(page) == 2 || vm_swap_full()) {
+			delete_from_swap_cache(page);
+			SetPageDirty(page);
+		}
+		UnlockPage(page);
+		page_cache_release(page);
+	}
 }
 
 /*
