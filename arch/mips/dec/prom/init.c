@@ -6,6 +6,7 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/smp.h>
 #include <linux/types.h>
 
 #include <asm/bootinfo.h>
