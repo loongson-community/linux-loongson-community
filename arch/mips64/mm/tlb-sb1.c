@@ -80,12 +80,6 @@ void sb1_dump_tlb(void)
 	for (entry = 0; entry < current_cpu_data.tlbsize; entry++) {
 		write_c0_index(entry);
 		printk("\n%02i ", entry);
-		__asm__ __volatile__ (
-			".set push             \n"
-			"#.set mips64           \n"
-			".set mips4           \n"
-			"     tlbr             \n"
-			".set pop              \n");
 		dump_cur_tlb_regs();
 	}
 	printk("\n");
