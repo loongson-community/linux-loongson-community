@@ -16,9 +16,8 @@ obj-$(CONFIG_IRQ_CPU)		+= irq_cpu.o
 
 obj-$(CONFIG_MODULES)		+= mips64_ksyms.o
 obj-$(CONFIG_MIPS32_COMPAT)	+= linux32.o signal32.o ioctl32.o
-obj-$(CONFIG_BINFMT_ELF32)	+= binfmt_elf32.o
-obj-$(CONFIG_MIPS32_N32)	+= scall_n32.o
-obj-$(CONFIG_MIPS32_O32)	+= scall_o32.o
+obj-$(CONFIG_MIPS32_N32)	+= binfmt_elfn32.o scall_n32.o
+obj-$(CONFIG_MIPS32_O32)	+= binfmt_elfo32.o scall_o32.o
 obj-$(CONFIG_SMP)		+= smp.o
 
 ifndef CONFIG_MAPPED_PCI_IO

@@ -1,5 +1,5 @@
 /*
- * Support for 32-bit Linux/MIPS ELF binaries.
+ * Support for o32 Linux/MIPS ELF binaries.
  *
  * Copyright (C) 1999, 2001 Ralf Baechle
  * Copyright (C) 1999, 2001 Silicon Graphics, Inc.
@@ -48,7 +48,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	__res;								\
 })
 
-#define TASK32_SIZE		0x80000000UL
+#define TASK32_SIZE		0x7fff8000UL
 #undef ELF_ET_DYN_BASE
 #define ELF_ET_DYN_BASE         (TASK32_SIZE / 3 * 2)
 
@@ -98,6 +98,7 @@ struct elf_prpsinfo32
 };
 
 #define elf_addr_t	u32
+#define elf_caddr_t	u32
 #define init_elf_binfmt init_elf32_binfmt
 
 
@@ -130,8 +131,8 @@ void elf32_core_copy_regs(elf_gregset_t _dest, struct pt_regs *_regs)
 #define CONFIG_BINFMT_ELF_MODULE CONFIG_BINFMT_ELF32_MODULE
 #endif
 
-MODULE_DESCRIPTION("Binary format loader for compatibility with 32bit Linux/MIPS binaries");
-MODULE_AUTHOR("Ralf Baechle (ralf@oss.sgi.com)");
+MODULE_DESCRIPTION("Binary format loader for compatibility with o32 Linux/MIPS binaries");
+MODULE_AUTHOR("Ralf Baechle (ralf@linux-mips.org)");
 
 #undef MODULE_DESCRIPTION
 #undef MODULE_AUTHOR

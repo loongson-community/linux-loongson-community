@@ -21,6 +21,11 @@
 /* This duplicates the definition from <asm/signal.h> */
 #define SIGILL		4		/* Illegal instruction (ANSI).  */
 
+#ifndef CONFIG_MIPS32_O32
+/* No O32, so define handle_sys here */
+#define handle_sysn32 handle_sys
+#endif
+
 	.align  5
 NESTED(handle_sysn32, PT_SIZE, sp)
 	subu	t0, v0, __NR_N32_Linux	# check syscall number
