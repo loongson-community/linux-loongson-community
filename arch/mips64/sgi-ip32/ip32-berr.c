@@ -32,5 +32,5 @@ be_ip32_handler(struct pt_regs *regs, int is_fixup)
 void __init
 bus_error_init(void)
 {
-	be_board_handler = be_ip27_handler;
+	be_board_handler = be_ip32_handler;
 }
