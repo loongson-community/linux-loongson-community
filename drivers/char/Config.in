@@ -113,7 +113,9 @@ if [ "$CONFIG_VIDEO_DEV" != "n" ]; then
     dep_tristate 'Colour QuickCam Video For Linux (EXPERIMENTAL)' CONFIG_VIDEO_CQCAM $CONFIG_VIDEO_DEV
   fi
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-    dep_tristate 'SGI Vino Video For Linux (EXPERIMENTAL)' CONFIG_VIDEO_VINO $CONFIG_VIDEO_DEV
+    if [ "$CONFIG_SGI" = "y" ]; then
+      dep_tristate 'SGI Vino Video For Linux (EXPERIMENTAL)' CONFIG_VIDEO_VINO $CONFIG_VIDEO_DEV
+    fi
   fi
   dep_tristate 'Mediavision Pro Movie Studio Video For Linux' CONFIG_VIDEO_PMS $CONFIG_VIDEO_DEV
   dep_tristate 'SAA5249 Teletext processor' CONFIG_VIDEO_SAA5249 $CONFIG_VIDEO_DEV
