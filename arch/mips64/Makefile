@@ -72,7 +72,7 @@ endif
 endif
 ifdef CONFIG_CPU_MIPS64
 #CFLAGS		+= -mips64	# Should be used then we get a MIPS64 compiler
-CFLAGS		+= -mcpu=r8000 -mips4  
+CFLAGS		+= -mcpu=r8000 -mips4
 endif
 
 #
@@ -121,7 +121,7 @@ endif
 #
 ifdef CONFIG_SGI_IP22
 CORE_FILES	+= arch/mips/sgi-ip22/ip22-kern.o
-LIBS		+= arch/mips/arc/arclib.a 
+LIBS		+= arch/mips/arc/arclib.a
 SUBDIRS		+= arch/mips/sgi-ip22 arch/mips/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,

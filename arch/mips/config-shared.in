@@ -190,7 +190,7 @@ if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
    define_bool CONFIG_SWAP_IO_SPACE y
 fi
 if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
-     "$CONFIG_OLIVETTI_M700" = "y" ]; then
+     "$CONFIG_OLIVETTI_M700"    = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
@@ -409,10 +409,10 @@ if [ "$CONFIG_CPU_SB1" = "y" ]; then
 fi
 
 if [ "$CONFIG_CPU_R4X00"  = "y" -o \
-     "$CONFIG_CPU_R5000" = "y" -o \
+     "$CONFIG_CPU_R5000"  = "y" -o \
      "$CONFIG_CPU_RM7000" = "y" -o \
      "$CONFIG_CPU_R10000" = "y" -o \
-     "$CONFIG_CPU_SB1" = "y" -o \
+     "$CONFIG_CPU_SB1"    = "y" -o \
      "$CONFIG_CPU_MIPS32" = "y" -o \
      "$CONFIG_CPU_MIPS64" = "y" ]; then
    dep_bool '  Support for 64-bit physical address space' CONFIG_64BIT_PHYS_ADDR $CONFIG_MIPS32
@@ -424,8 +424,8 @@ if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
    bool '  lld/scd Instructions available' CONFIG_CPU_HAS_LLDSCD
    bool '  Writeback Buffer available' CONFIG_CPU_HAS_WB
 else
-   if [ "$CONFIG_CPU_R3000" = "y" -o \
-        "$CONFIG_CPU_VR41XX" = "y" -o    \
+   if [ "$CONFIG_CPU_R3000"  = "y" -o \
+        "$CONFIG_CPU_VR41XX" = "y" -o \
         "$CONFIG_CPU_TX39XX" = "y" ]; then
       if [ "$CONFIG_DECSTATION" = "y" ]; then
 	 define_bool CONFIG_CPU_HAS_LLSC n
@@ -457,9 +457,9 @@ endmenu
 
 mainmenu_option next_comment
 comment 'General setup'
-if [ "$CONFIG_DECSTATION" = "y" -o \
-     "$CONFIG_DDB5074" = "y" -o    \
-     "$CONFIG_NINO" = "y" -o       \
+if [ "$CONFIG_DECSTATION"  = "y" -o \
+     "$CONFIG_DDB5074"     = "y" -o \
+     "$CONFIG_NINO"        = "y" -o \
      "$CONFIG_MIPS_COBALT" = "y" ]; then
    define_bool CONFIG_CPU_LITTLE_ENDIAN y
 else
