@@ -923,9 +923,8 @@ void adel(void)
 
 #ifdef CONFIG_GDB_CONSOLE
 
-void gdb_puts(const char *str)
+void gdb_putsn(const char *str, int l)
 {
-	int l = strlen(str);
 	char outbuf[18];
 
 	outbuf[0]='O';
@@ -947,7 +946,7 @@ static kdev_t gdb_console_dev(struct console *con)
 
 static void gdb_console_write(struct console *con, const char *s, unsigned n)
 {
-	gdb_puts(s);
+	gdb_putsn(s, n);
 }
 
 static struct console gdb_console = {
