@@ -254,7 +254,7 @@ if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
    bool '  Writeback Buffer available' CONFIG_CPU_HAS_WB
 else
    if [ "$CONFIG_CPU_R3000" = "y" -o "$CONFIG_CPU_VR41XX" = "y" ]; then
-      if [ "CONFIG_DECSTATION" = "y" ]; then
+      if [ "$CONFIG_DECSTATION" = "y" ]; then
 	 define_bool CONFIG_CPU_HAS_LLSC n
 	 define_bool CONFIG_CPU_HAS_LLDSCD n
 	 define_bool CONFIG_CPU_HAS_WB y
