@@ -1,4 +1,4 @@
-/* $Id: ip27-irq.c,v 1.8 2000/03/07 15:45:29 ralf Exp $
+/* $Id: ip27-irq.c,v 1.9 2000/03/14 01:39:27 ralf Exp $
  *
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
@@ -58,6 +58,13 @@ int (*irq_cannonicalize)(int irq);
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
+
+/*
+ * we need to map irq's up to at least bit 7 of the INT_MASK0_A register
+ * since bits 0-6 are pre-allocated for other purposes
+ */
+#define IRQ_TO_SWLEVEL(i)	i + 7
+#define SWLEVEL_TO_IRQ(s)	s - 7
 
 void disable_irq(unsigned int irq_nr)
 {
@@ -148,20 +155,24 @@ static int ms1bit(unsigned long x)
 /* For now ...  */
 void ip27_do_irq(struct pt_regs *regs)
 {
-	int irq;
+	int irq, swlevel;
 	hubreg_t pend0, mask0;
 
 	/* copied from Irix intpend0() */
 	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) & 
 				(mask0 = LOCAL_HUB_L(PI_INT_MASK0_A))) != 0) {
 		do {
-			irq = ms1bit(pend0);
-			LOCAL_HUB_S(PI_INT_MASK0_A, mask0 & ~(1 << irq));
-			LOCAL_HUB_S(PI_INT_PEND_MOD, irq);
+			swlevel = ms1bit(pend0);
+			LOCAL_HUB_S(PI_INT_MASK0_A, mask0 & ~(1 << swlevel));
+			LOCAL_HUB_S(PI_INT_PEND_MOD, swlevel);
 			LOCAL_HUB_L(PI_INT_MASK0_A);		/* Flush */
+			/* "map" swlevel to irq */
+			irq = SWLEVEL_TO_IRQ(swlevel);
 			do_IRQ(irq, regs);
+			/* reset INT_MASK0 register */
 			LOCAL_HUB_S(PI_INT_MASK0_A, mask0);
-			pend0 ^= 1ULL << irq;
+			/* clear bit in pend0 */
+			pend0 ^= 1ULL << swlevel;
 		} while (pend0);
 	}
 }
@@ -172,11 +183,12 @@ static unsigned int bridge_startup(unsigned int irq)
 {
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
 	bridgereg_t br;
-	int pin;
+	int pin, swlevel;
 
 	/* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
 	   setup in _my_ Origin.  */
 	switch (irq) {
+ 	case QLOGICFC_SLOT5:	pin = 5; break;
 	case IOC3_SERIAL_INT:	pin = 3; break;
 	case IOC3_ETH_INT:	pin = 2; break;
 	case SCSI1_INT:		pin = 1; break;
@@ -184,13 +196,18 @@ static unsigned int bridge_startup(unsigned int irq)
 	default:		panic("bridge_startup: whoops?");
 	}
 
+	/* 
+	 * "map" irq to a swlevel greater than 6 since the first 6 bits
+	 * of INT_PEND0 are taken
+	 */
+	swlevel = IRQ_TO_SWLEVEL(irq);
 	br = LOCAL_HUB_L(PI_INT_MASK0_A);
-	LOCAL_HUB_S(PI_INT_MASK0_A, br | (1 << irq));
+	LOCAL_HUB_S(PI_INT_MASK0_A, br | (1 << swlevel));
 	LOCAL_HUB_L(PI_INT_MASK0_A);			/* Flush */
 
-	bridge->b_int_addr[pin].addr = 0x20000 | irq;
+	bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
 	bridge->b_int_enable |= (1 << pin);
-	if (irq < 2) {
+	if (irq < 2 || irq==5) {
 		bridgereg_t device;
 #if 0
 		/*
@@ -208,22 +225,30 @@ static unsigned int bridge_startup(unsigned int irq)
 		device = bridge->b_device[irq].reg;
 		device |= BRIDGE_DEV_SWAP_DIR;
 		bridge->b_device[irq].reg = device;
+		/* 
+		 * Associate interrupt pin with device 
+		 * XXX This only works if b_int_device is initialized to 0!
+		 */
+		device = bridge->b_int_device;
+		device |= (pin << (irq*3));
+		bridge->b_int_device = device;
 	}
 	bridge->b_widget.w_tflush;			/* Flush */
 
 	return 0;	/* Never anything pending.  */
 }
 
-/* Startup one of the (PCI ...) IRQs routes over a bridge.  */
+/* Shutdown one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int bridge_shutdown(unsigned int irq)
 {
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
 	bridgereg_t br;
-	int pin;
+	int pin, swlevel;
 
 	/* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
 	   setup in _my_ Origin.  */
 	switch (irq) {
+ 	case QLOGICFC_SLOT5:	pin = 5; break;
 	case IOC3_SERIAL_INT:	pin = 3; break;
 	case IOC3_ETH_INT:	pin = 2; break;
 	case SCSI1_INT:		pin = 1; break;
@@ -231,8 +256,14 @@ static unsigned int bridge_shutdown(unsigned int irq)
 	default:		panic("bridge_startup: whoops?");
 	}
 
+	/* 
+	 * map irq to a swlevel greater than 6 since the first 6 bits
+	 * of INT_PEND0 are taken
+	 */
+	swlevel = IRQ_TO_SWLEVEL(irq);
 	br = LOCAL_HUB_L(PI_INT_MASK0_A);
-	LOCAL_HUB_S(PI_INT_MASK0_A, br & ~(1 << irq));
+	br = LOCAL_HUB_L(PI_INT_MASK0_A);
+	LOCAL_HUB_S(PI_INT_MASK0_A, br & ~(1 << swlevel));
 	LOCAL_HUB_L(PI_INT_MASK0_A);			/* Flush */
 
 	bridge->b_int_enable &= ~(1 << pin);
