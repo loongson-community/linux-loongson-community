@@ -4,6 +4,7 @@
  *
  * Copyright (c) 1998 Harald Koerfgen 
  * Copyright (c) 2001 Ralf Baechle
+ * Copyright (c) 2002 Thiemo Seufer
  */
 #include <linux/tty.h>
 #include <linux/major.h>
@@ -11,51 +12,45 @@
 #include <linux/init.h>
 #include <linux/console.h>
 #include <linux/fs.h>
-
 #include <asm/sgialib.h>
-
-extern void prom_printf (char *, ...);
-
-void prom_putchar(char c)
-{
-	ULONG cnt;
-	CHAR it = c;
-
-	ArcWrite(1, &it, 1, &cnt);
-}
 
 static void prom_console_write(struct console *co, const char *s,
 			       unsigned count)
 {
-	unsigned i;
-
-	/*
-	 *    Now, do each character
-	 */
-	for (i = 0; i < count; i++) {
-		if (*s == 10)
-			prom_printf("%c", 13);
-		prom_printf("%c", *s++);
+	/* Do each character */
+	while (count--) {
+		if (*s == '\n')
+			prom_putchar('\r');
+		prom_putchar(*s++);
 	}
 }
 
 static int prom_console_wait_key(struct console *co)
 {
-	return 0;
+	return prom_getchar();
 }
 
-static kdev_t prom_console_device(struct console *c)
+static kdev_t prom_console_device(struct console *co)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
+	return MKDEV(TTY_MAJOR, 64 + co->index);
+}
+
+static int __init prom_console_setup(struct console *co, char *options)
+{
+	if (prom_flags & PROM_FLAG_USE_AS_CONSOLE)
+		return 0;
+	else
+		return 1;
 }
 
 static struct console arc_cons = {
-    name:	"ttyS",
-    write:	prom_console_write,
-    device:	prom_console_device,
-    wait_key:	prom_console_wait_key,
-    flags:	CON_PRINTBUFFER,
-    index:	-1,
+	name:		"ttyS",
+	write:		prom_console_write,
+	device:		prom_console_device,
+	wait_key:	prom_console_wait_key,
+	setup:		prom_console_setup,
+	flags:		CON_PRINTBUFFER,
+	index:		-1,
 };
 
 /*

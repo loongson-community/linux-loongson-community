@@ -5,29 +5,43 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  */
-#include <linux/init.h>
 #include <linux/kernel.h>
 #include <asm/sgialib.h>
 
-static char ppbuf[1024];
+void prom_putchar(char c)
+{
+	ULONG cnt;
+	CHAR it = c;
+
+	ArcWrite(1, &it, 1, &cnt);
+}
+
+char prom_getchar(void)
+{
+	ULONG cnt;
+	CHAR c;
+
+	ArcRead(0, &c, 1, &cnt);
+
+	return c;
+}
 
 void prom_printf(char *fmt, ...)
 {
 	va_list args;
-	char ch, *bptr;
-	int i;
+	char ppbuf[1024];
+	char *bptr;
 
 	va_start(args, fmt);
-	i = vsprintf(ppbuf, fmt, args);
+	vsprintf(ppbuf, fmt, args);
 
 	bptr = ppbuf;
 
-	while((ch = *(bptr++)) != 0) {
-		if(ch == '\n')
+	while (*bptr != 0) {
+		if (*bptr == '\n')
 			prom_putchar('\r');
 
-		prom_putchar(ch);
+		prom_putchar(*bptr++);
 	}
 	va_end(args);
-	return;
 }

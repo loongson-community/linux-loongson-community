@@ -13,7 +13,8 @@ extern int prom_argc;
 extern char **prom_argv, **prom_envp;
 
 extern int prom_flags;
-#define PROM_FLAG_ARCS  1
+#define PROM_FLAG_ARCS			1
+#define PROM_FLAG_USE_AS_CONSOLE	2
 
 /*
  * Init the PROM library and it's internal data structures.  Called
