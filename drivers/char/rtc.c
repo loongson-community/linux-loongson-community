@@ -203,7 +203,15 @@ static ssize_t rtc_read(struct file *file, char *buf,
 	if (rtc_has_irq == 0)
 		return -EIO;
 
-	if (count < sizeof(unsigned long))
+	/*
+	 * Historically this function used to assume that sizeof(unsigned long)
+	 * is the same in userspace and kernelspace.  This lead to problems
+	 * for configurations with multiple ABIs such a the MIPS o32 and 64
+	 * ABIs supported on the same kernel.  So now we support read of both
+	 * 4 and 8 bytes and assume that's the sizeof(unsigned long) in the
+	 * userspace ABI.
+	 */
+	if (count != sizeof(unsigned int) && count !=  sizeof(unsigned long))
 		return -EINVAL;
 
 	add_wait_queue(&rtc_wait, &wait);
@@ -233,9 +241,12 @@ static ssize_t rtc_read(struct file *file, char *buf,
 		schedule();
 	} while (1);
 
-	retval = put_user(data, (unsigned long *)buf); 
+	if (count == sizeof(unsigned int))
+		retval = put_user(data, (unsigned int *)buf); 
+	else
+		retval = put_user(data, (unsigned long *)buf);
 	if (!retval)
-		retval = sizeof(unsigned long); 
+		retval = count;
  out:
 	current->state = TASK_RUNNING;
 	remove_wait_queue(&rtc_wait, &wait);
