@@ -125,13 +125,30 @@ struct sgimc_misc_ctrl {
 
 	/* Error address/status regs from GIO and CPU perspectives. */
 	u32 _unused21;
-	volatile u32 cerr;         /* Error address reg for CPU */
+	volatile u32 cerr;	/* Error address reg for CPU */
 	u32 _unused22;
-	volatile u32 cstat;        /* Status reg for CPU */
+	volatile u32 cstat;	/* Status reg for CPU */
+#define SGIMC_CSTAT_RD		0x00000100 /* read parity error */
+#define SGIMC_CSTAT_PAR		0x00000200 /* CPU parity error */
+#define SGIMC_CSTAT_ADDR	0x00000400 /* memory bus error bad addr */
+#define SGIMC_CSTAT_SYSAD_PAR	0x00000800 /* sysad parity error */
+#define SGIMC_CSTAT_SYSCMD_PAR	0x00001000 /* syscmd parity error */
+#define SGIMC_CSTAT_BAD_DATA	0x00002000 /* bad data identifier */
+#define SGIMC_CSTAT_PAR_MASK	0x00001f00 /* parity error mask */
+#define SGIMC_CSTAT_RD_PAR	(SGIMC_CSTAT_RD | SGIMC_CSTAT_PAR)
+
 	u32 _unused23;
-	volatile u32 gerr;         /* Error address reg for GIO */
+	volatile u32 gerr;	/* Error address reg for GIO */
 	u32 _unused24;
-	volatile u32 gstat;        /* Status reg for GIO */
+	volatile u32 gstat;	/* Status reg for GIO */
+#define SGIMC_GSTAT_RD		0x00000100 /* read parity error */
+#define SGIMC_GSTAT_WR		0x00000200 /* write parity error */
+#define SGIMC_GSTAT_TIME	0x00000400 /* GIO bus timed out */
+#define SGIMC_GSTAT_PROM	0x00000800 /* write to PROM when PROM_EN not set */
+#define SGIMC_GSTAT_ADDR	0x00001000 /* parity error on addr cycle */
+#define SGIMC_GSTAT_BC		0x00002000 /* parity error on byte count cycle */
+#define SGIMC_GSTAT_PIO_RD	0x00004000 /* read data parity on pio */
+#define SGIMC_GSTAT_PIO_WR	0x00008000 /* write data parity on pio */
 
 	/* Special hard bus locking registers. */
 	u32 _unused25;
