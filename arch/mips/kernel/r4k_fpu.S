@@ -1,12 +1,11 @@
-/* $Id: r4k_fpu.S,v 1.8 1999/09/28 22:25:47 ralf Exp $
- *
+/*
  * r4k_fpu.S: Save/restore floating point context for signal handlers.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1998 by Ralf Baechle
+ * Copyright (C) 1996, 1998, 2000 by Ralf Baechle
  *
  * Multi-arch abstraction and asm macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -19,7 +18,7 @@
 #include <asm/regdef.h>
 
 #define EX(a,b)							\
-9:	a,##b;							\
+9:	a,b;							\
 	.section __ex_table,"a";				\
 	PTR	9b, fault;					\
 	.previous
