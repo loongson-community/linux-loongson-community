@@ -75,7 +75,10 @@ extern asmlinkage void indyIRQ(void);
  * 8  --> 15  ==   local 1 interrupts
  * 16 --> 23  ==   vectored level 2 interrupts
  * 24 --> 31  ==   vectored level 3 interrupts (not used)
+ * 32 --> 40  ==   vectored GIO interrupts
+ * 41 --> 52  ==   vectored HPCDMA interrupts
  */
+
 static void enable_local0_irq(unsigned int irq)
 {
 	unsigned long flags;
@@ -218,7 +221,7 @@ static void enable_local3_irq(unsigned int irq)
 
 	save_and_cli(flags);
 	printk("Yeeee, got passed irq_nr %d at enable_local3_irq\n", irq);
-	panic("INVALID IRQ level!");
+	panic("Invalid IRQ level!");
 	restore_flags(flags);
 }
 
@@ -236,10 +239,10 @@ void disable_local3_irq(unsigned int irq)
 	save_and_cli(flags);
 	/*
 	 * This way we'll see if anyone would ever want vectored level 3
-	 * interrupts.  Highly unlikely.
+	 * interrupts. Highly unlikely.
 	 */
 	printk("Yeeee, got passed irq_nr %d at disable_local3_irq\n", irq);
-	panic("INVALID IRQ level!");
+	panic("Invalid IRQ level!");
 	restore_flags(flags);
 }
 
@@ -337,21 +340,6 @@ static struct hw_interrupt_type ip22_hpcdma_irq_type = {
 	NULL
 };
 
-static struct irqaction r4ktimer_action = {
-	NULL, 0, 0, "R4000 timer/counter", NULL, NULL,
-};
-
-static struct irqaction indy_berr_action = {
-	NULL, 0, 0, "IP22 Bus Error", NULL, NULL,
-};
-
-static struct irqaction *irq_action[16] = {
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, &indy_berr_action, &r4ktimer_action,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL
-};
-
 void indy_local0_irqdispatch(struct pt_regs *regs)
 {
 	unsigned char mask = ioc_icontrol->istat0;
@@ -368,16 +356,8 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 	}
 
 	/* if irq == 0, then the interrupt has already been cleared */
-	if (irq == 0)
-		goto end;
-
-	do_IRQ(irq, regs);
-	goto end;
-
-no_handler:
-	printk("No handler for local0 irq: %i\n", irq);
-
-end:	
+	if (irq)
+		do_IRQ(irq, regs);
 	return;
 }
 
@@ -399,16 +379,8 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 
 	/* if irq == 0, then the interrupt has already been cleared */
 	/* not sure if it is needed here, but it is needed for local0 */
-	if (irq == 0)
-		goto end;
-
-	do_IRQ(irq, regs);
-	goto end;
-	
-no_handler:
-	printk("No handler for local1 irq: %i\n", irq);
-
-end:	
+	if (irq)
+		do_IRQ(irq, regs);
 	return;	
 }
 
