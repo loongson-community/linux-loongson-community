@@ -55,7 +55,7 @@ extern void xtalk_probe_node(cnodeid_t nid);
 
 static void __init per_hub_init(cnodeid_t cnode)
 {
-	struct hub_data *hub = HUB_DATA(cnode);
+	struct hub_data *hub = hub_data(cnode);
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
 
 	cpu_set(smp_processor_id(), hub->h_cpus);
@@ -97,8 +97,8 @@ void __init per_cpu_init(void)
 	int cpu = smp_processor_id();
 	int slice = LOCAL_HUB_L(PI_CPU_NUM);
 	cnodeid_t cnode = get_compact_nodeid();
-	struct hub_data *hub = HUB_DATA(cnode);
-	struct slice_data *si = hub_data[cnode]->slice + slice;
+	struct hub_data *hub = hub_data(cnode);
+	struct slice_data *si = hub->slice + slice;
 	int i;
 
 	if (test_and_set_bit(slice, &hub->slice_map))

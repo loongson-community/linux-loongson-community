@@ -37,10 +37,9 @@ static short __initdata slot_lastfilled_cache[MAX_COMPACT_NODES];
 static unsigned short __initdata slot_psize_cache[MAX_COMPACT_NODES][MAX_MEM_SLOTS];
 static struct bootmem_data __initdata plat_node_bdata[MAX_COMPACT_NODES];
 
-struct pglist_data *node_data[MAX_COMPACT_NODES];
-struct hub_data *hub_data[MAX_COMPACT_NODES];
+struct node_data *__node_data[MAX_COMPACT_NODES];
 
-EXPORT_SYMBOL(node_data);
+EXPORT_SYMBOL(__node_data);
 
 static int fine_mode;
 
@@ -438,6 +437,45 @@ static void __init szmem(void)
 	}
 }
 
+static void __init node_mem_init(cnodeid_t node)
+{
+	pfn_t slot_firstpfn = slot_getbasepfn(node, 0);
+	pfn_t slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
+	pfn_t slot_freepfn = node_getfirstfree(node);
+	struct pglist_data *pd;
+	unsigned long bootmap_size;
+
+	/*
+	 * Allocate the node data structures on the node first.
+	 */
+	__node_data[node] = __va(slot_freepfn << PAGE_SHIFT);
+
+	pd = NODE_DATA(node);
+	pd->bdata = &plat_node_bdata[node];
+
+	cpus_clear(hub_data(node)->h_cpus);
+
+	slot_freepfn += PFN_UP(sizeof(struct pglist_data) +
+			       sizeof(struct hub_data));
+	
+  	bootmap_size = init_bootmem_node(NODE_DATA(node), slot_freepfn,
+					slot_firstpfn, slot_lastpfn);
+	free_bootmem_node(NODE_DATA(node), slot_firstpfn << PAGE_SHIFT,
+			(slot_lastpfn - slot_firstpfn) << PAGE_SHIFT);
+	reserve_bootmem_node(NODE_DATA(node), slot_firstpfn << PAGE_SHIFT,
+		((slot_freepfn - slot_firstpfn) << PAGE_SHIFT) + bootmap_size);
+}
+
+/*
+ * A node with nothing.  We use it to avoid any special casing in
+ * node_to_cpumask
+ */
+static struct node_data null_node = {
+	.hub = {
+		.h_cpus = CPU_MASK_NONE
+	}
+};
+
 /*
  * Currently, the intranode memory hole support assumes that each slot
  * contains at least 32 MBytes of memory. We assume all bootmem data
@@ -450,31 +488,12 @@ void __init prom_meminit(void)
 	mlreset();
 	szmem();
 
-	for (node = 0; node < numnodes; node++) {
-		pfn_t slot_firstpfn = slot_getbasepfn(node, 0);
-		pfn_t slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
-		pfn_t slot_freepfn = node_getfirstfree(node);
-		unsigned long bootmap_size;
-
-		/*
-		 * Allocate the node data structures on the node first.
-		 */
-		node_data[node] = __va(slot_freepfn << PAGE_SHIFT);
-		node_data[node]->bdata = &plat_node_bdata[node];
-
-		hub_data[node] = (struct hub_data *)(node_data[node] + 1);
-
-		cpus_clear(hub_data[node]->h_cpus);
-
-		slot_freepfn += PFN_UP(sizeof(struct pglist_data) +
-				       sizeof(struct hub_data));
-	
-	  	bootmap_size = init_bootmem_node(NODE_DATA(node), slot_freepfn,
-						slot_firstpfn, slot_lastpfn);
-		free_bootmem_node(NODE_DATA(node), slot_firstpfn << PAGE_SHIFT,
-				(slot_lastpfn - slot_firstpfn) << PAGE_SHIFT);
-		reserve_bootmem_node(NODE_DATA(node), slot_firstpfn << PAGE_SHIFT,
-		  ((slot_freepfn - slot_firstpfn) << PAGE_SHIFT) + bootmap_size);
+	for (node = 0; node < MAX_COMPACT_NODES; node++) {
+		if (node < numnodes) {
+			node_mem_init(node);
+			continue;
+		}
+		__node_data[node] = &null_node;
 	}
 }
 
