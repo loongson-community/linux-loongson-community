@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ioc3.h,v 1.1 2000/01/13 00:17:02 ralf Exp $
  *
  * Copyright (C) 1999 Ralf Baechle
  * This file is part of the Linux driver for the SGI IOC3.
@@ -229,6 +229,14 @@ struct ioc3_etxd {
 #define ETXD_B1CNT_SHIFT	8
 #define ETXD_B2CNT_MASK		0x7ff00000
 #define ETXD_B2CNT_SHIFT	20
+
+/*
+ * Bytebus device space
+ */
+#define IOC3_BYTEBUS_DEV0	0x80000L
+#define IOC3_BYTEBUS_DEV1	0xa0000L
+#define IOC3_BYTEBUS_DEV2	0xc0000L
+#define IOC3_BYTEBUS_DEV3	0xe0000L
 
 /* ------------------------------------------------------------------------- */
 
