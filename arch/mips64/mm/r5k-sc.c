@@ -99,11 +99,11 @@ static inline int __init r5k_sc_probe(void)
 	return 1;
 }
 
-struct bcache_ops r5k_sc_ops = {
-	r5k_sc_enable,
-	r5k_sc_disable,
-	r5k_dma_cache_inv_sc,
-	r5k_dma_cache_inv_sc
+static struct bcache_ops r5k_sc_ops = {
+	.bc_enable = r5k_sc_enable,
+	.bc_disable = r5k_sc_disable,
+	.bc_wback_inv = r5k_dma_cache_inv_sc,
+	.bc_inv = r5k_dma_cache_inv_sc
 };
 
 void __init r5k_sc_init(void)

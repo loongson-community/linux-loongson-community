@@ -52,8 +52,10 @@ unsigned int scache_size, sc_lsize;	/* Again, in bytes */
 static void no_sc_noop(void) {}
 
 static struct bcache_ops no_sc_ops = {
-	(void *)no_sc_noop, (void *)no_sc_noop,
-	(void *)no_sc_noop, (void *)no_sc_noop
+	.bc_enable = (void *)no_sc_noop,
+	.bc_disable = (void *)no_sc_noop,
+	.bc_wback_inv = (void *)no_sc_noop,
+	.bc_inv = (void *)no_sc_noop
 };
 
 struct bcache_ops *bcops = &no_sc_ops;
