@@ -207,7 +207,7 @@ struct thread_struct {
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \
-	MF_FIXADE, { 0 }, 0, 0 \
+	MF_FIXADE, 0, 0 \
 }
 
 #ifdef __KERNEL__
