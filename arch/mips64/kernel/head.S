@@ -114,7 +114,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	 * the romvec and other important info is stored there
 	 * by prom_init().
 	 */
-	PTR_LA	t0, _edata
+	PTR_LA	t0, __bss_start
 	sd	zero, (t0)
 	PTR_LA	t1, (_end - 8)
 1:

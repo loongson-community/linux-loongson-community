@@ -154,14 +154,14 @@ ejtag_return:
 		la	$28, init_thread_union
 		addiu	t0, $28, KERNEL_STACK_SIZE-32
 		subu	sp, t0, 4*SZREG
-
 		sw	t0, kernelsp
+
 		/* The firmware/bootloader passes argc/argp/envp
 		 * to us as arguments.  But clear bss first because
 		 * the romvec and other important info is stored there
 		 * by prom_init().
 		 */
-		la	t0, _edata
+		la	t0, __bss_start
 		sw	zero, (t0)
 		la	t1, (_end - 4)
 1:
