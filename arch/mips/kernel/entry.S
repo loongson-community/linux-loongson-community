@@ -106,7 +106,7 @@ LEAF(spurious_interrupt)
 		ctc1	a2,fcr31;                                       \
 		STI
 #define __BUILD_clear_ade(exception)                                    \
-		.set	reorder;						\
+		.set	reorder;					\
 		MFC0	t0,CP0_BADVADDR;                                \
 		.set	noreorder;					\
 		REG_S	t0,PT_BVADDR(sp);                               \
