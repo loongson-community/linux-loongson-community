@@ -25,16 +25,12 @@
  */
 static void alloc_cpupda(cpuid_t cpu, int cpunum)
 {
-	cnodeid_t	node;
-	nasid_t		nasid;
-
-	node = get_cpu_cnode(cpu);
-	nasid = COMPACT_TO_NASID_NODEID(node);
+	cnodeid_t node = get_cpu_cnode(cpu);
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(node);
 
 	cputonasid(cpunum) = nasid;
 	cputocnode(cpunum) = node;
 	cputoslice(cpunum) = get_cpu_slice(cpu);
-	cpu_data[cpunum].p_cpuid = cpu;
 }
 
 void __init prom_build_cpu_map(void)
