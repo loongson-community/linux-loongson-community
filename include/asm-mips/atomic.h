@@ -228,7 +228,7 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 {
 	unsigned long flags;
-	int temp, result;
+	int temp;
 
 	spin_lock_irqsave(&atomic_lock, flags);
 	temp = v->counter;
@@ -237,7 +237,7 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 		v->counter = temp;
 	spin_unlock_irqrestore(&atomic_lock, flags);
 
-	return result;
+	return temp;
 }
 
 #endif /* CONFIG_CPU_HAS_LLSC */
@@ -511,7 +511,7 @@ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 {
 	unsigned long flags;
-	long temp, result;
+	long temp;
 
 	spin_lock_irqsave(&atomic_lock, flags);
 	temp = v->counter;
@@ -520,7 +520,7 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 		v->counter = temp;
 	spin_unlock_irqrestore(&atomic_lock, flags);
 
-	return result;
+	return temp;
 }
 
 #endif /* CONFIG_CPU_HAS_LLDSCD */
