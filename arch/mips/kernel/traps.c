@@ -269,17 +269,17 @@ static void default_be_board_handler(struct pt_regs *regs)
 	force_sig(SIGBUS, current);
 }
 
-void do_ibe(struct pt_regs *regs)
+asmlinkage void do_ibe(struct pt_regs *regs)
 {
 	ibe_board_handler(regs);
 }
 
-void do_dbe(struct pt_regs *regs)
+asmlinkage void do_dbe(struct pt_regs *regs)
 {
 	dbe_board_handler(regs);
 }
 
-void do_ov(struct pt_regs *regs)
+asmlinkage void do_ov(struct pt_regs *regs)
 {
 	if (compute_return_epc(regs))
 		return;
@@ -289,7 +289,7 @@ void do_ov(struct pt_regs *regs)
 /*
  * XXX Delayed fp exceptions when doing a lazy ctx switch XXX
  */
-void do_fpe(struct pt_regs *regs, unsigned long fcr31)
+asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 	if (!(mips_cpu.options & MIPS_CPU_FPU))
 		panic("Floating Point Exception with No FPU");
@@ -350,7 +350,7 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 	return 1;
 }
 
-void do_bp(struct pt_regs *regs)
+asmlinkage void do_bp(struct pt_regs *regs)
 {
 	siginfo_t info;
 	unsigned int opcode, bcode;
@@ -395,7 +395,7 @@ sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-void do_tr(struct pt_regs *regs)
+asmlinkage void do_tr(struct pt_regs *regs)
 {
 	siginfo_t info;
 	unsigned int opcode, bcode;
@@ -448,7 +448,7 @@ sigsegv:
  * this implementation can handle only sychronization between 2 or more
  * user contexts and is not SMP safe.
  */
-void do_ri(struct pt_regs *regs)
+asmlinkage void do_ri(struct pt_regs *regs)
 {
 	unsigned int opcode;
 
@@ -565,7 +565,7 @@ void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 
 #else /* MIPS 2 or higher */
 
-void do_ri(struct pt_regs *regs)
+asmlinkage void do_ri(struct pt_regs *regs)
 {
 	unsigned int opcode;
 
@@ -580,7 +580,7 @@ void do_ri(struct pt_regs *regs)
 
 #endif
 
-void do_cpu(struct pt_regs *regs)
+asmlinkage void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
 	extern void lazy_fpu_switch(void*);
@@ -623,7 +623,7 @@ bad_cid:
 	force_sig(SIGILL, current);
 }
 
-void do_watch(struct pt_regs *regs)
+asmlinkage void do_watch(struct pt_regs *regs)
 {
 	/*
 	 * We use the watch exception where available to detect stack
@@ -633,14 +633,14 @@ void do_watch(struct pt_regs *regs)
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
 
-void do_mcheck(struct pt_regs *regs)
+asmlinkage void do_mcheck(struct pt_regs *regs)
 {
 	show_regs(regs);
 	panic("Caught Machine Check exception - probably caused by multiple "
 	      "matching entries in the TLB.");
 }
 
-void do_reserved(struct pt_regs *regs)
+asmlinkage void do_reserved(struct pt_regs *regs)
 {
 	/*
 	 * Game over - no way to handle this if it ever occurs.  Most probably
