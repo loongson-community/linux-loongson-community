@@ -509,6 +509,7 @@ static inline void init_cycle_counter(void)
 	case CPU_R5000A:
 	case CPU_R4640:
 	case CPU_NEVADA:
+	case CPU_RM7000:
 		cyclecounter_available = 1;
 		break;
 	}
