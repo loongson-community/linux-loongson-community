@@ -430,10 +430,10 @@ out:	jr	ra
 	sys	sys32_adjtimex	1
 	sys	sys_mprotect	3			/* 4125 */
 	sys	sys32_sigprocmask	3
-	sys	sys_create_module 2
+	sys	sys_ni_syscall	0			/* was creat_module */
 	sys	sys_init_module	5
 	sys	sys_delete_module 1
-	sys	sys32_get_kernel_syms 1			/* 4130 */
+	sys	sys_ni_syscall	0		/* 4130, get_kernel_syms */
 	sys	sys_quotactl	0
 	sys	sys_getpgid	1
 	sys	sys_fchdir	1
@@ -490,7 +490,7 @@ out:	jr	ra
 	sys	sys_socketpair	4
 	sys	sys_setresuid	3			/* 4185 */
 	sys	sys_getresuid	3
-	sys	sys_query_module 5
+	sys	sys_ni_syscall	0			/* was query_module */
 	sys	sys_poll	3
 	sys	sys_nfsservctl	3
 	sys	sys_setresgid	3			/* 4190 */
@@ -555,6 +555,7 @@ out:	jr	ra
 	sys	sys_epoll_ctl		4
 	sys	sys_epoll_wait		3		/* 4250 */
 	sys	sys_remap_file_pages	5
+	sys	sys_set_tid_address	1
 	.endm
 
 	.macro	sys function, nargs

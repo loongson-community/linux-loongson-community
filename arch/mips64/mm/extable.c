@@ -1,10 +1,5 @@
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
- *
- * Copyright (C) 1994, 1995, 1996, 1999 by Ralf Baechle
- * Copyright (C) 1999 by Silicon Graphics
+ * linux/arch/mips/mm/extable.c
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -37,7 +32,8 @@ search_one_table(const struct exception_table_entry *first,
 
 extern spinlock_t modlist_lock;
 
-unsigned long search_exception_table(unsigned long addr)
+unsigned long
+search_exception_table(unsigned long addr)
 {
 	unsigned long ret = 0;
 
@@ -47,15 +43,17 @@ unsigned long search_exception_table(unsigned long addr)
 	return ret;
 #else
 	unsigned long flags;
-	/* The kernel is the last "module" -- no need to treat it special.  */
-	struct module *mp;
+	struct list_head *i;
 
+	/* The kernel is the last "module" -- no need to treat it special.  */
 	spin_lock_irqsave(&modlist_lock, flags);
-	for (mp = module_list; mp != NULL; mp = mp->next) {
-		if (mp->ex_table_start == NULL)
+	list_for_each(i, &extables) {
+		struct exception_table *ex
+			= list_entry(i, struct exception_table, list);
+		if (ex->num_entries == 0)
 			continue;
-		ret = search_one_table(mp->ex_table_start,
-				       mp->ex_table_end - 1, addr);
+		ret = search_one_table(ex->entry,
+				       ex->entry + ex->num_entries - 1, addr);
 		if (ret)
 			break;
 	}

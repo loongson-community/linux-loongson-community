@@ -261,11 +261,12 @@
 #define __NR_sys_epoll_ctl		(__NR_Linux + 249)
 #define __NR_sys_epoll_wait		(__NR_Linux + 250)
 #define __NR_remap_file_pages		(__NR_Linux + 251)
+#define __NR_set_tid_address		(__NR_Linux + 252)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		251
+#define __NR_Linux_syscalls		252
 
 #ifndef __ASSEMBLY__
 

@@ -24,11 +24,11 @@ struct stat32 {
 	__kernel_off_t32    st_size;
 	int		    st_pad3;
 	__kernel_time_t32   st_atime;
-	int		    reserved0;
+	int		    st_atime_nsec;
 	__kernel_time_t32   st_mtime;
-	int		    reserved1;
+	int		    st_mtime_nsec;
 	__kernel_time_t32   st_ctime;
-	int		    reserved2;
+	int		    st_ctime_nsec;
 	int		    st_blksize;
 	int		    st_blocks;
 	int		    st_pad4[14];
@@ -57,18 +57,20 @@ struct stat {
 	 * but we don't have it under Linux.
 	 */
 	unsigned int	st_atime;
-	unsigned int	reserved0;	/* Reserved for st_atime expansion  */
+	unsigned int	st_atime_nsec;
 
 	unsigned int	st_mtime;
-	unsigned int	reserved1;	/* Reserved for st_mtime expansion  */
+	unsigned int	st_mtime_nsec;
 
 	unsigned int	st_ctime;
-	unsigned int	reserved2;	/* Reserved for st_ctime expansion  */
+	unsigned int	st_ctime_nsec;
 
 	unsigned int	st_blksize;
 	unsigned int	st_pad2;
 
 	unsigned long	st_blocks;
 };
+
+#define STAT_HAVE_NSEC 1
 
 #endif /* _ASM_STAT_H */

@@ -127,9 +127,9 @@ static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat * statbuf)
 		return -EOVERFLOW;
 #endif	
 	tmp.st_size = stat->size;
-	tmp.st_atime = stat->atime;
-	tmp.st_mtime = stat->mtime;
-	tmp.st_ctime = stat->ctime;
+	tmp.st_atime = stat->atime.tv_sec;
+	tmp.st_mtime = stat->mtime.tv_sec;
+	tmp.st_ctime = stat->ctime.tv_sec;
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
@@ -183,9 +183,14 @@ static int cp_new_stat(struct kstat *stat, struct stat *statbuf)
 		return -EOVERFLOW;
 #endif	
 	tmp.st_size = stat->size;
-	tmp.st_atime = stat->atime;
-	tmp.st_mtime = stat->mtime;
-	tmp.st_ctime = stat->ctime;
+	tmp.st_atime = stat->atime.tv_sec;
+	tmp.st_mtime = stat->mtime.tv_sec;
+	tmp.st_ctime = stat->ctime.tv_sec;
+#ifdef STAT_HAVE_NSEC
+	tmp.st_atime_nsec = stat->atime.tv_nsec;
+	tmp.st_mtime_nsec = stat->mtime.tv_nsec;
+	tmp.st_ctime_nsec = stat->ctime.tv_nsec;
+#endif
 	tmp.st_blocks = stat->blocks;
 	tmp.st_blksize = stat->blksize;
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
@@ -255,7 +260,7 @@ static long cp_new_stat64(struct kstat *stat, struct stat64 *statbuf)
 {
 	struct stat64 tmp;
 
-	memset(&tmp, 0, sizeof(tmp));
+	memset(&tmp, 0, sizeof(struct stat64));
 	tmp.st_dev = stat->dev;
 	tmp.st_ino = stat->ino;
 #ifdef STAT64_HAS_BROKEN_ST_INO
@@ -266,9 +271,12 @@ static long cp_new_stat64(struct kstat *stat, struct stat64 *statbuf)
 	tmp.st_uid = stat->uid;
 	tmp.st_gid = stat->gid;
 	tmp.st_rdev = stat->rdev;
-	tmp.st_atime = stat->atime;
-	tmp.st_mtime = stat->mtime;
-	tmp.st_ctime = stat->ctime;
+	tmp.st_atime = stat->atime.tv_sec;
+	tmp.st_atime_nsec = stat->atime.tv_nsec;
+	tmp.st_mtime = stat->mtime.tv_sec;
+	tmp.st_mtime_nsec = stat->mtime.tv_nsec;
+	tmp.st_ctime = stat->ctime.tv_sec;
+	tmp.st_ctime_nsec = stat->ctime.tv_nsec;
 	tmp.st_size = stat->size;
 	tmp.st_blocks = stat->blocks;
 	tmp.st_blksize = stat->blksize;

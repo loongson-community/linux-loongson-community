@@ -537,7 +537,7 @@ repeat:
 		i--;
 	}
 	if (count-i) {
-		file->f_dentry->d_inode->i_atime = CURRENT_TIME;
+		file->f_dentry->d_inode->i_atime = get_seconds();
 		return count-i;
 	}
 	if (signal_pending(current))

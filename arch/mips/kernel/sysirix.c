@@ -25,6 +25,7 @@
 #include <linux/utsname.h>
 #include <linux/file.h>
 #include <linux/namei.h>
+#include <linux/socket.h>
 
 #include <asm/ptrace.h>
 #include <asm/page.h>
@@ -521,7 +522,7 @@ out:
 
 asmlinkage int irix_gtime(struct pt_regs *regs)
 {
-	return CURRENT_TIME;
+	return get_seconds();
 }
 
 int vm_enough_memory(long pages);
@@ -1220,12 +1221,12 @@ static inline int irix_xstat32_xlate(struct kstat *stat, void *ubuf)
 		return -EOVERFLOW;
 #endif
 	ub.st_size    = stat->size;
-	ub.st_atime0  = stat->atime;
-	ub.st_atime1  = 0;
-	ub.st_mtime0  = stat->mtime;
-	ub.st_mtime1  = 0;
-	ub.st_ctime0  = stat->ctime;
-	ub.st_ctime1  = 0;
+	ub.st_atime0  = stat->atime.tv_sec;
+	ub.st_atime1  = stat->atime.tv_nsec;
+	ub.st_mtime0  = stat->mtime.tv_sec;
+	ub.st_mtime1  = stat->atime.tv_nsec;
+	ub.st_ctime0  = stat->ctime.tv_sec;
+	ub.st_ctime1  = stat->atime.tv_nsec;
 	ub.st_blksize = stat->blksize;
 	ub.st_blocks  = stat->blocks;
 	strcpy (ub.st_fstype, "efs");
@@ -1263,9 +1264,12 @@ static inline void irix_xstat64_xlate(struct kstat *stat, void *ubuf)
 	ks.st_pad3 = 0;
 
 	/* XXX hackety hack... */
-	ks.st_atime.tv_sec = (s32) stat->atime; ks.st_atime.tv_nsec = 0;
-	ks.st_mtime.tv_sec = (s32) stat->atime; ks.st_mtime.tv_nsec = 0;
-	ks.st_ctime.tv_sec = (s32) stat->atime; ks.st_ctime.tv_nsec = 0;
+	ks.st_atime.tv_sec = (s32) stat->atime.tv_sec;
+	ks.st_atime.tv_nsec = stat->atime.tv_nsec;
+	ks.st_mtime.tv_sec = (s32) stat->mtime.tv_sec;
+	ks.st_mtime.tv_nsec = stat->mtime.tv_nsec;;
+	ks.st_ctime.tv_sec = (s32) stat->ctime.tv_sec;
+	ks.st_ctime.tv_nsec = stat->ctime.tv_nsec;;
 
 	ks.st_blksize = (s32) stat->blksize;
 	ks.st_blocks = (long long) stat->blocks;

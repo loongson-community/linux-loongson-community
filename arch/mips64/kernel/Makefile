@@ -24,6 +24,8 @@ ifndef CONFIG_MAPPED_PCI_IO
 obj-y				+= pci-dma.o
 endif
 
+obj-$(CONFIG_MODULES)		+= module.o
+
 CFLAGS_cpu-probe.o	= $(shell if $(CC) $(CFLAGS) -Wa,-mdaddi -c -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-DHAVE_AS_SET_DADDI"; fi)
 AFLAGS_r4k_genex.o	= -P
 

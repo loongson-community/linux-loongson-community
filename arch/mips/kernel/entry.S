@@ -214,7 +214,8 @@ LEAF(spurious_interrupt)
 		beq	k1, k0, handle_vced
 		 li	k0, 14<<2
 		beq	k1, k0, handle_vcei
-		 la	k0, exception_handlers
+		 lui	k0, %hi(exception_handlers)
+		addiu	k0, %lo(exception_handlers)
 		.set	reorder
 		addu	k0, k0, k1
 		lw	k0, (k0)

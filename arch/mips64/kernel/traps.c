@@ -26,6 +26,7 @@
 #include <asm/fpu.h>
 #include <asm/module.h>
 #include <asm/pgtable.h>
+#include <asm/sections.h>
 #include <asm/io.h>
 #include <asm/ptrace.h>
 #include <asm/watch.h>
@@ -70,29 +71,29 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
 
 /*
  * If the address is either in the .text section of the
- * kernel, or in the vmalloc'ed module regions, it *may*
+ * kernel, or in the vmalloc'ed module regions, it *may* 
  * be the address of a calling routine
  */
 
 #ifdef CONFIG_MODULES
 
-extern struct module *module_list;
-extern struct module kernel_module;
+/* FIXME: Accessed without a lock --RR */
+extern struct list_head modules;
 
-static inline int kernel_text_address(long addr)
+static inline int kernel_text_address(unsigned long addr)
 {
-	extern char _stext, _etext;
 	int retval = 0;
 	struct module *mod;
 
-	if (addr >= (long) &_stext && addr <= (long) &_etext)
+	if (addr >= (unsigned long) &_stext &&
+	    addr <= (unsigned long) &_etext)
 		return 1;
 
-	for (mod = module_list; mod != &kernel_module; mod = mod->next) {
+	list_for_each_entry(mod, &modules, list) {
 		/* mod_bound tests for addr being inside the vmalloc'ed
 		 * module area. Of course it'd be better to test only
 		 * for the .text subset... */
-		if (mod_bound(addr, 0, mod)) {
+		if (mod_bound((void *)addr, 0, mod)) {
 			retval = 1;
 			break;
 		}
@@ -103,11 +104,10 @@ static inline int kernel_text_address(long addr)
 
 #else
 
-static inline int kernel_text_address(long addr)
+static inline int kernel_text_address(unsigned long addr)
 {
-	extern char _stext, _etext;
-
-	return (addr >= (long) &_stext && addr <= (long) &_etext);
+	return (addr >= (unsigned long) &_stext &&
+		addr <= (unsigned long) &_etext);
 }
 
 #endif
@@ -313,8 +313,6 @@ search_one_table(const struct exception_table_entry *first,
 	return (first == last && first->insn == value) ? first->nextinsn : 0;
 }
 
-extern spinlock_t modlist_lock;
-
 static inline unsigned long
 search_dbe_table(unsigned long addr)
 {
@@ -326,24 +324,17 @@ search_dbe_table(unsigned long addr)
 	return ret;
 #else
 	unsigned long flags;
+	struct mod_arch_specific * ap;
+	struct module *mod;
 
 	/* The kernel is the last "module" -- no need to treat it special.  */
-	struct module *mp;
-	struct archdata *ap;
-
 	spin_lock_irqsave(&modlist_lock, flags);
-	for (mp = module_list; mp != NULL; mp = mp->next) {
-		if (!mod_member_present(mp, archdata_end) ||
-		    !mod_archdata_member_present(mp, struct archdata,
-						 dbe_table_end))
-			continue;
-		ap = (struct archdata *)(mp->archdata_start);
-
-		if (ap->dbe_table_start == NULL ||
-		    !(mp->flags & (MOD_RUNNING | MOD_INITIALIZING)))
+	list_for_each_entry(mod, &modules, list) {
+		ap = &mod->arch;
+		if (ap->dbe_table_start == ap->dbe_table_end)
 			continue;
 		ret = search_one_table(ap->dbe_table_start,
-				       ap->dbe_table_end - 1, addr);
+		                       ap->dbe_table_end - 1, addr);
 		if (ret)
 			break;
 	}

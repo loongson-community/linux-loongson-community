@@ -141,10 +141,10 @@ SYS(sys_ni_syscall, 0) /* sys_modify_ldt */
 SYS(sys_adjtimex, 1)
 SYS(sys_mprotect, 3)				/* 4125 */
 SYS(sys_sigprocmask, 3)
-SYS(sys_create_module, 2)
+SYS(sys_ni_syscall, 0)				/* was create_module */
 SYS(sys_init_module, 5)
 SYS(sys_delete_module, 1)
-SYS(sys_get_kernel_syms, 1)			/* 4130 */
+SYS(sys_ni_syscall, 0)				/* 4130, was get_kernel_syms */
 SYS(sys_quotactl, 0)
 SYS(sys_getpgid, 1)
 SYS(sys_fchdir, 1)
@@ -201,7 +201,7 @@ SYS(sys_socket, 3)
 SYS(sys_socketpair, 4)
 SYS(sys_setresuid, 3)				/* 4185 */
 SYS(sys_getresuid, 3)
-SYS(sys_query_module, 5)
+SYS(sys_ni_syscall, 0)				/* sys_query_module */
 SYS(sys_poll, 3)
 SYS(sys_nfsservctl, 3)
 SYS(sys_setresgid, 3)				/* 4190 */
@@ -266,3 +266,4 @@ SYS(sys_epoll_create, 1)
 SYS(sys_epoll_ctl, 4)
 SYS(sys_epoll_wait, 3)				/* 4250 */
 SYS(sys_remap_file_pages, 5)
+SYS(sys_set_tid_address, 1)

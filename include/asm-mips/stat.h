@@ -20,11 +20,11 @@ struct stat {
 	 * but we don't have it under Linux.
 	 */
 	time_t		st_atime;
-	long		reserved0;
+	long		st_atime_nsec;
 	time_t		st_mtime;
-	long		reserved1;
+	long		st_mtime_nsec;
 	time_t		st_ctime;
-	long		reserved2;
+	long		st_ctime_nsec;
 	long		st_blksize;
 	long		st_blocks;
 	long		st_pad4[14];
@@ -58,13 +58,13 @@ struct stat64 {
 	 * but we don't have it under Linux.
 	 */
 	time_t		st_atime;
-	unsigned long	reserved0;	/* Reserved for st_atime expansion  */
+	unsigned long	st_atime_nsec;	/* Reserved for st_atime expansion  */
 
 	time_t		st_mtime;
-	unsigned long	reserved1;	/* Reserved for st_mtime expansion  */
+	unsigned long	st_mtime_nsec;	/* Reserved for st_mtime expansion  */
 
 	time_t		st_ctime;
-	unsigned long	reserved2;	/* Reserved for st_ctime expansion  */
+	unsigned long	st_ctime_nsec;	/* Reserved for st_ctime expansion  */
 
 	unsigned long	st_blksize;
 	unsigned long	st_pad2;

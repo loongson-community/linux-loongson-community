@@ -4,11 +4,12 @@
 #ifdef __KERNEL__
 
 #include <asm/atomic.h>
-#include <linux/mount.h>
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/cache.h>
 #include <asm/page.h>			/* for BUG() */
+
+struct vfsmount;
 
 /*
  * linux/include/linux/dcache.h
@@ -228,8 +229,7 @@ extern struct dentry * __d_lookup(struct dentry *, struct qstr *);
 /* validate "insecure" dentry pointer */
 extern int d_validate(struct dentry *, struct dentry *);
 
-extern char * __d_path(struct dentry *, struct vfsmount *, struct dentry *,
-	struct vfsmount *, char *, int);
+extern char * d_path(struct dentry *, struct vfsmount *, char *, int);
   
 /* Allocation counts.. */
 

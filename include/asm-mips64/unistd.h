@@ -268,11 +268,12 @@
 #define __NR_O32_sys_epoll_ctl		(__NR_O32_Linux + 249)
 #define __NR_O32_sys_epoll_wait		(__NR_O32_Linux + 250)
 #define __NR_O32_remap_file_page	(__NR_O32_Linux + 251)
+#define __NR_O32_set_tid_address	(__NR_O32_Linux + 252)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_O32_Linux_syscalls		251
+#define __NR_O32_Linux_syscalls		252
 
 
 /*
@@ -491,11 +492,12 @@
 #define __NR_sys_epoll_wait		(__NR_Linux + 209)
 #define __NR_remap_file_page		(__NR_Linux + 210)
 #define __NR_rt_sigreturn		(__NR_Linux + 211)
+#define __NR_set_tid_address		(__NR_Linux + 212)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		211
+#define __NR_Linux_syscalls		212
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -714,11 +716,12 @@
 #define __NR_N32_remap_file_page	(__NR_N32_Linux + 210)
 #define __NR_N32_rt_sigreturn		(__NR_N32_Linux + 211)
 #define __NR_N32_fcntl64		(__NR_N32_Linux + 212)
+#define __NR_N32_set_tid_address	(__NR_N32_Linux + 213)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		212
+#define __NR_N32_Linux_syscalls		213
 
 #ifndef __ASSEMBLY__
 

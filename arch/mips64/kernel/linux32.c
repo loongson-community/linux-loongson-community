@@ -74,9 +74,14 @@ static int cp_new_stat32(struct kstat *stat, struct stat32 *statbuf)
 	SET_STAT_GID(tmp, stat->gid);
 	tmp.st_rdev = stat->rdev;
 	tmp.st_size = stat->size;
-	tmp.st_atime = stat->atime;
-	tmp.st_mtime = stat->mtime;
-	tmp.st_ctime = stat->ctime;
+	tmp.st_atime = stat->atime.tv_sec;
+	tmp.st_mtime = stat->mtime.tv_sec;
+	tmp.st_ctime = stat->ctime.tv_sec;
+#ifdef STAT_HAVE_NSEC
+	tmp.st_atime_nsec = stat->atime.tv_nsec;
+	tmp.st_mtime_nsec = stat->mtime.tv_nsec;
+	tmp.st_ctime_nsec = stat->ctime.tv_nsec;
+#endif
 	tmp.st_blocks = stat->blocks;
 	tmp.st_blksize = stat->blksize;
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
@@ -2848,77 +2853,3 @@ asmlinkage ssize_t sys32_readahead(int fd, u32 pad0, u64 a2, u64 a3,
 {
 	return sys_readahead(fd, merge_64(a2, a3), count);
 }
-
-#ifdef CONFIG_MODULES
-
-/* From sparc64 */
-
-struct kernel_sym32 {
-        u32 value;
-        char name[60];
-};
-
-extern asmlinkage int sys_get_kernel_syms(struct kernel_sym *table);
-
-asmlinkage int sys32_get_kernel_syms(struct kernel_sym32 *table)
-{
-        int len, i;
-        struct kernel_sym *tbl;
-        mm_segment_t old_fs;
-
-        len = sys_get_kernel_syms(NULL);
-        if (!table) return len;
-        tbl = kmalloc (len * sizeof (struct kernel_sym), GFP_KERNEL);
-        if (!tbl) return -ENOMEM;
-        old_fs = get_fs();
-        set_fs (KERNEL_DS);
-        sys_get_kernel_syms(tbl);
-        set_fs (old_fs);
-        for (i = 0; i < len; i++, table++) {
-                if (put_user (tbl[i].value, &table->value) ||
-                    copy_to_user (table->name, tbl[i].name, 60))
-                        break;
-        }
-        kfree (tbl);
-        return i;
-}
-
-#else /* CONFIG_MODULES */
-
-asmlinkage unsigned long
-sys32_create_module(const char *name_user, size_t size)
-{
-	return -ENOSYS;
-}
-
-asmlinkage int
-sys32_init_module(const char *name_user, struct module *mod_user)
-{
-	return -ENOSYS;
-}
-
-asmlinkage int
-sys32_delete_module(const char *name_user)
-{
-	return -ENOSYS;
-}
-
-asmlinkage int
-sys32_query_module(const char *name_user, int which, char *buf, size_t bufsize,
-		 size_t *ret)
-{
-	/* Let the program know about the new interface.  Not that
-	   it'll do them much good.  */
-	if (which == 0)
-		return 0;
-
-	return -ENOSYS;
-}
-
-asmlinkage long
-sys32_get_kernel_syms(struct kernel_sym *table)
-{
-	return -ENOSYS;
-}
-
-#endif /* CONFIG_MODULES */

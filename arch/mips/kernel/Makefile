@@ -45,4 +45,6 @@ ifndef CONFIG_MAPPED_PCI_IO
 obj-y				+= pci-dma.o
 endif
 
+obj-$(CONFIG_MODULES)		+= module.o
+
 EXTRA_AFLAGS := $(CFLAGS)

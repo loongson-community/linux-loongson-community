@@ -1902,6 +1902,20 @@ void devfs_find_and_unregister (devfs_handle_t dir, const char *name,
     devfs_put (de);
 }   /*  End Function devfs_find_and_unregister  */
 
+void devfs_remove(const char *fmt, ...)
+{
+	char buf[64];
+	va_list args;
+	int n;
+
+	va_start(args, fmt);
+	n = vsnprintf(buf, 64, fmt, args);
+	if (n < 64) {
+		devfs_handle_t de = devfs_get_handle(NULL, buf, 0, 0, 0, 0);
+		devfs_unregister(de);
+		devfs_put(de);
+	}
+}
 
 /**
  *	devfs_get_flags - Get the flags for a devfs entry.
@@ -2317,6 +2331,7 @@ EXPORT_SYMBOL(devfs_mk_symlink);
 EXPORT_SYMBOL(devfs_mk_dir);
 EXPORT_SYMBOL(devfs_get_handle);
 EXPORT_SYMBOL(devfs_find_and_unregister);
+EXPORT_SYMBOL(devfs_remove);
 EXPORT_SYMBOL(devfs_get_flags);
 EXPORT_SYMBOL(devfs_set_flags);
 EXPORT_SYMBOL(devfs_get_maj_min);
@@ -2494,9 +2509,9 @@ static int devfs_notify_change (struct dentry *dentry, struct iattr *iattr)
     de->mode = inode->i_mode;
     de->inode.uid = inode->i_uid;
     de->inode.gid = inode->i_gid;
-    de->inode.atime = inode->i_atime;
-    de->inode.mtime = inode->i_mtime;
-    de->inode.ctime = inode->i_ctime;
+    de->inode.atime = inode->i_atime.tv_sec;
+    de->inode.mtime = inode->i_mtime.tv_sec;
+    de->inode.ctime = inode->i_ctime.tv_sec;
     if ( ( iattr->ia_valid & (ATTR_MODE | ATTR_UID | ATTR_GID) ) &&
 	 !is_devfsd_or_child (fs_info) )
 	devfsd_notify_de (de, DEVFSD_NOTIFY_CHANGE, inode->i_mode,
@@ -2595,9 +2610,12 @@ static struct inode *_devfs_get_vfs_inode (struct super_block *sb,
     inode->i_mode = de->mode;
     inode->i_uid = de->inode.uid;
     inode->i_gid = de->inode.gid;
-    inode->i_atime = de->inode.atime;
-    inode->i_mtime = de->inode.mtime;
-    inode->i_ctime = de->inode.ctime;
+    inode->i_atime.tv_sec = de->inode.atime;
+    inode->i_mtime.tv_sec = de->inode.mtime;
+    inode->i_ctime.tv_sec = de->inode.ctime;
+    inode->i_atime.tv_nsec = 0;
+    inode->i_mtime.tv_nsec = 0;
+    inode->i_ctime.tv_nsec = 0;
     DPRINTK (DEBUG_I_GET, "():   mode: 0%o  uid: %d  gid: %d\n",
 	     (int) inode->i_mode, (int) inode->i_uid, (int) inode->i_gid);
     return inode;

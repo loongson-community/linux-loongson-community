@@ -176,10 +176,17 @@ asmlinkage void sb1_cache_error(void)
 	"	.set	noat\n\t"
 	"	mfc0	%0, $26\n\t"
 	"	mfc0	%1, $27\n\t"
+<<<<<<< cerr-sb1.c
+	"	mfc0	%2, $27, 1\n\t"
+	"	dmfc0	$1, $27, 3\n\t"
+	"	dsrl32	%3, $1, 0\n\t"
+	"	sll	%4, $1, 0\n\t"
+=======
 	"	mfc0	%2, $27, 1\n\t"
 	"	dmfc0	$1, $27, 3\n\t"
 	"	dsrl32	%3, $1, 0 \n\t"
 	"	sll	%4, $1, 0 \n\t"
+>>>>>>> 1.2
 	"	mfc0	%5, $30\n\t"
 	"	.set	pop"
 	: "=r" (errctl), "=r" (cerr_i), "=r" (cerr_d),
@@ -364,12 +371,21 @@ static uint32_t extract_ic(unsigned short addr, int data)
 				"	.set	noreorder\n\t"
 				"	.set	mips64\n\t"
 				"	.set	noat\n\t"
+<<<<<<< cerr-sb1.c
+				"	cache	6, 0(%3)\n\t"
+				"	mfc0	%0, $29, 1\n\t"
+				"	dmfc0	$1, $28, 1\n\t"
+				"	dsrl32	%1, $1, 0\n\t"
+				"	sll	%2, $1, 0\n\t"
+				"	.set	pop\n"
+=======
 				"	cache	6, 0(%3)  \n\t"
 				"	mfc0	%0, $29, 1\n\t"
 				"	dmfc0	$1, $28, 1\n\t"
 				"	dsrl32	%1, $1, 0 \n\t"
 				"	sll	%2, $1, 0 \n\t"
 				"	.set	pop         \n"
+>>>>>>> 1.2
 				: "=r" (datahi), "=r" (insta), "=r" (instb)
 				: "r" ((way << 13) | addr | (offset << 3)));
 				predecode = (datahi >> 8) & 0xff;
@@ -463,8 +479,13 @@ static uint32_t extract_dc(unsigned short addr, int data)
 		"	.set	mips64\n\t"
 		"	.set	noat\n\t"
 		"	cache	5, 0(%3)\n\t"	/* Index-load-tag-D */
+<<<<<<< cerr-sb1.c
+		"	mfc0	%0, $29, 2\n\t"
+		"	dmfc0	$1, $28, 2\n\t"
+=======
 		"	mfc0 %0, $29, 2\n\t"
 		"	dmfc0	$1, $28, 2\n\t"
+>>>>>>> 1.2
 		"	dsrl32	%1, $1, 0\n\t"
 		"	sll	%2, $1, 0\n\t"
 		"	.set	pop"
@@ -513,10 +534,17 @@ static uint32_t extract_dc(unsigned short addr, int data)
 				"	.set	mips64\n\t"
 				"	.set	noat\n\t"
 				"	cache	7, 0(%3)\n\t" /* Index-load-data-D */
+<<<<<<< cerr-sb1.c
+				"	mfc0	%0, $29, 3\n\t"
+				"	dmfc0	$1, $28, 3\n\t"
+				"	dsrl32	%1, $1, 0\n\t"
+				"	sll	%2, $1, 0\n\t"
+=======
 				"	mfc0	%0, $29, 3\n\t"
 				"	dmfc0	$1, $28, 3\n\t"
 				"	dsrl32	%1, $1, 0 \n\t"
 				"	sll	%2, $1, 0 \n\t"
+>>>>>>> 1.2
 				"	.set	pop"
 				: "=r" (datahi), "=r" (datalohi), "=r" (datalolo)
 				: "r" ((way << 13) | addr | (offset << 3)));

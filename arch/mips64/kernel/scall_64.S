@@ -319,11 +319,11 @@ sys_call_table:
 	PTR	sys_reboot
 	PTR	sys_sethostname			/* 5165 */
 	PTR	sys_setdomainname
-	PTR	sys_create_module
+	PTR	sys_ni_syscall			/* was create_module */
 	PTR	sys_init_module
 	PTR	sys_delete_module
-	PTR	sys_get_kernel_syms		/* 5170 */
-	PTR	sys_query_module
+	PTR	sys_ni_syscall			/* 5170, was get_kernel_syms */
+	PTR	sys_ni_syscall			/* was query_module */
 	PTR	sys_quotactl
 	PTR	sys_nfsservctl
 	PTR	sys_ni_syscall			/* res. for getpmsg */
@@ -364,3 +364,4 @@ sys_call_table:
 	PTR	sys_epoll_wait
 	PTR	sys_remap_file_pages		/* 5210 */
 	PTR	sys_rt_sigreturn
+	PTR	sys_set_tid_address
