@@ -57,7 +57,7 @@ extern struct resource ioport_resource;
 extern struct ide_ops std_ide_ops;
 extern struct ide_ops *ide_ops;
 #endif
-#ifdef CONFIG_PC_KEYB
+#ifdef CONFIG_SERIO_I8042
 int init_8712_keyboard(void);
 #endif
 
@@ -186,12 +186,11 @@ void __init it8172_setup(void)
 		// enable IT8712 serial port
 		LPCSetConfig(LDN_SERIAL1, 0x30, 0x01); /* enable */
 		LPCSetConfig(LDN_SERIAL1, 0x23, 0x01); /* clock selection */
-#ifdef CONFIG_PC_KEYB
+#ifdef CONFIG_SERIO_I8042
 		if (init_8712_keyboard()) {
 			printk("Unable to initialize keyboard\n");
 			LPCSetConfig(LDN_KEYBOARD, 0x30, 0x0); /* disable keyboard */
-		}
-		else {
+		} else {
 			LPCSetConfig(LDN_KEYBOARD, 0x30, 0x1); /* enable keyboard */
 			LPCSetConfig(LDN_KEYBOARD, 0xf0, 0x2);
 			LPCSetConfig(LDN_KEYBOARD, 0x71, 0x3);
@@ -205,7 +204,6 @@ void __init it8172_setup(void)
 					(LPCGetConfig(LDN_MOUSE, 0x30) == 0))
 				printk("Error: keyboard or mouse not enabled\n");
 
-			kbd_ops = &std_kbd_ops;
 		}
 #endif
 	}
@@ -265,15 +263,18 @@ void __init it8172_setup(void)
 }
 
 
-#ifdef CONFIG_PC_KEYB
+#ifdef CONFIG_SERIO_I8042
 /*
  * According to the ITE Special BIOS Note for waking up the
  * keyboard controller...
  */
-int init_8712_keyboard()
+static int init_8712_keyboard(void)
 {
 	unsigned int cmd_port = 0x14000064;
 	unsigned int data_port = 0x14000060;
+	                         ^^^^^^^^^^^
+	Somebody here doesn't grok the concept of io ports.
+
 	unsigned char data;
 	int i;
 

@@ -1,8 +1,4 @@
 /*
- *
- * BRIEF MODULE DESCRIPTION
- *	Alchemy Pb1500 board setup.
- *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
@@ -39,7 +35,6 @@
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
-#include <asm/keyboard.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/pgtable.h>

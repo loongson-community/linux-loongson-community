@@ -36,9 +36,6 @@
 #include <asm/gdb-stub.h>
 #include <asm/traps.h>
 #include <asm/debug.h>
-#ifdef CONFIG_PC_KEYB
-#include <asm/keyboard.h> 
-#endif 
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -220,9 +217,6 @@ void __init ddb_setup(void)
 
 static void __init ddb5477_board_init(void)
 {
-#ifdef CONFIG_PC_KEYB
-	extern struct kbd_ops std_kbd_ops;   
-#endif
 	/* ----------- setup PDARs ------------ */
 
 	/* SDRAM should have been set */
@@ -351,13 +345,6 @@ static void __init ddb5477_board_init(void)
 	/* For dual-function pins, make them all non-GPIO */
 	ddb_out32(DDB_GIUFUNSEL, 0x0);
 	// ddb_out32(DDB_GIUFUNSEL, 0xfe0fcfff);  /* NEC recommanded value */
-	
-	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
-#ifdef CONFIG_PC_KEYB
-	printk("kdb_ops is std\n");
-	kbd_ops = &std_kbd_ops;
-#endif                     
-	}
 
 	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
 

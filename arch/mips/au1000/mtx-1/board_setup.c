@@ -1,8 +1,4 @@
 /*
- *
- * BRIEF MODULE DESCRIPTION
- *	MTX-1 board setup.
- *
  * Copyright 2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com

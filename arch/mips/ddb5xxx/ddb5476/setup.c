@@ -44,7 +44,6 @@ extern void breakpoint(void);
 #endif
 
 extern struct ide_ops std_ide_ops;
-extern struct kbd_ops std_kbd_ops;
 
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
 

@@ -1,8 +1,4 @@
 /*
- *
- * BRIEF MODULE DESCRIPTION
- *	MyCable XXS1500 board setup.
- *
  * Copyright 2000-2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com

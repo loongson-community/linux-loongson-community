@@ -78,9 +78,6 @@
 #include <linux/init.h>
 #include <asm/pci_channel.h>
 #endif
-#ifdef CONFIG_PC_KEYB
-#include <asm/keyboard.h>
-#endif
 #ifdef CONFIG_BLK_DEV_IDEPCI
 #include <linux/hdreg.h>
 #include <asm/ptrace.h>
@@ -1056,30 +1053,6 @@ void __init toshiba_rbtx4927_setup(void)
 			printk("backplane board NOT installed\n");
 		}
 	}
-
-
-	/* this is only done if backplane board installed, so must wait for pci */
-#ifdef CONFIG_PC_KEYB
-	{
-		if (tx4927_using_backplane) {
-			extern struct kbd_ops std_kbd_ops;
-			kbd_ops = &std_kbd_ops;
-			TOSHIBA_RBTX4927_SETUP_DPRINTK
-			    (TOSHIBA_RBTX4927_SETUP_SETUP,
-			     ":kbd_ops=&std_kbd_ops\n");
-		} else {
-			TOSHIBA_RBTX4927_SETUP_DPRINTK
-			    (TOSHIBA_RBTX4927_SETUP_SETUP,
-			     ":kbd_ops=<NO_BACKPLANE>\n");
-		}
-	}
-#else
-	{
-		TOSHIBA_RBTX4927_SETUP_DPRINTK
-		    (TOSHIBA_RBTX4927_SETUP_SETUP,
-		     ":kbd_ops=<NOT_CONFIG>\n");
-	}
-#endif
 
 	/* this is on ISA bus behind PCI bus, so need PCI up first */
 #ifdef CONFIG_TOSHIBA_FPCIB0

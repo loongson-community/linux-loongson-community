@@ -51,7 +51,6 @@ int remote_debug = 0;
 extern struct ide_ops std_ide_ops;
 extern struct fd_ops std_fd_ops;
 extern struct rtc_ops malta_rtc_ops;
-extern struct kbd_ops std_kbd_ops;
 
 extern void mips_reboot_setup(void);
 

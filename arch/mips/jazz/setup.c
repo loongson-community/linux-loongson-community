@@ -48,7 +48,6 @@ extern void jazz_machine_power_off(void);
 
 extern struct ide_ops std_ide_ops;
 extern struct rtc_ops jazz_rtc_ops;
-extern struct kbd_ops jazz_kbd_ops;
 extern struct fd_ops *fd_ops;
 extern struct fd_ops jazz_fd_ops;
 
@@ -136,7 +135,6 @@ void __init jazz_setup(void)
 	};
 
 	rtc_ops = &jazz_rtc_ops;
-	kbd_ops = &jazz_kbd_ops;
 
 	vdma_init();
 }

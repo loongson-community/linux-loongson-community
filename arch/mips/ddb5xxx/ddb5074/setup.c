@@ -39,7 +39,6 @@ extern void console_setup(char *);
 #endif
 
 extern struct ide_ops std_ide_ops;
-extern struct kbd_ops std_kbd_ops;
 extern struct rtc_ops ddb_rtc_ops;
 
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
