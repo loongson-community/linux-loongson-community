@@ -145,6 +145,17 @@ static inline void *ioremap_nocache(phys_t offset, unsigned long size)
 	return __ioremap(offset, size, CONF_CM_UNCACHED << 9);
 }
 
+static inline void *ioremap_cacheable_cow(phys_t offset, unsigned long size)
+{
+	return __ioremap(offset, size, _CACHE_CACHABLE_COW);
+}
+
+static inline void *ioremap_uncached_accelerated(phys_t offset, unsigned long size)
+{
+	return __ioremap(offset, size, _CACHE_UNCACHED_ACCELERATED);
+}
+
+
 extern void iounmap(void *addr);
 
 /*
