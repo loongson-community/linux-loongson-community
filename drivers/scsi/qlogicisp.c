@@ -49,6 +49,7 @@
 
 #define USE_NVRAM_DEFAULTS	0
 
+
 /*  Macros used for debugging */
 
 #define DEBUG_ISP1020		0
@@ -578,6 +579,7 @@ struct isp1020_hostdata {
 #ifdef CONFIG_QL_ISP_A64
 	int 	next;
 	unsigned long handle_info[QLOGICISP_REQ_QUEUE_LEN + 1];
+	dma_addr_t	dma_handle[QLOGICISP_REQ_QUEUE_LEN + 1]; /* save dma handle for later freeing */
 #endif
 };
 
@@ -611,14 +613,32 @@ static void	isp1020_print_scsi_cmd(Scsi_Cmnd *);
 static void	isp1020_print_status_entry(struct Status_Entry *);
 #endif
 
-static inline void set_dbase(struct dataseg *ds, unsigned long vaddr)
+static inline void set_dbase(struct dataseg *ds, unsigned long vaddr, struct isp1020_hostdata *h, size_t size, struct scatterlist *sg, int direction)
 {
+#ifdef CONFIG_QL_ISP_A64
+	dma_addr_t busaddr;
+	if (sg)
+		busaddr = sg_dma_address(sg);
+	else  {
+		busaddr = pci_map_single(h->pci_dev, (void *)vaddr, size, direction);
+		/*
+	 	 * save mapped address in dma_handle for later freeing
+		 * (only need this for map_single, since map_sg takes
+		 * the sg pointer for freeing resources)
+	 	 * NOTE: CONFIG_QL_ISP_A64 must be true!!
+	 	 */
+		if (h->next == (QLOGICISP_REQ_QUEUE_LEN + 1))
+                	h->next = 0;
+		h->dma_handle[h->next] = busaddr;
+	}
+	ds->d_base = cpu_to_le32((u_int) (busaddr));
+	ds->d_base_hi = cpu_to_le32((u_int) (busaddr >> 32));
+#else
 	unsigned long busaddr = virt_to_bus(vaddr);
 	ds->d_base = cpu_to_le32((u_int) (busaddr));
-#ifdef CONFIG_QL_ISP_A64
-	ds->d_base_hi = cpu_to_le32((u_int) (busaddr >> 32));
-#endif
+#endif /* CONFIG_QL_ISP_A64 */
 }
+
 
 static inline unsigned int get_handle(Scsi_Cmnd *cmd, struct isp1020_hostdata *h)
 {
@@ -629,7 +649,7 @@ static inline unsigned int get_handle(Scsi_Cmnd *cmd, struct isp1020_hostdata *h
 	h->next++;
 	return(h->next - 1);
 #else
-	return(cpu_to_le32((u_int) virt_to_bus(Cmnd)));
+	return(cpu_to_le32((u_int) virt_to_bus(cmd)));
 #endif
 }
 
@@ -868,6 +888,8 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 	if (Cmnd->use_sg) {
 		cmd->segment_cnt = cpu_to_le16(sg_count = Cmnd->use_sg);
 		sg = (struct scatterlist *) Cmnd->request_buffer;
+		pci_map_sg(hostdata->pci_dev, sg, sg_count, PCI_DMA_BIDIRECTIONAL);
+		/* scsi_to_pci_dma_dir(Cmnd->sc_data_direction));*/
 		ds = cmd->dataseg;
 
 		/* fill in first four sg entries: */
@@ -875,7 +897,9 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 		if (n > IOCB_SEGS)
 			n = IOCB_SEGS;
 		for (i = 0; i < n; i++) {
-			set_dbase(&ds[i], (unsigned long)(sg->address));
+			set_dbase(&ds[i], (unsigned long)(sg->address),
+			hostdata, sg->length, sg, 
+			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
 			ds[i].d_count = cpu_to_le32(sg->length);
 			++sg;
 		}
@@ -904,17 +928,26 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 			if (n > CONTINUATION_SEGS)
 				n = CONTINUATION_SEGS;
 			for (i = 0; i < n; ++i) {
-				set_dbase(&ds[i], (unsigned long)(sg->address));
+				set_dbase(&ds[i], (unsigned long)(sg->address),
+				hostdata, sg->length, sg, 
+				scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
 				ds[i].d_count = cpu_to_le32(sg->length);
 				++sg;
 			}
 			sg_count -= n;
 		}
 	} else {
-		set_dbase(&cmd->dataseg[0], (unsigned long)(Cmnd->request_buffer));
 		cmd->dataseg[0].d_count =
 			cpu_to_le32((u_int) Cmnd->request_bufflen);
 		cmd->segment_cnt = cpu_to_le16(1);
+		/*
+		 * map a dma address only if we really transfer data
+	 	 */
+		if (cmd->dataseg[0].d_count)
+			set_dbase(&cmd->dataseg[0], 
+			(unsigned long)(Cmnd->request_buffer),
+			hostdata, ((u_int) Cmnd->request_bufflen), NULL, 
+			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
 	}
 
 	isp_outw(in_ptr, host, MBOX4);
@@ -1014,6 +1047,25 @@ void isp1020_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 		else
 			Cmnd->result = DID_ERROR << 16;
 
+#ifdef CONFIG_QL_ISP_A64
+		/*
+		 * we declared dma_handle only for CONFIG_QL_ISP_A64
+		 * that's why we need the macro def here
+		 */
+		if (Cmnd->use_sg)
+			pci_unmap_sg(hostdata->pci_dev, 
+			(struct scatterlist *)Cmnd->request_buffer, 
+			Cmnd->use_sg, 
+			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+		/*
+		 * we mapped an address only for nonzero transfer lengths
+		 */
+		else if (Cmnd->request_bufflen)
+			pci_unmap_single(hostdata->pci_dev, 
+			hostdata->dma_handle[sts->handle],
+			((u_int) Cmnd->request_bufflen),  
+			scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+#endif /* CONFIG_QL_ISP_A64 */
 		isp_outw(out_ptr, host, MBOX5);
 		(*Cmnd->scsi_done)(Cmnd);
 	}
