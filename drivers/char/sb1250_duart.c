@@ -366,7 +366,7 @@ static void duart_put_char(struct tty_struct *tty, u_char ch)
 
 	spin_lock_irqsave(&us->outp_lock, flags);
 
-	if (us->outp_count >= SERIAL_XMIT_SIZE - 1) {
+	if (us->outp_count == SERIAL_XMIT_SIZE) {
 		spin_unlock_irqrestore(&us->outp_lock, flags);
 		return;
 	}
