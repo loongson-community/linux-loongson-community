@@ -54,6 +54,14 @@ static void ack_sb1250_irq(unsigned int irq);
 #ifdef CONFIG_REMOTE_DEBUG
 extern void breakpoint(void);
 extern void set_debug_traps(void);
+
+/* kgdb is on when configured.  Pass "nokgdb" kernel arg to turn it off */
+static int kgdb_flag = 1;
+static int __init nokgdb(char *str)
+{
+	kgdb_flag = 1;
+}
+__setup("nokgdb", nokgdb);
 #endif
 
 #define NR_IRQS 64
@@ -279,20 +287,19 @@ void __init init_IRQ(void)
 	set_except_vector(0, sb1250_irq_handler);
 
 #ifdef CONFIG_REMOTE_DEBUG
-	/* Setup uart 1 settings, mapper */
-	out64(M_DUART_IMR_BRK, KSEG1 + A_DUART + R_DUART_IMR_B);
+	if (kgdb_flag) {
+		/* Setup uart 1 settings, mapper */
+		out64(M_DUART_IMR_BRK, KSEG1 + A_DUART + R_DUART_IMR_B);
 
-	/* Note: avoiding request_irq at this point, because it's too
-           early to kmalloc */
-	out64(IMR_IP6_VAL, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) + (K_INT_UART_1<<3));
-	tmp = in64(KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
-	tmp &= ~(1<<K_INT_UART_1);
-	out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
+		out64(IMR_IP6_VAL, 
+			KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) + (K_INT_UART_1<<3));
+		tmp = in64(KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
+		tmp &= ~(1<<K_INT_UART_1);
+		out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
 	
-	/* If local serial I/O used for debug port, enter kgdb at once */
-//      puts("Waiting for kgdb to connect...");
-	set_debug_traps();
-	breakpoint();
+		set_debug_traps();
+		breakpoint();
+	}
 #endif
 }
 
