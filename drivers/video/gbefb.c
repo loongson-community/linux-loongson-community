@@ -1059,7 +1059,7 @@ static ssize_t gbefb_show_rev(struct device *device, char *buf)
 
 static DEVICE_ATTR(revision, S_IRUGO, gbefb_show_rev, NULL);
 
-static void gbefb_remove_sysfs(struct device *dev)
+static void __devexit gbefb_remove_sysfs(struct device *dev)
 {
 	device_remove_file(dev, &dev_attr_size);
 	device_remove_file(dev, &dev_attr_revision);
@@ -1225,7 +1225,7 @@ out_release_framebuffer:
 	return ret;
 }
 
-static int gbefb_remove(struct device* dev)
+static int __devexit gbefb_remove(struct device* dev)
 {
 	struct platform_device *p_dev = to_platform_device(dev);
 	struct fb_info *info = dev_get_drvdata(&p_dev->dev);
@@ -1250,7 +1250,7 @@ static struct device_driver gbefb_driver = {
 	.name = "gbefb",
 	.bus = &platform_bus_type,
 	.probe = gbefb_probe,
-	.remove = gbefb_remove,
+	.remove = __devexit_p(gbefb_remove),
 };
 
 static struct platform_device gbefb_device = {
