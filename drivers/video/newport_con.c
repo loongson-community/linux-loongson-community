@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.13 1999/04/11 10:37:08 ulfc Exp $
+/* $Id: newport_con.c,v 1.14 1999/06/24 01:10:24 ulfc Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -37,7 +37,7 @@
 
 extern struct fbcon_font_desc font_vga_8x16;
 
-#define FONT_DATA font_vga_8x16.data
+#define FONT_DATA ((unsigned char *)font_vga_8x16.data)
 
 extern struct newport_regs *npregs;
 
