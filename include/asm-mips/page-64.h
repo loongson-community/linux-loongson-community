@@ -20,12 +20,6 @@
 #define PAGE_OFFSET	0xa800000000000000UL
 #endif
 
-#ifdef CONFIG_SGI_IP27
-#define UNCAC_BASE	0x9600000000000000UL
-#else
-#define UNCAC_BASE	0x9000000000000000UL
-#endif
-
 /*
  * Memory above this physical address will be considered highmem.
  * Fixme: 59 bits is a fictive number and makes assumptions about processors

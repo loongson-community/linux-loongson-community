@@ -11,6 +11,7 @@
 #define _ASM_ADDRSPACE_H
 
 #include <linux/config.h>
+#include <spaces.h>
 
 /*
  *  Configure language
@@ -150,40 +151,6 @@
 #define K0BASE_NONCOH		0x9800000000000000	/* noncoherent */
 #define K0BASE_EXL		0xa000000000000000	/* exclusive */
 
-/*
- * Here we select the address of the kernel to live in and address it's
- * low memory.  This constant is the same as PAGE_OFFSET.
- */
-#ifdef CONFIG_MIPS32
-#define K0BASE			KSEG0
-#define K1BASE			KSEG1
-#define K2BASE			KSEG2
-#endif
-
-#ifdef CONFIG_MIPS64
-#ifdef CONFIG_DMA_NONCOHERENT	/* 64-bit kernel */
-#define K0BASE			0x9800000000000000
-#else
-#define K0BASE			0xa800000000000000
-#endif
-
-/*
- * IP27 uses the R10000's uncached attribute feature.  Attribute 3 selects
- * uncached addressing.  No other system is known to be using this R10000
- * feature.
- */
-#ifdef CONFIG_SGI_IP27
-#define K1BASE			0x9600000000000000	/* uncached attr 3,
-							   uncac */
-#else
-#define K1BASE			0x9000000000000000
-#endif
-
-#define K2BASE			XKSEG
-
-#endif
-
-
 #ifndef CONFIG_CPU_R8000
 
 /*
@@ -197,6 +164,6 @@
 #endif
 
 #define KDM_TO_PHYS(x)		(_ACAST64_ (x) & TO_PHYS_MASK)
-#define PHYS_TO_K0(x)		(_ACAST64_ (x) | K0BASE)
+#define PHYS_TO_K0(x)		(_ACAST64_ (x) | CAC_BASE)
 
 #endif /* _ASM_ADDRSPACE_H */

@@ -490,8 +490,8 @@ void ld_mmu_sb1(void)
 	extern char except_vec2_sb1;
 
 	/* Special cache error handler for SB1 */
-	memcpy((void *)(K0BASE + 0x100), &except_vec2_sb1, 0x80);
-	memcpy((void *)(K1BASE + 0x100), &except_vec2_sb1, 0x80);
+	memcpy((void *)(CAC_BASE   + 0x100), &except_vec2_sb1, 0x80);
+	memcpy((void *)(UNCAC_BASE + 0x100), &except_vec2_sb1, 0x80);
 
 	probe_cache_sizes();
 

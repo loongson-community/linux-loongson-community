@@ -169,7 +169,7 @@ void sb1_clear_page_dma(void *page)
 	int cpu = smp_processor_id();
 
 	/* if the page is above Kseg0, use old way */
-	if (KSEGX(page) != K0BASE)
+	if (KSEGX(page) != CAC_BASE)
 		return sb1_clear_page(page);
 
 	page_descr[cpu].dscr_a = PHYSADDR(page) | M_DM_DSCRA_ZERO_MEM | M_DM_DSCRA_L2C_DEST | M_DM_DSCRA_INTERRUPT;
@@ -192,7 +192,7 @@ void sb1_copy_page_dma(void *to, void *from)
 	int cpu = smp_processor_id();
 
 	/* if either page is above Kseg0, use old way */
-	if ((KSEGX(to) != K0BASE) || (KSEGX(from) != K0BASE))
+	if ((KSEGX(to) != CAC_BASE) || (KSEGX(from) != CAC_BASE))
 		return sb1_copy_page(to, from);
 
 	page_descr[cpu].dscr_a = PHYSADDR(to_phys) | M_DM_DSCRA_L2C_DEST | M_DM_DSCRA_INTERRUPT;

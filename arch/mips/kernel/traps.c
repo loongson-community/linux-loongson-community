@@ -794,9 +794,9 @@ void *set_except_vector(int n, void *addr)
 
 	exception_handlers[n] = handler;
 	if (n == 0 && cpu_has_divec) {
-		*(volatile u32 *)(K0BASE+0x200) = 0x08000000 |
+		*(volatile u32 *)(CAC_BASE + 0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
-		flush_icache_range(K0BASE+0x200, K0BASE + 0x204);
+		flush_icache_range(CAC_BASE + 0x200, CAC_BASE + 0x204);
 	}
 	return (void *)old_handler;
 }
@@ -896,7 +896,7 @@ void __init trap_init(void)
 	 * This will be overriden later as suitable for a particular
 	 * configuration.
 	 */
-	memcpy((void *)(K0BASE + 0x180), &except_vec3_generic, 0x80);
+	memcpy((void *)(CAC_BASE + 0x180), &except_vec3_generic, 0x80);
 
 	/*
 	 * Setup default vectors
@@ -909,7 +909,7 @@ void __init trap_init(void)
 	 * destination.
 	 */
 	if (cpu_has_ejtag)
-		memcpy((void *)(K0BASE + 0x300), &except_vec_ejtag_debug, 0x80);
+		memcpy((void *)(CAC_BASE + 0x300), &except_vec_ejtag_debug, 0x80);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
@@ -923,7 +923,7 @@ void __init trap_init(void)
 	 * interrupt processing overhead.  Use it where available.
 	 */
 	if (cpu_has_divec)
-		memcpy((void *)(K0BASE + 0x200), &except_vec4, 0x8);
+		memcpy((void *)(CAC_BASE + 0x200), &except_vec4, 0x8);
 
 	/*
 	 * Some CPUs can enable/disable for cache parity detection, but does
@@ -970,11 +970,11 @@ void __init trap_init(void)
 		set_except_vector(24, handle_mcheck);
 
 	if (cpu_has_vce)
-		memcpy((void *)(K0BASE + 0x180), &except_vec3_r4000, 0x80);
+		memcpy((void *)(CAC_BASE + 0x180), &except_vec3_r4000, 0x80);
 	else if (cpu_has_4kex)
-		memcpy((void *)(K0BASE + 0x180), &except_vec3_generic, 0x80);
+		memcpy((void *)(CAC_BASE + 0x180), &except_vec3_generic, 0x80);
 	else
-		memcpy((void *)(K0BASE + 0x080), &except_vec3_generic, 0x80);
+		memcpy((void *)(CAC_BASE + 0x080), &except_vec3_generic, 0x80);
 
 	if (current_cpu_data.cputype == CPU_R6000 ||
 	    current_cpu_data.cputype == CPU_R6000A) {
@@ -995,7 +995,7 @@ void __init trap_init(void)
 	signal32_init();
 #endif
 
-	flush_icache_range(K0BASE, K0BASE + 0x400);
+	flush_icache_range(CAC_BASE, CAC_BASE + 0x400);
 
 	if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
 		set_c0_status(ST0_XX);
