@@ -263,6 +263,8 @@ void __init pcibios_init (void)
 #endif
 }
 
+subsys_initcall(pcibios_init);
+
 /*
  * Given a PCI slot number (a la PCI_SLOT(...)) and the interrupt pin of
  * the device (1-4 => A-D), tell what irq to use.  Note that we don't

@@ -190,6 +190,8 @@ void __init pcibios_init(void)
 	pci_scan_bus(0, ops, NULL);
 }
 
+subsys_initcall(pcibios_init);
+
 int __init pcibios_enable_device(struct pci_dev *dev)
 {
 	/* Not needed, since we enable all devices at startup.  */

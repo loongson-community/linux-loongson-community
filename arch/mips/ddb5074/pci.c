@@ -301,6 +301,8 @@ void __init pcibios_init(void)
 	pcibios_fixup_irqs();
 }
 
+subsys_initcall(pcibios_init);
+
 void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 {
 	bus->resource[1] = &ddb5074_resources.pci_mem;

@@ -157,8 +157,9 @@ void __init pcibios_init(void)
 	}
 }
 
-static inline u8
-bridge_swizzle(u8 pin, u8 slot)
+subsys_initcall(pcibios_init);
+
+static inline u8 bridge_swizzle(u8 pin, u8 slot)
 {
 	return (((pin-1) + slot) % 4) + 1;
 }

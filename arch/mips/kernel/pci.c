@@ -100,6 +100,8 @@ void __init pcibios_init(void)
 	pcibios_fixup_irqs();
 }
 
+subsys_initcall(pcibios_init);
+
 int pcibios_enable_device(struct pci_dev *dev)
 {
 	/* pciauto_assign_resources() will enable all devices found */

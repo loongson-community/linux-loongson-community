@@ -1225,6 +1225,8 @@ void __init pcibios_init(void)
 
 }
 
+subsys_initcall(pcibios_init);
+
 char *pcibios_setup(char *str)
 {
 	printk(KERN_INFO "rr: pcibios_setup\n");

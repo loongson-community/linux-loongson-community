@@ -404,6 +404,8 @@ void __init pcibios_init(void)
 	pci_scan_bus(0, &qube_pci_ops, NULL);
 }
 
+subsys_initcall(pcibios_init);
+
 char *pcibios_setup(char *str)
 {
 	return str;

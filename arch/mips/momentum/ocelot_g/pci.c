@@ -549,6 +549,8 @@ void __init pcibios_init(void)
 	pci_scan_bus(1, &galileo_pci_ops, NULL);
 }
 
+subsys_initcall(pcibios_init);
+
 /*
  * for parsing "pci=" kernel boot arguments.
  */
