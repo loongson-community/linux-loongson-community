@@ -160,10 +160,7 @@ sys_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
 save_static_function(sys_fork);
 static_unused int _sys_fork(struct pt_regs regs)
 {
-	struct task_struct *p;
-
-	p = do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL, NULL);
-	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
+	return do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL, NULL);
 }
 
 
@@ -172,7 +169,6 @@ static_unused int _sys_clone(struct pt_regs regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
-	struct task_struct *p;
 	int *parent_tidptr, *child_tidptr;
 
 	clone_flags = regs.regs[4];
@@ -181,9 +177,8 @@ static_unused int _sys_clone(struct pt_regs regs)
 		newsp = regs.regs[29];
 	parent_tidptr = (int *) regs.regs[6];
 	child_tidptr = (int *) regs.regs[7];
-	p = do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0,
-	            parent_tidptr, child_tidptr);
-	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
+	return do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0,
+	               parent_tidptr, child_tidptr);
 }
 
 /*

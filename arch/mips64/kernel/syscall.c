@@ -136,18 +136,14 @@ out:
 
 asmlinkage int sys_fork(abi64_no_regargs, struct pt_regs regs)
 {
-	struct task_struct *p;
-
 	save_static(&regs);
-	p = do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL, NULL);
-	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
+	return do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL, NULL);
 }
 
 asmlinkage int sys_clone(abi64_no_regargs, struct pt_regs regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
-	struct task_struct *p;
 	int *parent_tidptr, *child_tidptr;
 
 	save_static(&regs);
@@ -157,9 +153,8 @@ asmlinkage int sys_clone(abi64_no_regargs, struct pt_regs regs)
 		newsp = regs.regs[29];
 	parent_tidptr = (int *) regs.regs[6];
 	child_tidptr = (int *) regs.regs[7];
-	p = do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0,
-	            parent_tidptr, child_tidptr);
-	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
+	return do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0,
+	               parent_tidptr, child_tidptr);
 }
 
 /*
