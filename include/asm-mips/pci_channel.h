@@ -26,6 +26,7 @@ struct pci_controller {
 	/* For compatibility with current (as of July 2003) pciutils
 	   and XFree86. Eventually will be removed. */
 	unsigned int need_domain_info;
+	int iommu;			/* Set if iommu on this bus */
 };
 
 /*
