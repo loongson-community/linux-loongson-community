@@ -1010,6 +1010,14 @@ static inline void __init setup_scache(void)
 		sc_present = probe_scache_kseg1(config);
 		break;
 
+	case CPU_R5000:
+	case CPU_NEVADA:
+		setup_noscache_funcs();
+#ifdef CONFIG_R5000_CPU_SCACHE
+		r5k_sc_init();
+#endif
+                return;
+
 	default:
 		sc_present = 0;
 	}
@@ -1024,17 +1032,7 @@ static inline void __init setup_scache(void)
 	    !(current_cpu_data.scache.flags & MIPS_CACHE_NOT_PRESENT))
 		panic("Dunno how to handle MIPS32 / MIPS64 second level cache");
 
-	switch (current_cpu_data.cputype) {
-	case CPU_R5000:
-	case CPU_NEVADA:
-		setup_noscache_funcs();
-#ifdef CONFIG_R5000_CPU_SCACHE
-		r5k_sc_init();
-#endif
-		break;
-	default:
-		setup_scache_funcs();
-	}
+        setup_scache_funcs();
 }
 
 void __init ld_mmu_r4xx0(void)
