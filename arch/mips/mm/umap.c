@@ -3,9 +3,14 @@
  *
  * (C) Copyright 1994 Linus Torvalds
  *
- * Modified for removing active mappings from any task.  This is required
- * for implementing the virtual graphics interface for direct rendering
- * on the SGI - miguel.
+ * Changes:
+ *
+ * Modified from Linus source to removing active mappings from any
+ * task.  This is required for implementing the virtual graphics
+ * interface for direct rendering on the SGI - miguel.
+ *
+ * Added a routine to map a vmalloc()ed area into user space, this one
+ * is required by the /dev/shmiq driver - miguel.
  */
 #include <linux/stat.h>
 #include <linux/sched.h>
@@ -17,6 +22,8 @@
 #include <linux/errno.h>
 #include <linux/mman.h>
 #include <linux/string.h>
+#include <linux/vmalloc.h>
+#include <linux/swap.h>
 
 #include <asm/system.h>
 #include <asm/pgtable.h>
@@ -81,7 +88,6 @@ remove_mapping_pmd_range (pgd_t *pgd, unsigned long address, unsigned long size)
  * This routine is called from the page fault handler to remove a
  * range of active mappings at this point
  */
-
 void
 remove_mapping (struct task_struct *task, unsigned long start, unsigned long end)
 {
@@ -100,3 +106,111 @@ remove_mapping (struct task_struct *task, unsigned long start, unsigned long end
 	up (&task->mm->mmap_sem);
 }
 
+void *vmalloc_uncached (unsigned long size)
+{
+	return vmalloc_prot (size, PAGE_KERNEL_UNCACHED);
+}
+
+static inline void free_pte(pte_t page)
+{
+	if (pte_present(page)) {
+		unsigned long addr = pte_page(page);
+		if (MAP_NR(addr) >= max_mapnr || PageReserved(mem_map+MAP_NR(addr)))
+			return;
+		free_page(addr);
+		if (current->mm->rss <= 0)
+			return;
+		current->mm->rss--;
+		return;
+	}
+	swap_free(pte_val(page));
+}
+
+static inline void forget_pte(pte_t page)
+{
+	if (!pte_none(page)) {
+		printk("forget_pte: old mapping existed!\n");
+		free_pte(page);
+	}
+}
+
+/*
+ * maps a range of vmalloc()ed memory into the requested pages. the old
+ * mappings are removed. 
+ */
+static inline void
+vmap_pte_range (pte_t *pte, unsigned long address, unsigned long size, unsigned long vaddr)
+{
+	unsigned long end;
+	pgd_t *vdir;
+	pmd_t *vpmd;
+	pte_t *vpte;
+	
+	address &= ~PMD_MASK;
+	end = address + size;
+	if (end > PMD_SIZE)
+		end = PMD_SIZE;
+	do {
+		pte_t oldpage = *pte;
+		unsigned long page;
+		pte_clear(pte);
+
+		vdir = pgd_offset_k (vaddr);
+		vpmd = pmd_offset (vdir, vaddr);
+		vpte = pte_offset (vpmd, vaddr);
+		page = pte_page (*vpte);
+		
+		set_pte(pte, mk_pte_phys(page, PAGE_USERIO));
+		forget_pte(oldpage);
+		address += PAGE_SIZE;
+		vaddr += PAGE_SIZE;
+		pte++;
+	} while (address < end);
+}
+
+static inline int
+vmap_pmd_range (pmd_t *pmd, unsigned long address, unsigned long size, unsigned long vaddr)
+{
+	unsigned long end;
+
+	address &= ~PGDIR_MASK;
+	end = address + size;
+	if (end > PGDIR_SIZE)
+		end = PGDIR_SIZE;
+	vaddr -= address;
+	do {
+		pte_t * pte = pte_alloc(pmd, address);
+		if (!pte)
+			return -ENOMEM;
+		vmap_pte_range(pte, address, end - address, address + vaddr);
+		address = (address + PMD_SIZE) & PMD_MASK;
+		pmd++;
+	} while (address < end);
+	return 0;
+}
+
+int
+vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr)
+{
+	int error = 0;
+	pgd_t * dir;
+	unsigned long beg = from;
+	unsigned long end = from + size;
+
+	vaddr -= from;
+	dir = pgd_offset(current->mm, from);
+	flush_cache_range(current->mm, beg, end);
+	while (from < end) {
+		pmd_t *pmd = pmd_alloc(dir, from);
+		error = -ENOMEM;
+		if (!pmd)
+			break;
+		error = vmap_pmd_range(pmd, from, end - from, vaddr + from);
+		if (error)
+			break;
+		from = (from + PGDIR_SIZE) & PGDIR_MASK;
+		dir++;
+	}
+	flush_tlb_range(current->mm, beg, end);
+	return error;
+}

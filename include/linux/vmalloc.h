@@ -15,10 +15,17 @@ struct vm_struct {
 
 struct vm_struct * get_vm_area(unsigned long size);
 void vfree(void * addr);
-void * vmalloc(unsigned long size);
+void * vmalloc_prot(unsigned long size, pgprot_t prot);
+void * vmalloc_uncached(unsigned long size);
+
+extern inline void * vmalloc(unsigned long size)
+{
+	vmalloc_prot (size, PAGE_KERNEL);
+}
+
 int vread(char *buf, char *addr, int count);
 void vmfree_area_pages(unsigned long address, unsigned long size);
-int vmalloc_area_pages(unsigned long address, unsigned long size);
+int vmalloc_area_pages(unsigned long address, unsigned long size, pgprot_t prot);
 
 extern inline void set_pgdir(unsigned long address, pgd_t entry)
 {

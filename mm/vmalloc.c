@@ -83,7 +83,7 @@ void vmfree_area_pages(unsigned long address, unsigned long size)
 	flush_tlb_all();
 }
 
-static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned long size)
+static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned long size, pgprot_t prot)
 {
 	unsigned long end;
 
@@ -98,14 +98,14 @@ static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned lo
 		page = __get_free_page(GFP_KERNEL);
 		if (!page)
 			return -ENOMEM;
-		set_pte(pte, mk_pte(page, PAGE_KERNEL));
+		set_pte(pte, mk_pte(page, prot));
 		address += PAGE_SIZE;
 		pte++;
 	}
 	return 0;
 }
 
-static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned long size)
+static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned long size, pgprot_t prot)
 {
 	unsigned long end;
 
@@ -117,7 +117,7 @@ static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned lo
 		pte_t * pte = pte_alloc_kernel(pmd, address);
 		if (!pte)
 			return -ENOMEM;
-		if (alloc_area_pte(pte, address, end - address))
+		if (alloc_area_pte(pte, address, end - address, prot))
 			return -ENOMEM;
 		address = (address + PMD_SIZE) & PMD_MASK;
 		pmd++;
@@ -125,7 +125,7 @@ static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned lo
 	return 0;
 }
 
-int vmalloc_area_pages(unsigned long address, unsigned long size)
+int vmalloc_area_pages(unsigned long address, unsigned long size, pgprot_t prot)
 {
 	pgd_t * dir;
 	unsigned long end = address + size;
@@ -136,7 +136,7 @@ int vmalloc_area_pages(unsigned long address, unsigned long size)
 		pmd_t *pmd = pmd_alloc_kernel(dir, address);
 		if (!pmd)
 			return -ENOMEM;
-		if (alloc_area_pmd(pmd, address, end - address))
+		if (alloc_area_pmd(pmd, address, end - address, prot))
 			return -ENOMEM;
 		set_pgdir(address, *dir);
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
@@ -189,7 +189,7 @@ void vfree(void * addr)
 	printk("Trying to vfree() nonexistent vm area (%p)\n", addr);
 }
 
-void * vmalloc(unsigned long size)
+void * vmalloc_prot(unsigned long size, pgprot_t prot)
 {
 	void * addr;
 	struct vm_struct *area;
@@ -201,7 +201,7 @@ void * vmalloc(unsigned long size)
 	if (!area)
 		return NULL;
 	addr = area->addr;
-	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size)) {
+	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size, PAGE_KERNEL)) {
 		vfree(addr);
 		return NULL;
 	}

@@ -16,6 +16,7 @@
  *  - flush_cache_page(mm, vmaddr) flushes a single page
  *  - flush_cache_range(mm, start, end) flushes a range of pages
  *  - flush_page_to_ram(page) write back kernel page to ram
+ *
  */
 extern void (*flush_cache_all)(void);
 extern void (*flush_cache_mm)(struct mm_struct *mm);
@@ -132,6 +133,9 @@ extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 			_CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_USERIO     __pgprot(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | \
 			_CACHE_UNCACHED)
+#define PAGE_KERNEL_UNCACHED __pgprot(_PAGE_PRESENT | __READABLE | __WRITEABLE | \
+			_CACHE_UNCACHED)
+
 /*
  * MIPS can't do page protection for execute, and considers that the same like
  * read. Also, write permissions imply read permissions. This is the closest
