@@ -10,7 +10,7 @@
 *               (audio@crystal.cirrus.com).
 *            -- adapted from cs4281 PCI driver for cs4297a on
 *               BCM1250 Synchronous Serial interface
-*               (kwalker@broadcom.com)
+*               (Kip Walker, Broadcom Corp.)
 *
 *      This program is free software; you can redistribute it and/or modify
 *      it under the terms of the GNU General Public License as published by
@@ -187,6 +187,10 @@ MODULE_PARM(cs_debugmask, "i");
 #define FRAME_TX_US             20
 
 #define SERDMA_NEXTBUF(d,f) (((d)->f+1) % (d)->ringsz)
+
+#ifdef CONFIG_SIBYTE_SB1250_DUART	
+extern char sb1250_duart_present[];
+#endif
 
 static const char invalid_magic[] =
     KERN_CRIT "cs4297a: invalid magic value\n";
@@ -2700,6 +2704,10 @@ static int __init cs4297a_init(void)
                 list_add(&s->list, &cs4297a_devs);
 
                 cs4297a_read_ac97(s, AC97_VENDOR_ID1, &id);
+
+#ifdef CONFIG_SIBYTE_SB1250_DUART	
+		sb1250_duart_present[1] = 0;
+#endif
                 
                 printk(KERN_INFO "cs4297a: initialized (vendor id = %x)\n", id);
 
@@ -2741,7 +2749,7 @@ static void __exit cs4297a_cleanup(void)
 
 EXPORT_NO_SYMBOLS;
 
-MODULE_AUTHOR("Kip Walker, kwalker@broadcom.com");
+MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
 MODULE_DESCRIPTION("Cirrus Logic CS4297a Driver for Broadcom SWARM board");
 
 // --------------------------------------------------------------------- 
