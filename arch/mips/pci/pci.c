@@ -128,8 +128,7 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID,
-	 pcibios_fixup_resources},
+	{PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, pcibios_fixup_resources},
 	{0}
 };
 
