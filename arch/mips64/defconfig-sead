@@ -16,7 +16,7 @@ CONFIG_EXPERIMENTAL=y
 # CONFIG_NET is not set
 # CONFIG_SYSVIPC is not set
 # CONFIG_BSD_PROCESS_ACCT is not set
-# CONFIG_SYSCTL is not set
+CONFIG_SYSCTL=y
 
 #
 # Loadable module support
