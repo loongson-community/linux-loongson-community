@@ -407,14 +407,14 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 	if (end - start > icache_size)
 		r4k_blast_icache();
 	else {
-		addr = start & ~(dc_lsize - 1);
-		aend = (end - 1) & ~(dc_lsize - 1);
+		addr = start & ~(ic_lsize - 1);
+		aend = (end - 1) & ~(ic_lsize - 1);
 		while (1) {
 			/* Hit_Invalidate_I */
 			protected_flush_icache_line(addr);
 			if (addr == aend)
 				break;
-			addr += dc_lsize;
+			addr += ic_lsize;
 		}
 	}
 }
