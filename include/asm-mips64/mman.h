@@ -1,4 +1,4 @@
-/* $Id: mman.h,v 1.2 2000/02/04 23:09:08 ralf Exp $
+/* $Id: mman.h,v 1.3 2000/02/04 23:12:27 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -54,6 +54,12 @@
  */
 #define MCL_CURRENT	1		/* lock all current mappings */
 #define MCL_FUTURE	2		/* lock all future mappings */
+
+#define MADV_NORMAL	0x0		/* default page-in behavior */
+#define MADV_RANDOM	0x1		/* page-in minimum required */
+#define MADV_SEQUENTIAL	0x2		/* read-ahead aggressively */
+#define MADV_WILLNEED	0x3		/* pre-fault pages */
+#define MADV_DONTNEED	0x4		/* discard these pages */
 
 /* compatibility flags */
 #define MAP_ANON       MAP_ANONYMOUS

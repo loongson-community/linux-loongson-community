@@ -435,6 +435,8 @@ static int shm_readdir (struct file *filp, void *dirent, filldir_t filldir)
 	default:
 		down(&shm_ids.sem);
 		for (; nr-2 <= shm_ids.max_id; nr++ ) {
+			if (nr-2 == zero_id)
+				continue;
 			if (!(shp = shm_get (nr-2))) 
 				continue;
 			if (shp->shm_perm.mode & SHM_DEST)
@@ -462,8 +464,10 @@ static struct dentry *shm_lookup (struct inode *dir, struct dentry *dent)
 
 	down(&shm_ids.sem);
 	for(i = 0; i <= shm_ids.max_id; i++) {
+		if (i == zero_id)
+			continue;
 		if (!(shp = shm_lock(i)))
-		    continue;
+			continue;
 		if (!(shp->shm_perm.mode & SHM_DEST) &&
 		    dent->d_name.len == shp->shm_namelen &&
 		    strncmp(dent->d_name.name, shp->shm_name, shp->shm_namelen) == 0)
@@ -517,7 +521,7 @@ static pte_t **shm_alloc(unsigned long pages)
 {
 	unsigned short dir  = pages / PTRS_PER_PTE;
 	unsigned short last = pages % PTRS_PER_PTE;
-	pte_t **ret, **ptr;
+	pte_t **ret, **ptr, *pte;
 
 	if (pages == 0)
 		return NULL;
@@ -531,7 +535,8 @@ static pte_t **shm_alloc(unsigned long pages)
 		*ptr = (pte_t *)__get_free_page (GFP_KERNEL);
 		if (!*ptr)
 			goto free;
-		memset (*ptr, 0, PAGE_SIZE); 
+		for (pte = *ptr; pte < *ptr + PTRS_PER_PTE; pte++)
+			pte_clear (pte);
 	}
 
 	/* The last one is probably not of PAGE_SIZE: we use kmalloc */
@@ -539,7 +544,8 @@ static pte_t **shm_alloc(unsigned long pages)
 		*ptr = kmalloc (last*sizeof(pte_t), GFP_KERNEL);
 		if (!*ptr)
 			goto free;
-		memset (*ptr, 0, last*sizeof(pte_t));
+		for (pte = *ptr; pte < *ptr + last; pte++)
+			pte_clear (pte);
 	}
 	return ret;
 
@@ -696,9 +702,11 @@ asmlinkage long sys_shmget (key_t key, size_t size, int shmflg)
 {
 	struct shmid_kernel *shp;
 	int err, id = 0;
+	static int count=0;
 
 	if (!shm_sb) {
-		printk ("shmget: shm filesystem not mounted\n");
+		if(count++<5)
+			printk(KERN_WARNING "shmget: shm filesystem not mounted\n");
 		return -EINVAL;
 	}
 
@@ -886,9 +894,11 @@ asmlinkage long sys_shmctl (int shmid, int cmd, struct shmid_ds *buf)
 	struct shm_setbuf setbuf;
 	struct shmid_kernel *shp;
 	int err, version;
+	static int count;
 
 	if (!shm_sb) {
-		printk ("shmctl: shm filesystem not mounted\n");
+		if(count++<5)
+			printk (KERN_WARNING "shmctl: shm filesystem not mounted\n");
 		return -EINVAL;
 	}
 
@@ -1119,11 +1129,13 @@ asmlinkage long sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	if (IS_ERR (name))
 		return PTR_ERR (name);
 
+	lock_kernel();
 	file = filp_open (name, O_RDWR, 0);
 	putname (name);
-	if (IS_ERR (file))
+	if (IS_ERR (file)) {
+		unlock_kernel();
 		goto bad_file;
-	lock_kernel();
+	}
 	*raddr = do_mmap (file, addr, file->f_dentry->d_inode->i_size,
 			  (shmflg & SHM_RDONLY ? PROT_READ :
 			   PROT_READ | PROT_WRITE), flags, 0);

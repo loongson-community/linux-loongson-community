@@ -1,4 +1,4 @@
-/* $Id: sys_sparc32.c,v 1.134 2000/03/07 22:27:30 davem Exp $
+/* $Id: sys_sparc32.c,v 1.136 2000/03/13 21:57:29 davem Exp $
  * sys_sparc32.c: Conversion between 32bit and 64bit native syscalls.
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -3645,7 +3645,7 @@ struct nfsctl_arg32 {
 };
 
 union nfsctl_res32 {
-	struct knfs_fh		cr32_getfh;
+	__u8			cr32_getfh[NFS_FHSIZE];
 	u32			cr32_debug;
 };
 
@@ -4217,4 +4217,13 @@ out_sem:
 	up(&current->mm->mmap_sem);
 out:
 	return ret;       
+}
+
+extern asmlinkage long sys_mincore(unsigned long start, size_t len, unsigned char *vec);
+
+asmlinkage long sys32_mincore(unsigned long start, u32 __len, unsigned char *vec)
+{
+	size_t len = (size_t) __len;
+
+	return sys_mincore(start, len, vec);
 }

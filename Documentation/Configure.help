@@ -2109,6 +2109,13 @@ CONFIG_SYSVIPC
   section 6.4 of the Linux Programmer's Guide, available from
   http://www.linuxdoc.org/docs.html#guide .
 
+  Shared memory is now implemented using a new (minimal) virtual file
+  system, which you need to mount before programs can use shared memory. 
+  To do this automatically at system startup just add the following line 
+  to your /etc/fstab:
+
+  none	/var/shm	shm	defaults	0 0
+
   Saying Y here enlarges your kernel by about 18 KB. Just say Y.
 
 BSD Process Accounting
@@ -2546,6 +2553,16 @@ CONFIG_FBCON_FONTWIDTH8_ONLY
   Answer Y here will make the kernel provide only the 8x8 fonts (these
   are the less readable).
 
+Sparc console 8x16 font
+CONFIG_FONT_SUN8x16
+  This is the high resolution console font for Sun machines. Say Y.
+
+Sparc console 12x22 font (not supported by all drivers)
+CONFIG_FONT_SUN12x22
+  This is the high resolution console font for Sun machines with very big
+  letters (like the letters used in the SPARC PROM). If the standard font
+  is unreadable for you, say Y, otherwise say N.
+
 VGA 8x8 font
 CONFIG_FONT_8x8
   This is the "high resolution" font for the VGA frame buffer (the one
@@ -2876,6 +2893,12 @@ CONFIG_PARPORT_PC_FIFO
   parallel port interrupts will not be used, and so neither will the
   FIFO. See Documentation/parport.txt to find out how to specify
   which IRQ/DMA to use.
+
+SuperIO chipset support (EXPERIMENTAL)
+CONFIG_PARPORT_PC_SUPERIO
+  Saying Y here enables some probes for Super-IO chipsets in order to
+  find out things like base addresses, IRQ lines and DMA channels.  It
+  is safe to say N.
 
 Support for PCMCIA management for PC-style ports
 CONFIG_PARPORT_PC_PCMCIA
@@ -4478,18 +4501,6 @@ CONFIG_CHR_DEV_ST
   module, say M here and read Documentation/modules.txt and
   Documentation/scsi.txt .
 
-Extra SCSI Tapes
-CONFIG_ST_EXTRA_DEVS
-  This controls the amount of additional space allocated in tables for
-  drivers that are loaded as modules after the kernel is booted.  In the
-  event that the SCSI core itself was loaded as a module, this this value
-  is the number of additional tape devices that can be loaded after the
-  first host driver is loaded.
-
-  Admittedly this isn't pretty, but there are tons of race conditions
-  involved with resizing the internal arrays on the fly.  Someday this
-  flag will go away, and everything will work automatically.
-
 SCSI CDROM support
 CONFIG_BLK_DEV_SR
   If you want to use a SCSI CDROM under Linux, say Y and read the
@@ -5650,20 +5661,54 @@ CONFIG_FC4
   the system using Fibre Optic and the "X3.269-199X Fibre Channel
   Protocol for SCSI" specification. You'll also need the generic SCSI
   support, as well as the drivers for the storage array itself and
-  for the interface adapter such as SOC. This subsystem could even
-  serve for IP networking, with some code extensions.
-
-  If unsure, say N.
+  for the interface adapter such as SOC or SOC+. This subsystem could even
+  serve for IP networking, with some code extensions. If unsure, say N.
 
 Sun SOC
 CONFIG_FC4_SOC
   Serial Optical Channel is an interface card with one or two Fibre
-  Optic ports, each of which can be connected to a disk array. Only
-  the SBus incarnation of the adapter is supported at the moment.
+  Optic ports, each of which can be connected to a disk array. Note that
+  if you have older firmware in the card, you'll need the microcode from
+  the Solaris driver to make it work.
+
+  This support is also available as a module called soc.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+Sun SOC+ (aka SOCAL)
+CONFIG_FC4_SOCAL
+  Serial Optical Channel Plus is an interface card with up to two Fibre
+  Optic ports. This card supports FC Arbitrated Loop (usually A5000 or
+  internal FC disks in E[3-6]000 machines through the Interface Board).
+  You'll probably need the microcode from the Solaris driver to make it
+  work.
+
+  This support is also available as a module called socal.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
 
 SparcSTORAGE Array 100 and 200 series
 CONFIG_SCSI_PLUTO
   If you never bought a disk array made by Sun, go with N. 
+
+  This support is also available as a module called pluto.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+Sun Enterprise Network Array (A5000 and EX500)
+CONFIG_SCSI_FCAL
+  This driver drives FC-AL disks connected through a Fibre Channel card
+  using the drivers/fc4 layer (currently only SOCAL).
+  The most common is either A5000 array or internal disks in E[3-6]000
+  machines.
+
+  This support is also available as a module called fcal.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt. If unsure, say N.
 
 AcornSCSI support
 CONFIG_SCSI_ACORNSCSI_3
@@ -6183,16 +6228,6 @@ CONFIG_PCMCIA_3C575
   This driver can only be compiled as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called 3c575_cb.o. If you want to do that, say M
-  here and read Documentation/modules.txt.  If unsure, say N.
-
-DEC Tulip CardBus support
-CONFIG_PCMCIA_TULIP
-  This driver supports CardBus Fast Ethernet adapters based on DEC
-  Tulip and compatible chipsets.
-
-  This driver can only be compiled as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called tulip_cb.o. If you want to do that, say M
   here and read Documentation/modules.txt.  If unsure, say N.
 
 SMC EPIC CardBus support
@@ -6809,6 +6844,77 @@ CONFIG_WANPIPE_PPP
   you say N, the PPP support will not be included in the driver (saves
   about 16 KB of kernel memory).
 
+MultiGate/COMX support
+CONFIG_COMX
+  Say Y if you want to use any board from the MultiGate (COMX) family. 
+  These boards are synchronous serial adapters for the PC, manufactured 
+  by ITConsult-Pro Co, Hungary. 
+
+  Read linux/Documentation/networking/comx.txt  for help on configuring 
+  and using COMX interfaces. Further info on these cards can be found at 
+  http://www.itc.hu or <info@itc.hu>.
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called comx.o.
+
+COMX/CMX/HiCOMX board support
+CONFIG_COMX_HW_COMX
+  Hardware driver for the 'CMX', 'COMX' and 'HiCOMX' boards from the
+  MultiGate family. Say Y if you have one of these. 
+
+  You will need additional firmware to use these cards, which are
+  downloadable from ftp://ftp.itc.hu/.
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called comx-hw-comx.o.
+
+LoCOMX board support
+CONFIG_COMX_HW_LOCOMX
+  Hardware driver for the 'LoCOMX' board from the MultiGate family. Say Y
+  if you have a board like this. 
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called comx-hw-locomx.o.
+
+MixCOM board support
+CONFIG_COMX_HW_MIXCOM
+  Hardware driver for the 'MixCOM' board from the MultiGate family. Say Y
+  if you have a board like this.
+
+  If you want to use the watchdog device on this card, you should
+  select it in the Watchdog Cards section of the Character Devices
+  configuration. The ISDN interface of this card is Teles 16.3 compatible,
+  you should enable it in the ISDN configuration menu. The driver for the 
+  flash ROM of this card is available separately on ftp://ftp.itc.hu/.
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called comx-hw-mixcom.o.
+
+MultiGate Cisco-HDLC and synchronous PPP protocol support
+CONFIG_COMX_PROTO_PPP
+  Cisco-HDLC and synchronous PPP protocol driver for all MultiGate boards. 
+  Say Y if you want to use either protocol on your MultiGate boards.
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called 
+  comx-proto-ppp.o.
+
+MultiGate LAPB protocol support
+CONFIG_COMX_PROTO_LAPB
+  LAPB protocol driver for all MultiGate boards. Say Y if you 
+  want to use this protocol on your MultiGate boards.
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called comx-proto-lapb.o.
+
+MultiGate Frame Relay protocol support
+CONFIG_COMX_PROTO_FR
+  Frame Relay protocol driver for all MultiGate boards. Say Y if you 
+  want to use this protocol on your MultiGate boards.
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called comx-proto-fr.o.
+
 Cyclom 2X(tm) multiprotocol cards (EXPERIMENTAL)
 CONFIG_CYCLADES_SYNC
   Cyclom 2X from Cyclades Corporation (http://www.cyclades.com and
@@ -7161,6 +7267,10 @@ CONFIG_SK98LIN
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. This is recommended.
   The module will be called sk98lin.o.
+
+MyriCOM Gigabit Ethernet support
+CONFIG_MYRI_SBUS
+  This driver supports MyriCOM Sbus gigabit ethernet cards.
 
 AMD LANCE and PCnet (AT1500 and NE2100) support
 CONFIG_LANCE
@@ -7943,6 +8053,19 @@ CONFIG_IBMOL
   Linux Token Ring Project site for the latest information at
   http://www.linuxtr.net
 
+IBM Lanstreamer chipset PCI adapter support
+CONFIG_IBMLS
+  This is support for IBM Lanstreamer PCI Token Ring Cards.
+
+  If you have such an adapter, say Y and read the Token-Ring mini-HOWTO
+  available via FTP (user:anonymous) from
+  ftp://metalab.unc/edu/pub/Linux/docs/HOWTO.
+
+  This driver is also available as a modules ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The modules will be called lanstreamer.o. If you want to compile it as
+  a module, say M here and read Documentation/modules.txt.
+
 Generic TMS380 Token Ring ISA/PCI/MCA/EISA adapter support
 CONFIG_TMS380TR
   This driver provides generic support for token ring adapters
@@ -7988,6 +8111,49 @@ CONFIG_SMCTR
   If you have such an adapter and would like to use it, say Y or M and
   read the Token-Ring mini-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto .
+
+Sun Happy Meal 10/100baseT support
+CONFIG_HAPPYMEAL
+  This driver supports the "hme" interface present on most Ultra systems
+  and as an option on older Sbus systems. This driver supports both PCI
+  and Sbus devices. This driver also supports the "qfe" quad 100baseT
+  device available in both PCI and Sbus configurations.
+
+  This support is also available as a module called sunhme.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+Sun Lance support
+CONFIG_SUNLANCE
+  This driver supports the "le" interface present on all 32-bit Sparc
+  systems, on some older Ultra systems and as an Sbus option.
+
+  This support is also available as a module called sunlance.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+Sun BigMAC 10/100baseT support (EXPERIMENTAL)
+CONFIG_SUNBMAC
+  This driver supports the "be" interface available as an Sbus option.
+  This is Sun's older 100baseT ethernet device.
+
+  This support is also available as a module called sunbmac.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+Sun QuadEthernet support
+CONFIG_SUNQE
+  This driver supports the "qe" 10baseT ethernet device, available as
+  an Sbus option. Note that this is not the same as Quad FastEthernet
+  "qfe" which is supported by the Happy Meal driver instead.
+
+  This support is also available as a module called sunqe.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
 
 Traffic Shaper (EXPERIMENTAL)
 CONFIG_SHAPER
@@ -8778,7 +8944,25 @@ CONFIG_USB_RIO500
   inserted in and removed from the running kernel whenever you want).
   The module will be called rio500.o. If you want to compile it as
   a module, say M here and read Documentation/modules.txt.
-  
+
+D-Link DSB-R100 FM radio upport
+CONFIG_USB_DSBR
+  Say Y here if you want to connect this type of radio to your
+  computer's USB port. Note that the audio is not digital, and
+  you must connect the line out connector to a sound card or a
+  set of speakers.
+
+  This driver uses the Video For Linux API.  You must enable
+  (Y or M in config) Video For Linux (under Character Devices)
+  to use this driver.  Information on this API and pointers to
+  "v4l" programs may be found on the WWW at
+  http://roadrunner.swansea.uk.linux.org/v4l.shtml .
+
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called dsbr100.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
 ACPI support
 CONFIG_ACPI
   Advanced Configuration and Power Interface (ACPI) is an interface
@@ -12465,7 +12649,24 @@ CONFIG_SUN4
 SPARC ESP SCSI support
 CONFIG_SCSI_SUNESP
   This is the driver for the Sun ESP SCSI host adapter. The ESP
-  chipset is present in most SPARC-based computers.
+  chipset is present in most SPARC SBUS-based computers.
+
+  This support is also available as a module called esp.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+PTI Qlogic, ISP Driver
+CONFIG_SCSI_QLOGICPTI
+  This driver supports SBUS SCSI controllers from PTI or QLogic. These
+  controllers are known under Solaris as qpti and in the openprom as
+  PTI,ptisp or QLGC,isp. Note that PCI QLogic SCSI controllers are driven
+  by a different driver.
+
+  This support is also available as a module called qlogicpti.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
 
 SPARC /dev/openprom compatibility driver (EXPERIMENTAL)
 CONFIG_SUN_OPENPROMIO
@@ -12477,24 +12678,101 @@ CONFIG_SUN_OPENPROMIO
   inserted in and removed from the running kernel whenever you want),
   say M and read Documentation/modules.txt. If unsure, say Y.
 
+Openprom tree appears in /proc/openprom
+CONFIG_SUN_OPENPROMFS
+  If you say Y, the OpenPROM device tree will be available as a virtual
+  file system, which you can mount to /proc/openprom by
+  "mount -t openpromfs none /proc/openprom".
+
+  If you want to compile the /proc/openprom support as a module ( = code
+  which can be inserted in and removed from the running kernel whenever
+  you want), say M here and read Documentation/modules.txt. The module
+  will be called openpromfs.o. If unsure, say M.
+
+Kernel support for Linux/Sparc 32bit binary compatibility
+CONFIG_SPARC32_COMPAT
+  This allows you to run 32-bit binaries on your Ultra.
+  Everybody wants this; say Y.
+
+Kernel support for 32-bit ELF binaries
+CONFIG_BINFMT_ELF32
+  This allows you to run 32-bit Linux/ELF binaries on your Ultra.
+  Everybody wants this; say Y.
+
+Kernel support for 32-bit (ie. SunOS) a.out binaries
+CONFIG_BINFMT_AOUT32
+  This allows you to run 32-bit a.out format binaries on your Ultra.
+  If you want to run SunOS binaries (see SunOS binary emulation below)
+  or other a.out binaries, say Y. If unsure, say N.
+
+SunOS binary emulation
+CONFIG_SUNOS_EMUL
+  This allows you to run most SunOS binaries. If you want to do this,
+  say Y here and place appropriate files in /usr/gnemul/sunos. See
+  http://www.ultralinux.org/faq.html for more information. If you want
+  to run SunOS binaries on an Ultra you must also say Y to "Kernel
+  support for 32-bit a.out binaries" above.
+
 Mostek real time clock support
 CONFIG_SUN_MOSTEK_RTC
-  The Mostek RTC chip is used on all knows Sun computers except
+  The Mostek RTC chip is used on all known Sun computers except
   some JavaStations. For a JavaStation you need to say Y both here
   and to "Enhanced Real Time Clock Support".
 
   Say Y here unless you are building a special purpose kernel.
+
+OBP Flash Device support
+CONFIG_OBP_FLASH
+  The OpenBoot PROM on Ultra systems is flashable. If you want to be
+  able to upgrade the OBP firmware, say Y here.
 
 JavaStation OS Flash SIMM (EXPERIMENTAL)
 CONFIG_SUN_JSFLASH
   This option enables a driver for JavaStation OS Flash driver.
   Say N unless you want to boot from your Flash SIMM.
 
-#Siemens SAB82532 serial support
-#CONFIG_SAB82532
-###
-### Please someone fill these in.
-###
+Siemens SAB82532 serial support
+CONFIG_SAB82532
+  This driver supports the serial ports on newer (PCI) Ultra systems.
+  Say Y if you want to be able to use your serial ports.
+
+Aurora Multiboard 1600se (EXPERIMENTAL)
+CONFIG_SUN_AURORA
+  The Aurora Multiboard is a multi-port high-speed serial controller.
+  If you have one of these, say Y.
+
+Audio support (EXPERIMENTAL)
+CONFIG_SPARCAUDIO
+  This driver provides support for the build-in sound devices on most
+  Sun machines. If you want to be able to use this, select this option
+  and one or more of the lowlevel drivers below. See 
+  http://www.dementia.org/~shadow/sparcaudio.html for more information.
+
+AMD7930 Lowlevel Driver
+CONFIG_SPARCAUDIO_AMD7930
+  This driver supports the AMD 7930 chip found on sun4c, 4/6xx, and
+  SparcClassic systems.
+
+CS4231 Lowlevel Driver
+CONFIG_SPARCAUDIO_CS4231
+  This driver supports the Crystal Semiconductor CS4231 chip found on
+  the SS4, SS5, and Ultras.
+
+DBRI Lowlevel Driver
+CONFIG_SPARCAUDIO_DBRI
+  This driver supports the DBRI audio interface found on the SS10, SS20,
+  Sparcbook 3, and Voyager systems.
+
+Dummy lowlevel Driver
+CONFIG_SPARCAUDIO_DUMMY
+  This is a pseudo-driver used for debugging and testing the sparcaudio
+  subsystem. Say N unless you want to work on this subsystem.
+
+Sparc hardware (EXPERIMENTAL)
+CONFIG_PARPORT_SUNBPP
+  This driver provides support for the bidirectional parallel port found
+  on many Sun machines. Note that many of the newer Ultras actually have
+  pc style hardware instead.
 
 IEEE 1394 (aka FireWire) support
 CONFIG_IEEE1394
@@ -13628,6 +13906,20 @@ CONFIG_ARCH_EBSA285
 Include support for the NetWinder
 CONFIG_ARCH_NETWINDER
   Say Y here if you intend to run this kernel on the NetWinder.
+
+Include support for the Compaq Personal Server
+CONFIG_PERSONAL_SERVER
+  Say Y here if you intend to run this kernel on the Compaq
+  Personal Server.
+  
+  The Compaq Personal Server is not available for purchase. 
+  There are no product plans beyond the current research
+  prototypes at this time.  Information is available at:
+  
+  http://crl.research.compaq.com/projects/personalserver
+  
+  If you have any questions or comments about the  Compaq Personal
+  Server, send e-mail to skiff@crl.dec.com
 
 Virtual/Physical Memory Split
 CONFIG_1GB

@@ -1035,7 +1035,8 @@ S: CV5 8BZ
 S: United Kingdom
 
 N: Ron Holt
-E: ron@sovereign.org
+E: ron@holt.org
+E: rholt@netcom.com
 W: http://www.holt.org/
 W: http://www.ronholt.com/
 D: Kernel development
@@ -2396,12 +2397,8 @@ S: 97078 Wuerzburg
 S: Germany
 
 N: Greg Ungerer
-E: gerg@stallion.com
+E: gerg@moreton.com.au
 D: Author of Stallion multiport serial drivers
-S: Stallion Technologies
-S: 33 Woodstock Rd
-S: Toowong, QLD. 4066
-S: Australia
 
 N: Jeffrey A. Uphoff
 E: juphoff@transmeta.com

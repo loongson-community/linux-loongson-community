@@ -55,8 +55,8 @@ void release(struct task_struct * p)
 		 * was given away by the parent in the first place.)
 		 */
 		current->counter += p->counter;
-		if (current->counter > current->priority)
-			current->counter = current->priority;
+		if (current->counter >= current->priority*2)
+			current->counter = current->priority*2-1;
 		free_task_struct(p);
 	} else {
 		printk("task releasing itself\n");
@@ -425,8 +425,7 @@ fake_volatile:
 	tsk->exit_code = code;
 	exit_notify();
 	task_unlock(tsk);
-	if (tsk->exec_domain && tsk->exec_domain->module)
-		__MOD_DEC_USE_COUNT(tsk->exec_domain->module);
+	put_exec_domain(tsk->exec_domain);
 	if (tsk->binfmt && tsk->binfmt->module)
 		__MOD_DEC_USE_COUNT(tsk->binfmt->module);
 	schedule();

@@ -1,4 +1,4 @@
-/* $Id: sgialib.h,v 1.3 1998/10/18 13:53:35 tsbogend Exp $
+/* $Id: sgialib.h,v 1.4 1999/02/25 20:55:07 tsbogend Exp $
  * sgialib.h: SGI ARCS firmware interface library for the Linux kernel.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -17,10 +17,11 @@ extern char **prom_argv, **prom_envp;
 extern int prom_flags;
 #define PROM_FLAG_ARCS  1
 
-/* Init the PROM library and it's internal data structures.  Called
+/*
+ * Init the PROM library and it's internal data structures.  Called
  * at boot time from head.S before start_kernel is invoked.
  */
-extern int prom_init(int argc, char **argv, char **envp);
+extern int prom_init(int argc, char **argv, char **envp, int *prom_vec);
 
 /* Simple char-by-char console I/O. */
 extern void prom_putchar(char c);

@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.12 2000/03/18 09:02:17 ulfc Exp $
+/* $Id: scall_o32.S,v 1.13 2000/03/18 15:08:06 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -409,6 +409,8 @@ illegal_syscall:
 	sys	sys_lstat64	3
 	sys	sys_fstat64	3			/* 4210 */
 	sys	sys_pivot_root	2
+	sys	sys_mincore	3
+	sys	sys_madvise	3
 	.endm
 
 	.macro	sys function, nargs

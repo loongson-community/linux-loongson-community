@@ -966,10 +966,10 @@ bdput_and_out:
 	sb->s_bdev = NULL;
 	sb->s_dev = 0;
 	sb->s_type = NULL;
-fsput_and_out:
-	put_filesystem(fs_type);
 	if (bdev)
 		bdput(bdev);
+fsput_and_out:
+	put_filesystem(fs_type);
 dput_and_out:
 	dput(dir_d);
 	up(&mount_sem);
@@ -1134,7 +1134,7 @@ asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 		dentry = namei(dev_name);
 		retval = PTR_ERR(dentry);
 		if (IS_ERR(dentry))
-			goto out;
+			goto fs_out;
 
 		inode = dentry->d_inode;
 		retval = -ENOTBLK;
@@ -1163,6 +1163,8 @@ asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 
 dput_and_out:
 	dput(dentry);
+fs_out:
+	put_filesystem(fstype);
 out:
 	unlock_kernel();
 	return retval;

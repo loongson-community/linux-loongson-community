@@ -1,4 +1,4 @@
-/* $Id: inode.c,v 1.7 2000/03/10 04:45:50 davem Exp $
+/* $Id: inode.c,v 1.9 2000/03/13 21:59:43 davem Exp $
  * openpromfs.c: /proc/openprom handling routines
  *
  * Copyright (C) 1996-1999 Jakub Jelinek  (jakub@redhat.com)
@@ -1026,7 +1026,7 @@ out_no_root:
 
 static DECLARE_FSTYPE(openprom_fs_type, "openpromfs", openprom_read_super, 0);
 
-int init_openprom_fs(void)
+static int __init init_openprom_fs(void)
 {
 	nodes = (openpromfs_node *)__get_free_pages(GFP_KERNEL, 0);
 	if (!nodes) {
@@ -1041,25 +1041,7 @@ int init_openprom_fs(void)
 	return register_filesystem(&openprom_fs_type);
 }
 
-#ifdef MODULE
-
-EXPORT_NO_SYMBOLS;
-
-int init_module (void)
-{
-	return init_openprom_fs();
-}
-
-#else
-
-void __init openpromfs_init (void)
-{
-	init_openprom_fs();
-}
-#endif
-
-#ifdef MODULE
-void cleanup_module (void)
+static void __exit exit_openprom_fs(void)
 {
 	int i;
 	unregister_filesystem(&openprom_fs_type);
@@ -1069,4 +1051,8 @@ void cleanup_module (void)
 			kfree (alias_names [i]);
 	nodes = NULL;
 }
-#endif
+
+EXPORT_NO_SYMBOLS;
+
+module_init(init_openprom_fs)
+module_exit(exit_openprom_fs)

@@ -1,4 +1,4 @@
-/* $Id: misc.c,v 1.22 2000/02/16 07:31:41 davem Exp $
+/* $Id: misc.c,v 1.23 2000/03/13 21:57:34 davem Exp $
  * misc.c: Miscelaneous syscall emulation for Solaris
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -721,11 +721,8 @@ asmlinkage void solaris_register(void)
 {
 	lock_kernel();
 	current->personality = PER_SVR4;
-	if (current->exec_domain && current->exec_domain->module)
-		__MOD_DEC_USE_COUNT(current->exec_domain->module);
+	put_exec_domain(current->exec_domain);
 	current->exec_domain = lookup_exec_domain(current->personality);
-	if (current->exec_domain && current->exec_domain->module)
-		__MOD_INC_USE_COUNT(current->exec_domain->module);
 	unlock_kernel();
 }
 

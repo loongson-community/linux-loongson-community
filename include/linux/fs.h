@@ -160,6 +160,8 @@ extern int max_super_blocks, nr_super_blocks;
 #define BLKSSZGET  _IO(0x12,104)/* get block device sector size */
 #if 0
 #define BLKPG      _IO(0x12,105)/* See blkpg.h */
+#define BLKELVGET   _IO(0x12,106)/* elevator get */
+#define BLKELVSET   _IO(0x12,107)/* elevator set */
 /* This was here just to show that the number is taken -
    probably all these _IO(0x12,*) ioctls should be moved to blkpg.h. */
 #endif
@@ -758,6 +760,7 @@ static inline int vfs_statfs(struct super_block *sb, struct statfs *buf)
 	if (!sb->s_op || !sb->s_op->statfs)
 		return -ENOSYS;
 	memset(buf, 0xff, sizeof(struct statfs));
+	buf->f_blocks = 0;	/* Darn GNU df... */
 	return sb->s_op->statfs(sb, buf);
 }
 

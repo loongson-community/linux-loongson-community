@@ -647,8 +647,11 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->run_list.next = NULL;
 	p->run_list.prev = NULL;
 
-	if ((clone_flags & CLONE_VFORK) || !(clone_flags & CLONE_PARENT))
-		p->p_pptr = p->p_opptr = current;
+	if ((clone_flags & CLONE_VFORK) || !(clone_flags & CLONE_PARENT)) {
+		p->p_opptr = current;
+		if (!(current->flags & PF_PTRACED))
+			p->p_pptr = current;
+	}
 	p->p_cptr = NULL;
 	init_waitqueue_head(&p->wait_chldexit);
 	p->vfork_sem = NULL;
@@ -748,8 +751,7 @@ bad_fork_cleanup_fs:
 bad_fork_cleanup_files:
 	exit_files(p); /* blocking */
 bad_fork_cleanup:
-	if (p->exec_domain && p->exec_domain->module)
-		__MOD_DEC_USE_COUNT(p->exec_domain->module);
+	put_exec_domain(p->exec_domain);
 	if (p->binfmt && p->binfmt->module)
 		__MOD_DEC_USE_COUNT(p->binfmt->module);
 bad_fork_cleanup_count:

@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.25 2000/03/02 02:36:50 ralf Exp $
+/* $Id: irixelf.c,v 1.26 2000/03/07 15:45:28 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -35,8 +35,6 @@
 #include <asm/pgalloc.h>
 #include <asm/mipsregs.h>
 #include <asm/prctl.h>
-
-#include <linux/config.h>
 
 #define DLINFO_ITEMS 12
 
@@ -609,8 +607,7 @@ void irix_map_prda_page (void)
 /* These are the functions used to load ELF style executables and shared
  * libraries.  There is no binary dependent code anywhere else.
  */
-static inline int do_load_irix_binary(struct linux_binprm * bprm,
-				      struct pt_regs * regs)
+static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 {
 	struct elfhdr elf_ex, interp_elf_ex;
 	struct dentry *interpreter_dentry;
@@ -755,14 +752,11 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	sys_close(elf_exec_fileno);
 	current->personality = PER_IRIX32;
 
-	if (current->exec_domain && current->exec_domain->module)
-		__MOD_DEC_USE_COUNT(current->exec_domain->module);
+	put_exec_domain(current->exec_domain);
 	if (current->binfmt && current->binfmt->module)
 		__MOD_DEC_USE_COUNT(current->binfmt->module);
 	current->exec_domain = lookup_exec_domain(current->personality);
 	current->binfmt = &irix_format;
-	if (current->exec_domain && current->exec_domain->module)
-		__MOD_INC_USE_COUNT(current->exec_domain->module);
 	if (current->binfmt && current->binfmt->module)
 		__MOD_INC_USE_COUNT(current->binfmt->module);
 
@@ -830,16 +824,6 @@ out_free_file:
 out_free_ph:
 	kfree (elf_phdata);
 	goto out;
-}
-
-static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
-{
-	int retval;
-
-	MOD_INC_USE_COUNT;
-	retval = do_load_irix_binary(bprm, regs);
-	MOD_DEC_USE_COUNT;
-	return retval;
 }
 
 /* This is really simpleminded and specialized - we are loading an
@@ -943,13 +927,11 @@ static int load_irix_library(int fd)
 	int retval = -EACCES;
 	struct file *file;
 
-	MOD_INC_USE_COUNT;
 	file = fget(fd);
 	if (file) {
 		retval = do_load_irix_library(file);
 		fput(file);
 	}
-	MOD_DEC_USE_COUNT;
 	return retval;
 }
 	
@@ -1151,10 +1133,6 @@ static int irix_core_dump(long signr, struct pt_regs * regs, struct file *file)
 	struct elf_prstatus prstatus;	/* NT_PRSTATUS */
 	elf_fpregset_t fpu;		/* NT_PRFPREG */
 	struct elf_prpsinfo psinfo;	/* NT_PRPSINFO */
-
-#ifndef CONFIG_BINFMT_IRIX
-	MOD_INC_USE_COUNT;
-#endif
 
 	/* Count what's needed to dump, up to the limit of coredump size. */
 	segs = 0;
@@ -1365,9 +1343,6 @@ static int irix_core_dump(long signr, struct pt_regs * regs, struct file *file)
 
 end_coredump:
 	set_fs(fs);
-#ifndef CONFIG_BINFMT_IRIX
-	MOD_DEC_USE_COUNT;
-#endif
 	return has_dumped;
 }
 

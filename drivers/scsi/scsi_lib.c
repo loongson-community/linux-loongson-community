@@ -87,6 +87,7 @@ int scsi_insert_special_cmd(Scsi_Cmnd * SCpnt, int at_head)
 	SCpnt->request.cmd = SPECIAL;
 	SCpnt->request.special = (void *) SCpnt;
 	SCpnt->request.q = NULL;
+	SCpnt->request.nr_segments = 0;
 
 	/*
 	 * We have the option of inserting the head or the tail of the queue.
@@ -155,6 +156,8 @@ int scsi_insert_special_req(Scsi_Request * SRpnt, int at_head)
 	q = &SRpnt->sr_device->request_queue;
 	SRpnt->sr_request.cmd = SPECIAL;
 	SRpnt->sr_request.special = (void *) SRpnt;
+	SRpnt->sr_request.q = NULL;
+	SRpnt->sr_request.nr_segments = 0;
 
 	/*
 	 * We have the option of inserting the head or the tail of the queue.
@@ -909,6 +912,9 @@ void scsi_request_fn(request_queue_t * q)
 			 * be in an interrupt handler.  Only do this
 			 * from user space, since we do not want to
 			 * sleep from an interrupt.
+			 *
+			 * FIXME(eric) - have the error handler thread do
+			 * this work.
 			 */
 			SDpnt->was_reset = 0;
 			if (SDpnt->removable && !in_interrupt()) {
@@ -950,6 +956,9 @@ void scsi_request_fn(request_queue_t * q)
 			if( SRpnt->sr_magic == SCSI_REQ_MAGIC ) {
 				SCpnt = scsi_allocate_device(SRpnt->sr_device, 
 							     FALSE, FALSE);
+				if( !SCpnt ) {
+					break;
+				}
 				scsi_init_cmd_from_req(SCpnt, SRpnt);
 			}
 

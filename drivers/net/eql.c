@@ -42,7 +42,7 @@ static const char *version =
  * reformatted.
  *
  * Revision 3.12  1995/03/22  21:07:51  anarchy
- * Added suser() checks on configuration.
+ * Added capable() checks on configuration.
  * Moved header file.
  *
  * Revision 3.11  1995/01/19  23:14:31  guru
@@ -1030,6 +1030,8 @@ int init_module(void)
 
 void cleanup_module(void)
 {
+	kfree(((equalizer_t *)dev_eql.priv)->stats );
+	kfree(dev_eql.priv);
 	unregister_netdev(&dev_eql);
 }
 #endif /* MODULE */

@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.43 2000/03/12 10:07:55 harald Exp $
+# $Id: config.in,v 1.44 2000/03/13 20:55:19 ralf Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -166,6 +166,19 @@ if [ "$CONFIG_NET" = "y" ]; then
 fi
 
 source drivers/telephony/Config.in
+
+mainmenu_option next_comment
+comment 'ATA/IDE/MFM/RLL support'
+
+tristate 'ATA/IDE/MFM/RLL support' CONFIG_IDE
+
+if [ "$CONFIG_IDE" != "n" ]; then
+  source drivers/ide/Config.in
+else
+  define_bool CONFIG_BLK_DEV_IDE_MODES n
+  define_bool CONFIG_BLK_DEV_HD n
+fi
+endmenu
 
 mainmenu_option next_comment
 comment 'SCSI support'

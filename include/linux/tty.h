@@ -305,6 +305,7 @@ struct tty_struct {
 	unsigned long canon_head;
 	unsigned int canon_column;
 	struct semaphore atomic_read;
+	spinlock_t read_lock;
 };
 
 /* tty magic number */
