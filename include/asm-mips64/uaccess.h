@@ -186,7 +186,7 @@ extern void __get_user_unknown(void);
 #define __put_user_asm(insn)					\
 ({								\
 	__asm__ __volatile__(					\
-	"1:\t" insn "\t%1,%2\n\t"				\
+	"1:\t" insn "\t%z1, %2\t\t\t# __put_user_asm\n\t"	\
 	"move\t%0,$0\n"						\
 	"2:\n\t"						\
 	".section\t.fixup,\"ax\"\n"				\
@@ -197,7 +197,7 @@ extern void __get_user_unknown(void);
 	".dword\t1b,3b\n\t"					\
 	".previous"						\
 	:"=r" (__pu_err)					\
-	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT));	\
+	:"Jr" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT));	\
 })
 
 extern void __put_user_unknown(void);

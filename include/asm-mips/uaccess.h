@@ -218,8 +218,8 @@ default: __put_user_unknown(); break; \
 #define __put_user_asm(insn) \
 ({ \
 __asm__ __volatile__( \
-	"1:\t" insn "\t%1,%2\n\t" \
-	"move\t%0,$0\n" \
+	"1:\t" insn "\t%z1, %2\t\t\t# __put_user_asm\n\t" \
+	"move\t%0, $0\n" \
 	"2:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
 	"3:\tli\t%0,%3\n\t" \
@@ -229,14 +229,14 @@ __asm__ __volatile__( \
 	".word\t1b,3b\n\t" \
 	".previous" \
 	:"=r" (__pu_err) \
-	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT)); })
+	:"Jr" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT)); })
 
 #define __put_user_asm_ll32 \
 ({ \
 __asm__ __volatile__( \
-	"1:\tsw\t%1,%2\n\t" \
-	"2:\tsw\t%D1,%3\n" \
-	"move\t%0,$0\n" \
+	"1:\tsw\t%1, %2\t\t\t# __put_user_asm_ll32\n\t" \
+	"2:\tsw\t%D1, %3\n" \
+	"move\t%0, $0\n" \
 	"3:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
 	"4:\tli\t%0,%4\n\t" \
