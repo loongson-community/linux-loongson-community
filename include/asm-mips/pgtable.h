@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.15 1998/08/25 09:21:59 ralf Exp $
+/* $Id: pgtable.h,v 1.16 1998/08/28 23:24:03 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -129,7 +129,7 @@ extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 #define __READABLE	(_PAGE_READ | _PAGE_SILENT_READ | _PAGE_ACCESSED)
 #define __WRITEABLE	(_PAGE_WRITE | _PAGE_SILENT_WRITE | _PAGE_MODIFIED)
 
-#define _PAGE_CHG_MASK  (PAGE_MASK | __READABLE | __WRITEABLE | _CACHE_MASK)
+#define _PAGE_CHG_MASK  (PAGE_MASK | _PAGE_ACCESSED | _PAGE_MODIFIED | _CACHE_MASK)
 
 #define PAGE_NONE	__pgprot(_PAGE_PRESENT | _CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_SHARED     __pgprot(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | \
