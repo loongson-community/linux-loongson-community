@@ -121,7 +121,8 @@ static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
 			/* Only let it join in if it's marked enabled */
 			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
 			    (tot_cpus_found != NR_CPUS)) {
-				cpu_set(cpuid, cpus_found);
+				cpu_set(cpuid, phys_cpu_present_map);
+				alloc_cpupda(cpuid, cpus_found);
 				cpus_found++;
 				tot_cpus_found++;
 			}
@@ -135,7 +136,7 @@ static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
 		brd = find_lboard(brd, KLTYPE_IP27);
 	} while (brd);
 
-	return cpus_found;
+	return highest;
 }
 
 static cpuid_t cpu_node_probe(void)
