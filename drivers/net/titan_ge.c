@@ -1774,65 +1774,6 @@ static struct net_device_stats *titan_ge_get_stats(struct net_device *netdev)
 }
 
 /*
- * Register the Titan GE with the kernel
- */
-static int __init titan_ge_init_module(void)
-{
-	unsigned int version, device;
-
-	printk(KERN_NOTICE
-	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
-
-	titan_ge_base = (unsigned long) ioremap(TITAN_GE_BASE, TITAN_GE_SIZE);
-	if (!titan_ge_base) {
-		printk("Mapping Titan GE failed\n");
-		goto out;
-	}
-
-	device = TITAN_GE_READ(TITAN_GE_DEVICE_ID);
-	version = (device & 0x000f0000) >> 16;
-	device &= 0x0000ffff;
-
-	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
-
-#ifdef TITAN_RX_RING_IN_SRAM
-	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
-						TITAN_SRAM_SIZE);
-	if (!titan_ge_sram) {
-		printk("Mapping Titan SRAM failed\n");
-		goto out_unmap_ge;
-	}
-#endif
-
-	/* Register only one port */
-	if (titan_ge_init(0))
-		printk(KERN_ERR
-		       "Error registering the TITAN Ethernet driver"
-			"for port 0 \n");
-
-	if (titan_ge_init(1))
-		printk(KERN_ERR "Error registering the TITAN Ethernet"
-				"driver for port 1\n");
-
-	return 0;
-
-out_unmap_ge:
-	iounmap((void *)titan_ge_base);
-
-out:
-	return -ENOMEM;
-}
-
-/*
- * Unregister the Titan GE from the kernel
- */
-static void __init titan_ge_cleanup_module(void)
-{
-	iounmap((void *)titan_ge_sram);
-	iounmap((void *)titan_ge_base);
-}
-
-/*
  * Initialize the Rx descriptor ring for the Titan Ge
  */
 static int titan_ge_init_rx_desc_ring(titan_ge_port_info * titan_eth_port,
@@ -2066,6 +2007,65 @@ static unsigned long titan_ge_tx_coal(unsigned long delay, int port)
 	TITAN_GE_WRITE(0x5038, delay);
 
 	return delay;
+}
+
+/*
+ * Register the Titan GE with the kernel
+ */
+static int __init titan_ge_init_module(void)
+{
+	unsigned int version, device;
+
+	printk(KERN_NOTICE
+	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
+
+	titan_ge_base = (unsigned long) ioremap(TITAN_GE_BASE, TITAN_GE_SIZE);
+	if (!titan_ge_base) {
+		printk("Mapping Titan GE failed\n");
+		goto out;
+	}
+
+	device = TITAN_GE_READ(TITAN_GE_DEVICE_ID);
+	version = (device & 0x000f0000) >> 16;
+	device &= 0x0000ffff;
+
+	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
+
+#ifdef TITAN_RX_RING_IN_SRAM
+	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
+						TITAN_SRAM_SIZE);
+	if (!titan_ge_sram) {
+		printk("Mapping Titan SRAM failed\n");
+		goto out_unmap_ge;
+	}
+#endif
+
+	/* Register only one port */
+	if (titan_ge_init(0))
+		printk(KERN_ERR
+		       "Error registering the TITAN Ethernet driver"
+			"for port 0 \n");
+
+	if (titan_ge_init(1))
+		printk(KERN_ERR "Error registering the TITAN Ethernet"
+				"driver for port 1\n");
+
+	return 0;
+
+out_unmap_ge:
+	iounmap((void *)titan_ge_base);
+
+out:
+	return -ENOMEM;
+}
+
+/*
+ * Unregister the Titan GE from the kernel
+ */
+static void __init titan_ge_cleanup_module(void)
+{
+	iounmap((void *)titan_ge_sram);
+	iounmap((void *)titan_ge_base);
 }
 
 MODULE_AUTHOR("Manish Lachwani <lachwani@pmc-sierra.com>");
