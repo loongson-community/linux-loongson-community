@@ -12,7 +12,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- *  $Id: 8250.c,v 1.90 2002/07/28 10:03:27 rmk Exp $
+ *  $Id: au1x00_uart.c,v 1.2 2003/08/12 08:57:02 ppopov Exp $
  *
  * A note about mapbase / membase
  *
@@ -130,7 +130,12 @@ static struct irq_info irq_lists[NR_IRQS];
  * Here we define the default xmit fifo size used for each type of UART.
  */
 static const struct serial_uart_config uart_config[PORT_MAX_8250+1] = {
-	{ "AU1X00_UART", 16, UART_CLEAR_FIFO | UART_USE_FIFO },
+	{ "unknown",	1,	0 },
+	{ "8250",	1,	0 },
+	{ "16450",	1,	0 },
+	{ "16550",	1,	0 },
+	/* PORT_16550A */
+	{ "AU1X00_UART",16,	UART_CLEAR_FIFO | UART_USE_FIFO },
 };
 
 static _INLINE_ unsigned int serial_in(struct uart_8250_port *up, int offset)
