@@ -116,6 +116,8 @@ bool 'Solaris (x86) partition table support' CONFIG_SOLARIS_X86_PARTITION
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   bool 'Unixware slices support (EXPERIMENTAL)' CONFIG_UNIXWARE_DISKLABEL
 fi
+endmenu
+
 source fs/nls/Config.in
 
 endmenu
