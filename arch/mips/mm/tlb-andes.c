@@ -17,10 +17,7 @@
 #include <asm/system.h>
 #include <asm/mmu_context.h>
 
-extern void except_vec0_generic(void);
-extern void except_vec0_r4000(void);
-extern void except_vec1_generic(void);
-extern void except_vec1_r4k(void);
+extern void build_tlb_refill_handler(void);
 
 #define NTLB_ENTRIES       64
 #define NTLB_ENTRIES_HALF  32
@@ -257,14 +254,5 @@ void __init tlb_init(void)
 
 	/* Did I tell you that ARC SUCKS?  */
 
-#ifdef CONFIG_MIPS32
-	memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
-	memcpy((void *)(KSEG0 + 0x080), &except_vec1_generic, 0x80);
-	flush_icache_range(KSEG0, KSEG0 + 0x100);
-#endif
-#ifdef CONFIG_MIPS64
-	memcpy((void *)(CKSEG0 + 0x000), &except_vec0_generic, 0x80);
-	memcpy((void *)(CKSEG0 + 0x080), except_vec1_r4k, 0x80);
-	flush_icache_range(CKSEG0 + 0x80, CKSEG0 + 0x100);
-#endif
+	build_tlb_refill_handler();
 }
