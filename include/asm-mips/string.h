@@ -58,7 +58,7 @@ extern __inline__ char *strncpy(char *__dest, __const__ char *__src, size_t __n)
         : "0" (__dest), "1" (__src), "2" (__n)
         : "memory");
 
-  return __dest;
+  return __xdest;
 }
 
 #define __HAVE_ARCH_STRCMP
