@@ -22,8 +22,10 @@ static int scache_lsz64;
 extern void andes_clear_page(void * page);
 extern void andes_copy_page(void * to, void * from);
 
-/* Cache operations.  These are only used with the virtual memory system,
-   not for non-coherent I/O so it's ok to ignore the secondary caches.  */
+/*
+ * Cache operations.  These are only used with the virtual memory system,
+ * not for non-coherent I/O so it's ok to ignore the secondary caches.
+ */
 static void andes_flush_cache_l1(void)
 {
 	blast_dcache32(); blast_icache64();
@@ -35,29 +37,29 @@ static void andes_flush_cache_l1(void)
  */
 static void andes_flush_cache_l2(void)
 {
-	switch (sc_lsize()) {
-		case 64:
-			blast_scache64();
-			break;
-		case 128:
-			blast_scache128();
-			break;
-		default:
-			printk(KERN_EMERG "Unknown L2 line size\n");
-			while(1);
-	}
-}
-
-static void andes___flush_cache_all(void)
-{
+	if (sc_lsize() == 64)
+		blast_scache64();
+	else
+		blast_scache128();
 }
 
 static void andes_flush_cache_all(void)
+{
+}
+
+static void andes___flush_cache_all(void)
 {
 	andes_flush_cache_l1();
 	andes_flush_cache_l2();
 }
 
+/*
+ * Tricky ...  Because we don't know the virtual address we've got the choice
+ * of either invalidating the entire primary and secondary caches or
+ * invalidating the secondary caches also.  On the R10000 invalidating the
+ * secondary cache will result in any entries in the primary caches also
+ * getting invalidated.
+ */
 void andes_flush_icache_page(unsigned long page)
 {
 	if (scache_lsz64)
@@ -101,17 +103,10 @@ void __init ld_mmu_andes(void)
 	_flush_cache_l2 = andes_flush_cache_l2;
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
 
-	switch (sc_lsize()) {
-		case 64:
-			scache_lsz64 = 1;
-			break;
-		case 128:
-			scache_lsz64 = 0;
-			break;
-		default:
-			printk(KERN_EMERG "Unknown L2 line size\n");
-			while(1);
-	}
+	if (sc_lsize() == 64)
+		scache_lsz64 = 1;
+	else
+		scache_lsz64 = 0;
 
-        flush_cache_l1();
+	flush_cache_l1();
 }
