@@ -59,6 +59,7 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 #endif
 
 extern void ip32_time_init(void);
+extern void ip32_reboot_setup(void);
 
 void __init ip32_setup(void)
 {
@@ -88,6 +89,8 @@ void __init ip32_setup(void)
 #ifdef CONFIG_VT
 	conswitchp = &dummy_con;
 #endif
+
+	ip32_reboot_setup();
 
 	rtc_ops = &ip32_rtc_ops;
 	board_time_init = ip32_time_init;
