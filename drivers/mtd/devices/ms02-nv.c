@@ -222,7 +222,7 @@ static int __init ms02nv_init_one(ulong addr)
 	mtd->flags = MTD_CAP_RAM | MTD_XIP;
 	mtd->size = fixsize;
 	mtd->name = (char *)ms02nv_name;
-	mtd->module = THIS_MODULE;
+	mtd->owner = THIS_MODULE;
 	mtd->read = ms02nv_read;
 	mtd->write = ms02nv_write;
 
