@@ -1,6 +1,7 @@
 /* sgiserial.c: Serial port driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
  */
 
 #include <linux/config.h> /* for CONFIG_REMOTE_DEBUG */
@@ -161,6 +162,10 @@ static int baud_table[] = {
  * driver work on the Sun4 which needs a settling delay after each chip
  * register access, other machines handle this in hardware via auxiliary
  * flip-flops which implement the settle time we do in software.
+ *
+ * read_zsreg() and write_zsreg() may get called from rs_kgdb_hook() before
+ * interrupts are enabled. Therefore we have to check ioc_iocontrol before we
+ * access it.
  */
 static inline unsigned char read_zsreg(struct sgi_zschannel *channel, unsigned char reg)
 {
@@ -169,7 +174,8 @@ static inline unsigned char read_zsreg(struct sgi_zschannel *channel, unsigned c
 
 	udelay(2);
 	channel->control = reg;
-	junk = ioc_icontrol->istat0;
+	if (ioc_icontrol)
+		junk = ioc_icontrol->istat0;
 	udelay(1);
 	retval = channel->control;
 	return retval;
@@ -181,10 +187,12 @@ static inline void write_zsreg(struct sgi_zschannel *channel, unsigned char reg,
 
 	udelay(2);
 	channel->control = reg;
-	junk = ioc_icontrol->istat0;
+	if (ioc_icontrol)
+		junk = ioc_icontrol->istat0;
 	udelay(1);
 	channel->control = value;
-	junk = ioc_icontrol->istat0;
+	if (ioc_icontrol)
+		junk = ioc_icontrol->istat0;
 	return;
 }
 
@@ -235,7 +243,7 @@ static inline void kgdb_chaninit(struct sgi_serial *ss, int intson, int bps)
 		kgdb_regs[R1] = 0;
 		kgdb_regs[R9] &= ~MIE;
 	}
-	brg = BPS_TO_BRG(bps, ZS_CLOCK/16);
+	brg = BPS_TO_BRG(bps, ZS_CLOCK/ss->clk_divisor);
 	kgdb_regs[R12] = (brg & 255);
 	kgdb_regs[R13] = ((brg >> 8) & 255);
 	load_zsregs(ss->zs_channel, kgdb_regs);
@@ -904,7 +912,7 @@ static void rs_put_char(char ch)
 /* These are for receiving and sending characters under the kgdb
  * source level kernel debugger.
  */
-void putDebugChar(char kgdb_char)
+int putDebugChar(char kgdb_char)
 {
 	struct sgi_zschannel *chan = zs_kgdbchan;
 	volatile unsigned char junk;
@@ -919,6 +927,8 @@ void putDebugChar(char kgdb_char)
 	chan->data = kgdb_char;
 	junk = ioc_icontrol->istat0;
 	restore_flags(flags);
+
+	return 1;
 }
 
 char getDebugChar(void)
@@ -1716,7 +1726,6 @@ rs_cons_check(struct sgi_serial *ss, int channel)
 	static int msg_printed = 0;
 
 	i = o = io = 0;
-
 
 	/* Is this one of the serial console lines? */
 	if((zs_cons_chanout != channel) &&
