@@ -72,8 +72,6 @@ extern void breakpoint(void);
 extern asmlinkage void au1000_IRQ(void);
 extern void set_debug_traps(void);
 extern irq_cpustat_t irq_stat [NR_CPUS];
-unsigned int local_bh_count[NR_CPUS];
-unsigned int local_irq_count[NR_CPUS];
 
 static void setup_local_irq(unsigned int irq, int type, int int_req);
 static unsigned int startup_irq(unsigned int irq);
