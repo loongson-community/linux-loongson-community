@@ -62,6 +62,7 @@
 #define PRID_IMP_R5500		0x5500
 #define PRID_IMP_4KC		0x8000
 #define PRID_IMP_5KC		0x8100
+#define PRID_IMP_20KC		0x8200
 #define PRID_IMP_4KEC		0x8400
 #define PRID_IMP_4KSC		0x8600
 
@@ -126,7 +127,7 @@ enum cputype {
 	CPU_R5000A, CPU_R4640, CPU_NEVADA, CPU_RM7000, CPU_R5432, CPU_4KC,
 	CPU_5KC, CPU_R4310, CPU_SB1, CPU_TX3912, CPU_TX3922, CPU_TX3927,
 	CPU_AU1000, CPU_4KEC, CPU_4KSC, CPU_VR41XX, CPU_R5500, CPU_TX49XX,
-	CPU_TX39XX, CPU_LAST
+	CPU_TX39XX, CPU_AU1500, CPU_20KC, CPU_LAST
 };
 
 #endif
@@ -159,5 +160,6 @@ enum cputype {
 #define MIPS_CPU_CACHE_CDEX	0x00000800 /* Create_Dirty_Exclusive CACHE op */
 #define MIPS_CPU_MCHECK		0x00001000 /* Machine check exception */
 #define MIPS_CPU_EJTAG		0x00002000 /* EJTAG exception */
+#define MIPS_CPU_FPUEX		0x00004000 /* FPU exception */
 
 #endif /* _ASM_CPU_H */

@@ -158,10 +158,6 @@ static void mips32_flush_cache_mm_pc(struct mm_struct *mm)
 	}
 }
 
-
-
-
-
 static void mips32_flush_cache_page_sc(struct vm_area_struct *vma,
 				    unsigned long page)
 {
@@ -411,6 +407,13 @@ static void mips32_flush_cache_sigtramp(unsigned long addr)
 {
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
+}
+
+static void mips32_flush_icache_all(void)
+{
+	if (mips_cpu.cputype == CPU_20KC) {
+		blast_icache();
+	}
 }
 
 /* Detect and size the various caches. */
@@ -665,6 +668,7 @@ void __init ld_mmu_mips32(void)
 
 	_flush_cache_sigtramp = mips32_flush_cache_sigtramp;
 	_flush_icache_range = mips32_flush_icache_range;	/* Ouch */
+	_flush_icache_all = mips32_flush_icache_all;
 
 	__flush_cache_all();
 }

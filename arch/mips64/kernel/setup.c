@@ -140,6 +140,11 @@ static inline void check_wait(void)
 	case CPU_NEVADA:
 	case CPU_RM7000:
 	case CPU_TX49XX:
+	case CPU_4KC:
+	case CPU_4KEC:
+	case CPU_4KSC:
+	case CPU_5KC:
+/*	case CPU_20KC:*/
 		cpu_wait = r4k_wait;
 		printk(" available.\n");
 		break;
@@ -189,9 +194,26 @@ struct mips_cpu mips_cpu = {
 static inline void cpu_probe(void)
 {
 #ifdef CONFIG_CPU_MIPS32
+	unsigned long config0 = read_32bit_cp0_register(CP0_CONFIG);
 	unsigned long config1;
-#endif
 
+        if (config0 & (1 << 31)) {
+		/* MIPS32 compliant CPU. Read Config 1 register. */
+		mips_cpu.isa_level = MIPS_CPU_ISA_M32;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
+			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC;
+		config1 = read_mips32_cp0_config1();
+		if (config1 & (1 << 3))
+			mips_cpu.options |= MIPS_CPU_WATCH;
+		if (config1 & (1 << 2))
+			mips_cpu.options |= MIPS_CPU_MIPS16;
+		if (config1 & (1 << 1))
+			mips_cpu.options |= MIPS_CPU_EJTAG;
+		if (config1 & 1)
+			mips_cpu.options |= MIPS_CPU_FPU;
+		mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
+	}
+#endif
 	mips_cpu.processor_id = read_32bit_cp0_register(CP0_PRID);
 	switch (mips_cpu.processor_id & 0xff0000) {
 	case PRID_COMP_LEGACY:
@@ -381,48 +403,20 @@ static inline void cpu_probe(void)
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_4KC:
 			mips_cpu.cputype = CPU_4KC;
-			goto cpu_4kc;
+			break;
 		case PRID_IMP_4KEC:
 			mips_cpu.cputype = CPU_4KEC;
-			goto cpu_4kc;
+			break;
 		case PRID_IMP_4KSC:
 			mips_cpu.cputype = CPU_4KSC;
-cpu_4kc:
-			/*
-			 * Why do we set all these options by default, THEN
-			 * query them??
-			 */
-			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
-				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
-				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH |
-			                   MIPS_CPU_MCHECK;
-			config1 = read_mips32_cp0_config1();
-			if (config1 & (1 << 3))
-				mips_cpu.options |= MIPS_CPU_WATCH;
-			if (config1 & (1 << 2))
-				mips_cpu.options |= MIPS_CPU_MIPS16;
-			if (config1 & 1)
-				mips_cpu.options |= MIPS_CPU_FPU;
-			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 			break;
 		case PRID_IMP_5KC:
 			mips_cpu.cputype = CPU_5KC;
 			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
-			/* See comment above about querying options */
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
-				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
-				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH |
-			                   MIPS_CPU_MCHECK;
-			config1 = read_mips32_cp0_config1();
-			if (config1 & (1 << 3))
-				mips_cpu.options |= MIPS_CPU_WATCH;
-			if (config1 & (1 << 2))
-				mips_cpu.options |= MIPS_CPU_MIPS16;
-			if (config1 & 1)
-				mips_cpu.options |= MIPS_CPU_FPU;
-			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 			break;
+		case PRID_IMP_20KC:
+			mips_cpu.cputype = CPU_20KC;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
@@ -432,19 +426,10 @@ cpu_4kc:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_AU1_REV1:
 		case PRID_IMP_AU1_REV2:
-			mips_cpu.cputype = CPU_AU1000;
-			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
-					   MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
-					   MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
-			config1 = read_mips32_cp0_config1();
-			if (config1 & (1 << 3))
-				mips_cpu.options |= MIPS_CPU_WATCH;
-			if (config1 & (1 << 2))
-				mips_cpu.options |= MIPS_CPU_MIPS16;
-			if (config1 & 1)
-				mips_cpu.options |= MIPS_CPU_FPU;
-			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
+			if (mips_cpu.processor_id & 0xff000000)
+				mips_cpu.cputype = CPU_AU1500;
+			else
+				mips_cpu.cputype = CPU_AU1000;
 			break;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
