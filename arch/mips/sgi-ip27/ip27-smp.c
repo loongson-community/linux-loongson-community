@@ -22,8 +22,6 @@
 #include <asm/sn/sn0/hubio.h>
 #include <asm/sn/sn0/ip27.h>
 
-static atomic_t numstarted = ATOMIC_INIT(1);
-
 /*
  * Takes as first input the PROM assigned cpu id, and the kernel
  * assigned cpu id as the second.
@@ -222,7 +220,6 @@ void prom_init_secondary(void)
 #endif
 	set_c0_status(SRB_DEV0 | SRB_DEV1);
 	local_irq_enable();
-	atomic_inc(&numstarted);
 }
 
 /* XXXKW implement prom_init_secondary() and prom_smp_finish to share
