@@ -799,12 +799,11 @@ static void ioc3_init(struct net_device *dev)
 	               (dev->dev_addr[1] <<  8) | dev->dev_addr[0];
 	ioc3->ehar_h = ioc3->ehar_l = 0;
 	ioc3->ersr = 42;			/* XXX should be random */
-	//ioc3->erpir = ERPIR_ARM;
 
 	ioc3_init_rings(dev, ip, ioc3);
 
 	ip->emcr |= ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
-	              EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
+	            EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
 	ioc3->emcr = ip->emcr;
 	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT | /* Interrupts ...  */
 	             EISR_RXMEMERR | EISR_TXMEMERR;
@@ -817,7 +816,6 @@ static void ioc3_stop(struct net_device *dev)
 	struct ioc3 *ioc3 = ip->regs;
 
 	ioc3->emcr = 0;				/* Shutup */
-	ip->emcr = 0;
 	ioc3->eier = 0;				/* Disable interrupts */
 	ioc3->eier;				/* Flush */
 }
