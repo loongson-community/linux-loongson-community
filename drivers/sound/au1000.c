@@ -129,7 +129,7 @@ struct au1000_state {
 		int dma_bytes_per_sample;// DMA bytes per audio sample frame
 		int user_bytes_per_sample;// User bytes per audio sample frame
 		int cnt_factor;          // user-to-DMA bytes per audio
-		                         //  sample frame
+		//  sample frame
 		void           *rawbuf;
 		dma_addr_t      dmaaddr;
 		unsigned        buforder;
@@ -145,7 +145,7 @@ struct au1000_state {
 		unsigned fragsize;       // user perception of fragment size
 		unsigned dma_fragsize;   // DMA (real) fragment size
 		unsigned dmasize;        // Total DMA buffer size
-		                         //   (mult. of DMA fragsize)
+		//   (mult. of DMA fragsize)
 		/* OSS stuff */
 		unsigned        mapped:1;
 		unsigned        ready:1;
@@ -485,8 +485,8 @@ static void start_dac(struct au1000_state *s)
 
 	set_dma_count(db->dmanr, db->dma_fragsize>>1);
 	if (get_dma_active_buffer(db->dmanr) == 0) {
-	set_dma_addr0(db->dmanr, buf1);
-	set_dma_addr1(db->dmanr, buf2);
+		set_dma_addr0(db->dmanr, buf1);
+		set_dma_addr1(db->dmanr, buf2);
 	} else {
 		set_dma_addr1(db->dmanr, buf1);
 		set_dma_addr0(db->dmanr, buf2);
@@ -527,8 +527,8 @@ static void start_adc(struct au1000_state *s)
 
 	set_dma_count(db->dmanr, db->dma_fragsize>>1);
 	if (get_dma_active_buffer(db->dmanr) == 0) {
-	set_dma_addr0(db->dmanr, buf1);
-	set_dma_addr1(db->dmanr, buf2);
+		set_dma_addr0(db->dmanr, buf1);
+		set_dma_addr1(db->dmanr, buf2);
 	} else {
 		set_dma_addr1(db->dmanr, buf1);
 		set_dma_addr0(db->dmanr, buf2);
@@ -558,7 +558,7 @@ extern inline void dealloc_dmabuf(struct au1000_state *s, struct dmabuf *db)
 	if (db->rawbuf) {
 		/* undo marking the pages as reserved */
 		pend = virt_to_page(db->rawbuf +
-				 (PAGE_SIZE << db->buforder) - 1);
+				    (PAGE_SIZE << db->buforder) - 1);
 		for (page = virt_to_page(db->rawbuf); page <= pend; page++)
 			mem_map_unreserve(page);
 		pci_free_consistent(NULL, PAGE_SIZE << db->buforder,
@@ -591,7 +591,7 @@ static int prog_dmabuf(struct au1000_state *s, struct dmabuf *db)
 		/* now mark the pages as reserved;
 		   otherwise remap_page_range doesn't do what we want */
 		pend = virt_to_page(db->rawbuf +
-				 (PAGE_SIZE << db->buforder) - 1);
+				    (PAGE_SIZE << db->buforder) - 1);
 		for (page = virt_to_page(db->rawbuf); page <= pend; page++)
 			mem_map_reserve(page);
 	}
@@ -608,7 +608,7 @@ static int prog_dmabuf(struct au1000_state *s, struct dmabuf *db)
 
 	db->user_bytes_per_sample = (db->sample_size>>3) * db->num_channels;
 	db->dma_bytes_per_sample = 2 * ((db->num_channels == 1) ?
-				    2 : db->num_channels);
+					2 : db->num_channels);
 
 	user_bytes_per_sec = rate * db->user_bytes_per_sample;
 	bufs = PAGE_SIZE << db->buforder;
@@ -691,10 +691,10 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		if (dac->nextOut >= dac->rawbuf + dac->dmasize)
 			dac->nextOut -= dac->dmasize;
 
-	/* update playback pointers */
+		/* update playback pointers */
 		newptr = virt_to_phys(dac->nextOut) + dac->dma_fragsize;
-	if (newptr >= dac->dmaaddr + dac->dmasize)
-		newptr -= dac->dmasize;
+		if (newptr >= dac->dmaaddr + dac->dmasize)
+			newptr -= dac->dmasize;
 
 		dac->count -= dac->dma_fragsize;
 		dac->total_bytes += dac->dma_fragsize;
@@ -702,23 +702,23 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		if (dac->count <= 0)
 			stop_dac(s);
 		else if (buff_done == DMA_D0) {
-		clear_dma_done0(dac->dmanr);	// clear DMA done bit
+			clear_dma_done0(dac->dmanr);	// clear DMA done bit
 			set_dma_count0(dac->dmanr, dac->dma_fragsize>>1);
-		set_dma_addr0(dac->dmanr, newptr);
-		enable_dma_buffer0(dac->dmanr);	// reenable
-	} else {
-		clear_dma_done1(dac->dmanr);	// clear DMA done bit
+			set_dma_addr0(dac->dmanr, newptr);
+			enable_dma_buffer0(dac->dmanr);	// reenable
+		} else {
+			clear_dma_done1(dac->dmanr);	// clear DMA done bit
 			set_dma_count1(dac->dmanr, dac->dma_fragsize>>1);
-		set_dma_addr1(dac->dmanr, newptr);
-		enable_dma_buffer1(dac->dmanr);	// reenable
-	}
+			set_dma_addr1(dac->dmanr, newptr);
+			enable_dma_buffer1(dac->dmanr);	// reenable
+		}
 	} else {
 		// both done bits set, we missed an interrupt
 		stop_dac(s);
 
 		dac->nextOut += 2*dac->dma_fragsize;
-	if (dac->nextOut >= dac->rawbuf + dac->dmasize)
-		dac->nextOut -= dac->dmasize;
+		if (dac->nextOut >= dac->rawbuf + dac->dmasize)
+			dac->nextOut -= dac->dmasize;
 
 		dac->count -= 2*dac->dma_fragsize;
 		dac->total_bytes += 2*dac->dma_fragsize;
@@ -754,10 +754,10 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	if (buff_done != (DMA_D0 | DMA_D1)) {
 		if (adc->count + adc->dma_fragsize > adc->dmasize) {
-		// Overrun. Stop ADC and log the error
-		stop_adc(s);
-		adc->error++;
-		err("adc overrun");
+			// Overrun. Stop ADC and log the error
+			stop_adc(s);
+			adc->error++;
+			err("adc overrun");
 			return;
 		}
 
@@ -805,10 +805,10 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		start_adc(s);
 	}
 
-		/* wake up anybody listening */
-		if (waitqueue_active(&adc->wait))
-			wake_up_interruptible(&adc->wait);
-	}
+	/* wake up anybody listening */
+	if (waitqueue_active(&adc->wait))
+		wake_up_interruptible(&adc->wait);
+}
 
 /* --------------------------------------------------------------------- */
 
@@ -980,10 +980,10 @@ static int translate_to_user(struct dmabuf *db,
 		for (i = 0; i < db->num_channels; i++) {
 			if (db->sample_size == 8)
 				usersample[i] =
-				    S16_TO_U8(*((s16 *) (&dmabuf[i * 2])));
+					S16_TO_U8(*((s16 *) (&dmabuf[i * 2])));
 			else
 				*((s16 *) (&usersample[i * 2])) =
-				    *((s16 *) (&dmabuf[i * 2]));
+					*((s16 *) (&dmabuf[i * 2]));
 		}
 
 		if (copy_to_user(userbuf, usersample,
@@ -1019,8 +1019,8 @@ static int copy_dmabuf_user(struct dmabuf *db, char* userbuf,
 				return cnt;
 			ret = cnt;
 			if ((cnt = translate_to_user(db, userbuf + partial,
-					       db->rawbuf,
-					       count - partial)) < 0)
+						     db->rawbuf,
+						     count - partial)) < 0)
 				return cnt;
 			ret += cnt;
 		} else {
@@ -1029,8 +1029,8 @@ static int copy_dmabuf_user(struct dmabuf *db, char* userbuf,
 				return cnt;
 			ret = cnt;
 			if ((cnt = translate_from_user(db, db->rawbuf,
-						 userbuf + partial,
-						 count - partial)) < 0)
+						       userbuf + partial,
+						       count - partial)) < 0)
 				return cnt;
 			ret += cnt;
 		}
@@ -1249,11 +1249,11 @@ static unsigned int au1000_poll(struct file *file,
 		if (s->dma_dac.mapped) {
 			if (s->dma_dac.count >=
 			    (signed)s->dma_dac.dma_fragsize) 
-				    mask |= POLLOUT | POLLWRNORM;
+				mask |= POLLOUT | POLLWRNORM;
 		} else {
 			if ((signed) s->dma_dac.dmasize >=
 			    s->dma_dac.count + (signed)s->dma_dac.dma_fragsize)
-				    mask |= POLLOUT | POLLWRNORM;
+				mask |= POLLOUT | POLLWRNORM;
 		}
 	}
 	spin_unlock_irqrestore(&s->lock, flags);
@@ -1360,7 +1360,7 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 	int             val, mapped, ret, diff;
 
 	mapped = ((file->f_mode & FMODE_WRITE) && s->dma_dac.mapped) ||
-	    ((file->f_mode & FMODE_READ) && s->dma_adc.mapped);
+		((file->f_mode & FMODE_READ) && s->dma_adc.mapped);
 
 #ifdef AU1000_VERBOSE_DEBUG
 	for (count=0; count<sizeof(ioctl_str)/sizeof(ioctl_str[0]); count++) {
@@ -1395,14 +1395,14 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 			synchronize_irq();
 			s->dma_dac.count = s->dma_dac.total_bytes = 0;
 			s->dma_dac.nextIn = s->dma_dac.nextOut =
-			    s->dma_dac.rawbuf;
+				s->dma_dac.rawbuf;
 		}
 		if (file->f_mode & FMODE_READ) {
 			stop_adc(s);
 			synchronize_irq();
 			s->dma_adc.count = s->dma_adc.total_bytes = 0;
 			s->dma_adc.nextIn = s->dma_adc.nextOut =
-			    s->dma_adc.rawbuf;
+				s->dma_adc.rawbuf;
 		}
 		return 0;
 
@@ -1445,7 +1445,7 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 			if (s->codec_ext_caps & AC97_EXT_DACS) {
 				// disable surround and center/lfe in AC'97
 				u16 ext_stat = rdcodec(&s->codec,
-					    AC97_EXTENDED_STATUS);
+						       AC97_EXTENDED_STATUS);
 				wrcodec(&s->codec, AC97_EXTENDED_STATUS,
 					ext_stat | (AC97_EXTSTAT_PRI |
 						    AC97_EXTSTAT_PRJ |
@@ -1478,8 +1478,8 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 					return -EINVAL;
 				case 4:
 					if (!(s->codec_ext_caps &
-					     AC97_EXTID_SDAC))
-				return -EINVAL;
+					      AC97_EXTID_SDAC))
+						return -EINVAL;
 					break;
 				case 6:
 					if ((s->codec_ext_caps &
@@ -1496,19 +1496,19 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 					// disable surround and center/lfe
 					// channels in AC'97
 					u16             ext_stat =
-					    rdcodec(&s->codec,
-						    AC97_EXTENDED_STATUS);
+						rdcodec(&s->codec,
+							AC97_EXTENDED_STATUS);
 					wrcodec(&s->codec,
 						AC97_EXTENDED_STATUS,
 						ext_stat | (AC97_EXTSTAT_PRI |
-						 AC97_EXTSTAT_PRJ |
-						 AC97_EXTSTAT_PRK));
+							    AC97_EXTSTAT_PRJ |
+							    AC97_EXTSTAT_PRK));
 				} else if (val >= 4) {
 					// enable surround, center/lfe
 					// channels in AC'97
 					u16             ext_stat =
-					    rdcodec(&s->codec,
-						    AC97_EXTENDED_STATUS);
+						rdcodec(&s->codec,
+							AC97_EXTENDED_STATUS);
 					ext_stat &= ~AC97_EXTSTAT_PRJ;
 					if (val == 6)
 						ext_stat &=
@@ -1655,10 +1655,10 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 			count += diff;
 			cinfo.bytes += diff;
 			cinfo.ptr =  virt_to_phys(s->dma_adc.nextIn) + diff -
-			    s->dma_adc.dmaaddr;
+				s->dma_adc.dmaaddr;
 		} else
 			cinfo.ptr = virt_to_phys(s->dma_adc.nextIn) -
-			    s->dma_adc.dmaaddr;
+				s->dma_adc.dmaaddr;
 		if (s->dma_adc.mapped)
 			s->dma_adc.count &= (s->dma_adc.dma_fragsize-1);
 		spin_unlock_irqrestore(&s->lock, flags);
@@ -1678,10 +1678,10 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 			count -= diff;
 			cinfo.bytes += diff;
 			cinfo.ptr = virt_to_phys(s->dma_dac.nextOut) + diff -
-			    s->dma_dac.dmaaddr;
+				s->dma_dac.dmaaddr;
 		} else
 			cinfo.ptr = virt_to_phys(s->dma_dac.nextOut) -
-			    s->dma_dac.dmaaddr;
+				s->dma_dac.dmaaddr;
 		if (s->dma_dac.mapped)
 			s->dma_dac.count &= (s->dma_dac.dma_fragsize-1);
 		spin_unlock_irqrestore(&s->lock, flags);
@@ -1815,7 +1815,7 @@ static int  au1000_open(struct inode *inode, struct file *file)
 
 	if (file->f_mode & FMODE_READ) {
 		s->dma_adc.ossfragshift = s->dma_adc.ossmaxfrags =
-		    s->dma_adc.subdivision = s->dma_adc.total_bytes = 0;
+			s->dma_adc.subdivision = s->dma_adc.total_bytes = 0;
 		s->dma_adc.num_channels = 1;
 		s->dma_adc.sample_size = 8;
 		set_adc_rate(s, 8000);
@@ -1825,7 +1825,7 @@ static int  au1000_open(struct inode *inode, struct file *file)
 
 	if (file->f_mode & FMODE_WRITE) {
 		s->dma_dac.ossfragshift = s->dma_dac.ossmaxfrags =
-		    s->dma_dac.subdivision = s->dma_dac.total_bytes = 0;
+			s->dma_dac.subdivision = s->dma_dac.total_bytes = 0;
 		s->dma_dac.num_channels = 1;
 		s->dma_dac.sample_size = 8;
 		set_dac_rate(s, 8000);
@@ -1836,11 +1836,11 @@ static int  au1000_open(struct inode *inode, struct file *file)
 	if (file->f_mode & FMODE_READ) {
 		if ((ret = prog_dmabuf_adc(s)))
 			return ret;
-		}
+	}
 	if (file->f_mode & FMODE_WRITE) {
 		if ((ret = prog_dmabuf_dac(s)))
 			return ret;
-		}
+	}
 
 	s->open_mode |= file->f_mode & (FMODE_READ | FMODE_WRITE);
 	up(&s->open_sem);
@@ -2037,6 +2037,22 @@ static int __devinit au1000_probe(void)
 	info("AC'97 Base/Extended ID = %04x/%04x",
 	     s->codec_base_caps, s->codec_ext_caps);
 
+	/*
+	 * On the Pb1000, audio playback is on the AUX_OUT
+	 * channel (which defaults to LNLVL_OUT in AC'97
+	 * rev 2.2) so make sure this channel is listed
+	 * as supported (soundcard.h calls this channel
+	 * ALTPCM). ac97_codec.c does not handle detection
+	 * of this channel correctly.
+	 */
+	s->codec.supported_mixers |= SOUND_MASK_ALTPCM;
+	/*
+	 * Now set AUX_OUT's default volume.
+	 */
+	val = 0x4343;
+	mixdev_ioctl(&s->codec, SOUND_MIXER_WRITE_ALTPCM,
+		     (unsigned long) &val);
+	
 	if (!(s->codec_ext_caps & AC97_EXTID_VRA)) {
 		// codec does not support VRA
 		s->no_vra = 1;
@@ -2064,19 +2080,19 @@ static int __devinit au1000_probe(void)
 
 	return 0;
 
-      err_dev3:
+ err_dev3:
 	unregister_sound_mixer(s->codec.dev_mixer);
-      err_dev2:
+ err_dev2:
 	unregister_sound_dsp(s->dev_audio);
-      err_dev1:
+ err_dev1:
 	free_au1000_dma(s->dma_adc.dmanr);
-      err_dma2:
+ err_dma2:
 	free_au1000_dma(s->dma_dac.dmanr);
-      err_dma1:
+ err_dma1:
 	free_irq(s->dma_adc.irq, s);
-      err_irq2:
+ err_irq2:
 	free_irq(s->dma_dac.irq, s);
-      err_irq1:
+ err_irq1:
 	release_region(virt_to_phys((void *) AC97C_CONFIG), 0x14);
 	return -1;
 }
