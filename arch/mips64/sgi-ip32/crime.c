@@ -10,7 +10,6 @@
 #include <linux/kernel.h>
 #include <asm/ip32/crime.h>
 #include <asm/ptrace.h>
-#include <asm/promlib.h>
 
 void __init crime_init (void)
 {

@@ -6,17 +6,18 @@
  * Copyright (C) 2001 Keith M Wesolowski
  */
 
-#include <asm/promlib.h>
-
 /* linux/reboot.h */
-void machine_restart (char *cmd) {
-	ArcReboot (cmd);
+void machine_restart(char *cmd)
+{
+	ArcReboot(cmd);
 }
 
-void machine_halt (void) {
+void machine_halt(void)
+{
 	ArcEnterInteractiveMode();
 }
 
-void machine_power_off (void) {
+void machine_power_off(void)
+{
 	ArcPowerDown();
 }
