@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  *
- * $Id: printf.c,v 1.2 1998/04/05 11:24:03 ralf Exp $
+ * $Id: printf.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -13,7 +13,11 @@
 
 static char ppbuf[1024];
 
+#ifdef CONFIG_SGI_PROM_CONSOLE
+void prom_printf(char *fmt, ...)
+#else
 __initfunc(void prom_printf(char *fmt, ...))
+#endif
 {
 	va_list args;
 	char ch, *bptr;
