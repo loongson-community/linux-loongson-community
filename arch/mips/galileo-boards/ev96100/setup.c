@@ -40,11 +40,13 @@
 #include <linux/mc146818rtc.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
+#include <linux/pci.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/mipsregs.h>
 #include <asm/irq.h>
+#include <asm/delay.h>
 #include <asm/gt64120.h>
 #include <asm/galileo-boards/ev96100.h>
 #include <asm/galileo-boards/ev96100int.h>
@@ -57,14 +59,6 @@ extern void console_setup(char *, int *);
 char serial_console[20];
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
-extern void breakpoint(void);
-int ev96100_remote_debug;
-int ev96100_remote_debug_line;
-#endif
-
-void (*board_time_init)(struct irqaction *irq);
-extern void ev96100_time_init(struct irqaction *irq);
 extern char * __init prom_getcmdline(void);
 
 extern void mips_reboot_setup(void);
@@ -78,12 +72,13 @@ static void rm7000_wbflush(void)
 
 unsigned char mac_0_1[12];
 
+
 void __init ev96100_setup(void)
 {
-
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
 	unsigned long info = read_32bit_cp0_register(CP0_INFO);
+	u32 tmp;
 
 	char *argptr;
 
@@ -151,25 +146,6 @@ void __init ev96100_setup(void)
 	}
 #endif	  
 
-
-#ifdef CONFIG_REMOTE_DEBUG
-	if (strstr(argptr, "kgdb=ttyS") != NULL) {
-		int line;
-		argptr += strlen("kgdb=ttyS");
-		if (*argptr == '0')
-			ev96100_remote_debug_line = 0;
-		else if (*argptr == '1')
-			ev96100_remote_debug_line = 1;
-		else
-			puts("Unknown serial line /dev/ttyS%c\n", *argptr);
-
-		debugInitUart(ev96100_remote_debug_line);
-		ev96100_remote_debug = 1;
-		/* Breakpoints and stuff are in init_IRQ() */
-	}
-#endif
-
-	board_time_init = ev96100_time_init;
 	rtc_ops = &no_rtc_ops;
 	mips_reboot_setup();
 	mips_io_port_base = KSEG1;
@@ -179,4 +155,59 @@ void __init ev96100_setup(void)
 #ifdef CONFIG_BLK_DEV_INITRD
 	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
 #endif
+
+
+	/* 
+	 * setup gt controller master bit so we can do config cycles 
+	 */
+
+	/* Clear cause register bits */
+	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
+	                             GT_INTRCAUSE_TARABORT0_BIT));
+	/* Setup address */
+	GT_WRITE(GT_PCI0_CFGADDR_OFS,  
+		 (0      << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+		 (0      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 ((PCI_COMMAND / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
+		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+
+	udelay(2);
+	tmp = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
+
+	tmp |= (PCI_COMMAND_IO | PCI_COMMAND_MEMORY | 
+		PCI_COMMAND_MASTER | PCI_COMMAND_SERR);
+	GT_WRITE(GT_PCI0_CFGADDR_OFS,  
+		 (0      << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+		 (0      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 ((PCI_COMMAND / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
+		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+	udelay(2);
+	*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS) = cpu_to_le32(tmp);
+
+	/* Setup address */
+	GT_WRITE(GT_PCI0_CFGADDR_OFS,  
+		 (0      << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+		 (0      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 ((PCI_COMMAND / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
+		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+
+	udelay(2);
+	tmp = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
+}
+
+unsigned short get_gt_devid() 
+{
+	u32 gt_devid;
+
+	/* Figure out if this is a gt96100 or gt96100A */
+	GT_WRITE(GT_PCI0_CFGADDR_OFS,  
+		 (0      << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+		 (0      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 ((PCI_VENDOR_ID / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
+		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+
+	udelay(4);
+	gt_devid = le32_to_cpu(*(volatile u32 *)
+			(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
+	return (unsigned short)(gt_devid>>16);
 }

@@ -35,9 +35,12 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/pci_ids.h>
 
 #include <asm/gt64120.h>
 #include <asm/galileo-boards/ev96100.h>
+
+extern unsigned short get_gt_devid(void);
 
 void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
@@ -45,66 +48,54 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 
 void __init pcibios_fixup(void)
 {
-	/* 
-	 * Due to a bug in the Galileo system controller, we need to setup 
-	 * the PCI BAR for the Galileo internal registers.
-	 * This should be done in the bios/bootprom and will be fixed in
-	 * a later revision of YAMON (the MIPS boards boot prom).
-	 */
-	GT_WRITE(GT_PCI0_CFGADDR_OFS, cpu_to_le32(
-		 (0 << GT_PCI0_CFGADDR_BUSNUM_SHF)   |  /* Local bus */
-		 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF)   |  /* GT64120 device */
-		 (0 << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |  /* Function 0 */
-		 ((0x20/4) << GT_PCI0_CFGADDR_REGNUM_SHF) |  /* BAR 4 */
-		 GT_PCI0_CFGADDR_CONFIGEN_BIT ));
-
-	/* Perform the write */
-	GT_WRITE( GT_PCI0_CFGDATA_OFS, cpu_to_le32(PHYSADDR(MIPS_GT_BASE))); 
 }
 
 void __init pcibios_fixup_irqs(void)
 {
 	struct pci_dev *dev;
 	unsigned int slot;
-	unsigned char irq;
-	unsigned long vendor;
+	u32 vendor;
+	unsigned short gt_devid = get_gt_devid();
 
 	/*
-	** EV96100 interrupt routing for pci bus 0
-	** NOTE: this are my experimental findings, since I do not
-	** have Galileo's latest PLD equations.
+	** EV96100/A interrupt routing for pci bus 0
 	**
-	** The functions in irq.c assume the following irq numbering:
-	** irq 2: CPU cause register bit IP2
-	** irq 3: CPU cause register bit IP3
-	** irq 4: CPU cause register bit IP4
-	** irq 5: CPU cause register bit IP5
-	** irq 6: CPU cause register bit IP6
-	** irq 7: CPU cause register bit IP7
-	**
+	** Note: EV96100A board with irq jumper set on 'linux'
 	*/
-
 
 	pci_for_each_dev(dev) {
 		if (dev->bus->number != 0)
 			return;
 
 		slot = PCI_SLOT(dev->devfn);
-		pci_read_config_word(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
+		pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
 
 //#ifdef DEBUG
-		printk("devfn %x, slot %d vendor %x\n", dev->devfn, slot, vendor);
+		printk("devfn %x, slot %d devid %x\n", 
+				dev->devfn, slot, gt_devid);
 //#endif
 
 		/* fixup irq line based on slot # */
 
 		if (slot == 8) {
-		    dev->irq = 5;
-		    pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+			if (gt_devid == PCI_DEVICE_ID_GALILEO_GT96100) 
+				dev->irq = 5;
+			else if (gt_devid == PCI_DEVICE_ID_GALILEO_GT96100A)
+				dev->irq = 3;
+			else {
+				printk(KERN_ERR "unknown GT controller id %x\n",
+						gt_devid);
+				pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 
+						0xff);
+				continue;
+			}
+			pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 
+					dev->irq);
 		}
 		else if (slot == 9) {
-		    dev->irq = 2;
-		    pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+			dev->irq = 2;
+			pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 
+					dev->irq);
 		}
 	}
 }

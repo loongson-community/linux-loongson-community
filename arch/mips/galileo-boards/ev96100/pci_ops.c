@@ -42,6 +42,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
+#include <asm/delay.h>
 #include <asm//gt64120.h>
 #include <asm/galileo-boards/ev96100.h>
 #include <asm/pci_channel.h>
@@ -80,8 +81,8 @@ struct pci_channel mips_pci_channels[] = {
 	{ NULL, NULL, NULL, NULL, NULL}
 };
 
-static int
-gt96100_config_access(unsigned char access_type, struct pci_dev *dev,
+int
+static gt96100_config_access(unsigned char access_type, struct pci_dev *dev,
                            unsigned char where, u32 *data)
 {
 	unsigned char bus = dev->bus->number;
@@ -103,20 +104,23 @@ gt96100_config_access(unsigned char access_type, struct pci_dev *dev,
 		 (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
 		 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+	udelay(2);
 
 
 	if (access_type == PCI_ACCESS_WRITE) {
-            if (dev_fn != 0) {
-                *data = le32_to_cpu(*data);
-            }
-            GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+		if (dev_fn != 0) {
+		*data = le32_to_cpu(*data);
+		}
+		GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
 	} 
         else {
-            GT_READ(GT_PCI0_CFGDATA_OFS, *data);
-            if (dev_fn != 0) {
-                *data = le32_to_cpu(*data);
-            }
+		GT_READ(GT_PCI0_CFGDATA_OFS, *data);
+		if (dev_fn != 0) {
+		*data = le32_to_cpu(*data);
+		}
 	}
+
+	udelay(2);
 
 	/* Check for master or target abort */
 	GT_READ(GT_INTRCAUSE_OFS, intr);
@@ -266,31 +270,5 @@ struct pci_ops gt96100_pci_ops = {
 	write_config_word,
 	write_config_dword
 };
-
-#if 0
-void __init pcibios_init(void)
-{
-
-	DBG("PCI: Probing PCI hardware on host bus 0.\n");
-	pci_scan_bus(0, &mips_pci_ops, NULL);
-
-	/* 
-	 * Due to a bug in the Galileo system controller, we need to setup 
-	 * the PCI BAR for the Galileo internal registers.
-	 * This should be done in the bios/bootprom and will be fixed in
-	 * a later revision of YAMON (the MIPS boards boot prom).
-	 */
-	GT_WRITE(GT_PCI0_CFGADDR_OFS, cpu_to_le32(
-		 (0 << GT_PCI0_CFGADDR_BUSNUM_SHF)   |  /* Local bus */
-		 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF)   |  /* GT64120 device */
-		 (0 << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |  /* Function 0 */
-		 ((0x20/4) << GT_PCI0_CFGADDR_REGNUM_SHF) |  /* BAR 4 */
-		 GT_PCI0_CFGADDR_CONFIGEN_BIT ));
-
-	/* Perform the write */
-	GT_WRITE( GT_PCI0_CFGDATA_OFS, cpu_to_le32(PHYSADDR(MIPS_GT_BASE))); 
-
-}
-#endif
 
 #endif /* CONFIG_PCI */

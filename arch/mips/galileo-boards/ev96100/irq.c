@@ -56,8 +56,6 @@
 
 #ifdef CONFIG_REMOTE_DEBUG
 extern void breakpoint(void);
-extern int ev96100_remote_debug;
-extern int ev96100_remote_debug_line;
 #endif
 
 extern void puts(unsigned char *cp);
@@ -320,11 +318,9 @@ void __init init_IRQ(void)
 
 #ifdef CONFIG_REMOTE_DEBUG
 	/* If local serial I/O used for debug port, enter kgdb at once */
-	if (ev96100_remote_debug) {
-		puts("Waiting for kgdb to connect...");
-		set_debug_traps();
-		breakpoint(); 
-	}
+	puts("Waiting for kgdb to connect...");
+	set_debug_traps();
+	breakpoint(); 
 #endif
 }
 
