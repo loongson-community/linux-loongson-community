@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 46
+SUBLEVEL = 47
 
 ARCH = mips
 
@@ -120,7 +120,7 @@ FILESYSTEMS	=fs/filesystems.a
 NETWORKS	=net/network.a
 DRIVERS		=drivers/block/block.a \
 		 drivers/char/char.a \
-	         drivers/pnp/pnp.a
+	         drivers/misc/misc.a
 LIBS		=$(TOPDIR)/lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc lib
 
@@ -148,6 +148,10 @@ endif
 
 ifdef CONFIG_SBUS
 DRIVERS := $(DRIVERS) drivers/sbus/sbus.a
+endif
+
+ifdef CONFIG_PNP
+DRIVERS := $(DRIVERS) drivers/pnp/pnp.a
 endif
 
 ifdef CONFIG_SGI
@@ -276,7 +280,7 @@ drivers: dummy
 net: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=net
 
-MODFLAGS = -DMODULE
+MODFLAGS += -DMODULE
 ifdef CONFIG_MODULES
 ifdef CONFIG_MODVERSIONS
 MODFLAGS += -DMODVERSIONS -include $(HPATH)/linux/modversions.h

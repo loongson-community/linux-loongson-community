@@ -177,12 +177,12 @@ static const float fsk96_tx_coeff_5[40] = {
 
 #define HAMMING(x) (0.54-0.46*cos(2*M_PI*(x)));
 
-static inline float hamming(float x)
+static float hamming(float x)
 {
 	return 0.54-0.46*cos(2*M_PI*x);
 }
 
-static inline float sinc(float x)
+static float sinc(float x)
 {
 	if (x == 0)
 		return 1;

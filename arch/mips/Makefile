@@ -13,7 +13,7 @@
 # Copyright (C) 1994, 1995, 1996 by Ralf Baechle
 # DECStation modifications by Paul M. Antoine, 1996
 #
-# $Id: Makefile,v 1.5 1997/06/28 23:39:36 ralf Exp $
+# $Id: Makefile,v 1.5 1997/07/01 08:54:40 ralf Exp $
 #
 
 #
@@ -36,6 +36,7 @@ endif
 endif
 
 LINKFLAGS	= -static -N
+MODFLAGS	+= -mlong-calls
 
 #
 # The new ELF GCC uses -G0 -mabicalls -fpic as default.  We don't need PIC

@@ -293,6 +293,7 @@ sys_init_module(const char *name_user, struct module *mod_user)
 		error = -EFAULT;
 		goto err3;
 	}
+	flush_cache_all();	/* XXX */
 
 	/* Update module references.  */
 	mod->next = mod_tmp.next;

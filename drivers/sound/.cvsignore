@@ -1,1 +1,4 @@
 .depend
+.defines
+local.h
+configure

@@ -83,7 +83,7 @@ bool 'System V IPC' CONFIG_SYSVIPC
 bool 'Sysctl support' CONFIG_SYSCTL
 
 if [ "$CONFIG_SGI" != "y" ]; then
-  tristate 'Parallel port support' CONFIG_PNP_PARPORT
+  tristate 'Parallel port support' CONFIG_PARPORT
 fi
 
 endmenu
@@ -96,12 +96,7 @@ if [ "$CONFIG_MODULES" = "y" ]; then
   bool 'Kernel daemon support (e.g. autoload of modules)' CONFIG_KERNELD
 fi
 
-#
-# All SGI block devices are SCSI based AFAIK. -davem
-#
-if [ "$CONFIG_SGI" != "y" ]; then
-  source drivers/block/Config.in
-fi
+source drivers/block/Config.in
 
 if [ "$CONFIG_NET" = "y" ]; then
   source net/Config.in

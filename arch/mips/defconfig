@@ -38,7 +38,7 @@ CONFIG_BINFMT_ELF=y
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 CONFIG_SYSCTL=y
-# CONFIG_PNP_PARPORT is not set
+# CONFIG_PARPORT is not set
 
 #
 # Loadable module support
@@ -133,6 +133,7 @@ CONFIG_PCNET32=y
 # CONFIG_NET_POCKET is not set
 # CONFIG_FDDI is not set
 # CONFIG_DLCI is not set
+# CONFIG_PLIP is not set
 # CONFIG_PPP is not set
 # CONFIG_NET_RADIO is not set
 # CONFIG_SLIP is not set

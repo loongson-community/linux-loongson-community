@@ -1610,7 +1610,7 @@ void cleanup_module(void)
 			 irq2dev_map[dev_ibmtr[i]->irq] = NULL;
 			 release_region(dev_ibmtr[i]->base_addr, IBMTR_IO_EXTENT);
 			 kfree_s(dev_ibmtr[i]->priv, sizeof(struct tok_info));
-			 kfree_s(dev_ibmtr[i], sizeof(struct dev));
+			 kfree_s(dev_ibmtr[i], sizeof(struct device));
 			 dev_ibmtr[i] = NULL;
                 }
 }

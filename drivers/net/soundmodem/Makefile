@@ -43,7 +43,7 @@ endif
 M_OBJS		:= $(O_TARGET)
 
 gentbl:		gentbl.c
-		$(HOSTCC) -Wall $< -o $@ -lm
+		$(HOSTCC) $< -o $@ -lm
 
 TBLHDR		:= sm_tbl_afsk1200.h sm_tbl_afsk2400_8.h 
 TBLHDR		+= sm_tbl_afsk2666.h sm_tbl_psk4800.h

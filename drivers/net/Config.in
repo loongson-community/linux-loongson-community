@@ -16,7 +16,7 @@ tristate 'EQL (serial line load balancing) support' CONFIG_EQUALIZER
 bool 'Ethernet (10 or 100Mbit)' CONFIG_NET_ETHERNET
 if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
   if [ "$CONFIG_MIPS_JAZZ" = "y" ]; then
-    bool 'MIPS JAZZ onboard SONIC ethernet support' CONFIG_MIPS_JAZZ_SONIC
+    tristate 'MIPS JAZZ onboard SONIC ethernet support' CONFIG_MIPS_JAZZ_SONIC
   fi
   bool '3COM cards' CONFIG_NET_VENDOR_3COM
   if [ "$CONFIG_NET_VENDOR_3COM" = "y" ]; then

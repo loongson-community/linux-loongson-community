@@ -48,12 +48,6 @@ static const char *version = "lance.c:v1.09 Aug 20 1996 dplatt@3do.com, becker@c
 #include <linux/bios32.h>
 #include <linux/init.h>
 #include <asm/bitops.h>
-#ifdef __mips__
-#include <asm/bootinfo.h>
-static unsigned long lance_base;
-extern unsigned long port_base;
-#define PORT_BASE lance_base
-#endif /* __mips__ */
 #include <asm/io.h>
 #include <asm/dma.h>
 
@@ -362,24 +356,6 @@ __initfunc(int lance_init(void))
 	}
 #endif  /* defined(CONFIG_PCI) */
 
-#ifdef __mips__
-	lance_base = port_base;
-	if (mips_machgroup == MACH_GROUP_SNI_RM
-            && mips_machtype == MACH_SNI_RM200_PCI) {
-		int ioaddr = 0x100;
-		lance_base = 0xbb000000;
-		if ( check_region(ioaddr, LANCE_TOTAL_SIZE) == 0) {
-			/* Detect "normal" 0x57 0x57 and the NI6510EB 0x52 0x44
-			   signatures w/ minimal I/O reads */
-			char offset15, offset14 = inb(ioaddr + 14);
-			
-			if ((offset14 == 0x52 || offset14 == 0x57) &&
-				((offset15 = inb(ioaddr + 15)) == 0x57 || offset15 == 0x44))
-				lance_probe1(ioaddr);
-		}
-	}
-	else
-#endif
 	for (port = lance_portlist; *port; port++) {
 		int ioaddr = *port;
 

@@ -21,37 +21,22 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139,
  * USA.
  *
- * $Source: /home/bas/distr/ftape-2.03b/RCS/ecc.c,v $
- * $Author: bas $
+ * $Source: /src/cvs/linux/drivers/char/ftape/ecc.c,v $
+ * $Author: ralf $
  *
- * $Revision: 1.32 $
- * $Date: 1995/04/22 07:30:15 $
- * $State: Beta $
+ * $Revision: 1.1.1.1 $
+ * $Date: 1997/06/01 03:17:30 $
+ * $State: Exp $
  *
  *      This file contains the Reed-Solomon error correction code 
  *      for the QIC-40/80 floppy-tape driver for Linux.
  */
 
 #include <linux/ftape.h>
-#include <stdio.h>
-#include <sys/errno.h>
+#include <asm/byteorder.h>
 
 #include "tracing.h"
 #include "ecc.h"
-
-/*
- * Machines that are big-endian should define macro BIG_ENDIAN.
- * Unfortunately, there doesn't appear to be a standard include
- * file that works for all OSs.
- */
-
-#if defined(__sparc__) || defined(__hppa)
-#define BIG_ENDIAN
-#endif				/* __sparc__ || __hppa */
-
-#if defined(__mips__)
-#error Find a smart way to determine the Endianness of the MIPS CPU
-#endif
 
 #ifdef TEST
 
@@ -845,15 +830,17 @@ int ecc_correct_data(struct memory_segment *mseg)
 			s[1] = ss[1];
 			s[2] = ss[2];
 			if (s[0] | s[1] | s[2]) {
-#ifdef BIG_ENDIAN
+#ifdef __BIG_ENDIAN
 				result = correct_block(&mseg->data[col + sizeof(long) - 1 - i],
 						       mseg->blocks,
 					 nerasures, erasure_loc, Ainv, s,
 						       &mseg->corrected);
-#else
+#elif defined(__LITTLE_ENDIAN)
 				result = correct_block(&mseg->data[col + i], mseg->blocks,
 					 nerasures, erasure_loc, Ainv, s,
 						       &mseg->corrected);
+#else
+#error "Huh?  Neither __BIG_ENDIAN nor __LITTLE_ENDIAN?"
 #endif
 				if (result < 0) {
 					TRACE_EXIT;
