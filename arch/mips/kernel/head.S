@@ -207,7 +207,5 @@ NESTED(smp_bootstrap, 16, sp)
 	 * 64-bit kernel mappings are really screwed up ...
 	 */
 	page	kptbl, _PGD_ORDER
-	.globl	ekptbl
 	page	kpmdtbl, 0
-ekptbl:
 #endif

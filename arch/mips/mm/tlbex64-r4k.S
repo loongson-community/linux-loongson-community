@@ -22,19 +22,17 @@
 
 	/*
 	 * After this macro runs we have a pointer to the pte of the address
-	 * that caused the fault in PTR.
+	 * that caused the fault in PTR.  Expects register with c0_badvaddr
+	 * passed as tmp argument.
 	 */
-	.macro	LOAD_PTE2, ptr, tmp, kaddr
+	.macro	LOAD_PTE2, ptr, tmp
 #ifdef CONFIG_SMP
 	dmfc0	\ptr, CP0_CONTEXT
-	dmfc0	\tmp, CP0_BADVADDR
 	dsra	\ptr, 23			# get pgd_current[cpu]
 #else
-	dmfc0	\tmp, CP0_BADVADDR
 	dla	\ptr, pgd_current
 #endif
-	bltz	\tmp, \kaddr
-	 ld	\ptr, (\ptr)
+	ld	\ptr, (\ptr)
 	dsrl	\tmp, (_PGDIR_SHIFT-3)		# get pgd offset in bytes
 	andi	\tmp, ((_PTRS_PER_PGD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pgd offset
@@ -53,11 +51,10 @@
 	/*
 	 * Ditto for the kernel table.
 	 */
-	.macro	LOAD_KPTE2, ptr, tmp, not_vmalloc
+	.macro	LOAD_KPTE2, ptr, tmp
 	/*
 	 * First, determine that the address is in/above vmalloc range.
 	 */
-	dmfc0	\tmp, CP0_BADVADDR
 	dli	\ptr, _VMALLOC_START
 
 	/*
@@ -68,14 +65,6 @@
 	dsrl	\tmp, (_PAGE_SHIFT+1)		# get vpn2
 	dsll	\tmp, 4				# byte offset of pte
 	daddu	\ptr, \ptr, \tmp
-
-	/*
-	 * Determine that fault address is within vmalloc range.
-	 */
-	dla	\tmp, ekptbl
-	slt	\tmp, \ptr, \tmp
-	beqz	\tmp, \not_vmalloc		# not vmalloc
-	 nop
 	.endm
 
 
@@ -131,7 +120,10 @@ END(except_vec1_sb1)
 	.align  5
 LEAF(handle_vec1_r4k)
 	.set    noat
-	LOAD_PTE2 k1 k0 9f
+	dmfc0	k0, CP0_BADVADDR
+	bltz	k0, 9f
+
+	 LOAD_PTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
@@ -141,7 +133,7 @@ LEAF(handle_vec1_r4k)
 	eret
 
 9:						# handle the vmalloc range
-	LOAD_KPTE2 k1 k0 invalid_vmalloc_address
+	LOAD_KPTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
@@ -171,7 +163,10 @@ END(except_vec1_r10k)
 	.align	5
 LEAF(handle_vec1_r10k)
 	.set	noat
-	LOAD_PTE2 k1 k0 9f
+	dmfc0	k0, CP0_BADVADDR
+	bltz	k0, 9f
+
+	 LOAD_PTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
@@ -180,7 +175,7 @@ LEAF(handle_vec1_r10k)
 	eret
 
 9:						# handle the vmalloc range
-	LOAD_KPTE2 k1 k0 invalid_vmalloc_address
+	LOAD_KPTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
@@ -188,16 +183,3 @@ LEAF(handle_vec1_r10k)
 	tlbwr
 	eret
 END(handle_vec1_r10k)
-
-
-	.align	5
-LEAF(invalid_vmalloc_address)
-	.set	noat
-	SAVE_ALL
-	CLI
-	dmfc0	t0, CP0_BADVADDR
-	sd	t0, PT_BVADDR(sp)
-	move	a0, sp
-	jal	show_regs
-	PANIC("Invalid kernel address")
-END(invalid_vmalloc_address)
