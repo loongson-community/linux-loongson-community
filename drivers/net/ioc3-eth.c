@@ -1492,11 +1492,11 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 #endif
 
 	spin_lock_init(&ip->ioc3_lock);
+	init_timer(&ip->ioc3_timer);
 
 	ioc3_stop(ip);
 	ioc3_init(ip);
 
-	init_timer(&ip->ioc3_timer);
 	ioc3_mii_init(ip);
 
 	if (ip->phy == -1) {
