@@ -1,0 +1,7 @@
+.*.d
+.*.cmd
+conmakehash
+consolemap_deftbl.c
+defkeymap.c
+qtronixmap.c
+uni_hash.tbl

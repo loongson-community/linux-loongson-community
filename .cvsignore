@@ -2,6 +2,7 @@
 .config
 .config.cmd
 .hdepend
+.tmp_versions
 .tmpver.1
 .tmpver.2
 .version
