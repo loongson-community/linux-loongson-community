@@ -88,7 +88,6 @@ ifeq ($(CONFIG_BAGET_MIPS),y)
 endif
 
 ifeq ($(CONFIG_NINO),y)
-  KEYBD    =
   SERIAL   =
 endif
 
@@ -138,6 +137,7 @@ obj-$(CONFIG_SERIAL167) += serial167.o
 obj-$(CONFIG_MVME147_SCC) += generic_serial.o vme_scc.o
 obj-$(CONFIG_MVME162_SCC) += generic_serial.o vme_scc.o
 obj-$(CONFIG_BVME6000_SCC) += generic_serial.o vme_scc.o
+obj-$(CONFIG_SERIAL_TX3912) += generic_serial.o serial_tx3912.o
 
 subdir-$(CONFIG_RIO) += rio
 subdir-$(CONFIG_INPUT) += joystick
@@ -218,6 +218,7 @@ consolemap_deftbl.o: consolemap_deftbl.c $(TOPDIR)/include/linux/types.h
 
 defkeymap.c: defkeymap.map
 	loadkeys --mktable defkeymap.map > defkeymap.c
+
 ifeq ($(CONFIG_QTRONIX_KEYBOARD),y)
 qtronixmap.c: qtronixmap.map
 	loadkeys --mktable qtronixmap.map > qtronixmap.c

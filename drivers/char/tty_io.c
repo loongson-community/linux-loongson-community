@@ -151,6 +151,8 @@ extern void rs285_console_init(void);
 extern void sa1100_rs_console_init(void);
 extern void sgi_serial_console_init(void);
 extern void sci_console_init(void);
+extern void tx3912_console_init(void);
+extern void tx3912_rs_init(void);
 
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
@@ -2205,6 +2207,9 @@ void __init console_init(void)
 #ifdef CONFIG_SERIAL_AMBA_CONSOLE
 	ambauart_console_init();
 #endif
+#ifdef CONFIG_SERIAL_TX3912_CONSOLE
+	tx3912_console_init();
+#endif
 }
 
 static struct tty_driver dev_tty_driver, dev_syscons_driver;
@@ -2293,6 +2298,9 @@ void __init tty_init(void)
 #endif
 #if defined(CONFIG_MVME162_SCC) || defined(CONFIG_BVME6000_SCC) || defined(CONFIG_MVME147_SCC)
 	vme_scc_init();
+#endif
+#ifdef CONFIG_SERIAL_TX3912
+	tx3912_rs_init();
 #endif
 #ifdef CONFIG_COMPUTONE
 	ip2_init();
