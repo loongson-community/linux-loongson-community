@@ -455,6 +455,12 @@ extern void update_mmu_cache(struct vm_area_struct *vma,
 
 #include <asm-generic/pgtable.h>
 
+/*
+ * We provide our own get_unmapped area to cope with the virtual aliasing
+ * constraints places on us by the cache architecture.
+ */
+#define HAVE_ARCH_UNMAPPED_AREA
+
 #define io_remap_page_range remap_page_range
 
 /*
