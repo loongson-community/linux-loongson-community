@@ -89,7 +89,7 @@ static void local_sb1___flush_cache_all(void)
 		".set noat                  \n"
 		".set mips4                 \n"
 		"     move   $1, %2         \n" /* Start at index 0 */
-		"1:   cache  0x1, 0($1)     \n" /* WB/Invalidate this index */
+		"1:   cache  %3, 0($1)      \n" /* WB/Invalidate this index */
 		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
 		"      addu   $1, $1, %0    \n" /* Next address */
