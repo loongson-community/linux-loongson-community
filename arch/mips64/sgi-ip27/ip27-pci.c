@@ -199,10 +199,11 @@ pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	if (irqstore[dev->bus->number][slot])
 		return(irqstore[dev->bus->number][slot]);
 	else {
-		lastirq++;	/* IOC3_ETH_INT hack */
 		irq_to_bus[lastirq] = dev->bus->number;
 		irq_to_slot[lastirq] = slot;
-		return(irqstore[dev->bus->number][slot] = lastirq);
+		irqstore[dev->bus->number][slot] = lastirq;
+		lastirq++;
+		return (lastirq - 1);
 	}
 }
 
