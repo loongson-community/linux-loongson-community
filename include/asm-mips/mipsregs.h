@@ -331,6 +331,7 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
 /* bits 6 & 7 are reserved on R[23]000 */
 #define ST0_ISC			0x00010000
 #define ST0_SWC			0x00020000
+#define ST0_CM			0x00080000
 
 /*
  * Bits specific to the R4640/R4650
