@@ -66,7 +66,8 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 		"addu\t%0,%1,%3\n\t"
 		".set\treorder"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
 
 	return result;
 }
@@ -84,7 +85,8 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 		"subu\t%0,%1,%3\n\t"
 		".set\treorder"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
 
 	return result;
 }

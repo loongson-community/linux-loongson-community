@@ -80,21 +80,6 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 	return temp;
 }
 
-extern __inline__ void atomic_clear_mask(unsigned long mask, unsigned long * v)
-{
-        unsigned long temp;
-        int     flags;
-
-        save_flags(flags);
-        cli();
-        temp = *v;
-        temp &= ~mask;
-        *v = temp;
-        restore_flags(flags);
-
-        return;
-}
-
 #else
 
 /*
@@ -144,7 +129,8 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 		"addu\t%0,%1,%3\n\t"
 		".set\treorder"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
 
 	return result;
 }
@@ -162,7 +148,8 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 		"subu\t%0,%1,%3\n\t"
 		".set\treorder"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "m" (v->counter)
+		: "memory");
 
 	return result;
 }
