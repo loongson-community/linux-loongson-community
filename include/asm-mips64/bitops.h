@@ -376,12 +376,12 @@ ext2_test_bit(int nr, const void * addr)
 #define ext2_find_first_zero_bit(addr, size) \
         ext2_find_next_zero_bit((addr), (size), 0)
 
-extern inline unsigned long
+extern inline unsigned int
 ext2_find_next_zero_bit(void *addr, unsigned long size, unsigned long offset)
 {
-	unsigned long *p = ((unsigned long *) addr) + (offset >> 5);
-	unsigned long result = offset & ~31UL;
-	unsigned long tmp;
+	unsigned int *p = ((unsigned int *) addr) + (offset >> 5);
+	unsigned int result = offset & ~31UL;
+	unsigned int tmp;
 
 	if (offset >= size)
 		return size;
