@@ -5,8 +5,8 @@
  *  The reason I'm duplicating this is so that the 64120/96100
  * defines won't be confusing in the source code.
  */
-#ifndef _ASM_GT64120_MIPS_BOARDS_GT64120_DEP_H
-#define _ASM_GT64120_MIPS_BOARDS_GT64120_DEP_H
+#ifndef _ASM_MACH_MIPS_MACH_GT64120_DEP_H
+#define _ASM_MACH_MIPS_MACH_GT64120_DEP_H
 
 #define MIPS_GT_BASE    0x1be00000
 
@@ -25,4 +25,4 @@ extern unsigned long _pcictrl_gt64120;
 #define GT_PCI_IO_SIZE     0x02000000UL
 #define GT_ISA_IO_BASE     PCI_IO_BASE
 
-#endif /* _ASM_GT64120_MIPS_BOARDS_GT64120_DEP_H */
+#endif /* _ASM_MACH_MIPS_MACH_GT64120_DEP_H */
