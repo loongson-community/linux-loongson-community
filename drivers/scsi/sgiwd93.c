@@ -17,7 +17,7 @@
 #include <linux/blkdev.h>
 #include <linux/version.h>
 #include <linux/delay.h>
-#include <linux/pci.h>
+#include <linux/dma-mapping.h>
 #include <linux/spinlock.h>
 
 #include <asm/page.h>
@@ -106,8 +106,7 @@ void fill_hpc_entries(struct hpc_chunk *hcp, Scsi_Cmnd *cmd, int datainp)
 	dma_addr_t physaddr;
 	unsigned long count;
 
-	physaddr = pci_map_single(NULL, addr, len,
-		scsi_to_pci_dma_dir(cmd->sc_data_direction));
+	physaddr = dma_map_single(NULL, addr, len, cmd->sc_data_direction);
 	cmd->SCp.dma_handle = physaddr;
 
 	while (len) {
@@ -186,8 +185,8 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 			barrier();
 	}
 	hregs->ctrl = 0;
-	pci_unmap_single(NULL, SCpnt->SCp.dma_handle, SCpnt->SCp.this_residual,
-	                 scsi_to_pci_dma_dir(SCpnt->sc_data_direction));
+	dma_unmap_single(NULL, SCpnt->SCp.dma_handle, SCpnt->SCp.this_residual,
+	                 SCpnt->sc_data_direction);
 
 	DPRINTK("\n");
 }
@@ -235,7 +234,8 @@ static struct Scsi_Host * __init sgiwd93_setup_scsi(
 	host->irq = irq;
 
 	hdata = HDATA(host);
-	hdata->hd.cpu = pci_alloc_consistent(NULL, PAGE_SIZE, &hdata->hd.dma);
+	hdata->hd.cpu = dma_alloc_coherent(NULL, PAGE_SIZE, &hdata->hd.dma,
+	                                   GFP_KERNEL);
 	if (!hdata->hd.cpu) {
 		printk(KERN_WARNING "sgiwd93: Could not allocate memory for "
 		       "host %d buffer.\n", unit);
@@ -258,7 +258,7 @@ static struct Scsi_Host * __init sgiwd93_setup_scsi(
 	return host;
 
 out_free:
-	pci_free_consistent(NULL, PAGE_SIZE, hdata->hd.cpu, hdata->hd.dma);
+	dma_free_coherent(NULL, PAGE_SIZE, hdata->hd.cpu, hdata->hd.dma);
 	wd33c93_release();
 
 out_unregister:
@@ -301,7 +301,7 @@ int sgiwd93_release(struct Scsi_Host *instance)
 		irq = SGI_WD93_1_IRQ;
 
 	free_irq(irq, sgiwd93_intr);
-	pci_free_consistent(NULL, PAGE_SIZE, hdata->hd.cpu, hdata->hd.dma);
+	dma_free_coherent(NULL, PAGE_SIZE, hdata->hd.cpu, hdata->hd.dma);
 	wd33c93_release();
 
 	return 1;
