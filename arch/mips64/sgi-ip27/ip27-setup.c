@@ -1,4 +1,4 @@
-/* $Id: ip27-setup.c,v 1.6 2000/02/05 02:12:32 kanoj Exp $
+/* $Id: ip27-setup.c,v 1.7 2000/03/07 15:45:29 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,6 +19,9 @@
 #include <asm/sn/klconfig.h>
 #include <asm/ioc3.h>
 #include <asm/mipsregs.h>
+#include <asm/sn/arch.h>
+#include <asm/pci/bridge.h>
+#include <asm/paccess.h>
 
 /* Check against user dumbness.  */
 #ifdef CONFIG_VT
@@ -84,6 +87,23 @@ static void __init verify_mode(void)
 #endif
 }
 
+static void __init pcibr_setup(void)
+{
+	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
+	bridgereg_t devreg;
+	int	    slot;
+
+	/*
+	 * Clear all pending interrupts.
+	 */
+	bridge->b_int_rst_stat = (BRIDGE_IRR_ALL_CLR);
+	/*
+	 * Until otherwise set up, assume all interrupts are from slot 0
+	 */
+	bridge->b_int_device = (u32) 0x0;
+	bridge->b_wid_tflush;               /* wait until Bridge PIO complete */
+}
+
 void __init ip27_setup(void)
 {
 	nasid_t nid;
@@ -108,4 +128,7 @@ void __init ip27_setup(void)
 	verify_mode();
 	ioc3_sio_init();
 	ioc3_eth_init();
+
+	/* set some bridge registers */
+	pcibr_setup();
 }
