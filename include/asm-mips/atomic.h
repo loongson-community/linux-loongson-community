@@ -57,10 +57,9 @@ typedef struct { volatile int counter; } atomic_t;
  */
 extern __inline__ void atomic_add(int i, atomic_t * v)
 {
-	int	flags;
+	unsigned long flags;
 
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	v->counter += i;
 	restore_flags(flags);
 }
@@ -75,20 +74,19 @@ extern __inline__ void atomic_add(int i, atomic_t * v)
  */
 extern __inline__ void atomic_sub(int i, atomic_t * v)
 {
-	int	flags;
+	unsigned long flags;
 
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	v->counter -= i;
 	restore_flags(flags);
 }
 
 extern __inline__ int atomic_add_return(int i, atomic_t * v)
 {
-	int	temp, flags;
+	unsigned long flags;
+	int temp;
 
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	temp = v->counter;
 	temp += i;
 	v->counter = temp;
@@ -99,10 +97,10 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 
 extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 {
-	int	temp, flags;
+	unsigned long flags;
+	int temp;
 
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	temp = v->counter;
 	temp -= i;
 	v->counter = temp;
