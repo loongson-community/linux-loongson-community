@@ -51,7 +51,7 @@ static inline void flush_tlb_pgtables(struct mm_struct *mm,
 }
 
 #define pmd_populate_kernel(mm, pmd, pte)	set_pmd(pmd, __pmd(pte))
-#define pmd_populate(mm, pmd, pte)		set_pmd(pmd, __pmd(pte))
+#define pmd_populate(mm, pmd, page)		set_pmd(pmd, __pmd(((page - mem_map) << PAGE_SHIFT) + PAGE_OFFSET))
 #define pgd_populate(mm, pgd, pmd)		set_pgd(pgd, __pgd(pmd))
 
 static inline pgd_t *pgd_alloc(struct mm_struct *mm)
