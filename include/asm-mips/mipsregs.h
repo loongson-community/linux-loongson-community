@@ -77,7 +77,7 @@
  */
 #define CP0_S1_DERRADDR0  $26
 #define CP0_S1_DERRADDR1  $27
-
+#define CP0_S1_INTCONTROL $20
 /*
  * Coprocessor 1 (FPU) register names
  */
@@ -196,6 +196,12 @@
 #define write_32bit_cp0_register(register,value)                \
         __asm__ __volatile__(                                   \
         "mtc0\t%0,"STR(register)"\n\t"				\
+	"nop"							\
+        : : "r" (value));
+
+#define write_32bit_cp0_set1_register(register,value)           \
+        __asm__ __volatile__(                                   \
+        "ctc0\t%0,"STR(register)"\n\t"				\
 	"nop"							\
         : : "r" (value));
 
@@ -386,6 +392,22 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
 #define  STATUSF_IP6		(1   << 14)
 #define  STATUSB_IP7		15
 #define  STATUSF_IP7		(1   << 15)
+#define  STATUSB_IP8		0
+#define  STATUSF_IP8		(1   << 0)
+#define  STATUSB_IP9		1
+#define  STATUSF_IP9		(1   << 1)
+#define  STATUSB_IP10		2
+#define  STATUSF_IP10		(1   << 2)
+#define  STATUSB_IP11		3
+#define  STATUSF_IP11		(1   << 3)
+#define  STATUSB_IP12		4
+#define  STATUSF_IP12		(1   << 4)
+#define  STATUSB_IP13		5
+#define  STATUSF_IP13		(1   << 5)
+#define  STATUSB_IP14		6
+#define  STATUSF_IP14		(1   << 6)
+#define  STATUSB_IP15		7
+#define  STATUSF_IP15		(1   << 7)
 #define ST0_CH			0x00040000
 #define ST0_SR			0x00100000
 #define ST0_BEV			0x00400000

@@ -5,6 +5,7 @@
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
+ * Copyright (C) 2000, 2001 Ralf Baechle (ralf@gnu.org)
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -48,116 +49,125 @@
 #include <asm/system.h>
 
 
-#undef IRQ_DEBUG
-
-#ifdef IRQ_DEBUG
-#define DBG(x...) printk(x)
-#else
-#define DBG(x...)
-#endif
-
+static spinlock_t rm7000_irq_lock = SPIN_LOCK_UNLOCKED;
 
 /* Function for careful CP0 interrupt mask access */
-static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
+static inline void modify_cp0_intmask(unsigned clr_mask_in, unsigned set_mask_in)
 {
-	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
-	DBG(KERN_INFO "modify_cp0_intmask clr %x, set %x\n", clr_mask,
-	    set_mask);
-	DBG(KERN_INFO "modify_cp0_intmask status %x\n", status);
+	unsigned long status;
+	unsigned clr_mask;
+	unsigned set_mask;
+
+	/* do the low 8 bits first */
+	clr_mask = 0xff & clr_mask_in;
+	set_mask = 0xff & set_mask_in;
+	status = read_32bit_cp0_register(CP0_STATUS);
 	status &= ~((clr_mask & 0xFF) << 8);
 	status |= (set_mask & 0xFF) << 8;
-	DBG(KERN_INFO "modify_cp0_intmask status %x\n", status);
 	write_32bit_cp0_register(CP0_STATUS, status);
+
+	/* do the high 8 bits */
+	clr_mask = 0xff & (clr_mask_in >> 8);
+	set_mask = 0xff & (set_mask_in >> 8);
+	status = read_32bit_cp0_set1_register(CP0_S1_INTCONTROL);
+	status &= ~((clr_mask & 0xFF) << 8);
+	status |= (set_mask & 0xFF) << 8;
+	write_32bit_cp0_set1_register(CP0_S1_INTCONTROL, status);
 }
 
-static inline void mask_irq(unsigned int irq_nr)
+static inline void mask_irq(unsigned int irq)
 {
-	modify_cp0_intmask(irq_nr, 0);
+	modify_cp0_intmask(irq, 0);
 }
 
-static inline void unmask_irq(unsigned int irq_nr)
+static inline void unmask_irq(unsigned int irq)
 {
-	modify_cp0_intmask(0, irq_nr);
+	modify_cp0_intmask(0, irq);
 }
 
-void disable_irq(unsigned int irq_nr)
-{
-	unsigned long flags;
-
-	DBG(KERN_INFO "disable_irq, irq %d\n", irq_nr);
-	save_and_cli(flags);
-	/* we don't support higher interrupts, nor cascaded interrupts */
-	if (irq_nr >= 8)
-		panic("irq_nr is greater than 8");
-	
-	mask_irq(1 << irq_nr);
-	restore_flags(flags);
-}
-
-void enable_irq(unsigned int irq_nr)
+static void enable_cp7000_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
-	
-	if ( irq_nr >= 8 )
-		panic("irq_nr is greater than 8");
-	
-	unmask_irq( 1 << irq_nr );
-	restore_flags(flags);
+	spin_lock_irqsave(&rm7000_irq_lock, flags);
+	unmask_irq(1 << irq);
+	spin_unlock_irqrestore(&rm7000_irq_lock, flags);
 }
 
-/*
- * Ocelot irq setup -
- *
- * Initializes CPU interrupts
- *
- *
- * Inputs :
- *
- * Outpus :
- *
- */
-void momenco_ocelot_irq_setup(void)
+static unsigned int startup_cp7000_irq(unsigned int irq)
 {
-	extern asmlinkage void ocelot_handle_int(void);
-	extern void gt64120_irq_init(void);
+	enable_cp7000_irq(irq);
 
-	DBG(KERN_INFO "rr: momenco_ocelot_irq_setup entry\n");
+	return 0;				/* never anything pending */
+}
 
-	gt64120_irq_init();
+static void disable_cp7000_irq(unsigned int irq)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&rm7000_irq_lock, flags);
+	mask_irq(1 << irq);
+	spin_unlock_irqrestore(&rm7000_irq_lock, flags);
+}
+
+#define shutdown_cp7000_irq disable_cp7000_irq
+
+static void mask_and_ack_cp7000_irq(unsigned int irq)
+{
+	mask_irq(1 << irq);
+}
+
+static void end_cp7000_irq(unsigned int irq)
+{
+	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
+		unmask_irq(1 << irq);
+}
+
+static struct hw_interrupt_type cp7000_hpcdma_irq_type = {
+	"CP7000",
+	startup_cp7000_irq,
+	shutdown_cp7000_irq,
+	enable_cp7000_irq,
+	disable_cp7000_irq,
+	mask_and_ack_cp7000_irq,
+	end_cp7000_irq,
+	NULL
+};
+
+
+extern asmlinkage void ocelot_handle_int(void);
+extern void gt64120_irq_init(void);
+
+void __init init_IRQ(void)
+{
+	int i;
 
 	/*
 	 * Clear all of the interrupts while we change the able around a bit.
 	 * int-handler is not on bootstrap
 	 */
 	clear_cp0_status(ST0_IM | ST0_BEV);
+	__cli();
 
 	/* Sets the first-level interrupt dispatcher. */
 	set_except_vector(0, ocelot_handle_int);
+	init_generic_irq();
 
-	cli();
+	for (i = 0; i <= 15; i++) {
+		irq_desc[i].status	= IRQ_DISABLED;
+		irq_desc[i].action	= 0;
+		irq_desc[i].depth	= 1;
+		irq_desc[i].handler	= &cp7000_hpcdma_irq_type;
+	}
 
-	/*
-	 * Enable timer.  Other interrupts will be enabled as they are
-	 * registered.
-	 */
-	// change_cp0_status(ST0_IM, IE_IRQ4);
-
+	gt64120_irq_init();
 
 #ifdef CONFIG_REMOTE_DEBUG
-	{
-		/*
-		extern int DEBUG_CHANNEL;
-		serial_init(DEBUG_CHANNEL);
-		serial_set(DEBUG_CHANNEL, 115200);
-		*/
-		printk("start kgdb ...\n");
-		set_debug_traps();
-		breakpoint();	/* you may move this line to whereever you want :-) */
-#ifdef CONFIG_GDB_CONSOLE		
-		register_gdb_console();
+	printk("start kgdb ...\n");
+	set_debug_traps();
+	breakpoint();	/* you may move this line to whereever you want :-) */
 #endif
-	}
+#ifdef CONFIG_GDB_CONSOLE
+	register_gdb_console();
 #endif
 }

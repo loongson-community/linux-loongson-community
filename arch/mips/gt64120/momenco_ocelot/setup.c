@@ -88,7 +88,7 @@ void __init momenco_ocelot_setup(void)
 {
 	void (*l3func)(unsigned long)=KSEG1ADDR(&setup_l3cache);
 	unsigned int tmpword;
-	irq_setup = momenco_ocelot_irq_setup;
+
 	board_time_init = gt64120_time_init;
 
 	_machine_restart = momenco_ocelot_restart;

@@ -13,6 +13,6 @@
 
 O_TARGET:= gt64120.o
 
-obj-y	 := gt_irq.o irq.o pci.o
+obj-y	 := gt_irq.o pci.o
 
 include $(TOPDIR)/Rules.make

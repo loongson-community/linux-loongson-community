@@ -53,6 +53,12 @@ void __init gt64120_board_pcibios_fixup_bus(struct pci_bus *bus)
 				      "found unexpected PCI device in slot 2.");
 			}
 			devices->irq = 3;       /* irq_nr is 3 for INT1 */
+		} else if (PCI_SLOT(devices->devfn) == 4) {
+			/* PMC Slot 1 */
+			devices->irq = 8;       /* irq_nr is 8 for INT6 */
+		} else if (PCI_SLOT(devices->devfn) == 5) {
+			/* PMC Slot 1 */
+			devices->irq = 9;       /* irq_nr is 9 for INT7 */
 		} else {
 			/* We don't have assign interrupts for other devices. */
 			devices->irq = 0xff;

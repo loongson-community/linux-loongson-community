@@ -1,4 +1,4 @@
-/***********************************************************************
+/*
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: jsun@mvista.com or jsun@junsun.net
@@ -10,10 +10,7 @@
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- *
- ***********************************************************************
  */
-
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -198,7 +195,7 @@ static void gt64120_irq(int irq, void *dev_id, struct pt_regs *regs)
  * that is passed in as *irq (=irq0 in ../kernel/time.c).
  * We will do our own timer interrupt handling.
  */
-void gt64120_time_init(struct irqaction *irq)
+void gt64120_time_init(void)
 {
 	extern irq_desc_t irq_desc[NR_IRQS];
 	static struct irqaction timer;

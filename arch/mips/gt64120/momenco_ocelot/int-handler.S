@@ -43,6 +43,26 @@
 		bnez	t1, ll_galileo_irq
 		 andi	t1, t0, STATUSF_IP7	/* cpu timer */
 		bnez	t1, ll_cputimer_irq
+
+                /* now look at the extended interrupts */
+		mfc0	t0, CP0_CAUSE  
+		cfc0	t1, CP0_S1_INTCONTROL
+
+		/* shift the mask 8 bits left to line up the bits */
+		 sll	t2, t1, 8
+
+		 and	t0, t2
+		 srl	t0, t0, 16
+
+		 andi	t1, t0, STATUSF_IP8	/* int6 hardware line */
+		bnez	t1, ll_pmc1_irq
+		 andi	t1, t0, STATUSF_IP9	/* int7 hardware line */
+		bnez	t1, ll_pmc2_irq
+		 andi	t1, t0, STATUSF_IP10	/* int8 hardware line */
+		bnez	t1, ll_cpci_abcd_irq
+		 andi	t1, t0, STATUSF_IP11	/* int9 hardware line */
+		bnez	t1, ll_uart2_irq
+
 		.set	reorder
 
 		/* wrong alarm or masked ... */
@@ -87,3 +107,26 @@ ll_cputimer_irq:
 		jal	do_IRQ
 		j	ret_from_irq
 	
+ll_pmc1_irq:
+		li	a0, 8
+		move	a1, sp
+		jal	do_IRQ
+		j	ret_from_irq
+
+ll_pmc2_irq:
+		li	a0, 9
+		move	a1, sp
+		jal	do_IRQ
+		j	ret_from_irq
+
+ll_cpci_abcd_irq:
+		li	a0, 10
+		move	a1, sp
+		jal	do_IRQ
+		j	ret_from_irq
+
+ll_uart2_irq:
+		li	a0, 11
+		move	a1, sp
+		jal	do_IRQ
+		j	ret_from_irq
