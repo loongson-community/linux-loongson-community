@@ -229,7 +229,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			unsigned long long *fregs;
 			fregs = (unsigned long long *)&child->thread.fpu.hard.fp_regs[0];
 			if (child->used_math) {
-				if (last_task_used_math == child)
+				if (last_task_used_math == child) {
 					if(!(mips_cpu.options & MIPS_CPU_FPU)) {
 						fregs = (unsigned long long *)
 						child->thread.fpu.soft.regs;
@@ -240,6 +240,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 						last_task_used_math = NULL;
 						regs->cp0_status &= ~ST0_CU1;
 					}
+				}
 			} else {
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,
