@@ -88,14 +88,6 @@
 #define STR(x)  __STR(x)
 #define __STR(x)  #x
 
-/*
- * User code may only access USEG; kernel code may access the
- * entire address space.
- */
-#define check_axs(pc,a,s)				\
-	if ((long)(~(pc) & ((a) | ((a)+(s)))) < 0)	\
-		goto sigbus;
-
 static inline int emulate_load_store_insn(struct pt_regs *regs,
 	unsigned long addr, unsigned long pc)
 {
@@ -143,7 +135,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 	 * The remaining opcodes are the ones that are really of interest.
 	 */
 	case lh_op:
-		check_axs(pc, addr, 2);
+		if (verify_area(VERIFY_READ, addr, 2))
+			goto sigbus;
+
 		__asm__(".set\tnoat\n"
 #ifdef __BIG_ENDIAN
 			"1:\tlb\t%0, 0(%2)\n"
@@ -173,7 +167,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		return 0;
 
 	case lw_op:
-		check_axs(pc, addr, 4);
+		if (verify_area(VERIFY_READ, addr, 4))
+			goto sigbus;
+
 		__asm__(
 #ifdef __BIG_ENDIAN
 			"1:\tlwl\t%0, (%2)\n"
@@ -200,7 +196,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		return 0;
 
 	case lhu_op:
-		check_axs(pc, addr, 2);
+		if (verify_area(VERIFY_READ, addr, 2))
+			goto sigbus;
+
 		__asm__(
 			".set\tnoat\n"
 #ifdef __BIG_ENDIAN
@@ -239,7 +237,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		 * would blow up, so for now we don't handle unaligned 64-bit
 		 * instructions on 32-bit kernels.
 		 */
-		check_axs(pc, addr, 4);
+		if (verify_area(VERIFY_READ, addr, 4))
+			goto sigbus;
+
 		__asm__(
 #ifdef __BIG_ENDIAN
 			"1:\tlwl\t%0, (%2)\n"
@@ -280,7 +280,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		 * would blow up, so for now we don't handle unaligned 64-bit
 		 * instructions on 32-bit kernels.
 		 */
-		check_axs(pc, addr, 8);
+		if (verify_area(VERIFY_READ, addr, 8))
+			goto sigbus;
+
 		__asm__(
 #ifdef __BIG_ENDIAN
 			"1:\tldl\t%0, (%2)\n"
@@ -311,7 +313,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		goto sigill;
 
 	case sh_op:
-		check_axs(pc, addr, 2);
+		if (verify_area(VERIFY_WRITE, addr, 2))
+			goto sigbus;
+
 		value = regs->regs[insn.i_format.rt];
 		__asm__(
 #ifdef __BIG_ENDIAN
@@ -345,7 +349,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		return 0;
 
 	case sw_op:
-		check_axs(pc, addr, 4);
+		if (verify_area(VERIFY_WRITE, addr, 4))
+			goto sigbus;
+
 		value = regs->regs[insn.i_format.rt];
 		__asm__(
 #ifdef __BIG_ENDIAN
@@ -381,7 +387,9 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		 * would blow up, so for now we don't handle unaligned 64-bit
 		 * instructions on 32-bit kernels.
 		 */
-		check_axs(pc, addr, 8);
+		if (verify_area(VERIFY_WRITE, addr, 8))
+			goto sigbus;
+
 		value = regs->regs[insn.i_format.rt];
 		__asm__(
 #ifdef __BIG_ENDIAN
