@@ -1115,8 +1115,8 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	unsigned int port_num = titan_ge_eth->port_num;
 	struct device *device = &titan_ge_device[port_num]->dev;
-	unsigned int size, phy_reg;
 	unsigned long reg_data;
+	unsigned int phy_reg;
 	int err = 0;
 
 	/* Stop the Rx activity */
@@ -1146,22 +1146,20 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	/* Allocate the Tx ring now */
 	titan_ge_eth->tx_ring_skbs = 0;
 	titan_ge_eth->tx_ring_size = TITAN_GE_TX_QUEUE;
-	size = titan_ge_eth->tx_ring_size * sizeof(titan_ge_tx_desc);
 
 	/* Allocate space in the SRAM for the descriptors */
-	titan_ge_eth->tx_desc_area =
-		(titan_ge_tx_desc *) (titan_ge_sram + 0x100 * port_num);
-	titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x100 * port_num;
+	titan_ge_eth->tx_desc_area = (titan_ge_tx_desc *)
+		(titan_ge_sram + TITAN_TX_RING_BYTES * port_num);
+	titan_ge_eth->tx_dma = TITAN_SRAM_BASE + TITAN_TX_RING_BYTES * port_num;
 
 	if (!titan_ge_eth->tx_desc_area) {
 		printk(KERN_ERR
 		       "%s: Cannot allocate Tx Ring (size %d bytes) for port %d\n",
-		       netdev->name, size, port_num);
+		       netdev->name, TITAN_TX_RING_BYTES, port_num);
 		return -ENOMEM;
 	}
 
-	memset((void *) titan_ge_eth->tx_desc_area, 0,
-	       titan_ge_eth->tx_desc_area_size);
+	memset(titan_ge_eth->tx_desc_area, 0, titan_ge_eth->tx_desc_area_size);
 
 	/* Now initialize the Tx descriptor ring */
 	titan_ge_init_tx_desc_ring(titan_ge_eth,
@@ -1172,17 +1170,16 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	/* Allocate the Rx ring now */
 	titan_ge_eth->rx_ring_size = TITAN_GE_RX_QUEUE;
 	titan_ge_eth->rx_ring_skbs = 0;
-	size = titan_ge_eth->rx_ring_size * sizeof(titan_ge_rx_desc);
 
 	titan_ge_eth->rx_desc_area =
-		(titan_ge_rx_desc *)(titan_ge_sram + 0x1000 + 0x100 * port_num);
+		(titan_ge_rx_desc *)(titan_ge_sram + 0x1000 + TITAN_RX_RING_BYTES * port_num);
 
-	titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1000 + 0x100 * port_num;
+	titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1000 + TITAN_RX_RING_BYTES * port_num;
 
 	if (!titan_ge_eth->rx_desc_area) {
 		printk(KERN_ERR
 		       "%s: Cannot allocate Rx Ring (size %d bytes)\n",
-		       netdev->name, size);
+		       netdev->name, TITAN_RX_RING_BYTES);
 
 		printk(KERN_ERR
 		       "%s: Freeing previously allocated TX queues...",
@@ -1803,8 +1800,7 @@ static int titan_ge_init_tx_desc_ring(titan_ge_port_info * titan_ge_port,
 	titan_ge_port->tx_curr_desc_q = 0;
 	titan_ge_port->tx_used_desc_q = 0;
 
-	titan_ge_port->tx_desc_area =
-	    (titan_ge_tx_desc *) tx_desc_base_addr;
+	titan_ge_port->tx_desc_area = (titan_ge_tx_desc *) tx_desc_base_addr;
 	titan_ge_port->tx_desc_area_size =
 	    tx_desc_num * sizeof(titan_ge_tx_desc);
 

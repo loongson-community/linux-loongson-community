@@ -122,12 +122,6 @@ extern unsigned long titan_ge_sram;
 #define	TITAN_GE_STD_BUFSIZE	1580
 #endif
 
-/* Default Tx Queue Size */
-#define	TITAN_GE_TX_QUEUE	128
-
-/* Default Rx Queue Size */
-#define	TITAN_GE_RX_QUEUE	64
-
 /*
  * Tx and Rx Interrupt Coalescing parameter. These values are
  * for 1 Ghz processor. Rx coalescing can be taken care of
@@ -141,7 +135,7 @@ extern unsigned long titan_ge_sram;
 #if defined(__BIG_ENDIAN)
 
 /* Define the Rx descriptor */
-typedef struct _eth_rx_desc {
+typedef struct eth_rx_desc {
 	u32     reserved;	/* Unused 		*/
 	u32     buffer_addr;	/* CPU buffer address 	*/
 	u32	cmd_sts;	/* Command and Status	*/
@@ -149,7 +143,7 @@ typedef struct _eth_rx_desc {
 } titan_ge_rx_desc;
 
 /* Define the Tx descriptor */
-typedef struct _eth_tx_desc {
+typedef struct eth_tx_desc {
 	u16     cmd_sts;	/* Command, Status and Buffer count */
 	u16	buffer_len;	/* Length of the buffer	*/
 	u32     buffer_addr;	/* Physical address of the buffer */
@@ -158,20 +152,26 @@ typedef struct _eth_tx_desc {
 #elif defined(__LITTLE_ENDIAN)
 
 /* Define the Rx descriptor */
-typedef struct _eth_rx_desc {
+typedef struct eth_rx_desc {
 	u32	buffer_addr;	/* Buffer address inclusive of checksum */
 	u32     cmd_sts;	/* Command and Status info */
 } titan_ge_rx_desc;
 
 /* Define the Tx descriptor */
-typedef struct _eth_tx_desc {
+typedef struct eth_tx_desc {
 	u32     buffer_addr;	/* Physical address of the buffer */
 	u16     buffer_len;     /* Length of the buffer */
 	u16     cmd_sts;        /* Command, Status and Buffer count */
 } titan_ge_tx_desc;
-#else
-#error One of __BIG_ENDIAN or __LITTLE_ENDIAN must be defined
 #endif
+
+/* Default Tx Queue Size */
+#define	TITAN_GE_TX_QUEUE	128
+#define TITAN_TX_RING_BYTES	(TITAN_GE_TX_QUEUE * sizeof(struct eth_tx_desc))
+
+/* Default Rx Queue Size */
+#define	TITAN_GE_RX_QUEUE	64
+#define TITAN_RX_RING_BYTES	(TITAN_GE_RX_QUEUE * sizeof(struct eth_rx_desc))
 
 /* Packet Structure */
 typedef struct _pkt_info {
