@@ -667,6 +667,10 @@ config RWSEM_GENERIC_SPINLOCK
 config RWSEM_XCHGADD_ALGORITHM
 	bool
 
+config HAVE_DEC_LOCK
+	bool
+	default y
+
 #
 # Select some configuration options automatically based on user selections.
 #
