@@ -23,6 +23,24 @@ do {							        \
 		return PCIBIOS_DEVICE_NOT_FOUND;		\
 } while (0)
 
+#define SCSI0  MACEPCI_SCSI0_IRQ
+#define SCSI1  MACEPCI_SCSI1_IRQ
+#define INTA0  MACEPCI_SLOT0_IRQ
+#define INTA1  MACEPCI_SLOT1_IRQ
+#define INTA2  MACEPCI_SLOT2_IRQ
+#define INTB   MACEPCI_SHARED0_IRQ
+#define INTC   MACEPCI_SHARED1_IRQ
+#define INTD   MACEPCI_SHARED2_IRQ
+static char irq_tab_mace[][5] __initdata = {
+      /* Dummy  INT#A  INT#B INT#C   INT#D */
+	{0,         0,     0,     0,     0}, /* This is placeholder row - never used */
+	{0,     SCSI0, SCSI0, SCSI0, SCSI0},
+	{0,     SCSI1, SCSI1, SCSI1, SCSI1},
+	{0,     INTA0,  INTB,  INTC,  INTD},
+	{0,     INTA1,  INTC,  INTD,  INTB},
+	{0,     INTA2,  INTD,  INTB,  INTC},
+};
+
 
 /*
  * Given a PCI slot number (a la PCI_SLOT(...)) and the interrupt pin of
@@ -31,61 +49,9 @@ do {							        \
  * irqs.  I suppose a device without a pin A will thank us for doing it
  * right if there exists such a broken piece of crap.
  */
-static int __devinit macepci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	chkslot(dev->bus, dev->devfn);
-	if (pin == 0)
-		pin = 1;
-	switch (slot) {
-	case 1:
-		return MACEPCI_SCSI0_IRQ;
-	case 2:
-		return MACEPCI_SCSI1_IRQ;
-	case 3:
-		switch (pin) {
-		case 2:
-			return MACEPCI_SHARED0_IRQ;
-		case 3:
-			return MACEPCI_SHARED1_IRQ;
-		case 4:
-			return MACEPCI_SHARED2_IRQ;
-		case 1:
-		default:
-			return MACEPCI_SLOT0_IRQ;
-		}
-	case 4:
-		switch (pin) {
-		case 2:
-			return MACEPCI_SHARED2_IRQ;
-		case 3:
-			return MACEPCI_SHARED0_IRQ;
-		case 4:
-			return MACEPCI_SHARED1_IRQ;
-		case 1:
-		default:
-			return MACEPCI_SLOT1_IRQ;
-		}
-		return MACEPCI_SLOT1_IRQ;
-	case 5:
-		switch (pin) {
-		case 2:
-			return MACEPCI_SHARED1_IRQ;
-		case 3:
-			return MACEPCI_SHARED2_IRQ;
-		case 4:
-			return MACEPCI_SHARED0_IRQ;
-		case 1:
-		default:
-			return MACEPCI_SLOT2_IRQ;
-		}
-	default:
-		return 0;
-	}
-}
-
-void __init pcibios_fixup_irqs(void)
-{
-	pci_fixup_irqs(common_swizzle, macepci_map_irq);
+	return irq_tab_mace[slot][pin];
 }
 
 struct pci_fixup pcibios_fixups[] = {

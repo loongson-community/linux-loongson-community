@@ -105,11 +105,11 @@ static irqreturn_t macepci_error(int irq, void *dev, struct pt_regs *regs)
 
 
 extern struct pci_ops mace_pci_ops;
-/*#ifdef CONFIG_MIPS64
+#ifdef CONFIG_MIPS64
 static struct resource mace_pci_mem_resource = {
 	.name	= "SGI O2 PCI MEM",
-	.start	= UNCACHEDADDR(0x200000000UL),
-	.end	= UNCACHEDADDR(0x2FFFFFFFFUL),
+	.start	= 0x280000000UL,
+	.end	= 0x2FFFFFFFFUL,
 	.flags	= IORESOURCE_MEM,
 };
 static struct resource mace_pci_io_resource = {
@@ -118,12 +118,13 @@ static struct resource mace_pci_io_resource = {
 	.end	= 0xffffffffUL,
 	.flags	= IORESOURCE_IO,
 };
+#define MACE_PCI_MEM_OFFSET 0x200000000
 #else
-*/
+
 static struct resource mace_pci_mem_resource = {
 	.name	= "SGI O2 PCI MEM",
 	.start	= MACEPCI_LOW_MEMORY,
-	.end	= MACEPCI_LOW_MEMORY+32*1024*1024,
+	.end	= MACEPCI_LOW_MEMORY+0x2000000-1,
 	.flags	= IORESOURCE_MEM,
 };
 static struct resource mace_pci_io_resource = {
@@ -132,15 +133,18 @@ static struct resource mace_pci_io_resource = {
 	.end	= 0xFFFFFFFF,
 	.flags	= IORESOURCE_IO,
 };
-//#endif
+#define MACE_PCI_MEM_OFFSET (MACEPCI_LOW_MEMORY-0x80000000UL)
+#endif
 static struct pci_controller mace_pci_controller = {
 	.pci_ops	= &mace_pci_ops,
 	.mem_resource	= &mace_pci_mem_resource,
-	.io_resource	= &mace_pci_io_resource
+	.io_resource	= &mace_pci_io_resource,
+	.iommu          = 0,
+	.mem_offset     = MACE_PCI_MEM_OFFSET,
 };
 
 
-static void __init mace_init(void)
+static int __init mace_init(void)
 {
 	/* Clear any outstanding errors and enable interrupts */
 	mace_write_32(MACEPCI_ERROR_ADDR, 0);
@@ -152,11 +156,15 @@ static void __init mace_init(void)
 
 	if (request_irq(MACE_PCI_BRIDGE_IRQ, macepci_error, 0,
 			"MACE PCI error", NULL))
-		panic("PCI bridge can't get interrupt; can't happen.");
+		printk("PCI bridge can't get interrupt; can't happen.\n");
+	else
+		printk("PCI bridge interrupt registered\n");
+	return 0;
 
 }
-//subsys_initcall(mace_init);
+subsys_initcall(mace_init);
 
+extern int pci_probe_only;
 void __init ip32_pci_setup(void)
 {
  	u32 rev = mace_read_32(MACEPCI_REV);
@@ -164,9 +172,6 @@ void __init ip32_pci_setup(void)
  	printk("MACE: PCI rev %d detected at %016lx\n", rev,
  	       (u64) MACE_BASE + MACE_PCI);
 
- 	ioport_resource.start = 0;
 	ioport_resource.end = mace_pci_io_resource.end;
-	iomem_resource.start = mace_pci_mem_resource.start;
-	iomem_resource.end = mace_pci_mem_resource.end;
 	register_pci_controller(&mace_pci_controller);
 }
