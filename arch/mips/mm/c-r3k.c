@@ -319,8 +319,6 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 
 void __init ld_mmu_r23000(void)
 {
-	unsigned long config;
-
 	_clear_page = r3k_clear_page;
 	_copy_page = r3k_copy_page;
 
