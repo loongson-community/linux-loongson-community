@@ -473,9 +473,8 @@ static inline int look_for_irix_interpreter(char **name,
 			retval = PTR_ERR(dentry);
 			goto out;
 		}
-
 		retval = read_exec(dentry, 0, bprm->buf, 128, 1);
-		if(retval)
+		if(retval < 0)
 			goto dput_and_out;
 
 		*interp_elf_ex = *((struct elfhdr *) bprm->buf);
@@ -648,7 +647,7 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	start_code = 0xffffffff;
 	end_code = 0;
 	end_data = 0;
-	
+
 	retval = look_for_irix_interpreter(&elf_interpreter,
 	                                   &interpreter_dentry,
 					   &interp_elf_ex, elf_phdata, bprm,
@@ -722,6 +721,7 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 			return 0;
 		}
 	}
+
 
 	set_fs(old_fs);
 	
