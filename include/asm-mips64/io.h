@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.6 2000/01/27 23:45:30 ralf Exp $
+/* $Id: io.h,v 1.7 2000/01/29 01:42:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -84,18 +84,20 @@ extern inline void * phys_to_virt(unsigned long address)
 extern void * ioremap(unsigned long phys_addr, unsigned long size);
 extern void iounmap(void *addr);
 
+#define	BRIDGE_DIRECT_MAPPED_BASE	0xa200000000000000ull
+
 /*
  * IO bus memory addresses are also 1:1 with the physical address
  * This simplistic model doesn't hold for the Origin.
  */
 extern inline unsigned long virt_to_bus(volatile void * address)
 {
-	return (unsigned long)address - PAGE_OFFSET;
+	return (((unsigned long)address - PAGE_OFFSET)|BRIDGE_DIRECT_MAPPED_BASE);
 }
 
 extern inline void * bus_to_virt(unsigned long address)
 {
-	return (void *)(address + PAGE_OFFSET);
+	return (void *)((address & ~BRIDGE_DIRECT_MAPPED_BASE) + PAGE_OFFSET);
 }
 
 /*
