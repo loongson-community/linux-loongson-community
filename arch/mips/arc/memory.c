@@ -131,10 +131,9 @@ void __init prom_meminit(void)
 void __init
 prom_free_prom_memory (void)
 {
-	int i;
-	struct prom_pmemblock *p;
 	unsigned long freed = 0;
 	unsigned long addr;
+	int i;
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		if (boot_mem_map.map[i].type != BOOT_MEM_ROM_DATA)

@@ -1,5 +1,4 @@
-/* $Id: memory.c,v 1.5 2000/01/27 23:21:57 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -222,7 +221,6 @@ void __init prom_meminit(void)
 void __init
 prom_free_prom_memory (void)
 {
-	struct prom_pmemblock *p;
 	unsigned long freed = 0;
 	unsigned long addr, end;
 
