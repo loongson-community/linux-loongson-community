@@ -174,7 +174,7 @@ test_and_change_bit(int nr, volatile void *addr)
 extern __inline__ void set_bit(int nr, volatile void * addr)
 {
 	int	mask;
-	int	*a = addr;
+	volatile int	*a = addr;
 	__bi_flags;
 
 	a += nr >> 5;
@@ -187,7 +187,7 @@ extern __inline__ void set_bit(int nr, volatile void * addr)
 extern __inline__ void clear_bit(int nr, volatile void * addr)
 {
 	int	mask;
-	int	*a = addr;
+	volatile int	*a = addr;
 	__bi_flags;
 
 	a += nr >> 5;
@@ -200,7 +200,7 @@ extern __inline__ void clear_bit(int nr, volatile void * addr)
 extern __inline__ void change_bit(int nr, volatile void * addr)
 {
 	int	mask;
-	int	*a = addr;
+	volatile int	*a = addr;
 	__bi_flags;
 
 	a += nr >> 5;
@@ -213,7 +213,7 @@ extern __inline__ void change_bit(int nr, volatile void * addr)
 extern __inline__ int test_and_set_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
-	int	*a = addr;
+	volatile int	*a = addr;
 	__bi_flags;
 
 	a += nr >> 5;
@@ -229,7 +229,7 @@ extern __inline__ int test_and_set_bit(int nr, volatile void * addr)
 extern __inline__ int test_and_clear_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
-	int	*a = addr;
+	volatile int	*a = addr;
 	__bi_flags;
 
 	a += nr >> 5;
@@ -245,7 +245,7 @@ extern __inline__ int test_and_clear_bit(int nr, volatile void * addr)
 extern __inline__ int test_and_change_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
-	int	*a = addr;
+	volatile int	*a = addr;
 	__bi_flags;
 
 	a += nr >> 5;

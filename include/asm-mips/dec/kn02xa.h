@@ -24,7 +24,7 @@
  * FIXME: these addresses are incomplete and need tidying up!
  */
 #define KN02XA_IOASIC_BASE	KSEG1ADDR(0x1c040000)	/* I/O ASIC */
-#define KN02XA_RTC_BASE		KSEG1ADDR(0x1e000000)	/* RTC */
+#define KN02XA_RTC_BASE		KSEG1ADDR(0x1c200000)	/* RTC */
 
 #define KN02XA_IOASIC_REG(r)	(KN02XA_IOASIC_BASE+(r))
 
