@@ -221,7 +221,7 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 	if ((err = pcibios_enable_resources(dev, mask)) < 0)
 		return err;
 
-	return 0;
+	return pcibios_plat_dev_init(dev);
 }
 
 static void __init pcibios_fixup_device_resources(struct pci_dev *dev,

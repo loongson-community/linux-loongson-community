@@ -445,6 +445,12 @@ int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	return irq;
 }
 
+/* Do platform specific device initialization at pci_enable_device() time */
+int pcibios_plat_dev_init(struct pci_dev *dev)
+{
+	return 0;
+}
+
 /*
  * Device might live on a subordinate PCI bus.  XXX Walk up the chain of buses
  * to find the slot number in sense of the bridge device register.

@@ -161,4 +161,7 @@ static inline void pcibios_add_platform_entries(struct pci_dev *dev)
 {
 }
 
+/* Do platform specific device initialization at pci_enable_device() time */
+extern int pcibios_plat_dev_init(struct pci_dev *dev);
+
 #endif /* _ASM_PCI_H */

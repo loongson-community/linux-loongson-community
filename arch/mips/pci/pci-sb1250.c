@@ -90,6 +90,12 @@ int pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	return dev->irq;
 }
 
+/* Do platform specific device initialization at pci_enable_device() time */
+int pcibios_plat_dev_init(struct pci_dev *dev)
+{
+	return 0;
+}
+
 /*
  * Some checks before doing config cycles:
  * In PCI Device Mode, hide everything on bus 0 except the LDT host
