@@ -545,10 +545,6 @@ CONFIG_DUMMY_CONSOLE=y
 CONFIG_SOUND=y
 
 #
-# Sound
-#
-
-#
 # Advanced Linux Sound Architecture
 #
 # CONFIG_SND is not set

@@ -591,10 +591,6 @@ CONFIG_DUMMY_CONSOLE=y
 # CONFIG_SOUND is not set
 
 #
-# Sound
-#
-
-#
 # USB support
 #
 # CONFIG_USB_GADGET is not set
