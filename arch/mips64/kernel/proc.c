@@ -48,8 +48,8 @@ int get_cpuinfo(char *buffer, char **start, off_t offset, int count)
 		       mach_group_to_name[mips_machgroup][mips_machtype]);
 */
 		len += sprintf(buffer + len, "BogoMIPS\t\t: %lu.%02lu\n",
-		       (loops_per_sec + 2500) / 500000,
-	               ((loops_per_sec + 2500) / 5000) % 100);
+		       (loops_per_jiffy + 2500) / (500000/HZ),
+	               ((loops_per_jiffy + 2500) / (5000/HZ)) % 100);
 /*		len += sprintf(buffer + len, "Number of cpus\t\t: %d\n", smp_num_cpus);*/
 #if defined (__MIPSEB__)
 		len += sprintf(buffer + len, "byteorder\t\t: big endian\n");

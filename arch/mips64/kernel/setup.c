@@ -56,8 +56,6 @@ char wait_available;
  */
 char cyclecounter_available;
 
-unsigned long loops_per_sec;
-
 /*
  * Set if box has EISA slots.
  */

@@ -10,7 +10,7 @@
 
 #if 0
 struct cpuinfo_mips {				/* XXX  */
-	unsigned long loops_per_sec;
+	unsigned long loops_per_jiffy;
 	unsigned long last_asn;
 	unsigned long *pgd_cache;
 	unsigned long *pte_cache;
