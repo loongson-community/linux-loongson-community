@@ -304,6 +304,8 @@ void r4k_clear_page_s128(void * page)
 void andes_clear_page(void * page)
 {
 	__asm__ __volatile__(
+		".set\tpush\n\t"
+		".set\tmips4\n\t"
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
 		"daddiu\t$1,%0,%2\n"
@@ -318,8 +320,7 @@ void andes_clear_page(void * page)
 		"sd\t$0,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		"sd\t$0,-8(%0)\n\t"
-		".set\tat\n\t"
-		".set\treorder"
+		".set\tpop"
 		: "=r" (page)
 		: "0" (page), "I" (PAGE_SIZE)
 		: "memory");
@@ -336,6 +337,8 @@ void r4k_copy_page_d16(void * to, void * from)
 	unsigned long dummy1, dummy2, reg1, reg2;
 
 	__asm__ __volatile__(
+		".set\tpush\n\t"
+		".set\tmips4\n\t"
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
 		"daddiu\t$1,%0,%6\n"
@@ -362,8 +365,7 @@ void r4k_copy_page_d16(void * to, void * from)
 		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
 		" sd\t%3,-8(%0)\n\t"
-		".set\tat\n\t"
-		".set\treorder"
+		".set\tpop"
 		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
 		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
