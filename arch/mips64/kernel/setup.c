@@ -106,6 +106,13 @@ extern void ip22_setup(void);
 extern void ip27_setup(void);
 extern void ip32_setup(void);
 
+/*
+ * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
+ * for the processor.
+ */
+unsigned long isa_slot_offset;
+EXPORT_SYMBOL(isa_slot_offset);
+
 extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);
 extern void load_mmu(void);
