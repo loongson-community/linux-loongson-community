@@ -590,8 +590,8 @@ static int titan_ge_open(struct net_device *netdev)
 	spin_lock_irq(&(titan_ge_eth->lock));
 
 	if (titan_ge_eth_open(netdev) != TITAN_OK) {
-		printk("%s: Error opening interface \n", netdev->name);
 		spin_unlock_irq(&(titan_ge_eth->lock));
+		printk("%s: Error opening interface \n", netdev->name);
 		free_irq(netdev->irq, netdev);
 		return -EBUSY;
 	}
