@@ -120,7 +120,7 @@ cflags-$(CONFIG_CPU_R3000)	+= \
 			$(call set_gccflags,r3000,mips1,r3000,mips1,mips1)
 
 cflags-$(CONFIG_CPU_TX39XX)	+= \
-			$(call set_gccflags,r3000,mips1,r3000,mips1,mips1)
+			$(call set_gccflags,r3900,mips1,r3000,mips1,mips1)
 
 cflags-$(CONFIG_CPU_R6000)	+= \
 			$(call set_gccflags,r6000,mips2,r6000,mips2,mips2) \
