@@ -21,6 +21,7 @@
 #include <asm/sn/launch.h>
 #include <asm/sn/sn_private.h>
 #include <asm/sn/sn0/ip27.h>
+#include <asm/sn/mapped_kernel.h>
 
 #define CPU_NONE		(cpuid_t)-1
 
@@ -447,9 +448,9 @@ void allowboot(void)
 			 * (so that current-> works).
 		 	 */
 			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus), 
-				(launch_proc_t)bootstrap, 0, 
-				(void *)((unsigned long)p+KERNEL_STACK_SIZE - 32),
-				(void *)p);
+				(launch_proc_t)MAPPED_KERN_RO_TO_K0(bootstrap),
+				0, (void *)((unsigned long)p + 
+				KERNEL_STACK_SIZE - 32), (void *)p);
 
 			/*
 			 * Now optimistically set the mapping arrays. We
