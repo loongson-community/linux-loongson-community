@@ -9,9 +9,10 @@
 #include <asm/sn/sn0/hub.h>
 #include <asm/sn/klconfig.h>
 #include <asm/ioc3.h>
+#include <asm/sgialib.h>
 #include <asm/sn/sn_private.h>
 
-void ip27_putchar(char c)
+void prom_putchar(char c)
 {
 	struct ioc3 *ioc3;
 	struct ioc3_uartregs *uart;
@@ -23,17 +24,15 @@ void ip27_putchar(char c)
 	uart->iu_thr = c;
 }
 
+char __init prom_getchar(void)
+{
+	return(0);
+}
+
 static void
 ip27prom_console_write(struct console *con, const char *s, unsigned n)
 {
-	char c;
-
-	while (n--) {
-		c = *(s++);
-		if (c == '\n')
-			ip27_putchar('\r');
-		ip27_putchar(c);
-	}
+	prom_printf("%s", s);
 }
 
 static struct console ip27_prom_console = {
