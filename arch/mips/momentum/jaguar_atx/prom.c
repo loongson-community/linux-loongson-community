@@ -166,7 +166,7 @@ void __init prom_init(void)
 	int i;
 
 #ifdef CONFIG_SERIAL_8250_CONSOLE
-	ja_setup_console();	/* The very first thing.  */
+//	ja_setup_console();	/* The very first thing.  */
 #endif
 
 #ifdef CONFIG_MIPS64

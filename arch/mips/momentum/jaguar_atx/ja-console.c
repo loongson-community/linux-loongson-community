@@ -59,9 +59,11 @@ struct ja_uartregs {
 #define iu_iir u3.iir
 #define iu_fcr u3.fcr
 
+extern unsigned long uart_base;
+
 static inline struct ja_uartregs *console_uart(void)
 {
-	return (struct ja_uartregs *) JAGUAR_ATX_SERIAL1_BASE;
+	return (struct ja_uartregs *) (uart_base + 0x23UL);
 }
 
 void prom_putchar(char c)
@@ -86,7 +88,7 @@ static void inline ja_console_probe(void)
 	 * the serial driver which we don't properly support yet.
 	 */
 	memset(&up, 0, sizeof(up));
-	up.membase	= (unsigned char *) JAGUAR_ATX_SERIAL1_BASE;
+	up.membase	= (unsigned char *) uart_base + 0x23UL;
 	up.irq		= JAGUAR_ATX_SERIAL1_IRQ;
 	up.uartclk	= JAGUAR_ATX_UART_CLK;
 	up.regshift	= 2;
