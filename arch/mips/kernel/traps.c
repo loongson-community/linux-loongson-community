@@ -570,23 +570,25 @@ asmlinkage void do_bp(struct pt_regs *regs)
 asmlinkage void do_tr(struct pt_regs *regs)
 {
 	siginfo_t info;
-	unsigned int opcode, bcode;
+	unsigned int opcode, tcode = 0;
 
 	if (get_insn_opcode(regs, &opcode))
 		return;
 
-	bcode = ((opcode >> 6) & ((1 << 20) - 1));
+	/* Immediate versions don't provide a code.  */
+	if (!(opcode & OPCODE))
+		tcode = ((opcode >> 6) & ((1 << 20) - 1));
 
 	/*
-	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
-	 * insns, even for break codes that indicate arithmetic failures.
+	 * (A short test says that IRIX 5.3 sends SIGTRAP for all trap
+	 * insns, even for trap codes that indicate arithmetic failures.
 	 * Weird ...)
 	 * But should we continue the brokenness???  --macro
 	 */
-	switch (bcode) {
+	switch (tcode) {
 	case 6:
 	case 7:
-		if (bcode == 7)
+		if (tcode == 7)
 			info.si_code = FPE_INTDIV;
 		else
 			info.si_code = FPE_INTOVF;
