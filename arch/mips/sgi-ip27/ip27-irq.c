@@ -38,13 +38,27 @@
 #include <asm/sn/intr.h>
 #include <asm/sn/intr_public.h>
 
-
 #undef DEBUG_IRQ
 #ifdef DEBUG_IRQ
 #define DBG(x...) printk(x)
 #else
 #define DBG(x...)
 #endif
+
+/*
+ * Number of levels in INT_PEND0. Can be set to 128 if we also
+ * consider INT_PEND1.
+ */
+#define PERNODE_LEVELS	64
+
+/*
+ * we need to map irq's up to at least bit 7 of the INT_MASK0_A register
+ * since bits 0-6 are pre-allocated for other purposes.
+ */
+#define LEAST_LEVEL	7
+#define FAST_IRQ_TO_LEVEL(i)	((i) + LEAST_LEVEL)
+#define LEVEL_TO_IRQ(c, l) \
+			(node_level_to_irq[CPUID_TO_COMPACT_NODEID(c)][(l)])
 
 /* These should die */
 unsigned char bus_to_wid[256];	/* widget id for linux pci bus */
@@ -70,14 +84,14 @@ unsigned char num_bridges;	/* number of bridges in the system */
 extern asmlinkage void ip27_irq(void);
 
 extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
-int intr_connect_level(int cpu, int bit);
-int intr_disconnect_level(int cpu, int bit);
+static int intr_connect_level(int cpu, int bit);
+static int intr_disconnect_level(int cpu, int bit);
 
 /*
  * There is a single intpend register per node, and we want to have
  * distinct levels for intercpu intrs for both cpus A and B on a node.
  */
-int node_level_to_irq[MAX_COMPACT_NODES][PERNODE_LEVELS];
+static int node_level_to_irq[MAX_COMPACT_NODES][PERNODE_LEVELS];
 
 /*
  * use these macros to get the encoded nasid and widget id
