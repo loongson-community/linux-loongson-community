@@ -987,7 +987,7 @@ static void shutdown(struct async_struct * info)
 		set_bit(TTY_IO_ERROR, &info->tty->flags);
 
 	info->flags &= ~ASYNC_INITIALIZED;
-#ifndef CONFIG_REMOTE_DEBUG
+#ifndef CONFIG_KGDB
 	au_writel(0, UART_MOD_CNTRL + state->port);
 	au_sync_delay(10);
 #endif

@@ -38,7 +38,7 @@ extern void console_setup(char *, int *);
 char serial_console[20];
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void rs_kgdb_hook(int);
 extern void saa9730_kgdb_hook(void);
 extern void breakpoint(void);
@@ -64,7 +64,7 @@ extern unsigned long mips_rtc_get_time(void);
 
 void __init atlas_setup(void)
 {
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	int rs_putDebugChar(char);
 	char rs_getDebugChar(void);
 	int saa9730_putDebugChar(char);
@@ -90,7 +90,7 @@ void __init atlas_setup(void)
 	}
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
 		int line;

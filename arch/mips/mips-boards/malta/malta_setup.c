@@ -47,7 +47,7 @@ extern void console_setup(char *, int *);
 char serial_console[20];
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void rs_kgdb_hook(int);
 int remote_debug = 0;
 #endif
@@ -83,7 +83,7 @@ void __init bus_error_init(void)
 
 void __init malta_setup(void)
 {
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	int rs_putDebugChar(char);
 	char rs_getDebugChar(void);
 	extern int (*generic_putDebugChar)(char);
@@ -109,7 +109,7 @@ void __init malta_setup(void)
 	}
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
 		int line;

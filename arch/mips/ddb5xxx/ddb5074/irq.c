@@ -142,7 +142,7 @@ void ddb_8254timer_irq(void)
 
 void __init ddb_irq_setup(void)
 {
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	if (remote_debug)
 		set_debug_traps();
 	breakpoint();		/* you may move this line to whereever you want :-) */

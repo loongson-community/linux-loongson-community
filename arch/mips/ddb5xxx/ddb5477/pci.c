@@ -165,7 +165,7 @@ void __init pcibios_fixup_irqs(void)
 	}
 }
 
-#if defined(CONFIG_DEBUG)
+#if defined(CONFIG_RUNTIME_DEBUG)
 extern void jsun_scan_pci_bus(void);
 extern void jsun_assign_pci_resource(void);
 #endif

@@ -30,7 +30,7 @@
 #include <asm/ddb5xxx/ddb5xxx.h>
 
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
 #endif

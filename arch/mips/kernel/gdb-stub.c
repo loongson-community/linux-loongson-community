@@ -99,7 +99,7 @@
  *  the kernel running. It will promptly halt and wait
  *  for the host gdb session to connect. It does this
  *  since the "Kernel Hacking" option has defined
- *  CONFIG_REMOTE_DEBUG which in turn enables your calls
+ *  CONFIG_KGDB which in turn enables your calls
  *  to:
  *     set_debug_traps();
  *     breakpoint();

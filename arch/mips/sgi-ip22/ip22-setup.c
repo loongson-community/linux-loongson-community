@@ -30,7 +30,7 @@
 #include <asm/io.h>
 #include <asm/traps.h>
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
 static int remote_debug = 0;
@@ -72,7 +72,7 @@ void ip22_do_break(void)
 void __init ip22_setup(void)
 {
 	char *ctype;
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	char *kgdb_ttyd;
 #endif
 	sgitime_init();
@@ -116,7 +116,7 @@ void __init ip22_setup(void)
 	}
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	kgdb_ttyd = prom_getcmdline();
 	if ((kgdb_ttyd = strstr(kgdb_ttyd, "kgdb=ttyd")) != NULL) {
 		int line;

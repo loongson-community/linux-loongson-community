@@ -58,7 +58,7 @@ static void sb1250_set_affinity(unsigned int irq, unsigned long mask);
 extern unsigned long ldt_eoi_space;
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void breakpoint(void);
 extern void set_debug_traps(void);
 
@@ -368,14 +368,14 @@ void __init init_IRQ(void)
 #ifdef CONFIG_BCM1250_PROF
 	imask |= STATUSF_IP7;
 #endif
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	imask |= STATUSF_IP6;
 #endif
 	/* Enable necessary IPs, disable the rest */
 	change_c0_status(ST0_IM, imask);
 	set_except_vector(0, sb1250_irq_handler);
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	if (kgdb_flag) {
 		/* Setup uart 1 settings, mapper */
 		out64(M_DUART_IMR_BRK, KSEG1 + A_DUART + R_DUART_IMR_B);
@@ -392,7 +392,7 @@ void __init init_IRQ(void)
 #endif
 }
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 
 #include <linux/delay.h>
 
@@ -414,4 +414,4 @@ void sb1250_kgdb_interrupt(struct pt_regs *regs)
 	if (!user_mode(regs))
 		set_async_breakpoint(regs->cp0_epc);
 }
-#endif 	/* CONFIG_REMOTE_DEBUG */
+#endif 	/* CONFIG_KGDB */

@@ -1550,7 +1550,7 @@ config CROSSCOMPILE
 config DEBUG_KERNEL
 	bool "Kernel debugging"
 
-config REMOTE_DEBUG
+config KGDB
 	bool "Remote GDB kernel debugging"
 	depends on DEBUG_KERNEL
 	help
@@ -1562,19 +1562,19 @@ config REMOTE_DEBUG
 
 config GDB_CONSOLE
 	bool "Console output to GDB"
-	depends on REMOTE_DEBUG
+	depends on KGDB
 	help
 	  If you are using GDB for remote debugging over a serial port and
 	  would like kernel messages to be formatted into GDB $O packets so
 	  that GDB prints them as program output, say 'Y'.
 
-config DEBUG
+config RUNTIME_DEBUG
 	bool "Enable run-time debugging"
 	depends on DEBUG_KERNEL
 	help
 	  If you say Y here, some debugging macros will do run-time checking.
-	  If you say N here, those macros will mostly turn to no-ops.  For
-	  MIPS boards only.  See include/asm-mips/debug.h for debuging macros.
+	  If you say N here, those macros will mostly turn to no-ops.  See 
+	  include/asm-mips/debug.h for debuging macros.
 	  If unsure, say N.
 
 

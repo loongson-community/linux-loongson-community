@@ -71,7 +71,7 @@
 #define EXT_INTC1_REQ1 5 /* IP 5 */
 #define MIPS_TIMER_IP  7 /* IP 7 */
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void breakpoint(void);
 #endif
 
@@ -492,7 +492,7 @@ void __init init_IRQ(void)
 	}
 
 	set_c0_status(ALLINTS);
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	/* If local serial I/O used for debug port, enter kgdb at once */
 	puts("Waiting for kgdb to connect...");
 	set_debug_traps();

@@ -40,7 +40,7 @@
 #define TIMER_IRQ			(VRC5476_IRQ_BASE + VRC5476_IRQ_GPT)
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void breakpoint(void);
 #endif
 

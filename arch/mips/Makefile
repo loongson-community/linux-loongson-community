@@ -45,7 +45,7 @@ cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
 LDFLAGS_vmalinux		+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
 
-cflags-$(CONFIG_REMOTE_DEBUG)	+= -g
+cflags-$(CONFIG_KGDB)		+= -g
 cflags-$(CONFIG_SB1XXX_CORELIS)	+= -mno-sched-prolog -fno-omit-frame-pointer
 
 check_gcc = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)

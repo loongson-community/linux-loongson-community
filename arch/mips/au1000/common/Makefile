@@ -13,7 +13,7 @@ obj-y := prom.o int-handler.o dma.o irq.o puts.o time.o reset.o \
 
 obj-$(CONFIG_AU1000_UART) += serial.o
 obj-$(CONFIG_AU1000_USB_DEVICE) += usbdev.o
-obj-$(CONFIG_REMOTE_DEBUG) += dbg_io.o
+obj-$(CONFIG_KGDB) += dbg_io.o
 obj-$(CONFIG_RTC) += rtc.o
 
 EXTRA_AFLAGS := $(CFLAGS)

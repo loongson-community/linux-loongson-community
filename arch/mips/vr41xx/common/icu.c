@@ -339,7 +339,7 @@ void __init init_IRQ(void)
 
 	set_except_vector(0, vr41xx_handle_interrupt);
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	printk("Setting debug traps - please connect the remote debugger.\n");
 	set_debug_traps();
 	breakpoint();

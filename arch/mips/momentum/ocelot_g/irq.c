@@ -161,7 +161,7 @@ void __init init_IRQ(void)
 
 	gt64240_irq_init();
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	printk("start kgdb ...\n");
 	set_debug_traps();
 	breakpoint();	/* you may move this line to whereever you want :-) */

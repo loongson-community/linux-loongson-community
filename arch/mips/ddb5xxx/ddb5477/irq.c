@@ -176,7 +176,7 @@ vrc5477_irq_dispatch(struct pt_regs *regs)
 	db_assert(ddb_in32(DDB_NMISTAT) == 0);
 
 	if (ddb_in32(DDB_INT1STAT) != 0) {
-#if defined(CONFIG_DEBUG)
+#if defined(CONFIG_RUNTIME_DEBUG)
 		vrc5477_show_int_regs();
 #endif
 		panic("error interrupt has happened.");

@@ -43,7 +43,7 @@ extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 extern void init_i8259_irqs (void);
 extern int mips_pcibios_iack(void);
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 extern void breakpoint(void);
 extern void set_debug_traps(void);
 extern int remote_debug;
@@ -142,7 +142,7 @@ void __init init_IRQ(void)
 	init_generic_irq();
 	init_i8259_irqs();
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 	if (remote_debug) {
 		set_debug_traps();
 		breakpoint();

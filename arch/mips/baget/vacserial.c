@@ -2790,7 +2790,7 @@ long __init serial_console_init(long kmem_start, long kmem_end)
 }
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
+#ifdef CONFIG_KGDB
 #undef PRINT_DEBUG_PORT_INFO
 
 /*
@@ -2902,4 +2902,4 @@ char getDebugChar(void)
 	return(serial_inp(info, VAC_UART_RX));
 }
 
-#endif /* CONFIG_REMOTE_DEBUG */
+#endif /* CONFIG_KGDB */

@@ -281,7 +281,7 @@ struct pci_ops ddb5476_ext_pci_ops ={
 };
 
 
-#if defined(CONFIG_DEBUG)
+#if defined(CONFIG_RUNTIME_DEBUG)
 void jsun_scan_pci_bus(void)
 {
 	struct pci_bus bus;
