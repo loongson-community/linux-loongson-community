@@ -129,11 +129,11 @@ void __init ip22_setup(void)
 	conswitchp = &dummy_con;
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	if (ctype && *ctype == 'g'){
-		unsigned long *gfxinfo;
-		long (*__vec)(void) =
-			(void *) *(long *)((PROMBLOCK)->pvector + 0x20);
+		ULONG *gfxinfo;
+		ULONG * (*__vec)(void) = (void *) (long)
+			*((_PULONG *)(long)((PROMBLOCK)->pvector + 0x20));
 
-		gfxinfo = (unsigned long *)__vec();
+		gfxinfo = __vec();
 		sgi_gfxaddr = ((gfxinfo[1] >= 0xa0000000
 			       && gfxinfo[1] <= 0xc0000000)
 			       ? gfxinfo[1] - 0xa0000000 : 0);
