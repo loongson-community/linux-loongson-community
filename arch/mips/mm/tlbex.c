@@ -448,7 +448,8 @@ L_LA(_split)
 #define i_bnez(buf, rs, off) i_bne(buf, rs, 0, off)
 #define i_move(buf, a, b) i_ADDU(buf, a, 0, b)
 #define i_nop(buf) i_sll(buf, 0, 0, 0)
-#define i_ssnop(buf) i_sll(buf, 0, 2, 1)
+#define i_ssnop(buf) i_sll(buf, 0, 0, 1)
+#define i_ehb(buf) i_sll(buf, 0, 0, 3)
 
 #if CONFIG_MIPS64
 static __init int in_compat_space_p(long addr)
@@ -799,12 +800,12 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 	default:
 		/*
 		 * Others are assumed to have one cycle mtc0 hazard,
-		 * and one cycle tlbwr hazard.
+		 * and one cycle tlbwr hazard or to understand ehb.
 		 * XXX: This might be overly general.
 		 */
-		i_nop(p);
+		i_ehb(p);
 		i_tlbwr(p);
-		i_nop(p);
+		i_ehb(p);
 		break;
 	}
 }
