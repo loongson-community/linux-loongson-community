@@ -89,7 +89,7 @@ void __init register_pci_controller(struct pci_controller *hose)
 	hose_tail = &hose->next;
 }
 
-/* Most MIPS systemems have straight-forward swizzling needs.  */
+/* Most MIPS systems have straight-forward swizzling needs.  */
 
 static inline u8 bridge_swizzle(u8 pin, u8 slot)
 {
