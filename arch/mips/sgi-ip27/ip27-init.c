@@ -419,7 +419,7 @@ void __init prom_build_cpu_map(void)
 	phys_cpu_present_map = boot_cpumask;
 }
 
-void __init prom_prepare_cpus(void)
+void __init prom_prepare_cpus(unsigned int max_cpus)
 {
 	sn_mp_setup();
 	/* Master has already done per_cpu_init() */

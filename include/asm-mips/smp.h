@@ -83,7 +83,7 @@ extern void prom_init_secondary(void);
 /*
  * Callout to firmware before smp_init
  */
-extern void prom_prepare_cpus(void);
+extern void prom_prepare_cpus(unsigned int max_cpus);
 
 /*
  * Do whatever setup needs to be done for SMP at the board level.  Return
