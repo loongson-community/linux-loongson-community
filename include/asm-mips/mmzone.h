@@ -26,19 +26,7 @@
 	((__p - __z->zone_mem_map) + __z->zone_start_pfn);	\
 })
 
-/* XXX(hch): better get rid of this thingy, it's rather fragile.. */
-static inline int kern_addr_valid(unsigned long kvaddr)
-{
-	unsigned node = kvaddr_to_nid(kvaddr);
-	unsigned long bit;
-	pg_data_t *pg;
-
-	if (node >= numnodes)
-		return 0;
-	pg = NODE_DATA(node);
-	bit = (__pa(kvaddr) >> PAGE_SHIFT) - pg->node_start_pfn;
-
-	return test_bit(bit, pg->valid_addr_bitmap);
-}
+/* XXX: FIXME -- wli */
+#define kern_addr_valid(addr)	(0)
 
 #endif /* _ASM_MMZONE_H_ */
