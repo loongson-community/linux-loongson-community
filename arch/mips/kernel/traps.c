@@ -101,7 +101,7 @@ void show_stack(unsigned int *sp)
 	int i;
 	unsigned int *stack;
 
-	stack = sp;
+	stack = sp ? sp : (unsigned int *)&sp;
 	i = 0;
 
 	printk("Stack:");
@@ -134,7 +134,7 @@ void show_trace(unsigned int *sp)
 	unsigned long module_start, module_end;
 	extern char _stext, _etext;
 
-	stack = sp;
+	stack = sp ? sp : (unsigned int *)&sp;
 	i = 0;
 
 	kernel_start = (unsigned long) &_stext;
