@@ -105,7 +105,7 @@ void __init init_IRQ(void)
 
 	init_generic_irq();
 
-	for (i = 0; i <= SEADINT_END; i++) {
+	for (i = 0; i < SEADINT_END; i++) {
 		irq_desc[i].status	= IRQ_DISABLED;
 		irq_desc[i].action	= NULL;
 		irq_desc[i].depth	= 1;
