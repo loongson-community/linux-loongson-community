@@ -1,11 +1,11 @@
-/* $Id: sgialib.h,v 1.4 1999/02/25 20:55:07 tsbogend Exp $
+/* $Id: sgialib.h,v 1.5 2000/03/19 01:28:58 ralf Exp $
  * sgialib.h: SGI ARCS firmware interface library for the Linux kernel.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 
-#ifndef _MIPS_SGIALIB_H
-#define _MIPS_SGIALIB_H
+#ifndef _ASM_SGIALIB_H
+#define _ASM_SGIALIB_H
 
 #include <asm/sgiarcs.h>
 
@@ -82,8 +82,8 @@ extern pcomponent *prom_componentbypath(char *path);
 extern void prom_identify_arch(void);
 
 /* Environemt variable routines. */
-extern char *prom_getenv(char *name);
-extern long prom_setenv(char *name, char *value);
+extern PCHAR ArcGetEnvironmentVariable(CHAR *name);
+extern LONG SetEnvironmentVariable(PCHAR name, PCHAR value);
 
 /* ARCS command line acquisition and parsing. */
 extern char *prom_getcmdline(void);
@@ -120,4 +120,4 @@ extern long prom_cfgsave(void);
 extern struct linux_sysid *prom_getsysid(void);
 extern void prom_cacheflush(void);
 
-#endif /* !(_MIPS_SGIALIB_H) */
+#endif /* _ASM_SGIALIB_H */
