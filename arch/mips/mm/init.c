@@ -29,9 +29,10 @@
 #include <asm/cachectl.h>
 #include <asm/cpu.h>
 #include <asm/dma.h>
-#include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 #include <asm/sections.h>
+#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/tlb.h>
 
 DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
