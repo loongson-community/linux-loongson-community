@@ -34,6 +34,10 @@
 		 */
 		.fill	0x400
 
+		/* The following two symbols are used for kernel profiling. */
+		EXPORT(stext)
+		EXPORT(_stext)
+
 		__INIT
 
 		/* Cache Error */
@@ -143,9 +147,6 @@ ejtag_return:
 		 */
 		NESTED(kernel_entry, 16, sp)
 		.set	noreorder
-		/* The following two symbols are used for kernel profiling. */
-		EXPORT(stext)
-		EXPORT(_stext)
 
 		/*
 		 * Stack for kernel and init, current variable
