@@ -105,7 +105,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				write_c0_entryhi(start | newpid);
 				start += PAGE_SIZE;	/* BARRIER */
 				tlb_probe();
-				idx = write_c0_index();
+				idx = read_c0_index();
 				write_c0_entrylo0(0);
 				write_c0_entryhi(KSEG0);
 				if (idx < 0)		/* BARRIER */

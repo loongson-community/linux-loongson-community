@@ -228,7 +228,7 @@ void __flush_tlb_one(unsigned long page)
 	oldpid = read_c0_entryhi() & ASID_MASK;
 	write_c0_entryhi(page);
 	tlb_probe();
-	idx = write_c0_index();
+	idx = read_c0_index();
 	write_c0_entrylo0(0);
 	write_c0_entrylo1(0);
 	if (idx >= 0) {

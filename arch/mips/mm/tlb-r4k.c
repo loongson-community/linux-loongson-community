@@ -285,7 +285,7 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 	pgdp = pgd_offset(vma->vm_mm, address);
 	tlb_probe();
 	pmdp = pmd_offset(pgdp, address);
-	idx = write_c0_index();
+	idx = read_c0_index();
 	ptep = pte_offset(pmdp, address);
 	write_c0_entrylo0(pte_val(*ptep++) >> 6);
 	write_c0_entrylo1(pte_val(*ptep) >> 6);
