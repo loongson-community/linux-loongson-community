@@ -160,6 +160,8 @@ static int sb1250_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 	else if (size == 2)
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
 		    (val << ((where & 3) << 3));
+	else
+		data = val;
 
 	WRITECFG32(cfgaddr, data);
 
