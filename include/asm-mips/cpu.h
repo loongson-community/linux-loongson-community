@@ -90,6 +90,17 @@
 #define PRID_REV_TX3927C 	0x0042
 #define PRID_REV_TX39H3TEG 	0x0050
 
+/*
+ * FPU implementation/revision register (CP1 control register 0).
+ *
+ * +---------------------------------+----------------+----------------+
+ * | 0                               | Implementation | Revision       |
+ * +---------------------------------+----------------+----------------+
+ *  31                             16 15             8 7              0
+ */
+
+#define FPIR_IMP_NONE		0x0000
+
 #ifndef  _LANGUAGE_ASSEMBLY
 /*
  * Capability and feature descriptor structure for MIPS CPU
