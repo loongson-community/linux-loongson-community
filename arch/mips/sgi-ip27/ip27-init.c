@@ -14,8 +14,10 @@
 #include <linux/mm.h>
 #include <linux/cpumask.h>
 #include <asm/cpu.h>
+#include <asm/io.h>
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
+#include <asm/time.h>
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
 #include <asm/sn/sn0/hubni.h>
@@ -72,7 +74,7 @@ static int is_fine_dirmode(void)
 		>> NSRI_REGIONSIZE_SHFT) & REGIONSIZE_FINE);
 }
 
-extern void pcibr_setup(cnodeid_t);
+extern void xtalk_probe_node(cnodeid_t nid);
 void per_hub_init(cnodeid_t cnode)
 {
 	nasid_t		nasid = COMPACT_TO_NASID_NODEID(cnode);
@@ -87,7 +89,7 @@ void per_hub_init(cnodeid_t cnode)
 	REMOTE_HUB_S(nasid, IIO_ICTO, 0xff);
 
 	hub_rtc_init(cnode);
-	pcibr_setup(cnode);
+	xtalk_probe_node(cnode);
 
 #ifdef CONFIG_REPLICATE_EXHANDLERS
 	/*
@@ -109,16 +111,22 @@ void per_hub_init(cnodeid_t cnode)
 #endif
 }
 
+/*
+ * get_nasid() returns the physical node id number of the caller.
+ */
+nasid_t
+get_nasid(void)
+{
+	return (nasid_t)((LOCAL_HUB_L(NI_STATUS_REV_ID) & NSRI_NODEID_MASK)
+	                 >> NSRI_NODEID_SHFT);
+}
+
+/*
+ * Map the physical node id to a virtual node id (virtual node ids are contiguous).
+ */
 cnodeid_t get_compact_nodeid(void)
 {
-	nasid_t nasid;
-
-	nasid = get_nasid();
-	/*
-	 * Map the physical node id to a virtual node id (virtual node ids
-	 * are contiguous).
-	 */
-	return NASID_TO_COMPACT_NODEID(nasid);
+	return NASID_TO_COMPACT_NODEID(get_nasid());
 }
 
 #define	rou_rflag	rou_flags
@@ -358,3 +366,106 @@ void mlreset(void)
 #endif
 	}
 }
+
+/* Extracted from the IOC3 meta driver.  FIXME.  */
+static inline void ioc3_sio_init(void)
+{
+	struct ioc3 *ioc3;
+	nasid_t nid;
+	long loops;
+
+	nid = get_nasid();
+	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
+
+	ioc3->sscr_a = 0;			/* PIO mode for uarta.  */
+	ioc3->sscr_b = 0;			/* PIO mode for uartb.  */
+	ioc3->sio_iec = ~0;
+	ioc3->sio_ies = (SIO_IR_SA_INT | SIO_IR_SB_INT);
+
+	loops=1000000; while(loops--);
+	ioc3->sregs.uarta.iu_fcr = 0;
+	ioc3->sregs.uartb.iu_fcr = 0;
+	loops=1000000; while(loops--);
+}
+
+static inline void ioc3_eth_init(void)
+{
+	struct ioc3 *ioc3;
+	nasid_t nid;
+
+	nid = get_nasid();
+	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
+
+	ioc3->eier = 0;
+}
+
+void __init per_cpu_init(void)
+{
+	cnodeid_t cnode = get_compact_nodeid();
+	int cpu = smp_processor_id();
+
+	clear_c0_status(ST0_IM);
+	per_hub_init(cnode);
+	cpu_time_init();
+	install_ipi();
+	/* Install our NMI handler if symmon hasn't installed one. */
+	install_cpu_nmi_handler(cputoslice(cpu));
+	set_c0_status(SRB_DEV0 | SRB_DEV1);
+}
+
+extern void ip27_setup_console(void);
+extern void ip27_time_init(void);
+extern void ip27_reboot_setup(void);
+
+static int __init ip27_setup(void)
+{
+	hubreg_t p, e, n_mode;
+	nasid_t nid;
+
+	ip27_setup_console();
+	ip27_reboot_setup();
+
+	/*
+	 * hub_rtc init and cpu clock intr enabled for later calibrate_delay.
+	 */
+	nid = get_nasid();
+	printk("IP27: Running on node %d.\n", nid);
+
+	p = LOCAL_HUB_L(PI_CPU_PRESENT_A) & 1;
+	e = LOCAL_HUB_L(PI_CPU_ENABLE_A) & 1;
+	printk("Node %d has %s primary CPU%s.\n", nid,
+	       p ? "a" : "no",
+	       e ? ", CPU is running" : "");
+
+	p = LOCAL_HUB_L(PI_CPU_PRESENT_B) & 1;
+	e = LOCAL_HUB_L(PI_CPU_ENABLE_B) & 1;
+	printk("Node %d has %s secondary CPU%s.\n", nid,
+	       p ? "a" : "no",
+	       e ? ", CPU is running" : "");
+
+	/*
+	 * Try to catch kernel missconfigurations and give user an
+	 * indication what option to select.
+	 */
+	n_mode = LOCAL_HUB_L(NI_STATUS_REV_ID) & NSRI_MORENODES_MASK;
+	printk("Machine is in %c mode.\n", n_mode ? 'N' : 'M');
+#ifdef CONFIG_SGI_SN0_N_MODE
+	if (!n_mode)
+		panic("Kernel compiled for M mode.");
+#else
+	if (n_mode)
+		panic("Kernel compiled for N mode.");
+#endif
+
+	ioc3_sio_init();
+	ioc3_eth_init();
+	per_cpu_init();
+
+	set_io_port_base(IO_BASE);
+
+	board_time_init = ip27_time_init;
+
+	return 0;
+}
+
+early_initcall(ip27_setup);
