@@ -22,6 +22,8 @@ obj-y				+= branch.o process.o signal.o entry.o \
 obj-$(CONFIG_MODULES)		+= mips_ksyms.o
 
 obj-$(CONFIG_CPU_R3000)		+= r2300_fpu.o r2300_switch.o
+obj-$(CONFIG_CPU_TX39XX)	+= r2300_fpu.o r2300_switch.o
+obj-$(CONFIG_CPU_TX49XX)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_R4000)		+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_VR41XX)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_R4300)		+= r4k_fpu.o r4k_switch.o
