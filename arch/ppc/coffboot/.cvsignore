@@ -1,7 +1,0 @@
-.depend
-vmlinux.coff.initrd
-coffboot
-elfextract
-hack-coff
-vmlinux.coff
-zImage

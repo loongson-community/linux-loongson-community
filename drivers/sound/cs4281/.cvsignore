@@ -1,5 +1,2 @@
 .depend
 .*.flags
-.defines
-local.h
-configure
