@@ -38,6 +38,7 @@
 #include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/module.h>
 #include <asm/system.h>
 #include <asm/mach-au1x00/au1000.h>
 #include <asm/mach-au1x00/au1000_dma.h>
@@ -72,6 +73,7 @@ struct dma_chan au1000_dma_table[NUM_AU1000_DMA_CHANNELS] = {
       {.dev_id = -1,},
       {.dev_id = -1,}
 };
+EXPORT_SYMBOL(au1000_dma_table);
 
 // Device FIFO addresses and default DMA modes
 static const struct dma_dev {
@@ -217,6 +219,7 @@ int request_au1000_dma(int dev_id, const char *dev_str,
 
 	return i;
 }
+EXPORT_SYMBOL(request_au1000_dma);
 
 void free_au1000_dma(unsigned int dmanr)
 {
