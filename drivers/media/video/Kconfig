@@ -144,7 +144,7 @@ config TUNER_3036
 
 config VIDEO_VINO
 	tristate "SGI Vino Video For Linux (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && VIDEO_DEV && SGI
+	depends on EXPERIMENTAL && VIDEO_DEV && SGI_IP22 && I2C_ALGOSGI
 	help
 	  Say Y here to build in support for the Vino video input system found
 	  on SGI Indy machines.
