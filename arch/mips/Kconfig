@@ -1,6 +1,8 @@
 config MIPS
 	bool
 	default y
+	# Horrible source of confusion.  Die, die, die ...
+	select EMBEDDED
 
 config MIPS64
 	bool "64-bit kernel"
@@ -17,11 +19,6 @@ config 64BIT
 config MIPS32
 	bool
 	depends on MIPS64 = 'n'
-	default y
-
-# Horrible source of confusion.  Die, die, die ...
-config EMBEDDED
-	bool
 	default y
 
 mainmenu "Linux/MIPS Kernel Configuration"
