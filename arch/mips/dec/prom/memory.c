@@ -16,6 +16,7 @@
 #include <asm/dec/machtype.h>
 #include <asm/dec/prom.h>
 #include <asm/page.h>
+#include <asm/sections.h>
 
 
 volatile unsigned long mem_err = 0;	/* So we know an error occurred */
@@ -95,7 +96,6 @@ void __init prom_meminit(u32 magic)
 void __init prom_free_prom_memory (void)
 {
 	unsigned long addr, end;
-	extern char _ftext;
 
 	/*
 	 * Free everything below the kernel itself but leave
@@ -110,10 +110,10 @@ void __init prom_free_prom_memory (void)
 	 * XXX: save this address for use in dec_lance.c?
 	 */
 	if (IOASIC)
-		end = __pa(&_ftext) - 0x00020000;
+		end = __pa(&_text) - 0x00020000;
 	else
 #endif
-		end = __pa(&_ftext);
+		end = __pa(&_text);
 
 	addr = PAGE_SIZE;
 	while (addr < end) {
