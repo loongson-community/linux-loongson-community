@@ -136,8 +136,7 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	addr = (unsigned long) page_address(page);
-	addr += offset;
+	addr = (unsigned long) page_address(page) + offset;
 #ifdef CONFIG_NONCOHERENT_IO
 	dma_cache_wback_inv(addr, size);
 #endif

@@ -151,7 +151,7 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 	dma_cache_wback_inv(addr, size);
 #endif
 
-	return virt_to_bus(addr);
+	return virt_to_bus((void *)addr);
 }
 
 static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
