@@ -9,7 +9,6 @@
  * Please read the COPYING file for all license details.
  */
 
-#include <linux/config.h>
 #include <linux/spinlock.h>
 
 #include <asm/rtc.h>
