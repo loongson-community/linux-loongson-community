@@ -438,6 +438,18 @@
 	.align	5
 	NESTED(handle_tlbl, PT_SIZE, sp)
 	.set	noat
+#ifdef BCM1250_M3_WAR
+	mfc0	k0, CP0_BADVADDR
+	mfc0	k1, CP0_ENTRYHI
+	xor	k0, k1
+	srl	k0, k0, PAGE_SHIFT+1
+	beqz	k0, 1f
+	 nop
+	.set	mips3
+	eret
+	.set	mips0
+1:
+#endif
 invalid_tlbl:
 #ifdef TLB_OPTIMIZE
 	/* Test present bit in entry. */

@@ -15,6 +15,7 @@
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
 #include <asm/stackframe.h>
+#include <asm/war.h>
 
 	.data
 	.comm	pgd_current, NR_CPUS * 8, 8
