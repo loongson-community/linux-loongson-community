@@ -29,10 +29,7 @@
 /* Primary cache parameters. */
 static unsigned long icache_size, dcache_size; /* Size in bytes */
 static unsigned long icache_way_size, dcache_way_size; /* Size divided by ways */
-static unsigned long ic_lsize, dc_lsize;       /* LineSize in bytes */
-
-/* Secondary cache (if present) parameters. */
-static unsigned long scache_size, sc_lsize;	/* Again, in bytes */
+static unsigned long scache_size, sc_lsize;	/* S-cache parameters. */
 
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
@@ -54,6 +51,7 @@ struct bcache_ops *bcops = &no_sc_ops;
 static void r4k_blast_dcache_page(unsigned long addr)
 {
 	static void *l = &&init;
+	unsigned long dc_lsize;
 	unsigned int prid;
 
 	goto *l;
@@ -83,6 +81,7 @@ dc_32_r4600:
 
 init:
 	prid = read_c0_prid() & 0xfff0;
+	dc_lsize = current_cpu_data.dcache.linesz;
 
 	if (prid == 0x2010)			/* R4600 V1.7 */
 		l = &&dc_32_r4600;
@@ -96,6 +95,7 @@ init:
 static void r4k_blast_dcache_page_indexed(unsigned long addr)
 {
 	static void *l = &&init;
+	unsigned long dc_lsize;
 
 	goto *l;
 
@@ -108,6 +108,8 @@ dc_32:
 	return;
 
 init:
+	dc_lsize = current_cpu_data.dcache.linesz;
+
 	if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
@@ -118,6 +120,7 @@ init:
 static void r4k_blast_dcache(void)
 {
 	static void *l = &&init;
+	unsigned long dc_lsize;
 
 	goto *l;
 
@@ -130,6 +133,8 @@ dc_32:
 	return;
 
 init:
+	dc_lsize = current_cpu_data.dcache.linesz;
+
 	if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
@@ -139,6 +144,7 @@ init:
 
 static void r4k_blast_icache_page(unsigned long addr)
 {
+	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
 
 	goto *l;
@@ -159,21 +165,64 @@ init:
 	goto *l;
 }
 
+#ifdef TOSHIBA_ICACHE_WAR
+
+#define TOSHIBA_ICACHE_WAR_DECL						\
+	unsigned long flags, config;					\
+	int is_suspect_toshiba_tx49 = 0;
+#define TOSHIBA_ICACHE_WAR_PROLOG					\
+do {									\
+	if (is_suspect_toshiba_tx49) {					\
+		local_irq_save(flags);					\
+		config = read_c0_config();				\
+		write_c0_config(config | TX49_CONF_IC);			\
+	}								\
+while (0)
+#define TOSHIBA_ICACHE_WAR_EPILOG					\
+do {									\
+	if (is_suspect_toshiba_tx49) {					\
+		write_c0_config(config);				\
+		local_irq_restore(flags);				\
+	}
+while (0)
+#define TOSHIBA_ICACHE_WAR_INIT						\
+do {									\
+	if (current_cpu_data.cputype == CPU_TX49XX)			\
+		is_suspect_toshiba_tx49 = 0;				\
+while (0)
+
+#else
+
+#define TOSHIBA_ICACHE_WAR_DECL
+#define TOSHIBA_ICACHE_WAR_PROLOG	do { } while (0)
+#define TOSHIBA_ICACHE_WAR_EPILOG	do { } while (0)
+#define TOSHIBA_ICACHE_WAR_INIT		do { } while (0)
+
+#endif
+
 static void r4k_blast_icache_page_indexed(unsigned long addr)
 {
+	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
+	TOSHIBA_ICACHE_WAR_DECL;
 
 	goto *l;
 
 ic_16:
 	blast_icache16_page_indexed(addr);
+
 	return;
 
 ic_32:
+	TOSHIBA_ICACHE_WAR_PROLOG;
 	blast_icache32_page_indexed(addr);
+	TOSHIBA_ICACHE_WAR_EPILOG;
+
 	return;
 
 init:
+	TOSHIBA_ICACHE_WAR_INIT;
+
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
@@ -183,19 +232,27 @@ init:
 
 static void r4k_blast_icache(void)
 {
+	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
+	TOSHIBA_ICACHE_WAR_DECL;
 
 	goto *l;
 
 ic_16:
 	blast_icache16();
+
 	return;
 
 ic_32:
+	TOSHIBA_ICACHE_WAR_PROLOG;
 	blast_icache32();
+	TOSHIBA_ICACHE_WAR_EPILOG;
+
 	return;
 
 init:
+	TOSHIBA_ICACHE_WAR_INIT;
+
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
@@ -416,6 +473,8 @@ static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		r4k_flush_pcache_all();
 	} else {
+		unsigned long dc_lsize = current_cpu_data.dcache.linesz;
+		unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 #ifdef R4600_V2_HIT_CACHEOP_WAR
 		unsigned long flags;
 
@@ -466,6 +525,8 @@ static void r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
  */
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
+	unsigned long ic_lsize = current_cpu_data.icache.linesz;
+	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 #ifdef R4600_V1_HIT_DCACHE_WAR
 	unsigned long flags;
 
@@ -483,6 +544,8 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 
 static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 {
+	unsigned long ic_lsize = current_cpu_data.icache.linesz;
+	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
 #ifdef R4600_V2_HIT_CACHEOP_WAR
 	unsigned long flags;
 
@@ -520,7 +583,7 @@ static void __init probe_icache(unsigned long config)
 		icache_size = 1 << (12 + ((config >> 9) & 7));
 		break;
 	}
-	ic_lsize = 16 << ((config >> 5) & 1);
+	current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
 
 	/*
 	 * Processor configuration sanity check for the R4000SC V2.2
@@ -530,7 +593,8 @@ static void __init probe_icache(unsigned long config)
 	 * no vendor is shipping his hardware in the "bad" configuration.
 	 */
 	if (PAGE_SIZE <= 0x8000 && read_c0_prid() == 0x0422 &&
-	    (read_c0_config() & CONF_SC) && ic_lsize != 16)
+	    (read_c0_config() & CONF_SC) &&
+	     current_cpu_data.icache.linesz != 16)
 		panic("Impropper processor configuration detected");
 
 	switch (current_cpu_data.cputype) {
@@ -549,6 +613,11 @@ static void __init probe_icache(unsigned long config)
 		current_cpu_data.icache.waybit= 0;
 		break;
 
+	case CPU_TX49XX:
+		current_cpu_data.icache.ways = 4;
+		current_cpu_data.icache.waybit= 0;
+		break;
+
 	default:
 		current_cpu_data.icache.ways = 1;
 		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
@@ -557,11 +626,12 @@ static void __init probe_icache(unsigned long config)
 
 	/* compute a couple of other cache variables */
 	icache_way_size = icache_size / current_cpu_data.icache.ways;
-	current_cpu_data.icache.sets = icache_way_size / ic_lsize;
+	current_cpu_data.icache.sets = icache_size /
+		(current_cpu_data.icache.linesz * current_cpu_data.icache.ways);
 
-	printk("Primary instruction cache %ldkb %s, linesize %ld bytes\n",
+	printk("Primary instruction cache %ldkb %s, linesize %d bytes\n",
 	       icache_size >> 10, way_string[current_cpu_data.icache.ways],
-	       ic_lsize);
+	       current_cpu_data.icache.linesz);
 }
 
 static void __init probe_dcache(unsigned long config)
@@ -580,7 +650,7 @@ static void __init probe_dcache(unsigned long config)
 		dcache_size = 1 << (12 + ((config >> 6) & 7));
 		break;
 	}
-	dc_lsize = 16 << ((config >> 4) & 1);
+	current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
 
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4131:
@@ -598,6 +668,11 @@ static void __init probe_dcache(unsigned long config)
 		current_cpu_data.dcache.waybit = 0;
 		break;
 
+	case CPU_TX49XX:
+		current_cpu_data.dcache.ways = 4;
+		current_cpu_data.dcache.waybit = 0;
+		break;
+
 	default:
 		current_cpu_data.dcache.ways = 1;
 		current_cpu_data.dcache.waybit = 0;	/* does not matter */
@@ -606,13 +681,14 @@ static void __init probe_dcache(unsigned long config)
 
 	/* compute a couple of other cache variables */
 	dcache_way_size = dcache_size / current_cpu_data.dcache.ways;
-	current_cpu_data.dcache.sets = dcache_way_size / dc_lsize;
+	current_cpu_data.dcache.sets = dcache_size /
+		(current_cpu_data.dcache.linesz * current_cpu_data.dcache.ways);
 	if (dcache_way_size > PAGE_SIZE)
 	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
 
-	printk("Primary data cache %ldkb %s, linesize %ld bytes\n",
+	printk("Primary data cache %ldkb %s, linesize %d bytes\n",
 	       dcache_size >> 10, way_string[current_cpu_data.dcache.ways],
-	       dc_lsize);
+	       current_cpu_data.dcache.linesz);
 }
 
 /*
@@ -681,7 +757,7 @@ static void __init setup_noscache_funcs(void)
 {
 	unsigned int prid;
 
-	switch (dc_lsize) {
+	switch (current_cpu_data.dcache.linesz) {
 	case 16:
 		_clear_page = r4k_clear_page_d16;
 		_copy_page = r4k_copy_page_d16;
@@ -715,7 +791,7 @@ static void __init setup_noscache_funcs(void)
 
 static void __init setup_scache_funcs(void)
 {
-	if (dc_lsize > sc_lsize)
+	if (current_cpu_data.dcache.linesz > sc_lsize)
 		panic("Invalid primary cache configuration detected");
 
 	switch (sc_lsize) {
@@ -757,50 +833,85 @@ static inline void __init setup_scache(unsigned int config)
 	probe_func_t probe_scache_kseg1;
 	int sc_present = 0;
 
-	/* Maybe the cpu knows about a l2 cache? */
-	probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
-	sc_present = probe_scache_kseg1(config);
+	/*
+	 * Do the probing thing one on R4000SC and R4400SC processors.  Other
+	 * processors don't have a S-cache that would be relevant to the
+	 * Linux memory managment.
+	 */
+	switch (current_cpu_data.cputype) {
+	case CPU_R4000PC:
+	case CPU_R4000SC:
+	case CPU_R4000MC:
+	case CPU_R4400PC:
+	case CPU_R4400SC:
+	case CPU_R4400MC:
+		probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
+		sc_present = probe_scache_kseg1(config);
+		break;
+
+	default:
+		sc_present = 0;
+	}
 
 	if (!sc_present) {
 		setup_noscache_funcs();
 		return;
 	}
 
-	switch(current_cpu_data.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_R5000:
 	case CPU_NEVADA:
-			setup_noscache_funcs();
+		setup_noscache_funcs();
 #ifdef CONFIG_R5000_CPU_SCACHE
-			r5k_sc_init();
+		r5k_sc_init();
 #endif
-			break;
+		break;
 	default:
-			setup_scache_funcs();
+		setup_scache_funcs();
 	}
 }
 
 void __init ld_mmu_r4xx0(void)
 {
-	unsigned long config = read_c0_config();
 	extern char except_vec2_generic;
+	unsigned long config;
 
 	/* Default cache error handler for R4000 and R5000 family */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
 
-	change_c0_config(CONF_CM_CMASK | CONF_CU, CONF_CM_DEFAULT);
+	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
+	/*
+	 * c0_status.cu=0 specifies that updates by the sc instruction use
+	 * the coherency mode specified by the TLB; 1 means cachable
+	 * coherent update on write will be used.  Not all processors have
+	 * this bit and; some wire it to zero, others like Toshiba had the
+	 * silly idea of putting something else there ...
+	 */
+	switch (current_cpu_data.cputype) {
+	case CPU_R4000PC:
+	case CPU_R4000SC:
+	case CPU_R4000MC:
+	case CPU_R4400PC:
+	case CPU_R4400SC:
+	case CPU_R4400MC:
+		clear_c0_config(CONF_CU);
+		break;
+	}
+
+	config = read_c0_config();
 	probe_icache(config);
 	probe_dcache(config);
 	setup_scache(config);
 
-	if (current_cpu_data.dcache.sets * current_cpu_data.dcache.ways >
-	    PAGE_SIZE)
+	if (current_cpu_data.dcache.sets *
+	    current_cpu_data.dcache.ways > PAGE_SIZE)
 	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
 
 	shm_align_mask = max_t(unsigned long,
-	                       (dcache_size / current_cpu_data.dcache.ways) - 1,
-	                        PAGE_SIZE - 1);
+	     current_cpu_data.dcache.sets * current_cpu_data.dcache.linesz - 1,
+	     PAGE_SIZE - 1);
 
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	if ((read_c0_prid() & 0xfff0) == 0x2020) {
