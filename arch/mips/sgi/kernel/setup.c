@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.28 1999/12/08 11:35:38 ralf Exp $
+/* $Id: setup.c,v 1.29 2000/01/27 01:05:23 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -166,7 +166,7 @@ void __init sgi_setup(void)
 	 * graphics console, it is set to "d" for the first serial
 	 * line and "d2" for the second serial line.
 	 */
-	ctype = prom_getenv("console");
+	ctype = ArcGetEnvironmentVariable("console");
 	if(*ctype == 'd') {
 		if(*(ctype+1)=='2')
 			console_setup ("ttyS1");
@@ -199,8 +199,8 @@ void __init sgi_setup(void)
 #ifdef CONFIG_SGI_PROM_CONSOLE
 	console_setup("ttyS0", NULL);
 #endif
-	  
-	sgi_volume_set(simple_strtoul(prom_getenv("volume"), NULL, 10));
+  
+	sgi_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"), NULL, 10));
 
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
