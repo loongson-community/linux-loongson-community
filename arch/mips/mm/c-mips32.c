@@ -666,8 +666,6 @@ static void __init probe_tlb(unsigned long config)
 		else
 		        mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 	}	
-
-	printk("Number of TLB entries %d.\n", mips_cpu.tlbsize);
 }
 
 void __init ld_mmu_mips32(void)

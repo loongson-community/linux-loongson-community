@@ -100,6 +100,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
 	seq_printf(m, "microsecond timers\t: %s\n",
 	              (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
+	seq_printf(m, "tlb_entries\t\t: %d\n", mips_cpu.tlbsize);
 	seq_printf(m, "extra interrupt vector\t: %s\n",
 	              (mips_cpu.options & MIPS_CPU_DIVEC) ? "yes" : "no");
 	seq_printf(m, "hardware watchpoint\t: %s\n",

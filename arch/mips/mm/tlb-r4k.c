@@ -351,8 +351,6 @@ static void __init probe_tlb(unsigned long config)
 		panic("No MMU present");
 	else
 		mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
-
-	printk("Number of TLB entries %d.\n", mips_cpu.tlbsize);
 }
 
 void __init r4k_tlb_init(void)
@@ -370,7 +368,6 @@ void __init r4k_tlb_init(void)
 	set_pagemask(PM_4K);
 	write_32bit_cp0_register(CP0_WIRED, 0);
 	temp_tlb_entry = mips_cpu.tlbsize - 1;
-	printk("TLB has %d entries.\n", mips_cpu.tlbsize);
 	local_flush_tlb_all();
 
 	if ((mips_cpu.options & MIPS_CPU_4KEX)
