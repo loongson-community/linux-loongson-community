@@ -4,6 +4,7 @@
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
  * Copyright (C) 2000 Ralf Baechle
+ * Copyright (C) 2002  Maciej W. Rozycki
  *
  * Mostly stolen from the sparc64 ioctl32 implementation.
  */
@@ -24,6 +25,7 @@
 #include <linux/cdrom.h>
 #include <linux/blkdev.h>
 #include <linux/loop.h>
+#include <linux/fb.h>
 #include <linux/vt.h>
 #include <linux/kd.h>
 #include <linux/netdevice.h>
@@ -86,6 +88,166 @@ static int rw_long(unsigned int fd, unsigned int cmd, unsigned long arg)
 }
 
 #define A(__x) ((unsigned long)(__x))
+
+
+#ifdef CONFIG_FB
+
+struct fb_fix_screeninfo32 {
+	char id[16];			/* identification string eg "TT Builtin" */
+	__u32 smem_start;		/* Start of frame buffer mem */
+					/* (physical address) */
+	__u32 smem_len;			/* Length of frame buffer mem */
+	__u32 type;			/* see FB_TYPE_*		*/
+	__u32 type_aux;			/* Interleave for interleaved Planes */
+	__u32 visual;			/* see FB_VISUAL_*		*/ 
+	__u16 xpanstep;			/* zero if no hardware panning  */
+	__u16 ypanstep;			/* zero if no hardware panning  */
+	__u16 ywrapstep;		/* zero if no hardware ywrap    */
+	__u32 line_length;		/* length of a line in bytes    */
+	__u32 mmio_start;		/* Start of Memory Mapped I/O   */
+					/* (physical address) */
+	__u32 mmio_len;			/* Length of Memory Mapped I/O  */
+	__u32 accel;			/* Type of acceleration available */
+	__u16 reserved[3];		/* Reserved for future compatibility */
+};
+
+static int do_fbioget_fscreeninfo_ioctl(unsigned int fd, unsigned int cmd,
+					unsigned long arg)
+{
+	mm_segment_t old_fs = get_fs();
+	struct fb_fix_screeninfo fix;
+	struct fb_fix_screeninfo32 *fix32 = (struct fb_fix_screeninfo32 *)arg;
+	int err;
+
+	set_fs(KERNEL_DS);
+	err = sys_ioctl(fd, cmd, (unsigned long)&fix);
+	set_fs(old_fs);
+
+	if (err == 0) {
+		err = __copy_to_user((char *)fix32->id, (char *)fix.id,
+				     sizeof(fix.id));
+		err |= __put_user((__u32)(unsigned long)fix.smem_start,
+				  &fix32->smem_start);
+		err |= __put_user(fix.smem_len, &fix32->smem_len);
+		err |= __put_user(fix.type, &fix32->type);
+		err |= __put_user(fix.type_aux, &fix32->type_aux);
+		err |= __put_user(fix.visual, &fix32->visual);
+		err |= __put_user(fix.xpanstep, &fix32->xpanstep);
+		err |= __put_user(fix.ypanstep, &fix32->ypanstep);
+		err |= __put_user(fix.ywrapstep, &fix32->ywrapstep);
+		err |= __put_user(fix.line_length, &fix32->line_length);
+		err |= __put_user((__u32)(unsigned long)fix.mmio_start,
+				  &fix32->mmio_start);
+		err |= __put_user(fix.mmio_len, &fix32->mmio_len);
+		err |= __put_user(fix.accel, &fix32->accel);
+		err |= __copy_to_user((char *)fix32->reserved,
+				      (char *)fix.reserved,
+				      sizeof(fix.reserved));
+		if (err)
+			err = -EFAULT;
+	}
+
+	return err;
+}
+
+struct fb_cmap32 {
+	__u32 start;			/* First entry  */
+	__u32 len;			/* Number of entries */
+	__u32 red;			/* Red values   */
+	__u32 green;
+	__u32 blue;
+	__u32 transp;			/* transparency, can be NULL */
+};
+
+static int do_fbiocmap_ioctl(unsigned int fd, unsigned int cmd,
+			     unsigned long arg)
+{
+	mm_segment_t old_fs = get_fs();
+	u32 red = 0, green = 0, blue = 0, transp = 0;
+	struct fb_cmap cmap;
+	struct fb_cmap32 *cmap32 = (struct fb_cmap32 *)arg;
+	int err;
+
+	memset(&cmap, 0, sizeof(cmap));
+
+	err = __get_user(cmap.start, &cmap32->start);
+	err |= __get_user(cmap.len, &cmap32->len);
+	err |= __get_user(red, &cmap32->red);
+	err |= __get_user(green, &cmap32->green);
+	err |= __get_user(blue, &cmap32->blue);
+	err |= __get_user(transp, &cmap32->transp);
+	if (err)
+		return -EFAULT;
+
+	err = -ENOMEM;
+	cmap.red = kmalloc(cmap.len * sizeof(__u16), GFP_KERNEL);
+	if (!cmap.red)
+		goto out;
+	cmap.green = kmalloc(cmap.len * sizeof(__u16), GFP_KERNEL);
+	if (!cmap.green)
+		goto out;
+	cmap.blue = kmalloc(cmap.len * sizeof(__u16), GFP_KERNEL);
+	if (!cmap.blue)
+		goto out;
+	if (transp) {
+		cmap.transp = kmalloc(cmap.len * sizeof(__u16), GFP_KERNEL);
+		if (!cmap.transp)
+			goto out;
+	}
+			
+	if (cmd == FBIOPUTCMAP) {
+		err = __copy_from_user(cmap.red, (char *)A(red),
+				       cmap.len * sizeof(__u16));
+		err |= __copy_from_user(cmap.green, (char *)A(green),
+					cmap.len * sizeof(__u16));
+		err |= __copy_from_user(cmap.blue, (char *)A(blue),
+					cmap.len * sizeof(__u16));
+		if (cmap.transp)
+			err |= __copy_from_user(cmap.transp, (char *)A(transp),
+						cmap.len * sizeof(__u16));
+		if (err) {
+			err = -EFAULT;
+			goto out;
+		}
+	}
+
+	set_fs(KERNEL_DS);
+	err = sys_ioctl(fd, cmd, (unsigned long)&cmap);
+	set_fs(old_fs);
+	if (err)
+		goto out;
+
+	if (cmd == FBIOGETCMAP) {
+		err = __copy_to_user((char *)A(red), cmap.red,
+				     cmap.len * sizeof(__u16));
+		err |= __copy_to_user((char *)A(green), cmap.blue,
+				      cmap.len * sizeof(__u16));
+		err |= __copy_to_user((char *)A(blue), cmap.blue,
+				      cmap.len * sizeof(__u16));
+		if (cmap.transp)
+			err |= __copy_to_user((char *)A(transp), cmap.transp,
+					      cmap.len * sizeof(__u16));
+		if (err) {
+			err = -EFAULT;
+			goto out;
+		}
+	}
+
+out:
+	if (cmap.red)
+		kfree(cmap.red);
+	if (cmap.green)
+		kfree(cmap.green);
+	if (cmap.blue)
+		kfree(cmap.blue);
+	if (cmap.transp)
+		kfree(cmap.transp);
+
+	return err;
+}
+
+#endif /* CONFIG_FB */
+
 
 struct timeval32 {
 	int tv_sec;
@@ -671,6 +833,16 @@ COMPATIBLE_IOCTL(FIONCLEX)
 COMPATIBLE_IOCTL(FIOASYNC)
 COMPATIBLE_IOCTL(FIONBIO)
 COMPATIBLE_IOCTL(FIONREAD)
+
+#ifdef CONFIG_FB
+/* Big F */
+COMPATIBLE_IOCTL(FBIOGET_VSCREENINFO),
+COMPATIBLE_IOCTL(FBIOPUT_VSCREENINFO),
+HANDLE_IOCTL(FBIOGET_FSCREENINFO, do_fbioget_fscreeninfo_ioctl),
+HANDLE_IOCTL(FBIOGETCMAP, do_fbiocmap_ioctl),
+HANDLE_IOCTL(FBIOPUTCMAP, do_fbiocmap_ioctl),
+COMPATIBLE_IOCTL(FBIOPAN_DISPLAY),
+#endif /* CONFIG_FB */
 
 /* Big K */
 COMPATIBLE_IOCTL(PIO_FONT)
