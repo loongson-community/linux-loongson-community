@@ -87,7 +87,7 @@ typedef unsigned int old_sigset_t32;
 #define SA_ONESHOT	SA_RESETHAND
 #define SA_INTERRUPT	0x20000000	/* dummy -- ignored */
 
-#define SA_RESTORER	0x04000000
+#define SA_RESTORER	0x04000000	/* Only for o32 compat code */
 
 /*
  * sigaltstack controls
