@@ -148,6 +148,7 @@ void __init pcibr_setup(cnodeid_t nid)
 			num_bridges = 1;
         		bus_to_wid[0] = 0x8;
 			bus_to_nid[0] = 0;
+			masterwid = 0xa;
 		} else if (partnum == XBOW_WIDGET_PART_NUM) {
 			lboard_t *brd;
 			klxbow_t *xbow_p;
@@ -217,6 +218,7 @@ void __init pcibr_setup(cnodeid_t nid)
         		bus_to_nid[1] = 0;
         		bus_to_nid[2] = 0;
 
+			masterwid = 0xa;
 			num_bridges = 3;
 		}
 	}
