@@ -327,7 +327,7 @@ static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp
 				skb->protocol = eth_type_trans(skb, dev);
 
 				/* We don't want to receive our own packets */
-				if (memcmp(eth_hdr(skb)->h_source, dev->dev_addr, 6)) {
+				if (memcmp(eth_hdr(skb)->h_source, dev->dev_addr, ETH_ALEN)) {
 					netif_rx(skb);
 					dev->last_rx = jiffies;
 					sp->stats.rx_packets++;
