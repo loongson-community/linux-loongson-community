@@ -312,13 +312,9 @@ asmlinkage void do_syscall_trace(void)
 
 	/* The 0x80 provides a way for the tracing parent to distinguish
 	   between a syscall stop and SIGTRAP delivery */
-	current->exit_code = SIGTRAP | ((current->ptrace & PT_TRACESYSGOOD)
-	                                ? 0x80 : 0);
-	preempt_disable();
-	current->state = TASK_STOPPED;
-	notify_parent(current, SIGCHLD);
-	schedule();
-	preempt_enable();
+	ptrace_notify(SIGTRAP | ((current->ptrace & PT_TRACESYSGOOD) ?
+	                         0x80 : 0));
+
 	/*
 	 * this isn't the same as continuing with a signal, but it will do
 	 * for normal use.  strace only continues with a signal if the
