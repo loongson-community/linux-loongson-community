@@ -10,7 +10,7 @@
  *        Squeeze the last cycles out of the handlers.  Only a dead
  *        cycle is a good cycle.
  *
- * $Id: int-handler.S,v 1.3 1997/09/20 19:20:11 root Exp $
+ * $Id: int-handler.S,v 1.5 1997/12/01 17:57:23 ralf Exp $
  */
 #include <asm/asm.h>
 #include <asm/mipsconfig.h>
@@ -263,7 +263,7 @@ loc_ethernet: 	li	s1,~JAZZ_IE_ETHERNET
 		b	loc_call
 
 loc_scsi:	li	s1,~JAZZ_IE_SCSI
-		li	a0,12         # JAZZ_SCSI_IRQ
+		li	a0,JAZZ_SCSI_IRQ
 		b	loc_call
 
 /*

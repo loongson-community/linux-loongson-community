@@ -7,12 +7,13 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: setup.c,v 1.5 1997/12/01 17:57:24 ralf Exp $
+ * $Id: setup.c,v 1.6 1997/12/02 03:43:43 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/mm.h>
 #include <asm/bootinfo.h>
 #include <asm/keyboard.h>
 #include <asm/irq.h>
@@ -21,6 +22,7 @@
 #include <asm/reboot.h>
 #include <asm/vector.h>
 #include <asm/io.h>
+#include <asm/pgtable.h>
 
 /*
  * Initial irq handlers.
