@@ -664,7 +664,7 @@ void do_reserved(struct pt_regs *regs)
 static inline void watch_init(void)
 {
 	if (mips_cpu.options & MIPS_CPU_WATCH ) {
-		(void)set_except_vector(23, handle_watch);
+		set_except_vector(23, handle_watch);
  		watch_available = 1;
  	}
 }
@@ -787,7 +787,7 @@ void __init trap_init(void)
 	 * Setup default vectors
 	 */
 	for(i = 0; i <= 31; i++)
-		(void)set_except_vector(i, handle_reserved);
+		set_except_vector(i, handle_reserved);
 
 	/* 
 	 * Copy the EJTAG debug exception vector handler code to it's final 
@@ -808,28 +808,28 @@ void __init trap_init(void)
 	 */
 	parity_protection_init();
 
-	(void)set_except_vector(1, handle_mod);
-	(void)set_except_vector(2, handle_tlbl);
-	(void)set_except_vector(3, handle_tlbs);
-	(void)set_except_vector(4, handle_adel);
-	(void)set_except_vector(5, handle_ades);
+	set_except_vector(1, handle_mod);
+	set_except_vector(2, handle_tlbl);
+	set_except_vector(3, handle_tlbs);
+	set_except_vector(4, handle_adel);
+	set_except_vector(5, handle_ades);
 	/*
 	 * The Data Bus Error/ Instruction Bus Errors are signaled
 	 * by external hardware.  Therefore these two expection have
 	 * board specific handlers.
 	 */
-	(void)set_except_vector(6, handle_ibe);
-	(void)set_except_vector(7, handle_dbe);
+	set_except_vector(6, handle_ibe);
+	set_except_vector(7, handle_dbe);
 	ibe_board_handler = default_be_board_handler;
 	dbe_board_handler = default_be_board_handler;
 
-	(void)set_except_vector(8, handle_sys);
-	(void)set_except_vector(9, handle_bp);
-	(void)set_except_vector(10, handle_ri);
-	(void)set_except_vector(11, handle_cpu);
-	(void)set_except_vector(12, handle_ov);
-	(void)set_except_vector(13, handle_tr);
-	(void)set_except_vector(15, handle_fpe);
+	set_except_vector(8, handle_sys);
+	set_except_vector(9, handle_bp);
+	set_except_vector(10, handle_ri);
+	set_except_vector(11, handle_cpu);
+	set_except_vector(12, handle_ov);
+	set_except_vector(13, handle_tr);
+	set_except_vector(15, handle_fpe);
 	
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
