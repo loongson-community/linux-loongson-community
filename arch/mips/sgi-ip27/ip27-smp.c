@@ -122,10 +122,6 @@ void cpu_node_probe(void)
 	printk("Discovered %d cpus on %d nodes\n", highest + 1, numnodes);
 }
 
-void __init prom_build_cpu_map(void)
-{
-}
-
 static void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend,
 	int base_level)
 {

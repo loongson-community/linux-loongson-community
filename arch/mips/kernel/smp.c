@@ -236,7 +236,6 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	init_new_context(current, &init_mm);
 	current_thread_info()->cpu = 0;
 	smp_tune_scheduling();
-	prom_build_cpu_map();
 	prom_prepare_cpus(max_cpus);
 }
 
