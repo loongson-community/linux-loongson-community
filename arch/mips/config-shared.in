@@ -622,6 +622,10 @@ if [ "$CONFIG_ISA" = "y" ]; then
    endmenu
 fi
 
+#
+# input before char - char/joystick depends on it. As does USB.
+#
+source drivers/input/Config.in
 source drivers/char/Config.in
 
 #source drivers/misc/Config.in
@@ -685,8 +689,6 @@ source drivers/usb/Config.in
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    source net/bluetooth/Config.in
 fi
-
-source drivers/input/Config.in
 
 mainmenu_option next_comment
 comment 'Kernel hacking'
