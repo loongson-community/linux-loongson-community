@@ -72,26 +72,40 @@
 #define cpu_has_ic_fills_f_dc	(cpu_data[0].dcache.flags & MIPS_CACHE_IC_F_DC)
 #endif
 
+#ifdef CONFIG_MIPS32
+# ifndef cpu_has_nofpuex
+# define cpu_has_nofpuex	(cpu_data[0].options & MIPS_CPU_NOFPUEX)
+# endif
+# ifndef cpu_has_64bits
+# define cpu_has_64bits		(cpu_data[0].isa_level & MIPS_CPU_ISA_64BIT)
+# endif
+# ifndef cpu_has_64bit_zero_reg
+# define cpu_has_64bit_zero_reg	(cpu_data[0].isa_level & MIPS_CPU_ISA_64BIT)
+# endif
+# ifndef cpu_has_64bit_gp_regs
+# define cpu_has_64bit_gp_regs		0
+# endif
+# ifndef cpu_has_64bit_addresses
+# define cpu_has_64bit_addresses	0
+# endif
+#endif
+
 #ifdef CONFIG_MIPS64
-#ifndef cpu_has_nofpuex
-#define cpu_has_nofpuex		0
-#endif
-#ifndef cpu_has_64bits
-#define cpu_has_64bits		1
-#endif
-#ifndef cpu_has_64bit_addresses
-#define cpu_has_64bit_addresses	1
-#endif
-#else
-#ifndef cpu_has_nofpuex
-#define cpu_has_nofpuex		(cpu_data[0].options & MIPS_CPU_NOFPUEX)
-#endif
-#ifndef cpu_has_64bits
-#define cpu_has_64bits		(cpu_data[0].isa_level & MIPS_CPU_ISA_64BIT)
-#endif
-#ifndef cpu_has_64bit_addresses
-#define cpu_has_64bit_addresses	0
-#endif
+# ifndef cpu_has_nofpuex
+# define cpu_has_nofpuex		0
+# endif
+# ifndef cpu_has_64bits
+# define cpu_has_64bits			1
+# endif
+# ifndef cpu_has_64bit_zero_reg
+# define cpu_has_64bit_zero_reg		1
+# endif
+# ifndef cpu_has_64bit_gp_regs
+# define cpu_has_64bit_gp_regs		1
+# endif
+# ifndef cpu_has_64bit_addresses
+# define cpu_has_64bit_addresses	1
+# endif
 #endif
 
 #ifndef cpu_has_subset_pcaches
