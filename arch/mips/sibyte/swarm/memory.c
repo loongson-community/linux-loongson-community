@@ -21,6 +21,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/types.h>
 #include <asm/page.h>
 
 extern phys_t swarm_mem_region_addrs[];

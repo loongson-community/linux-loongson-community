@@ -244,25 +244,3 @@ void __init swarm_time_init(void)
 		write_unlock_irqrestore(&xtime_lock, flags);
 	}
 }
-
-void do_settimeofday(struct timeval *tv)
-{
-	unsigned long saved_jiffies;
-	unsigned long flags;
-	saved_jiffies = jiffies;
-	write_lock_irqsave(&xtime_lock, flags);
-	sec_bias = (saved_jiffies/HZ) - tv->tv_sec;
-	usec_bias = ((saved_jiffies%HZ)*(1000000/HZ)) - tv->tv_usec;
-	write_unlock_irqrestore(&xtime_lock, flags);
-}
-
-void do_gettimeofday(struct timeval *tv)
-{
-	unsigned long saved_jiffies;
-	unsigned long flags;
-	saved_jiffies = jiffies;
-	read_lock_irqsave(&xtime_lock, flags);
-	tv->tv_sec = sec_bias + (saved_jiffies/HZ);
-	tv->tv_usec = usec_bias + ((saved_jiffies%HZ) * (1000000/HZ));
-	read_unlock_irqrestore(&xtime_lock, flags);
-}

@@ -87,7 +87,7 @@ asmlinkage void start_secondary(void)
 	unsigned int cpu = smp_processor_id();
 
 	prom_init_secondary();
-	cpu_cpu_trap_init();
+	per_cpu_trap_init();
 
 	/*
 	 * XXX parity protection should be folded in here when it's converted

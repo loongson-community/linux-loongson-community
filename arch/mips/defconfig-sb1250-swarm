@@ -53,6 +53,7 @@ CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 CONFIG_SWAP_IO_SPACE=y
+CONFIG_NEW_TIME_C=y
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
 # CONFIG_PCI is not set
