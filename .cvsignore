@@ -13,3 +13,4 @@ vmlinux.ecoff
 vmlinux.rm200
 modules
 nohup.out
+build-log
