@@ -5,8 +5,8 @@
  * Derived from drivers/macintosh/macserial.c by Harald Koerfgen.
  *
  * DECstation changes
- * Copyright (C) 1998-2002 Harald Koerfgen
- * Copyright (C) 2000,2001 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
+ * Copyright (C) 1998-2000 Harald Koerfgen
+ * Copyright (C) 2000, 2001, 2002  Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  *
  * For the rest of the code the original Copyright applies:
  * Copyright (C) 1996 Paul Mackerras (Paul.Mackerras@cs.anu.edu.au)
@@ -1721,7 +1721,7 @@ int rs_open(struct tty_struct *tty, struct file * filp)
 
 static void __init show_serial_version(void)
 {
-	printk("DECstation Z8530 serial driver version 0.06\n");
+	printk("DECstation Z8530 serial driver version 0.07\n");
 }
 
 /*  Initialize Z8530s zs_channels
@@ -2021,21 +2021,13 @@ zs_poll_tx_char(struct dec_serial *info, unsigned char ch)
 	if(chan) {
 		int loops = 10000;
 
- 		RECOVERY_DELAY;
-               	wbflush();
-		RECOVERY_DELAY;
-
-		while (loops && !(*(chan->control) & Tx_BUF_EMP)) {
+		while (loops && !(read_zsreg(chan, 0) & Tx_BUF_EMP))
 			loops--;
-	        	RECOVERY_DELAY;
-		}
 
 		if (loops) {
-			*(chan->data) = ch;
-			wbflush();
-			RECOVERY_DELAY;
+			write_zsdata(chan, ch);
 			ret = 0;
-                } else
+		} else
 			ret = -EAGAIN;
 
 		return ret;
@@ -2052,9 +2044,8 @@ zs_poll_rx_char(struct dec_serial *info)
 	if(chan) {
                 int loops = 10000;
 
-                while(loops && ((read_zsreg(chan, 0) & Rx_CH_AV) == 0)) {
+		while (loops && !(read_zsreg(chan, 0) & Rx_CH_AV))
 			loops--;
-		}
 
                 if (loops)
                         ret = read_zsdata(chan);
@@ -2062,8 +2053,8 @@ zs_poll_rx_char(struct dec_serial *info)
                         ret = -EAGAIN;
 
 		return ret;
-        } else
-                return -ENODEV;
+	} else
+		return -ENODEV;
 }
 
 unsigned int register_zs_hook(unsigned int channel, struct zs_hook *hook)

@@ -5,7 +5,7 @@
  * for more details.
  *
  * Copyright (C) 1999-2002 Harald Koerfgen <hkoerfg@web.de>
- * Copyright (C) 2001 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
+ * Copyright (C) 2001, 2002  Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  */
 
 #include <linux/config.h>
@@ -21,7 +21,6 @@
 #include <linux/vt_kern.h>
 
 #include <asm/keyboard.h>
-#include <asm/wbflush.h>
 #include <asm/dec/tc.h>
 #include <asm/dec/machtype.h>
 
@@ -48,19 +47,18 @@ static void __init lk201_info(struct dec_serial *);
 static void lk201_kbd_rx_char(unsigned char, unsigned char);
 
 struct zs_hook lk201_kbdhook = {
-	init_channel:   lk201_init,
-	init_info:      lk201_info,
-	rx_char:        NULL,
-	poll_rx_char:   NULL,
-	poll_tx_char:   NULL,
-	cflags:         B4800 | CS8 | CSTOPB | CLOCAL
+	init_channel:	lk201_init,
+	init_info:	lk201_info,
+	rx_char:	NULL,
+	poll_rx_char:	NULL,
+	poll_tx_char:	NULL,
+	cflags:		B4800 | CS8 | CSTOPB | CLOCAL
 };
 
 /*
  * This is used during keyboard initialisation
  */
 static unsigned char lk201_reset_string[] = {
-	LK_CMD_LEDS_ON, LK_PARAM_LED_MASK(0xf),	/* show we are resetting */
 	LK_CMD_SET_DEFAULTS,
 	LK_CMD_MODE(LK_MODE_RPT_DOWN, 1),
 	LK_CMD_MODE(LK_MODE_RPT_DOWN, 2),
@@ -76,26 +74,83 @@ static unsigned char lk201_reset_string[] = {
 	LK_CMD_MODE(LK_MODE_RPT_DOWN, 12),
 	LK_CMD_MODE(LK_MODE_DOWN, 13),
 	LK_CMD_MODE(LK_MODE_RPT_DOWN, 14),
-	LK_CMD_ENB_RPT,
 	LK_CMD_DIS_KEYCLK,
-	LK_CMD_RESUME,
 	LK_CMD_ENB_BELL, LK_PARAM_VOLUME(4),
-	LK_CMD_LEDS_OFF, LK_PARAM_LED_MASK(0xf)
 };
 
 static struct dec_serial* lk201kbd_info;
 
-static int __init lk201_reset(struct dec_serial *info)
+static int lk201_send(struct dec_serial *info, unsigned char ch)
 {
-	int i;
+	if (info->hook->poll_tx_char(info, ch)) {
+		printk(KERN_ERR "lk201: transmit timeout\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+static inline int lk201_get_id(struct dec_serial *info)
+{
+	return lk201_send(info, LK_CMD_REQ_ID);
+}
+
+static int lk201_reset(struct dec_serial *info)
+{
+	int i, r;
 
 	for (i = 0; i < sizeof(lk201_reset_string); i++) {
-		if (info->hook->poll_tx_char(info, lk201_reset_string[i]) < 0) {
-			return -EIO;
-		}
+		r = lk201_send(info, lk201_reset_string[i]);
+		if (r < 0)
+			return r;
 	}
-
 	return 0;
+}
+
+static void lk201_report(unsigned char id[6])
+{
+	char *report = "lk201: keyboard attached, ";
+
+	switch (id[2]) {
+	case LK_STAT_PWRUP_OK:
+		printk(KERN_INFO "%sself-test OK\n", report);
+		break;
+	case LK_STAT_PWRUP_KDOWN:
+		/* The keyboard will resend the power-up ID
+		   after all keys are released, so we don't
+		   bother handling the error specially.  Still
+		   there may be a short-circuit inside.
+		 */
+		printk(KERN_ERR "%skey down (stuck?), code: 0x%02x\n",
+		       report, id[3]);
+		break;
+	case LK_STAT_PWRUP_ERROR:
+		printk(KERN_ERR "%sself-test failure\n", report);
+		break;
+	default:
+		printk(KERN_ERR "%sunknown error: 0x%02x\n",
+		       report, id[2]);
+	}
+}
+
+static void lk201_id(unsigned char id[6])
+{
+	/*
+	 * Report whether there is an LK201 or an LK401
+	 * The LK401 has ALT keys...
+	 */
+	switch (id[4]) {
+	case 1:
+		printk(KERN_INFO "lk201: LK201 detected\n");
+		break;
+	case 2:
+		printk(KERN_INFO "lk201: LK401 detected\n");
+		break;
+	default:
+		printk(KERN_WARNING
+		       "lk201: unknown keyboard detected, ID %d\n", id[4]);
+		printk(KERN_WARNING "lk201: ... please report to "
+		       "<linux-mips@oss.sgi.com>\n");
+	}
 }
 
 #define DEFAULT_KEYB_REP_DELAY	(250/5)	/* [5ms] */
@@ -233,56 +288,92 @@ char kbd_unexpected_up(unsigned char keycode)
 
 static void lk201_kbd_rx_char(unsigned char ch, unsigned char stat)
 {
+	static unsigned char id[6];
+	static int id_i;
+
 	static int shift_state = 0;
 	static int prev_scancode;
 	unsigned char c = scancodeRemap[ch];
 
-	if (!stat || stat == 4) {
-		switch (ch) {
-		case LK_STAT_RESUME_ERR:
-		case LK_STAT_ERROR:
-		case LK_STAT_INHIBIT_ACK:
-		case LK_STAT_TEST_ACK:
-		case LK_STAT_MODE_KEYDOWN:
-		case LK_STAT_MODE_ACK:
-			break;
-		case LK_KEY_LOCK:
-			shift_state ^= LK_LOCK;
-			handle_scancode(c, shift_state && LK_LOCK ? 1 : 0);
-			break;
-		case LK_KEY_SHIFT:
-			shift_state ^= LK_SHIFT;
-			handle_scancode(c, shift_state && LK_SHIFT ? 1 : 0);
-			break;
-		case LK_KEY_CTRL:
-			shift_state ^= LK_CTRL;
-			handle_scancode(c, shift_state && LK_CTRL ? 1 : 0);
-			break;
-		case LK_KEY_COMP:
-			shift_state ^= LK_COMP;
-			handle_scancode(c, shift_state && LK_COMP ? 1 : 0);
-			break;
-		case LK_KEY_RELEASE:
-			if (shift_state & LK_SHIFT)
-				handle_scancode(scancodeRemap[LK_KEY_SHIFT], 0);
-			if (shift_state & LK_CTRL)
-				handle_scancode(scancodeRemap[LK_KEY_CTRL], 0);
-			if (shift_state & LK_COMP)
-				handle_scancode(scancodeRemap[LK_KEY_COMP], 0);
-			if (shift_state & LK_LOCK)
-				handle_scancode(scancodeRemap[LK_KEY_LOCK], 0);
-			shift_state = 0;
-			break;
-		case LK_KEY_REPEAT:
-			handle_scancode(prev_scancode, 1);
-			break;
-		default:
-			prev_scancode = c;
-			handle_scancode(c, 1);
-			break;
+	if (stat && stat != 4) {
+		printk(KERN_ERR "lk201: keyboard receive error: 0x%02x\n",
+		       stat);
+		return;
+	}
+
+	/* Assume this is a power-up ID. */
+	if (ch == LK_STAT_PWRUP_ID && !id_i) {
+		id[id_i++] = ch;
+		return;
+	}
+
+	/* Handle the power-up sequence. */
+	if (id_i) {
+		id[id_i++] = ch;
+		if (id_i == 4) {
+			/* OK, the power-up concluded. */
+			lk201_report(id);
+			if (id[2] == LK_STAT_PWRUP_OK)
+				lk201_get_id(lk201kbd_info);
+			else {
+				id_i = 0;
+				printk(KERN_ERR "lk201: keyboard power-up "
+				       "error, skipping initialization\n");
+			}
+		} else if (id_i == 6) {
+			/* We got the ID; report it and start an operation. */
+			id_i = 0;
+			lk201_id(id);
+			lk201_reset(lk201kbd_info);
 		}
-	} else
-		printk("Error reading LKx01 keyboard: 0x%02x\n", stat);
+		return;
+	}
+
+	/* Everything else is a scancode/status response. */
+	id_i = 0;
+	switch (ch) {
+	case LK_STAT_RESUME_ERR:
+	case LK_STAT_ERROR:
+	case LK_STAT_INHIBIT_ACK:
+	case LK_STAT_TEST_ACK:
+	case LK_STAT_MODE_KEYDOWN:
+	case LK_STAT_MODE_ACK:
+		break;
+	case LK_KEY_LOCK:
+		shift_state ^= LK_LOCK;
+		handle_scancode(c, shift_state && LK_LOCK ? 1 : 0);
+		break;
+	case LK_KEY_SHIFT:
+		shift_state ^= LK_SHIFT;
+		handle_scancode(c, shift_state && LK_SHIFT ? 1 : 0);
+		break;
+	case LK_KEY_CTRL:
+		shift_state ^= LK_CTRL;
+		handle_scancode(c, shift_state && LK_CTRL ? 1 : 0);
+		break;
+	case LK_KEY_COMP:
+		shift_state ^= LK_COMP;
+		handle_scancode(c, shift_state && LK_COMP ? 1 : 0);
+		break;
+	case LK_KEY_RELEASE:
+		if (shift_state & LK_SHIFT)
+			handle_scancode(scancodeRemap[LK_KEY_SHIFT], 0);
+		if (shift_state & LK_CTRL)
+			handle_scancode(scancodeRemap[LK_KEY_CTRL], 0);
+		if (shift_state & LK_COMP)
+			handle_scancode(scancodeRemap[LK_KEY_COMP], 0);
+		if (shift_state & LK_LOCK)
+			handle_scancode(scancodeRemap[LK_KEY_LOCK], 0);
+		shift_state = 0;
+		break;
+	case LK_KEY_REPEAT:
+		handle_scancode(prev_scancode, 1);
+		break;
+	default:
+		prev_scancode = c;
+		handle_scancode(c, 1);
+		break;
+	}
 	tasklet_schedule(&keyboard_tasklet);
 }
 
@@ -292,58 +383,15 @@ static void __init lk201_info(struct dec_serial *info)
 
 static int __init lk201_init(struct dec_serial *info)
 {
-	int ch, id = 0;
-
-	printk("DECstation LK keyboard driver v0.04... ");
-
-
-	if (lk201_reset(info) < 0) {
-		printk("reset failed!\n");
-		return -ENODEV;
-	}
-
-	mdelay(10);
-
-	/*
-	 * Detect whether there is an LK201 or an LK401
-	 * The LK401 has ALT keys...
-	 */
-	if (info->hook->poll_tx_char(info, LK_CMD_REQ_ID) < 0) {
-		printk("tx request ID timeout!\n");
-		return -ENODEV;
-	}
-
-	mdelay(10);
-
-	while ((ch = info->hook->poll_rx_char(info)) > 0)
-		id = ch;
-
-	if (ch < 0) {
-		printk("rx request ID timeout!\n");
-		return -ENODEV;
-	}
-
-	switch (id) {
-	case 1:
-		printk("LK201 detected\n");
-		break;
-	case 2:
-		printk("LK401 detected\n");
-		break;
-	default:
-		printk("unknown keyboard, ID %d,\n", id);
-		printk("... please report to <linux-mips@oss.sgi.com>\n");
-		break;
-	}
-
-	/*
-	 * now we're ready
-	 */
-	info->hook->rx_char = lk201_kbd_rx_char;
-
+	/* First install handlers. */
 	lk201kbd_info = info;
 	kbd_rate = lk201kbd_rate;
 	kd_mksound = lk201kd_mksound;
+
+	info->hook->rx_char = lk201_kbd_rx_char;
+
+	/* Then just issue a reset -- the handlers will do the rest. */
+	lk201_send(info, LK_CMD_POWER_UP);
 
 	return 0;
 }
@@ -353,26 +401,29 @@ void __init kbd_init_hw(void)
 	extern int register_zs_hook(unsigned int, struct zs_hook *);
 	extern int unregister_zs_hook(unsigned int);
 
+	/* Maxine uses LK501 at the Access.Bus. */
+	if (mips_machtype == MACH_DS5000_XX)
+		return;
+
+	printk(KERN_INFO "lk201: DECstation LK keyboard driver v0.05.\n");
+
 	if (TURBOCHANNEL) {
-		if (mips_machtype != MACH_DS5000_XX) {
-			/*
-			 * This is not a MAXINE, so:
-			 *
-			 * kbd_init_hw() is being called before
-			 * rs_init() so just register the kbd hook
-			 * and let zs_init do the rest :-)
-			 */
-			if (mips_machtype == MACH_DS5000_200)
-				printk("LK201 Support for DS5000/200 not yet ready ...\n");
-			else
-				if(!register_zs_hook(KEYB_LINE, &lk201_kbdhook))
-					unregister_zs_hook(KEYB_LINE);
-		}
+		/*
+		 * kbd_init_hw() is being called before
+		 * rs_init() so just register the kbd hook
+		 * and let zs_init do the rest :-)
+		 */
+		if (mips_machtype == MACH_DS5000_200)
+			printk(KERN_ERR "lk201: support for DS5000/200 "
+			       "not yet ready.\n");
+		else
+			if(!register_zs_hook(KEYB_LINE, &lk201_kbdhook))
+				unregister_zs_hook(KEYB_LINE);
 	} else {
 		/*
 		 * TODO: modify dz.c to allow similar hooks
 		 * for LK201 handling on DS2100, DS3100, and DS5000/200
 		 */
-		printk("LK201 Support for DS3100 not yet ready ...\n");
+		printk(KERN_ERR "lk201: support for DS3100 not yet ready.\n");
 	}
 }

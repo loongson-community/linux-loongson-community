@@ -115,6 +115,7 @@
 					/* the keycode follows */
 #define LK_STAT_MODE_ACK	0xba	/* the mode command succeeded */
 
+#define LK_STAT_PWRUP_ID	0x01	/* the power-up response start mark */
 #define LK_STAT_PWRUP_OK	0x00	/* the power-up self test OK */
 #define LK_STAT_PWRUP_KDOWN	0x3d	/* a key was down during the test */
 #define LK_STAT_PWRUP_ERROR	0x3e	/* keyboard self test failure */
