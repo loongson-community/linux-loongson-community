@@ -710,6 +710,58 @@ static __inline__ int find_next_zero_bit (unsigned long * addr, int size,
 	return offset + set + res;
 }
 
+/*
+ * find_next_bit - find the first set bit in a memory region
+ * @addr: The address to base the search on
+ * @offset: The bitnumber to start searching at
+ * @size: The maximum size to search
+ */
+static inline int find_next_bit (unsigned long * addr, int size,
+	int offset)
+{
+	unsigned int *p = ((unsigned int *) addr) + (offset >> 5);
+	int set = 0, bit = offset & 31, res;
+	unsigned long dummy;
+
+	if (bit) {
+		/*
+		 * Look for zero in first byte
+		 */
+		__asm__(".set\tnoreorder\n\t"
+			".set\tnoat\n"
+			"1:\tand\t$1,%4,%1\n\t"
+			"bnez\t$1,1f\n\t"
+			"sll\t%1,%1,1\n\t"
+			"bnez\t%1,1b\n\t"
+			"addiu\t%0,1\n\t"
+			".set\tat\n\t"
+			".set\treorder\n"
+			"1:"
+			: "=r" (set), "=r" (dummy)
+			: "0" (0), "1" (1 << bit), "r" (*p));
+		if (set < (32 - bit))
+			return set + offset;
+		set = 32 - bit;
+		p++;
+	}
+	/*
+	 * No zero yet, search remaining full bytes for a zero
+	 */
+	res = find_first_zero_bit(p, size - 32 * (p - addr));
+	return offset + set + res;
+}
+
+/*
+ * find_first_bit - find the first set bit in a memory region
+ * @addr: The address to start the search at
+ * @size: The maximum size to search
+ *
+ * Returns the bit-number of the first set bit, not the number of the byte
+ * containing a bit.
+ */
+#define find_first_bit(addr, size) \
+	find_next_bit((addr), (size), 0)
+
 #endif /* !(__MIPSEB__) */
 
 /*
@@ -859,6 +911,61 @@ static int find_first_zero_bit (void *addr, unsigned size);
 
 #define find_first_zero_bit(addr, size) \
         find_next_zero_bit((addr), (size), 0)
+
+/*
+ * find_next_bit - find the next set bit in a memory region
+ * @addr: The address to base the search on
+ * @offset: The bitnumber to start searching at
+ * @size: The maximum size to search
+ */
+static __inline__ unsigned long find_next_bit(unsigned long *addr, unsigned long size, unsigned long offset)
+{
+	unsigned long *p = addr + (offset >> 6);
+	unsigned long result = offset & ~63UL;
+	unsigned long tmp;
+
+	if (offset >= size)
+		return size;
+	size -= result;
+	offset &= 63UL;
+	if (offset) {
+		tmp = *(p++);
+		tmp &= (~0UL << offset);
+		if (size < 64)
+			goto found_first;
+		if (tmp)
+			goto found_middle;
+		size -= 64;
+		result += 64;
+	}
+	while (size & ~63UL) {
+		if ((tmp = *(p++)))
+			goto found_middle;
+		result += 64;
+		size -= 64;
+	}
+	if (!size)
+		return result;
+	tmp = *p;
+
+found_first:
+	tmp &= (~0UL >> (64 - size));
+	if (tmp == 0UL)        /* Are any bits set? */
+		return result + size; /* Nope. */
+found_middle:
+	return result + __ffs(tmp);
+}
+
+/*
+ * find_first_bit - find the first set bit in a memory region
+ * @addr: The address to start the search at
+ * @size: The maximum size to search
+ *
+ * Returns the bit-number of the first set bit, not the number of the byte
+ * containing a bit.
+ */
+#define find_first_bit(addr, size) \
+	find_next_bit((addr), (size), 0)
 
 #endif /* (__MIPSEB__) */
 
