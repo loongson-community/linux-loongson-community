@@ -28,11 +28,6 @@
 #include <asm/cpu.h>
 #include <asm/mmu_context.h>
 
-/* CP0 hazard avoidance. */
-#define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
-				     "nop; nop; nop; nop; nop; nop;\n\t" \
-				     ".set reorder\n\t")
-
 /* Primary cache parameters. */
 static int icache_size, dcache_size; /* Size in bytes */
 

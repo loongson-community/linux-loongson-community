@@ -24,11 +24,6 @@
 #include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
 
-/* CP0 hazard avoidance. */
-#define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
-				     "nop; nop; nop; nop; nop; nop;\n\t" \
-				     ".set reorder\n\t")
-
 #include <asm/asm.h>
 #include <asm/cacheops.h>
 
