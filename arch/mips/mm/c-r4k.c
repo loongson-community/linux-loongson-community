@@ -385,6 +385,7 @@ static void r4k_flush_data_cache_page(unsigned long addr)
 static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 {
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
+	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	unsigned long addr, aend;
 
 	if (!cpu_has_ic_fills_f_dc) {
