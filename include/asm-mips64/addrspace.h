@@ -1,4 +1,4 @@
-/* $Id: addrspace.h,v 1.4 2000/01/28 02:51:36 kanoj Exp $
+/* $Id: addrspace.h,v 1.5 2000/02/01 00:32:01 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -29,7 +29,7 @@
 /*
  * Returns the physical address of a KSEG0/KSEG1 address
  */
-#define CPHYSADDR(a)		(((unsigned long)(a)) & 0x00000000ffffffffUL)
+#define CPHYSADDR(a)		(((unsigned long)(a)) & 0x000000001fffffffUL)
 #define PHYSADDR(a)		(((unsigned long)(a)) & 0x000000ffffffffffUL)
 
 /*
