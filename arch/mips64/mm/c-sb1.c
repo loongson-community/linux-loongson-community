@@ -178,6 +178,61 @@ static inline void __sb1_flush_icache_all(void)
 }
 
 /*
+ * Flush the icache for a given physical page.  Need to writeback the
+ * dcache first, then invalidate the icache.  If the page isn't
+ * executable, nothing is required.
+ */
+static void local_sb1_flush_cache_page(struct vm_area_struct *vma,
+	unsigned long addr)
+{
+	int cpu = smp_processor_id();
+
+#ifndef CONFIG_SMP
+	if (!(vma->vm_flags & VM_EXEC))
+		return;
+#endif
+
+	__sb1_writeback_inv_dcache_range(addr, addr + PAGE_SIZE);
+
+	/*
+	 * Bumping the ASID is probably cheaper than the flush ...
+	 */
+	if (cpu_context(cpu, vma->vm_mm) != 0)
+		drop_mmu_context(vma->vm_mm, cpu);
+}
+
+#ifdef CONFIG_SMP
+struct flush_cache_page_args {
+	struct vm_area_struct *vma;
+	unsigned long addr;
+};
+
+static void sb1_flush_cache_page_ipi(void *info)
+{
+	struct flush_cache_page_args *args = info;
+
+	local_sb1_flush_cache_page(args->vma, args->addr);
+}
+
+/* Dirty dcache could be on another CPU, so do the IPIs */
+static void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr)
+{
+	struct flush_cache_page_args args;
+
+	if (!(vma->vm_flags & VM_EXEC))
+		return;
+
+	args.vma = vma;
+	args.addr = addr;
+	smp_call_function(sb1_flush_cache_page_ipi, (void *) &args, 1, 1);
+	local_sb1_flush_cache_page(vma, addr);
+}
+#else
+void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr);
+asm("sb1_flush_cache_page = local_sb1_flush_cache_page");
+#endif
+
+/*
  * Invalidate a range of the icache.  The addresses are virtual, and
  * the cache is virtually indexed and tagged.  However, we don't
  * necessarily have the right ASID context, so use index ops instead
@@ -509,7 +564,7 @@ void ld_mmu_sb1(void)
 	 * occur
 	 */
 	flush_cache_range = (void *) sb1_nop;
-	flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
+	flush_cache_page = sb1_flush_cache_page
 	flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
 	flush_cache_all = sb1_nop;
 
