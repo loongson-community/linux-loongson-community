@@ -19,6 +19,9 @@
 #define SGI_GFX_MINOR        148
 #define SGI_STREAMS_MOUSE    149
 #define SGI_STREAMS_KEYBOARD 150
+/* drivers/sgi/char/usema.c */
+#define SGI_USEMA	     151
+#define SGI_USEMACLONE	     152
 
 extern int misc_init(void);
 

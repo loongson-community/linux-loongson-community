@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.3 1997/07/20 15:32:25 ralf Exp $
+/* $Id: sysirix.c,v 1.4 1997/08/06 19:15:08 miguel Exp $
  * sysirix.c: IRIX system call emulation.
  *
  * Copyright (C) 1996 David S. Miller
@@ -29,7 +29,9 @@
 /* 2,300 lines of complete and utter shit coming up... */
 
 /* The sysmp commands supported thus far. */
-#define MP_PGSIZE           14 /* Return system page size in v1. */
+#define MP_NPROCS       	1 /* # processor in complex */
+#define MP_NAPROCS      	2 /* # active processors in complex */
+#define MP_PGSIZE           	14 /* Return system page size in v1. */
 
 asmlinkage int irix_sysmp(struct pt_regs *regs)
 {
@@ -45,7 +47,12 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 	case MP_PGSIZE:
 		error = PAGE_SIZE;
 		break;
-
+	case MP_NPROCS:
+	  	error = NPROCS;
+		break;
+	case MP_NAPROCS:
+		error = NPROCS;
+		break;
 	default:
 		printk("SYSMP[%s:%d]: Unsupported opcode %d\n",
 		       current->comm, current->pid, (int)cmd);
@@ -228,12 +235,17 @@ extern asmlinkage int sys_getsid(pid_t pid);
 extern asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist);
 extern asmlinkage int sys_setgroups(int gidsetsize, gid_t *grouplist);
 extern int getrusage(struct task_struct *p, int who, struct rusage *ru);
+extern char *prom_getenv(char *name);
+extern long prom_setenv(char *name, char *value);
 
 /* The syssgi commands supported thus far. */
 #define SGI_SYSID         1       /* Return unique per-machine identifier. */
 #define SGI_RDNAME        6       /* Return string name of a process. */
+#define SGI_SETNVRAM	  8	  /* Set PROM variable. */
+#define SGI_GETNVRAM	  9	  /* Get PROM variable. */
 #define SGI_SETPGID      21       /* Set process group id. */
 #define SGI_SYSCONF      22       /* POSIX sysconf garbage. */
+#define SGI_PATHCONF     24       /* POSIX sysconf garbage. */
 #define SGI_SETGROUPS    40       /* POSIX sysconf garbage. */
 #define SGI_GETGROUPS    41       /* POSIX sysconf garbage. */
 #define SGI_RUSAGE       56       /* BSD style rusage(). */
@@ -246,40 +258,73 @@ extern int getrusage(struct task_struct *p, int who, struct rusage *ru);
 
 asmlinkage int irix_syssgi(struct pt_regs *regs)
 {
-	unsigned long cmd;
-	int retval, base = 0;
+        unsigned long cmd;
+        int retval, base = 0;
 
-	lock_kernel();
-	if(regs->regs[2] == 1000)
-		base = 1;
+        lock_kernel();
+        if(regs->regs[2] == 1000)
+                base = 1;
 
-	cmd = regs->regs[base + 4];
-	switch(cmd) {
-	case SGI_SYSID: {
-		char *buf = (char *) regs->regs[base + 5];
+        cmd = regs->regs[base + 4];
+        switch(cmd) {
+        case SGI_SYSID: {
+                char *buf = (char *) regs->regs[base + 5];
 
-		/* XXX Use ethernet addr.... */
-		retval = clear_user(buf, 64);
-		break;
-	}
+                /* XXX Use ethernet addr.... */
+                retval = clear_user(buf, 64);
+                break;
+        }
 
-	case SGI_RDNAME: {
-		int pid = (int) regs->regs[base + 5];
-		char *buf = (char *) regs->regs[base + 6];
-		struct task_struct *p;
+        case SGI_RDNAME: {
+                int pid = (int) regs->regs[base + 5];
+                char *buf = (char *) regs->regs[base + 6];
+                struct task_struct *p;
 
-		retval = verify_area(VERIFY_WRITE, buf, 16);
-		if(retval)
-			break;
-		for_each_task(p) {
-			if(p->pid == pid)
-				goto found0;
-		}
-		retval = -ESRCH;
+                retval = verify_area(VERIFY_WRITE, buf, 16);
+                if(retval)
+                        break;
+                for_each_task(p) {
+                        if(p->pid == pid)
+                                goto found0;
+                }
+                retval = -ESRCH;
 
-	found0:
-		copy_to_user(buf, p->comm, 16);
-		retval = 0;
+        found0:
+                /* XXX Need to check sizes. */
+                copy_to_user(buf, p->comm, 16);
+                retval = 0;
+                break;
+        }
+
+        case SGI_GETNVRAM: {
+                char *name = (char *) regs->regs[base+5];
+                char *buf = (char *) regs->regs[base+6];
+                char *value;
+                retval = verify_area(VERIFY_WRITE, buf, 128);
+                if (retval)
+                        break;
+                value = prom_getenv(name);
+                if (!value) {
+                        retval = -EINVAL;
+                        break;
+                }
+                /* Do I strlen() for the length? */
+                copy_to_user(buf, value, 128);
+                retval = 0;
+                break;
+        }
+
+        case SGI_SETNVRAM: {
+                char *name = (char *) regs->regs[base+5];
+                char *buf = (char *) regs->regs[base+6];
+                retval = prom_setenv(name, buf);
+		/* XXX make sure retval conforms to syssgi(2) */
+		printk("[%s:%d] setnvram(\"%s\", \"%s\"): retval %d",
+		       current->comm, current->pid,
+		       name, value, retval);
+		if (retval == PROM_ENOENT)
+		  	retval = -ENOENT;
+		break;				   
 	}
 
 	case SGI_SETPGID: {

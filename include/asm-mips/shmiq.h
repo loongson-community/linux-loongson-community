@@ -174,8 +174,10 @@ typedef struct {
 	char *nothing_for_now;
 } idevInfo;
 
+#define IDEV_KEYMAP_NAME_LEN 15
+
 typedef struct {
-        char name [16];
+        char name[IDEV_KEYMAP_NAME_LEN+1];
 } idevKeymapDesc;
 
 #define IDEVINITDEVICE		_IOW('i', 51, unsigned int)
