@@ -13,9 +13,6 @@
 
 #include <asm/offset.h>
 
-/* Used in declaration of save_static functions.  */
-#define static_unused static __attribute__((unused))
-
 #define __str2(x) #x
 #define __str(x) __str2(x)
 
