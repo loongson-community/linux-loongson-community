@@ -27,7 +27,7 @@ LEAF(__strlen_user_asm)
 	and	v0, a0
 	bltz	v0, fault
 
-EXPORT(__strlen_user_nocheck_asm)
+FEXPORT(__strlen_user_nocheck_asm)
 	move	v0, a0
 1:	EX(lb, t0, (v0), fault)
 	addiu	v0, 1
@@ -35,10 +35,6 @@ EXPORT(__strlen_user_nocheck_asm)
 	subu	v0, a0
 	jr	ra
 	END(__strlen_user_asm)
-
-	.section __ex_table,"a"
-	PTR	1b, fault
-	.previous
 
 fault:	move	v0, zero
 	jr	ra

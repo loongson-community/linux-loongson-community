@@ -36,9 +36,5 @@ FEXPORT(__strlen_user_nocheck_asm)
 	jr	ra
 	END(__strlen_user_asm)
 
-	.section	__ex_table,"a"
-	PTR		1b, fault
-	.previous
-
 fault:	move	v0, zero
 	jr	ra

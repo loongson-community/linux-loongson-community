@@ -24,7 +24,7 @@
  */
 LEAF(__strnlen_user_asm)
 	ld	v0, THREAD_CURDS($28)	# pointer ok?
-	and	v0, ta0
+	and	v0, a0
 	bltz	v0, fault
 
 FEXPORT(__strnlen_user_nocheck_asm)
@@ -37,10 +37,6 @@ FEXPORT(__strnlen_user_nocheck_asm)
 1:	dsubu	v0, a0
 	jr	ra
 	END(__strnlen_user_asm)
-
-	.section	__ex_table,"a"
-	PTR		1b, fault
-	.previous
 
 fault:	move	v0, zero
 	jr	ra

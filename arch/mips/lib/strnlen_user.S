@@ -31,7 +31,7 @@ LEAF(__strnlen_user_asm)
 	and	v0, a0
 	bltz	v0, fault
 
-EXPORT(__strnlen_user_nocheck_asm)
+FEXPORT(__strnlen_user_nocheck_asm)
 	.type	__strnlen_user_nocheck_asm,@function
 	move	v0, a0
 	addu	a1, a0			# stop pointer
@@ -44,10 +44,6 @@ EXPORT(__strnlen_user_nocheck_asm)
 1:	subu	v0, a0
 	jr	ra
 	END(__strnlen_user_asm)
-
-	.section	__ex_table,"a"
-	PTR		1b, fault
-	.previous
 
 fault:	move	v0, zero
 	jr	ra

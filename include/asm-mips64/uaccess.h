@@ -425,7 +425,7 @@ static inline long __strnlen_user(const char *s, long n)
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, %2\n\t"
-		__MODULE_JAL(__strlen_user_nocheck_asm)
+		__MODULE_JAL(__strnlen_user_nocheck_asm)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (s), "r" (n)
@@ -441,7 +441,7 @@ static inline long strnlen_user(const char *s, long n)
 	__asm__ __volatile__(
 		"move\t$4, %1\n\t"
 		"move\t$5, %2\n\t"
-		__MODULE_JAL(__strlen_user_asm)
+		__MODULE_JAL(__strnlen_user_asm)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (s), "r" (n)
