@@ -31,6 +31,7 @@
    These may be modified when a driver module is loaded. */
 
 static int debug = 1;			/* 1 normal messages, 0 quiet .. 7 verbose. */
+static int noisy_mii = 1;		/* mii status msgs */
 
 /* Used to pass the media type, etc.
    Both 'options[]' and 'full_duplex[]' should exist for driver
@@ -98,6 +99,7 @@ static char version1[] __devinitdata =
 MODULE_AUTHOR("Mitch Lichtenberg (Broadcom Corp.)");
 MODULE_DESCRIPTION("Broadcom SiByte SOC GB Ethernet driver");
 MODULE_PARM(debug, "i");
+MODULE_PARM(noisy_mii, "i");
 MODULE_PARM(options, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
 
@@ -2466,7 +2468,7 @@ static int sbmac_open(struct net_device *dev)
 	 * Configure default speed 
 	 */
 
-	sbmac_mii_poll(sc,1);
+	sbmac_mii_poll(sc,noisy_mii);
 	
 	/*
 	 * Turn on the channel
@@ -2593,9 +2595,6 @@ static int sbmac_mii_poll(struct sbmac_softc *s,int noisy)
 	p += sprintf(p,"Unknown");
 	}
 
-#ifdef CONFIG_NET_SB1250_MAC_QUIET
-    noisy = 0;
-#endif
     if (noisy) {
 	    printk(KERN_INFO "%s: %s\n",s->sbm_dev->name,buffer);
 	    }
@@ -2630,7 +2629,7 @@ static void sbmac_timer(unsigned long data)
 	 * Poll the PHY to see what speed we should be running at
 	 */
 
-	if (sbmac_mii_poll(sc,1)) {
+	if (sbmac_mii_poll(sc,noisy_mii)) {
 		if (sc->sbm_state != sbmac_state_off) {
 			/*
 			 * something changed, restart the channel
