@@ -5,9 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
- *
- * $Id: sysmips.c,v 1.8 2000/02/05 06:47:08 ralf Exp $
+ * Copyright (C) 1995, 1996, 1997, 2000 by Ralf Baechle
  */
 #include <linux/errno.h>
 #include <linux/linkage.h>
@@ -53,9 +51,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 	char	*name;
 	int	flags, tmp, len, retval;
 
-	lock_kernel();
-	switch(cmd)
-	{
+	switch(cmd) {
 	case SETNAME:
 		retval = -EPERM;
 		if (!capable(CAP_SYS_ADMIN))
@@ -72,9 +68,10 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		if (len == 0 || len > __NEW_UTS_LEN)
 			goto out;
 
-		/* Fiiiixmeeee...  */
 		copy_from_user(system_utsname.nodename, name, len);
+		down_write(&uts_sem);
 		system_utsname.nodename[len] = '\0';
+		up_write(&uts_sem);
 		retval = 0;
 		goto out;
 
@@ -112,7 +109,6 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 	}
 
 out:
-	unlock_kernel();
 	return retval;
 }
 

@@ -1,5 +1,4 @@
-/* $Id: signal.c,v 1.4 2000/01/17 23:32:46 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -696,7 +695,6 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 				/* FALLTHRU */
 
 			default:
-				lock_kernel();
 				sigaddset(&current->signal, signr);
 				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;

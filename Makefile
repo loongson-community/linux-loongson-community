@@ -16,7 +16,7 @@ HPATH   	= $(TOPDIR)/include
 FINDHPATH	= $(HPATH)/asm $(HPATH)/linux $(HPATH)/scsi $(HPATH)/net
 
 HOSTCC  	= gcc
-HOSTCFLAGS	= -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
+HOSTCFLAGS	= -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -Werror
 
 CROSS_COMPILE 	=
 
@@ -168,6 +168,7 @@ DRIVERS-$(CONFIG_I2O) += drivers/i2o/i2o.o
 DRIVERS-$(CONFIG_IRDA) += drivers/net/irda/irda_drivers.a
 DRIVERS-$(CONFIG_I2C) += drivers/i2c/i2c.o
 DRIVERS-$(CONFIG_PHONE) += drivers/telephony/telephony.a
+DRIVERS-$(CONFIG_ACPI_INTERPRETER) += drivers/acpi/acpi.o
 
 DRIVERS += $(DRIVERS-y)
 
@@ -434,7 +435,7 @@ sums:
 
 dep-files: scripts/mkdep archdep include/linux/version.h
 	scripts/mkdep init/*.c > .depend
-	find $(FINDHPATH) -name SCCS -prune -or -follow -name \*.h ! -name modversions.h -print | env -i PATH="$(PATH)" HPATH="$(HPATH)" xargs scripts/mkdep > .hdepend
+	find $(FINDHPATH) -name SCCS -prune -o -follow -name \*.h ! -name modversions.h -print | env -i PATH="$(PATH)" HPATH="$(HPATH)" xargs scripts/mkdep > .hdepend
 	$(MAKE) $(patsubst %,_sfdep_%,$(SUBDIRS)) _FASTDEP_ALL_SUB_DIRS="$(SUBDIRS)"
 
 ifdef CONFIG_MODVERSIONS

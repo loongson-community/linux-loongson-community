@@ -1,5 +1,4 @@
-/* $Id: traps.c,v 1.4 2000/01/20 23:50:27 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -241,7 +240,6 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		return;
 	}
 #endif
-	lock_kernel();
 	if (fcr31 & 0x20000) {
 		/* Retry instruction with flush to zero ...  */
 		if (!(fcr31 & (1<<24))) {
@@ -253,7 +251,7 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 				"ctc1\t%0,$31"
 				: /* No outputs */
 				: "r" (fcr31));
-			goto out;
+			return;
 		}
 		pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
 		if (get_user(insn, (unsigned int *)pc)) {
@@ -267,12 +265,9 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	}
 
 	if (compute_return_epc(regs))
-		goto out;
+		return;
 	//force_sig(SIGFPE, current);
 	printk(KERN_DEBUG "Should send SIGFPE to %s\n", current->comm);
-
-out:
-	unlock_kernel();
 }
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
@@ -331,11 +326,9 @@ void do_tr(struct pt_regs *regs)
 
 void do_ri(struct pt_regs *regs)
 {
-	lock_kernel();
 	printk("Cpu%d[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
 	        smp_processor_id(), current->comm, current->pid, regs->cp0_epc, 
 		regs->regs[31]);
-	unlock_kernel();
 	if (compute_return_epc(regs))
 		return;
 	force_sig(SIGILL, current);

@@ -1,5 +1,4 @@
-/* $Id: signal32.c,v 1.4 2000/03/15 22:46:55 kanoj Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -771,7 +770,6 @@ printk("%s: delivering signal.\n", current->comm);
 				/* FALLTHRU */
 
 			default:
-				lock_kernel();
 				sigaddset(&current->signal, signr);
 				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;
