@@ -53,6 +53,7 @@
 #include <linux/major.h>
 #include <linux/mm.h>
 #include <linux/ioport.h>
+#include <linux/init.h>
 
 #ifdef __mips__
 #include <asm/bootinfo.h>
@@ -159,8 +160,8 @@ set_cursor(int currcons)
 		hide_cursor();
 }
 
-unsigned long
-con_type_init(unsigned long kmem_start, const char **display_desc)
+__initfunc(unsigned long
+con_type_init(unsigned long kmem_start, const char **display_desc))
 {
 #ifdef CONFIG_ACER_PICA_61
 	/*
@@ -328,8 +329,8 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 	return kmem_start;
 }
 
-void
-con_type_init_finish(void)
+__initfunc(void
+con_type_init_finish(void))
 {
 }
 

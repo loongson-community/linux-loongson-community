@@ -1,7 +1,7 @@
 /*
  * SNI RM200 PCI specific interrupt handler code.
  *
- * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
+ * Copyright (C) 1994 - 1997 by Ralf Baechle
  */
 #include <asm/asm.h>
 #include <linux/config.h>
@@ -150,30 +150,17 @@ poll_second:	li	a0,0x0f
 
 #endif /* CONFIG_PCNET32 */
 
-/*
- * FIXME:  This is definatly wrong but I'll have to do it this way
- *         'till I get more hardware info.
- * XXX: Apparently the NCR is attached to interrupt #2.
- */
 #ifdef CONFIG_SCSI_NCR53C8XX
-
-/*
- * FIXME: detect this address
- */
-#define NCR_BASE 0xb8000000
-
-/* Offsets from base I/O address. */
-#define NCR_INTF 0x14
 
 /*
  * ... check if we were interrupted by the NCR ...
  */
-3:		lb	t0,NCR_BASE+NCR_INTF
-		andi	t0,7
-		beqz	t0,3f				# no NCR interrupt?
+3:		lb	t0,PCIMT_CSITPEND
+		andi	t0,0x40
+		bnez	t0,3f				# bit 6 == 0 -> SCSI IRQ
 		nop					# delay slot
 		jal	do_fast_IRQ
-		li	a0,5				# delay slot
+		li	a0,PCIMT_IRQ_SCSI		# delay slot
 		j	return
 		nop					# delay slot
 

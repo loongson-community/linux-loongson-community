@@ -17,6 +17,8 @@
 #include <linux/elf.h>
 #include <linux/msg.h>
 #include <linux/shm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/utsname.h>
 
 #include <asm/ptrace.h>
@@ -24,26 +26,7 @@
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 
-/* 2,000 lines of complete and utter shit coming up... */
-
-/* Utility routines. */
-static inline struct task_struct *find_process_by_pid(pid_t pid)
-{
-	struct task_struct *p, *q;
-
-	if (pid == 0)
-		p = current;
-	else {
-		p = 0;
-		for_each_task(q) {
-			if (q && q->pid == pid) {
-				p = q;
-				break;
-			}
-		}
-	}
-	return p;
-}
+/* 2,300 lines of complete and utter shit coming up... */
 
 /* The sysmp commands supported thus far. */
 #define MP_PGSIZE           14 /* Return system page size in v1. */
@@ -70,7 +53,6 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		break;
 	}
 
-out:
 	unlock_kernel();
 	return error;
 }
@@ -114,7 +96,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 
 		printk("irix_prctl[%s:%d]: Wants PR_ISBLOCKED\n",
 		       current->comm, current->pid);
-		task = find_process_by_pid(regs->regs[base + 5]);
+		task = find_task_by_pid(regs->regs[base + 5]);
 		if(!task) {
 			error = -ESRCH;
 			break;
@@ -233,7 +215,6 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 		break;
 	}
 
-out:
 	unlock_kernel();
 	return error;
 }
@@ -658,7 +639,6 @@ asmlinkage int irix_mount(char *dev_name, char *dir_name, unsigned long flags,
 	       dev_name, dir_name, flags, type, data, datalen);
 	ret = sys_mount(dev_name, dir_name, type, flags, data);
 
-out:
 	unlock_kernel();
 	return ret;
 }
@@ -781,22 +761,23 @@ asmlinkage int irix_setpgrp(int flags)
 	printk("returning %d\n", current->pgrp);
 #endif
 
-out:
 	unlock_kernel();
 	return error;
 }
 
 asmlinkage int irix_times(struct tms * tbuf)
 {
+	int error;
+
 	lock_kernel();
 	if (tbuf) {
-		int error = verify_area(VERIFY_WRITE,tbuf,sizeof *tbuf);
+		error = verify_area(VERIFY_WRITE,tbuf,sizeof *tbuf);
 		if (error)
 			goto out;
-		__put_user(current->utime,&tbuf->tms_utime);
-		__put_user(current->stime,&tbuf->tms_stime);
-		__put_user(current->cutime,&tbuf->tms_cutime);
-		__put_user(current->cstime,&tbuf->tms_cstime);
+		__put_user(current->times.tms_utime,&tbuf->tms_utime);
+		__put_user(current->times.tms_stime,&tbuf->tms_stime);
+		__put_user(current->times.tms_cutime,&tbuf->tms_cutime);
+		__put_user(current->times.tms_cstime,&tbuf->tms_cstime);
 	}
 	error = 0;
 
@@ -839,169 +820,6 @@ asmlinkage int irix_exece(struct pt_regs *regs)
 	error = do_execve(filename, (char **) (long)regs->regs[base + 5],
 	                  (char **) (long)regs->regs[base + 6], regs);
 	putname(filename);
-
-out:
-	unlock_kernel();
-	return error;
-}
-
-/* sys_poll() support... */
-#define POLL_ROUND_UP(x,y) (((x)+(y)-1)/(y))
-
-#define POLLIN 1
-#define POLLPRI 2
-#define POLLOUT 4
-#define POLLERR 8
-#define POLLHUP 16
-#define POLLNVAL 32
-#define POLLRDNORM 64
-#define POLLWRNORM POLLOUT
-#define POLLRDBAND 128
-#define POLLWRBAND 256
-
-#define LINUX_POLLIN (POLLRDNORM | POLLRDBAND | POLLIN)
-#define LINUX_POLLOUT (POLLWRBAND | POLLWRNORM | POLLOUT)
-#define LINUX_POLLERR (POLLERR)
-
-static inline void free_wait(select_table * p)
-{
-	struct select_table_entry * entry = p->entry + p->nr;
-
-	while (p->nr > 0) {
-		p->nr--;
-		entry--;
-		remove_wait_queue(entry->wait_address,&entry->wait);
-	}
-}
-
-
-/* Copied directly from fs/select.c */
-static int check(int flag, select_table * wait, struct file * file)
-{
-	struct inode * inode;
-	struct file_operations *fops;
-	int (*select) (struct inode *, struct file *, int, select_table *);
-
-	inode = file->f_inode;
-	if ((fops = file->f_op) && (select = fops->select))
-		return select(inode, file, flag, wait)
-		    || (wait && select(inode, file, flag, NULL));
-	if (S_ISREG(inode->i_mode))
-		return 1;
-	return 0;
-}
-
-struct poll {
-	int fd;
-	short events;
-	short revents;
-};
-
-int irix_poll(struct poll * ufds, size_t nfds, int timeout)
-{
-        int i,j, count, fdcount, error, retflag;
-	struct poll * fdpnt;
-	struct poll * fds, *fds1;
-	select_table wait_table, *wait;
-	struct select_table_entry *entry;
-
-	lock_kernel();
-	if ((error = verify_area(VERIFY_READ, ufds, nfds*sizeof(struct poll))))
-		goto out;
-
-	if (nfds > NR_OPEN) {
-		error = -EINVAL;
-		goto out;
-	}
-
-	if (!(entry = (struct select_table_entry*)__get_free_page(GFP_KERNEL))
-	|| !(fds = (struct poll *)kmalloc(nfds*sizeof(struct poll), GFP_KERNEL))) {
-		error = -ENOMEM;
-		goto out;
-	}
-
-	copy_from_user(fds, ufds, nfds*sizeof(struct poll));
-
-	if (timeout < 0)
-		current->timeout = 0x7fffffff;
-	else {
-		current->timeout = jiffies + POLL_ROUND_UP(timeout, (1000/HZ));
-		if (current->timeout <= jiffies)
-			current->timeout = 0;
-	}
-
-	count = 0;
-	wait_table.nr = 0;
-	wait_table.entry = entry;
-	wait = &wait_table;
-
-	for(fdpnt = fds, j = 0; j < (int)nfds; j++, fdpnt++) {
-		i = fdpnt->fd;
-		fdpnt->revents = 0;
-		if (!current->files->fd[i] || !current->files->fd[i]->f_inode)
-			fdpnt->revents = POLLNVAL;
-	}
-repeat:
-	current->state = TASK_INTERRUPTIBLE;
-	for(fdpnt = fds, j = 0; j < (int)nfds; j++, fdpnt++) {
-		i = fdpnt->fd;
-
-		if(i < 0) continue;
-		if (!current->files->fd[i] || !current->files->fd[i]->f_inode) continue;
-
-		if ((fdpnt->events & LINUX_POLLIN)
-		&& check(SEL_IN, wait, current->files->fd[i])) {
-			retflag = 0;
-			if (fdpnt->events & POLLIN)
-				retflag = POLLIN;
-			if (fdpnt->events & POLLRDNORM)
-				retflag = POLLRDNORM;
-			fdpnt->revents |= retflag; 
-			count++;
-			wait = NULL;
-		}
-
-		if ((fdpnt->events & LINUX_POLLOUT) &&
-		check(SEL_OUT, wait, current->files->fd[i])) {
-			fdpnt->revents |= (LINUX_POLLOUT & fdpnt->events);
-			count++;
-			wait = NULL;
-		}
-
-		if (check(SEL_EX, wait, current->files->fd[i])) {
-			fdpnt->revents |= POLLHUP;
-			count++;
-			wait = NULL;
-		}
-	}
-
-	if ((current->signal & (~current->blocked))) {
-		error = -EINTR;
-		goto out;
-	}
-
-	wait = NULL;
-	if (!count && current->timeout > jiffies) {
-		schedule();
-		goto repeat;
-	}
-
-	free_wait(&wait_table);
-	free_page((unsigned long) entry);
-
-	/* OK, now copy the revents fields back to user space. */
-	fds1 = fds;
-	fdcount = 0;
-	for(i=0; i < (int)nfds; i++, ufds++, fds++) {
-		if (fds->revents) {
-			fdcount++;
-		}
-		put_user(fds->revents, &ufds->revents);
-	}
-	kfree(fds1);
-	current->timeout = 0;
-	current->state = TASK_RUNNING;
-	error = fdcount;
 
 out:
 	unlock_kernel();
@@ -1263,7 +1081,6 @@ asmlinkage int irix_BSDsetpgrp(int pid, int pgrp)
 	printk("error = %d\n", error);
 #endif
 
-out:
 	unlock_kernel();
 	return error;
 }
@@ -1443,11 +1260,11 @@ asmlinkage int irix_lxstat(int version, char *filename, struct stat *statbuf)
 		if(error)
 			goto out;
 		error = irix_xstat32_xlate(&kb, statbuf);
-		goto error;
+		goto out;
 	}
 
 	case 3: {
-		sys_newlstat(filename, statbuf);
+		error = sys_newlstat(filename, statbuf);
 #ifdef DEBUG_XSTAT
 		printk("error[%d]\n", error);
 #endif
@@ -1456,7 +1273,7 @@ asmlinkage int irix_lxstat(int version, char *filename, struct stat *statbuf)
 
 		irix_xstat64_xlate(statbuf);
 		error = 0;
-		goto error;
+		goto out;
 	}
 
 	default:
@@ -1466,7 +1283,7 @@ asmlinkage int irix_lxstat(int version, char *filename, struct stat *statbuf)
 
 out:
 	unlock_kernel();
-	return errno;
+	return error;
 }
 
 extern asmlinkage int sys_newfstat(unsigned int fd, struct stat * statbuf);
@@ -2018,13 +1835,13 @@ out:
 
 asmlinkage int irix_getmountid(char *fname, unsigned long *midbuf)
 {
-	int errno;
+	int error;
 
 	lock_kernel();
 	printk("[%s:%d] irix_getmountid(%s, %p)\n",
 	       current->comm, current->pid, fname, midbuf);
-	errno = verify_area(VERIFY_WRITE, midbuf, (sizeof(unsigned long) * 4));
-	if(errno)
+	error = verify_area(VERIFY_WRITE, midbuf, (sizeof(unsigned long) * 4));
+	if(error)
 		goto out;
 
 	/*
@@ -2142,7 +1959,7 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	buf.error = 0;
 	error = file->f_op->readdir(file->f_inode, file, &buf, irix_filldir32);
 	if (error < 0)
-		goto out
+		goto out;
 	lastdirent = buf.previous;
 	if (!lastdirent) {
 		error = buf.error;
@@ -2431,6 +2248,8 @@ asmlinkage int irix_fcntl(int fd, int cmd, int arg)
 
 asmlinkage int irix_ulimit(int cmd, int arg)
 {
+	int retval;
+
 	lock_kernel();
 	switch(cmd) {
 	case 1:

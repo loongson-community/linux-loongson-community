@@ -7,6 +7,7 @@
  */
 #include <linux/bios32.h>
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <linux/types.h>
@@ -17,7 +18,8 @@
 /*
  * BIOS32 replacement.
  */
-unsigned long pcibios_init(unsigned long memory_start, unsigned long memory_end)
+__initfunc(unsigned long pcibios_init(unsigned long memory_start,
+                                      unsigned long memory_end))
 {
 	return memory_start;
 }
@@ -112,7 +114,8 @@ const char *pcibios_strerror (int error)
  * specific implementation.
  */
 unsigned long (*_pcibios_init)(unsigned long memory_start, unsigned long memory_end);
-unsigned long pcibios_init(unsigned long memory_start, unsigned long memory_end)
+__initfunc(unsigned long pcibios_init(unsigned long memory_start,
+                                      unsigned long memory_end))
 {
 	return _pcibios_init ? _pcibios_init(memory_start, memory_end)
 	                     : memory_start;

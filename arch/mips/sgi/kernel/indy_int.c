@@ -16,6 +16,8 @@
 #include <linux/timex.h>
 #include <linux/malloc.h>
 #include <linux/random.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>
@@ -51,6 +53,7 @@ extern asmlinkage void indyIRQ(void);
 extern void rs_kgdb_hook(int);
 #endif
 
+unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 
 /* Local IRQ's are layed out logically like this:
@@ -255,6 +258,15 @@ int get_irq_list(char *buf)
 	return len;
 }
 
+atomic_t __mips_bh_counter;
+
+#ifdef __SMP__
+#error Send superfluous SMP boxes to ralf@uni-koblenz.de
+#else
+#define irq_enter(cpu, irq)     (++local_irq_count[cpu])
+#define irq_exit(cpu, irq)      (--local_irq_count[cpu])
+#endif
+
 /*
  * do_IRQ handles IRQ's that have been installed without the
  * SA_INTERRUPT flag: it uses the full signal-handling return
@@ -264,8 +276,9 @@ int get_irq_list(char *buf)
  */
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
-	lock_kernel();
 	struct irqaction * action = *(irq + irq_action);
+
+	lock_kernel();
 	kstat.interrupts[irq]++;
 	printk("Got irq %d, press a key.", irq);
 	prom_getchar();

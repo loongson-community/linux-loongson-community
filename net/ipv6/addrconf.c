@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: addrconf.c,v 1.18 1997/04/16 05:58:03 davem Exp $
+ *	$Id: addrconf.c,v 1.20 1997/05/07 09:40:04 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -31,6 +31,7 @@
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 #include <linux/route.h>
+#include <linux/init.h>
 
 #include <linux/proc_fs.h>
 #include <net/sock.h>
@@ -1215,7 +1216,7 @@ void addrconf_verify(unsigned long foo)
  *	Init / cleanup code
  */
 
-void addrconf_init()
+__initfunc(void addrconf_init(void))
 {
 	struct device *dev;
 
@@ -1273,6 +1274,7 @@ void addrconf_cleanup(void)
 		for (idev = inet6_dev_lst[i]; idev; ) {
 			struct inet6_dev *back;
 
+			addrconf_ifdown(idev->dev);	
 			back = idev;
 			idev = idev->next;
 			kfree(back);

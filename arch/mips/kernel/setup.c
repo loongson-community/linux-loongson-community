@@ -7,6 +7,7 @@
  */
 #include <linux/config.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -123,17 +124,17 @@ void (*irq_setup)(void);
  */
 unsigned long isa_slot_offset;
 
-static void default_irq_setup(void)
+__initfunc(static void default_irq_setup(void))
 {
 	panic("Unknown machtype in init_IRQ");
 }
 
-static void default_fd_cacheflush(const void *addr, size_t size)
+__initfunc(static void default_fd_cacheflush(const void *addr, size_t size))
 {
 }
 
-void setup_arch(char **cmdline_p,
-                unsigned long * memory_start_p, unsigned long * memory_end_p)
+__initfunc(void setup_arch(char **cmdline_p,
+           unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
 	unsigned long memory_end;
 	tag* atag;

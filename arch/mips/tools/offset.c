@@ -77,12 +77,11 @@ void output_task_defines(void)
 {
 	text("/* MIPS task_struct offsets. */");
 	offset("#define TASK_STATE         ", struct task_struct, state);
+	offset("#define TASK_COUNTER       ", struct task_struct, counter);
 	offset("#define TASK_PRIORITY      ", struct task_struct, priority);
 	offset("#define TASK_SIGNAL        ", struct task_struct, signal);
 	offset("#define TASK_BLOCKED       ", struct task_struct, blocked);
 	offset("#define TASK_FLAGS         ", struct task_struct, flags);
-	offset("#define TASK_SAVED_KSTACK  ", struct task_struct, saved_kernel_stack);
-	offset("#define TASK_KSTACK_PG     ", struct task_struct, kernel_stack_page);
 	offset("#define TASK_MM            ", struct task_struct, mm);
 	linefeed;
 }

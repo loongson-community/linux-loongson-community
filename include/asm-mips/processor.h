@@ -109,7 +109,7 @@ struct thread_struct {
 #endif /* !defined (__LANGUAGE_ASSEMBLY__) */
 
 #define INIT_MMAP { &init_mm, KSEG0, KSEG1, PAGE_SHARED, \
-                    VM_READ | VM_WRITE | VM_EXEC }
+                    VM_READ | VM_WRITE | VM_EXEC, NULL, &init_mm.mmap }
 
 #define INIT_TSS  { \
         /* \
@@ -128,7 +128,7 @@ struct thread_struct {
 	/* \
 	 * Other stuff associated with the process \
 	 */ \
-	0, 0, 0, sizeof(init_kernel_stack) + (unsigned long)init_kernel_stack - 8, \
+	0, 0, 0, (unsigned long)&init_task_union + KERNEL_STACK_SIZE - 8, \
 	(unsigned long) swapper_pg_dir, \
 	/* \
 	 * For now the default is to fix address errors \
@@ -167,9 +167,8 @@ extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long 
 #define alloc_task_struct()    kmalloc(sizeof(struct task_struct), GFP_KERNEL)
 #define free_task_struct(p)    kfree(p)
 
-/* Kernel stack allocation/freeing. */
-extern unsigned long alloc_kernel_stack(struct task_struct *tsk);
-extern void free_kernel_stack(unsigned long stack);
+#define init_task      (init_task_union.task)
+#define init_stack     (init_task_union.stack)
 
 #endif /* !defined (__LANGUAGE_ASSEMBLY__) */
 #endif /* __KERNEL__ */

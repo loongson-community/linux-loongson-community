@@ -9,7 +9,7 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all:	kernel.o head.o
+all:	kernel.o head.o init_task.o
 EXTRA_ASFLAGS = -mips3 -mcpu=r4000
 O_TARGET := kernel.o
 O_OBJS	:= branch.o process.o signal.o entry.o traps.o ptrace.o vm86.o \

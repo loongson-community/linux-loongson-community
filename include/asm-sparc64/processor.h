@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.21 1997/04/14 17:05:18 jj Exp $
+/* $Id: processor.h,v 1.26 1997/05/17 05:59:10 davem Exp $
  * include/asm-sparc64/processor.h
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -71,7 +71,7 @@ struct thread_struct {
 #define SPARC_FLAG_32BIT        0x8    /* task is older 32-bit binary */
 
 #define INIT_MMAP { &init_mm, 0xfffff80000000000, 0xfffff80001000000, \
-		    PAGE_SHARED , VM_READ | VM_WRITE | VM_EXEC }
+		    PAGE_SHARED , VM_READ | VM_WRITE | VM_EXEC, NULL, &init_mm.mmap }
 
 #define INIT_TSS  {							\
 /* FPU regs */   { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
@@ -115,6 +115,7 @@ do { \
 	regs->tpc = ((pc & (~3)) - 4); \
 	regs->tnpc = regs->tpc + 4; \
 	regs->y = 0; \
+	current->tss.flags &= ~SPARC_FLAG_32BIT; \
 	__asm__ __volatile__( \
 	"stx		%%g0, [%0 + %2 + 0x00]\n\t" \
 	"stx		%%g0, [%0 + %2 + 0x08]\n\t" \
@@ -132,7 +133,7 @@ do { \
 	"stx		%%g0, [%0 + %2 + 0x68]\n\t" \
 	"stx		%1,   [%0 + %2 + 0x70]\n\t" \
 	"stx		%%g0, [%0 + %2 + 0x78]\n\t" \
-	"wrpr		%%g0, 1, %%wstate\n\t" \
+	"wrpr		%%g0, (1 << 3), %%wstate\n\t" \
 	: \
 	: "r" (regs), "r" (sp - REGWIN_SZ), \
 	  "i" ((const unsigned long)(&((struct pt_regs *)0)->u_regs[0]))); \
@@ -168,7 +169,7 @@ do { \
 	"stx		%%g0, [%0 + %2 + 0x68]\n\t" \
 	"stx		%1,   [%0 + %2 + 0x70]\n\t" \
 	"stx		%%g0, [%0 + %2 + 0x78]\n\t" \
-	"wrpr		%%g0, 2, %%wstate\n\t" \
+	"wrpr		%%g0, (2 << 3), %%wstate\n\t" \
 	: \
 	: "r" (regs), "r" (sp - REGWIN32_SZ), \
 	  "i" ((const unsigned long)(&((struct pt_regs *)0)->u_regs[0])), \
@@ -179,16 +180,13 @@ do { \
 #define release_thread(tsk)		do { } while(0)
 
 #ifdef __KERNEL__
-/* Allocation and freeing of basic task resources. */
+/* Allocation and freeing of task_struct and kernel stack. */
+#define alloc_task_struct()   ((struct task_struct *)__get_free_pages(GFP_KERNEL, 1, 0))
+#define free_task_struct(tsk) free_pages((unsigned long)(tsk),1)
 
-/* XXX FIXME For task_struct must use SLAB or something other than
- * XXX kmalloc() as FPU registers in TSS require that entire structure
- * XXX be 64-byte aligned as well.
- */
-#define alloc_kernel_stack(tsk)		__get_free_page(GFP_KERNEL)
-#define free_kernel_stack(stack)	free_page(stack)
-#define alloc_task_struct()		kmalloc(sizeof(struct task_struct), GFP_KERNEL)
-#define free_task_struct(tsk)		kfree(tsk)
+#define init_task	(init_task_union.task)
+#define init_stack	(init_task_union.stack)
+
 #endif /* __KERNEL__ */
 
 #endif /* !(__ASSEMBLY__) */

@@ -67,7 +67,7 @@
  *  |				     |			      |
  *  |				     |			      v
  *  +================================+ <-------------------------
- *					task->kernel_stack_page
+ *					task + PAGE_SIZE
  */
 #define PT_REG(reg)	(PAGE_SIZE - sizeof(struct pt_regs)	\
 			 + (long)&((struct pt_regs *)0)->reg)
@@ -107,19 +107,6 @@ static unsigned short regoff[] = {
 
 static long zero;
 
-
-/* change a pid into a task struct. */
-static inline struct task_struct * get_task(int pid)
-{
-	int i;
-
-	for (i = 1; i < NR_TASKS; i++) {
-		if (task[i] != NULL && (task[i]->pid == pid))
-			return task[i];
-	}
-	return NULL;
-}
-
 /*
  * Get contents of register REGNO in task TASK.
  */
@@ -133,7 +120,7 @@ static inline long get_reg(struct task_struct * task, long regno)
 		zero = 0;
 		addr = &zero;
 	} else {
-		addr = (long *) (task->kernel_stack_page + regoff[regno]);
+		addr = (long *) (regoff[regno] + PAGE_SIZE + (long)task);
 	}
 	return *addr;
 }
@@ -150,7 +137,7 @@ static inline int put_reg(struct task_struct *task, long regno, long data)
 	} else if (regno == 31) {
 		addr = &zero;
 	} else {
-		addr = (long *) (task->kernel_stack_page + regoff[regno]);
+		addr = (long *) (regoff[regno] + PAGE_SIZE + (long)task);
 	}
 	*addr = data;
 	return 0;
@@ -174,7 +161,7 @@ static unsigned long get_long(struct task_struct * tsk,
 repeat:
 	pgdir = pgd_offset(vma->vm_mm, addr);
 	if (pgd_none(*pgdir)) {
-		do_no_page(tsk, vma, addr, 0);
+		handle_mm_fault(tsk, vma, addr, 0);
 		goto repeat;
 	}
 	if (pgd_bad(*pgdir)) {
@@ -184,7 +171,7 @@ repeat:
 	}
 	pgmiddle = pmd_offset(pgdir, addr);
 	if (pmd_none(*pgmiddle)) {
-		do_no_page(tsk, vma, addr, 0);
+		handle_mm_fault(tsk, vma, addr, 0);
 		goto repeat;
 	}
 	if (pmd_bad(*pgmiddle)) {
@@ -194,7 +181,7 @@ repeat:
 	}
 	pgtable = pte_offset(pgmiddle, addr);
 	if (!pte_present(*pgtable)) {
-		do_no_page(tsk, vma, addr, 0);
+		handle_mm_fault(tsk, vma, addr, 0);
 		goto repeat;
 	}
 	page = pte_page(*pgtable);
@@ -225,7 +212,7 @@ static void put_long(struct task_struct * tsk, struct vm_area_struct * vma,
 repeat:
 	pgdir = pgd_offset(vma->vm_mm, addr);
 	if (!pgd_present(*pgdir)) {
-		do_no_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 	if (pgd_bad(*pgdir)) {
@@ -235,7 +222,7 @@ repeat:
 	}
 	pgmiddle = pmd_offset(pgdir, addr);
 	if (pmd_none(*pgmiddle)) {
-		do_no_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 	if (pmd_bad(*pgmiddle)) {
@@ -245,12 +232,12 @@ repeat:
 	}
 	pgtable = pte_offset(pgmiddle, addr);
 	if (!pte_present(*pgtable)) {
-		do_no_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 	page = pte_page(*pgtable);
 	if (!pte_write(*pgtable)) {
-		do_wp_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 /* this is a hack for non-kernel-mapped video buffers and similar */
@@ -507,7 +494,7 @@ asmlinkage long sys_ptrace(long request, long pid, long addr, long data,
 	if (pid == 1)		/* you may not mess with init */
 		goto out;
 	ret = -ESRCH;
-	if (!(child = get_task(pid)))
+	if (!(child = find_task_by_pid(pid)))
 		goto out;
 	if (request == PTRACE_ATTACH) {
 		ret = -EPERM;

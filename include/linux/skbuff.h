@@ -123,6 +123,9 @@ struct sk_buff
 #endif
 };
 
+/* These are just the default values. This is run time configurable.
+ * FIXME: Probably the config option should go away. -- erics
+ */
 #ifdef CONFIG_SKB_LARGE
 #define SK_WMEM_MAX	65535
 #define SK_RMEM_MAX	65535
@@ -410,13 +413,15 @@ extern __inline__ void skb_unlink(struct sk_buff *skb)
 	restore_flags(flags);
 }
 
+extern const char skb_put_errstr[];
+extern const char skb_push_errstr[];
+
 /*
  *	Add data to an sk_buff
  */
  
 extern __inline__ unsigned char *skb_put(struct sk_buff *skb, unsigned int len)
 {
-	extern char *skb_put_errstr;
 	unsigned char *tmp=skb->tail;
 	skb->tail+=len;
 	skb->len+=len;
@@ -431,7 +436,6 @@ here:          ;
 
 extern __inline__ unsigned char *skb_push(struct sk_buff *skb, unsigned int len)
 {
-	extern char *skb_push_errstr;
 	skb->data-=len;
 	skb->len+=len;
 	if(skb->data<skb->head)

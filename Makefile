@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 36
+SUBLEVEL = 40
 
 ARCH = mips
 
@@ -25,8 +25,8 @@ TOPDIR	:= $(shell if [ "$$PWD" != "" ]; then echo $$PWD; else pwd; fi)
 
 HPATH   	= $(TOPDIR)/include
 
-HOSTCC  	= gcc
-HOSTCFLAGS	= -O2 -fomit-frame-pointer
+HOSTCC  	= cc
+HOSTCFLAGS	= -O2
 
 CROSS_COMPILE 	=
 
@@ -186,7 +186,7 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 		$(DRIVERS) \
 		$(LIBS) \
 		-o vmlinux
-	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)\|\(\.\.ng$$\)' | sort > System.map
+	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aU] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System.map
 
 symlinks:
 	rm -f include/asm
@@ -357,6 +357,8 @@ distclean: mrproper
 	rm -f core `find . \( -name '*.orig' -o -name '*.rej' -o -name '*~' \
                 -o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
                 -o -name '.*.rej' -o -name '.SUMS' -o -size 0 \) -print` TAGS
+	rm -f drivers/sound/Config.in
+	cp drivers/sound/Config.std drivers/sound/Config.in
 
 backup: mrproper
 	cd .. && tar cf - linux/ | gzip -9 > backup.gz
@@ -367,7 +369,7 @@ sums:
 
 dep-files: scripts/mkdep archdep include/linux/version.h
 	scripts/mkdep init/*.c > .tmpdepend
-	scripts/mkdep `find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print` > .hdepend
+	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | xargs scripts/mkdep > .hdepend
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
 	mv .tmpdepend .depend
 

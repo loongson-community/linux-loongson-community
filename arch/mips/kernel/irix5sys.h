@@ -105,7 +105,7 @@ SYS(irix_sgikopt, 3)			/* 1083  sys_sgikopt()	      DC*/
 SYS(sys_sysfs, 3)			/* 1084  sysfs()	      ?V*/
 SYS(irix_unimp, 0)			/* 1085  XXX sys_getmsg()     DC*/
 SYS(irix_unimp, 0)			/* 1086  XXX sys_putmsg()     DC*/
-SYS(irix_poll, 3)			/* 1087  sys_poll()	       V*/
+SYS(sys_poll, 3)			/* 1087  poll()	               V*/
 SYS(irix_sigreturn, 0)			/* 1088  sigreturn()	      ?V*/
 SYS(sys_accept, 3)			/* 1089  accept()	       V*/
 SYS(sys_bind, 3)			/* 1090  bind()		       V*/

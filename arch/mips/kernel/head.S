@@ -22,6 +22,15 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
+/*
+ * Get current task pointer
+ */
+#define GET_CURRENT(reg)			\
+	lui	reg, %hi(kernelsp);		\
+	lw	reg, %lo(kernelsp)(reg);	\
+	ori	reg, 8191;			\
+	xori	reg, 8191
+
 	.text
 	/*
 	 * Reserved space for exception handlers.
@@ -43,8 +52,7 @@
 	LEAF(except_vec0_r4000)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)	# get current task ptr
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22			# get pgd only bits
 	lw	k1, THREAD_PGDIR(k1)		# get task pg_dir
 	sll	k0, k0, 2
@@ -71,8 +79,7 @@
 	LEAF(except_vec0_r4600)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -98,8 +105,7 @@
 	LEAF(except_vec0_r45k_bvahwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -129,8 +135,7 @@
 	LEAF(except_vec0_r4k_mphwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -160,8 +165,7 @@
 	LEAF(except_vec0_r4k_250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -191,8 +195,7 @@
 	LEAF(except_vec0_r4k_MP250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -224,8 +227,7 @@
 	LEAF(except_vec0_r2300)
 	.set	mips1
 	mfc0	k0, CP0_BADVADDR
-	lui	k1, %hi(current_set)
-	lw	k1, %lo(current_set)(k1)
+	GET_CURRENT(k1)				# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -403,9 +405,11 @@ probe_done:
 
 	/*
 	 * Stack for kernel and init
+	 *
+	 * Kernelsp will never be referenced for process 0.
 	 */
-9:	la	sp, init_user_stack+(KERNEL_STACK_SIZE-4*SZREG)
-	la	t0, init_kernel_stack+(KERNEL_STACK_SIZE)
+9:	la	sp, init_task_union+(KERNEL_STACK_SIZE-4*SZREG)
+	la	t0, init_task_union+(KERNEL_STACK_SIZE)
 	sw	t0, kernelsp
 
 	/* Disable coprocessors */
@@ -745,9 +749,13 @@ map0_sni_rm200_pci:
 
 			.org	0x6000
 
+			/*
+			 * init_task_union follows here in the .text segment.
+			 * Keep this aligned to a 8kb boundary!
+			 */
+			.data
 			EXPORT(cache_error_buffer)
 			.fill	32*4,1,0
 
-			.data
 			EXPORT(kernelsp)
 			PTR	0

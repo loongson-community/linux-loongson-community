@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.19 1996/08/02 11:11:36 dm Exp $
+/*
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -325,28 +325,6 @@ static inline void r4k_flush_cache_all_d32i32(void)
 	restore_flags(flags);
 }
 
-static inline struct vm_area_struct *
-find_mm_vma(struct mm_struct *mm, unsigned long addr)
-{
-	struct vm_area_struct * result = NULL;
-
-	if (mm) {
-		struct vm_area_struct * tree = mm->mmap_avl;
-		for (;;) {
-			if (tree == avl_empty)
-				break;
-			if (tree->vm_end > addr) {
-				result = tree;
-				if (tree->vm_start <= addr)
-					break;
-				tree = tree->vm_avl_left;
-			} else
-				tree = tree->vm_avl_right;
-		}
-	}
-	return result;
-}
-
 static void
 r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
                                 unsigned long start,
@@ -362,7 +340,7 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s16d16i16();
@@ -407,7 +385,7 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s32d16i16();
@@ -451,7 +429,7 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s64d16i16();
@@ -495,7 +473,7 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s128d16i16();
@@ -539,7 +517,7 @@ static void r4k_flush_cache_range_s16d32i32(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s16d32i32();
@@ -583,7 +561,7 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s32d32i32();
@@ -627,7 +605,7 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s64d32i32();
@@ -671,7 +649,7 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	vma = find_mm_vma(mm, start);
+	vma = find_vma(mm, start);
 	if(vma) {
 		if(mm->context != current->mm->context) {
 			r4k_flush_cache_all_s128d32i32();

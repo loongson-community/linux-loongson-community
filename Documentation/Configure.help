@@ -2072,6 +2072,20 @@ CONFIG_SCSI_NCR53C406A
   and read Documentation/modules.txt. The module will be called
   NCR53c406.o.
 
+Tekram DC390W/U/F (T) SCSI support
+CONFIG_SCSI_DC390W
+  This driver supports the Tekram DC390W/U/F (T) PCI SCSI host adapters with
+  the NCR/Symbios 53c825/875 chips. If you have a DC390 (T) adaptor with the 
+  Am53C974A chip use the DC390(T) driver.
+
+Tekram DC390(T) (AMD PCscsi) SCSI support
+CONFIG_SCSI_DC390T
+  This driver supports the Tekram DC390(T) PCI SCSI Hostadapter with
+  the Am53C974A chip, and perhaps other cards using the same chip.
+  
+  This driver does _not_ support the DC390W/U/F adaptor with the 
+  NCR/Symbios chips.
+
 AM53/79C974 PCI SCSI support
 CONFIG_SCSI_AM53C974
   This is support for the AM53/79C974 SCSI host adapters. Please read
@@ -4036,6 +4050,16 @@ CONFIG_SERIAL_CONSOLE
   N here so that they can use the serial port for modem, mouse or some
   other device.
 
+Digi Intl. epca support
+CONFIG_DIGIEPCA
+  This is a driver for Digi Internationals Xx, Xeve, and Xem 
+  series of cards.  This driver supports the original PC (ISA) boards as
+  well as PCI, and EISA.  If you have a card like this, say Y here and read
+  the file Documentation/digiepca.txt.  NOTE: This driver is seperate from
+  the driver written and copyrighted by Troy De Jongh.  Because they both
+  attempt (In some cases) to access the same hardware only one of these
+  drivers (CONFIG_DIGIEPCA or CONFIG_DIGI) should be selected.
+
 Digiboard PC/Xx Support
 CONFIG_DIGI
   This is a driver for the Digiboard PC/Xe, PC/Xi, and PC/Xeve cards
@@ -4626,6 +4650,40 @@ CONFIG_ACI_MIXER
   also controls the radio tuner on this card, however this is not
   yet supported in this software.
 
+Gallant's Audio Excel DSP 16 support (SC-6000 and SC-6600)
+CONFIG_AEDSP16
+  Answer Y if you have a Gallant's Audio Excel DSP 16 card. This card
+  emulate an SBPro or a Microsoft Sound System card.
+  You must select one of the Sound Blaster or Microsoft Sound System
+  drivers before select this menu item.
+  Read the drivers/sound/lowlevel/README.aedsp16 file and the head of
+  drivers/sound/lowlevel/aedsp16.c to have more informations about
+  this driver and its configuration.
+
+  If you are changing the card configuration, please, undefine all
+  the old Audio Excel parameters because leaving it defined while
+  selecting the alternate emulation, may screw up your .config file.
+
+  !!!NOTE!!!
+  The driver supports Audio Excel DSP 16 but not the III version of
+  this card. Read drivers/sound/lowlevel/Readme.aedsp16 if you want
+  to know something more on how to use the III version with this sound
+  driver.
+
+SC-6600 based audio cards (new Audio Excel DSP 16)
+CONFIG_SC6600
+  The SC6600 is the new version of DSP mounted on the Audio Excel DSP 16
+  cards. Check the FCC ID of your audio card and answer Y if you have an
+  SC6600 DSP.
+
+Audio Excel DSP 16 (MSS emulation)
+CONFIG_AEDSP16_MSS
+  Answer Y if you want your audio card emulate Microsoft Sound System.
+
+Audio Excel DSP 16 (SBPro emulation)
+CONFIG_AEDSP16_SBPRO
+  Answer Y if you want your audio card emulate Sound Blaster Pro.
+
 Kernel profiling support
 CONFIG_PROFILE
   This is for kernel hackers who want to know how much time the kernel
@@ -4918,9 +4976,13 @@ CONFIG_RMW_INSNS
 Amiga AutoConfig Identification
 CONFIG_ZORRO
   This enables support for automatic identification of Amiga expansion
-  cards that obey the AutoConfig(tm) specification.  You should say Y
-  to this question unless you have no expansion cards and no intention
-  of getting any.
+  cards that obey the AutoConfig(tm) specification.
+  Say Y if you want your expansion cards to be identified on bootup;
+  it will enlarge your kernel by about 10KB. The identification
+  information is also available through /proc/zorro (say Y to
+  "/proc filesystem support"!).
+  Note that even if you say N here, you can still use your expansion
+  cards. If in doubt, say Y.
 
 Amiga OCS chipset support
 CONFIG_AMIFB_OCS
@@ -4948,6 +5010,8 @@ CONFIG_FB_CYBER
   Please note that its use is not all that intuitive (i.e. if you have
   any questions, be sure to ask!).  Say N unless you have a Cybervision
   64 or plan to get one before you next recompile the kernel.
+  Please note that this driver DOES NOT support the Cybervision 64 3D
+  card at present, as they use incompatible video chips.
 
 Amiga GSP (TMS340x0) support
 CONFIG_AMIGA_GSP
@@ -5188,6 +5252,16 @@ CONFIG_ATARI_MIDI
   want). If you want to compile it as a module, say M here and read
   Documentation/modules.txt.
 
+Atari DSP56k Digital Signal Processor support
+CONFIG_ATARI_DSP56K
+  If you want to be able to use the DSP56001 in Falcons, say Y.
+  This driver is still experimental, and if you don't know what it is,
+  or if you don't have this processor, just say N.
+  This driver is also available as a module ( = code which can be inserted
+  in and removed from the running kernel whenever you want). If you
+  want to compile it as a module, say M here and read
+  Documentation/modules.txt.
+
 Amiga builtin serial support
 CONFIG_AMIGA_BUILTIN_SERIAL
   If you want to use your Amiga's built-in serial port in Linux, say
@@ -5317,7 +5391,7 @@ CONFIG_MSDOS_PARTITION
 # LocalWords:  mgetty sendfax gert greenie muc lowlevel Lasermate LanManager io
 # LocalWords:  OOPSes trackball binghamton mobileip ncr IOMAPPED settags ns ser
 # LocalWords:  setsync NEGO MPARITY autotuning prefetch PIIX cdwrite utils rc
-# LocalWords:  PCWATCHDOG berkprod bitgate boldt ucsb jf kyoto jp euc Tetsuyasu
+# LocalWords:  PCWATCHDOG berkprod bitgate boldt ucsb jf kyoto jp euc Tetsuyasu 
 # LocalWords:  YAMADA tetsu cauchy nslab ntt nevod perm su doc kaf kheops wsc
 # LocalWords:  traduc Bourgin dbourgin helptext menuconfig kfill READMEs HOWTOs
 # LocalWords:  IDEDISK IDEFLOPPY EIDE firewalls QMAGIC ZMAGIC LocalWords opti

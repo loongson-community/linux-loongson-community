@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: mcast.c,v 1.8 1997/04/12 04:32:48 davem Exp $
+ *	$Id: mcast.c,v 1.10 1997/05/07 09:40:22 davem Exp $
  *
  *	Based on linux/ipv4/igmp.c and linux/ipv4/ip_sockglue.c 
  *
@@ -27,6 +27,7 @@
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 #include <linux/route.h>
+#include <linux/init.h>
 
 #include <net/sock.h>
 #include <net/snmp.h>
@@ -186,7 +187,8 @@ int ipv6_dev_mc_inc(struct device *dev, struct in6_addr *addr)
 	hash = ipv6_addr_hash(addr);
 
 	for (mc = inet6_mcast_lst[hash]; mc; mc = mc->next) {
-		if (ipv6_addr_cmp(&mc->mca_addr, addr) == 0) {
+		if ((ipv6_addr_cmp(&mc->mca_addr, addr) == 0) &&
+		    (mc->dev->ifindex == dev->ifindex)) {
 			atomic_inc(&mc->mca_users);
 			return 0;
 		}
@@ -495,7 +497,7 @@ void igmp6_timer_handler(unsigned long data)
 	ma->mca_flags &= ~MAF_TIMER_RUNNING;
 }
 
-void igmp6_init(struct net_proto_family *ops)
+__initfunc(void igmp6_init(struct net_proto_family *ops))
 {
 	struct sock *sk;
 	int err;

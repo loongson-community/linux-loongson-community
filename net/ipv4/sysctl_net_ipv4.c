@@ -35,22 +35,27 @@ extern int sysctl_arp_check_interval;
 extern int sysctl_arp_confirm_interval;
 extern int sysctl_arp_confirm_timeout;
 
+/* From ip_fragment.c */
+extern int sysctl_ipfrag_low_thresh;
+extern int sysctl_ipfrag_high_thresh; 
+
 extern int sysctl_tcp_cong_avoidance;
 extern int sysctl_tcp_hoe_retransmits;
 extern int sysctl_tcp_sack;
 extern int sysctl_tcp_tsack;
 extern int sysctl_tcp_timestamps;
 extern int sysctl_tcp_window_scaling;
+extern int sysctl_syn_retries;
 
 extern int tcp_sysctl_congavoid(ctl_table *ctl, int write, struct file * filp,
 				void *buffer, size_t *lenp);
 
-struct ipv4_config ipv4_config = { 1, 1, 1, 1, };
+struct ipv4_config ipv4_config = { 1, 1, 1, 0, };
 
 #ifdef CONFIG_SYSCTL
 
 struct ipv4_config ipv4_def_router_config = { 0, 1, 1, 1, 1, 1, 1, };
-struct ipv4_config ipv4_def_host_config = { 1, 1, 1, 1, };
+struct ipv4_config ipv4_def_host_config = { 1, 1, 1, 0, };
 
 int ipv4_sysctl_forwarding(ctl_table *ctl, int write, struct file * filp,
 			   void *buffer, size_t *lenp)
@@ -144,6 +149,12 @@ ctl_table ipv4_table[] = {
         {NET_IPV4_RFC1620_REDIRECTS, "ip_rfc1620_redirects",
          &ipv4_config.rfc1620_redirects, sizeof(int), 0644, NULL,
          &proc_dointvec},
+	{NET_TCP_SYN_RETRIES, "tcp_syn_retries",
+	&sysctl_syn_retries, sizeof(int), 0644, NULL, &proc_dointvec},
+	{NET_IPFRAG_HIGH_THRESH, "ipfrag_high_thresh",
+	&sysctl_ipfrag_high_thresh, sizeof(int), 0644, NULL, &proc_dointvec},
+	{NET_IPFRAG_LOW_THRESH, "ipfrag_low_thresh",
+	&sysctl_ipfrag_low_thresh, sizeof(int), 0644, NULL, &proc_dointvec},
 	{0}
 };
 

@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.93 1997/04/11 08:55:40 davem Exp $
+/*  $Id: process.c,v 1.98 1997/05/14 20:44:54 davem Exp $
  *  linux/arch/sparc/kernel/process.c
  *
  *  Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -40,6 +40,8 @@
 #include <asm/elf.h>
 
 extern void fpsave(unsigned long *, unsigned long *, void *, unsigned long *);
+
+struct task_struct *current_set[NR_CPUS] = {&init_task, };
 
 #ifndef __SMP__
 
@@ -191,6 +193,37 @@ void show_regwindow(struct reg_window *rw)
 	       rw->ins[0], rw->ins[1], rw->ins[2], rw->ins[3],
 	       rw->ins[4], rw->ins[5], rw->ins[6], rw->ins[7]);
 }
+
+static spinlock_t sparc_backtrace_lock = SPIN_LOCK_UNLOCKED;
+
+void show_backtrace(void)
+{
+	struct reg_window *rw;
+	unsigned long flags;
+	unsigned long fp;
+	int cpu = smp_processor_id();
+
+	spin_lock_irqsave(&sparc_backtrace_lock, flags);
+	__asm__ __volatile__("mov %%i6, %0" : "=r" (fp));
+	rw = (struct reg_window *) fp;
+	while(rw) {
+		printk("CPU[%d]: ARGS[%08lx,%08lx,%08lx,%08lx,%08lx,%08lx] "
+		       "FP[%08lx] CALLER[%08lx]\n", cpu,
+		       rw->ins[0], rw->ins[1], rw->ins[2], rw->ins[3],
+		       rw->ins[4], rw->ins[5],
+		       rw->ins[6],
+		       rw->ins[7]);
+		rw = (struct reg_window *) rw->ins[6];
+	}
+	spin_unlock_irqrestore(&sparc_backtrace_lock, flags);
+}
+
+#ifdef __SMP__
+void smp_show_backtrace_all_cpus(void)
+{
+	xc0((smpfunc_t) show_backtrace);
+}
+#endif
 
 void show_stackframe(struct sparc_stackf *sf)
 {
@@ -441,12 +474,12 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 
 	if(regs->psr & PSR_PS)
 		stack_offset -= REGWIN_SZ;
-	childregs = ((struct pt_regs *) (p->kernel_stack_page + stack_offset));
+	childregs = ((struct pt_regs *) (((unsigned long)p) + stack_offset));
 	copy_regs(childregs, regs);
 	new_stack = (((struct reg_window *) childregs) - 1);
 	copy_regwin(new_stack, (((struct reg_window *) regs) - 1));
 
-	p->tss.ksp = p->saved_kernel_stack = (unsigned long) new_stack;
+	p->tss.ksp = (unsigned long) new_stack;
 #ifdef __SMP__
 	p->tss.kpc = (((unsigned long) ret_from_smpfork) - 0x8);
 	p->tss.kpsr = current->tss.fork_kpsr | PSR_PIL;
@@ -467,7 +500,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 		p->tss.flags &= ~SPARC_FLAG_KTHREAD;
 		p->tss.current_ds = USER_DS;
 
-		if (sp != current->tss.kregs->u_regs[UREG_FP]) {
+		if (sp != regs->u_regs[UREG_FP]) {
 			struct sparc_stackf *childstack;
 			struct sparc_stackf *parentstack;
 
@@ -475,9 +508,8 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 			 * This is a clone() call with supplied user stack.
 			 * Set some valid stack frames to give to the child.
 			 */
-			childstack = (struct sparc_stackf *)sp;
-			parentstack = (struct sparc_stackf *)
-					current->tss.kregs->u_regs[UREG_FP];
+			childstack = (struct sparc_stackf *) sp;
+			parentstack = (struct sparc_stackf *) regs->u_regs[UREG_FP];
 
 #if 0
 			printk("clone: parent stack:\n");

@@ -32,6 +32,7 @@
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -88,21 +89,6 @@ unsigned long prof_shift = 0;
 
 extern void mem_use(void);
 
-#ifdef __mips__
-unsigned long init_kernel_stack[2048] = { STACK_MAGIC, };
-unsigned long init_user_stack[2048] = { STACK_MAGIC, };
-#else
-unsigned long init_kernel_stack[1024] = { STACK_MAGIC, };
-unsigned long init_user_stack[1024] = { STACK_MAGIC, };
-#endif
-static struct vm_area_struct init_mmap = INIT_MMAP;
-static struct fs_struct init_fs = INIT_FS;
-static struct files_struct init_files = INIT_FILES;
-static struct signal_struct init_signals = INIT_SIGNALS;
-
-struct mm_struct init_mm = INIT_MM;
-struct task_struct init_task = INIT_TASK;
-
 unsigned long volatile jiffies=0;
 
 /*
@@ -110,7 +96,6 @@ unsigned long volatile jiffies=0;
  *	via the SMP irq return path.
  */
  
-struct task_struct *current_set[NR_CPUS] = {&init_task, };
 struct task_struct *last_task_used_math = NULL;
 
 struct task_struct * task[NR_TASKS] = {&init_task, };
@@ -119,12 +104,6 @@ struct kernel_stat kstat = { 0 };
 
 static inline void add_to_runqueue(struct task_struct * p)
 {
-#if 1	/* sanity tests */
-	if (p->next_run || p->prev_run) {
-		printk("task already on run-queue\n");
-		return;
-	}
-#endif
 	if (p->counter > current->counter + 3)
 		need_resched = 1;
 	nr_running++;
@@ -138,20 +117,6 @@ static inline void del_from_runqueue(struct task_struct * p)
 	struct task_struct *next = p->next_run;
 	struct task_struct *prev = p->prev_run;
 
-#if 1	/* sanity tests */
-	if (!next || !prev) {
-		printk("task not on run-queue\n");
-		return;
-	}
-#endif
-	if (!p->pid) {
-		static int nr = 0;
-		if (nr < 5) {
-			nr++;
-			printk("idle task may not sleep\n");
-		}
-		return;
-	}
 	nr_running--;
 	next->prev_run = prev;
 	prev->next_run = next;
@@ -255,7 +220,7 @@ static inline int goodness(struct task_struct * p, struct task_struct * prev, in
 #ifdef __SMP__
 		/* Give a largish advantage to the same processor...   */
 		/* (this is equivalent to penalizing other processors) */
-		if (p->last_processor == this_cpu)
+		if (p->processor == this_cpu)
 			weight += PROC_CHANGE_PENALTY;
 #endif
 
@@ -267,10 +232,127 @@ static inline int goodness(struct task_struct * p, struct task_struct * prev, in
 	return weight;
 }
 
+/*
+ * Event timer code
+ */
+#define TVN_BITS 6
+#define TVR_BITS 8
+#define TVN_SIZE (1 << TVN_BITS)
+#define TVR_SIZE (1 << TVR_BITS)
+#define TVN_MASK (TVN_SIZE - 1)
+#define TVR_MASK (TVR_SIZE - 1)
+
+struct timer_vec {
+        int index;
+        struct timer_list *vec[TVN_SIZE];
+};
+
+struct timer_vec_root {
+        int index;
+        struct timer_list *vec[TVR_SIZE];
+};
+
+static struct timer_vec tv5 = { 0 };
+static struct timer_vec tv4 = { 0 };
+static struct timer_vec tv3 = { 0 };
+static struct timer_vec tv2 = { 0 };
+static struct timer_vec_root tv1 = { 0 };
+
+static struct timer_vec * const tvecs[] = {
+	(struct timer_vec *)&tv1, &tv2, &tv3, &tv4, &tv5
+};
+
+#define NOOF_TVECS (sizeof(tvecs) / sizeof(tvecs[0]))
+
+static unsigned long timer_jiffies = 0;
+
+static inline void insert_timer(struct timer_list *timer,
+				struct timer_list **vec, int idx)
+{
+	if ((timer->next = vec[idx]))
+		vec[idx]->prev = timer;
+	vec[idx] = timer;
+	timer->prev = (struct timer_list *)&vec[idx];
+}
+
+static inline void internal_add_timer(struct timer_list *timer)
+{
+	/*
+	 * must be cli-ed when calling this
+	 */
+	unsigned long expires = timer->expires;
+	unsigned long idx = expires - timer_jiffies;
+
+	if (idx < TVR_SIZE) {
+		int i = expires & TVR_MASK;
+		insert_timer(timer, tv1.vec, i);
+	} else if (idx < 1 << (TVR_BITS + TVN_BITS)) {
+		int i = (expires >> TVR_BITS) & TVN_MASK;
+		insert_timer(timer, tv2.vec, i);
+	} else if (idx < 1 << (TVR_BITS + 2 * TVN_BITS)) {
+		int i = (expires >> (TVR_BITS + TVN_BITS)) & TVN_MASK;
+		insert_timer(timer, tv3.vec, i);
+	} else if (idx < 1 << (TVR_BITS + 3 * TVN_BITS)) {
+		int i = (expires >> (TVR_BITS + 2 * TVN_BITS)) & TVN_MASK;
+		insert_timer(timer, tv4.vec, i);
+	} else if (expires < timer_jiffies) {
+		/* can happen if you add a timer with expires == jiffies,
+		 * or you set a timer to go off in the past
+		 */
+		insert_timer(timer, tv1.vec, tv1.index);
+	} else if (idx < 0xffffffffUL) {
+		int i = (expires >> (TVR_BITS + 3 * TVN_BITS)) & TVN_MASK;
+		insert_timer(timer, tv5.vec, i);
+	} else {
+		/* Can only get here on architectures with 64-bit jiffies */
+		timer->next = timer->prev = timer;
+	}
+}
+
+static spinlock_t timerlist_lock = SPIN_LOCK_UNLOCKED;
+
+void add_timer(struct timer_list *timer)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&timerlist_lock, flags);
+	internal_add_timer(timer);
+	spin_unlock_irqrestore(&timerlist_lock, flags);
+}
+
+static inline int detach_timer(struct timer_list *timer)
+{
+	int ret = 0;
+	struct timer_list *next, *prev;
+	next = timer->next;
+	prev = timer->prev;
+	if (next) {
+		next->prev = prev;
+	}
+	if (prev) {
+		ret = 1;
+		prev->next = next;
+	}
+	return ret;
+}
+
+
+int del_timer(struct timer_list * timer)
+{
+	int ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&timerlist_lock, flags);
+	ret = detach_timer(timer);
+	timer->next = timer->prev = 0;
+	spin_unlock_irqrestore(&timerlist_lock, flags);
+	return ret;
+}
+
 #ifdef __SMP__
 
 #define idle_task (task[cpu_number_map[this_cpu]])
-#define can_schedule(p)	((p)->processor == NO_PROC_ID)
+#define can_schedule(p)	(!(p)->has_cpu)
 
 #else
 
@@ -297,12 +379,10 @@ asmlinkage void schedule(void)
 	int this_cpu;
 
 	need_resched = 0;
-	this_cpu = smp_processor_id();
-	if (local_irq_count[this_cpu]) {
-		printk("Scheduling in interrupt\n");
-		*(char *)0 = 0;
-	}
 	prev = current;
+	this_cpu = smp_processor_id();
+	if (local_irq_count[this_cpu])
+		goto scheduling_in_interrupt;
 	release_kernel_lock(prev, this_cpu, lock_depth);
 	if (bh_active & bh_mask)
 		do_bottom_half();
@@ -312,16 +392,8 @@ asmlinkage void schedule(void)
 
 	/* move an exhausted RR process to be last.. */
 	if (!prev->counter && prev->policy == SCHED_RR) {
-		if (prev->pid) {
-			prev->counter = prev->priority;
-			move_last_runqueue(prev);
-		} else {
-			static int count = 5;
-			if (count) {
-				count--;
-				printk("Moving pid 0 last\n");
-			}
-		}
+		prev->counter = prev->priority;
+		move_last_runqueue(prev);
 	}
 	timeout = 0;
 	switch (prev->state) {
@@ -354,7 +426,7 @@ asmlinkage void schedule(void)
 		 */
 		spin_unlock_irq(&runqueue_lock);
 #ifdef __SMP__
-		prev->processor = NO_PROC_ID;
+		prev->has_cpu = 0;
 #endif
 	
 /*
@@ -386,8 +458,10 @@ asmlinkage void schedule(void)
 		}
 	}
 
+#ifdef __SMP__
+	next->has_cpu = 1;
 	next->processor = this_cpu;
-	next->last_processor = this_cpu;
+#endif
 
 	if (prev != next) {
 		struct timer_list timer;
@@ -410,6 +484,11 @@ asmlinkage void schedule(void)
 	spin_unlock(&scheduler_lock);
 
 	reacquire_kernel_lock(prev, smp_processor_id(), lock_depth);
+	return;
+
+scheduling_in_interrupt:
+	printk("Scheduling in interrupt\n");
+	*(int *)0 = 0;
 }
 
 #ifndef __alpha__
@@ -427,67 +506,53 @@ asmlinkage int sys_pause(void)
 
 #endif
 
-spinlock_t waitqueue_lock;
+rwlock_t waitqueue_lock = RW_LOCK_UNLOCKED;
 
 /*
  * wake_up doesn't wake up stopped processes - they have to be awakened
  * with signals or similar.
+ *
+ * Note that we only need a read lock for the wait queue (and thus do not
+ * have to protect against interrupts), as the actual removal from the
+ * queue is handled by the process itself.
  */
 void wake_up(struct wait_queue **q)
 {
-	unsigned long flags;
 	struct wait_queue *next;
-	struct wait_queue *head;
 
-	spin_lock_irqsave(&waitqueue_lock, flags);
+	read_lock(&waitqueue_lock);
 	if (q && (next = *q)) {
+		struct wait_queue *head;
+
 		head = WAIT_QUEUE_HEAD(q);
 		while (next != head) {
 			struct task_struct *p = next->task;
 			next = next->next;
-			if (p != NULL) {
-				if ((p->state == TASK_UNINTERRUPTIBLE) ||
-				    (p->state == TASK_INTERRUPTIBLE))
-					wake_up_process(p);
-			}
-			if (next)
-				continue;
-			printk("wait_queue is bad (eip = %p)\n",
-				__builtin_return_address(0));
-			printk("        q = %p\n",q);
-			printk("       *q = %p\n",*q);
-			break;
+			if ((p->state == TASK_UNINTERRUPTIBLE) ||
+			    (p->state == TASK_INTERRUPTIBLE))
+				wake_up_process(p);
 		}
 	}
-	spin_unlock_irqrestore(&waitqueue_lock, flags);
+	read_unlock(&waitqueue_lock);
 }
 
 void wake_up_interruptible(struct wait_queue **q)
 {
-	unsigned long flags;
 	struct wait_queue *next;
-	struct wait_queue *head;
 
-	spin_lock_irqsave(&waitqueue_lock, flags);
+	read_lock(&waitqueue_lock);
 	if (q && (next = *q)) {
+		struct wait_queue *head;
+
 		head = WAIT_QUEUE_HEAD(q);
 		while (next != head) {
 			struct task_struct *p = next->task;
 			next = next->next;
-			if (p != NULL) {
-				if (p->state == TASK_INTERRUPTIBLE)
-					wake_up_process(p);
-			}
-			if (next)
-				continue;
-			printk("wait_queue is bad (eip = %p)\n",
-				__builtin_return_address(0));
-			printk("        q = %p\n",q);
-			printk("       *q = %p\n",*q);
-			break;
+			if (p->state == TASK_INTERRUPTIBLE)
+				wake_up_process(p);
 		}
 	}
-	spin_unlock_irqrestore(&waitqueue_lock, flags);
+	read_unlock(&waitqueue_lock);
 }
 
 /*
@@ -606,17 +671,14 @@ static inline void __sleep_on(struct wait_queue **p, int state)
 
 	if (!p)
 		return;
-	if (current == task[0])
-		panic("task[0] trying to sleep");
 	current->state = state;
-	spin_lock_irqsave(&waitqueue_lock, flags);
+	write_lock_irqsave(&waitqueue_lock, flags);
 	__add_wait_queue(p, &wait);
-	spin_unlock(&waitqueue_lock);
-	sti();
+	write_unlock(&waitqueue_lock);
 	schedule();
-	spin_lock_irq(&waitqueue_lock);
+	write_lock_irq(&waitqueue_lock);
 	__remove_wait_queue(p, &wait);
-	spin_unlock_irqrestore(&waitqueue_lock, flags);
+	write_unlock_irqrestore(&waitqueue_lock, flags);
 }
 
 void interruptible_sleep_on(struct wait_queue **p)
@@ -627,133 +689,6 @@ void interruptible_sleep_on(struct wait_queue **p)
 void sleep_on(struct wait_queue **p)
 {
 	__sleep_on(p,TASK_UNINTERRUPTIBLE);
-}
-
-
-#define TVN_BITS 6
-#define TVR_BITS 8
-#define TVN_SIZE (1 << TVN_BITS)
-#define TVR_SIZE (1 << TVR_BITS)
-#define TVN_MASK (TVN_SIZE - 1)
-#define TVR_MASK (TVR_SIZE - 1)
-
-#define SLOW_BUT_DEBUGGING_TIMERS 0
-
-struct timer_vec {
-        int index;
-        struct timer_list *vec[TVN_SIZE];
-};
-
-struct timer_vec_root {
-        int index;
-        struct timer_list *vec[TVR_SIZE];
-};
-
-static struct timer_vec tv5 = { 0 };
-static struct timer_vec tv4 = { 0 };
-static struct timer_vec tv3 = { 0 };
-static struct timer_vec tv2 = { 0 };
-static struct timer_vec_root tv1 = { 0 };
-
-static struct timer_vec * const tvecs[] = {
-	(struct timer_vec *)&tv1, &tv2, &tv3, &tv4, &tv5
-};
-
-#define NOOF_TVECS (sizeof(tvecs) / sizeof(tvecs[0]))
-
-static unsigned long timer_jiffies = 0;
-
-static inline void insert_timer(struct timer_list *timer,
-				struct timer_list **vec, int idx)
-{
-	if ((timer->next = vec[idx]))
-		vec[idx]->prev = timer;
-	vec[idx] = timer;
-	timer->prev = (struct timer_list *)&vec[idx];
-}
-
-static inline void internal_add_timer(struct timer_list *timer)
-{
-	/*
-	 * must be cli-ed when calling this
-	 */
-	unsigned long expires = timer->expires;
-	unsigned long idx = expires - timer_jiffies;
-
-	if (idx < TVR_SIZE) {
-		int i = expires & TVR_MASK;
-		insert_timer(timer, tv1.vec, i);
-	} else if (idx < 1 << (TVR_BITS + TVN_BITS)) {
-		int i = (expires >> TVR_BITS) & TVN_MASK;
-		insert_timer(timer, tv2.vec, i);
-	} else if (idx < 1 << (TVR_BITS + 2 * TVN_BITS)) {
-		int i = (expires >> (TVR_BITS + TVN_BITS)) & TVN_MASK;
-		insert_timer(timer, tv3.vec, i);
-	} else if (idx < 1 << (TVR_BITS + 3 * TVN_BITS)) {
-		int i = (expires >> (TVR_BITS + 2 * TVN_BITS)) & TVN_MASK;
-		insert_timer(timer, tv4.vec, i);
-	} else if (expires < timer_jiffies) {
-		/* can happen if you add a timer with expires == jiffies,
-		 * or you set a timer to go off in the past
-		 */
-		insert_timer(timer, tv1.vec, tv1.index);
-	} else if (idx < 0xffffffffUL) {
-		int i = (expires >> (TVR_BITS + 3 * TVN_BITS)) & TVN_MASK;
-		insert_timer(timer, tv5.vec, i);
-	} else {
-		/* Can only get here on architectures with 64-bit jiffies */
-		timer->next = timer->prev = timer;
-	}
-}
-
-static spinlock_t timerlist_lock = SPIN_LOCK_UNLOCKED;
-
-void add_timer(struct timer_list *timer)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&timerlist_lock, flags);
-#if SLOW_BUT_DEBUGGING_TIMERS
-        if (timer->next || timer->prev) {
-                printk("add_timer() called with non-zero list from %p\n",
-		       __builtin_return_address(0));
-		goto out;
-        }
-#endif
-	internal_add_timer(timer);
-#if SLOW_BUT_DEBUGGING_TIMERS
-out:
-#endif
-	spin_unlock_irqrestore(&timerlist_lock, flags);
-}
-
-static inline int detach_timer(struct timer_list *timer)
-{
-	int ret = 0;
-	struct timer_list *next, *prev;
-	next = timer->next;
-	prev = timer->prev;
-	if (next) {
-		next->prev = prev;
-	}
-	if (prev) {
-		ret = 1;
-		prev->next = next;
-	}
-	return ret;
-}
-
-
-int del_timer(struct timer_list * timer)
-{
-	int ret;
-	unsigned long flags;
-
-	spin_lock_irqsave(&timerlist_lock, flags);
-	ret = detach_timer(timer);
-	timer->next = timer->prev = 0;
-	spin_unlock_irqrestore(&timerlist_lock, flags);
-	return ret;
 }
 
 static inline void cascade_timers(struct timer_vec *tv)
@@ -847,17 +782,18 @@ unsigned long avenrun[3] = { 0,0,0 };
  */
 static unsigned long count_active_tasks(void)
 {
-	struct task_struct **p;
+	struct task_struct *p;
 	unsigned long nr = 0;
 
-	for(p = &LAST_TASK; p > &FIRST_TASK; --p)
-		if (*p && ((*p)->state == TASK_RUNNING ||
-			   (*p)->state == TASK_UNINTERRUPTIBLE ||
-			   (*p)->state == TASK_SWAPPING))
+	read_lock(&tasklist_lock);
+	for_each_task(p) {
+		if (p->pid &&
+		    (p->state == TASK_RUNNING ||
+		     p->state == TASK_UNINTERRUPTIBLE ||
+		     p->state == TASK_SWAPPING))
 			nr += FIXED_1;
-#ifdef __SMP__
-	nr-=(smp_num_cpus-1)*FIXED_1;
-#endif			
+	}
+	read_unlock(&tasklist_lock);
 	return nr;
 }
 
@@ -1065,16 +1001,14 @@ static inline void do_process_times(struct task_struct *p,
 {
 	long psecs;
 
-	p->utime += user;
-	p->stime += system;
-
-	psecs = (p->stime + p->utime) / HZ;
-	if (psecs > p->rlim[RLIMIT_CPU].rlim_cur) {
+	psecs = (p->times.tms_utime += user);
+	psecs += (p->times.tms_stime += system);
+	if (psecs / HZ > p->rlim[RLIMIT_CPU].rlim_cur) {
 		/* Send SIGXCPU every second.. */
-		if (psecs * HZ == p->stime + p->utime)
+		if (!(psecs % HZ))
 			send_sig(SIGXCPU, p, 1);
 		/* and SIGKILL when we go over max.. */
-		if (psecs > p->rlim[RLIMIT_CPU].rlim_max)
+		if (psecs / HZ > p->rlim[RLIMIT_CPU].rlim_max)
 			send_sig(SIGKILL, p, 1);
 	}
 }
@@ -1344,22 +1278,12 @@ asmlinkage int sys_nice(int increment)
 
 #endif
 
-static struct task_struct *find_process_by_pid(pid_t pid)
+static inline struct task_struct *find_process_by_pid(pid_t pid)
 {
-	struct task_struct *p;
-
-	p = current;
-	if (pid) {
-		read_lock(&tasklist_lock);
-		for_each_task(p) {
-			if (p->pid == pid)
-				goto found;
-		}
-		p = NULL;
-found:
-		read_unlock(&tasklist_lock);
-	}
-	return p;
+	if (pid)
+		return find_task_by_pid(pid);
+	else
+		return current;
 }
 
 static int setscheduler(pid_t pid, int policy, 
@@ -1572,7 +1496,7 @@ asmlinkage int sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 
 static void show_task(int nr,struct task_struct * p)
 {
-	unsigned long free;
+	unsigned long free = 0;
 	static const char * stat_nam[] = { "R", "S", "D", "Z", "T", "W" };
 
 	printk("%-8s %3d ", p->comm, (p == current) ? -nr : nr);
@@ -1591,10 +1515,12 @@ static void show_task(int nr,struct task_struct * p)
 	else
 		printk(" %016lx ", thread_saved_pc(&p->tss));
 #endif
+#if 0
 	for (free = 1; free < PAGE_SIZE/sizeof(long) ; free++) {
 		if (((unsigned long *)p->kernel_stack_page)[free])
 			break;
 	}
+#endif
 	printk("%5lu %5d %6d ", free*sizeof(long), p->pid, p->p_pptr->pid);
 	if (p->p_cptr)
 		printk("%5d ", p->p_cptr->pid);
@@ -1612,7 +1538,7 @@ static void show_task(int nr,struct task_struct * p)
 
 void show_state(void)
 {
-	int i;
+	struct task_struct *p;
 
 #if ((~0UL) == 0xffffffff)
 	printk("\n"
@@ -1623,25 +1549,30 @@ void show_state(void)
 	       "                                 free                        sibling\n");
 	printk("  task                 PC        stack   pid father child younger older\n");
 #endif
-	for (i=0 ; i<NR_TASKS ; i++)
-		if (task[i])
-			show_task(i,task[i]);
+	read_lock(&tasklist_lock);
+	for_each_task(p)
+		show_task((p->tarray_ptr - &task[0]),p);
+	read_unlock(&tasklist_lock);
 }
 
-void sched_init(void)
+__initfunc(void sched_init(void))
 {
 	/*
 	 *	We have to do a little magic to get the first
 	 *	process right in SMP mode.
 	 */
-	int cpu=smp_processor_id();
-#ifndef __SMP__
-	current_set[cpu]=&init_task;
-#else
+	int cpu=hard_smp_processor_id();
+	int nr = NR_TASKS;
+
 	init_task.processor=cpu;
-	for(cpu = 0; cpu < NR_CPUS; cpu++)
-		current_set[cpu] = &init_task;
-#endif
+
+	/* Init task array free list and pidhash table. */
+	while(--nr > 0)
+		add_free_taskslot(&task[nr]);
+
+	for(nr = 0; nr < PIDHASH_SZ; nr++)
+		pidhash[nr] = NULL;
+
 	init_bh(TIMER_BH, timer_bh);
 	init_bh(TQUEUE_BH, tqueue_bh);
 	init_bh(IMMEDIATE_BH, immediate_bh);

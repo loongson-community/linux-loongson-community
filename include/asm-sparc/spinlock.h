@@ -55,6 +55,82 @@ typedef struct { } rwlock_t;
 
 #include <asm/psr.h>
 
+/* Define this to use the verbose/debugging versions in arch/sparc/lib/debuglocks.c */
+#define SPIN_LOCK_DEBUG
+
+#ifdef SPIN_LOCK_DEBUG
+struct _spinlock_debug {
+	unsigned char lock;
+	unsigned long owner_pc;
+};
+typedef struct _spinlock_debug spinlock_t;
+
+#define SPIN_LOCK_UNLOCKED	{ 0, 0 }
+#define spin_lock_init(lp)	do { (lp)->owner_pc = 0; (lp)->lock = 0; } while(0)
+#define spin_unlock_wait(lp)	do { barrier(); } while((lp)->lock)
+
+extern void _spin_lock(spinlock_t *lock);
+extern int _spin_trylock(spinlock_t *lock);
+extern void _spin_unlock(spinlock_t *lock);
+extern void _spin_lock_irq(spinlock_t *lock);
+extern void _spin_unlock_irq(spinlock_t *lock);
+extern void _spin_lock_irqsave(spinlock_t *lock);
+extern void _spin_unlock_irqrestore(spinlock_t *lock);
+
+#define spin_lock(lp)			_spin_lock(lp)
+#define spin_trylock(lp)		_spin_trylock(lp)
+#define spin_unlock(lp)			_spin_unlock(lp)
+#define spin_lock_irq(lp)		_spin_lock_irq(lp)
+#define spin_unlock_irq(lp)		_spin_unlock_irq(lp)
+#define spin_lock_irqsave(lp, flags)	do { __save_and_cli(flags); \
+					     _spin_lock_irqsave(lp); } while (0)
+#define spin_unlock_irqrestore(lp, flags) do { _spin_unlock_irqrestore(lp); \
+					       __restore_flags(flags); } while(0)
+
+struct _rwlock_debug {
+	volatile unsigned int lock;
+	unsigned long owner_pc;
+};
+typedef struct _rwlock_debug rwlock_t;
+
+#define RW_LOCK_UNLOCKED { 0, 0 }
+
+extern void _read_lock(rwlock_t *rw);
+extern void _read_unlock(rwlock_t *rw);
+extern void _write_lock(rwlock_t *rw);
+extern void _write_unlock(rwlock_t *rw);
+extern void _read_lock_irq(rwlock_t *rw);
+extern void _read_unlock_irq(rwlock_t *rw);
+extern void _write_lock_irq(rwlock_t *rw);
+extern void _write_unlock_irq(rwlock_t *rw);
+extern void _read_lock_irqsave(rwlock_t *rw);
+extern void _read_unlock_irqrestore(rwlock_t *rw);
+extern void _write_lock_irqsave(rwlock_t *rw);
+extern void _write_unlock_irqrestore(rwlock_t *rw);
+
+#define read_lock(rw)		_read_lock(rw)
+#define read_unlock(rw)		_read_unlock(rw)
+#define write_lock(rw)		_write_lock(rw)
+#define write_unlock(rw)	_write_unlock(rw)
+#define read_lock_irq(rw)	_read_lock_irq(rw)
+#define read_unlock_irq(rw)	_read_unlock_irq(rw)
+#define write_lock_irq(rw)	_write_lock_irq(rw)
+#define write_unlock_irq(rw)	_write_unlock_irq(rw)
+
+#define read_lock_irqsave(rw, flags) \
+do { __save_and_cli(flags); _read_lock_irqsave(rw); } while (0)
+
+#define read_unlock_irqrestore(rw, flags) do { _read_unlock_irqrestore(rw); \
+					       __restore_flags(flags); } while(0)
+
+#define write_lock_irqsave(rw, flags) \
+do { __save_and_cli(flags); _write_lock_irqsave(rw); } while(0)
+
+#define write_unlock_irqrestore(rw, flags) do { _write_unlock_irqrestore(rw); \
+					        __restore_flags(flags); } while(0)
+
+#else /* !SPIN_LOCK_DEBUG */
+
 typedef unsigned char spinlock_t;
 #define SPIN_LOCK_UNLOCKED	0
 
@@ -151,7 +227,7 @@ do {						\
 	"b,a	1b\n\t"				\
 	".previous\n"				\
 	: "=r" (flags)				\
-	: "i" (PSR_PIL), "r" (lock)		\
+	: "i" (PSR_PIL), "r" (lp)		\
 	: "g2", "memory", "cc");		\
 } while(0)
 
@@ -198,7 +274,7 @@ typedef struct { volatile unsigned int lock; } rwlock_t;
  *
  * Unfortunately this scheme limits us to ~65,000 cpus.
  */
-extern __inline__ void read_lock(rwlock_t *rw)
+extern __inline__ void _read_lock(rwlock_t *rw)
 {
 	register rwlock_t *lp asm("g1");
 	lp = rw;
@@ -211,7 +287,14 @@ extern __inline__ void read_lock(rwlock_t *rw)
 	: "g2", "g4", "g7", "memory", "cc");
 }
 
-extern __inline__ void read_unlock(rwlock_t *rw)
+#define read_lock(lock) \
+do {	unsigned long flags; \
+	__save_and_cli(flags); \
+	_read_lock(lock); \
+	__restore_flags(flags); \
+} while(0)
+
+extern __inline__ void _read_unlock(rwlock_t *rw)
 {
 	register rwlock_t *lp asm("g1");
 	lp = rw;
@@ -223,6 +306,13 @@ extern __inline__ void read_unlock(rwlock_t *rw)
 	: "r" (lp)
 	: "g2", "g4", "g7", "memory", "cc");
 }
+
+#define read_unlock(lock) \
+do {	unsigned long flags; \
+	__save_and_cli(flags); \
+	_read_unlock(lock); \
+	__restore_flags(flags); \
+} while(0)
 
 extern __inline__ void write_lock(rwlock_t *rw)
 {
@@ -238,19 +328,21 @@ extern __inline__ void write_lock(rwlock_t *rw)
 }
 
 #define write_unlock(rw)	do { (rw)->lock = 0; } while(0)
-#define read_lock_irq(lock)	do { __cli(); read_lock(lock); } while (0)
-#define read_unlock_irq(lock)	do { read_unlock(lock); __sti(); } while (0)
+#define read_lock_irq(lock)	do { __cli(); _read_lock(lock); } while (0)
+#define read_unlock_irq(lock)	do { _read_unlock(lock); __sti(); } while (0)
 #define write_lock_irq(lock)	do { __cli(); write_lock(lock); } while (0)
 #define write_unlock_irq(lock)	do { write_unlock(lock); __sti(); } while (0)
 
 #define read_lock_irqsave(lock, flags)	\
-	do { __save_and_cli(flags); read_lock(lock); } while (0)
+	do { __save_and_cli(flags); _read_lock(lock); } while (0)
 #define read_unlock_irqrestore(lock, flags) \
-	do { read_unlock(lock); __restore_flags(flags); } while (0)
+	do { _read_unlock(lock); __restore_flags(flags); } while (0)
 #define write_lock_irqsave(lock, flags)	\
 	do { __save_and_cli(flags); write_lock(lock); } while (0)
 #define write_unlock_irqrestore(lock, flags) \
 	do { write_unlock(lock); __restore_flags(flags); } while (0)
+
+#endif /* SPIN_LOCK_DEBUG */
 
 #endif /* __SMP__ */
 

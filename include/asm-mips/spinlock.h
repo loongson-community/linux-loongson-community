@@ -3,6 +3,8 @@
 
 #ifndef __SMP__
 
+/* gcc 2.7.2 can crash initializing an empty structure.  For now we
+   try to do though ...  */
 typedef struct { } spinlock_t;
 #define SPIN_LOCK_UNLOCKED { }
 

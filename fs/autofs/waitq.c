@@ -11,9 +11,10 @@
  * ------------------------------------------------------------------------- */
 
 #include <linux/malloc.h>
-#include <linux/signal.h>
 #include <linux/sched.h>
-#include <linux/auto_fs.h>
+#include <linux/signal.h>
+#include <linux/file.h>
+#include "autofs_i.h"
 
 /* We make this a static variable rather than a part of the superblock; it
    is better if we don't reassign numbers easily even across filesystems */
@@ -36,6 +37,7 @@ void autofs_catatonic_mode(struct autofs_sb_info *sbi)
 		wake_up(&wq->queue);
 		wq = nwq;
 	}
+	fput(sbi->pipe, sbi->pipe->f_inode);	/* Close the pipe */
 }
 
 static int autofs_write(struct file *file, const void *addr, int bytes)
@@ -43,7 +45,7 @@ static int autofs_write(struct file *file, const void *addr, int bytes)
 	unsigned short fs;
 	unsigned long old_signal;
 	const char *data = (const char *)addr;
-	int written;
+	int written = 0;
 
 	/** WARNING: this is not safe for writing more than PIPE_BUF bytes! **/
 
@@ -75,6 +77,8 @@ static void autofs_notify_daemon(struct autofs_sb_info *sbi, struct autofs_wait_
 	DPRINTK(("autofs_wait: wait id = 0x%08lx, name = ", wq->wait_queue_token));
 	autofs_say(wq->name,wq->len);
 
+	memset(&pkt,0,sizeof pkt); /* For security reasons */
+
 	pkt.hdr.proto_version = AUTOFS_PROTO_VERSION;
 	pkt.hdr.type = autofs_ptype_missing;
 	pkt.wait_queue_token = wq->wait_queue_token;
@@ -94,7 +98,7 @@ int autofs_wait(struct autofs_sb_info *sbi, autofs_hash_t hash, const char *name
 	for ( wq = sbi->queues ; wq ; wq = wq->next ) {
 		if ( wq->hash == hash &&
 		     wq->len == len &&
-		     !memcmp(wq->name,name,len) )
+		     wq->name && !memcmp(wq->name,name,len) )
 			break;
 	}
 	
@@ -113,12 +117,13 @@ int autofs_wait(struct autofs_sb_info *sbi, autofs_hash_t hash, const char *name
 		init_waitqueue(&wq->queue);
 		wq->hash = hash;
 		wq->len = len;
+		wq->status = -EINTR; /* Status return if interrupted */
 		memcpy(wq->name, name, len);
 		wq->next = sbi->queues;
 		sbi->queues = wq;
 
 		/* autofs_notify_daemon() may block */
-		wq->wait_ctr++;
+		wq->wait_ctr = 1;
 		autofs_notify_daemon(sbi,wq);
 	} else
 		wq->wait_ctr++;
@@ -130,7 +135,8 @@ int autofs_wait(struct autofs_sb_info *sbi, autofs_hash_t hash, const char *name
 		DPRINTK(("autofs_wait: skipped sleeping\n"));
 	}
 
-	status = (current->signal & ~current->blocked) ? -EINTR : wq->status;
+	status = wq->status;
+
 	if ( ! --wq->wait_ctr )	/* Are we the last process to need status? */
 		kfree(wq);
 

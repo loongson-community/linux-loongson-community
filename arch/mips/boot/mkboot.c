@@ -355,7 +355,7 @@ main(argc, argv)
 	char *infile, *outfile;
 	struct stat ifstat;
 	off_t ifsize;
-	void *image;
+	char *image;
 	int ifd, ofd, i, symtabix, strtabix;
 	Elf32_Ehdr eh;
 	Elf32_Phdr *ph;
@@ -421,7 +421,7 @@ main(argc, argv)
 	 * we're reading might have different type sizes, byteorder
 	 * or alignment than the host.
 	 */
-	memcpy(eh.e_ident, image, sizeof(eh.e_ident));
+	memcpy(eh.e_ident, (void *)image, sizeof(eh.e_ident));
 	if(memcmp(eh.e_ident, ELFMAG, SELFMAG)) {
 		fprintf(stderr, "Input file isn't a ELF file\n");
 		exit(1);
@@ -476,7 +476,7 @@ main(argc, argv)
 		exit(1);
 	}
 	for(i = 0;i < eh.e_phnum; i++)
-		get_elfph(image + eh.e_phoff + i * 32, ph + i);
+		get_elfph((void *)(image + eh.e_phoff + i * 32), ph + i);
 
 	/*
 	 * ... and then the section headers.
@@ -487,7 +487,7 @@ main(argc, argv)
 		exit(1);
 	}
 	for(i = 0;i < eh.e_shnum; i++)
-		get_elfsh(image + eh.e_shoff + (i * 40), sh + i);
+		get_elfsh((void *)(image + eh.e_shoff + (i * 40)), sh + i);
 
 	/*
 	 * Find the symboltable and the stringtable in the file.

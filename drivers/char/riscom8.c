@@ -1711,7 +1711,7 @@ static void do_softint(void *private_)
 	if(!(tty = port->tty)) 
 		return;
 
-	if (clear_bit(RS_EVENT_WRITE_WAKEUP, &port->event)) {
+	if (test_and_clear_bit(RS_EVENT_WRITE_WAKEUP, &port->event)) {
 		if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
 		    tty->ldisc.write_wakeup)
 			(tty->ldisc.write_wakeup)(tty);
@@ -1821,7 +1821,7 @@ static void rc_release_drivers(void)
  * addresses in this case.
  *
  */ 
-void riscom8_setup(char *str, int * ints)
+__initfunc(void riscom8_setup(char *str, int * ints))
 {
 	int i;
 

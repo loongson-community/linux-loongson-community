@@ -31,6 +31,8 @@
 #define NUM_SERIAL 1     /* One chip on board. */
 #define NUM_CHANNELS (NUM_SERIAL * 2)
 
+extern struct wait_queue * keypress_wait;
+
 struct sgi_zslayout *zs_chips[NUM_SERIAL] = { 0, };
 struct sgi_zschannel *zs_channels[NUM_CHANNELS] = { 0, 0, };
 struct sgi_zschannel *zs_conschan;
@@ -351,7 +353,7 @@ static _INLINE_ void rs_sched_event(struct sgi_serial *info,
 				    int event)
 {
 	info->event |= 1 << event;
-	queue_task_irq_off(&info->tqueue, &tq_serial);
+	queue_task(&info->tqueue, &tq_serial);
 	mark_bh(SERIAL_BH);
 }
 
@@ -400,7 +402,7 @@ static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs
 		goto clear_and_exit;
 
 	if (tty->flip.count >= TTY_FLIPBUF_SIZE)
-		queue_task_irq_off(&tty->flip.tqueue, &tq_timer);
+		queue_task(&tty->flip.tqueue, &tq_timer);
 	tty->flip.count++;
 	if(stat & PAR_ERR)
 		*tty->flip.flag_buf_ptr++ = TTY_PARITY;
@@ -412,7 +414,7 @@ static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs
 		*tty->flip.flag_buf_ptr++ = 0; /* XXX */
 	*tty->flip.char_buf_ptr++ = ch;
 
-	queue_task_irq_off(&tty->flip.tqueue, &tq_timer);
+	queue_task(&tty->flip.tqueue, &tq_timer);
 
 clear_and_exit:
 	rs_recv_clear(info->zs_channel);
@@ -596,7 +598,7 @@ static void do_softint(void *private_)
 	if (!tty)
 		return;
 
-	if (clear_bit(RS_EVENT_WRITE_WAKEUP, &info->event)) {
+	if (test_and_clear_bit(RS_EVENT_WRITE_WAKEUP, &info->event)) {
 		if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
 		    tty->ldisc.write_wakeup)
 			(tty->ldisc.write_wakeup)(tty);

@@ -17,6 +17,7 @@
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  */
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
@@ -110,10 +111,8 @@ void show_registers(char * str, struct pt_regs * regs, long err)
 	/*
 	 * Dump the stack
 	 */
-	if (STACK_MAGIC != *(u32 *)current->kernel_stack_page)
-		printk("Corrupted stack page\n");
 	printk("Process %s (pid: %d, stackpage=%08lx)\nStack: ",
-		current->comm, current->pid, current->kernel_stack_page);
+		current->comm, current->pid, (unsigned long)current);
 	for(i=0;i<5;i++)
 		printk("%08x ", *sp++);
 	stack = (int *) sp;
@@ -389,7 +388,7 @@ void do_reserved(struct pt_regs *regs)
 	unlock_kernel();
 }
 
-static void watch_init(unsigned long cputype)
+static inline void watch_init(unsigned long cputype)
 {
 	switch(cputype) {
 	case CPU_R10000:
@@ -427,7 +426,7 @@ extern asmlinkage void r6000_restore_fp_context(struct sigcontext *sc);
 extern asmlinkage void r4xx0_resume(void *tsk);
 extern asmlinkage void r2300_resume(void *tsk);
 
-void trap_init(void)
+__initfunc(void trap_init(void))
 {
 	extern char except_vec0_r4000, except_vec0_r4600, except_vec0_r2300;
 	extern char except_vec1_generic, except_vec2_generic;

@@ -234,6 +234,13 @@ M:	fritz@wuemaus.franken.de
 L:	isdn4linux@hub-wue.franken.de
 S:	Maintained
 
+M68K:
+P:	Jes Sorensen
+M:	Jes.Sorensen@cern.ch
+W:	http://www.clark.net/pub/lawrencc/linux/index.html
+L:	linux-m68k@phil.uni-sb.de
+S:	Maintained
+
 MODULE SUPPORT [GENERAL], KERNELD
 P:	Bjorn Ekwall
 M:	bj0rn@blox.se
@@ -343,11 +350,12 @@ L:	linux-kernel@vger.rutgers.edu
 W:	http://www-plateau.cs.berkeley.edu/people/chaffee
 S:	Maintained
 
-DIGIBOARD DRIVER:
-P:	Christoph Lameter
-M:	clameter@fuller.edu
-L:	digiboard@list.fuller.edu
-S:	Maintained
+DIGI INTL. EPCA DRIVER:
+P:      Daniel Taylor
+M:      support@dgii.com
+M:      digilnux@dgii.com
+L:      digiboard@list.fuller.edu
+S:      Maintained
 
 RISCOM8 DRIVER:
 P:	Dmitry Gorodchanin

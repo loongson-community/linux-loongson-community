@@ -64,14 +64,15 @@ static atomic_t net_skbcount = ATOMIC_INIT(0);
 static atomic_t net_allocs = ATOMIC_INIT(0);
 static atomic_t net_fails  = ATOMIC_INIT(0);
 
+
 extern atomic_t ip_frag_mem;
 
 /*
  *	Strings we don't want inline's duplicating
  */
  
-char *skb_push_errstr="skpush:under: %p:%d";
-char *skb_put_errstr ="skput:over: %p:%d";
+const char skb_push_errstr[]="skpush:under: %p:%d";
+const char skb_put_errstr[] ="skput:over: %p:%d";
 
 void show_net_buffers(void)
 {

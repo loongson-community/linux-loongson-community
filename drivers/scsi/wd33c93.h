@@ -246,13 +246,17 @@ struct WD33C93_hostdata {
 	uchar            sync_stat[8];     /* status of sync negotiation per target */
 	uchar            no_sync;          /* bitmask: don't do sync on these targets */
 	uchar            no_dma;           /* set this flag to disable DMA */
+#ifdef PROC_INTERFACE
 	uchar            proc;             /* bitmask: what's in proc output */
+#ifdef PROC_STATISTICS
 	unsigned long    cmd_cnt[8];       /* # of commands issued per target */
 	unsigned long    int_cnt;          /* # of interrupts serviced */
 	unsigned long    pio_cnt;          /* # of pio data transfers */
 	unsigned long    dma_cnt;          /* # of DMA data transfers */
 	unsigned long    disc_allowed_cnt[8]; /* # of disconnects allowed per target */
 	unsigned long    disc_done_cnt[8]; /* # of disconnects done per target*/
+#endif
+#endif
 };
 
 #define CMDHOSTDATA(cmd)   ((struct WD33C93_hostdata *) (cmd)->host->hostdata)
@@ -302,7 +306,7 @@ struct WD33C93_hostdata {
 #define DB_QCMD               (1<<2)
 #define DB_EXECUTE            (1<<3)
 #define DB_INTR               (1<<4)
-#define DB_TRANS              (1<<5)
+#define DB_TRANSFER           (1<<5)
 #define DB_MASK               (0x3f)
 
 /* defines for hostdata->sync_stat[] */

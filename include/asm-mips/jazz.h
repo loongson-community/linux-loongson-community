@@ -311,4 +311,6 @@ extern inline unsigned int r4030_write_reg32(unsigned addr, unsigned val)
 #define JAZZ_RTC_BASE	0xe0004000
 #define JAZZ_PORT_BASE	0xe2000000
 
+#define JAZZ_EISA_BASE	0xe3000000
+
 #endif /* __ASM_MIPS_JAZZ_H */

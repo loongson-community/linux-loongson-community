@@ -33,68 +33,177 @@ int nr_running=1;
 unsigned long int total_forks=0;	/* Handle normal Linux uptimes. */
 int last_pid=0;
 
-static inline int find_empty_process(void)
+/* SLAB cache for mm_struct's. */
+kmem_cache_t *mm_cachep;
+
+struct task_struct *pidhash[PIDHASH_SZ];
+spinlock_t pidhash_lock = SPIN_LOCK_UNLOCKED;
+
+struct task_struct **tarray_freelist = NULL;
+spinlock_t taskslot_lock = SPIN_LOCK_UNLOCKED;
+
+/* UID task count cache, to prevent walking entire process list every
+ * single fork() operation.
+ */
+#define UIDHASH_SZ	(PIDHASH_SZ >> 2)
+
+static struct uid_taskcount {
+	struct uid_taskcount *next, **pprev;
+	unsigned short uid;
+	int task_count;
+} *uidhash[UIDHASH_SZ];
+static spinlock_t uidhash_lock = SPIN_LOCK_UNLOCKED;
+
+kmem_cache_t *uid_cachep;
+
+#define uidhashfn(uid)	(((uid >> 8) ^ uid) & (UIDHASH_SZ - 1))
+
+static inline void uid_hash_insert(struct uid_taskcount *up, unsigned int hashent)
+{
+	spin_lock(&uidhash_lock);
+	if((up->next = uidhash[hashent]) != NULL)
+		uidhash[hashent]->pprev = &up->next;
+	up->pprev = &uidhash[hashent];
+	uidhash[hashent] = up;
+	spin_unlock(&uidhash_lock);
+}
+
+static inline void uid_hash_remove(struct uid_taskcount *up)
+{
+	spin_lock(&uidhash_lock);
+	if(up->next)
+		up->next->pprev = up->pprev;
+	*up->pprev = up->next;
+	spin_unlock(&uidhash_lock);
+}
+
+static inline struct uid_taskcount *uid_find(unsigned short uid, unsigned int hashent)
+{
+	struct uid_taskcount *up;
+
+	spin_lock(&uidhash_lock);
+	for(up = uidhash[hashent]; (up && up->uid != uid); up = up->next)
+		;
+	spin_unlock(&uidhash_lock);
+	return up;
+}
+
+int charge_uid(struct task_struct *p, int count)
+{
+	unsigned int hashent = uidhashfn(p->uid);
+	struct uid_taskcount *up = uid_find(p->uid, hashent);
+
+	if(up) {
+		int limit = p->rlim[RLIMIT_NPROC].rlim_cur;
+		int newcnt = up->task_count + count;
+
+		if(newcnt > limit)
+			return -EAGAIN;
+		else if(newcnt == 0) {
+			uid_hash_remove(up);
+			kmem_cache_free(uid_cachep, up);
+			return 0;
+		}
+	} else {
+		up = kmem_cache_alloc(uid_cachep, SLAB_KERNEL);
+		if(!up)
+			return -EAGAIN;
+		up->uid = p->uid;
+		up->task_count = 0;
+		uid_hash_insert(up, hashent);
+	}
+	up->task_count += count;
+	return 0;
+}
+
+void uidcache_init(void)
 {
 	int i;
 
-	if (nr_tasks >= NR_TASKS - MIN_TASKS_LEFT_FOR_ROOT) {
-		if (current->uid)
-			return -EAGAIN;
-	}
-	if (current->uid) {
-		long max_tasks = current->rlim[RLIMIT_NPROC].rlim_cur;
+	uid_cachep = kmem_cache_create("uid_cache", sizeof(struct uid_taskcount),
+				       0,
+				       SLAB_HWCACHE_ALIGN, NULL, NULL);
+	if(!uid_cachep)
+		panic("Cannot create uid taskcount SLAB cache\n");
 
-		max_tasks--;	/* count the new process.. */
-		if (max_tasks < nr_tasks) {
-			struct task_struct *p;
-			read_lock(&tasklist_lock);
-			for_each_task (p) {
-				if (p->uid == current->uid)
-					if (--max_tasks < 0) {
-						read_unlock(&tasklist_lock);
-						return -EAGAIN;
-					}
-			}
-			read_unlock(&tasklist_lock);
-		}
+	for(i = 0; i < UIDHASH_SZ; i++)
+		uidhash[i] = 0;
+}
+
+static inline int find_empty_process(void)
+{
+	struct task_struct **tslot;
+
+	if(current->uid) {
+		int error;
+
+		if(nr_tasks >= NR_TASKS - MIN_TASKS_LEFT_FOR_ROOT)
+			return -EAGAIN;
+		if((error = charge_uid(current, 1)) < 0)
+			return error;
 	}
-	for (i = 0 ; i < NR_TASKS ; i++) {
-		if (!task[i])
-			return i;
-	}
+	tslot = get_free_taskslot();
+	if(tslot)
+		return tslot - &task[0];
 	return -EAGAIN;
 }
 
+/* Protects next_safe and last_pid. */
+static spinlock_t lastpid_lock = SPIN_LOCK_UNLOCKED;
+
 static int get_pid(unsigned long flags)
 {
+	static int next_safe = PID_MAX;
 	struct task_struct *p;
 
 	if (flags & CLONE_PID)
 		return current->pid;
 
-	read_lock(&tasklist_lock);
-repeat:
-	if ((++last_pid) & 0xffff8000)
-		last_pid=1;
-	for_each_task (p) {
-		if (p->pid == last_pid ||
-		    p->pgrp == last_pid ||
-		    p->session == last_pid)
-			goto repeat;
+	spin_lock(&lastpid_lock);
+	if((++last_pid) & 0xffff8000) {
+		last_pid = 300;		/* Skip daemons etc. */
+		goto inside;
 	}
-	read_unlock(&tasklist_lock);
+	if(last_pid >= next_safe) {
+inside:
+		next_safe = PID_MAX;
+		read_lock(&tasklist_lock);
+	repeat:
+		for_each_task(p) {
+			if(p->pid == last_pid	||
+			   p->pgrp == last_pid	||
+			   p->session == last_pid) {
+				if(++last_pid >= next_safe) {
+					if(last_pid & 0xffff8000)
+						last_pid = 300;
+					next_safe = PID_MAX;
+					goto repeat;
+				}
+			}
+			if(p->pid > last_pid && next_safe > p->pid)
+				next_safe = p->pid;
+			if(p->pgrp > last_pid && next_safe > p->pgrp)
+				next_safe = p->pgrp;
+			if(p->session > last_pid && next_safe > p->session)
+				next_safe = p->session;
+		}
+		read_unlock(&tasklist_lock);
+	}
+	spin_unlock(&lastpid_lock);
 
 	return last_pid;
 }
 
 static inline int dup_mmap(struct mm_struct * mm)
 {
-	struct vm_area_struct * mpnt, **p, *tmp;
+	struct vm_area_struct * mpnt, *tmp, **pprev;
 
-	mm->mmap = NULL;
-	p = &mm->mmap;
+	mm->mmap = mm->mmap_cache = NULL;
 	flush_cache_mm(current->mm);
+	pprev = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
+		struct inode *inode;
+
 		tmp = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
 		if (!tmp) {
 			exit_mmap(mm);
@@ -105,12 +214,18 @@ static inline int dup_mmap(struct mm_struct * mm)
 		tmp->vm_flags &= ~VM_LOCKED;
 		tmp->vm_mm = mm;
 		tmp->vm_next = NULL;
-		if (tmp->vm_inode) {
-			tmp->vm_inode->i_count++;
+		inode = tmp->vm_inode;
+		if (inode) {
+			inode->i_count++;
+			if (tmp->vm_flags & VM_DENYWRITE)
+				inode->i_writecount--;
+      
 			/* insert tmp into the share list, just after mpnt */
-			tmp->vm_next_share->vm_prev_share = tmp;
+			if((tmp->vm_next_share = mpnt->vm_next_share) != NULL)
+				mpnt->vm_next_share->vm_pprev_share =
+					&tmp->vm_next_share;
 			mpnt->vm_next_share = tmp;
-			tmp->vm_prev_share = mpnt;
+			tmp->vm_pprev_share = &mpnt->vm_next_share;
 		}
 		if (copy_page_range(mm, current->mm, tmp)) {
 			exit_mmap(mm);
@@ -119,24 +234,35 @@ static inline int dup_mmap(struct mm_struct * mm)
 		}
 		if (tmp->vm_ops && tmp->vm_ops->open)
 			tmp->vm_ops->open(tmp);
-		*p = tmp;
-		p = &tmp->vm_next;
+
+		/* Ok, finally safe to link it in. */
+		if((tmp->vm_next = *pprev) != NULL)
+			(*pprev)->vm_pprev = &tmp->vm_next;
+		*pprev = tmp;
+		tmp->vm_pprev = pprev;
+
+		pprev = &tmp->vm_next;
 	}
 	flush_tlb_mm(current->mm);
-	build_mmap_avl(mm);
 	return 0;
 }
 
 static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 {
 	if (!(clone_flags & CLONE_VM)) {
-		struct mm_struct * mm = kmalloc(sizeof(*tsk->mm), GFP_KERNEL);
+		struct mm_struct * mm = kmem_cache_alloc(mm_cachep, SLAB_KERNEL);
 		if (!mm)
 			return -1;
 		*mm = *current->mm;
 		init_new_context(mm);
 		mm->count = 1;
 		mm->def_flags = 0;
+
+		/* It has not run yet, so cannot be present in anyone's
+		 * cache or tlb.
+		 */
+		mm->cpu_vm_mask = 0;
+
 		tsk->mm = mm;
 		tsk->min_flt = tsk->maj_flt = 0;
 		tsk->cmin_flt = tsk->cmaj_flt = 0;
@@ -146,7 +272,7 @@ static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 		if (dup_mmap(mm)) {
 			free_page_tables(mm);
 free_mm:
-			kfree(mm);
+			kmem_cache_free(mm_cachep, mm);
 			return -1;
 		}
 		return 0;
@@ -232,20 +358,17 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 {
 	int nr;
 	int error = -ENOMEM;
-	unsigned long new_stack;
 	struct task_struct *p;
 
 	lock_kernel();
 	p = alloc_task_struct();
 	if (!p)
 		goto bad_fork;
-	new_stack = alloc_kernel_stack(p);
-	if (!new_stack)
-		goto bad_fork_free_p;
+
 	error = -EAGAIN;
 	nr = find_empty_process();
 	if (nr < 0)
-		goto bad_fork_free_stack;
+		goto bad_fork_free;
 
 	*p = *current;
 
@@ -256,8 +379,6 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 
 	p->did_exec = 0;
 	p->swappable = 0;
-	p->kernel_stack_page = new_stack;
-	*(unsigned long *) p->kernel_stack_page = STACK_MAGIC;
 	p->state = TASK_UNINTERRUPTIBLE;
 	p->flags &= ~(PF_PTRACED|PF_TRACESYS|PF_SUPERPRIV);
 	p->flags |= PF_FORKNOEXEC;
@@ -274,15 +395,18 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->real_timer.data = (unsigned long) p;
 	p->leader = 0;		/* session leadership doesn't inherit */
 	p->tty_old_pgrp = 0;
-	p->utime = p->stime = 0;
-	p->cutime = p->cstime = 0;
+	p->times.tms_utime = p->times.tms_stime = 0;
+	p->times.tms_cutime = p->times.tms_cstime = 0;
 #ifdef __SMP__
+	p->has_cpu = 0;
 	p->processor = NO_PROC_ID;
 #endif
 	p->lock_depth = 0;
 	p->start_time = jiffies;
-	task[nr] = p;
+	p->tarray_ptr = &task[nr];
+	*p->tarray_ptr = p;
 	SET_LINKS(p);
+	hash_pid(p);
 	nr_tasks++;
 
 	error = -ENOMEM;
@@ -330,16 +454,16 @@ bad_fork_cleanup_fs:
 bad_fork_cleanup_files:
 	exit_files(p);
 bad_fork_cleanup:
+	charge_uid(current, -1);
 	if (p->exec_domain && p->exec_domain->module)
 		__MOD_DEC_USE_COUNT(p->exec_domain->module);
 	if (p->binfmt && p->binfmt->module)
 		__MOD_DEC_USE_COUNT(p->binfmt->module);
-	task[nr] = NULL;
+	add_free_taskslot(p->tarray_ptr);
+	unhash_pid(p);
 	REMOVE_LINKS(p);
 	nr_tasks--;
-bad_fork_free_stack:
-	free_kernel_stack(new_stack);
-bad_fork_free_p:
+bad_fork_free:
 	free_task_struct(p);
 bad_fork:
 fork_out:

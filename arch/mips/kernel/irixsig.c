@@ -8,6 +8,8 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/time.h>
 
 #include <asm/ptrace.h>
@@ -162,7 +164,10 @@ asmlinkage int do_irix_signal(unsigned long oldmask, struct pt_regs * regs)
 			case SIGCONT: case SIGCHLD: case SIGWINCH:
 				continue;
 
-			case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
+			case SIGTSTP: case SIGTTIN: case SIGTTOU:
+				if (is_orphaned_pgrp(current->pgrp))
+					continue;
+			case SIGSTOP:
 				if (current->flags & PF_PTRACED)
 					continue;
 				current->state = TASK_STOPPED;
@@ -175,15 +180,19 @@ asmlinkage int do_irix_signal(unsigned long oldmask, struct pt_regs * regs)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGIOT: case SIGFPE: case SIGSEGV: case SIGBUS:
+				lock_kernel();
 				if (current->binfmt && current->binfmt->core_dump) {
 					if (current->binfmt->core_dump(signr, regs))
 						signr |= 0x80;
 				}
+				unlock_kernel();
 				/* fall through */
 			default:
 				current->signal |= _S(signr & 0x7f);
 				current->flags |= PF_SIGNALED;
+				lock_kernel(); /* 8-( */
 				do_exit(signr);
+				unlock_kernel();
 			}
 		}
 		/*
@@ -314,7 +323,7 @@ static inline void check_pending(int signum)
 	spin_lock(&current->sigmask_lock);
 	if (p->sa_handler == SIG_IGN) {
 		current->signal &= ~_S(signum);
-	} else if if (p->sa_handler == SIG_DFL) {
+	} else if (p->sa_handler == SIG_DFL) {
 		if (signum != SIGCONT && signum != SIGCHLD && signum != SIGWINCH)
 			return;
 		current->signal &= ~_S(signum);
@@ -347,11 +356,9 @@ asmlinkage int irix_sigaction(int sig, struct sigact_irix5 *new,
 		if(sig == SIGKILL || sig == SIGSTOP) {
 			return -EINVAL;
 		}
-		new_sa.sa_flags = new->flags;
-		new_sa.sa_handler = (__sighandler_t) new->handler;
-		new_sa.sa_mask.__sigbits[1] = new_sa.sa_mask.__sigbits[2] =
-			new_sa.sa_mask.__sigbits[3] = 0;
-		new_sa.sa_mask.__sigbits[0] = new->sigset[0];
+		__get_user(new_sa.sa_flags, &new->flags);
+		__get_user(new_sa.sa_handler, &(__sighandler_t) new->handler);
+		__get_user(new_sa.sa_mask, &new->sigset[0]);
 
 		if(new_sa.sa_handler != SIG_DFL && new_sa.sa_handler != SIG_IGN) {
 			res = verify_area(VERIFY_READ, new_sa.sa_handler, 1);
@@ -368,19 +375,22 @@ asmlinkage int irix_sigaction(int sig, struct sigact_irix5 *new,
 		int res = verify_area(VERIFY_WRITE, old, sizeof(*old));
 		if(res)
 			return res;
-		old->flags = p->sa_flags;
-		old->handler = (void *) p->sa_handler;
-		old->sigset[1] = old->sigset[2] = old->sigset[3] = 0;
-		old->sigset[0] = p->sa_mask.__sigbits[0];
-		old->_unused0[0] = old->_unused0[1] = 0;
+		__put_user(p->sa_flags, &old->flags);
+		__put_user(p->sa_handler, &old->handler);
+		__put_user(p->sa_mask, &old->sigset[0]);
+		__put_user(0, &old->sigset[1]);
+		__put_user(0, &old->sigset[2]);
+		__put_user(0, &old->sigset[3]);
+		__put_user(0, &old->_unused0[0]);
+		__put_user(0, &old->_unused0[1]);
 	}
-
 	if(new) {
 		spin_lock_irq(&current->sig->siglock);
 		*p = new_sa;
 		check_pending(sig);
 		spin_unlock_irq(&current->sig->siglock);
 	}
+
 	return 0;
 }
 
@@ -640,14 +650,14 @@ repeat:
 				__put_user(p->pid, &info->stuff.procinfo.pid);
 				__put_user((p->exit_code >> 8) & 0xff,
 				           &info->stuff.procinfo.procdata.child.status);
-				__put_user(p->utime, &info->stuff.procinfo.procdata.child.utime);
-				__put_user(p->stime, &info->stuff.procinfo.procdata.child.stime);
+				__put_user(p->times.tms_utime, &info->stuff.procinfo.procdata.child.utime);
+				__put_user(p->times.tms_stime, &info->stuff.procinfo.procdata.child.stime);
 				p->exit_code = 0;
 				retval = 0;
 				goto end_waitsys;
 			case TASK_ZOMBIE:
-				current->cutime += p->utime + p->cutime;
-				current->cstime += p->stime + p->cstime;
+				current->times.tms_cutime += p->times.tms_utime + p->times.tms_cutime;
+				current->times.tms_cstime += p->times.tms_stime + p->times.tms_cstime;
 				if (ru != NULL)
 					getrusage(p, RUSAGE_BOTH, ru);
 				__put_user(SIGCHLD, &info->sig);
@@ -655,9 +665,9 @@ repeat:
 				__put_user(p->pid, &info->stuff.procinfo.pid);
 				__put_user((p->exit_code >> 8) & 0xff,
 				           &info->stuff.procinfo.procdata.child.status);
-				__put_user(p->utime,
+				__put_user(p->times.tms_utime,
 				           &info->stuff.procinfo.procdata.child.utime);
-				__put_user(p->stime,
+				__put_user(p->times.tms_stime,
 				           &info->stuff.procinfo.procdata.child.stime);
 				retval = 0;
 				if (p->p_opptr != p->p_pptr) {
@@ -855,6 +865,8 @@ asmlinkage int irix_sigaltstack(struct irix_sigaltstack *new,
 out:
 	error = 0;
 	unlock_kernel();
+
+	return error;
 }
 
 struct irix_procset {

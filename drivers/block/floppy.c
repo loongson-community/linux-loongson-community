@@ -140,6 +140,7 @@ static int allowed_drive_mask = 0x33;
 #include <linux/mc146818rtc.h> /* CMOS defines */
 #include <linux/ioport.h>
 #include <linux/interrupt.h>
+#include <linux/init.h>
 
 #include <asm/dma.h>
 #include <asm/irq.h>
@@ -3727,7 +3728,7 @@ static struct file_operations floppy_fops = {
 
 /* Determine the floppy disk controller type */
 /* This routine was written by David C. Niemi */
-static char get_fdc_version(void)
+__initfunc(static char get_fdc_version(void))
 {
 	int r;
 
@@ -3805,7 +3806,7 @@ static char get_fdc_version(void)
 
 /* lilo configuration */
 
-static void floppy_set_flags(int *ints,int param, int param2)
+__initfunc(static void floppy_set_flags(int *ints,int param, int param2))
 {
 	int i;
 
@@ -3818,7 +3819,7 @@ static void floppy_set_flags(int *ints,int param, int param2)
 	DPRINT("%s flag 0x%x\n", param2 ? "Setting" : "Clearing", param);
 }
 
-static void daring(int *ints,int param, int param2)
+__initfunc(static void daring(int *ints,int param, int param2))
 {
 	int i;
 
@@ -3834,7 +3835,7 @@ static void daring(int *ints,int param, int param2)
 	DPRINT("Assuming %s floppy hardware\n", param ? "standard" : "broken");
 }
 
-static void set_cmos(int *ints, int dummy, int dummy2)
+__initfunc(static void set_cmos(int *ints, int dummy, int dummy2))
 {
 	int current_drive=0;
 
@@ -3895,7 +3896,7 @@ static struct param_table {
 	{ "L40SX", 0, &print_unex, 0, 0 } };
 
 #define FLOPPY_SETUP
-void floppy_setup(char *str, int *ints)
+__initfunc(void floppy_setup(char *str, int *ints))
 {
 	int i;
 	int param;
@@ -3931,7 +3932,7 @@ void floppy_setup(char *str, int *ints)
 
 static int have_no_fdc= -EIO;
 
-int floppy_init(void)
+__initfunc(int floppy_init(void))
 {
 	int i,unit,drive;
 
@@ -4136,7 +4137,7 @@ extern char *get_options(char *str, int *ints);
 
 char *floppy=NULL;
 
-static void parse_floppy_cfg_string(char *cfg)
+__initfunc(static void parse_floppy_cfg_string(char *cfg))
 {
 	char *ptr;
 	int ints[11];
@@ -4152,7 +4153,7 @@ static void parse_floppy_cfg_string(char *cfg)
 	}
 }
 
-static void mod_setup(char *pattern, void (*setup)(char *, int *))
+__initfunc(static void mod_setup(char *pattern, void (*setup)(char *, int *)))
 {
 	unsigned long i;
 	char c;

@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.8 1996/08/24 03:52:25 dm Exp $
+/*
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
  *
@@ -17,6 +17,7 @@
 #include <linux/mman.h>
 #include <linux/a.out.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 #include <linux/signal.h>
 #include <linux/binfmts.h>
 #include <linux/string.h>
@@ -720,16 +721,16 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	sys_close(elf_exec_fileno);
 	current->personality = PER_IRIX32;
 
-	if (current->exec_domain && current->exec_domain->use_count)
-		(*current->exec_domain->use_count)--;
-	if (current->binfmt && current->binfmt->use_count)
-		(*current->binfmt->use_count)--;
+	if (current->exec_domain && current->exec_domain->module)
+		__MOD_DEC_USE_COUNT(current->exec_domain->module);
+	if (current->binfmt && current->binfmt->module)
+		__MOD_DEC_USE_COUNT(current->binfmt->module);
 	current->exec_domain = lookup_exec_domain(current->personality);
 	current->binfmt = &irix_format;
-	if (current->exec_domain && current->exec_domain->use_count)
-		(*current->exec_domain->use_count)++;
-	if (current->binfmt && current->binfmt->use_count)
-		(*current->binfmt->use_count)++;
+	if (current->exec_domain && current->exec_domain->module)
+		__MOD_INC_USE_COUNT(current->exec_domain->module);
+	if (current->binfmt && current->binfmt->module)
+		__MOD_INC_USE_COUNT(current->binfmt->module);
 
 	current->suid = current->euid = current->fsuid = bprm->e_uid;
 	current->sgid = current->egid = current->fsgid = bprm->e_gid;
@@ -1180,20 +1181,20 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	notes[0].datasz = sizeof(prstatus);
 	notes[0].data = &prstatus;
 	prstatus.pr_info.si_signo = prstatus.pr_cursig = signr;
-	copy_sigbits32(&prstatus.pr_sigpend, current->signal);
-	copy_sigbits32(&prstatus.pr_sighold, current->blocked);
+	prstatus.pr_sigpend = current->signal;
+	prstatus.pr_sighold = current->blocked;
 	psinfo.pr_pid = prstatus.pr_pid = current->pid;
 	psinfo.pr_ppid = prstatus.pr_ppid = current->p_pptr->pid;
 	psinfo.pr_pgrp = prstatus.pr_pgrp = current->pgrp;
 	psinfo.pr_sid = prstatus.pr_sid = current->session;
-	prstatus.pr_utime.tv_sec = CT_TO_SECS(current->utime);
-	prstatus.pr_utime.tv_usec = CT_TO_USECS(current->utime);
-	prstatus.pr_stime.tv_sec = CT_TO_SECS(current->stime);
-	prstatus.pr_stime.tv_usec = CT_TO_USECS(current->stime);
-	prstatus.pr_cutime.tv_sec = CT_TO_SECS(current->cutime);
-	prstatus.pr_cutime.tv_usec = CT_TO_USECS(current->cutime);
-	prstatus.pr_cstime.tv_sec = CT_TO_SECS(current->cstime);
-	prstatus.pr_cstime.tv_usec = CT_TO_USECS(current->cstime);
+	prstatus.pr_utime.tv_sec = CT_TO_SECS(current->times.tms_utime);
+	prstatus.pr_utime.tv_usec = CT_TO_USECS(current->times.tms_utime);
+	prstatus.pr_stime.tv_sec = CT_TO_SECS(current->times.tms_stime);
+	prstatus.pr_stime.tv_usec = CT_TO_USECS(current->times.tms_stime);
+	prstatus.pr_cutime.tv_sec = CT_TO_SECS(current->times.tms_cutime);
+	prstatus.pr_cutime.tv_usec = CT_TO_USECS(current->times.tms_cutime);
+	prstatus.pr_cstime.tv_sec = CT_TO_SECS(current->times.tms_cstime);
+	prstatus.pr_cstime.tv_usec = CT_TO_USECS(current->times.tms_cstime);
 	if (sizeof(elf_gregset_t) != sizeof(struct pt_regs)) {
 		printk("sizeof(elf_gregset_t) (%d) != sizeof(struct pt_regs) "
 		       "(%d)\n", sizeof(elf_gregset_t), sizeof(struct pt_regs));
@@ -1339,13 +1340,15 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	return has_dumped;
 }
 
-int init_irix_binfmt(void) {
+__initfunc(int init_irix_binfmt(void))
+{
 	return register_binfmt(&irix_format);
 }
 
 #ifdef MODULE
 
-int init_module(void) {
+int init_module(void)
+{
 	/* Install the COFF, ELF and XOUT loaders.
 	 * N.B. We *rely* on the table being the right size with the
 	 * right number of free slots...
@@ -1354,7 +1357,8 @@ int init_module(void) {
 }
 
 
-void cleanup_module( void) {
+void cleanup_module( void)
+{
 	/* Remove the IRIX ELF loaders. */
 	unregister_binfmt(&irix_format);
 }

@@ -11,7 +11,7 @@
 
 #define POLLRDNORM	0x0040
 #define POLLRDBAND	0x0080
-#define POLLWRNORM	POLLOUT	 /* XXX */
+#define POLLWRNORM	POLLOUT
 #define POLLWRBAND	0x0100
 
 /* XXX This one seems to be more-or-less nonstandard.  */

@@ -23,10 +23,12 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
+#include <asm/spinlock.h>
 
 asmlinkage int system_call(void);
 asmlinkage void lcall7(void);
@@ -121,7 +123,7 @@ static void show_registers(struct pt_regs *regs)
 	unsigned long esp;
 	unsigned short ss;
 	unsigned long *stack, addr, module_start, module_end;
-	extern char start_kernel, _etext;
+	extern char _stext, _etext;
 
 	esp = (unsigned long) &regs->esp;
 	ss = KERNEL_DS;
@@ -129,8 +131,8 @@ static void show_registers(struct pt_regs *regs)
 		esp = regs->esp;
 		ss = regs->xss & 0xffff;
 	}
-	printk("CPU:    %d\n", smp_processor_id());
-	printk("EIP:    %04x:[<%08lx>]\nEFLAGS: %08lx\n", 0xffff & regs->xcs,regs->eip,regs->eflags);
+	printk("CPU:    %d\nEIP:    %04x:[<%08lx>]\nEFLAGS: %08lx\n",
+		smp_processor_id(), 0xffff & regs->xcs, regs->eip, regs->eflags);
 	printk("eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
 		regs->eax, regs->ebx, regs->ecx, regs->edx);
 	printk("esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
@@ -138,10 +140,8 @@ static void show_registers(struct pt_regs *regs)
 	printk("ds: %04x   es: %04x   ss: %04x\n",
 		regs->xds & 0xffff, regs->xes & 0xffff, ss);
 	store_TR(i);
-	if (STACK_MAGIC != *(unsigned long *)current->kernel_stack_page)
-		printk("Corrupted stack page\n");
 	printk("Process %s (pid: %d, process nr: %d, stackpage=%08lx)\nStack: ",
-		current->comm, current->pid, 0xffff & i, current->kernel_stack_page);
+		current->comm, current->pid, 0xffff & i, 4096+(unsigned long)current);
 	stack = (unsigned long *) esp;
 	for(i=0; i < kstack_depth_to_print; i++) {
 		if (((long) stack & 4095) == 0)
@@ -166,7 +166,7 @@ static void show_registers(struct pt_regs *regs)
 		 * down the cause of the crash will be able to figure
 		 * out the call path that was taken.
 		 */
-		if (((addr >= (unsigned long) &start_kernel) &&
+		if (((addr >= (unsigned long) &_stext) &&
 		     (addr <= (unsigned long) &_etext)) ||
 		    ((addr >= module_start) && (addr <= module_end))) {
 			if (i && ((i % 8) == 0))
@@ -181,13 +181,19 @@ static void show_registers(struct pt_regs *regs)
 	printk("\n");
 }	
 
+spinlock_t die_lock;
+
 /*static*/ void die_if_kernel(const char * str, struct pt_regs * regs, long err)
 {
 	if ((regs->eflags & VM_MASK) || (3 & regs->xcs) == 3)
 		return;
 	console_verbose();
+	spin_lock_irq(&die_lock);
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_registers(regs);
+do { int i=2000000000; while (i) i--; } while (0);
+do { int i=2000000000; while (i) i--; } while (0);
+	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
 
@@ -235,18 +241,45 @@ out:
 	unlock_kernel();
 }
 
+static void mem_parity_error(unsigned char reason, struct pt_regs * regs)
+{
+	printk("Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
+	printk("You probably have a hardware problem with your RAM chips\n");
+}	
+
+static void io_check_error(unsigned char reason, struct pt_regs * regs)
+{
+	unsigned long i;
+
+	printk("NMI: IOCK error (debug interrupt?)\n");
+	show_registers(regs);
+
+	/* Re-enable the IOCK line, wait for a few seconds */
+	reason |= 8;
+	outb(reason, 0x61);
+	i = 2000;
+	while (--i) udelay(1000);
+	reason &= ~8;
+	outb(reason, 0x61);
+}
+
+static void unknown_nmi_error(unsigned char reason, struct pt_regs * regs)
+{
+	printk("Uhhuh. NMI received for unknown reason %02x.\n", reason);
+	printk("Dazed and confused, but trying to continue\n");
+	printk("Do you have a strange power saving mode enabled?\n");
+}
+
 asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
 {
-	printk("NMI\n"); show_registers(regs);
-#ifdef CONFIG_SMP_NMI_INVAL
-	smp_flush_tlb_rcv();
-#else
-#ifndef CONFIG_IGNORE_NMI
-	printk("Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
-	printk("You probably have a hardware problem with your RAM chips or a\n");
-	printk("power saving mode enabled.\n");
-#endif	
-#endif
+	unsigned char reason = inb(0x61);
+
+	if (reason & 0x80)
+		mem_parity_error(reason, regs);
+	if (reason & 0x40)
+		io_check_error(reason, regs);
+	if (!(reason & 0xc0))
+		unknown_nmi_error(reason, regs);
 }
 
 asmlinkage void do_debug(struct pt_regs * regs, long error_code)
@@ -380,15 +413,7 @@ __initfunc(void trap_init(void))
 {
 	int i;
 	struct desc_struct * p;
-	static int smptrap=0;
-	
-	if(smptrap)
-	{
-		__asm__("pushfl ; andl $0xffffbfff,(%esp) ; popfl");
-		load_ldt(0);
-		return;
-	}
-	smptrap++;
+
 	if (readl(0x0FFFD9) == 'E' + ('I'<<8) + ('S'<<16) + ('A'<<24))
 		EISA_bus = 1;
 	set_call_gate(&default_ldt,lcall7);

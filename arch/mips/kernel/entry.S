@@ -14,9 +14,11 @@
  * and faults that can result in a task-switch. The ISA dependent TLB
  * code is in arch/mips/<ISA-level>/<cputype>.S
  */
+#include <linux/config.h>
 #include <linux/sys.h>
 
 #include <asm/asm.h>
+#include <asm/current.h>
 #include <asm/errno.h>
 #include <asm/mipsregs.h>
 #include <asm/mipsconfig.h>
@@ -53,7 +55,6 @@ reschedule:
 		 nop
 
 EXPORT(ret_from_sys_call)
-
 		 lw	t0,bh_mask
 		lw	t1,bh_active		# unused delay slot
 		and	t0,t1
@@ -64,7 +65,7 @@ EXPORT(ret_from_sys_call)
 		beqz	t1,return		# -> yes
 		 lw	t1,need_resched
 		bnez	t1,reschedule
-		 lw	s0,current_set
+		 GET_CURRENT(s0)
 		lw	t0,task
 		lw	a0,TASK_BLOCKED(s0)
 

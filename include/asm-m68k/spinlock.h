@@ -5,8 +5,8 @@
  * We don't do SMP on the m68k .... at least not yet.
  */
 
-typedef struct { } spinlock_t;
-#define SPIN_LOCK_UNLOCKED { }
+typedef struct { int dummy; } spinlock_t;
+#define SPIN_LOCK_UNLOCKED { 0 }
 
 #define spin_lock_init(lock)	do { } while(0)
 #define spin_lock(lock)		do { } while(0)
@@ -31,8 +31,8 @@ typedef struct { } spinlock_t;
  * irq-safe write-lock, but readers can get non-irqsafe
  * read-locks.
  */
-typedef struct { } rwlock_t;
-#define RW_LOCK_UNLOCKED { }
+typedef struct { int dummy; } rwlock_t;
+#define RW_LOCK_UNLOCKED { 0 }
 
 #define read_lock(lock)		do { } while(0)
 #define read_unlock(lock)	do { } while(0)
@@ -47,28 +47,5 @@ typedef struct { } rwlock_t;
 #define read_unlock_irqrestore(lock, flags)	restore_flags(flags)
 #define write_lock_irqsave(lock, flags)		save_and_cli(flags)
 #define write_unlock_irqrestore(lock, flags)	restore_flags(flags)
-
-#endif
-#ifndef __M68K_SPINLOCK_H
-#define __M68K_SPINLOCK_H
-
-/*
- * We don't do SMP on the m68k .... at least not yet.
- */
-
-typedef struct { } spinlock_t;
-#define SPIN_LOCK_UNLOCKED { }
-
-#define spin_lock_init(lock)	do { } while(0)
-#define spin_lock(lock)		do { } while(0)
-#define spin_trylock(lock)	do { } while(0)
-#define spin_unlock(lock)	do { } while(0)
-#define spin_lock_irq(lock)	cli()
-#define spin_unlock_irq(lock)	sti()
-
-#define spin_lock_irqsave(lock, flags) \
-	do { save_flags(flags); cli(); } while (0)
-#define spin_unlock_irqrestore(lock, flags) \
-	restore_flags(flags)
 
 #endif

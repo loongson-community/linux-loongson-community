@@ -7,6 +7,7 @@
  * found in some MIPS systems.
  */
 #include <linux/errno.h>
+#include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/param.h>
@@ -299,7 +300,7 @@ static struct irqaction irq0  = { timer_interrupt, 0, 0, "timer", NULL, NULL};
 
 void (*board_time_init)(struct irqaction *irq);
 
-void time_init(void)
+__initfunc(void time_init(void))
 {
 	unsigned int year, mon, day, hour, min, sec;
 	int i;

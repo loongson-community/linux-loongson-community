@@ -34,18 +34,6 @@
  */
 #define EFL_OFFSET ((EFL-2)*4-sizeof(struct pt_regs))
 
-/* change a pid into a task struct. */
-static inline struct task_struct * get_task(int pid)
-{
-	int i;
-
-	for (i = 1; i < NR_TASKS; i++) {
-		if (task[i] != NULL && (task[i]->pid == pid))
-			return task[i];
-	}
-	return NULL;
-}
-
 /*
  * this routine will get a word off of the processes privileged stack. 
  * the offset is how far from the base addr as stored in the TSS.  
@@ -95,7 +83,7 @@ static unsigned long get_long(struct task_struct * tsk,
 repeat:
 	pgdir = pgd_offset(vma->vm_mm, addr);
 	if (pgd_none(*pgdir)) {
-		do_no_page(tsk, vma, addr, 0);
+		handle_mm_fault(tsk, vma, addr, 0);
 		goto repeat;
 	}
 	if (pgd_bad(*pgdir)) {
@@ -105,7 +93,7 @@ repeat:
 	}
 	pgmiddle = pmd_offset(pgdir, addr);
 	if (pmd_none(*pgmiddle)) {
-		do_no_page(tsk, vma, addr, 0);
+		handle_mm_fault(tsk, vma, addr, 0);
 		goto repeat;
 	}
 	if (pmd_bad(*pgmiddle)) {
@@ -115,7 +103,7 @@ repeat:
 	}
 	pgtable = pte_offset(pgmiddle, addr);
 	if (!pte_present(*pgtable)) {
-		do_no_page(tsk, vma, addr, 0);
+		handle_mm_fault(tsk, vma, addr, 0);
 		goto repeat;
 	}
 	page = pte_page(*pgtable);
@@ -146,7 +134,7 @@ static void put_long(struct task_struct * tsk, struct vm_area_struct * vma, unsi
 repeat:
 	pgdir = pgd_offset(vma->vm_mm, addr);
 	if (!pgd_present(*pgdir)) {
-		do_no_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 	if (pgd_bad(*pgdir)) {
@@ -156,7 +144,7 @@ repeat:
 	}
 	pgmiddle = pmd_offset(pgdir, addr);
 	if (pmd_none(*pgmiddle)) {
-		do_no_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 	if (pmd_bad(*pgmiddle)) {
@@ -166,12 +154,12 @@ repeat:
 	}
 	pgtable = pte_offset(pgmiddle, addr);
 	if (!pte_present(*pgtable)) {
-		do_no_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 	page = pte_page(*pgtable);
 	if (!pte_write(*pgtable)) {
-		do_wp_page(tsk, vma, addr, 1);
+		handle_mm_fault(tsk, vma, addr, 1);
 		goto repeat;
 	}
 /* this is a hack for non-kernel-mapped video buffers and similar */
@@ -381,7 +369,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	if (pid == 1)		/* you may not mess with init */
 		goto out;
 	ret = -ESRCH;
-	if (!(child = get_task(pid)))
+	if (!(child = find_task_by_pid(pid)))
 		goto out;
 	ret = -EPERM;
 	if (request == PTRACE_ATTACH) {

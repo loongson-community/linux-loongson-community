@@ -1,0 +1,25 @@
+#
+# Generate PROM library stubs for the firmware used in the
+# Mips Computer System, Inc. machines.  Beware: some of the
+# machines seem to be different.
+#
+# Copyright (C) 1997 Ralf Baechle
+#
+fname=$1
+ucase=`echo $fname | tr 'a-z' 'A-Z'`
+cat << EOF | sed -e "s/@1@/$fname/" -e "s/@2@/$ucase/" >$fname.S
+/*
+ * WARNING: This file has been generated automatically.  Do not edit!
+ *
+ * Stub for the Mips firmware @1@() function.
+ */
+#include <asm/asm.h>
+#include <asm/regdef.h>
+#include <asm/mipsprom.h>
+
+LEAF(mips_prom_@1@)
+	lw	t0,__mips_prom_entry_offset
+	addu	t0,PROM_@2@
+	jr	t0
+	END(mips_prom_@1@)
+EOF

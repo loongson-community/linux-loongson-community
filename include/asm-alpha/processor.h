@@ -49,7 +49,7 @@ struct thread_struct {
 };
 
 #define INIT_MMAP { &init_mm, 0xfffffc0000000000,  0xfffffc0010000000, \
-	PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC }
+	PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC, NULL, &init_mm.mmap }
 
 #define INIT_TSS  { \
 	0, 0, 0, \
@@ -85,11 +85,13 @@ extern void start_thread(struct pt_regs *, unsigned long, unsigned long);
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
 
-/* Allocation and freeing of basic task resources. */
-#define alloc_task_struct()	kmalloc(sizeof(struct task_struct), GFP_KERNEL)
-#define alloc_kernel_stack(p)	__get_free_page(GFP_KERNEL)
-#define free_task_struct(p)	kfree(p)
-#define free_kernel_stack(page) free_page((page))
+/* NOTE: The task struct and the stack go together!  */
+#define alloc_task_struct() \
+        ((struct task_struct *) __get_free_pages(GFP_KERNEL,1,0))
+#define free_task_struct(p)     free_pages((unsigned long)(p),1)
+
+#define init_task	(init_task_union.task)
+#define init_stack	(init_task_union.stack)
 
 /*
  * Return_address is a replacement for __builtin_return_address(count)

@@ -130,9 +130,9 @@ nfs_unlock_page(struct page *page)
 
 #ifdef CONFIG_NFS_SWAP
 	/* async swap-out support */
-	if (clear_bit(PG_decr_after, &page->flags))
+	if (test_and_clear_bit(PG_decr_after, &page->flags))
 		atomic_dec(&page->count);
-	if (clear_bit(PG_swap_unlock_after, &page->flags))
+	if (test_and_clear_bit(PG_swap_unlock_after, &page->flags))
 		swap_after_unlock_page(page->swap_unlock_entry);
 #endif
 }
@@ -530,7 +530,7 @@ nfs_flush_request(struct nfs_wreq *req)
 				page->offset);
 
 	req->wb_flags |= NFS_WRITE_WANTLOCK;
-	if (!set_bit(PG_locked, &page->flags)) {
+	if (!test_and_set_bit(PG_locked, &page->flags)) {
 		transfer_page_lock(req);
 	} else {
 		printk(KERN_WARNING "NFS oops in %s: can't lock page!\n",
@@ -719,7 +719,7 @@ nfs_wback_lock(struct rpc_task *task)
 	if (!WB_HAVELOCK(req))
 		req->wb_flags |= NFS_WRITE_WANTLOCK;
 
-	if (WB_WANTLOCK(req) && set_bit(PG_locked, &page->flags)) {
+	if (WB_WANTLOCK(req) && test_and_set_bit(PG_locked, &page->flags)) {
 		dprintk("NFS:      page already locked in writeback_lock!\n");
 		task->tk_timeout = 2 * HZ;
 		rpc_sleep_on(&write_queue, task, NULL, NULL);

@@ -33,6 +33,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/fd.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -552,7 +553,7 @@ kdev_t get_unnamed_dev(void)
 	int i;
 
 	for (i = 1; i < 256; i++) {
-		if (!set_bit(i,unnamed_dev_in_use))
+		if (!test_and_set_bit(i,unnamed_dev_in_use))
 			return MKDEV(UNNAMED_MAJOR, i);
 	}
 	return 0;
@@ -562,7 +563,7 @@ void put_unnamed_dev(kdev_t dev)
 {
 	if (!dev || MAJOR(dev) != UNNAMED_MAJOR)
 		return;
-	if (clear_bit(MINOR(dev), unnamed_dev_in_use))
+	if (test_and_clear_bit(MINOR(dev), unnamed_dev_in_use))
 		return;
 	printk("VFS: put_unnamed_dev: freeing unused device %s\n",
 			kdevname(dev));
@@ -937,7 +938,11 @@ out:
 	return retval;
 }
 
+#ifdef CONFIG_BLK_DEV_INITRD
 static void do_mount_root(void)
+#else
+__initfunc(static void do_mount_root(void))
+#endif
 {
 	struct file_system_type * fs_type;
 	struct super_block * sb;
@@ -1046,7 +1051,7 @@ static void do_mount_root(void)
 }
 
 
-void mount_root(void)
+__initfunc(void mount_root(void))
 {
 	memset(super_blocks, 0, sizeof(super_blocks));
 	do_mount_root();

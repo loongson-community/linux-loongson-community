@@ -156,9 +156,9 @@ endif
 # The pipe options is bad for my low-mem machine
 # Uncomment this if you want this.
 #
-#CFLAGS		+= -pipe
+CFLAGS		+= -pipe
 
-HEAD := arch/mips/kernel/head.o
+HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 
 SUBDIRS := $(SUBDIRS) $(addprefix arch/mips/, kernel mm lib tools)
 CORE_FILES := arch/mips/kernel/kernel.o arch/mips/mm/mm.o $(CORE_FILES)

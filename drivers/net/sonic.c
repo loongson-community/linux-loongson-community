@@ -28,6 +28,7 @@ static const char *version =
 #include <linux/fcntl.h>
 #include <linux/interrupt.h>
 #include <linux/ptrace.h>
+#include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/in.h>
 #include <linux/malloc.h>
@@ -127,7 +128,7 @@ static int sonic_init(struct device *dev);
  * Probe for a SONIC ethernet controller on a Mips Jazz board.
  * Actually probing is superfluous but we're paranoid.
  */
-int sonic_probe(struct device *dev)
+__initfunc(int sonic_probe(struct device *dev))
 {
     unsigned int base_addr = dev ? dev->base_addr : 0;
     int i;
@@ -152,8 +153,8 @@ int sonic_probe(struct device *dev)
     return -ENODEV;
 }
 
-static int
-sonic_probe1(struct device *dev, unsigned int base_addr, unsigned int irq)
+__initfunc(static int sonic_probe1(struct device *dev,
+                                   unsigned int base_addr, unsigned int irq))
 {
     static unsigned version_printed = 0;
     unsigned int silicon_revision;
@@ -403,7 +404,7 @@ static int sonic_send_packet(struct sk_buff *skb, struct device *dev)
      * Block a timer-based transmit from overlapping.  This could better be
      * done with atomic_swap(1, dev->tbusy), but set_bit() works as well.
      */
-    if (set_bit(0, (void*)&dev->tbusy) != 0) {
+    if (test_and_set_bit(0, (void*)&dev->tbusy) != 0) {
 	printk("%s: Transmitter access conflict.\n", dev->name);
 	return 1;
     }
@@ -719,8 +720,7 @@ sonic_multicast_list(struct device *dev)
 /*
  * Initialize the SONIC ethernet controller.
  */
-static int
-sonic_init(struct device *dev)
+static int sonic_init(struct device *dev)
 {
     unsigned int base_addr = dev->base_addr;
     unsigned int cmd;

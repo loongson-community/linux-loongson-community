@@ -13,6 +13,7 @@
  */
 #include <linux/config.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -154,11 +155,6 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
 
-#ifdef CONFIG_SGI
-	prom_printf("Got irq %d, press a key.", irq);
-	prom_getchar();
-	romvec->imode();
-#endif
 	/* slow interrupts run with interrupts enabled */
 	sti();
 	action = *(irq + irq_action);
@@ -344,7 +340,7 @@ int probe_irq_off (unsigned long irqs)
 	return i;
 }
 
-void init_IRQ(void)
+__initfunc(void init_IRQ(void))
 {
 	int i;
 

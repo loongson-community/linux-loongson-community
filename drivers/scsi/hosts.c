@@ -42,6 +42,10 @@
 
 #include "hosts.h"
 
+#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4091_SCSI)
+#include "amiga7xx.h"
+#endif
+
 #ifdef CONFIG_A3000_SCSI
 #include "a3000.h"
 #endif
@@ -158,6 +162,10 @@
 #include "NCR53c406a.h"
 #endif
 
+#ifdef CONFIG_SCSI_DC390T
+#include "dc390.h"
+#endif
+
 #ifdef CONFIG_SCSI_AM53C974
 #include "AM53C974.h"
 #endif
@@ -221,6 +229,9 @@ Scsi_Host_Template * scsi_hosts = NULL;
 static Scsi_Host_Template builtin_scsi_hosts[] =
 {
 #ifdef CONFIG_AMIGA
+#if defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4000T_SCSI) || defined(CONFIG_A4091_SCSI)
+	AMIGA7XX_SCSI,
+#endif
 #ifdef CONFIG_A3000_SCSI
 	A3000_SCSI,
 #endif
@@ -313,6 +324,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_EATA
     EATA,
+#endif
+#ifdef CONFIG_SCSI_DC390T
+    DC390_T,
 #endif
 #ifdef CONFIG_SCSI_AM53C974
     AM53C974,

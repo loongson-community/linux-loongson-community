@@ -64,8 +64,8 @@ wv_irq_to_psa(int	irq)
 /*
  * Translate PSA irq parameter to irq number 
  */
-static int
-wv_psa_to_irq(u_char	irqval)
+__initfunc(static int
+wv_psa_to_irq(u_char	irqval))
 {
   int	irq;
 
@@ -895,7 +895,7 @@ wv_82586_reconfig(device *	dev)
   net_local *	lp = (net_local *)dev->priv;
 
   /* Check if we can do it now ! */
-  if(!(dev->start) || (set_bit(0, (void *)&dev->tbusy) != 0))
+  if(!(dev->start) || (test_and_set_bit(0, (void *)&dev->tbusy) != 0))
     {
       lp->reconfig_82586 = 1;
 #ifdef DEBUG_CONFIG_INFO
@@ -2799,7 +2799,7 @@ wavelan_packet_xmit(struct sk_buff *	skb,
    * Block a timer-based transmit from overlapping.
    * In other words, prevent reentering this routine.
    */
-  if(set_bit(0, (void *)&dev->tbusy) != 0)
+  if(test_and_set_bit(0, (void *)&dev->tbusy) != 0)
 #ifdef DEBUG_TX_ERROR
     printk(KERN_INFO "%s: Transmitter access conflict.\n", dev->name);
 #endif
@@ -3999,8 +3999,8 @@ wavelan_close(device *	dev)
  * device structure
  * (called by wavelan_probe() & via init_module())
  */
-static int
-wavelan_config(device *	dev)
+__initfunc(static int
+wavelan_config(device *	dev))
 {
   u_long	ioaddr = dev->base_addr;
   u_char	irq_mask;
@@ -4112,11 +4112,9 @@ wavelan_config(device *	dev)
  * the initial value of dev->base_addr.
  * We follow the example in drivers/net/ne.c.)
  * (called in "Space.c")
- * As this function is called outside the wavelan module, it should be
- * declared extern, but it seem to cause troubles...
  */
-/* extern */ int
-wavelan_probe(device *	dev)
+__initfunc(int
+wavelan_probe(device *	dev))
 {
   short		base_addr;
   mac_addr	mac;		/* Mac address (check wavelan existence) */

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.61 1997/04/22 02:53:10 davem Exp $
+ * Version:	$Id: tcp.c,v 1.65 1997/05/06 09:31:43 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -424,6 +424,7 @@
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/poll.h>
+#include <linux/init.h>
 
 #include <net/icmp.h>
 #include <net/tcp.h>
@@ -849,7 +850,6 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 				tcp_size = skb->tail -
 					((unsigned char *)(skb->h.th) + tp->tcp_header_len);
 
-				/* printk("extending buffer\n"); */
 				/* This window_seq test is somewhat dangerous
 				 * If the remote does SWS avoidance we should
 				 * queue the best we can if not we should in 
@@ -1100,6 +1100,9 @@ static void cleanup_rbuf(struct sock *sk)
 		struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 		__u32 rcv_wnd;
 
+	 	/* FIXME: double check this rule, then check against
+		 * other use of similar rules. Abtract if possible.
+		 */
 		rcv_wnd = tp->rcv_wnd - (tp->rcv_nxt - tp->rcv_wup);
 
 		if ((rcv_wnd < sk->mss) && (sock_rspace(sk) > rcv_wnd))
@@ -1357,7 +1360,10 @@ static int tcp_close_state(struct sock *sk, int dead)
 		case TCP_CLOSE:
 		case TCP_LISTEN:
 			break;
-		case TCP_LAST_ACK:	/* Could have shutdown() then close() */
+		case TCP_LAST_ACK:	/* Could have shutdown() then close()
+					 * (but don't do send_fin again!) */
+			ns=TCP_LAST_ACK;
+			break;
 		case TCP_CLOSE_WAIT:	/* They have FIN'd us. We send our FIN and
 					   wait only for the ACK */
 			ns=TCP_LAST_ACK;
@@ -1655,11 +1661,11 @@ void tcp_set_keepalive(struct sock *sk, int val)
 		tcp_dec_slow_timer(TCP_SLT_KEEPALIVE);
 }
 
-void tcp_init(void)
+__initfunc(void tcp_init(void))
 {
 	tcp_openreq_cachep = kmem_cache_create("tcp_open_request",
 					       sizeof(struct open_request),
-					       sizeof(long)*8, SLAB_HWCACHE_ALIGN,
+					       0, SLAB_HWCACHE_ALIGN,
 					       NULL, NULL);
 	if(!tcp_openreq_cachep)
 		panic("tcp_init: Cannot alloc open_request cache.");

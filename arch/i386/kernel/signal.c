@@ -318,6 +318,14 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 	unsigned long signr;
 	struct sigaction * sa;
 
+	/*
+	 *    We want the common case to go fast, which
+	 * is why we may in certain cases get here from
+	 * kernel mode. Just return without doing anything
+	 * if so.
+	 */
+	if ((regs->xcs & 3) != 3)
+		return 1;
 	mask = ~current->blocked;
 	while ((signr = current->signal & mask)) {
 		/*
@@ -384,10 +392,12 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
+				lock_kernel();
 				if (current->binfmt && current->binfmt->core_dump) {
 					if (current->binfmt->core_dump(signr, regs))
 						signr |= 0x80;
 				}
+				unlock_kernel();
 				/* fall through */
 			default:
 				spin_lock_irq(&current->sigmask_lock);

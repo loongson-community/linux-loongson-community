@@ -69,8 +69,8 @@ extern int kswapd(void *);
 extern void init_IRQ(void);
 extern void init_modules(void);
 extern long console_init(long, long);
-extern long kmalloc_init(long,long);
 extern void sock_init(void);
+extern void uidcache_init(void);
 extern unsigned long pci_init(unsigned long, unsigned long);
 extern long mca_init(long, long);
 extern long sbus_init(long, long);
@@ -178,6 +178,9 @@ extern void teles_setup(char *str, int *ints);
 #ifdef CONFIG_ISDN_DRV_HISAX
 extern void HiSax_setup(char *str, int *ints);
 #endif
+#ifdef CONFIG_DIGIEPCA
+extern void epca_setup(char *str, int *ints);
+#endif
 #ifdef CONFIG_ISDN_DRV_PCBIT
 extern void pcbit_setup(char *str, int *ints);
 #endif
@@ -193,7 +196,11 @@ extern void atari_scsi_setup (char *str, int *ints);
 #endif
 extern void wd33c93_setup (char *str, int *ints);
 extern void gvp11_setup (char *str, int *ints);
+extern void ncr53c7xx_setup (char *str, int *ints);
 
+#ifdef CONFIG_CYCLADES
+extern void cy_setup(char *str, int *ints);
+#endif
 #ifdef CONFIG_DIGI
 extern void pcxx_setup(char *str, int *ints);
 #endif
@@ -268,7 +275,7 @@ extern void dquot_init(void);
 static char * argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
 static char * envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=linux", NULL, };
 
-__initfunc(char *get_options(char *str, int *ints))
+char *get_options(char *str, int *ints)
 {
 	char *cur = str;
 	int i=1;
@@ -482,6 +489,9 @@ struct {
 #ifdef CONFIG_ATARI_SCSI
 	{ "atascsi=", atari_scsi_setup },
 #endif
+#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4091_SCSI)
+        { "53c7xx=", ncr53c7xx_setup },
+#endif
 #if defined(CONFIG_A3000_SCSI) || defined(CONFIG_A2091_SCSI) \
 	    || defined(CONFIG_GVP11_SCSI) || defined(CONFIG_SCSI_SGIWD93)
 	{ "wd33c93=", wd33c93_setup },
@@ -489,8 +499,14 @@ struct {
 #if defined(CONFIG_GVP11_SCSI)
 	{ "gvp11=", gvp11_setup },
 #endif
+#ifdef CONFIG_CYCLADES
+	{ "cyclades=", cy_setup },
+#endif
 #ifdef CONFIG_DIGI
 	{ "digi=", pcxx_setup },
+#endif
+#ifdef CONFIG_DIGIEPCA
+	{ "digiepca=", epca_setup },
 #endif
 #ifdef CONFIG_RISCOM8
 	{ "riscom8=", riscom8_setup },
@@ -649,6 +665,7 @@ __initfunc(static void parse_root_dev(char * line))
 		{ "gscd",    0x1000 },
 		{ "sbpcd",   0x1900 },
 		{ "sonycd",  0x1800 },
+		{ "eda",     0x2400 },
 		{ "eza",     0x2800 },
 		{ "bpcd",    0x2900 },
 #if CONFIG_APBLOCK
@@ -790,43 +807,11 @@ int cpu_idle(void *unused)
  
 extern int cpu_idle(void * unused);
 
-/*
- *	Activate a secondary processor.
- */
- 
-__initfunc(asmlinkage void start_secondary(void))
-{
-	trap_init();
-	init_IRQ();
-	smp_callin();
-	cpu_idle(NULL);
-}
-
-
-
 /* Called by boot processor to activate the rest. */
 __initfunc(static void smp_init(void))
 {
-	int i, j;
-
 	/* Get other processors into their bootup holding patterns. */
 	smp_boot_cpus();
-
-	/* Create the slave init tasks as sharing pid 0.  This should only
-	 * happen if we have virtual CPU numbers higher than 0.
-	 */
-	for (i=1; i<smp_num_cpus; i++)
-	{
-		/* We use kernel_thread for the idlers which are
-		 * unlocked tasks running in kernel space.
-		 */
-		kernel_thread(cpu_idle, NULL, CLONE_PID);
-
-		/* Don't assume linear processor numbering */
-		j = cpu_logical_map[i];
-		current_set[j]=task[i];
-		current_set[j]->processor=j;
-	}
 }		
 
 /*
@@ -843,6 +828,8 @@ __initfunc(static void smp_begin(void))
 	
 #endif
 
+extern void initialize_secondary(void);
+
 /*
  *	Activate the first processor.
  */
@@ -851,18 +838,14 @@ __initfunc(asmlinkage void start_kernel(void))
 {
 	char * command_line;
 
-/*
- *	This little check will move.
- */
-
 #ifdef __SMP__
-	static int first_cpu=1;
-	
-	if(!first_cpu)
-		start_secondary();
-	first_cpu=0;
-	
-#endif	
+	static int boot_cpu = 1;
+	/* "current" has been set up, we need to load it now */
+	if (!boot_cpu)
+		initialize_secondary();
+	boot_cpu = 0;
+#endif
+
 /*
  * Interrupts are still disabled. Do necessary setups, then
  * enable them
@@ -907,11 +890,9 @@ __initfunc(asmlinkage void start_kernel(void))
 #ifdef CONFIG_MCA
 	memory_start = mca_init(memory_start,memory_end);
 #endif
-	memory_start = kmalloc_init(memory_start,memory_end);
 	memory_start = kmem_cache_init(memory_start, memory_end);
 	sti();
 	calibrate_delay();
-	memory_start = file_table_init(memory_start,memory_end);
 	memory_start = name_cache_init(memory_start,memory_end);
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start && !initrd_below_start_ok && initrd_start < memory_start) {
@@ -921,13 +902,15 @@ __initfunc(asmlinkage void start_kernel(void))
 	}
 #endif
 	mem_init(memory_start,memory_end);
+	kmem_cache_sizes_init();
 #ifdef CONFIG_PROC_FS
 	proc_root_init();
 #endif
-	kmem_cache_sizes_init();
+	uidcache_init();
 	vma_init();
 	buffer_init();
 	inode_init();
+	file_table_init();
 	sock_init();
 #if defined(CONFIG_SYSVIPC) || defined(CONFIG_KERNELD)
 	ipc_init();
@@ -989,8 +972,10 @@ static int init(void * unused)
 
 	/* Launch bdflush from here, instead of the old syscall way. */
 	kernel_thread(bdflush, NULL, 0);
+printk("init() #1\n");while(1);
 	/* Start the background pageout daemon. */
 	kernel_thread(kswapd, NULL, 0);
+printk("init() #2\n");while(1);
 
 #if CONFIG_AP1000
 	/* Start the async paging daemon. */
@@ -1006,7 +991,9 @@ static int init(void * unused)
 	if (initrd_start && mount_initrd) root_mountflags &= ~MS_RDONLY;
 	else mount_initrd =0;
 #endif
+printk("init() #3\n");while(1);
 	setup();
+printk("init() #4\n");while(1);
 
 #ifdef __SMP__
 	/*

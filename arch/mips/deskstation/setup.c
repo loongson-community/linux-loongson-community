@@ -5,10 +5,10 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996 by Ralf Baechle
+ * Copyright (C) 1996, 1997 by Ralf Baechle
  */
-#include <asm/ptrace.h>
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
@@ -16,6 +16,7 @@
 #include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/ptrace.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/vector.h>
@@ -43,8 +44,7 @@ extern void deskstation_machine_power_off(void);
 unsigned long mips_dma_cache_size = 0;
 unsigned long mips_dma_cache_base = KSEG0;
 
-static void
-tyne_irq_setup(void)
+__initfunc(static void tyne_irq_setup(void))
 {
 	set_except_vector(0, deskstation_handle_int);
 	/* set the clock to 100 Hz */
@@ -58,8 +58,7 @@ tyne_irq_setup(void)
 #endif
 
 #ifdef CONFIG_DESKSTATION_RPC44
-static void
-rpc44_irq_setup(void)
+__initfunc(static void rpc44_irq_setup(void))
 {
 	/*
 	 * For the moment just steal the TYNE support.  In the
@@ -77,8 +76,7 @@ rpc44_irq_setup(void)
 }
 #endif
 
-void
-deskstation_setup(void)
+__initfunc(void deskstation_setup(void))
 {
 	switch(mips_machtype) {
 #ifdef CONFIG_DESKSTATION_TYNE

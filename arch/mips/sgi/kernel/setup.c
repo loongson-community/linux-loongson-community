@@ -9,6 +9,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 
+#include <asm/reboot.h>
 #include <asm/vector.h>
 #include <asm/sgialib.h>
 #include <asm/sgi.h>

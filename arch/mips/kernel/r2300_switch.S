@@ -9,6 +9,7 @@
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/current.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
@@ -31,8 +32,7 @@ MODE_ALIAS	=	0x00e0			# uncachable, dirty, valid
  */
 	.align	5
 	LEAF(r2300_resume)
-	lui	t5, %hi(current_set)
-	lw	t0, %lo(current_set)(t5)
+	GET_CURRENT(t0)
 	mfc0	t1,CP0_STATUS		# Save status register
 	addu	t0,a1			# Add tss offset
 	sw	t1,THREAD_STATUS(t0)
@@ -50,7 +50,6 @@ MODE_ALIAS	=	0x00e0			# uncachable, dirty, valid
 1:
 	FPU_SAVE_16EVEN(t0, t1)
 2:
-	sw	a0,%lo(current_set)(t5)	# Switch current task
 	addu	a0,a1			# Add tss offset
 	lw	t0,THREAD_PGDIR(a0)	# Switch the root pointer
 	li	t1,TLB_ROOT		# get PFN

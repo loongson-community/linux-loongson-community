@@ -1,6 +1,11 @@
 #ifndef __ASM_MIPS_IO_H
 #define __ASM_MIPS_IO_H
 
+/*
+ * Slowdown I/O port space accesses for antique hardware.
+ */
+#undef CONF_SLOWDOWN_IO
+
 #include <asm/mipsconfig.h>
 #include <asm/addrspace.h>
 
@@ -35,6 +40,7 @@
  * I feel a bit unsafe about using 0x80 (should be safe, though)
  *
  *		Linus
+ *
  */
 
 #define __SLOW_DOWN_IO \
@@ -42,10 +48,14 @@
 		"sb\t$0,0x80(%0)" \
 		: : "r" (PORT_BASE));
 
+#ifdef CONF_SLOWDOWN_IO
 #ifdef REALLY_SLOW_IO
 #define SLOW_DOWN_IO { __SLOW_DOWN_IO; __SLOW_DOWN_IO; __SLOW_DOWN_IO; __SLOW_DOWN_IO; }
 #else
 #define SLOW_DOWN_IO __SLOW_DOWN_IO
+#endif
+#else
+#define SLOW_DOWN_IO
 #endif
 
 /*
@@ -54,12 +64,12 @@
  */
 extern inline unsigned long virt_to_phys(volatile void * address)
 {
-	return (unsigned long) address - KSEG0;
+	return PHYSADDR(address);
 }
 
 extern inline void * phys_to_virt(unsigned long address)
 {
-	return (void *) address + KSEG0;
+	return (void *)KSEG0ADDR(address);
 }
 
 extern void * ioremap(unsigned long phys_addr, unsigned long size);
@@ -67,10 +77,16 @@ extern void iounmap(void *addr);
 
 /*
  * IO bus memory addresses are also 1:1 with the physical address
- * FIXME: This assumption is wrong for the Deskstation Tyne
  */
-#define virt_to_bus virt_to_phys
-#define bus_to_virt phys_to_virt
+extern inline unsigned long virt_to_bus(volatile void * address)
+{
+	return PHYSADDR(address);
+}
+
+extern inline void * bus_to_virt(unsigned long address)
+{
+	return (void *)KSEG0ADDR(address);
+}
 
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
@@ -111,6 +127,10 @@ extern inline void iounmap(void *addr)
 {
 }
 
+/*
+ * XXX We need system specific versions of these to handle EISA address bits
+ * 24-31 on SNI.
+ */
 #define readb(addr) (*(volatile unsigned char *) (isa_slot_offset + (unsigned long)(addr)))
 #define readw(addr) (*(volatile unsigned short *) (isa_slot_offset + (unsigned long)(addr)))
 #define readl(addr) (*(volatile unsigned int *) (isa_slot_offset + (unsigned long)(addr)))

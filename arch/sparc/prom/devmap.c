@@ -1,4 +1,4 @@
-/* $Id: devmap.c,v 1.3 1996/09/19 20:27:19 davem Exp $
+/* $Id: devmap.c,v 1.5 1997/05/14 20:44:59 davem Exp $
  * promdevmap.c:  Map device/IO areas to virtual addresses.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -10,6 +10,9 @@
 
 #include <asm/openprom.h>
 #include <asm/oplib.h>
+
+/* XXX Let's get rid of this thing if we can... */
+extern struct task_struct *current_set[NR_CPUS];
 
 /* Just like the routines in palloc.c, these should not be used
  * by the kernel at all.  Bootloader facility mainly.  And again,
@@ -33,7 +36,7 @@ prom_mapio(char *vhint, int ios, unsigned int paddr, unsigned int num_bytes)
 	ret = (*(romvec->pv_v2devops.v2_dumb_mmap))(vhint, ios, paddr,
 						    num_bytes);
 	__asm__ __volatile__("ld [%0], %%g6\n\t" : :
-			     "r" (&current_set[smp_processor_id()]) :
+			     "r" (&current_set[hard_smp_processor_id()]) :
 			     "memory");
 	restore_flags(flags);
 	return ret;
@@ -49,7 +52,7 @@ prom_unmapio(char *vaddr, unsigned int num_bytes)
 	save_flags(flags); cli();
 	(*(romvec->pv_v2devops.v2_dumb_munmap))(vaddr, num_bytes);
 	__asm__ __volatile__("ld [%0], %%g6\n\t" : :
-			     "r" (&current_set[smp_processor_id()]) :
+			     "r" (&current_set[hard_smp_processor_id()]) :
 			     "memory");
 	restore_flags(flags);
 	return;

@@ -48,12 +48,11 @@
 
 /* MIPS task_struct offsets. */
 #define TASK_STATE         0
+#define TASK_COUNTER       4
 #define TASK_PRIORITY      8
 #define TASK_SIGNAL        12
 #define TASK_BLOCKED       16
 #define TASK_FLAGS         20
-#define TASK_SAVED_KSTACK  84
-#define TASK_KSTACK_PG     88
 #define TASK_MM            912
 
 /* MIPS specific thread_struct offsets. */
@@ -82,8 +81,8 @@
 #define THREAD_OLDCTX  896
 
 /* Linux mm_struct offsets. */
-#define MM_COUNT      0
-#define MM_PGD        4
-#define MM_CONTEXT    8
+#define MM_COUNT      12
+#define MM_PGD        8
+#define MM_CONTEXT    28
 
 #endif /* !(_MIPS_OFFSET_H) */

@@ -77,13 +77,15 @@ typedef struct { unsigned long a[100]; } __dummy_lock_t;
 
 #define spin_lock(lock) \
 __asm__ __volatile__( \
-	"jmp 2f\n" \
-	"1:\t" \
-	"testb $1,%0\n\t" \
-	"jne 1b\n" \
-	"2:\t" \
+	"\n1:\t" \
 	"lock ; btsl $0,%0\n\t" \
-	"jc 1b" \
+	"jc 2f\n" \
+	".section .text.lock,\"ax\"\n" \
+	"2:\t" \
+	"testb $1,%0\n\t" \
+	"jne 2b\n\t" \
+	"jmp 1b\n" \
+	".previous" \
 	:"=m" (__dummy_lock(lock)))
 
 #define spin_unlock(lock) \
@@ -91,33 +93,7 @@ __asm__ __volatile__( \
 	"lock ; btrl $0,%0" \
 	:"=m" (__dummy_lock(lock)))
 
-#undef spin_lock
-static inline void spin_lock(spinlock_t * lock)
-{
-	__label__ l1;
-	int stuck = 10000000;
-l1:
-	__asm__ __volatile__(
-		"jmp 2f\n"
-		"1:\t"
-		"decl %1\n\t"
-		"je 3f\n\t"
-		"testb $1,%0\n\t"
-		"jne 1b\n"
-		"2:\t"
-		"lock ; btsl $0,%0\n\t"
-		"jc 1b\n"
-		"3:"
-		:"=m" (__dummy_lock(lock)),
-		 "=r" (stuck)
-		:"1" (stuck));
-	if (!stuck) {
-		printk("spinlock stuck at %p (%lx)\n",&&l1,lock->previous);
-	} else
-		lock->previous = (unsigned long) &&l1;
-}
-
-#define spin_trylock(lock) (!set_bit(0,(lock)))
+#define spin_trylock(lock) (!test_and_set_bit(0,(lock)))
 
 #define spin_lock_irq(lock) \
 	do { __cli(); spin_lock(lock); } while (0)
@@ -158,12 +134,12 @@ typedef struct {
 	asm volatile("\n1:\t" \
 		     "lock ; incl %0\n\t" \
 		     "js 2f\n" \
-		     ".text 2\n" \
+		     ".section .text.lock,\"ax\"\n" \
 		     "2:\tlock ; decl %0\n" \
 		     "3:\tcmpl $0,%0\n\t" \
 		     "js 3b\n\t" \
 		     "jmp 1b\n" \
-		     ".text" \
+		     ".previous" \
 		     :"=m" (__dummy_lock(&(rw)->lock)))
 
 #define read_unlock(rw) \
@@ -173,19 +149,15 @@ typedef struct {
 #define write_lock(rw) \
 	asm volatile("\n1:\t" \
 		     "lock ; btsl $31,%0\n\t" \
-		     "jc 3f\n\t" \
-		     "testl $0x7fffffff,%0\n\t" \
-		     "jne 4f\n" \
-		     "2:\n" \
-		     ".text 2\n" \
-		     "3:\ttestl $-1,%0\n\t" \
-		     "js 3b\n\t" \
-		     "lock ; btsl $31,%0\n\t" \
-		     "jc 3b\n" \
-		     "4:\ttestl $0x7fffffff,%0\n\t" \
+		     "jc 4f\n" \
+		     "2:\ttestl $0x7fffffff,%0\n\t" \
+		     "jne 3f\n" \
+		     ".section .text.lock,\"ax\"\n" \
+		     "3:\tlock ; btrl $31,%0\n" \
+		     "4:\tcmp $0,%0\n\t" \
 		     "jne 4b\n\t" \
-		     "jmp 2b\n" \
-		     ".text" \
+		     "jmp 1b\n" \
+		     ".previous" \
 		     :"=m" (__dummy_lock(&(rw)->lock)))
 
 #define write_unlock(rw) \

@@ -110,62 +110,45 @@ ENOSYS = 38
 	addl $4,%esp; \
 	iret
 
-#ifdef	__SMP__
-/* Get the processor ID multiplied by 4 */
-#define GET_PROCESSOR_OFFSET(reg) \
-	movl SYMBOL_NAME(apic_reg), reg; \
-	movl 32(reg), reg; \
-	shrl $22, reg; \
-	andl $0x3C, reg;
-
 #define GET_CURRENT(reg) \
-	GET_PROCESSOR_OFFSET(reg) \
-	movl SYMBOL_NAME(current_set)(reg),reg
-
-#else
-
-#define GET_CURRENT(reg) \
-	movl SYMBOL_NAME(current_set),reg
-
-#endif
+	movl %esp, reg; \
+	andl $-8192, reg;
 
 ENTRY(lcall7)
 	pushfl			# We get a different stack layout with call gates,
 	pushl %eax		# which has to be cleaned up later..
 	SAVE_ALL
-	GET_CURRENT(%ebx)
 	movl EIP(%esp),%eax	# due to call gates, this is eflags, not eip..
 	movl CS(%esp),%edx	# this is eip..
 	movl EFLAGS(%esp),%ecx	# and this is cs..
 	movl %eax,EFLAGS(%esp)	#
 	movl %edx,EIP(%esp)	# Now we move them to their "normal" places
 	movl %ecx,CS(%esp)	#
-	movl %esp,%eax
-	GET_CURRENT(%edx)
-	pushl %eax
-	movl exec_domain(%edx),%edx	# Get the execution domain
+	movl %esp,%ebx
+	pushl %ebx
+	andl $-8192,%ebx	# GET_CURRENT
+	movl exec_domain(%ebx),%edx	# Get the execution domain
 	movl 4(%edx),%edx	# Get the lcall7 handler for the domain
 	call *%edx
 	popl %eax
 	jmp ret_from_sys_call
 
+
 #ifdef __SMP__
 	ALIGN
 	.globl	ret_from_smpfork
 ret_from_smpfork:
+	GET_CURRENT(%ebx)
 	btrl	$0, SYMBOL_NAME(scheduler_lock)
 	jmp	ret_from_sys_call
 #endif /* __SMP__ */
 
-	ALIGN
-handle_bottom_half:
-	pushl $2f
-	jmp SYMBOL_NAME(do_bottom_half)
-
-	ALIGN
-reschedule:
-	pushl $ret_from_sys_call
-	jmp SYMBOL_NAME(schedule)    # test
+/*
+ * Return to user mode is not as complex as all this looks,
+ * but we want the default path for a system call return to
+ * go as quickly as possible which is why some of this is
+ * less clear than it otherwise should be.
+ */
 
 ENTRY(system_call)
 	pushl %eax			# save orig_eax
@@ -180,16 +163,11 @@ ENTRY(system_call)
 	ALIGN
 	.globl ret_from_sys_call
 	.globl ret_from_intr
-ret_from_intr:
 ret_from_sys_call:
-	GET_CURRENT(%ebx)
 	movl SYMBOL_NAME(bh_mask),%eax
 	andl SYMBOL_NAME(bh_active),%eax
 	jne handle_bottom_half
-2:	movl EFLAGS(%esp),%eax		# mix EFLAGS and CS
-	movb CS(%esp),%al
-	testl $(VM_MASK | 3),%eax	# return to VM86 mode or non-supervisor?
-	je 1f
+ret_with_reschedule:
 	cmpl $0,SYMBOL_NAME(need_resched)
 	jne reschedule
 	movl blocked(%ebx),%eax
@@ -197,7 +175,6 @@ ret_from_sys_call:
 	notl %eax
 	andl signal(%ebx),%eax
 	jne signal_return
-1:	
 	RESTORE_ALL
 	ALIGN
 signal_return:
@@ -230,6 +207,30 @@ badsys:
 	movl $-ENOSYS,EAX(%esp)
 	jmp ret_from_sys_call
 
+	ALIGN
+ret_from_exception:
+	movl SYMBOL_NAME(bh_mask),%eax
+	andl SYMBOL_NAME(bh_active),%eax
+	jne handle_bottom_half
+	ALIGN
+ret_from_intr:
+	GET_CURRENT(%ebx)
+	movl EFLAGS(%esp),%eax		# mix EFLAGS and CS
+	movb CS(%esp),%al
+	testl $(VM_MASK | 3),%eax	# return to VM86 mode or non-supervisor?
+	jne ret_with_reschedule
+	RESTORE_ALL
+
+	ALIGN
+handle_bottom_half:
+	pushl $ret_from_intr
+	jmp SYMBOL_NAME(do_bottom_half)
+
+	ALIGN
+reschedule:
+	pushl $ret_from_sys_call
+	jmp SYMBOL_NAME(schedule)    # test
+
 
 ENTRY(divide_error)
 	pushl $0		# no error code
@@ -260,7 +261,7 @@ error_code:
 	GET_CURRENT(%ebx)
 	call *%ecx
 	addl $8,%esp
-	jmp ret_from_sys_call
+	jmp ret_from_exception
 
 ENTRY(coprocessor_error)
 	pushl $0
@@ -271,7 +272,7 @@ ENTRY(device_not_available)
 	pushl $-1		# mark this as an int
 	SAVE_ALL
 	GET_CURRENT(%ebx)
-	pushl $ret_from_sys_call
+	pushl $ret_from_exception
 	movl %cr0,%eax
 	testl $0x4,%eax			# EM (math emulation bit)
 	je SYMBOL_NAME(math_state_restore)

@@ -5,11 +5,12 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996 by Ralf Baechle
+ * Copyright (C) 1996, 1997 by Ralf Baechle
  */
 #include <asm/ptrace.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
+#include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/timex.h>
 #include <linux/pci.h>
@@ -40,8 +41,7 @@ extern void sni_machine_restart(char *command);
 extern void sni_machine_halt(void);
 extern void sni_machine_power_off(void);
 
-static void
-sni_irq_setup(void)
+__initfunc(static void sni_irq_setup(void))
 {
 	set_except_vector(0, sni_rm200_pci_handle_int);
 	request_region(0x20,0x20, "pic1");
@@ -57,7 +57,7 @@ sni_irq_setup(void)
 
 void (*board_time_init)(struct irqaction *irq);
 
-static void sni_rm200_pci_time_init(struct irqaction *irq)
+__initfunc(static void sni_rm200_pci_time_init(struct irqaction *irq))
 {
 	/* set the clock to 100 Hz */
 	outb_p(0x34,0x43);		/* binary, mode 2, LSB/MSB, ch 0 */
@@ -67,8 +67,9 @@ static void sni_rm200_pci_time_init(struct irqaction *irq)
 }
 
 unsigned char aux_device_present;
-unsigned long sni_rm200_pcibios_init (unsigned long memory_start,
-                                      unsigned long memory_end);
+extern unsigned long sni_rm200_pcibios_init (unsigned long memory_start,
+                                             unsigned long memory_end);
+extern unsigned char sni_map_isa_cache;
 
 /*
  * A bit more gossip about the iron we're running on ...
@@ -92,8 +93,7 @@ static inline void sni_pcimt_detect(void)
 	printk("%s.\n", boardtype);
 }
 	
-void
-sni_rm200_pci_setup(void)
+__initfunc(void sni_rm200_pci_setup(void))
 {
 	tag *atag;
 
@@ -127,7 +127,14 @@ sni_rm200_pci_setup(void)
 	fd_cacheflush = sni_fd_cacheflush;	// Will go away
 	feature = &sni_rm200_pci_feature;
 	port_base = SNI_PORT_BASE;
+
+	/*
+	 * Setup (E)ISA I/O memory access stuff
+	 */
 	isa_slot_offset = 0xb0000000;
+	// sni_map_isa_cache = 0;
+	EISA_bus = 1;
+
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
 	/* XXX FIXME: CONFIG_RTC */
@@ -140,8 +147,6 @@ sni_rm200_pci_setup(void)
 	_machine_halt = sni_machine_halt;
 	_machine_power_off = sni_machine_power_off;
 
-	if (mips_machtype == MACH_SNI_RM200_PCI)
-		EISA_bus = 1;
 	aux_device_present = 0xaa;
 
 	/*

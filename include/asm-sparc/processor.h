@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.57 1997/03/04 16:27:22 jj Exp $
+/* $Id: processor.h,v 1.59 1997/05/01 01:42:03 davem Exp $
  * include/asm-sparc/processor.h
  *
  * Copyright (C) 1994 David S. Miller (davem@caip.rutgers.edu)
@@ -83,7 +83,7 @@ struct thread_struct {
 #define SPARC_FLAG_UNALIGNED    0x2    /* is allowed to do unaligned accesses */
 
 #define INIT_MMAP { &init_mm, (0), (0), \
-		    __pgprot(0x0) , VM_READ | VM_WRITE | VM_EXEC }
+		    __pgprot(0x0) , VM_READ | VM_WRITE | VM_EXEC, NULL, &init_mm.mmap }
 
 #define INIT_TSS  { \
 /* uwinmask, kregs, sig_address, sig_desc, ksp, kpc, kpsr, kwim */ \
@@ -144,11 +144,14 @@ extern __inline__ void start_thread(struct pt_regs * regs, unsigned long pc,
 #define release_thread(tsk)		do { } while(0)
 
 #ifdef __KERNEL__
+
 /* Allocation and freeing of basic task resources. */
-extern unsigned long (*alloc_kernel_stack)(struct task_struct *tsk);
-extern void (*free_kernel_stack)(unsigned long stack);
 extern struct task_struct *(*alloc_task_struct)(void);
 extern void (*free_task_struct)(struct task_struct *tsk);
+
+#define init_task	(init_task_union.task)
+#define init_stack	(init_task_union.stack)
+
 #endif
 
 /*

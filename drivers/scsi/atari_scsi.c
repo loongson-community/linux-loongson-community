@@ -89,6 +89,7 @@
 #include <linux/blk.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/init.h>
 
 #include <asm/setup.h>
 #include <asm/atarihw.h>
@@ -765,7 +766,7 @@ int atari_scsi_release (struct Scsi_Host *sh)
 }
 #endif
 
-void atari_scsi_setup( char *str, int *ints )
+__initfunc(void atari_scsi_setup( char *str, int *ints ))
 {
 	/* Format of atascsi parameter is:
 	 *   atascsi=<can_queue>,<cmd_per_lun>,<sg_tablesize>,<hostid>,<use_tags>
@@ -869,7 +870,7 @@ int atari_scsi_reset( Scsi_Cmnd *cmd, unsigned int reset_flags)
 }
 
 	
-static void atari_scsi_reset_boot( void )
+__initfunc(static void atari_scsi_reset_boot( void ))
 {
 	unsigned long end;
 	
@@ -1025,6 +1026,10 @@ static unsigned long atari_dma_xfer_len( unsigned long wanted_len,
 {
 	unsigned long	possible_len, limit;
 
+	if (is_hades)
+		/* Hades has no SCSI DMA at all :-( Always force use of PIO */
+		return( 0 );
+	
 	if (IS_A_TT())
 		/* TT SCSI DMA can transfer arbitrary #bytes */
 		return( wanted_len );

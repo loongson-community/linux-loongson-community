@@ -1,6 +1,7 @@
 #ifndef _M68K_SEMAPHORE_H
 #define _M68K_SEMAPHORE_H
 
+#include <linux/config.h>
 #include <linux/linkage.h>
 #include <asm/system.h>
 #include <asm/atomic.h>
@@ -38,6 +39,7 @@ static inline void wake_one_more(struct semaphore * sem)
 
 static inline int waking_non_zero(struct semaphore *sem)
 {
+#ifndef CONFIG_RMW_INSNS
 	unsigned long flags;
 	int ret = 0;
 
@@ -48,6 +50,21 @@ static inline int waking_non_zero(struct semaphore *sem)
 		ret = 1;
 	}
 	restore_flags(flags);
+#else
+	int ret, tmp;
+
+	__asm__ __volatile__
+	  ("1:	movel	%2,%0\n"
+	   "	jeq	3f\n"
+	   "2:	movel	%0,%1\n"
+	   "	subql	#1,%1\n"
+	   "	casl	%0,%1,%2\n"
+	   "	jeq	3f\n"
+	   "	tstl	%0\n"
+	   "	jne	2b\n"
+	   "3:"
+	   : "=d" (ret), "=d" (tmp), "=m" (sem->waking));
+#endif
 	return ret;
 }
 
@@ -56,41 +73,26 @@ static inline int waking_non_zero(struct semaphore *sem)
  * "down_failed" is a special asm handler that calls the C
  * routine that actually waits. See arch/m68k/lib/semaphore.S
  */
-extern inline void down(struct semaphore * sem)
+extern inline void do_down(struct semaphore * sem, void (*failed)(void))
 {
 	register struct semaphore *sem1 __asm__ ("%a1") = sem;
 	__asm__ __volatile__(
 		"| atomic down operation\n\t"
-		"lea %%pc@(1f),%%a0\n\t"
 		"subql #1,%0@\n\t"
-		"jmi " SYMBOL_NAME_STR(__down_failed) "\n"
-		"1:"
+		"jmi 2f\n"
+		"1:\n"
+		".section .text.lock,\"ax\"\n"
+		".even\n"
+		"2:\tpea 1b\n\t"
+		"jbra %1\n"
+		".previous"
 		: /* no outputs */
-		: "a" (sem1)
-		: "%a0", "memory");
+		: "a" (sem1), "m" (*(unsigned char *)failed)
+		: "memory");
 }
 
-/*
- * This version waits in interruptible state so that the waiting
- * process can be killed.  The down_failed_interruptible routine
- * returns negative for signalled and zero for semaphore acquired.
- */
-extern inline int down_interruptible(struct semaphore * sem)
-{
-	register int ret __asm__ ("%d0");
-	register struct semaphore *sem1 __asm__ ("%a1") = sem;
-	__asm__ __volatile__(
-		"| atomic interruptible down operation\n\t"
-		"lea %%pc@(1f),%%a0\n\t"
-		"subql #1,%1@\n\t"
-		"jmi " SYMBOL_NAME_STR(__down_failed_interruptible) "\n\t"
-		"clrl %0\n"
-		"1:"
-		: "=d" (ret)
-		: "a" (sem1)
-		: "%d0", "%a0", "memory");
-	return ret;
-}
+#define down(sem) do_down((sem),__down_failed)
+#define down_interruptible(sem) do_down((sem),__down_failed_interruptible)
 
 /*
  * Note! This is subtle. We jump to wake people up only if
@@ -103,13 +105,17 @@ extern inline void up(struct semaphore * sem)
 	register struct semaphore *sem1 __asm__ ("%a1") = sem;
 	__asm__ __volatile__(
 		"| atomic up operation\n\t"
-		"lea %%pc@(1f),%%a0\n\t"
-		"addql #1,%0\n\t"
-		"jle " SYMBOL_NAME_STR(__up_wakeup) "\n"
-		"1:"
+		"addql #1,%0@\n\t"
+		"jle 2f\n"
+		"1:\n"
+		".section .text.lock,\"ax\"\n"
+		".even\n"
+		"2:\tpea 1b\n\t"
+		"jbra %1\n"
+		".previous"
 		: /* no outputs */
-		: "m" (sem->count), "a" (sem1)
-		: "%a0", "memory");
+		: "a" (sem1), "m" (*(unsigned char *)__up_wakeup)
+		: "memory");
 }
 
 #endif

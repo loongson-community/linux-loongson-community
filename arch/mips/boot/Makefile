@@ -34,7 +34,11 @@ mkboot: mkboot.c
 	$(HOSTCC) -o $@ $^
 
 zdisk:	zImage
-	mcopy -o zImage a:vmlinux
+	if [ -f /etc/remote-mcopy ]; then \
+		ssh rio mcopy -o - a:vmlinux <zImage; \
+	else \
+		mcopy -o zImage a:vmlinux; \
+	fi
 
 dep:
 	$(CPP) -M *.[cS] > .depend

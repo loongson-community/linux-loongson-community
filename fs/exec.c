@@ -27,6 +27,7 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/file.h>
 #include <linux/mman.h>
 #include <linux/a.out.h>
 #include <linux/errno.h>
@@ -36,7 +37,6 @@
 #include <linux/fcntl.h>
 #include <linux/ptrace.h>
 #include <linux/user.h>
-#include <linux/malloc.h>
 #include <linux/binfmts.h>
 #include <linux/personality.h>
 #include <linux/smp.h>
@@ -152,7 +152,7 @@ int open_inode(struct inode * inode, int mode)
 		if (f->f_op->open) {
 			int error = f->f_op->open(inode,f);
 			if (error) {
-				f->f_count--;
+				put_filp(f);
 				put_unused_fd(fd);
 				return error;
 			}
@@ -388,7 +388,7 @@ static void exec_mmap(void)
 	 * (the oom is wrong there, too, IMHO)
 	 */
 	if (current->mm->count > 1) {
-		struct mm_struct *mm = kmalloc(sizeof(*mm), GFP_KERNEL);
+		struct mm_struct *mm = kmem_cache_alloc(mm_cachep, SLAB_KERNEL);
 		if (!mm) {
 			/* this is wrong, I think. */
 			oom(current);
@@ -397,9 +397,9 @@ static void exec_mmap(void)
 		*mm = *current->mm;
 		init_new_context(mm);
 		mm->def_flags = 0;	/* should future lockings be kept? */
+		mm->cpu_vm_mask = (1 << smp_processor_id());
 		mm->count = 1;
-		mm->mmap = NULL;
-		mm->mmap_avl = NULL;
+		mm->mmap = mm->mmap_cache = NULL;
 		mm->total_vm = 0;
 		mm->rss = 0;
 		current->mm->count--;

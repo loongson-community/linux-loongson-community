@@ -5,14 +5,15 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996 by Ralf Baechle
+ * Copyright (C) 1996, 1997 by Ralf Baechle
  */
-#include <asm/ptrace.h>
+#include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <asm/irq.h>
 #include <asm/jazz.h>
+#include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/vector.h>
 #include <asm/io.h>
@@ -35,8 +36,7 @@ extern void jazz_machine_restart(char *command);
 extern void jazz_machine_halt(void);
 extern void jazz_machine_power_off(void);
 
-static void
-jazz_irq_setup(void)
+__initfunc(static void jazz_irq_setup(void))
 {
         set_except_vector(0, jazz_handle_int);
 	r4030_write_reg16(JAZZ_IO_IRQ_ENABLE,
@@ -55,8 +55,7 @@ jazz_irq_setup(void)
 	setup_x86_irq(2, &irq2);
 }
 
-void
-jazz_setup(void)
+__initfunc(void jazz_setup(void))
 {
 	irq_setup = jazz_irq_setup;
 	fd_cacheflush = jazz_fd_cacheflush;

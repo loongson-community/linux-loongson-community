@@ -307,7 +307,10 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			case SIGCONT: case SIGCHLD: case SIGWINCH:
 				continue;
 
-			case SIGSTOP: case SIGTSTP: case SIGTTIN: case SIGTTOU:
+			case SIGTSTP: case SIGTTIN: case SIGTTOU:
+				if (is_orphaned_pgrp(current->pgrp))
+					continue;
+			case SIGSTOP:
 				if (current->flags & PF_PTRACED)
 					continue;
 				current->state = TASK_STOPPED;
@@ -318,11 +321,15 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				schedule();
 				continue;
 
-			case SIGIOT: case SIGFPE: case SIGSEGV: case SIGBUS:
+			case SIGQUIT: case SIGILL: case SIGTRAP:
+			case SIGABRT: case SIGFPE: case SIGSEGV:
+			case SIGBUS:
+				lock_kernel();
 				if (current->binfmt && current->binfmt->core_dump) {
 					if (current->binfmt->core_dump(signr, regs))
 						signr |= 0x80;
 				}
+				unlock_kernel();
 				/* fall through */
 			default:
 				spin_lock_irq(&current->sigmask_lock);

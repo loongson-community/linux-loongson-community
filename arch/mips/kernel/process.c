@@ -64,16 +64,23 @@ void release_thread(struct task_struct *dead_task)
 {
 }
 
+#define roundup(val, rnd) ({ \
+	unsigned _v = val; \
+	unsigned long _r = rnd; \
+	_v = (_v + _r - 1) & ~(_r - 1); \
+	_v; \
+})
+
 int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
                  struct task_struct * p, struct pt_regs * regs)
 {
 	struct pt_regs * childregs;
 	long childksp;
 
-	childksp = p->kernel_stack_page + KERNEL_STACK_SIZE - 8;
+	childksp = roundup((unsigned long)p, KERNEL_STACK_SIZE) - 8;
 
 	/* set up new TSS. */
-	childregs = ((struct pt_regs *) (p->kernel_stack_page + PAGE_SIZE)) - 1;
+	childregs = ((struct pt_regs *) ((unsigned long)p + KERNEL_STACK_SIZE)) - 1;
 	*childregs = *regs;
 	childregs->regs[7] = 0;	/* Clear error flag */
 	if(current->personality == PER_LINUX) {

@@ -895,7 +895,7 @@ static void pcxe_flush_chars(struct tty_struct *tty)
  * Driver setup function when linked into the kernel to optionally parse multible
  * "digi="-lines and initialize the driver at boot time. No probing.
  */
-void pcxx_setup(char *str, int *ints)
+__initfunc(void pcxx_setup(char *str, int *ints))
 {
 
 	struct board_info board;
@@ -2358,7 +2358,7 @@ static void do_softint(void *private_)
 	if(info && info->magic == PCXX_MAGIC) {
 		struct tty_struct *tty = info->tty;
 		if (tty && tty->driver_data) {
-			if(clear_bit(PCXE_EVENT_HANGUP, &info->event)) {
+			if(test_and_clear_bit(PCXE_EVENT_HANGUP, &info->event)) {
 				tty_hangup(tty);
 				wake_up_interruptible(&info->open_wait);
 				info->asyncflags &= ~(ASYNC_NORMAL_ACTIVE|ASYNC_CALLOUT_ACTIVE);

@@ -19,6 +19,11 @@ extern void dump_thread(struct pt_regs *, struct user *);
 extern int dump_fpu(elf_fpregset_t *);
 extern void __lock_kernel(void);
 
+#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_IDE_MODULE) || defined(CONFIG_BLK_DEV_HD_MODULE)
+extern struct drive_info_struct drive_info;
+EXPORT_SYMBOL(drive_info);
+#endif
+
 /* platform dependent support */
 EXPORT_SYMBOL(EISA_bus);
 EXPORT_SYMBOL(MCA_bus);
@@ -39,12 +44,13 @@ EXPORT_SYMBOL(csum_partial_copy);
 #ifdef __SMP__
 EXPORT_SYMBOL(apic_reg);	/* Needed internally for the I386 inlines */
 EXPORT_SYMBOL(cpu_data);
-EXPORT_SYMBOL(kernel_flag);
-EXPORT_SYMBOL(active_kernel_processor);
+EXPORT_SYMBOL_NOVERS(kernel_flag);
+EXPORT_SYMBOL_NOVERS(active_kernel_processor);
 EXPORT_SYMBOL(smp_invalidate_needed);
 EXPORT_SYMBOL_NOVERS(__lock_kernel);
 
 /* Global SMP irq stuff */
+EXPORT_SYMBOL(synchronize_irq);
 EXPORT_SYMBOL(global_irq_holder);
 EXPORT_SYMBOL(__global_cli);
 EXPORT_SYMBOL(__global_sti);

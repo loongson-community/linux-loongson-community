@@ -591,8 +591,9 @@ void set_blocksize(kdev_t dev, int size)
 				 continue;
 			if (bh->b_size == size)
 				 continue;
-			
+			bhnext->b_count++;
 			wait_on_buffer(bh);
+			bhnext->b_count--;
 			if (bh->b_dev == dev && bh->b_size != size) {
 				clear_bit(BH_Dirty, &bh->b_state);
 				clear_bit(BH_Uptodate, &bh->b_state);
@@ -612,8 +613,7 @@ static inline int can_reclaim(struct buffer_head *bh, int size)
 	    buffer_locked(bh))
 		return 0;
 			 
-	if (atomic_read(&mem_map[MAP_NR((unsigned long) bh->b_data)].count) != 1 ||
-	    buffer_dirty(bh)) {
+	if (buffer_dirty(bh)) {
 		refile_buffer(bh);
 		return 0;
 	}
@@ -644,8 +644,7 @@ static struct buffer_head *find_candidate(struct buffer_head *list,
 			continue;
 		}
 
-		if (buffer_locked(bh) && 
-		    (bh->b_list == BUF_LOCKED || bh->b_list == BUF_LOCKED1)) {
+		if (buffer_locked(bh) && bh->b_list == BUF_LOCKED) {
 			/* Buffers are written in the order they are placed 
 			 * on the locked list. If we encounter a locked
 			 * buffer here, this means that the rest of them
@@ -845,9 +844,6 @@ void refile_buffer(struct buffer_head * buf)
 	if(dispose != buf->b_list) {
 		if(dispose == BUF_DIRTY)
 			 buf->b_lru_time = jiffies;
-		if(dispose == BUF_LOCKED && 
-		   (buf->b_flushtime - buf->b_lru_time) <= bdf_prm.b_un.age_super)
-			 dispose = BUF_LOCKED1;
 		remove_from_queues(buf);
 		buf->b_list = dispose;
 		insert_into_queues(buf);
@@ -1120,11 +1116,11 @@ no_grow:
 /* Run the hooks that have to be done when a page I/O has completed. */
 static inline void after_unlock_page (struct page * page)
 {
-	if (clear_bit(PG_decr_after, &page->flags))
+	if (test_and_clear_bit(PG_decr_after, &page->flags))
 		atomic_dec(&nr_async_pages);
-	if (clear_bit(PG_free_after, &page->flags))
+	if (test_and_clear_bit(PG_free_after, &page->flags))
 		__free_page(page);
-	if (clear_bit(PG_swap_unlock_after, &page->flags))
+	if (test_and_clear_bit(PG_swap_unlock_after, &page->flags))
 		swap_after_unlock_page(page->swap_unlock_entry);
 }
 
@@ -1467,7 +1463,7 @@ int try_to_free_buffer(struct buffer_head * bh, struct buffer_head ** bhp,
 	buffermem -= PAGE_SIZE;
 	mem_map[MAP_NR(page)].buffers = NULL;
 	free_page(page);
-	return !atomic_read(&mem_map[MAP_NR(page)].count);
+	return 1;
 }
 
 /* ================== Debugging =================== */
@@ -1478,7 +1474,7 @@ void show_buffers(void)
 	int found = 0, locked = 0, dirty = 0, used = 0, lastused = 0;
 	int protected = 0;
 	int nlist;
-	static char *buf_types[NR_LIST] = {"CLEAN","LOCKED","LOCKED1","DIRTY"};
+	static char *buf_types[NR_LIST] = {"CLEAN","LOCKED","DIRTY"};
 
 	printk("Buffer memory:   %6dkB\n",buffermem>>10);
 	printk("Buffer heads:    %6d\n",nr_buffer_heads);
@@ -1526,7 +1522,7 @@ void buffer_init(void)
 
 	bh_cachep = kmem_cache_create("buffer_head",
 				      sizeof(struct buffer_head),
-				      sizeof(unsigned long) * 4,
+				      0,
 				      SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if(!bh_cachep)
 		panic("Cannot create buffer head SLAB cache\n");
@@ -1611,6 +1607,7 @@ asmlinkage int sync_old_buffers(void)
 				 ndirty++;
 				 if(bh->b_flushtime > jiffies) continue;
 				 nwritten++;
+				 next->b_count++;
 				 bh->b_count++;
 				 bh->b_flushtime = 0;
 #ifdef DEBUG
@@ -1618,6 +1615,7 @@ asmlinkage int sync_old_buffers(void)
 #endif
 				 ll_rw_block(WRITE, 1, &bh);
 				 bh->b_count--;
+				 next->b_count--;
 			 }
 	}
 #ifdef DEBUG
@@ -1756,6 +1754,7 @@ int bdflush(void * unused)
 					     currently dirty buffers are not shared, so it does not matter */
 					  if (refilled && major == LOOP_MAJOR)
 						   continue;
+					  next->b_count++;
 					  bh->b_count++;
 					  ndirty++;
 					  bh->b_flushtime = 0;
@@ -1771,6 +1770,7 @@ int bdflush(void * unused)
 					  if(nlist != BUF_DIRTY) ncount++;
 #endif
 					  bh->b_count--;
+					  next->b_count--;
 				  }
 		 }
 #ifdef DEBUG

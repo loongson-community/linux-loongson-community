@@ -70,7 +70,7 @@ good_area:
 		if (!(vma->vm_flags & (VM_READ | VM_EXEC)))
 			goto bad_area;
 	}
-	handle_mm_fault(vma, address, writeaccess);
+	handle_mm_fault(tsk, vma, address, writeaccess);
 	up(&mm->mmap_sem);
 
 	goto out;

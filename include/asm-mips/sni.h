@@ -83,4 +83,9 @@
 #define PCIMT_IRQ_INTD		24
 #define PCIMT_IRQ_SCSI		25
 
+/*
+ * Base address for the mapped 16mb EISA bus segment.
+ */
+#define PCIMT_EISA_BASE		0xb0000000
+
 #endif /* __ASM_MIPS_SNI_H */

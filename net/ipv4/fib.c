@@ -42,6 +42,7 @@
 #include <linux/if_arp.h>
 #include <linux/proc_fs.h>
 #include <linux/skbuff.h>
+#include <linux/init.h>
 
 #include <net/ip.h>
 #include <net/protocol.h>
@@ -1646,16 +1647,21 @@ int ip_rt_ioctl(unsigned int cmd, void *arg)
 	{
 		case SIOCADDRT:		/* Add a route */
 		case SIOCDELRT:		/* Delete a route */
+printk("ip_rt_ioctl() #1\n");
 			if (!suser())
 				return -EPERM;
+printk("ip_rt_ioctl() #2\n");
 			err = get_rt_from_user(&m.rtmsg, arg);
 			if (err)
 				return err;
+printk("ip_rt_ioctl() #3\n");
 			fib_lock();
+printk("ip_rt_ioctl() #4\n");
 			dummy_nlh.nlmsg_type = cmd == SIOCDELRT ? RTMSG_DELROUTE
 					    : RTMSG_NEWROUTE;
 			err = rtmsg_process(&dummy_nlh, &m.rtmsg);
 			fib_unlock();
+printk("ip_rt_ioctl() #5: err == %d\n", err);
 			return err;
 		case SIOCRTMSG:
 			if (!suser())
@@ -2020,7 +2026,7 @@ int ip_rt_event(int event, struct device *dev)
 }
 
 
-void ip_fib_init()
+__initfunc(void ip_fib_init(void))
 {
 	struct in_rtrulemsg r;
 

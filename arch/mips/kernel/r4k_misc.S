@@ -10,6 +10,7 @@
 #include <asm/offset.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/current.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
@@ -29,9 +30,8 @@
 	 */
 #define LOAD_PTE(pte, ptr) \
 	mfc0	pte, CP0_BADVADDR; \
-	lui	ptr, %hi(current_set); \
 	srl	pte, pte, 22; \
-	lw	ptr, %lo(current_set)(ptr); \
+	GET_CURRENT(ptr); \
 	sll	pte, pte, 2; \
 	lw	ptr, THREAD_PGDIR(ptr); \
 	addu	ptr, pte, ptr; \

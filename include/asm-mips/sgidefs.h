@@ -1,6 +1,4 @@
 /*
- * Makefile for MIPS Linux main source directory
- *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -18,12 +16,32 @@
  * problem.  The kernel sources are aware of this problem, so we don't warn
  * when compiling the kernel.
  */
+#if !defined(_MIPS_ISA) && !defined(__KERNEL__)
+#warning "Macro _MIPS_ISA has not been defined by specs file"
+#endif
+
+#if !defined(_MIPS_SIM) && !defined(__KERNEL__)
+#warning "Macro _MIPS_SIM has not been defined by specs file"
+#endif
+
+#if !defined(_MIPS_SZINT) && !defined(__KERNEL__)
+#warning "Macro _MIPS_SZINT has not been defined by specs file"
+#endif
+
+#if !defined(_MIPS_SZLONG) && !defined(__KERNEL__)
+#warning "Macro _MIPS_SZLONG has not been defined by specs file"
+#endif
+
+#if !defined(_MIPS_SZPTR) && !defined(__KERNEL__)
+#warning "Macro _MIPS_SZPTR has not been defined by specs file"
+#endif
+
 #if (!defined(_MIPS_ISA) || \
      !defined(_MIPS_SIM) || \
      !defined(_MIPS_SZINT) || \
      !defined(_MIPS_SZLONG) || \
      !defined(_MIPS_SZPTR)) && !defined(__KERNEL__)
-#warning "Please update your GCC to GCC 2.7.2-3 or newer"
+#warning "Please update your GCC to GCC 2.7.2-4 or newer"
 #endif
 
 /*

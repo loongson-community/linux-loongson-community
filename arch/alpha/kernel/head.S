@@ -23,9 +23,11 @@ _stext:
 __start:
 	br	$27,1f
 1:	ldgp	$29,0($27)
-	/* We need to get current loaded up with our first task.  */
-	ldq	$8,current_set
-	/* And then we can start the kernel.  */
+	/* We need to get current loaded up with our first task...  */
+	lda	$8,init_task_union
+	/* ... and find our stack ... */
+	lda	$30,0x4000($8)
+	/* ... and then we can start the kernel.  */
 	jsr	$26,start_kernel
 	halt
 	.end __start
@@ -61,22 +63,6 @@ rdusp:
 	call_pal PAL_rdusp
 	ret	($26)
 	.end rdusp
-
-	.align 3
-	.globl	tbi
-	.ent	tbi
-tbi:
-	call_pal PAL_tbi
-	ret	($26)
-	.end tbi
-
-	.align 3
-	.globl	imb
-	.ent	imb
-imb:
-	call_pal PAL_imb
-	ret	($26)
-	.end imb
 
 	.align 3
 	.globl	rdmces

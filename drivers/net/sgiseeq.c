@@ -519,7 +519,7 @@ static inline int verify_tx(struct sgiseeq_private *sp,
 		return -1;
 	}
 	/* Are we getting in someone else's way? */
-	if(set_bit(0, (void *) &dev->tbusy) != 0) {
+	if(test_and_set_bit(0, (void *) &dev->tbusy) != 0) {
 		printk("%s: Transmitter access conflict.\n", dev->name);
 		return -1;
 	}

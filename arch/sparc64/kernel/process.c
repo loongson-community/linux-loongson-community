@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.6 1997/04/07 18:57:07 jj Exp $
+/*  $Id: process.c,v 1.11 1997/05/18 22:52:19 davem Exp $
  *  arch/sparc64/kernel/process.c
  *
  *  Copyright (C) 1995, 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -346,7 +346,14 @@ void flush_thread(void)
 	}
 	
 	/* Now, this task is no longer a kernel thread. */
-	current->tss.flags &= ~SPARC_FLAG_KTHREAD;
+	if(current->tss.flags & SPARC_FLAG_KTHREAD) {
+		current->tss.flags &= ~SPARC_FLAG_KTHREAD;
+
+		/* exec_mmap() set context to NO_CONTEXT, here is
+		 * where we grab a new one.
+		 */
+		get_mmu_context(current);
+	}
 	current->tss.current_ds = USER_DS;
 }
 
@@ -416,6 +423,64 @@ clone_stackframe(struct sparc_stackf *dst, struct sparc_stackf *src)
 	return sp;
 }
 
+/* Standard stuff. */
+static inline void shift_window_buffer(int first_win, int last_win,
+				       struct thread_struct *tp)
+{
+	int i;
+
+	for(i = first_win; i < last_win; i++) {
+		tp->rwbuf_stkptrs[i] = tp->rwbuf_stkptrs[i+1];
+		memcpy(&tp->reg_window[i], &tp->reg_window[i+1],
+		       sizeof(struct reg_window));
+	}
+}
+
+void synchronize_user_stack(void)
+{
+	struct thread_struct *tp = &current->tss;
+	unsigned long window = tp->w_saved;
+
+	flush_user_windows();
+	if(window) {
+		int winsize = REGWIN_SZ;
+
+		if(tp->flags & SPARC_FLAG_32BIT)
+			winsize = REGWIN32_SZ;
+
+		window -= 1;
+		do {
+			unsigned long sp = tp->rwbuf_stkptrs[window];
+			struct reg_window *rwin = &tp->reg_window[window];
+
+			if(!copy_to_user((char *)sp, rwin, winsize)) {
+				shift_window_buffer(window, tp->w_saved - 1, tp);
+				tp->w_saved--;
+			}
+		} while(window--);
+	}
+}
+
+void fault_in_user_windows(struct pt_regs *regs)
+{
+	struct thread_struct *tp = &current->tss;
+	unsigned long window = tp->w_saved;
+	int winsize = REGWIN_SZ;
+
+	if(tp->flags & SPARC_FLAG_32BIT)
+		winsize = REGWIN32_SZ;
+	if(window) {
+		window -= 1;
+		do {
+			unsigned long sp = tp->rwbuf_stkptrs[window];
+			struct reg_window *rwin = &tp->reg_window[window];
+
+			if(copy_to_user((char *)sp, rwin, winsize))
+				do_exit(SIGILL);
+		} while(window--);
+	}
+	current->tss.w_saved = 0;
+}
 
 /* Copy a Sparc thread.  The fork() return value conventions
  * under SunOS are nothing short of bletcherous:
@@ -453,19 +518,18 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 #endif	
 
 	/* Calculate offset to stack_frame & pt_regs */
-	stack_offset = (PAGE_SIZE - TRACEREG_SZ);
+	stack_offset = ((PAGE_SIZE<<1) - TRACEREG_SZ);
 
 	if(regs->tstate & TSTATE_PRIV)
 		stack_offset -= REGWIN_SZ;
 
-	childregs = ((struct pt_regs *) (p->kernel_stack_page + stack_offset));
+	childregs = ((struct pt_regs *) (((unsigned long)p) + stack_offset));
 	*childregs = *regs;
 	new_stack = (((struct reg_window *) childregs) - 1);
 	old_stack = (((struct reg_window *) regs) - 1);
 	*new_stack = *old_stack;
 
-	p->saved_kernel_stack = ((unsigned long) new_stack);
-	p->tss.ksp = p->saved_kernel_stack - STACK_BIAS;
+	p->tss.ksp = ((unsigned long) new_stack) - STACK_BIAS;
 	p->tss.kpc = ((unsigned long) ret_from_syscall) - 0x8;
 	p->tss.kregs = childregs;
 
@@ -485,7 +549,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 		p->tss.current_ds = USER_DS;
 
 #if 0
-		if (sp != current->tss.kregs->u_regs[UREG_FP]) {
+		if (sp != regs->u_regs[UREG_FP]) {
 			struct sparc_stackf *childstack;
 			struct sparc_stackf *parentstack;
 
@@ -494,8 +558,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 			 * Set some valid stack frames to give to the child.
 			 */
 			childstack = (struct sparc_stackf *)sp;
-			parentstack = (struct sparc_stackf *)
-					current->tss.kregs->u_regs[UREG_FP];
+			parentstack = (struct sparc_stackf *)regs->u_regs[UREG_FP];
 
 #if 0
 			printk("clone: parent stack:\n");

@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 
@@ -256,7 +257,7 @@ static void do_depend(void)
 	}
 	mapsize = st.st_size + 2*sizeof(unsigned long);
 	mapsize = (mapsize+pagesizem1) & ~pagesizem1;
-	map = mmap(NULL, mapsize, PROT_READ, MAP_PRIVATE, fd, 0);
+	map = mmap(NULL, mapsize, PROT_READ, MAP_AUTOGROW | MAP_PRIVATE, fd, 0);
 	if (-1 == (long)map) {
 		perror("mkdep: mmap");
 		close(fd);

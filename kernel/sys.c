@@ -370,8 +370,8 @@ int acct_process(long exitcode)
    if (acct_active) {
       strncpy(ac.ac_comm, current->comm, ACCT_COMM);
       ac.ac_comm[ACCT_COMM-1] = '\0';
-      ac.ac_utime = current->utime;
-      ac.ac_stime = current->stime;
+      ac.ac_utime = current->times.tms_utime;
+      ac.ac_stime = current->times.tms_stime;
       ac.ac_btime = CT_TO_SECS(current->start_time) + (xtime.tv_sec - (jiffies / HZ));
       ac.ac_etime = CURRENT_TIME - ac.ac_btime;
       ac.ac_uid   = current->uid;
@@ -523,16 +523,15 @@ asmlinkage int sys_old_syscall(void)
  */
 asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 {
-	int old_ruid;
-	int old_euid;
+	int old_ruid, old_euid, new_ruid;
 
-	old_ruid = current->uid;
+	new_ruid = old_ruid = current->uid;
 	old_euid = current->euid;
 	if (ruid != (uid_t) -1) {
 		if ((old_ruid == ruid) || 
 		    (current->euid==ruid) ||
 		    suser())
-			current->uid = ruid;
+			new_ruid = ruid;
 		else
 			return -EPERM;
 	}
@@ -542,10 +541,8 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 		    (current->suid == euid) ||
 		    suser())
 			current->fsuid = current->euid = euid;
-		else {
-			current->uid = old_ruid;
+		else
 			return -EPERM;
-		}
 	}
 	if (ruid != (uid_t) -1 ||
 	    (euid != (uid_t) -1 && euid != old_ruid))
@@ -553,6 +550,18 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 	current->fsuid = current->euid;
 	if (current->euid != old_euid)
 		current->dumpable = 0;
+
+	if(new_ruid != old_ruid) {
+		/* What if a process setreuid()'s and this brings the
+		 * new uid over his NPROC rlimit?  We can check this now
+		 * cheaply with the new uid cache, so if it matters
+		 * we should be checking for it.  -DaveM
+		 */
+		charge_uid(current, -1);
+		current->uid = new_ruid;
+		if(new_ruid)
+			charge_uid(current, 1);
+	}
 	return 0;
 }
 
@@ -570,9 +579,11 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 asmlinkage int sys_setuid(uid_t uid)
 {
 	int old_euid = current->euid;
+	int old_ruid, new_ruid;
 
+	old_ruid = new_ruid = current->uid;
 	if (suser())
-		current->uid = current->euid = current->suid = current->fsuid = uid;
+		new_ruid = current->euid = current->suid = current->fsuid = uid;
 	else if ((uid == current->uid) || (uid == current->suid))
 		current->fsuid = current->euid = uid;
 	else
@@ -580,6 +591,14 @@ asmlinkage int sys_setuid(uid_t uid)
 
 	if (current->euid != old_euid)
 		current->dumpable = 0;
+
+	if(new_ruid != old_ruid) {
+		/* See comment above about NPROC rlimit issues... */
+		charge_uid(current, -1);
+		current->uid = new_ruid;
+		if(new_ruid)
+			charge_uid(current, 1);
+	}
 	return 0;
 }
 
@@ -605,8 +624,13 @@ asmlinkage int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 	if ((suid != (uid_t) -1) && (suid != current->uid) &&
 	    (suid != current->euid) && (suid != current->suid))
 		return -EPERM;
-	if (ruid != (uid_t) -1)
+	if (ruid != (uid_t) -1) {
+		/* See above commentary about NPROC rlimit issues here. */
+		charge_uid(current, -1);
 		current->uid = ruid;
+		if(ruid)
+			charge_uid(current, 1);
+	}
 	if (euid != (uid_t) -1)
 		current->euid = euid;
 	if (suid != (uid_t) -1)
@@ -671,16 +695,9 @@ asmlinkage long sys_times(struct tms * tbuf)
 	 *	atomically safe type this is just fine. Conceptually its
 	 *	as if the syscall took an instant longer to occur.
 	 */
-	if (tbuf) 
-	{
-		/* ?? use copy_to_user() */
-		if(!access_ok(VERIFY_READ, tbuf, sizeof(struct tms)) ||
-		   __put_user(current->utime,&tbuf->tms_utime)||
-		   __put_user(current->stime,&tbuf->tms_stime) ||
-		   __put_user(current->cutime,&tbuf->tms_cutime) ||
-		   __put_user(current->cstime,&tbuf->tms_cstime))
+	if (tbuf)
+		if (copy_to_user(tbuf, &current->times, sizeof(struct tms)))
 			return -EFAULT;
-	}
 	return jiffies;
 }
 
@@ -709,22 +726,13 @@ asmlinkage int sys_setpgid(pid_t pid, pid_t pgid)
 	if (pgid < 0)
 		return -EINVAL;
 
-	read_lock(&tasklist_lock);
-	for_each_task(p) {
-		if (p->pid == pid) {
-			/* NOTE: I haven't dropped tasklist_lock, this is
-			 *       on purpose. -DaveM
-			 */
-			goto found_task;
-		}
-	}
-	read_unlock(&tasklist_lock);
-	return -ESRCH;
+	if((p = find_task_by_pid(pid)) == NULL)
+		return -ESRCH;
 
-found_task:
 	/* From this point forward we keep holding onto the tasklist lock
 	 * so that our parent does not change from under us. -DaveM
 	 */
+	read_lock(&tasklist_lock);
 	err = -ESRCH;
 	if (p->p_pptr == current || p->p_opptr == current) {
 		err = -EPERM;
@@ -762,18 +770,12 @@ asmlinkage int sys_getpgid(pid_t pid)
 	if (!pid) {
 		return current->pgrp;
 	} else {
-		struct task_struct *p;
-		int ret = -ESRCH;
+		struct task_struct *p = find_task_by_pid(pid);
 
-		read_lock(&tasklist_lock);
-		for_each_task(p) {
-			if (p->pid == pid) {
-				ret = p->pgrp;
-				break;
-			}
-		}
-		read_unlock(&tasklist_lock);
-		return ret;
+		if(p)
+			return p->pgrp;
+		else
+			return -ESRCH;
 	}
 }
 
@@ -785,25 +787,16 @@ asmlinkage int sys_getpgrp(void)
 
 asmlinkage int sys_getsid(pid_t pid)
 {
-	struct task_struct * p;
-	int ret;
-
-	/* SMP: The 'self' case requires no lock */
 	if (!pid) {
-		ret = current->session;
+		return current->session;
 	} else {
-		ret = -ESRCH;
+		struct task_struct *p = find_task_by_pid(pid);
 
-		read_lock(&tasklist_lock);
-		for_each_task(p) {
-			if (p->pid == pid) {
-				ret = p->session;
-				break;
-			}
-		}
-		read_unlock(&tasklist_lock);
+		if(p)
+			return p->session;
+		else
+			return -ESRCH;
 	}
-	return ret;
 }
 
 asmlinkage int sys_setsid(void)
@@ -1030,28 +1023,28 @@ int getrusage(struct task_struct *p, int who, struct rusage *ru)
 	memset((char *) &r, 0, sizeof(r));
 	switch (who) {
 		case RUSAGE_SELF:
-			r.ru_utime.tv_sec = CT_TO_SECS(p->utime);
-			r.ru_utime.tv_usec = CT_TO_USECS(p->utime);
-			r.ru_stime.tv_sec = CT_TO_SECS(p->stime);
-			r.ru_stime.tv_usec = CT_TO_USECS(p->stime);
+			r.ru_utime.tv_sec = CT_TO_SECS(p->times.tms_utime);
+			r.ru_utime.tv_usec = CT_TO_USECS(p->times.tms_utime);
+			r.ru_stime.tv_sec = CT_TO_SECS(p->times.tms_stime);
+			r.ru_stime.tv_usec = CT_TO_USECS(p->times.tms_stime);
 			r.ru_minflt = p->min_flt;
 			r.ru_majflt = p->maj_flt;
 			r.ru_nswap = p->nswap;
 			break;
 		case RUSAGE_CHILDREN:
-			r.ru_utime.tv_sec = CT_TO_SECS(p->cutime);
-			r.ru_utime.tv_usec = CT_TO_USECS(p->cutime);
-			r.ru_stime.tv_sec = CT_TO_SECS(p->cstime);
-			r.ru_stime.tv_usec = CT_TO_USECS(p->cstime);
+			r.ru_utime.tv_sec = CT_TO_SECS(p->times.tms_cutime);
+			r.ru_utime.tv_usec = CT_TO_USECS(p->times.tms_cutime);
+			r.ru_stime.tv_sec = CT_TO_SECS(p->times.tms_cstime);
+			r.ru_stime.tv_usec = CT_TO_USECS(p->times.tms_cstime);
 			r.ru_minflt = p->cmin_flt;
 			r.ru_majflt = p->cmaj_flt;
 			r.ru_nswap = p->cnswap;
 			break;
 		default:
-			r.ru_utime.tv_sec = CT_TO_SECS(p->utime + p->cutime);
-			r.ru_utime.tv_usec = CT_TO_USECS(p->utime + p->cutime);
-			r.ru_stime.tv_sec = CT_TO_SECS(p->stime + p->cstime);
-			r.ru_stime.tv_usec = CT_TO_USECS(p->stime + p->cstime);
+			r.ru_utime.tv_sec = CT_TO_SECS(p->times.tms_utime + p->times.tms_cutime);
+			r.ru_utime.tv_usec = CT_TO_USECS(p->times.tms_utime + p->times.tms_cutime);
+			r.ru_stime.tv_sec = CT_TO_SECS(p->times.tms_stime + p->times.tms_cstime);
+			r.ru_stime.tv_usec = CT_TO_USECS(p->times.tms_stime + p->times.tms_cstime);
 			r.ru_minflt = p->min_flt + p->cmin_flt;
 			r.ru_majflt = p->maj_flt + p->cmaj_flt;
 			r.ru_nswap = p->nswap + p->cnswap;

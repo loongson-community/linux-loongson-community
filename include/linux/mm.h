@@ -37,18 +37,15 @@ struct vm_area_struct {
 	unsigned long vm_end;
 	pgprot_t vm_page_prot;
 	unsigned short vm_flags;
-/* AVL tree of VM areas per task, sorted by address */
-	short vm_avl_height;
-	struct vm_area_struct * vm_avl_left;
-	struct vm_area_struct * vm_avl_right;
-/* linked list of VM areas per task, sorted by address */
-	struct vm_area_struct * vm_next;
-/* for areas with inode, the circular list inode->i_mmap */
-/* for shm areas, the circular list of attaches */
-/* otherwise unused */
-	struct vm_area_struct * vm_next_share;
-	struct vm_area_struct * vm_prev_share;
-/* more */
+	struct vm_area_struct *vm_next;
+	struct vm_area_struct **vm_pprev;
+
+	/* For areas with inode, the list inode->i_mmap, for shm areas,
+	 * the list of attaches, otherwise unused.
+	 */
+	struct vm_area_struct *vm_next_share;
+	struct vm_area_struct **vm_pprev_share;
+
 	struct vm_operations_struct * vm_ops;
 	unsigned long vm_offset;
 	struct inode * vm_inode;
@@ -140,6 +137,7 @@ typedef struct page {
 #define PG_decr_after		 5
 #define PG_swap_unlock_after	 6
 #define PG_DMA			 7
+#define PG_Slab			 8
 #define PG_reserved		31
 
 /* Make it prettier to test the above... */
@@ -152,7 +150,11 @@ typedef struct page {
 #define PageDecrAfter(page)	(test_bit(PG_decr_after, &(page)->flags))
 #define PageSwapUnlockAfter(page) (test_bit(PG_swap_unlock_after, &(page)->flags))
 #define PageDMA(page)		(test_bit(PG_DMA, &(page)->flags))
+#define PageSlab(page)		(test_bit(PG_Slab, &(page)->flags))
 #define PageReserved(page)	(test_bit(PG_reserved, &(page)->flags))
+
+#define PageSetSlab(page)	(set_bit(PG_Slab, &(page)->flags))
+#define PageClearSlab(page)	(clear_bit(PG_Slab, &(page)->flags))
 
 /*
  * page->reserved denotes a page which must never be accessed (which
@@ -263,9 +265,7 @@ extern int remap_page_range(unsigned long from, unsigned long to, unsigned long 
 extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t prot);
 
 extern void vmtruncate(struct inode * inode, unsigned long offset);
-extern void handle_mm_fault(struct vm_area_struct *vma, unsigned long address, int write_access);
-extern void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma, unsigned long address, int write_access);
-extern void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma, unsigned long address, int write_access);
+extern void handle_mm_fault(struct task_struct *tsk,struct vm_area_struct *vma, unsigned long address, int write_access);
 
 extern unsigned long paging_init(unsigned long start_mem, unsigned long end_mem);
 extern void mem_init(unsigned long start_mem, unsigned long end_mem);
@@ -279,8 +279,6 @@ extern unsigned long do_mmap(struct file * file, unsigned long addr, unsigned lo
 	unsigned long prot, unsigned long flags, unsigned long off);
 extern void merge_segments(struct mm_struct *, unsigned long, unsigned long);
 extern void insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
-extern void remove_shared_vm_struct(struct vm_area_struct *);
-extern void build_mmap_avl(struct mm_struct *);
 extern void exit_mmap(struct mm_struct *);
 extern int do_munmap(unsigned long, size_t);
 extern unsigned long get_unmapped_area(unsigned long, unsigned long);
@@ -325,38 +323,30 @@ static inline int expand_stack(struct vm_area_struct * vma, unsigned long addres
 	return 0;
 }
 
-#define avl_empty	(struct vm_area_struct *) NULL
-
 /* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. */
 static inline struct vm_area_struct * find_vma(struct mm_struct * mm, unsigned long addr)
 {
-	struct vm_area_struct * result = NULL;
+	struct vm_area_struct *vma = NULL;
 
 	if (mm) {
-		struct vm_area_struct ** next = &mm->mmap_avl;
-		for (;;) {
-			struct vm_area_struct *tree = *next;
-			if (tree == avl_empty)
-				break;
-			next = &tree->vm_avl_right;
-			if (tree->vm_end <= addr)
-				continue;
-			next = &tree->vm_avl_left;
-			result = tree;
-			if (tree->vm_start <= addr)
-				break;
+		/* Check the cache first. */
+		vma = mm->mmap_cache;
+		if(!vma || (vma->vm_end <= addr) || (vma->vm_start > addr)) {
+			vma = mm->mmap;
+			while(vma && vma->vm_end <= addr)
+				vma = vma->vm_next;
+			mm->mmap_cache = vma;
 		}
 	}
-	return result;
+	return vma;
 }
 
 /* Look up the first VMA which intersects the interval start_addr..end_addr-1,
    NULL if none.  Assume start_addr < end_addr. */
 static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * mm, unsigned long start_addr, unsigned long end_addr)
 {
-	struct vm_area_struct * vma;
+	struct vm_area_struct * vma = find_vma(mm,start_addr);
 
-	vma = find_vma(mm,start_addr);
 	if (vma && end_addr <= vma->vm_start)
 		vma = NULL;
 	return vma;

@@ -63,6 +63,7 @@ static const char *mcdx_c_version
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/malloc.h>
+#include <linux/init.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 
@@ -357,6 +358,10 @@ mcdx_ioctl(
             msf.cdmsf_min1 = uint2bcd(msf.cdmsf_min1);
             msf.cdmsf_sec1 = uint2bcd(msf.cdmsf_sec1);
             msf.cdmsf_frame1 = uint2bcd(msf.cdmsf_frame1);
+
+            stuffp->stop.dt.minute = msf.cdmsf_min1;
+            stuffp->stop.dt.second = msf.cdmsf_sec1;
+            stuffp->stop.dt.frame = msf.cdmsf_frame1;
 
             return mcdx_playmsf(stuffp, &msf);
         }
@@ -910,7 +915,7 @@ int check_mcdx_media_change(kdev_t full_dev)
 	return 1;
 }
 
-void mcdx_setup(char *str, int *pi)
+__initfunc(void mcdx_setup(char *str, int *pi))
 {
 	if (pi[0] > 0) mcdx_drive_map[0][0] = pi[1];
 	if (pi[0] > 1) mcdx_drive_map[0][1] = pi[2];
@@ -1160,7 +1165,7 @@ void cleanup_module(void)
 
 /* Support functions ************************************************/
 
-int mcdx_init(void)
+__initfunc(int mcdx_init(void))
 {
 	int drive;
 

@@ -1,9 +1,9 @@
-/* $Id: misc.c,v 1.3 1996/08/07 02:54:12 dm Exp $
+/*
  * misc.c: Miscellaneous ARCS PROM routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
-
+#include <linux/config.h>
 #include <linux/kernel.h>
 
 #include <asm/sgialib.h>
@@ -51,7 +51,9 @@ void prom_halt(void)
 {
 	shutoff_r4600_cache();
 	initialize_kbd();
+#if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
+#endif
 	cli();
 	romvec->halt();
 }
@@ -60,7 +62,9 @@ void prom_powerdown(void)
 {
 	shutoff_r4600_cache();
 	initialize_kbd();
+#if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
+#endif
 	cli();
 	romvec->pdown();
 }
@@ -70,7 +74,9 @@ void prom_restart(void)
 {
 	shutoff_r4600_cache();
 	initialize_kbd();
+#if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
+#endif
 	cli();
 	romvec->restart();
 }
@@ -79,7 +85,9 @@ void prom_reboot(void)
 {
 	shutoff_r4600_cache();
 	initialize_kbd();
+#if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
+#endif
 	cli();
 	romvec->reboot();
 }
@@ -88,7 +96,9 @@ void prom_imode(void)
 {
 	shutoff_r4600_cache();
 	initialize_kbd();
+#if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
+#endif
 	cli();
 	romvec->imode();
 }

@@ -589,26 +589,13 @@ unsigned long put_dirty_page(struct task_struct * tsk, unsigned long page, unsig
  * change only once the write actually happens. This avoids a few races,
  * and potentially makes it more efficient.
  */
-void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, int write_access)
+static void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
+	unsigned long address, int write_access, pte_t *page_table)
 {
-	pgd_t *page_dir;
-	pmd_t *page_middle;
-	pte_t *page_table, pte;
+	pte_t pte;
 	unsigned long old_page, new_page;
 
 	new_page = __get_free_page(GFP_KERNEL);
-	page_dir = pgd_offset(vma->vm_mm, address);
-	if (pgd_none(*page_dir))
-		goto end_wp_page;
-	if (pgd_bad(*page_dir))
-		goto bad_wp_pagedir;
-	page_middle = pmd_offset(page_dir, address);
-	if (pmd_none(*page_middle))
-		goto end_wp_page;
-	if (pmd_bad(*page_middle))
-		goto bad_wp_pagemiddle;
-	page_table = pte_offset(page_middle, address);
 	pte = *page_table;
 	if (!pte_present(pte))
 		goto end_wp_page;
@@ -649,14 +636,6 @@ void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	return;
 bad_wp_page:
 	printk("do_wp_page: bogus page at address %08lx (%08lx)\n",address,old_page);
-	send_sig(SIGKILL, tsk, 1);
-	goto end_wp_page;
-bad_wp_pagemiddle:
-	printk("do_wp_page: bogus page-middle at address %08lx (%08lx)\n", address, pmd_val(*page_middle));
-	send_sig(SIGKILL, tsk, 1);
-	goto end_wp_page;
-bad_wp_pagedir:
-	printk("do_wp_page: bogus page-dir entry at address %08lx (%08lx)\n", address, pgd_val(*page_dir));
 	send_sig(SIGKILL, tsk, 1);
 end_wp_page:
 	if (new_page)
@@ -746,7 +725,7 @@ void vmtruncate(struct inode * inode, unsigned long offset)
 		flush_cache_range(mm, start, end);
 		zap_page_range(mm, start, len);
 		flush_tlb_range(mm, start, end);
-	} while ((mpnt = mpnt->vm_next_share) != inode->i_mmap);
+	} while ((mpnt = mpnt->vm_next_share) != NULL);
 }
 
 
@@ -785,25 +764,11 @@ static inline void do_swap_page(struct task_struct * tsk,
  * As this is called only for pages that do not currently exist, we
  * do not need to flush old virtual caches or the TLB.
  */
-void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, int write_access)
+static void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
+	unsigned long address, int write_access, pte_t *page_table, pte_t entry)
 {
-	pgd_t * pgd;
-	pmd_t * pmd;
-	pte_t * page_table;
-	pte_t entry;
 	unsigned long page;
 
-	pgd = pgd_offset(tsk->mm, address);
-	pmd = pmd_alloc(pgd, address);
-	if (!pmd)
-		goto no_memory;
-	page_table = pte_alloc(pmd, address);
-	if (!page_table)
-		goto no_memory;
-	entry = *page_table;
-	if (pte_present(entry))
-		goto is_present;
 	if (!pte_none(entry))
 		goto swap_page;
 	address &= PAGE_MASK;
@@ -865,18 +830,9 @@ sigbus:
 swap_page:
 	do_swap_page(tsk, vma, address, page_table, entry, write_access);
 	return;
-
-no_memory:
-	oom(tsk);
-is_present:
-	return;
 }
 
 /*
- * The above separate functions for the no-page and wp-page
- * cases will go away (they mostly do the same thing anyway),
- * and we'll instead use only a general "handle_mm_fault()".
- *
  * These routines also need to handle stuff like marking pages dirty
  * and/or accessed for architectures that don't do it in hardware (most
  * RISC architectures).  The early dirtying is also good on the i386.
@@ -885,27 +841,30 @@ is_present:
  * with external mmu caches can use to update those (ie the Sparc or
  * PowerPC hashed page tables that act as extended TLBs).
  */
-static inline void handle_pte_fault(struct vm_area_struct * vma, unsigned long address,
+static inline void handle_pte_fault(struct task_struct *tsk,
+	struct vm_area_struct * vma, unsigned long address,
 	int write_access, pte_t * pte)
 {
-	if (!pte_present(*pte)) {
-		do_no_page(current, vma, address, write_access);
+	pte_t entry = *pte;
+
+	if (!pte_present(entry)) {
+		do_no_page(tsk, vma, address, write_access, pte, entry);
 		return;
 	}
-	set_pte(pte, pte_mkyoung(*pte));
+	set_pte(pte, pte_mkyoung(entry));
 	flush_tlb_page(vma, address);
 	if (!write_access)
 		return;
-	if (pte_write(*pte)) {
-		set_pte(pte, pte_mkdirty(*pte));
+	if (pte_write(entry)) {
+		set_pte(pte, pte_mkdirty(entry));
 		flush_tlb_page(vma, address);
 		return;
 	}
-	do_wp_page(current, vma, address, write_access);
+	do_wp_page(tsk, vma, address, write_access, pte);
 }
 
-void handle_mm_fault(struct vm_area_struct * vma, unsigned long address,
-	int write_access)
+void handle_mm_fault(struct task_struct *tsk, struct vm_area_struct * vma,
+	unsigned long address, int write_access)
 {
 	pgd_t *pgd;
 	pmd_t *pmd;
@@ -918,9 +877,9 @@ void handle_mm_fault(struct vm_area_struct * vma, unsigned long address,
 	pte = pte_alloc(pmd, address);
 	if (!pte)
 		goto no_memory;
-	handle_pte_fault(vma, address, write_access, pte);
+	handle_pte_fault(tsk, vma, address, write_access, pte);
 	update_mmu_cache(vma, address, *pte);
 	return;
 no_memory:
-	oom(current);
+	oom(tsk);
 }

@@ -3,8 +3,9 @@
 
 #ifndef __SMP__
 
-typedef struct { } spinlock_t;
-#define SPIN_LOCK_UNLOCKED { }
+/* gcc 2.7.2 can crash initializing an empty structure.  */
+typedef struct { int dummy; } spinlock_t;
+#define SPIN_LOCK_UNLOCKED { 0 }
 
 #define spin_lock_init(lock)			do { } while(0)
 #define spin_lock(lock)				do { } while(0)
@@ -14,7 +15,7 @@ typedef struct { } spinlock_t;
 #define spin_lock_irq(lock)			setipl(7)
 #define spin_unlock_irq(lock)			setipl(0)
 
-#define spin_lock_irqsave(lock, flags)		swpipl(flags,7)
+#define spin_lock_irqsave(lock, flags)		do { (flags) = swpipl(7); } while (0)
 #define spin_unlock_irqrestore(lock, flags)	setipl(flags)
 
 /*
@@ -27,8 +28,8 @@ typedef struct { } spinlock_t;
  * irq-safe write-lock, but readers can get non-irqsafe
  * read-locks.
  */
-typedef struct { } rwlock_t;
-#define RW_LOCK_UNLOCKED { }
+typedef struct { int dummy; } rwlock_t;
+#define RW_LOCK_UNLOCKED { 0 }
 
 #define read_lock(lock)		do { } while(0)
 #define read_unlock(lock)	do { } while(0)
@@ -39,10 +40,10 @@ typedef struct { } rwlock_t;
 #define write_lock_irq(lock)	cli()
 #define write_unlock_irq(lock)	sti()
 
-#define read_lock_irqsave(lock, flags)		save_and_cli(flags)
-#define read_unlock_irqrestore(lock, flags)	restore_flags(flags)
-#define write_lock_irqsave(lock, flags)		save_and_cli(flags)
-#define write_unlock_irqrestore(lock, flags)	restore_flags(flags)
+#define read_lock_irqsave(lock, flags)		do { (flags) = swpipl(7); } while (0)
+#define read_unlock_irqrestore(lock, flags)	setipl(flags)
+#define write_lock_irqsave(lock, flags)		do { (flags) = swpipl(7); } while (0)
+#define write_unlock_irqrestore(lock, flags)	setipl(flags)
 
 #else
 
@@ -89,13 +90,13 @@ l1:
 	"	stq_c	%0,%1\n"
 	"	beq	%0,3f\n"
 	"4:	mb\n"
-	".text 2\n"
+	".section .text2,\"ax\"\n"
 	"2:	ldq	%0,%1\n"
 	"	subq	%2,1,%2\n"
 	"3:	blt	%2,4b\n"
 	"	blbs	%0,2b\n"
 	"	br	1b\n"
-	".text"
+	".previous"
 	: "=r" (tmp),
 	  "=m" (__dummy_lock(lock)),
 	  "=r" (stuck)
@@ -107,7 +108,7 @@ l1:
 		lock->previous = (unsigned long) &&l1;
 }
 
-#define spin_trylock(lock) (!set_bit(0,(lock)))
+#define spin_trylock(lock) (!test_and_set_bit(0,(lock)))
 
 #define spin_lock_irq(lock) \
 	do { __cli(); spin_lock(lock); } while (0)
@@ -116,7 +117,7 @@ l1:
 	do { spin_unlock(lock); __sti(); } while (0)
 
 #define spin_lock_irqsave(lock, flags) \
-	do { swpipl(flags,7); spin_lock(lock); } while (0)
+	do { flags = swpipl(7); spin_lock(lock); } while (0)
 
 #define spin_unlock_irqrestore(lock, flags) \
 	do { spin_unlock(lock); setipl(flags); } while (0)

@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.8 1996/07/10 01:24:20 dm Exp $
+/*
  * r4k_switch.S: R4xx0 specific task switching code.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -9,6 +9,7 @@
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/current.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
@@ -24,8 +25,7 @@
 	.set	mips3
 	.align	5
 	LEAF(r4xx0_resume)
-	lui	t5, %hi(current_set)
-	lw	t0, %lo(current_set)(t5)
+	GET_CURRENT(t0)
 	mfc0	t1, CP0_STATUS
 	nop
 	sw	t1, THREAD_STATUS(t0)
@@ -43,7 +43,6 @@
 1:
 	FPU_SAVE_16EVEN(t0, t1)		# clobbers t1
 2:
-	sw	a0, %lo(current_set)(t5)
 	lw	a3, TASK_MM(a0)
 	lw	a2, THREAD_STATUS(a0)
 	lw	a3, MM_CONTEXT(a3)

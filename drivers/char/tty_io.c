@@ -166,14 +166,11 @@ static int check_tty_count(struct tty_struct *tty, const char *routine)
 {
 #ifdef CHECK_TTY_COUNT
 	struct file *f;
-	int i, count = 0;
+	int count = 0;
 	
-	for (f = first_file, i=0; i<nr_files; i++, f = f->f_next) {
-		if (!f->f_count)
-			continue;
-		if (f->private_data == tty) {
+	for(f = inuse_filps; f; f = f->f_next) {
+		if(f->private_data == tty)
 			count++;
-		}
 	}
 	if (tty->driver.type == TTY_DRIVER_TYPE_PTY &&
 	    tty->driver.subtype == PTY_TYPE_SLAVE &&
@@ -363,16 +360,14 @@ static struct file_operations hung_up_tty_fops = {
 
 void do_tty_hangup(struct tty_struct * tty, struct file_operations *fops)
 {
-	int i;
+
 	struct file * filp;
 	struct task_struct *p;
 
 	if (!tty)
 		return;
 	check_tty_count(tty, "do_tty_hangup");
-	for (filp = first_file, i=0; i<nr_files; i++, filp = filp->f_next) {
-		if (!filp->f_count)
-			continue;
+	for (filp = inuse_filps; filp; filp = filp->f_next) {
 		if (filp->private_data != tty)
 			continue;
 		if (!filp->f_inode)
@@ -405,13 +400,14 @@ void do_tty_hangup(struct tty_struct * tty, struct file_operations *fops)
 		tty->ldisc = ldiscs[N_TTY];
 		tty->termios->c_line = N_TTY;
 		if (tty->ldisc.open) {
-			i = (tty->ldisc.open)(tty);
+			int i = (tty->ldisc.open)(tty);
 			if (i < 0)
 				printk("do_tty_hangup: N_TTY open: error %d\n",
 				       -i);
 		}
 	}
 	
+	read_lock(&tasklist_lock);
  	for_each_task(p) {
 		if ((tty->session > 0) && (p->session == tty->session) &&
 		    p->leader) {
@@ -423,6 +419,8 @@ void do_tty_hangup(struct tty_struct * tty, struct file_operations *fops)
 		if (p->tty == tty)
 			p->tty = NULL;
 	}
+	read_unlock(&tasklist_lock);
+
 	tty->flags = 0;
 	tty->session = 0;
 	tty->pgrp = -1;
@@ -494,9 +492,11 @@ void disassociate_ctty(int on_exit)
 	tty->session = 0;
 	tty->pgrp = -1;
 
+	read_lock(&tasklist_lock);
 	for_each_task(p)
 	  	if (p->session == current->session)
 			p->tty = NULL;
+	read_unlock(&tasklist_lock);
 }
 
 void wait_for_keypress(void)
@@ -838,7 +838,7 @@ static void release_dev(struct file * filp)
 {
 	struct tty_struct *tty, *o_tty;
 	struct termios *tp, *o_tp, *ltp, *o_ltp;
-	struct task_struct **p;
+	struct task_struct *p;
 	int	idx;
 	
 	tty = (struct tty_struct *)filp->private_data;
@@ -972,14 +972,14 @@ static void release_dev(struct file * filp)
 	 * Make sure there aren't any processes that still think this
 	 * tty is their controlling tty.
 	 */
-	for (p = &LAST_TASK ; p > &FIRST_TASK ; --p) {
-		if (*p == 0)
-			continue;
-		if ((*p)->tty == tty)
-			(*p)->tty = NULL;
-		if (o_tty && (*p)->tty == o_tty)
-			(*p)->tty = NULL;
+	read_lock(&tasklist_lock);
+	for_each_task(p) {
+		if (p->tty == tty)
+			p->tty = NULL;
+		if (o_tty && p->tty == o_tty)
+			p->tty = NULL;
 	}
+	read_unlock(&tasklist_lock);
 
 	/*
 	 * Shutdown the current line discipline, and reset it to
@@ -1216,40 +1216,6 @@ static int tty_fasync(struct inode * inode, struct file * filp, int on)
 	return 0;
 }
 
-#if 0
-/*
- * XXX does anyone use this anymore?!?
- */
-static int do_get_ps_info(unsigned long arg)
-{
-	struct tstruct {
-		int flag;
-		int present[NR_TASKS];
-		struct task_struct tasks[NR_TASKS];
-	};
-	struct tstruct *ts = (struct tstruct *)arg;
-	struct task_struct **p;
-	char *c, *d;
-	int i, n = 0;
-	
-	i = verify_area(VERIFY_WRITE, (void *)arg, sizeof(struct tstruct));
-	if (i)
-		return i;
-	for (p = &FIRST_TASK ; p <= &LAST_TASK ; p++, n++)
-		if (*p)
-		{
-			c = (char *)(*p);
-			d = (char *)(ts->tasks+n);
-			for (i=0 ; i<sizeof(struct task_struct) ; i++)
-				put_user(*c++, d++);
-			put_user(1, ts->present+n);
-		}
-		else	
-			put_user(0, ts->present+n);
-	return(0);			
-}
-#endif
-
 static int tiocsti(struct tty_struct *tty, char * arg)
 {
 	char ch, mbz = 0;
@@ -1338,9 +1304,11 @@ static int tiocsctty(struct tty_struct *tty, int arg)
 			 */
 			struct task_struct *p;
 
+			read_lock(&tasklist_lock);
 			for_each_task(p)
 				if (p->tty == tty)
 					p->tty = NULL;
+			read_unlock(&tasklist_lock);
 		} else
 			return -EPERM;
 	}
@@ -1493,7 +1461,7 @@ void do_SAK( struct tty_struct *tty)
 #ifdef TTY_SOFT_SAK
 	tty_hangup(tty);
 #else
-	struct task_struct **p;
+	struct task_struct *p;
 	int session;
 	int		i;
 	struct file	*filp;
@@ -1505,23 +1473,23 @@ void do_SAK( struct tty_struct *tty)
 		tty->ldisc.flush_buffer(tty);
 	if (tty->driver.flush_buffer)
 		tty->driver.flush_buffer(tty);
- 	for (p = &LAST_TASK ; p > &FIRST_TASK ; --p) {
-		if (!(*p))
-			continue;
-		if (((*p)->tty == tty) ||
-		    ((session > 0) && ((*p)->session == session)))
-			send_sig(SIGKILL, *p, 1);
-		else if ((*p)->files) {
+	read_lock(&tasklist_lock);
+	for_each_task(p) {
+		if ((p->tty == tty) ||
+		    ((session > 0) && (p->session == session)))
+			send_sig(SIGKILL, p, 1);
+		else if (p->files) {
 			for (i=0; i < NR_OPEN; i++) {
-				filp = (*p)->files->fd[i];
+				filp = p->files->fd[i];
 				if (filp && (filp->f_op == &tty_fops) &&
 				    (filp->private_data == tty)) {
-					send_sig(SIGKILL, *p, 1);
+					send_sig(SIGKILL, p, 1);
 					break;
 				}
 			}
 		}
 	}
+	read_unlock(&tasklist_lock);
 #endif
 }
 
@@ -1760,6 +1728,9 @@ __initfunc(int tty_init(void))
 #endif
 #ifdef CONFIG_DIGI
 	pcxe_init();
+#endif
+#ifdef CONFIG_DIGIEPCA
+	pc_init();
 #endif
 #ifdef CONFIG_RISCOM8
 	riscom8_init();

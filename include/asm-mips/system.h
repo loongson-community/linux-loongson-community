@@ -15,7 +15,7 @@
 #include <linux/kernel.h>
 
 extern __inline__ void
-sti(void)
+__sti(void)
 {
     __asm__ __volatile__(
 	".set\tnoreorder\n\t"
@@ -39,7 +39,7 @@ sti(void)
  * no nops at all.
  */
 extern __inline__ void
-cli(void)
+__cli(void)
 {
     __asm__ __volatile__(
 	".set\tnoreorder\n\t"
@@ -58,7 +58,7 @@ cli(void)
 	: "$1", "memory");
 }
 
-#define save_flags(x)                    \
+#define __save_flags(x)                  \
 __asm__ __volatile__(                    \
 	".set\tnoreorder\n\t"            \
 	"mfc0\t%0,$12\n\t"               \
@@ -67,7 +67,7 @@ __asm__ __volatile__(                    \
 	: /* no inputs */                \
 	: "memory")
 
-#define save_and_cli(x)                  \
+#define __save_and_cli(x)                \
 __asm__ __volatile__(                    \
 	".set\tnoreorder\n\t"            \
 	".set\tnoat\n\t"                 \
@@ -85,7 +85,7 @@ __asm__ __volatile__(                    \
 	: "$1", "memory")
 
 extern void __inline__
-restore_flags(int flags)
+__restore_flags(int flags)
 {
     __asm__ __volatile__(
 	".set\tnoreorder\n\t"
@@ -98,6 +98,15 @@ restore_flags(int flags)
 	: "r" (flags)
 	: "memory");
 }
+
+/*
+ * Non-SMP versions ...
+ */
+#define sti() __sti()
+#define cli() __cli()
+#define save_flags(x) __save_flags(x)
+#define save_and_cli(x) __save_and_cli(x)
+#define restore_flags(x) __restore_flags(x)
 
 #define sync_mem()                       \
 __asm__ __volatile__(                    \

@@ -19,15 +19,15 @@
  * Only disable interrupt for kernel mode stuff to keep usermode stuff
  * that dares to use kernel include files alive.
  */
-#define __flags unsigned long flags
-#define __cli() cli()
-#define __save_flags(x) save_flags(x)
-#define __restore_flags(x) restore_flags(x)
+#define __bi_flags unsigned long flags
+#define __bi_cli() __cli()
+#define __bi_save_flags(x) __save_flags(x)
+#define __bi_restore_flags(x) __restore_flags(x)
 #else
-#define __flags
-#define __cli()
-#define __save_flags(x)
-#define __restore_flags(x)
+#define __bi_flags
+#define __bi_cli()
+#define __bi_save_flags(x)
+#define __bi_restore_flags(x)
 #endif /* __KERNEL__ */
 
 /*
@@ -35,9 +35,13 @@
  * elements.  With respect to a future 64 bit implementation it is
  * wrong to use long *.  Use u32 * or int *.
  */
-extern __inline__ int set_bit(int nr, void *addr);
-extern __inline__ int clear_bit(int nr, void *addr);
-extern __inline__ int change_bit(int nr, void *addr);
+extern __inline__ void set_bit(int nr, void *addr);
+extern __inline__ void clear_bit(int nr, void *addr);
+extern __inline__ void change_bit(int nr, void *addr);
+extern __inline__ int test_and_set_bit(int nr, void *addr);
+extern __inline__ int test_and_clear_bit(int nr, void *addr);
+extern __inline__ int test_and_change_bit(int nr, void *addr);
+
 extern __inline__ int test_bit(int nr, const void *addr);
 #ifndef __MIPSEB__
 extern __inline__ int find_first_zero_bit (void *addr, unsigned size);
@@ -57,7 +61,42 @@ extern __inline__ unsigned long ffz(unsigned long word);
 /*
  * The following functions will only work for the R4000!
  */
-extern __inline__ int set_bit(int nr, void *addr)
+
+extern __inline__ void set_bit(int nr, void *addr)
+{
+	int	mask, mw;
+
+	addr += ((nr >> 3) & ~3);
+	mask = 1 << (nr & 0x1f);
+	do {
+		mw = load_linked(addr);
+	} while (!store_conditional(addr, mw|mask));
+}
+
+extern __inline__ void clear_bit(int nr, void *addr)
+{
+	int	mask, mw;
+
+	addr += ((nr >> 3) & ~3);
+	mask = 1 << (nr & 0x1f);
+	do {
+		mw = load_linked(addr);
+		}
+	while (!store_conditional(addr, mw & ~mask));
+}
+
+extern __inline__ void change_bit(int nr, void *addr)
+{
+	int	mask, mw;
+
+	addr += ((nr >> 3) & ~3);
+	mask = 1 << (nr & 0x1f);
+	do {
+		mw = load_linked(addr);
+	} while (!store_conditional(addr, mw ^ mask));
+}
+
+extern __inline__ int test_and_set_bit(int nr, void *addr)
 {
 	int	mask, retval, mw;
 
@@ -71,7 +110,7 @@ extern __inline__ int set_bit(int nr, void *addr)
 	return retval;
 }
 
-extern __inline__ int clear_bit(int nr, void *addr)
+extern __inline__ int test_and_clear_bit(int nr, void *addr)
 {
 	int	mask, retval, mw;
 
@@ -86,7 +125,7 @@ extern __inline__ int clear_bit(int nr, void *addr)
 	return retval;
 }
 
-extern __inline__ int change_bit(int nr, void *addr)
+extern __inline__ int test_and_change_bit(int nr, void *addr)
 {
 	int	mask, retval, mw;
 
@@ -102,61 +141,103 @@ extern __inline__ int change_bit(int nr, void *addr)
 
 #else /* MIPS I */
 
-extern __inline__ int set_bit(int nr, void * addr)
+extern __inline__ void set_bit(int nr, void * addr)
 {
-	int	mask, retval;
+	int	mask;
 	int	*a = addr;
-	__flags;
+	__bi_flags;
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__save_flags(flags);
-	__cli();
+	__bi_save_flags(flags);
+	__bi_cli();
+	*a |= mask;
+	__bi_restore_flags(flags);
+}
+
+extern __inline__ void clear_bit(int nr, void * addr)
+{
+	int	mask;
+	int	*a = addr;
+	__bi_flags;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	__bi_save_flags(flags);
+	__bi_cli();
+	*a &= ~mask;
+	__bi_restore_flags(flags);
+}
+
+extern __inline__ void change_bit(int nr, void * addr)
+{
+	int	mask;
+	int	*a = addr;
+	__bi_flags;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	__bi_save_flags(flags);
+	__bi_cli();
+	*a ^= mask;
+	__bi_restore_flags(flags);
+}
+
+extern __inline__ int test_and_set_bit(int nr, void * addr)
+{
+	int	mask, retval;
+	int	*a = addr;
+	__bi_flags;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	__bi_save_flags(flags);
+	__bi_cli();
 	retval = (mask & *a) != 0;
 	*a |= mask;
-	__restore_flags(flags);
+	__bi_restore_flags(flags);
 
 	return retval;
 }
 
-extern __inline__ int clear_bit(int nr, void * addr)
+extern __inline__ int test_and_clear_bit(int nr, void * addr)
 {
 	int	mask, retval;
 	int	*a = addr;
-	__flags;
+	__bi_flags;
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__save_flags(flags);
-	__cli();
+	__bi_save_flags(flags);
+	__bi_cli();
 	retval = (mask & *a) != 0;
 	*a &= ~mask;
-	__restore_flags(flags);
+	__bi_restore_flags(flags);
 
 	return retval;
 }
 
-extern __inline__ int change_bit(int nr, void * addr)
+extern __inline__ int test_and_change_bit(int nr, void * addr)
 {
 	int	mask, retval;
 	int	*a = addr;
-	__flags;
+	__bi_flags;
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__save_flags(flags);
-	__cli();
+	__bi_save_flags(flags);
+	__bi_cli();
 	retval = (mask & *a) != 0;
 	*a ^= mask;
-	__restore_flags(flags);
+	__bi_restore_flags(flags);
 
 	return retval;
 }
 
-#undef __flags
-#undef __cli()
-#undef __save_flags(x)
-#undef __restore_flags(x)
+#undef __bi_flags
+#undef __bi_cli()
+#undef __bi_save_flags(x)
+#undef __bi_restore_flags(x)
 
 #endif /* MIPS I */
 
@@ -443,8 +524,8 @@ found_middle:
 #else /* !(__MIPSEB__) */
 
 /* Native ext2 byte ordering, just collapse using defines. */
-#define ext2_set_bit(nr, addr) set_bit((nr), (addr))
-#define ext2_clear_bit(nr, addr) clear_bit((nr), (addr))
+#define ext2_set_bit(nr, addr) test_and_set_bit((nr), (addr))
+#define ext2_clear_bit(nr, addr) test_and_clear_bit((nr), (addr))
 #define ext2_test_bit(nr, addr) test_bit((nr), (addr))
 #define ext2_find_first_zero_bit(addr, size) find_first_zero_bit((addr), (size))
 #define ext2_find_next_zero_bit(addr, size, offset) \
@@ -454,8 +535,8 @@ found_middle:
  * Bitmap functions for the minix filesystem.
  * FIXME: These assume that Minix uses the native byte/bitorder.
  */
-#define minix_set_bit(nr,addr) set_bit(nr,addr)
-#define minix_clear_bit(nr,addr) clear_bit(nr,addr)
+#define minix_set_bit(nr,addr) test_and_set_bit(nr,addr)
+#define minix_clear_bit(nr,addr) test_and_clear_bit(nr,addr)
 #define minix_test_bit(nr,addr) test_bit(nr,addr)
 #define minix_find_first_zero_bit(addr,size) find_first_zero_bit(addr,size)
 #endif /* __KERNEL__ */

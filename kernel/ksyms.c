@@ -52,10 +52,6 @@
 #include <linux/ctype.h>
 #include <linux/file.h>
 
-#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_IDE_MODULE) || defined(CONFIG_BLK_DEV_HD_MODULE)
-extern struct drive_info_struct drive_info;
-#endif
-
 extern unsigned char aux_device_present, kbd_read_mask;
 
 #ifdef CONFIG_PCI
@@ -124,8 +120,14 @@ EXPORT_SYMBOL(exit_files);
 /* internal kernel memory management */
 EXPORT_SYMBOL(__get_free_pages);
 EXPORT_SYMBOL(free_pages);
+EXPORT_SYMBOL(kmem_find_general_cachep);
+EXPORT_SYMBOL(kmem_cache_create);
+EXPORT_SYMBOL(kmem_cache_shrink);
+EXPORT_SYMBOL(kmem_cache_alloc);
+EXPORT_SYMBOL(kmem_cache_free);
 EXPORT_SYMBOL(kmalloc);
 EXPORT_SYMBOL(kfree);
+EXPORT_SYMBOL(kfree_s);
 EXPORT_SYMBOL(vmalloc);
 EXPORT_SYMBOL(vfree);
 EXPORT_SYMBOL(mem_map);
@@ -134,10 +136,6 @@ EXPORT_SYMBOL(max_mapnr);
 EXPORT_SYMBOL(num_physpages);
 EXPORT_SYMBOL(high_memory);
 EXPORT_SYMBOL(update_vm_cache);
-EXPORT_SYMBOL(kmem_cache_create);
-EXPORT_SYMBOL(kmem_cache_destroy);
-EXPORT_SYMBOL(kmem_cache_alloc);
-EXPORT_SYMBOL(kmem_cache_free);
 
 /* filesystem internal functions */
 EXPORT_SYMBOL(getname);
@@ -150,6 +148,7 @@ EXPORT_SYMBOL(lnamei);
 EXPORT_SYMBOL(open_namei);
 EXPORT_SYMBOL(sys_close);
 EXPORT_SYMBOL(close_fp);
+EXPORT_SYMBOL(insert_file_free);
 EXPORT_SYMBOL(check_disk_change);
 EXPORT_SYMBOL(invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
@@ -214,10 +213,6 @@ EXPORT_SYMBOL(blkdev_release);
 EXPORT_SYMBOL(gendisk_head);
 EXPORT_SYMBOL(resetup_one_dev);
 EXPORT_SYMBOL(unplug_device);
-
-#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_IDE_MODULE) || defined(CONFIG_BLK_DEV_HD_MODULE)
-EXPORT_SYMBOL(drive_info);
-#endif
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);
@@ -300,7 +295,6 @@ EXPORT_SYMBOL(wake_up_interruptible);
 EXPORT_SYMBOL(sleep_on);
 EXPORT_SYMBOL(interruptible_sleep_on);
 EXPORT_SYMBOL(schedule);
-EXPORT_SYMBOL(current_set);
 EXPORT_SYMBOL(jiffies);
 EXPORT_SYMBOL(xtime);
 EXPORT_SYMBOL(do_gettimeofday);

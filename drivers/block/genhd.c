@@ -191,7 +191,7 @@ static void extended_partition(struct gendisk *hd, kdev_t dev)
 	   */
 		bh->b_state = 0;
 
-		if (le16_to_cpu(*(unsigned short *) (bh->b_data+510)) != MSDOS_LABEL_MAGIC)
+		if ((*(unsigned short *) (bh->b_data+510)) != cpu_to_le16(MSDOS_LABEL_MAGIC))
 			goto done;
 
 		p = (struct partition *) (0x1BE + bh->b_data);
@@ -316,7 +316,7 @@ read_mbr:
 #ifdef CONFIG_BLK_DEV_IDE
 check_table:
 #endif
-	if (le16_to_cpu(*(unsigned short *) (0x1fe + data)) != MSDOS_LABEL_MAGIC) {
+	if (*(unsigned short *)  (0x1fe + data) != cpu_to_le16(MSDOS_LABEL_MAGIC)) {
 		brelse(bh);
 		return 0;
 	}
@@ -359,7 +359,7 @@ check_table:
 				goto read_mbr;	/* start over with new MBR */
 			}
 		} else if (sig <= 0x1ae &&
-			   le16_to_cpu(*(unsigned short *)(data + sig)) == 0x55AA &&
+			   *(unsigned short *)(data + sig) == cpu_to_le16(0x55AA) &&
 			   (1 & *(unsigned char *)(data + sig + 2))) {
 			/* DM6 signature in MBR, courtesy of OnTrack */
 			(void) ide_xlate_1024 (dev, 0, " [DM6:MBR]");
@@ -424,7 +424,7 @@ check_table:
 	/*
 	 *  Check for old-style Disk Manager partition table
 	 */
-	if (le16_to_cpu(*(unsigned short *) (data+0xfc)) == MSDOS_LABEL_MAGIC) {
+	if (*(unsigned short *) (data+0xfc) == cpu_to_le16(MSDOS_LABEL_MAGIC)) {
 		p = (struct partition *) (0x1be + data);
 		for (i = 4 ; i < 16 ; i++, current_minor++) {
 			p--;
@@ -573,12 +573,12 @@ static int sun_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sec
 	spc = be16_to_cpu(label->ntrks) * be16_to_cpu(label->nsect);
 	for(i=0; i < 8; i++, p++) {
 		unsigned long st_sector;
+		int num_sectors;
 
-		/* We register all partitions, even if zero size, so that
-		 * the minor numbers end up ok as per SunOS interpretation.
-		 */
 		st_sector = first_sector + be32_to_cpu(p->start_cylinder) * spc;
-		add_partition(hd, current_minor, st_sector, be32_to_cpu(p->num_sectors));
+		num_sectors = be32_to_cpu(p->num_sectors);
+		if (num_sectors)
+			add_partition(hd, current_minor, st_sector, num_sectors);
 		current_minor++;
 	}
 	printk("\n");
@@ -660,10 +660,10 @@ static int sgi_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sec
 #include <asm/byteorder.h>
 #include <linux/affs_hardblocks.h>
 
-static __inline__ __u32
-checksum_block(__u32 *m, int size)
+static __inline__ u32
+checksum_block(u32 *m, int size)
 {
-	__u32 sum = 0;
+	u32 sum = 0;
 
 	while (size--)
 		sum += htonl(*m++);
@@ -671,7 +671,7 @@ checksum_block(__u32 *m, int size)
 }
 
 static int
-amiga_partition(struct gendisk *hd, unsigned int dev, unsigned long first_sector)
+amiga_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector)
 {
 	struct buffer_head	*bh;
 	struct RigidDiskBlock	*rdb;
@@ -686,13 +686,15 @@ amiga_partition(struct gendisk *hd, unsigned int dev, unsigned long first_sector
 
 	for (blk = 0; blk < RDB_ALLOCATION_LIMIT; blk++) {
 		if(!(bh = bread(dev,blk,512))) {
-			printk("Dev %d: unable to read RDB block %d\n",dev,blk);
+			printk("Dev %s: unable to read RDB block %d\n",
+			       kdevname(dev),blk);
 			goto rdb_done;
 		}
-		if (*(__u32 *)bh->b_data == htonl(IDNAME_RIGIDDISK)) {
+		if (*(u32 *)bh->b_data == htonl(IDNAME_RIGIDDISK)) {
 			rdb = (struct RigidDiskBlock *)bh->b_data;
-			if (checksum_block((__u32 *)bh->b_data,htonl(rdb->rdb_SummedLongs) & 0x7F)) {
-				printk("Dev %d: RDB in block %d has bad checksum\n",dev,blk);
+			if (checksum_block((u32 *)bh->b_data,htonl(rdb->rdb_SummedLongs) & 0x7F)) {
+				printk("Dev %s: RDB in block %d has bad checksum\n",
+				       kdevname(dev),blk);
 				brelse(bh);
 				continue;
 			}
@@ -701,14 +703,14 @@ amiga_partition(struct gendisk *hd, unsigned int dev, unsigned long first_sector
 			brelse(bh);
 			for (part = 1; blk > 0 && part <= 16; part++) {
 				if (!(bh = bread(dev,blk,512))) {
-					printk("Dev %d: unable to read partition block %d\n",
-						       dev,blk);
+					printk("Dev %s: unable to read partition block %d\n",
+						       kdevname(dev),blk);
 					goto rdb_done;
 				}
 				pb  = (struct PartitionBlock *)bh->b_data;
 				blk = htonl(pb->pb_Next);
 				if (pb->pb_ID == htonl(IDNAME_PARTITION) && checksum_block(
-				    (__u32 *)pb,htonl(pb->pb_SummedLongs) & 0x7F) == 0 ) {
+				    (u32 *)pb,htonl(pb->pb_SummedLongs) & 0x7F) == 0 ) {
 					
 					/* Tell Kernel about it */
 
