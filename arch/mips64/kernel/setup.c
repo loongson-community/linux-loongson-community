@@ -41,7 +41,9 @@
 #include <asm/sn/sn0/addrs.h>
 #endif
 
-struct cpuinfo_mips boot_cpu_data;
+#ifndef CONFIG_SMP
+struct cpuinfo_mips cpu_data[1];
+#endif
 
 #ifdef CONFIG_VT
 struct screen_info screen_info;

@@ -25,7 +25,7 @@
 #include <asm/reg.h>
 #include <asm/system.h>
 
-#if (defined(CONFIG_SGI_IP27) && defined(CONFIG_SMP))
+#if (defined(CONFIG_SGI_IP27))
 #include <asm/sn/types.h>
 #endif
 
@@ -37,7 +37,7 @@ struct cpuinfo_mips {
 	unsigned long pgtable_cache_sz;
 	unsigned long last_asn;
 	unsigned int irq_count, bh_count;
-#if (defined(CONFIG_SGI_IP27) && defined(CONFIG_SMP))
+#if defined(CONFIG_SGI_IP27)
 	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
 	nasid_t		p_nasid;	/* my node ID in numa-as-id-space */
 	unsigned char	p_slice;	/* Physical position on node board */
@@ -54,15 +54,13 @@ extern char dedicated_iv_available;	/* some embedded MIPS like Nevada */
 extern char vce_available;		/* Supports VCED / VCEI exceptions */
 extern char mips4_available;		/* CPU has MIPS IV ISA or better */
 
-extern struct cpuinfo_mips boot_cpu_data;
 extern unsigned int vced_count, vcei_count;
+extern struct cpuinfo_mips cpu_data[];
 
 #ifdef __SMP__
-extern struct cpuinfo_mips cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 #else
-#define cpu_data &boot_cpu_data
-#define current_cpu_data boot_cpu_data
+#define current_cpu_data cpu_data[0]
 #endif
 
 /*

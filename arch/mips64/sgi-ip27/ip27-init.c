@@ -166,11 +166,9 @@ void alloc_cpupda(int i)
 	node = get_cpu_cnode(i);
 	nasid = COMPACT_TO_NASID_NODEID(node);
 
-#ifdef CONFIG_SMP
 	cputonasid(i) = nasid;
 	cputocnode(i) = node;
 	cputoslice(i) = get_cpu_slice(i);
-#endif
 }
 
 int cpu_enabled(cpuid_t cpu)
