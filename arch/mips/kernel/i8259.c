@@ -295,7 +295,7 @@ void __init init_8259A(int auto_eoi)
  * IRQ2 is cascade interrupt to second interrupt controller
  */
 static struct irqaction irq2 = {
-	no_action, 0, 0, "cascade", NULL, NULL
+	no_action, 0, CPU_MASK_NONE, "cascade", NULL, NULL
 };
 
 static struct resource pic1_io_resource = {
