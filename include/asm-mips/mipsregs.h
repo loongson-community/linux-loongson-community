@@ -876,7 +876,6 @@ static inline void set_taghi(unsigned long val)
 		: : "Jr" (val));
 }
 
-/* CP0_CONTEXT register */
 static inline unsigned long get_context(void)
 {
 	unsigned long val;
