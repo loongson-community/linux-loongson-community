@@ -68,6 +68,16 @@ typedef struct {
 #error cpumask macros only defined for 128p kernels
 #endif
 
+struct call_data_struct {
+	void		(*func)(void *);
+	void		*info;
+	atomic_t	started;
+	atomic_t	finished;
+	int		wait;
+};
+
+extern struct call_data_struct *call_data;
+
 extern cpumask_t cpu_online_map;
 
 #endif /* __ASM_SMP_H */

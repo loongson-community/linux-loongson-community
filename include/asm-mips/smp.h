@@ -42,14 +42,19 @@
 
 #define NO_PROC_ID	(-1)
 
-struct smp_fn_call_struct {
-	spinlock_t lock;
-	atomic_t   finished;
-	void (*fn)(void *);
-	void *data;
+struct call_data_struct {
+	void		(*func)(void *);
+	void		*info;
+	atomic_t	started;
+	atomic_t	finished;
+	int		wait;
 };
 
-extern struct smp_fn_call_struct smp_fn_call;
+extern struct call_data_struct *call_data;
+
+/* ipi types that boards must handle, one bit per type   */
+#define SMP_RESCHEDULE_YOURSELF	0x1	/* XXX braindead */
+#define SMP_CALL_FUNCTION	0x2
 
 #if (NR_CPUS <= _MIPS_SZLONG)
 
