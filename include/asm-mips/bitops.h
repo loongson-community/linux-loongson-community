@@ -132,7 +132,7 @@ change_bit(int nr, volatile void *addr)
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0, %1\t\t# __change_bit\n\t"
+		"1:\tll\t%0, %1\t\t# change_bit\n\t"
 		"xor\t%0, %2\n\t"
 		"sc\t%0, %1\n\t"
 		"beqz\t%0, 1b"
@@ -305,7 +305,7 @@ extern __inline__ int __test_and_change_bit(int nr, volatile void * addr)
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
 	retval = (mask & *a) != 0;
-	*a ^= ~mask;
+	*a ^= mask;
 
 	return retval;
 }
@@ -548,7 +548,7 @@ extern __inline__ int __test_and_change_bit(int nr, volatile void * addr)
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
 	retval = (mask & *a) != 0;
-	*a ^= ~mask;
+	*a ^= mask;
 
 	return retval;
 }
