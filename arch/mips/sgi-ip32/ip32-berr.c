@@ -15,7 +15,7 @@
 #include <asm/ptrace.h>
 #include <asm/tlbdebug.h>
 
-int be_ip32_handler(struct pt_regs *regs, int is_fixup)
+int ip32_be_handler(struct pt_regs *regs, int is_fixup)
 {
 	int data = regs->cp0_cause & 4;
 
@@ -29,7 +29,7 @@ int be_ip32_handler(struct pt_regs *regs, int is_fixup)
 	force_sig(SIGBUS, current);
 }
 
-void __init bus_error_init(void)
+void __init ip32_be_init(void)
 {
-	be_board_handler = be_ip32_handler;
+	board_be_handler = ip32_be_handler;
 }

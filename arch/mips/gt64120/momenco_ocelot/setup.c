@@ -83,7 +83,6 @@ static char reset_reason;
 #define ENTRYLO(x) ((pte_val(pfn_pte((x) >> PAGE_SHIFT, PAGE_KERNEL_UNCACHED)) >> 6)|1)
 
 static void __init setup_l3cache(unsigned long size);
-void __init bus_error_init(void) { /* nothing */ }
 
 /* setup code for a handoff from a version 1 PMON 2000 PROM */
 void PMON_v1_setup()

@@ -73,8 +73,6 @@ extern void pcisetup(void);
 extern void edhac_init(void *, void *, void *);
 extern void addrflt_init(void);
 
-void __init bus_error_init(void) { /* nothing */ }
-
 struct lasat_misc lasat_misc_info[N_MACHTYPES] = {
 	{(void *)KSEG1ADDR(0x1c840000), (void *)KSEG1ADDR(0x1c800000), 2},
 	{(void *)KSEG1ADDR(0x11080000), (void *)KSEG1ADDR(0x11000000), 6}

@@ -80,13 +80,6 @@ static void __init jazz_irq_setup(void)
 	i8259_setup_irq(2, &irq2);
 }
 
-void __init bus_error_init(void)
-{
-}
-
-
-void __init bus_error_init(void) { /* nothing */ }
-
 
 void __init jazz_setup(void)
 {

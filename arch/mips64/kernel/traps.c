@@ -7,7 +7,7 @@
  * Copyright (C) 1995, 1996 Paul M. Antoine
  * Copyright (C) 1998 Ulf Carlsson
  * Copyright (C) 1999 Silicon Graphics, Inc.
- * Copyright (C) 2002  Maciej W. Rozycki
+ * Copyright (C) 2002, 2003  Maciej W. Rozycki
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -59,7 +59,8 @@ extern int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp,
 
 void fpu_emulator_init_fpu(void);
 
-int (*be_board_handler)(struct pt_regs *regs, int is_fixup);
+void (*board_be_init)(void);
+int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
 
 /*
  * These constant is for searching for possible module text segments.
@@ -366,8 +367,8 @@ asmlinkage void do_be(struct pt_regs *regs)
 	if (fixup)
 		action = MIPS_BE_FIXUP;
 
-	if (be_board_handler)
-		action = be_board_handler(regs, fixup != 0);
+	if (board_be_handler)
+		action = board_be_handler(regs, fixup != 0);
 
 	switch (action) {
 	case MIPS_BE_DISCARD:
@@ -699,7 +700,8 @@ void __init trap_init(void)
 	 * by external hardware.  Therefore these two exceptions
 	 * may have board specific handlers.
 	 */
-	bus_error_init();
+	if (board_be_init)
+		board_be_init();
 
 	set_except_vector(1, __xtlb_mod);
 	set_except_vector(2, __xtlb_tlbl);

@@ -80,10 +80,6 @@ extern void rtc_ds1386_init(unsigned long base);
 
 extern void (*board_timer_setup) (struct irqaction * irq);
 
-void __init bus_error_init(void)
-{
-}
-
 static void __init ddb_timer_init(struct irqaction *irq)
 {
 	/* set the clock to 1 Hz */

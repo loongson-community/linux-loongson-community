@@ -54,10 +54,6 @@ const char *get_system_type(void)
 	return "MIPS Atlas";
 }
 
-void __init bus_error_init(void)
-{
-}
-
 extern void mips_time_init(void);
 extern void mips_timer_setup(struct irqaction *irq);
 extern unsigned long mips_rtc_get_time(void);

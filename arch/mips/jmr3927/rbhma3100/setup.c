@@ -185,10 +185,6 @@ unsigned long jmr3927_do_gettimeoffset(void)
 }
 
 
-void __init bus_error_init(void)
-{
-}
-
 #if defined(CONFIG_BLK_DEV_INITRD)
 extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
 #endif

@@ -71,7 +71,10 @@ void __init ip22_setup(void)
 #ifdef CONFIG_KGDB
 	char *kgdb_ttyd;
 #endif
+
+	board_be_init = ip22_be_init;
 	sgitime_init();
+
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the
 	 * boardID and whether this is a Guiness or a FullHouse machine.

@@ -113,10 +113,6 @@ struct {
 #endif
 
 
-void __init bus_error_init(void)
-{
-}
-
 void __init it8172_init_ram_resource(unsigned long memsize)
 {
 	it8172_resources.ram.end = memsize;

@@ -73,9 +73,6 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 }
 
 
-void __init bus_error_init(void) { /* nothing */ }
-
-
 void __init cobalt_setup(void)
 {
 

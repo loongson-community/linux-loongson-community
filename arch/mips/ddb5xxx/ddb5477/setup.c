@@ -222,10 +222,6 @@ void __init ddb_setup(void)
 #endif
 }
 
-void __init bus_error_init(void)
-{
-}
-
 static void __init ddb5477_board_init(void)
 {
 #ifdef CONFIG_PC_KEYB

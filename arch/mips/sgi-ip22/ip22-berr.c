@@ -68,7 +68,7 @@ static void print_buserr(void)
  * and then clear the interrupt when this happens.
  */
 
-void be_ip22_interrupt(int irq, struct pt_regs *regs)
+void ip22_be_interrupt(int irq, struct pt_regs *regs)
 {
 	save_and_clear_buserr();
 	print_buserr();
@@ -76,7 +76,7 @@ void be_ip22_interrupt(int irq, struct pt_regs *regs)
 	      regs->cp0_epc, regs->regs[31]);
 }
 
-int be_ip22_handler(struct pt_regs *regs, int is_fixup)
+int ip22_be_handler(struct pt_regs *regs, int is_fixup)
 {
 	save_and_clear_buserr();
 	if (is_fixup)
@@ -85,7 +85,7 @@ int be_ip22_handler(struct pt_regs *regs, int is_fixup)
 	return MIPS_BE_FATAL;
 }
 
-void __init bus_error_init(void)
+void __init ip22_be_init(void)
 {
-	be_board_handler = be_ip22_handler;
+	board_be_handler = ip22_be_handler;
 }

@@ -139,9 +139,6 @@ static struct {
 };
 
 
-void __init bus_error_init(void) { /* nothing */ }
-
-
 static void ddb5476_board_init(void);
 extern void ddb5476_irq_setup(void);
 extern void (*irq_setup)(void);

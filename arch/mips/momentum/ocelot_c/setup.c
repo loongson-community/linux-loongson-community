@@ -82,8 +82,6 @@ static char reset_reason;
 
 #define ENTRYLO(x) ((pte_val(mk_pte_phys((x), PAGE_KERNEL_UNCACHED)) >> 6)|1)
 
-void __init bus_error_init(void) { /* nothing */ }
-
 /* setup code for a handoff from a version 2 PMON 2000 PROM */
 void PMON_v2_setup(void)
 {

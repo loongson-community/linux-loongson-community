@@ -55,10 +55,6 @@ const char *get_system_type(void)
 }
 
 
-void __init bus_error_init(void)
-{
-}
-
 void __init swarm_timer_setup(struct irqaction *irq)
 {
         /*

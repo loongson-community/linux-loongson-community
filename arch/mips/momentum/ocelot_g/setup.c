@@ -90,8 +90,6 @@ static char reset_reason;
 
 static void __init setup_l3cache(unsigned long size);
 
-void __init bus_error_init(void) { /* nothing */ }
-
 /* setup code for a handoff from a version 2 PMON 2000 PROM */
 void PMON_v2_setup(void)
 {

@@ -82,10 +82,6 @@ static __init void nino_timer_setup(struct irqaction *irq)
 	setup_irq(0, irq);
 }
 
-void __init bus_error_init(void)
-{
-}
-
 void __init nino_setup(void)
 {
 	extern void nino_irq_setup(void);

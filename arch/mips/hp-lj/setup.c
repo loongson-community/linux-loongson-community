@@ -123,10 +123,6 @@ static void hplj_halt(void)
    while(1);
 }
 
-void __init bus_error_init(void)
-{
-}
-
 void __init hp_setup(void)
 {
 #ifdef CONFIG_PCI

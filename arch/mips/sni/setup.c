@@ -49,9 +49,6 @@ static void __init sni_rm200_pci_timer_setup(struct irqaction *irq)
 }
 
 
-void __init bus_error_init(void) { /* nothing */ }
-
-
 extern unsigned char sni_map_isa_cache;
 
 /*

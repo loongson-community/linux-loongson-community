@@ -168,8 +168,6 @@ int tx4927_pci66 = 0;		/* 0:auto */
 
 char *toshiba_name = "";
 
-void __init bus_error_init(void) { /* nothing */ }
-
 #ifdef CONFIG_PCI
 void tx4927_dump_pcic_settings(void)
 {

@@ -45,10 +45,6 @@ const char *get_system_type(void)
 	return "MIPS SEAD";
 }
 
-void __init bus_error_init(void)
-{
-}
-
 void __init sead_setup(void)
 {
 	char *argptr;

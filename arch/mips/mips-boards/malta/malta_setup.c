@@ -77,10 +77,6 @@ const char *get_system_type(void)
 	return "MIPS Malta";
 }
 
-void __init bus_error_init(void)
-{
-}
-
 void __init malta_setup(void)
 {
 #ifdef CONFIG_KGDB
