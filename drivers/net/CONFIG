@@ -1,0 +1,62 @@
+#
+# This file is used for selecting non-standard netcard options, and
+# need not be modified for typical use.
+#
+# Drivers are *not* selected in this file, but rather with files
+# automatically generated during the top-level kernel configuration.
+#
+# Special options supported, indexed by their 'config' name:
+#
+#  CONFIG_WD80x3	The Western Digital (SMC) WD80x3 driver
+#	WD_SHMEM=xxx	Forces the address of the shared memory
+#	WD_no_mapout	Don't map out the shared memory (faster, but
+#			your machine may not warm-boot).
+#  CONFIG_NE2000	The NE-[12]000 clone driver.
+#	PACKETBUF_MEMSIZE  Allows an extra-large packet buffer to be
+#			used.  Usually pointless under Linux.
+#	show_all_SAPROM  Show the entire address PROM, not just the
+#			ethernet address, during boot.
+#	rw_bugfix	Patch an obscure bug with a version of the 8390.
+#  CONFIG_HPLAN		The HP-LAN driver (for 8390-based boards only).
+#	rw_bugfix	Fix the same obscure bug.
+#  CONFIG_EL2		The 3c503 EtherLink II driver
+#	EL2_AUI		Default to the AUI port instead of the BNC port
+#	no_probe_nonshared_memory  Don't probe for programmed-I/O boards.
+#	EL2MEMTEST	Test shared memory at boot-time.
+#  CONFIG_PLIP		The Crynwr-protocol PL/IP driver
+#	INITIALTIMEOUTFACTOR	Timing parameters.
+#	MAXTIMEOUTFACTOR
+#  DE600		The D-Link DE-600 Portable Ethernet Adaptor.
+#	  DE600_IO	The DE600 I/O-port address (0x378 == default)
+#	  DE600_IRQ	The DE600 IRQ number to use (IRQ7 == default)
+#	  DE600_DEBUG	Enable or disable DE600 debugging (default off)
+#  DE620		The D-Link DE-600 Portable Ethernet Adaptor.
+#	  DE620_IO	The DE620 I/O-port address (0x378 == default)
+#	  DE620_IRQ	The DE620 IRQ number to use (IRQ7 == default)
+#	  DE620_DEBUG	Enable or disable DE600 debugging (default off)
+#  DEPCA		The DIGITAL series of LANCE based Ethernet Cards
+#			(DEPCA, DE100, DE200/1/2, DE210, DE422 (EISA))
+#  EWRK3		The DIGITAL series of AT Ethernet Cards (DE203/4/5)
+#       EWRK3_DEBUG	Set the desired debug level
+#
+
+# The following options exist, but cannot be set in this file.
+#  lance.c
+#	LANCE_DMA	Change the default DMA to other than DMA5.
+#  8390.c
+#	NO_PINGPONG	Disable ping-pong transmit buffers.
+
+
+# Most drivers also have a *_DEBUG setting that may be adjusted.
+# The 8390 drivers share the EI_DEBUG setting.
+
+# General options for Space.c
+OPTS		= # -DETH0_ADDR=0x300 -DETH0_IRQ=11
+
+WD_OPTS		= #-DWD_SHMEM=0xDD000
+EL2_OPTS	= #-DEL2_AUI
+NE_OPTS		=
+HP_OPTS		=
+PLIP_OPTS	=
+DEPCA_OPTS	= -DDEPCA_DEBUG=1
+EWRK3_OPTS	= -DEWRK3_DEBUG=1

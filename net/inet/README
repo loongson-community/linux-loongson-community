@@ -1,0 +1,21 @@
+Changes for NET3.017
+
+This is mostly small stuff as follows:
+
+o	accept()ed socket don't end up with an invalid sk->socket and give bogus
+	netstat output.
+o	FASYNC/SIGIO now works with sockets.
+o	Fixed the permissions on F_SETOWN for all. Its now as broken/working
+	as other systems. Really we need something like a 32bit generation
+	number on processes.
+o	ARP allows proxy for whole networks (a la cisco routers)
+o	TCP sendto() reports ENOTCONN in the right cases
+o	Removed some surplus uncommented code from tcp.c
+o	Fixed protocol violation during closedown in tcp.c
+	[Still not got the window < MSS bug fix included]
+
+Fixes for 1.1.58
+
+o	non blocking connect fail gets the error code right.
+o	select() not reporting read ok after an urgent read fixed.
+
