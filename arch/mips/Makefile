@@ -593,7 +593,11 @@ endif
 vmlinux.ecoff vmlinux.rm200: vmlinux
 	+@$(call makeboot,$@)
 
+vmlinux.srec: vmlinux
+	+@$(call makeboot,$@)
+
 CLEAN_FILES += vmlinux.ecoff \
+	       vmlinux.srec \
 	       vmlinux.rm200.tmp \
 	       vmlinux.rm200
 

@@ -22,7 +22,7 @@ endif
 drop-sections	= .reginfo .mdebug .comment .note
 strip-flags	= $(addprefix --remove-section=,$(drop-sections))
 
-all: vmlinux.ecoff addinitrd
+all: vmlinux.ecoff vmlinux.srec addinitrd
 
 vmlinux.rm200: vmlinux
 	$(OBJCOPY) \
@@ -37,6 +37,9 @@ vmlinux.ecoff:	$(obj)/elf2ecoff vmlinux
 $(obj)/elf2ecoff: $(obj)/elf2ecoff.c
 	$(HOSTCC) -o $@ $^
 
+vmlinux.srec:   vmlinux
+	$(OBJCOPY) -S -O srec $(strip-flags) vmlinux $(obj)/vmlinux.srec
+
 $(obj)/addinitrd: $(obj)/addinitrd.c
 	$(HOSTCC) -o $@ $^
 
@@ -46,6 +49,7 @@ archhelp:
 CLEAN_FILES += addinitrd \
 	       elf2ecoff \
 	       vmlinux.ecoff \
+	       vmlinux.srec \
 	       vmlinux.rm200 \
 	       zImage.tmp \
 	       zImage
