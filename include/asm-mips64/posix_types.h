@@ -66,7 +66,7 @@ typedef int		__kernel_time_t32;
 typedef int		__kernel_suseconds_t32;
 typedef int		__kernel_clock_t32;
 typedef int		__kernel_daddr_t32;
-typedef char *		__kernel_caddr_t32;
+typedef unsigned int	__kernel_caddr_t32;
 typedef __kernel_fsid_t	__kernel_fsid_t32;
 
 #if defined(__KERNEL__) || !defined(__GLIBC__) || (__GLIBC__ < 2)
