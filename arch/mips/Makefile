@@ -102,7 +102,7 @@ AFLAGS		+= $(GCCFLAGS)
 ifdef CONFIG_ALGOR_P4032
 CORE_FILES    += arch/mips/algor/algor.o
 SUBDIRS       += arch/mips/algor
-#LOADADDR      += 0x80000000
+LOADADDR      += 0x80000000
 endif
 
 #
@@ -196,7 +196,7 @@ endif
 ifdef CONFIG_MIPS_EV64120
 LIBS          += arch/mips/galileo-boards/ev64120/ev64120.o
 SUBDIRS       += arch/mips/galileo-boards/ev64120
-LINKSCRIPT    = arch/mips/galileo-boards/ev64120/ld.script.galileo
+LOADADDR      += 0x80100000
 endif
 
 #
@@ -223,18 +223,12 @@ endif
 # error messages during linking.  Select a default linkscript if
 # none has been choosen above.
 #
-ifndef LINKSCRIPT
 vmlinux: arch/$(ARCH)/ld.script
 
-arch/$(ARCH)/ld.script: arch/$(ARCH)/ld.script.in
-	sed 's/@@OUTPUT_FORMAT@@/$(output-format)/' <$< >$@
-LINKSCRIPT    = arch/mips/ld.script
-endif
-LINKFLAGS     += -T $(word 1,$(LINKSCRIPT))
-
-ifdef LOADADDR
-LINKFLAGS     += -Ttext $(word 1,$(LOADADDR))
-endif
+arch/$(ARCH)/ld.script: arch/$(ARCH)/ld.script.in arch/$(ARCH)/Makefile
+	sed -e 's/@@OUTPUT_FORMAT@@/$(output-format)/' \
+	    -e 's/@@LOADADDR@@/$(LOADADDR)/' <$< >$@
+LINKFLAGS	+= -T arch/$(ARCH)/ld.script
 
 HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 
