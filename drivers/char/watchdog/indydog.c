@@ -69,7 +69,7 @@ static void indydog_ping(void)
  */
 static int indydog_open(struct inode *inode, struct file *file)
 {
-	if(indydog_alive)
+	if (indydog_alive)
 		return -EBUSY;
 
 	if (nowayout)
@@ -120,17 +120,18 @@ static int indydog_ioctl(struct inode *inode, struct file *file,
 {
 	int options, retval = -EINVAL;
 	static struct watchdog_info ident = {
-		.options =		WDIOF_KEEPALIVEPING |
-					WDIOF_MAGICCLOSE,
-		.firmware_version =	0,
-		identity: "Hardware Watchdog for SGI IP22",
+		.options		= WDIOF_KEEPALIVEPING |
+					  WDIOF_MAGICCLOSE,
+		.firmware_version	= 0,
+		.identity		= "Hardware Watchdog for SGI IP22",
 	};
 
 	switch (cmd) {
 		default:
 			return -ENOIOCTLCMD;
 		case WDIOC_GETSUPPORT:
-			if(copy_to_user((struct watchdog_info *)arg, &ident, sizeof(ident)))
+			if (copy_to_user((struct watchdog_info *)arg,
+					 &ident, sizeof(ident)))
 				return -EFAULT;
 			return 0;
 		case WDIOC_GETSTATUS:
@@ -146,14 +147,12 @@ static int indydog_ioctl(struct inode *inode, struct file *file,
 			if (get_user(options, (int *)arg))
 				return -EFAULT;
 
-			if (options & WDIOS_DISABLECARD)
-			{
+			if (options & WDIOS_DISABLECARD) {
 				indydog_stop();
 				retval = 0;
 			}
 
-			if (options & WDIOS_ENABLECARD)
-			{
+			if (options & WDIOS_ENABLECARD) {
 				indydog_start();
 				retval = 0;
 			}
@@ -165,49 +164,48 @@ static int indydog_ioctl(struct inode *inode, struct file *file,
 
 static int indydog_notify_sys(struct notifier_block *this, unsigned long code, void *unused)
 {
-	if (code==SYS_DOWN || code==SYS_HALT) {
-		/* Turn the WDT off */
-		indydog_stop();
-	}
+	if (code == SYS_DOWN || code == SYS_HALT)
+		indydog_stop();		/* Turn the WDT off */
 
 	return NOTIFY_DONE;
 }
 
 static struct file_operations indydog_fops = {
-	owner:		THIS_MODULE,
-	write:		indydog_write,
-	ioctl:		indydog_ioctl,
-	open:		indydog_open,
-	release:	indydog_release,
+	.owner		= THIS_MODULE,
+	.write		= indydog_write,
+	.ioctl		= indydog_ioctl,
+	.open		= indydog_open,
+	.release	= indydog_release,
 };
 
 static struct miscdevice indydog_miscdev = {
-	minor:		WATCHDOG_MINOR,
-	name:		"watchdog",
-	fops:		&indydog_fops,
+	.minor		= WATCHDOG_MINOR,
+	.name		= "watchdog",
+	.fops		= &indydog_fops,
 };
 
 static struct notifier_block indydog_notifier = {
 	.notifier_call = indydog_notify_sys,
 };
 
-static char banner[] __initdata = KERN_INFO PFX "Hardware Watchdog Timer for SGI IP22: 0.3\n";
+static char banner[] __initdata =
+	KERN_INFO PFX "Hardware Watchdog Timer for SGI IP22: 0.3\n";
 
 static int __init watchdog_init(void)
 {
-	int ret = misc_register(&indydog_miscdev);
+	int ret;
 
 	ret = register_reboot_notifier(&indydog_notifier);
 	if (ret) {
 		printk(KERN_ERR PFX "cannot register reboot notifier (err=%d)\n",
-		       ret);
+			ret);
 		return ret;
 	}
 
 	ret = misc_register(&indydog_miscdev);
 	if (ret) {
 		printk(KERN_ERR PFX "cannot register miscdev on minor=%d (err=%d)\n",
-		        WATCHDOG_MINOR, ret);
+			WATCHDOG_MINOR, ret);
 		unregister_reboot_notifier(&indydog_notifier);
 		return ret;
 	}
