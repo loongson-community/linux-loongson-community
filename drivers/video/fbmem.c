@@ -129,6 +129,8 @@ extern int radeonfb_init(void);
 extern int radeonfb_setup(char*);
 extern int e1355fb_init(void);
 extern int e1355fb_setup(char*);
+extern int au1100fb_init(void);
+extern int au1100fb_setup(char*);
 extern int pvr2fb_init(void);
 extern int pvr2fb_setup(char*);
 extern int sstfb_init(void);
@@ -300,6 +302,9 @@ static struct {
 #ifdef CONFIG_FB_MAXINE
 	{ "maxinefb", maxinefb_init, NULL },
 #endif
+#ifdef CONFIG_FB_AU1100
+	{ "au1100fb", au1100fb_init, au1100fb_setup },
+#endif 
 
 
 	/*
