@@ -19,6 +19,7 @@
 #include <asm/processor.h>
 #include <asm/sn/launch.h>
 #include <asm/sn/sn_private.h>
+#include <asm/sn/sn0/ip27.h>
 
 #define CPU_NONE		(cpuid_t)-1
 
@@ -332,6 +333,7 @@ void per_cpu_init(void)
 		if (mips4_available)
 			set_cp0_status(ST0_XX, ST0_XX);
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
+		set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
 	}
 #if 0
 	install_cpuintr(cpu);
