@@ -48,11 +48,7 @@ extern void (*flush_icache_range)(unsigned long start, unsigned long end);
 
 
 extern void (*flush_cache_sigtramp)(unsigned long addr);
-#ifdef CONFIG_VTAG_ICACHE
 extern void (*flush_icache_all)(void);
-#else
-#define flush_icache_all()		do { } while(0)
-#endif
 extern void (*flush_data_cache_page)(unsigned long addr);
 
 /*
