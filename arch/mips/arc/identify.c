@@ -7,7 +7,7 @@
  * 
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id$
+ * $Id: identify.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -22,14 +22,17 @@ struct smatch {
     char *name;
     int group;
     int type;
+    int flags;
 };
 
 static struct smatch mach_table[] = {
-    { "SGI-IP22", MACH_GROUP_SGI, MACH_SGI_INDY },
-    { "Microsoft-Jazz", MACH_GROUP_JAZZ, MACH_MIPS_MAGNUM_4000 },
-    { "PICA-61", MACH_GROUP_JAZZ, MACH_ACER_PICA_61 },
-    { "RM200PCI", MACH_GROUP_SNI_RM, MACH_SNI_RM200_PCI }
+    { "SGI-IP22", MACH_GROUP_SGI, MACH_SGI_INDY, PROM_FLAG_ARCS },
+    { "Microsoft-Jazz", MACH_GROUP_JAZZ, MACH_MIPS_MAGNUM_4000, 0 },
+    { "PICA-61", MACH_GROUP_JAZZ, MACH_ACER_PICA_61, 0 },
+    { "RM200PCI", MACH_GROUP_SNI_RM, MACH_SNI_RM200_PCI, 0 }
 };
+
+int prom_flags;
 
 static struct smatch * __init string_to_mach(char *s)
 {
@@ -60,5 +63,6 @@ void __init prom_identify_arch(void)
 
     mips_machgroup = mach->group;
     mips_machtype = mach->type;
+    prom_flags = mach->flags;
 }
 
