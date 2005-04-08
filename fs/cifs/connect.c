@@ -470,7 +470,7 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 }
 
 static void * 
-cifs_kcalloc(size_t size, int type)
+cifs_kcalloc(size_t size, unsigned int __nocast type)
 {
 	void *addr;
 	addr = kmalloc(size, type);
@@ -543,9 +543,18 @@ cifs_parse_mount_options(char *options, const char *devname,struct smb_vol *vol)
 				return 1;
 			}
 		} else if (strnicmp(data, "pass", 4) == 0) {
-			if (!value || !*value) {
+			if (!value) {
 				vol->password = NULL;
 				continue;
+			} else if(value[0] == 0) {
+				/* check if string begins with double comma
+				   since that would mean the password really
+				   does start with a comma, and would not
+				   indicate an empty string */
+				if(value[1] != separator[0]) {
+					vol->password = NULL;
+					continue;
+				}
 			}
 			temp_len = strlen(value);
 			/* removed password length check, NTLM passwords
@@ -560,15 +569,20 @@ cifs_parse_mount_options(char *options, const char *devname,struct smb_vol *vol)
 
 			/* NB: password legally can have multiple commas and
 			the only illegal character in a password is null */
-				
+
 			if ((value[temp_len] == 0) && (value[temp_len+1] == separator[0])) {
 				/* reinsert comma */
 				value[temp_len] = separator[0];
 				temp_len+=2;  /* move after the second comma */
 				while(value[temp_len] != 0)  {
-					if((value[temp_len] == separator[0]) && (value[temp_len+1] != separator[0])) {
-						/* single comma indicating start of next parm */
-						break;
+					if (value[temp_len] == separator[0]) {
+						if (value[temp_len+1] == separator[0]) {
+							temp_len++; /* skip second comma */
+						} else { 
+						/* single comma indicating start
+							 of next parm */
+							break;
+						}
 					}
 					temp_len++;
 				}
@@ -576,10 +590,12 @@ cifs_parse_mount_options(char *options, const char *devname,struct smb_vol *vol)
 					options = NULL;
 				} else {
 					value[temp_len] = 0;
-					/* move options to point to start of next parm */
+					/* point option to start of next parm */
 					options = value + temp_len + 1;
 				}
-				/* go from value to (value + temp_len) condensing double commas to singles */
+				/* go from value to value + temp_len condensing 
+				double commas to singles. Note that this ends up
+				allocating a few bytes too many, which is ok */
 				vol->password = cifs_kcalloc(temp_len, GFP_KERNEL);
 				for(i=0,j=0;i<temp_len;i++,j++) {
 					vol->password[j] = value[i];
@@ -588,8 +604,7 @@ cifs_parse_mount_options(char *options, const char *devname,struct smb_vol *vol)
 						i++;
 					}
 				}
-				/* value[temp_len] is zeroed above so
-					 vol->password[temp_len] guaranteed to be null */
+				vol->password[j] = 0;
 			} else {
 				vol->password = cifs_kcalloc(temp_len + 1, GFP_KERNEL);
 				strcpy(vol->password, value);
@@ -1182,6 +1197,7 @@ cifs_mount(struct super_block *sb, struct cifs_sb_info *cifs_sb,
 	}
 
 	if (volume_info.username) {
+		/* BB fixme parse for domain name here */
 		cFYI(1, ("Username: %s ", volume_info.username));
 
 	} else {
@@ -1564,7 +1580,8 @@ CIFSSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 	if(ses->server->secMode & (SECMODE_SIGN_REQUIRED | SECMODE_SIGN_ENABLED))
 		smb_buffer->Flags2 |= SMBFLG2_SECURITY_SIGNATURE;
 
-	capabilities = CAP_LARGE_FILES | CAP_NT_SMBS | CAP_LEVEL_II_OPLOCKS | CAP_LARGE_WRITE_X | CAP_LARGE_READ_X;
+	capabilities = CAP_LARGE_FILES | CAP_NT_SMBS | CAP_LEVEL_II_OPLOCKS |
+		CAP_LARGE_WRITE_X | CAP_LARGE_READ_X;
 	if (ses->capabilities & CAP_UNICODE) {
 		smb_buffer->Flags2 |= SMBFLG2_UNICODE;
 		capabilities |= CAP_UNICODE;
@@ -1591,7 +1608,7 @@ CIFSSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 	bcc_ptr += CIFS_SESSION_KEY_SIZE;
 
 	if (ses->capabilities & CAP_UNICODE) {
-		if ((long) bcc_ptr % 2) {	/* must be word aligned for Unicode */
+		if ((long) bcc_ptr % 2) { /* must be word aligned for Unicode */
 			*bcc_ptr = 0;
 			bcc_ptr++;
 		}
@@ -1601,7 +1618,8 @@ CIFSSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 			bytes_returned =
 			        cifs_strtoUCS((wchar_t *) bcc_ptr, user, 100,
 					nls_codepage);
-		bcc_ptr += 2 * bytes_returned;	/* convert num 16 bit words to bytes */
+		/* convert number of 16 bit words to bytes */
+		bcc_ptr += 2 * bytes_returned;
 		bcc_ptr += 2;	/* trailing null */
 		if (domain == NULL)
 			bytes_returned =
@@ -1618,8 +1636,8 @@ CIFSSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 				  32, nls_codepage);
 		bcc_ptr += 2 * bytes_returned;
 		bytes_returned =
-		    cifs_strtoUCS((wchar_t *) bcc_ptr, system_utsname.release, 32,
-				  nls_codepage);
+		    cifs_strtoUCS((wchar_t *) bcc_ptr, system_utsname.release,
+				  32, nls_codepage);
 		bcc_ptr += 2 * bytes_returned;
 		bcc_ptr += 2;
 		bytes_returned =
@@ -1705,6 +1723,11 @@ CIFSSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 					bcc_ptr += 2 * (len + 1);
 					ses->serverNOS[2 * len] = 0;
 					ses->serverNOS[1 + (2 * len)] = 0;
+					if(strncmp(ses->serverNOS,
+						"NT LAN Manager 4",16) == 0) {
+						cFYI(1,("NT4 server"));
+						ses->flags |= CIFS_SES_NT4;
+					}
 					remaining_words -= len + 1;
 					if (remaining_words > 0) {
 						len = UniStrnlen((wchar_t *) bcc_ptr, remaining_words);	
@@ -2909,7 +2932,8 @@ cifs_umount(struct super_block *sb, struct cifs_sb_info *cifs_sb)
 				return 0;
 			} else if (rc == -ESHUTDOWN) {
 				cFYI(1,("Waking up socket by sending it signal"));
-				send_sig(SIGKILL,cifsd_task,1);
+				if(cifsd_task)
+					send_sig(SIGKILL,cifsd_task,1);
 				rc = 0;
 			} /* else - we have an smb session
 				left on this socket do not kill cifsd */

@@ -13,6 +13,7 @@
  * 	
  */
 
+#include <asm/bug.h>
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <linux/kmod.h>
@@ -300,19 +301,23 @@ static void xfrm_policy_gc_task(void *data)
 
 static void xfrm_policy_kill(struct xfrm_policy *policy)
 {
-	write_lock_bh(&policy->lock);
-	if (policy->dead)
-		goto out;
+	int dead;
 
+	write_lock_bh(&policy->lock);
+	dead = policy->dead;
 	policy->dead = 1;
+	write_unlock_bh(&policy->lock);
+
+	if (unlikely(dead)) {
+		WARN_ON(1);
+		return;
+	}
 
 	spin_lock(&xfrm_policy_gc_lock);
 	list_add(&policy->list, &xfrm_policy_gc_list);
 	spin_unlock(&xfrm_policy_gc_lock);
-	schedule_work(&xfrm_policy_gc_work);
 
-out:
-	write_unlock_bh(&policy->lock);
+	schedule_work(&xfrm_policy_gc_work);
 }
 
 /* Generate new index... KAME seems to generate them ordered by cost

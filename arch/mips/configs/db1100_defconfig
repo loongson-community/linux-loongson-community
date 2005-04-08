@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc1
-# Sun Apr  3 15:06:53 2005
+# Linux kernel version: 2.6.12-rc2
+# Fri Apr  8 18:22:18 2005
 #
 CONFIG_MIPS=y
 
@@ -11,6 +11,7 @@ CONFIG_MIPS=y
 CONFIG_EXPERIMENTAL=y
 CONFIG_CLEAN_COMPILE=y
 CONFIG_BROKEN_ON_SMP=y
+CONFIG_INIT_ENV_ARG_LIMIT=32
 
 #
 # General setup
@@ -332,7 +333,6 @@ CONFIG_NET=y
 #
 CONFIG_PACKET=y
 # CONFIG_PACKET_MMAP is not set
-CONFIG_NETLINK_DEV=y
 CONFIG_UNIX=y
 CONFIG_NET_KEY=y
 CONFIG_INET=y
@@ -410,7 +410,6 @@ CONFIG_NETDEVICES=y
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
-# CONFIG_ETHERTAP is not set
 
 #
 # Ethernet (10 or 100Mbit)
@@ -548,7 +547,6 @@ CONFIG_LEGACY_PTY_COUNT=256
 #
 # TPM devices
 #
-# CONFIG_TCG_TPM is not set
 
 #
 # I2C support
@@ -582,9 +580,11 @@ CONFIG_FB_CFB_FILLRECT=y
 CONFIG_FB_CFB_COPYAREA=y
 CONFIG_FB_CFB_IMAGEBLIT=y
 CONFIG_FB_SOFT_CURSOR=y
+# CONFIG_FB_MACMODES is not set
 # CONFIG_FB_MODE_HELPERS is not set
 # CONFIG_FB_TILEBLITTING is not set
 CONFIG_FB_AU1100=y
+# CONFIG_FB_S1D13XXX is not set
 # CONFIG_FB_VIRTUAL is not set
 
 #

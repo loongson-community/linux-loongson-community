@@ -1141,7 +1141,7 @@ static int init_usb_pitch(struct usb_device *dev, int iface,
 		data[0] = 1;
 		if ((err = snd_usb_ctl_msg(dev, usb_sndctrlpipe(dev, 0), SET_CUR,
 					   USB_TYPE_CLASS|USB_RECIP_ENDPOINT|USB_DIR_OUT,
-					   PITCH_CONTROL << 8, ep, data, 1, HZ)) < 0) {
+					   PITCH_CONTROL << 8, ep, data, 1, 1000)) < 0) {
 			snd_printk(KERN_ERR "%d:%d:%d: cannot set enable PITCH\n",
 				   dev->devnum, iface, ep);
 			return err;
@@ -1167,14 +1167,14 @@ static int init_usb_sample_rate(struct usb_device *dev, int iface,
 		data[2] = rate >> 16;
 		if ((err = snd_usb_ctl_msg(dev, usb_sndctrlpipe(dev, 0), SET_CUR,
 					   USB_TYPE_CLASS|USB_RECIP_ENDPOINT|USB_DIR_OUT,
-					   SAMPLING_FREQ_CONTROL << 8, ep, data, 3, HZ)) < 0) {
+					   SAMPLING_FREQ_CONTROL << 8, ep, data, 3, 1000)) < 0) {
 			snd_printk(KERN_ERR "%d:%d:%d: cannot set freq %d to ep 0x%x\n",
 				   dev->devnum, iface, fmt->altsetting, rate, ep);
 			return err;
 		}
 		if ((err = snd_usb_ctl_msg(dev, usb_rcvctrlpipe(dev, 0), GET_CUR,
 					   USB_TYPE_CLASS|USB_RECIP_ENDPOINT|USB_DIR_IN,
-					   SAMPLING_FREQ_CONTROL << 8, ep, data, 3, HZ)) < 0) {
+					   SAMPLING_FREQ_CONTROL << 8, ep, data, 3, 1000)) < 0) {
 			snd_printk(KERN_WARNING "%d:%d:%d: cannot get freq at ep 0x%x\n",
 				   dev->devnum, iface, fmt->altsetting, ep);
 			return 0; /* some devices don't support reading */
@@ -1606,62 +1606,65 @@ static int hw_rule_format(snd_pcm_hw_params_t *params,
 	return changed;
 }
 
+#define MAX_MASK	64
+
 /*
  * check whether the registered audio formats need special hw-constraints
  */
 static int check_hw_params_convention(snd_usb_substream_t *subs)
 {
 	int i;
-	u32 channels[64];
-	u32 rates[64];
+	u32 *channels;
+	u32 *rates;
 	u32 cmaster, rmaster;
 	u32 rate_min = 0, rate_max = 0;
 	struct list_head *p;
+	int err = 1;
 
-	memset(channels, 0, sizeof(channels));
-	memset(rates, 0, sizeof(rates));
+	channels = kcalloc(MAX_MASK, sizeof(u32), GFP_KERNEL);
+	rates = kcalloc(MAX_MASK, sizeof(u32), GFP_KERNEL);
 
 	list_for_each(p, &subs->fmt_list) {
 		struct audioformat *f;
 		f = list_entry(p, struct audioformat, list);
 		/* unconventional channels? */
 		if (f->channels > 32)
-			return 1;
+			goto __out;
 		/* continuous rate min/max matches? */
 		if (f->rates & SNDRV_PCM_RATE_CONTINUOUS) {
 			if (rate_min && f->rate_min != rate_min)
-				return 1;
+				goto __out;
 			if (rate_max && f->rate_max != rate_max)
-				return 1;
+				goto __out;
 			rate_min = f->rate_min;
 			rate_max = f->rate_max;
 		}
 		/* combination of continuous rates and fixed rates? */
 		if (rates[f->format] & SNDRV_PCM_RATE_CONTINUOUS) {
 			if (f->rates != rates[f->format])
-				return 1;
+				goto __out;
 		}
 		if (f->rates & SNDRV_PCM_RATE_CONTINUOUS) {
 			if (rates[f->format] && rates[f->format] != f->rates)
-				return 1;
+				goto __out;
 		}
 		channels[f->format] |= (1 << f->channels);
 		rates[f->format] |= f->rates;
 	}
 	/* check whether channels and rates match for all formats */
 	cmaster = rmaster = 0;
-	for (i = 0; i < 64; i++) {
+	for (i = 0; i < MAX_MASK; i++) {
 		if (cmaster != channels[i] && cmaster && channels[i])
-			return 1;
+			goto __out;
 		if (rmaster != rates[i] && rmaster && rates[i])
-			return 1;
+			goto __out;
 		if (channels[i])
 			cmaster = channels[i];
 		if (rates[i])
 			rmaster = rates[i];
 	}
 	/* check whether channels match for all distinct rates */
-	memset(channels, 0, sizeof(channels));
+	memset(channels, 0, MAX_MASK * sizeof(u32));
 	list_for_each(p, &subs->fmt_list) {
 		struct audioformat *f;
 		f = list_entry(p, struct audioformat, list);
@@ -1675,11 +1678,16 @@ static int check_hw_params_convention(snd_usb_substream_t *subs)
 	cmaster = 0;
 	for (i = 0; i < 32; i++) {
 		if (cmaster != channels[i] && cmaster && channels[i])
-			return 1;
+			goto __out;
 		if (channels[i])
 			cmaster = channels[i];
 	}
-	return 0;
+	err = 0;
+
+ __out:
+	kfree(channels);
+	kfree(rates);
+	return err;
 }
 
 
@@ -2936,7 +2944,7 @@ static int snd_usb_extigy_boot_quirk(struct usb_device *dev, struct usb_interfac
 		snd_printdd("sending Extigy boot sequence...\n");
 		/* Send message to force it to reconnect with full interface. */
 		err = snd_usb_ctl_msg(dev, usb_sndctrlpipe(dev,0),
-				      0x10, 0x43, 0x0001, 0x000a, NULL, 0, HZ);
+				      0x10, 0x43, 0x0001, 0x000a, NULL, 0, 1000);
 		if (err < 0) snd_printdd("error sending boot message: %d\n", err);
 		err = usb_get_descriptor(dev, USB_DT_DEVICE, 0,
 				&dev->descriptor, sizeof(dev->descriptor));

@@ -587,7 +587,13 @@ int i2c_transfer(struct i2c_adapter * adap, struct i2c_msg *msgs, int num)
 	int ret;
 
 	if (adap->algo->master_xfer) {
- 	 	dev_dbg(&adap->dev, "master_xfer: with %d msgs.\n", num);
+#ifdef DEBUG
+		for (ret = 0; ret < num; ret++) {
+			dev_dbg(&adap->dev, "master_xfer[%d] %c, addr=0x%02x, "
+				"len=%d\n", ret, msgs[ret].flags & I2C_M_RD ?
+				'R' : 'W', msgs[ret].addr, msgs[ret].len);
+		}
+#endif
 
 		down(&adap->bus_lock);
 		ret = adap->algo->master_xfer(adap,msgs,num);
@@ -709,7 +715,7 @@ int i2c_probe(struct i2c_adapter *adapter,
 		   at all */
 		found = 0;
 
-		for (i = 0; !found && (address_data->force[i] != I2C_CLIENT_END); i += 3) {
+		for (i = 0; !found && (address_data->force[i] != I2C_CLIENT_END); i += 2) {
 			if (((adap_id == address_data->force[i]) || 
 			     (address_data->force[i] == ANY_I2C_BUS)) &&
 			     (addr == address_data->force[i+1])) {
@@ -1230,22 +1236,6 @@ s32 i2c_smbus_xfer(struct i2c_adapter * adapter, u16 addr, unsigned short flags,
 }
 
 
-/* You should always define `functionality'; the 'else' is just for
-   backward compatibility. */ 
-u32 i2c_get_functionality (struct i2c_adapter *adap)
-{
-	if (adap->algo->functionality)
-		return adap->algo->functionality(adap);
-	else
-		return 0xffffffff;
-}
-
-int i2c_check_functionality (struct i2c_adapter *adap, u32 func)
-{
-	u32 adap_func = i2c_get_functionality (adap);
-	return (func & adap_func) == func;
-}
-
 EXPORT_SYMBOL(i2c_add_adapter);
 EXPORT_SYMBOL(i2c_del_adapter);
 EXPORT_SYMBOL(i2c_add_driver);
@@ -1276,9 +1266,6 @@ EXPORT_SYMBOL(i2c_smbus_read_word_data);
 EXPORT_SYMBOL(i2c_smbus_write_word_data);
 EXPORT_SYMBOL(i2c_smbus_write_block_data);
 EXPORT_SYMBOL(i2c_smbus_read_i2c_block_data);
-
-EXPORT_SYMBOL(i2c_get_functionality);
-EXPORT_SYMBOL(i2c_check_functionality);
 
 MODULE_AUTHOR("Simon G. Vogl <simon@tk.uni-linz.ac.at>");
 MODULE_DESCRIPTION("I2C-Bus main module");

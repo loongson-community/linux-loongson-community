@@ -55,10 +55,6 @@
 
 #define Nprintk(a...)
 
-#if defined(CONFIG_NETLINK_DEV) || defined(CONFIG_NETLINK_DEV_MODULE)
-#define NL_EMULATE_DEV
-#endif
-
 struct netlink_sock {
 	/* struct sock has to be the first member of netlink_sock */
 	struct sock		sk;
@@ -67,7 +63,6 @@ struct netlink_sock {
 	u32			dst_pid;
 	unsigned int		dst_groups;
 	unsigned long		state;
-	int			(*handler)(int unit, struct sk_buff *skb);
 	wait_queue_head_t	wait;
 	struct netlink_callback	*cb;
 	spinlock_t		cb_lock;
@@ -326,6 +321,12 @@ static void netlink_remove(struct sock *sk)
 	netlink_table_ungrab();
 }
 
+static struct proto netlink_proto = {
+	.name	  = "NETLINK",
+	.owner	  = THIS_MODULE,
+	.obj_size = sizeof(struct netlink_sock),
+};
+
 static int netlink_create(struct socket *sock, int protocol)
 {
 	struct sock *sk;
@@ -341,13 +342,11 @@ static int netlink_create(struct socket *sock, int protocol)
 
 	sock->ops = &netlink_ops;
 
-	sk = sk_alloc(PF_NETLINK, GFP_KERNEL,
-		      sizeof(struct netlink_sock), NULL);
+	sk = sk_alloc(PF_NETLINK, GFP_KERNEL, &netlink_proto, 1);
 	if (!sk)
 		return -ENOMEM;
 
-	sock_init_data(sock,sk);
-	sk_set_owner(sk, THIS_MODULE);
+	sock_init_data(sock, sk);
 
 	nlk = nlk_sk(sk);
 
@@ -563,13 +562,12 @@ static struct sock *netlink_getsockbypid(struct sock *ssk, u32 pid)
 struct sock *netlink_getsockbyfilp(struct file *filp)
 {
 	struct inode *inode = filp->f_dentry->d_inode;
-	struct socket *socket;
 	struct sock *sock;
 
-	if (!inode->i_sock || !(socket = SOCKET_I(inode)))
+	if (!S_ISSOCK(inode->i_mode))
 		return ERR_PTR(-ENOTSOCK);
 
-	sock = socket->sk;
+	sock = SOCKET_I(inode)->sk;
 	if (sock->sk_family != AF_NETLINK)
 		return ERR_PTR(-EINVAL);
 
@@ -593,10 +591,6 @@ int netlink_attachskb(struct sock *sk, struct sk_buff *skb, int nonblock, long t
 
 	nlk = nlk_sk(sk);
 
-#ifdef NL_EMULATE_DEV
-	if (nlk->handler)
-		return 0;
-#endif
 	if (atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf ||
 	    test_bit(0, &nlk->state)) {
 		DECLARE_WAITQUEUE(wait, current);
@@ -636,14 +630,6 @@ int netlink_sendskb(struct sock *sk, struct sk_buff *skb, int protocol)
 	int len = skb->len;
 
 	nlk = nlk_sk(sk);
-#ifdef NL_EMULATE_DEV
-	if (nlk->handler) {
-		skb_orphan(skb);
-		len = nlk->handler(protocol, skb);
-		sock_put(sk);
-		return len;
-	}
-#endif
 
 	skb_queue_tail(&sk->sk_receive_queue, skb);
 	sk->sk_data_ready(sk, len);
@@ -708,12 +694,7 @@ retry:
 static __inline__ int netlink_broadcast_deliver(struct sock *sk, struct sk_buff *skb)
 {
 	struct netlink_sock *nlk = nlk_sk(sk);
-#ifdef NL_EMULATE_DEV
-	if (nlk->handler) {
-		nlk->handler(sk->sk_protocol, skb);
-		return 0;
-	} else
-#endif
+
 	if (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&
 	    !test_bit(0, &nlk->state)) {
 		skb_set_owner_r(skb, sk);
@@ -1119,7 +1100,7 @@ static int netlink_dump(struct sock *sk)
 	spin_unlock(&nlk->cb_lock);
 
 	netlink_destroy_callback(cb);
-	sock_put(sk);
+	__sock_put(sk);
 	return 0;
 }
 
@@ -1158,9 +1139,11 @@ int netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 		return -EBUSY;
 	}
 	nlk->cb = cb;
+	sock_hold(sk);
 	spin_unlock(&nlk->cb_lock);
 
 	netlink_dump(sk);
+	sock_put(sk);
 	return 0;
 }
 
@@ -1389,6 +1372,10 @@ static int __init netlink_proto_init(void)
 	int i;
 	unsigned long max;
 	unsigned int order;
+	int err = proto_register(&netlink_proto, 0);
+
+	if (err != 0)
+		goto out;
 
 	if (sizeof(struct netlink_skb_parms) > sizeof(dummy_skb->cb))
 		netlink_skb_parms_too_large();
@@ -1435,15 +1422,17 @@ enomem:
 #endif
 	/* The netlink device handler may be needed early. */ 
 	rtnetlink_init();
-	return 0;
+out:
+	return err;
 }
 
 static void __exit netlink_proto_exit(void)
 {
-       sock_unregister(PF_NETLINK);
-       proc_net_remove("netlink");
-       kfree(nl_table);
-       nl_table = NULL;
+	sock_unregister(PF_NETLINK);
+	proc_net_remove("netlink");
+	kfree(nl_table);
+	nl_table = NULL;
+	proto_unregister(&netlink_proto);
 }
 
 core_initcall(netlink_proto_init);

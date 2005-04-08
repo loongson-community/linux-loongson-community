@@ -17,20 +17,20 @@
 
 #define IO_SPACE_LIMIT		0xffffffff
 #define __mem_pci(a)		(a)
-
-/*
- * Pick up VMALLOC_END
- */
 #define ___io(p)		((void __iomem *)((p)+IXP2000_PCI_IO_VIRT_BASE))
 
 /*
- * IXP2000 does not do proper byte-lane conversion for PCI addresses,
- * so we need to override standard functions.
+ * The IXP2400 before revision B0 asserts byte lanes for PCI I/O
+ * transactions the other way round (MEM transactions don't have this
+ * issue), so we need to override the standard functions.  B0 and later
+ * have a bit that can be set to 1 to get the 'proper' behavior, but
+ * since that isn't available on the A? revisions we just keep doing
+ * things manually.
  */
-#define alignb(addr)		(void __iomem *)(((unsigned long)addr & ~3) + (3 - ((unsigned long)addr & 3)))
-#define alignw(addr)		(void __iomem *)(((unsigned long)addr & ~2) + (2 - ((unsigned long)addr & 2)))
+#define alignb(addr)		(void __iomem *)((unsigned long)addr ^ 3)
+#define alignw(addr)		(void __iomem *)((unsigned long)addr ^ 2)
 
-#define outb(v,p)		__raw_writeb(v,alignb(___io(p)))
+#define outb(v,p)		__raw_writeb((v),alignb(___io(p)))
 #define outw(v,p)		__raw_writew((v),alignw(___io(p)))
 #define outl(v,p)		__raw_writel((v),___io(p))
 
@@ -53,8 +53,8 @@
 /*
  * This is an ugly hack but the CS8900 on the 2x01's does not sit in any sort
  * of "I/O space" and is just direct mapped into a 32-bit-only addressable
- * bus. The address space for this bus is such that we can't really easilly
- * make it contigous to the PCI I/O address range, and it also does not
+ * bus. The address space for this bus is such that we can't really easily
+ * make it contiguous to the PCI I/O address range, and it also does not
  * need swapping like PCI addresses do (IXDP2x01 is a BE platform).
  * B/C of this we can't use the standard in/out functions and need to
  * runtime check if the incoming address is a PCI address or for

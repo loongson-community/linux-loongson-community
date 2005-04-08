@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc1
-# Fri Mar 18 15:41:32 2005
+# Linux kernel version: 2.6.12-rc2
+# Fri Apr  8 18:22:25 2005
 #
 CONFIG_MIPS=y
 
@@ -11,6 +11,7 @@ CONFIG_MIPS=y
 CONFIG_EXPERIMENTAL=y
 CONFIG_CLEAN_COMPILE=y
 CONFIG_BROKEN_ON_SMP=y
+CONFIG_INIT_ENV_ARG_LIMIT=32
 
 #
 # General setup
@@ -299,7 +300,6 @@ CONFIG_NET=y
 #
 CONFIG_PACKET=y
 CONFIG_PACKET_MMAP=y
-CONFIG_NETLINK_DEV=y
 CONFIG_UNIX=y
 CONFIG_NET_KEY=y
 CONFIG_INET=y
@@ -359,7 +359,6 @@ CONFIG_NETDEVICES=y
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
-# CONFIG_ETHERTAP is not set
 
 #
 # ARCnet devices
@@ -518,7 +517,6 @@ CONFIG_WATCHDOG=y
 #
 # TPM devices
 #
-# CONFIG_TCG_TPM is not set
 
 #
 # I2C support

@@ -314,7 +314,6 @@ static inline void task_rq_unlock(runqueue_t *rq, unsigned long *flags)
 static int show_schedstat(struct seq_file *seq, void *v)
 {
 	int cpu;
-	enum idle_type itype;
 
 	seq_printf(seq, "version %d\n", SCHEDSTAT_VERSION);
 	seq_printf(seq, "timestamp %lu\n", jiffies);
@@ -340,6 +339,7 @@ static int show_schedstat(struct seq_file *seq, void *v)
 #ifdef CONFIG_SMP
 		/* domain-specific stats */
 		for_each_domain(cpu, sd) {
+			enum idle_type itype;
 			char mask_str[NR_CPUS];
 
 			cpumask_scnprintf(mask_str, NR_CPUS, sd->span);
@@ -3741,14 +3741,11 @@ EXPORT_SYMBOL(cond_resched);
  */
 int cond_resched_lock(spinlock_t * lock)
 {
-#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT)
-	if (lock->break_lock) {
-		lock->break_lock = 0;
+	if (need_lockbreak(lock)) {
 		spin_unlock(lock);
 		cpu_relax();
 		spin_lock(lock);
 	}
-#endif
 	if (need_resched()) {
 		_raw_spin_unlock(lock);
 		preempt_enable_no_resched();

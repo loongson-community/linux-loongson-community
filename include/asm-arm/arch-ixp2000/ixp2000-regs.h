@@ -22,16 +22,21 @@
  * Static I/O regions.
  *
  * Most of the registers are clumped in 4K regions spread throughout
- * the 0xc000000 -> 0xc0100000 address range, but we just map in
+ * the 0xc0000000 -> 0xc0100000 address range, but we just map in
  * the whole range using a single 1 MB section instead of small
  * 4K pages.  This has two advantages for us:
  *
  * 1) We use only one TLB entry for large number of on-chip I/O devices.
  *
  * 2) We can easily set the Section attributes to XCB=101 on the IXP2400
- *    as required per erratum #66.
+ *    as required per erratum #66.  We accomplish this by using a
+ *    new MT_IXP2000_DEVICE memory type with the bits set as required.
  *
- * CAP stands for CSR Access Proxy
+ * CAP stands for CSR Access Proxy.
+ *
+ * If you change the virtual address of this mapping, please propagate
+ * the change to arch/arm/kernel/debug.S, which hardcodes the virtual
+ * address of the UART located in this region.
  */
 
 #define	IXP2000_CAP_PHYS_BASE		0xc0000000
@@ -49,7 +54,10 @@
 #define	IXP2000_GPIO_VIRT_BASE		0Xfef10000
 
 /*
- * Devices outside of the 0xc0000000 -> 0xc0100000 range
+ * Devices outside of the 0xc0000000 -> 0xc0100000 range.  The virtual
+ * addresses of the INTCTL and PCI_CSR mappings are hardcoded in
+ * entry-macro.S, so if you ever change these please propagate
+ * the change.
  */
 #define IXP2000_INTCTL_PHYS_BASE	0xd6000000
 #define	IXP2000_INTCTL_VIRT_BASE	0xfee00000
@@ -120,6 +128,30 @@
 #define IXP2000_IRQ_ERR_ENABLE_SET	IXP2000_INTCTL_REG(0x2c)
 #define IXP2000_FIQ_ERR_ENABLE_CLR	IXP2000_INTCTL_REG(0x30)
 #define IXP2000_IRQ_ERR_ENABLE_CLR	IXP2000_INTCTL_REG(0x34)
+#define IXP2000_IRQ_THD_RAW_STATUS_A_0	IXP2000_INTCTL_REG(0x60)
+#define IXP2000_IRQ_THD_RAW_STATUS_A_1	IXP2000_INTCTL_REG(0x64)
+#define IXP2000_IRQ_THD_RAW_STATUS_A_2	IXP2000_INTCTL_REG(0x68)
+#define IXP2000_IRQ_THD_RAW_STATUS_A_3	IXP2000_INTCTL_REG(0x6c)
+#define IXP2000_IRQ_THD_RAW_STATUS_B_0	IXP2000_INTCTL_REG(0x80)
+#define IXP2000_IRQ_THD_RAW_STATUS_B_1	IXP2000_INTCTL_REG(0x84)
+#define IXP2000_IRQ_THD_RAW_STATUS_B_2	IXP2000_INTCTL_REG(0x88)
+#define IXP2000_IRQ_THD_RAW_STATUS_B_3	IXP2000_INTCTL_REG(0x8c)
+#define IXP2000_IRQ_THD_ENABLE_SET_A_0	IXP2000_INTCTL_REG(0x160)
+#define IXP2000_IRQ_THD_ENABLE_SET_A_1	IXP2000_INTCTL_REG(0x164)
+#define IXP2000_IRQ_THD_ENABLE_SET_A_2	IXP2000_INTCTL_REG(0x168)
+#define IXP2000_IRQ_THD_ENABLE_SET_A_3	IXP2000_INTCTL_REG(0x16c)
+#define IXP2000_IRQ_THD_ENABLE_SET_B_0	IXP2000_INTCTL_REG(0x180)
+#define IXP2000_IRQ_THD_ENABLE_SET_B_1	IXP2000_INTCTL_REG(0x184)
+#define IXP2000_IRQ_THD_ENABLE_SET_B_2	IXP2000_INTCTL_REG(0x188)
+#define IXP2000_IRQ_THD_ENABLE_SET_B_3	IXP2000_INTCTL_REG(0x18c)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_A_0	IXP2000_INTCTL_REG(0x1e0)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_A_1	IXP2000_INTCTL_REG(0x1e4)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_A_2	IXP2000_INTCTL_REG(0x1e8)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_A_3	IXP2000_INTCTL_REG(0x1ec)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_B_0	IXP2000_INTCTL_REG(0x200)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_B_1	IXP2000_INTCTL_REG(0x204)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_B_2	IXP2000_INTCTL_REG(0x208)
+#define IXP2000_IRQ_THD_ENABLE_CLEAR_B_3	IXP2000_INTCTL_REG(0x20c)
 
 /*
  * Mask of valid IRQs in the 32-bit IRQ register. We use
@@ -202,7 +234,7 @@
 
 #define IXP2000_PCICNTL_PNR		(1<<17)	/* PCI not Reset bit of PCI_CONTROL */
 #define IXP2000_PCICNTL_PCF		(1<<28)	/* PCI Centrolfunction bit */
-#define IXP2000_XSCALE_INT		(1<<1)	/* Interrupt from  XScale to PCI */
+#define IXP2000_XSCALE_INT		(1<<1)	/* Interrupt from XScale to PCI */
 
 /* These are from the IRQ register in the PCI ISR register */
 #define PCI_CONTROL_BE_DEO		(1 << 22)	/* Big Endian Data Enable Out */

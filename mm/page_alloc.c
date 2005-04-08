@@ -633,7 +633,7 @@ void fastcall free_cold_page(struct page *page)
 	free_hot_cold_page(page, 1);
 }
 
-static inline void prep_zero_page(struct page *page, int order, int gfp_flags)
+static inline void prep_zero_page(struct page *page, int order, unsigned int __nocast gfp_flags)
 {
 	int i;
 
@@ -648,7 +648,7 @@ static inline void prep_zero_page(struct page *page, int order, int gfp_flags)
  * or two.
  */
 static struct page *
-buffered_rmqueue(struct zone *zone, int order, int gfp_flags)
+buffered_rmqueue(struct zone *zone, int order, unsigned int __nocast gfp_flags)
 {
 	unsigned long flags;
 	struct page *page = NULL;
@@ -726,7 +726,7 @@ int zone_watermark_ok(struct zone *z, int order, unsigned long mark,
  * This is the 'heart' of the zoned buddy allocator.
  */
 struct page * fastcall
-__alloc_pages(unsigned int gfp_mask, unsigned int order,
+__alloc_pages(unsigned int __nocast gfp_mask, unsigned int order,
 		struct zonelist *zonelist)
 {
 	const int wait = gfp_mask & __GFP_WAIT;
@@ -780,6 +780,9 @@ __alloc_pages(unsigned int gfp_mask, unsigned int order,
 	/*
 	 * Go through the zonelist again. Let __GFP_HIGH and allocations
 	 * coming from realtime tasks to go deeper into reserves
+	 *
+	 * This is the last chance, in general, before the goto nopage.
+	 * Ignore cpuset if GFP_ATOMIC (!wait) rather than fail alloc.
 	 */
 	for (i = 0; (z = zones[i]) != NULL; i++) {
 		if (!zone_watermark_ok(z, order, z->pages_min,
@@ -787,7 +790,7 @@ __alloc_pages(unsigned int gfp_mask, unsigned int order,
 				       gfp_mask & __GFP_HIGH))
 			continue;
 
-		if (!cpuset_zone_allowed(z))
+		if (wait && !cpuset_zone_allowed(z))
 			continue;
 
 		page = buffered_rmqueue(z, order, gfp_mask);
@@ -908,7 +911,7 @@ EXPORT_SYMBOL(__alloc_pages);
 /*
  * Common helper functions.
  */
-fastcall unsigned long __get_free_pages(unsigned int gfp_mask, unsigned int order)
+fastcall unsigned long __get_free_pages(unsigned int __nocast gfp_mask, unsigned int order)
 {
 	struct page * page;
 	page = alloc_pages(gfp_mask, order);
@@ -919,7 +922,7 @@ fastcall unsigned long __get_free_pages(unsigned int gfp_mask, unsigned int orde
 
 EXPORT_SYMBOL(__get_free_pages);
 
-fastcall unsigned long get_zeroed_page(unsigned int gfp_mask)
+fastcall unsigned long get_zeroed_page(unsigned int __nocast gfp_mask)
 {
 	struct page * page;
 

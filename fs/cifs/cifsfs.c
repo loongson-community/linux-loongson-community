@@ -57,6 +57,7 @@ unsigned int multiuser_mount = 0;
 unsigned int extended_security = 0;
 unsigned int ntlmv2_support = 0;
 unsigned int sign_CIFS_PDUs = 1;
+extern struct task_struct * oplockThread; /* remove sparse warning */
 struct task_struct * oplockThread = NULL;
 unsigned int CIFSMaxBufSize = CIFS_MAX_MSGSIZE;
 module_param(CIFSMaxBufSize, int, 0);
@@ -66,12 +67,18 @@ module_param(cifs_min_rcv, int, 0);
 MODULE_PARM_DESC(cifs_min_rcv,"Network buffers in pool. Default: 4 Range: 1 to 64");
 unsigned int cifs_min_small = 30;
 module_param(cifs_min_small, int, 0);
-MODULE_PARM_DESC(cifs_small_rcv,"Small network buffers in pool. Default: 30 Range: 2 to 256");
+MODULE_PARM_DESC(cifs_min_small,"Small network buffers in pool. Default: 30 Range: 2 to 256");
 unsigned int cifs_max_pending = CIFS_MAX_REQ;
 module_param(cifs_max_pending, int, 0);
 MODULE_PARM_DESC(cifs_max_pending,"Simultaneous requests to server. Default: 50 Range: 2 to 256");
 
 static DECLARE_COMPLETION(cifs_oplock_exited);
+
+extern mempool_t *cifs_sm_req_poolp;
+extern mempool_t *cifs_req_poolp;
+extern mempool_t *cifs_mid_poolp;
+
+extern kmem_cache_t *cifs_oplock_cachep;
 
 static int
 cifs_read_super(struct super_block *sb, void *data,
@@ -229,9 +236,7 @@ static struct inode *
 cifs_alloc_inode(struct super_block *sb)
 {
 	struct cifsInodeInfo *cifs_inode;
-	cifs_inode =
-	    (struct cifsInodeInfo *) kmem_cache_alloc(cifs_inode_cachep,
-						      SLAB_KERNEL);
+	cifs_inode = kmem_cache_alloc(cifs_inode_cachep, SLAB_KERNEL);
 	if (!cifs_inode)
 		return NULL;
 	cifs_inode->cifsAttrs = 0x20;	/* default */
@@ -438,27 +443,12 @@ static ssize_t
 cifs_read_wrapper(struct file * file, char __user *read_data, size_t read_size,
           loff_t * poffset)
 {
-	if(file == NULL)
-		return -EIO;
-	else if(file->f_dentry == NULL)
+	if(file->f_dentry == NULL)
 		return -EIO;
 	else if(file->f_dentry->d_inode == NULL)
 		return -EIO;
 
 	cFYI(1,("In read_wrapper size %zd at %lld",read_size,*poffset));
-
-#ifdef CONFIG_CIFS_EXPERIMENTAL
-	/* check whether we can cache writes locally */
-	if(file->f_dentry->d_sb) {
-		struct cifs_sb_info *cifs_sb;
-		cifs_sb = CIFS_SB(file->f_dentry->d_sb);
-		if(cifs_sb != NULL) {
-			if(cifs_sb->mnt_cifs_flags & CIFS_MOUNT_DIRECT_IO)
-				return cifs_user_read(file,read_data,
-							read_size,poffset);
-		}
-	}
-#endif /* CIFS_EXPERIMENTAL */
 
 	if(CIFS_I(file->f_dentry->d_inode)->clientCanCacheRead) {
 		return generic_file_read(file,read_data,read_size,poffset);
@@ -483,28 +473,13 @@ cifs_write_wrapper(struct file * file, const char __user *write_data,
 {
 	ssize_t written;
 
-	if(file == NULL)
-		return -EIO;
-	else if(file->f_dentry == NULL)
+	if(file->f_dentry == NULL)
 		return -EIO;
 	else if(file->f_dentry->d_inode == NULL)
 		return -EIO;
 
 	cFYI(1,("In write_wrapper size %zd at %lld",write_size,*poffset));
 
-#ifdef CONFIG_CIFS_EXPERIMENTAL    /* BB fixme - fix user char * to kernel char * mapping here BB */
-	/* check whether we can cache writes locally */
-	if(file->f_dentry->d_sb) {
-		struct cifs_sb_info *cifs_sb;
-		cifs_sb = CIFS_SB(file->f_dentry->d_sb);
-		if(cifs_sb != NULL) {
-			if(cifs_sb->mnt_cifs_flags & CIFS_MOUNT_DIRECT_IO) {
-				return cifs_user_write(file,write_data,
-							write_size,poffset);
-			}
-		}
-	}
-#endif /* CIFS_EXPERIMENTAL */
 	written = generic_file_write(file,write_data,write_size,poffset);
 	if(!CIFS_I(file->f_dentry->d_inode)->clientCanCacheAll)  {
 		if(file->f_dentry->d_inode->i_mapping) {
@@ -585,6 +560,26 @@ struct file_operations cifs_file_ops = {
 	.mmap  = cifs_file_mmap,
 	.sendfile = generic_file_sendfile,
 #ifdef CONFIG_CIFS_EXPERIMENTAL
+	.readv = generic_file_readv,
+	.writev = generic_file_writev,
+	.aio_read = generic_file_aio_read,
+	.aio_write = generic_file_aio_write,
+	.dir_notify = cifs_dir_notify,
+#endif /* CONFIG_CIFS_EXPERIMENTAL */
+};
+
+struct file_operations cifs_file_direct_ops = {
+	/* no mmap, no aio, no readv - 
+	   BB reevaluate whether they can be done with directio, no cache */
+	.read = cifs_user_read,
+	.write = cifs_user_write,
+	.open = cifs_open,
+	.release = cifs_close,
+	.lock = cifs_lock,
+	.fsync = cifs_fsync,
+	.flush = cifs_flush,
+	.sendfile = generic_file_sendfile, /* BB removeme BB */
+#ifdef CONFIG_CIFS_EXPERIMENTAL
 	.dir_notify = cifs_dir_notify,
 #endif /* CONFIG_CIFS_EXPERIMENTAL */
 };
@@ -601,7 +596,7 @@ struct file_operations cifs_dir_ops = {
 static void
 cifs_init_once(void *inode, kmem_cache_t * cachep, unsigned long flags)
 {
-	struct cifsInodeInfo *cifsi = (struct cifsInodeInfo *) inode;
+	struct cifsInodeInfo *cifsi = inode;
 
 	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) ==
 	    SLAB_CTOR_CONSTRUCTOR) {
@@ -654,7 +649,7 @@ cifs_init_request_bufs(void)
 		cifs_min_rcv = 1;
 	else if (cifs_min_rcv > 64) {
 		cifs_min_rcv = 64;
-		cFYI(1,("cifs_min_rcv set to maximum (64)"));
+		cERROR(1,("cifs_min_rcv set to maximum (64)"));
 	}
 
 	cifs_req_poolp = mempool_create(cifs_min_rcv,

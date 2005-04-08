@@ -149,7 +149,6 @@ static void dn_keepalive(struct sock *sk);
 #define DN_SK_HASH_MASK (DN_SK_HASH_SIZE - 1)
 
 
-static kmem_cache_t *dn_sk_cachep;
 static struct proto_ops dn_proto_ops;
 static DEFINE_RWLOCK(dn_hash_lock);
 static struct hlist_head dn_sk_hash[DN_SK_HASH_SIZE];
@@ -447,11 +446,16 @@ static void dn_destruct(struct sock *sk)
 	dst_release(xchg(&sk->sk_dst_cache, NULL));
 }
 
+static struct proto dn_proto = {
+	.name	  = "DECNET",
+	.owner	  = THIS_MODULE,
+	.obj_size = sizeof(struct dn_sock),
+};
+
 static struct sock *dn_alloc_sock(struct socket *sock, int gfp)
 {
 	struct dn_scp *scp;
-	struct sock *sk = sk_alloc(PF_DECnet, gfp, sizeof(struct dn_sock),
-				   dn_sk_cachep);
+	struct sock *sk = sk_alloc(PF_DECnet, gfp, &dn_proto, 1);
 
 	if  (!sk)
 		goto out;
@@ -459,7 +463,6 @@ static struct sock *dn_alloc_sock(struct socket *sock, int gfp)
 	if (sock)
 		sock->ops = &dn_proto_ops;
 	sock_init_data(sock, sk);
-	sk_set_owner(sk, THIS_MODULE);
 
 	sk->sk_backlog_rcv = dn_nsp_backlog_rcv;
 	sk->sk_destruct    = dn_destruct;
@@ -811,7 +814,7 @@ static int dn_confirm_accept(struct sock *sk, long *timeo, int allocation)
 		return -EINVAL;
 
 	scp->state = DN_CC;
-	scp->segsize_loc = dst_path_metric(__sk_dst_get(sk), RTAX_ADVMSS);
+	scp->segsize_loc = dst_metric(__sk_dst_get(sk), RTAX_ADVMSS);
 	dn_send_conn_conf(sk, allocation);
 
 	prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
@@ -940,7 +943,7 @@ static int __dn_connect(struct sock *sk, struct sockaddr_dn *addr, int addrlen, 
 	sk->sk_route_caps = sk->sk_dst_cache->dev->features;
 	sock->state = SS_CONNECTING;
 	scp->state = DN_CI;
-	scp->segsize_loc = dst_path_metric(sk->sk_dst_cache, RTAX_ADVMSS);
+	scp->segsize_loc = dst_metric(sk->sk_dst_cache, RTAX_ADVMSS);
 
 	dn_nsp_send_conninit(sk, NSP_CI);
 	err = -EINPROGRESS;
@@ -2349,14 +2352,13 @@ static char banner[] __initdata = KERN_INFO "NET4: DECnet for Linux: V.2.5.68s (
 
 static int __init decnet_init(void)
 {
+	int rc;
+
         printk(banner);
 
-	dn_sk_cachep = kmem_cache_create("decnet_socket_cache",
-					 sizeof(struct dn_sock),
-					 0, SLAB_HWCACHE_ALIGN,
-					 NULL, NULL);
-	if (!dn_sk_cachep)
-		return -ENOMEM;
+	rc = proto_register(&dn_proto, 1);
+	if (rc != 0)
+		goto out;
 
 	dn_neigh_init();
 	dn_dev_init();
@@ -2369,8 +2371,8 @@ static int __init decnet_init(void)
 
 	proc_net_fops_create("decnet", S_IRUGO, &dn_socket_seq_fops);
 	dn_register_sysctl();
-
-	return 0;
+out:
+	return rc;
 
 }
 module_init(decnet_init);
@@ -2397,7 +2399,7 @@ static void __exit decnet_exit(void)
 
 	proc_net_remove("decnet");
 
-	kmem_cache_destroy(dn_sk_cachep);
+	proto_unregister(&dn_proto);
 }
 module_exit(decnet_exit);
 #endif

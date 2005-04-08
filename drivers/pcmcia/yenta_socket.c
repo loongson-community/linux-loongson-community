@@ -506,8 +506,6 @@ static int yenta_sock_suspend(struct pcmcia_socket *sock)
 {
 	struct yenta_socket *socket = container_of(sock, struct yenta_socket, socket);
 
-	yenta_set_socket(sock, &dead_socket);
-
 	/* Disable CSC interrupts */
 	cb_writel(socket, CB_SOCKET_MASK, 0x0);
 
@@ -1019,7 +1017,7 @@ static int __devinit yenta_probe (struct pci_dev *dev, const struct pci_device_i
 }
 
 
-static int yenta_dev_suspend (struct pci_dev *dev, u32 state)
+static int yenta_dev_suspend (struct pci_dev *dev, pm_message_t state)
 {
 	struct yenta_socket *socket = pci_get_drvdata(dev);
 	int ret;

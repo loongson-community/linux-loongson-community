@@ -31,7 +31,7 @@ obj-$(CONFIG_PPC_ISERIES) += iSeries_irq.o \
 obj-$(CONFIG_PPC_MULTIPLATFORM) += nvram.o i8259.o prom_init.o prom.o mpic.o
 
 obj-$(CONFIG_PPC_PSERIES) += pSeries_pci.o pSeries_lpar.o pSeries_hvCall.o \
-			     pSeries_nvram.o rtasd.o ras.o \
+			     pSeries_nvram.o rtasd.o ras.o pSeries_reconfig.o \
 			     xics.o rtas.o pSeries_setup.o pSeries_iommu.o
 
 obj-$(CONFIG_EEH)		+= eeh.o
@@ -39,7 +39,7 @@ obj-$(CONFIG_PROC_FS)		+= proc_ppc64.o
 obj-$(CONFIG_RTAS_FLASH)	+= rtas_flash.o
 obj-$(CONFIG_SMP)		+= smp.o
 obj-$(CONFIG_MODULES)		+= module.o ppc_ksyms.o
-obj-$(CONFIG_PPC_RTAS)		+= rtas-proc.o
+obj-$(CONFIG_RTAS_PROC)		+= rtas-proc.o
 obj-$(CONFIG_SCANLOG)		+= scanlog.o
 obj-$(CONFIG_VIOPATH)		+= viopath.o
 obj-$(CONFIG_LPARCFG)		+= lparcfg.o

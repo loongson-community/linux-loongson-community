@@ -446,8 +446,7 @@ int fb_show_logo(struct fb_info *info)
 		logo_new = kmalloc(fb_logo.logo->width * fb_logo.logo->height, 
 				   GFP_KERNEL);
 		if (logo_new == NULL) {
-			if (palette)
-				kfree(palette);
+			kfree(palette);
 			if (saved_pseudo_palette)
 				info->pseudo_palette = saved_pseudo_palette;
 			return 0;
@@ -466,12 +465,10 @@ int fb_show_logo(struct fb_info *info)
 		info->fbops->fb_imageblit(info, &image);
 	}
 	
-	if (palette != NULL)
-		kfree(palette);
+	kfree(palette);
 	if (saved_pseudo_palette != NULL)
 		info->pseudo_palette = saved_pseudo_palette;
-	if (logo_new != NULL)
-		kfree(logo_new);
+	kfree(logo_new);
 	return fb_logo.logo->height;
 }
 #else
@@ -940,8 +937,8 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	/* This is an IO map - tell maydump to skip this VMA */
 	vma->vm_flags |= VM_IO | VM_RESERVED;
 #if defined(__sparc_v9__)
-	if (io_remap_page_range(vma, vma->vm_start, off,
-				vma->vm_end - vma->vm_start, vma->vm_page_prot, 0))
+	if (io_remap_pfn_range(vma, vma->vm_start, off >> PAGE_SHIFT,
+				vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
 #else
 #if defined(__mc68000__)
@@ -957,7 +954,9 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	}
 #endif
 #elif defined(__powerpc__)
-	pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE|_PAGE_GUARDED;
+	vma->vm_page_prot = phys_mem_access_prot(file, off,
+						 vma->vm_end - vma->vm_start,
+						 vma->vm_page_prot);
 #elif defined(__alpha__)
 	/* Caching is off in the I/O space quadrant by design.  */
 #elif defined(__i386__) || defined(__x86_64__)
@@ -977,7 +976,7 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 #else
 #warning What do we have to do here??
 #endif
-	if (io_remap_page_range(vma, vma->vm_start, off,
+	if (io_remap_pfn_range(vma, vma->vm_start, off >> PAGE_SHIFT,
 			     vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
 #endif /* !__sparc_v9__ */

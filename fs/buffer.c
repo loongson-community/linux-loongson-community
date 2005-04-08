@@ -878,7 +878,7 @@ int __set_page_dirty_buffers(struct page *page)
 	if (!TestSetPageDirty(page)) {
 		write_lock_irq(&mapping->tree_lock);
 		if (page->mapping) {	/* Race with truncate? */
-			if (!mapping->backing_dev_info->memory_backed)
+			if (mapping_cap_account_dirty(mapping))
 				inc_page_state(nr_dirty);
 			radix_tree_tag_set(&mapping->page_tree,
 						page_index(page),
@@ -3052,7 +3052,7 @@ static void recalc_bh_state(void)
 	buffer_heads_over_limit = (tot > max_buffer_heads);
 }
 	
-struct buffer_head *alloc_buffer_head(int gfp_flags)
+struct buffer_head *alloc_buffer_head(unsigned int __nocast gfp_flags)
 {
 	struct buffer_head *ret = kmem_cache_alloc(bh_cachep, gfp_flags);
 	if (ret) {

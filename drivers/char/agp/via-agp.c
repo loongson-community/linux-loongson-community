@@ -83,10 +83,8 @@ static void via_tlbflush(struct agp_memory *mem)
 
 	pci_read_config_dword(agp_bridge->dev, VIA_GARTCTRL, &temp);
 	temp |= (1<<7);
-	temp &= ~0x7f;
 	pci_write_config_dword(agp_bridge->dev, VIA_GARTCTRL, temp);
 	temp &= ~(1<<7);
-	temp &= ~0x7f;
 	pci_write_config_dword(agp_bridge->dev, VIA_GARTCTRL, temp);
 }
 
@@ -450,10 +448,10 @@ static void __devexit agp_via_remove(struct pci_dev *pdev)
 
 #ifdef CONFIG_PM
 
-static int agp_via_suspend(struct pci_dev *pdev, u32 state)
+static int agp_via_suspend(struct pci_dev *pdev, pm_message_t state)
 {
 	pci_save_state (pdev);
-	pci_set_power_state (pdev, 3);
+	pci_set_power_state (pdev, PCI_D3hot);
 
 	return 0;
 }
@@ -462,7 +460,7 @@ static int agp_via_resume(struct pci_dev *pdev)
 {
 	struct agp_bridge_data *bridge = pci_get_drvdata(pdev);
 
-	pci_set_power_state (pdev, 0);
+	pci_set_power_state (pdev, PCI_D0);
 	pci_restore_state(pdev);
 
 	if (bridge->driver == &via_agp3_driver)

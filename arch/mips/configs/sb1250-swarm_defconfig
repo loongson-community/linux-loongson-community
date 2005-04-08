@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc1
-# Fri Mar 18 15:41:51 2005
+# Linux kernel version: 2.6.12-rc2
+# Fri Apr  8 18:22:44 2005
 #
 CONFIG_MIPS=y
 
@@ -11,6 +11,7 @@ CONFIG_MIPS=y
 CONFIG_EXPERIMENTAL=y
 CONFIG_CLEAN_COMPILE=y
 CONFIG_LOCK_KERNEL=y
+CONFIG_INIT_ENV_ARG_LIMIT=32
 
 #
 # General setup
@@ -326,7 +327,6 @@ CONFIG_NET=y
 #
 CONFIG_PACKET=y
 CONFIG_PACKET_MMAP=y
-CONFIG_NETLINK_DEV=y
 CONFIG_UNIX=y
 CONFIG_NET_KEY=y
 CONFIG_INET=y
@@ -388,7 +388,6 @@ CONFIG_NETDEVICES=y
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
-# CONFIG_ETHERTAP is not set
 
 #
 # ARCnet devices
@@ -491,6 +490,8 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_SYNCLINK is not set
 # CONFIG_SYNCLINKMP is not set
 # CONFIG_N_HDLC is not set
+# CONFIG_SPECIALIX is not set
+# CONFIG_SX is not set
 # CONFIG_STALDRV is not set
 CONFIG_SIBYTE_SB1250_DUART=y
 CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
@@ -503,6 +504,7 @@ CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
 #
 # Non-8250 serial port support
 #
+# CONFIG_SERIAL_JSM is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_LEGACY_PTYS=y
 CONFIG_LEGACY_PTY_COUNT=256

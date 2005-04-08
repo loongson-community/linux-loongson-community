@@ -64,28 +64,6 @@ static DEFINE_SPINLOCK(nr_list_lock);
 
 static struct proto_ops nr_proto_ops;
 
-static struct sock *nr_alloc_sock(void)
-{
-	nr_cb *nr;
-	struct sock *sk = sk_alloc(PF_NETROM, GFP_ATOMIC, 1, NULL);
-
-	if (!sk)
-		goto out;
-
-	nr = sk->sk_protinfo = kmalloc(sizeof(*nr), GFP_ATOMIC);
-	if (!nr)
-		goto frees;
-
-	memset(nr, 0x00, sizeof(*nr));
-	nr->sk = sk;
-out:
-	return sk;
-frees:
-	sk_free(sk);
-	sk = NULL;
-	goto out;
-}
-
 /*
  *	Socket removal during an interrupt is now safe.
  */
@@ -169,7 +147,7 @@ static struct sock *nr_find_socket(unsigned char index, unsigned char id)
 
 	spin_lock_bh(&nr_list_lock);
 	sk_for_each(s, node, &nr_list) {
-		nr_cb *nr = nr_sk(s);
+		struct nr_sock *nr = nr_sk(s);
 		
 		if (nr->my_index == index && nr->my_id == id) {
 			bh_lock_sock(s);
@@ -193,7 +171,7 @@ static struct sock *nr_find_peer(unsigned char index, unsigned char id,
 
 	spin_lock_bh(&nr_list_lock);
 	sk_for_each(s, node, &nr_list) {
-		nr_cb *nr = nr_sk(s);
+		struct nr_sock *nr = nr_sk(s);
 		
 		if (nr->your_index == index && nr->your_id == id &&
 		    !ax25cmp(&nr->dest_addr, dest)) {
@@ -300,7 +278,7 @@ static int nr_setsockopt(struct socket *sock, int level, int optname,
 	char __user *optval, int optlen)
 {
 	struct sock *sk = sock->sk;
-	nr_cb *nr = nr_sk(sk);
+	struct nr_sock *nr = nr_sk(sk);
 	int opt;
 
 	if (level != SOL_NETROM)
@@ -352,7 +330,7 @@ static int nr_getsockopt(struct socket *sock, int level, int optname,
 	char __user *optval, int __user *optlen)
 {
 	struct sock *sk = sock->sk;
-	nr_cb *nr = nr_sk(sk);
+	struct nr_sock *nr = nr_sk(sk);
 	int val = 0;
 	int len; 
 
@@ -415,21 +393,26 @@ static int nr_listen(struct socket *sock, int backlog)
 	return -EOPNOTSUPP;
 }
 
+static struct proto nr_proto = {
+	.name	  = "NETROM",
+	.owner	  = THIS_MODULE,
+	.obj_size = sizeof(struct nr_sock),
+};
+
 static int nr_create(struct socket *sock, int protocol)
 {
 	struct sock *sk;
-	nr_cb *nr;
+	struct nr_sock *nr;
 
 	if (sock->type != SOCK_SEQPACKET || protocol != 0)
 		return -ESOCKTNOSUPPORT;
 
-	if ((sk = nr_alloc_sock()) == NULL)
+	if ((sk = sk_alloc(PF_NETROM, GFP_ATOMIC, &nr_proto, 1)) == NULL)
 		return -ENOMEM;
 
 	nr = nr_sk(sk);
 
 	sock_init_data(sock, sk);
-	sk_set_owner(sk, THIS_MODULE);
 
 	sock->ops    = &nr_proto_ops;
 	sk->sk_protocol = protocol;
@@ -456,18 +439,17 @@ static int nr_create(struct socket *sock, int protocol)
 static struct sock *nr_make_new(struct sock *osk)
 {
 	struct sock *sk;
-	nr_cb *nr, *onr;
+	struct nr_sock *nr, *onr;
 
 	if (osk->sk_type != SOCK_SEQPACKET)
 		return NULL;
 
-	if ((sk = nr_alloc_sock()) == NULL)
+	if ((sk = sk_alloc(PF_NETROM, GFP_ATOMIC, osk->sk_prot, 1)) == NULL)
 		return NULL;
 
 	nr = nr_sk(sk);
 
 	sock_init_data(NULL, sk);
-	sk_set_owner(sk, THIS_MODULE);
 
 	sk->sk_type     = osk->sk_type;
 	sk->sk_socket   = osk->sk_socket;
@@ -508,7 +490,7 @@ static struct sock *nr_make_new(struct sock *osk)
 static int nr_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
-	nr_cb *nr;
+	struct nr_sock *nr;
 
 	if (sk == NULL) return 0;
 
@@ -556,7 +538,7 @@ static int nr_release(struct socket *sock)
 static int nr_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sock *sk = sock->sk;
-	nr_cb *nr = nr_sk(sk);
+	struct nr_sock *nr = nr_sk(sk);
 	struct full_sockaddr_ax25 *addr = (struct full_sockaddr_ax25 *)uaddr;
 	struct net_device *dev;
 	ax25_address *user, *source;
@@ -625,7 +607,7 @@ static int nr_connect(struct socket *sock, struct sockaddr *uaddr,
 	int addr_len, int flags)
 {
 	struct sock *sk = sock->sk;
-	nr_cb *nr = nr_sk(sk);
+	struct nr_sock *nr = nr_sk(sk);
 	struct sockaddr_ax25 *addr = (struct sockaddr_ax25 *)uaddr;
 	ax25_address *user, *source = NULL;
 	struct net_device *dev;
@@ -822,7 +804,7 @@ static int nr_getname(struct socket *sock, struct sockaddr *uaddr,
 {
 	struct full_sockaddr_ax25 *sax = (struct full_sockaddr_ax25 *)uaddr;
 	struct sock *sk = sock->sk;
-	nr_cb *nr = nr_sk(sk);
+	struct nr_sock *nr = nr_sk(sk);
 
 	lock_sock(sk);
 	if (peer != 0) {
@@ -850,7 +832,7 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 {
 	struct sock *sk;
 	struct sock *make;	
-	nr_cb *nr_make;
+	struct nr_sock *nr_make;
 	ax25_address *src, *dest, *user;
 	unsigned short circuit_index, circuit_id;
 	unsigned short peer_circuit_index, peer_circuit_id;
@@ -942,7 +924,7 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 
 	user = (ax25_address *)(skb->data + 21);
 
-	if (!sk || sk->sk_ack_backlog == sk->sk_max_ack_backlog ||
+	if (sk == NULL || sk_acceptq_is_full(sk) ||
 	    (make = nr_make_new(sk)) == NULL) {
 		nr_transmit_refusal(skb, 0);
 		if (sk)
@@ -1015,7 +997,7 @@ static int nr_sendmsg(struct kiocb *iocb, struct socket *sock,
 		      struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
-	nr_cb *nr = nr_sk(sk);
+	struct nr_sock *nr = nr_sk(sk);
 	struct sockaddr_ax25 *usax = (struct sockaddr_ax25 *)msg->msg_name;
 	int err;
 	struct sockaddr_ax25 sax;
@@ -1275,7 +1257,7 @@ static int nr_info_show(struct seq_file *seq, void *v)
 {
 	struct sock *s = v;
 	struct net_device *dev;
-	nr_cb *nr;
+	struct nr_sock *nr;
 	const char *devname;
 
 	if (v == SEQ_START_TOKEN)
@@ -1385,6 +1367,10 @@ static char banner[] __initdata = KERN_INFO "G4KLX NET/ROM for Linux. Version 0.
 static int __init nr_proto_init(void)
 {
 	int i;
+	int rc = proto_register(&nr_proto, 0);
+
+	if (rc != 0)
+		goto out;
 
 	if (nr_ndevs > 0x7fffffff/sizeof(struct net_device *)) {
 		printk(KERN_ERR "NET/ROM: nr_proto_init - nr_ndevs parameter to large\n");
@@ -1440,15 +1426,17 @@ static int __init nr_proto_init(void)
 	proc_net_fops_create("nr", S_IRUGO, &nr_info_fops);
 	proc_net_fops_create("nr_neigh", S_IRUGO, &nr_neigh_fops);
 	proc_net_fops_create("nr_nodes", S_IRUGO, &nr_nodes_fops);
-	return 0;
-
- fail:
+out:
+	return rc;
+fail:
 	while (--i >= 0) {
 		unregister_netdev(dev_nr[i]);
 		free_netdev(dev_nr[i]);
 	}
 	kfree(dev_nr);
-	return -1;
+	proto_unregister(&nr_proto);
+	rc = -1;
+	goto out;
 }
 
 module_init(nr_proto_init);
@@ -1492,5 +1480,6 @@ static void __exit nr_exit(void)
 	}
 
 	kfree(dev_nr);
+	proto_unregister(&nr_proto);
 }
 module_exit(nr_exit);

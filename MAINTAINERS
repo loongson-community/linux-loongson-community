@@ -605,7 +605,7 @@ P:	Herbert Xu
 M:	herbert@gondor.apana.org.au
 P:	David S. Miller
 M:	davem@davemloft.net
-L:	linux-kernel@vger.kernel.org
+L:	linux-crypto@vger.kernel.org
 S:	Maintained
 
 CYBERPRO FB DRIVER
@@ -982,11 +982,6 @@ HPFS FILESYSTEM
 P:	Mikulas Patocka
 M:	mikulas@artax.karlin.mff.cuni.cz
 W:	http://artax.karlin.mff.cuni.cz/~mikulas/vyplody/hpfs/index-e.cgi
-S:	Maintained
-
-HPUSBSCSI
-P:	Oliver Neukum
-M:	oliver@neukum.name
 S:	Maintained
 
 HUGETLB FILESYSTEM
@@ -2044,10 +2039,11 @@ W:	http://gyver.homeip.net/sis5513/index.html
 S:	Maintained
 
 SIS 900/7016 FAST ETHERNET DRIVER
-P:	Ollie Lho
-M:	ollie@sis.com.tw
+P:	Daniele Venzano
+M:	venza@brownhat.org
+W:	http://www.brownhat.org/sis900.html
 L:	linux-net@vger.kernel.org
-S:	Supported
+S:	Maintained
 
 SIS FRAMEBUFFER DRIVER
 P:	Thomas Winischhofer
@@ -2313,6 +2309,13 @@ L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 S:	Maintained
 
+USB BLOCK DRIVER (UB ub)
+P:	Pete Zaitcev
+M:	zaitcev@redhat.com
+L:	linux-kernel@vger.kernel.org
+L:	linux-usb-devel@lists.sourceforge.net
+S:	Supported
+
 USB BLUETOOTH TTY CONVERTER DRIVER
 P:	Greg Kroah-Hartman
 M:	greg@kroah.com
@@ -2548,8 +2551,9 @@ P:	Roger Luethi
 M:	rl@hellgate.ch
 S:	Maintained
 
-UCLINUX
+UCLINUX (AND M68KNOMMU)
 P:	Greg Ungerer
+M:	gerg@uclinux.org
 M:	gerg@snapgear.com
 P:	David McCullough
 M:	davidm@snapgear.com
@@ -2661,11 +2665,11 @@ M:	jpr@f6fbb.org
 L:	linux-hams@vger.kernel.org
 S:	Maintained
 
-YMFPCI YAMAHA PCI SOUND
+YMFPCI YAMAHA PCI SOUND (Use ALSA instead)
 P:	Pete Zaitcev
 M:	zaitcev@yahoo.com
 L:	linux-kernel@vger.kernel.org
-S:	Maintained
+S:	Obsolete
 
 Z8530 DRIVER FOR AX.25
 P:	Joerg Reuter

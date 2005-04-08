@@ -101,12 +101,12 @@ static void port_power(struct sl811 *sl811, int is_on)
 
 		sl811->port1 = (1 << USB_PORT_FEAT_POWER);
 		sl811->irq_enable = SL11H_INTMASK_INSRMV;
-		hcd->self.controller->power.power_state = PM_SUSPEND_ON;
+		hcd->self.controller->power.power_state = PMSG_ON;
 	} else {
 		sl811->port1 = 0;
 		sl811->irq_enable = 0;
-		hcd->state = USB_STATE_HALT;
-		hcd->self.controller->power.power_state = PM_SUSPEND_DISK;
+		hcd->state = HC_STATE_HALT;
+		hcd->self.controller->power.power_state = PMSG_SUSPEND;
 	}
 	sl811->ctrl1 = 0;
 	sl811_write(sl811, SL11H_IRQ_ENABLE, 0);
@@ -834,7 +834,7 @@ static int sl811h_urb_enqueue(
 
 	/* don't submit to a dead or disabled port */
 	if (!(sl811->port1 & (1 << USB_PORT_FEAT_ENABLE))
-			|| !HCD_IS_RUNNING(hcd->state)) {
+			|| !HC_IS_RUNNING(hcd->state)) {
 		retval = -ENODEV;
 		goto fail;
 	}
@@ -1562,12 +1562,12 @@ sl811h_start(struct usb_hcd *hcd)
 		return -ENOMEM;
 
 	udev->speed = USB_SPEED_FULL;
-	hcd->state = USB_STATE_RUNNING;
+	hcd->state = HC_STATE_RUNNING;
 
 	if (sl811->board)
 		hcd->can_wakeup = sl811->board->can_wakeup;
 
-	if (hcd_register_root(udev, hcd) != 0) {
+	if (usb_hcd_register_root_hub(udev, hcd) != 0) {
 		usb_put_dev(udev);
 		sl811h_stop(hcd);
 		return -ENODEV;
@@ -1772,7 +1772,7 @@ sl811h_probe(struct device *dev)
  */
 
 static int
-sl811h_suspend(struct device *dev, u32 state, u32 phase)
+sl811h_suspend(struct device *dev, pm_message_t state, u32 phase)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct sl811	*sl811 = hcd_to_sl811(hcd);
@@ -1809,7 +1809,7 @@ sl811h_resume(struct device *dev, u32 phase)
 		return 0;
 	}
 
-	dev->power.power_state = PM_SUSPEND_ON;
+	dev->power.power_state = PMSG_ON;
 	return sl811h_hub_resume(hcd);
 }
 

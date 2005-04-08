@@ -120,6 +120,9 @@
 			       _PAGE_WRENABLE | _PAGE_NO_CACHE | _PAGE_GUARDED)
 #define PAGE_KERNEL_EXEC __pgprot(_PAGE_BASE | _PAGE_WRENABLE | _PAGE_EXEC)
 
+#define PAGE_AGP	__pgprot(_PAGE_BASE | _PAGE_WRENABLE | _PAGE_NO_CACHE)
+#define HAVE_PAGE_AGP
+
 /*
  * This bit in a hardware PTE indicates that the page is *not* executable.
  */
@@ -472,6 +475,11 @@ static inline void __ptep_set_access_flags(pte_t *ptep, pte_t entry, int dirty)
  */
 #define pgprot_noncached(prot)	(__pgprot(pgprot_val(prot) | _PAGE_NO_CACHE | _PAGE_GUARDED))
 
+struct file;
+extern pgprot_t phys_mem_access_prot(struct file *file, unsigned long addr,
+				     unsigned long size, pgprot_t vma_prot);
+#define __HAVE_PHYS_MEM_ACCESS_PROT
+
 #define __HAVE_ARCH_PTE_SAME
 #define pte_same(A,B)	(((pte_val(A) ^ pte_val(B)) & ~_PAGE_HPTEFLAGS) == 0)
 
@@ -526,6 +534,13 @@ extern void update_mmu_cache(struct vm_area_struct *, unsigned long, pte_t);
 
 #define io_remap_page_range(vma, vaddr, paddr, size, prot)		\
 		remap_pfn_range(vma, vaddr, (paddr) >> PAGE_SHIFT, size, prot)
+
+#define io_remap_pfn_range(vma, vaddr, pfn, size, prot)		\
+		remap_pfn_range(vma, vaddr, pfn, size, prot)
+
+#define MK_IOSPACE_PFN(space, pfn)	(pfn)
+#define GET_IOSPACE(pfn)		0
+#define GET_PFN(pfn)			(pfn)
 
 void pgtable_cache_init(void);
 

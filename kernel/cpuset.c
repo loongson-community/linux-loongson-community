@@ -193,7 +193,7 @@ static int cpuset_rmdir(struct inode *unused_dir, struct dentry *dentry);
 
 static struct backing_dev_info cpuset_backing_dev_info = {
 	.ra_pages = 0,		/* No readahead */
-	.memory_backed = 1,	/* Does not contribute to dirty memory */
+	.capabilities	= BDI_CAP_NO_ACCT_DIRTY | BDI_CAP_NO_WRITEBACK,
 };
 
 static struct inode *cpuset_new_inode(mode_t mode)
@@ -345,7 +345,7 @@ struct cftype {
 	int (*open) (struct inode *inode, struct file *file);
 	ssize_t (*read) (struct file *file, char __user *buf, size_t nbytes,
 							loff_t *ppos);
-	int (*write) (struct file *file, const char *buf, size_t nbytes,
+	int (*write) (struct file *file, const char __user *buf, size_t nbytes,
 							loff_t *ppos);
 	int (*release) (struct inode *inode, struct file *file);
 };
@@ -502,6 +502,35 @@ static void guarantee_online_mems(const struct cpuset *cs, nodemask_t *pmask)
 	else
 		*pmask = node_online_map;
 	BUG_ON(!nodes_intersects(*pmask, node_online_map));
+}
+
+/*
+ * Refresh current tasks mems_allowed and mems_generation from
+ * current tasks cpuset.  Call with cpuset_sem held.
+ *
+ * Be sure to call refresh_mems() on any cpuset operation which
+ * (1) holds cpuset_sem, and (2) might possibly alloc memory.
+ * Call after obtaining cpuset_sem lock, before any possible
+ * allocation.  Otherwise one risks trying to allocate memory
+ * while the task cpuset_mems_generation is not the same as
+ * the mems_generation in its cpuset, which would deadlock on
+ * cpuset_sem in cpuset_update_current_mems_allowed().
+ *
+ * Since we hold cpuset_sem, once refresh_mems() is called, the
+ * test (current->cpuset_mems_generation != cs->mems_generation)
+ * in cpuset_update_current_mems_allowed() will remain false,
+ * until we drop cpuset_sem.  Anyone else who would change our
+ * cpusets mems_generation needs to lock cpuset_sem first.
+ */
+
+static void refresh_mems(void)
+{
+	struct cpuset *cs = current->cpuset;
+
+	if (current->cpuset_mems_generation != cs->mems_generation) {
+		guarantee_online_mems(cs, &current->mems_allowed);
+		current->cpuset_mems_generation = cs->mems_generation;
+	}
 }
 
 /*
@@ -711,7 +740,7 @@ typedef enum {
 	FILE_TASKLIST,
 } cpuset_filetype_t;
 
-static ssize_t cpuset_common_file_write(struct file *file, const char *userbuf,
+static ssize_t cpuset_common_file_write(struct file *file, const char __user *userbuf,
 					size_t nbytes, loff_t *unused_ppos)
 {
 	struct cpuset *cs = __d_cs(file->f_dentry->d_parent);
@@ -774,7 +803,7 @@ out1:
 	return retval;
 }
 
-static ssize_t cpuset_file_write(struct file *file, const char *buf,
+static ssize_t cpuset_file_write(struct file *file, const char __user *buf,
 						size_t nbytes, loff_t *ppos)
 {
 	ssize_t retval = 0;
@@ -874,7 +903,7 @@ out:
 	return retval;
 }
 
-static ssize_t cpuset_file_read(struct file *file, char *buf, size_t nbytes,
+static ssize_t cpuset_file_read(struct file *file, char __user *buf, size_t nbytes,
 								loff_t *ppos)
 {
 	ssize_t retval = 0;
@@ -1224,6 +1253,7 @@ static long cpuset_create(struct cpuset *parent, const char *name, int mode)
 		return -ENOMEM;
 
 	down(&cpuset_sem);
+	refresh_mems();
 	cs->flags = 0;
 	if (notify_on_release(parent))
 		set_bit(CS_NOTIFY_ON_RELEASE, &cs->flags);
@@ -1277,6 +1307,7 @@ static int cpuset_rmdir(struct inode *unused_dir, struct dentry *dentry)
 	/* the vfs holds both inode->i_sem already */
 
 	down(&cpuset_sem);
+	refresh_mems();
 	if (atomic_read(&cs->count) > 0) {
 		up(&cpuset_sem);
 		return -EBUSY;
@@ -1425,7 +1456,7 @@ void cpuset_init_current_mems_allowed(void)
  * Do not call this routine if in_interrupt().
  */
 
-void cpuset_update_current_mems_allowed()
+void cpuset_update_current_mems_allowed(void)
 {
 	struct cpuset *cs = current->cpuset;
 
@@ -1433,8 +1464,7 @@ void cpuset_update_current_mems_allowed()
 		return;		/* task is exiting */
 	if (current->cpuset_mems_generation != cs->mems_generation) {
 		down(&cpuset_sem);
-		guarantee_online_mems(cs, &current->mems_allowed);
-		current->cpuset_mems_generation = cs->mems_generation;
+		refresh_mems();
 		up(&cpuset_sem);
 	}
 }

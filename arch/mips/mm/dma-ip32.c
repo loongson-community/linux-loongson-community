@@ -37,7 +37,7 @@
 #define RAM_OFFSET_MASK	0x3fffffff
 
 void *dma_alloc_noncoherent(struct device *dev, size_t size,
-	dma_addr_t * dma_handle, int gfp)
+	dma_addr_t * dma_handle, unsigned int __nocast gfp)
 {
 	void *ret;
 	/* ignore region specifiers */
@@ -61,7 +61,7 @@ void *dma_alloc_noncoherent(struct device *dev, size_t size,
 EXPORT_SYMBOL(dma_alloc_noncoherent);
 
 void *dma_alloc_coherent(struct device *dev, size_t size,
-	dma_addr_t * dma_handle, int gfp)
+	dma_addr_t * dma_handle, unsigned int __nocast gfp)
 {
 	void *ret;
 

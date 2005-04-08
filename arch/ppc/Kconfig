@@ -203,15 +203,11 @@ source "drivers/cpufreq/Kconfig"
 config CPU_FREQ_PMAC
 	bool "Support for Apple PowerBooks"
 	depends on CPU_FREQ && ADB_PMU
+	select CPU_FREQ_TABLE
 	help
 	  This adds support for frequency switching on Apple PowerBooks,
 	  this currently includes some models of iBook & Titanium
 	  PowerBook.
-
-config CPU_FREQ_TABLE
-	tristate
-	depends on CPU_FREQ_PMAC
-	default y
 
 config PPC601_SYNC_FIX
 	bool "Workarounds for PPC601 bugs"
@@ -538,6 +534,17 @@ config CHESTNUT
 config SPRUCE
 	bool "IBM-Spruce"
 
+config HDPU
+	bool "Sky-HDPU"
+	help
+	  Select HDPU if configuring a Sky Computers Compute Blade.
+
+config HDPU_FEATURES
+	depends HDPU
+	tristate "HDPU-Features"
+	help
+	  Select to enable HDPU enhanced features.
+
 config EV64260
 	bool "Marvell-EV64260BP"
 	help
@@ -570,7 +577,6 @@ config SANDPOINT
 
 config RADSTONE_PPC7D
 	bool "Radstone Technology PPC7D board"
-	select MV64360
 
 config ADIR
 	bool "SBS-Adirondack"
@@ -733,7 +739,7 @@ config PPC_GEN550
 	depends on SANDPOINT || MCPN765 || SPRUCE || PPLUS || PCORE || \
 		PRPMC750 || K2 || PRPMC800 || LOPEC || \
 		(EV64260 && !SERIAL_MPSC) || CHESTNUT || RADSTONE_PPC7D || \
-		MPC834x_SYS
+		83xx
 	default y
 
 config FORCE
@@ -746,15 +752,10 @@ config GT64260
 	depends on EV64260 || CPCI690
 	default y
 
-config MV64360
+config MV64360		# Really MV64360 & MV64460
 	bool
-	depends on KATANA || RADSTONE_PPC7D
+	depends on CHESTNUT || KATANA || RADSTONE_PPC7D || HDPU
 	default y
-
-config MV64360
-	bool
-	depends on CHESTNUT
-  	default y
 
 config MV64X60
 	bool
@@ -811,7 +812,7 @@ config MPC10X_BRIDGE
 
 config FSL_OCP
 	bool
-	depends on MPC10X_BRIDGE || PPC_MPC52xx
+	depends on MPC10X_BRIDGE
 	default y
 
 config MPC10X_OPENPIC
@@ -1099,7 +1100,7 @@ config MCA
 	bool
 
 config PCI
-	bool "PCI support" if 40x || CPM2 || 83xx || 85xx
+	bool "PCI support" if 40x || CPM2 || 83xx || 85xx || PPC_MPC52xx
 	default y if !40x && !CPM2 && !8xx && !APUS && !83xx && !85xx
 	default PCI_PERMEDIA if !4xx && !CPM2 && !8xx && APUS
 	default PCI_QSPAN if !4xx && !CPM2 && 8xx

@@ -269,15 +269,9 @@ static void __init setup_cpu_maps(void)
 		nthreads = len / sizeof(u32);
 
 		for (j = 0; j < nthreads && cpu < NR_CPUS; j++) {
-			/*
-			 * Only spin up secondary threads if SMT is enabled.
-			 * We must leave space in the logical map for the
-			 * threads.
-			 */
-			if (j == 0 || smt_enabled_at_boot) {
-				cpu_set(cpu, cpu_present_map);
-				set_hard_smp_processor_id(cpu, intserv[j]);
-			}
+			cpu_set(cpu, cpu_present_map);
+			set_hard_smp_processor_id(cpu, intserv[j]);
+
 			if (intserv[j] == boot_cpuid_phys)
 				swap_cpuid = cpu;
 			cpu_set(cpu, cpu_possible_map);
@@ -605,12 +599,12 @@ void __init setup_system(void)
 	 */
 	initialize_cache_info();
 
-#ifdef CONFIG_PPC_PSERIES
+#ifdef CONFIG_PPC_RTAS
 	/*
 	 * Initialize RTAS if available
 	 */
 	rtas_initialize();
-#endif /* CONFIG_PPC_PSERIES */
+#endif /* CONFIG_PPC_RTAS */
 
 	/*
 	 * Check if we have an initrd provided via the device-tree
@@ -642,12 +636,11 @@ void __init setup_system(void)
 	early_console_initialized = 1;
 	register_console(&udbg_console);
 
-#endif /* !CONFIG_PPC_ISERIES */
-
 	/* Save unparsed command line copy for /proc/cmdline */
 	strlcpy(saved_command_line, cmd_line, COMMAND_LINE_SIZE);
 
 	parse_early_param();
+#endif /* !CONFIG_PPC_ISERIES */
 
 #if defined(CONFIG_SMP) && !defined(CONFIG_PPC_ISERIES)
 	/*
@@ -806,20 +799,31 @@ struct seq_operations cpuinfo_op = {
 	.show =	show_cpuinfo,
 };
 
-#if 0 /* XXX not currently used */
+/*
+ * These three variables are used to save values passed to us by prom_init()
+ * via the device tree. The TCE variables are needed because with a memory_limit
+ * in force we may need to explicitly map the TCE are at the top of RAM.
+ */
 unsigned long memory_limit;
+unsigned long tce_alloc_start;
+unsigned long tce_alloc_end;
 
+#ifdef CONFIG_PPC_ISERIES
+/*
+ * On iSeries we just parse the mem=X option from the command line.
+ * On pSeries it's a bit more complicated, see prom_init_mem()
+ */
 static int __init early_parsemem(char *p)
 {
 	if (!p)
 		return 0;
 
-	memory_limit = memparse(p, &p);
+	memory_limit = ALIGN(memparse(p, &p), PAGE_SIZE);
 
 	return 0;
 }
 early_param("mem", early_parsemem);
-#endif
+#endif /* CONFIG_PPC_ISERIES */
 
 #ifdef CONFIG_PPC_MULTIPLATFORM
 static int __init set_preferred_console(void)
@@ -1367,6 +1371,12 @@ EXPORT_SYMBOL(check_legacy_ioport);
 static int __init early_xmon(char *p)
 {
 	/* ensure xmon is enabled */
+	if (p) {
+		if (strncmp(p, "on", 2) == 0)
+			xmon_init();
+		if (strncmp(p, "early", 5) != 0)
+			return 0;
+	}
 	xmon_init();
 	debugger(NULL);
 

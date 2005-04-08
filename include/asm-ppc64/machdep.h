@@ -21,6 +21,7 @@ struct pci_bus;
 struct device_node;
 struct iommu_table;
 struct rtc_time;
+struct file;
 
 #ifdef CONFIG_SMP
 struct smp_ops_t {
@@ -33,6 +34,7 @@ struct smp_ops_t {
 	int   (*cpu_enable)(unsigned int nr);
 	int   (*cpu_disable)(void);
 	void  (*cpu_die)(unsigned int nr);
+	int   (*cpu_bootable)(unsigned int nr);
 };
 #endif
 
@@ -130,6 +132,12 @@ struct machdep_calls {
 	/* Get legacy PCI/IDE interrupt mapping */ 
 	int		(*pci_get_legacy_ide_irq)(struct pci_dev *dev, int channel);
 	
+	/* Get access protection for /dev/mem */
+	pgprot_t	(*phys_mem_access_prot)(struct file *file,
+						unsigned long offset,
+						unsigned long size,
+						pgprot_t vma_prot);
+
 };
 
 extern struct machdep_calls ppc_md;

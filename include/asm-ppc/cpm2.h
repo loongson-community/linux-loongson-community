@@ -69,6 +69,7 @@
 #define CPM_CR_INIT_TX		((ushort)0x0002)
 #define CPM_CR_HUNT_MODE	((ushort)0x0003)
 #define CPM_CR_STOP_TX		((ushort)0x0004)
+#define CPM_CR_GRA_STOP_TX      ((ushort)0x0005)
 #define CPM_CR_RESTART_TX	((ushort)0x0006)
 #define CPM_CR_SET_GADDR	((ushort)0x0008)
 #define CPM_CR_START_IDMA	((ushort)0x0009)
@@ -85,7 +86,7 @@
  */
 #define CPM_DATAONLY_BASE	((uint)128)
 #define CPM_DP_NOSPACE		((uint)0x7fffffff)
-#ifdef CONFIG_8272
+#if defined(CONFIG_8272) || defined(CONFIG_MPC8555)
 #define CPM_DATAONLY_SIZE	((uint)(8 * 1024) - CPM_DATAONLY_BASE)
 #define CPM_FCC_SPECIAL_BASE	((uint)0x00009000)
 #else

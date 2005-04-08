@@ -46,9 +46,6 @@
 #include <asm/io.h>
 #include "lm75.h"
 
-/* RT Table support #defined so we can take it out if it gets bothersome */
-#define W83781D_RT			1
-
 /* Addresses to scan */
 static unsigned short normal_i2c[] = { 0x20, 0x21, 0x22, 0x23, 0x24, 0x25,
 					0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b,
@@ -258,9 +255,6 @@ struct w83781d_data {
 				   3000-5000 = thermistor beta.
 				   Default = 3435. 
 				   Other Betas unimplemented */
-#ifdef W83781D_RT
-	u8 rt[3][32];		/* Register value */
-#endif
 	u8 vrm;
 };
 
@@ -302,9 +296,12 @@ static ssize_t store_in_##reg (struct device *dev, const char *buf, size_t count
 	u32 val; \
 	 \
 	val = simple_strtoul(buf, NULL, 10) / 10; \
+	 \
+	down(&data->update_lock); \
 	data->in_##reg[nr] = IN_TO_REG(val); \
 	w83781d_write_value(client, W83781D_REG_IN_##REG(nr), data->in_##reg[nr]); \
 	 \
+	up(&data->update_lock); \
 	return count; \
 }
 store_in_reg(MIN, min);
@@ -369,11 +366,14 @@ store_fan_min(struct device *dev, const char *buf, size_t count, int nr)
 	u32 val;
 
 	val = simple_strtoul(buf, NULL, 10);
+
+	down(&data->update_lock);
 	data->fan_min[nr - 1] =
 	    FAN_TO_REG(val, DIV_FROM_REG(data->fan_div[nr - 1]));
 	w83781d_write_value(client, W83781D_REG_FAN_MIN(nr),
 			    data->fan_min[nr - 1]);
 
+	up(&data->update_lock);
 	return count;
 }
 
@@ -432,6 +432,8 @@ static ssize_t store_temp_##reg (struct device *dev, const char *buf, size_t cou
 	 \
 	val = simple_strtol(buf, NULL, 10); \
 	 \
+	down(&data->update_lock); \
+	 \
 	if (nr >= 2) {	/* TEMP2 and TEMP3 */ \
 		data->temp_##reg##_add[nr-2] = LM75_TEMP_TO_REG(val); \
 		w83781d_write_value(client, W83781D_REG_TEMP_##REG(nr), \
@@ -442,6 +444,7 @@ static ssize_t store_temp_##reg (struct device *dev, const char *buf, size_t cou
 			data->temp_##reg); \
 	} \
 	 \
+	up(&data->update_lock); \
 	return count; \
 }
 store_temp_reg(OVER, max);
@@ -554,6 +557,8 @@ store_beep_reg(struct device *dev, const char *buf, size_t count,
 
 	val = simple_strtoul(buf, NULL, 10);
 
+	down(&data->update_lock);
+
 	if (update_mask == BEEP_MASK) {	/* We are storing beep_mask */
 		data->beep_mask = BEEP_MASK_TO_REG(val, data->type);
 		w83781d_write_value(client, W83781D_REG_BEEP_INTS1,
@@ -573,6 +578,7 @@ store_beep_reg(struct device *dev, const char *buf, size_t count,
 	w83781d_write_value(client, W83781D_REG_BEEP_INTS2,
 			    val2 | data->beep_enable << 7);
 
+	up(&data->update_lock);
 	return count;
 }
 
@@ -615,13 +621,15 @@ store_fan_div_reg(struct device *dev, const char *buf, size_t count, int nr)
 	struct w83781d_data *data = i2c_get_clientdata(client);
 	unsigned long min;
 	u8 reg;
+	unsigned long val = simple_strtoul(buf, NULL, 10);
 
+	down(&data->update_lock);
+	
 	/* Save fan_min */
 	min = FAN_FROM_REG(data->fan_min[nr],
 			   DIV_FROM_REG(data->fan_div[nr]));
 
-	data->fan_div[nr] = DIV_TO_REG(simple_strtoul(buf, NULL, 10),
-				      data->type);
+	data->fan_div[nr] = DIV_TO_REG(val, data->type);
 
 	reg = (w83781d_read_value(client, nr==2 ? W83781D_REG_PIN : W83781D_REG_VID_FANDIV)
 	       & (nr==0 ? 0xcf : 0x3f))
@@ -640,6 +648,7 @@ store_fan_div_reg(struct device *dev, const char *buf, size_t count, int nr)
 	data->fan_min[nr] = FAN_TO_REG(min, DIV_FROM_REG(data->fan_div[nr]));
 	w83781d_write_value(client, W83781D_REG_FAN_MIN(nr+1), data->fan_min[nr]);
 
+	up(&data->update_lock);
 	return count;
 }
 
@@ -686,9 +695,10 @@ store_pwm_reg(struct device *dev, const char *buf, size_t count, int nr)
 
 	val = simple_strtoul(buf, NULL, 10);
 
+	down(&data->update_lock);
 	data->pwm[nr - 1] = PWM_TO_REG(val);
 	w83781d_write_value(client, W83781D_REG_PWM(nr), data->pwm[nr - 1]);
-
+	up(&data->update_lock);
 	return count;
 }
 
@@ -700,6 +710,8 @@ store_pwmenable_reg(struct device *dev, const char *buf, size_t count, int nr)
 	u32 val, reg;
 
 	val = simple_strtoul(buf, NULL, 10);
+
+	down(&data->update_lock);
 
 	switch (val) {
 	case 0:
@@ -716,9 +728,11 @@ store_pwmenable_reg(struct device *dev, const char *buf, size_t count, int nr)
 		break;
 
 	default:
+		up(&data->update_lock);
 		return -EINVAL;
 	}
 
+	up(&data->update_lock);
 	return count;
 }
 
@@ -780,6 +794,8 @@ store_sensor_reg(struct device *dev, const char *buf, size_t count, int nr)
 
 	val = simple_strtoul(buf, NULL, 10);
 
+	down(&data->update_lock);
+
 	switch (val) {
 	case 1:		/* PII/Celeron diode */
 		tmp = w83781d_read_value(client, W83781D_REG_SCFG1);
@@ -811,6 +827,7 @@ store_sensor_reg(struct device *dev, const char *buf, size_t count, int nr)
 		break;
 	}
 
+	up(&data->update_lock);
 	return count;
 }
 
@@ -833,66 +850,6 @@ sysfs_sensor(3);
 do { \
 device_create_file(&client->dev, &dev_attr_temp##offset##_type); \
 } while (0)
-
-#ifdef W83781D_RT
-static ssize_t
-show_rt_reg(struct device *dev, char *buf, int nr)
-{
-	struct w83781d_data *data = w83781d_update_device(dev);
-	int i, j = 0;
-
-	for (i = 0; i < 32; i++) {
-		if (i > 0)
-			j += sprintf(buf, " %ld", (long) data->rt[nr - 1][i]);
-		else
-			j += sprintf(buf, "%ld", (long) data->rt[nr - 1][i]);
-	}
-	j += sprintf(buf, "\n");
-
-	return j;
-}
-
-static ssize_t
-store_rt_reg(struct device *dev, const char *buf, size_t count, int nr)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct w83781d_data *data = i2c_get_clientdata(client);
-	u32 val, i;
-
-	for (i = 0; i < count; i++) {
-		val = simple_strtoul(buf + count, NULL, 10);
-
-		/* fixme: no bounds checking 0-255 */
-		data->rt[nr - 1][i] = val & 0xff;
-		w83781d_write_value(client, W83781D_REG_RT_IDX, i);
-		w83781d_write_value(client, W83781D_REG_RT_VAL,
-				    data->rt[nr - 1][i]);
-	}
-
-	return count;
-}
-
-#define sysfs_rt(offset) \
-static ssize_t show_regs_rt_##offset (struct device *dev, char *buf) \
-{ \
-	return show_rt_reg(dev, buf, offset); \
-} \
-static ssize_t store_regs_rt_##offset (struct device *dev, const char *buf, size_t count) \
-{ \
-    return store_rt_reg(dev, buf, count, offset); \
-} \
-static DEVICE_ATTR(rt##offset, S_IRUGO | S_IWUSR, show_regs_rt_##offset, store_regs_rt_##offset);
-
-sysfs_rt(1);
-sysfs_rt(2);
-sysfs_rt(3);
-
-#define device_create_file_rt(client, offset) \
-do { \
-device_create_file(&client->dev, &dev_attr_rt##offset); \
-} while (0)
-
-#endif				/* ifdef W83781D_RT */
 
 /* This function is called when:
      * w83781d_driver is inserted (when this module is loaded), for each
@@ -1304,13 +1261,6 @@ w83781d_detect(struct i2c_adapter *adapter, int address, int kind)
 		if (kind != w83783s && kind != w83697hf)
 			device_create_file_sensor(new_client, 3);
 	}
-#ifdef W83781D_RT
-	if (kind == w83781d) {
-		device_create_file_rt(new_client, 1);
-		device_create_file_rt(new_client, 2);
-		device_create_file_rt(new_client, 3);
-	}
-#endif
 
 	return 0;
 
@@ -1535,33 +1485,6 @@ w83781d_init_client(struct i2c_client *client)
 				break;
 		}
 	}
-#ifdef W83781D_RT
-/*
-   Fill up the RT Tables.
-   We assume that they are 32 bytes long, in order for temp 1-3.
-   Data sheet documentation is sparse.
-   We also assume that it is only for the 781D although I suspect
-   that the others support it as well....
-*/
-
-	if (init && type == w83781d) {
-		u16 k = 0;
-/*
-    Auto-indexing doesn't seem to work...
-    w83781d_write_value(client,W83781D_REG_RT_IDX,0);
-*/
-		for (i = 0; i < 3; i++) {
-			int j;
-			for (j = 0; j < 32; j++) {
-				w83781d_write_value(client,
-						    W83781D_REG_RT_IDX, k++);
-				data->rt[i][j] =
-				    w83781d_read_value(client,
-						       W83781D_REG_RT_VAL);
-			}
-		}
-	}
-#endif				/* W83781D_RT */
 
 	if (init && type != as99127f) {
 		/* Enable temp2 */

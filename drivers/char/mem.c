@@ -23,6 +23,7 @@
 #include <linux/devfs_fs_kernel.h>
 #include <linux/ptrace.h>
 #include <linux/device.h>
+#include <linux/backing-dev.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -76,14 +77,6 @@ static inline int uncached_access(struct file *file, unsigned long addr)
 	 * On ia64, we ignore O_SYNC because we cannot tolerate memory attribute aliases.
 	 */
 	return !(efi_mem_attributes(addr) & EFI_MEMORY_WB);
-#elif defined(CONFIG_PPC64)
-	/* On PPC64, we always do non-cacheable access to the IO hole and
-	 * cacheable elsewhere. Cache paradox can checkstop the CPU and
-	 * the high_memory heuristic below is wrong on machines with memory
-	 * above the IO hole... Ah, and of course, XFree86 doesn't pass
-	 * O_SYNC when mapping us to tap IO space. Surprised ?
-	 */
-	return !page_is_ram(addr >> PAGE_SHIFT);
 #else
 	/*
 	 * Accessing memory above the top the kernel knows about or through a file pointer
@@ -238,7 +231,13 @@ static ssize_t write_mem(struct file * file, const char __user * buf,
 
 static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 {
-#ifdef pgprot_noncached
+#if defined(__HAVE_PHYS_MEM_ACCESS_PROT)
+	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
+
+	vma->vm_page_prot = phys_mem_access_prot(file, offset,
+						 vma->vm_end - vma->vm_start,
+						 vma->vm_page_prot);
+#elif defined(pgprot_noncached)
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	int uncached;
 
@@ -257,6 +256,23 @@ static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 	return 0;
 }
 
+static int mmap_kmem(struct file * file, struct vm_area_struct * vma)
+{
+        unsigned long long val;
+	/*
+	 * RED-PEN: on some architectures there is more mapped memory
+	 * than available in mem_map which pfn_valid checks
+	 * for. Perhaps should add a new macro here.
+	 *
+	 * RED-PEN: vmalloc is not supported right now.
+	 */
+	if (!pfn_valid(vma->vm_pgoff))
+		return -EIO;
+	val = (u64)vma->vm_pgoff << PAGE_SHIFT;
+	vma->vm_pgoff = __pa(val) >> PAGE_SHIFT;
+	return mmap_mem(file, vma);
+}
+
 extern long vread(char *buf, char *addr, unsigned long count);
 extern long vwrite(char *buf, char *addr, unsigned long count);
 
@@ -267,30 +283,30 @@ static ssize_t read_kmem(struct file *file, char __user *buf,
 			 size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
-	ssize_t read, virtr, sz;
+	ssize_t low_count, read, sz;
 	char * kbuf; /* k-addr because vread() takes vmlist_lock rwlock */
 
 	read = 0;
-	virtr = 0;
 	if (p < (unsigned long) high_memory) {
-		read = count;
+		low_count = count;
 		if (count > (unsigned long) high_memory - p)
-			read = (unsigned long) high_memory - p;
+			low_count = (unsigned long) high_memory - p;
 
 #ifdef __ARCH_HAS_NO_PAGE_ZERO_MAPPED
 		/* we don't have page 0 mapped on sparc and m68k.. */
-		if (p < PAGE_SIZE && read > 0) {
+		if (p < PAGE_SIZE && low_count > 0) {
 			size_t tmp = PAGE_SIZE - p;
-			if (tmp > read) tmp = read;
+			if (tmp > low_count) tmp = low_count;
 			if (clear_user(buf, tmp))
 				return -EFAULT;
 			buf += tmp;
 			p += tmp;
-			read -= tmp;
+			read += tmp;
+			low_count -= tmp;
 			count -= tmp;
 		}
 #endif
-		while (read > 0) {
+		while (low_count > 0) {
 			/*
 			 * Handle first page in case it's not aligned
 			 */
@@ -299,7 +315,7 @@ static ssize_t read_kmem(struct file *file, char __user *buf,
 			else
 				sz = PAGE_SIZE;
 
-			sz = min_t(unsigned long, sz, count);
+			sz = min_t(unsigned long, sz, low_count);
 
 			/*
 			 * On ia64 if a page has been mapped somewhere as
@@ -312,7 +328,8 @@ static ssize_t read_kmem(struct file *file, char __user *buf,
 				return -EFAULT;
 			buf += sz;
 			p += sz;
-			read -= sz;
+			read += sz;
+			low_count -= sz;
 			count -= sz;
 		}
 	}
@@ -335,13 +352,13 @@ static ssize_t read_kmem(struct file *file, char __user *buf,
 			}
 			count -= len;
 			buf += len;
-			virtr += len;
+			read += len;
 			p += len;
 		}
 		free_page((unsigned long)kbuf);
 	}
  	*ppos = p;
- 	return virtr + read;
+ 	return read;
 }
 
 
@@ -698,7 +715,6 @@ static int open_port(struct inode * inode, struct file * filp)
 	return capable(CAP_SYS_RAWIO) ? 0 : -EPERM;
 }
 
-#define mmap_kmem	mmap_mem
 #define zero_lseek	null_lseek
 #define full_lseek      null_lseek
 #define write_zero	write_null
@@ -742,6 +758,10 @@ static struct file_operations zero_fops = {
 	.read		= read_zero,
 	.write		= write_zero,
 	.mmap		= mmap_zero,
+};
+
+static struct backing_dev_info zero_bdi = {
+	.capabilities	= BDI_CAP_MAP_COPY,
 };
 
 static struct file_operations full_fops = {
@@ -790,6 +810,7 @@ static int memory_open(struct inode * inode, struct file * filp)
 			break;
 #endif
 		case 5:
+			filp->f_mapping->backing_dev_info = &zero_bdi;
 			filp->f_op = &zero_fops;
 			break;
 		case 7:

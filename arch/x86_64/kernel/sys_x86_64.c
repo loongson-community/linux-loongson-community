@@ -18,7 +18,6 @@
 #include <linux/personality.h>
 
 #include <asm/uaccess.h>
-#include <asm/ipc.h>
 #include <asm/ia32.h>
 
 /*
@@ -38,7 +37,7 @@ asmlinkage long sys_pipe(int __user *fildes)
 	return error;
 }
 
-long sys_mmap(unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags,
+asmlinkage long sys_mmap(unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags,
 	unsigned long fd, unsigned long off)
 {
 	long error;

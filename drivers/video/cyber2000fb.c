@@ -1668,7 +1668,7 @@ static void __devexit cyberpro_pci_remove(struct pci_dev *dev)
 	}
 }
 
-static int cyberpro_pci_suspend(struct pci_dev *dev, u32 state)
+static int cyberpro_pci_suspend(struct pci_dev *dev, pm_message_t state)
 {
 	return 0;
 }
@@ -1740,7 +1740,7 @@ static int __init cyber2000fb_init(void)
 	}
 #endif
 #ifdef CONFIG_PCI
-	err = pci_module_init(&cyberpro_driver);
+	err = pci_register_driver(&cyberpro_driver);
 	if (!err)
 		ret = 0;
 #endif
