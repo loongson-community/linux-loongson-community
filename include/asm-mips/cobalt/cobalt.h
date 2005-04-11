@@ -87,6 +87,7 @@ do {									\
 } while (0)
 
 #define GALILEO_INTR_T0EXP	(1 << 8)
+#define GALILEO_INTR_RETRY_CTR	(1 << 20)
 
 #define GALILEO_ENTC0		0x01
 #define GALILEO_SELTC0		0x02

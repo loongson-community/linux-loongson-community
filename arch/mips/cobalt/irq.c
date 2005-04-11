@@ -11,6 +11,7 @@
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/pci.h>
 
 #include <asm/i8259.h>
 #include <asm/irq_cpu.h>
@@ -45,7 +46,7 @@ extern void cobalt_handle_int(void);
 
 static inline void galileo_irq(struct pt_regs *regs)
 {
-	unsigned int mask, pending;
+	unsigned int mask, pending, devfn;
 
 	mask = GALILEO_INL(GT_INTRMASK_OFS);
 	pending = GALILEO_INL(GT_INTRCAUSE_OFS) & mask;
@@ -54,6 +55,13 @@ static inline void galileo_irq(struct pt_regs *regs)
 
 		GALILEO_OUTL(~GALILEO_INTR_T0EXP, GT_INTRCAUSE_OFS);
 		do_IRQ(COBALT_GALILEO_IRQ, regs);
+
+	} else if (pending & GALILEO_INTR_RETRY_CTR) {
+
+		devfn = GALILEO_INL(GT_PCI0_CFGADDR_OFS) >> 8;
+		GALILEO_OUTL(~GALILEO_INTR_RETRY_CTR, GT_INTRCAUSE_OFS);
+		printk(KERN_WARNING "Galileo: PCI retry count exceeded (%02x.%u)\n",
+			PCI_SLOT(devfn), PCI_FUNC(devfn));
 
 	} else {
 
