@@ -25,15 +25,17 @@
 /*
  * CPU IRQs  are 16 ... 23
  */
-#define COBALT_TIMER_IRQ	18
-#define COBALT_SCC_IRQ          19		/* pre-production has 85C30 */
-#define COBALT_RAQ_SCSI_IRQ	19
-#define COBALT_ETH0_IRQ		19
-#define COBALT_QUBE1_ETH0_IRQ	20
-#define COBALT_ETH1_IRQ		20
-#define COBALT_SERIAL_IRQ	21
-#define COBALT_SCSI_IRQ         21
-#define COBALT_VIA_IRQ		22		/* Chained to VIA ISA bridge */
+#define COBALT_CPU_IRQ		16
+
+#define COBALT_GALILEO_IRQ	(COBALT_CPU_IRQ + 2)
+#define COBALT_SCC_IRQ          (COBALT_CPU_IRQ + 3)	/* pre-production has 85C30 */
+#define COBALT_RAQ_SCSI_IRQ	(COBALT_CPU_IRQ + 3)
+#define COBALT_ETH0_IRQ		(COBALT_CPU_IRQ + 3)
+#define COBALT_QUBE1_ETH0_IRQ	(COBALT_CPU_IRQ + 4)
+#define COBALT_ETH1_IRQ		(COBALT_CPU_IRQ + 4)
+#define COBALT_SERIAL_IRQ	(COBALT_CPU_IRQ + 5)
+#define COBALT_SCSI_IRQ         (COBALT_CPU_IRQ + 5)
+#define COBALT_VIA_IRQ		(COBALT_CPU_IRQ + 6)	/* Chained to VIA ISA bridge */
 
 /*
  * PCI configuration space manifest constants.  These are wired into
@@ -84,7 +86,8 @@ do {									\
 	*(volatile unsigned int *) GALILEO_REG(port) = (val);		\
 } while (0)
 
-#define GALILEO_T0EXP		0x0100
+#define GALILEO_INTR_T0EXP	(1 << 8)
+
 #define GALILEO_ENTC0		0x01
 #define GALILEO_SELTC0		0x02
 

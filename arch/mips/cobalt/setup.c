@@ -50,16 +50,17 @@ const char *get_system_type(void)
 
 static void __init cobalt_timer_setup(struct irqaction *irq)
 {
-	/* Load timer value for 1KHz */
+	/* Load timer value for 1KHz (TCLK is 50MHz) */
 	GALILEO_OUTL(50*1000*1000 / 1000, GT_TC0_OFS);
 
-	/* Register our timer interrupt */
-	setup_irq(COBALT_TIMER_IRQ, irq);
+	/* Enable timer */
+	GALILEO_OUTL(GALILEO_ENTC0 | GALILEO_SELTC0, GT_TC_CONTROL_OFS);
 
-	/* Enable timer ints */
-	GALILEO_OUTL((GALILEO_ENTC0 | GALILEO_SELTC0), GT_TC_CONTROL_OFS);
-	/* Unmask timer int */
-	GALILEO_OUTL(GALILEO_T0EXP, GT_INTRMASK_OFS);
+	/* Register interrupt */
+	setup_irq(COBALT_GALILEO_IRQ, irq);
+
+	/* Enable interrupt */
+	GALILEO_OUTL(GALILEO_INTR_T0EXP | GALILEO_INL(GT_INTRMASK_OFS), GT_INTRMASK_OFS);
 }
 
 extern struct pci_ops gt64111_pci_ops;
