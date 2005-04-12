@@ -377,7 +377,7 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 }
 
 /*
- * Native ABI that is O32 or N64 version
+ * Native N64 ABI only.
  */
 asmlinkage long sys_shmat(int shmid, char __user *shmaddr, int shmflg)
 {
