@@ -67,7 +67,7 @@ static __inline__ void atomic_add(int i, atomic_t * v)
 		"	sc	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -77,7 +77,7 @@ static __inline__ void atomic_add(int i, atomic_t * v)
 		"	sc	%0, %1					\n"
 		"	beqz	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -105,7 +105,7 @@ static __inline__ void atomic_sub(int i, atomic_t * v)
 		"	sc	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -115,7 +115,7 @@ static __inline__ void atomic_sub(int i, atomic_t * v)
 		"	sc	%0, %1					\n"
 		"	beqz	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -143,8 +143,7 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
 		"	addu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -156,8 +155,7 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
 		"	addu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -186,8 +184,7 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 		"	subu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -199,8 +196,7 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 		"	subu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -237,8 +233,7 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 		"	sync						\n"
 		"1:							\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -251,8 +246,7 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 		"	sync						\n"
 		"1:							\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -372,7 +366,7 @@ static __inline__ void atomic64_add(long i, atomic64_t * v)
 		"	scd	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -382,7 +376,7 @@ static __inline__ void atomic64_add(long i, atomic64_t * v)
 		"	scd	%0, %1					\n"
 		"	beqz	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -410,7 +404,7 @@ static __inline__ void atomic64_sub(long i, atomic64_t * v)
 		"	scd	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -420,7 +414,7 @@ static __inline__ void atomic64_sub(long i, atomic64_t * v)
 		"	scd	%0, %1					\n"
 		"	beqz	%0, 1b					\n"
 		: "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter));
+		: "Ir" (i), "1" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -448,8 +442,7 @@ static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 		"	addu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -461,8 +454,7 @@ static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 		"	addu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -491,8 +483,7 @@ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 		"	subu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -504,8 +495,7 @@ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 		"	subu	%0, %1, %3				\n"
 		"	sync						\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else {
 		unsigned long flags;
 
@@ -542,8 +532,7 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 		"	sync						\n"
 		"1:							\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else if (cpu_has_llsc) {
 		unsigned long temp;
 
@@ -556,8 +545,7 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 		"	sync						\n"
 		"1:							\n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
-		: "Ir" (i), "m" (v->counter)
-		: "memory");
+		: "Ir" (i), "2" (v->counter));
 	} else {
 		unsigned long flags;
 
