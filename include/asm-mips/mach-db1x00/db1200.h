@@ -24,7 +24,6 @@
 #ifndef __ASM_DB1200_H
 #define __ASM_DB1200_H
 
-#include <linux/config.h>
 #include <linux/types.h>
 
 // This is defined in au1000.h with bogus value

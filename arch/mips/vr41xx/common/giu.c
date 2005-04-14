@@ -28,7 +28,6 @@
  *  - Added support for NEC VR4133.
  *  - Removed board_irq_init.
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/irq.h>
