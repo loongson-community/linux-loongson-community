@@ -845,6 +845,7 @@ serial8250_set_termios(struct uart_port *port, struct termios *termios,
 
 	serial_out(up, UART_IER, up->ier);
 	serial_outp(up, 0x28, quot & 0xffff);
+	serial_out(up, UART_LCR, cval);			/* reset DLAB */
 	up->lcr = cval;					/* Save LCR */
 	if (up->port.type != PORT_16750) {
 		if (fcr & UART_FCR_ENABLE_FIFO) {
