@@ -192,6 +192,72 @@ void mthca_table_put(struct mthca_dev *dev, struct mthca_icm_table *table, int o
 	up(&table->mutex);
 }
 
+void *mthca_table_find(struct mthca_icm_table *table, int obj)
+{
+	int idx, offset, i;
+	struct mthca_icm_chunk *chunk;
+	struct mthca_icm *icm;
+	struct page *page = NULL;
+
+	if (!table->lowmem)
+		return NULL;
+
+	down(&table->mutex);
+
+	idx = (obj & (table->num_obj - 1)) * table->obj_size;
+	icm = table->icm[idx / MTHCA_TABLE_CHUNK_SIZE];
+	offset = idx % MTHCA_TABLE_CHUNK_SIZE;
+
+	if (!icm)
+		goto out;
+
+	list_for_each_entry(chunk, &icm->chunk_list, list) {
+		for (i = 0; i < chunk->npages; ++i) {
+			if (chunk->mem[i].length >= offset) {
+				page = chunk->mem[i].page;
+				break;
+			}
+			offset -= chunk->mem[i].length;
+		}
+	}
+
+out:
+	up(&table->mutex);
+	return page ? lowmem_page_address(page) + offset : NULL;
+}
+
+int mthca_table_get_range(struct mthca_dev *dev, struct mthca_icm_table *table,
+			  int start, int end)
+{
+	int inc = MTHCA_TABLE_CHUNK_SIZE / table->obj_size;
+	int i, err;
+
+	for (i = start; i <= end; i += inc) {
+		err = mthca_table_get(dev, table, i);
+		if (err)
+			goto fail;
+	}
+
+	return 0;
+
+fail:
+	while (i > start) {
+		i -= inc;
+		mthca_table_put(dev, table, i);
+	}
+
+	return err;
+}
+
+void mthca_table_put_range(struct mthca_dev *dev, struct mthca_icm_table *table,
+			   int start, int end)
+{
+	int i;
+
+	for (i = start; i <= end; i += MTHCA_TABLE_CHUNK_SIZE / table->obj_size)
+		mthca_table_put(dev, table, i);
+}
+
 struct mthca_icm_table *mthca_alloc_icm_table(struct mthca_dev *dev,
 					      u64 virt, int obj_size,
 					      int nobj, int reserved,
@@ -305,7 +371,8 @@ int mthca_alloc_db(struct mthca_dev *dev, int type, u32 qn, u32 **db)
 		break;
 
 	default:
-		return -1;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	for (i = start; i != end; i += dir)
@@ -405,7 +472,7 @@ int mthca_init_db_tab(struct mthca_dev *dev)
 {
 	int i;
 
-	if (dev->hca_type != ARBEL_NATIVE)
+	if (!mthca_is_memfree(dev))
 		return 0;
 
 	dev->db_tab = kmalloc(sizeof *dev->db_tab, GFP_KERNEL);
@@ -414,7 +481,7 @@ int mthca_init_db_tab(struct mthca_dev *dev)
 
 	init_MUTEX(&dev->db_tab->mutex);
 
-	dev->db_tab->npages     = dev->uar_table.uarc_size / PAGE_SIZE;
+	dev->db_tab->npages     = dev->uar_table.uarc_size / 4096;
 	dev->db_tab->max_group1 = 0;
 	dev->db_tab->min_group2 = dev->db_tab->npages - 1;
 
@@ -437,7 +504,7 @@ void mthca_cleanup_db_tab(struct mthca_dev *dev)
 	int i;
 	u8 status;
 
-	if (dev->hca_type != ARBEL_NATIVE)
+	if (!mthca_is_memfree(dev))
 		return;
 
 	/*

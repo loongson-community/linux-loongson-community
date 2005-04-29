@@ -162,7 +162,6 @@ struct mthca_dev_lim {
 	int cqc_entry_sz;
 	int srq_entry_sz;
 	int uar_scratch_entry_sz;
-	int mtt_seg_sz;
 	int mpt_entry_sz;
 	union {
 		struct {
@@ -277,6 +276,7 @@ int mthca_HW2SW_MPT(struct mthca_dev *dev, void *mpt_entry,
 		    int mpt_index, u8 *status);
 int mthca_WRITE_MTT(struct mthca_dev *dev, u64 *mtt_entry,
 		    int num_mtt, u8 *status);
+int mthca_SYNC_TPT(struct mthca_dev *dev, u8 *status);
 int mthca_MAP_EQ(struct mthca_dev *dev, u64 event_mask, int unmap,
 		 int eq_num, u8 *status);
 int mthca_SW2HW_EQ(struct mthca_dev *dev, void *eq_context,

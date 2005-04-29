@@ -41,7 +41,7 @@
 #define PTRS_PER_PGD	(1 << PGD_INDEX_SIZE)
 
 #define USER_PTRS_PER_PGD	(1024)
-#define FIRST_USER_PGD_NR	0
+#define FIRST_USER_ADDRESS	0
 
 #define EADDR_SIZE (PTE_INDEX_SIZE + PMD_INDEX_SIZE + \
                     PGD_INDEX_SIZE + PAGE_SHIFT) 
@@ -500,9 +500,15 @@ extern pgd_t ioremap_dir[1024];
 
 extern void paging_init(void);
 
-struct mmu_gather;
-void hugetlb_free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *prev,
-			   unsigned long start, unsigned long end);
+/*
+ * Because the huge pgtables are only 2 level, they can take
+ * at most around 4M, much less than one hugepage which the
+ * process is presumably entitled to use.  So we don't bother
+ * freeing up the pagetables on unmap, and wait until
+ * destroy_context() to clean up the lot.
+ */
+#define hugetlb_free_pgd_range(tlb, addr, end, floor, ceiling) \
+						do { } while (0)
 
 /*
  * This gets called at the end of handling a page fault, when

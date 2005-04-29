@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc2
-# Fri Apr  8 18:22:32 2005
+# Linux kernel version: 2.6.12-rc3
+# Thu Apr 28 18:20:26 2005
 #
 CONFIG_MIPS=y
 
@@ -560,6 +560,7 @@ CONFIG_FB=y
 # CONFIG_FB_KYRO is not set
 # CONFIG_FB_3DFX is not set
 # CONFIG_FB_VOODOO1 is not set
+# CONFIG_FB_SMIVGX is not set
 # CONFIG_FB_TRIDENT is not set
 # CONFIG_FB_E1356 is not set
 # CONFIG_FB_S1D13XXX is not set

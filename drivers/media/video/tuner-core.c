@@ -162,7 +162,7 @@ static void set_type(struct i2c_client *c, unsigned int type)
 }
 
 static char pal[] = "-";
-module_param_string(pal, pal, 0644, sizeof(pal));
+module_param_string(pal, pal, sizeof(pal), 0644);
 
 static int tuner_fixup_std(struct tuner *t)
 {
@@ -378,7 +378,7 @@ tuner_command(struct i2c_client *client, unsigned int cmd, void *arg)
 	return 0;
 }
 
-static int tuner_suspend(struct device * dev, u32 state, u32 level)
+static int tuner_suspend(struct device * dev, pm_message_t state, u32 level)
 {
 	struct i2c_client *c = container_of(dev, struct i2c_client, dev);
 	struct tuner *t = i2c_get_clientdata(c);

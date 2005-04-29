@@ -73,14 +73,15 @@ static const char mthca_version[] __devinitdata =
 	DRV_VERSION " (" DRV_RELDATE ")\n";
 
 static struct mthca_profile default_profile = {
-	.num_qp     = 1 << 16,
-	.rdb_per_qp = 4,
-	.num_cq     = 1 << 16,
-	.num_mcg    = 1 << 13,
-	.num_mpt    = 1 << 17,
-	.num_mtt    = 1 << 20,
-	.num_udav   = 1 << 15,	/* Tavor only */
-	.uarc_size  = 1 << 18,	/* Arbel only */
+	.num_qp		   = 1 << 16,
+	.rdb_per_qp	   = 4,
+	.num_cq		   = 1 << 16,
+	.num_mcg	   = 1 << 13,
+	.num_mpt	   = 1 << 17,
+	.num_mtt	   = 1 << 20,
+	.num_udav	   = 1 << 15,	/* Tavor only */
+	.fmr_reserved_mtts = 1 << 18,	/* Tavor only */
+	.uarc_size	   = 1 << 18,	/* Arbel only */
 };
 
 static int __devinit mthca_tune_pci(struct mthca_dev *mdev)
@@ -102,7 +103,7 @@ static int __devinit mthca_tune_pci(struct mthca_dev *mdev)
 				  "aborting.\n");
 			return -ENODEV;
 		}
-	} else if (mdev->hca_type == TAVOR)
+	} else if (!(mdev->mthca_flags & MTHCA_FLAG_PCIE))
 		mthca_info(mdev, "No PCI-X capability, not setting RBC.\n");
 
 	cap = pci_find_capability(mdev->pdev, PCI_CAP_ID_EXP);
@@ -118,8 +119,7 @@ static int __devinit mthca_tune_pci(struct mthca_dev *mdev)
 				  "register, aborting.\n");
 			return -ENODEV;
 		}
-	} else if (mdev->hca_type == ARBEL_NATIVE ||
-		   mdev->hca_type == ARBEL_COMPAT)
+	} else if (mdev->mthca_flags & MTHCA_FLAG_PCIE)
 		mthca_info(mdev, "No PCI Express capability, "
 			   "not setting Max Read Request Size.\n");
 
@@ -390,7 +390,7 @@ static int __devinit mthca_init_icm(struct mthca_dev *mdev,
 	}
 
 	mdev->mr_table.mtt_table = mthca_alloc_icm_table(mdev, init_hca->mtt_base,
-							 init_hca->mtt_seg_sz,
+							 MTHCA_MTT_SEG_SIZE,
 							 mdev->limits.num_mtt_segs,
 							 mdev->limits.reserved_mtts, 1);
 	if (!mdev->mr_table.mtt_table) {
@@ -429,14 +429,25 @@ static int __devinit mthca_init_icm(struct mthca_dev *mdev,
 		goto err_unmap_qp;
 	}
 
-	mdev->cq_table.table = mthca_alloc_icm_table(mdev, init_hca->cqc_base,
+	mdev->qp_table.rdb_table = mthca_alloc_icm_table(mdev, init_hca->rdb_base,
+							 MTHCA_RDB_ENTRY_SIZE,
+							 mdev->limits.num_qps <<
+							 mdev->qp_table.rdb_shift,
+							 0, 0);
+	if (!mdev->qp_table.rdb_table) {
+		mthca_err(mdev, "Failed to map RDB context memory, aborting\n");
+		err = -ENOMEM;
+		goto err_unmap_eqp;
+	}
+
+       mdev->cq_table.table = mthca_alloc_icm_table(mdev, init_hca->cqc_base,
 						     dev_lim->cqc_entry_sz,
 						     mdev->limits.num_cqs,
 						     mdev->limits.reserved_cqs, 0);
 	if (!mdev->cq_table.table) {
 		mthca_err(mdev, "Failed to map CQ context memory, aborting.\n");
 		err = -ENOMEM;
-		goto err_unmap_eqp;
+		goto err_unmap_rdb;
 	}
 
 	/*
@@ -461,6 +472,9 @@ static int __devinit mthca_init_icm(struct mthca_dev *mdev,
 
 err_unmap_cq:
 	mthca_free_icm_table(mdev, mdev->cq_table.table);
+
+err_unmap_rdb:
+	mthca_free_icm_table(mdev, mdev->qp_table.rdb_table);
 
 err_unmap_eqp:
 	mthca_free_icm_table(mdev, mdev->qp_table.eqp_table);
@@ -578,6 +592,7 @@ static int __devinit mthca_init_arbel(struct mthca_dev *mdev)
 
 err_free_icm:
 	mthca_free_icm_table(mdev, mdev->cq_table.table);
+	mthca_free_icm_table(mdev, mdev->qp_table.rdb_table);
 	mthca_free_icm_table(mdev, mdev->qp_table.eqp_table);
 	mthca_free_icm_table(mdev, mdev->qp_table.qp_table);
 	mthca_free_icm_table(mdev, mdev->mr_table.mpt_table);
@@ -600,7 +615,7 @@ err_disable:
 
 static int __devinit mthca_init_hca(struct mthca_dev *mdev)
 {
-	if (mdev->hca_type == ARBEL_NATIVE)
+	if (mthca_is_memfree(mdev))
 		return mthca_init_arbel(mdev);
 	else
 		return mthca_init_tavor(mdev);
@@ -672,7 +687,10 @@ static int __devinit mthca_setup_hca(struct mthca_dev *dev)
 
 	err = mthca_NOP(dev, &status);
 	if (err || status) {
-		mthca_err(dev, "NOP command failed to generate interrupt, aborting.\n");
+		mthca_err(dev, "NOP command failed to generate interrupt (IRQ %d), aborting.\n",
+			  dev->mthca_flags & MTHCA_FLAG_MSI_X ?
+			  dev->eq_table.eq[MTHCA_EQ_CMD].msi_x_vector :
+			  dev->pdev->irq);
 		if (dev->mthca_flags & (MTHCA_FLAG_MSI | MTHCA_FLAG_MSI_X))
 			mthca_err(dev, "Try again with MSI/MSI-X disabled.\n");
 		else
@@ -831,8 +849,9 @@ static void mthca_close_hca(struct mthca_dev *mdev)
 
 	mthca_CLOSE_HCA(mdev, 0, &status);
 
-	if (mdev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(mdev)) {
 		mthca_free_icm_table(mdev, mdev->cq_table.table);
+		mthca_free_icm_table(mdev, mdev->qp_table.rdb_table);
 		mthca_free_icm_table(mdev, mdev->qp_table.eqp_table);
 		mthca_free_icm_table(mdev, mdev->qp_table.qp_table);
 		mthca_free_icm_table(mdev, mdev->mr_table.mpt_table);
@@ -851,11 +870,32 @@ static void mthca_close_hca(struct mthca_dev *mdev)
 		mthca_SYS_DIS(mdev, &status);
 }
 
+/* Types of supported HCA */
+enum {
+	TAVOR,			/* MT23108                        */
+	ARBEL_COMPAT,		/* MT25208 in Tavor compat mode   */
+	ARBEL_NATIVE,		/* MT25208 with extended features */
+	SINAI			/* MT25204 */
+};
+
+#define MTHCA_FW_VER(major, minor, subminor) \
+	(((u64) (major) << 32) | ((u64) (minor) << 16) | (u64) (subminor))
+
+static struct {
+	u64 latest_fw;
+	int is_memfree;
+	int is_pcie;
+} mthca_hca_table[] = {
+	[TAVOR]        = { .latest_fw = MTHCA_FW_VER(3, 3, 2), .is_memfree = 0, .is_pcie = 0 },
+	[ARBEL_COMPAT] = { .latest_fw = MTHCA_FW_VER(4, 6, 2), .is_memfree = 0, .is_pcie = 1 },
+	[ARBEL_NATIVE] = { .latest_fw = MTHCA_FW_VER(5, 0, 1), .is_memfree = 1, .is_pcie = 1 },
+	[SINAI]        = { .latest_fw = MTHCA_FW_VER(1, 0, 1), .is_memfree = 1, .is_pcie = 1 }
+};
+
 static int __devinit mthca_init_one(struct pci_dev *pdev,
 				    const struct pci_device_id *id)
 {
 	static int mthca_version_printed = 0;
-	static int mthca_memfree_warned = 0;
 	int ddr_hidden = 0;
 	int err;
 	struct mthca_dev *mdev;
@@ -867,6 +907,12 @@ static int __devinit mthca_init_one(struct pci_dev *pdev,
 
 	printk(KERN_INFO PFX "Initializing %s (%s)\n",
 	       pci_pretty_name(pdev), pci_name(pdev));
+
+	if (id->driver_data >= ARRAY_SIZE(mthca_hca_table)) {
+		printk(KERN_ERR PFX "%s (%s) has invalid driver data %lx\n",
+		       pci_pretty_name(pdev), pci_name(pdev), id->driver_data);
+		return -ENODEV;
+	}
 
 	err = pci_enable_device(pdev);
 	if (err) {
@@ -932,15 +978,14 @@ static int __devinit mthca_init_one(struct pci_dev *pdev,
 		goto err_free_res;
 	}
 
-	mdev->pdev     = pdev;
-	mdev->hca_type = id->driver_data;
-
-	if (mdev->hca_type == ARBEL_NATIVE && !mthca_memfree_warned++)
-		mthca_warn(mdev, "Warning: native MT25208 mode support is incomplete.  "
-			   "Your HCA may not work properly.\n");
+	mdev->pdev = pdev;
 
 	if (ddr_hidden)
 		mdev->mthca_flags |= MTHCA_FLAG_DDR_HIDDEN;
+	if (mthca_hca_table[id->driver_data].is_memfree)
+		mdev->mthca_flags |= MTHCA_FLAG_MEMFREE;
+	if (mthca_hca_table[id->driver_data].is_pcie)
+		mdev->mthca_flags |= MTHCA_FLAG_PCIE;
 
 	/*
 	 * Now reset the HCA before we touch the PCI capabilities or
@@ -978,6 +1023,16 @@ static int __devinit mthca_init_one(struct pci_dev *pdev,
 	err = mthca_init_hca(mdev);
 	if (err)
 		goto err_iounmap;
+
+	if (mdev->fw_ver < mthca_hca_table[id->driver_data].latest_fw) {
+		mthca_warn(mdev, "HCA FW version %x.%x.%x is old (%x.%x.%x is current).\n",
+			   (int) (mdev->fw_ver >> 32), (int) (mdev->fw_ver >> 16) & 0xffff,
+			   (int) (mdev->fw_ver & 0xffff),
+			   (int) (mthca_hca_table[id->driver_data].latest_fw >> 32),
+			   (int) (mthca_hca_table[id->driver_data].latest_fw >> 16) & 0xffff,
+			   (int) (mthca_hca_table[id->driver_data].latest_fw & 0xffff));
+		mthca_warn(mdev, "If you have problems, try updating your HCA FW.\n");
+	}
 
 	err = mthca_setup_hca(mdev);
 	if (err)
@@ -1094,6 +1149,14 @@ static struct pci_device_id mthca_pci_table[] = {
 	  .driver_data = ARBEL_NATIVE },
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOPSPIN, PCI_DEVICE_ID_MELLANOX_ARBEL),
 	  .driver_data = ARBEL_NATIVE },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MELLANOX, PCI_DEVICE_ID_MELLANOX_SINAI),
+	  .driver_data = SINAI },
+	{ PCI_DEVICE(PCI_VENDOR_ID_TOPSPIN, PCI_DEVICE_ID_MELLANOX_SINAI),
+	  .driver_data = SINAI },
+	{ PCI_DEVICE(PCI_VENDOR_ID_MELLANOX, PCI_DEVICE_ID_MELLANOX_SINAI_OLD),
+	  .driver_data = SINAI },
+	{ PCI_DEVICE(PCI_VENDOR_ID_TOPSPIN, PCI_DEVICE_ID_MELLANOX_SINAI_OLD),
+	  .driver_data = SINAI },
 	{ 0, }
 };
 

@@ -52,6 +52,8 @@ static int mthca_query_device(struct ib_device *ibdev,
 	if (!in_mad || !out_mad)
 		goto out;
 
+	memset(props, 0, sizeof props);
+
 	props->fw_ver              = mdev->fw_ver;
 
 	memset(in_mad, 0, sizeof *in_mad);
@@ -71,13 +73,25 @@ static int mthca_query_device(struct ib_device *ibdev,
 		goto out;
 	}
 
-	props->device_cap_flags = mdev->device_cap_flags;
-	props->vendor_id        = be32_to_cpup((u32 *) (out_mad->data + 36)) &
+	props->device_cap_flags    = mdev->device_cap_flags;
+	props->vendor_id           = be32_to_cpup((u32 *) (out_mad->data + 36)) &
 		0xffffff;
-	props->vendor_part_id   = be16_to_cpup((u16 *) (out_mad->data + 30));
-	props->hw_ver           = be16_to_cpup((u16 *) (out_mad->data + 32));
+	props->vendor_part_id      = be16_to_cpup((u16 *) (out_mad->data + 30));
+	props->hw_ver              = be16_to_cpup((u16 *) (out_mad->data + 32));
 	memcpy(&props->sys_image_guid, out_mad->data +  4, 8);
 	memcpy(&props->node_guid,      out_mad->data + 12, 8);
+
+	props->max_mr_size         = ~0ull;
+	props->max_qp              = mdev->limits.num_qps - mdev->limits.reserved_qps;
+	props->max_qp_wr           = 0xffff;
+	props->max_sge             = mdev->limits.max_sg;
+	props->max_cq              = mdev->limits.num_cqs - mdev->limits.reserved_cqs;
+	props->max_cqe             = 0xffff;
+	props->max_mr              = mdev->limits.num_mpts - mdev->limits.reserved_mrws;
+	props->max_pd              = mdev->limits.num_pds - mdev->limits.reserved_pds;
+	props->max_qp_rd_atom      = 1 << mdev->qp_table.rdb_shift;
+	props->max_qp_init_rd_atom = 1 << mdev->qp_table.rdb_shift;
+	props->local_ca_ack_delay  = mdev->limits.local_ca_ack_delay;
 
 	err = 0;
  out:
@@ -301,7 +315,7 @@ static struct ib_ah *mthca_ah_create(struct ib_pd *pd,
 	int err;
 	struct mthca_ah *ah;
 
-	ah = kmalloc(sizeof *ah, GFP_KERNEL);
+	ah = kmalloc(sizeof *ah, GFP_ATOMIC);
 	if (!ah)
 		return ERR_PTR(-ENOMEM);
 
@@ -480,7 +494,7 @@ static struct ib_mr *mthca_reg_phys_mr(struct ib_pd       *pd,
 	mask = 0;
 	total_size = 0;
 	for (i = 0; i < num_phys_buf; ++i) {
-		if (buffer_list[i].addr & ~PAGE_MASK)
+		if (i != 0 && buffer_list[i].addr & ~PAGE_MASK)
 			return ERR_PTR(-EINVAL);
 		if (i != 0 && i != num_phys_buf - 1 &&
 		    (buffer_list[i].size & ~PAGE_MASK))
@@ -554,8 +568,77 @@ static struct ib_mr *mthca_reg_phys_mr(struct ib_pd       *pd,
 
 static int mthca_dereg_mr(struct ib_mr *mr)
 {
-	mthca_free_mr(to_mdev(mr->device), to_mmr(mr));
-	kfree(mr);
+	struct mthca_mr *mmr = to_mmr(mr);
+	mthca_free_mr(to_mdev(mr->device), mmr);
+	kfree(mmr);
+	return 0;
+}
+
+static struct ib_fmr *mthca_alloc_fmr(struct ib_pd *pd, int mr_access_flags,
+				      struct ib_fmr_attr *fmr_attr)
+{
+	struct mthca_fmr *fmr;
+	int err;
+
+	fmr = kmalloc(sizeof *fmr, GFP_KERNEL);
+	if (!fmr)
+		return ERR_PTR(-ENOMEM);
+
+	memcpy(&fmr->attr, fmr_attr, sizeof *fmr_attr);
+	err = mthca_fmr_alloc(to_mdev(pd->device), to_mpd(pd)->pd_num,
+			     convert_access(mr_access_flags), fmr);
+
+	if (err) {
+		kfree(fmr);
+		return ERR_PTR(err);
+	}
+
+	return &fmr->ibmr;
+}
+
+static int mthca_dealloc_fmr(struct ib_fmr *fmr)
+{
+	struct mthca_fmr *mfmr = to_mfmr(fmr);
+	int err;
+
+	err = mthca_free_fmr(to_mdev(fmr->device), mfmr);
+	if (err)
+		return err;
+
+	kfree(mfmr);
+	return 0;
+}
+
+static int mthca_unmap_fmr(struct list_head *fmr_list)
+{
+	struct ib_fmr *fmr;
+	int err;
+	u8 status;
+	struct mthca_dev *mdev = NULL;
+
+	list_for_each_entry(fmr, fmr_list, list) {
+		if (mdev && to_mdev(fmr->device) != mdev)
+			return -EINVAL;
+		mdev = to_mdev(fmr->device);
+	}
+
+	if (!mdev)
+		return 0;
+
+	if (mthca_is_memfree(mdev)) {
+		list_for_each_entry(fmr, fmr_list, list)
+			mthca_arbel_fmr_unmap(mdev, to_mfmr(fmr));
+
+		wmb();
+	} else
+		list_for_each_entry(fmr, fmr_list, list)
+			mthca_tavor_fmr_unmap(mdev, to_mfmr(fmr));
+
+	err = mthca_SYNC_TPT(mdev, &status);
+	if (err)
+		return err;
+	if (status)
+		return -EINVAL;
 	return 0;
 }
 
@@ -576,11 +659,18 @@ static ssize_t show_fw_ver(struct class_device *cdev, char *buf)
 static ssize_t show_hca(struct class_device *cdev, char *buf)
 {
 	struct mthca_dev *dev = container_of(cdev, struct mthca_dev, ib_dev.class_dev);
-	switch (dev->hca_type) {
-	case TAVOR:        return sprintf(buf, "MT23108\n");
-	case ARBEL_COMPAT: return sprintf(buf, "MT25208 (MT23108 compat mode)\n");
-	case ARBEL_NATIVE: return sprintf(buf, "MT25208\n");
-	default:           return sprintf(buf, "unknown\n");
+	switch (dev->pdev->device) {
+	case PCI_DEVICE_ID_MELLANOX_TAVOR:
+		return sprintf(buf, "MT23108\n");
+	case PCI_DEVICE_ID_MELLANOX_ARBEL_COMPAT:
+		return sprintf(buf, "MT25208 (MT23108 compat mode)\n");
+	case PCI_DEVICE_ID_MELLANOX_ARBEL:
+		return sprintf(buf, "MT25208\n");
+	case PCI_DEVICE_ID_MELLANOX_SINAI:
+	case PCI_DEVICE_ID_MELLANOX_SINAI_OLD:
+		return sprintf(buf, "MT25204\n");
+	default:
+		return sprintf(buf, "unknown\n");
 	}
 }
 
@@ -622,11 +712,22 @@ int mthca_register_device(struct mthca_dev *dev)
 	dev->ib_dev.get_dma_mr           = mthca_get_dma_mr;
 	dev->ib_dev.reg_phys_mr          = mthca_reg_phys_mr;
 	dev->ib_dev.dereg_mr             = mthca_dereg_mr;
+
+	if (dev->mthca_flags & MTHCA_FLAG_FMR) {
+		dev->ib_dev.alloc_fmr            = mthca_alloc_fmr;
+		dev->ib_dev.unmap_fmr            = mthca_unmap_fmr;
+		dev->ib_dev.dealloc_fmr          = mthca_dealloc_fmr;
+		if (mthca_is_memfree(dev))
+			dev->ib_dev.map_phys_fmr = mthca_arbel_map_phys_fmr;
+		else
+			dev->ib_dev.map_phys_fmr = mthca_tavor_map_phys_fmr;
+	}
+
 	dev->ib_dev.attach_mcast         = mthca_multicast_attach;
 	dev->ib_dev.detach_mcast         = mthca_multicast_detach;
 	dev->ib_dev.process_mad          = mthca_process_mad;
 
-	if (dev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(dev)) {
 		dev->ib_dev.req_notify_cq = mthca_arbel_arm_cq;
 		dev->ib_dev.post_send     = mthca_arbel_post_send;
 		dev->ib_dev.post_recv     = mthca_arbel_post_receive;

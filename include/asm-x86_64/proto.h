@@ -29,7 +29,7 @@ extern void config_acpi_tables(void);
 extern void ia32_syscall(void);
 extern void iommu_hole_init(void);
 
-extern void time_init_smp(void);
+extern void time_init_gtod(void);
 
 extern void do_softirq_thunk(void);
 
@@ -69,8 +69,6 @@ extern void __die(const char * str, struct pt_regs * regs, long err);
 extern void __show_regs(struct pt_regs * regs);
 extern void show_regs(struct pt_regs * regs);
 
-extern int map_syscall32(struct mm_struct *mm, unsigned long address);
-extern int __map_syscall32(struct mm_struct *mm, unsigned long address);
 extern char *syscall32_page;
 extern void syscall32_cpu_init(void);
 

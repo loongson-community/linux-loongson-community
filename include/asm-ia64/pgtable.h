@@ -93,7 +93,7 @@
 #define PGDIR_MASK		(~(PGDIR_SIZE-1))
 #define PTRS_PER_PGD		(1UL << (PAGE_SHIFT-3))
 #define USER_PTRS_PER_PGD	(5*PTRS_PER_PGD/8)	/* regions 0-4 are user regions */
-#define FIRST_USER_PGD_NR	0
+#define FIRST_USER_ADDRESS	0
 
 /*
  * Definitions for second level:
@@ -472,8 +472,8 @@ extern struct page *zero_page_memmap_ptr;
 #define HUGETLB_PGDIR_SIZE	(__IA64_UL(1) << HUGETLB_PGDIR_SHIFT)
 #define HUGETLB_PGDIR_MASK	(~(HUGETLB_PGDIR_SIZE-1))
 struct mmu_gather;
-extern void hugetlb_free_pgtables(struct mmu_gather *tlb,
-	struct vm_area_struct * prev, unsigned long start, unsigned long end);
+void hugetlb_free_pgd_range(struct mmu_gather **tlb, unsigned long addr,
+		unsigned long end, unsigned long floor, unsigned long ceiling);
 #endif
 
 /*
@@ -560,32 +560,6 @@ do {											\
 #define __HAVE_ARCH_PTE_SAME
 #define __HAVE_ARCH_PGD_OFFSET_GATE
 #define __HAVE_ARCH_LAZY_MMU_PROT_UPDATE
-
-/*
- * Override for pgd_addr_end() to deal with the virtual address space holes
- * in each region.  In regions 0..4 virtual address bits are used like this:
- *      +--------+------+--------+-----+-----+--------+
- *      | pgdhi3 | rsvd | pgdlow | pmd | pte | offset |
- *      +--------+------+--------+-----+-----+--------+
- *  'pgdlow' overflows to pgdhi3 (a.k.a. region bits) leaving rsvd==0
- */
-#define IA64_PGD_OVERFLOW (PGDIR_SIZE << (PAGE_SHIFT-6))
-
-#define pgd_addr_end(addr, end)						\
-({	unsigned long __boundary = ((addr) + PGDIR_SIZE) & PGDIR_MASK;	\
- 	if (REGION_NUMBER(__boundary) < 5 && 				\
-	    __boundary & IA64_PGD_OVERFLOW)				\
-		__boundary += (RGN_SIZE - 1) & ~(IA64_PGD_OVERFLOW - 1);\
-	(__boundary - 1 < (end) - 1)? __boundary: (end);		\
-})
-
-#define pmd_addr_end(addr, end)						\
-({	unsigned long __boundary = ((addr) + PMD_SIZE) & PMD_MASK;	\
- 	if (REGION_NUMBER(__boundary) < 5 &&				\
-	    __boundary & IA64_PGD_OVERFLOW)				\
-		__boundary += (RGN_SIZE - 1) & ~(IA64_PGD_OVERFLOW - 1);\
-	(__boundary - 1 < (end) - 1)? __boundary: (end);		\
-})
 
 #include <asm-generic/pgtable-nopud.h>
 #include <asm-generic/pgtable.h>

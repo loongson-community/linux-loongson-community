@@ -171,19 +171,6 @@ enum {
 };
 
 enum {
-	MTHCA_OPCODE_NOP            = 0x00,
-	MTHCA_OPCODE_RDMA_WRITE     = 0x08,
-	MTHCA_OPCODE_RDMA_WRITE_IMM = 0x09,
-	MTHCA_OPCODE_SEND           = 0x0a,
-	MTHCA_OPCODE_SEND_IMM       = 0x0b,
-	MTHCA_OPCODE_RDMA_READ      = 0x10,
-	MTHCA_OPCODE_ATOMIC_CS      = 0x11,
-	MTHCA_OPCODE_ATOMIC_FA      = 0x12,
-	MTHCA_OPCODE_BIND_MW        = 0x18,
-	MTHCA_OPCODE_INVALID        = 0xff
-};
-
-enum {
 	MTHCA_NEXT_DBD       = 1 << 7,
 	MTHCA_NEXT_FENCE     = 1 << 6,
 	MTHCA_NEXT_CQ_UPDATE = 1 << 3,
@@ -192,6 +179,10 @@ enum {
 
 	MTHCA_MLX_VL15       = 1 << 17,
 	MTHCA_MLX_SLR        = 1 << 16
+};
+
+enum {
+	MTHCA_INVAL_LKEY = 0x100
 };
 
 struct mthca_next_seg {
@@ -652,7 +643,7 @@ int mthca_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr, int attr_mask)
 	else if (attr_mask & IB_QP_PATH_MTU)
 		qp_context->mtu_msgmax = (attr->path_mtu << 5) | 31;
 
-	if (dev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(dev)) {
 		qp_context->rq_size_stride =
 			((ffs(qp->rq.max) - 1) << 3) | (qp->rq.wqe_shift - 4);
 		qp_context->sq_size_stride =
@@ -744,7 +735,7 @@ int mthca_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr, int attr_mask)
 		qp_context->next_send_psn = cpu_to_be32(attr->sq_psn);
 	qp_context->cqn_snd = cpu_to_be32(to_mcq(ibqp->send_cq)->cqn);
 
-	if (dev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(dev)) {
 		qp_context->snd_wqe_base_l = cpu_to_be32(qp->send_wqe_offset);
 		qp_context->snd_db_index   = cpu_to_be32(qp->sq.db_index);
 	}
@@ -835,7 +826,7 @@ int mthca_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr, int attr_mask)
 
 	qp_context->cqn_rcv = cpu_to_be32(to_mcq(ibqp->recv_cq)->cqn);
 
-	if (dev->hca_type == ARBEL_NATIVE)
+	if (mthca_is_memfree(dev))
 		qp_context->rcv_db_index   = cpu_to_be32(qp->rq.db_index);
 
 	if (attr_mask & IB_QP_QKEY) {
@@ -910,7 +901,7 @@ static int mthca_alloc_wqe_buf(struct mthca_dev *dev,
 		size += 2 * sizeof (struct mthca_data_seg);
 		break;
 	case UD:
-		if (dev->hca_type == ARBEL_NATIVE)
+		if (mthca_is_memfree(dev))
 			size += sizeof (struct mthca_arbel_ud_seg);
 		else
 			size += sizeof (struct mthca_tavor_ud_seg);
@@ -1029,7 +1020,7 @@ static int mthca_alloc_memfree(struct mthca_dev *dev,
 {
 	int ret = 0;
 
-	if (dev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(dev)) {
 		ret = mthca_table_get(dev, dev->qp_table.qp_table, qp->qpn);
 		if (ret)
 			return ret;
@@ -1038,11 +1029,16 @@ static int mthca_alloc_memfree(struct mthca_dev *dev,
 		if (ret)
 			goto err_qpc;
 
+		ret = mthca_table_get(dev, dev->qp_table.rdb_table,
+				      qp->qpn << dev->qp_table.rdb_shift);
+		if (ret)
+			goto err_eqpc;
+
 		qp->rq.db_index = mthca_alloc_db(dev, MTHCA_DB_TYPE_RQ,
 						 qp->qpn, &qp->rq.db);
 		if (qp->rq.db_index < 0) {
 			ret = -ENOMEM;
-			goto err_eqpc;
+			goto err_rdb;
 		}
 
 		qp->sq.db_index = mthca_alloc_db(dev, MTHCA_DB_TYPE_SQ,
@@ -1058,6 +1054,10 @@ static int mthca_alloc_memfree(struct mthca_dev *dev,
 err_rq_db:
 	mthca_free_db(dev, MTHCA_DB_TYPE_RQ, qp->rq.db_index);
 
+err_rdb:
+	mthca_table_put(dev, dev->qp_table.rdb_table,
+			qp->qpn << dev->qp_table.rdb_shift);
+
 err_eqpc:
 	mthca_table_put(dev, dev->qp_table.eqp_table, qp->qpn);
 
@@ -1070,9 +1070,11 @@ err_qpc:
 static void mthca_free_memfree(struct mthca_dev *dev,
 			       struct mthca_qp *qp)
 {
-	if (dev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(dev)) {
 		mthca_free_db(dev, MTHCA_DB_TYPE_SQ, qp->sq.db_index);
 		mthca_free_db(dev, MTHCA_DB_TYPE_RQ, qp->rq.db_index);
+		mthca_table_put(dev, dev->qp_table.rdb_table,
+				qp->qpn << dev->qp_table.rdb_shift);
 		mthca_table_put(dev, dev->qp_table.eqp_table, qp->qpn);
 		mthca_table_put(dev, dev->qp_table.qp_table, qp->qpn);
 	}
@@ -1095,7 +1097,6 @@ static int mthca_alloc_qp_common(struct mthca_dev *dev,
 				 enum ib_sig_type send_policy,
 				 struct mthca_qp *qp)
 {
-	struct mthca_next_seg *wqe;
 	int ret;
 	int i;
 
@@ -1117,19 +1118,29 @@ static int mthca_alloc_qp_common(struct mthca_dev *dev,
 		return ret;
 	}
 
-	if (dev->hca_type == ARBEL_NATIVE) {
+	if (mthca_is_memfree(dev)) {
+		struct mthca_next_seg *next;
+		struct mthca_data_seg *scatter;
+		int size = (sizeof (struct mthca_next_seg) +
+			    qp->rq.max_gs * sizeof (struct mthca_data_seg)) / 16;
+
 		for (i = 0; i < qp->rq.max; ++i) {
-			wqe = get_recv_wqe(qp, i);
-			wqe->nda_op = cpu_to_be32(((i + 1) & (qp->rq.max - 1)) <<
-						  qp->rq.wqe_shift);
-			wqe->ee_nds = cpu_to_be32(1 << (qp->rq.wqe_shift - 4));
+			next = get_recv_wqe(qp, i);
+			next->nda_op = cpu_to_be32(((i + 1) & (qp->rq.max - 1)) <<
+						   qp->rq.wqe_shift);
+			next->ee_nds = cpu_to_be32(size);
+
+			for (scatter = (void *) (next + 1);
+			     (void *) scatter < (void *) next + (1 << qp->rq.wqe_shift);
+			     ++scatter)
+				scatter->lkey = cpu_to_be32(MTHCA_INVAL_LKEY);
 		}
 
 		for (i = 0; i < qp->sq.max; ++i) {
-			wqe = get_send_wqe(qp, i);
-			wqe->nda_op = cpu_to_be32((((i + 1) & (qp->sq.max - 1)) <<
-						   qp->sq.wqe_shift) +
-						  qp->send_wqe_offset);
+			next = get_send_wqe(qp, i);
+			next->nda_op = cpu_to_be32((((i + 1) & (qp->sq.max - 1)) <<
+						    qp->sq.wqe_shift) +
+						   qp->send_wqe_offset);
 		}
 	}
 
@@ -1140,7 +1151,7 @@ static void mthca_align_qp_size(struct mthca_dev *dev, struct mthca_qp *qp)
 {
 	int i;
 
-	if (dev->hca_type != ARBEL_NATIVE)
+	if (!mthca_is_memfree(dev))
 		return;
 
 	for (i = 0; 1 << i < qp->rq.max; ++i)
@@ -1465,7 +1476,7 @@ int mthca_tavor_post_send(struct ib_qp *ibqp, struct ib_send_wr *wr,
 			cpu_to_be32(1);
 		if (wr->opcode == IB_WR_SEND_WITH_IMM ||
 		    wr->opcode == IB_WR_RDMA_WRITE_WITH_IMM)
-			((struct mthca_next_seg *) wqe)->flags = wr->imm_data;
+			((struct mthca_next_seg *) wqe)->imm = wr->imm_data;
 
 		wqe += sizeof (struct mthca_next_seg);
 		size = sizeof (struct mthca_next_seg) / 16;
@@ -1769,12 +1780,59 @@ int mthca_arbel_post_send(struct ib_qp *ibqp, struct ib_send_wr *wr,
 			cpu_to_be32(1);
 		if (wr->opcode == IB_WR_SEND_WITH_IMM ||
 		    wr->opcode == IB_WR_RDMA_WRITE_WITH_IMM)
-			((struct mthca_next_seg *) wqe)->flags = wr->imm_data;
+			((struct mthca_next_seg *) wqe)->imm = wr->imm_data;
 
 		wqe += sizeof (struct mthca_next_seg);
 		size = sizeof (struct mthca_next_seg) / 16;
 
 		switch (qp->transport) {
+		case RC:
+			switch (wr->opcode) {
+			case IB_WR_ATOMIC_CMP_AND_SWP:
+			case IB_WR_ATOMIC_FETCH_AND_ADD:
+				((struct mthca_raddr_seg *) wqe)->raddr =
+					cpu_to_be64(wr->wr.atomic.remote_addr);
+				((struct mthca_raddr_seg *) wqe)->rkey =
+					cpu_to_be32(wr->wr.atomic.rkey);
+				((struct mthca_raddr_seg *) wqe)->reserved = 0;
+
+				wqe += sizeof (struct mthca_raddr_seg);
+
+				if (wr->opcode == IB_WR_ATOMIC_CMP_AND_SWP) {
+					((struct mthca_atomic_seg *) wqe)->swap_add =
+						cpu_to_be64(wr->wr.atomic.swap);
+					((struct mthca_atomic_seg *) wqe)->compare =
+						cpu_to_be64(wr->wr.atomic.compare_add);
+				} else {
+					((struct mthca_atomic_seg *) wqe)->swap_add =
+						cpu_to_be64(wr->wr.atomic.compare_add);
+					((struct mthca_atomic_seg *) wqe)->compare = 0;
+				}
+
+				wqe += sizeof (struct mthca_atomic_seg);
+				size += sizeof (struct mthca_raddr_seg) / 16 +
+					sizeof (struct mthca_atomic_seg);
+				break;
+
+			case IB_WR_RDMA_WRITE:
+			case IB_WR_RDMA_WRITE_WITH_IMM:
+			case IB_WR_RDMA_READ:
+				((struct mthca_raddr_seg *) wqe)->raddr =
+					cpu_to_be64(wr->wr.rdma.remote_addr);
+				((struct mthca_raddr_seg *) wqe)->rkey =
+					cpu_to_be32(wr->wr.rdma.rkey);
+				((struct mthca_raddr_seg *) wqe)->reserved = 0;
+				wqe += sizeof (struct mthca_raddr_seg);
+				size += sizeof (struct mthca_raddr_seg) / 16;
+				break;
+
+			default:
+				/* No extra segments required for sends */
+				break;
+			}
+
+			break;
+
 		case UD:
 			memcpy(((struct mthca_arbel_ud_seg *) wqe)->av,
 			       to_mah(wr->wr.ud.ah)->av, MTHCA_AV_SIZE);
@@ -1941,7 +1999,7 @@ int mthca_arbel_post_receive(struct ib_qp *ibqp, struct ib_recv_wr *wr,
 
 		if (i < qp->rq.max_gs) {
 			((struct mthca_data_seg *) wqe)->byte_count = 0;
-			((struct mthca_data_seg *) wqe)->lkey = cpu_to_be32(0x100);
+			((struct mthca_data_seg *) wqe)->lkey = cpu_to_be32(MTHCA_INVAL_LKEY);
 			((struct mthca_data_seg *) wqe)->addr = 0;
 		}
 
@@ -1977,7 +2035,7 @@ int mthca_free_err_wqe(struct mthca_dev *dev, struct mthca_qp *qp, int is_send,
 	else
 		next = get_recv_wqe(qp, index);
 
-	if (dev->hca_type == ARBEL_NATIVE)
+	if (mthca_is_memfree(dev))
 		*dbd = 1;
 	else
 		*dbd = !!(next->ee_nds & cpu_to_be32(MTHCA_NEXT_DBD));

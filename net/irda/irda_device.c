@@ -125,8 +125,15 @@ void irda_device_set_media_busy(struct net_device *dev, int status)
 
 	self = (struct irlap_cb *) dev->atalk_ptr;
 
-	IRDA_ASSERT(self != NULL, return;);
-	IRDA_ASSERT(self->magic == LAP_MAGIC, return;);
+	/* Some drivers may enable the receive interrupt before calling
+	 * irlap_open(), or they may disable the receive interrupt
+	 * after calling irlap_close().
+	 * The IrDA stack is protected from this in irlap_driver_rcv().
+	 * However, the driver calls directly the wrapper, that calls
+	 * us directly. Make sure we protect ourselves.
+	 * Jean II */
+	if (!self || self->magic != LAP_MAGIC)
+		return;
 
 	if (status) {
 		self->media_busy = TRUE;
@@ -463,11 +470,10 @@ void irda_device_unregister_dongle(struct dongle_reg *dongle)
 }
 EXPORT_SYMBOL(irda_device_unregister_dongle);
 
-#ifdef CONFIG_ISA
 /*
  * Function setup_dma (idev, buffer, count, mode)
  *
- *    Setup the DMA channel. Commonly used by ISA FIR drivers
+ *    Setup the DMA channel. Commonly used by LPC FIR drivers
  *
  */
 void irda_setup_dma(int channel, dma_addr_t buffer, int count, int mode)
@@ -486,4 +492,3 @@ void irda_setup_dma(int channel, dma_addr_t buffer, int count, int mode)
 	release_dma_lock(flags);
 }
 EXPORT_SYMBOL(irda_setup_dma);
-#endif

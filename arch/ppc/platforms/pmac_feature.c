@@ -74,8 +74,7 @@ static DEFINE_SPINLOCK(feature_lock  __pmacdata);
  */
 struct macio_chip macio_chips[MAX_MACIO_CHIPS]  __pmacdata;
 
-struct macio_chip* __pmac
-macio_find(struct device_node* child, int type)
+struct macio_chip* __pmac macio_find(struct device_node* child, int type)
 {
 	while(child) {
 		int	i;
@@ -88,6 +87,7 @@ macio_find(struct device_node* child, int type)
 	}
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(macio_find);
 
 static const char* macio_names[] __pmacdata =
 {
@@ -1779,32 +1779,6 @@ core99_sleep_state(struct device_node* node, long param, long value)
 	if ((pmac_mb.board_flags & PMAC_MB_CAN_SLEEP) == 0)
 		return -EPERM;
 
-#ifdef CONFIG_CPU_FREQ_PMAC
-	/* XXX should be elsewhere */
-	if (machine_is_compatible("PowerBook6,5") ||
-	    machine_is_compatible("PowerBook6,4") ||
-	    machine_is_compatible("PowerBook5,5") ||
-	    machine_is_compatible("PowerBook5,4")) {
-		struct device_node *volt_gpio_np;
-		u32 *reg = NULL;
-
-		volt_gpio_np = of_find_node_by_name(NULL, "cpu-vcore-select");
-		if (volt_gpio_np != NULL)
-			reg = (u32 *)get_property(volt_gpio_np, "reg", NULL);
-		if (reg != NULL) {
-			/* Set the CPU voltage high if sleeping */
-			if (value == 1) {
-				pmac_call_feature(PMAC_FTR_WRITE_GPIO, NULL,
-						  *reg, 0x05);
-			} else if (value == 0 && (mfspr(SPRN_HID1) & HID1_DFS)) {
-				pmac_call_feature(PMAC_FTR_WRITE_GPIO, NULL,
-						  *reg, 0x04);
-			}
-			mdelay(2);
-		}
-	}
-#endif /* CONFIG_CPU_FREQ_PMAC */
-
 	if (value == 1)
 		return core99_sleep();
 	else if (value == 0)
@@ -2970,3 +2944,48 @@ void __pmac pmac_call_early_video_resume(void)
 	if (pmac_early_vresume_proc)
 		pmac_early_vresume_proc(pmac_early_vresume_data);
 }
+
+/*
+ * AGP related suspend/resume code
+ */
+
+static struct pci_dev *pmac_agp_bridge __pmacdata;
+static int (*pmac_agp_suspend)(struct pci_dev *bridge) __pmacdata;
+static int (*pmac_agp_resume)(struct pci_dev *bridge) __pmacdata;
+
+void __pmac pmac_register_agp_pm(struct pci_dev *bridge,
+				 int (*suspend)(struct pci_dev *bridge),
+				 int (*resume)(struct pci_dev *bridge))
+{
+	if (suspend || resume) {
+		pmac_agp_bridge = bridge;
+		pmac_agp_suspend = suspend;
+		pmac_agp_resume = resume;
+		return;
+	}
+	if (bridge != pmac_agp_bridge)
+		return;
+	pmac_agp_suspend = pmac_agp_resume = NULL;
+	return;
+}
+EXPORT_SYMBOL(pmac_register_agp_pm);
+
+void __pmac pmac_suspend_agp_for_card(struct pci_dev *dev)
+{
+	if (pmac_agp_bridge == NULL || pmac_agp_suspend == NULL)
+		return;
+	if (pmac_agp_bridge->bus != dev->bus)
+		return;
+	pmac_agp_suspend(pmac_agp_bridge);
+}
+EXPORT_SYMBOL(pmac_suspend_agp_for_card);
+
+void __pmac pmac_resume_agp_for_card(struct pci_dev *dev)
+{
+	if (pmac_agp_bridge == NULL || pmac_agp_resume == NULL)
+		return;
+	if (pmac_agp_bridge->bus != dev->bus)
+		return;
+	pmac_agp_resume(pmac_agp_bridge);
+}
+EXPORT_SYMBOL(pmac_resume_agp_for_card);

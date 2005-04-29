@@ -203,8 +203,6 @@ static int prepare_low_seg_for_htlb(struct mm_struct *mm, unsigned long seg)
 	unsigned long start = seg << SID_SHIFT;
 	unsigned long end = (seg+1) << SID_SHIFT;
 	struct vm_area_struct *vma;
-	unsigned long addr;
-	struct mmu_gather *tlb;
 
 	BUG_ON(seg >= 16);
 
@@ -212,41 +210,6 @@ static int prepare_low_seg_for_htlb(struct mm_struct *mm, unsigned long seg)
 	vma = find_vma(mm, start);
 	if (vma && (vma->vm_start < end))
 		return -EBUSY;
-
-	/* Clean up any leftover PTE pages in the region */
-	spin_lock(&mm->page_table_lock);
-	tlb = tlb_gather_mmu(mm, 0);
-	for (addr = start; addr < end; addr += PMD_SIZE) {
-		pgd_t *pgd = pgd_offset(mm, addr);
-		pmd_t *pmd;
-		struct page *page;
-		pte_t *pte;
-		int i;
-
-		if (pgd_none(*pgd))
-			continue;
-		pmd = pmd_offset(pgd, addr);
-		if (!pmd || pmd_none(*pmd))
-			continue;
-		if (pmd_bad(*pmd)) {
-			pmd_ERROR(*pmd);
-			pmd_clear(pmd);
-			continue;
-		}
-		pte = (pte_t *)pmd_page_kernel(*pmd);
-		/* No VMAs, so there should be no PTEs, check just in case. */
-		for (i = 0; i < PTRS_PER_PTE; i++) {
-			BUG_ON(!pte_none(*pte));
-			pte++;
-		}
-		page = pmd_page(*pmd);
-		pmd_clear(pmd);
-		mm->nr_ptes--;
-		dec_page_state(nr_page_table_pages);
-		pte_free_tlb(tlb, page);
-	}
-	tlb_finish_mmu(tlb, start, end);
-	spin_unlock(&mm->page_table_lock);
 
 	return 0;
 }
@@ -428,16 +391,6 @@ void unmap_hugepage_range(struct vm_area_struct *vma,
 	}
 	add_mm_counter(mm, rss, -((end - start) >> PAGE_SHIFT));
 	flush_tlb_pending();
-}
-
-void hugetlb_free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *prev,
-			   unsigned long start, unsigned long end)
-{
-	/* Because the huge pgtables are only 2 level, they can take
-	 * at most around 4M, much less than one hugepage which the
-	 * process is presumably entitled to use.  So we don't bother
-	 * freeing up the pagetables on unmap, and wait until
-	 * destroy_context() to clean up the lot. */
 }
 
 int hugetlb_prefault(struct address_space *mapping, struct vm_area_struct *vma)

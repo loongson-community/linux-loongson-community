@@ -49,19 +49,15 @@
 #define DRV_VERSION	"0.06-pre"
 #define DRV_RELDATE	"November 8, 2004"
 
-/* Types of supported HCA */
-enum {
-	TAVOR,			/* MT23108                        */
-	ARBEL_COMPAT,		/* MT25208 in Tavor compat mode   */
-	ARBEL_NATIVE		/* MT25208 with extended features */
-};
-
 enum {
 	MTHCA_FLAG_DDR_HIDDEN = 1 << 1,
 	MTHCA_FLAG_SRQ        = 1 << 2,
 	MTHCA_FLAG_MSI        = 1 << 3,
 	MTHCA_FLAG_MSI_X      = 1 << 4,
-	MTHCA_FLAG_NO_LAM     = 1 << 5
+	MTHCA_FLAG_NO_LAM     = 1 << 5,
+	MTHCA_FLAG_FMR        = 1 << 6,
+	MTHCA_FLAG_MEMFREE    = 1 << 7,
+	MTHCA_FLAG_PCIE       = 1 << 8
 };
 
 enum {
@@ -86,6 +82,19 @@ enum {
 	MTHCA_EQ_ASYNC,
 	MTHCA_EQ_COMP,
 	MTHCA_NUM_EQ
+};
+
+enum {
+	MTHCA_OPCODE_NOP            = 0x00,
+	MTHCA_OPCODE_RDMA_WRITE     = 0x08,
+	MTHCA_OPCODE_RDMA_WRITE_IMM = 0x09,
+	MTHCA_OPCODE_SEND           = 0x0a,
+	MTHCA_OPCODE_SEND_IMM       = 0x0b,
+	MTHCA_OPCODE_RDMA_READ      = 0x10,
+	MTHCA_OPCODE_ATOMIC_CS      = 0x11,
+	MTHCA_OPCODE_ATOMIC_FA      = 0x12,
+	MTHCA_OPCODE_BIND_MW        = 0x18,
+	MTHCA_OPCODE_INVALID        = 0xff
 };
 
 struct mthca_cmd {
@@ -121,7 +130,7 @@ struct mthca_limits {
 	int      reserved_eqs;
 	int      num_mpts;
 	int      num_mtt_segs;
-	int      mtt_seg_size;
+	int      fmr_reserved_mtts;
 	int      reserved_mtts;
 	int      reserved_mrws;
 	int      reserved_uars;
@@ -158,13 +167,25 @@ struct mthca_pd_table {
 	struct mthca_alloc alloc;
 };
 
+struct mthca_buddy {
+	unsigned long **bits;
+	int             max_order;
+	spinlock_t      lock;
+};
+
 struct mthca_mr_table {
 	struct mthca_alloc      mpt_alloc;
-	int                     max_mtt_order;
-	unsigned long         **mtt_buddy;
+	struct mthca_buddy      mtt_buddy;
+	struct mthca_buddy     *fmr_mtt_buddy;
 	u64                     mtt_base;
+	u64                     mpt_base;
 	struct mthca_icm_table *mtt_table;
 	struct mthca_icm_table *mpt_table;
+	struct {
+		void __iomem   *mpt_base;
+		void __iomem   *mtt_base;
+		struct mthca_buddy mtt_buddy;
+	} tavor_fmr;
 };
 
 struct mthca_eq_table {
@@ -196,6 +217,7 @@ struct mthca_qp_table {
 	struct mthca_array     	qp;
 	struct mthca_icm_table *qp_table;
 	struct mthca_icm_table *eqp_table;
+	struct mthca_icm_table *rdb_table;
 };
 
 struct mthca_av_table {
@@ -363,7 +385,17 @@ int mthca_mr_alloc_phys(struct mthca_dev *dev, u32 pd,
 			u64 *buffer_list, int buffer_size_shift,
 			int list_len, u64 iova, u64 total_size,
 			u32 access, struct mthca_mr *mr);
-void mthca_free_mr(struct mthca_dev *dev, struct mthca_mr *mr);
+void mthca_free_mr(struct mthca_dev *dev,  struct mthca_mr *mr);
+
+int mthca_fmr_alloc(struct mthca_dev *dev, u32 pd,
+		    u32 access, struct mthca_fmr *fmr);
+int mthca_tavor_map_phys_fmr(struct ib_fmr *ibfmr, u64 *page_list,
+			     int list_len, u64 iova);
+void mthca_tavor_fmr_unmap(struct mthca_dev *dev, struct mthca_fmr *fmr);
+int mthca_arbel_map_phys_fmr(struct ib_fmr *ibfmr, u64 *page_list,
+			     int list_len, u64 iova);
+void mthca_arbel_fmr_unmap(struct mthca_dev *dev, struct mthca_fmr *fmr);
+int mthca_free_fmr(struct mthca_dev *dev,  struct mthca_fmr *fmr);
 
 int mthca_map_eq_icm(struct mthca_dev *dev, u64 icm_virt);
 void mthca_unmap_eq_icm(struct mthca_dev *dev);
@@ -432,6 +464,11 @@ void mthca_free_agents(struct mthca_dev *dev);
 static inline struct mthca_dev *to_mdev(struct ib_device *ibdev)
 {
 	return container_of(ibdev, struct mthca_dev, ib_dev);
+}
+
+static inline int mthca_is_memfree(struct mthca_dev *dev)
+{
+	return dev->mthca_flags & MTHCA_FLAG_MEMFREE;
 }
 
 #endif /* MTHCA_DEV_H */

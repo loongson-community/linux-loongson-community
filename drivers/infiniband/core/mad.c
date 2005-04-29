@@ -33,9 +33,6 @@
  */
 
 #include <linux/dma-mapping.h>
-#include <linux/interrupt.h>
-
-#include <ib_mad.h>
 
 #include "mad_priv.h"
 #include "smi.h"
@@ -1600,7 +1597,8 @@ static void ib_mad_recv_done_handler(struct ib_mad_port_private *port_priv,
 			 DMA_FROM_DEVICE);
 
 	/* Setup MAD receive work completion from "normal" work completion */
-	recv->header.recv_wc.wc = wc;
+	recv->header.wc = *wc;
+	recv->header.recv_wc.wc = &recv->header.wc;
 	recv->header.recv_wc.mad_len = sizeof(struct ib_mad);
 	recv->header.recv_wc.recv_buf.mad = &recv->mad.mad;
 	recv->header.recv_wc.recv_buf.grh = &recv->grh;
@@ -2285,7 +2283,6 @@ static void cleanup_recv_queue(struct ib_mad_qp_info *qp_info)
 		/* Remove from posted receive MAD list */
 		list_del(&mad_list->list);
 
-		/* Undo PCI mapping */
 		dma_unmap_single(qp_info->port_priv->device->dma_device,
 				 pci_unmap_addr(&recv->header, mapping),
 				 sizeof(struct ib_mad_private) -

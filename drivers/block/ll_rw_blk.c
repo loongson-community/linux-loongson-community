@@ -1589,7 +1589,8 @@ void blk_run_queue(struct request_queue *q)
 
 	spin_lock_irqsave(q->queue_lock, flags);
 	blk_remove_plug(q);
-	q->request_fn(q);
+	if (!elv_queue_empty(q))
+		q->request_fn(q);
 	spin_unlock_irqrestore(q->queue_lock, flags);
 }
 EXPORT_SYMBOL(blk_run_queue);
@@ -1713,6 +1714,15 @@ request_queue_t *blk_init_queue(request_fn_proc *rfn, spinlock_t *lock)
 
 	if (blk_init_free_list(q))
 		goto out_init;
+
+	/*
+	 * if caller didn't supply a lock, they get per-queue locking with
+	 * our embedded lock
+	 */
+	if (!lock) {
+		spin_lock_init(&q->__queue_lock);
+		lock = &q->__queue_lock;
+	}
 
 	q->request_fn		= rfn;
 	q->back_merge_fn       	= ll_back_merge_fn;
@@ -2559,7 +2569,7 @@ EXPORT_SYMBOL(__blk_attempt_remerge);
 static int __make_request(request_queue_t *q, struct bio *bio)
 {
 	struct request *req, *freereq = NULL;
-	int el_ret, rw, nr_sectors, cur_nr_sectors, barrier, err;
+	int el_ret, rw, nr_sectors, cur_nr_sectors, barrier, err, sync;
 	sector_t sector;
 
 	sector = bio->bi_sector;
@@ -2567,6 +2577,7 @@ static int __make_request(request_queue_t *q, struct bio *bio)
 	cur_nr_sectors = bio_cur_sectors(bio);
 
 	rw = bio_data_dir(bio);
+	sync = bio_sync(bio);
 
 	/*
 	 * low level driver can indicate that it wants pages above a
@@ -2698,7 +2709,7 @@ get_rq:
 out:
 	if (freereq)
 		__blk_put_request(q, freereq);
-	if (bio_sync(bio))
+	if (sync)
 		__generic_unplug_device(q);
 
 	spin_unlock_irq(q->queue_lock);

@@ -641,7 +641,10 @@ struct sock *sk_alloc(int family, int priority, struct proto *prot, int zero_it)
 		}
 		
 		if (security_sk_alloc(sk, family, priority)) {
-			kmem_cache_free(slab, sk);
+			if (slab != NULL)
+				kmem_cache_free(slab, sk);
+			else
+				kfree(sk);
 			sk = NULL;
 		} else
 			__module_get(prot->owner);
@@ -1359,8 +1362,6 @@ int proto_register(struct proto *prot, int alloc_slab)
 {
 	int rc = -ENOBUFS;
 
-	write_lock(&proto_list_lock);
-
 	if (alloc_slab) {
 		prot->slab = kmem_cache_create(prot->name, prot->obj_size, 0,
 					       SLAB_HWCACHE_ALIGN, NULL, NULL);
@@ -1368,14 +1369,15 @@ int proto_register(struct proto *prot, int alloc_slab)
 		if (prot->slab == NULL) {
 			printk(KERN_CRIT "%s: Can't create sock SLAB cache!\n",
 			       prot->name);
-			goto out_unlock;
+			goto out;
 		}
 	}
 
+	write_lock(&proto_list_lock);
 	list_add(&prot->node, &proto_list);
-	rc = 0;
-out_unlock:
 	write_unlock(&proto_list_lock);
+	rc = 0;
+out:
 	return rc;
 }
 

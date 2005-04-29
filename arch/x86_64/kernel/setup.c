@@ -76,9 +76,6 @@ int __initdata acpi_force = 0;
 
 int acpi_numa __initdata;
 
-/* For PCI or other memory-mapped resources */
-unsigned long pci_mem_start = 0x10000000;
-
 /* Boot loader ID as an integer, for the benefit of proc_dointvec */
 int bootloader_type;
 
@@ -330,6 +327,10 @@ static __init void parse_cmdline_early (char ** cmdline_p)
 		else if (!memcmp(from, "acpi=strict", 11)) {
 			acpi_strict = 1;
 		}
+#ifdef CONFIG_X86_IO_APIC
+		else if (!memcmp(from, "acpi_skip_timer_override", 24))
+			acpi_skip_timer_override = 1;
+#endif
 #endif
 
 		if (!memcmp(from, "nolapic", 7) ||
@@ -495,7 +496,6 @@ static void __init reserve_ebda_region(void)
 
 void __init setup_arch(char **cmdline_p)
 {
-	unsigned long low_mem_size;
 	unsigned long kernel_end;
 
  	ROOT_DEV = old_decode_dev(ORIG_ROOT_DEV);
@@ -654,13 +654,7 @@ void __init setup_arch(char **cmdline_p)
 		request_resource(&ioport_resource, &standard_io_resources[i]);
 	}
 
-	/* Will likely break when you have unassigned resources with more
-	   than 4GB memory and bridges that don't support more than 4GB. 
-	   Doing it properly would require to use pci_alloc_consistent
-	   in this case. */
-	low_mem_size = ((end_pfn << PAGE_SHIFT) + 0xfffff) & ~0xfffff;
-	if (low_mem_size > pci_mem_start)
-		pci_mem_start = low_mem_size;
+	e820_setup_gap();
 
 #ifdef CONFIG_GART_IOMMU
        iommu_hole_init();
@@ -679,7 +673,7 @@ static int __init get_model_name(struct cpuinfo_x86 *c)
 {
 	unsigned int *v;
 
-	if (c->x86_cpuid_level < 0x80000004)
+	if (c->extended_cpuid_level < 0x80000004)
 		return 0;
 
 	v = (unsigned int *) c->x86_model_id;
@@ -695,7 +689,7 @@ static void __init display_cacheinfo(struct cpuinfo_x86 *c)
 {
 	unsigned int n, dummy, eax, ebx, ecx, edx;
 
-	n = c->x86_cpuid_level;
+	n = c->extended_cpuid_level;
 
 	if (n >= 0x80000005) {
 		cpuid(0x80000005, &dummy, &ebx, &ecx, &edx);
@@ -725,14 +719,46 @@ static void __init display_cacheinfo(struct cpuinfo_x86 *c)
 	}
 }
 
+#ifdef CONFIG_SMP
+/*
+ * On a AMD dual core setup the lower bits of the APIC id distingush the cores.
+ * Assumes number of cores is a power of two.
+ */
+static void __init amd_detect_cmp(struct cpuinfo_x86 *c)
+{
+#ifdef CONFIG_SMP
+	int cpu = c->x86_apicid;
+	int node = 0;
+	if (c->x86_num_cores == 1)
+		return;
+	cpu_core_id[cpu] = cpu >> hweight32(c->x86_num_cores - 1);
+
+#ifdef CONFIG_NUMA
+	/* When an ACPI SRAT table is available use the mappings from SRAT
+ 	   instead. */
+	if (acpi_numa <= 0) {
+		node = cpu_core_id[cpu];
+		if (!node_online(node))
+			node = first_node(node_online_map);
+		cpu_to_node[cpu] = node;
+	} else {
+		node = cpu_to_node[cpu];
+	}
+#endif
+	printk(KERN_INFO "CPU %d(%d) -> Node %d -> Core %d\n",
+			cpu, c->x86_num_cores, node, cpu_core_id[cpu]);
+#endif
+}
+#else
+static void __init amd_detect_cmp(struct cpuinfo_x86 *c)
+{
+}
+#endif
 
 static int __init init_amd(struct cpuinfo_x86 *c)
 {
 	int r;
 	int level;
-#ifdef CONFIG_NUMA
-	int cpu;
-#endif
 
 	/* Bit 31 in normal CPUID used for nonstandard 3DNow ID;
 	   3DNow is IDd by bit 31 in extended CPUID (1*32+31) anyway */
@@ -755,26 +781,12 @@ static int __init init_amd(struct cpuinfo_x86 *c)
 	} 
 	display_cacheinfo(c);
 
-	if (c->x86_cpuid_level >= 0x80000008) {
+	if (c->extended_cpuid_level >= 0x80000008) {
 		c->x86_num_cores = (cpuid_ecx(0x80000008) & 0xff) + 1;
 		if (c->x86_num_cores & (c->x86_num_cores - 1))
 			c->x86_num_cores = 1;
 
-#ifdef CONFIG_NUMA
-		/* On a dual core setup the lower bits of apic id
-		   distingush the cores. Fix up the CPU<->node mappings
-		   here based on that.
-		   Assumes number of cores is a power of two.
-		   When using SRAT use mapping from SRAT. */
-		cpu = c->x86_apicid;
-		if (acpi_numa <= 0 && c->x86_num_cores > 1) {
-			cpu_to_node[cpu] = cpu >> hweight32(c->x86_num_cores - 1);
-			if (!node_online(cpu_to_node[cpu]))
-				cpu_to_node[cpu] = first_node(node_online_map);
-		}
-		printk(KERN_INFO "CPU %d(%d) -> Node %d\n",
-				cpu, c->x86_num_cores, cpu_to_node[cpu]);
-#endif
+		amd_detect_cmp(c);
 	}
 
 	return r;
@@ -784,10 +796,10 @@ static void __init detect_ht(struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_SMP
 	u32 	eax, ebx, ecx, edx;
-	int 	index_lsb, index_msb, tmp;
+	int 	index_msb, tmp;
 	int 	cpu = smp_processor_id();
 	
-	if (!cpu_has(c, X86_FEATURE_HT))
+	if (!cpu_has(c, X86_FEATURE_HT) || cpu_has(c, X86_FEATURE_CMP_LEGACY))
 		return;
 
 	cpuid(1, &eax, &ebx, &ecx, &edx);
@@ -796,7 +808,6 @@ static void __init detect_ht(struct cpuinfo_x86 *c)
 	if (smp_num_siblings == 1) {
 		printk(KERN_INFO  "CPU: Hyper-Threading is disabled\n");
 	} else if (smp_num_siblings > 1) {
-		index_lsb = 0;
 		index_msb = 31;
 		/*
 		 * At this point we only support two siblings per
@@ -808,45 +819,65 @@ static void __init detect_ht(struct cpuinfo_x86 *c)
 			return;
 		}
 		tmp = smp_num_siblings;
-		while ((tmp & 1) == 0) {
-			tmp >>=1 ;
-			index_lsb++;
-		}
-		tmp = smp_num_siblings;
 		while ((tmp & 0x80000000 ) == 0) {
 			tmp <<=1 ;
 			index_msb--;
 		}
-		if (index_lsb != index_msb )
+		if (smp_num_siblings & (smp_num_siblings - 1))
 			index_msb++;
 		phys_proc_id[cpu] = phys_pkg_id(index_msb);
 		
 		printk(KERN_INFO  "CPU: Physical Processor ID: %d\n",
 		       phys_proc_id[cpu]);
+
+		smp_num_siblings = smp_num_siblings / c->x86_num_cores;
+
+		tmp = smp_num_siblings;
+		index_msb = 31;
+		while ((tmp & 0x80000000) == 0) {
+			tmp <<=1 ;
+			index_msb--;
+		}
+		if (smp_num_siblings & (smp_num_siblings - 1))
+			index_msb++;
+
+		cpu_core_id[cpu] = phys_pkg_id(index_msb);
+
+		if (c->x86_num_cores > 1)
+			printk(KERN_INFO  "CPU: Processor Core ID: %d\n",
+			       cpu_core_id[cpu]);
 	}
 #endif
 }
 
-static void __init sched_cmp_hack(struct cpuinfo_x86 *c)
+/*
+ * find out the number of processor cores on the die
+ */
+static int __init intel_num_cpu_cores(struct cpuinfo_x86 *c)
 {
-#ifdef CONFIG_SMP
-	/* AMD dual core looks like HT but isn't really. Hide it from the
-	   scheduler. This works around problems with the domain scheduler.
-	   Also probably gives slightly better scheduling and disables
-	   SMT nice which is harmful on dual core.
-	   TBD tune the domain scheduler for dual core. */
-	if (c->x86_vendor == X86_VENDOR_AMD && cpu_has(c, X86_FEATURE_CMP_LEGACY))
-		smp_num_siblings = 1;
-#endif
+	unsigned int eax;
+
+	if (c->cpuid_level < 4)
+		return 1;
+
+	__asm__("cpuid"
+		: "=a" (eax)
+		: "0" (4), "c" (0)
+		: "bx", "dx");
+
+	if (eax & 0x1f)
+		return ((eax >> 26) + 1);
+	else
+		return 1;
 }
-	
+
 static void __init init_intel(struct cpuinfo_x86 *c)
 {
 	/* Cache sizes */
 	unsigned n;
 
 	init_intel_cacheinfo(c);
-	n = c->x86_cpuid_level;
+	n = c->extended_cpuid_level;
 	if (n >= 0x80000008) {
 		unsigned eax = cpuid_eax(0x80000008);
 		c->x86_virt_bits = (eax >> 8) & 0xff;
@@ -855,6 +886,9 @@ static void __init init_intel(struct cpuinfo_x86 *c)
 
 	if (c->x86 == 15)
 		c->x86_cache_alignment = c->x86_clflush_size * 2;
+	if (c->x86 >= 15)
+		set_bit(X86_FEATURE_CONSTANT_TSC, &c->x86_capability);
+ 	c->x86_num_cores = intel_num_cpu_cores(c);
 }
 
 void __init get_cpu_vendor(struct cpuinfo_x86 *c)
@@ -892,7 +926,7 @@ void __init early_identify_cpu(struct cpuinfo_x86 *c)
 	c->x86_cache_alignment = c->x86_clflush_size;
 	c->x86_num_cores = 1;
 	c->x86_apicid = c == &boot_cpu_data ? 0 : c - cpu_data;
-	c->x86_cpuid_level = 0;
+	c->extended_cpuid_level = 0;
 	memset(&c->x86_capability, 0, sizeof c->x86_capability);
 
 	/* Get vendor name */
@@ -939,7 +973,7 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 
 	/* AMD-defined flags: level 0x80000001 */
 	xlvl = cpuid_eax(0x80000000);
-	c->x86_cpuid_level = xlvl;
+	c->extended_cpuid_level = xlvl;
 	if ((xlvl & 0xffff0000) == 0x80000000) {
 		if (xlvl >= 0x80000001) {
 			c->x86_capability[1] = cpuid_edx(0x80000001);
@@ -984,7 +1018,6 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 
 	select_idle_routine(c);
 	detect_ht(c); 
-	sched_cmp_hack(c);
 
 	/*
 	 * On SMP, boot_cpu_data holds the common feature set between
@@ -1055,7 +1088,8 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 
 		/* Other (Linux-defined) */
-		"cxmmx", "k6_mtrr", "cyrix_arr", "centaur_mcr", NULL, NULL, NULL, NULL,
+		"cxmmx", NULL, "cyrix_arr", "centaur_mcr", "k8c+",
+		"constant_tsc", NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -1113,8 +1147,14 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		seq_printf(m, "cache size\t: %d KB\n", c->x86_cache_size);
 	
 #ifdef CONFIG_SMP
-	seq_printf(m, "physical id\t: %d\n", phys_proc_id[c - cpu_data]);
-	seq_printf(m, "siblings\t: %d\n", c->x86_num_cores * smp_num_siblings);
+	if (smp_num_siblings * c->x86_num_cores > 1) {
+		int cpu = c - cpu_data;
+		seq_printf(m, "physical id\t: %d\n", phys_proc_id[cpu]);
+		seq_printf(m, "siblings\t: %d\n",
+				c->x86_num_cores * smp_num_siblings);
+		seq_printf(m, "core id\t\t: %d\n", cpu_core_id[cpu]);
+		seq_printf(m, "cpu cores\t: %d\n", c->x86_num_cores);
+	}
 #endif	
 
 	seq_printf(m,
@@ -1156,12 +1196,8 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 					seq_printf(m, " [%d]", i);
 			}
 	}
-	seq_printf(m, "\n");
 
-	if (c->x86_num_cores > 1)
-		seq_printf(m, "cpu cores\t: %d\n", c->x86_num_cores);
-
-	seq_printf(m, "\n\n"); 
+	seq_printf(m, "\n\n");
 
 	return 0;
 }

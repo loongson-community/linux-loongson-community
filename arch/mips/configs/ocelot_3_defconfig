@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc2
-# Fri Apr  8 18:22:36 2005
+# Linux kernel version: 2.6.12-rc3
+# Thu Apr 28 18:20:45 2005
 #
 CONFIG_MIPS=y
 
@@ -313,6 +313,7 @@ CONFIG_SCSI_QLA2XXX=m
 # CONFIG_SCSI_QLA2300 is not set
 # CONFIG_SCSI_QLA2322 is not set
 # CONFIG_SCSI_QLA6312 is not set
+# CONFIG_SCSI_LPFC is not set
 # CONFIG_SCSI_DC395x is not set
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_NSP32 is not set
@@ -679,6 +680,7 @@ CONFIG_FB_MODE_HELPERS=y
 # CONFIG_FB_KYRO is not set
 # CONFIG_FB_3DFX is not set
 # CONFIG_FB_VOODOO1 is not set
+# CONFIG_FB_SMIVGX is not set
 # CONFIG_FB_TRIDENT is not set
 # CONFIG_FB_E1356 is not set
 # CONFIG_FB_S1D13XXX is not set

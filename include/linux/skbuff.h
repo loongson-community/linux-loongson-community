@@ -83,12 +83,6 @@
  *	Any questions? No questions, good. 		--ANK
  */
 
-#ifdef __i386__
-#define NET_CALLER(arg) (*(((void **)&arg) - 1))
-#else
-#define NET_CALLER(arg) __builtin_return_address(0)
-#endif
-
 struct net_device;
 
 #ifdef CONFIG_NETFILTER
@@ -1183,6 +1177,8 @@ extern unsigned int    skb_checksum(const struct sk_buff *skb, int offset,
 				    int len, unsigned int csum);
 extern int	       skb_copy_bits(const struct sk_buff *skb, int offset,
 				     void *to, int len);
+extern int	       skb_store_bits(const struct sk_buff *skb, int offset,
+				      void *from, int len);
 extern unsigned int    skb_copy_and_csum_bits(const struct sk_buff *skb,
 					      int offset, u8 *to, int len,
 					      unsigned int csum);

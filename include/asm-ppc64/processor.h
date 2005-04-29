@@ -542,10 +542,6 @@ extern struct task_struct *last_task_used_altivec;
 #define TASK_SIZE (test_thread_flag(TIF_32BIT) ? \
 		TASK_SIZE_USER32 : TASK_SIZE_USER64)
 
-/* We can't actually tell the TASK_SIZE given just the mm, but default
- * to the 64-bit case to make sure that enough gets cleaned up. */
-#define MM_VM_SIZE(mm)	TASK_SIZE_USER64
-
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
@@ -642,11 +638,17 @@ static inline unsigned long __pack_fe01(unsigned int fpmode)
 
 static inline void prefetch(const void *x)
 {
+	if (unlikely(!x))
+		return;
+
 	__asm__ __volatile__ ("dcbt 0,%0" : : "r" (x));
 }
 
 static inline void prefetchw(const void *x)
 {
+	if (unlikely(!x))
+		return;
+
 	__asm__ __volatile__ ("dcbtst 0,%0" : : "r" (x));
 }
 
