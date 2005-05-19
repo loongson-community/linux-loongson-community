@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc3
-# Thu Apr 28 18:21:16 2005
+# Linux kernel version: 2.6.12-rc4
+# Wed May 11 17:20:51 2005
 #
 CONFIG_MIPS=y
 
@@ -29,6 +29,8 @@ CONFIG_KOBJECT_UEVENT=y
 CONFIG_EMBEDDED=y
 CONFIG_KALLSYMS=y
 # CONFIG_KALLSYMS_EXTRA_PASS is not set
+CONFIG_PRINTK=y
+CONFIG_BUG=y
 CONFIG_BASE_FULL=y
 CONFIG_FUTEX=y
 CONFIG_EPOLL=y

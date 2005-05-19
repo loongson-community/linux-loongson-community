@@ -28,6 +28,7 @@
 #include <linux/audit.h>
 #include <linux/seccomp.h>
 
+#include <asm/byteorder.h>
 #include <asm/cpu.h>
 #include <asm/fpu.h>
 #include <asm/mipsregs.h>
@@ -306,31 +307,36 @@ out:
 	return ret;
 }
 
+static inline int audit_arch(void)
+{
+	int arch = EM_MIPS;
+#ifdef CONFIG_MIPS64
+	arch |=  __AUDIT_ARCH_64BIT;
+#endif
+#if defined(__LITTLE_ENDIAN)
+	arch |=  __AUDIT_ARCH_LE;
+#endif
+	return arch;
+}
+
 /*
  * Notification of system call entry/exit
  * - triggered by current->work.syscall_trace
  */
 asmlinkage void do_syscall_trace(struct pt_regs *regs, int entryexit)
 {
-	/* There is no ->orig_eax and that's quite intensional for now making
-	   this work will require some work in various other place before it's
-	   more than a placebo.  */
 	/* do the secure computing check first */
 	secure_computing(regs->orig_eax);
 
-	if (unlikely(current->audit_context)) {
-		if (!entryexit)
-			audit_syscall_entry(current, regs->orig_eax,
-			                    regs->regs[4], regs->regs[5],
-			                    regs->regs[6], regs->regs[7]);
-		else
-			audit_syscall_exit(current, regs->regs[2]);
-	}
+	if (unlikely(current->audit_context) && entryexit)
+		audit_syscall_exit(current, AUDITSC_RESULT(regs->regs[2]),
+		                   regs->regs[2]);
+
+	if (!(current->ptrace & PT_PTRACED))
+		goto out;
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
-		return;
-	if (!(current->ptrace & PT_PTRACED))
-		return;
+		goto out;
 
 	/* The 0x80 provides a way for the tracing parent to distinguish
 	   between a syscall stop and SIGTRAP delivery */
@@ -346,4 +352,14 @@ asmlinkage void do_syscall_trace(struct pt_regs *regs, int entryexit)
 		send_sig(current->exit_code, current, 1);
 		current->exit_code = 0;
 	}
+
+out:
+	/* There is no ->orig_eax and that's quite intensional for now making
+	   this work will require some work in various other place before it's
+	   more than a placebo.  */
+
+	if (unlikely(current->audit_context) && !entryexit)
+		audit_syscall_entry(current, audit_arch(), regs->orig_eax,
+		                    regs->regs[4], regs->regs[5],
+		                    regs->regs[6], regs->regs[7]);
 }

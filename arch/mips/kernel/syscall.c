@@ -402,20 +402,6 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 }
 
 /*
- * Native N64 ABI only.
- */
-asmlinkage long sys_shmat(int shmid, char __user *shmaddr, int shmflg)
-{
-	unsigned long raddr, err;
-
-	err = do_shmat(shmid, shmaddr, shmflg, &raddr);
-	if (err)
-		return err;
-
-	return raddr;
-}
-
-/*
  * No implemented yet ...
  */
 asmlinkage int sys_cachectl(char *addr, int nbytes, int op)

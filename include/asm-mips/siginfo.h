@@ -11,8 +11,7 @@
 
 #include <linux/config.h>
 
-#define SIGEV_HEAD_SIZE	(sizeof(long) + 2*sizeof(int))
-#define SIGEV_PAD_SIZE	((SIGEV_MAX_SIZE-SIGEV_HEAD_SIZE) / sizeof(int))
+#define __ARCH_SIGEV_PREAMBLE_SIZE (sizeof(long) + 2*sizeof(int))
 #undef __ARCH_SI_TRAPNO	/* exception code needs to fill this ...  */
 
 #define HAVE_ARCH_SIGINFO_T

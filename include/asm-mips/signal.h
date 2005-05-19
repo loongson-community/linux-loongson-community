@@ -107,9 +107,7 @@ typedef unsigned long old_sigset_t;		/* at least 32 bits */
  * SA_INTERRUPT is also used by the irq handling routines.
  * SA_SHIRQ flag is for shared interrupt support on PCI and EISA.
  */
-#define SA_PROBE		SA_ONESHOT
 #define SA_SAMPLE_RANDOM	SA_RESTART
-#define SA_SHIRQ		0x02000000
 
 #endif /* __KERNEL__ */
 
