@@ -231,32 +231,4 @@ enum {
 	DATA_HIGH
 };
 
-/*
- * Serial Interface Unit
- */
-extern void vr41xx_siu_init(void);
-extern int vr41xx_serial_ports;
-
-/* SIU interfaces */
-typedef enum {
-	SIU_RS232C,
-	SIU_IRDA
-} siu_interface_t;
-
-/* IrDA interfaces */
-typedef enum {
-	IRDA_NONE,
-	IRDA_SHARP,
-	IRDA_TEMIC,
-	IRDA_HP
-} irda_module_t;
-
-extern void vr41xx_select_siu_interface(siu_interface_t interface,
-                                        irda_module_t module);
-
-/*
- * Debug Serial Interface Unit
- */
-extern void vr41xx_dsiu_init(void);
-
 #endif /* __NEC_VR41XX_H */
