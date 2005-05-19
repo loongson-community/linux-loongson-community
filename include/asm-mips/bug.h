@@ -13,8 +13,9 @@ do {									\
 } while (0)
 
 #define HAVE_ARCH_BUG
-#include <asm-generic/bug.h>
 
 #endif
+
+#include <asm-generic/bug.h>
 
 #endif /* __ASM_BUG_H */
