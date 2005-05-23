@@ -17,6 +17,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <linux/init.h>
 #include <linux/ioport.h>
 
 #include <asm/io.h>
@@ -27,7 +28,7 @@ const char *get_system_type(void)
 	return "IBM WorkPad z50";
 }
 
-static int ibm_workpad_setup(void)
+static int __init ibm_workpad_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -36,4 +37,4 @@ static int ibm_workpad_setup(void)
 	return 0;
 }
 
-early_initcall(ibm_workpad_setup);
+arch_initcall(ibm_workpad_setup);

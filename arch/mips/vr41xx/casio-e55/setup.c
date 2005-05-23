@@ -17,6 +17,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <linux/init.h>
 #include <linux/ioport.h>
 
 #include <asm/io.h>
@@ -27,7 +28,7 @@ const char *get_system_type(void)
 	return "CASIO CASSIOPEIA E-11/15/55/65";
 }
 
-static int casio_e55_setup(void)
+static int __init casio_e55_setup(void)
 {
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
@@ -36,4 +37,4 @@ static int casio_e55_setup(void)
 	return 0;
 }
 
-early_initcall(casio_e55_setup);
+arch_initcall(casio_e55_setup);
