@@ -241,6 +241,7 @@ void output_mm_defines(void)
 	linefeed;
 }
 
+#ifdef CONFIG_MIPS32
 void output_sc_defines(void)
 {
 	text("/* Linux sigcontext offsets. */");
@@ -252,10 +253,29 @@ void output_sc_defines(void)
 	offset("#define SC_STATUS     ", struct sigcontext, sc_status);
 	offset("#define SC_FPC_CSR    ", struct sigcontext, sc_fpc_csr);
 	offset("#define SC_FPC_EIR    ", struct sigcontext, sc_fpc_eir);
-	offset("#define SC_CAUSE      ", struct sigcontext, sc_cause);
-	offset("#define SC_BADVADDR   ", struct sigcontext, sc_badvaddr);
+	offset("#define SC_HI1        ", struct sigcontext, sc_hi1);
+	offset("#define SC_LO1        ", struct sigcontext, sc_lo1);
+	offset("#define SC_HI2        ", struct sigcontext, sc_hi2);
+	offset("#define SC_LO2        ", struct sigcontext, sc_lo2);
+	offset("#define SC_HI3        ", struct sigcontext, sc_hi3);
+	offset("#define SC_LO3        ", struct sigcontext, sc_lo3);
 	linefeed;
 }
+#endif
+
+#ifdef CONFIG_MIPS64
+void output_sc_defines(void)
+{
+	text("/* Linux sigcontext offsets. */");
+	offset("#define SC_REGS       ", struct sigcontext, sc_regs);
+	offset("#define SC_FPREGS     ", struct sigcontext, sc_fpregs);
+	offset("#define SC_MDHI       ", struct sigcontext, sc_hi);
+	offset("#define SC_MDLO       ", struct sigcontext, sc_lo);
+	offset("#define SC_PC         ", struct sigcontext, sc_pc);
+	offset("#define SC_FPC_CSR    ", struct sigcontext, sc_fpc_csr);
+	linefeed;
+}
+#endif
 
 #ifdef CONFIG_MIPS32_COMPAT
 void output_sc32_defines(void)

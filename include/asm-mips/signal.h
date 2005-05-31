@@ -109,6 +109,12 @@ typedef unsigned long old_sigset_t;		/* at least 32 bits */
  */
 #define SA_SAMPLE_RANDOM	SA_RESTART
 
+#ifdef CONFIG_TRAD_SIGNALS
+#define sig_uses_siginfo(ka)	((ka)->sa.sa_flags & SA_SIGINFO)
+#else
+#define sig_uses_siginfo(ka)	(1)
+#endif
+
 #endif /* __KERNEL__ */
 
 #define SIG_BLOCK	1	/* for blocking signals */
