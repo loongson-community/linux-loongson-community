@@ -1877,6 +1877,10 @@ out:
 	return err;
 }
 
+static void __devexit titan_device_remove(struct device *device)
+{
+}
+
 /*
  * Reset the Ethernet port
  */
