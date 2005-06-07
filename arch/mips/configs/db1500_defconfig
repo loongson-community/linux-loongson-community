@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc5
-# Fri Jun  3 13:55:32 2005
+# Linux kernel version: 2.6.12-rc6
+# Tue Jun  7 13:35:55 2005
 #
 CONFIG_MIPS=y
 
@@ -113,6 +113,7 @@ CONFIG_DMA_NONCOHERENT=y
 CONFIG_MIPS_DISABLE_OBSOLETE_IDE=y
 # CONFIG_CPU_BIG_ENDIAN is not set
 CONFIG_CPU_LITTLE_ENDIAN=y
+CONFIG_SYS_SUPPORTS_BIG_ENDIAN=y
 CONFIG_SYS_SUPPORTS_LITTLE_ENDIAN=y
 CONFIG_SOC_AU1500=y
 CONFIG_SOC_AU1X00=y
@@ -497,6 +498,7 @@ CONFIG_MIPS_AU1X00_ENET=y
 # CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
+# CONFIG_BNX2 is not set
 
 #
 # Ethernet (10000 Mbit)
@@ -583,7 +585,6 @@ CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_LIBPS2 is not set
 CONFIG_SERIO_RAW=m
 # CONFIG_GAMEPORT is not set
-CONFIG_SOUND_GAMEPORT=y
 
 #
 # Character devices

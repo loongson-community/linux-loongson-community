@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc5
-# Fri Jun  3 13:55:55 2005
+# Linux kernel version: 2.6.12-rc6
+# Tue Jun  7 13:36:07 2005
 #
 CONFIG_MIPS=y
 
@@ -443,6 +443,7 @@ CONFIG_SGI_O2MACE_ETH=y
 # CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
+# CONFIG_BNX2 is not set
 
 #
 # Ethernet (10000 Mbit)
@@ -519,7 +520,6 @@ CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_LIBPS2 is not set
 CONFIG_SERIO_RAW=y
 # CONFIG_GAMEPORT is not set
-CONFIG_SOUND_GAMEPORT=y
 
 #
 # Character devices

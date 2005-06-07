@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc5
-# Fri Jun  3 13:56:13 2005
+# Linux kernel version: 2.6.12-rc6
+# Tue Jun  7 13:36:18 2005
 #
 CONFIG_MIPS=y
 
@@ -489,6 +489,7 @@ CONFIG_E100=y
 # CONFIG_SK98LIN is not set
 # CONFIG_VIA_VELOCITY is not set
 # CONFIG_TIGON3 is not set
+# CONFIG_BNX2 is not set
 CONFIG_MV643XX_ETH=y
 CONFIG_MV643XX_ETH_0=y
 CONFIG_MV643XX_ETH_1=y
@@ -572,7 +573,6 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_LIBPS2 is not set
 # CONFIG_SERIO_RAW is not set
 # CONFIG_GAMEPORT is not set
-CONFIG_SOUND_GAMEPORT=y
 
 #
 # Character devices
