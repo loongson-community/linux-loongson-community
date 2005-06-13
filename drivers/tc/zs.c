@@ -6,7 +6,7 @@
  *
  * DECstation changes
  * Copyright (C) 1998-2000 Harald Koerfgen
- * Copyright (C) 2000, 2001, 2002, 2003, 2004  Maciej W. Rozycki
+ * Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005  Maciej W. Rozycki
  *
  * For the rest of the code the original Copyright applies:
  * Copyright (C) 1996 Paul Mackerras (Paul.Mackerras@cs.anu.edu.au)
@@ -55,6 +55,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
+#include <linux/spinlock.h>
 #ifdef CONFIG_SERIAL_DEC_CONSOLE
 #include <linux/console.h>
 #endif
@@ -63,7 +64,6 @@
 #include <asm/pgtable.h>
 #include <asm/irq.h>
 #include <asm/system.h>
-#include <asm/uaccess.h>
 #include <asm/bootinfo.h>
 #include <asm/dec/serial.h>
 
@@ -128,6 +128,8 @@ static struct zs_parms ds_parms = {
 
 #define BUS_PRESENT (DS_BUS_PRESENT)
 
+DEFINE_SPINLOCK(zs_lock);
+
 struct dec_zschannel zs_channels[NUM_CHANNELS];
 struct dec_serial zs_soft[NUM_CHANNELS];
 int zs_channels_found;
@@ -158,8 +160,6 @@ static unsigned char zs_init_regs[16] __initdata = {
 	(BRSRC | BRENABL),		/* write 14 */
 	0				/* write 15 */
 };
-
-DECLARE_TASK_QUEUE(tq_zs_serial);
 
 static struct tty_driver *serial_driver;
 
@@ -306,8 +306,7 @@ static inline void zs_rtsdtr(struct dec_serial *info, int which, int set)
 {
         unsigned long flags;
 
-
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 	if (info->zs_channel != info->zs_chan_a) {
 		if (set) {
 			info->zs_chan_a->curregs[5] |= (which & (RTS | DTR));
@@ -316,7 +315,7 @@ static inline void zs_rtsdtr(struct dec_serial *info, int which, int set)
 		}
 		write_zsreg(info->zs_chan_a, 5, info->zs_chan_a->curregs[5]);
 	}
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 /* Utility routines for the Zilog */
@@ -357,12 +356,10 @@ static inline void rs_recv_clear(struct dec_zschannel *zsc)
  * This routine is used by the interrupt handler to schedule
  * processing in the software interrupt portion of the driver.
  */
-static _INLINE_ void rs_sched_event(struct dec_serial *info,
-				  int event)
+static _INLINE_ void rs_sched_event(struct dec_serial *info, int event)
 {
 	info->event |= 1 << event;
-	queue_task(&info->tqueue, &tq_zs_serial);
-	mark_bh(SERIAL_BH);
+	tasklet_schedule(&info->tlet);
 }
 
 static _INLINE_ void receive_chars(struct dec_serial *info,
@@ -509,9 +506,10 @@ static _INLINE_ void status_handle(struct dec_serial *info)
 /*
  * This is the serial driver's generic interrupt routine
  */
-void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
+static irqreturn_t rs_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct dec_serial *info = (struct dec_serial *) dev_id;
+	irqreturn_t status = IRQ_NONE;
 	unsigned char zs_intreg;
 	int shift;
 
@@ -533,6 +531,8 @@ void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 		if ((zs_intreg & CHAN_IRQMASK) == 0)
 			break;
 
+		status = IRQ_HANDLED;
+
 		if (zs_intreg & CHBRxIP) {
 			receive_chars(info, regs);
 		}
@@ -546,6 +546,8 @@ void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 
 	/* Why do we need this ? */
 	write_zsreg(info->zs_channel, 0, RES_H_IUS);
+
+	return status;
 }
 
 #ifdef ZS_DEBUG_REGS
@@ -590,12 +592,12 @@ static void rs_stop(struct tty_struct *tty)
 		return;
 
 #if 1
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 	if (info->zs_channel->curregs[5] & TxENAB) {
 		info->zs_channel->curregs[5] &= ~TxENAB;
 		write_zsreg(info->zs_channel, 5, info->zs_channel->curregs[5]);
 	}
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 #endif
 }
 
@@ -607,7 +609,7 @@ static void rs_start(struct tty_struct *tty)
 	if (serial_paranoia_check(info, tty->name, "rs_start"))
 		return;
 
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 #if 1
 	if (info->xmit_cnt && info->xmit_buf && !(info->zs_channel->curregs[5] & TxENAB)) {
 		info->zs_channel->curregs[5] |= TxENAB;
@@ -618,7 +620,7 @@ static void rs_start(struct tty_struct *tty)
 		transmit_chars(info);
 	}
 #endif
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 /*
@@ -630,12 +632,8 @@ static void rs_start(struct tty_struct *tty)
  * interrupt driver proper are done; the interrupt driver schedules
  * them using rs_sched_event(), and they get done here.
  */
-static void do_serial_bh(void)
-{
-	run_task_queue(&tq_zs_serial);
-}
 
-static void do_softint(void *private_)
+static void do_softint(unsigned long private_)
 {
 	struct dec_serial	*info = (struct dec_serial *) private_;
 	struct tty_struct	*tty;
@@ -646,10 +644,11 @@ static void do_softint(void *private_)
 
 	if (test_and_clear_bit(RS_EVENT_WRITE_WAKEUP, &info->event)) {
 		tty_wakeup(tty);
+		wake_up_interruptible(&tty->write_wait);
 	}
 }
 
-int zs_startup(struct dec_serial * info)
+static int zs_startup(struct dec_serial * info)
 {
 	unsigned long flags;
 
@@ -662,7 +661,7 @@ int zs_startup(struct dec_serial * info)
 			return -ENOMEM;
 	}
 
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 
 #ifdef SERIAL_DEBUG_OPEN
 	printk("starting up ttyS%d (irq %d)...", info->line, info->irq);
@@ -718,7 +717,7 @@ int zs_startup(struct dec_serial * info)
 	info->xmit_cnt = info->xmit_head = info->xmit_tail = 0;
 
 	info->flags |= ZILOG_INITIALIZED;
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 	return 0;
 }
 
@@ -738,7 +737,7 @@ static void shutdown(struct dec_serial * info)
 	       info->irq);
 #endif
 
-	save_flags(flags); cli(); /* Disable interrupts */
+	spin_lock_irqsave(&zs_lock, flags);
 
 	if (info->xmit_buf) {
 		free_page((unsigned long) info->xmit_buf);
@@ -761,7 +760,7 @@ static void shutdown(struct dec_serial * info)
 		set_bit(TTY_IO_ERROR, &info->tty->flags);
 
 	info->flags &= ~ZILOG_INITIALIZED;
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 /*
@@ -797,7 +796,7 @@ static void change_speed(struct dec_serial *info)
 			i += 15;
 	}
 
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 	info->zs_baud = baud_table[i];
 	if (info->zs_baud) {
 		brg = BPS_TO_BRG(info->zs_baud, zs_parms->clock/info->clk_divisor);
@@ -870,7 +869,7 @@ static void change_speed(struct dec_serial *info)
 	/* Load up the new values */
 	load_zsregs(info->zs_channel, info->zs_channel->curregs);
 
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 static void rs_flush_chars(struct tty_struct *tty)
@@ -886,9 +885,9 @@ static void rs_flush_chars(struct tty_struct *tty)
 		return;
 
 	/* Enable transmitter */
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 	transmit_chars(info);
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 static int rs_write(struct tty_struct * tty,
@@ -904,26 +903,17 @@ static int rs_write(struct tty_struct * tty,
 	if (!tty || !info->xmit_buf)
 		return 0;
 
-	save_flags(flags);
 	while (1) {
-		cli();
+		spin_lock_irqsave(&zs_lock, flags);
 		c = min(count, min(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
 				   SERIAL_XMIT_SIZE - info->xmit_head));
 		if (c <= 0)
 			break;
 
-		if (from_user) {
-			down(&tmp_buf_sem);
-			copy_from_user(tmp_buf, buf, c);
-			c = min(c, min(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
-				       SERIAL_XMIT_SIZE - info->xmit_head));
-			memcpy(info->xmit_buf + info->xmit_head, tmp_buf, c);
-			up(&tmp_buf_sem);
-		} else
-			memcpy(info->xmit_buf + info->xmit_head, buf, c);
+		memcpy(info->xmit_buf + info->xmit_head, buf, c);
 		info->xmit_head = (info->xmit_head + c) & (SERIAL_XMIT_SIZE-1);
 		info->xmit_cnt += c;
-		restore_flags(flags);
+		spin_unlock_irqrestore(&zs_lock, flags);
 		buf += c;
 		count -= c;
 		total += c;
@@ -932,7 +922,7 @@ static int rs_write(struct tty_struct * tty,
 	if (info->xmit_cnt && !tty->stopped && !info->tx_stopped
 	    && !info->tx_active)
 		transmit_chars(info);
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 	return total;
 }
 
@@ -964,9 +954,9 @@ static void rs_flush_buffer(struct tty_struct *tty)
 
 	if (serial_paranoia_check(info, tty->name, "rs_flush_buffer"))
 		return;
-	cli();
+	spin_lock_irq(&zs_lock);
 	info->xmit_cnt = info->xmit_head = info->xmit_tail = 0;
-	sti();
+	spin_unlock_irq(&zs_lock);
 	tty_wakeup(tty);
 }
 
@@ -994,11 +984,11 @@ static void rs_throttle(struct tty_struct * tty)
 		return;
 
 	if (I_IXOFF(tty)) {
-		save_flags(flags); cli();
+		spin_lock_irqsave(&zs_lock, flags);
 		info->x_char = STOP_CHAR(tty);
 		if (!info->tx_active)
 			transmit_chars(info);
-		restore_flags(flags);
+		spin_unlock_irqrestore(&zs_lock, flags);
 	}
 
 	if (C_CRTSCTS(tty)) {
@@ -1022,7 +1012,7 @@ static void rs_unthrottle(struct tty_struct * tty)
 		return;
 
 	if (I_IXOFF(tty)) {
-		save_flags(flags); cli();
+		spin_lock_irqsave(&zs_lock, flags);
 		if (info->x_char)
 			info->x_char = 0;
 		else {
@@ -1030,7 +1020,7 @@ static void rs_unthrottle(struct tty_struct * tty)
 			if (!info->tx_active)
 				transmit_chars(info);
 		}
-		restore_flags(flags);
+		spin_unlock_irqrestore(&zs_lock, flags);
 	}
 
 	if (C_CRTSCTS(tty)) {
@@ -1123,9 +1113,9 @@ static int get_lsr_info(struct dec_serial * info, unsigned int *value)
 {
 	unsigned char status;
 
-	cli();
+	spin_lock(&zs_lock);
 	status = read_zsreg(info->zs_channel, 0);
-	sti();
+	spin_unlock_irq(&zs_lock);
 	put_user(status,value);
 	return 0;
 }
@@ -1148,11 +1138,11 @@ static int rs_tiocmget(struct tty_struct *tty, struct file *file)
 	if (info->zs_channel == info->zs_chan_a)
 		result = 0;
 	else {
-		cli();
+		spin_lock(&zs_lock);
 		control = info->zs_chan_a->curregs[5];
 		status_a = read_zsreg(info->zs_chan_a, 0);
 		status_b = read_zsreg(info->zs_channel, 0);
-		sti();
+		spin_unlock_irq(&zs_lock);
 		result =  ((control  & RTS) ? TIOCM_RTS: 0)
 			| ((control  & DTR) ? TIOCM_DTR: 0)
 			| ((status_b & DCD) ? TIOCM_CAR: 0)
@@ -1167,8 +1157,6 @@ static int rs_tiocmset(struct tty_struct *tty, struct file *file,
                        unsigned int set, unsigned int clear)
 {
 	struct dec_serial * info = (struct dec_serial *)tty->driver_data;
-	int error;
-	unsigned int arg, bits;
 
 	if (info->hook)
 		return -ENODEV;
@@ -1182,8 +1170,7 @@ static int rs_tiocmset(struct tty_struct *tty, struct file *file,
 	if (info->zs_channel == info->zs_chan_a)
 		return 0;
 
-	get_user(arg, value);
-	cli();
+	spin_lock(&zs_lock);
 	if (set & TIOCM_RTS)
 		info->zs_chan_a->curregs[5] |= RTS;
 	if (set & TIOCM_DTR)
@@ -1193,7 +1180,7 @@ static int rs_tiocmset(struct tty_struct *tty, struct file *file,
 	if (clear & TIOCM_DTR)
 		info->zs_chan_a->curregs[5] &= ~DTR;
 	write_zsreg(info->zs_chan_a, 5, info->zs_chan_a->curregs[5]);
-	sti();
+	spin_unlock_irq(&zs_lock);
 	return 0;
 }
 
@@ -1210,19 +1197,18 @@ static void rs_break(struct tty_struct *tty, int break_state)
 	if (!info->port)
 		return;
 
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 	if (break_state == -1)
 		info->zs_channel->curregs[5] |= SND_BRK;
 	else
 		info->zs_channel->curregs[5] &= ~SND_BRK;
 	write_zsreg(info->zs_channel, 5, info->zs_channel->curregs[5]);
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 static int rs_ioctl(struct tty_struct *tty, struct file * file,
 		    unsigned int cmd, unsigned long arg)
 {
-	int error;
 	struct dec_serial * info = (struct dec_serial *)tty->driver_data;
 
 	if (info->hook)
@@ -1299,10 +1285,10 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	if (!info || serial_paranoia_check(info, tty->name, "rs_close"))
 		return;
 
-	save_flags(flags); cli();
+	spin_lock_irqsave(&zs_lock, flags);
 
 	if (tty_hung_up_p(filp)) {
-		restore_flags(flags);
+		spin_unlock_irqrestore(&zs_lock, flags);
 		return;
 	}
 
@@ -1327,7 +1313,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 		info->count = 0;
 	}
 	if (info->count) {
-		restore_flags(flags);
+		spin_unlock_irqrestore(&zs_lock, flags);
 		return;
 	}
 	info->flags |= ZILOG_CLOSING;
@@ -1370,7 +1356,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	}
 	info->flags &= ~(ZILOG_NORMAL_ACTIVE|ZILOG_CLOSING);
 	wake_up_interruptible(&info->close_wait);
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 /*
@@ -1410,7 +1396,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 /*
  * rs_hangup() --- called by tty_hangup() when a hangup is signaled.
  */
-void rs_hangup(struct tty_struct *tty)
+static void rs_hangup(struct tty_struct *tty)
 {
 	struct dec_serial * info = (struct dec_serial *)tty->driver_data;
 
@@ -1478,16 +1464,16 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 	printk("block_til_ready before block: ttyS%d, count = %d\n",
 	       info->line, info->count);
 #endif
-	cli();
+	spin_lock(&zs_lock);
 	if (!tty_hung_up_p(filp))
 		info->count--;
-	sti();
+	spin_unlock_irq(&zs_lock);
 	info->blocked_open++;
 	while (1) {
-		cli();
+		spin_lock(&zs_lock);
 		if (tty->termios->c_cflag & CBAUD)
 			zs_rtsdtr(info, RTS | DTR, 1);
-		sti();
+		spin_unlock_irq(&zs_lock);
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (tty_hung_up_p(filp) ||
 		    !(info->flags & ZILOG_INITIALIZED)) {
@@ -1535,7 +1521,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
  * the IRQ chain.   It also performs the serial-specific
  * initialization for the tty structure.
  */
-int rs_open(struct tty_struct *tty, struct file * filp)
+static int rs_open(struct tty_struct *tty, struct file * filp)
 {
 	struct dec_serial	*info;
 	int 			retval, line;
@@ -1726,7 +1712,7 @@ static void __init probe_sccs(void)
 		}
 	}
 
-	save_and_cli(flags);
+	spin_lock_irqsave(&zs_lock, flags);
 	for (n = 0; n < zs_channels_found; n++) {
 		if (n % 2 == 0) {
 			write_zsreg(zs_soft[n].zs_chan_a, R9, FHWRES);
@@ -1736,7 +1722,7 @@ static void __init probe_sccs(void)
 		load_zsregs(zs_soft[n].zs_channel,
 			    zs_soft[n].zs_channel->curregs);
 	}
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 }
 
 static struct tty_operations serial_ops = {
@@ -1768,9 +1754,6 @@ int __init zs_init(void)
 
 	if(!BUS_PRESENT)
 		return -ENODEV;
-
-	/* Setup base handler, and timer table. */
-	init_bh(SERIAL_BH, do_serial_bh);
 
 	/* Find out how many Z8530 SCCs we have */
 	if (zs_chain == 0)
@@ -1820,8 +1803,7 @@ int __init zs_init(void)
 		info->event = 0;
 		info->count = 0;
 		info->blocked_open = 0;
-		info->tqueue.routine = do_softint;
-		info->tqueue.data = info;
+		tasklet_init(&info->tlet, do_softint, (unsigned long)info);
 		init_waitqueue_head(&info->open_wait);
 		init_waitqueue_head(&info->close_wait);
 		printk("ttyS%02d at 0x%08x (irq = %d) is a Z85C30 SCC\n",
@@ -1853,8 +1835,7 @@ int __init zs_init(void)
 /*
  * polling I/O routines
  */
-static int
-zs_poll_tx_char(void *handle, unsigned char ch)
+static int zs_poll_tx_char(void *handle, unsigned char ch)
 {
 	struct dec_serial *info = handle;
 	struct dec_zschannel *chan = info->zs_channel;
@@ -1877,8 +1858,7 @@ zs_poll_tx_char(void *handle, unsigned char ch)
 		return -ENODEV;
 }
 
-static int
-zs_poll_rx_char(void *handle)
+static int zs_poll_rx_char(void *handle)
 {
 	struct dec_serial *info = handle;
         struct dec_zschannel *chan = info->zs_channel;
@@ -2057,7 +2037,7 @@ static int __init serial_console_setup(struct console *co, char *options)
 	}
 	co->cflag = cflag;
 
-	save_and_cli(flags);
+	spin_lock_irqsave(&zs_lock, flags);
 
 	/*
 	 * Set up the baud rate generator.
@@ -2112,7 +2092,7 @@ static int __init serial_console_setup(struct console *co, char *options)
 	zs_soft[co->index].clk_divisor = clk_divisor;
 	zs_soft[co->index].zs_baud = get_zsbaud(&zs_soft[co->index]);
 
-	restore_flags(flags);
+	spin_unlock_irqrestore(&zs_lock, flags);
 
 	return 0;
 }
@@ -2249,5 +2229,3 @@ void __init zs_kgdb_hook(int tty_num)
 	set_debug_traps(); /* init stub */
 }
 #endif /* ifdef CONFIG_KGDB */
-
-

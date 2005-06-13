@@ -6,14 +6,14 @@
  *
  * Copyright (C) 1996 Paul Mackerras (Paul.Mackerras@cs.anu.edu.au)
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
- * Copyright (C) 2004  Maciej W. Rozycki
+ * Copyright (C) 2004, 2005  Maciej W. Rozycki
  */
 #ifndef _DECSERIAL_H
 #define _DECSERIAL_H
 
 #include <asm/dec/serial.h>
 
-#define NUM_ZSREGS    16
+#define NUM_ZSREGS 16
 
 struct serial_struct {
 	int	type;
@@ -44,24 +44,24 @@ struct serial_struct {
  */
 #define ZILOG_HUP_NOTIFY 0x0001 /* Notify getty on hangups and closes
 				   on the callout port */
-#define ZILOG_FOURPORT  0x0002	/* Set OU1, OUT2 per AST Fourport settings */
+#define ZILOG_FOURPORT	0x0002	/* Set OU1, OUT2 per AST Fourport settings */
 #define ZILOG_SAK	0x0004	/* Secure Attention Key (Orange book) */
 #define ZILOG_SPLIT_TERMIOS 0x0008 /* Separate termios for dialin/callout */
 
 #define ZILOG_SPD_MASK	0x0030
 #define ZILOG_SPD_HI	0x0010	/* Use 56000 instead of 38400 bps */
 
-#define ZILOG_SPD_VHI	0x0020  /* Use 115200 instead of 38400 bps */
-#define ZILOG_SPD_CUST	0x0030  /* Use user-specified divisor */
+#define ZILOG_SPD_VHI	0x0020	/* Use 115200 instead of 38400 bps */
+#define ZILOG_SPD_CUST	0x0030	/* Use user-specified divisor */
 
 #define ZILOG_SKIP_TEST	0x0040 /* Skip UART test during autoconfiguration */
-#define ZILOG_AUTO_IRQ  0x0080 /* Do automatic IRQ during autoconfiguration */
+#define ZILOG_AUTO_IRQ	0x0080 /* Do automatic IRQ during autoconfiguration */
 #define ZILOG_SESSION_LOCKOUT 0x0100 /* Lock out cua opens based on session */
 #define ZILOG_PGRP_LOCKOUT    0x0200 /* Lock out cua opens based on pgrp */
 #define ZILOG_CALLOUT_NOHUP   0x0400 /* Don't do hangups for cua device */
 
 #define ZILOG_FLAGS	0x0FFF	/* Possible legal ZILOG flags */
-#define ZILOG_USR_MASK 0x0430	/* Legal flags that non-privileged
+#define ZILOG_USR_MASK	0x0430	/* Legal flags that non-privileged
 				 * users can set or reset */
 
 /* Internal flags used only by kernel/chr_drv/serial.c */
@@ -139,8 +139,7 @@ struct dec_serial {
 	int			xmit_head;
 	int			xmit_tail;
 	int			xmit_cnt;
-	struct tq_struct	tqueue;
-	struct tq_struct	tqueue_hangup;
+	struct tasklet_struct	tlet;
 	wait_queue_head_t	open_wait;
 	wait_queue_head_t	close_wait;
 };
@@ -282,7 +281,7 @@ struct dec_serial {
 #define	DLC	4	/* Disable Lower Chain */
 #define	MIE	8	/* Master Interrupt Enable */
 #define	STATHI	0x10	/* Status high */
-#define SOFTACK 0x20    /* Software Interrupt Acknowledge */
+#define	SOFTACK	0x20	/* Software Interrupt Acknowledge */
 #define	NORESET	0	/* No reset on write to R9 */
 #define	CHRB	0x40	/* Reset channel B */
 #define	CHRA	0x80	/* Reset channel A */
@@ -395,8 +394,8 @@ struct dec_serial {
 /* Read Register 15 (value of WR 15) */
 
 /* Misc macros */
-#define ZS_CLEARERR(channel)    (write_zsreg(channel, 0, ERR_RES))
-#define ZS_CLEARFIFO(channel)   do { volatile unsigned char garbage; \
+#define ZS_CLEARERR(channel)	(write_zsreg(channel, 0, ERR_RES))
+#define ZS_CLEARFIFO(channel)	do { volatile unsigned char garbage; \
 				     garbage = read_zsdata(channel); \
 				     garbage = read_zsdata(channel); \
 				     garbage = read_zsdata(channel); \
