@@ -4500,6 +4500,8 @@
 		13c2 1011  Technotrend-Budget / Hauppauge WinTV-NOVA-T DVB card
 		13c2 1013  SATELCO Multimedia DVB
 		13c2 1102  Technotrend/Hauppauge DVB card rev2.1
+	9730  SAA9730 Integrated Multimedia and Peripheral Controller
+		9730 0000  Integrated Multimedia and Peripheral Controller
 1132  Mitel Corp.
 # This is the new official company name. See disclaimer on www.eicon.com for details!
 1133  Eicon Networks Corporation
