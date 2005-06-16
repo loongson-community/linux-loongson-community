@@ -233,7 +233,7 @@ static int __init ms02nv_init_one(ulong addr)
 		goto err_out_csr_res;
 	}
 
-	printk(KERN_INFO "mtd%d: %s at 0x%08lx, size %uMiB.\n",
+	printk(KERN_INFO "mtd%d: %s at 0x%08lx, size %zuMiB.\n",
 		mtd->index, ms02nv_name, addr, size >> 20);
 
 	mp->next = root_ms02nv_mtd;
