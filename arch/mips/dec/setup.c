@@ -129,7 +129,7 @@ void __init dec_be_init(void)
 extern void dec_time_init(void);
 extern void dec_timer_setup(struct irqaction *);
 
-static void __init decstation_setup(void)
+static int __init decstation_setup(void)
 {
 	board_be_init = dec_be_init;
 	board_time_init = dec_time_init;
@@ -143,6 +143,8 @@ static void __init decstation_setup(void)
 
 	ioport_resource.start = ~0UL;
 	ioport_resource.end = 0UL;
+
+	return 0;
 }
 
 early_initcall(decstation_setup);
