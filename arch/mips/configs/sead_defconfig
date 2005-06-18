@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12-rc6
-# Tue Jun  7 13:36:41 2005
+# Linux kernel version: 2.6.12
+# Sat Jun 18 14:53:27 2005
 #
 CONFIG_MIPS=y
 
