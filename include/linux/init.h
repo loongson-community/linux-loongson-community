@@ -86,8 +86,6 @@ extern char saved_command_line[];
 	static initcall_t __initcall_##fn __attribute_used__ \
 	__attribute__((__section__(".initcall" level ".init"))) = fn
 
-#define early_initcall(fn)		__define_initcall(".early1",fn)
-
 #define core_initcall(fn)		__define_initcall("1",fn)
 #define postcore_initcall(fn)		__define_initcall("2",fn)
 #define arch_initcall(fn)		__define_initcall("3",fn)

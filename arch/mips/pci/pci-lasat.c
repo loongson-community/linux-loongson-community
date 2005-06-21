@@ -34,7 +34,7 @@ static struct pci_controller lasat_pci_controller = {
 	.io_resource	= &lasat_pci_io_resource,
 };
 
-static int __init lasat_pci_setup(void)
+void __init plat_setup(void)
 {
  	printk("PCI: starting\n");
 
@@ -50,9 +50,7 @@ static int __init lasat_pci_setup(void)
         }
 
 	register_pci_controller(&lasat_pci_controller);
-        return 0;
 }
-early_initcall(lasat_pci_setup);
 
 #define LASATINT_ETH1   0
 #define LASATINT_ETH0   1

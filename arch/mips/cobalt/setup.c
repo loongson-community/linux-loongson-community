@@ -91,7 +91,7 @@ static struct pci_controller cobalt_pci_controller = {
 	.io_offset	= 0 - GT64111_IO_BASE
 };
 
-static int __init cobalt_setup(void)
+int __init plat_setup(void)
 {
 	static struct uart_port uart;
 	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
@@ -146,11 +146,7 @@ static int __init cobalt_setup(void)
 		early_serial_setup(&uart);
 	}
 #endif
-
-	return 0;
 }
-
-early_initcall(cobalt_setup);
 
 /*
  * Prom init. We read our one and only communication with the firmware.

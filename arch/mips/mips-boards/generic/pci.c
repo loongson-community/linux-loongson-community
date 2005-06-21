@@ -87,7 +87,7 @@ static struct pci_controller msc_controller = {
 	.mem_resource	= &msc_mem_resource,
 };
 
-static int __init pcibios_init(void)
+void __init mips_pcibios_init(void)
 {
 	struct pci_controller *controller;
 	unsigned long start, end, map, start1, end1, map1, map2, map3, mask;
@@ -234,7 +234,7 @@ static int __init pcibios_init(void)
 		controller = &msc_controller;
 		break;
 	default:
-		return 1;
+		return;
 	}
 
 	if (controller->io_resource->start < 0x00001000UL)	/* FIXME */
@@ -244,8 +244,4 @@ static int __init pcibios_init(void)
 	ioport_resource.end = controller->io_resource->end;
 
 	register_pci_controller (controller);
-
-	return 0;
 }
-
-early_initcall(pcibios_init);

@@ -310,12 +310,8 @@ static void __init vr41xx_timer_setup(struct irqaction *irq)
 	setup_irq(ELAPSEDTIME_IRQ, irq);
 }
 
-static int __init vr41xx_rtc_init(void)
+static void __init vr41xx_rtc_init(void)
 {
 	board_time_init = vr41xx_time_init;
 	board_timer_setup = vr41xx_timer_setup;
-
-	return 0;
 }
-
-early_initcall(vr41xx_rtc_init);
