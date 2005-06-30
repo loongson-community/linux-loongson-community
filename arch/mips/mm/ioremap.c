@@ -102,15 +102,6 @@ static int remap_area_pages(unsigned long address, phys_t phys_addr,
 }
 
 /*
- * Allow physical addresses to be fixed up to help 36 bit peripherals.
- */
-phys_t __attribute__ ((weak))
-fixup_bigphys_addr(phys_t phys_addr, phys_t size)
-{
-	return phys_addr;
-}
-
-/*
  * Generic mapping function (not visible outside):
  */
 
