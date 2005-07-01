@@ -499,7 +499,7 @@ static int ioc3_mdio_read(struct net_device *dev, int phy, int reg)
 	ioc3_w_micr((phy << MICR_PHYADDR_SHIFT) | reg | MICR_READTRIG);
 	while (ioc3_r_micr() & MICR_BUSY);
 
-	return ioc3_r_micr() & MIDR_DATA_MASK;
+	return ioc3_r_midr_r() & MIDR_DATA_MASK;
 }
 
 static void ioc3_mdio_write(struct net_device *dev, int phy, int reg, int data)
