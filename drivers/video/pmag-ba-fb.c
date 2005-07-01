@@ -122,7 +122,7 @@ static struct fb_ops pmagbafb_ops = {
 
 int __init pmagbafb_init_one(int slot)
 {
-	unsigned long base_addr = get_tc_base_addr(slot);
+	unsigned long base_addr = CKSEG1ADDR(get_tc_base_addr(slot));
 	struct fb_info *info = &pmagba_fb_info[slot]; 
 	struct display *disp = &pmagba_disp[slot];
 

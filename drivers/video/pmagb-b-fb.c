@@ -123,7 +123,7 @@ static struct fb_ops pmagbbfb_ops = {
 
 int __init pmagbbfb_init_one(int slot)
 {
-	unsigned long base_addr = get_tc_base_addr(slot);
+	unsigned long base_addr = CKSEG1ADDR(get_tc_base_addr(slot));
 	struct fb_info *info = &pmagbb_fb_info[slot];
 
 	printk("PMAGB-BA framebuffer in slot %d\n", slot);

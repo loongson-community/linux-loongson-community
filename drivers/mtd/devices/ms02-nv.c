@@ -293,13 +293,13 @@ static int __init ms02nv_init(void)
 
 	switch (mips_machtype) {
 	case MACH_DS5000_200:
-		csr = (volatile u32 *)KN02_CSR_BASE;
+		csr = (volatile u32 *)CKSEG1ADDR(KN02_SLOT_BASE + KN02_CSR);
 		if (*csr & KN02_CSR_BNK32M)
 			stride = 2;
 		break;
 	case MACH_DS5000_2X0:
 	case MACH_DS5900:
-		csr = (volatile u32 *)KN03_MCR_BASE;
+		csr = (volatile u32 *)CKSEG1ADDR(KN03_SLOT_BASE + IOASIC_MCR);
 		if (*csr & KN03_MCR_BNK32M)
 			stride = 2;
 		break;
