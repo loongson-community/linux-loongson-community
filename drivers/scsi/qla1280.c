@@ -4017,8 +4017,8 @@ qla1280_status_entry(struct scsi_qla_host *ha, struct response *pkt,
 	}
 
 	/* Target busy */
-	if (scsi_status & SS_BUSY_CONDITION &&
-	    scsi_status != SS_RESERVE_CONFLICT) {
+	if (scsi_status & SAM_STAT_BUSY &&
+	    scsi_status != SAM_STAT_RESERVATION_CONFLICT) {
 		CMD_RESULT(cmd) =
 			DID_BUS_BUSY << 16 | (scsi_status & 0xff);
 	} else {
@@ -4026,7 +4026,7 @@ qla1280_status_entry(struct scsi_qla_host *ha, struct response *pkt,
 		/* Save ISP completion status */
 		CMD_RESULT(cmd) = qla1280_return_status(pkt, cmd);
 
-		if (scsi_status & SS_CHECK_CONDITION) {
+		if (scsi_status & SAM_STAT_CHECK_CONDITION) {
 			if (comp_status != CS_ARS_FAILED) {
 				uint16_t req_sense_length =
 					le16_to_cpu(pkt->req_sense_length);
