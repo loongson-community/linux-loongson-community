@@ -39,7 +39,7 @@
 /* #define cpu_has_subset_pcaches ? */
 #endif
 
-#ifdef CONFIG_CPU_MIPS64
+#ifdef CONFIG_CPU_MIPS64_R1
 #define cpu_has_tlb		1
 #define cpu_has_4kex		1
 #define cpu_has_4ktlb		1

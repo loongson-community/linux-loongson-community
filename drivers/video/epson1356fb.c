@@ -2037,7 +2037,7 @@ e1356fb_mmap(struct fb_info *fb,
 {
 	struct fb_info_e1356 *info = (struct fb_info_e1356*)fb;
 	unsigned int len;
-#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32)
+#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32_R1)
 	u64 start=0, off;
 #else
 	unsigned long start=0, off;
@@ -2122,7 +2122,7 @@ e1356fb_mmap(struct fb_info *fb,
 	if (info->fix.mmunalign)
 		vma->vm_start += 2;
 	
-#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32)
+#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32_R1)
 	if (e1356_remap_page_range(vma->vm_start, off,
 				vma->vm_end - vma->vm_start,
 				vma->vm_page_prot))
@@ -3020,7 +3020,7 @@ e1356fb_hwcursor_init(struct fb_info_e1356* info)
 	       fb_info.membase_virt + fb_info.fb_size);
 }
 
-#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32)
+#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_CPU_MIPS32_R1)
 
 /*
  * Return indicates whether a page was freed so caller can adjust rss

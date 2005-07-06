@@ -116,8 +116,8 @@ CONFIG_HAVE_STD_PC_SERIAL_PORT=y
 #
 # CPU selection
 #
-# CONFIG_CPU_MIPS32 is not set
-# CONFIG_CPU_MIPS64 is not set
+# CONFIG_CPU_MIPS32_R1 is not set
+# CONFIG_CPU_MIPS64_R1 is not set
 # CONFIG_CPU_R3000 is not set
 # CONFIG_CPU_TX39XX is not set
 # CONFIG_CPU_VR41XX is not set
