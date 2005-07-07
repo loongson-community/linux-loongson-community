@@ -84,7 +84,7 @@ int swarm_be_handler(struct pt_regs *regs, int is_fixup)
 	return (is_fixup ? MIPS_BE_FIXUP : MIPS_BE_FATAL);
 }
 
-int __init plat_setup(void)
+void __init plat_setup(void)
 {
 	sb1250_setup();
 

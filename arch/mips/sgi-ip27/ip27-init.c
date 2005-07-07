@@ -243,6 +243,4 @@ void __init plat_setup(void)
 	set_io_port_base(IO_BASE);
 
 	board_time_init = ip27_time_init;
-
-	return 0;
 }

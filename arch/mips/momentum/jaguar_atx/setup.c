@@ -351,7 +351,7 @@ static __init int __init ja_pci_init(void)
 
 arch_initcall(ja_pci_init);
 
-int  __init plat_setup(void)
+void __init plat_setup(void)
 {
 	unsigned int tmpword;
 
