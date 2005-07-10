@@ -1065,7 +1065,7 @@ static void __devexit gbefb_remove_sysfs(struct device *dev)
 	device_remove_file(dev, &dev_attr_revision);
 }
 
-static void gbefb_create_sysfs(struct device *dev) 
+static void gbefb_create_sysfs(struct device *dev)
 {
 	device_create_file(dev, &dev_attr_size);
 	device_create_file(dev, &dev_attr_revision);

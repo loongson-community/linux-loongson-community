@@ -1,6 +1,6 @@
 /*
  * (incomplete) Driver for the VINO (Video In No Out) system found in SGI Indys.
- * 
+ *
  * This file is subject to the terms and conditions of the GNU General Public
  * License version 2 as published by the Free Software Foundation.
  *
@@ -139,7 +139,7 @@ static int i2c_vino_client_reg(struct i2c_client *client)
 static int i2c_vino_client_unreg(struct i2c_client *client)
 {
 	int res = 0;
-	
+
 	down(&Vino->input_lock);
 	if (client == Vino->decoder.driver) {
 		if (Vino->decoder.owner)
@@ -223,7 +223,7 @@ static int __init vino_init(void)
 {
 	unsigned long rev;
 	int i, ret = 0;
-	
+
 	/* VINO is Indy specific beast */
 	if (ip22_is_fullhouse())
 		return -ENODEV;
@@ -231,7 +231,7 @@ static int __init vino_init(void)
 	/*
 	 * VINO is in the EISA address space, so the sysid register will tell
 	 * us if the EISA_PRESENT pin on MC has been pulled low.
-	 * 
+	 *
 	 * If EISA_PRESENT is not set we definitely don't have a VINO equiped
 	 * system.
 	 */

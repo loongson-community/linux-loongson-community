@@ -26,7 +26,7 @@ void __init crime_init(void)
 	unsigned int id, rev;
 	const int field = 2 * sizeof(unsigned long);
 
-	set_io_port_base((unsigned long) ioremap(MACEPCI_LOW_IO, 0x2000000));	
+	set_io_port_base((unsigned long) ioremap(MACEPCI_LOW_IO, 0x2000000));
 	crime = ioremap(CRIME_BASE, sizeof(struct sgi_crime));
 	mace = ioremap(MACE_BASE, sizeof(struct sgi_mace));
 

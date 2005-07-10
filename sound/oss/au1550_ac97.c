@@ -333,7 +333,7 @@ waitcodec(struct ac97_codec *codec)
 		*/
 		temp = rdcodec(codec, AC97_POWER_CONTROL);
 	}
-    
+
 	/* Check if Codec REF,ANL,DAC,ADC ready
 	*/
 	if ((temp & 0x7f0f) != 0x000f)
@@ -1123,7 +1123,7 @@ au1550_write(struct file *file, const char *buffer, size_t count, loff_t * ppos)
 
 	count *= db->cnt_factor;
 
-	down(&s->sem);	
+	down(&s->sem);
 	add_wait_queue(&db->wait, &wait);
 
 	while (count > 0) {
@@ -1222,7 +1222,7 @@ au1550_poll(struct file *file, struct poll_table_struct *wait)
 	}
 
 	spin_lock_irqsave(&s->lock, flags);
-	
+
 	if (file->f_mode & FMODE_READ) {
 		if (s->dma_adc.count >= (signed)s->dma_adc.dma_fragsize)
 			mask |= POLLIN | POLLRDNORM;
@@ -1230,7 +1230,7 @@ au1550_poll(struct file *file, struct poll_table_struct *wait)
 	if (file->f_mode & FMODE_WRITE) {
 		if (s->dma_dac.mapped) {
 			if (s->dma_dac.count >=
-			    (signed)s->dma_dac.dma_fragsize) 
+			    (signed)s->dma_dac.dma_fragsize)
 				mask |= POLLOUT | POLLWRNORM;
 		} else {
 			if ((signed) s->dma_dac.dmasize >=
@@ -1781,7 +1781,7 @@ au1550_open(struct inode *inode, struct file *file)
 	else
 		pr_debug("open: blocking\n");
 #endif
-	
+
 	file->private_data = s;
 	/* wait for device to become free */
 	down(&s->open_sem);
@@ -1845,7 +1845,7 @@ au1550_release(struct inode *inode, struct file *file)
 	struct au1550_state *s = (struct au1550_state *)file->private_data;
 
 	lock_kernel();
-	
+
 	if (file->f_mode & FMODE_WRITE) {
 		unlock_kernel();
 		drain_dac(s, file->f_flags & O_NONBLOCK);

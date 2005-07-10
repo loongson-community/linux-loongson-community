@@ -2123,7 +2123,7 @@ static int __devinit au1000_probe(void)
 
 #ifdef CONFIG_MIPS_XXS1500
 	/* deassert eapd */
-	wrcodec(&s->codec, AC97_POWER_CONTROL, 
+	wrcodec(&s->codec, AC97_POWER_CONTROL,
 			rdcodec(&s->codec, AC97_POWER_CONTROL) & ~0x8000);
 	/* mute a number of signals which seem to be causing problems
 	 * if not muted.

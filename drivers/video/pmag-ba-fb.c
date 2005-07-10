@@ -66,7 +66,7 @@ static struct fb_var_screeninfo pmagbafb_defined = {
 	.accel		= FB_ACCEL_NONE,
 	.vmode		= FB_VMODE_NONINTERLACED,
 };
-                                                                                
+
 static struct fb_fix_screeninfo pmagbafb_fix = {
 	.id		= "PMAG-BA",
 	.smem_len	= (1024 * 864),

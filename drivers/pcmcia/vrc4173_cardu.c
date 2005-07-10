@@ -295,7 +295,7 @@ static int cardu_get_io_map(unsigned int sock, struct pccard_io_map *io)
 
 	map = io->map;
 	if (map > 1)
-		return -EINVAL; 
+		return -EINVAL;
 
 	io->start = exca_readw(socket, IO_WIN_SA(map));
 	io->stop = exca_readw(socket, IO_WIN_EA(map));
@@ -461,7 +461,7 @@ static uint16_t get_events(vrc4173_socket_t *socket)
 
 	status = exca_readb(socket, IF_STATUS);
 	csc = exca_readb(socket, CARD_SC);
-	if ((csc & CARD_DT_CHG) && 
+	if ((csc & CARD_DT_CHG) &&
 	    ((status & (CARD_DETECT1|CARD_DETECT2)) == (CARD_DETECT1|CARD_DETECT2)))
 		events |= SS_DETECT;
 

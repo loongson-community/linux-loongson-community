@@ -51,7 +51,7 @@ static void au1xxx_start_hc(struct platform_device *dev)
 
 	/* wait for reset complete (read register twice; see au1500 errata) */
 	while (au_readl(USB_HOST_CONFIG),
-		!(au_readl(USB_HOST_CONFIG) & USBH_ENABLE_RD)) 
+		!(au_readl(USB_HOST_CONFIG) & USBH_ENABLE_RD))
 		udelay(1000);
 
 	printk(KERN_DEBUG __FILE__
@@ -161,7 +161,7 @@ ohci_au1xxx_start (struct usb_hcd *hcd)
 	int		ret;
 
 	ohci_dbg (ohci, "ohci_au1xxx_start, ohci:%p", ohci);
-			
+
 	if ((ret = ohci_init (ohci)) < 0)
 		return ret;
 

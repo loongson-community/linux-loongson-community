@@ -478,7 +478,7 @@ static int __exit exit_one(int slot)
 	return 0;
 }
 
-/* 
+/*
  * Initialise the framebuffer.
  */
 int __init pmagaafb_init(void)

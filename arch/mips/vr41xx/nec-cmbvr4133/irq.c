@@ -27,9 +27,9 @@ extern void enable_8259A_irq(unsigned int irq);
 extern void disable_8259A_irq(unsigned int irq);
 extern void mask_and_ack_8259A(unsigned int irq);
 extern void init_8259A(int hoge);
-                                                                                                    
+
 extern int vr4133_rockhopper;
-                                                                                                    
+
 static unsigned int startup_i8259_irq(unsigned int irq)
 {
 	enable_8259A_irq(irq - I8259_IRQ_BASE);

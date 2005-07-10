@@ -397,10 +397,10 @@ static void set_dac_rate(struct vrc5477_ac97_state *s, unsigned rate)
 
 static int ac97_codec_not_present(struct ac97_codec *codec)
 {
-	struct vrc5477_ac97_state *s = 
+	struct vrc5477_ac97_state *s =
 		(struct vrc5477_ac97_state *)codec->private_data;
 	unsigned long flags;
-	unsigned short count  = 0xffff; 
+	unsigned short count  = 0xffff;
 
 	spin_lock_irqsave(&s->lock, flags);
 
@@ -419,8 +419,8 @@ static int ac97_codec_not_present(struct ac97_codec *codec)
 	outl((AC97_RESET << 16) | 0, s->io + VRC5477_CODEC_WR);
 
 	/* test whether we get a response from ac97 chip */
-	count  = 0xffff; 
-	do { 
+	count  = 0xffff;
+	do {
 	       if (!(inl(s->io + VRC5477_CODEC_WR) & 0x80000000))
 		       break;
 	} while (--count);
@@ -435,7 +435,7 @@ static int ac97_codec_not_present(struct ac97_codec *codec)
 
 /* --------------------------------------------------------------------- */
 
-extern inline void 
+extern inline void
 stop_dac(struct vrc5477_ac97_state *s)
 {
 	struct dmabuf* db = &s->dma_dac;
@@ -652,7 +652,7 @@ static void start_adc(struct vrc5477_ac97_state *s)
 #define DMABUF_DEFAULTORDER (16-PAGE_SHIFT)
 #define DMABUF_MINORDER 1
 
-extern inline void dealloc_dmabuf(struct vrc5477_ac97_state *s, 
+extern inline void dealloc_dmabuf(struct vrc5477_ac97_state *s,
 				  struct dmabuf *db)
 {
 	if (db->lbuf) {

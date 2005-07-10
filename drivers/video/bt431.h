@@ -176,7 +176,7 @@ static inline void bt431_position_cursor(struct bt431_regs *regs, u16 x, u16 y)
 {
 	/*
 	 * Magic from the MACH sources.
-	 * 
+	 *
 	 * Cx = x + D + H - P
 	 *  P = 37 if 1:1, 52 if 4:1, 57 if 5:1
 	 *  D = pixel skew between outdata and external data

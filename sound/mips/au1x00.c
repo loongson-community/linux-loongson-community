@@ -102,7 +102,7 @@ struct audio_stream {
 typedef struct snd_card_au1000 {
 	snd_card_t *card;
 	au1000_ac97_reg_t volatile *ac97_ioport;
-	
+
 	struct resource *ac97_res_port;
 	spinlock_t ac97_lock;
 	ac97_t *ac97;
@@ -166,7 +166,7 @@ au1000_dma_stop(audio_stream_t *stream)
 	}
 }
 
-static void 
+static void
 au1000_dma_start(audio_stream_t *stream)
 {
 	snd_pcm_substream_t *substream = stream->substream;
@@ -179,12 +179,12 @@ au1000_dma_start(audio_stream_t *stream)
 	if (stream->buffer == NULL) {
 		dma_start = virt_to_phys(runtime->dma_area);
 
-		stream->period_size = frames_to_bytes(runtime, 
+		stream->period_size = frames_to_bytes(runtime,
 			runtime->period_size);
 		stream->buffer = kmalloc(sizeof(au1000_period_t), GFP_KERNEL);
 		pointer = stream->buffer;
 		for (i = 0 ; i < runtime->periods ; i++) {
-			pointer->start = (u32)(dma_start + 
+			pointer->start = (u32)(dma_start +
 				(i * stream->period_size));
 			pointer->relative_end = (u32)
 				(((i+1) * stream->period_size) - 0x1);
@@ -195,7 +195,7 @@ au1000_dma_start(audio_stream_t *stream)
 			}
 		}
 		pointer->next = stream->buffer;
-	
+
 		spin_lock_irqsave(&stream->dma_lock, flags);
 		init_dma(stream->dma);
 		if (get_dma_active_buffer(stream->dma) == 0) {
@@ -247,7 +247,7 @@ au1000_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		spin_lock(&stream->dma_lock);
 		break;
 	case (~DMA_D0 & ~DMA_D1):
-		printk(KERN_ERR "DMA %d empty irq.\n",stream->dma);		
+		printk(KERN_ERR "DMA %d empty irq.\n",stream->dma);
 	}
 	spin_unlock(&stream->dma_lock);
 	snd_pcm_period_elapsed(substream);
@@ -268,7 +268,7 @@ static snd_pcm_hardware_t snd_au1000 =
 	.info			= (SNDRV_PCM_INFO_INTERLEAVED | \
 				SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE,
-	.rates			= (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_11025 | 
+	.rates			= (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_11025 |
 				SNDRV_PCM_RATE_16000 | SNDRV_PCM_RATE_22050),
 	.rate_min		= 8000,
 	.rate_max		= 22050,
@@ -364,7 +364,7 @@ snd_au1000_trigger(snd_pcm_substream_t * substream, int cmd)
 {
 	audio_stream_t *stream = substream->private_data;
 	int err = 0;
-	
+
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 		au1000_dma_start(stream);
@@ -435,7 +435,7 @@ snd_au1000_pcm_new(void)
 		&snd_card_au1000_playback_ops);
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE,
 		&snd_card_au1000_capture_ops);
-		
+
 	pcm->private_data = au1000;
 	pcm->info_flags = 0;
 	strcpy(pcm->name, "Au1000 AC97 PCM");
@@ -468,7 +468,7 @@ snd_au1000_pcm_new(void)
 
 /*-------------------------- AC97 CODEC Control ------------------------------*/
 
-static unsigned short 
+static unsigned short
 snd_au1000_ac97_read(ac97_t *ac97, unsigned short reg)
 {
 	u32 volatile cmd;
@@ -500,7 +500,7 @@ get the interupt driven case to work efficiently */
 	spin_unlock(au1000->ac97_lock);
 
 	return data;
-	
+
 }
 
 
@@ -625,7 +625,7 @@ snd_au1000_free(snd_card_t *card)
 
 }
 
-static int __init 
+static int __init
 au1000_init(void)
 {
 	int err;

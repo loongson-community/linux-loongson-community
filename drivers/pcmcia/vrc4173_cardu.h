@@ -136,8 +136,8 @@
 
 #define IO_WIN_CNT		0x007
  #define IO_WIN_CNT_MASK(x)	(0x03 << ((x) << 2))
- #define IO_WIN_DATA_AUTOSZ(x)	(0x02 << ((x) << 2))	
- #define IO_WIN_DATA_16BIT(x)	(0x01 << ((x) << 2))	
+ #define IO_WIN_DATA_AUTOSZ(x)	(0x02 << ((x) << 2))
+ #define IO_WIN_DATA_16BIT(x)	(0x01 << ((x) << 2))
 
 #define IO_WIN_SA(x)		(0x008 + ((x) << 2))
 #define IO_WIN_EA(x)		(0x00a + ((x) << 2))

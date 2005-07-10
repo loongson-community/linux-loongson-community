@@ -73,14 +73,14 @@ static int xxs1500_pcmcia_shutdown(void)
 	au_sync_delay(100);
 
 	/* assert reset */
-	au_writel(au_readl(GPIO2_PINSTATE) | (1<<4)|(1<<20), 
+	au_writel(au_readl(GPIO2_PINSTATE) | (1<<4)|(1<<20),
 			GPIO2_OUTPUT);
 	au_sync_delay(100);
 	return 0;
 }
 
 
-static int 
+static int
 xxs1500_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 {
 	u32 inserted; u32 vs;
@@ -122,7 +122,7 @@ xxs1500_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 
 	state->bvd1= gpio2 & (1<<10);
 	state->bvd2 = gpio2 & (1<<11);
-	state->wrprot=0; 
+	state->wrprot=0;
 	return 1;
 }
 
@@ -136,13 +136,13 @@ static int xxs1500_pcmcia_get_irq_info(struct pcmcia_irq_info *info)
 }
 
 
-static int 
+static int
 xxs1500_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 {
 
 	if(configure->sock > PCMCIA_MAX_SOCK) return -1;
 
-	DEBUG("Vcc %dV Vpp %dV, reset %d\n", 
+	DEBUG("Vcc %dV Vpp %dV, reset %d\n",
 			configure->vcc, configure->vpp, configure->reset);
 
 	switch(configure->vcc){
@@ -166,22 +166,22 @@ xxs1500_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 
 	if (!configure->reset) {
 		DEBUG("deassert reset\n");
-		au_writel((au_readl(GPIO2_PINSTATE) & ~(1<<4))|(1<<20), 
+		au_writel((au_readl(GPIO2_PINSTATE) & ~(1<<4))|(1<<20),
 				GPIO2_OUTPUT);
 		au_sync_delay(100);
-		au_writel((au_readl(GPIO2_PINSTATE) & ~(1<<5))|(1<<21), 
+		au_writel((au_readl(GPIO2_PINSTATE) & ~(1<<5))|(1<<21),
 				GPIO2_OUTPUT);
 	}
 	else {
 		DEBUG("assert reset\n");
-		au_writel(au_readl(GPIO2_PINSTATE) | (1<<4)|(1<<20), 
+		au_writel(au_readl(GPIO2_PINSTATE) | (1<<4)|(1<<20),
 				GPIO2_OUTPUT);
 	}
 	au_sync_delay(100);
 	return 0;
 }
 
-struct pcmcia_low_level xxs1500_pcmcia_ops = { 
+struct pcmcia_low_level xxs1500_pcmcia_ops = {
 	xxs1500_pcmcia_init,
 	xxs1500_pcmcia_shutdown,
 	xxs1500_pcmcia_socket_state,

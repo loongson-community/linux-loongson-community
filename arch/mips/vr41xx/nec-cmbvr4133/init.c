@@ -12,7 +12,7 @@
  * is licensed "as is" without any warranty of any kind, whether express
  * or implied.
  *
- * Support for NEC-CMBVR4133 in 2.6 
+ * Support for NEC-CMBVR4133 in 2.6
  * Manish Lachwani (mlachwani@mvista.com)
  */
 #include <linux/config.h>
@@ -40,7 +40,7 @@ void disable_pcnet(void)
 {
 	u32 data;
 
-	/* 
+	/*
 	 * Workaround for the bug in PMON on VR4133. PMON leaves
 	 * AMD PCNet controller (on Rockhopper) initialized and running in
 	 * bus master mode. We have do disable it before doing any
@@ -69,7 +69,7 @@ void disable_pcnet(void)
 	       (4 & 0xfc)		|
                1UL,
 	       PCICONFAREG);
-	
+
 	data &= ~4;
 
 	writel(data, PCICONFDREG);

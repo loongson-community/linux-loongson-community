@@ -201,4 +201,3 @@ config PCCARD_NONSTATIC
 endif	# PCCARD
 
 endmenu
-

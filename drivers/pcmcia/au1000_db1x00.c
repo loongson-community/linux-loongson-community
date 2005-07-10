@@ -8,7 +8,7 @@
  *
  * Copyright 2004 Pete Popov, updated the driver to 2.6.
  * Followed the sa11xx API and largely copied many of the hardware
- * independent functions. 
+ * independent functions.
  *
  * ########################################################################
  *
@@ -27,7 +27,7 @@
  *
  * ########################################################################
  *
- * 
+ *
  */
 
 #include <linux/config.h>
@@ -72,7 +72,7 @@ static void db1x00_pcmcia_shutdown(struct au1000_pcmcia_socket *skt)
 	au_sync_delay(2);
 }
 
-static void 
+static void
 db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state *state)
 {
 	u32 inserted;
@@ -96,8 +96,8 @@ db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state
 		return;
 	}
 
-	if (inserted) 
-		debug("db1x00 socket %d: inserted %d, vs %d pcmcia %x\n", 
+	if (inserted)
+		debug("db1x00 socket %d: inserted %d, vs %d pcmcia %x\n",
 				skt->nr, inserted, vs, bcsr->pcmcia);
 
 	if (inserted) {
@@ -121,14 +121,14 @@ db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state
 		 * we should turn off power to it
 		 */
 		if ((skt->nr == 0) && (bcsr->pcmcia & BCSR_PCMCIA_PC0RST)) {
-			bcsr->pcmcia &= ~(BCSR_PCMCIA_PC0RST | 
+			bcsr->pcmcia &= ~(BCSR_PCMCIA_PC0RST |
 					BCSR_PCMCIA_PC0DRVEN |
 					BCSR_PCMCIA_PC0VPP |
 					BCSR_PCMCIA_PC0VCC);
 			au_sync_delay(10);
 		}
 		else if ((skt->nr == 1) && bcsr->pcmcia & BCSR_PCMCIA_PC1RST) {
-			bcsr->pcmcia &= ~(BCSR_PCMCIA_PC1RST | 
+			bcsr->pcmcia &= ~(BCSR_PCMCIA_PC1RST |
 					BCSR_PCMCIA_PC1DRVEN |
 					BCSR_PCMCIA_PC1VPP |
 					BCSR_PCMCIA_PC1VCC);
@@ -138,21 +138,21 @@ db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state
 
 	state->bvd1=1;
 	state->bvd2=1;
-	state->wrprot=0; 
+	state->wrprot=0;
 }
 
-static int 
+static int
 db1x00_pcmcia_configure_socket(struct au1000_pcmcia_socket *skt, struct socket_state_t *state)
 {
 	u16 pwr;
 	int sock = skt->nr;
 
-	debug("config_skt %d Vcc %dV Vpp %dV, reset %d\n", 
-			sock, state->Vcc, state->Vpp, 
+	debug("config_skt %d Vcc %dV Vpp %dV, reset %d\n",
+			sock, state->Vcc, state->Vpp,
 			state->flags & SS_RESET);
 
 	/* pcmcia reg was set to zero at init time. Be careful when
-	 * initializing a socket not to wipe out the settings of the 
+	 * initializing a socket not to wipe out the settings of the
 	 * other socket.
 	 */
 	pwr = bcsr->pcmcia;
@@ -177,9 +177,9 @@ db1x00_pcmcia_configure_socket(struct au1000_pcmcia_socket *skt, struct socket_s
 				case 33:
 				default:
 					pwr |= SET_VCC_VPP(0,0,sock);
-					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
-							__FUNCTION__, 
-							state->Vcc, 
+					printk("%s: bad Vcc/Vpp (%d:%d)\n",
+							__FUNCTION__,
+							state->Vcc,
 							state->Vpp);
 					break;
 			}
@@ -198,16 +198,16 @@ db1x00_pcmcia_configure_socket(struct au1000_pcmcia_socket *skt, struct socket_s
 				case 50:
 				default:
 					pwr |= SET_VCC_VPP(0,0,sock);
-					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
-							__FUNCTION__, 
-							state->Vcc, 
+					printk("%s: bad Vcc/Vpp (%d:%d)\n",
+							__FUNCTION__,
+							state->Vcc,
 							state->Vpp);
 					break;
 			}
 			break;
 		default: /* what's this ? */
 			pwr |= SET_VCC_VPP(0,0,sock);
-			printk(KERN_ERR "%s: bad Vcc %d\n", 
+			printk(KERN_ERR "%s: bad Vcc %d\n",
 					__FUNCTION__, state->Vcc);
 			break;
 	}
@@ -266,7 +266,7 @@ void db1x00_socket_suspend(struct au1000_pcmcia_socket *skt)
 	/* nothing to do for now */
 }
 
-struct pcmcia_low_level db1x00_pcmcia_ops = { 
+struct pcmcia_low_level db1x00_pcmcia_ops = {
 	.owner			= THIS_MODULE,
 
 	.hw_init 		= db1x00_pcmcia_hw_init,

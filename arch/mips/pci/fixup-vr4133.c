@@ -11,9 +11,9 @@
  * is licensed "as is" without any warranty of any kind, whether express
  * or implied.
  *
- * Modified for support in 2.6 
+ * Modified for support in 2.6
  * Author: Manish Lachwani (mlachwani@mvista.com)
- * 
+ *
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -29,21 +29,21 @@ extern void ali_m5229_init(struct pci_dev *dev);
 /* Do platform specific device initialization at pci_enable_device() time */
 int pcibios_plat_dev_init(struct pci_dev *dev)
 {
-	/* 
+	/*
 	 * We have to reset AMD PCnet adapter on Rockhopper since
 	 * PMON leaves it enabled and generating interrupts. This leads
 	 * to a lock if some PCI device driver later enables the IRQ line
 	 * shared with PCnet and there is no AMD PCnet driver to catch its
-	 * interrupts. 
+	 * interrupts.
 	 */
 #ifdef CONFIG_ROCKHOPPER
-	if (dev->vendor == PCI_VENDOR_ID_AMD && 
+	if (dev->vendor == PCI_VENDOR_ID_AMD &&
 		dev->device == PCI_DEVICE_ID_AMD_LANCE) {
 		inl(pci_resource_start(dev, 0) + 0x18);
 	}
 #endif
 
-	/* 
+	/*
 	 * we have to open the bridges' windows down to 0 because otherwise
  	 * we cannot access ISA south bridge I/O registers that get mapped from
 	 * 0. for example, 8259 PIC would be unaccessible without that
@@ -60,8 +60,8 @@ int pcibios_plat_dev_init(struct pci_dev *dev)
 	return 0;
 }
 
-/* 
- * M1535 IRQ mapping 
+/*
+ * M1535 IRQ mapping
  * Feel free to change this, although it shouldn't be needed
  */
 #define M1535_IRQ_INTA  7
@@ -124,7 +124,7 @@ static struct irq_map_entry int_map[] = {
 	{1, ROCKHOPPER_PCI2_SLOT, M1535_IRQ_INTC},	/* PCI slot #2 */
 	{1, ROCKHOPPER_M5237_SLOT, M1535_IRQ_USB},	/* USB host controller */
 	{1, ROCKHOPPER_M5229_SLOT, IDE_PRIMARY_IRQ},	/* IDE controller */
-	{2, ROCKHOPPER_PCNET_SLOT, M1535_IRQ_INTD},	/* AMD Am79c973 on-board 
+	{2, ROCKHOPPER_PCNET_SLOT, M1535_IRQ_INTD},	/* AMD Am79c973 on-board
 							   ethernet */
 	{2, ROCKHOPPER_PCI3_SLOT, M1535_IRQ_INTB},	/* PCI slot #3 */
 	{2, ROCKHOPPER_PCI4_SLOT, M1535_IRQ_INTC}	/* PCI slot #4 */
