@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.12
-# Mon Jul 11 17:22:05 2005
+# Mon Jul 11 17:41:40 2005
 #
 CONFIG_MIPS=y
 
@@ -441,9 +441,7 @@ CONFIG_SERIO_RAW=m
 #
 # Character devices
 #
-CONFIG_VT=y
-CONFIG_VT_CONSOLE=y
-CONFIG_HW_CONSOLE=y
+# CONFIG_VT is not set
 # CONFIG_SERIAL_NONSTANDARD is not set
 # CONFIG_SERIAL_DEC is not set
 
@@ -514,12 +512,6 @@ CONFIG_RTC=y
 # Graphics support
 #
 # CONFIG_FB is not set
-
-#
-# Console display driver support
-#
-# CONFIG_VGA_CONSOLE is not set
-CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound
