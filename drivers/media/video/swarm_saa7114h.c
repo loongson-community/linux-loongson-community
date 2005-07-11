@@ -57,7 +57,6 @@
 
 #include <linux/i2c.h>
 #include <linux/videodev.h>
-#include <linux/version.h>
 #include <asm/uaccess.h>
 
 #include <linux/i2c-algo-sibyte.h>
