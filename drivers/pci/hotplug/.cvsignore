@@ -1,4 +1,5 @@
-gen-devlist
-devlist.h
-classlist.h
+.*.o
+.*.o.d
 .*.cmd
+*.ko
+*.mod.c
