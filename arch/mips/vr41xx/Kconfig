@@ -94,12 +94,6 @@ config GPIO_VR41XX
 	tristate "Add General-purpose I/O unit support of NEC VR4100 series"
 	depends on MACH_VR41XX
 
-config VRC4171
-	tristate "Add NEC VRC4171 companion chip support"
-	depends on MACH_VR41XX && ISA
-	help
-	  The NEC VRC4171/4171A is a companion chip for NEC VR4111/VR4121.
-
 config VRC4173
 	tristate "Add NEC VRC4173 companion chip support"
 	depends on MACH_VR41XX && PCI_VR41XX
