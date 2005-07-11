@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.12
-# Mon Jul 11 19:07:50 2005
+# Mon Jul 11 19:14:06 2005
 #
 CONFIG_MIPS=y
 
@@ -242,10 +242,11 @@ CONFIG_SCSI_PROC_FS=y
 # SCSI support type (disk, tape, CD-ROM)
 #
 CONFIG_BLK_DEV_SD=y
-# CONFIG_CHR_DEV_ST is not set
+CONFIG_CHR_DEV_ST=m
 # CONFIG_CHR_DEV_OSST is not set
-# CONFIG_BLK_DEV_SR is not set
-# CONFIG_CHR_DEV_SG is not set
+CONFIG_BLK_DEV_SR=m
+# CONFIG_BLK_DEV_SR_VENDOR is not set
+CONFIG_CHR_DEV_SG=m
 
 #
 # Some SCSI devices (e.g. CD jukebox) support multiple LUNs
@@ -257,7 +258,7 @@ CONFIG_SCSI_CONSTANTS=y
 #
 # SCSI Transport Attributes
 #
-# CONFIG_SCSI_SPI_ATTRS is not set
+CONFIG_SCSI_SPI_ATTRS=m
 # CONFIG_SCSI_FC_ATTRS is not set
 # CONFIG_SCSI_ISCSI_ATTRS is not set
 
