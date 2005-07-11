@@ -461,18 +461,6 @@ struct irix5_siginfo {
 	} stuff;
 };
 
-static inline unsigned long timespectojiffies(struct timespec *value)
-{
-	unsigned long sec = (unsigned) value->tv_sec;
-	long nsec = value->tv_nsec;
-
-	if (sec > (LONG_MAX / HZ))
-		return LONG_MAX;
-	nsec += 1000000000L / HZ - 1;
-	nsec /= 1000000000L / HZ;
-	return HZ * sec + nsec;
-}
-
 asmlinkage int irix_sigpoll_sys(unsigned long __user *set,
 	struct irix5_siginfo __user *info, struct timespec __user *tp)
 {
@@ -505,7 +493,8 @@ asmlinkage int irix_sigpoll_sys(unsigned long __user *set,
 		if (!ktp.tv_sec && !ktp.tv_nsec)
 			return -EINVAL;
 
-		expire = timespectojiffies(&ktp) + (ktp.tv_sec || ktp.tv_nsec);
+		expire = timespec_to_jiffies(&ktp) +
+		         (ktp.tv_sec || ktp.tv_nsec);
 	}
 
 	while(1) {
