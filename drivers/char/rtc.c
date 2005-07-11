@@ -76,6 +76,7 @@
 #include <linux/sysctl.h>
 #include <linux/wait.h>
 #include <linux/bcd.h>
+#include <linux/delay.h>
 
 #include <asm/current.h>
 #include <asm/uaccess.h>
@@ -902,7 +903,6 @@ static int __init rtc_init(void)
 	struct proc_dir_entry *ent;
 #if defined(__alpha__) || defined(__mips__)
 	unsigned int year, ctrl;
-	unsigned long uip_watchdog;
 	char *guess = NULL;
 #endif
 #ifdef __sparc__
@@ -1019,12 +1019,8 @@ no_irq:
 	/* Each operating system on an Alpha uses its own epoch.
 	   Let's try to guess which one we are using now. */
 	
-	uip_watchdog = jiffies;
 	if (rtc_is_updating() != 0)
-		while (jiffies - uip_watchdog < 2*HZ/100) { 
-			barrier();
-			cpu_relax();
-		}
+		msleep(20);
 	
 	spin_lock_irq(&rtc_lock);
 	year = CMOS_READ(RTC_YEAR);
@@ -1235,7 +1231,6 @@ static int rtc_proc_open(struct inode *inode, struct file *file)
 
 void rtc_get_rtc_time(struct rtc_time *rtc_tm)
 {
-	unsigned long uip_watchdog = jiffies;
 	unsigned char ctrl;
 #ifdef CONFIG_MACH_DECSTATION
 	unsigned int real_year;
@@ -1243,7 +1238,7 @@ void rtc_get_rtc_time(struct rtc_time *rtc_tm)
 
 	/*
 	 * read RTC once any update in progress is done. The update
-	 * can take just over 2ms. We wait 10 to 20ms. There is no need to
+	 * can take just over 2ms. We wait 20ms. There is no need to
 	 * to poll-wait (up to 1s - eeccch) for the falling edge of RTC_UIP.
 	 * If you need to know *exactly* when a second has started, enable
 	 * periodic update complete interrupts, (via ioctl) and then 
@@ -1252,10 +1247,7 @@ void rtc_get_rtc_time(struct rtc_time *rtc_tm)
 	 */
 
 	if (rtc_is_updating() != 0)
-		while (jiffies - uip_watchdog < 2*HZ/100) {
-			barrier();
-			cpu_relax();
-		}
+		msleep(20);
 
 	/*
 	 * Only the values that we read from the RTC are set. We leave

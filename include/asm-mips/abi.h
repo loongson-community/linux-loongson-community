@@ -14,10 +14,10 @@
 
 struct mips_abi {
 	int (* const do_signal)(sigset_t *oldset, struct pt_regs *regs);
-	void (* const setup_frame)(struct k_sigaction * ka,
+	int (* const setup_frame)(struct k_sigaction * ka,
 	                          struct pt_regs *regs, int signr,
 	                          sigset_t *set);
-	void (* const setup_rt_frame)(struct k_sigaction * ka,
+	int (* const setup_rt_frame)(struct k_sigaction * ka,
 	                       struct pt_regs *regs, int signr,
 	                       sigset_t *set, siginfo_t *info);
 };

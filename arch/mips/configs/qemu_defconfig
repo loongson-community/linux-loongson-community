@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.12
-# Mon Jul 11 11:46:46 2005
+# Linux kernel version: 2.6.13-rc1
+# Mon Jul 11 20:25:46 2005
 #
 CONFIG_MIPS=y
 
@@ -152,6 +152,11 @@ CONFIG_PAGE_SIZE_4KB=y
 CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_LLDSCD=y
 CONFIG_CPU_HAS_SYNC=y
+CONFIG_ARCH_FLATMEM_ENABLE=y
+CONFIG_FLATMEM=y
+CONFIG_FLAT_NODE_MEM_MAP=y
+CONFIG_PREEMPT_NONE=y
+# CONFIG_PREEMPT_VOLUNTARY is not set
 # CONFIG_PREEMPT is not set
 
 #
@@ -247,6 +252,7 @@ CONFIG_IOSCHED_NOOP=y
 #
 # Fusion MPT device support
 #
+# CONFIG_FUSION is not set
 
 #
 # IEEE 1394 (FireWire) support
@@ -271,6 +277,7 @@ CONFIG_UNIX=y
 CONFIG_INET=y
 CONFIG_IP_MULTICAST=y
 # CONFIG_IP_ADVANCED_ROUTER is not set
+CONFIG_IP_FIB_HASH=y
 CONFIG_IP_PNP=y
 CONFIG_IP_PNP_DHCP=y
 CONFIG_IP_PNP_BOOTP=y
@@ -285,6 +292,8 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_INET_TUNNEL is not set
 CONFIG_IP_TCPDIAG=y
 # CONFIG_IP_TCPDIAG_IPV6 is not set
+# CONFIG_TCP_CONG_ADVANCED is not set
+CONFIG_TCP_CONG_BIC=y
 # CONFIG_IPV6 is not set
 # CONFIG_NETFILTER is not set
 # CONFIG_BRIDGE is not set
@@ -447,7 +456,6 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 #
 # Ftape, the floppy tape device driver
 #
-# CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
 
 #
@@ -517,6 +525,10 @@ CONFIG_DUMMY_CONSOLE=y
 # CONFIG_INFINIBAND is not set
 
 #
+# SN Devices
+#
+
+#
 # File systems
 #
 # CONFIG_EXT2_FS is not set
@@ -574,10 +586,12 @@ CONFIG_RAMFS=y
 #
 CONFIG_NFS_FS=y
 CONFIG_NFS_V3=y
+# CONFIG_NFS_V3_ACL is not set
 # CONFIG_NFSD is not set
 CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
+CONFIG_NFS_COMMON=y
 CONFIG_SUNRPC=y
 # CONFIG_SMB_FS is not set
 # CONFIG_CIFS is not set

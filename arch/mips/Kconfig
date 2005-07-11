@@ -1223,6 +1223,12 @@ config HIGHMEM
 	bool "High Memory Support"
 	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_RM9000 || CPU_R10000) && !(MACH_DECSTATION || MOMENCO_JAGUAR_ATX)
 
+config ARCH_FLATMEM_ENABLE
+	def_bool y
+	depends on !NUMA
+
+source "mm/Kconfig"
+
 config SMP
 	bool "Multi-Processing support"
 	depends on CPU_RM9000 || (SIBYTE_SB1250 && !SIBYTE_STANDALONE) || SGI_IP27
@@ -1260,25 +1266,7 @@ config NR_CPUS
 	  This is purely to save memory - each supported CPU adds
 	  approximately eight kilobytes to the kernel image.
 
-config PREEMPT
-	bool "Preemptible Kernel"
-	help
-	  This option reduces the latency of the kernel when reacting to
-	  real-time or interactive events by allowing a low priority process to
-	  be preempted even if it is in kernel mode executing a system call.
-	  This allows applications to run more reliably even when the system is
-	  under load.
-
-config PREEMPT_BKL
-	bool "Preempt The Big Kernel Lock"
-	depends on PREEMPT
-	default y
-	help
-	  This option reduces the latency of the kernel by making the
-	  big kernel lock preemptible.
-
-	  Say Y here if you are building a kernel for a desktop system.
-	  Say N if you are unsure.
+source "kernel/Kconfig.preempt"
 
 config RTC_DS1742
 	bool "DS1742 BRAM/RTC support"

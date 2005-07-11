@@ -76,8 +76,8 @@ static inline void dump_irix5_sigctx(struct sigctx_irix5 *c)
 }
 #endif
 
-static void setup_irix_frame(struct k_sigaction *ka, struct pt_regs *regs,
-			     int signr, sigset_t *oldmask)
+static int setup_irix_frame(struct k_sigaction *ka, struct pt_regs *regs,
+			    int signr, sigset_t *oldmask)
 {
 	struct sigctx_irix5 __user *ctx;
 	unsigned long sp;
@@ -120,13 +120,14 @@ static void setup_irix_frame(struct k_sigaction *ka, struct pt_regs *regs,
 	regs->regs[7] = (unsigned long) ka->sa.sa_handler;
 	regs->regs[25] = regs->cp0_epc = (unsigned long) ka->sa_restorer;
 
-	return;
+	return 1;
 
 segv_and_exit:
 	force_sigsegv(signr, current);
+	return 0;
 }
 
-static void inline
+static int inline
 setup_irix_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
                int signr, sigset_t *oldmask, siginfo_t *info)
 {
@@ -134,9 +135,11 @@ setup_irix_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	do_exit(SIGSEGV);
 }
 
-static inline void handle_signal(unsigned long sig, siginfo_t *info,
+static inline int handle_signal(unsigned long sig, siginfo_t *info,
 	struct k_sigaction *ka, sigset_t *oldset, struct pt_regs * regs)
 {
+	int ret;
+
 	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:
 		regs->regs[2] = EINTR;
@@ -154,9 +157,9 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	regs->regs[0] = 0;		/* Don't deal with this again.  */
 
 	if (ka->sa.sa_flags & SA_SIGINFO)
-		setup_irix_rt_frame(ka, regs, sig, oldset, info);
+		ret = setup_irix_rt_frame(ka, regs, sig, oldset, info);
 	else
-		setup_irix_frame(ka, regs, sig, oldset);
+		ret = setup_irix_frame(ka, regs, sig, oldset);
 
 	if (!(ka->sa.sa_flags & SA_NODEFER)) {
 		spin_lock_irq(&current->sighand->siglock);
@@ -165,6 +168,8 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 		recalc_sigpending();
 		spin_unlock_irq(&current->sighand->siglock);
 	}
+
+	return ret;
 }
 
 asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
@@ -181,17 +186,15 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 	if (!user_mode(regs))
 		return 1;
 
-	if (try_to_freeze(0))
+	if (try_to_freeze())
 		goto no_signal;
 
 	if (!oldset)
 		oldset = &current->blocked;
 
 	signr = get_signal_to_deliver(&info, &ka, regs, NULL);
-	if (signr > 0) {
-		handle_signal(signr, &info, &ka, oldset, regs);
-		return 1;
-	}
+	if (signr > 0)
+		return handle_signal(signr, &info, &ka, oldset, regs);
 
 no_signal:
 	/*
