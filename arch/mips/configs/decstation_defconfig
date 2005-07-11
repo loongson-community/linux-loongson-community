@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.12
-# Mon Jul 11 17:46:37 2005
+# Mon Jul 11 17:58:05 2005
 #
 CONFIG_MIPS=y
 
@@ -50,7 +50,7 @@ CONFIG_MODULES=y
 CONFIG_MODULE_UNLOAD=y
 # CONFIG_MODULE_FORCE_UNLOAD is not set
 CONFIG_OBSOLETE_MODPARM=y
-CONFIG_MODVERSIONS=y
+# CONFIG_MODVERSIONS is not set
 CONFIG_MODULE_SRCVERSION_ALL=y
 CONFIG_KMOD=y
 
