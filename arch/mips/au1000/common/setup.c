@@ -97,7 +97,7 @@ void __init plat_setup(void)
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
-#endif	  
+#endif
 
 #ifdef CONFIG_FB_AU1100
     if ((argptr = strstr(argptr, "video=")) == NULL) {

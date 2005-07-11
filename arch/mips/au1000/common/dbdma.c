@@ -212,7 +212,7 @@ au1xxx_ddma_add_device(dbdev_tab_t *dev)
 		ret = p->dev_id;
 		new_id++;
 #if 0
-		printk("add_device: id:%x flags:%x padd:%x\n", 
+		printk("add_device: id:%x flags:%x padd:%x\n",
 				p->dev_id, p->dev_flags, p->dev_physaddr );
 #endif
 	}
@@ -390,7 +390,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 	 * and if we try that first we are likely to not waste larger
 	 * slabs of memory.
 	 */
-	desc_base = (u32)kmalloc(entries * sizeof(au1x_ddma_desc_t), 
+	desc_base = (u32)kmalloc(entries * sizeof(au1x_ddma_desc_t),
 			GFP_KERNEL|GFP_DMA);
 	if (desc_base == 0)
 		return 0;
@@ -482,13 +482,13 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 	/* If source input is fifo, set static address.
 	*/
 	if (stp->dev_flags & DEV_FLAGS_IN) {
-		if ( stp->dev_flags & DEV_FLAGS_BURSTABLE ) 
+		if ( stp->dev_flags & DEV_FLAGS_BURSTABLE )
 			src1 |= DSCR_SRC1_SAM(DSCR_xAM_BURST);
-		else 
+		else
 		src1 |= DSCR_SRC1_SAM(DSCR_xAM_STATIC);
 
 	}
-	if (stp->dev_physaddr) 
+	if (stp->dev_physaddr)
 		src0 = stp->dev_physaddr;
 
 	/* Set up dest1.  For now, assume no stride and increment.
@@ -518,7 +518,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 				else
 		dest1 |= DSCR_DEST1_DAM(DSCR_xAM_STATIC);
 	}
-	if (dtp->dev_physaddr) 
+	if (dtp->dev_physaddr)
 		dest0 = dtp->dev_physaddr;
 
 #if 0
@@ -581,7 +581,7 @@ _au1xxx_dbdma_put_source(u32 chanid, void *buf, int nbytes, u32 flags)
 	dp->dscr_source0 = virt_to_phys(buf);
 	dp->dscr_cmd1 = nbytes;
 	/* Check flags  */
-	if (flags & DDMA_FLAGS_IE) 
+	if (flags & DDMA_FLAGS_IE)
 		dp->dscr_cmd0 |= DSCR_CMD0_IE;
 	if (flags & DDMA_FLAGS_NOIE)
 		dp->dscr_cmd0 &= ~DSCR_CMD0_IE;
@@ -590,10 +590,10 @@ _au1xxx_dbdma_put_source(u32 chanid, void *buf, int nbytes, u32 flags)
 	ctp->put_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
 
 	/*
-	 * There is an errata on the Au1200/Au1550 parts that could result 
-	 * in "stale" data being DMA'd. It has to do with the snoop logic on 
-	 * the dache eviction buffer.  NONCOHERENT_IO is on by default for 
-	 * these parts. If it is fixedin the future, these dma_cache_inv will 
+	 * There is an errata on the Au1200/Au1550 parts that could result
+	 * in "stale" data being DMA'd. It has to do with the snoop logic on
+	 * the dache eviction buffer.  NONCOHERENT_IO is on by default for
+	 * these parts. If it is fixedin the future, these dma_cache_inv will
 	 * just be nothing more than empty macros. See io.h.
 	 * */
 	dma_cache_wback_inv((unsigned long)buf, nbytes);
@@ -638,7 +638,7 @@ _au1xxx_dbdma_put_dest(u32 chanid, void *buf, int nbytes, u32 flags)
 	/* Load up buffer address and byte count */
 
 	/* Check flags  */
-	if (flags & DDMA_FLAGS_IE) 
+	if (flags & DDMA_FLAGS_IE)
 		dp->dscr_cmd0 |= DSCR_CMD0_IE;
 	if (flags & DDMA_FLAGS_NOIE)
 		dp->dscr_cmd0 &= ~DSCR_CMD0_IE;
@@ -646,16 +646,16 @@ _au1xxx_dbdma_put_dest(u32 chanid, void *buf, int nbytes, u32 flags)
 	dp->dscr_dest0 = virt_to_phys(buf);
 	dp->dscr_cmd1 = nbytes;
 #if 0
-	printk("cmd0:%x cmd1:%x source0:%x source1:%x dest0:%x dest1:%x\n", 
-			dp->dscr_cmd0, dp->dscr_cmd1, dp->dscr_source0, 
+	printk("cmd0:%x cmd1:%x source0:%x source1:%x dest0:%x dest1:%x\n",
+			dp->dscr_cmd0, dp->dscr_cmd1, dp->dscr_source0,
 			dp->dscr_source1, dp->dscr_dest0, dp->dscr_dest1 );
 #endif
 	/*
-	 * There is an errata on the Au1200/Au1550 parts that could result in 
-	 * "stale" data being DMA'd. It has to do with the snoop logic on the 
-	 * dache eviction buffer. NONCOHERENT_IO is on by default for these 
-	 * parts. If it is fixedin the future, these dma_cache_inv will just 
-	 * be nothing more than empty macros. See io.h. 
+	 * There is an errata on the Au1200/Au1550 parts that could result in
+	 * "stale" data being DMA'd. It has to do with the snoop logic on the
+	 * dache eviction buffer. NONCOHERENT_IO is on by default for these
+	 * parts. If it is fixedin the future, these dma_cache_inv will just
+	 * be nothing more than empty macros. See io.h.
 	 * */
 	dma_cache_inv((unsigned long)buf,nbytes);
 	dp->dscr_cmd0 |= DSCR_CMD0_V;	/* Let it rip */
@@ -780,9 +780,9 @@ au1xxx_dbdma_reset(u32 chanid)
 
 	do {
 		dp->dscr_cmd0 &= ~DSCR_CMD0_V;
-		/* reset our SW status -- this is used to determine 
-		 * if a descriptor is in use by upper level SW. Since 
-		 * posting can reset 'V' bit. 
+		/* reset our SW status -- this is used to determine
+		 * if a descriptor is in use by upper level SW. Since
+		 * posting can reset 'V' bit.
 		 */
 		dp->sw_status = 0;
 		dp = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));

@@ -52,7 +52,7 @@ static void r4k_wait(void)
 
 /* The Au1xxx wait is available only if using 32khz counter or
  * external timer source, but specifically not CP0 Counter. */
-int allow_au1k_wait; 
+int allow_au1k_wait;
 
 static void au1k_wait(void)
 {
@@ -440,7 +440,7 @@ static inline unsigned int decode_config0(struct cpuinfo_mips *c)
 	default:
 		panic("Unsupported ISA type, cp0.config0.at: %d.", isa);
 	}
-	
+
 	return config0 & MIPS_CONF_M;
 }
 
@@ -476,7 +476,7 @@ static inline unsigned int decode_config2(struct cpuinfo_mips *c)
 
 	if (config2 & MIPS_CONF2_SL)
 		c->scache.flags &= ~MIPS_CACHE_NOT_PRESENT;
-	
+
 	return config2 & MIPS_CONF_M;
 }
 

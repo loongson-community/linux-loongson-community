@@ -37,13 +37,13 @@ static struct mtd_partition cmbvr4133_mtd_parts[] = {
 		.size =		0x1be0000,
 		.offset =	0,
 		.mask_flags = 	0,
-	}, 
+	},
 	{
 		.name =		"PMON",
 		.size =		0x140000,
 		.offset =	MTDPART_OFS_APPEND,
 		.mask_flags =	MTD_WRITEABLE,  /* force read-only */
-	}, 
+	},
 	{
 		.name =		"User FS2",
 		.size =		MTDPART_SIZ_FULL,

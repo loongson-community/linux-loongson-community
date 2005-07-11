@@ -246,10 +246,10 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	LONG_L	a1, PT_EPC(sp)
 #if CONFIG_MIPS32
 	PRINT("Got \nexception at %08lx\012")
-#endif	
+#endif
 #if CONFIG_MIPS64
 	PRINT("Got \nexception at %016lx\012")
-#endif	
+#endif
 	.endm
 
 	.macro	__BUILD_count exception

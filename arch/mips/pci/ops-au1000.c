@@ -119,7 +119,7 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 		last_entryLo0  = last_entryLo1 = 0xffffffff;
 	}
 
-	/* Allow board vendors to implement their own off-chip idsel.  
+	/* Allow board vendors to implement their own off-chip idsel.
 	 * If it doesn't succeed, may as well bail out at this point.
 	 */
 	if (board_pci_idsel) {

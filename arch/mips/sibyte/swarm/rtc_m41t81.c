@@ -129,7 +129,7 @@ static int m41t81_write(uint8_t addr, int b)
 		/* Clear error bit by writing a 1 */
 		__raw_writeq(M_SMB_ERROR, SMB_CSR(R_SMB_STATUS));
 		return -1;
-	} 
+	}
 
 	/* read the same byte again to make sure it is written */
 	__raw_writeq(V_SMB_ADDR(M41T81_CCR_ADDRESS) | V_SMB_TT_RD1BYTE,
@@ -137,7 +137,7 @@ static int m41t81_write(uint8_t addr, int b)
 
 	while (__raw_readq(SMB_CSR(R_SMB_STATUS)) & M_SMB_BUSY)
 		;
-	
+
 	return 0;
 }
 
@@ -149,13 +149,13 @@ int m41t81_set_time(unsigned long t)
 
 	/*
 	 * Note the write order matters as it ensures the correctness.
-	 * When we write sec, 10th sec is clear.  It is reasonable to 
+	 * When we write sec, 10th sec is clear.  It is reasonable to
 	 * believe we should finish writing min within a second.
 	 */
 
 	tm.tm_sec = BIN2BCD(tm.tm_sec);
 	m41t81_write(M41T81REG_SC, tm.tm_sec);
-	
+
 	tm.tm_min = BIN2BCD(tm.tm_min);
 	m41t81_write(M41T81REG_MN, tm.tm_min);
 
@@ -188,7 +188,7 @@ unsigned long m41t81_get_time(void)
 {
 	unsigned int year, mon, day, hour, min, sec;
 
-	/* 
+	/*
 	 * min is valid if two reads of sec are the same.
 	 */
 	for (;;) {

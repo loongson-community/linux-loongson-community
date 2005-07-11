@@ -313,8 +313,8 @@ void startup_match20_interrupt(void (*handler)(int, void *, struct pt_regs *))
 	action.handler = handler;
 	action.next = NULL;
 
-	irq_desc[AU1000_TOY_MATCH2_INT].action = &action; 
-	irq_desc[AU1000_TOY_MATCH2_INT].status 
+	irq_desc[AU1000_TOY_MATCH2_INT].action = &action;
+	irq_desc[AU1000_TOY_MATCH2_INT].status
 		 &= ~(IRQ_DISABLED | IRQ_AUTODETECT | IRQ_WAITING | IRQ_INPROGRESS);
 
 	local_enable_irq(AU1000_TOY_MATCH2_INT);

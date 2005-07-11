@@ -1524,7 +1524,7 @@ static void ioc3_get_drvinfo (struct net_device *dev,
 	struct ethtool_drvinfo *info)
 {
 	struct ioc3_private *ip = netdev_priv(dev);
-                                                                                
+
         strcpy (info->driver, IOC3_NAME);
         strcpy (info->version, IOC3_VERSION);
         strcpy (info->bus_info, pci_name(ip->pdev));
@@ -1550,7 +1550,7 @@ static int ioc3_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 	spin_lock_irq(&ip->ioc3_lock);
 	rc = mii_ethtool_sset(&ip->mii, cmd);
 	spin_unlock_irq(&ip->ioc3_lock);
-                                                                        
+
 	return rc;
 }
 

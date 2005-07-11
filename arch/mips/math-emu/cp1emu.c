@@ -454,7 +454,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 				 * instruction
 				 */
 				xcp->cp0_epc += 4;
-				contpc = (void *) 
+				contpc = (void *)
 					(xcp->cp0_epc +
 					(MIPSInst_SIMM(ir) << 2));
 

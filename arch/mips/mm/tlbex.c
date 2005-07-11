@@ -1261,7 +1261,7 @@ static void __init build_r4000_tlb_refill_handler(void)
 
 /*
  * TLB load/store/modify handlers.
- * 
+ *
  * Only the fastpath gets synthesized at runtime, the slowpath for
  * do_page_fault remains normal asm.
  */

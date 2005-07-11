@@ -690,8 +690,8 @@ void handle_exception (struct gdb_regs *regs)
 	 * acquire the big kgdb spinlock
 	 */
 	if (!spin_trylock(&kgdb_lock)) {
-		/* 
-		 * some other CPU has the lock, we should go back to 
+		/*
+		 * some other CPU has the lock, we should go back to
 		 * receive the gdb_wait IPC
 		 */
 		return;
@@ -706,7 +706,7 @@ void handle_exception (struct gdb_regs *regs)
 		async_bp.addr = 0;
 	}
 
-	/* 
+	/*
 	 * acquire the CPU spinlocks
 	 */
 	for (i = num_online_cpus()-1; i >= 0; i--)
@@ -897,7 +897,7 @@ void handle_exception (struct gdb_regs *regs)
 			ptr = &input_buffer[1];
 			if (hexToLong(&ptr, &addr))
 				regs->cp0_epc = addr;
-	  
+
 			goto exit_kgdb_exception;
 			break;
 
@@ -1004,7 +1004,7 @@ void breakpoint(void)
 		return;
 
 	__asm__ __volatile__(
-			".globl	breakinst\n\t" 
+			".globl	breakinst\n\t"
 			".set\tnoreorder\n\t"
 			"nop\n"
 			"breakinst:\tbreak\n\t"
@@ -1017,7 +1017,7 @@ void breakpoint(void)
 void async_breakpoint(void)
 {
 	__asm__ __volatile__(
-			".globl	async_breakinst\n\t" 
+			".globl	async_breakinst\n\t"
 			".set\tnoreorder\n\t"
 			"nop\n"
 			"async_breakinst:\tbreak\n\t"

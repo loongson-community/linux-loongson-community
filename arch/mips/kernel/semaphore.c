@@ -56,7 +56,7 @@ static inline int __sem_update_count(struct semaphore *sem, int incr)
 	} else if (cpu_has_llsc) {
 		__asm__ __volatile__(
 		"	.set	mips3					\n"
-		"1:	ll	%0, %2		# __sem_update_count	\n"	
+		"1:	ll	%0, %2		# __sem_update_count	\n"
 		"	sra	%1, %0, 31				\n"
 		"	not	%1					\n"
 		"	and	%1, %0, %1				\n"

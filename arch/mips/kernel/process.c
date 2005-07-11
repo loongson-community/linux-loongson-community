@@ -191,7 +191,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	if (clone_flags & CLONE_SETTLS)
 		ti->tp_value = regs->regs[7];
-	
+
 	return 0;
 }
 

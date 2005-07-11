@@ -136,7 +136,7 @@ static __init void intr_clear_all(nasid_t nasid)
 	REMOTE_HUB_S(nasid, PI_INT_MASK1_A, 0);
 	REMOTE_HUB_S(nasid, PI_INT_MASK1_B, 0);
 
-	for (i = 0; i < 128; i++) 
+	for (i = 0; i < 128; i++)
 		REMOTE_HUB_CLR_INTR(nasid, i);
 }
 

@@ -113,7 +113,7 @@ asmlinkage void cobalt_irq(struct pt_regs *regs)
 static struct irqaction irq_via = {
 	no_action, 0, { { 0, } }, "cascade", NULL, NULL
 };
- 
+
 void __init arch_init_irq(void)
 {
 	/*

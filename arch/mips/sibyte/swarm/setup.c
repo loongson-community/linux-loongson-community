@@ -98,7 +98,7 @@ void __init plat_setup(void)
 		rtc_get_time = xicor_get_time;
 		rtc_set_time = xicor_set_time;
 	}
- 
+
 	if (m41t81_probe()) {
 		printk("swarm setup: M41T81 RTC detected.\n");
 		rtc_get_time = m41t81_get_time;

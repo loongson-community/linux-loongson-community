@@ -255,7 +255,7 @@ static inline void dec_kn03_be_init(void)
 
 	kn0x_erraddr = (void *)CKSEG1ADDR(KN03_SLOT_BASE + IOASIC_ERRADDR);
 	kn0x_chksyn = (void *)CKSEG1ADDR(KN03_SLOT_BASE + IOASIC_CHKSYN);
-			
+
 	/*
 	 * Set normal ECC detection and generation, enable ECC correction.
 	 * For KN05 we also need to make sure EE (?) is enabled in the MB.

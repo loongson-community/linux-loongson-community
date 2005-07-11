@@ -64,7 +64,7 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 
 	if (dev->devfn != PCI_DEVFN(0, 0))
 		return;
-		
+
 	/* Fix PCI latency-timer and cache-line-size values in Galileo
 	 * host bridge.
 	 */

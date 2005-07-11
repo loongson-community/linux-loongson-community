@@ -1870,7 +1870,7 @@ static int irix_filldir64(void *__buf, const char *name,
 	struct irix_dirent64 __user *dirent;
 	struct irix_dirent64_callback * buf = __buf;
 	unsigned short reclen = ROUND_UP64(NAME_OFFSET64(dirent) + namlen + 1);
-	int err = 0; 
+	int err = 0;
 
 	if (!access_ok(VERIFY_WRITE, buf, sizeof(*buf)))
 		return -EFAULT;

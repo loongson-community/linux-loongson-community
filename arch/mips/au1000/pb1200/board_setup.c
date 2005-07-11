@@ -151,7 +151,7 @@ void __init board_setup(void)
 	/*
 	 * change PIO or PIO+Ddma
 	 * check the GPIO-5 pin condition. pb1200:s18_dot */
-	switch4ddma = (au_readl(SYS_PINSTATERD) & (1 << 5)) ? 1 : 0; 
+	switch4ddma = (au_readl(SYS_PINSTATERD) & (1 << 5)) ? 1 : 0;
 #endif
 
 	/* The Pb1200 development board uses external MUX for PSC0 to

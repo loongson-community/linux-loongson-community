@@ -2,7 +2,7 @@
 # Makefile for MIPS-specific library files..
 #
 
-lib-y	+= csum_partial.o memset.o watch.o 
+lib-y	+= csum_partial.o memset.o watch.o
 
 obj-$(CONFIG_CPU_MIPS32_R1)	+= dump_tlb.o
 obj-$(CONFIG_CPU_MIPS64_R1)	+= dump_tlb.o

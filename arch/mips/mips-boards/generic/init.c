@@ -201,7 +201,7 @@ void __init kgdb_config (void)
 			generic_putDebugChar = saa9730_putDebugChar;
 			generic_getDebugChar = saa9730_getDebugChar;
 		}
-		else 
+		else
 #endif
 		{
 			speed = rs_kgdb_hook(line, speed);
@@ -246,7 +246,7 @@ void __init prom_init(void)
 	mips_revision_corid = MIPS_REVISION_CORID;
 
 	if (mips_revision_corid == MIPS_REVISION_CORID_CORE_EMUL) {
-		if (BONITO_PCIDID == 0x0001df53 || 
+		if (BONITO_PCIDID == 0x0001df53 ||
 		    BONITO_PCIDID == 0x0003df53)
 			mips_revision_corid = MIPS_REVISION_CORID_CORE_EMUL_BON;
 		else
@@ -312,7 +312,7 @@ void __init prom_init(void)
 	case MIPS_REVISION_CORID_CORE_MSC:
 	case MIPS_REVISION_CORID_CORE_FPGA2:
 	case MIPS_REVISION_CORID_CORE_EMUL_MSC:
-		_pcictrl_msc = (unsigned long)ioremap(MIPS_MSC01_PCI_REG_BASE, 0x2000); 
+		_pcictrl_msc = (unsigned long)ioremap(MIPS_MSC01_PCI_REG_BASE, 0x2000);
 
 		mb();
 		MSC_READ(MSC01_PCI_CFG, data);

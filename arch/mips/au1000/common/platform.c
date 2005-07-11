@@ -43,7 +43,7 @@ static struct platform_device au1xxx_usb_ohci_device = {
 };
 
 /*** AU1100 LCD controller ***/
- 
+
 #ifdef CONFIG_FB_AU1100
 static struct resource au1100_lcd_resources[] = {
 	[0] = {

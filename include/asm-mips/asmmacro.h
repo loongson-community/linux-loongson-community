@@ -7,10 +7,10 @@
  */
 #ifndef _ASM_ASMMACRO_H
 #define _ASM_ASMMACRO_H
- 
+
 #include <linux/config.h>
 #include <asm/hazards.h>
- 
+
 #ifdef CONFIG_MIPS32
 #include <asm/asmmacro-32.h>
 #endif
