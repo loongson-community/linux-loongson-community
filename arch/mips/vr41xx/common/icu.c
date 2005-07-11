@@ -30,7 +30,6 @@
  */
 #include <linux/errno.h>
 #include <linux/init.h>
-#include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/irq.h>
 #include <linux/module.h>
@@ -39,8 +38,6 @@
 
 #include <asm/cpu.h>
 #include <asm/io.h>
-#include <asm/irq.h>
-#include <asm/irq_cpu.h>
 #include <asm/vr41xx/vr41xx.h>
 
 static void __iomem *icu1_base;
