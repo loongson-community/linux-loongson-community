@@ -131,6 +131,10 @@
 EXPORT(stext)					# used for profiling
 EXPORT(_stext)
 
+#ifndef CONFIG_QEMU
+	__INIT
+#endif
+
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 	setup_c0_status_pri
 
@@ -164,7 +168,9 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	j		start_kernel
 	END(kernel_entry)
 
+#ifdef CONFIG_QEMU
 	__INIT
+#endif
 
 #ifdef CONFIG_SMP
 /*
