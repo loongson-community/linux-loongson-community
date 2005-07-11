@@ -18,6 +18,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <linux/interrupt.h>
+#include <linux/module.h>
 
 #include <asm/irq_cpu.h>
 #include <asm/system.h>
@@ -55,6 +56,8 @@ int cascade_irq(unsigned int irq, int (*get_irq)(unsigned int, struct pt_regs *)
 
 	return retval;
 }
+
+EXPORT_SYMBOL_GPL(cascade_irq);
 
 asmlinkage void irq_dispatch(unsigned int irq, struct pt_regs *regs)
 {
