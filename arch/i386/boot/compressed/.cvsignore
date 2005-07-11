@@ -1,4 +1,5 @@
 *tmppiggy*
 vmlinux
-vmlinux.out
+vmlinux.bin
+vmlinux.bin.gz
 .*.cmd
