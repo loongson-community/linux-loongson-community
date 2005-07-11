@@ -459,6 +459,13 @@ cflags-$(CONFIG_PMC_YOSEMITE)	+= -Iinclude/asm-mips/mach-yosemite
 load-$(CONFIG_PMC_YOSEMITE)	+= 0xffffffff80100000
 
 #
+# Qemu simulating MIPS32 4Kc
+#
+core-$(CONFIG_QEMU)		+= arch/mips/qemu/
+cflags-$(CONFIG_QEMU)		+= -Iinclude/asm-mips/mach-qemu
+load-$(CONFIG_QEMU)		+= 0xffffffff80010000
+
+#
 # Momentum Ocelot-3
 #
 core-$(CONFIG_MOMENCO_OCELOT_3) 	+= arch/mips/momentum/ocelot_3/
@@ -751,9 +758,16 @@ ifdef CONFIG_MIPS_SEAD
 all:	vmlinux.srec
 endif
 
+ifdef CONFIG_QEMU
+all:	vmlinux.bin
+endif
+
 ifdef CONFIG_SNI_RM200_PCI
 all:	vmlinux.ecoff
 endif
+
+vmlinux.bin: $(vmlinux-32)
+	+@$(call makeboot,$@)
 
 vmlinux.ecoff vmlinux.rm200: $(vmlinux-32)
 	+@$(call makeboot,$@)

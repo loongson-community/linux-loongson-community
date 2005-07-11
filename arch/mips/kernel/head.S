@@ -131,8 +131,6 @@
 EXPORT(stext)					# used for profiling
 EXPORT(_stext)
 
-	__INIT
-
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 	setup_c0_status_pri
 
@@ -165,6 +163,8 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	j		start_kernel
 	END(kernel_entry)
+
+	__INIT
 
 #ifdef CONFIG_SMP
 /*

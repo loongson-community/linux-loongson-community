@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.12
-# Sat Jun 18 14:53:17 2005
+# Mon Jul 11 11:46:07 2005
 #
 CONFIG_MIPS=y
 
@@ -93,6 +93,7 @@ CONFIG_KMOD=y
 # CONFIG_DDB5477 is not set
 # CONFIG_MACH_VR41XX is not set
 # CONFIG_PMC_YOSEMITE is not set
+# CONFIG_QEMU is not set
 CONFIG_SGI_IP22=y
 # CONFIG_SGI_IP27 is not set
 # CONFIG_SGI_IP32 is not set
