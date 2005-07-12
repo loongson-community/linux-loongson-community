@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc2
-# Tue Jul 12 08:46:39 2005
+# Tue Jul 12 19:09:59 2005
 #
 CONFIG_MIPS=y
 
@@ -117,7 +117,9 @@ CONFIG_HAVE_STD_PC_SERIAL_PORT=y
 # CPU selection
 #
 # CONFIG_CPU_MIPS32_R1 is not set
+# CONFIG_CPU_MIPS32_R2 is not set
 # CONFIG_CPU_MIPS64_R1 is not set
+# CONFIG_CPU_MIPS64_R2 is not set
 # CONFIG_CPU_R3000 is not set
 # CONFIG_CPU_TX39XX is not set
 # CONFIG_CPU_VR41XX is not set
