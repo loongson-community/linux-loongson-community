@@ -117,7 +117,9 @@ CONFIG_TOSHIBA_BOARDS=y
 # CPU selection
 #
 # CONFIG_CPU_MIPS32_R1 is not set
+# CONFIG_CPU_MIPS32_R2 is not set
 # CONFIG_CPU_MIPS64_R1 is not set
+# CONFIG_CPU_MIPS64_R2 is not set
 # CONFIG_CPU_R3000 is not set
 CONFIG_CPU_TX39XX=y
 # CONFIG_CPU_VR41XX is not set
