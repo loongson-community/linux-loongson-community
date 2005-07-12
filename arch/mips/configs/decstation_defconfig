@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc2
-# Tue Jul 12 18:08:01 2005
+# Tue Jul 12 18:33:35 2005
 #
 CONFIG_MIPS=y
 
@@ -602,7 +602,9 @@ CONFIG_PROC_KCORE=y
 CONFIG_SYSFS=y
 CONFIG_DEVPTS_FS_XATTR=y
 CONFIG_DEVPTS_FS_SECURITY=y
-# CONFIG_TMPFS is not set
+CONFIG_TMPFS=y
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_SECURITY=y
 # CONFIG_HUGETLB_PAGE is not set
 CONFIG_RAMFS=y
 
