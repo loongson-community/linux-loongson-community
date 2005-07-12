@@ -926,7 +926,7 @@ config CPU_MIPS32_R2
 	select CPU_SUPPORTS_32BIT_KERNEL
 	select CPU_HAS_PREFETCH
 	help
-	  Choose this option to build a kernel for release 1 or later of the
+	  Choose this option to build a kernel for release 2 or later of the
 	  MIPS32 architecture.  Most modern embedded systems with a 32-bit
 	  MIPS processor are based on a MIPS32 processor.  If you know the
 	  specific type of processor in your system, choose those that one
