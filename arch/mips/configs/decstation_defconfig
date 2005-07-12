@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc2
-# Tue Jul 12 18:33:35 2005
+# Tue Jul 12 19:12:10 2005
 #
 CONFIG_MIPS=y
 
@@ -623,7 +623,8 @@ CONFIG_RAMFS=y
 # CONFIG_HPFS_FS is not set
 # CONFIG_QNX4FS_FS is not set
 # CONFIG_SYSV_FS is not set
-# CONFIG_UFS_FS is not set
+CONFIG_UFS_FS=y
+CONFIG_UFS_FS_WRITE=y
 
 #
 # Network File Systems
