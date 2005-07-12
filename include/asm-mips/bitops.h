@@ -629,8 +629,21 @@ static inline unsigned long __ffs(unsigned long word)
 
 static inline unsigned long ffs(unsigned long word)
 {
-	if (!word) return 0;
+	if (!word)
+		return 0;
+
 	return __ffs(word) + 1;
+}
+
+/*
+ * ffz - find first zero in word.
+ * @word: The word to search
+ *
+ * Undefined if no zero exists, so code should check against ~0UL first.
+ */
+static inline unsigned long ffz(unsigned long word)
+{
+	return __ffs (~word);
 }
 
 /*
