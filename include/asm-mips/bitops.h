@@ -668,7 +668,7 @@ static inline unsigned long flz(unsigned long word)
 	s = 1;  if ((word & 0x80000000)) s = 0; r -= s;
 #endif
 #if defined(CONFIG_MIPS64)
-	int r = 63;
+	int r = 63, s;
 	word = ~word;
 	s = 32; if ((word & 0xffffffff00000000)) s = 0; r -= s; word <<= s;
 	s = 16; if ((word & 0xffff000000000000)) s = 0; r -= s; word <<= s;
