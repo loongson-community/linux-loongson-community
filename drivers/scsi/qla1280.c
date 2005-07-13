@@ -4626,7 +4626,7 @@ qla1280_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	
 	if (pci_enable_device(pdev)) {
 		printk(KERN_WARNING
-		       "qla1280: Failed to enabled pci device, aborting.\n");
+		       "qla1280: Failed to enable pci device, aborting.\n");
 		goto error;
 	}
 
