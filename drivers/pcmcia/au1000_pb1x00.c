@@ -34,7 +34,6 @@
 #include <linux/version.h>
 #include <linux/types.h>
 
-#include <pcmcia/version.h>
 #include <pcmcia/cs_types.h>
 #include <pcmcia/cs.h>
 #include <pcmcia/ss.h>
