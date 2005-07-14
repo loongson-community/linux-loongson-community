@@ -1213,7 +1213,7 @@ void __init set_uncached_handler (unsigned long offset, void *addr, unsigned lon
 #ifdef CONFIG_32BIT
 	unsigned long uncached_ebase = KSEG1ADDR(ebase);
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	unsigned long uncached_ebase = TO_UNCAC(ebase);
 #endif
 
