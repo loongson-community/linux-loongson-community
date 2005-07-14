@@ -227,6 +227,9 @@
 #define MIPS_CPU_LLSC		0x00010000 /* CPU has ll/sc instructions */
 #define MIPS_CPU_SUBSET_CACHES	0x00020000 /* P-cache subset enforced */
 #define MIPS_CPU_PREFETCH	0x00040000 /* CPU has usable prefetch */
+#define MIPS_CPU_VINT		0x00080000 /* CPU supports MIPSR2 vectored interrupts */
+#define MIPS_CPU_VEIC		0x00100000 /* CPU supports MIPSR2 external interrupt controller mode */
+#define MIPS_CPU_MIPSMT		0x00400000 /* CPU supports MIPS MT */
 
 /*
  * CPU ASE encodings
