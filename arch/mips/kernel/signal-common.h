@@ -31,7 +31,7 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	save_gp_reg(31);
 #undef save_gp_reg
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 	err |= __put_user(regs->hi, &sc->sc_mdhi);
 	err |= __put_user(regs->lo, &sc->sc_mdlo);
 	if (cpu_has_dsp) {
@@ -44,7 +44,7 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 		err |= __put_user(rddsp(DSP_MASK), &sc->sc_dsp);
 	}
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	err |= __put_user(regs->hi, &sc->sc_hi[0]);
 	err |= __put_user(regs->lo, &sc->sc_lo[0]);
 	if (cpu_has_dsp) {
@@ -92,7 +92,7 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	current_thread_info()->restart_block.fn = do_no_restart_syscall;
 
 	err |= __get_user(regs->cp0_epc, &sc->sc_pc);
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 	err |= __get_user(regs->hi, &sc->sc_mdhi);
 	err |= __get_user(regs->lo, &sc->sc_mdlo);
 	if (cpu_has_dsp) {
@@ -105,7 +105,7 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 		err |= __get_user(treg, &sc->sc_dsp); wrdsp(treg, DSP_MASK);
 	}
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	err |= __get_user(regs->hi, &sc->sc_hi[0]);
 	err |= __get_user(regs->lo, &sc->sc_lo[0]);
 	if (cpu_has_dsp) {

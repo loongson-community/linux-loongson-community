@@ -130,7 +130,7 @@ static inline unsigned int csum_tcpudp_nofold(unsigned long saddr,
 	__asm__(
 	"	.set	push		# csum_tcpudp_nofold\n"
 	"	.set	noat		\n"
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 	"	addu	%0, %2		\n"
 	"	sltu	$1, %0, %2	\n"
 	"	addu	%0, $1		\n"
@@ -143,7 +143,7 @@ static inline unsigned int csum_tcpudp_nofold(unsigned long saddr,
 	"	sltu	$1, %0, %4	\n"
 	"	addu	%0, $1		\n"
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	"	daddu	%0, %2		\n"
 	"	daddu	%0, %3		\n"
 	"	daddu	%0, %4		\n"

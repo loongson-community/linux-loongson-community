@@ -1090,22 +1090,19 @@ choice
 	  large memory.  You will only be presented a single option in this
 	  menu if your system does not support both 32-bit and 64-bit kernels.
 
-config MIPS32
+config 32BIT
 	bool "32-bit kernel"
 	depends on CPU_SUPPORTS_32BIT_KERNEL && SYS_SUPPORTS_32BIT_KERNEL
 	select TRAD_SIGNALS
 	help
 	  Select this option if you want to build a 32-bit kernel.
-config MIPS64
+config 64BIT
 	bool "64-bit kernel"
 	depends on CPU_SUPPORTS_64BIT_KERNEL && SYS_SUPPORTS_64BIT_KERNEL
 	help
 	  Select this option if you want to build a 64-bit kernel.
 
 endchoice
-
-config 64BIT
-	def_bool MIPS64
 
 choice
 	prompt "Kernel page size"
@@ -1194,11 +1191,11 @@ config SB1_PASS_2_1_WORKAROUNDS
 
 config 64BIT_PHYS_ADDR
 	bool "Support for 64-bit physical address space"
-	depends on (CPU_R4X00 || CPU_R5000 || CPU_RM7000 || CPU_RM9000 || CPU_R10000 || CPU_SB1 || CPU_MIPS32_R1 || CPU_MIPS64_R1) && MIPS32
+	depends on (CPU_R4X00 || CPU_R5000 || CPU_RM7000 || CPU_RM9000 || CPU_R10000 || CPU_SB1 || CPU_MIPS32_R1 || CPU_MIPS64_R1) && 32BIT
 
 config CPU_ADVANCED
 	bool "Override CPU Options"
-	depends on MIPS32
+	depends on 32BIT
 	help
 	  Saying yes here allows you to select support for various features
 	  your CPU may or may not have.  Most people should say N here.
@@ -1252,7 +1249,7 @@ config CPU_HAS_SYNC
 #
 config HIGHMEM
 	bool "High Memory Support"
-	depends on MIPS32 && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_RM9000 || CPU_R10000) && !(MACH_DECSTATION || MOMENCO_JAGUAR_ATX)
+	depends on 32BIT && (CPU_R3000 || CPU_SB1 || CPU_R7000 || CPU_RM9000 || CPU_R10000) && !(MACH_DECSTATION || MOMENCO_JAGUAR_ATX)
 
 config ARCH_FLATMEM_ENABLE
 	def_bool y
@@ -1305,7 +1302,7 @@ config RTC_DS1742
 
 config MIPS_INSANE_LARGE
 	bool "Support for large 64-bit configurations"
-	depends on CPU_R10000 && MIPS64
+	depends on CPU_R10000 && 64BIT
 	help
 	  MIPS R10000 does support a 44 bit / 16TB address space as opposed to
 	  previous 64-bit processors which only supported 40 bit / 1TB. If you
@@ -1405,7 +1402,7 @@ config TRAD_SIGNALS
 
 config BUILD_ELF64
 	bool "Use 64-bit ELF format for building"
-	depends on MIPS64
+	depends on 64BIT
 	help
 	  A 64-bit kernel is usually built using the 64-bit ELF binary object
 	  format as it's one that allows arbitrary 64-bit constructs.  For
@@ -1420,11 +1417,11 @@ config BUILD_ELF64
 
 config BINFMT_IRIX
 	bool "Include IRIX binary compatibility"
-	depends on CPU_BIG_ENDIAN && MIPS32 && BROKEN
+	depends on CPU_BIG_ENDIAN && 32BIT && BROKEN
 
 config MIPS32_COMPAT
 	bool "Kernel support for Linux/MIPS 32-bit binary compatibility"
-	depends on MIPS64
+	depends on 64BIT
 	help
 	  Select this option if you want Linux/MIPS 32-bit binary
 	  compatibility. Since all software available for Linux/MIPS is

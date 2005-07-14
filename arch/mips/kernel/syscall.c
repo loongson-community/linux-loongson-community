@@ -184,7 +184,7 @@ _sys_clone(nabi_no_regargs struct pt_regs regs)
 	if (!newsp)
 		newsp = regs.regs[29];
 	parent_tidptr = (int __user *) regs.regs[6];
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 	/* We need to fetch the fifth argument off the stack.  */
 	child_tidptr = NULL;
 	if (clone_flags & (CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)) {

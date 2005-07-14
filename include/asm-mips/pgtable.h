@@ -9,10 +9,10 @@
 #define _ASM_PGTABLE_H
 
 #include <linux/config.h>
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 #include <asm/pgtable-32.h>
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 #include <asm/pgtable-64.h>
 #endif
 
@@ -150,7 +150,7 @@ static inline void pte_clear(struct mm_struct *mm, unsigned long addr, pte_t *pt
  */
 #define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while(0)
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 /*
  * (puds are folded into pgds so this doesn't get actually called,
  * but the define is needed for a generic inline function.)

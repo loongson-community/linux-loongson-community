@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc3
-# Wed Jul 13 11:31:23 2005
+# Thu Jul 14 12:14:43 2005
 #
 CONFIG_MIPS=y
 
@@ -147,8 +147,7 @@ CONFIG_CPU_SUPPORTS_64BIT_KERNEL=y
 #
 # Kernel type
 #
-# CONFIG_MIPS32 is not set
-CONFIG_MIPS64=y
+# CONFIG_32BIT is not set
 CONFIG_64BIT=y
 CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_8KB is not set

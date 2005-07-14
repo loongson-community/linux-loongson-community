@@ -103,7 +103,7 @@ extern unsigned long titan_ge_sram;
 /* Keep the rings in the Titan's SSRAM */
 #define TITAN_RX_RING_IN_SRAM
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 #define	TITAN_GE_IE_MASK	0xfffffffffb001b64
 #define	TITAN_GE_IE_STATUS	0xfffffffffb001b60
 #else

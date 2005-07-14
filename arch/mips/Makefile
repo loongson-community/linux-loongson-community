@@ -37,12 +37,12 @@ else
 64bit-emul		= elf64btsmip
 endif
 
-ifdef CONFIG_MIPS32
+ifdef CONFIG_32BIT
 gcc-abi			= 32
 tool-prefix		= $(32bit-tool-prefix)
 UTS_MACHINE		:= mips
 endif
-ifdef CONFIG_MIPS64
+ifdef CONFIG_64BIT
 gcc-abi			= 64
 tool-prefix		= $(64bit-tool-prefix)
 UTS_MACHINE		:= mips64
@@ -53,9 +53,9 @@ CROSS_COMPILE		:= $(tool-prefix)
 endif
 
 CHECKFLAGS-y				+= -D__linux__ -D__mips__
-CHECKFLAGS-$(CONFIG_MIPS32)		+= -D_MIPS_SZLONG=32 \
+CHECKFLAGS-$(CONFIG_32BIT)		+= -D_MIPS_SZLONG=32 \
 					   -D__PTRDIFF_TYPE__=int
-CHECKFLAGS-$(CONFIG_MIPS64)		+= -D_MIPS_SZLONG=64 \
+CHECKFLAGS-$(CONFIG_64BIT)		+= -D_MIPS_SZLONG=64 \
 					   -D__PTRDIFF_TYPE__="long int"
 CHECKFLAGS-$(CONFIG_CPU_BIG_ENDIAN)	+= -D__MIPSEB__
 CHECKFLAGS-$(CONFIG_CPU_LITTLE_ENDIAN)	+= -D__MIPSEL__
@@ -73,7 +73,7 @@ ld-emul			= $(32bit-emul)
 vmlinux-32		= vmlinux
 vmlinux-64		= vmlinux.64
 
-cflags-$(CONFIG_MIPS64)	+= $(call cc-option,-mno-explicit-relocs)
+cflags-$(CONFIG_64BIT)	+= $(call cc-option,-mno-explicit-relocs)
 endif
 
 #
@@ -577,10 +577,10 @@ load-$(CONFIG_TANBAC_TB0229)	+= 0xffffffff80000000
 #
 core-$(CONFIG_SGI_IP22)		+= arch/mips/sgi-ip22/
 cflags-$(CONFIG_SGI_IP22)	+= -Iinclude/asm-mips/mach-ip22
-ifdef CONFIG_MIPS32
+ifdef CONFIG_32BIT
 load-$(CONFIG_SGI_IP22)		+= 0xffffffff88002000
 endif
-ifdef CONFIG_MIPS64
+ifdef CONFIG_64BIT
 load-$(CONFIG_SGI_IP22)		+= 0xffffffff88004000
 endif
 
@@ -685,7 +685,7 @@ load-$(CONFIG_TOSHIBA_RBTX4927)	+= 0xffffffff80020000
 cflags-y			+= -Iinclude/asm-mips/mach-generic
 drivers-$(CONFIG_PCI)		+= arch/mips/pci/
 
-ifdef CONFIG_MIPS32
+ifdef CONFIG_32BIT
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 JIFFIES			= jiffies_64
 else
@@ -717,8 +717,8 @@ CPPFLAGS_vmlinux.lds := \
 head-y := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 
 libs-y			+= arch/mips/lib/
-libs-$(CONFIG_MIPS32)	+= arch/mips/lib-32/
-libs-$(CONFIG_MIPS64)	+= arch/mips/lib-64/
+libs-$(CONFIG_32BIT)	+= arch/mips/lib-32/
+libs-$(CONFIG_64BIT)	+= arch/mips/lib-64/
 
 core-y			+= arch/mips/kernel/ arch/mips/mm/ arch/mips/math-emu/
 

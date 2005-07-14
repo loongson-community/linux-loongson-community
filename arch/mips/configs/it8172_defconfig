@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc3
-# Wed Jul 13 11:31:17 2005
+# Thu Jul 14 12:14:17 2005
 #
 CONFIG_MIPS=y
 
@@ -151,8 +151,7 @@ CONFIG_CPU_SUPPORTS_64BIT_KERNEL=y
 #
 # Kernel type
 #
-CONFIG_MIPS32=y
-# CONFIG_MIPS64 is not set
+CONFIG_32BIT=y
 # CONFIG_64BIT is not set
 CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_8KB is not set
@@ -368,7 +367,6 @@ CONFIG_BLK_DEV_LOOP=y
 # CONFIG_BLK_DEV_RAM is not set
 CONFIG_BLK_DEV_RAM_COUNT=16
 CONFIG_INITRAMFS_SOURCE=""
-# CONFIG_LBD is not set
 CONFIG_CDROM_PKTCDVD=m
 CONFIG_CDROM_PKTCDVD_BUFFERS=8
 # CONFIG_CDROM_PKTCDVD_WCACHE is not set

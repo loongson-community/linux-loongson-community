@@ -600,14 +600,14 @@ static inline unsigned long __ffs(unsigned long word)
 #else
 	int b = 0, s;
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 	s = 16; if (word << 16 != 0) s = 0; b += s; word >>= s;
 	s =  8; if (word << 24 != 0) s = 0; b += s; word >>= s;
 	s =  4; if (word << 28 != 0) s = 0; b += s; word >>= s;
 	s =  2; if (word << 30 != 0) s = 0; b += s; word >>= s;
 	s =  1; if (word << 31 != 0) s = 0; b += s;
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	s = 32; if (word << 32 != 0) s = 0; b += s; word >>= s;
 	s = 16; if (word << 48 != 0) s = 0; b += s; word >>= s;
 	s =  8; if (word << 56 != 0) s = 0; b += s; word >>= s;
@@ -658,7 +658,7 @@ static inline unsigned long flz(unsigned long word)
 #if defined(CONFIG_CPU_MIPS32_R1) || defined(CONFIG_CPU_MIPS64_R1)
 	return __ilog2(~word);
 #else
-#if defined(CONFIG_MIPS32)
+#if defined(CONFIG_32BIT)
 	int r = 31, s;
 	word = ~word;
 	s = 16; if ((word & 0xffff0000)) s = 0; r -= s; word <<= s;
@@ -667,7 +667,7 @@ static inline unsigned long flz(unsigned long word)
 	s = 2;  if ((word & 0xc0000000)) s = 0; r -= s; word <<= s;
 	s = 1;  if ((word & 0x80000000)) s = 0; r -= s;
 #endif
-#if defined(CONFIG_MIPS64)
+#if defined(CONFIG_64BIT)
 	int r = 63, s;
 	word = ~word;
 	s = 32; if ((word & 0xffffffff00000000)) s = 0; r -= s; word <<= s;
@@ -811,7 +811,7 @@ found_middle:
  */
 static inline int sched_find_first_bit(const unsigned long *b)
 {
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 	if (unlikely(b[0]))
 		return __ffs(b[0]);
 	if (unlikely(b[1]))
@@ -822,7 +822,7 @@ static inline int sched_find_first_bit(const unsigned long *b)
 		return __ffs(b[3]) + 96;
 	return __ffs(b[4]) + 128;
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	if (unlikely(b[0]))
 		return __ffs(b[0]);
 	if (unlikely(b[1]))

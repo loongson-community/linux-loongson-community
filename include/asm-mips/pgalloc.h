@@ -30,7 +30,7 @@ static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
  */
 extern void pmd_init(unsigned long page, unsigned long pagetable);
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 
 static inline void pud_populate(struct mm_struct *mm, pud_t *pud, pmd_t *pmd)
 {
@@ -97,7 +97,7 @@ static inline void pte_free(struct page *pte)
 
 #define __pte_free_tlb(tlb,pte)		tlb_remove_page((tlb),(pte))
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 
 /*
  * allocating and freeing a pmd is trivial: the 1-entry pmd is
@@ -108,7 +108,7 @@ static inline void pte_free(struct page *pte)
 
 #endif
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long address)
 {

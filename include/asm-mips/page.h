@@ -93,7 +93,7 @@ typedef struct { unsigned long pte; } pte_t;
  * For 3-level pagetables we defines these ourselves, for 2-level the
  * definitions are supplied by <asm-generic/pgtable-nopmd.h>.
  */
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 
 typedef struct { unsigned long pmd; } pmd_t;
 #define pmd_val(x)	((x).pmd)

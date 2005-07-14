@@ -21,7 +21,7 @@ static inline void check_bugs(void)
 
 	cpu_data[cpu].udelay_val = loops_per_jiffy;
 	check_bugs32();
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	check_bugs64();
 #endif
 }

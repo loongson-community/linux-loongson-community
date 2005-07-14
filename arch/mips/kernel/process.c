@@ -112,7 +112,7 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 
 	/* New thread loses kernel privileges. */
 	status = regs->cp0_status & ~(ST0_CU0|ST0_CU1|KU_MASK);
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	status &= ~ST0_FR;
 	status |= (current->thread.mflags & MF_32BIT_REGS) ? 0 : ST0_FR;
 #endif
@@ -320,10 +320,10 @@ static int __init get_frame_info(struct mips_frame_info *info)
 			break;
 
 		if (
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 		    ip->i_format.opcode == sw_op &&
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 		    ip->i_format.opcode == sd_op &&
 #endif
 		    ip->i_format.rs == 29)

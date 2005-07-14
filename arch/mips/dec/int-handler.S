@@ -137,7 +137,7 @@
 		 */
 		mfc0	t0,CP0_CAUSE		# get pending interrupts
 		mfc0	t1,CP0_STATUS
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 		lw	t2,cpu_fpu_mask
 #endif
 		andi	t0,ST0_IM		# CAUSE.CE may be non-zero!
@@ -145,7 +145,7 @@
 
 		beqz	t0,spurious
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 		 and	t2,t0
 		bnez	t2,fpu			# handle FPU immediately
 #endif
@@ -275,7 +275,7 @@ handle_it:
 		j	ret_from_irq
 		 nop
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 fpu:
 		j	handle_fpe_int
 		 nop

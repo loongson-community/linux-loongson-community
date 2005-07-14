@@ -126,7 +126,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			if (tsk_used_math(child)) {
 				fpureg_t *fregs = get_fpu_regs(child);
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
@@ -137,7 +137,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				else
 					tmp = (unsigned long) (fregs[(addr - 32)] & 0xffffffff);
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 				tmp = fregs[addr - FPR_BASE];
 #endif
 			} else {
@@ -239,7 +239,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				       sizeof(child->thread.fpu.hard));
 				child->thread.fpu.hard.fcr31 = 0;
 			}
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 			/*
 			 * The odd registers are actually the high order bits
 			 * of the values stored in the even registers - unless
@@ -253,7 +253,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				fregs[addr - FPR_BASE] |= data;
 			}
 #endif
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 			fregs[addr - FPR_BASE] = data;
 #endif
 			break;
@@ -354,7 +354,7 @@ out:
 static inline int audit_arch(void)
 {
 	int arch = EM_MIPS;
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	arch |=  __AUDIT_ARCH_64BIT;
 #endif
 #if defined(__LITTLE_ENDIAN)

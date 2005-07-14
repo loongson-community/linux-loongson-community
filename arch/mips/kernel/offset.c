@@ -241,7 +241,7 @@ void output_mm_defines(void)
 	linefeed;
 }
 
-#ifdef CONFIG_MIPS32
+#ifdef CONFIG_32BIT
 void output_sc_defines(void)
 {
 	text("/* Linux sigcontext offsets. */");
@@ -263,7 +263,7 @@ void output_sc_defines(void)
 }
 #endif
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 void output_sc_defines(void)
 {
 	text("/* Linux sigcontext offsets. */");

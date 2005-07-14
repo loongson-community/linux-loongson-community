@@ -82,7 +82,7 @@ int fpu_emulator_restore_context(struct sigcontext *sc)
 	return err;
 }
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 /*
  * This is the o32 version
  */

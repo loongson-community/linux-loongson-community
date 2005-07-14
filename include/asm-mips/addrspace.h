@@ -51,7 +51,7 @@
 #define XPHYSADDR(a)            ((_ACAST64_(a)) &			\
 				 _LLCONST_(0x000000ffffffffff))
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 
 /*
  * Memory segments (64bit kernel mode addresses)
