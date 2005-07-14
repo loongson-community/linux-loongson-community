@@ -316,7 +316,7 @@ static inline void ehb(void)
 
 
 #define settc(tc)							\
-do {
+do {									\
 	write_c0_vpecontrol((read_c0_vpecontrol()&~VPECONTROL_TARGTC) | (tc)); \
 	ehb();								\
 } while (0)
