@@ -511,6 +511,8 @@ static inline void resource_init(void)
 #undef MAXMEM
 #undef MAXMEM_PFN
 
+extern void plat_setup(void);
+
 void __init setup_arch(char **cmdline_p)
 {
 	cpu_probe();
