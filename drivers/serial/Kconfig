@@ -615,6 +615,22 @@ config SERIAL_AU1X00_CONSOLE
 	  If you have an Alchemy AU1X00 processor (MIPS based) and you want
 	  to use a console on a serial port, say Y.  Otherwise, say N.
 
+config SERIAL_PNX8550
+	bool "Enable PNX8550 UART Support"
+	depends on MIPS && SOC_PNX8550
+	select SERIAL_CORE
+	help
+	  If you have an Philips PNX8550 processor (MIPS based) and you want
+	  to use serial ports, say Y.  Otherwise, say N.
+
+config SERIAL_PNX8550_CONSOLE
+	bool "Enable PNX8550 serial console"
+	depends on SERIAL_PNX8550
+	select SERIAL_CORE_CONSOLE
+	help
+	  If you have an Philips PNX8550 processor (MIPS based) and you want
+	  to use a console on a serial port, say Y.  Otherwise, say N.
+
 config SERIAL_CORE
 	tristate
 

@@ -380,6 +380,16 @@ config MIPS_XXS1500
 	select SOC_AU1500
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 
+config PNX8550_V2PCI
+	bool "Support for Philips PNX8550 based Viper2-PCI board"
+	select PNX8550
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+
+config PNX8550_JBS
+	bool "Support for Philips PNX8550 based JBS board"
+	select PNX8550
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+
 config DDB5074
 	bool "Support for NEC DDB Vrc-5074 (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
@@ -661,6 +671,7 @@ source "arch/mips/sgi-ip27/Kconfig"
 source "arch/mips/sibyte/Kconfig"
 source "arch/mips/tx4927/Kconfig"
 source "arch/mips/vr41xx/Kconfig"
+source "arch/mips/philips/pnx8550/common/Kconfig"
 
 endmenu
 
@@ -813,6 +824,16 @@ config SOC_AU1200
 config SOC_AU1X00
 	bool
 	select SYS_SUPPORTS_32BIT_KERNEL
+
+config PNX8550
+	bool
+	select SOC_PNX8550
+
+config SOC_PNX8550
+	bool
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select DMA_NONCOHERENT
+	select HW_HAS_PCI
 
 config SWAP_IO_SPACE
 	bool
