@@ -506,7 +506,6 @@ config SGI_IP27
 	select DMA_IP27
 	select HW_HAS_PCI
 	select PCI_DOMAINS
-	select QL_ISP_A64
 	select SYS_SUPPORTS_64BIT_KERNEL
 	select SYS_SUPPORTS_BIG_ENDIAN
 	help
@@ -915,9 +914,6 @@ config ARC64
 	bool
 
 config BOOT_ELF64
-	bool
-
-config QL_ISP_A64
 	bool
 
 config TOSHIBA_BOARDS
