@@ -135,9 +135,9 @@ CONFIG_ARC_PROMLIB=y
 # CONFIG_CPU_TX39XX is not set
 # CONFIG_CPU_VR41XX is not set
 # CONFIG_CPU_R4300 is not set
-# CONFIG_CPU_R4X00 is not set
+CONFIG_CPU_R4X00=y
 # CONFIG_CPU_TX49XX is not set
-CONFIG_CPU_R5000=y
+# CONFIG_CPU_R5000 is not set
 # CONFIG_CPU_R5432 is not set
 # CONFIG_CPU_R6000 is not set
 # CONFIG_CPU_NEVADA is not set
