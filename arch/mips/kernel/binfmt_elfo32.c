@@ -42,7 +42,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	if ((__h->e_flags & EF_MIPS_ABI2) != 0)				\
 		__res = 0;						\
 	if (((__h->e_flags & EF_MIPS_ABI) != 0) &&			\
-	    ((__h->e_flags & EF_MIPS_ABI) != EF_MIPS_ABI_O32))		\
+	    ((__h->e_flags & EF_MIPS_ABI) != E_MIPS_ABI_O32))		\
 		__res = 0;						\
 									\
 	__res;								\
