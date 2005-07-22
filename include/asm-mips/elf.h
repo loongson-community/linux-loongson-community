@@ -11,20 +11,20 @@
 #include <linux/config.h>
 
 /* ELF header e_flags defines. */
-/* MIPS architecture level. Also see EF_MIPS_ARCH. */
-#define E_MIPS_ARCH_1		0x00000000	/* -mips1 code.  */
-#define E_MIPS_ARCH_2		0x10000000	/* -mips2 code.  */
-#define E_MIPS_ARCH_3		0x20000000	/* -mips3 code.  */
-#define E_MIPS_ARCH_4		0x30000000	/* -mips4 code.  */
-#define E_MIPS_ARCH_5		0x40000000	/* -mips5 code.  */
-#define E_MIPS_ARCH_32		0x50000000	/* MIPS32 code.  */
-#define E_MIPS_ARCH_64		0x60000000	/* MIPS64 code.  */
-#define E_MIPS_ARCH_32R2	0x70000000	/* MIPS32 R2 code.  */
-#define E_MIPS_ARCH_64R2	0x80000000	/* MIPS64 R2 code.  */
+/* MIPS architecture level. */
+#define EF_MIPS_ARCH_1		0x00000000	/* -mips1 code.  */
+#define EF_MIPS_ARCH_2		0x10000000	/* -mips2 code.  */
+#define EF_MIPS_ARCH_3		0x20000000	/* -mips3 code.  */
+#define EF_MIPS_ARCH_4		0x30000000	/* -mips4 code.  */
+#define EF_MIPS_ARCH_5		0x40000000	/* -mips5 code.  */
+#define EF_MIPS_ARCH_32		0x50000000	/* MIPS32 code.  */
+#define EF_MIPS_ARCH_64		0x60000000	/* MIPS64 code.  */
+#define EF_MIPS_ARCH_32R2	0x70000000	/* MIPS32 R2 code.  */
+#define EF_MIPS_ARCH_64R2	0x80000000	/* MIPS64 R2 code.  */
 
 /* The ABI of a file. */
-#define E_MIPS_ABI_O32		0x00001000	/* O32 ABI.  */
-#define E_MIPS_ABI_O64		0x00002000	/* O32 extended for 64 bit.  */
+#define EF_MIPS_ABI_O32		0x00001000	/* O32 ABI.  */
+#define EF_MIPS_ABI_O64		0x00002000	/* O32 extended for 64 bit.  */
 
 #define PT_MIPS_REGINFO		0x70000000
 #define PT_MIPS_RTPROC		0x70000001
@@ -150,7 +150,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	if ((__h->e_flags & EF_MIPS_ABI2) != 0)				\
 		__res = 0;						\
 	if (((__h->e_flags & EF_MIPS_ABI) != 0) &&			\
-	    ((__h->e_flags & EF_MIPS_ABI) != E_MIPS_ABI_O32))		\
+	    ((__h->e_flags & EF_MIPS_ABI) != EF_MIPS_ABI_O32))		\
 		__res = 0;						\
 									\
 	__res;								\
