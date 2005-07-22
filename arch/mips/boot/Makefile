@@ -48,5 +48,6 @@ archhelp:
 
 clean-files += addinitrd \
 	       elf2ecoff \
+	       vmlinux.bin \
 	       vmlinux.ecoff \
 	       vmlinux.srec
