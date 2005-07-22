@@ -895,6 +895,10 @@ MODULE_LICENSE ("GPL");
 #include "ohci-lh7a404.c"
 #endif
 
+#ifdef CONFIG_PXA27x
+#include "ohci-pxa27x.c"
+#endif
+
 #ifdef CONFIG_SOC_AU1X00
 #include "ohci-au1xxx.c"
 #endif
