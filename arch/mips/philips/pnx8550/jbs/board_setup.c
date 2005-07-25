@@ -54,11 +54,11 @@ void __init board_setup(void)
 
 	/* clear all three cache coherency fields */
 	config0 &= ~(0x7 | (7<<25) | (7<<28));
-	config0 |= (CONF_CM_DEFAULT | (CONF_CM_DEFAULT<<25) | 
+	config0 |= (CONF_CM_DEFAULT | (CONF_CM_DEFAULT<<25) |
 			(CONF_CM_DEFAULT<<28));
 	write_c0_config(config0);
 	BARRIER;
-	
+
 	configpr = read_c0_config7();
 	configpr |= (1<<19); /* enable tlb */
 	write_c0_config7(configpr);

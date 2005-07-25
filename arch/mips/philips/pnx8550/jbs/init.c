@@ -1,5 +1,5 @@
 /*
- * 
+ *
  *  Copyright 2005 Embedded Alley Solutions, Inc
  *  source@embeddedalley.com
  *
@@ -46,7 +46,7 @@ const char *get_system_type(void)
 
 void __init prom_init(void)
 {
-	
+
 	unsigned long memsize;
 
 	mips_machgroup = MACH_GROUP_PHILIPS;

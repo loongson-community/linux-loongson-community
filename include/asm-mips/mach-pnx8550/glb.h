@@ -31,13 +31,13 @@
 /* PCI Inta Output Enable Registers */
 #define PNX8550_GLB2_ENAB_INTA_O	*(volatile unsigned long *)(PNX8550_GLB2_BASE + 0x050)
 
-/* Bit 1:Enable DAC Powerdown 
-     0:DACs are enabled and are working normally 
+/* Bit 1:Enable DAC Powerdown
+     0:DACs are enabled and are working normally
      1:DACs are powerdown
 */
 #define PNX8550_GLB_DAC_PD      0x2
-/*   Bit 0:Enable of PCI inta output 
-     0 = Disable PCI inta output 
+/*   Bit 0:Enable of PCI inta output
+     0 = Disable PCI inta output
      1 = Enable PCI inta output
 */
 #define PNX8550_GLB_ENABLE_INTA_O 0x1

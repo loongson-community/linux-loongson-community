@@ -1,7 +1,7 @@
 /*
  *
  * BRIEF MODULE DESCRIPTION
- *  USB specific definitions	
+ *  USB specific definitions
  *
  * Author: source@mvista.com
  *

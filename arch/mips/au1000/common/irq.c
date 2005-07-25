@@ -300,13 +300,13 @@ void startup_match20_interrupt(irqreturn_t (*handler)(int, void *, struct pt_reg
 	static struct irqaction action;
 	memset(&action, 0, sizeof(struct irqaction));
 
-	/* This is a big problem.... since we didn't use request_irq 
-	 * when kernel/irq.c calls probe_irq_xxx this interrupt will 
-	 * be probed for usage. This will end up disabling the device :( 
-	 * Give it a bogus "action" pointer -- this will keep it from 
-	 * getting auto-probed!  
+	/* This is a big problem.... since we didn't use request_irq
+	 * when kernel/irq.c calls probe_irq_xxx this interrupt will
+	 * be probed for usage. This will end up disabling the device :(
+	 * Give it a bogus "action" pointer -- this will keep it from
+	 * getting auto-probed!
 	 *
-	 * By setting the status to match that of request_irq() we 
+	 * By setting the status to match that of request_irq() we
 	 * can avoid it.  --cgray
 	*/
 	action.dev_id = handler;
@@ -316,7 +316,7 @@ void startup_match20_interrupt(irqreturn_t (*handler)(int, void *, struct pt_reg
 	action.handler = handler;
 	action.next = NULL;
 
-	desc->action = &action; 
+	desc->action = &action;
 	desc->status &= ~(IRQ_DISABLED | IRQ_AUTODETECT | IRQ_WAITING | IRQ_INPROGRESS);
 
 	local_enable_irq(AU1000_TOY_MATCH2_INT);

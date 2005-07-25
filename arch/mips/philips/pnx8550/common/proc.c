@@ -36,16 +36,16 @@ static int pnx8550_timers_read (char* page, char** start, off_t offset, int coun
         if (offset==0) {
 		len += sprintf(&page[len],"Timer:       count,  compare, tc, status\n");
                 len += sprintf(&page[len],"    1: %11i, %8i,  %1i, %s\n",
-			       read_c0_count(), read_c0_compare(), 
+			       read_c0_count(), read_c0_compare(),
 			      (configPR>>6)&0x1, ((configPR>>3)&0x1)? "off":"on");
                 len += sprintf(&page[len],"    2: %11i, %8i,  %1i, %s\n",
-			       read_c0_count2(), read_c0_compare2(), 
+			       read_c0_count2(), read_c0_compare2(),
 			      (configPR>>7)&0x1, ((configPR>>4)&0x1)? "off":"on");
                 len += sprintf(&page[len],"    3: %11i, %8i,  %1i, %s\n",
-			       read_c0_count3(), read_c0_compare3(), 
+			       read_c0_count3(), read_c0_compare3(),
 			      (configPR>>8)&0x1, ((configPR>>5)&0x1)? "off":"on");
         }
-        
+
         return len;
 }
 
@@ -59,7 +59,7 @@ static int pnx8550_registers_read (char* page, char** start, off_t offset, int c
                 len += sprintf(&page[len],"config3:   %#10.8x\n",read_c0_config3());
                 len += sprintf(&page[len],"configPR:  %#10.8x\n",read_c0_config7());
                 len += sprintf(&page[len],"status:    %#10.8x\n",read_c0_status());
-                len += sprintf(&page[len],"cause:     %#10.8x\n",read_c0_cause());     
+                len += sprintf(&page[len],"cause:     %#10.8x\n",read_c0_cause());
                 len += sprintf(&page[len],"count:     %#10.8x\n",read_c0_count());
                 len += sprintf(&page[len],"count_2:   %#10.8x\n",read_c0_count2());
                 len += sprintf(&page[len],"count_3:   %#10.8x\n",read_c0_count3());
@@ -67,7 +67,7 @@ static int pnx8550_registers_read (char* page, char** start, off_t offset, int c
                 len += sprintf(&page[len],"compare_2: %#10.8x\n",read_c0_compare2());
                 len += sprintf(&page[len],"compare_3: %#10.8x\n",read_c0_compare3());
         }
-        
+
         return len;
 }
 
@@ -77,7 +77,7 @@ static struct proc_dir_entry* pnx8550_registers  = NULL;
 
 static int pnx8550_proc_init( void )
 {
-        
+
 	// Create /proc/pnx8550
         pnx8550_dir = create_proc_entry("pnx8550", S_IFDIR|S_IRUGO, NULL);
         if (pnx8550_dir){
@@ -89,7 +89,7 @@ static int pnx8550_proc_init( void )
         }
 
 	// Create /proc/pnx8550/timers
-        pnx8550_timers = create_proc_entry("timers", S_IFREG|S_IRUGO, pnx8550_dir ); 
+        pnx8550_timers = create_proc_entry("timers", S_IFREG|S_IRUGO, pnx8550_dir );
         if (pnx8550_timers){
                 pnx8550_timers->nlink = 1;
                 pnx8550_timers->read_proc = pnx8550_timers_read;
@@ -99,7 +99,7 @@ static int pnx8550_proc_init( void )
         }
 
 	// Create /proc/pnx8550/registers
-        pnx8550_registers = create_proc_entry("registers", S_IFREG|S_IRUGO, pnx8550_dir ); 
+        pnx8550_registers = create_proc_entry("registers", S_IFREG|S_IRUGO, pnx8550_dir );
         if (pnx8550_registers){
                 pnx8550_registers->nlink = 1;
                 pnx8550_registers->read_proc = pnx8550_registers_read;
@@ -107,7 +107,7 @@ static int pnx8550_proc_init( void )
         else {
                 printk(KERN_ERR "Can't create pnx8550 registers proc file\n");
         }
-	
+
 	return 0;
 }
 

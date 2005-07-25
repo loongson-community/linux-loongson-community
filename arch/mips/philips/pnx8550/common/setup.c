@@ -75,9 +75,9 @@ extern struct resource pci_mem_resource;
 unsigned long get_system_mem_size(void)
 {
 	/* Read IP2031_RANK0_ADDR_LO */
-	unsigned long dram_r0_lo = inl(PCI_BASE | 0x65010);	
+	unsigned long dram_r0_lo = inl(PCI_BASE | 0x65010);
 	/* Read IP2031_RANK1_ADDR_HI */
-	unsigned long dram_r1_hi = inl(PCI_BASE | 0x65018);	
+	unsigned long dram_r1_hi = inl(PCI_BASE | 0x65018);
 
 	return dram_r1_hi - dram_r0_lo + 1;
 }
@@ -97,11 +97,11 @@ void __init plat_setup(void)
 	board_timer_setup = pnx8550_timer_setup;
 
 	/* Clear the Global 2 Register, PCI Inta Output Enable Registers
-	   Bit 1:Enable DAC Powerdown 
-	  -> 0:DACs are enabled and are working normally 
+	   Bit 1:Enable DAC Powerdown
+	  -> 0:DACs are enabled and are working normally
 	     1:DACs are powerdown
-	   Bit 0:Enable of PCI inta output 
-	  -> 0 = Disable PCI inta output 
+	   Bit 0:Enable of PCI inta output
+	  -> 0 = Disable PCI inta output
 	     1 = Enable PCI inta output
 	*/
 	PNX8550_GLB2_ENAB_INTA_O = 0;
@@ -119,8 +119,8 @@ void __init plat_setup(void)
 
 	/* Place the Mode Control bit for GPIO pin 16 in primary function */
 	/* Pin 16 is used by UART1, UA1_TX                                */
-	outl((PNX8550_GPIO_MODE_PRIMOP << PNX8550_GPIO_MC_16_BIT) | 
-			(PNX8550_GPIO_MODE_PRIMOP << PNX8550_GPIO_MC_17_BIT), 
+	outl((PNX8550_GPIO_MODE_PRIMOP << PNX8550_GPIO_MC_16_BIT) |
+			(PNX8550_GPIO_MODE_PRIMOP << PNX8550_GPIO_MC_17_BIT),
 			PNX8550_GPIO_MC1);
 
 	argptr = prom_getcmdline();

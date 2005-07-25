@@ -1,7 +1,7 @@
 /*
  *
  *  BRIEF MODULE DESCRIPTION
- *    
+ *
  *  2.6 port, Embedded Alley Solutions, Inc
  *
  *  Based on:

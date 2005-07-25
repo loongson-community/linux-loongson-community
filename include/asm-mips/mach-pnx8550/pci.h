@@ -1,7 +1,7 @@
 /*
  *
  * BRIEF MODULE DESCRIPTION
- * PCI specific definitions	
+ * PCI specific definitions
  *
  * Author: source@mvista.com
  *

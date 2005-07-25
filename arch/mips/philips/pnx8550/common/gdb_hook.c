@@ -69,7 +69,7 @@ void rs_kgdb_hook(int tty_no)
 	/* Clear all the receiver FIFO counters (pointer and status) */
 	PNX8550_UART_LCR(tty_no) |= PNX8550_UART_LCR_RX_RST;
 	/* Clear all interrupts */
-	PNX8550_UART_ICLR(tty_no) = PNX8550_UART_INT_ALLRX | 
+	PNX8550_UART_ICLR(tty_no) = PNX8550_UART_INT_ALLRX |
 		PNX8550_UART_INT_ALLTX;
 
 	/*
@@ -82,7 +82,7 @@ void rs_kgdb_hook(int tty_no)
 int putDebugChar(char c)
 {
 	/* Wait until FIFO not full */
-	while (((PNX8550_UART_FIFO(kdb_port_info.port) & PNX8550_UART_FIFO_TXFIFO) >> 16) >= 16) 
+	while (((PNX8550_UART_FIFO(kdb_port_info.port) & PNX8550_UART_FIFO_TXFIFO) >> 16) >= 16)
 		;
 	/* Send one char */
 	PNX8550_UART_FIFO(kdb_port_info.port) = c;
@@ -95,8 +95,8 @@ char getDebugChar(void)
 	char ch;
 
 	/* Wait until there is a char in the FIFO */
-	while (!((PNX8550_UART_FIFO(kdb_port_info.port) & 
-					PNX8550_UART_FIFO_RXFIFO) >> 8)) 
+	while (!((PNX8550_UART_FIFO(kdb_port_info.port) &
+					PNX8550_UART_FIFO_RXFIFO) >> 8))
 		;
 	/* Read one char */
 	ch = PNX8550_UART_FIFO(kdb_port_info.port) & PNX8550_UART_FIFO_RBRTHR;
@@ -117,7 +117,7 @@ void rs_enable_debug_interrupts(void)
 	/* Clear all the receiver FIFO counters (pointer and status) */
 	PNX8550_UART_LCR(kdb_port_info.port) |= PNX8550_UART_LCR_RX_RST;
 	/* Clear all interrupts */
-	PNX8550_UART_ICLR(kdb_port_info.port) = PNX8550_UART_INT_ALLRX | 
+	PNX8550_UART_ICLR(kdb_port_info.port) = PNX8550_UART_INT_ALLRX |
 		PNX8550_UART_INT_ALLTX;
 	PNX8550_UART_IEN(kdb_port_info.port)  = PNX8550_UART_INT_ALLRX;	/* Enable RX interrupts */
 }

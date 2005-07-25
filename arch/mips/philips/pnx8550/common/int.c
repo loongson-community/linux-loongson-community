@@ -8,7 +8,7 @@
  * Copyright (C) 2001 Ralf Baechle
  *
  * Cleaned up and bug fixing: Pete Popov, ppopov@embeddedalley.com
- * 
+ *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -114,10 +114,10 @@ static inline void mask_irq(unsigned int irq_nr)
 {
 	if ((PNX8550_INT_CP0_MIN <= irq_nr) && (irq_nr <= PNX8550_INT_CP0_MAX)) {
 		modify_cp0_intmask(1 << irq_nr, 0);
-	} else if ((PNX8550_INT_GIC_MIN <= irq_nr) && 
-		(irq_nr <= PNX8550_INT_GIC_MAX)) { 
+	} else if ((PNX8550_INT_GIC_MIN <= irq_nr) &&
+		(irq_nr <= PNX8550_INT_GIC_MAX)) {
 		mask_gic_int(irq_nr - PNX8550_INT_GIC_MIN);
-	} else if ((PNX8550_INT_TIMER_MIN <= irq_nr) && 
+	} else if ((PNX8550_INT_TIMER_MIN <= irq_nr) &&
 		(irq_nr <= PNX8550_INT_TIMER_MAX)) {
 		modify_cp0_intmask(1 << 7, 0);
 	} else {
@@ -129,10 +129,10 @@ static inline void unmask_irq(unsigned int irq_nr)
 {
 	if ((PNX8550_INT_CP0_MIN <= irq_nr) && (irq_nr <= PNX8550_INT_CP0_MAX)) {
 		modify_cp0_intmask(0, 1 << irq_nr);
-	} else if ((PNX8550_INT_GIC_MIN <= irq_nr) && 
+	} else if ((PNX8550_INT_GIC_MIN <= irq_nr) &&
 		(irq_nr <= PNX8550_INT_GIC_MAX)) {
 		unmask_gic_int(irq_nr - PNX8550_INT_GIC_MIN);
-	} else if ((PNX8550_INT_TIMER_MIN <= irq_nr) && 
+	} else if ((PNX8550_INT_TIMER_MIN <= irq_nr) &&
 		(irq_nr <= PNX8550_INT_TIMER_MAX)) {
 		modify_cp0_intmask(0, 1 << 7);
 	} else {
@@ -237,11 +237,11 @@ void __init arch_init_irq(void)
 		int gic_int_line = i - PNX8550_INT_GIC_MIN;
 		if (gic_int_line == 0 )
 			continue;	// don't fiddle with int 0
-		/* 
+		/*
 		 * enable change of TARGET, ENABLE and ACTIVE_LOW bits
 		 * set TARGET        0 to route through hw0 interrupt
 		 * set ACTIVE_LOW    0 active high  (correct?)
-		 * 
+		 *
 		 * We really should setup an interrupt description table
 		 * to do this nicely.
 		 * Note, PCI INTA is active low on the bus, but inverted
@@ -249,19 +249,19 @@ void __init arch_init_irq(void)
 		 */
 #ifdef CONFIG_PNX8550_V2PCI
 		if (gic_int_line == (PNX8550_INT_GPIO0 - PNX8550_INT_GIC_MIN)) {
-			/* PCI INT through gpio 8, which is setup in 
+			/* PCI INT through gpio 8, which is setup in
 			 * pnx8550_setup.c and routed to GPIO
  			 * Interrupt Level 0 (GPIO Connection 58).
 			 * Set it active low. */
-			
+
 			PNX8550_GIC_REQ(gic_int_line) = 0x1E020000;
-		} else 
+		} else
 #endif
 		{
 			PNX8550_GIC_REQ(i - PNX8550_INT_GIC_MIN) = 0x1E000000;
 		}
 
-		/* mask/priority is still 0 so we will not get any 
+		/* mask/priority is still 0 so we will not get any
 		 * interrupts until it is unmasked */
 
 		irq_desc[i].handler = &level_irq_type;

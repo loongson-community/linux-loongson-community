@@ -79,7 +79,7 @@ cache_begin:	li	t0, (1<<28)
 	/* enable TLB. */
 	mtc0	t0, CP0_CONFIG, 7
 	HAZARD_CP0
-cache_end:	
+cache_end:
 	/* Setup CMEM_0 to MMIO address space, 2MB */
 	lui    t0, 0x1BE0
 	addi   t0, t0, 0x3
@@ -91,7 +91,7 @@ cache_end:
 	addi   t0, t0, 0xf
 	mtc0   $8, $22, 5
 	nop
-			
+
 
 	/* Setup CMEM_2, 32MB */
 	lui    t0, 0x1C00
@@ -111,7 +111,7 @@ cache_end:
 	and	t0, t0, 0xFFFFFFF8
 	or	t0, t0, 3
 	mtc0	t0, CP0_CONFIG
-	HAZARD_CP0 
+	HAZARD_CP0
 	.set	pop
 	.endm
 

@@ -121,7 +121,7 @@ unsigned long __init prom_free_prom_memory(void)
 void prom_putchar(char c)
 {
 	/* Wait until FIFO not full */
-	while( ((PNX8550_UART_FIFO(PNX8550_CONSOLE_PORT) 
+	while( ((PNX8550_UART_FIFO(PNX8550_CONSOLE_PORT)
                 & PNX8550_UART_FIFO_TXFIFO) >> 16) >= 16)
 		;
 	/* Send one char */

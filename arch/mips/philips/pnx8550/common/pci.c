@@ -54,9 +54,9 @@ static struct pci_controller pnx8550_controller = {
 static inline unsigned long get_system_mem_size(void)
 {
 	/* Read IP2031_RANK0_ADDR_LO */
-	unsigned long dram_r0_lo = inl(PCI_BASE | 0x65010);	
+	unsigned long dram_r0_lo = inl(PCI_BASE | 0x65010);
 	/* Read IP2031_RANK1_ADDR_HI */
-	unsigned long dram_r1_hi = inl(PCI_BASE | 0x65018);	
+	unsigned long dram_r1_hi = inl(PCI_BASE | 0x65018);
 
 	return dram_r1_hi - dram_r0_lo + 1;
 }
@@ -67,11 +67,11 @@ static int __init pnx8550_pci_setup(void)
 	int mem_size = get_system_mem_size() >> 20;
 
 	/* Clear the Global 2 Register, PCI Inta Output Enable Registers
-	   Bit 1:Enable DAC Powerdown 
-	  -> 0:DACs are enabled and are working normally 
+	   Bit 1:Enable DAC Powerdown
+	  -> 0:DACs are enabled and are working normally
 	     1:DACs are powerdown
-	   Bit 0:Enable of PCI inta output 
-	  -> 0 = Disable PCI inta output 
+	   Bit 0:Enable of PCI inta output
+	  -> 0 = Disable PCI inta output
 	     1 = Enable PCI inta output
 	*/
 	PNX8550_GLB2_ENAB_INTA_O = 0;
@@ -98,14 +98,14 @@ static int __init pnx8550_pci_setup(void)
 	/* Unlock the setup register */
 	outl(0xca, PCI_BASE | PCI_UNLOCKREG);
 
-	/* 
+	/*
 	 * BAR0 of PNX8550 (pci base 10) must be zero in order for ide
-	 * to work, and in order for bus_to_baddr to work without any 
+	 * to work, and in order for bus_to_baddr to work without any
 	 * hacks.
 	 */
 	outl(0x00000000, PCI_BASE | PCI_BASE10);
 
-	/* 
+	/*
 	 *These two bars are set by default or the boot code.
 	 * However, it's safer to set them here so we're not boot
 	 * code dependent.
@@ -113,17 +113,17 @@ static int __init pnx8550_pci_setup(void)
 	outl(0x1be00000, PCI_BASE | PCI_BASE14);  /* PNX MMIO */
 	outl(PNX8550_NAND_BASE_ADDR, PCI_BASE | PCI_BASE18);  /* XIO      */
 
-	outl(PCI_EN_TA | 
-	     PCI_EN_PCI2MMI | 
-	     PCI_EN_XIO | 
-	     PCI_SETUP_BASE18_SIZE(SIZE_32M) | 
-	     PCI_SETUP_BASE18_EN | 
-	     PCI_SETUP_BASE14_EN | 
-	     PCI_SETUP_BASE10_PREF | 
-	     PCI_SETUP_BASE10_SIZE(pci_mem_code) | 
+	outl(PCI_EN_TA |
+	     PCI_EN_PCI2MMI |
+	     PCI_EN_XIO |
+	     PCI_SETUP_BASE18_SIZE(SIZE_32M) |
+	     PCI_SETUP_BASE18_EN |
+	     PCI_SETUP_BASE14_EN |
+	     PCI_SETUP_BASE10_PREF |
+	     PCI_SETUP_BASE10_SIZE(pci_mem_code) |
 	     PCI_SETUP_CFGMANAGE_EN |
 	     PCI_SETUP_PCIARB_EN,
-	     PCI_BASE | 
+	     PCI_BASE |
 	     PCI_SETUP);	/* PCI_SETUP */
 	outl(0x00000000, PCI_BASE | PCI_CTRL);	/* PCI_CONTROL */
 
