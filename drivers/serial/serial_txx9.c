@@ -1126,6 +1126,96 @@ static struct pci_driver serial_txx9_pci_driver = {
 MODULE_DEVICE_TABLE(pci, serial_txx9_pci_tbl);
 #endif /* ENABLE_SERIAL_TXX9_PCI */
 
+/******************************************************************************/
+/* BEG: KDBG Routines                                                         */
+/******************************************************************************/
+
+#ifdef CONFIG_KGDB
+int kgdb_init_count = 0;
+
+void txx9_sio_kgdb_hook(unsigned int port, unsigned int baud_rate)
+{
+	static struct resource kgdb_resource;
+	int ret;
+	struct uart_txx9_port *up = &serial_txx9_ports[port];
+
+	/* prevent initialization by driver */
+	kgdb_resource.name = "serial_txx9(debug)";
+	kgdb_resource.start = up->port.membase;
+	kgdb_resource.end = up->port.membase + 36 - 1;
+	kgdb_resource.flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+
+	ret = request_resource(&iomem_resource, &kgdb_resource);
+	if(ret == -EBUSY)
+		printk(" serial_txx9(debug): request_resource failed\n");
+
+	return;
+}
+void
+txx9_sio_kdbg_init( unsigned int port_number )
+{
+	if (port_number == 1) {
+		txx9_sio_kgdb_hook(port_number, 38400);
+	} else {
+		printk("Bad Port Number [%u] != [1]\n",port_number);
+	}
+	return;
+}
+
+u8
+txx9_sio_kdbg_rd( void )
+{
+	unsigned int status,ch;
+	struct uart_txx9_port *up = &serial_txx9_ports[1];
+
+	if (kgdb_init_count == 0) {
+		txx9_sio_kdbg_init(1);
+		kgdb_init_count = 1;
+	}
+
+	while (1) {
+		status = sio_in(up, TXX9_SIDISR);
+		if ( status & 0x1f ) {
+			ch = sio_in(up, TXX9_SIRFIFO );
+			break;
+		}
+	}
+
+	return (ch);
+}
+
+int
+txx9_sio_kdbg_wr( u8 ch )
+{
+	unsigned int status;
+	struct uart_txx9_port *up = &serial_txx9_ports[1];
+
+	if (kgdb_init_count == 0) {
+		txx9_sio_kdbg_init(1);
+		kgdb_init_count = 1;
+	}
+
+	while (1) {
+		status = sio_in(up, TXX9_SICISR);
+		if (status & TXX9_SICISR_TRDY) {
+			if ( ch == '\n' ) {
+				txx9_sio_kdbg_wr( '\r' );
+			}
+			sio_out(up, TXX9_SITFIFO, (u32)ch );
+
+			break;
+		}
+	}
+
+	return (1);
+}
+#endif /* CONFIG_KGDB */
+
+
+/******************************************************************************/
+/* END: KDBG Routines                                                         */
+/******************************************************************************/
+
 static int __init serial_txx9_init(void)
 {
 	int ret;
