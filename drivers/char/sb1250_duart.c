@@ -57,10 +57,6 @@
 #define TX_INTEN          1
 #define DUART_INITIALIZED 2
 
-#ifndef MIN
-#define MIN(a,b)	((a) < (b) ? (a) : (b))
-#endif
-
 #define DUART_MAX_LINE 2
 char sb1250_duart_present[DUART_MAX_LINE] = {1,1};
 EXPORT_SYMBOL(sb1250_duart_present);
