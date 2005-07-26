@@ -36,7 +36,7 @@
 #include <asm/tx4938/tx4938_mips.h>
 
 extern u8 txx9_sio_kdbg_rd(void);
-extern int txx9_sio_kdbg_wr( u8 ch );
+extern int txx9_sio_kdbg_wr(u8 ch);
 
 u8 getDebugChar(void)
 {
@@ -47,4 +47,3 @@ int putDebugChar(u8 byte)
 {
 	return (txx9_sio_kdbg_wr(byte));
 }
-

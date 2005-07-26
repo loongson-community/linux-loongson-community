@@ -25,7 +25,8 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 {
 	int irq = pin;
 	u8 slot = PCI_SLOT(dev->devfn);
-	struct pci_controller *controller = (struct pci_controller *)dev->sysdata;
+	struct pci_controller *controller =
+	    (struct pci_controller *)dev->sysdata;
 
 	if (controller == &tx4938_pci_controller[1]) {
 		/* TX4938 PCIC1 */
@@ -43,7 +44,7 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 	}
 
 	/* IRQ rotation */
-	irq--;	/* 0-3 */
+	irq--;			/* 0-3 */
 	if (dev->bus->parent == NULL &&
 	    (slot == TX4938_PCIC_IDSEL_AD_TO_SLOT(23))) {
 		/* PCI CardSlot (IDSEL=A23) */
@@ -53,7 +54,7 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 		/* PCI Backplane */
 		irq = (irq + 33 - slot) % 4;
 	}
-	irq++;	/* 1-4 */
+	irq++;			/* 1-4 */
 
 	switch (irq) {
 	case 1:
@@ -92,4 +93,3 @@ int pcibios_plat_dev_init(struct pci_dev *dev)
 {
 	return 0;
 }
-

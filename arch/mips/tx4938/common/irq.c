@@ -93,8 +93,7 @@ static struct irqaction tx4938_irq_pic_action = {
 
 #define tx4938_irq_cp0_mask(irq) ( 1 << ( irq-TX4938_IRQ_CP0_BEG+8 ) )
 
-static void __init
-tx4938_irq_cp0_init(void)
+static void __init tx4938_irq_cp0_init(void)
 {
 	int i;
 
@@ -108,22 +107,19 @@ tx4938_irq_cp0_init(void)
 	return;
 }
 
-static unsigned int
-tx4938_irq_cp0_startup(unsigned int irq)
+static unsigned int tx4938_irq_cp0_startup(unsigned int irq)
 {
 	tx4938_irq_cp0_enable(irq);
 
 	return (0);
 }
 
-static void
-tx4938_irq_cp0_shutdown(unsigned int irq)
+static void tx4938_irq_cp0_shutdown(unsigned int irq)
 {
 	tx4938_irq_cp0_disable(irq);
 }
 
-static void
-tx4938_irq_cp0_enable(unsigned int irq)
+static void tx4938_irq_cp0_enable(unsigned int irq)
 {
 	unsigned long flags;
 
@@ -134,8 +130,7 @@ tx4938_irq_cp0_enable(unsigned int irq)
 	spin_unlock_irqrestore(&tx4938_cp0_lock, flags);
 }
 
-static void
-tx4938_irq_cp0_disable(unsigned int irq)
+static void tx4938_irq_cp0_disable(unsigned int irq)
 {
 	unsigned long flags;
 
@@ -148,16 +143,14 @@ tx4938_irq_cp0_disable(unsigned int irq)
 	return;
 }
 
-static void
-tx4938_irq_cp0_mask_and_ack(unsigned int irq)
+static void tx4938_irq_cp0_mask_and_ack(unsigned int irq)
 {
 	tx4938_irq_cp0_disable(irq);
 
 	return;
 }
 
-static void
-tx4938_irq_cp0_end(unsigned int irq)
+static void tx4938_irq_cp0_end(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		tx4938_irq_cp0_enable(irq);
@@ -170,8 +163,7 @@ tx4938_irq_cp0_end(unsigned int irq)
 /* Functions for pic                                                              */
 /**********************************************************************************/
 
-u32
-tx4938_irq_pic_addr(int irq)
+u32 tx4938_irq_pic_addr(int irq)
 {
 	/* MVMCP -- need to formulize this */
 	irq -= TX4938_IRQ_PIC_BEG;
@@ -230,8 +222,7 @@ tx4938_irq_pic_addr(int irq)
 	return (0);
 }
 
-u32
-tx4938_irq_pic_mask(int irq)
+u32 tx4938_irq_pic_mask(int irq)
 {
 	/* MVMCP -- need to formulize this */
 	irq -= TX4938_IRQ_PIC_BEG;
@@ -296,8 +287,7 @@ tx4938_irq_pic_modify(unsigned pic_reg, unsigned clr_bits, unsigned set_bits)
 	return;
 }
 
-static void __init
-tx4938_irq_pic_init(void)
+static void __init tx4938_irq_pic_init(void)
 {
 	unsigned long flags;
 	int i;
@@ -321,24 +311,21 @@ tx4938_irq_pic_init(void)
 	return;
 }
 
-static unsigned int
-tx4938_irq_pic_startup(unsigned int irq)
+static unsigned int tx4938_irq_pic_startup(unsigned int irq)
 {
 	tx4938_irq_pic_enable(irq);
 
 	return (0);
 }
 
-static void
-tx4938_irq_pic_shutdown(unsigned int irq)
+static void tx4938_irq_pic_shutdown(unsigned int irq)
 {
 	tx4938_irq_pic_disable(irq);
 
 	return;
 }
 
-static void
-tx4938_irq_pic_enable(unsigned int irq)
+static void tx4938_irq_pic_enable(unsigned int irq)
 {
 	unsigned long flags;
 
@@ -352,8 +339,7 @@ tx4938_irq_pic_enable(unsigned int irq)
 	return;
 }
 
-static void
-tx4938_irq_pic_disable(unsigned int irq)
+static void tx4938_irq_pic_disable(unsigned int irq)
 {
 	unsigned long flags;
 
@@ -367,16 +353,14 @@ tx4938_irq_pic_disable(unsigned int irq)
 	return;
 }
 
-static void
-tx4938_irq_pic_mask_and_ack(unsigned int irq)
+static void tx4938_irq_pic_mask_and_ack(unsigned int irq)
 {
 	tx4938_irq_pic_disable(irq);
 
 	return;
 }
 
-static void
-tx4938_irq_pic_end(unsigned int irq)
+static void tx4938_irq_pic_end(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		tx4938_irq_pic_enable(irq);
@@ -389,8 +373,7 @@ tx4938_irq_pic_end(unsigned int irq)
 /* Main init functions                                                            */
 /**********************************************************************************/
 
-void __init
-tx4938_irq_init(void)
+void __init tx4938_irq_init(void)
 {
 	extern asmlinkage void tx4938_irq_handler(void);
 
@@ -401,8 +384,7 @@ tx4938_irq_init(void)
 	return;
 }
 
-int
-tx4938_irq_nested(void)
+int tx4938_irq_nested(void)
 {
 	int sw_irq = 0;
 	u32 level2;
@@ -413,7 +395,8 @@ tx4938_irq_nested(void)
 		sw_irq = TX4938_IRQ_PIC_BEG + level2;
 		if (sw_irq == 26) {
 			{
-				extern int toshiba_rbtx4938_irq_nested(int sw_irq);
+				extern int toshiba_rbtx4938_irq_nested(int
+								       sw_irq);
 				sw_irq = toshiba_rbtx4938_irq_nested(sw_irq);
 			}
 		}

@@ -21,8 +21,7 @@
 #include <asm/bootinfo.h>
 #include <asm/tx4938/tx4938.h>
 
-static unsigned int __init
-tx4938_process_sdccr(u64 * addr)
+static unsigned int __init tx4938_process_sdccr(u64 * addr)
 {
 	u64 val;
 	unsigned int sdccr_ce;
@@ -109,8 +108,7 @@ tx4938_process_sdccr(u64 * addr)
 	return (msize);
 }
 
-unsigned int __init
-tx4938_get_mem_size(void)
+unsigned int __init tx4938_get_mem_size(void)
 {
 	unsigned int c0;
 	unsigned int c1;

@@ -49,14 +49,14 @@
 #define Rx5C348_CMD_MR(addr)	(((addr) << 4) | 0x04)	/* burst read */
 
 static struct spi_dev_desc srtc_dev_desc = {
-	.baud 		= 1000000,	/* 1.0Mbps @ Vdd 2.0V */
-	.tcss		= 31,
-	.tcsh		= 1,
-	.tcsr		= 62,
+	.baud = 1000000,	/* 1.0Mbps @ Vdd 2.0V */
+	.tcss = 31,
+	.tcsh = 1,
+	.tcsr = 62,
 	/* 31us for Tcss (62us for Tcsr) is required for carry operation) */
-	.byteorder	= 1,		/* MSB-First */
-	.polarity	= 0,		/* High-Active */
-	.phase		= 1,		/* Shift-Then-Sample */
+	.byteorder = 1,		/* MSB-First */
+	.polarity = 0,		/* High-Active */
+	.phase = 1,		/* Shift-Then-Sample */
 
 };
 static int srtc_chipid;
@@ -90,8 +90,7 @@ spi_rtc_io(unsigned char *inbuf, unsigned char *outbuf, unsigned int count)
 
 /* RTC-dependent code for time.c */
 
-static int
-rtc_rx5c348_set_time(unsigned long t)
+static int rtc_rx5c348_set_time(unsigned long t)
 {
 	unsigned char inbuf[8];
 	struct rtc_time tm;
@@ -101,7 +100,7 @@ rtc_rx5c348_set_time(unsigned long t)
 	to_tm(t, &tm);
 
 	year = tm.tm_year % 100;
-	month = tm.tm_mon+1;	/* tm_mon starts from 0 to 11 */
+	month = tm.tm_mon + 1;	/* tm_mon starts from 0 to 11 */
 	day = tm.tm_mday;
 	hour = tm.tm_hour;
 	minute = tm.tm_min;
@@ -126,7 +125,7 @@ rtc_rx5c348_set_time(unsigned long t)
 		BIN_TO_BCD(hour);
 		inbuf[3] |= hour;
 	}
-	inbuf[4] = 0;	/* ignore week */
+	inbuf[4] = 0;		/* ignore week */
 	BIN_TO_BCD(day);
 	inbuf[5] = day;
 	BIN_TO_BCD(month);
@@ -139,8 +138,7 @@ rtc_rx5c348_set_time(unsigned long t)
 	return spi_rtc_io(inbuf, NULL, 8);
 }
 
-static unsigned long
-rtc_rx5c348_get_time(void)
+static unsigned long rtc_rx5c348_get_time(void)
 {
 	unsigned char inbuf[8], outbuf[8];
 	unsigned int year, month, day, hour, minute, second;
@@ -175,8 +173,7 @@ rtc_rx5c348_get_time(void)
 	return mktime(year, month, day, hour, minute, second);
 }
 
-void __init
-rtc_rx5c348_init(int chipid)
+void __init rtc_rx5c348_init(int chipid)
 {
 	unsigned char inbuf[2], outbuf[2];
 	srtc_chipid = chipid;

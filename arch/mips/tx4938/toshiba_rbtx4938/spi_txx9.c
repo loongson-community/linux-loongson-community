@@ -20,14 +20,15 @@
 #include <asm/tx4938/spi.h>
 #include <asm/tx4938/tx4938.h>
 
-static int (*txx9_spi_cs_func)(int chipid, int on);
+static int (*txx9_spi_cs_func) (int chipid, int on);
 static spinlock_t txx9_spi_lock = SPIN_LOCK_UNLOCKED;
 
 extern unsigned int txx9_gbus_clock;
 
 #define SPI_FIFO_SIZE	4
 
-void __init txx9_spi_init(unsigned long base, int (*cs_func)(int chipid, int on))
+void __init txx9_spi_init(unsigned long base,
+			  int (*cs_func) (int chipid, int on))
 {
 	txx9_spi_cs_func = cs_func;
 	/* enter config mode */
@@ -52,8 +53,7 @@ void __init txx9_spi_irqinit(int irc_irq)
 
 int txx9_spi_io(int chipid, struct spi_dev_desc *desc,
 		unsigned char **inbufs, unsigned int *incounts,
-		unsigned char **outbufs, unsigned int *outcounts,
-		int cansleep)
+		unsigned char **outbufs, unsigned int *outcounts, int cansleep)
 {
 	unsigned int incount, outcount;
 	unsigned char *inp, *outp;
@@ -68,13 +68,12 @@ int txx9_spi_io(int chipid, struct spi_dev_desc *desc,
 	/* enter config mode */
 	tx4938_spiptr->mcr = TXx9_SPMCR_CONFIG | TXx9_SPMCR_BCLR;
 	tx4938_spiptr->cr0 =
-		(desc->byteorder ? TXx9_SPCR0_SBOS : 0) |
-		(desc->polarity ? TXx9_SPCR0_SPOL : 0) |
-		(desc->phase ? TXx9_SPCR0_SPHA : 0) |
-		0x08;
+	    (desc->byteorder ? TXx9_SPCR0_SBOS : 0) |
+	    (desc->polarity ? TXx9_SPCR0_SPOL : 0) |
+	    (desc->phase ? TXx9_SPCR0_SPHA : 0) | 0x08;
 	tx4938_spiptr->cr1 =
-		(((TXX9_IMCLK + desc->baud) / (2 * desc->baud) - 1) << 8) |
-		0x08 /* 8 bit only */;
+	    (((TXX9_IMCLK + desc->baud) / (2 * desc->baud) - 1) << 8) |
+	    0x08 /* 8 bit only */ ;
 	/* enter active mode */
 	tx4938_spiptr->mcr = TXx9_SPMCR_ACTIVE;
 	spin_unlock_irqrestore(&txx9_spi_lock, flags);
@@ -112,12 +111,11 @@ int txx9_spi_io(int chipid, struct spi_dev_desc *desc,
 			count = min(count, outcount);
 
 		/* now tx must be idle... */
-		while (!(tx4938_spiptr->sr & TXx9_SPSR_SIDLE))
-			;
+		while (!(tx4938_spiptr->sr & TXx9_SPSR_SIDLE)) ;
 
 		tx4938_spiptr->cr0 =
-			(tx4938_spiptr->cr0 & ~TXx9_SPCR0_RXIFL_MASK) |
-			((count - 1) << 12);
+		    (tx4938_spiptr->cr0 & ~TXx9_SPCR0_RXIFL_MASK) |
+		    ((count - 1) << 12);
 		if (cansleep) {
 			/* enable rx intr */
 			tx4938_spiptr->cr0 |= TXx9_SPCR0_RBSIE;
@@ -130,8 +128,7 @@ int txx9_spi_io(int chipid, struct spi_dev_desc *desc,
 			wait_event(txx9_spi_wait,
 				   tx4938_spiptr->sr & TXx9_SPSR_SRRDY);
 		} else {
-			while (!(tx4938_spiptr->sr & TXx9_SPSR_RBSI))
-				;
+			while (!(tx4938_spiptr->sr & TXx9_SPSR_RBSI)) ;
 		}
 		/* receive */
 		for (i = 0; i < count; i++) {

@@ -114,27 +114,25 @@ static struct hw_interrupt_type toshiba_rbtx4938_irq_ioc_type = {
 #define TOSHIBA_RBTX4938_IOC_INTR_ENAB 0xb7f02000
 #define TOSHIBA_RBTX4938_IOC_INTR_STAT 0xb7f0200a
 
-u8
-last_bit2num(u8 num)
+u8 last_bit2num(u8 num)
 {
-	u8 i = ((sizeof(num)*8)-1);
+	u8 i = ((sizeof(num) * 8) - 1);
 
 	do {
-		if (num & (1<<i))
+		if (num & (1 << i))
 			break;
-	} while ( --i );
+	} while (--i);
 
 	return i;
 }
 
-int
-toshiba_rbtx4938_irq_nested(int sw_irq)
+int toshiba_rbtx4938_irq_nested(int sw_irq)
 {
 	u8 level3;
 
 	level3 = reg_rd08(TOSHIBA_RBTX4938_IOC_INTR_STAT) & 0xff;
 	if (level3) {
-                /* must use last_bit2num so onboard ATA has priority */
+		/* must use last_bit2num so onboard ATA has priority */
 		sw_irq = TOSHIBA_RBTX4938_IRQ_IOC_BEG + last_bit2num(level3);
 	}
 
@@ -152,8 +150,7 @@ static struct irqaction toshiba_rbtx4938_irq_ioc_action = {
 /**********************************************************************************/
 /* Functions for ioc                                                              */
 /**********************************************************************************/
-static void __init
-toshiba_rbtx4938_irq_ioc_init(void)
+static void __init toshiba_rbtx4938_irq_ioc_init(void)
 {
 	int i;
 
@@ -165,26 +162,22 @@ toshiba_rbtx4938_irq_ioc_init(void)
 		irq_desc[i].handler = &toshiba_rbtx4938_irq_ioc_type;
 	}
 
-	setup_irq(RBTX4938_IRQ_IOCINT,
-		  &toshiba_rbtx4938_irq_ioc_action);
+	setup_irq(RBTX4938_IRQ_IOCINT, &toshiba_rbtx4938_irq_ioc_action);
 }
 
-static unsigned int
-toshiba_rbtx4938_irq_ioc_startup(unsigned int irq)
+static unsigned int toshiba_rbtx4938_irq_ioc_startup(unsigned int irq)
 {
 	toshiba_rbtx4938_irq_ioc_enable(irq);
 
 	return 0;
 }
 
-static void
-toshiba_rbtx4938_irq_ioc_shutdown(unsigned int irq)
+static void toshiba_rbtx4938_irq_ioc_shutdown(unsigned int irq)
 {
 	toshiba_rbtx4938_irq_ioc_disable(irq);
 }
 
-static void
-toshiba_rbtx4938_irq_ioc_enable(unsigned int irq)
+static void toshiba_rbtx4938_irq_ioc_enable(unsigned int irq)
 {
 	unsigned long flags;
 	volatile unsigned char v;
@@ -200,8 +193,7 @@ toshiba_rbtx4938_irq_ioc_enable(unsigned int irq)
 	spin_unlock_irqrestore(&toshiba_rbtx4938_ioc_lock, flags);
 }
 
-static void
-toshiba_rbtx4938_irq_ioc_disable(unsigned int irq)
+static void toshiba_rbtx4938_irq_ioc_disable(unsigned int irq)
 {
 	unsigned long flags;
 	volatile unsigned char v;
@@ -217,14 +209,12 @@ toshiba_rbtx4938_irq_ioc_disable(unsigned int irq)
 	spin_unlock_irqrestore(&toshiba_rbtx4938_ioc_lock, flags);
 }
 
-static void
-toshiba_rbtx4938_irq_ioc_mask_and_ack(unsigned int irq)
+static void toshiba_rbtx4938_irq_ioc_mask_and_ack(unsigned int irq)
 {
 	toshiba_rbtx4938_irq_ioc_disable(irq);
 }
 
-static void
-toshiba_rbtx4938_irq_ioc_end(unsigned int irq)
+static void toshiba_rbtx4938_irq_ioc_end(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		toshiba_rbtx4938_irq_ioc_enable(irq);
@@ -253,7 +243,7 @@ void __init arch_init_irq(void)
 
 	if (tx4938_ccfgptr->pcfg & TX4938_PCFG_SPI_SEL) {
 		txx9_spi_irqinit(RBTX4938_IRQ_IRC_SPI);
-        }
+	}
 
 	wbflush();
 }

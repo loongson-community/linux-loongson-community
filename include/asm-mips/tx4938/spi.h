@@ -17,13 +17,14 @@
 /* SPI */
 struct spi_dev_desc {
 	unsigned int baud;
-	unsigned short tcss, tcsh, tcsr; /* CS setup/hold/recovery time */
+	unsigned short tcss, tcsh, tcsr;	/* CS setup/hold/recovery time */
 	unsigned int byteorder:1;	/* 0:LSB-First, 1:MSB-First */
 	unsigned int polarity:1;	/* 0:High-Active */
-	unsigned int phase:1;		/* 0:Sample-Then-Shift */
+	unsigned int phase:1;	/* 0:Sample-Then-Shift */
 };
 
-extern void txx9_spi_init(unsigned long base, int (*cs_func)(int chipid, int on)) __init;
+extern void txx9_spi_init(unsigned long base,
+			  int (*cs_func) (int chipid, int on)) __init;
 extern void txx9_spi_irqinit(int irc_irq) __init;
 extern int txx9_spi_io(int chipid, struct spi_dev_desc *desc,
 		       unsigned char **inbufs, unsigned int *incounts,
@@ -31,9 +32,12 @@ extern int txx9_spi_io(int chipid, struct spi_dev_desc *desc,
 		       int cansleep);
 extern int spi_eeprom_write_enable(int chipid, int enable);
 extern int spi_eeprom_read_status(int chipid);
-extern int spi_eeprom_read(int chipid, int address, unsigned char *buf, int len);
-extern int spi_eeprom_write(int chipid, int address, unsigned char *buf, int len);
-extern void spi_eeprom_proc_create(struct proc_dir_entry *dir, int chipid) __init;
+extern int spi_eeprom_read(int chipid, int address, unsigned char *buf,
+			   int len);
+extern int spi_eeprom_write(int chipid, int address, unsigned char *buf,
+			    int len);
+extern void spi_eeprom_proc_create(struct proc_dir_entry *dir,
+				   int chipid) __init;
 
 #define TXX9_IMCLK     (txx9_gbus_clock / 2)
 
@@ -71,4 +75,4 @@ extern void spi_eeprom_proc_create(struct proc_dir_entry *dir, int chipid) __ini
 #define TXx9_SPSR_STRDY	0x0002
 #define TXx9_SPSR_SRRDY	0x0001
 
-#endif /* __ASM_TX_BOARDS_TX4938_SPI_H */
+#endif				/* __ASM_TX_BOARDS_TX4938_SPI_H */

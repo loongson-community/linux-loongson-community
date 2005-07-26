@@ -33,13 +33,13 @@
 DEFINE_SPINLOCK(spi_eeprom_lock);
 
 static struct spi_dev_desc seeprom_dev_desc = {
-	.baud 		= 1500000,	/* 1.5Mbps */
-	.tcss		= 1,
-	.tcsh		= 1,
-	.tcsr		= 1,
-	.byteorder	= 1,		/* MSB-First */
-	.polarity	= 0,		/* High-Active */
-	.phase		= 0,		/* Sample-Then-Shift */
+	.baud = 1500000,	/* 1.5Mbps */
+	.tcss = 1,
+	.tcsh = 1,
+	.tcsr = 1,
+	.byteorder = 1,		/* MSB-First */
+	.polarity = 0,		/* High-Active */
+	.phase = 0,		/* Sample-Then-Shift */
 
 };
 static inline int
@@ -166,7 +166,7 @@ int spi_eeprom_write(int chipid, int address, unsigned char *buf, int len)
 	if (i == 0)
 		return -EIO;
 	return len;
- unlock_return:
+      unlock_return:
 	spin_unlock_irqrestore(&spi_eeprom_lock, flags);
 	return stat;
 }
@@ -216,4 +216,4 @@ __init void spi_eeprom_proc_create(struct proc_dir_entry *dir, int chipid)
 		entry->data = (void *)chipid;
 	}
 }
-#endif /* CONFIG_PROC_FS */
+#endif				/* CONFIG_PROC_FS */
