@@ -35,7 +35,7 @@
 #endif
 
 extern void rbtx4938_time_init(void) __init;
-extern char *__init prom_getcmdline(void);
+extern char * __init prom_getcmdline(void);
 static inline void tx4938_report_pcic_status1(struct tx4938_pcic_reg *pcicptr);
 
 /* These functions are used for rebooting or halting the machine*/
@@ -56,30 +56,32 @@ static int tx4938_pcic_trdyto = 0;	/* default: disabled */
 static int tx4938_pcic_retryto = 0;	/* default: disabled */
 
 struct tx4938_pcic_reg *pcicptrs[4] = {
-	tx4938_pcicptr		/* default setting for TX4938 */
+       tx4938_pcicptr  /* default setting for TX4938 */
 };
 
 static struct {
 	unsigned long base;
 	unsigned long size;
 } phys_regions[16] __initdata;
-static int num_phys_regions __initdata;
+static int num_phys_regions  __initdata;
 
 #define PHYS_REGION_MINSIZE	0x10000
 
 void rbtx4938_machine_halt(void)
 {
-	printk(KERN_NOTICE "System Halted\n");
+        printk(KERN_NOTICE "System Halted\n");
 	local_irq_disable();
 
 	while (1)
-		__asm__(".set\tmips3\n\t" "wait\n\t" ".set\tmips0");
+		__asm__(".set\tmips3\n\t"
+			"wait\n\t"
+			".set\tmips0");
 }
 
 void rbtx4938_machine_power_off(void)
 {
-	rbtx4938_machine_halt();
-	/* no return */
+        rbtx4938_machine_halt();
+        /* no return */
 }
 
 void rbtx4938_machine_restart(char *command)
@@ -92,10 +94,11 @@ void rbtx4938_machine_restart(char *command)
 	*rbtx4938_softreset_ptr = 1;
 	wbflush();
 
-	while (1) ;
+	while(1);
 }
 
-void __init txboard_add_phys_region(unsigned long base, unsigned long size)
+void __init
+txboard_add_phys_region(unsigned long base, unsigned long size)
 {
 	if (num_phys_regions >= ARRAY_SIZE(phys_regions)) {
 		printk("phys_region overflow\n");
@@ -115,9 +118,8 @@ txboard_find_free_phys_region(unsigned long begin, unsigned long end,
 	for (base = begin / size * size; base < end; base += size) {
 		for (i = 0; i < num_phys_regions; i++) {
 			if (phys_regions[i].size &&
-			    base <=
-			    phys_regions[i].base + (phys_regions[i].size - 1)
-			    && base + (size - 1) >= phys_regions[i].base)
+			    base <= phys_regions[i].base + (phys_regions[i].size - 1) &&
+			    base + (size - 1) >= phys_regions[i].base)
 				break;
 		}
 		if (i == num_phys_regions)
@@ -149,7 +151,8 @@ txboard_request_phys_region_range(unsigned long begin, unsigned long end,
 		txboard_add_phys_region(base, size);
 	return base;
 }
-unsigned long __init txboard_request_phys_region(unsigned long size)
+unsigned long __init
+txboard_request_phys_region(unsigned long size)
 {
 	unsigned long base;
 	unsigned long begin = 0, end = 0x20000000;	/* search low 512MB */
@@ -158,7 +161,8 @@ unsigned long __init txboard_request_phys_region(unsigned long size)
 		txboard_add_phys_region(base, size);
 	return base;
 }
-unsigned long __init txboard_request_phys_region_shrink(unsigned long *size)
+unsigned long __init
+txboard_request_phys_region_shrink(unsigned long *size)
 {
 	unsigned long base;
 	unsigned long begin = 0, end = 0x20000000;	/* search low 512MB */
@@ -172,26 +176,26 @@ unsigned long __init txboard_request_phys_region_shrink(unsigned long *size)
 void __init
 tx4938_pcic_setup(struct tx4938_pcic_reg *pcicptr,
 		  struct pci_controller *channel,
-		  unsigned long pci_io_base, int extarb)
+		  unsigned long pci_io_base,
+		  int extarb)
 {
 	int i;
 
 	/* Disable All Initiator Space */
-	pcicptr->pciccfg &= ~(TX4938_PCIC_PCICCFG_G2PMEN(0) |
-			      TX4938_PCIC_PCICCFG_G2PMEN(1) |
-			      TX4938_PCIC_PCICCFG_G2PMEN(2) |
+	pcicptr->pciccfg &= ~(TX4938_PCIC_PCICCFG_G2PMEN(0)|
+			      TX4938_PCIC_PCICCFG_G2PMEN(1)|
+			      TX4938_PCIC_PCICCFG_G2PMEN(2)|
 			      TX4938_PCIC_PCICCFG_G2PIOEN);
 
 	/* GB->PCI mappings */
-	pcicptr->g2piomask =
-	    (channel->io_resource->end - channel->io_resource->start) >> 4;
+	pcicptr->g2piomask = (channel->io_resource->end - channel->io_resource->start) >> 4;
 	pcicptr->g2piogbase = pci_io_base |
 #ifdef __BIG_ENDIAN
-	    TX4938_PCIC_G2PIOGBASE_ECHG
+		TX4938_PCIC_G2PIOGBASE_ECHG
 #else
-	    TX4938_PCIC_G2PIOGBASE_BSDIS
+		TX4938_PCIC_G2PIOGBASE_BSDIS
 #endif
-	    ;
+		;
 	pcicptr->g2piopbase = 0;
 	for (i = 0; i < 3; i++) {
 		pcicptr->g2pmmask[i] = 0;
@@ -199,37 +203,36 @@ tx4938_pcic_setup(struct tx4938_pcic_reg *pcicptr,
 		pcicptr->g2pmpbase[i] = 0;
 	}
 	if (channel->mem_resource->end) {
-		pcicptr->g2pmmask[0] =
-		    (channel->mem_resource->end -
-		     channel->mem_resource->start) >> 4;
+		pcicptr->g2pmmask[0] = (channel->mem_resource->end - channel->mem_resource->start) >> 4;
 		pcicptr->g2pmgbase[0] = channel->mem_resource->start |
 #ifdef __BIG_ENDIAN
-		    TX4938_PCIC_G2PMnGBASE_ECHG
+			TX4938_PCIC_G2PMnGBASE_ECHG
 #else
-		    TX4938_PCIC_G2PMnGBASE_BSDIS
+			TX4938_PCIC_G2PMnGBASE_BSDIS
 #endif
-		    ;
+			;
 		pcicptr->g2pmpbase[0] = channel->mem_resource->start;
 	}
 	/* PCI->GB mappings (I/O 256B) */
-	pcicptr->p2giopbase = 0;	/* 256B */
+	pcicptr->p2giopbase = 0; /* 256B */
 	pcicptr->p2giogbase = 0;
 	/* PCI->GB mappings (MEM 512MB (64MB on R1.x)) */
 	pcicptr->p2gm0plbase = 0;
 	pcicptr->p2gm0pubase = 0;
-	pcicptr->p2gmgbase[0] = 0 | TX4938_PCIC_P2GMnGBASE_TMEMEN |
+	pcicptr->p2gmgbase[0] = 0 |
+		TX4938_PCIC_P2GMnGBASE_TMEMEN |
 #ifdef __BIG_ENDIAN
-	    TX4938_PCIC_P2GMnGBASE_TECHG
+		TX4938_PCIC_P2GMnGBASE_TECHG
 #else
-	    TX4938_PCIC_P2GMnGBASE_TBSDIS
+		TX4938_PCIC_P2GMnGBASE_TBSDIS
 #endif
-	    ;
+		;
 	/* PCI->GB mappings (MEM 16MB) */
 	pcicptr->p2gm1plbase = 0xffffffff;
 	pcicptr->p2gm1pubase = 0xffffffff;
 	pcicptr->p2gmgbase[1] = 0;
 	/* PCI->GB mappings (MEM 1MB) */
-	pcicptr->p2gm2pbase = 0xffffffff;	/* 1MB */
+	pcicptr->p2gm2pbase = 0xffffffff; /* 1MB */
 	pcicptr->p2gmgbase[2] = 0;
 
 	pcicptr->pciccfg &= TX4938_PCIC_PCICCFG_GBWC_MASK;
@@ -241,7 +244,8 @@ tx4938_pcic_setup(struct tx4938_pcic_reg *pcicptr,
 		pcicptr->pciccfg |= TX4938_PCIC_PCICCFG_G2PIOEN;
 	/* Enable Initiator Config */
 	pcicptr->pciccfg |=
-	    TX4938_PCIC_PCICCFG_ICAEN | TX4938_PCIC_PCICCFG_TCAR;
+		TX4938_PCIC_PCICCFG_ICAEN |
+		TX4938_PCIC_PCICCFG_TCAR;
 
 	/* Do not use MEMMUL, MEMINF: YMFPCI card causes M_ABORT. */
 	pcicptr->pcicfg1 = 0;
@@ -255,7 +259,7 @@ tx4938_pcic_setup(struct tx4938_pcic_reg *pcicptr,
 
 	if (tx4938_pcic_retryto >= 0) {
 		pcicptr->g2ptocnt &= ~0xff00;
-		pcicptr->g2ptocnt |= ((tx4938_pcic_retryto << 8) & 0xff00);
+		pcicptr->g2ptocnt |= ((tx4938_pcic_retryto<<8) & 0xff00);
 	}
 
 	/* Clear All Local Bus Status */
@@ -268,8 +272,8 @@ tx4938_pcic_setup(struct tx4938_pcic_reg *pcicptr,
 	pcicptr->g2pmask = TX4938_PCIC_G2PSTATUS_ALL;
 	/* Clear All PCI Status Error */
 	pcicptr->pcistatus =
-	    (pcicptr->pcistatus & 0x0000ffff) |
-	    (TX4938_PCIC_PCISTATUS_ALL << 16);
+		(pcicptr->pcistatus & 0x0000ffff) |
+		(TX4938_PCIC_PCISTATUS_ALL << 16);
 	/* Enable All PCI Status Error Interrupts */
 	pcicptr->pcimask = TX4938_PCIC_PCISTATUS_ALL;
 
@@ -281,14 +285,17 @@ tx4938_pcic_setup(struct tx4938_pcic_reg *pcicptr,
 		pcicptr->pbacfg = TX4938_PCIC_PBACFG_PBAEN;
 	}
 
-	/* PCIC Int => IRC IRQ16 */
-	pcicptr->pcicfg2 = (pcicptr->pcicfg2 & 0xffffff00) | TX4938_IR_PCIC;
+      /* PCIC Int => IRC IRQ16 */
+	pcicptr->pcicfg2 =
+		    (pcicptr->pcicfg2 & 0xffffff00) | TX4938_IR_PCIC;
 
 	pcicptr->pcistatus = PCI_COMMAND_MASTER |
-	    PCI_COMMAND_MEMORY | PCI_COMMAND_PARITY | PCI_COMMAND_SERR;
+		PCI_COMMAND_MEMORY |
+		PCI_COMMAND_PARITY | PCI_COMMAND_SERR;
 }
 
-int __init tx4938_report_pciclk(void)
+int __init
+tx4938_report_pciclk(void)
 {
 	unsigned long pcode = TX4938_REV_PCODE();
 	int pciclk = 0;
@@ -297,32 +304,23 @@ int __init tx4938_report_pciclk(void)
 	       (tx4938_ccfgptr->ccfg & TX4938_CCFG_PCI66) ? " PCI66" : "");
 	if (tx4938_ccfgptr->pcfg & TX4938_PCFG_PCICLKEN_ALL) {
 
-		switch ((unsigned long)tx4938_ccfgptr->
-			ccfg & TX4938_CCFG_PCIDIVMODE_MASK) {
+		switch ((unsigned long)tx4938_ccfgptr->ccfg & TX4938_CCFG_PCIDIVMODE_MASK) {
 		case TX4938_CCFG_PCIDIVMODE_4:
-			pciclk = txx9_cpu_clock / 4;
-			break;
+			pciclk = txx9_cpu_clock / 4; break;
 		case TX4938_CCFG_PCIDIVMODE_4_5:
-			pciclk = txx9_cpu_clock * 2 / 9;
-			break;
+			pciclk = txx9_cpu_clock * 2 / 9; break;
 		case TX4938_CCFG_PCIDIVMODE_5:
-			pciclk = txx9_cpu_clock / 5;
-			break;
+			pciclk = txx9_cpu_clock / 5; break;
 		case TX4938_CCFG_PCIDIVMODE_5_5:
-			pciclk = txx9_cpu_clock * 2 / 11;
-			break;
+			pciclk = txx9_cpu_clock * 2 / 11; break;
 		case TX4938_CCFG_PCIDIVMODE_8:
-			pciclk = txx9_cpu_clock / 8;
-			break;
+			pciclk = txx9_cpu_clock / 8; break;
 		case TX4938_CCFG_PCIDIVMODE_9:
-			pciclk = txx9_cpu_clock / 9;
-			break;
+			pciclk = txx9_cpu_clock / 9; break;
 		case TX4938_CCFG_PCIDIVMODE_10:
-			pciclk = txx9_cpu_clock / 10;
-			break;
+			pciclk = txx9_cpu_clock / 10; break;
 		case TX4938_CCFG_PCIDIVMODE_11:
-			pciclk = txx9_cpu_clock / 11;
-			break;
+			pciclk = txx9_cpu_clock / 11; break;
 		}
 		printk("Internal(%dMHz)", pciclk / 1000000);
 	} else {
@@ -340,11 +338,11 @@ void __init set_tx4938_pcicptr(int ch, struct tx4938_pcic_reg *pcicptr)
 
 struct tx4938_pcic_reg *get_tx4938_pcicptr(int ch)
 {
-	return pcicptrs[ch];
+       return pcicptrs[ch];
 }
 
 static struct pci_dev *fake_pci_dev(struct pci_controller *hose,
-				    int top_bus, int busnr, int devfn)
+                                    int top_bus, int busnr, int devfn)
 {
 	static struct pci_dev dev;
 	static struct pci_bus bus;
@@ -370,8 +368,7 @@ static int early_##rw##_config_##size(struct pci_controller *hose,      \
 
 EARLY_PCI_OP(read, word, u16 *)
 
-int txboard_pci66_check(struct pci_controller *hose, int top_bus,
-			int current_bus)
+int txboard_pci66_check(struct pci_controller *hose, int top_bus, int current_bus)
 {
 	u32 pci_devfn;
 	unsigned short vid;
@@ -382,22 +379,20 @@ int txboard_pci66_check(struct pci_controller *hose, int top_bus,
 
 	printk("PCI: Checking 66MHz capabilities...\n");
 
-	for (pci_devfn = devfn_start; pci_devfn < devfn_stop; pci_devfn++) {
+	for (pci_devfn=devfn_start; pci_devfn<devfn_stop; pci_devfn++) {
 		early_read_config_word(hose, top_bus, current_bus, pci_devfn,
 				       PCI_VENDOR_ID, &vid);
 
-		if (vid == 0xffff)
-			continue;
+		if (vid == 0xffff) continue;
 
 		/* check 66MHz capability */
 		if (cap66 < 0)
 			cap66 = 1;
 		if (cap66) {
-			early_read_config_word(hose, top_bus, current_bus,
-					       pci_devfn, PCI_STATUS, &stat);
+			early_read_config_word(hose, top_bus, current_bus, pci_devfn,
+					       PCI_STATUS, &stat);
 			if (!(stat & PCI_STATUS_66MHZ)) {
-				printk(KERN_DEBUG
-				       "PCI: %02x:%02x not 66MHz capable.\n",
+				printk(KERN_DEBUG "PCI: %02x:%02x not 66MHz capable.\n",
 				       current_bus, pci_devfn);
 				cap66 = 0;
 				break;
@@ -407,7 +402,8 @@ int txboard_pci66_check(struct pci_controller *hose, int top_bus,
 	return cap66 > 0;
 }
 
-int __init tx4938_pciclk66_setup(void)
+int __init
+tx4938_pciclk66_setup(void)
 {
 	int pciclk;
 
@@ -440,8 +436,8 @@ int __init tx4938_pciclk66_setup(void)
 			break;
 		}
 		tx4938_ccfgptr->ccfg =
-		    (tx4938_ccfgptr->ccfg & ~TX4938_CCFG_PCIDIVMODE_MASK)
-		    | pcidivmode;
+			(tx4938_ccfgptr->ccfg & ~TX4938_CCFG_PCIDIVMODE_MASK)
+			| pcidivmode;
 		printk(KERN_DEBUG "PCICLK: ccfg:%08lx\n",
 		       (unsigned long)tx4938_ccfgptr->ccfg);
 	} else {
@@ -454,9 +450,9 @@ extern struct pci_controller tx4938_pci_controller[];
 static int __init tx4938_pcibios_init(void)
 {
 	unsigned long mem_base[2];
-	unsigned long mem_size[2] = { TX4938_PCIMEM_SIZE_0, TX4938_PCIMEM_SIZE_1 };	/* MAX 128M,64K */
+	unsigned long mem_size[2] = {TX4938_PCIMEM_SIZE_0,TX4938_PCIMEM_SIZE_1}; /* MAX 128M,64K */
 	unsigned long io_base[2];
-	unsigned long io_size[2] = { TX4938_PCIIO_SIZE_0, TX4938_PCIIO_SIZE_1 };	/* MAX 16M,64K */
+	unsigned long io_size[2] = {TX4938_PCIIO_SIZE_0,TX4938_PCIIO_SIZE_1}; /* MAX 16M,64K */
 	/* TX4938 PCIC1: 64K MEM/IO is enough for ETH0,ETH1 */
 	int extarb = !(tx4938_ccfgptr->ccfg & TX4938_CCFG_PCIXARB);
 
@@ -474,11 +470,9 @@ static int __init tx4938_pcibios_init(void)
 
 	/* setup PCI area */
 	tx4938_pci_controller[0].io_resource->start = io_base[0];
-	tx4938_pci_controller[0].io_resource->end =
-	    (io_base[0] + io_size[0]) - 1;
+	tx4938_pci_controller[0].io_resource->end = (io_base[0] + io_size[0]) - 1;
 	tx4938_pci_controller[0].mem_resource->start = mem_base[0];
-	tx4938_pci_controller[0].mem_resource->end =
-	    mem_base[0] + mem_size[0] - 1;
+	tx4938_pci_controller[0].mem_resource->end = mem_base[0] + mem_size[0] - 1;
 
 	set_tx4938_pcicptr(0, tx4938_pcicptr);
 
@@ -486,7 +480,7 @@ static int __init tx4938_pcibios_init(void)
 
 	if (tx4938_ccfgptr->ccfg & TX4938_CCFG_PCI66) {
 		printk("TX4938_CCFG_PCI66 already configured\n");
-		txboard_pci66_mode = -1;	/* already configured */
+		txboard_pci66_mode = -1; /* already configured */
 	}
 
 	/* Reset PCI Bus */
@@ -503,10 +497,9 @@ static int __init tx4938_pcibios_init(void)
 	tx4938_report_pcic_status1(tx4938_pcicptr);
 
 	tx4938_report_pciclk();
-	tx4938_pcic_setup(tx4938_pcicptr, &tx4938_pci_controller[0], io_base[0],
-			  extarb);
-	if (txboard_pci66_mode == 0
-	    && txboard_pci66_check(&tx4938_pci_controller[0], 0, 0)) {
+	tx4938_pcic_setup(tx4938_pcicptr, &tx4938_pci_controller[0], io_base[0], extarb);
+	if (txboard_pci66_mode == 0 &&
+	    txboard_pci66_check(&tx4938_pci_controller[0], 0, 0)) {
 		/* Reset PCI Bus */
 		*rbtx4938_pcireset_ptr = 0;
 		/* Reset PCIC */
@@ -519,8 +512,7 @@ static int __init tx4938_pcibios_init(void)
 		wbflush();
 		/* Reinitialize PCIC */
 		tx4938_report_pciclk();
-		tx4938_pcic_setup(tx4938_pcicptr, &tx4938_pci_controller[0],
-				  io_base[0], extarb);
+		tx4938_pcic_setup(tx4938_pcicptr, &tx4938_pci_controller[0], io_base[0], extarb);
 	}
 
 	mem_base[1] = txboard_request_phys_region_shrink(&mem_size[1]);
@@ -548,18 +540,18 @@ static int __init tx4938_pcibios_init(void)
 	       1000000);
 
 	/* assumption: CPHYSADDR(mips_io_port_base) == io_base[0] */
-	tx4938_pci_controller[1].io_resource->start = io_base[1] - io_base[0];
+	tx4938_pci_controller[1].io_resource->start =
+		io_base[1] - io_base[0];
 	tx4938_pci_controller[1].io_resource->end =
-	    io_base[1] - io_base[0] + io_size[1] - 1;
+		io_base[1] - io_base[0] + io_size[1] - 1;
 	tx4938_pci_controller[1].mem_resource->start = mem_base[1];
 	tx4938_pci_controller[1].mem_resource->end =
-	    mem_base[1] + mem_size[1] - 1;
+		mem_base[1] + mem_size[1] - 1;
 	set_tx4938_pcicptr(1, tx4938_pcic1ptr);
 
 	register_pci_controller(&tx4938_pci_controller[1]);
 
-	tx4938_pcic_setup(tx4938_pcic1ptr, &tx4938_pci_controller[1],
-			  io_base[1], extarb);
+	tx4938_pcic_setup(tx4938_pcic1ptr, &tx4938_pci_controller[1], io_base[1], extarb);
 
 	/* map ioport 0 to PCI I/O space address 0 */
 	set_io_port_base(KSEG1 + io_base[0]);
@@ -569,7 +561,7 @@ static int __init tx4938_pcibios_init(void)
 
 arch_initcall(tx4938_pcibios_init);
 
-#endif				/* CONFIG_PCI */
+#endif /* CONFIG_PCI */
 
 /* SPI support */
 
@@ -577,7 +569,7 @@ arch_initcall(tx4938_pcibios_init);
 #define	SEEPROM1_CS	7	/* PIO7 */
 #define	SEEPROM2_CS	0	/* IOC */
 #define	SEEPROM3_CS	1	/* IOC */
-#define	SRTC_CS	2		/* IOC */
+#define	SRTC_CS	2	/* IOC */
 
 static int rbtx4938_spi_cs_func(int chipid, int on)
 {
@@ -604,19 +596,17 @@ static int rbtx4938_spi_cs_func(int chipid, int on)
 	}
 	/* bit1,2,4 are low active, bit3 is high active */
 	*rbtx4938_spics_ptr =
-	    (*rbtx4938_spics_ptr & ~bit) |
-	    ((on ? (bit ^ 0x0b) : ~(bit ^ 0x0b)) & bit);
+		(*rbtx4938_spics_ptr & ~bit) |
+		((on ? (bit ^ 0x0b) : ~(bit ^ 0x0b)) & bit);
 	return 0;
 }
 
 #ifdef CONFIG_PCI
-extern int spi_eeprom_read(int chipid, int address, unsigned char *buf,
-			   int len);
+extern int spi_eeprom_read(int chipid, int address, unsigned char *buf, int len);
 
 int rbtx4938_get_tx4938_ethaddr(struct pci_dev *dev, unsigned char *addr)
 {
-	struct pci_controller *channel =
-	    (struct pci_controller *)dev->bus->sysdata;
+	struct pci_controller *channel = (struct pci_controller *)dev->bus->sysdata;
 	static unsigned char dat[17];
 	static int read_dat = 0;
 	int ch = 0;
@@ -644,8 +634,7 @@ int rbtx4938_get_tx4938_ethaddr(struct pci_dev *dev, unsigned char *addr)
 			printk(KERN_ERR "seeprom: read error.\n");
 		} else {
 			if (strcmp(dat, "MAC") != 0)
-				printk(KERN_WARNING
-				       "seeprom: bad signature.\n");
+				printk(KERN_WARNING "seeprom: bad signature.\n");
 			for (i = 0, sum = 0; i < sizeof(dat); i++)
 				sum += dat[i];
 			if (sum)
@@ -655,10 +644,9 @@ int rbtx4938_get_tx4938_ethaddr(struct pci_dev *dev, unsigned char *addr)
 	memcpy(addr, &dat[4 + 6 * ch], 6);
 	return 0;
 }
-#endif				/* CONFIG_PCI */
+#endif /* CONFIG_PCI */
 
-extern void __init txx9_spi_init(unsigned long base,
-				 int (*cs_func) (int chipid, int on));
+extern void __init txx9_spi_init(unsigned long base, int (*cs_func)(int chipid, int on));
 static void __init rbtx4938_spi_setup(void)
 {
 	/* set SPI_SEL */
@@ -673,8 +661,7 @@ static struct resource rbtx4938_fpga_resource;
 
 static char pcode_str[8];
 static struct resource tx4938_reg_resource = {
-	pcode_str, TX4938_REG_BASE, TX4938_REG_BASE + TX4938_REG_SIZE,
-	    IORESOURCE_MEM
+	pcode_str, TX4938_REG_BASE, TX4938_REG_BASE+TX4938_REG_SIZE, IORESOURCE_MEM
 };
 
 void __init tx4938_board_setup(void)
@@ -694,49 +681,40 @@ void __init tx4938_board_setup(void)
 	for (i = 0; i < 8; i++) {
 		if (!(tx4938_ebuscptr->cr[i] & 0x8))
 			continue;	/* disabled */
-		rbtx4938_ce_base[i] = (unsigned long)TX4938_EBUSC_BA(i);
-		txboard_add_phys_region(rbtx4938_ce_base[i],
-					TX4938_EBUSC_SIZE(i));
+ 		rbtx4938_ce_base[i] = (unsigned long)TX4938_EBUSC_BA(i);
+		txboard_add_phys_region(rbtx4938_ce_base[i], TX4938_EBUSC_SIZE(i));
 	}
 
 	/* clocks */
 	if (txx9_master_clock) {
 		/* calculate gbus_clock and cpu_clock from master_clock */
-		divmode =
-		    (unsigned long)tx4938_ccfgptr->
-		    ccfg & TX4938_CCFG_DIVMODE_MASK;
+		divmode = (unsigned long)tx4938_ccfgptr->ccfg & TX4938_CCFG_DIVMODE_MASK;
 		switch (divmode) {
 		case TX4938_CCFG_DIVMODE_8:
 		case TX4938_CCFG_DIVMODE_10:
 		case TX4938_CCFG_DIVMODE_12:
 		case TX4938_CCFG_DIVMODE_16:
 		case TX4938_CCFG_DIVMODE_18:
-			txx9_gbus_clock = txx9_master_clock * 4;
-			break;
+			txx9_gbus_clock = txx9_master_clock * 4; break;
 		default:
 			txx9_gbus_clock = txx9_master_clock;
 		}
 		switch (divmode) {
 		case TX4938_CCFG_DIVMODE_2:
 		case TX4938_CCFG_DIVMODE_8:
-			cpuclk = txx9_gbus_clock * 2;
-			break;
+			cpuclk = txx9_gbus_clock * 2; break;
 		case TX4938_CCFG_DIVMODE_2_5:
 		case TX4938_CCFG_DIVMODE_10:
-			cpuclk = txx9_gbus_clock * 5 / 2;
-			break;
+			cpuclk = txx9_gbus_clock * 5 / 2; break;
 		case TX4938_CCFG_DIVMODE_3:
 		case TX4938_CCFG_DIVMODE_12:
-			cpuclk = txx9_gbus_clock * 3;
-			break;
+			cpuclk = txx9_gbus_clock * 3; break;
 		case TX4938_CCFG_DIVMODE_4:
 		case TX4938_CCFG_DIVMODE_16:
-			cpuclk = txx9_gbus_clock * 4;
-			break;
+			cpuclk = txx9_gbus_clock * 4; break;
 		case TX4938_CCFG_DIVMODE_4_5:
 		case TX4938_CCFG_DIVMODE_18:
-			cpuclk = txx9_gbus_clock * 9 / 2;
-			break;
+			cpuclk = txx9_gbus_clock * 9 / 2; break;
 		}
 		txx9_cpu_clock = cpuclk;
 	} else {
@@ -745,30 +723,23 @@ void __init tx4938_board_setup(void)
 		}
 		/* calculate gbus_clock and master_clock from cpu_clock */
 		cpuclk = txx9_cpu_clock;
-		divmode =
-		    (unsigned long)tx4938_ccfgptr->
-		    ccfg & TX4938_CCFG_DIVMODE_MASK;
+		divmode = (unsigned long)tx4938_ccfgptr->ccfg & TX4938_CCFG_DIVMODE_MASK;
 		switch (divmode) {
 		case TX4938_CCFG_DIVMODE_2:
 		case TX4938_CCFG_DIVMODE_8:
-			txx9_gbus_clock = cpuclk / 2;
-			break;
+			txx9_gbus_clock = cpuclk / 2; break;
 		case TX4938_CCFG_DIVMODE_2_5:
 		case TX4938_CCFG_DIVMODE_10:
-			txx9_gbus_clock = cpuclk * 2 / 5;
-			break;
+			txx9_gbus_clock = cpuclk * 2 / 5; break;
 		case TX4938_CCFG_DIVMODE_3:
 		case TX4938_CCFG_DIVMODE_12:
-			txx9_gbus_clock = cpuclk / 3;
-			break;
+			txx9_gbus_clock = cpuclk / 3; break;
 		case TX4938_CCFG_DIVMODE_4:
 		case TX4938_CCFG_DIVMODE_16:
-			txx9_gbus_clock = cpuclk / 4;
-			break;
+			txx9_gbus_clock = cpuclk / 4; break;
 		case TX4938_CCFG_DIVMODE_4_5:
 		case TX4938_CCFG_DIVMODE_18:
-			txx9_gbus_clock = cpuclk * 2 / 9;
-			break;
+			txx9_gbus_clock = cpuclk * 2 / 9; break;
 		}
 		switch (divmode) {
 		case TX4938_CCFG_DIVMODE_8:
@@ -776,8 +747,7 @@ void __init tx4938_board_setup(void)
 		case TX4938_CCFG_DIVMODE_12:
 		case TX4938_CCFG_DIVMODE_16:
 		case TX4938_CCFG_DIVMODE_18:
-			txx9_master_clock = txx9_gbus_clock / 4;
-			break;
+			txx9_master_clock = txx9_gbus_clock / 4; break;
 		default:
 			txx9_master_clock = txx9_gbus_clock;
 		}
@@ -807,7 +777,8 @@ void __init tx4938_board_setup(void)
 	       pcode_str,
 	       cpuclk / 1000000, txx9_master_clock / 1000000,
 	       (unsigned long)tx4938_ccfgptr->crir,
-	       tx4938_ccfgptr->ccfg, tx4938_ccfgptr->pcfg);
+	       tx4938_ccfgptr->ccfg,
+	       tx4938_ccfgptr->pcfg);
 
 	printk("%s SDRAMC --", pcode_str);
 	for (i = 0; i < 4; i++) {
@@ -828,8 +799,8 @@ void __init tx4938_board_setup(void)
 	if (pcode == 0x4938 && tx4938_sramcptr->cr & 1) {
 		unsigned int size = 0x800;
 		unsigned long base =
-		    (tx4938_sramcptr->cr >> (39 - 11)) & ~(size - 1);
-		txboard_add_phys_region(base, size);
+			(tx4938_sramcptr->cr >> (39-11)) & ~(size - 1);
+		 txboard_add_phys_region(base, size);
 	}
 
 	/* IRC */
@@ -839,7 +810,7 @@ void __init tx4938_board_setup(void)
 	/* TMR */
 	/* disable all timers */
 	for (i = 0; i < TX4938_NR_TMR; i++) {
-		tx4938_tmrptr(i)->tcr = 0x00000020;
+		tx4938_tmrptr(i)->tcr  = 0x00000020;
 		tx4938_tmrptr(i)->tisr = 0;
 		tx4938_tmrptr(i)->cpra = 0xffffffff;
 		tx4938_tmrptr(i)->itmr = 0;
@@ -870,25 +841,25 @@ static inline void tx4938_report_pcic_status1(struct tx4938_pcic_reg *pcicptr)
 		unsigned long flag;
 		const char *str;
 	} pcistat_tbl[] = {
-		{
-		PCI_STATUS_DETECTED_PARITY, "DetectedParityError"}, {
-		PCI_STATUS_SIG_SYSTEM_ERROR, "SignaledSystemError"}, {
-		PCI_STATUS_REC_MASTER_ABORT, "ReceivedMasterAbort"}, {
-		PCI_STATUS_REC_TARGET_ABORT, "ReceivedTargetAbort"}, {
-		PCI_STATUS_SIG_TARGET_ABORT, "SignaledTargetAbort"}, {
-	PCI_STATUS_PARITY, "MasterParityError"},}, g2pstat_tbl[] = {
-		{
-		TX4938_PCIC_G2PSTATUS_TTOE, "TIOE"}, {
-	TX4938_PCIC_G2PSTATUS_RTOE, "RTOE"},}, pcicstat_tbl[] = {
-		{
-		TX4938_PCIC_PCICSTATUS_PME, "PME"}, {
-		TX4938_PCIC_PCICSTATUS_TLB, "TLB"}, {
-		TX4938_PCIC_PCICSTATUS_NIB, "NIB"}, {
-		TX4938_PCIC_PCICSTATUS_ZIB, "ZIB"}, {
-		TX4938_PCIC_PCICSTATUS_PERR, "PERR"}, {
-		TX4938_PCIC_PCICSTATUS_SERR, "SERR"}, {
-		TX4938_PCIC_PCICSTATUS_GBE, "GBE"}, {
-	TX4938_PCIC_PCICSTATUS_IWB, "IWB"},};
+		{ PCI_STATUS_DETECTED_PARITY,	"DetectedParityError" },
+		{ PCI_STATUS_SIG_SYSTEM_ERROR,	"SignaledSystemError" },
+		{ PCI_STATUS_REC_MASTER_ABORT,	"ReceivedMasterAbort" },
+		{ PCI_STATUS_REC_TARGET_ABORT,	"ReceivedTargetAbort" },
+		{ PCI_STATUS_SIG_TARGET_ABORT,	"SignaledTargetAbort" },
+		{ PCI_STATUS_PARITY,	"MasterParityError" },
+	}, g2pstat_tbl[] = {
+		{ TX4938_PCIC_G2PSTATUS_TTOE,	"TIOE" },
+		{ TX4938_PCIC_G2PSTATUS_RTOE,	"RTOE" },
+	}, pcicstat_tbl[] = {
+		{ TX4938_PCIC_PCICSTATUS_PME,	"PME" },
+		{ TX4938_PCIC_PCICSTATUS_TLB,	"TLB" },
+		{ TX4938_PCIC_PCICSTATUS_NIB,	"NIB" },
+		{ TX4938_PCIC_PCICSTATUS_ZIB,	"ZIB" },
+		{ TX4938_PCIC_PCICSTATUS_PERR,	"PERR" },
+		{ TX4938_PCIC_PCICSTATUS_SERR,	"SERR" },
+		{ TX4938_PCIC_PCICSTATUS_GBE,	"GBE" },
+		{ TX4938_PCIC_PCICSTATUS_IWB,	"IWB" },
+	};
 	int i;
 
 	printk("pcistat:%04x(", pcistatus);
@@ -914,7 +885,7 @@ void tx4938_report_pcic_status(void)
 		tx4938_report_pcic_status1(pcicptr);
 }
 
-#endif				/* CONFIG_PCI */
+#endif /* CONFIG_PCI */
 
 /* We use onchip r4k counter or TMR timer as our system wide timer
  * interrupt running at 100HZ. */
@@ -934,7 +905,7 @@ void __init toshiba_rbtx4938_setup(void)
 	iomem_resource.end = 0xffffffff;	/* 4GB */
 
 	if (txx9_master_clock == 0)
-		txx9_master_clock = 25000000;	/* 25MHz */
+		txx9_master_clock = 25000000; /* 25MHz */
 	tx4938_board_setup();
 	/* setup irq stuff */
 	TX4938_WR(TX4938_MKA(TX4938_IRC_IRDM0), 0x00000000);	/* irq trigger */
@@ -952,23 +923,23 @@ void __init toshiba_rbtx4938_setup(void)
 		extern int early_serial_txx9_setup(struct uart_port *port);
 		int i;
 		struct uart_port req;
-		for (i = 0; i < 2; i++) {
+		for(i = 0; i < 2; i++) {
 			memset(&req, 0, sizeof(req));
 			req.line = i;
 			req.iotype = UPIO_MEM;
 			req.membase = (char *)(0xff1ff300 + i * 0x100);
 			req.mapbase = 0xff1ff300 + i * 0x100;
 			req.irq = 32 + i;
-			req.flags |= UPF_BUGGY_UART /*HAVE_CTS_LINE */ ;
+			req.flags |= UPF_BUGGY_UART /*HAVE_CTS_LINE*/;
 			req.uartclk = 50000000;
 			early_serial_txx9_setup(&req);
 		}
 	}
 #ifdef CONFIG_SERIAL_TXX9_CONSOLE
-	argptr = prom_getcmdline();
-	if (strstr(argptr, "console=") == NULL) {
-		strcat(argptr, " console=ttyS0,38400");
-	}
+        argptr = prom_getcmdline();
+        if (strstr(argptr, "console=") == NULL) {
+                strcat(argptr, " console=ttyS0,38400");
+        }
 #endif
 #endif
 
@@ -997,6 +968,7 @@ void __init toshiba_rbtx4938_setup(void)
 	}
 #endif
 
+
 #ifdef CONFIG_FB
 	{
 		conswitchp = &dummy_con;
@@ -1009,10 +981,12 @@ void __init toshiba_rbtx4938_setup(void)
 	if ((pcfg & (TX4938_PCFG_ATA_SEL | TX4938_PCFG_NDF_SEL)) ==
 	    TX4938_PCFG_ATA_SEL) {
 		*rbtx4938_piosel_ptr = (*rbtx4938_piosel_ptr & 0x03) | 0x04;
-	} else if ((pcfg & (TX4938_PCFG_ATA_SEL | TX4938_PCFG_NDF_SEL)) ==
-		   TX4938_PCFG_NDF_SEL) {
+	}
+	else if ((pcfg & (TX4938_PCFG_ATA_SEL | TX4938_PCFG_NDF_SEL)) ==
+	    TX4938_PCFG_NDF_SEL) {
 		*rbtx4938_piosel_ptr = (*rbtx4938_piosel_ptr & 0x03) | 0x08;
-	} else {
+	}
+	else {
 		*rbtx4938_piosel_ptr &= ~(0x08 | 0x04);
 	}
 
@@ -1032,7 +1006,8 @@ void __init toshiba_rbtx4938_setup(void)
 
 	*rbtx4938_led_ptr = 0xff;
 	printk("RBTX4938 --- FPGA(Rev %02x)", *rbtx4938_fpga_rev_ptr);
-	printk(" DIPSW:%02x,%02x\n", *rbtx4938_dipsw_ptr, *rbtx4938_bdipsw_ptr);
+	printk(" DIPSW:%02x,%02x\n",
+	       *rbtx4938_dipsw_ptr, *rbtx4938_bdipsw_ptr);
 }
 
 #ifdef CONFIG_PROC_FS

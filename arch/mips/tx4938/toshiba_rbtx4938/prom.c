@@ -24,8 +24,8 @@
 
 void __init prom_init_cmdline(void)
 {
-	int argc = (int)fw_arg0;
-	char **argv = (char **)fw_arg1;
+	int argc = (int) fw_arg0;
+	char **argv = (char **) fw_arg1;
 	int i;
 
 	/* ignore all built-in args if any f/w args given */
@@ -57,7 +57,7 @@ void __init prom_init(void)
 	return;
 }
 
-unsigned long __init prom_free_prom_memory(void)
+unsigned long  __init prom_free_prom_memory(void)
 {
 	return 0;
 }
@@ -72,7 +72,7 @@ const char *get_system_type(void)
 	return "Toshiba RBTX4938";
 }
 
-char *__init prom_getcmdline(void)
+char * __init prom_getcmdline(void)
 {
 	return &(arcs_cmdline[0]);
 }

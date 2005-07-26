@@ -33,8 +33,8 @@
 #define TX4938_PCIMEM_SIZE_0 0x08000000
 #define TX4938_PCIMEM_SIZE_1 0x00010000
 
-#define TX4938_REG_BASE	0xff1f0000	/* == TX4937_REG_BASE */
-#define TX4938_REG_SIZE	0x00010000	/* == TX4937_REG_SIZE */
+#define TX4938_REG_BASE	0xff1f0000 /* == TX4937_REG_BASE */
+#define TX4938_REG_SIZE	0x00010000 /* == TX4937_REG_SIZE */
 
 /* NDFMC, SRAMC, PCIC1, SPIC: TX4938 only */
 #define TX4938_NDFMC_REG	(TX4938_REG_BASE + 0x5000)
@@ -74,7 +74,7 @@
 #define TX4938_RD( reg      ) TX4938_RD32( reg )
 #define TX4938_WR( reg, val ) TX4938_WR32( reg, val )
 
-#endif				/* !__ASSEMBLY__ */
+#endif /* !__ASSEMBLY__ */
 
 #ifdef __ASSEMBLY__
 #define _CONST64(c)	c
@@ -107,6 +107,7 @@
 	volatile unsigned char e4,e3,e2,e1
 #endif
 
+
 struct tx4938_sdramc_reg {
 	volatile unsigned long long cr[4];
 	volatile unsigned long long unused0[4];
@@ -125,16 +126,16 @@ struct tx4938_dma_reg {
 		volatile unsigned long long cha;
 		volatile unsigned long long sar;
 		volatile unsigned long long dar;
-		 endian_def_l2(unused0, cntr);
-		 endian_def_l2(unused1, sair);
-		 endian_def_l2(unused2, dair);
-		 endian_def_l2(unused3, ccr);
-		 endian_def_l2(unused4, csr);
+		endian_def_l2(unused0, cntr);
+		endian_def_l2(unused1, sair);
+		endian_def_l2(unused2, dair);
+		endian_def_l2(unused3, ccr);
+		endian_def_l2(unused4, csr);
 	} ch[4];
 	volatile unsigned long long dbr[8];
 	volatile unsigned long long tdhr;
 	volatile unsigned long long midr;
-	 endian_def_l2(unused0, mcr);
+	endian_def_l2(unused0, mcr);
 };
 
 struct tx4938_pcic_reg {
@@ -142,60 +143,60 @@ struct tx4938_pcic_reg {
 	volatile unsigned long pcistatus;
 	volatile unsigned long pciccrev;
 	volatile unsigned long pcicfg1;
-	volatile unsigned long p2gm0plbase;	/* +10 */
+	volatile unsigned long p2gm0plbase;		/* +10 */
 	volatile unsigned long p2gm0pubase;
 	volatile unsigned long p2gm1plbase;
 	volatile unsigned long p2gm1pubase;
-	volatile unsigned long p2gm2pbase;	/* +20 */
+	volatile unsigned long p2gm2pbase;		/* +20 */
 	volatile unsigned long p2giopbase;
 	volatile unsigned long unused0;
 	volatile unsigned long pcisid;
-	volatile unsigned long unused1;	/* +30 */
+	volatile unsigned long unused1;		/* +30 */
 	volatile unsigned long pcicapptr;
 	volatile unsigned long unused2;
 	volatile unsigned long pcicfg2;
-	volatile unsigned long g2ptocnt;	/* +40 */
+	volatile unsigned long g2ptocnt;		/* +40 */
 	volatile unsigned long unused3[15];
-	volatile unsigned long g2pstatus;	/* +80 */
+	volatile unsigned long g2pstatus;		/* +80 */
 	volatile unsigned long g2pmask;
 	volatile unsigned long pcisstatus;
 	volatile unsigned long pcimask;
-	volatile unsigned long p2gcfg;	/* +90 */
+	volatile unsigned long p2gcfg;		/* +90 */
 	volatile unsigned long p2gstatus;
 	volatile unsigned long p2gmask;
 	volatile unsigned long p2gccmd;
-	volatile unsigned long unused4[24];	/* +a0 */
-	volatile unsigned long pbareqport;	/* +100 */
+	volatile unsigned long unused4[24];		/* +a0 */
+	volatile unsigned long pbareqport;		/* +100 */
 	volatile unsigned long pbacfg;
 	volatile unsigned long pbastatus;
 	volatile unsigned long pbamask;
-	volatile unsigned long pbabm;	/* +110 */
+	volatile unsigned long pbabm;		/* +110 */
 	volatile unsigned long pbacreq;
 	volatile unsigned long pbacgnt;
 	volatile unsigned long pbacstate;
-	volatile unsigned long long g2pmgbase[3];	/* +120 */
+	volatile unsigned long long g2pmgbase[3];		/* +120 */
 	volatile unsigned long long g2piogbase;
-	volatile unsigned long g2pmmask[3];	/* +140 */
+	volatile unsigned long g2pmmask[3];		/* +140 */
 	volatile unsigned long g2piomask;
-	volatile unsigned long long g2pmpbase[3];	/* +150 */
+	volatile unsigned long long g2pmpbase[3];		/* +150 */
 	volatile unsigned long long g2piopbase;
-	volatile unsigned long pciccfg;	/* +170 */
+	volatile unsigned long pciccfg;		/* +170 */
 	volatile unsigned long pcicstatus;
 	volatile unsigned long pcicmask;
 	volatile unsigned long unused5;
-	volatile unsigned long long p2gmgbase[3];	/* +180 */
+	volatile unsigned long long p2gmgbase[3];		/* +180 */
 	volatile unsigned long long p2giogbase;
-	volatile unsigned long g2pcfgadrs;	/* +1a0 */
+	volatile unsigned long g2pcfgadrs;		/* +1a0 */
 	volatile unsigned long g2pcfgdata;
 	volatile unsigned long unused6[8];
 	volatile unsigned long g2pintack;
 	volatile unsigned long g2pspc;
-	volatile unsigned long unused7[12];	/* +1d0 */
-	volatile unsigned long long pdmca;	/* +200 */
+	volatile unsigned long unused7[12];		/* +1d0 */
+	volatile unsigned long long pdmca;		/* +200 */
 	volatile unsigned long long pdmga;
 	volatile unsigned long long pdmpa;
 	volatile unsigned long long pdmctr;
-	volatile unsigned long long pdmcfg;	/* +220 */
+	volatile unsigned long long pdmcfg;		/* +220 */
 	volatile unsigned long long pdmsts;
 };
 
@@ -230,6 +231,7 @@ struct tx4938_aclc_reg {
 	volatile unsigned long unused5[15];
 	volatile unsigned long acrevid;
 };
+
 
 struct tx4938_tmr_reg {
 	volatile unsigned long tcr;
@@ -331,7 +333,7 @@ struct tx4938_ccfg_reg {
 #undef endian_def_b2s
 #undef endian_def_b4
 
-#endif				/* __ASSEMBLY__ */
+#endif /* __ASSEMBLY__ */
 
 /*
  * NDFMC
@@ -366,7 +368,7 @@ struct tx4938_ccfg_reg {
 #define TX4938_NUM_IR_SIO	2
 #define TX4938_IR_SIO(n)	(8 + (n))
 #define TX4938_NUM_IR_DMA	4
-#define TX4938_IR_DMA(ch,n)	((ch ? 27 : 10) + (n))	/* 10-13,27-30 */
+#define TX4938_IR_DMA(ch,n)	((ch ? 27 : 10) + (n)) /* 10-13,27-30 */
 #define TX4938_IR_PIO	14
 #define TX4938_IR_PDMAC	15
 #define TX4938_IR_PCIC	16
@@ -669,6 +671,7 @@ struct tx4938_ccfg_reg {
 #define TX4938_IRC_IRCS                 0xf6a0
 #define TX4938_IRC_LIMIT                0xf6ff
 
+
 #ifndef __ASSEMBLY__
 
 #define tx4938_sdramcptr	((struct tx4938_sdramc_reg *)TX4938_SDRAMC_REG)
@@ -686,6 +689,7 @@ struct tx4938_ccfg_reg {
 #define tx4938_spiptr		((struct tx4938_spi_reg *)TX4938_SPI_REG)
 #define tx4938_sramcptr		((struct tx4938_sramc_reg *)TX4938_SRAMC_REG)
 
+
 #define TX4938_REV_MAJ_MIN()	((unsigned long)tx4938_ccfgptr->crir & 0x00ff)
 #define TX4938_REV_PCODE()	((unsigned long)tx4938_ccfgptr->crir >> 16)
 
@@ -696,6 +700,7 @@ struct tx4938_ccfg_reg {
 #define TX4938_EBUSC_SIZE(ch)	\
 	(0x00100000 << ((unsigned long)(tx4938_ebuscptr->cr[ch] >> 8) & 0xf))
 
-#endif				/* !__ASSEMBLY__ */
+
+#endif /* !__ASSEMBLY__ */
 
 #endif
