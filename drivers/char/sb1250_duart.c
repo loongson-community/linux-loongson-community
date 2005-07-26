@@ -23,6 +23,7 @@
  */
 #include <linux/config.h>
 #include <linux/types.h>
+#include <linux/kernel.h>
 #include <linux/serial.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
@@ -50,7 +51,7 @@
 #include <asm/war.h>
 
 /* Toggle spewing of debugging output */
-#undef DUART_SPEW
+#undef DEBUG
 
 #define DEFAULT_CFLAGS          (CS8 | B115200)
 
@@ -222,9 +223,7 @@ static irqreturn_t duart_int(int irq, void *dev_id, struct pt_regs *regs)
 	struct tty_struct *tty = us->tty;
 	unsigned int status = READ_SERCSR(us->status, us->line);
 
-#ifdef DUART_SPEW
-	printk("DUART INT\n");
-#endif
+	pr_debug("DUART INT\n");
 
 	if (status & M_DUART_RX_RDY) {
 		int counter = 2048;
@@ -272,9 +271,7 @@ static int duart_write_room(struct tty_struct *tty)
 
 	retval = SERIAL_XMIT_SIZE - us->outp_count;
 
-#ifdef DUART_SPEW
-	printk("duart_write_room called, returning %i\n", retval);
-#endif
+	pr_debug("duart_write_room called, returning %i\n", retval);
 
 	return retval;
 }
@@ -307,9 +304,7 @@ static int duart_write(struct tty_struct *tty, const unsigned char *buf,
 	us = tty->driver_data;
 	if (!us) return 0;
 
-#ifdef DUART_SPEW
-	printk("duart_write called for %i chars by %i (%s)\n", count, current->pid, current->comm);
-#endif
+	pr_debug("duart_write called for %i chars by %i (%s)\n", count, current->pid, current->comm);
 
 	spin_lock_irqsave(&us->outp_lock, flags);
 
@@ -352,9 +347,7 @@ static void duart_put_char(struct tty_struct *tty, u_char ch)
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 	unsigned long flags;
 
-#ifdef DUART_SPEW
-	printk("duart_put_char called.  Char is %x (%c)\n", (int)ch, ch);
-#endif
+	pr_debug("duart_put_char called.  Char is %x (%c)\n", (int)ch, ch);
 
 	spin_lock_irqsave(&us->outp_lock, flags);
 
@@ -397,9 +390,8 @@ static int duart_chars_in_buffer(struct tty_struct *tty)
 
 	retval = us->outp_count;
 
-#ifdef DUART_SPEW
-	printk("duart_chars_in_buffer returning %i\n", retval);
-#endif
+	pr_debug("duart_chars_in_buffer returning %i\n", retval);
+
 	return retval;
 }
 
@@ -410,9 +402,7 @@ static void duart_flush_buffer(struct tty_struct *tty)
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 	unsigned long flags;
 
-#ifdef DUART_SPEW
-	printk("duart_flush_buffer called\n");
-#endif
+	pr_debug("duart_flush_buffer called\n");
 	spin_lock_irqsave(&us->outp_lock, flags);
 	us->outp_head = us->outp_tail = us->outp_count = 0;
 	spin_unlock_irqrestore(&us->outp_lock, flags);
@@ -480,9 +470,7 @@ static void duart_set_termios(struct tty_struct *tty, struct termios *old)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 
-#ifdef DUART_SPEW 
-	printk("duart_set_termios called by %i (%s)\n", current->pid, current->comm);
-#endif
+	pr_debug("duart_set_termios called by %i (%s)\n", current->pid, current->comm);
 	if (old && tty->termios->c_cflag == old->c_cflag)
 		return;
 	duart_set_cflag(us->line, tty->termios->c_cflag);
@@ -566,9 +554,7 @@ static void duart_start(struct tty_struct *tty)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 
-#ifdef DUART_SPEW
-	printk("duart_start called\n");
-#endif
+	pr_debug("duart_start called\n");
 
 	if (us->outp_count && !(us->flags & TX_INTEN)) {
 		us->flags |= TX_INTEN;
@@ -581,9 +567,7 @@ static void duart_stop(struct tty_struct *tty)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 
-#ifdef DUART_SPEW
-	printk("duart_stop called\n");
-#endif
+	pr_debug("duart_stop called\n");
 
 	if (us->outp_count && (us->flags & TX_INTEN)) {
 		us->flags &= ~TX_INTEN;
@@ -603,9 +587,7 @@ static void duart_wait_until_sent(struct tty_struct *tty, int timeout)
 	unsigned long orig_jiffies;
 
 	orig_jiffies = jiffies;
-#ifdef DUART_SPEW
-	printk("duart_wait_until_sent(%d)+\n", timeout);
-#endif
+	pr_debug("duart_wait_until_sent(%d)+\n", timeout);
 	while (!(READ_SERCSR(us->status, us->line) & M_DUART_TX_EMT)) {
 		set_current_state(TASK_INTERRUPTIBLE);
 	 	schedule_timeout(1);
@@ -614,9 +596,7 @@ static void duart_wait_until_sent(struct tty_struct *tty, int timeout)
 		if (timeout && time_after(jiffies, orig_jiffies + timeout))
 			break;
 	}
-#ifdef DUART_SPEW
-	printk("duart_wait_until_sent()-\n");
-#endif
+	pr_debug("duart_wait_until_sent()-\n");
 }
 
 /*
@@ -645,11 +625,9 @@ static int duart_open(struct tty_struct *tty, struct file *filp)
 	if ((line >= tty->driver->num) || !sb1250_duart_present[line])
 		return -ENODEV;
 
-#ifdef DUART_SPEW
-	printk("duart_open called by %i (%s), tty is %p, rw is %p, ww is %p\n",
+	pr_debug("duart_open called by %i (%s), tty is %p, rw is %p, ww is %p\n",
 	       current->pid, current->comm, tty, tty->read_wait,
 	       tty->write_wait);
-#endif
 
 	us = uart_states + line;
 	tty->driver_data = us;
@@ -678,9 +656,7 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 	unsigned long flags;
 
-#ifdef DUART_SPEW
-	printk("duart_close called by %i (%s)\n", current->pid, current->comm);
-#endif
+	pr_debug("duart_close called by %i (%s)\n", current->pid, current->comm);
 
 	if (!us || !us->open)
 		return;
