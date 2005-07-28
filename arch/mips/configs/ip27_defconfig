@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc3
-# Mon Jul 25 18:44:31 2005
+# Thu Jul 28 19:44:28 2005
 #
 CONFIG_MIPS=y
 
@@ -434,7 +434,7 @@ CONFIG_SCSI_ISCSI_ATTRS=m
 # CONFIG_SCSI_IPR is not set
 # CONFIG_SCSI_QLOGIC_FC is not set
 CONFIG_SCSI_QLOGIC_1280=y
-# CONFIG_SCSI_QLOGIC_1280_1040 is not set
+CONFIG_SCSI_QLOGIC_1280_1040=y
 CONFIG_SCSI_QLA2XXX=y
 # CONFIG_SCSI_QLA21XX is not set
 # CONFIG_SCSI_QLA22XX is not set
