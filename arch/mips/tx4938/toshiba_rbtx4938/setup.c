@@ -50,10 +50,10 @@ unsigned int txx9_gbus_clock;
 
 unsigned long rbtx4938_ce_base[8];
 unsigned long rbtx4938_ce_size[8];
-int txboard_pci66_mode = 0;
+int txboard_pci66_mode;
+static int tx4938_pcic_trdyto;	/* default: disabled */
+static int tx4938_pcic_retryto;	/* default: disabled */
 static int tx4938_ccfg_toeon = 1;
-static int tx4938_pcic_trdyto = 0;	/* default: disabled */
-static int tx4938_pcic_retryto = 0;	/* default: disabled */
 
 struct tx4938_pcic_reg *pcicptrs[4] = {
        tx4938_pcicptr  /* default setting for TX4938 */
