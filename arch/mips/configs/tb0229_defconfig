@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc3
-# Mon Jul 25 18:45:45 2005
+# Linux kernel version: 2.6.13-rc4
+# Mon Aug  1 17:43:49 2005
 #
 CONFIG_MIPS=y
 
@@ -229,8 +229,9 @@ CONFIG_XFRM_USER=m
 CONFIG_INET=y
 CONFIG_IP_MULTICAST=y
 CONFIG_IP_ADVANCED_ROUTER=y
-CONFIG_IP_FIB_HASH=y
+CONFIG_ASK_IP_FIB_HASH=y
 # CONFIG_IP_FIB_TRIE is not set
+CONFIG_IP_FIB_HASH=y
 CONFIG_IP_MULTIPLE_TABLES=y
 CONFIG_IP_ROUTE_MULTIPATH=y
 # CONFIG_IP_ROUTE_MULTIPATH_CACHED is not set
@@ -279,8 +280,6 @@ CONFIG_TCP_CONG_BIC=y
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-# CONFIG_NETPOLL is not set
-# CONFIG_NET_POLL_CONTROLLER is not set
 # CONFIG_HAMRADIO is not set
 # CONFIG_IRDA is not set
 # CONFIG_BT is not set
@@ -472,6 +471,8 @@ CONFIG_SLIP_SMART=y
 CONFIG_SLIP_MODE_SLIP6=y
 # CONFIG_SHAPER is not set
 # CONFIG_NETCONSOLE is not set
+# CONFIG_NETPOLL is not set
+# CONFIG_NET_POLL_CONTROLLER is not set
 
 #
 # ISDN subsystem

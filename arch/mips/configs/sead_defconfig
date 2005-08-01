@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc3
-# Mon Jul 25 18:45:38 2005
+# Linux kernel version: 2.6.13-rc4
+# Mon Aug  1 17:43:44 2005
 #
 CONFIG_MIPS=y
 
@@ -280,6 +280,8 @@ CONFIG_IOSCHED_CFQ=y
 #
 # Network device support
 #
+# CONFIG_NETPOLL is not set
+# CONFIG_NET_POLL_CONTROLLER is not set
 
 #
 # ISDN subsystem

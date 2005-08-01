@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc3
-# Mon Jul 25 18:45:50 2005
+# Linux kernel version: 2.6.13-rc4
+# Mon Aug  1 17:43:52 2005
 #
 CONFIG_MIPS=y
 
@@ -266,8 +266,6 @@ CONFIG_IPV6_TUNNEL=m
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-# CONFIG_NETPOLL is not set
-# CONFIG_NET_POLL_CONTROLLER is not set
 # CONFIG_HAMRADIO is not set
 # CONFIG_IRDA is not set
 # CONFIG_BT is not set
@@ -422,6 +420,8 @@ CONFIG_TITAN_GE=y
 # CONFIG_FDDI is not set
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
+# CONFIG_NETPOLL is not set
+# CONFIG_NET_POLL_CONTROLLER is not set
 
 #
 # ISDN subsystem
