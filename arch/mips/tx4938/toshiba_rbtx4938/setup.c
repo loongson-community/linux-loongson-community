@@ -411,7 +411,8 @@ tx4938_pciclk66_setup(void)
 	tx4938_ccfgptr->ccfg |= TX4938_CCFG_PCI66;
 	/* Double PCICLK (if possible) */
 	if (tx4938_ccfgptr->pcfg & TX4938_PCFG_PCICLKEN_ALL) {
-		unsigned int pcidivmode = 0;
+		unsigned int pcidivmode =
+			tx4938_ccfgptr->ccfg & TX4938_CCFG_PCIDIVMODE_MASK;
 		switch (pcidivmode) {
 		case TX4938_CCFG_PCIDIVMODE_8:
 		case TX4938_CCFG_PCIDIVMODE_4:
