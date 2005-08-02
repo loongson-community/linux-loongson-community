@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc4
-# Mon Aug  1 17:43:12 2005
+# Tue Aug  2 15:40:35 2005
 #
 CONFIG_MIPS=y
 
@@ -110,13 +110,6 @@ CONFIG_MACH_VR41XX=y
 # CONFIG_TOSHIBA_JMR3927 is not set
 # CONFIG_TOSHIBA_RBTX4927 is not set
 # CONFIG_TOSHIBA_RBTX4938 is not set
-
-#
-# Multiplex Pin Select
-#
-CONFIG_TOSHIBA_RBTX4938_MPLEX_PIO58_61=y
-# CONFIG_TOSHIBA_RBTX4938_MPLEX_NAND is not set
-# CONFIG_TOSHIBA_RBTX4938_MPLEX_ATA is not set
 # CONFIG_NEC_CMBVR4133 is not set
 # CONFIG_CASIO_E55 is not set
 # CONFIG_IBM_WORKPAD is not set
