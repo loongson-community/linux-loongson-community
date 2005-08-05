@@ -126,11 +126,10 @@ void prom_putchar(char c)
 {
 	if (pnx8550_console_port != -1) {
 		/* Wait until FIFO not full */
-		while( ((IP3106_UART_FIFO(1)
-			& IP3106_UART_FIFO_TXFIFO) >> 16) >= 16)
+		while( ((ip3106_fifo(UART_BASE, pnx8550_console_port) & IP3106_UART_FIFO_TXFIFO) >> 16) >= 16)
 			;
 		/* Send one char */
-		IP3106_UART_FIFO(1) = c;
+		ip3106_fifo(UART_BASE, pnx8550_console_port) = c;
 	}
 }
 

@@ -51,27 +51,27 @@ void rs_kgdb_hook(int tty_no)
 	 * Clear all interrupts
 	 */
 	/* Clear all the transmitter FIFO counters (pointer and status) */
-	IP3106_UART_LCR(tty_no) |= IP3106_UART_LCR_TX_RST;
+	ip3106_lcr(UART_BASE, tty_no) |= IP3106_UART_LCR_TX_RST;
 	/* Clear all the receiver FIFO counters (pointer and status) */
-	IP3106_UART_LCR(tty_no) |= IP3106_UART_LCR_RX_RST;
+	ip3106_lcr(UART_BASE, tty_no) |= IP3106_UART_LCR_RX_RST;
 	/* Clear all interrupts */
-	IP3106_UART_ICLR(tty_no) = IP3106_UART_INT_ALLRX |
+	ip3106_iclr(UART_BASE, tty_no) = IP3106_UART_INT_ALLRX | 
 		IP3106_UART_INT_ALLTX;
 
 	/*
 	 * Now, initialize the UART
 	 */
-	IP3106_UART_LCR(tty_no) = IP3106_UART_LCR_8BIT;
-	IP3106_UART_BAUD(tty_no) = 5; // 38400 Baud
+	ip3106_lcr(UART_BASE, tty_no) = IP3106_UART_LCR_8BIT;
+	ip3106_baud(UART_BASE, tty_no) = 5; // 38400 Baud
 }
 
 int putDebugChar(char c)
 {
 	/* Wait until FIFO not full */
-	while (((IP3106_UART_FIFO(kdb_port_info.port) & IP3106_UART_FIFO_TXFIFO) >> 16) >= 16)
+	while (((ip3106_fifo(UART_BASE, kdb_port_info.port) & IP3106_UART_FIFO_TXFIFO) >> 16) >= 16)
 		;
 	/* Send one char */
-	IP3106_UART_FIFO(kdb_port_info.port) = c;
+	ip3106_fifo(UART_BASE, kdb_port_info.port) = c;
 
 	return 1;
 }
@@ -81,29 +81,30 @@ char getDebugChar(void)
 	char ch;
 
 	/* Wait until there is a char in the FIFO */
-	while (!((IP3106_UART_FIFO(kdb_port_info.port) &
+	while (!((ip3106_fifo(UART_BASE, kdb_port_info.port) & 
 					IP3106_UART_FIFO_RXFIFO) >> 8))
 		;
 	/* Read one char */
-	ch = IP3106_UART_FIFO(kdb_port_info.port) & IP3106_UART_FIFO_RBRTHR;
+	ch = ip3106_fifo(UART_BASE, kdb_port_info.port) & 
+		IP3106_UART_FIFO_RBRTHR;
 	/* Advance the RX FIFO read pointer */
-	IP3106_UART_LCR(kdb_port_info.port) |= IP3106_UART_LCR_RX_NEXT;
+	ip3106_lcr(UART_BASE, kdb_port_info.port) |= IP3106_UART_LCR_RX_NEXT;
 	return (ch);
 }
 
 void rs_disable_debug_interrupts(void)
 {
-	IP3106_UART_IEN(kdb_port_info.port) = 0; /* Disable all interrupts */
+	ip3106_ien(UART_BASE, kdb_port_info.port) = 0; /* Disable all interrupts */
 }
 
 void rs_enable_debug_interrupts(void)
 {
 	/* Clear all the transmitter FIFO counters (pointer and status) */
-	IP3106_UART_LCR(kdb_port_info.port) |= IP3106_UART_LCR_TX_RST;
+	ip3106_lcr(UART_BASE, kdb_port_info.port) |= IP3106_UART_LCR_TX_RST;
 	/* Clear all the receiver FIFO counters (pointer and status) */
-	IP3106_UART_LCR(kdb_port_info.port) |= IP3106_UART_LCR_RX_RST;
+	ip3106_lcr(UART_BASE, kdb_port_info.port) |= IP3106_UART_LCR_RX_RST;
 	/* Clear all interrupts */
-	IP3106_UART_ICLR(kdb_port_info.port) = IP3106_UART_INT_ALLRX |
+	ip3106_iclr(UART_BASE, kdb_port_info.port) = IP3106_UART_INT_ALLRX |
 		IP3106_UART_INT_ALLTX;
-	IP3106_UART_IEN(kdb_port_info.port)  = IP3106_UART_INT_ALLRX;	/* Enable RX interrupts */
+	ip3106_ien(UART_BASE, kdb_port_info.port)  = IP3106_UART_INT_ALLRX; /* Enable RX interrupts */
 }

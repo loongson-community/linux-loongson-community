@@ -129,8 +129,9 @@ void __init plat_setup(void)
 
 		/* We must initialize the UART (console) before prom_printf */
 		/* Set LCR to 8-bit and BAUD to 38400 (no 5)                */
-		IP3106_UART_LCR(pnx8550_console_port) = IP3106_UART_LCR_8BIT;
-		IP3106_UART_BAUD(pnx8550_console_port) = 5;
+		ip3106_lcr(UART_BASE, pnx8550_console_port) = 
+			IP3106_UART_LCR_8BIT;
+		ip3106_baud(UART_BASE, pnx8550_console_port) = 5;
 	}
 
 #ifdef CONFIG_KGDB

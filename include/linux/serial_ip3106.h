@@ -78,4 +78,16 @@ struct ip3106_port {
 #define IP3106_UART_FIFO_RXFIFO		0x00001F00
 #define IP3106_UART_FIFO_RBRTHR		0x000000FF
 
+#define ip3106_lcr(base,port)    *(volatile u32 *)(base+(port*0x1000) + 0x000)
+#define ip3106_mcr(base, port)   *(volatile u32 *)(base+(port*0x1000) + 0x004)
+#define ip3106_baud(base, port)  *(volatile u32 *)(base+(port*0x1000) + 0x008)
+#define ip3106_cfg(base, port)   *(volatile u32 *)(base+(port*0x1000) + 0x00C)
+#define ip3106_fifo(base, port)	 *(volatile u32 *)(base+(port*0x1000) + 0x028)
+#define ip3106_istat(base, port) *(volatile u32 *)(base+(port*0x1000) + 0xFE0)
+#define ip3106_ien(base, port)   *(volatile u32 *)(base+(port*0x1000) + 0xFE4)
+#define ip3106_iclr(base, port)  *(volatile u32 *)(base+(port*0x1000) + 0xFE8)
+#define ip3106_iset(base, port)  *(volatile u32 *)(base+(port*0x1000) + 0xFEC)
+#define ip3106_pd(base, port)    *(volatile u32 *)(base+(port*0x1000) + 0xFF4)
+#define ip3106_mid(base, port)   *(volatile u32 *)(base+(port*0x1000) + 0xFFC)
+
 #endif
