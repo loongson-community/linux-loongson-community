@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc5
-# Wed Aug  3 11:18:38 2005
+# Fri Aug  5 16:03:16 2005
 #
 CONFIG_MIPS=y
 
@@ -160,8 +160,6 @@ CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_16KB is not set
 # CONFIG_PAGE_SIZE_64KB is not set
 CONFIG_CPU_HAS_PREFETCH=y
-# CONFIG_VTAG_ICACHE is not set
-# CONFIG_CPU_MIPS32_24K is not set
 # CONFIG_MIPS_MT is not set
 CONFIG_64BIT_PHYS_ADDR=y
 # CONFIG_CPU_ADVANCED is not set

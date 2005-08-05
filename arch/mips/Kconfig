@@ -1228,14 +1228,6 @@ config SIBYTE_DMA_PAGEOPS
 config CPU_HAS_PREFETCH
 	bool
 
-config CPU_MIPS32_24K
-	bool "Support for MIPS 24K/34K CPUs" if CPU_MIPS32
-	default y if MIPS_BOARDS_GEN
-	help
-	  Include support for the MIPS 24K and 34K. This option is necessary
-	  for correct operation of the kernel on a 24K or 34K.  It incurs a
-	  minor overhead for other MIPS32 processors. If in doubt say yes.
-
 config MIPS_MT
 	bool "Enable MIPS MT"
 
