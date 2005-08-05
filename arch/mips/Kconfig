@@ -1228,10 +1228,6 @@ config SIBYTE_DMA_PAGEOPS
 config CPU_HAS_PREFETCH
 	bool
 
-config VTAG_ICACHE
-	bool "Support for Virtual Tagged I-cache" if CPU_MIPS64 || CPU_MIPS32
-	default y if CPU_SB1 || MIPS_BOARDS_GEN
-
 config CPU_MIPS32_24K
 	bool "Support for MIPS 24K/34K CPUs" if CPU_MIPS32
 	default y if MIPS_BOARDS_GEN
