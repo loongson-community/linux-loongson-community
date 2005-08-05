@@ -1282,7 +1282,7 @@ config CPU_ADVANCED
 
 config CPU_HAS_LLSC
 	bool "ll/sc Instructions available" if CPU_ADVANCED
-	default y if !CPU_R3000 && !CPU_VR41XX && !CPU_TX39XX
+	default y if !CPU_ADVANCED && !CPU_R3000 && !CPU_VR41XX && !CPU_TX39XX
 	help
 	  MIPS R4000 series and later provide the Load Linked (ll)
 	  and Store Conditional (sc) instructions. More information is
@@ -1302,7 +1302,7 @@ config CPU_HAS_LLDSCD
 
 config CPU_HAS_WB
 	bool "Writeback Buffer available" if CPU_ADVANCED
-	default y if CPU_R3000 && MACH_DECSTATION
+	default y if !CPU_ADVANCED && CPU_R3000 && MACH_DECSTATION
 	help
 	  Say N here for slightly better performance.  You must say Y here for
 	  machines which require flushing of write buffers in software.  Saying
