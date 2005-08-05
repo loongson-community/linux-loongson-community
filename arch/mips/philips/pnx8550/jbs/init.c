@@ -52,6 +52,7 @@ void __init prom_init(void)
 	mips_machgroup = MACH_GROUP_PHILIPS;
 	mips_machtype = MACH_PHILIPS_JBS;
 
-	memsize = 0x02800000; /* Trimedia uses memory above */
+	//memsize = 0x02800000; /* Trimedia uses memory above */
+	memsize = 0x08000000; /* Trimedia uses memory above */
 	add_memory_region(0, memsize, BOOT_MEM_RAM);
 }

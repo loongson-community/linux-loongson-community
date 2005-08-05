@@ -26,7 +26,7 @@
  */
 
 #include <linux/init.h>
-#include <asm/mach-pnx8550/int.h>
+#include <int.h>
 
 char irq_tab_jbs[][5] __initdata = {
  [8] =	{ -1, PNX8550_INT_PCI_INTA, 0xff, 0xff, 0xff},

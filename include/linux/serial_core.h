@@ -39,7 +39,7 @@
 #define PORT_RSA	13
 #define PORT_NS16550A	14
 #define PORT_XSCALE	15
-#define PORT_PNX8550	16
+#define PORT_IP3106	16
 #define PORT_MAX_8250	16	/* max port ID */
 
 /*

@@ -23,7 +23,7 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <asm/reboot.h>
-#include <asm/mach-pnx8550/glb.h>
+#include <glb.h>
 
 void pnx8550_machine_restart(char *command)
 {

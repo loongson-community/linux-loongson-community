@@ -24,8 +24,8 @@
 
 #include <asm/io.h>
 #include <asm/gdb-stub.h>
-#include <asm/mach-pnx8550/int.h>
-#include <asm/mach-pnx8550/uart.h>
+#include <int.h>
+#include <uart.h>
 
 
 static int pnx8550_timers_read (char* page, char** start, off_t offset, int count, int* eof, void* data)

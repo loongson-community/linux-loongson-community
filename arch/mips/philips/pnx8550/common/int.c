@@ -35,8 +35,8 @@
 
 #include <asm/io.h>
 #include <asm/gdb-stub.h>
-#include <asm/mach-pnx8550/int.h>
-#include <asm/mach-pnx8550/uart.h>
+#include <int.h>
+#include <uart.h>
 
 extern asmlinkage void cp0_irqdispatch(void);
 

@@ -39,7 +39,7 @@
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
 
-#include <asm/mach-pnx8550/glb.h>
+#include <glb.h>
 
 /* CP0 hazard avoidance. */
 #define BARRIER __asm__ __volatile__(".set noreorder\n\t" \

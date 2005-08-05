@@ -24,9 +24,9 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include <asm/mach-pnx8550/pci.h>
-#include <asm/mach-pnx8550/glb.h>
-#include <asm/mach-pnx8550/nand.h>
+#include <pci.h>
+#include <glb.h>
+#include <nand.h>
 
 static struct resource pci_io_resource = {
 	"pci IO space",

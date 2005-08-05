@@ -24,6 +24,7 @@
 #include <linux/mm.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/serial_ip3106.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
@@ -33,15 +34,14 @@
 #include <asm/pgtable.h>
 #include <asm/time.h>
 
-#include <asm/mach-pnx8550/glb.h>
-#include <asm/mach-pnx8550/int.h>
-#include <asm/mach-pnx8550/pci.h>
-#include <asm/mach-pnx8550/uart.h>
-#include <asm/mach-pnx8550/nand.h>
+#include <glb.h>
+#include <int.h>
+#include <pci.h>
+#include <uart.h>
+#include <nand.h>
 
 extern void prom_printf(char *fmt, ...);
 
-extern char * __init prom_getcmdline(void);
 extern void __init board_setup(void);
 extern void pnx8550_machine_restart(char *);
 extern void pnx8550_machine_halt(void);
@@ -52,10 +52,7 @@ extern void (*board_time_init)(void);
 extern void pnx8550_time_init(void);
 extern void (*board_timer_setup)(struct irqaction *irq);
 extern void pnx8550_timer_setup(struct irqaction *irq);
-
-extern void set_cpuspec(void);
-
-extern void pnx8550_irq_setup(void);
+extern void rs_kgdb_hook(int tty_no);
 extern void prom_printf(char *fmt, ...);
 extern char *prom_getcmdline(void);
 
@@ -82,10 +79,12 @@ unsigned long get_system_mem_size(void)
 	return dram_r1_hi - dram_r0_lo + 1;
 }
 
+int pnx8550_console_port = -1;
+
 void __init plat_setup(void)
 {
-	char* argptr;
 	int i;
+	char* argptr;
 
 	board_setup();  /* board specific setup */
 
@@ -124,19 +123,25 @@ void __init plat_setup(void)
 			PNX8550_GPIO_MC1);
 
 	argptr = prom_getcmdline();
+	if ((argptr = strstr(argptr, "console=ttyS")) != NULL) {
+		argptr += strlen("console=ttyS");
+		pnx8550_console_port = *argptr == '0' ? 0 : 1;
+
+		/* We must initialize the UART (console) before prom_printf */
+		/* Set LCR to 8-bit and BAUD to 38400 (no 5)                */
+		IP3106_UART_LCR(pnx8550_console_port) = IP3106_UART_LCR_8BIT;
+		IP3106_UART_BAUD(pnx8550_console_port) = 5;
+	}
+
 #ifdef CONFIG_KGDB
+	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
 		int line;
 		argptr += strlen("kgdb=ttyS");
 		line = *argptr == '0' ? 0 : 1;
 		rs_kgdb_hook(line);
-
-		/* We must initialize the UART (console) before prom_printf */
-		/* Set LCR to 8-bit and BAUD to 38400 (no 5)                */
-		PNX8550_UART_LCR(PNX8550_CONSOLE_PORT) = PNX8550_UART_LCR_8BIT;
-		PNX8550_UART_BAUD(PNX8550_CONSOLE_PORT) = 5;
-		prom_printf("KGDB: Using serial line /dev/ttyS%i for session, "
-			    "please connect your debugger\n", line ? 1 : 0);
+		prom_printf("KGDB: Using ttyS%i for session, "
+				"please connect your debugger\n", line ? 1 : 0);
 	}
 #endif
 	return;

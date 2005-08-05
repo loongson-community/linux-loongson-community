@@ -31,8 +31,8 @@
 #include <asm/div64.h>
 #include <asm/debug.h>
 
-#include <asm/mach-pnx8550/int.h>
-#include <asm/mach-pnx8550/cm.h>
+#include <int.h>
+#include <cm.h>
 
 extern unsigned int mips_hpt_frequency;
 

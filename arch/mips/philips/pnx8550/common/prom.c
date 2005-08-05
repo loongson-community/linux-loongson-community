@@ -13,9 +13,10 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/string.h>
+#include <linux/serial_ip3106.h>
 
 #include <asm/bootinfo.h>
-#include <asm/mach-pnx8550/uart.h>
+#include <uart.h>
 
 /* #define DEBUG_CMDLINE */
 
@@ -118,14 +119,19 @@ unsigned long __init prom_free_prom_memory(void)
 	return 0;
 }
 
+extern int pnx8550_console_port;
+
+/* used by prom_printf */
 void prom_putchar(char c)
 {
-	/* Wait until FIFO not full */
-	while( ((PNX8550_UART_FIFO(PNX8550_CONSOLE_PORT)
-                & PNX8550_UART_FIFO_TXFIFO) >> 16) >= 16)
-		;
-	/* Send one char */
-	PNX8550_UART_FIFO(PNX8550_CONSOLE_PORT) = c;
+	if (pnx8550_console_port != -1) {
+		/* Wait until FIFO not full */
+		while( ((IP3106_UART_FIFO(1)
+			& IP3106_UART_FIFO_TXFIFO) >> 16) >= 16)
+			;
+		/* Send one char */
+		IP3106_UART_FIFO(1) = c;
+	}
 }
 
 EXPORT_SYMBOL(prom_getcmdline);
