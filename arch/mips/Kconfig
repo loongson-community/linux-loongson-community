@@ -1226,8 +1226,7 @@ config SIBYTE_DMA_PAGEOPS
 	  SiByte Linux port.  Seems to give a small performance benefit.
 
 config CPU_HAS_PREFETCH
-	bool "Enable prefetches" if MIPS_BOARDS_GEN || (CPU_SB1 && !CPU_SB1_PASS_2)
-	default y if !MIPS_BOARDS_GEN && (CPU_MIPS32 || CPU_MIPS64 || CPU_RM7000 || CPU_RM9000 || CPU_R10000)
+	bool
 
 config VTAG_ICACHE
 	bool "Support for Virtual Tagged I-cache" if CPU_MIPS64 || CPU_MIPS32
