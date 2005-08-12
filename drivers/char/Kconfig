@@ -97,7 +97,7 @@ config ROCKETPORT
 	tristate "Comtrol RocketPort support"
 	depends on SERIAL_NONSTANDARD
 	help
-	  This driver supports Comtrol RocketPort and RocketModem PCI boards.   
+	  This driver supports Comtrol RocketPort and RocketModem PCI boards.
           These boards provide 2, 4, 8, 16, or 32 high-speed serial ports or
           modems.  For information about the RocketPort/RocketModem  boards
           and this driver read <file:Documentation/rocket.txt>.
@@ -886,8 +886,14 @@ config SONYPI
 	  module will be called sonypi.
 
 config TANBAC_TB0219
-	tristate "TANBAC TB0219 base board support"
-	depends TANBAC_TB0229
+	tristate "TANBAC TB0219 (VR4131DIMM-EK) Evaluation board support"
+	depends TANBAC_TB022X
+	select PCI
+	select PCI_VR41XX
+	help
+	  The TANBAC TB0219 (VR4131DIMM-EK) is a Evaluation board for VR4131DIMM
+	  manufactured by TANBAC.
+	  Please refer to <http://www.tanbac.co.jp/> about VR4131DIMM-EK.
 
 
 menu "Ftape, the floppy tape device driver"
@@ -981,8 +987,8 @@ config GPIO_VR41XX
 config RAW_DRIVER
 	tristate "RAW driver (/dev/raw/rawN) (OBSOLETE)"
 	help
-	  The raw driver permits block devices to be bound to /dev/raw/rawN. 
-	  Once bound, I/O against /dev/raw/rawN uses efficient zero-copy I/O. 
+	  The raw driver permits block devices to be bound to /dev/raw/rawN.
+	  Once bound, I/O against /dev/raw/rawN uses efficient zero-copy I/O.
 	  See the raw(8) manpage for more details.
 
           The raw driver is deprecated and will be removed soon.

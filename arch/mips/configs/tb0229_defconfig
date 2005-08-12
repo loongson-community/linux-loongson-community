@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc6
-# Wed Aug 10 15:06:36 2005
+# Fri Aug 12 17:39:34 2005
 #
 CONFIG_MIPS=y
 
@@ -113,8 +113,8 @@ CONFIG_MACH_VR41XX=y
 # CONFIG_NEC_CMBVR4133 is not set
 # CONFIG_CASIO_E55 is not set
 # CONFIG_IBM_WORKPAD is not set
-# CONFIG_TANBAC_TB0226 is not set
-CONFIG_TANBAC_TB0229=y
+CONFIG_TANBAC_TB022X=y
+CONFIG_TANBAC_TB0226=y
 # CONFIG_VICTOR_MPC30X is not set
 # CONFIG_ZAO_CAPCELLA is not set
 CONFIG_PCI_VR41XX=y
@@ -186,8 +186,8 @@ CONFIG_PREEMPT_NONE=y
 #
 CONFIG_HW_HAS_PCI=y
 CONFIG_PCI=y
-CONFIG_PCI_LEGACY_PROC=y
-CONFIG_PCI_NAMES=y
+# CONFIG_PCI_LEGACY_PROC is not set
+# CONFIG_PCI_NAMES is not set
 CONFIG_MMU=y
 
 #
@@ -393,26 +393,7 @@ CONFIG_MII=y
 #
 # CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
-CONFIG_NET_PCI=y
-CONFIG_PCNET32=y
-# CONFIG_AMD8111_ETH is not set
-# CONFIG_ADAPTEC_STARFIRE is not set
-# CONFIG_B44 is not set
-# CONFIG_FORCEDETH is not set
-# CONFIG_DGRS is not set
-CONFIG_EEPRO100=y
-# CONFIG_E100 is not set
-# CONFIG_FEALNX is not set
-# CONFIG_NATSEMI is not set
-# CONFIG_NE2K_PCI is not set
-# CONFIG_8139CP is not set
-# CONFIG_8139TOO is not set
-# CONFIG_SIS900 is not set
-# CONFIG_EPIC100 is not set
-# CONFIG_SUNDANCE is not set
-# CONFIG_TLAN is not set
-# CONFIG_VIA_RHINE is not set
-# CONFIG_LAN_SAA9730 is not set
+# CONFIG_NET_PCI is not set
 
 #
 # Ethernet (1000 Mbit)
@@ -426,7 +407,6 @@ CONFIG_EEPRO100=y
 # CONFIG_R8169 is not set
 # CONFIG_SKGE is not set
 # CONFIG_SK98LIN is not set
-# CONFIG_VIA_VELOCITY is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_BNX2 is not set
 
@@ -557,7 +537,7 @@ CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
-CONFIG_TANBAC_TB0219=y
+# CONFIG_TANBAC_TB0219 is not set
 
 #
 # Ftape, the floppy tape device driver

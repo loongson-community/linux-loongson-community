@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc6
-# Wed Aug 10 15:06:01 2005
+# Fri Aug 12 17:32:20 2005
 #
 CONFIG_MIPS=y
 
@@ -113,8 +113,7 @@ CONFIG_MACH_VR41XX=y
 # CONFIG_NEC_CMBVR4133 is not set
 CONFIG_CASIO_E55=y
 # CONFIG_IBM_WORKPAD is not set
-# CONFIG_TANBAC_TB0226 is not set
-# CONFIG_TANBAC_TB0229 is not set
+# CONFIG_TANBAC_TB022X is not set
 # CONFIG_VICTOR_MPC30X is not set
 # CONFIG_ZAO_CAPCELLA is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
