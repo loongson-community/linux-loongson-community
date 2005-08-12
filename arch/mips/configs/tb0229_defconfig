@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc6
-# Fri Aug 12 17:39:34 2005
+# Fri Aug 12 17:56:19 2005
 #
 CONFIG_MIPS=y
 
@@ -543,7 +543,7 @@ CONFIG_LEGACY_PTY_COUNT=256
 # Ftape, the floppy tape device driver
 #
 # CONFIG_DRM is not set
-# CONFIG_GPIO_VR41XX is not set
+CONFIG_GPIO_VR41XX=y
 # CONFIG_RAW_DRIVER is not set
 
 #
