@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc6
-# Wed Aug 10 15:06:29 2005
+# Mon Aug 15 12:09:48 2005
 #
 CONFIG_MIPS=y
 
@@ -234,6 +234,7 @@ CONFIG_TCP_CONG_BIC=y
 #
 # Network testing
 #
+# CONFIG_NET_PKTGEN is not set
 # CONFIG_HAMRADIO is not set
 # CONFIG_IRDA is not set
 # CONFIG_BT is not set
@@ -578,7 +579,8 @@ CONFIG_INOTIFY=y
 #
 # Pseudo filesystems
 #
-# CONFIG_PROC_FS is not set
+CONFIG_PROC_FS=y
+CONFIG_PROC_KCORE=y
 # CONFIG_SYSFS is not set
 # CONFIG_TMPFS is not set
 # CONFIG_HUGETLB_PAGE is not set
