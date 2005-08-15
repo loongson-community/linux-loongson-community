@@ -6,6 +6,11 @@ extern void qvga_init(void);
 
 #define QEMU_PORT_BASE 0xb4000000
 
+const char *get_system_type(void)
+{
+	return "Qemu";
+}
+
 static void __init qemu_timer_setup(struct irqaction *irq)
 {
 	/* set the clock to 100 Hz */
