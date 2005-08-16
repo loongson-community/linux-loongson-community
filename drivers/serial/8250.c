@@ -2137,8 +2137,10 @@ serial8250_console_write(struct console *co, const char *s, unsigned int count)
 	unsigned int ier;
 	int i;
 
+	spin_lock(&up->port.lock); 
+
 	/*
-	 *	First save the UER then disable the interrupts
+	 *	First save the IER then disable the interrupts
 	 */
 	ier = serial_in(up, UART_IER);
 
@@ -2170,6 +2172,8 @@ serial8250_console_write(struct console *co, const char *s, unsigned int count)
 	 */
 	wait_for_xmitr(up);
 	serial_out(up, UART_IER, ier);
+
+	spin_unlock(&up->port.lock);
 }
 
 static int serial8250_console_setup(struct console *co, char *options)
