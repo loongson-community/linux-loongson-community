@@ -18,14 +18,25 @@
 
 typedef struct {
 	volatile unsigned int lock;
+#ifdef CONFIG_DEBUG_SPINLOCK
+	unsigned int magic;
+#endif
 #ifdef CONFIG_PREEMPT
 	unsigned int break_lock;
 #endif
 } spinlock_t;
 
-#define SPIN_LOCK_UNLOCKED (spinlock_t) { 0 }
+#define SPINLOCK_MAGIC	0xdead4ead
 
-#define spin_lock_init(x)	do { (x)->lock = 0; } while(0)
+#ifdef CONFIG_DEBUG_SPINLOCK
+#define SPINLOCK_MAGIC_INIT	, SPINLOCK_MAGIC
+#else
+#define SPINLOCK_MAGIC_INIT	/* */
+#endif
+
+#define SPIN_LOCK_UNLOCKED (spinlock_t) { 0 SPINLOCK_MAGIC_INIT }
+
+#define spin_lock_init(x)	do { *(x) = SPIN_LOCK_UNLOCKED; } while(0)
 
 #define spin_is_locked(x)	((x)->lock != 0)
 #define spin_unlock_wait(x)	do { barrier(); } while ((x)->lock)
@@ -41,6 +52,14 @@ typedef struct {
 static inline void _raw_spin_lock(spinlock_t *lock)
 {
 	unsigned int tmp;
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+here:
+	if (unlikely(lock->magic != SPINLOCK_MAGIC)) {
+		printk("eip: %p\n", &&here);
+		BUG();
+	}
+#endif
 
 	if (R10000_LLSC_WAR) {
 		__asm__ __volatile__(
@@ -74,6 +93,10 @@ static inline void _raw_spin_lock(spinlock_t *lock)
 
 static inline void _raw_spin_unlock(spinlock_t *lock)
 {
+#ifdef CONFIG_DEBUG_SPINLOCK
+	BUG_ON(lock->magic != SPINLOCK_MAGIC);
+	BUG_ON(!spin_is_locked(lock));
+#endif
 	__asm__ __volatile__(
 	"	.set	noreorder	# _raw_spin_unlock	\n"
 	"	sync						\n"
@@ -131,12 +154,23 @@ static inline unsigned int _raw_spin_trylock(spinlock_t *lock)
 
 typedef struct {
 	volatile unsigned int lock;
+#ifdef CONFIG_DEBUG_SPINLOCK
+	unsigned magic;
+#endif
 #ifdef CONFIG_PREEMPT
 	unsigned int break_lock;
 #endif
 } rwlock_t;
 
-#define RW_LOCK_UNLOCKED (rwlock_t) { 0 }
+#define RWLOCK_MAGIC	0xdeaf1eed
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+#define RWLOCK_MAGIC_INIT	, RWLOCK_MAGIC
+#else
+#define RWLOCK_MAGIC_INIT	/* */
+#endif
+
+#define RW_LOCK_UNLOCKED (rwlock_t) { 0 RWLOCK_MAGIC_INIT }
 
 #define rwlock_init(x)  do { *(x) = RW_LOCK_UNLOCKED; } while(0)
 
@@ -156,6 +190,9 @@ static inline void _raw_read_lock(rwlock_t *rw)
 {
 	unsigned int tmp;
 
+#ifdef CONFIG_DEBUG_SPINLOCK
+	BUG_ON(rw->magic != RWLOCK_MAGIC);
+#endif
 	if (R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	noreorder	# _raw_read_lock	\n"
@@ -193,6 +230,9 @@ static inline void _raw_read_unlock(rwlock_t *rw)
 {
 	unsigned int tmp;
 
+#ifdef CONFIG_DEBUG_SPINLOCK
+	BUG_ON(rw->magic != RWLOCK_MAGIC);
+#endif
 	if (R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"1:	ll	%1, %2		# _raw_read_unlock	\n"
@@ -222,6 +262,9 @@ static inline void _raw_write_lock(rwlock_t *rw)
 {
 	unsigned int tmp;
 
+#ifdef CONFIG_DEBUG_SPINLOCK
+	BUG_ON(rw->magic != RWLOCK_MAGIC);
+#endif
 	if (R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	noreorder	# _raw_write_lock	\n"
@@ -253,6 +296,9 @@ static inline void _raw_write_lock(rwlock_t *rw)
 
 static inline void _raw_write_unlock(rwlock_t *rw)
 {
+#ifdef CONFIG_DEBUG_SPINLOCK
+	BUG_ON(rw->magic != RWLOCK_MAGIC);
+#endif
 	__asm__ __volatile__(
 	"	sync			# _raw_write_unlock	\n"
 	"	sw	$0, %0					\n"
@@ -268,6 +314,9 @@ static inline int _raw_write_trylock(rwlock_t *rw)
 	unsigned int tmp;
 	int ret;
 
+#ifdef CONFIG_DEBUG_SPINLOCK
+	BUG_ON(rw->magic != RWLOCK_MAGIC);
+#endif
 	if (R10000_LLSC_WAR) {
 		__asm__ __volatile__(
 		"	.set	noreorder	# _raw_write_trylock	\n"
