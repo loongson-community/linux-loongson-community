@@ -231,7 +231,7 @@
 #define MIPS_CPU_PREFETCH	0x00040000 /* CPU has usable prefetch */
 #define MIPS_CPU_VINT		0x00080000 /* CPU supports MIPSR2 vectored interrupts */
 #define MIPS_CPU_VEIC		0x00100000 /* CPU supports MIPSR2 external interrupt controller mode */
-#define MIPS_CPU_MIPSMT		0x00400000 /* CPU supports MIPS MT */
+#define MIPS_ASE_MIPSMT		0x00400000 /* CPU supports MIPS MT */
 
 /*
  * CPU ASE encodings

@@ -127,7 +127,7 @@
 # endif
 #endif
 #ifndef cpu_has_mipsmt
-# define cpu_has_mipsmt		(cpu_data[0].ases & MIPS_CPU_MIPSMT)
+# define cpu_has_mipsmt		(cpu_data[0].ases & MIPS_ASE_MIPSMT)
 #endif
 
 #ifdef CONFIG_64BIT
