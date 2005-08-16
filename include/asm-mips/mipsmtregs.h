@@ -33,7 +33,7 @@
 #define read_c0_tcbind()		__read_32bit_c0_register($2, 2)
 
 #define read_c0_tccontext()		__read_32bit_c0_register($2, 5)
-#define write_c0_tccontext(val)	__write_32bit_c0_register($2, 5, val)
+#define write_c0_tccontext(val)		__write_32bit_c0_register($2, 5, val)
 
 #else /* Assembly */
 /*
@@ -71,7 +71,7 @@
 #define MVPCONTROL_VPC		(_ULCAST_(1) << MVPCONTROL_VPC_SHIFT)
 
 #define MVPCONTROL_STLB_SHIFT	2
-#define MVPCONTROL_STLB	(_ULCAST_(1) << MVPCONTROL_STLB_SHIFT)
+#define MVPCONTROL_STLB		(_ULCAST_(1) << MVPCONTROL_STLB_SHIFT)
 
 
 /* MVPConf0 fields */
@@ -195,8 +195,8 @@ static inline void __raw_evpe(void)
 	"	.set	reorder					\n");
 }
 
-/* enable multiVPE if previous suggested it should be.
-   EVPE_ENABLE to force */
+/* Enable multiMT if previous suggested it should be.
+   EMT_ENABLE to force */
 
 #define EVPE_ENABLE MVPCONTROL_EVP
 
@@ -251,8 +251,6 @@ static inline void ehb(void)
 	__asm__ __volatile__("ehb");
 }
 
-// rt rd swapped in the documentation?
-// idioms appear to be plausible.
 #define mftc0(rt,sel)							\
 ({									\
 	 unsigned long  __res;						\
@@ -330,7 +328,7 @@ do {									\
 #define read_vpe_c0_status()		mftc0($12, 0)
 #define write_vpe_c0_status(val)	mttc0($12, 0, val)
 #define read_vpe_c0_cause()		mftc0($13, 0)
-#define write_vpe_c0_cause(val)	mttc0($13, 0, val)
+#define write_vpe_c0_cause(val)		mttc0($13, 0, val)
 #define read_vpe_c0_config()		mftc0($16, 0)
 #define write_vpe_c0_config(val)	mttc0($16, 0, val)
 #define read_vpe_c0_config1()		mftc0($16, 1)
@@ -338,7 +336,7 @@ do {									\
 #define read_vpe_c0_config7()		mftc0($16, 7)
 #define write_vpe_c0_config7(val)	mttc0($16, 7, val)
 #define read_vpe_c0_ebase()		mftc0($15,1)
-#define write_vpe_c0_ebase(val)	mttc0($15, 1, val)
+#define write_vpe_c0_ebase(val)		mttc0($15, 1, val)
 #define write_vpe_c0_compare(val)	mttc0($11, 0, val)
 
 
@@ -346,11 +344,11 @@ do {									\
 #define read_tc_c0_tcstatus()		mftc0($2, 1)
 #define write_tc_c0_tcstatus(val)	mttc0($2,1,val)
 #define read_tc_c0_tcbind()		mftc0($2, 2)
-#define write_tc_c0_tcbind(val)	mttc0($2,2,val)
+#define write_tc_c0_tcbind(val)		mttc0($2,2,val)
 #define read_tc_c0_tcrestart()		mftc0($2, 3)
 #define write_tc_c0_tcrestart(val)	mttc0($2,3,val)
 #define read_tc_c0_tchalt()		mftc0($2, 4)
-#define write_tc_c0_tchalt(val)	mttc0($2,4,val)
+#define write_tc_c0_tchalt(val)		mttc0($2,4,val)
 #define read_tc_c0_tccontext()		mftc0($2, 5)
 #define write_tc_c0_tccontext(val)	mttc0($2,5,val)
 
