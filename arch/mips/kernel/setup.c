@@ -553,7 +553,7 @@ __setup("nofpu", fpu_disable);
 
 int __init dsp_disable(char *s)
 {
-	cpu_data[0].options &= ~MIPS_ASE_DSP;
+	cpu_data[0].ases &= ~MIPS_ASE_DSP;
 
 	return 1;
 }
