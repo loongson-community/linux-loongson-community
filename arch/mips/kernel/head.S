@@ -116,9 +116,15 @@
 EXPORT(stext)					# used for profiling
 EXPORT(_stext)
 
-#ifndef CONFIG_QEMU
-	__INIT
+#ifdef CONFIG_QEMU
+	/*
+	 * Give us a fighting chance of running if execution beings at the
+	 * kernel load address.  This is needed because this platform does
+	 * not have a ELF loader yet.
+	 */
+	j	kernel_entry
 #endif
+	__INIT
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 
