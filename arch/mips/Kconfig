@@ -1339,17 +1339,18 @@ config CPU_MIPSR2_IRQ_VI
 config CPU_MIPSR2_IRQ_EI
 	bool "External interrupt controller mode"
 	help
-	   Extended interrupt mode takes advantage of an external interrupt controller
-	   to allow fast dispatching from many possible interrupt sources. Say N unless you
-	   know that external interrupt support is required.
+	   Extended interrupt mode takes advantage of an external interrupt
+	   controller to allow fast dispatching from many possible interrupt
+	   sources. Say N unless you know that external interrupt support is
+	   required.
 
 config CPU_MIPSR2_SRS
 	bool "Make shadow set registers available for interrupt handlers"
 	depends on CPU_MIPSR2_IRQ_VI || CPU_MIPSR2_IRQ_EI
 	help
 	   Allow the kernel to use shadow register sets for fast interrupts.
-	   Interrupt handlers must be specially written to use shadow sets.  Say N unless you
-	   know that shadow register set upport is needed.
+	   Interrupt handlers must be specially written to use shadow sets.
+	   Say N unless you know that shadow register set upport is needed.
 endmenu
 
 config CPU_HAS_SYNC
