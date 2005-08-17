@@ -1331,10 +1331,11 @@ menu "MIPSR2 Interrupt handling"
 config CPU_MIPSR2_IRQ_VI
 	bool "Vectored interrupt mode"
 	help
-	   Vectored interrupt mode allowing faster dispatching of interrupts.  The board
-	   support code needs to be written to take advantage of this mode.  Compatibility
-	   code is included to allow the kernel to run on a CPU that does not support
-	   vectored interrupts.  It's safe to say Y here.
+	   Vectored interrupt mode allowing faster dispatching of interrupts.
+	   The board support code needs to be written to take advantage of this
+	   mode.  Compatibility code is included to allow the kernel to run on
+	   a CPU that does not support vectored interrupts.  It's safe to
+	   say Y here.
 
 config CPU_MIPSR2_IRQ_EI
 	bool "External interrupt controller mode"
