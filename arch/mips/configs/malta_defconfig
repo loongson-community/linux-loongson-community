@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.13-rc6
-# Mon Aug 15 15:01:23 2005
+# Wed Aug 17 17:16:09 2005
 #
 CONFIG_MIPS=y
 
@@ -170,6 +170,7 @@ CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_64KB is not set
 CONFIG_CPU_HAS_PREFETCH=y
 CONFIG_MIPS_MT=y
+# CONFIG_MIPS_MT_SMP is not set
 CONFIG_MIPS_VPE_LOADER=y
 CONFIG_MIPS_VPE_LOADER_TOM=y
 CONFIG_MIPS_VPE_APSP_API=y
