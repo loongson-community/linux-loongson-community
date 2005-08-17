@@ -171,12 +171,14 @@ static inline unsigned int dvpe(void)
 	int res = 0;
 
 	__asm__ __volatile__(
+	"	.set	push						\n"
 	"	.set	noreorder					\n"
+	"	.set	noat						\n"
 	"	.set	mips32r2					\n"
-	"	dvpe	%0						\n"
+	"	move	$1, %0						\n"
+	"	.word	0x41610001		# dvpe $1		\n"
 	"	ehb							\n"
-	"	.set mips0						\n"
-	"	.set reorder						\n"
+	"	.set	pop						\n"
 	: "=r" (res));
 
 	instruction_hazard();
@@ -187,12 +189,13 @@ static inline unsigned int dvpe(void)
 static inline void __raw_evpe(void)
 {
 	__asm__ __volatile__(
-	"	.set	noreorder				\n"
-	"	.set	mips32r2				\n"
-	"	evpe						\n"
-	"	ehb						\n"
-	"	.set	mips0					\n"
-	"	.set	reorder					\n");
+	"	.set	push						\n"
+	"	.set	noreorder					\n"
+	"	.set	noat						\n"
+	"	.set	mips32r2					\n"
+	"	.word	0x41600021		# evpe			\n"
+	"	ehb							\n"
+	"	.set	pop						\n");
 }
 
 /* Enable multiMT if previous suggested it should be.
@@ -211,12 +214,12 @@ static inline unsigned int dmt(void)
 	int res;
 
 	__asm__ __volatile__(
-	"	.set	noreorder				\n"
-	"	.set	mips32r2				\n"
-	"	dmt	%0					\n"
-	"	ehb						\n"
-	"	.set mips0					\n"
-	"	.set reorder					\n"
+	"	.set	noreorder					\n"
+	"	.set	mips32r2					\n"
+	"	dmt	%0						\n"
+	"	ehb							\n"
+	"	.set mips0						\n"
+	"	.set reorder						\n"
 	: "=r" (res));
 
 	instruction_hazard();
@@ -227,11 +230,11 @@ static inline unsigned int dmt(void)
 static inline void __raw_emt(void)
 {
 	__asm__ __volatile__(
-	"	.set	noreorder				\n"
-	"	.set	mips32r2				\n"
-	"	emt						\n"
-	"	ehb						\n"
-	"	.set	mips0					\n"
+	"	.set	noreorder					\n"
+	"	.set	mips32r2					\n"
+	"	emt							\n"
+	"	ehb							\n"
+	"	.set	mips0						\n"
 	"	.set	reorder");
 }
 
@@ -297,7 +300,7 @@ static inline void ehb(void)
 	: : "r" (v));							\
 })
 
-#define mttc0(rd,sel,v)						\
+#define mttc0(rd,sel,v)							\
 ({									\
 	__asm__ __volatile__(						\
 	"mttc0\t %0," #rd ", " #sel					\
