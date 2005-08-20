@@ -153,15 +153,15 @@ irqreturn_t ipi_call_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 static struct irqaction irq_resched = {
-	.handler = ipi_resched_interrupt;
-	.flags = SA_INTERRUPT;
-	.name = "IPI_resched";
+	.handler	= ipi_resched_interrupt,
+	.flags		= SA_INTERRUPT,
+	.name		= "IPI_resched"
 };
 
-static struct irq_call = {
-	.handler = ipi_call_interrupt;
-	.flags = SA_INTERRUPT;
-	.name = "IPI_call";
+static struct irqaction irq_call = {
+	.handler	= ipi_call_interrupt,
+	.flags		= SA_INTERRUPT,
+	.name		= "IPI_call"
 };
 
 /*
@@ -287,7 +287,7 @@ void prom_prepare_cpus(unsigned int max_cpus)
 void prom_boot_secondary(int cpu, struct task_struct *idle)
 {
 	dvpe();
-	write_c0_mvpcontrol( read_c0_mvpcontrol() | MVPCONTROL_VPC );
+	write_c0_mvpcontrol(read_c0_mvpcontrol() | MVPCONTROL_VPC);
 
 	settc(cpu);
 
@@ -300,13 +300,13 @@ void prom_boot_secondary(int cpu, struct task_struct *idle)
 	write_tc_c0_tchalt(0);
 
 	/* enable the VPE */
-	write_vpe_c0_vpeconf0( read_vpe_c0_vpeconf0() | VPECONF0_VPA);
+	write_vpe_c0_vpeconf0(read_vpe_c0_vpeconf0() | VPECONF0_VPA);
 
 	/* stack pointer */
-	write_tc_gpr_sp(  __KSTK_TOS(idle) );
+	write_tc_gpr_sp( __KSTK_TOS(idle));
 
 	/* global pointer */
-	write_tc_gpr_gp( (unsigned long)idle->thread_info );
+	write_tc_gpr_gp((unsigned long)idle->thread_info);
 
 	flush_icache_range((unsigned long)idle->thread_info,
 					   (unsigned long)idle->thread_info +
@@ -320,8 +320,8 @@ void prom_boot_secondary(int cpu, struct task_struct *idle)
 
 void prom_init_secondary(void)
 {
-	write_c0_status((read_c0_status() & ~ST0_IM )
-			| (STATUSF_IP0 | STATUSF_IP1 | STATUSF_IP7));
+	write_c0_status((read_c0_status() & ~ST0_IM ) |
+	                (STATUSF_IP0 | STATUSF_IP1 | STATUSF_IP7));
 }
 
 void prom_smp_finish(void)
