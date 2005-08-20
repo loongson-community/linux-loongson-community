@@ -109,6 +109,14 @@
 #define cpu_has_dsp		(cpu_data[0].ases & MIPS_ASE_DSP)
 #endif
 
+#ifdef CONFIG_MIPS_MT
+#ifndef cpu_has_mipsmt
+# define cpu_has_mipsmt		(cpu_data[0].ases & MIPS_ASE_MIPSMT)
+#endif
+#else
+# define cpu_has_mipsmt		0
+#endif
+
 #ifdef CONFIG_32BIT
 # ifndef cpu_has_nofpuex
 # define cpu_has_nofpuex	(cpu_data[0].options & MIPS_CPU_NOFPUEX)
@@ -125,9 +133,6 @@
 # ifndef cpu_has_64bit_addresses
 # define cpu_has_64bit_addresses	0
 # endif
-#endif
-#ifndef cpu_has_mipsmt
-# define cpu_has_mipsmt		(cpu_data[0].ases & MIPS_ASE_MIPSMT)
 #endif
 
 #ifdef CONFIG_64BIT
