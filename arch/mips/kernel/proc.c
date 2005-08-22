@@ -127,7 +127,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		      cpu_has_mips3d ? " mips3d" : "",
 		      cpu_has_smartmips ? " smartmips" : "",
 		      cpu_has_dsp ? " dsp" : "",
-		      cpu_has_mipsmt ? " mipsmt" : ""
+		      cpu_has_mipsmt ? " mt" : ""
 		);
 
 	sprintf(fmt, "VCE%%c exceptions\t\t: %s\n",
