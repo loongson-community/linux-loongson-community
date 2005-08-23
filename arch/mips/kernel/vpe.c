@@ -49,6 +49,7 @@
 #include <linux/poll.h>
 #include <linux/bootmem.h>
 #include <asm/mipsregs.h>
+#include <asm/mipsmtregs.h>
 #include <asm/cacheflush.h>
 #include <asm/atomic.h>
 #include <asm/cpu.h>
@@ -698,7 +699,7 @@ int vpe_run(vpe_t * v)
 	dvpe();
 
 	/* Put MVPE's into 'configuration state' */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() | MVPCONTROL_VPC);
+	set_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	if (!list_empty(&v->tc)) {
 		if ((t = list_entry(v->tc.next, struct tc, tc)) == NULL) {
@@ -758,7 +759,7 @@ int vpe_run(vpe_t * v)
 	write_vpe_c0_cause(0);
 
 	/* take system out of configuration state */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() & ~MVPCONTROL_VPC);
+	clear_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	/* clear interrupts enabled IE, ERL, EXL, and KSU from c0 status */
 	write_vpe_c0_status(read_vpe_c0_status() & ~(ST0_ERL | ST0_KSU | ST0_IE | ST0_EXL));
@@ -1132,7 +1133,7 @@ int vpe_free(vpe_handle vpe)
 	evpe_flags = dvpe();
 
 	/* Put MVPE's into 'configuration state' */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() | MVPCONTROL_VPC);
+	set_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	settc(t->index);
 	write_vpe_c0_vpeconf0(read_vpe_c0_vpeconf0() & ~VPECONF0_VPA);
@@ -1143,7 +1144,7 @@ int vpe_free(vpe_handle vpe)
 
 	v->state = VPE_STATE_UNUSED;
 
-	write_c0_mvpcontrol(read_c0_mvpcontrol() & ~MVPCONTROL_VPC);
+	clear_c0_mvpcontrol(MVPCONTROL_VPC);
 	evpe(evpe_flags);
 
 	return 0;
@@ -1189,7 +1190,7 @@ static int __init vpe_module_init(void)
 	dvpe();
 
 	/* Put MVPE's into 'configuration state' */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() | MVPCONTROL_VPC);
+	set_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	/* dump_mtregs(); */
 
@@ -1268,7 +1269,7 @@ static int __init vpe_module_init(void)
 	}
 
 	/* release config state */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() & ~MVPCONTROL_VPC);
+	clear_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	return 0;
 }

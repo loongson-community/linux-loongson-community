@@ -28,6 +28,8 @@
 #include <asm/cpu.h>
 #include <asm/dsp.h>
 #include <asm/fpu.h>
+#include <asm/mipsregs.h>
+#include <asm/mipsmtregs.h>
 #include <asm/module.h>
 #include <asm/pgtable.h>
 #include <asm/ptrace.h>

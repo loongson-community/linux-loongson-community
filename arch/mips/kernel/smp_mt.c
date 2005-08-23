@@ -32,6 +32,7 @@
 #include <asm/smp.h>
 #include <asm/time.h>
 #include <asm/mipsregs.h>
+#include <asm/mipsmtregs.h>
 #include <asm/cacheflush.h>
 #include <asm/mips-boards/maltaint.h>
 
@@ -65,10 +66,10 @@ void __init sanitize_tlb_entries(void)
 	if (!cpu_has_mipsmt)
 		return;
 
- 	write_c0_mvpcontrol( read_c0_mvpcontrol() | MVPCONTROL_VPC );
+	set_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	/* Disable TLB sharing */
- 	write_c0_mvpcontrol( read_c0_mvpcontrol() & ~MVPCONTROL_STLB );
+	clear_c0_mvpcontrol(MVPCONTROL_STLB);
 
 	mvpconf0 = read_c0_mvpconf0();
 
@@ -98,7 +99,7 @@ void __init sanitize_tlb_entries(void)
 		}
 	}
 
-	write_c0_mvpcontrol(read_c0_mvpcontrol() & ~MVPCONTROL_VPC);
+	clear_c0_mvpcontrol(MVPCONTROL_VPC);
 }
 
 #if 0
@@ -182,7 +183,7 @@ void prom_prepare_cpus(unsigned int max_cpus)
 	dmt();
 
 	/* Put MVPE's into 'configuration state' */
-	write_c0_mvpcontrol( read_c0_mvpcontrol() | MVPCONTROL_VPC );
+	set_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	val = read_c0_mvpconf0();
 
@@ -253,7 +254,7 @@ void prom_prepare_cpus(unsigned int max_cpus)
 	}
 
 	/* Release config state */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() & ~ MVPCONTROL_VPC);
+	clear_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	/* We'll wait until starting the secondaries before starting MVPE */
 
@@ -287,7 +288,7 @@ void prom_prepare_cpus(unsigned int max_cpus)
 void prom_boot_secondary(int cpu, struct task_struct *idle)
 {
 	dvpe();
-	write_c0_mvpcontrol(read_c0_mvpcontrol() | MVPCONTROL_VPC);
+	set_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	settc(cpu);
 
@@ -313,7 +314,7 @@ void prom_boot_secondary(int cpu, struct task_struct *idle)
 					   sizeof(struct thread_info));
 
 	/* finally out of configuration and into chaos */
-	write_c0_mvpcontrol(read_c0_mvpcontrol() & ~MVPCONTROL_VPC);
+	clear_c0_mvpcontrol(MVPCONTROL_VPC);
 
 	evpe(EVPE_ENABLE);
 }
