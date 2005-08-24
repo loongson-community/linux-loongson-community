@@ -746,11 +746,14 @@ int vpe_run(vpe_t * v)
 	write_vpe_c0_vpecontrol(read_vpe_c0_vpecontrol() & ~VPECONTROL_TE);	// no multiple TC's
 	write_vpe_c0_vpeconf0(read_vpe_c0_vpeconf0() | VPECONF0_VPA);	// enable this VPE
 
-	/* The sde-kit passes 'memsize' to __start in $a3, so set something here...
-	   Or set $a3 to zero and define DFLT_STACK_SIZE and DFLT_HEAP_SIZE when you compile
-	   your program */
+	/*
+	 * The sde-kit passes 'memsize' to __start in $a3, so set something
+	 * here...
+	 * Or set $a3 (register 7) to zero and define DFLT_STACK_SIZE and
+	 * DFLT_HEAP_SIZE when you compile your program
+	 */
 
-	mttgpr($7, 0);
+	mttgpr(7, 0);
 
 	/* set config to be the same as vpe0, particularly kseg0 coherency alg */
 	write_vpe_c0_config(read_c0_config());
