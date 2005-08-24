@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc6
-# Mon Aug 15 15:00:40 2005
+# Linux kernel version: 2.6.13-rc7
+# Wed Aug 24 15:45:40 2005
 #
 CONFIG_MIPS=y
 
@@ -734,7 +734,6 @@ CONFIG_SOUND_AU1000=y
 # CONFIG_SOUND_MSNDCLAS is not set
 # CONFIG_SOUND_MSNDPIN is not set
 # CONFIG_SOUND_VIA82CXXX is not set
-# CONFIG_SOUND_OSS is not set
 # CONFIG_SOUND_ALI5455 is not set
 # CONFIG_SOUND_FORTE is not set
 # CONFIG_SOUND_RME96XX is not set

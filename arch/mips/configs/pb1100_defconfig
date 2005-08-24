@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc6
-# Mon Aug 15 15:01:38 2005
+# Linux kernel version: 2.6.13-rc7
+# Wed Aug 24 15:46:35 2005
 #
 CONFIG_MIPS=y
 
@@ -658,7 +658,6 @@ CONFIG_USB_ARCH_HAS_OHCI=y
 #
 # InfiniBand support
 #
-# CONFIG_INFINIBAND is not set
 
 #
 # SN Devices

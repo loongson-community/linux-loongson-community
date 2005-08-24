@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc6
-# Mon Aug 15 12:09:48 2005
+# Linux kernel version: 2.6.13-rc7
+# Wed Aug 24 15:47:29 2005
 #
 CONFIG_MIPS=y
 
@@ -535,7 +535,6 @@ CONFIG_DUMMY_CONSOLE=y
 #
 # InfiniBand support
 #
-# CONFIG_INFINIBAND is not set
 
 #
 # SN Devices

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13-rc6
-# Mon Aug 15 15:01:11 2005
+# Linux kernel version: 2.6.13-rc7
+# Wed Aug 24 15:46:07 2005
 #
 CONFIG_MIPS=y
 
@@ -629,15 +629,9 @@ CONFIG_SOUND=y
 # Open Sound System
 #
 CONFIG_SOUND_PRIME=y
-# CONFIG_SOUND_BT878 is not set
-# CONFIG_SOUND_FUSION is not set
-# CONFIG_SOUND_CS4281 is not set
-# CONFIG_SOUND_SONICVIBES is not set
 CONFIG_SOUND_IT8172=y
-# CONFIG_SOUND_TRIDENT is not set
 # CONFIG_SOUND_MSNDCLAS is not set
 # CONFIG_SOUND_MSNDPIN is not set
-# CONFIG_SOUND_OSS is not set
 # CONFIG_SOUND_AD1980 is not set
 
 #
@@ -659,7 +653,6 @@ CONFIG_SOUND_IT8172=y
 #
 # InfiniBand support
 #
-# CONFIG_INFINIBAND is not set
 
 #
 # SN Devices
