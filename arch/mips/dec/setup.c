@@ -148,7 +148,7 @@ void __init dec_be_init(void)
 extern void dec_time_init(void);
 extern void dec_timer_setup(struct irqaction *);
 
-void __init decstation_setup(void)
+void __init plat_setup(void)
 {
 	board_be_init = dec_be_init;
 	board_time_init = dec_time_init;
