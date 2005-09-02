@@ -25,9 +25,9 @@
 #include <asm/cpu.h>
 #include <asm/war.h>
 
-#define half_scache_line_size()		(cpu_scache_line_size() >> 1)
-#define cpu_is_r4600_v1_x()		((read_c0_prid() & 0xfff0) == 0x2010)
-#define cpu_is_r4600_v2_x()		((read_c0_prid() & 0xfff0) == 0x2020)
+#define half_scache_line_size()	(cpu_scache_line_size() >> 1)
+#define cpu_is_r4600_v1_x()	((read_c0_prid() & 0xfffffff0) == 0x00002010)
+#define cpu_is_r4600_v2_x()	((read_c0_prid() & 0xfffffff0) == 0x00002020)
 
 
 /*
