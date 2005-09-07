@@ -191,7 +191,7 @@ static inline int install_sigtramp(unsigned int __user *tramp,
 	 *         syscall
 	 */
 
-	err |= __put_user(0x24020000 + syscall, tramp + 0);
+	err = __put_user(0x24020000 + syscall, tramp + 0);
 	err |= __put_user(0x0000000c          , tramp + 1);
 	if (ICACHE_REFILLS_WORKAROUND_WAR) {
 		err |= __put_user(0, tramp + 2);
