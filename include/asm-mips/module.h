@@ -119,7 +119,7 @@ search_module_dbetables(unsigned long addr)
 
 #ifdef CONFIG_32BIT
 #define MODULE_KERNEL_TYPE "32BIT "
-#elif defined CONFIG_64IT
+#elif defined CONFIG_64BIT
 #define MODULE_KERNEL_TYPE "64BIT "
 #endif
 
