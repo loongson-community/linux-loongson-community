@@ -3,7 +3,7 @@
  *
  *	TURBOchannel PMAGB-B Smart Frame Buffer (SFB) card support,
  *	Copyright (C) 1999, 2000, 2001 by
- *	Michael Engel <engel@unix-ag.org> and 
+ *	Michael Engel <engel@unix-ag.org> and
  *	Karsten Merker <merker@linuxtag.org>
  *	Copyright (c) 2005  Maciej W. Rozycki
  *

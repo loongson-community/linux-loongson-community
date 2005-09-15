@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.13
-# Mon Aug 29 16:33:25 2005
+# Linux kernel version: 2.6.14-rc1
+# Wed Sep 14 10:15:06 2005
 #
 CONFIG_MIPS=y
 
@@ -17,12 +17,14 @@ CONFIG_INIT_ENV_ARG_LIMIT=32
 # General setup
 #
 CONFIG_LOCALVERSION=""
+CONFIG_LOCALVERSION_AUTO=y
 # CONFIG_SWAP is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_IKCONFIG is not set
+CONFIG_INITRAMFS_SOURCE=""
 CONFIG_EMBEDDED=y
 CONFIG_KALLSYMS=y
 # CONFIG_KALLSYMS_EXTRA_PASS is not set
@@ -166,6 +168,7 @@ CONFIG_FLATMEM_MANUAL=y
 # CONFIG_SPARSEMEM_MANUAL is not set
 CONFIG_FLATMEM=y
 CONFIG_FLAT_NODE_MEM_MAP=y
+# CONFIG_SPARSEMEM_STATIC is not set
 CONFIG_PREEMPT_NONE=y
 # CONFIG_PREEMPT_VOLUNTARY is not set
 # CONFIG_PREEMPT is not set
@@ -208,6 +211,10 @@ CONFIG_PREVENT_FIRMWARE_BUILD=y
 # CONFIG_FW_LOADER is not set
 
 #
+# Connector - unified userspace <-> kernelspace linker
+#
+
+#
 # Memory Technology Devices (MTD)
 #
 # CONFIG_MTD is not set
@@ -224,7 +231,6 @@ CONFIG_PREVENT_FIRMWARE_BUILD=y
 #
 # Block devices
 #
-# CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_DEV_COW_COMMON is not set
 CONFIG_BLK_DEV_LOOP=y
 # CONFIG_BLK_DEV_CRYPTOLOOP is not set
@@ -232,7 +238,7 @@ CONFIG_BLK_DEV_RAM=y
 CONFIG_BLK_DEV_RAM_COUNT=16
 CONFIG_BLK_DEV_RAM_SIZE=18432
 CONFIG_BLK_DEV_INITRD=y
-CONFIG_INITRAMFS_SOURCE=""
+# CONFIG_LBD is not set
 # CONFIG_CDROM_PKTCDVD is not set
 
 #
@@ -251,6 +257,7 @@ CONFIG_IOSCHED_CFQ=y
 #
 # SCSI device support
 #
+CONFIG_RAID_ATTRS=y
 # CONFIG_SCSI is not set
 
 #
@@ -347,7 +354,6 @@ CONFIG_LEGACY_PTY_COUNT=256
 # I2C support
 #
 # CONFIG_I2C is not set
-# CONFIG_I2C_SENSOR is not set
 
 #
 # Dallas's 1-wire bus
@@ -358,9 +364,14 @@ CONFIG_LEGACY_PTY_COUNT=256
 # Hardware Monitoring support
 #
 # CONFIG_HWMON is not set
+# CONFIG_HWMON_VID is not set
 
 #
 # Misc devices
+#
+
+#
+# Multimedia Capabilities Port drivers
 #
 
 #
@@ -417,10 +428,6 @@ CONFIG_EXT2_FS=y
 # CONFIG_REISERFS_FS is not set
 # CONFIG_JFS_FS is not set
 # CONFIG_FS_POSIX_ACL is not set
-
-#
-# XFS support
-#
 # CONFIG_XFS_FS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_ROMFS_FS is not set
@@ -429,6 +436,7 @@ CONFIG_INOTIFY=y
 CONFIG_DNOTIFY=y
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AUTOFS4_FS is not set
+CONFIG_FUSE_FS=y
 
 #
 # CD-ROM/DVD Filesystems
@@ -449,10 +457,10 @@ CONFIG_DNOTIFY=y
 CONFIG_PROC_FS=y
 CONFIG_PROC_KCORE=y
 CONFIG_SYSFS=y
-# CONFIG_DEVPTS_FS_XATTR is not set
 # CONFIG_TMPFS is not set
 # CONFIG_HUGETLB_PAGE is not set
 CONFIG_RAMFS=y
+CONFIG_RELAYFS_FS=y
 
 #
 # Miscellaneous filesystems
@@ -525,5 +533,6 @@ CONFIG_CMDLINE=""
 # Library routines
 #
 # CONFIG_CRC_CCITT is not set
+CONFIG_CRC16=y
 # CONFIG_CRC32 is not set
 # CONFIG_LIBCRC32C is not set

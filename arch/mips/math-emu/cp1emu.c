@@ -329,7 +329,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 	case cop1_op:
 		switch (MIPSInst_RS(ir)) {
 
-#if __mips64 && !defined(SINGLE_ONLY_FPU)
+#if defined(__mips64) && !defined(SINGLE_ONLY_FPU)
 		case dmfc_op:
 			/* copregister fs -> gpr[rt] */
 			if (MIPSInst_RT(ir) != 0) {
@@ -467,7 +467,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 				switch (MIPSInst_OPCODE(ir)) {
 				case lwc1_op:
 				case swc1_op:
-#if (__mips >= 2 || __mips64) && !defined(SINGLE_ONLY_FPU)
+#if (__mips >= 2 || defined(__mips64)) && !defined(SINGLE_ONLY_FPU)
 				case ldc1_op:
 				case sdc1_op:
 #endif
@@ -813,7 +813,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 		ieee754dp d;
 		ieee754sp s;
 		int w;
-#if __mips64
+#ifdef __mips64
 		s64 l;
 #endif
 	} rv;			/* resulting value */
@@ -842,7 +842,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			goto scopbop;
 
 			/* unary  ops */
-#if __mips >= 2 || __mips64
+#if __mips >= 2 || defined(__mips64)
 		case fsqrt_op:
 			handler.u = ieee754sp_sqrt;
 			goto scopuop;
@@ -941,7 +941,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			goto copcsr;
 		}
 
-#if __mips >= 2 || __mips64
+#if __mips >= 2 || defined(__mips64)
 		case fround_op:
 		case ftrunc_op:
 		case fceil_op:
@@ -958,7 +958,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 		}
 #endif /* __mips >= 2 */
 
-#if __mips64 && !defined(SINGLE_ONLY_FPU)
+#if defined(__mips64) && !defined(SINGLE_ONLY_FPU)
 		case fcvtl_op:{
 			ieee754sp fs;
 
@@ -982,7 +982,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			rfmt = l_fmt;
 			goto copcsr;
 		}
-#endif /* __mips64 && !fpu(single) */
+#endif /* defined(__mips64) && !fpu(single) */
 
 		default:
 			if (MIPSInst_FUNC(ir) >= fcmp_op) {
@@ -1032,7 +1032,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			goto dcopbop;
 
 			/* unary  ops */
-#if __mips >= 2 || __mips64
+#if __mips >= 2 || defined(__mips64)
 		case fsqrt_op:
 			handler.u = ieee754dp_sqrt;
 			goto dcopuop;
@@ -1116,7 +1116,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			goto copcsr;
 		}
 
-#if __mips >= 2 || __mips64
+#if __mips >= 2 || defined(__mips64)
 		case fround_op:
 		case ftrunc_op:
 		case fceil_op:
@@ -1133,7 +1133,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 		}
 #endif
 
-#if __mips64 && !defined(SINGLE_ONLY_FPU)
+#if defined(__mips64) && !defined(SINGLE_ONLY_FPU)
 		case fcvtl_op:{
 			ieee754dp fs;
 
@@ -1211,7 +1211,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 		break;
 	}
 
-#if __mips64 && !defined(SINGLE_ONLY_FPU)
+#if defined(__mips64) && !defined(SINGLE_ONLY_FPU)
 	case l_fmt:{
 		switch (MIPSInst_FUNC(ir)) {
 		case fcvts_op:
@@ -1275,7 +1275,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 	case w_fmt:
 		SITOREG(rv.w, MIPSInst_FD(ir));
 		break;
-#if __mips64 && !defined(SINGLE_ONLY_FPU)
+#if defined(__mips64) && !defined(SINGLE_ONLY_FPU)
 	case l_fmt:
 		DITOREG(rv.l, MIPSInst_FD(ir));
 		break;

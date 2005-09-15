@@ -67,6 +67,8 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SCM_TIMESTAMP		SO_TIMESTAMP
 
 #define SO_PEERSEC		30
+#define SO_SNDBUFFORCE		31
+#define SO_RCVBUFFORCE		33
 
 #ifdef __KERNEL__
 

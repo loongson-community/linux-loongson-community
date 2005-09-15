@@ -1094,7 +1094,13 @@ qla1280_error_action(struct scsi_cmnd *cmd, enum action action)
 static int
 qla1280_eh_abort(struct scsi_cmnd * cmd)
 {
-	return qla1280_error_action(cmd, ABORT_COMMAND);
+	int rc;
+
+	spin_lock_irq(cmd->device->host->host_lock);
+	rc = qla1280_error_action(cmd, ABORT_COMMAND);
+	spin_unlock_irq(cmd->device->host->host_lock);
+
+	return rc;
 }
 
 /**************************************************************************
@@ -1104,7 +1110,13 @@ qla1280_eh_abort(struct scsi_cmnd * cmd)
 static int
 qla1280_eh_device_reset(struct scsi_cmnd *cmd)
 {
-	return qla1280_error_action(cmd, DEVICE_RESET);
+	int rc;
+
+	spin_lock_irq(cmd->device->host->host_lock);
+	rc = qla1280_error_action(cmd, DEVICE_RESET);
+	spin_unlock_irq(cmd->device->host->host_lock);
+
+	return rc;
 }
 
 /**************************************************************************
@@ -1114,7 +1126,13 @@ qla1280_eh_device_reset(struct scsi_cmnd *cmd)
 static int
 qla1280_eh_bus_reset(struct scsi_cmnd *cmd)
 {
-	return qla1280_error_action(cmd, BUS_RESET);
+	int rc;
+
+	spin_lock_irq(cmd->device->host->host_lock);
+	rc = qla1280_error_action(cmd, BUS_RESET);
+	spin_unlock_irq(cmd->device->host->host_lock);
+
+	return rc;
 }
 
 /**************************************************************************
@@ -1124,7 +1142,13 @@ qla1280_eh_bus_reset(struct scsi_cmnd *cmd)
 static int
 qla1280_eh_adapter_reset(struct scsi_cmnd *cmd)
 {
-	return qla1280_error_action(cmd, ADAPTER_RESET);
+	int rc;
+
+	spin_lock_irq(cmd->device->host->host_lock);
+	rc = qla1280_error_action(cmd, ADAPTER_RESET);
+	spin_unlock_irq(cmd->device->host->host_lock);
+
+	return rc;
 }
 
 static int
@@ -3961,11 +3985,10 @@ qla1280_status_entry(struct scsi_qla_host *ha, struct response *pkt,
 			scsi_status, handle);
 	}
 
-	/* Target busy */
-	if (scsi_status & SAM_STAT_BUSY &&
-	    scsi_status != SAM_STAT_RESERVATION_CONFLICT) {
-		CMD_RESULT(cmd) =
-			DID_BUS_BUSY << 16 | (scsi_status & 0xff);
+	/* Target busy or queue full */
+	if ((scsi_status & 0xFF) == SAM_STAT_TASK_SET_FULL ||
+	    (scsi_status & 0xFF) == SAM_STAT_BUSY) {
+		CMD_RESULT(cmd) = scsi_status & 0xff;
 	} else {
 
 		/* Save ISP completion status */
