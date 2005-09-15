@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14-rc1
-# Thu Sep 15 09:19:35 2005
+# Thu Sep 15 12:39:45 2005
 #
 CONFIG_MIPS=y
 
@@ -434,7 +434,11 @@ CONFIG_IDEDISK_MULTI_MODE=y
 # IDE chipset support/bugfixes
 #
 CONFIG_IDE_GENERIC=y
-# CONFIG_BLK_DEV_IDE_AU1XXX is not set
+CONFIG_BLK_DEV_IDE_AU1XXX=y
+CONFIG_BLK_DEV_IDE_AU1XXX_PIO_DBDMA=y
+# CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA is not set
+# CONFIG_BLK_DEV_IDE_AU1XXX_BURSTABLE_ON is not set
+CONFIG_BLK_DEV_IDE_AU1XXX_SEQTS_PER_RQ=128
 # CONFIG_IDE_ARM is not set
 # CONFIG_BLK_DEV_IDEDMA is not set
 # CONFIG_IDEDMA_AUTO is not set
