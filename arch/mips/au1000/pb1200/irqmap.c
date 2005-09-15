@@ -66,7 +66,7 @@ int au1xxx_nr_irqs = sizeof(au1xxx_irq_map)/sizeof(au1xxx_irq_map_t);
  */
 static volatile int pb1200_cascade_en=0;
 
-void pb1200_cascade_handler( int irq, void *dev_id, struct pt_regs *regs)
+irqreturn_t pb1200_cascade_handler( int irq, void *dev_id, struct pt_regs *regs)
 {
 	unsigned short bisr = bcsr->int_status;
 	int extirq_nr = 0;
@@ -79,6 +79,7 @@ void pb1200_cascade_handler( int irq, void *dev_id, struct pt_regs *regs)
 		/* Ack and dispatch IRQ */
 		do_IRQ(extirq_nr,regs);
 	}
+	return IRQ_RETVAL(1);
 }
 
 inline void pb1200_enable_irq(unsigned int irq_nr)
@@ -98,7 +99,7 @@ static unsigned int pb1200_startup_irq( unsigned int irq_nr )
 	if (++pb1200_cascade_en == 1)
 	{
 		request_irq(AU1000_GPIO_7, &pb1200_cascade_handler,
-			0, "Pb1200 Cascade", &pb1200_cascade_handler );
+			0, "Pb1200 Cascade", (void *)&pb1200_cascade_handler );
 #ifdef CONFIG_MIPS_PB1200
     /* We have a problem with CPLD rev3. Enable a workaround */
 	if( ((bcsr->whoami & BCSR_WHOAMI_CPLD)>>4) <= 3)

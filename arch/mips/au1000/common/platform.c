@@ -13,7 +13,7 @@
 #include <linux/init.h>
 #include <linux/resource.h>
 
-#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-au1x00/au1xxx.h>
 
 /* OHCI (USB full speed host controller) */
 static struct resource au1xxx_usb_ohci_resources[] = {
@@ -155,7 +155,6 @@ static struct platform_device au1xxx_usb_otg_device = {
 	.resource	= au1xxx_usb_otg_resources,
 };
 
-/*** AU1200 LCD controller ***/
 static struct resource au1200_lcd_resources[] = {
 	[0] = {
 		.start          = LCD_PHYS_ADDR,
@@ -166,6 +165,19 @@ static struct resource au1200_lcd_resources[] = {
 		.start          = AU1200_LCD_INT,
 		.end            = AU1200_LCD_INT,
 		.flags          = IORESOURCE_IRQ,
+	}
+};
+
+static struct resource au1200_ide0_resources[] = {
+	[0] = {
+		.start		= AU1XXX_ATA_PHYS_ADDR, 
+		.end 		= AU1XXX_ATA_PHYS_ADDR + AU1XXX_ATA_PHYS_LEN,
+		.flags		= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start		= AU1XXX_ATA_INT,
+		.end		= AU1XXX_ATA_INT,
+		.flags		= IORESOURCE_IRQ,
 	}
 };
 
@@ -181,6 +193,21 @@ static struct platform_device au1200_lcd_device = {
 	.num_resources  = ARRAY_SIZE(au1200_lcd_resources),
 	.resource       = au1200_lcd_resources,
 };
+
+
+static u64 ide0_dmamask = ~(u32)0;
+
+static struct platform_device au1200_ide0_device = {
+	.name		= "au1200-ide",
+	.id		= 0,
+	.dev = {
+		.dma_mask 		= &ide0_dmamask,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+	.num_resources = ARRAY_SIZE(au1200_ide0_resources),
+	.resource	= au1200_ide0_resources,
+};
+
 #endif
 
 
@@ -196,6 +223,7 @@ static struct platform_device *au1xxx_platform_devices[] __initdata = {
 	&au1xxx_usb_gdt_device,
 	&au1xxx_usb_otg_device,
 	&au1200_lcd_device,
+	&au1200_ide0_device,
 #endif
 };
 
