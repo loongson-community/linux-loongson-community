@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14-rc1
-# Thu Sep 15 12:39:45 2005
+# Fri Sep 16 17:22:46 2005
 #
 CONFIG_MIPS=y
 
@@ -189,7 +189,17 @@ CONFIG_MMU=y
 #
 # PCCARD (PCMCIA/CardBus) support
 #
-# CONFIG_PCCARD is not set
+CONFIG_PCCARD=m
+# CONFIG_PCMCIA_DEBUG is not set
+CONFIG_PCMCIA=m
+CONFIG_PCMCIA_LOAD_CIS=y
+CONFIG_PCMCIA_IOCTL=y
+
+#
+# PC-card bridges
+#
+# CONFIG_TCIC is not set
+CONFIG_PCMCIA_AU1X00=m
 
 #
 # PCI Hotplug Support
@@ -424,6 +434,7 @@ CONFIG_BLK_DEV_IDE=y
 # CONFIG_BLK_DEV_IDE_SATA is not set
 CONFIG_BLK_DEV_IDEDISK=y
 CONFIG_IDEDISK_MULTI_MODE=y
+# CONFIG_BLK_DEV_IDECS is not set
 # CONFIG_BLK_DEV_IDECD is not set
 # CONFIG_BLK_DEV_IDETAPE is not set
 # CONFIG_BLK_DEV_IDEFLOPPY is not set
@@ -484,6 +495,15 @@ CONFIG_SCSI_MULTI_LUN=y
 # CONFIG_SCSI_DEBUG is not set
 
 #
+# PCMCIA SCSI adapter support
+#
+# CONFIG_PCMCIA_AHA152X is not set
+# CONFIG_PCMCIA_FDOMAIN is not set
+# CONFIG_PCMCIA_NINJA_SCSI is not set
+# CONFIG_PCMCIA_QLOGIC is not set
+# CONFIG_PCMCIA_SYM53C500 is not set
+
+#
 # Multi-device support (RAID and LVM)
 #
 # CONFIG_MD is not set
@@ -538,6 +558,11 @@ CONFIG_MII=m
 # Wireless LAN (non-hamradio)
 #
 # CONFIG_NET_RADIO is not set
+
+#
+# PCMCIA network device support
+#
+# CONFIG_NET_PCMCIA is not set
 
 #
 # Wan interfaces
@@ -637,6 +662,11 @@ CONFIG_LEGACY_PTY_COUNT=256
 #
 # Ftape, the floppy tape device driver
 #
+
+#
+# PCMCIA character devices
+#
+# CONFIG_SYNCLINK_CS is not set
 # CONFIG_RAW_DRIVER is not set
 
 #
