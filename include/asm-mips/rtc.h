@@ -29,12 +29,6 @@
 #define RTC_24H 0x02            /* 24 hour mode - else hours bit 7 means pm */
 #define RTC_DST_EN 0x01         /* auto switch DST - works f. USA only */
 
-unsigned int get_rtc_time(struct rtc_time *time);
-int set_rtc_time(struct rtc_time *time);
-unsigned int get_rtc_ss(void);
-int get_rtc_pll(struct rtc_pll_info *pll);
-int set_rtc_pll(struct rtc_pll_info *pll);
-
 static DEFINE_SPINLOCK(mips_rtc_lock);
 
 static inline unsigned int get_rtc_time(struct rtc_time *time)
