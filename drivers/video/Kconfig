@@ -1304,6 +1304,18 @@ config FB_AU1100
 	  various panels and CRTs by passing in kernel cmd line option
 	  au1100fb:panel=<name>.
 
+config FB_AU1200
+	bool "Au1200 LCD Driver"
+	depends on FB && MIPS && SOC_AU1200
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	select FB_SOFT_CURSOR
+	help
+	  This is the framebuffer driver for the AMD Au1200 SOC.  It can drive
+	  various panels and CRTs by passing in kernel cmd line option
+	  au1200fb:panel=<name>.
+
 source "drivers/video/geode/Kconfig"
 
 config FB_SBUS
