@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc1
-# Thu Sep 15 09:20:18 2005
+# Linux kernel version: 2.6.14-rc2
+# Thu Sep 22 02:17:17 2005
 #
 CONFIG_MIPS=y
 
@@ -107,7 +107,6 @@ CONFIG_QEMU=y
 # CONFIG_TOSHIBA_RBTX4938 is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 CONFIG_GENERIC_CALIBRATE_DELAY=y
-CONFIG_HAVE_DEC_LOCK=y
 CONFIG_DMA_COHERENT=y
 CONFIG_GENERIC_ISA_DMA=y
 CONFIG_I8259=y
@@ -238,9 +237,6 @@ CONFIG_TCP_CONG_BIC=y
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-CONFIG_NETFILTER_NETLINK=y
-CONFIG_NETFILTER_NETLINK_QUEUE=y
-CONFIG_NETFILTER_NETLINK_LOG=y
 # CONFIG_HAMRADIO is not set
 # CONFIG_IRDA is not set
 # CONFIG_BT is not set
@@ -670,7 +666,6 @@ CONFIG_CMDLINE="console=ttyS0 debug ip=172.20.0.2:172.20.0.1::255.255.0.0"
 # Security options
 #
 # CONFIG_KEYS is not set
-# CONFIG_SECURITY is not set
 
 #
 # Cryptographic options

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc1
-# Thu Sep 15 09:20:22 2005
+# Linux kernel version: 2.6.14-rc2
+# Thu Sep 22 02:17:29 2005
 #
 CONFIG_MIPS=y
 
@@ -105,7 +105,6 @@ CONFIG_MIPS_SEAD=y
 # CONFIG_TOSHIBA_RBTX4938 is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 CONFIG_GENERIC_CALIBRATE_DELAY=y
-CONFIG_HAVE_DEC_LOCK=y
 CONFIG_DMA_NONCOHERENT=y
 CONFIG_DMA_NEED_PCI_MAP_STATE=y
 # CONFIG_CPU_BIG_ENDIAN is not set
