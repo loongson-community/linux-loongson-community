@@ -59,8 +59,8 @@ config MTD_NAND_IDS
 	tristate
 
 config MTD_NAND_AU1550
-	tristate "Au1550 NAND support"
-	depends on SOC_AU1550 && MTD_NAND
+	tristate "Au1550/1200 NAND support"
+	depends on (SOC_AU1200 || SOC_AU1550) && MTD_NAND
 	help
 	  This enables the driver for the NAND flash controller on the
 	  AMD/Alchemy 1550 SOC.
