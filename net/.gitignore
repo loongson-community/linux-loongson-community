@@ -1,0 +1,6 @@
+.config*
+.*.cmd
+.*.o
+.*.S
+.tmp_*
+.version
