@@ -203,10 +203,10 @@ extern unsigned long isa_slot_offset;
  */
 #define page_to_phys(page)	((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
-extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
+extern void __iomem * __ioremap(phys_t offset, phys_t size, unsigned long flags);
 extern void __iounmap(volatile void __iomem *addr);
 
-static inline void * __ioremap_mode(phys_t offset, unsigned long size,
+static inline void __iomem * __ioremap_mode(phys_t offset, unsigned long size,
 	unsigned long flags)
 {
 #define __IS_LOW512(addr) (!((phys_t)(addr) & (phys_t) ~0x1fffffffULL))
@@ -220,7 +220,7 @@ static inline void * __ioremap_mode(phys_t offset, unsigned long size,
 		 */
 		if (flags == _CACHE_UNCACHED)
 			base = (u64) IO_BASE;
-		return (void *) (unsigned long) (base + offset);
+		return (void __iomem *) (unsigned long) (base + offset);
 	} else if (__builtin_constant_p(offset) &&
 		   __builtin_constant_p(size) && __builtin_constant_p(flags)) {
 		phys_t phys_addr, last_addr;
@@ -238,7 +238,7 @@ static inline void * __ioremap_mode(phys_t offset, unsigned long size,
 		 */
 		if (__IS_LOW512(phys_addr) && __IS_LOW512(last_addr) &&
 		    flags == _CACHE_UNCACHED)
-			return (void *)CKSEG1ADDR(phys_addr);
+			return (void __iomem *)CKSEG1ADDR(phys_addr);
 
 	}
 

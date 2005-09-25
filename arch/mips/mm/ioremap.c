@@ -117,7 +117,7 @@ static int remap_area_pages(unsigned long address, phys_t phys_addr,
 
 #define IS_LOW512(addr) (!((phys_t)(addr) & (phys_t) ~0x1fffffffULL))
 
-void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
+void __iomem * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 {
 	struct vm_struct * area;
 	unsigned long offset;
@@ -137,7 +137,7 @@ void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 	 */
 	if (IS_LOW512(phys_addr) && IS_LOW512(last_addr) &&
 	    flags == _CACHE_UNCACHED)
-		return (void *) CKSEG1ADDR(phys_addr);
+		return (void __iomem *) CKSEG1ADDR(phys_addr);
 
 	/*
 	 * Don't allow anybody to remap normal RAM that we're using..
@@ -173,7 +173,7 @@ void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 		return NULL;
 	}
 
-	return (void *) (offset + (char *)addr);
+	return (void __iomem *) (offset + (char *)addr);
 }
 
 #define IS_KSEG1(addr) (((unsigned long)(addr) & ~0x1fffffffUL) == CKSEG1)
