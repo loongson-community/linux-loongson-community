@@ -113,7 +113,7 @@ search_module_dbetables(unsigned long addr)
 #define MODULE_PROC_FAMILY "RM9000"
 #elif defined CONFIG_CPU_SB1
 #define MODULE_PROC_FAMILY "SB1"
-#elif
+#else
 #error MODULE_PROC_FAMILY undefined for your processor configuration
 #endif
 
