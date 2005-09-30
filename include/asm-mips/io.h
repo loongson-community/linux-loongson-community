@@ -387,7 +387,8 @@ static inline void pfx##out##bwlq##p(type val, unsigned long port)	\
 									\
 	__val = pfx##ioswab##bwlq(val);					\
 									\
-	BUILD_BUG_ON(sizeof(type) == sizeof(u64));			\
+	/* Really, we want this to be atomic */				\
+	BUILD_BUG_ON(sizeof(type) > sizeof(unsigned long));		\
 									\
 	*__addr = __val;						\
 	slow;								\
@@ -401,7 +402,7 @@ static inline type pfx##in##bwlq##p(unsigned long port)			\
 	port = __swizzle_addr_##bwlq(port);				\
 	__addr = (void *)(mips_io_port_base + port);			\
 									\
-	BUILD_BUG_ON(sizeof(type) == sizeof(u64));			\
+	BUILD_BUG_ON(sizeof(type) > sizeof(unsigned long));		\
 									\
 	__val = *__addr;						\
 	slow;								\
@@ -425,9 +426,8 @@ BUILDIO_MEM(l, u32)
 BUILDIO_MEM(q, u64)
 
 #define __BUILD_IOPORT_PFX(bus, bwlq, type)				\
-									\
-__BUILD_IOPORT_SINGLE(bus, bwlq, type, ,)				\
-__BUILD_IOPORT_SINGLE(bus, bwlq, type, _p, SLOW_DOWN_IO)
+	__BUILD_IOPORT_SINGLE(bus, bwlq, type, ,)			\
+	__BUILD_IOPORT_SINGLE(bus, bwlq, type, _p, SLOW_DOWN_IO)
 
 #define BUILDIO_IOPORT(bwlq, type)					\
 	__BUILD_IOPORT_PFX(, bwlq, type)				\
