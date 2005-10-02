@@ -266,7 +266,7 @@ int __devinit __cpu_up(unsigned int cpu)
 	 */
 	idle = fork_idle(cpu);
 	if (IS_ERR(idle))
-		panic(KERN_ERR "Fork failed for CPU %d\n", cpu);
+		panic(KERN_ERR "Fork failed for CPU %d", cpu);
 
 	prom_boot_secondary(cpu, idle);
 
