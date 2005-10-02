@@ -417,7 +417,7 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
  */
 #define __copy_to_user(to,from,n)					\
 ({									\
-	void __user __user *__cu_to;					\
+	void __user *__cu_to;						\
 	const void *__cu_from;						\
 	long __cu_len;							\
 									\
