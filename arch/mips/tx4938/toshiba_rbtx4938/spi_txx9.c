@@ -21,7 +21,7 @@
 #include <asm/tx4938/tx4938.h>
 
 static int (*txx9_spi_cs_func)(int chipid, int on);
-static spinlock_t txx9_spi_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(txx9_spi_lock);
 
 extern unsigned int txx9_gbus_clock;
 

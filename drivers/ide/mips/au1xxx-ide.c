@@ -62,8 +62,8 @@
 #define DRV_DESC	"Au1200 IDE"
 
 static _auide_hwif auide_hwif;
-static spinlock_t ide_tune_drive_spin_lock = SPIN_LOCK_UNLOCKED;
-static spinlock_t ide_tune_chipset_spin_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(ide_tune_drive_spin_lock);
+static DEFINE_SPINLOCK(ide_tune_chipset_spin_lock);
 static int dbdma_init_done = 0;
 
 /*
