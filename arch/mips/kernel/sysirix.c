@@ -279,7 +279,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 #if 0
 	case SGI_RDNAME: {
 		int pid = (int) regs->regs[base + 5];
-		char __user *buf = (char *) regs->regs[base + 6];
+		char __user *buf = (char __user *) regs->regs[base + 6];
 		struct task_struct *p;
 		char tcomm[sizeof(current->comm)];
 
