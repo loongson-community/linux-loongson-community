@@ -1610,7 +1610,7 @@ S:	Maintained
 MIPS
 P:	Ralf Baechle
 M:	ralf@linux-mips.org
-W:	http://oss.sgi.com/mips/mips-howto.html
+W:	http://www.linux-mips.org/
 L:	linux-mips@linux-mips.org
 S:	Maintained
 
