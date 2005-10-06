@@ -121,7 +121,7 @@ toshiba_rbtx4938_irq_nested(int sw_irq)
 
 	level3 = reg_rd08(TOSHIBA_RBTX4938_IOC_INTR_STAT) & 0xff;
 	if (level3) {
-                /* must use last_bit2num so onboard ATA has priority */
+                /* must use fls so onboard ATA has priority */
 		sw_irq = TOSHIBA_RBTX4938_IRQ_IOC_BEG + fls(level3) - 1;
 	}
 
