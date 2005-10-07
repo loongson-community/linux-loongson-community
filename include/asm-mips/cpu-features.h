@@ -165,12 +165,12 @@
 #endif
 
 #ifdef CONFIG_CPU_MIPSR2
-# if CONFIG_CPU_MIPSR2_IRQ_VI && !defined(cpu_has_vint)
+# if defined(CONFIG_CPU_MIPSR2_IRQ_VI) && !defined(cpu_has_vint)
 #  define cpu_has_vint		(cpu_data[0].options & MIPS_CPU_VINT)
 # else
 #  define cpu_has_vint			0
 # endif
-# if CONFIG_CPU_MIPSR2_IRQ_EI && !defined(cpu_has_veic)
+# if defined(CONFIG_CPU_MIPSR2_IRQ_EI) && !defined(cpu_has_veic)
 #  define cpu_has_veic		(cpu_data[0].options & MIPS_CPU_VEIC)
 # else
 #  define cpu_has_veic			0
