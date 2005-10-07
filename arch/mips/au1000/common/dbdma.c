@@ -431,7 +431,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 	cmd0 |= DSCR_CMD0_DID(destid);
 	cmd0 |= DSCR_CMD0_IE | DSCR_CMD0_CV;
 	cmd0 |= DSCR_CMD0_ST(DSCR_CMD0_ST_NOCHANGE);
-	
+
         /* is it mem to mem transfer? */
         if(((DSCR_CUSTOM2DEV_ID(srcid) == DSCR_CMD0_THROTTLE) || (DSCR_CUSTOM2DEV_ID(srcid) == DSCR_CMD0_ALWAYS)) &&
            ((DSCR_CUSTOM2DEV_ID(destid) == DSCR_CMD0_THROTTLE) || (DSCR_CUSTOM2DEV_ID(destid) == DSCR_CMD0_ALWAYS))) {

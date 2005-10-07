@@ -38,19 +38,19 @@ extern asmlinkage void ll_local_timer_interrupt(int irq, struct pt_regs *regs);
 
 irqreturn_t sim_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-#ifdef CONFIG_SMP 
+#ifdef CONFIG_SMP
 	int cpu = smp_processor_id();
 
 	/*
 	 * CPU 0 handles the global timer interrupt job
-	 * resets count/compare registers to trigger next timer int. 
+	 * resets count/compare registers to trigger next timer int.
 	 */
 #ifndef CONFIG_MIPS_MT_SMTC
 	if (cpu == 0) {
 		timer_interrupt(irq, dev_id, regs);
 	}
 	else {
-		/* Everyone else needs to reset the timer int here as 
+		/* Everyone else needs to reset the timer int here as
 		   ll_local_timer_interrupt doesn't */
 		/*
 		 * FIXME: need to cope with counter underflow.
@@ -76,10 +76,10 @@ irqreturn_t sim_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * had to turn off the timer IM bit to avoid redundant
 	 * entries, but we may never get to mips_cpu_irq_end
 	 * to turn it back on again if the scheduler gets
-	 * involved.  So we clear the pending timer here, 
+	 * involved.  So we clear the pending timer here,
 	 * and re-enable the mask...
 	 */
-	
+
 	int vpflags = dvpe();
 	write_c0_compare (read_c0_count() - 1);
 	clear_c0_cause(0x100 << MIPSCPU_INT_CPUCTR);
@@ -90,9 +90,9 @@ irqreturn_t sim_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	if(cpu_data[cpu].vpe_id == 0) timer_interrupt(irq, dev_id, regs);
 	else write_c0_compare (read_c0_count() + ( mips_hpt_frequency/HZ));
 	smtc_timer_broadcast(cpu_data[cpu].vpe_id);
-	
+
 #endif /* CONFIG_MIPS_MT_SMTC */
-	
+
 	/*
 	 * every CPU should do profiling and process accounting
 	 */
@@ -117,7 +117,7 @@ static unsigned int __init estimate_cpu_frequency(void)
 	/*
 	 * hardwire the board frequency to 12MHz.
 	 */
-	
+
 	if ((prid == (PRID_COMP_MIPS | PRID_IMP_20KC)) ||
 	    (prid == (PRID_COMP_MIPS | PRID_IMP_25KF)))
 		count = 12000000;
@@ -166,7 +166,7 @@ void __init sim_time_init(void)
 
         /* Set Data mode - binary. */
 	CMOS_WRITE(CMOS_READ(RTC_CONTROL) | RTC_DM_BINARY, RTC_CONTROL);
-		
+
 
 	est_freq = estimate_cpu_frequency ();
 

@@ -181,7 +181,7 @@ static int __init mipsxx_init(void)
 
 	reset_counters(counters);
 
-	op_model_mipsxx.num_counters = counters;	
+	op_model_mipsxx.num_counters = counters;
 	switch (current_cpu_data.cputype) {
 	case CPU_24K:
 		op_model_mipsxx.cpu_type = "mips/24K";

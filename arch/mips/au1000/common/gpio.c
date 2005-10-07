@@ -41,7 +41,7 @@ void au1xxx_gpio2_write(int signal, int value)
 {
 	signal -= 200;
 
-	gpio2->output = (GPIO2_OUTPUT_ENABLE_MASK << signal) | 
+	gpio2->output = (GPIO2_OUTPUT_ENABLE_MASK << signal) |
 		(value << signal);
 }
 

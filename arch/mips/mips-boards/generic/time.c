@@ -77,7 +77,7 @@ static void mips_timer_dispatch (struct pt_regs *regs)
 
 irqreturn_t mips_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-#ifdef CONFIG_SMP 
+#ifdef CONFIG_SMP
 	int cpu = smp_processor_id();
 
 	if (cpu == 0) {
@@ -89,7 +89,7 @@ irqreturn_t mips_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		scroll_display_message();
 	}
 	else {
-		/* Everyone else needs to reset the timer int here as 
+		/* Everyone else needs to reset the timer int here as
 		   ll_local_timer_interrupt doesn't */
 		/*
 		 * FIXME: need to cope with counter underflow.

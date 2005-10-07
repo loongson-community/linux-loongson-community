@@ -170,7 +170,7 @@ int __init auide_probe(void);
  */
 #ifdef CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
 
-        static int in_drive_list(struct hd_driveid *id, 
+        static int in_drive_list(struct hd_driveid *id,
                                  const struct drive_list_entry *drive_table);
         static int auide_build_sglist(ide_drive_t *drive,  struct request *rq);
         static int auide_build_dmatable(ide_drive_t *drive);

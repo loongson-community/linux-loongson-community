@@ -24,9 +24,9 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 
-#include <asm/mips-boards/simint.h>	
+#include <asm/mips-boards/simint.h>
 
-	
+
 	.text
 	.set	noreorder
 	.set	noat
@@ -51,7 +51,7 @@
 #else
 	beqz	s0, spurious
 	 li	a0, 7
-	
+
 	and	t0, s0, 0xf000
 	sltiu	t0, t0, 1
 	sll	t0, 2
@@ -69,13 +69,13 @@
 	# sll	t0, 0
 	subu	a0, t0
 	# sll	s0, t0
-#endif	
+#endif
 
 #ifdef CASCADE_IRQ
 	 li	a1, CASCADE_IRQ
 	bne	a0, a1, 1f
 	 addu	a0, MIPSCPU_INT_BASE
-	
+
 	jal	CASCADE_DISPATCH
 	 move	 a0, sp
 
@@ -88,7 +88,7 @@
 
 	jal	do_IRQ
 	 move	a1, sp
-	
+
 	j	ret_from_irq
 	 nop
 

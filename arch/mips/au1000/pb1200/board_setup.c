@@ -138,7 +138,7 @@ void __init board_setup(void)
 #elif defined( CONFIG_AU1XXX_PSC_SPI )
 	bcsr->resets |= BCSR_RESETS_PCS0MUX;
 	/*Hard Coding Value to enable Temp Sensors [bit 14] Value for SOC Au1200. Pls refer documentation*/
-	  bcsr->resets =0x900f;	  
+	  bcsr->resets =0x900f;
 #elif defined( CONFIG_I2C_AU1550 )
 	bcsr->resets &= (~BCSR_RESETS_PCS0MUX);
 #endif

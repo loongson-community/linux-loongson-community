@@ -55,7 +55,7 @@ void rs_kgdb_hook(int tty_no)
 	/* Clear all the receiver FIFO counters (pointer and status) */
 	ip3106_lcr(UART_BASE, tty_no) |= IP3106_UART_LCR_RX_RST;
 	/* Clear all interrupts */
-	ip3106_iclr(UART_BASE, tty_no) = IP3106_UART_INT_ALLRX | 
+	ip3106_iclr(UART_BASE, tty_no) = IP3106_UART_INT_ALLRX |
 		IP3106_UART_INT_ALLTX;
 
 	/*
@@ -81,11 +81,11 @@ char getDebugChar(void)
 	char ch;
 
 	/* Wait until there is a char in the FIFO */
-	while (!((ip3106_fifo(UART_BASE, kdb_port_info.port) & 
+	while (!((ip3106_fifo(UART_BASE, kdb_port_info.port) &
 					IP3106_UART_FIFO_RXFIFO) >> 8))
 		;
 	/* Read one char */
-	ch = ip3106_fifo(UART_BASE, kdb_port_info.port) & 
+	ch = ip3106_fifo(UART_BASE, kdb_port_info.port) &
 		IP3106_UART_FIFO_RBRTHR;
 	/* Advance the RX FIFO read pointer */
 	ip3106_lcr(UART_BASE, kdb_port_info.port) |= IP3106_UART_LCR_RX_NEXT;

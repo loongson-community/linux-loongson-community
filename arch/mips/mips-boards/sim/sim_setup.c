@@ -55,20 +55,20 @@ void __init plat_setup(void)
 	set_io_port_base(0xbfd00000);
 
 	serial_init();
-	
+
 	board_time_init = sim_time_init;
 	board_timer_setup = sim_timer_setup;
 	prom_printf("Linux started...\n");
 
 #ifdef CONFIG_MT_SMP
 	sanitize_tlb_entries();
-#endif	
+#endif
 }
 
 void prom_init(void)
 {
 	set_io_port_base(0xbfd00000);
-	
+
 	prom_printf("\nLINUX started...\n");
 	prom_init_cmdline();
 	prom_meminit();
@@ -92,7 +92,7 @@ static void __init serial_init(void)
 	s.iotype = SERIAL_IO_PORT | ASYNC_SKIP_TEST;
 	s.regshift = 0;
 	s.timeout = 4;
-	
+
 	if (early_serial_setup(&s) != 0) {
 		prom_printf(KERN_ERR "Serial setup failed!\n");
 	}

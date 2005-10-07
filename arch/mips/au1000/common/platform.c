@@ -188,7 +188,7 @@ static struct resource au1200_lcd_resources[] = {
 
 static struct resource au1200_ide0_resources[] = {
 	[0] = {
-		.start		= AU1XXX_ATA_PHYS_ADDR, 
+		.start		= AU1XXX_ATA_PHYS_ADDR,
 		.end 		= AU1XXX_ATA_PHYS_ADDR + AU1XXX_ATA_PHYS_LEN,
 		.flags		= IORESOURCE_MEM,
 	},
@@ -246,7 +246,7 @@ static struct platform_device au1x00_pcmcia_device = {
 };
 
 #ifdef CONFIG_MIPS_DB1200
- 
+
 static struct resource smc91x_resources[] = {
 	[0] = {
 		.name	= "smc91x-regs",
@@ -260,14 +260,14 @@ static struct resource smc91x_resources[] = {
 		.flags	= IORESOURCE_IRQ,
 	},
 };
- 
+
 static struct platform_device smc91x_device = {
 	.name		= "smc91x",
  	.id		= -1,
 	.num_resources	= ARRAY_SIZE(smc91x_resources),
 	.resource	= smc91x_resources,
 };
- 
+
 #endif
 
 
