@@ -154,7 +154,7 @@ mipsnet_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		} else if (interruptFlags & MIPSNET_INTCTL_TESTBIT) {
 			pr_debug("%s:%s(): got test interrupt\n",
 			         dev->name, __FUNCTION__);
-			// TESTBIT is cleared on read. 
+			// TESTBIT is cleared on read.
 			//    And takes effect after a write with 0
 			outl(0, mipsnet_reg_address(dev, interruptControl));
 		} else {

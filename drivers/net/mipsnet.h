@@ -1,13 +1,13 @@
 //
 // <COPYRIGHT CLASS="1B" YEAR="2005">
-// Unpublished work (c) MIPS Technologies, Inc.  All rights reserved.  
-// Unpublished rights reserved under the copyright laws of the U.S.A. and 
+// Unpublished work (c) MIPS Technologies, Inc.  All rights reserved.
+// Unpublished rights reserved under the copyright laws of the U.S.A. and
 //  other countries.
 //
 // PROPRIETARY / SECRET CONFIDENTIAL INFORMATION OF MIPS TECHNOLOGIES, INC.
 // FOR INTERNAL USE ONLY.
 //
-// Under no circumstances (contract or otherwise) may this information be 
+// Under no circumstances (contract or otherwise) may this information be
 // disclosed to, or copied, modified or used by anyone other than employees
 // or contractors of MIPS Technologies having a need to know.
 // </COPYRIGHT>
