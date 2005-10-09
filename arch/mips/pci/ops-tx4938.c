@@ -13,7 +13,6 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/config.h>
 
 #include <asm/addrspace.h>
 #include <asm/tx4938/rbtx4938.h>

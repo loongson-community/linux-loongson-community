@@ -12,8 +12,6 @@
  * Based upon arch/mips/galileo-boards/ev64240/int-handler.S
  *
  */
-
-#include <linux/config.h>
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
 #include <asm/addrspace.h>

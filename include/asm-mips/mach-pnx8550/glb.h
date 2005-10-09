@@ -22,8 +22,6 @@
 #ifndef __PNX8550_GLB_H
 #define __PNX8550_GLB_H
 
-#include <linux/config.h>
-
 #define PNX8550_GLB1_BASE	0xBBE63000
 #define PNX8550_GLB2_BASE	0xBBE4d000
 #define PNX8550_RESET_BASE      0xBBE60000

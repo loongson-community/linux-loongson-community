@@ -22,7 +22,6 @@
  * This is the interface to the remote debugger stub.
  *
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/serial.h>
 #include <linux/serialP.h>

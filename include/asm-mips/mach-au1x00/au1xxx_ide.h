@@ -29,9 +29,7 @@
  * Note: for more information, please refer "AMD Alchemy Au1200/Au1550 IDE
  *       Interface and Linux Device Driver" Application Note.
  */
-#ifndef AUTOCONF_INCLUDED
-        #include <linux/autoconf.h>
-#endif
+#include <linux/config.h>
 
 #ifdef CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
         #define DMA_WAIT_TIMEOUT        100

@@ -22,8 +22,6 @@
 #ifndef __PNX8550_INT_H
 #define __PNX8550_INT_H
 
-#include <linux/config.h>
-
 #define PNX8550_GIC_BASE	0xBBE3E000
 
 #define PNX8550_GIC_PRIMASK_0	*(volatile unsigned long *)(PNX8550_GIC_BASE + 0x000)

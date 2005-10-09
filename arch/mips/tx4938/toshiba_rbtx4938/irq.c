@@ -66,8 +66,6 @@ IRQ  Device
 62 RBTX4938-IOC/06 MODEM
 63 RBTX4938-IOC/07 SWINT
 */
-
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>

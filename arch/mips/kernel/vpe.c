@@ -32,7 +32,7 @@
  * mknod /dev/vpe0 c 63 0
  * mknod /dev/vpe1 c 63 1
  */
-
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/fs.h>

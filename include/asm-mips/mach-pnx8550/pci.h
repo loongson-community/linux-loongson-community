@@ -22,7 +22,6 @@
 #ifndef __PNX8550_PCI_H
 #define __PNX8550_PCI_H
 
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
