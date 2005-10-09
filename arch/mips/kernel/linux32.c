@@ -215,9 +215,6 @@ sys32_readdir(unsigned int fd, void * dirent32, unsigned int count)
 	return(n);
 }
 
-asmlinkage int compat_sys_wait4(compat_pid_t pid, unsigned int * stat_addr,
-				int options, struct compat_rusage * ru);
-
 asmlinkage int
 sys32_waitpid(compat_pid_t pid, unsigned int *stat_addr, int options)
 {
@@ -500,20 +497,20 @@ struct msgbuf32 { s32 mtype; char mtext[1]; };
 struct ipc_perm32
 {
 	key_t    	  key;
-        compat_uid_t  uid;
-        compat_gid_t  gid;
-        compat_uid_t  cuid;
-        compat_gid_t  cgid;
+        __compat_uid_t  uid;
+        __compat_gid_t  gid;
+        __compat_uid_t  cuid;
+        __compat_gid_t  cgid;
         compat_mode_t	mode;
         unsigned short  seq;
 };
 
 struct ipc64_perm32 {
 	key_t key;
-	compat_uid_t uid;
-	compat_gid_t gid;
-	compat_uid_t cuid;
-	compat_gid_t cgid;
+	__compat_uid_t uid;
+	__compat_gid_t gid;
+	__compat_uid_t cuid;
+	__compat_gid_t cgid;
 	compat_mode_t	mode;
 	unsigned short	seq;
 	unsigned short __pad1;
