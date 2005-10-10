@@ -768,5 +768,5 @@ module_init(sgiseeq_probe);
 module_exit(sgiseeq_exit);
 
 MODULE_DESCRIPTION("SGI Seeq 8003 driver");
-MODULE_AUTHOR("David S. Miller");
+MODULE_AUTHOR("Linux/MIPS Mailing List <linux-mips@linux-mips.org>");
 MODULE_LICENSE("GPL");
