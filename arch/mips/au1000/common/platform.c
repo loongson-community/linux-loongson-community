@@ -270,7 +270,6 @@ static struct platform_device smc91x_device = {
 
 #endif
 
-
 static struct platform_device *au1xxx_platform_devices[] __initdata = {
 	&au1xxx_usb_ohci_device,
 	&au1x00_pcmcia_device,
@@ -285,7 +284,7 @@ static struct platform_device *au1xxx_platform_devices[] __initdata = {
 	&au1xxx_usb_otg_device,
 	&au1200_lcd_device,
 	&au1200_ide0_device,
- 	&au1xxx_mmc_device,
+	&au1xxx_mmc_device,
 #endif
 #ifdef CONFIG_MIPS_DB1200
  	&smc91x_device,

@@ -294,7 +294,7 @@ pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 
 void __devinit
 pcibios_bus_to_resource(struct pci_dev *dev, struct resource *res,
-			 struct pci_bus_region *region)
+			struct pci_bus_region *region)
 {
 	struct pci_controller *hose = (struct pci_controller *)dev->sysdata;
 	unsigned long offset = 0;
