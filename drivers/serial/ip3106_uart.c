@@ -907,6 +907,6 @@ module_init(ip3106_serial_init);
 module_exit(ip3106_serial_exit);
 
 MODULE_AUTHOR("Embedded Alley Solutions, Inc.");
-MODULE_DESCRIPTION("IP3106 generic serial port driver $Revision: 1.2 $");
+MODULE_DESCRIPTION("IP3106 generic serial port driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_CHARDEV_MAJOR(SERIAL_IP3106_MAJOR);
