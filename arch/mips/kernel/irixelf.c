@@ -787,8 +787,7 @@ out_free_dentry:
 	allow_write_access(interpreter);
 	fput(interpreter);
 out_free_interp:
-	if (elf_interpreter)
-		kfree(elf_interpreter);
+	kfree(elf_interpreter);
 out_free_file:
 out_free_ph:
 	kfree (elf_phdata);

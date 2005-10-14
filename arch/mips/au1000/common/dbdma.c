@@ -834,8 +834,7 @@ au1xxx_dbdma_chan_free(u32 chanid)
 
 	au1xxx_dbdma_stop(chanid);
 
-	if (ctp->chan_desc_base != NULL)
-		kfree((void *)ctp->chan_desc_base);
+	kfree((void *)ctp->chan_desc_base);
 
 	stp->dev_flags &= ~DEV_FLAGS_INUSE;
 	dtp->dev_flags &= ~DEV_FLAGS_INUSE;

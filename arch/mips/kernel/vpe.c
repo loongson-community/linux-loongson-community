@@ -279,8 +279,7 @@ static void *alloc_progmem(u32 len)
 static void release_progmem(void *ptr)
 {
 #ifndef CONFIG_MIPS_VPE_LOADER_TOM
-	if (ptr)
-		kfree(ptr);
+	kfree(ptr);
 #endif
 }
 
