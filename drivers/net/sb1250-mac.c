@@ -118,8 +118,6 @@ MODULE_PARM_DESC(int_timeout, "Timeout value");
  ********************************************************************* */
 
 
-typedef unsigned long sbmac_port_t;
-
 typedef enum { sbmac_speed_auto, sbmac_speed_10,
 	       sbmac_speed_100, sbmac_speed_1000 } sbmac_speed_t;
 
@@ -187,11 +185,11 @@ typedef struct sbmacdma_s {
 	int		 sbdma_int_timeout; /* # usec rx/tx interrupt */
 #endif
 
-	sbmac_port_t     sbdma_config0;	/* DMA config register 0 */
-	sbmac_port_t     sbdma_config1;	/* DMA config register 1 */
-	sbmac_port_t     sbdma_dscrbase;	/* Descriptor base address */
-	sbmac_port_t     sbdma_dscrcnt;     /* Descriptor count register */
-	sbmac_port_t     sbdma_curdscr;	/* current descriptor address */
+	unsigned long     sbdma_config0;	/* DMA config register 0 */
+	unsigned long     sbdma_config1;	/* DMA config register 1 */
+	unsigned long     sbdma_dscrbase;	/* Descriptor base address */
+	unsigned long     sbdma_dscrcnt;     /* Descriptor count register */
+	unsigned long     sbdma_curdscr;	/* current descriptor address */
 	
 	/*
 	 * This stuff is for maintenance of the ring
@@ -239,14 +237,14 @@ struct sbmac_softc {
 	unsigned long	sbm_base;          /* MAC's base address */
 	sbmac_state_t    sbm_state;         /* current state */
 	
-	sbmac_port_t     sbm_macenable;	/* MAC Enable Register */
-	sbmac_port_t     sbm_maccfg;	/* MAC Configuration Register */
-	sbmac_port_t     sbm_fifocfg;	/* FIFO configuration register */
-	sbmac_port_t     sbm_framecfg;	/* Frame configuration register */
-	sbmac_port_t     sbm_rxfilter;	/* receive filter register */
-	sbmac_port_t     sbm_isr;		/* Interrupt status register */
-	sbmac_port_t     sbm_imr;		/* Interrupt mask register */
-	sbmac_port_t     sbm_mdio;		/* MDIO register */
+	unsigned long     sbm_macenable;	/* MAC Enable Register */
+	unsigned long     sbm_maccfg;	/* MAC Configuration Register */
+	unsigned long     sbm_fifocfg;	/* FIFO configuration register */
+	unsigned long     sbm_framecfg;	/* Frame configuration register */
+	unsigned long     sbm_rxfilter;	/* receive filter register */
+	unsigned long     sbm_isr;		/* Interrupt status register */
+	unsigned long     sbm_imr;		/* Interrupt mask register */
+	unsigned long     sbm_mdio;		/* MDIO register */
 	
 	sbmac_speed_t    sbm_speed;		/* current speed */
 	sbmac_duplex_t   sbm_duplex;	/* current duplex */
@@ -1460,7 +1458,7 @@ static void sbmac_uninitctx(struct sbmac_softc *sc)
 static void sbmac_channel_start(struct sbmac_softc *s)
 {
 	uint64_t reg;
-	sbmac_port_t port;
+	unsigned long port;
 	uint64_t cfg,fifo,framecfg;
 	int idx, th_value;
 	
@@ -2170,7 +2168,7 @@ static int sbmac_start_tx(struct sk_buff *skb, struct net_device *dev)
 static void sbmac_setmulti(struct sbmac_softc *sc)
 {
 	uint64_t reg;
-	sbmac_port_t port;
+	unsigned long port;
 	int idx;
 	struct dev_mc_list *mclist;
 	struct net_device *dev = sc->sbm_dev;
@@ -2795,7 +2793,7 @@ sbmac_setup_hwaddr(int chan,char *addr)
 {
 	uint8_t eaddr[6];
 	uint64_t val;
-	sbmac_port_t port;
+	unsigned long port;
 
 	port = A_MAC_CHANNEL_BASE(chan);
 	sbmac_parse_hwaddr(addr,eaddr);
@@ -2812,7 +2810,7 @@ sbmac_init_module(void)
 {
 	int idx;
 	struct net_device *dev;
-	sbmac_port_t port;
+	unsigned long port;
 	int chip_max_units;
 	
 	/*
