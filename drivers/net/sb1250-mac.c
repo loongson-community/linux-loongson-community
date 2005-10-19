@@ -185,11 +185,11 @@ typedef struct sbmacdma_s {
 	int		 sbdma_int_timeout; /* # usec rx/tx interrupt */
 #endif
 
-	unsigned long     sbdma_config0;	/* DMA config register 0 */
-	unsigned long     sbdma_config1;	/* DMA config register 1 */
-	unsigned long     sbdma_dscrbase;	/* Descriptor base address */
-	unsigned long     sbdma_dscrcnt;     /* Descriptor count register */
-	unsigned long     sbdma_curdscr;	/* current descriptor address */
+	volatile void __iomem *sbdma_config0;	/* DMA config register 0 */
+	volatile void __iomem *sbdma_config1;	/* DMA config register 1 */
+	volatile void __iomem *sbdma_dscrbase;	/* Descriptor base address */
+	volatile void __iomem *sbdma_dscrcnt;     /* Descriptor count register */
+	volatile void __iomem *sbdma_curdscr;	/* current descriptor address */
 	
 	/*
 	 * This stuff is for maintenance of the ring
@@ -234,17 +234,17 @@ struct sbmac_softc {
 	 * Controller-specific things
 	 */
 	
-	unsigned long	sbm_base;          /* MAC's base address */
+	volatile void __iomem *sbm_base;          /* MAC's base address */
 	sbmac_state_t    sbm_state;         /* current state */
 	
-	unsigned long     sbm_macenable;	/* MAC Enable Register */
-	unsigned long     sbm_maccfg;	/* MAC Configuration Register */
-	unsigned long     sbm_fifocfg;	/* FIFO configuration register */
-	unsigned long     sbm_framecfg;	/* Frame configuration register */
-	unsigned long     sbm_rxfilter;	/* receive filter register */
-	unsigned long     sbm_isr;		/* Interrupt status register */
-	unsigned long     sbm_imr;		/* Interrupt mask register */
-	unsigned long     sbm_mdio;		/* MDIO register */
+	volatile void __iomem	*sbm_macenable;	/* MAC Enable Register */
+	volatile void __iomem	*sbm_maccfg;	/* MAC Configuration Register */
+	volatile void __iomem	*sbm_fifocfg;	/* FIFO configuration register */
+	volatile void __iomem	*sbm_framecfg;	/* Frame configuration register */
+	volatile void __iomem	*sbm_rxfilter;	/* receive filter register */
+	volatile void __iomem	*sbm_isr;	/* Interrupt status register */
+	volatile void __iomem	*sbm_imr;	/* Interrupt mask register */
+	volatile void __iomem	*sbm_mdio;	/* MDIO register */
 	
 	sbmac_speed_t    sbm_speed;		/* current speed */
 	sbmac_duplex_t   sbm_duplex;	/* current duplex */
@@ -465,15 +465,15 @@ static void sbmac_mii_sync(struct sbmac_softc *s)
 	uint64_t bits;
 	int mac_mdio_genc;
 
-	mac_mdio_genc = __raw_readq((unsigned long)s->sbm_mdio) & M_MAC_GENC;
+	mac_mdio_genc = __raw_readq(s->sbm_mdio) & M_MAC_GENC;
 	
 	bits = M_MAC_MDIO_DIR_OUTPUT | M_MAC_MDIO_OUT;
 	
-	__raw_writeq(bits | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(bits | mac_mdio_genc, s->sbm_mdio);
 	
 	for (cnt = 0; cnt < 32; cnt++) {
-		__raw_writeq(bits | M_MAC_MDC | mac_mdio_genc, (unsigned long)s->sbm_mdio);
-		__raw_writeq(bits | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+		__raw_writeq(bits | M_MAC_MDC | mac_mdio_genc, s->sbm_mdio);
+		__raw_writeq(bits | mac_mdio_genc, s->sbm_mdio);
 	}
 }
 
@@ -496,10 +496,10 @@ static void sbmac_mii_senddata(struct sbmac_softc *s,unsigned int data, int bitc
 	unsigned int curmask;
 	int mac_mdio_genc;
 
-	mac_mdio_genc = __raw_readq((unsigned long)s->sbm_mdio) & M_MAC_GENC;
+	mac_mdio_genc = __raw_readq(s->sbm_mdio) & M_MAC_GENC;
 	
 	bits = M_MAC_MDIO_DIR_OUTPUT;
-	__raw_writeq(bits | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(bits | mac_mdio_genc, s->sbm_mdio);
 	
 	curmask = 1 << (bitcnt - 1);
 	
@@ -507,9 +507,9 @@ static void sbmac_mii_senddata(struct sbmac_softc *s,unsigned int data, int bitc
 		if (data & curmask)
 			bits |= M_MAC_MDIO_OUT;
 		else bits &= ~M_MAC_MDIO_OUT;
-		__raw_writeq(bits | mac_mdio_genc, (unsigned long)s->sbm_mdio);
-		__raw_writeq(bits | M_MAC_MDC | mac_mdio_genc, (unsigned long)s->sbm_mdio);
-		__raw_writeq(bits | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+		__raw_writeq(bits | mac_mdio_genc, s->sbm_mdio);
+		__raw_writeq(bits | M_MAC_MDC | mac_mdio_genc, s->sbm_mdio);
+		__raw_writeq(bits | mac_mdio_genc, s->sbm_mdio);
 		curmask >>= 1;
 	}
 }
@@ -557,31 +557,31 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 	sbmac_mii_senddata(s,phyaddr, 5);
 	sbmac_mii_senddata(s,regidx, 5);
 	
-	mac_mdio_genc = __raw_readq((unsigned long)s->sbm_mdio) & M_MAC_GENC;
+	mac_mdio_genc = __raw_readq(s->sbm_mdio) & M_MAC_GENC;
 	
 	/* 
 	 * Switch the port around without a clock transition.
 	 */
-	__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, s->sbm_mdio);
 	
 	/*
 	 * Send out a clock pulse to signal we want the status
 	 */
 	
-	__raw_writeq(M_MAC_MDIO_DIR_INPUT | M_MAC_MDC | mac_mdio_genc, (unsigned long)s->sbm_mdio);
-	__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_INPUT | M_MAC_MDC | mac_mdio_genc, s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, s->sbm_mdio);
 	
 	/* 
 	 * If an error occurred, the PHY will signal '1' back
 	 */
-	error = __raw_readq((unsigned long)s->sbm_mdio) & M_MAC_MDIO_IN;
+	error = __raw_readq(s->sbm_mdio) & M_MAC_MDIO_IN;
 	
 	/* 
 	 * Issue an 'idle' clock pulse, but keep the direction
 	 * the same.
 	 */
-	__raw_writeq(M_MAC_MDIO_DIR_INPUT | M_MAC_MDC | mac_mdio_genc, (unsigned long)s->sbm_mdio);
-	__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_INPUT | M_MAC_MDC | mac_mdio_genc, s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, s->sbm_mdio);
 	
 	regval = 0;
 	
@@ -589,16 +589,16 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 		regval <<= 1;
 		
 		if (error == 0) {
-			if (__raw_readq((unsigned long)s->sbm_mdio) & M_MAC_MDIO_IN)
+			if (__raw_readq(s->sbm_mdio) & M_MAC_MDIO_IN)
 				regval |= 1;
 		}
 		
-		__raw_writeq(M_MAC_MDIO_DIR_INPUT|M_MAC_MDC | mac_mdio_genc, (unsigned long)s->sbm_mdio);
-		__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+		__raw_writeq(M_MAC_MDIO_DIR_INPUT|M_MAC_MDC | mac_mdio_genc, s->sbm_mdio);
+		__raw_writeq(M_MAC_MDIO_DIR_INPUT | mac_mdio_genc, s->sbm_mdio);
 	}
 	
 	/* Switch back to output */
-	__raw_writeq(M_MAC_MDIO_DIR_OUTPUT | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_OUTPUT | mac_mdio_genc, s->sbm_mdio);
 	
 	if (error == 0)
 		return regval;
@@ -635,9 +635,9 @@ static void sbmac_mii_write(struct sbmac_softc *s,int phyaddr,int regidx,
 	sbmac_mii_senddata(s,MII_COMMAND_ACK,2);
 	sbmac_mii_senddata(s,regval,16);
 
-	mac_mdio_genc = __raw_readq((unsigned long)s->sbm_mdio) & M_MAC_GENC;
+	mac_mdio_genc = __raw_readq(s->sbm_mdio) & M_MAC_GENC;
 
-	__raw_writeq(M_MAC_MDIO_DIR_OUTPUT | mac_mdio_genc, (unsigned long)s->sbm_mdio);
+	__raw_writeq(M_MAC_MDIO_DIR_OUTPUT | mac_mdio_genc, s->sbm_mdio);
 }
 
 
@@ -679,48 +679,27 @@ static void sbdma_initctx(sbmacdma_t *d,
 	s->sbe_idx =(s->sbm_base - A_MAC_BASE_0)/MAC_SPACING;
 #endif
 
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BYTES)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_COLLISIONS)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_LATE_COL)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_EX_COL)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_FCS_ERROR)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_ABORT)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BAD)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_GOOD)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_RUNT)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_OVERSIZE)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BYTES)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_MCAST)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BCAST)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BAD)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_GOOD)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_RUNT)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_OVERSIZE)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_FCS_ERROR)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_LENGTH_ERROR)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_CODE_ERROR)));
-	__raw_writeq(0, (unsigned long)IOADDR(
-	A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_ALIGN_ERROR)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BYTES)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_COLLISIONS)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_LATE_COL)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_EX_COL)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_FCS_ERROR)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_ABORT)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_BAD)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_GOOD)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_RUNT)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_TX_OVERSIZE)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BYTES)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_MCAST)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BCAST)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_BAD)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_GOOD)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_RUNT)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_OVERSIZE)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_FCS_ERROR)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_LENGTH_ERROR)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_CODE_ERROR)));
+	__raw_writeq(0, IOADDR(A_MAC_REGISTER(s->sbe_idx, R_MAC_RMON_RX_ALIGN_ERROR)));
 
 	/* 
 	 * initialize register pointers 
@@ -809,18 +788,18 @@ static void sbdma_channel_start(sbmacdma_t *d, int rxtx )
 	
 #ifdef CONFIG_SBMAC_COALESCE
 	__raw_writeq(V_DMA_INT_TIMEOUT(d->sbdma_int_timeout) |
-		       0, (unsigned long)d->sbdma_config1);
+		       0, d->sbdma_config1);
 	__raw_writeq(M_DMA_EOP_INT_EN |
 		       V_DMA_RINGSZ(d->sbdma_maxdescr) |
 		       V_DMA_INT_PKTCNT(d->sbdma_int_pktcnt) |
-		       0, (unsigned long)d->sbdma_config0);
+		       0, d->sbdma_config0);
 #else
-	__raw_writeq(0, (unsigned long)d->sbdma_config1);
+	__raw_writeq(0, d->sbdma_config1);
 	__raw_writeq(V_DMA_RINGSZ(d->sbdma_maxdescr) |
-		       0, (unsigned long)d->sbdma_config0);
+		       0, d->sbdma_config0);
 #endif
 
-	__raw_writeq(d->sbdma_dscrtable_phys, (unsigned long)d->sbdma_dscrbase);
+	__raw_writeq(d->sbdma_dscrtable_phys, d->sbdma_dscrbase);
 
 	/*
 	 * Initialize ring pointers
@@ -848,18 +827,18 @@ static void sbdma_channel_stop(sbmacdma_t *d)
 	 * Turn off the DMA channel
 	 */
 	
-	__raw_writeq(0, (unsigned long)d->sbdma_config1);
+	__raw_writeq(0, d->sbdma_config1);
 	
-	__raw_writeq(0, (unsigned long)d->sbdma_dscrbase);
+	__raw_writeq(0, d->sbdma_dscrbase);
 	
-	__raw_writeq(0, (unsigned long)d->sbdma_config0);
+	__raw_writeq(0, d->sbdma_config0);
 	
 	/*
 	 * Zero ring pointers
 	 */
 	
-	d->sbdma_addptr = 0;
-	d->sbdma_remptr = 0;
+	d->sbdma_addptr = NULL;
+	d->sbdma_remptr = NULL;
 }
 
 static void sbdma_align_skb(struct sk_buff *skb,int power2,int offset)
@@ -962,8 +941,7 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 * Do not interrupt per DMA transfer.
 	 */
 	dsc->dscr_a = virt_to_phys(sb_new->data) |
-		V_DMA_DSCRA_A_SIZE(NUMCACHEBLKS(pktsize+ETHER_ALIGN)) |
-		0;
+		V_DMA_DSCRA_A_SIZE(NUMCACHEBLKS(pktsize+ETHER_ALIGN)) | 0;
 #else
 	dsc->dscr_a = virt_to_phys(sb_new->data) |
 		V_DMA_DSCRA_A_SIZE(NUMCACHEBLKS(pktsize+ETHER_ALIGN)) |
@@ -989,7 +967,7 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 * Give the buffer to the DMA engine.
 	 */
 	
-	__raw_writeq(1, (unsigned long)d->sbdma_dscrcnt);
+	__raw_writeq(1, d->sbdma_dscrcnt);
 	
 	return 0;					/* we did it */
 }
@@ -1079,7 +1057,7 @@ static int sbdma_add_txbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 * Give the buffer to the DMA engine.
 	 */
 	
-	__raw_writeq(1, (unsigned long)d->sbdma_dscrcnt);
+	__raw_writeq(1, d->sbdma_dscrcnt);
 	
 	return 0;					/* we did it */
 }
@@ -1175,7 +1153,7 @@ static void sbdma_rx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 		 */
 		
 		curidx = d->sbdma_remptr - d->sbdma_dscrtable;
-		hwidx = (int) (((__raw_readq((unsigned long)d->sbdma_curdscr) & M_DMA_CURDSCR_ADDR) -
+		hwidx = (int) (((__raw_readq(d->sbdma_curdscr) & M_DMA_CURDSCR_ADDR) -
 				d->sbdma_dscrtable_phys) / sizeof(sbdmadscr_t));
 		
 		/*
@@ -1302,7 +1280,7 @@ static void sbdma_tx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 		 */
 		
 		curidx = d->sbdma_remptr - d->sbdma_dscrtable;
-		hwidx = (int) (((__raw_readq((unsigned long)d->sbdma_curdscr) & M_DMA_CURDSCR_ADDR) -
+		hwidx = (int) (((__raw_readq(d->sbdma_curdscr) & M_DMA_CURDSCR_ADDR) -
 				d->sbdma_dscrtable_phys) / sizeof(sbdmadscr_t));
 
 		/*
@@ -1458,7 +1436,7 @@ static void sbmac_uninitctx(struct sbmac_softc *sc)
 static void sbmac_channel_start(struct sbmac_softc *s)
 {
 	uint64_t reg;
-	unsigned long port;
+	volatile void __iomem *port;
 	uint64_t cfg,fifo,framecfg;
 	int idx, th_value;
 	
@@ -1473,13 +1451,13 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 * Bring the controller out of reset, but leave it off.
 	 */
 	
-	__raw_writeq(0, (unsigned long)s->sbm_macenable);
+	__raw_writeq(0, s->sbm_macenable);
 	
 	/*
 	 * Ignore all received packets
 	 */
 	
-	__raw_writeq(0, (unsigned long)s->sbm_rxfilter);
+	__raw_writeq(0, s->sbm_rxfilter);
 	
 	/* 
 	 * Calculate values for various control registers.
@@ -1523,7 +1501,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	
 	port = s->sbm_base + R_MAC_HASH_BASE;
 	for (idx = 0; idx < MAC_HASH_COUNT; idx++) {
-		__raw_writeq(0, (unsigned long)port);
+		__raw_writeq(0, port);
 		port += sizeof(uint64_t);
 	}
 	
@@ -1533,7 +1511,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	
 	port = s->sbm_base + R_MAC_ADDR_BASE;
 	for (idx = 0; idx < MAC_ADDR_COUNT; idx++) {
-		__raw_writeq(0, (unsigned long)port);
+		__raw_writeq(0, port);
 		port += sizeof(uint64_t);
 	}
 	
@@ -1543,14 +1521,14 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	
 	port = s->sbm_base + R_MAC_CHUP0_BASE;
 	for (idx = 0; idx < MAC_CHMAP_COUNT; idx++) {
-		__raw_writeq(0, (unsigned long)port);
+		__raw_writeq(0, port);
 		port += sizeof(uint64_t);
 	}
 
 
 	port = s->sbm_base + R_MAC_CHLO0_BASE;
 	for (idx = 0; idx < MAC_CHMAP_COUNT; idx++) {
-		__raw_writeq(0, (unsigned long)port);
+		__raw_writeq(0, port);
 		port += sizeof(uint64_t);
 	}
 	
@@ -1562,7 +1540,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	reg = sbmac_addr2reg(s->sbm_hwaddr);
 	
 	port = s->sbm_base + R_MAC_ADDR_BASE;
-	__raw_writeq(reg, (unsigned long)port);
+	__raw_writeq(reg, port);
 	port = s->sbm_base + R_MAC_ETHERNET_ADDR;
 
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
@@ -1571,9 +1549,9 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 * destination address in the R_MAC_ETHERNET_ADDR register.
 	 * Set the value to zero.
 	 */
-	__raw_writeq(0, (unsigned long)port);
+	__raw_writeq(0, port);
 #else
-	__raw_writeq(reg, (unsigned long)port);
+	__raw_writeq(reg, port);
 #endif
 	
 	/*
@@ -1581,11 +1559,11 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 * to the various config registers
 	 */
 	
-	__raw_writeq(0, (unsigned long)s->sbm_rxfilter);
-	__raw_writeq(0, (unsigned long)s->sbm_imr);
-	__raw_writeq(framecfg, (unsigned long)s->sbm_framecfg);
-	__raw_writeq(fifo, (unsigned long)s->sbm_fifocfg);
-	__raw_writeq(cfg, (unsigned long)s->sbm_maccfg);
+	__raw_writeq(0, s->sbm_rxfilter);
+	__raw_writeq(0, s->sbm_imr);
+	__raw_writeq(framecfg, s->sbm_framecfg);
+	__raw_writeq(fifo, s->sbm_fifocfg);
+	__raw_writeq(cfg, s->sbm_maccfg);
 	
 	/*
 	 * Initialize DMA channels (rings should be ok now)
@@ -1614,7 +1592,7 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	__raw_writeq(M_MAC_RXDMA_EN0 |
 		       M_MAC_TXDMA_EN0 |
 		       M_MAC_RX_ENABLE |
-		       M_MAC_TX_ENABLE, (unsigned long)s->sbm_macenable);
+		       M_MAC_TX_ENABLE, s->sbm_macenable);
 	
 	
 
@@ -1624,20 +1602,20 @@ static void sbmac_channel_start(struct sbmac_softc *s)
 	 * Accept any TX interrupt and EOP count/timer RX interrupts on ch 0
 	 */
 	__raw_writeq(((M_MAC_INT_EOP_COUNT | M_MAC_INT_EOP_TIMER) << S_MAC_TX_CH0) |
-		       ((M_MAC_INT_EOP_COUNT | M_MAC_INT_EOP_TIMER) << S_MAC_RX_CH0), (unsigned long)s->sbm_imr);
+		       ((M_MAC_INT_EOP_COUNT | M_MAC_INT_EOP_TIMER) << S_MAC_RX_CH0), s->sbm_imr);
 #else
 	/*
 	 * Accept any kind of interrupt on TX and RX DMA channel 0
 	 */
 	__raw_writeq((M_MAC_INT_CHANNEL << S_MAC_TX_CH0) |
-		       (M_MAC_INT_CHANNEL << S_MAC_RX_CH0), (unsigned long)s->sbm_imr);
+		       (M_MAC_INT_CHANNEL << S_MAC_RX_CH0), s->sbm_imr);
 #endif
 	
 	/* 
 	 * Enable receiving unicasts and broadcasts 
 	 */
 	
-	__raw_writeq(M_MAC_UCAST_EN | M_MAC_BCAST_EN, (unsigned long)s->sbm_rxfilter);
+	__raw_writeq(M_MAC_UCAST_EN | M_MAC_BCAST_EN, s->sbm_rxfilter);
 	
 	/*
 	 * we're running now. 
@@ -1683,8 +1661,8 @@ static void sbmac_channel_stop(struct sbmac_softc *s)
 	
 	/* don't accept any packets, disable all interrupts */
 	
-	__raw_writeq(0, (unsigned long)s->sbm_rxfilter);
-	__raw_writeq(0, (unsigned long)s->sbm_imr);
+	__raw_writeq(0, s->sbm_rxfilter);
+	__raw_writeq(0, s->sbm_imr);
 	
 	/* Turn off ticker */
 	
@@ -1692,7 +1670,7 @@ static void sbmac_channel_stop(struct sbmac_softc *s)
 	
 	/* turn off receiver and transmitter */
 	
-	__raw_writeq(0, (unsigned long)s->sbm_macenable);
+	__raw_writeq(0, s->sbm_macenable);
 	
 	/* We're stopped now. */
 	
@@ -1776,14 +1754,14 @@ static void sbmac_promiscuous_mode(struct sbmac_softc *sc,int onoff)
 		return;
 	
 	if (onoff) {
-		reg = __raw_readq((unsigned long)sc->sbm_rxfilter);
+		reg = __raw_readq(sc->sbm_rxfilter);
 		reg |= M_MAC_ALLPKT_EN;
-		__raw_writeq(reg, (unsigned long)sc->sbm_rxfilter);
+		__raw_writeq(reg, sc->sbm_rxfilter);
 	}	
 	else {
-		reg = __raw_readq((unsigned long)sc->sbm_rxfilter);
+		reg = __raw_readq(sc->sbm_rxfilter);
 		reg &= ~M_MAC_ALLPKT_EN;
-		__raw_writeq(reg, (unsigned long)sc->sbm_rxfilter);
+		__raw_writeq(reg, sc->sbm_rxfilter);
 	}
 }
 
@@ -1804,9 +1782,9 @@ static void sbmac_set_iphdr_offset(struct sbmac_softc *sc)
 	uint64_t reg;
 	
 	/* Hard code the off set to 15 for now */
-	reg = __raw_readq((unsigned long)sc->sbm_rxfilter);
+	reg = __raw_readq(sc->sbm_rxfilter);
 	reg &= ~M_MAC_IPHDR_OFFSET | V_MAC_IPHDR_OFFSET(15);
-	__raw_writeq(reg, (unsigned long)sc->sbm_rxfilter);
+	__raw_writeq(reg, sc->sbm_rxfilter);
 	
 	/* read system identification to determine revision */
 	if (periph_rev >= 2) {
@@ -1885,8 +1863,8 @@ static int sbmac_set_speed(struct sbmac_softc *s,sbmac_speed_t speed)
 	 * Read current register values 
 	 */
 	
-	cfg = __raw_readq((unsigned long)s->sbm_maccfg);
-	framecfg = __raw_readq((unsigned long)s->sbm_framecfg);
+	cfg = __raw_readq(s->sbm_maccfg);
+	framecfg = __raw_readq(s->sbm_framecfg);
 	
 	/*
 	 * Mask out the stuff we want to change
@@ -1935,8 +1913,8 @@ static int sbmac_set_speed(struct sbmac_softc *s,sbmac_speed_t speed)
 	 * Send the bits back to the hardware 
 	 */
 	
-	__raw_writeq(framecfg, (unsigned long)s->sbm_framecfg);
-	__raw_writeq(cfg, (unsigned long)s->sbm_maccfg);
+	__raw_writeq(framecfg, s->sbm_framecfg);
+	__raw_writeq(cfg, s->sbm_maccfg);
 	
 	return 1;
 }
@@ -1975,7 +1953,7 @@ static int sbmac_set_duplex(struct sbmac_softc *s,sbmac_duplex_t duplex,sbmac_fc
 	 * Read current register values 
 	 */
 	
-	cfg = __raw_readq((unsigned long)s->sbm_maccfg);
+	cfg = __raw_readq(s->sbm_maccfg);
 	
 	/*
 	 * Mask off the stuff we're about to change
@@ -2034,7 +2012,7 @@ static int sbmac_set_duplex(struct sbmac_softc *s,sbmac_duplex_t duplex,sbmac_fc
 	 * Send the bits back to the hardware 
 	 */
 	
-	__raw_writeq(cfg, (unsigned long)s->sbm_maccfg);
+	__raw_writeq(cfg, s->sbm_maccfg);
 	
 	return 1;
 }
@@ -2067,7 +2045,7 @@ static irqreturn_t sbmac_intr(int irq,void *dev_instance,struct pt_regs *rgs)
 		 * register, except for counter addr)
 		 */
 		
-		isr = __raw_readq((unsigned long)sc->sbm_isr) & ~M_MAC_COUNTER_ADDR;
+		isr = __raw_readq(sc->sbm_isr) & ~M_MAC_COUNTER_ADDR;
 		
 		if (isr == 0)
 			break;
@@ -2168,7 +2146,7 @@ static int sbmac_start_tx(struct sk_buff *skb, struct net_device *dev)
 static void sbmac_setmulti(struct sbmac_softc *sc)
 {
 	uint64_t reg;
-	unsigned long port;
+	volatile void __iomem *port;
 	int idx;
 	struct dev_mc_list *mclist;
 	struct net_device *dev = sc->sbm_dev;
@@ -2181,30 +2159,30 @@ static void sbmac_setmulti(struct sbmac_softc *sc)
 	
 	for (idx = 1; idx < MAC_ADDR_COUNT; idx++) {
 		port = sc->sbm_base + R_MAC_ADDR_BASE+(idx*sizeof(uint64_t));
-		__raw_writeq(0, (unsigned long)port);	
+		__raw_writeq(0, port);	
 	}
 	
 	for (idx = 0; idx < MAC_HASH_COUNT; idx++) {
 		port = sc->sbm_base + R_MAC_HASH_BASE+(idx*sizeof(uint64_t));
-		__raw_writeq(0, (unsigned long)port);	
+		__raw_writeq(0, port);	
 	}
 	
 	/*
 	 * Clear the filter to say we don't want any multicasts.
 	 */
 	
-	reg = __raw_readq((unsigned long)sc->sbm_rxfilter);
+	reg = __raw_readq(sc->sbm_rxfilter);
 	reg &= ~(M_MAC_MCAST_INV | M_MAC_MCAST_EN);
-	__raw_writeq(reg, (unsigned long)sc->sbm_rxfilter);
+	__raw_writeq(reg, sc->sbm_rxfilter);
 	
 	if (dev->flags & IFF_ALLMULTI) {
 		/* 
 		 * Enable ALL multicasts.  Do this by inverting the 
 		 * multicast enable bit. 
 		 */
-		reg = __raw_readq((unsigned long)sc->sbm_rxfilter);
+		reg = __raw_readq(sc->sbm_rxfilter);
 		reg |= (M_MAC_MCAST_INV | M_MAC_MCAST_EN);
-		__raw_writeq(reg, (unsigned long)sc->sbm_rxfilter);
+		__raw_writeq(reg, sc->sbm_rxfilter);
 		return;
 	}
 	
@@ -2223,7 +2201,7 @@ static void sbmac_setmulti(struct sbmac_softc *sc)
 	while (mclist && (idx < MAC_ADDR_COUNT)) {
 		reg = sbmac_addr2reg(mclist->dmi_addr);
 		port = sc->sbm_base + R_MAC_ADDR_BASE+(idx * sizeof(uint64_t));
-		__raw_writeq(reg, (unsigned long)port);
+		__raw_writeq(reg, port);
 		idx++;
 		mclist = mclist->next;
 	}
@@ -2234,9 +2212,9 @@ static void sbmac_setmulti(struct sbmac_softc *sc)
 	 */
 	
 	if (idx > 1) {
-		reg = __raw_readq((unsigned long)sc->sbm_rxfilter);
+		reg = __raw_readq(sc->sbm_rxfilter);
 		reg |= M_MAC_MCAST_EN;
-		__raw_writeq(reg, (unsigned long)sc->sbm_rxfilter);
+		__raw_writeq(reg, sc->sbm_rxfilter);
 	}
 }
 
@@ -2365,8 +2343,8 @@ static int sbmac_init(struct net_device *dev, int idx)
 	 * for us in the ethernet address register for each mac.
 	 */
 	
-	ea_reg = __raw_readq((unsigned long)sc->sbm_base + R_MAC_ETHERNET_ADDR);
-	__raw_writeq(0, (unsigned long)sc->sbm_base + R_MAC_ETHERNET_ADDR);
+	ea_reg = __raw_readq(sc->sbm_base + R_MAC_ETHERNET_ADDR);
+	__raw_writeq(0, sc->sbm_base + R_MAC_ETHERNET_ADDR);
 	for (i = 0; i < 6; i++) {
 		eaddr[i] = (uint8_t) (ea_reg & 0xFF);
 		ea_reg >>= 8;
@@ -2458,7 +2436,7 @@ static int sbmac_open(struct net_device *dev)
 	 * yet)
 	 */
 
-	__raw_readq((unsigned long)sc->sbm_isr);
+	__raw_readq(sc->sbm_isr);
 	if (request_irq(dev->irq, &sbmac_intr, SA_SHIRQ, dev->name, dev))
 		return -EBUSY;
 
@@ -2798,8 +2776,8 @@ sbmac_setup_hwaddr(int chan,char *addr)
 	port = A_MAC_CHANNEL_BASE(chan);
 	sbmac_parse_hwaddr(addr,eaddr);
 	val = sbmac_addr2reg(eaddr);
-	__raw_writeq(val, (unsigned long)IOADDR(port+R_MAC_ETHERNET_ADDR));
-	val = __raw_readq((unsigned long)IOADDR(port+R_MAC_ETHERNET_ADDR));
+	__raw_writeq(val, IOADDR(port+R_MAC_ETHERNET_ADDR));
+	val = __raw_readq(IOADDR(port+R_MAC_ETHERNET_ADDR));
 }
 #endif
 
@@ -2864,7 +2842,7 @@ sbmac_init_module(void)
 		 * If we find a zero, skip this MAC.
 		 */
 
-		sbmac_orig_hwaddr[idx] = __raw_readq((unsigned long)IOADDR(port+R_MAC_ETHERNET_ADDR));
+		sbmac_orig_hwaddr[idx] = __raw_readq(IOADDR(port+R_MAC_ETHERNET_ADDR));
 		if (sbmac_orig_hwaddr[idx] == 0) {
 			printk(KERN_DEBUG "sbmac: not configuring MAC at "
 			       "%lx\n", port);
@@ -2886,7 +2864,7 @@ sbmac_init_module(void)
 		dev->mem_end = 0;
 		if (sbmac_init(dev, idx)) {
 			port = A_MAC_CHANNEL_BASE(idx);
-			__raw_writeq(sbmac_orig_hwaddr[idx], (unsigned long)IOADDR(port+R_MAC_ETHERNET_ADDR));
+			__raw_writeq(sbmac_orig_hwaddr[idx], IOADDR(port+R_MAC_ETHERNET_ADDR));
 			free_netdev(dev);
 			continue;
 		}
