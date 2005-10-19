@@ -669,12 +669,12 @@ static inline unsigned long flz(unsigned long word)
 #ifdef CONFIG_64BIT
 	int r = 63, s;
 	word = ~word;
-	s = 32; if ((word & 0xffffffff00000000)) s = 0; r -= s; word <<= s;
-	s = 16; if ((word & 0xffff000000000000)) s = 0; r -= s; word <<= s;
-	s = 8;  if ((word & 0xff00000000000000)) s = 0; r -= s; word <<= s;
-	s = 4;  if ((word & 0xf000000000000000)) s = 0; r -= s; word <<= s;
-	s = 2;  if ((word & 0xc000000000000000)) s = 0; r -= s; word <<= s;
-	s = 1;  if ((word & 0x8000000000000000)) s = 0; r -= s;
+	s = 32; if ((word & 0xffffffff00000000UL)) s = 0; r -= s; word <<= s;
+	s = 16; if ((word & 0xffff000000000000UL)) s = 0; r -= s; word <<= s;
+	s = 8;  if ((word & 0xff00000000000000UL)) s = 0; r -= s; word <<= s;
+	s = 4;  if ((word & 0xf000000000000000UL)) s = 0; r -= s; word <<= s;
+	s = 2;  if ((word & 0xc000000000000000UL)) s = 0; r -= s; word <<= s;
+	s = 1;  if ((word & 0x8000000000000000UL)) s = 0; r -= s;
 
 	return r;
 #endif
