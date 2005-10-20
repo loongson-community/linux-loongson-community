@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14-rc2
-# Thu Oct 20 22:04:41 2005
+# Thu Oct 20 22:25:09 2005
 #
 CONFIG_MIPS=y
 
@@ -153,6 +153,8 @@ CONFIG_CPU_R5000=y
 # CONFIG_CPU_RM7000 is not set
 # CONFIG_CPU_RM9000 is not set
 # CONFIG_CPU_SB1 is not set
+CONFIG_SYS_HAS_CPU_R4X00=y
+CONFIG_SYS_HAS_CPU_R5000=y
 CONFIG_SYS_SUPPORTS_32BIT_KERNEL=y
 CONFIG_SYS_SUPPORTS_64BIT_KERNEL=y
 CONFIG_CPU_SUPPORTS_32BIT_KERNEL=y
