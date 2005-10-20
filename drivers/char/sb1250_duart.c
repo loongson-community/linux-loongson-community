@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001, 2002, 2003 Broadcom Corporation
+ * Copyright (C) 2000,2001,2002,2003,2004 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -44,11 +44,30 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/sibyte/swarm.h>
-#include <asm/sibyte/sb1250_regs.h>
-#include <asm/sibyte/sb1250_uart.h>
-#include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/sb1250.h>
+#if defined(CONFIG_SIBYTE_BCM1x55) || defined(CONFIG_SIBYTE_BCM1x80)
+#include <asm/sibyte/bcm1480_regs.h>
+#include <asm/sibyte/bcm1480_int.h>
+#elif defined(CONFIG_SIBYTE_SB1250) || defined(CONFIG_SIBYTE_BCM112X)
+#include <asm/sibyte/sb1250_regs.h>
+#include <asm/sibyte/sb1250_int.h>
+#else
+#error invalid SiByte UART configuation
+#endif
+#include <asm/sibyte/sb1250_uart.h>
 #include <asm/war.h>
+
+#if defined(CONFIG_SIBYTE_BCM1x55) || defined(CONFIG_SIBYTE_BCM1x80)
+#define UNIT_CHANREG(n,reg)	A_BCM1480_DUART_CHANREG((n),(reg))
+#define UNIT_IMRREG(n)		A_BCM1480_DUART_IMRREG(n)
+#define UNIT_INT(n)		(K_BCM1480_INT_UART_0 + (n))
+#elif defined(CONFIG_SIBYTE_SB1250) || defined(CONFIG_SIBYTE_BCM112X)
+#define UNIT_CHANREG(n,reg)	A_DUART_CHANREG((n),(reg))
+#define UNIT_IMRREG(n)		A_DUART_IMRREG(n)
+#define UNIT_INT(n)		(K_INT_UART_0 + (n))
+#else
+#error invalid SiByte UART configuation
+#endif
 
 /* Toggle spewing of debugging output */
 #undef DEBUG
@@ -58,8 +77,8 @@
 #define TX_INTEN          1
 #define DUART_INITIALIZED 2
 
-#define DUART_MAX_LINE 2
-char sb1250_duart_present[DUART_MAX_LINE] = {1,1};
+#define DUART_MAX_LINE 4
+char sb1250_duart_present[DUART_MAX_LINE];
 EXPORT_SYMBOL(sb1250_duart_present);
 
 /*
@@ -132,16 +151,14 @@ static void init_duart_port(uart_state_t *port, int line)
 {
 	if (!(port->flags & DUART_INITIALIZED)) {
 		port->line = line;
-		port->status = IOADDR(A_DUART_CHANREG(line, R_DUART_STATUS));
-		port->imr = IOADDR(A_DUART_IMRREG(line));
-		port->tx_hold = IOADDR(A_DUART_CHANREG(line, R_DUART_TX_HOLD));
-		port->rx_hold = IOADDR(A_DUART_CHANREG(line, R_DUART_RX_HOLD));
-		port->mode_1 = IOADDR(A_DUART_CHANREG(line,
-						      R_DUART_MODE_REG_1));
-		port->mode_2 = IOADDR(A_DUART_CHANREG(line,
-						      R_DUART_MODE_REG_2));
-		port->clk_sel = IOADDR(A_DUART_CHANREG(line, R_DUART_CLK_SEL));
-		port->cmd = IOADDR(A_DUART_CHANREG(line, R_DUART_CMD));
+		port->status = IOADDR(UNIT_CHANREG(line, R_DUART_STATUS));
+		port->imr = IOADDR(UNIT_IMRREG(line));
+		port->tx_hold = IOADDR(UNIT_CHANREG(line, R_DUART_TX_HOLD));
+		port->rx_hold = IOADDR(UNIT_CHANREG(line, R_DUART_RX_HOLD));
+		port->mode_1 = IOADDR(UNIT_CHANREG(line, R_DUART_MODE_REG_1));
+		port->mode_2 = IOADDR(UNIT_CHANREG(line, R_DUART_MODE_REG_2));
+		port->clk_sel = IOADDR(UNIT_CHANREG(line, R_DUART_CLK_SEL));
+		port->cmd = IOADDR(UNIT_CHANREG(line, R_DUART_CMD));
 		port->flags |= DUART_INITIALIZED;
 	}
 }
@@ -484,8 +501,8 @@ static int get_serial_info(uart_state_t *us, struct serial_struct * retinfo) {
 
 	tmp.type=PORT_SB1250;
 	tmp.line=us->line;
-	tmp.port=A_DUART_CHANREG(tmp.line,0);
-	tmp.irq=K_INT_UART_0 + tmp.line;
+	tmp.port=UNIT_CHANREG(tmp.line,0);
+	tmp.irq=UNIT_INT(tmp.line);
 	tmp.xmit_fifo_size=16; /* fixed by hw */
 	tmp.baud_base=5000000;
 	tmp.io_type=SERIAL_IO_MEM;
@@ -713,11 +730,36 @@ static struct tty_operations duart_ops = {
 	.wait_until_sent = duart_wait_until_sent,
 };
 
-/* Set up the driver and register it, register the 2 1250 UART interrupts.  This
+/* Initialize the sb1250_duart_present array based on SOC type.  */
+static void __init sb1250_duart_init_present_lines(void)
+{
+	int i, max_lines;
+
+	/* Set the number of available units based on the SOC type.  */
+	switch (soc_type) {
+	case K_SYS_SOC_TYPE_BCM1x55:
+	case K_SYS_SOC_TYPE_BCM1x80:
+		max_lines = 4;
+		break;
+	default:
+		/* Assume at least two serial ports at the normal address.  */
+		max_lines = 2;
+		break;
+	}
+	if (max_lines > DUART_MAX_LINE)
+		max_lines = DUART_MAX_LINE;
+
+	for (i = 0; i < max_lines; i++)
+		sb1250_duart_present[i] = 1;
+}
+
+/* Set up the driver and register it, register the UART interrupts.  This
    is called from tty_init, or as a part of the module init */
 static int __init sb1250_duart_init(void) 
 {
 	int i;
+
+	sb1250_duart_init_present_lines();
 
 	sb1250_duart_driver = alloc_tty_driver(DUART_MAX_LINE);
 	if (!sb1250_duart_driver)
@@ -743,11 +785,11 @@ static int __init sb1250_duart_init(void)
 		init_duart_port(port, i);
 		spin_lock_init(&port->outp_lock);
 		duart_mask_ints(i, M_DUART_IMR_ALL);
-		if (request_irq(K_INT_UART_0+i, duart_int, 0, "uart", port)) {
+		if (request_irq(UNIT_INT(i), duart_int, 0, "uart", port)) {
 			panic("Couldn't get uart0 interrupt line");
 		}
 		__raw_writeq(M_DUART_RX_EN|M_DUART_TX_EN,
-			     IOADDR(A_DUART_CHANREG(i, R_DUART_CMD)));
+			     IOADDR(UNIT_CHANREG(i, R_DUART_CMD)));
 		duart_set_cflag(i, DEFAULT_CFLAGS);
 	}
 
@@ -774,8 +816,8 @@ static void __exit sb1250_duart_fini(void)
 	for (i=0; i<DUART_MAX_LINE; i++) {
 		if (!sb1250_duart_present[i])
 			continue;
-		free_irq(K_INT_UART_0+i, &uart_states[i]);
-		disable_irq(K_INT_UART_0+i);
+		free_irq(UNIT_INT(i), &uart_states[i]);
+		disable_irq(UNIT_INT(i));
 	}
 	local_irq_restore(flags);
 }
@@ -783,7 +825,7 @@ static void __exit sb1250_duart_fini(void)
 module_init(sb1250_duart_init);
 module_exit(sb1250_duart_fini);
 MODULE_DESCRIPTION("SB1250 Duart serial driver");
-MODULE_AUTHOR("Justin Carlson, Broadcom Corp.");
+MODULE_AUTHOR("Broadcom Corp.");
 
 #ifdef CONFIG_SIBYTE_SB1250_DUART_CONSOLE
 
@@ -828,6 +870,8 @@ static struct tty_driver *ser_console_device(struct console *c, int *index)
 static int ser_console_setup(struct console *cons, char *str)
 {
 	int i;
+
+	sb1250_duart_init_present_lines();
 
 	for (i=0; i<DUART_MAX_LINE; i++) {
 		uart_state_t *port = uart_states + i;
