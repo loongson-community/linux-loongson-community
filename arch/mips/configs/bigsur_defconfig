@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14-rc2
-# Wed Oct 19 23:36:33 2005
+# Thu Oct 20 22:04:47 2005
 #
 CONFIG_MIPS=y
 
@@ -127,6 +127,8 @@ CONFIG_SIBYTE_SB1xxx_SOC=y
 # CONFIG_CPU_SB1_PASS_2_112x is not set
 # CONFIG_CPU_SB1_PASS_3 is not set
 # CONFIG_SIMULATION is not set
+# CONFIG_CONFIG_SB1_CEX_ALWAYS_FATAL is not set
+# CONFIG_CONFIG_SB1_CERR_STALL is not set
 CONFIG_SIBYTE_CFE=y
 # CONFIG_SIBYTE_CFE_CONSOLE is not set
 # CONFIG_SIBYTE_BUS_WATCHER is not set
@@ -207,6 +209,7 @@ CONFIG_PREEMPT_NONE=y
 #
 CONFIG_HW_HAS_PCI=y
 CONFIG_PCI=y
+CONFIG_PCI_DOMAINS=y
 CONFIG_PCI_LEGACY_PROC=y
 CONFIG_PCI_DEBUG=y
 CONFIG_MMU=y

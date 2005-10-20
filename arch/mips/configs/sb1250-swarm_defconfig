@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14-rc2
-# Fri Sep 30 13:49:53 2005
+# Thu Oct 20 22:06:30 2005
 #
 CONFIG_MIPS=y
 
@@ -103,6 +103,7 @@ CONFIG_STOP_MACHINE=y
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SGI_IP27 is not set
 # CONFIG_SGI_IP32 is not set
+# CONFIG_SIBYTE_BIGSUR is not set
 CONFIG_SIBYTE_SWARM=y
 # CONFIG_SIBYTE_SENTOSA is not set
 # CONFIG_SIBYTE_RHONE is not set
@@ -125,6 +126,8 @@ CONFIG_CPU_SB1_PASS_1=y
 # CONFIG_CPU_SB1_PASS_3 is not set
 CONFIG_SIBYTE_HAS_LDT=y
 # CONFIG_SIMULATION is not set
+# CONFIG_CONFIG_SB1_CEX_ALWAYS_FATAL is not set
+# CONFIG_CONFIG_SB1_CERR_STALL is not set
 CONFIG_SIBYTE_CFE=y
 # CONFIG_SIBYTE_CFE_CONSOLE is not set
 # CONFIG_SIBYTE_BUS_WATCHER is not set

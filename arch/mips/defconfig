@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14-rc2
-# Fri Sep 30 13:41:59 2005
+# Thu Oct 20 22:04:41 2005
 #
 CONFIG_MIPS=y
 
@@ -102,6 +102,7 @@ CONFIG_KMOD=y
 CONFIG_SGI_IP22=y
 # CONFIG_SGI_IP27 is not set
 # CONFIG_SGI_IP32 is not set
+# CONFIG_SIBYTE_BIGSUR is not set
 # CONFIG_SIBYTE_SWARM is not set
 # CONFIG_SIBYTE_SENTOSA is not set
 # CONFIG_SIBYTE_RHONE is not set
