@@ -1804,3 +1804,13 @@ void __init build_tlb_refill_handler(void)
 		}
 	}
 }
+
+void __init flush_tlb_handlers(void)
+{
+	flush_icache_range((unsigned long)handle_tlbl,
+			   (unsigned long)handle_tlbl + sizeof(handle_tlbl));
+	flush_icache_range((unsigned long)handle_tlbs,
+			   (unsigned long)handle_tlbs + sizeof(handle_tlbs));
+	flush_icache_range((unsigned long)handle_tlbm,
+			   (unsigned long)handle_tlbm + sizeof(handle_tlbm));
+}
