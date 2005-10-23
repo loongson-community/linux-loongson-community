@@ -6,6 +6,7 @@
 .version
 Module.symvers
 System.map
+patches
 vmlinux
 vmlinux.64
 vmlinux.ecoff
