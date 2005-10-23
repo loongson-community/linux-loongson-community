@@ -52,10 +52,15 @@ ifdef CONFIG_CROSSCOMPILE
 CROSS_COMPILE		:= $(tool-prefix)
 endif
 
-CHECKFLAGS-y				+= -D__linux__ -D__mips__
-CHECKFLAGS-$(CONFIG_32BIT)		+= -D_MIPS_SZLONG=32 \
+CHECKFLAGS-y				+= -D__linux__ -D__mips__ \
+					   -D_ABIO32=1 \
+					   -D_ABIN32=2 \
+					   -D_ABI64=3
+CHECKFLAGS-$(CONFIG_32BIT)		+= -D_MIPS_SIM=_ABIO32 \
+					   -D_MIPS_SZLONG=32 \
 					   -D__PTRDIFF_TYPE__=int
-CHECKFLAGS-$(CONFIG_64BIT)		+= -m64 -D_MIPS_SZLONG=64 \
+CHECKFLAGS-$(CONFIG_64BIT)		+= -m64 -D_MIPS_SIM=_ABI64 \
+					   -D_MIPS_SZLONG=64 \
 					   -D__PTRDIFF_TYPE__="long int"
 CHECKFLAGS-$(CONFIG_CPU_BIG_ENDIAN)	+= -D__MIPSEB__
 CHECKFLAGS-$(CONFIG_CPU_LITTLE_ENDIAN)	+= -D__MIPSEL__
