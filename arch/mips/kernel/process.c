@@ -401,21 +401,27 @@ unsigned long thread_saved_pc(struct task_struct *tsk)
 /* get_wchan - a maintenance nightmare^W^Wpain in the ass ...  */
 unsigned long get_wchan(struct task_struct *p)
 {
+	unsigned long stack_page;
 	unsigned long frame, pc;
 
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
-	if (!mips_frame_info_initialized)
+	stack_page = (unsigned long)p->thread_info;
+	if (!stack_page || !mips_frame_info_initialized)
 		return 0;
-	pc = thread_saved_pc(p);
 
+	pc = thread_saved_pc(p);
 	if (!in_sched_functions(pc))
-		goto out;
+		return pc;
 
 	frame = ((unsigned long *)p->thread.reg30)[schedule_frame.frame_offset];
 	do {
 		int i;
+
+		if (frame < stack_page || frame > stack_page + THREAD_SIZE - 32)
+			return 0;
+
 		for (i = ARRAY_SIZE(mfinfo) - 1; i >= 0; i--) {
 			if (pc >= (unsigned long) mfinfo[i].func)
 				break;
@@ -429,7 +435,6 @@ unsigned long get_wchan(struct task_struct *p)
 		frame = ((unsigned long *)frame)[mfinfo[i].frame_offset];
 	} while (in_sched_functions(pc));
 
-out:
 	return pc;
 }
 
