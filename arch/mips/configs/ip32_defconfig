@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc3
-# Sun Oct 30 17:27:21 2005
+# Linux kernel version: 2.6.14-rc4
+# Sun Oct 30 18:34:00 2005
 #
 CONFIG_MIPS=y
 
@@ -399,6 +399,7 @@ CONFIG_AIC7XXX_REG_PRETTY_PRINT=y
 # CONFIG_SCSI_AIC79XX is not set
 # CONFIG_MEGARAID_NEWGEN is not set
 # CONFIG_MEGARAID_LEGACY is not set
+# CONFIG_MEGARAID_SAS is not set
 # CONFIG_SCSI_SATA is not set
 # CONFIG_SCSI_DMX3191D is not set
 # CONFIG_SCSI_FUTURE_DOMAIN is not set

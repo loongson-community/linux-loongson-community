@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc3
-# Sun Oct 30 17:28:27 2005
+# Linux kernel version: 2.6.14-rc4
+# Sun Oct 30 18:38:38 2005
 #
 CONFIG_MIPS=y
 
@@ -620,7 +620,6 @@ CONFIG_NET_PCI=y
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_LAN_SAA9730 is not set
-# CONFIG_NET_POCKET is not set
 
 #
 # Ethernet (1000 Mbit)
