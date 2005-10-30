@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc2
-# Thu Oct 20 22:25:36 2005
+# Linux kernel version: 2.6.14-rc3
+# Sun Oct 30 17:26:48 2005
 #
 CONFIG_MIPS=y
 
@@ -208,7 +208,6 @@ CONFIG_CARDBUS=y
 # CONFIG_YENTA is not set
 # CONFIG_PD6729 is not set
 # CONFIG_I82092 is not set
-# CONFIG_TCIC is not set
 CONFIG_PCMCIA_AU1X00=m
 
 #
@@ -537,6 +536,7 @@ CONFIG_NET_ETHERNET=y
 CONFIG_MIPS_AU1X00_ENET=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
+# CONFIG_CASSINI is not set
 # CONFIG_NET_VENDOR_3COM is not set
 
 #

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc2
-# Thu Oct 20 22:26:53 2005
+# Linux kernel version: 2.6.14-rc3
+# Sun Oct 30 17:28:20 2005
 #
 CONFIG_MIPS=y
 
@@ -504,6 +504,7 @@ CONFIG_SCSI_QLA2XXX=y
 # CONFIG_FUSION is not set
 # CONFIG_FUSION_SPI is not set
 # CONFIG_FUSION_FC is not set
+# CONFIG_FUSION_SAS is not set
 
 #
 # IEEE 1394 (FireWire) support
@@ -541,6 +542,7 @@ CONFIG_NET_ETHERNET=y
 CONFIG_MII=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
+# CONFIG_CASSINI is not set
 # CONFIG_NET_VENDOR_3COM is not set
 
 #

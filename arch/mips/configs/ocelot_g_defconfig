@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc2
-# Thu Oct 20 22:26:38 2005
+# Linux kernel version: 2.6.14-rc3
+# Sun Oct 30 17:28:01 2005
 #
 CONFIG_MIPS=y
 
@@ -410,6 +410,7 @@ CONFIG_MII=y
 CONFIG_GALILEO_64240_ETH=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
+# CONFIG_CASSINI is not set
 # CONFIG_NET_VENDOR_3COM is not set
 
 #

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc2
-# Thu Oct 20 22:26:28 2005
+# Linux kernel version: 2.6.14-rc3
+# Sun Oct 30 17:27:48 2005
 #
 CONFIG_MIPS=y
 
@@ -210,7 +210,6 @@ CONFIG_PCMCIA_IOCTL=y
 # CONFIG_YENTA is not set
 # CONFIG_PD6729 is not set
 # CONFIG_I82092 is not set
-# CONFIG_TCIC is not set
 CONFIG_PCMCIA_VRC4173=y
 
 #

@@ -12,9 +12,10 @@
 #include "init.h"
 #include "elf_user.h"
 #include "mem_user.h"
-#include <kernel-offsets.h>
+#include <kern_constants.h>
 
-#if HOST_ELF_CLASS == ELFCLASS32
+/* Use the one from the kernel - the host may miss it, if having old headers. */
+#if UM_ELF_CLASS == UM_ELFCLASS32
 typedef Elf32_auxv_t elf_auxv_t;
 #else
 typedef Elf64_auxv_t elf_auxv_t;
