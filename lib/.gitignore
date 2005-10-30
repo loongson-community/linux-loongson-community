@@ -1,7 +1,6 @@
-.*.o
-.*.o.d
-.*.cmd
-*.ko
-*.mod.c
-crc32table.h
+#
+# Generated files
+#
 gen_crc32table
+crc32table.h
+

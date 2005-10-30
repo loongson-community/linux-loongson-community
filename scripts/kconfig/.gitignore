@@ -1,11 +1,16 @@
-.*.cmd
-.tmp_qtcheck
-.zconf.tab.o.cmd
+#
+# Generated files
+#
+config*
+lex.*.c
+*.tab.c
+*.tab.h
+
+#
+# configuration programs
+#
 conf
 mconf
 qconf
-qconf.moc
-lex.zconf.c
-lkc_defs.h
-zconf.tab.c
-zconf.tab.h
+gconf
+kxgettext

@@ -1,16 +1,7 @@
-.*.o
-.*.o.d
-.*.cmd
-clut_vga16.c
-logo_linux_mono.c
-logo_linux_vga16.c
-logo_linux_clut224.c
-logo_dec_clut224.c
-logo_mac_clut224.c
-logo_parisc_clut224.c
-logo_sgi_clut224.c
-logo_sun_clut224.c
-logo_superh_mono.c
-logo_superh_vga16.c
-logo_superh_clut224.c
-
+#
+# Generated files
+#
+*_mono.c
+*_vga16.c
+*_clut224.c
+*_gray256.c

@@ -1,17 +1,30 @@
-!core
-.config
-.*.cmd
-.hdepend
-.tmp*
-.version
-Module.symvers
+#
+# NOTE! Don't add files that are generated in specific
+# subdirectories here. Add them in the ".gitignore" file
+# in that subdirectory instead.
+#
+# Normal rules
+#
+.*
+*.o
+*.a
+*.s
+*.ko
+*.mod.c
+
+#
+# Top-level generic files
+#
+vmlinux*
 System.map
-patches
-vmlinux
-vmlinux.64
-vmlinux.ecoff
-vmlinux.rm200
-modules
-nohup.out
-build-log
-build-log-summary
+Module.symvers
+
+#
+# Generated include files
+#
+include/asm
+include/config
+include/linux/autoconf.h
+include/linux/compile.h
+include/linux/version.h
+

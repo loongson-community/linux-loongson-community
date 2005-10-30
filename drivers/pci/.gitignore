@@ -1,4 +1,4 @@
-gen-devlist
-devlist.h
 classlist.h
-.*.cmd
+devlist.h
+gen-devlist
+
