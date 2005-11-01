@@ -42,9 +42,6 @@
 .SYS_CALL_TABLE:
 	.tc .sys_call_table[TC],.sys_call_table
 
-.SYS_CALL_TABLE32:
-	.tc .sys_call_table32[TC],.sys_call_table32
-
 /* This value is used to mark exception frames on the stack. */
 exception_marker:
 	.tc	ID_72656773_68657265[TC],0x7265677368657265
@@ -133,7 +130,7 @@ system_call:			/* label this so stack traces look sane */
 	ld	r11,.SYS_CALL_TABLE@toc(2)
 	andi.	r10,r10,_TIF_32BIT
 	beq	15f
-	ld	r11,.SYS_CALL_TABLE32@toc(2)
+	addi	r11,r11,8	/* use 32-bit syscall entries */
 	clrldi	r3,r3,32
 	clrldi	r4,r4,32
 	clrldi	r5,r5,32
@@ -141,7 +138,7 @@ system_call:			/* label this so stack traces look sane */
 	clrldi	r7,r7,32
 	clrldi	r8,r8,32
 15:
-	slwi	r0,r0,3
+	slwi	r0,r0,4
 	ldx	r10,r11,r0	/* Fetch system call handler [ptr] */
 	mtctr   r10
 	bctrl			/* Call handler */
@@ -191,8 +188,8 @@ syscall_exit_trace_cont:
 	ld	r1,GPR1(r1)
 	mtlr	r4
 	mtcr	r5
-	mtspr	SRR0,r7
-	mtspr	SRR1,r8
+	mtspr	SPRN_SRR0,r7
+	mtspr	SPRN_SRR1,r8
 	rfid
 	b	.	/* prevent speculative execution */
 
@@ -265,7 +262,7 @@ _GLOBAL(save_nvgprs)
  */
 _GLOBAL(ppc32_sigsuspend)
 	bl	.save_nvgprs
-	bl	.sys32_sigsuspend
+	bl	.compat_sys_sigsuspend
 	b	70f
 
 _GLOBAL(ppc64_rt_sigsuspend)
@@ -275,7 +272,7 @@ _GLOBAL(ppc64_rt_sigsuspend)
 
 _GLOBAL(ppc32_rt_sigsuspend)
 	bl	.save_nvgprs
-	bl	.sys32_rt_sigsuspend
+	bl	.compat_sys_rt_sigsuspend
 70:	cmpdi	0,r3,0
 	/* If it returned an error, we need to return via syscall_exit to set
 	   the SO bit in cr0 and potentially stop for ptrace. */
@@ -310,7 +307,7 @@ _GLOBAL(ppc_clone)
 
 _GLOBAL(ppc32_swapcontext)
 	bl	.save_nvgprs
-	bl	.sys32_swapcontext
+	bl	.compat_sys_swapcontext
 	b	80f
 	
 _GLOBAL(ppc64_swapcontext)
@@ -319,11 +316,11 @@ _GLOBAL(ppc64_swapcontext)
 	b	80f
 
 _GLOBAL(ppc32_sigreturn)
-	bl	.sys32_sigreturn
+	bl	.compat_sys_sigreturn
 	b	80f
 
 _GLOBAL(ppc32_rt_sigreturn)
-	bl	.sys32_rt_sigreturn
+	bl	.compat_sys_rt_sigreturn
 	b	80f
 
 _GLOBAL(ppc64_rt_sigreturn)
@@ -531,7 +528,7 @@ restore:
 	mtctr	r3
 	mtlr	r0
 	ld	r3,_XER(r1)
-	mtspr	XER,r3
+	mtspr	SPRN_XER,r3
 
 	REST_8GPRS(5, r1)
 
@@ -543,12 +540,12 @@ restore:
 	mtmsrd	r0,1
 
 	ld	r0,_MSR(r1)
-	mtspr	SRR1,r0
+	mtspr	SPRN_SRR1,r0
 
 	ld	r2,_CCR(r1)
 	mtcrf	0xFF,r2
 	ld	r2,_NIP(r1)
-	mtspr	SRR0,r2
+	mtspr	SPRN_SRR0,r2
 
 	ld	r0,GPR0(r1)
 	ld	r2,GPR2(r1)
@@ -643,7 +640,7 @@ _GLOBAL(enter_rtas)
 	std	r4,_CCR(r1)
 	mfctr	r5
 	std	r5,_CTR(r1)
-	mfspr	r6,XER
+	mfspr	r6,SPRN_XER
 	std	r6,_XER(r1)
 	mfdar	r7
 	std	r7,_DAR(r1)
@@ -697,14 +694,14 @@ _GLOBAL(enter_rtas)
 	ld	r5,RTASENTRY(r4)	/* get the rtas->entry value */
 	ld	r4,RTASBASE(r4)		/* get the rtas->base value */
 	
-	mtspr	SRR0,r5
-	mtspr	SRR1,r6
+	mtspr	SPRN_SRR0,r5
+	mtspr	SPRN_SRR1,r6
 	rfid
 	b	.	/* prevent speculative execution */
 
 _STATIC(rtas_return_loc)
 	/* relocation is off at this point */
-	mfspr	r4,SPRG3	        /* Get PACA */
+	mfspr	r4,SPRN_SPRG3	        /* Get PACA */
 	SET_REG_TO_CONST(r5, KERNELBASE)
         sub     r4,r4,r5                /* RELOC the PACA base pointer */
 
@@ -718,8 +715,8 @@ _STATIC(rtas_return_loc)
 	LOADADDR(r3,.rtas_restore_regs)
         ld	r4,PACASAVEDMSR(r4)     /* Restore our MSR */
 
-	mtspr	SRR0,r3
-	mtspr	SRR1,r4
+	mtspr	SPRN_SRR0,r3
+	mtspr	SPRN_SRR1,r4
 	rfid
 	b	.	/* prevent speculative execution */
 
@@ -730,14 +727,14 @@ _STATIC(rtas_restore_regs)
 	REST_8GPRS(14, r1)		/* Restore the non-volatiles */
 	REST_10GPRS(22, r1)		/* ditto */
 
-	mfspr	r13,SPRG3
+	mfspr	r13,SPRN_SPRG3
 
 	ld	r4,_CCR(r1)
 	mtcr	r4
 	ld	r5,_CTR(r1)
 	mtctr	r5
 	ld	r6,_XER(r1)
-	mtspr	XER,r6
+	mtspr	SPRN_XER,r6
 	ld	r7,_DAR(r1)
 	mtdar	r7
 	ld	r8,_DSISR(r1)
@@ -774,7 +771,7 @@ _GLOBAL(enter_prom)
 	std	r4,_CCR(r1)
 	mfctr	r5
 	std	r5,_CTR(r1)
-	mfspr	r6,XER
+	mfspr	r6,SPRN_XER
 	std	r6,_XER(r1)
 	mfdar	r7
 	std	r7,_DAR(r1)
@@ -827,7 +824,7 @@ _GLOBAL(enter_prom)
 	ld	r5,_CTR(r1)
 	mtctr	r5
 	ld	r6,_XER(r1)
-	mtspr	XER,r6
+	mtspr	SPRN_XER,r6
 	ld	r7,_DAR(r1)
 	mtdar	r7
 	ld	r8,_DSISR(r1)

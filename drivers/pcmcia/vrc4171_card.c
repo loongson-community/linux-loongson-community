@@ -24,6 +24,7 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/types.h>
+#include <linux/platform_device.h>
 
 #include <asm/io.h>
 #include <asm/vr41xx/vrc4171.h>

@@ -1,5 +1,5 @@
-#ifndef __PPC64_AUXVEC_H
-#define __PPC64_AUXVEC_H
+#ifndef _ASM_POWERPC_AUXVEC_H
+#define _ASM_POWERPC_AUXVEC_H
 
 /*
  * We need to put in some extra aux table entries to tell glibc what
@@ -14,6 +14,8 @@
 /* The vDSO location. We have to use the same value as x86 for glibc's
  * sake :-)
  */
+#ifdef __powerpc64__
 #define AT_SYSINFO_EHDR		33
+#endif
 
-#endif /* __PPC64_AUXVEC_H */
+#endif

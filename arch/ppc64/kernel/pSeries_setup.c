@@ -1,5 +1,5 @@
 /*
- *  linux/arch/ppc/kernel/setup.c
+ *  64-bit pSeries and RS/6000 setup code.
  *
  *  Copyright (C) 1995  Linus Torvalds
  *  Adapted from 'alpha' version by Gary Thomas
@@ -59,13 +59,15 @@
 #include <asm/time.h>
 #include <asm/nvram.h>
 #include <asm/plpar_wrappers.h>
-#include <asm/xics.h>
+#include "xics.h"
 #include <asm/firmware.h>
 #include <asm/pmc.h>
+#include <asm/mpic.h>
+#include <asm/ppc-pci.h>
+#include <asm/i8259.h>
+#include <asm/udbg.h>
 
-#include "i8259.h"
-#include "mpic.h"
-#include "pci.h"
+#include "rtas-fw.h"
 
 #ifdef DEBUG
 #define DBG(fmt...) udbg_printf(fmt)
@@ -84,13 +86,12 @@ int fwnmi_active;  /* TRUE if an FWNMI handler is present */
 extern void pSeries_system_reset_exception(struct pt_regs *regs);
 extern int pSeries_machine_check_exception(struct pt_regs *regs);
 
-static int pseries_shared_idle(void);
-static int pseries_dedicated_idle(void);
+static void pseries_shared_idle(void);
+static void pseries_dedicated_idle(void);
 
-static volatile void __iomem * chrp_int_ack_special;
 struct mpic *pSeries_mpic;
 
-void pSeries_get_cpuinfo(struct seq_file *m)
+void pSeries_show_cpuinfo(struct seq_file *m)
 {
 	struct device_node *root;
 	const char *model = "";
@@ -119,19 +120,11 @@ static void __init fwnmi_init(void)
 		fwnmi_active = 1;
 }
 
-static int pSeries_irq_cascade(struct pt_regs *regs, void *data)
-{
-	if (chrp_int_ack_special)
-		return readb(chrp_int_ack_special);
-	else
-		return i8259_irq(smp_processor_id());
-}
-
 static void __init pSeries_init_mpic(void)
 {
         unsigned int *addrp;
 	struct device_node *np;
-        int i;
+	unsigned long intack = 0;
 
 	/* All ISUs are setup, complete initialization */
 	mpic_init(pSeries_mpic);
@@ -142,16 +135,14 @@ static void __init pSeries_init_mpic(void)
                  get_property(np, "8259-interrupt-acknowledge", NULL)))
                 printk(KERN_ERR "Cannot find pci to get ack address\n");
         else
-		chrp_int_ack_special = ioremap(addrp[prom_n_addr_cells(np)-1], 1);
+		intack = addrp[prom_n_addr_cells(np)-1];
 	of_node_put(np);
 
 	/* Setup the legacy interrupts & controller */
-        for (i = 0; i < NUM_ISA_INTERRUPTS; i++)
-                irq_desc[i].handler = &i8259_pic;
-	i8259_init(0);
+	i8259_init(intack, 0);
 
 	/* Hook cascade to mpic */
-	mpic_setup_cascade(NUM_ISA_INTERRUPTS, pSeries_irq_cascade, NULL);
+	mpic_setup_cascade(NUM_ISA_INTERRUPTS, i8259_irq_cascade, NULL);
 }
 
 static void __init pSeries_setup_mpic(void)
@@ -240,10 +231,6 @@ static void __init pSeries_setup_arch(void)
 	init_pci_config_tokens();
 	find_and_init_phbs();
 	eeh_init();
-
-#ifdef CONFIG_DUMMY_CONSOLE
-	conswitchp = &dummy_con;
-#endif
 
 	pSeries_nvram_init();
 
@@ -488,8 +475,8 @@ static inline void dedicated_idle_sleep(unsigned int cpu)
 	}
 }
 
-static int pseries_dedicated_idle(void)
-{
+static void pseries_dedicated_idle(void)
+{ 
 	long oldval;
 	struct paca_struct *lpaca = get_paca();
 	unsigned int cpu = smp_processor_id();
@@ -544,7 +531,7 @@ static int pseries_dedicated_idle(void)
 	}
 }
 
-static int pseries_shared_idle(void)
+static void pseries_shared_idle(void)
 {
 	struct paca_struct *lpaca = get_paca();
 	unsigned int cpu = smp_processor_id();
@@ -586,8 +573,6 @@ static int pseries_shared_idle(void)
 		if (cpu_is_offline(cpu) && system_state == SYSTEM_RUNNING)
 			cpu_die();
 	}
-
-	return 0;
 }
 
 static int pSeries_pci_probe_mode(struct pci_bus *bus)
@@ -601,14 +586,14 @@ struct machdep_calls __initdata pSeries_md = {
 	.probe			= pSeries_probe,
 	.setup_arch		= pSeries_setup_arch,
 	.init_early		= pSeries_init_early,
-	.get_cpuinfo		= pSeries_get_cpuinfo,
+	.show_cpuinfo		= pSeries_show_cpuinfo,
 	.log_error		= pSeries_log_error,
 	.pcibios_fixup		= pSeries_final_fixup,
 	.pci_probe_mode		= pSeries_pci_probe_mode,
 	.irq_bus_setup		= pSeries_irq_bus_setup,
-	.restart		= rtas_restart,
-	.power_off		= rtas_power_off,
-	.halt			= rtas_halt,
+	.restart		= rtas_fw_restart,
+	.power_off		= rtas_fw_power_off,
+	.halt			= rtas_fw_halt,
 	.panic			= rtas_os_term,
 	.cpu_die		= pSeries_mach_cpu_die,
 	.get_boot_time		= rtas_get_boot_time,

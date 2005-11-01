@@ -1,6 +1,4 @@
 /*
- *  arch/ppc/kernel/ptrace.c
- *
  *  PowerPC version
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
  *
@@ -10,13 +8,14 @@
  *  linux/kernel/ptrace.c is by Ross Biro 1/23/92, edited by Linus Torvalds
  *
  * Modified by Cort Dougan (cort@hq.fsmlabs.com)
- * and Paul Mackerras (paulus@linuxcare.com.au).
+ * and Paul Mackerras (paulus@samba.org).
  *
  * This file is subject to the terms and conditions of the GNU General
  * Public License.  See the file README.legal in the main directory of
  * this archive for more details.
  */
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -29,13 +28,19 @@
 #include <linux/signal.h>
 #include <linux/seccomp.h>
 #include <linux/audit.h>
+#ifdef CONFIG_PPC32
 #include <linux/module.h>
+#endif
 
 #include <asm/uaccess.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
+#ifdef CONFIG_PPC64
+#include <asm/ptrace-common.h>
+#endif
 
+#ifdef CONFIG_PPC32
 /*
  * Set of msr bits that gdb can change on behalf of a process.
  */
@@ -44,12 +49,14 @@
 #else
 #define MSR_DEBUGCHANGE	(MSR_SE | MSR_BE)
 #endif
+#endif /* CONFIG_PPC32 */
 
 /*
  * does not yet catch signals sent when the child dies.
  * in exit.c or in signal.c.
  */
 
+#ifdef CONFIG_PPC32
 /*
  * Get contents of register REGNO in task TASK.
  */
@@ -228,6 +235,7 @@ clear_single_step(struct task_struct *task)
 #endif
 	}
 }
+#endif /* CONFIG_PPC32 */
 
 /*
  * Called by kernel/ptrace.c when detaching..
@@ -240,7 +248,7 @@ void ptrace_disable(struct task_struct *child)
 	clear_single_step(child);
 }
 
-int sys_ptrace(long request, long pid, long addr, long data)
+long sys_ptrace(long request, long pid, long addr, long data)
 {
 	struct task_struct *child;
 	int ret = -EPERM;
@@ -296,25 +304,28 @@ int sys_ptrace(long request, long pid, long addr, long data)
 	}
 
 	/* read the word at location addr in the USER area. */
-	/* XXX this will need fixing for 64-bit */
 	case PTRACE_PEEKUSR: {
 		unsigned long index, tmp;
 
 		ret = -EIO;
 		/* convert to index and check */
+#ifdef CONFIG_PPC32
 		index = (unsigned long) addr >> 2;
-		if ((addr & 3) || index > PT_FPSCR
-		    || child->thread.regs == NULL)
+		if ((addr & 3) || (index > PT_FPSCR)
+		    || (child->thread.regs == NULL))
+#else
+		index = (unsigned long) addr >> 3;
+		if ((addr & 7) || (index > PT_FPSCR))
+#endif
 			break;
 
+#ifdef CONFIG_PPC32
 		CHECK_FULL_REGS(child->thread.regs);
+#endif
 		if (index < PT_FPR0) {
 			tmp = get_reg(child, (int) index);
 		} else {
-			preempt_disable();
-			if (child->thread.regs->msr & MSR_FP)
-				giveup_fpu(child);
-			preempt_enable();
+			flush_fp_to_thread(child);
 			tmp = ((unsigned long *)child->thread.fpr)[index - PT_FPR0];
 		}
 		ret = put_user(tmp,(unsigned long __user *) data);
@@ -325,7 +336,8 @@ int sys_ptrace(long request, long pid, long addr, long data)
 	case PTRACE_POKETEXT: /* write the word at location addr. */
 	case PTRACE_POKEDATA:
 		ret = 0;
-		if (access_process_vm(child, addr, &data, sizeof(data), 1) == sizeof(data))
+		if (access_process_vm(child, addr, &data, sizeof(data), 1)
+				== sizeof(data))
 			break;
 		ret = -EIO;
 		break;
@@ -336,21 +348,25 @@ int sys_ptrace(long request, long pid, long addr, long data)
 
 		ret = -EIO;
 		/* convert to index and check */
+#ifdef CONFIG_PPC32
 		index = (unsigned long) addr >> 2;
-		if ((addr & 3) || index > PT_FPSCR
-		    || child->thread.regs == NULL)
+		if ((addr & 3) || (index > PT_FPSCR)
+		    || (child->thread.regs == NULL))
+#else
+		index = (unsigned long) addr >> 3;
+		if ((addr & 7) || (index > PT_FPSCR))
+#endif
 			break;
 
+#ifdef CONFIG_PPC32
 		CHECK_FULL_REGS(child->thread.regs);
+#endif
 		if (index == PT_ORIG_R3)
 			break;
 		if (index < PT_FPR0) {
 			ret = put_reg(child, index, data);
 		} else {
-			preempt_disable();
-			if (child->thread.regs->msr & MSR_FP)
-				giveup_fpu(child);
-			preempt_enable();
+			flush_fp_to_thread(child);
 			((unsigned long *)child->thread.fpr)[index - PT_FPR0] = data;
 			ret = 0;
 		}
@@ -362,11 +378,10 @@ int sys_ptrace(long request, long pid, long addr, long data)
 		ret = -EIO;
 		if (!valid_signal(data))
 			break;
-		if (request == PTRACE_SYSCALL) {
+		if (request == PTRACE_SYSCALL)
 			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
-		} else {
+		else
 			clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
-		}
 		child->exit_code = data;
 		/* make sure the single step bit is not set. */
 		clear_single_step(child);
@@ -404,28 +419,102 @@ int sys_ptrace(long request, long pid, long addr, long data)
 		break;
 	}
 
+#ifdef CONFIG_PPC64
+	case PTRACE_GET_DEBUGREG: {
+		ret = -EINVAL;
+		/* We only support one DABR and no IABRS at the moment */
+		if (addr > 0)
+			break;
+		ret = put_user(child->thread.dabr,
+			       (unsigned long __user *)data);
+		break;
+	}
+
+	case PTRACE_SET_DEBUGREG:
+		ret = ptrace_set_debugreg(child, addr, data);
+		break;
+#endif
+
 	case PTRACE_DETACH:
 		ret = ptrace_detach(child, data);
 		break;
 
+#ifdef CONFIG_PPC64
+	case PPC_PTRACE_GETREGS: { /* Get GPRs 0 - 31. */
+		int i;
+		unsigned long *reg = &((unsigned long *)child->thread.regs)[0];
+		unsigned long __user *tmp = (unsigned long __user *)addr;
+
+		for (i = 0; i < 32; i++) {
+			ret = put_user(*reg, tmp);
+			if (ret)
+				break;
+			reg++;
+			tmp++;
+		}
+		break;
+	}
+
+	case PPC_PTRACE_SETREGS: { /* Set GPRs 0 - 31. */
+		int i;
+		unsigned long *reg = &((unsigned long *)child->thread.regs)[0];
+		unsigned long __user *tmp = (unsigned long __user *)addr;
+
+		for (i = 0; i < 32; i++) {
+			ret = get_user(*reg, tmp);
+			if (ret)
+				break;
+			reg++;
+			tmp++;
+		}
+		break;
+	}
+
+	case PPC_PTRACE_GETFPREGS: { /* Get FPRs 0 - 31. */
+		int i;
+		unsigned long *reg = &((unsigned long *)child->thread.fpr)[0];
+		unsigned long __user *tmp = (unsigned long __user *)addr;
+
+		flush_fp_to_thread(child);
+
+		for (i = 0; i < 32; i++) {
+			ret = put_user(*reg, tmp);
+			if (ret)
+				break;
+			reg++;
+			tmp++;
+		}
+		break;
+	}
+
+	case PPC_PTRACE_SETFPREGS: { /* Get FPRs 0 - 31. */
+		int i;
+		unsigned long *reg = &((unsigned long *)child->thread.fpr)[0];
+		unsigned long __user *tmp = (unsigned long __user *)addr;
+
+		flush_fp_to_thread(child);
+
+		for (i = 0; i < 32; i++) {
+			ret = get_user(*reg, tmp);
+			if (ret)
+				break;
+			reg++;
+			tmp++;
+		}
+		break;
+	}
+#endif /* CONFIG_PPC64 */
+
 #ifdef CONFIG_ALTIVEC
 	case PTRACE_GETVRREGS:
 		/* Get the child altivec register state. */
-		preempt_disable();
-		if (child->thread.regs->msr & MSR_VEC)
-			giveup_altivec(child);
-		preempt_enable();
+		flush_altivec_to_thread(child);
 		ret = get_vrregs((unsigned long __user *)data, child);
 		break;
 
 	case PTRACE_SETVRREGS:
 		/* Set the child altivec register state. */
-		/* this is to clear the MSR_VEC bit to force a reload
-		 * of register state from memory */
-		preempt_disable();
-		if (child->thread.regs->msr & MSR_VEC)
-			giveup_altivec(child);
-		preempt_enable();
+		flush_altivec_to_thread(child);
 		ret = set_vrregs(child, (unsigned long __user *)data);
 		break;
 #endif
@@ -478,12 +567,21 @@ static void do_syscall_trace(void)
 
 void do_syscall_trace_enter(struct pt_regs *regs)
 {
+#ifdef CONFIG_PPC64
+	secure_computing(regs->gpr[0]);
+#endif
+
 	if (test_thread_flag(TIF_SYSCALL_TRACE)
 	    && (current->ptrace & PT_PTRACED))
 		do_syscall_trace();
 
 	if (unlikely(current->audit_context))
-		audit_syscall_entry(current, AUDIT_ARCH_PPC,
+		audit_syscall_entry(current,
+#ifdef CONFIG_PPC32
+				    AUDIT_ARCH_PPC,
+#else
+				    test_thread_flag(TIF_32BIT)?AUDIT_ARCH_PPC:AUDIT_ARCH_PPC64,
+#endif
 				    regs->gpr[0],
 				    regs->gpr[3], regs->gpr[4],
 				    regs->gpr[5], regs->gpr[6]);
@@ -491,17 +589,25 @@ void do_syscall_trace_enter(struct pt_regs *regs)
 
 void do_syscall_trace_leave(struct pt_regs *regs)
 {
+#ifdef CONFIG_PPC32
 	secure_computing(regs->gpr[0]);
+#endif
 
 	if (unlikely(current->audit_context))
 		audit_syscall_exit(current,
 				   (regs->ccr&0x1000)?AUDITSC_FAILURE:AUDITSC_SUCCESS,
 				   regs->result);
 
-	if ((test_thread_flag(TIF_SYSCALL_TRACE))
+	if ((test_thread_flag(TIF_SYSCALL_TRACE)
+#ifdef CONFIG_PPC64
+	     || test_thread_flag(TIF_SINGLESTEP)
+#endif
+	     )
 	    && (current->ptrace & PT_PTRACED))
 		do_syscall_trace();
 }
 
+#ifdef CONFIG_PPC32
 EXPORT_SYMBOL(do_syscall_trace_enter);
 EXPORT_SYMBOL(do_syscall_trace_leave);
+#endif

@@ -1,5 +1,5 @@
-/* 
- * arch/ppc64/kernel/xics.c
+/*
+ * arch/powerpc/platforms/pseries/xics.c
  *
  * Copyright 2000 IBM Corporation.
  *
@@ -25,11 +25,11 @@
 #include <asm/pgtable.h>
 #include <asm/smp.h>
 #include <asm/rtas.h>
-#include <asm/xics.h>
 #include <asm/hvcall.h>
 #include <asm/machdep.h>
+#include <asm/i8259.h>
 
-#include "i8259.h"
+#include "xics.h"
 
 static unsigned int xics_startup(unsigned int irq);
 static void xics_enable_irq(unsigned int irq);
@@ -62,7 +62,7 @@ static struct radix_tree_root irq_map = RADIX_TREE_INIT(GFP_ATOMIC);
 /* Want a priority other than 0.  Various HW issues require this. */
 #define	DEFAULT_PRIORITY	5
 
-/* 
+/*
  * Mark IPIs as higher priority so we can take them inside interrupts that
  * arent marked SA_INTERRUPT
  */
@@ -169,11 +169,11 @@ static inline long plpar_xirr(unsigned long *xirr_ret)
 static int pSeriesLP_xirr_info_get(int n_cpu)
 {
 	unsigned long lpar_rc;
-	unsigned long return_value; 
+	unsigned long return_value;
 
 	lpar_rc = plpar_xirr(&return_value);
 	if (lpar_rc != H_Success)
-		panic(" bad return code xirr - rc = %lx \n", lpar_rc); 
+		panic(" bad return code xirr - rc = %lx \n", lpar_rc);
 	return (int)return_value;
 }
 
@@ -185,7 +185,7 @@ static void pSeriesLP_xirr_info_set(int n_cpu, int value)
 	lpar_rc = plpar_eoi(val64);
 	if (lpar_rc != H_Success)
 		panic("bad return code EOI - rc = %ld, value=%lx\n", lpar_rc,
-		      val64); 
+		      val64);
 }
 
 void pSeriesLP_cppr_info(int n_cpu, u8 value)
@@ -194,7 +194,7 @@ void pSeriesLP_cppr_info(int n_cpu, u8 value)
 
 	lpar_rc = plpar_cppr(value);
 	if (lpar_rc != H_Success)
-		panic("bad return code cppr - rc = %lx\n", lpar_rc); 
+		panic("bad return code cppr - rc = %lx\n", lpar_rc);
 }
 
 static void pSeriesLP_qirr_info(int n_cpu , u8 value)
@@ -203,7 +203,7 @@ static void pSeriesLP_qirr_info(int n_cpu , u8 value)
 
 	lpar_rc = plpar_ipi(get_hard_smp_processor_id(n_cpu), value);
 	if (lpar_rc != H_Success)
-		panic("bad return code qirr - rc = %lx\n", lpar_rc); 
+		panic("bad return code qirr - rc = %lx\n", lpar_rc);
 }
 
 xics_ops pSeriesLP_ops = {
@@ -366,7 +366,7 @@ int xics_get_irq(struct pt_regs *regs)
 
 	/* for sanity, this had better be < NR_IRQS - 16 */
 	if (vec == xics_irq_8259_cascade_real) {
-		irq = i8259_irq(cpu);
+		irq = i8259_irq(regs);
 		if (irq == -1) {
 			/* Spurious cascaded interrupt.  Still must ack xics */
 			xics_end_irq(irq_offset_up(xics_irq_8259_cascade));
@@ -462,7 +462,7 @@ void xics_init_IRQ(void)
 	struct xics_interrupt_node {
 		unsigned long addr;
 		unsigned long size;
-	} intnodes[NR_CPUS]; 
+	} intnodes[NR_CPUS];
 
 	ppc64_boot_msg(0x20, "XICS Init");
 
@@ -487,7 +487,7 @@ nextnode:
 	ireg = (uint *)get_property(np, "reg", &ilen);
 	if (!ireg)
 		panic("xics_init_IRQ: can't find interrupt reg property");
-	
+
 	while (ilen) {
 		intnodes[indx].addr = (unsigned long)*ireg++ << 32;
 		ilen -= sizeof(uint);
@@ -555,7 +555,7 @@ nextnode:
 				continue;
 
 			hard_id = get_hard_smp_processor_id(i);
-			xics_per_cpu[i] = ioremap(intnodes[hard_id].addr, 
+			xics_per_cpu[i] = ioremap(intnodes[hard_id].addr,
 						  intnodes[hard_id].size);
 		}
 #else
@@ -589,7 +589,7 @@ static int __init xics_setup_i8259(void)
 				no_action, 0, "8259 cascade", NULL))
 			printk(KERN_ERR "xics_setup_i8259: couldn't get 8259 "
 					"cascade\n");
-		i8259_init(0);
+		i8259_init(0, 0);
 	}
 	return 0;
 }

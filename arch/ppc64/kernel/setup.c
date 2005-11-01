@@ -37,7 +37,6 @@
 #include <asm/prom.h>
 #include <asm/processor.h>
 #include <asm/pgtable.h>
-#include <asm/bootinfo.h>
 #include <asm/smp.h>
 #include <asm/elf.h>
 #include <asm/machdep.h>
@@ -58,6 +57,9 @@
 #include <asm/mmu.h>
 #include <asm/lmb.h>
 #include <asm/iSeries/ItLpNaca.h>
+#include <asm/firmware.h>
+#include <asm/systemcfg.h>
+#include <asm/xmon.h>
 
 #ifdef DEBUG
 #define DBG(fmt...) udbg_printf(fmt)
@@ -136,24 +138,7 @@ static struct notifier_block ppc64_panic_block = {
 	.priority = INT_MIN /* may not return; must be done last */
 };
 
-/*
- * Perhaps we can put the pmac screen_info[] here
- * on pmac as well so we don't need the ifdef's.
- * Until we get multiple-console support in here
- * that is.  -- Cort
- * Maybe tie it to serial consoles, since this is really what
- * these processors use on existing boards.  -- Dan
- */ 
-struct screen_info screen_info = {
-	.orig_x = 0,
-	.orig_y = 25,
-	.orig_video_cols = 80,
-	.orig_video_lines = 25,
-	.orig_video_isVGA = 1,
-	.orig_video_points = 16
-};
-
-#if defined(CONFIG_PPC_MULTIPLATFORM) && defined(CONFIG_SMP)
+#ifdef CONFIG_SMP
 
 static int smt_enabled_cmdline;
 
@@ -306,15 +291,13 @@ static void __init setup_cpu_maps(void)
 
 	systemcfg->processorCount = num_present_cpus();
 }
-#endif /* defined(CONFIG_PPC_MULTIPLATFORM) && defined(CONFIG_SMP) */
-
-
-#ifdef CONFIG_PPC_MULTIPLATFORM
+#endif /* CONFIG_SMP */
 
 extern struct machdep_calls pSeries_md;
 extern struct machdep_calls pmac_md;
 extern struct machdep_calls maple_md;
 extern struct machdep_calls bpa_md;
+extern struct machdep_calls iseries_md;
 
 /* Ultimately, stuff them in an elf section like initcalls... */
 static struct machdep_calls __initdata *machines[] = {
@@ -329,6 +312,9 @@ static struct machdep_calls __initdata *machines[] = {
 #endif /* CONFIG_PPC_MAPLE */
 #ifdef CONFIG_PPC_BPA
 	&bpa_md,
+#endif
+#ifdef CONFIG_PPC_ISERIES
+	&iseries_md,
 #endif
 	NULL
 };
@@ -401,7 +387,8 @@ void __init early_setup(unsigned long dt_ptr)
 	/*
 	 * Initialize stab / SLB management
 	 */
-	stab_initialize(lpaca->stab_real);
+	if (!firmware_has_feature(FW_FEATURE_ISERIES))
+		stab_initialize(lpaca->stab_real);
 
 	/*
 	 * Initialize the MMU Hash table and create the linear mapping
@@ -532,8 +519,6 @@ static void __init check_for_initrd(void)
 #endif /* CONFIG_BLK_DEV_INITRD */
 }
 
-#endif /* CONFIG_PPC_MULTIPLATFORM */
-
 /*
  * Do some initial setup of the system.  The parameters are those which 
  * were passed in from the bootloader.
@@ -541,14 +526,6 @@ static void __init check_for_initrd(void)
 void __init setup_system(void)
 {
 	DBG(" -> setup_system()\n");
-
-#ifdef CONFIG_PPC_ISERIES
-	/* pSeries systems are identified in prom.c via OF. */
-	if (itLpNaca.xLparInstalled == 1)
-		systemcfg->platform = PLATFORM_ISERIES_LPAR;
-
-	ppc_md.init_early();
-#else /* CONFIG_PPC_ISERIES */
 
 	/*
 	 * Unflatten the device-tree passed by prom_init or kexec
@@ -592,6 +569,10 @@ void __init setup_system(void)
 	 */
 	finish_device_tree();
 
+#ifdef CONFIG_BOOTX_TEXT
+	init_boot_display();
+#endif
+
 	/*
 	 * Initialize xmon
 	 */
@@ -607,9 +588,8 @@ void __init setup_system(void)
 	strlcpy(saved_command_line, cmd_line, COMMAND_LINE_SIZE);
 
 	parse_early_param();
-#endif /* !CONFIG_PPC_ISERIES */
 
-#if defined(CONFIG_SMP) && !defined(CONFIG_PPC_ISERIES)
+#ifdef CONFIG_SMP
 	/*
 	 * iSeries has already initialized the cpu maps at this point.
 	 */
@@ -619,7 +599,7 @@ void __init setup_system(void)
 	 * we can map physical -> logical CPU ids
 	 */
 	smp_release_cpus();
-#endif /* defined(CONFIG_SMP) && !defined(CONFIG_PPC_ISERIES) */
+#endif
 
 	printk("Starting Linux PPC64 %s\n", system_utsname.version);
 
@@ -644,150 +624,12 @@ void __init setup_system(void)
 	DBG(" <- setup_system()\n");
 }
 
-/* also used by kexec */
-void machine_shutdown(void)
-{
-	if (ppc_md.nvram_sync)
-		ppc_md.nvram_sync();
-}
-
-void machine_restart(char *cmd)
-{
-	machine_shutdown();
-	ppc_md.restart(cmd);
-#ifdef CONFIG_SMP
-	smp_send_stop();
-#endif
-	printk(KERN_EMERG "System Halted, OK to turn off power\n");
-	local_irq_disable();
-	while (1) ;
-}
-
-void machine_power_off(void)
-{
-	machine_shutdown();
-	ppc_md.power_off();
-#ifdef CONFIG_SMP
-	smp_send_stop();
-#endif
-	printk(KERN_EMERG "System Halted, OK to turn off power\n");
-	local_irq_disable();
-	while (1) ;
-}
-/* Used by the G5 thermal driver */
-EXPORT_SYMBOL_GPL(machine_power_off);
-
-void machine_halt(void)
-{
-	machine_shutdown();
-	ppc_md.halt();
-#ifdef CONFIG_SMP
-	smp_send_stop();
-#endif
-	printk(KERN_EMERG "System Halted, OK to turn off power\n");
-	local_irq_disable();
-	while (1) ;
-}
-
 static int ppc64_panic_event(struct notifier_block *this,
                              unsigned long event, void *ptr)
 {
 	ppc_md.panic((char *)ptr);  /* May not return */
 	return NOTIFY_DONE;
 }
-
-
-#ifdef CONFIG_SMP
-DEFINE_PER_CPU(unsigned int, pvr);
-#endif
-
-static int show_cpuinfo(struct seq_file *m, void *v)
-{
-	unsigned long cpu_id = (unsigned long)v - 1;
-	unsigned int pvr;
-	unsigned short maj;
-	unsigned short min;
-
-	if (cpu_id == NR_CPUS) {
-		seq_printf(m, "timebase\t: %lu\n", ppc_tb_freq);
-
-		if (ppc_md.get_cpuinfo != NULL)
-			ppc_md.get_cpuinfo(m);
-
-		return 0;
-	}
-
-	/* We only show online cpus: disable preempt (overzealous, I
-	 * knew) to prevent cpu going down. */
-	preempt_disable();
-	if (!cpu_online(cpu_id)) {
-		preempt_enable();
-		return 0;
-	}
-
-#ifdef CONFIG_SMP
-	pvr = per_cpu(pvr, cpu_id);
-#else
-	pvr = mfspr(SPRN_PVR);
-#endif
-	maj = (pvr >> 8) & 0xFF;
-	min = pvr & 0xFF;
-
-	seq_printf(m, "processor\t: %lu\n", cpu_id);
-	seq_printf(m, "cpu\t\t: ");
-
-	if (cur_cpu_spec->pvr_mask)
-		seq_printf(m, "%s", cur_cpu_spec->cpu_name);
-	else
-		seq_printf(m, "unknown (%08x)", pvr);
-
-#ifdef CONFIG_ALTIVEC
-	if (cpu_has_feature(CPU_FTR_ALTIVEC))
-		seq_printf(m, ", altivec supported");
-#endif /* CONFIG_ALTIVEC */
-
-	seq_printf(m, "\n");
-
-	/*
-	 * Assume here that all clock rates are the same in a
-	 * smp system.  -- Cort
-	 */
-	seq_printf(m, "clock\t\t: %lu.%06luMHz\n", ppc_proc_freq / 1000000,
-		   ppc_proc_freq % 1000000);
-
-	seq_printf(m, "revision\t: %hd.%hd\n\n", maj, min);
-
-	preempt_enable();
-	return 0;
-}
-
-static void *c_start(struct seq_file *m, loff_t *pos)
-{
-	return *pos <= NR_CPUS ? (void *)((*pos)+1) : NULL;
-}
-static void *c_next(struct seq_file *m, void *v, loff_t *pos)
-{
-	++*pos;
-	return c_start(m, pos);
-}
-static void c_stop(struct seq_file *m, void *v)
-{
-}
-struct seq_operations cpuinfo_op = {
-	.start =c_start,
-	.next =	c_next,
-	.stop =	c_stop,
-	.show =	show_cpuinfo,
-};
-
-/*
- * These three variables are used to save values passed to us by prom_init()
- * via the device tree. The TCE variables are needed because with a memory_limit
- * in force we may need to explicitly map the TCE are at the top of RAM.
- */
-unsigned long memory_limit;
-unsigned long tce_alloc_start;
-unsigned long tce_alloc_end;
 
 #ifdef CONFIG_PPC_ISERIES
 /*
@@ -805,130 +647,6 @@ static int __init early_parsemem(char *p)
 }
 early_param("mem", early_parsemem);
 #endif /* CONFIG_PPC_ISERIES */
-
-#ifdef CONFIG_PPC_MULTIPLATFORM
-static int __init set_preferred_console(void)
-{
-	struct device_node *prom_stdout = NULL;
-	char *name;
-	u32 *spd;
-	int offset = 0;
-
-	DBG(" -> set_preferred_console()\n");
-
-	/* The user has requested a console so this is already set up. */
-	if (strstr(saved_command_line, "console=")) {
-		DBG(" console was specified !\n");
-		return -EBUSY;
-	}
-
-	if (!of_chosen) {
-		DBG(" of_chosen is NULL !\n");
-		return -ENODEV;
-	}
-	/* We are getting a weird phandle from OF ... */
-	/* ... So use the full path instead */
-	name = (char *)get_property(of_chosen, "linux,stdout-path", NULL);
-	if (name == NULL) {
-		DBG(" no linux,stdout-path !\n");
-		return -ENODEV;
-	}
-	prom_stdout = of_find_node_by_path(name);
-	if (!prom_stdout) {
-		DBG(" can't find stdout package %s !\n", name);
-		return -ENODEV;
-	}	
-	DBG("stdout is %s\n", prom_stdout->full_name);
-
-	name = (char *)get_property(prom_stdout, "name", NULL);
-	if (!name) {
-		DBG(" stdout package has no name !\n");
-		goto not_found;
-	}
-	spd = (u32 *)get_property(prom_stdout, "current-speed", NULL);
-
-	if (0)
-		;
-#ifdef CONFIG_SERIAL_8250_CONSOLE
-	else if (strcmp(name, "serial") == 0) {
-		int i;
-		u32 *reg = (u32 *)get_property(prom_stdout, "reg", &i);
-		if (i > 8) {
-			switch (reg[1]) {
-				case 0x3f8:
-					offset = 0;
-					break;
-				case 0x2f8:
-					offset = 1;
-					break;
-				case 0x898:
-					offset = 2;
-					break;
-				case 0x890:
-					offset = 3;
-					break;
-				default:
-					/* We dont recognise the serial port */
-					goto not_found;
-			}
-		}
-	}
-#endif /* CONFIG_SERIAL_8250_CONSOLE */
-#ifdef CONFIG_PPC_PSERIES
-	else if (strcmp(name, "vty") == 0) {
- 		u32 *reg = (u32 *)get_property(prom_stdout, "reg", NULL);
- 		char *compat = (char *)get_property(prom_stdout, "compatible", NULL);
-
- 		if (reg && compat && (strcmp(compat, "hvterm-protocol") == 0)) {
- 			/* Host Virtual Serial Interface */
- 			int offset;
- 			switch (reg[0]) {
- 				case 0x30000000:
- 					offset = 0;
- 					break;
- 				case 0x30000001:
- 					offset = 1;
- 					break;
- 				default:
-					goto not_found;
- 			}
-			of_node_put(prom_stdout);
-			DBG("Found hvsi console at offset %d\n", offset);
- 			return add_preferred_console("hvsi", offset, NULL);
- 		} else {
- 			/* pSeries LPAR virtual console */
-			of_node_put(prom_stdout);
-			DBG("Found hvc console\n");
- 			return add_preferred_console("hvc", 0, NULL);
- 		}
-	}
-#endif /* CONFIG_PPC_PSERIES */
-#ifdef CONFIG_SERIAL_PMACZILOG_CONSOLE
-	else if (strcmp(name, "ch-a") == 0)
-		offset = 0;
-	else if (strcmp(name, "ch-b") == 0)
-		offset = 1;
-#endif /* CONFIG_SERIAL_PMACZILOG_CONSOLE */
-	else
-		goto not_found;
-	of_node_put(prom_stdout);
-
-	DBG("Found serial console at ttyS%d\n", offset);
-
-	if (spd) {
-		static char __initdata opt[16];
-		sprintf(opt, "%d", *spd);
-		return add_preferred_console("ttyS", offset, opt);
-	} else
-		return add_preferred_console("ttyS", offset, NULL);
-
- not_found:
-	DBG("No preferred console found !\n");
-	of_node_put(prom_stdout);
-	return -ENODEV;
-}
-console_initcall(set_preferred_console);
-#endif /* CONFIG_PPC_MULTIPLATFORM */
 
 #ifdef CONFIG_IRQSTACKS
 static void __init irqstack_early_init(void)
@@ -983,23 +701,22 @@ void __init setup_syscall_map(void)
 {
 	unsigned int i, count64 = 0, count32 = 0;
 	extern unsigned long *sys_call_table;
-	extern unsigned long *sys_call_table32;
 	extern unsigned long sys_ni_syscall;
 
 
 	for (i = 0; i < __NR_syscalls; i++) {
-		if (sys_call_table[i] == sys_ni_syscall)
-			continue;
-		count64++;
-		systemcfg->syscall_map_64[i >> 5] |= 0x80000000UL >> (i & 0x1f);
+		if (sys_call_table[i*2] != sys_ni_syscall) {
+			count64++;
+			systemcfg->syscall_map_64[i >> 5] |=
+				0x80000000UL >> (i & 0x1f);
+		}
+		if (sys_call_table[i*2+1] != sys_ni_syscall) {
+			count32++;
+			systemcfg->syscall_map_32[i >> 5] |=
+				0x80000000UL >> (i & 0x1f);
+		}
 	}
-	for (i = 0; i < __NR_syscalls; i++) {
-		if (sys_call_table32[i] == sys_ni_syscall)
-			continue;
-		count32++;
-		systemcfg->syscall_map_32[i >> 5] |= 0x80000000UL >> (i & 0x1f);
-	}
-	printk(KERN_INFO "Syscall map setup, %d 32 bits and %d 64 bits syscalls\n",
+	printk(KERN_INFO "Syscall map setup, %d 32-bit and %d 64-bit syscalls\n",
 	       count32, count64);
 }
 
@@ -1047,6 +764,10 @@ void __init setup_arch(char **cmdline_p)
 	/* initialize the syscall map in systemcfg */
 	setup_syscall_map();
 
+#ifdef CONFIG_DUMMY_CONSOLE
+	conswitchp = &dummy_con;
+#endif
+
 	ppc_md.setup_arch();
 
 	/* Use the default idle loop if the platform hasn't provided one. */
@@ -1089,15 +810,6 @@ void ppc64_terminate_msg(unsigned int src, const char *msg)
 {
 	ppc64_do_msg(PPC64_LINUX_FUNCTION|PPC64_TERM_MESSAGE|src, msg);
 	printk("[terminate]%04x %s\n", src, msg);
-}
-
-/* This should only be called on processor 0 during calibrate decr */
-void __init setup_default_decr(void)
-{
-	struct paca_struct *lpaca = get_paca();
-
-	lpaca->default_decr = tb_ticks_per_jiffy;
-	lpaca->next_jiffy_update_tb = get_tb() + tb_ticks_per_jiffy;
 }
 
 #ifndef CONFIG_PPC_ISERIES

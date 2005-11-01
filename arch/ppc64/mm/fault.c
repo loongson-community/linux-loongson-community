@@ -1,7 +1,7 @@
 /*
  *  arch/ppc/mm/fault.c
  *
- *  PowerPC version 
+ *  PowerPC version
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
  *
  *  Derived from "arch/i386/mm/fault.c"
@@ -24,10 +24,11 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/types.h>
+#include <linux/ptrace.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
-#include <linux/smp_lock.h>
+#include <linux/highmem.h>
 #include <linux/module.h>
 #include <linux/kprobes.h>
 
@@ -37,6 +38,7 @@
 #include <asm/mmu_context.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/tlbflush.h>
 #include <asm/kdebug.h>
 #include <asm/siginfo.h>
 
@@ -78,6 +80,7 @@ static int store_updates_sp(struct pt_regs *regs)
 	return 0;
 }
 
+#if !(defined(CONFIG_4xx) || defined(CONFIG_BOOKE))
 static void do_dabr(struct pt_regs *regs, unsigned long error_code)
 {
 	siginfo_t info;
@@ -99,12 +102,18 @@ static void do_dabr(struct pt_regs *regs, unsigned long error_code)
 	info.si_addr = (void __user *)regs->nip;
 	force_sig_info(SIGTRAP, &info, current);
 }
+#endif /* !(CONFIG_4xx || CONFIG_BOOKE)*/
 
 /*
- * The error_code parameter is
+ * For 600- and 800-family processors, the error_code parameter is DSISR
+ * for a data fault, SRR1 for an instruction fault. For 400-family processors
+ * the error_code parameter is ESR for a data fault, 0 for an instruction
+ * fault.
+ * For 64-bit processors, the error_code parameter is
  *  - DSISR for a non-SLB data access fault,
  *  - SRR1 & 0x08000000 for a non-SLB instruction access fault
  *  - 0 any SLB fault.
+ *
  * The return value is 0 if the fault was handled, or the signal
  * number if this is a kernel fault that can't be handled here.
  */
@@ -114,12 +123,25 @@ int __kprobes do_page_fault(struct pt_regs *regs, unsigned long address,
 	struct vm_area_struct * vma;
 	struct mm_struct *mm = current->mm;
 	siginfo_t info;
-	unsigned long code = SEGV_MAPERR;
-	unsigned long is_write = error_code & DSISR_ISSTORE;
-	unsigned long trap = TRAP(regs);
- 	unsigned long is_exec = trap == 0x400;
+	int code = SEGV_MAPERR;
+	int is_write = 0;
+	int trap = TRAP(regs);
+ 	int is_exec = trap == 0x400;
 
-	BUG_ON((trap == 0x380) || (trap == 0x480));
+#if !(defined(CONFIG_4xx) || defined(CONFIG_BOOKE))
+	/*
+	 * Fortunately the bit assignments in SRR1 for an instruction
+	 * fault and DSISR for a data fault are mostly the same for the
+	 * bits we are interested in.  But there are some bits which
+	 * indicate errors in DSISR but can validly be set in SRR1.
+	 */
+	if (trap == 0x400)
+		error_code &= 0x48200000;
+	else
+		is_write = error_code & DSISR_ISSTORE;
+#else
+	is_write = error_code & ESR_DST;
+#endif /* CONFIG_4xx || CONFIG_BOOKE */
 
 	if (notify_die(DIE_PAGE_FAULT, "page_fault", regs, error_code,
 				11, SIGSEGV) == NOTIFY_STOP)
@@ -134,10 +156,13 @@ int __kprobes do_page_fault(struct pt_regs *regs, unsigned long address,
 	if (!user_mode(regs) && (address >= TASK_SIZE))
 		return SIGSEGV;
 
+#if !(defined(CONFIG_4xx) || defined(CONFIG_BOOKE))
   	if (error_code & DSISR_DABRMATCH) {
+		/* DABR match */
 		do_dabr(regs, error_code);
 		return 0;
 	}
+#endif /* !(CONFIG_4xx || CONFIG_BOOKE)*/
 
 	if (in_atomic() || mm == NULL) {
 		if (!user_mode(regs))
@@ -176,10 +201,8 @@ int __kprobes do_page_fault(struct pt_regs *regs, unsigned long address,
 	vma = find_vma(mm, address);
 	if (!vma)
 		goto bad_area;
-
-	if (vma->vm_start <= address) {
+	if (vma->vm_start <= address)
 		goto good_area;
-	}
 	if (!(vma->vm_flags & VM_GROWSDOWN))
 		goto bad_area;
 
@@ -214,35 +237,76 @@ int __kprobes do_page_fault(struct pt_regs *regs, unsigned long address,
 		    && (!user_mode(regs) || !store_updates_sp(regs)))
 			goto bad_area;
 	}
-
 	if (expand_stack(vma, address))
 		goto bad_area;
 
 good_area:
 	code = SEGV_ACCERR;
+#if defined(CONFIG_6xx)
+	if (error_code & 0x95700000)
+		/* an error such as lwarx to I/O controller space,
+		   address matching DABR, eciwx, etc. */
+		goto bad_area;
+#endif /* CONFIG_6xx */
+#if defined(CONFIG_8xx)
+        /* The MPC8xx seems to always set 0x80000000, which is
+         * "undefined".  Of those that can be set, this is the only
+         * one which seems bad.
+         */
+	if (error_code & 0x10000000)
+                /* Guarded storage error. */
+		goto bad_area;
+#endif /* CONFIG_8xx */
 
 	if (is_exec) {
+#ifdef CONFIG_PPC64
 		/* protection fault */
 		if (error_code & DSISR_PROTFAULT)
 			goto bad_area;
 		if (!(vma->vm_flags & VM_EXEC))
 			goto bad_area;
+#endif
+#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE)
+		pte_t *ptep;
+
+		/* Since 4xx/Book-E supports per-page execute permission,
+		 * we lazily flush dcache to icache. */
+		ptep = NULL;
+		if (get_pteptr(mm, address, &ptep) && pte_present(*ptep)) {
+			struct page *page = pte_page(*ptep);
+
+			if (! test_bit(PG_arch_1, &page->flags)) {
+				flush_dcache_icache_page(page);
+				set_bit(PG_arch_1, &page->flags);
+			}
+			pte_update(ptep, 0, _PAGE_HWEXEC);
+			_tlbie(address);
+			pte_unmap(ptep);
+			up_read(&mm->mmap_sem);
+			return 0;
+		}
+		if (ptep != NULL)
+			pte_unmap(ptep);
+#endif
 	/* a write */
 	} else if (is_write) {
 		if (!(vma->vm_flags & VM_WRITE))
 			goto bad_area;
 	/* a read */
 	} else {
-		if (!(vma->vm_flags & VM_READ))
+		/* protection fault */
+		if (error_code & 0x08000000)
+			goto bad_area;
+		if (!(vma->vm_flags & (VM_READ | VM_EXEC)))
 			goto bad_area;
 	}
 
- survive:
 	/*
 	 * If for any reason at all we couldn't handle the fault,
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault.
 	 */
+ survive:
 	switch (handle_mm_fault(mm, vma, address, is_write)) {
 
 	case VM_FAULT_MINOR:
@@ -268,15 +332,11 @@ bad_area:
 bad_area_nosemaphore:
 	/* User mode accesses cause a SIGSEGV */
 	if (user_mode(regs)) {
-		info.si_signo = SIGSEGV;
-		info.si_errno = 0;
-		info.si_code = code;
-		info.si_addr = (void __user *) address;
-		force_sig_info(SIGSEGV, &info, current);
+		_exception(SIGSEGV, regs, code, address);
 		return 0;
 	}
 
-	if (trap == 0x400 && (error_code & DSISR_PROTFAULT)
+	if (is_exec && (error_code & DSISR_PROTFAULT)
 	    && printk_ratelimit())
 		printk(KERN_CRIT "kernel tried to execute NX-protected"
 		       " page (%lx) - exploit attempt? (uid: %d)\n",
@@ -315,8 +375,8 @@ do_sigbus:
 
 /*
  * bad_page_fault is called when we have a bad access from the kernel.
- * It is called from do_page_fault above and from some of the procedures
- * in traps.c.
+ * It is called from the DSI and ISI handlers in head.S and from some
+ * of the procedures in traps.c.
  */
 void bad_page_fault(struct pt_regs *regs, unsigned long address, int sig)
 {

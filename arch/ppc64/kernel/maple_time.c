@@ -36,6 +36,8 @@
 #include <asm/machdep.h>
 #include <asm/time.h>
 
+#include "maple.h"
+
 #ifdef DEBUG
 #define DBG(x...) printk(x)
 #else
@@ -156,8 +158,9 @@ int maple_set_rtc_time(struct rtc_time *tm)
 	return 0;
 }
 
-void __init maple_get_boot_time(struct rtc_time *tm)
+unsigned long __init maple_get_boot_time(void)
 {
+	struct rtc_time tm;
 	struct device_node *rtcs;
 
 	rtcs = find_compatible_devices("rtc", "pnpPNP,b00");
@@ -170,6 +173,8 @@ void __init maple_get_boot_time(struct rtc_time *tm)
 		       "legacy address (0x%x)\n", maple_rtc_addr);
 	}
 	
-	maple_get_rtc_time(tm);
+	maple_get_rtc_time(&tm);
+	return mktime(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
+		      tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 

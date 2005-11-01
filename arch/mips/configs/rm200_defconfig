@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14-rc5
-# Sun Oct 30 18:55:55 2005
+# Linux kernel version: 2.6.14
+# Tue Nov  1 01:02:24 2005
 #
 CONFIG_MIPS=y
 
@@ -190,6 +190,7 @@ CONFIG_FLATMEM_MANUAL=y
 CONFIG_FLATMEM=y
 CONFIG_FLAT_NODE_MEM_MAP=y
 # CONFIG_SPARSEMEM_STATIC is not set
+CONFIG_SPLIT_PTLOCK_CPUS=4
 # CONFIG_PREEMPT_NONE is not set
 CONFIG_PREEMPT_VOLUNTARY=y
 # CONFIG_PREEMPT is not set
@@ -597,6 +598,11 @@ CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 CONFIG_IOSCHED_CFQ=y
+CONFIG_DEFAULT_AS=y
+# CONFIG_DEFAULT_DEADLINE is not set
+# CONFIG_DEFAULT_CFQ is not set
+# CONFIG_DEFAULT_NOOP is not set
+CONFIG_DEFAULT_IOSCHED="anticipatory"
 CONFIG_ATA_OVER_ETH=m
 
 #
@@ -756,7 +762,6 @@ CONFIG_TUN=m
 # PHY device support
 #
 CONFIG_PHYLIB=m
-CONFIG_PHYCONTROL=y
 
 #
 # MII PHY device drivers
@@ -989,6 +994,7 @@ CONFIG_RTC=m
 # TPM devices
 #
 # CONFIG_TCG_TPM is not set
+# CONFIG_TELCLOCK is not set
 
 #
 # I2C support
@@ -1079,12 +1085,15 @@ CONFIG_USB_UHCI_HCD=m
 #
 # USB Device Class drivers
 #
-CONFIG_USB_BLUETOOTH_TTY=m
 CONFIG_USB_ACM=m
 CONFIG_USB_PRINTER=m
 
 #
-# NOTE: USB_STORAGE enables SCSI, and 'SCSI disk support' may also be needed; see USB_STORAGE Help for more information
+# NOTE: USB_STORAGE enables SCSI, and 'SCSI disk support'
+#
+
+#
+# may also be needed; see USB_STORAGE Help for more information
 #
 CONFIG_USB_STORAGE=m
 # CONFIG_USB_STORAGE_DEBUG is not set
@@ -1201,6 +1210,7 @@ CONFIG_USB_SERIAL_KEYSPAN_USA49WLC=y
 CONFIG_USB_SERIAL_KLSI=m
 CONFIG_USB_SERIAL_KOBIL_SCT=m
 CONFIG_USB_SERIAL_MCT_U232=m
+# CONFIG_USB_SERIAL_NOKIA_DKU2 is not set
 CONFIG_USB_SERIAL_PL2303=m
 CONFIG_USB_SERIAL_HP4X=m
 CONFIG_USB_SERIAL_SAFE=m

@@ -1,5 +1,5 @@
 /*
- *  arch/ppc64/kernel/mpic.c
+ *  arch/powerpc/kernel/mpic.c
  *
  *  Driver for interrupt controllers following the OpenPIC standard, the
  *  common implementation beeing IBM's MPIC. This driver also can deal
@@ -31,8 +31,8 @@
 #include <asm/pgtable.h>
 #include <asm/irq.h>
 #include <asm/machdep.h>
-
-#include "mpic.h"
+#include <asm/mpic.h>
+#include <asm/smp.h>
 
 #ifdef DEBUG
 #define DBG(fmt...) printk(fmt)
@@ -44,6 +44,9 @@ static struct mpic *mpics;
 static struct mpic *mpic_primary;
 static DEFINE_SPINLOCK(mpic_lock);
 
+#ifdef CONFIG_PPC32	/* XXX for now */
+#define distribute_irqs	CONFIG_IRQ_ALL_CPUS
+#endif
 
 /*
  * Register accessor functions
@@ -355,7 +358,7 @@ static void mpic_enable_irq(unsigned int irq)
 	struct mpic *mpic = mpic_from_irq(irq);
 	unsigned int src = irq - mpic->irq_offset;
 
-	DBG("%s: enable_irq: %d (src %d)\n", mpic->name, irq, src);
+	DBG("%p: %s: enable_irq: %d (src %d)\n", mpic, mpic->name, irq, src);
 
 	mpic_irq_write(src, MPIC_IRQ_VECTOR_PRI,
 		       mpic_irq_read(src, MPIC_IRQ_VECTOR_PRI) & ~MPIC_VECPRI_MASK);
@@ -480,6 +483,7 @@ struct mpic * __init mpic_alloc(unsigned long phys_addr,
 	if (mpic == NULL)
 		return NULL;
 	
+
 	memset(mpic, 0, sizeof(struct mpic));
 	mpic->name = name;
 
@@ -506,7 +510,7 @@ struct mpic * __init mpic_alloc(unsigned long phys_addr,
 	mpic->senses_count = senses_count;
 
 	/* Map the global registers */
-	mpic->gregs = ioremap(phys_addr + MPIC_GREG_BASE, 0x2000);
+	mpic->gregs = ioremap(phys_addr + MPIC_GREG_BASE, 0x1000);
 	mpic->tmregs = mpic->gregs + ((MPIC_TIMER_BASE - MPIC_GREG_BASE) >> 2);
 	BUG_ON(mpic->gregs == NULL);
 
@@ -644,7 +648,6 @@ void __init mpic_init(struct mpic *mpic)
 			continue;
 		irq_desc[mpic->ipi_offset+i].status |= IRQ_PER_CPU;
 		irq_desc[mpic->ipi_offset+i].handler = &mpic->hc_ipi;
-		
 #endif /* CONFIG_SMP */
 	}
 
@@ -700,7 +703,7 @@ void __init mpic_init(struct mpic *mpic)
 		/* init hw */
 		mpic_irq_write(i, MPIC_IRQ_VECTOR_PRI, vecpri);
 		mpic_irq_write(i, MPIC_IRQ_DESTINATION,
-			       1 << get_hard_smp_processor_id(boot_cpuid));
+			       1 << hard_smp_processor_id());
 
 		/* init linux descriptors */
 		if (i < mpic->irq_count) {
@@ -790,6 +793,21 @@ void mpic_setup_this_cpu(void)
 
 	spin_unlock_irqrestore(&mpic_lock, flags);
 #endif /* CONFIG_SMP */
+}
+
+int mpic_cpu_get_priority(void)
+{
+	struct mpic *mpic = mpic_primary;
+
+	return mpic_cpu_read(MPIC_CPU_CURRENT_TASK_PRI);
+}
+
+void mpic_cpu_set_priority(int prio)
+{
+	struct mpic *mpic = mpic_primary;
+
+	prio &= MPIC_CPU_TASKPRI_MASK;
+	mpic_cpu_write(MPIC_CPU_CURRENT_TASK_PRI, prio);
 }
 
 /*
@@ -884,5 +902,26 @@ void mpic_request_ipis(void)
 		   "IPI3 (debugger break)", mpic);
 
 	printk("IPIs requested... \n");
+}
+
+void smp_mpic_message_pass(int target, int msg)
+{
+	/* make sure we're sending something that translates to an IPI */
+	if ((unsigned int)msg > 3) {
+		printk("SMP %d: smp_message_pass: unknown msg %d\n",
+		       smp_processor_id(), msg);
+		return;
+	}
+	switch (target) {
+	case MSG_ALL:
+		mpic_send_ipi(msg, 0xffffffff);
+		break;
+	case MSG_ALL_BUT_SELF:
+		mpic_send_ipi(msg, 0xffffffff & ~(1 << smp_processor_id()));
+		break;
+	default:
+		mpic_send_ipi(msg, 1 << target);
+		break;
+	}
 }
 #endif /* CONFIG_SMP */

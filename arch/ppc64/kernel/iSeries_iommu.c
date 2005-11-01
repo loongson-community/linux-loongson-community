@@ -1,6 +1,4 @@
 /*
- * arch/ppc64/kernel/iSeries_iommu.c
- *
  * Copyright (C) 2001 Mike Corrigan & Dave Engebretsen, IBM Corporation
  *
  * Rewrite, cleanup:
@@ -30,9 +28,11 @@
 #include <linux/list.h>
 
 #include <asm/iommu.h>
+#include <asm/tce.h>
 #include <asm/machdep.h>
+#include <asm/abs_addr.h>
+#include <asm/pci-bridge.h>
 #include <asm/iSeries/HvCallXm.h>
-#include <asm/iSeries/iSeries_pci.h>
 
 extern struct list_head iSeries_Global_Device_List;
 
@@ -90,15 +90,16 @@ static void tce_free_iSeries(struct iommu_table *tbl, long index, long npages)
  */
 static struct iommu_table *iommu_table_find(struct iommu_table * tbl)
 {
-	struct iSeries_Device_Node *dp;
+	struct pci_dn *pdn;
 
-	list_for_each_entry(dp, &iSeries_Global_Device_List, Device_List) {
-		if ((dp->iommu_table != NULL) &&
-		    (dp->iommu_table->it_type == TCE_PCI) &&
-		    (dp->iommu_table->it_offset == tbl->it_offset) &&
-		    (dp->iommu_table->it_index == tbl->it_index) &&
-		    (dp->iommu_table->it_size == tbl->it_size))
-			return dp->iommu_table;
+	list_for_each_entry(pdn, &iSeries_Global_Device_List, Device_List) {
+		struct iommu_table *it = pdn->iommu_table;
+		if ((it != NULL) &&
+		    (it->it_type == TCE_PCI) &&
+		    (it->it_offset == tbl->it_offset) &&
+		    (it->it_index == tbl->it_index) &&
+		    (it->it_size == tbl->it_size))
+			return it;
 	}
 	return NULL;
 }
@@ -112,7 +113,7 @@ static struct iommu_table *iommu_table_find(struct iommu_table * tbl)
  * 2. TCE table per Bus.
  * 3. TCE Table per IOA.
  */
-static void iommu_table_getparms(struct iSeries_Device_Node* dn,
+static void iommu_table_getparms(struct pci_dn *pdn,
 				 struct iommu_table* tbl)
 {
 	struct iommu_table_cb *parms;
@@ -123,11 +124,11 @@ static void iommu_table_getparms(struct iSeries_Device_Node* dn,
 
 	memset(parms, 0, sizeof(*parms));
 
-	parms->itc_busno = ISERIES_BUS(dn);
-	parms->itc_slotno = dn->LogicalSlot;
+	parms->itc_busno = pdn->busno;
+	parms->itc_slotno = pdn->LogicalSlot;
 	parms->itc_virtbus = 0;
 
-	HvCallXm_getTceTableParms(ISERIES_HV_ADDR(parms));
+	HvCallXm_getTceTableParms(iseries_hv_addr(parms));
 
 	if (parms->itc_size == 0)
 		panic("PCI_DMA: parms->size is zero, parms is 0x%p", parms);
@@ -144,18 +145,19 @@ static void iommu_table_getparms(struct iSeries_Device_Node* dn,
 }
 
 
-void iommu_devnode_init_iSeries(struct iSeries_Device_Node *dn)
+void iommu_devnode_init_iSeries(struct device_node *dn)
 {
 	struct iommu_table *tbl;
+	struct pci_dn *pdn = PCI_DN(dn);
 
 	tbl = kmalloc(sizeof(struct iommu_table), GFP_KERNEL);
 
-	iommu_table_getparms(dn, tbl);
+	iommu_table_getparms(pdn, tbl);
 
 	/* Look for existing tce table */
-	dn->iommu_table = iommu_table_find(tbl);
-	if (dn->iommu_table == NULL)
-		dn->iommu_table = iommu_init_table(tbl);
+	pdn->iommu_table = iommu_table_find(tbl);
+	if (pdn->iommu_table == NULL)
+		pdn->iommu_table = iommu_init_table(tbl);
 	else
 		kfree(tbl);
 }

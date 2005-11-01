@@ -2,8 +2,6 @@
  *    Copyright (c) 2000 Mike Corrigan <mikejc@us.ibm.com>
  *    Copyright (c) 1999-2000 Grant Erickson <grant@lcse.umn.edu>
  *
- *    Module name: as400_setup.h
- *
  *    Description:
  *      Architecture- / platform-specific boot-time initialization code for
  *      the IBM AS/400 LPAR. Adapted from original code by Grant Erickson and
@@ -19,7 +17,7 @@
 #ifndef	__ISERIES_SETUP_H__
 #define	__ISERIES_SETUP_H__
 
-extern void iSeries_get_boot_time(struct rtc_time *tm);
+extern unsigned long iSeries_get_boot_time(void);
 extern int iSeries_set_rtc_time(struct rtc_time *tm);
 extern void iSeries_get_rtc_time(struct rtc_time *tm);
 

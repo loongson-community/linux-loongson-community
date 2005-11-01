@@ -47,17 +47,17 @@
 
 static unsigned long iSeries_smp_message[NR_CPUS];
 
-void iSeries_smp_message_recv( struct pt_regs * regs )
+void iSeries_smp_message_recv(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 	int msg;
 
-	if ( num_online_cpus() < 2 )
+	if (num_online_cpus() < 2)
 		return;
 
-	for ( msg = 0; msg < 4; ++msg )
-		if ( test_and_clear_bit( msg, &iSeries_smp_message[cpu] ) )
-			smp_message_recv( msg, regs );
+	for (msg = 0; msg < 4; msg++)
+		if (test_and_clear_bit(msg, &iSeries_smp_message[cpu]))
+			smp_message_recv(msg, regs);
 }
 
 static inline void smp_iSeries_do_message(int cpu, int msg)
@@ -74,48 +74,22 @@ static void smp_iSeries_message_pass(int target, int msg)
 		smp_iSeries_do_message(target, msg);
 	else {
 		for_each_online_cpu(i) {
-			if (target == MSG_ALL_BUT_SELF
-			    && i == smp_processor_id())
+			if ((target == MSG_ALL_BUT_SELF) &&
+					(i == smp_processor_id()))
 				continue;
 			smp_iSeries_do_message(i, msg);
 		}
 	}
 }
 
-static int smp_iSeries_numProcs(void)
-{
-	unsigned np, i;
-
-	np = 0;
-        for (i=0; i < NR_CPUS; ++i) {
-                if (paca[i].lppaca.dyn_proc_status < 2) {
-			cpu_set(i, cpu_possible_map);
-			cpu_set(i, cpu_present_map);
-			cpu_set(i, cpu_sibling_map[i]);
-                        ++np;
-                }
-        }
-	return np;
-}
-
 static int smp_iSeries_probe(void)
 {
-	unsigned i;
-	unsigned np = 0;
-
-	for (i=0; i < NR_CPUS; ++i) {
-		if (paca[i].lppaca.dyn_proc_status < 2) {
-			/*paca[i].active = 1;*/
-			++np;
-		}
-	}
-
-	return np;
+	return cpus_weight(cpu_possible_map);
 }
 
 static void smp_iSeries_kick_cpu(int nr)
 {
-	BUG_ON(nr < 0 || nr >= NR_CPUS);
+	BUG_ON((nr < 0) || (nr >= NR_CPUS));
 
 	/* Verify that our partition has a processor nr */
 	if (paca[nr].lppaca.dyn_proc_status >= 2)
@@ -144,6 +118,4 @@ static struct smp_ops_t iSeries_smp_ops = {
 void __init smp_init_iSeries(void)
 {
 	smp_ops = &iSeries_smp_ops;
-	systemcfg->processorCount	= smp_iSeries_numProcs();
 }
-

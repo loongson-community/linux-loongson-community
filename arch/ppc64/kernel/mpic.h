@@ -1,3 +1,6 @@
+#ifndef _ASM_POWERPC_MPIC_H
+#define _ASM_POWERPC_MPIC_H
+
 #include <linux/irq.h>
 
 /*
@@ -258,11 +261,20 @@ extern void mpic_setup_this_cpu(void);
 /* Clean up for kexec (or cpu offline or ...) */
 extern void mpic_teardown_this_cpu(int secondary);
 
+/* Get the current cpu priority for this cpu (0..15) */
+extern int mpic_cpu_get_priority(void);
+
+/* Set the current cpu priority for this cpu */
+extern void mpic_cpu_set_priority(int prio);
+
 /* Request IPIs on primary mpic */
 extern void mpic_request_ipis(void);
 
 /* Send an IPI (non offseted number 0..3) */
 extern void mpic_send_ipi(unsigned int ipi_no, unsigned int cpu_mask);
+
+/* Send a message (IPI) to a given target (cpu number or MSG_*) */
+void smp_mpic_message_pass(int target, int msg);
 
 /* Fetch interrupt from a given mpic */
 extern int mpic_get_one_irq(struct mpic *mpic, struct pt_regs *regs);
@@ -271,3 +283,5 @@ extern int mpic_get_irq(struct pt_regs *regs);
 
 /* global mpic for pSeries */
 extern struct mpic *pSeries_mpic;
+
+#endif	/* _ASM_POWERPC_MPIC_H */

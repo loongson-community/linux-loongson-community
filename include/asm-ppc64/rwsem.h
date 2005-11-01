@@ -1,18 +1,14 @@
+#ifndef _ASM_POWERPC_RWSEM_H
+#define _ASM_POWERPC_RWSEM_H
+
+#ifdef __KERNEL__
+
 /*
  * include/asm-ppc64/rwsem.h: R/W semaphores for PPC using the stuff
  * in lib/rwsem.c.  Adapted largely from include/asm-i386/rwsem.h
  * by Paul Mackerras <paulus@samba.org>.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 
-#ifndef _PPC64_RWSEM_H
-#define _PPC64_RWSEM_H
-
-#ifdef __KERNEL__
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
@@ -163,5 +159,10 @@ static inline int rwsem_atomic_update(int delta, struct rw_semaphore *sem)
 	return atomic_add_return(delta, (atomic_t *)(&sem->count));
 }
 
-#endif /* __KERNEL__ */
-#endif /* _PPC_RWSEM_XADD_H */
+static inline int rwsem_is_locked(struct rw_semaphore *sem)
+{
+	return (sem->count != 0);
+}
+
+#endif	/* __KERNEL__ */
+#endif	/* _ASM_POWERPC_RWSEM_H */

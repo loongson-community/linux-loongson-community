@@ -1,5 +1,5 @@
-#ifndef _PPC64_RTAS_H
-#define _PPC64_RTAS_H
+#ifndef _POWERPC_RTAS_H
+#define _POWERPC_RTAS_H
 
 #include <linux/spinlock.h>
 #include <asm/page.h>
@@ -190,7 +190,7 @@ extern void rtas_progress(char *s, unsigned short hex);
 extern void rtas_initialize(void);
 
 struct rtc_time;
-extern void rtas_get_boot_time(struct rtc_time *rtc_time);
+extern unsigned long rtas_get_boot_time(void);
 extern void rtas_get_rtc_time(struct rtc_time *rtc_time);
 extern int rtas_set_rtc_time(struct rtc_time *rtc_time);
 
@@ -246,4 +246,4 @@ extern unsigned long rtas_rmo_buf;
 
 #define GLOBAL_INTERRUPT_QUEUE 9005
 
-#endif /* _PPC64_RTAS_H */
+#endif /* _POWERPC_RTAS_H */

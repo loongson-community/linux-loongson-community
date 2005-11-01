@@ -1,14 +1,24 @@
-/* thread_info.h: PPC low-level thread information
+/* thread_info.h: PowerPC low-level thread information
  * adapted from the i386 version by Paul Mackerras
  *
  * Copyright (C) 2002  David Howells (dhowells@redhat.com)
  * - Incorporating suggestions made by Linus Torvalds and Dave Miller
  */
 
-#ifndef _ASM_THREAD_INFO_H
-#define _ASM_THREAD_INFO_H
+#ifndef _ASM_POWERPC_THREAD_INFO_H
+#define _ASM_POWERPC_THREAD_INFO_H
 
 #ifdef __KERNEL__
+
+/* We have 8k stacks on ppc32 and 16k on ppc64 */
+
+#ifdef CONFIG_PPC64
+#define THREAD_SHIFT		14
+#else
+#define THREAD_SHIFT		13
+#endif
+
+#define THREAD_SIZE		(1 << THREAD_SHIFT)
 
 #ifndef __ASSEMBLY__
 #include <linux/config.h>
@@ -24,7 +34,8 @@ struct thread_info {
 	struct task_struct *task;		/* main task structure */
 	struct exec_domain *exec_domain;	/* execution domain */
 	int		cpu;			/* cpu we're on */
-	int		preempt_count;		/* 0 => preemptable, <0 => BUG */
+	int		preempt_count;		/* 0 => preemptable,
+						   <0 => BUG */
 	struct restart_block restart_block;
 	/* set by force_successful_syscall_return */
 	unsigned char	syscall_noerror;
@@ -54,32 +65,38 @@ struct thread_info {
 
 /* thread information allocation */
 
-#define THREAD_ORDER		2
-#define THREAD_SIZE		(PAGE_SIZE << THREAD_ORDER)
-#define THREAD_SHIFT		(PAGE_SHIFT + THREAD_ORDER)
 #ifdef CONFIG_DEBUG_STACK_USAGE
-#define alloc_thread_info(tsk)					\
-	({							\
-		struct thread_info *ret;			\
-								\
-		ret = kmalloc(THREAD_SIZE, GFP_KERNEL);		\
-		if (ret)					\
-			memset(ret, 0, THREAD_SIZE);		\
-		ret;						\
-	})
+#define THREAD_INFO_GFP		GFP_KERNEL | __GFP_ZERO
 #else
-#define alloc_thread_info(tsk) kmalloc(THREAD_SIZE, GFP_KERNEL)
+#define THREAD_INFO_GFP		GFP_KERNEL
 #endif
+
+#if THREAD_SHIFT >= PAGE_SHIFT
+
+#define THREAD_ORDER	(THREAD_SHIFT - PAGE_SHIFT)
+
+#define alloc_thread_info(tsk)	\
+	((struct thread_info *)__get_free_pages(THREAD_INFO_GFP, THREAD_ORDER))
+#define free_thread_info(ti)	free_pages((unsigned long)ti, THREAD_ORDER)
+
+#else /* THREAD_SHIFT < PAGE_SHIFT */
+
+#define alloc_thread_info(tsk)	kmalloc(THREAD_SIZE, THREAD_INFO_GFP)
 #define free_thread_info(ti)	kfree(ti)
+
+#endif /* THREAD_SHIFT < PAGE_SHIFT */
+
 #define get_thread_info(ti)	get_task_struct((ti)->task)
 #define put_thread_info(ti)	put_task_struct((ti)->task)
 
 /* how to get the thread information struct from C */
 static inline struct thread_info *current_thread_info(void)
 {
-	struct thread_info *ti;
-	__asm__("clrrdi %0,1,%1" : "=r"(ti) : "i" (THREAD_SHIFT));
-	return ti;
+	register unsigned long sp asm("r1");
+
+	/* gcc4, at least, is smart enough to turn this into a single
+	 * rlwinm for ppc32 and clrrdi for ppc64 */
+	return (struct thread_info *)(sp & ~(THREAD_SIZE-1));
 }
 
 #endif /* __ASSEMBLY__ */
@@ -122,4 +139,4 @@ static inline struct thread_info *current_thread_info(void)
 
 #endif /* __KERNEL__ */
 
-#endif /* _ASM_THREAD_INFO_H */
+#endif /* _ASM_POWERPC_THREAD_INFO_H */

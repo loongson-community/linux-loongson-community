@@ -78,7 +78,7 @@ extern unsigned long dart_tablebase;
 hpte_t *htab_address;
 unsigned long htab_hash_mask;
 
-extern unsigned long _SDR1;
+unsigned long _SDR1;
 
 #define KB (1024)
 #define MB (1024*KB)
@@ -90,7 +90,6 @@ static inline void loop_forever(void)
 		;
 }
 
-#ifdef CONFIG_PPC_MULTIPLATFORM
 static inline void create_pte_mapping(unsigned long start, unsigned long end,
 				      unsigned long mode, int large)
 {
@@ -111,7 +110,7 @@ static inline void create_pte_mapping(unsigned long start, unsigned long end,
 		unsigned long vpn, hash, hpteg;
 		unsigned long vsid = get_kernel_vsid(addr);
 		unsigned long va = (vsid << 28) | (addr & 0xfffffff);
-		int ret;
+		int ret = -1;
 
 		if (large)
 			vpn = va >> HPAGE_SHIFT;
@@ -129,22 +128,52 @@ static inline void create_pte_mapping(unsigned long start, unsigned long end,
 
 		hpteg = ((hash & htab_hash_mask) * HPTES_PER_GROUP);
 
+#ifdef CONFIG_PPC_ISERIES
+		if (systemcfg->platform & PLATFORM_ISERIES_LPAR)
+			ret = iSeries_hpte_bolt_or_insert(hpteg, va,
+				virt_to_abs(addr) >> PAGE_SHIFT,
+				vflags, tmp_mode);
+		else
+#endif
 #ifdef CONFIG_PPC_PSERIES
 		if (systemcfg->platform & PLATFORM_LPAR)
 			ret = pSeries_lpar_hpte_insert(hpteg, va,
 				virt_to_abs(addr) >> PAGE_SHIFT,
 				vflags, tmp_mode);
 		else
-#endif /* CONFIG_PPC_PSERIES */
+#endif
+#ifdef CONFIG_PPC_MULTIPLATFORM
 			ret = native_hpte_insert(hpteg, va,
 				virt_to_abs(addr) >> PAGE_SHIFT,
 				vflags, tmp_mode);
+#endif
 
 		if (ret == -1) {
 			ppc64_terminate_msg(0x20, "create_pte_mapping");
 			loop_forever();
 		}
 	}
+}
+
+static unsigned long get_hashtable_size(void)
+{
+	unsigned long rnd_mem_size, pteg_count;
+
+	/* If hash size wasn't obtained in prom.c, we calculate it now based on
+	 * the total RAM size
+	 */
+	if (ppc64_pft_size)
+		return 1UL << ppc64_pft_size;
+
+	/* round mem_size up to next power of 2 */
+	rnd_mem_size = 1UL << __ilog2(systemcfg->physicalMemorySize);
+	if (rnd_mem_size < systemcfg->physicalMemorySize)
+		rnd_mem_size <<= 1;
+
+	/* # pages / 2 */
+	pteg_count = max(rnd_mem_size >> (12 + 1), 1UL << 11);
+
+	return pteg_count << 7;
 }
 
 void __init htab_initialize(void)
@@ -162,7 +191,7 @@ void __init htab_initialize(void)
 	 * Calculate the required size of the htab.  We want the number of
 	 * PTEGs to equal one half the number of real pages.
 	 */ 
-	htab_size_bytes = 1UL << ppc64_pft_size;
+	htab_size_bytes = get_hashtable_size();
 	pteg_count = htab_size_bytes >> 7;
 
 	/* For debug, make the HTAB 1/8 as big as it normally would be. */
@@ -261,7 +290,6 @@ void __init htab_initialize(void)
 }
 #undef KB
 #undef MB
-#endif /* CONFIG_PPC_MULTIPLATFORM */
 
 /*
  * Called by asm hashtable.S for doing lazy icache flush
@@ -355,18 +383,11 @@ int hash_page(unsigned long ea, unsigned long access, unsigned long trap)
 	return ret;
 }
 
-void flush_hash_page(unsigned long context, unsigned long ea, pte_t pte,
-		     int local)
+void flush_hash_page(unsigned long va, pte_t pte, int local)
 {
-	unsigned long vsid, vpn, va, hash, secondary, slot;
+	unsigned long vpn, hash, secondary, slot;
 	unsigned long huge = pte_huge(pte);
 
-	if (ea < KERNELBASE)
-		vsid = get_vsid(context, ea);
-	else
-		vsid = get_kernel_vsid(ea);
-
-	va = (vsid << 28) | (ea & 0x0fffffff);
 	if (huge)
 		vpn = va >> HPAGE_SHIFT;
 	else
@@ -381,17 +402,17 @@ void flush_hash_page(unsigned long context, unsigned long ea, pte_t pte,
 	ppc_md.hpte_invalidate(slot, va, huge, local);
 }
 
-void flush_hash_range(unsigned long context, unsigned long number, int local)
+void flush_hash_range(unsigned long number, int local)
 {
 	if (ppc_md.flush_hash_range) {
-		ppc_md.flush_hash_range(context, number, local);
+		ppc_md.flush_hash_range(number, local);
 	} else {
 		int i;
-		struct ppc64_tlb_batch *batch = &__get_cpu_var(ppc64_tlb_batch);
+		struct ppc64_tlb_batch *batch =
+			&__get_cpu_var(ppc64_tlb_batch);
 
 		for (i = 0; i < number; i++)
-			flush_hash_page(context, batch->addr[i], batch->pte[i],
-					local);
+			flush_hash_page(batch->vaddr[i], batch->pte[i], local);
 	}
 }
 

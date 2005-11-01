@@ -17,11 +17,12 @@
 #include <linux/spinlock.h>
 #include <linux/module.h>
 #include <linux/stringify.h>
-#include <asm/hvcall.h>
-#include <asm/iSeries/HvCall.h>
+#include <linux/smp.h>
 
 /* waiting for a spinlock... */
 #if defined(CONFIG_PPC_SPLPAR) || defined(CONFIG_PPC_ISERIES)
+#include <asm/hvcall.h>
+#include <asm/iSeries/HvCall.h>
 
 void __spin_yield(raw_spinlock_t *lock)
 {

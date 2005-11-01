@@ -1,5 +1,5 @@
-#ifndef _PPC64_SEMAPHORE_H
-#define _PPC64_SEMAPHORE_H
+#ifndef _ASM_POWERPC_SEMAPHORE_H
+#define _ASM_POWERPC_SEMAPHORE_H
 
 /*
  * Remove spinlock-based RW semaphores; RW semaphore definitions are
@@ -30,9 +30,6 @@ struct semaphore {
 	.count		= ATOMIC_INIT(n),				\
 	.wait		= __WAIT_QUEUE_HEAD_INITIALIZER((name).wait)	\
 }
-
-#define __MUTEX_INITIALIZER(name) \
-	__SEMAPHORE_INITIALIZER(name, 1)
 
 #define __DECLARE_SEMAPHORE_GENERIC(name, count) \
 	struct semaphore name = __SEMAPHORE_INITIALIZER(name,count)
@@ -95,4 +92,4 @@ static inline void up(struct semaphore * sem)
 
 #endif /* __KERNEL__ */
 
-#endif /* !(_PPC64_SEMAPHORE_H) */
+#endif /* _ASM_POWERPC_SEMAPHORE_H */

@@ -1,5 +1,5 @@
-#ifndef __ASM_SPINLOCK_TYPES_H
-#define __ASM_SPINLOCK_TYPES_H
+#ifndef _ASM_POWERPC_SPINLOCK_TYPES_H
+#define _ASM_POWERPC_SPINLOCK_TYPES_H
 
 #ifndef __LINUX_SPINLOCK_TYPES_H
 # error "please don't include this file directly"

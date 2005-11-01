@@ -15,10 +15,13 @@
 #include <linux/kernel.h>
 #include <linux/stddef.h>
 #include <linux/string.h>
+#include <linux/nvram.h>
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
+#include <linux/adb.h>
+#include <linux/pmu.h>
 #include <linux/bootmem.h>
 #include <linux/completion.h>
 #include <linux/spinlock.h>
@@ -72,20 +75,38 @@ struct core99_header {
 /*
  * Read and write the non-volatile RAM on PowerMacs and CHRP machines.
  */
+static int nvram_naddrs;
 static volatile unsigned char *nvram_data;
+static int is_core_99;
 static int core99_bank = 0;
+static int nvram_partitions[3];
 // XXX Turn that into a sem
 static DEFINE_SPINLOCK(nv_lock);
 
+extern int pmac_newworld;
 extern int system_running;
 
 static int (*core99_write_bank)(int bank, u8* datas);
 static int (*core99_erase_bank)(int bank);
 
-static char *nvram_image __pmacdata;
+static char *nvram_image;
 
 
-static ssize_t __pmac core99_nvram_read(char *buf, size_t count, loff_t *index)
+static unsigned char core99_nvram_read_byte(int addr)
+{
+	if (nvram_image == NULL)
+		return 0xff;
+	return nvram_image[addr];
+}
+
+static void core99_nvram_write_byte(int addr, unsigned char val)
+{
+	if (nvram_image == NULL)
+		return;
+	nvram_image[addr] = val;
+}
+
+static ssize_t core99_nvram_read(char *buf, size_t count, loff_t *index)
 {
 	int i;
 
@@ -103,7 +124,7 @@ static ssize_t __pmac core99_nvram_read(char *buf, size_t count, loff_t *index)
 	return count;
 }
 
-static ssize_t __pmac core99_nvram_write(char *buf, size_t count, loff_t *index)
+static ssize_t core99_nvram_write(char *buf, size_t count, loff_t *index)
 {
 	int i;
 
@@ -121,14 +142,95 @@ static ssize_t __pmac core99_nvram_write(char *buf, size_t count, loff_t *index)
 	return count;
 }
 
-static ssize_t __pmac core99_nvram_size(void)
+static ssize_t core99_nvram_size(void)
 {
 	if (nvram_image == NULL)
 		return -ENODEV;
 	return NVRAM_SIZE;
 }
 
-static u8 __pmac chrp_checksum(struct chrp_header* hdr)
+#ifdef CONFIG_PPC32
+static volatile unsigned char *nvram_addr;
+static int nvram_mult;
+
+static unsigned char direct_nvram_read_byte(int addr)
+{
+	return in_8(&nvram_data[(addr & (NVRAM_SIZE - 1)) * nvram_mult]);
+}
+
+static void direct_nvram_write_byte(int addr, unsigned char val)
+{
+	out_8(&nvram_data[(addr & (NVRAM_SIZE - 1)) * nvram_mult], val);
+}
+
+
+static unsigned char indirect_nvram_read_byte(int addr)
+{
+	unsigned char val;
+	unsigned long flags;
+
+	spin_lock_irqsave(&nv_lock, flags);
+	out_8(nvram_addr, addr >> 5);
+	val = in_8(&nvram_data[(addr & 0x1f) << 4]);
+	spin_unlock_irqrestore(&nv_lock, flags);
+
+	return val;
+}
+
+static void indirect_nvram_write_byte(int addr, unsigned char val)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&nv_lock, flags);
+	out_8(nvram_addr, addr >> 5);
+	out_8(&nvram_data[(addr & 0x1f) << 4], val);
+	spin_unlock_irqrestore(&nv_lock, flags);
+}
+
+
+#ifdef CONFIG_ADB_PMU
+
+static void pmu_nvram_complete(struct adb_request *req)
+{
+	if (req->arg)
+		complete((struct completion *)req->arg);
+}
+
+static unsigned char pmu_nvram_read_byte(int addr)
+{
+	struct adb_request req;
+	DECLARE_COMPLETION(req_complete); 
+	
+	req.arg = system_state == SYSTEM_RUNNING ? &req_complete : NULL;
+	if (pmu_request(&req, pmu_nvram_complete, 3, PMU_READ_NVRAM,
+			(addr >> 8) & 0xff, addr & 0xff))
+		return 0xff;
+	if (system_state == SYSTEM_RUNNING)
+		wait_for_completion(&req_complete);
+	while (!req.complete)
+		pmu_poll();
+	return req.reply[0];
+}
+
+static void pmu_nvram_write_byte(int addr, unsigned char val)
+{
+	struct adb_request req;
+	DECLARE_COMPLETION(req_complete); 
+	
+	req.arg = system_state == SYSTEM_RUNNING ? &req_complete : NULL;
+	if (pmu_request(&req, pmu_nvram_complete, 4, PMU_WRITE_NVRAM,
+			(addr >> 8) & 0xff, addr & 0xff, val))
+		return;
+	if (system_state == SYSTEM_RUNNING)
+		wait_for_completion(&req_complete);
+	while (!req.complete)
+		pmu_poll();
+}
+
+#endif /* CONFIG_ADB_PMU */
+#endif /* CONFIG_PPC32 */
+
+static u8 chrp_checksum(struct chrp_header* hdr)
 {
 	u8 *ptr;
 	u16 sum = hdr->signature;
@@ -139,7 +241,7 @@ static u8 __pmac chrp_checksum(struct chrp_header* hdr)
 	return sum;
 }
 
-static u32 __pmac core99_calc_adler(u8 *buffer)
+static u32 core99_calc_adler(u8 *buffer)
 {
 	int cnt;
 	u32 low, high;
@@ -161,7 +263,7 @@ static u32 __pmac core99_calc_adler(u8 *buffer)
 	return (high << 16) | low;
 }
 
-static u32 __pmac core99_check(u8* datas)
+static u32 core99_check(u8* datas)
 {
 	struct core99_header* hdr99 = (struct core99_header*)datas;
 
@@ -180,7 +282,7 @@ static u32 __pmac core99_check(u8* datas)
 	return hdr99->generation;
 }
 
-static int __pmac sm_erase_bank(int bank)
+static int sm_erase_bank(int bank)
 {
 	int stat, i;
 	unsigned long timeout;
@@ -194,7 +296,7 @@ static int __pmac sm_erase_bank(int bank)
 	timeout = 0;
 	do {
 		if (++timeout > 1000000) {
-			printk(KERN_ERR "nvram: Sharp/Miron flash erase timeout !\n");
+			printk(KERN_ERR "nvram: Sharp/Micron flash erase timeout !\n");
 			break;
 		}
 		out_8(base, SM_FLASH_CMD_READ_STATUS);
@@ -212,7 +314,7 @@ static int __pmac sm_erase_bank(int bank)
 	return 0;
 }
 
-static int __pmac sm_write_bank(int bank, u8* datas)
+static int sm_write_bank(int bank, u8* datas)
 {
 	int i, stat = 0;
 	unsigned long timeout;
@@ -247,7 +349,7 @@ static int __pmac sm_write_bank(int bank, u8* datas)
 	return 0;
 }
 
-static int __pmac amd_erase_bank(int bank)
+static int amd_erase_bank(int bank)
 {
 	int i, stat = 0;
 	unsigned long timeout;
@@ -294,7 +396,7 @@ static int __pmac amd_erase_bank(int bank)
 	return 0;
 }
 
-static int __pmac amd_write_bank(int bank, u8* datas)
+static int amd_write_bank(int bank, u8* datas)
 {
 	int i, stat = 0;
 	unsigned long timeout;
@@ -340,11 +442,48 @@ static int __pmac amd_write_bank(int bank, u8* datas)
 	return 0;
 }
 
+static void __init lookup_partitions(void)
+{
+	u8 buffer[17];
+	int i, offset;
+	struct chrp_header* hdr;
 
-static int __pmac core99_nvram_sync(void)
+	if (pmac_newworld) {
+		nvram_partitions[pmac_nvram_OF] = -1;
+		nvram_partitions[pmac_nvram_XPRAM] = -1;
+		nvram_partitions[pmac_nvram_NR] = -1;
+		hdr = (struct chrp_header *)buffer;
+
+		offset = 0;
+		buffer[16] = 0;
+		do {
+			for (i=0;i<16;i++)
+				buffer[i] = ppc_md.nvram_read_val(offset+i);
+			if (!strcmp(hdr->name, "common"))
+				nvram_partitions[pmac_nvram_OF] = offset + 0x10;
+			if (!strcmp(hdr->name, "APL,MacOS75")) {
+				nvram_partitions[pmac_nvram_XPRAM] = offset + 0x10;
+				nvram_partitions[pmac_nvram_NR] = offset + 0x110;
+			}
+			offset += (hdr->len * 0x10);
+		} while(offset < NVRAM_SIZE);
+	} else {
+		nvram_partitions[pmac_nvram_OF] = 0x1800;
+		nvram_partitions[pmac_nvram_XPRAM] = 0x1300;
+		nvram_partitions[pmac_nvram_NR] = 0x1400;
+	}
+	DBG("nvram: OF partition at 0x%x\n", nvram_partitions[pmac_nvram_OF]);
+	DBG("nvram: XP partition at 0x%x\n", nvram_partitions[pmac_nvram_XPRAM]);
+	DBG("nvram: NR partition at 0x%x\n", nvram_partitions[pmac_nvram_NR]);
+}
+
+static void core99_nvram_sync(void)
 {
 	struct core99_header* hdr99;
 	unsigned long flags;
+
+	if (!is_core_99 || !nvram_data || !nvram_image)
+		return;
 
 	spin_lock_irqsave(&nv_lock, flags);
 	if (!memcmp(nvram_image, (u8*)nvram_data + core99_bank*NVRAM_SIZE,
@@ -370,32 +509,28 @@ static int __pmac core99_nvram_sync(void)
  bail:
 	spin_unlock_irqrestore(&nv_lock, flags);
 
-	return 0;
+#ifdef DEBUG
+       	mdelay(2000);
+#endif
 }
 
-int __init pmac_nvram_init(void)
+static int __init core99_nvram_setup(struct device_node *dp)
 {
-	struct device_node *dp;
-	u32 gen_bank0, gen_bank1;
 	int i;
+	u32 gen_bank0, gen_bank1;
 
-	dp = find_devices("nvram");
-	if (dp == NULL) {
-		printk(KERN_ERR "Can't find NVRAM device\n");
-		return -ENODEV;
+	if (nvram_naddrs < 1) {
+		printk(KERN_ERR "nvram: no address\n");
+		return -EINVAL;
 	}
-	if (!device_is_compatible(dp, "nvram,flash")) {
-		printk(KERN_ERR "Incompatible type of NVRAM\n");
-		return -ENXIO;
-	}
-
 	nvram_image = alloc_bootmem(NVRAM_SIZE);
 	if (nvram_image == NULL) {
 		printk(KERN_ERR "nvram: can't allocate ram image\n");
 		return -ENOMEM;
 	}
 	nvram_data = ioremap(dp->addrs[0].address, NVRAM_SIZE*2);
-	
+	nvram_naddrs = 1; /* Make sure we get the correct case */
+
 	DBG("nvram: Checking bank 0...\n");
 
 	gen_bank0 = core99_check((u8 *)nvram_data);
@@ -408,11 +543,12 @@ int __init pmac_nvram_init(void)
 	for (i=0; i<NVRAM_SIZE; i++)
 		nvram_image[i] = nvram_data[i + core99_bank*NVRAM_SIZE];
 
+	ppc_md.nvram_read_val	= core99_nvram_read_byte;
+	ppc_md.nvram_write_val	= core99_nvram_write_byte;
 	ppc_md.nvram_read	= core99_nvram_read;
 	ppc_md.nvram_write	= core99_nvram_write;
 	ppc_md.nvram_size	= core99_nvram_size;
 	ppc_md.nvram_sync	= core99_nvram_sync;
-	
 	/* 
 	 * Maybe we could be smarter here though making an exclusive list
 	 * of known flash chips is a bit nasty as older OF didn't provide us
@@ -427,67 +563,81 @@ int __init pmac_nvram_init(void)
 		core99_erase_bank = sm_erase_bank;
 		core99_write_bank = sm_write_bank;
 	}
-
 	return 0;
 }
 
-int __pmac pmac_get_partition(int partition)
+int __init pmac_nvram_init(void)
 {
-	struct nvram_partition *part;
-	const char *name;
-	int sig;
+	struct device_node *dp;
+	int err = 0;
 
-	switch(partition) {
-	case pmac_nvram_OF:
-		name = "common";
-		sig = NVRAM_SIG_SYS;
-		break;
-	case pmac_nvram_XPRAM:
-		name = "APL,MacOS75";
-		sig = NVRAM_SIG_OS;
-		break;
-	case pmac_nvram_NR:
-	default:
-		/* Oldworld stuff */
+	nvram_naddrs = 0;
+
+	dp = find_devices("nvram");
+	if (dp == NULL) {
+		printk(KERN_ERR "Can't find NVRAM device\n");
 		return -ENODEV;
 	}
-
-	part = nvram_find_partition(sig, name);
-	if (part == NULL)
-		return 0;
-
-	return part->index;
+	nvram_naddrs = dp->n_addrs;
+	is_core_99 = device_is_compatible(dp, "nvram,flash");
+	if (is_core_99)
+		err = core99_nvram_setup(dp);
+#ifdef CONFIG_PPC32
+	else if (_machine == _MACH_chrp && nvram_naddrs == 1) {
+		nvram_data = ioremap(dp->addrs[0].address + isa_mem_base,
+				     dp->addrs[0].size);
+		nvram_mult = 1;
+		ppc_md.nvram_read_val	= direct_nvram_read_byte;
+		ppc_md.nvram_write_val	= direct_nvram_write_byte;
+	} else if (nvram_naddrs == 1) {
+		nvram_data = ioremap(dp->addrs[0].address, dp->addrs[0].size);
+		nvram_mult = (dp->addrs[0].size + NVRAM_SIZE - 1) / NVRAM_SIZE;
+		ppc_md.nvram_read_val	= direct_nvram_read_byte;
+		ppc_md.nvram_write_val	= direct_nvram_write_byte;
+	} else if (nvram_naddrs == 2) {
+		nvram_addr = ioremap(dp->addrs[0].address, dp->addrs[0].size);
+		nvram_data = ioremap(dp->addrs[1].address, dp->addrs[1].size);
+		ppc_md.nvram_read_val	= indirect_nvram_read_byte;
+		ppc_md.nvram_write_val	= indirect_nvram_write_byte;
+	} else if (nvram_naddrs == 0 && sys_ctrler == SYS_CTRLER_PMU) {
+#ifdef CONFIG_ADB_PMU
+		nvram_naddrs = -1;
+		ppc_md.nvram_read_val	= pmu_nvram_read_byte;
+		ppc_md.nvram_write_val	= pmu_nvram_write_byte;
+#endif /* CONFIG_ADB_PMU */
+	}
+#endif
+	else {
+		printk(KERN_ERR "Incompatible type of NVRAM\n");
+		return -ENXIO;
+	}
+	lookup_partitions();
+	return err;
 }
 
-u8 __pmac pmac_xpram_read(int xpaddr)
+int pmac_get_partition(int partition)
+{
+	return nvram_partitions[partition];
+}
+
+u8 pmac_xpram_read(int xpaddr)
 {
 	int offset = pmac_get_partition(pmac_nvram_XPRAM);
-	loff_t index;
-	u8 buf;
-	ssize_t count;
 
 	if (offset < 0 || xpaddr < 0 || xpaddr > 0x100)
 		return 0xff;
-	index = offset + xpaddr;
 
-	count = ppc_md.nvram_read(&buf, 1, &index);
-	if (count != 1)
-		return 0xff;
-	return buf;
+	return ppc_md.nvram_read_val(xpaddr + offset);
 }
 
-void __pmac pmac_xpram_write(int xpaddr, u8 data)
+void pmac_xpram_write(int xpaddr, u8 data)
 {
 	int offset = pmac_get_partition(pmac_nvram_XPRAM);
-	loff_t index;
-	u8 buf;
 
 	if (offset < 0 || xpaddr < 0 || xpaddr > 0x100)
 		return;
-	index = offset + xpaddr;
-	buf = data;
 
-	ppc_md.nvram_write(&buf, 1, &index);
+	ppc_md.nvram_write_val(xpaddr + offset, data);
 }
 
 EXPORT_SYMBOL(pmac_get_partition);

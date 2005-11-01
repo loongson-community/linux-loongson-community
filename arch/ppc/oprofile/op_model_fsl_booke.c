@@ -24,9 +24,8 @@
 #include <asm/cputable.h>
 #include <asm/reg_booke.h>
 #include <asm/page.h>
-#include <asm/perfmon.h>
-
-#include "op_impl.h"
+#include <asm/pmc.h>
+#include <asm/oprofile_impl.h>
 
 static unsigned long reset_value[OP_MAX_COUNTER];
 
@@ -176,7 +175,7 @@ static void fsl_booke_handle_interrupt(struct pt_regs *regs,
 	pmc_start_ctrs(1);
 }
 
-struct op_ppc32_model op_model_fsl_booke = {
+struct op_powerpc_model op_model_fsl_booke = {
 	.reg_setup		= fsl_booke_reg_setup,
 	.start			= fsl_booke_start,
 	.stop			= fsl_booke_stop,

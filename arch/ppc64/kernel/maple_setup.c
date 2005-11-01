@@ -1,5 +1,5 @@
 /*
- *  arch/ppc64/kernel/maple_setup.c
+ *  Maple (970 eval board) setup code
  *
  *  (c) Copyright 2004 Benjamin Herrenschmidt (benh@kernel.crashing.org),
  *                     IBM Corp. 
@@ -59,8 +59,10 @@
 #include <asm/time.h>
 #include <asm/of_device.h>
 #include <asm/lmb.h>
+#include <asm/mpic.h>
+#include <asm/udbg.h>
 
-#include "mpic.h"
+#include "maple.h"
 
 #ifdef DEBUG
 #define DBG(fmt...) udbg_printf(fmt)
@@ -68,13 +70,6 @@
 #define DBG(fmt...)
 #endif
 
-extern int maple_set_rtc_time(struct rtc_time *tm);
-extern void maple_get_rtc_time(struct rtc_time *tm);
-extern void maple_get_boot_time(struct rtc_time *tm);
-extern void maple_calibrate_decr(void);
-extern void maple_pci_init(void);
-extern void maple_pcibios_fixup(void);
-extern int maple_pci_get_legacy_ide_irq(struct pci_dev *dev, int channel);
 extern void generic_find_legacy_serial_ports(u64 *physport,
 		unsigned int *default_speed);
 

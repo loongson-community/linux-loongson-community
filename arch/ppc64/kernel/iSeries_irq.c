@@ -38,9 +38,10 @@
 #include <asm/ppcdebug.h>
 #include <asm/iSeries/HvTypes.h>
 #include <asm/iSeries/HvLpEvent.h>
-#include <asm/iSeries/HvCallPci.h>
 #include <asm/iSeries/HvCallXm.h>
-#include <asm/iSeries/iSeries_irq.h>
+
+#include "irq.h"
+#include "call_pci.h"
 
 /* This maps virtual irq numbers to real irqs */
 unsigned int virt_irq_to_real_map[NR_IRQS];
@@ -350,4 +351,16 @@ int __init iSeries_allocate_IRQ(HvBusNumber busNumber,
 
 	irq_desc[virtirq].handler = &iSeries_IRQ_handler;
 	return virtirq;
+}
+
+int virt_irq_create_mapping(unsigned int real_irq)
+{
+	BUG(); /* Don't call this on iSeries, yet */
+
+	return 0;
+}
+
+void virt_irq_init(void)
+{
+	return;
 }

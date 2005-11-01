@@ -1,28 +1,19 @@
+#ifndef _ASM_POWERPC_ATOMIC_H_
+#define _ASM_POWERPC_ATOMIC_H_
+
 /*
  * PowerPC atomic operations
  */
 
-#ifndef _ASM_PPC_ATOMIC_H_
-#define _ASM_PPC_ATOMIC_H_
-
 typedef struct { volatile int counter; } atomic_t;
 
 #ifdef __KERNEL__
+#include <asm/synch.h>
 
-#define ATOMIC_INIT(i)	{ (i) }
+#define ATOMIC_INIT(i)		{ (i) }
 
 #define atomic_read(v)		((v)->counter)
 #define atomic_set(v,i)		(((v)->counter) = (i))
-
-extern void atomic_clear_mask(unsigned long mask, unsigned long *addr);
-
-#ifdef CONFIG_SMP
-#define SMP_SYNC	"sync"
-#define SMP_ISYNC	"\n\tisync"
-#else
-#define SMP_SYNC	""
-#define SMP_ISYNC
-#endif
 
 /* Erratum #77 on the 405 means we need a sync or dcbt before every stwcx.
  * The old ATOMIC_SYNC_FIX covered some but not all of this.
@@ -53,12 +44,13 @@ static __inline__ int atomic_add_return(int a, atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
+	EIEIO_ON_SMP
 "1:	lwarx	%0,0,%2		# atomic_add_return\n\
 	add	%0,%1,%0\n"
 	PPC405_ERR77(0,%2)
 "	stwcx.	%0,0,%2 \n\
 	bne-	1b"
-	SMP_ISYNC
+	ISYNC_ON_SMP
 	: "=&r" (t)
 	: "r" (a), "r" (&v->counter)
 	: "cc", "memory");
@@ -88,12 +80,13 @@ static __inline__ int atomic_sub_return(int a, atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
+	EIEIO_ON_SMP
 "1:	lwarx	%0,0,%2		# atomic_sub_return\n\
 	subf	%0,%1,%0\n"
 	PPC405_ERR77(0,%2)
 "	stwcx.	%0,0,%2 \n\
 	bne-	1b"
-	SMP_ISYNC
+	ISYNC_ON_SMP
 	: "=&r" (t)
 	: "r" (a), "r" (&v->counter)
 	: "cc", "memory");
@@ -121,12 +114,13 @@ static __inline__ int atomic_inc_return(atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
+	EIEIO_ON_SMP
 "1:	lwarx	%0,0,%1		# atomic_inc_return\n\
 	addic	%0,%0,1\n"
 	PPC405_ERR77(0,%1)
 "	stwcx.	%0,0,%1 \n\
 	bne-	1b"
-	SMP_ISYNC
+	ISYNC_ON_SMP
 	: "=&r" (t)
 	: "r" (&v->counter)
 	: "cc", "memory");
@@ -164,12 +158,13 @@ static __inline__ int atomic_dec_return(atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
+	EIEIO_ON_SMP
 "1:	lwarx	%0,0,%1		# atomic_dec_return\n\
 	addic	%0,%0,-1\n"
 	PPC405_ERR77(0,%1)
 "	stwcx.	%0,0,%1\n\
 	bne-	1b"
-	SMP_ISYNC
+	ISYNC_ON_SMP
 	: "=&r" (t)
 	: "r" (&v->counter)
 	: "cc", "memory");
@@ -189,13 +184,14 @@ static __inline__ int atomic_dec_if_positive(atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
+	EIEIO_ON_SMP
 "1:	lwarx	%0,0,%1		# atomic_dec_if_positive\n\
 	addic.	%0,%0,-1\n\
 	blt-	2f\n"
 	PPC405_ERR77(0,%1)
 "	stwcx.	%0,0,%1\n\
 	bne-	1b"
-	SMP_ISYNC
+	ISYNC_ON_SMP
 	"\n\
 2:"	: "=&r" (t)
 	: "r" (&v->counter)
@@ -204,11 +200,10 @@ static __inline__ int atomic_dec_if_positive(atomic_t *v)
 	return t;
 }
 
-#define __MB	__asm__ __volatile__ (SMP_SYNC : : : "memory")
-#define smp_mb__before_atomic_dec()	__MB
-#define smp_mb__after_atomic_dec()	__MB
-#define smp_mb__before_atomic_inc()	__MB
-#define smp_mb__after_atomic_inc()	__MB
+#define smp_mb__before_atomic_dec()     smp_mb()
+#define smp_mb__after_atomic_dec()      smp_mb()
+#define smp_mb__before_atomic_inc()     smp_mb()
+#define smp_mb__after_atomic_inc()      smp_mb()
 
 #endif /* __KERNEL__ */
-#endif /* _ASM_PPC_ATOMIC_H_ */
+#endif /* _ASM_POWERPC_ATOMIC_H_ */

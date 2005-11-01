@@ -1,6 +1,4 @@
 /*
- * File iSeries_vpdInfo.c created by Allan Trautman on Fri Feb  2 2001.
- *
  * This code gets the card location of the hardware
  * Copyright (C) 2001  <Allan H Trautman> <IBM Corp>
  * Copyright (C) 2005  Stephen Rothwel, IBM Corp
@@ -29,12 +27,15 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+
 #include <asm/types.h>
 #include <asm/resource.h>
-
-#include <asm/iSeries/HvCallPci.h>
+#include <asm/abs_addr.h>
+#include <asm/pci-bridge.h>
 #include <asm/iSeries/HvTypes.h>
-#include <asm/iSeries/iSeries_pci.h>
+
+#include "pci.h"
+#include "call_pci.h"
 
 /*
  * Size of Bus VPD data
@@ -214,7 +215,7 @@ static void __init iSeries_Get_Location_Code(u16 bus, HvAgentId agent,
 		printk("PCI: Bus VPD Buffer allocation failure.\n");
 		return;
 	}
-	BusVpdLen = HvCallPci_getBusVpd(bus, ISERIES_HV_ADDR(BusVpdPtr),
+	BusVpdLen = HvCallPci_getBusVpd(bus, iseries_hv_addr(BusVpdPtr),
 					BUS_VPDSIZE);
 	if (BusVpdLen == 0) {
 		printk("PCI: Bus VPD Buffer zero length.\n");
@@ -242,7 +243,8 @@ out_free:
  */
 void __init iSeries_Device_Information(struct pci_dev *PciDev, int count)
 {
-	struct iSeries_Device_Node *DevNode = PciDev->sysdata;
+	struct device_node *DevNode = PciDev->sysdata;
+	struct pci_dn *pdn;
 	u16 bus;
 	u8 frame;
 	char card[4];
@@ -255,8 +257,9 @@ void __init iSeries_Device_Information(struct pci_dev *PciDev, int count)
 		return;
 	}
 
-	bus = ISERIES_BUS(DevNode);
-	subbus = ISERIES_SUBBUS(DevNode);
+	pdn = PCI_DN(DevNode);
+	bus = pdn->busno;
+	subbus = pdn->bussubno;
 	agent = ISERIES_PCI_AGENTID(ISERIES_GET_DEVICE_FROM_SUBBUS(subbus),
 			ISERIES_GET_FUNCTION_FROM_SUBBUS(subbus));
 	iSeries_Get_Location_Code(bus, agent, &frame, card);

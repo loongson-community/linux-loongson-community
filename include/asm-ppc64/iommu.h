@@ -1,5 +1,4 @@
 /*
- * iommu.h
  * Copyright (C) 2001 Mike Corrigan & Dave Engebretsen, IBM Corporation
  * Rewrite, cleanup:
  * Copyright (C) 2004 Olof Johansson <olof@austin.ibm.com>, IBM Corporation
@@ -22,6 +21,7 @@
 #ifndef _ASM_IOMMU_H
 #define _ASM_IOMMU_H
 
+#include <linux/config.h>
 #include <asm/types.h>
 #include <linux/spinlock.h>
 #include <linux/device.h>
@@ -29,43 +29,10 @@
 
 /*
  * IOMAP_MAX_ORDER defines the largest contiguous block
- * of dma (tce) space we can get.  IOMAP_MAX_ORDER = 13
+ * of dma space we can get.  IOMAP_MAX_ORDER = 13
  * allows up to 2**12 pages (4096 * 4096) = 16 MB
  */
 #define IOMAP_MAX_ORDER 13
-
-/*
- * Tces come in two formats, one for the virtual bus and a different
- * format for PCI
- */
-#define TCE_VB  0
-#define TCE_PCI 1
-
-/* tce_entry
- * Used by pSeries (SMP) and iSeries/pSeries LPAR, but there it's
- * abstracted so layout is irrelevant.
- */
-union tce_entry {
-   	unsigned long te_word;
-	struct {
-		unsigned int  tb_cacheBits :6;	/* Cache hash bits - not used */
-		unsigned int  tb_rsvd      :6;
-		unsigned long tb_rpn       :40;	/* Real page number */
-		unsigned int  tb_valid     :1;	/* Tce is valid (vb only) */
-		unsigned int  tb_allio     :1;	/* Tce is valid for all lps (vb only) */
-		unsigned int  tb_lpindex   :8;	/* LpIndex for user of TCE (vb only) */
-		unsigned int  tb_pciwr     :1;	/* Write allowed (pci only) */
-		unsigned int  tb_rdwr      :1;	/* Read allowed  (pci), Write allowed (vb) */
-	} te_bits;
-#define te_cacheBits te_bits.tb_cacheBits
-#define te_rpn       te_bits.tb_rpn
-#define te_valid     te_bits.tb_valid
-#define te_allio     te_bits.tb_allio
-#define te_lpindex   te_bits.tb_lpindex
-#define te_pciwr     te_bits.tb_pciwr
-#define te_rdwr      te_bits.tb_rdwr
-};
-
 
 struct iommu_table {
 	unsigned long  it_busno;     /* Bus number this table belongs to */
@@ -83,6 +50,7 @@ struct iommu_table {
 };
 
 struct scatterlist;
+struct device_node;
 
 #ifdef CONFIG_PPC_MULTIPLATFORM
 
@@ -104,9 +72,8 @@ extern void iommu_devnode_init_pSeries(struct device_node *dn);
 
 #ifdef CONFIG_PPC_ISERIES
 
-struct iSeries_Device_Node;
 /* Creates table for an individual device node */
-extern void iommu_devnode_init_iSeries(struct iSeries_Device_Node *dn);
+extern void iommu_devnode_init_iSeries(struct device_node *dn);
 
 #endif /* CONFIG_PPC_ISERIES */
 
