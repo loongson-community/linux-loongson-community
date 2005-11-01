@@ -13,7 +13,7 @@
  * WM8731 mixer support, codec framework, cleanup, and 2.6 port
  * Matt Porter <mporter@kernel.crashing.org>
  *
- * The SMBus (I2C) is required for the control of the 
+ * The SMBus (I2C) is required for the control of the
  * appears at I2C address 0x36 (I2C binary 0011011).  The Pb1550
  * uses the Wolfson WM8731 codec, which is controlled over the I2C.
  * It's connected to a 12MHz clock, so we can only reliably support
@@ -160,7 +160,7 @@ wm8731_wrcodec(u8 ctlreg, u8 val)
 	 * The ls bit of the first byte is the ms bit of the data.
 	 */
 	rcnt = 0;
-	while ((pb1550_wm_codec_write((0x36 >> 1), ctlreg, val) != 1) 
+	while ((pb1550_wm_codec_write((0x36 >> 1), ctlreg, val) != 1)
 							&& (rcnt < 50)) {
 		rcnt++;
 	}
@@ -759,7 +759,7 @@ au1550_ioctl_mixdev(struct inode *inode, struct file *file,
 		default: /* read a specific mixer */
 			i = _IOC_NR(cmd);
 
-			if (!i2s_supported_mixer(codec, i)) 
+			if (!i2s_supported_mixer(codec, i))
 				return -EINVAL;
 
 			val = codec->mixer_state[i];
@@ -784,7 +784,7 @@ au1550_ioctl_mixdev(struct inode *inode, struct file *file,
 		default: /* write a specific mixer */
 			i = _IOC_NR(cmd);
 
-			if (!i2s_supported_mixer(codec, i)) 
+			if (!i2s_supported_mixer(codec, i))
 				return -EINVAL;
 
 			codec->set_mixer(codec, i, val);
@@ -1091,7 +1091,7 @@ au1550_write(struct file *file, const char *buffer, size_t count, loff_t * ppos)
 
 	count *= db->cnt_factor;
 
-	down(&s->sem);	
+	down(&s->sem);
 	add_wait_queue(&db->wait, &wait);
 
 	while (count > 0) {
@@ -1191,7 +1191,7 @@ au1550_poll(struct file *file, struct poll_table_struct *wait)
 	}
 
 	spin_lock_irqsave(&s->lock, flags);
-	
+
 	if (file->f_mode & FMODE_READ) {
 		if (s->dma_adc.count >= (signed)s->dma_adc.dma_fragsize)
 			mask |= POLLIN | POLLRDNORM;
@@ -1199,7 +1199,7 @@ au1550_poll(struct file *file, struct poll_table_struct *wait)
 	if (file->f_mode & FMODE_WRITE) {
 		if (s->dma_dac.mapped) {
 			if (s->dma_dac.count >=
-			    (signed)s->dma_dac.dma_fragsize) 
+			    (signed)s->dma_dac.dma_fragsize)
 				mask |= POLLOUT | POLLWRNORM;
 		} else {
 			if ((signed) s->dma_dac.dmasize >=
@@ -1701,7 +1701,7 @@ au1550_open(struct inode *inode, struct file *file)
 	else
 		dbg(__FUNCTION__ ": blocking");
 #endif
-	
+
 	file->private_data = s;
 	/* wait for device to become free */
 	down(&s->open_sem);
@@ -1765,7 +1765,7 @@ au1550_release(struct inode *inode, struct file *file)
 	struct au1550_state *s = (struct au1550_state *)file->private_data;
 
 	lock_kernel();
-	
+
 	if (file->f_mode & FMODE_WRITE) {
 		unlock_kernel();
 		drain_dac(s, file->f_flags & O_NONBLOCK);
