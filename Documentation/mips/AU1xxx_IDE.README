@@ -3,7 +3,7 @@ README for MIPS AU1XXX IDE driver - Released 2005-07-15
 ABOUT
 -----
 This file describes the 'drivers/ide/mips/au1xxx-ide.c', related files and the
-services they provide. 
+services they provide.
 
 If you are short in patience and just want to know how to add your hard disc to
 the white or black list, go to the 'ADD NEW HARD DISC TO WHITE OR BLACK LIST'
@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
 675 Mass Ave, Cambridge, MA 02139, USA.
-    
+
 Note: for more information, please refer "AMD Alchemy Au1200/Au1550 IDE
       Interface and Linux Device Driver" Application Note.
 
@@ -57,7 +57,7 @@ Two files are introduced:
 Four configs variables are introduced:
 
   CONFIG_BLK_DEV_IDE_AU1XXX_PIO_DBDMA    - enable the PIO+DBDMA mode
-  CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA  - enable the MWDMA mode 
+  CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA  - enable the MWDMA mode
   CONFIG_BLK_DEV_IDE_AU1XXX_BURSTABLE_ON - set Burstable FIFO in DBDMA
                                            controler
   CONFIG_BLK_DEV_IDE_AU1XXX_SEQTS_PER_RQ - maximum transfer size
@@ -66,18 +66,18 @@ Four configs variables are introduced:
 If MWDMA is enabled and the connected hard disc is not on the white list, the
 kernel switches to a "safe mwdma mode" at boot time. In this mode the IDE
 performance is substantial slower then in full speed mwdma. In this case
-please add your hard disc to the white list (follow instruction from 'ADD NEW 
+please add your hard disc to the white list (follow instruction from 'ADD NEW
 HARD DISC TO WHITE OR BLACK LIST' section).
 
 
 SUPPORTED IDE MODES
-------------------- 
+-------------------
 
 The AU1XXX IDE driver supported all PIO modes - PIO mode 0/1/2/3/4 - and all
 MWDMA modes - MWDMA 0/1/2 -. There is no support for SWDMA and UDMA mode.
 
 To change the PIO mode use the program hdparm with option -p, e.g.
-'hdparm -p0 [device]' for PIO mode 0. To enable the MWDMA mode use the option 
+'hdparm -p0 [device]' for PIO mode 0. To enable the MWDMA mode use the option
 -X, e.g. 'hdparm -X32 [device]' for MWDMA mode 0.
 
 
@@ -120,11 +120,11 @@ ADD NEW HARD DISC TO WHITE OR BLACK LIST
 ----------------------------------------
 
 Step 1 : detect the model name of your hard disc
- 
+
   a) connect your hard disc to the AU1XXX
 
   b) boot your kernel and get the hard disc model.
-     
+
      Example boot log:
 
      --snipped--
@@ -147,18 +147,18 @@ Step  2 : edit 'include/asm-mips/mach-au1x00/au1xxx_ide.h'
 Step 3 : Recompile the kernel
 
   Enable MWDMA support in the kernel configuration. Recompile the kernel and
-  reboot. 
+  reboot.
 
 Step 4 : Tests
 
-  If you have add a hard disc to the white list, please run some stress tests 
+  If you have add a hard disc to the white list, please run some stress tests
   for verification.
 
 
 ACKNOWLEDGMENTS
 ---------------
 
-These drivers wouldn't have been done without the base of kernel 2.4.x AU1XXX 
+These drivers wouldn't have been done without the base of kernel 2.4.x AU1XXX
 IDE driver from AMD.
 
 Additional input also from:
