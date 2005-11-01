@@ -1,7 +1,5 @@
-*.s
 bootsect
 bzImage
 setup
 vmlinux.bin
 zImage
-.*.cmd

@@ -1,8 +1,3 @@
-.*.o
-.*.o.d
-.*.cmd
-*.ko
-*.mod.c
 mktables
 raid6altivec1.c
 raid6altivec2.c

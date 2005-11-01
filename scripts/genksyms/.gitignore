@@ -1,6 +1,3 @@
-.*.o
-.*.o.d
-.*.cmd
 genksyms
 keywords.c
 lex.c
