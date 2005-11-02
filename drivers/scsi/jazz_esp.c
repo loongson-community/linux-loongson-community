@@ -28,7 +28,7 @@
 #include <asm/pgtable.h>
 
 static int  dma_bytes_sent(struct NCR_ESP *esp, int fifo_count);
-static int  dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd *sp);
+static int  dma_can_transfer(struct NCR_ESP *esp, struct scsi_cmnd *sp);
 static void dma_dump_state(struct NCR_ESP *esp);
 static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length);
 static void dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length);
@@ -37,11 +37,11 @@ static void dma_ints_on(struct NCR_ESP *esp);
 static int  dma_irq_p(struct NCR_ESP *esp);
 static int  dma_ports_p(struct NCR_ESP *esp);
 static void dma_setup(struct NCR_ESP *esp, __u32 addr, int count, int write);
-static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp);
-static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp);
-static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp);
-static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp);
-static void dma_advance_sg (Scsi_Cmnd *sp);
+static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, struct scsi_cmnd *sp);
+static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, struct scsi_cmnd *sp);
+static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, struct scsi_cmnd *sp);
+static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, struct scsi_cmnd *sp);
+static void dma_advance_sg (struct scsi_cmnd *sp);
 static void dma_led_off(struct NCR_ESP *);
 static void dma_led_on(struct NCR_ESP *);
 
@@ -87,7 +87,7 @@ static Scsi_Host_Template driver_template = {
 #include "scsi_module.c"
 
 /***************************************************************** Detection */
-int jazz_esp_detect(Scsi_Host_Template *tpnt)
+static int jazz_esp_detect(struct scsi_host_template *tpnt)
 {
     struct NCR_ESP *esp;
     struct ConfigDev *esp_dev;
@@ -180,7 +180,7 @@ static int dma_bytes_sent(struct NCR_ESP *esp, int fifo_count)
     return fifo_count;
 }
 
-static int dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd *sp)
+static int dma_can_transfer(struct NCR_ESP *esp, struct scsi_cmnd *sp)
 {
     /*
      * maximum DMA size is 1MB
@@ -253,13 +253,13 @@ static void dma_setup(struct NCR_ESP *esp, __u32 addr, int count, int write)
     }
 }
 
-static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, struct scsi_cmnd *sp)
 {
     sp->SCp.have_data_in = vdma_alloc(CPHYSADDR(sp->SCp.buffer), sp->SCp.this_residual);
     sp->SCp.ptr = (char *)((unsigned long)sp->SCp.have_data_in);
 }
 
-static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, struct scsi_cmnd *sp)
 {
     int sz = sp->SCp.buffers_residual;
     struct scatterlist *sg = (struct scatterlist *) sp->SCp.buffer;
@@ -271,12 +271,12 @@ static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
     sp->SCp.ptr=(char *)(sp->SCp.buffer->dma_address);
 }    
 
-static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, struct scsi_cmnd *sp)
 {
     vdma_free(sp->SCp.have_data_in);
 }
 
-static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, struct scsi_cmnd *sp)
 {
     int sz = sp->use_sg - 1;
     struct scatterlist *sg = (struct scatterlist *)sp->buffer;
@@ -287,7 +287,7 @@ static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
     }
 }
 
-static void dma_advance_sg (Scsi_Cmnd *sp)
+static void dma_advance_sg (struct scsi_cmnd *sp)
 {
     sp->SCp.ptr = (char *)(sp->SCp.buffer->dma_address);
 }
