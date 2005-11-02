@@ -91,14 +91,6 @@ config VIDEO_W9966
 	  Check out <file:Documentation/video4linux/w9966.txt> for more
 	  information.
 
-config VIDEO_SWARM_7114H
-	tristate "Philips SAA7114H for SiByte BCM91250A"
-	depends on SIBYTE_SWARM && VIDEO_DEV && I2C_ALGO_SIBYTE
-	help
-	  Say Y or M to build the video4linux driver for the Philips
-	  SAA7114H video decoder on Broadcom SWARM board (BCM91250A).
-	  The decoder chip is on the BCM1250's "E2" 8-bit FIFO port.
-
 config VIDEO_CPIA
 	tristate "CPiA Video For Linux"
 	depends on VIDEO_DEV

@@ -52,7 +52,6 @@ obj-$(CONFIG_VIDEO_BUF_DVB) += video-buf-dvb.o
 obj-$(CONFIG_VIDEO_BTCX)  += btcx-risc.o
 obj-$(CONFIG_VIDEO_TVEEPROM) += tveeprom.o
 
-obj-$(CONFIG_VIDEO_SWARM_7114H) += swarm_saa7114h.o
 obj-$(CONFIG_TUNER_3036) += tuner-3036.o
 
 obj-$(CONFIG_VIDEO_M32R_AR_M64278) += arv.o
