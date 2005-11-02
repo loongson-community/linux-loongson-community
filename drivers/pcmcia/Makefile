@@ -50,7 +50,7 @@ au1x00_ss-$(CONFIG_MIPS_DB1100)			+= au1000_db1x00.o
 au1x00_ss-$(CONFIG_MIPS_DB1200)                 += au1000_db1x00.o
 au1x00_ss-$(CONFIG_MIPS_DB1500)			+= au1000_db1x00.o
 au1x00_ss-$(CONFIG_MIPS_DB1550)			+= au1000_db1x00.o
-au1x00_ss-$(CONFIG_MIPS_XXS1500)	 	+= au1000_xxs1500.o
+au1x00_ss-$(CONFIG_MIPS_XXS1500)               += au1000_xxs1500.o
 
 sa1111_cs-y					+= sa1111_generic.o
 sa1111_cs-$(CONFIG_ASSABET_NEPONSET)		+= sa1100_neponset.o

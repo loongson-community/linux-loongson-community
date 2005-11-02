@@ -103,7 +103,7 @@ db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state
 		break;
 	case 1:
 		vs = (bcsr->status & 0xC)>>2;
-#if defined(CONFIG_MIPS_DB1200) || defined(CONFIG_MIPS_PB1200) 
+#if defined(CONFIG_MIPS_DB1200) || defined(CONFIG_MIPS_PB1200)
 		inserted = BOARD_CARD_INSERTED(1);
 #else
 		inserted = !(bcsr->status & (1<<5));
