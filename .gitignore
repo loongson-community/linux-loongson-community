@@ -27,4 +27,9 @@ include/config
 include/linux/autoconf.h
 include/linux/compile.h
 include/linux/version.h
+include/asm-*/asm-offsets.h
 
+#
+# Quilt
+#
+patches
