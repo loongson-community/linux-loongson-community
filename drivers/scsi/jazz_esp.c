@@ -52,7 +52,6 @@ static volatile unsigned char cmd_buffer[16];
 				 * via PIO.
 				 */
 
-int jazz_esp_detect(Scsi_Host_Template *tpnt);
 static int jazz_esp_release(struct Scsi_Host *shost)
 {
 	if (shost->irq)
