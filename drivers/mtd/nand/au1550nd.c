@@ -11,7 +11,6 @@
  *
  */
 
-#include <linux/config.h>
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -22,7 +21,13 @@
 
 /* fixme: this is ugly */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 0)
-#include <asm/mach-au1x00/au1xxx.h>
+#include <asm/mach-au1x00/au1000.h>
+#ifdef CONFIG_MIPS_PB1550
+#include <asm/mach-pb1x00/pb1550.h> 
+#endif
+#ifdef CONFIG_MIPS_DB1550
+#include <asm/mach-db1x00/db1x00.h> 
+#endif
 #else
 #include <asm/au1000.h>
 #ifdef CONFIG_MIPS_PB1550
@@ -40,22 +45,39 @@ static struct mtd_info *au1550_mtd = NULL;
 static void __iomem *p_nand;
 static int nand_width = 1; /* default x8*/
 
+#define NAND_CS 1
+
 /*
  * Define partitions for flash device
  */
 const static struct mtd_partition partition_info[] = {
+#ifdef CONFIG_MIPS_PB1550
+#define NUM_PARTITIONS            2
 	{ 
-		.name 	= "NAND FS 0",
+		.name = "Pb1550 NAND FS 0",
 	  	.offset = 0,
-	  	.size 	= 8*1024*1024 
+	  	.size = 8*1024*1024 
 	},
 	{ 
-		.name 	= "NAND FS 1",
+		.name = "Pb1550 NAND FS 1",
 		.offset =  MTDPART_OFS_APPEND,
- 		.size 	=    MTDPART_SIZ_FULL
+ 		.size =    MTDPART_SIZ_FULL
 	}
+#endif
+#ifdef CONFIG_MIPS_DB1550
+#define NUM_PARTITIONS            2
+	{ 
+		.name = "Db1550 NAND FS 0",
+	  	.offset = 0,
+	  	.size = 8*1024*1024 
+	},
+	{ 
+		.name = "Db1550 NAND FS 1",
+		.offset =  MTDPART_OFS_APPEND,
+ 		.size =    MTDPART_SIZ_FULL
+	}
+#endif
 };
-#define NB_OF(x)  (sizeof(x)/sizeof(x[0]))
 
 
 /**
@@ -317,13 +339,11 @@ int au1550_device_ready(struct mtd_info *mtd)
 /*
  * Main initialization routine
  */
-int __init au1xxx_nand_init (void)
+int __init au1550_init (void)
 {
 	struct nand_chip *this;
 	u16 boot_swapboot = 0; /* default value */
 	int retval;
-	u32 mem_staddr;
-	u32 nand_phys;
 
 	/* Allocate memory for MTD device structure and private data */
 	au1550_mtd = kmalloc (sizeof(struct mtd_info) + 
@@ -344,11 +364,8 @@ int __init au1xxx_nand_init (void)
 	au1550_mtd->priv = this;
 
 
-	/* disable interrupts */
-	au_writel(au_readl(MEM_STNDCTL) & ~(1<<8), MEM_STNDCTL);
- 
-	/* disable NAND boot */
-	au_writel(au_readl(MEM_STNDCTL) & ~(1<<0), MEM_STNDCTL);
+	/* MEM_STNDCTL: disable ints, disable nand boot */
+	au_writel(0, MEM_STNDCTL);
 
 #ifdef CONFIG_MIPS_PB1550
 	/* set gpio206 high */
@@ -380,60 +397,19 @@ int __init au1xxx_nand_init (void)
 	}
 #endif
 
-	/* Configure chip-select; normally done by boot code, e.g. YAMON */
-#ifdef NAND_STCFG
-	if (NAND_CS == 0) {
-		au_writel(NAND_STCFG,  MEM_STCFG0);
-		au_writel(NAND_STTIME, MEM_STTIME0);
-		au_writel(NAND_STADDR, MEM_STADDR0);
-	}
-	if (NAND_CS == 1) {
-		au_writel(NAND_STCFG,  MEM_STCFG1);
-		au_writel(NAND_STTIME, MEM_STTIME1);
-		au_writel(NAND_STADDR, MEM_STADDR1);
-	}
-	if (NAND_CS == 2) {
-		au_writel(NAND_STCFG,  MEM_STCFG2);
-		au_writel(NAND_STTIME, MEM_STTIME2);
-		au_writel(NAND_STADDR, MEM_STADDR2);
-	}
-	if (NAND_CS == 3) {
-		au_writel(NAND_STCFG,  MEM_STCFG3);
-		au_writel(NAND_STTIME, MEM_STTIME3);
-		au_writel(NAND_STADDR, MEM_STADDR3);
-	}
-#endif
- 
-	/* Locate NAND chip-select in order to determine NAND phys address */
-	mem_staddr = 0x00000000;
-	if (((au_readl(MEM_STCFG0) & 0x7) == 0x5) && (NAND_CS == 0))
-		mem_staddr = au_readl(MEM_STADDR0);
-	else if (((au_readl(MEM_STCFG1) & 0x7) == 0x5) && (NAND_CS == 1))
-		mem_staddr = au_readl(MEM_STADDR1);
-	else if (((au_readl(MEM_STCFG2) & 0x7) == 0x5) && (NAND_CS == 2))
-		mem_staddr = au_readl(MEM_STADDR2);
-	else if (((au_readl(MEM_STCFG3) & 0x7) == 0x5) && (NAND_CS == 3))
-		mem_staddr = au_readl(MEM_STADDR3);
+	/* Configure RCE1 - should be done by YAMON */
+	au_writel(0x5 | (nand_width << 22), 0xB4001010); /* MEM_STCFG1 */
+	au_writel(NAND_TIMING, 0xB4001014); /* MEM_STTIME1 */
+	au_sync();
 
-	if (mem_staddr == 0x00000000) {
-		printk("Au1xxx NAND: ERROR WITH NAND CHIP-SELECT\n");
-		kfree(au1550_mtd);
-		return 1;
-	}
-	nand_phys = (mem_staddr << 4) & 0xFFFC0000;
+	/* setup and enable chip select, MEM_STADDR1 */
+	/* we really need to decode offsets only up till 0x20 */
+	au_writel((1<<28) | (NAND_PHYS_ADDR>>4) | 
+			(((NAND_PHYS_ADDR + 0x1000)-1) & (0x3fff<<18)>>18), 
+			MEM_STADDR1);
+	au_sync();
 
-	p_nand = (void __iomem *)ioremap(nand_phys, 0x1000);
-
-	/* make controller and MTD agree */
-	if (NAND_CS == 0)
-		nand_width = au_readl(MEM_STCFG0) & (1<<22);
-	if (NAND_CS == 1)
-		nand_width = au_readl(MEM_STCFG1) & (1<<22);
-	if (NAND_CS == 2)
-		nand_width = au_readl(MEM_STCFG2) & (1<<22);
-	if (NAND_CS == 3)
-		nand_width = au_readl(MEM_STCFG3) & (1<<22);
-
+	p_nand = ioremap(NAND_PHYS_ADDR, 0x1000);
 
 	/* Set address of hardware control function */
 	this->hwcontrol = au1550_hwcontrol;
@@ -462,7 +438,7 @@ int __init au1xxx_nand_init (void)
 	}
 
 	/* Register the partitions */
-	add_mtd_partitions(au1550_mtd, partition_info, NB_OF(partition_info));
+	add_mtd_partitions(au1550_mtd, partition_info, NUM_PARTITIONS);
 
 	return 0;
 
@@ -474,7 +450,7 @@ int __init au1xxx_nand_init (void)
 	return retval;
 }
 
-module_init(au1xxx_nand_init);
+module_init(au1550_init);
 
 /*
  * Clean up routine
