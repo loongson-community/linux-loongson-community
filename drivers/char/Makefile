@@ -31,7 +31,6 @@ obj-$(CONFIG_MOXA_INTELLIO)	+= moxa.o
 obj-$(CONFIG_A2232)		+= ser_a2232.o generic_serial.o
 obj-$(CONFIG_ATARI_DSP56K)	+= dsp56k.o
 obj-$(CONFIG_MOXA_SMARTIO)	+= mxser.o
-obj-$(CONFIG_SIBYTE_SB1250_DUART) += sb1250_duart.o
 obj-$(CONFIG_COMPUTONE)		+= ip2.o ip2main.o
 obj-$(CONFIG_RISCOM8)		+= riscom8.o
 obj-$(CONFIG_ISI)		+= isicom.o
@@ -49,7 +48,6 @@ obj-$(CONFIG_VIOCONS) += viocons.o
 obj-$(CONFIG_VIOTAPE)		+= viotape.o
 obj-$(CONFIG_HVCS)		+= hvcs.o
 obj-$(CONFIG_SGI_MBCS)		+= mbcs.o
-obj-$(CONFIG_SERIAL_DEC)	+= decserial.o
 
 obj-$(CONFIG_PRINTER) += lp.o
 obj-$(CONFIG_TIPAR) += tipar.o
@@ -66,6 +64,7 @@ obj-$(CONFIG_SGI_DS1286) += ds1286.o
 obj-$(CONFIG_SGI_IP27_RTC) += ip27-rtc.o
 obj-$(CONFIG_DS1302) += ds1302.o
 obj-$(CONFIG_S3C2410_RTC) += s3c2410-rtc.o
+obj-$(CONFIG_RTC_VR41XX) += vr41xx_rtc.o
 ifeq ($(CONFIG_GENERIC_NVRAM),y)
   obj-$(CONFIG_NVRAM) += generic_nvram.o
 else
@@ -77,15 +76,12 @@ obj-$(CONFIG_DS1620) += ds1620.o
 obj-$(CONFIG_HW_RANDOM) += hw_random.o
 obj-$(CONFIG_FTAPE) += ftape/
 obj-$(CONFIG_COBALT_LCD) += lcd.o
-obj-$(CONFIG_ITE_GPIO) += ite_gpio.o
-obj-$(CONFIG_AU1000_GPIO) += au1000_gpio.o
-obj-$(CONFIG_AU1000_USB_TTY) += au1000_usbtty.o
-obj-$(CONFIG_AU1000_USB_RAW) += au1000_usbraw.o
 obj-$(CONFIG_PPDEV) += ppdev.o
 obj-$(CONFIG_NWBUTTON) += nwbutton.o
 obj-$(CONFIG_NWFLASH) += nwflash.o
 obj-$(CONFIG_SCx200_GPIO) += scx200_gpio.o
 obj-$(CONFIG_GPIO_VR41XX) += vr41xx_giu.o
+obj-$(CONFIG_TANBAC_TB0219) += tb0219.o
 obj-$(CONFIG_TELCLOCK) += tlclk.o
 
 obj-$(CONFIG_WATCHDOG)	+= watchdog/
@@ -98,7 +94,7 @@ obj-$(CONFIG_IPMI_HANDLER) += ipmi/
 obj-$(CONFIG_HANGCHECK_TIMER) += hangcheck-timer.o
 obj-$(CONFIG_TCG_TPM) += tpm/
 # Files generated that shall be removed upon make clean
-clean-files := consolemap_deftbl.c defkeymap.c qtronixmap.c ibm_workpad_keymap.c
+clean-files := consolemap_deftbl.c defkeymap.c qtronixmap.c
 
 quiet_cmd_conmk = CONMK   $@
       cmd_conmk = scripts/conmakehash $< > $@
@@ -110,8 +106,6 @@ $(obj)/defkeymap.o:  $(obj)/defkeymap.c
 
 $(obj)/qtronixmap.o: $(obj)/qtronixmap.c
 
-$(obj)/ibm_workpad_keymap.o: $(obj)/ibm_workpad_keymap.c
-
 # Uncomment if you're changing the keymap and have an appropriate
 # loadkeys version for the map. By default, we'll use the shipped
 # versions.
@@ -119,8 +113,7 @@ $(obj)/ibm_workpad_keymap.o: $(obj)/ibm_workpad_keymap.c
 
 ifdef GENERATE_KEYMAP
 
-$(obj)/defkeymap.c $(obj)/qtronixmap.c $(obj)/ibm_workpad_keymap.c: \
-		$(obj)/%.c: $(src)/%.map
+$(obj)/defkeymap.c $(obj)/qtronixmap.c: $(obj)/%.c: $(src)/%.map
 	loadkeys --mktable $< > $@.tmp
 	sed -e 's/^static *//' $@.tmp > $@
 	rm $@.tmp

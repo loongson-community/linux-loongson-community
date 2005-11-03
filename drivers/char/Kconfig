@@ -97,7 +97,7 @@ config ROCKETPORT
 	tristate "Comtrol RocketPort support"
 	depends on SERIAL_NONSTANDARD
 	help
-	  This driver supports Comtrol RocketPort and RocketModem PCI boards.
+	  This driver supports Comtrol RocketPort and RocketModem PCI boards.   
           These boards provide 2, 4, 8, 16, or 32 high-speed serial ports or
           modems.  For information about the RocketPort/RocketModem  boards
           and this driver read <file:Documentation/rocket.txt>.
@@ -331,68 +331,23 @@ config ISTALLION
 	  To compile this driver as a module, choose M here: the
 	  module will be called istallion.
 
-config AU1X00_GPIO
-	tristate "Alchemy Au1000 GPIO device support"
-	depends on MIPS && SOC_AU1X00
-
-config TS_AU1X00_ADS7846
-	tristate "Au1000/ADS7846 touchscreen support"
-	depends on MIPS && SOC_AU1X00
-
-config AU1X00_USB_TTY
-	tristate "Au1000 USB TTY Device support"
-	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_DEVICE
-
-config AU1X00_USB_RAW
-	tristate "Au1000 USB Raw Device support"
-	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_TTY!=y && AU1X00_USB_DEVICE
-
-config SIBYTE_SB1250_DUART
-	bool "Support for BCM1xxx onchip DUART"
-	depends on MIPS && SIBYTE_SB1xxx_SOC=y
-
-config SIBYTE_SB1250_DUART_CONSOLE
-	bool "Console on BCM1xxx DUART"
-	depends on SIBYTE_SB1250_DUART
-
-config SERIAL_DEC
-	bool "DECstation serial support"
-	depends on MACH_DECSTATION
-	default y
+config AU1000_UART
+	bool "Enable Au1000 UART Support"
+	depends on SERIAL_NONSTANDARD && MIPS
 	help
-	  This selects whether you want to be asked about drivers for
-	  DECstation serial ports.
+	  If you have an Alchemy AU1000 processor (MIPS based) and you want
+	  to use serial ports, say Y.  Otherwise, say N.
 
-	  Note that the answer to this question won't directly affect the
-	  kernel: saying N will just cause the configurator to skip all
-	  the questions about DECstation serial ports.
-
-	  If unsure, say Y.
-
-config SERIAL_DEC_CONSOLE
-	bool "Support for console on a DECstation serial port"
-	depends on SERIAL_DEC
-	default y
+config AU1000_SERIAL_CONSOLE
+	bool "Enable Au1000 serial console"
+	depends on AU1000_UART
 	help
-	  If you say Y here, it will be possible to use a serial port as the
-	  system console (the system console is the device which receives all
-	  kernel messages and warnings and which allows logins in single user
-	  mode).  Note that the firmware uses ttyS0 as the serial console on
-	  the Maxine and ttyS2 on the others.
-
-	  If unsure, say Y.
-
-config ZS
-	bool "Z85C30 Serial Support"
-	depends on SERIAL_DEC
-	default y
-	help
-	  Documentation on the Zilog 85C350 serial communications controller
-	  is downloadable at <http://www.zilog.com/pdfs/serial/z85c30.pdf>.
+	  If you have an Alchemy AU1000 processor (MIPS based) and you want
+	  to use a console on a serial port, say Y.  Otherwise, say N.
 
 config QTRONIX_KEYBOARD
 	bool "Enable Qtronix 990P Keyboard Support"
-	depends on MIPS && (MIPS_ITE8172 || MIPS_IVR)
+	depends on IT8712
 	help
 	  Images of Qtronix keyboards are at
 	  <http://www.qtronix.com/keyboard.html>.
@@ -404,7 +359,7 @@ config IT8172_CIR
 
 config IT8172_SCR0
 	bool "Enable Smart Card Reader 0 Support "
-	depends on MIPS && (MIPS_ITE8172 || MIPS_IVR)
+	depends on IT8712
 	help
 	  Say Y here to support smart-card reader 0 (SCR0) on the Integrated
 	  Technology Express, Inc. ITE8172 SBC.  Vendor page at
@@ -413,16 +368,12 @@ config IT8172_SCR0
 
 config IT8172_SCR1
 	bool "Enable Smart Card Reader 1 Support "
-	depends on MIPS && (MIPS_ITE8172 || MIPS_IVR) && MIPS_ITE8172
+	depends on IT8712
 	help
 	  Say Y here to support smart-card reader 1 (SCR1) on the Integrated
 	  Technology Express, Inc. ITE8172 SBC.  Vendor page at
 	  <http://www.ite.com.tw/ia/brief_it8172bsp.htm>; picture of the
 	  board at <http://www.mvista.com/partners/semiconductor/ite.html>.
-
-config ITE_GPIO
-	tristate "ITE GPIO"
-	depends on MIPS && MIPS_ITE8172
 
 config A2232
 	tristate "Commodore A2232 serial support (EXPERIMENTAL)"
@@ -828,6 +779,10 @@ config S3C2410_RTC
 	  Samsung S3C2410. This can provide periodic interrupt rates
 	  from 1Hz to 64Hz for user programs, and wakeup from Alarm.
 
+config RTC_VR41XX
+	tristate "NEC VR4100 series Real Time Clock Support"
+	depends on CPU_VR41XX
+
 config COBALT_LCD
 	bool "Support for Cobalt LCD"
 	depends on MIPS_COBALT
@@ -886,15 +841,8 @@ config SONYPI
 	  module will be called sonypi.
 
 config TANBAC_TB0219
-	tristate "TANBAC TB0219 (VR4131DIMM-EK) Evaluation board support"
+	tristate "TANBAC TB0219 base board support"
 	depends TANBAC_TB022X
-	select PCI
-	select PCI_VR41XX
-	help
-	  The TANBAC TB0219 (VR4131DIMM-EK) is a Evaluation board for VR4131DIMM
-	  manufactured by TANBAC.
-	  Please refer to <http://www.tanbac.co.jp/> about VR4131DIMM-EK.
-
 
 menu "Ftape, the floppy tape device driver"
 
@@ -987,8 +935,8 @@ config GPIO_VR41XX
 config RAW_DRIVER
 	tristate "RAW driver (/dev/raw/rawN) (OBSOLETE)"
 	help
-	  The raw driver permits block devices to be bound to /dev/raw/rawN.
-	  Once bound, I/O against /dev/raw/rawN uses efficient zero-copy I/O.
+	  The raw driver permits block devices to be bound to /dev/raw/rawN. 
+	  Once bound, I/O against /dev/raw/rawN uses efficient zero-copy I/O. 
 	  See the raw(8) manpage for more details.
 
           The raw driver is deprecated and will be removed soon.
