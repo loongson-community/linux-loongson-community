@@ -66,7 +66,7 @@ static struct fb_var_screeninfo smifb_var = {
 	.height         = -1,
 	.width          = -1,
 	.vmode          = FB_VMODE_NONINTERLACED,
-};      
+};
 
 
 static struct fb_info info;
@@ -85,7 +85,7 @@ smi_setcolreg(unsigned regno, unsigned red, unsigned green,
 	if (regno > 255)
 		return 1;
 
-	((u16 *)(info->pseudo_palette))[regno] = 
+	((u16 *)(info->pseudo_palette))[regno] =
 		    ((red & 0xf800) >> 0) |
 		    ((green & 0xfc00) >> 5) |
 		    ((blue & 0xf800) >> 11);
@@ -186,7 +186,7 @@ static void __devinit smi_unmap_smem(void)
 void
 vgxfb_setup (char *options)
 {
-    
+
 	if (!options || !*options)
 		return;
 

@@ -7,7 +7,7 @@
  * 		based on:
     copyright            : (C) 2001 by Szu-Tao Huang
     email                : johuang@siliconmotion.com
-    
+
     Updated to SM501 by Eric.Devolder@amd.com and dan@embeddededge.com
     for the AMD Mirage Portable Tablet.  20 Oct 2003
  ***************************************************************************/

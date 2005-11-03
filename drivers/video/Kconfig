@@ -1197,7 +1197,6 @@ config FB_SMIVGX
 	  This drivers supports SMI VoyagerGX 501 based PCI boards
 	  The default settings drive both a CRT and LCD.  The CRT
 	  can be turned off by passing in the no_crt option
-	
 
 config FB_CYBLA
 	tristate "Cyberblade/i1 support"
