@@ -104,7 +104,7 @@
 #define ZV_CAPTURE_OFFSET		0x090014
 #define ZV_FIFO_CTRL			0x090018
 
-#define waitforvsync() udelay(100); udelay(100); udelay(100); udelay(100);
+#define waitforvsync() udelay(400)
 
 /*
  * Minimum X and Y resolutions
