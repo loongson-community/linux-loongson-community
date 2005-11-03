@@ -20,7 +20,6 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
-#include <linux/config.h>
 
 #define smi_mmiowb(dat,reg)	writeb(dat, (SMIRegs + reg))
 #define smi_mmioww(dat,reg)	writew(dat, (SMIRegs + reg))
