@@ -96,8 +96,7 @@ smi_setcolreg(unsigned regno, unsigned red, unsigned green,
  * different output devices (CRT or LCD) and resolutions.
  * Currently hard-coded for 1024x768 LCD panel.
  */
-void
-smi_setmode(void)
+static void smi_setmode(void)
 {
 	if (initdone)
 		return;
@@ -153,7 +152,6 @@ smi_setmode(void)
 		smi_mmiowl(0x00010305, CRT_DISPLAY_CTRL);
 		smi_mmiowl(0x00000001, MISC_CTRL);
 	}
-
 }
 
 /*
@@ -182,8 +180,7 @@ static void __devinit smi_unmap_smem(void)
 	}
 }
 
-void
-vgxfb_setup (char *options)
+static void vgxfb_setup(char *options)
 {
 
 	if (!options || !*options)
@@ -289,7 +286,7 @@ static struct pci_driver vgxfb_pci_driver = {
 	.remove	= __devexit_p(vgx_pci_remove),
 };
 
-int __init vgxfb_init(void)
+static int __init vgxfb_init(void)
 {
 	char *option = NULL;
 
@@ -301,7 +298,7 @@ int __init vgxfb_init(void)
 	return pci_module_init(&vgxfb_pci_driver);
 }
 
-void __exit vgxfb_exit(void)
+static void __exit vgxfb_exit(void)
 {
 	pci_unregister_driver(&vgxfb_pci_driver);
 }
@@ -312,4 +309,3 @@ module_exit(vgxfb_exit);
 MODULE_AUTHOR("");
 MODULE_DESCRIPTION("Framebuffer driver for SMI Voyager");
 MODULE_LICENSE("GPL");
-
