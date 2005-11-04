@@ -232,7 +232,7 @@ static int __devinit vgx_pci_probe(struct pci_dev *dev, const struct pci_device_
 	smifb_fix.smem_len = 0x00800000;
 	SMILFB = ioremap(smifb_fix.smem_start, smifb_fix.smem_len);
 
-	memset((void *)SMILFB, 0, smifb_fix.smem_len);
+	memset(SMILFB, 0, smifb_fix.smem_len);
 
 	info.screen_base = SMILFB;
 	info.fbops = &smifb_ops;
@@ -244,7 +244,7 @@ static int __devinit vgx_pci_probe(struct pci_dev *dev, const struct pci_device_
 	if (!info.pseudo_palette) {
 		return -ENOMEM;
 	}
-	memset((void *)info.pseudo_palette, 0, sizeof(u32) *16);
+	memset(info.pseudo_palette, 0, sizeof(u32) *16);
 
 	fb_alloc_cmap(&info.cmap,256,0);
 
