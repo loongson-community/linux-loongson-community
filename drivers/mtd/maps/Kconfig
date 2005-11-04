@@ -199,11 +199,23 @@ config MTD_TSUNAMI
 	help
 	  Support for the flash chip on Tsunami TIG bus.
 
+config MTD_LASAT
+	tristate "LASAT flash device"
+	depends on LASAT && MTD_CFI
+	help
+	  Support for the flash chips on the Lasat 100 and 200 boards.
+
 config MTD_NETtel
 	tristate "CFI flash device on SnapGear/SecureEdge"
 	depends on X86 && MTD_PARTITIONS && MTD_JEDECPROBE
 	help
 	  Support for flash chips on NETtel/SecureEdge/SnapGear boards.
+
+config MTD_ALCHEMY
+	tristate '  AMD Alchemy Pb1xxx/Db1xxx/RDK MTD support' 
+	depends on MIPS && SOC_AU1X00
+	help
+	  Flash memory access on AMD Alchemy Pb/Db/RDK Reference Boards
 
 config MTD_DILNETPC
 	tristate "CFI Flash device mapped on DIL/Net PC"
@@ -279,12 +291,6 @@ config MTD_CFI_FLAGADM
 	help
 	  Mapping for the Flaga digital module. If you don't have one, ignore
 	  this setting.
-
-config MTD_ALCHEMY
-	tristate '  AMD Alchemy Pb1xxx/Db1xxx/RDK MTD support' 
-	depends on MIPS && SOC_AU1X00
-	help
-	  Flash memory access on AMD Alchemy Pb/Db/RDK Reference Boards
 
 config MTD_XXS1500
 	tristate "MyCable XXS1500 Flash device"
@@ -397,12 +403,6 @@ config MTD_OCELOT
 	  This enables access routines for the boot flash device and for the
 	  NVRAM on the Momenco Ocelot board. If you have one of these boards
 	  and would like access to either of these, say 'Y'.
-
-config MTD_LASAT
-	tristate "LASAT flash device"
-	depends on LASAT && MTD_CFI
-	help
-	  Support for the flash chips on the Lasat 100 and 200 boards.
 
 config MTD_SOLUTIONENGINE
 	tristate "CFI Flash device mapped on Hitachi SolutionEngine"
