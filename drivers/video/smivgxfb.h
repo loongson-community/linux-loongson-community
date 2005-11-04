@@ -110,18 +110,3 @@
  */
 #define MIN_XRES	640
 #define MIN_YRES	480
-
-/*
-* Private structure
-*/
-struct smifb_par
-{
-	/*
-	 * Hardware
-	 */
-	u16		chipID;
-
-	u_int	width;
-	u_int	height;
-	u_int	hz;
-};
