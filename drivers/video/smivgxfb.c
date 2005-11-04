@@ -41,7 +41,7 @@
 static char __iomem *SMIRegs;	// point to virtual Memory Map IO starting address
 static char __iomem *SMILFB;	// point to virtual video memory starting address
 
-static struct fb_fix_screeninfo smifb_fix __initdata = {
+static struct fb_fix_screeninfo smifb_fix __devinitdata = {
 	.id =		"smivgx",
 	.type =		FB_TYPE_PACKED_PIXELS,
 	.visual =	FB_VISUAL_TRUECOLOR,
@@ -50,7 +50,7 @@ static struct fb_fix_screeninfo smifb_fix __initdata = {
 	.accel =	FB_ACCEL_NONE,
 };
 
-static struct fb_var_screeninfo smifb_var = {
+static struct fb_var_screeninfo smifb_var __devinitdata = {
 	.xres           = 1024,
 	.yres           = 768,
 	.xres_virtual   = 1024,
