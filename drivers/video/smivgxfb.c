@@ -268,13 +268,12 @@ static void __devexit vgx_pci_remove(struct pci_dev *dev)
 	smi_unmap_mmio();
 }
 
-/*
- * Rev. AA is 0x501, Rev. B is 0x510.
- */
 static struct pci_device_id vgx_devices[] = {
-	{0x126f, 0x510, PCI_ANY_ID, PCI_ANY_ID,0,0,0},
-	{0x126f, 0x501, PCI_ANY_ID, PCI_ANY_ID,0,0,0},
-	{0,}
+	{PCI_VENDOR_ID_SILICON_MOTION, PCI_DEVICE_ID_SM501_VOYAGER_GX_REV_AA,
+	 PCI_ANY_ID, PCI_ANY_ID},
+	{PCI_VENDOR_ID_SILICON_MOTION, PCI_DEVICE_ID_SM501_VOYAGER_GX_REV_B,
+	 PCI_ANY_ID, PCI_ANY_ID},
+	{0}
 };
 
 MODULE_DEVICE_TABLE(pci, vgx_devices);
