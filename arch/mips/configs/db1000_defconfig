@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Tue Nov  1 00:59:41 2005
+# Sat Nov  5 19:39:54 2005
 #
 CONFIG_MIPS=y
 
@@ -292,6 +292,10 @@ CONFIG_NETFILTER_NETLINK_LOG=m
 # CONFIG_NET_DIVERT is not set
 # CONFIG_ECONET is not set
 # CONFIG_WAN_ROUTER is not set
+
+#
+# QoS and/or fair queueing
+#
 # CONFIG_NET_SCHED is not set
 # CONFIG_NET_CLS_ROUTE is not set
 

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Tue Nov  1 01:02:40 2005
+# Sat Nov  5 19:48:28 2005
 #
 CONFIG_MIPS=y
 
@@ -274,6 +274,10 @@ CONFIG_TCP_CONG_BIC=y
 # CONFIG_NET_DIVERT is not set
 # CONFIG_ECONET is not set
 # CONFIG_WAN_ROUTER is not set
+
+#
+# QoS and/or fair queueing
+#
 # CONFIG_NET_SCHED is not set
 # CONFIG_NET_CLS_ROUTE is not set
 
@@ -581,6 +585,7 @@ CONFIG_WATCHDOG=y
 # CONFIG_WDT is not set
 # CONFIG_RTC is not set
 # CONFIG_GEN_RTC is not set
+# CONFIG_RTC_VR41XX is not set
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 

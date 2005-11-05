@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Tue Nov  1 01:00:42 2005
+# Sat Nov  5 19:43:54 2005
 #
 CONFIG_MIPS=y
 
@@ -260,6 +260,10 @@ CONFIG_IPV6_TUNNEL=m
 # CONFIG_LLC2 is not set
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
+
+#
+# QoS and/or fair queueing
+#
 # CONFIG_NET_SCHED is not set
 # CONFIG_NET_CLS_ROUTE is not set
 
