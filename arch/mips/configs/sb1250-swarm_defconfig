@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Sat Nov  5 19:46:35 2005
+# Sat Nov  5 21:28:55 2005
 #
 CONFIG_MIPS=y
 
@@ -477,6 +477,7 @@ CONFIG_MII=y
 # CONFIG_NET_TULIP is not set
 # CONFIG_HP100 is not set
 # CONFIG_NET_PCI is not set
+# CONFIG_FEC_8XX is not set
 
 #
 # Ethernet (1000 Mbit)

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Sat Nov  5 19:39:33 2005
+# Sat Nov  5 21:01:09 2005
 #
 CONFIG_MIPS=y
 
@@ -583,6 +583,7 @@ CONFIG_SCSI_SAS_ATTRS=m
 #
 # SCSI low-level drivers
 #
+CONFIG_ISCSI_TCP=m
 CONFIG_SGIWD93_SCSI=y
 # CONFIG_SCSI_SATA is not set
 # CONFIG_SCSI_DEBUG is not set
@@ -634,6 +635,7 @@ CONFIG_CICADA_PHY=m
 CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
 CONFIG_SGISEEQ=y
+# CONFIG_FEC_8XX is not set
 
 #
 # Ethernet (1000 Mbit)

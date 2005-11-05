@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Sat Nov  5 19:44:57 2005
+# Sat Nov  5 21:27:21 2005
 #
 CONFIG_MIPS=y
 
@@ -394,6 +394,7 @@ CONFIG_NET_ISA=y
 # CONFIG_ETH16I is not set
 CONFIG_NE2000=y
 # CONFIG_NET_PCI is not set
+# CONFIG_FEC_8XX is not set
 
 #
 # Ethernet (1000 Mbit)

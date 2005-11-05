@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Sat Nov  5 19:48:19 2005
+# Sat Nov  5 21:29:20 2005
 #
 CONFIG_MIPS=y
 
@@ -395,12 +395,13 @@ CONFIG_SCSI_MULTI_LUN=y
 #
 # CONFIG_SCSI_SPI_ATTRS is not set
 # CONFIG_SCSI_FC_ATTRS is not set
-# CONFIG_SCSI_ISCSI_ATTRS is not set
+CONFIG_SCSI_ISCSI_ATTRS=m
 # CONFIG_SCSI_SAS_ATTRS is not set
 
 #
 # SCSI low-level drivers
 #
+CONFIG_ISCSI_TCP=m
 # CONFIG_BLK_DEV_3W_XXXX_RAID is not set
 # CONFIG_SCSI_3W_9XXX is not set
 # CONFIG_SCSI_ACARD is not set
@@ -521,6 +522,7 @@ CONFIG_EEPRO100=y
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_LAN_SAA9730 is not set
+# CONFIG_FEC_8XX is not set
 
 #
 # Ethernet (1000 Mbit)
