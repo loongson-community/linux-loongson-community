@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Sat Nov  5 21:24:09 2005
+# Mon Nov  7 15:11:44 2005
 #
 CONFIG_MIPS=y
 
@@ -701,7 +701,12 @@ CONFIG_SERIO_RAW=m
 #
 # Serial drivers
 #
-# CONFIG_SERIAL_8250 is not set
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
+# CONFIG_SERIAL_8250_CS is not set
+CONFIG_SERIAL_8250_NR_UARTS=4
+# CONFIG_SERIAL_8250_EXTENDED is not set
+CONFIG_SERIAL_8250_AU1X00=y
 
 #
 # Non-8250 serial port support
