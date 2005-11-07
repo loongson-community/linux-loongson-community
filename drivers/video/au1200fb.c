@@ -1555,7 +1555,6 @@ static struct fb_ops au1200fb_fb_ops =
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 	.fb_imageblit	= cfb_imageblit,
-	.fb_cursor		= soft_cursor,
 	.fb_sync		= NULL,
 	.fb_ioctl		= au1200fb_ioctl,
 	.fb_mmap		= au1200fb_fb_mmap,

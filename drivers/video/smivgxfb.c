@@ -279,7 +279,6 @@ static struct fb_ops smifb_ops = {
 	.fb_fillrect =		cfb_fillrect,
 	.fb_copyarea =		cfb_copyarea,
 	.fb_imageblit =		cfb_imageblit,
-	.fb_cursor =		soft_cursor,
 };
 
 static int __devinit vgx_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
