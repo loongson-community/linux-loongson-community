@@ -47,11 +47,7 @@
 
 #ifdef CONFIG_SERIAL_8250
 #include <linux/serial_core.h>
-
-/*
- * Bloody function has no prototype in headers ...
- */
-extern int serial8250_register_port(struct uart_port *port);
+#include <linux/serial_8250.h>
 #endif
 
 #include <linux/netdevice.h>
