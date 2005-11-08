@@ -111,3 +111,13 @@ Why:	This interface has been obsoleted by the new layer3-independent
 	to link against API-compatible library on top of libnfnetlink_queue 
 	instead of the current 'libipq'.
 Who:	Harald Welte <laforge@netfilter.org>
+
+---------------------------
+
+What:	au1x00_uart driver
+When:	January 2006
+Why:	The 8250 serial driver now has the ability to deal with the differences
+	between the standard 8250 family of UARTs and their slightly strange
+	brother on Alchemy SOCs.  The loss of features is not considered an
+	issue.
+Who:	Ralf Baechle <ralf@linux-mips.org>
