@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Mon Nov  7 23:06:53 2005
+# Wed Nov  9 11:11:47 2005
 #
 CONFIG_MIPS=y
 
@@ -518,6 +518,7 @@ CONFIG_PPP_ASYNC=m
 CONFIG_PPP_SYNC_TTY=m
 CONFIG_PPP_DEFLATE=m
 CONFIG_PPP_BSDCOMP=m
+CONFIG_PPP_MPPE=m
 CONFIG_PPPOE=m
 CONFIG_SLIP=m
 CONFIG_SLIP_COMPRESSED=y
