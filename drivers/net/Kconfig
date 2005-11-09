@@ -451,7 +451,7 @@ config MIPS_AU1X00_ENET
 
 config SGI_IOC3_ETH
 	bool "SGI IOC3 Ethernet"
-	depends on NET_ETHERNET && PCI && SGI_IP27 && BROKEN
+	depends on NET_ETHERNET && PCI && SGI_IP27
 	select CRC32
 	select MII
 	help
