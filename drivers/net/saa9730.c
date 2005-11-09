@@ -2,6 +2,7 @@
  * Copyright (C) 2000, 2005  MIPS Technologies, Inc.  All rights reserved.
  *	Authors: Carsten Langgaard <carstenl@mips.com>
  *		 Maciej W. Rozycki <macro@mips.com>
+ * Copyright (C) 2004 Ralf Baechle <ralf@linux-mips.org>
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -61,40 +62,38 @@ MODULE_DEVICE_TABLE(pci, saa9730_pci_tbl);
 /* Non-zero only if the current card is a PCI with BIOS-set IRQ. */
 static unsigned int pci_irq_line;
 
-#define INL(a)		readl(a)
-#define OUTL(x, a)	writel(x, a)
-
 static void evm_saa9730_enable_lan_int(struct lan_saa9730_private *lp)
 {
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptBlock1) | EVM_LAN_INT,
+	outl(readl(&lp->evm_saa9730_regs->InterruptBlock1) | EVM_LAN_INT,
 	     &lp->evm_saa9730_regs->InterruptBlock1);
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptStatus1) | EVM_LAN_INT,
+	outl(readl(&lp->evm_saa9730_regs->InterruptStatus1) | EVM_LAN_INT,
 	     &lp->evm_saa9730_regs->InterruptStatus1);
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptEnable1) | EVM_LAN_INT |
+	outl(readl(&lp->evm_saa9730_regs->InterruptEnable1) | EVM_LAN_INT |
 	     EVM_MASTER_EN, &lp->evm_saa9730_regs->InterruptEnable1);
 }
+
 static void evm_saa9730_disable_lan_int(struct lan_saa9730_private *lp)
 {
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptBlock1) & ~EVM_LAN_INT,
+	outl(readl(&lp->evm_saa9730_regs->InterruptBlock1) & ~EVM_LAN_INT,
 	     &lp->evm_saa9730_regs->InterruptBlock1);
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptEnable1) & ~EVM_LAN_INT,
+	outl(readl(&lp->evm_saa9730_regs->InterruptEnable1) & ~EVM_LAN_INT,
 	     &lp->evm_saa9730_regs->InterruptEnable1);
 }
 
 static void evm_saa9730_clear_lan_int(struct lan_saa9730_private *lp)
 {
-	OUTL(EVM_LAN_INT, &lp->evm_saa9730_regs->InterruptStatus1);
+	outl(EVM_LAN_INT, &lp->evm_saa9730_regs->InterruptStatus1);
 }
 
 static void evm_saa9730_block_lan_int(struct lan_saa9730_private *lp)
 {
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptBlock1) & ~EVM_LAN_INT,
+	outl(readl(&lp->evm_saa9730_regs->InterruptBlock1) & ~EVM_LAN_INT,
 	     &lp->evm_saa9730_regs->InterruptBlock1);
 }
 
 static void evm_saa9730_unblock_lan_int(struct lan_saa9730_private *lp)
 {
-	OUTL(INL(&lp->evm_saa9730_regs->InterruptBlock1) | EVM_LAN_INT,
+	outl(readl(&lp->evm_saa9730_regs->InterruptBlock1) | EVM_LAN_INT,
 	     &lp->evm_saa9730_regs->InterruptBlock1);
 }
 
@@ -120,13 +119,13 @@ static void __attribute_used__ show_saa9730_regs(struct lan_saa9730_private *lp)
 		}
 	}
 	printk("lp->evm_saa9730_regs->InterruptBlock1 = %x\n",
-	       INL(&lp->evm_saa9730_regs->InterruptBlock1));
+	       readl(&lp->evm_saa9730_regs->InterruptBlock1));
 	printk("lp->evm_saa9730_regs->InterruptStatus1 = %x\n",
-	       INL(&lp->evm_saa9730_regs->InterruptStatus1));
+	       readl(&lp->evm_saa9730_regs->InterruptStatus1));
 	printk("lp->evm_saa9730_regs->InterruptEnable1 = %x\n",
-	       INL(&lp->evm_saa9730_regs->InterruptEnable1));
+	       readl(&lp->evm_saa9730_regs->InterruptEnable1));
 	printk("lp->lan_saa9730_regs->Ok2Use = %x\n",
-	       INL(&lp->lan_saa9730_regs->Ok2Use));
+	       readl(&lp->lan_saa9730_regs->Ok2Use));
 	printk("lp->NextTxmBufferIndex = %x\n", lp->NextTxmBufferIndex);
 	printk("lp->NextTxmPacketIndex = %x\n", lp->NextTxmPacketIndex);
 	printk("lp->PendingTxmBufferIndex = %x\n",
@@ -134,23 +133,23 @@ static void __attribute_used__ show_saa9730_regs(struct lan_saa9730_private *lp)
 	printk("lp->PendingTxmPacketIndex = %x\n",
 	       lp->PendingTxmPacketIndex);
 	printk("lp->lan_saa9730_regs->LanDmaCtl = %x\n",
-	       INL(&lp->lan_saa9730_regs->LanDmaCtl));
+	       readl(&lp->lan_saa9730_regs->LanDmaCtl));
 	printk("lp->lan_saa9730_regs->DmaStatus = %x\n",
-	       INL(&lp->lan_saa9730_regs->DmaStatus));
+	       readl(&lp->lan_saa9730_regs->DmaStatus));
 	printk("lp->lan_saa9730_regs->CamCtl = %x\n",
-	       INL(&lp->lan_saa9730_regs->CamCtl));
+	       readl(&lp->lan_saa9730_regs->CamCtl));
 	printk("lp->lan_saa9730_regs->TxCtl = %x\n",
-	       INL(&lp->lan_saa9730_regs->TxCtl));
+	       readl(&lp->lan_saa9730_regs->TxCtl));
 	printk("lp->lan_saa9730_regs->TxStatus = %x\n",
-	       INL(&lp->lan_saa9730_regs->TxStatus));
+	       readl(&lp->lan_saa9730_regs->TxStatus));
 	printk("lp->lan_saa9730_regs->RxCtl = %x\n",
-	       INL(&lp->lan_saa9730_regs->RxCtl));
+	       readl(&lp->lan_saa9730_regs->RxCtl));
 	printk("lp->lan_saa9730_regs->RxStatus = %x\n",
-	       INL(&lp->lan_saa9730_regs->RxStatus));
+	       readl(&lp->lan_saa9730_regs->RxStatus));
 	for (i = 0; i < LAN_SAA9730_CAM_DWORDS; i++) {
-		OUTL(i, &lp->lan_saa9730_regs->CamAddress);
+		outl(i, &lp->lan_saa9730_regs->CamAddress);
 		printk("lp->lan_saa9730_regs->CamData = %x\n",
-		       INL(&lp->lan_saa9730_regs->CamData));
+		       readl(&lp->lan_saa9730_regs->CamData));
 	}
 	printk("lp->stats.tx_packets = %lx\n", lp->stats.tx_packets);
 	printk("lp->stats.tx_errors = %lx\n", lp->stats.tx_errors);
@@ -178,17 +177,17 @@ static void __attribute_used__ show_saa9730_regs(struct lan_saa9730_private *lp)
 	       lp->stats.rx_length_errors);
 
 	printk("lp->lan_saa9730_regs->DebugPCIMasterAddr = %x\n",
-	       INL(&lp->lan_saa9730_regs->DebugPCIMasterAddr));
+	       readl(&lp->lan_saa9730_regs->DebugPCIMasterAddr));
 	printk("lp->lan_saa9730_regs->DebugLanTxStateMachine = %x\n",
-	       INL(&lp->lan_saa9730_regs->DebugLanTxStateMachine));
+	       readl(&lp->lan_saa9730_regs->DebugLanTxStateMachine));
 	printk("lp->lan_saa9730_regs->DebugLanRxStateMachine = %x\n",
-	       INL(&lp->lan_saa9730_regs->DebugLanRxStateMachine));
+	       readl(&lp->lan_saa9730_regs->DebugLanRxStateMachine));
 	printk("lp->lan_saa9730_regs->DebugLanTxFifoPointers = %x\n",
-	       INL(&lp->lan_saa9730_regs->DebugLanTxFifoPointers));
+	       readl(&lp->lan_saa9730_regs->DebugLanTxFifoPointers));
 	printk("lp->lan_saa9730_regs->DebugLanRxFifoPointers = %x\n",
-	       INL(&lp->lan_saa9730_regs->DebugLanRxFifoPointers));
+	       readl(&lp->lan_saa9730_regs->DebugLanRxFifoPointers));
 	printk("lp->lan_saa9730_regs->DebugLanCtlStateMachine = %x\n",
-	       INL(&lp->lan_saa9730_regs->DebugLanCtlStateMachine));
+	       readl(&lp->lan_saa9730_regs->DebugLanCtlStateMachine));
 }
 
 static void lan_saa9730_buffer_init(struct lan_saa9730_private *lp)
@@ -289,9 +288,9 @@ static int lan_saa9730_allocate_buffers(struct pci_dev *pdev,
 	 * Set rx buffer A and rx buffer B to point to the first two buffer
 	 * spaces.
 	 */
-	OUTL(lp->dma_addr + rxoffset,
+	outl(lp->dma_addr + rxoffset,
 	     &lp->lan_saa9730_regs->RxBuffA);
-	OUTL(lp->dma_addr + rxoffset +
+	outl(lp->dma_addr + rxoffset +
 	     LAN_SAA9730_PACKET_SIZE * LAN_SAA9730_RCV_Q_SIZE,
 	     &lp->lan_saa9730_regs->RxBuffB);
 
@@ -299,14 +298,14 @@ static int lan_saa9730_allocate_buffers(struct pci_dev *pdev,
 	 * Set txm_buf_a and txm_buf_b to point to the first two buffer
 	 * space
 	 */
-	OUTL(lp->dma_addr + txoffset,
+	outl(lp->dma_addr + txoffset,
 	     &lp->lan_saa9730_regs->TxBuffA);
-	OUTL(lp->dma_addr + txoffset +
+	outl(lp->dma_addr + txoffset +
 	     LAN_SAA9730_PACKET_SIZE * LAN_SAA9730_TXM_Q_SIZE,
 	     &lp->lan_saa9730_regs->TxBuffB);
 
 	/* Set packet number */
-	OUTL((lp->DmaRcvPackets << PK_COUNT_RX_A_SHF) |
+	outl((lp->DmaRcvPackets << PK_COUNT_RX_A_SHF) |
 	     (lp->DmaRcvPackets << PK_COUNT_RX_B_SHF) |
 	     (lp->DmaTxmPackets << PK_COUNT_TX_A_SHF) |
 	     (lp->DmaTxmPackets << PK_COUNT_TX_B_SHF),
@@ -327,8 +326,8 @@ static int lan_saa9730_cam_load(struct lan_saa9730_private *lp)
 
 	for (i = 0; i < LAN_SAA9730_CAM_DWORDS; i++) {
 		/* First set address to where data is written */
-		OUTL(i, &lp->lan_saa9730_regs->CamAddress);
-		OUTL((NetworkAddress[0] << 24) | (NetworkAddress[1] << 16)
+		outl(i, &lp->lan_saa9730_regs->CamAddress);
+		outl((NetworkAddress[0] << 24) | (NetworkAddress[1] << 16)
 		     | (NetworkAddress[2] << 8) | NetworkAddress[3],
 		     &lp->lan_saa9730_regs->CamData);
 		NetworkAddress += 4;
@@ -356,7 +355,7 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 
 	/* Check link status, spin here till station is not busy. */
 	i = 0;
-	while (INL(&lp->lan_saa9730_regs->StationMgmtCtl) & MD_CA_BUSY) {
+	while (readl(&lp->lan_saa9730_regs->StationMgmtCtl) & MD_CA_BUSY) {
 		i++;
 		if (i > 100) {
 			printk("Error: lan_saa9730_mii_init: timeout\n");
@@ -366,12 +365,12 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 	}
 
 	/* Now set the control and address register. */
-	OUTL(MD_CA_BUSY | PHY_STATUS | PHY_ADDRESS << MD_CA_PHY_SHF,
+	outl(MD_CA_BUSY | PHY_STATUS | PHY_ADDRESS << MD_CA_PHY_SHF,
 	     &lp->lan_saa9730_regs->StationMgmtCtl);
 
 	/* check link status, spin here till station is not busy */
 	i = 0;
-	while (INL(&lp->lan_saa9730_regs->StationMgmtCtl) & MD_CA_BUSY) {
+	while (readl(&lp->lan_saa9730_regs->StationMgmtCtl) & MD_CA_BUSY) {
 		i++;
 		if (i > 100) {
 			printk("Error: lan_saa9730_mii_init: timeout\n");
@@ -384,7 +383,7 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 	mdelay(1);
 
 	/* Check the link status. */
-	if (INL(&lp->lan_saa9730_regs->StationMgmtData) &
+	if (readl(&lp->lan_saa9730_regs->StationMgmtData) &
 	    PHY_STATUS_LINK_UP) {
 		/* Link is up. */
 		return 0;
@@ -392,14 +391,14 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 		/* Link is down, reset the PHY first. */
 
 		/* set PHY address = 'CONTROL' */
-		OUTL(PHY_ADDRESS << MD_CA_PHY_SHF | MD_CA_WR | PHY_CONTROL,
+		outl(PHY_ADDRESS << MD_CA_PHY_SHF | MD_CA_WR | PHY_CONTROL,
 		     &lp->lan_saa9730_regs->StationMgmtCtl);
 
 		/* Wait for 1 ms. */
 		mdelay(1);
 
 		/* set 'CONTROL' = force reset and renegotiate */
-		OUTL(PHY_CONTROL_RESET | PHY_CONTROL_AUTO_NEG |
+		outl(PHY_CONTROL_RESET | PHY_CONTROL_AUTO_NEG |
 		     PHY_CONTROL_RESTART_AUTO_NEG,
 		     &lp->lan_saa9730_regs->StationMgmtData);
 
@@ -407,12 +406,12 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 		mdelay(50);
 
 		/* set 'BUSY' to start operation */
-		OUTL(MD_CA_BUSY | PHY_ADDRESS << MD_CA_PHY_SHF | MD_CA_WR |
+		outl(MD_CA_BUSY | PHY_ADDRESS << MD_CA_PHY_SHF | MD_CA_WR |
 		     PHY_CONTROL, &lp->lan_saa9730_regs->StationMgmtCtl);
 
 		/* await completion */
 		i = 0;
-		while (INL(&lp->lan_saa9730_regs->StationMgmtCtl) &
+		while (readl(&lp->lan_saa9730_regs->StationMgmtCtl) &
 		       MD_CA_BUSY) {
 			i++;
 			if (i > 100) {
@@ -428,13 +427,13 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 
 		for (l = 0; l < 2; l++) {
 			/* set PHY address = 'STATUS' */
-			OUTL(MD_CA_BUSY | PHY_ADDRESS << MD_CA_PHY_SHF |
+			outl(MD_CA_BUSY | PHY_ADDRESS << MD_CA_PHY_SHF |
 			     PHY_STATUS,
 			     &lp->lan_saa9730_regs->StationMgmtCtl);
 
 			/* await completion */
 			i = 0;
-			while (INL(&lp->lan_saa9730_regs->StationMgmtCtl) &
+			while (readl(&lp->lan_saa9730_regs->StationMgmtCtl) &
 			       MD_CA_BUSY) {
 				i++;
 				if (i > 100) {
@@ -449,7 +448,7 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 			mdelay(3000);
 
 			/* check the link status */
-			if (INL(&lp->lan_saa9730_regs->StationMgmtData) &
+			if (readl(&lp->lan_saa9730_regs->StationMgmtData) &
 			    PHY_STATUS_LINK_UP) {
 				/* link is up */
 				break;
@@ -463,7 +462,7 @@ static int lan_saa9730_mii_init(struct lan_saa9730_private *lp)
 static int lan_saa9730_control_init(struct lan_saa9730_private *lp)
 {
 	/* Initialize DMA control register. */
-	OUTL((LANMB_ANY << DMA_CTL_MAX_XFER_SHF) |
+	outl((LANMB_ANY << DMA_CTL_MAX_XFER_SHF) |
 	     (LANEND_LITTLE << DMA_CTL_ENDIAN_SHF) |
 	     (LAN_SAA9730_RCV_Q_INT_THRESHOLD << DMA_CTL_RX_INT_COUNT_SHF)
 	     | DMA_CTL_RX_INT_TO_EN | DMA_CTL_RX_INT_EN |
@@ -471,27 +470,27 @@ static int lan_saa9730_control_init(struct lan_saa9730_private *lp)
 	     &lp->lan_saa9730_regs->LanDmaCtl);
 
 	/* Initial MAC control register. */
-	OUTL((MACCM_MII << MAC_CONTROL_CONN_SHF) | MAC_CONTROL_FULL_DUP,
+	outl((MACCM_MII << MAC_CONTROL_CONN_SHF) | MAC_CONTROL_FULL_DUP,
 	     &lp->lan_saa9730_regs->MacCtl);
 
 	/* Initialize CAM control register. */
-	OUTL(CAM_CONTROL_COMP_EN | CAM_CONTROL_BROAD_ACC,
+	outl(CAM_CONTROL_COMP_EN | CAM_CONTROL_BROAD_ACC,
 	     &lp->lan_saa9730_regs->CamCtl);
 
 	/*
 	 * Initialize CAM enable register, only turn on first entry, should
 	 * contain own addr.
 	 */
-	OUTL(0x0001, &lp->lan_saa9730_regs->CamEnable);
+	outl(0x0001, &lp->lan_saa9730_regs->CamEnable);
 
 	/* Initialize Tx control register */
-	OUTL(TX_CTL_EN_COMP, &lp->lan_saa9730_regs->TxCtl);
+	outl(TX_CTL_EN_COMP, &lp->lan_saa9730_regs->TxCtl);
 
 	/* Initialize Rcv control register */
-	OUTL(RX_CTL_STRIP_CRC, &lp->lan_saa9730_regs->RxCtl);
+	outl(RX_CTL_STRIP_CRC, &lp->lan_saa9730_regs->RxCtl);
 
 	/* Reset DMA engine */
-	OUTL(DMA_TEST_SW_RESET, &lp->lan_saa9730_regs->DmaTest);
+	outl(DMA_TEST_SW_RESET, &lp->lan_saa9730_regs->DmaTest);
 
 	return 0;
 }
@@ -501,13 +500,13 @@ static int lan_saa9730_stop(struct lan_saa9730_private *lp)
 	int i;
 
 	/* Stop DMA first */
-	OUTL(INL(&lp->lan_saa9730_regs->LanDmaCtl) &
+	outl(readl(&lp->lan_saa9730_regs->LanDmaCtl) &
 	     ~(DMA_CTL_EN_TX_DMA | DMA_CTL_EN_RX_DMA),
 	     &lp->lan_saa9730_regs->LanDmaCtl);
 
 	/* Set the SW Reset bits in DMA and MAC control registers */
-	OUTL(DMA_TEST_SW_RESET, &lp->lan_saa9730_regs->DmaTest);
-	OUTL(INL(&lp->lan_saa9730_regs->MacCtl) | MAC_CONTROL_RESET,
+	outl(DMA_TEST_SW_RESET, &lp->lan_saa9730_regs->DmaTest);
+	outl(readl(&lp->lan_saa9730_regs->MacCtl) | MAC_CONTROL_RESET,
 	     &lp->lan_saa9730_regs->MacCtl);
 
 	/*
@@ -515,7 +514,7 @@ static int lan_saa9730_stop(struct lan_saa9730_private *lp)
 	 * when the reset is done.
 	 */
 	i = 0;
-	while (INL(&lp->lan_saa9730_regs->MacCtl) & MAC_CONTROL_RESET) {
+	while (readl(&lp->lan_saa9730_regs->MacCtl) & MAC_CONTROL_RESET) {
 		i++;
 		if (i > 100) {
 			printk
@@ -533,7 +532,7 @@ static int lan_saa9730_dma_init(struct lan_saa9730_private *lp)
 	/* Stop lan controller. */
 	lan_saa9730_stop(lp);
 
-	OUTL(LAN_SAA9730_DEFAULT_TIME_OUT_CNT,
+	outl(LAN_SAA9730_DEFAULT_TIME_OUT_CNT,
 	     &lp->lan_saa9730_regs->Timeout);
 
 	return 0;
@@ -553,19 +552,19 @@ static int lan_saa9730_start(struct lan_saa9730_private *lp)
 	lp->PendingTxmPacketIndex = 0;
 	lp->PendingTxmBufferIndex = 0;
 
-	OUTL(INL(&lp->lan_saa9730_regs->LanDmaCtl) | DMA_CTL_EN_TX_DMA |
+	outl(readl(&lp->lan_saa9730_regs->LanDmaCtl) | DMA_CTL_EN_TX_DMA |
 	     DMA_CTL_EN_RX_DMA, &lp->lan_saa9730_regs->LanDmaCtl);
 
 	/* For Tx, turn on MAC then DMA */
-	OUTL(INL(&lp->lan_saa9730_regs->TxCtl) | TX_CTL_TX_EN,
+	outl(readl(&lp->lan_saa9730_regs->TxCtl) | TX_CTL_TX_EN,
 	     &lp->lan_saa9730_regs->TxCtl);
 
 	/* For Rx, turn on DMA then MAC */
-	OUTL(INL(&lp->lan_saa9730_regs->RxCtl) | RX_CTL_RX_EN,
+	outl(readl(&lp->lan_saa9730_regs->RxCtl) | RX_CTL_RX_EN,
 	     &lp->lan_saa9730_regs->RxCtl);
 
-	/* Set Ok2Use to let hardware own the buffers.  */
-	OUTL(OK2USE_RX_A | OK2USE_RX_B, &lp->lan_saa9730_regs->Ok2Use);
+	/* Set Ok2Use to let hardware own the buffers.	*/
+	outl(OK2USE_RX_A | OK2USE_RX_B, &lp->lan_saa9730_regs->Ok2Use);
 
 	return 0;
 }
@@ -588,7 +587,7 @@ static int lan_saa9730_tx(struct net_device *dev)
 		printk("lan_saa9730_tx interrupt\n");
 
 	/* Clear interrupt. */
-	OUTL(DMA_STATUS_MAC_TX_INT, &lp->lan_saa9730_regs->DmaStatus);
+	outl(DMA_STATUS_MAC_TX_INT, &lp->lan_saa9730_regs->DmaStatus);
 
 	while (1) {
 		pPacket = lp->TxmBuffer[lp->PendingTxmBufferIndex]
@@ -661,7 +660,7 @@ static int lan_saa9730_rx(struct net_device *dev)
 		printk("lan_saa9730_rx interrupt\n");
 
 	/* Clear receive interrupts. */
-	OUTL(DMA_STATUS_MAC_RX_INT | DMA_STATUS_RX_INT |
+	outl(DMA_STATUS_MAC_RX_INT | DMA_STATUS_RX_INT |
 	     DMA_STATUS_RX_TO_INT, &lp->lan_saa9730_regs->DmaStatus);
 
 	/* Address next packet */
@@ -726,7 +725,7 @@ static int lan_saa9730_rx(struct net_device *dev)
 		*pPacket = cpu_to_le32(RXSF_READY << RX_STAT_CTL_OWNER_SHF);
 
 		/* Make sure A or B is available to hardware as appropriate. */
-		OUTL(BufferIndex ? OK2USE_RX_B : OK2USE_RX_A,
+		outl(BufferIndex ? OK2USE_RX_B : OK2USE_RX_A,
 		     &lp->lan_saa9730_regs->Ok2Use);
 
 		/* Go to next packet in sequence. */
@@ -762,11 +761,11 @@ static irqreturn_t lan_saa9730_interrupt(const int irq, void *dev_id,
 	evm_saa9730_clear_lan_int(lp);
 
 	/* Service pending transmit interrupts. */
-	if (INL(&lp->lan_saa9730_regs->DmaStatus) & DMA_STATUS_MAC_TX_INT)
+	if (readl(&lp->lan_saa9730_regs->DmaStatus) & DMA_STATUS_MAC_TX_INT)
 		lan_saa9730_tx(dev);
 
 	/* Service pending receive interrupts. */
-	if (INL(&lp->lan_saa9730_regs->DmaStatus) &
+	if (readl(&lp->lan_saa9730_regs->DmaStatus) &
 	    (DMA_STATUS_MAC_RX_INT | DMA_STATUS_RX_INT |
 	     DMA_STATUS_RX_TO_INT)) lan_saa9730_rx(dev);
 
@@ -846,7 +845,7 @@ static int lan_saa9730_write(struct lan_saa9730_private *lp,
 			    (len << TX_STAT_CTL_LENGTH_SHF));
 
 	/* Make sure A or B is available to hardware as appropriate. */
-	OUTL(BufferIndex ? OK2USE_TX_B : OK2USE_TX_A,
+	outl(BufferIndex ? OK2USE_TX_B : OK2USE_TX_A,
 	     &lp->lan_saa9730_regs->Ok2Use);
 
 	return 0;
@@ -940,13 +939,13 @@ static void lan_saa9730_set_multicast(struct net_device *dev)
 
 	if (dev->flags & IFF_PROMISC) {
 		/* accept all packets */
-		OUTL(CAM_CONTROL_COMP_EN | CAM_CONTROL_STATION_ACC |
+		outl(CAM_CONTROL_COMP_EN | CAM_CONTROL_STATION_ACC |
 		     CAM_CONTROL_GROUP_ACC | CAM_CONTROL_BROAD_ACC,
 		     &lp->lan_saa9730_regs->CamCtl);
 	} else {
 		if (dev->flags & IFF_ALLMULTI) {
 			/* accept all multicast packets */
-			OUTL(CAM_CONTROL_COMP_EN | CAM_CONTROL_GROUP_ACC |
+			outl(CAM_CONTROL_COMP_EN | CAM_CONTROL_GROUP_ACC |
 			     CAM_CONTROL_BROAD_ACC,
 			     &lp->lan_saa9730_regs->CamCtl);
 		} else {
@@ -1143,4 +1142,6 @@ static void __exit saa9730_cleanup(void)
 module_init(saa9730_init);
 module_exit(saa9730_cleanup);
 
+MODULE_AUTHOR("Ralf Baechle <ralf@linux-mips.org>");
+MODULE_DESCRIPTION("Philips SAA9730 ethernet driver");
 MODULE_LICENSE("GPL");
