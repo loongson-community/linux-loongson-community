@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Mon Nov  7 23:05:35 2005
+# Thu Nov 10 13:42:45 2005
 #
 CONFIG_MIPS=y
 
@@ -689,10 +689,10 @@ CONFIG_SOUND=y
 # Open Sound System
 #
 CONFIG_SOUND_PRIME=y
+# CONFIG_OBSOLETE_OSS_DRIVER is not set
 CONFIG_SOUND_IT8172=y
 # CONFIG_SOUND_MSNDCLAS is not set
 # CONFIG_SOUND_MSNDPIN is not set
-# CONFIG_SOUND_AD1980 is not set
 
 #
 # USB support

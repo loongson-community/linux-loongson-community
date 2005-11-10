@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Mon Nov  7 23:04:52 2005
+# Thu Nov 10 12:15:50 2005
 #
 CONFIG_MIPS=y
 
@@ -273,7 +273,12 @@ CONFIG_TCP_CONG_BIC=y
 # CONFIG_IPV6 is not set
 CONFIG_NETFILTER=y
 # CONFIG_NETFILTER_DEBUG is not set
+
+#
+# Core Netfilter Configuration
+#
 # CONFIG_NETFILTER_NETLINK is not set
+# CONFIG_NF_CONNTRACK is not set
 
 #
 # IP: Netfilter Configuration
