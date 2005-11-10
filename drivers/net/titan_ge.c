@@ -59,7 +59,7 @@
 #include <linux/ip.h>
 #include <linux/init.h>
 #include <linux/in.h>
-
+#include <linux/platform_device.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
