@@ -41,6 +41,7 @@
 #include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/platform_device.h>
 
 #include <asm/io.h>
 
@@ -50,16 +51,20 @@
 
 #define DRV_NAME "ide-swarm"
 
+static char swarm_ide_string[] = DRV_NAME;
+
 static struct resource swarm_ide_resource = {
 	.name	= "SWARM GenBus IDE",
 	.flags	= IORESOURCE_MEM,
 };
 
+static struct platform_device *swarm_ide_dev;
+
 /*
  * swarm_ide_probe - if the board header indicates the existence of
  * Generic Bus IDE, allocate a HWIF for it.
  */
-void __init swarm_ide_probe(void)
+static int __devinit swarm_ide_probe(struct device *dev)
 {
 	ide_hwif_t *hwif;
 	u8 __iomem *base;
@@ -67,7 +72,7 @@ void __init swarm_ide_probe(void)
 	int i;
 
 	if (!SIBYTE_HAVE_IDE)
-		return;
+		return -ENODEV;
 
 	/* Find an empty slot.  */
 	for (i = 0; i < MAX_HWIFS; i++) 
@@ -75,8 +80,9 @@ void __init swarm_ide_probe(void)
 			break;
 	if (i >= MAX_HWIFS) {
 		printk(KERN_ERR DRV_NAME ": no free slot for interface\n");
-		return;
+		return -ENOMEM;
 	}
+
 	hwif = ide_hwifs + i;
 
 	base = ioremap(A_IO_EXT_BASE, 0x800);
@@ -89,7 +95,7 @@ void __init swarm_ide_probe(void)
 	if (offset < A_PHYS_GENBUS || offset >= A_PHYS_GENBUS_END) {
 		printk(KERN_INFO DRV_NAME
 		       ": IDE interface at GenBus disabled\n");
-		return;
+		return -EBUSY;
 	}
 
 	printk(KERN_INFO DRV_NAME ": IDE interface at GenBus slot %i\n",
@@ -100,7 +106,7 @@ void __init swarm_ide_probe(void)
 	if (request_resource(&iomem_resource, &swarm_ide_resource)) {
 		printk(KERN_ERR DRV_NAME
 		       ": can't request I/O memory resource\n");
-		return;
+		return -EBUSY;
 	}
 
 	base = ioremap(offset, size);
@@ -120,4 +126,83 @@ void __init swarm_ide_probe(void)
 
 	memcpy(hwif->io_ports, hwif->hw.io_ports, sizeof(hwif->io_ports));
 	hwif->irq = hwif->hw.irq;
+
+	dev_set_drvdata(dev, hwif);
+
+	return 0;
 }
+
+static struct device_driver swarm_ide_driver = {
+	.name	= swarm_ide_string,
+	.bus	= &platform_bus_type,
+	.probe	= swarm_ide_probe,
+	.remove	= __devexit_p(swarm_ide_device_remove),
+};
+
+static void swarm_ide_platform_release(struct device *device)
+{
+	struct platform_device *pldev;
+
+	/* free device */
+	pldev = to_platform_device(device);
+	kfree(pldev);
+}
+
+static int __devinit swarm_ide_init_module(void)
+{
+	struct platform_device *pldev;
+	int err;
+
+	printk(KERN_INFO "SWARM IDE driver\n");
+
+	if (driver_register(&swarm_ide_driver)) {
+		printk(KERN_ERR "Driver registration failed\n");
+		err = -ENODEV;
+		goto out;
+	}
+
+        if (!(pldev = kmalloc(sizeof (*pldev), GFP_KERNEL))) {
+		err = -ENOMEM;
+		goto out_unregister_driver;
+	}
+
+	memset (pldev, 0, sizeof (*pldev));
+	pldev->name		= swarm_ide_string;
+	pldev->id		= 0;
+	pldev->dev.release	= swarm_ide_platform_release;
+
+	if (platform_device_register(pldev)) {
+		err = -ENODEV;
+		goto out_free_pldev;
+	}
+
+        if (!pldev->dev.driver) {
+		/*
+		 * The driver was not bound to this device, there was
+                 * no hardware at this address. Unregister it, as the
+		 * release fuction will take care of freeing the
+		 * allocated structure
+		 */
+		platform_device_unregister (pldev);
+	}
+
+	swarm_ide_dev = pldev;
+
+	return 0;
+
+out_free_pldev:
+	kfree(pldev);
+
+out_unregister_driver:
+	driver_unregister(&swarm_ide_driver);
+out:
+	return err;
+}
+
+static void __devexit swarm_ide_exit_module(void)
+{
+	driver_unregister(&swarm_ide_driver);
+}
+
+module_init(swarm_ide_init_module);
+module_exit(swarm_ide_exit_module);

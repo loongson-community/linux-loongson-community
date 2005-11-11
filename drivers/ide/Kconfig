@@ -788,7 +788,7 @@ config BLK_DEV_IDE_PMAC_BLINK
 	  activity LED.
 
 config BLK_DEV_IDE_SWARM
-	bool "IDE for Sibyte evaluation boards"
+	tristate "IDE for Sibyte evaluation boards"
 	depends on SIBYTE_SB1xxx_SOC
 
 config BLK_DEV_IDE_AU1XXX
