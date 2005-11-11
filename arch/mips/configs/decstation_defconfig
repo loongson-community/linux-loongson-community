@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.14
-# Mon Nov  7 23:05:12 2005
+# Fri Nov 11 13:29:30 2005
 #
 CONFIG_MIPS=y
 
@@ -505,10 +505,7 @@ CONFIG_ZS=y
 #
 # Non-8250 serial port support
 #
-CONFIG_SERIAL_DZ=y
-CONFIG_SERIAL_DZ_CONSOLE=y
-CONFIG_SERIAL_CORE=y
-CONFIG_SERIAL_CORE_CONSOLE=y
+# CONFIG_SERIAL_DZ is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_LEGACY_PTYS=y
 CONFIG_LEGACY_PTY_COUNT=256
