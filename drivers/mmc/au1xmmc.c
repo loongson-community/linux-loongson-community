@@ -37,7 +37,7 @@
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/dma-mapping.h>
@@ -739,7 +739,6 @@ static void au1xmmc_set_ios(struct mmc_host* mmc, struct mmc_ios* ios)
 static void au1xmmc_dma_callback(int irq, void *dev_id, struct pt_regs *regs) 
 {
 	struct au1xmmc_host *host = (struct au1xmmc_host *) dev_id;
-	u32 status;
 
 	/* Avoid spurious interrupts */
 
@@ -835,11 +834,6 @@ static void au1xmmc_poll_event(unsigned long arg)
 		host->flags &= ~HOST_F_ACTIVE;
 		if (card) host->flags |= HOST_F_ACTIVE;
 		mmc_detect_change(host->mmc, 0);
-	}
-
-	if (host->mrq != NULL) {
-		u32 status = au_readl(HOST_STATUS(host));
-		DEBUG("PENDING - %8.8x\n", host->id, status);
 	}
 
 	mod_timer(&host->timer, jiffies + AU1XMMC_DETECT_TIMEOUT);
