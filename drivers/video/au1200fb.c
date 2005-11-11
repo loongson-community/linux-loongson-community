@@ -31,6 +31,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/string.h>
@@ -1275,12 +1276,10 @@ int au1200fb_fb_mmap(struct fb_info *fbi, struct file *file, struct vm_area_stru
 	pgprot_val(vma->vm_page_prot) |= _CACHE_MASK; /* CCA=7 */
 
 	vma->vm_flags |= VM_IO;
-    
-	if (io_remap_page_range(vma, vma->vm_start, off,
-				vma->vm_end - vma->vm_start,
-				vma->vm_page_prot)) {
-		return -EAGAIN;
-	}
+   
+	return io_remap_pfn_range(vma, vma->vm_start, off >> PAGE_SHIFT,
+				  vma->vm_end - vma->vm_start,
+				  vma->vm_page_prot);
 
 	return 0;
 }
@@ -1699,12 +1698,12 @@ int au1200fb_drv_probe(struct device *dev)
 
 #if !defined(CONFIG_FRAMEBUFFER_CONSOLE) && defined(CONFIG_LOGO)
 		if (plane == 0)
-			if (fb_prepare_logo(&fbdev->fb_info)) {
+			if (fb_prepare_logo(&fbdev->fb_info, FB_ROTATE_UR)) {
 				/* Start display and show logo on boot */
 				fb_set_cmap(&fbdev->fb_info.cmap, 
 						&fbdev->fb_info);
 
-				fb_show_logo(&fbdev->fb_info);
+				fb_show_logo(&fbdev->fb_info, FB_ROTATE_UR);
 			}
 #endif
 	}
@@ -1781,8 +1780,10 @@ static struct device_driver au1200fb_driver = {
 	.bus		= &platform_bus_type,
 	.probe		= au1200fb_drv_probe,
 	.remove		= au1200fb_drv_remove,
+#ifdef CONFIG_PM
 	.suspend	= au1200fb_drv_suspend,
 	.resume		= au1200fb_drv_resume,
+#endif
 };
 
 /*-------------------------------------------------------------------------*/
