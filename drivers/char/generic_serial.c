@@ -21,7 +21,6 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/interrupt.h>
 #include <linux/tty.h>
 #include <linux/serial.h>
 #include <linux/mm.h>
