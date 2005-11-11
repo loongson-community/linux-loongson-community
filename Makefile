@@ -345,7 +345,7 @@ AFLAGS_KERNEL	=
 # Needed to be compatible with the O= option
 LINUXINCLUDE    := -Iinclude \
                    $(if $(KBUILD_SRC),-Iinclude2 -I$(srctree)/include) \
-		   -imacros include/linux/autoconf.h
+		   -include include/linux/autoconf.h
 
 CPPFLAGS        := -D__KERNEL__ $(LINUXINCLUDE)
 
@@ -405,7 +405,7 @@ outputmakefile:
 # of make so .config is not included in this case either (for *config).
 
 no-dot-config-targets := clean mrproper distclean \
-			 cscope TAGS tags help %docs check%
+			 cscope TAGS tags help %docs check% kernelrelease
 
 config-targets := 0
 mixed-targets  := 0
