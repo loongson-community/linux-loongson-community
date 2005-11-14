@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14
-# Thu Nov 10 12:15:48 2005
+# Linux kernel version: 2.6.15-rc1
+# Sun Nov 13 23:56:16 2005
 #
 CONFIG_MIPS=y
 
@@ -501,6 +501,7 @@ CONFIG_CICADA_PHY=m
 CONFIG_NET_ETHERNET=y
 CONFIG_MII=m
 CONFIG_MIPS_AU1X00_ENET=y
+# CONFIG_SMC91X is not set
 
 #
 # Ethernet (1000 Mbit)

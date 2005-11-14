@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14
-# Thu Nov 10 14:02:29 2005
+# Linux kernel version: 2.6.15-rc1
+# Sun Nov 13 23:57:43 2005
 #
 CONFIG_MIPS=y
 
@@ -589,6 +589,7 @@ CONFIG_MIPS_AU1X00_ENET=y
 # CONFIG_SUNGEM is not set
 # CONFIG_CASSINI is not set
 # CONFIG_NET_VENDOR_3COM is not set
+# CONFIG_SMC91X is not set
 
 #
 # Tulip family network device support
