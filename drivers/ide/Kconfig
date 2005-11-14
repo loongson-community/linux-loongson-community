@@ -804,7 +804,7 @@ config BLK_DEV_IDE_AU1XXX_PIO_DBDMA
 
 config BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
        bool "MDMA2+DbDMA IDE for AMD Alchemy Au1200"
-       depends on SOC_AU1200 && BLK_DEV_IDE_AU1XXX     
+       depends on SOC_AU1200 && BLK_DEV_IDE_AU1XXX
 endchoice
 
 config BLK_DEV_IDE_AU1XXX_BURSTABLE_ON
