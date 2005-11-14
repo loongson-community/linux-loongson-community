@@ -665,7 +665,7 @@ int __ide_dma_bad_drive (ide_drive_t *drive)
 {
 	struct hd_driveid *id = drive->id;
 
-	int blacklist = in_drive_list(id, drive_blacklist);
+	int blacklist = ide_in_drive_list(id, drive_blacklist);
 	if (blacklist) {
 		printk(KERN_WARNING "%s: Disabling (U)DMA for %s (blacklisted)\n",
 				    drive->name, id->model);
@@ -679,7 +679,7 @@ EXPORT_SYMBOL(__ide_dma_bad_drive);
 int __ide_dma_good_drive (ide_drive_t *drive)
 {
 	struct hd_driveid *id = drive->id;
-	return in_drive_list(id, drive_whitelist);
+	return ide_in_drive_list(id, drive_whitelist);
 }
 
 EXPORT_SYMBOL(__ide_dma_good_drive);
