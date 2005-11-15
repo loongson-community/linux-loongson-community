@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.15-rc1
-# Sun Nov 13 23:56:19 2005
+# Tue Nov 15 11:11:10 2005
 #
 CONFIG_MIPS=y
 
@@ -702,6 +702,8 @@ CONFIG_LEGACY_PTY_COUNT=256
 # PCMCIA character devices
 #
 # CONFIG_SYNCLINK_CS is not set
+# CONFIG_CARDMAN_4000 is not set
+# CONFIG_CARDMAN_4040 is not set
 # CONFIG_RAW_DRIVER is not set
 
 #
