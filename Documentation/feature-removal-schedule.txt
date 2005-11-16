@@ -143,6 +143,15 @@ Who:	Christoph Hellwig <hch@lst.de>
 
 ---------------------------
 
+What:	START_ARRAY ioctl for md
+When:	July 2006
+Files:	drivers/md/md.c
+Why:	Not reliable by design - can fail when most needed.
+	Alternatives exist
+Who:	NeilBrown <neilb@suse.de>
+
+---------------------------
+
 What:	au1x00_uart driver
 When:	January 2006
 Why:	The 8250 serial driver now has the ability to deal with the differences
