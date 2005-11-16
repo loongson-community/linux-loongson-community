@@ -136,7 +136,6 @@ static struct device_driver swarm_ide_driver = {
 	.name	= swarm_ide_string,
 	.bus	= &platform_bus_type,
 	.probe	= swarm_ide_probe,
-	.remove	= __devexit_p(swarm_ide_device_remove),
 };
 
 static void swarm_ide_platform_release(struct device *device)
@@ -199,10 +198,4 @@ out:
 	return err;
 }
 
-static void __devexit swarm_ide_exit_module(void)
-{
-	driver_unregister(&swarm_ide_driver);
-}
-
 module_init(swarm_ide_init_module);
-module_exit(swarm_ide_exit_module);
