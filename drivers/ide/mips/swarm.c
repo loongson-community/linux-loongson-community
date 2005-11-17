@@ -14,14 +14,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 /*
- *  Derived loosely from ide-pmac.c, so:  
+ *  Derived loosely from ide-pmac.c, so:
  *  Copyright (C) 1998 Paul Mackerras.
  *  Copyright (C) 1995-1998 Mark Lord
  */
@@ -75,7 +75,7 @@ static int __devinit swarm_ide_probe(struct device *dev)
 		return -ENODEV;
 
 	/* Find an empty slot.  */
-	for (i = 0; i < MAX_HWIFS; i++) 
+	for (i = 0; i < MAX_HWIFS; i++)
 		if (!ide_hwifs[i].io_ports[IDE_DATA_OFFSET])
 			break;
 	if (i >= MAX_HWIFS) {
@@ -89,7 +89,7 @@ static int __devinit swarm_ide_probe(struct device *dev)
 	offset = __raw_readq(base + R_IO_EXT_REG(R_IO_EXT_START_ADDR, IDE_CS));
 	size = __raw_readq(base + R_IO_EXT_REG(R_IO_EXT_MULT_SIZE, IDE_CS));
 	iounmap(base);
-	
+
 	offset = G_IO_START_ADDR(offset) << S_IO_ADDRBASE;
 	size = (G_IO_MULT_SIZE(size) + 1) << S_IO_REGSIZE;
 	if (offset < A_PHYS_GENBUS || offset >= A_PHYS_GENBUS_END) {
