@@ -43,26 +43,28 @@
 
 #include <linux/dma-mapping.h>
 
+#include "ide-timing.h"
+
 #include <asm/io.h>
 #include <asm/mach-au1x00/au1xxx.h>
 #include <asm/mach-au1x00/au1xxx_dbdma.h>
-
-#ifdef CONFIG_PM
-#include <asm/mach-au1x00/au1xxx_pm.h>
-#endif
 
 #include <asm/mach-au1x00/au1xxx_ide.h>
 
 #define DRV_NAME	"au1200-ide"
 #define DRV_VERSION	"1.0"
-#define DRV_AUTHOR	"AMD PCS / Pete Popov <ppopov@embeddedalley.com>"
+#define DRV_AUTHOR	"Enrico Walther <enrico.walther@amd.com> / Pete Popov <ppopov@embeddedalley.com>"
+
+/* enable the burstmode in the dbdma */
+#define IDE_AU1XXX_BURSTMODE	1
 
 static _auide_hwif auide_hwif;
-static int dbdma_init_done = 0;
+static int dbdma_init_done;
 
-/*
- * local I/O functions
- */
+#ifdef CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
+extern int ide_in_drive_list(struct hd_driveid *id,
+			     const struct drive_list_entry *drive_table);
+#endif
 
 #if defined(CONFIG_BLK_DEV_IDE_AU1XXX_PIO_DBDMA)
 
@@ -103,15 +105,6 @@ void auide_outsw(unsigned long port, void *addr, u32 count)
 }
 
 #endif
-
-#define SBC_IDE_TIMING(mode) \
-         SBC_IDE_##mode##_TWCS | \
-         SBC_IDE_##mode##_TCSH | \
-         SBC_IDE_##mode##_TCSOFF | \
-         SBC_IDE_##mode##_TWP | \
-         SBC_IDE_##mode##_TCSW | \
-         SBC_IDE_##mode##_TPM | \
-         SBC_IDE_##mode##_TA
 
 static void auide_tune_drive(ide_drive_t *drive, byte pio)
 {
@@ -164,7 +157,6 @@ static void auide_tune_drive(ide_drive_t *drive, byte pio)
 		mem_sttime = SBC_IDE_TIMING(PIO3);
 
 		/* set configuration for RCS2# */
-		mem_stcfg |= TS_MASK;
 		mem_stcfg &= ~TS_MASK;
 		mem_stcfg &= ~TCSOE_MASK;
 		mem_stcfg &= ~TOECS_MASK;
@@ -378,6 +370,11 @@ static int auide_dma_end(ide_drive_t *drive)
 	return 0;
 }
 
+static void auide_dma_start(ide_drive_t *drive )
+{
+}
+
+
 static void auide_dma_exec_cmd(ide_drive_t *drive, u8 command)
 {
 	/* issue cmd to drive */
@@ -423,16 +420,15 @@ static int auide_dma_check(ide_drive_t *drive)
 		/* Borrowed the warning message from ide-dma.c */
 
 		printk(KERN_WARNING "%s: Disabling DMA for %s (blacklisted)\n",
-		       drive->name, id->model);	       
+		       drive->name, drive->id->model);	       
 	}
 	else
 		drive->using_dma = 1;
 
-
 	speed = ide_find_best_mode(drive, XFER_PIO | XFER_MWDMA);
 	
 	if (drive->autodma && (speed & XFER_MODE) != XFER_PIO)
-		return HWIF(drive)->ide_dma-on(drive);
+		return HWIF(drive)->ide_dma_on(drive);
 
 	return HWIF(drive)->ide_dma_off_quietly(drive);
 }
@@ -489,82 +485,85 @@ static void auide_ddma_tx_callback(int irq, void *param, struct pt_regs *regs)
 {
 	_auide_hwif *ahwif = (_auide_hwif*)param;
 	ahwif->drive->waiting_for_dma = 0;
-	return;
 }
 
 static void auide_ddma_rx_callback(int irq, void *param, struct pt_regs *regs)
 {
 	_auide_hwif *ahwif = (_auide_hwif*)param;
 	ahwif->drive->waiting_for_dma = 0;
-	return;
 }
 
 #endif /* end CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA */
 
-static void auide_init_source_device( _auide_hwif *auide, u32 dev_id, u32 tsize, u32 width) {
-  
-	dbdev_tab_t dev;
-  
-	dev.dev_id = dev_id;	
-	dev.dev_physaddr    = (u32)AU1XXX_ATA_PHYS_ADDR;
-	dev.dev_intlevel    = 0;
-	dev.dev_intpolarity = 0;
-  
-	dev.dev_tsize       = tsize;
-	dev.dev_devwidth    = width;
-  
-	dev.dev_flags = DEV_FLAGS_SYNC;
-  
-#if CONFIG_BLK_DEV_IDE_AU1XXX_BURSTABLE_ON
-	dev.dev_flags |= DEF_FLAGS_BURSTABLE;
-#endif
-  
-	/* Make the tx device */
-	dev.dev_flags |= DEV_FLAGS_OUT;
-	auide->tx_dev_id = au1xxx_ddma_add_device( &dev );
- 
-	/* Make the rx device */
-	dev.dev_flags &= ~DEV_FLAGS_OUT;
-	dev.dev_flags |= DEV_FLAGS_IN;
- 	
-	auide->rx_dev_id = au1xxx_ddma_add_device( &dev );
+static void auide_init_dbdma_dev(dbdev_tab_t *dev, u32 dev_id, u32 tsize, u32 devwidth, u32 flags)
+{
+	dev->dev_id          = dev_id;
+	dev->dev_physaddr    = (u32)AU1XXX_ATA_PHYS_ADDR;
+	dev->dev_intlevel    = 0;
+	dev->dev_intpolarity = 0;
+	dev->dev_tsize       = tsize;
+	dev->dev_devwidth    = devwidth;
+	dev->dev_flags       = flags;
 }
   
 #if defined(CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA)
-  
+
+static int auide_dma_timeout(ide_drive_t *drive)
+{
+//      printk("%s\n", __FUNCTION__);
+
+	printk(KERN_ERR "%s: DMA timeout occurred: ", drive->name);
+
+	if (HWIF(drive)->ide_dma_test_irq(drive))
+		return 0;
+
+	return HWIF(drive)->ide_dma_end(drive);
+}
+					
+
 static int auide_ddma_init(_auide_hwif *auide) {
-  
-	dbdev_tab_t dev;
-	u32 size, width;
-  
+	
+	dbdev_tab_t source_dev_tab, target_dev_tab;
+	u32 dev_id, tsize, devwidth, flags;
+	ide_hwif_t *hwif = auide->hwif;
+
+	dev_id   = AU1XXX_ATA_DDMA_REQ;
+
 	if (auide->white_list || auide->black_list) {
-		size = 8;
-		width = 32;
+		tsize    = 8;
+		devwidth = 32;
 	}
-	else {
-		size = 1;
-		width = 16;
- 
-		printk(KERN_ERR "au1xxx-ide: %s is not on ide driver whitelist.\n",
-		       auide_hwif.drive->id->model);
+	else { 
+		tsize    = 1;
+		devwidth = 16;
+		
+		printk(KERN_ERR "au1xxx-ide: %s is not on ide driver whitelist.\n",auide_hwif.drive->id->model);
 		printk(KERN_ERR "            please read 'Documentation/mips/AU1xxx_IDE.README'");
 	}
- 	       
-	auide_init_source_device(auide, AU1XXX_ATA_DDMA_REQ, 8, 32);
-  
+
+#ifdef IDE_AU1XXX_BURSTMODE 
+	flags = DEV_FLAGS_SYNC | DEV_FLAGS_BURSTABLE;
+#else
+	flags = DEV_FLAGS_SYNC;
+#endif
+
+	/* setup dev_tab for tx channel */
+	auide_init_dbdma_dev( &source_dev_tab,
+			      dev_id,
+			      tsize, devwidth, DEV_FLAGS_OUT | flags);
+ 	auide->tx_dev_id = au1xxx_ddma_add_device( &source_dev_tab );
+
+	auide_init_dbdma_dev( &source_dev_tab,
+			      dev_id,
+			      tsize, devwidth, DEV_FLAGS_IN | flags);
+ 	auide->rx_dev_id = au1xxx_ddma_add_device( &source_dev_tab );
+	
 	/* We also need to add a target device for the DMA */
-  
-	dev.dev_id          = DSCR_CMD0_ALWAYS;
-	dev.dev_physaddr    = (u32)AU1XXX_ATA_PHYS_ADDR;
-	dev.dev_intlevel    = 0;
-	dev.dev_intpolarity = 0;
-	dev.dev_flags       = DEV_FLAGS_ANYUSE;
- 	
-	dev.dev_tsize       = size;
-	dev.dev_devwidth    = width;
- 	
-	auide->target_dev_id = au1xxx_ddma_add_device(&dev);	
- 	
+	auide_init_dbdma_dev( &target_dev_tab,
+			      (u32)DSCR_CMD0_ALWAYS,
+			      tsize, devwidth, DEV_FLAGS_ANYUSE);
+	auide->target_dev_id = au1xxx_ddma_add_device(&target_dev_tab);	
+ 
 	/* Get a channel for TX */
 	auide->tx_chan = au1xxx_dbdma_chan_alloc(auide->target_dev_id,
 						 auide->tx_dev_id,
@@ -576,7 +575,7 @@ static int auide_ddma_init(_auide_hwif *auide) {
 						 auide->target_dev_id,
 						 auide_ddma_rx_callback,
 						 (void*)auide);
- 
+
 	auide->tx_desc_head = (void*)au1xxx_dbdma_ring_alloc(auide->tx_chan,
 							     NUM_DESCRIPTORS);
 	auide->rx_desc_head = (void*)au1xxx_dbdma_ring_alloc(auide->rx_chan,
@@ -585,7 +584,7 @@ static int auide_ddma_init(_auide_hwif *auide) {
 	hwif->dmatable_cpu = dma_alloc_coherent(auide->dev,
 						PRD_ENTRIES * PRD_BYTES,        /* 1 Page */
 						&hwif->dmatable_dma, GFP_KERNEL);
- 	
+	
 	au1xxx_dbdma_start( auide->tx_chan );
 	au1xxx_dbdma_start( auide->rx_chan );
  
@@ -595,30 +594,43 @@ static int auide_ddma_init(_auide_hwif *auide) {
  
 static int auide_ddma_init( _auide_hwif *auide )
 {
-	auide_init_source_device(auide, DSCR_CMD0_ALWAYS, 1, 16);
- 
- 
-	/*
-	 * Note: if call back is not enabled, update ctp->cur_ptr manually
-	 */
- 
+	dbdev_tab_t source_dev_tab;
+	int flags;
+
+#ifdef IDE_AU1XXX_BURSTMODE 
+	flags = DEV_FLAGS_SYNC | DEV_FLAGS_BURSTABLE;
+#else
+	flags = DEV_FLAGS_SYNC;
+#endif
+
+	/* setup dev_tab for tx channel */
+	auide_init_dbdma_dev( &source_dev_tab,
+			      (u32)DSCR_CMD0_ALWAYS,
+			      8, 32, DEV_FLAGS_OUT | flags);
+ 	auide->tx_dev_id = au1xxx_ddma_add_device( &source_dev_tab );
+
+	auide_init_dbdma_dev( &source_dev_tab,
+			      (u32)DSCR_CMD0_ALWAYS,
+			      8, 32, DEV_FLAGS_IN | flags);
+ 	auide->rx_dev_id = au1xxx_ddma_add_device( &source_dev_tab );
+	
+	/* Get a channel for TX */
 	auide->tx_chan = au1xxx_dbdma_chan_alloc(DSCR_CMD0_ALWAYS,
 						 auide->tx_dev_id,
 						 NULL,
 						 (void*)auide);
  
+	/* Get a channel for RX */
 	auide->rx_chan = au1xxx_dbdma_chan_alloc(auide->rx_dev_id,
 						 DSCR_CMD0_ALWAYS,
 						 NULL,
 						 (void*)auide);
  
-       
 	auide->tx_desc_head = (void*)au1xxx_dbdma_ring_alloc(auide->tx_chan,
 							     NUM_DESCRIPTORS);
- 
 	auide->rx_desc_head = (void*)au1xxx_dbdma_ring_alloc(auide->rx_chan,
 							     NUM_DESCRIPTORS);
-  
+ 
 	au1xxx_dbdma_start( auide->tx_chan );
 	au1xxx_dbdma_start( auide->rx_chan );
  	
@@ -629,18 +641,15 @@ static int auide_ddma_init( _auide_hwif *auide )
 static void auide_setup_ports(hw_regs_t *hw, _auide_hwif *ahwif)
 {
 	int i;
-#define ide_ioreg_t unsigned long
-	ide_ioreg_t *ata_regs = hw->io_ports;
+	unsigned long *ata_regs = hw->io_ports;
 
 	/* FIXME? */
 	for (i = 0; i < IDE_CONTROL_OFFSET; i++) {
-		*ata_regs++ = (ide_ioreg_t) ahwif->regbase 
-			+ (ide_ioreg_t)(i << AU1XXX_ATA_REG_OFFSET);
+		*ata_regs++ = ahwif->regbase + (i << AU1XXX_ATA_REG_OFFSET);
 	}
 
 	/* set the Alternative Status register */
-	*ata_regs = (ide_ioreg_t) ahwif->regbase
-		+ (ide_ioreg_t)(14 << AU1XXX_ATA_REG_OFFSET);
+	*ata_regs = ahwif->regbase + (14 << AU1XXX_ATA_REG_OFFSET);
 }
 
 static int au_ide_probe(struct device *dev)
@@ -693,18 +702,10 @@ static int au_ide_probe(struct device *dev)
 	auide_setup_ports(hw, ahwif);
 	memcpy(hwif->io_ports, hw->io_ports, sizeof(hwif->io_ports));
 
-#ifdef CONFIG_BLK_DEV_IDE_AU1XXX_SEQTS_PER_RQ
-	hwif->rqsize = CONFIG_BLK_DEV_IDE_AU1XXX_SEQTS_PER_RQ;
-	hwif->rqsize                    = ((hwif->rqsize > AU1XXX_ATA_RQSIZE) 
-					   || (hwif->rqsize < 32)) ? AU1XXX_ATA_RQSIZE : hwif->rqsize;
-#else /* if kernel config is not set */
-	hwif->rqsize                    = AU1XXX_ATA_RQSIZE;
-#endif
-
 	hwif->ultra_mask                = 0x0;  /* Disable Ultra DMA */
 #ifdef CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
 	hwif->mwdma_mask                = 0x07; /* Multimode-2 DMA  */
-	hwif->swdma_mask                = 0x07;
+	hwif->swdma_mask                = 0x00;
 #else
 	hwif->mwdma_mask                = 0x0;
 	hwif->swdma_mask                = 0x0;
@@ -732,11 +733,11 @@ static int au_ide_probe(struct device *dev)
 
 #ifdef CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
 	hwif->ide_dma_off_quietly       = &auide_dma_off_quietly;
-	hwif->ide_dma_timeout           = &__ide_dma_timeout;
+	hwif->ide_dma_timeout           = &auide_dma_timeout;
 
 	hwif->ide_dma_check             = &auide_dma_check;
 	hwif->dma_exec_cmd              = &auide_dma_exec_cmd;
-
+	hwif->dma_start                 = &auide_dma_start;
 	hwif->ide_dma_end               = &auide_dma_end;
 	hwif->dma_setup                 = &auide_dma_setup;
 	hwif->ide_dma_test_irq          = &auide_dma_test_irq;
@@ -761,22 +762,6 @@ static int au_ide_probe(struct device *dev)
 	hwif->drives[0].autotune        = 1;    /* 1=autotune, 2=noautotune, 0=default */
 #endif
 	hwif->drives[0].no_io_32bit     = 1;   
-	
-	/*Register Driver with PM Framework*/
-#ifdef CONFIG_PM
-	auide_hwif.pm.lock    = SPIN_LOCK_UNLOCKED;
-	auide_hwif.pm.stopped = 0;
-
-	auide_hwif.pm.dev = new_au1xxx_power_device( "ide",
-						     &au1200ide_pm_callback,
-						     NULL);
-	if ( auide_hwif.pm.dev == NULL )
-		printk(KERN_INFO "Unable to create a power management \
-                                device entry for the au1200-IDE.\n");
-	else
-		printk(KERN_INFO "Power management device entry for the \
-                                au1200-IDE loaded.\n");
-#endif
 
 	auide_hwif.hwif                 = hwif;
 	hwif->hwif_data                 = &auide_hwif;
@@ -824,179 +809,10 @@ static int __init au_ide_init(void)
 	return driver_register(&au1200_ide_driver);
 }
 
-static void au_ide_exit(void)
+static void __exit au_ide_exit(void)
 {
 	driver_unregister(&au1200_ide_driver);
 }
-
-#ifdef CONFIG_PM
-int au1200ide_pm_callback( au1xxx_power_dev_t *dev,\
-			   au1xxx_request_t request, void *data) {
-
-	unsigned int d, err = 0;
-	unsigned long flags;
-
-	spin_lock_irqsave(auide_hwif.pm.lock, flags);
-
-	switch (request){
-	case AU1XXX_PM_SLEEP:
-		err = au1xxxide_pm_sleep(dev);
-		break;
-	case AU1XXX_PM_WAKEUP:
-		d = *((unsigned int*)data);
-		if ( d > 0 && d <= 99) {
-			err = au1xxxide_pm_standby(dev);
-		}
-		else {
-			err = au1xxxide_pm_resume(dev);
-		}
-		break;
-	case AU1XXX_PM_GETSTATUS:
-		err = au1xxxide_pm_getstatus(dev);
-		break;
-	case AU1XXX_PM_ACCESS:
-		err = au1xxxide_pm_access(dev);
-		break;
-	case AU1XXX_PM_IDLE:
-		err = au1xxxide_pm_idle(dev);
-		break;
-	case AU1XXX_PM_CLEANUP:
-		err = au1xxxide_pm_cleanup(dev);
-		break;
-	default:
-		err = -1;
-		break;
-	}
-
-	spin_unlock_irqrestore(auide_hwif.pm.lock, flags);
-
-	return err;	
-}
-
-static int au1xxxide_pm_standby( au1xxx_power_dev_t *dev ) {
-	return 0; 
-}
-
-static int au1xxxide_pm_sleep( au1xxx_power_dev_t *dev ) {
-
-	int retval;
-	ide_hwif_t *hwif = auide_hwif.hwif;
-	struct request rq;
-	struct request_pm_state rqpm;
-	ide_task_t args;
-
-	if(auide_hwif.pm.stopped)
-		return -1;
-
-	/* 
-	 * wait until hard disc is ready
-	 */
-	if ( wait_for_ready(&hwif->drives[0], 35000) ) {
-		printk("Wait for drive sleep timeout!\n");
-		retval = -1;
-	}
-
-	/*
-	 * sequenz to tell the high level ide driver that pm is resuming
-	 */
-	memset(&rq, 0, sizeof(rq));
-	memset(&rqpm, 0, sizeof(rqpm));
-	memset(&args, 0, sizeof(args));
-	rq.flags = REQ_PM_SUSPEND;
-	rq.special = &args;
-	rq.pm = &rqpm;
-	rqpm.pm_step = ide_pm_state_start_suspend;
-	rqpm.pm_state = PMSG_SUSPEND;
-
-	retval = ide_do_drive_cmd(&hwif->drives[0], &rq, ide_wait);
-
-	if (wait_for_ready (&hwif->drives[0], 35000)) {
-		printk("Wait for drive sleep timeout!\n");
-		retval = -1;
-	}
-
-	/*
-	 * stop dbdma channels
-	 */
-	au1xxx_dbdma_reset(auide_hwif.tx_chan);
-	au1xxx_dbdma_reset(auide_hwif.rx_chan);
-
-	auide_hwif.pm.stopped = 1;
-
-	return retval;
-}
-
-static int au1xxxide_pm_resume( au1xxx_power_dev_t *dev ) {
-
-	int retval;
-	ide_hwif_t *hwif = auide_hwif.hwif;
-	struct request rq;
-	struct request_pm_state rqpm;
-	ide_task_t args;
-
-	if(!auide_hwif.pm.stopped)
-		return -1;
-
-	/*
-	 * start dbdma channels
-	 */	
-	au1xxx_dbdma_start(auide_hwif.tx_chan);
-	au1xxx_dbdma_start(auide_hwif.rx_chan);
-
-	/*
-	 * wait until hard disc is ready
-	 */
-	if (wait_for_ready ( &hwif->drives[0], 35000)) {
-		printk("Wait for drive wake up timeout!\n");
-		retval = -1;
-	}
-
-	/*
-	 * sequenz to tell the high level ide driver that pm is resuming
-	 */
-	memset(&rq, 0, sizeof(rq));
-	memset(&rqpm, 0, sizeof(rqpm));
-	memset(&args, 0, sizeof(args));
-	rq.flags = REQ_PM_RESUME;
-	rq.special = &args;
-	rq.pm = &rqpm;
-	rqpm.pm_step = ide_pm_state_start_resume;
-	rqpm.pm_state = PMSG_ON;
-
-	retval = ide_do_drive_cmd(&hwif->drives[0], &rq, ide_head_wait);
-
-	/*
-	 * wait for hard disc
-	 */
-	if ( wait_for_ready(&hwif->drives[0], 35000) ) {
-		printk("Wait for drive wake up timeout!\n");
-		retval = -1;
-	}
-
-	auide_hwif.pm.stopped = 0;
-
-	return retval;
-}
-
-static int au1xxxide_pm_getstatus( au1xxx_power_dev_t *dev ) {
-	return dev->cur_state;
-}
-
-static int au1xxxide_pm_access( au1xxx_power_dev_t *dev ) {
-	if (dev->cur_state != AWAKE_STATE)
-		return 0;
-	else
-		return -1;
-}
-
-static int au1xxxide_pm_idle( au1xxx_power_dev_t *dev ) {
-	return 0;
-}
-
-static int au1xxxide_pm_cleanup( au1xxx_power_dev_t *dev ) {
-	return 0;
-}
-#endif /* CONFIG_PM */
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("AU1200 IDE driver");
