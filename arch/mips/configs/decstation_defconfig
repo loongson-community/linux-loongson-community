@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.14
-# Fri Nov 11 13:29:30 2005
+# Linux kernel version: 2.6.15-rc1
+# Sat Nov 19 13:43:19 2005
 #
 CONFIG_MIPS=y
 
@@ -286,7 +286,6 @@ CONFIG_TCP_CONG_BIC=y
 # QoS and/or fair queueing
 #
 # CONFIG_NET_SCHED is not set
-# CONFIG_NET_CLS_ROUTE is not set
 
 #
 # Network testing
@@ -531,6 +530,7 @@ CONFIG_RTC=y
 #
 # TPM devices
 #
+# CONFIG_TCG_TPM is not set
 # CONFIG_TELCLOCK is not set
 
 #
