@@ -67,7 +67,9 @@ unsigned long setup_zero_pages(void)
 
 	page = virt_to_page(empty_zero_page);
 	while (page < virt_to_page(empty_zero_page + (PAGE_SIZE << order))) {
-		set_bit(PG_reserved, &page->flags);
+		__clear_bit(PG_compound, &page->flags);
+		__set_bit(PG_reserved, &page->flags);
+		set_page_count(page, 1);
 		reset_page_mapcount(page);
 		page++;
 	}
