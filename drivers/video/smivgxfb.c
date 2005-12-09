@@ -1,5 +1,5 @@
 /***************************************************************************
- *  Silicon Motion VoyaagerGX framebuffer driver
+ *  Silicon Motion VoyagerGX framebuffer driver
  *
  * 	ported to 2.6 by Embedded Alley Solutions, Inc
  * 	Copyright (C) 2005 Embedded Alley Solutions, Inc
@@ -162,7 +162,7 @@ smi_setcolreg(unsigned regno, unsigned red, unsigned green,
 	if (regno > 255)
 		return 1;
 
-	((u16 *)(info->pseudo_palette))[regno] =
+	((u32 *)(info->pseudo_palette))[regno] =
 		    ((red & 0xf800) >> 0) |
 		    ((green & 0xfc00) >> 5) |
 		    ((blue & 0xf800) >> 11);
