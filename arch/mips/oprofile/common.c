@@ -75,6 +75,8 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	int res;
 
 	switch (current_cpu_data.cputype) {
+	case CPU_5KC:
+	case CPU_20KC:
 	case CPU_24K:
 		lmodel = &op_model_mipsxx;
 		break;
