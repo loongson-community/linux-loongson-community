@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.15-rc2
-# Thu Nov 24 01:07:00 2005
+# Linux kernel version: 2.6.15-rc5
+# Thu Dec 15 15:49:48 2005
 #
 CONFIG_MIPS=y
 
@@ -159,7 +159,6 @@ CONFIG_PRINTK=y
 # CONFIG_BASE_FULL is not set
 # CONFIG_FUTEX is not set
 # CONFIG_EPOLL is not set
-# CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
 # CONFIG_SHMEM is not set
 CONFIG_CC_ALIGN_FUNCTIONS=0
 CONFIG_CC_ALIGN_LABELS=0
@@ -270,7 +269,6 @@ CONFIG_IEEE80211=y
 # CONFIG_IEEE80211_DEBUG is not set
 CONFIG_IEEE80211_CRYPT_WEP=y
 CONFIG_IEEE80211_CRYPT_CCMP=y
-CONFIG_IEEE80211_CRYPT_TKIP=y
 
 #
 # Device Drivers

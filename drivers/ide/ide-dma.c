@@ -90,11 +90,6 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 
-struct drive_list_entry {
-	const char *id_model;
-	const char *id_firmware;
-};
-
 static const struct drive_list_entry drive_whitelist [] = {
 
 	{ "Micropolis 2112A"	,       "ALL"		},
@@ -768,6 +763,15 @@ bug_dma_off:
 
 EXPORT_SYMBOL(ide_dma_verbose);
 
+#ifdef CONFIG_BLK_DEV_IDEDMA_PCI
+int __ide_dma_lostirq (ide_drive_t *drive)
+{
+	printk("%s: DMA interrupt recovery\n", drive->name);
+	return 1;
+}
+
+EXPORT_SYMBOL(__ide_dma_lostirq);
+
 int __ide_dma_timeout (ide_drive_t *drive)
 {
 	printk(KERN_ERR "%s: timeout waiting for DMA\n", drive->name);
@@ -778,15 +782,6 @@ int __ide_dma_timeout (ide_drive_t *drive)
 }
 
 EXPORT_SYMBOL(__ide_dma_timeout);
-
-#ifdef CONFIG_BLK_DEV_IDEDMA_PCI
-int __ide_dma_lostirq (ide_drive_t *drive)
-{
-	printk("%s: DMA interrupt recovery\n", drive->name);
-	return 1;
-}
-
-EXPORT_SYMBOL(__ide_dma_lostirq);
 
 /*
  * Needed for allowing full modular support of ide-driver

@@ -61,11 +61,6 @@
 static _auide_hwif auide_hwif;
 static int dbdma_init_done;
 
-#ifdef CONFIG_BLK_DEV_IDE_AU1XXX_MDMA2_DBDMA
-extern int ide_in_drive_list(struct hd_driveid *id,
-			     const struct drive_list_entry *drive_table);
-#endif
-
 #if defined(CONFIG_BLK_DEV_IDE_AU1XXX_PIO_DBDMA)
 
 void auide_insw(unsigned long port, void *addr, u32 count)
