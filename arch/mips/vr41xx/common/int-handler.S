@@ -35,7 +35,7 @@
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
  *  - New creation, NEC VR4100 series are supported.
  *
- *  Yoichi Yuasa <yoichi_yuasa.co.jp>
+ *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *  - Coped with INTASSIGN of NEC VR4133.
  */
 #include <asm/asm.h>
