@@ -233,7 +233,6 @@ NESTED(except_vec_nmi, 0, sp)
 NESTED(nmi_handler, PT_SIZE, sp)
 	.set	push
 	.set	noat
-	.set	mips3
 	SAVE_ALL
  	move	a0, sp
 	jal	nmi_exception_handler
