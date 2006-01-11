@@ -20,8 +20,6 @@
 #include <linux/kallsyms.h>
 #include <linux/interrupt.h>
 
-#include <asm/mutex.h>
-
 #include "mutex-debug.h"
 
 /*
@@ -461,4 +459,3 @@ void fastcall mutex_destroy(struct mutex *lock)
 }
 
 EXPORT_SYMBOL_GPL(mutex_destroy);
-
