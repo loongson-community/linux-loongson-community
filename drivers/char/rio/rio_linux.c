@@ -56,10 +56,6 @@
 #include <linux/generic_serial.h>
 #include <asm/uaccess.h>
 
-#if BITS_PER_LONG != 32
-#  error FIXME: this driver only works on 32-bit platforms
-#endif
-
 #include "linux_compat.h"
 #include "typdef.h"
 #include "pkt.h"
@@ -215,7 +211,7 @@ static int rio_poll = 1;
    or less.... */
 static int rio_probe_addrs[]= {0xc0000, 0xd0000, 0xe0000};
 
-#define NR_RIO_ADDRS (sizeof(rio_probe_addrs)/sizeof (int))
+#define NR_RIO_ADDRS ARRAY_SIZE(rio_probe_addrs)
 
 
 /* Set the mask to all-ones. This alas, only supports 32 interrupts. 

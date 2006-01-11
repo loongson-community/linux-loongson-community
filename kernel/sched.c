@@ -176,6 +176,13 @@ static unsigned int task_timeslice(task_t *p)
 #define task_hot(p, now, sd) ((long long) ((now) - (p)->last_ran)	\
 				< (long long) (sd)->cache_hot_time)
 
+void __put_task_struct_cb(struct rcu_head *rhp)
+{
+	__put_task_struct(container_of(rhp, struct task_struct, rcu));
+}
+
+EXPORT_SYMBOL_GPL(__put_task_struct_cb);
+
 /*
  * These are the runqueue data structures:
  */
@@ -4379,6 +4386,7 @@ void show_state(void)
 	} while_each_thread(g, p);
 
 	read_unlock(&tasklist_lock);
+	mutex_debug_show_all_locks();
 }
 
 /**

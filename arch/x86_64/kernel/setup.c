@@ -35,6 +35,7 @@
 #include <asm/processor.h>
 #include <linux/console.h>
 #include <linux/seq_file.h>
+#include <linux/crash_dump.h>
 #include <linux/root_dev.h>
 #include <linux/pci.h>
 #include <linux/acpi.h>
@@ -42,6 +43,7 @@
 #include <linux/edd.h>
 #include <linux/mmzone.h>
 #include <linux/kexec.h>
+#include <linux/cpufreq.h>
 
 #include <asm/mtrr.h>
 #include <asm/uaccess.h>
@@ -274,6 +276,7 @@ static __init void parse_cmdline_early (char ** cmdline_p)
 {
 	char c = ' ', *to = command_line, *from = COMMAND_LINE;
 	int len = 0;
+	int userdef = 0;
 
 	/* Save unparsed command line copy for /proc/cmdline */
 	memcpy(saved_command_line, COMMAND_LINE, COMMAND_LINE_SIZE);
@@ -356,6 +359,28 @@ static __init void parse_cmdline_early (char ** cmdline_p)
 		if (!memcmp(from, "mem=", 4))
 			parse_memopt(from+4, &from); 
 
+		if (!memcmp(from, "memmap=", 7)) {
+			/* exactmap option is for used defined memory */
+			if (!memcmp(from+7, "exactmap", 8)) {
+#ifdef CONFIG_CRASH_DUMP
+				/* If we are doing a crash dump, we
+				 * still need to know the real mem
+				 * size before original memory map is
+				 * reset.
+				 */
+				saved_max_pfn = e820_end_of_ram();
+#endif
+				from += 8+7;
+				end_pfn_map = 0;
+				e820.nr_map = 0;
+				userdef = 1;
+			}
+			else {
+				parse_memmapopt(from+7, &from);
+				userdef = 1;
+			}
+		}
+
 #ifdef CONFIG_NUMA
 		if (!memcmp(from, "numa=", 5))
 			numa_setup(from+5); 
@@ -394,6 +419,14 @@ static __init void parse_cmdline_early (char ** cmdline_p)
 		}
 #endif
 
+#ifdef CONFIG_PROC_VMCORE
+		/* elfcorehdr= specifies the location of elf core header
+		 * stored by the crashed kernel. This option will be passed
+		 * by kexec loader to the capture kernel.
+		 */
+		else if(!memcmp(from, "elfcorehdr=", 11))
+			elfcorehdr_addr = memparse(from+11, &from);
+#endif
 	next_char:
 		c = *(from++);
 		if (!c)
@@ -401,6 +434,10 @@ static __init void parse_cmdline_early (char ** cmdline_p)
 		if (COMMAND_LINE_SIZE <= ++len)
 			break;
 		*(to++) = c;
+	}
+	if (userdef) {
+		printk(KERN_INFO "user-defined physical RAM map:\n");
+		e820_print_map("user");
 	}
 	*to = '\0';
 	*cmdline_p = command_line;
@@ -1256,8 +1293,11 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		seq_printf(m, "stepping\t: unknown\n");
 	
 	if (cpu_has(c,X86_FEATURE_TSC)) {
+		unsigned int freq = cpufreq_quick_get((unsigned)(c-cpu_data));
+		if (!freq)
+			freq = cpu_khz;
 		seq_printf(m, "cpu MHz\t\t: %u.%03u\n",
-			     cpu_khz / 1000, (cpu_khz % 1000));
+			     freq / 1000, (freq % 1000));
 	}
 
 	/* Cache size */

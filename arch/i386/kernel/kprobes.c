@@ -58,13 +58,9 @@ static inline int is_IF_modifier(kprobe_opcode_t opcode)
 
 int __kprobes arch_prepare_kprobe(struct kprobe *p)
 {
-	return 0;
-}
-
-void __kprobes arch_copy_kprobe(struct kprobe *p)
-{
 	memcpy(p->ainsn.insn, p->addr, MAX_INSN_SIZE * sizeof(kprobe_opcode_t));
 	p->opcode = *p->addr;
+	return 0;
 }
 
 void __kprobes arch_arm_kprobe(struct kprobe *p)
@@ -79,10 +75,6 @@ void __kprobes arch_disarm_kprobe(struct kprobe *p)
 	*p->addr = p->opcode;
 	flush_icache_range((unsigned long) p->addr,
 			   (unsigned long) p->addr + sizeof(kprobe_opcode_t));
-}
-
-void __kprobes arch_remove_kprobe(struct kprobe *p)
-{
 }
 
 static inline void save_previous_kprobe(struct kprobe_ctlblk *kcb)

@@ -293,7 +293,7 @@ static inline int nl_pid_hash_dilute(struct nl_pid_hash *hash, int len)
 	return 0;
 }
 
-static struct proto_ops netlink_ops;
+static const struct proto_ops netlink_ops;
 
 static int netlink_insert(struct sock *sk, u32 pid)
 {
@@ -402,7 +402,7 @@ static int netlink_create(struct socket *sock, int protocol)
 	groups = nl_table[protocol].groups;
 	netlink_unlock_table();
 
-	if ((err = __netlink_create(sock, protocol) < 0))
+	if ((err = __netlink_create(sock, protocol)) < 0)
 		goto out_module;
 
 	nlk = nlk_sk(sock->sk);
@@ -1656,7 +1656,7 @@ int netlink_unregister_notifier(struct notifier_block *nb)
 	return notifier_chain_unregister(&netlink_chain, nb);
 }
                 
-static struct proto_ops netlink_ops = {
+static const struct proto_ops netlink_ops = {
 	.family =	PF_NETLINK,
 	.owner =	THIS_MODULE,
 	.release =	netlink_release,

@@ -1,5 +1,4 @@
-genksyms
 keywords.c
 lex.c
-parse.c
-parse.h
+parse.[ch]
+genksyms

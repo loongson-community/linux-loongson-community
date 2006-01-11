@@ -341,7 +341,7 @@ ENTRY(ia32_ptregs_common)
 	jmp  ia32_sysret	/* misbalances the return cache */
 	CFI_ENDPROC
 
-	.data
+	.section .rodata,"a"
 	.align 8
 	.globl ia32_sys_call_table
 ia32_sys_call_table:
@@ -608,7 +608,7 @@ ia32_sys_call_table:
 	.quad sys_epoll_wait
 	.quad sys_remap_file_pages
 	.quad sys_set_tid_address
-	.quad sys32_timer_create
+	.quad compat_sys_timer_create
 	.quad compat_sys_timer_settime	/* 260 */
 	.quad compat_sys_timer_gettime
 	.quad sys_timer_getoverrun
@@ -643,6 +643,7 @@ ia32_sys_call_table:
 	.quad sys_inotify_init
 	.quad sys_inotify_add_watch
 	.quad sys_inotify_rm_watch
+	.quad sys_migrate_pages
 ia32_syscall_end:		
 	.rept IA32_NR_syscalls-(ia32_syscall_end-ia32_sys_call_table)/8
 		.quad ni_syscall

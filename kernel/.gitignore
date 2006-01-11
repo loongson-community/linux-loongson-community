@@ -1,3 +1,5 @@
-config_data.gz
+#
+# Generated files
+#
 config_data.h
-ikconfig.h
+config_data.gz
