@@ -105,14 +105,14 @@ typedef struct {
 	unsigned long       flags;
 	struct tty_struct   *tty;
 	/* CSR addresses */
-	u32		    *status;
-	u32		    *imr;
-	u32		    *tx_hold;
-	u32		    *rx_hold;
-	u32		    *mode_1;
-	u32		    *mode_2;
-	u32		    *clk_sel;
-	u32		    *cmd;
+	volatile u32	    *status;
+	volatile u32	    *imr;
+	volatile u32	    *tx_hold;
+	volatile u32	    *rx_hold;
+	volatile u32	    *mode_1;
+	volatile u32	    *mode_2;
+	volatile u32	    *clk_sel;
+	volatile u32	    *cmd;
 } uart_state_t;
 
 static uart_state_t uart_states[DUART_MAX_LINE];
@@ -130,7 +130,7 @@ static uart_state_t uart_states[DUART_MAX_LINE];
 static unsigned int last_mode1[DUART_MAX_LINE];
 #endif
 
-static inline u32 READ_SERCSR(u32 *addr, int line)
+static inline u32 READ_SERCSR(volatile u32 *addr, int line)
 {
 	u32 val = csr_in32(addr);
 #if SIBYTE_1956_WAR
@@ -139,7 +139,7 @@ static inline u32 READ_SERCSR(u32 *addr, int line)
 	return val;
 }
 
-static inline void WRITE_SERCSR(u32 val, u32 *addr, int line)
+static inline void WRITE_SERCSR(u32 val, volatile u32 *addr, int line)
 {
 	csr_out32(val, addr);
 #if SIBYTE_1956_WAR
@@ -258,11 +258,7 @@ static irqreturn_t duart_int(int irq, void *dev_id, struct pt_regs *regs)
 			if (!(READ_SERCSR(us->status, us->line) & M_DUART_RX_RDY))
 				break;
 			ch = READ_SERCSR(us->rx_hold, us->line);
-			if (tty->flip.count < TTY_FLIPBUF_SIZE) {
-				*tty->flip.char_buf_ptr++ = ch;
-				*tty->flip.flag_buf_ptr++ = 0;
-				tty->flip.count++;
-			}
+			tty_insert_flip_char(tty, ch, 0);
 			udelay(1);
 			counter--;
 		}
