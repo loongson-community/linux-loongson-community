@@ -237,6 +237,7 @@ NESTED(nmi_handler, PT_SIZE, sp)
  	move	a0, sp
 	jal	nmi_exception_handler
 	RESTORE_ALL
+	.set	mips3
 	eret
 	.set	pop
 	END(nmi_handler)
