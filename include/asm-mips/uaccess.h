@@ -233,7 +233,7 @@ do {									\
 #define __get_user_check(x,ptr,size)					\
 ({									\
 	long __gu_err = -EFAULT;					\
-	void * __gu_ptr = (ptr);					\
+	const void * __gu_ptr = (ptr);					\
 									\
 	if (likely(access_ok(VERIFY_READ,  __gu_ptr, size)))		\
 		__get_user_common((x), size, __gu_ptr);			\
