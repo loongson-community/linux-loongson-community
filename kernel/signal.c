@@ -25,6 +25,7 @@
 #include <linux/posix-timers.h>
 #include <linux/signal.h>
 #include <linux/audit.h>
+#include <linux/capability.h>
 #include <asm/param.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
@@ -475,7 +476,7 @@ unblock_all_signals(void)
 	spin_unlock_irqrestore(&current->sighand->siglock, flags);
 }
 
-static inline int collect_signal(int sig, struct sigpending *list, siginfo_t *info)
+static int collect_signal(int sig, struct sigpending *list, siginfo_t *info)
 {
 	struct sigqueue *q, *first = NULL;
 	int still_pending = 0;
@@ -1880,7 +1881,7 @@ do_signal_stop(int signr)
  * We return zero if we still hold the siglock and should look
  * for another signal without checking group_stop_count again.
  */
-static inline int handle_group_stop(void)
+static int handle_group_stop(void)
 {
 	int stop_count;
 

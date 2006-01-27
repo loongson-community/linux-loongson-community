@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 
-# Wed Jan 11 17:48:31 2006
+# Linux kernel version: 2.6.16-rc1
+# Fri Jan 27 15:40:12 2006
 #
 CONFIG_MIPS=y
 
@@ -556,6 +556,12 @@ CONFIG_LEGACY_PTY_COUNT=256
 # I2C support
 #
 # CONFIG_I2C is not set
+
+#
+# SPI support
+#
+# CONFIG_SPI is not set
+# CONFIG_SPI_MASTER is not set
 
 #
 # Dallas's 1-wire bus

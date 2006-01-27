@@ -11,7 +11,8 @@ CFLAGS_btext.o		+= -fPIC
 endif
 
 obj-y				:= semaphore.o cputable.o ptrace.o syscalls.o \
-				   irq.o align.o signal_32.o pmc.o vdso.o
+				   irq.o align.o signal_32.o pmc.o vdso.o \
+				   init_task.o process.o
 obj-y				+= vdso32/
 obj-$(CONFIG_PPC64)		+= setup_64.o binfmt_elf32.o sys_ppc32.o \
 				   signal_64.o ptrace32.o systbl.o \
@@ -44,8 +45,7 @@ extra-$(CONFIG_FSL_BOOKE)	:= head_fsl_booke.o
 extra-$(CONFIG_8xx)		:= head_8xx.o
 extra-y				+= vmlinux.lds
 
-obj-y				+= process.o init_task.o time.o \
-				   prom.o traps.o setup-common.o udbg.o
+obj-y				+= time.o prom.o traps.o setup-common.o udbg.o
 obj-$(CONFIG_PPC32)		+= entry_32.o setup_32.o misc_32.o systbl.o
 obj-$(CONFIG_PPC64)		+= misc_64.o dma_64.o iommu.o
 obj-$(CONFIG_PPC_MULTIPLATFORM)	+= prom_init.o
@@ -60,10 +60,11 @@ obj-$(CONFIG_MODULES)		+= $(module-y)
 
 pci64-$(CONFIG_PPC64)		+= pci_64.o pci_dn.o pci_iommu.o \
 				   pci_direct_iommu.o iomap.o
-obj-$(CONFIG_PCI)		+= $(pci64-y)
-kexec-$(CONFIG_PPC64)		:= machine_kexec_64.o
+pci32-$(CONFIG_PPC32)		:= pci_32.o
+obj-$(CONFIG_PCI)		+= $(pci64-y) $(pci32-y)
+kexec-$(CONFIG_PPC64)		:= machine_kexec_64.o crash.o
 kexec-$(CONFIG_PPC32)		:= machine_kexec_32.o
-obj-$(CONFIG_KEXEC)		+= machine_kexec.o crash.o $(kexec-y)
+obj-$(CONFIG_KEXEC)		+= machine_kexec.o $(kexec-y)
 
 ifeq ($(CONFIG_PPC_ISERIES),y)
 $(obj)/head_64.o: $(obj)/lparmap.s

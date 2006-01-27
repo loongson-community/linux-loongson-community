@@ -63,6 +63,7 @@
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/ip.h>
+#include <linux/capability.h>
 #include <linux/fcntl.h>
 #include <linux/poll.h>
 #include <linux/init.h>
@@ -860,7 +861,7 @@ SCTP_STATIC int sctp_setsockopt_bindx(struct sock* sk,
 		return -EFAULT;
 
 	/* Alloc space for the address array in kernel memory.  */
-	kaddrs = (struct sockaddr *)kmalloc(addrs_size, GFP_KERNEL);
+	kaddrs = kmalloc(addrs_size, GFP_KERNEL);
 	if (unlikely(!kaddrs))
 		return -ENOMEM;
 
@@ -1150,7 +1151,7 @@ SCTP_STATIC int sctp_setsockopt_connectx(struct sock* sk,
 		return -EFAULT;
 
 	/* Alloc space for the address array in kernel memory.  */
-	kaddrs = (struct sockaddr *)kmalloc(addrs_size, GFP_KERNEL);
+	kaddrs = kmalloc(addrs_size, GFP_KERNEL);
 	if (unlikely(!kaddrs))
 		return -ENOMEM;
 

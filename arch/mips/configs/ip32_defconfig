@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 
-# Thu Jan 19 14:38:42 2006
+# Linux kernel version: 2.6.16-rc1
+# Fri Jan 27 15:40:09 2006
 #
 CONFIG_MIPS=y
 
@@ -288,6 +288,11 @@ CONFIG_TCP_CONG_BIC=y
 # CONFIG_ATALK is not set
 # CONFIG_X25 is not set
 # CONFIG_LAPB is not set
+
+#
+# TIPC Configuration (EXPERIMENTAL)
+#
+# CONFIG_TIPC is not set
 # CONFIG_NET_DIVERT is not set
 # CONFIG_ECONET is not set
 # CONFIG_WAN_ROUTER is not set
@@ -426,8 +431,7 @@ CONFIG_AIC7XXX_REG_PRETTY_PRINT=y
 # CONFIG_SCSI_IPR is not set
 # CONFIG_SCSI_QLOGIC_FC is not set
 # CONFIG_SCSI_QLOGIC_1280 is not set
-CONFIG_SCSI_QLA2XXX=y
-# CONFIG_SCSI_QLA2XXX_EMBEDDED_FIRMWARE is not set
+# CONFIG_SCSI_QLA_FC is not set
 # CONFIG_SCSI_LPFC is not set
 # CONFIG_SCSI_DC395x is not set
 # CONFIG_SCSI_DC390T is not set
@@ -658,6 +662,12 @@ CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_I2C is not set
 
 #
+# SPI support
+#
+# CONFIG_SPI is not set
+# CONFIG_SPI_MASTER is not set
+
+#
 # Dallas's 1-wire bus
 #
 # CONFIG_W1 is not set
@@ -832,6 +842,7 @@ CONFIG_PARTITION_ADVANCED=y
 CONFIG_SGI_PARTITION=y
 # CONFIG_ULTRIX_PARTITION is not set
 # CONFIG_SUN_PARTITION is not set
+# CONFIG_KARMA_PARTITION is not set
 # CONFIG_EFI_PARTITION is not set
 
 #

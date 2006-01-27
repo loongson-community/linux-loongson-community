@@ -41,7 +41,20 @@ config ARCH_MAY_HAVE_PC_FDC
 	bool
 	default y
 
+config DMI
+	bool
+	default y
+
 source "init/Kconfig"
+
+config DOUBLEFAULT
+	default y
+	bool "Enable doublefault exception handler" if EMBEDDED
+	help
+          This option allows trapping of rare doublefault exceptions that
+          would otherwise cause a system to silently reboot. Disabling this
+          option saves about 4k and might cause you much additional grey
+          hair.
 
 menu "Processor type and features"
 
@@ -689,6 +702,15 @@ config PHYSICAL_START
 
 	  Don't change this unless you know what you are doing.
 
+config HOTPLUG_CPU
+	bool "Support for hot-pluggable CPUs (EXPERIMENTAL)"
+	depends on SMP && HOTPLUG && EXPERIMENTAL
+	---help---
+	  Say Y here to experiment with turning CPUs off and on.  CPUs
+	  can be controlled through /sys/devices/system/cpu.
+
+	  Say N.
+
 endmenu
 
 
@@ -974,15 +996,6 @@ config SCx200
 
 	  This support is also available as a module.  If compiled as a
 	  module, it will be called scx200.
-
-config HOTPLUG_CPU
-	bool "Support for hot-pluggable CPUs (EXPERIMENTAL)"
-	depends on SMP && HOTPLUG && EXPERIMENTAL
-	---help---
-	  Say Y here to experiment with turning CPUs off and on.  CPUs
-	  can be controlled through /sys/devices/system/cpu.
-
-	  Say N.
 
 source "drivers/pcmcia/Kconfig"
 

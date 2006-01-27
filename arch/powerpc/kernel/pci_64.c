@@ -53,6 +53,7 @@ EXPORT_SYMBOL(io_page_mask);
 #ifdef CONFIG_PPC_MULTIPLATFORM
 static void fixup_resource(struct resource *res, struct pci_dev *dev);
 static void do_bus_setup(struct pci_bus *bus);
+static void phbs_remap_io(void);
 #endif
 
 /* pci_io_base -- the base address from which io bars are offsets.
@@ -251,6 +252,7 @@ void pcibios_free_controller(struct pci_controller *phb)
 		kfree(phb);
 }
 
+#ifndef CONFIG_PPC_ISERIES
 void __devinit pcibios_claim_one_bus(struct pci_bus *b)
 {
 	struct pci_dev *dev;
@@ -271,8 +273,10 @@ void __devinit pcibios_claim_one_bus(struct pci_bus *b)
 	list_for_each_entry(child_bus, &b->children, node)
 		pcibios_claim_one_bus(child_bus);
 }
+#ifdef CONFIG_HOTPLUG
+EXPORT_SYMBOL_GPL(pcibios_claim_one_bus);
+#endif
 
-#ifndef CONFIG_PPC_ISERIES
 static void __init pcibios_claim_of_setup(void)
 {
 	struct pci_bus *b;
@@ -1215,7 +1219,7 @@ int remap_bus_range(struct pci_bus *bus)
 }
 EXPORT_SYMBOL(remap_bus_range);
 
-void phbs_remap_io(void)
+static void phbs_remap_io(void)
 {
 	struct pci_controller *hose, *tmp;
 

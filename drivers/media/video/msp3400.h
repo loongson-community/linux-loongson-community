@@ -6,14 +6,6 @@
 
 /* ---------------------------------------------------------------------- */
 
-struct msp_matrix {
-  int input;
-  int output;
-};
-
-/* ioctl for MSP_SET_MATRIX will have to be registered */
-#define MSP_SET_MATRIX     _IOW('m',17,struct msp_matrix)
-
 /* This macro is allowed for *constants* only, gcc must calculate it
    at compile time.  Remember -- no floats in kernel mode */
 #define MSP_CARRIER(freq) ((int)((float)(freq / 18.432) * (1 << 24)))
@@ -48,12 +40,12 @@ struct msp_matrix {
 #define OPMODE_AUTOSELECT  2   /* use autodetect & autoselect (>= msp34xxG)   */
 
 /* module parameters */
-extern int debug;
-extern int once;
-extern int amsound;
-extern int standard;
-extern int dolby;
-extern int stereo_threshold;
+extern int msp_debug;
+extern int msp_once;
+extern int msp_amsound;
+extern int msp_standard;
+extern int msp_dolby;
+extern int msp_stereo_thresh;
 
 struct msp_state {
 	int rev1, rev2;

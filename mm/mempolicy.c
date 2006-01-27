@@ -208,6 +208,8 @@ static int check_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 		page = vm_normal_page(vma, addr, *pte);
 		if (!page)
 			continue;
+		if (PageReserved(page))
+			continue;
 		nid = page_to_nid(page);
 		if (node_isset(nid, *nodes) == !!(flags & MPOL_MF_INVERT))
 			continue;
@@ -290,7 +292,7 @@ static inline int check_pgd_range(struct vm_area_struct *vma,
 static inline int vma_migratable(struct vm_area_struct *vma)
 {
 	if (vma->vm_flags & (
-		VM_LOCKED|VM_IO|VM_HUGETLB|VM_PFNMAP))
+		VM_LOCKED|VM_IO|VM_HUGETLB|VM_PFNMAP|VM_RESERVED))
 		return 0;
 	return 1;
 }
@@ -1355,6 +1357,30 @@ restart:
 		kmem_cache_free(sn_cache, new2);
 	}
 	return 0;
+}
+
+void mpol_shared_policy_init(struct shared_policy *info, int policy,
+				nodemask_t *policy_nodes)
+{
+	info->root = RB_ROOT;
+	spin_lock_init(&info->lock);
+
+	if (policy != MPOL_DEFAULT) {
+		struct mempolicy *newpol;
+
+		/* Falls back to MPOL_DEFAULT on any error */
+		newpol = mpol_new(policy, policy_nodes);
+		if (!IS_ERR(newpol)) {
+			/* Create pseudo-vma that contains just the policy */
+			struct vm_area_struct pvma;
+
+			memset(&pvma, 0, sizeof(struct vm_area_struct));
+			/* Policy covers entire file */
+			pvma.vm_end = TASK_SIZE;
+			mpol_set_shared_policy(info, &pvma, newpol);
+			mpol_free(newpol);
+		}
+	}
 }
 
 int mpol_set_shared_policy(struct shared_policy *info,

@@ -28,9 +28,12 @@
 #include <asm/i387.h>
 #include <asm/fpu32.h>
 
-/* determines which flags the user has access to. */
-/* 1 = access 0 = no access */
-#define FLAG_MASK 0x44dd5UL
+/*
+ * Determines which flags the user has access to [1 = access, 0 = no access].
+ * Prohibits changing ID(21), VIP(20), VIF(19), VM(17), IOPL(12-13), IF(9).
+ * Also masks reserved bits (31-22, 15, 5, 3, 1).
+ */
+#define FLAG_MASK 0x54dd5UL
 
 #define R32(l,q) \
 	case offsetof(struct user32, regs.l): stack[offsetof(struct pt_regs, q)/8] = val; break
@@ -38,7 +41,7 @@
 static int putreg32(struct task_struct *child, unsigned regno, u32 val)
 {
 	int i;
-	__u64 *stack = (__u64 *)(child->thread.rsp0 - sizeof(struct pt_regs)); 
+	__u64 *stack = (__u64 *)task_pt_regs(child);
 
 	switch (regno) {
 	case offsetof(struct user32, regs.fs):
@@ -134,7 +137,7 @@ static int putreg32(struct task_struct *child, unsigned regno, u32 val)
 
 static int getreg32(struct task_struct *child, unsigned regno, u32 *val)
 {
-	__u64 *stack = (__u64 *)(child->thread.rsp0 - sizeof(struct pt_regs)); 
+	__u64 *stack = (__u64 *)task_pt_regs(child);
 
 	switch (regno) {
 	case offsetof(struct user32, regs.fs):
@@ -235,7 +238,7 @@ asmlinkage long sys32_ptrace(long request, u32 pid, u32 addr, u32 data)
 	if (ret < 0)
 		goto out;
 
-	childregs = (struct pt_regs *)(child->thread.rsp0 - sizeof(struct pt_regs)); 
+	childregs = task_pt_regs(child);
 
 	switch (request) {
 	case PTRACE_PEEKDATA:

@@ -1238,6 +1238,7 @@ static int bind_rdev_to_array(mdk_rdev_t * rdev, mddev_t * mddev)
 	mdk_rdev_t *same_pdev;
 	char b[BDEVNAME_SIZE], b2[BDEVNAME_SIZE];
 	struct kobject *ko;
+	char *s;
 
 	if (rdev->mddev) {
 		MD_BUG();
@@ -1277,6 +1278,8 @@ static int bind_rdev_to_array(mdk_rdev_t * rdev, mddev_t * mddev)
 	bdevname(rdev->bdev,b);
 	if (kobject_set_name(&rdev->kobj, "dev-%s", b) < 0)
 		return -ENOMEM;
+	while ( (s=strchr(rdev->kobj.k_name, '/')) != NULL)
+		*s = '!';
 			
 	list_add(&rdev->same_set, &mddev->disks);
 	rdev->mddev = mddev;
@@ -3392,6 +3395,7 @@ static int set_array_info(mddev_t * mddev, mdu_array_info_t *info)
 	mddev->ctime         = get_seconds();
 
 	mddev->level         = info->level;
+	mddev->clevel[0]     = 0;
 	mddev->size          = info->size;
 	mddev->raid_disks    = info->raid_disks;
 	/* don't set md_minor, it is determined by which /dev/md* was

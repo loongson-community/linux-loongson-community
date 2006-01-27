@@ -190,7 +190,7 @@ hauppauge_tuner[] =
 	{ TUNER_LG_PAL_NEW_TAPC, "TCL 2002MI 3"},
 	{ TUNER_TCL_2002N,     "TCL 2002N 6A"},
 	{ TUNER_PHILIPS_FM1236_MK3, "Philips FQ1236 MK3"},
-	{ TUNER_ABSENT,        "Samsung TCPN 2121P30A"},
+	{ TUNER_SAMSUNG_TCPN_2121P30A, "Samsung TCPN 2121P30A"},
 	{ TUNER_ABSENT,        "Samsung TCPE 4121P30A"},
 	{ TUNER_PHILIPS_FM1216ME_MK3, "TCL MFPE05 2"},
 	/* 90-99 */
@@ -719,8 +719,7 @@ tveeprom_command(struct i2c_client *client,
 
 	switch (cmd) {
 	case 0:
-		buf = kmalloc(256,GFP_KERNEL);
-		memset(buf,0,256);
+		buf = kzalloc(256,GFP_KERNEL);
 		tveeprom_read(client,buf,256);
 		tveeprom_hauppauge_analog(client, &eeprom,buf);
 		kfree(buf);
@@ -743,10 +742,9 @@ tveeprom_detect_client(struct i2c_adapter *adapter,
 {
 	struct i2c_client *client;
 
-	client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL);
+	client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL);
 	if (NULL == client)
 		return -ENOMEM;
-	memset(client, 0, sizeof(struct i2c_client));
 	client->addr = address;
 	client->adapter = adapter;
 	client->driver = &i2c_driver_tveeprom;

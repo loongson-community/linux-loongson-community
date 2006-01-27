@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 
-# Wed Jan 11 17:48:35 2006
+# Linux kernel version: 2.6.16-rc1
+# Fri Jan 27 15:40:33 2006
 #
 CONFIG_MIPS=y
 
@@ -376,6 +376,12 @@ CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_I2C is not set
 
 #
+# SPI support
+#
+# CONFIG_SPI is not set
+# CONFIG_SPI_MASTER is not set
+
+#
 # Dallas's 1-wire bus
 #
 # CONFIG_W1 is not set
@@ -517,6 +523,7 @@ CONFIG_PARTITION_ADVANCED=y
 # CONFIG_SGI_PARTITION is not set
 # CONFIG_ULTRIX_PARTITION is not set
 # CONFIG_SUN_PARTITION is not set
+# CONFIG_KARMA_PARTITION is not set
 # CONFIG_EFI_PARTITION is not set
 
 #

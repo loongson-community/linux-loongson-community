@@ -19,6 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/kexec.h>
 #include <linux/workqueue.h>
+#include <linux/capability.h>
 #include <linux/device.h>
 #include <linux/key.h>
 #include <linux/times.h>
@@ -222,6 +223,18 @@ int unregister_reboot_notifier(struct notifier_block * nb)
 }
 
 EXPORT_SYMBOL(unregister_reboot_notifier);
+
+#ifndef CONFIG_SECURITY
+int capable(int cap)
+{
+        if (cap_raised(current->cap_effective, cap)) {
+	       current->flags |= PF_SUPERPRIV;
+	       return 1;
+        }
+        return 0;
+}
+EXPORT_SYMBOL(capable);
+#endif
 
 static int set_one_prio(struct task_struct *p, int niceval, int error)
 {

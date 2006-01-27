@@ -49,9 +49,8 @@
 
 /* These three macros assume that the debug level is set with a module
    parameter called 'debug'. */
-#define v4l_dbg(level, client, fmt, arg...)				     \
+#define v4l_dbg(level, debug, client, fmt, arg...)			     \
 	do { 								     \
-		extern int debug;					     \
 		if (debug >= (level))					     \
 			v4l_client_printk(KERN_DEBUG, client, fmt , ## arg); \
 	} while (0)
@@ -120,6 +119,13 @@ enum v4l2_chip_ident {
 #define AUDC_SET_RADIO        _IO('d',88)
 /* select from TV,radio,extern,MUTE */
 #define AUDC_SET_INPUT        _IOW('d',89,int)
+
+/* msp3400 ioctl: will be removed in the near future */
+struct msp_matrix {
+  int input;
+  int output;
+};
+#define MSP_SET_MATRIX     _IOW('m',17,struct msp_matrix)
 
 /* tuner ioctls */
 /* Sets tuner type and its I2C addr */

@@ -166,6 +166,7 @@
 #define BTTV_BOARD_ASOUND_SKYEYE	   0x8d
 #define BTTV_BOARD_SABRENT_TVFM   	   0x8e
 #define BTTV_BOARD_HAUPPAUGE_IMPACTVCB     0x8f
+#define BTTV_BOARD_MACHTV_MAGICTV          0x90
 
 /* i2c address list */
 #define I2C_TSA5522        0xc2
@@ -364,6 +365,8 @@ struct bttv_sub_device {
 struct bttv_sub_driver {
 	struct device_driver   drv;
 	char                   wanted[BUS_ID_SIZE];
+	int                    (*probe)(struct bttv_sub_device *sub);
+	void                   (*remove)(struct bttv_sub_device *sub);
 	void                   (*gpio_irq)(struct bttv_sub_device *sub);
 };
 #define to_bttv_sub_drv(x) container_of((x), struct bttv_sub_driver, drv)

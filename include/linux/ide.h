@@ -983,7 +983,12 @@ typedef struct ide_driver_s {
 	ide_startstop_t	(*abort)(ide_drive_t *, struct request *rq);
 	ide_proc_entry_t	*proc;
 	struct device_driver	gen_driver;
+	int		(*probe)(ide_drive_t *);
+	void		(*remove)(ide_drive_t *);
+	void		(*shutdown)(ide_drive_t *);
 } ide_driver_t;
+
+#define to_ide_driver(drv) container_of(drv, ide_driver_t, gen_driver)
 
 int generic_ide_ioctl(ide_drive_t *, struct file *, struct block_device *, unsigned, unsigned long);
 
@@ -1002,7 +1007,6 @@ extern int noautodma;
 
 extern int ide_end_request (ide_drive_t *drive, int uptodate, int nrsecs);
 extern int __ide_end_request (ide_drive_t *drive, struct request *rq, int uptodate, int nrsecs);
-extern void ide_softirq_done(struct request *rq);
 
 /*
  * This is used on exit from the driver to designate the next irq handler

@@ -41,6 +41,7 @@
 #include <linux/serial.h>
 #include <linux/serial_8250.h>
 #include <linux/nmi.h>
+#include <linux/mutex.h>
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -2457,6 +2458,7 @@ static struct platform_driver serial8250_isa_driver = {
 	.resume		= serial8250_resume,
 	.driver		= {
 		.name	= "serial8250",
+		.owner	= THIS_MODULE,
 	},
 };
 
@@ -2471,7 +2473,7 @@ static struct platform_device *serial8250_isa_devs;
  * 16x50 serial ports to be configured at run-time, to support PCMCIA
  * modems and PCI multiport cards.
  */
-static DECLARE_MUTEX(serial_sem);
+static DEFINE_MUTEX(serial_mutex);
 
 static struct uart_8250_port *serial8250_find_match_or_unused(struct uart_port *port)
 {
@@ -2526,7 +2528,7 @@ int serial8250_register_port(struct uart_port *port)
 	if (port->uartclk == 0)
 		return -EINVAL;
 
-	down(&serial_sem);
+	mutex_lock(&serial_mutex);
 
 	uart = serial8250_find_match_or_unused(port);
 	if (uart) {
@@ -2548,7 +2550,7 @@ int serial8250_register_port(struct uart_port *port)
 		if (ret == 0)
 			ret = uart->port.line;
 	}
-	up(&serial_sem);
+	mutex_unlock(&serial_mutex);
 
 	return ret;
 }
@@ -2565,7 +2567,7 @@ void serial8250_unregister_port(int line)
 {
 	struct uart_8250_port *uart = &serial8250_ports[line];
 
-	down(&serial_sem);
+	mutex_lock(&serial_mutex);
 	uart_remove_one_port(&serial8250_reg, &uart->port);
 	if (serial8250_isa_devs) {
 		uart->port.flags &= ~UPF_BOOT_AUTOCONF;
@@ -2575,7 +2577,7 @@ void serial8250_unregister_port(int line)
 	} else {
 		uart->port.dev = NULL;
 	}
-	up(&serial_sem);
+	mutex_unlock(&serial_mutex);
 }
 EXPORT_SYMBOL(serial8250_unregister_port);
 
@@ -2597,21 +2599,30 @@ static int __init serial8250_init(void)
 	if (ret)
 		goto out;
 
-	serial8250_isa_devs = platform_device_register_simple("serial8250",
-					 PLAT8250_DEV_LEGACY, NULL, 0);
-	if (IS_ERR(serial8250_isa_devs)) {
-		ret = PTR_ERR(serial8250_isa_devs);
-		goto unreg;
+	ret = platform_driver_register(&serial8250_isa_driver);
+	if (ret)
+		goto unreg_uart_drv;
+
+	serial8250_isa_devs = platform_device_alloc("serial8250",
+						    PLAT8250_DEV_LEGACY);
+	if (!serial8250_isa_devs) {
+		ret = -ENOMEM;
+		goto unreg_plat_drv;
 	}
+
+	ret = platform_device_add(serial8250_isa_devs);
+	if (ret)
+		goto put_dev;
 
 	serial8250_register_ports(&serial8250_reg, &serial8250_isa_devs->dev);
 
-	ret = platform_driver_register(&serial8250_isa_driver);
-	if (ret == 0)
-		goto out;
+	goto out;
 
-	platform_device_unregister(serial8250_isa_devs);
- unreg:
+ put_dev:
+	platform_device_put(serial8250_isa_devs);
+ unreg_plat_drv:
+	platform_driver_unregister(&serial8250_isa_driver);
+ unreg_uart_drv:
 	uart_unregister_driver(&serial8250_reg);
  out:
 	return ret;

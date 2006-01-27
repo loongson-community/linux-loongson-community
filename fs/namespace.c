@@ -16,6 +16,7 @@
 #include <linux/init.h>
 #include <linux/quotaops.h>
 #include <linux/acct.h>
+#include <linux/capability.h>
 #include <linux/module.h>
 #include <linux/seq_file.h>
 #include <linux/namespace.h>
@@ -46,6 +47,10 @@ static struct list_head *mount_hashtable;
 static int hash_mask __read_mostly, hash_bits __read_mostly;
 static kmem_cache_t *mnt_cache;
 static struct rw_semaphore namespace_sem;
+
+/* /sys/fs */
+decl_subsys(fs, NULL, NULL);
+EXPORT_SYMBOL_GPL(fs_subsys);
 
 static inline unsigned long hash(struct vfsmount *mnt, struct dentry *dentry)
 {
@@ -1724,6 +1729,7 @@ void __init mnt_init(unsigned long mempages)
 		i--;
 	} while (i);
 	sysfs_init();
+	subsystem_register(&fs_subsys);
 	init_rootfs();
 	init_mount_tree();
 }

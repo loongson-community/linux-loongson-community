@@ -312,7 +312,8 @@ static struct pci_device_id i810_pci_tbl [] = {
 	 PCI_ANY_ID, PCI_ANY_ID, 0, 0, INTELICH4},
 	{PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH6_18,
 	 PCI_ANY_ID, PCI_ANY_ID, 0, 0, INTELICH4},
-
+	{PCI_VENDOR_ID_NVIDIA,  PCI_DEVICE_ID_NVIDIA_CK804_AUDIO,
+	 PCI_ANY_ID, PCI_ANY_ID, 0, 0, NVIDIA_NFORCE},
 	{0,}
 };
 
@@ -3427,7 +3428,6 @@ out_iospace:
 		release_mem_region(card->ac97base_mmio_phys, 512);
 		release_mem_region(card->iobase_mmio_phys, 256);
 	}
-out_pio:	
 	release_region(card->ac97base, 256);
 out_region2:
 	release_region(card->iobase, 64);

@@ -28,6 +28,7 @@
 #include <linux/kdev_t.h>
 #include <linux/blkdev.h>
 #include <linux/devfs_fs_kernel.h>
+#include <linux/mutex.h>
 
 #include <linux/mmc/card.h>
 #include <linux/mmc/protocol.h>
@@ -57,33 +58,33 @@ struct mmc_blk_data {
 	unsigned int	read_only;
 };
 
-static DECLARE_MUTEX(open_lock);
+static DEFINE_MUTEX(open_lock);
 
 static struct mmc_blk_data *mmc_blk_get(struct gendisk *disk)
 {
 	struct mmc_blk_data *md;
 
-	down(&open_lock);
+	mutex_lock(&open_lock);
 	md = disk->private_data;
 	if (md && md->usage == 0)
 		md = NULL;
 	if (md)
 		md->usage++;
-	up(&open_lock);
+	mutex_unlock(&open_lock);
 
 	return md;
 }
 
 static void mmc_blk_put(struct mmc_blk_data *md)
 {
-	down(&open_lock);
+	mutex_lock(&open_lock);
 	md->usage--;
 	if (md->usage == 0) {
 		put_disk(md->disk);
 		mmc_cleanup_queue(&md->queue);
 		kfree(md);
 	}
-	up(&open_lock);
+	mutex_unlock(&open_lock);
 }
 
 static int mmc_blk_open(struct inode *inode, struct file *filp)
@@ -461,9 +462,10 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if (err)
 		goto out;
 
-	printk(KERN_INFO "%s: %s %s %luKiB %s\n",
+	printk(KERN_INFO "%s: %s %s %lluKiB %s\n",
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
-		get_capacity(md->disk) >> 1, md->read_only ? "(ro)" : "");
+		(unsigned long long)(get_capacity(md->disk) >> 1),
+		md->read_only ? "(ro)" : "");
 
 	mmc_set_drvdata(card, md);
 	add_disk(md->disk);

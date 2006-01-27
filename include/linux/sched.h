@@ -160,6 +160,7 @@ extern unsigned long nr_iowait(void);
 #define SCHED_NORMAL		0
 #define SCHED_FIFO		1
 #define SCHED_RR		2
+#define SCHED_BATCH		3
 
 struct sched_param {
 	int sched_priority;
@@ -470,9 +471,9 @@ struct signal_struct {
 
 /*
  * Priority of a process goes from 0..MAX_PRIO-1, valid RT
- * priority is 0..MAX_RT_PRIO-1, and SCHED_NORMAL tasks are
- * in the range MAX_RT_PRIO..MAX_PRIO-1. Priority values
- * are inverted: lower p->prio value means higher priority.
+ * priority is 0..MAX_RT_PRIO-1, and SCHED_NORMAL/SCHED_BATCH
+ * tasks are in the range MAX_RT_PRIO..MAX_PRIO-1. Priority
+ * values are inverted: lower p->prio value means higher priority.
  *
  * The MAX_USER_RT_PRIO value allows the actual maximum
  * RT priority to be separate from the value exported to
@@ -631,7 +632,14 @@ struct sched_domain {
 
 extern void partition_sched_domains(cpumask_t *partition1,
 				    cpumask_t *partition2);
-#endif /* CONFIG_SMP */
+
+/*
+ * Maximum cache size the migration-costs auto-tuning code will
+ * search from:
+ */
+extern unsigned int max_cache_size;
+
+#endif	/* CONFIG_SMP */
 
 
 struct io_context;			/* See blkdev.h */
@@ -689,8 +697,11 @@ struct task_struct {
 
 	int lock_depth;		/* BKL lock depth */
 
-#if defined(CONFIG_SMP) && defined(__ARCH_WANT_UNLOCKED_CTXSW)
+#if defined(CONFIG_SMP)
+	int last_waker_cpu;	/* CPU that last woke this task up */
+#if defined(__ARCH_WANT_UNLOCKED_CTXSW)
 	int oncpu;
+#endif
 #endif
 	int prio, static_prio;
 	struct list_head run_list;
@@ -1112,21 +1123,6 @@ static inline int sas_ss_flags(unsigned long sp)
 		: on_sig_stack(sp) ? SS_ONSTACK : 0);
 }
 
-
-#ifdef CONFIG_SECURITY
-/* code is in security.c */
-extern int capable(int cap);
-#else
-static inline int capable(int cap)
-{
-	if (cap_raised(current->cap_effective, cap)) {
-		current->flags |= PF_SUPERPRIV;
-		return 1;
-	}
-	return 0;
-}
-#endif
-
 /*
  * Routines for handling mm_structs
  */
@@ -1245,6 +1241,7 @@ static inline void task_unlock(struct task_struct *p)
 #ifndef __HAVE_THREAD_FUNCTIONS
 
 #define task_thread_info(task) (task)->thread_info
+#define task_stack_page(task) ((void*)((task)->thread_info))
 
 static inline void setup_thread_stack(struct task_struct *p, struct task_struct *org)
 {

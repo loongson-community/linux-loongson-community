@@ -60,6 +60,7 @@
 #include <linux/pmu.h>
 #include <linux/bitops.h>
 #include <linux/sysrq.h>
+#include <linux/mutex.h>
 #include <asm/sections.h>
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -68,7 +69,6 @@
 #include <asm/pmac_feature.h>
 #include <asm/dbdma.h>
 #include <asm/macio.h>
-#include <asm/semaphore.h>
 
 #if defined (CONFIG_SERIAL_PMACZILOG_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
@@ -96,7 +96,7 @@ MODULE_LICENSE("GPL");
  */
 static struct uart_pmac_port	pmz_ports[MAX_ZS_PORTS];
 static int			pmz_ports_count;
-static DECLARE_MUTEX(pmz_irq_sem);
+static DEFINE_MUTEX(pmz_irq_mutex);
 
 static struct uart_driver pmz_uart_reg = {
 	.owner		=	THIS_MODULE,
@@ -922,7 +922,7 @@ static int pmz_startup(struct uart_port *port)
 	if (uap->node == NULL)
 		return -ENODEV;
 
-	down(&pmz_irq_sem);
+	mutex_lock(&pmz_irq_mutex);
 
 	uap->flags |= PMACZILOG_FLAG_IS_OPEN;
 
@@ -940,11 +940,11 @@ static int pmz_startup(struct uart_port *port)
 		dev_err(&uap->dev->ofdev.dev,
 			"Unable to register zs interrupt handler.\n");
 		pmz_set_scc_power(uap, 0);
-		up(&pmz_irq_sem);
+		mutex_unlock(&pmz_irq_mutex);
 		return -ENXIO;
 	}
 
-	up(&pmz_irq_sem);
+	mutex_unlock(&pmz_irq_mutex);
 
 	/* Right now, we deal with delay by blocking here, I'll be
 	 * smarter later on
@@ -981,7 +981,7 @@ static void pmz_shutdown(struct uart_port *port)
 	if (uap->node == NULL)
 		return;
 
-	down(&pmz_irq_sem);
+	mutex_lock(&pmz_irq_mutex);
 
 	/* Release interrupt handler */
        	free_irq(uap->port.irq, uap);
@@ -1002,7 +1002,7 @@ static void pmz_shutdown(struct uart_port *port)
 
 	if (ZS_IS_CONS(uap) || ZS_IS_ASLEEP(uap)) {
 		spin_unlock_irqrestore(&port->lock, flags);
-		up(&pmz_irq_sem);
+		mutex_unlock(&pmz_irq_mutex);
 		return;
 	}
 
@@ -1019,7 +1019,7 @@ static void pmz_shutdown(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	up(&pmz_irq_sem);
+	mutex_unlock(&pmz_irq_mutex);
 
 	pmz_debug("pmz: shutdown() done.\n");
 }
@@ -1591,8 +1591,8 @@ static int pmz_suspend(struct macio_dev *mdev, pm_message_t pm_state)
 
 	state = pmz_uart_reg.state + uap->port.line;
 
-	down(&pmz_irq_sem);
-	down(&state->sem);
+	mutex_lock(&pmz_irq_mutex);
+	mutex_lock(&state->mutex);
 
 	spin_lock_irqsave(&uap->port.lock, flags);
 
@@ -1623,8 +1623,8 @@ static int pmz_suspend(struct macio_dev *mdev, pm_message_t pm_state)
 	/* Shut the chip down */
 	pmz_set_scc_power(uap, 0);
 
-	up(&state->sem);
-	up(&pmz_irq_sem);
+	mutex_unlock(&state->mutex);
+	mutex_unlock(&pmz_irq_mutex);
 
 	pmz_debug("suspend, switching complete\n");
 
@@ -1651,8 +1651,8 @@ static int pmz_resume(struct macio_dev *mdev)
 
 	state = pmz_uart_reg.state + uap->port.line;
 
-	down(&pmz_irq_sem);
-	down(&state->sem);
+	mutex_lock(&pmz_irq_mutex);
+	mutex_lock(&state->mutex);
 
 	spin_lock_irqsave(&uap->port.lock, flags);
 	if (!ZS_IS_OPEN(uap) && !ZS_IS_CONS(uap)) {
@@ -1684,8 +1684,8 @@ static int pmz_resume(struct macio_dev *mdev)
 	}
 
  bail:
-	up(&state->sem);
-	up(&pmz_irq_sem);
+	mutex_unlock(&state->mutex);
+	mutex_unlock(&pmz_irq_mutex);
 
 	/* Right now, we deal with delay by blocking here, I'll be
 	 * smarter later on

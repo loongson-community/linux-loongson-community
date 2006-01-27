@@ -3,6 +3,7 @@
 
 #include <linux/sched.h>
 #include <linux/errno.h>
+#include <linux/capability.h>
 
 #ifdef __KERNEL__
 
@@ -511,7 +512,7 @@ static inline void set_page_links(struct page *page, unsigned long zone,
 extern struct page *mem_map;
 #endif
 
-static inline void *lowmem_page_address(struct page *page)
+static __always_inline void *lowmem_page_address(struct page *page)
 {
 	return __va(page_to_pfn(page) << PAGE_SHIFT);
 }
@@ -1027,7 +1028,7 @@ kernel_map_pages(struct page *page, int numpages, int enable)
 {
 	if (!PageHighMem(page) && !enable)
 		mutex_debug_check_no_locks_freed(page_address(page),
-						 page_address(page + numpages));
+						 numpages * PAGE_SIZE);
 }
 #endif
 

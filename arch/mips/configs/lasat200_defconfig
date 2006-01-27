@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 
-# Wed Jan 11 17:48:31 2006
+# Linux kernel version: 2.6.16-rc1
+# Fri Jan 27 15:40:14 2006
 #
 CONFIG_MIPS=y
 
@@ -178,6 +178,7 @@ CONFIG_SLAB=y
 # CONFIG_TINY_SHMEM is not set
 CONFIG_BASE_SMALL=0
 # CONFIG_SLOB is not set
+CONFIG_OBSOLETE_INTERMODULE=y
 
 #
 # Loadable module support
@@ -284,6 +285,11 @@ CONFIG_TCP_CONG_BIC=y
 # CONFIG_ATALK is not set
 # CONFIG_X25 is not set
 # CONFIG_LAPB is not set
+
+#
+# TIPC Configuration (EXPERIMENTAL)
+#
+# CONFIG_TIPC is not set
 # CONFIG_NET_DIVERT is not set
 # CONFIG_ECONET is not set
 # CONFIG_WAN_ROUTER is not set
@@ -366,6 +372,7 @@ CONFIG_MTD_CFI_UTIL=y
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
 # CONFIG_MTD_ABSENT is not set
+# CONFIG_MTD_OBSOLETE_CHIPS is not set
 
 #
 # Mapping drivers for chip access
@@ -709,6 +716,12 @@ CONFIG_LEGACY_PTY_COUNT=256
 # I2C support
 #
 # CONFIG_I2C is not set
+
+#
+# SPI support
+#
+# CONFIG_SPI is not set
+# CONFIG_SPI_MASTER is not set
 
 #
 # Dallas's 1-wire bus

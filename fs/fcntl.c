@@ -9,6 +9,7 @@
 #include <linux/mm.h>
 #include <linux/fs.h>
 #include <linux/file.h>
+#include <linux/capability.h>
 #include <linux/dnotify.h>
 #include <linux/smp_lock.h>
 #include <linux/slab.h>
@@ -35,7 +36,7 @@ void fastcall set_close_on_exec(unsigned int fd, int flag)
 	spin_unlock(&files->file_lock);
 }
 
-static inline int get_close_on_exec(unsigned int fd)
+static int get_close_on_exec(unsigned int fd)
 {
 	struct files_struct *files = current->files;
 	struct fdtable *fdt;
