@@ -98,7 +98,7 @@ static irqreturn_t scsi_dma_merr_int(int, void *, struct pt_regs *);
 static irqreturn_t scsi_dma_err_int(int, void *, struct pt_regs *);
 static irqreturn_t scsi_dma_int(int, void *, struct pt_regs *);
 
-int dec_esp_detect(Scsi_Host_Template * tpnt);
+int dec_esp_detect(struct scsi_host_template * tpnt);
 
 static int dec_esp_release(struct Scsi_Host *shost)
 {
@@ -110,7 +110,7 @@ static int dec_esp_release(struct Scsi_Host *shost)
 	return 0;
 }
 
-static Scsi_Host_Template driver_template = {
+static struct scsi_host_template driver_template = {
 	.proc_name		= "dec_esp",
 	.proc_info		= &esp_proc_info,
 	.name			= "NCR53C94",
