@@ -25,6 +25,7 @@ static __inline__ __attribute_const__ __u16 ___arch__swab16(__u16 x)
 
 	return x;
 }
+#define __arch__swab16(x)	___arch__swab16(x)
 
 static __inline__ __attribute_const__ __u32 ___arch__swab32(__u32 x)
 {
@@ -36,6 +37,7 @@ static __inline__ __attribute_const__ __u32 ___arch__swab32(__u32 x)
 
 	return x;
 }
+#define __arch__swab32(x)	___arch__swab32(x)
 
 #endif /* CONFIG_CPU_MIPSR2 */
 
@@ -43,9 +45,6 @@ static __inline__ __attribute_const__ __u32 ___arch__swab32(__u32 x)
 #  define __BYTEORDER_HAS_U64__
 #  define __SWAB_64_THRU_32__
 #endif
-
-#define __arch__swab16(x)	___arch__swab16(x)
-#define __arch__swab32(x)	___arch__swab32(x)
 
 #endif /* __GNUC__ */
 
