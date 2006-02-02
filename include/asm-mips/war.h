@@ -169,6 +169,19 @@
 #endif
 
 /*
+ * If mfc0 $12 follows store and the mfc0 is last instruction of a
+ * page and fetching the next instruction causes TLB miss, the result
+ * of the mfc0 might wrongly contain EXL bit.
+ *
+ * ERT-TX49H2-027, ERT-TX49H3-012, ERT-TX49HL3-006, ERT-TX49H4-008
+ *
+ * Workaround: mask EXL bit of the result or place a nop before mfc0.
+ */
+#ifdef CONFIG_CPU_TX49XX
+#define TX49XX_MFC0_WAR 1
+#endif
+
+/*
  * On the RM9000 there is a problem which makes the CreateDirtyExclusive
  * cache operation unusable on SMP systems.
  */
@@ -227,6 +240,9 @@
 #endif
 #ifndef TX49XX_ICACHE_INDEX_INV_WAR
 #define TX49XX_ICACHE_INDEX_INV_WAR	0
+#endif
+#ifndef TX49XX_MFC0_WAR
+#define TX49XX_MFC0_WAR	0
 #endif
 #ifndef RM9000_CDEX_SMP_WAR
 #define RM9000_CDEX_SMP_WAR		0

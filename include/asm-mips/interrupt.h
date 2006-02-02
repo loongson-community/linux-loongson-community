@@ -13,6 +13,7 @@
 
 #include <linux/config.h>
 #include <asm/hazards.h>
+#include <asm/war.h>
 
 __asm__ (
 	"	.macro	local_irq_enable				\n"
@@ -55,8 +56,13 @@ __asm__ (
 	"	di							\n"
 #else
 	"	mfc0	$1,$12						\n"
+#if TX49XX_MFC0_WAR && defined(MODULE)
+	"	ori	$1,3						\n"
+	"	xori	$1,3						\n"
+#else
 	"	ori	$1,1						\n"
 	"	xori	$1,1						\n"
+#endif
 	"	.set	noreorder					\n"
 	"	mtc0	$1,$12						\n"
 #endif
@@ -96,8 +102,13 @@ __asm__ (
 	"	andi	\\result, 1					\n"
 #else
 	"	mfc0	\\result, $12					\n"
+#if TX49XX_MFC0_WAR && defined(MODULE)
+	"	ori	$1, \\result, 3					\n"
+	"	xori	$1, 3						\n"
+#else
 	"	ori	$1, \\result, 1					\n"
 	"	xori	$1, 1						\n"
+#endif
 	"	.set	noreorder					\n"
 	"	mtc0	$1, $12						\n"
 #endif
@@ -136,8 +147,13 @@ __asm__ (
 #else
 	"	mfc0	$1, $12						\n"
 	"	andi	\\flags, 1					\n"
+#if TX49XX_MFC0_WAR && defined(MODULE)
+	"	ori	$1, 3						\n"
+	"	xori	$1, 3						\n"
+#else
 	"	ori	$1, 1						\n"
 	"	xori	$1, 1						\n"
+#endif
 	"	or	\\flags, $1					\n"
 	"	mtc0	\\flags, $12					\n"
 #endif
