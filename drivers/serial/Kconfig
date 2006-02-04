@@ -23,7 +23,7 @@ config SERIAL_8250
 	  work.)
 
 	  To compile this driver as a module, choose M here: the
-	  module will be called serial.
+	  module will be called 8250.
 	  [WARNING: Do not compile this driver as a module if you are using
 	  non-standard serial ports, since the configuration information will
 	  be lost when the driver is unloaded.  This limitation may be lifted
@@ -301,7 +301,7 @@ config SERIAL_AT91_TTYAT
 	depends on SERIAL_AT91=y
 	help
 	  Say Y here if you wish to have the five internal AT91RM9200 UARTs
-	  appear as /dev/ttyAT0-4 (major 240, minor 0-4) instead of the
+	  appear as /dev/ttyAT0-4 (major 204, minor 154-158) instead of the
 	  normal /dev/ttyS0-4 (major 4, minor 64-68). This is necessary if
 	  you also want other UARTs, such as external 8250/16C550 compatible
 	  UARTs.

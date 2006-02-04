@@ -31,7 +31,6 @@
 #include <linux/init.h>
 #include <linux/console.h>
 #include <linux/sysrq.h>
-#include <linux/mca.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/tty.h>
@@ -2027,12 +2026,6 @@ static void serial8250_config_port(struct uart_port *port, int flags)
 	int ret;
 
 	/*
-	 * Don't probe for MCA ports on non-MCA machines.
-	 */
-	if (up->port.flags & UPF_BOOT_ONLYMCA && !MCA_bus)
-		return;
-
-	/*
 	 * Find the region that we can probe for.  This in turn
 	 * tells us whether we can probe for the type of port.
 	 */
@@ -2164,7 +2157,7 @@ serial8250_register_ports(struct uart_driver *drv, struct device *dev)
 /*
  *	Wait for transmitter & holding register to empty
  */
-static inline void wait_for_xmitr(struct uart_8250_port *up)
+static inline void wait_for_xmitr(struct uart_8250_port *up, int bits)
 {
 	unsigned int status, tmout = 10000;
 
@@ -2178,7 +2171,7 @@ static inline void wait_for_xmitr(struct uart_8250_port *up)
 		if (--tmout == 0)
 			break;
 		udelay(1);
-	} while ((status & BOTH_EMPTY) != BOTH_EMPTY);
+	} while ((status & bits) != bits);
 
 	/* Wait up to 1s for flow control if necessary */
 	if (up->port.flags & UPF_CONS_FLOW) {
@@ -2204,8 +2197,6 @@ serial8250_console_write(struct console *co, const char *s, unsigned int count)
 
 	touch_nmi_watchdog();
 
-	spin_lock(&up->port.lock); 
-
 	/*
 	 *	First save the IER then disable the interrupts
 	 */
@@ -2220,7 +2211,7 @@ serial8250_console_write(struct console *co, const char *s, unsigned int count)
 	 *	Now, do each character
 	 */
 	for (i = 0; i < count; i++, s++) {
-		wait_for_xmitr(up);
+		wait_for_xmitr(up, UART_LSR_THRE);
 
 		/*
 		 *	Send the character out.
@@ -2228,7 +2219,7 @@ serial8250_console_write(struct console *co, const char *s, unsigned int count)
 		 */
 		serial_out(up, UART_TX, *s);
 		if (*s == 10) {
-			wait_for_xmitr(up);
+			wait_for_xmitr(up, UART_LSR_THRE);
 			serial_out(up, UART_TX, 13);
 		}
 	}
@@ -2237,10 +2228,8 @@ serial8250_console_write(struct console *co, const char *s, unsigned int count)
 	 *	Finally, wait for transmitter to become empty
 	 *	and restore the IER
 	 */
-	wait_for_xmitr(up);
-	serial_out(up, UART_IER, ier);
-
-	spin_unlock(&up->port.lock);
+	wait_for_xmitr(up, BOTH_EMPTY);
+	serial_out(up, UART_IER, ier | UART_IER_THRI);
 }
 
 static int serial8250_console_setup(struct console *co, char *options)
@@ -2599,15 +2588,11 @@ static int __init serial8250_init(void)
 	if (ret)
 		goto out;
 
-	ret = platform_driver_register(&serial8250_isa_driver);
-	if (ret)
-		goto unreg_uart_drv;
-
 	serial8250_isa_devs = platform_device_alloc("serial8250",
 						    PLAT8250_DEV_LEGACY);
 	if (!serial8250_isa_devs) {
 		ret = -ENOMEM;
-		goto unreg_plat_drv;
+		goto unreg_uart_drv;
 	}
 
 	ret = platform_device_add(serial8250_isa_devs);
@@ -2616,12 +2601,13 @@ static int __init serial8250_init(void)
 
 	serial8250_register_ports(&serial8250_reg, &serial8250_isa_devs->dev);
 
-	goto out;
+	ret = platform_driver_register(&serial8250_isa_driver);
+	if (ret == 0)
+		goto out;
 
+	platform_device_del(serial8250_isa_devs);
  put_dev:
 	platform_device_put(serial8250_isa_devs);
- unreg_plat_drv:
-	platform_driver_unregister(&serial8250_isa_driver);
  unreg_uart_drv:
 	uart_unregister_driver(&serial8250_reg);
  out:

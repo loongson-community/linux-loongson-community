@@ -1399,7 +1399,6 @@ static int b44_open(struct net_device *dev)
 	b44_init_rings(bp);
 	b44_init_hw(bp);
 
-	netif_carrier_off(dev);
 	b44_check_phy(bp);
 
 	err = request_irq(dev->irq, b44_interrupt, SA_SHIRQ, dev->name, dev);
@@ -1464,7 +1463,7 @@ static int b44_close(struct net_device *dev)
 #endif
 	b44_halt(bp);
 	b44_free_rings(bp);
-	netif_carrier_off(bp->dev);
+	netif_carrier_off(dev);
 
 	spin_unlock_irq(&bp->lock);
 
@@ -2000,6 +1999,8 @@ static int __devinit b44_init_one(struct pci_dev *pdev,
 	dev->irq = pdev->irq;
 	SET_ETHTOOL_OPS(dev, &b44_ethtool_ops);
 
+	netif_carrier_off(dev);
+
 	err = b44_get_invariants(bp);
 	if (err) {
 		printk(KERN_ERR PFX "Problem fetching invariants of chip, "
@@ -2136,7 +2137,7 @@ static int __init b44_init(void)
 
 	/* Setup paramaters for syncing RX/TX DMA descriptors */
 	dma_desc_align_mask = ~(dma_desc_align_size - 1);
-	dma_desc_sync_size = max(dma_desc_align_size, sizeof(struct dma_desc));
+	dma_desc_sync_size = max_t(unsigned int, dma_desc_align_size, sizeof(struct dma_desc));
 
 	return pci_module_init(&b44_driver);
 }

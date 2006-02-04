@@ -2456,7 +2456,7 @@ static void ipw_eeprom_init_sram(struct ipw_priv *priv)
 	   copy.  Otherwise let the firmware know to perform the operation
 	   on it's own
 	 */
-	if ((priv->eeprom + EEPROM_VERSION) != 0) {
+	if (priv->eeprom[EEPROM_VERSION] != 0) {
 		IPW_DEBUG_INFO("Writing EEPROM data into SRAM\n");
 
 		/* write the eeprom data to sram */
@@ -8012,6 +8012,10 @@ static int ipw_sw_reset(struct ipw_priv *priv, int init)
 	else
 		IPW_DEBUG_INFO("Auto adhoc creation disabled.\n");
 
+	priv->config &= ~CFG_STATIC_ESSID;
+	priv->essid_len = 0;
+	memset(priv->essid, 0, IW_ESSID_MAX_SIZE);
+
 	if (disable) {
 		priv->status |= STATUS_RF_KILL_SW;
 		IPW_DEBUG_INFO("Radio disabled.\n");
@@ -8936,14 +8940,12 @@ static int ipw_request_direct_scan(struct ipw_priv *priv, char *essid,
 	IPW_DEBUG_HC("starting request direct scan!\n");
 
 	if (priv->status & (STATUS_SCANNING | STATUS_SCAN_ABORTING)) {
-		err = wait_event_interruptible(priv->wait_state,
-					       !(priv->
-						 status & (STATUS_SCANNING |
-							   STATUS_SCAN_ABORTING)));
-		if (err) {
-			IPW_DEBUG_HC("aborting direct scan");
-			goto done;
-		}
+		/* We should not sleep here; otherwise we will block most
+		 * of the system (for instance, we hold rtnl_lock when we
+		 * get here).
+		 */
+		err = -EAGAIN;
+		goto done;
 	}
 	memset(&scan, 0, sizeof(scan));
 
@@ -11037,7 +11039,6 @@ static int ipw_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	net_dev->set_multicast_list = ipw_net_set_multicast_list;
 	net_dev->set_mac_address = ipw_net_set_mac_address;
 	priv->wireless_data.spy_data = &priv->ieee->spy_data;
-	priv->wireless_data.ieee80211 = priv->ieee;
 	net_dev->wireless_data = &priv->wireless_data;
 	net_dev->wireless_handlers = &ipw_wx_handler_def;
 	net_dev->ethtool_ops = &ipw_ethtool_ops;
@@ -11123,8 +11124,8 @@ static void ipw_pci_remove(struct pci_dev *pdev)
 	/* Free MAC hash list for ADHOC */
 	for (i = 0; i < IPW_IBSS_MAC_HASH_SIZE; i++) {
 		list_for_each_safe(p, q, &priv->ibss_mac_hash[i]) {
-			kfree(list_entry(p, struct ipw_ibss_seq, list));
 			list_del(p);
+			kfree(list_entry(p, struct ipw_ibss_seq, list));
 		}
 	}
 

@@ -185,6 +185,7 @@ extern enum system_states {
 	SYSTEM_HALT,
 	SYSTEM_POWER_OFF,
 	SYSTEM_RESTART,
+	SYSTEM_SUSPEND_DISK,
 } system_state;
 
 #define TAINT_PROPRIETARY_MODULE	(1<<0)
@@ -228,6 +229,7 @@ extern void dump_stack(void);
 	ntohs((addr).s6_addr16[6]), \
 	ntohs((addr).s6_addr16[7])
 #define NIP6_FMT "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x"
+#define NIP6_SEQFMT "%04x%04x%04x%04x%04x%04x%04x%04x"
 
 #if defined(__LITTLE_ENDIAN)
 #define HIPQUAD(addr) \

@@ -48,7 +48,7 @@ extern void set_normalized_timespec(struct timespec *ts, time_t sec, long nsec);
  * Returns true if the timespec is norm, false if denorm:
  */
 #define timespec_valid(ts) \
-	(((ts)->tv_sec >= 0) && (((unsigned) (ts)->tv_nsec) < NSEC_PER_SEC))
+	(((ts)->tv_sec >= 0) && (((unsigned long) (ts)->tv_nsec) < NSEC_PER_SEC))
 
 /*
  * 64-bit nanosec type. Large enough to span 292+ years in nanosecond
@@ -74,7 +74,7 @@ extern void do_gettimeofday(struct timeval *tv);
 extern int do_settimeofday(struct timespec *tv);
 extern int do_sys_settimeofday(struct timespec *tv, struct timezone *tz);
 #define do_posix_clock_monotonic_gettime(ts) ktime_get_ts(ts)
-extern long do_utimes(char __user *filename, struct timeval *times);
+extern long do_utimes(int dfd, char __user *filename, struct timeval *times);
 struct itimerval;
 extern int do_setitimer(int which, struct itimerval *value,
 			struct itimerval *ovalue);
