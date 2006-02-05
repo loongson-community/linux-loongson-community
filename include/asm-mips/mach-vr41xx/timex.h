@@ -7,7 +7,7 @@
  */
 /*
  * Changes:
- *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ *  Yoichi Yuasa <yoichi_yuasa@tripeaks.co.jp>
  *  - CLOCK_TICK_RATE is changed into 32768 from 6144000.
  */
 #ifndef __ASM_MACH_VR41XX_TIMEX_H
