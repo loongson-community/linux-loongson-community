@@ -228,9 +228,6 @@
 #ifndef TX49XX_ICACHE_INDEX_INV_WAR
 #define TX49XX_ICACHE_INDEX_INV_WAR	0
 #endif
-#ifndef TX49XX_MFC0_WAR
-#define TX49XX_MFC0_WAR	0
-#endif
 #ifndef RM9000_CDEX_SMP_WAR
 #define RM9000_CDEX_SMP_WAR		0
 #endif
