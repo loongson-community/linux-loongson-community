@@ -202,7 +202,7 @@ static inline int page_is_ram(unsigned long pagenr)
 }
 
 static struct kcore_list kcore_mem, kcore_vmalloc;
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 static struct kcore_list kcore_kseg0;
 #endif
 
@@ -255,7 +255,7 @@ void __init mem_init(void)
 	datasize =  (unsigned long) &_edata - (unsigned long) &_etext;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
-#ifdef CONFIG_MIPS64
+#ifdef CONFIG_64BIT
 	if ((unsigned long) &_text > (unsigned long) CKSEG0)
 		/* The -4 is a hack so that user tools don't have to handle
 		   the overflow.  */
