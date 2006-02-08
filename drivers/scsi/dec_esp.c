@@ -133,7 +133,7 @@ static struct scsi_host_template driver_template = {
 #include "scsi_module.c"
 
 /***************************************************************** Detection */
-int dec_esp_detect(struct scsi_host_template * tpnt)
+static int dec_esp_detect(struct scsi_host_template * tpnt)
 {
 	struct NCR_ESP *esp;
 	struct ConfigDev *esp_dev;
