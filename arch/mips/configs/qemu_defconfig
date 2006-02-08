@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.16-rc1
-# Tue Jan 31 01:38:31 2006
+# Linux kernel version: 2.6.16-rc2
+# Fri Feb  3 17:14:27 2006
 #
 CONFIG_MIPS=y
 
@@ -585,6 +585,10 @@ CONFIG_DUMMY_CONSOLE=y
 
 #
 # SN Devices
+#
+
+#
+# EDAC - error detection and reporting (RAS)
 #
 
 #

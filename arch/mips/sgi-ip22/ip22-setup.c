@@ -82,7 +82,7 @@ void __init plat_setup(void)
 	/* ARCS console environment variable is set to "g?" for
 	 * graphics console, it is set to "d" for the first serial
 	 * line and "d2" for the second serial line.
-	 * 
+	 *
 	 * Need to check if the case is 'g' but no keyboard:
 	 * (ConsoleIn/Out = serial)
 	 */
