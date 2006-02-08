@@ -633,6 +633,7 @@ einval:	li	v0, -EINVAL
 	sys	sys_faccessat		3	/* 4300 */
 	sys	sys_pselect6		6
 	sys	sys_ppoll		5
+	sys	sys_unshare		1
 	.endm
 
 	/* We pre-compute the number of _instruction_ bytes needed to

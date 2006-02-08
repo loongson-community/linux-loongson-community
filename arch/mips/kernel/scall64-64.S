@@ -459,3 +459,4 @@ sys_call_table:
 	PTR	sys_faccessat
 	PTR	sys_pselect6			/* 5260 */
 	PTR	sys_ppoll
+	PTR	sys_unshare

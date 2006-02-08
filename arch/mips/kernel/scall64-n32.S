@@ -385,3 +385,4 @@ EXPORT(sysn32_call_table)
 	PTR	sys_faccessat
 	PTR	sys_pselect6
 	PTR	sys_ppoll			/* 6265 */
+	PTR	sys_unshare

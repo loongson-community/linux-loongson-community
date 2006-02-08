@@ -507,4 +507,5 @@ sys_call_table:
 	PTR	sys_faccessat			/* 4300 */
 	PTR	sys_pselect6
 	PTR	sys_ppoll
+	PTR	sys_unshare
 	.size	sys_call_table,.-sys_call_table
