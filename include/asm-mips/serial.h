@@ -103,28 +103,6 @@
 #define IVR_SERIAL_PORT_DEFNS
 #endif
 
-#ifdef CONFIG_SERIAL_AU1X00
-#include <asm/mach-au1x00/au1000.h>
-#ifdef CONFIG_SOC_AU1000
-#define AU1000_SERIAL_PORT_DEFNS                       \
-    { .baud_base = 0, .port = UART0_ADDR,              \
-      .iomem_base = (unsigned char *)UART0_ADDR,       \
-      .irq = AU1000_UART0_INT, .flags = STD_COM_FLAGS, \
-      .iomem_reg_shift = 2 },                          \
-    { .baud_base = 0, .port = UART1_ADDR,              \
-      .iomem_base = (unsigned char *)UART1_ADDR,       \
-      .irq = AU1000_UART1_INT, .flags = STD_COM_FLAGS, \
-      .iomem_reg_shift = 2 },                          \
-    { .baud_base = 0, .port = UART2_ADDR,              \
-      .iomem_base = (unsigned char *)UART2_ADDR,       \
-      .irq = AU1000_UART2_INT, .flags = STD_COM_FLAGS, \
-      .iomem_reg_shift = 2 },                          \
-    { .baud_base = 0, .port = UART3_ADDR,              \
-      .iomem_base = (unsigned char *)UART3_ADDR,       \
-      .irq = AU1000_UART3_INT, .flags = STD_COM_FLAGS, \
-      .iomem_reg_shift = 2 },
-#endif
-
 #ifdef CONFIG_SOC_AU1500
 #define AU1000_SERIAL_PORT_DEFNS                       \
     { .baud_base = 0, .port = UART0_ADDR,              \
