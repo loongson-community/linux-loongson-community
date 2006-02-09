@@ -23,6 +23,8 @@ static void __init qemu_timer_setup(struct irqaction *irq)
 void __init plat_setup(void)
 {
 	set_io_port_base(QEMU_PORT_BASE);
+#ifdef CONFIG_VT
 	qvga_init();
+#endif
 	board_timer_setup = qemu_timer_setup;
 }
