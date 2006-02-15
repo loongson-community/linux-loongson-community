@@ -98,7 +98,7 @@ static irqreturn_t scsi_dma_merr_int(int, void *, struct pt_regs *);
 static irqreturn_t scsi_dma_err_int(int, void *, struct pt_regs *);
 static irqreturn_t scsi_dma_int(int, void *, struct pt_regs *);
 
-int dec_esp_detect(struct scsi_host_template * tpnt);
+static int dec_esp_detect(struct scsi_host_template * tpnt);
 
 static int dec_esp_release(struct Scsi_Host *shost)
 {
